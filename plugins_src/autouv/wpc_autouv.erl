@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.233 2004/05/08 17:46:39 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.234 2004/05/10 06:01:18 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -566,6 +566,32 @@ handle_drop(_DropData, _) ->
 is_power_of_two(X) ->
     (X band -X ) == X.
 
+%%%
+%%% Update charts from new state of Geometry window.
+%%%
+
+new_geom_state(#st{shapes=Shs}=GeomSt, AuvSt0) ->
+    AuvSt = new_geom_state_1(Shs, AuvSt0),
+    update_selection(GeomSt, AuvSt).
+
+new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
+    case {gb_trees:lookup(Id, Shs),gb_trees:lookup(Id, Orig)} of
+	{{value,We},{value,We}} -> AuvSt;
+	{{value,#we{es=Etab}},{value,#we{es=Etab}}} -> AuvSt;
+	{{value,#we{es=Etab1}=We},{value,#we{es=Etab2}}} ->
+	    case gb_trees:keys(Etab1) =:= gb_trees:keys(Etab2) of
+		false -> topology_updated(We, AuvSt);
+		true -> uvs_updated(We, AuvSt)
+	    end
+    end.
+
+uvs_updated(We, AuvSt) ->
+    topology_updated(We, AuvSt).
+
+topology_updated(#we{fs=Ftab}=We, St) ->
+    Charts = init_edit(gb_trees:keys(Ftab), We),
+    St#st{shapes=Charts}.
+
 %% update_selection(GemoSt, AuvSt0) -> AuvSt
 %%  Update the selection in the AutoUV window given a selection
 %%  from a geometry window.
@@ -579,10 +605,11 @@ update_selection(#st{selmode=Mode,sel=Sel}=St0,
     case keysearch(Id, 1, Sel) of
 	false ->
 	    %% No selection in any chart - clear selection.
-	    AuvSt = reset_sel(AuvSt0#st{bb=Uvs#uvstate{st=St0}}),
+	    AuvSt = AuvSt0#st{sel=[],bb=Uvs#uvstate{st=St0}},
 	    get_event(AuvSt);
-	{value,{Id,Elems}} when AuvMode == body ->
-	    %% Body selection in charts - must be speciallay handled.
+ 	{value,{Id,Elems0}} when AuvMode == body ->
+ 	    %% Body selection in charts - must be specially handled.
+ 	    Elems = gb_sets:to_list(Elems0),
 	    NewSel = update_body_sel(Mode, Elems, Charts),
 	    AuvSt = AuvSt0#st{sel=sort(NewSel),sh=false,
 			      bb=Uvs#uvstate{st=St0}},
@@ -717,12 +744,6 @@ update_geom_selection(#st{selmode=vertex,sel=Sel,
     Fs = gb_sets:from_list(Fs0),
     wpa:sel_set(vertex, [{Id,Fs}], GeomSt).
 
-reset_sel(St0) ->
-    wings_sel:reset(St0).
-%     case wings_sel:reset(St0) of
-% 	#st{selmode=body,sh=false}=St -> St;
-% 	St -> St#st{selmode=body,sh=false}
-%    end.
 
 %%%% GUI Operations
 
@@ -798,32 +819,6 @@ orig_pos(We = #we{name=#ch{vmap=Vmap}},St) ->
 	       end, gb_trees:to_list(We#we.vp)),
     gb_trees:from_orddict(Vs3d).
 
-
-%%%
-%%% Verify that the model in the geometry window hasn't changed its topology.
-%%%
-
-new_geom_state(#st{shapes=Shs}=GeomSt, AuvSt0) ->
-    AuvSt = new_geom_state_1(Shs, AuvSt0),
-    update_selection(GeomSt, AuvSt).
-
-new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
-    case {gb_trees:lookup(Id, Shs),gb_trees:lookup(Id, Orig)} of
-	{{value,We},{value,We}} -> AuvSt;
-	{{value,#we{es=Etab}},{value,#we{es=Etab}}} -> AuvSt;
-	{{value,#we{es=Etab1}=We},{value,#we{es=Etab2}}} ->
-	    case gb_trees:keys(Etab1) =:= gb_trees:keys(Etab2) of
-		false -> topology_updated(We, AuvSt);
-		true -> uvs_updated(We, AuvSt)
-	    end
-    end.
-
-uvs_updated(We, AuvSt) ->
-    topology_updated(We, AuvSt).
-
-topology_updated(#we{fs=Ftab}=We, St) ->
-    Charts = init_edit(gb_trees:keys(Ftab), We),
-    St#st{shapes=Charts}.
 
 %%%
 %%% Draw routines.
