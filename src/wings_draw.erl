@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.121 2003/06/06 17:32:48 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.122 2003/06/06 20:14:20 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([update_dlists/1,update_sel_dlist/0,
 	 split/3,original_we/1,update_dynamic/2,
-	 update_mirror/0,draw_faces/3,smooth_dlist/2]).
+	 update_mirror/0,smooth_dlist/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -26,11 +26,11 @@
 	{static_vs,
 	 dyn_vs,
 	 dyn_faces,
-	 dyn_ftab,
+	 dyn_plan,				%Plan for drawing dynamic faces.
 	 v2f=none,				%Vertex => face
 	 f2v=none,				%Face => vertex
-	 orig_we,
-	 st}).
+	 orig_we
+	}).
 
 %%%
 %%% Update display lists.
@@ -313,9 +313,10 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd}=D,
 
     StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
     StaticVs = sort(insert_vtx_data(StaticVs0, We#we.vp, [])),
+    DynPlan = wings_draw_util:prepare(FtabDyn, We, St),
     Split = Split0#split{static_vs=StaticVs,dyn_vs=DynVs,
-			 dyn_faces=Faces,dyn_ftab=FtabDyn,
-			 orig_we=We,st=St},
+			 dyn_faces=Faces,dyn_plan=DynPlan,
+			 orig_we=We},
     #dlo{work=[List],mirror=M,vs=VsDlist,
 	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd}.
 
@@ -326,12 +327,12 @@ update_dynamic(#dlo{work=[_|_],src_we=We}=D, Vtab) when ?IS_LIGHT(We) ->
     wings_light:update_dynamic(D, Vtab);
 update_dynamic(#dlo{work=[Work|_],vs=VsList0,
 		    src_we=We0,split=Split}=D, Vtab0) ->
-    #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_ftab=Ftab,st=St} = Split,
+    #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_plan=DynPlan} = Split,
     Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
     We = We0#we{vp=Vtab},
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    draw_faces(Ftab, We, St),
+    draw_faces(DynPlan, We),
     gl:endList(),
     VsList = update_dynamic_vs(VsList0, DynVs, We),
     D#dlo{work=[Work,List],vs=VsList,src_we=We}.
@@ -394,34 +395,45 @@ static_dlist(Faces, Ftab, We, St) ->
 %%% Drawing routines for workmode.
 %%%
 
-draw_faces(Ftab, #we{mode=uv}=We, St) ->
-    case wings_pref:get_value(show_textures) of
-	true ->
-	    MatFaces = wings_material:mat_faces(Ftab, We),
-	    draw_uv_faces(MatFaces, We, St);
-	false ->
-	    draw_mat_faces([{default,Ftab}], We, St)
-    end;
-draw_faces(Ftab, #we{mode=material}=We, St) ->
-    MatFaces = case wings_pref:get_value(show_materials) of
-		   true -> wings_material:mat_faces(Ftab, We);
-		   false -> [{default,Ftab}]
-	       end,
-    Tess = wings_draw_util:tess(),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-    draw_mat_faces(MatFaces, We, St),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA);
-draw_faces(Ftab, #we{mode=vertex}=We, St) ->
-    MatFaces = [{default,Ftab}],
-    case wings_pref:get_value(show_colors) of
-	false ->
+draw_faces(Ftab, We, St) ->
+    draw_faces(wings_draw_util:prepare(Ftab, We, St), We).
+
+draw_faces({uv,MatFaces,St}, We) ->
+    draw_uv_faces(MatFaces, We, St);
+draw_faces({material,MatFaces,St}, We) ->
 	    draw_mat_faces(MatFaces, We, St);
-	true ->
-	    gl:enable(?GL_COLOR_MATERIAL),
-	    gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
-	    draw_uv_faces(MatFaces, We, St),
-	    gl:disable(?GL_COLOR_MATERIAL)
-    end.
+draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
+    wings_material:apply_material(default, Mtab),
+    gl:enable(?GL_COLOR_MATERIAL),
+    gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
+    draw_vtx_faces(Colors, We),
+    gl:disable(?GL_COLOR_MATERIAL).
+
+draw_vtx_faces({Same,Diff}, We) ->
+    Draw = fun() ->
+		   Tess = wings_draw_util:tess(),
+		   glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
+		   draw_vtx_faces_1(Same, We),
+		   glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
+		   draw_vtx_faces_3(Diff, We)
+	   end,
+    wings_draw_util:begin_end(Draw).
+
+draw_vtx_faces_1([{Col,Faces}|Fs], We) ->
+    gl:color3fv(Col),
+    draw_vtx_faces_2(Faces, We),
+    draw_vtx_faces_1(Fs, We);
+draw_vtx_faces_1([], _) -> ok.
+
+draw_vtx_faces_2([F|Fs], We) ->
+    wings_draw_util:flat_face(F, We),
+    draw_vtx_faces_2(Fs, We);
+draw_vtx_faces_2([], _) -> ok.
+
+draw_vtx_faces_3([F|Fs], We) ->
+    wings_draw_util:face(F, We),
+    draw_vtx_faces_3(Fs, We);
+draw_vtx_faces_3([], _) -> ok.
 
 draw_uv_faces(MatFaces, We, St) ->
     wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St, fun draw_uv_faces_fun/2).
@@ -432,7 +444,10 @@ draw_uv_faces_fun([{Face,Edge}|Fs], We) ->
 draw_uv_faces_fun([], _We) -> ok.
 
 draw_mat_faces(MatFaces, We, St) ->
-    wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St, fun draw_mat_faces_fun/2).
+    Tess = wings_draw_util:tess(),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
+    wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St, fun draw_mat_faces_fun/2),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA).
 
 draw_mat_faces_fun([{Face,Edge}|Fs], We) ->
     wings_draw_util:flat_face(Face, Edge, We),

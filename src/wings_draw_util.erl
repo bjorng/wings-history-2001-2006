@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.72 2003/06/06 17:32:49 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.73 2003/06/06 20:14:21 bjorng Exp $
 %%
 
 -module(wings_draw_util).
 -export([init/0,tess/0,begin_end/1,begin_end/2,
 	 update/2,map/2,fold/2,changed_materials/1,
-	 render/1,call/1,mat_faces/5,face/2,face/3,flat_face/2,flat_face/3]).
+	 render/1,call/1,
+	 prepare/3,mat_faces/5,face/2,face/3,flat_face/2,flat_face/3]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -487,6 +488,63 @@ draw_normals(#dlo{normals=Ns}) ->
     gl:color3f(0, 0, 1),
     gl:lineWidth(2.0),
     call(Ns).
+
+%%%
+%%% Set material and draw faces.
+%%%
+
+prepare(Ftab, #we{mode=uv}=We, St) ->
+    case wings_pref:get_value(show_textures) of
+	true ->
+	    MatFaces = wings_material:mat_faces(Ftab, We),
+	    {uv,MatFaces,St};
+	false ->
+	    {material,[{default,Ftab}],St}
+    end;
+prepare(Ftab, #we{mode=material}=We, St) ->
+    MatFaces = case wings_pref:get_value(show_materials) of
+		   true -> wings_material:mat_faces(Ftab, We);
+		   false -> [{default,Ftab}]
+	       end,
+    {material,MatFaces,St};
+prepare(Ftab, #we{mode=vertex}=We, St) ->
+    MatFaces = [{default,Ftab}],
+    case wings_pref:get_value(show_colors) of
+	false ->
+	    {material,MatFaces,St};
+	true ->
+	    {color,vtx_color_split(Ftab, We),St}
+    end.
+
+vtx_color_split(Ftab0, #we{es=Etab}) ->
+    Ftab1 = sofs:from_external(Ftab0, [{face,edge}]),
+    Ftab = sofs:domain(Ftab1),
+    FaceCol0 = vtx_color_split_1(gb_trees:values(Etab), []),
+    FaceCol1 = sofs:relation(FaceCol0, [{face,color}]),
+    FaceCol2 = sofs:restriction(FaceCol1, Ftab),
+    FaceCol = sofs:to_external(FaceCol2),
+    vtx_color_split_2(FaceCol, [], []).
+
+vtx_color_split_1([#edge{a=A,b=B,lf=Lf,rf=Rf}|Es], Acc) ->
+    vtx_color_split_1(Es, [{Lf,A},{Rf,B}|Acc]);
+vtx_color_split_1([], Acc) -> Acc.
+
+vtx_color_split_2([{F,Col}|Fs], SameAcc, DiffAcc) ->
+    vtx_color_split_3(Fs, F, Col, SameAcc, DiffAcc);
+vtx_color_split_2([], SameAcc, DiffAcc) ->
+    {wings_util:rel2fam(SameAcc),DiffAcc}.
+
+vtx_color_split_3([{F,Col}|Fs], F, Col, SameAcc, DiffAcc) ->
+    vtx_color_split_3(Fs, F, Col, SameAcc, DiffAcc);
+vtx_color_split_3([{F,_}|Fs], F, _, SameAcc, DiffAcc) ->
+    vtx_color_split_4(Fs, F, SameAcc, [F|DiffAcc]);
+vtx_color_split_3(Fs, F, Col, SameAcc, DiffAcc) ->
+    vtx_color_split_2(Fs, [{Col,F}|SameAcc], DiffAcc).
+
+vtx_color_split_4([{F,_}|Fs], F, SameAcc, DiffAcc) ->
+    vtx_color_split_4(Fs, F, SameAcc, DiffAcc);
+vtx_color_split_4(Fs, _, SameAcc, DiffAcc) ->
+    vtx_color_split_2(Fs, SameAcc, DiffAcc).
 
 %%%
 %%% Set material and draw faces.
