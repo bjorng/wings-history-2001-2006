@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_region.erl,v 1.4 2002/02/18 06:35:49 bjorng Exp $
+%%     $Id: wpc_region.erl,v 1.5 2002/08/09 06:19:59 bjorng Exp $
 %%
 
 -module(wpc_region).
@@ -66,7 +66,7 @@ command({face,{flatten,region}}, St) ->
       fun(Faces, We) ->
 	      flatten_region(Faces, We)
       end, St);
-command(Cmd, _) -> next.
+command(_, _) -> next.
 
 %%%
 %%% Move Region.
@@ -78,10 +78,10 @@ move_region(Faces, We) ->
 move_region([Fs|Regs], We, Acc0) ->
     Acc = case wpa:face_outer_vertices(Fs, We) of
 	      [OuterVs] -> move_region(OuterVs, Fs, We, Acc0);
-	      Other -> region_error()
+	      _ -> region_error()
 	  end,
     move_region(Regs, We, Acc);
-move_region([], We, Acc) -> Acc.
+move_region([], _, Acc) -> Acc.
 
 move_region(OuterVs0, Faces, We, Acc) ->
     OuterVs = reverse(OuterVs0),
@@ -98,10 +98,10 @@ scale_region(Faces, We) ->
 scale_region([Fs|Regs], We, Acc0) ->
     Acc = case wpa:face_outer_vertices(Fs, We) of
 	      [OuterVs] -> scale_region(OuterVs, Fs, We, Acc0);
-	      Other -> region_error()
+	      _ -> region_error()
 	  end,
     scale_region(Regs, We, Acc);
-scale_region([], We, Acc) -> Acc.
+scale_region([], _, Acc) -> Acc.
 
 scale_region(OuterVs0, Faces, We, Acc) ->
     OuterVs = reverse(OuterVs0),
@@ -124,10 +124,10 @@ rotate_region(Faces, We, Acc) ->
 rotate_region_1([Fs|Regs], We, Acc0) ->
     Acc = case wpa:face_outer_vertices(Fs, We) of
 	      [OuterVs] -> rotate_region(OuterVs, Fs, We, Acc0);
-	      Other -> region_error()
+	      _ -> region_error()
 	  end,
     rotate_region_1(Regs, We, Acc);
-rotate_region_1([], We, Acc) -> Acc.
+rotate_region_1([], _, Acc) -> Acc.
 
 rotate_region(OuterVs0, Faces, We, Acc) ->
     OuterVs = reverse(OuterVs0),
@@ -162,7 +162,7 @@ flatten_region(Faces, We) ->
 flatten_region_1([Fs|Regs], We0) ->
     We = case wpa:face_outer_vertices(Fs, We0) of
 	     [OuterVs] -> flatten_region_2(OuterVs, We0);
-	     Other -> region_error()
+	     _ -> region_error()
 	 end,
     flatten_region_1(Regs, We);
 flatten_region_1([], We) -> We.
@@ -176,4 +176,4 @@ flatten_region_2(Vs, We) ->
 %%%
 
 region_error() ->
-    wpa:error("Each must region must have exactly one edge loop.").
+    wpa:error("Each region must have exactly one edge loop.").
