@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.102 2003/02/22 13:18:39 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.103 2003/02/23 10:36:46 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -64,12 +64,12 @@ prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, [We|Wes]) ->
     {D#dlo{src_we=We,split=Split#split{orig_we=We}},Wes};
 prepare_fun(#dlo{src_we=We}=D, [We|Wes]) ->
     {D#dlo{src_we=We},Wes};
-prepare_fun(#dlo{src_we=#we{id=Id},wire=W}, [#we{id=Id,perm=Perm}=We|Wes]) ->
+prepare_fun(#dlo{src_we=#we{id=Id}}, [#we{id=Id,perm=Perm}=We|Wes]) ->
     if 
 	?IS_VISIBLE(Perm) ->
-	    {#dlo{src_we=We,wire=W,mirror=check_mirror(We)},Wes};
+	    {#dlo{src_we=We,mirror=check_mirror(We)},Wes};
 	true ->
-	    {#dlo{src_we=empty_we(We),wire=W},Wes}
+	    {#dlo{src_we=empty_we(We)},Wes}
     end;
 prepare_fun(#dlo{}, Wes) ->
     {deleted,Wes}.
@@ -299,7 +299,7 @@ split(#dlo{src_we=#we{es=Etab}}=D, #split{v2f=none}=Split, Vs, St) ->
     V2F = sofs:relation(V2F0, [{vertex,face}]),
     F2V = sofs:converse(V2F),
     split(D, Split#split{v2f=V2F,f2v=F2V}, Vs, St);
-split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We}=D,
+split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We}=D,
       #split{v2f=V2F,f2v=F2V,dyn_faces=Faces0}=Split0, Vs0, St) ->
     Vs = sofs:set(Vs0, [vertex]),
     Faces1 = sofs:image(V2F, Vs),
@@ -327,7 +327,7 @@ split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We}=D,
     Split = Split0#split{static_vs=StaticVs,dyn_vs=DynVs,
 			 dyn_faces=Faces,dyn_ftab=FtabDyn,
 			 orig_we=We,st=St},
-    #dlo{work=[List],wire=W,mirror=M,vs=VsDlist,
+    #dlo{work=[List],mirror=M,vs=VsDlist,
 	 src_sel=Sel,src_we=WeDyn,split=Split}.
 
 original_we(#dlo{split=#split{orig_we=We}}) -> We.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.54 2003/02/23 07:29:32 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.55 2003/02/23 10:36:46 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -262,8 +262,9 @@ render_object_1(#dlo{transparent=true}=D, _, false, true) ->
 render_object_1(#dlo{transparent=false}=D, _, false, RenderTrans) ->
     render_smooth(D, RenderTrans).
 
-render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
+render_plain(#dlo{work=Faces,src_we=We}=D, SelMode) ->
     %% Draw faces for winged-edge-objects.
+    Wire = wire(We),
     case Wire of
 	false ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
@@ -325,6 +326,10 @@ render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
     draw_hard_edges(D),
     draw_normals(D).
 
+wire(#we{id=Id}) ->
+    W = wings_wm:get_prop(wireframed_objects),
+    gb_sets:is_member(Id, W).
+
 render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans}=D, RenderTrans) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
@@ -358,10 +363,10 @@ render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans}=D, RenderTrans) ->
     gl:depthMask(?GL_TRUE),
     draw_edges(D).
 
-draw_edges(#dlo{work=Work,wire=Wire}=D) ->
+draw_edges(#dlo{work=Work,src_we=We}=D) ->
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
-    case Wire of
+    case wire(We) of
 	false -> ok;
 	true ->
 	    gl:color3fv(wings_pref:get_value(wire_edge_color)),

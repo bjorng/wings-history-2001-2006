@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.100 2003/02/23 09:06:05 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.101 2003/02/23 10:36:46 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -106,22 +106,22 @@ command(workmode, St) ->
 command(smoothed_preview, St) ->
     ?SLOW(smoothed_preview(St));
 command(toggle_wireframe, #st{sel=[]}=St) ->
-    mode_change_all(toggle),
+    mode_change_all(toggle, St),
     St;
 command(toggle_wireframe, St) ->
-    mode_change_sel(toggle),
+    mode_change_sel(toggle, St),
     St;
 command(wireframe, #st{sel=[]}=St) ->
-    mode_change_all(true),
+    mode_change_all(true, St),
     St;
 command(wireframe, St) ->
-    mode_change_sel(true),
+    mode_change_sel(true, St),
     St;
 command(shade, #st{sel=[]}=St) ->
-    mode_change_all(false),
+    mode_change_all(false, St),
     St;
 command(shade, St) ->
-    mode_change_sel(false),
+    mode_change_sel(false, St),
     St;
 command(orthogonal_view, St) ->
     toggle_option(orthogonal_view),
@@ -210,22 +210,37 @@ virtual_mirror(freeze, #st{shapes=Shs0}=St) ->
 	Shs -> {save_state,wings_sel:valid_sel(St#st{shapes=Shs})}
     end.
 
-mode_change_all(Wire) ->
-    wings_draw_util:map(fun mode_change_all/2, Wire).
+mode_change_all(false, _) ->
+    wings_wm:set_prop(wireframed_objects, gb_sets:empty());
+mode_change_all(true, #st{shapes=Shs}) ->
+    All = gb_sets:from_ordset(gb_trees:keys(Shs)),
+    wings_wm:set_prop(wireframed_objects, All);
+mode_change_all(toggle, #st{shapes=Shs}) ->
+    Prev = wings_wm:get_prop(wireframed_objects),
+    All = gb_sets:from_ordset(gb_trees:keys(Shs)),
+    New = gb_sets:difference(All, Prev),
+    wings_wm:set_prop(wireframed_objects, New).
 
-mode_change_all(#dlo{wire=Wire}=D, toggle) ->
-    {D#dlo{wire=not Wire},toggle};
-mode_change_all(D, Wire) ->
-    {D#dlo{wire=Wire},Wire}.
+mode_change_sel(false, St) ->
+    Prev = wings_wm:get_prop(wireframed_objects),
+    Sel = sel_to_set(St),
+    New = gb_sets:difference(Prev, Sel),
+    wings_wm:set_prop(wireframed_objects, New);
+mode_change_sel(true, St) ->
+    Prev = wings_wm:get_prop(wireframed_objects),
+    Sel = sel_to_set(St),
+    New = gb_sets:union(Prev, Sel),
+    wings_wm:set_prop(wireframed_objects, New);
+mode_change_sel(toggle, St) ->
+    W0 = wings_wm:get_prop(wireframed_objects),
+    Sel = sel_to_set(St),
+    W1 = gb_sets:difference(W0, Sel),
+    W = gb_sets:union(W1, gb_sets:difference(Sel, W0)),
+    wings_wm:set_prop(wireframed_objects, W).
 
-mode_change_sel(Wire) ->
-    wings_draw_util:map(fun mode_change_sel/2, Wire).
-
-mode_change_sel(#dlo{wire=Wire,src_sel={_,_}}=D, toggle) ->
-    {D#dlo{wire=not Wire},toggle};
-mode_change_sel(#dlo{src_sel={_,_}}=D, Wire) ->
-    {D#dlo{wire=Wire},Wire};
-mode_change_sel(D, Wire) -> {D,Wire}.
+sel_to_set(#st{sel=Sel0}) ->
+    Sel = foldl(fun({Id,_}, A) -> [Id|A] end, [], Sel0),
+    gb_sets:from_list(Sel).
 
 virtual_mirror_fun(Faces, #we{fs=Ftab0}=We) ->
     case gb_sets:to_list(Faces) of
@@ -633,7 +648,8 @@ initial_properties() ->
     [{workmode,true},
      {orthogonal_view,false},
      {show_axes,wings_pref:get_value(show_axes)},
-     {show_groundplane,wings_pref:get_value(show_groundplane)}].
+     {show_groundplane,wings_pref:get_value(show_groundplane)},
+     {wireframed_objects,gb_sets:empty()}].
 
 reset() ->
     reset(current()).

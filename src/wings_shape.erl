@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.55 2003/02/06 20:22:06 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.56 2003/02/23 10:36:46 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -376,20 +376,25 @@ toggle_sel_all_1(#we{id=Id,perm=P}, #ost{st=St}) when ?IS_SELECTABLE(P) ->
 toggle_sel_all_1(_, _) -> ok.
 
 toggle_wire(#we{id=Id}, _) ->
-    wings_draw_util:map(fun(D, _) -> toggle_wire_1(D, Id) end, []),
+    W0 = wings_wm:get_prop(geom, wireframed_objects),
+    W = case gb_sets:is_member(Id, W0) of
+	    false -> gb_sets:insert(Id, W0);
+	    true -> gb_sets:delete(Id, W0)
+	end,
+    wings_wm:set_prop(geom, wireframed_objects, W),
     wings_wm:dirty().
 
-toggle_wire_1(#dlo{src_we=#we{id=Id},wire=Wire}=D, Id) ->
-    D#dlo{wire=not Wire};
-toggle_wire_1(D, _) -> D.
-
-toggle_wire_all(#we{id=Id}, _) ->
-    B = wings_draw_util:fold(fun(#dlo{src_we=#we{id=I}}, A) when I =:= Id -> A;
-				(#dlo{wire=Wire}, A) -> A andalso not Wire
-			     end, true),
-    wings_draw_util:map(fun(#dlo{src_we=#we{id=I}}=D, _) when I =:= Id -> D;
-			   (#dlo{}=D, _) -> D#dlo{wire=B}
-			end, []),
+toggle_wire_all(#we{id=Id}, #ost{st=#st{shapes=Shs}}) ->
+    W0 = wings_wm:get_prop(geom, wireframed_objects),
+    W1 = case gb_sets:is_empty(gb_sets:delete_any(Id, W0)) of
+	     true -> gb_sets:from_ordset(gb_trees:keys(Shs));
+	     false -> gb_sets:empty()
+	 end,
+    W = case gb_sets:is_member(Id, W0) of
+	    false -> gb_sets:delete_any(Id, W1);
+	    true -> gb_sets:add(Id, W1)
+	end,
+    wings_wm:set_prop(geom, wireframed_objects, W),
     wings_wm:dirty().
 
 %%%
@@ -444,19 +449,22 @@ draw_objects_1(N, [#we{name=Name}|Wes],
 draw_icons(N, Objs, Ost, R, I, Y) ->
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    wings_draw_util:fold(fun draw_icons_1/2, {N,Objs,Ost,R,I,Y}),
+    Wires = wings_wm:get_prop(geom, wireframed_objects),
+    wings_draw_util:fold(fun draw_icons_1/2, {N,Objs,Ost,R,I,Y,Wires}),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:disable(?GL_TEXTURE_2D).
 
 draw_icons_1(_, done) -> done;
 draw_icons_1(_, {0,_,_,_,_,_}) -> done;
-draw_icons_1(#dlo{src_we=#we{id=Id},wire=Wire},
-	     {N,[#we{id=Id,perm=Perm}=We|Wes],#ost{sel=Sel,lh=Lh}=Ost,R,Active,Y}) ->
+draw_icons_1(#dlo{src_we=#we{id=Id}},
+	     {N,[#we{id=Id,perm=Perm}=We|Wes],#ost{sel=Sel,lh=Lh}=Ost,
+	      R,Active,Y,Wires}) ->
     EyePos = eye_pos(),
     LockPos = lock_pos(),
     SelPos = sel_pos(),
     WirePos = wire_pos(),
     IconY = Y - 14,
+    Wire = gb_sets:is_member(Id, Wires),
     if
 	?IS_VISIBLE(Perm) ->
 	    wings_io:draw_icon(EyePos, IconY, 16, 16, small_eye),
@@ -485,7 +493,7 @@ draw_icons_1(#dlo{src_we=#we{id=Id},wire=Wire},
 	true ->
 	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_sel)
     end,
-    {N-1,Wes,Ost,R,Active-1,Y+Lh};
+    {N-1,Wes,Ost,R,Active-1,Y+Lh,Wires};
 draw_icons_1(_, Acc) -> Acc.
 
 sel_pos() ->
