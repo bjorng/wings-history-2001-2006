@@ -3,12 +3,12 @@
 %%
 %%     Menu utilities and helpers.
 %%
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.38 2003/11/20 18:08:56 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.39 2004/01/29 06:58:07 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -22,13 +22,17 @@ directions(#st{selmode=Mode}) ->
     end.
 
 dirs(1, Mode, Ns) -> dirs_1(Mode, Ns);
-dirs(2, _Mode, [duplicate|_]) -> {body,duplicate};
+dirs(2, body, [duplicate|_]) -> {body,duplicate};
+dirs(2, body, [move|_]) -> ignore;
+dirs(2, body, [move_light|_]) -> ignore;
 dirs(2, _Mode, Ns) ->
     Flags = magnet_props(normal, Ns),
     wings_menu:build_command({'ASK',{[],[normal],Flags}}, Ns);
 dirs(3, _Mode, Ns) ->
     Flags = magnet_props(some_axis, Ns),
     wings_menu:build_command({'ASK',{[axis],[],Flags}}, Ns);
+dirs(help, body, [move|_]) ->
+    {"Move along std. axis",[],"Pick axis to move along"};
 dirs(help, _Mode, Ns) -> dirs_help(Ns).
 
 dirs_help([move|_]) ->
