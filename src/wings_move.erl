@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.47 2003/10/29 15:03:21 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.48 2003/10/30 12:48:11 bjorng Exp $
 %%
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
@@ -41,6 +41,8 @@ setup(Vec0, Magnet, #st{selmode=Mode}=St) ->
 magnet_unit(none) -> [];
 magnet_unit(_) -> [falloff].
 
+plus_minus({'ASK',Ask}, Tvs, St0) ->
+    wings:ask(Ask, St0, fun(Type, St) -> plus_minus(Type, Tvs, St) end);
 plus_minus(Type, Tvs0, #st{selmode=Mode}=St) ->
     Vec = wings_util:make_vector(Type),
     Tvs = plus_minus_2(Mode, Vec, Tvs0, []),
