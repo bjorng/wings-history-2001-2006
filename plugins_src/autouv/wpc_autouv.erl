@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.131 2003/07/16 04:18:01 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.132 2003/07/16 04:25:41 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -233,9 +233,9 @@ create_uv_state(Edges, Map, MatName, Options, #we{id=Id}=We, St) ->
     wings_wm:set_prop(Name, drag_filter, fun drag_filter/1),
     get_event(Uvs).
 
-find_boundary_edges([{Id,#we{name=#ch{fs=Fs}=Ch0}=We}|Cs], Acc) ->
-    Ch = Ch0#ch{be=auv_util:outer_edges(Fs, We)},
-    find_boundary_edges(Cs, [{Id,We#we{name=Ch}}|Acc]);
+find_boundary_edges([{Id,#we{name=#ch{fs=Fs}}=We}|Cs], Acc) ->
+    Be = auv_util:outer_edges(Fs, We),
+    find_boundary_edges(Cs, [{Id,We#we{he=Be}}|Acc]);
 find_boundary_edges([], Acc) -> sort(Acc).
    
 insert_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
@@ -1134,7 +1134,7 @@ select_draw_2(edge, Fs, #we{vp=Vtab}=We) ->
 		       gl:glEnd(),   
 		       gl:popName()
 	       end,
-    wings_face:fold_faces(DrawEdge, ok, Fs, We);
+    wings_face:fold_faces(DrawEdge, [], Fs, We);
 select_draw_2(vertex, Fs, #we{vp=Vtab}=We) ->
     DrawPoint = fun(_Face, V, _Edge, _Rec, _) ->
 			gl:pushName(V),
@@ -1143,7 +1143,7 @@ select_draw_2(vertex, Fs, #we{vp=Vtab}=We) ->
 			gl:glEnd(),   
 			gl:popName()
 		end,
-    wings_face:fold_faces(DrawPoint, ok, Fs, We).
+    wings_face:fold_faces(DrawPoint, [], Fs, We).
 
 select_draw_faces([], _We, _) ->    ok;
 select_draw_faces([H|R], We, false) ->
@@ -1296,7 +1296,7 @@ broken_event(Ev, _) ->
 %%%
 %%% Draw routines.
 %%%
-draw_area(#we{name=#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe}}=We,
+draw_area(#we{name=#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R},he=Tbe}=We,
 	  #setng{color = ColorMode, edges = EdgeMode}=Options, Materials) -> 
     gl:pushMatrix(),
     gl:translatef(CX, CY, 0),
