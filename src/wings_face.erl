@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.13 2001/11/28 20:49:36 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.14 2001/12/26 18:43:08 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -19,9 +19,9 @@
 	 normal/2,face_normal/2,good_normal/2,
 	 draw_info/3,draw_normal/1,
 	 surrounding_vertices/2,surrounding_vertices/3,
+	 extend_border/2,bordering_faces/2,
 	 inner_edges/2,outer_edges/2,
 	 fold/4,fold_vinfo/4,fold_faces/4,
-	 bordering_faces/2,
 	 iterator/2,skip_to_edge/2,skip_to_cw/2,skip_to_ccw/2,
 	 next_cw/1,next_ccw/1,
 	 patch_face/3,patch_face/4]).
@@ -40,16 +40,7 @@ convert_selection(#st{selmode=body}=St) ->
 convert_selection(#st{selmode=face}=St) ->
     wings_sel:convert_shape(
       fun(Sel0, We) ->
-	      gb_sets:fold(
-		fun(Face, S0) ->
-			fold(fun(_, _, #edge{lf=Lf,rf=Rf}, S1) ->
-				     if Lf =/= Face ->
-					     gb_sets:add(Lf, S1);
-					true ->
-					     gb_sets:add(Rf, S1)
-				     end
-			     end, S0, Face, We)
-		end, Sel0, Sel0)
+	      extend_border(Sel0, We)
       end, face, St);
 convert_selection(#st{selmode=edge}=St) ->
     wings_sel:convert(
@@ -215,6 +206,19 @@ face_traverse(Face, Edge, LastEdge, Es, Acc) ->
 	#edge{vs=V,rf=Face,rtsu=NextEdge} ->
 	    face_traverse(Face, NextEdge, LastEdge, Es, [V|Acc])
     end.
+
+%% extend_border(FacesGbSet, We) -> FacesGbSet'
+%%  Extend the the given set of faces to include all faces not in the
+%%  set that share at least one edge with a face in the set.
+extend_border(Faces, We) ->
+    foldl(fun(Face, S0) ->
+		  fold(fun(_, _, #edge{lf=Lf,rf=Rf}, S1) ->
+			       if
+				   Lf =/= Face -> gb_sets:add(Lf, S1);
+				   true -> gb_sets:add(Rf, S1)
+			       end
+		       end, S0, Face, We)
+	  end, Faces, gb_sets:to_list(Faces)).
 
 %% bordering_faces(FacesGbSet, We) -> FacesGbSet'
 %%  Given a set of faces, return all faces that are adjacent to
