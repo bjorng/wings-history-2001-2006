@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.56 2004/10/15 15:40:30 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.57 2004/11/05 06:05:32 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -60,38 +60,43 @@ menu(X, Y, St) ->
 	     {NotAmb,separator},
 	     {NotAmb,{?STR(menu,3,"Position Highlight"),
 		      {'VALUE',{position_highlight,{'ASK',{[point],[]}}}},
-			?STR(menu,4,"Position the aim point or location of light")}},
-	     {NotAmb,{?STR(menu,5,"Color"),color,?STR(menu,6,"Interactively adjust hue, value, and saturation")}},
+		      ?STR(menu,4,"Position the aim point or location of light")}},
+	     {NotAmb,{?STR(menu,5,"Color"),color,
+		      ?STR(menu,6,"Interactively adjust hue, value, and saturation")}},
 	     {NotAmb,
 	      {?STR(menu,7,"Attenuation"),
 	       {attenuation,
 		[{?STR(menu,8,"Linear"),linear,
-			?STR(menu,9,"Interactively adjust how much light weakens as it travels away from its source (linear factor)")},
-		 {   ?STR(menu,10,"Quadratic"),quadratic,
-		        ?STR(menu,11,"Interactively adjust how much light weakens as it travels away from its source (quadratic factor)")}]}}},
+		  ?STR(menu,9,"Interactively adjust how much light weakens as it travels away from its source (linear factor)")},
+		 {?STR(menu,10,"Quadratic"),quadratic,
+		  ?STR(menu,11,"Interactively adjust how much light weakens as it travels away from its source (quadratic factor)")}]}}},
 	     {SpotOnly,separator},
-	     {SpotOnly,{   ?STR(menu,12,"Spot Angle"),spot_angle,
-			       ?STR(menu,13,"Interactivly adjust the angle of the spotlight cone")}},
-	     {SpotOnly,{   ?STR(menu,14,"Spot Falloff"),spot_falloff,
-			      ?STR(menu,15,"Interactivly adjust how much light weakens farther away from the center of the spotlight cone")}},
+	     {SpotOnly,{?STR(menu,12,"Spot Angle"),spot_angle,
+			?STR(menu,13,"Interactivly adjust the angle of the spotlight cone")}},
+	     {SpotOnly,{?STR(menu,14,"Spot Falloff"),spot_falloff,
+			?STR(menu,15,"Interactivly adjust how much light weakens farther away from the center of the spotlight cone")}},
 	     {One,separator},
-	     {One,{   ?STR(menu,16,"Edit Properties..."),edit,   ?STR(menu,17,"Edit light properties")}},
-	     separator,
-	     {   ?STR(menu,18,"Duplicate"),{duplicate,Dir},
-	         ?STR(menu,19,"Duplicate and move selected lights")},
-	     {   ?STR(menu,20,"Delete"),delete,   ?STR(menu,21,"Delete seleced lights")}],
+	     {One,{?STR(menu,16,"Edit Properties..."),edit,
+		   ?STR(menu,17,"Edit light properties")}}|body_menu(Dir, St)],
     Menu = filter_menu(Menu0, St),
     wings_menu:popup_menu(X, Y, light, Menu).
+
+body_menu(Dir, #st{selmode=body}) ->
+    [separator,
+     {?STR(menu,18,"Duplicate"),{duplicate,Dir},
+      ?STR(menu,19,"Duplicate and move selected lights")},
+     {?STR(menu,20,"Delete"),delete,
+      ?STR(menu,21,"Delete seleced lights")}];
+body_menu(_, _) -> [].
 
 filter_menu(Menu0, St) ->
     T = wings_sel:fold(
 	  fun(_, #we{light=#light{type=Type}}, none) -> Type;
-	     (_, #we{light=#light{}}, _) -> multiple_lights;
-	     (_, _, A) -> A
+	     (_, _, _) -> mixed
 	  end, none, St),
-    Menu = foldl(fun({one_light,_}, A) when T == multiple_lights -> A;
+    Menu = foldl(fun({one_light,_}, A) when T == mixed -> A;
 		    ({one_light,Entry}, A) -> [Entry|A];
-		    ({{iff,Types},Entry}, A) when is_list(Types) ->
+		    ({{iff,[_|_]=Types},Entry}, A) ->
 			 case member(T, Types) of
 			     true -> [Entry|A];
 			     false -> A
@@ -230,7 +235,8 @@ spot_angle(St) ->
 	    Units = [{angle,{0.1,89.9}}],
 	    Flags = [{initial,[SpotAngle]}],
 	    wings_drag:setup(Tvs, Units, Flags, St);
-	{_,_} -> wings_util:error(?STR(spot_angle,1,"Not a spotlight."))
+	{_,_} ->
+	    wings_util:error(?STR(spot_angle,1,"Not a spotlight."))
     end.
 
 spot_falloff(St) ->
@@ -242,7 +248,8 @@ spot_falloff(St) ->
 	    Units = [{number,{0.0,128.0}}],
 	    Flags = [{initial,[SpotExp]}],
 	    wings_drag:setup(Tvs, Units, Flags, St);
-	{_,_} -> wings_util:error(?STR(spot_falloff,1,"Not a spotlight."))
+	{_,_} ->
+	    wings_util:error(?STR(spot_falloff,1,"Not a spotlight."))
     end.
 
 attenuation(Type, St) ->
@@ -254,7 +261,9 @@ attenuation(Type, St) ->
 	    Units = [{dx,att_range(Type)}],
 	    Flags = [{initial,[Initial]}],
 	    wings_drag:setup(Tvs, Units, Flags, St);
-	{_,_} -> wings_util:error(?STR(attenuation,1,"Not a point light or spotlight."))
+	{_,_} ->
+	    wings_util:error(?STR(attenuation,1,
+				  "Not a point light or spotlight."))
     end.
 
 att_initial(linear, #light{lin_att=LinAtt}) -> LinAtt;
@@ -408,7 +417,7 @@ delete(#st{shapes=Shs0}=St) ->
 duplicate(Dir, St0) ->
     Copy = ?STR(duplicate,1,"copy"),
     {St,Sel} = wings_sel:fold(
-		 fun(Elems, We, {#st{onext=Id}=S0,Sel}) when ?IS_LIGHT(We) ->
+		 fun(Elems, We, {#st{onext=Id}=S0,Sel}) ->
 			 S = wings_shape:insert(We, Copy, S0),
 			 {S,[{Id,Elems}|Sel]};
 		    (_, _, A) -> A
