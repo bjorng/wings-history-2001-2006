@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.55 2004/10/08 14:33:07 dgud Exp $
+%%     $Id: wpa.erl,v 1.56 2004/10/31 09:12:11 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -211,10 +211,12 @@ dialog_template(Mod, import) ->
      [{?STR(dialog_template,1,"Swap Y and Z Axes"),pref_get(Mod, swap_y_z, false),
        [{key,swap_y_z}]},
       {label_column,
-       [{?STR(dialog_template,2,"Import scale"),{text,pref_get(Mod, import_scale, 1.0),
-			 [{key,import_scale}]}},
-	{?STR(dialog_template,3,"(Export scale)"),{text,pref_get(Mod, export_scale, 1.0),
-			   [{key,export_scale}]}}]}
+       [{import_scale_s(),
+	 {text,pref_get(Mod, import_scale, 1.0),
+	  [{key,import_scale}]}},
+	{"("++export_scale_s()++")",
+	 {text,pref_get(Mod, export_scale, 1.0),
+	  [{key,export_scale}]}}]}
      ]};
 dialog_template(Mod, export) ->
     FileTypes = [{lists:flatten([Val," (*",Key,")"]),Key} ||
@@ -224,16 +226,22 @@ dialog_template(Mod, export) ->
      [{?STR(dialog_template,1,"Swap Y and Z Axes"),pref_get(Mod, swap_y_z, false),
        [{key,swap_y_z}]},
       {label_column,
-       [{?STR(dialog_template,4,"(Import scale)"),{text,pref_get(Mod, import_scale, 1.0),
-			   [{key,import_scale}]}},
-	{?STR(dialog_template,5,"Export scale"),{text,pref_get(Mod, export_scale, 1.0),
-			 [{key,export_scale}]}},
-	{?STR(dialog_template,6,"Sub-division Steps"),{text,pref_get(Mod, subdivisions, 0),
-			       [{key,subdivisions},{range,0,4}]}}]},
+       [{"("++import_scale_s()++")",
+	 {text,pref_get(Mod, import_scale, 1.0),
+	  [{key,import_scale}]}},
+	{export_scale_s(),
+	 {text,pref_get(Mod, export_scale, 1.0),
+	  [{key,export_scale}]}},
+	{?STR(dialog_template,6,"Sub-division Steps"),
+	 {text,pref_get(Mod, subdivisions, 0),
+	  [{key,subdivisions},{range,0,4}]}}]},
       panel,
       {vframe,
        [{menu,FileTypes,DefFileType,[{key,default_filetype}]}],
        [{title,?STR(dialog_template,7,"Default texture file type")}]} ]}.
+
+import_scale_s() -> ?STR(import_scale_s, 1, "Import scale").
+export_scale_s() -> ?STR(export_scale_s, 1, "Export scale").
 
 import_matrix(Attr) ->
     Scale = e3d_mat:scale(proplists:get_value(import_scale, Attr, 1.0)),

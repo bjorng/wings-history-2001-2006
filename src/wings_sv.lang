@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.24 2004/10/30 08:02:35 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.25 2004/10/31 09:12:10 bjorng Exp $
 %%
 
 {wings,
@@ -1932,14 +1932,12 @@
  [
   {dialog_template,
    [{1,"Skifta Y- och Z-axlar"},
-    {2,"Skalning för import"},
-    {3,"(Skalning för export)"},
-    {4,"(Skalning för import)"},
-    {5,"Skalning för export"},
     {6,"Utjämningsnivåer"},
     {7,"Filtyp för texturer "}]},
   {export_filename,
    [{1,"Exportera"}]},
+  {export_scale_s,
+   [{1,"Skalning för export"}]},
   {export_selected,
    [{1,"Markera objekt eller ytor."}]},
   {format_error,
@@ -1948,4 +1946,6 @@
    [{1,"Importeringen misslyckades: "}]},
   {import_filename,
    [{1,"Läser fil"},
-    {2,"Importerar"}]}]}.
+    {2,"Importerar"}]},
+  {import_scale_s,
+   [{1,"Skalning för import"}]}]}.
