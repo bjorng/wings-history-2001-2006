@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.40 2002/03/09 22:14:32 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.41 2002/03/11 11:04:02 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -226,7 +226,13 @@ update(#io{message=Msg,right=Right,info=Info,w=W}=Io0, St) ->
 	      if
 		  Right == undefined -> ok;
 		  length(Msg)+length(Right) < W div ?CHAR_WIDTH-3 ->
-		      text_at(W-?CHAR_WIDTH*(length(Right)+3), Right);
+		      L = length(Right),
+		      Pos = W-?CHAR_WIDTH*(L+3),
+		      gl:color3fv(?MENU_COLOR),
+		      gl:recti(Pos-?CHAR_WIDTH, -?LINE_HEIGHT+3,
+			       Pos+(L+1)*?CHAR_WIDTH, 3),
+		      gl:color3f(0, 0, 0),
+		      text_at(Pos, Right);
 		  true -> ok
 	      end
       end),
@@ -387,7 +393,7 @@ sunken_rect(X0, Y0, Mw0, Mh0, FillColor) ->
     gl:color3f(0.0, 0.0, 0.0).
 
 space_at(X, Y) ->
-    gl:color3f(0.52, 0.52, 0.52),
+    gl:color3fv(?PANE_COLOR),
     gl:recti(X, Y-?LINE_HEIGHT+3, X+?CHAR_WIDTH, Y+3),
     gl:color3f(0.0, 0.0, 0.0).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.31 2002/03/05 07:12:32 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.32 2002/03/11 11:04:02 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -38,6 +38,7 @@ share({X,Y,Y}) -> {X,Y,Y};
 share({X,Y,X}) -> {X,Y,X};
 share(Other) -> Other.
 
+make_vector({_,_,_}=Vec) -> Vec;
 make_vector(x) -> {1.0,0.0,0.0};
 make_vector(y) -> {0.0,1.0,0.0};
 make_vector(z) -> {0.0,0.0,1.0};
@@ -54,15 +55,17 @@ yes_no(Question) ->
 serious_yes_no(Question) ->
     wings_plugin:call_ui({serious_question,Question}).
 
-stringify({{_,_,_},{_,_,_}}) ->
-    "(vector)";
 stringify({Atom,Other}) when is_atom(Atom) ->
-    cap(atom_to_list(Atom)) ++ "|" ++ stringify(Other);
+    cap(atom_to_list(Atom)) ++
+	case stringify(Other) of
+	    [] -> [];
+	    Str -> "|" ++ Str
+	end;
 stringify(Atom) when is_atom(Atom) ->
     cap(atom_to_list(Atom));
 stringify(Int) when integer(Int) ->
     integer_to_list(Int);
-stringify(_Other) -> "UNKNOWN".
+stringify(_Other) -> [].
 
 cap(Str) when is_atom(Str) -> cap(atom_to_list(Str));
 cap(Str) -> cap(Str, true).

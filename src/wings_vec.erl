@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.12 2002/03/10 07:54:06 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.13 2002/03/11 11:04:02 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -26,84 +26,42 @@
 	     selmodes				%Legal selection modes.
 	    }).
 
-menu(St) ->
-    [{advanced,{"Named Vector",
-		{named_vector,fun(Key, Ns) ->
-				      named_vector(Key, St)
-			      end}}}].
+menu(_St) -> [].
 
-named_vector(help, St) -> "Rename or delete vector";
-named_vector(1, St) -> {vector,rename};
-named_vector(2, St) -> ignore;
-named_vector(3, St) -> ignore.
-
-command({save_unnamed,{Vec,Ns}}, St) ->
-    wings_io:putback_event({action,{vector,{use_vector,{unnamed,Vec,Ns}}}}),
-    case St of
-	#st{svec=[{unnamed,_}|Vecs]} ->
-	    St#st{svec=[{unnamed,Vec}|Vecs]};
-	#st{svec=Vecs} ->
-	    St#st{svec=[{unnamed,Vec}|Vecs]}
-    end;
-command({pick_named,Names}, St) ->
-    pick_named(Names, St);
-command({use_vector,{Name,{Vec,_}=Vec0,Ns}}, St) ->
-    Cmd = wings_menu:build_command(Vec, Ns),
+command({pick,[],[Res],Ns}, St) ->
+    Cmd = wings_menu:build_command(Res, Ns),
     wings_io:putback_event({action,Cmd}),
-    move_to_front({Name,Vec0}, St#st{vec=Vec});
-command({dynamic_use_vector,{Name,Vec0,Ns}}, St) ->
-    Vec = get_dynamic_vector(Vec0, St),
-    Cmd = wings_menu:build_command(Vec, Ns),
+    St;
+command({pick,[],Res,Ns}, St) ->
+    Cmd = wings_menu:build_command(list_to_tuple(reverse(Res)), Ns),
     wings_io:putback_event({action,Cmd}),
-    move_to_front({Name,Vec0}, St#st{vec=Vec});
-command({pick_new,Names}, St0) ->
+    St;
+command({pick,[axis|More],Acc,Names}, St0) ->
     Modes = [vertex,edge,face],
     wings_io:icon_restriction(Modes),
     Ss = #ss{check=fun check_vector/1,
-	     exit=fun(X, Y, St) -> exit_vector(X, Y, Names, St) end,
+	     exit=fun(_X, _Y, St) -> exit_vector(More, Acc, Names, St) end,
 	     selmodes=Modes},
-    wings_io:message("Select vector to use."),
+    command_message("Select axis for ", Names),
+    {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
+command({pick,[point|More],Acc,Names}, St0) ->
+    Modes = [vertex,edge,face],
+    wings_io:icon_restriction(Modes),
+    Ss = #ss{check=fun check_point/1,
+	     exit=fun(_X, _Y, St) -> exit_point(More, Acc, Names, St) end,
+	     selmodes=Modes},
+    command_message("Select point for ", Names),
     {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
 command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
     wings_io:icon_restriction(Modes),
     St = Init(St0),
     Ss = #ss{selmodes=Modes,check=Check,exit=Exit},
-    {seq,{push,dummy},get_event(Ss, St)};
-command(rename, St) ->
-    name_menu("Rename or Delete Vector", do_rename, dummy, St);
-command({do_rename,{unnamed,Vec,_}}, St) ->
-    wings_ask:ask([{"New name (leave empty to delete)","Unnamed"}], St,
-		  fun([Name]) ->
-			  {vector,{do_rename,Vec,unnamed,Name}}
-		  end);
-command({do_rename,{Name0,Vec,_}}, St) ->
-    wings_ask:ask([{"New name (leave empty to delete)",
-		    atom_to_list(Name0)}], St,
-		  fun([Name]) ->
-			  {vector,{do_rename,Vec,Name0,Name}}
-		  end);
-command({do_rename,Vec,OldName,NewName}, St) ->
-    do_rename(OldName, NewName, Vec, St).
+    {seq,{push,dummy},get_event(Ss, St)}.
 
-do_rename(Name, NewName0, Vec, #st{svec=Svec0}=St) ->
-    Svec1 = keydelete(Name, 1, Svec0),
-    Svec = case NewName0 of
-	       [] ->
-		   Svec1;
-	       Other ->
-		   NewName = list_to_atom(NewName0),
-		   insert_in_front({NewName,Vec}, Svec1)
-	   end,
-    St#st{svec=Svec}.
-
-move_to_front({Name,_}=Vec, #st{svec=Vecs0}=St) ->
-    Vecs = keydelete(Name, 1, Vecs0),
-    St#st{svec=insert_in_front(Vec, Vecs)}.
-    
-insert_in_front(Vec, [{unnamed,_}=Unnamed|Vecs]) ->
-    [Unnamed,Vec|Vecs];
-insert_in_front(Vec, Vecs) ->
-    [Vec|Vecs].
+command_message(Prefix, [N|Ns]) ->
+    Cmd = wings_util:stringify(wings_menu:build_command(N, Ns)),
+    wings_io:message_right(Prefix ++ Cmd),
+    wings_io:message("").
 
 %%%
 %%% Event handler for secondary selection mode.
@@ -155,16 +113,16 @@ handle_event_4(Event, Ss, St0) ->
 		{save_state,St} -> filter_sel_command(Ss, St);
 		St -> filter_sel_command(Ss, St)
 	    end;
-	Other -> keep
+	_Other -> keep
     end.
 
-handle_event_5({new_state,St}, #ss{check=Check}=Ss, St0) ->
+handle_event_5({new_state,St}, #ss{check=Check}=Ss, _St0) ->
     {Vec,Msg} = Check(St),
     wings_io:message(Msg),
     get_event(Ss, St#st{vec=Vec});
-handle_event_5(#keyboard{}=Event, Ss, St) ->
+handle_event_5(#keyboard{}, Ss, St) ->
     get_event(Ss, St);
-handle_event_5(redraw, Ss, St) ->
+handle_event_5(redraw, _Ss, St) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     wings:redraw(St),
     keep;
@@ -177,18 +135,18 @@ handle_event_5({action,{select,Cmd}}, Ss, St0) ->
 handle_event_5({action,{view,Cmd}}, Ss, St0) ->
     St = wings_view:command(Cmd, St0),
     get_event(Ss, St);
-handle_event_5({action,{secondary_selection,abort}}, Ss, St) ->
+handle_event_5({action,{secondary_selection,abort}}, _Ss, _St) ->
     wings_io:clear_message(),
     wings_io:putback_event(redraw),
     pop;
-handle_event_5({action,Cmd}, Ss, St) ->
+handle_event_5({action,Cmd}, _Ss, _St) ->
     wings_io:clear_message(),
     wings_io:putback_event({action,Cmd}),
     pop;
-handle_event_5(quit, Ss, St0) ->
+handle_event_5(quit, _Ss, _St) ->
     wings_io:putback_event(quit),
     pop;
-handle_event_5(Event, Ss, St) ->
+handle_event_5(_Event, Ss, St) ->
     get_event(Ss, St).
 
 filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
@@ -199,13 +157,14 @@ filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
 
 translate_key(#keyboard{keysym=KeySym}) ->
     translate_key_1(KeySym);
-translate_key(Event) -> next.
+translate_key(_Event) -> next.
 
 translate_key_1(#keysym{sym=27}) ->		%Escape
+    wings_io:clear_message(),
     wings_io:message("Command aborted"),
     wings_io:putback_event(redraw),
     pop;
-translate_key_1(Other) -> next.
+translate_key_1(_Other) -> next.
 
 exit_menu(X, Y, #ss{exit=Exit}, St) ->
     case Exit(X, Y, St) of
@@ -227,110 +186,41 @@ exit_menu_done(X, Y, MenuEntry, St) ->
     wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
 
 %%%
-%%% Show menu of named vectors.
-%%%
-
-name_menu(Title, CmdTag, Ns, #st{svec=Vecs}=St) ->
-    Menu = [{Title,ignore},separator|named_vectors(Vecs, CmdTag, Ns)],
-    {_,X,Y} = sdl_mouse:getMouseState(),
-    wings_menu:popup_menu(X, Y, use_named_vector, Menu, St).
-
-named_vectors([], CmdTag, Ns) -> [{"(No vectors)",ignore}];
-named_vectors([{unnamed,Vec}|T], CmdTag, Ns) ->
-    [{"(Last vector)",vec_fun(unnamed, Vec, CmdTag, Ns)}|
-     named_vectors_1(T, CmdTag, Ns)];
-named_vectors(T, CmdTag, Ns) -> named_vectors_1(T, CmdTag, Ns).
-
-named_vectors_1([{Name,Vec}|T], CmdTag, Ns) ->
-    [{atom_to_list(Name),vec_fun(Name, Vec, CmdTag, Ns)}|
-     named_vectors_1(T, CmdTag, Ns)];
-named_vectors_1([], CmdTag, Ns) -> [].
-    
-vec_fun(Name, Vec, CmdTag, Ns) ->
-    fun(_, _) -> {vector,{CmdTag,{Name,Vec,Ns}}} end.
-
-%%%
-%%% Show menu of vectors to be used.
-%%%
-
-pick_named(Ns, #st{svec=Vecs}=St) ->
-    Menu = [{"Use Vector",ignore},separator|pick_named_1(Vecs, Ns)],
-    {_,X,Y} = sdl_mouse:getMouseState(),
-    wings_menu:popup_menu(X, Y, use_named_vector, Menu, St).
-
-pick_named_1(Vecs, Ns) ->
-    pick_named(Vecs, Ns, []).
-
-pick_named([], Ns, []) -> [{"(No vectors)",ignore}];
-pick_named([], Ns, Acc) -> reverse(Acc);
-pick_named([{Name0,Vec}|Vecs], Ns, Acc) ->
-    F = fun(help, _) ->
-		{"Use vector in saved position",[],
-		 "Recalculate vector based on current geometry"};
-	   (1, _) ->
-		{vector,{use_vector,{Name0,Vec,Ns}}};
-	   (3, _) ->
-		{vector,{dynamic_use_vector,{Name0,Vec,Ns}}};
-	   (_, _) ->
-		ignore
-	end,
-    Name = stringify_name(Name0),
-    pick_named(Vecs, Ns, [{Name,{use_vector,F}}|Acc]).
-
-%%%
 %%% Vector functions.
 %%%
 
-exit_vector(X, Y, Ns, St) ->
+exit_vector(More, Acc, [N|Ns0]=Ns, St) ->
     case check_vector(St) of
 	{none,Msg} ->
 	    wings_io:message(Msg),
 	    invalid_selection;
-	{Vec,Msg} ->
+	{{_,Vec},Msg} ->
 	    wings_io:message(Msg),
-	    UseAction = fun(_, _) -> {vector,{save_unnamed,{Vec,Ns}}} end,
-	    FakeVec = {{0,0,0},{0,0,0}},
-	    Command0 = wings_menu:build_command(FakeVec, Ns),
-	    Command = wings_util:stringify(Command0),
-	    {Command,UseAction}
+	    {if
+		 More == [] ->
+		     Command0 = wings_menu:build_command(N, Ns0),
+		     wings_util:stringify(Command0);
+		 true -> "Continue"
+	     end,fun(_, _) -> {vector,{pick,More,[Vec|Acc],Ns}} end}
     end.
 
 check_vector(#st{sel=[]}) -> {none,"Nothing selected"};
-check_vector(#st{selmode=Mode,sel=Sel}=St) ->
-    case findvec(Mode, Sel, St) of
-	{{none,_},Msg} ->
-	    {none, "Invalid selection - " ++ Msg};
-	{_,_}=VecMsg -> VecMsg
-    end.
-
-get_dynamic_vector({Vec0,{Type,Sel}}, St) ->
-    case findvec(Type, Sel, St) of
-	{{none,none},Msg} -> Vec0;
-	{{Vec,_},_} -> Vec
-    end.
-
-findvec(Type, Sel, #st{shapes=Shs}=St) ->
-    case wings_sel:valid_sel(Sel, Type, St) of
-	[{Id,Items0}] ->
-            We = gb_trees:get(Id, Shs),
-	    Items = gb_sets:to_list(Items0),
-            {Vec,Msg} = get_vec(Type, Items, We),
-            {{Vec,{Type,Sel}},Msg};
-	[] ->
-	    {{none,none},"Nothing selected"};
-        Other -> {{none,none},"Select parts of one object only"}
-    end.
+check_vector(#st{selmode=Mode,sel=[{Id,Elems0}],shapes=Shs}) ->
+    We = gb_trees:get(Id, Shs),
+    Elems = gb_sets:to_list(Elems0),
+    get_vec(Mode, Elems, We);
+check_vector(_) -> {none,"Select parts of one object only"}.
 
 %% Use single edge as axis
 get_vec(edge, [Edge], #we{es=Etab,vs=Vtab}=We) ->
-    #edge{vs=Va,ve=Vb,lf=FaceL,rf=FaceR} = gb_trees:get(Edge, Etab),
+    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
     VaPos = wings_vertex:pos(Va, Vtab),
     VbPos = wings_vertex:pos(Vb, Vtab),
     Vec = e3d_vec:norm(e3d_vec:sub(VbPos, VaPos)),
     Center = wings_vertex:center([Va,Vb], We),
     {{Center,Vec},"Edge saved as axis."};
 %% Use direction between two edges
-get_vec(edge, [Edge1,Edge2], #we{es=Etab,vs=Vtab}=We) ->
+get_vec(edge, [Edge1,Edge2], #we{es=Etab,vs=Vtab}) ->
     #edge{vs=Va1,ve=Vb1} = gb_trees:get(Edge1, Etab),
     #edge{vs=Va2,ve=Vb2} = gb_trees:get(Edge2, Etab),
     Va1Pos = wings_vertex:pos(Va1, Vtab),
@@ -349,7 +239,7 @@ get_vec(edge, Edges, #we{vs=Vtab}=We) ->
 	    Center = wings_vertex:center(Vs, We),
 	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
 	    {{Center,Vec},"Edge loop normal saved as axis."};
-	Other ->
+	_Other ->
 	    {none,"Multi-edge selection must form a single closed edge loop."}
     end;
 
@@ -378,7 +268,7 @@ get_vec(vertex, Vs0, #we{vs=Vtab}=We) ->
 	    Center = wings_vertex:center(Vs, We),
 	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
 	    {{Center,Vec},"Edge loop normal saved as axis."};
-	Other ->
+	_Other ->
 	    {none,"Multi-vertex selection must form a single closed edge loop."}
     end;
 
@@ -403,18 +293,38 @@ get_vec(face, Faces, #we{vs=Vtab}=We) ->
 	    Center = wings_vertex:center(Vs, We),
 	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
 	    {{Center,Vec},"Edge loop normal for region saved as axis."};
-	Other ->
+	_Other ->
 	    {none,"Multi-face selection must have a single edge loop."}
     end;
 
 get_vec(_, _, _) -> {none,"Select vertices, edges, or faces."}.
 
 %%%
-%%% Utilities.
+%%% Point functions.
 %%%
 
-stringify_name(unnamed) -> "(Last vector)";
-stringify_name(Name) -> atom_to_list(Name).
+exit_point(More, Acc, Ns, St) ->
+    case check_point(St) of
+	{none,Msg} ->
+	    wings_io:message(Msg),
+	    invalid_selection;
+	{Point,Msg} ->
+	    wings_io:message(Msg),
+	    UseAction = fun(_, _) -> {vector,{pick,More,[Point|Acc],Ns}} end,
+	    FakePoint = {0,0,0},
+	    Command0 = wings_menu:build_command(FakePoint, Ns),
+	    Command = wings_util:stringify(Command0),
+	    {Command,UseAction}
+    end.
+
+check_point(#st{sel=[]}) -> {none,"Nothing selected."};
+check_point(St) ->
+    Center = e3d_vec:average(wings_sel:bounding_box(St)),
+    {Center,"Midpoint of selection saved."}.
+
+%%%
+%%% Utilities.
+%%%
 
 find_edges(Vs, We) ->
     VsSet = gb_sets:from_list(Vs),
@@ -431,4 +341,4 @@ find_edges([V|Vs], VsSet, We, Acc0) ->
 		    end
 	    end, Acc0, V, We),
     find_edges(Vs, VsSet, We, Acc);
-find_edges([], VsSet, We, Acc) -> Acc.
+find_edges([], _VsSet, _We, Acc) -> Acc.

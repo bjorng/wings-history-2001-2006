@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.116 2002/03/09 19:23:05 bjorng Exp $
+%%     $Id: wings.erl,v 1.117 2002/03/11 11:04:01 bjorng Exp $
 %%
 
 -module(wings).
@@ -418,28 +418,8 @@ command({edge,auto_smooth}, St) ->
     wings_body:auto_smooth(St);
 
 %% Vertex menu.
-command({vertex,{flatten,Plane}}, St) ->
-    {save_state,model_changed(wings_vertex_cmd:flatten(Plane, St))};
-command({vertex,{flatten_move,Type}}, St) ->
-    {save_state,model_changed(wings_vertex_cmd:flatten_move(Type, St))};
-command({vertex,connect}, St) ->
-    {save_state,model_changed(wings_vertex_cmd:connect(St))};
-command({vertex,tighten}, St) ->
-    wings_vertex_cmd:tighten(St);
-command({vertex,bevel}, St) ->
-    ?SLOW(wings_vertex_cmd:bevel(St));
-command({vertex,{extrude,Type}}, St) ->
-    ?SLOW(wings_vertex_cmd:extrude(Type, St));
-command({vertex,{deform,Deform}}, St0) ->
-    ?SLOW(wings_deform:command(Deform, St0));
-command({vertex,auto_smooth}, St) ->
-    wings_body:auto_smooth(St);
-command({vertex,dissolve}, St) ->
-    {save_state,model_changed(wings_vertex_cmd:dissolve(St))};
-
-%% Magnetic commands.
-command({vertex,{magnet,Magnet}}, St) ->
-    ?SLOW(wings_magnet:command(Magnet, St));
+command({vertex,Cmd}, St) ->
+    wings_vertex_cmd:command(Cmd, St);
 
 %% Tools menu.
 
@@ -474,7 +454,7 @@ command({_,{scale,Type}}, St) ->
 popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
     case {Sel,Mode} of
  	{[],_} -> wings_shapes:menu(X, Y, St);
- 	{_,vertex} -> vertex_menu(X, Y, St);
+ 	{_,vertex} -> wings_vertex_cmd:menu(X, Y, St);
  	{_,edge} -> edge_menu(X, Y, St);
  	{_,face} -> wings_face_cmd:menu(X, Y, St);
  	{_,body} -> wings_body:menu(X, Y, St)
@@ -522,37 +502,12 @@ menu(X, Y, help, St) ->
     Menu = [{"About",about}],
     wings_menu:menu(X, Y, help, Menu, St).
 
-vertex_menu(X, Y, St) ->
-    Dir = wings_menu_util:directions(St),
-    FlattenDir = wings_menu_util:flatten_dir(St),
-    Menu = [{"Vertex operations",ignore},
-	    separator,
-	    {"Move",{move,Dir}},
-	    {"Rotate",{rotate,Dir}},
-	    wings_menu_util:scale(),
-	    separator,
-	    {"Extrude",{extrude,Dir}},
-	    separator,
-	    {"Flatten",{flatten,FlattenDir}},
-	    {advanced,{"Flatten Move",{flatten_move,FlattenDir}}},
-	    separator,
-	    {"Connect",connect,
-	     "Create a new edge to connect selected vertices"},
-	    {"Tighten",tighten},
-	    {"Bevel",bevel,"Create faces of selected vertices"},
-	    {"Collapse",collapse,"Delete selected vertices"},
-	    {"Dissolve",dissolve,"Delete selected vertices"},
-	    separator,
-	    wings_magnet:sub_menu(St),
-	    {"Deform",wings_deform:sub_menu(St)}|wings_vec:menu(St)],
-    wings_menu:popup_menu(X, Y, vertex, Menu, St).
-
 edge_menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
     Menu = [{"Edge operations",ignore},
 	    separator,
 	    {"Move",{move,Dir}},
-	    {"Rotate",{rotate,Dir}},
+	    wings_menu_util:rotate(),
 	    wings_menu_util:scale(),
 	    separator,
 	    {"Extrude",{extrude,Dir}},

@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.2 2002/03/03 21:45:01 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.3 2002/03/11 11:04:02 bjorng Exp $
 %%
 
 -module(wings_menu_util).
--export([directions/1,directions/2,scale/0,xyz/0,all_xyz/0,flatten_dir/1]).
+-export([directions/1,directions/2,scale/0,rotate/0,flatten/0,
+	 xyz/0,all_xyz/0]).
 
 -include("wings.hrl").
 
@@ -22,23 +23,19 @@ directions(#st{selmode=Mode}) ->
     end.
 
 dirs(1, Mode, Ns) -> dirs_1(Mode, Ns);
-dirs(2, _Mode, Ns) -> {vector,{pick_named,Ns}};
-dirs(3, _Mode, Ns) -> {vector,{pick_new,Ns}};
+dirs(2, _Mode, _Ns) -> ignore;
+dirs(3, _Mode, Ns) -> {vector,{pick,[axis],[],Ns}};
 dirs(help, _Mode, Ns) -> dirs_help(Ns).
 
 dirs_help([move|_]) ->
-    {"Move along std. axis","Move along named axis",
-     "Select vector to move along"};
+    {"Move along std. axis",[],"Select axis to move along"};
 dirs_help([rotate|_]) ->
-    {"Rotate around std. axis","Rotate around named axis",
-     "Select vector to rotate around"};
+    {"Rotate around std. axis",[],"Select axis to rotate around"};
 dirs_help([scale|_]) -> "Scale selected elements";
 dirs_help([extrude|_]) ->
-    {"Extrude along std. axis","Extrude along named axis",
-     "Select vector to extrude along"};
+    {"Extrude along std. axis",[],"Select axis to extrude along"};
 dirs_help([extrude_region|_]) ->
-    {"Extrude along std. axis","Extrude along named axis",
-     "Select vector to extrude along"};
+    {"Extrude along std. axis",[],"Select axis to extrude along"};
 dirs_help(_) -> "".
 
 dirs_1(body, Ns) -> directions([free,x,y,z], Ns);
@@ -56,49 +53,98 @@ all_xyz() ->
      {"Y",y},
      {"Z",z}].
 
-scale() ->
-    {"Scale",{scale,fun scale/2},[]}.
+%%%
+%%% Scale sub-menu.
+%%%
 
-scale(help, _) -> "";
-scale(_, _) ->
+scale() ->
+    {"Scale",{scale,fun scale/2}}.
+
+scale(help, _) ->
+     {"Scale along std. axis","Pick axis for radial scale",
+      "Pick axis to scale along"};
+scale(1, _) ->
     [scale_fun(uniform),
      scale_fun(x),
      scale_fun(y),
      scale_fun(z),
      scale_fun(radial_x),
      scale_fun(radial_y),
-     scale_fun(radial_z)].
+     scale_fun(radial_z)];
+scale(2, Ns) -> {vector,{pick,[axis,point],[radial],Ns}};
+scale(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
 
 scale_fun(Dir) ->
     DirString = wings_util:stringify(Dir),
     F = fun(1, Ns) -> wings_menu:build_command(Dir, Ns);
-	   (2, Ns) -> {vector,{pick_named,[Dir|Ns]}};
-	   (3, Ns) -> {vector,{pick_new,[Dir|Ns]}}
+	   (2, _Ns) -> ignore;
+	   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}}
 	end,
     Help0 = dir_help(Dir, [scale]),
-    Help = {Help0,"Scale to named vector","Pick vector to scale to"},
+    Help = {Help0,[],"Pick point to scale to"},
+    {DirString,F,Help,[]}.
+
+%%%
+%%% Rotate sub-menu.
+%%%
+
+rotate() ->
+    {"Rotate",{rotate,fun rotate/2}}.
+
+rotate(help, _) ->
+    {"Rotate along std. axis",[],"Pick axis to rotate around"};
+rotate(1, [rotate,vertex]) ->
+    [rotate_fun(free),
+     rotate_fun(x),
+     rotate_fun(y),
+     rotate_fun(z)];
+rotate(1, _) ->
+    [rotate_fun(normal),
+     rotate_fun(free),
+     rotate_fun(x),
+     rotate_fun(y),
+     rotate_fun(z)];
+rotate(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
+
+rotate_fun(Dir) ->
+    DirString = wings_util:stringify(Dir),
+    F = fun(1, Ns) -> wings_menu:build_command(Dir, Ns);
+	   (2, _Ns) -> ignore;
+	   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}}
+	end,
+    Help0 = dir_help(Dir, [rotate]),
+    Help = {Help0,[],"Pick point to rotate through"},
     {DirString,F,Help,[]}.
 
 %%%
 %%% Flatten submenu.
 %%%
 
-flatten_dir(#st{selmode=Mode}) ->
-    fun(B, Ns) -> flatten_dir_1(B, Mode, Ns) end.
+flatten() ->
+    {"Flatten",{flatten,fun flatten/2}}.
 
-flatten_dir_1(help, _, _) ->
-    {"Flatten to std. planes","Flatten to named plane","Pick plane"};
-flatten_dir_1(1, _, [flatten_move|_]=Ns) ->
-    directions([x,y,z], Ns);
-flatten_dir_1(1, vertex, Ns) ->
-    directions([x,y,z], Ns);
-flatten_dir_1(1, face, Ns) ->
-    directions([normal,x,y,z], Ns);
-flatten_dir_1(2, _Mode, Ns) ->
-    {vector,{pick_named,Ns}};
-flatten_dir_1(3, _Mode, Ns) ->
-    {vector,{pick_new,Ns}};
-flatten_dir_1(_, _, _) -> ignore.
+flatten(help, _) ->
+    {"Flatten to std. planes",[],"Pick plane"};
+flatten(1, [flatten,vertex]) ->
+    [flatten_fun(x),
+     flatten_fun(y),
+     flatten_fun(z)];
+flatten(1, _) ->
+    [flatten_fun(normal),
+     flatten_fun(x),
+     flatten_fun(y),
+     flatten_fun(z)];
+flatten(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
+
+flatten_fun(Dir) ->
+    DirString = wings_util:stringify(Dir),
+    F = fun(1, Ns) -> wings_menu:build_command(Dir, Ns);
+	   (2, _Ns) -> ignore;
+	   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}}
+	end,
+    Help0 = dir_help(Dir, [flatten]),
+    Help = {Help0,[],"Pick point on plane"},
+    {DirString,F,Help,[]}.
 
 %%%
 %%% General directions.

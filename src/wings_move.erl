@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.27 2002/02/11 20:01:13 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.28 2002/03/11 11:04:02 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -18,12 +18,12 @@
 -import(lists, [map/2,foldr/3,foldl/3,sort/1]).
 
 setup(Type, #st{selmode=body,sel=Sel}=St) ->
-    Vec = vector(Type),
+    Vec = wings_util:make_vector(Type),
     Fun = translate_fun(Vec),
     Ids = [{Id,Fun} || {Id,_} <- Sel],
     wings_drag:setup({matrix,Ids}, unit(Type), flags(Type), St);
 setup(Type, #st{selmode=Mode}=St) ->
-    Vec = vector(Type),
+    Vec = wings_util:make_vector(Type),
     Tvs = wings_sel:fold(fun(Items, We, Acc) ->
 				 setup_1(Mode, We, Items, Vec, Acc)
 			 end, [], St),
@@ -33,13 +33,8 @@ setup_1(Mode, #we{id=Id}=We, Items, Vec, Acc) ->
     Tv = setup_we(Mode, Vec, Items, We),
     [{Id,Tv}|Acc].
 
-plus_minus(free, Tvs, St) ->
-    plus_minus_1(free, view_dependent, Tvs, St);
-plus_minus(Type, Tvs, St) ->
-    plus_minus_1(Type, none, Tvs, St).
-
-plus_minus_1(Type, Constraint, Tvs0, #st{selmode=Mode}=St) ->
-    Vec = vector(Type),
+plus_minus(Type, Tvs0, #st{selmode=Mode}=St) ->
+    Vec = wings_util:make_vector(Type),
     Tvs = plus_minus_2(Mode, Vec, Tvs0, []),
     wings_drag:setup(Tvs, unit(Type, [falloff]),
 		     flags(Type), St#st{inf_r=1.0}).
@@ -48,7 +43,7 @@ plus_minus_2(Mode, Vec, [{Items,NewVs,We}|T], Acc0) ->
     Tv = setup_we(Mode, Vec, Items, We),
     Acc = plus_minus_3(Tv, NewVs, We, Acc0),
     plus_minus_2(Mode, Vec, T, Acc);
-plus_minus_2(Mode, Vec, [], Acc) -> Acc.
+plus_minus_2(_Mode, _Vec, [], Acc) -> Acc.
 
 plus_minus_3([_|_]=Tv0, NewVs, #we{id=Id}=We, Acc) ->
     Tv = [{Vec,wings_util:add_vpos(Vs0, We)} || {Vec,Vs0} <- Tv0],
@@ -83,27 +78,24 @@ unit(_, T) -> [distance|T].
 flags(free) -> [screen_relative];
 flags(_) -> [].
 
-vector({_,{_,_,_}=Vec}) -> Vec;
-vector(Other) -> wings_util:make_vector(Other).
-
 pm_move_fun(Tv) ->
-    fun([Dx,R], Acc) ->
+    fun([Dx,_R], Acc) ->
 	    foldl(fun({Vec,VsPos}, A) ->
 			  wings_drag:translate(Vec, Dx, VsPos, A)
 		  end, Acc, Tv)
     end.
 
 free_move_fun(MoveSel) ->
-    fun([Dx,Dy,R], Acc) ->
+    fun([Dx,Dy,_R], Acc) ->
 	    MoveSel([Dx,Dy], Acc);
        (view_changed, Acc) ->
 	    MoveSel(view_changed, Acc)
     end.
 
 move_away_fun(Tv) ->
-    fun([Dx,R], Acc) -> move_away(R, Tv, Acc);
-       ([Dx,Dy,R], Acc) -> move_away(R, Tv, Acc);
-       (view_changed, Acc) -> move_away_fun(Tv)
+    fun([_Dx,R], Acc) -> move_away(R, Tv, Acc);
+       ([_Dx,_Dy,R], Acc) -> move_away(R, Tv, Acc);
+       (view_changed, _Acc) -> move_away_fun(Tv)
     end.
 
 move_away(R0, Tv, Acc) ->
@@ -128,7 +120,7 @@ move_vectors([V|Vs], VsSet, #we{vs=Vtab}=We, Acc0) ->
 		    end
 	    end, Acc0, V, We),
     move_vectors(Vs, VsSet, We, Acc);
-move_vectors([], VsSet, We, Acc) -> Acc.
+move_vectors([], _VsSet, _We, Acc) -> Acc.
 
 
 %%
@@ -202,17 +194,16 @@ average_normals([{Na,Orig,Da}|[{Nb,_,Db}|_]=T]) ->
 %% Conversion of face selections to vertices.
 %%
 
-faces_to_vertices(Faces, We, normal) ->
-    #we{fs=Ftab,es=Etab,vs=Vtab} = We,
+faces_to_vertices(Faces, #we{vs=Vtab}=We, normal) ->
     Vs = foldl(fun(Face, Acc0) ->
 		       Vs = wings_face:surrounding_vertices(Face, We),
-		       face_normal(Face, Vs, Vtab, Acc0)
+		       face_normal(Vs, Vtab, Acc0)
 	       end, [], gb_sets:to_list(Faces)),
     face_average(Vs, Vtab);
 faces_to_vertices(Faces, We, Vec) ->
     make_tvs(wings_face:to_vertices(Faces, We), Vec, We).
 
-face_normal(Face, Vs, Vtab, Acc) ->
+face_normal(Vs, Vtab, Acc) ->
     Normal = wings_face:face_normal(Vs, Vtab),
     foldl(fun(V, A) -> [{V,Normal}|A] end, Acc, Vs).
 
@@ -225,8 +216,8 @@ face_average(Vs, Vtab) ->
 		  [{N,[V]}|Acc]
 	  end, [], sofs:to_external(F)).
 
-face_average_normals(V, [Na], Vtab) -> Na;
-face_average_normals(V, [Na,Nb], Vtab) ->
+face_average_normals(_V, [Na], _Vtab) -> Na;
+face_average_normals(_V, [Na,Nb], _Vtab) ->
     N = e3d_vec:norm(e3d_vec:add(Na, Nb)),
     case e3d_vec:dot(N, Na) of
 	Dot when abs(Dot) < 1.0E-6 ->
@@ -274,7 +265,7 @@ face_average_normals(V, [Na,Nb,Nc], Vtab) ->
 %% Filter out normals that are too close to each other.
 filter_normals([_]=Ns) -> Ns;
 filter_normals([_,_]=Ns) -> Ns;
-filter_normals([Na|[N0|_]=Ns]) ->
+filter_normals([Na|[_|_]=Ns]) ->
     %% Three or more normals. We want three normals that point
     %% in as different directions as possible, or just two normals
     %% if we can't find three different enough.
@@ -302,7 +293,7 @@ largest_angle([N|Ns], Na, OldDot, OldN) ->
 	Dot ->
 	    largest_angle(Ns, Na, OldDot, OldN)
     end;
-largest_angle([], Na, Dot, N) -> N.
+largest_angle([], _Na, _Dot, N) -> N.
 
 %% Find the normal with the smallest angle from Na.
 smallest_angle([N|Ns], Na) ->
@@ -316,7 +307,7 @@ smallest_angle([N|Ns], Na, OldDot, OldN) ->
 	Dot ->
 	    smallest_angle(Ns, Na, OldDot, OldN)
     end;
-smallest_angle([], Na, Dot, N) -> {N,Dot}.
+smallest_angle([], _Na, Dot, N) -> {N,Dot}.
 
 %%
 %% Conversion of body selections (entire objects) to vertices.
@@ -331,7 +322,7 @@ translate_fun(free) ->
 	    e3d_mat:translate(Xt, Yt, Zt)
     end;
 translate_fun({Xt0,Yt0,Zt0}) ->
-    fun(Matrix0, [Dx]) when float(Dx) ->
+    fun(_Matrix0, [Dx]) when float(Dx) ->
 	    Xt = Xt0*Dx,
 	    Yt = Yt0*Dx,
 	    Zt = Zt0*Dx,
@@ -345,7 +336,7 @@ translate_fun({Xt0,Yt0,Zt0}) ->
 make_tvs(Vs, free, We) ->
     VsPos = wings_util:add_vpos(Vs, We),
     {Vs,move_fun(VsPos)};
-make_tvs(Vs, Vec, We) -> [{Vec,Vs}].
+make_tvs(Vs, Vec, _We) -> [{Vec,Vs}].
 
 move_fun(VsPos) ->
     fun(view_changed, NewWe) ->

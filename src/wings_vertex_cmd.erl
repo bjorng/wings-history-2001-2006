@@ -8,73 +8,115 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.22 2002/02/26 20:39:17 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.23 2002/03/11 11:04:02 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
-
--export([flatten/2,flatten_move/2,extrude/2,bevel/1,
-	 connect/1,connect/2,tighten/1,tighten/3,dissolve/1]).
+-export([menu/3,command/2,tighten/3,connect/2]).
 
 -include("wings.hrl").
-
 -import(lists, [member/2,keymember/3,foldl/3,mapfoldl/3,
 		reverse/1,last/1,sort/1]).
+-import(wings_draw, [model_changed/1]).
+
+menu(X, Y, St) ->
+    Dir = wings_menu_util:directions(St),
+    Menu = [{"Vertex operations",ignore},
+	    separator,
+	    {"Move",{move,Dir}},
+	    wings_menu_util:rotate(),
+	    wings_menu_util:scale(),
+	    separator,
+	    {"Extrude",{extrude,Dir}},
+	    separator,
+	    wings_menu_util:flatten(),
+	    separator,
+	    {"Connect",connect,
+	     "Create a new edge to connect selected vertices"},
+	    {"Tighten",tighten},
+	    {"Bevel",bevel,"Create faces of selected vertices"},
+	    {"Collapse",collapse,"Delete selected vertices"},
+	    {"Dissolve",dissolve,"Delete selected vertices"},
+	    separator,
+	    wings_magnet:sub_menu(St),
+	    {"Deform",wings_deform:sub_menu(St)}|wings_vec:menu(St)],
+    wings_menu:popup_menu(X, Y, vertex, Menu, St).
+
+%% Vertex menu.
+command({flatten,Plane}, St) ->
+    {save_state,model_changed(flatten(Plane, St))};
+command(connect, St) ->
+    {save_state,model_changed(connect(St))};
+command(tighten, St) ->
+    tighten(St);
+command(bevel, St) ->
+    ?SLOW(bevel(St));
+command({extrude,Type}, St) ->
+    ?SLOW(extrude(Type, St));
+command({deform,Deform}, St0) ->
+    ?SLOW(wings_deform:command(Deform, St0));
+command(auto_smooth, St) ->
+    wings_body:auto_smooth(St);
+command(dissolve, St) ->
+    {save_state,model_changed(dissolve(St))};
+command({magnet,Magnet}, St) ->
+    ?SLOW(wings_magnet:command(Magnet, St));
+command(collapse, St) ->
+    {save_state,model_changed(wings_collapse:collapse(St))};
+command({move,Type}, St) ->
+    wings_move:setup(Type, St);
+command({rotate,Type}, St) ->
+    wings_rotate:setup(Type, St);
+command({scale,Type}, St) ->
+    wings_scale:setup(Type, St).
 
 %%%
 %%% The Flatten command.
 %%%
 
-flatten(Plane0, St) ->
-    Plane = flatten_vector(Plane0),
+flatten({Plane,Center}, St) ->
+    flatten(Plane, Center, St);
+flatten(Plane, St) ->
+    flatten(Plane, average, St).
+
+flatten(Plane0, average, St) ->
+    Plane = wings_util:make_vector(Plane0),
     wings_sel:map(
       fun(Vs, We) ->
 	      wings_vertex:flatten(Vs, Plane, We)
-      end, St).
-
-flatten_vector({_,{_,_,_}=Plane}) -> Plane;
-flatten_vector(Plane) -> wings_util:make_vector(Plane).
-
-%%%
-%%% The Flatten Move command.
-%%%
-
-flatten_move(Type, St) ->
-    {Center,Plane} = flatten_move_vector(Type),
+      end, St);
+flatten(Plane0, Center, St) ->
+    Plane = wings_util:make_vector(Plane0),
     wings_sel:map(
       fun(Vs, We) ->
 	      wings_vertex:flatten(Vs, Plane, Center, We)
       end, St).
-
-flatten_move_vector({{_,_,_},{_,_,_}}=CenterPlane) ->
-    CenterPlane;
-flatten_move_vector(Plane) ->
-    {{0.0,0.0,0.0},wings_util:make_vector(Plane)}.
     
 %%%
 %%% The Extrude command.
 %%%
 
 extrude(Type, St0) ->
-    {St,Tvs} = wings_sel:mapfold(fun(Vs, We0, Acc) ->
-					 extrude_vertices(Vs, Type, We0, Acc)
-				 end, [], St0),
+    {St,Tvs} = wings_sel:mapfold(
+		 fun(Vs, We0, Acc) ->
+			 extrude_vertices(Vs, We0, Acc)
+		 end, [], St0),
     wings_move:plus_minus(Type, Tvs, St).
 
-extrude_vertices(Vs, Type0, We0, Acc) ->
+extrude_vertices(Vs, We0, Acc) ->
     We = foldl(fun(V, A) ->
-		       ex_new_vertices(V, Vs, We0, A)
+		       ex_new_vertices(V, We0, A)
 	       end, We0, gb_sets:to_list(Vs)),
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
     {We,[{Vs,NewVs,We}|Acc]}.
 
-ex_new_vertices(V, VsSet, OrigWe, #we{vs=Vtab}=We0) ->
+ex_new_vertices(V, OrigWe, #we{vs=Vtab}=We0) ->
     Center = wings_vertex:pos(V, We0),
     {We,VsFaces} =
 	wings_vertex:fold(
 	  fun(Edge, Face, Rec, {W0,Vs}) ->
 		  OtherV = wings_vertex:other(V, Rec),
-		  R = edge_ratio(OtherV, VsSet, OrigWe),
+		  R = edge_ratio(OtherV, OrigWe),
 		  Pos0 = wings_vertex:pos(OtherV, Vtab),
 		  Dir = e3d_vec:sub(Pos0, Center),
 		  Pos = e3d_vec:add(Center, e3d_vec:mul(Dir, R)),
@@ -83,7 +125,7 @@ ex_new_vertices(V, VsSet, OrigWe, #we{vs=Vtab}=We0) ->
 	  end, {We0,[]}, V, We0),
     ex_connect(VsFaces, VsFaces, We).
 
-edge_ratio(V, VsSet, #we{vs=Vtab}) ->
+edge_ratio(V, #we{vs=Vtab}) ->
     case gb_trees:is_defined(V, Vtab) of
 	false -> 1/3;
 	true -> 0.25
@@ -100,7 +142,7 @@ ex_connect([Va,Face], [Vb|_], We0) ->
 %%% The Bevel command.
 %%%
 
-bevel(#st{sel=Vsel}=St0) ->
+bevel(St0) ->
     {St,{Tvs0,FaceSel}} =
 	wings_sel:mapfold(
 	  fun(Vs, #we{id=Id}=We0, {Tvs,Fa}) ->
@@ -109,7 +151,7 @@ bevel(#st{sel=Vsel}=St0) ->
 		  Fs = gb_sets:from_list(Fs0),
 		  {We,{[{Id,Tv}|Tvs],[{Id,Fs}|Fa]}}
 	  end, {[],[]}, St0),
-    {Min,Tvs} = bevel_normalize(Tvs0, Vsel),
+    {Min,Tvs} = bevel_normalize(Tvs0),
     wings_drag:setup(Tvs, [{distance,{0.0,Min}}],
 			  wings_sel:set(face, FaceSel, St)).
 
@@ -203,9 +245,9 @@ bevel_new_vertices(Ids, N, Vtx, Vtab0) when N > 0 ->
     Id = wings_we:id(0, Ids),
     Vtab = gb_trees:insert(Id, Vtx#vtx{edge=Id+1}, Vtab0),
     bevel_new_vertices(wings_we:bump_id(Ids), N-1, Vtx, Vtab);
-bevel_new_vertices(Ids, N, Vtx, Vtab) -> Vtab.
+bevel_new_vertices(_Ids, _N, _Vtx, Vtab) -> Vtab.
 
-bevel_normalize(Tvs, Sel) ->
+bevel_normalize(Tvs) ->
     bevel_normalize(Tvs, 1.0E200, []).
 
 bevel_normalize([{Id,VecVs0}|Tvs], Min0, Acc) ->
@@ -214,10 +256,10 @@ bevel_normalize([{Id,VecVs0}|Tvs], Min0, Acc) ->
 bevel_normalize([], Min, Tvs) -> {Min,Tvs}.
 
 bevel_normalize_1(VecVs, Min0) ->
-    mapfoldl(fun({Vec,V}, Min0) ->
+    mapfoldl(fun({Vec,V}, M0) ->
 		     Min = case e3d_vec:len(Vec) of
-			       Len when Len < Min0 -> Len;
-			       Len -> Min0
+			       Len when Len < M0 -> Len;
+			       Len -> M0
 			   end,
 		     {{e3d_vec:norm(Vec),[V]},Min}
 	     end, Min0, VecVs).
@@ -239,8 +281,8 @@ adjacent(V, Vs, We) ->
 connect(St) ->
     wings_sel:map(fun connect/2, St).
 
-connect(Vs, #we{}=We) ->
-    FaceVs = wings_vertex:per_face(Vs, We),
+connect(Vs0, #we{}=We) ->
+    FaceVs = wings_vertex:per_face(Vs0, We),
     foldl(fun({Face,Vs}, Acc) ->
 		  wings_vertex:connect(Face, Vs, Acc)
 	  end, We, FaceVs).
@@ -253,17 +295,17 @@ tighten(St) ->
     Tvs = wings_sel:fold(fun tighten/3, [], St),
     wings_drag:setup(Tvs, [percent], St).
 
-tighten(Vs, #we{id=Id,vs=Vtab}=We, Acc) when is_list(Vs) ->
+tighten(Vs, #we{id=Id}=We, Acc) when is_list(Vs) ->
     Tv = foldl(
 	   fun(V, A) ->
-		   Vec = tighten_vec(V, Vs, We),
+		   Vec = tighten_vec(V, We),
 		   [{Vec,[V]}|A]
 	   end, [], Vs),
     [{Id,Tv}|Acc];
 tighten(Vs, We, Acc) -> 
     tighten(gb_sets:to_list(Vs), We, Acc).
 
-tighten_vec(V, Vs, #we{vs=Vtab}=We) ->
+tighten_vec(V, #we{vs=Vtab}=We) ->
     Nbs = wings_vertex:fold(
 	    fun(_, _, Rec, A) ->
 		    [wings_vertex:other(V, Rec)|A]

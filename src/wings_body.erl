@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.26 2002/03/08 13:20:59 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.27 2002/03/11 11:04:02 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -24,7 +24,7 @@ menu(X, Y, St) ->
     Menu = [{"Object operations",ignore},
 	    separator,
 	    {"Move",{move,Dir}},
-	    {"Rotate",{rotate,Dir}},
+	    wings_menu_util:rotate(),
 	    wings_menu_util:scale(),
 	    separator,
 	    {"Flip",{flip,XYZ}},

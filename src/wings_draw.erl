@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.62 2002/03/09 19:23:05 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.63 2002/03/11 11:04:02 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -708,13 +708,18 @@ show_saved_bb(#st{bb=[{X1,Y1,Z1},{X2,Y2,Z2}]}) ->
 make_vec_dlist(#st{vec=none}) ->
     gl:newList(?DL_UTIL, ?GL_COMPILE),
     gl:endList();
-make_vec_dlist(#st{vec={{Center,Vec},_}}) ->
-    gl:newList(?DL_UTIL, ?GL_COMPILE),
-    draw_vec(Center, Vec),
-    gl:endList();
 make_vec_dlist(#st{vec={Center,Vec}}) ->
     gl:newList(?DL_UTIL, ?GL_COMPILE),
     draw_vec(Center, Vec),
+    gl:endList();
+make_vec_dlist(#st{vec=Center}) ->
+    gl:newList(?DL_UTIL, ?GL_COMPILE),
+    Width = wings_pref:get_value(active_vector_width),
+    gl:color3fv(wings_pref:get_value(active_vector_color)),
+    gl:pointSize(Width*3.5),
+    gl:'begin'(?GL_POINTS),
+    gl:vertex3fv(Center),
+    gl:'end'(),
     gl:endList().
 
 draw_vec(Center, Vec0) ->
@@ -734,9 +739,9 @@ draw_vec(Center, Vec0) ->
     gl:color3fv(wings_pref:get_value(active_vector_color)),
     gl:pointSize(Width*3.5),
 
-    gl:'begin'(?GL_POINTS),
-    gl:vertex3fv(Center),
-    gl:'end'(),
+%     gl:'begin'(?GL_POINTS),
+%     gl:vertex3fv(Center),
+%     gl:'end'(),
 
     gl:lineWidth(Width),
     gl:'begin'(?GL_LINES),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.40 2002/03/04 12:53:11 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.41 2002/03/11 11:04:02 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -23,19 +23,17 @@
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
-    FlattenDir = wings_menu_util:flatten_dir(St),
     Menu = [{"Face operations",ignore},
 	    separator,
 	    {"Move",{move,Dir}},
-	    {"Rotate",{rotate,Dir}},
+	    wings_menu_util:rotate(),
 	    wings_menu_util:scale(),
 	    separator,
 	    {"Extrude",{extrude,Dir}},
 	    {"Extrude Region",{extrude_region,Dir}},
 	    {"Extract Region",{extract_region,Dir}},
 	    separator,
-	    {"Flatten",{flatten,FlattenDir}},
-	    {advanced,{"Flatten Move",{flatten_move,FlattenDir}}},
+	    wings_menu_util:flatten(),
 	    separator,
 	    {"Inset",inset,"Inset a face inside the selected face"},
 	    {"Intrude",intrude,"Carve out interior of object, "
@@ -77,8 +75,6 @@ command(bump, St) ->
     ?SLOW(wings_extrude_edge:bump(St));
 command({flatten,Plane}, St) ->
     {save_state,model_changed(flatten(Plane, St))};
-command({flatten_move,Type}, St) ->
-    {save_state,model_changed(flatten_move(Type, St))};
 command(bevel, St) ->
     ?SLOW(wings_extrude_edge:bevel_faces(St));
 command(inset, St) ->
@@ -482,43 +478,49 @@ replace_vertex(Old, New, We, Etab0) ->
 %%% The Flatten command.
 %%%
 
-flatten(Type, St) ->
-    Plane = flatten_vector(Type),
+flatten({Plane,Point}, St) ->
+    flatten(Plane, Point, St);
+flatten(Plane, St) ->
+    flatten(Plane, average, St).
+
+flatten(Plane0, average, St) ->
+    Plane = wings_util:make_vector(Plane0),
     wings_sel:map(
       fun(Faces, We) ->
 	      Rs = wings_sel:face_regions(Faces, We),
-	      foldl(fun(Fs, W) -> flatten(Fs, Plane, W) end, We, Rs)
-      end, St).
-
-flatten(Faces, normal, We) ->
-    N = gb_sets:fold(fun(Face, Normal) ->
-			     e3d_vec:add(Normal, wings_face:normal(Face, We))
-		     end, e3d_vec:zero(), Faces),
-    flatten(Faces, e3d_vec:norm(N), We);
-flatten(Faces, PlaneNormal, We) ->
-    Vs = wings_face:to_vertices(Faces, We),
-    Center = wings_vertex:center(Vs, We),
-    wings_vertex:flatten(Vs, PlaneNormal, Center, We).
-
-flatten_vector({_,{_,_,_}=Plane}) -> Plane;
-flatten_vector(Plane) -> wings_util:make_vector(Plane).
-
-%%%
-%%% The Flatten Move command.
-%%%
-
-flatten_move(Type, St) ->
-    {Center,Plane} = flatten_move_vector(Type),
+	      foldl(fun(Fs, W) -> do_flatten(Fs, Plane, W) end, We, Rs)
+      end, St);
+flatten(normal, Center, St) ->
+    wings_sel:map(
+      fun(Faces, We) ->
+	      Rs = wings_sel:face_regions(Faces, We),
+	      foldl(fun(Fs, W) -> do_flatten_normal(Fs, Center, W) end, We, Rs)
+      end, St);
+flatten(Plane0, Center, St) ->
+    Plane = wings_util:make_vector(Plane0),
     wings_sel:map(
       fun(Faces, We) ->
 	      Vs = wings_face:to_vertices(Faces, We),
 	      wings_vertex:flatten(Vs, Plane, Center, We)
       end, St).
 
-flatten_move_vector({{_,_,_},{_,_,_}}=CenterPlane) ->
-    CenterPlane;
-flatten_move_vector(Plane) ->
-    {{0.0,0.0,0.0},wings_util:make_vector(Plane)}.
+do_flatten(Faces, normal, We) ->
+    N = gb_sets:fold(fun(Face, Normal) ->
+			     e3d_vec:add(Normal, wings_face:normal(Face, We))
+		     end, e3d_vec:zero(), Faces),
+    do_flatten(Faces, e3d_vec:norm(N), We);
+do_flatten(Faces, PlaneNormal, We) ->
+    Vs = wings_face:to_vertices(Faces, We),
+    Center = wings_vertex:center(Vs, We),
+    wings_vertex:flatten(Vs, PlaneNormal, Center, We).
+
+do_flatten_normal(Faces, Center, We) ->
+    N0 = foldl(fun(Face, A) ->
+		       [wings_face:normal(Face, We)|A]
+	       end, [], gb_sets:to_list(Faces)),
+    N = e3d_vec:norm(e3d_vec:add(N0)),
+    Vs = wings_face:to_vertices(Faces, We),
+    wings_vertex:flatten(Vs, N, Center, We).
 
 %%%
 %%% The Smooth command.
@@ -850,7 +852,7 @@ lift_from_edge_2(Dir, Face, Edge, Side, #we{id=Id,es=Etab}=We0, Tv) ->
 			right -> e3d_vec:sub(VaPos, VbPos)
 		    end,
 	    Axis = e3d_vec:norm(Axis0),
-	    Rot = wings_rotate:rotate(FaceVs, We, {VaPos,Axis}),
+	    Rot = wings_rotate:rotate(Axis, VaPos, FaceVs, We),
 	    {We,[{Id,Rot}|Tv]};
 	_Other ->
 	    Vec = wings_util:make_vector(Dir),
