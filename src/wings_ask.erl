@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.70 2003/03/06 18:54:04 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.71 2003/03/06 19:06:21 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -172,16 +172,12 @@ setup_blanket(Dialog) ->
     %% The menu blanket window lies below the dialog, covering the entire
     %% screen and ignoring most events. Keyboard events will be forwarded
     %% to the active dialog window.
-    case wings_wm:is_window(dialog_blanket) of
-	true -> ok;
-	false ->
-	    Op = {push,fun(Ev) -> blanket(Ev, Dialog) end},
-	    {TopW,TopH} = wings_wm:top_size(),
-	    wings_wm:new(dialog_blanket, {0,0,highest}, {TopW,TopH}, Op)
-    end.
+    Op = {push,fun(Ev) -> blanket(Ev, Dialog) end},
+    {TopW,TopH} = wings_wm:top_size(),
+    wings_wm:new({blanket,Dialog}, {0,0,highest}, {TopW,TopH}, Op).
 
-remove_blanket() ->
-    wings_wm:delete(dialog_blanket).
+delete_blanket(#s{level=Level}) ->
+    wings_wm:delete({blanket,{dialog,Level}}).
 
 blanket(#keyboard{}=Ev, Dialog) ->
     wings_wm:send(Dialog, Ev);
@@ -230,11 +226,13 @@ event_key({key,_,_,$\r}, S) ->
 event_key(Ev, S) ->
     field_event(Ev, S).
 
-delete(#s{level=?INITIAL_LEVEL,grab_win=GrabWin}) ->
-    remove_blanket(),
+delete(#s{level=?INITIAL_LEVEL,grab_win=GrabWin}=S) ->
+    delete_blanket(S),
     wings_wm:grab_focus(GrabWin),
     delete;
-delete(_) -> delete.
+delete(S) ->
+    delete_blanket(S),
+    delete.
 
 mouse_event(_, _, #mousemotion{state=Bst}, _) when Bst band ?SDL_BUTTON_LMASK == 0 ->
     keep;
