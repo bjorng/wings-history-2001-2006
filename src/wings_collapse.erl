@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.46 2005/01/16 04:36:33 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.47 2005/01/23 07:35:59 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -122,7 +122,7 @@ collapse_face_1(Face, We0) ->
 	    We2 = We1#we{vc=Vct,vp=Vs,es=Es2,fs=Fs2,he=He1},
 	    We = wings_vertex:fold(
 		   fun(_, _, _, bad_edge) -> bad_edge;
-		      (_, F, _, W) -> wings_face:delete_if_bad(F, W)
+		      (_, F, _, W) -> delete_if_bad(F, W)
 		   end, We2, NewV, We2),
 
 	    %% If no edges left, return the original object.
@@ -199,14 +199,15 @@ collapse_edge_1(Edge, Vkeep, Rec, We0) ->
 	true -> We0;
 	false ->
 	    We1 = internal_collapse_edge(Edge, Vkeep, Vremove, Rec, We0),
-	    We = foldl(fun(_Face, bad_edge) -> bad_edge;
-			  (Face, W) -> wings_face:delete_if_bad(Face, W)
-		       end, We1, Faces),
+	    We2 = delete_bad_faces(Faces, We1),
+	    SurrFaces = wings_face:from_vs([Vkeep], We2),
+	    We = delete_bad_faces(SurrFaces, We2),
 	    case We of
 		bad_edge -> We0;
 		_ -> We
 	    end
     end.
+
 
 internal_collapse_edge(Edge, Vkeep, Vremove, Rec,
 		       #we{es=Etab0,he=Htab0,fs=Ftab0,
@@ -395,4 +396,28 @@ check_consistency(We) ->
 	false ->
 	    Msg = ?STR(check_consistency,1,"Collapsing would cause an inconsistent object structure."),
 	    wings_u:error(Msg)
+    end.
+
+
+delete_bad_faces(_, bad_edge) -> bad_edge;
+delete_bad_faces([F|Fs], We0) ->
+    We = delete_if_bad(F, We0),
+    delete_bad_faces(Fs, We);
+delete_bad_faces([], We) -> We.
+
+%% Delete a face if it only has two edges.
+
+delete_if_bad(Face, #we{fs=Ftab,es=Etab}=We) ->
+    case gb_trees:lookup(Face, Ftab) of
+	{value,Edge} ->
+	    case gb_trees:get(Edge, Etab) of
+		#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same} ->
+		    bad_edge;
+		#edge{ltpr=Same,ltsu=Same} ->
+		    wings_edge:dissolve_edge(Edge, We);
+		#edge{rtpr=Same,rtsu=Same} ->
+		    wings_edge:dissolve_edge(Edge, We);
+		_ -> We
+	    end;
+	none -> We
     end.
