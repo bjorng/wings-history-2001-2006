@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.1 2001/11/08 14:23:26 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.2 2001/11/11 08:32:24 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
@@ -35,7 +35,8 @@ find_loop(#st{sel=[{Id,Edges}=PrevSel],shapes=Shapes}=St, Dir0) ->
     G = digraph:new(),
     build_digraph(G, gb_sets:to_list(Edges), Edges, Etab),
     Cs0 = digraph_utils:components(G),
-    Cs = get_edges(G, Cs0),
+    Cs1 = get_edges(G, Cs0),
+    Cs = [C || C <- Cs1, is_closed_loop(C, We)],
     digraph:delete(G),
     {Dir,PrevLoop} = prev_loop(Dir0, St),
     Sel = case pick_loop(Cs, Dir, PrevLoop, St) of
@@ -47,6 +48,9 @@ find_loop(#st{sel=[{Id,Edges}=PrevSel],shapes=Shapes}=St, Dir0) ->
 	      Sel0 -> Sel0
 	  end,
     St#st{sel=[Sel],edge_loop={Dir0,PrevSel}}.
+
+is_closed_loop(Edges, We) ->
+    edge_loop_vertices(Edges, We) =/= none.
     
 get_edges(G, [C|Cs]) ->
     Es = gb_sets:from_list(append([digraph:edges(G, V) || V <- C])),
@@ -165,4 +169,34 @@ next_edge(From, V, Face, Edge, Etab) ->
 	#edge{vs=V,ve=Ov,lf=Face,ltsu=From,rtpr=To} -> To;
 	#edge{ve=V,vs=Ov,rf=Face,rtsu=From,ltpr=To} -> To;
 	#edge{ve=V,vs=Ov,lf=Face,ltpr=From,rtsu=To} -> To
+    end.
+
+%% edge_loop_vertices(EdgeSet, WingedEdge) -> [Vertex] | none
+%%  Given a set of edges that is supposed to form
+%%  simple closed loop, this function returns the vertices
+%%  that make up the loop in the correct order.
+
+edge_loop_vertices(Edges0, #we{es=Etab}=We) ->
+    {Edge,Edges} = gb_sets:take_smallest(Edges0),
+    #edge{vs=V,ve=Vend} = gb_trees:get(Edge, Etab),
+    edge_loop_vertices(Edges, V, Edge, Vend, We, [Vend]).
+
+edge_loop_vertices(Edges, Vend, Edge, Vend, We, Acc) ->
+    case gb_sets:is_empty(Edges) of
+	true -> Acc;
+	false -> none
+    end;
+edge_loop_vertices(Edges0, V, PrevEdge, Vend, We, Acc) ->
+    Res = wings_vertex:until(
+	    fun(Edge, _, Rec, A) ->
+		    case gb_sets:is_member(Edge, Edges0) of
+			true -> {Edge,wings_vertex:other(V, Rec)};
+			false -> A
+		    end
+	    end, none, V, We),
+    case Res of
+	none -> none;
+	{Edge,OtherV} ->
+	    Edges = gb_sets:delete(Edge, Edges0),
+	    edge_loop_vertices(Edges, OtherV, Edge, Vend, We, [V|Acc])
     end.
