@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.21 2003/03/11 11:06:00 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.22 2003/03/11 11:16:20 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -280,12 +280,17 @@ ctrl_resize(Client, W, H) ->
 	    wings_wm:update_window(Client, [{w,W},{h,H}])
     end.
 
-ctrl_fit(both) ->
+ctrl_fit(How) ->
+    {_,Client} = wings_wm:this(),
+    wings_wm:raise(Client),
+    ctrl_fit_1(How).
+
+ctrl_fit_1(both) ->
     fit_horizontal(),
     fit_vertical();
-ctrl_fit(horizontal) ->
+ctrl_fit_1(horizontal) ->
     fit_horizontal();
-ctrl_fit(vertical) ->
+ctrl_fit_1(vertical) ->
     fit_vertical().
 
 fit_horizontal() ->
