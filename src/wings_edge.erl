@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.65 2003/04/21 10:16:57 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.66 2003/07/19 06:15:24 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -32,6 +32,7 @@
 -export([dissolve_vertex/2]).
 
 -define(NEED_ESDL, 1).
+-define(NEED_OPENGL, 1).
 -include("wings.hrl").
 -import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,
 		seq/2,sort/1]).
@@ -72,7 +73,7 @@ plain_cut_menu() ->
 
 cut_fun() ->
     F = fun(help, _Ns) ->
-		{"Cut into edges of equal length",[],"Cut and slide"};
+		{"Cut into edges of equal length",[],"Cut at arbitrary position"};
 	   (1, _Ns) -> cut_entries();
 	   (2, _) -> ignore;
 	   (3, _) -> {edge,cut_pick}
@@ -90,7 +91,7 @@ cut_entries() ->
 cut_entry(N) ->
     Str = integer_to_list(N),
     {Str,N,"Cut into " ++ Str ++ " edges of equal length"}.
-    
+
 %% Edge commands.
 command(bevel, St) ->
     ?SLOW(wings_extrude_edge:bevel(St));
@@ -329,34 +330,70 @@ get_vtx_color(Edge, Face, Etab) ->
 	#edge{lf=Face,a=Col} -> Col;
 	#edge{rf=Face,b=Col} -> Col
     end.
-    
+
 %%%
-%%% Cut and then interactively adjust the vertex positions.
+%%% Cut at an arbitrary position.
 %%%
 
-cut_pick(St0) ->
-    cut_pick_check_sel(St0),
-    St = cut(2, St0),
-    Tvs = wings_sel:fold(
-	    fun(Vs, #we{id=Id}=We, Acc) ->
-		    [{Id,cut_pick_1(gb_sets:to_list(Vs), We, [])}|Acc]
-	    end, [], St),
-    wings_drag:setup(Tvs, [{percent,{-1.0,1.0}}], [], St).
+cut_pick(St) ->
+    Tvs = wings_sel:fold(fun(Es, We, []) ->
+				 case gb_sets:to_list(Es) of
+				     [E] -> cut_pick_make_tvs(E, We);
+				     _ -> cut_pick_error()
+				 end;
+			    (_, _, _) ->
+				 cut_pick_error()
+			 end, [], St),
+    Units = [{percent,{0.0,1.0}}],
+    Flags = [{initial,[0]}],
+    wings_drag:setup(Tvs, Units, Flags, St).
 
-cut_pick_1([V|Vs], #we{vc=Vct,vp=Vtab,es=Etab}=We, Acc) ->
-    Edge = gb_trees:get(V, Vct),
-    Pa = gb_trees:get(V, Vtab),
-    Pb = wings_vertex:other_pos(V, gb_trees:get(Edge, Etab), Vtab),
-    cut_pick_1(Vs, We, [{e3d_vec:sub(Pa, Pb),[V]}|Acc]);
-cut_pick_1([], _, Acc) -> Acc.
+cut_pick_error() ->
+    wings_util:error("Only one edge can be cut at an arbitrary position.").
 
-cut_pick_check_sel(#st{sel=[{_,Es}]}) ->
-    case gb_sets:size(Es) of
-	1 -> ok;
-	_ -> cut_pick_check_sel(error)
-    end;
-cut_pick_check_sel(_) ->
-    wings_util:error("Cut and slide can only work on one edge at the time.").
+cut_pick_make_tvs(Edge, #we{id=Id,es=Etab,vp=Vtab}=We) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+    Start = gb_trees:get(Va, Vtab),
+    End = gb_trees:get(Vb, Vtab),
+    Dir = e3d_vec:sub(End, Start),
+    Char = {7,7,3,3,7,0,
+	    <<2#01111100,
+	      2#10000010,
+	      2#10000010,
+	      2#10000010,
+	      2#10000010,
+	      2#10000010,
+	      2#01111100>>},
+    Fun = fun(I, D) -> cut_pick_marker(I, D, Edge, We, Start, Dir, Char) end,
+    {general,[{Id,Fun}]}.
+
+cut_pick_marker([I], D, Edge, We0, Start, Dir, Char) ->
+    {X,Y,Z} = Pos = e3d_vec:add(Start, e3d_vec:mul(Dir, I)),
+    {MM,PM,ViewPort} = wings_util:get_matrices(0, original),
+    {Sx,Sy,_} = glu:project(X, Y, Z, MM, PM, ViewPort),
+    Dl = gl:genLists(1),
+    gl:newList(Dl, ?GL_COMPILE),
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:color3f(1, 0, 0),
+    gl:shadeModel(?GL_FLAT),
+    gl:disable(?GL_DEPTH_TEST),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    {W,H} = wings_wm:win_size(),
+    glu:ortho2D(0, W, 0, H),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    gl:rasterPos2f(Sx, Sy),
+    wings_io:draw_char(Char),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:popMatrix(),
+    gl:popAttrib(),
+    gl:endList(),
+    {We,_} = fast_cut(Edge, Pos, We0),
+    D#dlo{hilite=Dl,src_we=We}.
 
 %%%
 %%% The Connect command.
@@ -401,7 +438,7 @@ dissolve_edges(Edges0, We0) when is_list(Edges0) ->
 	Edges0 -> We;
 	Edges -> dissolve_edges(Edges, We)
     end;
-dissolve_edges(Edges, We) -> 
+dissolve_edges(Edges, We) ->
     dissolve_edges(gb_sets:to_list(Edges), We).
 
 dissolve_edge(Edge, #we{es=Etab}=We0) ->
@@ -414,7 +451,7 @@ dissolve_edge(Edge, #we{es=Etab}=We0) ->
 	    merge_edges(backward, Edge, Rec, We0);
 	{value,#edge{rtsu=Forward,ltpr=Forward}=Rec} ->
 	    merge_edges(forward, Edge, Rec, We0);
-	{value,Rec} -> 
+	{value,Rec} ->
 	    case catch dissolve_edge(Edge, Rec, We0) of
 		{'EXIT',Reason} -> exit(Reason);
 		{command_error,_}=Error -> throw(Error);
@@ -751,14 +788,14 @@ select_edge_ring_decr(#st{selmode=edge}=St) ->
 select_edge_ring_decr(St) -> St.
 
 build_selection(Edges, #we{id=Id} = We, ObjAcc) ->
-    [{Id,foldl(fun(Edge, EdgeAcc) -> 
-		       grow_from_edge(Edge, We, EdgeAcc) 
+    [{Id,foldl(fun(Edge, EdgeAcc) ->
+		       grow_from_edge(Edge, We, EdgeAcc)
 	       end, gb_sets:empty(), gb_sets:to_list(Edges))}|ObjAcc].
 
 grow_from_edge(unknown, _We, Selected) -> Selected;
 grow_from_edge(Edge, We, Selected0) ->
     case gb_sets:is_member(Edge, Selected0) of
-        true -> 
+        true ->
 	    Selected0;
         false ->
 	    Selected = gb_sets:add(Edge, Selected0),
@@ -785,25 +822,25 @@ next_edge(Edge, Face, #we{es=Etab})->
     end.
 
 incr_ring_selection(Edges, #we{id=Id} = We, ObjAcc) ->
-    [{Id,foldl(fun(Edge, EdgeAcc) -> 
-		       incr_from_edge(Edge, We, EdgeAcc) 
+    [{Id,foldl(fun(Edge, EdgeAcc) ->
+		       incr_from_edge(Edge, We, EdgeAcc)
 	       end, gb_sets:empty(), gb_sets:to_list(Edges))}|ObjAcc].
 
-incr_from_edge(Edge, We, Acc) ->    
+incr_from_edge(Edge, We, Acc) ->
     Selected = gb_sets:add(Edge, Acc),
-    LeftSet = 
-	case opposing_edge(Edge, We, left) of 
+    LeftSet =
+	case opposing_edge(Edge, We, left) of
 	    unknown -> Selected;
 	    Left -> gb_sets:add(Left, Selected)
 	end,
-    case opposing_edge(Edge, We, right) of 
+    case opposing_edge(Edge, We, right) of
 	unknown -> LeftSet;
 	Right -> gb_sets:add(Right, LeftSet)
     end.
-    
+
 decr_ring_selection(Edges, #we{id=Id} = We, ObjAcc) ->
-    [{Id,foldl(fun(Edge, EdgeAcc) -> 
-		       decr_from_edge(Edge, We, Edges, EdgeAcc) 
+    [{Id,foldl(fun(Edge, EdgeAcc) ->
+		       decr_from_edge(Edge, We, Edges, EdgeAcc)
 	       end, Edges, gb_sets:to_list(Edges))}|ObjAcc].
 
 decr_from_edge(Edge, We, Orig, Acc) ->
@@ -813,9 +850,9 @@ decr_from_edge(Edge, We, Orig, Acc) ->
 	true ->
 	    gb_sets:delete(Edge,Acc);
 	false ->
-	    case gb_sets:is_member(Left, Orig) and 
+	    case gb_sets:is_member(Left, Orig) and
 		gb_sets:is_member(Right, Orig) of
-		true -> 
+		true ->
 		    Acc;
 		false ->
 		    gb_sets:delete(Edge,Acc)
@@ -846,7 +883,7 @@ patch_half_edge(Edge, V, FaceA, A, Ea, FaceB, B, Eb, OrigV, Etab) ->
 		  Rec#edge{b=A,ve=V,ltpr=Eb,rtsu=Ea}
 	  end,
     gb_trees:update(Edge, New, Etab).
-    
+
 patch_edge(Edge, ToEdge, OrigEdge, Etab) ->
     New = case gb_trees:get(Edge, Etab) of
 	      #edge{ltsu=OrigEdge}=R ->
