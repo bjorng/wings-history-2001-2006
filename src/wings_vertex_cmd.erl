@@ -3,18 +3,18 @@
 %%
 %%     This module contains most of the commands for vertices.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.14 2001/12/29 20:33:56 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.15 2002/01/27 11:48:30 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
 
--export([flatten/2,extrude/2,bevel/1,connect/1,connect/2,
-	 tighten/1,tighten/3]).
+-export([flatten/2,flatten_move/2,extrude/2,bevel/1,
+	 connect/1,connect/2,tighten/1,tighten/3]).
 
 -include("wings.hrl").
 
@@ -28,15 +28,31 @@
 %%%
 
 flatten(Plane0, St) ->
-    Plane = wings_util:make_vector(Plane0),
+    Plane = flatten_vector(Plane0),
     wings_sel:map(
       fun(Vs, We) ->
-	      case gb_sets:size(Vs) of
-		  Sz when Sz < 2 -> We;
-		  Sz -> wings_vertex:flatten(Vs, Plane, We)
-	      end
+	      wings_vertex:flatten(Vs, Plane, We)
       end, St).
 
+flatten_vector({_,{_,_,_}=Plane}) -> Plane;
+flatten_vector(Plane) -> wings_util:make_vector(Plane).
+
+%%%
+%%% The Flatten Move command.
+%%%
+
+flatten_move(Type, St) ->
+    {Center,Plane} = flatten_move_vector(Type),
+    wings_sel:map(
+      fun(Vs, We) ->
+	      wings_vertex:flatten(Vs, Plane, Center, We)
+      end, St).
+
+flatten_move_vector({{_,_,_},{_,_,_}}=CenterPlane) ->
+    CenterPlane;
+flatten_move_vector(Plane) ->
+    {{0.0,0.0,0.0},wings_util:make_vector(Plane)}.
+    
 %%%
 %%% The Extrude command.
 %%%

@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.28 2002/01/20 11:17:54 bjorng Exp $
-%%
+%%     $Id: wings_face_cmd.erl,v 1.29 2002/01/27 11:48:30 bjorng Exp $
+%f%
 
 -module(wings_face_cmd).
 -export([extrude/2,extrude_region/2,extract_region/2,
 	 inset/1,dissolve/1,smooth/1,bridge/1,
-	 intrude/1,mirror/1,flatten/2]).
+	 intrude/1,mirror/1,flatten/2,flatten_move/2]).
 -export([outer_edge_partition/2]).
 
 -include("wings.hrl").
@@ -386,8 +386,8 @@ replace_vertex(Old, New, We, Etab0) ->
 %%% The Flatten command.
 %%%
 
-flatten(Plane0, St) ->
-    Plane = wings_util:make_vector(Plane0),
+flatten(Type, St) ->
+    Plane = flatten_vector(Type),
     wings_sel:map(
       fun(Faces, We) ->
 	      Rs = wings_sel:face_regions(Faces, We),
@@ -419,6 +419,26 @@ flatten_move(V, PlaneNormal, Center, Dist, Tab0) ->
     ToPlane = e3d_vec:mul(PlaneNormal, Dot),
     Pos = wings_util:share(e3d_vec:add(Pos0, e3d_vec:mul(ToPlane, Dist))),
     gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab0).
+
+flatten_vector({_,{_,_,_}=Plane}) -> Plane;
+flatten_vector(Plane) -> wings_util:make_vector(Plane).
+
+%%%
+%%% The Flatten Move command.
+%%%
+
+flatten_move(Type, St) ->
+    {Center,Plane} = flatten_move_vector(Type),
+    wings_sel:map(
+      fun(Faces, We) ->
+	      Vs = wings_face:to_vertices(Faces, We),
+	      wings_vertex:flatten(Vs, Plane, Center, We)
+      end, St).
+
+flatten_move_vector({{_,_,_},{_,_,_}}=CenterPlane) ->
+    CenterPlane;
+flatten_move_vector(Plane) ->
+    {{0.0,0.0,0.0},wings_util:make_vector(Plane)}.
 
 %%%
 %%% The Smooth command.
