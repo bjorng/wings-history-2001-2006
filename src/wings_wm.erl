@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.31 2002/12/02 07:55:54 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.32 2002/12/08 17:41:03 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -17,7 +17,7 @@
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
 	 active_window/0,offset/3,pos/1,windows/0,is_window/1,exists/1,
-	 callback/1,current_st/1,
+	 callback/1,current_state/1,
 	 grab_focus/1,release_focus/0,has_focus/1,
 	 top_size/0,viewport/0,viewport/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
@@ -99,10 +99,17 @@ send(Name, Ev) ->
     wings_io:putback_event({wm,{send_to,Name,Ev}}),
     keep.
 
-current_st(St) ->
-    wings_wm:send(buttons, {current,St}),
-    wings_wm:send(menubar, {current,St}).
-    
+current_state(St) ->
+    case put(wm_current_state, St) of
+	St -> ok;
+	_ ->
+	    NewState = {current_state,St},
+	    foreach(fun(geom) -> ok;
+		       (top) -> ok;
+		       (Name) -> send(Name, NewState)
+		    end, gb_trees:keys(get(wm_windows)))
+    end.
+
 dirty() ->
     put(wm_dirty, dirty).
 
@@ -225,8 +232,7 @@ event_loop() ->
 	_ ->
 	    case wings_io:poll_event() of
 		{new_state,_} -> get_and_dispatch();
-		_ ->
-		    redraw_all()
+		_ -> redraw_all()
 	    end
     end.
 
@@ -692,9 +698,9 @@ button_event(#mousemotion{x=X}, But) ->
     keep;
 button_event({action,_}=Action, _) ->
     send(geom, Action);
-button_event({current,#st{selmode=Mode}}, #but{mode=Mode}) ->
+button_event({current_state,#st{selmode=Mode}}, #but{mode=Mode}) ->
     keep;
-button_event({current,#st{selmode=Mode}}, But) ->
+button_event({current_state,#st{selmode=Mode}}, But) ->
     dirty(),
     get_button_event(But#but{mode=Mode});
 button_event({mode_restriction,Restr}, #but{restr=Restr}) ->
@@ -838,14 +844,14 @@ get_menu_event(Mb) ->
 
 menubar_event(redraw, Mb) ->
     menubar_redraw(Mb);
-menubar_event(quit, Mb) ->
+menubar_event(quit, _) ->
     send(geom, quit);
 menubar_event({action,_}=Action, _) ->
     send(geom, Action);
 menubar_event(clear_menu_selection, Mb) ->
     dirty(),
     get_menu_event(Mb#mb{sel=none});
-menubar_event({current,St}, Mb) ->
+menubar_event({current_state,St}, Mb) ->
     get_menu_event(Mb#mb{st=St});
 menubar_event(#mousebutton{button=1,x=X0,state=?SDL_PRESSED},
 	      #mb{sel=Sel}=Mb) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.82 2002/12/02 06:46:58 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.83 2002/12/08 17:41:03 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -275,8 +275,7 @@ auto_rotate_event_1(_Event, #tim{timer=Timer}) ->
     pop.
 
 auto_rotate_redraw(#tim{st=St}) ->
-    wings_draw:render(St),
-    wings_io:update(St).
+    wings_draw:render(St).
 
 auto_rotate_help() ->
     Help = ["[L] Stop rotating ",wings_camera:help()],
@@ -412,7 +411,7 @@ smooth_dlist(#dlo{smoothed=none,src_we=We0}=D, St) ->
     {D#dlo{smoothed=[List,Edges],transparent=Tr},[]};
 smooth_dlist(D, _) -> {D,[]}.
 
-smooth_redraw(#sm{st=St}=Sm) ->
+smooth_redraw(Sm) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:enable(?GL_DEPTH_TEST),
     gl:frontFace(?GL_CCW),
@@ -420,8 +419,7 @@ smooth_redraw(#sm{st=St}=Sm) ->
     model_transformations(true),
     wings_draw_util:fold(fun(D, _) -> smooth_redraw(D, Sm, false) end, []),
     wings_draw_util:fold(fun(D, _) -> smooth_redraw(D, Sm, true) end, []),
-    gl:popAttrib(),
-    wings_io:update(St).
+    gl:popAttrib().
 
 smooth_redraw(#dlo{mirror=none}=D, Sm, Flag) ->
     smooth_redraw_1(D, Sm, Flag);

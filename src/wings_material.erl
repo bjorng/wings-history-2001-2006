@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.63 2002/12/05 14:32:45 dgud Exp $
+%%     $Id: wings_material.erl,v 1.64 2002/12/08 17:41:03 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -275,24 +275,6 @@ edit(Name, #st{mat=Mtab0}=St) ->
     Shine0 = prop_get(shininess, OpenGL0),
     {Emiss0,_} = ask_prop_get(emission, OpenGL0),
     Maps0 = show_maps(Mat0),
-%%% Uncomment if you don't like the new placing.
-%     Qs = [{hframe,
-% 	   [{custom,?PREVIEW_SIZE,?PREVIEW_SIZE,fun mat_preview/5},
-% 	    {vframe,
-% 	     [{label,"Diffuse"},
-% 	      {label,"Ambient"},
-% 	      {label,"Specular"},
-% 	      {label,"Emission"},
-% 	      {label,"Shininess"},
-% 	      {label,"Opacity"}]},
-% 	    {vframe,
-% 	     [{color,Diff0,[{key,diffuse}]},
-% 	      {color,Amb0,[{key,ambient}]},
-% 	      {color,Spec0,[{key,specular}]},
-% 	      {color,Emiss0,[{key,emission}]},
-% 	      {slider,{text,Shine0,[{range,{0.0,1.0}},{key,shininess}]}},
-% 	      {slider,{text,Opacity0,[{range,{0.0,1.0}},{key,opacity}]}}]}
-% 	   ]}|Maps0],
     Qs = [{vframe,
 	   [
 	    {hframe, 

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.10 2002/11/08 10:45:25 dgud Exp $
+%%     $Id: auv.hrl,v 1.11 2002/12/08 17:41:03 bjorng Exp $
 
 %% Chart record (one for each chart).
 -record(ch,
@@ -27,6 +27,7 @@
 	 matname,
 	 we,					%Working We.
 	 orig_we,				%Original We.
+	 edges,					%Edge numbers.
 	 vmap	       %Map for going back to original vertex numbers.
 	}).
 

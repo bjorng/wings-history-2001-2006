@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.21 2002/12/01 10:36:03 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.22 2002/12/08 17:41:03 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -184,7 +184,7 @@ refresh_dlists(_, St) -> wings_draw:update_dlists(St).
 redraw(St) ->
     wings_draw:update_sel_dlist(),
     wings_draw_util:render(St),
-    wings_io:update(St),
+    wings_wm:current_state(St),
     keep.
 
 begin_drag(MM, St, T) ->

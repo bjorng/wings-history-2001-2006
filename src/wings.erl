@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.172 2002/11/30 08:58:17 bjorng Exp $
+%%     $Id: wings.erl,v 1.173 2002/12/08 17:41:03 bjorng Exp $
 %%
 
 -module(wings).
@@ -173,7 +173,7 @@ resize(W, H, St) ->
 redraw(St0) ->
     St = wings_draw:render(St0),
     wings_io:info(info(St)),
-    wings_io:update(St).
+    wings_wm:current_state(St).
 
 clean_state(St) ->
     caption(St).
@@ -243,7 +243,7 @@ handle_event_3({drag_arguments,_}, _St) ->	%Repeat Drag that failed.
 handle_event_3(redraw, St) ->
     wings_draw:render(St),
     wings_io:info(info(St)),
-    wings_io:update(St),
+    wings_wm:current_state(St),
     main_loop(St#st{vec=none});
 handle_event_3(quit, St) ->
     do_command({file,quit}, St);
