@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.138 2003/12/28 15:25:29 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.139 2003/12/29 09:24:21 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -82,8 +82,10 @@ command({confirmed_open,Filename}, St) ->
     confirmed_open(Filename, St);
 command({confirmed_open,Next,Filename}, _) ->
     Next(Filename);
-command(merge, St) ->
-    merge(St);
+command(merge, _) ->
+    merge();
+command({merge,Filename}, St) ->
+    merge(Filename, St);
 command(save, St) ->
     save(St);
 command({save,Next}, St) ->
@@ -197,11 +199,11 @@ confirmed_open(Name, St0) ->
 		  St2 = wings_undo:init(St1),
 		  case ?SLOW(wings_ff_wings:import(File, St2)) of
 		      #st{}=St3 ->
+			  set_cwd(dirname(File)),
 			  St = clean_images(St3),
 			  add_recent(Name),
 			  wings:caption(St#st{saved=true,file=Name});
 		      {error,Reason} ->
-			  set_cwd(dirname(File)),
 			  clean_new_images(St2),
 			  wings_util:error("Read failed: " ++ Reason)
 		  end
@@ -226,23 +228,31 @@ do_named_open(Name, St0) ->
 	  end,
     use_autosave(Name, Fun).
 
-merge(St0) ->
-    Ps = [{title,"Merge"}|wings_prop()],
-    case wings_plugin:call_ui({file,open_dialog,Ps}) of
-	aborted -> St0;
-	Name ->
-	    Fun = fun(File) ->
-			  St1 = St0#st{saved=wings_image:next_id()},
-			  case ?SLOW(wings_ff_wings:import(File, St0)) of
-			      {error,Reason} ->
-				  clean_new_images(St1),
-				  wings_util:error("Read failed: " ++ Reason);
-			      #st{}=St ->
-				  St#st{saved=false}
-			  end
-		  end,
-	    use_autosave(Name, Fun)
-    end.
+merge() ->
+    This = wings_wm:this(),
+    Fun = fun(Filename) ->
+		  wings_wm:send(This, {action,{file,{merge,Filename}}})
+	  end,
+    Dir = wings_pref:get_value(current_directory),
+    Ps = [{title,"Merge"},{directory,Dir}|wings_prop()],
+    wings_plugin:call_ui({file,open_dialog,Ps,Fun}).
+
+merge(Name, St0) ->
+    Fun = fun(File) ->
+		  %% We now have:
+		  %%   Name: Original name of file to be opened.
+		  %%   File: Either original file or the autosave file
+		  St1 = St0#st{saved=wings_image:next_id()},
+		  case ?SLOW(wings_ff_wings:import(File, St0)) of
+		      {error,Reason} ->
+			  clean_new_images(St1),
+			  wings_util:error("Read failed: " ++ Reason);
+		      #st{}=St ->
+			  set_cwd(dirname(Name)),
+			  St#st{saved=false}
+		  end
+	  end,
+    use_autosave(Name, Fun).
 
 save(St0) ->
     case save_1(St0) of
