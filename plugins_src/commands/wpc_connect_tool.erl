@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.20 2005/02/01 00:13:50 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.21 2005/02/03 12:44:50 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -292,7 +292,7 @@ do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
 	    Ok = vertex_fs(Id2,We0),
 	    try 
 		We=#we{}=connect_link(get_line(Id1,Id2,MM,We0),
-				      Id1,Fs,Id2,Ok,undefined,MM,We0),
+				      Id1,Fs,Id2,Ok,MM,We0),
 		St2 = St1#st{shapes=gb_trees:update(Shape,We, Sh)},
 		St = wings_undo:save(St0, St2),
 		C0#cs{v=[VI],we=Shape,last=Id1,st=St}
@@ -311,7 +311,7 @@ connect_edge(C0=#cs{v=[VI=#vi{id=Id1,mm=MM},#vi{id=Id2}],we=Shape,st=St0}) ->
     Ok = vertex_fs(Id2,We0),
     try 
 	We=#we{}= connect_link(get_line(Id1,Id2,MM,We0),
-			       Id1,Fs,Id2,Ok,undefined,MM,We0),
+			       Id1,Fs,Id2,Ok,MM,We0),
 	St = St0#st{shapes=gb_trees:update(Shape,We,St0#st.shapes)},
 	C0#cs{v=[VI],last=Id1,st=St}
     catch _E:_What -> 
@@ -339,13 +339,16 @@ vertex_fs(Id, We) ->
     Fs = wings_vertex:fold(fun(_,Face,_,Acc) -> [Face|Acc] end, [], Id, We),
     ordsets:from_list(Fs).
 
-connect_link(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,MM,We0) ->
+connect_link(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,MM,We0) ->
+    Prev = gb_sets:from_list([IdStart,IdEnd]),
+    connect_link1(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,MM,We0).
+connect_link1(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev0,MM,We0) ->
 %%    io:format("~p cut ~p <=> ~p ~n", [?LINE, IdStart, IdEnd]),    
-    case connect_done(FacesStart,FacesEnd,Prev,MM,We0) of
+    case connect_done(FacesStart,FacesEnd,Prev0,MM,We0) of
 	{true,LastFace} -> %% Done
 	    wings_vertex:connect(LastFace,[IdStart,IdEnd],We0);
 	{false,_} ->	    
-	    Find = check_possible(CutLine,IdStart,IdEnd,Prev,MM,We0),
+	    Find = check_possible(CutLine,Prev0,MM,We0),
 	    Cuts = wings_face:fold_faces(Find,[],FacesStart,We0),
 	    Selected = select_way(lists:usort(Cuts),We0,MM),
 	    {We1,Id1} = case Selected of
@@ -358,41 +361,41 @@ connect_link(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,MM,We0) ->
 %%	    io:format("~p ~p of ~p fs ~w~n", [?LINE, Id1, Cuts, Selected]),
 	    [First] = ordsets:intersection(Ok,FacesStart),
 	    We = wings_vertex:connect(First,[Id1,IdStart],We1),
-	    connect_link(CutLine,Id1,Ok,IdEnd,FacesEnd,IdStart,MM,We)
+	    Prev = gb_sets:insert(Id1, Prev0),
+	    connect_link1(CutLine,Id1,Ok,IdEnd,FacesEnd,Prev,MM,We)
     end.
 
-check_possible(CutLine,IdStart,IdEnd,Prev,MM,We) ->
-    fun(_, _, _, #edge{vs=V1,ve=V2}, Acc) 
-       %% Already connected, ignore these
-       when V1 == IdStart; V2 == IdStart; 
-	    V1 == IdEnd;   V2 == IdEnd;  
-	    V1 == Prev;    V2 == Prev -> Acc; 
-       %% Acceptable connection
-       (Face, _V, Edge, #edge{vs=Vs,ve=Ve}, Acc) -> 
-	    Edge2D = get_line(Vs,Ve,MM,We),
-	    InterRes = line_intersect2d(CutLine,Edge2D),
-	    case InterRes of
-		{false,{1,Pos2D}} -> 
-		    [{edge,Edge,Face,false,
-		      pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We)}|Acc];
-		{false,_} -> Acc;
-		{true, Pos2D} ->
-		    [{edge,Edge,Face,true,
-		      pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We)}|Acc];
-		{{point, 3},_Pos2d} -> 
-		    [{vertex,Vs,Face}|Acc];
-		{{point, 4},_Pos2d} -> 
-		    [{vertex,Ve,Face}|Acc];
-		_Else -> 
-		    Acc
-	    end
+check_possible(CutLine,Prev,MM,We) ->
+    fun(Face, _V, Edge, #edge{vs=Vs,ve=Ve}, Acc) -> 
+	    case gb_sets:is_member(Vs,Prev) orelse 
+		gb_sets:is_member(Ve,Prev) of
+		true -> %% Already used.
+		    Acc;
+		false ->
+		    Edge2D = get_line(Vs,Ve,MM,We),
+		    InterRes = line_intersect2d(CutLine,Edge2D),
+		    case InterRes of
+			{false,{1,Pos2D}} -> 
+			    [{edge,Edge,Face,false,
+			      pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We)}|Acc];
+			{false,_} -> Acc;
+			{true, Pos2D} ->
+			    [{edge,Edge,Face,true,
+			      pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We)}|Acc];
+			{{point, 3},_Pos2d} -> 
+			    [{vertex,Vs,Face}|Acc];
+			{{point, 4},_Pos2d} -> 
+			    [{vertex,Ve,Face}|Acc];
+			_Else -> 
+			    Acc
+		    end
+	    end	    
     end.
-
-
 
 connect_done(End,Start,Prev,MM,We) ->
+    First = gb_sets:size(Prev) == 2,
     case ordsets:intersection(Start,End) of
-	[LastFace] when Prev == undefined -> %% Done
+	[LastFace] when First -> %% Done
 	    {check_normal(LastFace,MM,We), LastFace};
 	[LastFace] -> 
 	    {true,LastFace};
