@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.2 2002/10/08 11:32:24 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.3 2002/10/08 22:15:39 dgud Exp $
 
 
 
@@ -33,7 +33,9 @@ create(Mode, We0) ->
 	    {Charts0, []};
 	mat_uvmap ->
 	    Charts0 = segment_by_material(We0),
-	    {Charts0, []}
+	    {Charts0, []};
+	one ->
+	    {[{0, gb_trees:keys(We0#we.fs)}], []}
     end.
 
 %%%%%% Feature detection Algorithm %%%%%%%%%%%%

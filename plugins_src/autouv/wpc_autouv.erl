@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.2 2002/10/08 11:32:24 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.3 2002/10/08 22:15:39 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -37,8 +37,10 @@ menu({body}, Menu0) ->
     case get(auv_state) of
 	undefined ->
 	    SubMenu1 = 
-		[{"Create UV map", create, "Create a new texture mapping(removing old)"},
-		 {"Edit UV map", edit, "Edit a previously created UV-map"}],
+		[{"Create UV map", create, 
+		  "Create a new texture mapping(removing old)"},
+		 {"Edit UV map", edit, 
+		  "Edit a previously created UV-map"}],
 	    Menu0 ++ [separator,
 		      {"UV-Mapping", {uvmap, SubMenu1},
 		       "Generate or edit a uv-map or texture"}];
@@ -75,14 +77,16 @@ menu(_, Menu0) ->
     Menu0.
 
 parameterization_menu(_Menu) ->
-    [{"UV-Mapping Continue", continue_param, "Continue with uv-mapping parameterization"},
+    [{"UV-Mapping Continue", continue_param, 
+      "Continue with uv-mapping parameterization"},
      {"UV-Mapping Cancel", uvmap_cancel, "Cancel all changes"}].
 
 command({body, {uvmap, create}}, St0) ->
     DefVar = {seg_type,autouvmap},
     Qs = [{vframe,[{alt,DefVar,"Advanced Cubic",autouvmap},
+		   {alt,DefVar,"By Feature Detection",feature},
 		   {alt,DefVar,"By Material",mat_uvmap},
-		   {alt,DefVar,"By Feature Detection",feature}
+		   {alt,DefVar,"I'll do by my self", one}
 		  ],
 	   [{title,"Segmentation type"}]}],
     Text = "Set charts, place faces into charts",
@@ -157,15 +161,13 @@ command({face,chart_names}, St) ->
     Mats = wings_sel:fold(
 	     fun(F0, We, A) ->
 		     Faces = gb_sets:to_list(F0),
-
-		     Mats0 = 
-			 lists:map(fun(Face) ->
-		     ?DBG("Sel Face ~p~n", [Face]),
-					   #face{mat=Mat} = 
-					       gb_trees:get(Face, 
-							    We#we.fs),
-					   {Mat, Face} 
-				   end, Faces),
+		     GetMat = 
+			 fun(Face) ->
+				 #face{mat=Mat} = 
+				     gb_trees:get(Face, We#we.fs),
+				 {Mat, Face} 
+			 end,
+		     Mats0 = lists:map(GetMat, Faces),
 		     Mats0 ++ A
 	     end, [], St),
     Msg = lists:flatten(io_lib:format("Charts: ~p", [Mats])),
@@ -183,18 +185,13 @@ segment(Mode, St0) ->
 	end, St0, St0)).
 
 mark_segments(Charts, Bounds, We0, St0) ->
+    %% Use HardEdges to mark Boundries
+    We1 = We0#we{he = gb_sets:from_list(Bounds)},
+    %% Use materials to mark different charts
     Max = length(Charts),
     ColorMe = [create_diffuse(This, Max) || This <- Charts],
     NewMat = wings_material:default(),
-    St1 = create_materials(ColorMe, We0, St0#st{mat=NewMat}),
-    case St1#st.selmode of
-	edge -> 
-	    wpa:sel_set([{We0#we.id, 
-			  gb_sets:from_list(Bounds)}|St1#st.sel]);
-	_ ->
-	    wpa:sel_set(edge, [{We0#we.id, 
-				gb_sets:from_list(Bounds)}], St1)
-    end.
+    St1 = create_materials(ColorMe, We1, St0#st{mat=NewMat}).
 
 %% Create temp Materials 
 create_materials([{MatName, Diff, Faces}|Distances], We, St0) ->
@@ -874,7 +871,7 @@ handle_event(Event, Uvs0) ->
 %    IoOp = case Op of {IoOptt,_} -> IoOptt; Op -> Op end,
 %    ?DBG("~p ~p~n", [IoOp, Event]),
     case Event of
-	MouseM = #mousemotion{} ->	
+	MouseM = #mousemotion{} when Op /= undefined ->	
 	    handle_mousemotion(MouseM, Uvs0);
 	#mousebutton{state = ?SDL_RELEASED, button = ?SDL_BUTTON_RIGHT,
 		     x = MX, y = MY}
@@ -1097,27 +1094,28 @@ handle_event(Event, Uvs0) ->
 	    Geom = init_drawarea(),
 	    get_event(Uvs0#uvstate{geom=Geom, st=St1, dl=undefined});
 	_Event ->
-	    ?DBG("Got unhandled Event ~p ~n", [_Event]),
+%%	    ?DBG("Got unhandled Event ~p ~n", [_Event]),
 	    get_event(Uvs0)
     end.
 
 handle_mousemotion(#mousemotion{xrel = DX, yrel = DY, x=MX,y=MY}, Uvs0) ->
     #uvstate{geom = {{_,_,_,OH},ViewP={X0,Y0,W,H,X0Y0,MW0,MH0}},
 	     mode = Mode, op = Op, sel = Sel0} = Uvs0,
-    MW = MW0 -X0Y0,
-    MH = MH0 -X0Y0,
+    MW =  (MW0-X0Y0) * DX/W,
+    MH = -(MH0-X0Y0) * DY/H,
+%%    ?DBG("Viewp ~p ~p ~p ~p ~p ~p~n", [MW,MH,DX,DY,MX,MY]),
     case Op of
 	{move,_} ->
-	    Sel1 = [move_area(Mode, A,MW*DX/W,-DY*MH/H)|| A <- Sel0],
+	    Sel1 = [move_area(Mode, A,MW,MH)|| A <- Sel0],
 	    get_event(Uvs0#uvstate{sel = Sel1});
 	{{fmove, _,_},_} ->
-	    Sel1 = [move_area(Mode, A,MW*DX/W,-DY*MH/H)|| A <- Sel0],
+	    Sel1 = [move_area(Mode, A,MW,MH)|| A <- Sel0],
 	    get_event(Uvs0#uvstate{sel = Sel1});
 	{scale, _} ->
-	    Sel1 = [scale_area(Mode, A,MW*DX/W,-DY*MH/H)|| A <- Sel0],
+	    Sel1 = [scale_area(Mode, A,MW,MH)|| A <- Sel0],
 	    get_event(Uvs0#uvstate{sel = Sel1});
 	{rotate, _} ->
-	    Sel1 = [rotate_area(Mode, A,MW*DX/W,-DY*MH/H)|| A <- Sel0],
+	    Sel1 = [rotate_area(Mode, A,MW,MH)|| A <- Sel0],
 	    get_event(Uvs0#uvstate{sel = Sel1});
 	{{boxsel, Orig = {OX,OY}, Last},Old} ->
 	    gl:matrixMode(?GL_PROJECTION),
