@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.51 2002/10/02 15:10:33 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.52 2002/11/15 12:59:19 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -224,63 +224,28 @@ cut(N, #st{selmode=edge}=St0) when N > 1 ->
 cut(_, St) -> St.
 
 cut_edges(Edges, N, We0) ->
-    gb_sets:fold(fun(Edge, W0) ->
-			 {We,_} = cut(Edge, N, W0),
-			 We
-		 end, We0, Edges).
+    foldl(fun(Edge, W0) ->
+		  {We,_} = cut(Edge, N, W0),
+		  We
+	  end, We0, gb_sets:to_list(Edges)).
 
 %% cut(Edge, Parts, We0) -> {We,NewVertex,NewEdge}
 %%  Cut an edge into Parts parts.
 cut(Edge, 2, We) ->
     fast_cut(Edge, default, We);
-cut(Edge, N, We0) ->
-    NumIds = (N-1),
-    {BaseId,We} = wings_we:new_ids(NumIds, We0),
-    #we{es=Etab0,vs=Vtab0,he=Htab0} = We,
-    #edge{vs=Vstart,ve=Vend} = Template = gb_trees:get(Edge, Etab0),
-    Vtab1 = make_vertices(N, BaseId, Vstart, Vend, Vtab0),
-    {Etab1,EdgeA,EdgeB} = make_edges(N, BaseId, Template, Edge, Etab0),
+cut(Edge, N, #we{es=Etab}=We) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+    PosA = wings_vertex:pos(Va, We),
+    PosB = wings_vertex:pos(Vb, We),
+    Vec = e3d_vec:mul(e3d_vec:sub(PosB, PosA), 1/N),
+    cut_1(N, Edge, PosA, Vec, We).
 
-    LastEdge = BaseId+NumIds-1,
-    VendRec = gb_trees:get(Vend, Vtab1),
-    Vtab = gb_trees:update(Vend, VendRec#vtx{edge=LastEdge}, Vtab1),
-    Etab2 = patch_edge(EdgeA, LastEdge, Edge, Etab1),
-    Etab3 = patch_edge(EdgeB, LastEdge, Edge, Etab2),
-    
-    NewEdge = Template#edge{ve=BaseId,rtsu=BaseId,ltpr=BaseId},
-    Etab = gb_trees:update(Edge, NewEdge, Etab3),
-
-    Htab = case gb_sets:is_member(Edge, Htab0) of
-	       false -> Htab0;
-	       true ->
-		   Hard = gb_sets:from_list(seq(BaseId, BaseId+NumIds-1)),
-		   gb_sets:union(Hard, Htab0)
-	   end,
-    {We#we{es=Etab,vs=Vtab,he=Htab},BaseId}.
-		    
-make_edges(2, Id, #edge{ltpr=EdgeA,rtsu=EdgeB}=Template, Prev, Etab) ->
-    ThisEdge = Id,
-    New = Template#edge{vs=Id,ltsu=Prev,rtpr=Prev},
-    {gb_trees:insert(ThisEdge, New, Etab),EdgeA,EdgeB};
-make_edges(N, Id, Template, Prev, Etab0) ->
-    ThisEdge = Id,
-    New = Template#edge{vs=Id,ve=Id+1,ltsu=Prev,rtpr=Prev,
-			ltpr=ThisEdge+1,rtsu=ThisEdge+1},
-    Etab = gb_trees:insert(ThisEdge, New, Etab0),
-    make_edges(N-1, Id+1, Template, ThisEdge, Etab).
-
-make_vertices(N, Id, Vstart, Vend, Vtab) ->
-    Va = wings_vertex:pos(Vstart, Vtab),
-    Vb = wings_vertex:pos(Vend, Vtab),
-    Dir = e3d_vec:divide(e3d_vec:sub(Vb, Va), float(N)),
-    make_vertices_1(N, Id, Va, Dir, Vtab).
-    
-make_vertices_1(1, _Id, _Va, _Dir, Vtab) -> Vtab;
-make_vertices_1(N, Id, Va, Dir, Vtab0) ->
-    NextPos = wings_util:share(e3d_vec:add(Va, Dir)),
-    Vtx = #vtx{pos=NextPos,edge=Id},
-    Vtab = gb_trees:insert(Id, Vtx, Vtab0),
-    make_vertices_1(N-1, Id+1, NextPos, Dir, Vtab).
+cut_1(2, Edge, _, _, We) ->
+    fast_cut(Edge, default, We);
+cut_1(N, Edge, Pos0, Vec, We0) ->
+    Pos = e3d_vec:add(Pos0, Vec),
+    {We,NewE} = fast_cut(Edge, Pos, We0),
+    cut_1(N-1, NewE, Pos, Vec, We).
 
 %% fast_cut(Edge, Position, We0) -> {We,NewVertex,NewEdge}
 %%  Cut an edge in two parts. Position can be given as
@@ -288,8 +253,7 @@ make_vertices_1(N, Id, Va, Dir, Vtab0) ->
 %%  be set to the midpoint of the edge.
 
 fast_cut(Edge, Pos0, We0) ->
-    {NewV,We} = wings_we:new_ids(1, We0),
-    NewEdge = NewV,
+    {NewEdge=NewV,We} = wings_we:new_ids(1, We0),
     #we{es=Etab0,vs=Vtab0,he=Htab0} = We,
     Template = gb_trees:get(Edge, Etab0),
     #edge{vs=Vstart,ve=Vend,a=ACol,b=BCol,lf=Lf,rf=Rf,
@@ -323,7 +287,7 @@ fast_cut(Edge, Pos0, We0) ->
 		     end
 	     end,
     AColOther = get_vtx_color(EdgeA, Lf, Etab0),
-    NewColA = wings_color:mix(Weight, ACol, AColOther),
+    NewColA = wings_color:mix(Weight, AColOther, ACol),
     BColOther = get_vtx_color(NextBCol, Rf, Etab0),
     NewColB = wings_color:mix(Weight, BCol, BColOther),
 
@@ -511,7 +475,7 @@ dissolve_vertex(V, #we{es=Etab,vs=Vtab}=We0) ->
 %%
 
 merge_edges(Dir, Edge, Rec, #we{es=Etab}=We) ->
-    {Va,Vb,_,_,To,To} = half_edge(Dir, Rec),
+    {Va,Vb,_,_,_,_,To,To} = half_edge(Dir, Rec),
     case gb_trees:get(To, Etab) of
 	#edge{vs=Va,ve=Vb} ->
 	    del_2edge_face(Dir, Edge, Rec, To, We);
@@ -523,10 +487,10 @@ merge_edges(Dir, Edge, Rec, #we{es=Etab}=We) ->
 
 merge(Dir, Edge, Rec, To, #we{es=Etab0,vs=Vtab0,fs=Ftab0,he=Htab0}=We) ->
     OtherDir = reverse_dir(Dir),
-    {Vkeep,Vdelete,Lf,Rf,L,R} = half_edge(OtherDir, Rec),
+    {Vkeep,Vdelete,Lf,Rf,A,B,L,R} = half_edge(OtherDir, Rec),
     Etab1 = patch_edge(L, To, Edge, Etab0),
     Etab2 = patch_edge(R, To, Edge, Etab1),
-    Etab3 = patch_half_edge(To, Vkeep, Lf, L, Rf, R, Vdelete, Etab2),
+    Etab3 = patch_half_edge(To, Vkeep, Lf, A, L, Rf, B, R, Vdelete, Etab2),
     Htab = hardness(Edge, soft, Htab0),
     Etab = gb_trees:delete(Edge, Etab3),
     Vtab1 = gb_trees:delete(Vdelete, Vtab0),
@@ -778,21 +742,21 @@ next_edge(Edge, Face, #we{es=Etab})->
 reverse_dir(forward) -> backward;
 reverse_dir(backward) -> forward.
 
-half_edge(backward, #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,ltsu=L,rtpr=R}) ->
-    {Va,Vb,Lf,Rf,L,R};
-half_edge(forward, #edge{ve=Va,vs=Vb,lf=Lf,rf=Rf,ltpr=L,rtsu=R}) ->
-    {Va,Vb,Lf,Rf,L,R}.
+half_edge(backward, #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,a=A,b=B,ltsu=L,rtpr=R}) ->
+    {Va,Vb,Lf,Rf,A,B,L,R};
+half_edge(forward, #edge{ve=Va,vs=Vb,lf=Lf,rf=Rf,a=A,b=B,ltpr=L,rtsu=R}) ->
+    {Va,Vb,Lf,Rf,A,B,L,R}.
 
-patch_half_edge(Edge, V, FaceA, Ea, FaceB, Eb, OrigV, Etab) ->
+patch_half_edge(Edge, V, FaceA, A, Ea, FaceB, B, Eb, OrigV, Etab) ->
     New = case gb_trees:get(Edge, Etab) of
 	      #edge{vs=OrigV,lf=FaceA,rf=FaceB}=Rec ->
-		  Rec#edge{vs=V,ltsu=Ea,rtpr=Eb};
+		  Rec#edge{a=A,vs=V,ltsu=Ea,rtpr=Eb};
 	      #edge{vs=OrigV,lf=FaceB,rf=FaceA}=Rec ->
-		  Rec#edge{vs=V,ltsu=Eb,rtpr=Ea};
+		  Rec#edge{a=B,vs=V,ltsu=Eb,rtpr=Ea};
 	      #edge{ve=OrigV,lf=FaceA,rf=FaceB}=Rec ->
-		  Rec#edge{ve=V,ltpr=Ea,rtsu=Eb};
+		  Rec#edge{b=B,ve=V,ltpr=Ea,rtsu=Eb};
 	      #edge{ve=OrigV,lf=FaceB,rf=FaceA}=Rec ->
-		  Rec#edge{ve=V,ltpr=Eb,rtsu=Ea}
+		  Rec#edge{b=A,ve=V,ltpr=Eb,rtsu=Ea}
 	  end,
     gb_trees:update(Edge, New, Etab).
     
