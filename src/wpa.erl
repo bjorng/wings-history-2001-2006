@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.65 2005/02/15 06:40:16 bjorng Exp $
+%%     $Id: wpa.erl,v 1.66 2005/02/19 09:28:04 bjorng Exp $
 %%
 %% Note: To keep the call graph clean, wpa MUST NOT be called
 %%       from the wings core modules.
@@ -217,12 +217,12 @@ dialog_template(Mod, export) ->
       {vframe,
        [{menu,FileTypes,DefFileType,[{key,default_filetype}]}],
        [{title,?__(7,"Default texture file type")}]} ]};
-dialog_template(Mod, tesselate) ->
-    {vframe, [{label, "Tesselation:"},
-	      {hradio, [{"None",none},
-			{"Triangulate",triangulate},
-			{"Quadrangulate", quadrangulate}],
-	       pref_get(Mod,tesselation,none), [{key,tesselation}]}]}.
+dialog_template(Mod, tesselation) ->
+    {vframe,[{vradio,[{"None",none},
+		      {"Triangulation",triangulate},
+		      {"Quadrangulation",quadrangulate}],
+	      pref_get(Mod,tesselation,none), [{key,tesselation}]}],
+     [{title,"Tesselation"}]}.
 
 %% dialog_template(Module, Type, ExcludeKeys) -> Template
 %%  Return a template for a standard dialog. The flags argument makes

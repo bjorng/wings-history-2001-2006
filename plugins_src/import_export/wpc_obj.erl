@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.13 2005/02/15 06:41:48 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.14 2005/02/19 09:29:17 bjorng Exp $
 %%
 
 -module(wpc_obj).
@@ -79,7 +79,8 @@ do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
 do_export(Attr, _Op, Exporter, _St) when is_list(Attr) ->
     set_pref(Attr),
     SubDivs = proplists:get_value(subdivisions, Attr, 0),
-    Ps = [{subdivisions,SubDivs}|props()],
+    Tesselation = proplists:get_value(tesselation, Attr, none),
+    Ps = [{tesselation,Tesselation},{subdivisions,SubDivs}|props()],
     Exporter(Ps, export_fun(Attr)).
 
 export_fun(Attr) ->
@@ -104,6 +105,8 @@ dialog(export) ->
       [{key,group_per_material}]},
      {"Vue d'Esprit workaround",get_pref(dot_slash_mtllib, false),
       [{key,dot_slash_mtllib}]},
+     panel,
+     wpa:dialog_template(?MODULE, tesselation),
      panel,
      wpa:dialog_template(?MODULE, export, [include_colors])].
 

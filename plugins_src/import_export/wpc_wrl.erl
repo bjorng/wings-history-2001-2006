@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.16 2005/02/15 06:41:48 bjorng Exp $
+%%     $Id: wpc_wrl.erl,v 1.17 2005/02/19 09:29:05 bjorng Exp $
 %%
 
 -module(wpc_wrl).
@@ -56,8 +56,8 @@ do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
 do_export(Attr, _Op, Exporter, _St) when is_list(Attr) ->
     set_pref(Attr),
     SubDivs = proplists:get_value(subdivisions, Attr, 0),
-    Tesselate = proplists:get_value(tesselation, Attr, none),
-    Ps = [{tesselation,Tesselate},{subdivisions,SubDivs}|props()],
+    Tesselation = proplists:get_value(tesselation, Attr, none),
+    Ps = [{tesselation,Tesselation},{subdivisions,SubDivs}|props()],
     Exporter(Ps, export_fun(Attr)).
 
 export_fun(Attr) ->
@@ -69,7 +69,8 @@ set_pref(KeyVals) ->
 
 dialog(export) ->
     wpa:pref_set_default(?MODULE, default_filetype, ".jpg"),
-    [wpa:dialog_template(?MODULE,tesselate),
+    [wpa:dialog_template(?MODULE, tesselation),
+     panel,
      wpa:dialog_template(?MODULE, export)].
 
 %% The intent is to create each object from
