@@ -232,9 +232,10 @@
 				29B9732DFDCFA39411CA2CEA,
 			);
 			buildSettings = {
+				CC = "/usr/bin/gcc-3.3";
 				ERLANG_PATH = /usr/local/lib/erlang;
-				ESDL_PATH = "../../esdl-0.93.0526";
 				FRAMEWORK_SEARCH_PATHS = "";
+				GGC_VERSION = 3.x;
 				HEADER_SEARCH_PATHS = "";
 				INSTALL_PATH = "$(HOME)/Applications";
 				LIBRARY_SEARCH_PATHS = "";
