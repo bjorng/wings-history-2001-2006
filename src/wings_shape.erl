@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.15 2002/02/03 07:20:09 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.16 2002/02/07 19:58:34 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -76,6 +76,8 @@ state(0, IsSel, Name) ->
     state_1(eye, IsSel, Name);
 state(1, IsSel, Name) ->
     state_1(lock, IsSel, Name);
+state([], IsSel, Name) ->
+    state_1(hidden, IsSel, Name);
 state(Sel, IsSel, Name) when is_tuple(Sel) ->
     state_1(hidden, IsSel, Name).
 
@@ -88,6 +90,8 @@ choices(0, true) ->
     [{"Deselect",deselect}|more_choices()];
 choices(1, _Sel) ->
     [{"Unlock",restore}];
+choices([], _IsSel) ->
+    [{"Show",restore}];
 choices(Sel, _IsSel) when is_tuple(Sel) ->
     [{"Show",restore}].
 
