@@ -11,7 +11,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_jpeg_image.erl,v 1.3 2004/01/18 14:21:06 bjorng Exp $
+%%     $Id: wp8_jpeg_image.erl,v 1.4 2004/01/25 13:04:54 bjorng Exp $
 %%
 
 -module(wp8_jpeg_image).
@@ -41,6 +41,7 @@ init(Next) ->
     end.
 
 format_error(format) -> "File format not recognized";
+format_error({message,Str}) -> binary_to_list(Str);
 format_error(_) -> "Unknown error".
 
 fileop({image,formats,Fs0}, Next) ->
@@ -76,6 +77,8 @@ read_image_1(Bin, Prop) ->
 	Res -> read_image_2(Res, Prop)
     end.
 
+read_image_2(<<0:32/native,Bin/binary>>, Prop) ->
+    {error,{none,?MODULE,{message,Bin}}};
 read_image_2(<<W:32/native,H:32/native,SamplesPerPixel:32/native,
 	      Bits/binary>>, Prop) ->
     Type = case SamplesPerPixel of

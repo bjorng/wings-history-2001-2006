@@ -12,7 +12,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_jpeg_image_drv.c,v 1.2 2004/01/18 14:21:06 bjorng Exp $
+ *     $Id: wings_jpeg_image_drv.c,v 1.3 2004/01/25 13:04:54 bjorng Exp $
  */
 
 #include <stdio.h>
@@ -62,6 +62,17 @@ ErlDrvEntry jpeg_image_driver_entry = {
 };
 
 /*
+ * Extended error manager info.
+ */
+
+struct my_error_mgr {
+  struct jpeg_error_mgr pub;	/* "public" fields */
+
+  jmp_buf setjmp_buffer;	/* for return to caller */
+};
+typedef struct my_error_mgr * my_error_ptr;
+
+/*
  * Driver initialization routine
  */
 DRIVER_INIT(jpeg_image_drv)
@@ -87,6 +98,26 @@ jpeg_image_stop(ErlDrvData handle)
 {
 }
 
+/*
+ * Here's the routine that will replace the standard error_exit method.
+ */
+
+METHODDEF(void)
+my_error_exit(j_common_ptr cinfo)
+{
+  /* cinfo->err really points to a my_error_mgr struct, so coerce pointer */
+  my_error_ptr myerr = (my_error_ptr) cinfo->err;
+
+#if 0
+  /* Always display the message. */
+  /* We could postpone this until after returning, if we chose. */
+  (*cinfo->err->output_message) (cinfo);
+#endif
+
+  /* Return control to the setjmp point */
+  longjmp(myerr->setjmp_buffer, 1);
+}
+
 static int
 jpeg_image_control(ErlDrvData handle, unsigned int command, 
 		   char* buf, int count, 
@@ -100,9 +131,31 @@ jpeg_image_control(ErlDrvData handle, unsigned int command,
     struct jpeg_decompress_struct cinfo;
     int row_stride;		/* physical row width in output buffer */
     unsigned char* rbuf;
-    struct jpeg_error_mgr jerr;
+    struct my_error_mgr jerr;
 
-    cinfo.err = jpeg_std_error(&jerr);
+    cinfo.err = jpeg_std_error(&jerr.pub);
+    jerr.pub.error_exit = my_error_exit;
+
+    /* Establish the setjmp return context for my_error_exit to use. */
+    if (setjmp(jerr.setjmp_buffer)) {
+      /* If we get here, the JPEG code has signaled an error.
+       * We need to clean up the JPEG object, close the input file, and return.
+       */
+      char buffer[JMSG_LENGTH_MAX];
+
+      /* Create the message */
+      (cinfo.err->format_message)((j_common_ptr) &cinfo, buffer);
+      jpeg_destroy_decompress(&cinfo);
+
+      bin = driver_alloc_binary(4+strlen(buffer));
+      rbuf = bin->orig_bytes;
+      ((unsigned *)rbuf)[0] = 0;
+      rbuf += 4;
+      memcpy(rbuf, buffer, strlen(buffer));
+      *res = (void *) bin;
+      return 0;
+    }
+
     jpeg_create_decompress(&cinfo);
     jpeg_buffer_src(&cinfo, buf, count);
     (void) jpeg_read_header(&cinfo, TRUE);
