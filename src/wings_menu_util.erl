@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.37 2003/11/12 21:40:12 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.38 2003/11/20 18:08:56 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -76,7 +76,8 @@ basic_scale() ->
 basic_scale_1([Dir|Dirs], Names) ->
     DirString = stringify_dir(Dir),
     Help = dir_help(Dir, Names),
-    [{DirString,{'VALUE',{Dir,center}},Help}|basic_scale_1(Dirs, Names)];
+    F = fun(_, Ns) -> wings_menu:build_command({Dir,center}, Ns) end,
+    [{DirString,F,Help}|basic_scale_1(Dirs, Names)];
 basic_scale_1([], _) -> [].
 
 %% Advanced menu Scale commands.
