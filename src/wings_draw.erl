@@ -3,12 +3,12 @@
 %%
 %%     This module draws objects using OpenGL.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.213 2004/12/31 08:17:11 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.214 2004/12/31 10:09:40 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -536,7 +536,7 @@ split_1(D, Vs, St) ->
 split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab}=We,
 	     proxy_data=Pd,ns=Ns0,needed=Needed,open=Open}=D, Vs0, St) ->
     Vs = sort(Vs0),
-    Faces = vs_to_faces(Vs, We),
+    Faces = wings_we:visible(wings_face:from_vs(Vs, We), We),
     StaticVs = static_vs(Faces, Vs, We),
 
     {Work,FtabDyn} = split_faces(D, Ftab, Faces, St),
@@ -564,16 +564,6 @@ remove_stale_ns_1([{F,_}=Pair|Fs], Ftab, Acc) ->
     end;
 remove_stale_ns_1([], _, Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
-
-vs_to_faces(Vs, We) ->
-    Fun = fun(_, Face, _, A) -> [Face|A] end,
-    vs_to_faces_1(Vs, Fun, We, []).
-
-vs_to_faces_1([V|Vs], Fun, We, Acc0) ->
-    Acc = wings_vertex:fold(Fun, Acc0, V, We),
-    vs_to_faces_1(Vs, Fun, We, Acc);
-vs_to_faces_1([], _, We, Acc) ->
-    wings_we:visible(ordsets:from_list(Acc), We).
 
 static_vs(Fs, Vs, We) ->
     VsSet = gb_sets:from_ordset(Vs),

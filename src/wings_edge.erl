@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.113 2004/12/31 07:56:29 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.114 2004/12/31 10:09:40 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -465,7 +465,7 @@ select_region(St) -> St.
 select_region(Edges, #we{id=Id}=We, Acc) ->
     Part = wings_edge_loop:partition_edges(Edges, We),
     FaceSel0 = select_region_1(Part, Edges, We, []),
-    FaceSel = wings_sel:subtract_mirror_face(FaceSel0, We),
+    FaceSel = gb_sets:from_ordset(wings_we:visible(FaceSel0, We)),
     [{Id,FaceSel}|Acc].
 
 select_region_1([[AnEdge|_]|Ps], Edges, #we{es=Etab}=We, Acc) ->
@@ -511,9 +511,8 @@ select_region_1([], _Edges, _We, Acc) ->
 
     %% We finally have one partition for each sub-object.
 
-    Sel0 = [select_region_2(P) || P <- Part],
-    Sel = lists:merge(Sel0),
-    gb_sets:from_ordset(Sel).
+    Sel = [select_region_2(P) || P <- Part],
+    lists:merge(Sel).
 
 select_region_2(P) ->
     case [Fs || {Fs,[_]} <- P] of

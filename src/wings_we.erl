@@ -5,12 +5,12 @@
 %%     we records (winged-edged records, the central data structure
 %%     in Wings 3D).
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.95 2004/12/30 17:22:41 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.96 2004/12/31 10:09:40 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -141,11 +141,18 @@ all_hidden(#we{fs=Ftab}) ->
     not gb_trees:is_empty(Ftab) andalso
 	wings_util:gb_trees_largest_key(Ftab) < 0.
 
-visible(#we{fs=Ftab}) ->
-    visible_2(gb_trees:keys(Ftab)).
+visible(#we{mirror=none,fs=Ftab}) ->
+    visible_2(gb_trees:keys(Ftab));
+visible(#we{mirror=Face,fs=Ftab}) ->
+    visible_2(gb_trees:keys(gb_trees:delete(Face, Ftab))).
 
-visible([{_,_}|_]=Fs, _) -> visible_1(Fs);
-visible(Fs, _) -> visible_2(Fs).
+visible([{_,_}|_]=Fs, #we{mirror=none}) ->
+    visible_1(Fs);
+visible([{_,_}|_]=Fs0, #we{mirror=Face}) ->
+    Fs = lists:keydelete(Face, 1, Fs0),
+    visible_1(Fs);
+visible(Fs, #we{mirror=none}) -> visible_2(Fs);
+visible(Fs, #we{mirror=Face}) -> visible_2(Fs--[Face]).
 
 visible_1([{F,_}|Fs]) when F < 0 -> visible_1(Fs);
 visible_1(Fs) -> Fs.

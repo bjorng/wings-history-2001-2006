@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_conv.erl,v 1.1 2004/12/31 07:56:30 bjorng Exp $
+%%     $Id: wings_sel_conv.erl,v 1.2 2004/12/31 10:09:40 bjorng Exp $
 %%
 
 -module(wings_sel_conv).
@@ -185,12 +185,19 @@ face_selection(#st{selmode=body}=St) ->
 face_selection(#st{selmode=face}=St) ->
     conv_sel(
       fun(Sel0, We) ->
-	      wings_face:extend_border(Sel0, We)
+	      Sel = wings_face:extend_border(Sel0, We),
+	      remove_invisible_faces(Sel, We)
       end, face, St);
 face_selection(#st{selmode=edge}=St) ->
-    conv_sel(fun(Es, We) -> wings_face:from_edges(Es, We) end, face, St);
+    conv_sel(fun(Es, We) ->
+		     Fs = wings_face:from_edges(Es, We),
+		     remove_invisible_faces(Fs, We)
+	     end, face, St);
 face_selection(#st{selmode=vertex}=St) ->
-    conv_sel(fun(Vs, We) -> wings_face:from_vs(Vs, We) end, face, St).
+    conv_sel(fun(Vs, We) ->
+		     Fs0 = gb_sets:from_ordset(wings_face:from_vs(Vs, We)),
+		     remove_invisible_faces(Fs0, We)
+	     end, face, St).
 
 face_more(St) ->
     conv_sel(fun face_more/2, face, St).
@@ -199,7 +206,7 @@ face_more(Fs0, We) ->
     Fs = foldl(fun(Face, A) ->
 		       do_face_more(Face, We, A)
 	       end, Fs0, gb_sets:to_list(Fs0)),
-    wings_sel:subtract_mirror_face(Fs, We).
+    remove_invisible_faces(Fs, We).
 
 do_face_more(Face, We, Acc) ->
     foldl(fun(V, A0) ->
@@ -245,6 +252,33 @@ vtx_bordering(V, FaceSet, We) ->
 	 (_, Face, _, false) ->
 	      not gb_sets:is_member(Face, FaceSet)
       end, false, V, We).
+
+remove_invisible_faces(Fs, #we{mirror=none}) ->
+    remove_invisible_faces_1(Fs);
+remove_invisible_faces(Fs, #we{mirror=Face}) ->
+    remove_invisible_faces_1(gb_sets:delete_any(Face, Fs)).
+
+remove_invisible_faces_1(Fs) ->
+    case gb_sets:is_empty(Fs) of
+	true -> Fs;
+	false ->
+	    case gb_sets:smallest(Fs) of
+		F when F < 0 -> remove_invisible_faces_2(Fs);
+		_ -> Fs
+	    end
+    end.
+				    
+remove_invisible_faces_2(Fs0) ->
+    case gb_sets:is_empty(Fs0) of
+	true -> Fs0;
+	false ->
+	    case gb_sets:take_smallest(Fs0) of
+		{F,Fs} when F < 0 ->
+		    remove_invisible_faces_2(Fs);
+		{_,_} ->
+		    gb_sets:balance(Fs0)
+	    end
+    end.
 
 %%
 %% Convert the current selection to a body selection.

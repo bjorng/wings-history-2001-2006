@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.48 2004/12/31 07:56:29 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.49 2004/12/31 10:09:40 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -20,8 +20,7 @@
 	 face_regions/2,strict_face_regions/2,edge_regions/2,
 	 select_object/2,deselect_object/2,
 	 get_all_items/2,get_all_items/3,
-	 inverse_items/3,
-	 subtract_mirror_face/2]).
+	 inverse_items/3]).
 
 -include("wings.hrl").
 -import(lists, [foldl/3,reverse/1,reverse/2,sort/1,keydelete/3,keymember/3]).
@@ -331,14 +330,10 @@ get_all_items(vertex, #we{vc=Vct}) ->
     gb_sets:from_ordset(gb_trees:keys(Vct));
 get_all_items(edge, #we{es=Etab}) ->
     gb_sets:from_ordset(gb_trees:keys(Etab));
-get_all_items(face, #we{fs=Ftab}=We) ->
-    subtract_mirror_face(gb_sets:from_ordset(gb_trees:keys(Ftab)), We);
+get_all_items(face, #we{}=We) ->
+    gb_sets:from_ordset(wings_we:visible(We));
 get_all_items(body, _) ->
     gb_sets:singleton(0).
-
-subtract_mirror_face(Faces, #we{mirror=none}) -> Faces;
-subtract_mirror_face(Faces, #we{mirror=Face}) ->
-    gb_sets:delete_any(Face, Faces).
 
 to_vertices(vertex, Vs, _) -> Vs;
 to_vertices(face, Faces, We) ->

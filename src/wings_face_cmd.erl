@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.124 2004/12/30 05:37:36 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.125 2004/12/31 10:09:40 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -201,13 +201,13 @@ extrude_region_vmirror(OldWe, #we{mirror=Face0}=We0) ->
     FaceSet = gb_sets:singleton(Face0),
     Bordering = wings_face:extend_border(FaceSet, We0),
     NewFaces = wings_we:new_items(face, OldWe, We0),
-    BorderingNew = gb_sets:intersection(Bordering, NewFaces),
-    case gb_sets:is_empty(BorderingNew) of
+    Dissolve0 = gb_sets:intersection(Bordering, NewFaces),
+    case gb_sets:is_empty(Dissolve0) of
 	true -> We0;
 	false ->
-	    Dissolve = gb_sets:union(FaceSet, BorderingNew),
+	    Dissolve = gb_sets:insert(Face0, Dissolve0),
 	    We1 = wings_dissolve:dissolve(Dissolve, We0),
-	    [Face] = NewFace = gb_sets:to_list(wings_we:new_items(face, We0, We1)),
+	    [Face] = NewFace = wings_we:new_items_as_ordset(face, We0, We1),
 	    We = wings_facemat:assign('_hole_', NewFace, We1),
 	    wings_we:mirror_flatten(OldWe, We#we{mirror=Face})
     end.

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.48 2004/12/31 07:56:29 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.49 2004/12/31 10:09:40 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -39,24 +39,26 @@
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
 
-
-from_edges(Es, #we{es=Etab}=We) ->
-    Fs = from_edges(gb_sets:to_list(Es), Etab, []),
-    wings_sel:subtract_mirror_face(Fs, We).
+from_edges(Es, #we{es=Etab}) ->
+    from_edges_1(gb_sets:to_list(Es), Etab, []).
     
-from_edges([E|Es], Etab, Acc) ->
+from_edges_1([E|Es], Etab, Acc) ->
     #edge{lf=Lf,rf=Rf} = gb_trees:get(E, Etab),
-    from_edges(Es, Etab, [Lf,Rf|Acc]);
-from_edges([], _, Acc) -> gb_sets:from_list(Acc).
+    from_edges_1(Es, Etab, [Lf,Rf|Acc]);
+from_edges_1([], _, Acc) -> gb_sets:from_list(Acc).
 
+%% from_vs([Vertex], We) -> [Face]
+%%  Convert a list or gbset of vertices to an ordered list of faces.
+from_vs(Vs, We) when is_list(Vs) ->
+    Fun = fun(_, F, _, A) -> [F|A] end,
+    from_vs_1(Vs, Fun, We, []);
 from_vs(Vs, We) ->
-    from_vs(gb_sets:to_list(Vs), We, []).
+    from_vs(gb_sets:to_list(Vs), We).
 
-from_vs([V|Vs], We, Acc0) ->
-    Acc = wings_vertex:fold(fun(_, Face, _, A) -> [Face|A] end, Acc0, V, We),
-    from_vs(Vs, We, Acc);
-from_vs([], We, Acc) ->
-    wings_sel:subtract_mirror_face(gb_sets:from_list(Acc), We).
+from_vs_1([V|Vs], Fun, We, Acc0) ->
+    Acc = wings_vertex:fold(Fun, Acc0, V, We),
+    from_vs_1(Vs, Fun, We, Acc);
+from_vs_1([], _, _, Acc) -> ordsets:from_list(Acc).
 
 %% other(Face, EdgeRecord) -> OtherFace
 %%  Pick up the "other face" from an edge record.
@@ -272,15 +274,14 @@ vertex_info_1(Edge, Etab, Face, LastEdge, Acc) ->
 %%  Extend the the given set of faces to include all faces not in the
 %%  set that share at least one edge with a face in the set.
 extend_border(Fs0, We) ->
-    Fs = foldl(fun(Face, S0) ->
-		       fold(fun(_, _, #edge{lf=Lf,rf=Rf}, S1) ->
-				    if
-					Lf =/= Face -> gb_sets:add(Lf, S1);
-					true -> gb_sets:add(Rf, S1)
-				    end
-			    end, S0, Face, We)
-	       end, Fs0, gb_sets:to_list(Fs0)),
-    wings_sel:subtract_mirror_face(Fs, We).
+    foldl(fun(Face, S0) ->
+		  fold(fun(_, _, #edge{lf=Lf,rf=Rf}, S1) ->
+			       if
+				   Lf =/= Face -> gb_sets:add(Lf, S1);
+				   true -> gb_sets:add(Rf, S1)
+			       end
+		       end, S0, Face, We)
+	  end, Fs0, gb_sets:to_list(Fs0)).
 
 %% inner_edges(Faces, We) -> [Edge]
 %%  Given a set of faces, return all inner edges.
