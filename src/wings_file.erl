@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.24 2001/11/04 16:55:08 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.25 2001/11/04 20:12:35 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -155,7 +155,7 @@ import_ndo(St0) ->
 %%
 
 export(tds, St) -> export(e3d_tds, ".3ds", St);
-%%export(rib, St) -> export(e3d_rib, ".rib", St);
+export(rib, St) -> export(e3d_rib, ".rib", St);
 export(obj, St) -> export(e3d_obj, ".obj", St).
 
 export(Mod, Ext, St) ->
@@ -170,7 +170,8 @@ export(Mod, Ext, St) ->
 
 file_prop(".ndo"=Ext) -> file_prop(Ext, "Nendo File");
 file_prop(".3ds"=Ext) -> file_prop(Ext, "3D Studio File");
-file_prop(".obj"=Ext) -> file_prop(Ext, "Wawefront").
+file_prop(".obj"=Ext) -> file_prop(Ext, "Wawefront");
+file_prop(".rib"=Ext) -> file_prop(Ext, "Renderman").
 
 file_prop(Ext, Desc) ->
     [{ext,Ext},{ext_desc,Desc}].

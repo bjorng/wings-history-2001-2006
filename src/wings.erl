@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.29 2001/11/04 16:55:08 bjorng Exp $
+%%     $Id: wings.erl,v 1.30 2001/11/04 20:12:35 bjorng Exp $
 %%
 
 -module(wings).
@@ -155,12 +155,7 @@ clean_state(St0) ->
 
 main_loop(St0) ->
     ?VALIDATE_MODEL(St0),
-    St1 = case catch wings_draw:render(St0) of
-	      {'EXIT',Crasch} ->
-		  LogName = wings_util:crasch_log(Crasch),
-		  halt();
-	      S0 -> S0
-	  end,
+    St1 = wings_draw:render(St0),
     wings_io:info(info(St1)),
     wings_io:update(St1),
     
@@ -362,28 +357,29 @@ command({select,all}, St) ->
 command({select,{all,Mode}}, St) ->
     wings_sel:select_all(St#st{selmode=Mode});
 command({select,hard_edges}, St) ->
-    wings_sel:make(fun(Edge, #we{he=Htab}) ->
-			   gb_sets:is_member(Edge, Htab)
-		   end, edge, St);
+    Sel = fun(Edge, #we{he=Htab}) ->
+		  gb_sets:is_member(Edge, Htab)
+	  end,
+    {save_state,wings_sel:make(Sel, edge, St)};
 command({select,{vertices_with,N}}, St) ->
-    wings_sel:make(
-      fun(V, We) ->
-	      Cnt = wings_vertex:fold(
-		      fun(_, _, _, Cnt) ->
-			      Cnt+1
-		      end, 0, V, We),
-	      Cnt =:= N
-      end, vertex, St);
+    Sel = fun(V, We) ->
+		  Cnt = wings_vertex:fold(
+			  fun(_, _, _, Cnt) ->
+				  Cnt+1
+			  end, 0, V, We),
+		  Cnt =:= N
+	  end, 
+    {save_state,wings_sel:make(Sel, vertex, St)};
 command({select,{faces_with,5}}, St) ->
-    wings_sel:make(
-      fun(Face, We) ->
-	      length(wings_face:surrounding_vertices(Face, We)) >= 5
-      end, face, St);
+    Sel = fun(Face, We) ->
+		    length(wings_face:surrounding_vertices(Face, We)) >= 5
+	    end,
+    {save_state,wings_sel:make(Sel, face, St)};
 command({select,{faces_with,N}}, St) ->
-    wings_sel:make(
-      fun(Face, We) ->
-	      N =:= length(wings_face:surrounding_vertices(Face, We))
-      end, face, St);
+    Sel = fun(Face, We) ->
+		  N =:= length(wings_face:surrounding_vertices(Face, We))
+	  end,
+    {save_state,wings_sel:make(Sel, face, St)};
 command({select,similar}, St) ->
     {save_state,wings_sel:similar(St)};
 command({select,{random,Percent}}, St) ->
@@ -605,8 +601,8 @@ menu(X, Y, file, St) ->
 			{"Wawefront (.obj)",obj}}}},
 	    {"Export",{export,
 		       {{"3D Studio (.3ds)",tds},
-			{"Wawefront (.obj)",obj}}}},
-%%			{"RenderMan (.rib)",rib}}}},
+			{"Wawefront (.obj)",obj},
+			{"RenderMan (.rib)",rib}}}},
 	    separator,
 	    {"Exit","Ctrl-Q",quit}},
     wings_menu:menu(X, Y, file, Menu);
