@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.59 2004/08/17 10:34:36 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.60 2004/10/20 11:21:25 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -182,7 +182,7 @@ get_verts([#e3d_face{vs = Vs}|Fs],I,Coords,Acc) ->
 get_verts([],I,_,Acc) ->
     {Acc, I}.
 
-lsqcm(Fs, Pinned0, We = #we{vp=Vtab}) ->
+lsqcm(Fs, Pinned0, We) ->
     ?DBG("Project and tri ~n", []),
     {Vs1,Area} = project_and_triangulate(Fs,We,-1,[],0.0),
     Pinned = case Pinned0 of
@@ -190,12 +190,9 @@ lsqcm(Fs, Pinned0, We = #we{vp=Vtab}) ->
 		     {V1, V2} = find_pinned(Fs, We),
 		     [V1,V2];
 		 _ -> 
-		     lists:map(fun(V) -> 
-				       {Xp,Yp,_} = gb_trees:get(V,Vtab),
-				       {V,{Xp,Yp}}
-			       end, Pinned0)
+		     Pinned0
 	     end,
-    ?DBG("LSQ ~p~n", Pinned),
+    ?DBG("LSQ ~p~n", [Pinned]),
 %    Idstr = lists:flatten(io_lib:format("~p", [Id])),
 %    {ok, Fd} = file:open("raimo_" ++ Idstr, [write]),
 %    io:format(Fd, "{~w, ~w}.~n", [Vs1,[V1,V2]]),

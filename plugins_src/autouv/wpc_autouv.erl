@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.270 2004/10/20 09:13:53 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.271 2004/10/20 11:21:47 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -1037,15 +1037,23 @@ remap(Method, #st{sel=Sel,selmode=Mode}=St0) ->
     wings_pb:start("remapping"),
     wings_pb:update(0.001),
     N = length(Sel),
-    {St,_} = wings_sel:mapfold(fun(Vs, We, I) ->
-				       Msg = "chart " ++ integer_to_list(I),
-				       wings_pb:update(I/N, Msg),
-				       Pinned = case Mode of
-						    vertex -> gb_sets:to_list(Vs);
-						    _ -> none
-						end,
-				       {remap(Method, Pinned, We, St0),I+1}
-			       end, 1, St0),
+    GetUV = fun(V,Vtab) -> 
+		    {S,T,_} = gb_trees:get(V,Vtab),
+		    {V,{S,T}}
+	    end,
+    Remap = 
+	fun(Vs, We = #we{vp=Vtab}, I) ->
+		Msg = "chart " ++ integer_to_list(I),
+		wings_pb:update(I/N, Msg),
+		Pinned = case Mode of
+			     vertex -> 
+				 [GetUV(V,Vtab) || 
+				     V <- gb_sets:to_list(Vs)];
+			     _ -> none
+			 end,
+		{remap(Method, Pinned, We, St0),I+1}
+	end,
+    {St,_} = wings_sel:mapfold(Remap, 1, St0),
     wings_pb:done(update_selected_uvcoords(St)).
 
 remap(stretch_opt, _, We, St) ->
