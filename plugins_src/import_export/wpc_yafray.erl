@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.52 2003/12/30 02:35:26 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.53 2004/01/12 23:48:12 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -92,6 +92,9 @@
 -define(DEF_TURBIDITY, 4.0).
 %% Hemilight and Pathlight
 -define(DEF_AMBIENT_TYPE, hemilight).
+-define(DEF_BACKGROUND_FILENAME, "").
+-define(DEF_BACKGROUND_EXPOSURE_ADJUST, 0).
+-define(DEF_BACKGROUND_POWER, 1.0).
 -define(DEF_SAMPLES, 256).
 
 %% Modulator
@@ -281,8 +284,14 @@ props(tga, SubDiv) ->
 props(?TAG, SubDiv) ->
     [{ext,".xml"},{ext_desc,"YafRay File"},{subdivisions,SubDiv}].
 
+-record(camera_info, {aim,distance_to_aim,azimuth,elevation,tracking,fov}).
+
 attr(St, Attr) ->
-    [{lights,wpa:lights(St)}|Attr].
+    [Aim,Dist,Az,El,Track,Fov] =
+	wpa:camera_info([aim,distance_to_aim,azimuth,elevation,tracking,fov]),
+    CameraInfo = #camera_info{aim=Aim,distance_to_aim=Dist,azimuth=Az,
+			      elevation=El,tracking=Track,fov=Fov},
+    [CameraInfo,{lights,wpa:lights(St)}|Attr].
 
 fun_export_2(Attr) ->
     fun (Filename, Contents) ->
@@ -668,6 +677,13 @@ light_dialog(_Name, infinite, Ps) ->
 	[{hook,light_hook({?TAG,background}, sunsky)}]}],
       [{title,"Background"}]}];
 light_dialog(_Name, ambient, Ps) ->
+    Bg = proplists:get_value(background, Ps, ?DEF_BACKGROUND),
+    BgFname = proplists:get_value(background_filename, Ps, 
+				  ?DEF_BACKGROUND_FILENAME),
+    BgExpAdj = proplists:get_value(background_exposure_adjust, Ps, 
+				   ?DEF_BACKGROUND_EXPOSURE_ADJUST),
+    BgPower = proplists:get_value(background_power, Ps, 
+				  ?DEF_BACKGROUND_POWER),
     Type = proplists:get_value(type, Ps, ?DEF_AMBIENT_TYPE),
     Samples = proplists:get_value(samples, Ps, ?DEF_SAMPLES),
     Depth = proplists:get_value(depth, Ps, ?DEF_DEPTH),
@@ -677,7 +693,23 @@ light_dialog(_Name, ambient, Ps) ->
 	      {text,Samples,[{range,1,1000000},{key,{?TAG,samples}}]},
 	      {hframe,[{label,"Depth"},
 		       {text,Depth,[{range,1,100},{key,{?TAG,depth}}]}],
-	       [{hook,light_hook({?TAG,type}, pathlight)}]}]}];
+	       [{hook,light_hook({?TAG,type}, pathlight)}]}]},
+     {vframe,
+      [{hradio,[{"HDRI",'HDRI'},
+		{"Image",image},
+		{"None", undefined}],Bg,[layout,{key,{?TAG,background}}]},
+       {hframe,[{label,"Filename"},
+		{text,BgFname,[{key,{?TAG,background_filename}}]}],
+	[{hook,light_hook({?TAG,background}, ['HDRI',image])}]},
+       {hframe,[{label,"Exposure Adjust"},
+		{text,BgExpAdj,[{key,{?TAG,background_exposure_adjust}},
+				{range,{-128,127}}]}],
+	[{hook,light_hook({?TAG,background}, 'HDRI')}]},
+       {hframe,[{label,"Power"},
+		{text,BgPower,[{key,{?TAG,background_power}},
+				{range,{0.0,128.0}}]}],
+	[{hook,light_hook({?TAG,background}, image)}]}],
+      [{title,"Background"}]}];
 light_dialog(_Name, _Type, _Ps) ->
 %%%    erlang:display({?MODULE,?LINE,{_Name,_Type,_Ps}}),
     [].
@@ -712,9 +744,9 @@ light_result([{{?TAG,type},photonlight}|_]=Ps) ->
 light_result([_,{{?TAG,background},_}|_]=Ps) ->
     split_list(Ps, 4);
 light_result([{{?TAG,type},hemilight}|_]=Res) ->
-    split_list(Res, 3);
+    split_list(Res, 7);
 light_result([{{?TAG,type},pathlight}|_]=Res) ->
-    split_list(Res, 3);
+    split_list(Res, 7);
 light_result(Tail) ->
 %    erlang:display({?MODULE,?LINE,Tail}),
     {[],Tail}.
@@ -806,16 +838,21 @@ export_dialog(Operation) ->
 		    {label,"Near Blur"},
 		    {label,"Scale"}]},
 	   {vframe,[{text,AntinoiseRadius,[{range,{0.0,100.0}},
-					   {key,antinoise_radius}]},
-		    {text,NearBlur,[{range,{0.0,100.0}},{key,near_blur}]},
-		    {text,DofScale,[{range,{0.0,100.0}},{key,dof_scale}]}]}]}]},
+					   {key,antinoise_radius},
+					   filter_hook(antinoise_filter)]},
+		    {text,NearBlur,[{range,{0.0,100.0}},{key,near_blur},
+				    filter_hook(dof_filter)]},
+		    {text,DofScale,[{range,{0.0,100.0}},{key,dof_scale},
+				    filter_hook(dof_filter)]}]}]}]},
        {vframe,[{label,"Fog Color"},
 		{label,"Max Delta"},
 		{label,"Far Blur"}]},
        {vframe,[{color,FogColor,[{key,fog_color}]},
 		{text,AntinoiseMaxDelta,[{range,{0.0,100.0}},
-					 {key,antinoise_max_delta}]},
-		{text,FarBlur,[{range,{0.0,100.0}},{key,far_blur}]}]}],
+					 {key,antinoise_max_delta},
+					 filter_hook(antinoise_filter)]},
+		{text,FarBlur,[{range,{0.0,100.0}},{key,far_blur},
+			       filter_hook(dof_filter)]}]}],
       [{title,"Filters"}]}
      |
      case Operation of render ->
@@ -826,6 +863,11 @@ export_dialog(Operation) ->
 	 export ->
 	     []
      end].
+
+filter_hook(Type) ->
+    {hook,fun (is_disabled, {_Var,_I,Sto}) ->
+		  not gb_trees:get(Type, Sto);
+	      (_, _) -> void end}.
 
 
 
@@ -1407,6 +1449,7 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
     println(F, "</light>"),
     undefined;
 export_light(F, Name, ambient, OpenGL, YafRay) ->
+    Bg = proplists:get_value(background, YafRay, ?DEF_BACKGROUND),
     Power = proplists:get_value(power, YafRay, ?DEF_POWER),
     Type = proplists:get_value(type, YafRay, ?DEF_AMBIENT_TYPE),
     Samples = proplists:get_value(samples, YafRay, ?DEF_SAMPLES),
@@ -1423,7 +1466,7 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
 	    println(F,"       samples=\"~w\" depth=\"~w\">", [Samples,Depth])
     end,
     println(F, "</light>"),
-    undefined;
+    Bg;
 export_light(_F, Name, Type, _OpenGL, _YafRay) ->
     io:format("WARNING: Ignoring unknown light \"~s\" type: ~p~n", 
 	      [Name, format(Type)]),
@@ -1432,8 +1475,9 @@ export_light(_F, Name, Type, _OpenGL, _YafRay) ->
 
 
 export_camera(F, Name, Attr) ->
-    [Aim,Distance,Az,El,{TrackX,TrackY},Fov] =
-	wpa:camera_info([aim,distance_to_aim,azimuth,elevation,tracking,fov]),
+    #camera_info{aim=Aim,distance_to_aim=Distance,elevation=El,
+		 azimuth=Az,tracking={TrackX,TrackY},fov=Fov} =
+	proplists:lookup(camera_info, Attr),
     Width = proplists:get_value(width, Attr),
     Height = proplists:get_value(height, Attr),
     Ro = math:pi()/180.0,
@@ -1502,7 +1546,21 @@ export_background(F, Name, Ps) ->
 	    Position = proplists:get_value(position, OpenGL, {1.0,1.0,1.0}),
 	    println(F, "~n            turbidity=\"~.3f\" add_sun=\"~s\">", 
 		    [Turbidity,format(AddSun)]),
-	    export_pos(F, from, Position)
+	    export_pos(F, from, Position);
+	'HDRI' ->
+	    BgFname = proplists:get_value(background_filename, YafRay, 
+					  ?DEF_BACKGROUND_FILENAME),
+	    BgExpAdj = proplists:get_value(background_exposure_adjust, YafRay, 
+					   ?DEF_BACKGROUND_EXPOSURE_ADJUST),
+	    println(F, " exposure_adjust=\"~w\">", [BgExpAdj]),
+	    println(F, "    <filename value=\"~s\" />", [BgFname]);
+	image ->
+	    BgFname = proplists:get_value(background_filename, YafRay, 
+					  ?DEF_BACKGROUND_FILENAME),
+	    BgPower = proplists:get_value(background_power, YafRay, 
+					   ?DEF_BACKGROUND_POWER),
+	    println(F, " power=\"~.3f\">", [BgPower]),
+	    println(F, "    <filename value=\"~s\" />", [BgFname])
     end,
     println(F, "</background>").
 
