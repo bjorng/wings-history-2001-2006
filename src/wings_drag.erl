@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.128 2003/02/17 07:16:29 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.129 2003/02/23 07:29:31 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -747,8 +747,7 @@ tricky_share({X,Y,Z}, {_,_,Z}=Old) ->
 %%%
 
 redraw(#drag{info=Info,st=St}) ->
-    wings_draw_util:render(St),
-    wings_io:info(Info).
+    wings:redraw(Info, St).
 
 clear_sel_dlists() ->
     wings_draw_util:map(fun clear_sel_dlists/2, []).

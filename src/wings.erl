@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.215 2003/02/21 19:12:37 bjorng Exp $
+%%     $Id: wings.erl,v 1.216 2003/02/23 07:29:31 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0,start/1,start_halt/1,start_halt/2]).
--export([root_dir/0,caption/1,redraw/1,init_opengl/1,command/2]).
+-export([root_dir/0,caption/1,redraw/1,redraw/2,init_opengl/1,command/2]).
 -export([mode_restriction/1,clear_mode_restriction/0,get_mode_restriction/0]).
 
 -define(NEED_OPENGL, 1).
@@ -218,8 +218,12 @@ init_opengl(_) ->
     keep.
 
 redraw(St) ->
+    redraw(info(St), St).
+
+redraw(Info, St) ->
+    wings_wm:clear_background(),
     wings_draw_util:render(St),
-    wings_io:info(info(St)).
+    wings_io:info(Info).
 
 clean_state(St) ->
     caption(St).
@@ -306,8 +310,7 @@ handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(resized, _) -> keep;
 handle_event_3(redraw, St) ->
-    wings_draw_util:render(St),
-    wings_io:info(info(St)),
+    redraw(St),
     main_loop_noredraw(St#st{vec=none});
 handle_event_3(quit, St) ->
     do_command({file,quit}, St);
@@ -927,18 +930,25 @@ geom_pos({X,Y}=Pos) ->
 	 restr=none				%Restriction (none|[Mode]).
 	}).
 
-mode_restriction(none) ->
-    put(wings_mode_restriction, [edge,vertex,face,body]),
-    wings_wm:send({toolbar,geom}, {mode_restriction,none});
 mode_restriction(Modes) ->
-    put(wings_mode_restriction, Modes),
-    wings_wm:send({toolbar,geom}, {mode_restriction,Modes}).
+    Win = {toolbar,wings_wm:active_window()},
+    wings_wm:send(Win, {mode_restriction,Modes}),
+    case Modes of
+	none ->
+	    wings_wm:erase_prop(Win, mode_restriction);
+	_ ->
+	    wings_wm:set_prop(Win, mode_restriction, Modes)
+    end.
 
 clear_mode_restriction() ->
     mode_restriction(none).
 
 get_mode_restriction() ->
-    get(wings_mode_restriction).
+    Name = wings_wm:active_window(),
+    case wings_wm:lookup_prop({toolbar,Name}, mode_restriction) of
+	none -> [edge,vertex,face,body];
+	{value,Other} -> Other
+    end.
 
 create_toolbar(Name, Pos, W) ->
     ButtonH = ?BUTTON_HEIGHT+6,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.76 2003/02/17 19:17:42 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.77 2003/02/23 07:29:32 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -16,13 +16,14 @@
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,reinit_opengl/0,
 	 new/4,delete/1,raise/1,
 	 link/2,hide/1,show/1,is_hidden/1,
-	 get_prop/1,get_prop/2,lookup_prop/1,set_prop/2,set_prop/3,
+	 get_prop/1,get_prop/2,lookup_prop/1,lookup_prop/2,
+	 set_prop/2,set_prop/3,erase_prop/1,erase_prop/2,
 	 message/1,message/2,message_right/1,
 	 later/1,send/2,send_after_redraw/2,
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
 	 active_window/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,
-	 update_window/2,
+	 update_window/2,clear_background/0,
 	 callback/1,current_state/1,notify/1,
 	 grab_focus/0,grab_focus/1,release_focus/0,
 	 grabbed_focus_window/0,actual_focus_window/0,
@@ -424,9 +425,11 @@ get_prop(Win, Name) ->
     #win{props=Props} = get_window_data(Win),
     gb_trees:get(Name, Props).
     
-
 lookup_prop(Name) ->
-    #win{props=Props} = get_window_data(active_window()),
+    lookup_prop(active_window(), Name).
+
+lookup_prop(Win, Name) ->
+    #win{props=Props} = get_window_data(Win),
     gb_trees:lookup(Name, Props).
 
 set_prop(Name, Value) ->
@@ -435,6 +438,14 @@ set_prop(Name, Value) ->
 set_prop(Win, Name, Value) ->
     #win{props=Props0} = Data = get_window_data(Win),
     Props = gb_trees:enter(Name, Value, Props0),
+    put_window_data(Win, Data#win{props=Props}).
+
+erase_prop(Name) ->
+    erase_prop(active_window(), Name).
+
+erase_prop(Win, Name) ->
+    #win{props=Props0} = Data = get_window_data(Win),
+    Props = gb_trees:delete_any(Name, Props0),
     put_window_data(Win, Data#win{props=Props}).
 
 enter_event_loop() ->
@@ -553,6 +564,34 @@ maybe_clear(early, true) ->
 maybe_clear(late, false) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT);
 maybe_clear(_, _) -> ok.
+
+clear_background() ->
+    case active_window() of
+	geom -> ok;
+	_ -> clear_background_1()
+    end.
+
+clear_background_1() ->
+    gl:pushAttrib(?GL_ENABLE_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    gl:enable(?GL_DEPTH_TEST),
+    gl:depthFunc(?GL_ALWAYS),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:loadIdentity(),
+    {W,H} = wings_wm:win_size(),
+    glu:ortho2D(0, W, 0, H),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:loadIdentity(),
+    gl:color3fv(wings_pref:get_value(background_color)),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    Z = -1,
+    gl:'begin'(?GL_POLYGON),
+    gl:vertex3f(0, H, Z),
+    gl:vertex3f(0, 0, Z),
+    gl:vertex3f(W, 0, Z),
+    gl:vertex3f(W, H, Z),
+    gl:vertex3f(0, 0, Z),
+    gl:'end'(),
+    gl:popAttrib().
 
 reinit_opengl() ->
     wings_io:putback_event({wm,init_opengl}).

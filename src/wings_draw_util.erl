@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.53 2003/02/17 19:17:39 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.54 2003/02/23 07:29:32 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -556,7 +556,7 @@ axis(I, Pos, Neg) ->
 dummy_axis_letter() ->
     %% Attempt to work around a crash occurring with Matrox cards.
     case wings_pref:get_value(dummy_axis_letter) andalso
-	(wings_pref:get_prop(show_axes) == false orelse
+	(wings_wm:get_prop(show_axes) == false orelse
 	 wings_pref:get_value(show_axis_letters) == false) of
 	false -> ok;
 	true ->

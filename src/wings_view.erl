@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.98 2003/02/19 10:08:37 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.99 2003/02/23 07:29:32 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -305,6 +305,7 @@ auto_rotate_event_1(_Event, #tim{timer=Timer}) ->
 auto_rotate_redraw(#tim{st=Redraw}) when is_function(Redraw) ->
     Redraw();
 auto_rotate_redraw(#tim{st=#st{}=St}) ->
+    wings_wm:clear_background(),
     wings_draw_util:render(St).
 
 auto_rotate_help() ->
@@ -486,6 +487,7 @@ smooth_cool_edges(#we{vp=Vtab}, We) ->
     wings_edge:from_vs(Vs, We).
 
 smooth_redraw(Sm) ->
+    wings_wm:clear_background(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(),
@@ -603,7 +605,6 @@ current() ->
 	    reset(View);
 	{value,View} -> View
     end.
-
 
 set_current(View) ->
     wings_wm:set_prop(current_view, View),

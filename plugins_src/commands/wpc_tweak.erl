@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.26 2003/02/17 07:16:28 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.27 2003/02/23 07:29:26 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -172,7 +172,7 @@ handle_tweak_event1({action,Action}, #tweak{st=St0}=T) ->
 handle_tweak_event1(Ev, #tweak{st=St}) ->
     case wings_hotkey:event(Ev, St) of
 	next -> keep;
-	Other -> wings_wm:send(geom, {action,Other})
+	Other -> wings_wm:send(wings_wm:active_window(), {action,Other})
     end.
 
 exit_tweak(#tweak{orig_st=St,st=#st{shapes=Shs}}) ->
@@ -198,7 +198,7 @@ topological_change(#st{shapes=Shs}) ->
     R =:= changed.
 
 redraw(St) ->
-    wings_draw_util:render(St),
+    wings:redraw("", St),
     keep.
 
 begin_drag(MM, St, T) ->
