@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.3 2001/10/18 16:06:18 bjorng Exp $
+#     $Id: Makefile,v 1.4 2001/10/21 20:34:48 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -19,7 +19,7 @@ EBIN=../ebin
 ERLC=erlc
 
 ifeq ($(TYPE),debug)
-TYPE_FLAGS=-DDEBUG
+TYPE_FLAGS=-DDEBUG +debug_info
 else
 TYPE_FLAGS=
 endif
@@ -41,13 +41,13 @@ TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 # FLAGS
 # ----------------------------------------------------
 ERL_FLAGS += 
-ERL_COMPILE_FLAGS += -W +debug_info $(TYPE_FLAGS)
+ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS)
 
 # ----------------------------------------------------
 # Targets
 # ----------------------------------------------------
 
-debug opt:
+opt debug:
 	$(MAKE) TYPE=$@ common
 
 common: $(TARGET_FILES) 
