@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.33 2002/10/13 19:11:42 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.34 2002/10/28 17:13:12 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -846,7 +846,7 @@ col_inside(Xm, Ym, #fi{x=X,y=Y})
 col_inside(_, _, _) -> false.
 
 pick_color(#fi{key=Key}, Col, Common0) ->
-    {R1,G1,B1,A} =
+    {R1,G1,B1,A1} =
 	case gb_trees:get(Key, Common0) of
 	    {R0,G0,B0} -> {R0,G0,B0,none};
 	    {R0,G0,B0,A0} -> {R0,G0,B0,A0}
@@ -859,7 +859,8 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 		   wings_io:sunken_rect(X, Y, ?COL_PREVIEW_SZ,
 					?COL_PREVIEW_SZ-4, Color)
 	   end,
-    
+    case A1 of 
+    	none ->
     {dialog,[{hframe,
 	      [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
 	       {label_column,
@@ -867,12 +868,21 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 		 {"G",{slider,{text,trunc(G1*255),[{key,g}|Range]}}},
 		 {"B",{slider,{text,trunc(B1*255),[{key,b}|Range]}}}]}]}],
      fun([{r,R},{g,G},{b,B}]) ->
-	     Val = case A of
-		       none -> {R/255,G/255,B/255};
-		       _ -> {R/255,G/255,B/255,A}
-		   end,
-	     {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
-     end}.
+	     Val = {R/255,G/255,B/255},
+		 {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
+     end};
+     	_ ->
+     {dialog,[{hframe,
+	      [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
+	       {label_column,
+		[{"R",{slider,{text,trunc(R1*255),[{key,r}|Range]}}},
+		 {"G",{slider,{text,trunc(G1*255),[{key,g}|Range]}}},
+		 {"B",{slider,{text,trunc(B1*255),[{key,b}|Range]}}},
+		 {"A",{slider,{text,trunc(A1*255),[{key,a}|Range]}}}]}]}],
+     fun([{r,R},{g,G},{b,B},{a,A}]) ->
+	     Val =  {R/255,G/255,B/255,A/255},
+		 {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
+     end} end.
 
 %%%
 %%% Custom field.
