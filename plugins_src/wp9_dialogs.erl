@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.12 2002/11/13 13:21:30 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.13 2002/11/17 18:18:37 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -20,28 +20,19 @@ menus() -> [].
 init(Next) ->
     fun(What) -> ui(What, Next) end.
 
-ui({file,open,Prop}, _Next) ->
-    open_file("Open file: ", Prop);
-ui({file,merge,Prop}, _Next) ->
-    open_file("Merge file: ", Prop);
-ui({file,import,Prop}, _Next) ->
-    open_file("Import file: ", Prop);
-ui({file,save,Prop}, _Next) ->
-    save_file("Save: ", Prop);
-ui({file,export,Prop}, _Next) ->
-    save_file("Export file: ", Prop);
+ui({file,open_dialog,Prop}, _Next) ->
+    Title = proplists:get_value(title, Prop, "Open"),
+    open_file(Title ++ ": ", Prop);
+ui({file,save_dialog,Prop}, _Next) ->
+    Title = proplists:get_value(title, Prop, "Save"),
+    save_file(Title ++ ": ", Prop);
 ui({image,formats,Formats}, _Next) ->
     image_formats(Formats);
 ui({image,read,Prop}, _Next) ->
     read_image(Prop);
-ui({failure,Message,_Prop}, _Next) ->
-    wings_io:message(Message),
-    aborted;
 ui({message,Message}, _Next) ->
     message(Message);
 ui({question,Question}, _Next) ->
-    wings_getline:yes_no(Question);
-ui({serious_question,Question}, _Next) ->
     wings_getline:yes_no(Question);
 ui(What, Next) -> Next(What).
 
@@ -53,10 +44,10 @@ message(Message) ->
     wings_ask:dialog(Qs, fun(_) -> ignore end).
 
 open_file(Prompt, Prop) ->
-    Ext = proplists:get_value(ext, Prop, ".wings"),
-    case wings_getline:filename(Prompt, Ext) of
+    Exts = file_filters(Prop),
+    case wings_getline:filename(Prompt, Exts) of
 	aborted -> aborted;
-	Name -> ensure_extension(Name, Ext)
+	Name -> Name
     end.
 
 save_file(Prompt, Prop) ->
@@ -77,11 +68,25 @@ save_file(Prompt, Prop) ->
 	    end
     end.
 
+file_filters(Prop) ->
+    case proplists:get_value(extensions, Prop, none) of
+	none ->
+	    Ext = proplists:get_value(ext, Prop, ".wings"),
+	    [Ext];
+	Exts ->
+	    file_filters_1(Exts, [])
+    end.
+
+file_filters_1([{Ext,_Desc}|T], Acc) ->
+    file_filters_1(T, [Ext|Acc]);
+file_filters_1([], Acc) -> reverse(Acc).
+
 ensure_extension(Name, Ext) ->
     case eq_extensions(Ext, filename:extension(Name)) of
 	true -> Name;
 	false -> Name ++ Ext
     end.
+
 eq_extensions(Ext, Actual) when length(Ext) =/= length(Actual) ->
     false;
 eq_extensions(Ext, Actual) ->
