@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.14 2003/08/16 17:50:34 bjorng Exp $
+%%     $Id: user_default.erl,v 1.15 2003/08/25 06:10:44 bjorng Exp $
 %% 
 
 -module(user_default).
 
 -export([help/0,wh/0,
-	 wx/0,wxp/0,wxe/0,wxu/1,wxu/3,wxunref/0,wxundef/0]).
+	 wx/0,wxe/0,wxu/1,wxu/3,wxunref/0,wxundef/0]).
 
 -import(lists, [foldl/3]).
 
@@ -27,7 +27,6 @@ help() ->
 wh() ->
     p("** Xref for Wings modules **\n"),
     p("wx()       -- collect xref information\n"),
-    p("wxp()      -- add xref information for plug-ins\n"),
     p("wxe()      -- add xref information for ESDL\n"),
     p("wxunref()  -- print unused functions\n"),
     p("wxundef()  -- print calls to undefined functions\n"),
@@ -48,14 +47,11 @@ wx() ->
     xref:set_default(s, [{verbose,false},{warnings,false},{builtins,true}]),
     xref:set_library_path(s, code:get_path() -- [WingsEbin]),
     {ok,Ms} = xref:add_directory(s, WingsEbin),
-    length(Ms).
-
-wxp() ->
     Dirs = get_plugin_dirs(),
     foldl(fun(D, N) -> 
-		  {ok,Ms} = xref:add_directory(s, D),
-		  N+length(Ms)
-	  end, 0, Dirs).
+		  {ok,PMs} = xref:add_directory(s, D),
+		  N+length(PMs)
+	  end, length(Ms), Dirs).
 
 wxe() ->
     Dir = filename:dirname(code:which(gl)),
