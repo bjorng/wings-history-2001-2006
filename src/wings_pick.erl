@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.127 2004/01/25 16:03:39 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.128 2004/01/25 17:55:51 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -803,8 +803,12 @@ draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
 
 draw_1(#dlo{src_we=#we{perm=Perm}}=D) when ?IS_SELECTABLE(Perm) ->
     Tess = wings_draw_util:tess(),
+    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
+    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
     draw_2(D),
+    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
+    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA);
 draw_1(_) -> ok.
     

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.118 2004/01/25 16:03:38 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.119 2004/01/25 17:55:47 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -39,10 +39,10 @@ init() ->
     Tess = glu:newTess(),
     put(wings_tesselator, Tess),
 
-    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
-    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
+    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
+    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_NONE),
+    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_NOP),
     glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE),
 
     Dl = case get_dl_data() of

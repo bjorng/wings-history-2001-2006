@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__du.erl,v 1.10 2004/01/25 16:03:32 bjorng Exp $
+%%     $Id: wings__du.erl,v 1.11 2004/01/25 17:55:32 bjorng Exp $
 %%
 
 -module(wings__du).
@@ -50,7 +50,6 @@ plain_face([A,B,C,D]) ->
 %% plain_face(FaceNormal, [Position]) -> ok
 %%  Draw a face with neither UV coordinates nor vertex colors.
 plain_face(N, VsPos) ->
-    gl:'end'(),
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
@@ -63,8 +62,7 @@ plain_face_1(Tess, [P|T]) ->
     plain_face_1(Tess, T);
 plain_face_1(Tess, []) ->
     glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess),
-    gl:'begin'(?GL_TRIANGLES).
+    glu:tessEndPolygon(Tess).
 
 %% uv_face([Position], [UV]) -> ok
 %%  Draw a tri or quad with UV coordinates. For vertices without
@@ -95,7 +93,6 @@ uv_face_vtx(Pos, _) ->
 %%  Draw a face with UV coordinates. For vertices without
 %%  UV coordinates, (0, 0) will be used.
 uv_face(N, VsPos, UVs) ->
-    gl:'end'(),
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
@@ -111,8 +108,7 @@ uv_face_1(Tess, [P|Ps], [_|UVs]) ->
     uv_face_1(Tess, Ps, UVs);
 uv_face_1(Tess, [], []) ->
     glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess),
-    gl:'begin'(?GL_TRIANGLES).
+    glu:tessEndPolygon(Tess).
 
 %% vcol_face([Position], [Color]) -> ok
 %%  Draw a tri or quad with vertex colors. For vertices without
@@ -143,7 +139,6 @@ vcol_face_vtx(Pos, _) ->
 %%  Draw a face with vertex colors. For vertices without
 %%  vertex colors, (1.0, 1.0, 1.0) will be used.
 vcol_face(N, VsPos, Cols) ->
-    gl:'end'(),
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
@@ -159,9 +154,7 @@ vcol_face_1(Tess, [P|Ps], [_|Cols]) ->
     vcol_face_1(Tess, Ps, Cols);
 vcol_face_1(Tess, [], []) ->
     glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess),
-    gl:'begin'(?GL_TRIANGLES).
-
+    glu:tessEndPolygon(Tess).
 
 %%%
 %%% Drawing of faces with smooth normals.
@@ -191,7 +184,6 @@ smooth_plain_face_vtx(P, [_|N]) ->
 %% smooth_plain_face(FaceNormal, [Position], [[_|VertexNormal]]) -> ok
 %%  Draw a smooth face with neither UV coordinates nor vertex colors.
 smooth_plain_face(N, VsPos, Ns) ->
-    gl:'end'(),
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
@@ -204,8 +196,7 @@ smooth_plain_face_1(Tess, [P|Ps], [[_|N]|Ns]) ->
     smooth_plain_face_1(Tess, Ps, Ns);
 smooth_plain_face_1(Tess, [], []) ->
     glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess),
-    gl:'begin'(?GL_TRIANGLES).
+    glu:tessEndPolygon(Tess).
 
 %% smooth_uv_face([{Position,UV,VertexNormal}]) -> ok
 %%  Draw a smoth tri or quad with UV coordinates. For vertices without
@@ -238,7 +229,6 @@ smooth_uv_face_vtx(P, [_|N]) ->
 %%  Draw a smoth face with UV coordinates. For vertices without
 %%  UV coordinates, (0, 0) will be used.
 smooth_uv_face(N, VsPos, Info) ->
-    gl:'end'(),
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
@@ -254,8 +244,7 @@ smooth_uv_face_1(Tess, [P|Ps], [[_|N]|Info]) ->
     smooth_uv_face_1(Tess, Ps, Info);
 smooth_uv_face_1(Tess, [], []) ->
     glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess),
-    gl:'begin'(?GL_TRIANGLES).
+    glu:tessEndPolygon(Tess).
 
 %% smooth_vcol_face([Position], [[UV|VertexNormal]]) -> ok
 %%  Draw a smooth tri or quad with vertex colors. For vertices without
@@ -288,7 +277,6 @@ smooth_vcol_face_vtx(P, [_|N]) ->
 %%  Draw a smooth face with vertex colors. For vertices without
 %%  vertex colors, (1.0, 1.0, 1.0) will be used.
 smooth_vcol_face(N, VsPos, Cols) ->
-    gl:'end'(),
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
@@ -304,6 +292,5 @@ smooth_vcol_face_1(Tess, [P|Ps], [[_|N]|Cols]) ->
     smooth_vcol_face_1(Tess, Ps, Cols);
 smooth_vcol_face_1(Tess, [], []) ->
     glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess),
-    gl:'begin'(?GL_TRIANGLES).
+    glu:tessEndPolygon(Tess).
 
