@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.103 2003/08/03 19:31:11 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.104 2003/09/18 13:17:42 dgud Exp $
 %%
 
 -module(wings_material).
@@ -464,14 +464,15 @@ edit(Name, Assign, #st{mat=Mtab0}=St) ->
 	   }],
     Qs = wings_plugin:dialog({material_editor_setup,Name,Mat0}, Qs1),
     Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
-	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}|More]) ->
+	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}|More0]) ->
 		  OpenGL = [ask_prop_put(diffuse, Diff, Opacity),
 			    ask_prop_put(ambient, Amb, Opacity),
 			    ask_prop_put(specular, Spec, Opacity),
 			    ask_prop_put(emission, Emiss, Opacity),
 			    {shininess,Shine}],
 		  Mat1 = keyreplace(opengl, 1, Mat0, {opengl,OpenGL}),
-		  Mat = plugin_results(Name, Mat1, More),
+		  {Mat2,More} = update_maps(Mat1, More0),
+		  Mat  = plugin_results(Name, Mat2, More),
 		  Mtab = gb_trees:update(Name, Mat, Mtab0),
 		  maybe_assign(Assign, Name, St#st{mat=Mtab})
 	  end,
@@ -490,6 +491,18 @@ plugin_results(Name, Mat0, Res0) ->
 	    wings_util:error("Plugin(s) left garbage")
     end.
 
+update_maps(Mat, [{{texture_mode,Name},Mode}| More]) ->
+    Maps0 = prop_get(maps, Mat),
+    case lists:keysearch(Name, 2, Maps0) of
+	{value, {Mode,Name}} ->
+	    update_maps(Mat, More);
+	{value, _Old} ->
+	    Maps = keyreplace(Name,2, Maps0, {Mode,Name}),
+	    update_maps(keyreplace(maps, 1, Mat, {maps,Maps}), More)
+    end;
+update_maps(Mat, More) ->
+    {Mat, More}.
+
 show_maps(Mat) ->
     case prop_get(maps, Mat) of
 	[] -> [];
@@ -499,14 +512,22 @@ show_maps(Mat) ->
     end.
 
 show_map({Type,Image}) ->
-    Label = case wings_image:info(Image) of
-		none ->
-		    flatten(io_lib:format("~p: <image deleted>", [Type]));
-		#e3d_image{name=Name,width=W,height=H,bytes_pp=PP} ->
-		    flatten(io_lib:format("~p: ~p [~px~px~p]",
-					  [Type,Name,W,H,PP*8]))
-	    end,
-    {hframe,[{label,Label}]}.
+    Texture = 
+	case wings_image:info(Image) of
+	    none ->
+		[{label,flatten(io_lib:format("~p: <image deleted>", [Type]))}];
+	    #e3d_image{name=Name,width=W,height=H,bytes_pp=PP} 
+	    when Type == diffuse; Type == bump ->
+		Label = flatten(io_lib:format("~p [~px~px~p]",
+					      [Name,W,H,PP*8])),
+		[{label, Label}, 
+		 {menu,[{"Diffuse", diffuse}, {"Bump", bumpmap}], Type, [{key,{texture_mode,Image}}]}];
+	    #e3d_image{name=Name,width=W,height=H,bytes_pp=PP} ->
+		Label = flatten(io_lib:format("~p: ~p [~px~px~p]",
+					      [Type,Name,W,H,PP*8])),
+		[{label, Label}]
+	end,
+    {hframe, Texture}.
 
 ask_prop_get(Key, Props) ->
     {R,G,B,Alpha} = prop_get(Key, Props),
@@ -548,9 +569,12 @@ mat_preview(X, Y, _W, _H, Common) ->
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_BLEND),
     gl:enable(?GL_CULL_FACE),
+%    apply_texture(prop_get(diffuse, prop_get(maps, Common, []), none)),
+%    io:format("~p: ~p ~n", [{?MODULE,?LINE}, gb_trees:to_list(Common)]),
     Obj = glu:newQuadric(),
     glu:quadricDrawStyle(Obj, ?GLU_FILL),
     glu:quadricNormals(Obj, ?GLU_SMOOTH),
+%    glu:quadricTexture(Obj, ?GLU_TRUE),
     glu:sphere(Obj, 0.9, 50, 50),
     glu:deleteQuadric(Obj),
     gl:disable(?GL_LIGHTING),
