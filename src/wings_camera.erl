@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.5 2001/11/19 07:16:35 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.6 2001/11/21 06:53:42 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -212,19 +212,14 @@ maya_event(#keyboard{keysym=#keysym{sym=?SDLK_LALT},state=?SDL_RELEASED},
     maya_stop_camera(Camera);
 maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?ALT_BITS == 0 ->	%Just in case.
-	    maya_stop_camera(Camera);
-	Mod ->
-	    if
-		Buttons band 3 == 3 ->		%LMB+MMB
-		    zoom(Dy/10);
-		Buttons band 1 == 1 ->		%LMB
-		    rotate(Dx, Dy);
-		Buttons band 2 == 2 ->		%MMB
-		    pan(Dx/10, Dy/10);
-		true -> ok
-	    end
+    if
+	Buttons band 3 == 3 ->			%LMB+MMB
+	    zoom(Dy/10);
+	Buttons band 1 == 1 ->			%LMB
+	    rotate(Dx, Dy);
+	Buttons band 2 == 2 ->			%MMB
+	    pan(Dx/10, Dy/10);
+	true -> ok
     end,
     Redraw(),
     get_maya_event(Camera, Redraw);
