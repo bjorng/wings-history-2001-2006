@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.23 2002/04/15 13:08:03 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.24 2002/04/17 07:19:17 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -105,7 +105,7 @@ blender_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
 	Mod when Mod band ?SHIFT_BITS =/= 0 ->
 	    pan(Dx/10, Dy/10);
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
-	    zoom(Dy/10);
+	    zoom(Dy);
 	_Other ->
 	    rotate(Dx, Dy)
     end,
@@ -142,7 +142,7 @@ nendo(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
 	[mmb] ++ " or " ++ [rmb] ++ " to dolly  Use arrows to track",
     wings_io:message(Help),
     {seq,{push,dummy},get_nendo_event(Camera, Redraw)};
-nendo(#keyboard{keysym=#keysym{sym=Sym}}, Redraw) ->
+nendo(#keyboard{keysym=#keysym{sym=Sym}}, _Redraw) ->
     nendo_pan(Sym);
 nendo(_, _) -> next.
 
@@ -154,7 +154,7 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
 	0 ->					%None of MMB/RMB pressed.
 	    rotate(-Dx, -Dy);
 	_Other ->				%MMB and/or RMB pressed.
-	    zoom(Dy/10)
+	    zoom(Dy)
     end,
     get_nendo_event(Camera, Redraw);
 nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw) ->
@@ -211,7 +211,7 @@ tds_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?CTRL_BITS =/= 0, Mod band ?ALT_BITS =/= 0 ->
-	    zoom(Dy/10);
+	    zoom(Dy);
 	Mod when Mod band ?ALT_BITS =/= 0 ->
 	    rotate(Dx, Dy);
 	_Other ->
@@ -249,9 +249,9 @@ maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     if
 	Buttons band 4 == 4 ->			%RMB
-	    zoom(-Dx/10);
+	    zoom(-Dx);
 	Buttons band 3 == 3 ->			%LMB+MMB
-	    zoom(-Dx/10);
+	    zoom(-Dx);
 	Buttons band 1 == 1 ->			%LMB
 	    rotate(Dx, Dy);
 	Buttons band 2 == 2 ->			%MMB
@@ -301,13 +301,15 @@ zoom_step(Dir) ->
 	false -> keep;
 	true ->
 	    wings_wm:dirty(),
-	    zoom(5*Dir),
+	    #view{distance=Dist} = View = wings_view:current(),
+	    Delta = Dir*Dist/4,
+	    wings_view:set_current(View#view{distance=Dist+Delta}),
 	    keep
     end.
 
-zoom(Delta) ->
+zoom(Delta0) ->
     #view{distance=Dist} = View = wings_view:current(),
-    wings_view:projection(),
+    Delta = Delta0/10,
     wings_view:set_current(View#view{distance=Dist+Delta}).
 
 pan(Dx, Dy) ->
