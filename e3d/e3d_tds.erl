@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.30 2004/01/11 17:27:37 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.31 2004/01/11 17:37:42 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -20,7 +20,21 @@
 
 -import(lists, [map/2,foldl/3,mapfoldl/3,reverse/1,reverse/2,
 		sort/1,keysort/2,usort/1,keydelete/3,keyreplace/4]).
+
+%% Inline dbg/2 so that the call will disappear completely if
+%% DEBUG is turned off.
+-compile({inline,[{dbg,2}]}).
+
 -define(FLOAT, float-little).
+
+%%-define(DEBUG, 1).
+
+-ifdef(DEBUG).
+dbg(Format, List) -> io:format(Format, List).
+-else.
+dbg(_, _) -> ok.
+-endif.
+
 
 %%%
 %%% Import.
@@ -438,9 +452,6 @@ map_faces([#e3d_face{vs=Vs0}=Face|Fs], Map, Acc) ->
     Vs = [begin [V|_] = gb_trees:get(V0, Map), V end || V0 <- Vs0],
     map_faces(Fs, Map, [Face#e3d_face{vs=Vs}|Acc]);
 map_faces([], _Map, Acc) -> reverse(Acc).
-
-%%dbg(_, _) -> ok;
-dbg(Format, List) -> io:format(Format, List).
 
 %%%
 %%% Export.
