@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.14 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.15 2002/03/13 16:07:24 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -103,6 +103,18 @@ handle_event_1(Event, Ss, St) ->
 	Other -> Other
     end.
 
+handle_event_2(Event, Ss, #st{sel=[]}=St0) ->
+    case wings_menu:is_popup_event(Event) of
+	no -> handle_event_3(Event, Ss, St0);
+	{yes,X,Y} ->
+	    case wings_pick:do_pick(X, Y, St0) of
+		{add,St} ->
+		    wings_io:putback_event(Event),
+		    wings_io:putback_event({new_state,St}),
+		    keep;
+		_Other -> exit_menu(X, Y, Ss, St0)
+	    end
+    end;
 handle_event_2(Event, Ss, St) ->
     case wings_menu:is_popup_event(Event) of
 	no -> handle_event_3(Event, Ss, St);
