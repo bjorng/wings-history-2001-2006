@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.38 2003/02/15 07:57:05 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.39 2003/03/12 19:13:48 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -394,7 +394,7 @@ digraph_get_path(G, Va, Vb) ->
     end.
 
 connect_inner({new,Va}, [Va,Vb,{new,Vb}], N, Face, We0) ->
-    {EdgeThrough,_,_} = wings_vertex:edge_through(Va, Vb, We0),
+    [{EdgeThrough,_,_}] = wings_vertex:edge_through(Va, Vb, We0),
     {We1,TempE} = wings_edge:fast_cut(EdgeThrough, default, We0),
     {We2,Edge} = wings_vertex:force_connect(Vb, Va, Face, We1),
     #we{vp=Vtab} = We2,

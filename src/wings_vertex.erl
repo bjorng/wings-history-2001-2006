@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.37 2003/03/07 18:34:03 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.38 2003/03/12 19:13:50 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -420,6 +420,7 @@ try_connect({Va,Vb}, Face, We) ->
     end.
 
 try_connect_1(Va, Vb, Face, We0) ->
+    io:format("~p\n", [{Va,Vb,Face}]),
     {We,NewFace} = Res = force_connect(Va, Vb, Face, We0),
     case wings_face:good_normal(Face, We) andalso
 	wings_face:good_normal(NewFace, We) of
@@ -674,20 +675,21 @@ is_corner(V, We) ->
 %%  Returns the edge number of the edge between Vertex1 and Vertex2
 %%  in the given face (if there is one).
 edge_through(Va, Vb, Face, We) ->
-    case edge_through(Va, Vb, We) of
-	none -> none;
-	{Edge,Face,_} -> Edge;
-	{Edge,_,Face} -> Edge;
-	_ -> none
-    end.
-
-%% edge_through(Vertex1, Vertex1, We) -> {Edge,LeftFace,RightFace}|none
-%%  Returns the edge number and faces number of the edge between
-%% Vertex1 and Vertex2 (if there is one).
-edge_through(Va, Vb, We) ->
-    until(fun(Edge, _, #edge{lf=Lf,rf=Rf}=Rec, A) ->
-		  case other(Va, Rec) of
-		      Vb -> {Edge,Lf,Rf};
+    foldl(fun({Edge,Lf,Rf}, A) ->
+		  case Face of
+		      Lf -> Edge;
+		      Rf -> Edge;
 		      _ -> A
 		  end
-	  end, none, Va, We).
+	  end, none, edge_through(Va, Vb, We)).
+
+%% edge_through(Vertex1, Vertex1, We) -> [{Edge,LeftFace,RightFace}]
+%%  Returns edge number and faces number for all edges between
+%%  Vertex1 and Vertex2.
+edge_through(Va, Vb, We) ->
+    fold(fun(Edge, _, #edge{lf=Lf,rf=Rf}=Rec, A) ->
+		 case other(Va, Rec) of
+		     Vb -> [{Edge,Lf,Rf}|A];
+		     _ -> A
+		 end
+	 end, [], Va, We).
