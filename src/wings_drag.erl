@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.70 2002/03/24 07:41:13 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.71 2002/03/31 10:52:54 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -120,14 +120,14 @@ break_apart([{Id,TvList}|Tvs], [{Id,We0}|Shs], DynAcc) ->
     Ftab1 = sofs:relation(gb_trees:to_list(Ftab0), [{face,data}]),
     FtabStatic0 = sofs:drestriction(Ftab1, Faces),
     FtabStatic = sofs:to_external(FtabStatic0),
-    WeStatic = We0#we{fs=gb_trees:from_orddict(FtabStatic),
-		      first_id=FtabStatic},
+    WeStatic = We0#we{fs=gb_trees:from_orddict(FtabStatic)},
     draw_faces(WeStatic),
 
     FtabDyn0 = sofs:restriction(Ftab1, Faces),
-    FtabDyn = sofs:to_external(FtabDyn0),
+    FtabDyn1 = sofs:to_external(FtabDyn0),
+    FtabDyn = dyn_faces(FtabDyn1, We0),
     AllVs = sofs:image(sofs:converse(Etab2), Faces),
-    WeDyn = We0#we{fs=gb_trees:from_orddict(FtabDyn),first_id=FtabDyn,
+    WeDyn = We0#we{fs=gb_trees:from_orddict(FtabDyn1),first_id=FtabDyn,
 		   vs=undefined},
     StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
     StaticVs = reverse(insert_vtx_data_1(StaticVs0, Vtab0, [])),
@@ -137,6 +137,12 @@ break_apart([], [{_,We}|Shs], Dyn) ->
     draw_faces(We),
     break_apart([], Shs, Dyn);
 break_apart([], [], Dyn) -> Dyn.
+
+dyn_faces(Flist, We) ->
+    foldl(fun({Face,#face{edge=Edge}}, A) ->
+		  Vs = wings_face:surrounding_vertices(Face, Edge, We),
+		  [Vs|A]
+	  end, [], Flist).
 
 combine_tvs(TvList, #we{vs=Vtab}) ->
     {FunList,VecVs0} = split_tv(TvList, [], []),
@@ -688,13 +694,30 @@ draw_faces(#we{fs=Ftab}=We) ->
 		      end, gb_trees:to_list(Ftab))
       end).
 
-draw_flat_faces(#we{first_id=Flist}=We) ->
+draw_flat_faces(#we{first_id=Flist,vs=Vtab}) ->
     wings_draw_util:begin_end(
       fun() ->
-	      foreach(fun({Face,#face{edge=Edge}}) ->
-			      wings_draw_util:flat_face(Face, Edge, We)
-		      end, Flist)
+	      Tess = wings_draw_util:tess(),
+	      draw_flat_faces_1(Tess, Flist, Vtab)
       end).
+
+draw_flat_faces_1(Tess, [Vs|T], Vtab) ->
+    VsPos = [pos(V, Vtab) || V <- Vs],
+    {X,Y,Z} = N = e3d_vec:normal(VsPos),
+    gl:normal3fv(N),
+    glu:tessNormal(Tess, X, Y, Z),
+    glu:tessBeginPolygon(Tess),
+    glu:tessBeginContour(Tess),
+    tess_flat_face(Tess, VsPos),
+    draw_flat_faces_1(Tess, T, Vtab);
+draw_flat_faces_1(_, [], _) -> ok.
+
+tess_flat_face(Tess, [P|T]) ->
+    glu:tessVertex(Tess, P),
+    tess_flat_face(Tess, T);
+tess_flat_face(Tess, []) ->
+    glu:tessEndContour(Tess),
+    glu:tessEndPolygon(Tess).
 
 %%
 %% Draw the currently selected items.
@@ -713,15 +736,15 @@ make_sel_dlist_1(_Mode, [], []) -> ok.
 draw_sel(vertex, Vs, #we{vs=Vtab}) ->
     gl:'begin'(?GL_POINTS),
     foreach(fun(V) ->
-		    gl:vertex3fv(lookup_pos(V, Vtab))
+		    gl:vertex3fv(pos(V, Vtab))
 	    end, Vs),
     gl:'end'();
 draw_sel(edge, Edges, #we{es=Etab,vs=Vtab}) ->
     gl:'begin'(?GL_LINES),
     foreach(fun(Edge) ->
 		    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-		    gl:vertex3fv(lookup_pos(Va, Vtab)),
-		    gl:vertex3fv(lookup_pos(Vb, Vtab))
+		    gl:vertex3fv(pos(Va, Vtab)),
+		    gl:vertex3fv(pos(Vb, Vtab))
 	    end, Edges),
     gl:'end'();
 draw_sel(face, Faces, We) ->
@@ -734,6 +757,6 @@ draw_sel(face, Faces, We) ->
 draw_sel(body, _, #we{fs=Ftab}=We) ->
     draw_sel(face, gb_trees:keys(Ftab), We).
 
-lookup_pos(Key, Tree) ->
-    #vtx{pos=Pos} = gb_trees:get(Key, Tree),
+pos(Key, Tab) ->
+    #vtx{pos=Pos} = gb_trees:get(Key, Tab),
     Pos.
