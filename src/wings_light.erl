@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.25 2002/12/28 22:10:28 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.26 2003/01/17 00:21:31 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
@@ -346,11 +346,11 @@ edit_1(#we{id=Id,light=L0}=We0, Shs, St) ->
 			     St#st{shapes=gb_trees:update(Id, We, Shs)}
 		     end).
 
-qs_specific(#light{type=spot,spot_angle=Angle}=L) ->
+qs_specific(#light{type=spot,spot_angle=Angle,spot_exp=SpotExp}=L) ->
     Spot = [{vframe,[{label,"Angle"},
 		     {slider,{text,Angle,[{range,{0.0,89.9}}]}},
 		     {label,"Falloff"},
-		     {slider,{text,Angle,[{range,{0.0,128.0}}]}}],
+		     {slider,{text,SpotExp,[{range,{0.0,128.0}}]}}],
 	     [{title,"Spot Parameters"}]}],
     qs_att(L, Spot);
 qs_specific(#light{type=point}=L) -> qs_att(L, []);
@@ -363,8 +363,8 @@ qs_att(#light{lin_att=Lin,quad_att=Quad}, Tail) ->
 	      {slider,{text,Quad,[{range,{0.0,0.5}}]}}],
       [{title,"Attenuation"}]}|Tail].
     
-edit_specific([Angle,LinAtt,QuadAtt], #light{type=spot}=L) ->
-    L#light{spot_angle=Angle,lin_att=LinAtt,quad_att=QuadAtt};
+edit_specific([LinAtt,QuadAtt,Angle,SpotExp], #light{type=spot}=L) ->
+    L#light{spot_angle=Angle,spot_exp=SpotExp,lin_att=LinAtt,quad_att=QuadAtt};
 edit_specific([LinAtt,QuadAtt], #light{type=point}=L) ->
     L#light{lin_att=LinAtt,quad_att=QuadAtt};
 edit_specific(_, L) -> L.
