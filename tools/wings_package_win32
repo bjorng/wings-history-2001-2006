@@ -38,7 +38,7 @@ $INSTALL -c -m 644 ebin/* $dest/ebin
 
 $INSTALL -d $dest/plugins/import_export $dest/plugins/commands $dest/plugins/primitives $dest/plugins/win32_file
 $INSTALL -c -m 644 plugins/import_export/* $dest/plugins/import_export
-$INSTALL -c -m 644 plugins/commands/* $dest/plugins/import_export
+$INSTALL -c -m 644 plugins/commands/* $dest/plugins/commands
 $INSTALL -c -m 644 plugins/primitives/* $dest/plugins/primitives
 $INSTALL -c -m 644 plugins/win32_file/* $dest/plugins/win32_file
 
