@@ -3,12 +3,12 @@
 %%
 %%     Wavefront import/export.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.9 2002/12/28 22:10:27 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.10 2003/09/25 08:28:49 bjorng Exp $
 %%
 
 -module(wpc_obj).
@@ -71,7 +71,7 @@ import_fun(Attr) ->
 %%% Export.
 %%%
 
-do_export(Ask, Op, _Exporter, St) when is_atom(Ask) ->
+do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
     wpa:dialog(Ask, "Wavefront Export Options", dialog(export),
 	       fun(Res) ->
 		       {file,{Op,{obj,Res}}}
