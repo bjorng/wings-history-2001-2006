@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.54 2003/01/10 14:27:35 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.55 2003/01/10 17:05:53 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -22,6 +22,7 @@
 	 callback/1,current_state/1,
 	 grab_focus/0,grab_focus/1,release_focus/0,has_focus/1,focus_window/0,
 	 top_size/0,viewport/0,viewport/1,
+	 win_size/0,win_ul/0,win_rect/0,win_size/1,win_ul/1,win_rect/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
 	 translation_change/0,me_modifiers/0,set_me_modifiers/1,
 	 draw_message/1,draw_completions/1]).
@@ -265,6 +266,27 @@ viewport(Name) ->
     {_,TopH} = get(wm_top_size),
     Y = TopH-(Y0+H),
     {X,Y,W,H}.
+
+win_size() ->
+    win_size(active_window()).
+
+win_ul() ->
+    win_ul(active_window()).
+
+win_rect() ->
+    win_rect(active_window()).
+
+win_size(Name) ->
+    #win{w=W,h=H} = get_window_data(Name),
+    {W,H}.
+
+win_ul(Name) ->
+    #win{x=X,y=Y} = get_window_data(Name),
+    {X,Y}.
+
+win_rect(Name) ->
+    #win{x=X,y=Y,w=W,h=H} = get_window_data(Name),
+    {{X,Y},{W,H}}.
 
 local2global(#mousebutton{x=X0,y=Y0}=Ev) ->
     {X,Y} = local2global(X0, Y0),
@@ -1118,7 +1140,7 @@ ctrl_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
     #win{x=OldX,y=OldY} = get_window_data(Self),
     Dx0 = X-OldX,
     Dy0 = Y-OldY,
-    {Dx,Dy} = ctrl_constrain_move(Dx0, Dy0, Self, Cs),
+    {Dx,Dy} = ctrl_constrain_move(Dx0, Dy0, Self),
     update_windows(Children, [{dx,Dx},{dy,Dy}]),
     get_ctrl_event(Cs);
 ctrl_event(#mousemotion{state=?SDL_RELEASED},
@@ -1145,9 +1167,9 @@ ctrl_redraw(#ctrl{title=Title}) ->
     wings_io:text_at(10, TitleBarH-5, Title),
     keep.
 
-ctrl_constrain_move(Dx0, Dy, {_,Client}=Self, Cs) ->
-    {DeskX,DeskY,DeskW,DeskH} = wings_wm:viewport(desktop),
-    {X0,Y0,W,H} = wings_wm:viewport(Self),
+ctrl_constrain_move(Dx0, Dy0, {_,Client}) ->
+    {{DeskX,DeskY},{DeskW,DeskH}} = win_rect(desktop),
+    {{X0,Y0},{W,_}} = win_rect(),
     Dx = case X0+Dx0-DeskX of
 	     X when X < 0 ->
 		 DeskX-X0;
@@ -1155,6 +1177,15 @@ ctrl_constrain_move(Dx0, Dy, {_,Client}=Self, Cs) ->
 		 DeskX+DeskW-X0-W;
 	     _ ->
 		 Dx0
+	 end,
+    {{_,Cy},{_,Ch}} = win_rect(Client),
+    Dy = if 
+	     Y0+Dy0 < DeskY ->
+		 DeskY-Y0;
+	     Cy+Ch+Dy0 >= DeskY+DeskH ->
+		 DeskY+DeskH-Cy-Ch;
+	     true ->
+		 Dy0
 	 end,
     {Dx,Dy}.
     
