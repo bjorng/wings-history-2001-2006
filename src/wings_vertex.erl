@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.43 2003/05/08 06:42:13 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.44 2003/08/08 12:02:25 dgud Exp $
 %%
 
 -module(wings_vertex).
@@ -370,9 +370,16 @@ min_distance_pairs_1(Faces0, Vs0, We0) ->
 	true -> We0;
 	false ->
 	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
-	    case nearest_pair(Face, Vs0, We0) of
+	    case nearest_pair_smart(Face, Vs0, We0) of  % dgud
 		no ->
-		    min_distance_pairs_1(Faces1, Vs0, We0);
+		    case nearest_pair(Face, Vs0, We0) of  
+			no -> 
+			    min_distance_pairs_1(Faces1, Vs0, We0);
+			{{Va,Vb},{We,NewFace}} ->
+			    Faces = gb_sets:insert(NewFace, Faces0),
+			    Vs = ordsets:subtract(Vs0, ordsets:from_list([Va,Vb])),
+			    min_distance_pairs_1(Faces, Vs, We)
+		    end;
 		{{Va,Vb},{We,NewFace}} ->
 		    Faces = gb_sets:insert(NewFace, Faces0),
 		    Vs = ordsets:subtract(Vs0, ordsets:from_list([Va,Vb])),
@@ -380,6 +387,36 @@ min_distance_pairs_1(Faces0, Vs0, We0) ->
 	    end
     end.
 
+%% Don't go for position distance use the topological distance instead.
+%% Hopefully fixes this problem
+%  +__*_ *__*_+
+%   \       |  \
+%    \      |   \ 
+%     \      |   \
+%      \     |    \ 
+%       \    |     \
+%        \   |      \
+%         +--*--*--*-+
+
+nearest_pair_smart(Face, AllVs, We) ->
+    FaceVs = wings_face:vertices_ccw(Face, We),
+    Vs0    = ordsets:from_list(FaceVs),
+    Vs     = ordsets:intersection(Vs0, AllVs),
+    nearest_pair_smart_1(FaceVs, Vs, Face, We, []).
+
+%% If we new that the intersection was stable this step wouldn't be needed.
+nearest_pair_smart_1([V|Vs], Sel, Face, We, Acc) ->
+    case ordsets:is_element(V, Sel) of
+	true ->
+	    nearest_pair_smart_1(Vs, Sel, Face, We, [V|Acc]);
+	false ->
+	    nearest_pair_smart_1(Vs, Sel, Face, We, Acc)
+    end;
+nearest_pair_smart_1([], _, Face, We, Acc=[Last|_]) when length(Acc) > 1 ->
+    connect_pairs([Last|lists:reverse(Acc)],Face,We);
+nearest_pair_smart_1([], _, _, _, _) ->
+    no.
+    
 nearest_pair(Face, AllVs, #we{vp=Vtab}=We) ->
     Vs0 = ordsets:from_list(wings_face:vertices_ccw(Face, We)),
     Vs = ordsets:intersection(Vs0, AllVs),
@@ -402,6 +439,15 @@ connect_pairs([{_,Pair}|Pairs], Face, We0) ->
 	no -> connect_pairs(Pairs, Face, We0);
 	{_,_}=Res -> {Pair,Res}
     end;
+%% <dgud
+connect_pairs([Va,Vb|Pairs], Face, We0) ->
+    Pair = {Va,Vb},
+    case try_connect(Pair, Face, We0) of
+	no -> connect_pairs([Vb|Pairs], Face, We0);
+	{_,_}=Res -> {Pair,Res}
+    end;
+connect_pairs([_], _, _) -> no;
+%% dgud>
 connect_pairs([], _, _) -> no.
 
 try_connect({Va,Vb}, Face, We) ->
