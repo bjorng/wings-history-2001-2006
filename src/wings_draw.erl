@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.178 2004/03/24 08:41:22 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.179 2004/03/27 07:00:45 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -69,8 +69,11 @@ prepare_fun(eol, [We|Wes]) ->
     {changed_we(D, D),Wes};
 prepare_fun(eol, []) ->
     eol;
-prepare_fun(#dlo{}, [#we{perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
+prepare_fun(#dlo{src_we=#we{id=Id}},
+	    [#we{id=Id,perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
     {deleted,Wes};
+prepare_fun(#dlo{}=D, [#we{perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
+    prepare_fun(D, Wes);
 prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, [We|Wes]) ->
     {D#dlo{src_we=We,split=Split#split{orig_we=We}},Wes};
 prepare_fun(#dlo{src_we=We}=D, [We|Wes]) ->
