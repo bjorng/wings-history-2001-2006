@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.36 2003/07/27 13:40:21 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.37 2003/10/09 06:25:24 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -202,12 +202,11 @@ ctrl_event({action,{titlebar,Action}}, Cs) ->
 ctrl_event(_, _) -> keep.
 
 ctrl_message() ->
-    {One,Two,Three} = wings_camera:button_names(),
     T = case is_resizeable() of
 	    false -> [];
-	    true -> ["  ",Two," Fit  ",Three," Show menu"]
+	    true -> wings_util:button_format([], "Fit", "Show menu")
 	end,
-    wings_wm:message(["Drag ",One," Move"|T]),
+    wings_wm:message(["Drag ",wings_util:button_format("Move")|T]),
     wings_wm:dirty().
 
 ctrl_redraw(#ctrl{title=Title}) ->

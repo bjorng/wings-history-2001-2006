@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.81 2003/09/22 14:30:25 dgud Exp $
+%%     $Id: wings_util.erl,v 1.82 2003/10/09 06:25:24 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -16,7 +16,7 @@
 	 validate_mirror/1,rel2fam/1,
 	 button_message/1,button_message/2,button_message/3,
 	 button_format/1,button_format/2,button_format/3,
-	 rmb_format/1,mod_name/1,
+	 rmb_format/1,
 	 message/1,
 	 magnet_string/0,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
@@ -73,44 +73,26 @@ validate_mirror(#we{fs=Ftab,mirror=Face}=We) ->
 	true -> We
     end.
 
-button_message(MsgOne) ->
-    button_message(MsgOne, [], []).
+button_message(LmbMsg) ->
+    wings_wm:message(wings_camera:button_format(LmbMsg)).
 
-button_message(MsgOne, MsgTwo) ->
-    button_message(MsgOne, MsgTwo, []).
+button_message(LmbMsg, MmbMsg) ->
+    wings_wm:message(wings_camera:button_format(LmbMsg, MmbMsg)).
     
-button_message(MsgOne, MsgTwo, MsgThree) ->
-    wings_wm:message(button_format(MsgOne, MsgTwo, MsgThree)).
+button_message(LmbMsg, MmbMsg, RmbMessage) ->
+    wings_wm:message(wings_camera:button_format(LmbMsg, MmbMsg, RmbMessage)).
 
-button_format(MsgOne) ->
-    button_format(MsgOne, [], []).
+button_format(LmbMsg) ->
+    wings_camera:button_format(LmbMsg).
 
-button_format(MsgOne, MsgTwo) ->
-    button_format(MsgOne, MsgTwo, []).
-    
-button_format(MsgOne, MsgTwo, MsgThree) ->
-    {One,Two,Three} = wings_camera:button_names(),
-    [if
-	 MsgOne =/= [] -> [One,$\s|MsgOne];
-	 true -> []
-     end,
-     if
-	 MsgTwo =/= [] -> [$\s,Two,$\s|MsgTwo];
-	 true -> []
-     end,
-     if
-	 MsgThree =/= [] -> [$\s,Three,$\s|MsgThree];
-	 true -> []
-     end].
+button_format(LmbMsg, MmbMsg) ->
+    wings_camera:button_format(LmbMsg, MmbMsg).
 
-rmb_format(Message) ->
-    RmbMod = mod_name(wings_camera:free_rmb_modifier()),
-    {_,_,Rmb} = wings_camera:button_names(),
-    "[" ++ RmbMod ++ "]+" ++ Rmb ++ " " ++ Message.
+button_format(LmbMsg, MmbMsg, RmbMsg) ->
+    wings_camera:button_format(LmbMsg, MmbMsg, RmbMsg).
 
-mod_name(?ALT_BITS) -> "Alt";
-mod_name(?CTRL_BITS) -> "Ctrl";
-mod_name(?META_BITS) -> "Command".
+rmb_format(Msg) ->
+    wings_camera:rmb_format(Msg).
 
 message(Message) ->
     Qs = {vframe,

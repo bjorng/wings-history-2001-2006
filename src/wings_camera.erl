@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.80 2003/09/01 17:09:09 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.81 2003/10/09 06:25:24 bjorng Exp $
 %%
 
 -module(wings_camera).
 -export([init/0,sub_menu/1,command/2,help/0,event/2]).
--export([button_names/0,free_rmb_modifier/0]).
+-export([button_format/1,button_format/2,button_format/3,
+	 free_rmb_modifier/0,rmb_format/1,mod_name/1]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -114,38 +115,95 @@ desc(mb) -> "Motionbuilder".
 
 help() ->
     case wings_pref:get_value(camera_mode) of
-	blender ->
-	    case wings_pref:get_value(num_buttons) of
-		3 -> "[M] Tumble  [Shift]+[M] Track  [Ctrl]+[M] Dolly";
-		_ -> "[Alt]+[L] Tumble  [Alt]+[Shift]+[M] Track  "
-			 "[Alt]+[Ctrl]+[M] Dolly"
-	    end;
-	nendo ->
-	    case wings_pref:get_value(num_buttons) of
-		1 -> "[Alt]+[L]";
-		2 -> "[Ctrl]+[R]";
-		3 -> "[M]"
-	    end ++ " Start camera";
-	mirai ->
-	    "[M] Start camera";
-	tds ->
-	    "[Alt]+[M] Tumble  [M] Track  [Ctrl]+[Alt]+[M] Dolly";
-	maya ->
-	    "[Alt]+[L] Tumble  [Alt]+[M] Track  [Alt]+[R] Dolly";
-	mb ->
-	    "[Shift]+[Ctrl]+[L] Tumble  [Shift]+[L] Track  [Ctrl]+[L] Dolly"
+	blender -> blender_help();
+	nendo -> button_format([], "Start camera");
+	mirai -> button_format([], "Start camera");
+	tds -> tds_help();
+	maya -> maya_help();
+	mb -> mb_help()
     end.
 
-button_names() ->
-    case wings_pref:get_value(num_buttons) of
-	3 -> {"[L]","[M]","[R]"};
-	2 ->
-	    case wings_pref:get_value(camera_mode) of
-		blender -> {"[L]","[Alt]+[L]","[R]"};
-		nendo -> {"[L]","[Ctrl]+[R]","[R]"}
-	    end;
-	1 -> {"[L]","[Alt]+[L]","[Ctrl]+[L]"}
+format([{Mod,1,Msg}|T]) ->
+    [format_1(Mod, lmb_name(), Msg),$\s|format(T)];
+format([{Mod,2,Msg}|T]) ->
+    [format_1(Mod, mmb_name(), Msg),$\s|format(T)];
+format([{Mod,3,Msg}|T]) ->
+    [format_1(Mod, rmb_name(), Msg),$\s|format(T)];
+format([{Mod,But,Msg}|T]) when is_list(But) ->
+    [format_1(Mod, But, Msg),$\s|format(T)];
+format([]) -> [].
+
+format_1(0, But, Msg) ->
+    [But,$\s,Msg];
+format_1(Mod, But, Msg) ->
+    M0 = [But,$\s,Msg],
+    M1 = if
+	     (Mod band ?SHIFT_BITS) =/= 0 -> ["[Shift]+"|M0];
+	     true -> M0
+	 end,
+    M2 = if
+	     (Mod band ?ALT_BITS) =/= 0 -> ["[Alt]+"|M1];
+	     true -> M1
+	 end,
+    M3 = if
+	     (Mod band ?CTRL_BITS) =/= 0 -> ["[Ctrl]+"|M2];
+	     true -> M2
+	 end,
+    if
+	(Mod band ?META_BITS) =/= 0 -> ["[Command]+"|M3];
+	true -> M3
     end.
+
+button_format(LmbMsg) ->
+    [lmb_name(),$\s|LmbMsg].
+
+button_format(LmbMsg, MmbMsg) ->
+    button_format(LmbMsg, MmbMsg, []).
+    
+button_format(LmbMsg, MmbMsg, RmbMsg) ->
+    Buttons = wings_pref:get_value(num_buttons),
+    Lmb = lmb_name(),
+    Mmb = mmb_name(Buttons),
+    Rmb = rmb_name(Buttons),
+    [if
+	 LmbMsg =/= [] -> [Lmb,$\s|LmbMsg];
+	 true -> []
+     end,
+     if
+	 MmbMsg =/= [] -> [$\s,Mmb,$\s|MmbMsg];
+	 true -> []
+     end,
+     if
+	 RmbMsg =/= [] -> [$\s,Rmb,$\s|RmbMsg];
+	 true -> []
+     end].
+
+lmb_name() -> "[L]".
+
+mmb_name() ->
+    mmb_name(wings_pref:get_value(num_buttons)).
+
+mmb_name(3) -> "[M]";
+mmb_name(2) ->
+    case wings_pref:get_value(camera_mode) of
+	blender -> ["[Alt]+"|lmb_name()];
+	nendo -> ["[Ctrl]+"|rmb_name(2)]
+    end;
+mmb_name(1) -> ["[Alt]+"|lmb_name()].
+
+rmb_name() ->
+    rmb_name(wings_pref:get_value(num_buttons)).
+
+rmb_name(1) -> "[Ctrl]+[L]";
+rmb_name(_) -> "[R]".
+
+rmb_format(Message) ->
+    RmbMod = mod_name(free_rmb_modifier()),
+    ["[",RmbMod,"]+",rmb_name()," "|Message].
+
+mod_name(?ALT_BITS) -> "Alt";
+mod_name(?CTRL_BITS) -> "Ctrl";
+mod_name(?META_BITS) -> "Command".
 
 free_rmb_modifier() ->
     case wings_pref:get_value(camera_mode) of
@@ -185,7 +243,7 @@ blender(#mousebutton{button=2,state=?SDL_PRESSED,x=X0,y=Y0,mod=Mod}, Redraw)
     {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     grab(),
-    message(help()),
+    message(blender_help()),
     {seq,push,get_blender_event(Camera, Redraw)};
 blender(_, _) -> next.
 
@@ -208,6 +266,12 @@ blender_event(Other, Camera, Redraw) ->
 
 get_blender_event(Camera, Redraw) ->
     {replace,fun(Ev) -> blender_event(Ev, Camera, Redraw) end}.
+	    
+blender_help() ->
+    Mmb = mmb_name(),
+    format([{0,Mmb,"Tumble"},
+	    {?SHIFT_BITS,Mmb,"Track"},
+	    {?CTRL_BITS,Mmb,"Dolly"}]).
 
 %%%
 %%% Nendo style camera.
@@ -382,7 +446,7 @@ tds(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     grab(),
-    message(["[R] Restore view  "|help()]),
+    message([button_format([], [], "Restore view"),$\s|tds_help()]),
     View = wings_view:current(),
     {seq,push,get_tds_event(Camera, Redraw, View)};
 tds(_, _) -> next.
@@ -412,6 +476,12 @@ get_tds_event(Camera, Redraw, View) ->
     wings_wm:dirty(),
     {replace,fun(Ev) -> tds_event(Ev, Camera, Redraw, View) end}.
 
+tds_help() ->
+    Mmb = mmb_name(),
+    format([{?ALT_BITS,Mmb,"Tumble"},
+	    {0,Mmb,"Track"},
+	    {?CTRL_BITS bor ?ALT_BITS,Mmb,"Dolly"}]).
+
 %%%
 %%% Maya style camera.
 %%%
@@ -422,7 +492,7 @@ maya(#mousebutton{x=X0,y=Y0,mod=Mod,state=?SDL_PRESSED}, Redraw)
     sdl_events:eventState(?SDL_KEYUP, ?SDL_ENABLE),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     grab(),
-    message(help()),
+    message(maya_help()),
     {seq,push,get_maya_event(Camera, Redraw)};
 maya(_, _) -> next.
 
@@ -454,6 +524,11 @@ maya_stop_camera(Camera) ->
     sdl_events:eventState(?SDL_KEYUP, ?SDL_IGNORE),
     stop_camera(Camera).
 
+maya_help() ->
+    format([{?ALT_BITS,1,"Tumble"},
+	    {?ALT_BITS,2,"Track"},
+	    {?ALT_BITS,3,"Dolly"}]).
+
 %%%
 %%% Motionbuilder style camera.
 %%%
@@ -463,7 +538,7 @@ mb(#mousebutton{button=1,mod=Mod,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw)
     {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     grab(),
-    message(help()),
+    message(mb_help()),
     {seq,push,get_mb_event(Camera, Redraw)};
 mb(_, _) -> next.
 
@@ -490,6 +565,12 @@ mb_event(Event, Camera, Redraw) ->
 get_mb_event(Camera, Redraw) ->
     wings_wm:dirty(),
     {replace,fun(Ev) -> mb_event(Ev, Camera, Redraw) end}.
+
+mb_help() ->
+    Lmb = lmb_name(),
+    format([{?SHIFT_BITS bor ?CTRL_BITS,Lmb,"Tumble"},
+	    {?SHIFT_BITS,Lmb,"Track"},
+	    {?CTRL_BITS,Lmb,"Dolly"}]).
     
 %%%
 %%% Common utilities.
