@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.189 2004/12/16 20:05:09 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.190 2005/01/26 13:19:55 dgud Exp $
 %%
 
 -module(wings_drag).
@@ -411,13 +411,9 @@ handle_drag_event_1(#mousemotion{}=Ev, Drag0) ->
     Drag = motion(Ev, Drag0),
     get_drag_event(Drag);
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_RELEASED}, Drag0) ->
-    ungrab(Drag0),
     Ev = #mousemotion{x=X,y=Y,state=0,mod=Mod},
-    #drag{last_move=Move} = Drag = ?SLOW(motion(Ev, Drag0)),
-    St = normalize(Move, Drag),
-    DragEnded = {new_state,St#st{drag_args=Move}},
-    wings_wm:later(DragEnded),
-    pop;
+    Drag = ?SLOW(motion(Ev, Drag0)),
+    quit_drag(Drag);
 handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     ungrab(Drag0),
     Drag1 = possible_falloff_update(Move, Drag0),
@@ -436,19 +432,32 @@ handle_drag_event_1(view_changed, Drag) ->
 handle_drag_event_1({action,{drag_arguments,_}=DragArgs}, _) ->
     wings_wm:later(DragArgs);
 handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
-    Drag = case wings_hotkey:event(Event) of
-	       next -> Drag0;
-	       {view,smoothed_preview} -> Drag0;
-	       {view,Cmd} ->
-		   wings_view:command(Cmd, St),
-		   view_changed(Drag0);
-	       {select,less} ->
-		   magnet_radius(-1, Drag0);
-	       {select,more} ->
-		   magnet_radius(1, Drag0);
-	       _Other -> Drag0
-	   end,
-    get_drag_event(Drag).
+    case wings_hotkey:event(Event,St) of
+	next ->
+	    get_drag_event(Drag0);
+	{view,smoothed_preview} -> 
+	    get_drag_event(Drag0);
+	{view,Cmd} ->
+	    wings_view:command(Cmd, St),
+	    Drag = view_changed(Drag0),
+	    get_drag_event(Drag);
+	{select,less} ->
+	    Drag = magnet_radius(-1, Drag0),
+	    get_drag_event(Drag);
+	{select,more} ->
+	    Drag = magnet_radius(1, Drag0),
+	    get_drag_event(Drag);
+	Other ->
+	    wings_wm:later({action, Other}),
+	    quit_drag(Drag0)
+    end.
+
+quit_drag(#drag{last_move=Move} = Drag) ->
+    ungrab(Drag),
+    St = normalize(Move, Drag),
+    DragEnded = {new_state,St#st{drag_args=Move}},
+    wings_wm:later(DragEnded),
+    pop.
 
 ungrab(#drag{x=Ox,y=Oy}) ->
     wings_wm:release_focus(),
