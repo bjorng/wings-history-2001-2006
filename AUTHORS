@@ -1,13 +1,17 @@
 Original Author:
 
-Björn Gustavsson
+Björn Gustavsson:
+	Has written the bulk of code.
 
-Open source contributors:
-
-Jakob Cederlund
+Jakob Cederlund:
 	Implemented the Tube, Cone, Sphere, and Torus objects.
 	Brain-storming and discussion partner.
 	Implemented the Collapse commands. Original idea and
         implementation of the Intrude and Select Similar.
+
+Dan Gudmundsson:
+	Wrote the ESDL package that made it possible.
+	Ideas and inspiration.
+	Wrote the e3d_image modules.
 
 Vlad Dumitrescu: Bugfix for middle-mouse button emulation.
