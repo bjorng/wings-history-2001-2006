@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.24 2002/05/10 14:01:43 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.25 2002/05/28 08:33:41 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -36,21 +36,29 @@ convert_selection(#st{selmode=body}=St) ->
 	      gb_sets:from_list(gb_trees:keys(Vtab))
       end, vertex, St);
 convert_selection(#st{selmode=face}=St) ->
-    wings_sel:convert(
-      fun(Face, We, Sel0) ->
-	      wings_face:fold(
-		fun(V, _, _, Sel) ->
-			gb_sets:add(V, Sel)
-		end, Sel0, Face, We)
+    wings_sel:convert_shape(
+      fun(Fs, We) ->
+	      from_faces(gb_sets:to_list(Fs), We, [])
       end, vertex, St);
 convert_selection(#st{selmode=edge}=St) ->
-    wings_sel:convert(
-      fun(Edge, #we{es=Etab}, Sel0) ->
-	      #edge{vs=Vs,ve=Ve} = gb_trees:get(Edge, Etab),
-	      gb_sets:add(Vs, gb_sets:add(Ve, Sel0))
+    wings_sel:convert_shape(
+      fun(Es, #we{es=Etab}) ->
+	      from_edges(gb_sets:to_list(Es), Etab, [])
       end, vertex, St);
 convert_selection(#st{selmode=vertex}=St) ->
     select_more(St).
+
+from_faces([Face|Fs], We, Acc0) ->
+    Acc = wings_face:fold(fun(V, _, _, Sel) ->
+				  [V|Sel]
+			  end, Acc0, Face, We),
+    from_faces(Fs, We, Acc);
+from_faces([], _, Acc) -> gb_sets:from_list(Acc).
+
+from_edges([E|Es], Etab, Acc) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
+    from_edges(Es, Etab, [Va,Vb|Acc]);
+from_edges([], _, Acc) -> gb_sets:from_list(Acc).
 
 %%% Select more or less.
 
