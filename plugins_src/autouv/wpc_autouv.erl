@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.124 2003/07/09 09:59:11 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.125 2003/07/09 15:59:56 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1151,13 +1151,13 @@ select_draw1(vertex, Fs, #we{vp=Vtab}=We) ->
 select_draw_faces([], _We, _) ->    ok;
 select_draw_faces([H|R], We, false) ->
     gl:pushName(H),
-    draw_face(H, We),
+    wings_draw_util:face(H, We),
     gl:popName(),
     select_draw_faces(R,We,false);
 select_draw_faces([H|R], We, true) ->
     gl:pushName(H),
     gl:'begin'(?GL_TRIANGLES),
-    draw_face(H, We),
+    wings_draw_util:face(H, We),
     gl:'end'(),
     gl:popName(),
     select_draw_faces(R,We,true).
@@ -1375,42 +1375,14 @@ draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe, we=We},
     end,
     gl:popMatrix().
 
-draw_faces(Fs, We) ->
-    wings_draw_util:begin_end(fun() -> draw_faces2(Fs, We) end).
-
-draw_faces2([], _We) -> ok;
-draw_faces2([H|T], We) ->
-    draw_face(H, We),
-    draw_faces2(T, We).
-
-draw_face(Face, #we{mode=material}=We) ->
-    wings_draw_util:flat_face(Face, We);
-draw_face(Face, #we{vp=Vtab}=We) ->
-    Vs0 = wings_face:vinfo_cw(Face, We),
-    draw_face_1(Vs0, Vtab, [], []).
-
-draw_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
-    Pos = gb_trees:get(V, Vtab),
-    draw_face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
-draw_face_1([], _, Nacc, Vs) ->
-    N = e3d_vec:normal(Nacc),
-    gl:normal3fv(N),
-    Tess = wings_draw_util:tess(),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    {X,Y,Z} = N,
-    glu:tessNormal(Tess, X, Y, Z),
-    tess_face_vtxcol(Tess, Vs).
-
-tess_face_vtxcol(Tess, [[Pos|{_,_}=UV]|T]) ->
-    glu:tessVertex(Tess, Pos, [{texcoord2,UV}]),
-    tess_face_vtxcol(Tess, T);
-tess_face_vtxcol(Tess, [[Pos|{_,_,_}=Col]|T]) ->
-    glu:tessVertex(Tess, Pos, [{color,Col}]),
-    tess_face_vtxcol(Tess, T);
-tess_face_vtxcol(Tess, []) ->
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess).
+draw_faces(Fs, #we{mode=Mode}=We) ->
+    Draw = case Mode of
+	       material ->
+		   fun(Face) -> wings_draw_util:flat_face(Face, We) end;
+	       _ ->
+		   fun(Face) -> wings_draw_util:face(Face, We) end
+	   end,
+    wings_draw_util:begin_end(fun() -> foreach(Draw, Fs) end).
 
 reset_dl(Uvs = #uvstate{dl = undefined}) ->
     Uvs;
