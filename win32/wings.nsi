@@ -3,13 +3,13 @@
 #
 #     Install script for NSIS installer.
 #
-#  Copyright (c) 2002-2003 Bjorn Gustavsson
+#  Copyright (c) 2002-2004 Bjorn Gustavsson
 #		      2003 Patrik Nyblom
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings.nsi,v 1.5 2003/10/23 19:13:27 uid59848 Exp $
+#     $Id: wings.nsi,v 1.6 2004/06/01 05:23:29 bjorng Exp $
 #
 
 	!define MUI_PRODUCT "Wings 3D"
@@ -224,6 +224,7 @@ Section Uninstall
   Delete "$INSTDIR\AUTHORS"
   Delete "$INSTDIR\license.terms"
   Delete "$INSTDIR\Wings3D.exe"
+  Delete "$INSTDIR\wings_crash.dump"
   SetShellVarContext All
   ;MessageBox MB_OK "$DESKTOP\Wings 3D ${WINGS_VERSION}.lnk"
   Delete "$DESKTOP\Wings 3D ${WINGS_VERSION}.lnk"
