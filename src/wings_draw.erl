@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.200 2004/04/24 18:20:27 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.201 2004/04/25 14:13:49 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -496,8 +496,8 @@ update_face_sel_2([], _) -> ok.
 %%% Splitting of objects into two display lists.
 %%%
 
-split(#dlo{ns={Ns}}=D, Vs, St) ->
-    %% Normals marked for update - can be ignored here.
+split(#dlo{ns={Ns0},src_we=#we{fs=Ftab}}=D, Vs, St) ->
+    Ns = remove_stale_ns(Ns0, Ftab),
     split_1(D#dlo{ns=Ns}, Vs, St);
 split(D, Vs, St) -> split_1(D, Vs, St).
 
@@ -525,6 +525,17 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab}=We,
     #dlo{work=Work,edges=[StaticEdgeDl],mirror=M,vs=VsDlist,
 	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd,
 	 needed=Needed}.
+
+remove_stale_ns(Ns, Ftab) ->
+    remove_stale_ns_1(gb_trees:to_list(Ns), Ftab, []).
+
+remove_stale_ns_1([{F,_}=Pair|Fs], Ftab, Acc) ->
+    case gb_trees:is_defined(F, Ftab) of
+	false -> remove_stale_ns_1(Fs, Ftab, Acc);
+	true -> remove_stale_ns_1(Fs, Ftab, [Pair|Acc])
+    end;
+remove_stale_ns_1([], _, Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
 
 vs_to_faces(Vs, We) ->
     Fun = fun(_, Face, _, A) -> [Face|A] end,
