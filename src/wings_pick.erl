@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.25 2002/01/04 19:42:58 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.26 2002/01/05 21:37:01 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -43,11 +43,19 @@
 	 prev=none				%Previous hit ({Id,Item}).
 	}).
 
-event(#mousemotion{}=Mm, St) ->
-    {seq,{push,dummy},handle_hilite_event(Mm, #hl{st=St})};
+event(#mousemotion{}=Mm, #st{selmode=Mode}=St) ->
+    case hilite_enabled(Mode) of
+	false -> next;
+	true -> {seq,{push,dummy},handle_hilite_event(Mm, #hl{st=St})}
+    end;
 event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St) ->
     pick(X, Y, St);
 event(Ev, St) -> next.
+
+hilite_enabled(vertex) -> wings_pref:get_value(vertex_hilite);
+hilite_enabled(edge) -> wings_pref:get_value(edge_hilite);
+hilite_enabled(face) -> wings_pref:get_value(face_hilite);
+hilite_enabled(body) -> wings_pref:get_value(body_hilite).
 
 pick(X, Y, St0) ->
     {Inside,Marque,MarqueOp} =
