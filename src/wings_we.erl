@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.28 2002/04/29 06:28:56 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.29 2002/05/10 14:01:00 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -649,7 +649,7 @@ soft_vtx_normal(V, FaceNormals, We) ->
 	   fun(_, Face, _, A) ->
 		   [gb_trees:get(Face, FaceNormals)|A]
 	   end, [], V, We),
-    e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns)).
+    e3d_vec:norm(e3d_vec:add(Ns)).
 
 n_face(Face, Mat, G, FaceNormals, VtxNormals, #we{vs=Vtab}=We) ->
     Vs = wings_face:fold_vinfo(
@@ -663,13 +663,13 @@ n_face(Face, Mat, G, FaceNormals, VtxNormals, #we{vs=Vtab}=We) ->
  			   [{Pos,{VInfo,Normal}}|Acc]
 		   end
 	   end, [], Face, We),
-    {Mat,Vs}.
+    {Mat,{gb_trees:get(Face, FaceNormals),Vs}}.
 
 hard_vtx_normal(G, V, Face, FaceNormals) ->
     Reachable = digraph_utils:reachable([{V,Face}], G),
     case [gb_trees:get(AFace, FaceNormals) || {_,AFace} <- Reachable] of
  	[N] -> N;
- 	Ns -> e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns))
+ 	Ns -> e3d_vec:norm(e3d_vec:add(Ns))
     end.
 
 new_digraph(#we{he=He}) ->
@@ -696,25 +696,17 @@ update_digraph(G, V, #we{he=Htab}=We) ->
 	      end
       end, [], V, We).
     
-%% Extra fast normal calculation.
+%% Face normal calculation.
 
-face_normal(Face, #face{edge=Edge}, #we{es=Etab,vs=Vtab}) ->
-    face_normal_1(Face, gb_trees:get(Edge, Etab), Etab, Vtab).
+face_normal(Face, #face{edge=Edge}, #we{vs=Vtab}=We) ->
+    Vs = wings_face:surrounding_vertices(Face, Edge, We),
+    face_normal_1(Vs, Vtab, []).
 
-face_normal_1(Face, #edge{vs=A,ve=B,lf=Face,ltpr=NextEdge}, Etab, Vtab) ->
-    face_normal_2(A, B, NextEdge, Etab, Vtab);
-face_normal_1(Face, #edge{ve=A,vs=B,rf=Face,rtpr=NextEdge}, Etab, Vtab) ->
-    face_normal_2(A, B, NextEdge, Etab, Vtab).
-
-face_normal_2(A, B, Edge, Etab, Vtab) ->
-    C = case gb_trees:get(Edge, Etab) of
-	    #edge{vs=B,ve=A0} -> A0;
-	    #edge{ve=B,vs=A0} -> A0
-	end,
-    APos = wings_vertex:pos(A, Vtab),
-    BPos = wings_vertex:pos(B, Vtab),
-    CPos = wings_vertex:pos(C, Vtab),
-    e3d_vec:normal(APos, BPos, CPos).
+face_normal_1([V|Vs], Vtab, Acc) ->
+    #vtx{pos=P} = gb_trees:get(V, Vtab),
+    face_normal_1(Vs, Vtab, [P|Acc]);
+face_normal_1([], _, Acc) ->
+    e3d_vec:normal(reverse(Acc)).
 
 %%%
 %%% Returns sets of newly created items.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.17 2002/04/28 07:47:29 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.18 2002/05/10 14:00:57 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -257,7 +257,7 @@ vn_hard_normals_1(G, [VF|VFs], FaceNormals, Vn, Acc) ->
     Ns0 = [gb_trees:get(Face, FaceNormals) || {_,Face} <- Reachable],
     N = case Ns0 of
 	    [N0] -> N0;
-	    Ns -> e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns))
+	    Ns -> e3d_vec:norm(e3d_vec:add(Ns))
 	end,
     vn_hard_normals_1(G, VFs, FaceNormals, Vn+1, [{VF,{Vn,N}}|Acc]);
 vn_hard_normals_1(_G, [], _FaceNormals, _Vn, Acc) -> Acc.
