@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.11 2002/04/13 07:23:21 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.12 2002/04/24 12:45:53 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -23,6 +23,8 @@ menu(X, Y, St) ->
     Menu = [{"Two-Button Mouse",two_button},
 	    {"Assigning Hotkeys",defining_hotkeys},
 	    separator,
+	    {"SDL/OpenGL Info",opengl_info},
+	    separator,
 	    {"About",about}],
     wings_menu:menu(X, Y, help, Menu, St).
 
@@ -30,6 +32,8 @@ command(two_button, St) ->
     two_button(St);
 command(defining_hotkeys, St) ->
     def_hotkeys(St);
+command(opengl_info, St) ->
+    opengl_info(St);
 command(about, St) ->
     about(St).
 
@@ -61,6 +65,19 @@ def_hotkeys(St) ->
 	    "and then press the key you want to assign the command to.",
 	    "To delete a hotkey, similarily high-light the command in a "
 	    " menu, and press the [Del] key."],
+    help_window(Help, St).
+
+opengl_info(St) ->
+    {{X,Y,Z},_} = sdl_video:wm_getInfo(),
+    Help = ["SDL Info",
+	    "Version: " ++
+	    integer_to_list(X) ++ "." ++
+	    integer_to_list(Y) ++ "." ++
+	    integer_to_list(Z),
+	    "OpenGL Info",
+	    "Vendor:     " ++ gl:getString(?GL_VENDOR) ++ "\n" ++
+	    "Renderer:   " ++ gl:getString(?GL_RENDERER) ++ "\n" ++
+	    "Version:    " ++ gl:getString(?GL_VERSION)],
     help_window(Help, St).
 
 about(St) ->
@@ -145,12 +162,15 @@ break_line(S, T, Rows, Acc) ->
 	    break_line(More, T, Rows+1, [Line|Acc])
     end.
 
+%%break_line_1([$\n|T]) -> break_line_1(T);
 break_line_1([$\s|T]) -> break_line_1(T);
 break_line_1([]) -> done;
 break_line_1(T) -> break_line_2(T, 0, [], []).
 
 break_line_2(_, N, _Acc, {Bef,More}) when N > 60 ->
     {reverse(Bef),More};
+break_line_2([$\n|T], N, Acc, _Break) ->
+    {reverse(Acc),T};
 break_line_2([$\s|T0], N, Acc, _Break) ->
     T = skip_blanks(T0),
     break_line_2(T, N+1, [$\s|Acc], {Acc,T});
@@ -158,6 +178,7 @@ break_line_2([C|T], N, Acc, Break) ->
     break_line_2(T, N+1, [C|Acc], Break);
 break_line_2([], _, Acc, _Break) -> {reverse(Acc),[]}.
 
+skip_blanks([$\n|T]) -> skip_blanks(T);
 skip_blanks([$\s|T]) -> skip_blanks(T);
 skip_blanks(T) -> T.
 
