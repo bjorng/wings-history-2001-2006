@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.238 2003/04/18 07:33:30 bjorng Exp $
+%%     $Id: wings.erl,v 1.239 2003/04/19 15:48:44 bjorng Exp $
 %%
 
 -module(wings).
@@ -103,11 +103,10 @@ init(File, Root) ->
     catch sdl_video:wm_setIcon(sdl_video:loadBMP(Icon), null),
     sdl_video:gl_setAttribute(?SDL_GL_DOUBLEBUFFER, 1),
     sdl_events:eventState(?SDL_ALLEVENTS,?SDL_IGNORE),
-    sdl_events:eventState(?SDL_ALLEVENTS,?SDL_IGNORE),
     sdl_events:eventState(?SDL_MOUSEMOTION, ?SDL_ENABLE),
     sdl_events:eventState(?SDL_MOUSEBUTTONDOWN, ?SDL_ENABLE),
     sdl_events:eventState(?SDL_MOUSEBUTTONUP, ?SDL_ENABLE),
-    sdl_events:eventState(?SDL_KEYDOWN ,?SDL_ENABLE),
+    sdl_events:eventState(?SDL_KEYDOWN, ?SDL_ENABLE),
     sdl_events:eventState(?SDL_QUIT, ?SDL_ENABLE),
     sdl_events:eventState(?SDL_VIDEORESIZE, ?SDL_ENABLE),
     sdl_events:eventState(?SDL_VIDEOEXPOSE, ?SDL_ENABLE),
