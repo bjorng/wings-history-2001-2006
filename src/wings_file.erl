@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.50 2002/01/28 21:53:47 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.51 2002/01/30 18:51:23 dgud Exp $
 %%
 
 -module(wings_file).
@@ -235,29 +235,39 @@ wings_prop() ->
     [{ext,?WINGS},{ext_desc,"Wings File"}].    
 
 use_autosave(File) ->
-    {ok, SaveInfo} = file:read_file_info(File),
-    Auto = autosave_filename(File),
-    case file:read_file_info(Auto) of
-	{ok, AutoInfo} ->
-	    SaveTime = calendar:datetime_to_gregorian_seconds(SaveInfo#file_info.mtime),
-	    AutoTime = calendar:datetime_to_gregorian_seconds(AutoInfo#file_info.mtime),
-	    if
-		AutoTime > SaveTime ->
-		    Msg = "An autosaved file with later time stamp exists, "
-			"do you want to load the autosaved file instead?",
-		    case wings_util:yes_no(Msg) of
-			yes -> 
-			    Auto;
-			no -> 
-			    File;
-			abort ->  %% ???
+    case file:read_file_info(File) of
+	{ok, SaveInfo} ->
+	    Auto = autosave_filename(File),
+	    case file:read_file_info(Auto) of
+		{ok, AutoInfo} ->
+		    SaveTime = calendar:datetime_to_gregorian_seconds(SaveInfo#file_info.mtime),
+		    AutoTime = calendar:datetime_to_gregorian_seconds(AutoInfo#file_info.mtime),
+		    if
+			AutoTime > SaveTime ->
+			    Msg = "An autosaved file with later time stamp exists, "
+				"do you want to load the autosaved file instead?",
+			    case wings_util:yes_no(Msg) of
+				yes -> 
+				    Auto;
+				no -> 
+				    File;
+				abort ->  %% ???
+				    File
+			    end;
+			SaveTime >= AutoTime ->
 			    File
 		    end;
-		SaveTime >= AutoTime ->
+		{error, _} ->  %% No autosave file
 		    File
 	    end;
-	{error, _} ->  %% No autosave file
-	    File
+	{error, _} -> %% use autosave if exists 
+	    Auto = autosave_filename(File),
+	    case file:read_file_info(Auto) of
+		{ok, AutoInfo} ->
+		    Auto;
+		_ -> %% Let reader take care of error
+		    File
+	    end
     end.
 
 set_autosave_timer() ->
