@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.13 2001/12/10 18:39:58 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.14 2002/01/06 09:12:08 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -24,6 +24,7 @@
 menu(X, Y, St) ->
     Menu = {{"Tetrahedron",tetrahedron},
 	    {"Octahedron",octahedron},
+	    {"Octotoad",octotoad},
 	    {"Dodecahedron",dodecahedron},
 	    {"Icosahedron",icosahedron},
 	    separator,
@@ -39,6 +40,7 @@ menu(X, Y, St) ->
 
 command(tetrahedron, _, St) -> tetrahedron(St);
 command(octahedron, _, St) -> octahedron(St);
+command(octotoad, _, St) -> octotoad(St);
 command(dodecahedron, _, St) -> dodecahedron(St);
 command(icosahedron, _, St) -> icosahedron(St);
 command(cube, _, St) -> cube(St);
@@ -66,6 +68,28 @@ octahedron(St) ->
     Vs = [{2.0,0.0,0.0},{-2.0,0.0,0.0},{0.0,2.0,0.0},
 	  {0.0,-2.0,0.0},{0.0,0.0,2.0},{0.0,0.0,-2.0}],
     build_shape("octahedron", Fs, Vs, St).
+
+octotoad(St) ->
+    Fs = [[2,3,1,0],[7,6,4,5],[9,8,0,1],[10,11,3,2],
+	  [12,0,8],[12,14,2,0],[13,9,1],[14,10,2],
+	  [15,3,11],[15,13,1,3],[16,17,5,4],[16,20,12,8],
+	  [17,16,8,9],[18,19,11,10],[19,18,6,7],[19,23,15,11],
+	  [20,16,4],[20,22,14,12],[21,5,17],[21,17,9,13],
+	  [21,23,7,5],[22,6,18],[22,18,10,14],[22,20,4,6],
+	  [23,19,7],[23,21,13,15]],
+    Vs = [{1.668,0.556,0.556},{1.668,0.556,-0.556},
+	  {1.668,-0.556,0.556},{1.668,-0.556,-0.556},
+	  {-1.668,0.556,0.556},{-1.668,0.556,-0.556},
+	  {-1.668,-0.556,0.556},{-1.668,-0.556,-0.556},
+	  {0.556,1.668,0.556},{0.556,1.668,-0.556},
+	  {0.556,-1.668,0.556},{0.556,-1.668,-0.556},
+	  {0.556,0.556,1.668},{0.556,0.556,-1.668},
+	  {0.556,-0.556,1.668},{0.556,-0.556,-1.668},
+	  {-0.556,1.668,0.556},{-0.556,1.668,-0.556},
+	  {-0.556,-1.668,0.556},{-0.556,-1.668,-0.556},
+	  {-0.556,0.556,1.668},{-0.556,0.556,-1.668},
+	  {-0.556,-0.556,1.668},{-0.556,-0.556,-1.668}],
+    build_shape("octotoad", Fs, Vs, St).
 
 dodecahedron(St) ->
     Alpha = sqrt(2.0 / (3.0 + sqrt(5.0))),
