@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.5 2002/08/03 06:49:41 bjorng Exp $
+%%     $Id: e3d__tga.erl,v 1.6 2002/08/08 12:33:43 dgud Exp $
 %%
 
 -module(e3d__tga).
@@ -25,9 +25,11 @@ load(FileName, Opts) ->
     case file:read_file(FileName) of
 	%% Uncompressed image
 	{ok, <<0,0,2,0,0,0,0,0,0,0,0,0,  Image/binary>>} ->
+%	    io:format("Loading uncompressed ~n",[]),
 	    load_uncomp(Image);
 	%% Compressed image
 	{ok, <<0,0,10,0,0,0,0,0,0,0,0,0, Image/binary>>} ->
+%	    io:format("Loading compressed ~n",[]),
 	    load_comp(Image);
 	{ok, Bin} ->
 	    {error, {none,?MODULE,unsupported_format}};
@@ -77,7 +79,7 @@ load_comp(_, PL, ByPP, Acc) when PL =< 0 ->
 load_comp(<<0:1, Len:7, Image/binary>>, PLeft, ByPP, Acc) ->
     Bytes = (Len+1) * ByPP,
     <<Pixels:Bytes/binary, RestImage/binary>> = Image,
-    load_comp(RestImage, PLeft-(Len+1), ByPP, [Pixels, Acc]);
+    load_comp(RestImage, PLeft-(Len+1), ByPP, [Pixels| Acc]);
 load_comp(<<1:1, Len:7, RestImage0/binary>>, PLeft, ByPP, Acc) ->
     <<Pixel:ByPP/binary, RestImage/binary>> = RestImage0,
     Pixels = lists:duplicate(Len+1, Pixel),
