@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.150 2003/07/25 20:14:09 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.151 2003/07/28 17:39:39 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -50,7 +50,7 @@
 setup(Tvs, Unit, St) ->
     setup(Tvs, Unit, [], St).
 
-setup(Tvs, Units, Flags, St) ->
+setup(Tvs, Units, Flags, #st{selmode=Mode}=St) ->
     wings_io:grab(),
     wings_wm:grab_focus(),
     Magnet = proplists:get_value(magnet, Flags, none),
@@ -59,8 +59,13 @@ setup(Tvs, Units, Flags, St) ->
     Offset = setup_offsets(Offset1, Units),
     Drag = #drag{unit=Units,flags=Flags,offset=Offset,
 		 falloff=falloff(Units),magnet=Magnet,st=St},
-    wings_draw:invalidate_dlists(St),
-    wings_draw:update_mirror(),
+    case Mode of
+	body ->
+	    wings_draw:update_dlists(St);
+	_ ->
+	    wings_draw:invalidate_dlists(St),
+	    wings_draw:update_mirror()
+    end,
     case Tvs of
 	{matrix,TvMatrix} -> insert_matrix(TvMatrix);
 	{general,General} -> break_apart_general(General);
