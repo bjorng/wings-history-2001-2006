@@ -3,12 +3,12 @@
 %%
 %%     Utility functions for E3D meshes, such as cleanup and triangulation.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.37 2004/03/18 22:58:27 raimo_niskanen Exp $
+%%     $Id: e3d_mesh.erl,v 1.38 2004/04/12 09:02:57 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -16,7 +16,8 @@
 	 merge_vertices/1,triangulate/1,quadrangulate/1,
 	 make_quads/1,vertex_normals/1,renumber/1,partition/1,
 	 used_materials/1]).
--export([triangulate_face/2,triangulate_face_with_holes/3]).
+-export([triangulate_face/2,triangulate_face/3,
+	 triangulate_face_with_holes/3]).
 -export([quadrangulate_face/2,quadrangulate_face_with_holes/3]).
 -export([slit_hard_edges/1,slit_hard_edges/2]).
 -export([face_areas/1,face_areas/2]).
@@ -90,6 +91,9 @@ triangulate(#e3d_mesh{}=Mesh) ->
 
 triangulate_face(Face, Vcoords) ->
     e3d__tri_quad:triangulate_face(Face, Vcoords).
+
+triangulate_face(Face, Normal, Vcoords) ->
+    e3d__tri_quad:triangulate_face(Face, Normal, Vcoords).
 
 triangulate_face_with_holes(Face, Holes, Vcoords) ->
     e3d__tri_quad:triangulate_face_with_holes(Face, Holes, Vcoords).

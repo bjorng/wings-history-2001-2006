@@ -4,16 +4,17 @@
 %%     Triangulates and quadrangulates meshes.
 %%
 %%  Copyright (c) 2001-2002 Howard Trickey
-%%	               2003 Bjorn Gustavsson (eliminated warnings)
+%%	          2003-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.11 2004/02/19 18:41:47 dgud Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.12 2004/04/12 09:02:57 bjorng Exp $
 %%
 
 -module(e3d__tri_quad).
--export([triangulate/1,triangulate_face/2,triangulate_face_with_holes/3,
+-export([triangulate/1,triangulate_face/2,triangulate_face/3,
+	 triangulate_face_with_holes/3,
 	 quadrangulate/1,quadrangulate_face/2,quadrangulate_face_with_holes/3]).
 
 %-define(TESTING, true).  % qqq
@@ -82,6 +83,13 @@ quadrangulate_1([], _, Acc) -> reverse(Acc).
 %% Returns list of (Triangular) faces to replace Face.
 triangulate_face(#e3d_face{vs=Vs,mat=Mat}, Vcoords) ->
     Vtab = rotate_normal_to_z(Vs, Vcoords),
+    Tris = triface(Vs, Vtab),
+    Bord = border_edges([Vs]),
+    Triscdt = cdt(Tris, Bord, Vtab),
+    to_faces(Triscdt, Bord, Mat).
+
+triangulate_face(#e3d_face{vs=Vs,mat=Mat}, N, Vcoords) ->
+    Vtab = rot_normal_to_z(N, Vcoords),
     Tris = triface(Vs, Vtab),
     Bord = border_edges([Vs]),
     Triscdt = cdt(Tris, Bord, Vtab),
@@ -731,17 +739,20 @@ icc(A,Vtab) ->
 %% so that normal of polygon with indices in list Vs
 %% gets rotated to (0,0,1).
 rotate_normal_to_z(Vs, Vcoords) ->
-    Vtab0 = list_to_tuple(Vcoords),
-    Fnorm = polygon_plane(Vs, Vtab0),
-    Rotm = e3d_mat:rotate_to_z(Fnorm),
-    Vrot = map(fun (P) -> e3d_mat:mul_point(Rotm, P) end, Vcoords),
+    Fnorm = polygon_plane(Vs, Vcoords),
+    rot_normal_to_z(Fnorm, Vcoords).
+
+rot_normal_to_z(N, Vcoords) ->
+    Rotm = e3d_mat:rotate_to_z(N),
+    Vrot = [e3d_mat:mul_point(Rotm, P) || P <- Vcoords],
     list_to_tuple(Vrot).
 
-polygon_plane(Vs, Vtab) ->
+polygon_plane(Vs, Vcoords) ->
     case length(Vs) of
 	Nvs when Nvs < 3 ->
 	    {0.0,0.0,1.0};			% so doesn't crash
 	_ ->
+	    Vtab = list_to_tuple(Vcoords),
 	    Ps = [element(V+1, Vtab) || V <- Vs],
 	    case e3d_vec:normal(Ps) of
 		{0.0,0.0,0.0} -> {0.0,0.0,1.0};
