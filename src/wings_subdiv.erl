@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.52 2003/06/06 17:48:41 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.53 2003/06/07 13:24:54 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -360,7 +360,8 @@ smooth_new_vs([], _, Acc) -> reverse(Acc).
 
 -record(sp,
 	{src_we=#we{},				%Previous source we.
-	 we=none				%Previous smoothed we.
+	 we=none,				%Previous smoothed we.
+	 plan=none
 	}).
 
 quick_preview(_St) ->
@@ -413,11 +414,11 @@ setup_all(D, _) -> D.
 update(#dlo{proxy_data=none}=D, _) -> D;
 update(#dlo{proxy_faces=none,src_we=We0,proxy_data=Pd0}=D, St) ->
     Pd1 = clean(Pd0),
-    Pd = proxy_smooth(We0, Pd1),
-    #sp{we=#we{fs=Ftab}=We} = Pd,
+    Pd = proxy_smooth(We0, Pd1, St),
+    #sp{we=We,plan=Plan} = Pd,
     Faces = gl:genLists(1),
     gl:newList(Faces, ?GL_COMPILE),
-    draw_faces(gb_trees:to_list(Ftab), We, St),
+    draw_faces(Plan, We),
     gl:endList(),
     ProxyEdges = update_edges(D, Pd),
     D#dlo{proxy_faces=Faces,proxy_edges=ProxyEdges,proxy_data=[Faces,Pd]};
@@ -521,12 +522,13 @@ clean([_,#sp{}=Pd]) -> Pd;
 clean(Other) -> Other.
 
 proxy_smooth(#we{es=Etab,he=Hard,mat=M,next_id=Next}=We0,
-	     #sp{src_we=#we{es=Etab,he=Hard,mat=M,next_id=Next}}=Pd) ->
+	     #sp{src_we=#we{es=Etab,he=Hard,mat=M,next_id=Next}}=Pd, _St) ->
     We = inc_smooth(We0, Pd),
     Pd#sp{src_we=We0,we=We};
-proxy_smooth(We0, Pd) ->
-    We = smooth(We0),
-    Pd#sp{src_we=We0,we=We}.
+proxy_smooth(We0, Pd, St) ->
+    #we{fs=Ftab} = We = smooth(We0),
+    Plan = wings_draw_util:prepare(gb_trees:to_list(Ftab), We, St),
+    Pd#sp{src_we=We0,we=We,plan=Plan}.
     
 inc_smooth(#we{vp=Vp,next_id=Next}=We0, #sp{we=OldWe}) ->
     {Faces,Htab} = smooth_faces_htab(We0),
@@ -542,31 +544,39 @@ inc_smooth(#we{vp=Vp,next_id=Next}=We0, #sp{we=OldWe}) ->
 %%% a sub-divided surface only can contain quads.
 %%%
 
-draw_faces(Ftab, #we{mode=uv}=We, St) ->
-    case wings_pref:get_value(show_textures) of
-	true ->
-	    MatFaces = wings_material:mat_faces(Ftab, We),
-	    draw_uv_faces(MatFaces, We, St);
-	false ->
-	    draw_mat_faces([{default,Ftab}], We, St)
-    end;
-draw_faces(Ftab, #we{mode=material}=We, St) ->
-    MatFaces = case wings_pref:get_value(show_materials) of
-		   true -> wings_material:mat_faces(Ftab, We);
-		   false -> [{default,Ftab}]
-	       end,
+draw_faces({uv,MatFaces,St}, We) ->
+    draw_uv_faces(MatFaces, We, St);
+draw_faces({material,MatFaces,St}, We) ->
     draw_mat_faces(MatFaces, We, St);
-draw_faces(Ftab, #we{mode=vertex}=We, St) ->
-    MatFaces = [{default,Ftab}],
-    case wings_pref:get_value(show_colors) of
-	false ->
-	    draw_mat_faces(MatFaces, We, St);
-	true ->
-	    gl:enable(?GL_COLOR_MATERIAL),
-	    gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
-	    draw_uv_faces(MatFaces, We, St),
-	    gl:disable(?GL_COLOR_MATERIAL)
-    end.
+draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
+    wings_material:apply_material(default, Mtab),
+    gl:enable(?GL_COLOR_MATERIAL),
+    gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
+    draw_vtx_faces(Colors, We),
+    gl:disable(?GL_COLOR_MATERIAL).
+
+draw_vtx_faces({Same,Diff}, We) ->
+    Draw = fun() ->
+		   draw_vtx_faces_1(Same, We),
+		   draw_vtx_faces_3(Diff, We)
+	   end,
+    wings_draw_util:begin_end(?GL_QUADS, Draw).
+
+draw_vtx_faces_1([{Col,Faces}|Fs], We) ->
+    gl:color3fv(Col),
+    draw_vtx_faces_2(Faces, We),
+    draw_vtx_faces_1(Fs, We);
+draw_vtx_faces_1([], _) -> ok.
+
+draw_vtx_faces_2([F|Fs], We) ->
+    mat_face(F, We),
+    draw_vtx_faces_2(Fs, We);
+draw_vtx_faces_2([], _) -> ok.
+
+draw_vtx_faces_3([F|Fs], We) ->
+    uv_face(F, We),
+    draw_vtx_faces_3(Fs, We);
+draw_vtx_faces_3([], _) -> ok.
 
 draw_uv_faces(MatFaces, We, St) ->
     wings_draw_util:mat_faces(MatFaces, ?GL_QUADS, We, St, fun draw_uv_faces_fun/2).
@@ -575,6 +585,9 @@ draw_uv_faces_fun([{Face,Edge}|Fs], We) ->
     uv_face(Face, Edge, We),
     draw_uv_faces_fun(Fs, We);
 draw_uv_faces_fun([], _We) -> ok.
+
+uv_face(Face, #we{fs=Ftab}=We) ->
+    uv_face(Face, gb_trees:get(Face, Ftab), We).
 
 uv_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs0 = wings_face:vinfo_cw(Face, Edge, We),
@@ -605,6 +618,9 @@ draw_mat_faces_fun([{Face,Edge}|Fs], We) ->
     draw_mat_faces_fun(Fs, We);
 draw_mat_faces_fun([], _We) -> ok.
 
+mat_face(Face, #we{fs=Ftab}=We) ->
+    mat_face(Face, gb_trees:get(Face, Ftab), We).
+    
 mat_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs = wings_face:vertices_cw(Face, Edge, We),
     mat_face_1(Vs, Vtab, []).
