@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.4 2002/10/15 14:47:12 bjorng Exp $
+#     $Id: Makefile,v 1.5 2002/10/29 19:26:51 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -48,6 +48,7 @@ subdirs:
 	(cd import_export; $(MAKE))
 	(cd primitives; $(MAKE))
 	(cd commands; $(MAKE))
+	(cd autouv; $(MAKE))
 
 clean: subdirs_clean
 	rm -f $(TARGET_FILES)
@@ -57,6 +58,7 @@ subdirs_clean:
 	(cd import_export; $(MAKE) clean)
 	(cd primitives; $(MAKE) clean)
 	(cd commands; $(MAKE) clean)
+	(cd autouv; $(MAKE) clean)
 
 $(EBIN)/%.beam: $(ESRC)/%.erl
-	$(ERLC) -bbeam $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -o$(EBIN) $<
+	$(ERLC) $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -o$(EBIN) $<
