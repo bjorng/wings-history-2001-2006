@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.68 2002/07/26 17:43:55 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.69 2002/07/27 08:00:18 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -288,7 +288,7 @@ get_event(Tim) ->
 
 -record(sm,
 	{st,					%State
-	 wire=false}).				%Show wireframe: true|false
+	 wire=true}).				%Show wireframe: true|false
 
 smoothed_preview(St) ->
     smooth_help(),
@@ -374,9 +374,18 @@ smooth_dlist(St) ->
 smooth_dlist(eol, _) -> eol;
 smooth_dlist(#dlo{smoothed=none,src_we=We0}=D, St) ->
     wings_io:disable_progress(),
-    We = wings_subdiv:smooth(We0),
+    #we{es=Etab,vs=Vtab} = We = wings_subdiv:smooth(We0),
     {List,Tr} = wings_draw:smooth_dlist(We, St),
-    {D#dlo{smoothed=List,transparent=Tr},[]};
+    Edges = gl:genLists(1),
+    gl:newList(Edges, ?GL_COMPILE),
+    gl:'begin'(?GL_LINES),
+    foreach(fun(#edge{vs=Va,ve=Vb}) ->
+		    gl:vertex3fv(wings_vertex:pos(Va, Vtab)),
+		    gl:vertex3fv(wings_vertex:pos(Vb, Vtab))
+	    end, gb_trees:values(Etab)),
+    gl:'end'(),
+    gl:endList(),
+    {D#dlo{smoothed=[List,Edges],transparent=Tr},[]};
 smooth_dlist(D, _) -> {D,[]}.
 
 smooth_redraw(#sm{st=St}=Sm) ->
@@ -403,12 +412,13 @@ smooth_redraw(#dlo{mirror=Matrix}=D, Sm, Flag) ->
     gl:cullFace(?GL_BACK);
 smooth_redraw(_, _, _) -> ok.
 
-smooth_redraw_1(#dlo{smoothed=Dlist,transparent=Trans}=D, Sm, RenderTrans) ->
+smooth_redraw_1(#dlo{smoothed=[Dlist,Es],transparent=Trans}=D, Sm, RenderTrans) ->
     ?CHECK_ERROR(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:shadeModel(?GL_SMOOTH),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
+    gl:polygonOffset(2.0, 2.0),
 
     case RenderTrans of
 	true ->
@@ -421,7 +431,8 @@ smooth_redraw_1(#dlo{smoothed=Dlist,transparent=Trans}=D, Sm, RenderTrans) ->
 	    gl:depthMask(?GL_TRUE)
     end,
 
-    %% Backsides of opaque objects should be drawn if the object has any transparency.
+    %% Backsides of opaque objects should be drawn
+    %% if the object has any transparency.
     case Trans andalso not RenderTrans of
 	true -> gl:disable(?GL_CULL_FACE);
 	false -> gl:enable(?GL_CULL_FACE)
@@ -429,16 +440,16 @@ smooth_redraw_1(#dlo{smoothed=Dlist,transparent=Trans}=D, Sm, RenderTrans) ->
     case {Dlist,RenderTrans} of
 	{[Op,_],false} -> gl:callList(Op);
 	{[_,Tr],true} -> gl:callList(Tr);
-	{Smooth,true} when is_integer(Smooth) -> gl:callList(Smooth);
 	{_,_} -> ok
     end,
+    gl:disable(?GL_POLYGON_OFFSET_FILL),
     ?CHECK_ERROR(),
     gl:depthMask(?GL_TRUE),
-    wireframe(D, Sm).
+    wireframe(D, Sm),
+    smooth_wireframe(Es, RenderTrans).
 
 wireframe(_, #sm{wire=false}) -> ok;
 wireframe(#dlo{work=Work}, #sm{wire=true}) ->
-    gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_CULL_FACE),
@@ -446,6 +457,13 @@ wireframe(#dlo{work=Work}, #sm{wire=true}) ->
     gl:enable(?GL_POLYGON_OFFSET_LINE),
     gl:color3f(0, 0, 1),
     wings_draw_util:call(Work).
+
+smooth_wireframe(_, true) -> ok;
+smooth_wireframe(Dlist, false) ->
+    gl:disable(?GL_LIGHTING),
+    gl:shadeModel(?GL_FLAT),
+    gl:color3f(1, 1, 1),
+    wings_draw_util:call(Dlist).
 
 %%%
 %%% Other stuff.
