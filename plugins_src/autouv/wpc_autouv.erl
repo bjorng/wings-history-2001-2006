@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.144 2003/08/13 09:56:40 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.145 2003/08/13 11:11:09 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -906,8 +906,21 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
 	    update_selection_1(Mode, gb_sets:to_list(Elems), Uvs#uvstate{st=St})
     end.
 
+update_selection_1(face, Faces, #uvstate{sel=Sel,areas=As0}=Uvs) ->
+    As = gb_trees:to_list(add_areas(Sel, As0)),
+    update_selection_2(As, Faces, Uvs, [], []);
 update_selection_1(_, _, Uvs) ->
     get_event_nodraw(Uvs).
+
+update_selection_2([{K,#we{name=#ch{fs=Fs}}=C}|Cs],Faces,Uvs,NonSel,Sel) ->
+    case ordsets:intersection(sort(Fs), Faces) of
+	[] -> update_selection_2(Cs, Faces, Uvs, [{K,C}|NonSel], Sel);
+	_ -> update_selection_2(Cs, Faces, Uvs, NonSel, [{K,C}|Sel])
+    end;
+update_selection_2([], _, Uvs0, NonSel, Sel) ->
+    As = gb_trees:from_orddict(sort(NonSel)),
+    Uvs = Uvs0#uvstate{sel=sort(Sel),areas=As},
+    get_event(reset_dl(Uvs)).
     
 -define(OUT, 1.2/2). %% was 1/2 
 
