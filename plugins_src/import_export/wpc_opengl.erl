@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.4 2002/07/15 21:00:36 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.5 2002/07/17 06:17:22 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -137,23 +137,21 @@ render_event(_, _) ->
     render_exit().
 
 render_exit() ->
-    wings_draw_util:map(fun(D, []) -> D#dlo{smoothed=none} end, []),
+    wings_draw_util:map(fun(D, []) -> D#dlo{smooth=none,smoothed=none} end, []),
     wings_wm:dirty(),
     pop.
 
-render_dlist(St) ->
+render_dlist(St0) ->
+    St = invisible_holes(St0),
     wings_draw_util:map(fun(D, []) ->
 				render_dlist(D, St)
 			end, []).
 
-render_dlist(#dlo{smooth=none,src_we=We}=D, St) ->
+render_dlist(#dlo{src_we=We}=D, St) ->
     wings_io:disable_progress(),
     {List,Tr} = wings_draw:smooth_dlist(We, St),
     Mask = dlist_mask(We),
-    {D#dlo{smooth=List,transparent=Tr,smoothed=Mask},[]};
-render_dlist(#dlo{src_we=We}=D, _) ->
-    Mask = dlist_mask(We),
-    {D#dlo{smoothed=Mask},[]}.
+    {D#dlo{smooth=List,transparent=Tr,smoothed=Mask},[]}.
 
 dlist_mask(#we{fs=Ftab}=We) ->
     List = gl:genLists(1),
@@ -169,6 +167,15 @@ dlist_mask([{Face,#face{edge=Edge}}|Fs], We) ->
     wings_draw_util:flat_face(Face, Edge, We),
     dlist_mask(Fs, We);
 dlist_mask([], _We) -> ok.
+
+%% Make the hole material a true hole (entirely invisible).
+invisible_holes(#st{mat=Mat}=St) ->
+    Hole0 = gb_trees:get('_hole_', Mat),
+    OpenGl0 = property_lists:get_value(opengl, Hole0),
+    OpenGl = map(fun({Key,{R,G,B,_}}) -> {Key,{R,G,B,0.0}};
+		    (Other) -> Other end, OpenGl0),
+    Hole = [{opengl,OpenGl}|lists:keydelete(opengl, 1, Hole0)],
+    St#st{mat=gb_trees:update('_hole_', Hole, Mat)}.
 
 %%%
 %%% Rendering.
