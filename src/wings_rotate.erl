@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.29 2002/10/14 18:00:07 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.30 2002/12/16 22:02:25 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -173,7 +173,10 @@ do_rotate({Cx,Cy,Cz}, Axis, Angle, VsPos, Acc0) ->
 	  end, Acc0, VsPos).
 
 view_vector() ->
-    e3d_vec:norm(wings_view:eye_point()).
+    #view{azimuth=Az,elevation=El} = wings_view:current(),
+    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
+    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
+    e3d_mat:mul_point(M, {0.0,0.0,1.0}).
 
 magnet(_Vec, _Center, none, _Vs, _We, Tv, Acc) -> [Tv|Acc];
 magnet(Vec, Center, Magnet0, Vs, #we{id=Id}=We, _, Acc) ->
