@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.288 2003/11/30 22:08:05 bjorng Exp $
+%%     $Id: wings.erl,v 1.289 2003/12/01 06:29:01 bjorng Exp $
 %%
 
 -module(wings).
@@ -664,8 +664,10 @@ edit_menu(St) ->
      {command_name("Repeat Drag", St),repeat_drag},
      separator,
      wings_pref:menu(St),
-     separator,{"Purge Undo History",purge_undo,
-		"Delete the undo history to reclaim memory"}|patches()].
+     {"Plug-in Preferences",{plugin_preferences,[]}},
+     separator,
+     {"Purge Undo History",purge_undo,
+      "Delete the undo history to reclaim memory"}|patches()].
 
 tools_menu(_) ->
     Dirs = [{"All",all},
