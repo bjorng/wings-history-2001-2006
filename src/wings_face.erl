@@ -4,12 +4,12 @@
 %%     This module contains help routines for faces, such as fold functions
 %%     face iterators.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.28 2003/03/08 17:37:27 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.29 2003/03/19 05:31:52 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -22,7 +22,7 @@
 	 surrounding_vertices/2,surrounding_vertices/3,
 	 extend_border/2,bordering_faces/2,
 	 inner_edges/2,outer_edges/2,
-	 fold/4,fold_vinfo/4,fold_faces/4,
+	 fold/4,fold/5,fold_vinfo/4,fold_faces/4,
 	 iterator/2,skip_to_edge/2,skip_to_cw/2,skip_to_ccw/2,
 	 next_cw/1,next_ccw/1,
 	 iter2etab/1,
@@ -278,7 +278,10 @@ fold(F, Acc, Face, #we{es=Etab,fs=Ftab}) ->
     #face{edge=Edge} = gb_trees:get(Face, Ftab),
     fold(F, Acc, Face, Edge, Edge, Etab, not_done).
 
-fold(_F, Acc, _Face, LastEdge, LastEdge, _Etab, done)-> Acc;
+fold(F, Acc, Face, Edge, #we{es=Etab}) ->
+    fold(F, Acc, Face, Edge, Edge, Etab, not_done).
+
+fold(_, Acc, _, LastEdge, LastEdge, _, done) -> Acc;
 fold(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
     Acc = case gb_trees:get(Edge, Etab) of
 	      #edge{ve=V,lf=Face,ltsu=NextEdge}=E ->
