@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.271 2003/10/25 15:22:34 bjorng Exp $
+%%     $Id: wings.erl,v 1.272 2003/10/25 16:30:24 bjorng Exp $
 %%
 
 -module(wings).
@@ -477,8 +477,6 @@ repeatable(Mode, Cmd) ->
 %% Vector and secondary-selection commands.
 command({vector,What}, St) ->
     wings_vec:command(What, St);
-command({secondary_selection,aborted}, St) ->
-    St;
 command({shape,Shape}, St0) ->
     case wings_shapes:command(Shape, St0) of
     	St0 -> St0;
