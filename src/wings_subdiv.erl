@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.33 2003/05/30 11:52:16 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.34 2003/05/30 20:10:01 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -23,28 +23,33 @@
 %%% The Catmull-Clark subdivision algorithm is used, with
 %%% Tony DeRose's extensions for creases.
 
-smooth(#we{mirror=none,vp=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
-    Faces = gb_trees:keys(Ftab),
+smooth(We) ->
+    {Faces,Htab} = smooth_faces_htab(We),
+    smooth(Faces, Htab, We).
+    
+smooth(Fs, Htab, #we{vp=Vtab,es=Etab}=We) ->
     Vs = gb_trees:keys(Vtab),
     Es = gb_trees:keys(Etab),
-    smooth(Faces, Vs, Es, Htab, We);
-smooth(#we{mirror=Face,vp=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
-    Faces = gb_trees:keys(gb_trees:delete(Face, Ftab)),
-    Vs = gb_trees:keys(Vtab),
-    Es = gb_trees:keys(Etab),
-    He0 = wings_face:outer_edges([Face], We),
-    He = gb_sets:union(gb_sets:from_list(He0), Htab),
-    smooth(Faces, Vs, Es, He, We).
+    smooth(Fs, Vs, Es, Htab, We).
 
 smooth(Fs, Vs, Es, Htab, #we{next_id=Id}=We0) ->
-    FacePos0 = reverse(face_centers(Fs, We0)),
+    FacePos0 = face_centers(Fs, We0),
     FacePos = gb_trees:from_orddict(FacePos0),
     We1 = cut_edges(Es, FacePos, Htab, We0#we{vc=undefined}),
-    {We,NewVs} = smooth_faces(Fs, FacePos0, Id, We1),
-    #we{vp=Vtab2} = We,
+    {We2,NewVs} = smooth_faces(Fs, FacePos0, Id, We1),
+    #we{vp=Vtab2} = We2,
     Vtab3 = smooth_move_orig(Vs, FacePos, Htab, We0, Vtab2),
     Vtab = gb_trees:from_orddict(gb_trees:to_list(Vtab3) ++ NewVs),
-    wings_util:validate_mirror(wings_we:rebuild(We#we{vp=Vtab})).
+    wings_util:validate_mirror(wings_we:rebuild(We2#we{vp=Vtab})).
+
+smooth_faces_htab(#we{mirror=none,fs=Ftab,he=Htab}) ->
+    Faces = gb_trees:keys(Ftab),
+    {Faces,Htab};
+smooth_faces_htab(#we{mirror=Face,fs=Ftab,he=Htab}=We) ->
+    Faces = gb_trees:keys(gb_trees:delete(Face, Ftab)),
+    He0 = wings_face:outer_edges([Face], We),
+    He = gb_sets:union(gb_sets:from_list(He0), Htab),
+    {Faces,He}.
 
 face_centers(Faces, We) ->
     face_centers(Faces, We, []).
@@ -66,7 +71,7 @@ face_centers([Face|Fs], We, Acc) ->
 	    Col = wings_color:average(Cols),
 	    face_centers(Fs, We, [{Face,{Center,Col,length(Vs)}}|Acc])
     end;
-face_centers([], _We, Acc) -> Acc.
+face_centers([], _We, Acc) -> reverse(Acc).
 
 smooth_move_orig([V|Vs], FacePos, Htab, We, Vtab0) ->
     Vtab = smooth_move_orig_1(V, FacePos, Htab, We, Vtab0),
@@ -304,12 +309,13 @@ edge_get(Edge, {_,_,Etab}) ->
     gb_trees:get(Edge, Etab).
 
 %%%
-%%% The Smooth Proxy implmentation.
+%%% The Smooth Proxy implementation.
 %%%
 
 -record(sp,
-	{
-	 }).
+	{src_we=#we{},				%Previous source we.
+	 we=none				%Previous smoothed we.
+	}).
 
 setup(#st{sel=OrigSel}=St) ->
     wings_draw_util:map(fun(D, Sel) -> setup_1(D, Sel) end, OrigSel),
@@ -323,13 +329,15 @@ setup_1(#dlo{src_we=#we{id=Id}}=D, [{Id,_}|Sel]) ->
 setup_1(D, Sel) -> {D,Sel}.
 
 update(#dlo{proxy_data=none}=D, _) -> D;
-update(#dlo{smooth_proxy=none,src_we=We0}=D, St) ->
-    #we{fs=Ftab} = We = wings_subdiv:smooth(We0),
+update(#dlo{smooth_proxy=none,src_we=We0,proxy_data=Pd0}=D, St) ->
+    Pd1 = clean(Pd0),
+    Pd = proxy_smooth(We0, Pd1),
+    #sp{we=#we{fs=Ftab}=We} = Pd,
     Faces = gl:genLists(1),
     gl:newList(Faces, ?GL_COMPILE),
     wings_draw:draw_faces(gb_trees:to_list(Ftab), We, St),
     gl:endList(),
-    D#dlo{smooth_proxy=Faces,proxy_data=[Faces,#sp{}]};
+    D#dlo{smooth_proxy=Faces,proxy_data=[Faces,Pd]};
 update(D, _) -> D.
 
 draw(#dlo{smooth_proxy=Dl}) when is_integer(Dl) ->
@@ -351,3 +359,42 @@ draw_1(Dl) ->
 
 clean([_,#sp{}=Pd]) -> Pd;
 clean(Other) -> Other.
+
+proxy_smooth(#we{es=Etab,he=Hard}=We0, #sp{src_we=#we{es=Etab,he=Hard}}=Pd) ->
+    We = inc_smooth(We0, Pd),
+    Pd#sp{src_we=We0,we=We};
+proxy_smooth(We0, Pd) ->
+    We = smooth(We0),
+    Pd#sp{src_we=We0,we=We}.
+    
+inc_smooth(#we{es=Etab,vp=Vp,next_id=Next}=We0, #sp{we=OldWe}) ->
+    {Faces,Htab} = smooth_faces_htab(We0),
+    FacePos0 = face_centers(Faces, We0),
+    FacePos = gb_trees:from_orddict(FacePos0),
+    {UpdatedVs,Mid} = update_vpos(gb_trees:to_list(Etab), FacePos, Htab,
+				  Vp, Next, []),
+    NewVs = smooth_new_vs(FacePos0, Mid, []),
+    Vtab1 = gb_trees:from_orddict(gb_trees:to_list(Vp) ++ UpdatedVs ++ NewVs),
+    Vtab = smooth_move_orig(gb_trees:keys(Vp), FacePos, Htab, We0, Vtab1),
+    OldWe#we{vp=Vtab}.
+
+update_vpos([{Edge,Rec}|Es], FacePos, Hard, Vtab, V, Acc0) ->
+    case gb_sets:is_member(Edge, Hard) of
+	true ->
+	    #edge{vs=Va,ve=Vb} = Rec,
+	    Pos = e3d_vec:average(gb_trees:get(Va, Vtab), gb_trees:get(Vb, Vtab)),
+	    Acc = [{V,Pos}|Acc0],
+	    update_vpos(Es, FacePos, Hard, Vtab, V+1, Acc);
+	false ->
+	    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = Rec,
+	    {LfPos,_,_} = gb_trees:get(Lf, FacePos),
+	    {RfPos,_,_} = gb_trees:get(Rf, FacePos),
+	    Pos0 = e3d_vec:average(gb_trees:get(Va, Vtab),
+				   gb_trees:get(Vb, Vtab),
+				   LfPos, RfPos),
+	    Pos = wings_util:share(Pos0),
+	    Acc = [{V,Pos}|Acc0],
+	    update_vpos(Es, FacePos, Hard, Vtab, V+1, Acc)
+    end;
+update_vpos([], _FacePos, _Hard, _Vtab, V, Acc) ->
+    {reverse(Acc),V}.
