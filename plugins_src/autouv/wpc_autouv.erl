@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.79 2003/01/24 15:48:08 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.80 2003/01/25 08:51:34 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -329,6 +329,12 @@ seg_map_chart([{Fs,We}|Cs], Type, Extra, I, N, Acc0, Ss) ->
 	{error,Message} ->
 	    seg_error(Message, Ss);
 	Vs ->
+%	    #we{fs=Fp,vp=Vp} = We,
+%	    VsK = [Key || {Key,_} <- Vs],
+%	    io:format("~w ~w ~p~n", 
+%		      [gb_trees:keys(Fp) -- Fs,
+%		       gb_trees:keys(Vp) -- VsK,
+%		       {length(Fs),length(VsK)}]),
 	    Acc = [#ch{fs=Fs,vpos=Vs,we=We}|Acc0],
 	    seg_map_charts_1(Cs, Type, Extra, I+1, N, Acc, Ss)
     end.
@@ -466,7 +472,7 @@ assign_materials([], #we{id=Id}=We, _, _, #st{shapes=Shs0}=St) ->
 
 %%%%%%
 
-replace_uvs(Map) when is_list(Map) ->
+ replace_uvs(Map) when is_list(Map) ->
     lists:map(fun(Chart) -> replace_uv(Chart) end, Map);
 replace_uvs(Map) ->
     replace_uvs(gb_trees:to_list(Map)).
@@ -525,8 +531,8 @@ insert_material(Cs, MatName, #we{fs=Ftab0}=We) ->
 		 end, Ftab0, Faces),
     We#we{fs=Ftab}.
 
-gen_uv_pos([#ch{fs=Fs,center={CX,CY},scale=Sc,vpos=Vs, we=We}|T], Acc) ->
-    Vpos0 = auv_util:moveAndScale(Vs, CX, CY, Sc, []),
+gen_uv_pos([#ch{fs=Fs,center={CX,CY},scale=Sc,we=We}|T], Acc) ->
+    Vpos0 = auv_util:moveAndScale(gb_trees:to_list(We#we.vp), CX, CY, Sc, []),
     VFace0 = wings_face:fold_faces(
 	       fun(Face, V, _, _, A) ->
 		       [{V,Face}|A]
@@ -1028,8 +1034,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 		    get_event(reset_dl(Uvs))
 	    end;
 	rotate ->
-	    Sel1 = [finish_rotate(A)|| A <- Sel0],
-	    Sel = replace_uvs(Sel1),
+	    Sel = [finish_rotate(A)|| A <- Sel0],
 	    get_event(Uvs0#uvstate{op=undefined,sel=Sel});
 	_ ->
 	    get_event(Uvs0#uvstate{op = undefined})
@@ -1152,8 +1157,7 @@ handle_event({action, {auv, {rotate, Deg}}},
 		  Sel1 = [finish_rotate({Id,A#ch{rotate = Deg}})|| {Id,A} <- Sel0],
 		  Uvs0#uvstate{op = undefined, sel = Sel1}
 	  end,
-    Sel = replace_uvs(Uvs#uvstate.sel),
-    get_event(Uvs#uvstate{sel=Sel});
+    get_event(Uvs);
 handle_event({action, {auv, NewOp}},Uvs0=#uvstate{sel = Sel0}) ->
     case Sel0 of
 	[] ->
@@ -1440,8 +1444,8 @@ find_selectable(_X,_Y, [], Acc) ->
 
 wings_select_faces([], St) ->
     wpa:sel_set(face, [], St);
-wings_select_faces(As, St) ->
-    Id = ((hd(As))#ch.we)#we.id,
+wings_select_faces(As = [{_Id,#ch{we=We}}|_], St) ->
+    Id = We#we.id,
     Faces = [A#ch.fs || {_,A} <- As],
     wpa:sel_set(face, [{Id,gb_sets:from_list(lists:append(Faces))}], St).
 
@@ -1465,12 +1469,12 @@ rotate_area(faceg, {Id,A = #ch{rotate = R}}, DX, DY) ->
     NS = greatest(DX,DY),
     NewR = R + NS*180,
     {Id,A#ch{rotate = NewR}}.
-transpose_x(faceg,{Id,A = #ch{vpos = Vpos}}) ->
-    New = [{Nr, {-X,Y,Z}} || {Nr, {X,Y,Z}} <- Vpos],
-    {Id,A#ch{vpos=New}}.
-transpose_y(faceg,{Id,A = #ch{vpos = Vpos}}) ->
-    New = [{Nr, {X,-Y,Z}} || {Nr, {X,Y,Z}} <- Vpos],
-    {Id,A#ch{vpos=New}}.
+transpose_x(faceg,{Id,A = #ch{we=We=#we{vp=Vpos}}}) ->
+    New = [{Nr, {-X,Y,Z}} || {Nr, {X,Y,Z}} <- gb_trees:to_list(Vpos)],
+    {Id,A#ch{we=We#we{vp = gb_trees:from_orddict(New)}}}.
+transpose_y(faceg,{Id,A = #ch{we=We=#we{vp=Vpos}}}) ->
+    New = [{Nr, {X,-Y,Z}} || {Nr, {X,Y,Z}} <- gb_trees:to_list(Vpos)],
+    {Id,A#ch{we=We#we{vp = gb_trees:from_orddict(New)}}}.
 
 rescale_all(Areas0) ->
     Areas1 = gb_trees:to_list(Areas0),
@@ -1487,11 +1491,13 @@ rescale_all(Areas0) ->
 		      {Id,A#ch{center = {CX0*NS,CY0*NS}, size = {W0*NS,H0*NS}, scale = S0*NS}}
 	      end,
     gb_trees:from_orddict(map(Rescale, Areas1)).
-finish_rotate({Id,Area = #ch{rotate = R, vpos = Vs0, scale = S}}) ->
+finish_rotate({Id,Area = #ch{rotate = R, we=We=#we{vp=Vpos}, scale = S}}) ->
     Rot = e3d_mat:rotate(float(trunc(R)), {0.0,0.0,1.0}),
-    Vs1 = [{IdV, e3d_mat:mul_point(Rot, Vec)} || {IdV, Vec} <- Vs0],
-    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = auv_util:maxmin(Vs1),
-    {Id,Area#ch{rotate=0.0, vpos = Vs1, size={(BX1-BX0)*S, (BY1-BY0)*S}}}.
+    Vs = [{IdV, e3d_mat:mul_point(Rot, Vec)} || 
+	     {IdV, Vec} <- gb_trees:to_list(Vpos)],
+    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = auv_util:maxmin(Vs),
+    {Id,Area#ch{rotate=0.0, we=We#we{vp=gb_trees:from_orddict(Vs)}, 
+		size={(BX1-BX0)*S, (BY1-BY0)*S}}}.
 
 %%%
 %%% Verify that the model in the geometry window hasn't changed its topology.
