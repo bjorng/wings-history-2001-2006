@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.263 2003/08/16 17:50:34 bjorng Exp $
+%%     $Id: wings.erl,v 1.264 2003/09/02 05:43:08 bjorng Exp $
 %%
 
 -module(wings).
@@ -26,26 +26,6 @@
 
 -import(lists, [foreach/2,map/2,filter/2,foldl/3,sort/1,
 		keymember/3,reverse/1]).
-
-% start() ->
-%     %% Only for development use.
-%     RootEbin = filename:dirname(filename:absname(code:which(?MODULE))),
-%     Split = filename:split(RootEbin),
-%     Root = filename:join(Split -- ["ebin"]),
-%     spawn(fun() ->
-% 		  {ok,Cwd} = file:get_cwd(),
-% 		  process_flag(trap_exit, true),
-% 		  Wings = do_spawn(none, Root, [link]),
-% 		  wait_for_exit(Wings, Cwd)
-% 	  end).
-
-% wait_for_exit(Wings, Cwd) ->
-%     receive
-% 	{'EXIT',Wings,_} ->
-% 	    file:set_cwd(Cwd);
-% 	_ ->					%Can't happen.
-% 	    wait_for_exit(Wings, Cwd)
-%     end.
 
 start(Root) ->
     do_spawn(none, Root).
@@ -450,17 +430,17 @@ do_command(Cmd, St) ->
     
 do_command(Cmd, Args, St0) ->
     St1 = remember_command(Cmd, St0),
-    Res = (catch do_command_1(Cmd, St1)),
-    case Res of
+    case catch do_command_1(Cmd, St1) of
 	{'EXIT',Reason} -> exit(Reason);
 	{command_error,Error} -> wings_util:message(Error);
 	#st{}=St -> main_loop(clear_temp_sel(St));
+	{keep_temp_sel,St} -> main_loop(St);
 	{drag,Drag} -> wings_drag:do_drag(Drag, Args);
 	{save_state,#st{}=St} ->
 	    save_state(St1, St);
-	{saved,St}=Res ->
+	{saved,St} ->
 	    main_loop(wings_undo:save(St1, St));
-	{new,St}=Res -> main_loop(caption(wings_undo:init(St)));
+	{new,St} -> main_loop(caption(wings_undo:init(St)));
 	{push,_}=Push -> Push;
 	{init,_,_}=Init -> Init;
 	{seq,_,_}=Seq -> Seq;
@@ -549,20 +529,20 @@ command({edit,redo}, St) ->
 command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
-	no -> ok;
+	no -> keep;
 	Cmd when is_tuple(Cmd) ->
-	    wings_wm:later({action,Cmd})
-    end,
-    St;
+	    wings_wm:later({action,Cmd}),
+	    {keep_temp_sel,St}
+    end;
 command({edit,repeat}, St) -> St;
 command({edit,repeat_drag}, #st{sel=[]}=St) -> St;
 command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,args=Args}=St) ->
     case repeatable(Mode, Cmd0) of
-	no -> ok;
+	no -> keep;
 	Cmd when is_tuple(Cmd) ->
-	    wings_wm:later({action,Cmd,Args})
-    end,
-    St;
+	    wings_wm:later({action,Cmd,Args}),
+	    {keep_temp_sel,St}
+    end;
 command({edit,repeat_drag}, St) -> St;
 command({edit,camera_mode}, St) ->
     wings_camera:command(camera_mode, St);
