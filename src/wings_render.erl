@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.2 2004/05/14 05:38:25 bjorng Exp $
+%%     $Id: wings_render.erl,v 1.3 2004/05/14 05:45:25 bjorng Exp $
 %%
 
 -module(wings_render).
@@ -20,7 +20,7 @@
 
 %% render(St)
 %%  Render the entire contents of a Geometry or AutoUV window,
-%%  including groundplan and axes. Use the contents of the display
+%%  including groundplane and axes. Use the contents of the display
 %%  lists maintained by wings_draw_util. All display lists must
 %%  already exist; no display lists are created by this function.
 
@@ -188,10 +188,6 @@ render_plain_rest(D, Wire, SelMode) ->
     draw_hard_edges(D, SelMode),
     draw_normals(D).
 
-wire(#we{id=Id}) ->
-    W = wings_wm:get_prop(wireframed_objects),
-    gb_sets:is_member(Id, W).
-
 render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
 		   src_we=We,proxy_data=Pd}=D,
 	      RenderTrans) ->
@@ -254,6 +250,10 @@ render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
     draw_hilite(D),
     draw_orig_sel(D),
     draw_sel(D).
+
+wire(#we{id=Id}) ->
+    W = wings_wm:get_prop(wireframed_objects),
+    gb_sets:is_member(Id, W).
 
 draw_sel(#dlo{sel=SelDlist,src_sel={edge,_}}) ->
     gl:lineWidth(wings_pref:get_value(selected_edge_width)),
