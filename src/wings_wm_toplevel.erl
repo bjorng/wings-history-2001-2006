@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.12 2003/01/27 18:09:51 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.13 2003/02/04 06:03:16 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -276,9 +276,18 @@ ctrl_command(size, _) ->
 	  {"Height",H0}],
     wings_ask:ask("Set Window Size", Qs,
 		  fun([W,H]) ->
-			  wings_wm:update_window(Client, [{w,W},{h,H}]),
+			  ctrl_resize(Client, W, H),
 			  ignore
 		  end).
+
+ctrl_resize(Client, W, H) ->
+    {TopW,TopH} = wings_wm:top_size(),
+    if
+	W > TopW; H > TopH ->
+	    wings_util:error("Too large size specified");
+	true ->
+	    wings_wm:update_window(Client, [{w,W},{h,H}])
+    end.
 
 ctrl_fit(both) ->
     fit_horizontal(),
