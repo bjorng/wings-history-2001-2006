@@ -9,14 +9,13 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.66 2004/12/25 08:54:01 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.67 2004/12/25 11:03:25 bjorng Exp $
 
 -module(auv_segment).
 
 -export([create/2,segment_by_material/1,cut_model/3,
 	 normalize_charts/3,map_vertex/2,map_edge/2,
-	 fv_to_uv_map/1,uv_to_charts/3,
-	 finalize_chart/2]).
+	 fv_to_uv_map/1,uv_to_charts/3]).
 
 -ifdef(DEBUG).
 -export([degrees/0, find_features/3, build_seeds/2]). %% Debugging
@@ -696,9 +695,12 @@ map_edge(E0, Emap) ->
 
 cut_model(Charts, Cuts0, We) ->
     Cuts = gb_sets:to_list(Cuts0),
-    map(fun(Keep) ->
-		cut_one_chart(Keep, Cuts, We#we{mirror=none})
-	end, Charts).
+    cut_model_1(Charts, Cuts, We#we{mirror=none}, length(Charts), []).
+
+cut_model_1([Fs|Cs], Cuts, OrigWe, Id, Acc) ->
+    We = cut_one_chart(Fs, Cuts, OrigWe#we{id=Id}),
+    cut_model_1(Cs, Cuts, OrigWe, Id-1, [We|Acc]);
+cut_model_1([], _, _, _, Acc) -> Acc.
 
 cut_one_chart(Keep0, Cuts, We0) ->
     Keep = gb_sets:from_list(Keep0),
@@ -734,7 +736,13 @@ cut_one_chart(Keep0, Cuts, We0) ->
 	      end, [], Me),
     We = We2#we{name=#ch{vmap=Vmap,me=Me, 
 			 emap=gb_trees:from_orddict(sort(Emap))}},
-    {Keep0,We}.
+    finalize_chart(Keep0, We).
+
+finalize_chart(Fs, #we{fs=Ftab0}=We0) ->
+    NotNeeded = ordsets:subtract(gb_trees:keys(Ftab0), Fs),
+    #we{fs=Ftab} = We = wpa:face_dissolve(NotNeeded, We0),
+    Hidden = ordsets:subtract(gb_trees:keys(Ftab), Fs),
+    wings_we:hide_faces(Hidden, We).
 
 cut_shared_vertices(Faces, Es, #we{es=Etab}=We0, InvVmap0) ->
     VsEs0 = foldl(fun(E, A) ->
@@ -965,13 +973,3 @@ chart_cuts_1([], _, _, Acc) -> Acc.
 is_cutting_edge(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, D) ->
     gb_trees:get([Lf|Va], D) =/= gb_trees:get([Rf|Va], D) orelse
 	gb_trees:get([Lf|Vb], D) =/= gb_trees:get([Rf|Vb], D).
-
-%%%
-%%% Finalize a chart for use in AutoUV.
-%%%
-
-finalize_chart(Fs, #we{fs=Ftab0}=We0) ->
-    NotNeeded = ordsets:subtract(gb_trees:keys(Ftab0), Fs),
-    #we{fs=Ftab} = We = wpa:face_dissolve(NotNeeded, We0),
-    Hidden = ordsets:subtract(gb_trees:keys(Ftab), Fs),
-    wings_we:hide_faces(Hidden, We).

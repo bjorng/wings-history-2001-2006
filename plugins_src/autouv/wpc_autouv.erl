@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.280 2004/12/25 07:54:00 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.281 2004/12/25 11:03:25 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -791,7 +791,7 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
     end.
 
 rebuild_charts(We, St, ExtraCuts) ->
-    {Faces,FvUvMap} = ?TC(auv_segment:fv_to_uv_map(We)),
+    {Faces,FvUvMap} = auv_segment:fv_to_uv_map(We),
     {Charts0,Cuts0} = ?TC(auv_segment:uv_to_charts(Faces, FvUvMap, We)),
     {Charts1,Cuts} =
 	case ExtraCuts of
@@ -801,20 +801,17 @@ rebuild_charts(We, St, ExtraCuts) ->
 		auv_segment:normalize_charts(Charts0, Cuts1, We)
 	end,
     Charts2 = ?TC(auv_segment:cut_model(Charts1, Cuts, We)),
-    Charts = ?TC(finalize_charts(Charts2, FvUvMap)),
+    Charts = ?TC(update_uv_tab(Charts2, FvUvMap)),
     io:format("\n", []),
     wings_wm:set_prop(wireframed_objects,
-		      gb_sets:from_list(gb_trees:keys(Charts))),
+		      gb_sets:from_ordset(lists:seq(1, length(Charts2)))),
     St#st{sel=[],shapes=Charts}.
 
-finalize_charts(Cs, FvUvMap) ->
-    Id = length(Cs),
-    finalize_charts_1(Cs, FvUvMap, 0.0, Id, []).
+update_uv_tab(Cs, FvUvMap) ->
+    update_uv_tab_1(Cs, FvUvMap, 0.0, []).
 
-finalize_charts_1([{Fs0,#we{name=#ch{vmap=Vmap}}=We0}|Cs], FvUvMap, Z,
-		  Id, Acc) ->
-    We1 = auv_segment:finalize_chart(Fs0, We0#we{id=Id}),
-    Fs = wings_we:visible(We1),
+update_uv_tab_1([#we{id=Id,name=#ch{vmap=Vmap}}=We0|Cs], FvUvMap, Z, Acc) ->
+    Fs = wings_we:visible(We0),
     UVs0 = wings_face:fold_faces(
 	     fun(F, V, _, _, A) ->
 		     OrigV = auv_segment:map_vertex(V, Vmap),
@@ -822,10 +819,10 @@ finalize_charts_1([{Fs0,#we{name=#ch{vmap=Vmap}}=We0}|Cs], FvUvMap, Z,
 		     [{V,{X,Y,Z}}|A]
 	     end, [], Fs, We0),
     UVs = gb_trees:from_orddict(orddict:from_list(UVs0)),
-    We = We1#we{vp=UVs},
-    finalize_charts_1(Cs, FvUvMap, Z, Id-1, [{Id,We}|Acc]);
-finalize_charts_1([], _, _, 0, Acc) ->
-    gb_trees:from_orddict(Acc).
+    We = We0#we{vp=UVs},
+    update_uv_tab_1(Cs, FvUvMap, Z, [{Id,We}|Acc]);
+update_uv_tab_1([], _, _, Acc) ->
+    gb_trees:from_orddict(sort(Acc)).
 
 %% update_selection(GemoSt, AuvSt0) -> AuvSt
 %%  Update the selection in the AutoUV window given a selection
