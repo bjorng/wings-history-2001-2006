@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.74 2004/05/08 13:50:32 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.75 2004/05/16 10:50:29 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -48,26 +48,40 @@ rebuild(#we{fs=undefined,es=Etab}=We) ->
 rebuild(We) -> update_id_bounds(We).
 
 rebuild_vct(Es) ->
-    gb_trees:from_orddict(do_rebuild_vct(Es, [])).
+    gb_trees:from_orddict(rebuild_vct(Es, [])).
 
-do_rebuild_vct([{Edge,#edge{vs=Va,ve=Vb}}|Es], Acc) ->
-    do_rebuild_vct(Es, [{Va,Edge},{Vb,Edge}|Acc]);
-do_rebuild_vct([], VtoE) -> build_incident_tab(VtoE).
+rebuild_vct([{Edge,#edge{vs=Va,ve=Vb}}|Es], Acc0) ->
+    Acc = rebuild_maybe_add(Va, Vb, Edge, Acc0),
+    rebuild_vct(Es, Acc);
+rebuild_vct([], VtoE) ->
+    build_incident_tab(VtoE).
 
 rebuild_ftab(Es) ->
     rebuild_ftab_1(Es, []).
 
-rebuild_ftab_1([{Edge,#edge{lf=Lf,rf=Rf}}|Es], Acc) ->
-    rebuild_ftab_1(Es, [{Lf,Edge},{Rf,Edge}|Acc]);
+rebuild_ftab_1([{Edge,#edge{lf=Lf,rf=Rf}}|Es], Acc0) ->
+    Acc = rebuild_maybe_add(Lf, Rf, Edge, Acc0),
+    rebuild_ftab_1(Es, Acc);
 rebuild_ftab_1([], FtoE) ->
     gb_trees:from_orddict(build_incident_tab(FtoE)).
+
+rebuild_maybe_add(Ka, Kb, E, [_,{Ka,_}|_]=Acc) ->
+    rebuild_maybe_add_1(Kb, E, Acc);
+rebuild_maybe_add(Ka, Kb, E, [{Ka,_}|_]=Acc) ->
+    rebuild_maybe_add_1(Kb, E, Acc);
+rebuild_maybe_add(Ka, Kb, E, Acc) ->
+    [{Ka,E}|rebuild_maybe_add_1(Kb, E, Acc)].
+
+rebuild_maybe_add_1(K, _, [_,{K,_}|_]=Acc) -> Acc;
+rebuild_maybe_add_1(K, _, [{K,_}|_]=Acc) -> Acc;
+rebuild_maybe_add_1(K, E, Acc) -> [{K,E}|Acc].
 
 %% vertex_gc(We) -> We'
 %%  Remove vertices in the 'vc' and 'vp' tables that are no
 %%  longer referenced by any edge in the edge table.
 vertex_gc(#we{es=Etab,vp=Vtab0}=We) ->
     Es = gb_trees:to_list(Etab),
-    Vct0 = do_rebuild_vct(Es, []),
+    Vct0 = rebuild_vct(Es, []),
     Vtab = vertex_gc_1(Vct0, gb_trees:to_list(Vtab0), []),
     Vct = gb_trees:from_orddict(Vct0),
     We#we{vc=Vct,vp=Vtab}.
@@ -644,8 +658,8 @@ copy_dependents(We0) ->
 %%      Elem = Face or Vertex
 %%  Build the table of incident edges for either faces or vertices.
 
-build_incident_tab(VtxToEdgeRel) ->
-    build_incident_tab(sort(VtxToEdgeRel), []).
+build_incident_tab(ElemToEdgeRel) ->
+    build_incident_tab(keysort(1, ElemToEdgeRel), []).
     
 build_incident_tab([{V,_}|VsEs], [{V,_}|_]=Acc) ->
     build_incident_tab(VsEs, Acc);
