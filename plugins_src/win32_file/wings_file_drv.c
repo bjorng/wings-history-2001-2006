@@ -9,7 +9,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_file_drv.c,v 1.6 2002/11/14 08:49:58 bjorng Exp $
+ *     $Id: wings_file_drv.c,v 1.7 2003/12/26 21:58:08 bjorng Exp $
  */
 
 #include <windows.h>
@@ -142,27 +142,6 @@ static int wings_file_control(ErlDrvData handle, unsigned int command,
     int ret;
     
     switch (command) {
-    case 0: /* Yes/No/Cancel question */
-    case 4: /* Yes/No/Cancel question */
-        title = buff; /* Title of window */
-	text = title + strlen(title) + 1; /* Prompt text */
-	/* I can copy the answers directly into the supplied buffer, 
-	   it will be large enough (64 bytes at least) */
-	style = MB_YESNOCANCEL|MB_ICONQUESTION;
-	if (command == 4) {
-	  style |= MB_DEFBUTTON2;
-	}
-	switch (MessageBox(GetActiveWindow(), text, title, style)) {
-	case IDYES:
-	    strcpy(*res,"yes");
-	    return 3;
-	case IDNO:
-	    strcpy(*res,"no");
-	    return 2;
-	default:
-	   strcpy(*res,"aborted");
-	   return 7;
-	}
     case 1: /* Open (or import) file */
     case 2: /* Save (or export) file */
         defdir = buff; /* Default directory */
@@ -192,11 +171,6 @@ static int wings_file_control(ErlDrvData handle, unsigned int command,
 	}
 	driver_free(rbuff); /* As it isn't passed to emulator, we have to
 			       free it ourselves */
-	return 0;
-    case 3: /* Message box */
-        title = buff; /* Title of window */
-	text = title + strlen(title) + 1; /* Prompt text */
-	MessageBox(GetActiveWindow(), text, title, MB_OK|MB_ICONINFORMATION);
 	return 0;
     default:
         return -1; /* Error return, throws exception in erlang */

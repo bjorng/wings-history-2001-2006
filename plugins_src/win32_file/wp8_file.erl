@@ -4,11 +4,12 @@
 %%     Native file dialog boxes for Win32.
 %%
 %%  Copyright (c) 2001 Patrik Nyblom
+%%                2002-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_file.erl,v 1.12 2002/11/17 17:07:25 bjorng Exp $
+%%     $Id: wp8_file.erl,v 1.13 2003/12/26 21:58:08 bjorng Exp $
 %%
 
 -module(wp8_file).
@@ -16,10 +17,8 @@
 -export([menus/0, init/1]).
 
 %% Operations supported by driver.
--define(OP_QUESTION, 0).
 -define(OP_READ, 1).
 -define(OP_WRITE, 2).
--define(OP_MESSAGE, 3).
 
 menus() -> [].
 
@@ -45,27 +44,33 @@ init(Next) ->
 	    Next
     end.
 
-fileop({question,Question}, _Next) ->
-    list_to_atom(erlang:port_control(wp8_file_port, ?OP_QUESTION,
-				     ["Wings 3D",0,Question,0]));
-fileop({message,Message}, _Next) ->
-    Title = "Wings 3D",
-    erlang:port_control(wp8_file_port, ?OP_MESSAGE, [Title,0,Message,0]);
+fileop({file,open_dialog,Prop,Cont}, _Next) ->
+    Title = proplists:get_value(title, Prop, "Open"),
+    Dir = proplists:get_value(directory, Prop),
+    Cont(file_dialog(?OP_READ, Dir, Prop, Title));
+fileop({file,save_dialog,Prop,Cont}, _Next) ->
+    Title = proplists:get_value(title, Prop, "Save"),
+    Dir = proplists:get_value(directory, Prop),
+    Cont(file_dialog(?OP_WRITE, Dir, Prop, Title));
 fileop({file,open_dialog,Prop}, _Next) ->
     Title = proplists:get_value(title, Prop, "Open"),
-    file_dialog(?OP_READ, Prop, Title);
+    old_file_dialog(?OP_READ, Prop, Title);
 fileop({file,save_dialog,Prop}, _Next) ->
     Title = proplists:get_value(title, Prop, "Save"),
-    file_dialog(?OP_WRITE, Prop, Title);
+    old_file_dialog(?OP_WRITE, Prop, Title);
 fileop(What, Next) ->
     Next(What).
 
-file_dialog(Type, Prop, Title) ->
+old_file_dialog(Type, Prop, Title) ->
     Dir = wings_pref:get_value(current_directory),
+    file_dialog(Type, Dir, Prop, Title).
+
+file_dialog(Type, Dir0, Prop, Title) ->
     DefName = proplists:get_value(default_filename, Prop, ""),
     {ok,Cwd} = file:get_cwd(),
-    file:set_cwd(Dir),
+    file:set_cwd(Dir0),
     Filters = file_filters(Prop),
+    Dir = filename:nativename(Dir0),
     Data = [Dir,0,Title,0,DefName,0|Filters],
     case erlang:port_control(wp8_file_port, Type, Data) of
 	[] ->
