@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.131 2002/04/24 09:42:21 bjorng Exp $
+%%     $Id: wings.erl,v 1.132 2002/04/25 08:58:04 bjorng Exp $
 %%
 
 -module(wings).
@@ -19,7 +19,6 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--define(COLOR_BITS, 16).
 -import(lists, [foreach/2,map/2,filter/2,foldl/3,sort/1,
 		keymember/3,reverse/1]).
 -import(wings_draw, [model_changed/1]).
@@ -116,9 +115,9 @@ init_1(File) ->
 
     %% On Solaris/Sparc, we must resize twice the first time to
     %% get the requested size. Should be harmless on other platforms.
+    set_video_mode(W, H),
     St2 = resize(W, H, St1),
-    St3 = resize(W, H, St2),
-    St = open_file(File, St3),
+    St = open_file(File, St2),
     wings_wm:top_window(main_loop(St)),
     wings_file:finish(),
     wings_pref:finish(),
@@ -150,7 +149,7 @@ locate(Name) ->
     end.
 
 resize(W, H, St) ->
-    sdl_video:setVideoMode(W, H, ?COLOR_BITS, ?SDL_OPENGL bor ?SDL_RESIZABLE),
+    set_video_mode(W, H),
     wings_view:init_light(),
     gl:enable(?GL_DEPTH_TEST),
     {R,G,B} = wings_pref:get_value(background_color),
@@ -160,6 +159,9 @@ resize(W, H, St) ->
     wings_draw_util:init(),
     wings_material:init(St).
 
+set_video_mode(W, H) ->
+    sdl_video:setVideoMode(W, H, 0, ?SDL_OPENGL bor ?SDL_RESIZABLE).
+    
 redraw(St0) ->
     St = wings_draw:render(St0),
     wings_io:info(info(St)),
