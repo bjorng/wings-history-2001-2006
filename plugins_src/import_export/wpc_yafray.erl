@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.13 2003/02/28 12:58:30 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.14 2003/02/28 14:45:47 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -488,7 +488,8 @@ export_pos(F, Type, {X,Y,Z}) ->
 
 export_faces(_F, [], _DefMat, _TxT) ->
     ok;
-export_faces(F, [#e3d_face{vs=[A,B,C],mat=[Mat|_]}|T], DefaultMaterial, TxT) ->
+export_faces(F, [#e3d_face{vs=[A,B,C],tx=[Ta,Tb,Tc],mat=[Mat|_]}|T], 
+	     DefaultMaterial, TxT) ->
     Shader =
 	case Mat of
 	    DefaultMaterial -> "";
@@ -497,9 +498,9 @@ export_faces(F, [#e3d_face{vs=[A,B,C],mat=[Mat|_]}|T], DefaultMaterial, TxT) ->
     UV = case TxT of
 	     {} -> "";
 	     _ ->
-		 {Ua,Va} = element(1+A, TxT),
-		 {Ub,Vb} = element(1+B, TxT),
-		 {Uc,Vc} = element(1+C, TxT),
+		 {Ua,Va} = element(1+Ta, TxT),
+		 {Ub,Vb} = element(1+Tb, TxT),
+		 {Uc,Vc} = element(1+Tc, TxT),
 		 [" u_a=\"",format(Ua),"\" v_a=\"",format(Va),
 		  "\" u_b=\"",format(Ub),"\" v_b=\"",format(Vb),
 		  "\" u_c=\"",format(Uc),"\" v_c=\"",format(Vc),"\""]
