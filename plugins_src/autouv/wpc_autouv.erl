@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.189 2004/02/25 05:41:10 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.190 2004/03/02 05:01:29 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -336,107 +336,7 @@ add_material(Im = #e3d_image{}, _, MatName,St) ->
     wings_material:update_image(MatName, diffuse, Im, St),
     {St,MatName}.
     
-%%% Opengl drawing routines
-
-init_drawarea() ->
-    {{X,TopY},{W0,TopH}} = wings_wm:win_rect(desktop),
-    W = W0 div 2,
-    {{X+W,TopY+75,W,TopH-100}, wingeom(W, TopH)}.
-    
-wingeom(W,H) ->
-    Border = 15,
-    if 
-	W > H ->
-	    WF = Border / W,
-	    {-WF,W/H+WF,-WF,1+2*WF};
-	true ->
-	    WF = Border / H,
-	    {-WF,1+WF,-WF,H/W+WF}
-    end.
-
-draw_texture(#st{sel=Sel,shapes=Shs,bb=#uvstate{dl=undefined}=Uvs}=St) ->
-    Dl = gl:genLists(1),
-    gl:newList(Dl, ?GL_COMPILE),
-    foreach(fun(#we{id=Id}=We) ->
-		    case lists:keymember(Id, 1, Sel) of
-			true ->
-			    ok;
-			false ->
-			    draw_area(We, false)
-		    end
-	    end, gb_trees:values(Shs)),
-    gl:endList(),
-    draw_texture(St#st{bb=Uvs#uvstate{dl=Dl}});
-draw_texture(#st{bb=#uvstate{dl=DL}} = St) ->
-    gl:enable(?GL_DEPTH_TEST),
-    gl:callList(DL),
-    draw_selection(St),
-    St.
-
-draw_selection(#st{sel=Sel} = St) ->
-    case gb_sets:is_empty(Sel) of
-	true -> 
-	    ok;
-	false ->
-	    {R,G,B} = wings_pref:get_value(selected_color),
-	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-	    gl:enable(?GL_BLEND),
-	    gl:translatef(0.0, 0.0, 0.1),
-	    Settings = {R,G,B,0.7},
-	    sel_foreach(fun(We) -> draw_area(We, Settings) end, St),
-	    gl:disable(?GL_BLEND)
-    end.
-
-setup_view(#st{mat=Mats,bb=#uvstate{geom={Left,Right,Bottom,Top},matname=MatN}}) ->
-    gl:disable(?GL_CULL_FACE),
-    gl:disable(?GL_LIGHTING),
-
-    gl:matrixMode(?GL_PROJECTION),
-    gl:loadIdentity(),
-
-    glu:ortho2D(Left, Right, Bottom, Top),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
-    gl:color3f(1, 1, 1),
-
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-
-    gl:pushMatrix(),
-
-    gl:translatef(0, 0, -0.99),
-    gl:rectf(Left, Bottom, Right, Top),
-    gl:translatef(0, 0, 0.01),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
-    gl:color3b(0, 0, 0),
-    gl:'begin'(?GL_LINE_LOOP),
-    D = Left/10,
-    gl:vertex2f(D, D),
-    gl:vertex2f(1-D, D),
-    gl:vertex2f(1-D, 1-D),
-    gl:vertex2f(D, 1-D),
-    gl:'end'(),    
-    gl:popMatrix(),
-
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    gl:color3f(1.0, 1.0, 1.0),   %%Clear
-    case has_texture(MatN,Mats) of
-	false -> ok;
-	_ -> wings_material:apply_material(MatN, Mats)
-    end,
-    gl:'begin'(?GL_QUADS),
-    gl:texCoord2f(0,0),    gl:vertex3f(0,0,-0.9),
-    gl:texCoord2f(1,0),    gl:vertex3f(1,0,-0.9),
-    gl:texCoord2f(1,1),    gl:vertex3f(1,1,-0.9),
-    gl:texCoord2f(0,1),    gl:vertex3f(0,1,-0.9),
-    gl:'end'(), 
-
-    gl:enable(?GL_DEPTH_TEST),
-    gl:depthFunc(?GL_LESS),
-    gl:disable(?GL_TEXTURE_2D),
-    gl:shadeModel(?GL_SMOOTH).
-
-%%%%%%% Events handling and window redrawing 
-   
+%%%% Menus.
 
 command_menu(body, X, Y) ->
     Rotate = [{"Free", free, "Rotate freely"},
@@ -489,15 +389,6 @@ get_event(#st{}=St) ->
 
 get_event_nodraw(#st{}=St) ->
     {replace,fun(Ev) -> handle_event(Ev, St) end}.
-
-redraw(#st{}=St0) ->
-    update_dlists(St0#st{selmode=body}),
-    wings_util:button_message("Select", [], "Show menu"),
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    setup_view(St0),
-    St = draw_texture(St0),
-    gl:popAttrib(),
-    St.
 
 handle_event(redraw, St0) ->
     St = redraw(St0),
@@ -594,7 +485,7 @@ handle_command(Cmd, St) ->
 %     get_event(reset_dl(Uvs0#uvstate{areas=RscAreas}));
 
 %%%
-%%% Command handling (temporary version).
+%%% Command handling.
 %%%
 
 -define(SS, 2.0).  % Scale mouse motion
@@ -813,7 +704,120 @@ broken_event(Ev, _) ->
 %%%
 %%% Draw routines.
 %%%
-draw_area(#we{name=#ch{fs=Fs}}=We, ColorMode) -> 
+
+redraw(#st{mat=Mats,bb=Uvs}=St0) ->
+    update_dlists(St0#st{selmode=body}),
+    wings_util:button_message("Select", [], "Show menu"),
+
+    #uvstate{geom={Left,Right,Bottom,Top},matname=MatN} = Uvs,
+
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+
+    gl:disable(?GL_CULL_FACE),
+    gl:disable(?GL_LIGHTING),
+
+    gl:matrixMode(?GL_PROJECTION),
+    gl:loadIdentity(),
+    glu:ortho2D(Left, Right, Bottom, Top),
+
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:loadIdentity(),
+
+    %% Draw background of AutoUV window.
+
+    gl:color3f(1, 1, 1),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    gl:translatef(0, 0, -0.99),
+    gl:rectf(Left, Bottom, Right, Top),
+
+    %% Draw border around the UV space.
+    gl:translatef(0, 0, 0.01),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+    gl:color3b(0, 0, 0),
+    gl:'begin'(?GL_LINE_LOOP),
+    D = Left/10,
+    gl:vertex2f(D, D),
+    gl:vertex2f(1-D, D),
+    gl:vertex2f(1-D, 1-D),
+    gl:vertex2f(D, 1-D),
+    gl:'end'(),    
+
+    %% Draw the background texture.
+
+    gl:loadIdentity(),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    gl:color3f(1, 1, 1),			%Clear
+    case has_texture(MatN, Mats) of
+	false -> ok;
+	_ -> wings_material:apply_material(MatN, Mats)
+    end,
+    gl:'begin'(?GL_QUADS),
+    gl:texCoord2f(0,0),    gl:vertex3f(0,0,-0.9),
+    gl:texCoord2f(1,0),    gl:vertex3f(1,0,-0.9),
+    gl:texCoord2f(1,1),    gl:vertex3f(1,1,-0.9),
+    gl:texCoord2f(0,1),    gl:vertex3f(0,1,-0.9),
+    gl:'end'(), 
+    gl:disable(?GL_TEXTURE_2D),
+
+    %% Now draw charts and selection.
+
+    gl:enable(?GL_DEPTH_TEST),
+    gl:depthFunc(?GL_LESS),
+    gl:shadeModel(?GL_SMOOTH),
+
+    St = draw_charts(St0),
+    draw_selection(St),
+
+    gl:popAttrib(),
+    St.
+
+init_drawarea() ->
+    {{X,TopY},{W0,TopH}} = wings_wm:win_rect(desktop),
+    W = W0 div 2,
+    {{X+W,TopY+75,W,TopH-100}, wingeom(W, TopH)}.
+    
+wingeom(W,H) ->
+    Border = 15,
+    if 
+	W > H ->
+	    WF = Border / W,
+	    {-WF,W/H+WF,-WF,1+2*WF};
+	true ->
+	    WF = Border / H,
+	    {-WF,1+WF,-WF,H/W+WF}
+    end.
+
+draw_charts(#st{sel=Sel,shapes=Shs,bb=#uvstate{dl=undefined}=Uvs}=St) ->
+    Dl = gl:genLists(1),
+    gl:newList(Dl, ?GL_COMPILE),
+    foreach(fun(#we{id=Id}=We) ->
+		    case lists:keymember(Id, 1, Sel) of
+			true -> ok;
+			false -> draw_chart(We, false)
+		    end
+	    end, gb_trees:values(Shs)),
+    gl:endList(),
+    draw_charts(St#st{bb=Uvs#uvstate{dl=Dl}});
+draw_charts(#st{bb=#uvstate{dl=DL}} = St) ->
+    gl:callList(DL),
+    St.
+
+draw_selection(#st{sel=Sel} = St) ->
+    case gb_sets:is_empty(Sel) of
+	true -> ok;
+	false ->
+	    {R,G,B} = wings_pref:get_value(selected_color),
+	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+	    gl:enable(?GL_BLEND),
+	    gl:translatef(0.0, 0.0, 0.1),
+	    Settings = {R,G,B,0.7},
+	    wpa:sel_fold(fun(_, We, _) ->
+				 draw_chart(We, Settings)
+			 end, [], St),
+	    gl:disable(?GL_BLEND)
+    end.
+
+draw_chart(#we{name=#ch{fs=Fs}}=We, ColorMode) -> 
     gl:pushMatrix(),
     gl:lineWidth(1),
     gl:translatef(0, 0, 0.9),
@@ -854,17 +858,6 @@ restore_wings_window(St) ->
     wings_draw_util:delete_dlists(),
     reset_dl(St).
 
-%%%
-%%% Most of this code will be rewritten as we slowly change the
-%%% internal structures.
-%%%
-
-update_dlists(#st{}=St) ->
-    wings_draw:invalidate_dlists(false, St).
-
-sel_foreach(F, #st{sel=Sel,shapes=Shs}) ->
-    foreach(fun({Id,_}) -> F(gb_trees:get(Id, Shs)) end, Sel).
-
 %% Generate a checkerboard image of 4x4 squares 
 %% with given side length in pixels.
 checkerboard(Width, Height) ->
@@ -886,3 +879,11 @@ pattern_repeat(N, D) ->
 	0 -> [B|B];
 	1 -> [D,B|B]
     end.
+
+%%%
+%%% Most of this code will be rewritten as we slowly change the
+%%% internal structures.
+%%%
+
+update_dlists(#st{}=St) ->
+    wings_draw:invalidate_dlists(false, St).
