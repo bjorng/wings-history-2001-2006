@@ -3,12 +3,12 @@
 %%
 %%     This module handles camera moves (rotation, zooming, and panning).
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.99 2003/11/30 21:50:08 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.100 2004/03/08 20:46:56 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -312,10 +312,12 @@ get_blender_event(Camera, Redraw) ->
     {replace,fun(Ev) -> blender_event(Ev, Camera, Redraw) end}.
 	    
 blender_help() ->
-    Mmb = mmb_name(),
-    format([{0,Mmb,"Tumble"},
-	    {?SHIFT_BITS,Mmb,"Track"},
-	    {?CTRL_BITS,Mmb,"Dolly"}]).
+    TrackDolly = [{?SHIFT_BITS,2,"Track"},
+		  {?CTRL_BITS,2,"Dolly"}],
+    case allow_rotation() of
+	false -> format(TrackDolly);
+	true -> format([{0,2,"Tumble"}|TrackDolly])
+    end.
 
 %%%
 %%% Nendo style camera.
@@ -326,8 +328,9 @@ nendo(#mousebutton{button=2,x=X0,y=Y0,mod=Mod,state=?SDL_RELEASED}, Redraw)
     {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     grab(),
-    nendo_message(true),
-    {seq,push,get_nendo_event(Camera, Redraw, true)};
+    MoveTumbles = allow_rotation(),
+    nendo_message(MoveTumbles),
+    {seq,push,get_nendo_event(Camera, Redraw, MoveTumbles)};
 nendo(#keyboard{sym=Sym}, _Redraw) ->
     nendo_pan(Sym);
 nendo(_, _) -> next.
@@ -353,7 +356,7 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false) ->
     end,
     get_nendo_event(Camera, Redraw, false);
 nendo_event(#keyboard{unicode=$q}, Camera, Redraw, MR0) ->
-    MR = not MR0,
+    MR = MR0 xor allow_rotation(),
     nendo_message(MR),
     get_nendo_event(Camera, Redraw, MR);
 nendo_event(#keyboard{sym=Sym}=Event, _Camera, Redraw, _) ->
@@ -390,9 +393,12 @@ nendo_message(true) ->
 		     ["[Q]",?CSEP,"Move mouse to track"]]),
     message(Help);
 nendo_message(false) ->
+    QText = case allow_rotation() of
+		false -> [];
+		true -> ["[Q]",?CSEP,"Move mouse to tumble"]
+	    end,
     Help = join_msg([button_format("Accept", "Drag to Dolly"),
-		     "Move mouse to track",
-		     ["[Q]",?CSEP,"Move mouse to tumble"]]),
+		     "Move mouse to track"|QText]),
     message(Help).
 
 %%%
@@ -404,9 +410,10 @@ mirai(#mousebutton{button=2,x=X0,y=Y0,mod=Mod,state=?SDL_RELEASED}, Redraw)
     {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     grab(),
-    mirai_message(true),
+    MoveTumbles = allow_rotation(),
+    mirai_message(MoveTumbles),
     View = wings_view:current(),
-    {seq,push,get_mirai_event(Camera, Redraw, true, View)};
+    {seq,push,get_mirai_event(Camera, Redraw, MoveTumbles, View)};
 mirai(#keyboard{sym=Sym}, _Redraw) ->
     mirai_pan(Sym);
 mirai(_, _) -> next.
@@ -435,7 +442,7 @@ mirai_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false, View) -
     end,
     get_mirai_event(Camera, Redraw, false, View);
 mirai_event(#keyboard{unicode=$q}, Camera, Redraw, MR0, View) ->
-    MR = not MR0,
+    MR = MR0 xor allow_rotation(),
     mirai_message(MR),
     get_mirai_event(Camera, Redraw, MR, View);
 mirai_event(#keyboard{sym=Sym}=Event, _Camera, Redraw, _, _) ->
@@ -474,11 +481,14 @@ mirai_message(true) ->
 		     ["[Q]",?CSEP,"Move mouse to track"]]),
     message(Help);
 mirai_message(false) ->
+    QText = case allow_rotation() of
+		false -> [];
+		true -> ["[Q]",?CSEP,"Move mouse to tumble"]
+	    end,
     Help = join_msg([button_format("Accept",
 				   "Drag to Dolly",
 				   "Cancel/restore view"),
-		     "Move mouse to track",
-		     ["[Q]",?CSEP,"Move mouse to tumble"]]),
+		     "Move mouse to track"|QText]),
     message(Help).
 
 %%%
@@ -520,10 +530,12 @@ get_tds_event(Camera, Redraw, View) ->
     {replace,fun(Ev) -> tds_event(Ev, Camera, Redraw, View) end}.
 
 tds_help() ->
-    Mmb = mmb_name(),
-    format([{?ALT_BITS,Mmb,"Tumble"},
-	    {0,Mmb,"Track"},
-	    {?CTRL_BITS bor ?ALT_BITS,Mmb,"Dolly"}]).
+    TrackDolly = [{0,2,"Track"},
+		  {?CTRL_BITS bor ?ALT_BITS,2,"Dolly"}],
+    case allow_rotation() of
+	false -> format(TrackDolly);
+	true -> format([{?ALT_BITS,2,"Tumble"}|TrackDolly])
+    end.
 
 %%%
 %%% Maya style camera.
@@ -578,9 +590,12 @@ maya_stop_camera(Camera) ->
     stop_camera(Camera).
 
 maya_help() ->
-    format([{?ALT_BITS,1,"Tumble"},
-	    {?ALT_BITS,2,"Track"},
-	    {?ALT_BITS,3,"Dolly"}]).
+    TrackDolly = [{?ALT_BITS,2,"Track"},
+		  {?ALT_BITS,3,"Dolly"}],
+    case allow_rotation() of
+	false -> format(TrackDolly);
+	true -> format([{?ALT_BITS,1,"Tumble"}|TrackDolly])
+    end.
 
 %%%
 %%% Motionbuilder style camera.
@@ -620,10 +635,12 @@ get_mb_event(Camera, Redraw) ->
     {replace,fun(Ev) -> mb_event(Ev, Camera, Redraw) end}.
 
 mb_help() ->
-    Lmb = lmb_name(),
-    format([{?SHIFT_BITS bor ?CTRL_BITS,Lmb,"Tumble"},
-	    {?SHIFT_BITS,Lmb,"Track"},
-	    {?CTRL_BITS,Lmb,"Dolly"}]).
+    TrackDolly = [{?SHIFT_BITS,1,"Track"},
+		  {?CTRL_BITS,1,"Dolly"}],
+    case allow_rotation() of
+	false -> format(TrackDolly);
+	true -> format([{?SHIFT_BITS bor ?CTRL_BITS,1,"Tumble"}|TrackDolly])
+    end.
     
 %%%
 %%% Common utilities.
@@ -646,10 +663,16 @@ get_st(Redraw) when is_function(Redraw) ->
     #st{shapes=gb_trees:empty()}.
 
 rotate(Dx, Dy) ->
-    #view{azimuth=Az0,elevation=El0} = View = wings_view:current(),
-    Az = Az0 + Dx,
-    El = El0 + Dy,
-    wings_view:set_current(View#view{azimuth=Az,elevation=El,along_axis=none}).
+    case allow_rotation() of
+	false -> ok;
+	true ->
+	    View0= wings_view:current(),
+	    #view{azimuth=Az0,elevation=El0} = View0,
+	    Az = Az0 + Dx,
+	    El = El0 + Dy,
+	    View = View0#view{azimuth=Az,elevation=El,along_axis=none},
+	    wings_view:set_current(View)
+    end.
 
 zoom_step(Dir) ->
     case wings_pref:get_value(wheel_zooms, true) of
@@ -743,4 +766,8 @@ hide_sel_fun(#dlo{sel=Sel}=D, _) ->
     D#dlo{sel={call,none,Sel}}.
 
 show_sel_fun(#dlo{sel={call,none,Sel}}=D, _) ->
-    D#dlo{sel=Sel}.
+    D#dlo{sel=Sel};
+show_sel_fun(D, _) -> D.
+
+allow_rotation() ->
+    wings_wm:get_prop(allow_rotation).

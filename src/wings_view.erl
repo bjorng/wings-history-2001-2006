@@ -3,12 +3,12 @@
 %%
 %%     This module implements most of the command in the View menu.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.134 2003/12/06 08:39:44 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.135 2004/03/08 20:46:57 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -448,6 +448,7 @@ initial_properties() ->
      {show_groundplane,true},
      {wireframed_objects,gb_sets:empty()},
      {current_view,default_view()},
+     {allow_rotation,true},
      {show_info_text,true}].
 
 reset() ->
