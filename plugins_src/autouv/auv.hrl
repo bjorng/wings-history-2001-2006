@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.7 2002/11/02 08:03:44 bjorng Exp $
+%%     $Id: auv.hrl,v 1.8 2002/11/02 09:45:05 bjorng Exp $
 
 -record(a,
 	{center = {0,0},
@@ -34,7 +34,7 @@
 		color = true,         %% Texture drawing options
 		edges = all_edges,    %% Draw edges ??
 		edge_color = false,   %% Use vertex/face color on edges
-		edge_width = 2.0      %% Edge Thickness  overdraw help..
+		edge_width = 2.0      %% Edge Thickness (overdraw help)
 	       }).
 -record(uvstate,
 	{ op,               %% Current op i.e. move rotate, scale..
@@ -51,4 +51,9 @@
 	  origst            %% Orignal st
 	 }).             
 
+-ifdef(DEBUG).
 -define(DBG(S,A), io:format("~p:~p " ++ S, [?MODULE,?LINE|A])).
+-else.
+-define(DBG(S,A), ok).
+-endif.
+
