@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.46 2003/10/12 09:11:15 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.47 2004/01/04 16:58:01 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -228,7 +228,8 @@ import_image(Im) ->
 	    #e3d_image{name=Name,width=W,height=H,type=Type,order=lower_left,
 		       alignment=1,bytes_pp=PP,image=Pixels};
 	Filename ->
-	    case e3d_image:load(Filename) of
+	    Ps = [{filename,Filename}],
+	    case wpa:image_read(Ps) of
 		#e3d_image{}=E3D ->
 		    E3D#e3d_image{name=Name,filename=Filename};
 		{error,_} ->
