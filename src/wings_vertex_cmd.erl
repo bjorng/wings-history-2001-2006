@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.4 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.5 2001/09/14 09:58:03 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -20,7 +20,7 @@
 -import(lists, [member/2,keymember/3,foldl/3,mapfoldl/3,
 		reverse/1,last/1,sort/1]).
 
--define(EXTRUDE_DIST, 2.0).
+-define(EXTRUDE_DIST, 0.2).
 
 %%%
 %%% The Flatten command.

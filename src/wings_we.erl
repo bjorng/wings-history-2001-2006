@@ -10,11 +10,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.9 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.10 2001/09/14 09:58:03 bjorng Exp $
 %%
 
 -module(wings_we).
--export([build/5,build/6,
+-export([build/4,
 	 new_wrap_range/3,id/2,bump_id/1,
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
@@ -24,16 +24,14 @@
 	 normals/1,
 	 new_items/3]).
 -include("wings.hrl").
--import(lists, [map/2,foreach/2,foldl/3,sort/1,keysort/2,last/1,reverse/1]).
+-import(lists, [map/2,foreach/2,foldl/3,sort/1,keysort/2,
+		last/1,reverse/1,duplicate/2,seq/2]).
 
 %%%
 %%% Build Winged-Edges.
 %%%
 
-build(Name, Matrix, Fs, Vs, St) ->
-    build(Name, Matrix, Fs, Vs, [], St).
-
-build(Name, Matrix, Fs0, Vs, HardEdges, #st{onext=Id,shapes=Shapes}=St) ->
+build(Matrix, Fs0, Vs, HardEdges) ->
     {Good0,Bad0} = build_edges(Fs0),
     {Es0,Fs} = if
 		   Bad0 =:= [] -> {Good0,Fs0};
@@ -47,14 +45,11 @@ build(Name, Matrix, Fs0, Vs, HardEdges, #st{onext=Id,shapes=Shapes}=St) ->
     Htab = hard_edges(HardEdges, Es),
     {Vtab0,Etab,Ftab0} = build_tables(Es),
     Ftab = build_faces(Ftab0, Fs),
-    Vtab = fill_in_vertice_pos(Vs, Matrix, Vtab0),
+    Vtab = fill_in_vertices(Vs, Matrix, Vtab0),
     NextId = 2+last(sort([gb_trees:size(Etab),
 			  gb_trees:size(Ftab),
 			  gb_trees:size(Vtab)])),
-    Shape = #shape{id=Id,name=Name,
-		   sh=#we{es=Etab,fs=Ftab,vs=Vtab,he=Htab,
-			  first_id=0,next_id=NextId}},
-    St#st{onext=Id+1,shapes=gb_trees:insert(Id, Shape, Shapes)}.
+    #we{es=Etab,fs=Ftab,vs=Vtab,he=Htab,first_id=0,next_id=NextId}.
 
 build_edges(Fs) ->
     build_edges(Fs, 1, []).
@@ -159,12 +154,15 @@ edge_num(Edge, Etree) ->
     {Num,_} = gb_trees:get(Edge, Etree),
     Num.
 
-fill_in_vertice_pos(Ps, Matrix, Vtab0) ->
+fill_in_vertices(Ps, Matrix, Vtab0) ->
     Vtab1 = sofs:relation(Vtab0),
     Vtab2 = sofs:relation_to_family(Vtab1),
     Vtab = sofs:to_external(Vtab2),
     fill_in_vertice_pos_1(Vtab, Ps, Matrix, []).
     
+fill_in_vertice_pos_1([{V,[Edge|_]}|Vs], [Pos|Ps], identity, Vtab0) ->
+    Vtab = [{V,#vtx{edge=Edge,pos=Pos}}|Vtab0],
+    fill_in_vertice_pos_1(Vs, Ps, identity, Vtab);
 fill_in_vertice_pos_1([{V,[Edge|_]}|Vs], [Pos0|Ps], Matrix, Vtab0) ->
     Pos = e3d_mat:mul_point(Matrix, Pos0),
     Vtab = [{V,#vtx{edge=Edge,pos=Pos}}|Vtab0],
@@ -508,26 +506,26 @@ vertex_normals(#we{vs=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
 	     end, [], SoftVs),
     gb_trees:from_orddict(reverse(Soft)).
 
-n_face(Face, Mat, G, FaceNormals, VtxNormals, We) ->
-    Vs = wings_face:fold(
-	   fun (V, _, _, Acc) ->
-		   case gb_trees:lookup(V, VtxNormals) of
-		       {value,PosNormal} ->
-			   [PosNormal|Acc];
-		       none ->
-			   Pos = wings_vertex:pos(V, We),
-			   Normal = hard_vtx_normal(G, V, Face, FaceNormals),
- 			   [{Pos,Normal}|Acc]
-		   end
-	   end, [], Face, We),
-    {Mat,Vs}.
-
 soft_vtx_normal(V, FaceNormals, We) ->
     Ns = wings_vertex:fold(
 	   fun(Edge, Face, _, A) ->
 		   [gb_trees:get(Face, FaceNormals)|A]
 	   end, [], V, We),
     e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns)).
+
+n_face(Face, Mat, G, FaceNormals, VtxNormals, #we{vs=Vtab}=We) ->
+    Vs = wings_face:fold(
+	   fun (V, _, _, Acc) ->
+		   case gb_trees:lookup(V, VtxNormals) of
+		       {value,PosNormal} ->
+			   [PosNormal|Acc];
+		       none ->
+			   #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+			   Normal = hard_vtx_normal(G, V, Face, FaceNormals),
+ 			   [{Pos,Normal}|Acc]
+		   end
+	   end, [], Face, We),
+    {Mat,Vs}.
 
 hard_vtx_normal(G, V, Face, FaceNormals) ->
     Reachable = digraph_utils:reachable([{V,Face}], G),
@@ -586,13 +584,27 @@ face_normal_2(A, B, Edge, Etab, Vtab) ->
 
 %% new_items(vertex|edge|face, OldWe, NewWe) -> NewItemsGbSet.
 %%  Return all items in NewWe that are not in OldWe (as a GbSet).
-new_items(vertex, #we{next_id=Wid}, #we{vs=Tab}) ->
-    new_items(Tab, Wid);
-new_items(edge, #we{next_id=Wid}, #we{es=Tab}) ->
-    new_items(Tab, Wid);
-new_items(face, #we{next_id=Wid}, #we{fs=Tab}) ->
-    new_items(Tab, Wid).
 
-new_items(Tab, Wid) ->
+new_items(vertex, #we{next_id=Wid}, #we{next_id=NewWid,vs=Tab}) ->
+    new_items_1(Tab, Wid, NewWid);
+new_items(edge, #we{next_id=Wid}, #we{next_id=NewWid,es=Tab}) ->
+    new_items_1(Tab, Wid, NewWid);
+new_items(face, #we{next_id=Wid}, #we{next_id=NewWid,fs=Tab}) ->
+    new_items_1(Tab, Wid, NewWid).
+
+new_items_1(Tab, Wid, NewWid) when NewWid-Wid < 32 ->
+    new_items_2(Wid, NewWid, Tab, []);
+new_items_1(Tab, Wid, NewWid) ->
     Items = [Item || Item <- gb_trees:keys(Tab), Item >= Wid],
     gb_sets:from_ordset(Items).
+
+new_items_2(Wid, NewWid, Tab, Acc) when Wid < NewWid ->
+    case gb_trees:is_defined(Wid, Tab) of
+	true -> new_items_2(Wid+1, NewWid, Tab, [Wid|Acc]);
+	false -> new_items_2(Wid+1, NewWid, Tab, Acc)
+    end;
+new_items_2(Wid, NewWid, Tab, Acc) ->
+    gb_sets:from_ordset(reverse(Acc)).
+    
+	    
+    

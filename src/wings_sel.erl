@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.9 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.10 2001/09/14 09:58:03 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -344,10 +344,16 @@ find_face_regions(Faces0, Ftab, Etab, Acc) ->
 	true -> Acc;
 	false ->
 	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
-	    Ws = gb_sets:singleton(Face),
-	    Reg0 = gb_sets:empty(),
-	    {Reg,Faces} = find_all_adj(Ws, Ftab, Etab, Reg0, Faces1),
-	    find_face_regions(Faces, Ftab, Etab, [Reg|Acc])
+	    Reg0 = gb_sets:singleton(Face),
+	    Adj = find_adj(Face, Ftab, Etab),
+	    Ws = gb_sets:intersection(Adj, Faces1),
+	    case gb_sets:is_empty(Ws) of
+		true ->
+		    find_face_regions(Faces1, Ftab, Etab, [Reg0|Acc]);
+		false ->
+		    {Reg,Faces} = find_all_adj(Ws, Ftab, Etab, Reg0, Faces1),
+		    find_face_regions(Faces, Ftab, Etab, [Reg|Acc])
+	    end
     end.
 
 find_all_adj(Ws0, Ftab, Etab, Reg0, Faces0) ->
@@ -356,14 +362,16 @@ find_all_adj(Ws0, Ftab, Etab, Reg0, Faces0) ->
 	false ->
 	    {Face,Ws1} = gb_sets:take_smallest(Ws0),
 	    Reg = gb_sets:add(Face, Reg0),
-	    #face{edge=Edge} = gb_trees:get(Face, Ftab),
-	    Adj0 = gb_sets:empty(),
-	    Adj = find_adj(Face, Edge, Edge, Etab, Adj0, not_done),
+	    Adj = find_adj(Face, Ftab, Etab),
 	    AdjSel = gb_sets:intersection(Adj, Faces0),
 	    Ws = gb_sets:union(Ws1, AdjSel),
 	    Faces = gb_sets:difference(Faces0, AdjSel),
 	    find_all_adj(Ws, Ftab, Etab, Reg, Faces)
     end.
+
+find_adj(Face, Ftab, Etab) ->
+    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    find_adj(Face, Edge, Edge, Etab, gb_sets:singleton(Face), not_done).
 
 find_adj(Face, LastEdge, LastEdge, Etab, Acc, done) -> Acc;
 find_adj(Face, Edge, LastEdge, Etab, Acc, _) ->
@@ -375,34 +383,39 @@ find_adj(Face, Edge, LastEdge, Etab, Acc, _) ->
     find_adj(Face, Next, LastEdge, Etab, gb_sets:add(Other, Acc), done).
 
 
-find_edge_regions(Edges, #we{es=Etab}) ->
-    find_edge_regions(Edges, Etab, []).
+find_edge_regions(Edges, We) ->
+    find_edge_regions(Edges, We, []).
 
-find_edge_regions(Edges0, Etab, Acc) ->
+find_edge_regions(Edges0, We, Acc) ->
     case gb_sets:is_empty(Edges0) of
 	true -> Acc;
 	false ->
 	    {Edge,Edges1} = gb_sets:take_smallest(Edges0),
 	    Ws = gb_sets:singleton(Edge),
 	    Reg0 = gb_sets:empty(),
-	    {Reg,Edges} = find_all_adj_edges(Ws, Etab, Reg0, Edges1),
-	    find_edge_regions(Edges, Etab, [Reg|Acc])
+	    {Reg,Edges} = find_all_adj_edges(Ws, We, Reg0, Edges1),
+	    find_edge_regions(Edges, We, [Reg|Acc])
     end.
 
-find_all_adj_edges(Ws0, Etab, Reg0, Edges0) ->
+find_all_adj_edges(Ws0, #we{es=Etab}=We, Reg0, Edges0) ->
     case gb_sets:is_empty(Ws0) of
 	true -> {Reg0,Edges0};
 	false ->
 	    {Edge,Ws1} = gb_sets:take_smallest(Ws0),
 	    Reg = gb_sets:add(Edge, Reg0),
-	    #edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = gb_trees:get(Edge, Etab),
-	    Adj = gb_sets:from_list([LP,LS,RP,RS]),
+	    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+	    Adj0 = add_adjacent_edges(Va, We, []),
+	    Adj1 = add_adjacent_edges(Vb, We, Adj0),
+	    Adj = gb_sets:from_list(Adj1),
 	    AdjSel = gb_sets:intersection(Adj, Edges0),
 	    Ws = gb_sets:union(Ws1, AdjSel),
 	    Edges = gb_sets:difference(Edges0, AdjSel),
-	    find_all_adj_edges(Ws, Etab, Reg, Edges)
+	    find_all_adj_edges(Ws, We, Reg, Edges)
     end.
 
+add_adjacent_edges(V, We, Acc) ->
+    wings_vertex:fold(fun(Edge, _, _, A) -> [Edge|A] end, Acc, V, We).
+	      
 valid_sel(#st{sel=Sel,selmode=Mode}=St) ->
     St#st{sel=valid_sel(Sel, Mode, St)}.
     

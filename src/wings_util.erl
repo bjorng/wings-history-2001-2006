@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.6 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.7 2001/09/14 09:58:03 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([share/1,share/3,fold_shape/3,fold_shape_all/3,
 	 fold_face/3,fold_vertex/3,fold_edge/3,
 	 foreach_shape/2,foreach_face/2,foreach_edge/2,
-	 center/1,average_normals/1,
+	 average_normals/1,
 	 tc/1,crasch_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
 
@@ -155,9 +155,6 @@ foreach_edge_2(F, Iter0, Sh) ->
 	    F(Num, Edge, Sh),
 	    foreach_edge_2(F, Iter, Sh)
     end.
-
-center(#shape{sh=#we{}=We}) ->
-    wings_vertex:center(We).
 
 average_normals(Vs) ->
     R = sofs:relation(Vs),

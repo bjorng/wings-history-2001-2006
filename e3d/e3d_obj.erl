@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.8 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.9 2001/09/14 09:58:02 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -50,17 +50,21 @@ import_1(Fd, Dir) ->
 
 import_2(Fd, Dir) ->
     Ost = read(fun parse/2, Fd, #ost{dir=Dir}),
-    #ost{name=Name,v=Vtab0,f=Ftab0,matdef=Mat} = Ost,
+    #ost{name=Name,v=Vtab0,vt=TxTab0,f=Ftab0,matdef=Mat} = Ost,
     Vtab = reverse(Vtab0),
+    TxTab = reverse(TxTab0),
     Ftab = make_ftab(Ftab0, []),
-    Mesh0 = #e3d_mesh{type=polygon,vs=Vtab,fs=Ftab},
-    Mesh = e3d_mesh:clean(Mesh0),
+    Mesh = #e3d_mesh{type=polygon,vs=Vtab,fs=Ftab,tx=TxTab},
     Obj = #e3d_object{name=Name,obj=Mesh},
     #e3d_file{objs=[Obj],mat=Mat}.
 
 make_ftab([{Mat,Vs0}|Fs], Acc) ->
     Vs = [V || {V,_,_} <- Vs0],
-    make_ftab(Fs, [#e3d_face{mat=Mat,vs=Vs}|Acc]);
+    Tx = case [Vt || {_,Vt,_} <- Vs0] of
+	     [none|_] -> none;
+	     Other -> Other
+	 end,
+    make_ftab(Fs, [#e3d_face{mat=Mat,vs=Vs,tx=Tx}|Acc]);
 make_ftab([], Acc) -> Acc.
 
 read(Parse, Fd, Acc) ->
@@ -75,6 +79,15 @@ read(Parse, "\n", Fd, Acc) ->
 read(Parse, " " ++ Line, Fd, Acc) ->
     read(Parse, Line, Fd, Acc);
 read(Parse, eof, Fd, Acc) -> Acc;
+read(Parse, "mtllib " ++ Name0, Fd, Acc0) ->
+    Name = case reverse(Name0) of
+	       [$\n,$\r|Name1] -> reverse(Name1);
+	       [$\n|Name1] -> reverse(Name1)
+	   end,
+    case Parse(["mtllib",Name], Acc0) of
+	eof -> Acc0;
+	Acc -> read(Parse, Fd, Acc)
+    end;
 read(Parse, Line, Fd, Acc0) ->
     case Parse(collect(Line, [], []), Acc0) of
 	eof -> Acc0;
@@ -118,7 +131,7 @@ parse(["g"|Names], #ost{name=OldName}=Ost) ->
     end;
 parse(["usemtl"|[Mat|_]], Ost) ->
     Ost#ost{mat=[list_to_atom(Mat)]};
-parse(["mtllib"|FileName], #ost{dir=Dir}=Ost) ->
+parse(["mtllib",FileName], #ost{dir=Dir}=Ost) ->
     Mat = read_matlib(FileName, Dir),
     Ost#ost{matdef=Mat};
 parse(["End","Of","File"], Ost) -> eof;		%In files written by ZBrush.
@@ -156,7 +169,7 @@ resolve_vtxref(none, _) -> none;
 resolve_vtxref(V, _) when V > 0 -> V-1;
 resolve_vtxref(V0, Tab) when V0 < 0 ->
     case length(Tab)+V0 of
-	V when V > 0 -> V
+	V when V >= 0 -> V
     end.
 
 collect_one_vtxref(S) ->
@@ -188,7 +201,7 @@ try_matlib(Name) ->
 	    Res = read(fun mtl_parse/2, Fd, []),
 	    file:close(Fd),
 	    Res;
-	{error,_} -> error
+	{error,Reason} -> error
     end.
 
 mtl_parse(["newmtl",Name0], Ms) ->
@@ -198,6 +211,8 @@ mtl_parse(["Ka"|RGB], Mtl) ->
     mtl_add({ambient,mtl_text_to_tuple(RGB)}, Mtl);
 mtl_parse(["Kd"|RGB], Mtl) ->
     mtl_add({diffuse,mtl_text_to_tuple(RGB)}, Mtl);
+mtl_parse(["map_Kd",Filename], Mtl) ->
+    mtl_add({diffuse_map,Filename}, Mtl);
 mtl_parse([_|_]=Other, [{Name,_}|_]=Mtl) ->
     io:format("Material ~w: ~p\n", [Name,Other]),
     Mtl.

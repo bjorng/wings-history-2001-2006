@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.7 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings.erl,v 1.8 2001/09/14 09:58:02 bjorng Exp $
 %%
 
 -module(wings).
@@ -402,7 +402,7 @@ command({body,cleanup}, St) ->
 command({face,{extrude,Type}}, St) ->
     wings_face_cmd:extrude(Type, St);
 command({face,{extrude_region,Type}}, St) ->
-    wings_face_cmd:extrude_regions(Type, St);
+    wings_face_cmd:extrude_region(Type, St);
 command({face,{extract_region,Type}}, St) ->
     wings_face_cmd:extract_region(Type, St);
 command({face,{flatten,Plane}}, St) ->

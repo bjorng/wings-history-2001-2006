@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.8 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.9 2001/09/14 09:58:03 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
 -export([select_material/2,set_material/2,
-	 extrude/2,extrude_regions/2,extract_region/2,
+	 extrude/2,extrude_region/2,extract_region/2,
 	 inset/1,dissolve/1,smooth/1,bridge/1,
 	 intrude/1,mirror/1,flatten/2]).
 
@@ -47,51 +47,64 @@ set_material(Mat, St) ->
 %%%
 %%% Extrude, Extrude Region, and Inset commands.
 %%%
-extrude(Type, St0) ->
-    St = wings_sel:map(fun extrude_face/2, St0),
-    wings_move:setup(Type, St).
 
-inset(St0) ->
-    St = wings_sel:map(fun extrude_face/2, St0),
-    wings_scale:inset(St).
+extrude(Type, St) ->
+    wings_move:setup(Type, extrude_faces(St)).
 
-%%% Extrude the selected faces.
+inset(St) ->
+    wings_scale:inset(extrude_faces(St)).
 
-extrude_face(Face, We)->
-    Es = get_edges(Face, We),
-    wings_extrude:extrude_face(gb_sets:singleton(Face), Es, We).
-
-get_edges(Face, We) ->
-    wings_face:fold(fun(_, Edge, _, Acc0) ->
-			    [Edge|Acc0]
-		    end, [], Face, We).
+extrude_faces(St) ->
+    wings_sel:map_shape(
+      fun(Faces, We) ->
+	      wings_extrude_face:faces(Faces, We)
+      end, St).
 
 %%% Extrude the selected regions.
 
-extrude_regions(Type, St0) ->
-    St = wings_sel:map_region(fun extrude_region/2, St0),
+extrude_region(Type, St0) ->
+    {St1,Sel0} = wings_sel:mapfold_shape(fun extrude_region/4, [], St0),
+    St = St1#st{sel=reverse(Sel0)},
     wings_move:setup(Type, St).
 
-extrude_region(Faces, We) ->
-    Part = outer_edge_partition(Faces, We),
-    extrude_part(Part, Faces, We).
+extrude_region(Id, Faces0, We0, Acc) ->
+    %% We KNOW that a gb_set with fewer elements sorts before
+    %% a gb_set with more elements.
+    Rs = sort(wings_sel:find_face_regions(Faces0, We0)),
+    {We,Sel} = extrude_region_1(Rs, We0, []),
+    {We,[{Id,Sel}|Acc]}.
 
-extrude_part([P|Ps], Faces, We0) ->
-    We = wings_extrude:extrude_face(Faces, reverse(P), We0),
-    extrude_part(Ps, Faces, We);
-extrude_part([], Faces, We) -> We.
+extrude_region_1([Faces0|Rs0]=Rs, We0, Acc) ->
+    case gb_sets:size(Faces0) of
+	1 ->
+	    [Face] = gb_sets:to_list(Faces0),
+	    extrude_region_1(Rs0, We0, [Face|Acc]);
+	Other ->
+	    We = wings_extrude_face:faces(Acc, We0),
+	    Sel = [gb_sets:from_list(Acc)],
+	    extrude_region_2(Rs, We, Sel)
+    end;
+extrude_region_1([], We0, Faces) ->
+    We = wings_extrude_face:faces(Faces, We0),
+    {We,gb_sets:from_list(Faces)}.
+
+extrude_region_2([Faces|Rs], We0, Sel0) ->
+    {We,Sel} = wings_extrude_face:region(Faces, We0),
+    extrude_region_2(Rs, We, [Sel|Sel0]);
+extrude_region_2([], We, Sel) ->
+    {We,gb_sets:union(Sel)}.
 
 %%%
 %%% The Extract Region command.
 %%%
 
 extract_region(Type, #st{onext=Id0,shapes=Shapes0}=St0) ->
-     St1 = wings_sel:fold_shape(
-	     fun(Sh, Faces, #st{sel=Sel0,onext=Oid}=St0) ->
-		     St = wings_shape:insert(Sh, "extract", St0),
-		     Sel = [{Oid,Faces}|Sel0],
-		     St#st{sel=Sel}
-	     end, St0#st{sel=[]}, St0),
+    St1 = wings_sel:fold_shape(
+	    fun(Sh, Faces, #st{sel=Sel0,onext=Oid}=St0) ->
+		    St = wings_shape:insert(Sh, "extract", St0),
+		    Sel = [{Oid,Faces}|Sel0],
+		    St#st{sel=Sel}
+	    end, St0#st{sel=[]}, St0),
     St2 = wings_sel:inverse(St1),
     St3 = dissolve(St2),
     St = wings_sel:inverse(St3),
@@ -106,14 +119,24 @@ dissolve(St0) ->
     St#st{sel=reverse(Sel)}.
 
 dissolve(Id, Faces0, We0, Acc) ->
-    Rs0 = wings_sel:find_face_regions(Faces0, We0),
-    We = foldl(fun(Faces, W) ->
-		       Parts = outer_edge_partition(Faces, We0),
-		       do_dissolve(Faces, Parts, We0, W)
-	       end, We0, Rs0),
-    Sel = wings_we:new_items(face, We0, We),
+    Rs = wings_sel:find_face_regions(Faces0, We0),
+    {We,Sel0} = dissolve_1(Rs, We0, We0, []),
+    Sel = gb_sets:union(wings_we:new_items(face, We0, We),
+			gb_sets:from_list(Sel0)),
     {We,[{Id,Sel}|Acc]}.
 
+dissolve_1([Faces|Rs], WeOrig, We0, Sel) ->
+    case gb_trees:size(Faces) of
+	1 ->
+	    [Face] = gb_sets:to_list(Faces),
+	    dissolve_1(Rs, WeOrig, We0, [Face|Sel]);
+	Other ->
+	    Parts = outer_edge_partition(Faces, We0),
+	    We = do_dissolve(Faces, Parts, WeOrig, We0),
+	    dissolve_1(Rs, WeOrig, We, Sel)
+    end;
+dissolve_1([], WeOrig, We, Sel) -> {We,Sel}.
+    
 do_dissolve(Faces, Ess, WeOrig, We0) ->
     We1 = dissolve_faces(Faces, We0),
     Inner = wings_face:inner_edges(Faces, WeOrig),

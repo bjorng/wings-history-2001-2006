@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.4 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.5 2001/09/14 09:58:03 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -17,9 +17,9 @@
 	 other/2,vertices/2,
 	 normal/2,face_normal/2,good_normal/2,
 	 to_vertices/2,surrounding_vertices/2,
-	 faces_outside/2,bordering_faces/2,
 	 inner_edges/2,outer_edges/2,
 	 fold/4,fold_faces/4,
+	 bordering_faces/2,
 	 iterator/2,skip_to_edge/2,skip_to_cw/2,skip_to_ccw/2,
 	 next_cw/1,next_ccw/1,
 	 patch_face/3,patch_face/4]).
@@ -178,18 +178,6 @@ face_traverse(Face, Edge, LastEdge, Es, Acc, _) ->
 	#edge{vs=V,rf=Face,rtsu=NextEdge} ->
 	    face_traverse(Face, NextEdge, LastEdge, Es, [V|Acc], done)
     end.
-
-%% faces_outside(FacesGbSet, We) -> FacesGbSet'
-%%  Given a set of faces, return all faces not included in the set,
-%%  but bordering to one of the faces in the set.
-faces_outside(Faces, We) ->
-    fold_faces(fun(Face, _,  _, Rec, A) ->
-		       OtherFace = other(Face, Rec),
-		       case gb_sets:is_member(OtherFace, Faces) of
-			   true -> A;
-			   false -> gb_sets:add(OtherFace, A)
-		       end
-	       end, gb_sets:empty(), Faces, We).
 
 %% bordering_faces(FacesGbSet, We) -> FacesGbSet'
 %%  Given a set of faces, return all faces that are adjacent to

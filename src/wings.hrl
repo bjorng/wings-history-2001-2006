@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.5 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings.hrl,v 1.6 2001/09/14 09:58:02 bjorng Exp $
 %%
 
 -define(WINGS_VERSION, {0,6}).
@@ -16,10 +16,10 @@
 -define(CHAR_HEIGHT, 14).
 -define(CHAR_WIDTH, 7).
 -define(LINE_HEIGHT, (?CHAR_HEIGHT+3)).
--define(GROUND_GRID_SIZE, 10.0).
+-define(GROUND_GRID_SIZE, 1.0).
 -define(CAMERA_DIST, (8*?GROUND_GRID_SIZE)).
 
--define(MOUSE_DIVIDER, (20*?GROUND_GRID_SIZE)).
+-define(MOUSE_DIVIDER, 500).
 
 -define(UNDO_LEVELS, 32).
 -define(HIT_BUF_SIZE, 2048).
@@ -61,7 +61,8 @@
 	 sel,					%Current sel: [{Id,GbSet}]
 	 hsel,					%Hidden sel: GbSet
 	 ssel,					%Saved selection.
-	 mat,					%Defined materials (GbTree)
+	 mat,					%Defined materials (GbTree).
+	 next_tx=100,				%Next OpenGL texture ID.
 	 drag,					%Current drag information or
 						% 'undefined' if no drag
 						% in progress.
@@ -131,15 +132,3 @@
 	{edge,					%Incident edge
 	 pos					%Position ({X,Y,Z})
 	}).
-
-%% Material record.
--record(mat,
-	{ambient={0.0,0.0,0.0},			%Ambient color
-	 diffuse={0.0,0.0,0.0},			%Diffuse color
-	 specular={0.0,0.0,0.0},		%Specular color
-	 shininess=0.0,				%Sinininess (0..1)
-	 opacity=1.0,				%Opacity (0..1)
-	 twosided=false,			%Twosided material.
-	 attr=[],				%Uinterpreted attributes
-	 setup					%Fun for OpenGL drawing
-	 }).

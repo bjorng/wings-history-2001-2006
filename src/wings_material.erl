@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.1 2001/08/14 18:16:39 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.2 2001/09/14 09:58:03 bjorng Exp $
 %%
 
 -module(wings_material).
--export([default/0,add/3,edit/2]).
+-export([default/0,add_materials/2,used_materials/1,apply_material/2,edit/2]).
 
 -include("gl.hrl").
 -include("sdl.hrl").
@@ -20,7 +20,21 @@
 -include("sdl_keyboard.hrl").
 -include("wings.hrl").
 
--import(lists, [sort/1]).
+-import(lists, [sort/1,foldl/3,reverse/1]).
+
+%% Material record.
+-record(mat,
+	{ambient={0.0,0.0,0.0},			%Ambient color
+	 diffuse={0.0,0.0,0.0},			%Diffuse color
+	 specular={0.0,0.0,0.0},		%Specular color
+	 shininess=0.0,				%Sinininess (0..1)
+	 opacity=1.0,				%Opacity (0..1)
+	 twosided=false,			%Twosided material.
+	 diffuse_map=none,			%Diffuse map.
+	 diffuse_map_dl=none,			%Diffuse map.
+	 attr=[],				%Uinterpreted attributes
+	 setup					%Fun for OpenGL drawing
+	 }).
 
 default() ->
     M0 = [{default,wings_util:share(0.5, 0.5, 0.5)},
@@ -40,23 +54,106 @@ make_default({R,G,B}) ->
     setup_fun(#mat{ambient=Color,diffuse=Color,specular=White,
 		   shininess=0.0,opacity=Opacity}).
 
+add_materials([{Name,Prop}|Ms], St0) ->
+    Mat0 = translate_mat(Prop, #mat{}),
+    {Mat,St1} = init_texture(Mat0, St0),
+    St = add(Name, Mat, St1),
+    add_materials(Ms, St);
+add_materials([], St) -> St.
+
+translate_mat([{ambient,RGB}|T], Mat) ->
+    translate_mat(T, Mat#mat{ambient=RGB});
+translate_mat([{diffuse,RGB}|T], Mat) ->
+    translate_mat(T, Mat#mat{diffuse=RGB});
+translate_mat([{specular,RGB}|T], Mat) ->
+    translate_mat(T, Mat#mat{specular=RGB});
+translate_mat([{shininess,RGB}|T], Mat) ->
+    translate_mat(T, Mat#mat{shininess=RGB});
+translate_mat([{opacity,RGB}|T], Mat) ->
+    translate_mat(T, Mat#mat{opacity=RGB});
+translate_mat([{twosided,Boolean}|T], Mat) ->
+    translate_mat(T, Mat#mat{twosided=Boolean});
+translate_mat([{diffuse_map,{W,H,Bits}=Tx}|T], Mat) when binary(Bits) ->
+    translate_mat(T, Mat#mat{diffuse_map=Tx});
+translate_mat([{diffuse_map,Name}|T], Mat) ->
+    case catch loadTexture(Name) of
+	{'EXIT',R} -> translate_mat(T, Mat);
+	{W,H,Bits}=Tx -> translate_mat(T, Mat#mat{diffuse_map=Tx})
+    end;
+translate_mat([Other|T], #mat{attr=Attr}=Mat) ->
+    translate_mat(T, Mat#mat{attr=[Other|Attr]});
+translate_mat([], Mat) -> Mat.
+
 add(Name, Mat0, #st{mat=MatTab}=St) ->
     Mat = setup_fun(Mat0),
     St#st{mat=gb_trees:enter(Name, Mat, MatTab)}.
 
 setup_fun(Mat) ->
     #mat{ambient=Amb0,diffuse=Diff0,specular=Spec0,
-	 shininess=Shine,opacity=Opac} = Mat,
+	 shininess=Shine,opacity=Opac,diffuse_map_dl=Dmap} = Mat,
     Amb = erlang:append_element(Amb0, Opac),
     Diff = erlang:append_element(Diff0, Opac),
     Spec = erlang:append_element(Spec0, Opac),
     F = fun() ->
+		if
+		    Dmap =:= none ->
+			gl:enable(?GL_TEXTURE_2D);
+		    true ->
+			gl:enable(?GL_TEXTURE_2D),
+			gl:texEnvi(?GL_TEXTURE_ENV,
+				   ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+			gl:bindTexture(?GL_TEXTURE_2D, Dmap),
+			gl:texParameteri(?GL_TEXTURE_2D,
+					 ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
+			gl:texParameteri(?GL_TEXTURE_2D,
+					 ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
+			gl:texParameteri(?GL_TEXTURE_2D,
+					 ?GL_TEXTURE_WRAP_S, ?GL_CLAMP),
+			gl:texParameteri(?GL_TEXTURE_2D,
+					 ?GL_TEXTURE_WRAP_T, ?GL_CLAMP)
+		end,
 		gl:materialfv(?GL_FRONT, ?GL_AMBIENT, Amb),
 		gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
 		gl:materialfv(?GL_FRONT, ?GL_SPECULAR, Spec),
 		gl:materialfv(?GL_FRONT, ?GL_SHININESS, (1.0-Shine)*128.0)
 	end,
     Mat#mat{setup=F}.
+
+apply_material(Mat, Mtab) when atom(Mat) ->
+    #mat{setup=Setup} = gb_trees:get(Mat, Mtab),
+    Setup();
+apply_material([Mat|_], Mtab) ->
+    apply_material(Mat, Mtab).
+
+%%% Returns the materials used.
+
+used_materials(#st{mat=Mat0}=St) ->
+    Used0 = wings_util:fold_shape(
+	      fun(#shape{sh=#we{fs=Ftab}}, A) ->
+		      used_materials_1(Ftab, A)
+	      end, gb_sets:empty(), St),
+    Used1 = sofs:from_external(gb_sets:to_list(Used0), [name]),
+    Mat = sofs:relation(gb_trees:to_list(Mat0), [{name,data}]),
+    Used = sofs:restriction(Mat, Used1),
+    [to_external(M) || M <- sofs:to_external(Used)].
+
+used_materials_1(Ftab, Acc) ->
+    foldl(fun(#face{mat=[_|_]=Mat}, A) ->
+		  gb_sets:union(A, gb_sets:from_list(Mat));
+	     (#face{mat=Mat}, A) ->
+		  gb_sets:add(Mat, A)
+	  end, Acc, gb_trees:values(Ftab)).
+
+to_external({Name,#mat{ambient=Amb,diffuse=Diff,specular=Spec,
+		       shininess=Shine,opacity=Opacity,twosided=TwoSided,
+		       diffuse_map=Map,
+		       attr=Attr}}) ->
+    {Name,[{ambient,Amb},{diffuse,Diff},{specular,Spec},
+	   {shininess,Shine},{opacity,Opacity},
+	   {diffuse_map,Map},
+	   {twosided,TwoSided}|Attr]}.
+
+%%% The material editor.
 
 edit(Name, #st{mat=Mtab0}=St) ->
     Mat0 = gb_trees:get(Name, Mtab0),
@@ -68,7 +165,9 @@ edit_1(Name, Mat) ->
     wings_io:draw_completions(
       fun() ->
 	      #mat{ambient=Amb,diffuse=Diff,specular=Spec,
-		   shininess=Shine,opacity=Opac,attr=Attr} = Mat,
+		   shininess=Shine,opacity=Opac,
+		   diffuse_map=Dmap,
+		   attr=Attr} = Mat,
 	      wings_io:text_at(0, 0, format("Material: ~p", [Name])),
 
 	      wings_io:text_at(0, 2*?LINE_HEIGHT, "Ambient:"),
@@ -85,7 +184,9 @@ edit_1(Name, Mat) ->
 				      [round(Shine*100)])),
 	      wings_io:text_at(0, 6*?LINE_HEIGHT,
 			       format("Opacity: ~p%", [round(Opac*100)])),
-	      attr(7*?LINE_HEIGHT, Attr),
+	      wings_io:text_at(0, 7*?LINE_HEIGHT,
+			       format("Diffuse map: ~P", [Dmap,10])),
+	      attr(8*?LINE_HEIGHT, Attr),
 	      gl:flush(),
 	      key(),
 	      Mat
@@ -126,3 +227,40 @@ color_box(X0, Y, Color) ->
     X = X0 * ?CHAR_WIDTH,
     gl:recti(X, Y-?CHAR_HEIGHT+3, X+3*?CHAR_WIDTH, Y+3),
     gl:color3i(0, 0, 0).
+
+%%% Texture support.
+
+init_texture(#mat{diffuse_map={W,H,Bits},diffuse_map_dl=none}=Mat,
+	     #st{next_tx=TxId}=St) ->
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+    gl:enable(?GL_TEXTURE_2D),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_CLAMP),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_CLAMP),
+    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
+		  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits),
+    gl:popAttrib(),
+    {Mat#mat{diffuse_map_dl=TxId},St#st{next_tx=TxId+1}};
+init_texture(Mat, St) -> {Mat,St}.
+
+loadTexture(none) -> exit(no_texture);
+loadTexture(File) ->
+    io:format("Loading ~s\n", [File]),
+    {ok,Bin0} = file:read_file(File),
+    <<$B:8,$M:8,_:8/binary,Offset:32/little,Bin/binary>> = Bin0,
+    <<_:32/little,W:32/little,H:32/little,
+     _:16,BitCount:16/little,Compression:16/little,_/binary>> = Bin,
+    BitCount = 24,
+    Compression = 0,
+    PixelsLen = H*W*3,
+    <<_:Offset/binary,Pixels0:PixelsLen/binary,_/binary>> = Bin0,
+    Pixels = shuffle_colors(Pixels0, []),
+    {W,H,Pixels}.
+
+shuffle_colors(<<B:8,G:8,R:8,T/binary>>, Acc) ->
+    shuffle_colors(T, [[R,G,B]|Acc]);
+shuffle_colors(<<>>, Acc) -> list_to_binary(reverse(Acc)).

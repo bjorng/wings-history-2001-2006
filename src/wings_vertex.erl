@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.7 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.8 2001/09/14 09:58:03 bjorng Exp $
 %%
 
 -module(wings_vertex).
 -export([convert_selection/1,select_more/1,select_less/1,
-	 fold/4,until/4,until/5,other/2,other_pos/3,
+	 fold/4,other/2,other_pos/3,
+	 until/4,until/5,
 	 center/1,center/2,
 	 bounding_box/1,bounding_box/2,bounding_box/3,
 	 normal/2,per_face/2,
@@ -101,7 +102,6 @@ fold(F, Acc0, V, Face, Edge, LastEdge, Etab, _) ->
 		  F(Edge, Face, E, Acc0)
 	  end,
     fold(F, Acc, V, Other, NextEdge, LastEdge, Etab, done).
-
 %%
 %% Fold over all edges/faces surrounding a vertex until the
 %% accumulator changes.
@@ -181,8 +181,13 @@ bounding_box(#we{vs=Vtab}=We, BB) ->
 bounding_box(Vs, We) ->
     bounding_box(Vs, We, none).
     
-bounding_box(Vs0, #we{vs=Vtab}, BB) ->
-    Vs1 = sofs:from_external(gb_sets:to_list(Vs0), [vertex]),
+bounding_box(Vs, We, BB) when list(Vs) ->
+    bounding_box_1(ordsets:from_list(Vs), We, BB);
+bounding_box(Vs, We, BB) ->
+    bounding_box(gb_sets:to_list(Vs), We, BB).
+
+bounding_box_1(Vs0, #we{vs=Vtab}, BB) ->
+    Vs1 = sofs:from_external(Vs0, [vertex]),
     R = sofs:from_external(gb_trees:to_list(Vtab), [{vertex,data}]),
     I = sofs:image(R, Vs1),
     Vs = sofs:to_external(I),

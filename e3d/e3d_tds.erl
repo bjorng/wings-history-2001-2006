@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.4 2001/08/27 07:34:51 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.5 2001/09/14 09:58:02 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -18,6 +18,7 @@
 -include("e3d.hrl").
 
 -import(lists, [map/2,reverse/1,reverse/2,sort/1,foldl/3]).
+-define(FLOAT, float-little).
 
 %%%
 %%% Import.
@@ -58,7 +59,7 @@ main(<<16#B000:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     <<_:Sz/binary,T/binary>> = T0,
     main(T, Acc);
 main(<<Chunk:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    dbg("Ignoring unknown chunk ~p, ~p bytes\n", [Chunk,Sz0]),
+    dbg("Ignoring unknown chunk ~s, ~p bytes\n", [hex4(Chunk),Sz0]),
     Sz = Sz0 - 6,
     <<_:Sz/binary,T/binary>> = T0,
     main(T, Acc);
@@ -95,7 +96,8 @@ block(<<16#4100:16/little,Sz0:32/little,T0/binary>>, no_mesh) ->
     dbg("Triangular mesh ~p~n", [Sz0]),
     Sz = Sz0 - 6,
     <<TriMesh0:Sz/binary,T/binary>> = T0,
-    TriMesh = trimesh(TriMesh0, #e3d_mesh{type=triangle}),
+    TriMesh1 = trimesh(TriMesh0, #e3d_mesh{type=triangle}),
+    TriMesh = clean_mesh(TriMesh1),
     block(T, TriMesh);
 block(<<>>, Acc) -> Acc.
 
@@ -103,7 +105,7 @@ trimesh(<<16#4110:16/little,Sz0:32/little,NumVs:16/little,T0/binary>>, Acc) ->
     dbg("Vertices ~p bytes NumVs=~p\n", [Sz0,NumVs]),
     Sz = Sz0 - 8,
     <<Vs0:Sz/binary,T/binary>> = T0,
-    Vs = get_vectors(Vs0),
+    Vs = get_bin_vectors(Vs0),
     trimesh(T, Acc#e3d_mesh{vs=Vs});
 trimesh(<<16#4120:16/little,Sz0:32/little,NFaces:16/little,T0/binary>>, Acc) ->
     dbg("~p faces, ~p bytes\n", [NFaces,Sz0]),
@@ -115,6 +117,12 @@ trimesh(<<16#4120:16/little,Sz0:32/little,NFaces:16/little,T0/binary>>, Acc) ->
     {Faces,Smooth} = face_desc(Desc, {Faces1,[]}),
     HardEdges = hard_edges(Smooth, Faces),
     trimesh(T, Acc#e3d_mesh{fs=Faces,he=HardEdges});
+trimesh(<<16#4140:16/little,Sz0:32/little,T0/binary>>, Acc) ->
+    dbg("Texture coordinates ~w\n", [Sz0]),
+    Sz = Sz0 - 8,
+    <<_:16,Tx0:Sz/binary,T/binary>> = T0,
+    Tx = get_uv(Tx0),
+    trimesh(T, Acc#e3d_mesh{tx=Tx});
 trimesh(<<16#4160:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Sz = Sz0 - 6,
     <<V1X:32/float-little,V1Y:32/float-little,V1Z:32/float-little,
@@ -132,7 +140,7 @@ trimesh(<<16#4160:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     dbg(" ~p\n", [{V3X,V3Y,V3Z}]),
     trimesh(T, Acc#e3d_mesh{matrix=CS});
 trimesh(<<Chunk:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    dbg("ignoring chunk type ~p, size ~p\n", [Chunk,Sz0]),
+    dbg("Ignoring chunk ~s, size ~p\n", [hex4(Chunk),Sz0]),
     Sz = Sz0 - 6,
     <<_:Sz/binary,T/binary>> = T0,
     trimesh(T, Acc);
@@ -190,7 +198,7 @@ material(<<16#A081:16/little,6:32/little,_:6/binary,T/binary>>,
 material(<<16#A084:16/little,Sz:32/little,T/binary>>, Acc) ->
     mat_chunk(emissive, Sz, T, Acc);
 material(<<Tag:16/little,Sz0:32/little,T0/binary>>, [{Name,Props}|Acc]) ->
-    dbg("Unknown ~p\n", [Tag]),
+    dbg("Unknown material tag ~s\n", [hex4(Tag)]),
     Sz = Sz0 - 6,
     <<Chunk:Sz/binary,T/binary>> = T0,
     material(T, [{Name,[{Tag,Chunk}|Props]}|Acc]);
@@ -232,16 +240,21 @@ get_mat_faces(<<Face:16/little,T/binary>>, Acc) ->
     get_mat_faces(T, [Face|Acc]);
 get_mat_faces(<<>>, Acc) -> reverse(Acc).
 
-get_vectors(Bin) ->
-    get_vectors(Bin, []).
-get_vectors(<<X:32/float-little,Y:32/float-little,Z:32/float-little,T/binary>>, Acc) ->
-    get_vectors(T, [{X,Y,Z}|Acc]);
-get_vectors(<<>>, Acc) -> reverse(Acc).
+get_uv(Bin) ->
+    get_uv(Bin, []).
+get_uv(<<U:32/float-little,V:32/float-little,T/binary>>, Acc) ->
+    get_uv(T, [{U,V}|Acc]);
+get_uv(<<>>, Acc) -> reverse(Acc).
+
+get_bin_vectors(Bin) ->
+    get_bin_vectors(Bin, []).
+get_bin_vectors(<<Pos:12/binary,T/binary>>, Acc) ->
+    get_bin_vectors(T, [Pos|Acc]);
+get_bin_vectors(<<>>, Acc) -> reverse(Acc).
 
 get_faces(Bin) ->
     get_faces(Bin, []).
-get_faces(<<A:16/little,B:16/little,C:16/little,Flag:16/little,T/binary>>,
-	  Acc) ->
+get_faces(<<A:16/little,B:16/little,C:16/little,Flag:16/little,T/binary>>, Acc) ->
     get_faces(T, [#e3d_face{vs=[A,B,C],vis=Flag band 7}|Acc]);
 get_faces(<<>>, Acc) -> reverse(Acc).
 
@@ -283,10 +296,56 @@ hard_edges([], _, Acc) ->
 edge(A, B, SG) when A < B -> {{A,B},SG};
 edge(A, B, SG) -> {{B,A},SG}.
 
-% dbg(_, _) ->
-%      ok;
-dbg(Str, Lst) ->
-    io:format(Str, Lst).
+hex4(Num) ->
+    hex(4, Num, []).
+
+hex(0, Num, Acc) -> Acc;
+hex(N, Num, Acc) ->
+    hex(N-1, Num div 10, [hexd(Num rem 16)|Acc]).
+
+hexd(D) when 0 =< D, D =< 9 -> D+$0;
+hexd(D) when 10 =< D, D =< 16 -> D+$A-10.
+
+clean_mesh(#e3d_mesh{fs=Fs0,vs=Vs0}=Mesh) ->
+    R0 = indexed_relation(0, Vs0, [{old_vertex,pos}]),
+    R = sofs:converse(R0),
+    Fam = sofs:relation_to_family(R),
+    S = set_to_indexed_relation(0, Fam, vertex), %[{vertex,{pos,old_vertex}}]
+
+    Map0 = sofs:projection(fun({V,{_,OVList}}) -> {V,OVList} end, S),
+    Map1 = sofs:family_to_relation(Map0),
+    Map2 = sofs:converse(Map1),
+    Map = gb_trees:from_orddict(sofs:to_external(Map2)),
+
+    Fs = map_faces(Fs0, Map),
+    
+    Vs1 = sofs:to_external(S),
+    Vs = [{X,Y,Z} || {_,{<<X:32/?FLOAT,Y:32/?FLOAT,Z:32/?FLOAT>>,_}} <- Vs1],
+
+    dbg("Vertices: before ~w, after cleaning ~w\n", [length(Vs0),length(Vs)]),
+    Mesh#e3d_mesh{fs=Fs,vs=Vs}.
+
+indexed_relation(I, List, [{IndexType,_}]=Type) when atom(IndexType) ->
+    ISet = make_index(List, I, []),
+    sofs:relation(ISet, Type).
+
+set_to_indexed_relation(I, SofsSet, IndexType) when atom(IndexType) ->
+    [Type] = sofs:type(SofsSet),
+    ISet = make_index(sofs:to_external(SofsSet), I, []),
+    sofs:from_external(reverse(ISet), [{IndexType,Type}]).
+
+make_index([H|T], I, Acc) -> make_index(T, I+1, [{I,H}|Acc]);
+make_index([], I, Acc) -> Acc.
+
+map_faces(Fs, Map) ->
+    map_faces(Fs, Map, []).
+map_faces([#e3d_face{vs=Vs0}=Face|Fs], Map, Acc) ->
+    Vs = [gb_trees:get(V, Map) || V <- Vs0],
+    map_faces(Fs, Map, [Face#e3d_face{vs=Vs,tx=Vs0}|Acc]);
+map_faces([], Map, Acc) -> reverse(Acc).
+
+%%dbg(_, _) -> ok;
+dbg(Format, List) -> io:format(Format, List).
 
 %%%
 %%% Export.

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.7 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.8 2001/09/14 09:58:03 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -152,8 +152,8 @@ faces_to_vertices(Faces, We, Type) ->
 body_to_vertices(Sh, Type) ->
     scale_fun(Sh, Type).
 
-scale_fun(Sh, Type) ->
-    Center = wings_util:center(Sh),
+scale_fun(#shape{sh=We}, Type) ->
+    Center = e3d_vec:average(wings_vertex:bounding_box(We)),
     {Xt0,Yt0,Zt0} = filter_vec(Type, {1.0,1.0,1.0}),
     fun(Sh, Dx, Dy, St) when float(Dx) ->
 	    wings_io:message(lists:flatten(io_lib:format("X:~10p", [Dx]))),
@@ -170,23 +170,14 @@ scale_fun(Sh, Type) ->
 %%% Utilities.
 %%%
 
-scale_vertices(Type, Vs0, #we{vs=Vtab}) ->
+scale_vertices(Type, Vs0, #we{vs=Vtab}=We) ->
     Vs = [{V,wings_vertex:pos(V, Vtab)} || V <- Vs0],
-    Center = find_center(Vs),
+    Center = e3d_vec:average(wings_vertex:bounding_box(Vs0, We)),
     foldl(fun({V,Pos}, Acc) ->
 		  Vec0 = e3d_vec:sub(Pos, Center),
 		  Vec = filter_vec(Type, Vec0),
 		  [{Vec,[V]}|Acc]
 	  end, [], Vs).
-    
-find_center(Vs) ->
-    Zero = 0.0,
-    {Xsum,Ysum,Zsum} =
-	foldl(fun({V,{X,Y,Z}}, {Xacc,Yacc,Zacc}) ->
-		      {Xacc+X,Yacc+Y,Zacc+Z}
-	      end, {Zero,Zero,Zero}, Vs),
-    N = length(Vs),
-    {Xsum/N,Ysum/N,Zsum/N}.
 
 filter_vec(uniform, Vec) -> Vec;
 filter_vec(x, {X,_,_}) -> {X,0,0};

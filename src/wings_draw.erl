@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.5 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.6 2001/09/14 09:58:02 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -192,8 +192,10 @@ draw_smooth_faces(Mtab, We) ->
     draw_smooth_1(Faces, Mtab).
 
 draw_smooth_1([{Mat,Faces}|T], Mtab) ->
-    material(Mat, Mtab),
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    wings_material:apply_material(Mat, Mtab),
     draw_smooth_2(Faces),
+    gl:popAttrib(),
     draw_smooth_1(T, Mtab);
 draw_smooth_1([], Mtab) -> ok.
 
@@ -228,12 +230,6 @@ draw_smooth_2([Vs|Fs]) ->
     gl:'end'(),
     draw_smooth_2(Fs);
 draw_smooth_2([]) -> ok.
-
-material(Mat, Mtab) when atom(Mat) ->
-    #mat{setup=Setup} = gb_trees:get(Mat, Mtab),
-    Setup();
-material([Mat|_], Mtab) ->
-    material(Mat, Mtab).
 
 draw_face(Face, Edge, #we{es=Etab,vs=Vtab}) ->
     gl:'begin'(?GL_POLYGON),

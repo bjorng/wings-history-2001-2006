@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.8 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.9 2001/09/14 09:58:02 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -174,14 +174,15 @@ next_edge(From, V, Face, Edge, Etab) ->
 %%% The Cut command.
 %%%
 
-cut(N, St0) when N > 1 ->
+cut(N, #st{selmode=edge}=St0) when N > 1 ->
     {St,Sel} = wings_sel:mapfold_shape(
 		 fun(Id, Edges, We0, Acc) ->
 			 We = cut_edges(Edges, N, We0),
 			 S = wings_we:new_items(vertex, We0, We),
 			 {We,[{Id,S}|Acc]}
 		 end, [], St0),
-    St#st{selmode=vertex,sel=reverse(Sel)}.
+    St#st{selmode=vertex,sel=reverse(Sel)};
+cut(N, St) -> St.
 
 cut_edges(Edges, N, We0) ->
     gb_sets:fold(fun(Edge, W0) ->
@@ -280,7 +281,7 @@ fast_cut(Edge, Pos, We0) ->
 	       false -> Htab0;
 	       true -> gb_sets:insert(NewEdge, Htab0)
 	   end,
-    {We#we{es=Etab,vs=Vtab,he=Htab},NewV, NewEdge}.
+    {We#we{es=Etab,vs=Vtab,he=Htab},NewV,NewEdge}.
 
 %%%
 %%% The Connect command.

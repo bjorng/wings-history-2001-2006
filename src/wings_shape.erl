@@ -8,14 +8,19 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.3 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.4 2001/09/14 09:58:03 bjorng Exp $
 %%
 
 -module(wings_shape).
--export([insert/3,update/2]).
+-export([new/3,insert/3,update/2]).
 
 -include("wings.hrl").
 -import(lists, [reverse/1,reverse/2]).
+
+new(Prefix, Data, #st{shapes=Shapes0,onext=Oid}=St) ->
+    Sh = #shape{name=Prefix++integer_to_list(Oid),id=Oid,sh=Data},
+    Shapes = gb_trees:insert(Oid, Sh, Shapes0),
+    St#st{shapes=Shapes,onext=Oid+1}.
 
 insert(#shape{name=OldName}=Sh0, Suffix, #st{shapes=Shapes0,onext=Oid}=St) ->
     Name = new_name(OldName, Suffix, Oid),

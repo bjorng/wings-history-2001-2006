@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.9 2001/09/06 12:02:58 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.10 2001/09/14 09:58:03 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -173,75 +173,48 @@ add_materials(UsedMat0, Mat0, St) ->
     Mat1 = sofs:relation(Mat0, [{name,data}]),
     Mat2 = sofs:restriction(Mat1, UsedMat),
     NotDefined0 = sofs:difference(UsedMat, sofs:domain(Mat2)),
-
-    %% XXX Can't use sofs:constant_function/1 yet.
-%     DummyData = sofs:from_term([], data),
-%     NotDefined = sofs:constant_function(NotDefined0, DummyData),
-    NotDefined1 = [{M,[]} || M <- sofs:to_external(NotDefined0)],
-    NotDefined = sofs:relation(NotDefined1, [{name,data}]),
-
+    DummyData = sofs:from_term([], data),
+    NotDefined = sofs:constant_function(NotDefined0, DummyData),
     Mat = sofs:to_external(sofs:union(Mat2, NotDefined)),
-    add_materials(Mat, St).
-    
-add_materials([{Name,Prop}|Ms], St0) ->
-    Mat = translate_mat(Prop, #mat{}),
-    St = wings_material:add(Name, Mat, St0),
-    add_materials(Ms, St);
-add_materials([], St) -> St.
-
-translate_mat([{ambient,RGB}|T], Mat) ->
-    translate_mat(T, Mat#mat{ambient=RGB});
-translate_mat([{diffuse,RGB}|T], Mat) ->
-    translate_mat(T, Mat#mat{diffuse=RGB});
-translate_mat([{specular,RGB}|T], Mat) ->
-    translate_mat(T, Mat#mat{specular=RGB});
-translate_mat([{shininess,RGB}|T], Mat) ->
-    translate_mat(T, Mat#mat{shininess=RGB});
-translate_mat([{opacity,RGB}|T], Mat) ->
-    translate_mat(T, Mat#mat{opacity=RGB});
-translate_mat([{twosided,Boolean}|T], Mat) ->
-    translate_mat(T, Mat#mat{twosided=Boolean});
-translate_mat([Other|T], #mat{attr=Attr}=Mat) ->
-    translate_mat(T, Mat#mat{attr=[Other|Attr]});
-translate_mat([], Mat) -> Mat.
+    wings_material:add_materials(Mat, St).
 
 translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0, St0) ->
     Obj1 = e3d_mesh:clean(Obj0),
     Obj = e3d_mesh:make_quads(Obj1),
-    #e3d_mesh{matrix=Matrix0,type=Type,vs=Vs,fs=Fs0,he=He} = Obj,
+    #e3d_mesh{matrix=Matrix0,type=Type,vs=Vs,tx=Tx0,fs=Fs0,he=He} = Obj,
     io:format("Name ~p\n", [Name]),
     Matrix = case Matrix0 of
-		 none -> e3d_mat:identity();
+		 none -> identity;
 		 _ -> Matrix0
 	     end,
-    {Fs,UsedMat} = translate_faces(Fs0, [], UsedMat0),
+    {Fs,UsedMat,GoodTx} = translate_faces(Fs0, [], UsedMat0, true),
     St = build_object(Name, Matrix, Fs, Vs, He, St0),
     translate_objects(Os, UsedMat, St);
 translate_objects([], UsedMat, St) -> {UsedMat,St}.
 
-translate_faces([#e3d_face{vs=Vs,mat=Mat0}|Fs], Acc, UsedMat0) ->
+translate_faces([#e3d_face{vs=Vs,tx=Tx,mat=Mat0}|Fs], Acc, UsedMat0, GoodTx) ->
     UsedMat = add_used_mat(Mat0, UsedMat0),
     Mat = translate_mat(Mat0),
-    translate_faces(Fs, [{Mat,Vs}|Acc], UsedMat);
-translate_faces([], Acc, UsedMat) ->
-    {Acc,UsedMat}.
+    translate_faces(Fs, [{Mat,Vs}|Acc], UsedMat, tx_flag(GoodTx, Vs, Tx));
+translate_faces([], Acc, UsedMat, GoodTx) -> {Acc,UsedMat,GoodTx}.
 
 add_used_mat([], UsedMat) -> UsedMat;
-add_used_mat([M|Ms], UsedMat) ->
-    add_used_mat(Ms, gb_sets:add(M, UsedMat)).
+add_used_mat([M|Ms], UsedMat) -> add_used_mat(Ms, gb_sets:add(M, UsedMat)).
     
 translate_mat([]) -> default;
 translate_mat([Mat]) -> Mat;
 translate_mat([_|_]=List) -> List.
+
+tx_flag(true, Vs, Vs) -> true;
+tx_flag(_, _, _) -> false.
     
-build_object(Name, Matrix0, Fs0, Vs, He, St0) ->
-    Matrix = e3d_mat:identity(),
-    case wings_we:build(Name, Matrix, Fs0, Vs, He, St0) of
+build_object(Name, Matrix0, Fs, Vs, He, St) ->
+    Matrix = identity,
+    case catch wings_we:build(Matrix, Fs, Vs, He) of
 	{'EXIT',Reason} ->
-	    io:format("~P\n", [Reason,20]),
 	    io:format("Conversion failed\n"),
-	    St0;
-	St -> St
+	    St;
+	We -> wings_shape:new(Name, We, St)
     end.
 
 %%%
@@ -252,7 +225,7 @@ do_export(Mod, Name, St) ->
     Objs = wings_util:fold_shape(fun do_export/2, [], St),
     {Major,Minor} = ?WINGS_VERSION,
     Creator = flatten(io_lib:format("Wings 3D ~p.~p", [Major,Minor])),
-    Mat = export_mat(St),
+    Mat = wings_material:used_materials(St),
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
     Mod:export(Name, Contents).
 
@@ -285,29 +258,3 @@ hard_edges([], Etab, Acc) -> Acc.
 
 hard(A, B) when A < B -> {A,B};
 hard(A, B) -> {B,A}.
-
-export_mat(#st{mat=Mat0}=St) ->
-    Mat = [{Name,export_mat_1(M)} || {Name,M} <- gb_trees:to_list(Mat0)],
-    used_materials(Mat, St).
-
-export_mat_1(#mat{ambient=Amb,diffuse=Diff,specular=Spec,
-		  shininess=Shine,opacity=Opacity,twosided=TwoSided,
-		  attr=Attr}) ->
-    [{ambient,Amb},{diffuse,Diff},{specular,Spec},
-     {shininess,Shine},{opacity,Opacity},{twosided,TwoSided}|Attr].
-
-used_materials(Mat0, St) ->
-    Used0 = wings_util:fold_shape(
-	      fun(#shape{sh=#we{fs=Ftab}}, A) ->
-		      used_materials_1(Ftab, A)
-	      end, gb_sets:empty(), St),
-    Used = sofs:from_external(gb_sets:to_list(Used0), [name]),
-    Mat = sofs:from_external(Mat0, [{name,data}]),
-    sofs:to_external(sofs:restriction(Mat, Used)).
-
-used_materials_1(Ftab, Acc) ->
-    foldl(fun(#face{mat=[_|_]=Mat}, A) ->
-		  gb_sets:union(A, gb_sets:from_list(Mat));
-	     (#face{mat=Mat}, A) ->
-		  gb_sets:add(Mat, A)
-	  end, Acc, gb_trees:values(Ftab)).
