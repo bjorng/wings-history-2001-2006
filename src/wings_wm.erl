@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.30 2002/12/01 11:31:57 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.31 2002/12/02 07:55:54 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -838,6 +838,8 @@ get_menu_event(Mb) ->
 
 menubar_event(redraw, Mb) ->
     menubar_redraw(Mb);
+menubar_event(quit, Mb) ->
+    send(geom, quit);
 menubar_event({action,_}=Action, _) ->
     send(geom, Action);
 menubar_event(clear_menu_selection, Mb) ->
