@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.16 2002/07/26 20:47:07 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.17 2002/08/06 05:53:57 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -58,7 +58,7 @@ menu({tools}, Menu0) ->
 	     ];
 menu(_, Menu) -> Menu.
 
-command({tools, tweak}, St0) ->
+command({tools,tweak}, St0) ->
     Modes = [vertex],
     wings_io:icon_restriction(Modes),
     St = wings_undo:init(St0#st{selmode=vertex,sel=[]}),
@@ -67,8 +67,6 @@ command({tools, tweak}, St0) ->
     help(T),
     wings_wm:dirty(),
     {seq,{push,dummy},update_tweak_handler(T)};
-command({tools,tweak_end,#tweak{orig_st=St,st=#st{shapes=Shs}}}, _) ->
-    St#st{shapes=Shs};
 command(_, _) -> next.
 
 %% Event handler for tweak mode
@@ -93,9 +91,7 @@ handle_tweak_event(Ev, #tweak{st=St}=T) ->
     end.
 
 handle_tweak_event0(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, T) ->
-    wings_io:clear_message(),
-    wings_io:putback_event({action,{tools,tweak_end,T}}),
-    pop;
+    exit_tweak(T);
 handle_tweak_event0(#keyboard{keysym=#keysym{unicode=C}}=Ev, T0) ->
     case magnet_hotkey(C, T0) of
 	none -> handle_tweak_event1(Ev, T0);
@@ -134,19 +130,13 @@ handle_tweak_event1(#mousemotion{state=?SDL_RELEASED},
 		    #tweak{tmode=drag}=T) ->
     end_drag(T);
 handle_tweak_event1(#mousebutton{button=3,state=?SDL_RELEASED}, T) ->
-    wings_io:clear_message(),
-    wings_io:putback_event({action,{tools,tweak_end,T}}),
-    pop;
+    exit_tweak(T);
 handle_tweak_event1({resize,_,_}=Ev, T) ->
-    wings_io:clear_message(),
     wings_io:putback_event(Ev),
-    wings_io:putback_event({action,{tools,tweak_end,T}}),
-    pop;
+    exit_tweak(T);
 handle_tweak_event1(quit=Ev, T) ->
-    wings_io:clear_message(),
     wings_io:putback_event(Ev),
-    wings_io:putback_event({action,{tools,tweak_end,T}}),
-    pop;
+    exit_tweak(T);
 handle_tweak_event1(Ev, #tweak{st=St0}=T) ->
     case wings_hotkey:event(Ev, St0) of
 	{select,less} ->
@@ -173,6 +163,10 @@ handle_tweak_event1(Ev, #tweak{st=St0}=T) ->
 	    update_tweak_handler(T#tweak{st=St});
 	_Ignore -> keep
     end.
+
+exit_tweak(#tweak{orig_st=St,st=#st{shapes=Shs}}) ->
+    wings_io:putback_event({new_state,St#st{shapes=Shs}}),
+    pop.
 
 refresh_dlists(wireframe_selected, _) -> ok;
 refresh_dlists(shade_selected, _) -> ok;
