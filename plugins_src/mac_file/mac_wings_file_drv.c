@@ -4,14 +4,14 @@
  *
  *     Erlang driver for native file dialog boxes for Mac OS X.
  *
- *  Copyright (c) 2001-2002 Patrik Nyblom, Bjorn Gustavsson.
+ *  Copyright (c) 2001-2003 Patrik Nyblom, Bjorn Gustavsson.
  *
  *  Modified to support OSX by Sean Hinde
  *
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: mac_wings_file_drv.c,v 1.11 2002/11/17 16:22:11 bjorng Exp $
+ *     $Id: mac_wings_file_drv.c,v 1.12 2003/06/19 08:21:28 bjorng Exp $
  */
 
 #include <stdio.h>
@@ -107,25 +107,6 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
   switch (command) {
-    case 0: /* Yes/No/Cancel question */
-      {
-	NSString *title = [NSString stringWithCString:buff]; /* Title of window */
-	NSString *text = [NSString stringWithCString:buff + [title length] + 1]; /* Prompt text */
-
-        switch (NSRunAlertPanel(title, text, @"Yes", @"No", @"Cancel")) {
-	case NSAlertDefaultReturn:
-	  strcpy(*res, "yes");
-	  break;
-	case NSAlertAlternateReturn:
-	  strcpy(*res, "no");
-	  break;
-	default:
-	  strcpy(*res, "aborted");
-	  break;
-	}
-	[pool release];
-	return strlen(*res);
-      }
     case 1: /* Open (or import) file */
     case 2: /* Save (or export) file */
       {
@@ -184,14 +165,6 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 	[pool release];
 	return 0;
       }
-    case 3: /* Message box */
-    {
-      NSString *title = [NSString stringWithCString:buff];
-      NSString *text = [NSString stringWithCString:buff + strlen(buff) + 1];
-      NSRunAlertPanel(title, text, nil, nil, nil);	
-      [pool release];
-      return 0;
-    }
     default:
       [pool release];
       return -1; /* Error return, throws exception in erlang */

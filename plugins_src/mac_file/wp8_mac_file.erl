@@ -3,14 +3,14 @@
 %%
 %%     Native file dialog boxes for Mac OS X.
 %%
-%%  Copyright (c) 2001-2002 Patrik Nyblom, Bjorn Gustavsson.
+%%  Copyright (c) 2001-2003 Patrik Nyblom, Bjorn Gustavsson.
 %%
 %%  Changes for OSX by Sean Hinde : 2002/2/18
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.13 2003/05/21 04:58:17 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.14 2003/06/19 08:21:28 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
@@ -21,10 +21,8 @@
 -include("wings.hrl").
 
 %% Operations supported by driver.
--define(OP_QUESTION, 0).
 -define(OP_READ, 1).
 -define(OP_WRITE, 2).
--define(OP_MESSAGE, 3).
 
 init(Next) ->
     case os:type() of
@@ -48,14 +46,6 @@ init(Next) ->
 	    Next
     end.
 
-fileop({question,Question}, _Next) ->
-    wait_for_modifiers_up(),
-    list_to_atom(erlang:port_control(wp8_file_port, ?OP_QUESTION,
-				     ["Wings 3D",0,Question,0]));
-fileop({message,Message}, _Next) ->
-    wait_for_modifiers_up(),
-    Title = "Wings 3D",
-    erlang:port_control(wp8_file_port, ?OP_MESSAGE, [Title,0,Message,0]);
 fileop({file,open_dialog,Prop}, _Next) ->
     Title = proplists:get_value(title, Prop, "Open"),
     file_dialog(?OP_READ, Prop, Title);
@@ -103,7 +93,8 @@ wait_for_modifiers_up() ->
     case sdl_keyboard:getModState() == 0 andalso no_key_pressed() of
 	true -> ok;
 	false ->
-	    sdl_events:peepEvents(16, ?SDL_PEEKEVENT, ?SDL_ALLEVENTS),
+	    receive after 10 -> ok end,
+	    sdl_events:peepEvents(),
 	    wait_for_modifiers_up()
     end.
 
