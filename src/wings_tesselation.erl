@@ -1,50 +1,63 @@
 %%
-%%  wpc_triquad_cmd.erl --
+%%  wings_tesselation.erl --
 %%
-%%     Triangulate, Quadrangulate faces plugin.
+%%     Tesselation/subdivision commands.
 %%
-%%  Copyright (c) 2001 Howard Trickey
-%%		  2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%
+%%     $Id: wings_tesselation.erl,v 1.1 2003/08/21 06:02:51 bjorng Exp $
+%%
 
--module(wpc_triquad_cmd).
-
--export([init/0,menu/2,command/2,tess_faces/3]).
-
--import(lists, [map/2,reverse/1]).
+-module(wings_tesselation).
+-export([submenu/0,command/2]).
+-export([triangulate/1,triangulate/2,quadrangulate/1,quadrangulate/2]).
 
 -include_lib("wings.hrl").
 -include_lib("e3d.hrl").
+-import(lists, [map/2,reverse/1]).
 
-init() -> true.
+submenu() ->
+    [{"Triangulate",triangulate},
+     {"Quadrangulate",quadrangulate}].
 
-menu({face}, Menu0) ->
-    Menu0 ++ [separator,
-	      {"Tesselate",
-	       {tesselate, [{"Triangulate",triangulate},
-			    {"Quadrangulate",quadrangulate}]}}
-	     ];
-menu(_, Menu) -> Menu.
-
-command({face, {tesselate,triangulate}}, St) ->
-    {St1,Sel} = wings_sel:mapfold(fun (Fs,We,A) ->
-					  dofaces(Fs,We,false,A) end,
+command(triangulate, St) ->
+    Action = fun triangulate/2,
+    {St1,Sel} = wings_sel:mapfold(fun(Fs, We, A) ->
+					  do_faces(Action, Fs, We, A) end,
 				  [], St),
-    St1#st{sel=reverse(Sel)};
-command({face, {tesselate,quadrangulate}}, St) ->
-    {St1,Sel} = wings_sel:mapfold(fun (Fs,We,A) ->
-					  dofaces(Fs,We,true,A) end,
+    {save_state,St1#st{sel=reverse(Sel)}};
+command(quadrangulate, St) ->
+    Action = fun quadrangulate/2,
+    {St1,Sel} = wings_sel:mapfold(fun(Fs, We, A) ->
+					  do_faces(Action, Fs, We, A) end,
 				  [], St),
-    St1#st{sel=reverse(Sel)};
-command(_, _) -> next.
+    {save_state,St1#st{sel=reverse(Sel)}}.
 
-%% First arg is set of Face ids to operate on in We.
-%% Q says whether to quadrangulate (true) or triangulate (false).
-%% Returns modifed We.
-dofaces(Faces, #we{id=Id}=We0, Q, Acc) ->
-    We = tess_faces(gb_sets:to_list(Faces), We0, Q),
+triangulate(#we{fs=Ftab}=We) ->
+    triangulate(gb_trees:keys(Ftab), We).
+
+triangulate(Faces, We) when is_list(Faces) ->
+    tess_faces(Faces, We, false);
+triangulate(Faces, We) ->
+    triangulate(gb_sets:to_list(Faces), We).
+
+quadrangulate(#we{fs=Ftab}=We) ->
+    quadrangulate(gb_trees:keys(Ftab), We).
+
+quadrangulate(Faces, We) when is_list(Faces) ->
+    tess_faces(Faces, We, true);
+quadrangulate(Faces, We) ->
+    quadrangulate(gb_sets:to_list(Faces), We).
+
+%%%
+%%% Internal functions.
+%%%
+
+do_faces(Action, Faces, #we{id=Id}=We0, Acc) ->
+    We = Action(Faces, We0),
     Sel = gb_sets:union(wings_we:new_items(face, We0, We), Faces),
     {We,[{Id,Sel}|Acc]}.
 
@@ -53,7 +66,6 @@ tess_faces([F|T], We, Q) -> tess_faces(T, doface(F, We, Q), Q).
 
 doface(Face, #we{vp=Vtab}=We, Q) ->
     Mat = wings_material:get(Face, We),
-    %%#face{mat=Mat} = gb_trees:get(Face, Ftab),
     Vs = wpa:face_vertices(Face, We),
     Len = length(Vs),
     case (Q and (Len < 5)) orelse (not(Q) and (Len < 4)) of

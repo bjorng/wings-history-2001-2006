@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.98 2003/08/04 19:34:34 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.99 2003/08/21 06:02:51 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -19,6 +19,7 @@
 	 face/2,flat_face/2,flat_face/3,
 	 uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_mat_faces/1,smooth_uv_faces/1,smooth_vcol_faces/1,
+	 unlit_tri/2,unlit_tri/3,
 	 force_flat_color/2,consistent_normal/4]).
 
 -define(NEED_OPENGL, 1).
@@ -702,6 +703,22 @@ smooth_vcol_faces([{_,{N,Vs}}|Fs]) ->
     wings__du:smooth_vcol_face(N, Vs),
     smooth_vcol_faces(Fs);
 smooth_vcol_faces([]) -> ok.
+
+%% Draw a face that is assumed to be a triangle without lighting.
+unlit_tri(Face, #we{fs=Ftab}=We) ->
+    Edge = gb_trees:get(Face, Ftab),
+    unlit_tri(Face, Edge, We).
+
+unlit_tri(Face, Edge, #we{vp=Vtab}=We) ->
+    Vs = wings_face:vertices_cw(Face, Edge, We),
+    unlit_tri_1(Vs, Vtab, []).
+
+unlit_tri_1([V|Vs], Vtab, Acc) ->
+    unlit_tri_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+unlit_tri_1([], _, VsPos) ->
+    %% Send a dummy normal. It will not be used (provided the face
+    %% really is a triangle).
+    wings__du:mat_face([], VsPos).
 
 %%
 %% Utilities.

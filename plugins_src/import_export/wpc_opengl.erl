@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.33 2003/08/20 19:54:09 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.34 2003/08/21 06:02:51 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -227,7 +227,19 @@ update_st(St0, Attr, Shadows) ->
 update_st(We0, SubDiv, Wes, St,AL={Lights,Amb}) ->
     case We0#we.light of
 	none ->
-	    We = sub_divide(SubDiv, We0),
+	    We = case SubDiv of
+		     0 ->
+			 %% If no sub-divisions requested, it is safe to
+			 %% first triangulate and then freeze any mirror.
+			 We1 = wpa:triangulate(We0),
+			 wpa:vm_freeze(We1);
+		     _ ->
+			 %% Otherwise, we must do it in this order
+			 %% (slower if there is a virtual mirror).
+			 We1 = wpa:vm_freeze(We0),
+			 We2 = sub_divide(SubDiv, We1),
+			 wpa:triangulate(We2)
+		 end,
 	    Fast = dlist_mask(We),
 	    {[Smooth,TrL],Tr} = wings_draw:smooth_dlist(We, St),
 	    {[#d{s=Smooth,f=Fast,we=We,tr=Tr,trl=TrL}|Wes],AL};
@@ -249,7 +261,7 @@ dlist_mask(#we{fs=Ftab}=We) ->
     List.
 
 dlist_mask([{Face,Edge}|Fs], We) ->
-    wings_draw_util:flat_face(Face, Edge, We),
+    wings_draw_util:unlit_tri(Face, Edge, We),
     dlist_mask(Fs, We);
 dlist_mask([], _We) -> ok.
 
@@ -323,7 +335,7 @@ draw_all(#r{data=Wes,lights={Ligths,Amb},mat=Mat,shadow=true},false) ->
 	false -> setup_projection_matrix()
     end,
     ?CHECK_ERROR(),
-    %% Carmacks reversed shadow algo.
+    %% Carmack's reversed shadow algorithm
     gl:clearStencil(128),
     disable_lights(),
     gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_FALSE),    
@@ -351,10 +363,10 @@ draw_all(#r{data=Wes,lights={Ligths,Amb},mat=Mat,shadow=true},false) ->
     disable_lights(),
     gl:disable(?GL_LIGHTING),
     %% Blend in the other lights
-    gl:enable(?GL_BLEND),
     Count = 
 	case wings_util:is_gl_ext('GL_ARB_imaging') of
 	    true -> 
+		gl:enable(?GL_BLEND),
 		gl:blendFunc(?GL_CONSTANT_COLOR, ?GL_ONE_MINUS_CONSTANT_COLOR),
 		C = case Amb of
 			none -> 1;
@@ -364,7 +376,7 @@ draw_all(#r{data=Wes,lights={Ligths,Amb},mat=Mat,shadow=true},false) ->
 		gl:blendColor(PerLight,PerLight,PerLight,PerLight),
 		C;
 	    false ->
-		gl:blendFunc(?GL_ONE, ?GL_ONE),
+		gl:disable(?GL_BLEND),
 		0
 	end,
     %% No more depth writes..
@@ -425,6 +437,7 @@ draw_with_shadows({false,LNo}, #l{pos=LPos,l=LRec,s_dl=Shadow}, Wes, _Mats) ->
 
 
 %%%%%%%%%%%%%%%%%%%%
+-ifdef(DEBUG).
 debug_shad(Lists) ->
     %% DEBUG draw shadows...
     gl:stencilFunc(?GL_ALWAYS, 128, 16#FFFFFFFF),
@@ -447,6 +460,7 @@ debug_shad(Lists) ->
     gl:disable(?GL_CULL_FACE),
     gl:polygonMode(?GL_FRONT_AND_BACK,?GL_FILL),
     true.
+-endif.
 
 create_shadow_volume(#l{pos=LPos,l=#light{type=infinite,aim=Aim}}, 
 		     #d{we= We = #we{fs=FTab}}) ->
@@ -458,7 +472,7 @@ create_shadow_volume(#l{pos=LPos,l=#light{type=infinite,aim=Aim}},
     wings_draw_util:begin_end(
       fun() -> foreach(fun(Face) -> 
 			       Edge = gb_trees:get(Face, FTab),
-			       wings_draw_util:flat_face(Face, Edge, We)
+			       wings_draw_util:unlit_tri(Face, Edge, We)
 		       end, FF) 
       end);
 create_shadow_volume(#l{pos=LPos},#d{we= We = #we{fs=FTab}}) ->
@@ -469,7 +483,7 @@ create_shadow_volume(#l{pos=LPos},#d{we= We = #we{fs=FTab}}) ->
     wings_draw_util:begin_end(
       fun() -> foreach(fun(Face) -> 
 			       Edge = gb_trees:get(Face, FTab),
-			       wings_draw_util:flat_face(Face, Edge, We)
+			       wings_draw_util:unlit_tri(Face, Edge, We)
 		       end, FF) 
       end),
     %% Draw bottom cap

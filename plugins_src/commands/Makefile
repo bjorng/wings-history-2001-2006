@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.7 2002/10/15 14:47:12 bjorng Exp $
+#     $Id: Makefile,v 1.8 2003/08/21 06:02:51 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -28,7 +28,6 @@ endif
 
 MODULES= \
 	wpc_region \
-	wpc_triquad_cmd \
 	wpc_turnedge \
 	wpc_tweak
 

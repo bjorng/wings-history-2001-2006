@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.34 2003/08/04 19:34:34 bjorng Exp $
+#     $Id: Makefile,v 1.35 2003/08/21 06:02:51 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -72,6 +72,7 @@ MODULES= \
 	wings_shapes \
 	wings_start \
 	wings_subdiv \
+	wings_tesselation \
 	wings_text \
 	wings_undo \
 	wings_util \

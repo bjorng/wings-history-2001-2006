@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings2.nsi,v 1.10 2003/08/12 09:51:01 bjorng Exp $
+#     $Id: wings2.nsi,v 1.11 2003/08/21 06:02:50 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -51,6 +51,9 @@ Section "ThisNameIsIgnoredSoWhyBother?"
   DeleteRegKey HKLM "SOFTWARE\Ericsson\Erlang\Wings3D"
   DeleteRegValue HKLM "SOFTWARE\Wings 3D" "WerlPath"
   ClearErrors
+
+  ; Delete obsolete files.
+  Delete "$INSTDIR\plugins\commands\wpc_triquad_cmd.beam"
 
   ; Install Erlang/OTP.
   ExecWait "Wings3D.exe --install"

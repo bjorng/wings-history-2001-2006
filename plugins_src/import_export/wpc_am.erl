@@ -2,7 +2,7 @@
 %
 % Howard Trickey
 %
-% $Id: wpc_am.erl,v 1.3 2003/04/21 10:16:55 bjorng Exp $
+% $Id: wpc_am.erl,v 1.4 2003/08/21 06:02:51 bjorng Exp $
 %
 -module(wpc_am).
 -export([init/0,menu/2,command/2]).
@@ -654,7 +654,7 @@ angle(P1, P2, P3) ->
 % and do not have the _hole_ material assigned
 quad(We, TessN) ->
 	Tfaces = tfaces(We, TessN),
-	wpc_triquad_cmd:tess_faces(Tfaces, We, true).
+	wpa:quadrangulate(Tfaces, We).
 
 tfaces(#we{fs=Ftab}=We, TessN) ->
 	It = gb_trees:iterator(Ftab),
