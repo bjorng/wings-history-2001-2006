@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.4 2002/04/21 14:26:08 seanhinde Exp $
+%%     $Id: wpc_wrl.erl,v 1.5 2002/05/03 22:57:45 seanhinde Exp $
 %%
 
 -module(wpc_wrl).
@@ -111,18 +111,18 @@ material(F, Name, Mat_defs, Used) ->
 
 % Note: vrml represents ambient colour as a proportion of 
 % diffuse colour, not in its own right.
-def_material(F, Name, Mat) ->
+def_material(F, Name, Mat0) ->
+    Mat = lookup(opengl, Mat0),
     io:format(F, "      appearance Appearance {\n",[]),
     io:format(F, "        material DEF ~s Material {\n",[clean_id(Name)]),
-    {Ar, Ag, Ab} = lookup(ambient, Mat),
-    {Dr, Dg, Db} = lookup(diffuse, Mat),
+    {Ar, Ag, Ab, O} = lookup(ambient, Mat),
+    {Dr, Dg, Db, _} = lookup(diffuse, Mat),
     io:format(F, "          diffuseColor ~p ~p ~p\n",[Dr, Dg, Db]),
     io:format(F, "          emissiveColor ~p ~p ~p\n",[0.0, 0.0, 0.0]),
-    {Sr, Sg, Sb} = lookup(specular, Mat),
+    {Sr, Sg, Sb, _} = lookup(specular, Mat),
     io:format(F, "          specularColor ~p ~p ~p\n",[Sr, Sg, Sb]),
     Amb = (Ar+Ag+Ab)/3,
     io:format(F, "          ambientIntensity ~p\n",[Amb]),
-    O = lookup(opacity, Mat),
     io:format(F, "          transparency ~p\n",[1.0-O]),
     S = lookup(shininess, Mat),
     io:format(F, "          shininess ~p\n",[S]),
