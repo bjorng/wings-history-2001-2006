@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.37 2004/01/04 15:23:43 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.38 2004/04/16 14:09:41 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -262,8 +262,8 @@ fixup_mat(OpenGL0) ->
     OpenGL = lists:keydelete(diffuse, 1, OpenGL0),
     [{diffuse,{R,G,B,Opacity}}|OpenGL].
 
-mtl_parse(["newmtl",Name0], Ms) ->
-    Name = list_to_atom(Name0),
+mtl_parse(["newmtl"|Name0], Ms) ->
+    Name = list_to_atom(space_concat(Name0)),
     [{Name,[],[]}|Ms];
 mtl_parse(["d",Opacity], Mtl) ->
     mtl_add({opacity,str2float(Opacity)}, Mtl);
