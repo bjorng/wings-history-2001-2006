@@ -3,12 +3,12 @@
 %%
 %%     This module handles picking using OpenGL.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.146 2005/01/08 19:53:35 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.147 2005/01/08 21:01:15 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -337,7 +337,8 @@ marquee_convert_1(Faces0, face, Rect, #we{vp=Vtab}=We) ->
 		     [{V,Face}|A]
 	     end, [], Faces0, We),
     Vfs = wings_util:rel2fam(Vfs0),
-    Kill0 = [Fs || {V,Fs} <- Vfs, not is_inside_rect(gb_trees:get(V, Vtab), Rect)],
+    Kill0 = [Fs || {V,Fs} <- Vfs,
+		   not is_inside_rect(gb_trees:get(V, Vtab), Rect)],
     Kill1 = sofs:set(Kill0, [[face]]),
     Kill = sofs:union(Kill1),
     Faces1 = sofs:from_external(Faces0, [face]),
@@ -393,8 +394,7 @@ marquee_update_sel(Op, Hits0, St) ->
     Hits = sofs:relation_to_family(Hits1),
     marquee_update_sel_1(Op, Hits, St).
 
-marquee_update_sel_1(add, Hits0, #st{sel=Sel0}=St) ->
-    Hits = marquee_filter_hits(Hits0, St),
+marquee_update_sel_1(add, Hits, #st{sel=Sel0}=St) ->
     Sel1 = [{Id,gb_sets:to_list(Items)} || {Id,Items} <- Sel0],
     Sel2 = sofs:from_external(Sel1, [{id,[data]}]),
     Sel3 = sofs:family_union(Sel2, Hits),
@@ -408,18 +408,6 @@ marquee_update_sel_1(delete, Hits, #st{sel=Sel0}=St) ->
     Sel4 = sofs:to_external(Sel3),
     Sel = [{Id,gb_sets:from_list(Items)} || {Id,Items} <- Sel4, Items =/= []],
     St#st{sel=Sel}.
-
-%% Filter out any mirror face from the hits.
-marquee_filter_hits(Hits0, #st{selmode=face,shapes=Shs}) ->
-    Type = sofs:type(Hits0),
-    Hits = map(fun({Id,Faces}=Hit) ->
-		case gb_trees:get(Id, Shs) of
-		    #we{mirror=none} -> Hit;
-		    #we{mirror=Face} -> {Id,delete(Face, Faces)}
-		end
-	       end, sofs:to_external(Hits0)),
-    sofs:from_external(Hits, Type);
-marquee_filter_hits(Hits, _) -> Hits.
 
 %%
 %% Drag picking.
@@ -856,14 +844,13 @@ draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:frontFace(?GL_CCW),
     D.
 
-draw_1(#dlo{ns=Ns0,src_we=#we{perm=Perm,mirror=Mirror}=We})
+draw_1(#dlo{ns=Ns0,src_we=#we{perm=Perm}=We})
   when ?IS_SELECTABLE(Perm) ->
     Ns = wings_we:visible(gb_trees:to_list(Ns0), We),
     gl:pushName(0),
-    foreach(fun({Face,Info}) when Face =/= Mirror ->
+    foreach(fun({Face,Info}) ->
 		    gl:loadName(Face),
-		    face(Info);
-	       (_) -> ok
+		    face(Info)
 	    end, Ns),
     gl:popName();
 draw_1(_) -> ok.
