@@ -8,17 +8,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.19 2004/11/12 05:29:33 bjorng Exp $
+%%     $Id: user_default.erl,v 1.20 2004/12/16 11:00:43 bjorng Exp $
 %% 
 
 -module(user_default).
 
 -export([help/0,wh/0,
-	 wx/0,wxe/0,wxu/1,wxu/3,wxunref/0,wxundef/0,
+	 wx/0,wxe/0,wxu/1,wxu/3,wxunref/0,wxundef/0,wcs/0,
 	 wldiff/1,
 	 lm/0,mm/0]).
 
--import(lists, [foldl/3]).
+-import(lists, [foldl/3,foreach/2]).
 
 help() ->
     shell_default:help(),
@@ -37,6 +37,7 @@ wh() ->
     p("wxundef()  -- print calls to undefined functions\n"),
     p("wxu(M)     -- print uses of module M\n"),
     p("wxu(M, F, A) -- print uses of M:F/A\n"),
+    p("wcs()      -- print strong components\n"),
     p("** Language support **\n"),
     p("wldiff(Lang) -- diff language files against English templates\n"),
     ok.
@@ -71,6 +72,13 @@ wxu({M,_,_}=MFA) ->
 wxu(M, F, A) ->
     MFA = {M,F,A},
     result(xref:q(s, make_query("domain(E || ~p) - ~p", [MFA,M]))).
+
+wcs() ->
+    print_components(xref:q(s, make_query("components ME", []))).
+
+print_components({ok,Cs}) ->
+    foreach(fun(C) -> io:format("~p\n", [C]) end, Cs);
+print_components(Other) -> Other.
 
 wxundef() ->
     xref:analyze(s, undefined_function_calls).
