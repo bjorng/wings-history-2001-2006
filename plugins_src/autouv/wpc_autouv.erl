@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.295 2005/03/10 10:52:55 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.296 2005/03/10 22:15:51 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -21,7 +21,7 @@
 -include("auv.hrl").
  
 -export([init/0,menu/2,command/2,redraw/1]).
-
+-export([handle_event/2]). %% Debug
 -import(lists, [sort/1,keysort/2,map/2,foldl/3,reverse/1,
 		append/1,delete/2,usort/1,max/1,min/1,
 		member/2,foreach/2,keysearch/3]).
@@ -40,23 +40,19 @@ menu({body}, Menu) ->
 	true ->
 	    Menu;
 	false ->
-	    Menu ++ [separator,
-		     auv_menu()
-		    ]
+	    Menu ++ [separator,auv_menu()]
     end;
 menu({face}, Menu) ->
     case wpc_snap:active() of
 	true ->
 	    Menu;
 	false ->
-	    Menu ++ [separator,
-		     auv_menu()
-		    ]
+	    Menu ++ [separator,auv_menu()]
     end;
 menu({window}, Menu) ->
     Menu ++ [separator,
 	     {"UV Editor Window",uv_editor_window,
-	     "Open a UV Editor window for each selected object"}];
+	      "Open a UV Editor window for each selected object"}];
 menu(_Dbg, Menu) ->
     Menu.
 
@@ -79,6 +75,7 @@ command(_, _) -> next.
 window(St) ->
     start_uvmap(edit, St).
 
+start_uvmap(edit, #st{sel=[]}) -> wings_u:error("Nothing selected");
 start_uvmap(Action, #st{sel=Sel}=St) ->
     start_uvmap_1(Sel, Action, St).
 
@@ -89,7 +86,6 @@ start_uvmap_1([{Id,_}|T], Action, St) ->
 	false -> start_uvmap_2(Action, Name, Id, St)
     end,
     start_uvmap_1(T, Action, St);
-start_uvmap_1([], edit, _) -> wings_u:error("Nothing selected");
 start_uvmap_1([], _, _) -> keep.
 
 start_uvmap_2(Action, Name, Id, #st{shapes=Shs}=St) ->
@@ -465,7 +461,7 @@ get_event(#st{}=St) ->
 
 get_event_nodraw(#st{}=St) ->
     wings_wm:current_state(St),
-    {replace,fun(Ev) -> handle_event(Ev, St) end}.
+    {replace,fun(Ev) -> ?MODULE:handle_event(Ev, St) end}.
 
 handle_event({crash,Crash}, _) ->
     wings_u:win_crash(Crash),
@@ -484,22 +480,45 @@ handle_event({new_state,St}, _) ->
     new_state(St);
 handle_event(revert_state, St) ->
     get_event(St);
+handle_event({do_tweak, St}, _) ->
+    handle_command(move,St);
+handle_event({cancel_tweak,Ev}, St) ->
+    handle_event_1(Ev,St,wings_msg:free_lmb_modifier());
 handle_event(Ev, St) ->
     case wings_camera:event(Ev, St, fun() -> redraw(St) end) of
 	next ->
 	    FreeLmbMod = wings_msg:free_lmb_modifier(),
-	    handle_event_1(Ev, St, FreeLmbMod);
+	    handle_event_0(Ev, St, FreeLmbMod);
 	Other -> 
 	    Other
     end.
 
-%% Short cut for move selected
-handle_event_1(#mousebutton{state=?SDL_PRESSED,
-			    button=?SDL_BUTTON_LEFT,
-			    mod=Mod},
-	       #st{sel=Sel}=St, FreeLmbMod) 
-  when Sel =/= [], (Mod band FreeLmbMod) =/= 0 ->
-    handle_command(move, St);
+%% Short cut for tweak like move
+handle_event_0(Ev=#mousebutton{state=?SDL_PRESSED,
+			       x=X,y=Y,
+			       button=?SDL_BUTTON_LEFT,
+			       mod=Mod},
+	       #st{sel=Sel}=St0, FreeLmbMod) 
+  when (Mod band 16#0FFF) == 0 -> %% No modifiers
+    case (Sel == []) and wings_pref:get_value(use_temp_sel) of
+	true ->
+	    case wings_pick:do_pick(X, Y, St0) of
+		{add,_,St} -> 
+		    start_tweak(temp_selection, Ev, St);
+		_ -> 
+		    handle_event_1(Ev, St0, FreeLmbMod)
+	    end;
+	false ->
+	    case wings_pick:do_pick(X,Y,St0) of
+		{delete,_,_} ->
+		    start_tweak(selection, Ev, St0);
+		_ -> 
+		    handle_event_1(Ev, St0, FreeLmbMod)
+	    end
+    end;
+handle_event_0(Ev, St, FreeLmbMod) ->
+    handle_event_1(Ev, St, FreeLmbMod).
+
 handle_event_1(Ev, St, _) ->
     case wings_pick:event(Ev, St) of
 	next -> handle_event_2(Ev, St);
@@ -601,20 +620,34 @@ handle_event_3(got_focus, _) ->
     Msg1 = wings_msg:button_format("Select"),
     Msg2 = wings_camera:help(),
     Msg3 = wings_msg:button_format([], [], "Show menu"),
-    FreeMod = wings_msg:free_lmb_modifier(),
-    ModName = wings_msg:mod_name(FreeMod),
-    Move0 = "Move selected",
-    Move = if
-	       (FreeMod band ?CTRL_BITS) =/= 0 ->
-		   [Move0," (release ",ModName," after clicking L)"];
-	       true -> Move0
-	   end,
-    Msg4 = [ModName,$+,wings_msg:button_format(Move)],
-    Message = wings_msg:join([Msg1,Msg2,Msg3,Msg4]),
+    Message = wings_msg:join([Msg1,Msg2,Msg3]),
     wings_wm:message(Message, ""),
     wings_wm:dirty();
 handle_event_3(_Event, _) ->
     keep.
+
+-record(tweak, {type, st, pos, ev}).
+
+start_tweak(Type, Ev = #mousebutton{x=X,y=Y}, St0) ->
+%%    io:format("Activate tweak if motion ~p ~n", [Type]),
+    T = #tweak{type=Type,st=St0,pos={X,Y}, ev=Ev},
+    {seq,push,get_tweak_event(T)}.
+
+get_tweak_event(T) ->
+    {replace,fun(Ev) -> tweak_event(Ev, T) end}.
+tweak_event(#mousemotion{x=X,y=Y}, #tweak{pos={Sx,Sy}, st=St}) ->
+    case (abs(X-Sx) > 2) orelse (abs(Y-Sy) > 2) of
+	true -> 
+	    wings_wm:later({do_tweak,St}),
+	    pop;
+	false ->
+	    keep
+    end;
+tweak_event(Other, #tweak{ev=Ev}) ->
+%%    io:format("quitting in tweak ~W~n",[Other, 6]),
+    wings_wm:later(Other),
+    wings_wm:later({cancel_tweak,Ev}),
+    pop.
 
 new_state(#st{bb=#uvstate{}=Uvs}=St0) ->
     GeomSt = update_geom_selection(St0),
