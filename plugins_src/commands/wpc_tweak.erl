@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.28 2003/02/25 10:21:32 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.29 2003/03/10 06:36:12 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -131,9 +131,10 @@ handle_tweak_event1(#mousemotion{state=?SDL_RELEASED},
     end_drag(T);
 handle_tweak_event1(#mousebutton{button=3,state=?SDL_RELEASED}, T) ->
     exit_tweak(T);
-handle_tweak_event1(init_opengl=Ev, T) ->
-    wings_wm:later(Ev),
-    exit_tweak(T);
+handle_tweak_event1(init_opengl, #tweak{st=St}) ->
+    wings:init_opengl(St),
+    wings_draw:update_dlists(St),
+    keep;
 handle_tweak_event1(quit=Ev, T) ->
     wings_wm:later(Ev),
     exit_tweak(T);
