@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.15 2005/01/15 13:45:22 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.16 2005/01/15 14:08:39 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
@@ -185,7 +185,7 @@ connect(G, We0) ->
     {We,Edges} = foldl(fun(C, {W,A}) ->
 			       connect(C, W, A)
 		       end, {We0,[]}, Cs),
-    foldl(fun(E, W) -> wings_collapse:collapse_edge(E, W) end, We, Edges).
+    wings_collapse:collapse_edges(Edges, We).
 
 connect(C, We0, Acc) ->
     case C of
