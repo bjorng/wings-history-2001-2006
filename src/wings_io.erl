@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.118 2003/11/08 20:59:17 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.119 2003/11/08 21:33:22 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -152,17 +152,7 @@ gradient_border(X0, Y0, Mw, Mh, FillColor, BorderColor)
   when is_integer(X0), is_integer(Y0), is_integer(Mw), is_integer(Mh) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
-    set_color(FillColor),
-    gl:shadeModel(?GL_SMOOTH),
-    gl:'begin'(?GL_QUADS),
-    set_color(FillColor),
-    gl:vertex2f(X0+Mw, Y0+Mh),
-    gl:vertex2f(X0, Y0+Mh),
-    set_color(add_color(FillColor, 0.08)),
-    gl:vertex2f(X0, Y0),
-    gl:vertex2f(X0+Mw, Y0),
-    gl:'end'(),
-    gl:shadeModel(?GL_FLAT),
+    gradient_rect(X0, Y0, Mw, Mh, FillColor),
     set_color(BorderColor),
     gl:'begin'(?GL_LINE_LOOP),
     gl:vertex2f(X, Y+Mh),
@@ -219,17 +209,7 @@ sunken_gradient(X0, Y0, Mw0, Mh0, FillColor, PaneColor) ->
     Y = Y0 + 0.5,
     Mw = Mw0 + 0.5,
     Mh = Mh0 + 0.5,
-    set_color(FillColor),
-    gl:shadeModel(?GL_SMOOTH),
-    gl:'begin'(?GL_QUADS),
-    set_color(FillColor),
-    gl:vertex2f(X0+Mw, Y0+Mh),
-    gl:vertex2f(X0, Y0+Mh),
-    set_color(add_color(FillColor, 0.08)),
-    gl:vertex2f(X0, Y0),
-    gl:vertex2f(X0+Mw, Y0),
-    gl:'end'(),
-%%    gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
+    gradient_rect(X0, Y0, Mw, Mh, FillColor),
     gl:'begin'(?GL_LINES),
     set_color(wings_color:mix(?BEVEL_LOWLIGHT_MIX, {0,0,0}, PaneColor)),
     gl:vertex2f(X, Y+Mh),
@@ -243,6 +223,18 @@ sunken_gradient(X0, Y0, Mw0, Mh0, FillColor, PaneColor) ->
     gl:vertex2f(X, Y+Mh),
     gl:'end'(),
     gl:color3b(0, 0, 0).
+
+gradient_rect(X, Y, W, H, Color) ->
+    gl:shadeModel(?GL_SMOOTH),
+    gl:'begin'(?GL_QUADS),
+    set_color(Color),
+    gl:vertex2f(X+W, Y+H),
+    gl:vertex2f(X, Y+H),
+    set_color(add_color(Color, 0.09)),
+    gl:vertex2f(X, Y),
+    gl:vertex2f(X+W, Y),
+    gl:'end'(),
+    gl:shadeModel(?GL_FLAT).
 
 space_at(X, Y) ->
     set_color(?PANE_COLOR),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.102 2003/11/08 20:59:16 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.103 2003/11/08 21:33:22 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1227,15 +1227,20 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnable) ->
 		    false -> FgColor;
 		    true -> {0.0,0.0,0.75}
 		end,
+    case Active of
+	false -> ok;
+	true -> gl:lineWidth(2.0)
+    end,
     blend(fun(Col) ->
 		  case DisEnable of
 		      disable ->
 			  wings_io:border(X, Y0+2, W, H-4, Col, FgColor);
 		      _ ->
 			  wings_io:gradient_border(X, Y0+2, W, H-4,
-						   Col, BorderCol)
+						   Col, FgColor)
 		  end
 	  end),
+    gl:lineWidth(1.0),
     TextX = X + 2 + (W-wings_text:width(Label)) div 2,
     gl:color3fv(FgColor),
     wings_io:text_at(TextX, Y, Label),
