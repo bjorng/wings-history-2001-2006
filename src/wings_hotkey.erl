@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.15 2002/01/28 21:53:47 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.16 2002/01/30 09:10:43 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -140,11 +140,13 @@ keyname({C,Mods}) ->
 keyname($\b) -> "Bksp";
 keyname($\t) -> "Tab";
 keyname($\s) -> "Space";
+keyname(C) when $a =< C, C =< $z -> [C-32];
+keyname(C) when $A =< C, C =< $Z -> "Shift+" ++ [C];
 keyname(C) when is_integer(C) -> [C].
 
-modname([ctrl|T]) -> "Ctrl-"++modname(T);
-modname([shift|T]) -> "Shift-"++modname(T);
-modname([alt|T]) -> "Alt-"++modname(T);
+modname([ctrl|T]) -> "Ctrl+"++modname(T);
+modname([shift|T]) -> "Shift+"++modname(T);
+modname([alt|T]) -> "Alt+"++modname(T);
 modname([]) -> [].
 
 vkeyname(?SDLK_BACKSPACE) -> "Bksp";
