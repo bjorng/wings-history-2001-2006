@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_matrix.erl,v 1.5 2002/10/17 23:12:16 bjorng Exp $
+%%     $Id: auv_matrix.erl,v 1.6 2002/10/18 10:07:32 bjorng Exp $
 
 -module(auv_matrix).
 
@@ -44,7 +44,7 @@ size(A) ->
 
 %% Exported
 %%
-vector({?TAG,N,A}) ->
+vector({?TAG,_N,A}) ->
     vector_to_list(A, []);
 vector(V) when number(V) ->
     [V];
@@ -241,7 +241,7 @@ trans_mk_col_r([[] | A], B, C) ->
 
 %% Exported
 %%
-mult({?TAG,N,_} = A, {?TAG,1,M,[B]}) ->
+mult({?TAG,_N,_} = A, {?TAG,1,M,[B]}) ->
     mult_trans(A, {?TAG,M,B});
 mult({?TAG,_,K,_} = A, {?TAG,K,_,_} = B) ->
     mult_trans(A, trans(B));
@@ -277,7 +277,7 @@ mult_vec(VecA, [VecB | B], C) ->
 %%
 mult_trans({?TAG,1,M,[A]}, {?TAG,1,M,[B]}) ->
     vec_mult(A, B);
-mult_trans({?TAG,N,M,_} = A, {?TAG,1,M,_} = B) ->
+mult_trans({?TAG,_N,M,_} = A, {?TAG,1,M,_} = B) ->
     mult(A, trans(B));
 mult_trans({?TAG,Na,M,A}, {?TAG,Nb,M,B}) ->
     fix({?TAG,Na,Nb,mult_row(A, B, [])});
@@ -321,7 +321,7 @@ mult_const(F, [Row | A], C) ->
 %% 
 add({?TAG,N,M,A}, {?TAG,N,M,B}) ->
     fix({?TAG,N,M,add_row(A, B, [])});
-add({?TAG,N,A}, {TAG,N,B}) ->
+add({?TAG,N,A}, {?TAG,N,B}) ->
     fix({?TAG,N,vec_add(A, B)});
 add({?TAG,N,1,_} = A, {?TAG,N,B}) ->
     {?TAG,1,N,[C]} = trans(A),
@@ -491,27 +491,7 @@ vec_add(A, B) ->
 vec_add(A, F, B) when float(F) ->
     vec_add(A, F, B, []);
 
-% vec_add([], _, C) ->
-%     lists:reverse(C);
-% vec_add(_, [], C) ->
-%     lists:reverse(C);
-% vec_add([Va | A], [Vb | B], C)
-%   when float(Va), float(Vb) ->
-%     vec_add(A, B, push_v(Va + Vb, C));
-% vec_add(A, [Vb | B], C)
-%   when float(Vb) ->
-%     vec_add(pop_z(A), B, push_v(Vb, C));
-% vec_add([Va | A], B, C)
-%   when float(Va) ->
-%     vec_add(A, pop_z(B), push_v(Va, C));
-% vec_add([Z | A], [Z | B], C) ->
-%     vec_add(A, B, [Z | C]);
-% vec_add([Za | A], [Zb | B], C) when Za < Zb ->
-%     vec_add(A, [Zb-Za | B], [Za | C]);
-% vec_add([Za | A], [Zb | B], C) ->
-%     vec_add([Za-Zb | A], B, [Zb | C]).
-
-vec_add([Va | A] = AA, [Vb | B] = BB, C) when integer(Va) ->
+vec_add([Va | A] = AA, [Vb | B], C) when integer(Va) ->
     if integer(Vb) ->
 	    if Va == Vb ->
 		    vec_add(A, B, push_v(Va, C));
@@ -523,7 +503,7 @@ vec_add([Va | A] = AA, [Vb | B] = BB, C) when integer(Va) ->
        true -> % float(Vb)
 	    vec_add(pop_z(AA), B, push_v(Vb, C))
     end;
-vec_add([Va | A] = AA, [Vb | B] = BB, C) -> % when float(Va)
+vec_add([Va | A], [Vb | B] = BB, C) -> % when float(Va)
     if integer(Vb) ->
 	    vec_add(A, pop_z(BB), push_v(Va, C));
        float(Vb), float(Va) ->
@@ -534,27 +514,7 @@ vec_add([], _, C) ->
 vec_add(_, [], C) ->
     lists:reverse(C).
 
-% vec_add([], _, _, C) ->
-%     lists:reverse(C);
-% vec_add(_, _, [], C) ->
-%     lists:reverse(C);
-% vec_add([Va | A], F, [Vb | B], C)
-%   when float(Va), float(F), float(Vb) ->
-%     vec_add(A, F, B, push_v(Va + F*Vb, C));
-% vec_add(A, F, [Vb | B], C)
-%   when float(F), float(Vb) ->
-%     vec_add(pop_z(A), F, B, push_v(F*Vb, C));
-% vec_add([Va | A], F, B, C)
-%   when float(Va) ->
-%     vec_add(A, F, pop_z(B), push_v(Va, C));
-% vec_add([Z | A], F, [Z | B], C) ->
-%     vec_add(A, F, B, [Z | C]);
-% vec_add([Za | A], F, [Zb | B], C) when Za < Zb ->
-%     vec_add(A, F, [Zb-Za | B], [Za | C]);
-% vec_add([Za | A], F, [Zb | B], C) ->
-%     vec_add([Za-Zb | A], F, B, [Zb | C]).
-
-vec_add([Va | A] = AA, F, [Vb | B] = BB, C) when integer(Va) ->
+vec_add([Va | A] = AA, F, [Vb | B], C) when integer(Va) ->
     if integer(Vb) ->
 	    if Va == Vb ->
 		    vec_add(A, F, B, push_v(Va, C));
@@ -566,7 +526,7 @@ vec_add([Va | A] = AA, F, [Vb | B] = BB, C) when integer(Va) ->
        float(F), float(Vb) ->
 	    vec_add(pop_z(AA), F, B, push_v(F*Vb, C))
     end;
-vec_add([Va | A] = AA, F, [Vb | B] = BB, C) -> % when float(Va)
+vec_add([Va | A], F, [Vb | B] = BB, C) -> % when float(Va)
     if integer(Vb) ->
 	    vec_add(A, F, pop_z(BB), push_v(Va, C));
        float(Vb), float(F), float(Va) ->
@@ -576,8 +536,6 @@ vec_add([], _, _, C) ->
     lists:reverse(C);
 vec_add(_, _, [], C) ->
     lists:reverse(C).
-
-
 
 vec_mult(F, B) when float(F) ->
     vec_mult_const(F, B, []);
@@ -594,10 +552,10 @@ vec_mult_const(_, [], C) ->
 
 vec_mult([Va | A], BB, S) when integer(Va) ->
     vec_mult_pop(Va, A, BB, S);
-vec_mult([Va | A] = AA, [Vb | B] = BB, S) when integer(Vb) ->
+vec_mult([_ | _] = AA, [Vb | B], S) when integer(Vb) ->
     vec_mult_pop(Vb, B, AA, S);
-vec_mult([Va | A], [Vb | B], S) -> %% float(Va), float(Vb)
-    vec_mult(A, B, Va*Vb + S);
+vec_mult([Va | A], [Vb | B], S) when float(Va) ->
+    vec_mult(A, B, Va*Vb+S);
 vec_mult([], _, S) ->
     S;
 vec_mult(_, [], S) ->
