@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.45 2002/05/11 08:47:50 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.46 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -548,12 +548,10 @@ get_matrices(Id) ->
     {ModelMatrix,ProjMatrix,ViewPort}.
 
 mirror_matrix(Id) ->
-    wings_draw_util:update(fun mirror_matrix/2, abs(Id)).
+    wings_draw_util:fold(fun mirror_matrix/2, abs(Id)).
 
-mirror_matrix(eol, _) -> eol;
-mirror_matrix(#dlo{mirror=Matrix,src_we=#we{id=Id}}=D, Id) ->
-    {D,Matrix};
-mirror_matrix(D, Data) -> {D,Data}.
+mirror_matrix(#dlo{mirror=Matrix,src_we=#we{id=Id}}, Id) -> Matrix;
+mirror_matrix(_, Acc) -> Acc.
     
 find_vertex(Face, We, X, Y, Trans) ->
     Vs0 = wings_face:surrounding_vertices(Face, We),

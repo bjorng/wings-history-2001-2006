@@ -8,16 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.20 2002/05/11 08:47:50 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.21 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -module(wings_draw_util).
--export([init/0,tess/0,begin_end/1,update/2,render/1,
+-export([init/0,tess/0,begin_end/1,update/2,map/2,fold/2,render/1,
 	 face/2,face/3,flat_face/2,flat_face/3]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
--import(lists, [reverse/1,foreach/2]).
+-import(lists, [reverse/1,foreach/2,foldl/3]).
 
 -record(du,
 	{dl=[],					%Display lists
@@ -83,7 +83,7 @@ begin_end(Body) ->
     gl:edgeFlag(?GL_TRUE).
 
 %%
-%% Update all display lists.
+%% Update allows addition of new objects at the end.
 %%
 
 update(Fun, Data) ->
@@ -109,14 +109,37 @@ update_1(Fun, [], Data0, Seen0, Acc) ->
 	    Seen = update_seen(D, Seen0),
 	    update_1(Fun, [], Data, Seen, [D|Acc]);
 	eol ->
-	    #du{used=Used0} = Du = get(?MODULE),
-	    Used = gb_sets:from_list(Seen0),
-	    NotUsed = gb_sets:difference(Used0, Used),
-	    foreach(fun(DL) -> gl:deleteLists(DL, 1) end,
-		    gb_sets:to_list(NotUsed)),
-	    put(?MODULE, Du#du{used=Used,dl=reverse(Acc)}),
-	    Data0
+	    update_last(Data0, Seen0, Acc)
     end.
+
+%%
+%% Only allows updating of existing entries.
+%%
+
+map(Fun, Data) ->
+    #du{dl=Dlists} = get(?MODULE),
+    map_1(Fun, Dlists, Data, [], []).
+
+map_1(Fun, [D0|Dlists], Data0, Seen0, Acc) ->
+    case Fun(D0, Data0) of
+	#dlo{}=D ->
+	    Seen = update_seen(D, Seen0),
+	    map_1(Fun, Dlists, Data0, Seen, [D|Acc]);
+	{D,Data} ->
+	    Seen = update_seen(D, Seen0),
+	    map_1(Fun, Dlists, Data, Seen, [D|Acc])
+    end;
+map_1(_Fun, [], Data, Seen, Acc) ->
+    update_last(Data, Seen, Acc).
+
+update_last(Data, Seen, Acc) ->
+    #du{used=Used0} = Du = get(?MODULE),
+    Used = gb_sets:from_list(Seen),
+    NotUsed = gb_sets:difference(Used0, Used),
+    foreach(fun(DL) -> gl:deleteLists(DL, 1) end,
+	    gb_sets:to_list(NotUsed)),
+    put(?MODULE, Du#du{used=Used,dl=reverse(Acc)}),
+    Data.
 
 update_seen(D, Seen) ->
     #dlo{work=F,smooth=Sm1,smoothed=Sm2,hard=Hard,vs=Vs,
@@ -132,6 +155,14 @@ update_seen_1({matrix,_,Dl}, Seen) ->
     update_seen_1(Dl, Seen);
 update_seen_1(Dl, Seen) when is_integer(Dl) ->
     [Dl|Seen].
+
+%%
+%% Fold over dlo list.
+%%
+
+fold(Fun, Acc) ->
+    #du{dl=Dlists} = get(?MODULE),
+    foldl(Fun, Acc, Dlists).
 
 %%
 %% Render from the saved display lists.

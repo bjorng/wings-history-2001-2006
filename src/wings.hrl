@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.57 2002/05/11 08:47:50 bjorng Exp $
+%%     $Id: wings.hrl,v 1.58 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -136,8 +136,9 @@
 	 first_id,				%First ID used
 	 next_id,				%Next free ID for vertices,
 						% edges, and faces
-	 mode					%'vertex'/'material'/'uv'
-	 }).
+	 mode,					%'vertex'/'material'/'uv'
+	 mirror=none				%Mirror: none|Face
+	}).
 
 -define(IS_VISIBLE(Perm), (Perm =< 1)).
 -define(IS_NOT_VISIBLE(Perm), (Perm > 1)).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.140 2002/05/11 08:47:49 bjorng Exp $
+%%     $Id: wings.erl,v 1.141 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -module(wings).
@@ -21,7 +21,6 @@
 
 -import(lists, [foreach/2,map/2,filter/2,foldl/3,sort/1,
 		keymember/3,reverse/1]).
--import(wings_draw, [model_changed/1]).
 
 start() ->
     %% Only for development use.
@@ -152,7 +151,7 @@ redraw(St0) ->
     wings_io:update(St).
 
 clean_state(St) ->
-    caption(wings_draw:model_changed(St)).
+    caption(St).
 
 save_state(St0, St1) ->
     St = wings_undo:save(St0, St1#st{vec=none}),
@@ -208,7 +207,7 @@ handle_event_3(#mousebutton{}, _St) -> keep;
 handle_event_3(#mousemotion{}, _St) -> keep;
 handle_event_3(#resize{w=W,h=H}, St0) ->
     St = resize(W, H, St0),
-    main_loop(model_changed(St));
+    main_loop(St);
 handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(redraw, St) ->
@@ -231,12 +230,9 @@ do_command(Cmd, St0) ->
     case Res of
 	{'EXIT',Reason} -> exit(Reason);
 	{command_error,Error} ->
-	    wings_util:message(Error, St0);
+	    wings_util:message(Error, St1);
 	#st{}=St -> main_loop(St);
-	{drag,Drag} ->
-	    St = model_changed(St0),
-	    {seq,{replace,fun(Event) -> handle_event(Event, St) end},
-	     wings_drag:do_drag(Drag)};
+	{drag,Drag} -> wings_drag:do_drag(Drag);
 	{save_state,#st{}=St} -> save_state(St1, St);
 	{saved,St}=Res ->
 	    main_loop(wings_undo:save(St1, St));
@@ -254,7 +250,7 @@ do_command_1(Cmd, St0) ->
     case wings_plugin:command(Cmd, St0) of
 	next -> command(Cmd, St0);
 	St0 -> St0;
-	#st{}=St -> {save_state,model_changed(St)};
+	#st{}=St -> {save_state,St};
 	Other -> Other
     end.
 
@@ -303,7 +299,7 @@ command({wings,reset}, St0) ->
     St = resize(W, H, St0),
     wings_io:reset_grab(),
     wings_view:command(reset, St),
-    model_changed(St);
+    St;
 
 %% Vector and secondary-selection commands.
 command({vector,What}, St) ->
@@ -314,7 +310,7 @@ command({menu,Menu,X,Y}, St) ->
 command({shape,Shape}, St0) ->
     case wings_shapes:command(Shape, St0) of
     	St0 -> St0;
-	#st{}=St -> {save_state,model_changed(St)};
+	#st{}=St -> {save_state,St};
 	Other -> Other
     end;
 command({help,What}, St) ->
@@ -402,17 +398,17 @@ command({tools,{set_default_axis,{Axis,Point}}}, St) ->
     wings_pref:set_value(default_axis, {Point,Axis}),
     St;
 command({tools,{align,Dir}}, St) ->
-    {save_state,model_changed(wings_align:align(Dir, St))};
+    {save_state,wings_align:align(Dir, St)};
 command({tools,{center,Dir}}, St) ->
-    {save_state,model_changed(wings_align:center(Dir, St))};
+    {save_state,wings_align:center(Dir, St)};
 command({tools,save_bb}, St) ->
     wings_align:copy_bb(St);
 command({tools,{scale_to_bb,Dir}}, St) ->
-    {save_state,model_changed(wings_align:scale_to_bb(Dir, St))};
+    {save_state,wings_align:scale_to_bb(Dir, St)};
 command({tools,{scale_to_bb_prop,Dir}}, St) ->
-    {save_state,model_changed(wings_align:scale_to_bb_prop(Dir, St))};
+    {save_state,wings_align:scale_to_bb_prop(Dir, St)};
 command({tools,{move_to_bb,Dir}}, St) ->
-    {save_state,model_changed(wings_align:move_to_bb(Dir, St))};
+    {save_state,wings_align:move_to_bb(Dir, St)};
 
 %% Objects menu.
 

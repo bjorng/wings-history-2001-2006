@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.26 2002/05/08 10:00:48 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.27 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -17,7 +17,6 @@
 -include("wings.hrl").
 -import(lists, [member/2,keymember/3,foldl/3,mapfoldl/3,
 		reverse/1,last/1,sort/1]).
--import(wings_draw, [model_changed/1]).
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
@@ -44,9 +43,9 @@ menu(X, Y, St) ->
 
 %% Vertex menu.
 command({flatten,Plane}, St) ->
-    {save_state,model_changed(flatten(Plane, St))};
+    {save_state,flatten(Plane, St)};
 command(connect, St) ->
-    {save_state,model_changed(connect(St))};
+    {save_state,connect(St)};
 command(tighten, St) ->
     tighten(St);
 command(bevel, St) ->
@@ -58,9 +57,9 @@ command({deform,Deform}, St0) ->
 command(auto_smooth, St) ->
     wings_body:auto_smooth(St);
 command(dissolve, St) ->
-    {save_state,model_changed(dissolve(St))};
+    {save_state,dissolve(St)};
 command(collapse, St) ->
-    {save_state,model_changed(wings_collapse:collapse(St))};
+    {save_state,wings_collapse:collapse(St)};
 command({move,Type}, St) ->
     wings_move:setup(Type, St);
 command({rotate,Type}, St) ->

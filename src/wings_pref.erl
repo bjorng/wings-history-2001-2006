@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.45 2002/05/11 08:47:50 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.46 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -155,9 +155,8 @@ smart_set_value(Key, Val) ->
     end.
 
 clear_vertex_dlist() ->
-    wings_draw_util:update(fun clear_vertex_dlist/2, []).
+    wings_draw_util:map(fun clear_vertex_dlist/2, []).
 
-clear_vertex_dlist(eol, _) -> eol;
 clear_vertex_dlist(D, _) -> D#dlo{vs=none}.
 
 make_query([_|_]=List)  ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.77 2002/05/11 08:47:50 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.78 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -76,9 +76,8 @@ init_1(Tvs0, Drag0, St) ->
 %% moved).
 %%
 break_apart(Tvs) ->
-    wings_draw_util:update(fun break_apart/2, Tvs).
+    wings_draw_util:map(fun break_apart/2, Tvs).
 
-break_apart(eol, []) -> eol;
 break_apart(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=#we{id=Id}=We0},
 	    [{Id,TvList}|Tvs]) ->
     {Vs0,FunList} = combine_tvs(TvList, We0),
@@ -160,15 +159,14 @@ insert_vtx_data_1([], _Vtab, Acc) -> Acc.
 
 insert_matrix(Tvs) ->
     Id = e3d_mat:identity(),
-    wings_draw_util:update(fun(D, Data) ->
-				   insert_matrix_fun(D, Data, Id)
-			   end, sort(Tvs)).
+    wings_draw_util:map(fun(D, Data) ->
+				insert_matrix_fun(D, Data, Id)
+			end, sort(Tvs)).
 
-insert_matrix_fun(eol, _, _) -> eol;
-insert_matrix_fun(#dlo{work=Work,sel=Sel,wire=W,mirror=M,
+insert_matrix_fun(#dlo{work=Work,sel=Sel,wire=W,
 		       src_sel=SrcSel,src_we=#we{id=Id}=We},
 		  [{Id,Tr}|Tvs], Matrix) ->
-    {#dlo{drag={matrix,Tr,Matrix},work={matrix,Matrix,Work},wire=W,mirror=M,
+    {#dlo{drag={matrix,Tr,Matrix},work={matrix,Matrix,Work},wire=W,
 	  sel={matrix,Matrix,Sel},src_we=We,src_sel=SrcSel},Tvs};
 insert_matrix_fun(D, Tvs, _) -> {D,Tvs}.
 
@@ -324,12 +322,11 @@ view_changed(#drag{flags=Flags}=Drag0) ->
     case member(screen_relative, Flags) of
 	false -> Drag0;
 	true ->
-	    wings_draw_util:update(fun view_changed_fun/2, []),
+	    wings_draw_util:map(fun view_changed_fun/2, []),
 	    {_,X,Y} = sdl_mouse:getMouseState(),
 	    Drag0#drag{x=X,y=Y,xs=0,ys=0}
     end.
 
-view_changed_fun(eol, _) -> eol;
 view_changed_fun(#dlo{work={matrix,Mtx,_},drag={matrix,Tr,_}}=D, _) ->
     {D#dlo{drag={matrix,Tr,e3d_mat:compress(Mtx)}},[]};
 view_changed_fun(#dlo{drag={Tv0,StaticVs},src_we=We}=D, _) ->
@@ -413,12 +410,11 @@ maybe_falloff(_) -> [].
 
 motion_update(Move, Drag) ->
     progress(Move, Drag),
-    wings_draw_util:update(fun(D, _) ->
+    wings_draw_util:map(fun(D, _) ->
 				   motion_update_fun(D, Move)
 			   end, []),
     Drag#drag{new=false}.
 
-motion_update_fun(eol, _) -> eol;
 motion_update_fun(#dlo{work={matrix,_,Work},sel={matrix,_,Sel},
 		       drag={matrix,Trans,Matrix0}}=D, Move) ->
     Matrix = e3d_mat:expand(Trans(Matrix0, Move)),
@@ -436,18 +432,17 @@ motion_update_fun(#dlo{work=[Work|_],src_we=We0,
 motion_update_fun(D, _) -> D.
 
 parameter_update(Key, Val, Drag0) ->
-    wings_draw_util:update(fun(D, _) ->
-				   parameter_update_fun(D, Key, Val)
-			   end, []),
+    wings_draw_util:map(fun(D, _) ->
+				parameter_update_fun(D, Key, Val)
+			end, []),
     {_,X,Y} = sdl_mouse:getMouseState(),
     {Drag,_} = motion(X, Y, Drag0),
     Drag.
 
-parameter_update_fun(eol, _, _) -> eol;
 parameter_update_fun(#dlo{drag={Tv0,StaticVs}}=D, Key, Val) ->
     Tv = foldl(fun(F, A) -> [F(Key, Val)|A] end, [], Tv0),
-    {D#dlo{drag={Tv,StaticVs}},[]};
-parameter_update_fun(D, _, _) -> {D,[]}.
+    D#dlo{drag={Tv,StaticVs}};
+parameter_update_fun(D, _, _) -> D.
 
 translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
     Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
@@ -492,22 +487,22 @@ normalize(#drag{magnet=Type}=Drag) ->
     normalize_1(Drag).
 
 normalize_1(#drag{st=#st{shapes=Shs0}=St}) ->
-    Shs = wings_draw_util:update(fun normalize_fun/2, Shs0),
+    Shs = wings_draw_util:map(fun normalize_fun/2, Shs0),
     St#st{shapes=Shs}.
 
-normalize_fun(eol, _) -> eol;
 normalize_fun(#dlo{drag=none}=D, Shs) -> {D,Shs};
-normalize_fun(#dlo{work={matrix,Matrix,_},src_we=#we{id=Id}=We0}=D, Shs0) ->
+normalize_fun(#dlo{work={matrix,Matrix,_},
+		   src_we=#we{id=Id,mirror=M}=We0}=D, Shs0) ->
     We = wings_we:transform_vs(Matrix, We0),
     Shs = gb_trees:update(Id, We, Shs0),
     case Matrix of
 	{1.0,_,_,_,_,1.0,_,_,_,_,1.0,_,_,_,_,_} ->
 	    %% Keep the display list.
-	    {D#dlo{drag=none,src_we=We},Shs};
+	    {D#dlo{drag=none,src_we=We,mirror=M},Shs};
 	_NotSafe ->
 	    %% Normals could have been scaled. Must reubild
 	    %% the display list.
-	    {D#dlo{work=none,drag=none,src_we=We},Shs}
+	    {D#dlo{work=none,drag=none,src_we=We,mirror=M},Shs}
     end;
 normalize_fun(#dlo{src_we=#we{id=Id,vs=Vtab0}}=D, Shs) ->
     #we{vs=OldVtab0}= We0 = gb_trees:get(Id, Shs),
@@ -531,15 +526,14 @@ norm_update([], Old, Acc) ->
 %%%
 
 redraw(#drag{st=St}) ->
-    wings_draw_util:update(fun clear_sel_dlists/2, []),
+    wings_draw_util:map(fun clear_sel_dlists/2, []),
     wings_draw:update_sel_dlist(),
     wings_draw_util:render(St),
     wings_io:update(St).
 
-clear_sel_dlists(eol, _) -> eol;
-clear_sel_dlists(#dlo{drag=none}=D, _) -> {D,[]};
-clear_sel_dlists(#dlo{drag={matrix,_,_}}=D, _) -> {D,[]};
-clear_sel_dlists(D, _) -> {D#dlo{sel=none},[]}.
+clear_sel_dlists(#dlo{drag=none}=D, _) -> D;
+clear_sel_dlists(#dlo{drag={matrix,_,_}}=D, _) -> D;
+clear_sel_dlists(D, _) -> D#dlo{sel=none}.
 
 draw_faces(#we{fs=Ftab}=We) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),

@@ -8,14 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.33 2002/05/07 09:39:02 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.34 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -module(wings_body).
 -export([menu/3,command/2,convert_selection/1,auto_smooth/1]).
 
 -include("wings.hrl").
--import(wings_draw, [model_changed/1]).
 -import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,seq/2]).
 
 menu(X, Y, St) ->
@@ -56,33 +55,33 @@ menu(X, Y, St) ->
     wings_menu:popup_menu(X, Y, body, Menu, St).
 
 command(invert, St) ->
-    {save_state,model_changed(invert_normals(St))};
+    {save_state,invert_normals(St)};
 command({duplicate,Dir}, St) ->
     duplicate(Dir, St);
 command(delete, St) ->
-    {save_state,model_changed(delete(St))};
+    {save_state,delete(St)};
 command(tighten, St) ->
     tighten(St);
 command(smooth, St) ->
-    ?SLOW({save_state,model_changed(smooth(St))});
+    ?SLOW({save_state,smooth(St)});
 command(combine, St) ->
-    {save_state,model_changed(combine(St))};
+    {save_state,combine(St)};
 command(separate, St) ->
-    {save_state,model_changed(separate(St))};
+    {save_state,separate(St)};
 command(auto_smooth, St) ->
     auto_smooth(St);
 command({auto_smooth,Ask}, St) ->
     auto_smooth(Ask, St);
 command({flip,Plane}, St) ->
-    {save_state,model_changed(flip(Plane, St))};
+    {save_state,flip(Plane, St)};
 command(cleanup, St) ->
     cleanup(false, St);
 command({cleanup,Ask}, St) ->
     cleanup(Ask, St);
 command(strip_texture, St) ->
-    {save_state,model_changed(strip_texture(St))};
+    {save_state,strip_texture(St)};
 command(collapse, St) ->
-    {save_state,model_changed(wings_collapse:collapse(St))};
+    {save_state,wings_collapse:collapse(St)};
 command({move,Type}, St) ->
     wings_move:setup(Type, St);
 command({rotate,Type}, St) ->
@@ -114,7 +113,7 @@ cleanup(Ask, St) when is_atom(Ask) ->
 		  fun(Res) -> {body,{cleanup,Res}} end);
 cleanup(Opts, St0) ->
     St = wings_sel:map(fun(_, We) -> cleanup_1(Opts, We) end, St0),
-    {save_state,model_changed(St)}.
+    {save_state,St}.
 
 cleanup_1([{short_edges,Flag},Tolerance|Opts], We0) ->
     We = case Flag of
@@ -308,7 +307,7 @@ auto_smooth(Ask, St) when is_atom(Ask) ->
     wings_ask:ask(Ask, [{"Crease Angle",60,[{range,{0,180}}]}], St,
 		  fun(Res) -> {body,{auto_smooth,Res}} end);
 auto_smooth([Angle], St) ->
-    {save_state,model_changed(do_auto_smooth(Angle, St))}.
+    {save_state,do_auto_smooth(Angle, St)}.
 
 do_auto_smooth(Angle, St) ->
     Cos = cos_degrees(Angle),

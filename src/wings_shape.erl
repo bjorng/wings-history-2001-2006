@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.18 2002/02/23 18:44:05 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.19 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -143,7 +143,7 @@ update_permission(Perm, Id, #st{shapes=Shs0}=St) ->
     We = gb_trees:get(Id, Shs0),
     Shs = gb_trees:update(Id, We#we{perm=Perm}, Shs0),
     Sel = update_sel(We, St),
-    wings_draw:model_changed(St#st{sel=Sel,shapes=Shs}).
+    St#st{sel=Sel,shapes=Shs}.
 
 hide_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
     Shs1 = map(fun(#we{id=Id}=We) when ThisId =:= Id -> {Id,We};
@@ -152,14 +152,14 @@ hide_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
 	       end, gb_trees:values(Shs0)),
     Shs = gb_trees:from_orddict(Shs1),
     Sel = [This || {Id,_}=This <- Sel0, Id =:= ThisId],
-    wings_draw:model_changed(St#st{shapes=Shs,sel=Sel}).
+    St#st{shapes=Shs,sel=Sel}.
 
 restore_all(#st{shapes=Shs0,sel=Sel0}=St) ->
     Shs1 = gb_trees:values(Shs0),
     Shs2 = [{Id,We#we{perm=0}} || #we{id=Id}=We <- Shs1],
     Shs = gb_trees:from_orddict(Shs2),
     Sel = sort(restore_all_sel(Shs1, St, Sel0)),
-    wings_draw:model_changed(St#st{shapes=Shs,sel=Sel}).
+    St#st{shapes=Shs,sel=Sel}.
 
 restore_all_sel([#we{id=Id,perm={Mode,Set}}|T],
 		#st{selmode=Mode}=St, Acc) ->
@@ -181,7 +181,7 @@ hide_selected(#st{selmode=Mode,shapes=Shs0,sel=Sel}=St) ->
 		       end
 	       end, gb_trees:values(Shs0)),
     Shs = gb_trees:from_orddict(Shs1),
-    wings_draw:model_changed(St#st{shapes=Shs,sel=[]}).
+    St#st{shapes=Shs,sel=[]}.
 
 hide_unselected(St) ->
     update_unsel([], St).
@@ -198,7 +198,7 @@ update_unsel(Perm, #st{shapes=Shs0,sel=Sel}=St) ->
 		  (#we{id=Id}=We) -> {Id,We}
 	       end, gb_trees:values(Shs0)),
     Shs = gb_trees:from_orddict(Shs1),
-    wings_draw:model_changed(St#st{shapes=Shs}).
+    St#st{shapes=Shs}.
 
 get_sel(Id, #st{selmode=Mode,sel=Sel}) ->
     case keysearch(Id, 1, Sel) of

@@ -8,13 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.76 2002/05/11 08:47:50 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.77 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -module(wings_draw).
--export([model_changed/1,
-	 update_dlists/1,
-	 update_sel_dlist/0,
+-export([update_dlists/1,update_sel_dlist/0,
 	 draw_faces/2,
 	 smooth_faces/2,
 	 render/1]).
@@ -24,9 +22,6 @@
 -include("wings.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1]).
-
-model_changed(St) ->
-    St.
 
 %%
 %% Renders all shapes, including selections.
@@ -43,13 +38,14 @@ render(St) ->
 
 update_dlists(#st{selmode=Mode,sel=Sel}=St) ->
     prepare_dlists(St),
-    wings_draw_util:update(fun(D, Data) ->
-				   sel_fun(D, Data, Mode)
-			   end, Sel),
-    wings_draw_util:update(fun(D, _) ->
-				   update_fun(D, St)
+    wings_draw_util:map(fun(D, Data) ->
+				sel_fun(D, Data, Mode)
+			end, Sel),
+    wings_draw_util:map(fun(D, _) ->
+				update_fun(D, St)
 			   end, []),
-    update_sel_dlist().
+    update_sel_dlist(),
+    update_mirror().
 
 prepare_dlists(#st{shapes=Shs}) ->
     wings_draw_util:update(fun prepare_fun/2, gb_trees:values(Shs)).
@@ -62,13 +58,12 @@ prepare_fun(eol, []) ->
     eol;
 prepare_fun(#dlo{src_we=We}=D, [We|Wes]) ->
     {D#dlo{src_we=We},Wes};
-prepare_fun(#dlo{src_we=#we{id=Id},wire=W,mirror=M},
-	    [#we{id=Id,perm=Perm}=We|Wes]) ->
+prepare_fun(#dlo{src_we=#we{id=Id},wire=W}, [#we{id=Id,perm=Perm}=We|Wes]) ->
     if 
 	?IS_VISIBLE(Perm) ->
-	    {#dlo{src_we=We,wire=W,mirror=M},Wes};
+	    {#dlo{src_we=We,wire=W,mirror=check_mirror(We)},Wes};
 	true ->
-	    {#dlo{src_we=empty_we(We),wire=W,mirror=M},Wes}
+	    {#dlo{src_we=empty_we(We),wire=W},Wes}
     end;
 prepare_fun(#dlo{}, Wes) ->
     {deleted,Wes}.
@@ -77,24 +72,42 @@ empty_we(We) ->
     Et = gb_trees:empty(),
     We#we{es=Et,fs=Et,vs=Et,he=gb_sets:empty()}.
 
-sel_fun(eol, _, _) -> eol;
+check_mirror(#we{mirror=none}) -> none;
+check_mirror(#we{fs=Ftab,mirror=Face}) ->
+    case gb_trees:is_defined(Face, Ftab) of
+	false -> none;
+	true -> Face
+    end.
+
 sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
     case SrcSel of
 	{Mode,Items} -> {D,Sel};
 	_ -> {D#dlo{sel=none,normals=none,src_sel={Mode,Items}},Sel}
     end;
-sel_fun(D, Sel, vertex) ->
-    {D#dlo{sel=none,normals=none,src_sel={vertex,gb_sets:empty()}},Sel};
 sel_fun(D, Sel, _) ->
     {D#dlo{sel=none,src_sel=none},Sel}.
 
-update_fun(eol, _) -> eol;
 update_fun(#dlo{work=none,src_we=We}=D, St) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     draw_faces(We, St),
     gl:endList(),
     update_fun(D#dlo{work=List}, St);
+update_fun(#dlo{vs=none,src_we=#we{vs=Vtab}}=D, #st{selmode=vertex}=St) ->
+    UnselDlist = gl:genLists(1),
+    gl:newList(UnselDlist, ?GL_COMPILE),
+    case wings_pref:get_value(vertex_size) of
+	0.0 -> ok;
+	PtSize -> 
+	    gl:pointSize(PtSize),
+	    gl:color3f(0, 0, 0),
+	    gl:'begin'(?GL_POINTS),
+	    foreach(fun(#vtx{pos=Pos}) -> gl:vertex3fv(Pos) end,
+		    gb_trees:values(Vtab)),
+	    gl:'end'()
+    end,
+    gl:endList(),
+    update_fun(D#dlo{vs=UnselDlist}, St);
 update_fun(D, St) ->
     update_fun_2(D, wings_pref:get_value(workmode), St).
 
@@ -130,9 +143,9 @@ update_fun_3(D) ->
     end.
 
 update_sel_dlist() ->
-    wings_draw_util:update(fun(D, _) ->
-				   update_sel(D)
-			   end, []).
+    wings_draw_util:map(fun(D, _) ->
+				update_sel(D)
+			end, []).
 
 update_sel(#dlo{work=Faces,sel=none,src_sel={body,_}}=D) ->
     {D#dlo{sel=Faces},[]};
@@ -218,8 +231,23 @@ update_sel(#dlo{sel=none,src_sel={vertex,Vs}}=D) ->
 	    gl:endList(),
 	    {D#dlo{sel=SelDlist,vs=UnselDlist},[]}
     end;
-update_sel(#dlo{}=D) -> {D,[]};
-update_sel(eol) -> eol.
+update_sel(#dlo{}=D) -> {D,[]}.
+
+update_mirror() ->
+    wings_draw_util:map(fun update_mirror/2, []).
+
+update_mirror(#dlo{mirror=Face,src_we=We}=D, _) when is_integer(Face) ->
+    N = wings_face:normal(Face, We),
+    Vs = wings_face:surrounding_vertices(Face, We),
+    Center = wings_vertex:center(Vs, We),
+    RotBack = e3d_mat:rotate_to_z(N),
+    Rot = e3d_mat:transpose(RotBack),
+    Mat0 = e3d_mat:mul(e3d_mat:translate(Center), Rot),
+    Mat1 = e3d_mat:mul(Mat0, e3d_mat:scale(1.0, 1.0, -1.0)),
+    Mat2 = e3d_mat:mul(Mat1, RotBack),
+    Mat = e3d_mat:mul(Mat2, e3d_mat:translate(e3d_vec:neg(Center))),
+    D#dlo{mirror=e3d_mat:expand(Mat)};
+update_mirror(D, _) -> D.
     
 draw_faces(#we{mode=uv}=We, #st{mat=Mtab}=St) ->
     case wings_pref:get_value(show_textures) of

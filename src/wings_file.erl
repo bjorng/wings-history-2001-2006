@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.60 2002/05/05 07:47:34 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.61 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -21,7 +21,6 @@
 
 -import(lists, [sort/1,reverse/1,flatten/1,foldl/3]).
 -import(filename, [dirname/1]).
--import(wings_draw, [model_changed/1]).
 
 -define(WINGS,    ".wings").
 -define(AUTOSAVE, "_as").
@@ -63,17 +62,17 @@ command(new, St0) ->
     case new(St0) of
 	aborted -> St0;
 	St0 -> St0;
-	St -> {new,model_changed(St)}
+	St -> {new,St}
     end;
 command(open, St0) ->
     case read(St0) of
 	St0 -> St0;
-	St -> {new,model_changed(St)}
+	St -> {new,St}
     end;
 command(merge, St0) ->
     case merge(St0) of
 	St0 -> St0;
-	St -> {save_state,model_changed(St)}
+	St -> {save_state,St}
     end;
 command(save, St) ->
     save(St);
@@ -89,14 +88,14 @@ command(revert, St0) ->
 	{error,Reason} ->
 	    wings_util:error("Revert failed: " ++ Reason),
 	    St0;
-	#st{}=St -> {save_state,model_changed(St)}
+	#st{}=St -> {save_state,St}
     end;
 command({import,ndo}, St0) ->
     case import_ndo(St0) of
 	{warning,Warn,St} ->
 	    wings_util:message(Warn, St),
-	    {save_state,model_changed(St)};
-	St -> {save_state,model_changed(St)}
+	    {save_state,St};
+	St -> {save_state,St}
     end;
 command({export,ndo}, St) ->
     export_ndo(St),
@@ -113,7 +112,7 @@ command(quit, St) ->
 command(Key, St) when is_integer(Key) ->
     Recent = wings_pref:get_value(recent_files, []),
     {_,File} = lists:nth(Key, Recent),
-    {new,model_changed(named_open(File, St))}.
+    {new,named_open(File, St)}.
 
 quit(#st{saved=true}) -> quit;
 quit(St) ->

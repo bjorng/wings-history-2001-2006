@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.43 2002/05/08 09:12:10 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.44 2002/05/12 05:00:53 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -34,7 +34,6 @@
 -include("wings.hrl").
 -import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,
 		seq/2,sort/1]).
--import(wings_draw, [model_changed/1]).
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
@@ -86,17 +85,17 @@ command({extrude,Type}, St) ->
 command(cut_pick, St) ->
     cut_pick(St);
 command({cut,Num}, St) ->
-    {save_state,model_changed(cut(Num, St))};
+    {save_state,cut(Num, St)};
 command(connect, St) ->
-    {save_state,model_changed(connect(St))};
+    {save_state,connect(St)};
 command(dissolve, St) ->
-    {save_state,model_changed(dissolve(St))};
+    {save_state,dissolve(St)};
 command(collapse, St) ->
-    {save_state,model_changed(wings_collapse:collapse(St))};
+    {save_state,wings_collapse:collapse(St)};
 command({hardness,Type}, St) ->
-    {save_state,model_changed(hardness(Type, St))};
+    {save_state,hardness(Type, St)};
 command(loop_cut, St) ->
-    ?SLOW({save_state,model_changed(loop_cut(St))});
+    ?SLOW({save_state,loop_cut(St)});
 command(auto_smooth, St) ->
     wings_body:auto_smooth(St);
 command({move,Type}, St) ->
