@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.7 2001/11/09 13:26:37 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.8 2001/11/14 16:41:12 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -16,7 +16,7 @@
 	 update/1,button/2,
 	 info/1, message/1,clear_message/0,progress/2,
 	 set_current_menu/1,clear_menu_sel/0,
-	 beveled_rect/4,text_at/2,text_at/3,space_at/2,
+	 beveled_rect/4,text_at/2,text_at/3,menu_text/3,space_at/2,
 	 draw_icon/3,draw_icon/5,
 	 draw_message/1,draw_completions/1]).
 -export([putback_event/1,get_event/0,flush_events/0,
@@ -268,6 +268,22 @@ text_at(X, S) ->
 text_at(X, Y, S) ->
     gl:rasterPos2i(X, Y),
     catch wings_text:draw(S).
+
+menu_text(X, Y, S) ->
+    gl:rasterPos2i(X, Y),
+    catch menu_text(S, Y).
+
+menu_text([$&,C|T], Y) ->
+    [X,Y1,_,_] = gl:getIntegerv(?GL_CURRENT_RASTER_POSITION),
+    erlang:display({Y,Y1}),
+    wings_text:char($_),
+    gl:rasterPos2i(X, Y),
+    wings_text:char(C),
+    menu_text(T, Y);
+menu_text([C|T], Y) ->
+    wings_text:char(C),
+    menu_text(T, Y);
+menu_text([], Y) -> ok.
 
 setup_for_drawing(W, H) ->
     ?CHECK_ERROR(),

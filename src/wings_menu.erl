@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.7 2001/10/21 16:03:34 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.8 2001/11/14 16:41:12 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -225,11 +225,11 @@ menu_draw(X, Y, Shortcut, Mw, I, Menu) ->
 	separator ->
 	    draw_separator(X, Y, Mw);
 	{S,Item} when list(S) ->
-	    wings_io:text_at(X, Y, S),
+	    wings_io:menu_text(X, Y, S),
 	    draw_submenu(Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
 	{S1,S2,Item} when list(S1) ->
 	    S = S1 ++ lists:duplicate(Shortcut-length(S1), $\s) ++ S2,
-	    wings_io:text_at(X, Y, S),
+	    wings_io:menu_text(X, Y, S),
 	    draw_submenu(Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3)
     end,
     ?CHECK_ERROR(),
