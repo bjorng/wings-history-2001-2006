@@ -3,12 +3,12 @@
 %%
 %%     Starter of Wings 3D; might enable installed patches.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_start.erl,v 1.3 2002/10/02 15:10:35 bjorng Exp $
+%%     $Id: wings_start.erl,v 1.4 2003/09/17 05:17:35 bjorng Exp $
 %%
 
 -module(wings_start).
@@ -16,16 +16,16 @@
 -export([get_patches/0,enable_patches/0,disable_patches/0]).
 
 start() ->
-    common_start(fun(Root) -> wings:start(Root) end).
+    common_start(fun() -> wings:start() end).
 
 start(Args) ->
-    common_start(fun(Root) -> wings:start_halt(Args, Root) end).
+    common_start(fun() -> wings:start_halt(Args) end).
 
 start_halt() ->
-    common_start(fun(Root) -> wings:start_halt(Root) end).
+    common_start(fun() -> wings:start_halt() end).
 
 start_halt(Args) ->
-    common_start(fun(Root) -> wings:start_halt(Args, Root) end).
+    common_start(fun() -> wings:start_halt(Args) end).
 
 common_start(Start) ->
     case get_patches() of
@@ -33,12 +33,7 @@ common_start(Start) ->
 	{disabled,_} -> ok;
 	{enabled,_} -> code:add_patha(patch_dir())
     end,
-    Root0 = filename:dirname(code:which(?MODULE)),
-    Root = case filename:basename(Root0) of
-	       "ebin" -> filename:dirname(Root0);
-	       _Other -> Root0
-	   end,
-    Start(Root).
+    Start().
 
 get_patches() ->
     Patches = patch_dir(),
@@ -67,9 +62,4 @@ disable_patches() ->
     file:delete(Name).
 
 patch_dir() ->
-    Base0 = filename:dirname(code:which(?MODULE)),
-    Base = case filename:basename(Base0) of
-	       "ebin" -> filename:dirname(Base0);
-	       _Other -> Base0
-	   end,
-    filename:join(Base, "patches").
+    filename:join(code:lib_dir(wings), "patches").

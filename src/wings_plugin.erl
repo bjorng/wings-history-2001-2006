@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.29 2003/09/12 16:32:29 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.30 2003/09/17 05:17:35 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,dialog_result/2,command/2,call_ui/1]).
@@ -44,7 +44,7 @@ init() ->
     ets:new(wings_seen_plugins, [named_table,public,ordered_set]),
     put(wings_plugins, []),
     put(wings_ui, def_ui_plugin()),
-    case try_dir(wings:root_dir(), "plugins") of
+    case try_dir(code:lib_dir(wings), "plugins") of
 	none -> ok;
 	PluginDir -> init_dir(PluginDir)
     end.
@@ -311,7 +311,8 @@ is_plugin(Name) ->
     end.
 
 plugin_dir() ->
-    case try_dir(wings:root_dir(), "plugins") of
+    case try_dir(code:lib_dir(wings), "plugins") of
 	none -> wings_util:error("No \"plugins\" directory found");
 	PluginDir -> PluginDir
     end.
+    

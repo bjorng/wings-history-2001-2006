@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.264 2003/09/02 05:43:08 bjorng Exp $
+%%     $Id: wings.erl,v 1.265 2003/09/17 05:17:35 bjorng Exp $
 %%
 
 -module(wings).
--export([start/1,start_halt/1,start_halt/2]).
--export([root_dir/0,caption/1,redraw/1,redraw/2,init_opengl/1,command/2]).
+-export([start/0,start_halt/0,start_halt/1]).
+-export([caption/1,redraw/1,redraw/2,init_opengl/1,command/2]).
 -export([mode_restriction/1,clear_mode_restriction/0,get_mode_restriction/0]).
 -export([create_toolbar/3]).
 -export([set_temp_sel/2,clear_temp_sel/1]).
@@ -27,21 +27,21 @@
 -import(lists, [foreach/2,map/2,filter/2,foldl/3,sort/1,
 		keymember/3,reverse/1]).
 
-start(Root) ->
-    do_spawn(none, Root).
+start() ->
+    do_spawn(none).
 
-start_halt(Root) ->
-    spawn_halt(none, Root).
+start_halt() ->
+    spawn_halt(none).
 
-start_halt([File|_], Root) ->
-    spawn_halt(File, Root).
+start_halt([File|_]) ->
+    spawn_halt(File).
 
-spawn_halt(File, Root) ->
+spawn_halt(File) ->
     spawn(fun() ->
 		  process_flag(trap_exit, true),
-		  Wings = do_spawn(File, Root, [link]),
+		  Wings = do_spawn(File, [link]),
 		  halt_loop(Wings)
-		  end).
+	  end).
 
 halt_loop(Wings) ->
     receive
@@ -61,29 +61,26 @@ halt_loop(Wings) ->
 	    halt_loop(Wings)
     end.
 
-do_spawn(File, Root) ->
-    do_spawn(File, Root, []).
+do_spawn(File) ->
+    do_spawn(File, []).
 
-do_spawn(File, Root, Flags) ->
+do_spawn(File, Flags) ->
     %% Set a minimal heap size to avoiding garbage-collecting
     %% all the time. Don't set it too high to avoid keeping binaries
     %% too long.
-    Fun = fun() -> init(File, Root) end,
+    Fun = fun() -> init(File) end,
     spawn_opt(erlang, apply, [Fun,[]],
 	      [{fullsweep_after,16384},{min_heap_size,32*1204}|Flags]).
 
-root_dir() ->
-    get(wings_root_dir).
-
-init(File, Root) ->
+init(File) ->
     register(wings, self()),
     os:putenv("SDL_HAS3BUTTONMOUSE", "true"),
     put(wings_os_type, os:type()),
-    put(wings_root_dir, Root),
     sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER bor
 	     ?SDL_INIT_NOPARACHUTE),
-    Icon = locate("wings.icon"),
-    catch sdl_video:wm_setIcon(sdl_video:loadBMP(Icon), null),
+    Ebin = filename:dirname(code:which(?MODULE)),
+    IconFile = filename:join(Ebin, "wings.icon"),
+    catch sdl_video:wm_setIcon(sdl_video:loadBMP(IconFile), null),
     sdl_video:gl_setAttribute(?SDL_GL_DOUBLEBUFFER, 1),
     sdl_events:eventState(?SDL_ALLEVENTS,?SDL_IGNORE),
     sdl_events:eventState(?SDL_MOUSEMOTION, ?SDL_ENABLE),
@@ -192,18 +189,6 @@ free_viewer_num(N) ->
 
 open_file(none) -> ok;
 open_file(Name) -> wings_wm:send(geom, {open_file,Name}).
-
-locate(Name) ->
-    case filelib:is_file(Name) of
-	true -> Name;
-	false ->
-	    Root = root_dir(),
-	    Path = filename:join(Root, Name),
-	    case filelib:is_file(Path) of
-		true -> Path;
-		false -> filename:join([Root,"ebin",Name])
-	    end
-    end.
 
 init_opengl(_) ->
     wings_draw_util:init(),
