@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.28 2002/12/03 15:24:05 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.29 2002/12/04 15:36:37 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -177,7 +177,8 @@ lsqcm(Fs, We) ->
 %%  pass when we generate the whole chart.
 %%
 lsqcm2(Fs, We) ->
-    OVs = gb_sets:from_list(wings_vertex:outer_partition(Fs,We)),    
+    Vs = lists:append(wings_vertex:outer_partition(Fs,We)),
+    OVs = gb_sets:from_list(Vs),    
     IEds = wings_face:inner_edges(Fs,We),
     case has_inner_vs(IEds, OVs, We#we.es) of
 	false ->  %% We don't want the 2pass algo for one face charts..
@@ -199,33 +200,39 @@ has_inner_vs([], _, _) ->
 
 lsqcm2impl(Fs, We) ->
     ?DBG("LSQCM2 => Project and tri ~n", []),
-    {Vs1,Area} = ?TC(project_and_triangulate(Fs,We,-1,[],0.0)),
     {CF, BorderEds} = find_border_edges(Fs,We),
-    ?DBG("BE ~p ~n", [BorderEds]),
-%     {BorderVs, Center0} = 
-% 	lists:mapfoldl(fun({V1,_V2,_E,Dist}, Acc) ->
-% 			      V1p = (gb_trees:get(V1, We#we.vs))#vtx.pos,
-% 			      T = e3d_vec:mul(V1p, Dist),
-% 			      Sum = e3d_vec:add(Acc, T),
-% 			      {{V1, V1p}, Sum}
-% 		      end, e3d_vec:zero(), BorderEds),
-%     Center = e3d_vec:divide(Center0, CF),        
-    BorderVs = [{V1,(gb_trees:get(V1, We#we.vs))#vtx.pos} || {V1,_,_,_} <-BorderEds],
-    Vs = [Vpos || {_,Vpos} <- BorderVs],
-    Center = e3d_vec:average(Vs),    
-    {V1, V2} = ?TC(find_pinned_from_edges(BorderEds, CF, We)),
-    TempFs = create_border_fs(BorderVs, BorderVs, {-1,Center}, 0, []),
-    ?DBG("LSQ2 (1pass) ~p ~p~n", [V1,V2]),
-    PinnedBorder =
-	case ?TC(lsq(TempFs, [V1,V2])) of
-	    {error, What} ->
-		?DBG("TXMAP error (1st pass) ~p~n", [What]),
-		exit({txmap_error1, What});
-	    {ok,Pinned0} ->
-		?DBG("LSQ2 (2pass) ~p ~n", [Pinned0]),
-		lists:keydelete(-1, 1, Pinned0)
-	end,
-     case ?TC(lsq(Vs1, PinnedBorder)) of
+    {P1,P2} = find_pinned_from_edges(BorderEds, CF, We),
+ 
+    FsSet = gb_sets:from_list(Fs),
+    {TempFs,BorderVs} = 
+	lists:foldl(fun({Va,Vb,E,_}, {Faces,Verts}) ->
+			    #edge{lf=LF,rf=RF} = gb_trees:get(E,We#we.es),
+			    case gb_sets:is_member(LF, FsSet) of
+				true ->
+				    {[LF|Faces],[Va,Vb|Verts]};
+				false ->
+				    {[RF|Faces],[Va,Vb|Verts]}
+			    end
+		    end, {[],[]}, BorderEds),
+    BorderVsSet = gb_sets:from_list(BorderVs),
+    TempFsSet = gb_sets:from_list(TempFs),
+    DelFs = gb_sets:difference(FsSet, TempFsSet),
+    %% Create a new face, we are not allowed to have holes, right Bjorn :-)
+    TempWe = wings_face_cmd:dissolve(DelFs, We),
+    InnerFaces = gb_sets:to_list(wings_we:new_items(face, We, TempWe)),
+    ?DBG("BordersFaces ~p ~p ~n", [TempFs, InnerFaces]),
+    {Vs0,_} = ?TC(project_and_triangulate(InnerFaces ++ TempFs,TempWe,-1,[],0.0)), 
+
+    {ok,PBVs}  = lsq(Vs0,[P1,P2]),
+    PinnedBorder = lists:foldl(fun(PV = {Vid, _}, Acc) ->
+				       case gb_sets:is_member(Vid,BorderVsSet) of
+					   true -> [PV|Acc];
+					   false -> Acc
+				       end
+			       end, [], PBVs),
+    ?DBG("LSQ2 (2pass) ~p ~n", [PinnedBorder]),
+    {Vs1,Area} = ?TC(project_and_triangulate(Fs,We,-1,[],0.0)),
+    case ?TC(lsq(Vs1, PinnedBorder)) of
  	{error, What2} ->
  	    ?DBG("TXMAP (second pass) error ~p~n", [What2]),
  	    exit({txmap_error2, What2});
@@ -237,7 +244,49 @@ lsqcm2impl(Fs, We) ->
  	    MappedArea = calc_2dface_area(Fs, We#we{vs=TempVs}, 0.0),	    
  	    Scale = Area/MappedArea,
  	    scaleVs(Vs3,math:sqrt(Scale),[])
-     end.
+    end.
+
+% lsqcm2impl(Fs, We) ->
+%     ?DBG("LSQCM2 => Project and tri ~n", []),
+%     {CF, BorderEds} = find_border_edges(Fs,We),
+%     ?DBG("BE ~p ~n", [BorderEds]),
+% %     {BorderVs, Center0} = 
+% % 	lists:mapfoldl(fun({V1,_V2,_E,Dist}, Acc) ->
+% % 			      V1p = (gb_trees:get(V1, We#we.vs))#vtx.pos,
+% % 			      T = e3d_vec:mul(V1p, Dist),
+% % 			      Sum = e3d_vec:add(Acc, T),
+% % 			      {{V1, V1p}, Sum}
+% % 		      end, e3d_vec:zero(), BorderEds),
+% %     Center = e3d_vec:divide(Center0, CF),        
+%     BorderVs = [{V1,(gb_trees:get(V1, We#we.vs))#vtx.pos} || {V1,_,_,_} <-BorderEds],
+%     Vs = [Vpos || {_,Vpos} <- BorderVs],
+%     Center = e3d_vec:average(Vs),    
+%     {V1, V2} = ?TC(find_pinned_from_edges(BorderEds, CF, We)),
+%     TempFs = create_border_fs(BorderVs, BorderVs, {-1,Center}, 0, []),
+%     ?DBG("LSQ2 (1pass) ~p ~p~n", [V1,V2]),
+%     PinnedBorder =
+% 	case ?TC(lsq(TempFs, [V1,V2])) of
+% 	    {error, What} ->
+% 		?DBG("TXMAP error (1st pass) ~p~n", [What]),
+% 		exit({txmap_error1, What});
+% 	    {ok,Pinned0} ->
+% 		?DBG("LSQ2 (2pass) ~p ~n", [Pinned0]),
+% 		lists:keydelete(-1, 1, Pinned0)
+% 	end,
+%     {Vs1,Area} = ?TC(project_and_triangulate(Fs,We,-1,[],0.0)),
+%     case ?TC(lsq(Vs1, PinnedBorder)) of
+%  	{error, What2} ->
+%  	    ?DBG("TXMAP (second pass) error ~p~n", [What2]),
+%  	    exit({txmap_error2, What2});
+%  	{ok,Vs2} ->
+%  %	    ?DBG("LSQ res ~p~n", [Vs2]),
+%  	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,#vtx{pos={Ut,Vt,0.0}}} end,
+%  	    Vs3 = lists:sort(lists:map(Patch, Vs2)),
+%  	    TempVs = gb_trees:from_orddict(Vs3),
+%  	    MappedArea = calc_2dface_area(Fs, We#we{vs=TempVs}, 0.0),	    
+%  	    Scale = Area/MappedArea,
+%  	    scaleVs(Vs3,math:sqrt(Scale),[])
+%     end.
 
 scaleVs([{Id, #vtx{pos={X,Y,_}}}|Rest],Scale,Acc) 
   when float(X), float(Y), float(Scale) ->
@@ -773,3 +822,52 @@ split(L, 0, R) ->
     {lists:reverse(R), L};
 split([E | L], N, R) ->
     split(L, N-1, [E | R]).
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Texture metric stretch 
+%% From 'Texture Mapping Progressive Meshes' by
+%% Pedro V. Sander, John Snyder Steven J. Gortler, Hugues Hoppe
+
+s(P,P1,P2,P3,Q1,Q2,Q3) ->
+    M1 = e3d_vec:mul(Q1, area2d(P,P2,P3)),
+    M2 = e3d_vec:mul(Q2, area2d(P,P3,P1)),
+    M3 = e3d_vec:mul(Q3, area2d(P,P1,P2)),
+    A = area2d(P1,P2,P3),
+    e3d_vec:divide(e3d_vec:add([M1,M2,M3]),A).
+ 
+ss(P1={_,T1},P2={_,T2},P3={_,T3},Q1,Q2,Q3) 
+  when is_float(T1),is_float(T2),is_float(T3) ->
+    M1 = e3d_vec:mul(Q1, T2-T3),
+    M2 = e3d_vec:mul(Q2, T3-T1),
+    M3 = e3d_vec:mul(Q3, T1-T2),
+    A = area2d(P1,P2,P3),
+    e3d_vec:divide(e3d_vec:add([M1,M2,M3]),2*A).
+    
+st(P1={S1,_},P2={S2,_},P3={S3,_},Q1,Q2,Q3) 
+  when is_float(S1),is_float(S2),is_float(S3) ->
+    M1 = e3d_vec:mul(Q1, S3-S2),
+    M2 = e3d_vec:mul(Q2, S1-S3),
+    M3 = e3d_vec:mul(Q3, S2-S1),
+    A = area2d(P1,P2,P3),
+    e3d_vec:divide(e3d_vec:add([M1,M2,M3]),2*A).
+
+
+tau(P1,P2,P3,Q1,Q2,Q3) ->  %% Max singular value
+    SS = ss(P1,P2,P3,Q1,Q2,Q3),
+    ST = st(P1,P2,P3,Q1,Q2,Q3),
+    A = e3d_vec:dot(SS,SS),
+    B = e3d_vec:dot(SS,ST),
+    C = e3d_vec:dot(ST,ST),
+    math:sqrt(0.5*((A+C)+math:sqrt((A-C)*(A-C)+4*B*B))).
+
+area2d({S1,T1},{S2,T2},{S3,T3})
+  when is_float(S1),is_float(S2),is_float(S3),
+       is_float(T1),is_float(T2),is_float(T3) ->
+    ((S2-S1)*(T3-T1)-(S3-S1)*(T2-T1))/2.
+       
+
+       
+
+
