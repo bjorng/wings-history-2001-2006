@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.68 2003/04/21 10:16:58 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.69 2003/04/23 17:49:05 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -147,7 +147,7 @@ mirror_flatten(#we{mirror=OldFace}=OldWe, #we{mirror=Face,vp=Vtab0}=We) ->
 			 Pos0 = gb_trees:get(V, Vt),
 			 Pos = e3d_mat:mul_point(Flatten, Pos0),
 			 gb_trees:update(V, Pos, Vt)
-		 end, Vtab0, wings_face:surrounding_vertices(Face, We)),
+		 end, Vtab0, wings_face:vertices_ccw(Face, We)),
     We#we{vp=Vtab}.
 
 rel2fam(Rel) ->

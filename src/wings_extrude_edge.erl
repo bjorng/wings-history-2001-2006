@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.41 2003/03/24 19:04:38 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.42 2003/04/23 17:49:02 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -471,7 +471,7 @@ connect_one_inner(Current, A, B, C, N, Face, We0) ->
 
 move_vertices([Face|Fs], #we{vp=Vtab0}=We0) ->
     N = wings_face:normal(Face, We0),
-    Vs = wings_face:surrounding_vertices(Face, We0),
+    Vs = wings_face:vertices_ccw(Face, We0),
     Vtab = move_vertices(Vs, Vs, N, Vtab0, Vtab0),
     We = We0#we{vp=Vtab},
     move_vertices(Fs, We);

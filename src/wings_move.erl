@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Move command.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.43 2003/01/03 06:59:15 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.44 2003/04/23 17:49:04 bjorng Exp $
 %%
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
@@ -182,7 +182,7 @@ average_normals([{Na,Orig,Da}|[{Nb,_,Db}|_]=T]) ->
 
 faces_to_vertices(Faces, #we{vp=Vtab}=We, normal) ->
     Vs = foldl(fun(Face, Acc0) ->
-		       Vs = wings_face:surrounding_vertices(Face, We),
+		       Vs = wings_face:vertices_ccw(Face, We),
 		       face_normal(Vs, Vtab, Acc0)
 	       end, [], gb_sets:to_list(Faces)),
     face_average(Vs, Vtab);

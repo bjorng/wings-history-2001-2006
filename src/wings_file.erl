@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.113 2003/04/23 11:05:51 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.114 2003/04/23 17:49:04 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -688,7 +688,7 @@ make_face(Face, Mat, ColTab, _UvTab, #we{mode=vertex}=We) ->
 		  end, {[],[]}, Face, We),
     #e3d_face{vs=Vs,vc=Cols,mat=make_face_mat(Mat)};
 make_face(Face, Mat, _, _, We) ->
-    Vs = wings_face:surrounding_vertices(Face, We),
+    Vs = wings_face:vertices_ccw(Face, We),
     #e3d_face{vs=Vs,mat=make_face_mat(Mat)}.
 
 make_tables(#we{mode=vertex}=We) ->

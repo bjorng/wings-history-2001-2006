@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.41 2003/04/21 10:16:59 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.42 2003/04/23 17:49:10 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -388,7 +388,7 @@ min_distance_pairs_1(Faces0, Vs0, We0) ->
     end.
 
 nearest_pair(Face, AllVs, #we{vp=Vtab}=We) ->
-    Vs0 = ordsets:from_list(wings_face:surrounding_vertices(Face, We)),
+    Vs0 = ordsets:from_list(wings_face:vertices_ccw(Face, We)),
     Vs = ordsets:intersection(Vs0, AllVs),
     VsPos = [{V,gb_trees:get(V, Vtab)} || V <- Vs],
     nearest_pair(VsPos, Face, We, []).
@@ -655,7 +655,7 @@ stable_faces([F|Fs], We, Acc) ->
 stable_faces([], _, Acc) -> Acc.
 
 is_face_stable(Face, We) ->
-    Vs = wings_face:surrounding_vertices(Face, We),
+    Vs = wings_face:vertices_ccw(Face, We),
     is_face_stable_1(Vs, We, 0).
 
 is_face_stable_1([V|Vs], We, N) ->

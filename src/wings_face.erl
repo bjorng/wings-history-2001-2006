@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.33 2003/04/21 17:26:44 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.34 2003/04/23 17:49:03 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -30,9 +30,6 @@
 	 iter2etab/1,
 	 patch_face/3,patch_face/4,
 	 are_neighbors/3]).
-
-%% Obsolete.
--export([surrounding_vertices/2,surrounding_vertices/3]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
@@ -213,14 +210,6 @@ vinfo(Edge, Etab, Face, LastEdge, Acc) ->
 	#edge{ve=V,b=Col,rtsu=NextEdge} ->
 	    vinfo(NextEdge, Etab, Face, LastEdge, [[V|Col]|Acc])
     end.
-
-%% Return the vertices surrounding a face.
-
-surrounding_vertices(Face, We) ->
-    vertices_ccw(Face, We).
-
-surrounding_vertices(Face, Edge, We) ->
-    vertices_ccw(Face, Edge, We).
 
 vertices_cw(Face, #we{es=Etab,fs=Ftab}) ->
     Edge = gb_trees:get(Face, Ftab),

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.30 2003/04/21 10:16:56 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.31 2003/04/23 17:49:00 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -48,7 +48,7 @@ collapse_face(Face, #we{fs=Ftab}=We) ->
     end.
 
 collapse_face_1(Face, We0) ->
-    Vertices = wings_face:surrounding_vertices(Face, We0),
+    Vertices = wings_face:vertices_ccw(Face, We0),
     check_face_vertices(Vertices, We0),
 
     %% Allocate an Id for the new center vertex.
@@ -277,7 +277,7 @@ collapse_vtx_faces([], _, Acc) ->
     ordsets:from_list(Acc).
 
 collapse_vtx_sel([Face|Fs], NewVs, We, Sel) ->
-    case ordsets:from_list(wings_face:surrounding_vertices(Face, We)) of
+    case ordsets:from_list(wings_face:vertices_ccw(Face, We)) of
 	NewVs -> gb_sets:add(Face, Sel);
 	_ -> collapse_vtx_sel(Fs, NewVs, We, Sel)
     end;

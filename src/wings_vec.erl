@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.64 2003/03/12 08:31:52 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.65 2003/04/23 17:49:06 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -429,10 +429,8 @@ get_vec(face, [Face], We) ->
     [{{Center,Vec},"Face normal saved as axis."}];
 %% Direction between two faces as axis
 get_vec(face, [Face1,Face2], We) ->
-    VsList1 = wings_face:surrounding_vertices(Face1, We),
-    Center1 = wings_vertex:center(VsList1, We),
-    VsList2 = wings_face:surrounding_vertices(Face2, We),
-    Center2 = wings_vertex:center(VsList2, We),
+    Center1 = wings_face:center(Face1, We),
+    Center2 = wings_face:center(Face2, We),
     Center = e3d_vec:average([Center1,Center2]),
     Vec = e3d_vec:norm(e3d_vec:sub(Center1, Center2)),
     [{{Center,Vec},"Direction between faces saved as axis."}];
