@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.292 2005/03/04 10:32:00 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.293 2005/03/08 16:16:45 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -348,8 +348,20 @@ command_menu(body, X, Y) ->
 	    {"Scale", {scale, scale_directions()}, "Scale selected charts"},
 	    {"Rotate", {rotate, rotate_directions()}, "Rotate selected charts"},
 	    separator,
-	    {"Center", {center, xy_directions("Center")}, 
-	     "Center selected charts"},
+	    {"Move to", 
+	     {move_to, 
+	      [{"Center", center, "Move to Center"},
+	       {"Center X", center_x, "Move to horizontal center"},
+	       {"Center Y", center_y, "Move to vertical center"},
+	       {"Bottom", bottom, "Move to bottom border"},
+	       {"Bottom Left", bottom_l,  "Move to lower left corner"},
+	       {"Bottom Right", bottom_r, "Move to lower rigth corner"},
+	       {"Top", top, "Move to top border"},
+	       {"Top Left", top_l,  "Move to upper left corner"},
+	       {"Top Right", top_r, "Move to upper rigth corner"},
+	       {"Left", left, "Move to left border"},
+	       {"Rigth", rigth, "Move to rigth border"}
+	      ]}, "Move charts to position"},
 	    {"Stretch", {stretch, xy_directions("Stretch")},
 	     "Maximize the selected charts size"},
 	    {"Flip",{flip,
@@ -622,8 +634,8 @@ handle_command({scale,scale_y}, St) ->
     drag(wings_scale:setup({y,center}, St));
 handle_command({rotate,free}, St) ->
     drag(wings_rotate:setup({free,center}, St));
-handle_command({center,Dir}, St0) ->
-    St1 = wpa:sel_map(fun(_, We) -> center(Dir,We) end, St0),
+handle_command({move_to,Dir}, St0) ->
+    St1 = wpa:sel_map(fun(_, We) -> move_to(Dir,We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
 handle_command({stretch,Dir}, St0) ->
@@ -1085,14 +1097,24 @@ flip(Flip, We0) ->
     We = wings_we:transform_vs(T, We0),
     wings_we:invert_normals(We).
 
-center(Dir,We) ->
-    ChartCenter = {CCX,CCY,CCZ} = wings_vertex:center(We),
-    Pos = case Dir of
-	      both -> {0.5,0.5,CCZ};
-	      x -> {0.5,CCY,CCZ};
-	      y -> {CCX,0.5,CCZ}
+move_to(Dir,We) ->
+    [V1={X1,Y1,_},V2={X2,Y2,_}] = wings_vertex:bounding_box(We),
+    ChartCenter = {CCX,CCY,CCZ} = e3d_vec:average(V1,V2),
+    Translate
+	= case Dir of
+	      center ->   e3d_vec:sub({0.5,0.5,CCZ}, ChartCenter);
+	      center_x -> e3d_vec:sub({0.5,CCY,CCZ}, ChartCenter);
+	      center_y -> e3d_vec:sub({CCX,0.5,CCZ}, ChartCenter);
+	      bottom ->   {0.0,-Y1,0.0};
+	      bottom_l -> {-X1,-Y1,0.0};
+	      bottom_r -> {1.0-X2,-Y1,0.0};
+	      top ->      {0.0,1.0-Y2,0.0};   
+	      top_l ->    {-X1,1.0-Y2,0.0};   
+	      top_r ->    {1.0-X2,1.0-Y2,0.0};
+	      left ->     {-X1,0.0,0.0};
+	      rigth ->    {1.0-X2,0.0,0.0}
 	  end,
-    T = e3d_mat:translate(e3d_vec:sub(Pos, ChartCenter)),
+    T = e3d_mat:translate(Translate),
     wings_we:transform_vs(T, We).
 
 stretch(Dir,We) ->
