@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.41 2004/01/01 14:17:21 bjorng Exp $
+%%     $Id: wpa.erl,v 1.42 2004/01/01 15:01:14 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -126,9 +126,12 @@ import_filename(Ps0, Cont) ->
 	  end,
     wings_plugin:call_ui({file,open_dialog,Ps,Fun}).
 
-export(Props, Exporter, St) ->
-    wings_file:export(Props, Exporter, St),
-    St.
+export(none, Exporter, St) ->
+    wings_export:export(Exporter, none, 0, St);
+export(Ps, Exporter, St) ->
+    SubDivs = proplists:get_value(subdivisions, Ps, 0),
+    Cont = fun(Name) -> wings_export:export(Exporter, Name, SubDivs, St) end,
+    export_filename(Ps, St, Cont).
 
 export_selected(Props, Exporter, #st{selmode=Mode}=St)
   when Mode == body; Mode == face ->
@@ -137,8 +140,7 @@ export_selected(Props, Exporter, #st{selmode=Mode}=St)
 		     [{Id,export_sel_set_holes(Mode, Elems, We)}|A]
 	     end, [], St),
     Shs = gb_trees:from_orddict(reverse(Shs0)),
-    wings_file:export(Props, Exporter, St#st{shapes=Shs}),
-    St;
+    export(Props, Exporter, St#st{shapes=Shs});
 export_selected(_, _, _) -> error("Select objects or faces.").
 
 export_sel_set_holes(body, _, We) -> We;
@@ -163,7 +165,8 @@ export_filename(Prop0, Cont) ->
 		      Tuple when is_tuple(Tuple) ->
 			  wings_wm:send(This, {action,Tuple});
 		      ignore -> keep;
-		      keep -> keep
+		      keep -> keep;
+		      ok -> keep
 		  end
 	  end,
     wings_plugin:call_ui({file,save_dialog,[{title,"Export"}|Prop],Fun}).

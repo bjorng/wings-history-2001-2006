@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.33 2003/12/30 15:52:56 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.34 2004/01/01 15:01:07 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -24,9 +24,6 @@ ui({file,open_dialog,Prop,Cont}, _Next) ->
 ui({file,save_dialog,Prop,Cont}, _Next) ->
     Title = proplists:get_value(title, Prop, "Save"),
     save_dialog(Title, Prop, Cont);
-ui({file,save_dialog,Prop}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Save"),
-    save_file(Title ++ ": ", Prop);
 ui({image,formats,Formats}, _Next) ->
     image_formats(Formats);
 ui({image,read,Prop}, _Next) ->
@@ -34,37 +31,6 @@ ui({image,read,Prop}, _Next) ->
 ui({image,write,Prop}, _Next) ->
     write_image(Prop);
 ui(What, Next) -> Next(What).
-
-save_file(Prompt, Prop) ->
-    Exts = file_filters_old(Prop),
-    case wings_getline:filename(Prompt, Exts) of
-	aborted -> aborted;
-	Name0 ->
-	    Name = ensure_extension(Name0, Exts),
-	    case filelib:is_file(Name) of
-		false ->
-		    Name;
-		true ->
-		    case wings_getline:yes_no("File \"" ++ Name ++ "\" exists; overwrite?") of
-			no -> aborted;
-			yes -> Name;
-			aborted -> aborted
-		    end
-	    end
-    end.
-
-file_filters_old(Prop) ->
-    case proplists:get_value(extensions, Prop, none) of
-	none ->
-	    Ext = proplists:get_value(ext, Prop, ".wings"),
-	    [Ext];
-	Exts ->
-	    file_filters_old_1(Exts, [])
-    end.
-
-file_filters_old_1([{Ext,_Desc}|T], Acc) ->
-    file_filters_old_1(T, [Ext|Acc]);
-file_filters_old_1([], Acc) -> reverse(Acc).
 
 read_image(Prop) ->
     Name = proplists:get_value(filename, Prop),

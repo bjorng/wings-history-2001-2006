@@ -3,12 +3,12 @@
 #
 #     Makefile for building Wings 3D.
 #
-#  Copyright (c) 2001-2003 Bjorn Gustavsson
+#  Copyright (c) 2001-2004 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.37 2003/12/08 19:15:45 bjorng Exp $
+#     $Id: Makefile,v 1.38 2004/01/01 15:01:14 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -41,6 +41,7 @@ MODULES= \
 	wings_draw_util \
 	wings_edge \
 	wings_edge_loop \
+	wings_export \
 	wings_extrude_edge \
 	wings_extrude_face \
 	wings_face \
@@ -48,7 +49,6 @@ MODULES= \
 	wings_file \
 	wings_ff_ndo \
 	wings_ff_wings \
-	wings_getline \
 	wings_help \
 	wings_hotkey \
 	wings_image \
