@@ -8,12 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.69 2004/03/17 10:43:26 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.70 2004/03/24 23:17:30 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
 
 -export([init/0,menu/2,dialog/2,command/2]).
+
+-export([uquote/1]). % Debug
 
 
 
@@ -1180,8 +1182,9 @@ render(Renderer, Options, Filename, Parent, LoadImage) ->
     process_flag(trap_exit, true),
     Dirname = filename:dirname(Filename),
     Basename = filename:basename(Filename),
-    Cmd = Renderer++" "++Options++" "++Basename,
-    PortOpts = [{line,8},{cd,Dirname},eof,exit_status,stderr_to_stdout],
+    %% Filename is auto-generated so Basename should not need quoting
+    Cmd = uquote(Renderer)++" "++Options++" "++Basename,
+    PortOpts = [{line,1},{cd,Dirname},eof,exit_status,stderr_to_stdout],
     io:format("Rendering Job started ~p:~n>~s~n", [self(),Cmd]),
     case catch open_port({spawn,Cmd}, PortOpts) of
 	Port when port(Port) ->
@@ -2176,7 +2179,8 @@ scan_bat(F) ->
 	    scan_bat(F);
 	Line when list(Line) ->
 	    %% Check if this is the name of an executable file
-	    Filename = filename:nativename(Line),
+	    File = [C || C <- Line, C =/= $"], % Remove doublequotes
+	    Filename = filename:nativename(File),
 	    case file:read_file_info(Filename) of
 		{ok,#file_info{type=regular,access=A,mode=M}} ->
 		    case A of
@@ -2253,6 +2257,35 @@ cr_to_nl([C|T]) ->
     [C|cr_to_nl(T)];
 cr_to_nl([]) ->
     [].
+
+%% Universal quoting
+%%
+%% If the string contains singlequote, doublequote or whitespace
+%% - doublequote the string and singlequote embedded doublequotes.
+%% God may forbid doublequotes. They do not work in Windows filenames, 
+%% nor in YafRay result .tga filenames. They might only work in 
+%% Unix executable pathname being very weird even there.
+%%
+uquote(Cs) ->
+    case uquote_needed(Cs) of
+	true -> [$"|uquote_1(Cs)];
+	false -> Cs
+    end.
+
+uquote_1([]) -> [$"];
+uquote_1([$"]) -> [$",$',$",$'];
+uquote_1([$"|Cs]) -> [$",$',$",$',$"|uquote_1(Cs)];
+uquote_1([C|Cs]) -> [C|uquote_1(Cs)].
+
+uquote_needed([]) -> false;
+uquote_needed([$"|_]) -> true;
+uquote_needed([$'|_]) -> true;
+uquote_needed([$\s|_]) -> true;
+uquote_needed([$\t|_]) -> true;
+uquote_needed([$\r|_]) -> true;
+uquote_needed([$\n|_]) -> true;
+uquote_needed([_|Cs]) -> uquote_needed(Cs).
+
 
 %% Split a list into a list of length Pos, and the tail
 %%
