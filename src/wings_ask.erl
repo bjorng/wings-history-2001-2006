@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.71 2003/03/06 19:06:21 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.72 2003/03/11 13:07:03 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -25,10 +25,6 @@
 
 -define(IS_SHIFTED(Mod), ((Mod) band ?SHIFT_BITS =/= 0)).
 
--define(INITIAL_LEVEL, 0).
-
-
--compile(inline).
 -import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3]).
 
 -record(s,
@@ -42,7 +38,7 @@
 	 priv,					%States for all fields.
 	 coords,				%Coordinates for hit testing.
 	 common=gb_trees:empty(),		%Data common for all fields.
-	 level=?INITIAL_LEVEL,
+	 level,					%Levels of nesting.
 	 owner=Owner,				%Where to send result.
 	 grab_win				%Previous grabbed focus window.
 	}).
@@ -105,7 +101,7 @@ dialog(false, _Title, Qs, Fun) ->
 dialog(true, Title, Qs, Fun) -> dialog(Title, Qs, Fun).
 
 dialog(Title, Qs, Fun) ->
-    do_dialog(Title, Qs, ?INITIAL_LEVEL, Fun).
+    do_dialog(Title, Qs, [make_ref()], Fun).
 
 do_dialog(Title, Qs, Level, Fun) ->
     GrabWin = wings_wm:release_focus(),
@@ -116,7 +112,7 @@ do_dialog(Title, Qs, Level, Fun) ->
     W = W0 + 2*?HMARGIN,
     H = H0 + 2*?VMARGIN,
     S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level,grab_win=GrabWin},
-    Name = {dialog,Level},
+    Name = {dialog,hd(Level)},
     setup_blanket(Name),
     Op = {seq,push,get_event(S)},
     wings_wm:toplevel(Name, Title, {trunc(X),trunc(Y),highest}, {W,H}, Op),
@@ -131,7 +127,7 @@ setup_ask(Qs0, Fun) ->
     Fis = list_to_tuple(Fis1),
     Priv = list_to_tuple(Priv0),
     {#fi{w=W,h=H},_} = Qs,
-    Owner = wings_wm:active_window(),
+    Owner = wings_wm:this(),
     S = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis),owner=Owner},
     init_fields(1, size(Priv), S).
 
@@ -176,7 +172,7 @@ setup_blanket(Dialog) ->
     {TopW,TopH} = wings_wm:top_size(),
     wings_wm:new({blanket,Dialog}, {0,0,highest}, {TopW,TopH}, Op).
 
-delete_blanket(#s{level=Level}) ->
+delete_blanket(#s{level=[Level|_]}) ->
     wings_wm:delete({blanket,{dialog,Level}}).
 
 blanket(#keyboard{}=Ev, Dialog) ->
@@ -226,7 +222,7 @@ event_key({key,_,_,$\r}, S) ->
 event_key(Ev, S) ->
     field_event(Ev, S).
 
-delete(#s{level=?INITIAL_LEVEL,grab_win=GrabWin}=S) ->
+delete(#s{level=[_],grab_win=GrabWin}=S) ->
     delete_blanket(S),
     wings_wm:grab_focus(GrabWin),
     delete;
@@ -342,7 +338,8 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
     end.
 
 recursive_dialog(Title, I, Qs, Fun, #s{level=Level}=S) ->
-    do_dialog(Title, Qs, Level+1, fun(Vs) -> {update,I,Fun(Vs)} end),
+    do_dialog(Title, Qs, [make_ref()|Level],
+	      fun(Vs) -> {update,I,Fun(Vs)} end),
     get_event(S).
 
 drag(#mousemotion{x=X0,y=Y0}, {W,H}, Fi0, Fst, Common, DropData, S) ->
@@ -481,10 +478,10 @@ normalize({menu,Alt,{Val,VarDef},Flags}, Fi) ->
     normalize_field(menu(Val, VarDef, Alt), Flags, Fi);
 normalize({menu,Alt,VarDef,Flags}, Fi) ->
     normalize_field(menu(none, VarDef, Alt), Flags, Fi);    
-normalize({button,Action}, Fi) ->
+normalize({button,Action}, Fi) when is_atom(Action) ->
     Label = button_label(Action),
     normalize_field(button(Label, Action), [], Fi);
-normalize({button,Label,Action}, Fi) ->
+normalize({button,Label,Action}, Fi) when is_atom(Action) ->
     normalize_field(button(Label, Action), [], Fi);
 normalize({custom,W,H,Custom}, Fi) ->
     normalize_field(custom(W, H, Custom), [], Fi);
@@ -911,7 +908,7 @@ menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{key=Key,menu=Menu0}) ->
     Sel = popup_find_index(Menu0, Key, 1),
     Menu = list_to_tuple(Menu0),
     Mh = size(Menu)*?LINE_HEIGHT,
-    Ps = #popup{parent=wings_wm:active_window(),sel=Sel,orig_sel=Sel,menu=Menu},
+    Ps = #popup{parent=wings_wm:this(),sel=Sel,orig_sel=Sel,menu=Menu},
     Op = {seq,push,get_popup_event(Ps)},
     X = X1-2*?CHAR_WIDTH,
     Y = Y1-2-(Sel-1)*?LINE_HEIGHT,
@@ -974,13 +971,15 @@ popup_redraw_1(_, _, _, _, _, _) -> keep.
 %%%
 
 -record(but,
-	{label,
+	{label,					%Textual label.
+	 w,					%Width of button in pixels.
 	 action}).
 
 button(Label, Action) ->
-    But = #but{label=Label,action=Action},
+    W = wings_text:width([$\s,$\s|Label]),
+    But = #but{label=Label,w=W,action=Action},
     Fun = button_fun(),
-    {Fun,false,But,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT+2+2}.
+    {Fun,false,But,W,?LINE_HEIGHT+2+2}.
 
 button_label(ok) -> "OK";
 button_label(S) when is_list(S) -> S;
