@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.224 2003/03/01 07:41:39 bjorng Exp $
+%%     $Id: wings.erl,v 1.225 2003/03/02 06:49:59 bjorng Exp $
 %%
 
 -module(wings).
@@ -311,7 +311,9 @@ handle_event_3({action,Cmd,Args}, St) ->
 handle_event_3(#mousebutton{}, _St) -> keep;
 handle_event_3(#mousemotion{}, _St) -> keep;
 handle_event_3(init_opengl, St) ->
-    init_opengl(St);
+    init_opengl(St),
+    wings_draw:update_dlists(St),
+    keep;
 handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(resized, _) -> keep;

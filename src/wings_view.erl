@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.105 2003/03/01 07:31:30 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.106 2003/03/02 06:49:59 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -459,7 +459,9 @@ smooth_event_1({action,{view,View}}, #sm{st=St}=Sm) ->
     end;
 smooth_event_1(init_opengl, #sm{st=St}) ->
     wings:init_opengl(St),
-    pop;
+    wings_draw:update_dlists(St),
+    smooth_dlist(St),
+    keep;
 smooth_event_1(quit, Sm) ->
     wings_wm:later(quit),
     smooth_exit(Sm);
