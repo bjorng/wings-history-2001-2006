@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.5 2002/02/16 15:15:49 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.6 2002/02/17 20:00:16 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -433,6 +433,7 @@ cb_event(Ev, Cb) ->
 	 aft,
 	 sel=0,
 	 label,
+	 max,
 	 integer=false
 	}).
 
@@ -451,7 +452,7 @@ text_field(Label, Def) ->
 
 init_text(Fun, Label, String, Max0, IsInteger) ->
     Max = max(Max0, length(String)+5),
-    Ts = #text{label=Label,bef=[],aft=String,integer=IsInteger},
+    Ts = #text{label=Label,bef=[],aft=String,max=Max,integer=IsInteger},
     {Fun,false,Ts,(length(Label)+1)*?CHAR_WIDTH,
      Max*?CHAR_WIDTH,?LINE_HEIGHT+3}.
 
@@ -586,7 +587,8 @@ key(4, Mod, #text{sel=0,aft=[_|Aft]}=Ts) ->	%Ctrl-D
     Ts#text{aft=Aft};
 key(4, Mod, Ts) ->				%Ctrl-D
     del_sel(Ts);
-key(C, Mod, #text{bef=Bef0}=Ts0) when $\s =< C, C < 256 ->
+key(C, Mod, #text{bef=Bef0,aft=Aft,max=Max}=Ts0)
+  when $\s =< C, C < 256, length(Bef0)+length(Aft) < Max ->
     del_sel(Ts0#text{bef=[C|Bef0]});
 key(C, Mod, Ts) -> Ts.
 
