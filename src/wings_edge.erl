@@ -1,4 +1,3 @@
-
 %%
 %%  wings_edge.erl --
 %%
@@ -9,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.97 2004/04/23 04:25:54 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.98 2004/04/23 04:27:20 bjorng Exp $
 %%
 
 -module(wings_edge).
