@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.131 2005/01/29 18:25:14 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.132 2005/01/30 06:37:22 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
 -export([menu/3,command/2]).
--export([dissolve/1,mirror_faces/2,set_color/2,force_bridge/5]).
+-export([mirror_faces/2,set_color/2,force_bridge/5]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,keysort/2,
@@ -195,7 +195,7 @@ extrude_region_vmirror(OldWe, #we{mirror=Face0}=We0) ->
     %% and flatten it.
     FaceSet = gb_sets:singleton(Face0),
     Bordering = wings_face:extend_border(FaceSet, We0),
-    NewFaces = wings_we:new_items(face, OldWe, We0),
+    NewFaces = wings_we:new_items_as_gbset(face, OldWe, We0),
     Dissolve0 = gb_sets:intersection(Bordering, NewFaces),
     case gb_sets:is_empty(Dissolve0) of
 	true -> We0;
@@ -214,29 +214,14 @@ extrude_region_vmirror(OldWe, #we{mirror=Face0}=We0) ->
 extract_region(Type, St0) ->
     St1 = wings_sel:fold(
 	    fun(Faces, We0, #st{sel=Sel0,onext=Oid}=S0) ->
-		    We = We0#we{mirror=none},
+		    We = wings_dissolve:complement(Faces, We0),
 		    S = wings_shape:insert(We, extract, S0),
 		    Sel = [{Oid,Faces}|Sel0],
 		    S#st{sel=Sel}
 	    end, St0#st{sel=[]}, St0),
     Sel = St1#st.sel,
-    St2 = wings_sel:set(Sel, St1),
-    St3 = extract_inverse(St2),
-    St4 = dissolve(St3),
-    St = wings_sel:set(Sel, St4),
+    St = wings_sel:set(Sel, St1),
     wings_move:setup(Type, St).
-
-extract_inverse(St) ->
-    Sel = wings_sel:fold(
-	    fun(Faces, #we{fs=Ftab,id=Id}, A) ->
-		    All = wings_util:gb_trees_to_gb_set(Ftab),
-		    Diff = gb_sets:difference(All, Faces),
-		    case gb_sets:is_empty(Diff) of
-			true -> A;
-			false -> [{Id,Diff}|A]
-		    end
-	    end, [], St),
-    wings_sel:set(Sel, St).
     
 %%%
 %%% The Dissolve command.
@@ -248,7 +233,7 @@ dissolve(St0) ->
 
 dissolve_sel(Faces, #we{id=Id}=We0, Acc) ->
     We = wings_dissolve:faces(Faces, We0),
-    Sel = wings_we:new_items(face, We0, We),
+    Sel = wings_we:new_items_as_gbset(face, We0, We),
     {We,[{Id,Sel}|Acc]}.
 
 %%%
@@ -271,7 +256,7 @@ intrude(Faces0, #we{id=Id,es=Etab,fs=Ftab,next_id=Wid}=We0, SelAcc) ->
     {We1,RootSet} = wings_we:renumber(We0, Wid, RootSet0),
     We2 = wings_we:invert_normals(We1),
     We3 = wings_we:merge(We0, We2),
-    Sel0 = wings_we:new_items(face, We0, We3),
+    Sel0 = wings_we:new_items_as_gbset(face, We0, We3),
     BridgeFaces = [F || {face,F} <- RootSet0 ++ RootSet],
     Sel = gb_sets:difference(Sel0, gb_sets:from_list(BridgeFaces)),
     We4 = intrude_bridge(RootSet0, RootSet, We3),
@@ -968,7 +953,7 @@ lift_from_vertex_2(Dir, Face, V, #we{id=Id,next_id=Next}=We0, Tv) ->
 		   wings_collapse:collapse_edge(Edge, V, W);
 	      (_, _, _, W) -> W
 	   end, We1, V, We1),
-    FaceVs = wings_we:new_items(vertex, We0, We),
+    FaceVs = wings_we:new_items_as_ordset(vertex, We0, We),
     case Dir of
 	rotate ->
 	    Vpos = wings_vertex:pos(V, We),
@@ -986,8 +971,7 @@ lift_from_vertex_2(Dir, Face, V, #we{id=Id,next_id=Next}=We0, Tv) ->
 	    M = e3d_vec:norm(e3d_vec:add(Vecs)),
 	    N = wings_face:normal(Face, We),
 	    Axis = e3d_vec:cross(M, N),
- 	    Rot = wings_rotate:rotate(Axis, Vpos, gb_sets:to_list(FaceVs),
-				      We, Tv),
+ 	    Rot = wings_rotate:rotate(Axis, Vpos, FaceVs, We, Tv),
 	    {We,Rot};
 	_Other ->
 	    Vec = wings_util:make_vector(Dir),
