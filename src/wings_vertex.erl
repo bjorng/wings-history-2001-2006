@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.25 2002/05/28 08:33:41 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.26 2002/06/17 18:05:35 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -271,19 +271,34 @@ flatten(Vs, PlaneNormal, We) ->
 flatten(Vs, PlaneNormal, Center, #we{vs=Vtab0}=We) when is_list(Vs) ->
     Vtab = foldl(
 	     fun(V, Tab0) ->
-		     flatten_move(V, PlaneNormal, Center, Tab0)
+		     flatten_move(V, PlaneNormal, Center, We, Tab0)
 	     end, Vtab0, Vs),
     We#we{vs=Vtab};
 flatten(Vs, PlaneNormal, Center, We) ->
     flatten(gb_sets:to_list(Vs), PlaneNormal, Center, We).
 
-flatten_move(V, PlaneNormal, Center, Tab0) ->
+flatten_move(V, PlaneNormal, Center, We, Tab0) ->
     #vtx{pos=Pos0} = Vtx = gb_trees:get(V, Tab0),
     ToCenter = e3d_vec:sub(Center, Pos0),
     Dot = e3d_vec:dot(ToCenter, PlaneNormal),
     ToPlane = e3d_vec:mul(PlaneNormal, Dot),
-    Pos = e3d_vec:add(Pos0, ToPlane),
+    Pos1 = e3d_vec:add(Pos0, ToPlane),
+    Pos = mirror_constrain(V, Pos1, We),
     gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab0).
+
+mirror_constrain(_, Pos, #we{mirror=none}) -> Pos;
+mirror_constrain(V, Pos, #we{mirror=Face}=We) ->
+    MirrorVs = wings_face:surrounding_vertices(Face, We),
+    case member(V, MirrorVs) of
+	false -> Pos;
+	true ->
+	    Plane = wings_face:face_normal(MirrorVs, We),
+	    Point = pos(hd(MirrorVs), We),
+	    ToPoint = e3d_vec:sub(Point, Pos),
+	    Dot = e3d_vec:dot(ToPoint, Plane),
+	    ToPlane = e3d_vec:mul(Plane, Dot),
+	    e3d_vec:add(Pos, ToPlane)
+    end.
 
 %% dissolve(Vertex, We) -> We|error
 %%  Remove a "winged vertex" - a vertex with exactly two edges.
