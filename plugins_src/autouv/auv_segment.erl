@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.60 2004/12/22 07:13:57 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.61 2004/12/23 16:12:49 bjorng Exp $
 
 -module(auv_segment).
 
@@ -970,6 +970,6 @@ is_cutting_edge(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, D) ->
 
 finalize_chart(Fs, #we{fs=Ftab0}=We0) ->
     NotNeeded = ordsets:subtract(gb_trees:keys(Ftab0), Fs),
-    #we{fs=Ftab} = We = wings_face_cmd:dissolve(NotNeeded, We0),
+    #we{fs=Ftab} = We = wpa:face_dissolve(NotNeeded, We0),
     Hidden = ordsets:subtract(gb_trees:keys(Ftab), Fs),
     wings_we:hide_faces(Hidden, We).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.59 2004/12/18 19:36:22 bjorng Exp $
+%%     $Id: wpa.erl,v 1.60 2004/12/23 16:12:51 bjorng Exp $
 %%
 %% Note: To keep the call graph clean, wpa MUST NOT be called
 %%       from the wings core modules.
@@ -429,12 +429,10 @@ face_outer_vertices(Faces, We) ->
     wings_vertex:outer_partition(Faces, We).
 
 face_outer_edges(Faces, We) ->
-    wings_face_cmd:outer_edge_partition(Faces, We).
+    wings_dissolve:outer_edge_partition(Faces, We).
 
-face_dissolve(Faces, We) when is_list(Faces) ->
-    wings_face_cmd:dissolve(gb_sets:from_list(Faces), We);
 face_dissolve(Faces, We) ->
-    wings_face_cmd:dissolve(Faces, We).
+    wings_dissolve:dissolve(Faces, We).
 
 %%% Objects.
 
