@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.8 2002/10/14 14:46:10 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.9 2002/10/15 14:29:30 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -118,8 +118,8 @@ get_verts([],I,_,Acc) ->
 lsqcm(C = {Id, Fs}, We) ->
     ?DBG("Project and tri ~n", []),
     Vs1 = ?TC(project_and_triangulate(Fs,We,-1,[])),    
-    {V1, V2} = ?TC(get_2uvs(C, We)),
-%    ?DBG("LSQ ~p ~p: ~p~n", [V1,V2,Vs1]),
+    {V1, V2} = ?TC(find_pinned(C, We)),
+    ?DBG("LSQ ~p ~p~n", [V1,V2]),
     case ?TC(lsq(Vs1,V1,V2)) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
@@ -130,65 +130,55 @@ lsqcm(C = {Id, Fs}, We) ->
 	    lists:map(Patch, Vs2)
     end.
 
-get_2uvs(C = {Id, Faces}, We) ->
-    %% Hack to test Raimo's algo 
-    VsProjected = projectFromChartNormal(C, We),
-    %% Use wings_face: outer_edges because I don't want to exclude
-    %% the faces whose normal points in the neg Z..
-    BorderEdges = 
-	case wings_face:outer_edges(Faces, We) of
+find_pinned(C = {Id, Faces}, We) ->
+    {Circumference, BorderEdges} = 
+	case auv_placement:group_edge_loops(Faces, We, false) of
 	    [] -> 
-		exit({invalid_chart, 
-		      {C, is_closed_surface}});
-	    Else ->
-		Else
+		exit({invalid_chart, {C, is_closed_surface}});
+	    [Best|_] ->
+		Best
 	end,
-    Lookup = gb_trees:from_orddict(lists:sort(VsProjected)),
-    Pick = fun(Edge, Acc) ->
-		   #edge{vs=Vs,ve=Ve}=gb_trees:get(Edge, We#we.es),
-		   V1 = gb_trees:get(Vs, Lookup),
-		   V2 = gb_trees:get(Ve, Lookup),
-		   [{Vs,V1},{Ve,V2}|Acc]
-	   end,
-    Vs0 = lists:foldl(Pick, [], BorderEdges),
+    Vs = [{(gb_trees:get(V1, We#we.vs))#vtx.pos,V1} || {V1,_,_,_} <-BorderEdges],
+    [{V1pos,V1}|_] = lists:sort(Vs),
+    BE1 = reorder_edge_loop(V1, BorderEdges, []),
+    {V2,Dist} = find_furthest_away(BE1, 0.0, Circumference/2),
+    V2pos = (gb_trees:get(V2, We#we.vs))#vtx.pos,
+    get_uvs(V1,V1pos,V2,V2pos,Dist).
+    
+find_furthest_away([{V1,_,_,_}|_], Dist, Max) 
+  when float(Dist), float(Max), Dist >= Max ->
+    {V1, Dist};
+find_furthest_away([{_,_,_,Delta}|Rest], Dist, Max) 
+  when float(Delta), float(Dist) ->
+    find_furthest_away(Rest, Delta+Dist, Max).
 
-    [First |RVs1] = Vs0,
-    {BX0={_,{X1,_,_}}, BX1={_,{X2,_,_}}, 
-     BY0={_,{_,Y1,_}}, BY1={_,{_,Y2,_}}} =
-	lists:foldl(fun(Pos, Ac) -> maxmin(Pos, Ac) end, 
-		    {First,First,First,First}, RVs1),
-    if 
-	(abs(X2-X1)) > abs(Y2-Y1) ->
-%	    ?DBG("Points choosen ~p ~p~n", [BX0,BX1]),
-	    choose(BX0,BX1);
-	true ->
-%	    ?DBG("Points choosen ~p ~p~n", [BY0,BY1]),
-	    choose(BY0,BY1)
+reorder_edge_loop(V1, [{V1,_,_,_}|_] = Ordered, Acc) ->
+    Ordered ++ lists:reverse(Acc);
+reorder_edge_loop(V1, [H|Tail], Acc) ->
+    reorder_edge_loop(V1, Tail, [H|Acc]).
+
+get_uvs(V1,{X1,Y1,Z1},V2,{X2,Y2,Z2},Dist) ->
+    XL = abs(X2-X1),  YL = abs(Y2-Y1), ZL = abs(Z2-Z1),
+%%    ?DBG("~p ~p~n", [{XL,YL,ZL}, Dist]),
+    if XL >= YL, XL >= ZL ->
+	    Diff = get_other(XL,YL+ZL,Dist),
+	    {{V1, {0.0, 0.0}}, {V2, {XL, Diff}}};
+       YL >= XL, YL >= ZL ->
+	    Diff = get_other(YL,XL+ZL,Dist),
+	    {{V1, {0.0, 0.0}}, {V2, {Diff, YL}}};
+       true ->
+	    Diff = get_other(ZL,XL+YL,Dist),
+	    {{V1, {0.0, 0.0}}, {V2, {Diff, ZL}}}
     end.
 
-choose({Id1,{X1,Y1,_}}, {Id2,{X2,Y2,_}}) ->
-    {{Id1, {X1,Y1}},{Id2,{X2,Y2}}}.
-
-maxmin(New = {_,{X,Y,_}}, {X1={_,{XMin,_,_}},X2={_,{XMax,_,_}},
-			   Y1={_,{_,YMin,_}},Y2={_,{_,YMax,_}}}) ->
-    if 	X > XMax ->
-	    if Y > YMax -> {X1, New, Y1, New};
-	       Y < YMin -> {X1, New, New, Y2};
-	       true -> {X1, New, Y1, Y2}
-	    end;
-	X < XMin ->
-	    if Y > YMax -> {New, X2, Y1, New};
-	       Y < YMin -> {New, X2, New, Y2};
-	       true -> {New, X2, Y1, Y2}
-	    end;
-	Y > YMax ->
-	    {X1, X2, Y1, New};
-	Y < YMin ->
-	    {X1, X2, New, Y2};
-	true ->
-	    {X1, X2, Y1, Y2}
-    end.
-
+get_other(D1, D2, Tot) ->
+%    if 
+%	D2/D1 > D1/Tot ->
+%	    D2;
+%	true ->
+%           Tot-D1
+%    end.
+    Tot-D1.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%

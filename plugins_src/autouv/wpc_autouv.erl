@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.10 2002/10/14 14:46:11 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.11 2002/10/15 14:29:30 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -20,7 +20,7 @@
 -include("auv.hrl").
  
 -compile(export_all). %% debug
--export([menu/2,command/2, outer_edges/2]).
+-export([menu/2,command/2, outer_edges/2, outer_edges/3]).
 
 -import(lists, [sort/1, map/2, foldl/3, reverse/1, 
 		append/1,delete/2, usort/1, max/1, min/1]).
@@ -1678,14 +1678,23 @@ finish_rotate({Id,Area = #a{rotate = R, vpos = Vs0, scale = S}}) ->
 
 %%%% Draw routines
 outer_edges(Faces0, We) ->
+    outer_edges(Faces0, We, true).
+outer_edges(Faces0, We, VisibleOnly) ->    
     %% I use normals here to detect direction of face and remove 
     %% faces with wrong direction.
-    Faces1 = foldl(fun(Face, Acc)-> 
-			   case e3d_vec:dot(wings_face:normal(Face, We), {0.0,0.0,1.0}) >= 0.0 of
-			       true -> [Face|Acc];
-			       _ -> Acc
-			   end
-		   end, [], Faces0),    
+    Faces1 = case VisibleOnly of 
+		 true ->
+		     foldl(fun(Face, Acc)-> 
+				   Zval = e3d_vec:dot(wings_face:normal(Face, We), 
+						      {0.0,0.0,1.0}),
+				   case Zval >= 0.0 of
+				       true -> [Face|Acc];
+				       _ -> Acc
+				   end
+			   end, [], Faces0);
+		 false ->
+		     Faces0
+	     end,
     S = wings_face:fold_faces(fun(Face, _, E, _, A) -> [{E,Face}|A] end, [], Faces1, We),
     outer_edges_1(sort(S), []).
 outer_edges_1([{E,_},{E,_}|T], Out) ->

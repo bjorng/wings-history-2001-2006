@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.2 2002/10/08 11:32:24 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.3 2002/10/15 14:29:30 dgud Exp $
 
 
 -module(auv_placement).
@@ -18,6 +18,8 @@
 -include("wings.hrl").
 
 -export([place_areas/1]).
+-export([group_edge_loops/3]).
+
 -import(lists, [max/1, sort/1, map/2, reverse/1]).
 
 %% Returns a gb_tree with areas..
@@ -126,25 +128,35 @@ rotate_area(Fs, Vs0, We) ->
 			    Vtx = gb_trees:get(No,Tree),
 			    gb_trees:update(No, Vtx#vtx{pos=Pos}, Tree)
 		    end, We#we.vs, Vs0),
-    
-    Eds1 = wpc_autouv:outer_edges(Fs, We#we{vs = NewVs}),
+    [{_,Eds3}|_] = group_edge_loops(Fs,We#we{vs = NewVs}, true),
+    Eds4 = make_convex(reverse(Eds3), [], NewVs).
+
+%% Group edgeloops and return a list sorted by total dist.
+%% [{TotDist, [{V1,V2,Edge,Dist},...]}, ...]
+group_edge_loops(Fs,We, OnlyVisible) ->
+    Eds1 = wpc_autouv:outer_edges(Fs, We, OnlyVisible),
     Map = fun({Edge,Face}) ->
 		  case gb_trees:get(Edge, We#we.es) of
 		      #edge{vs=V1,ve=V2,lf=Face} ->
-			  {V1,V2,Edge};
+			  Dist = dist(V1,V2,We),
+			  {V1,V2,Edge,Dist};
 		      #edge{vs=V2,ve=V1,rf=Face} ->
-			  {V1,V2,Edge}
+			  Dist = dist(V1,V2,We),
+			  {V1,V2,Edge,Dist}
 		  end
 	  end,
-    Eds2 = lists:map(Map, Eds1),
-    [Eds3|_] = sort_edges(Eds2),  %% BUGBUG pick largest i.e not a hole
-    Eds4 = make_convex(reverse(Eds3), [], NewVs).
+    Eds2  = lists:map(Map, Eds1),
+    Loops = sort_edges(Eds2),
+    Add = fun({_,_,_,Dist}, Acc) ->  Acc + Dist end,
+    SumLoops = [{lists:foldl(Add, 0, Loop), Loop} || Loop <- Loops],
+    lists:reverse(lists:sort(SumLoops)).
 
 make_convex([This, Next|Rest], Acc, Vs) ->
     case calc_dir(This,Next,Vs) > math:pi() of
 	true ->
 	    New = {element(1,This), element(2,Next), 
-		   [element(3,This),element(3,Next)]}, 
+		   [element(3,This),element(3,Next)],
+		   element(4,This) + element(4,Next)}, 
 	    if Acc == [] ->
 		    make_convex([New|Rest], Acc, Vs);
 	       true ->
@@ -158,14 +170,15 @@ make_convex([This],Acc, Vs) ->
     case calc_dir(This,Next,Vs) > math:pi() of
 	true ->
 	    New = {element(1,This), element(2,Next), 
-		   [element(3,This),element(3,Next)]},
+		   [element(3,This),element(3,Next)],
+		   element(4,This) + element(4,Next)},
 	    Acc3 = reverse(Acc2),
 	    make_convex([hd(Acc3),New], tl(Acc3), Vs);
 	false ->
 	    [This|Acc]
     end.
 
-calc_dir({V11,V12,E1},{V12,V22,E2}, Vs) ->    
+calc_dir({V11,V12,_E1,_},{V12,V22,_,_}, Vs) ->    
     C = gb_trees:get(V12, Vs),
     V1 = gb_trees:get(V11, Vs),
     V2 = gb_trees:get(V22, Vs),
@@ -181,23 +194,27 @@ calc_dir({V11,V12,E1},{V12,V22,E2}, Vs) ->
 %	      [V12,{E1,E2},math:atan2(Y1,X1), math:atan2(Y2,X2),Angle]),
     Angle.
 
+dist(V1,V2,#we{vs=Vs}) ->
+    e3d_vec:dist((gb_trees:get(V1, Vs))#vtx.pos,
+		 (gb_trees:get(V2, Vs))#vtx.pos).
+
 %% Returns a list of loops 
 sort_edges(Eds) ->
-    EdsT = lists:foldl(fun({V1,V2,Edge}, Tree) ->
-			       gb_trees:insert(V1,{V2,Edge}, Tree)
+    EdsT = lists:foldl(fun({V1,V2,Edge,Dist}, Tree) ->
+			       gb_trees:insert(V1,{V2,Edge,Dist}, Tree)
 		       end, gb_trees:empty(), Eds),    
-    {V1, {V2, Edge}, EdsT0} = gb_trees:take_smallest(EdsT),
-    sort_edges(V2, EdsT0, [[{V1,V2,Edge}]]).
+    {V1, {V2, Edge,Dist}, EdsT0} = gb_trees:take_smallest(EdsT),
+    sort_edges(V2, EdsT0, [[{V1,V2,Edge,Dist}]]).
 
 sort_edges(V21, EdsT0, All = [Current|Acc]) ->
     case gb_trees:lookup(V21, EdsT0) of
-	{value, {V22,Edge2}} -> 
+	{value, {V22,Edge2,Dist}} -> 
 	    sort_edges(V22, gb_trees:delete(V21,EdsT0), 
-		       [[{V21,V22,Edge2}|Current]|Acc]);
+		       [[{V21,V22,Edge2,Dist}|Current]|Acc]);
 	none ->	    
 	    case catch gb_trees:take_smallest(EdsT0) of
-		{V1, {V2, Edge1}, EdsT1} ->
-		    sort_edges(V2, EdsT1, [[{V1,V2,Edge1}]|All]);
+		{V1, {V2, Edge1,Dist}, EdsT1} ->
+		    sort_edges(V2, EdsT1, [[{V1,V2,Edge1,Dist}]|All]);
 		{'EXIT', _} -> %% Stop
 		    All
 	    end
