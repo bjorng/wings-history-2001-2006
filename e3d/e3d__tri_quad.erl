@@ -1,19 +1,19 @@
 %%
 %%  e3d__tri_quad.erl --
 %%
-%%     Triangulates and quadrilates meshes (internal functions).
+%%     Triangulates and quadrangulates meshes.
 %%
 %%  Copyright (c) 2001-2002 Howard Trickey
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.2 2002/01/18 11:35:37 bjorng Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.3 2002/01/21 20:38:15 bjorng Exp $
 %%
 
 -module(e3d__tri_quad).
 -export([triangulate_face/2,triangulate_face_with_holes/3,
-	 quadrilate_face/2,quadrilate_face_with_holes/3,
+	 quadrangulate_face/2,quadrangulate_face_with_holes/3,
 	 test_tri/1,test_quad/1]).
 
 -include("e3d.hrl").
@@ -46,22 +46,22 @@ triangulate_face_with_holes(#e3d_face{vs=Vs,mat=Mat}=Face, Holes, Vcoords) ->
 	Triscdt = cdt(Tris, Bord, Vtab),
 	to_faces(Triscdt, Bord, Mat).
 
-quadrilate_face(#e3d_face{vs=Vs,mat=Mat}=Face, Vcoords) ->
+quadrangulate_face(#e3d_face{vs=Vs,mat=Mat}=Face, Vcoords) ->
 	Vtab = rotate_normal_to_z(Vs, Vcoords),
 	Tris = triface(Vs, Vtab),
 	Bord = border_edges([Vs]),
 	Triscdt = cdt(Tris, Bord, Vtab),
-	Qs = quadrilate(Triscdt, Bord, Vtab),
+	Qs = quadrangulate(Triscdt, Bord, Vtab),
 	to_faces(Qs, Bord, Mat).
 
-quadrilate_face_with_holes(#e3d_face{vs=Vs,mat=Mat}=Face, Holes, Vcoords) ->
+quadrangulate_face_with_holes(#e3d_face{vs=Vs,mat=Mat}=Face, Holes, Vcoords) ->
 	Vtab = rotate_normal_to_z(Vs, Vcoords),
 	Holes1 = map(fun (H) -> sortface(H, Vtab) end, Holes),
 	#e3d_face{vs=Vsjoined} = joinislands(Face, Holes1, Vtab),
 	Tris = triface(Vsjoined, Vtab),
 	Bord = border_edges([Vs | map(fun (#e3d_face{vs=Hs}) -> Hs end, Holes)]),
 	Triscdt = cdt(Tris, Bord, Vtab),
-	Qs = quadrilate(Triscdt, Bord, Vtab),
+	Qs = quadrangulate(Triscdt, Bord, Vtab),
 	to_faces(Qs, Bord, Mat).
 
 % Fl is list of tuples (should be 3-tuples, but might be smaller
@@ -167,7 +167,7 @@ isear(F, I, N, Angk, Vtab, Mode) ->
 	V1 = welement(I+1, N, F),
 	V2 = welement(I+2, N, F),
 	if
-	V0 == V1; V1 == V2 ->
+	Vm1 == V0; V0 == V1 ->
 		(Mode > 0);
 	true ->
 		B = (K == ang_convex orelse K == ang_tangential orelse K == ang_0),
@@ -330,7 +330,7 @@ bedges([A,B|T],F,S) -> bedges([B|T], F, gb_sets:add({A,B}, S)).
 % Bord is a gb_sets set of border edges {U,V}, oriented so that Tris
 % is a triangulation of the left face of the border(s).
 % Make the triangulation "Constrained Delaunay" by flipping "reversed"
-% quadrilaterals until can flip no more.
+% quadrangulaterals until can flip no more.
 % Return list of triangles in new triangulation.
 cdt(Tris, Bord, Vtab) ->
 	TD = tridict(Tris),
@@ -441,7 +441,7 @@ othervert({V,B,A},A,B) -> V.
 % border edges are in gb_sets set Bord.
 % Combine adjacent triangles to make quads, trying for "good" quads where possible.
 % Some triangles will probably remain uncombined.
-quadrilate(Tris, Bord, Vtab) ->
+quadrangulate(Tris, Bord, Vtab) ->
 	ER = ergraph(Tris, Bord, Vtab),
 	N = length(ER),
 	if
@@ -583,8 +583,8 @@ fless(_,_,_) -> true.
 % Return tuple of anglekind of angles of F (a tuple of vertices)
 classifyangles(F, N, Vtab) ->
 	list_to_tuple(map(fun (I) ->
-						anglekind(welement(I-1,N,F), element(I,F),
-									welement(I+1,N,F), Vtab) end,
+				anglekind(welement(I-1,N,F), element(I,F),
+					welement(I+1,N,F), Vtab) end,
 						seq(1,N))).
 
 % Classify angle formed by vertices A,B,C with respect to
@@ -606,7 +606,7 @@ anglekind(A,B,C,Vtab) ->
 		end
 	end.
 
-% Return true if ABC is clockwise oriented triangle.
+% Return true if ABC is counter-clockwise oriented triangle.
 % Returns false if not (could be colinear, within 1e-7 tolerance)
 ccw(A,B,C,Vtab) ->
 	{Ax,Ay} = coords2(A,Vtab),
@@ -675,38 +675,26 @@ polygon_plane(Vs, Vtab) ->
 	if
 	Nvs < 3 -> {0.0,0.0,1.0};	% so doesn't crash
 	true ->
-		Sum = ppn([nth(Nvs-1,Vs), nth(Nvs,Vs)  | Vs], Vtab, e3d_vec:zero()),
-		Norm = e3d_vec:norm(Sum),
-		Area = polyarea(Vs, Vtab),
-		Norm1 = if
-			Area < 0.0 -> e3d_vec:mul(Norm, -1.0);
-			true -> Norm
-			end,
+		Sum = newell(Vs, Vs, Vtab, e3d_vec:zero()),
 		if
-		Norm1 == {0.0,0.0,0.0} -> {0.0,0.0,1.0};
-		true -> Norm1
+		Sum == {0.0,0.0,0.0} -> {0.0,0.0,1.0};
+		true -> e3d_vec:norm(Sum)
 		end
 	end.
 
-ppn([A,B,C|Rest], Vtab, Sum) ->
-	N = e3d_vec:normal(element(A+1, Vtab), element(B+1, Vtab), element(C+1, Vtab)),
-	N1 = case anglekind(A, B, C, Vtab) of
-		ang_convex -> N;
-		ang_reflex -> e3d_vec:mul(N, -1.0);
-		_ -> e3d_vec:zero()
-		end,
-	ppn([B,C|Rest], Vtab, e3d_vec:add(N1, Sum));
-ppn(_, _, Sum) -> Sum.
+% Newell method for averaging normals in closed polygon
+newell([Last], [First|_], Vtab, Sum) ->
+	newell_sum(Last, First, Vtab, Sum);
+newell([A|[B|_]=Rest], First, Vtab, Sum) ->
+	newell(Rest, First, Vtab, newell_sum(A,B,Vtab,Sum)).
 
-polyarea(Vs, Vtab) ->
-	0.5*polya(Vs, hd(Vs), Vtab, 0.0).
-
-polya([A|Rest], First, Vtab, Sum) ->
-	case Rest of
-	[B|_] -> polya(Rest, First, Vtab, Sum+perp2(coords2(A,Vtab),coords2(B,Vtab)));
-	[] -> Sum+perp2(coords2(A,Vtab),coords2(First,Vtab))
-	end;
-polya([], _, _, Sum) -> Sum.
+newell_sum(A, B, Vtab, Sum={Sx,Sy,Sz}) ->
+	{Ax,Ay,Az} = element(A+1, Vtab),
+	{Bx,By,Bz} = element(B+1, Vtab),
+	{Sx + (Ay-By)*(Az+Bz),
+	 Sy + (Az-Bz)*(Ax+Bx),
+	 Sz + (Ax-Bx)*(Ay+By)}.
+	
 
 coords2(A,Vtab) ->
 	{X,Y,_} = element(A+1,Vtab),
@@ -726,7 +714,7 @@ angle(A,B,C,Vtab) ->
 	V = sub2(coords2(A,Vtab), coords2(B,Vtab)),
 	N1 = norm2(U),
 	N2 = norm2(V),
-	case (N1 == 0.0 andalso N2 == 0.0) of
+	case (N1 == 0.0 orelse N2 == 0.0) of
 	true -> 0.0;
 	false ->
 		Costheta = dot2(U,V)/(N1*N2),
@@ -871,6 +859,6 @@ test_tri(T) ->
 test_quad(T) ->
 	{F,H,V} = test_data(T),
 	case H of
-	[] -> quadrilate_face(F, V);
-	_ -> quadrilate_face_with_holes(F, H, V)
+	[] -> quadrangulate_face(F, V);
+	_ -> quadrangulate_face_with_holes(F, H, V)
 	end.
