@@ -50,7 +50,7 @@ Howard Trickey:
 Anders Conradi: Wrote the Select|Edge Ring command (originally as a plug-in).
 
 Sean Hinde (Earlyriser):
-	Wrote the VMRL exporter.
+	Wrote the VRML exporter.
 	Got Wings working on Mac OS X.
 	Packaged Wings an a Mac application.
 

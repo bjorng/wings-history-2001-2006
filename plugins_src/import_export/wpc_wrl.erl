@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.7 2002/11/07 07:49:41 bjorng Exp $
+%%     $Id: wpc_wrl.erl,v 1.8 2003/10/19 10:08:28 bjorng Exp $
 %%
 
 -module(wpc_wrl).
@@ -156,7 +156,8 @@ def_material(F, Name, Mat0) ->
     {Ar, Ag, Ab, O} = lookup(ambient, Mat),
     {Dr, Dg, Db, _} = lookup(diffuse, Mat),
     io:format(F, "          diffuseColor ~p ~p ~p\n",[Dr, Dg, Db]),
-    io:format(F, "          emissiveColor ~p ~p ~p\n",[0.0, 0.0, 0.0]),
+    {Er, Eg, Eb, _} = lookup(emission, Mat),
+    io:format(F, "          emissiveColor ~p ~p ~p\n", [Er, Eg, Eb]),
     {Sr, Sg, Sb, _} = lookup(specular, Mat),
     io:format(F, "          specularColor ~p ~p ~p\n",[Sr, Sg, Sb]),
     Amb = (Ar+Ag+Ab)/3,
