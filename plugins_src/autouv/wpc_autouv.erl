@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.264 2004/08/17 10:41:37 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.265 2004/08/17 13:01:45 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -476,9 +476,16 @@ handle_event_3({action,{auv,create_texture}},_St) ->
 handle_event_3({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
     #uvstate{st=GeomSt0,matname=MatName0} = Uvs,
     Tx = ?SLOW(auv_texture:get_texture(St, Opt)),
-    {GeomSt,MatName} = add_material(Tx, undefined, MatName0, GeomSt0),
-    wings_wm:send(geom, {new_state,GeomSt}),
-    get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}});
+    case MatName0 of 
+	none -> 
+	    Id = wings_image:new("UVmap", Tx),
+	    wings_image:window(Id),
+	    get_event(St);
+	_ ->
+	    {GeomSt,MatName} = add_material(Tx, undefined, MatName0, GeomSt0),
+	    wings_wm:send(geom, {new_state,GeomSt}),
+	    get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}})
+    end;
 handle_event_3({action,{auv,{remap,Method}}}, St0) ->
     St = remap(Method, St0),
     get_event(St);
