@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.100 2003/05/27 04:55:45 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.101 2003/06/25 16:50:56 bjorng Exp $
 %%
 
 -module(wings_menu).
--export([is_popup_event/1,is_popup_event/3,menu/5,popup_menu/4,build_command/2]).
+-export([is_popup_event/1,menu/5,popup_menu/4,build_command/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -63,25 +63,6 @@ is_popup_event(#mousebutton{button=3,x=X0,y=Y0,state=State,mod=Mod}) ->
 	_Other -> no
     end;
 is_popup_event(_Event) -> no.
-
-is_popup_event(Ev0, PrefKey, St0) ->
-    case is_popup_event(Ev0) of
-	no -> no;
-	{yes,Xglobal,Yglobal,_}=Res ->
-	    {Xlocal,Ylocal} = wings_wm:global2local(Xglobal, Yglobal),
-	    case wings_pref:get_value(PrefKey) of
-		false -> Res;
-		true ->
-		    case wings_pick:do_pick(Xlocal, Ylocal, St0) of
-			{add,_,St} ->
-			    Ev = wings_wm:local2global(Ev0),
-			    wings_io:putback_event(Ev),
-			    wings_wm:later({new_state,St}),
-			    keep;
-			_Other -> Res
-		    end
-	    end
-    end.
 
 menu(X, Y, Owner, Name, Menu) ->
     menu_setup(plain, X, Y, Name, Menu,
@@ -161,8 +142,12 @@ raise_menubar(Owner) ->
     end.
 
 menu_killer(#mousebutton{button=1,state=?SDL_PRESSED}, Owner) ->
+    wings_wm:notify(menu_aborted),
     kill_menus(Owner);
 menu_killer(#keyboard{sym=27}, Owner) -> %Escape.
+    wings_wm:notify(menu_aborted),
+    kill_menus(Owner);
+menu_killer(kill_menus, Owner) ->
     kill_menus(Owner);
 menu_killer(_, _) -> keep.
 
@@ -366,9 +351,8 @@ do_action(Action, #mi{owner=Owner}=Mi) ->
 handle_key(Ev, Mi) ->
     handle_key_1(key(Ev), Mi).
 
-handle_key_1(cancel, Mi) ->
-    clear_menu_selection(Mi),
-    delete_all(Mi);
+handle_key_1(cancel, _) ->
+    wings_wm:send(menu_killer, #keyboard{sym=27});
 handle_key_1(delete, Mi0) ->
     %% Delete hotkey bound to this entry.
     case current_command(Mi0) of
@@ -486,9 +470,7 @@ set_submenu_timer(#mi{sel=Sel}=Mi, OldMi, X0, Y0) ->
 delete_all(Mi) ->
     clear_timer(Mi),
     case wings_wm:is_window(menu_killer) of
-	true ->
-	    wings_wm:send(menu_killer,
-			  #mousebutton{button=1,x=0,y=0,state=?SDL_PRESSED});
+	true -> wings_wm:send(menu_killer, kill_menus);
 	false -> ok
     end,
     delete.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.248 2003/06/19 16:54:04 bjorng Exp $
+%%     $Id: wings.erl,v 1.249 2003/06/25 16:50:56 bjorng Exp $
 %%
 
 -module(wings).
@@ -264,11 +264,12 @@ unregister_postdraw_hook(Window,Id) ->
     end.
 
 save_state(St0, St1) ->
-    St = wings_undo:save(St0, St1),
-    case St of
-	#st{saved=false} -> main_loop(St#st{vec=none});
-	_Other -> main_loop(caption(St#st{saved=false,vec=none}))
-    end.
+    St2 = wings_undo:save(St0, St1),
+    St = case St2 of
+	     #st{saved=false} -> St2#st{vec=none};
+	     _Other -> caption(St2#st{saved=false,vec=none})
+	 end,
+    main_loop(clear_temp_sel(St)).
 
 install_restorer(Next) ->
     {seq,{pop_handler,fun() ->
@@ -306,13 +307,14 @@ handle_event(Ev, St) ->
 handle_event_0(#mousebutton{button=But,state=ButSt,mod=Mod}=Ev, St)
   when But < 3, Mod band ?CTRL_BITS =/= 0 ->
     case wings_pref:get_value(default_commands) of
-	false -> handle_event_1(Ev, St);
+	false ->
+	    handle_event_1(Ev, St);
 	true ->
 	    if
 		Mod band ?SHIFT_BITS =/= 0 ->
 		    define_command(ButSt, But, St);
 		true ->
-		    use_command(ButSt, But, St)
+		    use_command(Ev, St)
 	    end
     end;
 handle_event_0(Ev, St) -> handle_event_1(Ev, St).
@@ -323,12 +325,27 @@ handle_event_1(Ev, St) ->
 	Other -> Other
     end.
 
-handle_event_2(Event, St) ->
-    case wings_menu:is_popup_event(Event, right_click_sel_in_geom, St) of
-	no -> handle_event_3(Event, St);
-	{yes,X,Y,_} -> popup_menu(X, Y, St);
+handle_event_2(#mousebutton{x=X,y=Y}=Ev0, #st{sel=Sel}=St0) ->
+    case wings_menu:is_popup_event(Ev0) of
+	no ->
+	    handle_event_3(Ev0, St0);
+	{yes,Xglobal,Yglobal,_} ->
+	    case Sel =:= [] andalso wings_pref:get_value(use_temp_sel) of
+		false ->
+		    popup_menu(Xglobal, Yglobal, St0);
+		true ->
+		    case wings_pick:do_pick(X, Y, St0) of
+			{add,_,St} ->
+			    Ev = wings_wm:local2global(Ev0),
+			    wings_io:putback_event(Ev),
+			    wings_wm:later({temporary_selection,St});
+			_ ->
+			    popup_menu(Xglobal, Yglobal, St0)
+		    end
+	    end;
 	Other -> Other
-    end.
+    end;
+handle_event_2(Ev, St) -> handle_event_3(Ev, St).
 	    
 handle_event_3(#keyboard{}=Ev, St) ->
     case wings_hotkey:event(Ev, St) of
@@ -362,10 +379,12 @@ handle_event_3(quit, St) ->
     end;
 handle_event_3({new_state,St}, St0) ->
     save_state(St0, St);
+handle_event_3({temporary_selection,St}, _) ->
+    main_loop(St#st{temp_sel=true});
 handle_event_3({current_state,St}, _) ->
     main_loop_noredraw(St);
 handle_event_3(revert_state, St) ->
-    main_loop(St);
+    main_loop(clear_temp_sel(St));
 handle_event_3(need_save, St) ->
     main_loop(caption(St#st{saved=false}));
 handle_event_3({new_default_command,DefCmd}, St) ->
@@ -376,26 +395,28 @@ handle_event_3(got_focus, _) ->
     wings_wm:message(Message),
     wings_wm:dirty();
 handle_event_3(lost_focus, _) -> keep;
-handle_event_3({note,_}, _) -> keep;
+handle_event_3({note,menu_aborted}, St) ->
+    main_loop(clear_temp_sel(St));
+handle_event_3({note,_}, _) ->
+    keep;
 handle_event_3({drop,Pos,DropData}, St) ->
     handle_drop(DropData, Pos, St);
 handle_event_3(ignore, _St) -> keep.
 
-do_hotkey(Cmd, St0) ->
-    case wings_pref:get_value(right_click_sel_in_geom) of
+do_hotkey(Cmd, #st{sel=[]}=St0) ->
+    case wings_pref:get_value(use_temp_sel) of
 	false ->
 	    do_command(Cmd, St0);
 	true ->
 	    {_,X,Y} = wings_wm:local_mouse_state(),
 	    case wings_pick:do_pick(X, Y, St0) of
 		{add,_,St} ->
-		    wings_io:putback_event({action,Cmd}),
-		    wings_wm:later({new_state,St}),
-		    keep;
+		    do_command(Cmd, St#st{temp_sel=true});
 		_Other ->
 		    do_command(Cmd, St0)
 	    end
-    end.
+    end;
+do_hotkey(Cmd, St) -> do_command(Cmd, St).
 
 do_command(Cmd, St) ->    
     do_command(Cmd, none, St).
@@ -472,7 +493,8 @@ repeatable(Mode, Cmd) ->
 %% Vector and secondary-selection commands.
 command({vector,What}, St) ->
     wings_vec:command(What, St);
-command({secondary_selection,aborted}, St) -> St;
+command({secondary_selection,aborted}, St) ->
+    St;
 command({shape,Shape}, St0) ->
     case wings_shapes:command(Shape, St0) of
     	St0 -> St0;
@@ -501,7 +523,7 @@ command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> ok;
-	Cmd when tuple(Cmd) ->
+	Cmd when is_tuple(Cmd) ->
 	    wings_wm:later({action,Cmd})
     end,
     St;
@@ -510,7 +532,7 @@ command({edit,repeat_drag}, #st{sel=[]}=St) -> St;
 command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,args=Args}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> ok;
-	Cmd when tuple(Cmd) ->
+	Cmd when is_tuple(Cmd) ->
 	    wings_wm:later({action,Cmd,Args})
     end,
     St;
@@ -681,6 +703,9 @@ patches() ->
 	{disabled,Desc} ->
 	    [separator,{"Use "++Desc,enable_patches}]
     end.
+
+clear_temp_sel(#st{temp_sel=false}=St) -> St;
+clear_temp_sel(St) -> St#st{temp_sel=false,sel=[]}.
 
 info(#st{sel=[]}) -> [];
 info(St) ->
@@ -887,15 +912,28 @@ define_command(?SDL_RELEASED, N, #st{repeatable=Cmd,def=DefCmd0}) ->
 		      end, ignore);
 define_command(_, _, _) -> keep.
 
-use_command(_, _, #st{sel=[]}) -> keep;
-use_command(?SDL_RELEASED, N, #st{selmode=Mode,def=DefCmd}) ->
+use_command(#mousebutton{state=?SDL_RELEASED,button=N}=Ev,
+	    #st{selmode=Mode,def=DefCmd}=St) ->
     case repeatable(Mode, element(N, DefCmd)) of
 	no -> keep;
-	Cmd when tuple(Cmd) ->
-	    wings_wm:later({action,Cmd}),
-	    keep
+	Cmd when is_tuple(Cmd) ->
+	    do_use_command(Ev, Cmd, St)
     end;
-use_command(_, _, _) -> keep.
+use_command(_, _) -> keep.
+
+do_use_command(#mousebutton{x=X,y=Y}, Cmd, #st{sel=[]}=St0) ->
+    case wings_pref:get_value(use_temp_sel) of
+	false ->
+	    keep;
+	true ->
+	    wings_wm:later({action,Cmd}),
+	    case wings_pick:do_pick(X, Y, St0) of
+		{add,_,St} ->
+		    main_loop_noredraw(St#st{temp_sel=true});
+		_Other -> keep
+	    end
+    end;
+do_use_command(_, Cmd, _) -> wings_wm:later({action,Cmd}).
 
 crash_logger(Crash, St) ->
     LogName = wings_util:crash_log(geom, Crash),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.89 2003/06/19 16:54:04 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.90 2003/06/25 16:50:56 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -166,10 +166,8 @@ command(advanced, _St) ->
     Qs = [{vframe,
 	   [{"Advanced Menus",advanced_menus},
 	    {"Default Commands",default_commands},
-	    {"Right Click or Hotkey Selects in Geometry Window",
-	     right_click_sel_in_geom},
-	    {"Right Click Selects in Secondary Selection Mode",
-	     right_click_sel_in_ss}
+	    {"Use Highlight as Temporary Selection",
+	     use_temp_sel}
 	   ]}],
     dialog("Advanced Preferences", Qs);
 command(proxy, _St) ->
@@ -414,8 +412,7 @@ defaults() ->
      %% Advanced features.
      {advanced_menus,false},
      {default_commands,false},
-     {right_click_sel_in_ss,false},
-     {right_click_sel_in_geom,false},
+     {use_temp_sel,false},
 
      %% Proxy preferences.
      {proxy_shaded_edge_style,some},
@@ -482,7 +479,9 @@ not_bad(camera_fov, _) -> false;
 not_bad(camera_hither, _) -> false;
 not_bad(camera_yon, _) -> false;
 not_bad(show_wire_backfaces, _) -> false;
-     
+not_bad(right_click_sel_in_ss, _) -> false;
+not_bad(right_click_sel_in_geom, _) -> false;
+
 %% Crashes have occurred.
 not_bad(last_axis, Val) -> is_wings_vector(Val);
 not_bad(default_axis, Val) -> is_wings_vector(Val);

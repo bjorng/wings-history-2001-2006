@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.86 2003/06/07 12:49:57 bjorng Exp $
+%%     $Id: wings.hrl,v 1.87 2003/06/25 16:50:56 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -105,6 +105,8 @@
 	 sel=[],				%Current sel: [{Id,GbSet}]
 	 ssels=[],				%Saved selections:
 	 					%  [{Name,Mode,GbSet}]
+	 temp_sel=false,			%Selection only temporary?
+
 	 mat,					%Defined materials (GbTree).
 	 file,					%Current filename.
 	 saved,					%True if model has been saved.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.67 2003/06/08 08:57:15 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.68 2003/06/25 16:50:56 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -117,8 +117,8 @@ command_message(Msg) ->
 mode_restriction(Modes, #st{selmode=Mode}=St) ->
     wings:mode_restriction(Modes),
     case member(Mode, Modes) of
-	true -> St;
-	false -> St#st{sel=[],selmode=last(Modes)}
+	true -> St#st{temp_sel=false};
+	false -> St#st{sel=[],temp_sel=false,selmode=last(Modes)}
     end.
 
 pick_init(#st{selmode=Mode}) ->
@@ -158,13 +158,25 @@ handle_event_1(Event, Ss, St) ->
 	Other -> Other
     end.
 
-handle_event_2(Ev0, Ss, St) ->
-    case wings_menu:is_popup_event(Ev0, right_click_sel_in_ss, St) of
+handle_event_2(#mousebutton{x=X,y=Y}=Ev0, Ss, #st{sel=Sel}=St0) ->
+    case wings_menu:is_popup_event(Ev0) of
 	{yes,Xglobal,Yglobal,Mod} ->
-	    exit_menu(Xglobal, Yglobal, Mod, Ss, St);
-	no -> handle_event_3(Ev0, Ss, St);
-	Other -> Other
-    end.
+	    case Sel =:= [] andalso wings_pref:get_value(use_temp_sel) of
+		false ->
+		    exit_menu(Xglobal, Yglobal, Mod, Ss, St0);
+		true ->
+		    case wings_pick:do_pick(X, Y, St0) of
+			{add,_,St} ->
+			    Ev = wings_wm:local2global(Ev0),
+			    wings_io:putback_event(Ev),
+			    wings_wm:later({new_state,St#st{temp_sel=true}});
+			_ ->
+			    exit_menu(Xglobal, Yglobal, Mod, Ss, St0)
+		    end
+	    end;
+	no -> handle_event_3(Ev0, Ss, St0)
+    end;
+handle_event_2(Ev, Ss, St) -> handle_event_3(Ev, Ss, St).
 
 handle_event_3(#keyboard{}=Ev, Ss, St0) ->
     case handle_key(Ev, Ss, St0) of
@@ -212,6 +224,8 @@ handle_event_4(quit, _Ss, _St) ->
     pop;
 handle_event_4(init_opengl, _, St) ->
     wings:init_opengl(St);
+handle_event_4({note,menu_aborted}, Ss, #st{temp_sel=true}=St) ->
+    get_event(Ss, St#st{sel=[],temp_sel=false,vec=none});
 handle_event_4(_Event, Ss, St) ->
     get_event(Ss, St).
 
