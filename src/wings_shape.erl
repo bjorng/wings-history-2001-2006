@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.25 2002/12/14 14:24:30 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.26 2002/12/28 22:10:28 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -110,7 +110,8 @@ command({Id,restore}, St) ->
     {save_state,restore_object(Id, St)};
 command({Id,rename}, #st{shapes=Shs}) ->
     #we{name=Name} = gb_trees:get(Id, Shs),
-    wings_ask:ask([{"New Name",Name}],
+    wings_ask:ask("Rename Object",
+		  [{"New Name",Name}],
 		  fun([NewName]) -> {objects,{Id,rename,NewName}} end);
 command({Id,rename,Name}, #st{shapes=Shapes0}=St) ->
     We = gb_trees:get(Id, Shapes0),
@@ -212,4 +213,3 @@ update_sel(#we{id=Id,perm={SMode,Elems0}}, #st{selmode=Mode,sel=Sel}=St) ->
     #st{sel=[{Id,Elems}]} = wings_sel:convert_selection(Mode, StTemp),
     sort([{Id,Elems}|Sel]);
 update_sel(_, #st{sel=Sel}) -> Sel.
-    

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.57 2002/12/28 13:38:09 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.58 2002/12/28 22:10:28 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -69,7 +69,7 @@ command(camera_mode, _St) ->
 	      {"Far Clipping Plane",{text,Yon0,
 				     [{range,100.0,9.9e307}]}}]}],
 	   [{title,"Camera Parameters"}]}],
-    wings_ask:dialog(Qs,
+    wings_ask:dialog("Camera Settings", Qs,
 		     fun([Buttons,Mode,ZoomFlag,ZoomFactor,Fov,Hither,Yon]) ->
 			     validate(Buttons, Mode),
 			     wings_pref:set_value(camera_mode, Mode),

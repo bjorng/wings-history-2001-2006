@@ -48,21 +48,22 @@ insert_before_more([H|T]) ->
 insert_before_more([]) ->
     [{"Text",text,[option]}].
 
-command({shape,{text,Ask}}, St) -> make_text(Ask, St);
+command({shape,{text,Ask}}, _St) -> make_text(Ask);
 command(_, _) -> next.
 
-make_text(Ask, St) when is_atom(Ask) ->
-	DefFontName = wpa:pref_get(wpc_tt, fontname, "Arial"),
-	DefFontDir = wpa:pref_get(wpc_tt, fontdir, sysfontdir()),
-	DefText = wpa:pref_get(wpc_tt, text, "A"),
-	DefBisect = wpa:pref_get(wpc_tt, bisections, 0),
-	wpa:ask(Ask, [ {"Text", DefText},
-		       {"TrueType font",DefFontName},
-		       {"Font dir",DefFontDir},
-		       {"Number of edge bisections", DefBisect}],
-		St, fun(Res) -> {shape,{text,Res}} end);
-make_text([T,F,D,N], _St) ->
-	gen(F, D, T, N).
+make_text(Ask) when is_atom(Ask) ->
+    DefFontName = wpa:pref_get(wpc_tt, fontname, "Arial"),
+    DefFontDir = wpa:pref_get(wpc_tt, fontdir, sysfontdir()),
+    DefText = wpa:pref_get(wpc_tt, text, "A"),
+    DefBisect = wpa:pref_get(wpc_tt, bisections, 0),
+    wpa:ask(Ask, "Create Text",
+		[{"Text", DefText},
+		 {"TrueType font",DefFontName},
+		 {"Font dir",DefFontDir},
+		 {"Number of edge bisections", DefBisect}],
+	    fun(Res) -> {shape,{text,Res}} end);
+make_text([T,F,D,N]) ->
+    gen(F, D, T, N).
 
 gen(Font, Dir, Text, Nsubsteps) ->
 	File = font_file(Font, Dir),

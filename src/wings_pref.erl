@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.63 2002/12/14 14:24:30 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.64 2002/12/28 22:10:28 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -129,15 +129,14 @@ command(prefs, _St) ->
 	      {"Advanced Menus",advanced_menus}
 	     ],
 	     [{title,"Miscellanous"}]}]}],
-    dialog(Qs);
+    dialog("Preferences", Qs);
 command(compatibility, _St) ->
     Qs = [{vframe,
 	   [{"Optimize Display Lists",display_list_opt},
 	    {"Use Display Lists for Text",text_display_lists},
 	    {"Show Dummy Axis Letter",dummy_axis_letter},
-	    {"Early Back Buffer Clear",early_buffer_clear}],
-	   [{title,"Compatibility"}]}],
-    dialog(Qs);
+	    {"Early Back Buffer Clear",early_buffer_clear}]}],
+    dialog("Compatibility Settings", Qs);
 command({set,List}, _St) ->
     foreach(fun({Key,Val}) ->
 		    smart_set_value(Key, Val)
@@ -145,9 +144,9 @@ command({set,List}, _St) ->
     wings_io:putback_event(redraw),
     keep.
 
-dialog(Qs0) ->
+dialog(Title, Qs0) ->
     Qs = make_query(Qs0),
-    wings_ask:dialog(Qs,
+    wings_ask:dialog(Title, Qs,
 		     fun(Res) ->
 			     {edit,{preferences,{set,Res}}}
 		     end).

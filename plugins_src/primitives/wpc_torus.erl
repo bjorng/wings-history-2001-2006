@@ -39,55 +39,55 @@ torus_menu() ->
      {"Lumpy Torus"  ,lutorus,[option]},
      {"Spiral Torus" ,sptorus,[option]}].
 
-command({shape,{more,{uvtorus,Ask}}}, St) -> make_uvtorus(Ask, St);
-command({shape,{more,{lutorus,Ask}}}, St) -> make_lutorus(Ask, St);
-command({shape,{more,{sptorus,Ask}}}, St) -> make_sptorus(Ask, St);
+command({shape,{more,{uvtorus,Ask}}}, _St) -> make_uvtorus(Ask);
+command({shape,{more,{lutorus,Ask}}}, _St) -> make_lutorus(Ask);
+command({shape,{more,{sptorus,Ask}}}, _St) -> make_sptorus(Ask);
 command(_, _) -> next.
 
 %%% The rest are local functions.
 
 % ======= Regular Torus =======
-make_uvtorus(Ask, St) when is_atom(Ask) ->
-	wpa:ask(Ask, [ {"U Resolution",80},
-				   {"V Resolution",16},
-				   {"Major Radius",1.0},
-				   {"Minor Radius",0.2}
-				 ],
-	St, fun(Res) -> {shape,{more,{uvtorus,Res}}} end);
-make_uvtorus([Ures, Vres, MajR, MinR], St) ->
-	Vs = uvtorus_verts(Ures, Vres, MajR, MinR),
-	Fs = uvtorus_faces(Ures, Vres),
-	{new_shape,"UV Torus",Fs,Vs}.
+make_uvtorus(Ask) when is_atom(Ask) ->
+    wpa:ask(Ask, "Create UV Torus",
+	    [{"U Resolution",80},
+	     {"V Resolution",16},
+	     {"Major Radius",1.0},
+	     {"Minor Radius",0.2}],
+	    fun(Res) -> {shape,{more,{uvtorus,Res}}} end);
+make_uvtorus([Ures, Vres, MajR, MinR]) ->
+    Vs = uvtorus_verts(Ures, Vres, MajR, MinR),
+    Fs = uvtorus_faces(Ures, Vres),
+    {new_shape,"UV Torus",Fs,Vs}.
 
 % ======= Lumpy Torus =======
-make_lutorus(Ask, St) when is_atom(Ask) ->
-	wpa:ask(Ask, [ {"U Resolution",125},
-				   {"V Resolution",25},
-				   {"Major Radius",1.0},
-				   {"Minor Radius",0.2},
-				   {"Lumps       ",8},
-				   {"Lump Amplitude",0.5}
-				 ],
-	St, fun(Res) -> {shape,{more,{lutorus,Res}}} end);
-make_lutorus([Ures, Vres, MajR, MinR, Loops, LoopRad], St) ->
+make_lutorus(Ask) when is_atom(Ask) ->
+	wpa:ask(Ask, "Create Lumpy Torus",
+		[{"U Resolution",125},
+		 {"V Resolution",25},
+		 {"Major Radius",1.0},
+		 {"Minor Radius",0.2},
+		 {"Lumps",8},
+		 {"Lump Amplitude",0.5}],
+		fun(Res) -> {shape,{more,{lutorus,Res}}} end);
+make_lutorus([Ures, Vres, MajR, MinR, Loops, LoopRad]) ->
 	Vs = lutorus_verts(Ures, Vres, MajR, MinR, Loops, LoopRad),
 	Fs = uvtorus_faces(Ures, Vres),
 	{new_shape,"Lumpy Torus",Fs,Vs}.
 
 % ======= Spiral Torus =======
-make_sptorus(Ask, St) when is_atom(Ask) ->
-	wpa:ask(Ask, [ {"U Resolution",200},
-				   {"V Resolution",20},
-				   {"Major Radius",1.0},
-				   {"Minor Radius",0.2},
-				   {"Loops       ",8},
-				   {"Loop Radius ",0.2}
-				 ],
-	St, fun(Res) -> {shape,{more,{sptorus,Res}}} end);
-make_sptorus([Ures, Vres, MajR, MinR, Loops, LoopRad], St) ->
-	Vs = sptorus_verts(Ures, Vres, MajR, MinR, Loops, LoopRad),
-	Fs = uvtorus_faces(Ures, Vres),
-	{new_shape,"Spiral Torus",Fs,Vs}.
+make_sptorus(Ask) when is_atom(Ask) ->
+    wpa:ask(Ask, "Make Spiral Torus",
+	    [{"U Resolution",200},
+	     {"V Resolution",20},
+	     {"Major Radius",1.0},
+	     {"Minor Radius",0.2},
+	     {"Loops       ",8},
+	     {"Loop Radius ",0.2}],
+	    fun(Res) -> {shape,{more,{sptorus,Res}}} end);
+make_sptorus([Ures, Vres, MajR, MinR, Loops, LoopRad]) ->
+    Vs = sptorus_verts(Ures, Vres, MajR, MinR, Loops, LoopRad),
+    Fs = uvtorus_faces(Ures, Vres),
+    {new_shape,"Spiral Torus",Fs,Vs}.
 
 
 % theta = (I*2*pi()/Ures)

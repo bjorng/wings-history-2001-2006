@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.13 2002/11/07 07:49:41 bjorng Exp $
+%%     $Id: wpc_rib.erl,v 1.14 2002/12/28 22:10:27 bjorng Exp $
 
 -module(wpc_rib).
 -include_lib("e3d.hrl").
@@ -125,8 +125,8 @@ set_pref(KeyVals) ->
 %%% Rendering.
 %%%
 
-do_render(Ask, Engine, St) when is_atom(Ask) ->
-    wpa:dialog(Ask, dialog_qs(render, Engine), St,
+do_render(Ask, Engine, _St) when is_atom(Ask) ->
+    wpa:dialog(Ask, "RIB Rendering Options", dialog_qs(render, Engine),
 	       fun(Res) ->
 		       {file,{render,{Engine,Res}}}
 	       end);
@@ -224,7 +224,7 @@ random_string() ->
 %%%
 
 do_export(Ask, Op, _Exporter, St) when is_atom(Ask) ->
-    wpa:dialog(Ask, dialog_qs(export), St,
+    wpa:dialog(Ask, "RIB Export Options", dialog_qs(export),
 	       fun(Res) ->
 		       {file,{Op,{rib,Res}}}
 	       end);
@@ -260,7 +260,8 @@ export_1(Name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Attr) ->
     case proplists:get_value(tmp_render, Attr) of
   	none -> true;
   	_ -> TmpImgs
-    end.
+    end,
+    ok.
 
 export_object(F, #e3d_object{name=Name,obj=Mesh0}, Mat, Base, Attr) ->
     Mesh1 = case proplists:get_bool(triangulate, Attr) of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.8 2002/11/07 07:49:41 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.9 2002/12/28 22:10:27 bjorng Exp $
 %%
 
 -module(wpc_obj).
@@ -47,8 +47,8 @@ props() ->
 %%% Import.
 %%%
 
-do_import(Ask, St) when is_atom(Ask) ->
-    wpa:dialog(Ask, dialog(import), St,
+do_import(Ask, _St) when is_atom(Ask) ->
+    wpa:dialog(Ask, "Wavefront Import Options", dialog(import),
 	       fun(Res) ->
 		       {file,{import,{obj,Res}}}
 	       end);
@@ -72,7 +72,7 @@ import_fun(Attr) ->
 %%%
 
 do_export(Ask, Op, _Exporter, St) when is_atom(Ask) ->
-    wpa:dialog(Ask, dialog(export), St,
+    wpa:dialog(Ask, "Wavefront Export Options", dialog(export),
 	       fun(Res) ->
 		       {file,{Op,{obj,Res}}}
 	       end);

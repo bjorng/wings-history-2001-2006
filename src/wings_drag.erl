@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.118 2002/12/26 20:35:27 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.119 2002/12/28 22:10:28 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -373,7 +373,7 @@ numeric_input(Drag0) ->
     Ev = #mousemotion{x=X,y=Y,state=0},
     wings_wm:set_me_modifiers(0),
     {Move0,Drag} = mouse_translate(Ev, Drag0),
-    wings_ask:dialog(make_query(Move0, Drag),
+    wings_ask:dialog("Numeric Input", make_query(Move0, Drag),
 		     fun(Res) ->
 			     {numeric_input,make_move(Res, Drag)}
 		     end).

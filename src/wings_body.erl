@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.45 2002/12/26 09:47:07 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.46 2002/12/28 22:10:28 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -121,8 +121,8 @@ cleanup(Ask, _) when is_atom(Ask) ->
 	  {hframe,
 	   [{label,"Length Tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]},
 	  {"Isolated Vertices",true,[{key,isolated_vs}]}],
-    wings_ask:dialog(Ask,
-		     [{vframe, Qs, [{title,"Remove"}]}],
+    wings_ask:dialog(Ask, "Cleanup",
+		     [{vframe,Qs}],
 		     fun(Res) -> {body,{cleanup,Res}} end);
 cleanup(Opts, St0) ->
     St = wings_sel:map(fun(_, We) -> cleanup_1(Opts, We) end, St0),
@@ -303,7 +303,8 @@ auto_smooth(St) ->
     do_auto_smooth(60, St).
 
 auto_smooth(Ask, _) when is_atom(Ask) ->
-    wings_ask:ask(Ask, [{"Crease Angle",60,[{range,{0,180}}]}],
+    wings_ask:ask(Ask, "Auto Smooth Parameters",
+		  [{"Crease Angle",60,[{range,{0,180}}]}],
 		  fun(Res) -> {body,{auto_smooth,Res}} end);
 auto_smooth([Angle], St) ->
     {save_state,do_auto_smooth(Angle, St)}.
@@ -365,7 +366,7 @@ strip_texture(St) ->
 weld(Ask, _) when is_atom(Ask) ->
     Qs = [{hframe,
 	   [{label,"Distance Tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]}],
-    wings_ask:dialog(Ask, Qs,
+    wings_ask:dialog(Ask, "Weld", Qs,
 		     fun(Res) -> {body,{weld,Res}} end);
 weld([Tolerance], St0) ->
     St1 = combine(St0),

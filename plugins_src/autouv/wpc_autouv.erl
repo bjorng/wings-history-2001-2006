@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.69 2002/12/26 09:47:06 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.70 2002/12/28 22:10:27 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -360,7 +360,7 @@ start_edit(_Id, We, St) ->
     Qs = [{vframe,[{alt,DefVar,"Edit existing UV mapping",edit},
 		   {alt,DefVar,"Discard existing UV mapping and start over",discard}],
 	   [{title,"Model is already UV-mapped"}]}],
-    wings_ask:dialog(Qs,
+    wings_ask:dialog("Model is Already UV Mapped", Qs,
 		     fun([Reply]) ->
 			     case Reply of
 				 edit ->
@@ -394,9 +394,9 @@ start_edit_1(#we{name=ObjName,fs=Ftab}=We, St) ->
 start_edit_cb(First, Ms, We) ->
     DefVar = {answer,First},
     Qs = [{vframe,
-	   [{alt,DefVar,"Material "++atom_to_list(M),M} || {M,_} <- Ms],
-	   [{title,"Choose Material"}]}],
-    wings_ask:dialog(Qs,
+	   [{alt,DefVar,"Material "++atom_to_list(M),M} || {M,_} <- Ms]}],
+    wings_ask:dialog("Choose Material to Edit",
+		     Qs,
 		     fun([Mat]) ->
 			     {value,{_,Faces}} = keysearch(Mat, 1, Ms),
 			     gen_edit_event(Mat, Faces, We)
@@ -851,7 +851,8 @@ command_menu(faceg, X,Y, _Uvs) ->
 	    {"Move", move, "Move selected faces"},
 	    {"Scale", scale, "Uniform Scale of selected faces"},
 	    {"Rotate", {rotate, Rotate}, "Rotate selected faces"},
-	    {"Rescale all", rescale_all, "Pack the space in lower-left before rescaling"}
+	    separator,
+	    {"Rescale All", rescale_all, "Pack the space in lower-left before rescaling"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 
@@ -881,7 +882,7 @@ option_menu() ->
      {"Import", import, "Import texture"},
      {"Checkerboard", checkerboard, "Generate checkerboard texture"},
      separator,
-     {"Apply texture", apply_texture, "Attach the current texture to the model"},
+     {"Apply Texture", apply_texture, "Attach the current texture to the model"},
      separator,
      {"Quit", quit, "Quit AutoUv-mapper"}].
 
@@ -902,24 +903,23 @@ edge_option_menu(#uvstate{option = Option}) ->
 		   {"Texture Background (if available)", Option#setng.texbg}],
 	   [{title, "Display Color and texture?"}]},
 	  {vframe, TxSzs, [{title,"Texture Size"}]}],
-    wings_ask:dialog(Qs, %%fun() -> draw_windows(Uvs) end,
+    wings_ask:dialog("Draw Options", Qs,
 		     fun([Mode,BEC,BEW,Color,TexBg, TSz]) -> 
 			     {auv, set_options, {Mode,BEC,BEW,Color,TexBg,TSz}}  end).
 
 quit_menu(Uvs) ->
     #uvstate{st=St,areas=#areas{matname=MatN}} = Uvs,
-    DefVar = {quit_mode, quit_uv_tex},
-    A1 = {alt,DefVar, "Quit and save UV-coords and texture",quit_uv_tex},
-    A2 = {alt,DefVar, "Quit and save only UV-coords (use old or imported texture)", quit_uv},
-    A3 = {alt,DefVar, "Quit and cancel all changes", cancel},
+    DefVar = {quit_mode,quit_uv_tex},
+    A1 = {"Save UV Coordinates and Texture",quit_uv_tex},
+    A2 = {"Save Only UV Coordinates",quit_uv},
+    A3 = {"Discard All Changes",cancel},
     Alts = case has_texture(MatN, St) of
-	       true ->
-		   [A1,A2,A3];
-	       false ->
-		   [A1,A3]
+	       true -> [A1,A2,A3];
+	       false -> [A1,A3]
 	   end,
-    Qs = [{vframe, Alts,[{title,"Quit"}]}],
-    wings_ask:dialog(Qs, fun([Quit]) -> {auv,quit,Quit} end).
+    Qs = [{vframe,{alt,Alts,DefVar}}],
+    wings_ask:dialog("Exit Options",
+		     Qs, fun([Quit]) -> {auv,quit,Quit} end).
 
 genSizeOption(V, MaxTxs, DefTSz, Acc) when V =< MaxTxs->
     Str = lists:flatten(io_lib:format("~px~p (~pkB)",[V,V,(V*V*3) div 1024])),

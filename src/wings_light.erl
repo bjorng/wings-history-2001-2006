@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.24 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.25 2002/12/28 22:10:28 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -320,7 +320,7 @@ edit_1(#we{id=Id,light=#light{type=ambient,ambient=Amb0}=L0}=We0, Shs, St) ->
 	   [{vframe,[{label,"Ambient"}]},
 	    {vframe,[{color,Amb0}]}],
 	   [{title,"Color"}]}|qs_specific(L0)],
-    wings_ask:dialog(Qs,
+    wings_ask:dialog("Ambient Light Properties", Qs,
 		     fun([Amb]) ->
 			     L = L0#light{ambient=Amb},
 			     We = We0#we{light=L},
@@ -338,7 +338,7 @@ edit_1(#we{id=Id,light=L0}=We0, Shs, St) ->
 	      {color,Amb0},
 	      {color,Spec0}]}],
 	   [{title,"Colors"}]}|qs_specific(L0)],
-    wings_ask:dialog(Qs,
+    wings_ask:dialog("Light Properties", Qs,
 		     fun([Diff,Amb,Spec|More]) ->
 			     L1 = L0#light{diffuse=Diff,ambient=Amb,specular=Spec},
 			     L = edit_specific(More, L1),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_3ds.erl,v 1.7 2002/11/07 07:49:40 bjorng Exp $
+%%     $Id: wpc_3ds.erl,v 1.8 2002/12/28 22:10:27 bjorng Exp $
 %%
 
 -module(wpc_3ds).
@@ -47,8 +47,8 @@ props() ->
 %%% Import.
 %%%
 
-do_import(Ask, St) when is_atom(Ask) ->
-    wpa:dialog(Ask, dialog(import), St,
+do_import(Ask, _St) when is_atom(Ask) ->
+    wpa:dialog(Ask, "3D Studio Import Options", dialog(import),
 	       fun(Res) ->
 		       {file,{import,{tds,Res}}}
 	       end);
@@ -71,8 +71,8 @@ import_fun(Attr) ->
 %%% Export.
 %%%
 
-do_export(Ask, Op, _Exporter, St) when is_atom(Ask) ->
-    wpa:dialog(Ask, dialog(export), St,
+do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
+    wpa:dialog(Ask, "3D Studio Export Options", dialog(export),
 	       fun(Res) ->
 		       {file,{Op,{tds,Res}}}
 	       end);

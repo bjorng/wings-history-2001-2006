@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.27 2002/12/15 18:19:41 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.28 2002/12/28 22:10:28 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -269,4 +269,5 @@ grid_face(I, J, Rsz) ->
      Rsz*(J+1)+I, Rsz*(J+1)+I+1].
 
 ask(Shape, Bool, Qs) ->
-    wings_ask:ask(Bool, Qs, fun(Res) -> {shape,{Shape,Res}} end).
+    Title = "Create " ++ wings_util:cap(atom_to_list(Shape)),
+    wings_ask:ask(Bool, Title, Qs, fun(Res) -> {shape,{Shape,Res}} end).

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.40 2002/12/26 09:47:06 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.41 2002/12/28 22:10:27 bjorng Exp $
 
 -module(auv_segment).
 
@@ -821,7 +821,8 @@ cut_renumber(Faces, OuterEdges, #we{vc=Vtab,es=Etab,fs=Ftab,next_id=Next}=We0,
 	    Emap = gb_trees:from_orddict(cut_make_map(Etab, Es, Next)),
 	    Fmap = gb_trees:from_orddict(cut_make_map(Ftab, gb_sets:empty(), Next)),
 	    We = wings_we:map_renumber(We0, #we{vc=Vmap,es=Emap,fs=Fmap}),
-	    {?VALIDATE_MODEL(We),Map,InUse0}
+	    ?VALIDATE_MODEL(We),
+	    {We,Map,InUse0}
     end.
 
 cut_make_map(GbTree, MustRenumber, Next) ->

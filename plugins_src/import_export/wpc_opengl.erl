@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.17 2002/12/28 14:47:04 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.18 2002/12/28 22:10:27 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -90,7 +90,8 @@ set_pref(KeyVals) ->
 	}).
 
 do_render(Ask, _St) when is_atom(Ask) ->
-    wpa:dialog(Ask, dialog_qs(render),
+    wpa:dialog(Ask, "Render Options",
+	       dialog_qs(render),
 	       fun(Res) ->
 		       {file,{render,{opengl,Res}}}
 	       end);

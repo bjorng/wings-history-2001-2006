@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.29 2002/12/26 09:47:09 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.30 2002/12/28 22:10:28 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -378,8 +378,9 @@ save_group({_, Id, _, _} = SselTuple, #st{ssels=Ssels0}=St) ->
     St#st{ssels=Ssels}.
     
 new_group(_) ->
-    wings_ask:ask( [{"Group Name", ""}],
-                fun([String]) -> {select,{new_group_name, String}} end).
+    wings_ask:ask("Create New Group",
+		  [{"Group Name", ""}],
+		  fun([String]) -> {select,{new_group_name, String}} end).
 
 new_group_name(Name, #st{ssels=Ssels0, selmode=Mode, sel=Sel}=St) ->
     Sid = case gb_trees:is_empty(Ssels0) of
@@ -524,8 +525,8 @@ random(Percent, #st{selmode=Mode}=St) ->
 
 short_edges(Ask, _St) when is_atom(Ask) ->
     Qs = [{label,"Length tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}],
-    wings_ask:dialog(Ask,
-		     [{hframe, Qs, [{title,"Select Short Edges"}]}],
+    wings_ask:dialog(Ask, "Select Short Edges",
+		     [{hframe,Qs}],
 		     fun(Res) -> {select,{by,{short_edges,Res}}} end);
 short_edges([Tolerance], St0) ->
     St = wings_sel:make(fun(Edge, We) ->
@@ -596,10 +597,11 @@ valid_sel(Prompt, Sel, #st{shapes=Shs,selmode=Mode}=St) ->
     end.
     
 ask(Qs, Fun) ->
-    wings_ask:ask(Qs, fun(Res) ->
-			      Sel = Fun(Res),
-			      {select,{by,{id,Sel}}}
-		      end).
+    wings_ask:ask("Select By Id", Qs,
+		  fun(Res) ->
+			  Sel = Fun(Res),
+			  {select,{by,{id,Sel}}}
+		  end).
 
 %%%
 %%% Select lights.
