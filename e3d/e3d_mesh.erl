@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.22 2002/06/29 19:21:15 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.23 2002/11/05 07:45:40 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -118,7 +118,7 @@ vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
     Faces = vn_faces(Ftab, VtxNormals, 0, []),
     Normals0 = gb_trees:values(VtxNormals),
     Normals1 = sort(Normals0),
-    Normals = [N || {Vn,N} <- Normals1],
+    Normals = [N || {_Vn,N} <- Normals1],
     Mesh#e3d_mesh{fs=Faces,ns=Normals}.
 
 %% renumber(Mesh0) -> Mesh
@@ -167,16 +167,28 @@ merge_faces([], Ftab) -> Ftab.
 
 merge_faces_1(Fa, Fb, Va, Vb, Ftab0) ->
     case {gb_trees:lookup(Fa, Ftab0),gb_trees:lookup(Fb, Ftab0)} of
-	{{value,#e3d_face{vs=Vs1,mat=Mat}=Rec0},{value,#e3d_face{vs=Vs2,mat=Mat}}} ->
+	{{value,#e3d_face{vs=Vs1,tx=Tx1,mat=Mat}=Rec0},
+	 {value,#e3d_face{vs=Vs2,tx=Tx2,mat=Mat}}} ->
 	    case merge_faces_2(Va, Vb, Vs1, Vs2) of
 		error -> Ftab0;
-		Vs when list(Vs) ->
-		    Rec = Rec0#e3d_face{vs=Vs,vis=-1},
+		Vs when is_list(Vs) ->
+		    R0 = [zip(Vs1, Tx1),zip(Vs2, Tx2)],
+		    R1 = sofs:set(R0, [[{v,uv}]]),
+		    R = sofs:union(R1),
+		    F0 = sofs:relation_to_family(R),
+		    F = gb_trees:from_orddict(sofs:to_external(F0)),
+		    Tx = merge_uvs(Vs, F),
+		    Rec = Rec0#e3d_face{vs=Vs,tx=Tx,vis=-1},
 		    Ftab = gb_trees:update(Fa, Rec, Ftab0),
 		    gb_trees:delete(Fb, Ftab)
 	    end;
 	{_,_} -> Ftab0
     end.
+
+merge_uvs([V|T], V2UV) ->
+    [UV|_] = gb_trees:get(V, V2UV),
+    [UV|merge_uvs(T, V2UV)];
+merge_uvs([], _) -> [].
 
 merge_faces_2(Va, Vb, VsA0, VsB0) ->
     VsA = rot_face(Va, Vb, VsA0),
@@ -450,3 +462,7 @@ number_faces(Fs) ->
 number_faces([F|Fs], Face, Acc) ->
     number_faces(Fs, Face+1, [{Face,F}|Acc]);
 number_faces([], _Face, Acc) -> reverse(Acc).
+
+zip([V|Vs], [UV|UVs]) ->
+    [{V,UV}|zip(Vs, UVs)];
+zip([], []) -> [].
