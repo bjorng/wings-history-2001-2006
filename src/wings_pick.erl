@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.56 2002/08/11 20:21:40 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.57 2002/08/13 21:20:11 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -755,7 +755,7 @@ select_draw_fun(D, _) -> draw_dlist(D).
 
 draw_dlist(#dlo{mirror=none,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:pushName(Id),
-    gl:callList(Pick),
+    wings_draw_util:call(Pick),
     gl:popName(),
     D;
 draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->

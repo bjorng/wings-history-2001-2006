@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.100 2002/08/13 09:42:20 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.101 2002/08/13 21:20:11 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -274,7 +274,7 @@ handle_drag_event(#mousebutton{button=3,state=?SDL_RELEASED}=Ev,
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
 	    get_drag_event_1(Drag#drag{mmb_count=0});
-	true ->
+	_ ->
 	    handle_drag_event_0(Ev, Drag)
     end;
 handle_drag_event(Event, Drag) ->
@@ -595,9 +595,9 @@ unit(distance, D) ->
 unit(dx, D) ->
     ["DX: "|trim(io_lib:format("~10.2f  ", [D]))];
 unit(dy, D) ->
-    ["DY: "|trim(io_lib:format("~10.2f", [D]))];
+    ["DY: "|trim(io_lib:format("~10.2f  ", [D]))];
 unit(dz, D) ->
-    ["DZ: "|trim(io_lib:format("~10.2f", [D]))];
+    ["DZ: "|trim(io_lib:format("~10.2f  ", [D]))];
 unit(percent, P) ->
     trim(io_lib:format("~.2f%  ", [P*100.0]));
 unit(falloff, R) ->
