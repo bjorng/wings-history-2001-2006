@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.11 2002/11/18 17:45:54 bjorng Exp $
+#     $Id: Makefile,v 1.12 2003/03/19 13:55:54 dgud Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -33,6 +33,7 @@ MODULES= \
 	e3d_mat \
 	e3d_util \
 	e3d_vec \
+	e3d_q \
 	e3d__tri_quad \
 	e3d__meshclean \
 	e3d__bmp \
