@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.28 2002/05/25 21:36:25 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.29 2002/06/08 04:54:40 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -294,10 +294,10 @@ adjacent(V, Vs, We) ->
 connect(St) ->
     wings_sel:map(fun connect/2, St).
 
-connect(Vs0, #we{}=We) ->
+connect(Vs0, #we{mirror=MirrorFace}=We) ->
     FaceVs = wings_vertex:per_face(Vs0, We),
-    foldl(fun({Face,Vs}, Acc) ->
-		  wings_vertex:connect(Face, Vs, Acc)
+    foldl(fun({Face,_}, Acc) when Face =:= MirrorFace -> Acc;
+	     ({Face,Vs}, Acc) -> wings_vertex:connect(Face, Vs, Acc)
 	  end, We, FaceVs).
 
 %%%
