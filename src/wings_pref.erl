@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.80 2003/05/29 08:29:51 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.81 2003/06/02 06:06:43 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -99,17 +99,23 @@ command(prefs, _St) ->
 	   [{label,"Color"},{color,grid_color},
 	    {"Force Axis-Aligned Grid",force_show_along_grid}],
 	   [{title,"Grid"}]},
-	  {vframe,
-	   [{hframe,
-	     [{"Vertices",vertex_hilite},
-	      {"Edges",edge_hilite},
-	      {"Faces",face_hilite},
-	      {"Objects",body_hilite}]},
-	    {hframe,
-	     [{label,"Unselected"},{color,unselected_hlite},
-	      {label,"Selected"},{color,selected_hlite}]},
-	    {"Smart Highlighting",smart_highlighting}],
-	   [{title,"Highlighting"}]},
+	  {hframe,
+	   [{vframe,
+	     [{hframe,
+	       [{"Vertices",vertex_hilite},
+		{"Edges",edge_hilite},
+		{"Faces",face_hilite},
+		{"Objects",body_hilite}]},
+	      {hframe,
+	       [{label,"Unselected"},{color,unselected_hlite},
+		{label,"Selected"},{color,selected_hlite}]},
+	      {"Smart Highlighting",smart_highlighting}],
+	     [{title,"Highlighting"}]},
+	    {vframe,
+	     [{menu,[{"Solid",solid},
+		     {"Stippled",stippled}],
+	       selection_style}],
+	     [{title,"Face Selection Style"}]}]},
 	  {hframe,
 	   [{vframe,
 	     [{label_column,
@@ -237,6 +243,9 @@ make_query({Str,Key}) when is_list(Str) ->
 make_query({alt,Key,Label,Val}) ->
     Def = get_value(Key),
     {key_alt,{Key,Def},Label,Val};
+make_query({menu,List,Key}) ->
+    Def = get_value(Key),
+    {menu,List,{Key,Def}};
 make_query(Tuple) when is_tuple(Tuple) ->
     list_to_tuple([make_query(El) || El <- tuple_to_list(Tuple)]);
 make_query(Other) -> Other.
@@ -350,6 +359,8 @@ defaults() ->
      {active_vector_width,2.0},
      {active_vector_color,{0.0,0.0,0.65}},
      {smart_highlighting,false},
+
+     {selection_style,solid},
 
      %% Compatibility preferences.
      {display_list_opt,true},

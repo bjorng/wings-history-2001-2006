@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.65 2003/05/30 08:36:10 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.66 2003/06/02 06:06:43 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -399,12 +399,19 @@ draw_sel(#dlo{sel=SelDlist,src_sel={vertex,_}}) ->
     gl:pointSize(wings_pref:get_value(selected_vertex_size)),
     sel_color(),
     call(SelDlist);
-draw_sel(#dlo{sel=SelDlist}) ->
+draw_sel(#dlo{orig_sel=OrigSel,sel=SelDlist}) ->
     sel_color(),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(1.0, 1.0),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    call(SelDlist).
+    case OrigSel =/= none orelse wings_pref:get_value(selection_style) =:= solid of
+	true ->					%Solid selection style.
+	    call(SelDlist);
+	false ->				%Stippled selection style.
+	    gl:enable(?GL_POLYGON_STIPPLE),
+	    call(SelDlist),
+	    gl:disable(?GL_POLYGON_STIPPLE)
+    end.
 
 sel_color() ->
     gl:color3fv(wings_pref:get_value(selected_color)).

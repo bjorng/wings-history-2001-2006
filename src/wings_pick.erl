@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.90 2003/05/24 12:55:20 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.91 2003/06/02 06:06:43 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -175,10 +175,15 @@ hilit_draw_sel(edge, Edge, #we{es=Etab,vp=Vtab}) ->
     gl:vertex3fv(gb_trees:get(Vb, Vtab)),
     gl:'end'();
 hilit_draw_sel(face, Face, We) ->
+    case wings_pref:get_value(selection_style) of
+	stippled -> gl:enable(?GL_POLYGON_STIPPLE);
+	solid -> ok
+    end,
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     wings_draw_util:begin_end(fun() ->
 				      wings_draw_util:flat_face(Face, We)
-			      end);
+			      end),
+    gl:disable(?GL_POLYGON_STIPPLE);
 hilit_draw_sel(body, _, #we{fs=Ftab}=We) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     wings_draw_util:begin_end(
