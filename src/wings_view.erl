@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.42 2002/02/24 22:36:52 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.43 2002/02/27 21:48:44 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -20,6 +20,8 @@
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
+
+-define(FOV, 45).
 
 -import(lists, [foreach/2,foldl/3]).
 -import(wings_draw, [model_changed/1]).
@@ -40,6 +42,7 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Reset View",reset},
 	    {"Aim",aim},
+	    {"Frame",frame},
 	    {"Ortographic View",orthogonal_view,
 	     crossmark(orthogonal_view)},
 	    {one_of(L == 1, "Two lights", "One light"),toggle_lights},
@@ -90,6 +93,9 @@ command(show_textures, St) ->
 command(aim, St) ->
     aim(St),
     St;
+command(frame, St) ->
+    frame(St),
+    St;
 command({along,Axis}, St) ->
     along(Axis),
     St;
@@ -124,8 +130,8 @@ auto_rotate_event(Event, Timer, St) ->
 		 end,Other}
     end.
 
-auto_rotate_event_1(#mousemotion{}, Timer, St) -> keep;
-auto_rotate_event_1(#mousebutton{state=?SDL_PRESSED}, Timer, ST) -> keep;
+auto_rotate_event_1(#mousemotion{}, _Timer, _St) -> keep;
+auto_rotate_event_1(#mousebutton{state=?SDL_PRESSED}, _Timer, _St) -> keep;
 auto_rotate_event_1({view,rotate_left=Cmd}, Timer, St) ->
     command(Cmd, dummy),
     wings:redraw(St),
@@ -195,7 +201,7 @@ perspective() ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     case wings_pref:get_value(orthogonal_view) of
 	false ->
-	    glu:perspective(45.0, W/H, 0.25, 1000.0);
+	    glu:perspective(?FOV, W/H, 0.25, 1000.0);
 	true ->
 	    #view{distance=D0} = current(),
 	    Aspect = W/H,
@@ -240,14 +246,30 @@ aim(#st{sel=[]}) ->
     set_current(View#view{origo=e3d_vec:zero()});
 aim(St) ->
     Centers = wings_sel:centers(St),
-    Origo0 = e3d_vec:average(Centers),
-    Origo = e3d_vec:neg(Origo0),
+    Origin0 = e3d_vec:average(Centers),
+    Origin = e3d_vec:neg(Origin0),
     #view{distance=Dist0} = View = current(),
-    Dist = case e3d_vec:dist(eye_point(), Origo0) of
+    Dist = case e3d_vec:dist(eye_point(), Origin0) of
 	       D when D < Dist0 -> D;
  	       Other -> Dist0
  	   end,
-    set_current(View#view{origo=Origo,distance=Dist,pan_x=0.0,pan_y=0.0}).
+    set_current(View#view{origo=Origin,distance=Dist,pan_x=0.0,pan_y=0.0}).
+
+frame(#st{sel=[],shapes=Shs}=St) ->
+    BB = foldl(fun(We, BB) -> wings_vertex:bounding_box(We, BB) end,
+	       none, gb_trees:values(Shs)),
+    frame(BB);
+frame(#st{selmode=Mode}=St) ->
+    frame(wings_sel:bounding_box(St));
+
+frame(BB) ->
+    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    C = e3d_vec:average(BB),
+    R = e3d_vec:len(e3d_vec:sub(C, hd(BB))),
+    Dist = R/math:tan(?FOV*3.1416/2/180) / math:sqrt((W*H) / (640*480)),
+    View = current(),
+    set_current(View#view{origo=e3d_vec:neg(C),
+			  distance=Dist,pan_x=0.0,pan_y=0.0}).
 
 along(x) -> along(x, -90.0, 0.0);
 along(y) -> along(y, 0.0, 90.0);
