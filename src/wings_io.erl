@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.122 2003/11/12 17:41:27 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.123 2003/11/16 12:04:14 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -182,7 +182,7 @@ border_only(X, Y, Mw, Mh, Double) ->
 
 add_color({R,G,B}, N) -> {R+N,G+N,B+N};
 add_color({R,G,B,A}, N) -> {R+N,G+N,B+N,A}.
-    
+
 set_color({_,_,_}=RGB) -> gl:color3fv(RGB);
 set_color({_,_,_,_}=RGBA) -> gl:color4fv(RGBA).
 
@@ -674,10 +674,12 @@ build_cursors() ->
      case os:type() of
 	 {unix,darwin} ->
 	     [{arrow,sdl_mouse:getCursor()},
-	      {hourglass,none}];
+	      {hourglass,none},
+	      {eyedropper,build_cursor(eyedropper_data(), 0, 15)}];
 	 _ ->
-	    [{arrow,build_cursor(arrow_data())},
-	     {hourglass,build_cursor(hourglass_data())}]
+	     [{arrow,build_cursor(arrow_data())},
+	      {hourglass,build_cursor(hourglass_data())},
+	      {eyedropper,build_cursor(eyedropper_data(), 0, 15)}]
      end].
 
 build_cursor(Data) ->
@@ -685,9 +687,8 @@ build_cursor(Data) ->
 
 build_cursor(Data0, HotX, HotY) ->
     case os:type() of
- 	{unix,darwin} ->
-	    %% Ignore given hot position - works better.
- 	    build_cursor_1(Data0, {0,0}, 0, 0);
+  	{unix,darwin} ->
+  	    build_cursor_1(Data0, {HotX,HotY}, 0, 0);
 	_ when length(Data0) =:= 256 ->
 	    Data = build_cursor_dup(Data0, 0, []),
 	    build_cursor_1(Data, {HotX div 2,HotY div 2}, 0, 0);
@@ -756,6 +757,24 @@ hourglass_data() ->
        	"X..............................X"
        	" XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
        	"  ............................	 ".
+
+eyedropper_data() ->
+        "             XXX"
+	"            X.XX"
+	"         X X..XX"
+	"        X.X..XX "
+	"       X....XX  "
+	"        XXXXX   "
+	"      	X.XXXXX  "
+	"      X...XXX   "
+	"     X...X X    "
+	"    X...X       "
+	"   X...X        "
+	"  X...X         "
+	" X...X          "
+       	" X..X           "
+       	"X.XX            "
+       	" X              ".
 
 arrow_data() ->
         "X                               "
@@ -844,4 +863,4 @@ closed_hand_data() ->
         " x...........x  "
         "  x..........x  "
         "  x..........x  ".
-		       
+
