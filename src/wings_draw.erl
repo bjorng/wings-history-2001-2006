@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.182 2004/04/06 03:50:14 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.183 2004/04/06 04:28:01 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -498,26 +498,24 @@ update_face_sel(Fs, D) ->
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    Fun = update_face_sel_fun(Fs, D),
-    wings_draw_util:begin_end(Fun),
+    gl:'begin'(?GL_TRIANGLES),
+    update_face_sel_1(Fs, D),
+    gl:'end'(),
     gl:endList(),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
     D#dlo{sel=List}.
 
-update_face_sel_fun(Fs, #dlo{ns=none,src_we=We}) ->
-    update_face_sel_fun_1(Fs, We);
-update_face_sel_fun(Fs, #dlo{ns={_},src_we=We}) ->
-    update_face_sel_fun_1(Fs, We);
-update_face_sel_fun(Fs, D) ->
-    update_face_sel_fun_1(Fs, D).
+update_face_sel_1(Fs, #dlo{ns=none,src_we=We}) ->
+    update_face_sel_2(Fs, We);
+update_face_sel_1(Fs, #dlo{ns={_},src_we=We}) ->
+    update_face_sel_2(Fs, We);
+update_face_sel_1(Fs, D) ->
+    update_face_sel_2(Fs, D).
 
-update_face_sel_fun_1(Fs, DWe) ->
-    fun() -> update_face_sel_fun_2(Fs, DWe) end.
-
-update_face_sel_fun_2([F|Fs], D) ->
+update_face_sel_2([F|Fs], D) ->
     wings_draw_util:unlit_face(F, D),
-    update_face_sel_fun_2(Fs, D);
-update_face_sel_fun_2([], _) -> ok.
+    update_face_sel_2(Fs, D);
+update_face_sel_2([], _) -> ok.
 
 %%%
 %%% Splitting of objects into two display lists.
@@ -794,14 +792,13 @@ draw_faces({color,Colors,#st{mat=Mtab}}, D) ->
     {call,Dl,BasicFaces}.
 
 draw_vtx_faces({Same,Diff}, D) ->
-    Draw = fun() ->
-		   Tess = wings_draw_util:tess(),
-		   glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-		   draw_vtx_faces_1(Same, D),
-		   glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-		   draw_vtx_faces_3(Diff, D)
-	   end,
-    wings_draw_util:begin_end(Draw).
+    gl:'begin'(?GL_TRIANGLES),
+    Tess = wings_draw_util:tess(),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
+    draw_vtx_faces_1(Same, D),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
+    draw_vtx_faces_3(Diff, D),
+    gl:'end'().
 
 draw_vtx_faces_1([{none,Faces}|Fs], D) ->
     gl:color3f(1, 1, 1),
@@ -823,6 +820,7 @@ draw_vtx_faces_3([[F|Cols]|Fs], D) ->
     draw_vtx_faces_3(Fs, D);
 draw_vtx_faces_3([], _) -> ok.
 
+
 %%%
 %%% Set material and draw faces.
 %%%
@@ -838,10 +836,14 @@ mat_faces_1([{Mat,Faces}|T], We, Mtab) ->
 	false ->
 	    Tess = wings_draw_util:tess(),
 	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-	    wings_draw_util:begin_end(fun() -> draw_mat_faces(Faces, We) end),
+	    gl:'begin'(?GL_TRIANGLES),
+	    draw_mat_faces(Faces, We),
+	    gl:'end'(),
 	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA);
 	true ->
-	    wings_draw_util:begin_end(fun() -> draw_uv_faces(Faces, We) end)
+	    gl:'begin'(?GL_TRIANGLES),
+	    draw_uv_faces(Faces, We),
+	    gl:'end'()
     end,
     gl:popAttrib(),
     mat_faces_1(T, We, Mtab);
@@ -896,11 +898,10 @@ smooth_faces({color,{Same,Diff},#st{mat=Mtab}}, #dlo{ns=Ns}) ->
     wings_material:apply_material(default, Mtab),
     gl:enable(?GL_COLOR_MATERIAL),
     gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
-    Draw = fun() ->
-		   draw_smooth_vtx_faces_1(Same, Ns),
-		   wings_draw_util:smooth_vcol_faces(Diff, Ns)
-	   end,
-    wings_draw_util:begin_end(Draw),
+    gl:'begin'(?GL_TRIANGLES),
+    draw_smooth_vtx_faces_1(Same, Ns),
+    wings_draw_util:smooth_vcol_faces(Diff, Ns),
+    gl:'end'(),
     gl:disable(?GL_COLOR_MATERIAL),
     gl:endList(),
     {[ListOp,none],false}.
@@ -949,10 +950,9 @@ draw_smooth_tr([], _, _) -> ok.
 do_draw_smooth(DrawFaces, Mat, Faces, Mtab) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
     IsTxMaterial = wings_material:apply_material(Mat, Mtab),
-    wings_draw_util:begin_end(
-      fun() ->
-	      DrawFaces(IsTxMaterial, Faces)
-      end),
+    gl:'begin'(?GL_TRIANGLES),
+    DrawFaces(IsTxMaterial, Faces),
+    gl:'end'(),
     gl:popAttrib().
 
 %%
