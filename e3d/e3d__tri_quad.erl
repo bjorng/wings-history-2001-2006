@@ -4,12 +4,12 @@
 %%     Triangulates and quadrangulates meshes.
 %%
 %%  Copyright (c) 2001-2002 Howard Trickey
-%%	          2003-2004 Bjorn Gustavsson
+%%	          2003-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.15 2004/12/04 09:13:47 bjorng Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.16 2005/03/13 16:33:19 bjorng Exp $
 %%
 
 -module(e3d__tri_quad).
@@ -37,7 +37,7 @@
 triangulate(#e3d_mesh{type=triangle}=Mesh) -> Mesh;
 triangulate(#e3d_mesh{type=polygon,fs=Fs0,vs=Vs}=Mesh) ->
     Fs = triangulate(Fs0, list_to_tuple(Vs), []),
-    Mesh#e3d_mesh{type=triangle,fs=Fs}.
+    Mesh#e3d_mesh{type=triangle,fs=Fs,ns=[]}.
 
 triangulate([#e3d_face{vs=[_,_,_]}=FaceRec|Ps], Vtab, Acc) ->
     triangulate(Ps, Vtab, [FaceRec|Acc]);
@@ -68,7 +68,7 @@ renumber_one(Va, Vb, Vc, Orig) ->
 quadrangulate(#e3d_mesh{type=quad}=Mesh) -> Mesh;
 quadrangulate(#e3d_mesh{fs=Fs0,vs=Vs}=Mesh) ->
     Fs = quadrangulate_1(Fs0, Vs, []),
-    Mesh#e3d_mesh{type=quad,fs=Fs}.
+    Mesh#e3d_mesh{type=quad,fs=Fs,ns=[]}.
 
 quadrangulate_1([FaceRec|Ps], Vtab, Acc) ->
     Faces = quadrangulate_face(FaceRec, Vtab),
@@ -77,40 +77,40 @@ quadrangulate_1([], _, Acc) -> reverse(Acc).
 
 %% Vcoords is list of vertex coordinates.
 %% Returns list of (Triangular) faces to replace Face.
-triangulate_face(#e3d_face{vs=Vs,mat=Mat}, Vcoords) ->
+triangulate_face(#e3d_face{vs=Vs}=Face, Vcoords) ->
     Vtab = rotate_normal_to_z(Vs, Vcoords),
     Tris = triface(Vs, Vtab),
     Bord = border_edges([Vs]),
     Triscdt = cdt(Tris, Bord, Vtab),
-    to_faces(Triscdt, Bord, Mat).
+    to_faces_new(Triscdt, Bord, Face).
 
-triangulate_face(#e3d_face{vs=Vs,mat=Mat}, N, Vcoords) ->
+triangulate_face(#e3d_face{vs=Vs}=Face, N, Vcoords) ->
     Vtab = rot_normal_to_z(N, Vcoords),
     Tris = triface(Vs, Vtab),
     Bord = border_edges([Vs]),
     Triscdt = cdt(Tris, Bord, Vtab),
-    to_faces(Triscdt, Bord, Mat).
+    to_faces_new(Triscdt, Bord, Face).
 
 %% Like triangulate, but Holes is list of e3d_faces
 %% containing Clockwise-oriented holes inside CCW-oriented Face.
-triangulate_face_with_holes(#e3d_face{vs=Vs,mat=Mat}=Face, Holes, Vcoords) ->
+triangulate_face_with_holes(#e3d_face{vs=Vs}=Face, Holes, Vcoords) ->
     Vtab = rotate_normal_to_z(Vs, Vcoords),
     Holes1 = map(fun (H) -> sortface(H, Vtab) end, Holes),
     #e3d_face{vs=Vsjoined} = joinislands(Face, Holes1, Vtab),
     Tris = triface(Vsjoined, Vtab),
     Bord = border_edges([Vs | map(fun (#e3d_face{vs=Hs}) -> Hs end, Holes)]),
     Triscdt = cdt(Tris, Bord, Vtab),
-    to_faces(Triscdt, Bord, Mat).
+    to_faces_new(Triscdt, Bord, Face).
 
-quadrangulate_face(#e3d_face{vs=Vs,mat=Mat}, Vcoords) ->
+quadrangulate_face(#e3d_face{vs=Vs}=Face, Vcoords) ->
     Vtab = rotate_normal_to_z(Vs, Vcoords),
     Tris = triface(Vs, Vtab),
     Bord = border_edges([Vs]),
     Triscdt = cdt(Tris, Bord, Vtab),
     Qs = quadrangulate(Triscdt, Bord, Vtab),
-    to_faces(Qs, Bord, Mat).
+    to_faces_new(Qs, Bord, Face).
 
-quadrangulate_face_with_holes(#e3d_face{vs=Vs,mat=Mat}=Face, Holes, Vcoords) ->
+quadrangulate_face_with_holes(#e3d_face{vs=Vs}=Face, Holes, Vcoords) ->
     Vtab = rotate_normal_to_z(Vs, Vcoords),
     Holes1 = map(fun (H) -> sortface(H, Vtab) end, Holes),
     #e3d_face{vs=Vsjoined} = joinislands(Face, Holes1, Vtab),
@@ -118,7 +118,7 @@ quadrangulate_face_with_holes(#e3d_face{vs=Vs,mat=Mat}=Face, Holes, Vcoords) ->
     Bord = border_edges([Vs | map(fun (#e3d_face{vs=Hs}) -> Hs end, Holes)]),
     Triscdt = cdt(Tris, Bord, Vtab),
     Qs = quadrangulate(Triscdt, Bord, Vtab),
-    to_faces(Qs, Bord, Mat).
+    to_faces_new(Qs, Bord, Face).
 
 %% Fl is list of tuples (should be 3-tuples, but might be smaller
 %% if original face was smaller).
@@ -127,10 +127,10 @@ quadrangulate_face_with_holes(#e3d_face{vs=Vs,mat=Mat}=Face, Holes, Vcoords) ->
 %% Return list e3d_faces.
 %% Assume original border had all visible edges.
 %% TODO: texture coords (need map from vertex indices to texture ones)
-to_faces(Fl, Bord, Mat) ->
-    map(fun (Ftup) -> to_face(Ftup, Bord, Mat) end, Fl).
+to_faces_new(Fl, Bord, Face) ->
+    [to_face(Ftup, Bord, Face) || Ftup <- Fl].
 
-to_face(Ftup, Bord, Mat) ->
+to_face(Ftup, Bord, #e3d_face{ns=Ns0,mat=Mat}=Face) ->
     Vis = case Ftup of
 	      {A,B,C} ->
 		  vismask(A, B, Bord, 4) bor
@@ -138,8 +138,14 @@ to_face(Ftup, Bord, Mat) ->
 		      vismask(C, A, Bord, 1);
 	      _ -> -1
 	  end,
-    #e3d_face{vs=tuple_to_list(Ftup),mat=Mat,vis=Vis}.
+    Ns = kill_ns(Ns0),
+    Face#e3d_face{vs=tuple_to_list(Ftup),ns=Ns,mat=Mat,vis=Vis}.
 
+%% The 3ds format stores the smoothing group bits here. Preserve them.
+%% Kill any normals.
+kill_ns(SmoothGroup) when is_integer(SmoothGroup) -> SmoothGroup;
+kill_ns(_) -> [].
+        
 vismask(A, B, Bord, Bit) ->
     case gb_sets:is_member({A,B}, Bord) of
 	true -> Bit;
