@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.28 2002/01/07 00:15:20 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.29 2002/01/07 08:38:54 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -474,15 +474,13 @@ hardness(Edge, hard, Htab) -> gb_sets:add(Edge, Htab).
 %%% Select one side of an edge loop.
 %%%
 
-select_region(St0) ->
-    St = wings_edge_loop:select_loop(St0),
+select_region(St) ->
     Sel0 = wings_sel:fold(fun select_region/3, [], St),
     Sel = sort(Sel0),
     St#st{selmode=face,sel=Sel}.
 
 select_region(Edges, #we{id=Id}=We, Acc) ->
     Part = wings_edge_loop:partition_edges(Edges, We),
-    io:format("~w\n", [Part]),
     FaceSel = select_region_1(Part, Edges, We, []),
     [{Id,FaceSel}|Acc].
 

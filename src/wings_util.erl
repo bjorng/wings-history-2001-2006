@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.22 2002/01/06 14:47:09 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.23 2002/01/07 08:38:54 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -16,6 +16,7 @@
 	 message/1,yes_no/1,serious_yes_no/1,ask/3,
 	 cap/1,upper/1,add_vpos/2,update_vpos/2,
 	 average_normals/1,
+	 delete_any/2,
 	 tc/1,crash_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
 
@@ -96,6 +97,12 @@ average_normals(Vs) ->
 average_normals({V,Normals}, Acc) ->
     Normal = average_normals_1(Normals),
     [{Normal,[V]}|Acc].
+
+delete_any(K, S) ->
+    case gb_sets:is_member(K, S) of
+	true -> gb_sets:delete(K, S);
+	false -> S
+    end.
 
 %% average_normals(Normals) -> Normal
 %%  Average normals taking the angle between them into account.
