@@ -9,7 +9,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_file_drv.c,v 1.3 2001/10/25 15:11:06 bufflig Exp $
+ *     $Id: wings_file_drv.c,v 1.4 2001/11/14 11:23:02 bjorng Exp $
  */
 
 #include <windows.h>
@@ -138,6 +138,7 @@ static int wings_file_control(ErlDrvData handle, unsigned int command,
     char *filter_desc;
     char *title;
     char *text;
+    char *defname;
     int ret;
     
     switch (command) {
@@ -163,6 +164,7 @@ static int wings_file_control(ErlDrvData handle, unsigned int command,
 	filter = defdir + strlen(defdir) + 1; /* Filter expression (.wings) */
 	filter_desc = filter + strlen(filter) + 1;      /* Desc. of filter */
 	title = filter_desc + strlen(filter_desc) + 1;  /* Title of dialog */
+	defname = title + strlen(title) + 1; /* Default name for file */
 	sprintf(filterbuff,"%s (*%s)",filter_desc,filter);
 	ptr = filterbuff + strlen(filterbuff) +1;
 	sprintf(ptr,"*%s",filter);
@@ -172,7 +174,7 @@ static int wings_file_control(ErlDrvData handle, unsigned int command,
 	strcpy(ptr,"*.*");
 	ptr[strlen(ptr)+1]='\0';
 	rbuff=driver_alloc(_MAX_PATH+1);
-	*rbuff = '\0';
+	strcpy(rbuff, defname);
 	fill_ofn(&ofn);
 	ofn.lpstrFilter = filterbuff; 
         ofn.lpstrFile = rbuff; 

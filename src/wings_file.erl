@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.29 2001/11/14 10:07:32 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.30 2001/11/14 11:23:02 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -317,7 +317,7 @@ export_ndo(St) ->
 export_file_prop(Ext, #st{file=undefined}) -> file_prop(Ext);
 export_file_prop(Ext, #st{file=File}) ->
     Prop = file_prop(Ext),
-    Def = filename:rootname(filename:basename(File), ".wings"),
+    Def = filename:rootname(filename:basename(File), ".wings") ++ Ext,
     [{default_filename,Def}|Prop].
 
 file_prop(".ndo"=Ext) -> file_prop(Ext, "Nendo File");

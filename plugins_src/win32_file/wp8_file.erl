@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_file.erl,v 1.4 2001/10/25 15:11:06 bufflig Exp $
+%%     $Id: wp8_file.erl,v 1.5 2001/11/14 11:23:02 bjorng Exp $
 %%
 
 -module(wp8_file).
@@ -73,7 +73,7 @@ fileop(What,Next) ->
 %     Ret.
     Next(What).
 
-file_dialog(Type,Prop,Title) ->
+file_dialog(Type, Prop, Title) ->
     Ext = property_lists:get_value(ext, Prop, ".wings"),
     ExtDesc = property_lists:get_value(ext_desc, Prop, "Default type"),
 
@@ -83,8 +83,9 @@ file_dialog(Type,Prop,Title) ->
 	      DefDir ->
 		  filename:nativename(DefDir)
 	  end,
-    case erlang:port_control(wp8_file_port,Type,[Dir,0,Ext,0,ExtDesc,0,
-					         Title,0]) of
+    DefName = property_lists:get_value(default_filename, Prop, ""),
+    Data = [Dir,0,Ext,0,ExtDesc,0,Title,0,DefName,0],
+    case erlang:port_control(wp8_file_port, Type, Data) of
 	[] ->
 	    aborted;
 	Else ->
