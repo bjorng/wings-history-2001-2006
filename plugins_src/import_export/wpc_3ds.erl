@@ -3,19 +3,27 @@
 %%
 %%     3ds max import/export.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_3ds.erl,v 1.8 2002/12/28 22:10:27 bjorng Exp $
+%%     $Id: wpc_3ds.erl,v 1.9 2004/01/16 12:43:15 bjorng Exp $
 %%
 
 -module(wpc_3ds).
 
 -export([init/0,menu/2,command/2]).
 
+-import(lists, [map/2,foldl/3,keydelete/3,keyreplace/4,sort/1]).
+
+-include("e3d.hrl").
+-include("e3d_image.hrl").
+
+-define(DEF_IMAGE_TYPE, ".bmp").
+
 init() ->
+    wpa:pref_set_default(?MODULE, default_filetype, ?DEF_IMAGE_TYPE),
     true.
 
 menu({file,import}, Menu) ->
@@ -88,25 +96,17 @@ export_fun(Attr) ->
     end.
 
 export_1(Filename, Contents0, Attr) ->
-    Contents = export_transform(Contents0, Attr),
+    Filetype = proplists:get_value(default_filetype, Attr, ?DEF_IMAGE_TYPE),
+    Contents1 = export_transform(Contents0, Attr),
+    Contents2 = make_tx_uniq(Contents1),
+    Contents = wpa:save_images(Contents2, filename:dirname(Filename), Filetype),
     case e3d_tds:export(Filename, Contents) of
 	ok -> ok;
 	{error,_}=Error -> Error
     end.
 
-dialog(import) ->
-    [{label_column,
-      [{"Import scale",{text,get_pref(import_scale, 1.0),[{key,import_scale}]}},
-       {"(Export scale)",{text,get_pref(export_scale, 1.0),[{key,export_scale}]}}]}];
-dialog(export) ->
-    [{label_column,
-      [{"(Import scale)",{text,get_pref(import_scale, 1.0),[{key,import_scale}]}},
-       {"Export scale",{text,get_pref(export_scale, 1.0),[{key,export_scale}]}},
-       {"Sub-division Steps",{text,get_pref(subdivisions, 0),
-			      [{key,subdivisions},{range,0,4}]}} ]} ].
-
-get_pref(Key, Def) ->
-    wpa:pref_get(?MODULE, Key, Def).
+dialog(Type) ->
+    [wpa:dialog_template(?MODULE, Type)].
 
 set_pref(KeyVals) ->
     wpa:pref_set(?MODULE, KeyVals).
@@ -118,3 +118,57 @@ export_transform(Contents, Attr) ->
 import_transform(Contents, Attr) ->
     Mat = e3d_mat:scale(proplists:get_value(import_scale, Attr, 1.0)),
     e3d_file:transform(Contents, Mat).
+
+%%%
+%%% Shorten image names to 8 letters and make sure that
+%%% all images name are unique.
+%%%
+
+make_tx_uniq(#e3d_file{mat=Mat0}=E3DFile) ->
+    Mat = make_tx_uniq_1(Mat0),
+    E3DFile#e3d_file{mat=Mat}.
+
+make_tx_uniq_1(Mat) ->
+    Names = foldl(fun({_,Ps}, A) ->
+			  case get_map(diffuse, Ps) of
+			      none ->
+				  A;
+			      #e3d_image{filename=none,name=Name} ->
+				  [Name|A];
+			      #e3d_image{filename=Name0} ->
+				  Name = filename:rootname(filename:basename(Name0)),
+				  [Name|A]
+			  end
+		  end, [], Mat),
+    MapTrans0 = e3d_util:make_uniq(Names, 8),
+    MapTrans = gb_trees:from_orddict(sort(MapTrans0)),
+    map(fun({N,Ps0}=M) ->
+		case get_map(diffuse, Ps0) of
+		    none -> M;
+		    #e3d_image{filename=none,name=Name0}=Image0 ->
+			Name = gb_trees:get(Name0, MapTrans),
+			Image = Image0#e3d_image{name=Name},
+			Ps = replace_map(diffuse, Image, Ps0),
+			{N,Ps};
+		    #e3d_image{filename=Name0}=Image0 ->
+			Base = filename:rootname(filename:basename(Name0)),
+			case gb_trees:get(Base, MapTrans) of
+			    Base ->
+				{N,Ps0};
+			    Name ->
+				Image = Image0#e3d_image{filename=none,
+							 name=Name},
+				Ps = replace_map(diffuse, Image, Ps0),
+				{N,Ps}
+			end
+		end
+	end, Mat).
+
+get_map(Type, Ps) ->
+    Maps = proplists:get_value(maps, Ps, []),
+    proplists:get_value(Type, Maps, none).
+
+replace_map(MapType, Val, Ps) ->
+    Maps0 = proplists:get_value(maps, Ps, []),
+    Maps = [{MapType,Val}|keydelete(MapType, 1, Maps0)],
+    keyreplace(maps, 1, Ps, {maps,Maps}).
