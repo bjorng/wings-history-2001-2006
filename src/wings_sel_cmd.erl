@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.45 2003/03/27 10:22:25 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.46 2003/04/17 11:43:42 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -274,12 +274,12 @@ by_command({vertices_with,N}, St) ->
     {save_state,wings_sel:make(Sel, vertex, St)};
 by_command({faces_with,5}, St) ->
     Sel = fun(Face, We) ->
-		    length(wings_face:surrounding_vertices(Face, We)) >= 5
+		  wings_face:vertices(Face, We) >= 5
 	    end,
     {save_state,wings_sel:make(Sel, face, St)};
 by_command({faces_with,N}, St) ->
     Sel = fun(Face, We) ->
-		  N =:= length(wings_face:surrounding_vertices(Face, We))
+		  N =:= wings_face:vertices(Face, We)
 	  end,
     {save_state,wings_sel:make(Sel, face, St)};
 by_command({material,_}=Cmd, St) ->

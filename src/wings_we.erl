@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.49 2003/03/20 06:03:30 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.50 2003/04/17 11:44:00 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -773,13 +773,12 @@ update_digraph(G, V, #we{he=Htab}=We) ->
 %% Face normal calculation.
 
 face_normal(Face, #face{edge=Edge}, #we{vp=Vtab}=We) ->
-    Vs = wings_face:surrounding_vertices(Face, Edge, We),
+    Vs = wings_face:vertices_cw(Face, Edge, We),
     face_normal_1(Vs, Vtab, []).
 
 face_normal_1([V|Vs], Vtab, Acc) ->
     face_normal_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-face_normal_1([], _, Acc) ->
-    e3d_vec:normal(reverse(Acc)).
+face_normal_1([], _, Acc) -> e3d_vec:normal(Acc).
 
 %%%
 %%% Returns sets of newly created items.
