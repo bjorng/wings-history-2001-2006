@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.103 2005/01/15 09:45:19 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.104 2005/01/15 10:01:35 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -866,8 +866,14 @@ normals(Ns, #we{mirror=none}=We) ->
     end;
 normals(Ns, We) -> normals_1(Ns, We).
 
-normals_1(FaceNormals, #we{he=Htab0}=We) ->
-    Edges = wings_face:outer_edges(visible(We), We),
+normals_1(FaceNormals, #we{fs=Ftab,he=Htab0}=We) ->
+    Edges = case {visible(We),gb_trees:size(Ftab)} of
+		{Vis,Sz} when 2*length(Vis) < Sz ->
+		    wings_face:outer_edges(Vis, We);
+		{Vis,_} ->
+		    InVis = ordsets:subtract(gb_trees:keys(Ftab), Vis),
+		    wings_face:outer_edges(InVis, We)
+	    end,
     Htab = gb_sets:union(Htab0, gb_sets:from_ordset(Edges)),
     normals_2(FaceNormals, We#we{he=Htab}).
 
