@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.105 2003/06/12 11:37:40 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.106 2003/06/14 15:57:47 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -434,6 +434,8 @@ read_events(Eq0) ->
 	[_|_]=Evs -> read_events(enter_events(Evs, Eq0))
     end.
 
+enter_events([no_event|Evs], Eq) ->
+    enter_events(Evs, queue:in(redraw, Eq));
 enter_events([E|Evs], Eq) ->
     enter_events(Evs, queue:in(E, Eq));
 enter_events([], Eq) -> Eq.
@@ -442,27 +444,30 @@ read_out(Eq0) ->
     case queue:out(Eq0) of
 	{{value,#mousemotion{}=Event},Eq} ->
 	    read_out(Event, Eq);
-	{{value,no_event},Eq} ->
-	    {redraw,Eq};
 	{{value,Event},Eq} ->
 	    {Event,Eq};
 	{empty,Eq} ->
-	    receive
-		{timeout,Ref,{event,Event}} when is_reference(Ref) ->
-		    {Event,Eq0}
-	    after 20 ->
-		    read_events(Eq)
-	    end
+            wait_for_event(Eq)
     end.
 
 read_out(Motion, Eq0) ->
     case queue:out(Eq0) of
 	{{value,#mousemotion{}=Event},Eq} ->
 	    read_out(Event, Eq);
-	{{value,no_event},Eq} ->
-	    {redraw,Eq};
 	_Other -> {Motion,Eq0}
     end.
+
+wait_for_event(Eq) ->
+    receive
+        {timeout,Ref,{event,Event}} when is_reference(Ref) ->
+            {Event,Eq}
+    after 10 ->
+            case sdl_events:peepEvents() of
+                [] -> wait_for_event(Eq);
+                [_|_]=Evs -> read_events(enter_events(Evs, Eq))
+            end
+    end.
+
 
 %%%
 %%% Timer support.
