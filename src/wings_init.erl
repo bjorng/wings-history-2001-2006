@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_init.erl,v 1.2 2003/11/08 17:24:15 bjorng Exp $
+%%     $Id: wings_init.erl,v 1.3 2003/11/09 09:16:26 bjorng Exp $
 %%
 
 -module(wings_init).
@@ -24,6 +24,9 @@ init() ->
     wings_pref:set_default(window_size, {780,570}),
     TopSize = wings_pref:get_value(window_size),
     sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_NOPARACHUTE),
+    Ebin = filename:dirname(code:which(?MODULE)),
+    IconFile = filename:join(Ebin, "wings.icon"),
+    catch sdl_video:wm_setIcon(sdl_video:loadBMP(IconFile), null),
     sdl_video:gl_setAttribute(?SDL_GL_DOUBLEBUFFER, 1),
 
     %% Make sure that some video mode works. Otherwise crash early.
@@ -63,15 +66,10 @@ opengl_modes() ->
      [{buffer_size,0},{depth_size,0},{stencil_size,0},{accum_size,0}]].
 
 try_video_modes(Modes, TopSize) ->
-    io:format("Trying hardware-accelerated OpenGL modes\n"),
-    case try_video_modes_1(Modes, TopSize, false) of
+    io:format("Trying OpenGL modes\n"),
+    case try_video_modes_1(Modes, TopSize) of
 	ok -> ok;
-	error ->
-	    io:format("Trying software OpenGL modes:\n"),
-	    case try_video_modes_1(Modes, TopSize, true) of
-		ok -> ok;
-		error -> video_mode_failure()
-	    end
+	error -> video_mode_failure()
     end.
 
 video_mode_failure() ->
@@ -81,41 +79,20 @@ video_mode_failure() ->
     io:format("###########################################\n\n"),
     erlang:fault("No suitable OpenGL mode found (are OpenGL drivers installed?)").
 
-try_video_modes_1([Mode|Modes], TopSize, AcceptSoftware) ->
+try_video_modes_1([Mode|Modes], TopSize) ->
     io:format("  ~p\n", [Mode]),
-    case try_video_mode(Mode, TopSize, AcceptSoftware) of
+    case try_video_mode(Mode, TopSize) of
 	ok -> ok;
-	error -> try_video_modes_1(Modes, TopSize, AcceptSoftware)
+	error -> try_video_modes_1(Modes, TopSize)
     end;
-try_video_modes_1([], _, _) -> error.
+try_video_modes_1([], _) -> error.
 
-try_video_mode(Ps, {W,H}, AcceptSoftware) ->
+try_video_mode(Ps, {W,H}) ->
     set_video_props(Ps),
     case catch set_video_mode(W, H) of
 	ok ->
-	    case AcceptSoftware orelse
-		gl:getString(?GL_RENDERER) =/= "GDI Generic" of
-		false -> error;
-		true ->
-		    %% We have found an acceptable video mode.
-		    %% On Windows, a bug in SDL makes it necessary
-		    %% to reinitialize SDL to get keyboard input working
-		    %% in if we have rejected a working video mode
-		    %% that was not hw-accelerated.
-		    case get(wings_os_type) of
-			{win32,_} ->
-			    sdl:quit(),
-			    sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_NOPARACHUTE);
-			_ -> ok
-		    end,
-		    Ebin = filename:dirname(code:which(?MODULE)),
-		    IconFile = filename:join(Ebin, "wings.icon"),
-		    catch sdl_video:wm_setIcon(sdl_video:loadBMP(IconFile),
-					       null),
-		    set_video_props(Ps),
-		    catch set_video_mode(W, H),
-		    display_actual_mode()
-	    end;
+	    display_actual_mode(),
+	    ok;
 	_ -> error
     end.
 
