@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.35 2003/12/29 16:01:11 bjorng Exp $
+%%     $Id: wpa.erl,v 1.36 2003/12/30 07:53:42 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -31,9 +31,6 @@
 	 vm_freeze/1,
 	 triangulate/1,triangulate/2,quadrangulate/1,quadrangulate/2
 	]).
-
-%% Not recommended.
--export([import_filename/1]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -103,20 +100,6 @@ do_import(Importer, Name, St0) ->
 	    wings_util:error(Reason)
     end.
 
-%% This function is not recommend. It will be removed in
-%% a future release. Use import_filename/2 instead.
-%%
-%% returns: FilenameString | aborted
-import_filename(Ps0) ->
-    Ps = Ps0 ++ [{title,"Import"}],
-    case wings_plugin:call_ui({file,open_dialog,Ps}) of
-	aborted -> aborted;
-	Name ->
-	    wings_pref:set_value(current_directory,
-				 filename:dirname(Name)),
-	    Name
-    end.
-
 %% import_filename([Prop], Continuation).
 %%   The Continuation fun will be called like this: Continuation(Filename).
 import_filename(Ps0, Cont) ->
@@ -129,8 +112,10 @@ import_filename(Ps0, Cont) ->
 			  wings_util:message(Error);
 		      #st{}=St ->
 			  wings_wm:send(This, {new_state,St});
-		      _ ->
-			  keep
+		      Tuple when is_tuple(Tuple) ->
+			  wings_wm:send(This, {action,Tuple});
+		      ignore -> keep;
+		      keep -> keep
 		  end
 	  end,
     wings_plugin:call_ui({file,open_dialog,Ps,Fun}).
