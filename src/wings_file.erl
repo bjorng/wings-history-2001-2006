@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.72 2002/07/14 09:27:40 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.73 2002/07/14 20:13:58 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -417,7 +417,7 @@ import_ndo(St0) ->
 
 export_filename(Prop, St) ->
     case output_file(export, export_file_prop(Prop, St)) of
-	aborted -> ok;
+	aborted -> aborted;
 	Name ->
 	    set_cwd(dirname(Name)),
 	    Name
