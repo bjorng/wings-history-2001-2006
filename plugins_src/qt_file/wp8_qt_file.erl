@@ -3,7 +3,7 @@
 %%
 %%     Native file dialog boxes for QT/Unix.
 %%
-%%  Copyright (c) 2001 Patrik Nyblom
+%%  Copyright (c) 2001-2002 Patrik Nyblom, Bjorn Gustavsson
 %%
 %%  Changes for QT/Unix support by Chris Osgood : 2001/12/14
 %%
@@ -20,7 +20,6 @@
 -define(OP_READ, 1).
 -define(OP_WRITE, 2).
 -define(OP_MESSAGE, 3).
--define(OP_SERIOUS_QUESTION, 4).
 
 menus() ->
     [].
@@ -49,53 +48,57 @@ init(Next) ->
 fileop({question,Question}, _Next) ->
     list_to_atom(erlang:port_control(wp8_file_port, ?OP_QUESTION,
 				     ["Wings 3D",0,Question,0]));
-
-fileop({serious_question,Question}, _Next) ->
-    list_to_atom(erlang:port_control(wp8_file_port, ?OP_SERIOUS_QUESTION,
-				     ["Wings 3D",0,Question,0]));
-
 fileop({message,Message}, _Next) ->
     Title = "Wings 3D",
     erlang:port_control(wp8_file_port, ?OP_MESSAGE, [Title,0,Message,0]);
-
-fileop({file,open,Prop}, _Next) ->
-    file_dialog(?OP_READ, Prop, "Open Wings 3D file");
-
-fileop({file,save,Prop}, _Next) ->
-    file_dialog(?OP_WRITE, Prop, "Save Wings 3D file");
-
-fileop({file,import,Prop}, _Next) ->
-    file_dialog(?OP_READ, Prop, "Import file into Wings 3D");
-
-fileop({file,export,Prop}, _Next) ->
-    file_dialog(?OP_WRITE, Prop, "Export file from Wings 3D");
-
-fileop({file,merge,Prop}, _Next) ->
-    file_dialog(?OP_READ, Prop, "Merge Wings 3D file");
-
+fileop({file,open_dialog,Prop}, _Next) ->
+    Title = proplists:get_value(title, Prop, "Open"),
+    file_dialog(?OP_READ, Prop, Title);
+fileop({file,save_dialog,Prop}, _Next) ->
+    Title = proplists:get_value(title, Prop, "Save"),
+    file_dialog(?OP_WRITE, Prop, Title);
 fileop(What, Next) ->
-%     io:format("Default called for ~p~n",[What]),
-%     Ret=Next(What),
-%     io:format("Default returned ~p~n",[Ret]),
-%     Ret.
     Next(What).
 
 file_dialog(Type, Prop, Title) ->
-    Ext = proplists:get_value(ext, Prop, ".wings"),
-    ExtDesc = proplists:get_value(ext_desc, Prop, "Default type"),
-
-    Dir = case get(wp8_file_defdir) of
-	      undefined ->
-		  [];
-	      DefDir ->
-		  filename:nativename(DefDir)
-	  end,
+    Dir = wings_pref:get_value(current_directory),
     DefName = proplists:get_value(default_filename, Prop, ""),
-    Data = [Dir,0,Ext,0,ExtDesc,0,Title,0,DefName,0],
+    {ok,Cwd} = file:get_cwd(),
+    file:set_cwd(Dir),
+    Filters = file_filters(Prop),
+    Data = [Dir,0,Title,0,DefName,0|Filters],
     case erlang:port_control(wp8_file_port, Type, Data) of
 	[] ->
+	    file:set_cwd(Cwd),
 	    aborted;
 	Else ->
-	    put(wp8_file_defdir,filename:dirname(Else)),
+	    file:set_cwd(Cwd),
 	    filename:absname(Else) % Happens to turn windows slashes...
     end.
+
+file_filters(Prop) ->
+    Exts = case proplists:get_value(extensions, Prop, none) of
+	       none ->
+		   Ext = proplists:get_value(ext, Prop, ".wings"),
+		   ExtDesc = proplists:get_value(ext_desc, Prop,
+						 "Wings File"),
+		   [{Ext,ExtDesc}];
+	       Other -> Other
+	   end,
+    [file_add_all(Exts),file_filters_1(Exts++[{".*","All Files"}], [])].
+
+file_filters_1([{Ext,Desc}|T], Acc0) ->
+    Wildcard = "*" ++ Ext,
+    Acc = [Acc0,Desc," (",Wildcard,")",0],
+    file_filters_1(T, Acc);
+file_filters_1([], Acc) -> [Acc,0].
+    
+file_add_all([_]) -> [];
+file_add_all(Exts) ->
+    All0 = ["*"++E || {E,_} <- Exts],
+    All = file_add_semicolons(All0),
+    ["All Formats (",All,")",0,All,0].
+
+file_add_semicolons([E1|[E2|_]=T]) ->
+    [E1,";"|file_add_semicolons(T)];
+file_add_semicolons(Other) -> Other.

@@ -25,6 +25,10 @@ extern "C"
 
 #include "erl_driver.h"
 
+#ifndef PATH_MAX
+# define PATH_MAX 1024
+#endif
+
 /*
 ** Interface routines
 */
@@ -112,23 +116,21 @@ static int qt_wings_file_control(ErlDrvData handle, unsigned int command,
     switch (command)
     {
     case 0: /* Yes/No/Cancel question */
-    case 4: /* Yes/No/Cancel question */
         {
             title = buff; /* Title of window */
             text = title + strlen(title) + 1; /* Prompt text */
 
             QMessageBox mb(title, text, QMessageBox::Warning,
-                                        QMessageBox::Yes | QMessageBox::Default,
-                                        QMessageBox::No,
-                                        QMessageBox::Cancel | QMessageBox::Escape);
+			   QMessageBox::Yes | QMessageBox::Default,
+			   QMessageBox::No,
+			   QMessageBox::Cancel | QMessageBox::Escape);
 
-            switch( mb.exec() )
-            {
+            switch(mb.exec()) {
             case (QMessageBox::Yes): // YES
-                strcpy(*res,"yes");
+                strcpy(*res, "yes");
                 return 3;
             case (QMessageBox::No): // NO
-                strcpy(*res,"no");
+                strcpy(*res, "no");
                 return 2;
             default:
                 strcpy(*res,"aborted");
@@ -138,11 +140,10 @@ static int qt_wings_file_control(ErlDrvData handle, unsigned int command,
     case 1: /* Open (or import) file */
     case 2: /* Save (or export) file */
         {
-            defdir = buff; /* Default directory */
-            filter = defdir + strlen(defdir) + 1; /* Filter expression (.wings) */
-            filter_desc = filter + strlen(filter) + 1;      /* Desc. of filter */
-            title = filter_desc + strlen(filter_desc) + 1;  /* Title of dialog */
-            defname = title + strlen(title) + 1; /* Default name for file */
+	    defdir = buff; /* Default directory */
+	    title = defdir + strlen(defdir) + 1;  /* Title of dialog */
+	    defname = title + strlen(title) + 1; /* Default name for file */
+	    filter = defname + strlen(defname) + 1; /* Filter expression (.wings) */
 
             /* Create our file dialog */
             QFileDialog fd(defdir, 0, 0, title, TRUE);
@@ -150,28 +151,28 @@ static int qt_wings_file_control(ErlDrvData handle, unsigned int command,
             /* Build list of filters */
             QStringList qFilterlist;
 
-            QString qFilterWings = filter_desc;
-            qFilterWings.append(" (*");
-            qFilterWings.append(filter);
-            qFilterWings.append(")");
 
-            qFilterlist.append(qFilterWings);
-            qFilterlist.append("All files (*.*)");
+	    while (filter[0] != 0) {
+		QString qFilterWings = filter;
+
+		qFilterlist.append(qFilterWings);
+		filter += strlen(filter) + 1;
+	    }
 
             /* Pre-dialog setup */
             fd.setFilters(qFilterlist);
             fd.setSelection(defname);
             fd.setCaption(title);
 
-        	if (command == 1) fd.setMode(QFileDialog::ExistingFile);
+	    if (command == 1) {
+		fd.setMode(QFileDialog::ExistingFile);
+	    }
 
             /* Start the dialog and wait for a result */
-            if (fd.exec())
-            {
+            if (fd.exec()) {
                 QString ret = fd.selectedFile();
 
-                if (!ret.isEmpty())
-                {
+                if (!ret.isEmpty()) {
             	    rbuff = (char *)driver_alloc(PATH_MAX+1);
                     strncpy(rbuff, ret, PATH_MAX+1);
                     *res = rbuff;
@@ -179,10 +180,10 @@ static int qt_wings_file_control(ErlDrvData handle, unsigned int command,
                 }
             }
 
-        	return 0;
+	    return 0;
         }
     case 3: /* Message box */
-        {
+    {
             title = buff; /* Title of window */
             text = title + strlen(title) + 1; /* Prompt text */
             QMessageBox::information(0, title, text, QMessageBox::Ok | QMessageBox::Default);
