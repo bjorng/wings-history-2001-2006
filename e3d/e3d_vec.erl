@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.19 2004/03/08 13:26:21 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.20 2004/03/29 07:12:47 bjorng Exp $
 %%
 
 -module(e3d_vec).
 
--export([zero/0,is_zero/1,add/1,add/2,add_prod/3,sub/1,sub/2,mul/2,
+-export([zero/0,is_zero/1,add/1,add/2,add_prod/3,sub/1,sub/2,norm_sub/2,mul/2,
 	 divide/2,neg/1,dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,norm/3,
 	 normal/3,normal/1,average/1,average/2,average/4,
 	 bounding_box/1]).
@@ -52,9 +52,11 @@ add([{V10,V11,V12}|T], A0, A1, A2) when is_float(V10), is_float(V11), is_float(V
     add(T, A0+V10, A1+V11, A2+V12);
 add([], A0, A1, A2) -> {A0,A1,A2}.
 
-sub({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12),
-				       is_float(V20), is_float(V21), is_float(V22) ->
+sub({V10,V11,V12}, {V20,V21,V22}) ->
     {V10-V20,V11-V21,V12-V22}.
+
+norm_sub({V10,V11,V12}, {V20,V21,V22}) ->
+    norm(V10-V20, V11-V21, V12-V22).
 
 sub([{V10,V11,V12}|T]) ->
     sub(V10, V11, V12, T).
