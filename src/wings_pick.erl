@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.121 2003/09/01 17:27:03 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.122 2003/09/01 19:24:16 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -130,6 +130,7 @@ insert_hilite_dl(Hit, St) ->
 				insert_hilite_dl_1(D, Hit, St)
 			end, []).
 
+insert_hilite_dl_1(#dlo{src_we=We}=D, _, _) when ?IS_LIGHT(We) -> D;
 insert_hilite_dl_1(#dlo{src_we=#we{id=Id}}=D, {Mode,_,{Id,Item}=Hit}, St) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
@@ -504,6 +505,18 @@ best_face_hit_1(#dlo{src_we=#we{id=Id}=We,ns=Ns}, EyePoint,
     best_face_hit_2(We, Ns, EyePoint, A);
 best_face_hit_1(_, _, A) -> A.
 
+best_face_hit_2(#we{id=Id,vp=Vtab}=We, Ns, Ray, {[{Id,Id,Face}|Hits],Hit0,T0})
+  when ?IS_LIGHT(We) ->
+    {Orig,Dir} = Ray,
+    P = gb_trees:get(1, Vtab),
+    T = e3d_vec:dot(Dir, P) - e3d_vec:dot(Dir, Orig),
+    A = if
+	    T < T0 ->
+		{Hits,{Id,Face},T};
+	    true ->
+		{Hits,Hit0,T0}
+	end,
+    best_face_hit_2(We, Ns, Ray, A);
 best_face_hit_2(#we{id=AbsId}=We, Ns, Ray, {[{AbsId,Id,Face}|Hits],Hit0,T0}) ->
     case gb_trees:get(Face, Ns) of
 	[N|[P0|_]] -> ok;

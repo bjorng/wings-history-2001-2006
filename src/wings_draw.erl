@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.149 2003/08/31 11:00:26 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.150 2003/09/01 19:24:16 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -517,7 +517,7 @@ split_vs_dlist(_, _, _) -> {none,none}.
 
 %% Re-join display lists that have been split.
 join(#dlo{src_we=#we{vp=Vtab0},ns=Ns1,split=#split{orig_we=We0,orig_ns=Ns0}}=D) ->
-    #we{vp=OldVtab,fs=Ftab} = We0,
+    #we{vp=OldVtab} = We0,
 
     %% Heuristic for break-even. (Note that we don't know the exact number
     %% of vertices that will be updated.)
@@ -537,10 +537,12 @@ join(#dlo{src_we=#we{vp=Vtab0},ns=Ns1,split=#split{orig_we=We0,orig_ns=Ns0}}=D) 
 %     io:format("~p ~p\n", [erts_debug:size([OldVtab,Vtab]),
 % 			   erts_debug:flat_size([OldVtab,Vtab])]),
     We = We0#we{vp=Vtab},
-    Ns = join_ns(Ns1, Ns0, Ftab),
+    Ns = join_ns(We, Ns1, Ns0),
     D#dlo{vs=none,drag=none,sel=none,split=none,src_we=We,ns=Ns}.
 
-join_ns(NsNew, NsOld, Ftab) ->
+join_ns(We, _, _) when ?IS_LIGHT(We) ->
+    none;
+join_ns(#we{fs=Ftab}, NsNew, NsOld) ->
     join_ns_1(gb_trees:to_list(NsNew), gb_trees:to_list(NsOld), Ftab, []).
 
 join_ns_1([{Face,_}=El|FsNew], [{Face,_}|FsOld], Ftab, Acc) ->
