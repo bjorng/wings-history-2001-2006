@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.40 2004/06/29 09:05:52 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.41 2004/06/30 07:10:37 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -514,14 +514,13 @@ map_vtx(V0, Map) ->
 rn_remove_unused(Vs, {map,Low,N}) ->
     lists:sublist(Vs, Low+1, N);
 rn_remove_unused(Vs, Map) ->
-    rn_remove_unused(Vs, Map, 0, []).
+    rn_remove_unused(Vs, gb_trees:to_list(Map), 0, []).
 
-rn_remove_unused([V|Vs], Map, I, Acc) ->
-    case gb_trees:is_defined(I, Map) of
-	true -> rn_remove_unused(Vs, Map, I+1, [V|Acc]);
-	false -> rn_remove_unused(Vs, Map, I+1, Acc)
-    end;
-rn_remove_unused([], _, _, Acc) -> reverse(Acc).
+rn_remove_unused([V|Vs], [{I,_}|Map], I, Acc) ->
+    rn_remove_unused(Vs, Map, I+1, [V|Acc]);
+rn_remove_unused([_|Vs], Map, I, Acc) ->
+    rn_remove_unused(Vs, Map, I+1, Acc);
+rn_remove_unused(_, [], _, Acc) -> reverse(Acc).
 
 rn_used_vs(#e3d_mesh{fs=Ftab,tx=TxTab,ns=Ntab}) ->
     Vs = foldl(fun(#e3d_face{vs=Vs}, A) -> Vs++A end, [], Ftab),
