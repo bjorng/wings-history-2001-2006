@@ -128,6 +128,7 @@
 				4A9504CCFFE6A4B311CA0CBA,
 				4A9504CDFFE6A4B311CA0CBA,
 			);
+			hasScannedForEncodings = 1;
 			isa = PBXProject;
 			mainGroup = 29B97314FDCFA39411CA2CEA;
 			projectDirPath = "";
@@ -158,6 +159,7 @@
 			refType = 4;
 		};
 		29B97316FDCFA39411CA2CEA = {
+			fileEncoding = 30;
 			isa = PBXFileReference;
 			path = main.m;
 			refType = 4;
@@ -283,7 +285,6 @@
 </dict>
 </plist>
 ";
-			shouldUseHeadermap = 1;
 		};
 		29B97327FDCFA39411CA2CEA = {
 			buildActionMask = 2147483647;
@@ -378,7 +379,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copy the Wings application.\nINSTALL=/usr/bin/install\nlatest_wings=`(cd ..; pwd)`\n\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/erlang/lib/`basename $latest_wings`\n\n$INSTALL -d $dest $dest/ebin $dest/patches\n\ncd $latest_wings\n\n$INSTALL -c -m 644 README AUTHORS license.terms $dest\n$INSTALL -c -m 644 ebin/* $dest/ebin\n\n$INSTALL -d $dest/plugins/import_export $dest/plugins/commands \\\n $dest/plugins/primitives $dest/plugins/mac_file $dest/plugins/autouv \\\n $dest/plugins/default\n$INSTALL -c -m 644 plugins/default/* $dest/plugins/default\n$INSTALL -c -m 644 plugins/import_export/* $dest/plugins/import_export\n$INSTALL -c -m 644 plugins/commands/* $dest/plugins/commands\n$INSTALL -c -m 644 plugins/primitives/* $dest/plugins/primitives\n$INSTALL -c -m 644 plugins/mac_file/* $dest/plugins/mac_file\n$INSTALL -c -m 644 plugins/autouv/* $dest/plugins/autouv\n";
+			shellScript = "# Copy the Wings application.\nINSTALL=/usr/bin/install\nlatest_wings=`(cd ..; pwd)`\n\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/erlang/lib/`basename $latest_wings`\n\n$INSTALL -d $dest $dest/ebin $dest/patches\n\ncd $latest_wings\n\n$INSTALL -c -m 644 README AUTHORS license.terms $dest\n$INSTALL -c -m 644 ebin/* $dest/ebin\n\n$INSTALL -d $dest/plugins/fonts $dest/plugins/import_export \\\n $dest/plugins/commands \\\n $dest/plugins/primitives $dest/plugins/mac_file \\\n $dest/plugins/autouv \\\n $dest/plugins/default\n$INSTALL -c -m 644 plugins/default/* $dest/plugins/default\n$INSTALL -c -m 644 plugins/fonts/* $dest/plugins/fonts\n$INSTALL -c -m 644 plugins/import_export/* $dest/plugins/import_export\n$INSTALL -c -m 644 plugins/commands/* $dest/plugins/commands\n$INSTALL -c -m 644 plugins/primitives/* $dest/plugins/primitives\n$INSTALL -c -m 644 plugins/mac_file/* $dest/plugins/mac_file\n$INSTALL -c -m 644 plugins/autouv/* $dest/plugins/autouv\n";
 		};
 		F52CB4DB02E8450A01A8000A = {
 			buildActionMask = 2147483647;
@@ -433,11 +434,13 @@
 			shellScript = "# Strip debug information from all beam files.\ntemp=$OBJROOT\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/erlang/lib\n\ncat >$temp/strip.erl <<'EOF'\n-module(strip).\n-export([strip/1]).\n\nstrip([LibRoot]) ->\n    case catch strip_1(filelib:wildcard(filename:join(LibRoot, \"*/ebin/*.beam\"))) of\n        {'EXIT',Reason} ->\n            io:format(\"~P\\n\", [Reason,40]),\n            halt(1);\n        _ ->\n            halt(0)\n    end.\n    \nstrip_1([B|Bs]) ->\n    {ok,{_,B}} = beam_lib:strip(B),\n    strip_1(Bs);\nstrip_1([]) -> ok.\nEOF\n\nerlc -o $temp $temp/strip.erl\nerl -noshell -pa $temp -run strip strip $dest\n";
 		};
 		F5B807F10227DA2101000102 = {
+			fileEncoding = 30;
 			isa = PBXFileReference;
 			path = MyController.h;
 			refType = 4;
 		};
 		F5B807F20227DA2101000102 = {
+			fileEncoding = 30;
 			isa = PBXFileReference;
 			path = MyController.m;
 			refType = 4;
