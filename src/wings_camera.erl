@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.38 2002/08/11 10:35:17 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.39 2002/08/13 21:09:47 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -113,20 +113,21 @@ event(Ev, Redraw) ->
 blender(#mousebutton{button=1,state=?SDL_PRESSED}=Mb, Redraw) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?ALT_BITS =/= 0 ->
-	    blender(Mb#mousebutton{button=2}, Redraw);
+	    blender_1(Mb#mousebutton{button=2},
+		      Mod band (bnot ?ALT_BITS), Redraw);
 	_Mod -> next
     end;
-blender(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?ALT_BITS =/=0 -> next;
-	_Mod ->
-	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-	    wings_io:grab(),
-	    wings_io:clear_message(),
-	    wings_io:message(help()),
-	    {seq,{push,dummy},get_blender_event(Camera, Redraw)}
-    end;
+blender(#mousebutton{button=2,state=?SDL_PRESSED}=Event, Redraw) ->
+    blender_1(Event, sdl_keyboard:getModState(), Redraw);
 blender(_, _) -> next.
+
+blender_1(_, Mod, _) when Mod band ?ALT_BITS =/=0 -> next;
+blender_1(#mousebutton{x=X,y=Y}, _, Redraw) ->
+    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+    wings_io:grab(),
+    wings_io:clear_message(),
+    wings_io:message(help()),
+    {seq,{push,dummy},get_blender_event(Camera, Redraw)}.
 
 blender_event(#mousebutton{button=1,state=?SDL_RELEASED}=Mb, Camera, Redraw) ->
     blender_event(Mb#mousebutton{button=2}, Camera, Redraw);
