@@ -164,12 +164,12 @@ insert_uvs(St0) ->
 
 rm_vertexcolors([{Id,E=#edge{a=A0, b=B0}}|Rest], Acc) ->
     A = if size(A0) == 3 ->
-		{0.0,0.0};
+		none;
 	   true ->
 		A0
 	end,
     B = if size(B0) == 3 ->
-		{0.0,0.0};
+		none;
 	   true ->
 		B0
 	end,

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.161 2003/09/14 18:27:04 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.162 2003/09/16 21:37:24 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -290,12 +290,14 @@ insert_coords([{V,{Face,{S,T,_}}}|Rest], #we{es=Etab0}=We) ->
 insert_coords([], We0 = #we{es=Etab0}) -> 
     %% Assure that no vertex colors pre-exist after insert coords 
     %% i.e. face marked with hole material
-    Etab = lists:map(fun(Rec = {_,#edge{a={_,_},b={_,_}}}) -> Rec;
-		       ({Id,E=#edge{a={_,_,_},b={_,_}}}) -> {Id,E#edge{a ={0.0,0.0}}};
-		       ({Id,E=#edge{a={_,_},b={_,_,_}}}) -> {Id,E#edge{b ={0.0,0.0}}};
-		       ({Id,E=#edge{a={_,_,_},b={_,_,_}}}) -> 
-			    {Id,E#edge{a={0.0,0.0},b={0.0,0.0}}}
-		    end, gb_trees:to_list(Etab0)),
+    Etab = lists:map(fun({Id,E=#edge{a={_,_,_},b={_,_,_}}}) -> 
+			     {Id,E#edge{a=none,b=none}};
+			({Id,E=#edge{a={_,_,_}}}) -> 
+			     {Id,E#edge{a = none}};
+			({Id,E=#edge{b={_,_,_}}}) -> 
+			     {Id,E#edge{b = none}};
+			(Rec) -> Rec
+		     end, gb_trees:to_list(Etab0)),
     We0#we{es=gb_trees:from_orddict(Etab)}.
 
 insert_material(Cs, MatName, We) ->
