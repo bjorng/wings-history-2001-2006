@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.104 2004/03/30 03:34:43 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.105 2004/05/09 07:02:46 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -266,7 +266,7 @@ dissolve_2(Faces, We) ->
     dissolve_3(Parts, We).
 
 dissolve_3([Faces|T], We0) ->
-    {Face,_} = gb_sets:take_smallest(Faces),
+    Face = gb_sets:smallest(Faces),
     Mat = wings_material:get(Face, We0),
     We1 = wings_material:delete_faces(Faces, We0),
     Parts = outer_edge_partition(Faces, We1),
