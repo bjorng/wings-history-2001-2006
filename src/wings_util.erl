@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.8 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.9 2001/09/18 12:02:55 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -19,7 +19,7 @@
 	 tc/1,crasch_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
 
--include("gl.hrl").
+-define(NEED_OPENGL, 1).
 -include("wings.hrl").
 -import(lists, [foreach/2,map/2,foldl/3,reverse/1,member/2]).
 
@@ -330,10 +330,8 @@ walk_face_cw(Face, Edge, LastEdge, We, Acc) ->
     #we{es=Etab} = We,
     case catch gb_trees:get(Edge, Etab) of
 	#edge{vs=V,lf=Face,ltsu=Next} ->
-	    is_vertice_seen(V, Acc, Face, Edge, We),
 	    walk_face_cw(Face, Next, LastEdge, We, [V|Acc]);
 	#edge{ve=V,rf=Face,rtsu=Next} ->
-	    is_vertice_seen(V, Acc, Face, Edge, We),
 	    walk_face_cw(Face, Next, LastEdge, We, [V|Acc]);
 	{'EXIT',_} ->
 	    [{make_ref(),crash,missing_edge,Edge,
@@ -348,10 +346,8 @@ walk_face_ccw(Face, Edge, LastEdge, We, Acc) ->
     #we{es=Etab} = We,
     case catch gb_trees:get(Edge, Etab) of
 	#edge{ve=V,lf=Face,ltpr=Next} ->
-	    is_vertice_seen(V, Acc, Face, Edge, We),
 	    walk_face_ccw(Face, Next, LastEdge, We, [V|Acc]);
 	#edge{vs=V,rf=Face,rtpr=Next} ->
-	    is_vertice_seen(V, Acc, Face, Edge, We),
 	    walk_face_ccw(Face, Next, LastEdge, We, [V|Acc]);
 	{'EXIT',_} ->
 	    [{make_ref(),crash,missing_edge,Edge,
@@ -360,13 +356,6 @@ walk_face_ccw(Face, Edge, LastEdge, We, Acc) ->
 	    [{make_ref(),{crash,Other},
 	      {face,Face,edge,Edge,last_edge,LastEdge,acc,Acc}}]
     end.
-
-is_vertice_seen(V, Vs, Face, Edge, We) ->
-    false.
-%     case member(V, Vs) of
-% 	true -> erlang:fault(validate, [V,Vs,Face,Edge,We]);
-% 	false -> ok
-%     end.
 
 validate_vertex_tab(#we{es=Etab,vs=Vtab}=We) ->
     foreach(fun({V,#vtx{edge=Edge}}) ->

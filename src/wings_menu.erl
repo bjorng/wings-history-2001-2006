@@ -8,18 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.1 2001/08/14 18:16:37 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.2 2001/09/18 12:02:55 bjorng Exp $
 %%
 
 -module(wings_menu).
 -export([menu/4,reactivate/3]).
 
--include("sdl.hrl").
--include("sdl_events.hrl").
--include("sdl_video.hrl").
--include("sdl_keyboard.hrl").
--include("gl.hrl").
-
+-define(NEED_OPENGL, 1).
+-define(NEED_ESDL, 1).
 -include("wings.hrl").
 
 %% Menu information kept for a popup menu.

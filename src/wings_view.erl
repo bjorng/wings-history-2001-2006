@@ -8,15 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.6 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.7 2001/09/18 12:02:55 bjorng Exp $
 %%
 
 -module(wings_view).
 -export([default_view/1,projection/1,perspective/1,
 	 model_transformations/1,aim/1,along/2]).
 
+-define(NEED_OPENGL, 1).
 -include("wings.hrl").
--include("gl.hrl").
 
 default_view(St) ->
     Zero = 0.0,

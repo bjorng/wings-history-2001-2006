@@ -8,16 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.3 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.4 2001/09/18 12:02:55 bjorng Exp $
 %%
 
 -module(wings_material).
 -export([default/0,add_materials/2,used_materials/1,apply_material/2,edit/2]).
 
--include("gl.hrl").
--include("sdl.hrl").
--include("sdl_events.hrl").
--include("sdl_keyboard.hrl").
+-define(NEED_OPENGL, 1).
+-define(NEED_ESDL, 1).
 -include("wings.hrl").
 
 -import(lists, [sort/1,foldl/3,reverse/1]).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.1 2001/08/14 18:16:38 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.2 2001/09/18 12:02:54 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -22,12 +22,9 @@
 -export([putback_event/1,get_event/0,flush_events/0,
 	 periodic_event/2,cancel_periodic_event/0,has_periodic_event/0]).
 
+-define(NEED_OPENGL, 1).
+-define(NEED_ESDL, 1).
 -include("wings.hrl").
--include("sdl.hrl").
--include("sdl_events.hrl").
--include("sdl_video.hrl").
--include("sdl_keyboard.hrl").
--include("gl.hrl").
 
 -import(lists, [flatmap/2,foldl/3,keysearch/3,reverse/1,foreach/2]).
 

@@ -8,10 +8,22 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.7 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: wings.hrl,v 1.8 2001/09/18 12:02:54 bjorng Exp $
 %%
 
--define(WINGS_VERSION, {0,6}).
+-ifdef(NEED_ESDL).
+-include_lib("esdl/include/sdl.hrl").
+-include_lib("esdl/include/sdl_events.hrl").
+-include_lib("esdl/include/sdl_video.hrl").
+-include_lib("esdl/include/sdl_keyboard.hrl").
+-endif.
+
+-ifdef(NEED_OPENGL).
+-include_lib("esdl/include/gl.hrl").
+-include_lib("esdl/include/glu.hrl").
+-endif.
+
+-define(WINGS_VERSION, ?wings_version).
 
 -define(CHAR_HEIGHT, 14).
 -define(CHAR_WIDTH, 7).

@@ -9,18 +9,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.8 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.9 2001/09/18 12:02:54 bjorng Exp $
 %%
 
 -module(wings_drag).
 -export([start_camera/3,stop_camera/1,view_changed/1,
 	 init_drag/3,abort_drag/1,click/3,motion/3]).
 
+-define(NEED_ESDL, 1).
+-define(NEED_OPENGL, 1).
 -include("wings.hrl").
--include("gl.hrl").
--include("sdl_video.hrl").
--include("sdl_events.hrl").
--include("sdl_keyboard.hrl").
 
 -define(CTRL_BITS, (?KMOD_LCTRL bor ?KMOD_RCTRL)).
 -define(ALT_BITS, (?KMOD_LALT bor ?KMOD_RALT)).

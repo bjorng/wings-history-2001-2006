@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.11 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.12 2001/09/18 12:02:54 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -223,8 +223,7 @@ build_object(Name, Matrix0, Fs, Vs, He, St) ->
 
 do_export(Mod, Name, St) ->
     Objs = wings_util:fold_shape(fun do_export/2, [], St),
-    {Major,Minor} = ?WINGS_VERSION,
-    Creator = flatten(io_lib:format("Wings 3D ~p.~p", [Major,Minor])),
+    Creator = "Wings 3D " ++ ?WINGS_VERSION,
     Mat = wings_material:used_materials(St),
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
     Mod:export(Name, Contents).

@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.7 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.8 2001/09/18 12:02:54 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([model_changed/1,render/1,select/3]).
 
--include("gl.hrl").
+-define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1]).

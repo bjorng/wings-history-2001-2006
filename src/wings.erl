@@ -8,19 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.9 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: wings.erl,v 1.10 2001/09/18 12:02:54 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0]).
 -export([caption/1]).
 
--include("sdl.hrl").
--include("sdl_events.hrl").
--include("sdl_video.hrl").
--include("sdl_keyboard.hrl").
--include("gl.hrl").
--include("glu.hrl").
+-define(NEED_OPENGL, 1).
+-define(NEED_ESDL, 1).
 -include("wings.hrl").
 
 -define(CTRL_BITS, (?KMOD_LCTRL bor ?KMOD_RCTRL)).
@@ -1153,7 +1149,7 @@ upper([H|T]) ->
 upper([]) -> [].
 
 -ifdef(DEBUG).
-wings() -> "Wings [debug]".
+wings() -> "Wings 3D [debug]".
 -else.
-wings() -> "Wings".
+wings() -> "Wings 3D".
 -endif.

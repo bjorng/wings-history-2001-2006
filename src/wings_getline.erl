@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.1 2001/08/14 18:16:35 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.2 2001/09/18 12:02:54 bjorng Exp $
 %%
 
 -module(wings_getline).
@@ -16,12 +16,9 @@
 
 -import(lists, [reverse/1,reverse/2,prefix/2,nthtail/2]).
 
+-define(NEED_OPENGL, 1).
+-define(NEED_ESDL, 1).
 -include("wings.hrl").
--include("sdl.hrl").
--include("sdl_events.hrl").
--include("sdl_video.hrl").
--include("sdl_keyboard.hrl").
--include("gl.hrl").
 
 -record(text,
 	{x,

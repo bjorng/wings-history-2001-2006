@@ -8,18 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.1 2001/08/14 18:16:39 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.2 2001/09/18 12:02:54 bjorng Exp $
 %%
 
 -module(wings_help).
 -export([about/1]).
 
+-define(NEED_OPENGL, 1).
+-define(NEED_ESDL, 1).
 -include("wings.hrl").
--include("sdl.hrl").
--include("sdl_events.hrl").
--include("sdl_video.hrl").
--include("sdl_keyboard.hrl").
--include("gl.hrl").
 
 about(St) ->
     wings_io:display(
@@ -40,10 +37,7 @@ about(St) ->
 	      gl:disable(?GL_TEXTURE_2D),
 	      gl:flush(),
 	      gl:color3f(0.0, 0.0, 0.0),
-	      {Major,Minor} = ?WINGS_VERSION,
-	      wings_io:text_at(10, 155, "Wings " ++
-			       integer_to_list(Major) ++ "." ++
-			       integer_to_list(Minor)),
+	      wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION),
 	      gl:flush(),
 	      wait_for_click(),
 	      St
