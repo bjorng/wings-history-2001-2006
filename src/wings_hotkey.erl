@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.1 2001/11/16 18:19:41 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.2 2001/11/17 07:02:37 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -41,12 +41,6 @@ translate_key($z, Mod, C) when Mod band ?ALT_BITS =/= 0,
 translate_key($z, Mod, C) when Mod band ?SHIFT_BITS =/= 0,
 			    Mod band ?CTRL_BITS =/= 0 -> {edit,redo};
 translate_key($z, Mod, C) when Mod band ?CTRL_BITS =/= 0 -> {edit,undo_toggle};
-
-% %% Backspace.
-% translate_key($\b, Mod, C, #st{selmode=vertex}) -> {vertex,collapse};
-% translate_key($\b, Mod, C, #st{selmode=edge}) -> {edge,dissolve};
-% translate_key($\b, Mod, C, #st{selmode=face}) -> {face,dissolve};
-% translate_key($\b, Mod, C, #st{selmode=body}) -> {body,delete};
 translate_key(Sym, Mod, C) when Mod band ?INTERESTING_BITS == 0 ->
     case Sym of
 	?SDLK_KP_PLUS -> {select,more};
@@ -61,14 +55,11 @@ translate_key(_, _, _) -> next.
 translate_key($\s) -> {select,deselect};
 translate_key($a) -> {view,aim};
 translate_key($b) -> {select,body};
-%translate_key($c, #st{selmode=vertex}) -> {vertex,connect};
-%translate_key($c, #st{selmode=edge}) -> {edge,connect};
 translate_key($d) -> {edit,repeat};
 translate_key($e) -> {select,edge};
 translate_key($f) -> {select,face};
 translate_key($i) -> {select,similar};
 translate_key($l) -> {select,edge_loop};
-%translate_key($L, #st{selmode=edge}) -> {select,select_region};
 translate_key($o) -> {view,orthogonal_view};
 translate_key($r) -> {view,reset};
 translate_key($s) -> {body,auto_smooth};

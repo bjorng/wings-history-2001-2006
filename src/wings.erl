@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.44 2001/11/16 18:19:40 bjorng Exp $
+%%     $Id: wings.erl,v 1.45 2001/11/17 07:02:37 bjorng Exp $
 %%
 
 -module(wings).
@@ -311,6 +311,9 @@ command({edit,repeat}, #st{drag=undefined,selmode=Mode,repeatable=Cmd0}=St) ->
     end,
     St;
 command({edit,repeat}, St) -> St;
+command({edit,{camera_mode,Mode}}, St) ->
+    wings_camera:command(Mode),
+    St;
 command({edit,{preferences,Pref}}, St) ->
     wings_pref:command(Pref),
     St;
@@ -534,6 +537,7 @@ menu(X, Y, edit, St) ->
 	    separator,
 	    {"View Material [ALPHA]",{material,materials(St)}},
 	    separator,
+	    wings_camera:sub_menu(St),
 	    {"Preferences",{preferences,wings_pref:sub_menu(St)}}},
     wings_menu:menu(X, Y, edit, Menu);
 menu(X, Y, view, St) ->
@@ -931,8 +935,8 @@ rename_object(Id, #st{shapes=Shapes0}=St) ->
 	    St#st{shapes=Shapes}
     end.
 
-translate_event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, St) ->
-    translate_key(Sym, Mod, C, St);
+translate_event(#keyboard{}=Event, St) ->
+    translate_key(Event, St);
 translate_event(quit, St) -> {file,quit};
 translate_event(ignore, St) -> ignore;
 translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St) ->
@@ -959,82 +963,26 @@ translate_event({menu_action,Action}, St) ->
 translate_event(redraw, St) -> redraw;
 translate_event({action,Action}, St) -> Action.
 
-translate_key($c, Mod, C, St) when Mod band ?ALT_BITS =/= 0 -> {edit,copy_bb};
-translate_key($v, Mod, C, St) when Mod band ?ALT_BITS =/= 0 -> {edit,paste_bb};
-translate_key($a, Mod, C, St) when Mod band ?CTRL_BITS =/= 0 -> {select,all};
-translate_key($i, Mod, C, St) when Mod band ?CTRL_BITS =/= 0,
-				Mod band ?SHIFT_BITS =/= 0 -> {select,inverse};
-translate_key($l, Mod, C, St) when Mod band ?CTRL_BITS =/= 0 -> {file,merge};
-translate_key($n, Mod, C, St) when Mod band ?CTRL_BITS =/= 0 -> {file,new};
-translate_key($o, Mod, C, St) when Mod band ?CTRL_BITS =/= 0 -> {file,open};
-translate_key($q, Mod, C, St) when Mod band ?CTRL_BITS =/= 0 -> {file,quit};
-translate_key($s, Mod, C, St) when Mod band ?CTRL_BITS =/= 0 -> {file,save};
-translate_key($z, Mod, C, St) when Mod band ?ALT_BITS =/= 0,
-			    Mod band ?CTRL_BITS =/= 0 -> {edit,undo};
-translate_key($z, Mod, C, St) when Mod band ?SHIFT_BITS =/= 0,
-			    Mod band ?CTRL_BITS =/= 0 -> {edit,redo};
-translate_key($z, Mod, C, St) when Mod band ?CTRL_BITS =/= 0 -> {edit,undo_toggle};
-%% Backspace.
-translate_key($\b, Mod, C, #st{selmode=vertex}) -> {vertex,collapse};
-translate_key($\b, Mod, C, #st{selmode=edge}) -> {edge,dissolve};
-translate_key($\b, Mod, C, #st{selmode=face}) -> {face,dissolve};
-translate_key($\b, Mod, C, #st{selmode=body}) -> {body,delete};
-translate_key(Sym, Mod, C, St)
-  when Mod band ?INTERESTING_BITS == 0 ->
-    case Sym of
-	?SDLK_KP_PLUS -> plus(St);
-	?SDLK_KP_MINUS -> minus(St);
-	?SDLK_F3 -> {select,prev_edge_loop};
-	?SDLK_F4 -> {select,next_edge_loop};
-	?SDLK_F5 -> {select,{faces_with,5}};
-	_ -> translate_key(C, St)
-    end;
-translate_key(_, _, _, St) -> ignore.
+translate_key(Event, St) ->
+    case wings_hotkey:event(Event) of
+	next -> translate_key_1(Event, St);
+	Other -> Other
+    end.
 
-translate_key($\s, St) -> {select,deselect};
-translate_key($a, St) -> {view,aim};
-translate_key($b, St) -> {select,body};
-translate_key($c, #st{selmode=vertex}) -> {vertex,connect};
-translate_key($c, #st{selmode=edge}) -> {edge,connect};
-translate_key($d, St) -> {edit,repeat};
-translate_key($e, St) -> {select,edge};
-translate_key($f, St) -> {select,face};
-translate_key($i, St) -> {select,similar};
-translate_key($l, St) -> {select,edge_loop};
-translate_key($L, #st{selmode=edge}) -> {select,select_region};
-translate_key($o, St) -> {view,orthogonal_view};
-translate_key($r, St) -> {view,reset};
-translate_key($s, St) -> {body,auto_smooth};
-translate_key($u, St) -> {view,flyaround};
-translate_key($v, St) -> {select,vertex};
-translate_key($w, St) -> {view,wire_mode};
-translate_key($x, St) -> {view,{along,x}};
-translate_key($y, St) -> {view,{along,y}};
-translate_key($z, St) -> {view,{along,z}};
-translate_key($X, St) -> {view,{along,neg_x}};
-translate_key($Y, St) -> {view,{along,neg_y}};
-translate_key($Z, St) -> {view,{along,neg_z}};
-translate_key($2, St) -> {edge,{cut,2}};
-translate_key($3, St) -> {edge,{cut,3}};
-translate_key($4, St) -> {edge,{cut,4}};
-translate_key($5, St) -> {edge,{cut,5}};
-translate_key($6, St) -> {edge,{cut,6}};
-translate_key($7, St) -> {edge,{cut,7}};
-translate_key($8, St) -> {edge,{cut,8}};
-translate_key($9, St) -> {edge,{cut,9}};
-translate_key($0, St) -> {edge,{cut,10}};
-translate_key(?SDLK_TAB, St)  -> {view,smooth_preview};
-translate_key($+, St)  -> plus(St);
-translate_key($=, St)  -> plus(St);
-translate_key($-, St)  -> minus(St);
-translate_key(_, _) -> ignore.
+translate_key_1(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, St) ->
+    translate_key_1(Sym, Mod, C, St).
 
-plus(#st{drag=undefined}=St) -> {select,more};
-plus(St) -> {influence_radius,1}.
-
-minus(#st{drag=undefined}=St) -> {select,less};
-minus(St) -> {influence_radius,-1}.
+translate_key_1($\b, Mod, C, #st{selmode=vertex}) -> {vertex,collapse};
+translate_key_1($\b, Mod, C, #st{selmode=edge}) -> {edge,dissolve};
+translate_key_1($\b, Mod, C, #st{selmode=face}) -> {face,dissolve};
+translate_key_1($\b, Mod, C, #st{selmode=body}) -> {body,delete};
+translate_key_1(Sym, Mod, C, St) -> translate_key_2(C, St).
     
+translate_key_2($c, #st{selmode=vertex}) -> {vertex,connect};
+translate_key_2($c, #st{selmode=edge}) -> {edge,connect};
+translate_key_2($L, #st{selmode=edge}) -> {select,select_region};
+translate_key_2(_, _) -> ignore.
+
 command_name(#st{repeatable=ignore}) ->
     "(Can't repeat)";
 command_name(#st{repeatable={_,Cmd}}=St) ->
