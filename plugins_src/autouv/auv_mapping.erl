@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.32 2003/02/11 15:27:57 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.33 2003/02/12 21:35:36 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -838,7 +838,7 @@ area2d({S1,T1},{S2,T2},{S3,T3})
     ((S2-S1)*(T3-T1)-(S3-S1)*(T2-T1))/2.
 
 area3d(V1,V2,V3) ->
-    e3d_vec:len(e3d_vec:cross(e3d_vec:sub(V2,V1),e3d_vec:sub(V3,V1)))/2.   
+    abs(e3d_vec:len(e3d_vec:cross(e3d_vec:sub(V2,V1),e3d_vec:sub(V3,V1)))/2).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -861,7 +861,7 @@ sum_l8([{Face,[{Id1,P1},{Id2,P2},{Id3,P3}]}|R], Ovs, Worst) ->
 	      gb_trees:get(Id2,Ovs),
 	      gb_trees:get(Id3,Ovs)),
     New = if FVal > Worst -> 
-		  ?DBG("Face ~p ~p has worst ~p~n", [Face,[Id1,Id2,Id3],Worst]),
+		  ?DBG("Face ~p ~p has worst ~p~n", [Face,[Id1,Id2,Id3],FVal]),
 		  FVal;
 	     true -> 
 		  Worst
@@ -869,11 +869,12 @@ sum_l8([{Face,[{Id1,P1},{Id2,P2},{Id3,P3}]}|R], Ovs, Worst) ->
     sum_l8(R,Ovs,New);
 sum_l8([], _, Worst) -> Worst.
 
-sum_l2([{_Face,[{Id1,P1},{Id2,P2},{Id3,P3}]}|R], Ovs, Mean, Area)  ->
+sum_l2([{Face,[{Id1,P1},{Id2,P2},{Id3,P3}]}|R], Ovs, Mean, Area)  ->
     Q1 = gb_trees:get(Id1,Ovs),
     Q2 = gb_trees:get(Id2,Ovs),
     Q3 = gb_trees:get(Id3,Ovs),
     TriM = l2(P1,P2,P3,Q1,Q2,Q3),
+    ?DBG("Face ~p ~p has ~p~n", [Face,[Id1,Id2,Id3],TriM]),
     A = area3d(Q1,Q2,Q3),
     sum_l2(R,Ovs,TriM*TriM*A+Mean, Area+A);
 sum_l2([],_,Mean,Area) ->
@@ -890,8 +891,8 @@ l2(P1,P2,P3,Q1,Q2,Q3) ->  %% Mean stretch value
     SS = ss(P1,P2,P3,Q1,Q2,Q3),
     ST = st(P1,P2,P3,Q1,Q2,Q3),
     A = e3d_vec:dot(SS,SS),
-    B = e3d_vec:dot(SS,ST),
-    math:sqrt((A+B)/2).
+    C = e3d_vec:dot(ST,ST),
+    math:sqrt((A+C)/2).
 
 l8(P1,P2,P3,Q1,Q2,Q3) ->  %% Worst stretch value
     SS = ss(P1,P2,P3,Q1,Q2,Q3),
