@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.5 2002/05/16 10:33:52 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.6 2002/05/28 08:36:50 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -114,7 +114,6 @@ handle_tweak_event1(#mousebutton{button=3,state=?SDL_RELEASED}, T) ->
 handle_tweak_event1(Ev, #tweak{st=St0}=T) ->
     case wings_hotkey:event(Ev, St0) of
 	{view,auto_rotate} -> keep;
-	{view,virtual_mirror} -> keep;
 	{view,smoothed_preview} -> keep;
 	{view,Cmd} ->
 	    St = wings_view:command(Cmd, St0),
