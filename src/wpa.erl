@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.24 2002/12/26 09:47:10 bjorng Exp $
+%%     $Id: wpa.erl,v 1.25 2002/12/28 22:08:05 bjorng Exp $
 %%
 -module(wpa).
--export([ask/2,ask/3,ask/4,dialog/2,dialog/3,dialog/4,error/1,yes_no/1,
+-export([ask/3,ask/4,dialog/3,dialog/4,error/1,yes_no/1,
 	 bind_unicode/2,bind_virtual/3,
 	 import/3,import_filename/1,
 	 export/3,export_selected/3,export_filename/2,
@@ -33,31 +33,21 @@
 -import(lists, [reverse/1,foldl/3,foreach/2]).
 
 %%%
-%%% ask/2,3 is simpler to use, but only supports a single list of fields.
-%%% dialog/2,3 is more powerful but is slightly more involved.
+%%% ask/3,4 is simpler to use, but only supports a single list of fields.
+%%% dialog/3,4 is more powerful but is slightly more involved.
 %%%
 
-ask(Qs, Fun) ->
-    wings_ask:ask(Qs, Fun).
+ask(Title, Qs, Fun) ->
+    wings_ask:ask(Title, Qs, Fun).
 
-ask(Bool, Qs, Fun) when Bool == false; Bool == true ->
-    wings_ask:ask(Bool, Qs, Fun);
-ask(Qs, #st{}, Fun) ->				%Obsolete.
-    wings_ask:ask(Qs, Fun).
+ask(Bool, Title, Qs, Fun) ->
+    wings_ask:ask(Bool, Title, Qs, Fun).
 
-ask(Ask, Qs, _St, Fun) ->			%Obsolete.
-    wings_ask:ask(Ask, Qs, Fun).
+dialog(Title, Qs, Fun) ->
+    wings_ask:dialog(Title, Qs, Fun).
 
-dialog(Qs, Fun) ->
-    wings_ask:dialog(Qs, Fun).
-
-dialog(Bool, Qs, Fun) when Bool == false; Bool == true ->
-    wings_ask:dialog(Bool, Qs, Fun);
-dialog(Qs, #st{}, Fun) ->			%Obosolete.
-    wings_ask:dialog(Qs, Fun).
-
-dialog(Ask, Qs, _St, Fun) ->			%Obsolete.
-    wings_ask:dialog(Ask, Qs, Fun).
+dialog(Bool, Title, Qs, Fun) ->
+    wings_ask:dialog(Bool, Title, Qs, Fun).
 
 %% Show String in a dialog box.
 error(String) ->
