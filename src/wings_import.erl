@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.14 2003/08/03 19:31:11 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.15 2003/11/03 22:56:58 dgud Exp $
 %%
 
 -module(wings_import).
@@ -78,7 +78,6 @@ prepare_mesh(Mesh0) ->
 import_mesh(Mesh, ObjType) ->
     case catch wings_we:build(ObjType, Mesh) of
 	{'EXIT',_R} ->
-	    io:format("~p\n", [_R]),
 	    build_1(ObjType, Mesh);
 	We -> We
     end.
@@ -88,6 +87,7 @@ build_1(ObjType, Mesh0) ->
     Mesh = e3d_mesh:orient_normals(Mesh0),
     case catch wings_we:build(ObjType, Mesh) of
 	{'EXIT',_R} ->
+	    io:format("~p\n", [_R]),
 	    %% Rip apart the object. It can't fail.
 	    dump(Mesh),
 	    rip_apart(ObjType, Mesh);

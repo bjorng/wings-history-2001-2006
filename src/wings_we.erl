@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.69 2003/10/22 16:20:24 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.70 2003/11/03 22:56:58 dgud Exp $
 %%
 
 -module(wings_we).
@@ -104,17 +104,20 @@ translate_mat([Mat]) -> Mat;
 translate_mat([_|_]=List) -> List.
 
 build(Type, Fs0, Vs, HardEdges) ->
-    {Good0,Bad0} = build_edges(Fs0),
-    {Es0,Fs} = if
-		   Bad0 =:= [] -> {Good0,Fs0};
-		   true ->
-		       Fs1 = fill_holes(Bad0, Fs0),
-		       {Good,Bad} = build_edges(Fs1),
-		       [] = Bad,
-		       {Good,Fs1}
-	       end,
+    {Es0,Fs} = build_and_fix_holes(Fs0, 0),
     Es = number_edges(Es0),
     build_rest(Type, Es, Fs, Vs, HardEdges).
+
+build_and_fix_holes(Fs, N) 
+  when N < 10 -> %% Assure that we don't loop forever
+    case build_edges(Fs) of
+	{Good, []} ->
+	    {Good,Fs};
+	{_, Bad} ->
+	    HF = fill_holes(Bad),
+	    [_|_] = HF, %% Assert that we could fix something
+	    build_and_fix_holes(HF++Fs, N+1)
+    end.
 
 build_rest(Type, Es, Fs, Vs, HardEdges) ->
     Htab = vpairs_to_edges(HardEdges, Es),
@@ -262,11 +265,12 @@ build_faces_1([{Face,[Edge|_]}|Fs], Acc) ->
     build_faces_1(Fs, [{Face,Edge}|Acc]);
 build_faces_1([], Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
-fill_holes(Es, Acc) ->
+fill_holes([]) ->  [];
+fill_holes(Es) ->
     G = digraph:new(),
     make_digraph(Es, G),
     C = digraph_utils:cyclic_strong_components(G),
-    Holes = make_hole_faces(G, C, Acc),
+    Holes = make_hole_faces(G, C, []),
     digraph:delete(G),
     Holes.
 

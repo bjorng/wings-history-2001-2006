@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.30 2003/07/24 04:49:24 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.31 2003/11/03 22:56:57 dgud Exp $
 %%
 
 -module(e3d_mesh).
@@ -464,21 +464,49 @@ rn_make_map([], _, []) -> gb_trees:empty().
 %%%
 
 partition_1(Faces, He0) ->
-    E2F = par_pairs(sofs:to_external(Faces), []),
-    R = sofs:relation(E2F, [{edge,face}]),
-    F0 = sofs:relation_to_family(R),
+    E2FL = par_pairs(sofs:to_external(Faces), []),
+    E2F0 = sofs:relation(E2FL, [{edge,face}]),
+    %% DBG
+    ProblematicEds = prob_eds(lists:sort(E2FL), []),
+    Del = sofs:set(ProblematicEds, [edge]),
+    E2F = sofs:drestriction(E2F0,Del),
+%    io:format("~p: ~p ~p ~n", [?LINE, length(sofs:to_external(E2F0)), 
+%			       length(sofs:to_external(E2F))]), 
+    %% DBG
+    F0 = sofs:relation_to_family(E2F),
     CR = sofs:canonical_relation(sofs:range(F0)),
     F1 = sofs:relation_to_family(CR),
     F = sofs:family_union(F1),
     G = sofs:family_to_digraph(F),
     Cs = digraph_utils:strong_components(G),
     digraph:delete(G),
-    F2E = sofs:converse(R),
+    F2E = sofs:converse(E2F),
     He = sofs:set(He0, [edge]),
     foldl(fun(C, A) ->
 		  Part = sofs:set(C, [face]),
 		  FacePart0 = sofs:restriction(Faces, Part),
-		  FacePart = sofs:to_external(FacePart0),
+		  %% DBG 
+		  E2FNew = sofs:to_external(FacePart0),
+		  FacePart1 = 
+		      case prob_eds(lists:sort(par_pairs(E2FNew,[])), []) of
+			  [] -> FacePart0;
+			  Edges -> 
+%			      io:format("Still got probs ~p ~n", [Edges]),
+			      Eds = sofs:set(Edges,[edge]),
+			      Bad = sofs:restriction(E2F0, Eds),
+			      BadF0 = sofs:relation_to_family(Bad),
+			      BadF1 = sofs:to_external(sofs:range(BadF0)),
+			      %% I'm desperate 
+			      %% Delete some faces that cause problems..
+			      BadF2 = [BFs || [_,_|BFs] <- BadF1],
+			      DelF = sofs:set(lists:append(BadF2), [face]),
+% 			      io:format("bad ~p~ndel ~p~n", 
+% 					[BadF1,
+% 					 BadF2]),
+			      sofs:drestriction(FacePart0, DelF)
+		      end,
+		  %% DBG
+		  FacePart = sofs:to_external(FacePart1),
 		  Es0 = sofs:image(F2E, Part),
 		  Es1 = sofs:intersection(He, Es0),
 		  Es = sofs:to_external(Es1),
@@ -496,6 +524,17 @@ par_pairs_1([V1], [V2|_], Face, Acc) ->
 
 par_edge_name(Va, Vb) when Va < Vb -> {Va,Vb};
 par_edge_name(Va, Vb) -> {Vb,Va}.
+
+prob_eds([{A,_A}|R], [A|_]=Ack) ->  % Already reported
+    prob_eds(R, Ack);
+prob_eds([{A,_A},{A,_B},{A,_C}|R], Ack) ->  % 3 eds not ok, save prob
+    prob_eds(R, [A|Ack]);
+prob_eds([{A,_},{A,_}|R], Ack) ->    % 2 eds ok
+    prob_eds(R,Ack);
+prob_eds([_A|R], Ack) ->      % 1 ed ok (hole or part of already reported)
+    prob_eds(R,Ack);         % holes are taken care of elsewhere hopefully
+prob_eds([], Ack) ->
+    lists:reverse(Ack).
 
 strip_index(Fs) ->
     strip_index(Fs, []).
