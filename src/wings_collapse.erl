@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.21 2002/04/26 13:09:34 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.22 2002/05/19 07:59:42 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -189,9 +189,9 @@ collapse_edge_1(Edge, Vkeep, Rec,
 %% The Collapse command on vertices.
 %%
 collapse_vertices(Vs, #we{id=Id}=We0, SelAcc) ->
-    {We,Sel} = gb_sets:fold(fun(V, {W,S}) ->
-				    do_collapse_vertex(V, W, S)
-			    end, {We0,gb_sets:empty()}, Vs),
+    {We,Sel} = foldl(fun(V, {W,S}) ->
+			     do_collapse_vertex(V, W, S)
+		     end, {We0,gb_sets:empty()}, gb_sets:to_list(Vs)),
     {We,[{Id,Sel}|SelAcc]}.
 
 %% collapse_vertex(V, We) -> We'
@@ -200,11 +200,15 @@ collapse_vertex(V, We0) ->
     {We,_} = do_collapse_vertex(V, We0, gb_sets:empty()),
     We.
 
-do_collapse_vertex(V, We0, Sel0) ->
-    %% Handle winged vertices (i.e. vertices with two edges) specially.
-    case wings_vertex:dissolve(V, We0) of
-	error -> collapse_vertex_1(V, We0, Sel0);
-	We -> {We,Sel0}
+do_collapse_vertex(V, #we{vs=Vtab}=We0, Sel0) ->
+    case gb_trees:is_defined(V, Vtab) of
+	false -> {We0,Sel0};
+	true ->
+	    %% Handle winged vertices (i.e. vertices with two edges) specially.
+	    case wings_vertex:dissolve(V, We0) of
+		error -> collapse_vertex_1(V, We0, Sel0);
+		We -> {We,Sel0}
+	    end
     end.
 	    
 collapse_vertex_1(Vremove, We0, Sel0)->
