@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.119 2004/10/15 15:40:30 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.120 2004/10/22 07:43:07 dgud Exp $
 %%
 
 -module(wings_material).
@@ -658,6 +658,7 @@ color(Face, UV, We, #st{mat=Mtab}) ->
 color(_Face, {_,_,_}=RGB, _We, _St) -> RGB.
 
 color_1(_, none) -> wings_color:white();
+color_1(none, _) -> wings_color:white();
 color_1({U0,V0}, #e3d_image{width=W,height=H,image=Bits}) ->
     U = (((round(U0*W) rem W) + W) rem W),
     V = ((round(V0*H) rem H) + H) rem H,
