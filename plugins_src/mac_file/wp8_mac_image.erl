@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_image.erl,v 1.5 2003/12/31 10:48:19 bjorng Exp $
+%%     $Id: wp8_mac_image.erl,v 1.6 2004/01/07 16:09:48 bjorng Exp $
 %%
 
 -module(wp8_mac_image).
@@ -37,14 +37,11 @@ init(Next) ->
 			    fun(What) ->
 				    fileop(What,Next)
 			    end;
-			Other ->
-			    Next
+			_ -> Next
 		    end;
-		Else ->
-		    Next
+		_ -> Next
 	    end;
-	_ ->
-	    Next
+	_ -> Next
     end.
 
 format_error(format) -> "Unknown or unsupported format.".
@@ -62,8 +59,8 @@ fileop({image,write,Prop}=What, Next) ->
     Name = proplists:get_value(filename, Prop),
     Image = proplists:get_value(image, Prop),
     Ext = lower(filename:extension(Name)),
-    case is_format_supported(Name, Ext) of
-	true -> write_image(Name, Ext, Image, Prop);
+    case is_format_supported_ext(Ext) of
+	true -> write_image(Name, Ext, Image);
 	false -> Next(What)
     end;
 fileop(What, Next) ->
@@ -108,7 +105,7 @@ read_image_2(<<W:32/native,H:32/native,SamplesPerPixel0:32/native,BytesPerRow:32
     NeededOrder = proplists:get_value(order, Prop, upper_left),
     e3d_image:convert(Image, NeededType, NeededAlignment, NeededOrder).
 
-write_image(Name, Ext, Image, Prop) ->
+write_image(Name, Ext, Image) ->
     {ok,Tiff} = e3d_image:save_bin(Image, ".tiff"),
     Data = [image_format(Ext)|Tiff],
     case erlang:port_control(?MODULE, ?OP_IMAGE_WRITE, Data) of
@@ -118,9 +115,9 @@ write_image(Name, Ext, Image, Prop) ->
 
 is_format_supported(Name) ->
     Ext = lower(filename:extension(Name)),
-    is_format_supported(Name, Ext).
+    is_format_supported_ext(Ext).
 
-is_format_supported(Name, Ext) ->
+is_format_supported_ext(Ext) ->
     lists:keymember(Ext, 1, image_formats([])).
 
 lower([Upper|T]) when $A =< Upper, Upper =< $Z ->
