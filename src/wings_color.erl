@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.19 2003/11/13 10:12:40 raimo_niskanen Exp $
+%%     $Id: wings_color.erl,v 1.20 2003/11/16 18:18:30 bjorng Exp $
 %%
 
 -module(wings_color).
@@ -214,6 +214,7 @@ choose_1(RGB0, Done) ->
 	      end,
     Qs = [{hframe,
 	   [{custom,?COL_PREVIEW_WIDTH,?COL_PREVIEW_HEIGHT,Draw},
+	    {eyepicker,fun eyepicker_update/2},
 	    {vframe,
 	     [{hframe,
 	       [{vframe,
@@ -287,6 +288,17 @@ color_update(T, {K1,K2}, {Ka,Kb,Kc}) ->
 	(_, _) ->
 	    void
     end.
+
+eyepicker_update(update, {_Key,_I,{R,G,B},Sto0}) ->
+    Sto1 = gb_trees:update(red, R, Sto0),
+    Sto2 = gb_trees:update(green, G, Sto1),
+    Sto3 = gb_trees:update(blue, B, Sto2),
+    {H,S,V} = rgb_to_hsv(R, G, B),
+    Sto4 = gb_trees:update(hue, H, Sto3),
+    Sto5 = gb_trees:update(sat, S, Sto4),
+    Sto = gb_trees:update(val, V, Sto5),
+    {store,Sto};
+eyepicker_update(_, _) -> void.
 
 color_update(r, R, G, B) ->
     rgb_to_hsv(R, G, B);

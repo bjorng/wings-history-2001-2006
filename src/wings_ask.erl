@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.120 2003/11/16 08:29:42 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.121 2003/11/16 18:18:30 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -156,7 +156,7 @@ do_dialog(Title, Qs, Level, Fun) ->
     H = H0 + 2*?VMARGIN,
     S = S0#s{ox=?HMARGIN,oy=?VMARGIN,level=Level,grab_win=GrabWin},
     Name = {dialog,hd(Level)},
-    setup_blanket(Name),
+    setup_blanket(Name, S),
     Op = {seq,push,get_event(S)},
     {_,X,Y} = sdl_mouse:getMouseState(),
     wings_wm:toplevel(Name, Title, {X,Y-?LINE_HEIGHT,highest}, {W,H},
@@ -179,11 +179,13 @@ setup_ask(Qs, Fun) ->
     next_focus(1, S).
 
 
-setup_blanket(Dialog) ->
+setup_blanket(Dialog, #s{store=Sto}) ->
+    EyePicker = gb_trees:is_defined({eyepicker}, Sto),
+
     %% The menu blanket window lies below the dialog, covering the entire
     %% screen and ignoring most events. Keyboard events will be forwarded
     %% to the active dialog window.
-    Op = {push,fun(Ev) -> blanket(Ev, Dialog) end},
+    Op = {push,fun(Ev) -> blanket(Ev, Dialog, EyePicker) end},
     {TopW,TopH} = wings_wm:top_size(),
     wings_wm:new({blanket,Dialog}, {0,0,highest}, {TopW,TopH}, Op).
 
@@ -191,9 +193,24 @@ delete_blanket(#s{level=[Level|_]}) ->
     wings_wm:delete({blanket,{dialog,Level}});
 delete_blanket(#s{level=undefined}) -> ok.
 
-blanket(#keyboard{}=Ev, Dialog) ->
+blanket(#keyboard{}=Ev, Dialog, _) ->
     wings_wm:send(Dialog, Ev);
-blanket(_, _) -> keep.
+blanket(#mousemotion{}, _, true) ->
+    wings_io:eyedropper(),
+    keep;
+blanket(#mousebutton{button=1,state=?SDL_RELEASED,x=X0,y=Y0}, Dialog, true) ->
+    {X,Y0} = wings_wm:local2global(X0, Y0),
+    {_,H} = wings_wm:top_size(),
+    Y = H - Y0,
+    Mem = sdl_util:alloc(3, ?GL_UNSIGNED_BYTE),
+    gl:readBuffer(?GL_FRONT),
+    gl:readPixels(X, Y, 1, 1, ?GL_RGB, ?GL_UNSIGNED_BYTE, Mem),
+    gl:readBuffer(?GL_BACK),
+    [R,G,B] = sdl_util:read(Mem, 3),
+    Col = {R/255,G/255,B/255},
+    wings_wm:send(Dialog, {picked_color,Col}),
+    keep;
+blanket(_, _, _) -> keep.
 
 get_event(S) ->
     wings_wm:dirty(),
@@ -234,6 +251,14 @@ event({drop,{X,Y},DropData}, S) ->
     drop_event(X, Y, DropData, S);
 event({action,Action}, S) ->
     field_event(Action, S);
+event({picked_color,Col}, #s{store=Sto0}=S) ->
+    [#fi{key=K,index=I,hook=Hook}|_] = get_eyepicker(S),
+    case Hook(update, {K,I,Col,Sto0}) of
+	void -> keep;
+	keep -> keep;
+	{store,Sto0} -> keep;
+	{store,Sto} -> get_event(S#s{store=Sto})
+    end;
 event(Ev, S) -> field_event(Ev, S).
 
 event_key({key,?SDLK_ESCAPE,_,_}, S) ->
@@ -505,6 +530,29 @@ get_cancel(I, Fields, Sto, Path) when I >= 1 ->
 get_cancel(_I, _Fields, _Sto, _Path) ->
     [].
 
+get_eyepicker(#s{fi=Fi,store=Store}) ->
+    find_field(fun(#fi{index=Index}, Sto) ->
+		       field_type(Index, Sto) == eyepicker
+	       end, Fi, Store).
+
+%% Search field to find fields with some specific attribute.
+find_field(Fun, Fi, Sto) -> find_field_1(Fi, Fun, Sto, []).
+
+find_field_1(Fi=#fi{extra=#container{fields=Fields}}, Fun, Sto, Path) ->
+    find_field_2(size(Fields), Fields, Fun, Sto, [Fi|Path]);
+find_field_1(Fi, Fun, Sto, Path) ->
+    case Fun(Fi, Sto) of
+	false -> [];
+	true -> [Fi|Path]
+    end.
+
+find_field_2(I, Fields, Fun, Sto, Path) when I >= 1 ->
+    case find_field_1(element(I, Fields), Fun, Sto, Path) of
+	[] -> find_field_2(I-1, Fields, Fun, Sto, Path);
+	P -> P
+    end;
+find_field_2(_I, _Fields, _Fun, _Sto, _Path) -> [].
+
 %% Collect results from all fields.
 %% Return list of result values.
 
@@ -667,6 +715,9 @@ mktree({hframe,Qs,Flags}, Sto, I) ->
     mktree_container(Qs, Sto, I, Flags, hframe);
 mktree(panel, Sto, I) ->
     mktree_fi(panel(), Sto, I, []);
+mktree({eyepicker,Hook}, Sto0, I) ->
+    Sto = gb_trees:insert({eyepicker}, true, Sto0),
+    mktree_fi(eyepicker(), Sto, I, [{hook,Hook}]);
 mktree({label,Label}, Sto, I) ->
     mktree_fi(label(Label, []), Sto, I, []);
 mktree({label,Label,Flags}, Sto, I) ->
@@ -1732,7 +1783,12 @@ custom_event(_Ev, _Path, _Store) -> keep.
 
 panel() -> {fun (_Ev, _Path, _Store) -> keep end, true, panel, 0, 0}.
 
+%%%
+%%% Eyepicker.
+%%%
 
+eyepicker() ->
+    {fun (_Ev, _Path, _Store) -> keep end, true, {eyepicker}, 0, 0}.
 
 %%%
 %%% Label.

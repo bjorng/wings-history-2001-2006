@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.125 2003/11/16 12:26:52 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.126 2003/11/16 18:18:30 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,resize/0,
-	 set_cursor/1,hourglass/0,
+	 set_cursor/1,hourglass/0,eyedropper/0,
 	 info/1,
 	 blend/2,
 	 border/5,border/6,border_only/4,border_only/5,
@@ -62,6 +62,9 @@ init() ->
 
 hourglass() ->
     set_cursor(hourglass).
+
+eyedropper() ->
+    set_cursor(eyedropper).
 
 set_cursor(Cursor) ->
     #io{cursors=Cursors} = get_state(),
@@ -669,7 +672,7 @@ warp(X, Y) ->
 
 build_cursors() ->
     [{stop,build_cursor(stop_data(), 8, 8)},
-     {pointing_hand,build_cursor(pointing_hand_data(), 8, 8)},
+     {pointing_hand,build_cursor(pointing_hand_data(), 0, 0)},
      {closed_hand,build_cursor(closed_hand_data(), 8, 8)}|
      case os:type() of
 	 {unix,darwin} ->
