@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.184 2004/02/14 15:17:17 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.185 2004/02/17 17:12:45 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -221,6 +221,10 @@ insert_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
     Shs = gb_trees:update(Id, We, Shs0),
     St#st{shapes=Shs}.
 
+update_selected_uvcoords(St) ->
+    Wes = wpa:sel_fold(fun(_,We,Acc) -> [We|Acc] end, [], St),
+    update_uvcoords(Wes, St).
+    
 update_uvcoords(Charts, #st{bb=Uvs} = St) ->
     #uvstate{st=#st{shapes=Shs0}=GeomSt0, orig_we=#we{id=Id}} = Uvs,
     We0 = gb_trees:get(Id, Shs0),
@@ -456,11 +460,15 @@ command_menu(body, X, Y) ->
 	      separator,
 	      {"Flip Horizontal",flip_horizontal,"Flip selection horizontally"},
 	      {"Flip Vertical",flip_vertical,"Flip selection vertically"}],
+    Scale =  [{"Uniform",    scale_uniform, "Scale in both directions"},
+	      {"Horizontal", scale_x, "Scale horizontally (X dir)"},
+	      {"Vertical",   scale_y, "Scale vertically (Y dir)"}],
+
     Menu = [{"Face Group operations", ignore},
 	    separator,
-	    {"Move", move, "Move selected faces"},
-%%	    {"Scale", scale, "Uniformly scale selected faces"},
-	    {"Rotate", {rotate, Rotate}, "Rotate selected faces"}
+	    {"Move", move, "Move selected charts"},
+	    {"Scale", {scale, Scale}, "Scale selected charts"},
+	    {"Rotate", {rotate, Rotate}, "Rotate selected charts"}
 % 	    separator,
 % 	    {"Rescale All", rescale_all, "Pack the space in lower-left before rescaling"}
 	   ] ++ option_menu(),
@@ -483,21 +491,7 @@ command_menu(vertex, X, Y) ->
 
 option_menu() ->
     [separator,
-%      {"Draw Options",draw_options,"Edit draw options"},
-%      separator,
      {"Create Texture",create_texture,"Make and Attach a texture to the model"}].
-
-% quit_menu(#st{bb=#uvstate{st=St,matname=MatN}}) ->
-%     A1 = {"Save UV Coordinates and Texture",quit_uv_tex},
-%     A2 = {"Save Only UV Coordinates",quit_uv},
-%     A3 = {"Discard All Changes",cancel},
-%     Alts = case has_texture(MatN, St) of
-% 	       true -> [A1,A2,A3];
-% 	       false -> [A1,A3]
-% 	   end,
-%     Qs = [{vradio,Alts,quit_uv_tex}],
-%     wings_ask:dialog("Exit Options",
-% 		     Qs, fun([Quit]) -> {auv,quit,Quit} end).
 
 %%% Event handling
 
@@ -541,8 +535,7 @@ handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, #st{bb=Uvs}=St) -
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(reset_dl(St#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs#uvstate{st=GeomSt}}));
 handle_event({new_uv_state,St0}, _) ->
-    Wes = wpa:sel_fold(fun(_,We,Acc) -> [We|Acc] end, [], St0),
-    St = update_uvcoords(Wes, St0),
+    St = update_selected_uvcoords(St0),
     wings_wm:dirty(),
     get_event(reset_dl(St));
 handle_event(Ev, St) ->
@@ -572,10 +565,8 @@ handle_event_1({action,{auv,create_texture}},_St) ->
 handle_event_1({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
     #uvstate{st=GeomSt0,orig_we=OWe,matname=MatName0} = Uvs,
     Tx = ?SLOW(auv_texture:get_texture(Uvs, Opt)),
-%    Charts = all_charts(Uvs),
     #we{name=Name,id=_Id} = OWe,
     {GeomSt,MatName} = add_material(Tx, Name, MatName0, GeomSt0),
-%%    GeomSt = insert_uvcoords(Charts, Id, MatName, GeomSt1),
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}});
 %% Others
@@ -598,14 +589,19 @@ update_geom(#st{bb=Uvs}=St, Geom) ->
 
 handle_command({rotate,free}, St) ->
     handle_command(rotate, St);
+handle_command({scale,Scale}, St) ->
+    handle_command(Scale, St);
 handle_command({rotate,flip_horizontal}, St0) ->
-    St = wpa:sel_map(fun(_, We) -> flip_horizontal(We) end, St0),
+    St1 = wpa:sel_map(fun(_, We) -> flip_horizontal(We) end, St0),
+    St = update_selected_uvcoords(St1),
     get_event(St);
 handle_command({rotate,flip_vertical}, St0) ->
-    St = wpa:sel_map(fun(_, We) -> flip_vertical(We) end, St0),
+    St1 = wpa:sel_map(fun(_, We) -> flip_vertical(We) end, St0),
+    St = update_selected_uvcoords(St1),
     get_event(St);
 handle_command({rotate,Deg}, St0) ->
-    St = wpa:sel_map(fun(_, We) -> rotate_chart(Deg, We) end, St0),
+    St1 = wpa:sel_map(fun(_, We) -> rotate_chart(Deg, We) end, St0),
+    St = update_selected_uvcoords(St1),
     get_event(St);
 handle_command(_, #st{sel=[]}) ->
     keep;
@@ -622,6 +618,8 @@ handle_command(Cmd, St) ->
 %%% Command handling (temporary version).
 %%%
 
+-define(SS, 2.0).  % Scale mouse motion
+
 get_cmd_event(Op, X, Y, #st{}=St) ->
     wings_wm:dirty(),
     get_cmd_event_noredraw(Op, X, Y, St).
@@ -632,6 +630,7 @@ get_cmd_event_noredraw(Op, X, Y, #st{}=St) ->
 cmd_event(redraw, Op, X, Y, St0) ->
     St = redraw(St0),
     get_cmd_event_noredraw(Op, X, Y, St);
+
 cmd_event(#mousemotion{x=MX0,y=MY0}, Op, X0, Y0, St0) ->
     #st{bb=#uvstate{geom={X0Y0,MW0,X0Y0,MH0}}} = St0,
     {_,_,W,H} = wings_wm:viewport(),
@@ -639,12 +638,18 @@ cmd_event(#mousemotion{x=MX0,y=MY0}, Op, X0, Y0, St0) ->
     DY = MY0 - Y0,
     MW =  (MW0-X0Y0) * DX/W,
     MH = -(MH0-X0Y0) * DY/H,
-%%    ?DBG("Viewp ~p ~p ~p ~p ~p ~p~n", [MW,MH,DX,DY,MX,MY]),
+%%    ?DBG("Viewp ~p ~p ~p ~p ~n", [MW,MH,DX,DY]), 
     St = case Op of
 	     move ->
 		 wpa:sel_map(fun(_, We) -> move_chart(4*MW, 4*MH, We) end, St0);
 	     rotate ->
-		 wpa:sel_map(fun(_, We) -> rotate_chart(MW*180, We) end, St0)
+		 wpa:sel_map(fun(_, We) -> rotate_chart(MW*180, We) end, St0);
+	     scale_uniform ->
+		 wpa:sel_map(fun(_, We) -> scale_chart(1.0+MW*?SS, We) end, St0);
+	     scale_x ->
+		 wpa:sel_map(fun(_, We) -> scale_chart({1.0+MW*?SS,1.0,1.0}, We)end,St0);
+	     scale_y ->
+		 wpa:sel_map(fun(_, We) -> scale_chart({1.0,1.0+MH*?SS,1.0}, We)end,St0)
 	 end,
     get_cmd_event(Op, MX0, MY0, St);
 cmd_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT}, _, _, _, St) ->
@@ -725,6 +730,13 @@ rotate_chart(Angle, We) ->
     Rot1 = e3d_mat:mul(e3d_mat:rotate(float(trunc(Angle)), {0.0,0.0,1.0}), Rot0),
     Rot = e3d_mat:mul(e3d_mat:translate(Center), Rot1),
     wings_we:transform_vs(Rot, We).
+
+scale_chart(Size, We) ->
+    Center = wings_vertex:center(We),
+    Scale0 = e3d_mat:translate(e3d_vec:neg(Center)),
+    Scale1 = e3d_mat:mul(e3d_mat:scale(Size), Scale0),
+    Scale  = e3d_mat:mul(e3d_mat:translate(Center), Scale1),
+    wings_we:transform_vs(Scale, We).
 
 flip_horizontal(We) ->
     flip(e3d_mat:scale(-1.0, 1.0, 1.0), We).

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.25 2003/09/16 09:01:49 dgud Exp $
+%%     $Id: auv.hrl,v 1.26 2004/02/17 17:12:45 dgud Exp $
 
 %% Chart record (one for each chart).
 %% Stored in the 'name' field in the #we{} record.
@@ -29,7 +29,6 @@
 
 -record(uvstate,
 	{mode = body,      %% body, face, edge, vertex
-	 option = #setng{},%% Settings
 	 geom,             %% Window geom
 	 dl,               %% Display list for non selected areas
 
