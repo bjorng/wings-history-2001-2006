@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.77 2003/01/20 19:17:30 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.78 2003/01/20 20:47:18 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -300,7 +300,7 @@ button_pressed(Button, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
 	none -> get_menu_event(Mi);
 	Item when integer(Item) ->
 	    case element(Item, Menu) of
-		{_,{value,Act0},_,_,Ps} ->
+		{_,{'VALUE',Act0},_,_,Ps} ->
 		    Act = check_option_box(Act0, X, Ps, Mi),
 		    do_action(build_command(Act, Names), Mi);
 		{_,{Name,Submenu},_,_,_} when Adv == true ->
@@ -539,7 +539,7 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 	{_,ignore,_,_,Ps} ->
 	    item_colors(Y, Ps, I, Mi),
 	    wings_io:menu_text(X, Y, Text);
-	{_,{value,_},Hotkey,_Help,Ps} ->
+	{_,{'VALUE',_},Hotkey,_Help,Ps} ->
 	    %% Not a sub-menu.
 	    item_colors(Y, Ps, I, Mi),
 	    draw_menu_text(X, Y, Text, Ps),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.16 2003/01/20 19:17:30 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.17 2003/01/20 20:47:40 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -241,7 +241,7 @@ move_axis_fun(Axis, Ns) ->
     Str = wings_util:stringify(Axis),
     case magnet_props(Axis, Ns) of
 	[] ->
-	    {Str,{value,Vec},Help,[]};
+	    {Str,{'VALUE',Vec},Help,[]};
 	Ps ->
 	    F = move_magnet_fun(Vec, Ns),
 	    {Str,F,Help,Ps}
