@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.65 2002/03/18 06:15:00 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.66 2002/03/18 08:41:14 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -42,9 +42,12 @@ sel_changed(St) ->
     St.
 
 clear_orig_sel() ->
-    #dl{orig_sel={_,DlistSel}}= DL = wings_draw:get_dlist(),
-    gl:deleteLists(DlistSel, 1),
-    wings_draw:put_dlist(DL#dl{orig_sel=none}).
+    case wings_draw:get_dlist() of
+	#dl{orig_sel={_,DlistSel}}=DL ->
+	    gl:deleteLists(DlistSel, 1),
+	    wings_draw:put_dlist(DL#dl{orig_sel=none});
+	_Other -> ok
+    end.
 
 -define(DL_FACES, (?DL_DRAW_BASE)).
 -define(DL_EDGES, (?DL_DRAW_BASE+1)).
