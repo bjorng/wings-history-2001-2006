@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.108 2003/11/10 14:44:03 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.109 2003/11/10 19:41:03 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1096,7 +1096,7 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
 %%% Checkbox
 %%%
 
--define(CB_SIZE, 8).
+-define(CB_SIZE, 10).
 
 -record(cb,
 	{label,
@@ -1139,7 +1139,7 @@ cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED}, #fi{x=X,key=Key}, I, Store) ->
 cb_event(_Ev, _Fi, _I, _Store) -> keep.
 
 cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
-    wings_io:sunken_gradient(X, Y0+?CHAR_HEIGHT-9, 8, 8,
+    wings_io:sunken_gradient(X, Y0+?CHAR_HEIGHT-?CB_SIZE, ?CB_SIZE, ?CB_SIZE,
 			     case DisEnable of
 				 disable -> color3();
 				 _ -> {0.82,0.82,0.82}
@@ -1152,7 +1152,7 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
     Y = Y0+?CHAR_HEIGHT,
     case Val of
 	false -> ok;
-	true -> wings_io:text_at(X+1, Y, [crossmark])
+	true -> wings_io:text_at(X+2, Y-1, [crossmark])
     end,
     wings_io:text_at(X+round(1.8*?CB_SIZE), Y, Label),
     gl:color3b(0, 0, 0),
