@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.29 2003/02/27 19:22:46 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.30 2003/03/03 21:41:54 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -68,7 +68,7 @@ event(redraw, Ost) ->
 event(resized, Ost) ->
     update_scroller(Ost),
     keep;
-event(close, Ost) ->
+event(close, _) ->
     delete;
 event(got_focus, _) ->
     Msg = wings_util:button_format("Select", [],
@@ -175,7 +175,8 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
 
 image_menu(Id, Im) ->
     [{"Show",menu_cmd(show_image, Id),
-      "Show the image in a window"}|begin image_menu_1(Id, Im), [] end].
+      "Show the image in a window"}|begin image_menu_1(Id, Im),
+					  common_image_menu(Id) end].
 
 %% Currently disabled.
 image_menu_1(Id, #e3d_image{filename=none}) ->
@@ -231,6 +232,7 @@ duplicate_image(Id) ->
     #e3d_image{name=Name0} = Im = wings_image:info(Id),
     Name = copy_of(Name0),
     wings_image:new(Name, Im),
+    wings_wm:send(geom, need_save),
     keep.
 
 copy_of("Copy of "++_=Name) -> Name;
@@ -242,6 +244,7 @@ rename_image(Id) ->
 		  [{Name0,Name0}],
 		  fun([Name]) when Name =/= Name0 ->
 			  wings_image:rename(Id, Name),
+			  wings_wm:send(geom, need_save),
 			  ignore;
 		     (_) -> ignore
 		  end).
