@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.33 2002/03/13 20:49:38 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.34 2002/03/15 10:13:15 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -139,7 +139,7 @@ normalize_menu([Elem0|Els], Hotkeys, Adv, Acc) ->
 	    end,
     Elem = case keysearch(Name, 1, Hotkeys) of
 	       false when Hotkeys =/= [], is_function(Name) ->
-		   RealName = real_name(Name, [], Ps),
+		   RealName = real_name(Name, []),
 		   case keysearch(RealName, 1, Hotkeys) of
 		       false -> Elem1;
 		       {value,{_,Hotkey}} -> setelement(3, Elem1, Hotkey)
@@ -262,10 +262,10 @@ call_action(X, Act, Button, Ns, Ps, Mi) ->
 	    end;
 	true ->
 	    Mag = case hit_right(X, Mi) of
-		      true -> [magnet];
-		      false -> []
+		      true -> {magnet,Button};
+		      false -> Button
 		  end,
-	    case Act(Button, Ns, Mag) of
+	    case Act(Mag, Ns) of
 		ignore -> keep;
 		Cmd when is_tuple(Cmd) ->
 		    do_action(Cmd)
@@ -305,16 +305,13 @@ current_command(#mi{sel=Sel,menu=Menu,ns=Names}) ->
     case element(Sel, Menu) of
 	{_,Name,_,_,_} when is_atom(Name) ->
 	    build_command(Name, Names);
-	{_,Fun,_,_,Ps} when is_function(Fun) ->
-	    real_name(Fun, Names, Ps);
+	{_,Fun,_,_,_} when is_function(Fun) ->
+	    real_name(Fun, Names);
 	_Other -> none
     end.
 
-real_name(Fun, Names, Ps) ->
-    case have_magnet(Ps) of
-	false -> Fun(1, Names);
-	true -> Fun(1, Names, [])
-    end.
+real_name(Fun, Names) ->
+    Fun(1, Names).
 
 virtual_button(false, _) -> 1;
 virtual_button(true, 1) ->

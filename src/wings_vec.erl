@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.18 2002/03/14 08:44:32 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.19 2002/03/15 10:13:15 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -291,6 +291,18 @@ common_exit(Check, More, Acc, Ns, #st{vec=none}=St) ->
 	    wings_io:message(Msg),
 	    common_exit_1(Vec, More, Acc, Ns)
     end;
+common_exit(_Check, [point]=More, Acc, Ns, #st{vec={Point,Vec}}) ->
+    Command = command_name(Ns),
+    F = fun({magnet,_}, _) ->
+		{vector,{pick,[magnet],[Point|add_to_acc(Vec, Acc)],Ns}};
+	   (1, _) ->
+		{vector,{pick,[],[Point|add_to_acc(Vec, Acc)],Ns}};
+	   (3, _) ->
+		{vector,{pick,[point],add_to_acc(Vec, Acc),Ns}};
+	   (_, _) -> ignore
+	end,
+    Ps = wings_menu_util:magnet_props(vector, Ns),
+    {Command,F,{"Execute command",[],pick_more_help(More, Ns)},Ps};
 common_exit(_Check, More, Acc, Ns, #st{vec={_,Vec}}) ->
     common_exit_1(Vec, More, Acc, Ns);
 common_exit(_Check, More, Acc, Ns, #st{vec=Vec}) ->
@@ -299,20 +311,12 @@ common_exit(_Check, More, Acc, Ns, #st{vec=Vec}) ->
 common_exit_1(Vec, [], Acc, Ns) ->
     Ps = wings_menu_util:magnet_props(vector, Ns),
     Command = command_name(Ns),
-    case wings_menu_util:magnet_props(vector, Ns) of
-	[] ->
-	    {Command,fun(_, _) ->
-			     {vector,{pick,[],add_to_acc(Vec, Acc),Ns}}
-		     end,
-	     "Execute command",[]};
-	[magnet]=Ps ->
-	    {Command,fun(_, _, [magnet]) ->
-			     {vector,{pick,[magnet],add_to_acc(Vec, Acc),Ns}};
-			(_, _, _) -> 
-			     {vector,{pick,[],add_to_acc(Vec, Acc),Ns}}
-		     end,
-	     "Execute command",Ps}
-    end;
+    F = fun({magnet,_}, _) ->
+		{vector,{pick,[magnet],add_to_acc(Vec, Acc),Ns}};
+	   (_, _) ->
+		{vector,{pick,[],add_to_acc(Vec, Acc),Ns}}
+	end,
+    {Command,F,"Execute command",Ps};
 common_exit_1(Vec, More, Acc, Ns) ->
     {"Continue",fun(_, _) ->
 			{vector,{pick,More,add_to_acc(Vec, Acc),Ns}}

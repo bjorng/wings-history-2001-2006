@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.4 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.5 2002/03/15 10:13:15 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -77,25 +77,14 @@ scale(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
 
 scale_fun(Dir, Names) ->
     DirString = stringify_dir(Dir),
-    Ps = magnet_props(Dir, Names),
-    F = case Ps of
-	    [] ->
-		fun(1, Ns) -> wings_menu:build_command({Dir,center}, Ns);
-		   (2, _Ns) -> ignore;
-		   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}}
-		end;
-	    _ ->
-		fun(1, Ns, [magnet]) ->
-			{vector,{pick,[magnet],[center,Dir],Ns}};
-		   (1, Ns, _Ps) ->
-			wings_menu:build_command({Dir,center}, Ns);
-		   (2, _Ns, _Ps) -> ignore;
-		   (3, Ns, _Ps) -> {vector,{pick,[point],[Dir],Ns}}
-		end
+    F = fun(1, Ns) -> wings_menu:build_command({Dir,center}, Ns);
+	   (2, _Ns) -> ignore;
+	   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}};
+	   ({magnet,_}, Ns) -> {vector,{pick,[magnet],[center,Dir],Ns}}
 	end,
     Help0 = dir_help(Dir, Names),
     Help = {Help0,[],"Pick point to scale to"},
-    {DirString,F,Help,Ps}.
+    {DirString,F,Help,magnet_props(Dir, Names)}.
 
 stringify_dir({radial,Axis}) -> "Radial " ++ wings_util:stringify(Axis);
 stringify_dir(Dir) -> wings_util:stringify(Dir).
@@ -125,23 +114,14 @@ rotate(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
 
 rotate_fun(Dir, Names) ->
     DirString = wings_util:stringify(Dir),
-    Ps = magnet_props(Dir, Names),
-    F = case Ps of
-	    [] ->
-		fun(1, Ns) -> wings_menu:build_command({Dir,center}, Ns);
-		   (2, _Ns) -> ignore;
-		   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}}
-		end;
-	    [magnet] ->
-		fun(1, Ns, []) -> wings_menu:build_command({Dir,center}, Ns);
-		   (1, Ns, [magnet]) ->
-			{vector,{pick,[magnet],[center,Dir],Ns}};
-		   (2, _Ns, _Ps) -> ignore;
-		   (3, Ns, _Ps) -> {vector,{pick,[point],[Dir],Ns}}
-		end
+    F = fun(1, Ns) -> wings_menu:build_command({Dir,center}, Ns);
+	   (2, _Ns) -> ignore;
+	   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}};
+	   ({magnet,_}, Ns) -> {vector,{pick,[magnet],[center,Dir],Ns}}
 	end,
     Help0 = dir_help(Dir, Names),
     Help = {Help0,[],"Pick point to rotate through"},
+    Ps = magnet_props(Dir, Names),
     {DirString,F,Help,Ps}.
 
 %%%
