@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.22 2002/05/08 10:04:15 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.23 2002/05/08 12:43:28 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -106,6 +106,7 @@ fold(F, Acc0, V, Face, Edge, LastEdge, Etab, _) ->
 		  F(Edge, Face, E, Acc0)
 	  end,
     fold(F, Acc, V, Other, NextEdge, LastEdge, Etab, done).
+
 %%
 %% Fold over all edges/faces surrounding a vertex until the
 %% accumulator changes.
@@ -286,8 +287,7 @@ dissolve(V, We) ->
 connect(_Face, [_], We) -> We;
 connect(Face, Vs, #we{}=We0) ->
     case polygon_pairs(Face, Vs, We0) of
-	no ->
-	    min_distance_pairs(gb_sets:singleton(Face), Vs, We0);
+	no -> min_distance_pairs(Face, Vs, We0);
 	#we{}=We -> We
     end.
 
@@ -307,53 +307,31 @@ connect(Face, Vs, #we{}=We0) ->
 %% |   \ /   |
 %% +----*----+
 
-polygon_pairs(Face, Vs, #we{}=We0) ->
+polygon_pairs(Face, Vs, We) ->
     ?ASSERT(length(Vs) > 1),
-    Iter = wings_face:iterator(Face, We0),
-    case catch pp_start(Iter, Vs) of
-	{'EXIT',Reason} -> exit(Reason);
+    Iter = wings_face:iterator(Face, We),
+    {Vstart,_,_,_} = wings_face:next_cw(Iter),
+    Pairs = pp_make_pairs(Iter, Vs, Vstart, []),
+    polygon_pairs_1(Pairs, Face, Pairs, We).
+
+polygon_pairs_1([Va|[Vb|_]=T], Face, Pairs, We0) ->
+    case try_connect({Va,Vb}, Face, We0) of
 	no -> no;
-	Pairs when list(Pairs) ->
-	    foldl(fun(Vpair, Acc0) ->
-			  case try_connect(Vpair, Face, Acc0) of
-			      no -> Acc0;
-			      {Acc,_} -> Acc
-			  end
-		  end, We0, Pairs)
-    end.
+	{We,_} -> polygon_pairs_1(T, Face, Pairs, We)
+    end;
+polygon_pairs_1([Va], Face, [Vb|_], We) ->
+    polygon_pairs_1([Va,Vb], Face, [], We);
+polygon_pairs_1([_], _, [], We) -> We.
 
-pp_start(Iter0, Vs) ->
-    {V,_,_,Iter1} = wings_face:next_cw(Iter0),
-    case member(V, Vs) of
-	false -> pp_start(Iter1, Vs);
-	true ->
-	    Iter = pp_skip_one(Iter1, Vs),
-	    pp_next(Iter, Vs, V, [])
-    end.
-
-pp_next(Iter0, Vs, Start, Acc0) ->
-    {V,_,_,Iter1} = wings_face:next_cw(Iter0),
-    case member(V, Vs) of
-	false -> pp_next(Iter1, Vs, Start, Acc0);
-	true ->
-	    Acc = [{Start,V}|Acc0],
-	    case keymember(V, 1, Acc0) of
-		true ->
-		    case Acc0 of
-			[{V,Start}] -> Acc0;
-			_Other -> Acc
-		    end;
-		false ->
-		    Iter = pp_skip_one(Iter1, Vs),
-		    pp_next(Iter, Vs, V, Acc)
+pp_make_pairs(Iter0, Vs, Vstart, Acc) ->
+    case wings_face:next_cw(Iter0) of
+	{Vstart,_,_,_} when Acc =/= [] ->
+	    reverse(Acc);
+	{V,_,_,Iter} ->
+	    case member(V, Vs) of
+		false -> pp_make_pairs(Iter, Vs, Vstart, Acc);
+		true -> pp_make_pairs(Iter, Vs, Vstart, [V|Acc])
 	    end
-    end.
-
-pp_skip_one(Iter0, Vs) ->
-    {V,_,_,Iter} = wings_face:next_cw(Iter0),
-    case member(V, Vs) of
-	true -> throw(no);
-	false -> Iter
     end.
 
 %% If polygon_pairs/3 failed, we search for the two
@@ -376,77 +354,68 @@ pp_skip_one(Iter0, Vs) ->
 %% +-----+
 %%
 
-min_distance_pairs(Faces0, Vs0, We0) ->
+min_distance_pairs(Face, Vs, We) ->
+    min_distance_pairs_1(gb_sets:singleton(Face), ordsets:from_list(Vs), We).
+
+min_distance_pairs_1(Faces0, Vs0, We0) ->
     case gb_sets:is_empty(Faces0) of
 	true -> We0;
 	false ->
 	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
 	    case nearest_pair(Face, Vs0, We0) of
 		none ->
-		    min_distance_pairs(Faces1, Vs0, We0);
+		    min_distance_pairs_1(Faces1, Vs0, We0);
 		{Va,Vb}=Pair ->
-		    case try_connect(Pair, Face, We0) of
-			no ->
-			    min_distance_pairs(Faces1, Vs0, We0);
-			{We,FaceSet} ->
-			    Faces = gb_sets:union(Faces1, FaceSet),
-	       	       	    Vs1 = lists:delete(Va, Vs0),
-			    Vs = lists:delete(Vb, Vs1),
-			    min_distance_pairs(Faces, Vs, We)
-		    end
+		    {We,NewFace} = try_connect(Pair, Face, We0),
+		    Faces = gb_sets:insert(NewFace, Faces0),
+		    Vs = ordsets:subtract(Vs0, ordsets:from_list([Va,Vb])),
+		    min_distance_pairs_1(Faces, Vs, We)
 	    end
     end.
 
-nearest_pair(Face, Vs, We) ->
-    NumV = wings_face:vertices(Face, We),
-    Iter = wings_face:iterator(Face, We),
-    nearest_pair_1(NumV, Iter, NumV, Vs, Face, We, {none,1.0e200}).
+nearest_pair(Face, AllVs, #we{vs=Vtab}=We) ->
+    Vs0 = ordsets:from_list(wings_face:surrounding_vertices(Face, We)),
+    Vs = ordsets:intersection(Vs0, AllVs),
+    VsPos = [{V,pos(V, Vtab)} || V <- Vs],
+    nearest_pair(VsPos, Face, We, {none,9.9e307}).
 
-nearest_pair_1(0, _Iter, _NumV, _Vs, _Face, _We, {Pair,_}) -> Pair;
-nearest_pair_1(N, Iter0, NumV, Vs, Face, We, PairDist0) ->
-    #we{vs=Vtab} = We,
-    {V,_,_,Iter1} = wings_face:next_cw(Iter0),
-    case member(V, Vs) of
-	false ->
-	    nearest_pair_1(N-1, Iter1, NumV, Vs, Face, We, PairDist0);
-	true ->
-	    Pos = pos(V, Vtab),
-	    {_,_,_,Iter} = wings_face:next_cw(Iter1),
-	    PairDist = nearest_pair_2(NumV-3, Iter, Vs, Face, We,
-				      V, Pos, PairDist0),
-	    nearest_pair_1(N-1, Iter1, NumV, Vs, Face, We, PairDist)
+nearest_pair([{V,Pos}|VsPos], Face, We, PairDist0) ->
+    PairDist = nearest_pair(VsPos, V, Pos, Face, We, PairDist0),
+    nearest_pair(VsPos, Face, We, PairDist);
+nearest_pair([], _, _, {Pair,_}) -> Pair.
+
+nearest_pair([{Vb,PosB}|VsPos], Va, PosA, Face, We, {_,Dist}=PairDist0) ->
+    PairDist = case e3d_vec:dist(PosA, PosB) of
+		   D when D < Dist ->
+		       Pair = {Va,Vb},
+		       case try_connect(Pair, Face, We) of
+			   no -> PairDist0;
+			   {_,_} -> {Pair,D}
+		       end;
+		   _ -> PairDist0
+	       end,
+    nearest_pair(VsPos, Va, PosA, Face, We, PairDist);
+nearest_pair([], _, _, _, _, PairDist) -> PairDist.
+
+try_connect({Va,Vb}, Face, We) ->
+    Bad = until(fun(_, _, Rec, A) ->
+			case other(Va, Rec) of
+			    Vb -> true;
+			    _ -> A
+			end
+		end, false, Va, We),
+    case Bad of
+	true -> no;
+	false -> try_connect(Va, Vb, Face, We)
     end.
 
-nearest_pair_2(N, Iter0, Vs, Face, We, Start, Pos, PairDist0) when N > 0 ->
-    #we{vs=Vtab} = We,
-    {V,_,_,Iter} = wings_face:next_cw(Iter0),
-    case member(V, Vs) of
-	false ->
-	    nearest_pair_2(N-1, Iter, Vs, Face, We, Start, Pos, PairDist0);
-	true ->
-	    {_,Dist} = PairDist0,
-	    Vpos = pos(V, Vtab),
-	    PairDist =
-		case e3d_vec:dist(Vpos, Pos) of
-		    D when D < Dist ->
-			Pair = {Start,V},
-			case try_connect(Pair, Face, We) of
-			    no -> PairDist0;
-			    {_,_} -> {Pair,D}
-			end;
-		    _ -> PairDist0
-		end,
-	    nearest_pair_2(N-1, Iter, Vs, Face, We, Start, Pos, PairDist)
-    end;
-nearest_pair_2(_N, _Iter, _Vs, _Face, _We, _Start, _Pos, PairDist) -> PairDist.
-
-try_connect({Start,End}, Face, We0) ->
-    {We,NewFace} = force_connect(Start, End, Face, We0),
+try_connect(Va, Vb, Face, We0) ->
+    {We,NewFace} = force_connect(Va, Vb, Face, We0),
 
     %% Reject the connection if any of the face normals are undefined.
-    case {wings_face:good_normal(Face, We),wings_face:good_normal(NewFace, We)} of
-	{true,true} -> {We,gb_sets:from_list([Face,NewFace])};
-	{_,_} -> no
+    case wings_face:good_normal(Face, We) andalso wings_face:good_normal(NewFace, We) of
+	true -> {We,NewFace};
+	false -> no
     end.
 
 force_connect(Vstart, Vend, Face, #we{es=Etab0,fs=Ftab0}=We0) ->
