@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.11 2002/10/15 14:29:30 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.12 2002/10/16 14:27:56 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -21,6 +21,7 @@
  
 -compile(export_all). %% debug
 -export([menu/2,command/2, outer_edges/2, outer_edges/3]).
+-export([maxmin/1]).
 
 -import(lists, [sort/1, map/2, foldl/3, reverse/1, 
 		append/1,delete/2, usort/1, max/1, min/1]).
@@ -557,9 +558,7 @@ init_areas([], A, _Type, _We) ->
     A.
    
 create_area({_,Fs}, Vs0) ->
-    [{_, {X,Y,_}} |RVs1] = Vs0,
-    {BX0, BX1, BY0, BY1} =
-	foldl(fun({_, Pos}, Ac) -> maxmin(Pos, Ac) end, {X,X,Y,Y}, RVs1),
+    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(Vs0),
     CX = BX0 + (BX1-BX0) / 2,
     CY = BY0 + (BY1-BY0) / 2,
     Vs3 = moveAndScale(Vs0, -CX, -CY, 1, []),
@@ -598,12 +597,8 @@ init_edit(We = #we{fs = Ftab0}, Acc, St0) ->
     Ftab1 = foldl(fun(Face, FtabX) -> gb_trees:delete(Face, FtabX) end,
 		  Ftab0, gb_trees:keys(Ftab0) -- Faces),
     Clusters = get_groups(Ftab1, We, []),
-    BBox = fun({_, {U,V}}, MaxMin) ->
-		   maxmin({U,V,0}, MaxMin)
-	   end,
     Create = fun({FS, UVs},Count) ->
-		     {_, {U0,V0}} = hd(UVs),
-		     {BX0, BX1, BY0, BY1} = lists:foldl(BBox, {U0,U0,V0,V0}, UVs),
+		     {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(UVs),
 		     CX = BX0 + (BX1-BX0) / 2,
 		     CY = BY0 + (BY1-BY0) / 2,
 		     %%       ?DBG("Edit Data ~p ~p ~p\n", [BB, {CX,CY}, UVs]),
@@ -748,23 +743,28 @@ moveAndScale([{Id, {X0, Y0,_}}|R], XD, YD, Scale, Acc) ->
 moveAndScale([],_,_,_,Acc) ->
     Acc.
 
-maxmin({X,Y,_}, {XMin, XMax, YMin, YMax}) ->
-    if 	X > XMax ->
-	    if Y > YMax -> {XMin, X, YMin, Y};
-	       Y < YMin -> {XMin, X, Y, YMax};
-	       true -> {XMin, X, YMin, YMax}
+maxmin([{Id, {X,Y,_}}|Rest]) ->
+    maxmin(Rest, {Id, X},{Id, X},{Id, Y},{Id, Y}).
+maxmin([],Xmin,Xmax,Ymin,Ymax) ->
+    {Xmin,Xmax,Ymin,Ymax};
+maxmin([{Id, {X,Y,_}}|Rest], 
+       XMin={IdX0,X0}, XMax={IdX1,X1}, YMin={IdY0,Y0}, YMax={IdY1,Y1}) ->
+    if 	X > X1 ->
+	    if Y > Y1 -> maxmin(Rest, XMin, {Id,X}, YMin, {Id,Y});
+	       Y < Y0 -> maxmin(Rest, XMin, {Id,X}, {Id,Y}, YMax);
+	       true ->   maxmin(Rest, XMin, {Id,X}, YMin, YMax)
 	    end;
-	X < XMin ->
-	    if Y > YMax -> {X, XMax, YMin, Y};
-	       Y < YMin -> {X, XMax, Y, YMax};
-	       true -> {X, XMax, YMin, YMax}
+	X < X0 ->
+	    if Y > Y1 -> maxmin(Rest,{Id,X}, XMax, YMin, {Id,Y});
+	       Y < Y0 -> maxmin(Rest,{Id,X}, XMax, {Id,Y}, YMax);
+	       true ->   maxmin(Rest,{Id,X}, XMax, YMin, YMax)
 	    end;
-	Y > YMax ->
-	    {XMin, XMax, YMin, Y};
-	Y < YMin ->
-	    {XMin, XMax, Y, YMax};
+	Y > Y1 ->
+	    maxmin(Rest,XMin, XMax, YMin, {Id,Y});
+	Y < Y0 ->
+	    maxmin(Rest,XMin, XMax, {Id,Y}, YMax);
 	true ->
-	    {XMin, XMax, YMin, YMax}
+	    maxmin(Rest,XMin, XMax, YMin, YMax)
     end.
 
 %%% UV-coords map handling
@@ -1671,10 +1671,9 @@ rescale_all(Areas0) ->
 finish_rotate({Id,Area = #a{rotate = R, vpos = Vs0, scale = S}}) ->
     Rot = e3d_mat:rotate(float(trunc(R)), {0.0,0.0,1.0}),
     Vs1 = [{IdV, e3d_mat:mul_point(Rot, Vec)} || {IdV, Vec} <- Vs0],
-    [{_, {X,Y,_}} |RVs1] = Vs1,
-    {BX0, BX1, BY0, BY1} = 
-	foldl(fun({_, Pos}, Ac) -> maxmin(Pos, Ac) end, {X,X,Y,Y}, RVs1),
-    {Id,Area#a{rotate=0.0, vpos = Vs1, size={(BX1-BX0)*S, (BY1-BY0)*S}, twe = undefined}}.
+    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(Vs1),
+    {Id,Area#a{rotate=0.0, vpos = Vs1, size={(BX1-BX0)*S, (BY1-BY0)*S}, 
+	       twe = undefined}}.
 
 %%%% Draw routines
 outer_edges(Faces0, We) ->
