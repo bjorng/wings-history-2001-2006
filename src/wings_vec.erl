@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.98 2003/10/30 14:29:01 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.99 2003/10/30 14:42:55 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -61,9 +61,6 @@ do_ask_1(Modes, Do0, Done, Flags, #st{selmode=Mode}=St, Cb) ->
     Do = add_help_text(Do0),
     Mag = member(magnet, Flags),
     Ss = #ss{cb=Cb,mag=Mag,selmodes=Modes,f=fun(_, _) -> keep end},
-    wings_draw_util:map(fun(#dlo{orig_sel=none,sel=Dlist}=D, _) ->
-				D#dlo{orig_sel=Dlist,orig_mode=Mode}
-			end, []),
     wings_wm:later({ask_init,Do,Done}),
     erase_vector(),
     {seq,push,get_event(Ss, St)}.
@@ -138,9 +135,10 @@ get_event(Ss, St) ->
     wings_wm:dirty(),
     {replace,fun(Ev) -> handle_event(Ev, Ss, St) end}.
 
-handle_event({ask_init,Do,Done}, #ss{selmodes=Modes}=Ss, St0) ->
-    erase_vector(),				%Just in case to avoid
-						% a display list leak.
+handle_event({ask_init,Do,Done}, #ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St0) ->
+    wings_draw_util:map(fun(#dlo{orig_sel=none,sel=Dlist}=D, _) ->
+				D#dlo{orig_sel=Dlist,orig_mode=Mode}
+			end, []),
     wings_util:menu_restriction(wings_wm:this(), [view,select]),
     St = wings_sel:reset(mode_restriction(Modes, St0)),
     pick_next(Do, Done, Ss, St);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.277 2003/10/30 14:29:00 bjorng Exp $
+%%     $Id: wings.erl,v 1.278 2003/10/30 14:42:55 bjorng Exp $
 %%
 
 -module(wings).
@@ -407,6 +407,7 @@ highlight_sel_style({edge,_}) -> temporary;
 highlight_sel_style({face,_}) -> temporary;
 highlight_sel_style({body,_}) -> temporary;
 highlight_sel_style({edit,repeat}) -> temporary;
+highlight_sel_style({edit,repeat_args}) -> temporary;
 highlight_sel_style({edit,repeat_drag}) -> temporary;
 highlight_sel_style({select,vertex}) -> none;
 highlight_sel_style({select,edge}) -> none;
