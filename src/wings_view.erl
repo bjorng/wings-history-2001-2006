@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.63 2002/06/24 18:53:35 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.64 2002/06/26 14:57:59 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -492,7 +492,8 @@ reset() ->
     set_current(View#view{origin={0.0,0.0,0.0},
 			  azimuth=-45.0,elevation=25.0,
 			  distance=?CAMERA_DIST,
-			  pan_x=0.0,pan_y=0.0}).
+			  pan_x=0.0,pan_y=0.0,
+			  along_axis=none}).
 
 projection() ->
     gl:matrixMode(?GL_PROJECTION),
