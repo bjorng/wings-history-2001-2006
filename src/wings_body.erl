@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.34 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.35 2002/05/20 10:29:37 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -51,9 +51,17 @@ menu(X, Y, St) ->
 	     "Duplicate and move selected object"},
 	    {"Delete",delete,"Delete the selected objects"},
 	    separator,
+	    {"Mode",{mode,[{"Vertex Color",vertex_color},
+			   {"Material",material}]}},
 	    {"Strip Texture",strip_texture}],
     wings_menu:popup_menu(X, Y, body, Menu, St).
 
+command({move,Type}, St) ->
+    wings_move:setup(Type, St);
+command({rotate,Type}, St) ->
+    wings_rotate:setup(Type, St);
+command({scale,Type}, St) ->
+    wings_scale:setup(Type, St);
 command(invert, St) ->
     {save_state,invert_normals(St)};
 command({duplicate,Dir}, St) ->
@@ -78,16 +86,12 @@ command(cleanup, St) ->
     cleanup(false, St);
 command({cleanup,Ask}, St) ->
     cleanup(Ask, St);
-command(strip_texture, St) ->
-    {save_state,strip_texture(St)};
 command(collapse, St) ->
     {save_state,wings_collapse:collapse(St)};
-command({move,Type}, St) ->
-    wings_move:setup(Type, St);
-command({rotate,Type}, St) ->
-    wings_rotate:setup(Type, St);
-command({scale,Type}, St) ->
-    wings_scale:setup(Type, St).
+command(strip_texture, St) ->
+    {save_state,strip_texture(St)};
+command({mode,Mode}, St) ->
+    {save_state,set_mode(Mode, St)}.
 
 %%
 %% Convert the current selection to a body selection.
@@ -335,6 +339,20 @@ auto_smooth(Edge, #edge{lf=Lf,rf=Rf}, Cos, H0, We) ->
 
 cos_degrees(Angle) ->
     math:cos(Angle*math:pi()/180.0).
+
+%%%
+%%% Set Mode.
+%%%
+
+set_mode(vertex_color, St) -> set_mode(vertex, St);
+set_mode(Mode, St) ->
+    wings_sel:map(
+      fun(_, #we{mode=uv}) ->
+	      Error ="Objects with UV coordinates cannot "
+		  " have their mode changed.",
+	      wings_util:error(Error);
+	 (_, We) -> We#we{mode=Mode}
+      end, St).
 
 %%%
 %%% Strip Texture.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.44 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.45 2002/05/20 10:29:37 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -309,26 +309,21 @@ fast_cut(Edge, Pos0, We0) ->
     Vtx = #vtx{pos=NewVPos,edge=NewEdge},
     Vtab = gb_trees:insert(NewV, Vtx, Vtab1),
 
-    %% Here we handle vertex colors.
-    case We of
-	#we{mode=material} ->
-	    NewColA = NewColB = wings_color:white();
-	_ ->
-	    Weight = if
-			 Pos0 == default -> 0.5;
-			 true ->
-			     ADist = e3d_vec:dist(Pos0, VstartPos),
-			     BDist = e3d_vec:dist(Pos0, VendPos),
-			     case ADist/(ADist+BDist) of
-				 {'EXIT',_} -> 0.5;
-				 Weight0 -> Weight0
-			     end
-		     end,
-	    AColOther = get_vtx_color(EdgeA, Lf, Etab0),
-	    NewColA = wings_color:mix(Weight, ACol, AColOther),
-	    BColOther = get_vtx_color(NextBCol, Rf, Etab0),
-	    NewColB = wings_color:mix(Weight, BCol, BColOther)
-    end,
+    %% Here we handle vertex colors/UV coordinates.
+    Weight = if
+		 Pos0 == default -> 0.5;
+		 true ->
+		     ADist = e3d_vec:dist(Pos0, VstartPos),
+		     BDist = e3d_vec:dist(Pos0, VendPos),
+		     case ADist/(ADist+BDist) of
+			 {'EXIT',_} -> 0.5;
+			 Weight0 -> Weight0
+		     end
+	     end,
+    AColOther = get_vtx_color(EdgeA, Lf, Etab0),
+    NewColA = wings_color:mix(Weight, ACol, AColOther),
+    BColOther = get_vtx_color(NextBCol, Rf, Etab0),
+    NewColB = wings_color:mix(Weight, BCol, BColOther),
 
     NewEdgeRec = Template#edge{vs=NewV,a=NewColA,ltsu=Edge,rtpr=Edge},
     Etab1 = gb_trees:insert(NewEdge, NewEdgeRec, Etab0),

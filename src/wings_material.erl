@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.33 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.34 2002/05/20 10:29:37 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -70,13 +70,17 @@ material_list(#st{mat=Mat0}) ->
 
 set_material(Mat, St) ->
     wings_sel:map(
-      fun(Faces, #we{fs=Ftab0}=We) ->
+      fun(_, #we{name=Name,mode=uv}) ->
+	      wings_util:error("Materials cannot be assigned to objects "
+			       "with UV coordinates/textures (" ++ Name ++
+			       ").");
+	 (Faces, #we{fs=Ftab0}=We) ->
 	      Ftab = foldl(
 		       fun(Face, Ft) ->
 			       Rec = gb_trees:get(Face, Ft),
 			       gb_trees:update(Face, Rec#face{mat=Mat}, Ft)
 		       end, Ftab0, gb_sets:to_list(Faces)),
-	      We#we{mode=material,fs=Ftab}
+	      We#we{fs=Ftab}
       end, St).
 
 default() ->
@@ -331,8 +335,8 @@ color(Face, {U,V}, #we{fs=Ftab}, #st{mat=Mtab}) ->
     case prop_get(diffuse, Maps, none) of
 	none ->
 	    OpenGL = prop_get(opengl, Props),
-	    Diff = prop_get(diffuse, OpenGL),
-	    wings_color:share(Diff);
+	    {R,G,B,_} = prop_get(diffuse, OpenGL),
+	    wings_color:share({R,G,B});
 	DiffMap ->
 	    color_1(U, V, DiffMap)
     end;
