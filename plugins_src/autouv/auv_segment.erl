@@ -9,11 +9,12 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.33 2002/10/30 11:55:30 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.34 2002/10/30 14:01:37 bjorng Exp $
 
 -module(auv_segment).
 
--export([create/2, segment_by_material/1, cut_model/3, map_vertex/2]).
+-export([create/2, segment_by_material/1, cut_model/3,
+	 normalize_charts/3, map_vertex/2]).
 -export([degrees/0, find_features/3, build_seeds/2]). %% Debugging
 -include("wings.hrl").
 -include("auv.hrl").
@@ -344,15 +345,13 @@ build_seeds(Features0, #we{fs=Ftab}=We) ->
     end.
 
 build_charts(LocalMaxs, {DistTree,Max,Distances}, VEG, EWs, We) ->
-    {Charts0,Bounds0} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We),
+    {Charts0,Bounds} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We),
     Charts1 = sofs:from_external(gb_trees:to_list(Charts0), [{atom,atom}]),
     Charts2 = sofs:converse(Charts1),
     Charts3 = sofs:relation_to_family(Charts2),
-    Charts = sofs:to_external(sofs:range(Charts3)),
-    AllInner0 = lists:concat([wings_face:inner_edges(C, We) || C <- Charts]),
-    AllInner = gb_sets:from_list(AllInner0),
-    Bounds = gb_sets:intersection(Bounds0, AllInner),
-    {Distances,Charts,Bounds}.
+    Charts4 = sofs:to_external(sofs:range(Charts3)),
+    {Charts,Cuts} = normalize_charts(Charts4, Bounds, We),
+    {Distances,Charts,Cuts}.
 
 add_face_edges_to_heap(Face, FaceDist, ChartBds, Heap, EWs, We) ->
     Find = fun(_, Edge, #edge{lf=LF,rf=RF}, Heap0) ->
@@ -776,3 +775,61 @@ add_new_vs_1(To, From, Map) ->
 	none -> gb_trees:enter(From, To, Map);
 	{value,NewTo} -> add_new_vs_1(NewTo, From, Map)
     end.
+
+%% normalize_charts(Charts, Cuts, We) -> {Charts',Cuts'}
+%%  Possibly split charts that are divided into several non-connected
+%%  components by edges in Cuts. Remove any edges in Cuts that goes
+%%  along the boundary between two charts.
+normalize_charts(Charts, Cuts, We) ->
+    normalize_charts(Charts, Cuts, We, []).
+
+normalize_charts([C0|Cs], Cuts, We, Acc0) ->
+    C = gb_sets:from_list(C0),
+    Acc = normalize_chart(C, Cuts, We, Acc0),
+    normalize_charts(Cs, Cuts, We, Acc);
+normalize_charts([], Cuts0, We, Charts) ->
+    AllInner0 = lists:concat([wings_face:inner_edges(C, We) || C <- Charts]),
+    AllInner = gb_sets:from_list(AllInner0),
+    Cuts = gb_sets:intersection(Cuts0, AllInner),
+    {Charts,Cuts}.
+
+normalize_chart(Fs, Cuts, We, Acc) ->
+    case gb_sets:is_empty(Fs) of
+	true -> Acc;
+	false ->
+	    {F,_} = gb_sets:take_smallest(Fs),
+	    Reachable = reachable_faces(F, Fs, Cuts, We),
+	    Rest = gb_sets:difference(Fs, Reachable),
+	    normalize_chart(Rest, Cuts, We, [gb_sets:to_list(Reachable)|Acc])
+    end.
+
+%% reachable_faces(Face, FaceSet, EdgeSet, We) -> Faces.
+%%  Return a set containing all faces in FaceSet reachable from Face,
+%%  without crossing any edge in EdgeSet.
+reachable_faces(Face, Faces, Edges, We) ->
+    reachable_faces_1(gb_sets:singleton(Face), We, {Faces,Edges}, gb_sets:empty()).
+
+reachable_faces_1(Work0, We, Constraints, Acc0) ->
+    case gb_sets:is_empty(Work0) of
+	true -> Acc0;
+	false ->
+	    {Face,Work1} = gb_sets:take_smallest(Work0),
+	    Acc = gb_sets:insert(Face, Acc0),
+	    Work = collect_maybe_add(Work1, Face, Constraints, We, Acc),
+	    reachable_faces_1(Work, We, Constraints, Acc)
+    end.
+
+collect_maybe_add(Work, Face, {Faces,Edges}, We, Res) ->
+    wings_face:fold(
+      fun(_, Edge, Rec, A) ->
+	      case gb_sets:is_member(Edge, Edges) of
+		  true -> A;
+		  false ->
+		      Of = wings_face:other(Face, Rec),
+		      case gb_sets:is_member(Of, Faces) andalso
+			  not gb_sets:is_member(Of, Res) of
+			  false -> A;
+			  true -> gb_sets:add(Of, A)
+		      end
+	      end
+      end, Work, Face, We).

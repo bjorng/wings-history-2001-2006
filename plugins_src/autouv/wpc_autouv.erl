@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.35 2002/10/30 09:57:42 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.36 2002/10/30 14:01:38 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -289,8 +289,9 @@ seg_create_materials(St0) ->
     St.
 
 seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
-    [{_,#we{he=Cuts}=We0}] = gb_trees:to_list(Shs),
-    Charts = auv_segment:segment_by_material(We0),
+    [{_,#we{he=Cuts0}=We0}] = gb_trees:to_list(Shs),
+    Charts0 = auv_segment:segment_by_material(We0),
+    {Charts,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
     {We,Vmap} = auv_segment:cut_model(Cuts, Charts, OrigWe),
     N = length(Charts),
     seg_map_charts_1(Charts, Method, We, {OrigWe,Vmap}, 1, N, [], Ss).
@@ -384,7 +385,7 @@ segment(Mode, #st{shapes=Shs}=St) ->
     [{_,We0}] = gb_trees:to_list(Shs),
     {Charts,Bounds} = auv_segment:create(Mode, We0),
 
-    %% Use hard edges to mark boundaries
+    %% Use hard edges to mark boundaries.
     We1 = We0#we{he=Bounds},
 
     %% Use materials to mark different charts
