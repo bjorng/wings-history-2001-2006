@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.67 2003/03/06 18:31:16 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.68 2003/03/11 19:16:18 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -488,7 +488,7 @@ generic_event(_, _, _) -> keep.
 
 get_st(#st{}=St) -> St;
 get_st(Redraw) when is_function(Redraw) ->
-    #st{}.
+    #st{shapes=gb_trees:empty()}.
 
 rotate(Dx, Dy) ->
     #view{azimuth=Az0,elevation=El0} = View = wings_view:current(),
