@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.63 2002/03/18 06:15:00 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.64 2002/03/18 11:01:22 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -477,7 +477,7 @@ unit(dx, D) ->
 unit(dy, D) ->
     io_lib:format("DY: ~-10.2f", [D]);
 unit(percent, P) ->
-    ["P: ",io_lib:format("~.2f", [P*100.0]),$%];
+    ["P: ",io_lib:format("~.2f%  ", [P*100.0])];
 unit(falloff, R) ->
     io_lib:format("R: ~-10.2f", [R]);
 unit(Unit, Move) ->
