@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.80 2002/09/08 16:23:45 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.81 2002/09/15 18:42:53 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -479,7 +479,8 @@ xndo_rewrite(#st{mat=Mat,shapes=Shs0}=St) ->
     Shs = xndo_rewrite_1(gb_trees:to_list(Shs0), MatTab),
     St#st{shapes=gb_trees:from_orddict(Shs)}.
 
-xndo_rewrite_1([{Id,#we{fs=Ftab0}=We}|Shs], MatTab) ->
+xndo_rewrite_1([{Id,We0}|Shs], MatTab) ->
+    #we{fs=Ftab0} = We = wings_we:renumber(We0, 0),
     Ftab = xndo_rewrite_ftab(gb_trees:to_list(Ftab0), MatTab, []),
     [{Id,We#we{fs=Ftab}}|xndo_rewrite_1(Shs, MatTab)];
 xndo_rewrite_1([], _) -> [].
