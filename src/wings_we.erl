@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.31 2002/06/17 07:58:12 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.32 2002/06/19 09:36:52 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -480,7 +480,7 @@ get_sub_object(Edge, #we{es=Etab0}=We) ->
     Ws = gb_sets:singleton(Edge),
     {_,NewEtab} = separate(Ws, Etab0, gb_trees:empty()),
     NewWe = copy_dependents(NewEtab, We),
-    NewWe#we{es=NewEtab}.
+    NewWe#we{es=NewEtab,mirror=none}.
 
 separate(We) ->
     separate(We, []).
