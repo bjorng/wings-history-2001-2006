@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.68 2004/12/26 05:52:07 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.69 2004/12/26 08:20:39 bjorng Exp $
 
 -module(auv_segment).
 
@@ -693,7 +693,11 @@ map_edge(E0, Emap) ->
 %%% Cutting along hard edges.
 %%%
 
-cut_model(Charts, Cuts0, We) ->
+cut_model(Charts, Cuts0, #we{es=Etab0}=We0) ->
+    Etab = wings_util:gb_trees_map(fun(_, Rec) ->
+					   Rec#edge{a=none,b=none}
+				   end, Etab0),
+    We = We0#we{es=Etab},
     Cuts = gb_sets:to_list(Cuts0),
     cut_model_1(Charts, Cuts, We#we{mirror=none}, length(Charts), []).
 
@@ -790,7 +794,7 @@ cut_edges(Faces, Cuts0, We, Map) ->
 cut_edges_1(Faces, Cuts, We0, Map0) ->
     Vs = wings_edge:to_vertices(Cuts, We0),
     {We1,Map1} = bevel_cut_vs(Vs, We0, Map0),
-    CutEdges = cut_edges(Cuts, We1),
+    CutEdges = edges_to_cut(Cuts, We1),
     {We2,Map} = cut_new_edges(CutEdges, We1, Map1),
     MaybeRem = wings_we:new_items_as_list(edge, We0, We2),
     We3 = connect_edges(Cuts, We2),
@@ -804,26 +808,26 @@ bevel_cut_vs([V|Vs], We0, Map0) ->
     bevel_cut_vs(Vs, We, Map);
 bevel_cut_vs([], We, Map) -> {We,Map}.
 
-cut_edges(Es, #we{es=Etab}) ->
-    cut_edges_1(Es, Etab, []).
+edges_to_cut(Es, #we{es=Etab}) ->
+    edges_to_cut_1(Es, Etab, []).
 
-cut_edges_1([E|Es], Etab, Acc) ->
+edges_to_cut_1([E|Es], Etab, Acc) ->
     #edge{ltpr=Lp,ltsu=Lu,rtpr=Rp,rtsu=Ru} = gb_trees:get(E, Etab),
-    cut_edges_1(Es, Etab, [Lp,Lu,Rp,Ru|Acc]);
-cut_edges_1([], _, Es) ->
-    cut_edges_2(sort(Es), []).
+    edges_to_cut_1(Es, Etab, [Lp,Lu,Rp,Ru|Acc]);
+edges_to_cut_1([], _, Es) ->
+    edges_to_cut_2(sort(Es), []).
 
-cut_edges_2([E,E|Es], Acc) ->
-    cut_edges_2(Es, [E|Acc]);
-cut_edges_2([_|Es], Acc) ->
-    cut_edges_2(Es, Acc);
-cut_edges_2([], Acc) ->
+edges_to_cut_2([E,E|Es], Acc) ->
+    edges_to_cut_2(Es, [E|Acc]);
+edges_to_cut_2([_|Es], Acc) ->
+    edges_to_cut_2(Es, Acc);
+edges_to_cut_2([], Acc) ->
     ordsets:from_list(Acc).
 
 cut_new_edges([Edge|Es], #we{es=Etab}=We0, Map0) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
     Pos = wpa:vertex_pos(Va, We0),
-    {We,NewV} = wings_edge:fast_cut(Edge, Pos, We0),
+    {We,NewV} = wings_edge:screaming_cut(Edge, Pos, We0),
     Map = add_new_vs(Vb, [NewV], add_new_vs(Va, [NewV], Map0)),
     cut_new_edges(Es, We, Map);
 cut_new_edges([], We, Map) -> {We,Map}.
