@@ -3,12 +3,12 @@
 %%
 %%     This module implements most of the command in the View menu.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.87 2003/01/03 09:45:10 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.88 2003/01/12 21:48:58 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -310,7 +310,9 @@ smoothed_preview(St) ->
     smooth_help(Sm),
     smooth_dlist(St),
     wings_wm:dirty(),
-    wings_wm:callback(fun() -> wings_util:menu_restriction(geom, [view]) end),
+    wings_wm:callback(fun() ->
+			      wings_util:menu_restriction(geom, [view])
+		      end),
     {seq,push,get_smooth_event(Sm)}.
 
 smooth_help(#sm{edges=Edges,cage=Cage}) ->
@@ -386,9 +388,11 @@ smooth_event_1({action,{view,View}}, #sm{st=St}=Sm) ->
 	_ ->
 	    keep
     end;
-smooth_event_1({resize,_,_}=Resize, _) ->
-    wings_io:putback_event(Resize),
-    smooth_exit();
+smooth_event_1(init_opengl, #sm{st=St}) ->
+    wings:init_opengl(St),
+    pop;
+smooth_event_1(resized, _) ->
+    keep;
 smooth_event_1(quit, _) ->
     wings_io:putback_event(quit),
     smooth_exit();
@@ -423,6 +427,11 @@ smooth_dlist(D, _) -> {D,[]}.
 
 smooth_redraw(Sm) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    wings_io:ortho_setup(),
+    {W,H} = wings_wm:win_size(),
+    gl:color3i(0, 0, 0),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+    gl:rectf(0, 0, W-0.5, H-0.5),
     gl:enable(?GL_DEPTH_TEST),
     gl:frontFace(?GL_CCW),
     projection(),
@@ -562,7 +571,7 @@ projection() ->
     gl:matrixMode(?GL_MODELVIEW).
 
 perspective() ->
-    {_,_,W,H} = wings_wm:viewport(),
+    {W,H} = wings_wm:win_size(),
     #view{distance=D,fov=Fov,hither=Hither,yon=Yon} = current(),
     case wings_pref:get_value(orthogonal_view) of
 	false ->
@@ -579,7 +588,7 @@ model_transformations() ->
 model_transformations(IncludeLights) ->
     #view{origin=Origin,distance=Dist0,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
-    {_,_,W,H} = wings_wm:viewport(),
+    {W,H} = wings_wm:win_size(),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
     if
@@ -600,7 +609,7 @@ model_transformations(IncludeLights) ->
 eye_point() ->
     #view{origin=Origin,distance=Dist0,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
-    {_,_,W,H} = wings_wm:viewport(),
+    {W,H} = wings_wm:win_size(),
     Dist = Dist0 * math:sqrt((W*H) / (640*480)),
     M0 = e3d_mat:translate(e3d_vec:neg(Origin)),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
@@ -634,7 +643,7 @@ frame(St) ->
 
 frame_1(none) -> ok;
 frame_1(BB) ->
-    {_,_,W,H} = wings_wm:viewport(),
+    {W,H} = wings_wm:win_size(),
     C = e3d_vec:average(BB),
     R = e3d_vec:len(e3d_vec:sub(C, hd(BB))),
     #view{fov=Fov} = View = current(),
