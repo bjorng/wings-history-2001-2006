@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.26 2002/10/02 15:10:33 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.27 2002/10/06 08:21:48 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -306,11 +306,12 @@ export_perm(#we{perm=[]}) -> [{state,hidden}];
 export_perm(#we{perm={Mode,Elems}}) ->
     [{state,{hidden,Mode,gb_sets:to_list(Elems)}}].
     
-edge_data(vertex, #edge{a={R1,G1,B1},b={R2,G2,B2}}, Acc) ->
-    [{color,<<R1/float,G1/float,B1/float,
-	     R2/float,G2/float,B2/float>>}|Acc];
 edge_data(uv, #edge{a={U1,V1},b={U2,V2}}, Acc) ->
     [{uv,<<U1/float,V1/float,U2/float,V2/float>>}|Acc];
+edge_data(_, #edge{a={1.0,1.0,1.0},b={1.0,1.0,1.0}}, Acc) -> Acc;
+edge_data(_, #edge{a={R1,G1,B1},b={R2,G2,B2}}, Acc) ->
+    [{color,<<R1/float,G1/float,B1/float,
+      R2/float,G2/float,B2/float>>}|Acc];
 edge_data(_, _, Acc) -> Acc.
 
 export_face(#face{mat=default}, Acc) ->
