@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.175 2004/05/13 09:50:56 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.176 2004/05/13 19:46:51 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -214,8 +214,13 @@ ask_unzip([], Labels, Vals) ->
 %% {hframe,Fields[,Flags]}			-- Horizontal frame
 %% {vframe,Fields[,Flags]}			-- Vertical frame
 %%     Flags = [Flag]
-%%     Flag = {title,String}|{minimized,Boolean}|{key,Key}|{hook,Hook}|layout
+%%     Flag = {title,String}|{minimized,Boolean}|{key,Key}|{hook,Hook}|layout|
+%%            checkbox|invert
 %% Only frames with both 'title' and 'minimized' flags return a value.
+%% The 'checkbox' flag changes style of the frame to have a checkbox
+%% field in the header indicating the minimized state. The 'invert' 
+%% flag makes the checkbox value and the return value of the field to 
+%% be the inverted minimized state (the maximized state ;-).
 %%
 %% {oframe,Fields[,Flags]}			-- Overlay frame
 %%     Flags = [Flag]
@@ -1545,8 +1550,9 @@ frame_event({key,_,Mod,$\s},
 	false -> 
 	    hook(Hook, update, [var(Key, I),I,true,Store0,Flags])
     end;
-frame_event(value, [#fi{key=Key,index=I}|_], Store) ->
-    {value,gb_trees:get(var(Key, I), Store)};
+frame_event(value, [#fi{key=Key,index=I,flags=Flags}|_], Store) ->
+    {value,(gb_trees:get(var(Key, I), Store) 
+	    xor proplists:get_bool(invert, Flags))};
 frame_event(_Ev, _Path, _Store) -> keep.
 
 frame_redraw(Active, DisEnabled, #fi{flags=Flags}=Fi) ->
@@ -1582,14 +1588,11 @@ frame_redraw_1(Active, DisEnabled,
     ColFg = color3_text(),
     gl:color3fv(ColFg),
     if  Minimized =/= undefined ->
-	    case proplists:get_value(checkbox, Flags) of
+	    case proplists:get_bool(checkbox, Flags) of
 		true ->
-		    draw_checkbox(Active, X0, Y0, Title, 
-				  not Minimized, DisEnabled);
+		    Val = Minimized xor proplists:get_bool(invert, Flags),
+		    draw_checkbox(Active, X0, Y0, Title, Val, DisEnabled);
 		false ->
-		    draw_checkbox(Active, X0, Y0, Title, 
-				  Minimized, DisEnabled);
-		undefined ->
 		    wings_io:text_at(TextPos, Y0+Ch, Title),
 		    %% Draw button
 		    blend(fun(Col) ->

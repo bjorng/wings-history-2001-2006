@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.28 2004/05/13 09:50:54 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.29 2004/05/13 19:46:48 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -38,6 +38,7 @@ load(Mod, File) ->
     code:load_binary(Mod, Filename, Code).
 
 
+-define(DISPLAY(X), io:format(?MODULE_STRING":~w ~p~n", [?LINE,X])).
 
 init() ->
     case enabled() of
@@ -91,7 +92,7 @@ dialog({material_editor_setup,_Name,_Mat}, Dialog) ->
     end;
 dialog({material_editor_result,_Name,Mat}, [X|R]=Res) ->
     case enabled() of true -> 
-	    erlang:display({?MODULE,?LINE,X}),
+	    ?DISPLAY(X),
 	    {Mat,R};
 	_ -> {Mat,Res}
     end;
@@ -101,7 +102,7 @@ dialog({light_editor_setup,_Name,_Ps}, Dialog) ->
     end;
 dialog({light_editor_result,_Name,Ps}, [X|R]=Res) ->
     case enabled() of true ->
-	    erlang:display({?MODULE,?LINE,X}),
+	    ?DISPLAY(X),
 	    {Ps,R};
 	_ -> {Ps,Res}
     end;
@@ -154,7 +155,7 @@ open_dialog(_) ->
 
 minimal_dialog(_St) ->
     Fun = fun(Res) -> 
-		  erlang:display({?MODULE,?LINE,Res}),
+		  ?DISPLAY(Res),
 		  case Res of 
 		      [{a,true}|_] -> 
 			  wings_util:error("Uncheck the checkbox!");
@@ -179,7 +180,7 @@ mk_large_dialog(MinimizedL, MinimizedC, MinimizedR) ->
 
 large_result(St) ->
     fun ([MinimizedL|Res]) -> 
-	    erlang:display({?MODULE,?LINE,Res}),
+	    ?DISPLAY(Res),
 	    MinimizedC = proplists:get_value(minimized_c, Res),
 	    MinimizedR = proplists:get_value(minimized_r, Res),
 	    case proplists:get_value(reset, Res) of
@@ -201,8 +202,7 @@ mk_overlay_dialog(Style, Active, MinimizedL, MinimizedC, MinimizedR) ->
 	[{hframe,[{label,"Style  "},
 		  {hradio,[{"Buttons",buttons},{"Menu",menu}],Style,
 		   [{hook,fun (update, {Var,_I,Val,Sto}) ->
-				  erlang:display({?MODULE,?LINE,
-						  [update,{Var,_I,Val,sto}]}),
+				  ?DISPLAY([update,{Var,_I,Val,sto}]),
 				  {done,gb_trees:update(Var, Val, Sto)};
 			      (_, _) -> void end}]}]},
 	 {oframe,
@@ -217,7 +217,7 @@ mk_overlay_dialog(Style, Active, MinimizedL, MinimizedC, MinimizedR) ->
 
 overlay_result(St) ->
     fun ([Style,Active,MinimizedL|Res]) -> 
-	    erlang:display({?MODULE,?LINE,Res}),
+	    ?DISPLAY(Res),
 	    MinimizedC = proplists:get_value(minimized_c, Res),
 	    MinimizedR = proplists:get_value(minimized_r, Res),
 	    case lists:last(Res) of
@@ -291,7 +291,7 @@ large_dialog_l(MinimizedL, MinimizedC) ->
 		   {value,0.5},{range,{0.0,1.0}},
 		   {hook,
 		    color_update(v, {hue,sat}, {red,green,blue})}]}
-	 ]}],[{title,"Checkboxed Hframe"},{checkbox,true},
+	 ]}],[{title,"Checkboxed Hframe"},checkbox,invert,
 	      {minimized,MinimizedC},{key,minimized_c}]}],
      [{title,"Left Vframe"},{minimized,MinimizedL}]}.
 
@@ -386,7 +386,7 @@ check_dynamic_dialog(St, Res) ->
 check_dynamic_dialog_1(_St, [false], R0) -> 
     %% Dialog closed ok
     R = reverse(R0, [false]),
-    erlang:display({?MODULE,?LINE,R}),
+    ?DISPLAY(R),
     ignore;
 check_dynamic_dialog_1(St, [true], R) -> %% New frame
     Z = true, E = false, F = 0.5, D = false,
