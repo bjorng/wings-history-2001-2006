@@ -34,7 +34,15 @@
     NSString *execFile = [erlangDir stringByAppendingString:@"/erts-5.2/bin/erlexec"];
     NSString *binDir = [erlangDir stringByAppendingString:@"/erts-5.2/bin"];
     NSArray *args;
-    
+    UInt32 version;
+
+    Gestalt(gestaltSystemVersion, (SInt32 *) &version);
+    if (version < 0x1020) {
+      NSRunCriticalAlertPanel(@"Wings requires Mac OS 10.2 or later",
+			      @"Sorry for the inconvenience.", @"OK", nil, nil);
+      exit(0);
+    }
+
     [env setObject:erlangDir forKey:@"ROOTDIR"];
     [env setObject:binDir forKey:@"BINDIR"];
     [env setObject:@"beam" forKey:@"EMU"];
