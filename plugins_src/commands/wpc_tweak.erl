@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.32 2003/04/16 07:57:07 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.33 2003/04/16 11:46:12 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -278,21 +278,6 @@ screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
 	{1, X,Y,Z} -> {X,Y,Z}			%Workaround for new ESDL (ugly).
     end.
 
-mirror_plane(V, MirrorVs, We) ->
-    case member(V, MirrorVs) of
-	false -> none;
-	true ->
-	    {wings_face:face_normal(MirrorVs, We),
-	     wpa:vertex_pos(hd(MirrorVs), We)}
-    end.
-
-mirror_constrain(none, Pos) -> Pos;
-mirror_constrain({Plane,Point}, Pos) ->
-    ToPoint = e3d_vec:sub(Point, Pos),
-    Dot = e3d_vec:dot(ToPoint, Plane),
-    ToPlane = e3d_vec:mul(Plane, Dot),
-    e3d_vec:add(Pos, ToPlane).
-
 %%%
 %%% Magnetic tweak.
 %%%
@@ -349,37 +334,34 @@ setup_magnet_fun(#dlo{drag=#drag{vs=Vs0,pos0=Center}=Drag}=Dl0, #tweak{st=St}=T)
 setup_magnet_fun(Dl, _) -> Dl.
 
 begin_magnet(#tweak{magnet=false}=T, Vs, Center, We) ->
-    MirrorVs = mirror_vertices(We),
-    Near = near(Center, Vs, [], MirrorVs, T, We),
+    Mirror = mirror_info(We),
+    Near = near(Center, Vs, [], Mirror, T, We),
     Mag = #mag{orig=Center,vs=Near},
     {[Va || {Va,_,_,_,_} <- Near],Mag};
 begin_magnet(#tweak{magnet=true}=T, Vs, Center, #we{vp=Vtab0}=We) ->
-    MirrorVs = mirror_vertices(We),
-    Vtab1 = sofs:relation(gb_trees:to_list(Vtab0)),
-    Vtab2 = sofs:drestriction(Vtab1, sofs:set(Vs)),
+    Mirror = mirror_info(We),
+    Vtab1 = sofs:from_external(gb_trees:to_list(Vtab0), [{vertex,info}]),
+    Vtab2 = sofs:drestriction(Vtab1, sofs:set(Vs, [vertex])),
     Vtab = sofs:to_external(Vtab2),
-    Near = near(Center, Vs, Vtab, MirrorVs, T, We),
+    Near = near(Center, Vs, Vtab, Mirror, T, We),
     Mag = #mag{orig=Center,vs=Near},
     {[Va || {Va,_,_,_,_} <- Near],Mag}.
 
-mirror_vertices(#we{mirror=none}) -> [];
-mirror_vertices(#we{mirror=Face}=We) -> wpa:face_vertices(Face, We).
-
-near(Center, Vs, MagVs, MirrorVs, #tweak{mag_r=R,mag_type=Type}, We) ->
+near(Center, Vs, MagVs, Mirror, #tweak{mag_r=R,mag_type=Type}, We) ->
     M = foldl(fun({V,Pos}, A) ->
 		      case e3d_vec:dist(Pos, Center) of
 			  D when D =< R ->
 			      Inf = mf(Type, D, R),
-			      Plane = mirror_plane(V, MirrorVs, We),
-			      [{V,Pos,Plane,D,Inf}|A];
+			      Matrix = mirror_matrix(V, Mirror),
+			      [{V,Pos,Matrix,D,Inf}|A];
 			  _ -> A
 		      end;
 		 (_, A) -> A
 	      end, [], MagVs),
     foldl(fun(V, A) ->
-		  Plane = mirror_plane(V, MirrorVs, We),
+		  Matrix = mirror_matrix(V, Mirror),
 		  Pos = wpa:vertex_pos(V, We),
-		  [{V,Pos,Plane,0.0,1.0}|A]
+		  [{V,Pos,Matrix,0.0,1.0}|A]
 	  end, M, Vs).
     
 mf(dome, D, R) -> math:sin((R-D)/R*math:pi()/2);
@@ -436,3 +418,22 @@ draw_magnet_1(#dlo{mirror=Mtx,drag=#drag{mm=Side,pos={X,Y,Z}}}, R) ->
     glu:sphere(Obj, R, 50, 50),
     glu:deleteQuadric(Obj);
 draw_magnet_1(_, _) -> [].
+
+mirror_info(#we{mirror=none}) -> {[],none};
+mirror_info(#we{mirror=Face}=We) ->
+    PlaneNormal = wings_face:normal(Face, We),
+    FaceVs = wpa:face_vertices(Face, We),
+    Origin = wings_vertex:center(FaceVs, We),
+    M0 = e3d_mat:translate(Origin),
+    M = e3d_mat:mul(M0, e3d_mat:project_to_plane(PlaneNormal)),
+    Flatten = e3d_mat:mul(M, e3d_mat:translate(e3d_vec:neg(Origin))),
+    {FaceVs,Flatten}.
+
+mirror_matrix(V, {MirrorVs,Flatten}) ->
+    case member(V, MirrorVs) of
+	false -> none;
+	true -> Flatten
+    end.
+
+mirror_constrain(none, Pos) -> Pos;
+mirror_constrain(Matrix, Pos) -> e3d_mat:mul_point(Matrix, Pos).
