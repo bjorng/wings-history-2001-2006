@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.26 2002/02/03 22:37:45 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.27 2002/02/05 08:57:56 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -217,8 +217,8 @@ handle_menu_event(Event, #mi{new=New}=Mi0) ->
     end.
 
 button_pressed(#mousebutton{button=B0,x=X,y=Y,state=?SDL_RELEASED}=Event,
-	       #mi{new=New}=Mi) when not New and (B0 =< 3) ->
-    B = virtual_button(B0),
+	       #mi{new=New,adv=Adv}=Mi) when not New and (B0 =< 3) ->
+    B = virtual_button(Adv, B0),
     button_pressed(Event, B, X, Y, Mi);
 button_pressed(Other, Mi) ->
     get_menu_event(Mi#mi{new=false}).
@@ -283,13 +283,14 @@ current_command(#mi{sel=Sel,menu=Menu,ns=Names}) ->
 	Other -> none
     end.
 
-virtual_button(1) ->
+virtual_button(false, _) -> 1;
+virtual_button(true, 1) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?ALT_BITS =/= 0 -> 2;
 	Mod -> 1
     end;
-virtual_button(2) ->2;
-virtual_button(3) ->
+virtual_button(true, 2) -> 2;
+virtual_button(true, 3) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?CTRL_BITS =/= 0 -> 2;
 	Mod -> 3
