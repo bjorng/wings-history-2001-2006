@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.22 2002/05/19 07:59:42 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.23 2002/05/21 06:06:32 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -46,6 +46,7 @@ collapse_face(Face, #we{fs=Ftab}=We) ->
 
 collapse_face_1(Face, We0) ->
     Vertices = wings_face:surrounding_vertices(Face, We0),
+    check_face_vertices(Vertices, We0),
 
     %% Allocate an Id for the new center vertex.
     {NewV,We1}= wings_we:new_id(We0),
@@ -85,6 +86,16 @@ collapse_face_1(Face, We0) ->
 		false -> We
 	    end
     end.
+
+check_face_vertices([V|Vs], We) ->
+    Vlist = wings_vertex:fold(
+	      fun(_, _, Rec, Acc0) ->
+		      OtherV = wings_vertex:other(V, Rec),
+		      [OtherV|Acc0]
+	      end, [], V, We),
+    check_vertices(Vlist),
+    check_face_vertices(Vs, We);
+check_face_vertices([], _) -> ok.
 
 delete_edges(V, Edge, Face, {Etab0,Vtab0,Ftab0,Htab0}) ->
     Rec = gb_trees:get(Edge, Etab0),
@@ -243,7 +254,8 @@ check_vertices(Vs0) ->
     check_vertices_1(sort(Vs0)).
 
 check_vertices_1([V,V|_]) ->
-    wings_util:error("Non-collapsible vertex - would leave waist.");
+    wings_util:error("Non-collapsible vertex (" ++ integer_to_list(V) ++
+		     ") - would leave waist.\n");
 check_vertices_1([_|Vs]) ->
     check_vertices(Vs);
 check_vertices_1([]) -> ok.
