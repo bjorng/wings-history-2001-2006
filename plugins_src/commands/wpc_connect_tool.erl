@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.21 2005/02/03 12:44:50 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.22 2005/02/03 14:38:58 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -396,11 +396,16 @@ connect_done(End,Start,Prev,MM,We) ->
     First = gb_sets:size(Prev) == 2,
     case ordsets:intersection(Start,End) of
 	[LastFace] when First -> %% Done
-	    {check_normal(LastFace,MM,We), LastFace};
+	    {check_normal(LastFace,MM,We), LastFace};	
 	[LastFace] -> 
 	    {true,LastFace};
-	_ ->
-	    {false,undefined}
+	List ->  %% Arrgh imageplane like construction workarounds
+	    GoodNormals = [Face || Face <- List, check_normal(Face,MM,We)],
+%%	    io:format("~p ~w from ~w~n", [?LINE,GoodNormals,List]),
+	    case GoodNormals of
+		[Face] -> {true,Face}; 
+		_ ->      {false,undefined}
+	    end
     end.
 
 select_way([],_,_) -> exit(vertices_are_not_possible_to_connect);
