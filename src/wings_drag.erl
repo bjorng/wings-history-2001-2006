@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.174 2004/03/30 04:16:03 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.175 2004/03/31 17:38:28 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -62,15 +62,13 @@ setup(Tvs, Units, Flags, St) ->
 		 falloff=falloff(Units),magnet=Magnet,st=St},
     case Tvs of
 	{matrix,TvMatrix} ->
-	    Workmode = wings_wm:get_prop(workmode),
-	    wings_wm:set_prop(workmode, true),
 	    wings_draw:refresh_dlists(St),
-	    wings_wm:set_prop(workmode, Workmode),
 	    insert_matrix(TvMatrix);
 	{general,General} ->
 	    wings_draw:invalidate_dlists(St),
 	    break_apart_general(General);
 	_ ->
+	    wings_draw:invalidate_dlists(St),
 	    break_apart(Tvs, St)
     end,
     {drag,Drag}.
@@ -102,12 +100,11 @@ setup_offsets([], []) -> [].
 %% moved).
 %%
 break_apart(Tvs, St) ->
-    wings_draw:invalidate_dlists(St),
     wings_draw_util:map(fun(D, Data) ->
-				break_apart(D, Data, St)
+				break_apart_1(D, Data, St)
 			end, wings_util:rel2fam(Tvs)).
 
-break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList0}|Tvs], St) ->
+break_apart_1(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList0}|Tvs], St) ->
     TvList = mirror_constrain(TvList0, We),
     {Vs,FunList} = combine_tvs(TvList, We),
     D1 = if
@@ -117,7 +114,7 @@ break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList0}|Tvs], St) ->
     D = wings_draw:split(D1, Vs, St),
     Do = #do{funs=FunList},
     {D#dlo{drag=Do},Tvs};
-break_apart(D, Tvs, _) -> {D,Tvs}.
+break_apart_1(D, Tvs, _) -> {D,Tvs}.
 
 combine_tvs(TvList, #we{vp=Vtab}) ->
     {FunList,VecVs0} = split_tv(TvList, [], []),

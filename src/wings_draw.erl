@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.180 2004/03/28 06:47:26 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.181 2004/03/31 17:38:28 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -427,22 +427,8 @@ update_sel(#dlo{sel=none,src_sel={body,_}}=D) ->
     update_sel_all(D);
 update_sel(#dlo{sel=none,src_sel={face,Faces},src_we=#we{fs=Ftab}}=D) ->
     case gb_trees:size(Ftab) =:= gb_sets:size(Faces) of
-	true ->
-	    update_sel_all(D);
-	false ->
-	    Tess = wings_draw_util:tess(),
-	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-	    List = gl:genLists(1),
-	    gl:newList(List, ?GL_COMPILE),
-	    wings_draw_util:begin_end(
-	      fun() ->
-		      foreach(fun(Face) ->
-				      wings_draw_util:unlit_face(Face, D)
-			      end, gb_sets:to_list(Faces))
-	      end),
-	    gl:endList(),
-	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-	    D#dlo{sel=List}
+	true -> update_sel_all(D);
+	false -> update_face_sel(gb_sets:to_list(Faces), D)
     end;
 update_sel(#dlo{sel=none,src_sel={edge,Edges}}=D) ->
     #dlo{src_we=#we{es=Etab,vp=Vtab}} = D,
@@ -502,19 +488,33 @@ update_sel_all(#dlo{smooth=Faces}=D) when Faces =/= none ->
     D#dlo{sel=Faces};
 update_sel_all(#dlo{src_we=#we{fs=Ftab}}=D) ->
     %% No suitable display list to re-use. Build selection from scratch.
+    update_face_sel(gb_trees:keys(Ftab), D).
+
+update_face_sel(Fs, D) ->
     Tess = wings_draw_util:tess(),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    wings_draw_util:begin_end(
-      fun() ->
-	      foreach(fun(Face) ->
-			      wings_draw_util:unlit_face(Face, D)
-		      end, gb_trees:keys(Ftab))
-      end),
+    Fun = update_face_sel_fun(Fs, D),
+    wings_draw_util:begin_end(Fun),
     gl:endList(),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
     D#dlo{sel=List}.
+
+update_face_sel_fun(Fs, #dlo{ns=none,src_we=We}) ->
+    update_face_sel_fun_1(Fs, We);
+update_face_sel_fun(Fs, #dlo{ns={_},src_we=We}) ->
+    update_face_sel_fun_1(Fs, We);
+update_face_sel_fun(Fs, D) ->
+    update_face_sel_fun_1(Fs, D).
+
+update_face_sel_fun_1(Fs, DWe) ->
+    fun() -> update_face_sel_fun_2(Fs, DWe) end.
+
+update_face_sel_fun_2([F|Fs], D) ->
+    wings_draw_util:unlit_face(F, D),
+    update_face_sel_fun_2(Fs, D);
+update_face_sel_fun_2([], _) -> ok.
 
 %%%
 %%% Splitting of objects into two display lists.
