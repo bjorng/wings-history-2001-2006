@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.92 2003/04/21 14:12:20 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.93 2003/04/22 04:22:50 bjorng Exp $
 %%
 
 -module(wings_material).
 -export([material_menu/1,command/2,new/1,color/4,default/0,
 	 mat_faces/2,add_materials/2,update_image/4,used_images/1,
 	 get/2,get_all/1,delete_face/2,delete_faces/2,cleanup/1,
-	 assign/3,assign_materials/2,
+	 assign/3,replace_materials/2,assign_materials/2,
 	 used_materials/1,used_materials_we/1,
 	 apply_material/2,is_transparent/2,
 	 renumber/2,merge/1]).
@@ -647,6 +647,9 @@ mat_all_same([{_,M}|T]) ->
 mat_all_same_1([{_,M}|T], M) -> mat_all_same_1(T, M);
 mat_all_same_1([], _) -> true;
 mat_all_same_1(_, _) -> false.
+
+replace_materials(FaceMat, We) ->
+    We#we{mat=sort(FaceMat)}.
     
 assign_materials([{M,F}|_]=MatFace, We) when is_atom(M), is_integer(F) ->
     foldl(fun({Mat,Faces}, W) ->

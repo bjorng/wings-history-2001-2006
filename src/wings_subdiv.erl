@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.29 2003/04/21 18:22:05 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.30 2003/04/22 04:22:50 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -33,22 +33,14 @@ smooth(#we{mirror=Face,vp=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
     smooth(Faces, Vs, Es, He, We).
 
 smooth(Fs, Vs, Es, Htab, #we{next_id=Id}=We0) ->
-    FacePos0 = ?TC(reverse(face_centers(Fs, We0))),
+    FacePos0 = reverse(face_centers(Fs, We0)),
     FacePos = gb_trees:from_orddict(FacePos0),
-    We1 = ?TC(cut_edges(Es, FacePos, Htab, We0#we{vc=undefined})),
-    {We2,NewVs} = ?TC(smooth_faces(FacePos0, Id, We1)),
-    We = fix_materials(We2),
+    We1 = cut_edges(Es, FacePos, Htab, We0#we{vc=undefined}),
+    {We,NewVs} = smooth_faces(Fs, FacePos0, Id, We1),
     #we{vp=Vtab2} = We,
-    Vtab3 = ?TC(smooth_move_orig(Vs, FacePos, Htab, We0, Vtab2)),
+    Vtab3 = smooth_move_orig(Vs, FacePos, Htab, We0, Vtab2),
     Vtab = gb_trees:from_orddict(gb_trees:to_list(Vtab3) ++ NewVs),
-    io:format("\n"),
     wings_util:validate_mirror(wings_we:rebuild(We#we{vp=Vtab})).
-
-fix_materials(#we{mat=Atom}=We) when is_atom(Atom) -> We;
-fix_materials(We) ->
-    %% XXX Materials lost.
-    io:format("Materials lost\n"),
-    We#we{mat=default}.
 
 face_centers(Faces, We) ->
     face_centers(Faces, We, []).
@@ -111,9 +103,10 @@ smooth_move_orig_1(V, FacePosTab, Htab, #we{vp=OVtab}=We, Vtab) ->
 	_ThreeOrMore -> Vtab
     end.
 
-smooth_faces(FacePos, Id, #we{next_id=NextId}=We0) ->
+smooth_faces(Fs, FacePos, Id, #we{next_id=NextId}=We0) ->
+    We1 = smooth_materials(Fs, FacePos, We0),
     NewVs = smooth_new_vs(FacePos, NextId, []),
-    We = smooth_faces_1(FacePos, Id, [], We0),
+    We = smooth_faces_1(FacePos, Id, [], We1),
     {We,NewVs}.
 
 smooth_new_vs([{_,{Center,_,NumIds}}|Fs], V, Acc) ->
@@ -182,9 +175,38 @@ store(Key, New, [{_K,_Old}|Dict]) ->		%Key == K
     [{Key,New}|Dict];
 store(Key, New, []) -> [{Key,New}].
 
-%%
-%% Cut edges.
-%%
+smooth_materials(_, _, #we{mat=Mat}=We) when is_atom(Mat) -> We;
+smooth_materials(Fs, FacePos, #we{fs=Ftab}=We) ->
+    Mat0 = wings_material:get_all(We),
+    case length(Fs) =:= gb_trees:size(Ftab) of
+	true ->					%We are smoothing all faces.
+	    smooth_materials_1(Mat0, FacePos, We, []);
+	false ->				%Must pick up the faces not smoothed.
+	    Mat1 = sofs:from_external(Mat0, [{face,mat}]),
+	    Changed = sofs:from_external(Fs, [face]),
+	    {Mat2,Keep0} = sofs:partition(1, Mat1, Changed),
+	    Mat = sofs:to_external(Mat2),
+	    Keep = sofs:to_external(Keep0),
+	    smooth_materials_1(Mat, FacePos, We, Keep)
+    end.
+
+smooth_materials_1(Fmat, Fpos, #we{next_id=Id}=We, Keep) ->
+    Mat = smooth_materials_2(Fmat, Fpos, Id, Keep),
+    wings_material:replace_materials(Mat, We).
+
+smooth_materials_2([{F,Mat}|Fs], [{F,{_,_,N}}|Fpos], Face, Acc0) ->
+    NextFace = Face+N,
+    Acc = smooth_materials_3(Mat, NextFace, Face, Acc0),
+    smooth_materials_2(Fs, Fpos, NextFace, Acc);
+smooth_materials_2([], [], _, Acc) -> Acc.
+
+smooth_materials_3(_, Face, Face, Acc) -> Acc;
+smooth_materials_3(Mat, NextFace, Face, Acc) ->
+    smooth_materials_3(Mat, NextFace, Face+1, [{Face,Mat}|Acc]).
+
+%%%
+%%% Cut edges.
+%%%
 
 cut_edges(Es, FacePos, Hard, #we{es=Etab0,vp=Vtab0,
 				 he=Htab0,next_id=Id0}=We) ->
