@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.12 2001/11/06 07:06:13 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.13 2001/11/13 13:57:41 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -22,7 +22,7 @@ setup(Type, #st{selmode=Mode}=St) ->
     Tvs = wings_sel:fold_shape(fun(Sh, Items, Acc) ->
 				       setup_1(Mode, Sh, Items, Vec, Acc)
 			       end, [], St),
-    wings_drag:init_drag(Tvs, constraint(Type), St).
+    wings_drag:init_drag(Tvs, constraint(Type), distance, St).
 
 setup_1(Mode, #shape{id=Id,sh=We}=Sh, Items, Vec, Acc) ->
     Tv = case Mode of
@@ -187,9 +187,8 @@ body_to_vertices(Sh, Vec) ->
 
 translate_fun(free) ->
     fun(#shape{matrix=Matrix0}, Dx, Dy, St) ->
+	    wings_drag:message([Dx,Dy], distance),
 	    #view{azimuth=Az,elevation=El} = wings_view:current(),
-	    wings_io:message(lists:flatten(io_lib:format("X:~10p Y:~10p",
-							 [Dx,Dy]))),
 	    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
 	    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
 	    {Xt,Yt,Zt} = e3d_mat:mul_point(M1, {Dx,Dy,0.0}),
@@ -199,7 +198,7 @@ translate_fun(free) ->
     end;
 translate_fun({Xt0,Yt0,Zt0}) ->
     fun(Sh, Dx, Dy, St) when float(Dx) ->
-	    wings_io:message(lists:flatten(io_lib:format("X:~10p", [Dx]))),
+	    wings_drag:message([Dx], distance),
 	    Xt = Xt0*Dx,
 	    Yt = Yt0*Dx,
 	    Zt = Zt0*Dx,

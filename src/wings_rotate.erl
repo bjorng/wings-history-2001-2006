@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.10 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.11 2001/11/13 13:57:41 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -23,28 +23,31 @@ setup(Type, #st{selmode=vertex}=St) ->
 	    fun(#shape{id=Id,sh=We}, Vs, Acc) ->
 		    [{Id,vertices_to_vertices(Vs, We, Vec)}|Acc]
 	    end, [], St),
-    wings_drag:init_drag(Tvs, none, St);
+    init_drag(Tvs, St);
 setup(Type, #st{selmode=edge}=St) ->
     Vec = wings_util:make_vector(Type),
     Tvs = wings_sel:fold_region(
 	    fun(Id, Edges, We, Acc) ->
 		    [{Id,edges_to_vertices(Edges, We, Vec)}|Acc]
 	    end, [], St),
-    wings_drag:init_drag(Tvs, none, St);
+    init_drag(Tvs, St);
 setup(Type, #st{selmode=face}=St) ->
     Vec = wings_util:make_vector(Type),
     Tvs = wings_sel:fold_region(
 	    fun(Id, Faces, We, Acc) ->
 		    [{Id,faces_to_vertices(Faces, We, Vec)}|Acc]
 	    end, [], St),
-    wings_drag:init_drag(Tvs, none, St);
+    init_drag(Tvs, St);
 setup(Type, #st{selmode=body}=St) ->
     Vec = wings_util:make_vector(Type),
     Tvs = wings_sel:fold(
 	    fun(#shape{id=Id,sh=#we{}=We}=Sh, Acc) ->
 		    [{Id,body_to_vertices(We, Vec)}|Acc]
 	    end, [], St),
-    wings_drag:init_drag(Tvs, none, St).
+    init_drag(Tvs, St).
+
+init_drag(Tvs, St) ->
+    wings_drag:init_drag(Tvs, none, angle, St).
 
 %%
 %% Conversion of vertex selection to vertices. :-)

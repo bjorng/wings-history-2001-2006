@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.13 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.14 2001/11/13 13:57:41 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -45,7 +45,7 @@ setup(Type, #st{selmode=body}=St) ->
     init_drag(Tvs, St).
 
 init_drag(Tvs, St) ->
-    wings_drag:init_drag(Tvs, {-1.0,?HUGE}, St).
+    wings_drag:init_drag(Tvs, {-1.0,?HUGE}, percent, St).
 
 bevel_face(MoveEdges, St) ->
     Tvs0 = wings_sel:fold_shape(
@@ -56,14 +56,14 @@ bevel_face(MoveEdges, St) ->
 	    fun(#shape{id=Id,sh=We}, Mes, Acc) ->
 		    [{Id,bevel_move(Mes, We)}|Acc]
 	    end, Tvs0, St#st{sel=MoveEdges}),
-    wings_drag:init_drag(Tvs, {0,1}, St).
+    wings_drag:init_drag(Tvs, {0,1}, percent, St).
 
 inset(St) ->
     Tvs = wings_sel:fold_shape(
 	    fun(#shape{id=Id,sh=We}, Faces, Acc) ->
 		    [{Id,inset(Faces, We)}|Acc]
 	    end, [], St),
-    wings_drag:init_drag(Tvs, {-?HUGE,1}, St).
+    wings_drag:init_drag(Tvs, {-?HUGE,1}, percent, St).
 
 inset(Faces, We) ->
     inset(gb_sets:iterator(Faces), We, {[],?HUGE}).
@@ -152,7 +152,7 @@ scale_fun(#shape{sh=We}, Type) ->
     Center = e3d_vec:average(wings_vertex:bounding_box(We)),
     {Xt0,Yt0,Zt0} = filter_vec(Type, {1.0,1.0,1.0}),
     fun(Sh, Dx, Dy, St) when float(Dx) ->
-	    wings_io:message(lists:flatten(io_lib:format("X:~10p", [Dx]))),
+	    wings_drag:message([Dx], percent),
 	    Xt = 1.01+Xt0*Dx,
 	    Yt = 1.01+Yt0*Dx,
 	    Zt = 1.01+Zt0*Dx,

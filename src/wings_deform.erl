@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.13 2001/11/12 19:28:45 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.14 2001/11/13 13:57:41 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -63,6 +63,7 @@ crumple(#shape{id=Id,sh=#we{vs=Vtab}=We}, Vs0, Acc) ->
     {Sa,Sb,Sc} = now(),
     Vs = gb_sets:to_list(Vs0),
     Fun = fun(#shape{sh=#we{vs=Vtab0}=W}=Sh, Dx, Dy, St) ->
+		  wings_drag:message([Dx], percent),
 		  random:seed(Sa, Sb, Sc),
 		  Vt = foldl(
 			 fun(V, Vt) ->
@@ -101,7 +102,7 @@ rnd(Sc) when float(Sc) ->
 
 inflate(St) ->
     Tvs = wings_sel:fold_shape(fun inflate/3, [], St),
-    wings_drag:init_drag(Tvs, {-1.0,1.0}, St).
+    wings_drag:init_drag(Tvs, {-1.0,1.0}, percent, St).
 
 inflate(#shape{id=Id,sh=#we{vs=Vtab}=We}, Vs0, Acc) ->
     Vs = gb_sets:to_list(Vs0),
@@ -143,9 +144,11 @@ taper(#shape{id=Id,sh=We}, Vs0, Primary, Effect, Acc) ->
     Tf = taper_fun(Key, Effect, MinR, MaxR),
     Vs = gb_sets:to_list(Vs0),
     Fun = fun(#shape{sh=#we{vs=Vtab0}=W}=Sh, Dx, Dy, St) ->
+		  wings_drag:message([Dx], percent),
 		  U = Dx + 1.0,
 		  Vt = foldl(
 			 fun(V, Vt) ->
+				 
 				 Rec = gb_trees:get(V, Vt),
 				 #vtx{pos=Pos0} = Rec,
 				 Pos = Tf(U, Pos0),
@@ -209,9 +212,7 @@ twist(#shape{id=Id,sh=We}, Vs0, Axis, Acc) ->
     Fun = fun(#shape{sh=#we{vs=Vtab0}=W}=Sh, Dx, Dy, St) ->
 		  Angle = Dx * 15,
 		  U = (Angle / 180.0 * ?PI)/Range,
-		  wings_io:message(lists:flatten(
-				     io_lib:format("A:~10p",
-						   [Angle]))),
+		  wings_drag:message([Angle], angle),
 		  Vt = foldl(
 			 fun(V, Vt) ->
 				 Rec = gb_trees:get(V, Vt),
@@ -275,9 +276,7 @@ twisty_twist(#shape{id=Id,sh=We}, Vs0, Axis, Acc) ->
     Fun = fun(#shape{sh=#we{vs=Vtab0}=W}=Sh, Dx, Dy, St) ->
 		  Angle = Dx * 15,
 		  U = (Angle / 180.0 * ?PI)/Range,
-		  wings_io:message(lists:flatten(
-				     io_lib:format("A:~10p",
-						   [Angle]))),
+		  wings_drag:message([Angle], angle),
 		  Vt = foldl(
 			 fun(V, Vt) ->
 				 Rec = gb_trees:get(V, Vt),

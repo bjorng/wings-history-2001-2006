@@ -9,12 +9,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.19 2001/11/08 16:24:33 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.20 2001/11/13 13:57:41 bjorng Exp $
 %%
 
 -module(wings_drag).
 -export([start_camera/3,stop_camera/1,view_changed/1,
-	 init_drag/3,abort_drag/1,click/3,motion/3]).
+	 init_drag/3,init_drag/4,message/2,abort_drag/1,click/3,motion/3]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -33,6 +33,7 @@
 	 ys=0,
 	 tvs,					%[{Vertex,Vec}...]
 	 constraint,				%Constraints for motion
+	 unit,					%Unit that drag is done in.
 	 shapes					%Shapes before drag
 	 }).
 
@@ -59,13 +60,16 @@ stop_camera(#st{camera=#camera{ox=OX,oy=OY}}=St0) ->
     end;
 stop_camera(St) -> St.
 
-init_drag(Tvs0, Constraint, #st{shapes=OldShapes}=St0) ->
+init_drag(Tvs, Constraint, St) ->
+    init_drag(Tvs, Constraint, none, St).
+
+init_drag(Tvs0, Constraint, Unit, #st{shapes=OldShapes}=St0) ->
     Tvs = combine(Tvs0),
     Faces = faces(Tvs, St0),
     sdl_mouse:showCursor(false),
     sdl_video:wm_grabInput(?SDL_GRAB_ON),
     {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = #drag{x=X,y=Y,tvs=Tvs,constraint=Constraint,shapes=OldShapes},
+    Drag = #drag{x=X,y=Y,tvs=Tvs,constraint=Constraint,unit=Unit,shapes=OldShapes},
     St = St0#st{saved=false,drag=Drag,dl=#dl{drag_faces=Faces}},
     motion(X, Y, St).
 
@@ -254,13 +258,13 @@ motion_update(Tvs, Dx, Dy, #st{shapes=Shapes0,dl=Dl}=St) ->
 
 transform_vs(Vs0, Dx, Dy, St, #shape{sh=#we{vs=Vtab0}=We}=Shape0) ->
     Vtab = foldl(fun ({Vec,Vs}, Tab) ->
-			 trans_vec(Vec, Dx, Dy, Vs, Tab)
+			 trans_vec(Vec, Dx, Dy, Vs, St, Tab)
 		 end, Vtab0, Vs0),
     Shape0#shape{sh=We#we{vs=Vtab}}.
 
-trans_vec({rot,{Cx,Cy,Cz},Vec}, Dx, Dy, Vs, Vtab) ->
+trans_vec({rot,{Cx,Cy,Cz},Vec}, Dx, Dy, Vs, St, Vtab) ->
     A = 15*Dx,
-    wings_io:message(lists:flatten(io_lib:format("A:~10p", [A]))),
+    message([A], St),
     M0 = e3d_mat:translate(Cx, Cy, Cz),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(A, Vec)),
     M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
@@ -269,18 +273,39 @@ trans_vec({rot,{Cx,Cy,Cz},Vec}, Dx, Dy, Vs, Vtab) ->
 		  Pos = e3d_mat:mul_point(M, Pos0),
 		  gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
 	  end, Vtab, Vs);
-trans_vec({free,Matrix}, Dx, Dy, Vs, Vtab) ->
-    wings_io:message(lists:flatten(io_lib:format("X:~10p Y:~10p", [Dx,Dy]))),
+trans_vec({free,Matrix}, Dx, Dy, Vs, St, Vtab) ->
+    message([Dx,Dy], St),
     {Xt,Yt,Zt} = e3d_mat:mul_point(Matrix, {Dx,Dy,0.0}),
     foldl(fun(V, Tab) -> 
 		  #vtx{pos={X,Y,Z}}= Vtx = gb_trees:get(V, Tab),
 		  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
 		  gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
 	  end, Vtab, Vs);
-trans_vec({Xt0,Yt0,Zt0}, Dx, Dy, Vs, Vtab) ->
-    wings_io:message(lists:flatten(io_lib:format("X:~10p", [Dx]))),
+trans_vec({Xt0,Yt0,Zt0}, Dx, Dy, Vs, St, Vtab) ->
+    message([Dx], St),
     Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
     translate(Xt, Yt, Zt, Vs, Vtab).
+
+message(L, #st{drag=#drag{unit=Unit}}) ->
+    message_0(L, Unit);
+message(L, Unit) when atom(Unit) ->
+    message_0(L, Unit).
+
+message_0([_]=L, none) ->
+    message_1("~-10.2f", L);
+message_0([U]=L, percent) ->
+    message_1("~p%", [round(100*U)]);
+message_0([_]=L, distance) ->
+    message_1("D:~-10.2f", L);
+message_0([_]=L, angle) ->
+    message_1("A:~-10.2f", L);
+message_0([_,_]=L, none) ->
+    message_1("~-10.2f ~-10.2f", L);
+message_0([_,_]=L, distance) ->
+    message_1("DX:~-10.2f DY:~-10.2f", L).
+
+message_1(Format, List) ->
+    wings_io:message(lists:flatten(io_lib:format(Format, List))).
 
 translate(Xt, Yt, Zt, Vs, Vtab) ->
     foldl(fun(V, Tab) -> 
