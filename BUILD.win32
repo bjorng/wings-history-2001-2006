@@ -4,8 +4,8 @@ BUILDING WINGS 3D ON WINDOWS
 This guide describes how you can build Wings 3D from the
 sources on a Windows system.
 
-$Revision: 1.10 $
-$Date: 2004/10/29 05:30:58 $
+$Revision: 1.11 $
+$Date: 2004/10/29 05:31:15 $
 
 Required software
 =================
@@ -35,7 +35,7 @@ The following software is needed:
 Installing the software
 =======================
 
-In general, following the instructions for each package.
+In general, you should follow the instructions for each package.
 
 Installing Cygwin
 -----------------

@@ -4,20 +4,20 @@ BUILDING WINGS 3D ON UNIX-LIKE SYSTEMS (including MacOS X)
 This guide describes how you can build Wings on unix-like
 systems, such as GNU Linux, FreeBSD, Solaris, and MacOS X.
 
-$Revision: 1.3 $
-$Date: 2003/10/01 05:08:23 $
+$Revision: 1.4 $
+$Date: 2004/10/29 05:33:20 $
 
 Required software
 =================
 
 The following software is needed:
 
-- Erlang/OTP R9C-0 or later. http://www.erlang.org
+- Erlang/OTP R10B-1 or later. http://www.erlang.org
 
 - SDL development library. http://www.libsdl.org.
   (There are pre-built libraries for most platforms.)
 
-- ESDL 0.93.0909 or later. http://esdl.sf.net
+- ESDL 0.94.1025 or later. http://esdl.sf.net
 
 - A GNU compatible "make" program. Included with most unix-like
   systems; otherwise get it from http://www.gnu.org.
@@ -137,14 +137,3 @@ Notes:
 
 [2] The "${1+"$@"}" thing passes along any arguments (or none) to Wings,
     allowing Wings to open up a wings file when it starts.
-
-Building the file dialog plug-in
-================================
-
-If you have the "qt" library installed, you can build the file dialog
-plug-in like this:
-
-$ cd plugins_src/qt_file
-$ make
-<Some output>
-$
