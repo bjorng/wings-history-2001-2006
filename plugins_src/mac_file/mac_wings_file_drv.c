@@ -11,7 +11,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: mac_wings_file_drv.c,v 1.7 2002/11/14 09:02:33 bjorng Exp $
+ *     $Id: mac_wings_file_drv.c,v 1.8 2002/11/17 10:00:40 bjorng Exp $
  */
 
 #include <stdio.h>
@@ -126,9 +126,7 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
     case 1: /* Open (or import) file */
     case 2: /* Save (or export) file */
       {
-	NSArray *fileTypes;
 	NSString* defdir1;
-	NSString* filter1;
 	NSString* title1;
 	NSString* defname1;
           
@@ -138,16 +136,22 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 	filter = defname + strlen(defname) + 1; /* Filter expression (.wings) */
 
         defdir1 = [NSString stringWithCString:defdir];
-        filter1 = [NSString stringWithCString:filter];
         title1 = [NSString stringWithCString:title];
         defname1 = [NSString stringWithCString:defname];
 	
-	rbuff=driver_alloc(PATH_MAX+1);
+	rbuff = driver_alloc(PATH_MAX+1);
 	strcpy(rbuff, defname);
-	fileTypes = filter[0] ? [NSArray arrayWithObject:filter1] : nil;
 	
 	if (command == 1) {
-	  NSOpenPanel *oPanel = [NSOpenPanel openPanel];
+	  NSOpenPanel* oPanel = [NSOpenPanel openPanel];
+	  NSMutableArray* fileTypes = [NSMutableArray arrayWithCapacity:10];
+
+	  while (filter[0] != 0) {
+	    NSString* AFilter = [NSString stringWithCString:filter];
+
+	    [fileTypes addObject:AFilter];
+	    filter += strlen(filter) + 1;
+	  }
 	  [oPanel setAllowsMultipleSelection:NO];
 	  result = [oPanel runModalForDirectory:defdir1 file:nil types:fileTypes];
 	  if (result == NSOKButton) {
@@ -160,7 +164,9 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 	  return 0;
 	} else {
 	  NSSavePanel *sPanel = [NSSavePanel savePanel];
-	  [sPanel setRequiredFileType:filter1];
+	  NSString* fileType = [NSString stringWithCString:filter];
+
+	  [sPanel setRequiredFileType:fileType];
 	  result = [sPanel runModalForDirectory:defdir1 file:defname1];
 	  if (result == NSOKButton) {
 	    NSString *aFile = [sPanel filename];

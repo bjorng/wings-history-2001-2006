@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.7 2002/11/14 12:18:43 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.8 2002/11/17 10:00:40 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
@@ -77,14 +77,25 @@ fileop(What, Next) ->
     Next(What).
 
 file_dialog(Type, Prop, Title) ->
-    Filter = case proplists:get_value(ext, Prop, none) of
-		 [$.|Ext] -> Ext;
-		 none -> []
-	     end,
     Dir = wings_pref:get_value(current_directory),
     DefName = proplists:get_value(default_filename, Prop, ""),
-    Data = [Dir,0,Title,0,DefName,0,Filter,0],
+    Filters = file_filters(Prop),
+    Data = [Dir,0,Title,0,DefName,0|Filters],
     case erlang:port_control(wp8_file_port, Type, Data) of
 	[] -> aborted;
 	Else -> filename:absname(Else)
     end.
+
+file_filters(Prop) ->
+    case proplists:get_value(extensions, Prop, none) of
+	none ->
+	    [$.|Ext] = proplists:get_value(ext, Prop, ".wings"),
+	    [Ext,0,0];
+	Exts ->
+	    file_filters_1(Exts, [])
+    end.
+
+file_filters_1([{[$.|Ext],_Desc}|T], Acc0) ->
+    Acc = [Acc0,Ext,0],
+    file_filters_1(T, Acc);
+file_filters_1([], Acc) -> [Acc,0].
