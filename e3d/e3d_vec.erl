@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.17 2003/08/25 16:44:40 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.18 2003/08/25 17:18:25 bjorng Exp $
 %%
 
 -module(e3d_vec).
@@ -135,10 +135,15 @@ normal([{Ax,Ay,Az},{Bx,By,Bz},{Cx,Cy,Cz},{Dx,Dy,Dz}])
   when is_float(Ax), is_float(Ay), is_float(Az),
        is_float(Bx), is_float(By), is_float(Bz),
        is_float(Cx), is_float(Cy), is_float(Cz) ->
-    Sx = (Ay-By)*(Az+Bz) + (By-Cy)*(Bz+Cz) + (Cy-Dy)*(Cz+Dz) + (Dy-Ay)*(Dz+Az),
-    Sy = (Az-Bz)*(Ax+Bx) + (Bz-Cz)*(Bx+Cx) + (Cz-Dz)*(Cx+Dx) + (Dz-Az)*(Dx+Ax),
-    Sz = (Ax-Bx)*(Ay+By) + (Bx-Cx)*(By+Cy) + (Cx-Dx)*(Cy+Dy) + (Dx-Ax)*(Dy+Ay),
-    norm(Sx, Sy, Sz);
+    %% Daniel Sunday: "Fast Polygon Area and Newell Normal Computation"
+    %% journal of graphics tools, 7(2):9-13, 2002
+    CzMinusAz = Cz-Az, DzMinusBz = Dz-Bz,
+    CxMinusAx = Cx-Ax, DxMinusBx = Dx-Bx,
+    CyMinusAy = Cy-Ay, DyMinusBy = Dy-By,
+    Nx = By*CzMinusAz + Cy*DzMinusBz - Dy*CzMinusAz - Ay*DzMinusBz,
+    Ny = Bz*CxMinusAx + Cz*DxMinusBx - Dz*CxMinusAx - Az*DxMinusBx,
+    Nz = Bx*CyMinusAy + Cx*DyMinusBy - Dx*CyMinusAy - Ax*DyMinusBy,
+    norm(Nx, Ny, Nz);
 normal([{Ax,Ay,Az},{Bx,By,Bz}|[{Cx,Cy,Cz}|_]=T]=First)
   when is_float(Ax), is_float(Ay), is_float(Az),
        is_float(Bx), is_float(By), is_float(Bz) ->
