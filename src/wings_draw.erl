@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.195 2004/04/22 14:33:58 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.196 2004/04/22 14:55:01 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -30,7 +30,6 @@
 -record(split,
 	{static_vs,
 	 dyn_vs,
-	 dyn_faces,
 	 dyn_plan,				%Plan for drawing dynamic faces.
 	 orig_ns,
 	 orig_we
@@ -526,8 +525,7 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
     StaticVtab = sort(insert_vtx_data(StaticVs, We#we.vp, [])),
     DynPlan = wings_draw_util:prepare(FtabDyn, We, St),
     Split = #split{static_vs=StaticVtab,dyn_vs=DynVs,
-		   dyn_faces=Faces,dyn_plan=DynPlan,
-		   orig_ns=Ns0,orig_we=We},
+		   dyn_plan=DynPlan,orig_ns=Ns0,orig_we=We},
     #dlo{work=Work,edges=[StaticEdgeDl],mirror=M,vs=VsDlist,
 	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd,
 	 needed=Needed}.
