@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.90 2003/06/25 16:50:56 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.91 2003/06/28 09:04:11 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -98,7 +98,6 @@ command(prefs, _St) ->
 	    {label,"Selection"},{color,selected_color},
 	    {label,"Edges"},{color,edge_color},
 	    {label,"Hard Edges"},{color,hard_edge_color}],
-%%	    {label,"Wire Edges"},{color,wire_edge_color}],
 	   [{title,"Colors"}]},
 	  {hframe,
 	   [{label,"Color"},{color,grid_color},
@@ -364,22 +363,21 @@ locate(File) ->
     end.
 
 defaults() ->
-    [{background_color,{0.4,0.4,0.4}},
+    [{background_color,{0.8,0.8,0.8}},
      {info_color,{0.0,0.0,0.0}},
      {info_background_color,{0.8,0.8,0.8,0.5}},
-     {grid_color,{0.0,0.0,0.0}},
+     {grid_color,{0.7,0.7,0.7}},
      {edge_color,{0.0,0.0,0.0}},
      {hard_edge_color,{0.0,0.5,0.0}},
-     {wire_edge_color,{1.0,1.0,1.0}},
      {selected_color,{0.65,0.0,0.0}},
      {unselected_hlite,{0.0,0.65,0.0}},
      {selected_hlite,{0.70,0.70,0.0}},
-     {x_color,{1.0,0.0,0.0}},
-     {y_color,{0.0,1.0,0.0}},
-     {z_color,{0.0,0.0,1.0}},
-     {neg_x_color,{0.0,0.8,0.8}},
-     {neg_y_color,{0.8,0.0,0.8}},
-     {neg_z_color,{0.8,0.8,0.0}},
+     {x_color,{0.6,0.0,0.0}},
+     {y_color,{0.0,0.6,0.0}},
+     {z_color,{0.0,0.0,0.6}},
+     {neg_x_color,{0.6,0.6,0.6}},
+     {neg_y_color,{0.6,0.6,0.6}},
+     {neg_z_color,{0.6,0.6,0.6}},
 
      {vertex_size,4.0},
      {selected_vertex_size,5.0},
@@ -478,9 +476,9 @@ not_bad(current_view, _) -> false;
 not_bad(camera_fov, _) -> false;
 not_bad(camera_hither, _) -> false;
 not_bad(camera_yon, _) -> false;
-not_bad(show_wire_backfaces, _) -> false;
 not_bad(right_click_sel_in_ss, _) -> false;
 not_bad(right_click_sel_in_geom, _) -> false;
+not_bad(wire_edge_color, _) -> false;
 
 %% Crashes have occurred.
 not_bad(last_axis, Val) -> is_wings_vector(Val);
