@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.89 2003/08/14 07:11:05 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.90 2003/08/21 06:02:20 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -53,7 +53,8 @@ menu(X, Y, St) ->
 	      "Mirror and create separate objects"},[]},
     	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
 	    {"Collapse",collapse,"Delete faces, replacing them with vertices"},
-	    {"Smooth",smooth,"Subdivide selected faces to smooth them"},
+	    {"Smooth",smooth,"Subdivide selected faces to smooth them (Catmull-Clark)"},
+	    {"Subdivide",{subdivide,wings_tesselation:submenu()}},
 	    separator|wings_material:material_menu(St)],
     wings_menu:popup_menu(X, Y, face, Menu).
 
@@ -132,7 +133,9 @@ command({move,Type}, St) ->
 command({rotate,Type}, St) ->
     wings_rotate:setup(Type, St);
 command({scale,Type}, St) ->
-    wings_scale:setup(Type, St).
+    wings_scale:setup(Type, St);
+command({subdivide,Subdivide}, St) ->
+    wings_tesselation:command(Subdivide, St).
 
 %%%
 %%% Extrude, Extrude Region, and Inset commands.
