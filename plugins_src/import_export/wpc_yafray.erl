@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.19 2003/03/14 12:41:06 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.20 2003/03/18 23:05:49 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -247,6 +247,7 @@ load_image(Filename) ->
 
 
 material_dialog(_Name, Mat) ->
+    Maps = proplists:get_value(maps, Mat, []),
     YafRay = proplists:get_value(?TAG, Mat, []),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
@@ -267,7 +268,7 @@ material_dialog(_Name, Mat) ->
 		   {slider,{text,AutosmoothAngle,
 			    [{range,{0.0,180.0}},
 			     {key,autosmooth_angle}]}}]}
-	]}|modulator_dialogs(Modulators, 1)],
+	]}|modulator_dialogs(Modulators, 1, Maps)],
       [{title,"YafRay Options"}]}].
 
 material_result(Name, Mat0, [IOR,MinRefle,AutosmoothAngle|Res0]=Res) ->
@@ -282,14 +283,14 @@ material_result(Name, Mat0, [IOR,MinRefle,AutosmoothAngle|Res0]=Res) ->
 	    exit({invalid_tag,{?MODULE,?LINE,[Name,Mat0,Res]}})
     end.
 
-modulator_dialogs([], _) ->
+modulator_dialogs([], _, _Maps) ->
     [{"Create a Modulator",false,[{key,create_modulator}]}];
-modulator_dialogs([Modulator|Modulators], M) ->
-    modulator_dialog(Modulator, M)++
-	modulator_dialogs(Modulators, M+1).
+modulator_dialogs([Modulator|Modulators], M, Maps) ->
+    modulator_dialog(Modulator, M, Maps)++
+	modulator_dialogs(Modulators, M+1, Maps).
 
-modulator_dialog({modulator,Ps}, M) when list(Ps) ->
-%    erlang:display({?MODULE,?LINE,[Ps]}),
+modulator_dialog({modulator,Ps}, M, Maps) when list(Ps) ->
+%    erlang:display({?MODULE,?LINE,[Ps,M,Maps]}),
     Mode = proplists:get_value(mode, Ps, ?DEF_MOD_MODE),
     SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
     SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
@@ -309,6 +310,17 @@ modulator_dialog({modulator,Ps}, M) when list(Ps) ->
     Color2 = proplists:get_value(color2, Ps, ?DEF_MOD_COLOR2),
     Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
     TypeTag = list_to_atom("type"++integer_to_list(M)),
+    TaggedType = {TypeTag,Type},
+    MapsFrame = 
+	case Maps of
+	    [] ->
+		[];
+	    _ ->
+		[{hframe,
+		  lists:map(fun ({Map,_}) ->
+				    {key_alt,TaggedType,atom_to_list(Map),Map}
+			    end, Maps)}]
+	end,
     [{vframe,
       [{menu,[{"Delete",delete},
 	      {if Mode==off ->"Disabled";
@@ -331,8 +343,10 @@ modulator_dialog({modulator,Ps}, M) when list(Ps) ->
 			 {slider,{text,Diffuse,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Specular,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Ambient,[{range,{0.0,1.0}}]}},
-			 {slider,{text,Shininess,[{range,{0.0,1.0}}]}}]}]},
-       {hframe,[{vradio,[{"Image",image},{"Clouds",clouds}],TypeTag,Type},
+			 {slider,{text,Shininess,[{range,{0.0,1.0}}]}}]}]}]++
+      MapsFrame++
+      [{hframe,[{vframe,[{key_alt,TaggedType,"Image",image},
+			 {key_alt,TaggedType,"Clouds",clouds}]},
 		{vframe,[{hframe,[{label,"Filename"},{text,Filename}]},
 			 {hframe,[{label,"Color 1"},{color,Color1},
 				  {label,"Color 2"},{color,Color2},
@@ -340,7 +354,7 @@ modulator_dialog({modulator,Ps}, M) when list(Ps) ->
 				  {text,Depth,[{range,{1,1000}}]}]}]}]}
       ],
       [{title,"Modulator"}]}];
-modulator_dialog(_Modulator, _M) ->
+modulator_dialog(_Modulator, _M, _Maps) ->
     []. % Discard old modulators that anyone may have
 
 modulator_result(Res) ->
@@ -361,7 +375,7 @@ modulator_result([Mode|Res0], Ms) ->
     modulator_result(Res, [M|Ms]).
 
 modulator(Mode, [SizeX,SizeY,SizeZ,Opacity,Diffuse,Specular,Ambient,Shininess,
-		 Type,Filename,Color1,Color2,Depth|Res]) ->
+		 {_,Type},Filename,Color1,Color2,Depth|Res]) ->
     Ps = [{mode,Mode},{size_x,SizeX},{size_y,SizeY},{size_z,SizeZ},
 		 {opacity,Opacity},{diffuse,Diffuse},{specular,Specular},
 		 {ambient,Ambient},{shininess,Shininess},
@@ -398,7 +412,9 @@ light_dialog(_Name, point, Ps) ->
 		{label,"Radius"}]},
        {vframe,[{text,Bias,[{range,0.0,1.0},{key,bias}]},
 		{text,Res,[{range,0,10000},{key,res}]},
-		{text,Radius,[{range,0,10000},{key,radius}]}]}]}].
+		{text,Radius,[{range,0,10000},{key,radius}]}]}]}];
+light_dialog(_Name, _Type, _Ps) ->
+    [].
 
 light_result(_Name, Ps0, [Power|Res0]) ->
     {LightPs,Res1} = light_result(Res0),
@@ -491,6 +507,7 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 		{Filename,
 		 filename:rootname(filename:basename(Filename))++".tga"}
 	end,
+    ExportDir = filename:dirname(ExportFile),
     case open(ExportFile, export) of
 	{error,_}=Error -> 
 	    Error;
@@ -506,7 +523,8 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    %%
 	    section(F, "Shaders"),
 	    foreach(fun ({Name, Mat}) -> 
-			    export_shader(F, "w_"++format(Name), Mat),
+			    export_shader(F, "w_"++format(Name), Mat,
+					  ExportDir),
 			    println(F)
 		    end, 
 		    Mats),
@@ -650,10 +668,11 @@ section(F, Name) ->
 
 
 
-export_shader(F, Name, Mat) ->
+export_shader(F, Name, Mat, ExportDir) ->
     OpenGL = proplists:get_value(opengl, Mat),
     YafRay = proplists:get_value(?TAG, Mat, []),
     Modulators = proplists:get_value(modulators, YafRay, []),
+    Maps = proplists:get_value(maps, Mat, []),
     foldl(fun ({modulator,Ps}, N) when list(Ps) ->
 		  case proplists:get_value(mode, Ps) of
 		      off ->
@@ -665,7 +684,7 @@ export_shader(F, Name, Mat) ->
 				      proplists:get_value(filename, Ps, 
 							  ?DEF_MOD_FILENAME),
 				  export_texture_image(F, [Name,$_|format(N)], 
-						      Filename),
+						       Filename),
 				  println(F),
 				  N+1;
 			      jpeg ->
@@ -673,7 +692,7 @@ export_shader(F, Name, Mat) ->
 				      proplists:get_value(filename, Ps, 
 							  ?DEF_MOD_FILENAME),
 				  export_texture_image(F, [Name,$_|format(N)], 
-						      Filename),
+						       Filename),
 				  println(F),
 				  N+1;
 			      clouds ->
@@ -686,6 +705,25 @@ export_shader(F, Name, Mat) ->
 				  export_texture_clouds(F, [Name,$_|format(N)], 
 							Color1, Color2, Depth),
 				  println(F),
+				  N+1;
+			      Map ->
+				  case proplists:get_value(Map, Maps, none) of
+				      none ->
+					  exit({unknown_texture_map,
+						{?MODULE,?LINE,
+						 [Name,Mat,Map]}});
+				      #e3d_image{name=ImageName}=Image ->
+					  MapFile = ImageName++".tga",
+					  ok = e3d_image:save(
+						 Image, 
+						 filename:join(
+						   ExportDir,
+						   MapFile)),
+					  export_texture_image(
+					    F, 
+					    [Name,$_|format(N)],
+					    MapFile)
+				  end,
 				  N+1
 			  end
 		  end;
