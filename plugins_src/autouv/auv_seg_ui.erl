@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.7 2003/07/11 17:58:57 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.8 2003/07/11 19:40:40 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -271,21 +271,19 @@ seg_map_charts_1(_, _, _, _, MappedCharts, #seg{we=#we{id=Id}}) ->
     wings_wm:later({init_show_maps,Id,MappedCharts}),
     pop.
 
-seg_map_chart([{Fs,Vmap,We0}|Cs], Type, I, N, Acc0, Ss) ->
+seg_map_chart([{Fs,Vmap,#we{id=Id}=We0}|Cs], Type, I, N, Acc0, #seg{st=St0}=Ss) ->
     case auv_mapping:map_chart(Type, Fs, We0) of
 	{error,Message} ->
-	    seg_error(Message, Ss);
+	    wings_util:message(Message),
+	    St = St0#st{selmode=face,sel=[{Id,gb_sets:from_ordset(Fs)}]},
+	    get_seg_event(seg_init_message(Ss#seg{st=St}));
 	Vs ->
 	    We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
 	    Acc = [#ch{we=We,fs=Fs,vmap=Vmap}|Acc0],
 	    seg_map_charts_1(Cs, Type, I+1, N, Acc, Ss)
     end.
 
-seg_error(Error, Ss) ->
-    wings_util:message(Error),
-    get_seg_event(seg_init_message(Ss)).
-
 segment(Mode, #st{shapes=Shs}=St) ->
-    [{_,We}] = gb_trees:to_list(Shs),
+    [We] = gb_trees:values(Shs),
     {Charts,Cuts} = auv_segment:create(Mode, We),
     auv_util:mark_segments(Charts, Cuts, We, St).
