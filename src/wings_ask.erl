@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.183 2004/10/08 06:02:28 dgud Exp $
+%%     $Id: wings_ask.erl,v 1.184 2004/10/25 20:59:43 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -3793,10 +3793,10 @@ init_history() ->
     ets:insert(wings_history, {{float, next}, 0}),
     ets:insert(wings_history, {{int, next}, 0}).
 
-add_history(_Type,[]) ->  %% No empty strings in history..
+add_history(_Type, []) ->  %% No empty strings in history..
     true;
-add_history(Type,Val) 
-  when is_list(Val), Type == float; Type == int; Type == string ->
+add_history(Type, [_|_]=Val) 
+  when Type == float; Type == int; Type == string ->
     [{_,Key}] = ets:lookup(wings_history, {Type,next}),
     case ets:lookup(wings_history, {Type,Key-1}) of
 	[{_, Val}] -> %% Already the last history entry
