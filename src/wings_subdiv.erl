@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.36 2003/05/31 12:19:43 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.37 2003/05/31 12:42:27 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -261,50 +261,35 @@ smooth_materials_3(Mat, NextFace, Face, Acc) ->
 %%%
 
 smooth_move_orig(Vs, FacePos, Htab, #we{vp=Vtab}=We, VtabTail) ->
+    MoveFun = smooth_move_orig_fun(Vtab, FacePos, Htab),
     RevVtab = case gb_trees:size(Vtab) of
 		  N when N =:= length(Vs) ->
-		      smooth_move_orig_all(gb_trees:to_list(Vtab),
-					   FacePos, Htab, We, []);
+		      smooth_move_orig_all(gb_trees:to_list(Vtab), MoveFun, We, []);
 		  _ ->
-		      smooth_move_orig_some(Vs, gb_trees:to_list(Vtab),
-					    FacePos, Htab, We, [])
+		      smooth_move_orig_some(Vs, gb_trees:to_list(Vtab), MoveFun, We, [])
 	      end,
     gb_trees:from_orddict(reverse(RevVtab, VtabTail)).
 
-smooth_move_orig_all([{V,Pos0}|Vs], FacePos, Htab, We, Acc) ->
-    Pos = smooth_move_orig_1(V, Pos0, FacePos, Htab, We),
-    smooth_move_orig_all(Vs, FacePos, Htab, We, [{V,Pos}|Acc]);
-smooth_move_orig_all([], _FacePos, _Htab, _We, Acc) -> Acc.
+smooth_move_orig_all([{V,Pos0}|Vs], MoveFun, We, Acc) ->
+    Pos = smooth_move_orig_1(V, Pos0, MoveFun, We),
+    smooth_move_orig_all(Vs, MoveFun, We, [{V,Pos}|Acc]);
+smooth_move_orig_all([], _FacePos, _MoveFun, Acc) -> Acc.
 
-smooth_move_orig_some([V|Vs], [{V,Pos0}|Vs2], FacePos, Htab, We, Acc) ->
-    Pos = smooth_move_orig_1(V, Pos0, FacePos, Htab, We),
-    smooth_move_orig_some(Vs, Vs2, FacePos, Htab, We, [{V,Pos}|Acc]);
-smooth_move_orig_some(Vs, [Pair|Vs2], FacePos, Htab, We, Acc) ->
-    smooth_move_orig_some(Vs, Vs2, FacePos, Htab, We, [Pair|Acc]);
-smooth_move_orig_some([], [], _, _, _, Acc) -> Acc;
-smooth_move_orig_some([], Vs2, _, _, _, Acc) -> reverse(Vs2, Acc).
+smooth_move_orig_some([V|Vs], [{V,Pos0}|Vs2], MoveFun, We, Acc) ->
+    Pos = smooth_move_orig_1(V, Pos0, MoveFun, We),
+    smooth_move_orig_some(Vs, Vs2, MoveFun, We, [{V,Pos}|Acc]);
+smooth_move_orig_some(Vs, [Pair|Vs2], MoveFun, We, Acc) ->
+    smooth_move_orig_some(Vs, Vs2, MoveFun, We, [Pair|Acc]);
+smooth_move_orig_some([], [], _, _, Acc) -> Acc;
+smooth_move_orig_some([], Vs2, _, _, Acc) -> reverse(Vs2, Acc).
 
-smooth_move_orig_1(V, S, FacePosTab, Htab, #we{vp=Vtab}=We) ->
-    {Ps0,Hard} =
-	wings_vertex:fold(
-	  fun (Edge, Face, Erec, {Ps0,Hard0}) ->
-		  OPos = wings_vertex:other_pos(V, Erec, Vtab),
-		  FPos = case gb_trees:lookup(Face, FacePosTab) of
-			     none -> none;
-			     {value,{Fp,_,_}} -> Fp
-			 end,
-		  Ps = [FPos,OPos|Ps0],
-		  Es = case gb_sets:is_member(Edge, Htab) of
-			   true -> [OPos|Hard0];
-			   false -> Hard0
-		       end,
-		  {Ps,Es}
-	  end, {[],[]}, V, We),
+smooth_move_orig_1(V, S, MoveFun, We) ->
+    {_,Ps0,Hard} = wings_vertex:fold(MoveFun, {V,[],[]}, V, We),
     case length(Hard) of
 	NumHard when NumHard < 2 ->
 	    Ps = e3d_vec:add(Ps0),
-	    N = length(Ps0) bsr 1,
-	    Pos = e3d_vec:add(e3d_vec:mul(Ps, 1/(N*N)),
+	    N = length(Ps0) / 2,
+	    Pos = e3d_vec:add(e3d_vec:mul(Ps, 1.0/(N*N)),
 			      e3d_vec:mul(S, (N-2.0)/N)),
 	    wings_util:share(Pos);
 	NumHard when NumHard =:= 2 ->
@@ -312,6 +297,21 @@ smooth_move_orig_1(V, S, FacePosTab, Htab, #we{vp=Vtab}=We) ->
 	    Pos = e3d_vec:mul(Pos0, 1/8),
 	    wings_util:share(Pos);
 	_ThreeOrMore -> S
+    end.
+
+smooth_move_orig_fun(Vtab, FacePos, Htab) ->
+    fun(Edge, Face, Erec, {V,Ps0,Hard0}) ->
+	    OPos = wings_vertex:other_pos(V, Erec, Vtab),
+	    FPos = case gb_trees:lookup(Face, FacePos) of
+		       none -> none;
+		       {value,{Fp,_,_}} -> Fp
+		   end,
+	    Ps = [FPos,OPos|Ps0],
+	    Es = case gb_sets:is_member(Edge, Htab) of
+		     true -> [OPos|Hard0];
+		     false -> Hard0
+		 end,
+	    {V,Ps,Es}
     end.
 
 %% Update the position for the vertex that was created in the middle
