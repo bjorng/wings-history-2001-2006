@@ -4,12 +4,12 @@
 %%     Tweak mode plugin.
 %%
 %%  Copyright (c) 2001-2002 Howard Trickey,
-%%                2002-2003 Bjorn Gustavsson.
+%%                2002-2004 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.45 2003/11/20 20:35:22 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.46 2004/02/27 20:08:44 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -158,6 +158,10 @@ handle_tweak_event1({action,Action}, #tweak{st=St0}=T) ->
 	{select,Cmd} -> select_cmd(Cmd, T);
 	{view,auto_rotate} -> keep;
 	{view,smoothed_preview} -> keep;
+	{view,aim} ->
+	    St = fake_selection(St0),
+	    wings_view:command(aim, St),
+	    update_tweak_handler(T);
 	{view,Cmd} ->
 	    St = wings_view:command(Cmd, St0),
 	    refresh_dlists(Cmd, St),
@@ -324,6 +328,18 @@ help_1(Type, [{Digit,ThisType}|T]) ->
 			wings_util:cap(atom_to_list(ThisType)),
 			help_1(Type, T));
 help_1(_, []) -> [].
+
+fake_selection(St) ->
+    Sel = wings_draw_util:fold(
+	    fun(#dlo{src_sel=none}, Sel) -> Sel;
+	       (#dlo{src_we=#we{id=Id},src_sel={Mode,Els}}, _) ->
+		    {Mode,Id,Els}
+	    end, none),
+    case Sel of
+	none -> St;
+	{Mode,Id,Els} ->
+	    St#st{selmode=Mode,sel=[{Id,Els}]}
+    end.
 
 %%%
 %%% Magnetic tweak. Standard tweak is a special case of magnetic tweak
