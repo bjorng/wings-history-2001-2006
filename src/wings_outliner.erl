@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.24 2003/02/07 09:51:47 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.25 2003/02/07 13:31:46 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -365,7 +365,7 @@ draw_objects_1(N, [O|Objs], #ost{lh=Lh}=Ost, R, Active, Y) ->
 	{material,Name,Color,TextColor} ->
 	    wings_io:border(2, Y-10, 12, 12, Color),
 	    gl:color3fv(TextColor),
-	    gl:rasterPos2f(6, Y),
+	    gl:rasterPos2f(5.5, Y),
 	    wings_io:draw_char(m_bitmap()),
 	    gl:color3f(0, 0, 0);
 	{image,_,#e3d_image{name=Name}} -> ok;
