@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.37 2002/11/02 08:08:37 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.38 2002/11/02 09:48:23 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -41,7 +41,7 @@ add_areas(New, #areas{as=As}=Areas) ->
 
 menu({body}, Menu) ->
     Menu ++ [separator,
-	     {"UV Mapping", ?MODULE,
+	     {"UV Mapping (experimental)", ?MODULE,
 	      "Generate or edit UV mapping or texture"}];
 menu(_, Menu) -> Menu.
 
@@ -473,25 +473,24 @@ init_edit(#we{fs=Ftab0}=We0, St0) ->
     MatNames = [Mat || {Name,_}=Mat <- MatNames1,
 		       has_texture(Name, St0)],
     [{MatName,Faces}|_] = MatNames,
-    {Charts0,Cuts0} = auv_segment:uv_to_charts(Faces, We0),
+    FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
+    {Charts0,Cuts0} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
     {Charts,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
-
-    %% XXX Because of a bug in the bevel code for vertices (which is
-    %% used by auv_segment:cut_model/3), we still can't handle charts
-    %% with cuts.
-    case gb_trees:is_empty(Cuts) of
-	true -> ok;
-	false -> wings_util:error("Cannot handle charts with cuts yet.")
-    end,
     {We,Vmap} = auv_segment:cut_model(Charts, Cuts, We0#we{mode=material}),
-    Map1 = number(build_map(Charts, We, []), 1),
+    Map1 = number(build_map(Charts, Vmap, FvUvMap, We, []), 1),
     Map = gb_trees:from_orddict(Map1),
     #areas{we=We,orig_we=We0,as=Map,vmap=Vmap,matname=MatName}.
 
-build_map([Fs|T], We, Acc) ->
-    UVs0 = foldl(fun(F, A) ->
-			 [{V,UV} || [V|UV] <- wings_face:vinfo(F, We)] ++ A
-		 end, [], Fs),
+build_map([Fs|T], Vmap, FvUvMap, We, Acc) ->
+    %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
+    %% (bug in wings_vertex_cmd), we must fetch the UV coordinates
+    %% from the original object.
+    UVs0 = wings_face:fold_faces(
+	     fun(F, V, _, _, A) ->
+		     OrigV = auv_segment:map_vertex(V, Vmap),
+		     UV = gb_trees:get({F,OrigV}, FvUvMap),
+		     [{V,UV}|A]
+	     end, [], Fs, We),
     UVs1 = lists:usort(UVs0),
     %% Assertion.
     true = sofs:is_a_function(sofs:relation(UVs1, [{atom,atom}])),
@@ -500,8 +499,8 @@ build_map([Fs|T], We, Acc) ->
     CY = BY0 + (BY1-BY0) / 2,
     UVs = [{V,{X-CX,Y-CY,0.0}} || {V,{X,Y}} <- UVs1],
     Chart = #a{fs=Fs,vpos=UVs,center={CX,CY},size={BX1-BX0,BY1-BY0}},
-    build_map(T, We, [Chart|Acc]);
-build_map([], _, Acc) -> Acc.
+    build_map(T, Vmap, FvUvMap, We, [Chart|Acc]);
+build_map([], _, _, _, Acc) -> Acc.
 
 number([H|T], N) ->
     [{N,H}|number(T, N+1)];
@@ -1079,7 +1078,7 @@ handle_event(#keyboard{state = ?SDL_PRESSED, keysym = Sym},
 	#keysym{sym = $v} ->
 	    get_event(Uvs0#uvstate{mode = vertex});		
 	#keysym{sym = $p} ->
-	    [?DBG("DBG ~p\n", [P]) || P <- add_as(Sel0,Curr0)],
+	    [?DBG("DBG ~p\n", [_P]) || _P <- add_as(Sel0, Curr0)],
 	    keep;
 	_Key ->
 	    %%      ?DBG("Missed Key ~p ~p~n", [_Key, ?SDLK_SPACE]),

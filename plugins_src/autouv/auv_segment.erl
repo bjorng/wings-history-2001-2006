@@ -9,12 +9,13 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.35 2002/11/02 08:08:37 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.36 2002/11/02 09:48:23 bjorng Exp $
 
 -module(auv_segment).
 
 -export([create/2, segment_by_material/1, cut_model/3,
-	 normalize_charts/3, map_vertex/2, uv_to_charts/2]).
+	 normalize_charts/3, map_vertex/2,
+	 fv_to_uv_map/2, uv_to_charts/3]).
 -export([degrees/0, find_features/3, build_seeds/2]). %% Debugging
 -include("wings.hrl").
 -include("auv.hrl").
@@ -838,16 +839,18 @@ collect_maybe_add(Work, Face, {Faces,Edges}, We, Res) ->
 %%% Given a model having UV coordinates, partition it into charts.
 %%%
 
-uv_to_charts(Faces0, We) ->
-    Dict = make_uv_tab(Faces0, We, []),
+uv_to_charts(Faces0, Dict, We) ->
     Faces = gb_sets:from_list(Faces0),
     Cuts = gb_sets:from_list(wings_face:inner_edges(Faces0, We)),
     uv_to_charts_1(Faces, We, Dict, Cuts, []).
 
-make_uv_tab([F|Fs], We, Acc0) ->
+fv_to_uv_map(Fs, We) ->
+    fv_to_uv_map(Fs, We, []).
+
+fv_to_uv_map([F|Fs], We, Acc0) ->
     Acc = [{{F,V},UV} || [V|UV] <- wings_face:vinfo(F, We)] ++ Acc0,
-    make_uv_tab(Fs, We, Acc);
-make_uv_tab([], _, Acc) ->
+    fv_to_uv_map(Fs, We, Acc);
+fv_to_uv_map([], _, Acc) ->
     gb_trees:from_orddict(sort(Acc)).
 
 uv_to_charts_1(Faces0, We, D, Cuts0, Charts) ->
