@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.39 2002/08/08 07:58:06 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.40 2002/08/18 18:32:57 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -196,9 +196,17 @@ render_scene(Dls, Mode, Work, RenderTrans) ->
     
 render_scene_1([D|Dls], Mode, Work, RenderTrans) ->
     gl:frontFace(?GL_CCW),
-    render_object(D, Mode, Work, RenderTrans),
+    render_object_0(D, Mode, Work, RenderTrans),
     render_scene_1(Dls, Mode, Work, RenderTrans);
 render_scene_1([], _, _, _) -> ok.
+
+render_object_0(#dlo{drag={matrix,_,_,Matrix}}=D, Mode, Work, RT) ->
+    gl:pushMatrix(),
+    gl:multMatrixf(Matrix),
+    render_object(D, Mode, Work, RT),
+    gl:popMatrix();
+render_object_0(D, Mode, Work, RT) ->
+    render_object(D, Mode, Work, RT).
 
 render_object(#dlo{mirror=none}=D, Mode, Work, RenderTrans) ->
     render_object_1(D, Mode, Work, RenderTrans);
@@ -210,7 +218,7 @@ render_object(#dlo{mirror=Matrix}=D, Mode, Work, RenderTrans) ->
     render_object_1(D, Mode, Work, RenderTrans),
     gl:popMatrix().
 
-render_object_1(#dlo{src_we=We}=D, Mode, _, false) when ?IS_LIGHT(We) ->
+render_object_1(#dlo{src_we=We}=D, _, _, false) when ?IS_LIGHT(We) ->
     wings_light:render(D);
 render_object_1(#dlo{src_we=#we{light=L}}, _, _, _) when L =/= none ->
     ok;
@@ -469,11 +477,6 @@ vspos([], _, Acc) -> reverse(Acc).
 call(none) -> none;
 call([H|T]) -> call(H), call(T);
 call([]) -> ok;
-call({matrix,Matrix,Dl}) ->
-    gl:pushMatrix(),
-    gl:multMatrixf(Matrix),
-    call(Dl),
-    gl:popMatrix();
 call(Dl) when is_integer(Dl) -> gl:callList(Dl).
 
 %%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.103 2002/08/14 20:47:00 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.104 2002/08/18 18:32:57 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -201,11 +201,10 @@ insert_matrix(Tvs) ->
 				insert_matrix_fun(D, Data, Id)
 			end, sort(Tvs)).
 
-insert_matrix_fun(#dlo{work=Work,sel=Sel,wire=W,
-		       src_sel=SrcSel,src_we=#we{id=Id}=We},
+insert_matrix_fun(#dlo{work=Work,sel=Sel,wire=W,src_sel=SrcSel,src_we=#we{id=Id}=We,mirror=M},
 		  [{Id,Tr}|Tvs], Matrix) ->
-    {#dlo{drag={matrix,Tr,Matrix},work={matrix,Matrix,Work},wire=W,
-	  sel={matrix,Matrix,Sel},src_we=We,src_sel=SrcSel},Tvs};
+    {#dlo{work=Work,sel=Sel,drag={matrix,Tr,Matrix,e3d_mat:expand(Matrix)},
+	  wire=W,src_we=We,src_sel=SrcSel,mirror=M},Tvs};
 insert_matrix_fun(D, Tvs, _) -> {D,Tvs}.
 
 break_apart_general(Tvs) ->
@@ -417,8 +416,12 @@ view_changed(#drag{flags=Flags}=Drag0) ->
 	    Drag0#drag{x=X,y=Y,xs=0,ys=0,zs=0}
     end.
 
-view_changed_fun(#dlo{work={matrix,Mtx,_},drag={matrix,Tr,_}}=D, _) ->
-    {D#dlo{drag={matrix,Tr,e3d_mat:compress(Mtx)}},[]};
+view_changed_fun(#dlo{drag={matrix,Tr,_,_},transparent=#we{}=We}=D, _) ->
+    Id = e3d_mat:identity(),
+%%    {D#dlo{src_we=We,drag={matrix,Tr,e3d_mat:compress(Mtx),Mtx}},[]};
+    {D#dlo{src_we=We,drag={matrix,Tr,Id,e3d_mat:expand(Id)}},[]};
+view_changed_fun(#dlo{drag={matrix,Tr,_,Mtx}}=D, _) ->
+    {D#dlo{drag={matrix,Tr,e3d_mat:compress(Mtx),Mtx}},[]};
 view_changed_fun(#dlo{drag=#do{funs=Tv0}=Do,src_we=We}=D, _) ->
     Tv = update_tvs(Tv0, We, []),
     {D#dlo{drag=Do#do{funs=Tv}},[]};
@@ -545,13 +548,12 @@ motion_update(Move, Drag) ->
 			   end, []),
     Drag.
 
-motion_update_fun(#dlo{src_we=We,drag={matrix,Tr,Mtx0}}=D, Move) when ?IS_LIGHT(We) ->
+motion_update_fun(#dlo{src_we=We,drag={matrix,Tr,Mtx0,_}}=D, Move) when ?IS_LIGHT(We) ->
     Mtx = Tr(Mtx0, Move),
     wings_light:update_matrix(D, Mtx);
-motion_update_fun(#dlo{work={matrix,_,Work},sel={matrix,_,Sel},
-		       drag={matrix,Trans,Matrix0}}=D, Move) ->
+motion_update_fun(#dlo{drag={matrix,Trans,Matrix0,_}}=D, Move) ->
     Matrix = e3d_mat:expand(Trans(Matrix0, Move)),
-    D#dlo{work={matrix,Matrix,Work},sel={matrix,Matrix,Sel}};
+    D#dlo{drag={matrix,Trans,Matrix0,Matrix}};
 motion_update_fun(#dlo{drag={general,Fun}}=D, Move) ->
     Fun(Move, D);
 motion_update_fun(#dlo{drag=#do{funs=Tv}}=D, Move) ->
@@ -631,23 +633,14 @@ normalize_1(#drag{st=#st{shapes=Shs0}=St}) ->
     St#st{shapes=Shs}.
 
 normalize_fun(#dlo{drag=none}=D, Shs) -> {D,Shs};
-normalize_fun(#dlo{drag={matrix,_,_},transparent=#we{id=Id}=We}=D, Shs0)
-  when ?IS_LIGHT(We) ->
+normalize_fun(#dlo{drag={matrix,_,_,_},transparent=#we{id=Id}=We}=D, Shs0) when ?IS_LIGHT(We) ->
     Shs = gb_trees:update(Id, We, Shs0),
     {D#dlo{work=none,drag=none,src_we=We,transparent=false},Shs};
-normalize_fun(#dlo{work={matrix,Matrix,_},
+normalize_fun(#dlo{drag={matrix,_,_,Matrix},
 		   src_we=#we{id=Id,mirror=M}=We0}=D, Shs0) ->
     We = wings_we:transform_vs(Matrix, We0),
     Shs = gb_trees:update(Id, We, Shs0),
-    case Matrix of
-	{1.0,_,_,_,_,1.0,_,_,_,_,1.0,_,_,_,_,_} ->
-	    %% Keep the display list.
-	    {D#dlo{drag=none,src_we=We,mirror=M},Shs};
-	_NotSafe ->
-	    %% Normals could have been scaled. Must reubild
-	    %% the display list.
-	    {D#dlo{work=none,drag=none,src_we=We,mirror=M},Shs}
-    end;
+    {D#dlo{work=none,sel=none,drag=none,src_we=We,mirror=M},Shs};
 normalize_fun(#dlo{drag={general,_},src_we=#we{id=Id}=We}=D, Shs) ->
     {D#dlo{drag=none,src_we=We},gb_trees:update(Id, We, Shs)};
 normalize_fun(#dlo{src_we=#we{id=Id,vs=Vtab0}}=D, Shs) ->
