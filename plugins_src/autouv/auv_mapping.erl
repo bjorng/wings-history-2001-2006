@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.47 2004/04/16 18:26:53 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.48 2004/04/30 12:52:01 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -42,7 +42,7 @@
 -export([stretch_opt/2, area2d2/3,area3d/3]).
 
 %%-compile(export_all).
--export([model_l2/6]).
+-export([model_l2/5]).
 
 -ifdef(lsq_standalone).
 -define(DBG(Fmt,Args), io:format(?MODULE_STRING++":~p: "++(Fmt), 
@@ -867,20 +867,17 @@ area2d2({S1,T1},{S2,T2},{S3,T3})
 area3d(V1, V2, V3) ->
     e3d_vec:area(V1, V2, V3).
 
-% t() ->
-%     [P2,P3] = [{-1.0,0.0},{1.0,0.0}],
-%     [Q1,Q2,Q3] = [{0.0,1.0,0.0},{-1.0,0.0,0.0},{1.0,0.0,0.0}],
-%     [io:format("~p ~p~n", [Y, area2d2({0.0,0.5-Y/10},P2,P3)]) 
-%      || Y <- lists:seq(-10,10)],
-%     [io:format("~p ~p~n", [Y, catch l2({0.0,0.5-Y/10},P2,P3,Q1,Q2,Q3)]) 
-%      || Y <- lists:seq(-10,10)],
-%     [io:format("~p ~p~n", [Y, catch l8({0.0,0.5-Y/10},P2,P3,Q1,Q2,Q3)]) 
-%      || Y <- lists:seq(-10,10)].
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Texture metric stretch 
 %% From 'Texture Mapping Progressive Meshes' by
 %% Pedro V. Sander, John Snyder Steven J. Gortler, Hugues Hoppe
+
+-record(s,{f2v,   % Face 2 vertex id
+	   v2f,   % Vertex 2 faces
+	   f2a,   % Face(s) 3d area
+	   f2ov,  % Face original vertex 3d position
+	   bv     % Border vertices
+	  }).
 
 stretch_opt(#we{name=#ch{fs=Fs}}=We0, OVs) ->
     wings_pb:start("optimizing"),
@@ -888,27 +885,24 @@ stretch_opt(#we{name=#ch{fs=Fs}}=We0, OVs) ->
 
     {_,R1,R2} = now(),
     random:seed(R2,R1,128731),
-    Be = wings_face:outer_edges(Fs, We0),
-    Bv0 = foldl(fun(Edge, Acc) ->
-			#edge{vs=Vs,ve=Ve} = gb_trees:get(Edge, We0#we.es),
-			[Vs,Ve|Acc]
-		end, [], Be),
-    Bv = gb_sets:from_list(Bv0),
+
     %% {FaceToStretchMean, FaceToStretchWorst,FaceToVerts,VertToFaces,VertToUvs}
-    {{F2S2,_F2S8,F2Vs,V2Fs,Uvs},S} = stretch_setup(Fs,We0,OVs),
-    ?DBG("F2S2 ~w~n",[gb_trees:to_list(F2S2)]),
- %     ?DBG("F2S8 ~w~n",[gb_trees:to_list(F2S8)]),
- %     ?DBG("F2Vs ~w~n",[gb_trees:to_list(F2Vs)]),
- %     ?DBG("UVs ~w~n", [gb_trees:to_list(Uvs)]),
-    S2V = stretch_per_vertex(model_l2,gb_trees:to_list(V2Fs),F2S2,F2Vs,OVs,Bv,
- 			     gb_trees:empty()),
-    MaxI = 100,   %% Max iterations
+    {F2S2,_F2S8,Uvs,State,Scale} = stretch_setup(Fs,We0,OVs),
+
+ %    ?DBG("F2S2 ~w~n",[gb_trees:to_list(F2S2)]),
+ %    ?DBG("F2S8 ~w~n",[gb_trees:to_list(F2S8)]),
+ %    ?DBG("F2Vs ~w~n",[gb_trees:to_list(F2Vs)]),
+ %    ?DBG("UVs ~w~n", [gb_trees:to_list(Uvs)]),
+
+    S2V = stretch_per_vertex(model_l2,gb_trees:to_list(State#s.v2f),
+			     F2S2,State,gb_trees:empty()),
+    %%    MaxI = 2,     %% Max iterations
+    MaxI = 50,    %% Max iterations
     MinS = 0.001, %% Min Stretch
-    {SUvs0,_F2S2} = wings_pb:done(stretch_iter(S2V,1,MaxI,MinS,
-					       F2S2,F2Vs,V2Fs,Uvs,OVs,Bv)),
+    {SUvs0,_F2S2} = wings_pb:done(stretch_iter(S2V,1,MaxI,MinS,F2S2,Uvs,State)),
     SUvs1 = gb_trees:to_list(SUvs0),
-						%    ?DBG("SUvs ~p ~n", [SUvs1]),
-    Suvs = [{Id,{S0/S,T0/S,0.0}} || {Id,{S0,T0}} <- SUvs1],
+    
+    Suvs = [{Id,{S0/Scale,T0/Scale,0.0}} || {Id,{S0,T0}} <- SUvs1],
     We0#we{vp=gb_trees:from_orddict(Suvs)}.
 
 %     _Mean2  = model_l2(gb_trees:keys(_F2S2), _F2S2, F2Vs, OVs,0.0, 0.0),
@@ -917,62 +911,68 @@ stretch_opt(#we{name=#ch{fs=Fs}}=We0, OVs) ->
 %     Res.
 
 stretch_setup(Fs, We0, OVs) ->
+    Be = wings_face:outer_edges(Fs, We0),
+    Bv0 = foldl(fun(Edge, Acc) ->
+			#edge{vs=Vs,ve=Ve} = gb_trees:get(Edge, We0#we.es),
+			[Vs,Ve|Acc]
+		end, [], Be),
+    Bv = gb_sets:from_list(Bv0),
     Tris0 = triangulate(Fs,-1,We0,[]),
-    S = calc_scale(Tris0, OVs, 0.0, 0.0),
+    {S,F2A,F2OV} = calc_scale(Tris0, OVs, 0.0, 0.0, [], []),
     Tris = [{Face,[{Id1,{S1*S,T1*S}},{Id2,{S2*S,T2*S}},{Id3,{S3*S,T3*S}}]} ||
 	       {Face,[{Id1,{S1,T1}},{Id2,{S2,T2}},{Id3,{S3,T3}}]} <- Tris0],
-    Init = {F2S2,F2S8,F2Vs,_,_} = init_stretch(Tris, OVs, [], [], [], [], []),
+    {F2S2,F2S8,Uvs,State0} = init_stretch(Tris,F2OV, [], [], [], [], []),
     Worst = model_l8(gb_trees:keys(F2S8), F2S8, 0.0), 
-    Mean  = model_l2(gb_trees:keys(F2S2), F2S2, F2Vs, OVs,0.0, 0.0),
+    Mean  = model_l2(gb_trees:keys(F2S2), F2S2, F2A,0.0, 0.0),
     io:format("Stretch sum (worst) ~p ~n", [Worst]),
     io:format("Stretch sum (mean) ~p ~n",  [Mean]),
-    {Init,S}.
+    {F2S2,F2S8,Uvs,State0#s{f2a=F2A,f2ov=F2OV,bv=Bv},S}.
 
-stretch_iter(S2V0={[{_,First}|_],_},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv) 
+stretch_iter(S2V0={[{_,First}|_],_},I,MaxI,MinS,F2S20,Uvs0,State) 
   when First > MinS, I < MaxI ->
     wings_pb:update(I/MaxI, "iteration "++integer_to_list(I)),
-    {S2V,F2S2,Uvs} = stretch_iter2(S2V0,I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,
-				   gb_sets:empty()),
-    stretch_iter(S2V,I+1,MaxI,MinS,F2S2,F2Vs,V2Fs,Uvs,Ovs,Bv);
-stretch_iter(_,_,_,_,F2S2,_,_,Uvs,_,_) ->
+    {S2V,F2S2,Uvs} = ?TC(stretch_iter2(S2V0,I,MaxI,MinS,F2S20,Uvs0,
+				       State,gb_sets:empty())),
+    stretch_iter(S2V,I+1,MaxI,MinS,F2S2,Uvs,State);
+stretch_iter(_,_,_,_,F2S2,Uvs,_) ->
     {Uvs,F2S2}.
 
-stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,Acc)
+stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,Uvs0,State,Acc)
   when Val > MinS ->
     case gb_sets:is_member(V, Acc) of
 	true -> 
-	    stretch_iter2({R,V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,Acc);
+	    stretch_iter2({R,V2S0},I,MaxI,MinS,F2S20,Uvs0,State,Acc);
 	false ->
 	    Line = random_line(),
+	    #s{f2v=F2Vs,v2f=V2Fs} = State,
 	    Fs   = gb_trees:get(V,V2Fs),
 	    Max  = 1.0 - I/MaxI,
 	    Step = Max/10.0,
 	    %%    ?DBG("S ~.2f:",[Val]),
-	    {PVal,Uvs,F2S2} = opt_v(Val,Step,Step,Max,V,Line,Fs,F2Vs,F2S20,Uvs0,Ovs),
+	    {PVal,Uvs,F2S2} = ?TC(opt_v(Val,Step,Step,Max,V,Line,Fs,F2S20,Uvs0,State)),
 	    case PVal == Val of 
 		true -> 
 %		    ?DBG("Unchanged value for ~p ~p ~p ~n",[{V,Val}, I, R]),
 		    %%?DBG("~p ~p ~p~n",[V,gb_trees:get(V,Uvs0),gb_trees:get(V,Uvs)]),
-		    stretch_iter2({R,V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,
-				  Bv, gb_sets:insert(V,Acc));
+		    stretch_iter2({R,V2S0},I,MaxI,MinS,F2S20,Uvs0,State, 
+				  gb_sets:insert(V,Acc));
 		false ->
 		    Vs0 = lists:usort(lists:append([gb_trees:get(F,F2Vs)|| F<-Fs])),
 		    Upd0 = foldl(fun(Vtx, New) ->
 					 [{Vtx,gb_trees:get(Vtx, V2Fs)}|New]
 				 end, [], Vs0),
-		    Upd = stretch_per_vertex(model_l2,Upd0,F2S2,F2Vs,Ovs,
-					     Bv,V2S0),
+		    Upd = ?TC(stretch_per_vertex(model_l2,Upd0,F2S2,State,V2S0)),
 %		    ?DBG("Update value for ~p ~p~n ~w~n ~w ~n",
 %			[{V,Val},PVal,gb_sets:to_list(Acc),element(1,Upd)]),
-		    stretch_iter2(Upd,I,MaxI,MinS,F2S2,F2Vs,V2Fs,Uvs,Ovs,Bv,Acc)
+		    stretch_iter2(Upd,I,MaxI,MinS,F2S2,Uvs,State,Acc)
 	    end
     end;
 
-stretch_iter2({_,S2V},_,_,_,F2S2,F2Vs,V2Fs,Uvs,Ovs,Bv,Acc0) ->
+stretch_iter2({_,S2V},_,_,_,F2S2,Uvs,State=#s{v2f=V2Fs},Acc0) ->
     Acc = foldl(fun(V, Vals) ->
 			[{V,gb_trees:get(V,V2Fs)}|Vals]
 		end, [], gb_sets:to_list(Acc0)),
-    Upd = stretch_per_vertex(model_l2, Acc, F2S2, F2Vs, Ovs, Bv, S2V),
+    Upd = stretch_per_vertex(model_l2,Acc,F2S2,State,S2V),
     {Upd, F2S2, Uvs}.
 
 random_line() ->
@@ -981,53 +981,54 @@ random_line() ->
     Len = math:sqrt(X*X+Y*Y),
     {X/Len,Y/Len}.
 
-opt_v(PVal,I,Step,Max,V,L={X,Y},Fs,F2Vs,F2S0,Uvs0,Ovs) 
+opt_v(PVal,I,Step,Max,V,L={X,Y},Fs,F2S0,Uvs0,State=#s{f2v=F2Vs,f2ov=F2OV,f2a=F2A}) 
   when I =< Max, Step > 0.00001 ->
     %%    ?DBG("~w ~w ~w ~w~n",[V, I,Step,Max]),
     {S0,T0} = gb_trees:get(V, Uvs0),
     St = {S0+X*I,T0+Y*I},
     Uvs = gb_trees:update(V,St,Uvs0),
     F2S = foldl(fun(Face,Acc) ->
-			Vs = gb_trees:get(Face, F2Vs),
-			S = l2(Vs,Uvs,Ovs),
+			[V1,V2,V3] = gb_trees:get(Face, F2Vs),
+			{Q1,Q2,Q3} = gb_trees:get(Face, F2OV),
+			S = l2(gb_trees:get(V1,Uvs),
+			       gb_trees:get(V2,Uvs),
+			       gb_trees:get(V3,Uvs),
+			       Q1,Q2,Q3),
 			gb_trees:update(Face, S, Acc)
-		end, F2S0, Fs),    
-    Stretch = model_l2(Fs,F2S,F2Vs, Ovs, 0.0,0.0),
+		end, F2S0, Fs),
+    Stretch = model_l2(Fs,F2S,F2A,0.0,0.0),
     
 %%    io:format("~.2f ",[Stretch]),
     if 
 	Stretch < PVal ->
 %	    ?DBG("Found better ~p ~p ~p ~p ~n",[I,Step,Stretch,PVal]),
-	    opt_v(Stretch,I+Step,Step,Max,V,L,Fs,F2Vs,F2S,Uvs,Ovs); 
+	    opt_v(Stretch,I+Step,Step,Max,V,L,Fs,F2S,Uvs,State);
 	true ->
 	    NewStep = Step/10,
-	    opt_v(PVal,I-Step+NewStep,NewStep,Step,V,L,Fs,F2Vs,F2S0,Uvs0,Ovs)
+	    opt_v(PVal,I-Step+NewStep,NewStep,Step,V,L,Fs,F2S0,Uvs0,State)
 %	    ?DBG("Miss ~p ~p ~p ~p ~n",[I,Step,Stretch,PVal]),
 %%	    opt_v(PVal,I+Step,Step,Max,V,L,Fs,F2Vs,Uvs0,Ovs)
     end;
-opt_v(PVal,_I,_Step,_Max,_V,_L,_Fs,_F2Vs,F2S,Uvs0,_Ovs) ->
+opt_v(PVal,_I,_Step,_Max,_V,_L,_Fs,F2S,Uvs0,_) ->
     {PVal,Uvs0,F2S}.
 
 
 %% Hmm, I just sum this up... should this be calc'ed as model_XX ??
-stretch_per_vertex(Method,[{V,Fs}|R],F2S,F2Vs,Ovs,Bv,Tree) ->
+stretch_per_vertex(Method,[{V,Fs}|R],F2S,State=#s{bv=Bv,f2a=F2A},Tree) ->
     case gb_sets:is_member(V,Bv) of
 	false ->
-	    Res = ?MODULE:Method(Fs,F2S,F2Vs,Ovs,0.0,0.0),
-	    stretch_per_vertex(Method,R,F2S,F2Vs,Ovs,Bv,
+	    Res = ?MODULE:Method(Fs,F2S,F2A,0.0,0.0),
+	    stretch_per_vertex(Method,R,F2S,State,
 			       gb_trees:enter(V,Res,Tree));
 	true ->
-	    stretch_per_vertex(Method,R,F2S,F2Vs,Ovs,Bv,Tree)
+	    stretch_per_vertex(Method,R,F2S,State,Tree)
     end;
-stretch_per_vertex(_,[], _, _,_,_,Acc) ->
-    {lists:reverse(lists:keysort(2,gb_trees:to_list(Acc))),
-     Acc}.
+stretch_per_vertex(_,[], _, _,Acc) ->
+    {lists:reverse(lists:keysort(2,gb_trees:to_list(Acc))),Acc}.
 
 init_stretch([{Face,FUvs=[{Id1,P1},{Id2,P2},{Id3,P3}]}|R],
 	     Ovs,F2S2,F2S8,F2Vs,V2Fs,UVs) ->
-    Q1 = gb_trees:get(Id1,Ovs),
-    Q2 = gb_trees:get(Id2,Ovs),
-    Q3 = gb_trees:get(Id3,Ovs),
+    {Q1,Q2,Q3} = gb_trees:get(Face,Ovs),
     S2 = l2(P1,P2,P3,Q1,Q2,Q3),
     S8 = l8(P1,P2,P3,Q1,Q2,Q3),
     init_stretch(R,Ovs,
@@ -1041,19 +1042,21 @@ init_stretch([],_,F2S2,F2S8,F2Vs,V2Fs0,Uvs) ->
     V2Fs = sofs:to_external(V2Fs2),
     {gb_trees:from_orddict(lists:sort(F2S2)),
      gb_trees:from_orddict(lists:sort(F2S8)),
-     gb_trees:from_orddict(lists:sort(F2Vs)),
-     gb_trees:from_orddict(V2Fs),
-     gb_trees:from_orddict(lists:usort(Uvs))}.
+     gb_trees:from_orddict(lists:usort(Uvs)),
+     #s{f2v = gb_trees:from_orddict(lists:sort(F2Vs)),
+	v2f = gb_trees:from_orddict(V2Fs)}}.
 
-calc_scale([{_,[{Id1,P1},{Id2,P2},{Id3,P3}]}|R], Ovs, A2D, A3D) ->
+calc_scale([{Face,[{Id1,P1},{Id2,P2},{Id3,P3}]}|R], Ovs, A2D, A3D,F2A,F2OVs) ->
     A2 = abs(area2d2(P1,P2,P3)/2),
     Q1 = gb_trees:get(Id1,Ovs),
     Q2 = gb_trees:get(Id2,Ovs),
     Q3 = gb_trees:get(Id3,Ovs),    
     A3 = area3d(Q1,Q2,Q3),
-    calc_scale(R,Ovs,A2+A2D,A3+A3D);
-calc_scale([],_Ovs,A2D,A3D) ->
-    math:sqrt(A3D/A2D).
+    calc_scale(R,Ovs,A2+A2D,A3+A3D,[{Face,A3}|F2A],[{Face,{Q1,Q2,Q3}}|F2OVs]);
+calc_scale([],_Ovs,A2D,A3D,F2A,F2OVs) ->
+    {math:sqrt(A3D/A2D), 
+     gb_trees:from_orddict(lists:sort(F2A)), 
+     gb_trees:from_orddict(lists:sort(F2OVs))}.
 
 model_l8([Face|R], F2S8, Worst) ->
     FVal = gb_trees:get(Face,F2S8),
@@ -1066,27 +1069,12 @@ model_l8([Face|R], F2S8, Worst) ->
     model_l8(R,F2S8,New);
 model_l8([], _, Worst) -> Worst.
 
-model_l2([Face|R], F2S2, F2Vs, Ovs, Mean, Area)  ->
+model_l2([Face|R], F2S2, F2A, Mean, Area)  ->
     TriM = gb_trees:get(Face,F2S2),
-    [Id1,Id2,Id3] = gb_trees:get(Face,F2Vs),
-    Q1 = gb_trees:get(Id1,Ovs),
-    Q2 = gb_trees:get(Id2,Ovs),
-    Q3 = gb_trees:get(Id3,Ovs),    
-    A = area3d(Q1,Q2,Q3),
-    model_l2(R,F2S2,F2Vs,Ovs, TriM*TriM*A+Mean, Area+A);
-model_l2([],_,_,_,Mean,Area) ->
+    A    = gb_trees:get(Face,F2A),
+    model_l2(R,F2S2,F2A,TriM*TriM*A+Mean,Area+A);
+model_l2([],_,_,Mean,Area) ->
     math:sqrt(Mean/Area).
-
-% s(P,P1,P2,P3,Q1,Q2,Q3) ->
-%     M1 = e3d_vec:mul(Q1, area2d(P,P2,P3)),
-%     M2 = e3d_vec:mul(Q2, area2d(P,P3,P1)),
-%     M3 = e3d_vec:mul(Q3, area2d(P,P1,P2)),
-%     A = area2d(P1,P2,P3),
-%     e3d_vec:divide(e3d_vec:add([M1,M2,M3]),A).
-
-l2([V1,V2,V3], Uvs, Ovs) ->  
-    l2(gb_trees:get(V1,Uvs),gb_trees:get(V2,Uvs),gb_trees:get(V3,Uvs),
-       gb_trees:get(V1,Ovs),gb_trees:get(V2,Ovs),gb_trees:get(V3,Ovs)).
 
 l2(P1,P2,P3,Q1,Q2,Q3) ->  %% Mean stretch value
     A2 = area2d2(P1,P2,P3),
