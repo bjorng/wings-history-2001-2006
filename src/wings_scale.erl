@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.33 2002/03/18 06:15:00 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.34 2002/03/18 08:54:01 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -136,27 +136,44 @@ scale_vertices(Vec, Center, Magnet, St) ->
 %% Conversion of edge selections to vertices.
 %%
 
-edges_to_vertices(Vec, Point, Magnet, Edges0, We, Acc) ->
+edges_to_vertices(Vec, center, Magnet, Edges0, We, Acc) ->
     foldl(fun(Edges, A) ->
-		  edges_to_vertices_1(Vec, Point, Magnet, Edges, We, A)
-	  end, Acc, wings_sel:edge_regions(Edges0, We)).
+		  edges_to_vertices_1(Vec, center, Magnet, Edges, We, A)
+	  end, Acc, wings_sel:edge_regions(Edges0, We));
+edges_to_vertices(Vec, Point, Magnet, Edges, We, Acc) ->
+    edges_to_vertices_1(Vec, Point, Magnet, Edges, We, Acc).
 
 edges_to_vertices_1(Vec, Point, Magnet, Edges, We, Acc) ->
-    Vs = wings_edge:to_vertices(Edges, We),
-    scale(Vec, Point, Magnet, Vs, We, Acc).
+    if
+	Magnet == none; Acc == [] ->
+	    Vs = wings_edge:to_vertices(Edges, We),
+	    scale(Vec, Point, Magnet, Vs, We, Acc);
+	true ->
+	    wings_util:error("Magnet scale on multiple edge regions requires "
+			     "an explicit scale origin.")
+    end.
+
 
 %%
 %% Conversion of face selections to vertices.
 %%
 
-faces_to_vertices(Vec, Point, Magnet, Faces0, We, Acc) ->
+faces_to_vertices(Vec, center, Magnet, Faces0, We, Acc) ->
     foldl(fun(Faces, A) ->
-		  faces_to_vertices_1(Vec, Point, Magnet, Faces, We, A)
-	  end, Acc, wings_sel:face_regions(Faces0, We)).
+		  faces_to_vertices_1(Vec, center, Magnet, Faces, We, A)
+	  end, Acc, wings_sel:face_regions(Faces0, We));
+faces_to_vertices(Vec, Point, Magnet, Faces, We, Acc) ->
+    faces_to_vertices_1(Vec, Point, Magnet, Faces, We, Acc).
 
 faces_to_vertices_1(Vec, Point, Magnet, Faces, We, Acc) ->
-    Vs = wings_face:to_vertices(Faces, We),
-    scale(Vec, Point, Magnet, Vs, We, Acc).
+    if
+	Magnet == none; Acc == [] ->
+	    Vs = wings_face:to_vertices(Faces, We),
+	    scale(Vec, Point, Magnet, Vs, We, Acc);
+	true ->
+	    wings_util:error("Magnet scale on multiple face regions requires "
+			     "an explicit scale origin.")
+    end.
 
 %%
 %% Conversion of body selection to vertices.
@@ -198,7 +215,6 @@ scale(Vec0, Center, Magnet, Vs, #we{id=Id}=We, Acc) ->
 magnet(_Vec, none, _Pre, _Post, _Vs, _We, Tv, Acc) -> [Tv|Acc];
 magnet(Vec, Magnet0, Pre, Post, Vs0, #we{id=Id}=We, _, Acc) ->
     {Magnet1,Affected} = wings_magnet:setup(Magnet0, Vs0, We),
-    %%{Vs,VsPos} = magnet_1(VsInf, Post, [], []),
     Magnet = pre_transform(Post, Magnet1),
     [{Id,{Affected,magnet_scale_fun(Vec, Pre, Magnet)}}|Acc].
 
@@ -206,11 +222,6 @@ pre_transform(Matrix, Magnet) ->
       wings_magnet:transform(fun(Pos) ->
 				     e3d_mat:mul_point(Matrix, Pos)
 			     end, Magnet).
-
-% magnet_1([{V,#vtx{pos=Pos0}=Vtx,Inf}|T], Matrix, Vacc, Pacc) ->
-%     Pos = e3d_mat:mul_point(Matrix, Pos0),
-%     magnet_1(T, Matrix, [V|Vacc], [{V,Vtx#vtx{pos=Pos},Inf}|Pacc]);
-% magnet_1([], _, Vs, VsPos) -> {Vs,VsPos}.
     
 magnet_scale_fun(Vec, Pre, Magnet) ->
     fun([Dx,R], A0) ->
