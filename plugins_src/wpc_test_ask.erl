@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.30 2004/05/31 20:27:29 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.31 2004/06/11 09:55:42 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -55,6 +55,8 @@ menu({tools}, Menu) ->
 				       {"Large Dialog",large},
 				       {"Overlay Dialog",overlay},
 				       {"Dynamic Dialog",dynamic},
+				       {"Disabled Frames Dialog",
+					disabled_frames},
 				       separator,
 				       {"Table Dialog",table},
 				       {"Filename Dialog",filename},
@@ -71,6 +73,8 @@ command({tools,{?MODULE,overlay}}, St) ->
     maybe_dialog(fun overlay_dialog/1, St);
 command({tools,{?MODULE,dynamic}}, St) ->
     maybe_dialog(fun dynamic_dialog/1, St);
+command({tools,{?MODULE,disabled_frames}}, St) ->
+    maybe_dialog(fun disabled_frames/1, St);
 command({tools,{?MODULE,table}}, St) ->
     maybe_dialog(fun table_dialog/1, St);
 command({tools,{?MODULE,filename}}, St) ->
@@ -292,7 +296,8 @@ large_dialog_l(MinimizedL, MinimizedC) ->
 		   {hook,
 		    color_update(v, {hue,sat}, {red,green,blue})}]}
 	 ]}],[{title,"Checkboxed Hframe"},checkbox,invert,
-	      {minimized,MinimizedC},{key,minimized_c}]}],
+	      {minimized,MinimizedC},{key,minimized_c},
+	      {hook,disable_hook(c)}]}],
      [{title,"Left Vframe"},{minimized,MinimizedL}]}.
 
 large_dialog_r(MinimizedR) ->
@@ -325,7 +330,8 @@ large_dialog_r(MinimizedR) ->
 	      end},
        {info,"Partly disabled menu"}]},
       {button,"Reset",done,[{key,reset}]}
-     ],[{title,"Right vframe"},{minimized,MinimizedR},{key,minimized_r}]}.
+     ],[{title,"Right vframe"},{minimized,MinimizedR},
+	{key,minimized_r},{hook,disable_hook(c)}]}.
 
 info(c) -> "Requires \"Checkbox key\" checked".
     
@@ -361,7 +367,9 @@ disable_hook(V) ->
     fun (is_disabled, {_Var,I,Store}) when integer(V) ->
 	    not gb_trees:get(I+V, Store);
 	(is_disabled, {_Var,_I,Store}) ->
-	    not gb_trees:get(V, Store);
+	    R = not gb_trees:get(V, Store),
+%%%	    io:format(?MODULE_STRING":~w ~p ~p~n", [?LINE,V,R]),
+	    R;
 	(_, _) ->
 	    void
     end.
@@ -414,3 +422,38 @@ mk_dynamic_dialog_1(St, [_D,F,E,Z|T], Qs0) ->
 	  [{title,"Foo"},{minimized,Z}]}
 	 |Qs0],
     mk_dynamic_dialog_1(St, T, Qs).
+
+disabled_frames(_St) ->
+    Qs =
+	[{"Enable 1",false,[{key,enable1}]},
+	 {"Enable 2",false,[{key,enable2}]},
+	 {"Enable 3",false,[{key,enable3}]},
+	 {vframe,
+	  [{vframe,
+	    [{vframe,
+	      [{text,"Text field"},
+	       {"Checkbox",false}],
+	      [{title,"Frame 3"},%{minimized,false},
+	       {hook,disable_hook(enable3)}]}],
+	    [{title,"Frame 2"},{minimized,true},checkbox,invert,
+	     {hook,disable_hook(enable2)}]},
+	   {oframe,
+	    [{"Text",{text,"Text Field"}},
+	     {"Checkbox",{"Checkbox",false}}],
+	    1,
+	    [{hook,disable_hook(enable2)}]}],
+	  [{title,"Frame 1"},%{minimized,false},
+	   {hook,disable_hook(enable1)}]}],
+%%%     Qs =
+%%% 	[{"Enable",false,[{key,enable}]},
+%%% 	 {vframe,
+%%% 	  [{text,"Text field"},
+%%% 	   {"Checkbox",false}],
+%%% 	  [{title,"Disabled Frame"},{minimized,true},checkbox,invert,
+%%% 	   {hook,disable_hook(enable)}]}],
+    Fun =
+	fun(Res) ->
+		io:format("~p\n", [Res]),
+		ignore
+	end,
+    wings_ask:dialog("Disabled Frames Dialog", Qs, Fun).

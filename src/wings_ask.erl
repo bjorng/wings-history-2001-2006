@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.177 2004/05/31 20:27:30 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.178 2004/06/11 09:55:41 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -34,14 +34,14 @@
 
 
 
-%%%-define(DEBUG_CATEGORIES, [event,other]).
+%%-define(DEBUG_CATEGORIES, [tree,other]).
 -ifdef(DEBUG_CATEGORIES).
 -define(DEBUG, true).
 -endif.
 
 -ifdef(DEBUG).
 -ifndef(DEBUG_CATEGORIES).
--define(DEBUG_CATEGORIES, []). % [event,other]
+-define(DEBUG_CATEGORIES, []). % [event,tree,other]
 -endif.
 
 -define(DEBUG_DISPLAY(Cat,X),
@@ -188,9 +188,12 @@ ask_unzip([], Labels, Vals) ->
 %%         Hook should have arity 2 and return 'void' for any 
 %%         unknown arguments, like this:
 %%         fun (is_disabled, {Var,I,Store}) -> Bool;
-%%                 %% Called at redraw time for regular fields.
+%%                 %% Called at redraw time for all fields.
+%%                 %% For container fields the contained fields are
+%%                 %% disabled but not the container field.
 %%             (is_minimized, {Var,I,Store}) -> Bool;
-%%                 %% Called at layout time for regular fields.
+%%                 %% Called at layout time for all fields
+%%                 %% except Overlay frames.
 %%             (update, {Var,I,Val,Store}) ->
 %%                 keep|{store,NewStore}|done|{done,NewStore}|{layout,NewStore}
 %%                 %% Should make sure Val gets stored in NewStore.
@@ -808,7 +811,9 @@ redraw(S=#s{ox=Ox,oy=Oy,focus=Index,fi=Fi0,store=Sto}) ->
 	  end),
     gl:translated(Ox, Oy, 0),
     case draw_fields(Fi0, Index, Sto) of
-	keep -> keep;
+	keep -> 
+	    ?DEBUG_DISPLAY(other, {draw_fields,keep}),
+	    keep;
 	Fi ->
 	    Focusable = focusable(Fi),
 	    ?DEBUG_DISPLAY(other, {new_focusable,Focusable}),
@@ -914,67 +919,82 @@ collect_result_3(_Fields, _Sto, _Path, R, _I) -> R.
 %% Draw fields.
 %% Return new fields tree.
 
-draw_fields(Fi, Focus, Sto) -> draw_fields_1(Fi, Focus, Sto, []).
+draw_fields(Fi, Focus, Sto) -> draw_fields_1(Fi, Focus, enabled, Sto, []).
 
-draw_fields_1(Fi0=#fi{handler=Handler,key=Key,index=Index,hook=Hook,
-		      state=State0,minimized=Minimized,
-		      extra=Container=#container{fields=Fields0,
-						 selected=Selected}},
-	      Focus, Sto, Path0) ->
-    Path = [Fi0|Path0],
-    State = 
-	case State0 of
-	    inert -> inert;
-	    _ -> case hook(Hook, is_disabled, [var(Key, Index), Index, Sto]) of
-		     keep -> State0;
-		     St -> St
-		 end
+%% Container; minimized|maximized|undefined, enabled|disabled|inert
+draw_fields_1(#fi{handler=Handler,key=Key,index=Index,hook=Hook,
+		  state=State,minimized=Minimized,
+		  extra=Container=#container{fields=Fields0,
+					     selected=Selected}}=Fi,
+	      Focus, DisEnabled0, Sto, Path0) ->
+    DisEnabled = 
+	case DisEnabled0 of
+	    disabled -> disabled;
+	    enabled ->
+		case hook(Hook, is_disabled, [var(Key, Index), Index, Sto]) of
+		    keep -> enabled;
+		    DisEn -> DisEn
+		end
 	end,
+    Path = [Fi|Path0],
     Handler({redraw,Index =:= Focus,State}, Path, Sto),
     case {Minimized,Selected} of
 	{true,_} -> keep;
 	{_,undefined} ->
-	    case draw_fields_2(Fields0, Focus, Sto, Path, 1, [], false) of
+	    case draw_fields_2(Fields0, Focus, DisEnabled, 
+			       Sto, Path, 1, [], false) of
 		keep -> keep;
-		Fields -> Fi0#fi{extra=Container#container{fields=Fields}}
+		Fields -> Fi#fi{extra=Container#container{fields=Fields}}
 	    end;
 	{_,_} ->
-	    case draw_fields_1(element(Selected, Fields0), Focus, Sto, Path) of
+	    case draw_fields_1(element(Selected, Fields0), 
+			       Focus, DisEnabled, Sto, Path) of
 		keep -> keep;
-		Fi -> 
-		    Fields = setelement(Selected, Fields0, Fi),
-		    Fi0#fi{extra=Container#container{fields=Fields}}
+		SelFi -> 
+		    Fields = setelement(Selected, Fields0, SelFi),
+		    Fi#fi{extra=Container#container{fields=Fields}}
 	    end
     end;
-draw_fields_1(#fi{minimized=true}, _Focus, _Sto, _Path) -> 
+%% Leaf; minimized
+draw_fields_1(#fi{state=_State,minimized=true}=_Fi, 
+	      _Focus, _DisEnabled, _Sto, _Path) -> 
     keep;
-draw_fields_1(Fi=#fi{handler=Handler,state=inert}, 
-	      _Focus, Sto, Path) ->
-    Handler({redraw,false,inert}, [Fi|Path], Sto),
-    keep;
-draw_fields_1(Fi=#fi{handler=Handler,key=Key,index=Index,hook=Hook,
-		     state=State0}, 
-	      Focus, Sto, Path) ->
-    State = case hook(Hook, is_disabled, [var(Key, Index), Index, Sto]) of
-		keep -> State0;
-		St -> St
-	    end,
+%% Leaf; maximized|undefined, enabled|disabled|inert
+draw_fields_1(#fi{handler=Handler,key=Key,index=Index,hook=Hook,
+		  state=State0}=Fi0, 
+	      Focus, DisEnabled, Sto, Path) ->
+    State = 
+	case {State0,DisEnabled} of
+	    {inert,_} -> inert;
+	    {_,disabled} -> disabled;
+	    {_,enabled} -> 
+		case hook(Hook, is_disabled, [var(Key, Index), Index, Sto]) of
+		    keep -> DisEnabled;
+		    St -> St
+		end
+	end,
+    Fi = case State of
+	     State0 -> Fi0;
+	     _ -> Fi0#fi{state=State}
+	 end,
     Handler({redraw,Index =:= Focus, State}, [Fi|Path], Sto),
     case State of
 	State0 -> keep;
-	_ -> Fi#fi{state=State}
+	_ -> Fi
     end.
 
-draw_fields_2(Fields, Focus, Sto, TopFi, I, R, Changed)
+draw_fields_2(Fields, Focus, DisEnabled, Sto, TopFi, I, R, Changed)
   when I =< size(Fields) ->
     Fi0 = element(I, Fields),
-    case draw_fields_1(Fi0, Focus, Sto, TopFi) of
-	keep -> draw_fields_2(Fields, Focus, Sto, TopFi, I+1, [Fi0|R], Changed);
-	Fi -> draw_fields_2(Fields, Focus, Sto, TopFi, I+1, [Fi|R], true)
+    case draw_fields_1(Fi0, Focus, DisEnabled, Sto, TopFi) of
+	keep -> draw_fields_2(Fields, Focus, DisEnabled, 
+			      Sto, TopFi, I+1, [Fi0|R], Changed);
+	Fi -> draw_fields_2(Fields, Focus, DisEnabled,
+			    Sto, TopFi, I+1, [Fi|R], true)
     end;
-draw_fields_2(_Fields, _Focus, _Sto, _TopFi, _I, _R, false) ->
+draw_fields_2(_Fields, _Focus, _DisEnabled, _Sto, _TopFi, _I, _R, false) ->
     keep;
-draw_fields_2(_Fields, _Focus, _Sto, _TopFi, _I, R, true) ->
+draw_fields_2(_Fields, _Focus, _DisEnabled, _Sto, _TopFi, _I, R, true) ->
     list_to_tuple(reverse(R)).
 
 %% Get field index from mouse position.
@@ -1483,16 +1503,23 @@ layout_propagate_oframe([], _W, _H, R) ->
 %% Create a tuple of the focusable field indexes
 %%
 
-focusable(Fi) -> list_to_tuple(reverse(focusable_1(Fi, []))).
+focusable(Fi) -> 
+    T = list_to_tuple(reverse(focusable_1(Fi, []))),
+    ?DEBUG_DISPLAY(tree, T),
+    T.
 
+focusable_1(#fi{state=disabled,extra=#container{}}, R) ->
+    R;
 focusable_1(#fi{index=Index,state=State,minimized=Minimized,
 		extra=#container{fields=Fields,selected=Selected}}, R0) ->
     R = if State =:= enabled -> [Index|R0];
 	   true -> R0 end,
-    if  Minimized =:= true -> R;
-	true ->
-	    if Selected =:= undefined -> focusable_2(1, Fields, R);
-	       true -> focusable_1(element(Selected, Fields), R) 
+    case Minimized of
+	true -> R;
+	_ ->
+	    case Selected of
+		undefined -> focusable_2(1, Fields, R);
+		_ -> focusable_1(element(Selected, Fields), R) 
 	    end
     end;
 focusable_1(#fi{minimized=true,extra=#leaf{}}, R) -> R;
@@ -1513,7 +1540,8 @@ minimize_siblings(_Path, Sto) -> Sto.
 
 minimize_siblings(I, Fields, Index, Sto0) when I =< size(Fields) ->
     case element(I, Fields) of
-	#fi{key=Key,index=Ix,hook=Hook,minimized=false,flags=Flags,
+	#fi{key=Key,index=Ix,hook=Hook,
+	    state=enabled,minimized=false,flags=Flags,
 	    extra=#container{}} 
 	when Ix =/= Index -> 
 	    case hook(Hook, update, [var(Key, Ix),Ix,true,Sto0,Flags]) of
