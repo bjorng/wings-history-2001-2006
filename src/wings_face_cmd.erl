@@ -3,12 +3,12 @@
 %%
 %%     This module contains most of the face commands.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.27 2002/01/13 15:26:58 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.28 2002/01/20 11:17:54 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -108,26 +108,22 @@ dissolve(St0) ->
     {St,Sel} = wings_sel:mapfold(fun dissolve/3, [], St0),
     St#st{sel=reverse(Sel)}.
 
-dissolve(Faces0, #we{id=Id}=We0, Acc) ->
-    Rs = wings_sel:face_regions(Faces0, We0),
-    {We,Sel0} = dissolve_1(Rs, We0, We0, []),
-    Sel = gb_sets:union(wings_we:new_items(face, We0, We),
-			gb_sets:from_list(Sel0)),
-    {We,[{Id,Sel}|Acc]}.
-
-dissolve_1([Faces|Rs], WeOrig, #we{fs=Ftab}=We0, Sel) ->
-    case gb_trees:size(Faces) of
-	1 ->
-	    [Face] = gb_sets:to_list(Faces),
-	    dissolve_1(Rs, WeOrig, We0, [Face|Sel]);
-	Other ->
-	    {Face,_} = gb_sets:take_smallest(Faces),
-	    #face{mat=Mat} = gb_trees:get(Face, Ftab),
- 	    Parts = outer_edge_partition(Faces, We0),
- 	    We = do_dissolve(Faces, Parts, Mat, WeOrig, We0),
-	    dissolve_1(Rs, WeOrig, We, Sel)
-    end;
-dissolve_1([], WeOrig, We, Sel) -> {We,Sel}.
+dissolve(Faces, #we{id=Id}=We0, Acc) ->
+    We = dissolve_1(Faces, We0, We0),
+    case wings_we:is_consistent(We) of
+	true ->
+	    Sel = wings_we:new_items(face, We0, We),
+	    {We,[{Id,Sel}|Acc]};
+	false ->
+	    throw({command_error,
+		   "Dissolving would cause an inconsistent object structure."})
+    end.
+		  
+dissolve_1(Faces, WeOrig, #we{fs=Ftab}=We0) ->
+    {Face,_} = gb_sets:take_smallest(Faces),
+    #face{mat=Mat} = gb_trees:get(Face, Ftab),
+    Parts = outer_edge_partition(Faces, We0),
+    do_dissolve(Faces, Parts, Mat, WeOrig, We0).
 
 do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
     We1 = do_dissolve_faces(Faces, We0),
@@ -671,8 +667,9 @@ collect_outer_edges([Face|Fs], Faces, We, Acc0) ->
     collect_outer_edges(Fs, Faces, We, Acc);
 collect_outer_edges([], Faces, We, Acc) ->
     R = sofs:relation(Acc),
-    F = sofs:relation_to_family(R),
-    partition_edges(gb_trees:from_orddict(sofs:to_external(F)), []).
+    F0 = sofs:relation_to_family(R),
+    F = gb_trees:from_orddict(sofs:to_external(F0)),
+    partition_edges(F, Faces, We, []).
 
 outer_edge(Edge, Erec, Face, Faces, Acc) ->
     {V,OtherV,OtherFace} =
@@ -684,30 +681,67 @@ outer_edge(Edge, Erec, Face, Faces, Acc) ->
 	end,
     case gb_sets:is_member(OtherFace, Faces) of
 	true -> Acc;
-	false -> [{V,{Edge,V,OtherV,Face}}|Acc]
+	false -> [{V,{Edge,V,OtherV}}|Acc]
     end.
 
-partition_edges(Es0, Acc) ->
+partition_edges(Es0, Faces, We, Acc) ->
     case gb_sets:is_empty(Es0) of
 	true -> Acc;
 	false ->
 	    {Key,Val,Es1} = gb_trees:take_smallest(Es0),
-	    {Part,Es} = partition_edges(Key, unknown, Val, Es1, []),
-	    partition_edges(Es, [Part|Acc])
+	    {Part,Es} = partition_edges(Key, Val, Faces, Es1, We, []),
+	    partition_edges(Es, Faces, We, [Part|Acc])
     end.
 
-partition_edges(Va, _, [{Edge,Va,Vb,Face}], Es0, Acc0) ->
+partition_edges(Va, [{Edge,Va,Vb}], Faces, Es0, We, Acc0) ->
+    %%io:format("line:~w, ~w\n", [?LINE,Va]),
     Acc = [Edge|Acc0],
     case gb_trees:lookup(Vb, Es0) of
-	none -> {Acc,Es0};
+	none ->
+	    %%io:format("line:~w, ~w\n", [?LINE,Acc]),
+	    {Acc,Es0};
 	{value,Val} ->
+	    %%io:format("line:~w, ~w\n", [?LINE,{Va,Val}]),
 	    Es = gb_trees:delete(Vb, Es0),
-	    partition_edges(Vb, Face, Val, Es, Acc)
+	    partition_edges(Vb, Val, Faces, Es, We, Acc)
     end;
-partition_edges(Va, unknown, [{_,Va,_,Face}|_]=Edges, Es, Acc) ->
-    partition_edges(Va, Face, Edges, Es, Acc);
-partition_edges(Va, Face, Edges0, Es0, Acc) ->
-    [Val] = [E || {_,_,_,AFace}=E <- Edges0, AFace =:= Face],
-    Edges = [E || {_,_,_,AFace}=E <- Edges0, AFace =/= Face],
-    Es = gb_trees:insert(Va, Edges, Es0),
-    partition_edges(Va, Face, [Val], Es, Acc).
+partition_edges(Va, [Val|More], Faces, Es0, We, []) ->
+    %%io:format("line:~w, ~w\n", [?LINE,Va]),
+    Es = gb_trees:insert(Va, More, Es0),
+    partition_edges(Va, [Val], Faces, Es, We, []);
+partition_edges(Va, Edges, Faces, Es, We, Acc) ->
+    %%io:format("line:~w, ~w\n", [?LINE,{Va,Edges}]),
+    part_try_all_edges(Va, Edges, Faces, Es, We, Acc, [], none).
+    
+%% Here we have multiple choices of edges. Use the shortest path
+%% that don't return us to the Va vertex.
+%% (We want edge loops without repeated vertices.)
+part_try_all_edges(Va, [Val|More], Faces, Es0, We, Acc, Alt0, Path0) ->
+    %%io:format("line:~w, ~w\n", [?LINE,Va]),
+    Es1 = gb_trees:insert(Va, [{repeated,Va,fake}], Es0),
+    case partition_edges(Va, [Val], Faces, Es1, We, Acc) of
+	none ->
+	    Alt = [Val|Alt0],
+	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Alt, Path0);
+	{[repeated|_],_} ->
+	    Alt = [Val|Alt0],
+	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Alt, Path0);
+	{_,_}=Found ->
+	    Path = part_shortest_path(Path0, Found),
+	    part_try_all_edges(Va, More, Faces, Es0, We, Acc, Alt0, Path)
+    end;
+part_try_all_edges(Va, [], _, _, _, _, [], {Path,Es}) ->
+    %%io:format("line:~w, ~w\n", [?LINE,Va]),
+    {Path,gb_trees:delete(Va, Es)};
+part_try_all_edges(Va, [], _, _, _, _, Alt, {Path,Es}) ->
+    %%io:format("line:~w, ~w\n", [?LINE,Va]),
+    {Path,gb_trees:enter(Va, Alt, Es)};
+part_try_all_edges(Va, [], _, _, _, _, Alt, none) ->
+    %%io:format("line:~w, ~w\n", [?LINE,Va]),
+    none.
+
+part_shortest_path(none, Path) -> Path;
+% part_shortest_path(Old, {[_,_],_}) -> Old;
+% part_shortest_path(Old, {[_],_}) -> Old;
+part_shortest_path({AccA,_}=A, {AccB,_}) when length(AccA) < length(AccB) -> A;
+part_shortest_path({_,_}, {_,_}=B) -> B.
