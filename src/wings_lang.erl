@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.14 2005/03/04 09:17:57 dgud Exp $
+%%     $Id: wings_lang.erl,v 1.15 2005/03/13 09:19:06 bjorng Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -149,7 +149,10 @@ diff(LangFile, EngTmplFile) ->
     case diff(Eng,Lang,LangFile,[],[]) of
 	[] -> ok;
 	Miss ->
-	    io:format("%% Missing translations in ~s~n", [LangFile]),
+	    io:nl(),
+	    io:put_chars("%%\n"),
+	    io:put_chars("%% The following strings have no translation.\n"),
+	    io:put_chars("%%\n\n"),
 	    Out = group_leader(),
 	    lists:foreach(fun(M) -> output_strings(M,Out) end,
 			  reverse(Miss))
