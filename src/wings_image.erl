@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.27 2003/09/22 22:04:58 dgud Exp $
+%%     $Id: wings_image.erl,v 1.28 2003/09/24 10:17:21 dgud Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
 	 from_file/1,new/2,create/1,rename/2,txid/1,info/1,images/0,
-	 bumpid/1, next_id/0,delete_older/1,delete_from/1,delete/1,
+	 bumpid/1, normal_cubemapid/0,
+	 next_id/0,delete_older/1,delete_from/1,delete/1,
 	 update/2,update_filename/2,draw_preview/5,
 	 window/1]).
 
@@ -57,6 +58,9 @@ txid(Id) ->
 
 bumpid(Id) ->
     req({bumpid,Id}, false).
+
+normal_cubemapid() ->
+    req(normalCM, false).
 
 info(Id) ->
     req({info,Id}, false).
@@ -155,19 +159,26 @@ handle({txid,Id}, S) ->
 	 TxId -> TxId
      end,S};
 handle({bumpid,Id}, S) ->
-    case get({Id,bump}) of
-	undefined -> 
-	    create_bump(Id, S);
-	TxId -> 
-	    {TxId,S}
-    end;
+    {case get({Id,bump}) of
+	 undefined -> 
+	     create_bump(Id, S);
+	 TxId -> 
+	     TxId
+     end,S};
+handle(normalCM, S) ->
+    {case get(normalCM) of
+	 undefined -> 
+	     create_normal_cube_map();
+	 TxId -> 
+	     TxId
+     end,S};
 handle({info,Id}, #ist{images=Images}=S) ->
     case gb_trees:lookup(Id, Images) of
 	{value,E3D} -> {E3D,S};
 	none -> {none,S}
     end;
 handle(images, #ist{images=Images}=S) ->
-    {filter_bumps(gb_trees:to_list(Images)),S};
+    {gb_trees:to_list(Images),S};
 handle(next_id, #ist{next=Id}=S) ->
     {Id,S};
 handle({delete,Id}, S) ->
@@ -189,23 +200,28 @@ handle({draw_preview,X,Y,W,H,Id}, S) ->
 	 TxId -> draw_image(X, Y, W, H, TxId)
      end,S}.
 
-% Returns {TexId|none, NewS} 
-create_bump(Id, S = #ist{images=Images0}) ->
+create_bump(Id, #ist{images=Images0}) ->
     case gb_trees:lookup(Id, Images0) of
 	{value, E3D} -> 
 	    %% Scale ?? 4 is used in the only example I've seen.
 	    Bump = e3d_image:height2normal(E3D, 4),
-	    Images = gb_trees:insert({Id,bump}, Bump, Images0),
-	    Tid = make_texture({Id,bump}, Bump),
-	    {Tid,S#ist{images=Images}};
+	    Tid  = make_texture({Id,bump}, Bump),
+	    Tid;
 	_ ->
 	    none
     end.
 
-filter_bumps(List) ->
-    lists:filter(fun({{_,bump},_}) -> false;
-		    (_) -> true 
-		 end, List).
+create_normal_cube_map() ->
+    case wings_util:is_gl_ext('GL_ARB_texture_cube_map') of
+	true ->	
+	    [CubeMap] = gl:genTextures(1),
+	    gl:bindTexture(?GL_TEXTURE_CUBE_MAP, CubeMap),
+	    make_normalize_vector_cubemap(32),
+	    put(normalCM,CubeMap),
+	    CubeMap;
+	false ->
+	    none
+    end.
 
 maybe_convert(#e3d_image{type=Type0,order=Order}=Im) ->
     case {img_type(Type0),Order} of
@@ -298,10 +314,10 @@ internal_format(Else, _) -> Else.
 
 delete(Id, #ist{images=Images0}=S) ->
     gl:deleteTextures(1, [erase(Id)]),
-    Images1 = delete_bump(Id,Images0),
-    Images = gb_trees:delete(Id, Images1),
+    delete_bump(Id),
+    Images = gb_trees:delete(Id, Images0),
     S#ist{images=Images}.
-%% delete_older and delete_from don't work with bumps, are they used??
+
 delete_older(Id, #ist{images=Images0}=S) ->
     Images1 = delete_older_1(gb_trees:to_list(Images0), Id),
     Images = gb_trees:from_orddict(Images1),
@@ -309,11 +325,12 @@ delete_older(Id, #ist{images=Images0}=S) ->
 
 delete_older_1([{Id,_}|T], Limit) when Id < Limit ->
     gl:deleteTextures(1, [erase(Id)]),
+    delete_bump(Id),
     delete_older_1(T, Limit);
 delete_older_1(Images, _) -> Images.
 
 delete_from(Id, #ist{images=Images0}=S) ->
-    Images1 = delete_from_1(filter_bumps(gb_trees:to_list(Images0)), Id, []),
+    Images1 = delete_from_1(gb_trees:to_list(Images0), Id, []),
     Images = gb_trees:from_orddict(Images1),
     S#ist{images=Images}.
 
@@ -321,16 +338,16 @@ delete_from_1([{Id,_}=Im|T], Limit, Acc) when Id < Limit ->
     delete_from_1(T, Limit, [Im|Acc]);
 delete_from_1([{Id,_}|T], Limit, Acc) ->
     gl:deleteTextures(1, [erase(Id)]),
+    delete_bump(Id),
     delete_from_1(T, Limit, Acc);
 delete_from_1([], _, Acc) -> reverse(Acc).
 
-delete_bump(Id,Images) ->
+delete_bump(Id) ->
     case erase({Id,bump}) of
 	undefined ->
-	    Images;
+	    ok;
 	Bid ->
-	    gl:deleteTextures(1, [Bid]),
-	    gb_trees:delete({Id,bump}, Images)
+	    gl:deleteTextures(1, [Bid])
     end.
 
 do_update(Id, In = #e3d_image{width=W,height=H,type=Type}, 
@@ -578,3 +595,50 @@ pattern_repeat(N, D) ->
 	0 -> [B|B];
 	1 -> [D,B|B]
     end.
+
+%% Creating Normal-Cubemap
+
+%% Initialize a cube map texture object that generates RGB values
+%% that when expanded to a [-1,1] range in the texture-unit
+%% form a normalized vector matching the per-pixel vector used to
+%% access the cube map.
+
+make_normalize_vector_cubemap(Size) ->
+    gl:texParameteri(?GL_TEXTURE_CUBE_MAP, ?GL_TEXTURE_WRAP_S, ?GL_CLAMP_TO_EDGE),
+    gl:texParameteri(?GL_TEXTURE_CUBE_MAP, ?GL_TEXTURE_WRAP_T, ?GL_CLAMP_TO_EDGE),
+    gl:texParameteri(?GL_TEXTURE_CUBE_MAP, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
+    gl:texParameteri(?GL_TEXTURE_CUBE_MAP, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
+
+    Sides = [?GL_TEXTURE_CUBE_MAP_POSITIVE_X, ?GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+	     ?GL_TEXTURE_CUBE_MAP_POSITIVE_Y, ?GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
+	     ?GL_TEXTURE_CUBE_MAP_POSITIVE_Z, ?GL_TEXTURE_CUBE_MAP_NEGATIVE_Z],
+    lists:foreach(fun(Side) -> make_cube_map(Side,Size-1,Size-1,Size, []) end, Sides).
+
+make_cube_map(Side,-1,-1,Size,Acc) ->
+    Image = list_to_binary(Acc),
+    gl:texImage2D(Side, 0, ?GL_RGB8, Size, Size, 0, 
+		  ?GL_RGB, ?GL_UNSIGNED_BYTE, Image);
+make_cube_map(Side,-1,Y,Size,Acc) ->
+    make_cube_map(Side,Size-1,Y-1,Size,Acc);
+make_cube_map(Side,X,Y,Size,Acc) ->
+    Vec = get_cube_vec(Side,Size,X,Y),
+    make_cube_map(Side,X-1,Y,Size,[Vec|Acc]).
+
+%% Given a cube map face index, cube map size, and integer 2D face position,
+%% return the cooresponding normalized vector.
+get_cube_vec(Side, Size, X, Y) ->
+    S = (X + 0.5) / Size,
+    T = (Y + 0.5) / Size,    
+    SC = S*2.0 - 1.0,    
+    TC = T*2.0 - 1.0,
+    Vec = 
+	case Side of
+	    ?GL_TEXTURE_CUBE_MAP_POSITIVE_X -> {1.0,  -TC, -SC};
+	    ?GL_TEXTURE_CUBE_MAP_NEGATIVE_X -> {-1.0, -TC,  SC};
+	    ?GL_TEXTURE_CUBE_MAP_POSITIVE_Y -> {SC,   1.0,  TC};
+	    ?GL_TEXTURE_CUBE_MAP_NEGATIVE_Y -> {SC,  -1.0, -TC};
+	    ?GL_TEXTURE_CUBE_MAP_POSITIVE_Z -> {SC,   -TC, 1.0};
+	    ?GL_TEXTURE_CUBE_MAP_NEGATIVE_Z -> {-SC,  -TC,-1.0}
+	end,
+    {RX,RY,RZ} = e3d_vec:norm(Vec),
+    [round(128+127*RX),round(128+127*RY),round(128+127*RZ)].
