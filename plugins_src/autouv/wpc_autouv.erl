@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.190 2004/03/02 05:01:29 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.191 2004/03/04 16:24:00 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -279,13 +279,19 @@ insert_material(Cs, MatName, We) ->
     Faces = lists:append([Fs || #we{name=#ch{fs=Fs}} <- gb_trees:values(Cs)]),
     wings_material:assign(MatName, Faces, We).
 
-init_edit(MatName, Faces, We0) ->
+init_edit(MatName, Faces0, We0) ->
+    Faces = [F || F <- Faces0, has_proper_uvs(F, We0)],
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
     Charts = auv_segment:cut_model(Charts1, Cuts, We0),
     Map1 = build_map(Charts, FvUvMap, 1, []),
     Map  = gb_trees:from_orddict(sort(Map1)),
     {Map,MatName}.
+
+has_proper_uvs(Face, We) ->
+    foldl(fun({_,_}, F) -> F;
+	     (_, _) -> false
+	  end, true, wings_face:vertex_info(Face, We)).
 
 build_map([{Fs,Vmap,We0}|T], FvUvMap, No, Acc) ->
     %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
@@ -300,11 +306,15 @@ build_map([{Fs,Vmap,We0}|T], FvUvMap, No, Acc) ->
     UVs1 = ordsets:from_list(UVs0),
     %% Assertion.
     true = sofs:is_a_function(sofs:relation(UVs1, [{atom,atom}])),
-    UVs = [{V,{X,Y,0.0}} || {V,{X,Y}} <- UVs1],
+    Z = zero(),
+    UVs = [{V,{X,Y,Z}} || {V,{X,Y}} <- UVs1],
     Chart = #ch{fs=Fs,size=undefined,vmap=Vmap},
     We = We0#we{name=Chart,id=No,vp=gb_trees:from_orddict(UVs)},
     build_map(T, FvUvMap, No+1, [{No,We}|Acc]);
 build_map([], _, _, Acc) -> Acc.
+
+zero() ->
+    0.0.
 
 %%%%% Material handling
 
@@ -809,7 +819,7 @@ draw_selection(#st{sel=Sel} = St) ->
 	    {R,G,B} = wings_pref:get_value(selected_color),
 	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
 	    gl:enable(?GL_BLEND),
-	    gl:translatef(0.0, 0.0, 0.1),
+	    gl:translatef(0, 0, 0.1),
 	    Settings = {R,G,B,0.7},
 	    wpa:sel_fold(fun(_, We, _) ->
 				 draw_chart(We, Settings)
