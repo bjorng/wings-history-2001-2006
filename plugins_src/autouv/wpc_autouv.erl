@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.6 2002/10/09 21:46:34 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.7 2002/10/09 21:57:44 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -38,12 +38,12 @@ menu({body}, Menu0) ->
 	undefined ->
 	    SubMenu1 = 
 		[{"Create UV map", create, 
-		  "Create a new texture mapping(removing old)"},
+		  "Create a new texture mapping (removing old)"},
 		 {"Edit UV map", edit, 
 		  "Edit a previously created UV-map"}],
 	    Menu0 ++ [separator,
 		      {"UV-Mapping", {uvmap, SubMenu1},
-		       "Generate or edit a uv-map or texture"}];
+		       "Generate or edit a UV-map or texture"}];
 	_UvState ->
 	    parameterization_menu(Menu0)
     end;
@@ -86,7 +86,7 @@ command({body, {uvmap, create}}, St0) ->
     Qs = [{vframe,[{alt,DefVar,"Advanced Cubic",autouvmap},
 		   {alt,DefVar,"By Feature Detection",feature},
 		   {alt,DefVar,"By Material",mat_uvmap},
-		   {alt,DefVar,"I'll do it by my self", one}
+		   {alt,DefVar,"I'll segment the model myself", one}
 		  ],
 	   [{title,"Segmentation type"}]}],
     Text = "Set charts, place faces into charts",
@@ -101,7 +101,7 @@ command({_, uvmap_cancel}, _St0) ->
     [{oldst,S1}] = get(auv_state),
     erase(auv_state),
     S1;
-command({State, continue_param}, St0) ->
+command({_State, continue_param}, _St) ->
     DefVar = {seg_type,project},
     Qs = [{vframe,[{alt,DefVar,"Projection",project},
 		   {alt,DefVar,"Parametrization", lsqcm}
@@ -196,14 +196,14 @@ segment(Mode, St0) ->
    	   mark_segments(Charts, Bounds, We, A)
 	end, St0, St0)).
 
-mark_segments(Charts, Bounds, We0, St0) ->
+mark_segments(Charts, Bounds, We0, St) ->
     %% Use HardEdges to mark Boundries
     We1 = We0#we{he = gb_sets:from_list(Bounds)},
     %% Use materials to mark different charts
     Max = length(Charts),
     ColorMe = [create_diffuse(This, Max) || This <- Charts],
     NewMat = wings_material:default(),
-    St1 = create_materials(ColorMe, We1, St0#st{mat=NewMat}).
+    create_materials(ColorMe, We1, St#st{mat=NewMat}).
 
 %% Create temp Materials 
 create_materials([{MatName, Diff, Faces}|Distances], We, St0) ->
@@ -304,12 +304,12 @@ init_areas([Chart|R], A, Type, We) ->
 	    lsqcm ->
 		auv_mapping:lsqcm(Chart, We)
 	end,
-    New = create_area(Chart, MappedVs, We),
+    New = create_area(Chart, MappedVs),
     init_areas(R, [New|A], Type, We);
-init_areas([], A, Type, _We) ->
+init_areas([], A, _Type, _We) ->
     A.
    
-create_area({_,Fs}, Vs0, We) ->    
+create_area({_,Fs}, Vs0) ->
     [{_, {X,Y,_}} |RVs1] = Vs0,
     {BX0, BX1, BY0, BY1} =
 	foldl(fun({_, Pos}, Ac) -> maxmin(Pos, Ac) end, {X,X,Y,Y}, RVs1),
@@ -662,7 +662,7 @@ setup_view({X0,Y0,W,H,X0Y0,XM,YM}, Part, Uvs) ->
 wings_view(Uvs = #uvstate{mode = Mode, geom = {{X1,Y1,W1,H1}, {X2,Y2,_,_,_,_,_}}, st = St}) ->
     ModeL = atom_to_list(Mode),
     Text = [ModeL] ++ [" Mode: [R] in texture window to access menu, "
-		       "[L} to select face groups"],
+		       "[L] to select face groups"],
     wings_io:message(Text),
     [X0=0,Y0=0,W0,H0] = gl:getIntegerv(?GL_VIEWPORT),
     gl:viewport(X1,Y1,W1,H1),
@@ -765,7 +765,7 @@ draw_windows(Uvs) ->
     reset_view(),
     Uvs1.
 
-command_menu(faceg, X,Y, Uvs) ->
+command_menu(faceg, X,Y, _Uvs) ->
     Rotate = [{"Z    Free",  free, "Drag mouse to rotate free"},
 	      {"Z   90 deg", 90, " "},
 	      {"Z  -90 deg", -90, " "},
@@ -783,19 +783,19 @@ command_menu(faceg, X,Y, Uvs) ->
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 
-command_menu(face, X,Y, Uvs) ->
+command_menu(face, X,Y, _Uvs) ->
     Menu = [{"Face operations", ignore}, 
 	    {"Email your ideas", ignore}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 
-command_menu(edge, X,Y, Uvs) ->
+command_menu(edge, X,Y, _Uvs) ->
     Menu = [{"Edge operations", ignore},
 	    {"Email your ideas", ignore}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 
-command_menu(vertex, X,Y, Uvs) ->
+command_menu(vertex, X,Y, _Uvs) ->
     Menu = [{"Vertex operations", ignore},
 	    {"Email your ideas", ignore}
 	   ] ++ option_menu(),
@@ -812,7 +812,7 @@ option_menu() ->
      separator,
      {"Quit", quit, "Quit AutoUv-mapper"}].
 
-edge_option_menu(Uvs = #uvstate{option = Option}) ->    
+edge_option_menu(#uvstate{option = Option}) ->
     DefVar = {edge_mode, Option#setng.edges},
     DefTSz = {txsize, element(1, Option#setng.texsz)},
     MaxTxs = min([4096,gl:getIntegerv(?GL_MAX_TEXTURE_SIZE)]),
@@ -879,8 +879,7 @@ handle_event(Event, Uvs0) ->
 	when MX > X0, MX < X0 + W, (OH - MY) > Y0, (OH - MY) < Y0 + H,
 	     Op == undefined ->
 	    command_menu(Mode, MX,MY, Uvs0);
-	#mousebutton{state = ?SDL_RELEASED, button = ?SDL_BUTTON_RIGHT,
-		     x = MX, y = MY} ->
+	#mousebutton{state = ?SDL_RELEASED, button = ?SDL_BUTTON_RIGHT} ->
 	    case Op of
 		{_, Old} ->
 		    get_event(Old);
@@ -902,9 +901,9 @@ handle_event(Event, Uvs0) ->
 		    {Sel1, Curr1} = 
 			case (sdl_keyboard:getModState() band ?KMOD_CTRL) /= 0 of
 			    true -> 
-				update_selection(Mode,Hits -- Sel0, Sel0, Curr0);
+				update_selection(Hits -- Sel0, Sel0, Curr0);
 			    false ->
-				update_selection(Mode,[hd(Hits)], Sel0, Curr0)
+				update_selection([hd(Hits)], Sel0, Curr0)
 			end,
 		    get_event(Uvs0#uvstate{sel = Sel1,
 					   st = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
@@ -927,7 +926,7 @@ handle_event(Event, Uvs0) ->
 			    get_event(Uvs0#uvstate{op = undefined});
 			Hits -> 
 %%			    ?DBG("Hit number ~p \n",[length(Hits)]),
-			    {Sel1, Curr1} = update_selection(Mode,Hits, Sel0, Curr0),
+			    {Sel1, Curr1} = update_selection(Hits, Sel0, Curr0),
 			    get_event(Uvs0#uvstate{sel = Sel1,
 						   st = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
 						   areas = As#areas{as=Curr1},
@@ -955,12 +954,12 @@ handle_event(Event, Uvs0) ->
 	%% #mousebutton{state = ?SDL_RELEASED, x = MX, y = MY} ->
 	%%     ?DBG("Untrapped Mouse event at ~p Y ~p~n", [{MX,MY}, {Y0, H}]),
 	%%     get_event(Uvs0);
-	MB = #mousebutton{state = ?SDL_PRESSED, button = Butt, x = MX, y = MY} 
+	MB = #mousebutton{state = ?SDL_PRESSED, button = Butt, x = MX}
 	when MX < X0, Op == undefined ->
 	    case Butt of 
 		?SDL_BUTTON_MIDDLE ->
 		    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
-		Else ->
+		_Else ->
 		    case sdl_keyboard:getModState() of
 			Mod when Mod band ?CTRL_BITS =/= 0 ->
 			    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
@@ -968,14 +967,14 @@ handle_event(Event, Uvs0) ->
 			    keep
 		    end
 	    end;
-	MB = #mousebutton{button = Butt, x = MX, y = MY}
+	MB = #mousebutton{button = Butt, x = MX}
 	when MX < X0, Op == undefined, Butt == 4 -> %% Mouse wheel
 	    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
-	MB = #mousebutton{button = Butt, x = MX, y = MY}
+	MB = #mousebutton{button = Butt, x = MX}
 	when MX < X0, Op == undefined, Butt == 5 -> %% Mouse wheel
 	    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
 	
-	MB = #mousebutton{} ->
+	#mousebutton{} ->
 %%	    ?DBG("Got2 MB ~p\n", [MB]),
 	    keep;
 	#keyboard{state = ?SDL_PRESSED, keysym = Sym} ->
@@ -1100,7 +1099,7 @@ handle_event(Event, Uvs0) ->
     end.
 
 handle_mousemotion(#mousemotion{xrel = DX, yrel = DY, x=MX,y=MY}, Uvs0) ->
-    #uvstate{geom = {{_,_,_,OH},ViewP={X0,Y0,W,H,X0Y0,MW0,MH0}},
+    #uvstate{geom = {{_,_,_,_OH},{_X0,_Y0,W,H,X0Y0,MW0,MH0}},
 	     mode = Mode, op = Op, sel = Sel0} = Uvs0,
     MW =  (MW0-X0Y0) * DX/W,
     MH = -(MH0-X0Y0) * DY/H,
@@ -1118,7 +1117,7 @@ handle_mousemotion(#mousemotion{xrel = DX, yrel = DY, x=MX,y=MY}, Uvs0) ->
 	{rotate, _} ->
 	    Sel1 = [rotate_area(Mode, A,MW,MH)|| A <- Sel0],
 	    get_event(Uvs0#uvstate{sel = Sel1});
-	{{boxsel, Orig = {OX,OY}, Last},Old} ->
+	{{boxsel, Orig = {_OX,_OY}, Last},Old} ->
 	    gl:matrixMode(?GL_PROJECTION),
 	    gl:pushMatrix(),
 	    gl:loadIdentity(),
@@ -1151,7 +1150,8 @@ import_file(FileName1, Uvs0) ->
 	#e3d_image{width = TW, height = TH, image = TexBin} ->
 	    case (TW == TH) andalso is_power_of_two(TW) of
 		true ->
-		    {St1,As} = add_material(edit,{TW,TH,TexBin},Uvs0#uvstate.st,Uvs0#uvstate.areas),
+		    {St1,_As} = add_material(edit, {TW,TH,TexBin},
+					     Uvs0#uvstate.st, Uvs0#uvstate.areas),
 		    Option = Uvs0#uvstate.option,
 		    get_event(Uvs0#uvstate{st = St1, 
 					   option=Option#setng{texbg = true}, 
@@ -1205,7 +1205,7 @@ draw_marquee({X, Y}, {Ox,Oy}) ->
     gl:disable(?GL_COLOR_LOGIC_OP);
 draw_marquee(_,_) -> ok.
     
-update_selection(Mode,Areas, Sel0, Other0) -> 
+update_selection(Areas, Sel0, Other0) -> 
     foldl(fun(Hit = {[Id|_],Area}, {Sel, Other}) ->
 		  case gb_trees:lookup(Id, Other) of
 		      {value, _} -> %% other 
@@ -1356,7 +1356,7 @@ greatest(A,B) ->
 	    B
     end.
 
-move_area(faceg, {Id, A = #a{center = {X0,Y0}, scale = S}}, DX, DY) ->
+move_area(faceg, {Id, A = #a{center = {X0,Y0}}}, DX, DY) ->
 %    ?DBG("Move ~p ~p ~p~n", [{X0,Y0}, S, {DX, DY}]),
 %%    A#a{center = {X0+DX/S, Y0+DY/S}}.
     {Id, A#a{center = {X0+DX, Y0+DY}}}.
