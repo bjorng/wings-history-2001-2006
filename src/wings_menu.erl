@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.67 2002/11/30 08:58:17 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.68 2002/12/01 09:40:57 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -363,7 +363,8 @@ set_hotkey(Val, #mi{sel=Sel,menu=Menu0}=Mi) ->
 	_Other -> Mi
     end.
 
-popup_submenu(Button, X0, Y0, SubName, SubMenu0, #mi{owner=Owner}=Mi) ->
+popup_submenu(Button, X0, Y0, SubName, SubMenu0,
+	      #mi{owner=Owner,level=Level}=Mi) ->
     %% Only in advanced menu mode.
     case expand_submenu(Button, SubName, SubMenu0, Mi) of
 	ignore -> keep;
@@ -373,9 +374,8 @@ popup_submenu(Button, X0, Y0, SubName, SubMenu0, #mi{owner=Owner}=Mi) ->
 	    delete_all(Mi);
 	SubMenu when is_list(SubMenu) ->
 	    {X,Y} = wings_wm:local2global(X0, Y0),
-	    Cb = fun() -> menu_setup(popup, X, Y, SubName, SubMenu, Mi) end,
-	    wings_wm:callback(Cb),
-	    delete_all(Mi)
+	    menu_setup(popup, X, Y, SubName, SubMenu, Mi#mi{level=Level+1}),
+	    delete
     end.
 
 submenu(I, Name, Menu0, #mi{w=W,hs=Hs,level=Level}=Mi0) ->

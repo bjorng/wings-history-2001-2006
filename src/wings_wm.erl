@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.27 2002/12/01 08:25:31 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.28 2002/12/01 09:40:57 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -209,7 +209,6 @@ event_loop() ->
 	_ ->
 	    case wings_io:poll_event() of
 		{new_state,_} -> get_and_dispatch();
-		{wm,_} -> get_and_dispatch();
 		_ ->
 		    redraw_all()
 	    end
