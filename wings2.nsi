@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings2.nsi,v 1.4 2002/09/08 06:26:05 bjorng Exp $
+#     $Id: wings2.nsi,v 1.5 2002/09/08 07:22:39 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -84,10 +84,10 @@ Section "ThisNameIsIgnoredSoWhyBother?"
   Delete "$INSTDIR\plugins\primitives\wpc_plane.beam"
 
   ; Some releases have all command plug-ins in the import_export directory.
-  Delete "$INSTDIR\plugins\import_export\wpc_region.beam
-  Delete "$INSTDIR\plugins\import_export\wpc_triquad_cmd.beam
-  Delete "$INSTDIR\plugins\import_export\wpc_turnedge.beam
-  Delete "$INSTDIR\plugins\import_export\wpc_tweak.beam
+  Delete "$INSTDIR\plugins\import_export\wpc_region.beam"
+  Delete "$INSTDIR\plugins\import_export\wpc_triquad_cmd.beam"
+  Delete "$INSTDIR\plugins\import_export\wpc_turnedge.beam"
+  Delete "$INSTDIR\plugins\import_export\wpc_tweak.beam"
 
   ; create shortcuts
   Call GetStartMenu
