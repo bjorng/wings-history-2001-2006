@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.23 2002/11/16 13:53:28 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.24 2002/11/18 17:45:57 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -18,7 +18,8 @@
 -include("e3d.hrl").
 -include("e3d_image.hrl").
 
--import(lists, [map/2,reverse/1,reverse/2,sort/1,keysort/2,usort/1,foldl/3]).
+-import(lists, [map/2,foldl/3,mapfoldl/3,reverse/1,reverse/2,
+		sort/1,keysort/2,usort/1,keydelete/3,keyreplace/4]).
 -define(FLOAT, float-little).
 
 %%%
@@ -438,17 +439,59 @@ export(Name, Objs) ->
 make_editor(Name, #e3d_file{objs=Objs0,mat=Mat0}) ->
     MeshVer = make_chunk(16#3d3e, <<3:32/little>>),
     Unit = make_chunk(16#0100, <<(1.0):32/?FLOAT>>),
-    Objs = make_objects(Objs0),
-    Mat = make_material(Name, Mat0),
+    Objs1 = make_names_uniq(Objs0),
+    Objs = make_objects(Objs1),
+    Mat1 = make_tx_uniq(Mat0),
+    Mat = make_material(Name, Mat1),
     make_chunk(16#3D3D, [MeshVer,Mat,Unit,Objs]).
 
-make_objects([#e3d_object{name=Name0,obj=Mesh0}|Objs]) ->
-    Name = lists:sublist(Name0, 1, 10),
+make_objects([#e3d_object{name=Name,obj=Mesh0}|Objs]) ->
     Mesh = e3d_mesh:triangulate(Mesh0),
     MeshChunk = make_mesh(Mesh),
     Chunk = make_chunk(16#4000, [Name,0,MeshChunk]),
     [Chunk|make_objects(Objs)];
 make_objects([]) -> [].
+
+make_names_uniq(Objs) ->
+    Names = [Name || #e3d_object{name=Name} <- Objs],
+    Map0 = e3d_util:make_uniq(Names, 10),
+    Map = gb_trees:from_orddict(sort(Map0)),
+    [Obj#e3d_object{name=gb_trees:get(Name, Map)} ||
+	#e3d_object{name=Name}=Obj <- Objs].
+
+make_tx_uniq(Mat0) ->
+    {Mat,Names} =
+	mapfoldl(fun({N,Ps0}=M, A) ->
+			 case get_map(diffuse, Ps0) of
+			     none -> {M,A};
+			     {W,H,Bits} ->
+				 Name = atom_to_list(N),
+				 Val = {Name,W,H,Bits},
+				 Ps = replace_map(diffuse, Val, Ps0),
+				 {{N,Ps},[Name|A]}
+			 end
+		 end, [], Mat0),
+    MapTrans0 = e3d_util:make_uniq(Names, 8),
+    MapTrans = gb_trees:from_orddict(sort(MapTrans0)),
+    map(fun({N,Ps0}=M) ->
+		case get_map(diffuse, Ps0) of
+		    none -> M;
+		    {Name0,W,H,Bits} ->
+			Name = gb_trees:get(Name0, MapTrans),
+			Val = {Name,W,H,Bits},
+			Ps = replace_map(diffuse, Val, Ps0),
+			{N,Ps}
+		end
+	end, Mat).
+
+get_map(Type, Ps) ->
+    Maps = proplists:get_value(maps, Ps, []),
+    proplists:get_value(Type, Maps, none).
+
+replace_map(MapType, Val, Ps) ->
+    Maps0 = proplists:get_value(maps, Ps, []),
+    Maps = [{MapType,Val}|keydelete(MapType, 1, Maps0)],
+    keyreplace(maps, 1, Ps, {maps,Maps}).
 
 make_mesh(Mesh0) ->
     Mesh = split_vertices(Mesh0),
@@ -514,7 +557,7 @@ make_face_mat_1([#e3d_face{mat=Mat}|Fs], Face, Acc) ->
 make_face_mat_1([], _Face, Acc) -> Acc.
 
 make_material(Filename, Mat) ->
-    Base =  filename:rootname(Filename, ".3ds"),
+    Base = filename:rootname(Filename, ".3ds"),
     [make_material_1(Base, M) || M <- Mat].
 
 make_material_1(Base, {Name,Mat}) ->
@@ -522,7 +565,7 @@ make_material_1(Base, {Name,Mat}) ->
     OpenGL = proplists:get_value(opengl, Mat),
     Maps = proplists:get_value(maps, Mat),
     MatChunks = make_material_2(OpenGL, []),
-    TxChunks = make_texture_materials(Maps, Base, Name, []),
+    TxChunks = make_texture_materials(Maps, Base, []),
     make_chunk(16#AFFF, [NameChunk,MatChunks|TxChunks]).
 
 make_material_2([{diffuse,{_,_,_,Opac0}=Color}|T], Acc) ->
@@ -542,20 +585,16 @@ make_material_2([_|T], Acc) ->
     make_material_2(T, Acc);
 make_material_2([], Acc) -> Acc.
 
-make_texture_materials([{diffuse,Map}|T], Base, Name, Acc) ->
-    Tx = export_map(16#A200, "diff", Map, Base, Name),
-    make_texture_materials(T, Base, Name, [Tx|Acc]);
-make_texture_materials([{bump,Map}|T], Base, Name, Acc) ->
-    Tx = export_map(16#A230, "bump", Map, Base, Name),
-    make_texture_materials(T, Base, Name, [Tx|Acc]);
-make_texture_materials([_|T], Base, Name, Acc) ->
-    make_texture_materials(T, Base, Name, Acc);
-make_texture_materials([], _, _, Acc) -> Acc.
+make_texture_materials([{diffuse,Map}|T], Base, Acc) ->
+    Tx = export_map(16#A200, Map, Base),
+    make_texture_materials(T, Base, [Tx|Acc]);
+make_texture_materials([_|T], Base, Acc) ->
+    make_texture_materials(T, Base, Acc);
+make_texture_materials([], _, Acc) -> Acc.
 
-export_map(_, _, none, _, _) -> ok;
-export_map(ChunkId, Label0, {W,H,Map}, Root, Name) ->
-    Label = "map_" ++ Label0,
-    MapFile = Root ++ "_" ++ atom_to_list(Name) ++ "_" ++ Label ++ ".bmp",
+export_map(_, none, _) -> ok;
+export_map(ChunkId, {Name,W,H,Map}, Root) ->
+    MapFile = filename:join(filename:dirname(Root), Name ++ ".bmp"),
     Image = #e3d_image{image=Map,width=W,height=H},
     ok = e3d_image:save(Image, MapFile),
     FnameChunk = make_chunk(16#A300, [filename:basename(MapFile),0]),
