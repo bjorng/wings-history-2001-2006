@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.17 2004/06/29 08:32:57 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.18 2004/06/30 06:19:45 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -21,21 +21,30 @@
 %%-define(DUMP, 1).
 
 import(File0, St) ->
+    wings_pb:start("importing"),
     #e3d_file{objs=Objs} = distribute_materials(File0),
-    translate_objects(Objs, St).
+    N = length(Objs),
+    Faces = foldl(fun(#e3d_object{obj=#e3d_mesh{fs=Ftab}}, S) ->
+			  S+length(Ftab)+1
+		  end, 0, Objs),
+    wings_pb:done(translate_objects(Objs, 1, N, 0, Faces, St)).
 
-translate_objects([#e3d_object{name=Name,mat=Mat}=Obj|Os], St0) ->
+translate_objects([#e3d_object{name=Name,mat=Mat,obj=#e3d_mesh{fs=Fs}}=Obj|Os],
+		  I, N, Fsum0, Faces, St0) ->
+    Fsum = Fsum0 + length(Fs) + 1,
+    wings_pb:update(Fsum/Faces,
+		    integer_to_list(I) ++ " of " ++ integer_to_list(N)),
     case import_object(Obj) of
         error ->
-            translate_objects(Os, St0);
+            translate_objects(Os, I+1, N, Fsum, Faces, St0);
         We0 ->
             {St1,NameMap} = wings_material:add_materials(Mat, St0),
             We1 = rename_materials(NameMap, We0),
             We = import_attributes(We1, Obj),
             St = store_object(Name, We, St1),
-            translate_objects(Os, St)
+            translate_objects(Os, I+1, N, Fsum, Faces, St)
     end;
-translate_objects([], St) -> St.
+translate_objects([], _, _, _, _, St) -> St.
 
 import_attributes(We, #e3d_object{attr=Attr}) ->
     Visible = proplists:get_value(visible, Attr, true),
@@ -53,12 +62,22 @@ import_object(#e3d_object{obj=Mesh0}) ->
     {Mesh,ObjType} = prepare_mesh(Mesh1),
     import_mesh(Mesh, ObjType).
 
-import_mesh(Mesh, ObjType) ->
-    case catch wings_we:build(ObjType, Mesh) of
+import_mesh(Mesh0, ObjType) ->
+    case catch wings_we:build(ObjType, Mesh0) of
 	{'EXIT',_R} ->
 	    %% The mesh needs cleaning up. Unfortunately,
 	    %% that will change the vertex numbering.
-	    import_1(e3d_mesh:partition(Mesh), ObjType, []);
+	    wings_pb:start(""),
+	    wings_pb:update(0.20, "retrying"),
+	    Mesh = e3d_mesh:partition(Mesh0),
+	    case length(Mesh) of
+		1 ->
+		    wings_pb:update(0.50, "retrying");
+		N ->
+		    wings_pb:update(0.50, "retrying ("++
+				    integer_to_list(N)++" sub-objects)")
+	    end,
+	    wings_pb:done(import_1(Mesh, ObjType, []));
 	We -> We
     end.
 
@@ -69,7 +88,11 @@ import_1([Mesh|T], ObjType, Acc) ->
 	We -> import_1(T, ObjType, [We|Acc])
     end;
 import_1([], _, []) -> error;
+import_1([], _, [We]) -> We;
 import_1([], _, [#we{mode=Mode}|_]=Wes) ->
+    wings_pb:update(1.0, "re-combining "++
+		    integer_to_list(length(Wes))++
+		    " sub-objects"),
     We = wings_we:merge(Wes),
     We#we{mode=Mode}.
 
