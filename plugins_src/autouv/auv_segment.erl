@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.15 2002/10/22 14:14:07 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.16 2002/10/22 14:21:26 dgud Exp $
 
 -module(auv_segment).
 
@@ -576,7 +576,7 @@ segment_by_cluster(Rel0, We) ->
 %%%
 
 cut_model(Cuts, [Faces], We) ->
-    Vs = wings_face:to_vertices(Faces),
+    Vs = wings_face:to_vertices(Faces, We),
     Map = reverse(foldl(fun(V, A) -> [{V,V}|A] end, [], Vs)),
     cut_model_1(Cuts, [{We,Map}]);
 cut_model(Cuts, Clusters, We) ->
