@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.89 2003/02/02 15:56:22 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.90 2003/02/07 14:59:07 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -863,7 +863,13 @@ command_menu(faceg, X,Y, _Uvs) ->
 	    {"Scale", scale, "Uniform Scale of selected faces"},
 	    {"Rotate", {rotate, Rotate}, "Rotate selected faces"},
 	    separator,
-	    {"Rescale All", rescale_all, "Pack the space in lower-left before rescaling"}
+	    {"Rescale All", rescale_all, "Pack the space in lower-left before rescaling"},
+	    separator,
+	    {"ReMap UV", {remap, [{"Project Normal", project, 
+				   "Project uv's from chart normal"},
+				  {"Unfold", lsqcm, " "}
+				 ]}, 
+	     "Re-calculate new uv's with choosen algorithmen"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 
@@ -1139,6 +1145,12 @@ handle_event({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
 			       texsz = {TexSz,TexSz}}
 		       },
     get_event(reset_dl(Uvs1));
+
+handle_event({action, {auv, {remap, Method}}}, 
+	     Uvs0 = #uvstate{sel = Sel0, orig_we = We}) ->
+    Sel = [remap(Chart, Method, We) || Chart <- Sel0],
+    get_event(Uvs0#uvstate{sel = Sel});
+
 handle_event({action, {auv, rescale_all}},
 	     Uvs0=#uvstate{sel = Sel0,areas=Curr0})->
     RscAreas = rescale_all(add_as(Sel0,Curr0)),
@@ -1237,6 +1249,26 @@ handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
 	_ ->
 	    keep
     end.
+
+remap({Id, Chart0 = #ch{fs=Fs,we=We0,vmap=Vmap,size={W,H}}}, Type, #we{vp=Vs3d0}) ->
+    %% Get 3d positions (even for mapped vs
+    Vs3d = map(fun({V0,_Pos}) ->
+		       case gb_trees:lookup(V0, Vmap) of
+			   none -> 
+			       {V0, gb_trees:get(V0, Vs3d0)};
+			   {value,V} ->
+			       {V0, gb_trees:get(V, Vs3d0)}
+		       end 
+	       end, gb_trees:to_list(We0#we.vp)),
+    Vs0 = auv_mapping:map_chart(Type, Fs, 
+				We0#we{vp=gb_trees:from_orddict(Vs3d)}),
+    We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs0))},    
+    {{Dx,Dy}, Vs} = auv_placement:center_rotate(Fs, We1),
+    Scale = if Dx > Dy -> W / Dx;
+	       true -> H / Dy
+	    end,
+    We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
+    {Id, Chart0#ch{we=We, size={Dx*Scale, Dy*Scale}, scale=Scale}}.
 
 import_file(default, Uvs0) ->
     import_file(Uvs0#uvstate.last_file, Uvs0);
@@ -1474,7 +1506,7 @@ move_area(faceg, {Id, A = #ch{center = {X0,Y0}}}, DX, DY) ->
     {Id, A#ch{center = {X0+DX, Y0+DY}}}.
 scale_area(faceg,{Id,A = #ch{scale = S, size = {W,H}}}, DX, DY) ->
     NS = greatest(DX,DY),
-    {Id,A#ch{scale = S+NS, size = {W+W*NS, H+H*NS}}}.
+    {Id,A#ch{scale = S+NS, size = {W/S*(S+NS), H/S*(S+NS)}}}.
 rotate_area(faceg, {Id,A = #ch{rotate = R}}, DX, DY) ->
     NS = greatest(DX,DY),
     NewR = R + NS*180,

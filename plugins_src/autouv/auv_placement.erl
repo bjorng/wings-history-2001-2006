@@ -9,31 +9,24 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.16 2003/01/29 06:22:30 bjorng Exp $
+%%     $Id: auv_placement.erl,v 1.17 2003/02/07 14:59:06 dgud Exp $
 
 -module(auv_placement).
 
 -include("wings.hrl").
 -include("auv.hrl").
 
--export([place_areas/1,group_edge_loops/2]).
+-export([place_areas/1,group_edge_loops/2, center_rotate/2]).
 
 -import(lists, [max/1, sort/1, map/2, reverse/1]).
 
 %% Returns a gb_tree with areas...
 place_areas(Areas0) ->
     Rotate = fun(A = #ch{we=We,fs=Fs}, {C, BBs}) ->
-		     VL = rotate_area(Fs, We),
-		     {{_,Xmin},{_,Xmax},{_,Ymin},{_,Ymax}} = 
-			 auv_util:maxmin(VL),
-		     Dx = Xmax - Xmin,
-		     Dy = Ymax - Ymin,
-		     CX = Xmin + Dx / 2,
-		     CY = Ymin + Dy / 2,
-		     Vs = auv_util:moveAndScale(VL, -CX, -CY, 1, []),
+		     {Size = {Dx,Dy}, Vs} = center_rotate(Fs, We),
 		     NewA = A#ch{we=We#we{id = C,
 					  vp = gb_trees:from_orddict(Vs)},
-				 size={Dx,Dy}},
+				 size=Size},
 		     {NewA, {C+1, [{Dx,Dy,C}|BBs]}}
 	     end,
     {Areas1, {_,Sizes0}} = lists:mapfoldl(Rotate, {1,[]}, Areas0),
@@ -43,6 +36,17 @@ place_areas(Areas0) ->
     Scale  = 1 / max(Max),
     move_and_scale_areas(Areas1, lists:sort(Positions0),
 			 Scale, []).
+
+center_rotate(Fs, We) ->
+    VL = rotate_area(Fs, We),
+    {{_,Xmin},{_,Xmax},{_,Ymin},{_,Ymax}} = 
+	auv_util:maxmin(VL),
+    Dx = Xmax - Xmin,
+    Dy = Ymax - Ymin,
+    CX = Xmin + Dx / 2,
+    CY = Ymin + Dy / 2,
+    Vs = auv_util:moveAndScale(VL, -CX, -CY, 1, []),
+    {{Dx,Dy}, Vs}.
 
 fill(Areas, [0,0]) ->  %% First time
     Map = fun({W,H,Id}) when W > H ->
