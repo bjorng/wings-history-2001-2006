@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dissolve.erl,v 1.1 2004/12/23 16:12:51 bjorng Exp $
+%%     $Id: wings_dissolve.erl,v 1.2 2004/12/23 16:21:31 bjorng Exp $
 %%
 
 -module(wings_dissolve).
@@ -25,7 +25,8 @@ dissolve(Faces, We) ->
     end.
 
 dissolve_1(Faces, We0) ->
-    We = optimistic_dissolve(Faces, We0),
+    We1 = optimistic_dissolve(Faces, We0),
+    We = wings_we:vertex_gc(We1#we{vc=undefined}),
     case wings_we:is_consistent(We) of
 	true ->
 	    We;
@@ -40,16 +41,15 @@ optimistic_dissolve(Faces0, We0) ->
 	error ->
 	    %% Assumption was wrong. We need to partition the selection
 	    %% and dissolve each partition in turn.
-	    Parts = wings_sel:face_regions(Faces0, We0#we{vc=undefined}),
-	    wings_we:vertex_gc(standard_dissolve(Parts, We0));
+	    Parts = wings_sel:face_regions(Faces0, We0),
+	    standard_dissolve(Parts, We0);
 	[_|_]=Loop ->
 	    %% Assumption was correct.
 	    Faces = to_gb_set(Faces0),
 	    Face = gb_sets:smallest(Faces),
 	    Mat = wings_material:get(Face, We0),
-	    We1 = wings_material:delete_faces(Faces, We0),
-	    We = do_dissolve(Faces, [Loop], Mat, We0, We1),
-	    wings_we:vertex_gc(We#we{vc=undefined})
+	    We = wings_material:delete_faces(Faces, We0),
+	    do_dissolve(Faces, [Loop], Mat, We0, We)
     end.
 
 standard_dissolve([Faces|T], We0) ->
