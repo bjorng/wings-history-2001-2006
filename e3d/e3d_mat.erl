@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.17 2002/06/26 09:09:57 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.18 2002/10/04 07:16:27 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -105,18 +105,54 @@ rotate_to_z(Vec) ->
 
 rotate_s_to_t(S, T) ->
     %% Tomas Moller/Eric Haines: Real-Time Rendering (ISBN 1-56881-101-2).
-    %%  3.3. Quaternions; Rotating one vector to another (p. 52)
+    %%  3.3. Quaternions; Rotating one vector to another
     case e3d_vec:dot(S, T) of
-	E when E > 0.999 ->
-	    identity();
-	E when E < -0.999 ->
-	    V = perpendicular_axis(S),
-	    rotate(180, V);
+ 	E when abs(E) > 0.999999 ->
+ 	    almost_parallel(S, T);
 	E ->
 	    V = e3d_vec:cross(S, T),
 	    rotate_s_to_t_1(V, E)
     end.
 
+almost_parallel(S, T) ->
+    %% Parallel case as in Moller/Hughes:
+    %%  http://www.acm.org/jgt/papers/MollerHughes99
+    Axis = closest_axis(S),
+    U = e3d_vec:sub(Axis, S),
+    V = e3d_vec:sub(Axis, T),
+
+    C1 = 2.0 / e3d_vec:dot(U, U),
+    C2 = 2.0 / e3d_vec:dot(V, V),
+    C3 = C1 * C2 * e3d_vec:dot(U, V),
+    C = {C1,C2,C3,U,V},
+
+    {1.0+ael(C, 1, 1),ael(C, 2, 1),ael(C, 3, 1),
+     ael(C, 1, 2),1.0+ael(C, 2, 2),ael(C, 3, 2),
+     ael(C, 1, 3),ael(C, 2, 3),1.0+ael(C, 3, 3),
+     0.0,0.0,0.0}.
+
+ael({C1,C2,C3,U,V}, I, J) ->
+    -C1 * element(I, U) * element(J, U) -
+	C2 * element(I, V) * element(J, V) +
+	C3 * element(I, V) * element(J, U).
+
+closest_axis({X0,Y0,Z0}) ->
+    X = abs(X0),
+    Y = abs(Y0),
+    Z = abs(Z0),
+    if
+	X < Y ->
+	    if
+		X < Z -> {1.0,0.0,0.0};
+		true -> {0.0,0.0,1.0}
+	    end;
+	true ->
+	    if
+		Y < Z -> {0.0,1.0,0.0};
+		true -> {0.0,0.0,1.0}
+	    end
+    end.
+    
 perpendicular_axis(S) ->
     X = {1.0,0.0,0.0},
     case e3d_vec:dot(S, X) of
@@ -129,9 +165,14 @@ perpendicular_axis(S) ->
 
 rotate_s_to_t_1({Vx,Vy,Vz}=V, E) when is_float(Vx), is_float(Vy), is_float(Vz) ->
     H = (1.0 - E)/e3d_vec:dot(V, V),
-    {E+H*Vx*Vx,H*Vx*Vy+Vz,H*Vx*Vz-Vy,
-     H*Vx*Vy-Vz,E+H*Vy*Vy,H*Vy*Vz+Vx,
-     H*Vx*Vz+Vy,H*Vy*Vz-Vx,E+H*Vz*Vz,
+    HVx = H*Vx,
+    HVz = H*Vz,
+    HVxy = HVx*Vy,
+    HVxz = HVx*Vz,
+    HVyz = HVz*Vy,
+    {E+HVx*Vx,HVxy+Vz,HVxz-Vy,
+     HVxy-Vz,E+H*Vy*Vy,HVyz+Vx,
+     HVxz+Vy,HVyz-Vx,E+HVz*Vz,
      0.0,0.0,0.0}.
 
 transpose({M1,M2,M3,M4,M5,M6,M7,M8,M9,0.0=Z,0.0,0.0}) ->
