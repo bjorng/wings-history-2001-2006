@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.57 2003/03/03 06:30:48 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.58 2003/04/17 11:30:51 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -493,12 +493,16 @@ flat_face(Face, #we{fs=Ftab}=We) ->
     flat_face(Face, Edge, We).
 
 flat_face(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs = wings_face:surrounding_vertices(Face, Edge, We),
-    VsPos = vspos(Vs, Vtab, []),
+    Vs = wings_face:vertices_cw(Face, Edge, We),
+    flat_face_1(Vs, Vtab, []).
+
+flat_face_1([V|Vs], Vtab, Acc) ->
+    flat_face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+flat_face_1([], _, VsPos) ->
     N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
-    {X,Y,Z} = N,
     Tess = tess(),
+    {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
@@ -514,10 +518,6 @@ tess_flat_face(Tess, []) ->
 %%
 %% Utilities.
 %%
-
-vspos([V|Vs], Vtab, Acc) ->
-    vspos(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-vspos([], _, Acc) -> reverse(Acc).
 
 call(none) -> none;
 call([H|T]) -> call(H), call(T);
