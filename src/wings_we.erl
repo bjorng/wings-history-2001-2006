@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.39 2002/10/17 18:57:31 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.40 2002/10/19 18:45:16 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -335,7 +335,6 @@ merge([#we{id=Id,name=Name}|_]=Wes0) ->
 
 %% Combine winged-edge structures withtout any renumbering.
 %% Will crash if any vertex/edge/face identifier occurs in more than one #we{}.
-force_merge([]) -> [];
 force_merge([We]) -> We;
 force_merge([#we{id=Id,name=Name}|_]=Wes0) ->
     {Vt0,Et0,Ft0,Ht0} = merge_1(Wes0),
