@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.11 2002/10/17 20:55:05 raimo_niskanen Exp $
+%%     $Id: auv_mapping.erl,v 1.12 2002/10/18 14:51:00 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -114,7 +114,7 @@ project_and_triangulate([Face|Fs], We, I, Acc) ->
 	    {Add, I1} = get_verts(NewFs, I, VT, []),
 	    project_and_triangulate(Fs,We,I1,Add ++ Acc);
        true ->
-	    Vs3 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,Vz}} <- Vs2],
+	    Vs3 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,_}} <- Vs2],
 	    project_and_triangulate(Fs,We,I,[{Face, Vs3}|Acc])
     end;
 project_and_triangulate([],_,_,Acc) -> 
@@ -140,10 +140,10 @@ lsqcm(C = {Id, Fs}, We) ->
     Vs1 = ?TC(project_and_triangulate(Fs,We,-1,[])),    
     {V1, V2} = ?TC(find_pinned(C, We)),
     ?DBG("LSQ ~p ~p~n", [V1,V2]),
-    Idstr = lists:flatten(io_lib:format("~p", [Id])),
-    {ok, Fd} = file:open("raimo_" ++ Idstr, [write]),
-    io:format(Fd, "{~w, ~w, ~w}.~n", [Vs1,V1,V2]),
-    file:close(Fd),
+%    Idstr = lists:flatten(io_lib:format("~p", [Id])),
+%    {ok, Fd} = file:open("raimo_" ++ Idstr, [write]),
+%    io:format(Fd, "{~w, ~w, ~w}.~n", [Vs1,V1,V2]),
+%    file:close(Fd),
     case ?TC(lsq(Vs1,V1,V2)) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
@@ -154,7 +154,7 @@ lsqcm(C = {Id, Fs}, We) ->
 	    lists:map(Patch, Vs2)
     end.
 
-find_pinned(C = {Id, Faces}, We) ->
+find_pinned(C = {_Id, Faces}, We) ->
     {Circumference, BorderEdges} = 
 	case auv_placement:group_edge_loops(Faces, We, false) of
 	    [] -> 
@@ -182,28 +182,35 @@ reorder_edge_loop(V1, [{V1,_,_,_}|_] = Ordered, Acc) ->
 reorder_edge_loop(V1, [H|Tail], Acc) ->
     reorder_edge_loop(V1, Tail, [H|Acc]).
 
-get_uvs(V1,{X1,Y1,Z1},V2,{X2,Y2,Z2},Dist) ->
+get_uvs(V1,P1={X1,Y1,Z1},V2,P2={X2,Y2,Z2},CCirc) ->
     XL = abs(X2-X1),  YL = abs(Y2-Y1), ZL = abs(Z2-Z1),
 %%    ?DBG("~p ~p~n", [{XL,YL,ZL}, Dist]),
+    Dist = e3d_vec:dist(P1,P2),
     if XL >= YL, XL >= ZL ->
-	    Diff = get_other(XL,YL+ZL,Dist),
+	    Diff = get_other(XL,YL,ZL,Dist,CCirc),
 	    {{V1, {0.0, 0.0}}, {V2, {XL, Diff}}};
        YL >= XL, YL >= ZL ->
-	    Diff = get_other(YL,XL+ZL,Dist),
+	    Diff = get_other(YL,XL,ZL,Dist,CCirc),
 	    {{V1, {0.0, 0.0}}, {V2, {Diff, YL}}};
        true ->
-	    Diff = get_other(ZL,XL+YL,Dist),
+	    Diff = get_other(ZL,XL,YL,Dist,CCirc),
 	    {{V1, {0.0, 0.0}}, {V2, {Diff, ZL}}}
     end.
 
-get_other(D1, D2, Tot) ->
-%    if 
-%	D2/D1 > D1/Tot ->
-%	    D2;
-%	true ->
-%           Tot-D1
-%    end.
-    Tot-D1.
+get_other(D1, D2, D3, Dist, Circf) ->
+%%    Tot-D1.
+    DLen = math:sqrt(D2*D2+D3*D3),
+    ?DBG("Choose ~p ~p ~p ~p~n",[D1, D2, Dist, Circf]),
+    if 
+	Dist == Circf -> %% One edge only
+	    0.0;
+	(Dist - D1) > 0.0 ->
+	    Dist - D1;
+	DLen >= 0.0 ->
+	    DLen;
+	true ->
+	    Circf - D1
+    end.
 
 -endif. % -ifdef(lsq_standalone). -else.
 
@@ -219,7 +226,7 @@ lsq(Name, Method) ->
 -else.
 
 lsq(L, P1, P2) ->
-    lsq(L, P1, P2, ge).
+    lsq(L, P1, P2, cg).
 
 -endif. % -ifdef(lsq_standalone).
 
@@ -228,7 +235,7 @@ lsq(_, {P,_} = PUV1, {P,_} = PUV2, _) ->
 lsq(_, {_,{U1,V1}} = PUV1, {_,{U2,V2}} = PUV2, _)
   when U1 == U2, V1 == V2 -> % Coarse comparision, not match
     {error, {invalid_arguments, [PUV1, PUV2]}};
-lsq(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2, Method)
+lsq(L, {_P1,{U1,V1}} = PUV1, {_P2,{U2,V2}} = PUV2, Method)
   when list(L), number(U1), number(V1), number(U2), number(V2) ->
     case catch lsq_int(L, PUV1, PUV2, Method) of
 	{'EXIT', Reason} ->
@@ -307,11 +314,11 @@ build_cols(M1,M2,M2n,Q1uv,Q2uv) ->
     {Mf2nc,Mp2nc} = pick(M2nc, QaQb),
     {{Mf1c,Mp1c},{Mf2c,Mp2c},{Mf2nc,Mp2nc},UVa,UVb}.
 
-build_matrixes(N,M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,{Ua,Va},{Ub,Vb}) ->
+build_matrixes(N,_M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,{Ua,Va},{Ub,Vb}) ->
     %% Build the matrixes Af and Ap, and vector B
     %% A = [ M1 -M2 ],  B = Ap U, U is vector of pinned points
     %%     [ M2  M1 ]
-    MM = 2*(M-2),
+%    MM = 2*(M-2),
     Afu = auv_matrix:cols(N, Mf1c++Mf2nc),
     Afl = auv_matrix:cols(N, Mf2c++Mf1c),
     Af = auv_matrix:cat_rows(Afu, Afl),

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.3 2002/10/15 14:29:30 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.4 2002/10/18 14:51:01 dgud Exp $
 
 
 -module(auv_placement).
@@ -17,26 +17,33 @@
 -include("auv.hrl").
 -include("wings.hrl").
 
--export([place_areas/1]).
+-export([place_areas/2]).
 -export([group_edge_loops/3]).
 
 -import(lists, [max/1, sort/1, map/2, reverse/1]).
 
 %% Returns a gb_tree with areas..
-place_areas(Areas) ->    
-    {Sizes0,_} = lists:mapfoldl(fun(#a{size = {X,Y}}, C) ->
-					{{X, Y, C}, C+1}
-				end, 1, Areas),
-    
+place_areas(Areas0,We) ->
+    Rotate = fun(A, {C, BBs}) ->
+		     VL = rotate_area(A#a.fs,A#a.vpos,We),
+		     {{_,Xmin},{_,Xmax},{_,Ymin},{_,Ymax}} = 
+			 wpc_autouv:maxmin(VL),
+		     Dx = Xmax - Xmin,
+		     Dy = Ymax - Ymin,
+		     CX = Xmin + Dx / 2,
+		     CY = Ymin + Dy / 2,
+		     Vs3 = wpc_autouv:moveAndScale(VL, -CX, -CY, 1, []),
+		     NewA = A#a{vpos=Vs3, size={Dx,Dy}},
+		     {NewA, {C+1, [{Dx,Dy,C}|BBs]}}
+	     end,
+    {Areas1, {_,Sizes0}} = lists:mapfoldl(Rotate, {1,[]}, Areas0),
+%    ?DBG("~p~n",[Sizes0]),    
     {Positions0, Max} = fill(Sizes0, [0,0]),
-    %%    io:format("~p ~p ~p ~n", 
-    %%              [length(Areas), length(Sizes0), length(Positions0)]),
-    Scale = 1 / max(Max),
-    Areas1 = move_and_scale_areas(Areas, 
+%    ?DBG("~p~n",[Positions0]),
+    Scale  = 1 / max(Max),
+    Areas2 = move_and_scale_areas(Areas1, 
 				  lists:sort(Positions0), 
 				  Scale, []),
-    {Areas2, _} = lists:mapfoldl(fun(Q, C) -> {{C,Q}, C+1} end,
-				 1, Areas1),
     gb_trees:from_orddict(Areas2).
 
 fill(Areas, [0,0]) ->  %% First time
@@ -94,11 +101,6 @@ insert({{Y,height}, X, I},XP,YP) ->
     New = {I, {XP+X/2, YP+Y/2}},
     {New, XP+X, YP+Y}.
 
-revapp([H|R], List) ->
-    revapp(R, [H|List]);
-revapp([], List) ->
-    List.
-
 fill_area([Sel = {{X0,width},Y0,_}|SL], MX, MY, XP,YP, UU, Res0) 
   when X0 =< MX, Y0 =< MY ->
     {New,_,_} = insert(Sel,XP,YP),
@@ -115,48 +117,137 @@ fill_area([], _,_, _,_, Unused,Res) ->
     {reverse(Unused), Res}.
 
 %%%%%%%%%%%%%%%%
-move_and_scale_areas([Area|RA], [{_,{Cx,Cy}}|RP], S, Acc) ->
+move_and_scale_areas([Area|RA], [{C,{Cx,Cy}}|RP], S, Acc) ->
     {SX, SY} = Area#a.size,
     New = Area#a{center = {Cx*S,Cy*S}, size={SX*S,SY*S}, scale=S},
-    move_and_scale_areas(RA, RP, S, [New|Acc]);
+    move_and_scale_areas(RA, RP, S, [{C,New}|Acc]);
 move_and_scale_areas([],[],_,Acc) ->
     Acc.
 
 rotate_area(Fs, Vs0, We) ->
-    NewVs = 
-	lists:foldl(fun({No, Pos}, Tree) ->
-			    Vtx = gb_trees:get(No,Tree),
-			    gb_trees:update(No, Vtx#vtx{pos=Pos}, Tree)
-		    end, We#we.vs, Vs0),
+    NewVs = lists:foldl(fun({No, Pos}, Tree) ->
+				Vtx = gb_trees:get(No,Tree),
+				gb_trees:update(No, Vtx#vtx{pos=Pos}, Tree)
+			end, We#we.vs, Vs0),
     [{_,Eds3}|_] = group_edge_loops(Fs,We#we{vs = NewVs}, true),
-    Eds4 = make_convex(reverse(Eds3), [], NewVs).
+    Eds4 = make_convex(reverse(Eds3), [], NewVs),
 
+%    Vs1  = [{V1,(gb_trees:get(V1, NewVs))#vtx.pos}||{V1,_,_,_}<-Eds4],
+%    Angle = angle_to_min_area(Vs1,NewVs),
+    [{LV1,LV2,_,_Dist}|_] = lists:reverse(lists:keysort(4, Eds4)),
+    LV1P = (gb_trees:get(LV1,NewVs))#vtx.pos, 
+    LV2P = (gb_trees:get(LV2,NewVs))#vtx.pos,     
+    Angle = math:atan2(element(2,LV2P)-element(2,LV1P),
+		       element(1,LV2P)-element(1,LV1P)),
+%    ?DBG("Angle ~p ~p P1 ~p P2 ~p~n", 
+%	[Angle, _Dist, {LV1, LV1P}, {LV2,LV2P}]),
+    if true ->
+	    Rot = e3d_mat:rotate(-(Angle*180/math:pi()), {0.0,0.0,1.0}),
+	    Res = [{Id,e3d_mat:mul_point(Rot, Vtx)} || {Id,Vtx} <- Vs0],
+%	    ?DBG("Rot angle ~p ~p~n", [Angle*180/math:pi(), Res]),
+	    Res;
+       true ->
+	    Vs0
+    end.
+
+-define(X(Vtx), element(1,element(2,Vtx))).
+-define(Y(Vtx), element(2,element(2,Vtx))).
+-define(Z(Vtx), element(3,element(2,Vtx))).
+-define(Id(Vtx), element(1, Vtx)).
+-define(Pos(Vtx), element(2,Vtx)). 
+
+angle_to_min_area(VsList, Vpos) ->
+    ?DBG("List ~p ~n", [VsList]),
+    {{P1,Xmin},{P2,Xmax},{P3,Ymin},{P4,Ymax}} = 
+	wpc_autouv:maxmin(VsList),
+    First = {FirstKey,_} = hd(VsList),
+    {LastKey,T0} = 
+	lists:foldl(fun(Next = {NId,_}, {Current,Tree}) ->
+			    {NId, gb_trees:insert(Current,Next,Tree)}
+		    end, 
+		    {FirstKey, gb_trees:empty()}, tl(VsList)),
+    T1 = gb_trees:insert(LastKey, First,T0),
+    Area = (Xmax-Xmin)*(Ymax-Ymin),
+    P1p = {P1,(gb_trees:get(P1, Vpos))#vtx.pos},   
+    P2p = {P2,(gb_trees:get(P2, Vpos))#vtx.pos},
+    P3p = {P3,(gb_trees:get(P3, Vpos))#vtx.pos},   
+    P4p = {P4,(gb_trees:get(P4, Vpos))#vtx.pos},
+    Ax = math:atan2(?Y(P2p)-?Y(P1p), ?X(P2p)-?X(P1p)),
+    Ay = math:atan2(?X(P4p)-?X(P3p), ?Y(P4p)-?Y(P3p)),
+    angle_to_min_area(0.0,Ax,P1p,P2p,Ay,P3p,P4p,{0.0,Area},T1).
+
+angle_to_min_area(Ta,_Ax,_P1,_P2,_Ay,_P3,_P4, {A,_},_)
+  when Ta > (3.14159/4) ->
+    A;
+angle_to_min_area(Ta,Ax0,P1,P2,Ay0,P3,P4,Old={_,Area0},Next) ->
+    NP1 = gb_trees:get(?Id(P1),Next),NP2 = gb_trees:get(?Id(P2),Next),
+    NP3 = gb_trees:get(?Id(P3),Next),NP4 = gb_trees:get(?Id(P4),Next),
+    AP1 = math:atan2(abs(?X(NP1)-?X(P1)),abs(?Y(NP1)-?Y(P1))),
+    AP2 = math:atan2(abs(?X(NP2)-?X(P2)),abs(?Y(NP2)-?Y(P2))),
+    AP3 = math:atan2(abs(?Y(NP3)-?Y(P3)),abs(?X(NP3)-?X(P3))),
+    AP4 = math:atan2(abs(?Y(NP4)-?Y(P4)),abs(?X(NP4)-?X(P4))),
+    Min = lists:min([AP1,AP2,AP3,AP4]),
+    NewA = Min-Ta,
+    Ax1 = Ax0+NewA,
+    Ay1 = Ay0+NewA,
+    L1 = e3d_vec:dist(?Pos(P1),?Pos(P2)) * math:cos(Ax1),
+    L2 = e3d_vec:dist(?Pos(P3),?Pos(P4)) * math:cos(Ay1),    
+    NewArea = L1*L2,
+    Area1 = if 
+		NewArea<0 -> %% Assert
+		    Old;
+		NewArea<Area0 ->{Min,NewArea};
+		true -> Old
+	    end,    
+    Deg45 = math:pi()/4,
+    if Min > Deg45 ->
+%	    ?DBG("Rot quit ~p ~p ~n", [Min,Old]),
+	    angle_to_min_area(Min,Ax0,P1,P2,Ay0,P3,P4,Old,Next);
+       true ->
+%	    ?DBG("Rot cont ~p ~p was ~p~n", [Min,Area1,Old]),
+	    case Min of
+		AP1 ->
+		    angle_to_min_area(Min,Ax1,NP1,P2,Ay1,P3,P4,Area1,Next);
+		AP2 ->
+		    angle_to_min_area(Min,Ax1,P1,NP2,Ay1,P3,P4,Area1,Next);
+		AP3 -> 
+		    angle_to_min_area(Min,Ax1,P1,P2,Ay1,NP3,P4,Area1,Next);
+		AP4 -> 
+		    angle_to_min_area(Min,Ax1,P1,P2,Ay1,P3,NP4,Area1,Next)
+	    end
+    end.
+			          
 %% Group edgeloops and return a list sorted by total dist.
 %% [{TotDist, [{V1,V2,Edge,Dist},...]}, ...]
 group_edge_loops(Fs,We, OnlyVisible) ->
     Eds1 = wpc_autouv:outer_edges(Fs, We, OnlyVisible),
-    Map = fun({Edge,Face}) ->
-		  case gb_trees:get(Edge, We#we.es) of
-		      #edge{vs=V1,ve=V2,lf=Face} ->
-			  Dist = dist(V1,V2,We),
-			  {V1,V2,Edge,Dist};
-		      #edge{vs=V2,ve=V1,rf=Face} ->
-			  Dist = dist(V1,V2,We),
-			  {V1,V2,Edge,Dist}
-		  end
-	  end,
-    Eds2  = lists:map(Map, Eds1),
-    Loops = sort_edges(Eds2),
-    Add = fun({_,_,_,Dist}, Acc) ->  Acc + Dist end,
-    SumLoops = [{lists:foldl(Add, 0, Loop), Loop} || Loop <- Loops],
-    lists:reverse(lists:sort(SumLoops)).
+    if Eds1 == [] ->
+	    [];
+       true ->
+	    Map = fun({Edge,Face}) ->
+			  case gb_trees:get(Edge, We#we.es) of
+			      #edge{vs=V1,ve=V2,lf=Face} ->
+				  Dist = dist(V1,V2,We#we.vs),
+				  {V1,V2,Edge,Dist};
+			      #edge{vs=V2,ve=V1,rf=Face} ->
+				  Dist = dist(V1,V2,We#we.vs),
+				  {V1,V2,Edge,Dist}
+			  end
+		  end,
+	    Eds2  = lists:map(Map, Eds1),
+	    Loops = sort_edges(Eds2),
+	    Add = fun({_,_,_,Dist}, Acc) ->  Acc + Dist end,
+	    SumLoops = [{lists:foldl(Add, 0, Loop), Loop} 
+			|| Loop <- Loops],
+	    lists:reverse(lists:sort(SumLoops))
+    end.
 
 make_convex([This, Next|Rest], Acc, Vs) ->
     case calc_dir(This,Next,Vs) > math:pi() of
 	true ->
 	    New = {element(1,This), element(2,Next), 
 		   [element(3,This),element(3,Next)],
-		   element(4,This) + element(4,Next)}, 
+		   dist(element(1,This),element(1,Next),Vs)}, 
 	    if Acc == [] ->
 		    make_convex([New|Rest], Acc, Vs);
 	       true ->
@@ -171,7 +262,7 @@ make_convex([This],Acc, Vs) ->
 	true ->
 	    New = {element(1,This), element(2,Next), 
 		   [element(3,This),element(3,Next)],
-		   element(4,This) + element(4,Next)},
+		   dist(element(1,This),element(1,Next),Vs)},
 	    Acc3 = reverse(Acc2),
 	    make_convex([hd(Acc3),New], tl(Acc3), Vs);
 	false ->
@@ -194,7 +285,7 @@ calc_dir({V11,V12,_E1,_},{V12,V22,_,_}, Vs) ->
 %	      [V12,{E1,E2},math:atan2(Y1,X1), math:atan2(Y2,X2),Angle]),
     Angle.
 
-dist(V1,V2,#we{vs=Vs}) ->
+dist(V1,V2,Vs) ->    
     e3d_vec:dist((gb_trees:get(V1, Vs))#vtx.pos,
 		 (gb_trees:get(V2, Vs))#vtx.pos).
 

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.14 2002/10/17 19:03:29 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.15 2002/10/18 14:51:01 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -22,6 +22,7 @@
 -compile(export_all). %% debug
 -export([menu/2,command/2, outer_edges/2, outer_edges/3]).
 -export([maxmin/1]).
+-export([moveAndScale/5]).
 
 -import(lists, [sort/1, map/2, foldl/3, reverse/1, 
 		append/1,delete/2, usort/1, max/1, min/1]).
@@ -294,7 +295,7 @@ init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
     Areas = init_areas(Clusters, [], Type, We2),
 
     %% Place the cluster on the texturemap
-    Map = auv_placement:place_areas(Areas),
+    Map = auv_placement:place_areas(Areas,We2),
     %%    ?DBG("AUV Maps ~p\n", [Map]),
     As0 = #areas{we = We2, orig_we = We1, as = Map,
 		 vmap = ChangedByCut,
@@ -302,7 +303,7 @@ init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
     {St1, As1} = add_material(create_mat, none, St0, As0),
     {[As1|A], St1}.
 
-init_areas([Chart|R], A, Type, We) ->
+init_areas([Chart={_,Fs}|R], A, Type, We) ->
     MappedVs = 
 	case Type of 
 	    project -> 
@@ -310,18 +311,11 @@ init_areas([Chart|R], A, Type, We) ->
 	    lsqcm ->
 		auv_mapping:lsqcm(Chart, We)
 	end,
-    New = create_area(Chart, MappedVs),
+    New = #a{fs = Fs, vpos = MappedVs},
     init_areas(R, [New|A], Type, We);
 init_areas([], A, _Type, _We) ->
     A.
    
-create_area({_,Fs}, Vs0) ->
-    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(Vs0),
-    CX = BX0 + (BX1-BX0) / 2,
-    CY = BY0 + (BY1-BY0) / 2,
-    Vs3 = moveAndScale(Vs0, -CX, -CY, 1, []),
-    #a{fs = Fs, vpos = Vs3, size = {BX1-BX0, BY1 -BY0}}.  
-
 insert_uvcoords(#areas{orig_we=We0,we=WorkWe,as=UV,matname=MatName,vmap=Vmap}) ->
     UVpos = gen_uv_pos(gb_trees:values(UV), WorkWe, []),
     We = insert_coords(UVpos, gb_trees:from_orddict(Vmap), We0),
@@ -524,7 +518,8 @@ maxmin([{Id, {X,Y,_}}|Rest]) ->
 maxmin([],Xmin,Xmax,Ymin,Ymax) ->
     {Xmin,Xmax,Ymin,Ymax};
 maxmin([{Id, {X,Y,_}}|Rest], 
-       XMin={_IdX0,X0}, XMax={_IdX1,X1}, YMin={_IdY0,Y0}, YMax={_IdY1,Y1}) ->
+       XMin={_IdX0,X0}, XMax={_IdX1,X1}, 
+       YMin={_IdY0,Y0}, YMax={_IdY1,Y1}) ->
     if 	X > X1 ->
 	    if Y > Y1 -> maxmin(Rest, XMin, {Id,X}, YMin, {Id,Y});
 	       Y < Y0 -> maxmin(Rest, XMin, {Id,X}, {Id,Y}, YMax);
