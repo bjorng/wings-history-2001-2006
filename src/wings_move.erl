@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.34 2002/03/24 07:41:13 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.35 2002/03/31 17:27:36 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -107,7 +107,6 @@ move_vectors([V|Vs], VsSet, #we{vs=Vtab}=We, Acc0) ->
 	    end, Acc0, V, We),
     move_vectors(Vs, VsSet, We, Acc);
 move_vectors([], _VsSet, _We, Acc) -> Acc.
-
 
 %%
 %% Conversion of vertice selections to vertices. :-)
@@ -322,13 +321,14 @@ translate_fun({Xt0,Yt0,Zt0}) ->
 magnet_move(_, _Vec, none, _, Tv, Acc) -> [Tv|Acc];
 magnet_move(Tv, Vec0, Magnet0, #we{id=Id}=We, _, Acc) ->
     Vs = affected(Tv),
-    Vec = magnet_vec(Vec0, Tv),
     {VsInf,Magnet,Affected} = wings_magnet:setup(Magnet0, Vs, We),
+    Vec = magnet_vec(Vec0, Affected, We),
     [{Id,{Affected,magnet_move_fun(Vec, VsInf, Magnet)}}|Acc].
 
-magnet_vec(normal, Tv) ->
-    e3d_vec:norm(e3d_vec:add([Vec || {Vec,_} <- Tv]));
-magnet_vec(Vec, _) -> Vec.
+magnet_vec(normal, Vs, We) ->
+    VsVec = [{V,Vec} || {Vec,[V]} <- vertex_normals(We, Vs)],
+    gb_trees:from_orddict(sort(VsVec));
+magnet_vec(Vec, _, _) -> Vec.
 
 magnet_move_fun({Xt0,Yt0,Zt0}=Vec, VsInf0, {_,R}=Magnet0) ->
     fun(new_falloff, Falloff) ->
@@ -367,6 +367,24 @@ magnet_move_fun(free, VsInf0, {_,R}=Magnet0) ->
 		      Pos = wings_util:share(Px+Xt, Py+Yt, Pz+Zt),
 		      [{V,Vtx#vtx{pos=Pos}}|A]
 	      end, Acc, VsInf0)
+    end;
+magnet_move_fun(VsVec, VsInf0, {_,R}=Magnet0) ->
+    %% Move each element along its own normal.
+    fun(new_falloff, Falloff) ->
+	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet0),
+	    magnet_move_fun(VsVec, VsInf, Magnet0);
+       (new_type, {Type,Falloff}) ->
+	    Magnet = {Type,R},
+	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
+	    magnet_move_fun(VsVec, VsInf, Magnet);
+       ([Dx0|_], A0) ->
+	    foldl(fun({V,#vtx{pos={Px,Py,Pz}}=Vtx,_,Inf}, A) ->
+			  {Xt0,Yt0,Zt0} = gb_trees:get(V, VsVec),
+			  Dx = Dx0*Inf,
+			  Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
+			  Pos = wings_util:share(Px+Xt, Py+Yt, Pz+Zt),
+			  [{V,Vtx#vtx{pos=Pos}}|A]
+		  end, A0, VsInf0)
     end.
 
 %%%
@@ -382,7 +400,9 @@ make_tvs(Vs, free, We) ->
 make_tvs(Vs, Vec, _We) -> [{Vec,Vs}].
 
 move_fun(VsPos) ->
-    fun(view_changed, NewWe) ->
+    fun(new_falloff, _) ->
+	    move_fun(VsPos);
+       (view_changed, NewWe) ->
 	    move_fun(wings_util:update_vpos(VsPos, NewWe));
        ([Dx,Dy|_], Acc) ->
 	    #view{azimuth=Az,elevation=El} = wings_view:current(),
