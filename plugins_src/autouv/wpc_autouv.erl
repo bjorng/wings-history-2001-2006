@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.87 2003/01/30 09:53:47 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.88 2003/01/31 19:12:03 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -555,14 +555,14 @@ insert_material(Cs, MatName, #we{fs=Ftab0}=We) ->
 init_edit(MatName, Faces, We0) ->
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
-    {Charts,Vmap} = auv_segment:cut_model(Charts1, Cuts, We0),
-    Map1 = build_map(Charts, Vmap, FvUvMap, 1, []),
+    Charts = auv_segment:cut_model(Charts1, Cuts, We0),
+    Map1 = build_map(Charts, FvUvMap, 1, []),
     Map3 = find_boundary_edges(Map1, []),
     Map  = gb_trees:from_orddict(Map3),
     Edges= gb_trees:keys(We0#we.es),
     {Edges,Map,MatName}.
 
-build_map([{Fs,We0}|T], Vmap, FvUvMap, No, Acc) ->
+build_map([{Fs,Vmap,We0}|T], FvUvMap, No, Acc) ->
     %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
     %% (bug in wings_vertex_cmd), we must fetch the UV coordinates
     %% from the original object.
@@ -580,9 +580,9 @@ build_map([{Fs,We0}|T], Vmap, FvUvMap, No, Acc) ->
     CY = BY0 + (BY1-BY0) / 2,
     UVs = [{V,{X-CX,Y-CY,0.0}} || {V,{X,Y}} <- UVs1],
     We = We0#we{id=No,vp=gb_trees:from_orddict(UVs)},
-    Chart = #ch{we=We,fs=Fs,center={CX,CY},size={BX1-BX0,BY1-BY0}},
-    build_map(T, Vmap, FvUvMap, No+1, [{No,Chart}|Acc]);
-build_map([], _, _, _, Acc) -> Acc.
+    Chart = #ch{we=We,fs=Fs,center={CX,CY},size={BX1-BX0,BY1-BY0},vmap=Vmap},
+    build_map(T, FvUvMap, No+1, [{No,Chart}|Acc]);
+build_map([], _, _, Acc) -> Acc.
 
 %%%%% Material handling
 
