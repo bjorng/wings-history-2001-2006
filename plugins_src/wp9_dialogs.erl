@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.30 2003/12/30 10:14:23 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.31 2003/12/30 10:45:02 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -21,6 +21,9 @@ init(Next) ->
 ui({file,open_dialog,Prop,Cont}, _Next) ->
     Title = proplists:get_value(title, Prop, "Open"),
     open_dialog(Title, Prop, Cont);
+ui({file,save_dialog,Prop,Cont}, _Next) ->
+    Title = proplists:get_value(title, Prop, "Open"),
+    save_dialog(Title, Prop, Cont);
 ui({file,save_dialog,Prop}, _Next) ->
     Title = proplists:get_value(title, Prop, "Save"),
     save_file(Title ++ ": ", Prop);
@@ -61,29 +64,6 @@ file_filters_old_1([{Ext,_Desc}|T], Acc) ->
     file_filters_old_1(T, [Ext|Acc]);
 file_filters_old_1([], Acc) -> reverse(Acc).
 
-ensure_extension(Name, [Ext]) ->
-    case eq_extensions(Ext, filename:extension(Name)) of
-	true -> Name;
-	false -> Name ++ Ext
-    end;
-ensure_extension(Name, [_|_]) -> Name.
-
-eq_extensions(Ext, Actual) when length(Ext) =/= length(Actual) ->
-    false;
-eq_extensions(Ext, Actual) ->
-    IgnoreCase = case os:type() of
-		     {win32,_} -> true;
-		     _ -> false
-		 end,
-    eq_extensions(Ext, Actual, IgnoreCase).
-
-eq_extensions([C|T1], [C|T2], _IgnoreCase) ->
-    eq_extensions(T1, T2);
-eq_extensions([L|T1], [C|T2], true) when $A =< C, C =< $Z, L-C =:= 32 ->
-    eq_extensions(T1, T2);
-eq_extensions([_|_], [_|_], _IgnoreCase) -> false;
-eq_extensions([], [], _IgnoreCase) -> true.
-
 read_image(Prop) ->
     Name = proplists:get_value(filename, Prop),
     e3d_image:load(Name, Prop).
@@ -103,19 +83,26 @@ image_formats(Fs0) ->
 %%%
 
 open_dialog(Title, Props, Cont) ->
+    dialog(open, Title, Props, Cont).
+
+save_dialog(Title, Props, Cont) ->
+    dialog(save, Title, Props, Cont).
+
+dialog(Type, Title, Props, Cont) ->
     [{_,Def}|_] = Types = file_filters(Props),
     Dir = proplists:get_value(directory, Props, "/"),
     Ps = [{directory,Dir},{filetype,Def},{filename,""}],
-    {dialog,Qs,Ask} = do_dialog(Types, Title, Cont, Ps),
+    {dialog,Qs,Ask} = dialog_1(Type, Types, Title, Cont, Ps),
     wings_ask:dialog(Title, Qs, Ask).
 
-do_dialog(Types, Title, Cont, Ps) ->
+dialog_1(DlgType, Types, Title, Cont, Ps) ->
     Dir = proplists:get_value(directory, Ps),
     DefType = proplists:get_value(filetype, Ps),
     Filename = proplists:get_value(filename, Ps),
     Wc = atom_to_list(DefType),
     FileList = file_list(Dir, Wc),
     DirMenu = dir_menu(Dir, []),
+    OkHook = fun(Op, Arg) -> ok_hook(Op, Arg, DlgType) end,
     Qs = {vframe,
 	  [{hframe,[{label,"Look in:"},
 		    {menu,DirMenu,Dir,[{key,directory},{hook,fun menu_hook/2}]},
@@ -133,13 +120,15 @@ do_dialog(Types, Title, Cont, Ps) ->
 	     {vframe,[{button,Title,
 		       %% We will always exit the dialog through this
 		       %% callback. The hook for this button will make
-		       %% sure we don't get until we have a valid filename.
+		       %% sure we don't get here until there is a valid
+		       %% filename in the filename field.
 		       fun(Res) ->
 			       ok_action(Cont, Res)
-		       end,[ok,{hook,fun ok_hook/2}]},
+		       end,[ok,{hook,OkHook}]},
 		      {button,"Cancel",cancel,[cancel]}]}]}]},
     Ask = fun(Res) ->
-		  do_dialog(Types, Title, Cont, Res)
+		  %% This callback will only be used to restart the dialog.
+		  dialog_1(DlgType, Types, Title, Cont, Res)
 	  end,
     {dialog,Qs,Ask}.
 
@@ -149,7 +138,7 @@ ok_action(Cont, Res) ->
     NewName = filename:join(Dir, Name),
     Cont(NewName).
 
-ok_hook(is_disabled, {_Var,_I,Store}) ->
+ok_hook(is_disabled, {_Var,_I,Store}, _) ->
     %% The button will be disabled unless there is a filename
     %% in the filename field OR a directory is selected in
     %% file_list table.
@@ -165,12 +154,12 @@ ok_hook(is_disabled, {_Var,_I,Store}) ->
 		_ -> true
 	    end
 	end;
-ok_hook(update, {_Var,_I,_Val,Store}) ->
+ok_hook(update, {_Var,_I,_Val,Store}, DlgType) ->
     %% The button was pressed. If a directory is selected
     %% in the file_list table, we'll update the current
     %% directory and force a restart of the dialog.
-    %%    Otherwise, we'll return void, to use the default
-    %% action (i.e., finish the dialog box).
+    %%    Otherwise, we'll check the filename before returning
+    %% void (to finish the dialog).
 
     case gb_trees:get(file_list, Store) of
 	{[Sel],Els} ->
@@ -179,11 +168,30 @@ ok_hook(update, {_Var,_I,_Val,Store}) ->
 		    Base = gb_trees:get(directory, Store),
 		    Dir = filename:join(Base, Dir0),
 		    {done,gb_trees:update(directory, Dir, Store)};
-		_ -> void
+		_ ->
+		    check_filename(Store, DlgType)
 	    end;
-	_ -> void
+	_ ->
+	    check_filename(Store, DlgType)
     end;
-ok_hook(_, _) -> void.
+ok_hook(_, _, _) -> void.
+
+
+check_filename(Store, DlgType) ->
+    Dir = gb_trees:get(directory, Store),
+    Name0 = gb_trees:get(filename, Store),
+    Name1 = maybe_add_extension(Name0, gb_trees:get(filetype, Store)),
+    Name = filename:join(Dir, Name1),
+    case DlgType of
+	open ->
+	    case filelib:is_file(Name) of
+		false ->
+		    wings_util:message(Name0 ++ " does not exist"),
+		    done;
+		true ->
+		    {store,gb_trees:update(filename, Name1, Store)}
+	    end
+    end.
 
 dir_menu(Dir0, Acc) ->
     Entry = {Dir0,Dir0},
@@ -260,3 +268,30 @@ choose_file(update, {Var,_I,{[Sel],Els}=Val,Sto0}) ->
 	    {store,gb_trees:update(filename, File, Sto1)}
     end;
 choose_file(_, _) -> void.
+
+maybe_add_extension(Name, '') -> Name;
+maybe_add_extension(Name, Ext) ->
+    ensure_extension(Name, ["."++atom_to_list(Ext)]).
+
+ensure_extension(Name, [Ext]) ->
+    case eq_extensions(Ext, filename:extension(Name)) of
+	true -> Name;
+	false -> Name ++ Ext
+    end;
+ensure_extension(Name, [_|_]) -> Name.
+
+eq_extensions(Ext, Actual) when length(Ext) =/= length(Actual) ->
+    false;
+eq_extensions(Ext, Actual) ->
+    IgnoreCase = case os:type() of
+		     {win32,_} -> true;
+		     _ -> false
+		 end,
+    eq_extensions(Ext, Actual, IgnoreCase).
+
+eq_extensions([C|T1], [C|T2], _IgnoreCase) ->
+    eq_extensions(T1, T2);
+eq_extensions([L|T1], [C|T2], true) when $A =< C, C =< $Z, L-C =:= 32 ->
+    eq_extensions(T1, T2);
+eq_extensions([_|_], [_|_], _IgnoreCase) -> false;
+eq_extensions([], [], _IgnoreCase) -> true.
