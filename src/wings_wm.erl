@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.109 2003/06/05 09:51:42 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.110 2003/06/06 16:22:37 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -115,9 +115,10 @@ opengl_modes() ->
      [{buffer_size,24},{depth_size,32},{stencil_size,8},{accum_size,16}],
      [{buffer_size,24},{depth_size,24},{stencil_size,8},{accum_size,16}],
      [{buffer_size,24},{depth_size,24},{stencil_size,0},{accum_size,16}],
+     [{buffer_size,16},{depth_size,24},{stencil_size,8},{accum_size,16}],
      [{buffer_size,16},{depth_size,16},{stencil_size,8},{accum_size,16}],
      [{buffer_size,16},{depth_size,16},{stencil_size,0},{accum_size,16}],
-     [{buffer_size,15},{depth_size,16},{stencil_size,0},{accum_size,16}],
+     [{buffer_size,15},{depth_size,16},{stencil_size,8},{accum_size,16}],
      [{buffer_size,15},{depth_size,16},{stencil_size,0},{accum_size,16}],
 
      %% Fallback - use default for all.
