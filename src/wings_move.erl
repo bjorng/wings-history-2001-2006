@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.39 2002/08/25 08:13:13 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.40 2002/08/25 15:10:59 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -301,7 +301,7 @@ translate_fun(free) ->
 	    #view{azimuth=Az,elevation=El} = wings_view:current(),
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
 	    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
-	    {Xt,Yt,Zt} = e3d_mat:mul_point(M1, {Dx,Dy,Dz}),
+	    {Xt,Yt,Zt} = e3d_mat:mul_point(M1, {Dx,Dy,-Dz}),
 	    e3d_mat:translate(Xt, Yt, Zt)
     end;
 translate_fun({Xt0,Yt0,Zt0}) ->
@@ -359,7 +359,7 @@ magnet_move_fun(free, VsInf0, {_,R}=Magnet0) ->
 	    M = view_matrix(),
 	    foldl(
 	      fun({V,#vtx{pos={Px,Py,Pz}}=Vtx,_,Inf}, A) ->
-		      {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx*Inf,Dy*Inf,Dz}),
+		      {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx*Inf,Dy*Inf,-Dz*Inf}),
 		      Pos = wings_util:share(Px+Xt, Py+Yt, Pz+Zt),
 		      [{V,Vtx#vtx{pos=Pos}}|A]
 	      end, Acc, VsInf0)
@@ -401,7 +401,7 @@ move_fun(VsPos, ViewMatrix) ->
        (view_changed, NewWe) ->
 	    move_fun(wings_util:update_vpos(VsPos, NewWe), view_matrix());
        ([Dx,Dy,Dz|_], Acc) ->
-	    {Xt,Yt,Zt} = e3d_mat:mul_point(ViewMatrix, {Dx,Dy,Dz}),
+	    {Xt,Yt,Zt} = e3d_mat:mul_point(ViewMatrix, {Dx,Dy,-Dz}),
 	    foldl(fun({V,#vtx{pos={X,Y,Z}}=Rec}, A) -> 
 			  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
 			  [{V,Rec#vtx{pos=Pos}}|A]
