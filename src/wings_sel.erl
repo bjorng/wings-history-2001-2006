@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.36 2002/08/30 11:53:43 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.37 2002/09/04 19:03:24 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -148,6 +148,8 @@ make(Filter, Mode, #st{shapes=Shapes}=St) ->
     St#st{selmode=Mode,sel=Sel}.
 
 make_1([#we{perm=Perm}|Shs], Filter, Mode) when ?IS_NOT_SELECTABLE(Perm) ->
+    make_1(Shs, Filter, Mode);
+make_1([We|Shs], Filter, Mode) when ?IS_LIGHT(We) ->
     make_1(Shs, Filter, Mode);
 make_1([#we{id=Id}=We|Shs], Filter, body) ->
     case Filter(0, We) of

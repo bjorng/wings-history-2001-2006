@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.19 2002/08/30 11:53:44 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.20 2002/09/04 19:03:28 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -101,9 +101,8 @@ command(less, St) ->
     select_less(St);
 command(all, St) ->
     {save_state,select_all(St)};
-command(lights, #st{selmode=Mode}=St0) ->
-    St = wings_sel:make(fun(_, We) -> ?IS_LIGHT(We) end, Mode, St0),
-    {save_state,St};
+command(lights, St) ->
+    {save_state,select_lights(St)};
 command({by,Command}, St) ->
     by_command(Command, St);
 command(similar, St) ->
@@ -501,3 +500,27 @@ ask(Qs, Fun) ->
 			      Sel = Fun(Res),
 			      {select,{by,{id,Sel}}}
 		      end).
+
+%%%
+%%% Select lights.
+%%%
+
+select_lights(#st{selmode=Mode,shapes=Shapes}=St) ->
+    Sel = select_lights_1(gb_trees:values(Shapes), Mode),
+    St#st{selmode=Mode,sel=Sel}.
+
+select_lights_1([#we{perm=Perm}|Shs], Mode) when ?IS_NOT_SELECTABLE(Perm) ->
+    select_lights_1(Shs, Mode);
+select_lights_1([We|Shs], Mode) when not ?IS_LIGHT(We) ->
+    select_lights_1(Shs, Mode);
+select_lights_1([#we{id=Id}|Shs], body) ->
+    [{Id,gb_sets:singleton(0)}|select_lights_1(Shs, body)];
+select_lights_1([#we{id=Id,vs=Vtab,es=Etab,fs=Ftab}|Shs], Mode) ->
+    Tab = case Mode of
+	      vertex -> Vtab;
+	      edge -> Etab;
+	      face -> Ftab
+	  end,
+    Sel = gb_trees:keys(Tab),
+    [{Id,gb_sets:from_ordset(Sel)}|select_lights_1(Shs, Mode)];
+select_lights_1([], _) -> [].
