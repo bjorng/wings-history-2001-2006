@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.36 2002/01/05 23:54:53 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.37 2002/01/11 08:27:56 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -254,7 +254,7 @@ align_to_selection(#st{selmode=vertex}=St) ->
     N = average_normals(
 	  fun(Vs, We, Acc) ->
 		  foldl(fun(V, A) ->
-				[wings_vertex:normal(V, We)|Acc]
+				[wings_vertex:normal(V, We)|A]
 			end, Acc, Vs)
 	  end, St),
     align_to_selection(N, St);
@@ -272,7 +272,7 @@ align_to_selection(#st{selmode=face}=St) ->
     N = average_normals(
 	  fun(Faces, We, Acc) ->
 		  foldl(fun(Face, A) ->
-				[wings_face:normal(Face, We)|Acc]
+				[wings_face:normal(Face, We)|A]
 			end, Acc, Faces)
 	  end, St),
     align_to_selection(N, St);
