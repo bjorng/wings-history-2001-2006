@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.41 2004/11/18 19:08:17 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.42 2004/11/21 07:51:21 bjorng Exp $
 %%
 
 {wings,
@@ -325,6 +325,8 @@
     {7,"Verkan på "}]}]}.
 {wings_drag,
  [
+  {help_message,
+   [{1,"Numerisk inmatning"}]},
   {make_query_1,
    [{2,"A"}]},
   {numeric_input,
@@ -337,8 +339,8 @@
     {5,"R"},
     {6,"A"}]},
   {standard_mode_fun,
-   [{1,"[Tab] Numerisk inmatning [Shift] och/eller [Ctrl] begränsningar"},
-    {2,"[+] eller [-] Justera radie "}]},
+   [{1,"[Shift] och/eller [Ctrl] begränsningar"},
+    {2,"[+] eller [-] Justera radie"}]},
   {zmove_help_1,
    [{1,"Dra för att flytta längs Z"},
     {2,"Dra för att justera den tredje parametern"}]}]}.
