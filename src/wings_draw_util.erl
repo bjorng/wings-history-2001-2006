@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.6 2001/12/26 14:46:25 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.7 2002/01/02 12:26:28 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -91,8 +91,7 @@ face(Face, Edge, #we{vs=Vtab}=We) ->
 	    glu:tessNormal(Tess, X, Y, Z),
 	    glu:tessBeginPolygon(Tess),
 	    glu:tessBeginContour(Tess),
-	    Info = [{material,?GL_FRONT,?GL_AMBIENT_AND_DIFFUSE,{1.0,1.0,1.0}},
-		    {normal,N}],
+	    Info = [{normal,N}],
 	    tess_face(Tess, Vs, Info, Vtab),
 	    glu:tessEndContour(Tess),
 	    glu:tessEndPolygon(Tess),
@@ -100,7 +99,6 @@ face(Face, Edge, #we{vs=Vtab}=We) ->
 	Vs ->
 	    gl:'begin'(?GL_POLYGON),
 	    gl:normal3fv(wings_face:face_normal(Vs, We)),
-	    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
 	    face_1(Vs, Vtab),
 	    gl:'end'()
     end.

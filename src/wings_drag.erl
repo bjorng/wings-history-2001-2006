@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.43 2001/12/30 22:18:45 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.44 2002/01/02 12:26:28 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -545,6 +545,7 @@ make_dlist_1([], Fs, Draw) -> ok.
 
 draw_faces(#we{perm=Perm}=We) when ?IS_NOT_VISIBLE(Perm) -> ok;
 draw_faces(#we{fs=Ftab}=We) ->
+    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
     foreach(fun({Face,#face{edge=Edge}}) ->
 		    wings_draw_util:face(Face, Edge, We)
 	    end, gb_trees:to_list(Ftab)).

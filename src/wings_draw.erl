@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.42 2002/01/01 11:28:35 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.43 2002/01/02 12:26:28 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -73,7 +73,7 @@ draw_smooth_shapes(St) ->
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     gl:polygonOffset(2.0, 2.0),
-    draw_faces(St),
+    draw_faces(),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
@@ -95,7 +95,7 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
 	    gl:polygonOffset(2.0, 2.0),
 	    gl:shadeModel(?GL_SMOOTH),
 	    gl:enable(?GL_LIGHTING),
-	    draw_faces(St),
+	    draw_faces(),
 	    gl:disable(?GL_LIGHTING),
 	    gl:shadeModel(?GL_FLAT)
     end,
@@ -116,7 +116,7 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
 	    gl:polygonOffset(1.0, 1.0),
-	    draw_faces(St)
+	    draw_faces()
     end,
 
     gl:disable(?GL_POLYGON_OFFSET_LINE),
@@ -145,7 +145,7 @@ draw_sel(St) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:callList(DlistSel).
     
-draw_faces(#st{}) ->
+draw_faces() ->
     #dl{faces=DlistFaces} = get_dlist(),
     gl:callList(DlistFaces).
 
@@ -177,7 +177,7 @@ do_make_sel_dlist(false, #st{selmode=body,sel=Sel,shapes=Shs}=St) ->
     case {gb_trees:size(Shs),length(Sel)} of
 	{Sz,Sz} ->
 	    sel_color(),
-	    draw_faces(St);
+	    draw_faces();
 	{_,_} ->
 	    draw_selection(false, St)
     end,
@@ -196,6 +196,7 @@ do_make_sel_dlist_1(Smooth, #st{sel=Sel}=St) ->
 draw_faces(We, true, #st{mat=Mtab}) ->
     draw_smooth_faces(Mtab, We);
 draw_faces(We, false, St) ->
+    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
     wings_util:fold_face(
       fun(Face, #face{edge=Edge}, _) ->
 	      wings_draw_util:face(Face, Edge, We)
@@ -309,7 +310,8 @@ draw_selection(Smooth, #st{selmode=face}=St) ->
     sel_color(),
     wings_sel:foreach(
       fun(Face, #we{fs=Ftab}=We) ->
-	      wings_draw_util:sel_face(Face, We)
+	      #face{edge=Edge} = gb_trees:get(Face, Ftab),
+	      wings_draw_util:face(Face, Edge, We)
       end, St);
 draw_selection(Smooth, #st{selmode=edge}=St) ->
     sel_color(),
