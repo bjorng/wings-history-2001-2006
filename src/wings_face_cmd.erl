@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.103 2004/03/29 07:19:14 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.104 2004/03/30 03:34:43 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -611,8 +611,9 @@ all_edges(Faces, We) ->
 		{[],[]}, Faces, We),
     {ordsets:from_list(Vs),ordsets:from_list(Es)}.
 
-smooth_connect(Vs, Faces0, We0) ->
-    Faces = sofs:from_external(gb_sets:to_list(Faces0), [face]),
+smooth_connect(Vs, Faces0, #we{mirror=Mirror}=We0) ->
+    Faces1 = gb_sets:add(Mirror, Faces0),
+    Faces = sofs:from_external(gb_sets:to_list(Faces1), [face]),
     FaceVs0 = wings_vertex:per_face(Vs, We0),
     FaceVs1 = sofs:from_external(FaceVs0, [{face,[vertex]}]),
     FaceVs2 = sofs:drestriction(FaceVs1, Faces),
