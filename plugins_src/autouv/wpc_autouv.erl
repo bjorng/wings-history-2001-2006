@@ -4,11 +4,11 @@
 %%%
 %%% Created : 24 Jan 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2002 Dan Gudmundsson 
+%%  Copyright (c) 2001-2002 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.16 2002/10/18 21:57:29 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.17 2002/10/19 10:18:33 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -19,32 +19,27 @@
 -include("e3d_image.hrl").
 -include("auv.hrl").
  
--compile(export_all). %% debug
--export([menu/2,command/2, outer_edges/2, outer_edges/3]).
+%%-compile(export_all). %% debug
+-export([init/0,menu/2,command/2,outer_edges/2,outer_edges/3]).
 -export([maxmin/1]).
 -export([moveAndScale/5]).
 -import(lists, [sort/1, map/2, foldl/3, reverse/1, 
 		append/1,delete/2, usort/1, max/1, min/1]).
+
+init() ->
+    true.
 
 add_areas(New, Areas) ->
     As = Areas#areas.as,
     NewAs = ?add_as(New, As),
     Areas#areas{as = NewAs}.
 
-init() ->
-    true.
-
 menu({body}, Menu0) ->
     case get(auv_state) of
 	undefined ->
-	    SubMenu1 = 
-		[{"Create UV map", create, 
-		  "Create a new texture mapping (removing old)"},
-		 {"Edit UV map", edit, 
-		  "Edit a previously created UV-map"}],
 	    Menu0 ++ [separator,
-		      {"UV-Mapping", {uvmap, SubMenu1},
-		       "Generate or edit a UV-map or texture"}];
+		      {"UV mapping", ?MODULE,
+		       "Generate or edit UV mapping or texture"}];
 	_UvState ->
 	    parameterization_menu(Menu0)
     end;
@@ -82,22 +77,10 @@ parameterization_menu(_Menu) ->
       "Continue with uv-mapping parameterization"},
      {"UV-Mapping Cancel", uvmap_cancel, "Cancel all changes"}].
 
-command({body, {uvmap, create}}, St0) ->
-    DefVar = {seg_type,autouvmap},
-    Qs = [{vframe,[{alt,DefVar,"Advanced Cubic",autouvmap},
-		   {alt,DefVar,"By Feature Detection",feature},
-		   {alt,DefVar,"By Material",mat_uvmap},
-		   {alt,DefVar,"I'll segment the model myself", one}
-		  ],
-	   [{title,"Segmentation type"}]}],
-    Text = "Make charts, put faces into charts",
-    wings_ask:dialog(Qs,
-		     fun([Mode]) ->
-			     St1 = segment(Mode, St0),
-			     put(auv_state, [{oldst, St0}]),
-			     wings_io:message(Text),
-			     St1
-		     end);
+command({body,?MODULE}, St) ->
+    start_uvmap(St);
+command({body,{?MODULE,do_edit,We}}, St) ->
+    do_edit(We, St);
 command({_, uvmap_cancel}, _St0) ->
     [{oldst,S1}] = get(auv_state),
     erase(auv_state),
@@ -120,26 +103,6 @@ command({uvmap, {parametrization, Mode}}, St0) ->
 		      sel=Old#st.sel}, 
 	       Old, Mode);
     
-command({body, {uvmap, edit}}, St0) ->
-    AllAreas = ?SLOW(wings_sel:fold(fun(_Sel, We, A) ->
-	init_edit(We, A, St0)
-	end, [], St0)),
-    if
-	AllAreas == [] ->
-	    St0;
-	true ->
-	    Geom = init_drawarea(),
-	    [Areas = #areas{matname = MatName}|Remain] = AllAreas,
-	    TexSz = get_texture_size(MatName, St0#st.mat),
-	    Uvs = #uvstate{command = edit, 
-			   st = wings_select_faces([],Areas#areas.we,St0),
-			   origst = St0,
-			   areas = Areas, geom = Geom, 
-			   rest_objects = Remain,
-			   option = #setng{color = false, texbg = true, 
-					   texsz = TexSz}},
-	    {seq,{push,dummy}, get_event(Uvs)}
-    end;
 command({body,{uvmap_done,QuitOp,
 	       Uvs = #uvstate{st=St0,areas=Current,sel=Sel}}}, _) ->
     Areas1 = add_areas(Sel,Current),
@@ -189,6 +152,66 @@ command(_Cmd, _St) ->
 %%    ?DBG("Unsupport command ~p~n",[_Cmd]),
     next.
 
+start_uvmap(#st{sel=[{Id,_}],shapes=Shs}=St) ->
+    case gb_trees:get(Id, Shs) of
+	#we{mode=uv}=We -> start_edit(Id, We, St);
+	_ -> start_uvmap_1(St)
+    end;
+start_uvmap(_) ->
+    wpa:error("Select only one object.").
+
+start_uvmap_1(St0) ->
+    DefVar = {seg_type,autouvmap},
+    Qs = [{vframe,[{alt,DefVar,"Advanced Cubic",autouvmap},
+		   {alt,DefVar,"By Feature Detection",feature},
+		   {alt,DefVar,"By Material",mat_uvmap},
+		   {alt,DefVar,"I'll segment the model myself", one}
+		  ],
+	   [{title,"Segmentation type"}]}],
+    Text = "Make charts, put faces into charts",
+    wings_ask:dialog(Qs,
+		     fun([Mode]) ->
+			     St1 = segment(Mode, St0),
+			     put(auv_state, [{oldst, St0}]),
+			     wings_io:message(Text),
+			     St1
+		     end).
+
+start_edit(Id, We0, #st{shapes=Shs0}=St) ->
+    DefVar = {answer,edit},
+    Qs = [{vframe,[{alt,DefVar,"Edit existing UV mapping",edit},
+		   {alt,DefVar,"Discard existing UV mapping and start over",discard}],
+	   [{title,"Model is already UV-mapped"}]}],
+    wings_ask:dialog(Qs,
+		     fun([Reply]) ->
+			     case Reply of
+				 edit ->
+				     %% Hack to avoid getting caught in the
+				     %% dialog box's viewport.
+				     Act = {action,{body,{?MODULE,do_edit,We0}}},
+				     wings_io:putback_event(Act),
+				     ignore;
+				 discard ->
+				     We = wings_we:uv_to_color(We0, St),
+				     Shs = gb_trees:update(Id, We, Shs0),
+				     wings_io:putback_event({action,{body,?MODULE}}),
+				     St#st{shapes=Shs}
+			     end
+		     end).
+
+do_edit(We, St0) ->
+    Areas = #areas{matname=MatName} = init_edit(We, St0),
+    Geom = init_drawarea(),
+    TexSz = get_texture_size(MatName, St0#st.mat),
+    Uvs = #uvstate{command = edit, 
+		   st = wings_select_faces([],Areas#areas.we,St0),
+		   origst = St0,
+		   areas = Areas, geom = Geom, 
+		   rest_objects = [],
+		   option = #setng{color = false, texbg = true, 
+				   texsz = TexSz}},
+    {seq,{push,dummy}, get_event(Uvs)}.
+
 segment(Mode, St0) ->
     ?SLOW(wings_sel:fold(
 	fun(_Sel, We, A) ->
@@ -227,7 +250,7 @@ set_material(Face, MatName, We= #we{fs = Fs}) ->
     Fs1 = gb_trees:update(Face, F#face{mat=MatName}, Fs), 
     We#we{fs = Fs1}.
 
-create_diffuse({0, Fs}, Max) ->
+create_diffuse({0, Fs}, _Max) ->
     {grey_0, {0.7,0.7,0.7,1.0}, Fs};
 create_diffuse({Index0, Fs}, Max) ->
     {ColorI, Diff} = 
@@ -275,7 +298,6 @@ init_uvmap(St0, Old, Type) ->
     Geom = init_drawarea(),
     [Areas|Remain] = AllAreas,
     Uvs = #uvstate{command = create_mat, 
-		   %st=wpa:sel_set(body, Sel, St1), 
 		   st=wings_select_faces([],Areas#areas.we,St1),
 		   origst = Old,
 		   areas = Areas, 
@@ -353,11 +375,7 @@ insert_coords([{V0,{Face,{S,T,_}}}|Rest], Vmap, #we{es=Etab0}=We) ->
     insert_coords(Rest, Vmap, We#we{es=Etab});
 insert_coords([], _, We) -> We.
 
-init_edit(#we{name = Name, mode = Mode}, Acc, _St) when Mode /= uv ->
-    wpa:error("Error: " ++ Name ++ " doesn't contain uv coords"),
-    Acc;
-
-init_edit(We = #we{fs = Ftab0}, Acc, St0) ->
+init_edit(We = #we{fs = Ftab0}, St0) ->
     MatNames0 = find_mats(gb_trees:next(gb_trees:iterator(Ftab0)), []),
     MatNames1 = [Mat || Mat = {MatName,_,_} <- MatNames0,  %% Filter materials with textures
 			has_texture(MatName, St0#st.mat)],    
@@ -378,7 +396,7 @@ init_edit(We = #we{fs = Ftab0}, Acc, St0) ->
     {Map0,_Count} = lists:mapfoldl(Create, 1, Clusters),
     ?DBG("Edit UV ~p \n", [MatName]),
     Map = gb_trees:from_orddict(Map0),
-    [#areas{we=We, as=Map, matname=MatName}|Acc].
+    #areas{we=We, as=Map, matname=MatName}.
 
 %%%%% Material handling
 
@@ -512,10 +530,33 @@ moveAndScale([],_,_,_,Acc) ->
     Acc.
 
 maxmin([{Id, {X,Y,_}}|Rest]) ->
+    maxmin(Rest, {Id, X},{Id, X},{Id, Y},{Id, Y});
+maxmin([{Id, {X,Y}}|Rest]) ->
     maxmin(Rest, {Id, X},{Id, X},{Id, Y},{Id, Y}).
+
 maxmin([],Xmin,Xmax,Ymin,Ymax) ->
     {Xmin,Xmax,Ymin,Ymax};
 maxmin([{Id, {X,Y,_}}|Rest], 
+       XMin={_IdX0,X0}, XMax={_IdX1,X1}, 
+       YMin={_IdY0,Y0}, YMax={_IdY1,Y1}) ->
+    if 	X > X1 ->
+	    if Y > Y1 -> maxmin(Rest, XMin, {Id,X}, YMin, {Id,Y});
+	       Y < Y0 -> maxmin(Rest, XMin, {Id,X}, {Id,Y}, YMax);
+	       true ->   maxmin(Rest, XMin, {Id,X}, YMin, YMax)
+	    end;
+	X < X0 ->
+	    if Y > Y1 -> maxmin(Rest,{Id,X}, XMax, YMin, {Id,Y});
+	       Y < Y0 -> maxmin(Rest,{Id,X}, XMax, {Id,Y}, YMax);
+	       true ->   maxmin(Rest,{Id,X}, XMax, YMin, YMax)
+	    end;
+	Y > Y1 ->
+	    maxmin(Rest,XMin, XMax, YMin, {Id,Y});
+	Y < Y0 ->
+	    maxmin(Rest,XMin, XMax, {Id,Y}, YMax);
+	true ->
+	    maxmin(Rest,XMin, XMax, YMin, YMax)
+    end;
+maxmin([{Id, {X,Y}}|Rest], 
        XMin={_IdX0,X0}, XMax={_IdX1,X1}, 
        YMin={_IdY0,Y0}, YMax={_IdY1,Y1}) ->
     if 	X > X1 ->
@@ -561,6 +602,7 @@ init_drawarea() ->
 	    end,
     %%    {{0,0,HW,OH}, {X2,Y2,W3,H3}}.
     {{0,0,HW,OH}, {X2,Y2,W2,H2,X0Y0,XMax,YMax}}.
+
 draw_texture(Uvs = #uvstate{dl = undefined, option = Options}) ->
     Materials = (Uvs#uvstate.origst)#st.mat,
     Areas = #areas{we = We, as = As0} = Uvs#uvstate.areas,
@@ -798,8 +840,9 @@ option_menu() ->
      separator,
      {"Export", export, "Export texture"},
      {"Import", import, "Import texture"},
+     {"Checkerboard", checkerboard, "Generate checkerboard texture"},
      separator,
-     {"Apply texture", apply_texture, "Test attach current texture to model"},
+     {"Apply texture", apply_texture, "Attach the current texture to the model"},
      separator,
      {"Quit", quit, "Quit AutoUv-mapper"}].
 
@@ -1032,6 +1075,18 @@ handle_event({action, {auv, import}}, Uvs0) ->
 	    FileName1 = ensure_ext(FileName0,".tga"),
 	    ?SLOW(import_file(FileName1, Uvs0))
 		end;
+handle_event({action, {auv, checkerboard}}, Uvs) ->
+    Sz = 512,
+    Bin = checkerboard(Sz),
+    add_texture_image(Sz, Sz, Bin, default, Uvs);
+handle_event({action, {auv, import}}, Uvs0) ->
+    case wings_plugin:call_ui({file,import,tga_prop()}) of
+	aborted -> 
+	    get_event(Uvs0);
+	FileName0 ->
+	    FileName1 = ensure_ext(FileName0,".tga"),
+	    ?SLOW(import_file(FileName1, Uvs0))
+		end;
 
 handle_event({action, {auv, apply_texture}},
 	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{we=We}}) ->
@@ -1157,7 +1212,6 @@ import_file(default, Uvs0) ->
     import_file(Uvs0#uvstate.last_file, Uvs0);
 import_file(FileName1, Uvs0) ->
     Type = [{type, r8g8b8}, {alignment, 1}, {order, lower_left}],
-
     case catch e3d_image:load(FileName1, Type) of
 	{_, Error0} ->
 	    Error = FileName1 ++ ": " ++ format_error(Error0),
@@ -1166,18 +1220,20 @@ import_file(FileName1, Uvs0) ->
 	#e3d_image{width = TW, height = TH, image = TexBin} ->
 	    case (TW == TH) andalso is_power_of_two(TW) of
 		true ->
-		    {St1,_As} = add_material(edit, {TW,TH,TexBin},
-					     Uvs0#uvstate.st, Uvs0#uvstate.areas),
-		    Option = Uvs0#uvstate.option,
-		    get_event(Uvs0#uvstate{st = St1, 
-					   option=Option#setng{texbg = true}, 
-					   last_file = FileName1,
-					   dl = undefined});
+		    add_texture_image(TW, TH, TexBin, FileName1, Uvs0);
 		false ->
 		    wings_util:message("Import failed: Can only import square," 
 				       "power of 2 sized pictures", Uvs0#uvstate.st)	
 	    end
     end.
+
+add_texture_image(TW, TH, TexBin, FileName, #uvstate{option=Opt}=Uvs0) ->
+    {St1,_As} = add_material(edit, {TW,TH,TexBin},
+			     Uvs0#uvstate.st, Uvs0#uvstate.areas),
+    get_event(Uvs0#uvstate{st=St1, 
+			   option=Opt#setng{texbg = true}, 
+			   last_file = FileName,
+			   dl = undefined}).
 
 is_power_of_two(X) ->
     (X band -X ) == X.
@@ -1584,3 +1640,23 @@ tess_face(Tess, [V|T], N, Vtab) ->
 tess_face(Tess, [], _N, _Vtab) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
+
+%% Generate a checkerboard image.
+checkerboard(Sz) ->
+    White = [255,255,255],
+    Black = [0,0,0],
+    FourWhite = check_repeat(4, White),
+    FourBlack = check_repeat(4, Black),
+    R1 = check_repeat(Sz div 8, [FourBlack|FourWhite]),
+    R2 = check_repeat(Sz div 8, [FourWhite|FourBlack]),
+    R8 = [check_repeat(4, R1)|check_repeat(4, R2)],
+    list_to_binary(check_repeat(Sz div 8, R8)).
+
+check_repeat(0, _) -> [];
+check_repeat(1, D) -> [D];
+check_repeat(N, D) ->
+    B = check_repeat(N div 2, D),
+    case N rem 2 of
+	0 -> [B|B];
+	1 -> [D,B|B]
+    end.
