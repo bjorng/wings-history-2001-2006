@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.189 2004/04/19 12:34:25 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.190 2004/04/19 15:11:19 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -520,31 +520,21 @@ split_1(D, Vs, St) ->
     split_2(D, Vs, update_materials(D, St)).
 
 split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
-	     proxy_data=Pd,ns=Ns0,needed=Needed}=D, Vs0, St) ->
-    %% Efficiency note: Looping over the face table is slower than
-    %% looping over the edge table, but sorting will be
-    %% considerable faster, because an edge table loop will construct
-    %% a list that is twice as long (with duplicates).
+	     proxy_data=Pd,ns=Ns0,needed=Needed}=D, Vs, St) ->
+    Faces = vs_to_faces(Vs, We),
+    AllVs = faces_to_vs(Faces, We, Vs),
+    AllVsSet = sofs:from_external(AllVs, [vertex]),
 
     Ftab1 = gb_trees:to_list(Ftab0),
     Ftab = sofs:from_external(Ftab1, [{face,data}]),
-
-    F2V0 = f2v(Ftab1, We, []),
-    F2V = sofs:from_external(F2V0, [{face,vertex}]),
-    V2F = sofs:converse(F2V),
-    Vs = sofs:set(Vs0, [vertex]),
-
-    Faces0 = sofs:image(V2F, Vs),
-    AllVs = sofs:image(F2V, Faces0),
-    {Work,FtabDyn} = split_faces(D, Ftab, Faces0, St),
-
-    StaticEdgeDl = make_static_edges(Faces0, Ftab, D),
-    {DynVs,VsDlist} = split_vs_dlist(AllVs, Sel, We),
+    FaceSet = sofs:from_external(Faces, [face]),
+    {Work,FtabDyn} = split_faces(D, Ftab, FaceSet, St),
+    StaticEdgeDl = make_static_edges(FaceSet, Ftab, D),
+    {DynVs,VsDlist} = split_vs_dlist(AllVsSet, Sel, We),
 
     WeDyn = wings_material:cleanup(We#we{fs=gb_trees:from_orddict(FtabDyn)}),
 
-    Faces = sofs:to_external(Faces0),
-    StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
+    StaticVs0 = ordsets:subtract(AllVs, sort(Vs)),
     StaticVs = sort(insert_vtx_data(StaticVs0, We#we.vp, [])),
     DynPlan = wings_draw_util:prepare(FtabDyn, We, St),
     Split = #split{static_vs=StaticVs,dyn_vs=DynVs,
@@ -554,15 +544,29 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
 	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd,
 	 needed=Needed}.
 
-f2v([{F,E}|Fs], We, Acc) ->
-    f2v(Fs, We, f2v_1(sort(wings_face:vertices_ccw(F, E, We)), F, Acc));
-f2v([], _, Acc) -> reverse(Acc).
+vs_to_faces(Vs, We) ->
+    Fun = fun(_, Face, _, A) -> [Face|A] end,
+    vs_to_faces_1(Vs, Fun, We, []).
 
-f2v_1([Va,Vb,Vc|Vs], F, Acc) ->
-    f2v_1(Vs, F, [{F,Vc},{F,Vb},{F,Va}|Acc]);
-f2v_1([V|Vs], F, Acc) ->
-    f2v_1(Vs, F, [{F,V}|Acc]);
-f2v_1([], _, Acc) -> Acc.
+vs_to_faces_1([V|Vs], Fun, We, Acc0) ->
+    Acc = wings_vertex:fold(Fun, Acc0, V, We),
+    vs_to_faces_1(Vs, Fun, We, Acc);
+vs_to_faces_1([], _, _, Acc) -> ordsets:from_list(Acc).
+
+faces_to_vs(Fs, We, Vs0) ->
+    Vs = gb_sets:from_list(Vs0),
+    Fun = fun(V, _, _, A) ->
+		  case gb_sets:is_member(V, Vs) of
+		      false -> [V|A];
+		      true -> A
+		  end
+	  end,
+    MoreVs = faces_to_vs_1(Fs, Fun, We, []),
+    ordsets:from_list(MoreVs ++ Vs0).
+    
+faces_to_vs_1([F|Fs], Fun, We, Acc) ->
+    faces_to_vs_1(Fs, Fun, We, wings_face:fold(Fun, Acc, F, We));
+faces_to_vs_1([], _, _, Acc) -> Acc.
 
 split_faces(#dlo{needed=Need}=D, Ftab, Faces, St) ->
     case member(work, Need) orelse member(smooth, Need) of
@@ -578,7 +582,6 @@ split_faces(#dlo{needed=Need}=D, Ftab, Faces, St) ->
 	    StaticFtab = sofs:to_external(StaticFtab0),
 	    {[draw_faces(StaticFtab, D, St)],FtabDyn}
     end.
-
 
 make_static_edges(DynFaces, DynFtab, D) ->
     Ftab0 = sofs:difference(sofs:domain(DynFtab), DynFaces),
