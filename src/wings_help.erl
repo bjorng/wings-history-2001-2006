@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.23 2002/08/25 15:05:01 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.24 2002/08/28 05:44:16 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -111,7 +111,7 @@ one_button() ->
     Help = ["Using A One-Button Mouse (Mac)",
 	    "To use the default Wings/Blender camera mode with an one-button "
 	    "mouse, you must first enable \"One-button mouse\" in the "
-	    "Edit|Preferences dialog box. Note that you cannot access the "
+	    "Edit|Compatibility dialog box. Note that you cannot access the "
 	    "third dimension in the Wings/Blender mode.",
 
 	    "To emulate the middle mouse button, hold the [Alt/Option] key.",
