@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings2.nsi,v 1.7 2002/12/01 11:53:43 bjorng Exp $
+#     $Id: wings2.nsi,v 1.8 2003/01/15 20:57:02 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -65,6 +65,7 @@ Section "ThisNameIsIgnoredSoWhyBother?"
   Delete "$INSTDIR\README"
   Delete "$INSTDIR\plugins\primitives\wpc_plane.beam"
   DeleteRegKey HKLM "SOFTWARE\Wings3D"
+  Delete "$INSTDIR\ebin\wings_win_scroller.beam"
 
   ; Some releases have all command plug-ins in the import_export directory.
   Delete "$INSTDIR\plugins\import_export\wpc_region.beam"
