@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.12 2002/10/18 19:53:44 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.13 2002/10/22 08:16:50 dgud Exp $
 
 -module(auv_segment).
 
@@ -623,7 +623,8 @@ cut_make_map([E|Es], MustRenumber, Id, Acc) ->
 cut_make_map([], _, _, Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
 
--define(EXTRUDE_DIST, 0.1).
+%-define(EXTRUDE_DIST, 0.1).
+-define(EXTRUDE_DIST, 0.0).
 
 cut_edges(Edges, #we{next_id=Wid,es=Etab}=We0) ->
     G = digraph:new(),
@@ -631,15 +632,29 @@ cut_edges(Edges, #we{next_id=Wid,es=Etab}=We0) ->
 			  digraph_edge(G, gb_trees:get(Edge, Etab))
 		  end, gb_sets:to_list(Edges)),
     Vs0 = digraph:vertices(G),
-    Vs1 = sofs:relation(Vs0),
-    Vs = sofs:to_external(sofs:domain(Vs1)),
+    {Vs,Ends} = exclude_ends(lists:sort(Vs0), undefined, 0, [], []),
+%    ?DBG("CE ~p ~n ~p ~n", [lists:sort(Vs0),Vs]),
+%    Vs1 = sofs:relation(Vs0),
+%    Vs = sofs:to_external(sofs:domain(Vs1)),
+%    ?DBG("Sofsad ~p~n", [lists:sort(Vs)]),
     {We1,Vmap} =
 	foldl(fun(V, A) ->
 		      new_vertex(V, G, Edges, A)
 	      end, {We0,[]}, Vs),
-    We = connect(G, Wid, We1),
+    We = connect(G, Wid, We1, Ends),
     digraph:delete(G),
     {We,Vmap}.
+
+exclude_ends([{Vs, _}|R], Vs, Count, Middle,Ends) ->
+    exclude_ends(R,Vs, Count+1, Middle,Ends);
+exclude_ends([{Vs, _}|R], Old, Count, Middle,Ends) when Count > 2 ->
+    exclude_ends(R,Vs,1,[Old|Middle],Ends);
+exclude_ends([{Vs,_}|R], Old, _, Middle,Ends) ->
+    exclude_ends(R,Vs,1,Middle,[Old|Ends]);
+exclude_ends([], Old, Count,Middle,Ends) when Count > 2 ->
+    {[Old|Middle],Ends};
+exclude_ends([],Old, _, Middle,Ends) ->
+    {Middle,[Old|Ends]}.
 
 new_vertex(V, G, Edges, {We0,F0}=Acc) ->
     case wings_vertex:fold(fun(E, F, R, A) -> [{E,F,R}|A] end, [], V, We0) of
@@ -710,24 +725,32 @@ digraph_insert(G, Va0, Vb0, Face) ->
     digraph:add_vertex(G, Vb),
     digraph:add_edge(G, Va, Vb).
 
-connect(G, Wid, We) ->
+connect(G, Wid, We, Ends) ->
     Cs0 = digraph_utils:components(G),
     Cs = remove_winged_vs(Cs0),
-    connect(G, Cs, Wid, We, []).
+    ?DBG("Comps ~p ~nafter remove ~p~n", [Cs0, Cs]),
+    connect(G, Cs, Wid, We, Ends, []).
 
-connect(G, [C|Cs], Wid, We0, Closed) ->
+connect(G, [C|Cs], Wid, We0, Ends, Closed) ->
     case [VF || {V,_}=VF <- C, V >= Wid] of
 	[] ->
 	    [{_,Face}|_] = C,
-	    connect(G, Cs, Wid, We0, [Face|Closed]);
+	    connect(G, Cs, Wid, We0, Ends, [Face|Closed]);
+	[Va0] -> %% End case
+	    [Vb0] = lists:filter(fun({V,_}) -> lists:member(V,Ends) end, C),
+	    [{Va,Face}|Path0] = digraph_get_path(G, Va0, Vb0),
+	    Path = [V || {V,_} <- Path0],
+	    N = wings_face:normal(Face, We0),
+	    We = connect_inner(Va, Path, N, Face, We0),
+ 	    connect(G, Cs, Wid, We, Ends, Closed);
 	[Va0,Vb0] ->
 	    [{Va,Face}|Path0] = digraph_get_path(G, Va0, Vb0),
 	    Path = [V || {V,_} <- Path0],
 	    N = wings_face:normal(Face, We0),
 	    We = connect_inner(Va, Path, N, Face, We0),
- 	    connect(G, Cs, Wid, We, Closed)
+ 	    connect(G, Cs, Wid, We, Ends, Closed)
     end;
-connect(_, [], _Wid, We0, Closed) ->
+connect(_, [], _Wid, We0, _Ends, Closed) ->
     We = wings_extrude_face:faces(Closed, We0),
     move_vertices(Closed, We).
 
