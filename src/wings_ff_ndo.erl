@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.19 2003/03/27 10:25:10 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.20 2003/04/18 03:47:18 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -199,6 +199,7 @@ check_size(#we{name=Name,es=Etab}) ->
 	_ -> ok
     end.
 	    
+shape(We, _, Acc) when ?IS_LIGHT(We) -> Acc;
 shape(#we{name=Name,perm=Perm}=We0, St, Acc) ->
     NameChunk = [<<(length(Name)):16>>|Name],
     Vis = if
