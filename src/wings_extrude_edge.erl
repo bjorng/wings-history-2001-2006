@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.25 2002/05/23 06:59:20 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.26 2002/05/25 18:10:08 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -40,10 +40,12 @@ bump(Faces, We0, Acc) ->
 %%
 
 bevel(St0) ->
-    {St,{Tvs,Limit}} = wings_sel:mapfold(fun bevel_edges/3, {[],1.0E307}, St0),
-    wings_drag:setup(Tvs, [{distance,{0.0,Limit}}], wings_sel:clear(St)).
+    {St,{Tvs,Sel,Limit}} =
+	wings_sel:mapfold(fun bevel_edges/3, {[],[],1.0E307}, St0),
+    wings_drag:setup(Tvs, [{distance,{0.0,Limit}}],
+		     wings_sel:set(face, Sel, St)).
 
-bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Limit0}) ->
+bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Sel0,Limit0}) ->
     {We1,OrigVs} = extrude_edges(Edges, We0),
     We2 = wings_edge:dissolve_edges(Edges, We1),
     Tv0 = bevel_tv(OrigVs, We2),
@@ -53,7 +55,8 @@ bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Limit0}) ->
     Vtab = bevel_reset_pos(OrigVs, We2, We3#we.vs),
     We = We3#we{vs=Vtab},
     {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
-    {We,{[{Id,Tv}|Tvs],Limit}}.
+    Sel = [{Id,wings_we:new_items(face, We0, We)}|Sel0],
+    {We,{[{Id,Tv}|Tvs],Sel,Limit}}.
 
 %%
 %% The Bevel command (for faces).
@@ -289,7 +292,7 @@ connect(G, [C|Cs], Wid, We0, Closed) ->
 	    Path = [V || {V,_} <- Path0],
 	    N = wings_face:normal(Face, We0),
 	    We = connect_inner(Va, Path, N, Face, We0),
-	    connect(G, Cs, Wid, We, Closed)
+ 	    connect(G, Cs, Wid, We, Closed)
     end;
 connect(_, [], _Wid, We0, Closed) ->
     We = wings_extrude_face:faces(Closed, We0),
@@ -301,31 +304,20 @@ digraph_get_path(G, Va, Vb) ->
 	Path -> Path
     end.
 
-connect_inner(Current0, [A|[B,C,_|_]=Next], N, DefFace, We0) ->
-    {We,Current} = connect_one_inner(Current0, A, B, C, N, DefFace, We0),
-    connect_inner(Current, Next, N, DefFace, We);
-connect_inner(Current, [_|[_,_]=Next], N, DefFace, We) ->
-    connect_inner(Current, Next, N, DefFace, We);
-connect_inner(Current, [_,Last], _, DefFace, We0) ->
-    Face = get_face(Current, Last, DefFace, We0),
-    {We,_} = wings_vertex:force_connect(Current, Last, Face, We0),
+connect_inner(Current0, [A|[B,C,_|_]=Next], N, Face, We0) ->
+    {We,Current} = connect_one_inner(Current0, A, B, C, N, Face, We0),
+    connect_inner(Current, Next, N, Face, We);
+connect_inner(Current, [_|[_,_]=Next], N, Face, We) ->
+    connect_inner(Current, Next, N, Face, We);
+connect_inner(Current, [_,Last], _, Face, We0) ->
+    {We,_} = wings_vertex:force_connect(Last, Current, Face, We0),
     We.
 
-connect_one_inner(Current, A, B, C, N, DefFace, We0) ->
-    Face = get_face(Current, B, DefFace, We0),
-    {We1,Edge} = wings_vertex:force_connect(Current, B, Face, We0),
+connect_one_inner(Current, A, B, C, N, Face, We0) ->
+    {We1,Edge} = wings_vertex:force_connect(B, Current, Face, We0),
     #we{vs=Vtab} = We1,
     Pos = new_vertex_pos(A, B, C, N, Vtab),
     wings_edge:fast_cut(Edge, Pos, We1).
-
-get_face(Va, Vb, DefFace, We) ->
-    FaceVs = wings_vertex:per_face([Va,Vb], We),
-    case [Face || {Face,[_,_]} <- FaceVs] of
-	[Face] -> Face;
-	[_,_|_]=Fs ->
-	    [Face] = [Face || Face <- Fs, Face =:= DefFace],
-	    Face
-    end.
 
 move_vertices([Face|Fs], #we{vs=Vtab0}=We0) ->
     N = wings_face:normal(Face, We0),
