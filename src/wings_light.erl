@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.21 2002/11/29 14:58:56 dgud Exp $
+%%     $Id: wings_light.erl,v 1.22 2002/12/02 07:14:07 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -619,17 +619,20 @@ modeling_lights(camera, Type) ->
     gl:disable(?GL_LIGHT5),
     gl:disable(?GL_LIGHT6),
     gl:disable(?GL_LIGHT7),
+    gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0.1,0.1,0.1,1.0}),
     case Type of
 	1 ->
 	    gl:disable(?GL_LIGHT1),
-	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {0.5,0.5,0.5,1}),
-	    gl:lightfv(?GL_LIGHT0, ?GL_SPECULAR, {0,0,0,1}),
-	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0,0,1,0});
+	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {0.7,0.7,0.7,1}),
+	    gl:lightfv(?GL_LIGHT0, ?GL_SPECULAR, {0.2,0.2,0.2,1}),
+	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.110,0,0.994,0});
 	2 ->
 	    gl:enable(?GL_LIGHT1),
 	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {1,1,1,1}),
+	    gl:lightfv(?GL_LIGHT0, ?GL_SPECULAR, {0.3,0.3,0.3,1}),
 	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.71,0.71,0.0,0.0}),
 	    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {0.5,0.5,0.5,1}),
+	    gl:lightfv(?GL_LIGHT1, ?GL_SPECULAR, {0.3,0.3,0.3,1}),
 	    gl:lightfv(?GL_LIGHT1, ?GL_POSITION, {-0.71,-0.71,0.0,0});
 	mat_preview ->
 	    D = 0.8,
