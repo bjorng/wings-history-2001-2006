@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.72 2002/04/11 16:12:04 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.73 2002/04/19 07:06:11 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -37,7 +37,7 @@
 	 tvs,					%[{Vertex,Vec}...]
 	 unit,					%Unit that drag is done in.
 	 flags=[],				%Flags.
-	 new,					%New objects.
+	 new=none,				%New objects.
 	 sel,					%Massaged selection.
 	 matrices=none,				%Transformation matrices.
 	 falloff,				%Magnet falloff.
@@ -189,7 +189,6 @@ insert_vtx_data_1([], _Vtab, Acc) -> Acc.
 %%%
 
 do_drag(Drag) ->
-    wings_io:message_right(drag_help(Drag)),
     {seq,{push,dummy},get_drag_event_1(Drag)}.
 
 drag_help(#drag{magnet=none,falloff=Falloff}) ->
@@ -338,6 +337,9 @@ magnet_radius(Sign, #drag{falloff=Falloff0}=Drag0) ->
 	_Falloff -> Drag0
     end.
 
+view_changed(#drag{new=none,matrices=none,x=X,y=Y}=Drag0) ->
+    {Drag,_} = motion(X, Y, Drag0),
+    view_changed(Drag);
 view_changed(#drag{flags=Flags}=Drag0) ->
     wings_io:message_right(drag_help(Drag0)),
     case member(screen_relative, Flags) of
@@ -348,8 +350,7 @@ view_changed(#drag{flags=Flags}=Drag0) ->
 	    view_changed_1(Drag)
     end.
 
-view_changed_1(#drag{matrices=none}=Drag) ->
-    #drag{tvs=Tvs0,new=New} = Drag,
+view_changed_1(#drag{matrices=none,tvs=Tvs0,new=New}=Drag) ->
     Tvs = update_tvs(Tvs0, reverse(New)),
     Drag#drag{tvs=Tvs};
 view_changed_1(#drag{tvs={matrix,Tvs0},matrices=Mtxs}=Drag) ->

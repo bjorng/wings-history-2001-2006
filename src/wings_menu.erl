@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.42 2002/04/14 18:42:28 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.43 2002/04/19 07:06:11 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -144,8 +144,8 @@ adv_filter(_, []) -> [].
 
 norm_add_hotkey(_, separator, _, _) -> separator;
 norm_add_hotkey(_, Elem, [], _) -> Elem;
-norm_add_hotkey(Name0, Elem, Hotkeys, Props) when is_function(Name0) ->
-    Name = real_name(Name0, []),
+norm_add_hotkey(Fun, Elem, Hotkeys, Props) when is_function(Fun) ->
+    Name = reduce_name(Fun(1, [])),
     norm_add_hotkey(Name, Elem, Hotkeys, Props);
 norm_add_hotkey(Name, Elem, Hotkeys, Props) ->
     Key = match_hotkey(Name, Hotkeys, have_option_box(Props)),
@@ -158,6 +158,11 @@ match_hotkey(Name, [{{Name,Bool},Key}|_], true) when Bool == true;
 match_hotkey(Name, [_|T], OptionBox) ->
     match_hotkey(Name, T, OptionBox);
 match_hotkey(_, [], _) -> [].
+
+reduce_name({Key,{_,_}=Tuple}) when is_atom(Key) ->
+    reduce_name(Tuple);
+reduce_name({Key,Val}) when is_atom(Key) -> Val;
+reduce_name(Name) -> Name.
     
 menu_dims(Menu) ->
     menu_dims(Menu, size(Menu), 0, 0, 0, []).
@@ -305,12 +310,9 @@ current_command(#mi{sel=Sel,menu=Menu,ns=Names}) ->
 	{_,Name,_,_,Ps} when is_atom(Name) ->
 	    {build_command(Name, Names),have_option_box(Ps)};
 	{_,Fun,_,_,Ps} when is_function(Fun) ->
-	    {real_name(Fun, Names),have_option_box(Ps)};
+	    {Fun(1, Names),have_option_box(Ps)};
 	_Other -> none
     end.
-
-real_name(Fun, Names) ->
-    Fun(1, Names).
 
 virtual_button(false, _) -> 1;
 virtual_button(true, 1) ->
@@ -533,8 +535,9 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 	    item_colors(Y, Ps, I, Mi),
 	    wings_io:menu_text(X, Y, Text);
 	{Text,{_,_}=Item,Hotkey,_Help,Ps} ->
+	    Str = Text ++ duplicate(Shortcut-length(Text), $\s) ++ Hotkey,
 	    item_colors(Y, Ps, I, Mi),
-	    wings_io:menu_text(X, Y, Text),
+	    wings_io:menu_text(X, Y, Str),
 	    draw_submenu(Adv, Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
 	{Text,Item,Hotkey,_Help,Ps} ->
 	    Str = Text ++ duplicate(Shortcut-length(Text), $\s) ++ Hotkey,
