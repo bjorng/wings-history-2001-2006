@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.7 2001/10/17 07:47:47 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.8 2001/10/24 08:50:44 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -212,13 +212,20 @@ mat_chunk(Type, Sz0, Bin, [{Name,Props}|Acc]) ->
     material(T, [{Name,[{Type,Value}|Props]}|Acc]).
 
 general(<<16#0010:16/little,Sz:32/little, 
-	 R:32/float-little,G:32/float-little,B:32/float-little>>) ->
+	 R:32/float-little,G:32/float-little,B:32/float-little,
+	 T/binary>>) ->
+    general_rest(T),
     {R,G,B};
+general(<<16#0011:16/little,Sz:32/little,R:8,G:8,B:8,T/binary>>) ->
+    general_rest(T),
+    {R/255,G/255,B/255};
 general(<<16#0030:16/little,Sz:32/little,Percent:16/little>>) ->
-    Percent/100;
-general(<<16#0011:16/little,Sz:32/little,R:8,G:8,B:8>>) ->
-    {R/255,G/255,B/255}.
+    Percent/100.
 
+general_rest(<<>>) -> ok;
+general_rest(Bin) ->
+    io:format("general chunk tail not empty: ~p\n", [Bin]).
+    
 %%%
 %%% Utilities.
 %%%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.10 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.11 2001/10/24 08:50:44 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -108,18 +108,18 @@ collect([], Curr, Tokens) ->
     reverse(Tokens, reverse(Curr)).
 
 parse(["v",X0,Y0,Z0|_], #ost{v=Vtab}=Ost) ->
-    X = list_to_float(X0),
-    Y = list_to_float(Y0),
-    Z = list_to_float(Z0),
+    X = str2float(X0),
+    Y = str2float(Y0),
+    Z = str2float(Z0),
     Ost#ost{v=[{X,Y,Z}|Vtab]};
 parse(["vt",U0,V0|_], #ost{vt=Vt}=Ost) ->
-    U = list_to_float(U0),
-    V = list_to_float(V0),
+    U = str2float(U0),
+    V = str2float(V0),
     Ost#ost{vt=[{U,V}|Vt]};
 parse(["vn",X0,Y0,Z0|_], #ost{vn=Vn}=Ost) ->
-    X = list_to_float(X0),
-    Y = list_to_float(Y0),
-    Z = list_to_float(Z0),
+    X = str2float(X0),
+    Y = str2float(Y0),
+    Z = str2float(Z0),
     Ost#ost{vn=[{X,Y,Z}|Vn]};
 parse(["f"|Vlist0], #ost{f=Ftab,mat=Mat}=Ost) ->
     Vlist = collect_vs(Vlist0, Ost),
@@ -221,8 +221,14 @@ mtl_add(P, [{Name,Props}|Ms]) ->
     [{Name,[P|Props]}|Ms].
 
 mtl_text_to_tuple(L) ->
-    list_to_tuple([list_to_float(F) || F <- L]).
-    
+    list_to_tuple([str2float(F) || F <- L]).
+
+str2float(S) ->
+    case catch list_to_float(S) of
+	{'EXIT',_} -> float(list_to_integer(S));
+	F -> F
+    end.
+	    
 %%%
 %%% Export.
 %%% 
