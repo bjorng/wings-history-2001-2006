@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.203 2004/03/15 17:42:08 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.204 2004/03/15 18:49:07 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -531,6 +531,7 @@ handle_command(_, #st{sel=[]}) ->
     keep.
 
 drag({drag,Drag}) ->
+    wings_wm:set_prop(show_info_text, true),
     wings_drag:do_drag(Drag, none).
 
 tighten(St) ->
@@ -746,6 +747,7 @@ draw_background(#st{mat=Mats,bb=#uvstate{matname=MatN}}) ->
     gl:popAttrib().
 
 redraw(St) ->
+    wings_wm:set_prop(show_info_text, false),
     wings:redraw(St).
 
 init_drawarea() ->
