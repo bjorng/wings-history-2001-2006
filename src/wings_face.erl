@@ -9,11 +9,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.21 2002/06/11 09:34:07 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.22 2002/10/24 20:18:11 bjorng Exp $
 %%
 
 -module(wings_face).
 -export([convert_selection/1,select_more/1,select_less/1,
+	 from_edges/2,
 	 other/2,vertices/2,
 	 to_vertices/2,
 	 normal/2,face_normal/2,good_normal/2,
