@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.94 2003/02/04 06:27:41 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.95 2003/02/17 07:16:29 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -307,7 +307,7 @@ auto_rotate_event_1(_Event, #tim{timer=Timer}) ->
 auto_rotate_redraw(#tim{st=Redraw}) when is_function(Redraw) ->
     Redraw();
 auto_rotate_redraw(#tim{st=#st{}=St}) ->
-    wings_draw:render(St).
+    wings_draw_util:render(St).
 
 auto_rotate_help() ->
     Help = ["[L] Stop rotating ",wings_camera:help()],
@@ -437,7 +437,10 @@ smooth_event_1(init_opengl, #sm{st=St}) ->
 smooth_event_1(resized, _) ->
     keep;
 smooth_event_1(quit, _) ->
-    wings_io:putback_event(quit),
+    wings_wm:later(quit),
+    smooth_exit();
+smooth_event_1({current_state,_}=Ev, _) ->
+    wings_wm:later(Ev),
     smooth_exit();
 smooth_event_1(_, _) -> keep.
 
@@ -586,11 +589,18 @@ toggle_option(Key) ->
     wings_pref:set_value(Key, not wings_pref:get_value(Key)).
 
 current() ->
-    [{_,View}] = ets:lookup(wings_state, view),
-    View.
+    case wings_wm:lookup_prop(current_view) of
+	none ->
+	    View = #view{fov=wings_pref:get_value(camera_fov),
+			 hither=wings_pref:get_value(camera_hither),
+			 yon=wings_pref:get_value(camera_yon)},
+	    reset(View);
+	{value,View} -> View
+    end.
+
 
 set_current(View) ->
-    true = ets:insert(wings_state, {view,View}),
+    wings_wm:set_prop(current_view, View),
     View.
 
 init() ->
@@ -612,16 +622,12 @@ init() ->
 
     %% Always reset the following preferences + the view itself.
     wings_pref:set_value(workmode, true),
-    wings_pref:set_value(orthogonal_view, false),
-
-    View = #view{fov=wings_pref:get_value(camera_fov),
-		 hither=wings_pref:get_value(camera_hither),
-		 yon=wings_pref:get_value(camera_yon)},
-    set_current(View),
-    reset().
+    wings_pref:set_value(orthogonal_view, false).
 
 reset() ->
-    View = current(),
+    reset(current()).
+
+reset(View) ->
     set_current(View#view{origin={0.0,0.0,0.0},
 			  azimuth=-45.0,elevation=25.0,
 			  distance=?CAMERA_DIST,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.74 2003/02/13 11:34:34 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.75 2003/02/17 07:16:29 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -16,7 +16,9 @@
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,reinit_opengl/0,
 	 new/4,delete/1,raise/1,
 	 link/2,hide/1,show/1,is_hidden/1,
-	 message/1,message/2,message_right/1,send/2,send_after_redraw/2,
+	 get_prop/1,lookup_prop/1,set_prop/2,
+	 message/1,message/2,message_right/1,
+	 later/1,send/2,send_after_redraw/2,
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
 	 active_window/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,
@@ -47,6 +49,7 @@
 	 w,h,					%Size.
 	 name,					%Name of window.
 	 stk,					%Event handler stack.
+	 props=gb_trees:empty(),		%Window properties.
 	 links=[]			  %Windows linked to this one.
 	}).
 
@@ -116,6 +119,10 @@ get_menubar(Name) ->
     #win{stk=[#se{menubar=Bar}|_]} = get_window_data(Name),
     Bar.
 
+later(Ev) ->
+    wings_io:putback_event({wm,{send_to,active_window(),Ev}}),
+    keep.
+
 send(Name, Ev) ->
     wings_io:putback_event({wm,{send_to,Name,Ev}}),
     keep.
@@ -132,8 +139,7 @@ current_state(St) ->
 	St -> ok;
 	_ ->
 	    NewState = {current_state,St},
-	    foreach(fun(geom) -> ok;
-		       (desktop) -> ok;
+	    foreach(fun(desktop) -> ok;
 		       (Name) -> send(Name, NewState)
 		    end, gb_trees:keys(get(wm_windows)))
     end.
@@ -411,6 +417,20 @@ local_mouse_state() ->
     {X,Y} = global2local(X0, Y0),
     {B,X,Y}.
 
+get_prop(Name) ->
+    #win{props=Props} = get_window_data(active_window()),
+    gb_trees:get(Name, Props).
+
+lookup_prop(Name) ->
+    #win{props=Props} = get_window_data(active_window()),
+    gb_trees:lookup(Name, Props).
+
+set_prop(Name, Value) ->
+    Active = active_window(),
+    #win{props=Props0} = Data = get_window_data(Active),
+    Props = gb_trees:enter(Name, Value, Props0),
+    put_window_data(Active, Data#win{props=Props}).
+    
 enter_event_loop() ->
     init_opengl(),
     event_loop().

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.14 2003/02/06 05:12:32 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.15 2003/02/17 07:16:29 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -615,7 +615,14 @@ close_event(_) -> keep.
 closer_pos(Client) ->
     {{X0,Y0},{W,_}} = wings_wm:win_rect(Client),
     TitleH = title_height(),
-    Y = Y0 - TitleH + (TitleH-14) div 2 + 1,
+    Y1 = Y0 - TitleH + (TitleH-14) div 2 + 1,
+    Toolbar = {toolbar,Client},
+    Y = case wings_wm:is_window(Toolbar) andalso not wings_wm:is_hidden(Toolbar) of
+	    false -> Y1;
+	    true ->
+		{_,ToolbarH} = wings_wm:win_size(Toolbar),
+		Y1-ToolbarH
+	end,
     Z = wings_wm:win_z(Client),
     case wings_wm:is_window({vscroller,Client}) of
 	false ->  {X0+W-16,Y,Z+1};

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.127 2003/02/05 06:57:10 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.128 2003/02/17 07:16:29 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -52,7 +52,7 @@ setup(Tvs, Unit, St) ->
 
 setup(Tvs, Units, Flags, St) ->
     wings_io:grab(),
-    wings_wm:grab_focus(geom),
+    wings_wm:grab_focus(),
     Magnet = proplists:get_value(magnet, Flags, none),
     Offset0 = proplists:get_value(initial, Flags, []),
     Offset1 = pad_offsets(Offset0),
@@ -242,7 +242,7 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 do_drag(Drag, Args) ->
     if
 	Args == none -> ok;
-	true -> wings_wm:send(geom, {drag_arguments,Args})
+	true -> wings_wm:later({drag_arguments,Args})
     end,
     {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0},
@@ -277,7 +277,10 @@ zmove_help() ->
 	blender -> "[Ctrl]+[R]"
     end.
 
-get_drag_event(Drag) ->
+get_drag_event(#drag{st=St}=Drag) ->
+    clear_sel_dlists(),
+    wings_draw:update_sel_dlist(),
+    wings_wm:current_state(St),
     wings_wm:dirty(),
     get_drag_event_1(Drag).
 
@@ -330,7 +333,7 @@ handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, Drag0) -
     {Move,Drag} = ?SLOW(motion(Ev, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
-    wings_wm:send(geom, DragEnded),
+    wings_wm:later(DragEnded),
     pop;
 handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     wings_wm:release_focus(),
@@ -338,18 +341,18 @@ handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     Drag = ?SLOW(motion_update(Move, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
-    wings_wm:send(geom, DragEnded),
+    wings_wm:later(DragEnded),
     pop;
 handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, _Drag) ->
     wings_draw_util:map(fun invalidate_fun/2, []),
     wings_wm:release_focus(),
     wings_io:ungrab(),
-    wings_wm:dirty(),
+    wings_wm:later(revert_state),
     pop;
 handle_drag_event_1(view_changed, Drag) ->
     get_drag_event(view_changed(Drag));
 handle_drag_event_1({action,{numeric_input,Move}}, _) ->
-    wings_wm:send(geom, {drag_arguments,Move});
+    wings_wm:later({drag_arguments,Move});
 handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
     Drag = case wings_hotkey:event(Event) of
 	       next -> Drag0;
@@ -744,11 +747,8 @@ tricky_share({X,Y,Z}, {_,_,Z}=Old) ->
 %%%
 
 redraw(#drag{info=Info,st=St}) ->
-    clear_sel_dlists(),
-    wings_draw:update_sel_dlist(),
     wings_draw_util:render(St),
-    wings_io:info(Info),
-    wings_wm:current_state(St).
+    wings_io:info(Info).
 
 clear_sel_dlists() ->
     wings_draw_util:map(fun clear_sel_dlists/2, []).

@@ -4,12 +4,12 @@
 %%     Tweak mode plugin.
 %%
 %%  Copyright (c) 2001-2002 Howard Trickey,
-%%                     2002 Bjorn Gustavsson.
+%%                2002-2003 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.25 2003/02/02 16:33:33 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.26 2003/02/17 07:16:28 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -72,7 +72,9 @@ command(_, _) -> next.
 
 %% Event handler for tweak mode
 
-update_tweak_handler(T) ->
+update_tweak_handler(#tweak{st=St}=T) ->
+    wings_draw:update_sel_dlist(),
+    wings_wm:current_state(St),
     wings_wm:dirty(),
     {replace,fun(Ev) -> handle_tweak_event(Ev, T) end}.
 
@@ -128,12 +130,19 @@ handle_tweak_event1(#mousemotion{state=?SDL_RELEASED},
     end_drag(T);
 handle_tweak_event1(#mousebutton{button=3,state=?SDL_RELEASED}, T) ->
     exit_tweak(T);
-handle_tweak_event1(#resize{}=Ev, T) ->
-    wings_io:putback_event(Ev),
+handle_tweak_event1(init_opengl=Ev, T) ->
+    wings_wm:later(Ev),
     exit_tweak(T);
 handle_tweak_event1(quit=Ev, T) ->
-    wings_io:putback_event(Ev),
+    wings_wm:later(Ev),
     exit_tweak(T);
+handle_tweak_event1({current_state,St}=Ev, _) ->
+    case topological_change(St) of
+	false -> keep;
+	true ->
+	    wings_wm:later(Ev),
+	    pop
+    end;
 handle_tweak_event1({action,Action}, #tweak{st=St0}=T) ->
     case Action of
 	{select,less} ->
@@ -167,7 +176,7 @@ handle_tweak_event1(Ev, #tweak{st=St}) ->
     end.
 
 exit_tweak(#tweak{orig_st=St,st=#st{shapes=Shs}}) ->
-    wings_io:putback_event({new_state,St#st{shapes=Shs}}),
+    wings_wm:later({new_state,St#st{shapes=Shs}}),
     pop.
 
 refresh_dlists(wireframe_selected, _) -> ok;
@@ -181,10 +190,15 @@ refresh_dlists({along,_}, _) -> ok;
 refresh_dlists({toggle_lights,_}, _) -> ok;
 refresh_dlists(_, St) -> wings_draw:update_dlists(St).
 
+topological_change(#st{shapes=Shs}) ->
+    R = wings_draw_util:fold(fun(#dlo{src_we=We}, [We|Wes]) -> Wes;
+				(#dlo{drag=none}, [_|Wes]) -> Wes;
+				(_, _) -> changed
+			     end, gb_trees:values(Shs)),
+    R =:= changed.
+
 redraw(St) ->
-    wings_draw:update_sel_dlist(),
     wings_draw_util:render(St),
-    wings_wm:current_state(St),
     keep.
 
 begin_drag(MM, St, T) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.63 2003/02/14 15:50:26 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.64 2003/02/17 07:16:29 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -532,7 +532,7 @@ stop_camera(#camera{ox=OX,oy=OY}) ->
     case wings_io:ungrab() of
 	still_grabbed ->
 	    sdl_mouse:warpMouse(OX, OY),
-	    wings_wm:send(geom, view_changed),
+	    wings_wm:later(view_changed),
 	    pop;
 	no_grab ->
 	    wings_wm:release_focus(),

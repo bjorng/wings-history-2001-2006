@@ -3,12 +3,12 @@
 %%
 %%     This module handles picking using OpenGL.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.78 2003/01/24 08:32:40 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.79 2003/02/17 07:16:29 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -82,6 +82,7 @@ pick(X, Y, St0) ->
 		    clear_hilite_marquee_mode(Pick);
 		{PickOp,_,St} ->
 		    wings_wm:dirty(),
+		    wings_draw:update_dlists(St),
 		    Pick = #pick{st=St,op=PickOp},
 		    {seq,push,get_pick_event(Pick)}
 	    end
@@ -107,11 +108,13 @@ handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
 	none ->
 	    wings_wm:dirty(),
 	    insert_hilite_dl(none, none),
+	    wings_draw:update_dlists(St),
 	    get_hilite_event(HL#hl{prev=none});
 	Hit ->
 	    wings_wm:dirty(),
 	    DL = hilite_draw_sel_dl(Hit, St),
 	    insert_hilite_dl(Hit, DL),
+	    wings_draw:update_dlists(St),
 	    get_hilite_event(HL#hl{prev=Hit})
     end;
 handle_hilite_event(init_opengl, #hl{st=St}) ->
@@ -188,10 +191,10 @@ clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
     {seq,push,
      fun(redraw) ->
 	     wings:redraw(St),
-	     wings_wm:send(geom, now_enter_marquee_mode),
+	     wings_wm:later(now_enter_marquee_mode),
 	     keep;
 	(now_enter_marquee_mode) ->
-	     wings_wm:grab_focus(geom),
+	     wings_wm:grab_focus(wings_wm:active_window()),
 	     wings_io:ortho_setup(),
 	     gl:flush(),
 	     gl:drawBuffer(?GL_FRONT),
@@ -238,10 +241,10 @@ marquee_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
 	{none,_} -> ok;
 	{Hits,_} ->
 	    St = marquee_update_sel(Op, Hits, St0),
-	    wings_wm:send(geom, {new_state,St})
+	    wings_wm:later({new_state,St})
     end,
     wings_wm:release_focus(),
-    wings_wm:dirty(),
+    wings_wm:later(revert_state),
     pop;
 marquee_event(_, _) -> keep.
 
@@ -425,11 +428,12 @@ pick_event(#mousemotion{x=X,y=Y}, #pick{op=Op,st=St0}=Pick) ->
 	none -> keep;
 	{Op,_,St} ->
 	    wings_wm:dirty(),
+	    wings_draw:update_dlists(St),
 	    get_pick_event(Pick#pick{st=St});
 	{_,_,_} -> keep
     end;
 pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{st=St}) ->
-    wings_wm:send(geom, {new_state,St}),
+    wings_wm:later({new_state,St}),
     pop;
 pick_event(_, _) -> keep.
 

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.93 2003/02/16 14:24:13 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.94 2003/02/17 07:16:23 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -101,7 +101,9 @@ seg_init_message(Ss) ->
     Msg = ["[L] Select  [R] Show menu  "|wings_camera:help()],
     Ss#seg{msg=Msg}.
 
-get_seg_event(Ss) ->
+get_seg_event(#seg{st=St}=Ss) ->
+    wings_draw:update_dlists(St),
+    wings_wm:current_state(St),
     wings_wm:dirty(),
     {replace,fun(Ev) -> seg_event(Ev, Ss) end}.
 

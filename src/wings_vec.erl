@@ -3,12 +3,12 @@
 %%
 %%     This module implements "vectors" and the secondary selection mode.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson.
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.60 2003/02/07 09:51:48 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.61 2003/02/17 07:16:29 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -141,6 +141,7 @@ clear_orig_sel(D, _) -> D#dlo{orig_sel=none,orig_mode=none}.
 %%%
 
 get_event(Ss, St) ->
+    wings_draw:update_dlists(St),
     wings_wm:dirty(),
     {replace,fun(Ev) -> handle_event(Ev, Ss, St) end}.
 
@@ -222,9 +223,9 @@ redraw(#ss{info=Info}, St) ->
     Message = [wings_util:button_format("Select", [], "Execute"),$\s,
 	       wings_util:rmb_format("Menu")],
     wings_wm:message(Message),
-    wings_draw:render(St),
+    wings_draw_util:render(St),
     wings_io:info(Info),
-    wings_wm:current_state(St).
+    wings_wm:current_state(St#st{vec=none}).
 
 set_last_axis(#ss{is_axis=true}, #st{vec={{_,_,_},{_,_,_}}=Vec}) ->
     wings_pref:set_value(last_axis, Vec);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.210 2003/02/16 14:14:35 bjorng Exp $
+%%     $Id: wings.erl,v 1.211 2003/02/17 07:16:28 bjorng Exp $
 %%
 
 -module(wings).
@@ -167,6 +167,23 @@ init(File, Root) ->
 	    exit(Reason)
     end.
 
+new_viewer(St) ->
+    {{X,Y},{W,H}} = wings_wm:win_rect(desktop),
+    Op = main_loop_noredraw(St),
+    N = free_viewer_num(2),
+    Name = "Geometry #" ++ integer_to_list(N),
+    wings_wm:toplevel({geom,N}, Name, {X+20,Y+100,highest}, {W div 2-40,H div 2-40},
+		      [resizable,closable,{anchor,nw},
+		       {toolbar,fun create_toolbar/3}],
+		      Op),
+    keep.
+
+free_viewer_num(N) ->
+    case wings_wm:is_window({geom,N}) of
+	false -> N;
+	true -> free_viewer_num(N+1)
+    end.
+
 open_file(none) -> ok;
 open_file(Name) -> wings_wm:send(geom, {open_file,Name}).
 
@@ -186,10 +203,9 @@ init_opengl(_) ->
     wings_draw_util:init(),
     keep.
 
-redraw(St0) ->
-    St = wings_draw:render(St0),
-    wings_io:info(info(St)),
-    wings_wm:current_state(St).
+redraw(St) ->
+    wings_draw_util:render(St),
+    wings_io:info(info(St)).
 
 clean_state(St) ->
     caption(St).
@@ -205,6 +221,8 @@ save_state(St0, St1) ->
 main_loop(St) ->
     ?VALIDATE_MODEL(St),
     clear_mode_restriction(),
+    wings_draw:update_dlists(St),
+    wings_wm:current_state(St),
     wings_wm:dirty(),
     main_loop_noredraw(St).
 
@@ -274,15 +292,18 @@ handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(resized, _) -> keep;
 handle_event_3(redraw, St) ->
-    wings_draw:render(St),
+    wings_draw_util:render(St),
     wings_io:info(info(St)),
-    wings_wm:current_state(St),
-    main_loop(St#st{vec=none});
+    main_loop_noredraw(St#st{vec=none});
 handle_event_3(quit, St) ->
     do_command({file,quit}, St);
 handle_event_3({new_state,St}, St0) ->
     wings_wm:dirty(),
     save_state(St0, St);
+handle_event_3({current_state,St}, _) ->
+    main_loop_noredraw(St);
+handle_event_3(revert_state, St) ->
+    main_loop(St);
 handle_event_3(got_focus, _) ->
     {One,_,Three} = wings_camera:button_names(),
     Message = [One," Select  ",Three," Show menu  "|wings_camera:help()],
@@ -392,7 +413,7 @@ command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> ok;
 	Cmd when tuple(Cmd) ->
-	    wings_wm:send(geom, {action,Cmd})
+	    wings_wm:later({action,Cmd})
     end,
     St;
 command({edit,repeat}, St) -> St;
@@ -401,7 +422,7 @@ command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,args=Args}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> ok;
 	Cmd when tuple(Cmd) ->
-	    wings_wm:send(geom, {action,Cmd,Args})
+	    wings_wm:later({action,Cmd,Args})
     end,
     St;
 command({edit,repeat_drag}, St) -> St;
@@ -431,6 +452,8 @@ command({view,Command}, St) ->
     wings_view:command(Command, St);
 
 %% Window menu.
+command({window,geom_viewer}, St) ->
+    new_viewer(St);
 command({window,outliner}, St) ->
     wings_outliner:window(St);
 command({window,object}, St) ->
@@ -547,7 +570,9 @@ tools_menu(_) ->
 
 window_menu(_) ->
     [{"Outliner",outliner,[],win_crossmark(outliner)},
-     {"Objects",object,[],win_crossmark(object)}].
+     {"Objects",object,[],win_crossmark(object)},
+     separator,
+     {"Geometry",geom_viewer}].
 
 win_crossmark(Name) ->
     case wings_wm:is_window(Name) of
@@ -769,7 +794,7 @@ use_command(?SDL_RELEASED, N, #st{selmode=Mode,def=DefCmd}) ->
     case repeatable(Mode, element(N, DefCmd)) of
 	no -> keep;
 	Cmd when tuple(Cmd) ->
-	    wings_wm:send(geom, {action,Cmd}),
+	    wings_wm:later({action,Cmd}),
 	    keep
     end;
 use_command(_, _, _) -> keep.
@@ -988,12 +1013,14 @@ button_sh_filter(face, true) ->
 button_sh_filter(_, _) -> false.
 
 buttons_place(W) when W < 300 ->
-    [{0,vertex},{?BUTTON_WIDTH,edge},
-     {2*?BUTTON_WIDTH,face},{3*?BUTTON_WIDTH,body}];
-buttons_place(W) when W < 490 ->
+    Lmarg = 5,
+    [{Lmarg,vertex},{?BUTTON_WIDTH+Lmarg,edge},
+     {2*?BUTTON_WIDTH+Lmarg,face},{3*?BUTTON_WIDTH+Lmarg,body}];
+buttons_place(W) when W < 495 ->
+    Lmarg = 5,
     Rmarg = 5,
-    [{0,vertex},{?BUTTON_WIDTH,edge},
-     {2*?BUTTON_WIDTH,face},{3*?BUTTON_WIDTH,body},
+    [{Lmarg,vertex},{?BUTTON_WIDTH+Lmarg,edge},
+     {2*?BUTTON_WIDTH+Lmarg,face},{3*?BUTTON_WIDTH+Lmarg,body},
      {W-2*?BUTTON_WIDTH-Rmarg,groundplane},
      {W-?BUTTON_WIDTH-Rmarg,axes}];
 buttons_place(W) ->

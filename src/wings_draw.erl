@@ -8,15 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.100 2003/02/02 19:27:44 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.101 2003/02/17 07:16:29 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([update_dlists/1,update_sel_dlist/0,
 	 split/3,original_we/1,update_dynamic/2,
-	 update_mirror/0,
-	 smooth_dlist/2,
-	 render/1]).
+	 update_mirror/0,smooth_dlist/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -33,15 +31,6 @@
 	 f2v=none,				%Face => vertex
 	 orig_we,
 	 st}).
-
-%%
-%% Renders all shapes, including selections.
-%%
-
-render(St) ->
-    update_dlists(St),
-    wings_draw_util:render(St),
-    St.
 
 %%%
 %%% Update display lists.
