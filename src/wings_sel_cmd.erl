@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.20 2002/09/04 19:03:28 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.21 2002/09/22 09:45:44 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -413,7 +413,6 @@ rel_compare(A, B, Tresh) ->
 %% Select Random.
 %%
 
-random(_Percent, #st{selmode=body}=St) -> St;
 random(Percent, #st{selmode=Mode}=St) ->
     P = Percent / 100,
     wings_sel:make(fun(_, _) -> random:uniform() < P end, Mode, St).
