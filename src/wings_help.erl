@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.54 2003/07/02 18:45:12 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.55 2003/07/21 15:03:58 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -58,7 +58,7 @@ command(about, _St) ->
     about().
 
 getting_started() ->
-    Help = ["When learning Wings, keep an eye at the status line at "
+    Help = ["When learning Wings, keep an eye at the information line at "
 	    "bottom of the screen. Generally it shows what the "
 	    "mouse buttons will do at any given moment.",
 
