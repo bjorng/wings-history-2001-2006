@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.2 2005/03/11 05:58:48 bjorng Exp $
+#     $Id: Makefile,v 1.3 2005/03/11 16:06:12 bjorng Exp $
 #
 FBXSDK = FBXSDK60
 LIBDIR=../../plugins/fbx
@@ -23,11 +23,14 @@ ifneq (,$(findstring CYGWIN,$(OS)))
   DRIVER_NAME := wings_fbx_win32
   DRIVER_FILE := $(DRIVER_NAME).dll
   WINGS_E3D := $(shell cygpath -m $(HOME)/wings/e3d)
-  MLFLAGS = /nologo /subsystem:console /machine:I386 /nodefaultlib 
-  MLIBS = kernel32.lib msvcrt.lib oldnames.lib $(FBX_SDK)\lib\fbxsdk_mt.lib
-  CC = cl -nologo
+  MLFLAGS = /nologo /subsystem:console /machine:I386
+# /nodefaultlib 
+#  MLIBS = kernel32.lib user32.lib advapi32.lib oldnames.lib libcmt.lib msvcrt.lib $(FBX_SDK)\lib\fbxsdk_mt.lib $(FBX_SDK)\lib\zlib_mt.lib
+  MLIBS = advapi32.lib $(FBX_SDK)\lib\fbxsdk_mt.lib $(FBX_SDK)\lib\zlib_mt.lib
+  CC = cl -nologo -MT
   CXX = $(CC)
   OBJ = obj
+  OS_CFLAGS = -DNDEBUG -DWIN32 -D_CONSOLE -D_MBCS -DK_PLUGIN -DK_FBXSDK
 else
   ifeq ($(OS),Linux)
    FBX_SDK := /usr/local/$(FBXSDK)
