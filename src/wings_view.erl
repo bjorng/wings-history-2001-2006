@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.46 2002/03/11 11:02:27 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.47 2002/03/31 17:22:44 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -99,7 +99,7 @@ command({along,Axis}, St) ->
     along(Axis),
     St;
 command(auto_rotate, St) ->
-    {seq,{push,dummy},set_auto_rotate_timer(St)};
+    auto_rotate(St);
 command(rotate_left, St) ->
     #view{azimuth=Az0} = View = wings_view:current(),
     Az = Az0 + wings_pref:get_value(auto_rotate_angle),
@@ -120,30 +120,72 @@ command(Key, St) ->
     toggle_option(Key),
     St.
 
-auto_rotate_event(Event, Timer, St) ->
+-record(tim,
+	{timer,					%Current timer.
+	 delay,					%Current delay.
+	 st					%St record.
+	 }).
+
+auto_rotate(St) ->
+    auto_rotate_help(),
+    Delay = wings_pref:get_value(auto_rotate_delay),
+    Tim = #tim{delay=Delay,st=St},
+    {seq,{push,dummy},set_auto_rotate_timer(Tim)}.
+    
+auto_rotate_event(Event, #tim{st=St}=Tim) ->
     case wings_camera:event(Event, St) of
-	next -> auto_rotate_event_1(Event, Timer, St);
+	next -> auto_rotate_event_1(Event, Tim);
 	Other ->
 	    {seq,fun(Ev) ->
+			 auto_rotate_help(),
 			 wings_io:putback_event(Ev),
-			 set_auto_rotate_timer(St)
+			 set_auto_rotate_timer(Tim)
 		 end,Other}
     end.
 
-auto_rotate_event_1(#mousemotion{}, _Timer, _St) -> keep;
-auto_rotate_event_1(#mousebutton{state=?SDL_PRESSED}, _Timer, _St) -> keep;
-auto_rotate_event_1({view,rotate_left=Cmd}, _Timer, St) ->
-    command(Cmd, dummy),
-    wings:redraw(St),
-    set_auto_rotate_timer(St);
-auto_rotate_event_1(_Event, Timer, _St) ->
+auto_rotate_event_1(#mousemotion{}, _) -> keep;
+auto_rotate_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
+auto_rotate_event_1(#keyboard{}=Kb, #tim{delay=Delay}=Tim) ->
+    case wings_hotkey:event(Kb) of
+	{select,more} ->
+	    get_event(Tim#tim{delay=Delay-10});
+	{select,less} ->
+	    get_event(Tim#tim{delay=Delay+10});
+	_ ->
+	    keep
+    end;
+auto_rotate_event_1(redraw, Tim) ->
+    auto_rotate_redraw(Tim),
+    keep;
+auto_rotate_event_1({view,rotate_left=Cmd}, #tim{st=St}=Tim) ->
+    command(Cmd, St),
+    auto_rotate_redraw(Tim),
+    set_auto_rotate_timer(Tim);
+auto_rotate_event_1(_Event, #tim{timer=Timer}) ->
+    wings_io:putback_event(redraw),
+    wings_io:clear_message(),
     wings_io:cancel_timer(Timer),
     pop.
 
-set_auto_rotate_timer(St) ->
-    Delay = wings_pref:get_value(auto_rotate_delay),
+auto_rotate_redraw(#tim{st=St}) ->
+    wings_draw:render(St),
+    wings_io:update(St),
+    wings_io:swap_buffers().
+
+auto_rotate_help() ->
+    Help = [lmb|" Stop rotating "] ++ wings_camera:help(),
+    wings_io:message_right("[+] Increase speed [-] Decrease speed"),
+    wings_io:message(Help).
+
+set_auto_rotate_timer(#tim{delay=Delay}=Tim) when Delay < 0 ->
+    set_auto_rotate_timer(Tim#tim{delay=0});
+set_auto_rotate_timer(#tim{delay=Delay}=Tim0) ->
     Timer = wings_io:set_timer(Delay, {view,rotate_left}),
-    {replace,fun(Ev) -> auto_rotate_event(Ev, Timer, St) end}.
+    Tim = Tim0#tim{timer=Timer},
+    get_event(Tim).
+
+get_event(Tim) ->
+    {replace,fun(Ev) -> auto_rotate_event(Ev, Tim) end}.
 
 toggle_option(Key) ->
     wings_pref:set_value(Key, not wings_pref:get_value(Key)).
