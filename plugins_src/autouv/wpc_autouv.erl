@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.247 2004/05/21 08:27:14 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.248 2004/05/21 09:22:52 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -21,7 +21,7 @@
  
 -export([init/0,menu/2,command/2,redraw/1,window/1]).
 
--import(lists, [sort/1,map/2,foldl/3,reverse/1,
+-import(lists, [sort/1,keysort/2,map/2,foldl/3,reverse/1,
 		append/1,delete/2,usort/1,max/1,min/1,
 		member/2,foreach/2,keysearch/3]).
 
@@ -99,7 +99,7 @@ auv_event(_Ev, _) -> keep.
 %%% Start the UV editor.
 %%%
 
-start_edit(#we{fs=Ftab}=We, St) ->
+start_edit(We, St) ->
     MatNames0 = wings_material:get_all(We),
     MatNames1 = sofs:from_external(MatNames0, [{face,material}]),
     MatNames2 = sofs:converse(MatNames1),
@@ -107,35 +107,31 @@ start_edit(#we{fs=Ftab}=We, St) ->
     MatNames4 = sofs:to_external(MatNames3),
     MatNames = [Mat || {Name,_}=Mat <- MatNames4, has_texture(Name, St)],
     case MatNames of
-	[{MatName,Faces}] ->
-	    do_edit(MatName, Faces, We, St);
+	[{MatName,_}] ->
+	    do_edit(MatName, We, St);
 	_ ->
-	    Faces = gb_trees:keys(Ftab),
-	    do_edit(none, Faces, We, St)
+	    do_edit(none, We, St)
     end.
 
-do_edit(MatName, Faces, We, St) ->
-    Charts = init_edit(Faces, We),
-    create_uv_state(Charts, MatName, We, St).
+do_edit(MatName, #we{id=Id}=We, #st{shapes=Shs0}=GeomSt) ->
+    Shs = gb_trees:update(Id, We#we{fs=undefined,es=gb_trees:empty()}, Shs0),
+    FakeGeomSt = GeomSt#st{sel=[],shapes=Shs},
+    AuvSt = create_uv_state(gb_trees:empty(), MatName, We, FakeGeomSt),
+    new_geom_state(GeomSt, AuvSt).
 
-init_show_maps(Map0, We, St) ->
-    Map1 = auv_placement:place_areas(Map0),
-    Map = gb_trees:from_orddict(sort(Map1)),
-    create_uv_state(Map, none, We, St).
-
-create_uv_state(Charts, MatName0, We, GeomSt0) ->
-    wings:mode_restriction([vertex,edge,face,body]),
-    wings_wm:current_state(#st{selmode=body,sel=[]}),
-    {GeomSt1,MatName} = 
-	case has_texture(MatName0, GeomSt0) of
-	    true ->
-		{GeomSt0,MatName0};
-	    false ->
-		Tx = checkerboard(128, 128),
-		add_material(Tx, We#we.name, MatName0, GeomSt0)
-	end,
+init_show_maps(Charts0, We, GeomSt0) ->
+    Charts1 = auv_placement:place_areas(Charts0),
+    Charts = gb_trees:from_orddict(keysort(1, Charts1)),
+    Tx = checkerboard(128, 128),
+    {GeomSt1,MatName} = add_material(Tx, We#we.name, none, GeomSt0),
     GeomSt = insert_initial_uvcoords(Charts, We#we.id, MatName, GeomSt1),
     wings_wm:send(geom, {new_state,GeomSt}),
+    AuvSt = create_uv_state(Charts, MatName, We, GeomSt),
+    get_event(AuvSt).
+
+create_uv_state(Charts, MatName, We, GeomSt) ->
+    wings:mode_restriction([vertex,edge,face,body]),
+    wings_wm:current_state(#st{selmode=body,sel=[]}),
     Uvs = #uvstate{st=wpa:sel_set(face, [], GeomSt),
 		   id=We#we.id,
 		   matname=MatName},
@@ -171,7 +167,7 @@ create_uv_state(Charts, MatName0, We, GeomSt0) ->
     wings_wm:menubar(Win, menubar()),
     wings_wm:send({menubar,Win}, {current_state,St}),
 
-    get_event(St).
+    St.
 
 menubar() ->
     [{"Edit",edit,
@@ -280,40 +276,6 @@ insert_material(Cs, MatName, We) ->
     Faces = lists:append([wings_we:visible(W) || W <- gb_trees:values(Cs)]),
     wings_material:assign(MatName, Faces, We).
 
-init_edit(Faces0, We0) ->
-    Faces = [F || F <- Faces0, has_proper_uvs(F, We0)],
-    FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
-    {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
-    Charts2 = auv_segment:cut_model(Charts1, Cuts, We0),
-    Charts3 = auv_segment:finalize_charts(Charts2),
-    Charts = build_map(Charts3, FvUvMap, []),
-    gb_trees:from_orddict(sort(Charts)).
-
-has_proper_uvs(Face, #we{mirror=Face}) -> false;
-has_proper_uvs(Face, We) ->
-    foldl(fun({_,_}, F) -> F;
-	     (_, _) -> false
-	  end, true, wings_face:vertex_info(Face, We)).
-
-build_map([#we{id=Id,name=#ch{vmap=Vmap}}=We0|T], FvUvMap, Acc) ->
-    %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
-    %% (bug in wings_vertex_cmd), we must fetch the UV coordinates
-    %% from the original object.
-    Fs = wings_we:visible(We0),
-    Z = zero(),
-    UVs0 = wings_face:fold_faces(
-	     fun(F, V, _, _, A) ->
-		     OrigV = auv_segment:map_vertex(V, Vmap),
-		     {X,Y} = gb_trees:get({F,OrigV}, FvUvMap),
-		     [{V,{X,Y,Z}}|A]
-	     end, [], Fs, We0),
-    UVs = gb_trees:from_orddict(orddict:from_list(UVs0)),
-    We = We0#we{vp=UVs},
-    build_map(T, FvUvMap, [{Id,We}|Acc]);
-build_map([], _, Acc) -> reverse(Acc).
-
-zero() ->
-    0.0.
 
 %%%%% Material handling
 
@@ -332,7 +294,7 @@ get_material(Face, Materials, We) ->
     Mat = gb_trees:get(MatName, Materials),
     proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
-add_material(Tx = #e3d_image{},Name,none,St0) ->
+add_material(#e3d_image{}=Tx, Name, none, St0) ->
     MatName0 = list_to_atom(Name++"_auv"),
     Mat = {MatName0,[{opengl,[]},{maps,[{diffuse,Tx}]}]},
     case wings_material:add_materials([Mat], St0) of
@@ -650,15 +612,45 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
 	    case gb_trees:keys(Etab1) =:= gb_trees:keys(Etab2) of
 		false -> topology_updated(We, AuvSt);
 		true -> uvs_updated(We, AuvSt)
-	    end
+	    end;
+	{{value,We},none} ->
+	    topology_updated(We, AuvSt)
     end.
 
 uvs_updated(We, AuvSt) ->
     topology_updated(We, AuvSt).
 
-topology_updated(#we{fs=Ftab}=We, St) ->
-    Charts = init_edit(gb_trees:keys(Ftab), We),
+topology_updated(We, St) ->
+    Faces = wings_we:uv_mapped_faces(We),
+    FvUvMap = auv_segment:fv_to_uv_map(Faces, We),
+    {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We),
+    Charts2 = auv_segment:cut_model(Charts1, Cuts, We),
+    Charts3 = auv_segment:finalize_charts(Charts2),
+    Charts4 = build_map(Charts3, FvUvMap, []),
+    Charts = gb_trees:from_orddict(sort(Charts4)),
+    wings_wm:set_prop(wireframed_objects,
+		      gb_sets:from_list(gb_trees:keys(Charts))),
     {St#st{sel=[],shapes=Charts},true}.
+
+build_map([#we{id=Id,name=#ch{vmap=Vmap}}=We0|T], FvUvMap, Acc) ->
+    %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
+    %% (bug in wings_vertex_cmd), we must fetch the UV coordinates
+    %% from the original object.
+    Fs = wings_we:visible(We0),
+    Z = zero(),
+    UVs0 = wings_face:fold_faces(
+	     fun(F, V, _, _, A) ->
+		     OrigV = auv_segment:map_vertex(V, Vmap),
+		     {X,Y} = gb_trees:get({F,OrigV}, FvUvMap),
+		     [{V,{X,Y,Z}}|A]
+	     end, [], Fs, We0),
+    UVs = gb_trees:from_orddict(orddict:from_list(UVs0)),
+    We = We0#we{vp=UVs},
+    build_map(T, FvUvMap, [{Id,We}|Acc]);
+build_map([], _, Acc) -> reverse(Acc).
+
+zero() ->
+    0.0.
 
 %% update_selection(GemoSt, AuvSt0) -> AuvSt
 %%  Update the selection in the AutoUV window given a selection
