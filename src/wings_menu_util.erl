@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.23 2003/07/22 11:04:55 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.24 2003/07/22 16:33:29 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -176,8 +176,10 @@ flatten() ->
     {"Flatten",{flatten,fun flatten/2}}.
 
 flatten(help, _) ->
-    {"Flatten to std. planes",[],"Pick plane"};
+    {"Flatten to std. planes","Pick plane",
+     "Pick plane and ref point on plane"};
 flatten(1, [flatten,vertex]) ->
+    %% Vertex mode flatten.
     [flatten_fun(x),
      flatten_fun(y),
      flatten_fun(z),
@@ -185,6 +187,7 @@ flatten(1, [flatten,vertex]) ->
      {advanced,flatten_axis_fun(last_axis)},
      {advanced,flatten_axis_fun(default_axis)}];
 flatten(1, _) ->
+    %% Face mode flatten.
     [flatten_fun(normal),
      flatten_fun(x),
      flatten_fun(y),
@@ -192,28 +195,24 @@ flatten(1, _) ->
      {advanced,separator},
      {advanced,flatten_axis_fun(last_axis)},
      {advanced,flatten_axis_fun(default_axis)}];
+flatten(2, Ns) -> {vector,{pick,[axis],[],Ns}};
 flatten(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
-
-flatten_fun(Dir) ->
-    DirString = wings_util:stringify(Dir),
-    F = fun(1, Ns) -> wings_menu:build_command(Dir, Ns);
-	   (2, _Ns) -> ignore;
-	   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}}
-	end,
-    Help0 = dir_help(Dir, [flatten]),
-    Help = {Help0,[],"Pick point on plane"},
-    {DirString,F,Help,[]}.
 
 flatten_axis_fun(Axis) ->
     {_,Vec} = wings_pref:get_value(Axis),
-    AxisString = wings_util:stringify(Axis),
+    flatten_fun_1(Vec, Axis, wings_util:stringify(Axis)).
+
+flatten_fun(Vec) ->
+    flatten_fun_1(Vec, Vec, wings_util:stringify(Vec)).
+
+flatten_fun_1(Vec, Axis, String) ->
     F = fun(1, Ns) -> wings_menu:build_command(Vec, Ns);
 	   (2, _Ns) -> ignore;
 	   (3, Ns) -> {vector,{pick,[point],[Vec],Ns}}
 	end,
     Help0 = dir_help(Axis, [flatten]),
     Help = {Help0,[],"Pick point on plane"},
-    {AxisString,F,Help,[]}.
+    {String,F,Help,[]}.
 
 %%%
 %%% General directions.
