@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.15 2002/04/14 18:46:10 bjorng Exp $
+%%     $Id: wpa.erl,v 1.16 2002/05/05 07:41:53 bjorng Exp $
 %%
 -module(wpa).
--export([ask/3,ask/4,dialog/3,dialog/4,error/1,message/1,yes_no/1,
+-export([ask/3,ask/4,dialog/3,dialog/4,error/1,yes_no/1,
 	 bind_unicode/2,bind_virtual/3,
 	 import/3,export/3,export_selected/3,export_filename/2,
 	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,pref_delete/2,
@@ -49,10 +49,6 @@ dialog(Ask, Qs, St, Fun) ->
 %% Show String in a dialog box.
 error(String) ->
     wings_util:error(String).
-
-%% Show message and wait for OK.
-message(Message) ->
-    wings_util:message(Message).
 
 %% Ask yes/no question. Returns yes|no|aborted.
 yes_no(Question) ->
