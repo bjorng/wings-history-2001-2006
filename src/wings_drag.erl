@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.37 2001/12/12 15:12:47 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.38 2001/12/14 05:51:44 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -220,7 +220,6 @@ constrain(Dx0, Dy0, #drag{constraint=Constraint}) ->
 
 motion_update({matrix,Tvs}, Dx, Dy, #st{drag=Drag,shapes=Shapes}=St) ->
     gl:newList(?DL_DYNAMIC_FACES, ?GL_COMPILE),
-    sel_color(),
     Mtxs = foldl(fun({Id,Trans,Matrix0}, Acc) when function(Trans) ->
 			 Matrix = Trans(Matrix0, Dx, Dy, St),
 			 gl:pushMatrix(),
@@ -229,6 +228,10 @@ motion_update({matrix,Tvs}, Dx, Dy, #st{drag=Drag,shapes=Shapes}=St) ->
 			 gl:popMatrix(),
 			 [{Id,Matrix}|Acc]
 		 end, [], Tvs),
+    gl:endList(),
+    gl:newList(?DL_SEL, ?GL_COMPILE),
+    sel_color(),
+    gl:callList(?DL_DYNAMIC_FACES),
     gl:endList(),
     St#st{drag=Drag#drag{matrices=Mtxs}};
 motion_update(Tvs, Dx, Dy, #st{shapes=Shapes0}=St0) ->
