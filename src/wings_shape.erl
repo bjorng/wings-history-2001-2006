@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.30 2003/01/02 07:16:35 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.31 2003/01/02 08:31:38 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -57,6 +57,7 @@ replace(Id, We0, #st{shapes=Shapes0}=St) ->
 %%%
 -record(ost,
 	{st,					%Current St.
+	 n,					%Number of objects.
 	 first,					%First object to show.
 	 sel,					%Current selection.
 	 os,					%All objects.
@@ -90,12 +91,9 @@ event(redraw, Ost) ->
     wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
     draw_objects(Ost),
     keep;
-event({current_state,#st{sel=Sel,shapes=Shs}=St},
-      #ost{st=#st{sel=Sel,shapes=Shs}}=Ost) ->
-    get_event(Ost#ost{st=St});
-event({current_state,#st{sel=Sel,shapes=Shs}=St}, Ost) ->
-    wings_wm:dirty(),
-    get_event(Ost#ost{st=St,sel=Sel,os=gb_trees:values(Shs)});
+event({current_state,St}, Ost0) ->
+    Ost = update_state(St, Ost0),
+    get_event(Ost);
 event({new_name,Id,Name}, #ost{st=#st{shapes=Shs0}=St}) ->
     We = gb_trees:get(Id, Shs0),
     Shs = gb_trees:update(Id, We#we{name=Name}, Shs0),
@@ -137,6 +135,35 @@ help(_, name) ->
 help(_, selection) ->
     wings_wm:message("[L] Toggle selection for active object  "
 		     "[Alt]+[L] Toggle selection for all other objects").
+
+update_state(#st{sel=Sel,shapes=Shs}=St, #ost{st=#st{sel=Sel,shapes=Shs}}=Ost) ->
+    Ost#ost{st=St};
+update_state(#st{sel=Sel,shapes=Shs0}=St, #ost{st=#st{sel=Sel},os=Objs}=Ost) ->
+    Shs = gb_trees:values(Shs0),
+    case have_objects_really_changed(Shs, Objs) of
+	false -> ok;
+	true -> wings_wm:dirty()
+    end,
+    Ost#ost{st=St,sel=Sel,os=Shs,n=gb_trees:size(Shs0)};
+update_state(#st{sel=Sel,shapes=Shs}=St, #ost{st=#st{sel=Sel0}}=Ost) ->
+    case has_sel_really_changed(Sel, Sel0) of
+	false -> ok;
+	true -> wings_wm:dirty()
+    end,
+    Ost#ost{st=St,sel=Sel,os=gb_trees:values(Shs),n=gb_trees:size(Shs)};
+update_state(#st{sel=Sel,shapes=Shs}=St, Ost) ->
+    Ost#ost{st=St,sel=Sel,os=gb_trees:values(Shs),n=gb_trees:size(Shs)}.
+
+has_sel_really_changed([{Id,_}|SelA], [{Id,_}|SelB]) ->
+    has_sel_really_changed(SelA, SelB);
+has_sel_really_changed([], []) -> false;
+has_sel_really_changed(_, _) -> true.
+
+have_objects_really_changed([#we{id=Id,name=Name,perm=P}|WesA],
+			  [#we{id=Id,name=Name,perm=P}|WesB]) ->
+    have_objects_really_changed(WesA, WesB);
+have_objects_really_changed([], []) -> false;
+have_objects_really_changed(_, _) -> true.
 
 zoom_step(Dir, #ost{first=First0,os=Objs}=Ost) ->
     L = length(Objs),
@@ -286,11 +313,11 @@ toggle_sel(#we{id=Id,perm=P}=We, #ost{st=St0,sel=Sel}=Ost) ->
 	    end
     end.
 
-toggle_sel_all(_, #ost{st=#st{sel=[]}=St0}) ->
+toggle_sel_all(_, #ost{sel=[],st=St0}) ->
     St = wings_sel_cmd:select_all(St0),
     wings_wm:send(geom, {new_state,St});
-toggle_sel_all(#we{id=Id}, #ost{st=#st{sel=[{Id,_}]}=St0}) ->
-    St = wings_sel_cmd:select_all(St0),
+toggle_sel_all(#we{id=Id}, #ost{sel=[{Id,_}],st=St0}) ->
+    St = wings_sel_cmd:select_all(St0#st{sel=[]}),
     wings_wm:send(geom, {new_state,St});
 toggle_sel_all(#we{id=Id,perm=P}, #ost{st=St}) when ?IS_SELECTABLE(P) ->
     wings_wm:send(geom, {new_state,wings_sel:select_object(Id, St#st{sel=[]})});
@@ -320,12 +347,19 @@ repeat_latest_1(lock, #we{id=Id,perm=P}, #ost{op=Op,st=St}) ->
     end;
 repeat_latest_1(_, _, _) -> ok.
 
-draw_objects(#ost{os=Objs0,first=First,lh=Lh,active=Active}=Ost) ->
+draw_objects(#ost{os=Objs0,first=First,lh=Lh,active=Active,n=N0}=Ost) ->
     Objs = lists:nthtail(First, Objs0),
     R = right_pos(),
-    draw_objects_1(Objs, Ost, R, Active, Lh-2).
+    {_,_,_,H} = wings_wm:viewport(),
+    WillFitVertically = H div Lh + 1,
+    N = case N0-First of
+	    N1 when N1 < WillFitVertically -> N1;
+	    _ -> WillFitVertically
+	end,
+    draw_objects_1(N, Objs, Ost, R, Active, Lh-2).
 
-draw_objects_1([#we{id=Id,name=Name,perm=Perm}|Wes],
+draw_objects_1(0, _, _, _, _, _) -> ok;
+draw_objects_1(N, [#we{id=Id,name=Name,perm=Perm}|Wes],
 	       #ost{sel=Sel,lh=Lh,eye=Eye,lock=Lock}=Ost, R, Active, Y) ->
     LockPos = lock_pos(),
     wings_io:sunken_rect(3, Y-11, 12, 13, ?PANE_COLOR),
@@ -357,8 +391,7 @@ draw_objects_1([#we{id=Id,name=Name,perm=Perm}|Wes],
     end,
     wings_io:text_at(name_pos(), Y, Name),
     gl:color3f(0, 0, 0),
-    draw_objects_1(Wes, Ost, R, Active-1, Y+Lh);
-draw_objects_1([], _, _, _, _) -> ok.
+    draw_objects_1(N-1, Wes, Ost, R, Active-1, Y+Lh).
 
 draw_char({A,B,C,D,E,F,Bitmap}) ->
     gl:bitmap(A, B, C, D, E, F, Bitmap).
