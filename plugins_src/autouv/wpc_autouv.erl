@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.171 2003/12/02 13:39:37 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.172 2003/12/02 15:49:35 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -697,6 +697,13 @@ handle_event(resized, St) ->
     {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
     Geom = wingeom(W,H),
     get_event(reset_dl(update_geom(St, Geom)));
+handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, #st{bb=Uvs}=St) ->
+    GeomSt = wings_select_faces(Sel, St),
+    wings_wm:send(geom, {new_state,GeomSt}),
+    get_event(reset_dl(St#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs#uvstate{st=GeomSt}}));
+handle_event({new_uv_state,St}, _) ->
+    wings_wm:dirty(),
+    get_event(reset_dl(St));
 handle_event(Ev, St) ->
     case auv_pick:event(Ev, St) of
 	next -> handle_event_0(Ev, St);
@@ -711,14 +718,6 @@ handle_event_1({current_state,geom_display_lists,St}, Uvs) ->
 	keep -> update_selection(St, Uvs);
 	Other -> Other
     end;
-handle_event_1({new_uv_state,Uvs}, _) ->
-    wings_wm:dirty(),
-    get_event(reset_dl(Uvs));
-handle_event_1({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, Uvs0) ->
-    Uvs = Uvs0#uvstate{mode=Mode,sel=Sel,areas=Shs},
-    GeomSt = wings_select_faces(Uvs),
-    wings_wm:send(geom, {new_state,GeomSt}),
-    get_event(reset_dl(Uvs#uvstate{st=GeomSt}));
 handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0}, 
 	       #uvstate{mode=Mode}=Uvs) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
@@ -882,12 +881,12 @@ update_selection_2([], _, Uvs, Sel) ->
     
 -define(OUT, 1.2/2). %% was 1/2 
 
-wings_select_faces(#uvstate{sel=[],st=GeomSt}) ->
+wings_select_faces([], #st{bb=#uvstate{st=GeomSt}}) ->
     wpa:sel_set(face, [], GeomSt);
-wings_select_faces(#uvstate{st=GeomSt,orig_we=#we{id=Id}}=Uvs) ->
-    Fs0 = sel_fold(fun(_, #we{name=#ch{fs=Fs}}, A) ->
-			   Fs++A
-		   end, [], Uvs),
+wings_select_faces(Sel, #st{bb=#uvstate{st=GeomSt,orig_we=#we{id=Id}}}=St) ->
+    Fs0 = wpa:sel_fold(fun(_, #we{name=#ch{fs=Fs}}, A) ->
+			       Fs++A
+		       end, [], St#st{sel=Sel}),
     Fs = gb_sets:from_list(Fs0),
     wpa:sel_set(face, [{Id,Fs}], GeomSt).
 
@@ -1116,6 +1115,3 @@ sel_map(F, #uvstate{areas=Shs0,sel=Sel}=Uvs) ->
 
 sel_foreach(F, #uvstate{sel=Sel,areas=Shs}) ->
     foreach(fun({Id,_}) -> F(gb_trees:get(Id, Shs)) end, Sel).
-
-sel_fold(F, Acc, #uvstate{sel=Sel,areas=Shs}) ->
-    wpa:sel_fold(F, Acc, #st{sel=Sel,shapes=Shs}).
