@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.30 2001/11/14 11:23:02 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.31 2001/11/15 10:59:55 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -119,7 +119,8 @@ new(#st{saved=false}=St0) ->
 	yes ->
 	    case save(St0) of
 		aborted -> aborted;
-		St -> new(St)
+		{saved,St} -> new(St);
+		#st{}=St -> new(St)
 	    end;
 	aborted -> aborted
     end;
