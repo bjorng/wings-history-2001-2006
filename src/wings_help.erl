@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.14 2002/04/25 08:55:50 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.15 2002/06/26 14:59:58 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -61,10 +61,10 @@ def_hotkeys(St) ->
 	    "keyboard short-cut (hotkey).",
 	    "To assign a hotkey to a command, open the menu containing "
 	    "the command. "
-	    "With the command high-lighted, press the [Insert] key, "
+	    "With the command high-lighted, press the [Insert] or [/] key, "
 	    "and then press the key you want to assign the command to.",
 	    "To delete a hotkey, similarily high-light the command in a "
-	    " menu, and press the [Del] key."],
+	    " menu, and press the [Del] or [\\] key."],
     help_window(Help, St).
 
 opengl_info(St) ->

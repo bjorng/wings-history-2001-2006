@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.48 2002/06/24 18:43:26 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.49 2002/06/26 14:59:57 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -288,7 +288,7 @@ handle_key(#keysym{sym=27}, _Mi) ->		%Escape.
     wings_io:clear_menu_sel(),
     wings_wm:dirty(),
     pop;
-handle_key(#keysym{sym=?SDLK_DELETE}, Mi0) ->
+handle_key(#keysym{sym=C}, Mi0) when C == ?SDLK_DELETE; C == $\\  ->
     %% Delete hotkey bound to this entry.
     case current_command(Mi0) of
 	none -> keep;
@@ -298,7 +298,7 @@ handle_key(#keysym{sym=?SDLK_DELETE}, Mi0) ->
 	    Mi = set_hotkey(NextKey, Mi0),
 	    get_menu_event(Mi)
     end;
-handle_key(#keysym{sym=?SDLK_INSERT}, Mi) ->
+handle_key(#keysym{sym=C}, Mi) when C == ?SDLK_INSERT; C == $/ ->
     %% Define new hotkey for this entry.
     case current_command(Mi) of
 	none -> keep;
