@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.5 2004/01/21 12:57:03 dgud Exp $
+%%     $Id: wings_tesselation.erl,v 1.6 2004/01/23 14:44:56 dgud Exp $
 %%
 
 -module(wings_tesselation).
@@ -91,7 +91,10 @@ triangulate_quad_1([], [Ai,Bi,Ci,Di], _, We, VsPos) ->
     [D,C,B,A] = VsPos,
     AC = e3d_vec:dist(A, C),
     BD = e3d_vec:dist(B, D),
-    Epsilon = 0.03,  %% (1-0.98)/1=0.02 and is rougly equal 
+    Epsilon = 0.15,  %% 1/6 diffs Is rougly equal 
+%     io:format("Vs ~p=~p AC=~p BD=~p ~p ~n", 
+% 	      [[Ai,Bi,Ci,Di],lists:reverse(VsPos), AC, BD,
+% 	       {((BD-AC) / BD), ((AC-BD) / AC)}]),
     case AC < BD of
 	true when ((BD-AC) / BD)  > Epsilon ->
 	    case wings_draw_util:good_triangulation(N, D, C, B, A) of
@@ -103,12 +106,18 @@ triangulate_quad_1([], [Ai,Bi,Ci,Di], _, We, VsPos) ->
 		false -> error;
 		true -> wings_vertex_cmd:connect([Bi,Di], We)
 	    end;
-	_ ->  
+	_ ->
 	    %% Both diagonal rougly equal in length, use 3d position
 	    %% to place the diagonal to get uniform triangulation over 
 	    %% a quad mesh.
-	    ACS = if A < C -> A; true -> C end,
-	    DBS = if B < D -> B; true -> D end,
+	    
+	    [Dp,Cp,Bp,Ap] = project_to_2d([D,C,B,A]),
+	    
+%	    Rotm = e3d_mat:rotate_s_to_t(N, {0.0,0.0,1.0}),
+%	    [Dp,Cp,Bp,Ap] = map(fun (P) -> e3d_mat:mul_point(Rotm, P) end, VsPos),	    
+	    
+	    ACS = if Ap < Cp -> Ap; true -> Cp end,
+	    DBS = if Bp < Dp -> Bp; true -> Dp end,
 	    if ACS < DBS ->
 		    case wings_draw_util:good_triangulation(N, D, C, B, A) of
 			false -> error;
@@ -121,6 +130,32 @@ triangulate_quad_1([], [Ai,Bi,Ci,Di], _, We, VsPos) ->
 		    end
 	    end
     end.
+
+project_to_2d(List) ->
+    Dir = project_to_2d(List, 0.0, undefined),
+    case Dir of
+	x ->
+	    [{A,B} || {_,A,B} <- List];
+	y ->
+	    [{A,B} || {A,_,B} <- List];
+	z ->
+	    [{A,B} || {A,B,_} <- List]
+    end.
+
+project_to_2d([{X0,Y0,Z0}|R], Old, OldD) ->
+    X = abs(X0),    Y = abs(Y0),    Z = abs(Z0),
+    if 
+	(X > Old) and (X > Y) and (Y > Z) ->
+	    project_to_2d(R, X, x);
+	(Y > Old) and (Y > Z) ->
+	    project_to_2d(R, Y, y);
+	Z > Old ->
+	    project_to_2d(R, Z, z);
+	true ->
+	    project_to_2d(R, Old, OldD)
+    end;
+project_to_2d([],_,Dir) -> Dir. 
+
 
 doface_1(Len, Vs, #we{vp=Vtab}=We, Q) ->
     FaceVs = lists:seq(0, Len-1),
