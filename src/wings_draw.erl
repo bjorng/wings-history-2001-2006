@@ -8,13 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.71 2002/04/22 06:59:05 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.72 2002/04/24 08:47:58 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([model_changed/0,model_changed/1,sel_changed/1,
 	 clear_orig_sel/0,make_vec_dlist/1,
-	 draw_smooth_faces/2,
+	 update_display_lists/2,
+	 draw_faces/2,
+	 smooth_faces/2,
 	 get_dlist/0,put_dlist/1,render/1,ground_and_axes/0,
 	 axis_letters/0]).
 
@@ -24,12 +26,20 @@
 
 -import(lists, [foreach/2,last/1,reverse/1]).
 
-model_changed() ->
-    erase(wings_dlist).
-
 model_changed(St) ->
-    erase(wings_dlist),
+    model_changed(),
     St.
+
+model_changed() ->
+    case erase(wings_dlist) of
+	undefined -> ok;
+	#dl{faces=D1,smooth=D2,vs=D3,pick=D4,normals=D5,smoothed=D6} ->
+	    del_list(D1), del_list(D2), del_list(D3),
+	    del_list(D4), del_list(D5), del_list(D6)
+    end.
+
+del_list(none) -> ok;
+del_list(DL) -> gl:deleteLists(DL, 1).
 
 get_dlist() ->
     get(wings_dlist).
@@ -55,6 +65,7 @@ clear_orig_sel() ->
 -define(DL_SEL1, (?DL_DRAW_BASE+2)).
 -define(DL_SEL2, (?DL_DRAW_BASE+3)).
 -define(DL_NORMALS, (?DL_DRAW_BASE+4)).
+-define(DL_SMOOTH, (?DL_DRAW_BASE+5)).
 
 %%
 %% Renders all shapes, including selections.
@@ -66,18 +77,18 @@ render(St) ->
     ?CHECK_ERROR(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     ?CHECK_ERROR(),
-    Smooth = not wings_pref:get_value(workmode),
-    update_display_lists(St),
-    make_sel_dlist(Smooth, St),
+    Workmode = wings_pref:get_value(workmode),
+    update_display_lists(Workmode, St),
+    make_sel_dlist(not Workmode, St),
     make_normals_dlist(St),
     make_vec_dlist(St),
     wings_view:projection(),
     wings_view:model_transformations(),
     ground_and_axes(),
     show_saved_bb(St),
-    case Smooth of
-	true -> draw_smooth_shapes(St);
-	false -> draw_plain_shapes(St)
+    case Workmode of
+	false -> render_smooth(St);
+	true -> render_plain(St)
     end,
     draw_normals(),
     gl:callList(?DL_UTIL),
@@ -86,7 +97,7 @@ render(St) ->
     ?CHECK_ERROR(),
     St.
 
-draw_smooth_shapes(St) ->
+render_smooth(St) ->
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_BACK),
     gl:shadeModel(?GL_SMOOTH),
@@ -95,20 +106,30 @@ draw_smooth_shapes(St) ->
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:enable(?GL_BLEND),
     ?CHECK_ERROR(),
-    %%gl:lightModeli(?GL_LIGHT_MODEL_COLOR_CONTROL, ?GL_SEPARATE_SPECULAR_COLOR),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     gl:polygonOffset(2.0, 2.0),
-    draw_faces(),
+    #dl{smooth=DlistSmooth} = get_dlist(),
+    gl:callList(DlistSmooth),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_CULL_FACE),
+    case wings_pref:get_value(wire_mode) of
+	false -> ok;
+	true ->
+	    gl:color3f(1.0, 1.0, 1.0),
+	    gl:lineWidth(?NORMAL_LINEWIDTH),
+	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+	    gl:enable(?GL_POLYGON_OFFSET_LINE),
+	    gl:polygonOffset(1.0, 1.0),
+	    draw_faces()
+    end,
+
     ?CHECK_ERROR(),
     draw_orig_sel(),
-    draw_sel(St),
-    gl:lightModeli(?GL_LIGHT_MODEL_COLOR_CONTROL, ?GL_SINGLE_COLOR).
+    draw_sel(St).
 
-draw_plain_shapes(#st{selmode=SelMode}=St) ->
+render_plain(#st{selmode=SelMode}=St) ->
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_BACK),
 
@@ -255,20 +276,33 @@ draw_faces() ->
     #dl{faces=DlistFaces} = get_dlist(),
     gl:callList(DlistFaces).
 
-update_display_lists(#st{shapes=Shs}=St) ->
+update_display_lists(Workmode, St) ->
     case get_dlist() of
-	undefined ->
-	    Smooth = not wings_pref:get_value(workmode),
-	    gl:newList(?DL_FACES, ?GL_COMPILE),
-	    foreach(fun(#we{perm=Perm}=We) when ?IS_VISIBLE(Perm) ->
-			    draw_faces(We, Smooth, St);
-		       (#we{}) -> ok
-		    end, gb_trees:values(Shs)),
-	    gl:endList(),
-	    put_dlist(#dl{faces=?DL_FACES});
-	_DL -> ok
+	undefined -> update_display_lists_1(Workmode, #dl{}, St);
+	#dl{faces=none}=DL when Workmode == true ->
+	    update_display_lists_1(Workmode, DL, St);
+	#dl{smooth=none}=DL when Workmode == false ->
+	    update_display_lists_1(Workmode, DL, St);
+	_ -> ok
     end.
 
+update_display_lists_1(false, DL0, #st{shapes=Shs}=St) ->
+    gl:newList(?DL_SMOOTH, ?GL_COMPILE),
+    foreach(fun(#we{perm=Perm}=We) when ?IS_VISIBLE(Perm) ->
+		    smooth_faces(We, St);
+	       (#we{}) -> ok
+	    end, gb_trees:values(Shs)),
+    gl:endList(),
+    put_dlist(DL0#dl{smooth=?DL_SMOOTH});
+update_display_lists_1(true, DL0, #st{shapes=Shs}=St) ->
+    gl:newList(?DL_FACES, ?GL_COMPILE),
+    foreach(fun(#we{perm=Perm}=We) when ?IS_VISIBLE(Perm) ->
+		    draw_faces(We, St);
+	       (#we{}) -> ok
+	    end, gb_trees:values(Shs)),
+    gl:endList(),
+    put_dlist(DL0#dl{faces=?DL_FACES}).
+    
 make_sel_dlist(Smooth, St) ->
     case {get_dlist(),St} of
 	{#dl{sel=none},_} -> do_make_sel_dlist(Smooth, St);
@@ -299,16 +333,15 @@ do_make_sel_dlist(_Smooth, #st{sel=Sel}=St) ->
 get_sel_dlist(#dl{orig_sel=none}) -> ?DL_SEL1;
 get_sel_dlist(_) -> ?DL_SEL2.
     
-draw_faces(We, true, #st{mat=Mtab}) ->
-    draw_smooth_faces(Mtab, We);
-draw_faces(#we{mode=uv}=We, false, #st{mat=Mtab}=St) ->
+draw_faces(#we{mode=uv}=We, #st{mat=Mtab}=St) ->
     case wings_pref:get_value(show_textures) of
 	true ->
 	    MatFaces = mat_faces(We),
 	    draw_uv_faces(MatFaces, We, Mtab);
-	false -> draw_faces(We#we{mode=none}, false, St)
+	false ->
+	    draw_faces(We#we{mode=none}, St)
     end;
-draw_faces(#we{fs=Ftab}=We, false, _St) ->
+draw_faces(#we{fs=Ftab}=We, _St) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1,1,1,1}),
     wings_draw_util:begin_end(
       fun() ->
@@ -346,13 +379,13 @@ mat_faces([], Faces0) ->
     Faces = sofs:relation_to_family(Faces1),
     sofs:to_external(Faces).
 
-draw_smooth_faces(_Mtab, #we{mode=vertex}=We) ->
+smooth_faces(#we{mode=vertex}=We, _St) ->
     Faces = wings_we:normals(We),
     gl:enable(?GL_COLOR_MATERIAL),
     gl:colorMaterial(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE),
     wings_draw_util:begin_end(fun() -> draw_smooth_vcolor(Faces) end),
     gl:disable(?GL_COLOR_MATERIAL);
-draw_smooth_faces(Mtab, #we{mode=Mode}=We) ->
+smooth_faces(#we{mode=Mode}=We, #st{mat=Mtab}) ->
     Faces0 = wings_we:normals(We),
     Faces1 = sofs:relation(Faces0),
     Faces2 = sofs:relation_to_family(Faces1),
@@ -457,7 +490,7 @@ draw_selection(#st{selmode=body}=St) ->
     sel_color(),
     wings_sel:foreach(
       fun(_, We) ->
-	      draw_faces(We, false, St)
+	      draw_faces(We, St)
       end, St);
 draw_selection(#st{selmode=face}=St) ->
     sel_color(),

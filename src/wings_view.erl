@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.50 2002/04/22 06:59:05 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.51 2002/04/24 08:47:58 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -24,7 +24,6 @@
 -define(FOV, 45).
 
 -import(lists, [foreach/2,foldl/3]).
--import(wings_draw, [model_changed/1]).
 
 menu(X, Y, St) ->
     L = wings_pref:get_value(number_of_lights),
@@ -74,24 +73,25 @@ command(reset, St) ->
     reset(),
     St;
 command(workmode, St) ->
-    toggle_option(workmode),
-    ?SLOW(model_changed(St));
+    ?SLOW(toggle_option(workmode)),
+    St;
 command(smoothed_preview, St) ->
     ?SLOW(smoothed_preview(St));
 command(flatshade, St) ->
     wings_pref:set_value(wire_mode, false),
     wings_pref:set_value(workmode, true),
-    model_changed(St);
+    St;
 command(smoothshade, St) ->
     wings_pref:set_value(wire_mode, false),
     wings_pref:set_value(workmode, false),
-    model_changed(St);
+    St;
 command(orthogonal_view, St) ->
     toggle_option(orthogonal_view),
     St;
 command(show_textures, St) ->
     toggle_option(show_textures),
-    model_changed(St);
+    wings_draw:model_changed(),
+    St;
 command(aim, St) ->
     aim(St),
     St;
@@ -122,7 +122,6 @@ command(toggle_lights, St) ->
 command(Key, St) ->
     toggle_option(Key),
     St.
-
 
 %%%
 %%% The Auto Rotate command.
@@ -252,10 +251,14 @@ smooth_event_1(#keyboard{}=Kb, #sm{st=St,wire=Wire}=Sm) ->
 	_ ->
 	    keep
     end;
+smooth_event_1({resize,_,_}=Resize, _) ->
+    wings_io:putback_event(Resize),
+    smooth_exit();
+smooth_event_1(quit, _) ->
+    wings_io:putback_event(quit),
+    smooth_exit();
 smooth_event_1(_, _) ->
-    wings_io:clear_message(),
-    wings_wm:dirty(),
-    pop.
+    smooth_exit().
 
 smooth_exit() ->
     wings_io:clear_message(),
@@ -264,21 +267,21 @@ smooth_exit() ->
 
 smooth_dlist(St) ->
     case wings_draw:get_dlist() of
-	#dl{smooth=none} -> build_smooth_dlist(St);
+	#dl{smoothed=none} -> build_smooth_dlist(St);
 	_ -> ok
     end.
 	    
-build_smooth_dlist(#st{mat=Mat,shapes=Shs}) ->
+build_smooth_dlist(#st{shapes=Shs}=St) ->
     wings_io:disable_progress(),
-    gl:newList(?DL_SMOOTH, ?GL_COMPILE),
+    gl:newList(?DL_SMOOTHED, ?GL_COMPILE),
     foreach(fun(#we{perm=Perm}=We0) when ?IS_VISIBLE(Perm) ->
 		    We = wings_subdiv:smooth(We0),
-		    wings_draw:draw_smooth_faces(Mat, We);
+		    wings_draw:smooth_faces(We, St);
 	       (#we{}) -> ok
 	    end, gb_trees:values(Shs)),
     gl:endList(),
     DL = wings_draw:get_dlist(),
-    wings_draw:put_dlist(DL#dl{smooth=DL}).
+    wings_draw:put_dlist(DL#dl{smoothed=?DL_SMOOTHED}).
 
 smooth_redraw(#sm{st=St}=Sm) ->
     ?CHECK_ERROR(),
@@ -295,7 +298,7 @@ smooth_redraw(#sm{st=St}=Sm) ->
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    gl:callList(?DL_SMOOTH),
+    gl:callList(?DL_SMOOTHED),
     wireframe(Sm),
     gl:popAttrib(),
     ?CHECK_ERROR(),
@@ -303,7 +306,8 @@ smooth_redraw(#sm{st=St}=Sm) ->
     ?CHECK_ERROR().
 
 wireframe(#sm{wire=false}) -> ok;
-wireframe(_) ->
+wireframe(#sm{st=St}) ->
+    wings_draw:update_display_lists(true, St),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
