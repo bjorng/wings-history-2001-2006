@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.35 2003/05/20 05:09:47 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.36 2003/05/24 12:55:20 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -287,14 +287,10 @@ do_tweak(#dlo{drag=#drag{pos=Pos0,mag=Mag0,mm=MM}=Drag,
 do_tweak(D, _, _) -> D.
 
 obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
-    {true, Xs,Ys,Zs} = glu:project(X, Y, Z, MVM, PM, VP),
-    {Xs,Ys,Zs}.
+    glu:project(X, Y, Z, MVM, PM, VP).
 
 screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
-    case glu:unProject(Xs, Ys, Zs, MVM, PM, VP) of
-	{true, X,Y,Z} -> {X,Y,Z};
-	{1, X,Y,Z} -> {X,Y,Z}			%Workaround for new ESDL (ugly).
-    end.
+    glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
 
 help(#tweak{magnet=false}) ->
     Msg = "[L] Drag vertices freely  [R] Exit tweak mode",

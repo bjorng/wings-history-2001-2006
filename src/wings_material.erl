@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.95 2003/05/06 04:08:06 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.96 2003/05/24 12:55:20 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -508,7 +508,7 @@ mat_preview(X, Y, _W, _H, Common) ->
     MM = gl:getDoublev(?GL_MODELVIEW_MATRIX),
     PM = gl:getDoublev(?GL_PROJECTION_MATRIX),
     ViewPort = wings_wm:viewport(),
-    {true,Ox,Oy,_} = glu:project(X, Y+?PREVIEW_SIZE, 0, MM, PM, ViewPort),
+    {Ox,Oy,_} = glu:project(X, Y+?PREVIEW_SIZE, 0, MM, PM, ViewPort),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:viewport(trunc(Ox), trunc(Oy), ?PREVIEW_SIZE, ?PREVIEW_SIZE),
     gl:matrixMode(?GL_PROJECTION),

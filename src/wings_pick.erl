@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.89 2003/05/20 17:30:26 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.90 2003/05/24 12:55:20 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -368,7 +368,7 @@ is_all_inside_rect([P|Ps], Rect) ->
 is_all_inside_rect([], _Rect) -> true.
 
 is_inside_rect({Px,Py,Pz}, {MM,PM,ViewPort,X1,Y1,X2,Y2}) ->
-    {true,Sx,Sy,_} = glu:project(Px, Py, Pz, MM, PM, ViewPort),
+    {Sx,Sy,_} = glu:project(Px, Py, Pz, MM, PM, ViewPort),
     X1 < Sx andalso Sx < X2 andalso
 	Y1 < Sy andalso Sy < Y2.
 
@@ -684,8 +684,8 @@ find_edge(Face, We, Cx, Cy, Trans) ->
 
 project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
     {Px,Py,Pz} = wings_vertex:pos(V, We),
-    {true,Xs,Ys,_} = glu:project(Px, Py, Pz, ModelMatrix,
-				 ProjMatrix, ViewPort),
+    {Xs,Ys,_} = glu:project(Px, Py, Pz, ModelMatrix,
+			    ProjMatrix, ViewPort),
     {Xs,Ys}.
 
 check_restriction({Mode,MM,_}=Hilite, Id, V, Edge, Face) ->
