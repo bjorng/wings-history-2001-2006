@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.81 2004/05/17 09:43:48 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.82 2004/05/18 13:07:49 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -969,7 +969,7 @@ light_dialog(_Name, area, Ps) ->
 				      {key,{?TAG,arealight_samples}},
 				      bhook(disabled, {?TAG,dummy})]},
 	      {label,"Penumbra Samples"},
-	      {text,ArealightPsamples,[{range,{1,1000000}},
+	      {text,ArealightPsamples,[{range,{0,1000000}},
 				       {key,{?TAG,arealight_psamples}},
 				       bhook(disabled, {?TAG,dummy})]}]}];
 light_dialog(_Name, _Type, _Ps) ->
