@@ -3,12 +3,12 @@
 %%
 %%     Functions for reading and writing Wavefront ASCII files (.obj).
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.36 2003/04/17 13:59:04 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.37 2004/01/04 15:23:43 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -19,8 +19,6 @@
 
 -import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,foreach/2,
 		map/2,foldl/3]).
--compile(inline).
--compile({inline_size,24}).
 
 -record(ost,
 	{v=[],					%Vertices.
@@ -463,32 +461,35 @@ material(F, Root, {Name,Mat}) ->
     mat_color(F, "Ka", ambient, OpenGL),
     mat_color(F, "Ks", specular, OpenGL),
     Maps = proplists:get_value(maps, Mat),
-    export_maps(F, Maps, Root, Name),
+    export_maps(F, Maps, Root),
     eol(F).
 
 mat_color(F, Label, Key, Mat) ->
     {R,G,B,_} = proplists:get_value(Key, Mat),
     io:format(F, "~s ~p ~p ~p\r\n", [Label,R,G,B]).
 
-export_maps(F, [{diffuse,Map}|T], Base, Name) ->
-    export_map(F, "Kd", Map, Base, Name),
-    export_maps(F, T, Base, Name);
-export_maps(F, [{ambient,Map}|T], Base, Name) ->
-    export_map(F, "Ka", Map, Base, Name),
-    export_maps(F, T, Base, Name);
-export_maps(F, [{bump,Map}|T], Base, Name) ->
-    export_map(F, "Bump", Map, Base, Name),
-    export_maps(F, T, Base, Name);
-export_maps(F, [_|T], Base, Name) ->
-    export_maps(F, T, Base, Name);
-export_maps(_, [], _, _) -> ok.
+export_maps(F, [{diffuse,Map}|T], Base) ->
+    export_map(F, "Kd", Map, Base),
+    export_maps(F, T, Base);
+export_maps(F, [{ambient,Map}|T], Base) ->
+    export_map(F, "Ka", Map, Base),
+    export_maps(F, T, Base);
+export_maps(F, [{bump,Map}|T], Base) ->
+    export_map(F, "Bump", Map, Base),
+    export_maps(F, T, Base);
+export_maps(F, [_|T], Base) ->
+    export_maps(F, T, Base);
+export_maps(_, [], _) -> ok.
 
-export_map(_, _, none, _, _) -> ok;
-export_map(F, Label0, #e3d_image{name=ImageName}=Image, Root, _) ->
+export_map(_, _, none, _) -> ok;
+export_map(F, Label0, #e3d_image{filename=none,name=ImageName}=Image, Root) ->
     Label = "map_" ++ Label0,
     MapFile = filename:join(filename:dirname(Root), ImageName ++ ".tga"),
     io:format(F, "~s ~s\r\n", [Label,filename:basename(MapFile)]),
-    ok = e3d_image:save(Image, MapFile).
+    ok = e3d_image:save(Image, MapFile);
+export_map(F, Label0, #e3d_image{filename=Filename}, _Root) ->
+    Label = "map_" ++ Label0,
+    io:format(F, "~s ~s\r\n", [Label,filename:basename(Filename)]).
 
 label(F, Creator) ->
     io:format(F, "# Exported from ~s\r\n", [Creator]).
