@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.10 2002/02/26 12:57:25 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.11 2002/02/26 13:12:40 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -96,9 +96,9 @@ rotate_to_z(Vec) ->
 		e3d_vec:norm(Wy, -Wx, 0.0)
 	end,
     {Ux,Uy,Uz} = e3d_vec:cross(V, W),
-    {Ux,Uy,Uz,
-     Vx,Vy,Vz,
-     Wx,Wy,Wz,
+    {Ux,Vx,Wx,
+     Uy,Vy,Wy,
+     Uz,Vz,Wz,
      0.0,0.0,0.0}.
 
 mul({B_a,B_b,B_c,B_d,B_e,B_f,B_g,B_h,B_i,B_tx,B_ty,B_tz},
