@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.41 2003/08/30 18:18:50 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.42 2003/09/27 07:26:04 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -27,7 +27,7 @@
 	 vertices_ccw/2,vertices_ccw/3,
 	 vertex_positions/2,vertex_positions/3,
 	 vertex_info/2,vertex_info/3,
-	 extend_border/2,bordering_faces/2,
+	 extend_border/2,
 	 inner_edges/2,outer_edges/2,
 	 fold/4,fold/5,fold_vinfo/4,fold_faces/4,
 	 iterator/2,skip_to_edge/2,skip_to_cw/2,skip_to_ccw/2,
@@ -325,18 +325,6 @@ extend_border(Fs0, We) ->
 			    end, S0, Face, We)
 	       end, Fs0, gb_sets:to_list(Fs0)),
     wings_sel:subtract_mirror_face(Fs, We).
-
-%% bordering_faces(FacesGbSet, We) -> FacesGbSet'
-%%  Given a set of faces, return all faces that are adjacent to
-%%  a least one face outside the set.
-bordering_faces(Faces, We) ->
-    fold_faces(fun(Face, _, _, Rec, A) ->
-		       OtherFace = other(Face, Rec),
-		       case gb_sets:is_member(OtherFace, Faces) of
-			   true -> A;
-			   false -> gb_sets:add(Face, A)
-		       end
-	       end, gb_sets:empty(), Faces, We).
 
 %% inner_edges(Faces, We) -> [Edge]
 %%  Given a set of faces, return all inner edges.
