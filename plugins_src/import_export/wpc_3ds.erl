@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_3ds.erl,v 1.2 2002/07/21 15:49:12 bjorng Exp $
+%%     $Id: wpc_3ds.erl,v 1.3 2002/07/23 17:04:57 bjorng Exp $
 %%
 
 -module(wpc_3ds).
@@ -87,7 +87,7 @@ export_fun(Attr) ->
 
 export_1(Filename, Contents0, Attr) ->
     Contents = export_transform(Contents0, Attr),
-    case e3d_tds:export(Filename, Contents, Attr) of
+    case e3d_tds:export(Filename, Contents) of
 	ok -> ok;
 	{error,_}=Error -> Error
     end.
