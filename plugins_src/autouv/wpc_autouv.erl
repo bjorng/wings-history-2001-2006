@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.187 2004/02/22 17:34:58 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.188 2004/02/25 05:33:02 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -182,8 +182,8 @@ do_edit(MatName0, Faces, We, St) ->
 %%%%%%
 
 init_show_maps(Map0, We, St) ->
-    Map1  = auv_placement:place_areas(Map0),
-    Map   = gb_trees:from_orddict(sort(Map1)),
+    Map1 = auv_placement:place_areas(Map0),
+    Map = gb_trees:from_orddict(sort(Map1)),
     create_uv_state(Map, none, We, St).
 
 create_uv_state(Map, MatName0, We, GeomSt0) ->
@@ -195,10 +195,10 @@ create_uv_state(Map, MatName0, We, GeomSt0) ->
 	    true -> 
 		{GeomSt0,MatName0};
 	    false ->
-		Tx = checkerboard(128,128),
+		Tx = checkerboard(128, 128),
 		add_material(Tx, We#we.name, MatName0, GeomSt0)
 	end,
-    GeomSt = insert_uvcoords(Map, We#we.id, MatName, GeomSt1),
+    GeomSt = insert_initial_uvcoords(Map, We#we.id, MatName, GeomSt1),
     wings_wm:send(geom, {new_state,GeomSt}),
     Uvs = #uvstate{st=wpa:sel_set(face, [], GeomSt),
 		   geom=Geom,
@@ -208,35 +208,31 @@ create_uv_state(Map, MatName0, We, GeomSt0) ->
     Name = wings_wm:this(),
     wings_wm:set_prop(Name, drag_filter, fun drag_filter/1),
     get_event(St).
-   
-insert_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
+
+insert_initial_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
     We0 = gb_trees:get(Id, Shs0),
-    We1 = insert_uvcoords_1(We0, Charts),
+    UVpos = gen_uv_pos(gb_trees:values(Charts)),
+    We1 = insert_coords(UVpos, We0),
     We2 = insert_material(Charts, MatName, We1),
     We = We2#we{mode=material},    
     Shs = gb_trees:update(Id, We, Shs0),
     St#st{shapes=Shs}.
-
-update_selected_uvcoords(St) ->
-    Wes = wpa:sel_fold(fun(_,We,Acc) -> [We|Acc] end, [], St),
-    update_uvcoords(Wes, St).
-    
-update_uvcoords(Charts, #st{bb=Uvs} = St) ->
-    #uvstate{st=#st{shapes=Shs0}=GeomSt0, id=Id} = Uvs,
+   
+update_selected_uvcoords(#st{bb=Uvs}=St) ->
+    Charts = wpa:sel_fold(fun(_, We, Acc) -> [We|Acc] end, [], St),
+    #uvstate{st=#st{shapes=Shs0}=GeomSt0,id=Id} = Uvs,
     We0 = gb_trees:get(Id, Shs0),
-    UVpos = gen_uv_pos(Charts, []),
-    We  = insert_coords(UVpos, We0),    
+    UVpos = gen_uv_pos(Charts),
+    We = insert_coords(UVpos, We0),    
     Shs = gb_trees:update(Id, We, Shs0),
     GeomSt = GeomSt0#st{shapes=Shs},
     wings_wm:send(geom, {new_state,GeomSt}),
     St#st{bb=Uvs#uvstate{st=GeomSt}}.
 
-insert_uvcoords_1(We, Cs0) ->
-    Cs = gb_trees:values(Cs0),
-    UVpos = gen_uv_pos(Cs, []),
-    insert_coords(UVpos, We).
+gen_uv_pos(Cs) ->
+    gen_uv_pos_1(Cs, []).
 
-gen_uv_pos([#we{vp=Vpos0,name=#ch{fs=Fs,vmap=Vmap}}=We|T], Acc) ->
+gen_uv_pos_1([#we{vp=Vpos0,name=#ch{fs=Fs,vmap=Vmap}}=We|T], Acc) ->
     Vpos1 = gb_trees:to_list(Vpos0),
     VFace0 = wings_face:fold_faces(
 	       fun(Face, V, _, _, A) ->
@@ -250,8 +246,8 @@ gen_uv_pos([#we{vp=Vpos0,name=#ch{fs=Fs,vmap=Vmap}}=We|T], Acc) ->
 			 V = auv_segment:map_vertex(V0, Vmap),
 			 [{V,Data}|A]
 		 end, Acc, Comb1),
-    gen_uv_pos(T, Comb);
-gen_uv_pos([], Acc) -> Acc.
+    gen_uv_pos_1(T, Comb);
+gen_uv_pos_1([], Acc) -> Acc.
 
 insert_coords([{V,{Face,{S,T,_}}}|Rest], #we{es=Etab0}=We) ->
     Etab = wings_vertex:fold(
@@ -268,17 +264,16 @@ insert_coords([{V,{Face,{S,T,_}}}|Rest], #we{es=Etab0}=We) ->
 		     end
 	     end, Etab0, V, We),
     insert_coords(Rest, We#we{es=Etab});
-insert_coords([], We0 = #we{es=Etab0}) -> 
-    %% Assure that no vertex colors pre-exist after insert coords 
-    %% i.e. face marked with hole material
-    Etab = lists:map(fun({Id,E=#edge{a={_,_,_},b={_,_,_}}}) -> 
-			     {Id,E#edge{a=none,b=none}};
-			({Id,E=#edge{a={_,_,_}}}) -> 
-			     {Id,E#edge{a = none}};
-			({Id,E=#edge{b={_,_,_}}}) -> 
-			     {Id,E#edge{b = none}};
-			(Rec) -> Rec
-		     end, gb_trees:to_list(Etab0)),
+insert_coords([], #we{es=Etab0}=We0) -> 
+    %% Ensure that we leave no vertex colors.
+    Etab = map(fun({Id,E=#edge{a={_,_,_},b={_,_,_}}}) -> 
+		       {Id,E#edge{a=none,b=none}};
+		  ({Id,E=#edge{a={_,_,_}}}) -> 
+		       {Id,E#edge{a=none}};
+		  ({Id,E=#edge{b={_,_,_}}}) -> 
+		       {Id,E#edge{b=none}};
+		  (Rec) -> Rec
+	       end, gb_trees:to_list(Etab0)),
     We0#we{es=gb_trees:from_orddict(Etab)}.
 
 insert_material(Cs, MatName, We) ->
@@ -328,16 +323,6 @@ get_material(Face, Materials, We) ->
     MatName = wings_material:get(Face, We),
     Mat = gb_trees:get(MatName, Materials),
     proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
-
-% get_texture_size(MatName, #st{mat=Materials}) ->
-%     Mat = gb_trees:get(MatName, Materials),
-%     Maps = proplists:get_value(maps, Mat, []),
-%     case proplists:get_value(diffuse, Maps, none) of
-% 	none -> {512,512};
-% 	ImageId ->
-% 	    #e3d_image{width=W,height=H} = wings_image:info(ImageId),
-% 	    {W,H}
-%     end.
 
 add_material(Tx = #e3d_image{},Name,none,St0) ->
     MatName0 = list_to_atom(Name++"_auv"),
@@ -829,7 +814,7 @@ broken_event(Ev, _) ->
 %%%
 %%% Draw routines.
 %%%
-draw_area(#we{name=#ch{fs=Fs}}=We,ColorMode) -> 
+draw_area(#we{name=#ch{fs=Fs}}=We, ColorMode) -> 
     gl:pushMatrix(),
     gl:lineWidth(1),
     gl:translatef(0, 0, 0.9),
@@ -841,7 +826,7 @@ draw_area(#we{name=#ch{fs=Fs}}=We,ColorMode) ->
 	is_tuple(ColorMode), size(ColorMode) == 4 ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:color4fv(ColorMode),
-	    draw_faces(Fs, We#we{mode = material});
+	    draw_faces(Fs, We#we{mode=material});
 	true ->
 	    ignore
     end.
