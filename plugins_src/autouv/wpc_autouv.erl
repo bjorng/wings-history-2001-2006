@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.7 2002/10/09 21:57:44 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.8 2002/10/10 13:04:10 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -285,7 +285,7 @@ init_uvmap(St0, Old, Type) ->
 init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
     Clusters = auv_segment:segment_by_material(We0),
     We1 = gb_trees:get(Id, St0#st.shapes),
-    ?DBG("Found ~p Chart~n", [length(Clusters)]),
+    ?DBG("Found ~p Charts~n", [length(Clusters)]),
     Areas = init_areas(Clusters, [], Type, We1),
 
     %% Place the cluster on the texturemap
@@ -316,7 +316,6 @@ create_area({_,Fs}, Vs0) ->
     CX = BX0 + (BX1-BX0) / 2,
     CY = BY0 + (BY1-BY0) / 2,
     Vs3 = moveAndScale(Vs0, -CX, -CY, 1, []),
-
     #a{fs = Fs, vpos = Vs3, size = {BX1-BX0, BY1 -BY0}}.  
 
 insert_uvcoords(#areas{we=We0, as = Map0, matname = MatName}) ->
@@ -858,266 +857,290 @@ genSizeOption(_V, _MaxTxs, _DefTSz, Acc) ->
 
 %%% Event handling
 
+-record(op, {name, prev, add, undo}).
+
 handle_event(redraw, Uvs0) ->
     %%    ?DBG("redraw event\n"),
     Uvs = draw_windows(Uvs0),
     get_event_nodraw(Uvs);
-handle_event(Event, Uvs0) -> 
-    #uvstate{geom = {{_,_,_,OH},ViewP={X0,Y0,W,H,_,_,_}},
-	     mode = Mode,
-	     op = Op,
-	     sel = Sel0,
-	     areas = As = #areas{we=We,as=Curr0}} 
-	= Uvs0,
-%    IoOp = case Op of {IoOptt,_} -> IoOptt; Op -> Op end,
-%    ?DBG("~p ~p~n", [IoOp, Event]),
-    case Event of
-	MouseM = #mousemotion{} when Op /= undefined ->	
-	    handle_mousemotion(MouseM, Uvs0);
-	#mousebutton{state = ?SDL_RELEASED, button = ?SDL_BUTTON_RIGHT,
-		     x = MX, y = MY}
-	when MX > X0, MX < X0 + W, (OH - MY) > Y0, (OH - MY) < Y0 + H,
-	     Op == undefined ->
-	    command_menu(Mode, MX,MY, Uvs0);
-	#mousebutton{state = ?SDL_RELEASED, button = ?SDL_BUTTON_RIGHT} ->
-	    case Op of
-		{_, Old} ->
-		    get_event(Old);
-		undefined ->
-		    keep
-	    end;
-	#mousebutton{state = ?SDL_RELEASED, button = ?SDL_BUTTON_LEFT,
-		     x = MX, y = MY} 
-	when Op == undefined; element(1,Op) == {fmove, MX,MY},
-	     MX > X0, MX < X0 + W, (OH - MY) > Y0, (OH - MY) < Y0 + H ->
-	    SX = (MX-X0),
-	    SY = ((OH-MY)-Y0),
-	    case select(Mode, SX, SY, ?add_as(Sel0,Curr0), We, ViewP) of
-		none when Op == undefined ->
-		    keep;
+handle_event(MouseM = #mousemotion{}, Uvs0 = #uvstate{op = Op}) when Op /= undefined ->	   
+    handle_mousemotion(MouseM, Uvs0);
+handle_event(#mousebutton{state = ?SDL_RELEASED, button = ?SDL_BUTTON_RIGHT,
+			  x = MX, y = MY}, 
+	     Uvs0 = #uvstate{geom = {{_,_,_,OH},ViewP={X0,Y0,W,H,_,_,_}}, 
+			     op = Op, mode = Mode})
+  when MX > X0, MX < X0 + W, (OH - MY) > Y0, (OH - MY) < Y0 + H, Op == undefined ->
+    command_menu(Mode, MX,MY, Uvs0);
+handle_event(#mousebutton{state = ?SDL_RELEASED, button = ?SDL_BUTTON_RIGHT}, 
+	     Uvs0 = #uvstate{op = Op}) ->	   
+    case Op of
+	undefined ->
+	    keep;
+	_ ->
+	    get_event(Op#op.undo)
+    end;
+handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x = MX, y = MY}, 
+	     Uvs0 = #uvstate{geom = {{_,_,_,OH},ViewP={X0,Y0,W,H,_,_,_}},
+			     mode = Mode,
+			     op = Op,
+			     sel = Sel0,
+			     areas = As = #areas{we=We,as=Curr0}})
+  when Op == undefined; element(1,Op) == {fmove, MX,MY},
+       MX > X0, MX < X0 + W, (OH - MY) > Y0, (OH - MY) < Y0 + H ->
+    SX = (MX-X0),
+    SY = ((OH-MY)-Y0),
+    case select(Mode, SX, SY, ?add_as(Sel0,Curr0), We, ViewP) of
+	none when Op == undefined ->
+	    keep;
+	none -> 
+	    get_event(Uvs0#uvstate{op = undefined});
+	Hits ->
+	    {Sel1, Curr1} = 
+		case (sdl_keyboard:getModState() band ?KMOD_CTRL) /= 0 of
+		    true -> 
+			update_selection(Hits -- Sel0, Sel0, Curr0);
+		    false ->
+			update_selection([hd(Hits)], Sel0, Curr0)
+		end,
+	    get_event(Uvs0#uvstate{sel = Sel1,
+				   st = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
+				   areas = As#areas{as=Curr1},
+				   dl = undefined, op = undefined})
+    end;
+handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
+	     Uvs0 = #uvstate{geom = {{_,_,_,OH},ViewP={X0,Y0,W,H,_,_,_}},
+			     mode = Mode,
+			     op = Op,
+			     sel = Sel0,
+			     areas = As = #areas{we=We,as=Curr0}}) ->	   
+    case Op#op.name of
+	boxsel when Op#op.add == {MX,MY} -> %% No box
+	    get_event(Uvs0#uvstate{op = undefined});
+	boxsel ->
+	    {OX,OY} = Op#op.add,
+	    BW = abs(OX-MX),
+	    BH = abs(OY-MY),
+	    CX = if OX > MX -> MX + BW div 2; true -> MX - BW div 2 end,
+	    CY = if OY > MY -> MY + BH div 2; true -> MY - BH div 2 end,
+	    %%		    ?DBG("BW ~p BH ~p Center ~p \n",[BW,BH, {CX,CY}]),
+	    case select(Mode, CX-X0,((OH-CY)-Y0), BW,BH, Curr0, We, ViewP) of
 		none -> 
 		    get_event(Uvs0#uvstate{op = undefined});
-		Hits ->
-		    {Sel1, Curr1} = 
-			case (sdl_keyboard:getModState() band ?KMOD_CTRL) /= 0 of
-			    true -> 
-				update_selection(Hits -- Sel0, Sel0, Curr0);
-			    false ->
-				update_selection([hd(Hits)], Sel0, Curr0)
-			end,
+		Hits -> 
+		    %%			    ?DBG("Hit number ~p \n",[length(Hits)]),
+		    {Sel1, Curr1} = update_selection(Hits, Sel0, Curr0),
 		    get_event(Uvs0#uvstate{sel = Sel1,
 					   st = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
 					   areas = As#areas{as=Curr1},
 					   dl = undefined, op = undefined})
 	    end;
-	#mousebutton{state = ?SDL_RELEASED, button = ?SDL_BUTTON_LEFT,
-		     x = MX, y = MY} ->
-	    case Op of
-		{{boxsel, {MX,MY}, _},_} -> %% No box
-		    get_event(Uvs0#uvstate{op = undefined});
-		{{boxsel, {OX,OY}, _},_} ->
-		    BW = abs(OX-MX),
-		    BH = abs(OY-MY),
-		    CX = if OX > MX -> MX + BW div 2; true -> MX - BW div 2 end,
-		    CY = if OY > MY -> MY + BH div 2; true -> MY - BH div 2 end,
-%%		    ?DBG("BW ~p BH ~p Center ~p \n",[BW,BH, {CX,CY}]),
-		    case select(Mode, CX-X0,((OH-CY)-Y0), BW,BH, Curr0, We, ViewP) of
-			none -> 
-			    get_event(Uvs0#uvstate{op = undefined});
-			Hits -> 
-%%			    ?DBG("Hit number ~p \n",[length(Hits)]),
-			    {Sel1, Curr1} = update_selection(Hits, Sel0, Curr0),
-			    get_event(Uvs0#uvstate{sel = Sel1,
-						   st = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
-						   areas = As#areas{as=Curr1},
-						   dl = undefined, op = undefined})
-		    end;
-		{rotate, _} ->
-		    Sel1 = [finish_rotate(A)|| A <- Sel0],
-		    get_event(Uvs0#uvstate{op = undefined, sel = Sel1});
-		_ ->
-		    get_event(Uvs0#uvstate{op = undefined})
-	    end;
-	#mousebutton{state = ?SDL_PRESSED, button = ?SDL_BUTTON_LEFT, x = MX, y = MY} 
-	when Op == undefined, MX > X0, MX < X0 + W, (OH - MY) > Y0, (OH - MY) < Y0 + H ->
-	    case ?TC(select(Mode, MX-X0, ((OH-MY)-Y0), ?add_as(Sel0,Curr0), We, ViewP)) of
-		none -> 
-		    get_event(Uvs0#uvstate{op = {{boxsel, {MX,MY}, {MX+1,MY+1}}, Uvs0}});
-		Hits ->
-		    case Hits -- Sel0 of  
-			Hits -> 
-			    keep;
-			_ -> %% Hit atleast one of the selected
-			    get_event(Uvs0#uvstate{op = {{fmove, MX,MY}, Uvs0}})
-		    end
-	    end;
-	%% #mousebutton{state = ?SDL_RELEASED, x = MX, y = MY} ->
-	%%     ?DBG("Untrapped Mouse event at ~p Y ~p~n", [{MX,MY}, {Y0, H}]),
-	%%     get_event(Uvs0);
-	MB = #mousebutton{state = ?SDL_PRESSED, button = Butt, x = MX}
-	when MX < X0, Op == undefined ->
-	    case Butt of 
-		?SDL_BUTTON_MIDDLE ->
-		    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
-		_Else ->
-		    case sdl_keyboard:getModState() of
-			Mod when Mod band ?CTRL_BITS =/= 0 ->
-			    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
-			_ ->
-			    keep
-		    end
-	    end;
-	MB = #mousebutton{button = Butt, x = MX}
-	when MX < X0, Op == undefined, Butt == 4 -> %% Mouse wheel
-	    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
-	MB = #mousebutton{button = Butt, x = MX}
-	when MX < X0, Op == undefined, Butt == 5 -> %% Mouse wheel
-	    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
-	
-	#mousebutton{} ->
-%%	    ?DBG("Got2 MB ~p\n", [MB]),
-	    keep;
-	#keyboard{state = ?SDL_PRESSED, keysym = Sym} ->
-	    case Sym of
-		#keysym{sym = ?SDLK_SPACE} ->
-		    get_event(Uvs0#uvstate{sel = [],
-					   st = wings_select_faces([], We, Uvs0#uvstate.st),
-					   areas = add_areas(Sel0,As),
-					   dl = undefined});
-		#keysym{sym = ?SDLK_F5} ->
-		    import_file(default, Uvs0);
-		#keysym{sym = $b} ->		    
-		    get_event(Uvs0#uvstate{mode = faceg});
-		#keysym{sym = $f} ->
-		    get_event(Uvs0#uvstate{mode = face});
-		#keysym{sym = $e} ->  %% Bugbug
-		    Old = Uvs0#uvstate.option,
-		    get_event(Uvs0#uvstate{mode = edge, dl=undefined, 
-					   option = Old#setng{edges = all_edges}});
-		#keysym{sym = $v} ->
-		    get_event(Uvs0#uvstate{mode = vertex});		
-		#keysym{sym = $p} ->
-		    [?DBG("DBG ~p\n", [P]) || P <- ?add_as(Sel0,Curr0)],
+	rotate ->
+	    Sel1 = [finish_rotate(A)|| A <- Sel0],
+	    get_event(Uvs0#uvstate{op = undefined, sel = Sel1});
+	_ ->
+	    get_event(Uvs0#uvstate{op = undefined})
+    end;
+
+handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
+	     Uvs0 = #uvstate{geom = {{_,_,_,OH},ViewP={X0,Y0,W,H,_,_,_}},
+			     mode = Mode,
+			     op = Op,
+			     sel = Sel0,
+			     areas = As = #areas{we=We,as=Curr0}}) 
+  when Op == undefined, MX > X0, MX < X0 + W, (OH - MY) > Y0, (OH - MY) < Y0 + H ->
+    case ?TC(select(Mode, MX-X0, ((OH-MY)-Y0), ?add_as(Sel0,Curr0), We, ViewP)) of
+	none -> 
+	    get_event(Uvs0#uvstate{op=#op{name=boxsel, add={MX,MY}, 
+					  prev={MX+1,MY+1},undo=Uvs0}});
+	Hits ->
+	    case Hits -- Sel0 of  
+		Hits -> 
 		    keep;
-		_Key ->
-		    %%      ?DBG("Missed Key ~p ~p~n", [_Key, ?SDLK_SPACE]),
+		_ -> %% Hit atleast one of the selected
+		    get_event(Uvs0#uvstate{op=#op{name=fmove, prev={MX,MY}, undo=Uvs0}})
+	    end
+    end;
+%% #mousebutton{state = ?SDL_RELEASED, x = MX, y = MY} ->
+%%     ?DBG("Untrapped Mouse event at ~p Y ~p~n", [{MX,MY}, {Y0, H}]),
+%%     get_event(Uvs0);
+handle_event(MB=#mousebutton{state=?SDL_PRESSED,button=Butt,x=MX}, 
+	     Uvs0 = #uvstate{geom = {{_,_,_,OH},ViewP={X0,Y0,W,H,_,_,_}},
+			     mode = Mode,
+			     op = Op})
+  when MX < X0, Op == undefined ->
+    case Butt of 
+	?SDL_BUTTON_MIDDLE ->
+	    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
+	4 ->
+	    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
+	5 -> 
+	    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
+	_Else ->
+	    case sdl_keyboard:getModState() of
+		Mod when Mod band ?CTRL_BITS =/= 0 ->
+		    wings_camera:event(MB, fun() -> draw_windows(Uvs0) end);
+		_ ->
 		    keep
-	    end;
-	{action, {auv, export}} ->
-	    case wings_plugin:call_ui({file,export,tga_prop()}) of
-		aborted -> 
-		    get_event(Uvs0);	
-		FileName0 ->
-		    {TW,TH,TexBin} = ?SLOW(get_texture(Uvs0)),
-		    Image = #e3d_image{image = TexBin, width = TW, height = TH},
-		    FileName1 = ensure_ext(FileName0,".tga"),
-		    case ?SLOW((catch e3d_image:save(Image, FileName1))) of
-			ok -> 			   
-			    get_event(Uvs0#uvstate{last_file = FileName1});	
-			{_, Error0} ->
-			    Error = FileName1 ++ ": " ++ file:format_error(Error0),
-			    wings_util:message("Export failed: " ++ Error, Uvs0#uvstate.st)
-		    end
-	    end;
-	{action, {auv, import}} ->
-	    case wings_plugin:call_ui({file,import,tga_prop()}) of
-		aborted -> 
-		    get_event(Uvs0);
-		FileName0 ->
-		    FileName1 = ensure_ext(FileName0,".tga"),
-		    ?SLOW(import_file(FileName1, Uvs0))
-	    end;
-	{action, {auv, apply_texture}} ->
-	    Tx = ?SLOW(get_texture(Uvs0)),
-	    Areas1 = add_areas(Sel0,As),
-	    {St2, Areas1} = add_material(edit, Tx, Uvs0#uvstate.st, Areas1),
-	    We2 = insert_uvcoords(Areas1),
-	    Shapes1 = gb_trees:update(We#we.id, We2, St2#st.shapes),
-	    St3 = St2#st{shapes = Shapes1},
-	    get_event(Uvs0#uvstate{st = St3});
-	{action, {auv, edge_options}} ->
-	    edge_option_menu(Uvs0);
-	{action, {auv, quit}} ->
-	    quit_menu(Uvs0);
-	{action, {auv, quit, cancel}} ->
-	    wings_io:putback_event({action,{body, uvmap_cancel}}),
-	    pop;
-	{action, {auv, quit, QuitOp}} ->
-	    wings_io:putback_event({action,{body, {uvmap_done, QuitOp, Uvs0}}}),
-	    pop;
-	
-	{action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}} ->
-	    Uvs1 = Uvs0#uvstate{option = 
-				#setng{edges = EMode, 
-				       edge_color = BEC,
-				       edge_width = BEW,
-				       color = Color, 
-				       texbg = TexBG,
-				       texsz = {TexSz,TexSz}},
-				dl = undefined},
-	    get_event(Uvs1);
-	{action, {auv, rescale_all}} ->
-	    RscAreas = rescale_all(?add_as(Sel0,Curr0)),
+	    end
+    end;
+handle_event(#mousebutton{}, _Uvs0) ->
+    %%	    ?DBG("Got2 MB ~p\n", [MB]),
+    keep;
+
+handle_event(#keyboard{state = ?SDL_PRESSED, keysym = Sym}, 
+	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{we=We,as=Curr0}}) ->
+    case Sym of
+	#keysym{sym = ?SDLK_SPACE} ->
 	    get_event(Uvs0#uvstate{sel = [],
-				    areas = As#areas{as=RscAreas},
-				    dl = undefined});
-	{action, {auv, {rotate, Deg}}} ->
-	    case Deg of
-		rot_y_180 ->
-		    Sel1 = [transpose_x(Mode, A) || A <- Sel0],
-		    get_event(Uvs0#uvstate{sel = Sel1});
-		rot_x_180 ->
-		    Sel1 = [transpose_y(Mode, A) || A <- Sel0],
-		    get_event(Uvs0#uvstate{sel = Sel1});
-		free ->
-		    handle_event({action, {auv, rotate}}, Uvs0);
-		Deg ->
-		    Sel1 = [finish_rotate({Id,A#a{rotate = Deg}})|| {Id,A} <- Sel0],
-		    get_event(Uvs0#uvstate{op = undefined, sel = Sel1})
-	    end;
+				   st = wings_select_faces([], We, Uvs0#uvstate.st),
+				   areas = add_areas(Sel0,As),
+				   dl = undefined});
+	#keysym{sym = ?SDLK_F5} ->
+	    import_file(default, Uvs0);
+	#keysym{sym = $b} ->		    
+	    get_event(Uvs0#uvstate{mode = faceg});
+	#keysym{sym = $f} ->
+	    get_event(Uvs0#uvstate{mode = face});
+	#keysym{sym = $e} ->  %% Bugbug
+	    Old = Uvs0#uvstate.option,
+	    get_event(Uvs0#uvstate{mode = edge, dl=undefined, 
+				   option = Old#setng{edges = all_edges}});
+	#keysym{sym = $v} ->
+	    get_event(Uvs0#uvstate{mode = vertex});		
+	#keysym{sym = $p} ->
+	    [?DBG("DBG ~p\n", [P]) || P <- ?add_as(Sel0,Curr0)],
+	    keep;
+	_Key ->
+	    %%      ?DBG("Missed Key ~p ~p~n", [_Key, ?SDLK_SPACE]),
+	    keep
+    end;
 
-	{action, {auv, NewOp}} ->
-	    case Sel0 of
-		[] ->
-		    get_event(Uvs0);
-		_Else ->
-		    %%      ?DBG("Got uv OP ~p ~n", [NewOp]),
-		    get_event(Uvs0#uvstate{op = {NewOp, Uvs0}})
-	    end;
-	{callback, Fun} when function(Fun) ->
-	    Fun();
-	{resize, NX,NY} ->
-	    wings_io:resize(NX, NY),
-	    wings_draw_util:init(),
-	    St1 = wings_material:init(Uvs0#uvstate.st),	    
-	    %% gl:viewport(0,0,NX,NY),
-	    Geom = init_drawarea(),
-	    get_event(Uvs0#uvstate{geom=Geom, st=St1, dl=undefined});
-	_Event ->
-%%	    ?DBG("Got unhandled Event ~p ~n", [_Event]),
-	    get_event(Uvs0)
-    end.
+handle_event({action, {auv, export}}, Uvs0) ->
+    case wings_plugin:call_ui({file,export,tga_prop()}) of
+	aborted -> 
+	    get_event(Uvs0);	
+	FileName0 ->
+	    {TW,TH,TexBin} = ?SLOW(get_texture(Uvs0)),
+	    Image = #e3d_image{image = TexBin, width = TW, height = TH},
+	    FileName1 = ensure_ext(FileName0,".tga"),
+	    case ?SLOW((catch e3d_image:save(Image, FileName1))) of
+		ok -> 			   
+		    get_event(Uvs0#uvstate{last_file = FileName1});	
+		{_, Error0} ->
+		    Error = FileName1 ++ ": " ++ file:format_error(Error0),
+		    wings_util:message("Export failed: " ++ Error, Uvs0#uvstate.st)
+	    end
+    end;
+handle_event({action, {auv, import}}, Uvs0) ->
+    case wings_plugin:call_ui({file,import,tga_prop()}) of
+	aborted -> 
+	    get_event(Uvs0);
+	FileName0 ->
+	    FileName1 = ensure_ext(FileName0,".tga"),
+	    ?SLOW(import_file(FileName1, Uvs0))
+		end;
 
-handle_mousemotion(#mousemotion{xrel = DX, yrel = DY, x=MX,y=MY}, Uvs0) ->
+handle_event({action, {auv, apply_texture}},
+	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{we=We,as=Curr0}}) ->
+    Tx = ?SLOW(get_texture(Uvs0)),
+    Areas1 = add_areas(Sel0,As),
+    {St2, Areas1} = add_material(edit, Tx, Uvs0#uvstate.st, Areas1),
+    We2 = insert_uvcoords(Areas1),
+    Shapes1 = gb_trees:update(We#we.id, We2, St2#st.shapes),
+    St3 = St2#st{shapes = Shapes1},
+    get_event(Uvs0#uvstate{st = St3});
+
+handle_event({action, {auv, edge_options}},Uvs0) ->
+    edge_option_menu(Uvs0);
+handle_event({action, {auv, quit}},Uvs0) ->
+    quit_menu(Uvs0);
+handle_event({action, {auv, quit, cancel}},_Uvs0) ->
+    wings_io:putback_event({action,{body, uvmap_cancel}}),
+    pop;
+handle_event({action, {auv, quit, QuitOp}},Uvs0) ->
+    wings_io:putback_event({action,{body, {uvmap_done, QuitOp, Uvs0}}}),
+    pop;
+
+handle_event({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
+	     Uvs0) ->
+    Uvs1 = Uvs0#uvstate{option = 
+			#setng{edges = EMode, 
+			       edge_color = BEC,
+			       edge_width = BEW,
+			       color = Color, 
+			       texbg = TexBG,
+			       texsz = {TexSz,TexSz}},
+			dl = undefined},
+    get_event(Uvs1);
+handle_event({action, {auv, rescale_all}},
+	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{we=We,as=Curr0}})->
+    RscAreas = rescale_all(?add_as(Sel0,Curr0)),
+    get_event(Uvs0#uvstate{sel = [],
+			   areas = As#areas{as=RscAreas},
+			   dl = undefined});
+handle_event({action, {auv, {rotate, Deg}}},
+	     Uvs0=#uvstate{mode=Mode,sel = Sel0,areas=As=#areas{we=We,as=Curr0}}) ->
+    case Deg of
+	rot_y_180 ->
+	    Sel1 = [transpose_x(Mode, A) || A <- Sel0],
+	    get_event(Uvs0#uvstate{sel = Sel1});
+	rot_x_180 ->
+	    Sel1 = [transpose_y(Mode, A) || A <- Sel0],
+	    get_event(Uvs0#uvstate{sel = Sel1});
+	free ->
+	    handle_event({action, {auv, rotate}}, Uvs0);
+	Deg ->
+	    Sel1 = [finish_rotate({Id,A#a{rotate = Deg}})|| {Id,A} <- Sel0],
+	    get_event(Uvs0#uvstate{op = undefined, sel = Sel1})
+    end;
+
+handle_event({action, {auv, NewOp}},Uvs0=#uvstate{sel = Sel0}) ->
+    case Sel0 of
+	[] ->
+	    get_event(Uvs0);
+	_Else ->
+	    %%      ?DBG("Got uv OP ~p ~n", [NewOp]),
+	    get_event(Uvs0#uvstate{op=#op{name=NewOp,undo=Uvs0}})
+    end;
+handle_event({callback, Fun}, _) when function(Fun) ->
+    Fun();
+handle_event({resize, NX,NY},Uvs0) ->
+    wings_io:resize(NX, NY),
+    wings_draw_util:init(),
+    St1 = wings_material:init(Uvs0#uvstate.st),	    
+    %% gl:viewport(0,0,NX,NY),
+    Geom = init_drawarea(),
+    get_event(Uvs0#uvstate{geom=Geom, st=St1, dl=undefined});
+handle_event(_Event,Uvs0) ->
+    %%	    ?DBG("Got unhandled Event ~p ~n", [_Event]),
+    get_event(Uvs0).
+
+handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
     #uvstate{geom = {{_,_,_,_OH},{_X0,_Y0,W,H,X0Y0,MW0,MH0}},
 	     mode = Mode, op = Op, sel = Sel0} = Uvs0,
+    {DX,DY} = case Op#op.prev of 
+		  undefined -> {DX0,DY0}; 
+		  {MX1,MY1}->  %% Don't trust relativ mouse event
+		      {MX0-MX1, MY0-MY1}
+	      end,
     MW =  (MW0-X0Y0) * DX/W,
     MH = -(MH0-X0Y0) * DY/H,
 %%    ?DBG("Viewp ~p ~p ~p ~p ~p ~p~n", [MW,MH,DX,DY,MX,MY]),
-    case Op of
-	{move,_} ->
+    NewOp = Op#op{prev={MX0,MY0}},
+    case Op#op.name of
+	move ->
 	    Sel1 = [move_area(Mode, A,MW,MH)|| A <- Sel0],
-	    get_event(Uvs0#uvstate{sel = Sel1});
-	{{fmove, _,_},_} ->
+	    get_event(Uvs0#uvstate{sel = Sel1, op=NewOp});
+	fmove ->
 	    Sel1 = [move_area(Mode, A,MW,MH)|| A <- Sel0],
-	    get_event(Uvs0#uvstate{sel = Sel1});
-	{scale, _} ->
+	    get_event(Uvs0#uvstate{sel = Sel1, op=NewOp});
+	scale ->
 	    Sel1 = [scale_area(Mode, A,MW,MH)|| A <- Sel0],
-	    get_event(Uvs0#uvstate{sel = Sel1});
-	{rotate, _} ->
+	    get_event(Uvs0#uvstate{sel = Sel1, op=NewOp});
+	rotate ->
 	    Sel1 = [rotate_area(Mode, A,MW,MH)|| A <- Sel0],
-	    get_event(Uvs0#uvstate{sel = Sel1});
-	{{boxsel, Orig = {_OX,_OY}, Last},Old} ->
+	    get_event(Uvs0#uvstate{sel = Sel1, op=NewOp});
+	boxsel -> %% , Orig = {_OX,_OY}, Last},Old}
 	    gl:matrixMode(?GL_PROJECTION),
 	    gl:pushMatrix(),
 	    gl:loadIdentity(),
@@ -1127,12 +1150,12 @@ handle_mousemotion(#mousemotion{xrel = DX, yrel = DY, x=MX,y=MY}, Uvs0) ->
 	    gl:matrixMode(?GL_MODELVIEW),
 	    gl:loadIdentity(),
 	    gl:color3f(0,0,0),
-	    draw_marquee(Orig, Last),
-	    draw_marquee(Orig, {MX,MY}),
+	    draw_marquee(Op#op.add, Op#op.prev),
+	    draw_marquee(Op#op.add, {MX0,MY0}),
 	    gl:popMatrix(),
 	    gl:flush(),
 	    gl:drawBuffer(?GL_BACK),
-	    get_event_nodraw(Uvs0#uvstate{op = {{boxsel, Orig, {MX,MY}}, Old}});
+	    get_event_nodraw(Uvs0#uvstate{op = NewOp});
 	_ ->
 	    keep
     end.

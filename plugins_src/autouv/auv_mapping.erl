@@ -9,7 +9,17 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.5 2002/10/09 21:46:34 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.6 2002/10/10 13:04:10 dgud Exp $
+
+%%%%%% Least Square Conformal Maps %%%%%%%%%%%%
+%% Algorithms based on the paper, 
+%% (now probably totally ruined by me or Raimo)
+%% 'Least Square Conformal Maps for Automatic Texture Generation Atlas'
+%% by Bruno Levy, Sylvain Petitjean, Nicolas Ray, Jerome Mailot
+%% Presented on Siggraph 2002
+
+%% All credits about the LSQCM implementation goes to Raimo, who
+%% implemented the lot.
 
 -module(auv_mapping).
 -include("wings.hrl").
@@ -98,9 +108,11 @@ get_verts([],I,_,Acc) ->
     {Acc, I}.
 
 lsqcm(C = {Id, Fs}, We) ->
-    Vs1 = project_and_triangulate(Fs,We,-1,[]),
-    {V1, V2} = get_2uvs(C, We),
-    case lsq(Vs1,V1,V2) of
+    ?DBG("Project and tri ~n", []),
+    Vs1 = ?TC(project_and_triangulate(Fs,We,-1,[])),
+    {V1, V2} = ?TC(get_2uvs(C, We)),
+    ?DBG("LSQ ~n", []),        
+    case ?TC(lsq(Vs1,V1,V2)) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
 	    exit({txmap_error, What});
@@ -169,17 +181,9 @@ maxmin(New = {_,{X,Y,_}}, {X1={_,{XMin,_,_}},X2={_,{XMax,_,_}},
     end.
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 
-lsq([C | _] = Name, P1, P2)
-  when integer(C),
-       0 =< C, C=< 255 ->
-    case file:consult(Name) of
-	{ok, L} ->
-	    lsq(L, P1, P2);
-	Error ->
-	    Error
-    end;
 lsq(_, {P,_} = PUV1, {P,_} = PUV2) ->
     {error, {invalid_arguments, [PUV1, PUV2]}};
 lsq(_, {_,{U1,V1}} = PUV1, {_,{U2,V2}} = PUV2)
@@ -212,25 +216,44 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2) ->
 	     {ok, Q_2} -> Q_2;
 	     error -> throw({error, {invalid_arguments, [PUV2]}})
 	 end,
-    
+    Q1uv = {Q1,{U1,V1}},
+    Q2uv = {Q2,{U2,V2}},
     %% Build the basic submatrixes 
     %% M1 = Re(M), M2 = Im(M), M2n = -M2
+    {M1,M2,M2n} = ?TC(build_basic(N,M,L1,L2)),
+    {{Mf1c,Mp1c},{Mf2c,Mp2c},{Mf2nc,Mp2nc},UVa,UVb} =
+	?TC(build_cols(M1,M2,M2n,Q1uv,Q2uv)),
+    {Af,B} =
+	?TC(build_matrixes(N,M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,UVa,UVb)),
+    ?DBG("Solving matrises~n", []),
+    X = solve(Af,B),
+    %% Extract the vector of previously unknown points,
+    %% and insert the pinned points. Re-translate the
+    %% original point identities.
+    ?TC(lsq_result(X, Q1uv,Q2uv, Rdict)).
+    
+    
+build_basic(N,M,L1,L2) ->
     M1 = auv_matrix:rows(N, M, L1),
     M2 = auv_matrix:rows(N, M, L2),
     L2n = [[{J,-V} || {J,V} <- R] || R <- L2],
     M2n = auv_matrix:rows(N, M, L2n),
-    
+    {M1,M2,M2n}.
+
+build_cols(M1,M2,M2n,Q1uv,Q2uv) ->
     %% Build column lists of the M matrixes
     M1c = auv_matrix:cols(M1),
     M2c = auv_matrix:cols(M2),
     M2nc = auv_matrix:cols(M2n),
     %% Split the column lists into free (Mf) and pinned (Mp)
-    [{Qa,{Ua,Va}}, {Qb,{Ub,Vb}}] = lists:sort([{Q1,{U1,V1}}, {Q2,{U2,V2}}]),
+    [{Qa,UVa}, {Qb,UVb}] = lists:sort([Q1uv,Q2uv]),
     QaQb = [Qa, Qb],
     {Mf1c,Mp1c} = pick(M1c, QaQb),
     {Mf2c,Mp2c} = pick(M2c, QaQb),
     {Mf2nc,Mp2nc} = pick(M2nc, QaQb),
-    
+    {{Mf1c,Mp1c},{Mf2c,Mp2c},{Mf2nc,Mp2nc},UVa,UVb}.
+
+build_matrixes(N,M,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,{Ua,Va},{Ub,Vb}) ->
     %% Build the matrixes Af and Ap, and vector B
     %% A = [ M1 -M2 ],  B = Ap U, U is vector of pinned points
     %%     [ M2  M1 ]
@@ -241,26 +264,26 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2) ->
     Apu = auv_matrix:cols(N, 4, Mp1c++Mp2nc),
     Apl = auv_matrix:cols(N, 4, Mp2c++Mp1c),
     Ap = auv_matrix:cat_rows(Apu, Apl),
-    U = auv_matrix:rows(4, 1, [[{1,Ua}], [{1,Ub}], [{1,Va}], [{1,Vb}]]),
-    B = auv_matrix:mult(-1, auv_matrix:mult(Ap, U)),
-    
+    U = auv_matrix:rows(4, 1, [[{1,-Ua}], [{1,-Ub}], [{1,-Va}], [{1,-Vb}]]),
+    B = auv_matrix:mult(Ap, U),
+    {Af, B}.
+
+solve(Af,B) ->
     %% Solve A x = B in a Least SQares sense
     %% X becomes [ I x ] where x is the vector of unknown points
     %% I.e reduce and backsubstitute
-    %%     [ (trans(Af) Af) (trans(Af) B) ]
+    %%     [ (trans(Af) Af) (trans(Af) B) ]    
+    AA  = ?TC(mult_and_trans(Af,B)),   
+    AAA = ?TC(auv_matrix:reduce(AA)),
+    X   = ?TC(auv_matrix:backsubst(AAA)),
+    ?DBG("Solved~n",[]),
+    X.    
+
+mult_and_trans(Af,B) ->
     AfT = auv_matrix:trans(Af),
     AfTAf = auv_matrix:mult_trans(AfT, AfT),
     AfTB = auv_matrix:mult(AfT, B),
-    AA = auv_matrix:cat_cols(AfTAf, AfTB),
-    AAA = auv_matrix:reduce(AA),
-    X = auv_matrix:backsubst(AAA),
-    
-    %% Extract the vector of previously unknown points,
-    %% and insert the pinned points. Re-translate the
-    %% original point identities.
-    lsq_result(X, {Q1,{U1,V1}}, {Q2,{U2,V2}}, Rdict).
-
-
+    AA = auv_matrix:cat_cols(AfTAf, AfTB).
 
 %% Extract all point identities from indata, and create
 %% forwards and backwards dictionaries for translation

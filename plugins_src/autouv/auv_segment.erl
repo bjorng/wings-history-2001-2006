@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.3 2002/10/08 22:15:39 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.4 2002/10/10 13:04:10 dgud Exp $
 
 
 
@@ -55,7 +55,7 @@ degrees() ->
 		   X = (math:cos(D * math:pi() / 180) + 1) / 2, 
 		   Y = math:sin(D *  math:pi() / 180) /2,    
 		   Dir = math:sqrt(X*X+Y*Y),
-		   ?DBG("~.3w deg -> ~w ~w~n", [D, Dir, 1 - Dir])
+		   io:format("~.3w deg -> ~w ~w~n", [D, Dir, 1 - Dir])
 	   end,
     ?DBG("MaxDir ~p MaxSharpness ~p~n", 
 	      [?MAX_DIRECTION, ?MIN_SHARPNESS]),
@@ -162,7 +162,7 @@ depth_traverse_tree(Tree=[[{Val,_,_}|_]|_],Sharp,Depth,_Dir1,Fd0, We, Feat)
     Fd1 = ?fdmarkused(Edge, Fd0),
     case Found of 
 	[] -> %% Oops first level hit, restart (special case)
-	    ?DBG("Special case ~p ~n", [Tree]),
+%	    ?DBG("Special case ~p ~n", [Tree]),
 	    NextV = if V0 == VaN -> VbN; V0 == VbN -> VaN end,
 	    Dir2 = get_vector(VaN,VbN,V0,We),
 	    {Edges1,_} = get_edges(NextV, Edge, Dir2, We, Fd1),
@@ -208,10 +208,10 @@ depth_traverse_tree(Tree=[[{Val,Leaf,Vertex}|_]|_],Sharp,Depth,Dir,Fd0,We,Feat) 
 patch_tree([F={Val,{Edge,_ER},_Vs}|_],Sharp,Tree,Feat) ->
     case lists:member(Edge, Feat) of
 	true when (Val + Sharp) > ?MIN_SHARPNESS ->
-	    ?DBG("Patched OK ~p ~n",[Edge]),
+%	    ?DBG("Patched OK ~p ~n",[Edge]),
 	    {Val + Sharp, [[F]|lists:map(fun([Element|_]) -> [Element] end, Tree)]};
 	_Mem ->
-	    ?DBG("patch miss ~p ~p ~p ~p ~n",[Edge, _Mem, Val, Sharp]),
+%	    ?DBG("patch miss ~p ~p ~p ~p ~n",[Edge, _Mem, Val, Sharp]),
 	    {Sharp, [[]|Tree]}
     end;
 patch_tree([],Sharp,Tree,_) ->
