@@ -1,7 +1,7 @@
 BUILDING WINGS 3D ON WINDOWS
 =======================================================================
 
-$Id: BUILD.win32,v 1.3 2003/09/28 07:22:52 bjorng Exp $
+Revision: $Rev$ $Date: 2003/09/28 07:29:17 $
 
 This guide describes how you can build Wings 3D from the
 sources on a Windows system.
@@ -163,7 +163,7 @@ $ pwd
 /home/bjorng/wings_releases/wings-0.98.16b
 $
 
-To build all, run the following command:
+To build all (including the installer), run the following command:
 
 $ make win32
 .
@@ -174,3 +174,9 @@ $ make win32
 .
 .
 $
+
+When everything is done, there should be a file named like
+
+	wings-0.98.16b.exe
+
+in the current directory.
