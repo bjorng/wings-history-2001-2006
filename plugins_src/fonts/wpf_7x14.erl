@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_7x14.erl,v 1.2 2003/01/02 05:59:35 bjorng Exp $
+%%     $Id: wpf_7x14.erl,v 1.3 2003/01/19 05:41:07 bjorng Exp $
 %%
 
 -module(wpf_7x14).
@@ -1372,6 +1372,10 @@ char(12) ->
 char(11) ->
  B = <<16#f0,16#10,16#10,16#10,16#10,16#10,16#10,16#10>>,
  gl:bitmap(4, 8, 0, -4, 7, 0, B);
+
+char(10) ->
+ B = <<16#10,16#10,16#10,16#10,16#78,16#40,16#60,16#90,16#90>>,
+ gl:bitmap(5, 9, 0, 2, 7, 0, B);
 
 % char: 0x08 BSP */
 
