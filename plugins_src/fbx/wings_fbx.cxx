@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_fbx.cxx,v 1.7 2005/03/14 18:21:08 bjorng Exp $
+ *     $Id: wings_fbx.cxx,v 1.8 2005/03/16 17:01:41 bjorng Exp $
  */
 
 
@@ -119,10 +119,12 @@ fbx_control(unsigned int command,
     {
       Mesh = SdkManager->CreateKFbxMesh();
       Mesh->InitTextureIndices(KFbxLayerElement::eBY_POLYGON);
-      Mesh->InitTextureUVIndices(KFbxLayerElement::eBY_POLYGON_VERTEX);
       matLayer = new KFbxLayerElementMaterial;
       matLayer->SetMappingMode(KFbxLayerElement::eBY_POLYGON);
       matLayer->SetReferenceMode(KFbxLayerElement::eINDEX_TO_DIRECT);
+      if (Mesh->GetLayer(0) == NULL) {
+	Mesh->CreateLayer();
+      }
       Layer = Mesh->GetLayer(0);
       Layer->SetMaterials(matLayer);
     }
@@ -149,6 +151,7 @@ fbx_control(unsigned int command,
   case ExpInitUVs:
     {
       unsigned n = *(unsigned *) buff;
+      Mesh->InitTextureUVIndices(KFbxLayerElement::eBY_POLYGON_VERTEX);
       Mesh->InitTextureUV(n);
       UVs = Mesh->GetTextureUV();
     }
