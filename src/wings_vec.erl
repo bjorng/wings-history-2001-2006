@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.100 2003/10/30 14:43:34 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.101 2003/11/09 16:40:01 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -237,7 +237,7 @@ pick_next_1([{Fun0,Desc}|More], _Done, Ss, St) when is_function(Fun0) ->
 pick_next_1([{Type,Desc}|More], Done, Ss, St0) ->
     MagnetPossible = magnet_possible_now(More, Ss),
     Check = case Type of
-		magnet -> fun check_point/1;
+		magnet -> magnet;
 		point -> fun check_point/1;
 		axis -> fun check_vector/1;
 		axis_point -> fun check_vector/1
@@ -245,7 +245,7 @@ pick_next_1([{Type,Desc}|More], Done, Ss, St0) ->
     Fun = case Type of
 	      magnet ->
 		  fun(check, S) ->
-			  check_point(S);
+			  check_magnet_point(S);
 		     (exit, {Mod,Vec,_}) ->
 			  exit_magnet(Vec, Mod, Done);
 		     (message, _) ->
@@ -474,8 +474,37 @@ get_vec(_, _, _) -> {none,"Select vertices, edges, or faces."}.
 
 check_point(#st{sel=[]}) -> {none,""};
 check_point(St) ->
+    case kill_mirror(St) of
+	St ->
+	    Center = e3d_vec:average(wings_sel:bounding_box(St)),
+	    [{Center,"Midpoint of selection saved."}];
+	NoMirror ->
+	    Center = e3d_vec:average(wings_sel:bounding_box(St)),
+	    NoMirrorCenter = e3d_vec:average(wings_sel:bounding_box(NoMirror)),
+	    [{Center,"Midpoint of selection saved "
+	      "(press \"2\" to disregard virtual mirror in "
+	      "midpoint calculation)"},
+	     {NoMirrorCenter,"Midpoint of selection saved "
+	      "(press \"1\" to include virtual mirror in " 
+	      "midpoint calculation)"}]
+    end.
+
+check_magnet_point(#st{sel=[]}) -> {none,""};
+check_magnet_point(St0) ->
+    St = kill_mirror(St0),
     Center = e3d_vec:average(wings_sel:bounding_box(St)),
     [{Center,"Midpoint of selection saved."}].
+
+kill_mirror(#st{shapes=Shs0}=St) ->
+    Shs = kill_mirror_1(gb_trees:values(Shs0), []),
+    St#st{shapes=Shs}.
+
+kill_mirror_1([#we{id=Id,mirror=none}=We|Wes], Acc) ->
+    kill_mirror_1(Wes, [{Id,We}|Acc]);
+kill_mirror_1([#we{id=Id}=We|Wes], Acc) ->
+    kill_mirror_1(Wes, [{Id,We#we{mirror=none}}|Acc]);
+kill_mirror_1([], Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
 
 %%%
 %%% Magnet functions.
