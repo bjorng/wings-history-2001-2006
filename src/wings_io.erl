@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.17 2001/12/07 12:53:15 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.18 2001/12/07 13:40:07 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -267,12 +267,12 @@ sunken_rect(X0, Y0, Mw0, Mh0, FillColor) ->
     gl:color3fv(FillColor),
     gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
     gl:'begin'(?GL_LINES),
-    gl:color3f(0.0, 0.0, 0.0),
+    gl:color3fv(?BEVEL_LOWLIGHT),
     gl:vertex2f(X, Y+Mh),
     gl:vertex2f(X, Y),
     gl:vertex2f(X, Y),
     gl:vertex2f(X+Mw, Y),
-    gl:color3f(1.0, 1.0, 1.0),
+    gl:color3fv(?BEVEL_HIGHLIGHT),
     gl:vertex2f(X+Mw, Y),
     gl:vertex2f(X+Mw, Y+Mh),
     gl:vertex2f(X+Mw, Y+Mh),

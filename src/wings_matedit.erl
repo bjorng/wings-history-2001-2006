@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.11 2001/11/29 13:04:16 bjorng Exp $
+%%     $Id: wings_matedit.erl,v 1.12 2001/12/07 13:40:07 bjorng Exp $
 %%
 
 -module(wings_matedit).
@@ -54,14 +54,6 @@
 -define(ButtonSzX, 50).
 -define(ButtonSzY, 25).
 
--define(colors, {{1.0, 0.0, 0.0},
-		 {1.0, 1.0, 0.0},
-		 {0.0, 1.0, 0.0},
-		 {0.0, 1.0, 1.1},
-		 {0.0, 0.0, 1.0},
-		 {1.0, 0.0, 1.0}
-		}).
-
 -define(Checker, <<16#F0,16#F0,16#F0,16#F0,16#F0,16#F0,16#F0,16#F0,
 		  16#0F,16#0F,16#0F,16#0F,16#0F,16#0F,16#0F,16#0F>>).
 
@@ -77,7 +69,7 @@ edit(PC) when record(PC, mat) ->
     Y = Y0 + H div 2 - WinH div 2,
 
     S = #s{x = X, y = Y, w = WinW, h = WinH, orig_w=W, orig_h=H,
-	   bgc = {0.75,0.75,0.75}},
+	   bgc = ?MENU_COLOR},
     gl:loadIdentity(),
 
     NS = S#s{ambient = Amb#c{name = "Ambient", 
@@ -136,7 +128,7 @@ color_picker_loop(S) ->
     %%% Draw Window..
     gl:color3fv(S#s.bgc),  %% Get clear color from preferences
     draw_filled_box(0,S#s.w,0,S#s.h), 
-    gl:color3f(1,1,1),
+    gl:color3fv(?BEVEL_HIGHLIGHT),
     draw_box(0,S#s.w,0,S#s.h), 
     
     Amb = S#s.ambient,	  
@@ -502,9 +494,9 @@ draw_centered_box(X,Y, XSz, YSz, BorB) ->
     Y1 = Y - YSz / 2,
     Y2 = Y + YSz / 2,
     {HighC,LowC} = case BorB of
-		       button -> {{0.9, 0.9, 0.9}, {0.3, 0.3, 0.3}};
-		       box    -> {{0.3, 0.3, 0.3}, {0.9, 0.9, 0.9}};
-		       white  -> {{0.9, 0.9, 0.9}, {0.9, 0.9, 0.9}};
+		       button -> {?BEVEL_HIGHLIGHT, ?BEVEL_LOWLIGHT};
+		       box    -> {?BEVEL_LOWLIGHT, ?BEVEL_HIGHLIGHT};
+		       white  -> {?BEVEL_HIGHLIGHT, ?BEVEL_HIGHLIGHT};
 		       black  -> {{0,0,0}, {0,0,0}}
 		   end,
     gl:glBegin(?GL_LINES), 
@@ -734,7 +726,7 @@ check_event(S) ->
 		(Quit#keyboard.keysym)#keysym.sym == ?SDLK_q ->
 		    quit;
 		true -> 
-		    io:format("Got event ~p~n", [Quit]),
+		    %%io:format("Got event ~p~n", [Quit]),
 		    ok
 	    end;		    
 	{mousebutton,0,1,0, X,Y} ->
