@@ -8,8 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.4 2002/04/17 17:45:35 bjorng Exp $
-%%
+%%     $Id: wpc_rib.erl,v 1.5 2002/04/23 05:37:34 bjorng Exp $
 
 -module(wpc_rib).
 -include_lib("e3d.hrl").
@@ -17,7 +16,7 @@
 
 -export([init/0,menu/2,command/2]).
 
--import(lists, [foldl/3,map/2,foreach/2,reverse/1,seq/2,flat_length/1]).
+-import(lists, [foldl/3,map/2,foreach/2,reverse/1,seq/2,flat_length/1,append/2]).
 
 init() ->
     true.
@@ -26,11 +25,20 @@ menu({file,export}, Menu) ->
     menu_entry(Menu);
 menu({file,export_selected}, Menu) ->
     menu_entry(Menu);
-menu({file,render}, Menu) ->
-    case os:find_executable("rendrib") of
-	false -> Menu;
-	_Path -> Menu ++ [{"Render to BMRT 2.6",bmrt,[option]}]
-    end;
+menu({file,render}, Menu0) ->
+    Menu1 = case os:find_executable("rendrib") of
+		false -> Menu0;
+		_Path -> Menu0 ++ [{"Render to BMRT 2.6",rendrib,[option]}]
+	    end,
+    Menu2 = case os:find_executable("air") of
+	       false -> Menu1;
+	       _Path2 -> Menu1 ++ [{"Render to Air",air,[option]}]
+	   end,
+    Menu3 = case os:find_executable("entropy") of
+		false -> Menu2;
+		_Path3 -> Menu2 ++  [{"Render to Entropy",entropy,[option]}]
+	    end,
+    Menu3;
 menu(_, Menu) -> Menu.
 
 command({file,{export,{rib,Ask}}}, St) ->
@@ -39,8 +47,12 @@ command({file,{export,{rib,Ask}}}, St) ->
 command({file,{export_selected,{rib,Ask}}}, St) ->
     Exporter = fun(Ps, Fun) -> wpa:export_selected(Ps, Fun, St) end,
     do_export(Ask, Exporter, St);
-command({file,{render,{bmrt,Ask}}}, St) ->
-    render_bmrt(Ask, St);
+command({file,{render,{rendrib,Ask}}}, St) ->
+    do_render(Ask, rendrib, St);
+command({file,{render,{air, Ask}}}, St) ->
+    do_render(Ask, air, St);
+command({file, {render, {entropy, Ask}}}, St) ->
+    do_render(Ask, entropy, St);
 command(_, _) -> next.
 
 menu_entry(Menu) ->
@@ -53,21 +65,6 @@ render_props() ->
     [{ext,".tif"},{ext_desc,"Tiff Bitmap"}].
 
 dialog_qs(export)->
-    common_dialog();
-dialog_qs(render)->
-    DefVar = {render_type,get_pref(render_type, preview)},
-    [{hframe,
-      [{vframe,
-	[{key_alt,DefVar,"Preview Window",preview},
-	 {key_alt,DefVar,"File",file}],
-	[{title,"Output"}]},
-       {vframe,
-	[{label_column,
-	  [{"Width",{text,get_pref(width, 320),[{key,width}]}},
-	   {"Height",{text,get_pref(height, 240),[{key,height}]}}]}],
-	[{title,"Resolution"}]}]}|common_dialog()].
-
-common_dialog() ->
     MeshVar = {mesh_type,get_pref(mesh_type, poly)},
     SaveVar = {save_by,get_pref(save_by, one_file)},
     [{vframe,
@@ -80,12 +77,49 @@ common_dialog() ->
        {key_alt,SaveVar,"One file per object and material",
 	by_material}],
       [{title,"Save By"}]},
-     {"Export UV Coordinates",get_pref(export_uv, true),[{key,export_uv}]},
      {"Triangulate Faces (needed for BMRT)",get_pref(triangulate, true),
       [{key,triangulate}]},
      {"Expand Faces (older renderer)",get_pref(expand_faces, true),
       [{key,expand_faces}]},
-     {"Export Normals",get_pref(export_normals, true),[{key,export_normals}]},
+     {"Export UV Coordinates",get_pref(export_uv, true),[{key,export_uv}]}|
+     common_dialog()].
+dialog_qs(render, Engine)->
+    DefVar = {render_type,get_pref(render_type, preview)},
+    [{hframe,
+      [{vframe,
+	[{key_alt,DefVar,"Preview Window",preview},
+	 {key_alt,DefVar,"File",file}],
+	[{title,"Output"}]},
+       {vframe,
+	[{label_column,
+	  [{"Width",{text,get_pref(width, 320),[{key,width}]}},
+	   {"Height",{text,get_pref(height, 240),[{key,height}]}}]}],
+	[{title,"Resolution"}]}]}|render_dialog(Engine)].
+
+render_dialog(rendrib) ->
+    MeshVar = {mesh_type,get_pref(mesh_type, poly)},
+    [{vframe,
+      [{key_alt,MeshVar,"Polygon Mesh (older renderer)",poly},
+       {"Export UV Coordinates",get_pref(export_uv, false),[{key,export_uv}]},
+       {key_alt,MeshVar,"Subdivision Mesh (smoother)",subdiv}],
+      [{title,"Mesh Type"}]}| common_dialog()];
+render_dialog(air) ->
+    MeshVar = {mesh_type,get_pref(mesh_type, subdiv)},
+    [{vframe,
+      [{key_alt,MeshVar,"Polygon Mesh (older renderer)",poly},
+       {key_alt,MeshVar,"Subdivision Mesh (smoother)",subdiv}],
+      [{title,"Mesh Type"}]},
+     {"Export UV Coordinates",get_pref(export_uv, true),[{key,export_uv}]} | common_dialog()];
+render_dialog(entropy) ->
+    MeshVar = {mesh_type,get_pref(mesh_type, subdiv)},
+    [{vframe,
+      [{key_alt,MeshVar,"Polygon Mesh (older renderer)",poly},
+       {key_alt,MeshVar,"Subdivision Mesh (smoother)",subdiv}],
+      [{title,"Mesh Type"}]},
+     {"Export UV Coordinates",get_pref(export_uv, true),[{key,export_uv}]} | common_dialog()].
+
+common_dialog() ->
+    [{"Export Normals",get_pref(export_normals, true),[{key,export_normals}]},
      {vframe,
       [{label_column,
 	[{"Light 1",
@@ -109,20 +143,42 @@ set_pref(KeyVals) ->
 %%% Rendering.
 %%%
 
-render_bmrt(Ask, St) when is_atom(Ask) ->
-    wpa:dialog(Ask, dialog_qs(render), St,
+do_render(Ask, Engine, St) when is_atom(Ask) ->
+    wpa:dialog(Ask, dialog_qs(render, Engine), St,
 	       fun(Res) ->
-		       {file,{render,{bmrt,Res}}}
+		       {file,{render,{Engine,Res}}}
 	       end);
-render_bmrt(Attr0, St) ->
+do_render(Attr0, Engine, St) ->
     set_pref(Attr0),
-    Attr = case property_lists:get_value(render_type, Attr0) of
-	       file ->
-		   RendFile = wpa:export_filename(render_props(), St),
-		   [{render_file,RendFile}|Attr0];
-	       preview -> Attr0
-	   end,
+    Attr1 = case property_lists:get_value(render_type, Attr0) of
+		file ->
+		    RendFile = wpa:export_filename(render_props(), St),
+		    [{render_file,RendFile}|Attr0];
+		preview -> Attr0
+	    end,
+    Attr2 = [{tmp_render,Engine}|Attr1],
+    Attr = add_attr(Engine,Attr2),
     wpa:export(none, render_fun(Attr), St).
+
+add_attr(rendrib, Attr) ->
+    case property_lists:get_value(mesh_type, Attr) of
+	poly -> TriFs = true, ExpandFs = true;
+	_ ->	TriFs = false, ExpandFs = false
+    end,
+    [{save_by, one_file},{triangulate, TriFs},{expand_faces, ExpandFs}|Attr];
+add_attr(air, Attr) ->
+    case property_lists:get_value(mesh_type, Attr) of
+	poly -> TriFs = false, ExpandFs = false;
+	_ ->	TriFs = false, ExpandFs = false
+    end,
+    [{save_by, one_file},{triangulate, TriFs},{expand_faces, ExpandFs}|Attr];
+add_attr(entropy, Attr) ->
+    case property_lists:get_value(mesh_type, Attr) of
+	poly -> TriFs = false, ExpandFs = false;
+	_ ->	TriFs = false, ExpandFs = false
+    end,
+    [{save_by, one_file},{triangulate, TriFs},{expand_faces, ExpandFs}|Attr].
+
 
 render_fun(Attr) ->
     fun(Filename, Contents) ->
@@ -134,22 +190,44 @@ render_fun(Attr) ->
 
 render(none, Contents, Attr) ->
     TmpName = "wpc_rib_temp" ++ os:getpid() ++ ".rib",
-    case export_1(TmpName, Contents, Attr) of
-	ok -> ok;
-	{error,_}=Error -> Error
-    end,
+    TxList = export_1(TmpName, Contents, Attr),
     Width = property_lists:get_value(width, Attr),
     Height = property_lists:get_value(height, Attr),
+    Renderer = property_lists:get_value(tmp_render, Attr),
+    Options1 = case Renderer of
+		   rendrib ->
+		       " -silent -res " ++ integer_to_list(Width) ++ " " ++
+			   integer_to_list(Height) ++ " -d 16 ";
+		   air ->
+		       " ";
+		   entropy ->
+		       " -silent -res " ++ integer_to_list(Width) ++ " " ++
+			   integer_to_list(Height) ++ " -d 16 "
+	       end,
+    Options2 = case Renderer of
+		   rendrib ->
+		       " -silent -res " ++ integer_to_list(Width) ++ " " ++
+			   integer_to_list(Height) ++ " ";
+		   air ->
+		       " ";
+		   entropy ->
+		       " -silent -res " ++ integer_to_list(Width) ++ " " ++
+			   integer_to_list(Height) ++ " "
+	       end,
     case property_lists:get_value(render_file, Attr) of
     	undefined ->
-	    os:cmd("rendrib -silent -res " ++ integer_to_list(Width) ++
-		   " " ++ integer_to_list(Height) ++ " -d 16 " ++ TmpName);
+	    os:cmd(atom_to_list(Renderer) ++ Options1 ++ TmpName);
     	RendFile ->
-	    os:cmd("rendrib -silent -res " ++ integer_to_list(Width) ++
-		   " " ++ integer_to_list(Height) ++ " " ++ TmpName),
-	    os:cmd("iv " ++ RendFile)
+	    os:cmd(atom_to_list(Renderer) ++ Options2 ++ TmpName),
+	    case os:find_executable("iv") of
+		false -> true;
+		_Path ->  os:cmd("iv " ++ RendFile)
+	    end
     end,
-    ok = file:delete(TmpName).
+    ok = file:delete(TmpName),
+    foreach(fun(TmpImg) ->
+		    ok = file:delete(TmpImg)
+	    end, TxList).			% delete textures created...
 
 %%%
 %%% Export functions.
@@ -157,19 +235,17 @@ render(none, Contents, Attr) ->
 
 do_export(Ask, _Exporter, St) when is_atom(Ask) ->
     wpa:dialog(Ask, dialog_qs(export), St,
-	    fun(Res) ->
-		    {file,{export,{rib,Res}}}
-	    end);
-do_export(Attr, Exporter, _St) when is_list(Attr) ->
-    set_pref(Attr),
+	       fun(Res) ->
+		       {file,{export,{rib,Res}}}
+	       end);
+do_export(Attr0, Exporter, _St) when is_list(Attr0) ->
+    set_pref(Attr0),
+    Attr = [{tmp_render,none}|Attr0],
     Exporter(props(), export_fun(Attr)).
 
 export_fun(Attr) ->
     fun(Filename, Contents) ->
-	    case export_1(Filename, Contents, Attr) of
-		ok -> ok;
-		{error,Error} -> {error,Error}
-	    end
+	    export_1(Filename, Contents, Attr)
     end.
 
 export_1(Name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Attr) ->
@@ -186,10 +262,14 @@ export_1(Name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Attr) ->
     io:put_chars(F, "WorldBegin\n"),
     export_lights(F, Attr),
     io:put_chars(F, "Identity\n"),
-    export_materials(Mat, Base, Attr),
+    TmpImgs = export_materials(Mat, Base, Attr),
     foreach(fun(Obj) -> export_object(F, Obj, Mat, Base, Attr) end, Objs),
     io:put_chars(F, "WorldEnd\n"),
-    ok = file:close(F).
+    ok = file:close(F),
+    case property_lists:get_value(tmp_render, Attr) of
+  	none -> true;
+  	_ -> TmpImgs
+    end.
 
 export_object(F, #e3d_object{name=Name,obj=Mesh0}, Mat, Base, Attr) ->
     Mesh = case property_lists:get_bool(triangulate, Attr) of
@@ -201,18 +281,19 @@ export_object(F, #e3d_object{name=Name,obj=Mesh0}, Mat, Base, Attr) ->
     Ns = list_to_tuple(Ns0),
     Fs1 = sofs:to_external(sofs:relation_to_family(sofs:relation(Fs0))),
     Fs = lists:append([Fs || {_Mat,Fs} <- Fs1]),
-    {FsV,FsN,FsUV} = separate_faces(Fs),
+    {FsV,FsN,FsUV}= separate_faces(Fs),
+    Ns = list_to_tuple(Ns0),
     #e3d_mesh{vs=Vs0,he=He,tx=Tx0} = Mesh,
     Vs = list_to_tuple(Vs0),
     Tx = list_to_tuple(Tx0),
-		        
+
     io:format(F, "# Object: ~s\n", [Name]),
     MeshType = property_lists:get_value(mesh_type, Attr),
     case property_lists:get_value(save_by, Attr) of
 	one_file ->
 	    io:put_chars(F, "AttributeBegin\n"),
 	    [{[MatName],_}|_] = Fs1,
-	    write_shader(F, MatName, Mat, Base),
+	    write_shader(F, MatName, Mat, Base, Attr),
 	    export_mesh(F, Fs, FsV, Attr),
 	    export_attr(F, FsV, FsN, FsUV, Vs, Ns, Tx, He, Attr),
 	    io:put_chars(F, "AttributeEnd\n");
@@ -241,7 +322,7 @@ export_object(F, #e3d_object{name=Name,obj=Mesh0}, Mat, Base, Attr) ->
 	    {ok,ObjFile} = file:open(ObjName, [write]),
 	    foreach(fun({[MatName],FsList}) ->
 			    io:put_chars(ObjFile, "AttributeBegin\n"),
-			    MatFile = Base ++ "_" ++ 
+			    MatFile = Base ++ "_" ++
 				atom_to_list(MatName) ++ "_WingsMat.rib",
 			    io:format(ObjFile,
 				      "ReadArchive \"~s\"\n", [MatFile]),
@@ -312,7 +393,7 @@ export_attr(F, FsV, FsN, FsUV, Vs, Ns, Tx, He0, Attr) ->
 	false ->
 	    foreach(fun({X,Y,Z}) ->
 			    io:format(F, "~p ~p ~p\n", [X,Y,Z])
-		    end, Vs)
+		    end, tuple_to_list(Vs))
     end,
     io:put_chars(F, "]\n"),
 
@@ -365,47 +446,69 @@ export_camera(F) ->
 export_materials(Mat, Base, Attr) ->
     case property_lists:get_value(save_by, Attr) of
 	one_file ->
-	    export_materials_one(Mat, Base);
+	    Acc = export_materials_one(Mat, Base, Attr);
 	_->
-	    export_materials_many(Mat, Base)
-    end.
+	    Acc = export_materials_many(Mat, Base, Attr)
+    end,
+    Acc.
 
-export_materials_one(Mats, Base) ->	
-    foreach(
-      fun({Name,Mat}) ->
-	      case property_lists:get_value(diffuse_map, Mat, none) of
-		  none -> true;
-		  {W,H,DiffMap} ->
-		      MapFile = Base ++ "_" ++ atom_to_list(Name) ++
-			  "_diffmap.tif",
-		      Image = #e3d_image{image=DiffMap,width=W,height=H},
-		      ok = e3d_image:save(Image, MapFile)
-	      end
-      end, Mats).
+export_materials_one(Mats, Base, Attr) ->
+    export_materials_one(Mats, Base, Attr, []).
 
-export_materials_many(Mats, Base) ->
-    foreach(
-      fun({Name,Mat}) ->
-	      MatName = Base ++ "_" ++ atom_to_list(Name) ++ "_WingsMat.rib",
-	      {ok,MatFile} = file:open(MatName, [write]),
-	      export_material(MatFile, Name, Mat, Base),
-	      ok = file:close(MatFile),
-	      case property_lists:get_value(diffuse_map, Mat, none) of
-		  none -> true;
-		  {W,H,DiffMap} ->
-		      MapFile = Base ++ "_" ++ atom_to_list(Name) ++
-			  "_diffmap.tif",
-		      Image = #e3d_image{image=DiffMap, width=W,height=H},
-		      ok = e3d_image:save(Image, MapFile)
-	      end
-      end, Mats).
+export_materials_one([{Name,Mat}|T], Base, Attr, Acc) ->
+    case property_lists:get_value(diffuse_map, Mat, none) of
+	none ->
+	    export_materials_one(T,Base, Attr, Acc);
+	{W,H,DiffMap} ->
+	    case property_lists:get_value(tmp_render, Attr) of
+		none ->
+		    MapFile = Base ++ "_" ++ atom_to_list(Name) ++
+			"_diffmap.tif",
+		    Image = #e3d_image{image=DiffMap,width=W,height=H},
+		    ok = e3d_image:save(Image, MapFile),
+		    export_materials_one(T,Base, Attr, Acc);
+		_ ->
+		    MapFile = "wpc_tif_temp_" ++ atom_to_list(Name) ++
+			os:getpid() ++ ".tif",
+		    Image = #e3d_image{image=DiffMap,width=W,height=H},
+		    ok = e3d_image:save(Image, MapFile),
+		    export_materials_one(T,Base, Attr, [MapFile|Acc])
+	    end
+    end;
+export_materials_one([], _Base, _Attr, Acc) -> Acc.
 
-write_shader(F, Name, [{Name,Mat}|_], Base) ->
-    export_material(F, Name, Mat, Base);
-write_shader(F, Name, [_|T], Base) ->
-    write_shader(F, Name, T, Base).
+export_materials_many(Mats, Base, Attr) ->
+    export_materials_many(Mats, Base, Attr, []).
+export_materials_many([{Name,Mat}|T], Base, Attr, Acc) ->
+    MatName = Base ++ "_" ++ atom_to_list(Name) ++ "_WingsMat.rib",
+    {ok,MatFile} = file:open(MatName, [write]),
+    export_material(MatFile, Name, Mat, Base, Attr),
+    ok = file:close(MatFile),
+    case property_lists:get_value(diffuse_map, Mat, none) of
+	none -> export_materials_many(T,Base, Attr, Acc);
+	{W,H,DiffMap} ->
+	    case property_lists:get_value(tmp_render, Attr) of
+		none ->
+		    MapFile = Base ++ "_" ++ atom_to_list(Name) ++
+			"_diffmap.tif",
+		    Image = #e3d_image{image=DiffMap, width=W,height=H},
+		    ok = e3d_image:save(Image, MapFile),
+		    export_materials_many(T,Base, Attr, Acc);
+		_ ->
+		    MapFile = "wpc_tif_temp_" ++ atom_to_list(Name) ++ os:getpid() ++ ".tif",
+		    Image = #e3d_image{image=DiffMap,width=W,height=H},
+		    ok = e3d_image:save(Image, MapFile),
+		    export_materials_many(T,Base, Attr, [MapFile|Acc])
+	    end
+    end;
+export_materials_many([], _Base, _Attr, Acc) -> Acc.
 
-export_material(F,Name,Mat,Base) ->
+write_shader(F, Name, [{Name,Mat}|_], Base, Attr) ->
+    export_material(F, Name, Mat, Base, Attr);
+write_shader(F, Name, [_|T], Base, Attr) ->
+    write_shader(F, Name, T, Base, Attr).
+
+export_material(F,Name,Mat,Base,Attr) ->
     [{_,{Ar,Ag,Ab}},{_,{Dr,Dg,Db}},{_,{Sr,Sg,Sb}},
      {_,Shine},{_,Opacity}|_]=Mat,
     io:format(F, "Color ~p ~p ~p\n", [Dr,Dg,Db]),
@@ -423,7 +526,10 @@ export_material(F,Name,Mat,Base) ->
 		      " \"color specularcolor\" [~p ~p ~p]\n",
 		      [Ka,Kd,Shine,0.1,Sr,Sg,Sb]);
 	{_,_,_DiffMap} ->
-	    MapFile = Base ++ "_" ++ atom_to_list(Name) ++ "_diffmap.tif",
+	    MapFile  = case property_lists:get_value(tmp_render, Attr) of
+			   none -> Base ++ "_" ++ atom_to_list(Name) ++ "_diffmap.tif";
+			   _ -> "wpc_tif_temp_" ++ atom_to_list(Name) ++ os:getpid() ++ ".tif"
+		       end,
 	    io:format(F, "Surface \"paintedplastic\"\n"
 		      " \"float Ka\" [~p]\n"
 		      " \"float Kd\" [~p]\n"
@@ -441,56 +547,56 @@ export_lights(F, Attr) ->
     io:format(F,
 	      "# Lights!
 TransformBegin
-      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 -7.65848 6.78137 6.28592 1]
-      Declare \"shadows\" \"string\"
+	      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 -7.65848 6.78137 6.28592 1]
+	      Declare \"shadows\" \"string\"
       Attribute \"light\" \"shadows\" [\"off\"]
       AttributeBegin
-      Declare \"intensity\" \"float\"
+	      Declare \"intensity\" \"float\"
       Declare \"lightcolor\" \"color\"
       AreaLightSource \"arealight\" 1 \"intensity\" [~p] \"lightcolor\" [1 1 1]
       Interior \"arealight\" \"intensity\" [~p] \"lightcolor\" [1 1 1]
       AttributeBegin
-      TransformBegin
-      Sphere 1 -1 1 360
-      TransformEnd
-      AttributeEnd
-      AttributeEnd
-      Illuminate 1 1
-      TransformEnd
-      TransformBegin
-      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 11.844 6.78137 3.38473 1]
-      Declare \"shadows\" \"string\"
+	      TransformBegin
+	      Sphere 1 -1 1 360
+	      TransformEnd
+	      AttributeEnd
+	      AttributeEnd
+	      Illuminate 1 1
+	      TransformEnd
+	      TransformBegin
+	      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 11.844 6.78137 3.38473 1]
+	      Declare \"shadows\" \"string\"
       Attribute \"light\" \"shadows\" [\"off\"]
       AttributeBegin
-      Declare \"intensity\" \"float\"
+	      Declare \"intensity\" \"float\"
       Declare \"lightcolor\" \"color\"
       AreaLightSource \"arealight\" 2 \"intensity\" [~p] \"lightcolor\" [1 1 1]
       Interior \"arealight\" \"intensity\" [~p] \"lightcolor\" [1 1 1]
       AttributeBegin
-      TransformBegin
-      Sphere 1 -1 1 360
-      TransformEnd
-      AttributeEnd
-      AttributeEnd
-      Illuminate 2 1
-      TransformEnd
-      TransformBegin
-      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 -4.75729 6.78137 -12.0883 1]
-      Declare \"shadows\" \"string\"
+	      TransformBegin
+	      Sphere 1 -1 1 360
+	      TransformEnd
+	      AttributeEnd
+	      AttributeEnd
+	      Illuminate 2 1
+	      TransformEnd
+	      TransformBegin
+	      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 -4.75729 6.78137 -12.0883 1]
+	      Declare \"shadows\" \"string\"
       Attribute \"light\" \"shadows\" [\"off\"]
       AttributeBegin
-      Declare \"intensity\" \"float\"
+	      Declare \"intensity\" \"float\"
       Declare \"lightcolor\" \"color\"
       AreaLightSource \"arealight\" 3 \"intensity\" [~p] \"lightcolor\" [1 1 1]
       Interior \"arealight\" \"intensity\" [~p] \"lightcolor\" [1 1 1]
       AttributeBegin
-      TransformBegin
-      Sphere 1 -1 1 360
-      TransformEnd
-      AttributeEnd
-      AttributeEnd
-      Illuminate 3 1
-      TransformEnd\n",
+	      TransformBegin
+	      Sphere 1 -1 1 360
+	      TransformEnd
+	      AttributeEnd
+	      AttributeEnd
+	      Illuminate 3 1
+	      TransformEnd\n",
 	      [Light1,Light1,Light2,Light2,Light3,Light3]).
 
 %%%
@@ -511,6 +617,7 @@ separate_face([{V,N}|T], VAcc, NAcc, UVAcc) ->
     separate_face(T, [V|VAcc], [N|NAcc], UVAcc);
 separate_face([], VAcc, NAcc, UVAcc) ->
     {VAcc,NAcc,UVAcc}.
+
 
 create_loops([]) -> [];
 create_loops(L) -> create_loops(L, []).
