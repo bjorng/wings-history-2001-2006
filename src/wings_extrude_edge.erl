@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.55 2004/03/08 13:26:22 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.56 2004/03/28 17:44:30 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -324,7 +324,8 @@ straighten_1(Vec, N, {Cx,Cy,Cz}, OtherV, OPos0, Vt) ->
 %% Common help function for actually extruding edges.
 %%    
 extrude_edges(Edges, ExtrudeDist, We) ->
-    extrude_edges(Edges, gb_sets:empty(), ExtrudeDist, We).
+    NoForbiddenFaces = gb_sets:empty(),
+    extrude_edges(Edges, NoForbiddenFaces, ExtrudeDist, We).
 
 extrude_edges(Edges, ForbiddenFaces, ExtrudeDist,
 	      #we{next_id=Wid,es=Etab,vc=Vct0}=We0) ->
@@ -367,9 +368,27 @@ new_vertex(V, G, Edges, ForbiddenFaces, ExtrudeDist, {We0,F0}=Acc) ->
 	    Es = filter_edges(Es0, Edges, ForbiddenFaces),
 	    Center = wings_vertex:pos(V, We0),
 	    We = foldl(fun({Edge,_,_}, W0) ->
-			       do_new_vertex(V, G, Edge, Center, ExtrudeDist, W0)
+			       new_vertex_1(V, G, Edge, Center, ExtrudeDist, W0)
 		       end, We0, Es),
 	    {We,F0}
+    end.
+
+new_vertex_1(V, G, Edge, Center, ExtrudeDist, We0) ->
+    {We,NewE=NewV} = wings_edge:cut(Edge, 2, We0),
+    Rec = get_edge_rec(V, NewV, Edge, NewE, We),
+    digraph_edge(G, Rec),
+    #we{vp=Vtab0} = We,
+    Pos0 = gb_trees:get(NewV, Vtab0),
+    Dir = e3d_vec:norm(e3d_vec:sub(Pos0, Center)),
+    Pos = e3d_vec:add_prod(Center, Dir, ExtrudeDist),
+    Vtab = gb_trees:update(NewV, Pos, Vtab0),
+    We#we{vp=Vtab}.
+
+get_edge_rec(Va, Vb, EdgeA, EdgeB, #we{es=Etab}) ->
+    case gb_trees:get(EdgeA, Etab) of
+	#edge{vs=Va,ve=Vb}=Rec -> Rec;
+	#edge{vs=Vb,ve=Va}=Rec -> Rec;
+	_Other -> gb_trees:get(EdgeB, Etab)
     end.
 
 filter_edges(Es, EdgeSet, FaceSet) ->
@@ -380,24 +399,6 @@ filter_edges(Es, EdgeSet, FaceSet) ->
 		      false -> [E|A]
 		  end
 	  end, [], Es).
-
-do_new_vertex(V, G, Edge, Center, ExtrudeDist, We0) ->
-    {We,NewE=NewV} = wings_edge:cut(Edge, 2, We0),
-    Rec = get_edge_rec(V, NewV, Edge, NewE, We),
-    digraph_edge(G, Rec),
-    #we{vp=Vtab0} = We,
-    Pos0 = gb_trees:get(NewV, Vtab0),
-    Dir = e3d_vec:sub(Pos0, Center),
-    Pos = e3d_vec:add_prod(Center, Dir, ExtrudeDist/e3d_vec:len(Dir)),
-    Vtab = gb_trees:update(NewV, Pos, Vtab0),
-    We#we{vp=Vtab}.
-
-get_edge_rec(Va, Vb, EdgeA, EdgeB, #we{es=Etab}) ->
-    case gb_trees:get(EdgeA, Etab) of
-	#edge{vs=Va,ve=Vb}=Rec -> Rec;
-	#edge{vs=Vb,ve=Va}=Rec -> Rec;
-	_Other -> gb_trees:get(EdgeB, Etab)
-    end.
 
 digraph_edge(G, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
     digraph_insert(G, Va, Vb, Lf),
@@ -542,8 +543,8 @@ new_vertex_pos(A, B, C, N, ExtrudeDist, Vtab) ->
     CPos = gb_trees:get(C, Vtab),
     VecA0 = e3d_vec:norm(e3d_vec:sub(APos, BPos)),
     VecB0 = e3d_vec:norm(e3d_vec:sub(BPos, CPos)),
-    VecA = e3d_vec:norm(e3d_vec:cross(VecA0, N)),
-    VecB = e3d_vec:norm(e3d_vec:cross(VecB0, N)),
+    VecA = e3d_vec:norm_cross(VecA0, N),
+    VecB = e3d_vec:norm_cross(VecB0, N),
     Vec = average(VecA, VecB),
     e3d_vec:add_prod(BPos, Vec, ExtrudeDist).
 
