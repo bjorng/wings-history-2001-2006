@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.32 2003/01/09 19:17:28 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.33 2003/01/20 21:00:43 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -166,6 +166,8 @@ keyname(C) when $A =< C, C =< $Z ->
 	_ -> "Shift+" ++ [C]
     end;
 keyname(C) when is_integer(C), C < 256 -> [C];
+keyname(C) when is_integer(C), 63236 =< C, C =< 63247 ->
+    [$F|integer_to_list(C-63235)];
 keyname(C) -> [$<|integer_to_list(C)++">"].
 
 modname(Mods) ->
