@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.32 2003/01/01 23:20:24 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.33 2003/01/02 07:16:05 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -19,7 +19,8 @@
 -export([select_all/1]).
 
 -include("wings.hrl").
--import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,keydelete/3]).
+-import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,
+		keydelete/3,keymember/3,keysearch/3]).
 
 menu(St) ->
     [{"Deselect",deselect,"Clear the selection"},
@@ -66,6 +67,10 @@ menu(St) ->
      {sel_all_str(St),all},
      separator,
      {"Inverse",inverse},
+     separator,
+     {"Hide Seleced",hide_selected},
+     {"Hide Unselected",hide_unselected},
+     {"Lock Unselected",lock_unselected},
      separator,
      {"New Group...",new_group,"Create a new selection group"}|groups_menu(St)].
 
@@ -192,6 +197,12 @@ command({delete_group,Id}, #st{ssels=Ssels}=St) ->
     {save_state,St#st{ssels=gb_trees:delete(Id, Ssels)}};
 command(inverse, St) ->
     {save_state,inverse(St)};
+command(hide_selected, St) ->
+    {save_state,hide_selected(St)};
+command(hide_unselected, St) ->
+    {save_state,hide_unselected(St)};
+command(lock_unselected, St) ->
+    {save_state,lock_unselected(St)};
 command({adjacent,Type}, St) ->
     set_select_mode(Type, St);
 command(Type, St) ->
@@ -289,6 +300,39 @@ inverse(#st{selmode=Mode}=St) ->
 		    end
 	    end, [], St),
     St#st{sel=reverse(Sel)}.
+
+%%%
+%%% Hide Selected
+%%% Hide Unselected
+%%% Lock Unselected
+%%%
+
+hide_selected(#st{selmode=Mode,shapes=Shs0,sel=Sel}=St) ->
+    Shs1 = map(fun(#we{id=Id}=We) ->
+		       case keysearch(Id, 1, Sel) of
+			   false -> {Id,We};
+			   {value,{_,Set}} -> {Id,We#we{perm={Mode,Set}}}
+		       end
+	       end, gb_trees:values(Shs0)),
+    Shs = gb_trees:from_orddict(Shs1),
+    St#st{shapes=Shs,sel=[]}.
+
+hide_unselected(St) ->
+    update_unsel([], St).
+
+lock_unselected(St) ->
+    update_unsel(1, St).
+
+update_unsel(Perm, #st{shapes=Shs0,sel=Sel}=St) ->
+    Shs1 = map(fun(#we{id=Id,perm=0}=We) ->
+		       case keymember(Id, 1, Sel) of
+			   true -> {Id,We};
+			   false -> {Id,We#we{perm=Perm}}
+		       end;
+		  (#we{id=Id}=We) -> {Id,We}
+	       end, gb_trees:values(Shs0)),
+    Shs = gb_trees:from_orddict(Shs1),
+    St#st{shapes=Shs}.
     
 %%%
 %%% Selection Groups
