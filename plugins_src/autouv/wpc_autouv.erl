@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.253 2004/05/24 11:23:31 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.254 2004/05/24 13:23:56 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -384,6 +384,9 @@ command_menu(vertex, X, Y) ->
 	    {"Scale",{scale,Scale},"Scale selected vertices"},
 	    {"Rotate",{rotate,Rotate},"Rotate selected vertices"}
 	   ] ++ option_menu(),
+    wings_menu:popup_menu(X,Y, auv, Menu);
+command_menu(_, X, Y) ->
+    Menu = option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu).
 
 scale_directions() ->
@@ -401,7 +404,6 @@ rotate_directions() ->
      separator,
      {"Flip Horizontal",flip_horizontal,"Flip selection horizontally"},
      {"Flip Vertical",flip_vertical,"Flip selection vertically"}].
-
 
 option_menu() ->
     [separator,
@@ -453,8 +455,12 @@ handle_event_2(Ev, St) ->
 handle_event_3({current_state,geom_display_lists,GeomSt}, AuvSt) ->
     new_geom_state(GeomSt, AuvSt);
 handle_event_3(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0},
-	       #st{selmode=Mode}) ->
+	       #st{selmode=Mode0,sel=Sel}) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
+    Mode = case Sel of 
+	       [] -> undefined; 
+	       _ -> Mode0 
+	   end,
     command_menu(Mode, X, Y);
 handle_event_3({drop,_,DropData}, St) ->
     handle_drop(DropData, St);
