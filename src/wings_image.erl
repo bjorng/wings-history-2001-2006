@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.33 2003/11/10 14:22:48 dgud Exp $
+%%     $Id: wings_image.erl,v 1.34 2003/12/13 18:02:56 dgud Exp $
 %%
 
 -module(wings_image).
@@ -420,7 +420,7 @@ delete_bump(Id) ->
 do_update(Id, In = #e3d_image{width=W,height=H,type=Type}, 
 	  #ist{images=Images0}=S) ->
     Im0 = #e3d_image{filename=File,name=Name} = gb_trees:get(Id, Images0),
-    Im   = In#e3d_image{filename=File, name=Name},
+    Im   = maybe_convert(In#e3d_image{filename=File, name=Name}),
     TxId = get(Id),
     Images = gb_trees:update(Id, Im, Images0),
     Size = {Im0#e3d_image.width, Im0#e3d_image.height, Im0#e3d_image.type},
