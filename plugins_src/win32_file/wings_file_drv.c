@@ -1,3 +1,17 @@
+/*
+ *
+ *  wings_file_drv.c --
+ *
+ *     Erlang driver for native file dialog boxes for Win32.
+ *
+ *  Copyright (c) 2001 Patrik Nyblom
+ *
+ *  See the file "license.terms" for information on usage and redistribution
+ *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+ *
+ *     $Id: wings_file_drv.c,v 1.2 2001/10/25 12:44:05 bjorng Exp $
+ */
+
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -183,6 +197,3 @@ static int wings_file_control(ErlDrvData handle, unsigned int command,
         return -1; /* Error return, throws exception in erlang */
     }
 }
-
-
-

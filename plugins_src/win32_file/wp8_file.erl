@@ -1,3 +1,16 @@
+%%
+%%  wp8_file.erl --
+%%
+%%     Native file dialog boxes for Win32.
+%%
+%%  Copyright (c) 2001 Patrik Nyblom
+%%
+%%  See the file "license.terms" for information on usage and redistribution
+%%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%
+%%     $Id: wp8_file.erl,v 1.3 2001/10/25 12:44:05 bjorng Exp $
+%%
+
 -module(wp8_file).
 -author('patrik@ELLA').
 

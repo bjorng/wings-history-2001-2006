@@ -7,10 +7,11 @@
 
 #
 # Should one use the MT library as the emulator or the MD library
-# like brograms that load dll's actually should do? 
+# like programs that load dll's actually should do? 
 # Well, I hold for the later, so I'll try it as long as it works.
 # I.E /MD as compiler option and link with msvcrt.lib.
 #
+ERL_TOP = C:\progra~1\erl5.1\
 LINK = link
 MLFLAGS= /nologo /subsystem:console /machine:I386 /nodefaultlib 
 MLIBS = kernel32.lib ws2_32.lib msvcrt.lib user32.lib comdlg32.lib
@@ -32,12 +33,12 @@ OBJDIR = .
 
 # Includes
 #
-INCLUDES = /I. /I\progra~1\erl5.1\usr\include
+INCLUDES = -I. -I$(ERL_TOP)\erl5.1\usr\include
 
 # Libraries (static)
 #
 
-ERL_DLL_LIB = \progra~1\erl5.1\usr\lib\erl_dll.lib
+ERL_DLL_LIB = -I$(ERL_TOP)\usr\lib\erl_dll.lib
 
 # Compiler options
 # 
