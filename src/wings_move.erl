@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.10 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.11 2001/11/04 16:40:31 bjorng Exp $
 %%
 
 -module(wings_move).
 -export([setup/2]).
 
 -include("wings.hrl").
--import(lists, [map/2,foldr/3,foldl/3]).
+-import(lists, [map/2,foldr/3,foldl/3,sort/1]).
 
 setup(Type, #st{selmode=Mode}=St) ->
     Vec = wings_util:make_vector(Type),
@@ -126,7 +126,8 @@ face_normal(Face, Vs, Vtab, Acc) ->
 face_average(Vs, Vtab) ->
     R = sofs:relation(Vs),
     F = sofs:relation_to_family(R),
-    foldl(fun({V,Ns}, Acc) ->
+    foldl(fun({V,Ns0}, Acc) ->
+		  Ns = join_eq(Ns0),
 		  N = face_average_normals(V, Ns, Vtab),
 		  [{N,[V]}|Acc]
 	  end, [], sofs:to_external(F)).
@@ -136,7 +137,7 @@ face_average_normals(V, [Na,Nb], Vtab) ->
     N = e3d_vec:norm(e3d_vec:add(Na, Nb)),
     Dot = e3d_vec:dot(N, Na),
     e3d_vec:divide(N, Dot); 
-face_average_normals(V, [Na,Nb,Nc|T], Vtab) ->
+face_average_normals(V, [Na,Nb,Nc|T]=Ns, Vtab) ->
     Vpos = wings_vertex:pos(V, Vtab),
     Nao = e3d_vec:add(Vpos, Na),
     Nbo = e3d_vec:add(Vpos, Nb),
@@ -160,36 +161,22 @@ face_average_normals(V, [Na,Nb,Nc|T], Vtab) ->
 	    JCMinusAL = J*C - A*L,
 	    AKMinusJB = A*K - J*B,
 	    BLMinusKC = B*L - K*C,
-	    case A*EiMinusHf + B*GFMinusDI + C*DHMinusEG of
-		M when abs(M) < 1.0E-4 ->
-		    remove_eq(V, Na, Nb, Nc, T, Vtab);
-		M ->
-		    X = (J*EiMinusHf + K*GFMinusDI + L*DHMinusEG)/M,
-		    Y = (I*AKMinusJB + H*JCMinusAL + G*BLMinusKC)/M,
-		    Z = -(F*AKMinusJB + E*JCMinusAL + D*BLMinusKC)/M,
-		    e3d_vec:sub({X,Y,Z}, Vpos)
-	    end
+	    M = A*EiMinusHf + B*GFMinusDI + C*DHMinusEG,
+	    X = (J*EiMinusHf + K*GFMinusDI + L*DHMinusEG)/M,
+	    Y = (I*AKMinusJB + H*JCMinusAL + G*BLMinusKC)/M,
+	    Z = -(F*AKMinusJB + E*JCMinusAL + D*BLMinusKC)/M,
+	    e3d_vec:sub({X,Y,Z}, Vpos)
     end.
 
-remove_eq(V, Na, Nb, Nc, T, Vtab) ->
-    E = 1.0E-4,
-    case aeq(Na, Nb, E) of
-	true ->
-	    face_average_normals(V, [Na,Nc|T], Vtab);
-	false ->
-	    case aeq(Na, Nc, E) of
-		true ->
-		    face_average_normals(V, [Na,Nb|T], Vtab);
-		false ->
-		    face_average_normals(V, [Nb,Nc|T], Vtab)
-	    end
-    end.
+join_eq(Ns0) ->
+    Ns1 = [add_sort_key(N) || N <- Ns0],
+    Ns = sofs:relation(Ns1),
+    Fam = sofs:relation_to_family(Ns),
+    [N || {_,[N|_]} <- sofs:to_external(Fam)].
 
-aeq({Xa,Ya,Za}, {Xb,Yb,Zb}, E) when abs(Xa-Xb) < E,
-				    abs(Ya-Yb) < E,
-				    abs(Za-Zb) < E ->
-    true;
-aeq(_, _, _) -> false.
+add_sort_key({X,Y,Z}=N) ->
+    S = 1000,
+    {{trunc(X*S),trunc(Y*1000),trunc(Z*1000)},N}.
 
 %%
 %% Conversion of body selections (entire objects) to vertices.
