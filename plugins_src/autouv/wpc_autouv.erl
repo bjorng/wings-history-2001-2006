@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.53 2002/11/19 23:48:00 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.54 2002/11/23 08:48:49 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -611,15 +611,16 @@ add_material(edit, Tx, St0, #areas{matname=MatName}=As) ->
 %%% Opengl drawing routines
 
 init_drawarea() ->
-    [0,0,OW,OH] = gl:getIntegerv(?GL_VIEWPORT),    
+    {_,_,Ow,Oh} = wings_wm:viewport(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    HW = (OW - 4) div 2,
-    {X2, W2} = {OW - HW, HW},
+    HW = (Ow - 4) div 2,
+    WingsPort = {0,0,HW,Oh},
+    {X2, W2} = {Ow - HW, HW},
     %% Estimate Icon and message height
     %% Hard coded yes, but what do I do ??
-    EH1 = 72,  %% Icons and message area height
+    EH1 = 37,  %% Icons and message area height
     EH2 = 25,  %% Menu bar height
-    {Y2, H2} = {EH1, OH - EH2 - EH1},
+    {Y2, H2} = {EH1, Oh - EH2 - EH1},
     Border = 10, %% Showed no pixels around the texturemap
     
     {X0Y0, XMax, YMax} =
@@ -631,8 +632,7 @@ init_drawarea() ->
 		WF = Border / H2,
 		{-WF, 1+WF, H2/W2+WF}
 	    end,
-    %%    {{0,0,HW,OH}, {X2,Y2,W3,H3}}.
-    {{0,0,HW,OH}, {X2,Y2,W2,H2,X0Y0,XMax,YMax}}.
+    {WingsPort, {X2,Y2,W2,H2,X0Y0,XMax,YMax}}.
 
 draw_texture(Uvs = #uvstate{dl=undefined,option=Options}) ->
     Materials = (Uvs#uvstate.origst)#st.mat,
@@ -669,12 +669,13 @@ setup_view(Geom,Uvs) ->
 setup_view({X0,Y0,W,H,X0Y0,XM,YM}, Part, Uvs) ->
     #uvstate{st = #st{mat=Mats}, option=#setng{texbg=TexBg},
 	     areas = #areas{matname = MatN}} = Uvs,
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),    
-    gl:viewport(X0,Y0,W,H),
-    gl:matrixMode(?GL_PROJECTION),    
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    {Ox,Oy,_,_} = wings_wm:viewport(),
+    gl:viewport(Ox+X0, Oy+Y0, W, H),
+    gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
     case Part of
-	undefined -> 
+	undefined ->
 	    glu:ortho2D(X0Y0, XM, X0Y0, YM);
 	{WD,HD,WC,HC} ->
 	    glu:ortho2D(WC/WD, (1+WC)/WD, HC/HD, (1+HC)/HD)
@@ -719,22 +720,20 @@ setup_view({X0,Y0,W,H,X0Y0,XM,YM}, Part, Uvs) ->
     gl:enable(?GL_DEPTH_TEST),
     gl:shadeModel(?GL_SMOOTH).
 
-wings_view(Uvs = #uvstate{mode = Mode, geom = {{X1,Y1,W1,H1}, {X2,Y2,_,_,_,_,_}}, st = St}) ->
+wings_view(#uvstate{mode=Mode,geom={WingsPort,{X2,Y2,_,_,_,_,_}},st=St}=Uvs) ->
     ModeL = atom_to_list(Mode),
     Text = [ModeL] ++ [" Mode: [R] in texture window to access menu, "
 		       "[L] to select face groups"],
     wings_io:message(Text),
-    [X0=0,Y0=0,W0,H0] = gl:getIntegerv(?GL_VIEWPORT),
-    gl:viewport(X1,Y1,W1,H1),
-    put(wm_viewport, {X1,Y1,W1,H1}),
+    {_,_,_,Oh} = OldViewport = wings_wm:viewport(),
+    set_viewport(WingsPort),
     wings_draw:render(St),
-    put(wm_viewport, {X0,Y0,W0,H0}),
-    gl:viewport(X0,Y0,W0,H0),
-    %%    wings_io:info(info(St)),
+    set_viewport(OldViewport),
     wings_io:update(Uvs#uvstate.st),
     wings_io:ortho_setup(),
-    gl:color3fv(?PANE_COLOR),    
-    gl:recti(W1, 25, X2, H0 - Y2),
+    gl:color3fv(?PANE_COLOR),
+    {_,_,W,_} = WingsPort,
+    gl:recti(W, 23, X2, Oh - Y2),
     ok.
 
 reset_view() ->    
@@ -742,20 +741,22 @@ reset_view() ->
 
 %%% Texture Creation
 
-calc_texsize(Vp, Tex, Orig) when Vp >= Tex -> {Tex, Orig div Tex};
+calc_texsize(Vp, Tex, Orig) when Vp >= Tex -> {Tex,Orig div Tex};
 calc_texsize(Vp, Tex, Orig) -> 
     calc_texsize(Vp, Tex div 2, Orig).
 
 get_texture(Uvs=#uvstate{option = Option, sel=Sel, areas=As}) ->
     {TexW,TexH} = Option#setng.texsz,
-    [0, 0, W0, H0] = gl:getIntegerv(?GL_VIEWPORT),
+    Current = wings_wm:viewport(),
+    {_,_,W0,H0} = Top = wings_wm:viewport(top),
+    set_viewport(Top),
     {W,Wd} = calc_texsize(W0, TexW, TexW),
     {H,Hd} = calc_texsize(H0, TexH, TexH),
     Mem = sdl_util:malloc(W*H*3, ?GL_BYTE),
-    Uvs1 = Uvs#uvstate{sel=[], areas=add_areas(Sel, As), dl = undefined},
+    Uvs1 = Uvs#uvstate{sel=[],areas=add_areas(Sel, As),dl=undefined},
     GetSubTex = 
 	fun(WC,HC,Uvs0) ->
-		setup_view({0,0,W,H,0,W,H}, {Wd,Hd,WC,HC},Uvs0),
+		setup_view({0,0,W,H,0,W,H}, {Wd,Hd,WC,HC}, Uvs0),
 		Uvs2 = draw_texture(Uvs1),
 		gl:flush(),
 		gl:readBuffer(?GL_BACK),
@@ -769,6 +770,7 @@ get_texture(Uvs=#uvstate{option = Option, sel=Sel, areas=As}) ->
     ImageBin = merge_texture(ImageBins,Wd,Hd,W*3,H,[]),
     sdl_util:free(Mem),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    set_viewport(Current),
     case (TexW * TexH *3) == size(ImageBin) of	
 	true ->
 	    {TexW, TexH, ImageBin};
@@ -1567,6 +1569,10 @@ tess_face_vtxcol(Tess, [[Pos|{_,_,_}=Col]|T]) ->
 tess_face_vtxcol(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
+
+set_viewport({X,Y,W,H}=Viewport) ->
+    put(wm_viewport, Viewport),
+    gl:viewport(X, Y, W, H).
 
 %% Generate a checkerboard image.
 checkerboard(Sz) ->

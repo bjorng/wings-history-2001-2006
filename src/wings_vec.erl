@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.44 2002/11/22 12:09:18 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.45 2002/11/23 08:48:50 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -218,7 +218,7 @@ secondary_selection(abort, _Ss, _St) ->
     pop.
 
 redraw(#ss{info=Info}, St) ->
-    case wings_wm:is_window_active(top) of
+    case wings_wm:is_window_active(geom) of
 	false -> ok;
 	true ->
 	    RmbMod = case wings_camera:free_rmb_modifier() of

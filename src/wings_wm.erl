@@ -8,16 +8,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.16 2002/11/22 13:34:20 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.17 2002/11/23 08:48:50 bjorng Exp $
 %%
 
 -module(wings_wm).
--export([init/0,top_window/1,dirty/0,clean/0,new/4,delete/1,
+-export([init/0,enter_event_loop/0,dirty/0,clean/0,new/4,delete/1,
 	 offset/3,pos/1,set_active/1,
 	 top_size/0,viewport/0,viewport/1,
 	 local2global/2,global2local/2,local_mouse_state/0,
 	 is_window_active/1,window_under/2,
-	 translation_change/0,me_modifiers/0,set_me_modifiers/1]).
+	 translation_change/0,me_modifiers/0,set_me_modifiers/1,
+	 draw_message/1,draw_completions/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -52,13 +53,14 @@ init() ->
     wings_pref:set_default(window_size, {780,570}),
     {W,H} = wings_pref:get_value(window_size),
     set_video_mode(W, H),			%Needed on Solaris/Sparc.
-    Stk = default_stack(),
-    Win = #win{x=0,y=0,w=W,h=H,z=0,name=top,stk=Stk},
-    put(wm_windows, gb_trees:from_orddict([{top,Win}])),
-    put(wm_active, top),
     translation_change(),
+    put(wm_windows, gb_trees:empty()),
+    new(top, {0,0,0}, {W,H}, {push,fun(_) -> keep end}),
+    MsgH = 2*?LINE_HEIGHT-4,
+    new(message, {0,H-MsgH,10000}, {W,MsgH},
+	{seq,{push,dummy},{replace,fun message_event/1}}),
     ok.
-
+    
 dirty() ->
     put(wm_dirty, dirty).
 
@@ -75,7 +77,7 @@ new(Name, {X,Y,Z}, {W,H}, Op) when is_integer(X), is_integer(Y),
 
 delete(Name) ->
     case get(wm_active) of
-	Name -> put(wm_active, top);
+	Name -> put(wm_active, geom);
 	_ -> ok
     end,
     dirty(),
@@ -134,14 +136,9 @@ window_under([#win{x=X,y=Y,w=W,h=H,name=Name}|_], X0, Y0)
 window_under([_|T], X, Y) ->
     window_under(T, X, Y).
     
-top_window(Op) ->
-    #win{z=0,w=W,h=H} = Win0 = get_window_data(top),
-    Stk = handle_response(Op, dummy_event, default_stack()),
-    Win = Win0#win{stk=Stk},
-    put_window_data(top, Win),
-    erase(wm_dirty),
-    wings_io:putback_event(#resize{w=W,h=H}),
-    event_loop().
+enter_event_loop() ->
+    {W,H} = top_size(),
+    dispatch_event(#resize{w=W,h=H}).
 
 event_loop() ->
     case get(wm_dirty) of
@@ -159,6 +156,7 @@ get_and_dispatch() ->
     dispatch_event(Event).
 
 dispatch_event(#resize{w=W,h=H}=Event) ->
+    ?CHECK_ERROR(),
     put(wm_top_size, {W,H}),
     Win0 = get_window_data(top),
     Win1 = Win0#win{w=W,h=H},
@@ -168,6 +166,19 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
     gl:clearColor(R, G, B, 1.0),
     Win = send_event(Win1, Event),
     put_window_data(top, Win),
+
+    #win{h=MsgH} = MsgData0 = get_window_data(message),
+    MsgData1 = MsgData0#win{x=0,y=H-MsgH,w=W},
+    put_window_data(message, MsgData1),
+    MsgData = send_event(MsgData1, Event#resize{w=W}),
+    put_window_data(message, MsgData),
+
+    GeomData0 = get_window_data(geom),
+    GeomData1 = GeomData0#win{x=0,y=0,w=W,h=H-MsgH},
+    put_window_data(geom, GeomData1),
+    GeomData = send_event(GeomData1, Event#resize{h=H-MsgH}),
+    put_window_data(geom, GeomData),
+
     event_loop();
 dispatch_event(Event) ->
     Active = get(wm_active),
@@ -209,6 +220,7 @@ send_event(#win{name=Name,x=X,y=Y0,w=W,h=H,stk=[Se|_]=Stk0}, Ev0) ->
     {_,TopH} = get(wm_top_size),
     Y = TopH-(Y0+H),
     ViewPort = {X,Y,W,H},
+    %%io:format("~p: ~p ~p\n", [Name,{X,Y0},ViewPort]),
     case put(wm_viewport, {X,Y,W,H}) of
 	ViewPort -> ok;
 	_ -> gl:viewport(X, Y, W, H)
@@ -238,7 +250,7 @@ handle_event(#se{h=Handler}, Event, Stk) ->
 	{'EXIT',normal} ->
 	    exit(normal);
 	{'EXIT',Reason} ->
-	    CrashHandler = last(Stk),
+	    #se{h=CrashHandler} = last(Stk),
 	    handle_response(CrashHandler({crash,Reason}),
 			    Event, default_stack());
 	Res ->
@@ -341,3 +353,97 @@ translate_button_1(3, {nendo,2}, Mod) when Mod band ?CTRL_BITS =/= 0 ->
     {2,Mod band (bnot ?CTRL_BITS)};
 translate_button_1(B, _, Mod) ->
     {B,Mod}.
+
+%%
+%% The message window.
+%%
+
+message_event(redraw) ->
+    ?CHECK_ERROR(),
+    {W,_} = message_setup(),
+    Msg0 = get(wm_message),
+    Msg = if
+	      Msg0 == undefined -> [];
+	      true ->
+		  wings_io:text_at(0, Msg0),
+		  Msg0
+	  end,
+    case get(wm_message_right) of
+	undefined -> ok;
+	Right when length(Msg)+length(Right) < W div ?CHAR_WIDTH-3 ->
+	    L = length(Right),
+	    Pos = W-?CHAR_WIDTH*(L+3),
+	    wings_io:set_color(?MENU_COLOR),
+	    gl:recti(Pos-?CHAR_WIDTH, -?LINE_HEIGHT+3,
+		     Pos+(L+1)*?CHAR_WIDTH, 3),
+	    gl:color3f(0, 0, 0),
+	    wings_io:text_at(Pos, Right);
+	_ -> ok
+    end,
+    ?CHECK_ERROR(),
+    keep;
+message_event(_) -> keep.
+
+message_setup() ->
+    wings_io:ortho_setup(),
+    {_,_,W,H} = viewport(),
+    wings_io:set_color(?PANE_COLOR),
+    gl:recti(0, 0, W, H),
+    wings_io:border(6, 3, W-10, H-5, ?PANE_COLOR),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:loadIdentity(),
+    gl:translatef(10, H-8, 0),
+    {W,H}.
+
+%% Dirty hack to draw in the front buffer.
+draw_message(F) ->
+    ?CHECK_ERROR(),
+    gl:flush(),
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:drawBuffer(?GL_FRONT),
+    OldViewport = viewport(),
+    {X,Y,W,H} = Viewport = viewport(message),
+    gl:viewport(X, Y, W, H),
+    put(wm_viewport, Viewport),
+    message_setup(),
+    Res = F(),
+    put(wm_viewport, OldViewport),
+    gl:drawBuffer(?GL_BACK),
+    gl:popAttrib(),
+    Res.
+
+draw_completions(F) ->
+    gl:flush(),
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+
+    gl:matrixMode(?GL_PROJECTION),
+    gl:pushMatrix(),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:pushMatrix(),
+
+    OldViewport = viewport(),
+    {X,Y,W,H} = Viewport = viewport(geom),
+    gl:viewport(X, Y, W, H),
+    put(wm_viewport, Viewport),
+
+    gl:drawBuffer(?GL_FRONT),
+    wings_io:ortho_setup(),
+    gl:loadIdentity(),
+    Margin = 10,
+    gl:translatef(float(Margin), H / 6, 0),
+    wings_io:border(0, 0, W-2*Margin, 4*H div 6, ?MENU_COLOR),
+    gl:translatef(10.0, float(?LINE_HEIGHT), 0.0),
+    Res = F(),
+    gl:drawBuffer(?GL_BACK),
+
+    put(wm_viewport, OldViewport),
+
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_MODELVIEW),
+
+    gl:popAttrib(),
+
+    Res.

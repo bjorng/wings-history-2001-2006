@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.48 2002/11/17 16:22:13 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.49 2002/11/23 08:48:49 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -72,10 +72,10 @@ get_matrices(Id, MM) ->
 	    gl:multMatrixf(Matrix);
 	original -> ok
     end,
-    ViewPort = wings_wm:viewport(),
+    {_,_,W,H} =  wings_wm:viewport(),
     ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
     ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
-    {ModelMatrix,ProjMatrix,ViewPort}.
+    {ModelMatrix,ProjMatrix,{0,0,W,H}}.
 
 mirror_matrix(Id) ->
     wings_draw_util:fold(fun mirror_matrix/2, Id).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.164 2002/10/30 19:21:42 bjorng Exp $
+%%     $Id: wings.erl,v 1.165 2002/11/23 08:48:49 bjorng Exp $
 %%
 
 -module(wings).
@@ -138,7 +138,11 @@ init(File, Root) ->
     caption(St),
     wings_wm:init(),
     open_file(File),
-    case catch wings_wm:top_window(main_loop(St)) of
+    {W,H} = wings_wm:top_size(),
+    Op = {seq,{push,dummy},main_loop_noredraw(St)},
+    wings_wm:new(geom, {0,0,0}, {W,H}, Op),
+    wings_wm:set_active(geom),
+    case catch wings_wm:enter_event_loop() of
 	{'EXIT',normal} ->
 	    wings_file:finish(),
 	    wings_pref:finish(),
@@ -247,7 +251,7 @@ handle_event_3({drag_arguments,_}, _St) ->	%Repeat Drag that failed.
     keep;
 handle_event_3(redraw, St) ->
     wings_draw:render(St),
-    case wings_wm:is_window_active(top) of
+    case wings_wm:is_window_active(geom) of
 	true ->
 	    Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
 	    wings_io:message(Message);

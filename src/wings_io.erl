@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.67 2002/10/09 05:56:58 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.68 2002/11/23 08:48:49 bjorng Exp $
 %%
 
 -module(wings_io).
--export([init/0,menubar/1,resize/2,display/1,
+-export([init/0,menubar/1,resize/2,
 	 icon_restriction/1,clear_icon_restriction/0,get_icon_restriction/0,
 	 arrow/0,hourglass/0,
 	 draw_ui/1,
@@ -25,7 +25,6 @@
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,text/1,menu_text/3,axis_text/4,space_at/2,
 	 draw_icon/5,
-	 draw_message/1,draw_completions/1,
 	 set_color/1]).
 -export([putback_event/1,get_event/0,poll_event/0,
 	 set_timer/2,cancel_timer/1]).
@@ -48,8 +47,6 @@
 	 h,					%Height of screen (pixels).
 	 menubar,				%Menu bar at top.
 	 sel,					%Selected item in menubar.
-	 message,				%Message to show (or undefined).
-	 right,					%Message to the right.
 	 eq,					%Event queue.
 	 icons=[],				%Position for Icons.
 	 tex=[],				%Textures.
@@ -62,6 +59,7 @@
 	}).
 
 init() ->
+    put(wm_message, ""),			%XXX Quick hack.
     Icons = read_icons(),
     Arrow = build_cursor(arrow_data()),
     Hourglass = build_cursor(hourglass_data()),
@@ -133,34 +131,13 @@ menubar(Menubar) ->
     put_state(Io#io{menubar=Menubar}).
 
 disable_progress() ->
-    Io = get_state(),
-    put_state(Io#io{progress_pos=none}).
+    ok.
     
-progress(Message) ->
-    display(fun(_W, _H) ->
-		    draw_message(fun() -> text_at(0, Message) end)
-	    end),
-    Io = get_state(),
-    put_state(Io#io{progress_pos=length(Message)*?CHAR_WIDTH}).
+progress(_Message) ->
+    ok.
     
 progress_tick() ->
-    case get_state() of
-	#io{progress_pos=none} -> ok;
-	#io{w=W,h=H,progress_pos=Pos}=Io ->
-	    gl:drawBuffer(?GL_FRONT),
-	    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-	    gl:shadeModel(?GL_FLAT),
-	    gl:disable(?GL_DEPTH_TEST),
-	    gl:matrixMode(?GL_PROJECTION),
-	    gl:loadIdentity(),
-	    glu:ortho2D(0.0, float(W), float(H), 0.0),
-	    gl:matrixMode(?GL_MODELVIEW),
-	    gl:loadIdentity(),
-	    gl:color3f(0.0, 0.0, 0.0),
-	    draw_message(fun() -> text_at(Pos, ".") end),
-	    cleanup_after_drawing(),
-	    put_state(Io#io{progress_pos=Pos+?CHAR_WIDTH})
-    end.
+    ok.
 
 info(Info) ->
     ortho_setup(),
@@ -168,28 +145,25 @@ info(Info) ->
     text_at(4, 2*?LINE_HEIGHT+3, Info).
     
 message(Message) ->
-    case get_state() of
-	#io{message=Message} -> ok;
-	Io ->
-	    put_state(Io#io{message=Message}),
-	    wings_wm:dirty()
+    case put(wm_message, Message) of
+	Message -> ok;
+	_ -> wings_wm:dirty()
     end.
 
-message_right(Right) ->
-    case get_state() of
-	#io{right=Right} -> ok;
-	Io ->
-	    put_state(Io#io{right=lists:flatten(Right)}),
-	    wings_wm:dirty()
+message_right(Right0) ->
+    Right = lists:flatten(Right0),
+    case put(wm_message_right, Right) of
+	Right -> ok;
+	_ -> wings_wm:dirty()
     end.
 
 clear_message() ->
-    Io = get_state(),
-    put_state(Io#io{message=undefined,right=undefined}),
+    put(wm_message, ""),
+    erase(wm_message_right),
     wings_wm:dirty().
 
 clear_menu_sel() ->
-    put_state((get_state())#io{sel=undefined,message=undefined}).
+    put_state((get_state())#io{sel=undefined}).
 
 icon_restriction(Modes) ->
     put_state((get_state())#io{selmodes=Modes}).
@@ -200,14 +174,6 @@ clear_icon_restriction() ->
 get_icon_restriction() ->
     #io{selmodes=Modes} = get_state(),
     Modes.
-
-display(F) ->
-    #io{w=W,h=H} = Io = get_state(),
-    setup_for_drawing(),
-    draw_panes(Io),
-    Res = F(W, H),
-    cleanup_after_drawing(),
-    Res.
 
 draw_ui(St) ->
     display(fun(Io) -> update(Io, St) end, ?GL_BACK).
@@ -245,32 +211,11 @@ display(F, Buf) ->
     cleanup_after_drawing(),
     ok.
 
-update(#io{message=Msg0,right=Right,w=W,h=H}=Io0, St) ->
-    draw_icons(Io0, St),
-    draw_panes(Io0),
+update(#io{h=H}=Io, St) ->
+    draw_icons(Io, St),
+    draw_panes(Io),
     maybe_show_mem_used(H),
-    draw_message(
-      fun() ->
-	      Msg = if
-			Msg0 == undefined -> [];
-			true ->
-			    text_at(0, Msg0),
-			    Msg0
-		    end,
-	      if
-		  Right == undefined -> ok;
-		  length(Msg)+length(Right) < W div ?CHAR_WIDTH-3 ->
-		      L = length(Right),
-		      Pos = W-?CHAR_WIDTH*(L+3),
-		      set_color(?MENU_COLOR),
-		      gl:recti(Pos-?CHAR_WIDTH, -?LINE_HEIGHT+3,
-			       Pos+(L+1)*?CHAR_WIDTH, 3),
-		      gl:color3f(0, 0, 0),
-		      text_at(Pos, Right);
-		  true -> ok
-	      end
-      end),
-    Io0.
+    Io.
 
 maybe_show_mem_used(H) ->
     case wings_pref:get_value(show_memory_used) of
@@ -295,9 +240,8 @@ maybe_show_mem_used(H) ->
 	false -> ok
     end.
 
-draw_panes(#io{w=W,h=H,menubar=Bar,sel=Sel}) ->
+draw_panes(#io{w=W,menubar=Bar,sel=Sel}) ->
     border(0, -1, W, ?LINE_HEIGHT+6),
-    border(6, H-2*?LINE_HEIGHT+6, W-10, 2*?LINE_HEIGHT-10, ?PANE_COLOR),
     draw_bar(0, Bar, Sel).
 
 -define(MENU_MARGIN, 8).
@@ -315,10 +259,10 @@ draw_bar(X, [{Name,Item}|T], Sel) ->
 draw_bar(_X, [], _Sel) -> ok.
 
 draw_icons(#io{w=W,h=H,icons=Icons0,selmodes=Modes}, St) ->
-    border(-2, H-4*?LINE_HEIGHT-3, W+2, 4*?LINE_HEIGHT+3),
+    border(-2, H-2*?LINE_HEIGHT-3, W+2, 4*?LINE_HEIGHT+3),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    Y = H-4*?LINE_HEIGHT+2,
+    Y = H-2*?LINE_HEIGHT+2,
     Icons = case Modes of
 		all -> Icons0;
 		_ -> [Icon || {_,Name}=Icon <- Icons0, member(Name, Modes)]
@@ -361,7 +305,7 @@ event(_) -> next.
 button(X, Y) when Y > ?LINE_HEIGHT; X < ?MENU_MARGIN ->
     #io{h=H,icons=Icons} = get_state(),
     put_state((get_state())#io{sel=undefined}),
-    case H-4*?LINE_HEIGHT of
+    case H-2*?LINE_HEIGHT of
 	Low when Low =< Y, Y < Low + 32 ->
 	    icon_row_hit(X, Icons),
 	    ignore;

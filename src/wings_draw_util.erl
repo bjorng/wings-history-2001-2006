@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.43 2002/11/01 19:32:25 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.44 2002/11/23 08:48:49 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -170,6 +170,7 @@ fold(Fun, Acc) ->
 %%
 
 render(#st{selmode=Mode}=St) ->
+    ?CHECK_ERROR(),
     gl:pushAttrib(?GL_CURRENT_BIT bor ?GL_ENABLE_BIT bor
 		  ?GL_TEXTURE_BIT bor ?GL_POLYGON_BIT bor
 		  ?GL_LINE_BIT bor ?GL_COLOR_BUFFER_BIT bor

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.13 2002/11/17 18:19:21 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.14 2002/11/23 08:48:49 bjorng Exp $
 %%
 
 -module(wings_getline).
@@ -48,20 +48,8 @@ yes_no(Prompt0) ->
 	"yes" -> yes;
 	"no" -> no;
 	aborted -> aborted;
-	_ ->
-	    please_answer_yes_or_no(),
-	    yes_no(Prompt0)
+	_ -> yes_no(Prompt0)
     end.
-
-please_answer_yes_or_no() ->
-    wings_io:display(
-      fun(_, _) ->
-	      wings_io:draw_message(
-		fun() ->
-			wings_io:text_at(0, "Please answer yes or no.")
-		end)
-      end),
-    receive after 1000 -> ok end.
 
 cwd() ->
     slashify(wings_pref:get_value(current_directory)).
@@ -73,11 +61,8 @@ slashify(Cwd0) ->
 	_Other -> Cwd ++ "/"
     end.
 	    
-readline(Prompt, Ts) ->
-    wings_io:display(fun(W, H) -> readline(W, H, Prompt, Ts) end).
-			     
-readline(_, _, Prompt, #text{bef=Bef}=Ts0) ->
-    wings_io:draw_message(
+readline(Prompt, #text{bef=Bef}=Ts0) ->
+    wings_wm:draw_message(
       fun() ->
 	      wings_io:text_at(0, Prompt),
 	      X = ?CHAR_WIDTH * length(Prompt),
@@ -88,7 +73,7 @@ readline(_, _, Prompt, #text{bef=Bef}=Ts0) ->
       end).
 
 init_text(String) ->
-    [_,_,_,H] = gl:getIntegerv(?GL_VIEWPORT),
+    {_,_,_,H} = wings_wm:viewport(message),
     X = 0,
     Y = H-?LINE_HEIGHT,
     #text{max=40,bef=lists:reverse(String),aft=[],x=X,y=Y}.
@@ -235,7 +220,7 @@ print_matches(L) ->
 
 col_print([]) -> ok;
 col_print(L)  ->
-    wings_io:draw_completions(
+    wings_wm:draw_completions(
       fun() ->
 	      wings_io:text_at(0, "Completions: "),
 	      col_print(L, field_width(L), 0, 0, 2*?LINE_HEIGHT)

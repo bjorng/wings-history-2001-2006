@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.66 2002/11/15 11:44:02 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.67 2002/11/23 08:48:49 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -81,7 +81,7 @@ pick(X, Y, St0) ->
 	    case do_pick(X, Y, St0) of
 		none ->
 		    Pick = #marquee{ox=X,oy=Y,st=St0},
-		    marquee_mode(Pick);
+		    clear_hilite_marquee_mode(Pick);
 		{PickOp,_,St} ->
 		    wings_wm:dirty(),
 		    Pick = #pick{st=St,op=PickOp},
@@ -116,7 +116,7 @@ handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
 	    insert_hilite_fun(Hit, DrawFun),
 	    get_hilite_event(HL#hl{prev=Hit})
     end;
-handle_hilite_event(#resize{w=W,h=H}=Resize, #hl{st=St}) ->
+handle_hilite_event(#resize{w=W,h=H}, #hl{st=St}) ->
     wings:resize(W, H, St),
     keep;
 handle_hilite_event(_, _) ->
@@ -184,32 +184,23 @@ hilit_draw_sel(body, _, #we{fs=Ftab}=We) ->
 %% Marquee picking.
 %%
 clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
-    wings_wm:dirty(),
+    Message = "[Ctrl] Deselect  "
+	"[Shift] (De)select only elements wholly inside marquee",
+    wings_io:message(Message),
     {seq,{push,dummy},
      fun(redraw) ->
+	     wings_wm:set_active(dummy),
 	     wings:redraw(St),
+	     wings_wm:set_active(geom),
 	     wings_io:putback_event(now_enter_marquee_mode),
 	     keep;
 	(now_enter_marquee_mode) ->
-	     init_marquee_mode(),
+	     wings_io:setup_for_drawing(),
 	     get_marquee_event(Pick);
 	(Ev) ->
 	     wings_io:putback_event(Ev),
 	     keep
      end}.
-
-marquee_mode(Pick) ->
-    init_marquee_mode(),
-    {seq,{push,dummy},get_marquee_event(Pick)}.
-
-init_marquee_mode() ->
-    Message = "[Ctrl] Deselect  "
-	"[Shift] (De)select only elements wholly inside marquee",
-    wings_io:setup_for_drawing(),
-    wings_io:draw_message(
-      fun() ->
-	      wings_io:text_at(0, Message)
-      end).
 
 get_marquee_event(Pick) ->
     {replace,fun(Ev) -> marquee_event(Ev, Pick) end}.
