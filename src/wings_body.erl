@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.59 2003/06/02 19:40:34 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.60 2003/06/17 05:44:55 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -427,8 +427,9 @@ combine(#st{shapes=Shs0,sel=[{Id,_}=S|_]=Sel0}=St) ->
     Sel1 = sofs:from_external(Sel0, [{id,dummy}]),
     Sel2 = sofs:domain(Sel1),
     {Wes0,Shs2} = sofs:partition(1, Shs1, Sel2),
-    Wes = sofs:to_external(sofs:range(Wes0)),
-    Mode = unify_modes(Wes),
+    Wes1 = sofs:to_external(sofs:range(Wes0)),
+    Mode = unify_modes(Wes1),
+    Wes = add_zero_uvs(Wes1, Mode),
     We0 = wings_we:merge(Wes),
     We = We0#we{id=Id,mode=Mode},
     Shs = gb_trees:from_orddict(sort([{Id,We}|sofs:to_external(Shs2)])),
@@ -449,6 +450,19 @@ unify_modes_1([_,vertex]) ->
 		     "with objects with materials and/or textures.");
 unify_modes_1([material,uv]) -> uv.
 
+add_zero_uvs(Wes, material) -> Wes;
+add_zero_uvs(Wes, uv) -> add_zero_uvs_1(Wes, {0.0,0.0}, []).
+
+add_zero_uvs_1([#we{mode=uv}=We|Wes], ZeroUV, Acc) ->
+    add_zero_uvs_1(Wes, ZeroUV, [We|Acc]);
+add_zero_uvs_1([#we{es=Etab0}=We|Wes], ZeroUV, Acc) ->
+    Etab1 = foldl(fun({E,Rec}, A) ->
+			  [{E,Rec#edge{a=ZeroUV,b=ZeroUV}}|A]
+		  end, [], gb_trees:to_list(Etab0)),
+    Etab = gb_trees:from_orddict(reverse(Etab1)),
+    add_zero_uvs_1(Wes, ZeroUV, [We#we{es=Etab}|Acc]);
+add_zero_uvs_1([], _, Acc) -> reverse(Acc).
+		    
 %%%
 %%% The Separate command.
 %%%
