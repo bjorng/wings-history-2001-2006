@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.24 2002/02/22 11:20:58 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.25 2002/02/23 18:48:59 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -74,13 +74,13 @@ build_rest(Type, Es, Fs, Vs, HardEdges) ->
 build_edges(Fs) ->
     build_edges(Fs, 0, []).
 
-build_edges([{Material,Vs,Tx}|Fs], Face, Eacc0) ->
+build_edges([{_Material,Vs,Tx}|Fs], Face, Eacc0) ->
     build_edges_1(Vs, Tx, Fs, Face, Eacc0);
-build_edges([{Material,Vs}|Fs], Face, Eacc0) ->
+build_edges([{_Material,Vs}|Fs], Face, Eacc0) ->
     build_edges_1(Vs, tx_filler(Vs), Fs, Face, Eacc0);
 build_edges([Vs|Fs], Face, Eacc0) ->
     build_edges_1(Vs, tx_filler(Vs), Fs, Face, Eacc0);
-build_edges([], Face, Eacc) ->
+build_edges([], _Face, Eacc) ->
     R = sofs:relation(Eacc, [{name,{side,data}}]),
     F = sofs:relation_to_family(R),
     combine_half_edges(sofs:to_external(F)).
@@ -91,18 +91,18 @@ build_edges_1(Vs, UVs, Fs, Face, Acc0) ->
     Acc = build_face_edges(Pairs, Face, Acc0),
     build_edges(Fs, Face+1, Acc).
 
-build_face_edges([{Pred,_}|[{E0,{UVa,UVb}},{Succ,_}|_]=Es], Face, Acc0) ->
+build_face_edges([{Pred,_}|[{E0,{_UVa,UVb}},{Succ,_}|_]=Es], Face, Acc0) ->
     Acc = case E0 of
 	      {Vs,Ve}=Name when Vs < Ve ->
 		  enter_half_edge(right, Name, Face, Pred, Succ, UVb, Acc0);
 	      {Vs,Ve} when Ve < Vs ->
 		  Name = {Ve,Vs},
 		  enter_half_edge(left, Name, Face, Pred, Succ, UVb, Acc0);
-	      Equal=Name ->
+	      _Equal=Name ->
 		  enter_half_edge(same, Name, Face, Pred, Succ, UVb, Acc0)
 	  end,
     build_face_edges(Es, Face, Acc);
-build_face_edges([_,_], Face, Acc) -> Acc.
+build_face_edges([_,_], _Face, Acc) -> Acc.
 
 enter_half_edge(Side, Name, Face, Pred, Succ, UV,Tab0) ->
     Rec = {Face,UV,edge_name(Pred),edge_name(Succ)},
@@ -352,7 +352,7 @@ renumber(We0, Id) ->
     {We,_} = renumber(We0, Id, []),
     We.
 
-renumber(#we{mode=Mode,vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We0,
+renumber(#we{mode=Mode,vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0,perm=Perm0}=We0,
 	 Id, RootSet0) ->
     Etab1 = gb_trees:to_list(Etab0),
     {Emap,IdE} = make_map(Etab1, Id),
@@ -381,30 +381,40 @@ renumber(#we{mode=Mode,vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We0,
 		  end, [], gb_sets:to_list(Htab0)),
     Htab = gb_sets:from_list(Htab1),
 
+    Perm = case Perm0 of
+	       {SelMode,Elems0} ->
+		   Root = [{SelMode,gb_sets:to_list(Elems0),[]}],
+		   [{_,Elems,_}] = map_rootset(Root, Emap, Vmap, Fmap),
+		   {SelMode,gb_sets:from_list(Elems)};
+	       _ -> Perm0
+	   end,
+
     RootSet = map_rootset(RootSet0, Emap, Vmap, Fmap),
     NextId = last(sort([IdV,IdE,IdF])),
-    We = We0#we{mode=Mode,vs=Vtab,es=Etab,fs=Ftab,he=Htab,
+    We = We0#we{mode=Mode,vs=Vtab,es=Etab,fs=Ftab,he=Htab,perm=Perm,
 		first_id=Id,next_id=NextId},
     {We,RootSet}.
 
-map_rootset([{vertex,Vs}|T], Emap, Vmap, Fmap) when list(Vs) ->
-    [map_all(vertex, Vs, Vmap)|map_rootset(T, Emap, Vmap, Fmap)];
+map_rootset([{vertex,Vs,Data}|T], Emap, Vmap, Fmap) when is_list(Vs) ->
+    [map_all(vertex, Vs, Data, Vmap)|map_rootset(T, Emap, Vmap, Fmap)];
+map_rootset([{edge,Edges,Data}|T], Emap, Vmap, Fmap) when is_list(Edges) ->
+    [map_all(edge, Edges, Data, Emap)|map_rootset(T, Emap, Vmap, Fmap)];
+map_rootset([{face,Faces,Data}|T], Emap, Vmap, Fmap) when is_list(Faces) ->
+    [map_all(face, Faces, Data, Fmap)|map_rootset(T, Emap, Vmap, Fmap)];
+map_rootset([{body,_Empty,_Data}=Sel|T], Emap, Vmap, Fmap) ->
+    [Sel|map_rootset(T, Emap, Vmap, Fmap)];
 map_rootset([{vertex,V}|T], Emap, Vmap, Fmap) ->
     [{vertex,gb_trees:get(V, Vmap)}|map_rootset(T, Emap, Vmap, Fmap)];
-map_rootset([{edge,Edges}|T], Emap, Vmap, Fmap) when list(Edges) ->
-    [map_all(edge, Edges, Emap)|map_rootset(T, Emap, Vmap, Fmap)];
 map_rootset([{edge,Edge}|T], Emap, Vmap, Fmap) ->
     [{edge,gb_trees:get(Edge, Emap)}|map_rootset(T, Emap, Vmap, Fmap)];
-map_rootset([{face,Faces}|T], Emap, Vmap, Fmap) when list(Faces)  ->
-    [map_all(face, Faces, Fmap)|map_rootset(T, Emap, Vmap, Fmap)];
 map_rootset([{face,Face}|T], Emap, Vmap, Fmap) ->
     [{face,gb_trees:get(Face, Fmap)}|map_rootset(T, Emap, Vmap, Fmap)];
 map_rootset([{body,Empty}|T], Emap, Vmap, Fmap) ->
     [{body,Empty}|map_rootset(T, Emap, Vmap, Fmap)];
 map_rootset([], _, _, _) -> [].
 
-map_all(What, Items, Map) ->
-    {What,[gb_trees:get(Key, Map) || Key <- Items]}.
+map_all(What, Items, Data, Map) ->
+    {What,[gb_trees:get(Key, Map) || Key <- Items],Data}.
 
 make_map(Tab, Id0) ->
     make_map(Tab, Id0, []).
@@ -634,7 +644,7 @@ delete_digraph(G) -> digraph:delete(G).
 
 update_digraph(G, V, #we{he=Htab}=We) ->
     wings_vertex:fold(
-      fun(Edge, _, #edge{lf=Lf0,rf=Rf0}, A) ->
+      fun(Edge, _, #edge{lf=Lf0,rf=Rf0}, _) ->
 	      case gb_sets:is_member(Edge, Htab) of
 		  true -> ok;
 		  false ->
@@ -718,11 +728,11 @@ validate_faces(#we{fs=Ftab}=We) ->
 		    Ccw = walk_face_ccw(Face, Edge, Edge, We, []),
  		    case reverse(Ccw) of
  			Cw -> ok;
- 			Other -> exit({face_cw_ccw_inconsistency,Face})
+ 			_Other -> exit({face_cw_ccw_inconsistency,Face})
  		    end
 	    end, gb_trees:to_list(Ftab)).
 
-walk_face_cw(Face, LastEdge, LastEdge, We, [_|_]=Acc) -> Acc;
+walk_face_cw(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
 walk_face_cw(Face, Edge, LastEdge, We, Acc) ->
     #we{es=Etab} = We,
     case gb_trees:get(Edge, Etab) of
@@ -732,7 +742,7 @@ walk_face_cw(Face, Edge, LastEdge, We, Acc) ->
 	    walk_face_cw(Face, Next, LastEdge, We, [V|Acc])
     end.
 
-walk_face_ccw(Face, LastEdge, LastEdge, We, [_|_]=Acc) -> Acc;
+walk_face_ccw(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
 walk_face_ccw(Face, Edge, LastEdge, We, Acc) ->
     #we{es=Etab} = We,
     case gb_trees:get(Edge, Etab) of
@@ -742,7 +752,7 @@ walk_face_ccw(Face, Edge, LastEdge, We, Acc) ->
 	    walk_face_ccw(Face, Next, LastEdge, We, [V|Acc])
     end.
 
-validate_vertex_tab(#we{es=Etab,vs=Vtab}=We) ->
+validate_vertex_tab(#we{es=Etab,vs=Vtab}) ->
     foreach(fun({V,#vtx{edge=Edge}}) ->
 		    case gb_trees:get(Edge, Etab) of
 			#edge{vs=V}=Rec ->

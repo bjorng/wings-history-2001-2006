@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.52 2002/02/22 11:20:58 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.53 2002/02/23 18:48:59 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -138,7 +138,8 @@ new(#st{saved=false}=St0) ->
 	aborted -> aborted
     end;
 new(#st{saved=true}=St) ->
-    wings:caption(St#st{file=undefined,shapes=gb_trees:empty(),sel=[]}).
+    wings:caption(St#st{file=undefined,shapes=gb_trees:empty(),
+			sel=[],svec=[]}).
 
 read(St0) ->
     case new(St0) of

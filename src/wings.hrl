@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.45 2002/02/16 15:15:49 bjorng Exp $
+%%     $Id: wings.hrl,v 1.46 2002/02/23 18:48:59 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -119,10 +119,10 @@
 	 perm=0,				%Permissions:
 						% 0 - Everything allowed.
 						% 1 - Visible, can't select.
-						% [],GbSet - Invisible,
-						%  can't select. The GbSet
-						%  contains the object's
-						%  selection.
+						% [] or {Mode,GbSet} -
+						%  Invisible, can't select.
+						%  The GbSet contains the
+						%  object's selection.
 	 name,					%Name.
 	 es,					%gb_tree containing edges
 	 vs,					%gb_tree containing vertices
