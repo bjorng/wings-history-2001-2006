@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.33 2002/10/28 18:30:58 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.34 2002/10/30 09:05:44 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -25,7 +25,7 @@
 
 -import(lists, [sort/1, map/2, foldl/3, reverse/1, 
 		append/1,delete/2, usort/1, max/1, min/1,
-		member/2]).
+		member/2,foreach/2]).
 
 init() ->
     true.
@@ -93,6 +93,7 @@ start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0) ->
     wings_io:icon_restriction(Modes),
     We0 = gb_trees:get(Id, Shs),
     We = We0#we{mode=material},
+    check_for_defects(We),
     St1 = seg_create_materials(St0),
     St = St1#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
     Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=We0}),
@@ -324,6 +325,17 @@ make_mat(Diff) ->
     [{opengl,[{diffuse,Diff},
 	      {ambient,Diff},
 	      {specular,{0.0,0.0,0.0}}]}].
+
+check_for_defects(#we{vs=Vtab}=We) ->
+    foreach(fun(V) -> check_isolated_vertex(V, We) end, gb_trees:keys(Vtab)).
+
+check_isolated_vertex(V, We) ->
+    case wings_vertex:fold(fun(_, _, _, N) -> N+1 end, 0, V, We) of
+	2 ->
+	    wings_util:error("The model has one or more isolated vertices.");
+	_ -> 
+	    ok
+    end.
 
 %%%
 %%% Edit interface.
