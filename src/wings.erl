@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.169 2002/11/26 20:08:48 bjorng Exp $
+%%     $Id: wings.erl,v 1.170 2002/11/27 05:48:31 bjorng Exp $
 %%
 
 -module(wings).
@@ -132,7 +132,8 @@ init(File, Root) ->
     init_menubar(),
     open_file(File),
     {W,H} = wings_wm:top_size(),
-    Op = {seq,{push,dummy},main_loop_noredraw(St)},
+    Op = main_loop_noredraw(St),		%Replace crash handler
+						%with this handler.
     wings_wm:new(geom, {0,0,1}, {W,H}, Op),
     case catch wings_wm:enter_event_loop() of
 	{'EXIT',normal} ->
@@ -193,8 +194,7 @@ main_loop_noredraw(St) ->
     {replace,fun(Event) -> handle_event(Event, St) end}.
 
 handle_event({crash,_}=Crash, St) ->
-    LogName = wings_util:crash_log(Crash),
-    get_crash_event(LogName, St);
+    crash_logger(Crash, St);
 handle_event({open_file,Name}, St0) ->
     case catch ?SLOW(wings_ff_wings:import(Name, St0)) of
 	#st{}=St ->
@@ -695,6 +695,10 @@ command_name(Repeat, CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
 	end,
     lists:flatten(S).
 
+crash_logger(Crash, St) ->
+    LogName = wings_util:crash_log(Crash),
+    get_crash_event(LogName, St).
+
 get_crash_event(Log, St) ->
     wings_wm:dirty(),
     {replace,fun(Ev) -> crash_handler(Ev, Log, St) end}.
@@ -705,8 +709,10 @@ crash_handler(redraw, Log, _St) ->
 		     "Internal error - log written to " ++ Log),
     wings_io:text_at(10, 4*?LINE_HEIGHT,
 		     "Click a mouse button to continue working"),
+    wings_wm:message("[L] Continue working", ""),
     keep;
-crash_handler(#mousebutton{}, _Log, St) ->
+crash_handler(#mousebutton{}, _, St) ->
+    init_menubar(),
     main_loop(St);
 crash_handler(_, Log, St) ->
     get_crash_event(Log, St).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.24 2002/11/27 04:52:13 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.25 2002/11/27 05:48:31 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -114,7 +114,7 @@ callback(Cb) ->
 new(Name, {X,Y,Z}, {W,H}, Op) when is_integer(X), is_integer(Y),
 				   is_integer(W), is_integer(H) ->
     dirty(),
-    Stk = handle_response(Op, dummy_event, default_stack()),
+    Stk = handle_response(Op, dummy_event, default_stack(Name)),
     Win = #win{x=X,y=Y,z=Z,w=W,h=H,name=Name,stk=Stk},
     put(wm_windows, gb_trees:insert(Name, Win, get(wm_windows))),
     keep.
@@ -342,7 +342,7 @@ handle_event(#se{h=Handler}, Event, Stk) ->
 	{'EXIT',Reason} ->
 	    #se{h=CrashHandler} = last(Stk),
 	    handle_response(CrashHandler({crash,Reason}),
-			    Event, default_stack());
+			    Event, default_stack(unknown_window));
 	Res ->
 	    handle_response(Res, Event, Stk)
     end.
@@ -373,9 +373,9 @@ replace_handler(Handler, [Top|Stk]) -> [Top#se{h=Handler}|Stk].
 next_handler(Event, [_|[Next|_]=Stk]) ->
     handle_event(Next, Event, Stk).
 
-default_stack() ->
+default_stack(Name) ->
     Handler = fun(Crash) ->
-		      io:format("Crashed: ~p\n", [Crash]),
+		      io:format("Window ~p crashed: ~p\n", [Name,Crash]),
 		      exit(too_bad)
 	      end,
     [#se{h=Handler}].
