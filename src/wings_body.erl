@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.53 2003/03/19 05:32:58 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.54 2003/04/18 19:50:54 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -141,7 +141,8 @@ cleanup(Ask, _) when is_atom(Ask) ->
 cleanup(Opts, St0) ->
     St = wings_sel:map(fun(_, We0) ->
 			       We1 = cleanup_repeated_vtxs(We0),
-			       We = cleanup_waists(We1),
+			       We2 = cleanup_waists(We1),
+			       We = cleanup_2edged_faces(We2),
 			       cleanup_1(Opts, We)
 		       end, St0),
     {save_state,St}.
@@ -240,7 +241,7 @@ cleanup_rep_4([{Vtx,Edge}|T]=Ves, V0, Face, NewFace, Etab0) ->
     end.
 
 repeated_vertex(Face, We) ->
-    Vs = wings_face:surrounding_vertices(Face, We),
+    Vs = wings_face:vertices_ccw(Face, We),
     repeated_vertex_1(sort(Vs)).
 
 repeated_vertex_1([V,V|_]) -> V;
@@ -298,6 +299,29 @@ patch_vtx_refs([E|Es], OldV, NewV, Etab0) ->
 	   end,
     patch_vtx_refs(Es, OldV, NewV, Etab);
 patch_vtx_refs([], _, _, Etab) -> Etab.
+
+%%
+%% Remove faces having only two edges.
+%%
+cleanup_2edged_faces(#we{fs=Ftab}=We) ->
+    delete_2edged_faces_1(gb_trees:keys(Ftab), We).
+
+delete_2edged_faces_1([Face|Faces], #we{fs=Ftab,es=Etab}=We0) ->
+    %% Note: The face could have been deleted by a previous
+    %% wings_edge:dissolve_edge/2.
+    We = case gb_trees:lookup(Face, Ftab) of
+	     {value,#face{edge=Edge}} ->
+		 case gb_trees:get(Edge, Etab) of
+		     #edge{ltpr=Same,ltsu=Same} ->
+			 wings_edge:dissolve_edge(Edge, We0);
+		     #edge{rtpr=Same,rtsu=Same} ->
+			 wings_edge:dissolve_edge(Edge, We0);
+		     _ -> We0
+		 end;
+	     none -> We0
+	 end,
+    delete_2edged_faces_1(Faces, We);
+delete_2edged_faces_1([], We) -> We.
 
 %%%
 %%% The Invert command.
@@ -712,7 +736,7 @@ weld_selection([F|Fs], OldWe, #we{fs=Ftab}=We, Acc) ->
     case gb_trees:is_defined(F, Ftab) of
 	true -> weld_selection(Fs, OldWe, We, Acc);
 	false ->
-	    Vs = wings_face:surrounding_vertices(F, OldWe),
+	    Vs = wings_face:vertices_ccw(F, OldWe),
 	    weld_selection(Fs, OldWe, We, Vs++Acc)
     end;
 weld_selection([], _, _, Acc) ->
