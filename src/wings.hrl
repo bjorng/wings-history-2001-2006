@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.56 2002/05/10 14:02:59 bjorng Exp $
+%%     $Id: wings.hrl,v 1.57 2002/05/11 08:47:50 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -76,8 +76,10 @@
 	 normals=none,				%Normals.
 	 pick=none,				%For picking.
 
-	 %% Hilighting.
+	 %% Miscellanous.
 	 hilite=none,				%Hilite fun.
+	 wire=false,				%Wire/shaded: true|false
+	 mirror=none,				%Virtual mirror data.
 
 	 %% Source for display lists.
 	 src_we=none,				%Source object.

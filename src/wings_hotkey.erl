@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.21 2002/04/22 06:59:05 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.22 2002/05/11 08:47:50 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -245,9 +245,12 @@ default_keybindings() ->
      {$o,               {view,orthogonal_view}},
      {$r,               {view,reset}},
      {$R,               {wings,reset}},
+     {$s,               {view,shade_selected}},
+     {$S,               {view,shade_all}},
      {$u,               {view,auto_rotate}},
      {$v,               {select,vertex}},
-     {$w,               {view,wire_mode}},
+     {$w,               {view,wireframe_selected}},
+     {$W,               {view,wireframe_all}},
      {$x,               {view,{along,x}}},
      {$y,               {view,{along,y}}},
      {$z,               {view,{along,z}}},
@@ -280,13 +283,5 @@ default_keybindings() ->
      {vertex,{?SDLK_DELETE,[]},	{vertex,collapse}},
      {edge,{?SDLK_DELETE,[]},	{edge,dissolve}},
      {face,{?SDLK_DELETE,[]},	{face,dissolve}},
-     {body,{?SDLK_DELETE,[]},	{body,delete}},
-
-     {$S,               {vertex,auto_smooth}},
-     {$S,               {edge,auto_smooth}},
-     {$S,               {face,auto_smooth}},
-     {$S,               {body,auto_smooth}},
-
-     {face,$s,          {face,smooth}},
-     {body,$s,          {body,smooth}}
+     {body,{?SDLK_DELETE,[]},	{body,delete}}
     ].

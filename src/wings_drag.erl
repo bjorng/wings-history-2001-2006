@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.76 2002/05/10 14:02:59 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.77 2002/05/11 08:47:50 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -79,7 +79,8 @@ break_apart(Tvs) ->
     wings_draw_util:update(fun break_apart/2, Tvs).
 
 break_apart(eol, []) -> eol;
-break_apart(#dlo{src_sel=Sel,src_we=#we{id=Id}=We0}, [{Id,TvList}|Tvs]) ->
+break_apart(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=#we{id=Id}=We0},
+	    [{Id,TvList}|Tvs]) ->
     {Vs0,FunList} = combine_tvs(TvList, We0),
     Vs = sofs:set(Vs0, [vertex]),
     #we{es=Etab0,fs=Ftab0,vs=Vtab0} = We0,
@@ -107,7 +108,8 @@ break_apart(#dlo{src_sel=Sel,src_we=#we{id=Id}=We0}, [{Id,TvList}|Tvs]) ->
     StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
     StaticVs = reverse(insert_vtx_data_1(StaticVs0, Vtab0, [])),
     Dyn = {FunList,StaticVs},
-    {#dlo{work=[List],src_sel=Sel,src_we=WeDyn,drag=Dyn},Tvs};
+    {#dlo{work=[List],wire=W,mirror=M,
+	  src_sel=Sel,src_we=WeDyn,drag=Dyn},Tvs};
 break_apart(D, Tvs) -> {D,Tvs}.
 
 dyn_faces(Flist, We) ->
@@ -163,9 +165,10 @@ insert_matrix(Tvs) ->
 			   end, sort(Tvs)).
 
 insert_matrix_fun(eol, _, _) -> eol;
-insert_matrix_fun(#dlo{work=Work,sel=Sel,src_sel=SrcSel,src_we=#we{id=Id}=We},
+insert_matrix_fun(#dlo{work=Work,sel=Sel,wire=W,mirror=M,
+		       src_sel=SrcSel,src_we=#we{id=Id}=We},
 		  [{Id,Tr}|Tvs], Matrix) ->
-    {#dlo{drag={matrix,Tr,Matrix},work={matrix,Matrix,Work},
+    {#dlo{drag={matrix,Tr,Matrix},work={matrix,Matrix,Work},wire=W,mirror=M,
 	  sel={matrix,Matrix,Sel},src_we=We,src_sel=SrcSel},Tvs};
 insert_matrix_fun(D, Tvs, _) -> {D,Tvs}.
 

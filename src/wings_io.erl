@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.48 2002/05/07 06:21:27 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.49 2002/05/11 08:47:50 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -106,7 +106,7 @@ place_icons(W) ->
     Mid = W div 2,
     Lmarg = 5,
     Rmarg = 20,
-    [{Lmarg,wire},{Lmarg+?ICON_WIDTH,flatshade},{Lmarg+2*?ICON_WIDTH,smooth},
+    [{Lmarg,flatshade},{Lmarg+?ICON_WIDTH,smooth},
      {Mid-2*?ICON_WIDTH,vertex},{Mid-?ICON_WIDTH,edge},
      {Mid,face},{Mid+?ICON_WIDTH,body},
      {W-3*?ICON_WIDTH-Rmarg,perspective},
@@ -298,8 +298,6 @@ icon_button(groundplane=Name, _St) ->
     icon_button(Name, show_groundplane, true);
 icon_button(axes=Name, _St) ->
     icon_button(Name, show_axes, true);
-icon_button(wire=Name, _St) ->
-    icon_button(Name, wire_mode, true);
 icon_button(flatshade=Name, _St) ->
     icon_button(Name, workmode, true);
 icon_button(smooth=Name, _St) ->
@@ -356,7 +354,6 @@ icon_row_hit(X, [{Pos,Name}|_]) when Pos =< X, X < Pos+?ICON_WIDTH ->
     Action = case Name of
 		 groundplane -> {view,show_groundplane};
 		 axes -> {view,show_axes};
-		 wire -> {view,wire_mode};
 		 flatshade -> {view,flatshade};
 		 smooth -> {view,smoothshade};
 		 perspective -> {view,orthogonal_view};

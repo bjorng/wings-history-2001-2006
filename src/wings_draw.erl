@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.75 2002/05/10 14:02:59 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.76 2002/05/11 08:47:50 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -62,12 +62,13 @@ prepare_fun(eol, []) ->
     eol;
 prepare_fun(#dlo{src_we=We}=D, [We|Wes]) ->
     {D#dlo{src_we=We},Wes};
-prepare_fun(#dlo{src_we=#we{id=Id}}, [#we{id=Id,perm=Perm}=We|Wes]) ->
+prepare_fun(#dlo{src_we=#we{id=Id},wire=W,mirror=M},
+	    [#we{id=Id,perm=Perm}=We|Wes]) ->
     if 
 	?IS_VISIBLE(Perm) ->
-	    {#dlo{src_we=We},Wes};
+	    {#dlo{src_we=We,wire=W,mirror=M},Wes};
 	true ->
-	    {#dlo{src_we=empty_we(We)},Wes}
+	    {#dlo{src_we=empty_we(We),wire=W,mirror=M},Wes}
     end;
 prepare_fun(#dlo{}, Wes) ->
     {deleted,Wes}.
@@ -387,7 +388,7 @@ make_normals_dlist_1(edge, Edges, #we{es=Etab,vs=Vtab}=We) ->
 					 wings_face:normal(Rf, We)]),
 		    gl:vertex3fv(e3d_vec:add(Mid, e3d_vec:mul(N, 0.3)))
 	    end, Et);
-make_normals_dlist_1(face, Faces, #we{fs=Ftab}=We) ->
+make_normals_dlist_1(face, Faces, We) ->
     foreach(fun(Face) ->
 		    Vs = wings_face:surrounding_vertices(Face, We),
 		    C = wings_vertex:center(Vs, We),

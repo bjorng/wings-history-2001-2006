@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.44 2002/05/10 14:02:59 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.45 2002/05/11 08:47:50 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -131,20 +131,28 @@ command(prefs, St) ->
     wings_ask:dialog(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
 command({set,List}, _St) ->
     foreach(fun({Key,Val}) ->
-		    set_value(Key, Val),
-		    case Key of
-			vertex_size ->
-			    clear_vertex_dlist();
-			background_color ->
-			    {R,G,B} = Val,
-			    gl:clearColor(R, G, B, 1.0);
-			display_list_opt ->
-			    wings_draw_util:init();
-			_Other -> ok
-		    end
+		    smart_set_value(Key, Val)
 	    end, List),
     wings_io:putback_event(redraw),
     keep.
+
+smart_set_value(Key, Val) ->
+    case ets:lookup(wings_state, Key) of
+	[] -> set_value(Key, Val);
+	[{Key,Val}] -> ok;
+	[_] ->
+	    set_value(Key, Val),
+	    case Key of
+		vertex_size ->
+		    clear_vertex_dlist();
+		background_color ->
+		    {R,G,B} = Val,
+		    gl:clearColor(R, G, B, 1.0);
+		display_list_opt ->
+		    wings_draw_util:init();
+		_Other -> ok
+	    end
+    end.
 
 clear_vertex_dlist() ->
     wings_draw_util:update(fun clear_vertex_dlist/2, []).
@@ -294,6 +302,7 @@ clean([], Acc) -> Acc.
 not_bad(last_point, _) -> false;
 not_bad(default_point, _) -> false;
 not_bad(smooth_preview, _) -> false;
+not_bad(wire_mode, _) -> false;
 not_bad(none, _) -> false;
 
 %% Crashes have occurred.

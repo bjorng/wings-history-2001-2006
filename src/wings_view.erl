@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.52 2002/05/10 14:02:59 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.53 2002/05/11 08:47:50 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -30,9 +30,13 @@ menu(X, Y, St) ->
     Menu = [{"Ground plane",show_groundplane,crossmark(show_groundplane)},
 	    {"Axes",show_axes,crossmark(show_axes)},
 	    separator,
-	    {"Wireframe",wire_mode,crossmark(wire_mode)},
 	    {"Workmode",workmode,crossmark(workmode)},
 	    {"Smoothed Preview",smoothed_preview},
+	    separator,
+	    {"Wireframe Selected",wireframe_selected},
+	    {"Wireframe All",wireframe_all},
+	    {"Shade Selected",shade_selected},
+	    {"Shade All",shade_all},
 	    separator,
 	    {"Show Saved BB",show_bb,crossmark(show_bb)},
 	    {"Show Edges",show_edges,crossmark(show_edges)},
@@ -59,7 +63,7 @@ menu(X, Y, St) ->
 				  {"-Z",neg_z}]}},
 	    separator,
 	    {"Align to Selection",align_to_selection},
-	    separator,
+	    {"Virtual Mirror",virtual_mirror},
 	    {"Auto Rotate",auto_rotate}],
     wings_menu:menu(X, Y, view, Menu, St).
 
@@ -78,12 +82,22 @@ command(workmode, St) ->
 command(smoothed_preview, St) ->
     ?SLOW(smoothed_preview(St));
 command(flatshade, St) ->
-    wings_pref:set_value(wire_mode, false),
     wings_pref:set_value(workmode, true),
     St;
 command(smoothshade, St) ->
-    wings_pref:set_value(wire_mode, false),
     wings_pref:set_value(workmode, false),
+    St;
+command(wireframe_selected, St) ->
+    mode_change_sel(true),
+    St;
+command(wireframe_all, St) ->
+    mode_change_all(true),
+    St;
+command(shade_selected, St) ->
+    mode_change_sel(false),
+    St;
+command(shade_all, St) ->
+    mode_change_all(false),
     St;
 command(orthogonal_view, St) ->
     toggle_option(orthogonal_view),
@@ -111,6 +125,11 @@ command(rotate_left, St) ->
 command(align_to_selection, St) ->
     aim(St),
     align_to_selection(St);
+command(virtual_mirror, #st{selmode=face}=St) ->
+    wings_draw_util:update(fun virtual_mirror/2, []),
+    St#st{sel=[]};
+command(virtual_mirror, _) ->
+    wings_util:error("Virtual mirror requires a face selection.");
 command(toggle_lights, St) ->
     Lights = case wings_pref:get_value(number_of_lights) of
 		 1 -> 2;
@@ -122,6 +141,41 @@ command(toggle_lights, St) ->
 command(Key, St) ->
     toggle_option(Key),
     St.
+
+mode_change_all(Wire) ->
+    wings_draw_util:update(fun mode_change_all/2, Wire).
+
+mode_change_all(eol, _) -> eol;
+mode_change_all(D, Wire) -> {D#dlo{wire=Wire},Wire}.
+
+mode_change_sel(Wire) ->
+    wings_draw_util:update(fun mode_change_sel/2, Wire).
+
+mode_change_sel(eol, _) -> eol;
+mode_change_sel(#dlo{src_sel={_,_}}=D, Wire) -> {D#dlo{wire=Wire},Wire};
+mode_change_sel(D, Wire) -> {D,Wire}.
+
+virtual_mirror(eol, _) -> eol;
+virtual_mirror(#dlo{src_sel={face,Elems},src_we=We}=D, _) ->
+    case gb_sets:to_list(Elems) of
+	[Face] ->
+	    setup_virtual_mirror(D, Face, We);
+	_ ->
+	    wings_util:error("Only a single face must be selected per object.")
+    end;
+virtual_mirror(D, _) -> D#dlo{mirror=none}.
+
+setup_virtual_mirror(D, Face, We) ->
+    N = wings_face:normal(Face, We),
+    Vs = wings_face:surrounding_vertices(Face, We),
+    Center = wings_vertex:center(Vs, We),
+    RotBack = e3d_mat:rotate_to_z(N),
+    Rot = e3d_mat:transpose(RotBack),
+    Mat0 = e3d_mat:mul(e3d_mat:translate(Center), Rot),
+    Mat1 = e3d_mat:mul(Mat0, e3d_mat:scale(1.0, 1.0, -1.0)),
+    Mat2 = e3d_mat:mul(Mat1, RotBack),
+    Mat = e3d_mat:mul(Mat2, e3d_mat:translate(e3d_vec:neg(Center))),
+    D#dlo{mirror=e3d_mat:expand(Mat)}.
 
 %%%
 %%% The Auto Rotate command.
@@ -237,9 +291,9 @@ smooth_event_1(#keyboard{}=Kb, #sm{st=St,wire=Wire}=Sm) ->
 	    smooth_exit();
 	{view,smoothed_preview} ->
 	    smooth_exit();
-	{view,wire_mode} ->
-	    wings_wm:dirty(),
-	    get_smooth_event(Sm#sm{wire=not Wire});
+% 	{view,wire_mode} ->
+% 	    wings_wm:dirty(),
+% 	    get_smooth_event(Sm#sm{wire=not Wire});
 	{view,{along,_Axis}=Cmd} ->
 	    command(Cmd, St),
 	    wings_wm:dirty(),
@@ -388,7 +442,6 @@ init() ->
     wings_pref:set_default(show_textures, true),
 
     %% Always reset the following preferences + the view itself.
-    wings_pref:set_value(wire_mode, false),
     wings_pref:set_value(workmode, true),
     wings_pref:set_value(orthogonal_view, false),
     reset().

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.44 2002/05/10 14:02:59 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.45 2002/05/11 08:47:50 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -432,7 +432,7 @@ get_hits(N, <<NumNames:32,_:32,_:32,Tail0/binary>>, Acc) ->
     get_hits(N-1, Tail, [Name|Acc]).
 
 get_name(0, _Tail, Acc) -> list_to_tuple(reverse(Acc));
-get_name(N, <<Name:32,Names/binary>>, Acc) ->
+get_name(N, <<Name:32/signed,Names/binary>>, Acc) ->
     get_name(N-1, Names, [Name|Acc]).
 
 %%%
@@ -452,23 +452,39 @@ filter_hits(Hits, X, Y, #st{selmode=Mode0,shapes=Shs,sel=Sel}) ->
     filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, none).
 
 filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
-    We = gb_trees:get(Id, Shs),
-    Vs = [V|_] = wings_face:surrounding_vertices(Face, We),
-    N = wings_face:face_normal(Vs, We),
-    D = e3d_vec:dot(wings_vertex:pos(V, We), N),
+    Mtx = if 
+	      Id < 0 ->
+		  e3d_mat:compress(mirror_matrix(Id));
+	      true -> identity
+	  end,
+    We = gb_trees:get(abs(Id), Shs),
+    Vs = wings_face:surrounding_vertices(Face, We),
+    Ps0 = [wings_vertex:pos(V, We) || V <- Vs],
+    [P|_] = Ps = mul_points(Mtx, Ps0),
+    N = if
+	    Id < 0 -> e3d_vec:neg(e3d_vec:normal(Ps));
+	    true -> e3d_vec:normal(Ps)
+	end,
+    D = e3d_vec:dot(P, N),
     case e3d_vec:dot(EyePoint, N) of
-	S when S < D ->				%Ignore back-facing face.
-	    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit0);
+ 	S when S < D ->				%Ignore back-facing face.
+ 	    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit0);
 	_S ->					%Candidate.
-	    Hit = best_hit(Id, Face, Vs, We, EyePoint, Hit0),
+	    Hit = best_hit(Id, Face, Vs, We, EyePoint, Mtx, Hit0),
 	    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit)
     end;
 filter_hits_1([], _Shs, _Mode, _X, _Y, _EyePoint, none) -> none;
 filter_hits_1([], _Shs, Mode, X, Y, _EyePoint, {_,{Id,Face,We}}) ->
     convert_hit(Mode, X, Y, Id, Face, We).
 
-best_hit(Id, Face, Vs, We, EyePoint, Hit0) ->
-    Center = wings_vertex:center(Vs, We),
+mul_point(identity, P) -> P;
+mul_point(Mtx, P) -> e3d_mat:mul_point(Mtx, P).
+
+mul_points(identity, Ps) -> Ps;
+mul_points(Mtx, Ps) -> [e3d_mat:mul_point(Mtx, P) || P <- Ps].
+    
+best_hit(Id, Face, Vs, We, EyePoint, Matrix, Hit0) ->
+    Center = mul_point(Matrix, wings_vertex:center(Vs, We)),
     D = e3d_vec:sub(Center, EyePoint),
     DistSqr = e3d_vec:dot(D, D),
     case Hit0 of
@@ -483,15 +499,11 @@ best_hit(Id, Face, Vs, We, EyePoint, Hit0) ->
 %% Given a selection hit, return the correct vertex/edge/face/body.
 %%
 
-convert_hit(body, _X, _Y, Id, _Face, _We) -> {body,{Id,0}};
-convert_hit(face, _X, _Y, Id, Face, _We) -> {face,{Id,Face}};
-convert_hit(auto, X, Y, Id, Face, We) ->
-    wings_view:projection(),
-    wings_view:model_transformations(),
-    ViewPort = gl:getIntegerv(?GL_VIEWPORT),
-    ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
-    ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
-    Trans = {ModelMatrix,ProjMatrix,ViewPort},
+convert_hit(body, _X, _Y, Id, _Face, _We) -> {body,{abs(Id),0}};
+convert_hit(face, _X, _Y, Id, Face, _We) -> {face,{abs(Id),Face}};
+convert_hit(auto, X, Y, Id0, Face, We) ->
+    Id = abs(Id0),
+    Trans = get_matrices(Id0),
     Vs = sort(find_vertex(Face, We, X, Y, Trans)),
     [{Vdist0,{Xva,Yva},V},{_,{Xvb,Yvb},_}|_] = Vs,
     Vdist = math:sqrt(Vdist0),
@@ -509,13 +521,9 @@ convert_hit(auto, X, Y, Id, Face, We) ->
 		 true -> {face,{Id,Face}}
 	     end,
     check_restriction(Hilite, Id, V, Edge, Face);
-convert_hit(Mode, X, Y, Id, Face, We) ->
-    wings_view:projection(),
-    wings_view:model_transformations(),
-    ViewPort = gl:getIntegerv(?GL_VIEWPORT),
-    ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
-    ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
-    Trans = {ModelMatrix,ProjMatrix,ViewPort},
+convert_hit(Mode, X, Y, Id0, Face, We) ->
+    Id = abs(Id0),
+    Trans = get_matrices(Id0),
     case Mode of
 	vertex ->
 	    {_,_,V} = min(find_vertex(Face, We, X, Y, Trans)),
@@ -525,6 +533,28 @@ convert_hit(Mode, X, Y, Id, Face, We) ->
 	    {edge,{Id,E}}
     end.
 
+get_matrices(Id) ->
+    wings_view:projection(),
+    wings_view:model_transformations(),
+    if
+	Id < 0 ->
+	    Matrix = mirror_matrix(Id),
+	    gl:multMatrixf(Matrix);
+	true -> ok
+    end,
+    ViewPort = gl:getIntegerv(?GL_VIEWPORT),
+    ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
+    ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
+    {ModelMatrix,ProjMatrix,ViewPort}.
+
+mirror_matrix(Id) ->
+    wings_draw_util:update(fun mirror_matrix/2, abs(Id)).
+
+mirror_matrix(eol, _) -> eol;
+mirror_matrix(#dlo{mirror=Matrix,src_we=#we{id=Id}}=D, Id) ->
+    {D,Matrix};
+mirror_matrix(D, Data) -> {D,Data}.
+    
 find_vertex(Face, We, X, Y, Trans) ->
     Vs0 = wings_face:surrounding_vertices(Face, We),
     map(fun(V) ->
@@ -669,19 +699,30 @@ select_draw(#dlo{pick=none,src_we=We}=D, _) ->
     gl:newList(List, ?GL_COMPILE),
     select_draw_1(We),
     gl:endList(),
-    gl:callList(List),
-    {D#dlo{pick=List},[]};
-select_draw(#dlo{pick=Pick}=D, _) ->
-    gl:callList(Pick),
-    {D,[]}.
+    draw_dlist(D#dlo{pick=List});
+select_draw(D, _) -> draw_dlist(D).
 
-select_draw_1(#we{id=Id,perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
+draw_dlist(#dlo{mirror=none,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:pushName(Id),
+    gl:callList(Pick),
+    gl:popName(),
+    D;
+draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
+    gl:pushName(Id),
+    gl:callList(Pick),
+    gl:loadName(-Id),
+    gl:pushMatrix(),
+    gl:multMatrixf(Matrix),
+    gl:callList(Pick),
+    gl:popMatrix(),
+    gl:popName(),
+    D.
+
+select_draw_1(#we{perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
     case wings_pref:get_value(display_list_opt) of
  	false -> select_draw_nonopt(We);
 	true ->  select_draw_opt(We)
     end,
-    gl:popName(),
     gl:edgeFlag(?GL_TRUE);
 select_draw_1(_) -> ok.
     

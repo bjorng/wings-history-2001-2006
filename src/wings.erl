@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.139 2002/05/05 07:47:33 bjorng Exp $
+%%     $Id: wings.erl,v 1.140 2002/05/11 08:47:49 bjorng Exp $
 %%
 
 -module(wings).
@@ -99,7 +99,7 @@ init_1(File) ->
 	      ssel={face,[]},
 	      mat=wings_material:default(),
 	      saved=true,
-	      onext=0,
+	      onext=1,
 	      repeatable=ignore,
 	      args=none
 	    },

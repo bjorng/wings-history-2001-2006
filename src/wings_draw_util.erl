@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.19 2002/05/10 14:02:59 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.20 2002/05/11 08:47:50 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -145,23 +145,36 @@ render(#st{selmode=Mode}=St) ->
     ground_and_axes(),
     show_saved_bb(St),
     #du{dl=Dl} = get(?MODULE),
-    case wings_pref:get_value(workmode) of
-	false -> render_smooth(Dl);
-	true -> render_plain(Dl, Mode)
-    end,
+    render_scene(Dl, Mode, wings_pref:get_value(workmode)),
     axis_letters(),
     gl:disable(?GL_DEPTH_TEST),
     draw_vec(St),
     gl:popAttrib().
 
-render_plain([#dlo{work=Faces}=D|Dls], SelMode) ->
-    gl:enable(?GL_CULL_FACE),
+render_scene([D|Dls], Mode, Work) ->
     gl:cullFace(?GL_BACK),
+    render_object(D, Mode, Work),
+    render_scene(Dls, Mode, Work);
+render_scene([], _, _) -> ok.
+
+render_object(#dlo{mirror=none}=D, Mode, Work) ->
+    render_object_1(D, Mode, Work);
+render_object(#dlo{mirror=Matrix}=D, Mode, Work) ->
+    render_object_1(D, Mode, Work),
+    gl:cullFace(?GL_FRONT),
+    gl:pushMatrix(),
+    gl:multMatrixf(Matrix),
+    render_object_1(D, Mode, Work),
+    gl:popMatrix().
+
+render_object_1(D, _Mode, false) -> render_smooth(D);
+render_object_1(D, Mode, true) -> render_plain(D, Mode).
+
+render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
+    gl:enable(?GL_CULL_FACE),
 
     %% Draw faces for winged-edge-objects.
-    Wire = wings_pref:get_value(wire_mode),
     case Wire of
-	true -> ok;
 	false ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:enable(?GL_POLYGON_OFFSET_FILL),
@@ -170,7 +183,8 @@ render_plain([#dlo{work=Faces}=D|Dls], SelMode) ->
 	    gl:enable(?GL_LIGHTING),
 	    call(Faces),
 	    gl:disable(?GL_LIGHTING),
-	    gl:shadeModel(?GL_FLAT)
+	    gl:shadeModel(?GL_FLAT);
+	true -> ok
     end,
 
     %% Draw edges.
@@ -206,13 +220,10 @@ render_plain([#dlo{work=Faces}=D|Dls], SelMode) ->
     draw_vertices(D, SelMode),
     draw_sel(D),
     draw_hard_edges(D),
-    draw_normals(D),
-    render_plain(Dls, SelMode);
-render_plain([], _) -> ok.
+    draw_normals(D).
 
-render_smooth([#dlo{work=Work,smooth=DlistSmooth}=D|Dls]) ->
+render_smooth(#dlo{work=Work,smooth=DlistSmooth,wire=Wire}=D) ->
     gl:enable(?GL_CULL_FACE),
-    gl:cullFace(?GL_BACK),
     gl:shadeModel(?GL_SMOOTH),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:enable(?GL_LIGHTING),
@@ -231,7 +242,7 @@ render_smooth([#dlo{work=Work,smooth=DlistSmooth}=D|Dls]) ->
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_CULL_FACE),
-    case wings_pref:get_value(wire_mode) of
+    case Wire of
 	false -> ok;
 	true ->
 	    gl:color3f(1.0, 1.0, 1.0),
@@ -243,9 +254,7 @@ render_smooth([#dlo{work=Work,smooth=DlistSmooth}=D|Dls]) ->
     end,
     draw_hilite(D),
     draw_orig_sel(D),
-    draw_sel(D),
-    render_smooth(Dls);
-render_smooth([]) -> ok.
+    draw_sel(D).
 
 draw_sel(#dlo{sel=SelDlist,src_sel={edge,_}}) ->
     gl:lineWidth(wings_pref:get_value(selected_edge_width)),
