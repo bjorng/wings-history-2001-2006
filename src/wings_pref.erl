@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.18 2002/01/17 13:20:40 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.19 2002/01/18 16:40:59 dgud Exp $
 %%
 
 -module(wings_pref).
@@ -17,17 +17,28 @@
 	 get_value/1,get_value/2,set_value/2,set_default/2,
 	 delete_value/1,browse/1]).
 
+-define(NEED_ESDL, 1).    %% Some keybindings
 -include("wings.hrl").
 -import(lists, [foreach/2,keysearch/3,map/2,reverse/1]).
 
 init() ->
     ets:new(wings_state, [named_table,public,ordered_set]),
     ets:insert(wings_state, defaults()),
+
+    Setup = fun({{bindkey, Key, List}, Action}) ->
+		    ets:insert(wings_state, {{bindkey, Key, lists:sort(List)}, Action});
+	       (What = {{bindkey, Key}, Action}) when integer(Key) ->
+		    ets:insert(wings_state, What);
+	       (Else) ->
+		    ets:insert(wings_state, Else)
+	    end,
+    lists:foreach(Setup, default_keybindings()),
+
     case old_pref_file() of
 	none -> ok;
 	Pref ->
 	    case file:consult(Pref) of
-		{ok,List} -> catch ets:insert(wings_state, List);
+		{ok,List} -> catch lists:foreach(Setup, List);
 		{error,Reason} -> ok
 	    end
     end.
@@ -42,7 +53,8 @@ finish() ->
     ok.
 
 prune_defaults(List) ->
-    List -- [{Key,Val} || {_,Key,Val} <- presets()].
+    NonPresets = List -- [{Key,Val} || {_,Key,Val} <- presets()],
+    NonPresets -- default_keybindings().
 
 menu(St) ->
     menu_1(presets()).
@@ -189,4 +201,56 @@ presets() ->
      separator,
      {"Auto-rotate angle",auto_rotate_angle,1.0},
      {"Auto-rotate delay (ms)",auto_rotate_delay,60}
+    ].
+
+default_keybindings() ->
+    [{{bindkey, $a, [ctrl]},          {select,all}},
+     {{bindkey, $i, [ctrl, shift]},   {select,inverse}},
+     {{bindkey, $l, [ctrl]},          {file,merge}},
+     {{bindkey, $n, [ctrl]},          {file,new}},
+     {{bindkey, $o, [ctrl]},          {file,open}},
+     {{bindkey, $q, [ctrl]},          {file,quit}},
+     {{bindkey, $s, [ctrl,shift]},    {file,save_as}},
+     {{bindkey, $s, [ctrl]},          {file,save}},
+     {{bindkey, $z, [alt, ctrl]},     {edit,undo}},
+     {{bindkey, $z, [ctrl,shift]},    {edit,redo}},
+     {{bindkey, $z, [ctrl]},          {edit,undo_toggle}},
+     {{bindkey, ?SDLK_KP_PLUS},       {select,more}},
+     {{bindkey, ?SDLK_KP_MINUS},      {select,less}},
+     {{bindkey, ?SDLK_F3},            {select,prev_edge_loop}},
+     {{bindkey, ?SDLK_F4},            {select,next_edge_loop}},
+     {{bindkey, ?SDLK_F5},            {select,{by,{faces_with,5}}}},
+     {{bindkey, ?SDLK_TAB},           {view,smooth_preview}},
+     {{bindkey, $\s},                 {select,deselect}},
+     {{bindkey, $a},                  {view,aim}},
+     {{bindkey, $b},                  {select,body}},
+     {{bindkey, $d},                  {edit,repeat}},
+     {{bindkey, $e},                  {select,edge}},
+     {{bindkey, $f},                  {select,face}},
+     {{bindkey, $i},                  {select,similar}},
+     {{bindkey, $l},                  {select,edge_loop}},
+     {{bindkey, $o},                  {view,orthogonal_view}},
+     {{bindkey, $r},                  {view,reset}},
+     {{bindkey, $s},                  {body,auto_smooth}},
+     {{bindkey, $u},                  {view,auto_rotate}},
+     {{bindkey, $v},                  {select,vertex}},
+     {{bindkey, $w},                  {view,wire_mode}},
+     {{bindkey, $x},                  {view,{along,x}}},
+     {{bindkey, $y},                  {view,{along,y}}},
+     {{bindkey, $z},                  {view,{along,z}}},
+     {{bindkey, $X},                  {view,{along,neg_x}}},
+     {{bindkey, $Y},                  {view,{along,neg_y}}},
+     {{bindkey, $Z},                  {view,{along,neg_z}}},
+     {{bindkey, $2},                  {edge,{cut,2}}},
+     {{bindkey, $3},                  {edge,{cut,3}}},
+     {{bindkey, $4},                  {edge,{cut,4}}},
+     {{bindkey, $5},                  {edge,{cut,5}}},
+     {{bindkey, $6},                  {edge,{cut,6}}},
+     {{bindkey, $7},                  {edge,{cut,7}}},
+     {{bindkey, $8},                  {edge,{cut,8}}},
+     {{bindkey, $9},                  {edge,{cut,9}}},
+     {{bindkey, $0},                  {edge,{cut,10}}},
+     {{bindkey, $+},                  {select,more}},
+     {{bindkey, $=},                  {select,more}},
+     {{bindkey, $-},                  {select,less}}
     ].

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.90 2002/01/17 13:20:40 bjorng Exp $
+%%     $Id: wings.erl,v 1.91 2002/01/18 16:40:59 dgud Exp $
 %%
 
 -module(wings).
@@ -27,7 +27,9 @@
 
 start() ->
     %% Only for development use.
-    Root = filename:dirname(code:which(?MODULE)),
+    RootEbin = filename:dirname(filename:absname(code:which(?MODULE))),
+    Split = filename:split(RootEbin),
+    Root = filename:join(Split -- ["ebin"]),
     spawn(fun() -> init(none, Root) end).
 
 start(Root) ->
