@@ -5,12 +5,12 @@
 %%     we records (winged-edged records, the central data structure
 %%     in Wings 3D).
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.46 2003/01/01 12:09:47 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.47 2003/02/13 18:33:16 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -34,7 +34,8 @@
 		last/1,reverse/1,duplicate/2,seq/2,filter/2]).
 
 rebuild(#we{vc=undefined,es=Etab}=We) ->
-    VtoE = foldl(fun({Edge,#edge{vs=Va,ve=Vb}}, A) ->
+    VtoE = foldl(fun({Edge,#edge{vs=Va,ve=Vb}}, A)
+		    when is_integer(Va), is_integer(Vb) ->
 			 [{Va,Edge},{Vb,Edge}|A]
 		 end, [], gb_trees:to_list(Etab)),
     Vct = build_vct(VtoE),
