@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.109 2003/03/05 18:50:39 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.110 2003/03/06 06:17:01 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -568,6 +568,8 @@ smooth_redraw(#dlo{mirror=Matrix}=D, Sm, Flag) ->
 smooth_redraw(_, _, _) -> ok.
 
 smooth_redraw_1(#dlo{src_we=#we{light=L}}, _Sm, _RenderTrans) when L =/= none ->
+    ok;
+smooth_redraw_1(#dlo{src_we=#we{perm=P}}, _, _) when ?IS_NOT_VISIBLE(P) ->
     ok;
 smooth_redraw_1(#dlo{smoothed=[Dlist,Es,Cool],transparent=Trans}=D, Sm, RenderTrans) ->
     ?CHECK_ERROR(),
