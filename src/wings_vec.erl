@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.4 2002/01/27 22:01:27 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.5 2002/01/28 08:52:31 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -134,7 +134,7 @@ handle_event_3(Event, Ss, St) ->
     end.
     
 handle_event_4(Event, Ss, St0) ->
-    case wings_hotkey:event(Event) of
+    case wings_hotkey:event(Event, St0) of
 	next -> handle_event_5(Event, Ss, St0);
 	{view,Cmd} ->
 	    St = wings_view:command(Cmd, St0),
@@ -318,7 +318,7 @@ get_vec(edge, Edges, #we{vs=Vtab}=We) ->
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
 	[Vs] -> 
 	    Center = wings_vertex:center(Vs, We),
-	    Vec = wings_face:face_normal(Vs, Vtab),
+	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
 	    {{Center,Vec},"Edge loop normal saved as axis."};
 	Other ->
 	    {none,"Multi-edge selection must form a single closed edge loop."}
@@ -347,7 +347,7 @@ get_vec(vertex, Vs0, #we{vs=Vtab}=We) ->
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
 	[Vs] -> 
 	    Center = wings_vertex:center(Vs, We),
-	    Vec = wings_face:face_normal(Vs, Vtab),
+	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
 	    {{Center,Vec},"Edge loop normal saved as axis."};
 	Other ->
 	    {none,"Multi-vertex selection must form a single closed edge loop."}
@@ -372,7 +372,7 @@ get_vec(face, Faces, #we{vs=Vtab}=We) ->
     case wings_vertex:outer_partition(Faces, We) of
 	[Vs] ->
 	    Center = wings_vertex:center(Vs, We),
-	    Vec = wings_face:face_normal(Vs, Vtab),
+	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
 	    {{Center,Vec},"Edge loop normal for region saved as axis."};
 	Other ->
 	    {none,"Multi-face selection must have a single edge loop."}
