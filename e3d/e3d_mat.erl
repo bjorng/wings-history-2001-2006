@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.11 2002/02/26 13:12:40 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.12 2002/03/11 20:22:52 bjorng Exp $
 %%
 
 -module(e3d_mat).
 
 -export([identity/0,compress/1,expand/1,
 	 translate/1,translate/3,scale/1,scale/3,rotate/2,rotate_to_z/1,
-	 mul/2,mul_point/2,mul_vector/2]).
+	 transpose/1,mul/2,mul_point/2,mul_vector/2]).
 
 identity() ->
     Zero = 0.0,
@@ -100,6 +100,12 @@ rotate_to_z(Vec) ->
      Uy,Vy,Wy,
      Uz,Vz,Wz,
      0.0,0.0,0.0}.
+
+transpose({M1,M2,M3,M4,M5,M6,M7,M8,M9,0.0=Z,0.0,0.0}) ->
+    {M1,M4,M7,
+     M2,M5,M8,
+     M3,M6,M9,
+     Z,Z,Z}.
 
 mul({B_a,B_b,B_c,B_d,B_e,B_f,B_g,B_h,B_i,B_tx,B_ty,B_tz},
     {A_a,A_b,A_c,A_d,A_e,A_f,A_g,A_h,A_i,A_tx,A_ty,A_tz})
