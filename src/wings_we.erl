@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.8 2001/09/04 12:11:29 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.9 2001/09/06 12:02:58 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -33,7 +33,7 @@
 build(Name, Matrix, Fs, Vs, St) ->
     build(Name, Matrix, Fs, Vs, [], St).
 
-build(Name, Matrix, Fs0, Vs, HardEdges0, #st{onext=Id,shapes=Shapes}=St) ->
+build(Name, Matrix, Fs0, Vs, HardEdges, #st{onext=Id,shapes=Shapes}=St) ->
     {Good0,Bad0} = build_edges(Fs0),
     {Es0,Fs} = if
 		   Bad0 =:= [] -> {Good0,Fs0};
@@ -44,7 +44,6 @@ build(Name, Matrix, Fs0, Vs, HardEdges0, #st{onext=Id,shapes=Shapes}=St) ->
 		       {Good,Fs1}
 	       end,
     Es = number_edges(Es0),
-    HardEdges = [edge_name(He) || He <- HardEdges0],
     Htab = hard_edges(HardEdges, Es),
     {Vtab0,Etab,Ftab0} = build_tables(Es),
     Ftab = build_faces(Ftab0, Fs),
@@ -129,11 +128,12 @@ number_edges([{Name,{Ldata,Rdata}=Data}|Es], Edge, Tab0) ->
 number_edges([], Edge, Tab) -> reverse(Tab).
 
 hard_edges([], Es) -> gb_sets:empty();
-hard_edges(HardEdges, Es) ->
-    SofsEdges = sofs:relation(Es),
-    SofsHard = sofs:restriction(SofsEdges, sofs:set(HardEdges)),
-    Htab = [Edge || {_,{Edge,_}} <- sofs:to_external(SofsHard)],
-    gb_sets:from_list(sort(Htab)).
+hard_edges(HardNames0, Es) ->
+    HardNames = sofs:set([edge_name(He) || He <- HardNames0], [name]),
+    SofsEdges = sofs:from_external(Es, [{name,{edge,info}}]),
+    SofsHard = sofs:image(SofsEdges, HardNames),
+    Htab = sofs:to_external(sofs:domain(SofsHard)),
+    gb_sets:from_list(Htab).
 
 build_tables(Edges) ->
     build_tables(Edges, gb_trees:from_orddict(Edges), [], [], []).
@@ -487,15 +487,16 @@ vertex_normals(#we{vs=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
 	    true -> {gb_trees:to_list(Vtab),[]};
 	    false ->
 		He0 = gb_sets:to_list(Htab),
-		He = sofs:from_external(He0, [atom]),
+		He = sofs:from_external(He0, [edge]),
 		Es0 = gb_trees:to_list(Etab),
-		Es1 = sofs:from_external(Es0, [{atom,atom}]),
-		Es = sofs:restriction(Es1, He),
-		Hvs0 = foldl(fun({_,#edge{vs=Va,ve=Vb}}, A) ->
+		Es1 = sofs:from_external(Es0, [{edge,data}]),
+		Es = sofs:image(Es1, He),
+		Hvs0 = foldl(fun(#edge{vs=Va,ve=Vb}, A) ->
 				     [Va,Vb|A]
 			     end, [], sofs:to_external(Es)),
-		Hvs = sofs:set(Hvs0),
-		Vs = sofs:from_external(gb_trees:to_list(Vtab), [{atom,atom}]),
+		Hvs = sofs:set(Hvs0, [vertex]),
+		Vs = sofs:from_external(gb_trees:to_list(Vtab),
+					[{vertex,data}]),
 		Svs = sofs:drestriction(Vs, Hvs),
 		{sofs:to_external(Svs),sofs:to_external(Hvs)}
 	end,

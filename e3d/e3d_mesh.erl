@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.8 2001/09/04 12:11:29 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.9 2001/09/06 12:02:58 bjorng Exp $
 %%
 
 -module(e3d_mesh).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.4 2001/09/04 12:11:29 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.5 2001/09/06 12:02:58 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -259,8 +259,7 @@ draw_hard_edges(#st{shapes=Shapes}) ->
 	      end;
 	 (_) -> ok
       end, gb_trees:values(Shapes)),
-    ?CHECK_ERROR(),
-    gl:depthFunc(?GL_LESS).
+    ?CHECK_ERROR().
 
 draw_hard_edges_1(#we{es=Etab,he=Htab,vs=Vtab}) ->
     foreach(fun(Edge) ->

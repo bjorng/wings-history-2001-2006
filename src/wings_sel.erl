@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.8 2001/09/04 12:11:29 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.9 2001/09/06 12:02:58 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -435,12 +435,13 @@ select_all(#st{selmode=body,shapes=Shapes}=St) ->
     Items = gb_sets:singleton(0),
     Sel = [{Id,Items} || Id <- gb_trees:keys(Shapes)],
     St#st{sel=Sel};
-select_all(#st{sel=[],shapes=Shapes}=St) ->
+select_all(#st{selmode=Mode,sel=[],shapes=Shapes}=St) ->
     case gb_trees:is_empty(Shapes) of
 	true -> St;
 	false ->
-	    Sel = gb_trees:to_list(Shapes),
-	    select_all(St#st{sel=Sel})
+	    Sel0 = gb_trees:keys(Shapes),
+	    Sel = [{Id,get_all_items(Mode, Id, St)} || Id <- Sel0],
+	    St#st{sel=Sel}
     end;
 select_all(#st{selmode=Mode,sel=Sel0}=St) ->
     Sel = [{Id,get_all_items(Mode, Id, St)} || {Id,_} <- Sel0],

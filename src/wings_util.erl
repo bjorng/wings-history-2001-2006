@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.5 2001/09/04 12:11:29 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.6 2001/09/06 12:02:58 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -187,9 +187,12 @@ average_normals_2([], Sum) -> Sum.
 %% 
 
 tc(Fun) ->
-    {T,R} = timer:tc(erlang, apply, [Fun,[]]),
-    io:format("Time: ~p\n", [T]),
-    R.
+    case timer:tc(erlang, apply, [Fun,[]]) of
+	{T,{'EXIT',Reason}} -> exit(Reason);
+	{T,R} ->
+	    io:format("Time: ~p\n", [T]),
+	    R
+    end.
 
 %%
 %% Dumping of data structures.
