@@ -52,56 +52,24 @@ command({shape,{text,Ask}}, St) -> make_text(Ask, St);
 command(_, _) -> next.
 
 make_text(Ask, St) when is_atom(Ask) ->
-	DefFont = wpa:pref_get(wpc_tt, font, "Arial"),
+	DefFontName = wpa:pref_get(wpc_tt, fontname, "Arial"),
+	DefFontDir = wpa:pref_get(wpc_tt, fontdir, sysfontdir()),
 	DefText = wpa:pref_get(wpc_tt, text, "A"),
 	DefBisect = wpa:pref_get(wpc_tt, bisections, 0),
-	wpa:ask(Ask, [ {"TrueType font",DefFont},
-			{"Text", DefText},
-			{"Number of edge bisections", DefBisect}],
+	wpa:ask(Ask, [ {"Text", DefText},
+		       {"TrueType font",DefFontName},
+		       {"Font dir",DefFontDir},
+		       {"Number of edge bisections", DefBisect}],
 		St, fun(Res) -> {shape,{text,Res}} end);
-make_text([F,T,N], St) ->
-	gen(F, T, N).
+make_text([T,F,D,N], _St) ->
+	gen(F, D, T, N).
 
-% Try to map a Name to a font file using registry
-% (only works with Windows).
-font_file(Name) ->
-	case os:type() of
-	{win32,nt} ->
-		regtrans(Name, "Windows NT", "C:\\WINNT");
-	{win32,windows} ->
-		regtrans(Name, "Windows", "C:\\WINDOWS");
-	_ -> Name
-	end.
-
-regtrans(Name, W, Sysroot) ->
-	Key = "\\hklm\\SOFTWARE\\Microsoft\\"
-		++ W ++ "\\CurrentVersion\\Fonts",
-	Dir = Sysroot ++ "\\Fonts\\",
-	case win32reg:open([read]) of
-	{ok, RH} ->
-		case win32reg:change_key(RH, Key) of
-		ok ->
-			Kname = Name ++ " (TrueType)",
-			case win32reg:value(RH, Kname) of
-			{ok, Fname} ->
-				Ans = Dir ++ Fname;
-			_ ->
-				Ans = Name
-			end;
-		_ ->
-			Ans = Name
-		end,
-		win32reg:close(RH);
-	_ ->
-		Ans = Name
-	end,
-	filename:absname(Ans).
-
-gen(Font, Text, Nsubsteps) ->
-	File = font_file(Font),
+gen(Font, Dir, Text, Nsubsteps) ->
+	File = font_file(Font, Dir),
 	case catch trygen(File, Text, Nsubsteps) of
 	S = {new_shape,_,_,_} ->
-		wpa:pref_set(wpc_tt, font, Font),
+		wpa:pref_set(wpc_tt, fontname, Font),
+		wpa:pref_set(wpc_tt, fontdir, Dir),
 		wpa:pref_set(wpc_tt, text, Text),
 		wpa:pref_set(wpc_tt, bisections, Nsubsteps),
 		S;
@@ -124,6 +92,75 @@ trygen(File, Text, Nsubsteps) ->
 		{error,file:format_error(Reason)}
 	end.
 
+% Try to map a Name to a font file using registry
+% and in any case, concatenate Dir in front of it (if Dir != "")
+font_file(Name, Dir) ->
+	case os:type() of
+	{win32,_} ->
+		Name1 = case winregval("Fonts", Name ++ " (TrueType)") of
+			none -> Name;
+			Fname -> Fname
+			end,
+		case Dir of
+		"" -> Name1;
+		_ -> filename:absname(Dir ++ "\\" ++ Name1)
+		end;
+	_ ->
+		case Dir of
+		"" -> Name;
+		_ -> filename:absname(Dir ++ "/" ++ Name)
+		end
+	end.
+
+% Look up value with Name in Windows registry,
+% first changing to key K under the "CurrentVersion" for Windows.
+% Return value as string, or the token "none" if any problems.
+winregval(K, Name) ->
+	case os:type() of
+	{win32,Wintype} ->
+		case win32reg:open([read]) of
+		{ok, RH} ->
+			W = case Wintype of nt -> "Windows NT" ; _ -> "Windows" end,
+			CVK = "\\hklm\\SOFTWARE\\Microsoft\\" ++ W
+				++ "\\CurrentVersion",
+			K1 = case K of
+				"" -> CVK;
+				_ -> CVK ++ "\\" ++ K
+				end,
+			Val = case win32reg:change_key(RH, K1) of
+				ok ->
+					case win32reg:value(RH, Name) of
+					{ok, V} -> V;
+					_ -> none
+					end;
+				_ -> none
+				end,
+			win32reg:close(RH),
+			Val;
+		_ -> none
+		end;
+	_ ->
+		none
+	end.
+
+% Try to find default system directory for fonts
+sysfontdir() ->
+	case os:type() of
+	{win32,Wintype} ->
+		SR = case winregval("", "SystemRoot") of
+			none ->
+				case Wintype of
+				nt -> "C:\\winnt";
+				_ -> "C:\\windows"
+				end;
+			Val -> Val
+			end,
+		SR ++ "\\Fonts";
+	_ ->
+		"/usr/lib/font"		% guess for non-windows, likely to be wrong
+	end.
+
+
 % Return {Vs,Fs} corresponding to list of polyareas,
 % where Vs is list of coords and Fs is list of list of
 % coord indices, describing faces.
@@ -134,7 +171,7 @@ polyareas_to_faces(Pas) ->
 
 concatvfs(Vfp) -> concatvfs(Vfp, 0, [], []).
 
-concatvfs([], Offset, Vsacc, Fsacc) ->
+concatvfs([], _Offset, Vsacc, Fsacc) ->
 	{flatten(reverse(Vsacc)),Fsacc};
 concatvfs([{Vs,Fs}|Rest], Offset, Vsacc, Fsacc) ->
 	Fs1 = offsetfaces(Fs, Offset),
@@ -168,7 +205,7 @@ getdirs(Ntabs,B) -> getdirs(Ntabs,B,[]).
 
 getdirs(0, B, Acc) ->
 	{reverse(Acc),B};
-getdirs(Nleft,<<W,X,Y,Z,Csum:32,Off:32,Len:32,B/binary>>,Acc) ->
+getdirs(Nleft,<<W,X,Y,Z,_Csum:32,Off:32,Len:32,B/binary>>,Acc) ->
 	getdirs(Nleft-1, B, [{Off,Len,[W,X,Y,Z]} | Acc]);
 getdirs(_,_,_) ->
 	throw({error,"Bad dir format"}).
@@ -185,7 +222,7 @@ gettabs([{Offnext,Len,Nam}|T]=Dirs,B,Off,Acc) ->
 		gettabs(T, B1, Off+Len, [{Nam,Tab} | Acc]);
 	    Off < Offnext ->
 		Padlen = Offnext - Off,
-		<<C:Padlen/binary,B1/binary>> = B,
+		<<_C:Padlen/binary,B1/binary>> = B,
 		gettabs(Dirs,B1,Offnext,Acc);
 	    true ->
 		throw({error,"Bad table offsets/sizes"})
@@ -220,7 +257,7 @@ parsecmaptab(Tabs) ->
 % If not found, throw an error.
 getcmap10(0, _, _) ->
 	throw({error,"No suitable character map"});
-getcmap10(N, <<1:16,0:16,Off:32,_/binary>>, Tab) ->
+getcmap10(_N, <<1:16,0:16,Off:32,_/binary>>, Tab) ->
 	case list_to_tuple(binary_to_list(Tab,Off+1,Off+2)) of
 	    {0,0} ->	% format 0 is easy: byte encoding table
 		list_to_tuple(binary_to_list(Tab,Off+1+6,Off+255+6));
@@ -354,7 +391,7 @@ gpa(Gdat, Ncont, Xorg, Scale) ->
 	T3 = nthtail(Ninstr,T2),
 	{Flags,T4} = gflags(Npt, T3),
 	{X0,T5} = gcoords(Npt, T4, Flags, 2, 16),
-	{Y0,T6} = gcoords(Npt, T5, Flags, 4, 32),
+	{Y0,_} = gcoords(Npt, T5, Flags, 4, 32),
 	X = makeabs(X0, Xorg, Scale),
 	Y = makeabs(Y0, 0, Scale),
 	Cntrs = contours(Ncont, Eoc, X, Y, Flags),
@@ -397,7 +434,7 @@ gcoords(N,L,Flags,Sbit,Rbit) -> gcoords(N,L,Flags,Sbit,Rbit,[]).
 
 gcoords(0,L,_,_,_,Acc) ->
 	{reverse(Acc), L};
-gcoords(N,L,[F|Tf]=Flags,Sbit,Rbit,Acc) ->
+gcoords(N,L,[F|Tf],Sbit,Rbit,Acc) ->
 	SRbits = Sbit bor Rbit,
 	case F band SRbits of
 	    0 ->
@@ -500,9 +537,9 @@ lininterp(F,{X1,Y1},{X2,Y2}) -> {(1.0-F)*X1 + F*X2, (1.0-F)*Y1 + F*Y2}.
 
 % Return {Nth point, is-on-curve flag} based on args
 % (use beginning (X0,Y0) when wrap).
-nthptandison(1, [X|_], [Y|_], [F|_], X0, Y0) ->
+nthptandison(1, [X|_], [Y|_], [F|_], _X0, _Y0) ->
 	{{X,Y}, if (F band 1) == 1 -> true; true -> false end};
-nthptandison(N, [], _, _, X0, Y0) ->
+nthptandison(_N, [], _, _, X0, Y0) ->
 	{{X0,Y0}, true};
 nthptandison(N, [_|Xt], [_|Yt], [_|Ft], X0, Y0) ->
 	nthptandison(N-1, Xt, Yt, Ft, X0, Y0).
@@ -514,7 +551,7 @@ nthptandison(N, [_|Xt], [_|Yt], [_|Ft], X0, Y0) ->
 % of contained islands (each CW oriented).
 findpolyareas(Cconts) ->
 	Areas = map(fun ccarea/1, Cconts),
-	{Cc,Ar} = orientccw(Cconts, Areas),
+	{Cc,_Ar} = orientccw(Cconts, Areas),
 	Cct = list_to_tuple(Cc),
 	N = size(Cct),
 	Art = list_to_tuple(Areas),
@@ -523,7 +560,7 @@ findpolyareas(Cconts) ->
 	Cls = [ {{I,J},classifyverts(element(I,Cct),element(J,Cct))}
 		|| I <- Seqn, J <- Seqn],
 	Clsd = gb_trees:from_orddict(Cls),
-	Cont = [ {{I,J},contains(I,J,Cct,Art,Lent,Clsd)}
+	Cont = [ {{I,J},contains(I,J,Art,Lent,Clsd)}
 		|| I <- Seqn, J <- Seqn],
 	Contd = gb_trees:from_orddict(Cont),
 	Assigned = gb_sets:empty(),
@@ -555,7 +592,7 @@ getpas(I,N,Contd,Cct,{Pas,Ass}=Acc) ->
 
 % Return true if thre is no unassigned J <= second arg, J /= I,
 % such that contour J contains contour I.
-isboundary(I,0,Contd,Ass) -> true;
+isboundary(_I,0,_Contd,_Ass) -> true;
 isboundary(I,I,Contd,Ass) -> isboundary(I,I-1,Contd,Ass);
 isboundary(I,J,Contd,Ass) ->
 	case gb_sets:is_member(J,Ass) of
@@ -573,7 +610,7 @@ isboundary(I,J,Contd,Ass) ->
 % Ass, Isls are (assigned-so-far, islands-so-far).
 % Ass0 is assigned before we started adding islands.
 % Return {list of island indices, Assigned array with those indices added}
-getisls(_I,0,_N,_Contd,Ass0,Ass,Isls) -> {reverse(Isls),Ass};
+getisls(_I,0,_N,_Contd,_Ass0,Ass,Isls) -> {reverse(Isls),Ass};
 getisls(I,J,N,Contd,Ass0,Ass,Isls) ->
 	case gb_sets:is_member(J,Ass) of
 	    true ->
@@ -632,9 +669,9 @@ subdivide_pas(Pas,0) -> Pas;
 subdivide_pas(Pas,Nsubsteps) ->
 	map(fun (Pa) -> subdivide_pa(Pa,Nsubsteps) end, Pas).
 
-subdivide_pa(Pa=#polyarea{boundary=B,islands=Isls}, 0) ->
+subdivide_pa(Pa, 0) ->
 	Pa;
-subdivide_pa(Pa=#polyarea{boundary=B,islands=Isls}, N) ->
+subdivide_pa(#polyarea{boundary=B,islands=Isls}, N) ->
 	subdivide_pa(#polyarea{boundary=subdivide_contour(B),
 				islands=map(fun subdivide_contour/1, Isls)}, N-1).
 
@@ -642,10 +679,10 @@ subdivide_contour(Cntr) ->
 	flatten(map(fun (CE) -> subdivide_cedge(CE,0.5) end, Cntr)).
 
 % subdivide CE at parameter Alpha, returning two new CE's in list.
-subdivide_cedge(CE=#cedge{vs=Vs,cp1=nil,cp2=nil,ve=Ve},Alpha) ->
+subdivide_cedge(#cedge{vs=Vs,cp1=nil,cp2=nil,ve=Ve},Alpha) ->
 	Vm = lininterp(Alpha, Vs, Ve),
 	[#cedge{vs=Vs,ve=Vm}, #cedge{vs=Vm,ve=Ve}];
-subdivide_cedge(CE=#cedge{vs=Vs,cp1=C1,cp2=C2,ve=Ve},Alpha) ->
+subdivide_cedge(#cedge{vs=Vs,cp1=C1,cp2=C2,ve=Ve},Alpha) ->
 	B0 = {Vs,C1,C2,Ve},
 	B1 = bezstep(B0,1,Alpha),
 	B2 = bezstep(B1,2,Alpha),
@@ -656,7 +693,7 @@ subdivide_cedge(CE=#cedge{vs=Vs,cp1=C1,cp2=C2,ve=Ve},Alpha) ->
 bezstep(B,R,Alpha) ->
 	list_to_tuple(bzss(B,0,3-R,Alpha)).
 
-bzss(B,I,Ilim,Alpha) when I > Ilim -> [];
+bzss(_B,I,Ilim,_Alpha) when I > Ilim -> [];
 bzss(B,I,Ilim,Alpha) ->
 	[lininterp(Alpha,element(I+1,B),element(I+2,B)) | bzss(B,I+1,Ilim,Alpha)].
 
@@ -664,7 +701,7 @@ bzss(B,I,Ilim,Alpha) ->
 % "Clean" means remove zero-length edges.
 clean_pas(Pas) -> map(fun clean_pa/1, Pas).
 
-clean_pa(Pa=#polyarea{boundary=B,islands=Isls}) ->
+clean_pa(#polyarea{boundary=B,islands=Isls}) ->
 	#polyarea{boundary=clean_contour(B),
 				islands=map(fun clean_contour/1, Isls)}.
 
@@ -678,7 +715,7 @@ clean_contour([CE=#cedge{vs=Vs,ve=Ve} | T]) ->
 % Decide whether vertex P is inside or on (as a vertex) contour A,
 % and return modified pair.  Assumes A is CCW oriented.
 % CF Eric Haines ptinpoly.c in Graphics Gems IV
-cfv(A,P,{Inside,On}=Acc) ->
+cfv(A,P,{Inside,On}) ->
 	#cedge{vs=Va0} = last(A),
 	if
 	    Va0 == P ->
@@ -694,7 +731,7 @@ cfv(A,P,{Inside,On}=Acc) ->
 
 vinside([], _V0, _P, Inside, _Yflag0) ->
 	Inside;
-vinside([#cedge{vs={X1,Y1}=V1}|Arest], V0={X0,Y0}, P={Xp,Yp}, Inside, Yflag0) ->
+vinside([#cedge{vs={X1,Y1}=V1}|Arest], {X0,Y0}, P={Xp,Yp}, Inside, Yflag0) ->
 	if
 	    V1 == P ->
 		on;
@@ -732,9 +769,9 @@ vinside([#cedge{vs={X1,Y1}=V1}|Arest], V0={X0,Y0}, P={Xp,Yp}, Inside, Yflag0) ->
 % Areas (in Art tuple) are used for tie-breaking.
 % Return false if contour I is different from contour J, and not contained in it.
 % Return same if I == J or all vertices on I are on J (duplicate contour).
-contains(I,I,_,_,_,_) ->
+contains(I,I,_,_,_) ->
 	same;
-contains(I,J,Cct,Art,Lent,Clsd) ->
+contains(I,J,Art,Lent,Clsd) ->
 	LenI = element(I,Lent),
 	LenJ = element(J,Lent),
 	{JinsideI,On} = gb_trees:get({I,J},Clsd),
@@ -769,8 +806,8 @@ pa2object(#polyarea{boundary=B,islands=Isls}) ->
 	Vs = Vtop ++ Vbot,
 	Nlist = [length(B) | map(fun (L) -> length(L) end, Isls)],
 	Ntot = sum(Nlist),
-	Ftop = [FBtop | Holestop] = faces(Nlist,0,top),
-	Fbot = [FBbot | Holesbot] = faces(Nlist,Ntot,bot),
+	[FBtop | Holestop] = faces(Nlist,0,top),
+	[FBbot | Holesbot] = faces(Nlist,Ntot,bot),
 	Fsides = sidefaces(Nlist, Ntot),
 	FtopQ = e3d__tri_quad:quadrangulate_face_with_holes(FBtop, Holestop, Vs),
 	FbotQ = e3d__tri_quad:quadrangulate_face_with_holes(FBbot, Holesbot, Vs),
@@ -783,7 +820,7 @@ cel2vec(Cel, Z) -> map(fun (#cedge{vs={X,Y}}) -> {X,Y,Z} end, Cel).
 
 faces(Nlist,Org,Kind) -> faces(Nlist,Org,Kind,[]).
 
-faces([],Org,Kind,Acc) -> reverse(Acc);
+faces([],_Org,_Kind,Acc) -> reverse(Acc);
 faces([N|T],Org,Kind,Acc) ->
 	FI = case Kind of
 		top -> #e3d_face{vs=seq(Org, Org+N-1)};
@@ -793,7 +830,7 @@ faces([N|T],Org,Kind,Acc) ->
 
 sidefaces(Nlist,Ntot) -> sidefaces(Nlist,0,Ntot,[]).
 
-sidefaces([],Org,Ntot,Acc) -> append(reverse(Acc));
+sidefaces([],_Org,_Ntot,Acc) -> append(reverse(Acc));
 sidefaces([N|T],Org,Ntot,Acc) ->
 	End = Org+N-1,
 	Fs = [ [I, Ntot+I, wrap(Ntot+I+1,Ntot+Org,Ntot+End), wrap(I+1,Org,End)]
