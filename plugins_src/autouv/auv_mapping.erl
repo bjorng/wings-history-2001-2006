@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.39 2003/07/11 17:58:16 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.40 2003/07/11 18:28:14 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -80,8 +80,14 @@ map_chart(Type, Chart, We) ->
     case wpa:face_outer_edges(Chart, We) of
 	[] ->
 	    {error,"A closed surface cannot be mapped. "
-	     "(Either divide into into two or charts, or cut along some edges.)"};
-	_ -> map_chart_1(Type, Chart, We)
+	     "(Either divide it into into two or more charts, "
+	     "or cut it along some edges.)"};
+	[[_,_]] ->
+	    {error,"A cut in a closed surface must consist of at least two edges."};
+	[_] ->
+	    map_chart_1(Type, Chart, We);
+	[_,_|_] ->
+	    {error,"A chart is not allowed to have holes."}
     end.
 
 map_chart_1(project, C, We) -> projectFromChartNormal(C, We);
