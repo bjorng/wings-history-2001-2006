@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.41 2003/06/10 05:45:11 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.42 2003/08/03 07:58:46 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -229,15 +229,22 @@ translate_map_images_1({Name,Props0}=Mat, ImMap) ->
 	[] -> Mat;
 	Maps ->
 	    Props = lists:keydelete(maps, 1, Props0),
-	    {Name,[{maps,translate_map_images_2(Maps, ImMap)}|Props]}
+	    {Name,[{maps,translate_map_images_2(Maps, Name, ImMap)}|Props]}
     end.
 
-translate_map_images_2([{Type,Im0}|T], ImMap) when is_integer(Im0) ->
-    Im = gb_trees:get(Im0, ImMap),
-    [{Type,Im}|translate_map_images_2(T, ImMap)];
-translate_map_images_2([H|T], ImMap) ->
-    [H|translate_map_images_2(T, ImMap)];
-translate_map_images_2([], _) -> [].
+translate_map_images_2([{Type,Im0}|T], Mat, ImMap) when is_integer(Im0) ->
+    case gb_trees:lookup(Im0, ImMap) of
+	none ->
+	    %% Something wrong here.
+	    io:format("Material ~p, ~p texture: reference to non-existing image ~p\n",
+		      [Mat,Type,Im0]),
+	    translate_map_images_2(T, Mat, ImMap);
+	{value,Im} ->
+	    [{Type,Im}|translate_map_images_2(T, Mat, ImMap)]
+    end;
+translate_map_images_2([H|T], Mat, ImMap) ->
+    [H|translate_map_images_2(T, Mat, ImMap)];
+translate_map_images_2([], _, _) -> [].
 
 %%%
 %%% Sharing of floating point numbers on import.
