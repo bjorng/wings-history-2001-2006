@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.4 2002/01/09 14:59:30 dgud Exp $
+%%     $Id: e3d__tif.erl,v 1.5 2002/02/18 15:56:34 dgud Exp $
 %%
 
 -module(e3d__tif).
@@ -104,7 +104,7 @@ getDirEntries(T, N, Bin) ->
 		    true ->
 			if 
 			    T == big -> <<Offset:32/big>> = ValOrOfBin;
-			    T == little -> <<Offset:32/big>> = ValOrOfBin
+			    T == little -> <<Offset:32/little>> = ValOrOfBin
 			end,
 			{offset, Offset}
 		end,
