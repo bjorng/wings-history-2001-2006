@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.293 2004/02/17 11:18:16 dgud Exp $
+%%     $Id: wings.erl,v 1.294 2004/02/28 08:41:19 bjorng Exp $
 %%
 
 -module(wings).
@@ -861,8 +861,7 @@ measure(Base, #st{selmode=vertex,sel=[{IdA,VsA},{IdB,VsB}],shapes=Shs}) ->
  	    Dist = e3d_vec:dist(wings_vertex:pos(Va, WeA),
 				wings_vertex:pos(Vb, WeB)),
 	    [Base|io_lib:format(". Distance ~s",
-				[wings_util:nice_float(Dist)])];
-	_ -> Base
+				[wings_util:nice_float(Dist)])]
     end;
 measure(Base, #st{selmode=edge,sel=[{Id,Es}],shapes=Shs}) ->
     case gb_sets:size(Es) of
