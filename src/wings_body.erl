@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.41 2002/11/10 10:56:43 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.42 2002/12/15 21:58:43 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -53,7 +53,10 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Mode",{mode,[{"Vertex Color",vertex_color},
 			   {"Material",material}]}},
-	    {"Strip Texture",strip_texture}],
+	    {"Strip Texture",strip_texture},
+	    separator,
+	    {"Weld",weld,"Merge pair of faces that are nearly coincident",
+	     [option]}],
     wings_menu:popup_menu(X, Y, body, Menu).
 
 command({move,Type}, St) ->
@@ -91,7 +94,9 @@ command(collapse, St) ->
 command(strip_texture, St) ->
     {save_state,strip_texture(St)};
 command({mode,Mode}, St) ->
-    {save_state,set_mode(Mode, St)}.
+    {save_state,set_mode(Mode, St)};
+command({weld,Ask}, St) ->
+    weld(Ask, St).
 
 %%
 %% Convert the current selection to a body selection.
@@ -260,8 +265,8 @@ unify_modes([#we{mode=Mode}|Wes], OldMode) ->
 unify_modes([], Mode) -> Mode.
 
 unify_modes_1([_,vertex]) ->
-    throw({command_error,"Objects with vertex colors cannot be combined "
-	   "with objects with materials and/or textures."});
+    wings_util:error("Objects with vertex colors cannot be combined "
+		     "with objects with materials and/or textures.");
 unify_modes_1([material,uv]) -> uv.
 
 %%%
@@ -344,3 +349,109 @@ strip_texture(St) ->
     wings_sel:map(fun(_, We) ->
 			  wings_we:uv_to_color(We, St)
 		  end, St).
+
+%%%
+%%% The Weld command.
+%%%
+
+weld(_, #st{sel=[_,_|_]}) ->
+    wings_util:error("Select only one object.");
+weld(Ask, _) when is_atom(Ask) ->
+    Qs = [{hframe,
+	   [{label,"Distance Tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]}],
+    wings_ask:dialog(Ask, Qs,
+		     fun(Res) -> {body,{weld,Res}} end);
+weld([Tolerance], St0) ->
+    St = wings_sel:map(fun(_, We) -> weld_1(Tolerance, We) end, St0),
+    {save_state,St}.
+
+weld_1(Tol, #we{fs=Fs0}=We0) ->
+    Fs = weld_1_list(gb_trees:keys(Fs0), Tol, We0, []),
+    R = sofs:relation(Fs, [{key,face}]),
+    F = sofs:relation_to_family(R),
+    Part0 = sofs:range(F),
+    Part1 = sofs:specification({external,fun([_]) -> false;
+					    (_) -> true end}, Part0),
+    Part = sofs:to_external(Part1),
+    case weld_2(Part, Tol, We0) of
+	We0 ->
+	    wings_util:error("Found no faces to weld.");
+	We -> We
+    end.
+
+weld_1_list([F|Fs], Tol, We, Acc) ->
+    Vs = wings_face:fold(
+	   fun(V, _, _, Acc0) ->
+		   [V|Acc0]
+	   end, [], F, We),
+    {X,Y,Z} = wings_vertex:center(Vs, We),
+    Center = {granularize(X, Tol),granularize(Y, Tol),granularize(Z, Tol)},
+    weld_1_list(Fs, Tol, We, [{{length(Vs),Center},F}|Acc]);
+weld_1_list([], _, _, Acc) -> Acc.
+
+granularize(F, Tol) -> Tol*round(F/Tol).
+
+weld_2([P|Ps], Tol, We0) ->
+    We = weld_part(P, Tol, We0),
+    weld_2(Ps, Tol, We);
+weld_2([], _, We) -> We.
+
+weld_part([F|Fs], Tol, We) ->
+    weld_part_1(F, Fs, Tol, We, []);
+weld_part([], _, We) -> We.
+
+weld_part_1(Fa, [Fb|Fs], Tol, We0, Acc) ->
+    case try_weld(Fa, Fb, Tol, We0) of
+	no -> weld_part_1(Fa, Fs, Tol, We0, [Fb|Acc]);	
+	We -> weld_part(Fs++Acc, Tol, We)
+    end;
+weld_part_1(_, [], Tol, We, Acc) ->
+    weld_part(Acc, Tol, We).
+
+try_weld(Fa, Fb, Tol, We) ->
+    Na = wings_face:normal(Fa, We),
+    Nb = wings_face:normal(Fb, We),
+    case e3d_vec:dot(Na, Nb) of
+	Dot when Dot < -0.99 ->
+	    try_weld_1(Fa, Fb, Tol, We);
+	_Dot -> no
+    end.
+
+try_weld_1(Fa, Fb, Tol, We0) ->
+    N = wings_face:vertices(Fa, We0),
+    IterA = wings_face:iterator(Fa, We0),
+    {Va,_,_,_} = wings_face:next_cw(IterA),
+    PosA = wings_vertex:pos(Va, We0),
+    IterB0 = weld_synced_iterator(N, Fb, PosA, We0),
+    case weld_same_positions(N, IterA, IterB0, Tol, We0) of
+	false -> no;
+	true ->
+	    {Vb,_,_,_} = wings_face:next_ccw(IterB0),
+	    We = wings_face_cmd:force_bridge(Fa, Va, Fb, Vb, We0),
+	    Es = wings_we:new_items(edge, We0, We),
+	    foldl(fun(E, W) -> wings_collapse:collapse_edge(E, W) end,
+		  We, gb_sets:to_list(Es))
+    end.
+
+weld_synced_iterator(N, Face, Pos, We) ->
+    Iter = wings_face:iterator(Face, We),
+    weld_synced_iterator_1(N, Iter, Pos, We, []).
+
+weld_synced_iterator_1(0, _, _, _, Acc) ->
+    [{_,Iter}|_] = sort(Acc),
+    Iter;
+weld_synced_iterator_1(N, Iter0, Pos, We, Acc) ->
+    {V,_,_,Iter} = wings_face:next_ccw(Iter0),
+    D = e3d_vec:dist(Pos, wings_vertex:pos(V, We)),
+    weld_synced_iterator_1(N-1, Iter, Pos, We, [{D,Iter0}|Acc]).
+
+weld_same_positions(0, _, _, _, _) -> true;
+weld_same_positions(N, IterA0, IterB0, Tol, We) ->
+    {Va,_,_,IterA} = wings_face:next_cw(IterA0),
+    {Vb,_,_,IterB} = wings_face:next_ccw(IterB0),
+    PosA = wings_vertex:pos(Va, We),
+    PosB = wings_vertex:pos(Vb, We),
+    case e3d_vec:dist(PosA, PosB) of
+	D when abs(D) < Tol -> weld_same_positions(N-1, IterA, IterB, Tol, We);
+	_D -> false
+    end.

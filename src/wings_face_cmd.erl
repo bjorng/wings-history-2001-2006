@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.65 2002/11/23 20:34:31 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.66 2002/12/15 21:58:44 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
 -export([menu/3,command/2]).
--export([dissolve/1,dissolve/2,outer_edge_partition/2,mirror_faces/2]).
+-export([dissolve/1,dissolve/2,outer_edge_partition/2,mirror_faces/2,
+	 force_bridge/5]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keysort/2,
