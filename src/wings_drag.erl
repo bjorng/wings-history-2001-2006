@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.153 2003/07/29 04:12:58 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.154 2003/07/30 12:18:42 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -61,7 +61,10 @@ setup(Tvs, Units, Flags, #st{selmode=Mode}=St) ->
 		 falloff=falloff(Units),magnet=Magnet,st=St},
     case Mode of
 	body ->
-	    wings_draw:update_dlists(St);
+	    Workmode = wings_wm:get_prop(workmode),
+	    wings_wm:set_prop(workmode, true),
+	    wings_draw:update_dlists(St),
+	    wings_wm:set_prop(workmode, Workmode);
 	_ ->
 	    wings_draw:invalidate_dlists(St),
 	    wings_draw:update_mirror()
