@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.15 2001/12/16 21:30:08 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.16 2001/12/23 11:32:46 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -23,31 +23,34 @@ setup(Type, #st{selmode=vertex}=St) ->
 	    fun(#shape{id=Id,sh=We}, Vs, Acc) ->
 		    [{Id,vertices_to_vertices(Vs, We, Vec)}|Acc]
 	    end, [], St),
-    init_drag(Tvs, St);
+    init_drag(Tvs, Vec, St);
 setup(Type, #st{selmode=edge}=St) ->
     Vec = wings_util:make_vector(Type),
     Tvs = wings_sel:fold_region(
 	    fun(Id, Edges, We, Acc) ->
 		    [{Id,edges_to_vertices(Edges, We, Vec)}|Acc]
 	    end, [], St),
-    init_drag(Tvs, St);
+    init_drag(Tvs, Vec, St);
 setup(Type, #st{selmode=face}=St) ->
     Vec = wings_util:make_vector(Type),
     Tvs = wings_sel:fold_region(
 	    fun(Id, Faces, We, Acc) ->
 		    [{Id,faces_to_vertices(Faces, We, Vec)}|Acc]
 	    end, [], St),
-    init_drag(Tvs, St);
+    init_drag(Tvs, Vec, St);
 setup(Type, #st{selmode=body}=St) ->
     Vec = wings_util:make_vector(Type),
     Tvs = wings_sel:fold(
 	    fun(#shape{id=Id,sh=#we{}=We}=Sh, Acc) ->
 		    [{Id,body_to_vertices(We, Vec)}|Acc]
 	    end, [], St),
-    init_drag({matrix,Tvs}, St).
+    init_drag({matrix,Tvs}, Vec, St).
 
-init_drag(Tvs, St) ->
-    wings_drag:init_drag(Tvs, none, angle, St).
+init_drag(Tvs, Vec, St) ->
+    wings_drag:init_drag(Tvs, constraint(Vec), angle, St).
+
+constraint(free) -> view_dependent;
+constraint(Other) -> none.
 
 %%
 %% Conversion of vertex selection to vertices. :-)
@@ -94,9 +97,9 @@ faces_to_vertices(Faces, We, Vec) ->
 %%
 
 body_to_vertices(We, Vec) ->
-    rotate_fun(We, Vec).
+    body_rotate_fun(We, Vec).
 
-rotate_fun(We, free) ->
+body_rotate_fun(We, free) ->
     {Cx,Cy,Cz} = wings_vertex:center(We),
     fun(Matrix0, Dx, Dy, St) when float(Dx) ->
 	    wings_drag:message([Dx], angle),
@@ -106,9 +109,9 @@ rotate_fun(We, free) ->
 	    M = e3d_mat:mul(M0, e3d_mat:rotate(A, Vec)),
 	    e3d_mat:mul(M, e3d_mat:translate(-Cx, -Cy, -Cz))
     end;
-rotate_fun(We, Vec) ->
+body_rotate_fun(We, Vec) ->
     {Cx,Cy,Cz} = wings_vertex:center(We),
-    fun(Matrix0, Dx, Dy, St) when float(Dx) ->
+    fun(Matrix0, Dx, Dy) when float(Dx) ->
 	    A = 15*Dx,
 	    wings_drag:message([A], angle),
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:translate(Cx, Cy, Cz)),
@@ -118,18 +121,35 @@ rotate_fun(We, Vec) ->
 	    
 %% Setup rotation.
 
-rotate(Vs, We, free) when list(Vs) ->
+rotate(Vs, We, free) ->
     Center = wings_vertex:center(Vs, We),
-    {Vs,fun(Sh, Dx, Dy, St) ->
-	    Vec = view_vector(),
-	    {tvs,[{{rot,Center,Vec},Vs}]}
-	end};
-rotate(Vs, We, Vec) when list(Vs) ->
+    VsPos = wings_util:add_vpos(Vs, We),
+    Vec = view_vector(),
+    {Vs,rotate_fun(Center, VsPos, Vec)};
+rotate(Vs, We, Vec) ->
     Center = wings_vertex:center(Vs, We),
-    [{{rot,Center,Vec},Vs}].
+    VsPos = wings_util:add_vpos(Vs, We),
+    {Vs,rotate_fun(Center, VsPos, Vec)}.
+
+rotate_fun(Center, VsPos, Axis) ->
+    fun(view_changed, NewWe, _) ->
+	    NewAxis = view_vector(),
+	    NewVsPos = wings_util:update_vpos(VsPos, NewWe),
+	    rotate_fun(Center, NewVsPos, NewAxis);
+       (Dx, Dy, A) ->
+	    rotate(Center, Axis, Dx, VsPos, A)
+    end.
+
+rotate({Cx,Cy,Cz}, Axis, Dx, VsPos, Acc0) ->
+    Angle = 15*Dx,
+    wings_drag:message([Angle], angle),
+    M0 = e3d_mat:translate(Cx, Cy, Cz),
+    M1 = e3d_mat:mul(M0, e3d_mat:rotate(Angle, Axis)),
+    M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
+    foldl(fun({V,#vtx{pos=Pos0}=Vtx}, Acc) ->
+		  Pos = e3d_mat:mul_point(M, Pos0),
+		  [{V,Vtx#vtx{pos=Pos}}|Acc]
+	  end, Acc0, VsPos).
 
 view_vector() ->
-    #view{azimuth=Az,elevation=El} = wings_view:current(),
-    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
-    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
-    e3d_mat:mul_vector(M, {0.0,0.0,1.0}).
+    e3d_vec:norm(wings_view:eye_point()).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.39 2001/12/16 21:30:08 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.40 2001/12/23 11:32:46 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -24,7 +24,8 @@
 
 -define(DL_DYNAMIC, (?DL_DRAW_BASE+3)).
 
--import(lists, [foreach/2,map/2,foldl/3,sort/1,reverse/1,concat/1]).
+-import(lists, [foreach/2,map/2,foldl/3,sort/1,keysort/2,
+		reverse/1,concat/1]).
 
 -record(drag,
 	{x,					%Original 2D position
@@ -32,11 +33,10 @@
 	 xs=0,
 	 ys=0,
 	 tvs,					%[{Vertex,Vec}...]
-	 ids=[],
 	 constraint,				%Constraints for motion
 	 unit,					%Unit that drag is done in.
-	 shapes,				%Shapes before drag.
-	 drag_faces=none,			%Faces being dragged.
+	 new,					%New objects.
+	 sel,					%Massaged selection.
 	 matrices=none				%Transformation matrices.
 	}).
 
@@ -50,19 +50,33 @@ init_drag(Tvs, Constraint, St) ->
 init_drag(Tvs, Constraint, Unit, St) ->
     init_drag_1(Tvs, Constraint, Unit, St).
 
-init_drag_1(Tvs, Constraint, Unit, #st{shapes=OldShapes}=St) ->
-    wings_io:grab(),
+init_drag_1(Tvs, Constraint, Unit, St) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = #drag{x=X,y=Y,constraint=Constraint,unit=Unit,shapes=OldShapes},
+    Drag = #drag{x=X,y=Y,constraint=Constraint,unit=Unit},
     init_drag_2(Tvs, Drag, St).
 
-init_drag_2(Tvs0, Drag0, St) ->
-    Tvs = combine(Tvs0),
-    Faces = faces(Tvs, St),
-    Drag1 = Drag0#drag{tvs=Tvs,drag_faces=Faces},
-    Drag = static_display_list(Drag1, St),
-    St#st{drag=Drag,dl=none}.
+init_drag_2(Tvs0, Drag0, #st{selmode=Mode,sel=Sel0}=St) ->
+    case combine(Tvs0) of
+	{matrix,Tv}=Tvs ->
+	    Faces = [{Id,matrix} || {Id,Trans,Matrix} <- Tv],
+	    Drag = Drag0#drag{tvs=Tvs},
+	    static_display_list(Faces, St),
+	    wings_io:grab(),
+	    St#st{drag=Drag,dl=none};
+	Tvs ->
+ 	    gl:newList(?DL_STATIC_FACES, ?GL_COMPILE),
+	    Dyn = break_apart(Tvs, St),
+ 	    gl:endList(),
+	    Sel = {Mode,[{Id,gb_sets:to_list(S)} || {Id,S} <- Sel0]},
+	    Drag = Drag0#drag{tvs=Dyn,sel=Sel},
+	    wings_io:grab(),
+	    St#st{drag=Drag,dl=none}
+    end.
 
+%% 
+%% Mainly an optimisation. We want to combine translatation vectors
+%% that happens to be the same. We do some massage of the input.
+%%
 combine({matrix,Tvs0}) ->
     Ident = e3d_mat:identity(),
     Tvs = [{Id,Trans,Ident} || {Id,Trans} <- Tvs0],
@@ -83,6 +97,74 @@ combine(Tvs) ->
 		{Id,sofs:to_external(FU)}
 	end, sofs:to_external(F)).
 
+%%
+%% Here we break apart the objects into two parts - static part
+%% (not moved during drag) and dynamic (part of objects actually
+%% moved).
+%%
+break_apart({matrix,_}=Tvs, St) -> Tvs;		%Specially handled.
+break_apart(Tvs, #st{shapes=Shs}=St) ->
+    break_apart(Tvs, gb_trees:to_list(Shs), []).
+
+break_apart([{Id,_}|_]=Tvs, [{ShId,Sh}|Shs], Dyn) when ShId < Id ->
+    #shape{sh=We} = Sh,
+    draw_faces(We),
+    break_apart(Tvs, Shs, Dyn);
+break_apart([{Id,Tv}|Tvs], [{Id,#shape{sh=We0}=Sh}|Shs], DynAcc) ->
+    #we{es=Etab0,fs=Ftab0,vs=Vtab0} = We0,
+    Etab1 = foldl(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A) ->
+			 [{Va,Lf},{Va,Rf},{Vb,Lf},{Vb,Rf}|A]
+		 end, [], gb_trees:values(Etab0)),
+    Etab2 = sofs:relation(Etab1, [{vertex,face}]),
+    Vs = tv_vertices(Tv),
+    Faces = sofs:image(Etab2, Vs),
+    Ftab1 = sofs:relation(gb_trees:to_list(Ftab0), [{face,data}]),
+    FtabStatic0 = sofs:drestriction(Ftab1, Faces),
+    FtabStatic = sofs:to_external(FtabStatic0),
+    WeStatic = We0#we{fs=gb_trees:from_orddict(FtabStatic),
+		      first_id=FtabStatic},
+    draw_faces(WeStatic),
+
+    FtabDyn0 = sofs:restriction(Ftab1, Faces),
+    FtabDyn = sofs:to_external(FtabDyn0),
+    AllVs = sofs:image(sofs:converse(Etab2), Faces),
+    WeDyn = We0#we{fs=gb_trees:from_orddict(FtabDyn),first_id=FtabDyn,
+		   vs=undefined},
+    StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
+    StaticVs = reverse(insert_vtx_data_1(StaticVs0, Vtab0, [])),
+    Dyn = case Tv of
+	      {Trans,FunList} ->
+		  {FunList,StaticVs,Id,WeDyn};
+	      Trans0 ->
+		  Trans1 = keysort(2, Trans0),
+		  Trans = insert_vtx_data(Trans1, Vtab0, []),
+		  {Trans,StaticVs,Id,WeDyn}
+	  end,
+    break_apart(Tvs, Shs, [Dyn|DynAcc]);
+break_apart([], [{_,#shape{sh=We}}|Shs], Dyn) ->
+    draw_faces(We),
+    break_apart([], Shs, Dyn);
+break_apart([], [], Dyn) -> Dyn.
+
+tv_vertices({Vs,[Fun|_]}) when is_function(Fun) ->
+    sofs:set(Vs, [vertex]);
+tv_vertices(Tv) ->
+    Vs = foldl(fun({_,Vs}, A) -> [Vs|A] end, [], Tv),
+    sofs:union(sofs:from_term(Vs, [[vertex]])).
+
+insert_vtx_data([{Vec,Vs0}|VecVs], Vtab, Acc) ->
+    Vs = insert_vtx_data_1(Vs0, Vtab, []),
+    insert_vtx_data(VecVs, Vtab, [{Vec,Vs}|Acc]);
+insert_vtx_data([], Vtab, Acc) -> Acc.
+
+insert_vtx_data_1([V|Vs], Vtab, Acc) ->
+    insert_vtx_data_1(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
+insert_vtx_data_1([], Vtab, Acc) -> Acc.
+
+%%%
+%%% Handling of drag events.
+%%%
+
 do_drag(St) ->
     {seq,{push,dummy},get_drag_event_1(St)}.
 
@@ -100,11 +182,10 @@ handle_drag_event(Event, St) ->
     end.
 
 handle_drag_event_1(#mousemotion{x=X,y=Y}, #st{drag=Drag0}=St0) ->
-    #drag{shapes=Shapes,tvs=Tvs} = Drag0,
-    {Dx0,Dy0,Drag} = mouse_range(X, Y, Drag0),
-    {Dx,Dy} = constrain(Dx0, Dy0, Drag),
-    St1 = St0#st{shapes=Shapes,drag=Drag},
-    St = motion_update(Tvs, Dx, Dy, St1),
+    {Dx0,Dy0,Drag1} = mouse_range(X, Y, Drag0),
+    {Dx,Dy} = constrain(Dx0, Dy0, Drag1),
+    Drag = motion_update(Dx, Dy, Drag1),
+    St = St0#st{drag=Drag},
     get_drag_event(St);
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, St0) ->
     wings_io:ungrab(),
@@ -151,11 +232,15 @@ magnet_radius(Sign, #st{inf_r=InfR0}=St) ->
 
 view_changed(#st{drag=#drag{constraint=view_dependent}=Drag0}=St) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = Drag0#drag{x=X,y=Y,xs=0,ys=0,shapes=St#st.shapes},
+    Drag = Drag0#drag{x=X,y=Y,xs=0,ys=0},
     view_changed_1(St#st{drag=Drag});
 view_changed(St) -> St.
 
-view_changed_1(#st{drag=#drag{matrices=none}}=St) -> St;
+view_changed_1(#st{drag=#drag{matrices=none}=Drag0}=St) ->
+    #drag{tvs=Tvs0,new=New} = Drag0,
+    Tvs = update_tvs(Tvs0, reverse(New)),
+    Drag = Drag0#drag{tvs=Tvs},
+    St#st{drag=Drag};
 view_changed_1(#st{drag=#drag{tvs={matrix,Tvs0},matrices=Mtxs}=Drag}=St) ->
     Tvs = view_changed_2(Tvs0, sort(Mtxs)),
     St#st{drag=Drag#drag{tvs={matrix,Tvs}}}.
@@ -164,11 +249,20 @@ view_changed_2([{Id,Trans,_}|Tvs], [{Id,Matrix}|Ms]) ->
     [{Id,Trans,Matrix}|view_changed_2(Tvs, Ms)];
 view_changed_2([], []) -> [].
 
-motion(X, Y, #st{drag=#drag{shapes=Shapes,tvs=Tvs}=Drag0}=St0) ->
-    {Dx0,Dy0,Drag} = mouse_range(X, Y, Drag0),
-    {Dx,Dy} = constrain(Dx0, Dy0, Drag),
-    St = St0#st{drag=Drag,shapes=Shapes},
-    motion_update(Tvs, Dx, Dy, St).
+update_tvs([{Tv,StaticVs,Id,StaticWe}|Tvs], [{Id,NewWe}|New]) ->
+    [{update_tvs_1(Tv, NewWe, []),StaticVs,Id,StaticWe}|update_tvs(Tvs, New)];
+update_tvs([], []) -> [].
+
+update_tvs_1([F0|Fs], NewWe, Acc) ->
+    F = F0(view_changed, NewWe, dummy),
+    update_tvs_1(Fs, NewWe, [F|Acc]);
+update_tvs_1([], NewWe, Acc) -> reverse(Acc).
+    
+motion(X, Y, #st{drag=Drag0}=St) ->
+    {Dx0,Dy0,Drag1} = mouse_range(X, Y, Drag0),
+    {Dx,Dy} = constrain(Dx0, Dy0, Drag1),
+    Drag = motion_update(Dx, Dy, Drag1),
+    St#st{drag=Drag}.
 
 mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs,ys=Ys}=Drag) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
@@ -197,13 +291,21 @@ warp(X, Y, XsInc, YsInc, #drag{xs=Xs,ys=Ys}=Drag) ->
     wings_io:warp(X, Y),
     mouse_range(X, Y, Drag#drag{xs=Xs+XsInc,ys=Ys+YsInc}).
 
-constrain(Dx0, Dy0, #drag{constraint=Constraint}) ->
+constrain(Dx0, Dy0, #drag{unit=Unit,constraint=Constraint}) ->
     {Dx,Dy} = case sdl_keyboard:getModState() of
   		  Mod when Mod band ?SHIFT_BITS =/= 0,
 			   Mod band ?CTRL_BITS =/= 0 ->
-  		      {trunc(100*Dx0)/100,trunc(100*Dy0)/100};
+		      D = if
+			      Unit == angle -> 150.0;
+			      true -> 100.0
+			  end,
+		      {trunc(D*Dx0)/D,trunc(D*Dy0)/D};
 		  Mod when Mod band ?CTRL_BITS =/= 0 ->
-		      {trunc(10*Dx0)/10,trunc(10*Dy0)/10};
+		      D = if
+			      Unit == angle -> 15.0;
+			      true -> 10.0
+			  end,
+		      {trunc(D*Dx0)/D,trunc(D*Dy0)/D};
 		  Mod when Mod band ?SHIFT_BITS =/= 0 ->
 		      {float(trunc(Dx0)),float(trunc(Dy0))};
 		  Mod -> {Dx0,Dy0}
@@ -221,10 +323,14 @@ constrain(Dx0, Dy0, #drag{constraint=Constraint}) ->
 	    {Dx,Dy}
     end.
 
-motion_update({matrix,Tvs}, Dx, Dy, #st{drag=Drag,shapes=Shapes}=St) ->
+%%%
+%%% Update selection for new mouse position.
+%%%
+
+motion_update(Dx, Dy, #drag{tvs={matrix,Tvs}}=Drag) ->
     gl:newList(?DL_DYNAMIC_FACES, ?GL_COMPILE),
     Mtxs = foldl(fun({Id,Trans,Matrix0}, Acc) when function(Trans) ->
-			 Matrix = Trans(Matrix0, Dx, Dy, St),
+			 Matrix = Trans(Matrix0, Dx, Dy),
 			 gl:pushMatrix(),
 			 gl:multMatrixf(e3d_mat:expand(Matrix)),
 			 gl:callList(?DL_DYNAMIC+Id),
@@ -236,71 +342,40 @@ motion_update({matrix,Tvs}, Dx, Dy, #st{drag=Drag,shapes=Shapes}=St) ->
     sel_color(),
     gl:callList(?DL_DYNAMIC_FACES),
     gl:endList(),
-    St#st{drag=Drag#drag{matrices=Mtxs}};
-motion_update(Tvs, Dx, Dy, #st{shapes=Shapes0}=St0) ->
-    Shapes =
-	foldl(fun({Id,{_,[F0|_]=Trs}}, Shs0) when is_function(F0) ->
-		      Sh = foldl(fun(Tr, Sh0) ->
-					 case Tr(Sh0, Dx, Dy, St0) of
-					     {shape,Sh} ->
-						 Sh;
-					     {tvs,List} ->
-						 transform_vs(List, Dx, Dy, St0, Sh0)
-					 end
-				 end, gb_trees:get(Id, Shs0), Trs),
-		      gb_trees:update(Id, Sh, Shs0);
-		 ({Id,List}, Shapes) ->
-		      Sh0 = gb_trees:get(Id, Shapes),
-		      Sh = transform_vs(List, Dx, Dy, St0, Sh0),
-		      gb_trees:update(Id, Sh, Shapes)
-	      end, Shapes0, Tvs),
-    St1 = St0#st{shapes=Shapes},
-    St = update_display_lists(St1),
-    make_sel_dlist(St).
+    Drag#drag{matrices=Mtxs};
+motion_update(Dx, Dy, #drag{tvs=Tvs,sel=Sel}=Drag) ->
+    gl:newList(?DL_DYNAMIC_FACES, ?GL_COMPILE),
+    New = motion_update_1(Tvs, Dx, Dy, Drag, []),
+    gl:endList(),
+    make_sel_dlist(New, Sel),
+    Drag#drag{new=New}.
 
-transform_vs(Tvs, Dx, Dy, St, #shape{sh=#we{vs=Vtab0}=We}=Shape0) ->
-    show_message(Tvs, Dx, Dy, St),
-    Vtab = foldl(fun ({Vec,Vs}, Tab) ->
-			 trans_vec(Vec, Dx, Dy, Vs, St, Tab)
-		 end, Vtab0, Tvs),
-    Shape0#shape{sh=We#we{vs=Vtab}}.
+motion_update_1([{Tv,StaticVs,Id,We0}|Tvs], Dx, Dy, Drag, A) ->
+    Vtab0 = transform_vs(Tv, Dx, Dy, Drag, StaticVs),
+    Vtab = gb_trees:from_orddict(sort(Vtab0)),
+    We = We0#we{vs=Vtab},
+    draw_flat_faces(We),
+    motion_update_1(Tvs, Dx, Dy, Drag, [{Id,We}|A]);
+motion_update_1([], Dx, Dy, Drag, A) -> A.
 
-trans_vec({rot,{Cx,Cy,Cz},Vec}, Dx, Dy, Vs, St, Vtab) ->
-    A = 15*Dx,
-    M0 = e3d_mat:translate(Cx, Cy, Cz),
-    M1 = e3d_mat:mul(M0, e3d_mat:rotate(A, Vec)),
-    M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
-    foldl(fun(V, Tab) -> 
-		  #vtx{pos=Pos0}= Vtx = gb_trees:get(V, Tab),
-		  Pos = e3d_mat:mul_point(M, Pos0),
-		  gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
-	  end, Vtab, Vs);
-trans_vec({free,Matrix}, Dx, Dy, Vs, St, Vtab) ->
-    {Xt,Yt,Zt} = e3d_mat:mul_point(Matrix, {Dx,Dy,0.0}),
-    foldl(fun(V, Tab) -> 
-		  #vtx{pos={X,Y,Z}}= Vtx = gb_trees:get(V, Tab),
-		  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
-		  gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
-	  end, Vtab, Vs);
-trans_vec({Xt0,Yt0,Zt0}, Dx, Dy, Vs, St, Vtab) ->
+transform_vs([F0|_]=Fs, Dx, Dy, Drag, Acc) when is_function(F0) ->
+    foldl(fun(F, A) -> F(Dx, Dy, A) end, Acc, Fs);
+transform_vs(Tvs, Dx, Dy, Drag, Acc) ->
+    message([Dx], Drag),
+    foldl(fun({Vec,Vs}, A) ->
+		  translate(Vec, Dx, Vs, A)
+	  end, Acc, Tvs).
+
+translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
     Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
-    translate(Xt, Yt, Zt, Vs, Vtab).
+    foldl(fun({V,#vtx{pos={X,Y,Z}}=Vtx}, A) -> 
+		  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
+		  [{V,Vtx#vtx{pos=Pos}}|A]
+	  end, Acc, VsPos).
 
-show_message([{Vec,Vs}|_], Dx, Dy, St) ->
-    show_message_1(Vec, Dx, Dy, St);
-show_message([], Dx, Dy, St) -> ok.
-
-show_message_1({rot,_,Vec}, Dx, Dy, St) ->
-    message([15*Dx], St);
-show_message_1({free,Matrix}, Dx, Dy, St) ->
-    message([Dx,Dy], St);
-show_message_1({_,_,_}, Dx, Dy, St) ->
-    message([Dx], St);
-show_message_1(Other, _, _, _) -> ok.
-
-message(L, #st{drag=#drag{unit=Unit}}) ->
+message(L, #drag{unit=Unit}) ->
     message_0(L, Unit);
-message(L, Unit) when atom(Unit) ->
+message(L, Unit) when is_atom(Unit) ->
     message_0(L, Unit).
 
 message_0([_]=L, none) ->
@@ -319,42 +394,31 @@ message_0([_,_]=L, distance) ->
 message_1(Format, List) ->
     wings_io:message(lists:flatten(io_lib:format(Format, List))).
 
-translate(Xt, Yt, Zt, Vs, Vtab) ->
-    foldl(fun(V, Tab) -> 
-		  #vtx{pos={X,Y,Z}}= Vtx = gb_trees:get(V, Tab),
-		  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
-		  gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
-	  end, Vtab, Vs).
-
-faces({matrix,Tvs}, St) ->
-    {matrix,[{Id,matrix} || {Id,Trans,Matrix} <- Tvs]};
-faces(Tvs, #st{shapes=Shapes}) ->
-    [{Id,faces_1(Vs, gb_trees:get(Id, Shapes))} || {Id,Vs} <- Tvs].
-
-faces_1({Vs,[Fun|_]}, #shape{sh=#we{}=We}) ->
-    faces_2(Vs, We, gb_sets:empty());
-faces_1(Vs0, #shape{sh=#we{}=We}) ->
-    foldl(fun ({_,Vs}, Acc) ->
-		  faces_2(Vs, We, Acc)
-	  end, gb_sets:empty(), Vs0).
-
-faces_2(Vs, We, FaceSet) ->
-    foldl(fun(V, Acc) ->
-		  wings_vertex:fold(fun(_, Face, _, A) ->
-					    gb_sets:add(Face, A)
-				    end, Acc, V, We)
-	  end, FaceSet, Vs).
-
-normalize(#st{drag=#drag{matrices=none}}=St) -> St;
-normalize(#st{drag=#drag{matrices=Mtxs},shapes=Shapes0}=St) ->
+normalize(#st{shapes=Shapes0,drag=#drag{new=New,matrices=none}}=St) ->
+    Shapes = foldl(fun({Id,We}, A) ->
+			   normalize(Id, We, A)
+		   end, Shapes0, New),
+    St#st{shapes=Shapes};
+normalize(#st{shapes=Shapes0,drag=#drag{matrices=Mtxs}}=St) ->
     Shapes = foldl(fun({Id,Matrix}, A) ->
-			   normalize(Id, Matrix, A)
+			   normalize_matrix(Id, Matrix, A)
 		   end, Shapes0, Mtxs),
     St#st{shapes=Shapes}.
 
-normalize(Id, Matrix, Shapes) ->
+normalize_matrix(Id, Matrix, Shapes) ->
     #shape{sh=We0}= Sh0 = gb_trees:get(Id, Shapes),
     We = wings_we:transform_vs(Matrix, We0),
+    Sh = Sh0#shape{sh=We},
+    gb_trees:update(Id, Sh, Shapes).
+
+normalize(Id, #we{vs=Vtab0}, Shapes) ->
+    #shape{sh=#we{vs=OldVtab0}=We0} = Sh0 = gb_trees:get(Id, Shapes),
+    Vtab1 = sofs:relation(gb_trees:to_list(Vtab0), [{vertex,data}]),
+    OldVtab1 = sofs:relation(gb_trees:to_list(OldVtab0), [{vertex,data}]),
+    OldVtab2 = sofs:drestriction(OldVtab1, sofs:domain(Vtab1)),
+    Vtab2 = sofs:union(Vtab1, OldVtab2),
+    Vtab = gb_trees:from_orddict(sofs:to_external(Vtab2)),
+    We = We0#we{vs=Vtab},
     Sh = Sh0#shape{sh=We},
     gb_trees:update(Id, Sh, Shapes).
 
@@ -362,11 +426,11 @@ normalize(Id, Matrix, Shapes) ->
 %%% Redrawing while dragging.
 %%%
 
-redraw(St0) ->
-    St = render(St0),
+redraw(St) ->
+    render(St),
     wings_io:update(St).
 
-render(#st{shapes=Shapes}=St) ->
+render(St) ->
     ?CHECK_ERROR(),
     gl:enable(?GL_DEPTH_TEST),
     wings_view:projection(),
@@ -376,9 +440,7 @@ render(#st{shapes=Shapes}=St) ->
     wings_view:model_transformations(),
     wings_draw:ground_and_axes(),
     draw_shapes(St),
-    gl:popAttrib(),
-    ?CHECK_ERROR(),
-    St.
+    gl:popAttrib().
 
 draw_shapes(#st{selmode=SelMode}=St) ->
     Wire = wings_pref:get_value(wire_mode),
@@ -455,28 +517,13 @@ draw_we(St) ->
     gl:callList(?DL_DYNAMIC_FACES).
 
 %% Collect the static display list - faces that will not be moved.
-static_display_list(#drag{drag_faces={matrix,Faces},shapes=Shs0}=Drag, St) ->
+%% Only for the matrix case.
+static_display_list(Faces, #st{shapes=Shs0}=St) ->
     make_dlist(?DL_STATIC_FACES, Faces, false, St),
     Shs = gb_trees:to_list(Shs0),
     make_dlist_1(Shs, Faces, true),
     gl:newList(?DL_SEL, ?GL_COMPILE),
-    gl:endList(),
-    Drag;
-static_display_list(#drag{drag_faces=Faces}=Drag, St) ->
-    make_dlist(?DL_STATIC_FACES, Faces, false, St),
-    Drag.
-
-update_display_lists(#st{drag=#drag{drag_faces=Faces}=Drag}=St) ->
-    %% Collect the dynamic display list - everything that will be moved.
-    make_dlist(?DL_DYNAMIC_FACES, Faces, true, St),
-    St.
-
-make_sel_dlist(St) ->
-    DlistSel = ?DL_SEL,
-    gl:newList(DlistSel, ?GL_COMPILE),
-    draw_selection(St),
-    gl:endList(),
-    St.
+    gl:endList().
 
 make_dlist(DlistId, Faces, DrawMembers, #st{shapes=Shapes0}=St) ->
     gl:newList(DlistId, ?GL_COMPILE),
@@ -486,63 +533,27 @@ make_dlist(DlistId, Faces, DrawMembers, #st{shapes=Shapes0}=St) ->
 
 make_dlist_1([{Id,Shape}|Shs], [{Id,matrix}|Fs], false) ->
     make_dlist_1(Shs, Fs, false);
-make_dlist_1([{Id,Shape}|Shs], [{Id,matrix}|Fs], true) ->
+make_dlist_1([{Id,#shape{sh=We}}|Shs], [{Id,matrix}|Fs], true) ->
     gl:newList(?DL_DYNAMIC+Id, ?GL_COMPILE),
-    Draw = fun(Face, Edge, We) ->
-		   wings_draw_util:face(Face, Edge, We)
-	   end,
-    mkdl_draw_faces(Shape, Draw),
+    draw_faces(We),
     gl:endList(),
     make_dlist_1(Shs, Fs, true);
-make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], false) ->
-    Draw = fun(F, Fs0, Edge, We) ->
-		   case gb_sets:is_member(F, Fs0) of
-		       false -> wings_draw_util:face(F, Edge, We);
-		       true -> ok
-		   end
-	   end,
-    mkdl_draw_faces(Shape, Faces, Draw),
-    make_dlist_1(Shs, Fs, false);
-make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], true) ->
-    Draw = fun(F, Fs0, Edge, We) ->
-		   case gb_sets:is_member(F, Fs0) of
-		       true -> wings_draw_util:face(F, Edge, We);
-		       false -> ok
-		   end
-	   end,
-    mkdl_draw_faces(Shape, Faces, Draw),
-    make_dlist_1(Shs, Fs, true);
-make_dlist_1([{Id,Shape}|Shs], Fs, false) ->
-    Draw = fun(F, Fs0, Edge, We) ->
-		   wings_draw_util:face(F, Edge, We)
-	   end,
-    mkdl_draw_faces(Shape, dummy, Draw),
+make_dlist_1([{Id,#shape{sh=We}}|Shs], Fs, false) ->
+    draw_faces(We),
     make_dlist_1(Shs, Fs, false);
 make_dlist_1([{Id,Shape}|Shs], Fs, true) ->
-    Draw = fun(F, Fs0, Edge, We) -> ok end,
-    mkdl_draw_faces(Shape, dummy, Draw),
     make_dlist_1(Shs, Fs, true);
 make_dlist_1([], Fs, Draw) -> ok.
 
-mkdl_draw_faces(#shape{sh=#we{}=We}, Faces, Draw) ->
-    wings_util:fold_face(
-      fun(Face, #face{edge=Edge}, _) ->
-	      Draw(Face, Faces, Edge, We)
-      end, [], We);
-mkdl_draw_faces(_, _, _) -> ok.
+draw_faces(#we{fs=Ftab}=We) ->
+    foreach(fun({Face,#face{edge=Edge}}) ->
+		    wings_draw_util:face(Face, Edge, We)
+	    end, gb_trees:to_list(Ftab)).
 
-mkdl_draw_faces(#shape{sh=#we{}=We}, Draw) ->
-    wings_util:fold_face(
-      fun(Face, #face{edge=Edge}, _) ->
-	      Draw(Face, Edge, We)
-      end, [], We);
-mkdl_draw_faces(_, _) -> ok.
-
-draw_faces(#we{}=We, St) ->
-    wings_util:fold_face(
-      fun(Face, #face{edge=Edge}, _) ->
-	      wings_draw_util:face(Face, Edge, We)
-      end, [], We).
+draw_flat_faces(#we{first_id=Flist}=We) ->
+    foreach(fun({Face,#face{edge=Edge}}) ->
+		    wings_draw_util:flat_face(Face, Edge, We)
+	    end, Flist).
 
 draw_hard_edges(#st{shapes=Shapes}) ->
     gl:color3fv(wings_pref:get_value(hard_edge_color)),
@@ -569,36 +580,38 @@ draw_hard_edges_1(#we{es=Etab,he=Htab,vs=Vtab}) ->
 %% Draw the currently selected items.
 %% 
 
-draw_selection(#st{selmode=body}=St) ->
-    wings_sel:foreach(
-      fun(_, #shape{sh=Data}) ->
-	      draw_faces(Data, St)
-      end, St),
-    St;
-draw_selection(#st{selmode=face}=St) ->
-    wings_sel:foreach(
-      fun(Face, #shape{sh=#we{fs=Ftab}=We}) ->
-	      wings_draw_util:sel_face(Face, We)
-      end, St),
-    St;
-draw_selection(#st{selmode=edge}=St) ->
-    gl:'begin'(?GL_LINES),
-    wings_sel:foreach(
-      fun(Edge, #shape{sh=#we{es=Etab,vs=Vtab}}=Sh) ->
-	      #edge{vs=Vstart,ve=Vend} = gb_trees:get(Edge, Etab),
-	      gl:vertex3fv(lookup_pos(Vstart, Vtab)),
-	      gl:vertex3fv(lookup_pos(Vend, Vtab))
-      end, St),
-    gl:'end'(),
-    St;
-draw_selection(#st{selmode=vertex}=St) ->
+make_sel_dlist(Objs, {Mode,Sel}) ->
+    gl:newList(?DL_SEL, ?GL_COMPILE),
+    make_sel_dlist_1(Mode, Sel, Objs),
+    gl:endList().
+
+make_sel_dlist_1(Mode, [{Id,Items}|Sel], [{Id,We}|Wes]) ->
+    draw_sel(Mode, Items, We),
+    make_sel_dlist_1(Mode, Sel, Wes);
+make_sel_dlist_1(Mode, [], []) -> ok.
+
+draw_sel(vertex, Vs, #we{vs=Vtab}) ->
     gl:'begin'(?GL_POINTS),
-    wings_sel:foreach(
-      fun(V, #shape{sh=#we{vs=Vtab}}) ->
-	      gl:vertex3fv(lookup_pos(V, Vtab))
-      end, St),
-    gl:'end'(),
-    St.
+    foreach(fun(V) ->
+		    gl:vertex3fv(lookup_pos(V, Vtab))
+	    end, Vs),
+    gl:'end'();
+draw_sel(edge, Edges, #we{es=Etab,vs=Vtab}) ->
+    gl:'begin'(?GL_LINES),
+    foreach(fun(Edge) ->
+		    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+		    gl:vertex3fv(lookup_pos(Va, Vtab)),
+		    gl:vertex3fv(lookup_pos(Vb, Vtab))
+	    end, Edges),
+    gl:'end'();
+draw_sel(face, Faces, We) ->
+    foreach(fun(Face) ->
+		    wings_draw_util:sel_face(Face, We)
+	    end, Faces);
+draw_sel(body, Dummy, #we{fs=Ftab}=We) ->
+    foreach(fun(Face) ->
+		    wings_draw_util:sel_face(Face, We)
+	    end, gb_trees:keys(Ftab)).
 
 lookup_pos(Key, Tree) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tree),

@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.18 2001/12/11 07:46:51 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.19 2001/12/23 11:32:46 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([share/1,share/3,make_vector/1,
 	 message/1,yes_no/1,serious_yes_no/1,ask/3,
-	 upper/1,fold_shape/3,fold_face/3,fold_vertex/3,fold_edge/3,
+	 upper/1,add_vpos/2,update_vpos/2,
+	 fold_shape/3,fold_face/3,fold_vertex/3,fold_edge/3,
 	 average_normals/1,
 	 tc/1,crasch_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
@@ -66,6 +67,18 @@ upper([H|T]) ->
     [H|upper(T)];
 upper([]) -> [].
 
+add_vpos(Vs, #we{vs=Vtab}) -> add_vpos(Vs, Vtab);
+add_vpos(Vs, Vtab) ->
+    foldl(fun(V, A) ->
+		  [{V,gb_trees:get(V, Vtab)}|A]
+	  end, [], Vs).
+
+update_vpos(Vs, #we{vs=Vtab}) -> update_vpos(Vs, Vtab);
+update_vpos(Vs, Vtab) ->
+    foldl(fun({V,_}, A) ->
+		  [{V,gb_trees:get(V, Vtab)}|A]
+	  end, [], reverse(Vs)).
+    
 %%%
 %%% `fold' functions.
 %%%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.17 2001/12/16 21:30:08 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.18 2001/12/23 11:32:46 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -53,7 +53,7 @@ constraint(Other) -> none.
 %%
 
 vertices_to_vertices(Vs, We, normal) -> vertex_normals(We, Vs);
-vertices_to_vertices(Vs, We, Vec) -> make_tvs(Vs, Vec).
+vertices_to_vertices(Vs, We, Vec) -> make_tvs(Vs, Vec, We).
 
 vertex_normals(We, Vs) ->
     foldl(fun(V, Acc) ->
@@ -81,7 +81,7 @@ edges_to_vertices(Es, We, normal) ->
 	       end, [], gb_sets:to_list(Es)),
     average(Vs);
 edges_to_vertices(Es, We, Vec) ->
-    make_tvs(wings_edge:to_vertices(Es, We), Vec).
+    make_tvs(wings_edge:to_vertices(Es, We), Vec, We).
 
 average(Vs) ->
     R = sofs:relation(Vs),
@@ -125,7 +125,7 @@ faces_to_vertices(Faces, We, normal) ->
 	       end, [], gb_sets:to_list(Faces)),
     face_average(Vs, Vtab);
 faces_to_vertices(Faces, We, Vec) ->
-    make_tvs(wings_face:to_vertices(Faces, We), Vec).
+    make_tvs(wings_face:to_vertices(Faces, We), Vec, We).
 
 face_normal(Face, Vs, Vtab, Acc) ->
     Normal = wings_face:face_normal(Vs, Vtab),
@@ -201,7 +201,7 @@ body_to_vertices(Sh, Vec) ->
     translate_fun(Vec).
 
 translate_fun(free) ->
-    fun(Matrix0, Dx, Dy, St) ->
+    fun(Matrix0, Dx, Dy) ->
 	    wings_drag:message([Dx,Dy], distance),
 	    #view{azimuth=Az,elevation=El} = wings_view:current(),
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
@@ -210,7 +210,7 @@ translate_fun(free) ->
 	    e3d_mat:translate(Xt, Yt, Zt)
     end;
 translate_fun({Xt0,Yt0,Zt0}) ->
-    fun(Matrix0, Dx, Dy, St) when float(Dx) ->
+    fun(Matrix0, Dx, Dy) when float(Dx) ->
 	    wings_drag:message([Dx], distance),
 	    Xt = Xt0*Dx,
 	    Yt = Yt0*Dx,
@@ -222,14 +222,21 @@ translate_fun({Xt0,Yt0,Zt0}) ->
 %%% Utilities.
 %%%
 
-make_tvs(Vs, free) ->
-    {Vs,fun(Sh, Dx, Dy, St) ->
-	     Matrix = free_translation(Dx, Dy, St),
-	     {tvs,[{{free,Matrix},Vs}]}
-	end};
-make_tvs(Vs, Vec) -> [{Vec,Vs}].
+make_tvs(Vs, free, We) ->
+    VsPos = wings_util:add_vpos(Vs, We),
+    {Vs,move_fun(VsPos)};
+make_tvs(Vs, Vec, We) -> [{Vec,Vs}].
 
-free_translation(Dx, Dy, St) ->
-    #view{azimuth=Az,elevation=El} = wings_view:current(),
-    M = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
-    e3d_mat:mul(M, e3d_mat:rotate(-El, {1.0,0.0,0.0})).
+move_fun(VsPos) ->
+    fun(view_changed, NewWe, _) ->
+	    move_fun(wings_util:update_vpos(VsPos, NewWe));
+       (Dx, Dy, Acc) ->
+	    #view{azimuth=Az,elevation=El} = wings_view:current(),
+	    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
+	    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
+	    {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx,Dy,0.0}),
+	    foldl(fun({V,#vtx{pos={X,Y,Z}}=Rec}, A) -> 
+			  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
+			  [{V,Rec#vtx{pos=Pos}}|A]
+		  end, Acc, VsPos)
+    end.

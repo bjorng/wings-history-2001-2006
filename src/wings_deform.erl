@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.17 2001/12/11 07:41:57 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.18 2001/12/23 11:32:46 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -59,26 +59,23 @@ crumple(St) ->
     Tvs = wings_sel:fold_shape(fun crumple/3, [], St),
     wings_drag:init_drag(Tvs, {0.0,10.0}, St).
 
-crumple(#shape{id=Id,sh=#we{vs=Vtab}=We}, Vs0, Acc) ->
+crumple(#shape{id=Id,sh=We}, Vs0, Acc) ->
     {Sa,Sb,Sc} = now(),
     Vs = gb_sets:to_list(Vs0),
-    Fun = fun(#shape{sh=#we{vs=Vtab0}=W}=Sh, Dx, Dy, St) ->
+    VsPos = wings_util:add_vpos(Vs, We),
+    Fun = fun(Dx, Dy, A) ->
 		  wings_drag:message([Dx], percent),
 		  random:seed(Sa, Sb, Sc),
-		  Vt = foldl(
-			 fun(V, Vt) ->
-				 {R1,R2,R3} = rnd(Dx/4),
-				 Rec = gb_trees:get(V, Vt),
-				 #vtx{pos={X0,Y0,Z0}} = Rec,
-				 X = X0 + R1,
-				 Y = Y0 + R2,
-				 Z = Z0 + R3,
-				 Pos = {X,Y,Z},
-				 gb_trees:update(V, Rec#vtx{pos=Pos}, Vt)
-			 end, Vtab0, Vs),
-		  {shape,Sh#shape{sh=W#we{vs=Vt}}}
+		  foldl(fun({V,#vtx{pos={X0,Y0,Z0}}=Rec}, VsAcc) ->
+				{R1,R2,R3} = rnd(Dx/4),
+				X = X0 + R1,
+				Y = Y0 + R2,
+				Z = Z0 + R3,
+				Pos = {X,Y,Z},
+				[{V,Rec#vtx{pos=Pos}}|VsAcc]
+			end, A, VsPos)
 	  end,
-    [{Id,Fun}|Acc].
+    [{Id,{Vs,Fun}}|Acc].
 
 rnd(Sc) when float(Sc) ->
     %% Use Box-Muller's method for generation of normally-distributed
@@ -145,25 +142,22 @@ taper_2(#shape{id=Id,sh=We}, Vs, Primary, Effect, Acc) ->
 	    Axis = wings_util:upper(atom_to_list(Primary)),
 	    Error = lists:concat(["Extent along ",Axis," axis is too short."]),
 	    throw({command_error,Error});
-	Range -> taper_3(Id, Vs, Range, Key, Effect, MinR, MaxR, Acc)
+	Range -> taper_3(Id, Vs, We, Range, Key, Effect, MinR, MaxR, Acc)
     end.
 
-taper_3(Id, Vs0, Range, Key, Effect, MinR, MaxR, Acc) ->
+taper_3(Id, Vs0, We, Range, Key, Effect, MinR, MaxR, Acc) ->
     Tf = taper_fun(Key, Effect, MinR, MaxR),
     Vs = gb_sets:to_list(Vs0),
-    Fun = fun(#shape{sh=#we{vs=Vtab0}=W}=Sh, Dx, Dy, St) ->
+    VsPos = wings_util:add_vpos(Vs, We),
+    Fun = fun(Dx, Dy, A) ->
 		  wings_drag:message([Dx], percent),
 		  U = Dx + 1.0,
-		  Vt = foldl(
-			 fun(V, Vt) ->
-				 Rec = gb_trees:get(V, Vt),
-				 #vtx{pos=Pos0} = Rec,
-				 Pos = Tf(U, Pos0),
-				 gb_trees:update(V, Rec#vtx{pos=Pos}, Vt)
-			 end, Vtab0, Vs),
-		  {shape,Sh#shape{sh=W#we{vs=Vt}}}
+		  foldl(fun({V,#vtx{pos=Pos0}=Rec}, VsAcc) ->
+				Pos = Tf(U, Pos0),
+				[{V,Rec#vtx{pos=Pos}}|VsAcc]
+			end, A, VsPos)
 	  end,
-    [{Id,Fun}|Acc].
+    [{Id,{Vs,Fun}}|Acc].
 
 taper_fun(Key, Effect, {IX,IY,IZ}=MinR, {AX,AY,AZ}=MaxR) ->
     Min = element(Key, MinR),
@@ -206,7 +200,7 @@ twist(Axis, St) ->
     Tvs = wings_sel:fold_shape(fun(Sh, Vs, Acc) ->
 				       twist(Sh, Vs, Axis, Acc)
 			       end, [], St),
-    wings_drag:init_drag(Tvs, none, St).
+    wings_drag:init_drag(Tvs, none, angle, St).
 
 twist(#shape{id=Id,sh=We}, Vs0, Axis, Acc) ->
     Key = key(Axis),
@@ -216,20 +210,8 @@ twist(#shape{id=Id,sh=We}, Vs0, Axis, Acc) ->
     Range = Max - Min,
     Tf = twist_fun(Axis, e3d_vec:average([MinR,MaxR])),
     Vs = gb_sets:to_list(Vs0),
-    Fun = fun(#shape{sh=#we{vs=Vtab0}=W}=Sh, Dx, Dy, St) ->
-		  Angle = Dx * 15,
-		  U = (Angle / 180.0 * ?PI)/Range,
-		  wings_drag:message([Angle], angle),
-		  Vt = foldl(
-			 fun(V, Vt) ->
-				 Rec = gb_trees:get(V, Vt),
-				 #vtx{pos=Pos0} = Rec,
-				 Pos = Tf(U, Min, Pos0),
-				 gb_trees:update(V, Rec#vtx{pos=Pos}, Vt)
-			 end, Vtab0, Vs),
-		  {shape,Sh#shape{sh=W#we{vs=Vt}}}
-	  end,
-    [{Id,Fun}|Acc].
+    Fun = twister_fun(Vs, Tf, Min, Range, We),
+    [{Id,{Vs,Fun}}|Acc].
 
 twist_fun(x, {_,Cy,Cz}) ->
     fun(U, Min, {X,Y0,Z0})
@@ -263,14 +245,14 @@ twist_fun(z, {Cx,Cy,_}) ->
     end.
 
 %%%
-%%% The Twist deformer.
+%%% The Twisty Twist deformer.
 %%%
 
 twisty_twist(Axis, St) ->
     Tvs = wings_sel:fold_shape(fun(Sh, Vs, Acc) ->
 				       twisty_twist(Sh, Vs, Axis, Acc)
 			       end, [], St),
-    wings_drag:init_drag(Tvs, none, St).
+    wings_drag:init_drag(Tvs, none, angle, St).
 
 twisty_twist(#shape{id=Id,sh=We}, Vs0, Axis, Acc) ->
     Tf = twisty_twist_fun(Axis),
@@ -280,20 +262,9 @@ twisty_twist(#shape{id=Id,sh=We}, Vs0, Axis, Acc) ->
     Max = element(Key, MaxR),
     Range = Max - Min,
     Vs = gb_sets:to_list(Vs0),
-    Fun = fun(#shape{sh=#we{vs=Vtab0}=W}=Sh, Dx, Dy, St) ->
-		  Angle = Dx * 15,
-		  U = (Angle / 180.0 * ?PI)/Range,
-		  wings_drag:message([Angle], angle),
-		  Vt = foldl(
-			 fun(V, Vt) ->
-				 Rec = gb_trees:get(V, Vt),
-				 #vtx{pos=Pos0} = Rec,
-				 Pos = Tf(U, Min, Pos0),
-				 gb_trees:update(V, Rec#vtx{pos=Pos}, Vt)
-			 end, Vtab0, Vs),
-		  {shape,Sh#shape{sh=W#we{vs=Vt}}}
-	  end,
-    [{Id,Fun}|Acc].
+    VsPos = wings_util:add_vpos(Vs, We),
+    Fun = twister_fun(Vs, Tf, Min, Range, We),
+    [{Id,{Vs,Fun}}|Acc].
 
 twisty_twist_fun(x) ->
     fun(U, Min, {X,Y,Z})
@@ -327,3 +298,15 @@ twisty_twist_fun(z) ->
 key(x) -> 1;
 key(y) -> 2;
 key(z) -> 3.
+
+twister_fun(Vs, Tf, Min, Range, We) ->
+    VsPos = wings_util:add_vpos(Vs, We),
+    fun(Dx, Dy, A) ->
+	    Angle = Dx * 15,
+	    U = (Angle / 180.0 * ?PI)/Range,
+	    wings_drag:message([Angle], angle),
+	    foldl(fun({V,#vtx{pos=Pos0}=Rec}, VsAcc) ->
+			  Pos = Tf(U, Min, Pos0),
+			  [{V,Rec#vtx{pos=Pos}}|VsAcc]
+		  end, A, VsPos)
+    end.

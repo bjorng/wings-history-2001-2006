@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.4 2001/12/03 15:18:41 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.5 2001/12/23 11:32:46 bjorng Exp $
 %%
 
 -module(wings_draw_util).
--export([init/0,tess/0,sel_face/2,face/3]).
+-export([init/0,tess/0,sel_face/2,face/3,flat_face/3]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -125,6 +125,50 @@ face_1([Pos|T], Vtab) ->
     gl:vertex3fv(pos(Pos, Vtab)),
     face_1(T, Vtab);
 face_1([], Vtab) -> ok.
+
+%%
+%% Draw a face. Tesselate polygons (>4 edges).
+%%
+
+flat_face(Face, Edge, #we{vs=Vtab}=We) ->
+    case wings_face:surrounding_vertices(Face, Edge, We) of
+	[_,_,_,_,_|_]=Vs ->
+	    {X,Y,Z} = N = wings_face:face_normal(Vs, We),
+	    Tess = tess(),
+	    glu:tessNormal(Tess, X, Y, Z),
+	    glu:tessBeginPolygon(Tess),
+	    glu:tessBeginContour(Tess),
+	    Info = [],
+	    tess_flat_face(Tess, Vs, Info, Vtab),
+	    glu:tessEndContour(Tess),
+	    glu:tessEndPolygon(Tess),
+	    gl:edgeFlag(?GL_TRUE);
+	Vs ->
+	    gl:'begin'(?GL_POLYGON),
+	    flat_face_1(Vs, Vtab),
+	    gl:'end'()
+    end.
+
+tess_flat_face_vtxcol(Tess, [{Pos,Col}|T], Normal) ->
+    glu:tessVertex(Tess, Pos, [{material,?GL_FRONT,?GL_AMBIENT_AND_DIFFUSE,Col}|Normal]),
+    tess_flat_face_vtxcol(Tess, T, Normal);
+tess_flat_face_vtxcol(Tess, [], Normal) -> ok.
+
+tess_flat_face(Tess, [V|T], N, Vtab) ->
+    glu:tessVertex(Tess, pos(V, Vtab), N),
+    tess_flat_face(Tess, T, N, Vtab);
+tess_flat_face(Tess, [], N, Vtab) -> ok.
+
+flat_face_vtxcol_1([{Pos,Col}|T]) ->
+    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, Col),
+    gl:vertex3fv(Pos),
+    flat_face_vtxcol_1(T);
+flat_face_vtxcol_1([]) -> ok.
+
+flat_face_1([Pos|T], Vtab) ->
+    gl:vertex3fv(pos(Pos, Vtab)),
+    flat_face_1(T, Vtab);
+flat_face_1([], Vtab) -> ok.
 
 
 %%
