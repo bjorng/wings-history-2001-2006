@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.311 2004/10/13 13:59:45 dgud Exp $
+%%     $Id: wings.erl,v 1.312 2004/10/13 18:43:09 bjorng Exp $
 %%
 
 -module(wings).
@@ -784,12 +784,12 @@ purgo_undo(St) ->
 		    {hframe,[{button,ok}]}];
 	       true ->
 		   [{label,?STR(purgo_undo,4,"Remove all states (NOT undoable)?")},
-		    {hframe,[{button,?STR(purgo_undo,5,"Yes"),
+		    {hframe,[{button,wings_util:yes_string(),
 			      fun(_) ->
 				      Action = {action,{edit,confirmed_purge_undo}},
 				      wings_wm:send(This, Action)
 			      end},
-			     {button,?STR(purgo_undo,6,"No"),cancel,[cancel]}]}]
+			     {button,wings_util:no_string(),cancel,[cancel]}]}]
 	   end]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 

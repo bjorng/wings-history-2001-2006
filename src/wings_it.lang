@@ -1,4 +1,4 @@
-%%
+%%                     -*- erlang -*-
 %%  wings_it.lang --
 %%
 %%     Italian language strings.
@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.3 2004/10/13 14:57:14 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.4 2004/10/13 18:43:41 bjorng Exp $
 %%
 
 {wings,
@@ -129,9 +129,7 @@
    [{1,"Stati di annullamento: "},
     {2,"Stati di ripristino: "},
     {3,"Nulla da rimuovere"},
-    {4,"Rimuovi tutti gli stati (NON annullabile)?"},
-    {5,"Si'"},
-    {6,"No"}]},
+    {4,"Rimuovi tutti gli stati (NON annullabile)?"}]},
   {shape_info,
    [{1,"L'oggetto ~p \"~s\" ha ~p poligoni, ~p spigoli, ~p vertici.\n Il modo e' ~p"},
     {2,"~p oggetti, ~p facce, ~p spigoli, ~p vertici"}]},
@@ -1657,15 +1655,14 @@
    [{1,"Triangola"},
     {2,"Quadrangola"}]}]}.
 {wings_util,
- [{magnet_string,
-   [{1,"(Percorso magnete:"}]},
-  {yes_no,
-   [{1,"Si'"},
-    {2,"No"}]},
-  {yes_no_cancel,
-   [{1,"Si'"},
-    {2,"No"},
-    {3,"Annulla"}]}]}.
+ [{cancel_string,
+   [{1,"Annulla"}]},
+  {magnet_string,
+   [{1,"Percorso magnete:"}]},
+  {no_string,
+   [{1,"No"}]},
+  {yes_string,
+   [{1,"Si'"}]}]}.
 {wings_vec,
  [{add_help_text,
    [{1,"Scegli un asse (ed un punto)"},
