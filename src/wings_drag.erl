@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.29 2001/11/25 08:17:11 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.30 2001/11/27 20:58:59 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -506,20 +506,24 @@ make_dlist_1([{Id,Shape}|Shs], [{Id,matrix}|Fs], false) ->
     make_dlist_1(Shs, Fs, false);
 make_dlist_1([{Id,Shape}|Shs], [{Id,matrix}|Fs], true) ->
     gl:newList(?DL_DYNAMIC+Id, ?GL_COMPILE),
-    Draw = fun draw_face_normal/3,
+    Draw = fun(Face, Edge, We) ->
+		   wings_draw:draw_face_normal(Face, Edge, We)
+	   end,
     mkdl_draw_faces(Shape, Draw),
     gl:endList(),
     make_dlist_1(Shs, Fs, true);
 make_dlist_1([{Id,Shape}|Shs], [{Id,all_faces}|Fs], false) ->
     make_dlist_1(Shs, Fs, false);
 make_dlist_1([{Id,Shape}|Shs], [{Id,all_faces}|Fs], true) ->
-    Draw = fun draw_face_normal/3,
+    Draw = fun(Face, Edge, We) ->
+		   wings_draw:draw_face_normal(Face, Edge, We)
+	   end,
     mkdl_draw_faces(Shape, Draw),
     make_dlist_1(Shs, Fs, false);
 make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], false) ->
     Draw = fun(F, Fs0, Edge, We) ->
 		   case gb_sets:is_member(F, Fs0) of
-		       false -> draw_face_normal(F, Edge, We);
+		       false -> wings_draw:draw_face_normal(F, Edge, We);
 		       true -> ok
 		   end
 	   end,
@@ -536,7 +540,7 @@ make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], true) ->
     make_dlist_1(Shs, Fs, true);
 make_dlist_1([{Id,Shape}|Shs], Fs, false) ->
     Draw = fun(F, Fs0, Edge, We) ->
-		   draw_face_normal(F, Edge, We)
+		   wings_draw:draw_face_normal(F, Edge, We)
 	   end,
     mkdl_draw_faces(Shape, dummy, Draw),
     make_dlist_1(Shs, Fs, false);
@@ -568,12 +572,6 @@ draw_faces(#we{}=We, St) ->
 
 draw_face(Face, Edge, #we{es=Etab,vs=Vtab}) ->
     gl:'begin'(?GL_POLYGON),
-    draw_face_1(Face, Edge, Edge, Etab, Vtab, not_done),
-    gl:'end'().
-
-draw_face_normal(Face, Edge, #we{es=Etab,vs=Vtab}=We) ->
-    gl:'begin'(?GL_POLYGON),
-    gl:normal3fv(wings_face:normal(Face, We)),
     draw_face_1(Face, Edge, Edge, Etab, Vtab, not_done),
     gl:'end'().
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.14 2001/11/26 08:37:45 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.15 2001/11/27 20:58:59 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -259,32 +259,9 @@ find_edge(Face, We, Cx, Cy, Trans) ->
 
 project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
     {Px,Py,Pz} = wings_vertex:pos(V, We),
-    {true,Xs,Ys,_} = project(Px, Py, Pz, ModelMatrix, ProjMatrix, ViewPort),
+    {true,Xs,Ys,_} = glu:project(Px, Py, Pz, ModelMatrix,
+				 ProjMatrix, ViewPort),
     {Xs,Ys}.
-
-%%
-%% glu:project/6 is broken in the current version of ESDL.
-%%
-project(Objx, Objy, ObjZ, ModelMatrix0, ProjMatrix0, [Vx,Vy,Vw,Vh]) ->
-    ModelMatrix = list_to_tuple(ModelMatrix0),
-    ProjMatrix = list_to_tuple(ProjMatrix0),
-    Pos0 = {Objx,Objy,ObjZ,1.0},
-    Pos1 = e3d_mat:mul(ModelMatrix, Pos0),
-    Pos2 = {X0,Y0,Z0,W} = e3d_mat:mul(ProjMatrix, Pos1),
-    X1 = X0 / W,
-    Y1 = Y0 / W,
-    Z1 = Z0 / W,
-
-    %% Map x, y, and z to range 0-1.
-    X2 = X1 * 0.5 + 0.5,
-    Y2 = Y1 * 0.5 + 0.5,
-    Z = Z1 * 0.5 + 0.5,
-
-    %% Map x and y to viewport.
-    X = X2*Vw + Vx,
-    Y = Y2*Vh + Vy,
-
-    {true,X,Y,Z}.
 
 %%
 %% Pick all in the given rectangle (with center at X,Y).
@@ -385,9 +362,7 @@ select_draw(St0) ->
 select_draw_0(#st{dl=#dl{pick=none}=DL}=St) ->
     Dlist = ?DL_PICK,
     gl:newList(Dlist, ?GL_COMPILE),
-    gl:pushAttrib(?GL_LINE_BIT),
     select_draw_1(St),
-    gl:popAttrib(),
     gl:endList(),
     St#st{dl=DL#dl{pick=Dlist}};
 select_draw_0(St) -> St.
@@ -422,21 +397,25 @@ foreach_we_1(F, Iter0) ->
 	    gl:pushName(Id),
 	    F(We),
 	    gl:popName(),
-	    foreach_we_1(F, Iter);
-	{Id,_,Iter} ->
 	    foreach_we_1(F, Iter)
     end.
 
-draw_face(Face, Edge, #we{es=Etab,vs=Vtab}) ->
-    gl:'begin'(?GL_POLYGON),
-    draw_face_1(Face, Edge, Edge, Etab, Vtab, not_done),
-    gl:'end'().
-
-draw_face_1(Face, LastEdge, LastEdge, Etab, Vtab, done) -> ok;
-draw_face_1(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
-    {Next,V} = case gb_trees:get(Edge, Etab) of
-		   #edge{ve=V0,lf=Face,ltpr=Next0}=Rec -> {Next0,V0};
-		   #edge{vs=V0,rf=Face,rtpr=Next0}=Rec -> {Next0,V0}
-	       end,
-    gl:vertex3fv(lookup_pos(V, Vtab)),
-    draw_face_1(Face, Next, LastEdge, Etab, Vtab, done).
+draw_face(Face, Edge, We) ->
+    case wings_face:draw_info(Face, Edge, We) of
+	[_,_,_,_,_|_]=Vs ->
+	    {X,Y,Z} = N = wings_face:draw_normal(Vs),
+	    Tess = wings_draw:tess(),
+	    glu:tessNormal(Tess, X, Y, Z),
+	    glu:tessBeginPolygon(Tess),
+	    glu:tessBeginContour(Tess),
+	    foreach(fun({Pos,Col}) ->
+			    glu:tessVertex(Tess, Pos)
+		    end, Vs),
+	    glu:tessEndContour(Tess),
+	    glu:tessEndPolygon(Tess),
+	    gl:edgeFlag(?GL_TRUE);
+	Vs ->
+	    gl:'begin'(?GL_POLYGON),
+	    foreach(fun({Pos,Col}) -> gl:vertex3fv(Pos) end, Vs),
+	    gl:'end'()
+    end.

@@ -9,14 +9,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.11 2001/11/21 07:15:59 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.12 2001/11/27 20:58:59 bjorng Exp $
 %%
 
 -module(wings_face).
 -export([convert_selection/1,select_more/1,select_less/1,
 	 other/2,vertices/2,
+	 to_vertices/2,
 	 normal/2,face_normal/2,good_normal/2,
-	 to_vertices/2,surrounding_vertices/2,
+	 draw_info/3,draw_normal/1,
+	 surrounding_vertices/2,
 	 inner_edges/2,outer_edges/2,
 	 fold/4,fold_vinfo/4,fold_faces/4,
 	 bordering_faces/2,
@@ -160,6 +162,42 @@ good_normal(D1, Vs, [Va,Vb|_]) ->
     good_normal(D1, Vs++[Va,Vb], []);
 good_normal(D1, Other, More) -> false.
 
+%% Returns all the information you need to draw a face.
+
+draw_info(Face, Edge, #we{vs=Vtab,es=Etab}=We) ->
+    info_traverse(Face, Edge, Edge, Etab, Vtab, []).
+
+info_traverse(Face, LastEdge, LastEdge, Etab, Vtab, Acc) when Acc =/= [] ->
+    Acc;
+info_traverse(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{vs=V,a=Col,lf=Face,ltsu=NextEdge} ->
+	    info_traverse(Face, NextEdge, LastEdge, Etab, Vtab,
+			  [{wings_vertex:pos(V, Vtab),Col}|Acc]);
+	#edge{ve=V,b=Col,rf=Face,rtsu=NextEdge} ->
+	    info_traverse(Face, NextEdge, LastEdge, Etab, Vtab,
+			  [{wings_vertex:pos(V, Vtab),Col}|Acc])
+    end.
+
+draw_normal([{Va,_},{Vb,_}|_]=Vpos) ->
+    D = e3d_vec:sub(Va, Vb),
+    Nsum = draw_normal_1(D, Vpos, Vpos, []),
+    case e3d_vec:len(Nsum) of
+	Zero when abs(Zero) < 1.0e-5 ->
+	    e3d_vec:zero();
+	Len ->
+	    e3d_vec:divide(Nsum, Len)
+    end.
+
+draw_normal_1(D1, [{Va,_}|[{Vb,_},{Vc,_}|_]=Vs], More, Acc) ->
+    ?ASSERT(D1 == e3d_vec:sub(Va, Vb)),
+    D2 = e3d_vec:sub(Vb, Vc),
+    Cross = e3d_vec:cross(D1, D2),
+    draw_normal_1(D2, Vs, More, [Cross|Acc]);
+draw_normal_1(D1, Vs, [Va,Vb|_], Acc) ->
+    draw_normal_1(D1, Vs++[Va,Vb], [], Acc);
+draw_normal_1(D1, Other, More, Acc) -> e3d_vec:add(Acc).
+
 %% Return the vertices surrounding a face.
 
 surrounding_vertices(Face, #we{es=Etab,fs=Ftab}) ->
@@ -224,7 +262,7 @@ fold(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
 		  F(V, Edge, E, Acc0);
 	      #edge{vs=V,rf=Face,rtsu=NextEdge}=E ->
 		  F(V, Edge, E, Acc0)
-    end,
+	  end,
     fold(F, Acc, Face, NextEdge, LastEdge, Etab, done).
 
 fold_vinfo(F, Acc, Face, #we{es=Etab,fs=Ftab}) ->
