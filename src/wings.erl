@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.168 2002/11/26 20:05:29 bjorng Exp $
+%%     $Id: wings.erl,v 1.169 2002/11/26 20:08:48 bjorng Exp $
 %%
 
 -module(wings).
@@ -204,12 +204,6 @@ handle_event({open_file,Name}, St0) ->
 	    main_loop(St0)
     end;
 handle_event(Event, St) ->
-    case wings_io:event(Event) of
-	next -> handle_event_0(Event, St);
-	Other -> Other
-    end.
-
-handle_event_0(Event, St) ->
     case wings_camera:event(Event, St) of
 	next -> handle_event_1(Event, St);
 	Other -> Other
