@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.168 2003/11/28 15:35:03 raimo_niskanen Exp $
+%%     $Id: wpc_autouv.erl,v 1.169 2003/11/29 06:28:06 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -675,7 +675,7 @@ quit_menu(Uvs) ->
 	       true -> [A1,A2,A3];
 	       false -> [A1,A3]
 	   end,
-    Qs = [{vradio,Alts,quit_mode,quit_uv_tex}],
+    Qs = [{vradio,Alts,quit_uv_tex}],
     wings_ask:dialog("Exit Options",
 		     Qs, fun([Quit]) -> {auv,quit,Quit} end).
 
