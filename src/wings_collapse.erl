@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.27 2002/11/20 17:06:57 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.28 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -50,14 +50,14 @@ collapse_face_1(Face, We0) ->
 
     %% Allocate an Id for the new center vertex.
     {NewV,We1}= wings_we:new_id(We0),
-    #we{es=Es0,he=He0,fs=Fs0,vs=Vs0}= We1,
+    #we{es=Es0,he=He0,fs=Fs0,vc=Vct0,vp=Vs0}= We1,
 
     %% Delete edges and vertices.
-    {Es1,Vs1,Fs1,He1} =
+    {Es1,Vct1,Vs1,Fs1,He1} =
 	wings_face:fold(
 	  fun(V, Edge, _OldRec, A) ->
 		  delete_edges(V, Edge, Face, A)
-	  end, {Es0,Vs0,Fs0,He0}, Face, We1),
+	  end, {Es0,Vct0,Vs0,Fs0,He0}, Face, We1),
 
     %% Delete face.
     Fs2 = gb_trees:delete(Face, Fs1),
@@ -73,8 +73,9 @@ collapse_face_1(Face, We0) ->
 	AnEdge =:= none -> We0;
 	true ->
 	    Pos = wings_vertex:center(Vertices, We1),
-	    Vs = gb_trees:insert(NewV, #vtx{edge=AnEdge,pos=Pos}, Vs1),
-	    We2 = We1#we{vs=Vs,es=Es2,fs=Fs2,he=He1},
+	    Vct = gb_trees:insert(NewV, AnEdge, Vct1),
+	    Vs = gb_trees:insert(NewV, Pos, Vs1),
+	    We2 = We1#we{vc=Vct,vp=Vs,es=Es2,fs=Fs2,he=He1},
 	    We = wings_vertex:fold(
 		   fun(_, F, _, W) ->
 			   delete_degenerated(F, W)
@@ -97,7 +98,7 @@ check_face_vertices([V|Vs], We) ->
     check_face_vertices(Vs, We);
 check_face_vertices([], _) -> ok.
 
-delete_edges(V, Edge, Face, {Etab0,Vtab0,Ftab0,Htab0}) ->
+delete_edges(V, Edge, Face, {Etab0,Vct0,Vtab0,Ftab0,Htab0}) ->
     Rec = gb_trees:get(Edge, Etab0),
 
     %% Patch all predecessors and successor of
@@ -113,6 +114,7 @@ delete_edges(V, Edge, Face, {Etab0,Vtab0,Ftab0,Htab0}) ->
 
     %% Delete edge and vertex.
     Etab = gb_trees:delete(Edge, Etab2),
+    Vct = gb_trees:delete(V, Vct0),
     Vtab = gb_trees:delete(V, Vtab0),
 
     %% Patch the face entry for the remaining face.
@@ -123,7 +125,7 @@ delete_edges(V, Edge, Face, {Etab0,Vtab0,Ftab0,Htab0}) ->
 		   wings_face:patch_face(AFace, Edge, AnEdge, Ftab0)
 	   end,
     Htab = wings_edge:hardness(Edge, soft, Htab0),
-    {Etab,Vtab,Ftab,Htab}.
+    {Etab,Vct,Vtab,Ftab,Htab}.
 	    
 collapse_edges(Edges0, #we{id=Id,es=Etab}=We0, SelAcc)->
     Edges = gb_sets:to_list(Edges0),
@@ -149,7 +151,7 @@ collapse_edge(Edge, Vkeep, #we{es=Etab}=We)->
     end.
 
 collapse_edge_1(Edge, Vkeep, Rec,
-		#we{es=Etab0,he=Htab0,fs=Ftab0,vs=Vtab0}=We0)->
+		#we{es=Etab0,he=Htab0,fs=Ftab0,vc=Vct0,vp=Vtab0}=We0)->
     case Rec of
 	#edge{vs=Vkeep,ve=Vremove} -> ok;
 	#edge{ve=Vkeep,vs=Vremove} -> ok
@@ -161,9 +163,8 @@ collapse_edge_1(Edge, Vkeep, Rec,
 
 	    %% Move kept vertex. Delete the other one.
 	    Pos = wings_vertex:center([Vremove,Vkeep], Vtab0),
-	    VkeepRec0 = gb_trees:get(Vkeep, Vtab0),
-	    VkeepRec = VkeepRec0#vtx{edge=RP,pos=Pos},
-	    Vtab1 = gb_trees:update(Vkeep, VkeepRec, Vtab0),
+	    Vct1 = gb_trees:update(Vkeep, RP, Vct0),
+	    Vtab1 = gb_trees:update(Vkeep, Pos, Vtab0),
 	    
 	    %% Patch all predecessors and successor of
 	    %% the edge we will remove.
@@ -179,6 +180,7 @@ collapse_edge_1(Edge, Vkeep, Rec,
 	    %% Now we can safely remove the edge and vertex.
 	    Etab5 = gb_trees:delete(Edge, Etab4),
 	    Htab = wings_edge:hardness(Edge, soft, Htab0),
+	    Vct = gb_trees:delete(Vremove, Vct1),
 	    Vtab = gb_trees:delete(Vremove, Vtab1),
 	    
 	    %% ... change all references to the kept vertex.
@@ -186,7 +188,7 @@ collapse_edge_1(Edge, Vkeep, Rec,
 	    %% on our updated edge table.
 	    {_,Etab} = patch_vtx_refs(Vremove, Vkeep, We0, {none,Etab5}),
 
-	    We1 = We0#we{vs=Vtab,he=Htab,fs=Ftab,es=Etab},
+	    We1 = We0#we{vc=Vct,vp=Vtab,he=Htab,fs=Ftab,es=Etab},
 	    We = foldl(fun(_Face, bad_edge) -> bad_edge;
 			  (Face, W) -> delete_degenerated(Face, W)
 		       end, We1, [LF,RF]),
@@ -211,7 +213,7 @@ collapse_vertex(V, We0) ->
     {We,_} = do_collapse_vertex(V, We0, gb_sets:empty()),
     We.
 
-do_collapse_vertex(V, #we{vs=Vtab}=We0, Sel0) ->
+do_collapse_vertex(V, #we{vp=Vtab}=We0, Sel0) ->
     case gb_trees:is_defined(V, Vtab) of
 	false -> {We0,Sel0};
 	true ->

@@ -10,11 +10,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.43 2002/11/23 20:43:33 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.44 2002/12/26 09:47:10 bjorng Exp $
 %%
 
 -module(wings_we).
 -export([build/2,build/3,build/4,
+	 rebuild/1,
 	 new_wrap_range/3,id/2,bump_id/1,
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
@@ -32,6 +33,14 @@
 -include("e3d.hrl").
 -import(lists, [map/2,foreach/2,foldl/3,sort/1,keysort/2,
 		last/1,reverse/1,duplicate/2,seq/2,filter/2]).
+
+rebuild(#we{vc=undefined,es=Etab}=We) ->
+    VtoE = foldl(fun({Edge,#edge{vs=Va,ve=Vb}}, A) ->
+			 [{Va,Edge},{Vb,Edge}|A]
+		 end, [], gb_trees:to_list(Etab)),
+    Vct = build_vct(VtoE),
+    rebuild(We#we{vc=Vct});
+rebuild(We) -> update_id_bounds(We).
 
 %%%
 %%% Build Winged-Edges.
@@ -76,14 +85,17 @@ build(Type, Fs0, Vs, HardEdges) ->
 
 build_rest(Type, Es, Fs, Vs, HardEdges) ->
     Htab = vpairs_to_edges(HardEdges, Es),
-    {Vtab0,Etab,Ftab0} = build_tables(Es),
+    {Vct0,Etab,Ftab0} = build_tables(Es),
     Ftab = build_faces(Ftab0, Fs),
-    Vtab = fill_in_vertices(Vs, Vtab0),
-    NextId = 1+lists:max([wings_util:gb_trees_largest_key(Etab),
-			  wings_util:gb_trees_largest_key(Ftab),
-			  wings_util:gb_trees_largest_key(Vtab)]),
-    #we{mode=Type,es=Etab,fs=Ftab,vs=Vtab,he=Htab,first_id=0,next_id=NextId}.
+    Vct = build_vct(Vct0),
+    Vpos = number_vertices(Vs, 0, []),
+    update_id_bounds(#we{mode=Type,es=Etab,fs=Ftab,vc=Vct,vp=Vpos,he=Htab}).
 
+number_vertices([P|Ps], V, Acc) ->
+    number_vertices(Ps, V+1, [{V,P}|Acc]);
+number_vertices([], _, Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
+    
 build_edges(Fs, Type) ->
     build_edges(Fs, Type, 0, []).
 
@@ -197,18 +209,6 @@ make_edge_map([], Acc) -> gb_trees:from_orddict(sort(Acc)).
 
 edge_num(Face, Name, Emap) ->
     gb_trees:get({Face,Name}, Emap).
-
-fill_in_vertices(Ps, Vtab0) ->
-    Vtab1 = sofs:relation(Vtab0),
-    Vtab2 = sofs:relation_to_family(Vtab1),
-    Vtab = sofs:to_external(Vtab2),
-    fill_in_vertice_pos_1(Vtab, Ps, []).
-
-fill_in_vertice_pos_1([{V,[Edge|_]}|Vs], [Pos|Ps], Vtab0) ->
-    Vtab = [{V,#vtx{edge=Edge,pos=Pos}}|Vtab0],
-    fill_in_vertice_pos_1(Vs, Ps, Vtab);
-fill_in_vertice_pos_1([], [], Vtab) ->
-    gb_trees:from_orddict(reverse(Vtab)).
 
 build_faces(Ftab0, Fs) ->
     Ftab1 = sofs:relation(Ftab0),
@@ -326,42 +326,46 @@ merge([]) -> [];
 merge([We]) -> We;
 merge([#we{id=Id,name=Name}|_]=Wes0) ->
     Wes1 = merge_renumber(Wes0),
-    {Vt0,Et0,Ft0,Ht0} = merge_1(Wes1),
-    Vt = gb_trees:from_orddict(Vt0),
+    {Vct0,Vpt0,Et0,Ft0,Ht0} = merge_1(Wes1),
+    Vct = gb_trees:from_orddict(Vct0),
+    Vpt = gb_trees:from_orddict(Vpt0),
     Et = gb_trees:from_orddict(Et0),
     Ft = gb_trees:from_orddict(Ft0),
     Ht = gb_sets:from_ordset(Ht0),
-    update_id_bounds(#we{id=Id,name=Name,vs=Vt,es=Et,fs=Ft,he=Ht}).
+    update_id_bounds(#we{id=Id,name=Name,vc=Vct,vp=Vpt,es=Et,fs=Ft,he=Ht}).
 
 %% Combine winged-edge structures withtout any renumbering.
 %% Will crash if any vertex/edge/face identifier occurs in more than one #we{}.
 force_merge([We]) -> We;
-force_merge([#we{id=Id,name=Name}|_]=Wes0) ->
-    {Vt0,Et0,Ft0,Ht0} = merge_1(Wes0),
+force_merge([#we{id=Id,name=Name}|_]=Wes) ->
+    {Vct0,Vpt0,Et0,Ft0,Ht0} = merge_1(Wes),
     true = sofs:is_a_function(sofs:from_term(Ft0, [{id,value}])),
     true = sofs:is_a_function(sofs:from_term(Et0, [{id,value}])),
-    true = sofs:is_a_function(sofs:from_term(Vt0, [{id,value}])),
-    Vt = gb_trees:from_orddict(Vt0),
+    true = sofs:is_a_function(sofs:from_term(Vpt0, [{id,value}])),
+    Vct = gb_trees:from_orddict(Vct0),
+    Vpt = gb_trees:from_orddict(Vpt0),
     Et = gb_trees:from_orddict(Et0),
     Ft = gb_trees:from_orddict(Ft0),
     Ht = gb_sets:from_ordset(Ht0),
-    update_id_bounds(#we{id=Id,name=Name,vs=Vt,es=Et,fs=Ft,he=Ht}).
+    update_id_bounds(#we{id=Id,name=Name,vc=Vct,vp=Vpt,es=Et,fs=Ft,he=Ht}).
 
 merge_1([We]) -> We;
-merge_1(Wes) -> merge_1(Wes, [], [], [], []).
+merge_1(Wes) -> merge_1(Wes, [], [], [], [], []).
 
-merge_1([#we{vs=Vs,es=Es,fs=Fs,he=He}|Wes], Vt0, Et0, Ft0, Ht0) ->
-    Vt = [gb_trees:to_list(Vs)|Vt0],
+merge_1([#we{vc=Vc0,vp=Vp0,es=Es,fs=Fs,he=He}|Wes], Vct0, Vpt0, Et0, Ft0, Ht0) ->
+    Vct = [gb_trees:to_list(Vc0)|Vct0],
+    Vpt = [gb_trees:to_list(Vp0)|Vpt0],
     Et = [gb_trees:to_list(Es)|Et0],
     Ft = [gb_trees:to_list(Fs)|Ft0],
     Ht = [gb_sets:to_list(He)|Ht0],
-    merge_1(Wes, Vt, Et, Ft, Ht);
-merge_1([], Vt0, Et0, Ft0, Ht0) ->
-    Vt = lists:merge(Vt0),
+    merge_1(Wes, Vct, Vpt, Et, Ft, Ht);
+merge_1([], Vct0, Vpt0, Et0, Ft0, Ht0) ->
+    Vct = lists:merge(Vct0),
+    Vpt = lists:merge(Vpt0),
     Et = lists:merge(Et0),
     Ft = lists:merge(Ft0),
     Ht = lists:merge(Ht0),
-    {Vt,Et,Ft,Ht}.
+    {Vct,Vpt,Et,Ft,Ht}.
 			       
 merge_renumber(Wes0) ->
     Wes1 = foldl(fun(W, A) -> [update_id_bounds(W)|A] end, [], Wes0),
@@ -390,17 +394,15 @@ renumber(We0, Id) ->
     {We,_} = renumber(We0, Id, []),
     We.
 
-renumber(#we{mode=Mode,vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0,perm=Perm0}=We0,
+renumber(#we{mode=Mode,vc=Vct0,vp=Vtab0,es=Etab0,fs=Ftab0,he=Htab0,perm=Perm0}=We0,
 	 Id, RootSet0) ->
     Etab1 = gb_trees:to_list(Etab0),
     Emap = make_map(Etab1, Id),
 
     Vtab1 = gb_trees:to_list(Vtab0),
     Vmap = make_map(Vtab1, Id),
-    Vtab2 = foldl(fun(V, A) ->
-			  renum_vertex(V, Emap, Vmap, A)
-		  end, [], Vtab1),
-    Vtab = gb_trees:from_orddict(reverse(Vtab2)),
+    Vct1 = gb_trees:to_list(Vct0),
+    {Vct,Vtab} = renumber_vertices(Vct1, Vtab1, Emap, Vmap),
 
     Ftab1 = gb_trees:to_list(Ftab0),
     Fmap = make_map(Ftab1, Id),
@@ -428,18 +430,16 @@ renumber(#we{mode=Mode,vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0,perm=Perm0}=We0,
 	   end,
 
     RootSet = map_rootset(RootSet0, Emap, Vmap, Fmap),
-    We1 = We0#we{mode=Mode,vs=Vtab,es=Etab,fs=Ftab,he=Htab,perm=Perm},
+    We1 = We0#we{mode=Mode,vc=Vct,vp=Vtab,es=Etab,fs=Ftab,he=Htab,perm=Perm},
     We = update_id_bounds(We1),
     {We,RootSet}.
 
-map_renumber(#we{mode=Mode,vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We0,
-	     #we{vs=Vmap,es=Emap,fs=Fmap}) ->
+map_renumber(#we{mode=Mode,vc=Vct0,vp=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We0,
+	     #we{vc=Vmap,es=Emap,fs=Fmap}) ->
     Etab1 = gb_trees:to_list(Etab0),
     Vtab1 = gb_trees:to_list(Vtab0),
-    Vtab2 = foldl(fun(V, A) ->
-			  renum_vertex(V, Emap, Vmap, A)
-		  end, [], Vtab1),
-    Vtab = gb_trees:from_orddict(sort(Vtab2)),
+    Vct1 = gb_trees:to_list(Vct0),
+    {Vct,Vtab} = renumber_vertices(Vct1, Vtab1, Emap, Vmap),
 
     Ftab1 = gb_trees:to_list(Ftab0),
     Ftab2 = foldl(fun(F, A) ->
@@ -456,7 +456,7 @@ map_renumber(#we{mode=Mode,vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We0,
 			  renum_hard_edge(E, Emap, A)
 		  end, [], gb_sets:to_list(Htab0)),
     Htab = gb_sets:from_list(Htab1),
-    We = We0#we{mode=Mode,vs=Vtab,es=Etab,fs=Ftab,he=Htab,perm=0},
+    We = We0#we{mode=Mode,vc=Vct,vp=Vtab,es=Etab,fs=Ftab,he=Htab,perm=0},
     update_id_bounds(We).
 
 map_rootset([{vertex,Vs,Data}|T], Emap, Vmap, Fmap) when is_list(Vs) ->
@@ -497,12 +497,17 @@ renum_edge({Edge0,Rec0}, Emap, Vmap, Fmap, New) ->
 		    rtpr=gb_trees:get(Rtpr, Emap),
 		    rtsu=gb_trees:get(Rtsu, Emap)},
     [{Edge,Rec}|New].
-    
-renum_vertex({V0,#vtx{edge=Edge}=Rec0}, Emap, Vmap, New) ->
-    V = gb_trees:get(V0, Vmap),
-    Rec = Rec0#vtx{edge=gb_trees:get(Edge, Emap)},
-    [{V,Rec}|New].
 
+renumber_vertices(Vct, Vtab, Emap, Vmap) ->
+    renumber_vertices_1(Vct, Vtab, Emap, Vmap, [], []).
+
+renumber_vertices_1([{V0,E0}|Vct], [{V0,P}|Vtab], Emap, Vmap, VctAcc, VtabAcc) ->
+    V = gb_trees:get(V0, Vmap),
+    E = gb_trees:get(E0, Emap),
+    renumber_vertices_1(Vct, Vtab, Emap, Vmap, [{V,E}|VctAcc], [{V,P}|VtabAcc]);
+renumber_vertices_1([], [], _, _, Vct, Vtab) ->
+    {gb_trees:from_orddict(sort(Vct)),gb_trees:from_orddict(sort(Vtab))}.
+    
 renum_face({Face0,#face{edge=Edge}=Rec0}, Emap, Fmap, New) ->
     Face = gb_trees:get(Face0, Fmap),
     Rec = Rec0#face{edge=gb_trees:get(Edge, Emap)},
@@ -512,7 +517,7 @@ renum_hard_edge(Edge0, Emap, New) ->
     Edge = gb_trees:get(Edge0, Emap),
     [Edge|New].
 
-update_id_bounds(#we{vs=Vtab,es=Etab,fs=Ftab}=We) ->
+update_id_bounds(#we{vp=Vtab,es=Etab,fs=Ftab}=We) ->
     case gb_trees:is_empty(Etab) of
 	true ->
 	    We#we{first_id=0,next_id=0};
@@ -572,23 +577,10 @@ separate(Ws0, Etab0, Acc0) ->
 	    end
     end.
 
-copy_dependents(Es0, We) ->
-    [{E,_}|_] = Es = gb_trees:to_list(Es0),
-    copy_dependents(Es, We, [], [], [], E, E).
+copy_dependents(Es, We) ->
+    copy_dependents(gb_trees:to_list(Es), We, [], [], []).
 
-copy_dependents([], We, VsEs0, Fs, Hs, Min, Max) ->
-    #we{vs=OldVtab,fs=OldFtab} = We,
-    VsEs1 = sofs:relation(VsEs0, [{vertex,edge}]),
-    VsEs = sofs:relation_to_family(VsEs1),
-    Vtab0 = sofs:relation(gb_trees:to_list(OldVtab), [{vertex,data}]),
-    Vtab1 = sofs:restriction(Vtab0, sofs:domain(VsEs)),
-    Vtab = update_vtab(sofs:to_external(Vtab1), sofs:to_external(VsEs), []),
-    Ftab0 = sofs:relation(gb_trees:to_list(OldFtab), [{face,data}]),
-    Ftab1 = sofs:restriction(Ftab0, sofs:set(Fs, [face])),
-    Ftab = gb_trees:from_orddict(sofs:to_external(Ftab1)),
-    Htab = gb_sets:from_list(Hs),
-    We#we{vs=Vtab,fs=Ftab,he=Htab,first_id=Min,next_id=Max+1};
-copy_dependents([{Edge,Rec}|Es], We, Vs0, Fs0, Hs0, Min0, Max0) ->
+copy_dependents([{Edge,Rec}|Es], We, Vs0, Fs0, Hs0) ->
     #we{he=OldHtab} = We,
     #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = Rec,
     Vs = [{Va,Edge},{Vb,Edge}|Vs0],
@@ -597,18 +589,32 @@ copy_dependents([{Edge,Rec}|Es], We, Vs0, Fs0, Hs0, Min0, Max0) ->
 	     true -> [Edge|Hs0];
 	     false -> Hs0
 	 end,
-    Ids = [Va,Vb,Lf,Rf,Edge],
-    Min = foldl(fun(Id, Min) when Id < Min -> Id;
-		   (_, Min) -> Min
-		end, Min0, Ids),
-    Max = foldl(fun(Id, Max) when Id > Max -> Id;
-		   (_, Max) -> Max
-		end, Max0, Ids),
-    copy_dependents(Es, We, Vs, Fs, Hs, Min, Max).
+    copy_dependents(Es, We, Vs, Fs, Hs);
+copy_dependents([], We, VsEs0, Fs, Hs) ->
+    #we{vp=Vtab0,fs=OldFtab} = We,
+    VsEs = sofs:relation(VsEs0, [{vertex,edge}]),
+    Vtab1 = sofs:relation(gb_trees:to_list(Vtab0), [{vertex,edge}]),
+    Vtab2 = sofs:restriction(Vtab1, sofs:domain(VsEs)),
+    Vtab = gb_trees:from_orddict(sofs:to_external(Vtab2)),
+    Vct = build_vct(sofs:to_external(VsEs)),
+    Ftab0 = sofs:relation(gb_trees:to_list(OldFtab), [{face,data}]),
+    Ftab1 = sofs:restriction(Ftab0, sofs:set(Fs, [face])),
+    Ftab = gb_trees:from_orddict(sofs:to_external(Ftab1)),
+    Htab = gb_sets:from_list(Hs),
+    update_id_bounds(We#we{vc=Vct,vp=Vtab,fs=Ftab,he=Htab}).
 
-update_vtab([{V,Vtx}|Vs], [{V,[E|_]}|VsEs], Acc) ->
-    update_vtab(Vs, VsEs, [{V,Vtx#vtx{edge=E}}|Acc]);
-update_vtab([], [], Acc) -> gb_trees:from_orddict(reverse(Acc)).
+%% build_vct([{Vertex,Edge}}]) -> GbTree([{Vertex,Edge1}])
+%%  Build a vertex connection table.
+
+build_vct(VtxToEdgeRel) ->
+    build_vct(sort(VtxToEdgeRel), []).
+    
+build_vct([{V,_}|VsEs], [{V,_}|_]=Acc) ->
+    build_vct(VsEs, Acc);
+build_vct([{V,Edge}|VsEs], Acc) ->
+    build_vct(VsEs, [{V,Edge}|Acc]);
+build_vct([], Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
 
 %%%
 %%% Convert textures to vertex colors.
@@ -633,13 +639,13 @@ uv_to_color(We, _St) -> We.
 %%% Transform all vertices according to the matrix.
 %%%
 
-transform_vs(Matrix, #we{vs=Vtab0}=We) ->
-    Vtab1 = foldl(fun({V,#vtx{pos=Pos0}=Vtx}, A) ->
+transform_vs(Matrix, #we{vp=Vtab0}=We) ->
+    Vtab1 = foldl(fun({V,Pos0}, A) ->
 			  Pos = e3d_mat:mul_point(Matrix, Pos0),
-			  [{V,Vtx#vtx{pos=Pos}}|A]
+			  [{V,Pos}|A]
 		  end, [], gb_trees:to_list(Vtab0)),
     Vtab = gb_trees:from_orddict(reverse(Vtab1)),
-    We#we{vs=Vtab}.
+    We#we{vp=Vtab}.
 
 %%%
 %%% Calculate normals.
@@ -673,11 +679,11 @@ all_soft_1([#face{mat=Mat}|Fs], [{Face,N}|FNs], VtxNormals, We, Acc) ->
     all_soft_1(Fs, FNs, VtxNormals, We, [{Mat,{N,Vs}}|Acc]);
 all_soft_1([], [], _, _, Acc) -> Acc.
 
-soft_vertex_normals(FaceNs0, #we{vs=Vtab}=We) ->
+soft_vertex_normals(FaceNs0, #we{vp=Vtab}=We) ->
     FaceNs = gb_trees:from_orddict(FaceNs0),
     Soft = foldl(
-	     fun({V,#vtx{pos=Pos,edge=Edge}}, Acc) ->
-		     N = soft_vtx_normal(V, Edge, FaceNs, We),
+	     fun({V,Pos}, Acc) ->
+		     N = soft_vtx_normal(V, FaceNs, We),
 		     [{V,{Pos,N}}|Acc]
 	     end, [], gb_trees:to_list(Vtab)),
     gb_trees:from_orddict(reverse(Soft)).
@@ -697,15 +703,15 @@ two_faced([{FaceA,Na},{FaceB,Nb}], #we{fs=Ftab}=We) ->
     [{MatA,two_faced_1(FaceA, Na, We)},
      {MatB,two_faced_1(FaceB, Nb, We)}].
 
-two_faced_1(Face, Normal, #we{vs=Vtab}=We) ->
+two_faced_1(Face, Normal, #we{vp=Vtab}=We) ->
     Vs = wings_face:fold_vinfo(
 	   fun (V, VInfo, Acc) ->
-		   #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+		   Pos = gb_trees:get(V, Vtab),
 		   [{Pos,{VInfo,Normal}}|Acc]
 	   end, [], Face, We),
     {Normal,Vs}.
 
-vertex_normals(#we{vs=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
+vertex_normals(#we{vp=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
     He0 = gb_sets:to_list(Htab),
     He = sofs:from_external(He0, [edge]),
     Es0 = gb_trees:to_list(Etab),
@@ -722,27 +728,27 @@ vertex_normals(#we{vs=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
     HardVs = sofs:to_external(Hvs),
     foreach(fun(V) -> update_digraph(G, V, We) end, HardVs),
     Soft = foldl(
-	     fun({V,#vtx{pos=Pos,edge=Edge}}, Acc) ->
-		     N = soft_vtx_normal(V, Edge, FaceNormals, We),
+	     fun({V,Pos}, Acc) ->
+		     N = soft_vtx_normal(V, FaceNormals, We),
 		     [{V,{Pos,N}}|Acc]
 	     end, [], SoftVs),
     gb_trees:from_orddict(reverse(Soft)).
 
-soft_vtx_normal(V, Edge, FaceNormals, We) ->
+soft_vtx_normal(V, FaceNormals, We) ->
     Ns = wings_vertex:fold(
 	   fun(_, Face, _, A) ->
 		   [gb_trees:get(Face, FaceNormals)|A]
-	   end, [], V, Edge, We),
+	   end, [], V, We),
     e3d_vec:norm(e3d_vec:add(Ns)).
 
-n_face(Face, Mat, G, FaceNormals, VtxNormals, #we{vs=Vtab}=We) ->
+n_face(Face, Mat, G, FaceNormals, VtxNormals, #we{vp=Vtab}=We) ->
     Vs = wings_face:fold_vinfo(
 	   fun (V, VInfo, Acc) ->
 		   case gb_trees:lookup(V, VtxNormals) of
 		       {value,{Pos,Normal}} ->
 			   [{Pos,{VInfo,Normal}}|Acc];
 		       none ->
-			   #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+			   Pos = gb_trees:get(V, Vtab),
 			   Normal = hard_vtx_normal(G, V, Face, FaceNormals),
  			   [{Pos,{VInfo,Normal}}|Acc]
 		   end
@@ -773,13 +779,12 @@ update_digraph(G, V, #we{he=Htab}=We) ->
     
 %% Face normal calculation.
 
-face_normal(Face, #face{edge=Edge}, #we{vs=Vtab}=We) ->
+face_normal(Face, #face{edge=Edge}, #we{vp=Vtab}=We) ->
     Vs = wings_face:surrounding_vertices(Face, Edge, We),
     face_normal_1(Vs, Vtab, []).
 
 face_normal_1([V|Vs], Vtab, Acc) ->
-    #vtx{pos=P} = gb_trees:get(V, Vtab),
-    face_normal_1(Vs, Vtab, [P|Acc]);
+    face_normal_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
 face_normal_1([], _, Acc) ->
     e3d_vec:normal(reverse(Acc)).
 
@@ -790,7 +795,7 @@ face_normal_1([], _, Acc) ->
 %% new_items(vertex|edge|face, OldWe, NewWe) -> NewItemsGbSet.
 %%  Return all items in NewWe that are not in OldWe (as a GbSet).
 
-new_items(vertex, #we{next_id=Wid}, #we{next_id=NewWid,vs=Tab}) ->
+new_items(vertex, #we{next_id=Wid}, #we{next_id=NewWid,vp=Tab}) ->
     new_items_1(Tab, Wid, NewWid);
 new_items(edge, #we{next_id=Wid}, #we{next_id=NewWid,es=Tab}) ->
     new_items_1(Tab, Wid, NewWid);
@@ -858,16 +863,15 @@ walk_face_ccw(Face, Edge, LastEdge, We, Acc) ->
 	    walk_face_ccw(Face, Next, LastEdge, We, [V|Acc])
     end.
 
-validate_vertex_tab(#we{es=Etab,vs=Vtab}) ->
-    foreach(fun({V,#vtx{edge=Edge}}) ->
+validate_vertex_tab(#we{es=Etab,vc=Vct}) ->
+    foreach(fun({V,Edge}) ->
 		    case gb_trees:get(Edge, Etab) of
 			#edge{vs=V}=Rec ->
 			    validate_edge_rec(Rec);
 			#edge{ve=V}=Rec ->
 			    validate_edge_rec(Rec)
 		    end
-	    end, gb_trees:to_list(Vtab)).
+	    end, gb_trees:to_list(Vct)).
 
 validate_edge_rec(#edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS})
   when is_integer(LP+LS+RP+RS) -> ok.
-

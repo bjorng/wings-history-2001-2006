@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.29 2002/12/04 15:36:37 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.30 2002/12/26 09:47:06 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -116,6 +116,9 @@ sum_crossp([_Last], Acc) ->
     Acc.
 
 project_and_triangulate([Face|Fs], We, I, Tris,Area) ->
+    ?VALIDATE_MODEL(We),
+    io:format("face: ~p\n", [Face]),
+    io:format("~w\n", [wings_face:surrounding_vertices(Face, We)]),
     Normal = wings_face:normal(Face, We),
     Vs0 = wpa:face_vertices(Face, We),
     Vs2 = project2d(Vs0, Normal, We),
@@ -162,17 +165,17 @@ lsqcm(Fs, We) ->
 	    ?DBG("TXMAP error ~p~n", [What]),
 	    exit({txmap_error, What});
 	{ok,Vs2} ->
-%	    ?DBG("LSQ res ~p~n", [Vs2]),
-	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,#vtx{pos={Ut,Vt,0.0}}} end,
+	    %%?DBG("LSQ res ~p~n", [Vs2]),
+	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,{Ut,Vt,0.0}} end,
 	    Vs3 = lists:sort(lists:map(Patch, Vs2)),
 	    TempVs = gb_trees:from_orddict(Vs3),
-	    MappedArea = calc_2dface_area(Fs, We#we{vs=TempVs}, 0.0),	    
+	    MappedArea = calc_2dface_area(Fs, We#we{vp=TempVs}, 0.0),
 	    Scale = Area/MappedArea,
 	    scaleVs(Vs3,math:sqrt(Scale),[])
     end.
 
 %%
-%%  We have extended the lsqcm idea with a seperate pass to generate good
+%%  We have extended the lsqcm idea with a separate pass to generate good
 %%  borders, then we use the result of the first pass as input to the second
 %%  pass when we generate the whole chart.
 %%
@@ -238,10 +241,10 @@ lsqcm2impl(Fs, We) ->
  	    exit({txmap_error2, What2});
  	{ok,Vs2} ->
  %	    ?DBG("LSQ res ~p~n", [Vs2]),
- 	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,#vtx{pos={Ut,Vt,0.0}}} end,
+ 	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,{Ut,Vt,0.0}} end,
  	    Vs3 = lists:sort(lists:map(Patch, Vs2)),
  	    TempVs = gb_trees:from_orddict(Vs3),
- 	    MappedArea = calc_2dface_area(Fs, We#we{vs=TempVs}, 0.0),	    
+ 	    MappedArea = calc_2dface_area(Fs, We#we{vp=TempVs}, 0.0),
  	    Scale = Area/MappedArea,
  	    scaleVs(Vs3,math:sqrt(Scale),[])
     end.
@@ -288,8 +291,8 @@ lsqcm2impl(Fs, We) ->
 %  	    scaleVs(Vs3,math:sqrt(Scale),[])
 %     end.
 
-scaleVs([{Id, #vtx{pos={X,Y,_}}}|Rest],Scale,Acc) 
-  when float(X), float(Y), float(Scale) ->
+scaleVs([{Id, {X,Y,_}}|Rest],Scale,Acc) 
+  when is_float(X), is_float(Y), is_float(Scale) ->
     scaleVs(Rest, Scale, [{Id, {X*Scale,Y*Scale,0.0}}|Acc]);
 scaleVs([],_,Acc) ->
     lists:reverse(Acc).
@@ -301,6 +304,7 @@ calc_2dface_area([Face|Rest],We,Area) ->
 calc_2dface_area([],_,Area) ->
     Area.
 
+-ifdef(DEBUG).
 create_border_fs([F,S|R], Orig, C, N, Acc) ->
     New = {N,create_border_2d_face(S,F,C)},
     create_border_fs([S|R], Orig, C, N+1, [New|Acc]);
@@ -315,6 +319,7 @@ create_border_2d_face({I0, P0}, {I1,P1}, {I2,P2}) ->
     {P1X,P1Y,_} = e3d_mat:mul_point(Rot,P1),
     {P2X,P2Y,_} = e3d_mat:mul_point(Rot,P2),
     [{I0,{P0X,P0Y}},{I1,{P1X,P1Y}},{I2,{P2X,P2Y}}].
+-endif.
 
 find_border_edges(Faces, We) ->
     case auv_placement:group_edge_loops(Faces, We) of
@@ -327,10 +332,10 @@ find_pinned(Faces, We) ->
     {Circumference, BorderEdges} = find_border_edges(Faces,We),
     find_pinned_from_edges(BorderEdges, Circumference, We).
 find_pinned_from_edges(BorderEdges, Circumference, We) ->
-    Vs = [(gb_trees:get(V1, We#we.vs))#vtx.pos || {V1,_,_,_} <-BorderEdges],
+    Vs = [gb_trees:get(V1, We#we.vp) || {V1,_,_,_} <-BorderEdges],
     Center = e3d_vec:average(Vs),
     AllC = lists:map(fun({Id,_,_,_}) ->
-			     Pos = (gb_trees:get(Id, We#we.vs))#vtx.pos,
+			     Pos = gb_trees:get(Id, We#we.vp),
 			     Dist = e3d_vec:dist(Pos, Center),
 			     {Dist, Id, Pos}
 		     end, BorderEdges),
@@ -823,7 +828,7 @@ split(L, 0, R) ->
 split([E | L], N, R) ->
     split(L, N-1, [E | R]).
 
-
+-ifdef(DEBUG).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Texture metric stretch 
@@ -866,8 +871,5 @@ area2d({S1,T1},{S2,T2},{S3,T3})
   when is_float(S1),is_float(S2),is_float(S3),
        is_float(T1),is_float(T2),is_float(T3) ->
     ((S2-S1)*(T3-T1)-(S3-S1)*(T2-T1))/2.
-       
 
-       
-
-
+-endif.

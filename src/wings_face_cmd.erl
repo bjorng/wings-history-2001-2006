@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.67 2002/12/17 19:58:55 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.68 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -237,12 +237,13 @@ do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
     Inner = wings_face:inner_edges(Faces, WeOrig),
     {DelVs0,We2} = delete_inner(Inner, We1),
     {KeepVs,We} = do_dissolve_1(Ess, Mat, WeOrig, [], We2),
-    #we{es=Etab,vs=Vtab0,he=Htab0} = We,
+    #we{es=Etab,vc=Vct0,vp=Vtab0,he=Htab0} = We,
     DelVs = ordsets:subtract(DelVs0, KeepVs),
-    Vtab1 = foldl(fun(V, A) -> gb_trees:delete(V, A) end, Vtab0, DelVs),
-    Vtab = update_vtab(KeepVs, Etab, WeOrig, Vtab1),
+    Vtab = foldl(fun(V, A) -> gb_trees:delete(V, A) end, Vtab0, DelVs),
+    Vct1 = foldl(fun(V, A) -> gb_trees:delete(V, A) end, Vct0, DelVs),
+    Vct = update_vtab(KeepVs, Etab, WeOrig, Vct1),
     Htab = gb_sets:difference(Htab0, gb_sets:from_list(Inner)),
-    We#we{vs=Vtab,he=Htab}.
+    We#we{vc=Vct,vp=Vtab,he=Htab}.
 
 do_dissolve_1([EdgeList|Ess], Mat, WeOrig,
 	      KeepVs0, #we{es=Etab0,fs=Ftab0}=We0) ->
@@ -293,18 +294,17 @@ update_outer([_], _More, _Face, _WeOrig, _Ftab, KeepVs, Etab) ->
 succ([Succ|_], _More) -> Succ;
 succ([], [Succ|_]) -> Succ.
 
-update_vtab(Vs, Etab, We, Vtab) ->
+update_vtab(Vs, Etab, We, Vct) ->
     foldl(
       fun(V, Vt0) ->
-	      #vtx{edge=AnEdge} = Vtx0 = gb_trees:get(V, Vt0),
+	      AnEdge= gb_trees:get(V, Vt0),
 	      case gb_trees:is_defined(AnEdge, Etab) of
 		  true -> Vt0;
 		  false ->
 		      Edge = find_edge(V, Etab, We),
-		      Vtx = Vtx0#vtx{edge=Edge},
-		      gb_trees:update(V, Vtx, Vt0)
+		      gb_trees:update(V, Edge, Vt0)
 	      end
-      end, Vtab, Vs).
+      end, Vct, Vs).
 
 find_edge(V, Etab, We) ->
     wings_vertex:until(
@@ -384,7 +384,7 @@ mirror_face(Face, #we{fs=Ftab}=OrigWe, #we{next_id=Id}=We0) ->
     N = wings_face:vertices(Face, We),
     mirror_weld(N, IterA, Face, IterB, FaceNew, We, We).
 
-mirror_vs(Face, #we{vs=Vtab0}=We) ->
+mirror_vs(Face, #we{vp=Vtab0}=We) ->
     Normal = wings_face:normal(Face, We),
     Vs = wings_face:surrounding_vertices(Face, We),
     Center = wings_vertex:center(Vs, We),
@@ -392,14 +392,14 @@ mirror_vs(Face, #we{vs=Vtab0}=We) ->
 			  mirror_move_vs(Vtx, Normal, Center, A)
 		  end, [], gb_trees:to_list(Vtab0)),
     Vtab = gb_trees:from_orddict(reverse(Vtab1)),
-    We#we{vs=Vtab}.
+    We#we{vp=Vtab}.
 
-mirror_move_vs({V,#vtx{pos=Pos0}=Vtx}, PlaneNormal, Center, A) ->
+mirror_move_vs({V,Pos0}, PlaneNormal, Center, A) ->
     ToCenter = e3d_vec:sub(Center, Pos0),
     Dot = e3d_vec:dot(ToCenter, PlaneNormal),
     ToPlane = e3d_vec:mul(PlaneNormal, 2.0*Dot),
     Pos = wings_util:share(e3d_vec:add(Pos0, ToPlane)),
-    [{V,Vtx#vtx{pos=Pos}}|A].
+    [{V,Pos}|A].
 
 mirror_weld(0, _IterA0, FaceA, _IterB0, FaceB, _WeOrig, #we{fs=Ftab0}=We) ->
     Ftab1 = gb_trees:delete(FaceA, Ftab0),
@@ -430,19 +430,17 @@ mirror_weld(N, IterA0, FaceA, IterB0, FaceB, WeOrig, We0) ->
 			    #edge.rf, #edge.rtpr, #edge.rtsu,
 			    #edge.ltpr, #edge.ltsu)
 	    end,
-    #we{es=Etab0,vs=Vtab0,fs=Ftab0,he=Htab0} = We0,
+    #we{es=Etab0,vc=Vct0,vp=Vtab0,fs=Ftab0,he=Htab0} = We0,
 
     %% Update vertex table.
     #edge{vs=VstartB,ve=VendB} = RecB,
-    Vtab1 = foldl(fun(V, Vt0) ->
-			  case gb_trees:is_defined(V, Vt0) of
-			      true -> gb_trees:delete(V, Vt0);
-			      false -> Vt0
-			  end
-		  end, Vtab0, [VstartB,VendB]),
+    Vtab1 = gb_trees:delete_any(VstartB, Vtab0),
+    Vtab = gb_trees:delete_any(VendB, Vtab1),
+    Vct1 = gb_trees:delete_any(VstartB, Vct0),
+    Vct2 = gb_trees:delete_any(VendB, Vct1),
     #edge{vs=VstartA,ve=VendA} = RecA,
-    Vtab2 = wings_vertex:patch_vertex(VstartA, EdgeA, Vtab1),
-    Vtab = wings_vertex:patch_vertex(VendA, EdgeA, Vtab2),
+    Vct3 = wings_vertex:patch_vertex(VstartA, EdgeA, Vct2),
+    Vct = wings_vertex:patch_vertex(VendA, EdgeA, Vct3),
 
     %% Update edge table.
     DelEdges = case RecB of
@@ -464,7 +462,7 @@ mirror_weld(N, IterA0, FaceA, IterB0, FaceB, WeOrig, We0) ->
     Ftab = wings_face:patch_face(wings_face:other(FaceB, RecB), EdgeA, Ftab1),
 
     %% Next edge.
-    We = We0#we{es=Etab,fs=Ftab,vs=Vtab,he=Htab},
+    We = We0#we{es=Etab,fs=Ftab,vc=Vct,vp=Vtab,he=Htab},
     mirror_weld(N-1, IterA, FaceA, IterB, FaceB, WeOrig, We).
 
 update_edge(New0, Old, FaceP, PrP, SuP, OPrP, OSuP) ->
@@ -568,8 +566,7 @@ smooth(St0) ->
     {St,Sel} = wings_sel:mapfold(fun smooth/3, [], St0),
     wings_sel:set(Sel, St).
 
-smooth(Faces0, #we{id=Id,name=Name}=We0, Acc) ->
-    wings_io:progress("Smoothing \"" ++ Name ++ "\""),
+smooth(Faces0, #we{id=Id}=We0, Acc) ->
     Rs = wings_sel:face_regions(Faces0, We0),
     We1 = smooth_regions(Rs, We0),
     NewFaces = wings_we:new_items(face, We0, We1),
@@ -672,7 +669,7 @@ unify_modes(#we{mode=ModeA}, #we{mode=ModeB}) ->
 	[material,uv] -> uv
     end.
 
-bridge(FaceA, FaceB, #we{vs=Vtab}=We) ->
+bridge(FaceA, FaceB, #we{vp=Vtab}=We) ->
     VsA = wings_face:surrounding_vertices(FaceA, We),
     VsB = wings_face:surrounding_vertices(FaceB, We),
     if
@@ -719,13 +716,13 @@ try_bridge(N, Len, Va0, FaceA, IterA0, Vb, FaceB, IterB, Ids, We0,
 	       Vb, FaceB, IterB, Ids, We0, Best).
 
 sum_edge_lens(0, _Ids, _We, Sum) -> Sum;
-sum_edge_lens(N, Ids0, #we{es=Etab,vs=Vtab}=We, Sum) ->
+sum_edge_lens(N, Ids0, #we{es=Etab,vp=Vtab}=We, Sum) ->
     Edge = wings_we:id(0, Ids0),
     #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-    VaPos = wings_vertex:pos(Va, Vtab),
-    VbPos = wings_vertex:pos(Vb, Vtab),
-    Ids = wings_we:bump_id(Ids0),
+    VaPos = gb_trees:get(Va, Vtab),
+    VbPos = gb_trees:get(Vb, Vtab),
     Dist = e3d_vec:dist(VaPos, VbPos),
+    Ids = wings_we:bump_id(Ids0),
     sum_edge_lens(N-1, Ids, We, Sum + Dist).
 
 force_bridge(FaceA, Va, FaceB, Vb, We0) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.23 2002/10/18 18:26:20 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.24 2002/12/26 09:47:09 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -19,12 +19,12 @@
 %%% The Catmull-Clark subdivision algorithm is used, with
 %%% Tony DeRose's extensions for creases.
 
-smooth(#we{mirror=none,vs=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
+smooth(#we{mirror=none,vp=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
     Faces = gb_trees:keys(Ftab),
     Vs = gb_trees:keys(Vtab),
     Es = gb_trees:keys(Etab),
     smooth(Faces, Vs, Es, Htab, We);
-smooth(#we{mirror=Face,vs=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
+smooth(#we{mirror=Face,vp=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
     Faces = gb_trees:keys(gb_trees:delete(Face, Ftab)),
     Vs = gb_trees:keys(Vtab),
     Es = gb_trees:keys(Etab),
@@ -33,19 +33,14 @@ smooth(#we{mirror=Face,vs=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
     smooth(Faces, Vs, Es, He, We).
 
 smooth(Fs, Vs, Es, Htab, #we{next_id=Id}=We0) ->
-    wings_io:progress_tick(),
     FacePos0 = face_centers(Fs, We0),
     FacePos = gb_trees:from_orddict(reverse(FacePos0)),
-    wings_io:progress_tick(),
-    We1 = cut_edges(Es, FacePos, Htab, We0),
-    wings_io:progress_tick(),
+    We1 = cut_edges(Es, FacePos, Htab, We0#we{vc=undefined}),
     {We,NewVs} = smooth_faces(Fs, Id, FacePos, We1),
-    wings_io:progress_tick(),
-    #we{vs=Vtab2} = We,
+    #we{vp=Vtab2} = We,
     Vtab3 = smooth_move_orig(Vs, FacePos, Htab, We0, Vtab2),
     Vtab = gb_trees:from_orddict(gb_trees:to_list(Vtab3) ++ reverse(NewVs)),
-    wings_io:progress_tick(),
-    wings_util:validate_mirror(We#we{vs=Vtab}).
+    wings_util:validate_mirror(wings_we:rebuild(We#we{vp=Vtab})).
 
 face_centers(Faces, We) ->
     face_centers(Faces, We, []).
@@ -74,7 +69,7 @@ smooth_move_orig([V|Vs], FacePos, Htab, We, Vtab0) ->
     smooth_move_orig(Vs, FacePos, Htab, We, Vtab);
 smooth_move_orig([], _FacePos, _Htab, _We, Vtab) -> Vtab.
 
-smooth_move_orig_1(V, FacePosTab, Htab, #we{vs=OVtab}=We, Vtab) ->
+smooth_move_orig_1(V, FacePosTab, Htab, #we{vp=OVtab}=We, Vtab) ->
     {Ps0,Hard} =
 	wings_vertex:fold(
 	  fun (Edge, Face, Erec, {Ps0,Hard0}) ->
@@ -91,7 +86,7 @@ smooth_move_orig_1(V, FacePosTab, Htab, #we{vs=OVtab}=We, Vtab) ->
 		  {Ps,Es}
 	  end, {[],[]}, V, We),
 
-    #vtx{pos=S} = Vrec = gb_trees:get(V, Vtab),
+    S = gb_trees:get(V, Vtab),
     case length(Hard) of
 	NumHard when NumHard < 2 ->
 	    Ps = e3d_vec:add(Ps0),
@@ -99,12 +94,12 @@ smooth_move_orig_1(V, FacePosTab, Htab, #we{vs=OVtab}=We, Vtab) ->
 	    Pos0 = e3d_vec:add(e3d_vec:mul(Ps, 1/(N*N)),
 			       e3d_vec:mul(S, (N-2.0)/N)),
 	    Pos = wings_util:share(Pos0),
-	    gb_trees:update(V, Vrec#vtx{pos=Pos}, Vtab);
+	    gb_trees:update(V, Pos, Vtab);
 	NumHard when NumHard =:= 2 ->
 	    Pos0 = e3d_vec:add([e3d_vec:mul(S, 6.0)|Hard]),
 	    Pos1 = e3d_vec:mul(Pos0, 1/8),
 	    Pos = wings_util:share(Pos1),
-	    gb_trees:update(V, Vrec#vtx{pos=Pos}, Vtab);
+	    gb_trees:update(V, Pos, Vtab);
 	_ThreeOrMore -> Vtab
     end.
 
@@ -127,8 +122,7 @@ smooth_faces([{Face,#face{mat=Mat}}|Faces], Id, FacePos,
     {NewV,We1} = wings_we:new_id(We0),
     {Center,Color,NumIds} = gb_trees:get(Face, FacePos),
     {Ids,We} = wings_we:new_wrap_range(NumIds, 2, We1),
-    AnEdge = wings_we:id(0, Ids),
-    Vtab = [{NewV,#vtx{pos=Center,edge=AnEdge}}|Vtab0],
+    Vtab = [{NewV,Center}|Vtab0],
     {Etab,EsAcc,Ftab,_} =
 	wings_face:fold(
 	  fun(_, E, Rec, A) ->
@@ -201,19 +195,19 @@ store(Key, New, []) -> [{Key,New}].
 %% Cut edges.
 %%
 
-cut_edges(Es, FacePos, Hard, #we{es=Etab0,vs=Vtab0,
+cut_edges(Es, FacePos, Hard, #we{es=Etab0,vp=Vtab0,
 				 he=Htab0,next_id=Id0}=We) ->
     Etab1 = {Id0,Etab0,gb_trees:empty()},
     {Id,Vtab,{_,Etab2,Etab3},Htab} =
 	cut_edges_1(Es, FacePos, Hard, Id0, Etab1, Vtab0, Htab0, []),
     Etab = gb_trees:from_orddict(gb_trees:to_list(Etab2) ++
 				 gb_trees:to_list(Etab3)),
-    We#we{vs=Vtab,es=Etab,he=Htab,next_id=Id}.
+    We#we{vp=Vtab,es=Etab,he=Htab,next_id=Id}.
 
 cut_edges_1([Edge|Es], FacePos, Hard, 
-	    NewEdge, Etab0, Vtab0, Htab0, VsAcc0) ->
+	    NewEdge, Etab0, Vtab, Htab0, VsAcc0) ->
     #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = Rec = edge_get(Edge, Etab0),
-    Pos0 = [wings_vertex:pos(Va, Vtab0),wings_vertex:pos(Vb, Vtab0)],
+    Pos0 = [gb_trees:get(Va, Vtab),gb_trees:get(Vb, Vtab)],
     {Pos1,Htab} =
 	case gb_sets:is_member(Edge, Hard) of
 	    true ->
@@ -227,14 +221,7 @@ cut_edges_1([Edge|Es], FacePos, Hard,
 		{[LfPos,RfPos|Pos0],Htab0}
 	end,
     Pos = wings_util:share(e3d_vec:average(Pos1)),
-    Vtx = #vtx{pos=Pos,edge=NewEdge},
-    VsAcc = [{NewEdge,Vtx}|VsAcc0],
-    Vtab = case gb_trees:get(Vb, Vtab0) of
-	       #vtx{edge=Edge}=VbRec ->
-		   gb_trees:update(Vb, VbRec#vtx{edge=NewEdge}, Vtab0);
-	       _ ->
-		   Vtab0
-	   end,
+    VsAcc = [{NewEdge,Pos}|VsAcc0],
     Etab = fast_cut(Edge, Rec, NewEdge, Etab0),
     cut_edges_1(Es, FacePos, Hard, NewEdge+1, Etab, Vtab, Htab, VsAcc);
 cut_edges_1([], _FacePos, _Hard, Id, Etab, Vtab0, Htab, VsAcc) ->

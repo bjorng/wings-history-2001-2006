@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.97 2002/12/14 07:49:56 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.98 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -83,7 +83,7 @@ prepare_fun(#dlo{}, Wes) ->
 
 empty_we(We) ->
     Et = gb_trees:empty(),
-    We#we{es=Et,fs=Et,vs=Et,he=gb_sets:empty(),mirror=none,light=none}.
+    We#we{es=Et,fs=Et,vc=Et,vp=Et,he=gb_sets:empty(),mirror=none,light=none}.
 
 check_mirror(#we{mirror=none}) -> none;
 check_mirror(#we{fs=Ftab,mirror=Face}) ->
@@ -108,7 +108,7 @@ update_fun(#dlo{work=none,src_we=#we{fs=Ftab}=We}=D, St) ->
     draw_faces(gb_trees:to_list(Ftab), We, St),
     gl:endList(),
     update_fun(D#dlo{work=List}, St);
-update_fun(#dlo{vs=none,src_we=#we{vs=Vtab}}=D, #st{selmode=vertex}=St) ->
+update_fun(#dlo{vs=none,src_we=#we{vp=Vtab}}=D, #st{selmode=vertex}=St) ->
     UnselDlist = gl:genLists(1),
     gl:newList(UnselDlist, ?GL_COMPILE),
     case wings_pref:get_value(vertex_size) of
@@ -117,8 +117,7 @@ update_fun(#dlo{vs=none,src_we=#we{vs=Vtab}}=D, #st{selmode=vertex}=St) ->
 	    gl:pointSize(PtSize),
 	    gl:color3f(0, 0, 0),
 	    gl:'begin'(?GL_POINTS),
-	    foreach(fun(#vtx{pos=Pos}) -> gl:vertex3fv(Pos) end,
-		    gb_trees:values(Vtab)),
+	    foreach(fun(Pos) -> gl:vertex3fv(Pos) end, gb_trees:values(Vtab)),
 	    gl:'end'()
     end,
     gl:endList(),
@@ -136,11 +135,11 @@ update_fun_2(#dlo{hard=none,src_we=#we{he=Htab}=We}=D, true, _) ->
 	    List = gl:genLists(1),
 	    gl:newList(List, ?GL_COMPILE),
 	    gl:'begin'(?GL_LINES),
-	    #we{es=Etab,vs=Vtab} = We,
+	    #we{es=Etab,vp=Vtab} = We,
 	    foreach(fun(Edge) ->
 			    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-			    gl:vertex3fv(pos(Va, Vtab)),
-			    gl:vertex3fv(pos(Vb, Vtab))
+			    gl:vertex3fv(gb_trees:get(Va, Vtab)),
+			    gl:vertex3fv(gb_trees:get(Vb, Vtab))
 		    end, gb_sets:to_list(Htab)),
 	    gl:'end'(),
 	    gl:endList(),
@@ -185,35 +184,34 @@ update_sel(#dlo{sel=none,src_sel={face,Faces}}=D) ->
 	    {D#dlo{sel=List},[]}
     end;
 update_sel(#dlo{sel=none,src_sel={edge,Edges}}=D) ->
-    #dlo{src_we=#we{es=Etab,vs=Vtab}} = D,
+    #dlo{src_we=#we{es=Etab,vp=Vtab}} = D,
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     gl:'begin'(?GL_LINES),
     case gb_trees:size(Etab) =:= gb_sets:size(Edges) of
 	true ->
 	    foreach(fun(#edge{vs=Va,ve=Vb}) ->
-			    gl:vertex3fv(pos(Va, Vtab)),
-			    gl:vertex3fv(pos(Vb, Vtab))
+			    gl:vertex3fv(gb_trees:get(Va, Vtab)),
+			    gl:vertex3fv(gb_trees:get(Vb, Vtab))
 		    end, gb_trees:values(Etab));
 	false ->
 	    foreach(fun(Edge) ->
 			    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-			    gl:vertex3fv(pos(Va, Vtab)),
-			    gl:vertex3fv(pos(Vb, Vtab))
+			    gl:vertex3fv(gb_trees:get(Va, Vtab)),
+			    gl:vertex3fv(gb_trees:get(Vb, Vtab))
 		    end, gb_sets:to_list(Edges))
     end,
     gl:'end'(),
     gl:endList(),
     {D#dlo{sel=List},[]};
 update_sel(#dlo{sel=none,src_sel={vertex,Vs}}=D) ->
-    #dlo{src_we=#we{vs=Vtab0}} = D,
+    #dlo{src_we=#we{vp=Vtab0}} = D,
     SelDlist = gl:genLists(1),
     case gb_trees:size(Vtab0) =:= gb_sets:size(Vs) of
 	true ->
 	    gl:newList(SelDlist, ?GL_COMPILE),
 	    gl:'begin'(?GL_POINTS),
-	    foreach(fun(#vtx{pos=Pos}) -> gl:vertex3fv(Pos) end,
-		    gb_trees:values(Vtab0)),
+	    foreach(fun(Pos) -> gl:vertex3fv(Pos) end, gb_trees:values(Vtab0)),
 	    gl:'end'(),
 	    gl:endList(),
 	    {D#dlo{sel=SelDlist},[]};
@@ -222,11 +220,10 @@ update_sel(#dlo{sel=none,src_sel={vertex,Vs}}=D) ->
 	    Vtab = sofs:from_external(Vtab1, [{vertex,data}]),
 	    R = sofs:from_external(gb_sets:to_list(Vs), [vertex]),
 	    Sel = sofs:to_external(sofs:restriction(Vtab, R)),
-	    DrawFun = fun({_,#vtx{pos=Pos}}) -> gl:vertex3fv(Pos) end,
 
 	    gl:newList(SelDlist, ?GL_COMPILE),
 	    gl:'begin'(?GL_POINTS),
-	    foreach(DrawFun, Sel),
+	    foreach(fun({_,Pos}) -> gl:vertex3fv(Pos) end, Sel),
 	    gl:'end'(),
 	    gl:endList(),
 
@@ -290,7 +287,7 @@ split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We}=D,
     WeDyn = We#we{fs=gb_trees:from_orddict(FtabDyn)},
 
     StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
-    StaticVs = sort(insert_vtx_data(StaticVs0, We#we.vs, [])),
+    StaticVs = sort(insert_vtx_data(StaticVs0, We#we.vp, [])),
     Split = Split0#split{static_vs=StaticVs,dyn_vs=DynVs,
 			 dyn_faces=Faces,dyn_ftab=FtabDyn,
 			 orig_we=We,st=St},
@@ -305,7 +302,7 @@ update_dynamic(#dlo{work=[Work|_],vs=VsList0,
 		    src_we=We0,split=Split}=D, Vtab0) ->
     #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_ftab=Ftab,st=St} = Split,
     Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
-    We = We0#we{vs=Vtab},
+    We = We0#we{vp=Vtab},
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     draw_faces(Ftab, We, St),
@@ -314,7 +311,7 @@ update_dynamic(#dlo{work=[Work|_],vs=VsList0,
     D#dlo{work=[Work,List],vs=VsList,src_we=We}.
 
 update_dynamic_vs(VsList, none, _) -> VsList;
-update_dynamic_vs([Static|_], DynVs, #we{vs=Vtab}) ->
+update_dynamic_vs([Static|_], DynVs, #we{vp=Vtab}) ->
     UnselDlist = gl:genLists(1),
     gl:newList(UnselDlist, ?GL_COMPILE),
     case wings_pref:get_value(vertex_size) of
@@ -324,8 +321,7 @@ update_dynamic_vs([Static|_], DynVs, #we{vs=Vtab}) ->
 	    gl:color3f(0, 0, 0),
 	    gl:'begin'(?GL_POINTS),
 	    foreach(fun(V) ->
-			    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
-			    gl:vertex3fv(Pos)
+			    gl:vertex3fv(gb_trees:get(V, Vtab))
 		    end, DynVs),
 	    gl:'end'()
     end,
@@ -336,7 +332,7 @@ insert_vtx_data([V|Vs], Vtab, Acc) ->
     insert_vtx_data(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
 insert_vtx_data([], _, Acc) -> Acc.
 
-split_vs_dlist(DynVs0, {vertex,SelVs}, #we{vs=Vtab}) ->
+split_vs_dlist(DynVs0, {vertex,SelVs}, #we{vp=Vtab}) ->
     DynVs = gb_sets:from_ordset(DynVs0),
     UnselDyn = gb_sets:to_list(gb_sets:difference(DynVs, SelVs)),
     UnselDlist = gl:genLists(1),
@@ -347,7 +343,7 @@ split_vs_dlist(DynVs0, {vertex,SelVs}, #we{vs=Vtab}) ->
 	    gl:pointSize(PtSize),
 	    gl:color3f(0, 0, 0),
 	    gl:'begin'(?GL_POINTS),
-	    foreach(fun({V,#vtx{pos=Pos}}) ->
+	    foreach(fun({V,Pos}) ->
 			    case gb_sets:is_member(V, DynVs) of
 				true -> ok;
 				false -> gl:vertex3fv(Pos)
@@ -572,10 +568,6 @@ draw_smooth_plain_1([{_,{{X,Y,Z},Vs}}|T]) ->
     draw_smooth_plain_1(T);
 draw_smooth_plain_1([]) -> ok.
 
-pos(Key, Tree) ->
-    #vtx{pos=Pos} = gb_trees:get(Key, Tree),
-    Pos.
-
 %%
 %% Draw normals for the selected elements.
 %%
@@ -591,21 +583,21 @@ make_normals_dlist(#dlo{normals=none,src_we=We,src_sel={Mode,Elems}}=D) ->
 make_normals_dlist(#dlo{src_sel=none}=D) -> D#dlo{normals=none};
 make_normals_dlist(D) -> D.
 
-make_normals_dlist_1(vertex, Vs, #we{vs=Vtab}=We) ->
+make_normals_dlist_1(vertex, Vs, #we{vp=Vtab}=We) ->
     foreach(fun(V) ->
-		    Pos = pos(V, Vtab),
+		    Pos = gb_trees:get(V, Vtab),
 		    gl:vertex3fv(Pos),
 		    N = wings_vertex:normal(V, We),
 		    gl:vertex3fv(e3d_vec:add(Pos, e3d_vec:mul(N, 0.3)))
 	    end, gb_sets:to_list(Vs));
-make_normals_dlist_1(edge, Edges, #we{es=Etab,vs=Vtab}=We) ->
+make_normals_dlist_1(edge, Edges, #we{es=Etab,vp=Vtab}=We) ->
     Et0 = sofs:relation(gb_trees:to_list(Etab), [{edge,data}]),
     Es = sofs:from_external(gb_sets:to_list(Edges), [edge]),
     Et1 = sofs:restriction(Et0, Es),
     Et = sofs:to_external(Et1),
     foreach(fun({_,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}}) ->
-		    PosA = pos(Va, Vtab),
-		    PosB = pos(Vb, Vtab),
+		    PosA = gb_trees:get(Va, Vtab),
+		    PosB = gb_trees:get(Vb, Vtab),
 		    Mid = e3d_vec:average([PosA,PosB]),
 		    gl:vertex3fv(Mid),
 		    N = e3d_vec:average([wings_face:normal(Lf, We),

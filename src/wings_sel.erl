@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.38 2002/10/17 12:20:44 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.39 2002/12/26 09:47:09 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -156,7 +156,7 @@ make_1([#we{id=Id}=We|Shs], Filter, body) ->
 	false -> make_1(Shs, Filter, body);
 	true -> [{Id,gb_sets:singleton(0)}|make_1(Shs, Filter, body)]
     end;
-make_1([#we{id=Id,vs=Vtab,es=Etab,fs=Ftab}=We|Shs], Filter, Mode) ->
+make_1([#we{id=Id,vp=Vtab,es=Etab,fs=Ftab}=We|Shs], Filter, Mode) ->
     Tab = case Mode of
 	      vertex -> Vtab;
 	      edge -> Etab;
@@ -363,8 +363,8 @@ get_all_items(Mode, Id, #st{shapes=Shapes}) ->
     We = gb_trees:get(Id, Shapes),
     get_all_items(Mode, We).
 
-get_all_items(vertex, #we{vs=Vtab}) ->
-    gb_sets:from_ordset(gb_trees:keys(Vtab));
+get_all_items(vertex, #we{vc=Vct}) ->
+    gb_sets:from_ordset(gb_trees:keys(Vct));
 get_all_items(edge, #we{es=Etab}) ->
     gb_sets:from_ordset(gb_trees:keys(Etab));
 get_all_items(face, #we{fs=Ftab}=We) ->

@@ -50,7 +50,7 @@ dofaces(Faces, #we{id=Id}=We0, Q, Acc) ->
 tess_faces([], We, _Q) -> We;
 tess_faces([F|T], We, Q) -> tess_faces(T, doface(F, We, Q), Q).
 
-doface(Face,#we{fs=Ftab,vs=Vtab}=We,Q) ->
+doface(Face,#we{fs=Ftab,vp=Vtab}=We,Q) ->
     #face{mat=Mat} = gb_trees:get(Face, Ftab),
     Vs = wpa:face_vertices(Face, We),
     Len = length(Vs),
@@ -111,7 +111,7 @@ trydiag(E={A,B}, Bord, S) ->
 coord_list(L) -> coord_list(L, 0, []).
 
 coord_list([], _, Acc) -> reverse(Acc);
-coord_list(L=[{K,#vtx{pos=P}}|Rest], I, Acc) ->
+coord_list(L=[{K,P}|Rest], I, Acc) ->
     if
 	I < K ->
 	    coord_list(L, I+1, [e3d_vec:zero() | Acc]);

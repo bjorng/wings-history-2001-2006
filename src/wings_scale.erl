@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.40 2002/11/02 13:16:29 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.41 2002/12/26 09:47:09 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -81,7 +81,7 @@ inset([], _We, {Vs0,Min}) ->
     F = sofs:relation_to_family(R),
     foldl(fun average_vectors/2, [], sofs:to_external(F)).
 
-inset_face(Face, #we{vs=Vtab}=We, Acc) ->
+inset_face(Face, #we{vp=Vtab}=We, Acc) ->
     Vs0 = wings_face:surrounding_vertices(Face, We),
     Center = wings_vertex:center(Vs0, We),
     wings_face:fold(
@@ -124,17 +124,16 @@ scale_vertices(Vec, center, Magnet, St) ->
     Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
 				 [{gb_sets:to_list(Vs),We}|Acc]
 			 end, [], St),
-    VsPs = foldl(fun({Vs,#we{vs=Vtab0}}, Acc) ->
+    VsPs = foldl(fun({Vs,#we{vp=Vtab0}}, Acc) ->
 			 Vtab1 = sofs:from_external(gb_trees:to_list(Vtab0),
-						    [{vertex,info}]),
+						    [{vertex,pos}]),
 			 Restr = sofs:set(Vs, [vertex]),
 			 Vtab2 = sofs:restriction(Vtab1, Restr),
-			 Vtab = sofs:to_external(Vtab2),
-			 foldl(fun({_,#vtx{pos=Pos}}, A) ->
-				       [Pos|A]
-			       end, Acc, Vtab)
+			 Vtab3 = sofs:range(Vtab2),
+			 Vtab = sofs:to_external(Vtab3),
+			 [Vtab|Acc]
 		 end, [], Tvs),
-    Center = e3d_vec:average(VsPs),
+    Center = e3d_vec:average(lists:append(VsPs)),
     foldl(fun({Vs,We}, Acc) ->
 		  scale(Vec, Center, Magnet, Vs, We, Acc)
 	  end, [], Tvs);
@@ -221,9 +220,9 @@ scale(Vec0, Center, Magnet, Vs, #we{id=Id}=We, Acc) ->
     Fun = fun([Dx], A0) ->
 		  {Sx,Sy,Sz} = make_scale(Dx+1.0, Vec),
 		  Matrix = e3d_mat:mul(Pre, e3d_mat:scale(Sx, Sy, Sz)),
-		  foldl(fun({V,#vtx{pos=Pos0}=Vtx}, A) ->
+		  foldl(fun({V,Pos0}, A) ->
 				Pos = e3d_mat:mul_point(Matrix, Pos0),
-				[{V,Vtx#vtx{pos=Pos}}|A]
+				[{V,Pos}|A]
 			end, A0, VsPos)
 	  end,
     magnet(Vec, Magnet, Pre, Post, Vs, We, {Id,{Vs,Fun}}, Acc).
@@ -248,11 +247,11 @@ magnet_scale_fun(Vec, Pre, VsInf0, {_,R}=Magnet0) ->
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_scale_fun(Vec, Pre, VsInf, Magnet);
        ([Dx|_], A0) ->
-	    foldl(fun({V,#vtx{pos={Px,Py,Pz}}=Vtx,_,Inf}, A) ->
+	    foldl(fun({V,{Px,Py,Pz},_,Inf}, A) ->
 			  {Sx,Sy,Sz} = make_scale(Dx*Inf+1.0, Vec),
 			  Pos0 = {Px*Sx,Py*Sy,Pz*Sz},
 			  Pos = e3d_mat:mul_point(Pre, Pos0),
-			  [{V,Vtx#vtx{pos=Pos}}|A]
+			  [{V,Pos}|A]
 		  end, A0, VsInf0)
     end.
 
@@ -294,9 +293,9 @@ make_matrices(Vec, Center) ->
     Post = e3d_mat:mul(RotBack, e3d_mat:translate(e3d_vec:neg(Center))),
     {Pre,Post}.
 
-mul(Vs, Matrix, #we{vs=Vtab}) ->
+mul(Vs, Matrix, #we{vp=Vtab}) ->
     foldl(fun(V, A) ->
-		  #vtx{pos=Pos0} = Vtx = gb_trees:get(V, Vtab),
+		  Pos0 = gb_trees:get(V, Vtab),
 		  Pos = e3d_mat:mul_point(Matrix, Pos0),
-		  [{V,Vtx#vtx{pos=Pos}}|A]
+		  [{V,Pos}|A]
 	  end, [], Vs).

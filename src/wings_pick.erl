@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.72 2002/12/20 15:48:05 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.73 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -152,18 +152,17 @@ hilite_color({Id,Item}, #st{sel=Sel}) ->
 	  end,
     gl:color3fv(wings_pref:get_value(Key)).
 
-hilit_draw_sel(vertex, V, #we{vs=Vtab}) ->
+hilit_draw_sel(vertex, V, #we{vp=Vtab}) ->
     gl:pointSize(wings_pref:get_value(selected_vertex_size)),
     gl:'begin'(?GL_POINTS),
-    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
-    gl:vertex3fv(Pos),
+    gl:vertex3fv(gb_trees:get(V, Vtab)),
     gl:'end'();
-hilit_draw_sel(edge, Edge, #we{es=Etab,vs=Vtab}) ->
+hilit_draw_sel(edge, Edge, #we{es=Etab,vp=Vtab}) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
     gl:lineWidth(wings_pref:get_value(selected_edge_width)),
     gl:'begin'(?GL_LINES),
-    gl:vertex3fv(pos(Va, Vtab)),
-    gl:vertex3fv(pos(Vb, Vtab)),
+    gl:vertex3fv(gb_trees:get(Va, Vtab)),
+    gl:vertex3fv(gb_trees:get(Vb, Vtab)),
     gl:'end'();
 hilit_draw_sel(face, Face, We) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
@@ -287,11 +286,10 @@ marquee_filter_1([{Id,Face}|Hits], Shs, Mode, EyePoint, Acc) ->
     end;
 marquee_filter_1([], _, _, _, Acc) -> Acc.
 
-face_vtx_pos(Face, Id, #we{vs=Vtab}=We) ->
+face_vtx_pos(Face, Id, #we{vp=Vtab}=We) ->
     Vs = wings_face:surrounding_vertices(Face, We),
     Ps = foldl(fun(V, A) ->
-		       #vtx{pos=Pos} = gb_trees:get(V, Vtab),
-		       [Pos|A]
+		       [gb_trees:get(V, Vtab)|A]
 	       end, [], Vs),
     if
 	Id < 0 ->
@@ -320,39 +318,37 @@ marquee_convert([{Id,Faces}|Hits], RectData0,
 marquee_convert([], _, _, Hits) ->
     sofs:family_to_relation(sofs:family(Hits)).
 
-marquee_convert_1(Faces0, face, Rect, #we{vs=Vtab}=We) ->
+marquee_convert_1(Faces0, face, Rect, #we{vp=Vtab}=We) ->
     Vfs0 = wings_face:fold_faces(
 	     fun(Face, V, _, _, A) ->
 		     [{V,Face}|A]
 	     end, [], Faces0, We),
     Vfs = wings_util:rel2fam(Vfs0),
-    Kill0 = [Fs || {V,Fs} <- Vfs, not is_inside_rect(pos(V, Vtab), Rect)],
+    Kill0 = [Fs || {V,Fs} <- Vfs, not is_inside_rect(gb_trees:get(V, Vtab), Rect)],
     Kill1 = sofs:set(Kill0, [[face]]),
     Kill = sofs:union(Kill1),
     Faces1 = sofs:from_external(Faces0, [face]),
     Faces = sofs:difference(Faces1, Kill),
     sofs:to_external(Faces);
-marquee_convert_1(Faces, vertex, Rect, #we{vs=Vtab}=We) ->
+marquee_convert_1(Faces, vertex, Rect, #we{vp=Vtab}=We) ->
     Vs0 = wings_face:fold_faces(fun(_, V, _, _, A) ->
 					[V|A]
 				end, [], Faces, We),
     Vs = ordsets:from_list(Vs0),
-    [V || V <- Vs, is_inside_rect(pos(V, Vtab), Rect)];
-marquee_convert_1(Faces, edge, Rect, #we{vs=Vtab}=We) ->
+    [V || V <- Vs, is_inside_rect(gb_trees:get(V, Vtab), Rect)];
+marquee_convert_1(Faces, edge, Rect, #we{vp=Vtab}=We) ->
     Es0 = wings_face:fold_faces(fun(_, _, E, Rec, A) ->
 					[{E,Rec}|A]
 				end, [], Faces, We),
     Es = ordsets:from_list(Es0),
     [E || {E,#edge{vs=Va,ve=Vb}} <- Es,
-	  is_all_inside_rect([pos(Va, Vtab),pos(Vb, Vtab)], Rect)];
-marquee_convert_1(_Faces, body, Rect, #we{vs=Vtab}) ->
+	  is_all_inside_rect([gb_trees:get(Va, Vtab),gb_trees:get(Vb, Vtab)], Rect)];
+marquee_convert_1(_Faces, body, Rect, #we{vp=Vtab}) ->
     case is_all_inside_rect(gb_trees:values(Vtab), Rect) of
 	true -> [0];
 	false -> []
     end.
 
-is_all_inside_rect([#vtx{pos=P}|Ps], Rect) ->
-    is_inside_rect(P, Rect) andalso is_all_inside_rect(Ps, Rect);
 is_all_inside_rect([P|Ps], Rect) ->
     is_inside_rect(P, Rect) andalso is_all_inside_rect(Ps, Rect);
 is_all_inside_rect([], _Rect) -> true.
@@ -743,19 +739,19 @@ pick_all(DrawFaces, X, Y0, W, H, St0) ->
     end.
 
 marquee_draw(#st{selmode=edge}) ->
-      Draw = fun(#we{es=Etab,vs=Vtab}) ->
+      Draw = fun(#we{es=Etab,vp=Vtab}) ->
 		     foreach(fun({Edge,#edge{vs=Va,ve=Vb}}) ->
 				     gl:loadName(Edge),
 				     gl:'begin'(?GL_LINES),
-				     gl:vertex3fv(pos(Va, Vtab)),
-				     gl:vertex3fv(pos(Vb, Vtab)),
+				     gl:vertex3fv(gb_trees:get(Va, Vtab)),
+				     gl:vertex3fv(gb_trees:get(Vb, Vtab)),
 				     gl:'end'()
 			     end, gb_trees:to_list(Etab))
 	     end,
     marquee_draw_1(Draw);
 marquee_draw(#st{selmode=vertex}) ->
-    Draw = fun(#we{vs=Vtab}) ->
-		   foreach(fun({V,#vtx{pos=Pos}}) ->
+    Draw = fun(#we{vp=Vtab}) ->
+		   foreach(fun({V,Pos}) ->
 				   gl:loadName(V),
 				   gl:'begin'(?GL_POINTS),
 				   gl:vertex3fv(Pos),
@@ -854,16 +850,12 @@ select_draw_nonopt(#we{fs=Ftab}=We) ->
 %% Utilities.
 %%
 
-pos(Key, Tree) ->
-    #vtx{pos=Pos} = gb_trees:get(Key, Tree),
-    Pos.
-
-draw_face(Face, Edge, #we{vs=Vtab}=We) ->
+draw_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs0 = wings_face:vinfo(Face, Edge, We),
     draw_face_1(Vs0, Vtab, [], []).
 
 draw_face_1([[V|_]|Vs], Vtab, Nacc, VsAcc) ->
-    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+    Pos = gb_trees:get(V, Vtab),
     draw_face_1(Vs, Vtab, [Pos|Nacc], [Pos|VsAcc]);
 draw_face_1([], _, Nacc, Vs) ->
     N = e3d_vec:normal(reverse(Nacc)),

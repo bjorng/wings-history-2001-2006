@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_turnedge.erl,v 1.1 2002/05/16 07:07:32 bjorng Exp $
+%%     $Id: wpc_turnedge.erl,v 1.2 2002/12/26 09:47:07 bjorng Exp $
 %%
 
 -module(wpc_turnedge).
@@ -78,7 +78,7 @@ turn_edges(Edges, #we{id=Id}=We0, Opt, St) ->
     Sel = {Id,gb_sets:from_list(Sel0)},
     {Sel, St#st{shapes=Shapes}}.
 
-try_turn(Edge, #we{es=Etab,vs=Vtab}=We0, Opt) ->
+try_turn(Edge, #we{es=Etab,vp=Vtab}=We0, Opt) ->
     #edge{vs=Vstart,ve=Vend,rf=RightFace,lf=LeftFace} =
 	gb_trees:get(Edge, Etab),
     LeftVs0 = wings_face:to_vertices([LeftFace], We0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.84 2002/12/15 11:32:48 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.85 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -16,7 +16,6 @@
 	 icon_restriction/1,clear_icon_restriction/0,get_icon_restriction/0,
 	 arrow/0,hourglass/0,
 	 info/1,
-	 disable_progress/0,progress/1,progress_tick/0,
 	 border/5,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,text/1,menu_text/3,space_at/2,
@@ -47,7 +46,6 @@
 	 hourglass,				%Hourglass cursor.
 	 arrow,					%Arrow cursor.
 	 raw_icons,				%Raw icon bundle.
-         progress_pos,				%Progress position.
 	 selmodes=all				%Which icons to show.
 	}).
 
@@ -100,15 +98,6 @@ make_font_dlists(C, Base) ->
     catch wings_text:char(C),
     gl:endList(),
     make_font_dlists(C+1, Base).
-
-disable_progress() ->
-    ok.
-    
-progress(_Message) ->
-    ok.
-    
-progress_tick() ->
-    ok.
 
 info(Info) ->
     ortho_setup(),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.10 2002/05/19 05:40:03 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.11 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
@@ -61,7 +61,7 @@ inner_extrude_1([{Edge,_}=CurEdge|Es], {PrevEdge,PrevRec}, Face,
     NextV = NextHor,
 
     Ids = wings_we:bump_id(Ids0),
-    #we{fs=Ftab0,es=Etab0,vs=Vtab0} = We0,
+    #we{fs=Ftab0,es=Etab0,vc=Vct0,vp=Vtab0} = We0,
     
     Erec0 = gb_trees:get(Edge, Etab0),
 
@@ -94,13 +94,14 @@ inner_extrude_1([{Edge,_}=CurEdge|Es], {PrevEdge,PrevRec}, Face,
 			      lf=NewFace,rf=Face,
 			      ltsu=NextVert,ltpr=VertEdge,
 			      rtsu=PrevHor,rtpr=NextHor}}|EdgeAcc0],
-    
-    Vrec = gb_trees:get(Va, Vtab0),
-    Vtab = gb_trees:insert(V, Vrec#vtx{edge=HorEdge}, Vtab0),
+
+    Vct = gb_trees:insert(V, HorEdge, Vct0),
+    Pos = gb_trees:get(Va, Vtab0),
+    Vtab = gb_trees:insert(V, Pos, Vtab0),
 
     Ftab = gb_trees:insert(NewFace, #face{mat=Mat,edge=HorEdge}, Ftab0),
 
-    We = We0#we{fs=Ftab,es=Etab,vs=Vtab},
+    We = We0#we{fs=Ftab,es=Etab,vc=Vct,vp=Vtab},
     inner_extrude_1(Es, CurEdge, Face, Mat, Ids, OrigEtab, We, EdgeAcc);
 inner_extrude_1([], _PrevEdge, _Face, _Mat, _Ids, _, We, EdgeAcc) ->
     {We,EdgeAcc}.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_region.erl,v 1.6 2002/10/20 09:47:44 bjorng Exp $
+%%     $Id: wpc_region.erl,v 1.7 2002/12/26 09:47:07 bjorng Exp $
 %%
 
 -module(wpc_region).
@@ -147,9 +147,9 @@ rotate({Cx,Cy,Cz}, Axis, Angle, VsPos, Acc0) ->
     M0 = e3d_mat:translate(Cx, Cy, Cz),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(Angle, Axis)),
     M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
-    foldl(fun({V,#vtx{pos=Pos0}=Vtx}, Acc) ->
+    foldl(fun({V,Pos0}, Acc) ->
 		  Pos = e3d_mat:mul_point(M, Pos0),
-		  [{V,Vtx#vtx{pos=Pos}}|Acc]
+		  [{V,Pos}|Acc]
 	  end, Acc0, VsPos).
 
 %%%

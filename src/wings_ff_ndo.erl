@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.16 2002/12/12 08:23:39 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.17 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -77,8 +77,8 @@ read_object_1(<<L:16,T0/binary>>) ->
 	    {Ftab,T4} = read_faces(T3),
 	    {Vtab,T5} = read_vertices(T4),
 	    T = skip_rest(T5),
-	    We0 = #we{mode=vertex,es=Etab,vs=Vtab,fs=Ftab,he=Htab,perm=Perm},
-	    We1 = set_next_id(We0),
+	    We0 = #we{mode=vertex,es=Etab,vp=Vtab,fs=Ftab,he=Htab,perm=Perm},
+	    We1 = wings_we:rebuild(We0),
 	    We = clean_bad_edges(We1),
 	    {Name,We,T}
     end.
@@ -151,21 +151,9 @@ read_vertices(<<NumVertices:16,T/binary>>) ->
 read_vertices(N, N, T, Acc) ->
     {gb_trees:from_orddict(reverse(Acc)),T};
 read_vertices(V, N,
-	      <<Edge:16,X:32/float,Y:32/float,Z:32/float,T/binary>>, Acc) ->
+	      <<_:16,X:32/float,Y:32/float,Z:32/float,T/binary>>, Acc) ->
     Pos = wings_util:share(X/10.0, Y/10.0, Z/10.0),
-    Vtx = {V,#vtx{edge=Edge,pos=Pos}},
-    read_vertices(V+1, N, T, [Vtx|Acc]).
-
-set_next_id(#we{es=Etab,vs=Vtab,fs=Ftab}=We) ->
-    NextId = last(sort([gb_trees:size(Etab),
-			gb_trees:size(Ftab),
-			gb_trees:size(Vtab)])),
-    We#we{first_id=0,next_id=NextId}.
-
-% show_first(<<First:32/binary,_/binary>>) ->
-%     io:format("~w\n", [First]);
-% show_first(Bin) ->
-%     io:format("~w\n", [Bin]).
+    read_vertices(V+1, N, T, [{V,Pos}|Acc]).
 
 clean_bad_edges(#we{es=Etab}=We) ->
     clean_bad_edges(gb_trees:keys(Etab), We).
@@ -221,10 +209,10 @@ shape(#we{name=Name,perm=Perm}=We0, St, Acc) ->
     Header = <<Vis:8,Sense:8,Shaded:8,EnableColors:8,0:72/unit:8>>,
     We1 = wings_we:uv_to_color(We0, St),
     We = wings_we:renumber(We1, 0),
-    #we{vs=Vs,es=Etab,fs=Ftab,he=Htab} = We,
+    #we{vc=Vct,vp=Vtab,es=Etab,fs=Ftab,he=Htab} = We,
     EdgeChunk = write_edges(gb_trees:to_list(Etab), Htab, []),
     FaceChunk = write_faces(gb_trees:values(Ftab), []),
-    VertexChunk = write_vertices(gb_trees:values(Vs), []),
+    VertexChunk = write_vertices(gb_trees:values(Vct), gb_trees:values(Vtab), []),
     FillChunk = [0,0,0,0,0,1],
     [[NameChunk,Header,EdgeChunk,FaceChunk,VertexChunk,FillChunk]|Acc].
 
@@ -246,10 +234,10 @@ write_faces([#face{edge=Edge}|Fs], Acc) ->
 write_faces([], Acc) ->
     list_to_binary([<<(length(Acc)):16>>|reverse(Acc)]).
 
-write_vertices([#vtx{pos={X,Y,Z},edge=Edge}|Fs], Acc) ->
+write_vertices([Edge|Es], [{X,Y,Z}|Ps], Acc) ->
     Vtx = <<Edge:16,(X*10):32/float,(Y*10):32/float,(Z*10):32/float>>,
-    write_vertices(Fs, [Vtx|Acc]);
-write_vertices([], Acc) ->
+    write_vertices(Es, Ps, [Vtx|Acc]);
+write_vertices([], [], Acc) ->
     list_to_binary([<<(length(Acc)):16>>|reverse(Acc)]).
 
 write_file(Name, Objects) ->

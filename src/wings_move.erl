@@ -8,9 +8,8 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.41 2002/09/05 19:31:16 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.42 2002/12/26 09:47:08 bjorng Exp $
 %%
-
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3]).
 
@@ -55,7 +54,8 @@ plus_minus_3(Tv0, NewVs, Forbidden, #we{id=Id}=We, Acc) ->
     Affected0 = affected(Tv0),
     Vecs = move_vectors(NewVs, Forbidden, gb_sets:from_list(Affected0), We, []),
     Affected = [V || {V,_,_} <- Vecs],
-    MoveAway = {Affected,move_away_fun(Vecs)},
+    VsPos = move_away(1.0, Vecs),
+    MoveAway = {Affected,move_away_fun(Vecs, VsPos)},
     [{Id,Tv0},{Id,MoveAway}|Acc].
 
 setup_we(vertex, Vec, Items, We) ->
@@ -75,21 +75,24 @@ unit(_, T) -> [distance|T].
 flags(free) -> [screen_relative];
 flags(_) -> [].
 
-move_away_fun(Tv) ->
-    fun(view_changed, _Acc) -> move_away_fun(Tv);
-       (new_falloff, _Falloff) -> move_away_fun(Tv);
-       (Ds, Acc) -> move_away(lists:last(Ds), Tv, Acc)
+move_away_fun(Tv, VsPos0) ->
+    fun(view_changed, _Acc) ->
+	    move_away_fun(Tv, VsPos0);
+       (new_falloff, Falloff) ->
+	    VsPos = move_away(Falloff, Tv),
+	    move_away_fun(Tv, VsPos);
+       (_, Acc) -> VsPos0 ++ Acc
     end.
 
-move_away(R0, Tv, Acc) ->
+move_away(R0, Tv) ->
     R = R0-1.0,
-    foldl(fun({V,Vec,#vtx{pos={X,Y,Z}}=Rec}, A) -> 
+    foldl(fun({V,Vec,{X,Y,Z}}, A) -> 
 		  {Xt,Yt,Zt} = e3d_vec:mul(Vec, R),
 		  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
-		  [{V,Rec#vtx{pos=Pos}}|A]
-	  end, Acc, Tv).
+		  [{V,Pos}|A]
+	  end, [], Tv).
     
-move_vectors([V|Vs], Forbidden, VsSet, #we{vs=Vtab}=We, Acc0) ->
+move_vectors([V|Vs], Forbidden, VsSet, #we{vp=Vtab}=We, Acc0) ->
     Acc = wings_vertex:fold(
 	    fun(Edge, _, Rec, A) ->
 		    OtherV = wings_vertex:other(V, Rec),
@@ -97,10 +100,10 @@ move_vectors([V|Vs], Forbidden, VsSet, #we{vs=Vtab}=We, Acc0) ->
 			not gb_sets:is_member(Edge, Forbidden) of
 			false -> A;
 			true ->
-			    Pa = wings_vertex:pos(OtherV, Vtab),
-			    #vtx{pos=Pb} = Pos = gb_trees:get(V, Vtab),
+			    Pa = gb_trees:get(OtherV, Vtab),
+			    Pb = gb_trees:get(V, Vtab),
 			    Vec = e3d_vec:sub(Pb, Pa),
-			    [{V,Vec,Pos}|A]
+			    [{V,Vec,Pb}|A]
 		    end
 	    end, Acc0, V, We),
     move_vectors(Vs, Forbidden, VsSet, We, Acc);
@@ -126,12 +129,12 @@ vertex_normals(We, Vs) ->
 %%
 
 edges_to_vertices(Es, We, normal) ->
-    #we{es=Etab,vs=Vtab} = We,
+    #we{es=Etab,vp=Vtab} = We,
     Vs = foldl(fun(Edge, D0) ->
 		       #edge{vs=Va,ve=Vb,lf=FaceL,rf=FaceR} =
 			   gb_trees:get(Edge, Etab),
-		       VaPos = wings_vertex:pos(Va, Vtab),
-		       VbPos = wings_vertex:pos(Vb, Vtab),
+		       VaPos = gb_trees:get(Va, Vtab),
+		       VbPos = gb_trees:get(Vb, Vtab),
 		       EdgeDir = e3d_vec:norm(e3d_vec:sub(VbPos, VaPos)),
  		       NL = wings_face:normal(FaceL, We),
  		       NR = wings_face:normal(FaceR, We),
@@ -177,7 +180,7 @@ average_normals([{Na,Orig,Da}|[{Nb,_,Db}|_]=T]) ->
 %% Conversion of face selections to vertices.
 %%
 
-faces_to_vertices(Faces, #we{vs=Vtab}=We, normal) ->
+faces_to_vertices(Faces, #we{vp=Vtab}=We, normal) ->
     Vs = foldl(fun(Face, Acc0) ->
 		       Vs = wings_face:surrounding_vertices(Face, We),
 		       face_normal(Vs, Vtab, Acc0)
@@ -337,11 +340,11 @@ magnet_move_fun({Xt0,Yt0,Zt0}=Vec, VsInf0, {_,R}=Magnet0) ->
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_move_fun(Vec, VsInf, Magnet);
        ([Dx0|_], A0) ->
-	    foldl(fun({V,#vtx{pos={Px,Py,Pz}}=Vtx,_,Inf}, A) ->
+	    foldl(fun({V,{Px,Py,Pz},_,Inf}, A) ->
 			  Dx = Dx0*Inf,
 			  Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
 			  Pos = wings_util:share(Px+Xt, Py+Yt, Pz+Zt),
-			  [{V,Vtx#vtx{pos=Pos}}|A]
+			  [{V,Pos}|A]
 		  end, A0, VsInf0)
     end;
 magnet_move_fun(free, VsInf0, {_,R}=Magnet0) ->
@@ -358,10 +361,10 @@ magnet_move_fun(free, VsInf0, {_,R}=Magnet0) ->
        ([Dx,Dy,Dz|_], Acc) ->
 	    M = view_matrix(),
 	    foldl(
-	      fun({V,#vtx{pos={Px,Py,Pz}}=Vtx,_,Inf}, A) ->
+	      fun({V,{Px,Py,Pz},_,Inf}, A) ->
 		      {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx*Inf,Dy*Inf,-Dz*Inf}),
 		      Pos = wings_util:share(Px+Xt, Py+Yt, Pz+Zt),
-		      [{V,Vtx#vtx{pos=Pos}}|A]
+		      [{V,Pos}|A]
 	      end, Acc, VsInf0)
     end;
 magnet_move_fun(VsVec, VsInf0, {_,R}=Magnet0) ->
@@ -374,12 +377,12 @@ magnet_move_fun(VsVec, VsInf0, {_,R}=Magnet0) ->
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_move_fun(VsVec, VsInf, Magnet);
        ([Dx0|_], A0) ->
-	    foldl(fun({V,#vtx{pos={Px,Py,Pz}}=Vtx,_,Inf}, A) ->
+	    foldl(fun({V,{Px,Py,Pz},_,Inf}, A) ->
 			  {Xt0,Yt0,Zt0} = gb_trees:get(V, VsVec),
 			  Dx = Dx0*Inf,
 			  Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
 			  Pos = wings_util:share(Px+Xt, Py+Yt, Pz+Zt),
-			  [{V,Vtx#vtx{pos=Pos}}|A]
+			  [{V,Pos}|A]
 		  end, A0, VsInf0)
     end.
 
@@ -402,9 +405,9 @@ move_fun(VsPos, ViewMatrix) ->
 	    move_fun(wings_util:update_vpos(VsPos, NewWe), view_matrix());
        ([Dx,Dy,Dz|_], Acc) ->
 	    {Xt,Yt,Zt} = e3d_mat:mul_point(ViewMatrix, {Dx,Dy,-Dz}),
-	    foldl(fun({V,#vtx{pos={X,Y,Z}}=Rec}, A) -> 
+	    foldl(fun({V,{X,Y,Z}}, A) -> 
 			  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
-			  [{V,Rec#vtx{pos=Pos}}|A]
+			  [{V,Pos}|A]
 		  end, Acc, VsPos)
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.30 2002/12/20 19:22:47 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.31 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -17,7 +17,7 @@
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1]).
 -define(PI, 3.1416).
--compile({inline,[{mix,2}]}).
+-compile(inline).
 
 sub_menu(_St) ->
     InflateHelp = {"Inflate elements",[],"Pick center and radius"},
@@ -147,14 +147,14 @@ crumple(normal, Vs0, #we{id=Id}=We, Acc) ->
     {Sa,Sb,Sc} = now(),
     Vs = gb_sets:to_list(Vs0),
     VsPos0 = wings_util:add_vpos(Vs, We),
-    VsPos = [{V,Vtx,wings_vertex:normal(V, We)} || {V,Vtx} <- VsPos0],
+    VsPos = [{V,Pos,wings_vertex:normal(V, We)} || {V,Pos} <- VsPos0],
     Fun = fun([Dx], A) ->
 		  random:seed(Sa, Sb, Sc),
-		  foldl(fun({V,#vtx{pos=Pos0}=Rec,N}, VsAcc) ->
+		  foldl(fun({V,Pos0,N}, VsAcc) ->
 				{R1,_,_} = rnd(Dx/10),
 				Dis = e3d_vec:mul(N, R1),
 				Pos = e3d_vec:add(Pos0, Dis),
-				[{V,Rec#vtx{pos=Pos}}|VsAcc]
+				[{V,Pos}|VsAcc]
 			end, A, VsPos)
 	  end,
     [{Id,{Vs,Fun}}|Acc];
@@ -165,13 +165,12 @@ crumple(Dir, Vs0, #we{id=Id}=We, Acc) ->
     VsPos = wings_util:add_vpos(Vs, We),
     Fun = fun([Dx], A) ->
 		  random:seed(Sa, Sb, Sc),
-		  foldl(fun({V,#vtx{pos={X0,Y0,Z0}}=Rec}, VsAcc) ->
+		  foldl(fun({V,{X0,Y0,Z0}}, VsAcc) ->
 				{R1,R2,R3} = rnd(Dx/4),
 				X = X0 + R1*Xmask,
 				Y = Y0 + R2*Ymask,
 				Z = Z0 + R3*Zmask,
-				Pos = {X,Y,Z},
-				[{V,Rec#vtx{pos=Pos}}|VsAcc]
+				[{V,{X,Y,Z}}|VsAcc]
 			end, A, VsPos)
 	  end,
     [{Id,{Vs,Fun}}|Acc].
@@ -205,7 +204,7 @@ inflate(St) ->
     Tvs = wings_sel:fold(fun inflate/3, [], St),
     wings_drag:setup(Tvs, [percent], St).
 
-inflate(Vs0, #we{vs=Vtab}=We, Acc) ->
+inflate(Vs0, #we{vp=Vtab}=We, Acc) ->
     Vs = gb_sets:to_list(Vs0),
     Center = wings_vertex:center(Vs, We),
     Radius = foldl(
@@ -226,15 +225,14 @@ inflate({Center,Outer}, St) ->
 			 end, [], St),
     wings_drag:setup(Tvs, [percent], St).
 
-inflate(Center, Radius, Vs, #we{id=Id,vs=Vtab}, Acc) ->
-      [{Id,foldl(
-	  fun(V, A) ->
-		  VPos = wings_vertex:pos(V, Vtab),
-		  D = e3d_vec:dist(Center, VPos),
-		  Dir = e3d_vec:norm(e3d_vec:sub(VPos, Center)),
-		  Vec = e3d_vec:mul(Dir, Radius-D),
-		  [{Vec,[V]}|A]
-	  end, [], Vs)}|Acc].
+inflate(Center, Radius, Vs, #we{id=Id,vp=Vtab}, Acc) ->
+    [{Id,foldl(fun(V, A) ->
+		       VPos = gb_trees:get(V, Vtab),
+		       D = e3d_vec:dist(Center, VPos),
+		       Dir = e3d_vec:norm(e3d_vec:sub(VPos, Center)),
+		       Vec = e3d_vec:mul(Dir, Radius-D),
+		       [{Vec,[V]}|A]
+	       end, [], Vs)}|Acc].
 
 %%
 %% The Taper deformer.
@@ -261,9 +259,8 @@ taper_3(Id, Vs0, We, Key, Effect, MinR, MaxR, Center, Acc) ->
     VsPos = wings_util:add_vpos(Vs, We),
     Fun = fun([Dx], A) ->
 		  U = Dx + 1.0,
-		  foldl(fun({V,#vtx{pos=Pos0}=Rec}, VsAcc) ->
-				Pos = Tf(U, Pos0),
-				[{V,Rec#vtx{pos=Pos}}|VsAcc]
+		  foldl(fun({V,Pos}, VsAcc) ->
+				[{V,Tf(U, Pos)}|VsAcc]
 			end, A, VsPos)
 	  end,
     [{Id,{Vs,Fun}}|Acc].
@@ -416,9 +413,8 @@ twister_fun(Vs, Tf, Min, Range, We) ->
     VsPos = wings_util:add_vpos(Vs, We),
     fun([Angle], A) ->
 	    U = (Angle / 180.0 * ?PI)/Range,
-	    foldl(fun({V,#vtx{pos=Pos0}=Rec}, VsAcc) ->
-			  Pos = Tf(U, Min, Pos0),
-			  [{V,Rec#vtx{pos=Pos}}|VsAcc]
+	    foldl(fun({V,Pos}, VsAcc) ->
+			  [{V,Tf(U, Min, Pos)}|VsAcc]
 		  end, A, VsPos)
     end.
 

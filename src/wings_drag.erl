@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.116 2002/12/12 08:02:59 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.117 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -93,7 +93,7 @@ break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList0}|Tvs], St) ->
     {D#dlo{drag=Do},Tvs};
 break_apart(D, Tvs, _) -> {D,Tvs}.
 
-combine_tvs(TvList, #we{vs=Vtab}) ->
+combine_tvs(TvList, #we{vp=Vtab}) ->
     {FunList,VecVs0} = split_tv(TvList, [], []),
     SS = sofs:from_term(VecVs0, [{vec,[vertex]}]),
     FF = sofs:relation_to_family(SS),
@@ -184,7 +184,7 @@ constrain_fun(Tr0, Plane, Vs) ->
 	    end
     end.
 
-constrain_vs([{V,#vtx{pos=Pos0}=Vtx}=H|T], Vs, {N,Point}=Plane, Acc) ->
+constrain_vs([{V,Pos0}=H|T], Vs, {N,Point}=Plane, Acc) ->
     case member(V, Vs) of
 	false -> constrain_vs(T, Vs, Plane, [H|Acc]);
 	true ->
@@ -192,7 +192,7 @@ constrain_vs([{V,#vtx{pos=Pos0}=Vtx}=H|T], Vs, {N,Point}=Plane, Acc) ->
 	    Dot = e3d_vec:dot(ToPoint, N),
 	    ToPlane = e3d_vec:mul(N, Dot),
 	    Pos = e3d_vec:add(Pos0, ToPlane),
-	    constrain_vs(T, Vs, Plane, [{V,Vtx#vtx{pos=Pos}}|Acc])
+	    constrain_vs(T, Vs, Plane, [{V,Pos}|Acc])
     end;
 constrain_vs([], _, _, Acc) -> Acc.
 
@@ -599,9 +599,9 @@ parameter_update_fun(D, _, _) -> D.
 
 translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
     Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
-    foldl(fun({V,#vtx{pos={X,Y,Z}}=Vtx}, A) -> 
+    foldl(fun({V,{X,Y,Z}}, A) -> 
 		  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
-		  [{V,Vtx#vtx{pos=Pos}}|A]
+		  [{V,Pos}|A]
 	  end, Acc, VsPos).
 
 progress(Move, #drag{unit=Units}=Drag) ->
@@ -665,11 +665,11 @@ normalize_fun(#dlo{drag={matrix,_,_,Matrix},
     {D#dlo{work=none,sel=none,drag=none,src_we=We,mirror=M},Shs};
 normalize_fun(#dlo{drag={general,_},src_we=#we{id=Id}=We}=D, Shs) ->
     {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)};
-normalize_fun(#dlo{src_we=#we{id=Id,vs=Vtab0}}=D, Shs) ->
-    #we{vs=OldVtab0}= We0 = gb_trees:get(Id, Shs),
+normalize_fun(#dlo{src_we=#we{id=Id,vp=Vtab0}}=D, Shs) ->
+    #we{vp=OldVtab0}= We0 = gb_trees:get(Id, Shs),
     Vtab1 = norm_update(gb_trees:to_list(Vtab0), gb_trees:to_list(OldVtab0)),
     Vtab = gb_trees:from_orddict(Vtab1),
-    We = We0#we{vs=Vtab},
+    We = We0#we{vp=Vtab},
     {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)}.
 
 norm_update(New, Old) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.31 2002/12/17 18:36:51 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.32 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -167,9 +167,9 @@ do_rotate({Cx,Cy,Cz}, Axis, Angle, VsPos, Acc0) ->
     M0 = e3d_mat:translate(Cx, Cy, Cz),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(Angle, Axis)),
     M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
-    foldl(fun({V,#vtx{pos=Pos0}=Vtx}, Acc) ->
+    foldl(fun({V,Pos0}, Acc) ->
 		  Pos = e3d_mat:mul_point(M, Pos0),
-		  [{V,Vtx#vtx{pos=Pos}}|Acc]
+		  [{V,Pos}|Acc]
 	  end, Acc0, VsPos).
 
 view_vector() ->
@@ -207,10 +207,10 @@ magnet_rotate_fun(Axis0, Center, VsInf0, {_,R}=Magnet0) ->
     end.
     
 magnet_rotate(Axis, {Cx,Cy,Cz}, Angle, VsPos, Acc0) ->
-    foldl(fun({V,#vtx{pos=Pos0}=Vtx,_,Inf}, Acc) ->
+    foldl(fun({V,Pos0,_,Inf}, Acc) ->
 		  {X,Y,Z} = e3d_mat:mul_point(e3d_mat:rotate(Inf*Angle, Axis), Pos0),
 		  Pos = wings_util:share(X+Cx, Y+Cy, Z+Cz),
-		  [{V,Vtx#vtx{pos=Pos}}|Acc]
+		  [{V,Pos}|Acc]
 	  end, Acc0, VsPos).
 
 

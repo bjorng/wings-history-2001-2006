@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.23 2002/12/05 21:08:21 dgud Exp $
+%%     $Id: wings_light.erl,v 1.24 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -407,7 +407,7 @@ create(Type, #st{onext=Oid}=St) ->
 %%%
 update_dynamic(#dlo{work=[Work|_],src_we=We0}=D, Vtab0) ->
     Vtab = gb_trees:from_orddict(lists:sort(Vtab0)),
-    We = We0#we{vs=Vtab},
+    We = We0#we{vp=Vtab},
     List = update_1(We, D),
     D#dlo{work=[Work,List],src_we=We}.
 
@@ -701,11 +701,10 @@ setup_attenuation(Lnum, #light{lin_att=Lin,quad_att=Quad}) ->
     gl:lightf(Lnum, ?GL_LINEAR_ATTENUATION, Lin),
     gl:lightf(Lnum, ?GL_QUADRATIC_ATTENUATION, Quad).
 
-light_pos(#we{vs=Vtab}) ->
-    #vtx{pos=Pos} = gb_trees:get(1, Vtab),
-    Pos.
+light_pos(#we{vp=Vtab}) ->
+    gb_trees:get(1, Vtab).
 
-move_light(Pos, #we{vs=Vtab0}=We) ->
-    Vtab1 = [{V,Vtx#vtx{pos=Pos}} || {V,Vtx} <- gb_trees:to_list(Vtab0)],
+move_light(Pos, #we{vp=Vtab0}=We) ->
+    Vtab1 = [{V,Pos} || V <- gb_trees:keys(Vtab0)],
     Vtab = gb_trees:from_orddict(Vtab1),
-    We#we{vs=Vtab}.
+    We#we{vp=Vtab}.

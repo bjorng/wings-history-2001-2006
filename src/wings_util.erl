@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.52 2002/12/08 17:41:03 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.53 2002/12/26 09:47:09 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -20,7 +20,7 @@
 	 gb_trees_smallest_key/1,gb_trees_largest_key/1,
 	 nice_float/1,
 	 menu_restriction/2,
-	 tc/3,export_we/2,crash_log/1,validate/1]).
+	 tc/3,export_we/2,crash_log/1,validate/1,validate/3]).
 -export([check_error/2,dump_we/2]).
 
 -define(NEED_OPENGL, 1).
@@ -120,13 +120,13 @@ upper([H|T]) ->
     [H|upper(T)];
 upper([]) -> [].
 
-add_vpos(Vs, #we{vs=Vtab}) -> add_vpos(Vs, Vtab);
+add_vpos(Vs, #we{vp=Vtab}) -> add_vpos(Vs, Vtab);
 add_vpos(Vs, Vtab) ->
     foldl(fun(V, A) ->
 		  [{V,gb_trees:get(V, Vtab)}|A]
 	  end, [], Vs).
 
-update_vpos(Vs, #we{vs=Vtab}) -> update_vpos(Vs, Vtab);
+update_vpos(Vs, #we{vp=Vtab}) -> update_vpos(Vs, Vtab);
 update_vpos(Vs, Vtab) ->
     foldl(fun({V,_}, A) ->
 		  [{V,gb_trees:get(V, Vtab)}|A];
@@ -194,9 +194,6 @@ show_edge(F, Edge, #edge{vs=Vs,ve=Ve,a=A,b=B,lf=Lf,rf=Rf,ltpr=Lpred,ltsu=Lsucc,
 show_face(F, Face, #face{edge=Edge,mat=Mat}) ->
     io:format(F, "~p: edge=~p mat=~p\n", [Face,Edge,Mat]).
 
-show_vertex(F, Vertex, #vtx{edge=Edge,pos=Pos}) ->
-    io:format(F, "~p: edge=~p pos=~p\n", [Vertex,Edge,Pos]).
-
 %%%
 %%% Dump the winged-edge structure in a textual format.
 %%%
@@ -247,7 +244,7 @@ open_log_file(Name) ->
     io:format(F, "Dump written ~p-~p-~p_~p-~p\n", [Y,Mo,D,H,Mi]),
     F.
 
-analyse(F, {_,[{_Mod,_Fun,Args}|_]}) when list(Args) ->
+analyse(F, {_,[{_Mod,_Fun,Args}|_]}) when is_list(Args) ->
     try_args(F, Args, 1);
 analyse(_, _) -> ok.
 
@@ -274,9 +271,6 @@ try_arg(F, {I,_}=GbTree, N) when integer(I) ->
 	[{_,#face{}}|_]=Fs ->
 	    arg(F, N),
 	    dump_faces(F, Fs);
-	[{_,#vtx{}}|_]=Vs ->
-	    arg(F, N),
-	    dump_vertices(F, Vs);
 	_ -> ok
     end;
 try_arg(_, _, _) -> ok.
@@ -287,22 +281,15 @@ arg(F, N) ->
 dump_shape(F, #we{}=We) ->
     dump_we(F, We).
 
-dump_we(F, #we{name=Name,id=Id,mode=Mode,es=Etab,vs=Vtab,fs=Ftab,
+dump_we(F, #we{name=Name,id=Id,mode=Mode,es=Etab,fs=Ftab,
 	       first_id=First,next_id=Next}) ->
     io:put_chars(F, "\n"),
     io:format(F, "OBJECT ~p: ~p\n", [Id,Name]),
     io:format(F, "=======================\n", []),
     io:format(F, "   mode=~p first_id=~p next_id=~p\n", [Mode,First,Next]),
-    dump_vertices(F, gb_trees:to_list(Vtab)),
     dump_faces(F, gb_trees:to_list(Ftab)),
     dump_edges(F, gb_trees:to_list(Etab)).
     
-dump_vertices(F, Vs) ->
-    io:put_chars(F, "\n"),
-    io:format(F, "Vertex table\n", []),
-    io:format(F, "============\n\n", []),
-    foreach(fun({Vertex,Vrec}) -> show_vertex(F, Vertex, Vrec) end, Vs).
-
 dump_edges(F, Es) ->
     io:put_chars(F, "\n"),
     io:format(F, "Edge table\n", []),
@@ -319,6 +306,12 @@ dump_faces(F, Fs) ->
 %% Validation of shapes.
 %%
 
+validate(Mod, Line, X) ->
+    put(where, {Mod,Line}),
+    validate_1(X),
+    erase(where),
+    X.
+
 validate(X) ->
     validate_1(X),
     X.
@@ -330,7 +323,8 @@ validate_1(#st{shapes=Shapes}) ->
 	    gb_trees:to_list(Shapes));
 validate_1(#we{}=We) -> validate_we(We).
 
-validate_we(#we{}=We) ->
+validate_we(We) ->
+    validate_edge_tab(We),
     validate_vertex_tab(We),
     validate_faces(We).
     
@@ -342,9 +336,9 @@ validate_faces(#we{fs=Ftab}=We) ->
  			Cw ->
  			    ok;
  			Other ->
- 			    erlang:fault({crash,{face,Face},
-					  {cw,Cw},{ccw_reversed,Other}},
- 					  [We])
+ 			    crash({{face,Face},
+				   {cw,Cw},{ccw_reversed,Other}},
+				  We)
  		    end
 	    end,
 	    gb_trees:to_list(Ftab)).
@@ -381,24 +375,43 @@ walk_face_ccw(Face, Edge, LastEdge, We, Acc) ->
 	      {face,Face,edge,Edge,last_edge,LastEdge,acc,Acc}}]
     end.
 
-validate_vertex_tab(#we{es=Etab,vs=Vtab}=We) ->
-    foreach(fun({V,#vtx{edge=Edge}}) ->
+validate_vertex_tab(#we{es=Etab,vc=Vct,vp=Vtab}=We) ->
+    case {gb_trees:keys(Vct),gb_trees:keys(Vtab)} of
+	{Same,Same} -> ok;
+	{_,_} ->
+	    crash(vc_and_vp_have_different_keys, We)
+    end,
+    foreach(fun({V,Edge}) ->
 		    case gb_trees:get(Edge, Etab) of
 			#edge{vs=V}=Rec ->
 			    validate_edge_rec(Rec, We);
 			#edge{ve=V}=Rec ->
 			    validate_edge_rec(Rec, We);
 			_Other ->
-			    erlang:fault({crasch,{vertex,V}}, [We])
+			    crash({vertex,V}, We)
 		    end
 	    end,
-	    gb_trees:to_list(Vtab)).
+	    gb_trees:to_list(Vct)).
+
+validate_edge_tab(#we{es=Etab}=We) ->
+    foreach(fun({E,#edge{vs=Va,ve=Vb}}) ->
+		    verify_vertex(Va, E, We),
+		    verify_vertex(Vb, E, We)
+	    end,
+	    gb_trees:to_list(Etab)).
 
 validate_edge_rec(Rec, We) ->
     #edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
     if
 	integer(LP+LS+RP+RS) -> ok;
-	true -> erlang:fault(crasch, {Rec,We})
+	true -> crash({non_integer_edges,Rec}, We)
+    end.
+
+verify_vertex(V, Edge, #we{vc=Vct}=We) ->
+    case gb_trees:is_defined(V, Vct) of
+	false ->
+	    crash({edge,Edge,referenced,undefined,vertex,V}, We);
+	true -> ok
     end.
 
 -ifdef(DEBUG).
@@ -416,9 +429,12 @@ check_error(Mod, Line) ->
 	no_error -> ok;
 	_Other ->
 	    io:format("~p, line ~p: ~s\n", [Mod,Line,S]),
-	    erlang:fault(gl_error)
+	    erlang:fault(gl_error, [Mod,Line])
     end.
 -else.
 check_error(_Mod, _Line) ->
     ok.
 -endif.
+
+crash(Reason, We) ->
+    erlang:fault({crash,get(where),Reason}, [We]).

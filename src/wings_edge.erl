@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.53 2002/11/22 09:05:35 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.54 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -255,16 +255,12 @@ cut_1(N, Edge, Pos0, Vec, We0) ->
 
 fast_cut(Edge, Pos0, We0) ->
     {NewEdge=NewV,We} = wings_we:new_ids(1, We0),
-    #we{es=Etab0,vs=Vtab0,he=Htab0} = We,
+    #we{es=Etab0,vc=Vct0,vp=Vtab0,he=Htab0} = We,
     Template = gb_trees:get(Edge, Etab0),
     #edge{vs=Vstart,ve=Vend,a=ACol,b=BCol,lf=Lf,rf=Rf,
 	  ltpr=EdgeA,rtsu=EdgeB,rtpr=NextBCol} = Template,
-    #vtx{pos=VendPos,edge=VendEdge}= VendRec = gb_trees:get(Vend, Vtab0),
-    Vtab1 = if
-		VendEdge =:= Edge ->
-		    gb_trees:update(Vend, VendRec#vtx{edge=NewEdge}, Vtab0);
-		true -> Vtab0
-	    end,
+    VendPos = gb_trees:get(Vend, Vtab0),
+    Vct1 = gb_trees:update(Vend, NewEdge, Vct0),
     VstartPos = wings_vertex:pos(Vstart, Vtab0),
     if
 	Pos0 =:= default ->
@@ -273,8 +269,8 @@ fast_cut(Edge, Pos0, We0) ->
 	    NewVPos0 = Pos0
     end,
     NewVPos = wings_util:share(NewVPos0),
-    Vtx = #vtx{pos=NewVPos,edge=NewEdge},
-    Vtab = gb_trees:insert(NewV, Vtx, Vtab1),
+    Vct = gb_trees:insert(NewV, NewEdge, Vct1),
+    Vtab = gb_trees:insert(NewV, NewVPos, Vtab0),
 
     %% Here we handle vertex colors/UV coordinates.
     Weight = if
@@ -303,7 +299,7 @@ fast_cut(Edge, Pos0, We0) ->
 	       false -> Htab0;
 	       true -> gb_sets:insert(NewEdge, Htab0)
 	   end,
-    {We#we{es=Etab,vs=Vtab,he=Htab},NewV}.
+    {We#we{es=Etab,vc=Vct,vp=Vtab,he=Htab},NewV}.
 
 get_vtx_color(Edge, Face, Etab) ->
     case gb_trees:get(Edge, Etab) of
@@ -323,8 +319,9 @@ cut_pick(St0) ->
 	    end, [], St),
     wings_drag:setup(Tvs, [{percent,{-1.0,1.0}}], [], St).
 
-cut_pick_1([V|Vs], #we{vs=Vtab,es=Etab}=We, Acc) ->		    
-    #vtx{pos=Pa,edge=Edge} = gb_trees:get(V, Vtab),
+cut_pick_1([V|Vs], #we{vc=Vct,vp=Vtab,es=Etab}=We, Acc) ->
+    Edge = gb_trees:get(V, Vct),
+    Pa = gb_trees:get(V, Vtab),
     Pb = wings_vertex:other_pos(V, gb_trees:get(Edge, Etab), Vtab),
     cut_pick_1(Vs, We, [{e3d_vec:sub(Pa, Pb),[V]}|Acc]);
 cut_pick_1([], _, Acc) -> Acc.
@@ -384,7 +381,7 @@ dissolve_edge(Edge, #we{es=Etab}=We0) ->
 	none -> We0;
 	{value,#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same}} ->
 	    Empty = gb_trees:empty(),
-	    We0#we{vs=Empty,es=Empty,fs=Empty,he=gb_sets:empty()};
+	    We0#we{vc=Empty,vp=Empty,es=Empty,fs=Empty,he=gb_sets:empty()};
 	{value,#edge{rtpr=Back,ltsu=Back}=Rec} ->
 	    merge_edges(backward, Edge, Rec, We0);
 	{value,#edge{rtsu=Forward,ltpr=Forward}=Rec} ->
@@ -407,7 +404,7 @@ dissolve_edge(Edge, #edge{lf=Keep,rf=Remove}=Rec, We) ->
     dissolve_edge(Edge, Remove, Keep, Rec, We).
 
 dissolve_edge(Edge, FaceRemove, FaceKeep, Rec,
-	      #we{fs=Ftab0,es=Etab0,vs=Vtab0,he=Htab0}=We0) ->
+	      #we{fs=Ftab0,es=Etab0,vc=Vct0,he=Htab0}=We0) ->
     #edge{vs=Vstart,ve=Vend,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
 
     %% First change face for all edges surrounding the face we will remove.
@@ -443,11 +440,11 @@ dissolve_edge(Edge, FaceRemove, FaceKeep, Rec,
     Ftab = gb_trees:update(FaceKeep, FaceRec#face{edge=LP}, Ftab1),
 
     %% Patch the vertices referenced by the removed edge.
-    Vtab1 = wings_vertex:patch_vertex(Vstart, RP, Vtab0),
-    Vtab = wings_vertex:patch_vertex(Vend, RS, Vtab1),
+    Vct1 = wings_vertex:patch_vertex(Vstart, RP, Vct0),
+    Vct = wings_vertex:patch_vertex(Vend, RS, Vct1),
 
     %% Return result.
-    We = We0#we{es=Etab,fs=Ftab,vs=Vtab,he=Htab},
+    We = We0#we{es=Etab,fs=Ftab,vc=Vct,he=Htab},
     #face{edge=AnEdge} = gb_trees:get(FaceKeep, Ftab),
     case gb_trees:get(AnEdge, Etab) of
 	#edge{lf=FaceKeep,ltpr=Same,ltsu=Same} ->
@@ -459,8 +456,8 @@ dissolve_edge(Edge, FaceRemove, FaceKeep, Rec,
 
 %% dissolve(Vertex, We) -> We|error
 %%  Remove a "winged vertex" - a vertex with exactly two edges.
-dissolve_vertex(V, #we{es=Etab,vs=Vtab}=We0) ->
-    #vtx{edge=Edge} = gb_trees:get(V, Vtab),
+dissolve_vertex(V, #we{es=Etab,vc=Vct}=We0) ->
+    Edge = gb_trees:get(V, Vct),
     case gb_trees:lookup(Edge, Etab) of
 	{value,#edge{vs=V,ltsu=AnEdge,rtpr=AnEdge}=Rec} ->
 	    merge_edges(backward, Edge, Rec, We0);
@@ -486,7 +483,7 @@ merge_edges(Dir, Edge, Rec, #we{es=Etab}=We) ->
 	    merge(Dir, Edge, Rec, To, We)
     end.
 
-merge(Dir, Edge, Rec, To, #we{es=Etab0,vs=Vtab0,fs=Ftab0,he=Htab0}=We) ->
+merge(Dir, Edge, Rec, To, #we{es=Etab0,vc=Vct0,vp=Vtab0,fs=Ftab0,he=Htab0}=We) ->
     OtherDir = reverse_dir(Dir),
     {Vkeep,Vdelete,Lf,Rf,A,B,L,R} = half_edge(OtherDir, Rec),
     Etab1 = patch_edge(L, To, Edge, Etab0),
@@ -494,12 +491,13 @@ merge(Dir, Edge, Rec, To, #we{es=Etab0,vs=Vtab0,fs=Ftab0,he=Htab0}=We) ->
     Etab3 = patch_half_edge(To, Vkeep, Lf, A, L, Rf, B, R, Vdelete, Etab2),
     Htab = hardness(Edge, soft, Htab0),
     Etab = gb_trees:delete(Edge, Etab3),
-    Vtab1 = gb_trees:delete(Vdelete, Vtab0),
-    Vtab = wings_vertex:patch_vertex(Vkeep, To, Vtab1),
+    Vct1 = gb_trees:delete(Vdelete, Vct0),
+    Vct = wings_vertex:patch_vertex(Vkeep, To, Vct1),
+    Vtab = gb_trees:delete(Vdelete, Vtab0),
     #edge{lf=Lf,rf=Rf} = Rec,
     Ftab1 = update_face(Lf, To, Edge, Ftab0),
     Ftab = update_face(Rf, To, Edge, Ftab1),
-    check_edge(To, We#we{es=Etab,vs=Vtab,fs=Ftab,he=Htab}).
+    check_edge(To, We#we{es=Etab,vc=Vct,vp=Vtab,fs=Ftab,he=Htab}).
 
 check_edge(Edge, #we{es=Etab}=We) ->
     case gb_trees:get(Edge, Etab) of
@@ -518,8 +516,8 @@ update_face(Face, Edge, OldEdge, Ftab) ->
     end.
 
 del_2edge_face(Dir, EdgeA, RecA, EdgeB,
-	       #we{vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We) ->
-    {Vkeep,Vdelete,Lf,Rf,_,_} = half_edge(reverse_dir(Dir), RecA),
+	       #we{vc=Vct0,vp=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We) ->
+    {Vkeep,Vdelete,Lf,Rf,_,_,_,_} = half_edge(reverse_dir(Dir), RecA),
     RecB = gb_trees:get(EdgeB, Etab0),
     Del = gb_sets:from_list([EdgeA,EdgeB]),
     EdgeANear = stabile_neighbor(RecA, Del),
@@ -534,8 +532,9 @@ del_2edge_face(Dir, EdgeA, RecA, EdgeB,
     Htab = hardness(EdgeB, soft, Htab1),
 
     %% Patch vertex table.
-    Vtab1 = gb_trees:delete(Vdelete, Vtab0),
-    Vtab = wings_vertex:patch_vertex(Vkeep, EdgeANear, Vtab1),
+    Vtab = gb_trees:delete(Vdelete, Vtab0),
+    Vct1 = gb_trees:delete(Vdelete, Vct0),
+    Vct = wings_vertex:patch_vertex(Vkeep, EdgeANear, Vct1),
 
     %% Patch the face table.
     #edge{lf=Klf,rf=Krf} = gb_trees:get(EdgeANear, Etab),
@@ -548,7 +547,7 @@ del_2edge_face(Dir, EdgeA, RecA, EdgeB,
     Ftab = update_face(KeepFace, EdgeBNear, EdgeB, Ftab2),
 
     %% Return result.
-    We#we{vs=Vtab,es=Etab,fs=Ftab,he=Htab}.
+    We#we{vc=Vct,vp=Vtab,es=Etab,fs=Ftab,he=Htab}.
 
 stabile_neighbor(#edge{ltpr=Ea,ltsu=Eb,rtpr=Ec,rtsu=Ed}, Del) ->
     [Edge] = foldl(fun(E, A) ->

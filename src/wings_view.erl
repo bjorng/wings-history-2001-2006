@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.85 2002/12/14 14:24:30 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.86 2002/12/26 09:47:10 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -407,15 +407,14 @@ smooth_dlist(St) ->
 smooth_dlist(eol, _) -> eol;
 smooth_dlist(#dlo{src_we=#we{light=L}}=D, _) when L =/= none -> {D,[]};
 smooth_dlist(#dlo{smoothed=none,src_we=We0}=D, St) ->
-    wings_io:disable_progress(),
-    #we{es=Etab,vs=Vtab} = We = wings_subdiv:smooth(We0),
+    #we{es=Etab,vp=Vtab} = We = wings_subdiv:smooth(We0),
     {List,Tr} = wings_draw:smooth_dlist(We, St),
     Edges = gl:genLists(1),
     gl:newList(Edges, ?GL_COMPILE),
     gl:'begin'(?GL_LINES),
     foreach(fun(#edge{vs=Va,ve=Vb}) ->
-		    gl:vertex3fv(wings_vertex:pos(Va, Vtab)),
-		    gl:vertex3fv(wings_vertex:pos(Vb, Vtab))
+		    gl:vertex3fv(gb_trees:get(Va, Vtab)),
+		    gl:vertex3fv(gb_trees:get(Vb, Vtab))
 	    end, gb_trees:values(Etab)),
     gl:'end'(),
     gl:endList(),

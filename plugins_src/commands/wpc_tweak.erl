@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.22 2002/12/08 17:41:03 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.23 2002/12/26 09:47:07 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -35,7 +35,7 @@
 
 -record(drag,
 	{v,
-	 vtx,
+	 pos,
 	 mag,
 	 mm,					%original|mirror
 	 plane
@@ -44,9 +44,9 @@
 -record(mag,
 	{orig,					%Orig pos of vertex
 						% being moved.
-	 vs,					%[{V,Vtx,Distance,Influence}]
+	 vs,					%[{V,Pos,Distance,Influence}]
 						%  (not changed while dragging)
-	 vtab=[]				%[{V,Vtx}] (latest)
+	 vtab=[]				%[{V,Pos}] (latest)
 	}).
 
 init() -> true.
@@ -194,14 +194,14 @@ begin_drag(MM, St, T) ->
 			end, []).
 
 begin_drag_fun(#dlo{src_we=We}=D, _, _, _) when ?IS_LIGHT(We) -> D;
-begin_drag_fun(#dlo{src_sel={vertex,Vs0},src_we=#we{vs=Vtab}=We}=D0,
+begin_drag_fun(#dlo{src_sel={vertex,Vs0},src_we=#we{vp=Vtab}=We}=D0,
 	       MM, St, T) ->
     [V] = gb_sets:to_list(Vs0),
-    Vtx = gb_trees:get(V, Vtab),
-    {Vs,Magnet} = begin_magnet(T, V, Vtx, We),
+    Pos = gb_trees:get(V, Vtab),
+    {Vs,Magnet} = begin_magnet(T, V, Pos, We),
     D = wings_draw:split(D0, Vs, St),
     Plane = mirror_plane(V, We),
-    D#dlo{drag=#drag{v=V,vtx=Vtx,mag=Magnet,mm=MM,plane=Plane}};
+    D#dlo{drag=#drag{v=V,pos=Pos,mag=Magnet,mm=MM,plane=Plane}};
 begin_drag_fun(D, _, _, _) -> D.
 
 end_drag(#tweak{st=St0}=T) ->
@@ -211,12 +211,12 @@ end_drag(#tweak{st=St0}=T) ->
     help(T),
     update_tweak_handler(T#tweak{tmode=wait,st=St}).
 
-end_drag(#dlo{src_we=#we{id=Id},drag=#drag{v=V,vtx=Vtx,mag=Mag}}=D,
+end_drag(#dlo{src_we=#we{id=Id},drag=#drag{v=V,pos=Pos,mag=Mag}}=D,
 	 #st{shapes=Shs0}=St0) ->
-    #we{vs=Vtab0} = We0 = gb_trees:get(Id, Shs0),
-    Vtab1 = gb_trees:update(V, Vtx, Vtab0),
+    #we{vp=Vtab0} = We0 = gb_trees:get(Id, Shs0),
+    Vtab1 = gb_trees:update(V, Pos, Vtab0),
     Vtab = magnet_end(Mag, Vtab1),
-    We = We0#we{vs=Vtab},
+    We = We0#we{vp=Vtab},
     Shs = gb_trees:update(Id, We, Shs0),
     St = St0#st{shapes=Shs},
     {D#dlo{vs=none,sel=none,drag=none,src_we=We},St};
@@ -227,17 +227,15 @@ do_tweak(DX, DY) ->
 				do_tweak(D, DX, DY)
 			end, []).
     				
-do_tweak(#dlo{drag=#drag{v=V,vtx=#vtx{pos=Pos0}=Vtx0,
-			 mag=Mag0,mm=MM,plane=Plane}=Drag,
+do_tweak(#dlo{drag=#drag{v=V,pos=Pos0=Pos0,mag=Mag0,mm=MM,plane=Plane}=Drag,
 	      src_we=#we{id=Id}}=D0, DX, DY) ->
     Matrices = wings_util:get_matrices(Id, MM),
     {Xs,Ys,Zs} = obj_to_screen(Matrices, Pos0),
     Pos1 = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
     Pos = mirror_constrain(Plane, Pos1),
-    Vtx = Vtx0#vtx{pos=Pos},
     {MagVtab,Mag} = magnet_tweak(Mag0, Pos),
-    Vtab = [{V,Vtx}|MagVtab],
-    D = D0#dlo{sel=none,drag=Drag#drag{vtx=Vtx,mag=Mag}},
+    Vtab = [{V,Pos}|MagVtab],
+    D = D0#dlo{sel=none,drag=Drag#drag{pos=Pos,mag=Mag}},
     wings_draw:update_dynamic(D, Vtab);
 do_tweak(D, _, _) -> D.
 
@@ -318,7 +316,7 @@ setup_magnet(#tweak{tmode=drag}=T) ->
 setup_magnet(T) -> T.
 
 setup_magnet_fun(#dlo{drag=#drag{v=V}=Drag}=Dl0, #tweak{st=St}=T) ->
-    #we{vs=Vtab} = We = wings_draw:original_we(Dl0),
+    #we{vp=Vtab} = We = wings_draw:original_we(Dl0),
     Center = gb_trees:get(V, Vtab),
     {Vs,Mag} = begin_magnet(T, V, Center, We),
     Dl = wings_draw:split(Dl0, Vs, St),
@@ -326,7 +324,7 @@ setup_magnet_fun(#dlo{drag=#drag{v=V}=Drag}=Dl0, #tweak{st=St}=T) ->
 setup_magnet_fun(Dl, _) -> Dl.
 
 begin_magnet(#tweak{magnet=false}, V, _, _) -> {[V],none};
-begin_magnet(#tweak{magnet=true}=T, CenterV, #vtx{pos=Center}, We) ->
+begin_magnet(#tweak{magnet=true}=T, CenterV, Center, We) ->
     MirrorVs = mirror_vertices(We),
     Near = near(Center, CenterV, MirrorVs, T, We),
     Mag = #mag{orig=Center,vs=Near},
@@ -336,13 +334,13 @@ mirror_vertices(#we{mirror=none}) -> [];
 mirror_vertices(#we{mirror=Face}=We) -> wpa:face_vertices(Face, We).
 
 near(Center, CenterV, MirrorVs, #tweak{mag_r=R,mag_type=Type},
-     #we{vs=Vtab}=We) ->
-    foldl(fun({V,#vtx{pos=P}=Vtx}, A) when V =/= CenterV ->
-		  case e3d_vec:dist(P, Center) of
+     #we{vp=Vtab}=We) ->
+    foldl(fun({V,Pos}, A) when V =/= CenterV ->
+		  case e3d_vec:dist(Pos, Center) of
 		      D when D =< R ->
 			  Inf = mf(Type, D, R),
 			  Plane = mirror_plane(V, MirrorVs, We),
-			  [{V,Vtx,Plane,D,Inf}|A];
+			  [{V,Pos,Plane,D,Inf}|A];
 		      _ -> A
 		  end;
 	     (_, A) -> A
@@ -357,10 +355,10 @@ mf(spike, D0, R) when is_float(D0), is_float(R) ->
 magnet_tweak(none, _)  -> {[],none};
 magnet_tweak(#mag{orig=Orig,vs=Vs}=Mag, Pos) ->
     Vec = e3d_vec:sub(Pos, Orig),
-    Vtab = foldl(fun({V,#vtx{pos=P0}=Vtx,Plane,_,Inf}, A) ->
+    Vtab = foldl(fun({V,P0,Plane,_,Inf}, A) ->
 			 P1 = e3d_vec:add(P0, e3d_vec:mul(Vec, Inf)),
 			 P = mirror_constrain(Plane, P1),
-			 [{V,Vtx#vtx{pos=P}}|A]
+			 [{V,P}|A]
 		 end, [], Vs),
     {Vtab,Mag#mag{vtab=Vtab}}.
 
@@ -391,8 +389,7 @@ draw_magnet(#tweak{mag_r=R}) ->
 			 end, []),
     gl:popAttrib().
 
-draw_magnet_1(#dlo{mirror=Mtx,
-		   drag=#drag{mm=Side,vtx=#vtx{pos={X,Y,Z}}}}, R) ->
+draw_magnet_1(#dlo{mirror=Mtx,drag=#drag{mm=Side,pos={X,Y,Z}}}, R) ->
     case Side of
 	mirror -> gl:multMatrixf(Mtx);
 	original -> ok

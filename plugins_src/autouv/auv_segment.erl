@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.39 2002/11/12 15:27:44 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.40 2002/12/26 09:47:06 bjorng Exp $
 
 -module(auv_segment).
 
@@ -333,25 +333,24 @@ get_vector(A,B,A,We) ->
 get_vector(A,B,B,We) ->
     get_vector(A,B,We).
 
-get_vector(A,B,#we{vs = Vs}) ->
-    e3d_vec:norm(e3d_vec:sub((gb_trees:get(A,Vs))#vtx.pos,(gb_trees:get(B,Vs))#vtx.pos)).
+get_vector(A, B, #we{vp=Vs}) ->
+    e3d_vec:norm(e3d_vec:sub(gb_trees:get(A, Vs), gb_trees:get(B, Vs))).
 
-find_extremities(#we{vs= Vs, es=Es}) ->
-    Vs1 = gb_trees:to_list(Vs),
-    Vs2 = [Pos || {_, #vtx{pos = Pos}} <- Vs1],
-    Center = e3d_vec:average(Vs2),    
-    AllC = lists:map(fun({Id, #vtx{pos = Pos}}) ->
-			    Dist = e3d_vec:dist(Pos, Center),
-			    {Dist, Id, Pos}
-		    end, Vs1),
+find_extremities(#we{vc=Vct,vp=Vs0,es=Es}) ->
+    Center = e3d_vec:average(gb_trees:values(Vs0)),
+    Vs = gb_trees:to_list(Vs0),
+    AllC = lists:map(fun({Id,Pos}) ->
+			     Dist = e3d_vec:dist(Pos, Center),
+			     {Dist,Id,Pos}
+		    end, Vs),
     [{_,V1,V1Pos}|_] = lists:reverse(lists:sort(AllC)),
-    AllV1 = lists:map(fun({Id, #vtx{pos = Pos}}) ->
+    AllV1 = lists:map(fun({Id,Pos}) ->
 			      Dist = e3d_vec:dist(Pos, V1Pos),
-			      {Dist, Id, Pos}
-		      end, Vs1),   
+			      {Dist,Id,Pos}
+		      end, Vs),
     [{_,V2,_}|_] = lists:reverse(lists:sort(AllV1)),
-    E1 = (gb_trees:get(V1, Vs))#vtx.edge,
-    E2 = (gb_trees:get(V2, Vs))#vtx.edge,    
+    E1 = gb_trees:get(V1, Vct),
+    E2 = gb_trees:get(V2, Vct),
     F1 = (gb_trees:get(E1,Es))#edge.lf,
     case (gb_trees:get(E2,Es))#edge.lf of
 	F1 ->
@@ -685,8 +684,8 @@ cut_model(Charts, Cuts, #we{mode=Mode}=We0) ->
 				       cut_one_chart(Keep, Cuts, W, M, InUse)
 			       end, {Map0,We0,InUse0}, Charts),
     We = ?TC(wings_we:force_merge(Wes)),
-    ?TC(wings_util:validate(We)),
     ?DBG("Map size: ~p\n", [gb_trees:size(Map)]),
+    ?VALIDATE_MODEL(We),
     {We#we{mode=Mode},Map}.
 
 cut_one_chart(Keep0, Cuts, We0, Map0, InUse0) ->
@@ -801,7 +800,7 @@ cut_cleanup(Faces, MaybeRemove, #we{es=Etab}=We) ->
 		  end
 	  end, We, R).
     
-cut_renumber(Faces, OuterEdges, #we{vs=Vtab,es=Etab,fs=Ftab,next_id=Next}=We0,
+cut_renumber(Faces, OuterEdges, #we{vc=Vtab,es=Etab,fs=Ftab,next_id=Next}=We0,
 	     Map0, {VInUse0,EInUse0}=InUse0) ->
     Vs0 = sofs:set(outer_vertices(Faces, We0)),
     Es0 = sofs:set(OuterEdges),
@@ -821,8 +820,8 @@ cut_renumber(Faces, OuterEdges, #we{vs=Vtab,es=Etab,fs=Ftab,next_id=Next}=We0,
 	    Es = gb_sets:from_ordset(sofs:to_external(Es0)),
 	    Emap = gb_trees:from_orddict(cut_make_map(Etab, Es, Next)),
 	    Fmap = gb_trees:from_orddict(cut_make_map(Ftab, gb_sets:empty(), Next)),
-	    We = wings_we:map_renumber(We0, #we{vs=Vmap,es=Emap,fs=Fmap}),
-	    {We,Map,InUse0}
+	    We = wings_we:map_renumber(We0, #we{vc=Vmap,es=Emap,fs=Fmap}),
+	    {?VALIDATE_MODEL(We),Map,InUse0}
     end.
 
 cut_make_map(GbTree, MustRenumber, Next) ->
@@ -974,5 +973,3 @@ remove_non_cutting(Face, D, We, Charts, Cuts0) ->
 is_cutting_edge(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, D) ->
     gb_trees:get({Lf,Va}, D) =/= gb_trees:get({Rf,Va}, D) orelse
 	gb_trees:get({Lf,Vb}, D) =/= gb_trees:get({Rf,Vb}, D).
-								  
-    

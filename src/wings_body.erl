@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.44 2002/12/23 07:56:19 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.45 2002/12/26 09:47:07 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -149,11 +149,11 @@ clean_isolated_vertices(We) ->
 		  end
 	  end, We, Isolated).
 		  
-clean_short_edges(Tolerance, #we{es=Etab,vs=Vtab}=We) ->
+clean_short_edges(Tolerance, #we{es=Etab,vp=Vtab}=We) ->
     Short = foldl(
 	      fun({Edge,#edge{vs=Va,ve=Vb}}, A) ->
-		      VaPos = wings_vertex:pos(Va, Vtab),
-		      VbPos = wings_vertex:pos(Vb, Vtab),
+		      VaPos = gb_trees:get(Va, Vtab),
+		      VbPos = gb_trees:get(Vb, Vtab),
 		      case abs(e3d_vec:dist(VaPos, VbPos)) of
 			  Dist when Dist < Tolerance -> [Edge|A];
 			  _Dist -> A
@@ -229,7 +229,7 @@ tighten(St) ->
     Tvs = wings_sel:fold(fun tighten/3, [], St),
     wings_drag:setup(Tvs, [percent], St).
 
-tighten(_, #we{vs=Vtab}=We, A) ->
+tighten(_, #we{vp=Vtab}=We, A) ->
     Vs = gb_trees:keys(Vtab),
     wings_vertex_cmd:tighten(Vs, We, A).
     
@@ -241,11 +241,9 @@ tighten(_, #we{vs=Vtab}=We, A) ->
 %%% 
 
 smooth(St) ->
-    wings_sel:map(
-      fun(_, #we{name=Name}=We) ->
-	      wings_io:progress("Smoothing \"" ++ Name ++ "\""),
-	      wings_subdiv:smooth(We)
-      end, St).
+    wings_sel:map(fun(_, We) ->
+			  wings_subdiv:smooth(We)
+		  end, St).
 
 %%%
 %%% The Combine command.

@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.34 2002/11/27 19:22:08 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.35 2002/12/26 09:47:09 bjorng Exp $
 %%
 
 -module(wings_vertex).
 -export([convert_selection/1,select_more/1,select_less/1,
-	 fold/4,fold/5,other/2,other_pos/3,
+	 fold/4,other/2,other_pos/3,
 	 until/4,until/5,
 	 center/1,center/2,
 	 bounding_box/1,bounding_box/2,bounding_box/3,
@@ -33,7 +33,7 @@
 %%
 convert_selection(#st{selmode=body}=St) ->
     wings_sel:convert_shape(
-      fun(_, #we{vs=Vtab}) ->
+      fun(_, #we{vp=Vtab}) ->
 	      gb_sets:from_list(gb_trees:keys(Vtab))
       end, vertex, St);
 convert_selection(#st{selmode=face}=St) ->
@@ -97,8 +97,8 @@ select_less(St) ->
 %% fold over all edges/faces surrounding a vertex.
 %%
 
-fold(F, Acc, V, #we{vs=Vtab}=We) ->
-    #vtx{edge=Edge} = gb_trees:get(V, Vtab),
+fold(F, Acc, V, #we{vc=Vct}=We) ->
+    Edge = gb_trees:get(V, Vct),
     fold(F, Acc, V, Edge, We).
 
 fold(F, Acc0, V, Edge, #we{es=Etab}) ->
@@ -129,8 +129,8 @@ fold(F, Acc0, V, Face, Edge, LastEdge, Etab) ->
 %% accumulator changes.
 %%
 
-until(F, Acc, V, #we{vs=Vtab}=We) ->
-    #vtx{edge=Edge} = gb_trees:get(V, Vtab),
+until(F, Acc, V, #we{vc=Vct}=We) ->
+    Edge = gb_trees:get(V, Vct),
     until(F, Acc, V, Edge, We).
 
 until(F, Acc, V, Edge, #we{es=Etab}) ->
@@ -162,11 +162,10 @@ other(V, #edge{ve=V,vs=Other}) -> Other.
 
 %% pos(Vertex, VtabOrWe) -> {X,Y,Z}
 %%  Return the three co-ordinates for a vertex.
-pos(V, #we{vs=Vtab}) ->
-    pos(V, Vtab);
+pos(V, #we{vp=Vtab}) ->
+    gb_trees:get(V, Vtab);
 pos(V, Vtab) ->
-    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
-    Pos.
+    gb_trees:get(V, Vtab).
 
 %% other_pos(Vertex, EdgeRecord, VtabOrWe) -> {X,Y,Z}
 %%  Pick up the position for the "other vertex" from an edge record.
@@ -175,17 +174,14 @@ other_pos(V, #edge{ve=V,vs=Other}, Tab) -> pos(Other, Tab).
 
 %% center(We) -> {CenterX,CenterY,CenterZ}
 %%  Find the geometric center of a body.
-center(#we{vs=Vtab}) ->
-    Positions = foldl(fun(#vtx{pos=Pos}, A) ->
-			      [Pos|A]
-		      end, [], gb_trees:values(Vtab)),
-    e3d_vec:average(Positions).
+center(#we{vp=Vtab}) ->
+    e3d_vec:average(gb_trees:values(Vtab)).
 
 %% center(VertexGbSet, We) -> {CenterX,CenterY,CenterZ}
 %%  Find the geometric center of all vertices.
-center(Vs0, #we{vs=Vtab}) ->
+center(Vs0, #we{vp=Vtab}) ->
     Vs = if
-	     list(Vs0) -> Vs0;
+	     is_list(Vs0) -> Vs0;
 	     true -> gb_sets:to_list(Vs0)
 	 end,
     center(Vs, Vtab);
@@ -198,7 +194,7 @@ center(Vlist, Vtab) ->
 bounding_box(We) ->
     bounding_box(We, none).
 
-bounding_box(#we{vs=Vtab}, BB) ->
+bounding_box(#we{vp=Vtab}, BB) ->
     do_bounding_box(gb_trees:values(Vtab), BB);
 bounding_box(Vs, We) ->
     bounding_box(Vs, We, none).
@@ -208,35 +204,29 @@ bounding_box(Vs, We, BB) when list(Vs) ->
 bounding_box(Vs, We, BB) ->
     bounding_box(gb_sets:to_list(Vs), We, BB).
 
-bounding_box_1(Vs0, #we{vs=Vtab}, BB) ->
+bounding_box_1(Vs0, #we{vp=Vtab}, BB) ->
     Vs1 = sofs:from_external(Vs0, [vertex]),
     R = sofs:from_external(gb_trees:to_list(Vtab), [{vertex,data}]),
     I = sofs:image(R, Vs1),
     Vs = sofs:to_external(I),
     do_bounding_box(Vs, BB).
 
-do_bounding_box([#vtx{pos={X,Y,Z}}|Vs], none) ->
+do_bounding_box([{X,Y,Z}|Vs], none) ->
     do_bounding_box(Vs, X, X, Y, Y, Z, Z);
 do_bounding_box(Vs, [{X0,Y0,Z0},{X1,Y1,Z1}]) ->
     do_bounding_box(Vs, X0, X1, Y0, Y1, Z0, Z1).
 
-do_bounding_box([#vtx{pos={X,_,_}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
-  when X < X0 ->
+do_bounding_box([{X,_,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when X < X0 ->
     do_bounding_box(Vs, X, X1, Y0, Y1, Z0, Z1);
-do_bounding_box([#vtx{pos={X,_,_}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
-  when X > X1 ->
+do_bounding_box([{X,_,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when X > X1 ->
     do_bounding_box(Vs, X0, X, Y0, Y1, Z0, Z1);
-do_bounding_box([#vtx{pos={_,Y,_}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
-  when Y < Y0 ->
+do_bounding_box([{_,Y,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Y < Y0 ->
     do_bounding_box(Vs, X0, X1, Y, Y1, Z0, Z1);
-do_bounding_box([#vtx{pos={_,Y,_}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
-  when Y > Y1 ->
+do_bounding_box([{_,Y,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Y > Y1 ->
     do_bounding_box(Vs, X0, X1, Y0, Y, Z0, Z1);
-do_bounding_box([#vtx{pos={_,_,Z}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
-  when Z < Z0 ->
+do_bounding_box([{_,_,Z}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Z < Z0 ->
     do_bounding_box(Vs, X0, X1, Y0, Y1, Z, Z1);
-do_bounding_box([#vtx{pos={_,_,Z}}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1)
-  when Z > Z1 ->
+do_bounding_box([{_,_,Z}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Z > Z1 ->
     do_bounding_box(Vs, X0, X1, Y0, Y1, Z0, Z);
 do_bounding_box([_|Vs], X0, X1, Y0, Y1, Z0, Z1) ->
     do_bounding_box(Vs, X0, X1, Y0, Y1, Z0, Z1);
@@ -277,23 +267,23 @@ flatten(Vs, PlaneNormal, We) when is_list(Vs) ->
 flatten(Vs, PlaneNormal, We) ->
     flatten(gb_sets:to_list(Vs), PlaneNormal, We).
 
-flatten(Vs, PlaneNormal, Center, #we{vs=Vtab0}=We) when is_list(Vs) ->
+flatten(Vs, PlaneNormal, Center, #we{vp=Vtab0}=We) when is_list(Vs) ->
     Vtab = foldl(
 	     fun(V, Tab0) ->
 		     flatten_move(V, PlaneNormal, Center, We, Tab0)
 	     end, Vtab0, Vs),
-    We#we{vs=Vtab};
+    We#we{vp=Vtab};
 flatten(Vs, PlaneNormal, Center, We) ->
     flatten(gb_sets:to_list(Vs), PlaneNormal, Center, We).
 
 flatten_move(V, PlaneNormal, Center, We, Tab0) ->
-    #vtx{pos=Pos0} = Vtx = gb_trees:get(V, Tab0),
+    Pos0 = gb_trees:get(V, Tab0),
     ToCenter = e3d_vec:sub(Center, Pos0),
     Dot = e3d_vec:dot(ToCenter, PlaneNormal),
     ToPlane = e3d_vec:mul(PlaneNormal, Dot),
     Pos1 = e3d_vec:add(Pos0, ToPlane),
     Pos = mirror_constrain(V, Pos1, We),
-    gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab0).
+    gb_trees:update(V, Pos, Tab0).
 
 mirror_constrain(_, Pos, #we{mirror=none}) -> Pos;
 mirror_constrain(V, Pos, #we{mirror=Face}=We) ->
@@ -410,10 +400,10 @@ min_distance_pairs_1(Faces0, Vs0, We0) ->
 	    end
     end.
 
-nearest_pair(Face, AllVs, #we{vs=Vtab}=We) ->
+nearest_pair(Face, AllVs, #we{vp=Vtab}=We) ->
     Vs0 = ordsets:from_list(wings_face:surrounding_vertices(Face, We)),
     Vs = ordsets:intersection(Vs0, AllVs),
-    VsPos = [{V,pos(V, Vtab)} || V <- Vs],
+    VsPos = [{V,gb_trees:get(V, Vtab)} || V <- Vs],
     nearest_pair(VsPos, Face, We, []).
 
 nearest_pair([{V,Pos}|VsPos], Face, We, Acc0) ->
@@ -540,10 +530,10 @@ connect_4(Iter0, Vend, NewEdge, NeRec0, Etab0) ->
 
 %% Patch the incident edge for a vertex.
 
-patch_vertex(V, Edge, Vtab) ->
-    case gb_trees:get(V, Vtab) of
-	#vtx{edge=Edge} -> Vtab;
-	Vrec -> gb_trees:update(V, Vrec#vtx{edge=Edge}, Vtab)
+patch_vertex(V, Edge, Vct) ->
+    case gb_trees:get(V, Vct) of
+	Edge -> Vct;
+	_ -> gb_trees:update(V, Edge, Vct)
     end.
 
 %% outer_partition(Faces, We) -> [[V]]
@@ -606,10 +596,9 @@ partition_edges(Va, Face, Edges0, Es0, Acc) ->
 %% reachable([Vertex], We) -> [ReachableVertex]
 %%  Returns a list of the vertices that can be reached by following
 %%  edges from the given list of vertices.
-reachable(Vs0, #we{es=Etab,vs=Vtab}) when is_list(Vs0) ->
+reachable(Vs0, #we{es=Etab,vc=Vct}) when is_list(Vs0) ->
     Es0 = foldl(fun(V, A) ->
-			#vtx{edge=E} = gb_trees:get(V, Vtab),
-			[E|A]
+			[gb_trees:get(V, Vct)|A]
 		end, [], Vs0),
     Es1 = gb_sets:from_list(Es0),
     Es = reachable_edges(Es1, Etab, gb_trees:empty()),
@@ -642,7 +631,7 @@ reachable_edges_1([], Etab, Ws, Reachable) ->
 %% isolated(We) -> GbSet
 %%  Returns a list containing all isolated vertices in We.
 
-isolated(#we{vs=Vtab}=We) ->
+isolated(#we{vp=Vtab}=We) ->
     Vs0 = foldl(fun(V, A) -> 
 			isolated_1(V, We, A)
 		end, [], gb_trees:keys(Vtab)),

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.68 2002/12/12 18:04:42 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.69 2002/12/26 09:47:06 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -468,12 +468,11 @@ replace_uvs(Map, We) when is_list(Map) ->
 replace_uvs(Map, We) ->
     replace_uvs(gb_trees:to_list(Map), We).
 
-replace_uv(#ch{vpos=Vpos}, #we{vs=Vtab0}=We) ->
+replace_uv(#ch{vpos=Vpos}, #we{vp=Vtab0}=We) ->
     Vtab = foldl(fun({V,Pos}, Vt) ->
-			 Vtx = gb_trees:get(V, Vt),
-			 gb_trees:update(V, Vtx#vtx{pos=Pos}, Vt)
+			 gb_trees:update(V, Pos, Vt)
 		 end, Vtab0, Vpos),
-    We#we{vs=Vtab}.
+    We#we{vp=Vtab}.
 
 find_boundary_edges([{Id,#ch{fs=Fs}=C}|Cs], We, Acc) ->
     Be = auv_util:outer_edges(Fs, We),
@@ -1344,22 +1343,22 @@ select_draw1(faceg, Fs, We) ->
 select_draw1(face, Fs, We) ->
     select_draw_faces(Fs,We, wings_pref:get_value(display_list_opt)),
     gl:edgeFlag(?GL_TRUE);
-select_draw1(edge, Fs, We = #we{vs = Vtab}) ->
+select_draw1(edge, Fs, #we{vp=Vtab}=We) ->
     DrawEdge = fun(_Face, _V, Edge, #edge{vs=Va,ve=Vb}, _) ->
 		       gl:pushName(Edge),
 		       gl:glBegin(?GL_LINES),
-		       gl:vertex3fv(wings_vertex:pos(Va, Vtab)),
-		       gl:vertex3fv(wings_vertex:pos(Vb, Vtab)),
+		       gl:vertex3fv(gb_trees:get(Va, Vtab)),
+		       gl:vertex3fv(gb_trees:get(Vb, Vtab)),
 		       gl:glEnd(),   
 		       gl:popName(),
 		       ok
 	       end,
     wings_face:fold_faces(DrawEdge, ok, Fs, We);
-select_draw1(vertex, Fs, We = #we{vs = Vtab}) ->
+select_draw1(vertex, Fs, #we{vp=Vtab}=We) ->
     DrawPoint = fun(_Face, V, _Edge, _Rec, _) ->
 			gl:pushName(V),
 			gl:glBegin(?GL_POINTS),
-			gl:vertex3fv(wings_vertex:pos(V, Vtab)),
+			gl:vertex3fv(gb_trees:get(V, Vtab)),
 			gl:glEnd(),   
 			gl:popName(),
 			ok
@@ -1522,7 +1521,7 @@ draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe},
     if
 	EdgeMode == border_edges ->
 	    %% Draw outer edges only
-	    #we{es=Etab, vs=Vtab}=We,
+	    #we{es=Etab,vp=Vtab}=We,
 	    gl:pushMatrix(),
 	    gl:lineWidth(Options#setng.edge_width),
 	    DrawEdge = 
@@ -1598,12 +1597,12 @@ draw_faces2([H|T], We) ->
 
 draw_face(Face, #we{mode=material}=We) ->
     wings_draw_util:flat_face(Face, We);
-draw_face(Face, #we{vs=Vtab}=We) ->
+draw_face(Face, #we{vp=Vtab}=We) ->
     Vs0 = wings_face:vinfo(Face, We),
     draw_face_1(Vs0, Vtab, [], []).
 
 draw_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
-    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+    Pos = gb_trees:get(V, Vtab),
     draw_face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
 draw_face_1([], _, Nacc, Vs) ->
     N = e3d_vec:normal(reverse(Nacc)),

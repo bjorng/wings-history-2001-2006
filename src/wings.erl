@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.178 2002/12/20 15:48:04 bjorng Exp $
+%%     $Id: wings.erl,v 1.179 2002/12/26 09:47:07 bjorng Exp $
 %%
 
 -module(wings).
@@ -663,7 +663,7 @@ item_list([], _Sep, Desc) -> [Desc|" selected"].
 
 shape_info(We) when ?IS_LIGHT(We) ->
     wings_light:info(We);
-shape_info(#we{name=Name,fs=Ftab,es=Etab,vs=Vtab,mode=Mode}) ->
+shape_info(#we{name=Name,fs=Ftab,es=Etab,vp=Vtab,mode=Mode}) ->
     Faces = gb_trees:size(Ftab),
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),
@@ -674,7 +674,7 @@ shape_info(Objs, Shs) ->
     shape_info(Objs, Shs, 0, 0, 0, 0).
 
 shape_info([{Id,_}|Objs], Shs, On, Vn, En, Fn) ->
-    #we{fs=Ftab,es=Etab,vs=Vtab} = gb_trees:get(Id, Shs),
+    #we{fs=Ftab,es=Etab,vp=Vtab} = gb_trees:get(Id, Shs),
     Faces = gb_trees:size(Ftab),
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),

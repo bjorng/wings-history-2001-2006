@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.34 2002/11/22 09:05:35 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.35 2002/12/26 09:47:09 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -107,14 +107,14 @@ extrude_vertices(Vs, We0, Acc) ->
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
     {We,[{Vs,NewVs,gb_sets:empty(),We}|Acc]}.
 
-ex_new_vertices(V, OrigWe, #we{vs=Vtab}=We0) ->
+ex_new_vertices(V, OrigWe, #we{vp=Vtab}=We0) ->
     Center = wings_vertex:pos(V, We0),
     {We,VsFaces} =
 	wings_vertex:fold(
 	  fun(Edge, Face, Rec, {W0,Vs}) ->
 		  OtherV = wings_vertex:other(V, Rec),
 		  R = edge_ratio(OtherV, OrigWe),
-		  Pos0 = wings_vertex:pos(OtherV, Vtab),
+		  Pos0 = gb_trees:get(OtherV, Vtab),
 		  Dir = e3d_vec:sub(Pos0, Center),
 		  Pos = e3d_vec:add(Center, e3d_vec:mul(Dir, R)),
 		  {W,NewV} = wings_edge:fast_cut(Edge, Pos, W0),
@@ -122,7 +122,7 @@ ex_new_vertices(V, OrigWe, #we{vs=Vtab}=We0) ->
 	  end, {We0,[]}, V, We0),
     ex_connect(VsFaces, VsFaces, We).
 
-edge_ratio(V, #we{vs=Vtab}) ->
+edge_ratio(V, #we{vp=Vtab}) ->
     case gb_trees:is_defined(V, Vtab) of
 	false -> 1/3;
 	true -> 0.25
@@ -180,8 +180,8 @@ bevel_vertices([], _, _, We, Acc, Facc) -> {We,Acc,Facc}.
 bevel_vertex_1(V, Es, NumEdges, Adj, We0, Vec0) ->
     {InnerFace,We1} = wings_we:new_id(We0),
     {Ids,We} = wings_we:new_wrap_range(NumEdges, 2, We1),
-    #we{es=Etab0,vs=Vtab0,fs=Ftab0}= We,
-    Vtab = bevel_vertices_1(V, Ids, NumEdges, Vtab0),
+    #we{es=Etab0,vc=Vct0,vp=Vtab0,fs=Ftab0}= We,
+    {Vct,Vtab} = bevel_vertices_1(V, Ids, NumEdges, Vct0, Vtab0),
     {_,Etab,Vec} = foldl(
 		     fun(E, {Ids0,Etab1,Vs0}) ->
 			     {Etab,Vec} = bevel(V, E, InnerFace, Ids0,
@@ -191,7 +191,7 @@ bevel_vertex_1(V, Es, NumEdges, Adj, We0, Vec0) ->
     Mat = bevel_material(Es, We),
     FaceRec = #face{mat=Mat,edge=wings_we:id(1, Ids)},
     Ftab = gb_trees:insert(InnerFace, FaceRec, Ftab0),
-    {We#we{es=Etab,fs=Ftab,vs=Vtab},Vec,InnerFace}.
+    {We#we{es=Etab,fs=Ftab,vc=Vct,vp=Vtab},Vec,InnerFace}.
 
 bevel_material(Es, #we{fs=Ftab}) ->
     bevel_material(Es, Ftab, []).
@@ -237,12 +237,12 @@ bevel(V, {Edge,Face,Rec0}, InnerFace, Ids, Adj, Vtab, OrigEtab, Etab0) ->
 			   ltsu=Edge,rtpr=Enext,rtsu=Eprev}}
 	end,
     Etab = gb_trees:update(Edge, Rec, Etab0),
-    Vpos = wings_vertex:pos(V, Vtab),
+    Vpos = gb_trees:get(V, Vtab),
     Vec = bevel_vec(Adj, Vother, Vpos, Vtab),
     {gb_trees:insert(Ecurr, Curr, Etab),{Vec,Va}}.
 
 bevel_vec(Adj, Vother, Vpos, Vtab) ->
-    Opos = wings_vertex:pos(Vother, Vtab),
+    Opos = gb_trees:get(Vother, Vtab),
     case member(Vother, Adj) of
 	true ->
 	    e3d_vec:sub(e3d_vec:average([Opos,Vpos]), Vpos);
@@ -250,19 +250,22 @@ bevel_vec(Adj, Vother, Vpos, Vtab) ->
 	    e3d_vec:sub(Opos, Vpos)
     end.
 
-bevel_vertices_1(V, Ids, N, Vtab0) ->
-    Vtx = gb_trees:get(V, Vtab0),
+bevel_vertices_1(V, Ids, N, Vct0, Vtab0) ->
+    Pos = gb_trees:get(V, Vtab0),
+    Vct = gb_trees:delete(V, Vct0),
     Vtab = gb_trees:delete(V, Vtab0),
-    bevel_new_vertices(Ids, N, Vtx, Vtab).
+    bevel_new_vertices(Ids, N, Pos, Vct, Vtab).
 
-bevel_new_vertices(Ids, N, Vtx, Vtab0) when N > 0 ->
-    Id = wings_we:id(0, Ids),
-    Vtab = gb_trees:insert(Id, Vtx#vtx{edge=Id+1}, Vtab0),
-    bevel_new_vertices(wings_we:bump_id(Ids), N-1, Vtx, Vtab);
-bevel_new_vertices(_Ids, _N, _Vtx, Vtab) -> Vtab.
+bevel_new_vertices(Ids, N, Pos, Vct0, Vtab0) when N > 0 ->
+    V = Id = wings_we:id(0, Ids),
+    Edge = Id + 1,
+    Vct = gb_trees:insert(V, Edge, Vct0),
+    Vtab = gb_trees:insert(V, Pos, Vtab0),
+    bevel_new_vertices(wings_we:bump_id(Ids), N-1, Pos, Vct, Vtab);
+bevel_new_vertices(_, _, _, Vct, Vtab) -> {Vct,Vtab}.
 
 bevel_normalize(Tvs) ->
-    bevel_normalize(Tvs, 1.0E200, []).
+    bevel_normalize(Tvs, 1.0E207, []).
 
 bevel_normalize([{Id,VecVs0}|Tvs], Min0, Acc) ->
     {VecVs,Min} = bevel_normalize_1(VecVs0, Min0),
@@ -325,7 +328,7 @@ tighten(Vs, #we{id=Id}=We, Acc) when is_list(Vs) ->
 tighten(Vs, We, Acc) -> 
     tighten(gb_sets:to_list(Vs), We, Acc).
 
-tighten_vec(V, #we{vs=Vtab}=We) ->
+tighten_vec(V, #we{vp=Vtab}=We) ->
     Cs = wings_vertex:fold(
 	   fun(_, Face, _, A) ->
 		   FaceVs = wings_face:to_vertices([Face], We),
@@ -333,7 +336,7 @@ tighten_vec(V, #we{vs=Vtab}=We) ->
 		   [C|A]
 	   end, [], V, We),
     Center = e3d_vec:average(Cs),
-    e3d_vec:sub(Center, wings_vertex:pos(V, Vtab)).
+    e3d_vec:sub(Center, gb_trees:get(V, Vtab)).
     
 %%%
 %%% The Dissolve command. Like Collapse, but stays in vertex mode

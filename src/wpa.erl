@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.23 2002/11/13 13:22:56 bjorng Exp $
+%%     $Id: wpa.erl,v 1.24 2002/12/26 09:47:10 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/2,ask/3,ask/4,dialog/2,dialog/3,dialog/4,error/1,yes_no/1,
@@ -203,11 +203,11 @@ drag(Tvs, Units, Flags, St) ->
 %%% Vertex functions.
 %%%
 
-vertices(#we{vs=Vtab}) -> gb_trees:keys(Vtab).
+vertices(#we{vp=Vtab}) ->
+    gb_trees:keys(Vtab).
 
-vertex_pos(V, #we{vs=Vtab}) ->
-    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
-    Pos.
+vertex_pos(V, #we{vp=Vtab}) ->
+    gb_trees:get(V, Vtab).
 
 vertex_flatten(Vs, PlaneNormal, We) ->
     wings_vertex:flatten(Vs, PlaneNormal, We).

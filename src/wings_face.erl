@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.25 2002/11/07 17:28:01 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.26 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -144,31 +144,30 @@ vertices(Face, We) ->
 
 %% Return the normal for a face.
 
-normal(Face, #we{vs=Vtab}=We) ->
+normal(Face, #we{vp=Vtab}=We) ->
     Vpos = fold(fun(V, _, _, A) ->
-			#vtx{pos=P} = gb_trees:get(V, Vtab),
-			[P|A]
+			[gb_trees:get(V, Vtab)|A]
 		end, [], Face, We),
     e3d_vec:normal(Vpos).
 
 %% Return the normal for a face, with the face given explicitly
 %% as its vertices.
 
-face_normal(Vs, #we{vs=Vtab}) ->
+face_normal(Vs, #we{vp=Vtab}) ->
     face_normal(Vs, Vtab, []);
 face_normal(Vs, Vtab) ->
     face_normal(Vs, Vtab, []).
 
 face_normal([V|Vs], Vtab, Acc) ->
-    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+    Pos = gb_trees:get(V, Vtab),
     face_normal(Vs, Vtab, [Pos|Acc]);
 face_normal([], _Vtab, Acc) -> e3d_vec:normal(reverse(Acc)).
 
 %% Tests if the face has a good normal.
-good_normal(Face, #we{vs=Vtab}=We) ->
+good_normal(Face, #we{vp=Vtab}=We) ->
     [Va,Vb|_] = Vpos =
 	fold(fun(V, _, _, A) ->
-		     [wings_vertex:pos(V, Vtab)|A]
+		     [gb_trees:get(V, Vtab)|A]
 	     end, [], Face, We),
     D = e3d_vec:sub(Va, Vb),
     good_normal(D, Vpos, Vpos).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.53 2002/12/23 10:27:30 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.54 2002/12/26 09:47:09 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -362,10 +362,10 @@ check_vector(#st{selmode=Mode,sel=[{Id,Elems0}],shapes=Shs}) ->
 check_vector(_) -> {none,"Select parts of one object only"}.
 
 %% Use single edge as axis
-get_vec(edge, [Edge], #we{es=Etab,vs=Vtab}=We) ->
+get_vec(edge, [Edge], #we{es=Etab,vp=Vtab}=We) ->
     #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
-    VaPos = wings_vertex:pos(Va, Vtab),
-    VbPos = wings_vertex:pos(Vb, Vtab),
+    VaPos = gb_trees:get(Va, Vtab),
+    VbPos = gb_trees:get(Vb, Vtab),
     Vec = e3d_vec:norm(e3d_vec:sub(VbPos, VaPos)),
     Center = wings_vertex:center([Va,Vb], We),
     Ln = wings_face:normal(Lf, We),
@@ -375,20 +375,20 @@ get_vec(edge, [Edge], #we{es=Etab,vs=Vtab}=We) ->
      {{Center,Normal},
       "Edge normal saved as axis (press \"1\" to save edge direction)."}];
 %% Use direction between two edges
-get_vec(edge, [Edge1,Edge2], #we{es=Etab,vs=Vtab}) ->
+get_vec(edge, [Edge1,Edge2], #we{es=Etab,vp=Vtab}) ->
     #edge{vs=Va1,ve=Vb1} = gb_trees:get(Edge1, Etab),
     #edge{vs=Va2,ve=Vb2} = gb_trees:get(Edge2, Etab),
-    Va1Pos = wings_vertex:pos(Va1, Vtab),
-    Vb1Pos = wings_vertex:pos(Vb1, Vtab),
-    Va2Pos = wings_vertex:pos(Va2, Vtab),
-    Vb2Pos = wings_vertex:pos(Vb2, Vtab),
+    Va1Pos = gb_trees:get(Va1, Vtab),
+    Vb1Pos = gb_trees:get(Vb1, Vtab),
+    Va2Pos = gb_trees:get(Va2, Vtab),
+    Vb2Pos = gb_trees:get(Vb2, Vtab),
     Center1 = e3d_vec:average([Va1Pos,Vb1Pos]),
     Center2 = e3d_vec:average([Va2Pos,Vb2Pos]),
     Center = e3d_vec:average([Center1,Center2]),
     Vec = e3d_vec:norm(e3d_vec:sub(Center1, Center2)),
     [{{Center,Vec},"Direction between edges saved as axis."}];
 %% Use edge-loop normal.
-get_vec(edge, Edges, #we{vs=Vtab}=We) ->
+get_vec(edge, Edges, #we{vp=Vtab}=We) ->
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
 	[Vs] -> 
 	    Center = wings_vertex:center(Vs, We),
@@ -411,12 +411,12 @@ get_vec(vertex, [Va,Vb]=Vs, We) ->
     Center = wings_vertex:center(Vs, We),
     [{{Center,Vec},"Direction between vertices saved as axis."}];
 %% 3-point (defines face) perpendicular
-get_vec(vertex, [_,_,_]=Vs, #we{vs=Vtab}=We) ->
+get_vec(vertex, [_,_,_]=Vs, #we{vp=Vtab}=We) ->
     Vec = wings_face:face_normal(Vs, Vtab),
     Center = wings_vertex:center(Vs, We),
     [{{Center,Vec},"3-point perp. normal saved as axis."}];
 %% Take the edge loop normal.
-get_vec(vertex, Vs0, #we{vs=Vtab}=We) ->
+get_vec(vertex, Vs0, #we{vp=Vtab}=We) ->
     Edges = find_edges(Vs0, We),
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
 	[Vs] -> 
@@ -442,7 +442,7 @@ get_vec(face, [Face1,Face2], We) ->
     Center = e3d_vec:average([Center1,Center2]),
     Vec = e3d_vec:norm(e3d_vec:sub(Center1, Center2)),
     [{{Center,Vec},"Direction between faces saved as axis."}];
-get_vec(face, Faces, #we{vs=Vtab}=We) ->
+get_vec(face, Faces, #we{vp=Vtab}=We) ->
     case wings_vertex:outer_partition(Faces, We) of
 	[Vs] ->
 	    Center = wings_vertex:center(Vs, We),

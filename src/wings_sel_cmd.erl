@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.28 2002/12/15 15:41:50 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.29 2002/12/26 09:47:09 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -441,7 +441,7 @@ match_template({Len,Ad,As}, {Len,Bd,Bs}) ->
     end;
 match_template(_, _) -> false.
 
-make_face_template(Face, #we{vs=Vtab}=We) ->
+make_face_template(Face, #we{vp=Vtab}=We) ->
     Vs = wings_face:fold(
 	   fun(V, _, _, Acc0) ->
 		   [V|Acc0]
@@ -450,7 +450,7 @@ make_face_template(Face, #we{vs=Vtab}=We) ->
     {length(Vs),DotSum,SqSum}.
 
 face_dots_and_sqlens(Vs, Vtab) ->
-    Vpos = [wings_vertex:pos(P, Vtab) || P <- Vs],
+    Vpos = [gb_trees:get(P, Vtab) || P <- Vs],
     face_dots_and_sqlens_1(Vpos).
 
 face_dots_and_sqlens_1([Va,Vb|_]=Vpos) ->
@@ -466,11 +466,11 @@ face_dots_and_sqlens_2(D1, Vs, [Va,Vb|_], Dot, Sq) ->
     face_dots_and_sqlens_2(D1, Vs++[Va,Vb], [], Dot, Sq);
 face_dots_and_sqlens_2(_D1, _Other, _More, Dot, Sq) -> {Dot,Sq}.
 
-make_edge_template(Edge, #we{vs=Vtab,es=Etab}=We) ->
+make_edge_template(Edge, #we{vp=Vtab,es=Etab}=We) ->
     #edge{vs=Va,ve=Vb,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} =
 	gb_trees:get(Edge, Etab),
-    VaPos = wings_vertex:pos(Va, Vtab),
-    VbPos = wings_vertex:pos(Vb, Vtab),
+    VaPos = gb_trees:get(Va, Vtab),
+    VbPos = gb_trees:get(Vb, Vtab),
     Vec = e3d_vec:sub(VaPos, VbPos),
     DotSum = edge_dot(LP, Vb, VbPos, Vec, We) +
 	edge_dot(RS, Vb, VbPos, Vec, We) +
@@ -484,8 +484,8 @@ edge_dot(Edge, V, Pos, Vec, #we{es=Etab}=We) ->
     ThisVec = e3d_vec:sub(Pos, OtherPos),
     abs(e3d_vec:dot(ThisVec, Vec)).
 
-make_vertex_template(V, #we{vs=Vtab}=We) ->
-    Center = wings_vertex:pos(V, Vtab),
+make_vertex_template(V, #we{vp=Vtab}=We) ->
+    Center = gb_trees:get(V, Vtab),
     Vecs = wings_vertex:fold(
 	     fun(_, _, Rec, Acc0) ->
 		     Pos = wings_vertex:other_pos(V, Rec, Vtab),
@@ -519,7 +519,7 @@ random(Percent, #st{selmode=Mode}=St) ->
     wings_sel:make(fun(_, _) -> random:uniform() < P end, Mode, St).
 
 %%
-%% Select by numerical item id.
+%% Select short edges.
 %%
 
 short_edges(Ask, _St) when is_atom(Ask) ->
@@ -533,10 +533,10 @@ short_edges([Tolerance], St0) ->
 			end, edge, St0),
     {save_state,St#st{selmode=edge}}.
 
-short_edge(Tolerance, Edge, #we{es=Etab,vs=Vtab}) ->
+short_edge(Tolerance, Edge, #we{es=Etab,vp=Vtab}) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-    VaPos = wings_vertex:pos(Va, Vtab),
-    VbPos = wings_vertex:pos(Vb, Vtab),
+    VaPos = gb_trees:get(Va, Vtab),
+    VbPos = gb_trees:get(Vb, Vtab),
     abs(e3d_vec:dist(VaPos, VbPos)) < Tolerance.
 
 %%
@@ -615,7 +615,7 @@ select_lights_1([We|Shs], Mode) when not ?IS_LIGHT(We) ->
     select_lights_1(Shs, Mode);
 select_lights_1([#we{id=Id}|Shs], body) ->
     [{Id,gb_sets:singleton(0)}|select_lights_1(Shs, body)];
-select_lights_1([#we{id=Id,vs=Vtab,es=Etab,fs=Ftab}|Shs], Mode) ->
+select_lights_1([#we{id=Id,vp=Vtab,es=Etab,fs=Ftab}|Shs], Mode) ->
     Tab = case Mode of
 	      vertex -> Vtab;
 	      edge -> Etab;

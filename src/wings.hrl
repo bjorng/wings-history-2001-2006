@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.68 2002/12/20 15:48:05 bjorng Exp $
+%%     $Id: wings.hrl,v 1.69 2002/12/26 09:47:07 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -57,7 +57,7 @@
 		       _ ->
 			   erlang:fault({assertion_failed,?MODULE,?LINE})
 		   end).
--define(VALIDATE_MODEL(St), wings_util:validate(St)).
+-define(VALIDATE_MODEL(St), wings_util:validate(?MODULE, ?LINE, St)).
 -define(CHECK_ERROR(), wings_util:check_error(?MODULE, ?LINE)).
 -else.
 -define(ASSERT(E),ok).
@@ -135,9 +135,11 @@
 						%  object's selection.
 	 name,					%Name.
 	 es,					%gb_tree containing edges
-	 vs,					%gb_tree containing vertices
 	 fs,					%gb_tree containing faces
 	 he,					%gb_sets containing hard edges
+	 vc,					%Connection info (=incident edge)
+						% for vertices.
+	 vp,					%Vertex positions.
 	 first_id,				%First ID used
 	 next_id,				%Next free ID for vertices,
 						% edges, and faces
@@ -172,12 +174,6 @@
 -record(face,
 	{edge,					%Incident edge
 	 mat=default				%Material for face
-	}).
-
-%% A vertex in a winged-edge shape.
--record(vtx,
-	{edge,					%Incident edge
-	 pos					%Position ({X,Y,Z})
 	}).
 
 %% The current view/camera.

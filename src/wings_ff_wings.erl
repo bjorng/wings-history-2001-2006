@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.28 2002/12/10 07:44:31 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.29 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -62,15 +62,12 @@ import_objects([Sh0|Shs], Mode, NameMap, Oid, ShAcc) ->
     Etab = gb_trees:from_orddict(Etab0),
     Ftab0 = import_faces(Fs, #face{}, NameMap, 0, []),
     Ftab = face_add_incident(Ftab0, Etab0),
-    Vtab0 = import_vs(Vs, #vtx{}, 0, []),
-    Vtab = vertex_add_incident(Vtab0, Etab0),
+    Vtab = import_vs(Vs, 0, []),
     Htab = gb_sets:from_list(He),
     Perm = import_perm(Props),
-    NextId = 1+lists:max([gb_trees:size(Etab),
-			  gb_trees:size(Ftab),
-			  gb_trees:size(Vtab)]),
-    We = #we{es=Etab,fs=Ftab,vs=Vtab,he=Htab,perm=Perm,
-	     id=Oid,first_id=0,next_id=NextId,name=Name,mode=ObjMode},
+    We0 = #we{es=Etab,fs=Ftab,vp=Vtab,he=Htab,perm=Perm,
+	      id=Oid,name=Name,mode=ObjMode},
+    We = wings_we:rebuild(We0),
     import_objects(Shs, Mode, NameMap, Oid+1, [{Oid,We}|ShAcc]);
 import_objects([], _Mode, _NameMap, Oid, ShAcc) -> {ShAcc,Oid}.
     
@@ -110,13 +107,14 @@ import_face([_|T], NameMap, Rec) ->
     import_face(T, NameMap, Rec);
 import_face([], _NameMap, Rec) -> Rec.
 
-import_vs([Vtx|Vs], Template, V, Acc) -> 
-    Rec = import_vertex(Vtx, Template),
-    import_vs(Vs, Template, V+1, [{V,Rec}|Acc]);
-import_vs([], _Template, _V, Acc) -> reverse(Acc).
+import_vs([Vtx|Vs], V, Acc) -> 
+    Rec = import_vertex(Vtx, []),
+    import_vs(Vs, V+1, [{V,Rec}|Acc]);
+import_vs([], _V, Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
 
-import_vertex([<<X/float,Y/float,Z/float>>|T], Rec) ->
-    import_vertex(T, Rec#vtx{pos=wings_util:share(X, Y, Z)});
+import_vertex([<<X/float,Y/float,Z/float>>|T], _) ->
+    import_vertex(T, wings_util:share(X, Y, Z));
 import_vertex([_|T], Rec) ->
     import_vertex(T, Rec);
 import_vertex([], Rec) -> Rec.
@@ -141,19 +139,6 @@ face_add_incident(Ftab0, Es) ->
 			 [{Face,Rec#face{edge=Edge}}|A]
 		 end, [], sofs:to_external(Ftab2)),
     gb_trees:from_orddict(reverse(Ftab)).
-
-vertex_add_incident(Vtab0, Es) ->
-    VtoE0 = foldl(fun({Edge,#edge{vs=Va,ve=Vb}}, A) ->
-			  [{Va,Edge},{Vb,Edge}|A]
-		  end, [], Es),
-    VtoE1 = sofs:relation(VtoE0, [{vertex,edge}]),
-    VtoE = sofs:relation_to_family(VtoE1),
-    Vtab1 = sofs:relation(Vtab0, [{vertex,data}]),
-    Vtab2 = sofs:relative_product({Vtab1,VtoE}),
-    Vtab = foldl(fun({V,{Rec,[Edge|_]}}, A) ->
-			 [{V,Rec#vtx{edge=Edge}}|A]
-		 end, [], sofs:to_external(Vtab2)),
-    gb_trees:from_orddict(reverse(Vtab)).
 
 import_object_mode(Ps) ->
     case proplists:get_value(mode, Ps, material) of
@@ -299,7 +284,7 @@ write_file(Name, Bin) ->
 	{error,Reason} -> {error,file:format_error(Reason)}
     end.
 
-shape(#we{mode=ObjMode,name=Name,fs=Fs0,vs=Vs0,es=Es0,he=Htab}=We, Acc) ->
+shape(#we{mode=ObjMode,name=Name,fs=Fs0,vp=Vs0,es=Es0,he=Htab}=We, Acc) ->
     Vs1 = foldl(fun export_vertex/2, [], gb_trees:values(Vs0)),
     Vs = reverse(Vs1),
     Es1 = foldl(fun(E, A) ->
@@ -338,5 +323,5 @@ export_face(#face{mat=default}, Acc) ->
 export_face(#face{mat=Mat}, Acc) ->
     [[{material,Mat}]|Acc].
 
-export_vertex(#vtx{pos={X,Y,Z}}, Acc) ->
+export_vertex({X,Y,Z}, Acc) ->
     [[<<X/float,Y/float,Z/float>>]|Acc].

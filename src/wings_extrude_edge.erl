@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.35 2002/12/04 19:41:02 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.36 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -50,10 +50,12 @@ bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Sel0,Limit0}) ->
     We2 = wings_edge:dissolve_edges(Edges, We1),
     Tv0 = bevel_tv(OrigVs, We2, Forbidden),
     We3 = foldl(fun(V, W0) ->
-			wings_collapse:collapse_vertex(V, W0)
+			WW = wings_collapse:collapse_vertex(V, W0),
+			wings_util:validate(WW),
+			WW
 		end, We2, OrigVs),
-    Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, We3#we.vs),
-    We = We3#we{vs=Vtab},
+    Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, We3#we.vp),
+    We = We3#we{vp=Vtab},
     {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
     Sel = case gb_sets:is_empty(Forbidden) of
 	      true -> [{Id,wings_we:new_items(face, We0, We)}|Sel0];
@@ -78,12 +80,12 @@ bevel_faces(Faces, #we{id=Id}=We0, {Tvs,Limit0}) ->
 	{_,_} ->
 	    We2 = wings_edge:dissolve_edges(Edges, We1),
 	    Tv0 = bevel_tv(OrigVs, We2, Forbidden),
-	    #we{vs=Vtab0} = We3 =
+	    #we{vp=Vtab0} = We3 =
 		foldl(fun(V, W0) ->
 			      wings_collapse:collapse_vertex(V, W0)
 		      end, We2, OrigVs),
 	    Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, Vtab0),
-	    We = We3#we{vs=Vtab},
+	    We = We3#we{vp=Vtab},
 	    {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
 	    {We,{[{Id,Tv}|Tvs],Limit}}
     end.
@@ -120,8 +122,7 @@ bevel_reset_pos_1(V, We, Forbidden, Vtab) ->
 		  true -> Vt;
 		  false ->
 		      OtherV = wings_vertex:other(V, Rec),
-		      Vtx = gb_trees:get(OtherV, Vt),
-		      gb_trees:update(OtherV, Vtx#vtx{pos=Center}, Vt)
+		      gb_trees:update(OtherV, Center, Vt)
 	      end
       end, Vtab, V, We).
 
@@ -136,12 +137,12 @@ bevel_limit(Tv0, We, Limit0) ->
     Limit = bevel_min_limit(L, Limit0),
     {Tv,Limit}.
 
-bevel_limit_1(V, Vec, #we{vs=Vtab}=We, Acc) ->
-    Pos = wings_vertex:pos(V, Vtab),
+bevel_limit_1(V, Vec, #we{vp=Vtab}=We, Acc) ->
+    Pos = gb_trees:get(V, Vtab),
     L = wings_vertex:fold(
 	  fun(_, _, Rec, A) ->
 		  OtherV = wings_vertex:other(V, Rec),
-		  OtherPos = wings_vertex:pos(OtherV, Vtab),
+		  OtherPos = gb_trees:get(OtherV, Vtab),
 		  Evec = e3d_vec:norm(e3d_vec:sub(OtherPos, Pos)),
 		  Dot = e3d_vec:dot(Vec, Evec),
 		  [{Dot,OtherV,OtherPos}|A]
@@ -196,11 +197,11 @@ extrude_1(Edges, We0, Acc) ->
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
     {We,[{Edges,NewVs,Forbidden,We}|Acc]}.
 
-orig_normals(Es0, #we{es=Etab,vs=Vtab}) ->
+orig_normals(Es0, #we{es=Etab,vp=Vtab}) ->
     VsVec0 = foldl(fun(E, A) ->
 			   #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
-			   Vec0 = e3d_vec:sub(wings_vertex:pos(Va, Vtab),
-					      wings_vertex:pos(Vb, Vtab)),
+			   Vec0 = e3d_vec:sub(gb_trees:get(Va, Vtab),
+					      gb_trees:get(Vb, Vtab)),
 			   Vec = e3d_vec:norm(Vec0),
 			   [{Va,{Vec,Vb}},{Vb,{Vec,Va}}|A]
 		   end, [], gb_sets:to_list(Es0)),
@@ -223,7 +224,7 @@ orig_normals_1([_|T], VsVec, Acc) ->
     orig_normals_1(T, VsVec, Acc);
 orig_normals_1([], _, Acc) -> reverse(Acc).
 
-straighten([{V,N0}|Ns], New, #we{vs=Vtab0}=We0) ->
+straighten([{V,N0}|Ns], New, #we{vp=Vtab0}=We0) ->
     Pos = wings_vertex:pos(V, We0),
     Vtab = wings_vertex:fold(
 	     fun(_, _, R, Vt0) ->
@@ -231,24 +232,24 @@ straighten([{V,N0}|Ns], New, #we{vs=Vtab0}=We0) ->
 		     case gb_sets:is_member(OtherV, New) of
 			 false -> Vt0;
 			 true ->
-			     #vtx{pos=OPos0} = Vtx0 = gb_trees:get(OtherV, Vt0),
+			     OPos0 = gb_trees:get(OtherV, Vt0),
 			     Vec = e3d_vec:norm(e3d_vec:sub(Pos, OPos0)),
 			     case e3d_vec:dot(N0, Vec) of
 				 Dot when abs(Dot) < 0.87 ->
 				     Vt0;
 				 Dot when Dot < 0 ->
 				     N = e3d_vec:neg(N0),
-				     straighten_1(Vec, N, Pos, OtherV, Vtx0, Vt0);
+				     straighten_1(Vec, N, Pos, OtherV, OPos0, Vt0);
 				 _ ->
-				     straighten_1(Vec, N0, Pos, OtherV, Vtx0, Vt0)
+				     straighten_1(Vec, N0, Pos, OtherV, OPos0, Vt0)
 			     end
 		     end
 	     end, Vtab0, V, We0),
-    We = We0#we{vs=Vtab},
+    We = We0#we{vp=Vtab},
     straighten(Ns, New, We);
 straighten([], _, We) -> We.
 
-straighten_1(Vec, N, {Cx,Cy,Cz}, OtherV, #vtx{pos=OPos0}=Vtx0, Vt) ->
+straighten_1(Vec, N, {Cx,Cy,Cz}, OtherV, OPos0, Vt) ->
     case catch e3d_mat:rotate_s_to_t(Vec, N) of
 	{'EXIT',_} -> Vt;
         Rot ->
@@ -256,8 +257,7 @@ straighten_1(Vec, N, {Cx,Cy,Cz}, OtherV, #vtx{pos=OPos0}=Vtx0, Vt) ->
 	    M1 = e3d_mat:mul(M0, Rot),
 	    M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
 	    OPos = e3d_mat:mul_point(M, OPos0),
-	    Vtx = Vtx0#vtx{pos=OPos},
-	    gb_trees:update(OtherV, Vtx, Vt)
+	    gb_trees:update(OtherV, OPos, Vt)
     end.
     
 extrude_edges(Edges, We) ->
@@ -327,15 +327,14 @@ do_new_vertex(V, MeetsNew, G, Edge, Faces, Center, #we{es=Etab}=We0) ->
 	{false,true} ->
 	    %% Bump case, meeting another new vertex.
 	    OtherV = wings_vertex:other(V, gb_trees:get(Edge, Etab)),
-	    Pos = wings_vertex:pos(OtherV, We),
-	    Vtab0 = We#we.vs,
-	    Vtx = gb_trees:get(NewV, Vtab0),
-	    Vtab = gb_trees:update(NewV, Vtx#vtx{pos=Pos}, Vtab0),
-	    We#we{vs=Vtab}
+	    #we{vp=Vtab0} = We,
+	    Pos = gb_trees:get(OtherV, Vtab0),
+	    Vtab = gb_trees:update(NewV, Pos, Vtab0),
+	    We#we{vp=Vtab}
     end.
 
-move_vertex(V, Center, #we{vs=Vtab0}=We) ->
-    #vtx{pos=Pos0} = Rec = gb_trees:get(V, Vtab0),
+move_vertex(V, Center, #we{vp=Vtab0}=We) ->
+    Pos0 = gb_trees:get(V, Vtab0),
     Dir = e3d_vec:sub(Pos0, Center),
     case e3d_vec:len(Dir) of
 	D when D < ?EXTRUDE_DIST ->
@@ -344,8 +343,8 @@ move_vertex(V, Center, #we{vs=Vtab0}=We) ->
 	    Pos = e3d_vec:add(Center,
 			      e3d_vec:mul(e3d_vec:norm(Dir),
 					  ?EXTRUDE_DIST)),
-	    Vtab = gb_trees:update(V, Rec#vtx{pos=Pos}, Vtab0),
-	    We#we{vs=Vtab}
+	    Vtab = gb_trees:update(V, Pos, Vtab0),
+	    We#we{vp=Vtab}
     end.
 
 get_edge_rec(Va, Vb, EdgeA, EdgeB, #we{es=Etab}) ->
@@ -406,9 +405,9 @@ connect_inner({new,Va}, [Va,Vb,{new,Vb}], N, Face, We0) ->
     {EdgeThrough,_,_} = wings_vertex:edge_through(Va, Vb, We0),
     {We1,TempE} = wings_edge:fast_cut(EdgeThrough, default, We0),
     {We2,Edge} = wings_vertex:force_connect(Vb, Va, Face, We1),
-    #we{vs=Vtab} = We2,
-    APos = wings_vertex:pos(Va, Vtab),
-    BPos = wings_vertex:pos(Vb, Vtab),
+    #we{vp=Vtab} = We2,
+    APos = gb_trees:get(Va, Vtab),
+    BPos = gb_trees:get(Vb, Vtab),
     Vec = e3d_vec:sub(APos, BPos),
     Pos1 = e3d_vec:add(BPos, e3d_vec:mul(e3d_vec:cross(Vec, N), ?EXTRUDE_DIST)),
     {We3,NewE} = wings_edge:fast_cut(Edge, Pos1, We2),
@@ -419,7 +418,7 @@ connect_inner({new,Va}, [Va,Vb,{new,Vb}], N, Face, We0) ->
     We;
 connect_inner({new,V}, [V|[B,C,_|_]=Next], N, Face, We0) ->
     {We1,Current} = connect_one_inner(V, V, B, C, N, Face, We0),
-    #we{vs=Vtab} = We2 = connect_inner(Current, Next, N, Face, We1),
+    #we{vp=Vtab} = We2 = connect_inner(Current, Next, N, Face, We1),
     Edge = wings_vertex:fold(
 	     fun(E, _, R, A) ->
 		     case wings_vertex:other(V, R) of
@@ -427,26 +426,26 @@ connect_inner({new,V}, [V|[B,C,_|_]=Next], N, Face, We0) ->
 			 _ -> A
 		     end
 	     end, none, V, We2),
-    VPos = wings_vertex:pos(V, Vtab),
-    BPos = wings_vertex:pos(B, Vtab),
+    VPos = gb_trees:get(V, Vtab),
+    BPos = gb_trees:get(B, Vtab),
     Vec = e3d_vec:sub(VPos, BPos),
     Pos = e3d_vec:add(VPos, e3d_vec:mul(e3d_vec:cross(Vec, N), ?EXTRUDE_DIST)),
     {We,_} = wings_edge:fast_cut(Edge, Pos, We2),
     We;
 connect_inner({new,_}, [A|[B,C]], _, Face, We0) ->
     {We1,Edge} = wings_vertex:force_connect(C, A, Face, We0),
-    #we{vs=Vtab} = We1,
-    APos = wings_vertex:pos(A, Vtab),
-    BPos = wings_vertex:pos(B, Vtab),
-    CPos = wings_vertex:pos(C, Vtab),
+    #we{vp=Vtab} = We1,
+    APos = gb_trees:get(A, Vtab),
+    BPos = gb_trees:get(B, Vtab),
+    CPos = gb_trees:get(C, Vtab),
     Pos = e3d_vec:add(APos, e3d_vec:sub(CPos, BPos)),
     {We,_} = wings_edge:fast_cut(Edge, Pos, We1),
     We;
 connect_inner(C, [B|[A,{new,_}]], N, Face, We0) ->
     {We1,Edge} = wings_vertex:force_connect(A, C, Face, We0),
-    #we{vs=Vtab} = We1,
-    APos = wings_vertex:pos(A, Vtab),
-    BPos = wings_vertex:pos(B, Vtab),
+    #we{vp=Vtab} = We1,
+    APos = gb_trees:get(A, Vtab),
+    BPos = gb_trees:get(B, Vtab),
     Vec = e3d_vec:sub(BPos, APos),
     Pos = e3d_vec:add(APos, e3d_vec:mul(e3d_vec:cross(Vec, N), ?EXTRUDE_DIST)),
     {We,_} = wings_edge:fast_cut(Edge, Pos, We1),
@@ -462,32 +461,30 @@ connect_inner(Current, [_,Last], _, Face, We0) ->
 
 connect_one_inner(Current, A, B, C, N, Face, We0) ->
     {We1,Edge} = wings_vertex:force_connect(B, Current, Face, We0),
-    #we{vs=Vtab} = We1,
+    #we{vp=Vtab} = We1,
     Pos = new_vertex_pos(A, B, C, N, Vtab),
     wings_edge:fast_cut(Edge, Pos, We1).
 
-move_vertices([Face|Fs], #we{vs=Vtab0}=We0) ->
+move_vertices([Face|Fs], #we{vp=Vtab0}=We0) ->
     N = wings_face:normal(Face, We0),
     Vs = wings_face:surrounding_vertices(Face, We0),
     Vtab = move_vertices(Vs, Vs, N, Vtab0, Vtab0),
-    We = We0#we{vs=Vtab},
+    We = We0#we{vp=Vtab},
     move_vertices(Fs, We);
 move_vertices([], We) -> We.
 
 move_vertices([Va|[Vb,Vc|_]=Vs], First, N, OldVtab, Vtab0) ->
     Pos = new_vertex_pos(Va, Vb, Vc, N, OldVtab),
-    Vrec0 = gb_trees:get(Vb, Vtab0),
-    Vrec = Vrec0#vtx{pos=wings_util:share(Pos)},
-    Vtab = gb_trees:update(Vb, Vrec, Vtab0),
+    Vtab = gb_trees:update(Vb, wings_util:share(Pos), Vtab0),
     move_vertices(Vs, First, N, OldVtab, Vtab);
 move_vertices([Va,Vb], [Vc,Vd|_], N, OldVtab, Vtab) ->
     move_vertices([Va,Vb,Vc,Vd], [], N, OldVtab, Vtab);
 move_vertices([_,_], [], _, _, Vtab) -> Vtab.
 
 new_vertex_pos(A, B, C, N, Vtab) ->
-    APos = wings_vertex:pos(A, Vtab),
-    BPos = wings_vertex:pos(B, Vtab),
-    CPos = wings_vertex:pos(C, Vtab),
+    APos = gb_trees:get(A, Vtab),
+    BPos = gb_trees:get(B, Vtab),
+    CPos = gb_trees:get(C, Vtab),
     VecA0 = e3d_vec:norm(e3d_vec:sub(APos, BPos)),
     VecB0 = e3d_vec:norm(e3d_vec:sub(BPos, CPos)),
     VecA = e3d_vec:norm(e3d_vec:cross(VecA0, N)),

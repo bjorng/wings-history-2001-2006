@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_align.erl,v 1.15 2002/05/03 12:03:04 bjorng Exp $
+%%     $Id: wings_align.erl,v 1.16 2002/12/26 09:47:07 bjorng Exp $
 %%
 
 -module(wings_align).
@@ -121,13 +121,13 @@ min_scale([], Min) -> Min.
 
 move_to(Center, Cs, Axis, St0) ->
     {St,_} = wings_sel:mapfold(
-	       fun(_, #we{vs=Vtab0}=We, [MyCenter|Centers]) ->
+	       fun(_, #we{vp=Vtab0}=We, [MyCenter|Centers]) ->
 		       Offset0 = e3d_vec:sub(Center, MyCenter),
 		       case filter_coord(Axis, Offset0) of
 			   {0.0,0.0,0.0} -> {We,Centers};
 			   Offset ->
 			       Vtab = offset(Offset, Vtab0),
-			       {We#we{vs=Vtab},Centers}
+			       {We#we{vp=Vtab},Centers}
 		       end
 	       end, Cs, St0),
     St.
@@ -141,7 +141,7 @@ filter_coord(radial_z, {X,Y,_}) -> {X,Y,0.0};
 filter_coord(all, All) -> All.
 
 offset(Offset, Vtab0) ->
-    Vtab = foldl(fun({V,#vtx{pos=Pos}=Vtx}, A) ->
-			 [{V,Vtx#vtx{pos=e3d_vec:add(Pos, Offset)}}|A]
+    Vtab = foldl(fun({V,Pos}, A) ->
+			 [{V,e3d_vec:add(Pos, Offset)}|A]
 		 end, [], gb_trees:to_list(Vtab0)),
     gb_trees:from_orddict(reverse(Vtab)).

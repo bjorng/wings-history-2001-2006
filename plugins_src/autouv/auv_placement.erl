@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.12 2002/11/08 17:37:17 bjorng Exp $
+%%     $Id: auv_placement.erl,v 1.13 2002/12/26 09:47:06 bjorng Exp $
 
 -module(auv_placement).
 
@@ -122,17 +122,16 @@ move_and_scale_areas([],[],_,Acc) ->
 
 rotate_area(Fs, Vs0, We) ->
     NewVs = lists:foldl(fun({No, Pos}, Tree) ->
-				Vtx = gb_trees:get(No,Tree),
-				gb_trees:update(No, Vtx#vtx{pos=Pos}, Tree)
-			end, We#we.vs, Vs0),
-    [{_,Eds3}|_] = group_edge_loops(Fs,We#we{vs = NewVs}),
+				gb_trees:update(No, Pos, Tree)
+			end, We#we.vp, Vs0),
+    [{_,Eds3}|_] = group_edge_loops(Fs,We#we{vp=NewVs}),
     Eds4 = make_convex(reverse(Eds3), [], NewVs),
 
 %    Vs1  = [{V1,(gb_trees:get(V1, NewVs))#vtx.pos}||{V1,_,_,_}<-Eds4],
 %    Angle = angle_to_min_area(Vs1,NewVs),
     [{LV1,LV2,_,_Dist}|_] = lists:reverse(lists:keysort(4, Eds4)),
-    LV1P = (gb_trees:get(LV1,NewVs))#vtx.pos, 
-    LV2P = (gb_trees:get(LV2,NewVs))#vtx.pos,     
+    LV1P = gb_trees:get(LV1, NewVs),
+    LV2P = gb_trees:get(LV2, NewVs),
     Angle = math:atan2(element(2,LV2P)-element(2,LV1P),
 		       element(1,LV2P)-element(1,LV1P)),
 %    ?DBG("Angle ~p ~p P1 ~p P2 ~p~n", 
@@ -222,10 +221,10 @@ group_edge_loops(Fs, We) ->
 	    Map = fun({Edge,Face}) ->
 			  case gb_trees:get(Edge, We#we.es) of
 			      #edge{vs=V1,ve=V2,lf=Face} ->
-				  Dist = dist(V1,V2,We#we.vs),
+				  Dist = dist(V1,V2,We#we.vp),
 				  {V1,V2,Edge,Dist};
 			      #edge{vs=V2,ve=V1,rf=Face} ->
-				  Dist = dist(V1,V2,We#we.vs),
+				  Dist = dist(V1,V2,We#we.vp),
 				  {V1,V2,Edge,Dist}
 			  end
 		  end,
@@ -271,8 +270,8 @@ calc_dir({V11,V12,_E1,_},{V12,V22,_E2,_}, Vs) ->
     C = gb_trees:get(V12, Vs),
     V1 = gb_trees:get(V11, Vs),
     V2 = gb_trees:get(V22, Vs),
-    {X1,Y1,_} = e3d_vec:sub(V1#vtx.pos, C#vtx.pos),
-    {X2,Y2,_} = e3d_vec:sub(V2#vtx.pos, C#vtx.pos),
+    {X1,Y1,_} = e3d_vec:sub(V1, C),
+    {X2,Y2,_} = e3d_vec:sub(V2, C),
     Angle = case (math:atan2(Y1,X1) - math:atan2(Y2,X2)) of 
 		A when A >= 0.0 ->
 		    A;
@@ -283,9 +282,8 @@ calc_dir({V11,V12,_E1,_},{V12,V22,_E2,_}, Vs) ->
 %	[V12,{_E1,_E2},math:atan2(Y1,X1), math:atan2(Y2,X2),Angle]),
     Angle.
 
-dist(V1,V2,Vs) ->    
-    e3d_vec:dist((gb_trees:get(V1, Vs))#vtx.pos,
-		 (gb_trees:get(V2, Vs))#vtx.pos).
+dist(V1, V2, Vs) ->
+    e3d_vec:dist(gb_trees:get(V1, Vs), gb_trees:get(V2, Vs)).
 
 %% Returns a list of loops 
 sort_edges(Eds) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.93 2002/12/21 15:23:12 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.94 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -565,7 +565,6 @@ output_file(Title, Prop) ->
 %%%
 
 do_import(Importer, Name, St0) ->
-    wings_io:progress("Reading " ++ filename:basename(Name)),
     case Importer(Name) of
 	{ok,#e3d_file{objs=Objs,mat=Mat}} ->
 	    NumObjs = length(Objs),
@@ -589,7 +588,6 @@ do_import(Importer, Name, St0) ->
 
 translate_objects([#e3d_object{name=Name}=Obj|Os], UsedMat0,
 		  I, Suffix, St0) ->
-    wings_io:progress("Building obj " ++ integer_to_list(I) ++ Suffix),
     {St,UsedMat} = case wings_import:import(Obj, UsedMat0) of
 		       error -> {St0,UsedMat0};
 		       {We,Us0} -> {store_object(Name, We, St0),Us0}
@@ -643,10 +641,9 @@ do_export(#we{name=Name,light=none}=We, SubDivs, Acc) ->
 do_export(_, _, Acc) -> Acc.
 
 make_mesh(We0, SubDivs) ->
-    wings_io:disable_progress(),
     We1 = sub_divide(SubDivs, We0),
-    #we{fs=Ftab,vs=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We1, 0),
-    Vs = [P || #vtx{pos=P} <- gb_trees:values(Vs0)],
+    #we{fs=Ftab,vp=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We1, 0),
+    Vs = gb_trees:values(Vs0),
     {ColTab0,UvTab0} = make_tables(We),
     ColTab1 = gb_trees:from_orddict(ColTab0),
     UvTab1 = gb_trees:from_orddict(UvTab0),

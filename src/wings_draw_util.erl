@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.47 2002/12/14 09:15:26 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.48 2002/12/26 09:47:08 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -424,12 +424,12 @@ face(Face, #we{fs=Ftab}=We) ->
     #face{edge=Edge} = gb_trees:get(Face, Ftab),
     face(Face, Edge, We).
 
-face(Face, Edge, #we{vs=Vtab}=We) ->
+face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs0 = wings_face:vinfo(Face, Edge, We),
     face_1(Vs0, Vtab, [], []).
 
 face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
-    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+    Pos = gb_trees:get(V, Vtab),
     face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
 face_1([], _, Nacc, Vs) ->
     N = e3d_vec:normal(reverse(Nacc)),
@@ -460,7 +460,7 @@ flat_face(Face, #we{fs=Ftab}=We) ->
     #face{edge=Edge} = gb_trees:get(Face, Ftab),
     flat_face(Face, Edge, We).
 
-flat_face(Face, Edge, #we{vs=Vtab}=We) ->
+flat_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs = wings_face:surrounding_vertices(Face, Edge, We),
     VsPos = vspos(Vs, Vtab, []),
     N = e3d_vec:normal(VsPos),
@@ -484,8 +484,7 @@ tess_flat_face(Tess, []) ->
 %%
 
 vspos([V|Vs], Vtab, Acc) ->
-    #vtx{pos=P} = gb_trees:get(V, Vtab),
-    vspos(Vs, Vtab, [P|Acc]);
+    vspos(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
 vspos([], _, Acc) -> reverse(Acc).
 
 call(none) -> none;
