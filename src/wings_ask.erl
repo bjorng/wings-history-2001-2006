@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.171 2004/02/18 11:52:06 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.172 2004/02/21 20:46:48 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -473,11 +473,16 @@ event(Ev={picked_color,_}, #s{fi=Fi,store=Sto}=S) ->
     field_event(Ev, S, find_eyepicker(Fi, Sto));
 event(Ev, S) -> field_event(Ev, S).
 
+%% Dialog keys, not passed down as field events
 event_key({key,?SDLK_ESCAPE,_,_}, S) ->
+    escape_pressed(S);
+event_key({key,_,_,$\e}, S) ->
     escape_pressed(S);
 event_key({key,?SDLK_TAB,Mod,_}, S) when ?IS_SHIFTED(Mod) ->
     get_event(next_focus(-1, S));
 event_key({key,?SDLK_TAB,_,_}, S) ->
+    get_event(next_focus(+1, S));
+event_key({key,_,Mod,$\t}, S) when ?IS_SHIFTED(Mod) ->
     get_event(next_focus(+1, S));
 event_key({key,_,_,$\t}, S) ->
     get_event(next_focus(+1, S));
@@ -485,6 +490,39 @@ event_key({key,?SDLK_KP_ENTER,Mod,_}, S) ->
     enter_pressed({key,$\r,Mod,$\r}, S);
 event_key({key,_,_,$\r}=Ev, S) ->
     enter_pressed(Ev, S);
+%% Common key translations; emacs editing style
+event_key({key,Sym=?SDLK_BACKSPACE,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$\b}, S);
+event_key({key,Sym=?SDLK_DELETE,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$\^D}, S);
+event_key({key,Sym=?SDLK_HOME,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$\^A}, S);
+event_key({key,Sym=?SDLK_END,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$\^E}, S);
+event_key({key,Sym=?SDLK_LEFT,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$\^B}, S);
+event_key({key,Sym=?SDLK_RIGHT,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$\^F}, S);
+event_key({key,Sym=?SDLK_UP,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$\^P}, S);
+event_key({key,Sym=?SDLK_DOWN,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$\^N}, S);
+%% Common key translations; keypad
+event_key({key,Sym=?SDLK_KP_PLUS,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$+}, S);
+event_key({key,Sym=?SDLK_KP_MINUS,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$-}, S);
+event_key({key,Sym=?SDLK_KP_MULTIPLY,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$*}, S);
+event_key({key,Sym=?SDLK_KP_DIVIDE,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$/}, S);
+event_key({key,Sym=?SDLK_KP_PERIOD,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$.}, S);
+event_key({key,Sym=?SDLK_KP_EQUALS,Mod,_}, S) ->
+    field_event({key,Sym,Mod,$=}, S);
+event_key({key,Sym,Mod,_}, S) when ?SDLK_KP0 =< Sym, Sym =< ?SDLK_KP9 ->
+    field_event({key,Sym,Mod,$0+Sym-?SDLK_KP0}, S);
+%%
 event_key(Ev, S) ->
     field_event(Ev, S).
 
@@ -1084,7 +1122,7 @@ mktree({button,Label,Action,Flags}, Sto, I) ->
     mktree_button(Label, Action, Sto, I, Flags);
 %%
 mktree({help,Title,HelpLines}, Sto, I) ->
-    mktree({button,"Help",keep,[help_hook(Title,HelpLines)]}, Sto, I);
+    mktree({button,"?",keep,[help_hook(Title,HelpLines),{width,1}]}, Sto, I);
 %%
 mktree({custom,W,H,Custom}, Sto, I) ->
     mktree_custom(W, H, Custom, Sto, I, []);
@@ -1610,20 +1648,16 @@ oframe_event(#mousebutton{x=Xb,button=1,state=?SDL_PRESSED},
 oframe_event({popup_result,Val}, 
 	     [#fi{index=I,key=Key,hook=Hook,flags=Flags}|_], Sto0) ->
     hook(Hook, update, [var(Key, I),I,Val,Sto0,Flags]);
-oframe_event({key,?SDLK_LEFT,_,_}, Path, Sto) ->
-    oframe_event({key,2,0,2}, Path, Sto); % Ctrl-B
-oframe_event({key,?SDLK_RIGHT,_,_}, Path, Sto) ->
-    oframe_event({key,6,0,6}, Path, Sto); % Ctrl-F
-oframe_event({key,$\s,0,$\s}, [#fi{x=X,y=Y,key=Key,index=I}|_], Sto) ->
+oframe_event({key,_,0,$\s}, [#fi{x=X,y=Y,key=Key,index=I}|_], Sto) ->
     case gb_trees:get(-I, Sto) of
 	#oframe{w=W,style=menu,titles=Titles} ->
 	    Menu = oframe_menu(Titles),
 	    menu_popup(X+10, Y, W, Menu, gb_trees:get(var(Key, I), Sto), []);
 	#oframe{style=button} -> keep
     end;
-oframe_event({key,_,_,2}, Path, Sto) -> % Ctrl-B
+oframe_event({key,_,_,$\^B}, Path, Sto) -> % Ctrl-B
     oframe_step(-1, Path, Sto);
-oframe_event({key,_,_,6}, Path, Sto) -> % Ctrl-F
+oframe_event({key,_,_,$\^F}, Path, Sto) ->
     oframe_step(+1, Path, Sto);
 oframe_event(_Ev, _Path, _Store) -> keep.
 
@@ -2117,39 +2151,62 @@ popup_event(_Event, _Ps) ->
     keep.
 
 popup_key(?SDLK_TAB, Mod, _Unicode, Ps) when ?IS_SHIFTED(Mod) ->
-    popup_key(16, Ps);
+    popup_key($\^P, Ps);
 popup_key(?SDLK_TAB, _Mod, _Unicode, Ps) ->
-    popup_key(14, Ps);
+    popup_key($\^N, Ps);
+popup_key(_Sym, Mod, $\t, Ps) when ?IS_SHIFTED(Mod) ->
+    popup_key($\^P, Ps);
+popup_key(_Sym, _Mod, $\t, Ps) ->
+    popup_key($\^N, Ps);
 popup_key(?SDLK_UP, _Mod, _Unicode, Ps) ->
-    popup_key(16, Ps);
+    popup_key($\^P, Ps);
 popup_key(?SDLK_DOWN, _Mod, _Unicode, Ps) ->
-    popup_key(14, Ps);
+    popup_key($\^N, Ps);
 popup_key(?SDLK_KP_ENTER, _Mod, _Unicode, Ps) ->
     popup_key($ , Ps);
-popup_key(?SDLK_ESCAPE, _Mod, _Unicode,
-	  #popup{parent=Parent,menu=Menu,orig_sel=OrigSel}) ->
-    {_,Val,_,_} = element(OrigSel, Menu),
-    wings_wm:send(Parent, {popup_result,Val}),
-    delete;
+popup_key(?SDLK_ESCAPE, _Mod, _Unicode, Ps) ->
+    popup_key($\e, Ps);
+popup_key(?SDLK_HOME, _Mod, _Unicode, Ps) ->
+    popup_key($\^A, Ps);
+popup_key(?SDLK_END, _Mod, _Unicode, Ps) ->
+    popup_key($\^E, Ps);
 popup_key(_Sym, _Mod, $\r, Ps) ->
     popup_key($ , Ps);
 popup_key(_Sym, _Mod, Unicode, Ps) ->
     popup_key(Unicode, Ps).
 
-popup_key(16, #popup{sel=Sel}=Ps) -> %Ctrl-P
+popup_key($\^P, Ps=#popup{sel=Sel}) ->
     case popup_sel(-1, Sel, Ps) of
 	Sel -> keep;
 	NewSel ->
 	    wings_wm:dirty(),
 	    get_popup_event(Ps#popup{sel=NewSel})
     end;
-popup_key(14, #popup{sel=Sel}=Ps) -> %Ctrl-N
+popup_key($\^N, Ps=#popup{sel=Sel}) ->
     case popup_sel(+1, Sel, Ps) of
 	Sel -> keep;
 	NewSel ->
 	    wings_wm:dirty(),
 	    get_popup_event(Ps#popup{sel=NewSel})
     end;
+popup_key($\^A, Ps=#popup{sel=Sel}) ->
+    case popup_sel(+1, 0, Ps) of
+	Sel -> keep;
+	NewSel ->
+	    wings_wm:dirty(),
+	    get_popup_event(Ps#popup{sel=NewSel})
+    end;
+popup_key($\^E, Ps=#popup{sel=Sel,menu=Menu}) ->
+    case popup_sel(-1, size(Menu)+1, Ps) of
+	Sel -> keep;
+	NewSel ->
+	    wings_wm:dirty(),
+	    get_popup_event(Ps#popup{sel=NewSel})
+    end;
+popup_key($\e, #popup{parent=Parent,menu=Menu,orig_sel=OrigSel}) ->
+    {_,Val,_,_} = element(OrigSel, Menu),
+    wings_wm:send(Parent, {popup_result,Val}),
+    delete;
 popup_key($ , #popup{parent=Parent,menu=Menu,sel=Sel}) -> %Space
     {_,Val,_,_} = element(Sel, Menu),
     wings_wm:send(Parent, {popup_result,Val}),
@@ -2216,8 +2273,11 @@ mktree_button(Action, Sto, I, Flags) ->
     mktree_button(button_label(Action), Action, Sto, I, Flags).
 
 mktree_button(Label, Action, Sto, I, Flags) ->
-    W = max(wings_text:width([$\s,$\s|Label]),
-	    wings_text:width(" cancel ")),
+    W = case proplists:get_value(width, Flags) of
+	      undefined -> max(wings_text:width([$\s,$\s|Label]),
+			       wings_text:width(" cancel "));
+	    M when is_integer(M), M >= 1 -> (M+2)*wings_text:width()
+	  end,
     Fun = fun button_event/3,
     Fi = #fi{key=Key} = 
 	mktree_leaf(Fun, enabled, undefined, W, ?LINE_HEIGHT+2+2, I, Flags),
@@ -3105,8 +3165,12 @@ get_text(#text{bef=Bef,aft=Aft}) ->
 get_text_r(#text{bef=Bef,aft=Aft}) ->
     reverse(Aft, Bef).
 
-text_event({key,Sym,Mod,Unicode}, _Fi, Ts) ->
-    key(Sym, Mod, Unicode, Ts);
+text_event({key,?SDLK_PAGEUP,_,_}, _Fi, Ts=#text{integer=true}) ->
+    increment(Ts, 1);
+text_event({key,?SDLK_PAGEDOWN,_,_}, _Fi, Ts=#text{integer=true}) ->
+    increment(Ts, -1);
+text_event({key,_,Mod,Unicode}, _Fi, Ts) ->
+    key(Unicode ,Mod, Ts);
 text_event({focus,false}, _Fi, Ts0) ->
     add_history(type(Ts0#text.last_val), get_text(Ts0)),
     Ts = validate_string(Ts0),
@@ -3147,72 +3211,46 @@ text_pos_right(Mx, #text{bef=Bef,aft=[C|Aft],cpos=CaretPos}=Ts) ->
     end;
 text_pos_right(_, Ts) -> Ts.
 
-key(?SDLK_KP_PLUS, _, _, #text{integer=true}=Ts) ->
-    increment(Ts, 1);
-key(?SDLK_KP_MINUS, _, _, #text{integer=true}=Ts) ->
-    increment(Ts, -1);
-key(?SDLK_HOME, Mod, _, Ts) -> key(1, Mod, Ts);
-key(?SDLK_END, Mod, _, Ts) -> key(5, Mod, Ts);
-key(?SDLK_LEFT, Mod, _, Ts) -> key(2, Mod, Ts);
-key(?SDLK_RIGHT, Mod, _, Ts) -> key(6, Mod, Ts);
-key(?SDLK_UP, Mod, _, Ts) -> key(16, Mod, Ts);
-key(?SDLK_DOWN, Mod, _, Ts) -> key(14, Mod, Ts);
-key(?SDLK_DELETE, Mod, _, Ts) -> key(4, Mod, Ts);
-key(?SDLK_BACKSPACE, Mod, _, Ts) -> key(?SDLK_BACKSPACE, Mod, Ts);
-key(?SDLK_KP_PERIOD, Mod, _, Ts) ->
-    key($., Mod, Ts);
-key(C, Mod, _, Ts) when ?SDLK_KP0 =< C, C =< ?SDLK_KP9 ->
-    key(C-?SDLK_KP0+$0, Mod, Ts);
-key(_C, Mod, Unicode, Ts) ->
-    key(Unicode, Mod, Ts).
-
-key($+, _, #text{integer=true}=Ts) ->
-    increment(Ts, 1);
-key($=, _, #text{integer=true}=Ts) ->		%Same key as plus on American keybd.
-    increment(Ts, 1);
-key($-, _, #text{integer=true}=Ts) ->
-    increment(Ts, -1);
 key($\b, _, #text{sel=0,bef=[_|Bef]}=Ts) ->	%Bksp (no selection).
     Ts#text{bef=Bef};
 key($\b, _, Ts) ->				%Bksp (selection).
     del_sel(Ts);
-key(2, Mod, #text{sel=Sel0,bef=[C|Bef],aft=Aft}=Ts) -> %Ctrl-B
+key($\^B, Mod, #text{sel=Sel0,bef=[C|Bef],aft=Aft}=Ts) ->
     Sel = if
 	      ?IS_SHIFTED(Mod) -> Sel0+1;
 	      true -> 0
 	  end,
     Ts#text{sel=Sel,bef=Bef,aft=[C|Aft]};
-key(6, Mod, #text{sel=Sel0,bef=Bef,aft=[C|Aft]}=Ts) -> %Ctrl-F
+key($\^F, Mod, #text{sel=Sel0,bef=Bef,aft=[C|Aft]}=Ts) ->
     Sel = if
 	      ?IS_SHIFTED(Mod) -> Sel0-1;
 	      true -> 0
 	  end,
     Ts#text{sel=Sel,bef=[C|Bef],aft=Aft};
-key(1, Mod, #text{bef=Bef}=Ts) ->		%Ctrl-A
+key($\^A, Mod, #text{bef=Bef}=Ts) ->
     Sel = if
 	      ?IS_SHIFTED(Mod) -> length(Bef);
 	      true -> 0
 	  end,
     Ts#text{sel=Sel,bef=[],aft=get_text(Ts)};
-key(5, Mod, #text{aft=Aft}=Ts) ->		%Ctrl-E
+key($\^E, Mod, #text{aft=Aft}=Ts) ->
     Sel = if
 	      ?IS_SHIFTED(Mod) -> -length(Aft);
 	      true -> 0
 	  end,
     Ts#text{sel=Sel,bef=get_text_r(Ts),aft=[]};
-key(11, _, #text{}=Ts) ->			%Ctrl-K
+key($\^K, _, #text{}=Ts) ->
     Ts#text{aft=[]};
-key(4, _, #text{sel=0,aft=[_|Aft]}=Ts) ->	%Ctrl-D
+key($\^D, _, #text{sel=0,aft=[_|Aft]}=Ts) ->
     Ts#text{aft=Aft};
-key(4, _, Ts) ->				%Ctrl-D
+key($\^D, _, Ts) ->
     del_sel(Ts);
-key(16, _, #text{}=Ts) ->			%Ctrl-P
+key($\^P, _, #text{}=Ts) ->
     Txt = read_prev_hist(type(Ts#text.last_val), get_text(Ts)),
     Ts#text{sel=0, bef=[], aft=Txt};
-key(14, _, #text{}=Ts) ->			%Ctrl-N
+key($\^N, _, #text{}=Ts) ->
     Txt = read_next_hist(type(Ts#text.last_val), get_text(Ts)),
     Ts#text{sel=0, bef=[], aft=Txt};
-
 key(C, _, #text{charset=Charset}=Ts0)
   when $\s =< C, C < 256 ->
     case Charset(C) of
@@ -3290,30 +3328,22 @@ slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED,button=1}, [Fi|_], Store) ->
 slider_event(#mousemotion{x=Xb,state=Bst}, [Fi|_], Store) 
   when (Bst band ?SDL_BUTTON_LMASK) =/= 0 ->
     slider_event_move(Xb, Fi, Store);
-slider_event({key,?SDLK_LEFT,_,_}, [Fi|_], Store) ->
-    slider_move(-1, Fi, Store);
-slider_event({key,?SDLK_RIGHT,_,_}, [Fi|_], Store) ->
-    slider_move(1, Fi, Store);
-slider_event({key,?SDLK_UP,_,_}, [Fi|_], Store) ->
+slider_event({key,?SDLK_PAGEUP,_,_}, [Fi|_], Store) ->
     slider_move(10, Fi, Store);
-slider_event({key,?SDLK_DOWN,_,_}, [Fi|_], Store) ->
+slider_event({key,?SDLK_PAGEDOWN,_,_}, [Fi|_], Store) ->
     slider_move(-10, Fi, Store);
-slider_event({key,?SDLK_HOME,_,_}, 
+slider_event({key,_,_,$\^A}, 
 	     [#fi{key=Key,hook=Hook,index=I,flags=Flags}|_], Store) ->
     #sl{min=Min} = gb_trees:get(-I, Store),
     slider_update(Hook, Min, Key, I, Store, Flags);
-slider_event({key,?SDLK_END,_,_}, 
+slider_event({key,_,_,$\^E}, 
 	     [#fi{key=Key,hook=Hook,index=I,flags=Flags}|_], Store) ->
     #sl{min=Min,range=Range} = gb_trees:get(-I, Store),
     slider_update(Hook, Min+Range, Key, I, Store, Flags);
-slider_event({key,_,_,6}, [Fi|_], Store) -> %Ctrl-F
+slider_event({key,_,_,$\^F}, [Fi|_], Store) ->
     slider_move(1, Fi, Store);
-slider_event({key,_,_,2}, [Fi|_], Store) -> %Ctrl-B
+slider_event({key,_,_,$\^B}, [Fi|_], Store) ->
     slider_move(-1, Fi, Store);
-slider_event({key,_,_,16}, [Fi|_], Store) -> %Ctrl-P
-    slider_move(10, Fi, Store);
-slider_event({key,_,_,14}, [Fi|_], Store) -> %Ctrl-N
-    slider_move(-10, Fi, Store);
 slider_event(_Ev, _Path, _Store) -> keep.
 
 slider_move(D0, #fi{key=Key,index=I,hook=Hook,flags=Flags}, Store) ->
