@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.9 2005/02/05 00:15:32 dgud Exp $
+%%     $Id: wings_tesselation.erl,v 1.10 2005/02/05 17:24:31 bjorng Exp $
 %%
 
 -module(wings_tesselation).
@@ -37,7 +37,7 @@ command(quadrangulate, St) ->
     {save_state,St1#st{sel=reverse(Sel)}}.
 
 triangulate(#we{fs=Ftab}=We) ->
-    triangulate(gs_sets:from_ordset(gb_trees:keys(Ftab)), We).
+    triangulate(gb_sets:from_ordset(gb_trees:keys(Ftab)), We).
 
 triangulate(Faces, We) when is_list(Faces) ->
     triangulate(gb_sets:from_list(Faces), We);
@@ -110,7 +110,7 @@ triangulate_quad(F, Vs, TriV0, FsSet0, #we{vp=Vtab}=We0) ->
 	{Fs1, FsSet1} = get_pref_faces(V1,FsSet0,We),
 	{Fs2, FsSet} = get_pref_faces(V2,FsSet1,We),
 	{Fs1++Fs2,FsSet,TriV,We}
-    catch throw:Problematic ->
+    catch throw:_Problematic ->
 	    {[],FsSet0,TriV0, doface_1(4, Vs, We0, false)};
 	Type:Err ->
 	    io:format("~p:~p: ~p ~p ~p~n", 
