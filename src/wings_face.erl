@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.22 2002/10/24 20:18:11 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.23 2002/11/01 07:36:43 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -19,6 +19,7 @@
 	 to_vertices/2,
 	 normal/2,face_normal/2,good_normal/2,
 	 draw_info/3,draw_normal/1,
+	 vinfo/3,
 	 surrounding_vertices/2,surrounding_vertices/3,
 	 bordering_faces/2,
 	 inner_edges/2,outer_edges/2,
@@ -209,6 +210,20 @@ draw_normal(Vpos) ->
 draw_normal([{Pos,_}|Vs], Acc) ->
     draw_normal(Vs, [Pos|Acc]);
 draw_normal([], Acc) -> e3d_vec:normal(reverse(Acc)).
+
+%% Vertex info for drawing.
+
+vinfo(Face, Edge, #we{es=Etab}) ->
+    vinfo(Edge, Etab, Face, Edge, []).
+
+vinfo(LastEdge, _, _, LastEdge, Acc) when Acc =/= [] -> Acc;
+vinfo(Edge, Etab, Face, LastEdge, Acc) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{vs=V,a=Col,lf=Face,ltsu=NextEdge} ->
+	    vinfo(NextEdge, Etab, Face, LastEdge, [[V|Col]|Acc]);
+	#edge{ve=V,b=Col,rtsu=NextEdge} ->
+	    vinfo(NextEdge, Etab, Face, LastEdge, [[V|Col]|Acc])
+    end.
 
 %% Return the vertices surrounding a face.
 
