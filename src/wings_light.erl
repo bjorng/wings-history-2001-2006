@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.19 2002/11/26 20:08:34 dgud Exp $
+%%     $Id: wings_light.erl,v 1.20 2002/11/28 17:49:49 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -622,10 +622,12 @@ modeling_lights(camera, NoL) ->
     case NoL of
 	1 ->
 	    gl:disable(?GL_LIGHT1),
-	    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {1,1,1,1}),
-	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.0,0.71,0.71,0.0});
+	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {0.5,0.5,0.5,1}),
+	    gl:lightfv(?GL_LIGHT0, ?GL_SPECULAR, {0,0,0,1}),
+	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0,0,1,0});
 	2 ->
 	    gl:enable(?GL_LIGHT1),
+	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {1,1,1,1}),
 	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.71,0.71,0.0,0.0}),
 	    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {0.5,0.5,0.5,1}),
 	    gl:lightfv(?GL_LIGHT1, ?GL_POSITION, {-0.71,-0.71,0.0})
