@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.7 2003/08/27 06:47:39 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.8 2003/09/14 14:08:17 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -34,11 +34,11 @@
 	 prev=none				%Previous hit ({Id,Item}).
 	}).
 
-% event(#mousemotion{}=Mm, #st{selmode=Mode}=St) ->
-%     case hilite_enabled(Mode) of
-% 	false -> next;
-% 	true -> {seq,push,handle_hilite_event(Mm, #hl{st=St})}
-%     end;
+event(#mousemotion{}=Mm, #st{selmode=Mode}=St) ->
+    case hilite_enabled(Mode) of
+	false -> next;
+	true -> {seq,push,handle_hilite_event(Mm, #hl{st=St})}
+    end;
 event(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_PRESSED}, St) ->
     pick(X, Y, Mod, St);
 event(_, _) -> next.
@@ -69,6 +69,7 @@ get_hilite_event(HL) ->
 
 handle_hilite_event(redraw, #hl{st=St}) ->
     wpc_autouv:redraw(St),
+    wings_draw_util:fold(fun(#dlo{hilite=Hl}, _) -> wings_draw_util:call(Hl) end, []),
     keep;
 handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
     case raw_pick(X, Y, St) of

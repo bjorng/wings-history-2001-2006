@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.158 2003/09/14 11:48:08 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.159 2003/09/14 14:08:17 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -567,18 +567,19 @@ merge_texture(ImageBins,Wd,Hd,W,H,Acc) ->
 
 %%%%%%% Events handling and window redrawing 
    
-get_event(#uvstate{areas=Shs,origst=#st{mat=Mat}}=Uvs) ->
-    St = #st{selmode=body,shapes=Shs,mat=Mat},
-    update_dlists(St),
+get_event(Uvs) ->
     wings_wm:dirty(),
     get_event_nodraw(Uvs).
 
 get_event_nodraw(Uvs) ->
     {replace,fun(Ev) -> handle_event(Ev, Uvs) end}.
 
-redraw(#st{bb=Uvs}) ->
+redraw(#st{bb=Uvs}=St) ->
+    update_dlists(St),
     redraw(Uvs);
-redraw(#uvstate{geom=Geom}=Uvs0) ->
+redraw(#uvstate{geom=Geom,areas=Shs,origst=#st{mat=Mat}}=Uvs0) ->
+    St = #st{selmode=body,shapes=Shs,mat=Mat},
+    update_dlists(St),
     wings_util:button_message("Select", [], "Show menu"),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     setup_view(Geom, Uvs0),
@@ -787,8 +788,8 @@ handle_command(NewOp, Uvs) ->
 %%%
 
 get_cmd_event(Op, X, Y, #uvstate{areas=Shs,origst=#st{mat=Mat}}=Uvs) ->
-    St = #st{selmode=body,shapes=Shs,mat=Mat},
-    update_dlists(St),
+%     St = #st{selmode=body,shapes=Shs,mat=Mat},
+%     update_dlists(St),
     wings_wm:dirty(),
     get_cmd_event_noredraw(Op, X, Y, Uvs).
 
