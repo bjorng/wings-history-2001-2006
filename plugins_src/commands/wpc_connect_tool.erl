@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.3 2004/07/07 10:17:10 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.4 2004/07/09 11:40:45 bjorng Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -38,7 +38,7 @@ init() -> true.
 
 menu({tools}, Menu0) ->
     Menu0 ++ [separator,
-	      {"Connect tool", connect,
+	      {"Connect", connect,
 	       "Mode for quickly connecting vertices and edges"}
 	     ];
 menu(_, Menu) -> Menu.
