@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.42 2002/10/29 06:15:35 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.43 2002/11/23 20:43:33 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -611,10 +611,10 @@ update_vtab([{V,Vtx}|Vs], [{V,[E|_]}|VsEs], Acc) ->
 update_vtab([], [], Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
 %%%
-%%% Convert UV coordinates to vertex colors.
+%%% Convert textures to vertex colors.
 %%%
 
-uv_to_color(#we{mode=uv,es=Etab0}=We, St) ->
+uv_to_color(#we{mode=uv,es=Etab0,fs=Ftab0}=We, St) ->
     Etab1 = foldl(
 	      fun({Edge,#edge{lf=Lf,rf=Rf,a=UVa,b=UVb}=Rec}, A) ->
 		      ColA = wings_material:color(Lf, UVa, We, St),
@@ -622,7 +622,11 @@ uv_to_color(#we{mode=uv,es=Etab0}=We, St) ->
 		      [{Edge,Rec#edge{a=ColA,b=ColB}}|A]
 	      end, [], gb_trees:to_list(Etab0)),
     Etab = gb_trees:from_orddict(reverse(Etab1)),
-    We#we{mode=vertex,es=Etab};
+    Ftab1 = foldl(fun({Face,Rec}, A) ->
+			  [{Face,Rec#face{mat=default}}|A]
+		  end, [], gb_trees:to_list(Ftab0)),
+    Ftab = gb_trees:from_orddict(reverse(Ftab1)),
+    We#we{mode=vertex,es=Etab,fs=Ftab};
 uv_to_color(We, _St) -> We.
 
 %%%
