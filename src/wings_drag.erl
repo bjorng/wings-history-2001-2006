@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.14 2001/10/20 19:14:17 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.15 2001/10/21 20:30:05 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -196,11 +196,9 @@ warp_mouse(X, Y) ->
 
 constrain(Dx0, Dy0, #drag{constraint=Constraint}) ->
     {Dx,Dy} = case sdl_keyboard:getModState() of
-		  Mod when Mod band ?ALT_BITS =/= 0,
-			   Mod band ?CTRL_BITS =:= 0 ->
+		  Mod when Mod band ?CTRL_BITS =/= 0 ->
 		      {trunc(10*Dx0)/10,trunc(10*Dy0)/10};
-		  Mod when Mod band ?SHIFT_BITS =/= 0,
-			   Mod band ?CTRL_BITS =:= 0 ->
+		  Mod when Mod band ?SHIFT_BITS =/= 0 ->
 		      {float(trunc(Dx0)),float(trunc(Dy0))};
 		  Mod -> {Dx0,Dy0}
 	      end,
