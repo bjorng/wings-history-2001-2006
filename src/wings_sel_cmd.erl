@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.25 2002/11/26 20:05:30 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.26 2002/12/10 07:43:53 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -16,9 +16,10 @@
 -export([menu/1,command/2]).
 
 -include("wings.hrl").
--import(lists, [foldl/3,reverse/1,reverse/2,sort/1,keydelete/3]).
+-import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,keydelete/3]).
 
 menu(St) ->
+    GroupsMenu = groups_menu(St),
     [{"Deselect",deselect},
      separator,
      {"More",more},
@@ -64,18 +65,45 @@ menu(St) ->
      separator,
      {"Inverse",inverse},
      separator,
-     {"Store selection",save},
-     {"Recall selection",load},
-     {"Exchange selection",exchange},
-     separator,
-     {"Union with stored",union},
-     {"Subtract with stored",subtract},
-     {"Intersection with stored",intersection}].
+     {"New Group...", new_group} | GroupsMenu].
 
 sel_all_str(#st{selmode=vertex}) -> "All vertices";
 sel_all_str(#st{selmode=edge}) -> "All edges";
 sel_all_str(#st{selmode=face}) -> "All faces";
 sel_all_str(#st{selmode=body}) -> "All objects".
+
+groups_menu(#st{ssels=Ssels}=St) -> 
+    case gb_trees:is_empty(Ssels) of
+        true -> [];
+        false -> [{"Delete Group", {delete_group,
+                    groups_and_help({"Delete group '","'"}, St)}},
+                  separator,
+                  {"Add to Group", {add_to_group, 
+                    groups_and_help({"Add current selection to group '", "'"}, St)}},
+                  {"Subtract from Group", {subtract_from_group,
+                    groups_and_help({"Subtract current selection from group '", "'"}, St)}},
+                  separator,
+                  {"Select Group", {select_group, 
+                    groups_and_help({"Select group '","'"}, St)}},
+                  separator,
+                  {"Union Group", {union_group, 
+                    groups_and_help({"Union group '", "' with current selection"}, St)}},
+                  {"Subtract Group", {subtract_group, 
+                    groups_and_help({"Subtract group '", "' from current selection"}, St)}},
+                  {"Intersect Group", {intersect_group, 
+                    groups_and_help({"Intersect group '", "' with current selection"}, St)}}]
+        end.
+      
+groups_and_help({Help0, Help1}, #st{ssels=Ssels}) ->
+    map(fun({Id, {Name, Id, Mode, _}}) ->
+        Title = group_title(Name,Mode),
+        {Title, Id, Help0++Name++Help1} end, 
+        gb_trees:to_list(Ssels)).
+
+group_title(Name, vertex) -> "vertex: "++Name;
+group_title(Name, edge) -> "edge: "++Name;
+group_title(Name, face) -> "face: "++Name;
+group_title(Name, body) -> "body: "++Name.
 
 command(edge_loop, #st{selmode=face}=St) ->
     {save_state,
@@ -107,18 +135,24 @@ command({by,Command}, St) ->
     by_command(Command, St);
 command(similar, St) ->
     {save_state,similar(St)};
-command(save, St) ->
-    {save_state,save(St)};
-command(load, St) ->
-    {save_state,load(St)};
-command(exchange, St) ->
-    {save_state,exchange(St)};
-command(union, St) ->
-    {save_state,union(St)};
-command(subtract, St) ->
-    {save_state,subtract(St)};
-command(intersection, St) ->
-    {save_state,intersection(St)};
+command({select_group, Id}, St) ->
+    {save_state, select_group(get_group(Id, St),St)};
+command({union_group, Id}, St) ->
+    {save_state, union_group(get_group(Id, St), St)};
+command({subtract_group, Id}, St) ->
+    {save_state, subtract_group(get_group(Id, St), St)};
+command({intersect_group, Id}, St) ->
+    {save_state, intersect_group(get_group(Id, St), St)};
+command({add_to_group, Id}, St) ->
+    {save_state, add_to_group(get_group(Id, St), St)};
+command({subtract_from_group, Id}, St) ->
+    {save_state, subtract_from_group(get_group(Id, St), St)};
+command({new_group_name, Name}, St) ->
+    {save_state, new_group_name(Name, St)};
+command(new_group, St) ->
+    new_group(St);
+command({delete_group, Id}, St) ->
+    {save_state, delete_group(Id, St)};
 command(inverse, St) ->
     {save_state,inverse(St)};
 command({adjacent,Type}, St) ->
@@ -198,31 +232,41 @@ selection_change(Change, #st{selmode=face}=St) ->
     wings_face:Change(St);
 selection_change(_, St) -> St.
 
-save(#st{selmode=Mode,sel=Sel}=St) ->
-    St#st{ssel={Mode,Sel}}.
+%%%
+%%% Select Inverse.
+%%%
 
-exchange(#st{selmode=Mode,sel=OldSel,ssel={SMode,SSel}}=St) ->
-    Sel = wings_sel:valid_sel(SSel, SMode, St),
-    St#st{selmode=SMode,sel=Sel,ssel={Mode,OldSel}}.
-
-load(#st{ssel={SMode,SSel}}=St) ->
-    Sel = wings_sel:valid_sel(SSel, SMode, St),
-    St#st{selmode=SMode,sel=Sel}.
-
-union(#st{selmode=Mode,sel=Sel0,ssel={Mode,SSel0}}=St) ->
-    SSel = wings_sel:valid_sel(SSel0, Mode, St),
-    Sel = combine_sel(fun(Ss) -> gb_sets:union(Ss) end, Sel0, SSel),
+inverse(#st{selmode=body,sel=Sel0,shapes=Shapes}=St) ->
+    Items = gb_sets:singleton(0),
+    All = [{Id,Items} || #we{id=Id,perm=Perm} <- gb_trees:values(Shapes),
+			 ?IS_SELECTABLE(Perm)],
+    Sel = ordsets:subtract(All, Sel0),
     St#st{sel=Sel};
-union(#st{sel=Sel0}=St) ->			%Different selection modes.
-    Ssel = coerce_ssel(St),
-    Sel = combine_sel(fun(Ss) -> gb_sets:union(Ss) end, Sel0, Ssel),
+inverse(#st{selmode=Mode}=St) ->
+    Sel = wings_sel:fold(
+	    fun(Items, #we{id=Id}=We, A) ->
+		    Diff = wings_sel:inverse_items(Mode, Items, We),
+		    case gb_sets:is_empty(Diff) of
+			true -> [{Id,Items}|A];	%Can't inverse.
+			false -> [{Id,Diff}|A]
+		    end
+	    end, [], St),
+    St#st{sel=reverse(Sel)}.
+    
+%%%
+%%% Selection Groups
+%%%
+
+union_group(SselTuple, #st{sel=Sel0}=St) ->			
+    Ssel = coerce_ssel(SselTuple, St),
+    Sel = union(Sel0, Ssel),
     St#st{sel=Sel}.
 
-subtract(#st{selmode=Mode,sel=Sel0,ssel={Mode,Ssel}}=St) ->
-    Sel = subtract(Sel0, Ssel),
-    St#st{sel=Sel};
-subtract(#st{sel=Sel0}=St) ->		%Differenct selection modes.
-    Ssel = coerce_ssel(St),
+union(Sa, Sb) ->
+    combine_sel(fun(Ss) -> gb_sets:union(Ss) end, Sa, Sb).
+
+subtract_group(Ssel0, #st{sel=Sel0}=St) ->		
+    Ssel = coerce_ssel(Ssel0, St),
     Sel = subtract(Sel0, Ssel),
     St#st{sel=Sel}.
 
@@ -239,11 +283,8 @@ subtract([{Id,E1}|Es1], [{Id,E2}|Es2]) ->	%E1 == E2
 subtract([], _Es2) -> [];
 subtract(Es1, []) -> Es1.
 
-intersection(#st{selmode=Mode,sel=Sel0,ssel={Mode,Ssel}}=St) ->
-    Sel = intersection(Sel0, Ssel),
-    St#st{sel=Sel};
-intersection(#st{sel=Sel0}=St) ->		%Differenct selection modes.
-    Ssel = coerce_ssel(St),
+intersect_group(Ssel0, #st{sel=Sel0}=St) ->
+    Ssel = coerce_ssel(Ssel0, St),
     Sel = intersection(Sel0, Ssel),
     St#st{sel=Sel}.
 
@@ -269,31 +310,57 @@ combine_sel(Combine, [{Id,S0}|T]) ->
     end;
 combine_sel(_Combine, []) -> [].
 
-coerce_ssel(#st{selmode=Mode,ssel={Smode,Ssel0}}=St) ->
+coerce_ssel({_,_,Mode, Ssel0}, #st{selmode=Mode}) -> Ssel0;
+coerce_ssel({_,_,Smode,Ssel0}, #st{selmode=Mode}=St) ->
     StTemp = St#st{selmode=Smode,sel=wings_sel:valid_sel(Ssel0, Smode, St)},
     #st{sel=Ssel} = wings_sel:convert_selection(Mode, StTemp),
     Ssel.
 
-%%%
-%%% Select Inverse.
-%%%
+get_group(Id, #st{ssels=Ssels}) ->
+    gb_trees:get(Id, Ssels).
+    
+select_group({_, _, Mode, Ssel}, St) ->
+    ValidSel = wings_sel:valid_sel(Ssel, Mode, St),
+    St#st{selmode=Mode, sel=ValidSel}.
+  
+add_to_group({Name, Id, Mode, Ssel0}, #st{sel=Sel0, selmode=Oldmode}=St) ->
+    Ssel1 = wings_sel:valid_sel(Ssel0, Mode, St),
+    St1 = #st{sel=Sel1} = possibly_convert(Mode, St),
+    Sel2 = union(Ssel1, Sel1),
+    St2 = St1#st{sel=Sel0, selmode=Oldmode},
+    save_group({Name, Id, Mode, Sel2}, St2).
 
-inverse(#st{selmode=body,sel=Sel0,shapes=Shapes}=St) ->
-    Items = gb_sets:singleton(0),
-    All = [{Id,Items} || #we{id=Id,perm=Perm} <- gb_trees:values(Shapes),
-			 ?IS_SELECTABLE(Perm)],
-    Sel = ordsets:subtract(All, Sel0),
-    St#st{sel=Sel};
-inverse(#st{selmode=Mode}=St) ->
-    Sel = wings_sel:fold(
-	    fun(Items, #we{id=Id}=We, A) ->
-		    Diff = wings_sel:inverse_items(Mode, Items, We),
-		    case gb_sets:is_empty(Diff) of
-			true -> [{Id,Items}|A];	%Can't inverse.
-			false -> [{Id,Diff}|A]
-		    end
-	    end, [], St),
-    St#st{sel=reverse(Sel)}.
+subtract_from_group({Name, Id, Mode, Ssel0}, #st{sel=Sel0, selmode=Oldmode}=St) ->
+    Ssel1 = wings_sel:valid_sel(Ssel0, Mode, St),
+    St1 = #st{sel=Sel1} = possibly_convert(Mode, St),
+    Sel2 = subtract(Ssel1, Sel1),
+    St2 = St1#st{sel=Sel0, selmode=Oldmode},
+    save_group({Name, Id, Mode, Sel2}, St2).
+    
+possibly_convert(Mode, #st{selmode=Mode}=St) -> St;
+possibly_convert(Mode, St) ->
+    wings_sel:convert_selection(Mode, St).
+    
+save_group({_, Id, _, _} = SselTuple, #st{ssels=Ssels0}=St) ->
+    Ssels = gb_trees:update(Id, SselTuple, Ssels0),
+    St#st{ssels=Ssels}.
+    
+new_group(_) ->
+    wings_ask:ask( [{"Group Name", ""}],
+                fun([String]) -> {select,{new_group_name, String}} end).
+
+new_group_name(Name, #st{ssels=Ssels0, selmode=Mode, sel=Sel}=St) ->
+    Sid = case gb_trees:is_empty(Ssels0) of
+	      true -> 1;
+	      false -> wings_util:gb_trees_largest_key(Ssels0)+1
+	  end,
+    SelGroup = {Name, Sid, Mode, Sel},
+    Ssels = gb_trees:insert(Sid, SelGroup, Ssels0),
+    St#st{ssels=Ssels}.
+
+delete_group({_, Id, _, _}, #st{ssels=Ssels0}=St) ->
+    Ssels = gb_trees:delete(Id, Ssels0),
+    St#st{ssels=Ssels}.
 
 %%%
 %%% Select Similar.

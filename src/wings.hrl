@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.66 2002/10/16 08:21:40 dgud Exp $
+%%     $Id: wings.hrl,v 1.67 2002/12/10 07:43:53 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -97,7 +97,8 @@
 	 selmode,				%Selection mode:
 						% vertex, edge, face, body
 	 sel=[],				%Current sel: [{Id,GbSet}]
-	 ssel,					%Saved selection.
+	 ssels=[],				%Saved selections:
+	 					%  [{Name,Mode,GbSet}]
 	 mat,					%Defined materials (GbTree).
 	 next_tx,				%Next OpenGL texture ID.
 	 file,					%Current filename.
