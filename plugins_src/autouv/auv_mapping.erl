@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.45 2004/04/16 13:20:13 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.46 2004/04/16 15:36:59 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -62,6 +62,8 @@ tc(Module, Line, Fun) ->
 -include("wings.hrl").
 -include("auv.hrl").
 -include("e3d.hrl").
+
+-import(lists, [foldl/3]).
 
 %%% From camera would look something like this!! 
 %%% It actually worked once :-) 
@@ -118,7 +120,7 @@ projectFromChartNormal(Chart, We) ->
 			 %%         ?DBG("Area was ~p ~n", [Area]),
 			 e3d_vec:add(Sum, e3d_vec:mul(Normal, Area))
 		 end,
-    N0 = lists:foldl(CalcNormal, e3d_vec:zero(), Chart),
+    N0 = foldl(CalcNormal, e3d_vec:zero(), Chart),
     Normal = e3d_vec:norm(N0),
     Vs0 = wings_face:to_vertices(Chart, We),
     project2d(Vs0, Normal, We).
@@ -237,15 +239,15 @@ lsqcm2impl(Fs, We) ->
  
     FsSet = gb_sets:from_list(Fs),
     {TempFs,BorderVs} = 
-	lists:foldl(fun({Va,Vb,E,_}, {Faces,Verts}) ->
-			    #edge{lf=LF,rf=RF} = gb_trees:get(E,We#we.es),
-			    case gb_sets:is_member(LF, FsSet) of
-				true ->
-				    {[LF|Faces],[Va,Vb|Verts]};
-				false ->
-				    {[RF|Faces],[Va,Vb|Verts]}
-			    end
-		    end, {[],[]}, BorderEds),
+	foldl(fun({Va,Vb,E,_}, {Faces,Verts}) ->
+		      #edge{lf=LF,rf=RF} = gb_trees:get(E,We#we.es),
+		      case gb_sets:is_member(LF, FsSet) of
+			  true ->
+			      {[LF|Faces],[Va,Vb|Verts]};
+			  false ->
+			      {[RF|Faces],[Va,Vb|Verts]}
+		      end
+	      end, {[],[]}, BorderEds),
     BorderVsSet = gb_sets:from_list(BorderVs),
     TempFsSet = gb_sets:from_list(TempFs),
     DelFs = gb_sets:difference(FsSet, TempFsSet),
@@ -256,12 +258,12 @@ lsqcm2impl(Fs, We) ->
     {Vs0,_} = ?TC(project_and_triangulate(InnerFaces ++ TempFs,TempWe,-1,[],0.0)), 
 
     {ok,PBVs}  = lsq(Vs0,[P1,P2]),
-    PinnedBorder = lists:foldl(fun(PV = {Vid, _}, Acc) ->
-				       case gb_sets:is_member(Vid,BorderVsSet) of
-					   true -> [PV|Acc];
-					   false -> Acc
-				       end
-			       end, [], PBVs),
+    PinnedBorder = foldl(fun(PV = {Vid, _}, Acc) ->
+				 case gb_sets:is_member(Vid,BorderVsSet) of
+				     true -> [PV|Acc];
+				     false -> Acc
+				 end
+			 end, [], PBVs),
     ?DBG("LSQ2 (2pass) ~p ~n", [PinnedBorder]),
     {Vs1,Area} = ?TC(project_and_triangulate(Fs,We,-1,[],0.0)),
     case ?TC(lsq(Vs1, PinnedBorder)) of
@@ -697,14 +699,14 @@ minimize_cg_3(M_inv, At, A, AtB, Delta_max,
 %%
 lsq_points(L) ->
     PL1 = 
-	lists:foldl(
+	foldl(
 	  fun ({_,[{P1,_},{P2,_},{P3,_}]}, P) ->
 		  [P1, P2, P3 | P];
 	      (Invalid, _) ->
 		  throw({error, {invalid_triangle, Invalid}})
 	  end, [], L),
     PL2 = lists:usort(PL1),
-    lists:foldl(
+    foldl(
       fun (P, {N, D, DR}) ->
 	      N1 = N+1,
 	      {N1, dict:store(P, N1, D), dict:store(N1, P, DR)}
@@ -717,7 +719,7 @@ lsq_points(L) ->
 %%
 lsq_triangles(L, Dict, M) ->
     {N, L1, L2} =
-	lists:foldl(
+	foldl(
 	  fun ({_,[{P1,{X1,Y1}},{P2,{X2,Y2}},{P3,{X3,Y3}}]}, {N,Re,Im})
 	      when number(X1), number(X2), number(X3),
 		   number(Y1), number(Y2), number(Y3) ->
@@ -762,7 +764,7 @@ lsq_result(X, Lquv, Rdict) ->
 %     {Ulist, Vlist} = ?TC(split(lists:reverse(UlistVlistR), MM div 2)),
     {Ulist, Vlist} = ?TC(split(auv_matrix:vector(X), MM div 2)),
     {[],UVlistR} = 
-	lists:foldl(
+	foldl(
 	  fun (U, {[], R}) ->
 		  {[], [{U,0.0} | R]};
 	      (U, {[V | L], R}) ->
@@ -772,7 +774,7 @@ lsq_result(X, Lquv, Rdict) ->
 	  end, {Vlist, []}, Ulist),
     UVlist = insert(lists:reverse(UVlistR), Lquv),
     {_, TxMapR} =
-	lists:foldl(
+	foldl(
 	  fun (UV, {Q,R}) ->
 		  {Q+1,[{dict:fetch(Q, Rdict),UV} | R]}
 	  end, {1,[]}, UVlist),
@@ -882,13 +884,16 @@ area3d(V1,V2,V3) ->
 %% Pedro V. Sander, John Snyder Steven J. Gortler, Hugues Hoppe
 
 stretch_opt(#we{name=#ch{fs=Fs}}=We0, OVs) ->
+    wings_pb:start("optimizing"),
+    wings_pb:update(0.01, "initializing"),
+
     {_,R1,R2} = now(),
     random:seed(R2,R1,128731),
     Be = wings_face:outer_edges(Fs, We0),
-    Bv0 = lists:foldl(fun(Edge,Acc) -> #edge{vs=Vs,ve=Ve} = 
- 					   gb_trees:get(Edge,We0#we.es),
- 				       [Vs,Ve|Acc]
- 		      end, [], Be),
+    Bv0 = foldl(fun(Edge,Acc) -> #edge{vs=Vs,ve=Ve} = 
+				     gb_trees:get(Edge,We0#we.es),
+				 [Vs,Ve|Acc]
+		end, [], Be),
     Bv = gb_sets:from_list(Bv0),
     %% {FaceToStretchMean, FaceToStretchWorst,FaceToVerts,VertToFaces,VertToUvs}
     {{F2S2,_F2S8,F2Vs,V2Fs,Uvs},S} = stretch_setup(Fs,We0,OVs),
@@ -900,7 +905,8 @@ stretch_opt(#we{name=#ch{fs=Fs}}=We0, OVs) ->
  			     gb_trees:empty()),
     MaxI = 100,   %% Max iterations
     MinS = 0.001, %% Min Stretch
-    {SUvs0,_F2S2} = stretch_iter(S2V,1,MaxI,MinS,F2S2,F2Vs,V2Fs,Uvs,OVs,Bv),    
+    {SUvs0,_F2S2} = wings_pb:done(stretch_iter(S2V,1,MaxI,MinS,
+					       F2S2,F2Vs,V2Fs,Uvs,OVs,Bv)),
     SUvs1 = gb_trees:to_list(SUvs0),
 						%    ?DBG("SUvs ~p ~n", [SUvs1]),
     Suvs = [{Id,{S0/S,T0/S,0.0}} || {Id,{S0,T0}} <- SUvs1],
@@ -924,8 +930,8 @@ stretch_setup(Fs, We0, OVs) ->
     {Init,S}.
 
 stretch_iter(S2V0={[{_,First}|_],_},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv) 
-  when (First > MinS), I < MaxI ->
-    io:format(".",[]),
+  when First > MinS, I < MaxI ->
+    wings_pb:update(I/MaxI, "iteration "++integer_to_list(I)),
     {S2V,F2S2,Uvs} = stretch_iter2(S2V0,I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,
 				   gb_sets:empty()),
     stretch_iter(S2V,I+1,MaxI,MinS,F2S2,F2Vs,V2Fs,Uvs,Ovs,Bv);
@@ -934,7 +940,7 @@ stretch_iter(_,_,_,_,F2S2,_,_,Uvs,_,_) ->
 
 stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,Acc)
   when Val > MinS ->
-    case gb_sets:is_member(V,Acc) of
+    case gb_sets:is_member(V, Acc) of
 	true -> 
 	    stretch_iter2({R,V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,Acc);
 	false ->
@@ -952,9 +958,9 @@ stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,Acc)
 				  Bv, gb_sets:add(V,Acc));
 		false ->
 		    Vs0 = lists:usort(lists:append([gb_trees:get(F,F2Vs)|| F<-Fs])),
-		    Upd0 = lists:foldl(fun(Vtx, New) ->
-					       [{Vtx,gb_trees:get(Vtx, V2Fs)}|New]
-				       end, [], Vs0),
+		    Upd0 = foldl(fun(Vtx, New) ->
+					 [{Vtx,gb_trees:get(Vtx, V2Fs)}|New]
+				 end, [], Vs0),
 		    Upd = stretch_per_vertex(model_l2,Upd0,F2S2,F2Vs,Ovs,
 					     Bv,V2S0),
 %		    ?DBG("Update value for ~p ~p~n ~w~n ~w ~n",
@@ -964,10 +970,10 @@ stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,Acc)
     end;
 
 stretch_iter2({_,S2V},_,_,_,F2S2,F2Vs,V2Fs,Uvs,Ovs,Bv,Acc0) ->
-    Acc = lists:foldl(fun(V,Vals) ->
-			      [{V,gb_trees:get(V,V2Fs)}|Vals]
-		      end, [], gb_sets:to_list(Acc0)),
-    Upd = stretch_per_vertex(model_l2,Acc,F2S2,F2Vs,Ovs,Bv,S2V),
+    Acc = foldl(fun(V, Vals) ->
+			[{V,gb_trees:get(V,V2Fs)}|Vals]
+		end, [], gb_sets:to_list(Acc0)),
+    Upd = stretch_per_vertex(model_l2, Acc, F2S2, F2Vs, Ovs, Bv, S2V),
     {Upd, F2S2, Uvs}.
 
 random_line() ->
@@ -982,11 +988,11 @@ opt_v(PVal,I,Step,Max,V,L={X,Y},Fs,F2Vs,F2S0,Uvs0,Ovs)
     {S0,T0} = gb_trees:get(V, Uvs0),
     St = {S0+X*I,T0+Y*I},
     Uvs = gb_trees:update(V,St,Uvs0),
-    F2S = lists:foldl(fun(Face,Acc) ->
-			      Vs = gb_trees:get(Face, F2Vs),
-			      S = l2(Vs,Uvs,Ovs),
-			      gb_trees:update(Face, S, Acc)
-		      end, F2S0, Fs),    
+    F2S = foldl(fun(Face,Acc) ->
+			Vs = gb_trees:get(Face, F2Vs),
+			S = l2(Vs,Uvs,Ovs),
+			gb_trees:update(Face, S, Acc)
+		end, F2S0, Fs),    
     Stretch = model_l2(Fs,F2S,F2Vs, Ovs, 0.0,0.0),
     
 %%    io:format("~.2f ",[Stretch]),
@@ -1004,7 +1010,7 @@ opt_v(PVal,_I,_Step,_Max,_V,_L,_Fs,_F2Vs,F2S,Uvs0,_Ovs) ->
     {PVal,Uvs0,F2S}.
 
 
-%% Hmm, I just sum this up.. should this be calc'ed as model_XX ??
+%% Hmm, I just sum this up... should this be calc'ed as model_XX ??
 stretch_per_vertex(Method,[{V,Fs}|R],F2S,F2Vs,Ovs,Bv,Tree) ->
     case gb_sets:is_member(V,Bv) of
 	false ->
@@ -1034,11 +1040,11 @@ init_stretch([],_,F2S2,F2S8,F2Vs,V2Fs0,Uvs) ->
     V2Fs1 = sofs:relation(lists:sort(V2Fs0)),
     V2Fs2 = sofs:relation_to_family(V2Fs1),
     V2Fs = sofs:to_external(V2Fs2),
-    { gb_trees:from_orddict(lists:sort(F2S2)),
-      gb_trees:from_orddict(lists:sort(F2S8)),
-      gb_trees:from_orddict(lists:sort(F2Vs)),
-      gb_trees:from_orddict(V2Fs),
-      gb_trees:from_orddict(lists:usort(Uvs))}.
+    {gb_trees:from_orddict(lists:sort(F2S2)),
+     gb_trees:from_orddict(lists:sort(F2S8)),
+     gb_trees:from_orddict(lists:sort(F2Vs)),
+     gb_trees:from_orddict(V2Fs),
+     gb_trees:from_orddict(lists:usort(Uvs))}.
 
 calc_scale([{_,[{Id1,P1},{Id2,P2},{Id3,P3}]}|R], Ovs, A2D, A3D) ->
     A2 = abs(area2d2(P1,P2,P3)/2),
@@ -1148,4 +1154,3 @@ triangulate([Face|Fs], I, We,Tris) ->
     end;
 triangulate([], _, _, Tris) ->
     Tris.
-
