@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.77 2002/09/10 07:02:11 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.78 2002/09/20 07:40:21 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -180,7 +180,7 @@ virtual_mirror(break, #st{shapes=Shs0}=St) ->
 virtual_mirror(freeze, #st{shapes=Shs0}=St) ->
     case freeze_mirror(Shs0) of
 	Shs0 -> St;
-	Shs -> {save_state,St#st{shapes=Shs}}
+	Shs -> {save_state,wings_sel:valid_sel(St#st{shapes=Shs})}
     end.
 
 mode_change_all(Wire) ->
