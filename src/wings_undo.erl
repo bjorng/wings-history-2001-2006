@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_undo.erl,v 1.3 2001/11/08 14:01:09 bjorng Exp $
+%%     $Id: wings_undo.erl,v 1.4 2001/12/10 07:29:01 bjorng Exp $
 %%
 
 -module(wings_undo).
--export([init/1,save/2,undo_toggle/1,undo/1,redo/1]).
+-export([init/1,save/2,undo_toggle/1,undo/1,redo/1,purge/1]).
 -import(lists, [reverse/1]).
 
 -include("wings.hrl").
@@ -49,6 +49,12 @@ redo(#st{undone=[StOld|Undone]}=St0) ->
     St#st{undone=Undone,next_is_undo=true};
 redo(St) -> St.
 
+purge(St) ->
+    case wings_getline:yes_no("Are you sure (NOT undoable)? ") of
+	yes -> init(St);
+	Other -> St
+    end.
+	    
 %%
 %% Low-level queue operations.
 %%

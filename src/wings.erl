@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.63 2001/12/09 14:10:12 bjorng Exp $
+%%     $Id: wings.erl,v 1.64 2001/12/10 07:29:01 bjorng Exp $
 %%
 
 -module(wings).
@@ -332,6 +332,8 @@ command({edit,{camera_mode,Mode}}, St) ->
 command({edit,{preferences,Pref}}, St) ->
     wings_pref:command(Pref),
     St;
+command({edit,purge_undo}, St) ->
+    wings_undo:purge(St);
 
 %% Select menu
 command({select,edge_loop}, St) ->
@@ -539,7 +541,9 @@ menu(X, Y, edit, St) ->
 	    wings_material:sub_menu(edit, St),
 	    separator,
 	    wings_camera:sub_menu(St),
-	    {"Preferences",{preferences,wings_pref:sub_menu(St)}}},
+	    {"Preferences",{preferences,wings_pref:sub_menu(St)}},
+	    separator,
+	    {"Purge Undo History",purge_undo}},
     wings_menu:menu(X, Y, edit, Menu, St);
 menu(X, Y, view, St) ->
     wings_view:menu(X, Y, St);
