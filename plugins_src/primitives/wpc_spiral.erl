@@ -14,8 +14,8 @@ init() ->
 
 menu({shape}, Menu0) ->
     Menu0 ++ [separator,
-	      {"Spiral",spiral,[hotbox]},
-	      {"Spring",spring,[hotbox]}];
+	      {"Spiral",spiral,[option]},
+	      {"Spring",spring,[option]}];
 menu(_, Menu) -> Menu.
 
 command({shape,{spiral,Ask}}, St) -> make_spiral(Ask, St);
@@ -25,9 +25,9 @@ command(_, _) -> next.
 %%% The rest are local functions.
 
 make_spiral(Ask, St) when is_atom(Ask) ->
-    wpa:ask(Ask, [{"Loops",2},
-		  {"Segments",16},
-		  {"Sections",8}],
+    wpa:ask(Ask, [{"Loops",2,[{range,{1,32}}]},
+		  {"Segments",16,[{range,{3,128}}]},
+		  {"Sections",8,[{range,{2,64}}]}],
 	    St, fun(Res) -> {shape,{spiral,Res}} end);
 make_spiral([L,Ns,Nl], St) ->
     Vs = spiral_vertices(Ns, Nl, L),
@@ -35,9 +35,9 @@ make_spiral([L,Ns,Nl], St) ->
     {new_shape,"spiral",Fs,Vs}.
  
 make_spring(Ask, St) when is_atom(Ask) ->
-    wpa:ask(Ask, [{"Loops",2},
-		  {"Segments",16},
-		  {"Sections",8}],
+    wpa:ask(Ask, [{"Loops",2,[{range,{1,32}}]},
+		  {"Segments",16,[{range,{3,128}}]},
+		  {"Sections",8,[{range,{2,64}}]}],
 	    St, fun(Res) -> {shape,{spring,Res}} end);
 make_spring([L,Ns,Nl], St) ->
     Vs = spiral_vertices2(Ns, Nl, L),

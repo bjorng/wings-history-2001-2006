@@ -30,9 +30,9 @@ init() -> true.
 
 menu({shape}, Menu0) ->
 	Menu0 ++ [separator,
-		{"UV Torus"     ,uvtorus,[hotbox]},
-		{"Lumpy Torus"  ,lutorus,[hotbox]},
-		{"Spiral Torus" ,sptorus,[hotbox]}
+		{"UV Torus"     ,uvtorus,[option]},
+		{"Lumpy Torus"  ,lutorus,[option]},
+		{"Spiral Torus" ,sptorus,[option]}
 		];
 menu(_, Menu) -> Menu.
 

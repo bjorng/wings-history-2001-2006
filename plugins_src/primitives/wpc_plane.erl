@@ -12,10 +12,10 @@ init() -> true.
 
 menu({shape}, Menu0) ->
 	Menu0 ++ [separator,
-		{"Plane",plane,[hotbox]},
-		{"Lumpy Plane",lumpyplane,[hotbox]},
-		{"Wavy Plane",wavyplane,[hotbox]},
-		{"Sombrero Plane",sombreroplane,[hotbox]}
+		{"Plane",plane,[option]},
+		{"Lumpy Plane",lumpyplane,[option]},
+		{"Wavy Plane",wavyplane,[option]},
+		{"Sombrero Plane",sombreroplane,[option]}
 		];
 menu(_, Menu) -> Menu.
 
