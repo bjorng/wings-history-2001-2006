@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.217 2004/04/08 06:04:37 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.218 2004/04/12 06:08:39 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -140,7 +140,7 @@ init_show_maps(Map0, We, St) ->
 
 create_uv_state(Charts0, MatName0, We, GeomSt0) ->
     Charts = restrict_ftab(Charts0),
-    wings:mode_restriction([vertex,edge,face,body]),
+    wings:mode_restriction([face,body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {GeomSt1,MatName} = 
 	case has_texture(MatName0, GeomSt0) of
@@ -391,7 +391,8 @@ command_menu(body, X, Y) ->
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(face, X, Y) ->
     Menu = [{basic,{"Face operations",ignore}},
-	    {basic,separator},
+	    {"Experimental menu!!!",ignore},
+	    separator,
 	    {"Move",move,"Move selected faces"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
