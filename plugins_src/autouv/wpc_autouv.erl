@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.263 2004/08/17 10:34:36 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.264 2004/08/17 10:41:37 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -157,7 +157,7 @@ create_uv_state(Charts, MatName, We, GeomSt) ->
 		 pan_x=-0.5,
 		 pan_y=-0.5,
 		 fov=90.0,
-		 hither=0.1,
+		 hither=0.0001,
 		 yon=50.0},
     wings_view:set_current(View),
 
