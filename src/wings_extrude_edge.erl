@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.29 2002/08/25 09:42:31 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.30 2002/08/25 14:11:10 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -31,7 +31,7 @@ bump(St0) ->
 
 bump(Faces, We0, Acc) ->
     Edges = gb_sets:from_list(wings_face:outer_edges(Faces, We0)),
-    {We,_,_} = extrude_edges(Edges, Faces, We0),
+    {We,_,_,_} = extrude_edges(Edges, Faces, We0),
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
     {We,[{Faces,NewVs,gb_sets:empty(),We}|Acc]}.
 
@@ -46,7 +46,7 @@ bevel(St0) ->
 		     wings_sel:set(face, Sel, St)).
 
 bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Sel0,Limit0}) ->
-    {We1,OrigVs,Forbidden} = extrude_edges(Edges, We0),
+    {We1,OrigVs,_,Forbidden} = extrude_edges(Edges, We0),
     We2 = wings_edge:dissolve_edges(Edges, We1),
     Tv0 = bevel_tv(OrigVs, We2, Forbidden),
     We3 = foldl(fun(V, W0) ->
@@ -71,7 +71,7 @@ bevel_faces(St0) ->
 
 bevel_faces(Faces, #we{id=Id}=We0, {Tvs,Limit0}) ->
     Edges = wings_edge:from_faces(Faces, We0),
-    {We1,OrigVs,Forbidden} = extrude_edges(Edges, We0),
+    {We1,OrigVs,_,Forbidden} = extrude_edges(Edges, We0),
     case {gb_trees:size(We0#we.es),gb_trees:size(We1#we.es)} of
 	{Same,Same} ->
 	    wings_util:error("Object is too small to bevel.");
@@ -190,10 +190,71 @@ extrude(Type, St0) ->
     wings_move:plus_minus(Type, Tvs, St).
 
 extrude_1(Edges, We0, Acc) ->
-    {We,_,Forbidden} = extrude_edges(Edges, We0),
+    {We1,_,New,Forbidden} = extrude_edges(Edges, We0),
+    Ns = orig_normals(Edges, We1),
+    We = straighten(Ns, New, We1),
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
     {We,[{Edges,NewVs,Forbidden,We}|Acc]}.
 
+orig_normals(Es0, #we{es=Etab,vs=Vtab}) ->
+    VsVec0 = foldl(fun(E, A) ->
+			   #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
+			   Vec0 = e3d_vec:sub(wings_vertex:pos(Va, Vtab),
+					      wings_vertex:pos(Vb, Vtab)),
+			   Vec = e3d_vec:norm(Vec0),
+			   [{Va,{Vec,Vb}},{Vb,{Vec,Va}}|A]
+		   end, [], gb_sets:to_list(Es0)),
+    VsVec1 = sofs:relation(VsVec0, [{vertex,info}]),
+    VsVec2 = sofs:relation_to_family(VsVec1),
+    VsVec = sofs:to_external(VsVec2),
+    orig_normals_1(VsVec, gb_trees:from_orddict(VsVec), []).
+
+orig_normals_1([{V,[{VecA,_},{VecB,_}]}|T], VsVec, Acc) ->
+    orig_normals_1(T, VsVec, [{V,e3d_vec:cross(VecA, VecB)}|Acc]);
+orig_normals_1([{V,[{VecA,OtherV}]}|T], VsVec, Acc) ->
+    OtherRec = gb_trees:get(OtherV, VsVec),
+    case [Vec || {Vec,Vertex} <- OtherRec, Vertex =/= V] of
+	[VecB] ->
+	    orig_normals_1(T, VsVec, [{V,e3d_vec:cross(VecA, VecB)}|Acc]);
+	_ ->
+	    orig_normals_1(T, VsVec, Acc)
+    end;
+orig_normals_1([_|T], VsVec, Acc) -> orig_normals_1(T, VsVec, Acc);
+orig_normals_1([], _, Acc) -> reverse(Acc).
+
+straighten([{V,N0}|Ns], New, #we{vs=Vtab0}=We0) ->
+    Pos = wings_vertex:pos(V, We0),
+    Vtab = wings_vertex:fold(
+	     fun(_, _, R, Vt0) ->
+		     OtherV = wings_vertex:other(V, R),
+		     case gb_sets:is_member(OtherV, New) of
+			 false -> Vt0;
+			 true ->
+			     #vtx{pos=OPos0} = Vtx0 = gb_trees:get(OtherV, Vt0),
+			     Vec = e3d_vec:norm(e3d_vec:sub(Pos, OPos0)),
+			     N = case e3d_vec:dot(N0, Vec) of
+				     Dot when Dot < 0 -> e3d_vec:neg(N0);
+				     _ -> N0
+				 end,
+			     straighten_1(Vec, N, Pos, OtherV, Vtx0, Vt0)
+		     end
+	     end, Vtab0, V, We0),
+    We = We0#we{vs=Vtab},
+    straighten(Ns, New, We);
+straighten([], _, We) -> We.
+
+straighten_1(Vec, N, {Cx,Cy,Cz}, OtherV, #vtx{pos=OPos0}=Vtx0, Vt) ->
+    case catch e3d_mat:rotate_s_to_t(Vec, N) of
+	{'EXIT',_} -> Vt;
+        Rot ->
+	    M0 = e3d_mat:translate(Cx, Cy, Cz),
+	    M1 = e3d_mat:mul(M0, Rot),
+	    M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
+	    OPos = e3d_mat:mul_point(M, OPos0),
+	    Vtx = Vtx0#vtx{pos=OPos},
+	    gb_trees:update(OtherV, Vtx, Vt)
+    end.
+    
 extrude_edges(Edges, We) ->
     extrude_edges(Edges, gb_sets:empty(), We).
 
@@ -209,9 +270,10 @@ extrude_edges(Edges, Faces, #we{next_id=Wid,es=Etab}=We0) ->
 	foldl(fun(V, A) ->
 		      new_vertex(V, G, Edges, Faces, Wid, A)
 	      end, {We0,[]}, Vs),
+    NewVs = wings_we:new_items(vertex, We0, We1),
     We = connect(G, Wid, We1),
     digraph:delete(G),
-    {We,Vs,gb_sets:from_list(Forbidden)}.
+    {We,Vs,NewVs,gb_sets:from_list(Forbidden)}.
 
 new_vertex(V, G, Edges, Faces, Wid, {We0,F0}=Acc) ->
     case wings_vertex:fold(fun(E, F, R, A) -> [{E,F,R}|A] end, [], V, We0) of
