@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.42 2003/04/23 17:49:02 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.43 2003/04/26 08:36:16 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -18,16 +18,21 @@
 -include("wings.hrl").
 -import(lists, [foldl/3,keydelete/3,member/2,sort/1,
 		reverse/1,reverse/2,last/1,foreach/2]).
+-compile(inline).
 
--define(EXTRUDE_DIST, 0.2).
+-define(DEFAULT_EXTRUDE_DIST, 0.2).
+-define(BEVEL_EXTRUDE_DIST_KLUDGE, 0.0001).
 
 %%%
 %%% The Bump command.
 %%%
 
 bump(St0) ->
-    {St,Tvs} = wings_sel:mapfold(fun bump/3, [], St0),
-    wings_move:plus_minus(normal, Tvs, St).
+    default_extrude_dist(
+      fun() ->
+	      {St,Tvs} = wings_sel:mapfold(fun bump/3, [], St0),
+	      wings_move:plus_minus(normal, Tvs, St)
+      end).
 
 bump(Faces, We0, Acc) ->
     Edges = gb_sets:from_list(wings_face:outer_edges(Faces, We0)),
@@ -40,15 +45,20 @@ bump(Faces, We0, Acc) ->
 %%
 
 bevel(St0) ->
-    {St,{Tvs,Sel,Limit}} =
-	wings_sel:mapfold(fun bevel_edges/3, {[],[],1.0E307}, St0),
-    wings_drag:setup(Tvs, [{distance,{0.0,Limit}}],
-		     wings_sel:set(face, Sel, St)).
+    B = fun() ->
+		{St,{Tvs,Sel,Limit}} =
+		    wings_sel:mapfold(fun bevel_edges/3, {[],[],1.0E307}, St0),
+		%%{Tvs,Limit} = scale_tvs(Tvs0, Limit0),
+		wings_drag:setup(Tvs, [{distance,{0.0,Limit}}],
+				 wings_sel:set(face, Sel, St))
+	end,
+    set_extrude_dist(?BEVEL_EXTRUDE_DIST_KLUDGE, B).
 
 bevel_edges(Edges, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Sel0,Limit0}) ->
     {We1,OrigVs,_,Forbidden} = extrude_edges(Edges, We0#we{mirror=none}),
     We2 = wings_edge:dissolve_edges(Edges, We1),
-    Tv = bevel_tv(OrigVs, We2, Forbidden),
+    Tv0 = bevel_tv(OrigVs, We2, Forbidden),
+    Tv = scale_tv(Tv0),
     We3 = foldl(fun(V, W0) ->
 			wings_collapse:collapse_vertex(V, W0)
 		end, We2, OrigVs),
@@ -66,8 +76,13 @@ bevel_edges(Edges, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Sel0,Limit0}) ->
 %%
 
 bevel_faces(St0) ->
-    {St,{Tvs,C}} = wings_sel:mapfold(fun bevel_faces/3, {[],1.0E307}, St0),
-    wings_drag:setup(Tvs, [{distance,{0.0,C}}], St).
+    B = fun() ->
+		{St,{Tvs,C}} = wings_sel:mapfold(fun bevel_faces/3,
+						  {[],1.0E307}, St0),
+		%%{Tvs,C} = scale_tvs(Tvs0, C0),
+		wings_drag:setup(Tvs, [{distance,{0.0,C}}], St)
+	end,
+    set_extrude_dist(?BEVEL_EXTRUDE_DIST_KLUDGE, B).
 
 bevel_faces(Faces, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Limit0}) ->
     Edges = wings_edge:from_faces(Faces, We0),
@@ -77,7 +92,8 @@ bevel_faces(Faces, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Limit0}) ->
 	    wings_util:error("Object is too small to bevel.");
 	{_,_} ->
 	    We2 = wings_edge:dissolve_edges(Edges, We1),
-	    Tv = bevel_tv(OrigVs, We2, Forbidden),
+	    Tv0 = bevel_tv(OrigVs, We2, Forbidden),
+	    Tv = scale_tv(Tv0),
 	    #we{vp=Vtab0} = We3 =
 		foldl(fun(V, W0) ->
 			      wings_collapse:collapse_vertex(V, W0)
@@ -179,11 +195,14 @@ bevel_min_limit([], _, Min) -> Min.
 %%
 
 extrude(Type, St0) ->
-    {St,Tvs} = wings_sel:mapfold(
-		 fun(Edges, We, A) ->
-			 extrude_1(Edges, We, A)
-		 end, [], St0),
-    wings_move:plus_minus(Type, Tvs, St).
+    B = fun() ->
+		{St,Tvs} = wings_sel:mapfold(
+			     fun(Edges, We, A) ->
+				     extrude_1(Edges, We, A)
+			     end, [], St0),
+		wings_move:plus_minus(Type, Tvs, St)
+	end,
+    default_extrude_dist(B).
 
 extrude_1(Edges, We0, Acc) ->
     {We1,_,New,Forbidden} = extrude_edges(Edges, We0),
@@ -332,13 +351,13 @@ do_new_vertex(V, MeetsNew, G, Edge, ForbiddenFaces, Center, #we{es=Etab}=We0) ->
 move_vertex(V, Center, #we{vp=Vtab0}=We) ->
     Pos0 = gb_trees:get(V, Vtab0),
     Dir = e3d_vec:sub(Pos0, Center),
+    ExtrudeDist = extrude_dist(),
     case e3d_vec:len(Dir) of
-	D when D < ?EXTRUDE_DIST ->
-	    We;
+	D when D < ExtrudeDist -> We;
 	_ ->
 	    Pos = e3d_vec:add(Center,
 			      e3d_vec:mul(e3d_vec:norm(Dir),
-					  ?EXTRUDE_DIST)),
+					  ExtrudeDist)),
 	    Vtab = gb_trees:update(V, Pos, Vtab0),
 	    We#we{vp=Vtab}
     end.
@@ -413,9 +432,10 @@ connect_inner({new,Va}, [Va,Vb,{new,Vb}], N, Face, We0) ->
     APos = gb_trees:get(Va, Vtab),
     BPos = gb_trees:get(Vb, Vtab),
     Vec = e3d_vec:sub(APos, BPos),
-    Pos1 = e3d_vec:add(BPos, e3d_vec:mul(e3d_vec:cross(Vec, N), ?EXTRUDE_DIST)),
+    ExtrudeDist = extrude_dist(),
+    Pos1 = e3d_vec:add(BPos, e3d_vec:mul(e3d_vec:cross(Vec, N), ExtrudeDist)),
     {We3,NewE} = wings_edge:fast_cut(Edge, Pos1, We2),
-    Pos2 = e3d_vec:add(APos, e3d_vec:mul(e3d_vec:cross(Vec, N), ?EXTRUDE_DIST)),
+    Pos2 = e3d_vec:add(APos, e3d_vec:mul(e3d_vec:cross(Vec, N), ExtrudeDist)),
     We4 = wings_edge:dissolve_edge(TempE, We3),
     {We,_} = wings_edge:fast_cut(NewE, Pos2, We4),
     wings_util:validate(We),
@@ -433,7 +453,7 @@ connect_inner({new,V}, [V|[B,C,_|_]=Next], N, Face, We0) ->
     VPos = gb_trees:get(V, Vtab),
     BPos = gb_trees:get(B, Vtab),
     Vec = e3d_vec:sub(VPos, BPos),
-    Pos = e3d_vec:add(VPos, e3d_vec:mul(e3d_vec:cross(Vec, N), ?EXTRUDE_DIST)),
+    Pos = e3d_vec:add(VPos, e3d_vec:mul(e3d_vec:cross(Vec, N), extrude_dist())),
     {We,_} = wings_edge:fast_cut(Edge, Pos, We2),
     We;
 connect_inner({new,_}, [A|[B,C]], _, Face, We0) ->
@@ -451,7 +471,7 @@ connect_inner(C, [B|[A,{new,_}]], N, Face, We0) ->
     APos = gb_trees:get(A, Vtab),
     BPos = gb_trees:get(B, Vtab),
     Vec = e3d_vec:sub(BPos, APos),
-    Pos = e3d_vec:add(APos, e3d_vec:mul(e3d_vec:cross(Vec, N), ?EXTRUDE_DIST)),
+    Pos = e3d_vec:add(APos, e3d_vec:mul(e3d_vec:cross(Vec, N), extrude_dist())),
     {We,_} = wings_edge:fast_cut(Edge, Pos, We1),
     We;
 connect_inner(Current0, [A|[B,C,_|_]=Next], N, Face, We0) ->
@@ -494,7 +514,7 @@ new_vertex_pos(A, B, C, N, Vtab) ->
     VecA = e3d_vec:norm(e3d_vec:cross(VecA0, N)),
     VecB = e3d_vec:norm(e3d_vec:cross(VecB0, N)),
     Vec = average(VecA, VecB),
-    e3d_vec:add(BPos, e3d_vec:mul(Vec, ?EXTRUDE_DIST)).
+    e3d_vec:add(BPos, e3d_vec:mul(Vec, extrude_dist())).
 
 average(Na, Nb) ->
     N = e3d_vec:norm(e3d_vec:add(Na, Nb)),
@@ -504,3 +524,27 @@ average(Na, Nb) ->
 	Dot ->
 	    e3d_vec:divide(N, Dot)
     end.
+
+scale_tv(Tv) ->
+    S = ?DEFAULT_EXTRUDE_DIST / extrude_dist(),
+    scale_tv_1(Tv, S, []).
+
+scale_tv_1([{Vec,Vs}|T], S, Acc) ->
+    scale_tv_1(T, S, [{e3d_vec:mul(Vec, S),Vs}|Acc]);
+scale_tv_1([], _, Acc) -> Acc.
+
+%%%
+%%% Kludge for handling of extrude distance.
+%%%
+
+default_extrude_dist(Body) ->
+    set_extrude_dist(?DEFAULT_EXTRUDE_DIST, Body).
+
+set_extrude_dist(Dist, Body) ->
+    put(wings_extrude_dist, Dist),
+    R = Body(),
+    erase(wings_extrude_dist),
+    R.
+
+extrude_dist() ->
+    get(wings_extrude_dist).
