@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.33 2003/01/02 07:16:05 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.34 2003/01/03 16:55:56 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -68,7 +68,7 @@ menu(St) ->
      separator,
      {"Inverse",inverse},
      separator,
-     {"Hide Seleced",hide_selected},
+     {"Hide Selected",hide_selected},
      {"Hide Unselected",hide_unselected},
      {"Lock Unselected",lock_unselected},
      separator,
