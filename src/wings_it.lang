@@ -1,3 +1,16 @@
+%%
+%%  wings_it.lang --
+%%
+%%     Italian language strings.
+%%
+%%  Copyright (c) 2004 Riccardo Venier
+%%
+%%  See the file "license.terms" for information on usage and redistribution
+%%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%
+%%     $Id: wings_it.lang,v 1.3 2004/10/13 14:57:14 bjorng Exp $
+%%
+
 {wings,
  [{button_help_1,
    [{1,"Deseleziona"}]},
@@ -1369,8 +1382,7 @@
     {18,"Il problema accade con alcune schede Matrox"},
     {19,"La camera si sposta e i comandi interattivi sono scattosi"},
     {20,"Il problema accade con MacOS X 10.3 (Panther)"},
-    {21,"Raffazzonamenti"},
-    {22,"Lingua interfaccia"}]},
+    {21,"Raffazzonamenti"}]},
   {smart_set_value_1,
    [{1,"Il cambiamento ai caratteri di sistema diverra' effettivo la prossima volta che avvii Wings 3D."},
     {2,"Il cambiamento alla lingua di sistema diverra' effettivo la prossima volta che si riavvia Wings 3D"}]},
@@ -1938,4 +1950,4 @@
   {import,
    [{1,"Importazione fallita: "}]},
   {import_filename,
-   [{1,"Importa"}]}]}.
+   [{2,"Importa"}]}]}.

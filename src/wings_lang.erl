@@ -7,15 +7,11 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%       
-%% 
 %%
-%% wings_lang.erl : INTERNATIONALISATION UTILITIES FOR WINGS3D, 
-%%   riccardo venier (verme@insiberia.net)
+%%     $Id: wings_lang.erl,v 1.5 2004/10/13 14:57:14 bjorng Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
-%%  
-%%  /Dan
+%%
 
 -module(wings_lang).
 -include("wings.hrl").
@@ -26,7 +22,7 @@
 	 load_language/1]).
 
 %% Translation support tools
--export([generate_template/1,diff/2]).
+-export([generate_template/0,generate_template/1,diff/2]).
 
 -import(lists, [reverse/1]).
 
@@ -163,6 +159,10 @@ get_key(Key, List) ->
 get_key([{Key,Found}|Rest],Key,Acc) -> {Found,lists:reverse(Acc,Rest)};
 get_key([Miss|Rest],Key,Acc) -> get_key(Rest,Key,[Miss|Acc]);
 get_key([],_,Acc) -> lists:reverse(Acc).
+
+generate_template() ->
+    {ok,Cwd} = file:get_cwd(),
+    generate_template(Cwd).
 
 generate_template(Dir) ->
     Fs = files(Dir),

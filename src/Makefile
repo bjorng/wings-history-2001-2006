@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.44 2004/10/13 13:59:45 dgud Exp $
+#     $Id: Makefile,v 1.45 2004/10/13 14:57:14 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -93,6 +93,7 @@ MODULES= \
 	wings__du \
 	wpa
 
+
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 
 # ----------------------------------------------------
@@ -109,7 +110,10 @@ ERL_COMPILE_FLAGS += -I$(ESDL_PATH)/include -I ../e3d -W $(TYPE_FLAGS) \
 opt debug:
 	$(MAKE) TYPE=$@ common
 
-common: $(TARGET_FILES) 
+common: $(TARGET_FILES)
+
+template:
+	erl -pa $(EBIN) -run wings_lang generate_template -run erlang halt
 
 clean:
 	rm -f $(TARGET_FILES)
