@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.115 2002/12/08 17:41:03 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.116 2002/12/12 08:02:59 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -50,6 +50,8 @@ setup(Tvs, Unit, St) ->
     setup(Tvs, Unit, [], St).
 
 setup(Tvs, Unit, Flags, St) ->
+    wings_io:grab(),
+    wings_wm:grab_focus(geom),
     Magnet = proplists:get_value(magnet, Flags, none),
     {_,X,Y} = sdl_mouse:getMouseState(),
     Drag = #drag{x=X,y=Y,unit=Unit,flags=Flags,
@@ -218,7 +220,6 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 %%%
 
 do_drag(Drag0) ->
-    wings_io:grab(),
     {Event,Drag} = initial_motion(Drag0),
     {seq,{push,dummy},handle_drag_event_1(Event, Drag)}.
 
@@ -323,23 +324,26 @@ handle_drag_event_1(#mousemotion{}=Ev, Drag0) ->
     {_,Drag} = motion(Ev, Drag0),
     get_drag_event(Drag);
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, Drag0) ->
+    wings_wm:release_focus(),
     wings_io:ungrab(),
     Ev = #mousemotion{x=X,y=Y,state=0},
     {Move,Drag} = ?SLOW(motion(Ev, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
-    wings_io:putback_event(DragEnded),
+    wings_wm:send(geom, DragEnded),
     pop;
 handle_drag_event_1({drag_arguments,Move}, Drag0) ->
+    wings_wm:release_focus(),
     wings_io:ungrab(),
     clear_sel_dlists(),
     Drag = ?SLOW(motion_update(Move, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
-    wings_io:putback_event(DragEnded),
+    wings_wm:send(geom, DragEnded),
     pop;
 handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, _Drag) ->
     wings_draw_util:map(fun invalidate_fun/2, []),
+    wings_wm:release_focus(),
     wings_io:ungrab(),
     wings_wm:dirty(),
     pop;
