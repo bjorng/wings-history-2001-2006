@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.74 2004/04/12 09:04:49 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.75 2004/04/19 16:46:17 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -448,8 +448,8 @@ update_edges_1(#dlo{src_we=#we{vp=OldVtab}}, #we{vp=Vtab,es=Etab}=We, some) ->
     Edges = wings_edge:from_vs(gb_trees:keys(OldVtab), We),
     foreach(fun(E) ->
 		    #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
-		    gl:vertex3dv(gb_trees:get(Va, Vtab)),
-		    gl:vertex3dv(gb_trees:get(Vb, Vtab))
+		    wpc_ogla:two(gb_trees:get(Va, Vtab),
+				 gb_trees:get(Vb, Vtab))
 	    end, Edges),
     gl:'end'(),
     gl:endList(),
@@ -459,8 +459,8 @@ update_edges_1(_, #we{es=Etab,vp=Vtab}, all) ->
     gl:newList(Dl, ?GL_COMPILE),
     gl:'begin'(?GL_LINES),
     foreach(fun(#edge{vs=Va,ve=Vb}) ->
-		    gl:vertex3dv(gb_trees:get(Va, Vtab)),
-		    gl:vertex3dv(gb_trees:get(Vb, Vtab))
+		    wpc_ogla:two(gb_trees:get(Va, Vtab),
+				 gb_trees:get(Vb, Vtab))
 	    end, gb_trees:values(Etab)),
     gl:'end'(),
     gl:endList(),
@@ -652,11 +652,8 @@ mat_face_1([], _, VsPos) ->
     gl:normal3fv(N),
     case VsPos of
 	[A,B,C,D] ->
-	    gl:vertex3dv(A),
-	    gl:vertex3dv(B),
-	    gl:vertex3dv(C),
-	    gl:vertex3dv(D);
-	_ ->					%Could only be the virtual mirror face.
+	    wpc_ogla:quad(A, B, C, D);
+	_ ->		       %Could only be the virtual mirror face.
 	    ok
     end.
 
@@ -677,7 +674,7 @@ uv_face_2([[Pos|Attr]|T]) ->
 	{_,_}=UV -> gl:texCoord2fv(UV);
 	_ -> gl:texCoord2f(0.0, 0.0)
     end,
-    gl:vertex3dv(Pos),
+    gl:vertex3fv(Pos),
     uv_face_2(T);
 uv_face_2([]) -> ok.
 
@@ -688,10 +685,10 @@ vcol_face(Face, We, Cols) ->
 
 vcol_face_1([P|Ps], [{_,_,_}=Col|Cols]) ->
     gl:color3fv(Col),    
-    gl:vertex3dv(P),
+    gl:vertex3fv(P),
     vcol_face_1(Ps, Cols);
 vcol_face_1([P|Ps], [_|Cols]) ->
     gl:color3f(1.0, 1.0, 1.0),
-    gl:vertex3dv(P),
+    gl:vertex3fv(P),
     vcol_face_1(Ps, Cols);
 vcol_face_1([], []) -> ok.
