@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.78 2003/10/17 15:50:35 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.79 2003/10/19 19:42:14 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -58,7 +58,10 @@ menu(X, Y, St) ->
 	    {"Hardness",{hardness,[{"Soft",soft},
 				   {"Hard",hard}]}},
 	    separator,
-	    {"Loop Cut",loop_cut,"Cut into two objects along edge loop"}],
+	    {"Loop Cut",loop_cut,"Cut into two objects along edge loop"},
+	    separator,
+	    {"Vertex Color",vertex_color,
+	     "Apply vertex colors to selected edges"}],
     wings_menu:popup_menu(X, Y, edge, Menu).
 
 cut_line(#st{sel=[{_,Es}]}) ->
@@ -118,7 +121,11 @@ command({move,Type}, St) ->
 command({rotate,Type}, St) ->
     wings_rotate:setup(Type, St);
 command({scale,Type}, St) ->
-    wings_scale:setup(Type, St).
+    wings_scale:setup(Type, St);
+command(vertex_color, St) ->
+    wings_color:choose(fun(Color) ->
+			       set_color(Color, St)
+		       end).
 
 %%
 %% Convert the current selection to an edge selection.
@@ -925,6 +932,32 @@ decr_from_edge(Edge, We, Orig, Acc) ->
 		    gb_sets:delete(Edge,Acc)
 	    end
     end.
+
+%%%
+%%% Set vertex color for selected edges.
+%%%
+
+set_color(Color, St) ->
+    wings_sel:map(fun(Es, We) ->
+			  set_color_1(gb_sets:to_list(Es), Color,
+				      We#we{mode=vertex})
+		  end, St).
+
+set_color_1([E|Es], Color, #we{es=Etab0}=We) ->
+    Rec0 = #edge{vs=Va,ve=Vb,rtpr=Rp,ltpr=Lp} = gb_trees:get(E, Etab0),
+    Rec = Rec0#edge{a=Color,b=Color},
+    Etab1 = gb_trees:update(E, Rec, Etab0),
+    Etab2 = set_color_2(Rp, Va, Color, Etab1),
+    Etab = set_color_2(Lp, Vb, Color, Etab2),
+    set_color_1(Es, Color, We#we{es=Etab});
+set_color_1([], _, We) -> We.
+
+set_color_2(E, V, Color, Etab) ->
+    Rec = case gb_trees:get(E, Etab) of
+	      #edge{vs=V}=Rec0 -> Rec0#edge{a=Color};
+	      #edge{ve=V}=Rec0 -> Rec0#edge{b=Color}
+	  end,
+    gb_trees:update(E, Rec, Etab).
 
 %%%
 %%% Utilities.
