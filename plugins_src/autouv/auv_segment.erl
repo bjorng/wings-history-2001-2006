@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.22 2002/10/25 08:59:53 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.23 2002/10/25 13:49:09 dgud Exp $
 
 -module(auv_segment).
 
@@ -600,7 +600,9 @@ cut_model(Cuts, Charts, We) ->
 cut_model_1(Cuts, Charts, WMs0) ->
     WMs1 = sofs:from_term(WMs0, [{we,[{atom,atom}]}]),
     Wes = sofs:to_external(sofs:domain(WMs1)),
-    We1 = wings_we:force_merge(Wes),
+    We0 = wings_we:force_merge(Wes),    
+    We1 = We0#we{mode = (hd(Wes))#we.mode}, %% Force merge loses mode, should be fixed in                                             %% wings_we ??
+%%    ?DBG("SEG Mode ~p ~p~n", [We1#we.mode, [TW#we.mode||TW<-Wes]]),
     Bvs0 = foldl(fun(Faces, A) ->
 			 lists:append(wpa:face_outer_vertices(Faces, We1)++[A])
 		 end, [], Charts),
