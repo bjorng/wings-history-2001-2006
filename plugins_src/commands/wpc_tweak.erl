@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.42 2003/08/29 09:15:22 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.43 2003/09/12 14:42:54 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -249,6 +249,7 @@ end_drag(#tweak{st=St0}=T) ->
     St1 = wings_draw_util:map(fun end_drag/2, St0),
     St = wings_undo:save(St0, St1),
     wings_draw:update_dlists(St),
+    wings_draw:update_mirror(),
     help(T),
     update_tweak_handler(T#tweak{tmode=wait,st=St}).
 
@@ -257,17 +258,15 @@ end_drag(#dlo{src_we=#we{id=Id},drag=#drag{}}=D0, #st{shapes=Shs0}=St0) ->
     Shs = gb_trees:update(Id, We, Shs0),
     St = St0#st{shapes=Shs},
     {D#dlo{vs=none,sel=none,drag=none},St};
-end_drag(#dlo{src_we=#we{id=Id,mirror=M},drag={matrix,_,Matrix,_},
+end_drag(#dlo{src_we=#we{id=Id},drag={matrix,_,Matrix,_},
 	      proxy_data=Pd}, #st{shapes=Shs0}=St0) ->
     We0 = gb_trees:get(Id, Shs0),
     We = wings_we:transform_vs(Matrix, We0),
     Shs = gb_trees:update(Id, We, Shs0),
     St = St0#st{shapes=Shs},
-    {#dlo{src_we=We,mirror=check_mirror(M),proxy_data=Pd},St};
+    D = #dlo{src_we=We,proxy_data=Pd},
+    {wings_draw:changed_we(D, D),St};
 end_drag(D, St) -> {D,St}.
-
-check_mirror(none) -> none;
-check_mirror(Face) -> {Face}.
     
 sel_to_vs(vertex, Vs, _) -> Vs;
 sel_to_vs(edge, Es, We) -> wings_vertex:from_edges(Es, We);
