@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.81 2003/08/06 05:23:57 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.82 2003/08/06 15:58:22 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -416,7 +416,13 @@ get_vec(vertex, [Va,Vb]=Vs, We) ->
     VbPos = wings_vertex:pos(Vb, We),
     Vec = e3d_vec:norm(e3d_vec:sub(VaPos, VbPos)),
     Center = wings_vertex:center(Vs, We),
-    [{{Center,Vec},"Direction between vertices saved as axis."}];
+    Normal = e3d_vec:norm(e3d_vec:add(wings_vertex:normal(Va, We),
+				      wings_vertex:normal(Vb, We))),
+    [{{Center,Vec},"Direction between vertices saved as axis "
+      "(press \"2\" to save average of vertex normals)."},
+     {{Center,Normal},"Average of vertex normals saved as axis "
+      "(press \"1\" to save direction between vertices)."}];
+
 %% 3-point (defines face) perpendicular
 get_vec(vertex, [_,_,_]=Vs, #we{vp=Vtab}=We) ->
     Vec = wings_face:face_normal_ccw(Vs, Vtab),
@@ -451,7 +457,7 @@ get_vec(face, [Face1,Face2], We) ->
     Normal = e3d_vec:norm(e3d_vec:add(Face1n, Face2n)),
     [{{Center,Vec},"Direction between face centers saved as axis "
       "(press \"2\" to save average of face normals)."},
-     {{Center,Normal},"Average of face normal saved as axis "
+     {{Center,Normal},"Average of face normals saved as axis "
       "(press \"1\" to save direction between face centers)."}];
 get_vec(face, Faces, #we{vp=Vtab}=We) ->
     case wings_vertex:outer_partition(Faces, We) of
