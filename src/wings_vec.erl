@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.96 2003/10/30 12:25:13 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.97 2003/10/30 12:40:29 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -54,6 +54,13 @@ do_ask({Do,Done,Flags}, St, Cb) ->
 do_ask({Do,Done,Flags,Modes}, St, Cb) ->
     do_ask_1(Modes, Do, Done, Flags, St, Cb).
 
+do_ask_1(_, [], [Res], _, _, Cb) ->
+    wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
+    keep;
+do_ask_1(_, [], Res0, _, _, Cb) ->
+    Res = list_to_tuple(reverse(Res0)),
+    wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
+    keep;
 do_ask_1(Modes, Do0, Done, Flags, #st{selmode=Mode}=St, Cb) ->
     Do = add_help_text(Do0),
     Mag = member(magnet, Flags),
@@ -140,9 +147,6 @@ handle_event({ask_init,Do,Done}, #ss{selmodes=Modes}=Ss, St0) ->
 						% a display list leak.
     wings_util:menu_restriction(wings_wm:this(), [view,select]),
     St = wings_sel:reset(mode_restriction(Modes, St0)),
-    wings_wm:later({ask_init2,Do,Done}),
-    get_event(Ss, St);
-handle_event({ask_init2,Do,Done}, Ss, St) ->
     pick_next(Do, Done, Ss, St);
 handle_event(Event, Ss, St) ->
     case wings_camera:event(Event, St) of
@@ -221,23 +225,28 @@ handle_event_4(init_opengl, _, St) ->
 handle_event_4(_Event, Ss, St) ->
     get_event(Ss, St).
 
-pick_next([], [Res], #ss{cb=Cb}, _) ->
+pick_next(Do, Done, #ss{is_axis=true,vec={{_,_,_},{_,_,_}}=Vec}=Ss, St) ->
+    wings_pref:set_value(last_axis, Vec),
+    pick_next_1(Do, Done, Ss, St);
+pick_next(Do, Done, Ss, St) -> pick_next_1(Do, Done, Ss, St).
+
+pick_next_1([], [Res], #ss{cb=Cb}, _) ->
     pick_finish(),
     wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
     wings:clear_mode_restriction(),
     pop;
-pick_next([], Res0, #ss{cb=Cb}, _) ->
+pick_next_1([], Res0, #ss{cb=Cb}, _) ->
     pick_finish(),
     Res = list_to_tuple(reverse(Res0)),
     wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
     wings:clear_mode_restriction(),
     pop;
-pick_next([{Fun0,Desc}|More], _Done, Ss, St) when is_function(Fun0) ->
+pick_next_1([{Fun0,Desc}|More], _Done, Ss, St) when is_function(Fun0) ->
     Fun = fun(message, _) -> common_message(Desc, More, no);
 	     (A, B) -> Fun0(A, B)
 	  end,
     get_event(Ss#ss{f=Fun,is_axis=false,vec=none,info=""}, wings_sel:reset(St));
-pick_next([{Type,Desc}|More], Done, Ss, St0) ->
+pick_next_1([{Type,Desc}|More], Done, Ss, St0) ->
     MagnetPossible = magnet_possible_now(More, Ss),
     Check = case Type of
 		magnet -> fun check_point/1;
@@ -270,7 +279,6 @@ pick_next([{Type,Desc}|More], Done, Ss, St0) ->
 	     _ -> St0
 	 end,
     clear_sel(),
-    set_last_axis(Ss),
     get_event(Ss#ss{f=Fun,is_axis=IsAxis,vec=none,info=""}, wings_sel:reset(St)).
 
 redraw(#ss{info=Info,f=Message,vec=Vec}, St) ->
@@ -285,10 +293,6 @@ redraw(#ss{info=Info,f=Message,vec=Vec}, St) ->
     gl:popAttrib(),
     wings_wm:current_state(St).
 
-set_last_axis(#ss{is_axis=true,vec={{_,_,_},{_,_,_}}=Vec}) ->
-    wings_pref:set_value(last_axis, Vec);
-set_last_axis(_) -> ok.
-			       
 filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
     case member(Mode, Modes) of
 	true -> handle_event({new_state,St}, Ss, St);
