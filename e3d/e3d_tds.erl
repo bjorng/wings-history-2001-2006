@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.27 2003/03/16 08:35:27 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.28 2003/03/16 09:05:04 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -442,18 +442,19 @@ export(Name, Objs) ->
 make_editor(Name, #e3d_file{objs=Objs0,mat=Mat0}) ->
     MeshVer = make_chunk(16#3d3e, <<3:32/little>>),
     Unit = make_chunk(16#0100, <<(1.0):32/?FLOAT>>),
+    {Mat1,MatMap} = make_materials_uniq(Mat0),
     Objs1 = make_names_uniq(Objs0),
-    Objs = make_objects(Objs1),
-    Mat1 = make_tx_uniq(Mat0),
-    Mat = make_material(Name, Mat1),
+    Objs = make_objects(Objs1, MatMap),
+    Mat2 = make_tx_uniq(Mat1),
+    Mat = make_material(Name, Mat2),
     make_chunk(16#3D3D, [MeshVer,Mat,Unit,Objs]).
 
-make_objects([#e3d_object{name=Name,obj=Mesh0}|Objs]) ->
+make_objects([#e3d_object{name=Name,obj=Mesh0}|Objs], MatMap) ->
     Mesh = e3d_mesh:triangulate(Mesh0),
-    MeshChunk = make_mesh(Mesh),
+    MeshChunk = make_mesh(Mesh, MatMap),
     Chunk = make_chunk(16#4000, [Name,0,MeshChunk]),
-    [Chunk|make_objects(Objs)];
-make_objects([]) -> [].
+    [Chunk|make_objects(Objs, MatMap)];
+make_objects([], _) -> [].
 
 make_names_uniq(Objs) ->
     Names = [Name || #e3d_object{name=Name} <- Objs],
@@ -491,14 +492,14 @@ replace_map(MapType, Val, Ps) ->
     Maps = [{MapType,Val}|keydelete(MapType, 1, Maps0)],
     keyreplace(maps, 1, Ps, {maps,Maps}).
 
-make_mesh(Mesh0) ->
+make_mesh(Mesh0, MatMap) ->
     Mesh = split_vertices(Mesh0),
-    make_mesh_1(Mesh).
+    make_mesh_1(Mesh, MatMap).
 
-make_mesh_1(#e3d_mesh{vs=Vs,fs=Fs,he=He,tx=Tx,matrix=_Matrix0}) ->
+make_mesh_1(#e3d_mesh{vs=Vs,fs=Fs,he=He,tx=Tx,matrix=_Matrix0}, MatMap) ->
     %% XXX Matrix0 should be used here.
     VsChunk = make_vertices(Vs),
-    FsChunk = make_faces(Fs, He),
+    FsChunk = make_faces(Fs, He, MatMap),
     MD = <<1.0:32/?FLOAT,0.0:32/?FLOAT,0.0:32/?FLOAT,
 	  0.0:32/?FLOAT,1.0:32/?FLOAT,0.0:32/?FLOAT,
 	  0.0:32/?FLOAT,0.0:32/?FLOAT,1.0:32/?FLOAT,
@@ -526,9 +527,9 @@ make_uvs([{U,V}|Ps], Acc) ->
     make_uvs(Ps, [Chunk|Acc]);
 make_uvs([], Acc) -> reverse(Acc).
 
-make_faces(Fs, He) ->
+make_faces(Fs, He, MatMap) ->
     FaceChunk = [<<(length(Fs)):16/little>>|make_faces_1(Fs, [])],
-    MatChunk = make_face_mat(Fs),
+    MatChunk = make_face_mat(Fs, MatMap),
     SmoothChunk = make_smooth_groups(Fs, He),
     make_chunk(16#4120, [FaceChunk,MatChunk,SmoothChunk]).
 
@@ -538,12 +539,13 @@ make_faces_1([#e3d_face{vs=[A,B,C],vis=Hidden}|Faces], Acc) ->
     make_faces_1(Faces, [Face|Acc]);
 make_faces_1([], Acc) -> reverse(Acc).
 
-make_face_mat(Fs) ->
+make_face_mat(Fs, MatMap) ->
     R0 = make_face_mat_1(Fs, 0, []),
     R = sofs:relation(R0),
     F = sofs:to_external(sofs:relation_to_family(R)),
     map(fun({Name0,Faces}) ->
-		Name = atom_to_list(Name0),
+		Name1 = atom_to_list(Name0),
+		Name = gb_trees:get(Name1, MatMap),
 		Chunk = [Name,0,
 			 <<(length(Faces)):16/little>>,
 			 [<<Face:16/little>> || Face <- Faces]],
@@ -553,6 +555,14 @@ make_face_mat(Fs) ->
 make_face_mat_1([#e3d_face{mat=Mat}|Fs], Face, Acc) ->
     make_face_mat_1(Fs, Face+1, [{M,Face} || M <- Mat] ++ Acc);
 make_face_mat_1([], _Face, Acc) -> Acc.
+
+make_materials_uniq(Mat0) ->
+    Names = [atom_to_list(Name) || {Name,_} <- Mat0],
+    Map0 = e3d_util:make_uniq(Names, 16),
+    Map = gb_trees:from_orddict(sort(Map0)),
+    Mat = [{list_to_atom(gb_trees:get(atom_to_list(Name), Map)),Ps} ||
+	      {Name,Ps} <- Mat0],
+    {Mat,Map}.
 
 make_material(Filename, Mat) ->
     Base = filename:rootname(Filename, ".3ds"),
