@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.16 2002/01/30 09:10:43 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.17 2002/02/04 08:34:30 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -224,12 +224,13 @@ default_keybindings() ->
      {$D,               {edit,repeat_drag}},
      {$e,               {select,edge}},
      {$f,               {select,face}},
+     {$g,               {select,edge_ring}},
      {$i,               {select,similar}},
      {$l,               {select,edge_loop}},
      {$L,		{select,select_region}},
      {$o,               {view,orthogonal_view}},
      {$r,               {view,reset}},
-     {$R,               {select,edge_ring}},
+     {$R,               {wings,reset}},
      {$u,               {view,auto_rotate}},
      {$v,               {select,vertex}},
      {$w,               {view,wire_mode}},

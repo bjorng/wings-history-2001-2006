@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.36 2002/02/03 22:44:21 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.37 2002/02/04 08:34:30 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -28,7 +28,7 @@
 -export([putback_event/1,get_event/0,
 	 set_timer/2,cancel_timer/1,
 	 enter_event_loop/1]).
--export([grab/0,ungrab/0,warp/2]).
+-export([reset_grab/0,grab/0,ungrab/0,warp/2]).
 -export([setup_for_drawing/0,cleanup_after_drawing/0,ortho_setup/0]).
 
 -define(NEED_OPENGL, 1).
@@ -90,7 +90,8 @@ resize(W, H) ->
     #io{raw_icons=RawIcons} = Io = get_state(),
     Icons = place_icons(W, H),
     Tex = load_textures(RawIcons),
-    put_state(Io#io{w=W,h=H,tex=Tex,icons=Icons}).
+    put_state(Io#io{w=W,h=H,tex=Tex,icons=Icons}),
+    wings_pref:set_value(window_size, {W,H}).
 
 place_icons(W, H) ->
     Mid = W div 2,
@@ -607,6 +608,11 @@ cancel_timer(Ref) ->
 %%%
 %%% Mouse grabbing.
 %%%
+reset_grab() ->
+    Io = get_state(),
+    put_state(Io#io{grab_count=0}),
+    sdl_mouse:showCursor(true),
+    sdl_video:wm_grabInput(?SDL_GRAB_OFF).
 
 grab() ->
     %%io:format("Grab mouse~n", []),

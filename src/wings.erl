@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.104 2002/02/03 22:44:21 bjorng Exp $
+%%     $Id: wings.erl,v 1.105 2002/02/04 08:34:30 bjorng Exp $
 %%
 
 -module(wings).
@@ -112,8 +112,11 @@ init_1(File) ->
     %% On Solaris/Sparc, we must initialize twice the first time to
     %% get the requested size. Should be harmless on other platforms.
     caption(St1),
-    St2 = resize(780, 570, St1),
-    resize(780, 570, St1),
+    W = 780,
+    H = 570,
+    wings_pref:set_default(window_size, {W,H}),
+    St2 = resize(W, H, St1),
+    resize(W, H, St1),
     St = open_file(File, St2),
     wings_io:enter_event_loop(main_loop(St)),
     wings_file:finish(),
@@ -121,7 +124,6 @@ init_1(File) ->
     sdl:quit(),
     ok = file:set_cwd(Cwd),
     ok.
-
 
 open_file(none, St) -> St;
 open_file(Name, St0) ->
@@ -242,6 +244,12 @@ handle_event_3(Event, St0) ->
  	{edit,redo} ->
 	    St = wings_undo:redo(St0),
 	    main_loop(clean_state(St));
+	{wings,reset} ->
+	    {W,H} = wings_pref:get_value(window_size),
+ 	    St = resize(W, H, St0),
+	    wings_io:reset_grab(),
+	    wings_view:command(reset, St),
+ 	    main_loop(model_changed(St));
 	Cmd -> do_command(Cmd, St0)
     end.
     
@@ -319,6 +327,7 @@ repeatable(Mode, Cmd) ->
 	_ -> no
     end.
 
+%% Vector and secondary-selection commands.
 command({vector,What}, St) ->
     wings_vec:command(What, St);
 command({secondary_selection,aborted}, St) -> St;
