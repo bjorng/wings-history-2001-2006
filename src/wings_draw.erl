@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.49 2002/01/12 19:24:25 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.50 2002/01/22 10:02:35 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -507,33 +507,70 @@ axis_letters() ->
 	wings_pref:get_value(show_axes) of
 	false -> ok;
 	true ->
-	    axis_letter(1, axisx, wings_pref:get_value(x_color)),
-	    axis_letter(2, axisy, wings_pref:get_value(y_color)),
-	    axis_letter(3, axisz, wings_pref:get_value(z_color))
+	    MM = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
+	    PM = list_to_tuple(gl:getDoublev(?GL_PROJECTION_MATRIX)),
+	    ViewPort = gl:getIntegerv(?GL_VIEWPORT),
+	    Info = {MM,PM,ViewPort},
+	    axis_letter(1, axisx, wings_pref:get_value(x_color), Info),
+	    axis_letter(2, axisy, wings_pref:get_value(y_color), Info),
+ 	    axis_letter(3, axisz, wings_pref:get_value(z_color), Info)
     end.
 
-axis_letter(I, Char, Color) ->
+axis_letter(I, Char, Color, {MM,PM,Viewport}) ->
     Start = {0.0,0.0,0.0},
     End = setelement(I, Start, 1000.0),
-    FeedBuf = (get(wings_hitbuf))#sdlmem{type=?GL_FLOAT},
-    gl:feedbackBuffer(10, ?GL_2D, FeedBuf),
-    gl:renderMode(?GL_FEEDBACK),
-    gl:'begin'(?GL_LINES),
-    gl:vertex3fv(Start),
-    gl:vertex3fv(End),
-    gl:'end'(),
-    case gl:renderMode(?GL_RENDER) of
-	NumItems when NumItems >= 5 ->
-	    <<_:?GL_FLOAT_SIZE/float,
-	     _:?GL_FLOAT_SIZE/float,
-	     _:?GL_FLOAT_SIZE/float,
-	     Xclip:?GL_FLOAT_SIZE/float,
-	     Yclip:?GL_FLOAT_SIZE/float,
-	     _/binary>> = sdl_util:readBin(FeedBuf, NumItems);
-	Other ->
-	    Xclip = Yclip = 0.0
-    end,
-    wings_io:axis_text(Xclip, Yclip, Char, Color).
+    {Ox,Oy,Oz,Ow} = proj(Start, MM, PM),
+    {Px,Py,Pz,Pw0} = proj(End, MM, PM),
+    Pw = abs(Pw0),
+    if
+	-Pw < Px, Px < Pw, -Pw < Py, Py < Pw ->
+	    show_letter(Px, Py, Pw, Char, Color, Viewport);
+	true ->
+	    clip(Ox, Oy, Ow, Px, Py, Pw, Char, Color, Viewport)
+    end.
+
+clip(Ox, Oy, Ow, Px, Py, Pw, Char, Color, Viewport) ->
+    AxisRay = line(Ox, Oy, Px, Py),
+    Lines = [line(-Ow, -Ow, Ow, -Ow),line(-Ow, Ow, Ow, Ow),
+	     line(-Ow, -Ow, -Ow, Ow),line(Ow, -Ow, Ow, Ow)],
+    case clip_1(AxisRay, Lines, {Ow,Pw}) of
+	none -> ok;
+	{X,Y,W} -> show_letter(X, Y, W, Char, Color, Viewport)
+    end.
+
+clip_1({O1,D1}=Axis, [{O2,D2}|Lines], {Ow,Pw}=W) ->
+    E = 1.0E-6,
+    case {pdot(D1, D2),pdot(D2, D1)} of
+	{Z1,Z2} when abs(Z1) < E; abs(Z2) < E ->
+	    clip_1(Axis, Lines, W);
+	{Div1,Div2} ->
+	    S = pdot(sub(O2, O1), D2)/Div1,
+	    T = pdot(sub(O1, O2), D1)/Div2,
+	    if
+		S < 0.0; T < 0.0; T > 1.0 ->
+		    clip_1(Axis, Lines, W);
+		true ->
+		    {X,Y} = add(O1, mul(D1, S)),
+		    {X,Y,Ow}
+	    end
+    end;
+clip_1(_, [], W) -> none.
+
+show_letter(X0, Y0, W, Char, Color, [Vx,Vy,Vw,Vh]) ->
+    X = (0.5*X0/W + 0.5)*Vw + Vx,
+    Y = (0.5*Y0/W + 0.5)*Vh + Vy,
+    wings_io:axis_text(X, Y, Char, Color).
+	    
+proj({X0,Y0,Z0}, MM, PM) ->
+    Vec = e3d_mat:mul(MM, {X0,Y0,Z0,1.0}),
+    e3d_mat:mul(PM, Vec).
+
+line(Ox, Oy, Px, Py) -> {{Ox,Oy},{Px-Ox,Py-Oy}}.
+
+pdot({X1,Y1}, {X2,Y2}) -> Y1*X2-X1*Y2.
+add({X1,Y1}, {X2,Y2}) -> {X1+X2,Y1+Y2}.
+sub({X1,Y1}, {X2,Y2}) -> {X1-X2,Y1-Y2}.
+mul({X,Y}, S) -> {X*S,Y*S}.
 
 groundplane(Axes) ->
     gl:color3fv(wings_pref:get_value(grid_color)),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.31 2002/01/18 18:49:28 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.32 2002/01/22 10:02:35 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -389,8 +389,6 @@ axis_text(X, Y, C, Color) ->
     gl:loadIdentity(),
     ClipX = min(trunc(X), W-9),
     ClipY = max(min(trunc(Y-10), H-35), 74),
-    ClipX = lists:min([trunc(X),W-9]),
-    ClipY = lists:max([lists:min([trunc(Y-10),H-35]),74]),
     gl:color3fv(Color),
     gl:rasterPos2i(ClipX, ClipY),
     wings_text:char(C),
