@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.4 2002/02/02 07:11:08 bjorng Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.5 2002/02/05 06:59:28 bjorng Exp $
 %%
 
 -module(e3d__tri_quad).
@@ -19,7 +19,7 @@
 -include("e3d.hrl").
 
 -import(lists, [reverse/1,map/2,seq/2,sort/2,foldl/3,
-		sublist/3,delete/2,nth/2,seq/2]).
+		sublist/3,delete/2,nth/2]).
 
 -define(ANGFAC, 1.0).
 -define(DEGFAC, 10.0).
@@ -64,7 +64,7 @@ quadrangulate_1([#e3d_face{vs=Vs}=FaceRec|Ps], Vtab, Acc) ->
     Faces = quadrangulate_face(FaceRec, Vtab),
     quadrangulate_1(Ps, Vtab, Faces++Acc);
 quadrangulate_1([], Vtab, Acc) -> reverse(Acc).
-    
+
 % Vcoords is list of vertex coordinates.
 % Returns list of (Triangular) faces to replace Face.
 triangulate_face(#e3d_face{vs=Vs,mat=Mat}=Face, Vcoords) ->
@@ -237,7 +237,16 @@ earloop(F, J, N, Angk, Vm1, V0, V1, Vtab) ->
 		C = not(ccw(V0,Vm1,Fv,Vtab)
 				orelse ccw(Vm1,V1,Fv,Vtab)
 				orelse ccw(V1,V0,Fv,Vtab)),
-		case C of
+		% PROBLEM: Fv could be all the way on the other side.
+		% PARTIAL FIX: check seg intersections
+		% BETTER FIX (TODO): preperturb coords so no crossings
+		Fvm1 = welement(J-1, N, F),
+		Fv1 = welement(J+1, N, F),
+		D = segsintersect(Fvm1, Fv, Vm1, V0, Vtab) orelse
+		    segsintersect(Fvm1, Fv, V0, V1, Vtab) orelse
+		    segsintersect(Fv, Fv1, Vm1, V0, Vtab) orelse
+		    segsintersect(Fv, Fv1, V0, V1, Vtab),
+		case C or D of
 		true -> false;
 		false -> earloop(F, J+1, N, Angk, Vm1, V0, V1, Vtab)
 		end;
@@ -288,7 +297,7 @@ finddiag(F,N,Hv,Vtab) ->
 finddiagmodeloop(F,N,Hv,Vtab,Mode) ->
 	case tryfinddiag(F, 1, N, Hv, Vtab, Mode, 0, 1.0e30) of
 	I when I > 0 -> I;
-	true -> finddiagmodeloop(F, N, Hv, Vtab, Mode+1)
+	_ -> finddiagmodeloop(F, N, Hv, Vtab, Mode+1)
 	end.
 
 tryfinddiag(F,I,N,Hv,Vtab,Mode,Best,Bestdist) when I > N -> Best;
