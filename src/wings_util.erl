@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.87 2003/12/08 05:42:30 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.88 2003/12/10 15:02:23 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -344,15 +344,26 @@ get_gl_version() ->
     Minor = list_to_integer(Minor0),
     {Major,Minor,Patch}.
 
-is_gl_ext([]) -> true;
-is_gl_ext([Name|R]) ->
-    is_gl_ext(Name) andalso is_gl_ext(R);
-is_gl_ext(Name) ->
-    ets:member(wings_gl_ext, Name).
-%% Version orelse extension check.
-is_gl_ext(Wanted, List) ->
+%% Either check for a given version (or higher), or
+%% for that all the given extensions are implemented.
+is_gl_ext(Wanted) when is_tuple(Wanted), size(Wanted) >= 2 ->
     [{_,Actual}] = ets:lookup(wings_gl_ext, version),
-    version_match(Wanted, Actual) orelse is_gl_ext(List).
+    version_match(Wanted, Actual);
+is_gl_ext(Ext) when is_atom(Ext); is_list(Ext) ->
+    is_gl_ext_1(Ext).
+
+%% Must be Wanted version or higher, or the List of extensions must match.
+is_gl_ext(Wanted, []) ->
+    is_gl_ext(Wanted);
+is_gl_ext(Wanted, List) ->
+    is_gl_ext(Wanted) orelse is_gl_ext_1(List).
+
+is_gl_ext_1([]) ->
+    true;
+is_gl_ext_1([Name|R]) ->
+    is_gl_ext_1(Name) andalso is_gl_ext(R);
+is_gl_ext_1(Name) ->
+    ets:member(wings_gl_ext, Name).
 
 version_match({Ma1,Mi1}, {Ma2,Mi2,_}) 
   when Ma1 =< Ma2, Mi1 =< Mi2 -> true;
