@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.1 2004/05/13 13:46:38 dgud Exp $
+%%     $Id: wings_palette.erl,v 1.2 2004/05/13 14:03:24 bjorng Exp $
 %%
 -module(wings_palette).
 
@@ -22,11 +22,10 @@
 -import(lists, [map/2,foldl/3,reverse/1,reverse/2,
 		keymember/3,keysearch/3,keydelete/3,sort/1]).
 
--define(BOX_W, 12).
--define(BOX_H, 12).
+-define(BOX_W, 16).
+-define(BOX_H, 16).
 
--define(ORIG_COLS, 8).
--define(COLS_W, ?ORIG_COLS).
+-define(COLS_W, 8).
 -define(COLS_H, 8).
 
 -define(BORD, 2).
@@ -95,7 +94,7 @@ event(close, #pst{cols=Cols}) ->
     delete;
 event(got_focus, _) ->
     Msg = wings_util:button_format("Set Color on selection", [],
-				   "Show Palett menu "),
+				   "Show Palette menu "),
     wings_wm:message(Msg),
     wings_wm:dirty();
 event({current_state,St}, Pst) ->
@@ -142,7 +141,7 @@ event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, #pst{sel=Sel,cols=Cols
 event(#mousebutton{x=X0,y=Y0}=Ev, Pst) ->
     Id = select(X0,Y0),
     case wings_menu:is_popup_event(Ev) of
- 	{yes,X,Y,_} when is_integer(Id),not (Id < ?ORIG_COLS) ->
+ 	{yes,X,Y,_} when is_integer(Id) ->
 	    do_menu(Id, X, Y, Pst);
 	_ -> keep
     end;
