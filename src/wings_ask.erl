@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.52 2002/12/29 11:05:20 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.53 2002/12/29 11:17:40 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -826,7 +826,7 @@ menu_width([{S,_}|T], W0) ->
 menu_width([], W) -> W.
 
 menu_draw(#fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
-    wings_io:raised_rect(X, Y0+1, W-?CHAR_WIDTH+10, H-2, ?MENU_COLOR),
+    wings_io:raised_rect(X, Y0+1, W-?CHAR_WIDTH+10, H-3, ?MENU_COLOR),
     Y = Y0+?CHAR_HEIGHT,
     Val = [Desc || {Desc,K} <- Menu, K =:= Key],
     wings_io:text_at(X+5, Y, Val),
@@ -911,7 +911,7 @@ popup_redraw(#popup{sel=Sel,orig_sel=OrigSel,menu=Menu}) ->
 popup_redraw_1(Sel, Menu, Sel, W, X, Y) ->
     {Desc,_} = element(Sel, Menu),
     gl:color3f(0, 0, 0.5),
-    gl:recti(X-2, Y+2, X+W-2*?CHAR_WIDTH, Y-?CHAR_HEIGHT+2),
+    gl:recti(X-2, Y+2, X+W-4*?CHAR_WIDTH, Y-?CHAR_HEIGHT+2),
     gl:color3f(1, 1, 1),
     wings_io:text_at(X, Y, Desc),
     gl:color3f(0, 0, 0),
