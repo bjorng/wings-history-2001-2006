@@ -4,12 +4,12 @@
 %%     This module contains the Extrude (edge), Bevel (face/edge) and
 %%     Bump commands. (All based on edge extrusion.)
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.64 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.65 2005/01/30 06:59:21 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -55,7 +55,7 @@ calc_bump_dist_2([], _, D) -> D.
 bump(Faces, Dist, We0, Acc) ->
     Edges = gb_sets:from_list(wings_face:outer_edges(Faces, We0)),
     {We,_,_,_} = extrude_edges(Edges, Faces, Dist, We0),
-    NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
+    NewVs = wings_we:new_items_as_ordset(vertex, We0, We),
     {We,[{Faces,NewVs,gb_sets:empty(),We}|Acc]}.
 
 %%
@@ -79,7 +79,7 @@ bevel_edges(Edges, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Sel0,Limit0}) ->
     We = We3#we{vp=Vtab,mirror=MirrorFace},
     Limit = bevel_limit(Tv, We, Limit0),
     Sel = case gb_sets:is_empty(Forbidden) of
-	      true -> [{Id,wings_we:new_items(face, We0, We)}|Sel0];
+	      true -> [{Id,wings_we:new_items_as_gbset(face, We0, We)}|Sel0];
 	      false -> Sel0
 	  end,
     {We,{[{Id,Tv}|Tvs],Sel,Limit}}.
@@ -264,7 +264,7 @@ extrude_1(Edges, ExtrudeDist, We0, Acc) ->
     {We1,_,New,Forbidden} = extrude_edges(Edges, ExtrudeDist, We0),
     Ns = orig_normals(Edges, We1),
     We = straighten(Ns, New, We1),
-    NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
+    NewVs = wings_we:new_items_as_ordset(vertex, We0, We),
     {We,[{Edges,NewVs,Forbidden,We}|Acc]}.
 
 orig_normals(Es0, #we{es=Etab,vp=Vtab}) ->
@@ -355,7 +355,7 @@ extrude_edges(Edges, ForbiddenFaces, ExtrudeDist,
 	foldl(fun(V, A) ->
 		      new_vertex(V, G, Edges, ForbiddenFaces, ExtrudeDist, A)
 	      end, {We0#we{vc=Vct},[]}, Vs),
-    NewVs = wings_we:new_items(vertex, We0, We1),
+    NewVs = wings_we:new_items_as_gbset(vertex, We0, We1),
     We = connect(G, ExtrudeDist, Wid, We1),
     digraph:delete(G),
     {We,Vs,NewVs,gb_sets:from_list(Forbidden)}.
