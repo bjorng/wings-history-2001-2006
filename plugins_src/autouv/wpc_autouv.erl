@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.246 2004/05/19 19:25:24 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.247 2004/05/21 08:27:14 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -633,15 +633,19 @@ new_geom_state(#st{mat=Mat,shapes=Shs}=GeomSt, AuvSt0) ->
 	delete ->
 	    cleanup_before_exit(),
 	    delete;
-	AuvSt ->
-	    update_selection(GeomSt, AuvSt)
+	{AuvSt1,ForceRefresh} ->
+	    AuvSt = update_selection(GeomSt, AuvSt1),
+	    case ForceRefresh of
+		false -> get_event_nodraw(AuvSt);
+		true -> get_event(AuvSt)
+	    end
     end.
 
 new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
     case {gb_trees:lookup(Id, Shs),gb_trees:lookup(Id, Orig)} of
 	{none,_} -> delete;
-	{{value,We},{value,We}} -> AuvSt;
-	{{value,#we{es=Etab}},{value,#we{es=Etab}}} -> AuvSt;
+	{{value,We},{value,We}} -> {AuvSt,false};
+	{{value,#we{es=Etab}},{value,#we{es=Etab}}} -> {AuvSt,false};
 	{{value,#we{es=Etab1}=We},{value,#we{es=Etab2}}} ->
 	    case gb_trees:keys(Etab1) =:= gb_trees:keys(Etab2) of
 		false -> topology_updated(We, AuvSt);
@@ -654,14 +658,14 @@ uvs_updated(We, AuvSt) ->
 
 topology_updated(#we{fs=Ftab}=We, St) ->
     Charts = init_edit(gb_trees:keys(Ftab), We),
-    St#st{sel=[],shapes=Charts}.
+    {St#st{sel=[],shapes=Charts},true}.
 
 %% update_selection(GemoSt, AuvSt0) -> AuvSt
 %%  Update the selection in the AutoUV window given a selection
 %%  from a geometry window.
 update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #st{bb=#uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs}=AuvSt) ->
-    get_event_nodraw(AuvSt#st{bb=Uvs#uvstate{st=St}});
+    AuvSt#st{bb=Uvs#uvstate{st=St}};
 update_selection(#st{selmode=Mode,sel=Sel}=St0,
 		 #st{selmode=AuvMode,bb=#uvstate{id=Id}=Uvs,
 		     shapes=Charts0}=AuvSt0) ->
@@ -669,22 +673,17 @@ update_selection(#st{selmode=Mode,sel=Sel}=St0,
     case keysearch(Id, 1, Sel) of
 	false ->
 	    %% No selection in any chart - clear selection.
-	    AuvSt = AuvSt0#st{sel=[],bb=Uvs#uvstate{st=St0}},
-	    get_event(AuvSt);
+	    AuvSt0#st{sel=[],bb=Uvs#uvstate{st=St0}};
  	{value,{Id,Elems0}} when AuvMode == body ->
  	    %% Body selection in charts - must be specially handled.
  	    Elems = gb_sets:to_list(Elems0),
 	    NewSel = update_body_sel(Mode, Elems, Charts),
-	    AuvSt = AuvSt0#st{sel=sort(NewSel),sh=false,
-			      bb=Uvs#uvstate{st=St0}},
-	    get_event(AuvSt);
+	    AuvSt0#st{sel=sort(NewSel),sh=false,bb=Uvs#uvstate{st=St0}};
 	{value,{Id,Elems0}} when AuvMode =:= Mode->
 	    %% Same selection mode in Geometry and AutoUV.
 	    Elems = gb_sets:to_list(Elems0),
 	    NewSel = update_selection_1(AuvMode, Elems, Charts),
-	    AuvSt = AuvSt0#st{sel=sort(NewSel),sh=false,
-			      bb=Uvs#uvstate{st=St0}},
-	    get_event(AuvSt);
+	    AuvSt0#st{sel=sort(NewSel),sh=false,bb=Uvs#uvstate{st=St0}};
 	{value,IdElems} ->
 	    %% Different selection modes. Convert Geom selection to
 	    %% the mode in AutoUV.
@@ -692,9 +691,7 @@ update_selection(#st{selmode=Mode,sel=Sel}=St0,
 	    #st{sel=[{Id,Elems0}]} = wings_sel:convert_selection(AuvMode, St),
 	    Elems = gb_sets:to_list(Elems0),
 	    NewSel = update_selection_1(AuvMode, Elems, Charts),
-	    AuvSt = AuvSt0#st{sel=sort(NewSel),sh=false,
-			      bb=Uvs#uvstate{st=St0}},
-	    get_event(AuvSt)
+	    AuvSt0#st{sel=sort(NewSel),sh=false,bb=Uvs#uvstate{st=St0}}
     end.
 
 update_selection_1(vertex, Vs, Charts) ->
