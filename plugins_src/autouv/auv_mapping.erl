@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.46 2004/04/16 15:36:59 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.47 2004/04/16 18:26:53 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -864,9 +864,8 @@ area2d2({S1,T1},{S2,T2},{S3,T3})
        is_float(T1),is_float(T2),is_float(T3) ->
     ((S2-S1)*(T3-T1)-(S3-S1)*(T2-T1)).
 
-area3d(V1,V2,V3) ->
-    abs(e3d_vec:len(e3d_vec:cross(e3d_vec:sub(V2,V1),e3d_vec:sub(V3,V1)))/2).
-
+area3d(V1, V2, V3) ->
+    e3d_vec:area(V1, V2, V3).
 
 % t() ->
 %     [P2,P3] = [{-1.0,0.0},{1.0,0.0}],
@@ -890,9 +889,9 @@ stretch_opt(#we{name=#ch{fs=Fs}}=We0, OVs) ->
     {_,R1,R2} = now(),
     random:seed(R2,R1,128731),
     Be = wings_face:outer_edges(Fs, We0),
-    Bv0 = foldl(fun(Edge,Acc) -> #edge{vs=Vs,ve=Ve} = 
-				     gb_trees:get(Edge,We0#we.es),
-				 [Vs,Ve|Acc]
+    Bv0 = foldl(fun(Edge, Acc) ->
+			#edge{vs=Vs,ve=Ve} = gb_trees:get(Edge, We0#we.es),
+			[Vs,Ve|Acc]
 		end, [], Be),
     Bv = gb_sets:from_list(Bv0),
     %% {FaceToStretchMean, FaceToStretchWorst,FaceToVerts,VertToFaces,VertToUvs}
@@ -955,7 +954,7 @@ stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,Acc)
 %		    ?DBG("Unchanged value for ~p ~p ~p ~n",[{V,Val}, I, R]),
 		    %%?DBG("~p ~p ~p~n",[V,gb_trees:get(V,Uvs0),gb_trees:get(V,Uvs)]),
 		    stretch_iter2({R,V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,
-				  Bv, gb_sets:add(V,Acc));
+				  Bv, gb_sets:insert(V,Acc));
 		false ->
 		    Vs0 = lists:usort(lists:append([gb_trees:get(F,F2Vs)|| F<-Fs])),
 		    Upd0 = foldl(fun(Vtx, New) ->
