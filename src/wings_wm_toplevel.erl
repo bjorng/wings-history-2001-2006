@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.43 2003/11/12 17:41:27 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.44 2003/11/13 06:27:04 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -815,8 +815,8 @@ menubar_draw([{Desc,Name,_}|T], X, Sel) ->
     if
 	Name =:= Sel ->
 	    {_,_,_,H} = wings_wm:viewport(),
-	    wings_io:border(X+2-?MENU_MARGIN, 0,
-			    W, H-2, wings_pref:get_value(menu_color));
+	    wings_io:gradient_border(X+2-?MENU_MARGIN, 0,
+				     W, H-2, wings_pref:get_value(menu_color));
 	true -> ok
     end,
     gl:color3b(0, 0, 0),
