@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.249 2004/05/23 08:25:05 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.250 2004/05/23 08:38:35 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -595,9 +595,9 @@ new_geom_state(#st{mat=Mat,shapes=Shs}=GeomSt, AuvSt0) ->
 	delete ->
 	    cleanup_before_exit(),
 	    delete;
-	{AuvSt1,ForceRefresh} ->
-	    AuvSt = update_selection(GeomSt, AuvSt1),
-	    case ForceRefresh of
+	{AuvSt1,ForceRefresh0} ->
+	    {AuvSt,ForceRefresh1} = update_selection(GeomSt, AuvSt1),
+	    case ForceRefresh0 orelse ForceRefresh1 of
 		false -> get_event_nodraw(AuvSt);
 		true -> get_event(AuvSt)
 	    end
@@ -612,13 +612,13 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
     end.
 
 new_geom_state_2(We, St) ->
-    Faces = wings_we:uv_mapped_faces(We),
-    FvUvMap = auv_segment:fv_to_uv_map(Faces, We),
-    {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We),
-    Charts2 = auv_segment:cut_model(Charts1, Cuts, We),
-    Charts3 = auv_segment:finalize_charts(Charts2),
-    Charts4 = build_map(Charts3, FvUvMap, []),
-    Charts = gb_trees:from_orddict(sort(Charts4)),
+    Faces = ?TC(wings_we:uv_mapped_faces(We)),
+    FvUvMap = ?TC(auv_segment:fv_to_uv_map(Faces, We)),
+    {Charts1,Cuts} = ?TC(auv_segment:uv_to_charts(Faces, FvUvMap, We)),
+    Charts2 = ?TC(auv_segment:cut_model(Charts1, Cuts, We)),
+    Charts3 = ?TC(auv_segment:finalize_charts(Charts2)),
+    Charts4 = ?TC(build_map(Charts3, FvUvMap, [])),
+    Charts = ?TC(gb_trees:from_orddict(sort(Charts4))),
     wings_wm:set_prop(wireframed_objects,
 		      gb_sets:from_list(gb_trees:keys(Charts))),
     {St#st{sel=[],shapes=Charts},true}.
@@ -648,34 +648,34 @@ zero() ->
 %%  from a geometry window.
 update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #st{bb=#uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs}=AuvSt) ->
-    AuvSt#st{bb=Uvs#uvstate{st=St}};
+    {AuvSt#st{bb=Uvs#uvstate{st=St}},false};
 update_selection(#st{selmode=Mode,sel=Sel}=St0,
 		 #st{selmode=AuvMode,bb=#uvstate{id=Id}=Uvs,
 		     shapes=Charts0}=AuvSt0) ->
     Charts = gb_trees:to_list(Charts0),
-    case keysearch(Id, 1, Sel) of
-	false ->
-	    %% No selection in any chart - clear selection.
-	    AuvSt0#st{sel=[],bb=Uvs#uvstate{st=St0}};
- 	{value,{Id,Elems0}} when AuvMode == body ->
- 	    %% Body selection in charts - must be specially handled.
- 	    Elems = gb_sets:to_list(Elems0),
-	    NewSel = update_body_sel(Mode, Elems, Charts),
-	    AuvSt0#st{sel=sort(NewSel),sh=false,bb=Uvs#uvstate{st=St0}};
-	{value,{Id,Elems0}} when AuvMode =:= Mode->
-	    %% Same selection mode in Geometry and AutoUV.
-	    Elems = gb_sets:to_list(Elems0),
-	    NewSel = update_selection_1(AuvMode, Elems, Charts),
-	    AuvSt0#st{sel=sort(NewSel),sh=false,bb=Uvs#uvstate{st=St0}};
-	{value,IdElems} ->
-	    %% Different selection modes. Convert Geom selection to
-	    %% the mode in AutoUV.
-	    St = St0#st{sel=[IdElems]},
-	    #st{sel=[{Id,Elems0}]} = wings_sel:convert_selection(AuvMode, St),
-	    Elems = gb_sets:to_list(Elems0),
-	    NewSel = update_selection_1(AuvMode, Elems, Charts),
-	    AuvSt0#st{sel=sort(NewSel),sh=false,bb=Uvs#uvstate{st=St0}}
-    end.
+    {case keysearch(Id, 1, Sel) of
+	 false ->
+	     %% No selection in any chart - clear selection.
+	     AuvSt0#st{sel=[],bb=Uvs#uvstate{st=St0}};
+	 {value,{Id,Elems0}} when AuvMode == body ->
+	     %% Body selection in charts - must be specially handled.
+	     Elems = gb_sets:to_list(Elems0),
+	     NewSel = update_body_sel(Mode, Elems, Charts),
+	     AuvSt0#st{sel=sort(NewSel),sh=false,bb=Uvs#uvstate{st=St0}};
+	 {value,{Id,Elems0}} when AuvMode =:= Mode->
+	     %% Same selection mode in Geometry and AutoUV.
+	     Elems = gb_sets:to_list(Elems0),
+	     NewSel = update_selection_1(AuvMode, Elems, Charts),
+	     AuvSt0#st{sel=sort(NewSel),sh=false,bb=Uvs#uvstate{st=St0}};
+	 {value,IdElems} ->
+	     %% Different selection modes. Convert Geom selection to
+	     %% the mode in AutoUV.
+	     St = St0#st{sel=[IdElems]},
+	     #st{sel=[{Id,Elems0}]} = wings_sel:convert_selection(AuvMode, St),
+	     Elems = gb_sets:to_list(Elems0),
+	     NewSel = update_selection_1(AuvMode, Elems, Charts),
+	     AuvSt0#st{sel=sort(NewSel),sh=false,bb=Uvs#uvstate{st=St0}}
+     end,true}.
 
 update_selection_1(vertex, Vs, Charts) ->
     vertex_sel_to_vertex(Charts, Vs, []);
