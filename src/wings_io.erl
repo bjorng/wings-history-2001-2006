@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.127 2003/11/16 20:47:51 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.128 2003/11/23 07:37:40 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -22,7 +22,7 @@
 	 sunken_gradient/7,
 	 raised_rect/4,raised_rect/5,raised_rect/6,
 	 gradient_rect/5,
-	 text_at/2,text_at/3,text/1,menu_text/3,space_at/2,
+	 text_at/2,text_at/3,unclipped_text/3,space_at/2,
 	 draw_icons/1,draw_icon/3,draw_char/1,
 	 set_color/1]).
 -export([putback_event/1,putback_event_once/1,get_event/0,get_matching_events/1,
@@ -271,21 +271,12 @@ text_at_1(X, S) ->
     end.
 
 text_at(X, Y, S) ->
-    setup_scissor(fun() -> text_at_1(X, Y, S) end).
+    setup_scissor(fun() -> unclipped_text(X, Y, S) end).
 
-text_at_1(X, Y, S) ->
+unclipped_text(X, Y, S) ->
     gl:rasterPos2i(X, Y),
     case catch text(S, []) of
 	{newline,More} -> text_at(X, Y+?LINE_HEIGHT, More);
-	Other -> Other
-    end.
-
-text(S) ->
-    setup_scissor(fun() -> text_1(S) end).
-
-text_1(S) ->
-    case catch text(S, []) of
-	{newline,More} -> text(More);
 	Other -> Other
     end.
 
@@ -318,24 +309,6 @@ setup_scissor(DrawText) ->
 	    DrawText(),
 	    gl:disable(?GL_SCISSOR_TEST)
     end.
-
-menu_text(X, Y, S) ->
-    gl:rasterPos2i(X, Y),
-    menu_text(S, []).
-
-menu_text([Atom|Cs], Acc) when is_atom(Atom) ->
-    draw_reverse(Acc),
-    wings_text:char(Atom),
-    menu_text(Cs, []);
-menu_text([$&,C|T], Acc) when is_integer(C), C < 256 ->
-    menu_text(T, [$_,8,C|Acc]);
-menu_text([C|T], Acc) when is_integer(C), C < 256 ->
-    menu_text(T, [C|Acc]);
-menu_text([L|Cs], Acc) when is_list(L) ->
-    draw_reverse(Acc),
-    menu_text(L, []),
-    menu_text(Cs, []);
-menu_text([], Acc) -> draw_reverse(Acc).
 
 draw_reverse([]) -> ok;
 draw_reverse(S0) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.123 2003/11/12 21:40:12 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.124 2003/11/23 07:37:40 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -697,7 +697,7 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 	separator -> draw_separator(X, Y, Mw);
 	{_,ignore,_,_,Ps} ->
 	    menu_draw_1(Y, Ps, I, Mi,
-			fun() -> wings_io:menu_text(X, Y, Text) end);
+			fun() -> wings_io:unclipped_text(X, Y, Text) end);
 	{_,{'VALUE',_},Hotkey,_Help,Ps} ->
 	    %% Not a sub-menu.
 	    menu_draw_1(Y, Ps, I, Mi,
@@ -712,7 +712,7 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 	    %% Submenu.
 	    menu_draw_1(Y, Ps, I, Mi,
 			fun() ->
-				wings_io:menu_text(X, Y, Text),
+				wings_io:unclipped_text(X, Y, Text),
 				draw_hotkey(X, Y, Shortcut, Hotkey)
 			end),
 	    draw_submenu(Adv, Sub, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
@@ -775,17 +775,17 @@ draw_hotkey(X, Y, Pos, Hotkey) -> wings_io:text_at(X+Pos, Y, Hotkey).
 draw_menu_text(X, Y, Text, Props) ->
     case proplists:is_defined(crossmark, Props) of
 	true ->
-	    wings_io:menu_text(X-2*?CHAR_WIDTH, Y, [crossmark,$\s|Text]);
+	    wings_io:unclipped_text(X-2*?CHAR_WIDTH, Y, [crossmark,$\s|Text]);
 	false ->
 	    case proplists:is_defined(grey_crossmark, Props) of
 		false -> ok;
 		true ->
 		    gl:pushAttrib(?GL_CURRENT_BIT),
 		    gl:color3f(0.25, 0.25, 0.25),
-		    wings_io:menu_text(X-2*?CHAR_WIDTH, Y, [crossmark]),
+		    wings_io:unclipped_text(X-2*?CHAR_WIDTH, Y, [crossmark]),
 		    gl:popAttrib()
 	    end,
-	    wings_io:menu_text(X, Y, Text)
+	    wings_io:unclipped_text(X, Y, Text)
     end.
 
 help_text(#mi{sel=none}) ->
