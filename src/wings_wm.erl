@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.7 2002/07/13 15:07:29 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.8 2002/07/21 15:47:57 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,top_window/1,dirty/0,new/4,delete/1,
-	 set_active/1,top_size/0]).
+	 offset/3,pos/1,set_active/1,top_size/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -66,6 +66,14 @@ delete(Name) ->
     dirty(),
     put(wm_windows, gb_trees:delete(Name, get(wm_windows))),
     keep.
+
+offset(Name, Xoffs, Yoffs) ->
+    #win{x=X,y=Y} = Win = get_window_data(Name),
+    put_window_data(Name, Win#win{x=X+Xoffs,y=Y+Yoffs}).
+
+pos(Name) ->
+    #win{x=X,y=Y} = get_window_data(Name),
+    {X,Y}.
 	    
 set_active(Name) ->
     put(wm_active, Name).
@@ -136,17 +144,20 @@ maybe_clear(_, _) -> ok.
 send_event(Win, {expose}) ->
     dirty(),
     Win;
-send_event(#win{x=X,y=Y,w=W,h=H,stk=[Handler|_]=Stk0}=Win, Ev0) ->
+send_event(#win{name=Name,x=X,y=Y,w=W,h=H,stk=[Handler|_]=Stk0}, Ev0) ->
     Ev = translate_event(Ev0, X, Y),
     {_,TopH} = get(wm_top_size),
     gl:viewport(X, TopH-(Y+H), W, H),
     Stk = handle_event(Handler, Ev, Stk0),
+    Win = get_window_data(Name),
     Win#win{stk=Stk}.
 
 translate_event(#mousemotion{x=X,y=Y}=M, Ox, Oy) ->
     M#mousemotion{x=X-Ox,y=Y-Oy};
 translate_event(#mousebutton{x=X,y=Y}=M, Ox, Oy) ->
     M#mousebutton{x=X-Ox,y=Y-Oy};
+translate_event({drop,{X,Y},DropData}, Ox, Oy) ->
+    {drop,{X-Ox,Y-Oy},DropData};
 translate_event(Ev, _, _) -> Ev.
     
 handle_event(Handler, Event, Stk) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.24 2002/07/21 12:24:14 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.25 2002/07/21 15:47:57 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -24,6 +24,9 @@
 -define(HFRAME_SPACING, (3*?CHAR_WIDTH div 2)).
 
 -define(IS_SHIFTED(Mod), ((Mod) band ?SHIFT_BITS =/= 0)).
+
+-define(INITIAL_LEVEL, 100).
+
 -import(lists, [reverse/1,reverse/2,duplicate/2]).
 
 -record(s,
@@ -37,7 +40,7 @@
 	 priv,					%States for all fields.
 	 coords,				%Coordinates for hit testing.
 	 common=gb_trees:empty(),		%Data common for all fields.
-	 level=0
+	 level=?INITIAL_LEVEL
 	}).
 
 %% Static data for each field.
@@ -77,7 +80,7 @@ dialog(false, Qs, Fun) ->
 dialog(true, Qs, Fun) -> dialog(Qs, Fun).
 
 dialog(Qs, Fun) ->
-    do_dialog(Qs, 0, Fun).
+    do_dialog(Qs, ?INITIAL_LEVEL, Fun).
 
 do_dialog(Qs, Level, Fun) ->
     S0 = setup_ask(Qs, Fun),
@@ -89,7 +92,7 @@ do_dialog(Qs, Level, Fun) ->
     S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level},
     Op = {seq,{push,dummy},get_event(S)},
     Name = {dialog,Level},
-    wings_wm:new(Name, {trunc(X),trunc(Y),100+Level}, {W,H}, Op),
+    wings_wm:new(Name, {trunc(X),trunc(Y),Level}, {W,H}, Op),
     wings_wm:set_active(Name),
     wings_wm:dirty(),
     keep.
@@ -151,6 +154,8 @@ event(#mousebutton{button=1,x=X,y=Y}=Ev, S) ->
     mouse_event(X, Y, Ev, S);
 event(#mousemotion{x=X,y=Y}=Ev, S) ->
     mouse_event(X, Y, Ev, S);
+event({drop,{X,Y},DropData}, S) ->
+    drop_event(X, Y, DropData, S);
 event({action,{update,I,{Fst,Common}}}, #s{priv=Priv0}=S)
   when is_atom(element(1, Fst)), is_tuple(Common) ->
     Priv = setelement(I, Priv0, Fst),
@@ -175,7 +180,7 @@ event_key({key,_,_,$\r}, S) ->
 event_key(Ev, S) ->
     field_event(Ev, S).
 
-delete(#s{level=0}) -> delete;
+delete(#s{level=?INITIAL_LEVEL}) -> delete;
 delete(#s{level=Level}) ->
     wings_wm:set_active({dialog,Level-1}),
     delete.
@@ -201,6 +206,14 @@ mouse_event(X0, Y0, #mousebutton{state=State}=Ev, #s{focus=I0,ox=Ox,oy=Oy,fi=Fis
 	    end
     end.
 
+drop_event(X, Y, DropData, #s{ox=Ox,oy=Oy,fi=Fis}=S0) ->
+    case mouse_to_field(1, Fis, X-Ox, Y-Oy) of
+	none -> keep;
+	I ->
+	    S = set_focus(I, S0),
+	    field_event({drop,DropData}, S)
+    end.
+    
 mouse_to_field(I, Fis, _X, _Y) when I > size(Fis) -> none;
 mouse_to_field(I, Fis, X, Y) ->
     case element(I, Fis) of
@@ -263,6 +276,8 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	    delete(S);
 	{dialog,Qs,Fun} ->
 	    recursive_dialog(I, Qs, Fun, S);
+	{drag,WH,DropData} ->
+	    drag(Ev, WH, Fi, Fst0, Common0, DropData, S);
 	{Fst,Common} when is_atom(element(1, Fst)), is_tuple(Common) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    get_event(S#s{priv=Priv,common=Common});
@@ -274,6 +289,37 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 recursive_dialog(I, Qs, Fun, #s{level=Level}=S) ->
     do_dialog(Qs, Level+1, fun(Vs) -> {update,I,Fun(Vs)} end),
     get_event(S).
+
+drag(#mousemotion{x=X0,y=Y0}, {W,H}, Fi0, Fst, Common, DropData,
+     #s{ox=Ox,oy=Oy,level=Level}=S) ->
+    X = Ox + X0,
+    Y = Oy + Y0,
+    Fi = Fi0#fi{x=0,y=0,w=W,h=H},
+    Drag = fun(Ev) -> drag_event(Ev, Fi, Fst, Common, DropData, S) end,
+    Op = {push,Drag},
+    Name = dragger,
+    wings_wm:new(Name, {X,Y,Level+500}, {W,H}, Op),
+    wings_wm:set_active(Name),
+    wings_wm:dirty(),
+    keep.
+
+drag_event(redraw, #fi{handler=Handler}=Fi, Fst, Common, _,  _) ->
+    wings_io:ortho_setup(),
+    Handler({redraw,false}, Fi, Fst, Common),
+    keep;
+drag_event(#mousemotion{x=X,y=Y}, #fi{w=W,h=H}, _, _, _, _) ->
+    wings_wm:offset(dragger, X - W div 2, Y - H div 2),
+    wings_wm:dirty(),
+    keep;
+drag_event(#mousebutton{}, #fi{w=W,h=H}, _, _, DropData, #s{level=Level}) ->
+    {X,Y} = wings_wm:pos(dragger),
+    Ev = {drop,{X + W div 2,Y + H div 2},DropData},
+    wings_io:putback_event(Ev),
+    wings_wm:set_active({dialog,Level}),
+    delete;
+drag_event(Ev, _, _, _, _, _) ->
+    io:format("~p\n", [Ev]),
+    keep.
 
 return_result(#s{fi=Fis,priv=Priv}=S) ->
     return_result(1, Fis, Priv, S, []).
@@ -776,14 +822,24 @@ col_draw(Active, #fi{key=Key,x=X,y=Y0}, _, Common) ->
 
 col_event({key,_,_,$\s}, Fi, Col, Common) ->
     pick_color(Fi, Col, Common);
-col_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, #fi{x=X}=Fi,
-	  Col, Common) ->
-    if
-	X =< Xb, Xb < X+3*?CHAR_WIDTH ->
-	    pick_color(Fi, Col, Common);
-	true -> {Col,Common}
+col_event(#mousemotion{x=Xm,y=Ym}, Fi, #col{val=RGB}=Col, Common) ->
+    case col_inside(Xm, Ym, Fi) of
+	true -> {Col,Common};
+	false -> {drag,{3*?CHAR_WIDTH,?CHAR_HEIGHT},{color,RGB}}
     end;
+col_event(#mousebutton{x=Xm,y=Ym,state=?SDL_RELEASED}, Fi, Col, Common) ->
+    case col_inside(Xm, Ym, Fi) of
+	true -> pick_color(Fi, Col, Common);
+	false -> {Col,Common}
+    end;
+col_event({drop,{color,RGB}}, #fi{key=Key}, Col, Common) ->
+    {Col#col{val=RGB},gb_trees:update(Key, RGB, Common)};
 col_event(_Ev, _Fi, Col, Common) -> {Col,Common}.
+
+col_inside(Xm, Ym, #fi{x=X,y=Y})
+  when X =< Xm, Xm < X+3*?CHAR_WIDTH,
+       Y+3 =< Ym, Ym < Y+?CHAR_HEIGHT+2 -> true;
+col_inside(_, _, _) -> false.
 
 pick_color(#fi{key=Key}, Col, Common0) ->
     {R0,G0,B0} = gb_trees:get(Key, Common0),
