@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.14 2001/12/26 14:46:25 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.15 2002/01/06 22:29:35 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -18,18 +18,15 @@
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
 
-collapse(St0) ->
-    case St0#st.selmode of
-	face ->
-	    {St,Sel} = wings_sel:mapfold(fun collapse_faces/3, [], St0),
-	    St#st{selmode=vertex,sel=Sel};
-	edge ->
-	    {St,Sel} = wings_sel:mapfold(fun collapse_edges/3, [], St0),
-	    wings_sel:valid_sel(St#st{selmode=vertex,sel=Sel});
-	vertex ->
-	    {St,Sel} = wings_sel:mapfold(fun collapse_vertices/3, [], St0),
-	    wings_sel:valid_sel(St#st{selmode=face,sel=Sel})
-    end.
+collapse(#st{selmode=face}=St0) ->
+    {St,Sel} = wings_sel:mapfold(fun collapse_faces/3, [], St0),
+    St#st{selmode=vertex,sel=reverse(Sel)};
+collapse(#st{selmode=edge}=St0) ->
+    {St,Sel} = wings_sel:mapfold(fun collapse_edges/3, [], St0),
+    wings_sel:valid_sel(St#st{selmode=vertex,sel=reverse(Sel)});
+collapse(#st{selmode=vertex}=St0) ->
+    {St,Sel} = wings_sel:mapfold(fun collapse_vertices/3, [], St0),
+    wings_sel:valid_sel(St#st{selmode=face,sel=Sel}).
 
 collapse_faces(Faces, #we{id=Id}=We0, SelAcc)->
     We = foldl(fun collapse_face/2, We0, gb_sets:to_list(Faces)),
