@@ -8,18 +8,96 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.25 2001/11/04 20:12:35 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.26 2001/11/06 10:22:36 bjorng Exp $
 %%
 
 -module(wings_file).
--export([new/1,read/1,merge/1,save/1,save_as/1,
-	 revert/1,import/2,export/2]).
+-export([menu/3,command/2]).
 
 -include("e3d.hrl").
 -include("wings.hrl").
 
 -import(lists, [sort/1,reverse/1,flatten/1,foldl/3]).
 -import(filename, [dirname/1]).
+-import(wings_draw, [model_changed/1]).
+
+menu(X, Y, St) ->
+    Menu = [{"New","Ctrl-N",new},
+	    {"Open","Ctrl-O",open},
+	    {"Merge","Ctrl-L",merge},
+	    separator,
+	    {"Save","Ctrl-S",save},
+	    {"Save As",save_as},
+	    separator,
+	    {"Revert",revert},
+	    separator,
+	    {"Import",{import,
+		       {{"Nendo (.ndo)",ndo},
+			{"3D Studio (.3ds)",tds},
+			{"Wawefront (.obj)",obj}}}},
+	    {"Export",{export,
+		       {{"3D Studio (.3ds)",tds},
+			{"Wawefront (.obj)",obj},
+			{"RenderMan (.rib)",rib}}}},
+	    separator|recent_files([{"Exit","Ctrl-Q",quit}])],
+    wings_menu:menu(X, Y, file, list_to_tuple(Menu)).
+
+command(new, St0) ->
+    case new(St0) of
+	aborted -> St0;
+	St0 -> St0;
+	St -> {new,model_changed(St)}
+    end;
+command(open, St0) ->
+    case read(St0) of
+	St0 -> St0;
+	St -> {new,model_changed(St)}
+    end;
+command(merge, St0) ->
+    case merge(St0) of
+	St0 -> St0;
+	St -> {save_state,model_changed(St)}
+    end;
+command(save, St) ->
+    save(St);
+command(save_as, St0) ->
+    case save_as(St0) of
+	aborted -> St0;
+	#st{}=St -> {saved,St}
+    end;
+command(revert, St0) ->
+    case revert(St0) of
+	{error,Reason} ->
+	    wings_io:message("Revert failed: " ++ Reason),
+	    St0;
+	#st{}=St -> {save_state,model_changed(St)}
+    end;
+command({import,Type}, St0) ->
+    case import(Type, St0) of
+	St0 -> St0;
+	St -> {save_state,model_changed(St)}
+    end;
+command({export,Type}, St) ->
+    export(Type, St),
+    St;
+command(quit, St) ->
+    quit(St);
+command(Key, St) when is_integer(Key) ->
+    Recent = wings_pref:get_value(recent_files),
+    {_,File} = lists:nth(Key, Recent),
+    {new,model_changed(named_open(File, St))}.
+
+quit(#st{saved=true}) -> quit;
+quit(St) ->
+    case wings_plugin:call_ui({quit,ask_save_changes,[]}) of
+	no -> quit;
+	yes ->
+	    case save(St) of
+		aborted -> St;
+		Other -> quit
+	    end;
+	aborted -> St
+    end.
 
 new(#st{saved=false}=St0) ->
     case wings_plugin:call_ui({file,ask_save_changes,[]}) of
@@ -43,6 +121,7 @@ read(St0) ->
 		aborted -> St0;
 		Name0 ->
 		    Name = ensure_extension(Name0, ".wings"),
+		    add_recent(Name),
 		    case wings_ff_wings:import(Name, St1) of
 			#st{}=St ->
 			    wings_getline:set_cwd(dirname(Name)),
@@ -51,6 +130,21 @@ read(St0) ->
 			    wings_io:message("Read failed: " ++ Reason),
 			    St0
 		    end
+	    end
+    end.
+
+named_open(Name, St0) ->
+    case new(St0) of
+	aborted -> St0;
+	St1 ->
+	    add_recent(Name),
+	    case wings_ff_wings:import(Name, St1) of
+		#st{}=St ->
+		    wings_getline:set_cwd(dirname(Name)),
+		    wings:caption(St#st{saved=true,file=Name});
+		{error,Reason} ->
+		    wings_io:message("Read failed: " ++ Reason),
+		    St0
 	    end
     end.
 
@@ -67,10 +161,17 @@ merge(St0) ->
 	    end
     end.
 
-save(#st{saved=true}=St) -> St;
-save(#st{file=undefined}=St) ->
+save(St0) ->
+    case save_1(St0) of
+	aborted -> St0;
+	St0 -> St0;
+	St  -> {saved,St}
+    end.
+
+save_1(#st{saved=true}=St) -> St;
+save_1(#st{file=undefined}=St) ->
     save_as(St);
-save(#st{shapes=Shapes,file=Name}=St) ->
+save_1(#st{shapes=Shapes,file=Name}=St) ->
     case wings_ff_wings:export(Name, St) of
 	ok ->
 	    wings_getline:set_cwd(dirname(Name)),
@@ -84,6 +185,7 @@ save_as(#st{shapes=Shapes}=St) ->
 	false -> St;
 	aborted -> aborted;
 	Name ->
+	    add_recent(Name),
 	    case wings_ff_wings:export(Name, St) of
 		ok ->
 		    wings_getline:set_cwd(dirname(Name)),
@@ -97,6 +199,27 @@ save_as(#st{shapes=Shapes}=St) ->
 wings_prop() ->
     [{ext,".wings"},{ext_desc,"Wings File"}].
 
+add_recent(Name) ->
+    Base = filename:basename(Name),
+    File = {Base,Name},
+    Recent0 = wings_pref:get_value(recent_files),
+    Recent1 = Recent0 -- [File],
+    Recent = add_recent(File, Recent1),
+    wings_pref:set_value(recent_files, Recent).
+
+add_recent(File, [A,B,C|_]) -> [File,A,B,C];
+add_recent(File, Recent) -> [File|Recent].
+
+recent_files(Rest) ->
+    case wings_pref:get_value(recent_files) of
+	[] -> Rest;
+	Files -> number_files(Files, 1, [separator|Rest])
+    end.
+
+number_files([{Base,_}|T], I, Rest) ->
+    [{Base,I}|number_files(T, I+1, Rest)];
+number_files([], I, Rest) -> Rest.
+    
 %%
 %% The Revert command.
 %%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.31 2001/11/06 07:06:13 bjorng Exp $
+%%     $Id: wings.erl,v 1.32 2001/11/06 10:22:36 bjorng Exp $
 %%
 
 -module(wings).
@@ -45,7 +45,8 @@ init() ->
 init_1() ->
     wings_plugin:init(),
     sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER),
-    catch sdl_video:wm_setIcon(sdl_video:loadBMP(locate("wings.icon")), null),
+    Icon = locate("wings.icon"),
+    catch sdl_video:wm_setIcon(sdl_video:loadBMP(Icon), null),
     sdl_video:gl_setAttribute(?SDL_GL_DOUBLEBUFFER, 1),
     sdl_events:eventState(?SDL_ALLEVENTS ,?SDL_IGNORE),
     sdl_events:eventState(?SDL_MOUSEMOTION, ?SDL_ENABLE),
@@ -80,11 +81,12 @@ init_1() ->
 	      onext=0,
 	      last_command=ignore,
 	      hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)},
-    ets:new(wings_state, [named_table]),
+    wings_pref:init(),
     St = wings_view:default_view(St0),
     resize(800, 600, St),
     caption(St),
     top_level(St, wings_undo:new(32)),
+    wings_pref:finish(),
     sdl:quit(),
     ok.
 
@@ -288,46 +290,8 @@ command({help,What}, St) ->
     wings_help:What(St);
 
 %% File menu.
-command({file,new}, St0) ->
-    case wings_file:new(St0) of
-	aborted -> St0;
-	St0 -> St0;
-	St -> {new,model_changed(St)}
-    end;
-command({file,open}, St0) ->
-    case wings_file:read(St0) of
-	St0 -> St0;
-	St -> {new,model_changed(St)}
-    end;
-command({file,merge}, St0) ->
-    case wings_file:merge(St0) of
-	St0 -> St0;
-	St -> {save_state,model_changed(St)}
-    end;
-command({file,save}, St) ->
-    save(St);
-command({file,save_as}, St0) ->
-    case wings_file:save_as(St0) of
-	aborted -> St0;
-	#st{}=St -> {saved,St}
-    end;
-command({file,revert}, St0) ->
-    case wings_file:revert(St0) of
-	{error,Reason} ->
-	    wings_io:message("Revert failed: " ++ Reason),
-	    St0;
-	#st{}=St -> {save_state,model_changed(St)}
-    end;
-command({file,{import,Type}}, St0) ->
-    case wings_file:import(Type, St0) of
-	St0 -> St0;
-	St -> {save_state,model_changed(St)}
-    end;
-command({file,{export,Type}}, St) ->
-    wings_file:export(Type, St),
-    St;
-command({file,quit}, St) ->
-    quit(St);
+command({file,Command}, St) ->
+    wings_file:command(Command, St);
 
 %% Edit menu.
 command({edit,{material,Mat}}, St) ->
@@ -589,26 +553,7 @@ popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
     end.
 
 menu(X, Y, file, St) ->
-    Menu = {{"New","Ctrl-N",new},
-	    {"Open","Ctrl-O",open},
-	    {"Merge","Ctrl-L",merge},
-	    separator,
-	    {"Save","Ctrl-S",save},
-	    {"Save As",save_as},
-	    separator,
-	    {"Revert",revert},
-	    separator,
-	    {"Import",{import,
-		       {{"Nendo (.ndo)",ndo},
-			{"3D Studio (.3ds)",tds},
-			{"Wawefront (.obj)",obj}}}},
-	    {"Export",{export,
-		       {{"3D Studio (.3ds)",tds},
-			{"Wawefront (.obj)",obj},
-			{"RenderMan (.rib)",rib}}}},
-	    separator,
-	    {"Exit","Ctrl-Q",quit}},
-    wings_menu:menu(X, Y, file, Menu);
+    wings_file:menu(X, Y, St);
 menu(X, Y, edit, St) ->
     Menu = {{"Undo/redo","Ctrl-Z",undo_toggle},
 	    {"Redo","Shift-Ctrl-Z",redo},
@@ -923,25 +868,6 @@ create_shape(Ask, Shape, St0) ->
     case wings_shapes:Shape(Ask, St0) of
 	aborted -> St0;
 	St -> {save_state,model_changed(St)}
-    end.
-
-save(St0) ->
-    case wings_file:save(St0) of
-	aborted -> St0;
-	St0 -> St0;
-	St  -> {saved,St}
-    end.
-
-quit(#st{saved=true}) -> quit;
-quit(St) ->
-    case wings_plugin:call_ui({quit,ask_save_changes,[]}) of
-	no -> quit;
-	yes ->
-	    case save(St) of
-		aborted -> St;
-		Other -> quit
-	    end;
-	aborted -> St
     end.
 
 set_select_mode(Mode, #st{drag=Drag,camera=Camera}=St)
