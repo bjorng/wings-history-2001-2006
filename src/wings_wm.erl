@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.61 2003/01/12 20:50:41 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.62 2003/01/13 17:26:47 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -763,14 +763,21 @@ draw_message(F) ->
     ?CHECK_ERROR(),
     gl:flush(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:shadeModel(?GL_FLAT),
+    gl:disable(?GL_DEPTH_TEST),
     gl:drawBuffer(?GL_FRONT),
-    OldViewport = viewport(),
-    {X,Y,W,H} = Viewport = viewport(message),
+    {X,Y,W,H} = viewport(message),
     gl:viewport(X, Y, W, H),
-    put(wm_viewport, Viewport),
-    message_setup(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:loadIdentity(),
+    glu:ortho2D(0, W, H, 0),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:loadIdentity(),
+    wings_io:set_color(?PANE_COLOR),
+    gl:recti(0, 0, W, H),
+    gl:color3i(0, 0, 0),
+    gl:translatef(10, H-5.5, 0),
     Res = F(),
-    put(wm_viewport, OldViewport),
     gl:drawBuffer(?GL_BACK),
     gl:popAttrib(),
     Res.
