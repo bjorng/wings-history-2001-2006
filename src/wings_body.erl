@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.31 2002/04/13 07:23:21 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.32 2002/04/27 07:41:35 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -50,7 +50,9 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Duplicate",{duplicate,Dir},
 	     "Duplicate and move selected object"},
-	    {"Delete",delete,"Delete the selected objects"}],
+	    {"Delete",delete,"Delete the selected objects"},
+	    separator,
+	    {"Strip Texture",strip_texture}],
     wings_menu:popup_menu(X, Y, body, Menu, St).
 
 command(invert, St) ->
@@ -77,6 +79,8 @@ command(cleanup, St) ->
     cleanup(false, St);
 command({cleanup,Ask}, St) ->
     cleanup(Ask, St);
+command(strip_texture, St) ->
+    {save_state,model_changed(strip_texture(St))};
 command(collapse, St) ->
     {save_state,model_changed(wings_collapse:collapse(St))};
 command({move,Type}, St) ->
@@ -332,3 +336,12 @@ auto_smooth(Edge, #edge{lf=Lf,rf=Rf}, Cos, H0, We) ->
 
 cos_degrees(Angle) ->
     math:cos(Angle*math:pi()/180.0).
+
+%%%
+%%% Strip Texture.
+%%%
+
+strip_texture(St) ->
+    wings_sel:map(fun(_, We) ->
+			  wings_we:uv_to_color(We, St)
+		  end, St).
