@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.22 2003/03/11 11:16:20 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.23 2003/03/11 13:43:15 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -88,11 +88,33 @@ ctrl_anchor(Client, Flags) ->
 	{value,{anchor,Anchor}} ->
 	    {_,Y} = controller_pos(Client),
 	    {_,Cy} = wings_wm:win_ul(Client),
-	    ctrl_anchor_1(Anchor, Client, Cy-Y)
+	    ctrl_anchor_1(Anchor, Client, Cy-Y),
+	    {Lt,Top} = wings_wm:win_ul(Client),
+	    if
+		Lt < 0 -> wings_wm:update_window(Client, [{x,0}]);
+		true -> ok
+	    end,
+	    if
+		Top < 0 -> wings_wm:update_window(Client, [{x,0}]);
+		true -> ok
+	    end,
+	    {W,H} = wings_wm:top_size(),
+	    {Rt,Bot} = wings_wm:win_lr(Client),
+	    if
+		W < Rt -> wings_wm:update_window(Client, [{dx,W-Rt}]);
+		true -> ok
+	    end,
+	    if
+		H < Bot -> wings_wm:update_window(Client, [{dy,H-Bot}]);
+		true -> ok
+	    end
     end.
 
 ctrl_anchor_1(nw, Client, Th) ->
     wings_wm:update_window(Client, [{dy,Th}]);
+ctrl_anchor_1(n, Client, Th) ->
+    W = controller_width(Client),
+    wings_wm:update_window(Client, [{dx,-W div 2},{dy,Th}]);
 ctrl_anchor_1(ne, Client, Th) ->
     W = controller_width(Client),
     wings_wm:update_window(Client, [{dx,-W},{dy,Th}]);
@@ -138,8 +160,8 @@ ctrl_event(#mousemotion{x=X0,y=Y0}, #ctrl{state=moving,local={LocX,LocY}}) ->
     {OldX,OldY} = wings_wm:win_ul(),
     Dx0 = X-OldX,
     Dy0 = Y-OldY,
-    {Dx,Dy} = ctrl_constrain_move(Dx0, Dy0),
     {controller,Client} = wings_wm:this(),
+    {Dx,Dy} = ctrl_constrain_move(Client, Dx0, Dy0),
     wings_wm:update_window(Client, [{dx,Dx},{dy,Dy}]),
     keep;
 ctrl_event(#mousebutton{}=Ev, _) ->
@@ -193,9 +215,9 @@ ctrl_redraw(#ctrl{title=Title}) ->
 title_height() ->
     ?LINE_HEIGHT+3.
 
-ctrl_constrain_move(Dx0, Dy0) ->
+ctrl_constrain_move(Client, Dx0, Dy0) ->
     {{DeskX,DeskY},{DeskW,DeskH}} = wings_wm:win_rect(desktop),
-    {{X0,Y0},{W,_}} = wings_wm:win_rect(),
+    {{X0,Y0},{W,_}} = wings_wm:win_rect({controller,Client}),
     Dx = case X0+Dx0-DeskX of
 	     X when X < 0 ->
 		 DeskX-X0;
@@ -204,7 +226,6 @@ ctrl_constrain_move(Dx0, Dy0) ->
 	     _ ->
 		 Dx0
 	 end,
-    {_,Client} = wings_wm:this(),
     {{_,Cy},{_,Ch}} = wings_wm:win_rect(Client),
     Dy = if 
 	     Y0+Dy0 < DeskY ->

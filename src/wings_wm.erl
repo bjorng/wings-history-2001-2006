@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.91 2003/03/11 06:37:33 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.92 2003/03/11 13:43:15 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -29,7 +29,7 @@
 %% Window information.
 -export([top_size/0,viewport/0,viewport/1,
 	 win_size/0,win_ul/0,win_rect/0,
-	 win_size/1,win_ul/1,win_ur/1,win_ll/1,win_z/1,
+	 win_size/1,win_ul/1,win_ur/1,win_ll/1,win_lr/1,win_z/1,
 	 win_center/1,win_rect/1]).
 
 %% Focus management.
@@ -179,7 +179,7 @@ callback(Cb) ->
 new(Name, {X,Y}, Size, Op) ->
     new(Name, {X,Y,highest}, Size, Op);
 new(Name, {X,Y,Z0}, {W,H}, Op) when is_integer(X), is_integer(Y),
-				   is_integer(W), is_integer(H) ->
+				    is_integer(W), is_integer(H) ->
     Z = new_resolve_z(Z0),
     Stk = handle_response(Op, dummy_event, default_stack(Name)),
     Win = #win{x=X,y=Y,z=Z,w=W,h=H,name=Name,stk=Stk},
@@ -412,6 +412,10 @@ win_ur(Name) ->
 win_ll(Name) ->
     #win{x=X,y=Y,h=H} = get_window_data(Name),
     {X,Y+H}.
+
+win_lr(Name) ->
+    #win{x=X,y=Y,w=W,h=H} = get_window_data(Name),
+    {X+W,Y+H}.
 
 win_z(Name) ->
     #win{z=Z} = get_window_data(Name),

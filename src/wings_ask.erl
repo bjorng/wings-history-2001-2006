@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.72 2003/03/11 13:07:03 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.73 2003/03/11 13:43:14 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -106,18 +106,17 @@ dialog(Title, Qs, Fun) ->
 do_dialog(Title, Qs, Level, Fun) ->
     GrabWin = wings_wm:release_focus(),
     S0 = setup_ask(Qs, Fun),
-    S1 = init_origin(S0),
-    S2 = next_focus(S1, 1),
-    #s{ox=X,oy=Y,w=W0,h=H0} = S2,
+    S1 = next_focus(S0, 1),
+    #s{w=W0,h=H0} = S1,
     W = W0 + 2*?HMARGIN,
     H = H0 + 2*?VMARGIN,
-    S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level,grab_win=GrabWin},
+    S = S1#s{ox=?HMARGIN,oy=?VMARGIN,level=Level,grab_win=GrabWin},
     Name = {dialog,hd(Level)},
     setup_blanket(Name),
     Op = {seq,push,get_event(S)},
-    wings_wm:toplevel(Name, Title, {trunc(X),trunc(Y),highest}, {W,H}, Op),
-    wings_wm:dirty(),
-    keep.
+    {_,X,Y} = sdl_mouse:getMouseState(),
+    wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H},
+		      [{anchor,n}], Op).
 
 setup_ask(Qs0, Fun) ->
     Qs1 = normalize(Qs0),
@@ -151,18 +150,6 @@ init_fields(I, N, #s{fi=Fis,priv=Priv0,common=Common0}=S) when I =< N ->
 	    init_fields(I+1, N, S#s{priv=Priv})
     end;
 init_fields(_, _, S) -> S.
-
-init_origin(#s{w=Xs,h=Ys}=S) ->
-    {W,H} = wings_wm:top_size(),
-    Tx = case (W-Xs)/2 of
-	     SmallX when SmallX < 10 -> 10;
-	     Tx0 -> Tx0
-	 end,
-    Ty = case (H-Ys)/2 of
-	     SmallY when SmallY < 36 -> 36;
-	     Ty0 -> Ty0
-	 end,
-    S#s{ox=Tx,oy=Ty}.
 
 setup_blanket(Dialog) ->
     %% The menu blanket window lies below the dialog, covering the entire
