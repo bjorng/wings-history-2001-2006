@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.126 2003/06/09 06:08:24 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.127 2003/06/09 08:56:20 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -157,14 +157,18 @@ do_update_dlists_3(CommonNeed, St) ->
 
 need_fun(#dlo{src_we=We}, _, _, Acc) when ?IS_LIGHT(We) ->
     [[light]|Acc];
-need_fun(#dlo{src_we=#we{he=Htab},proxy_data=Pd}, Need0, _St, Acc) ->
+need_fun(#dlo{src_we=#we{he=Htab,mode=Mode},proxy_data=Pd}, Need0, _St, Acc) ->
     Need1 = case gb_sets:is_empty(Htab) orelse not wings_pref:get_value(show_edges) of
 		false -> [hard_edges|Need0];
 		true -> Need0
 	    end,
+    Need2 = if
+		Pd =:= none -> Need1;
+		true -> [proxy|Need1]
+	    end,
     Need = if
-	       Pd =:= none -> Need1;
-	       true -> [proxy|Need1]
+	       Mode =:= vertex -> Need2 ++ [vertex_mode_edges];
+	       true -> Need2
 	   end,
     [Need|Acc].
 
@@ -185,11 +189,8 @@ update_fun_1(D, [], _) -> D.
 update_fun_2(light, D, _) ->
     wings_light:update(D);
 update_fun_2(work, #dlo{work=none,src_we=#we{fs=Ftab}=We}=D, St) ->
-    List = gl:genLists(1),
-    gl:newList(List, ?GL_COMPILE),
-    draw_faces(gb_trees:to_list(Ftab), We, St),
-    gl:endList(),
-    D#dlo{work=List};
+    Dl = draw_faces(gb_trees:to_list(Ftab), We, St),
+    D#dlo{work=Dl};
 update_fun_2(smooth, #dlo{smooth=none}=D, St) ->
     We = wings_subdiv:smooth_we(D),
     {List,Tr} = smooth_dlist(We, St),
@@ -217,6 +218,9 @@ update_fun_2(hard_edges, #dlo{hard=none,src_we=#we{he=Htab}=We}=D, _) ->
     gl:'end'(),
     gl:endList(),
     D#dlo{hard=List};
+update_fun_2(vertex_mode_edges, #dlo{work={call,_,Faces}}=D, _) ->
+    Dl = wings_draw_util:force_flat_color(Faces, wings_pref:get_value(edge_color)),
+    D#dlo{edges=Dl};
 update_fun_2(normals, D, _) ->
     make_normals_dlist(D);
 update_fun_2(proxy, D, St) ->
@@ -233,13 +237,12 @@ update_sel_dlist() ->
 			end, []).
 
 update_sel(#dlo{src_we=We}=D) when ?IS_LIGHT(We) -> {D,[]};
-update_sel(#dlo{work=Faces,sel=none,src_sel={body,_}}=D) ->
-    {D#dlo{sel=Faces},[]};
-update_sel(#dlo{sel=none,src_sel={face,Faces}}=D) ->
-    #dlo{work=DlistFaces,src_we=#we{fs=Ftab}=We} = D,
+update_sel(#dlo{sel=none,src_sel={body,_}}=D) ->
+    update_sel_all(D);
+update_sel(#dlo{sel=none,src_sel={face,Faces},src_we=#we{fs=Ftab}=We}=D) ->
     case gb_trees:size(Ftab) =:= gb_sets:size(Faces) of
 	true ->
-	    {D#dlo{sel=DlistFaces},[]};
+	    update_sel_all(D);
 	false ->
 	    Tess = wings_draw_util:tess(),
 	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
@@ -255,7 +258,7 @@ update_sel(#dlo{sel=none,src_sel={face,Faces}}=D) ->
 	      end),
 	    gl:endList(),
 	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-	    {D#dlo{sel=List},[]}
+	    D#dlo{sel=List}
     end;
 update_sel(#dlo{sel=none,src_sel={edge,Edges}}=D) ->
     #dlo{src_we=#we{es=Etab,vp=Vtab}} = D,
@@ -277,7 +280,7 @@ update_sel(#dlo{sel=none,src_sel={edge,Edges}}=D) ->
     end,
     gl:'end'(),
     gl:endList(),
-    {D#dlo{sel=List},[]};
+    D#dlo{sel=List};
 update_sel(#dlo{sel=none,src_sel={vertex,Vs}}=D) ->
     #dlo{src_we=#we{vp=Vtab0}} = D,
     SelDlist = gl:genLists(1),
@@ -288,7 +291,7 @@ update_sel(#dlo{sel=none,src_sel={vertex,Vs}}=D) ->
 	    foreach(fun(Pos) -> gl:vertex3fv(Pos) end, gb_trees:values(Vtab0)),
 	    gl:'end'(),
 	    gl:endList(),
-	    {D#dlo{sel=SelDlist},[]};
+	    D#dlo{sel=SelDlist};
 	false ->
 	    Vtab1 = gb_trees:to_list(Vtab0),
 	    Vtab = sofs:from_external(Vtab1, [{vertex,data}]),
@@ -301,9 +304,15 @@ update_sel(#dlo{sel=none,src_sel={vertex,Vs}}=D) ->
 	    gl:'end'(),
 	    gl:endList(),
 
-	    {D#dlo{sel=SelDlist},[]}
+	    D#dlo{sel=SelDlist}
     end;
-update_sel(#dlo{}=D) -> {D,[]}.
+update_sel(#dlo{}=D) -> D.
+
+update_sel_all(#dlo{src_we=#we{mode=vertex},work={call,_,Faces}}=D) ->
+    Dl = wings_draw_util:force_flat_color(Faces, wings_pref:get_value(selected_color)),
+    D#dlo{sel=Dl};
+update_sel_all(#dlo{work=Faces}=D) ->
+    D#dlo{sel=Faces}.
 
 update_mirror() ->
     wings_draw_util:map(fun update_mirror/2, []).
@@ -378,12 +387,9 @@ update_dynamic(#dlo{work=[Work|_],vs=VsList0,
     #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_plan=DynPlan} = Split,
     Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
     We = We0#we{vp=Vtab},
-    List = gl:genLists(1),
-    gl:newList(List, ?GL_COMPILE),
-    draw_faces(DynPlan, We),
-    gl:endList(),
+    Dl = draw_faces(DynPlan, We),
     VsList = update_dynamic_vs(VsList0, DynVs, We),
-    D#dlo{work=[Work,List],vs=VsList,src_we=We}.
+    D#dlo{work=[Work,Dl],vs=VsList,src_we=We}.
 
 update_dynamic_vs(VsList, none, _) -> VsList;
 update_dynamic_vs([Static|_], DynVs, #we{vp=Vtab}) ->
@@ -432,12 +438,8 @@ split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
 split_vs_dlist(_, _, _) -> {none,none}.
 
 static_dlist(Faces, Ftab, We, St) ->
-    List = gl:genLists(1),
-    gl:newList(List, ?GL_COMPILE),
     StaticFtab = sofs:to_external(sofs:drestriction(Ftab, Faces)),
-    draw_faces(StaticFtab, We, St),
-    gl:endList(),
-    List.
+    draw_faces(StaticFtab, We, St).
 
 %%%
 %%% Drawing routines for workmode.
@@ -447,15 +449,33 @@ draw_faces(Ftab, We, St) ->
     draw_faces(wings_draw_util:prepare(Ftab, We, St), We).
 
 draw_faces({uv,MatFaces,St}, We) ->
-    draw_uv_faces(MatFaces, We, St);
+    Dl = gl:genLists(1),
+    gl:newList(Dl, ?GL_COMPILE),
+    draw_uv_faces(MatFaces, We, St),
+    gl:endList(),
+    Dl;
 draw_faces({material,MatFaces,St}, We) ->
-    draw_mat_faces(MatFaces, We, St);
+    Dl = gl:genLists(1),
+    gl:newList(Dl, ?GL_COMPILE),
+    draw_mat_faces(MatFaces, We, St),
+    gl:endList(),
+    Dl;
 draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
+    BasicFaces = gl:genLists(2),
+    Dl = BasicFaces+1,
+    gl:newList(BasicFaces, ?GL_COMPILE),
+    draw_vtx_faces(Colors, We),
+    gl:endList(),
+    
+    gl:newList(Dl, ?GL_COMPILE),
     wings_material:apply_material(default, Mtab),
     gl:enable(?GL_COLOR_MATERIAL),
     gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
-    draw_vtx_faces(Colors, We),
-    gl:disable(?GL_COLOR_MATERIAL).
+    gl:callList(BasicFaces),
+    gl:disable(?GL_COLOR_MATERIAL),
+    gl:endList(),
+
+    {call,Dl,BasicFaces}.
 
 draw_vtx_faces({Same,Diff}, We) ->
     Draw = fun() ->

@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.75 2003/06/09 06:08:24 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.76 2003/06/09 08:56:20 bjorng Exp $
 %%
 
 -module(wings_draw_util).
 -export([init/0,tess/0,begin_end/1,begin_end/2,
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,
-	 prepare/3,mat_faces/5,face/2,face/3,flat_face/2,flat_face/3]).
+	 prepare/3,mat_faces/5,face/2,face/3,flat_face/2,flat_face/3,
+	 force_flat_color/2]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -193,6 +194,8 @@ update_seen_1([H|T], Seen) ->
     update_seen_1(T, update_seen_1(H, Seen));
 update_seen_1([], Seen) -> Seen;
 update_seen_1(none, Seen) -> Seen;
+update_seen_1({call,Dl1,Dl2}, Seen) ->
+    update_seen_1(Dl1, update_seen_1(Dl2, Seen));
 update_seen_1({matrix,_,Dl}, Seen) ->
     update_seen_1(Dl, Seen);
 update_seen_1(Dl, Seen) when is_integer(Dl) ->
@@ -281,7 +284,7 @@ render_object_1(#dlo{transparent=true}=D, _, false, true) ->
 render_object_1(#dlo{transparent=false}=D, _, false, RenderTrans) ->
     render_smooth(D, RenderTrans).
 
-render_plain(#dlo{work=Faces,src_we=We,proxy_data=none}=D, SelMode) ->
+render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) ->
     %% Draw faces for winged-edge-objects.
     Wire = wire(We),
     case Wire of
@@ -321,10 +324,10 @@ render_plain(#dlo{work=Faces,src_we=We,proxy_data=none}=D, SelMode) ->
 	    case Wire of
 		true ->
 		    gl:disable(?GL_CULL_FACE),
-		    call(Faces),
+		    call_one_of(Edges, Faces),
 		    gl:enable(?GL_CULL_FACE);
 		false ->
-		    call(Faces)
+		    call_one_of(Edges, Faces)
 	    end
     end,
     render_plain_rest(D, Wire, SelMode);
@@ -332,6 +335,9 @@ render_plain(#dlo{src_we=We}=D, SelMode) ->
     Wire = wire(We),
     wings_subdiv:draw(D, Wire),
     render_plain_rest(D, Wire, SelMode).
+
+call_one_of(none, Dl) -> call(Dl);
+call_one_of(Dl, _) -> call(Dl).
 
 render_plain_rest(D, Wire, SelMode) ->
     gl:disable(?GL_POLYGON_OFFSET_LINE),
@@ -649,11 +655,40 @@ tess_flat_face(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
 
+%% force_flat_color(OriginalDlist, Color) -> NewDlist.
+%%  Wrap a previous display list (that includes gl:color*() calls)
+%%  into a new display lists that forces the flat color Color
+%%  on all elements.
+force_flat_color(OriginalDlist, {R,G,B}) ->
+    Dl = gl:genLists(1),
+    gl:newList(Dl, ?GL_COMPILE),
+    gl:pushAttrib(?GL_CURRENT_BIT bor ?GL_ENABLE_BIT bor
+		  ?GL_POLYGON_BIT bor ?GL_LINE_BIT bor
+		  ?GL_COLOR_BUFFER_BIT bor
+		  ?GL_LIGHTING_BIT),
+    gl:enable(?GL_LIGHTING),
+    gl:shadeModel(?GL_FLAT),
+    gl:disable(?GL_LIGHT0),
+    gl:disable(?GL_LIGHT1),
+    gl:disable(?GL_LIGHT2),
+    gl:disable(?GL_LIGHT3),
+    gl:disable(?GL_LIGHT4),
+    gl:disable(?GL_LIGHT5),
+    gl:disable(?GL_LIGHT6),
+    gl:disable(?GL_LIGHT7),
+    gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0,0,0,0}),
+    gl:materialfv(?GL_FRONT_AND_BACK, ?GL_EMISSION, {R,G,B,1}),
+    wings_draw_util:call(OriginalDlist),
+    gl:popAttrib(),
+    gl:endList(),
+    {call,Dl,OriginalDlist}.
+
 %%
 %% Utilities.
 %%
 
 call(none) -> none;
+call({call,Dl,_}) -> call(Dl);
 call([H|T]) -> call(H), call(T);
 call([]) -> ok;
 call(Dl) when is_integer(Dl) -> gl:callList(Dl).
