@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.11 2003/01/30 13:00:48 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.12 2003/01/30 13:16:35 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -403,9 +403,9 @@ grid(Width, Height) ->
     White = [255,255,255],
     Black = [0,0,0],
     WhiteRow = pattern_repeat(Width, White),
-    BlackRow = pattern_repeat(15, Black),
-    R0 = pattern_repeat(15*(Width div 16), [White,BlackRow]),
-    R = [WhiteRow|R0],
+    BlackRow = pattern_repeat(14, Black),
+    R0 = pattern_repeat(14*(Width div 16), [White,BlackRow|White]),
+    R = [WhiteRow,R0|WhiteRow],
     All = pattern_repeat(Height div 16, R),
     list_to_binary(All).
 
