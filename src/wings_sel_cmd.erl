@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.3 2001/12/31 23:55:12 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.4 2002/01/02 12:19:38 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -92,8 +92,6 @@ command(more, St) ->
     select_more(St);
 command(less, St) ->
     select_less(St);
-command({material,Mat}=Cmd, St) ->
-    wings_material:command(Cmd, St);
 command(all, St) ->
     {save_state,select_all(St)};
 command({by,Command}, St) ->
@@ -143,6 +141,8 @@ by_command({faces_with,N}, St) ->
 		  N =:= length(wings_face:surrounding_vertices(Face, We))
 	  end,
     {save_state,wings_sel:make(Sel, face, St)};
+by_command({material,Mat}=Cmd, St) ->
+    wings_material:command({select,Cmd}, St);
 by_command({random,Percent}, St) ->
     {save_state,random(Percent, St)}.
 
