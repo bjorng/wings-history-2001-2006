@@ -9,7 +9,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings3.nsi,v 1.2 2003/09/06 09:05:38 bjorng Exp $
+#     $Id: wings3.nsi,v 1.3 2003/09/06 17:01:45 bjorng Exp $
 #
 
 	!define MUI_PRODUCT "Wings 3D"
@@ -40,7 +40,7 @@
   
 ;--------------------------------
 ;Modern UI Configuration
-        !define MUI_ICON "${NSISDIR}\Contrib\Icons\normal-install.ico"
+        !define MUI_ICON "install.ico"
         !define MUI_UNICON "${NSISDIR}\Contrib\Icons\normal-uninstall.ico"
 	!define MUI_WELCOMEPAGE
   	!define MUI_COMPONENTSPAGE
@@ -82,8 +82,8 @@ SectionIn 1 2 3 RO
   	StrCmp ${MUI_STARTMENUPAGE_VARIABLE} "" 0 skip_silent_mode
 	StrCpy ${MUI_STARTMENUPAGE_VARIABLE} \
 		"${MUI_STARTMENUPAGE_DEFAULTFOLDER}"
+
 skip_silent_mode:
- 
   	SetOutPath "$INSTDIR"
   	File /r AUTHORS license.terms Wings3D.exe
   	SetOutPath "$INSTDIR\plugins"
@@ -178,7 +178,7 @@ Section "Make Default" SecWingsMakeDefault
   WriteRegStr HKCR "Wings3DFile" "" "Wings 3D File"
   WriteRegStr HKCR "Wings3DFile\shell" "" "open"
   WriteRegStr HKCR "Wings3DFile\DefaultIcon" "" $INSTDIR\Wings3D.exe,0
-  WriteRegStr HKCR "Wings3DFile\shell\open\command" "" '$1\Wings3D.exe "%1"'
+  WriteRegStr HKCR "Wings3DFile\shell\open\command" "" '$INSTDIR\Wings3D.exe "%1"'
   WriteRegStr HKLM "SOFTWARE\Wings 3D\DefaultVersion" "" ${WINGS_VERSION}
 SectionEnd  
 
@@ -192,6 +192,7 @@ Section "Desktop shortcut" SecWingsClutterDesktop
   CreateShortCut "$DESKTOP\Wings 3D ${WINGS_VERSION}.lnk" "$INSTDIR\Wings3D.exe"
 continue_create:
 SectionEnd
+
 Section "QuickLaunch shortcut" SecWingsClutterQuickLaunch
   
   SetShellVarContext All
@@ -226,7 +227,6 @@ SubSectionEnd
 
 
 
-
 ; begin uninstall settings/section
 ;UninstallText "This will uninstall Wings 3D from your system"
 
@@ -249,8 +249,7 @@ Section Uninstall
   RMDir /r "$INSTDIR\priv"
   RMDir /r "$INSTDIR\erlang"
 
-  Delete "$INSTDIR\uninst.exe"
-  DeleteRegValue HKLM "SOFTWARE\Wings 3D" "WerlPath"
+  Delete "$INSTDIR\Uninstall.exe"
 
 ;Remove shortcut
   	ReadRegStr ${TEMP} "${MUI_STARTMENUPAGE_REGISTRY_ROOT}" \
@@ -282,22 +281,18 @@ noshortcuts:
   	DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}"
   	DeleteRegKey HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}"
 
-;;;;;; FIXME ;;;;;;;;;
-  DeleteRegKey HKLM "SOFTWARE\Ericsson\Erlang\Wings3D\${WINGS_VERSION}"
-
-  	Delete "$INSTDIR\wings_start.bat"
   	Delete "$INSTDIR\patches\*.*"
   	RMDir /r "$INSTDIR\patches"
   	RMDir "$INSTDIR"
 
-  	ReadRegStr ${TEMP} HKLM "SOFTWARE\Wings 3D\DefaultVersion" \
-		""
+  	ReadRegStr ${TEMP} HKLM "SOFTWARE\Wings 3D\DefaultVersion" ""
 
   	StrCmp ${TEMP} "${WINGS_VERSION}" 0 done
 	;MessageBox MB_OK ${TEMP}
   	DeleteRegKey HKCR ".wings"
   	DeleteRegKey HKCR "Wings3DFile"
 	DeleteRegKey HKLM "SOFTWARE\Wings 3D\DefaultVersion"
+
 done:
 	;MessageBox MB_OK ${TEMP}
 
@@ -305,6 +300,7 @@ done:
   	!insertmacro MUI_UNFINISHHEADER
 
 SectionEnd ; end of uninstall section
+
 Function .onInit
 SectionGetFlags ${SecWingsClutterQuickLaunch} $0
 IntOp $0 $0 & ~1
@@ -327,4 +323,3 @@ SectionSetFlags ${SecWingsMakeDefault} $0
 done:
 FunctionEnd 
 ; eof
-
