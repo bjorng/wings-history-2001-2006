@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.138 2003/12/08 01:57:34 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.139 2003/12/09 14:40:39 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -636,15 +636,14 @@ return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto,
 	    delete(S0)
     end.
 
-redraw(S=#s{w=W,h=H,ox=Ox,oy=Oy,focus=Index,fi=Fi0,store=Sto}) ->
+redraw(S=#s{ox=Ox,oy=Oy,focus=Index,fi=Fi0,store=Sto}) ->
     ?DEBUG_DISPLAY(redraw),
     wings_io:ortho_setup(),
-    gl:translated(Ox, Oy, 0),
+    {W,H} = wings_wm:win_size(),
     blend(fun(Col) ->
-		  wings_io:border(-?HMARGIN, -?VMARGIN,
-				  W+2*?HMARGIN-1, H+2*?VMARGIN-1,
-				  Col)
+		  wings_io:border(0, 0, W-1, H-1, Col)
 	  end),
+    gl:translated(Ox, Oy, 0),
     case draw_fields(Fi0, Index, Sto) of
 	keep -> keep;
 	Fi ->
