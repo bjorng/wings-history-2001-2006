@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.14 2001/10/24 08:51:39 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.15 2001/11/09 07:03:57 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -221,13 +221,31 @@ show_vertex(F, Vertex, #vtx{edge=Edge,pos=Pos}) ->
 %%%
 
 crasch_log(BackTrace) ->
-    LogName = filename:absname("wings_crasch.dump"),
+    LogFileDir = log_file_dir(),
+    LogName = filename:absname("wings_crasch.dump", LogFileDir),
     F = open_log_file(LogName),
     io:format(F, "Crashed in:\n~p\n\n", [BackTrace]),
     analyse(F, BackTrace),
     file:close(F),
     LogName.
 
+log_file_dir() ->
+    case catch log_file_dir(os:type()) of
+	Dir when is_list(Dir) -> Dir;
+	Other -> "."
+    end.
+
+log_file_dir({unix,_}) -> os:getenv("HOME");
+log_file_dir({win32,_}) ->
+    case code:which(?MODULE) of
+	Name0 when is_list(Name0) ->
+	    Name = filename:dirname(Name0),
+	    case filename:basename(Name) of
+		"ebin" -> filename:dirname(Name);
+		Other -> Name
+	    end
+    end.
+	
 open_log_file(Name) ->
     {ok,F} = file:open(Name, [write]),
     {{Y,Mo,D},{H,Mi,_}} = erlang:localtime(),
