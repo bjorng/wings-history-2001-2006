@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.40 2003/03/20 21:09:32 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.41 2003/03/24 19:04:38 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -124,15 +124,12 @@ bevel_reset_pos_1(V, We, Forbidden, Vtab) ->
 	      end
       end, Vtab, V, We).
 
-bevel_limit(Tv0, We, Limit) ->
+bevel_limit(Tv, We, Limit) ->
     L0 = foldl(fun({Vec,[V]}, A) ->
 		       bevel_limit_1(V, Vec, We, A)
-	       end, [], Tv0),
-    L1 = sofs:relation(L0, [{edge,data}]),
-    L2 = sofs:relation_to_family(L1),
-    L3 = sofs:range(L2),
-    L = sofs:to_external(L3),
-    bevel_min_limit(L, Limit).
+	       end, [], Tv),
+    L = wings_util:rel2fam(L0),
+    bevel_min_limit(L, We, Limit).
 
 bevel_limit_1(V, Vec, #we{vp=Vtab}=We, Acc) ->
     Pos = gb_trees:get(V, Vtab),
@@ -145,7 +142,7 @@ bevel_limit_1(V, Vec, #we{vp=Vtab}=We, Acc) ->
 edge_name(Va, Vb) when Va < Vb -> {Va,Vb};
 edge_name(Va, Vb) -> {Vb,Va}.
 
-bevel_min_limit([[{O1,D1},{O2,D2}]|Tail], Min0) ->
+bevel_min_limit([{_,[{O1,D1},{O2,D2}]}|Tail], We, Min0) ->
     %% Find intersection between lines.
     O2MinusO1 = e3d_vec:sub(O2, O1),
     D1CrossD2 = e3d_vec:cross(D1, D2),
@@ -153,22 +150,29 @@ bevel_min_limit([[{O1,D1},{O2,D2}]|Tail], Min0) ->
     case LenD1CrossD2*LenD1CrossD2 of
 	Z when abs(Z) < 0.00001 ->
 	    %% No intersection.
-	    bevel_min_limit(Tail, Min0);
+	    bevel_min_limit(Tail, We, Min0);
 	SqrLen ->
 	    S = e3d_vec:dot(e3d_vec:cross(O2MinusO1, D2), D1CrossD2)/SqrLen,
 	    T = e3d_vec:dot(e3d_vec:cross(O2MinusO1, D1), D1CrossD2)/SqrLen,
 	    if
 		S > 0, T > 0 ->
 		    Min = lists:min([S,T,Min0]),
-		    bevel_min_limit(Tail, Min);
+		    bevel_min_limit(Tail, We, Min);
 		true ->
 		    %% No intersection in the forward direction.
-		    bevel_min_limit(Tail, Min0)
+		    bevel_min_limit(Tail, We, Min0)
 	    end
     end;
-bevel_min_limit([_|Tail], Min) ->
-    bevel_min_limit(Tail, Min);
-bevel_min_limit([], Min) -> Min.
+bevel_min_limit([{{Va,Vb},[{_,D1}]}|Tail], #we{vp=Vtab}=We, Min0) ->
+    VaPos = gb_trees:get(Va, Vtab),
+    VbPos = gb_trees:get(Vb, Vtab),
+    case e3d_vec:len(e3d_vec:sub(VaPos, VbPos)) / e3d_vec:len(D1) of
+	Min when Min < Min0 ->
+	    bevel_min_limit(Tail, We, Min);
+	_ ->
+	    bevel_min_limit(Tail, We, Min0)
+    end;
+bevel_min_limit([], _, Min) -> Min.
 
 %%
 %% The Extrude command (for edges).
