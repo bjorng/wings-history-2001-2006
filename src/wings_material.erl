@@ -8,12 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.35 2002/06/04 19:47:53 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.36 2002/06/21 07:36:32 bjorng Exp $
 %%
 
 -module(wings_material).
--export([init/1,sub_menu/2,command/2,color/4,default/0,add_materials/2,
-	 used_materials/1,apply_material/2]).
+-export([init/1,sub_menu/2,command/2,
+	 color/4,default/0,add_materials/2,
+	 used_materials/1,apply_material/2,
+	 is_transparent/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -223,6 +225,16 @@ used_materials_1(Ftab, Acc) ->
 	     (#face{mat=Mat}, A) ->
 		  gb_sets:add(Mat, A)
 	  end, Acc, gb_trees:values(Ftab)).
+
+is_transparent(Name, Mtab) ->
+    Mat = gb_trees:get(Name, Mtab),
+    OpenGL = prop_get(opengl, Mat),
+    foldl(fun(_, true) -> true;
+	     ({emission,_}, _) -> false;
+	     ({_,{_,_,_,1.0}}, _) -> false;
+	     ({_,{_,_,_,_}}, _) -> true;
+	     (_, _) -> false
+	  end, false, OpenGL).
 
 %%% The material editor.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.26 2002/06/02 20:49:02 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.27 2002/06/21 07:36:32 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -174,38 +174,50 @@ render(#st{selmode=Mode}=St) ->
 		  ?GL_TEXTURE_BIT bor ?GL_POLYGON_BIT bor
 		  ?GL_LINE_BIT bor ?GL_COLOR_BUFFER_BIT),
     gl:enable(?GL_DEPTH_TEST),
+    gl:enable(?GL_CULL_FACE),
     wings_view:projection(),
     wings_view:model_transformations(),
     ground_and_axes(),
     show_saved_bb(St),
     #du{dl=Dl} = get(?MODULE),
-    render_scene(Dl, Mode, wings_pref:get_value(workmode)),
+    Work = wings_pref:get_value(workmode),
+    render_scene(Dl, Mode, Work, false),
+    render_scene(Dl, Mode, Work, true),
     axis_letters(),
     gl:disable(?GL_DEPTH_TEST),
     draw_vec(St),
     gl:popAttrib().
 
-render_scene([D|Dls], Mode, Work) ->
+render_scene(_, _, true, true) -> ok;
+render_scene(Dls, Mode, Work, RenderTrans) ->
+    render_scene_1(Dls, Mode, Work, RenderTrans).
+    
+render_scene_1([D|Dls], Mode, Work, RenderTrans) ->
     gl:cullFace(?GL_BACK),
-    render_object(D, Mode, Work),
-    render_scene(Dls, Mode, Work);
-render_scene([], _, _) -> ok.
+    render_object(D, Mode, Work, RenderTrans),
+    render_scene_1(Dls, Mode, Work, RenderTrans);
+render_scene_1([], _, _, _) -> ok.
 
-render_object(#dlo{mirror=none}=D, Mode, Work) ->
-    render_object_1(D, Mode, Work);
-render_object(#dlo{mirror=Matrix}=D, Mode, Work) ->
-    render_object_1(D, Mode, Work),
+render_object(#dlo{mirror=none}=D, Mode, Work, RenderTrans) ->
+    render_object_1(D, Mode, Work, RenderTrans);
+render_object(#dlo{mirror=Matrix}=D, Mode, Work, RenderTrans) ->
+    render_object_1(D, Mode, Work, RenderTrans),
     gl:cullFace(?GL_FRONT),
     gl:pushMatrix(),
     gl:multMatrixf(Matrix),
-    render_object_1(D, Mode, Work),
+    render_object_1(D, Mode, Work, RenderTrans),
     gl:popMatrix().
 
-render_object_1(D, _Mode, false) -> render_smooth(D);
-render_object_1(D, Mode, true) -> render_plain(D, Mode).
+render_object_1(#dlo{transparent=true}, _, false, false) -> ok;
+render_object_1(#dlo{transparent=false}, _, false, true) -> ok;
+render_object_1(#dlo{transparent=true}=D, _, false, true) ->
+    gl:disable(?GL_CULL_FACE),
+    render_smooth(D),
+    gl:enable(?GL_CULL_FACE);
+render_object_1(D, _, false, _) -> render_smooth(D);
+render_object_1(D, Mode, true, _) -> render_plain(D, Mode).
 
 render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
-    gl:enable(?GL_CULL_FACE),
 
     %% Draw faces for winged-edge-objects.
     case Wire of
@@ -256,7 +268,6 @@ render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
     draw_normals(D).
 
 render_smooth(#dlo{work=Work,smooth=DlistSmooth,wire=Wire}=D) ->
-    gl:enable(?GL_CULL_FACE),
     gl:shadeModel(?GL_SMOOTH),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:enable(?GL_LIGHTING),

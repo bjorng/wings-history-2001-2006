@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.59 2002/05/31 11:09:33 bjorng Exp $
+%%     $Id: wings.hrl,v 1.60 2002/06/21 07:36:31 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -86,7 +86,8 @@
 	 src_sel=none,				%Source selection.
 	 orig_mode=none,			%Original selection mode.
 	 split=none,				%Split data.
-	 drag=none				%For dragging.
+	 drag=none,				%For dragging.
+	 transparent=false			%Object includes transparancy.
 	}).
 
 %% Main state record containing all objects and other important state.
