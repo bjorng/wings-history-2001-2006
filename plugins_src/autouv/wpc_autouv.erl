@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.159 2003/09/14 14:08:17 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.160 2003/09/14 14:09:03 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -787,9 +787,7 @@ handle_command(NewOp, Uvs) ->
 %%% Command handling (temporary version).
 %%%
 
-get_cmd_event(Op, X, Y, #uvstate{areas=Shs,origst=#st{mat=Mat}}=Uvs) ->
-%     St = #st{selmode=body,shapes=Shs,mat=Mat},
-%     update_dlists(St),
+get_cmd_event(Op, X, Y, Uvs) ->
     wings_wm:dirty(),
     get_cmd_event_noredraw(Op, X, Y, Uvs).
 
