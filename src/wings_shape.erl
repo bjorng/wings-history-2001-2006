@@ -3,12 +3,12 @@
 %%
 %%     Utilities for shape records.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.31 2003/01/02 08:31:38 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.32 2003/01/02 14:49:38 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -76,9 +76,11 @@ window(St) ->
 	    {_,GeomY,GeomW,GeomH} = wings_wm:viewport(),
 	    W = 24*?CHAR_WIDTH,
 	    Ost = #ost{first=0,eye=eye_bitmap(),lock=lock_bitmap(),lh=18,active=-1},
-	    Op = {seq,push,event({current_state,St}, Ost)},
+	    Current = {current_state,St},
+	    Op = {seq,push,event(Current, Ost)},
 	    wings_wm:new(object, {GeomW-W,GeomY,20}, {W,GeomH-50}, Op),
-	    wings_wm:new_controller(object, "Objects"),
+	    wings_wm:new_controller(object, "Objects", [vscroller]),
+	    wings_wm:send(object, Current),
 	    keep
     end.
 
@@ -93,6 +95,7 @@ event(redraw, Ost) ->
     keep;
 event({current_state,St}, Ost0) ->
     Ost = update_state(St, Ost0),
+    update_scroller(Ost),
     get_event(Ost);
 event({new_name,Id,Name}, #ost{st=#st{shapes=Shs0}=St}) ->
     We = gb_trees:get(Id, Shs0),
@@ -118,9 +121,22 @@ event(#mousemotion{x=X,y=Y,state=State}, #ost{active=Act0}=Ost0) ->
 event(#mousebutton{x=X,y=Y,button=B,state=?SDL_PRESSED}, Ost) ->
     do_action(X, Y, B, Ost);
 event(#mousebutton{button=4,state=?SDL_RELEASED}, Ost) ->
-    zoom_step(-1, Ost);
+    zoom_step(-1*lines(Ost) div 4, Ost);
 event(#mousebutton{button=5,state=?SDL_RELEASED}, Ost) ->
-    zoom_step(1, Ost);
+    zoom_step(lines(Ost) div 4, Ost);
+event(scroll_page_up, Ost) ->
+    zoom_step(-lines(Ost), Ost);
+event(scroll_page_down, Ost) ->
+    zoom_step(lines(Ost), Ost);
+event({set_knob_pos,Pos}, #ost{first=First0,n=N}=Ost0) ->
+    case round(N*Pos) of
+	First0 -> keep;
+	First ->
+	    wings_wm:dirty(),
+	    Ost = Ost0#ost{first=First,active=-1},
+	    update_scroller(Ost),
+	    get_event(Ost)
+    end;
 event(_, _) -> keep.
 
 help(-1, _) -> wings_wm:message("");
@@ -154,6 +170,14 @@ update_state(#st{sel=Sel,shapes=Shs}=St, #ost{st=#st{sel=Sel0}}=Ost) ->
 update_state(#st{sel=Sel,shapes=Shs}=St, Ost) ->
     Ost#ost{st=St,sel=Sel,os=gb_trees:values(Shs),n=gb_trees:size(Shs)}.
 
+update_scroller(#ost{n=0}) ->
+    Name = wings_wm:active_window(),
+    wings_win_scroller:set_knob(Name, 0.0, 1.0);
+update_scroller(#ost{first=First,n=N}=Ost) ->
+    Lines = lines(Ost),
+    Name = wings_wm:active_window(),
+    wings_win_scroller:set_knob(Name, First/N, Lines/N).
+    
 has_sel_really_changed([{Id,_}|SelA], [{Id,_}|SelB]) ->
     has_sel_really_changed(SelA, SelB);
 has_sel_really_changed([], []) -> false;
@@ -165,9 +189,9 @@ have_objects_really_changed([#we{id=Id,name=Name,perm=P}|WesA],
 have_objects_really_changed([], []) -> false;
 have_objects_really_changed(_, _) -> true.
 
-zoom_step(Dir, #ost{first=First0,os=Objs}=Ost) ->
+zoom_step(Step, #ost{first=First0,os=Objs}=Ost0) ->
     L = length(Objs),
-    First1 = case First0+20*Dir of
+    First1 = case First0+Step of
 		 F when F < 0 -> 0;
 		 F when F > L -> L;
 		 F -> F
@@ -176,7 +200,9 @@ zoom_step(Dir, #ost{first=First0,os=Objs}=Ost) ->
 	First0 -> keep;
 	First ->
 	    wings_wm:dirty(),
-	    get_event(Ost#ost{first=First})
+	    Ost = Ost0#ost{first=First},
+	    update_scroller(Ost),
+	    get_event(Ost)
     end.
 
 active_object(Y0, #ost{lh=Lh,first=First,os=Objs}) ->
@@ -350,11 +376,10 @@ repeat_latest_1(_, _, _) -> ok.
 draw_objects(#ost{os=Objs0,first=First,lh=Lh,active=Active,n=N0}=Ost) ->
     Objs = lists:nthtail(First, Objs0),
     R = right_pos(),
-    {_,_,_,H} = wings_wm:viewport(),
-    WillFitVertically = H div Lh + 1,
+    Lines = lines(Ost),
     N = case N0-First of
-	    N1 when N1 < WillFitVertically -> N1;
-	    _ -> WillFitVertically
+	    N1 when N1 < Lines -> N1;
+	    _ -> Lines
 	end,
     draw_objects_1(N, Objs, Ost, R, Active, Lh-2).
 
@@ -433,6 +458,10 @@ lock_pos() ->
 
 name_pos() ->
     37.
+
+lines(#ost{lh=Lh}) ->
+    {_,_,_,H} = wings_wm:viewport(),
+    H div Lh.
 
 %%%
 %%% Utilities.

@@ -3,23 +3,23 @@
 %%
 %%     Window manager for Wings.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.44 2003/01/01 12:09:47 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.45 2003/01/02 14:49:38 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,new/4,delete/1,
-	 new_controller/2,
+	 new_controller/2,new_controller/3,
 	 message/1,message/2,message_right/1,send/2,
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
 	 active_window/0,offset/3,move/3,pos/1,windows/0,is_window/1,exists/1,
 	 callback/1,current_state/1,
-	 grab_focus/1,release_focus/0,has_focus/1,focus_window/0,
+	 grab_focus/0,grab_focus/1,release_focus/0,has_focus/1,focus_window/0,
 	 top_size/0,viewport/0,viewport/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
 	 translation_change/0,me_modifiers/0,set_me_modifiers/1,
@@ -137,10 +137,14 @@ delete(Name) ->
 	_ -> ok
     end,
     dirty(),
-    Windows = gb_trees:delete_any({controller,Name},
-				  gb_trees:delete_any(Name, get(wm_windows))),
+    Windows = delete_windows(Name, get(wm_windows)),
     put(wm_windows, Windows),
     keep.
+
+delete_windows(Name, W0) ->
+    W1 = gb_trees:delete_any(Name, W0),
+    W = gb_trees:delete_any({controller,Name}, W1),
+    gb_trees:delete_any({vscroller,Name}, W).
 
 active_window() ->
     case get(wm_active) of
@@ -168,6 +172,9 @@ move(Name, {X,Y,Z}, {W,H}) ->
 pos(Name) ->
     #win{x=X,y=Y} = get_window_data(Name),
     {X,Y}.
+
+grab_focus() -> 
+    grab_focus(get(wm_active)).
 	   
 grab_focus(Name) -> 
     case exists(Name) of
@@ -965,11 +972,22 @@ menubar_hit_1([], _, _, _) -> none.
 	}).
 
 new_controller(Client, Title) ->
+    new_controller(Client, Title, []).
+
+new_controller(Client, Title, Flags) ->
     TitleBarH = ?LINE_HEIGHT+2,
     #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Client),
     Cs = #ctrl{title=Title,client=Client},
     new({controller,Client}, {X,Y-TitleBarH,Z-0.5}, {W,H+TitleBarH},
-	{seq,push,get_ctrl_event(Cs)}).
+	{seq,push,get_ctrl_event(Cs)}),
+    case Flags of
+	[vscroller] ->
+	    wings_win_scroller:vscroller(Client,
+					 {X+W,Y,Z-0.5},
+					 {0,H});
+	_ -> ok
+    end,
+    keep.
 
 get_ctrl_event(Cs) ->
     {replace,fun(Ev) -> ctrl_event(Ev, Cs) end}.

@@ -3,12 +3,12 @@
 #
 #     Makefile for building Wings 3D.
 #
-#  Copyright (c) 2001-2002 Bjorn Gustavsson
+#  Copyright (c) 2001-2003 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.29 2002/11/01 06:41:15 bjorng Exp $
+#     $Id: Makefile,v 1.30 2003/01/02 14:49:38 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -79,6 +79,7 @@ MODULES= \
 	wings_view \
 	wings_we \
 	wings_wm \
+	wings_win_scroller \
 	wpa
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
