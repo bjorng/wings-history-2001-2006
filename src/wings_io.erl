@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.121 2003/11/09 10:31:19 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.122 2003/11/12 17:41:27 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -17,7 +17,7 @@
 	 info/1,
 	 blend/2,
 	 border/5,border/6,border_only/4,border_only/5,
-	 gradient_border/7,
+	 gradient_border/5,gradient_border/7,
 	 sunken_rect/4,sunken_rect/5,sunken_rect/6,sunken_rect/7,
 	 sunken_gradient/7,
 	 raised_rect/4,raised_rect/5,raised_rect/6,
@@ -146,6 +146,9 @@ border(X0, Y0, Mw, Mh, FillColor, BorderColor)
     gl:vertex2f(X+Mw, Y+Mh),
     gl:'end'(),
     gl:color3b(0, 0, 0).
+
+gradient_border(X, Y, W, H, FillColor) ->
+    gradient_border(X, Y, W, H, FillColor, {0,0,0}, false).
 
 gradient_border(X0, Y0, Mw, Mh, FillColor, BorderColor, Double)
   when is_integer(X0), is_integer(Y0), is_integer(Mw), is_integer(Mh) ->
@@ -343,6 +346,8 @@ ortho_setup() ->
     gl:color3b(0, 0, 0),
     ortho_setup_1().
 
+ortho_setup(none) ->
+    ortho_setup_1();
 ortho_setup(Color) ->
     set_color(Color),
     ortho_setup_1().

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.42 2003/11/12 17:16:39 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.43 2003/11/12 17:41:27 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -212,7 +212,7 @@ ctrl_message() ->
     wings_wm:dirty().
 
 ctrl_redraw(#ctrl{title=Title}) ->
-    wings_io:ortho_setup(),
+    wings_io:ortho_setup(none),
     {W,_} = wings_wm:win_size(),
     TitleBarH = title_height(),
     Pref = case {wings_wm:this(),wings_wm:actual_focus_window()} of
@@ -222,7 +222,7 @@ ctrl_redraw(#ctrl{title=Title}) ->
 	   end,
     wings_io:blend(wings_pref:get_value(Pref),
 		   fun(C) ->
-			   wings_io:border(0, 0, W-1, TitleBarH-1, C)
+			   wings_io:gradient_border(0, 0, W-1, TitleBarH-1, C)
 		   end),
     wings_io:set_color(wings_pref:get_value(title_text_color)),
     wings_io:text_at(10, TitleBarH-5, Title),
@@ -475,7 +475,7 @@ get_resize_event(Rst) ->
     {replace,fun(Ev) -> resize_event(Ev, Rst) end}.
 
 resize_event(redraw, #rsz{color=Color}) ->
-    wings_io:ortho_setup(),
+    wings_io:ortho_setup(none),
     case Color of
 	none -> ok;
 	_ ->
@@ -645,7 +645,7 @@ drag(Y0, #ss{knob_prop=Prop,track_pos=TrackPos}) ->
     keep.
 
 redraw(#ss{knob_pos=Pos,knob_prop=Prop}) ->
-    wings_io:ortho_setup(),
+    wings_io:ortho_setup(none),
     {W,H} = wings_wm:win_size(),
     wings_io:border(-1, 0, W, H, ?PANE_COLOR),
     gl:color3f(0.2, 0.2, 0.2),
@@ -686,9 +686,9 @@ new_closer(Client) ->
     Name.
 
 close_event(redraw) ->
-    wings_io:ortho_setup(),
+    wings_io:ortho_setup(none),
     {W,H} = wings_wm:win_size(),
-    wings_io:gradient_border(0, 0, W-1, H-1, ?PANE_COLOR, {0,0,0}, false),
+    wings_io:gradient_border(0, 0, W-1, H-1, ?PANE_COLOR),
     gl:color3b(0, 0, 0),
     if
 	H < 12 ->
@@ -800,7 +800,7 @@ menu_open(Xrel, Name, Fun, #mb{st=St}=Mb) ->
 
 menubar_redraw(Mb) ->
     {menubar,Client} = wings_wm:this(),
-    wings_io:ortho_setup(),
+    wings_io:ortho_setup(none),
     {W,H} = wings_wm:win_size(Client),
     wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
     Menubar = wings_wm:get_menubar(Client),

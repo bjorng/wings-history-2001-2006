@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.128 2003/11/10 14:44:03 raimo_niskanen Exp $
+%%     $Id: wings_wm.erl,v 1.129 2003/11/12 17:41:27 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -1069,10 +1069,10 @@ message_redraw(Msg, Right) ->
     keep.
 
 message_setup() ->
-    wings_io:ortho_setup(?PANE_COLOR),
+    wings_io:ortho_setup(none),
     {W,H} = win_size(),
-    gl:recti(0, 0, W, H),
-    gl:color3i(0, 0, 0),
+    wings_io:gradient_rect(0, 0, W, H, ?PANE_COLOR),
+    gl:color3b(0, 0, 0),
     gl:translatef(10, H-5.375, 0),
     {W,H}.
 
