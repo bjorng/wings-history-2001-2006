@@ -3,14 +3,14 @@
 %%
 %%     Native file dialog boxes for Mac OS X.
 %%
-%%  Copyright (c) 2001-2003 Patrik Nyblom, Bjorn Gustavsson.
+%%  Copyright (c) 2001-2004 Patrik Nyblom, Bjorn Gustavsson.
 %%
 %%  Changes for OSX by Sean Hinde : 2002/2/18
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.16 2003/12/28 15:25:29 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.17 2004/08/05 05:44:44 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
@@ -36,10 +36,10 @@ init(Next) ->
 			    fun(What) ->
 				    fileop(What,Next)
 			    end;
-			Other ->
+			_Other ->
 			    Next
 		    end;
-		Else ->
+		_Else ->
 		    Next
 	    end;
 	_ ->
@@ -60,18 +60,8 @@ fileop({file,save_dialog,Prop,Cont}, _Next) ->
 	aborted -> keep;
 	Res -> Cont(Res)
     end;
-fileop({file,open_dialog,Prop}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Open"),
-    old_file_dialog(?OP_READ, Prop, Title);
-fileop({file,save_dialog,Prop}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Save"),
-    old_file_dialog(?OP_WRITE, Prop, Title);
 fileop(What, Next) ->
     Next(What).
-
-old_file_dialog(Type, Prop, Title) ->
-    Dir = wings_pref:get_value(current_directory),
-    file_dialog(Type, Dir, Prop, Title).
 
 file_dialog(Type, Dir, Prop, Title) ->
     wait_for_modifiers_up(),
