@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.72 2002/04/24 08:47:58 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.73 2002/04/27 07:38:53 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -293,7 +293,11 @@ update_display_lists_1(false, DL0, #st{shapes=Shs}=St) ->
 	       (#we{}) -> ok
 	    end, gb_trees:values(Shs)),
     gl:endList(),
-    put_dlist(DL0#dl{smooth=?DL_SMOOTH});
+    put_dlist(DL0#dl{smooth=?DL_SMOOTH}),
+    case wings_pref:get_value(wire_mode) of
+	false -> ok;
+	true -> update_display_lists(true, St)
+    end;
 update_display_lists_1(true, DL0, #st{shapes=Shs}=St) ->
     gl:newList(?DL_FACES, ?GL_COMPILE),
     foreach(fun(#we{perm=Perm}=We) when ?IS_VISIBLE(Perm) ->
