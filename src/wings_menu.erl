@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.79 2003/01/22 13:24:03 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.80 2003/01/25 09:05:24 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -355,6 +355,7 @@ handle_key(#keysym{sym=C}, Mi) when C == ?SDLK_INSERT; C == $/ ->
     end;
 handle_key(_, _) -> keep.
 
+current_command(#mi{owner=Owner}) when Owner =/= geom -> none;
 current_command(#mi{sel=none}) -> none;
 current_command(#mi{sel=Sel,menu=Menu,ns=Names}) ->
     case element(Sel, Menu) of
