@@ -3,12 +3,12 @@
 %%
 %%     Plug-in with region and edge-loop commands.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_region.erl,v 1.7 2002/12/26 09:47:07 bjorng Exp $
+%%     $Id: wpc_region.erl,v 1.8 2003/05/23 05:34:36 bjorng Exp $
 %%
 
 -module(wpc_region).
@@ -18,7 +18,7 @@
 -include_lib("wings.hrl").
 
 -import(lists, [map/2,foldr/3,foldl/3,reverse/1,append/1]).
--define(HUGE, 1.0E300).
+-define(HUGE, 1.0E307).
 
 init() ->
     true.
@@ -51,10 +51,9 @@ command({face,{move,region}}, St) ->
 command({face,{scale,region}}, St) ->
     Tvs = wpa:sel_fold(
 	    fun(Faces, We, Acc) ->
-		    Id = wpa:obj_id(We),
-		    [{Id,scale_region(Faces, We)}|Acc]
+		    scale_region(Faces, We, Acc)
 	    end, [], St),
-    wpa:drag(Tvs, [{percent,{-1.0,?HUGE}}], St);
+    wpa:drag(Tvs, [{percent,{0.0,?HUGE}}], [{initial,[1.0]}], St);
 command({face,{rotate,region}}, St) ->
     Tvs = wpa:sel_fold(
 	    fun(Faces, We, Acc) ->
@@ -92,27 +91,36 @@ move_region(OuterVs0, Faces, We, Acc) ->
 %%% Scale Region.
 %%%
 
-scale_region(Faces, We) ->
-    scale_region(wpa:sel_strict_face_regions(Faces, We), We, []).
+scale_region(Faces, We, Acc) ->
+    scale_region_1(wpa:sel_strict_face_regions(Faces, We), We, Acc).
 
-scale_region([Fs|Regs], We, Acc0) ->
+scale_region_1([Fs|Regs], We, Acc0) ->
     Acc = case wpa:face_outer_vertices(Fs, We) of
-	      [OuterVs] -> scale_region(OuterVs, Fs, We, Acc0);
+	      [OuterVs] -> scale_region_1(OuterVs, Fs, We, Acc0);
 	      _ -> region_error()
 	  end,
-    scale_region(Regs, We, Acc);
-scale_region([], _, Acc) -> Acc.
+    scale_region_1(Regs, We, Acc);
+scale_region_1([], _, Acc) -> Acc.
 
-scale_region(OuterVs0, Faces, We, Acc) ->
+scale_region_1(OuterVs0, Faces, We, Acc) ->
     OuterVs = reverse(OuterVs0),
     PlaneNormal = wings_face:face_normal(OuterVs, We),
     WeTemp = wpa:vertex_flatten(OuterVs, PlaneNormal, We),
     Center = wings_vertex:center(OuterVs, WeTemp),
-    foldl(fun(V, A) ->
-		  Pos = wpa:vertex_pos(V, We),
-		  Vec = e3d_vec:sub(Pos, Center),
-		  [{Vec,[V]}|A]
-	  end, Acc, wings_face:to_vertices(Faces, We)).
+    Vs = wings_face:to_vertices(Faces, We),
+    Tv = foldl(fun(V, A) ->
+		       Pos = wpa:vertex_pos(V, We),
+		       Vec = e3d_vec:sub(Pos, Center),
+		       [{V,Pos,Vec}|A]
+	       end, [], Vs),
+    Trans = fun([Dx0], A0) ->
+		    Dx = Dx0-1.0,
+		    foldl(fun({V,Pos0,Vec}, A) ->
+				  Pos = e3d_vec:add(Pos0, e3d_vec:mul(Vec, Dx)),
+				  [{V,Pos}|A]
+			  end, A0, Tv)
+	    end,
+    [{wpa:obj_id(We),{Vs,Trans}}|Acc].
 
 %%%
 %%% Rotate Region.
