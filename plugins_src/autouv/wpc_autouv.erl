@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.34 2002/10/30 09:05:44 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.35 2002/10/30 09:57:42 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -326,8 +326,14 @@ make_mat(Diff) ->
 	      {ambient,Diff},
 	      {specular,{0.0,0.0,0.0}}]}].
 
-check_for_defects(#we{vs=Vtab}=We) ->
-    foreach(fun(V) -> check_isolated_vertex(V, We) end, gb_trees:keys(Vtab)).
+check_for_defects(#we{fs=Ftab,vs=Vtab}=We) ->
+    case gb_trees:size(Ftab) of
+	2 -> ok;				%No check if only 2 faces.
+	_ ->
+	    foreach(fun(V) ->
+			    check_isolated_vertex(V, We)
+		    end, gb_trees:keys(Vtab))
+    end.
 
 check_isolated_vertex(V, We) ->
     case wings_vertex:fold(fun(_, _, _, N) -> N+1 end, 0, V, We) of
