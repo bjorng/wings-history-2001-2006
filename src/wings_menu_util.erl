@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.9 2002/03/20 07:36:49 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.10 2002/03/21 10:32:19 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -94,20 +94,17 @@ scale_fun(Dir, Names) ->
     {DirString,F,Help,magnet_props(Dir, Names)}.
 
 scale_axis_fun(Axis, Names) ->
-    Vec = case Axis of
-	      {radial,Ax} ->
-		  {_,Vec0} = wings_pref:get_value(Ax),
-		  {radial,Vec0};
-	      Ax ->
-		  {_,Vec0} = wings_pref:get_value(Ax),
-		  Vec0
-	  end,
+    {Point,Vec} = case Axis of
+		      {radial,Ax} ->
+			  {Point0,Vec0} = wings_pref:get_value(Ax),
+			  {Point0,{radial,Vec0}};
+		      Ax -> wings_pref:get_value(Ax)
+		  end,
     DirString = stringify_dir(Axis),
-    F = fun(1, Ns) -> wings_menu:build_command({Vec,center}, Ns);
+    F = fun(1, Ns) -> wings_menu:build_command({Vec,Point}, Ns);
 	   (2, _Ns) -> ignore;
-	   (3, Ns) ->
-		{vector,{pick,[point],[Vec],Ns}};
-	   ({magnet,_}, Ns) -> {vector,{pick,[magnet],[center,Vec],Ns}}
+	   (3, Ns) -> {vector,{pick,[point],[Vec],Ns}};
+	   ({magnet,_}, Ns) -> {vector,{pick,[magnet],[Point,Vec],Ns}}
 	end,
     Help0 = dir_help(Axis, Names),
     Help = {Help0,[],"Pick point to scale to"},
@@ -158,13 +155,13 @@ rotate_fun(Dir, Names) ->
     {DirString,F,Help,Ps}.
 
 rotate_axis_fun(Axis, Names) ->
-    {_,Vec} = wings_pref:get_value(Axis),
+    {Point,Vec} = wings_pref:get_value(Axis),
     DirString = stringify_dir(Axis),
-    F = fun(1, Ns) -> wings_menu:build_command({Vec,center}, Ns);
+    F = fun(1, Ns) -> wings_menu:build_command({Vec,Point}, Ns);
 	   (2, _Ns) -> ignore;
 	   (3, Ns) ->
 		{vector,{pick,[point],[Vec],Ns}};
-	   ({magnet,_}, Ns) -> {vector,{pick,[magnet],[center,Vec],Ns}}
+	   ({magnet,_}, Ns) -> {vector,{pick,[magnet],[Point,Vec],Ns}}
 	end,
     Help0 = dir_help(Axis, Names),
     Help = {Help0,[],"Pick point to rotate through"},

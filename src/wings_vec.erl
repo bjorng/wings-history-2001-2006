@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.23 2002/03/21 06:43:32 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.24 2002/03/21 10:32:19 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -198,7 +198,7 @@ handle_event_5({action,{secondary_selection,Cmd}}, Ss, St) ->
     secondary_selection(Cmd, Ss, St);
 handle_event_5({action,Cmd}, #ss{sti={StiA,_}}, #st{vec=Vec}) ->
     wings_pref:set_value(StiA, Vec),
-    wings_io:clear_message(),
+    wings_io:message(""),
     wings_io:putback_event({action,Cmd}),
     pop;
 handle_event_5({action,Cmd}, _Ss, _St) ->
@@ -217,6 +217,7 @@ secondary_selection(abort, _Ss, _St) ->
     wings_io:putback_event(redraw),
     pop;
 secondary_selection({use,Sti}, Ss, St) ->
+    wings_io:message(""),
     Vec = wings_pref:get_value(Sti),
     get_event(Ss, St#st{vec=Vec});
 secondary_selection({set,Sti}, Ss, #st{vec=Vec}=St) ->
@@ -262,13 +263,10 @@ add_last_menu(#ss{label=none}, _St, Menu) -> Menu;
 add_last_menu(#ss{label=magnet}, _St, Menu) -> Menu;
 add_last_menu(#ss{label=Lbl,sti={_,default_axis=StiB}}, St, Menu) ->
     add_set_action(Lbl, StiB, St, [separator|Menu]);
-add_last_menu(#ss{label=Lbl,sti={StiA,StiB}}, St, Menu) ->
+add_last_menu(#ss{label=Lbl,sti={StiA,_StiB}}, _St, Menu) ->
     [separator,
-     {"Use Last "++Lbl,
-      fun(_, _) -> {secondary_selection,{use,StiA}} end},
-     {"Use Default "++Lbl,
-      fun(_, _) -> {secondary_selection,{use,StiB}} end}|
-     add_set_action(Lbl, StiB, St, [separator|Menu])].
+     {"Use Last "++Lbl,fun(_, _) -> {secondary_selection,{use,StiA}} end},
+     separator|Menu].
 
 add_set_action(_Lbl, _Sti, #st{vec=none}, Menu) -> Menu;
 add_set_action(Lbl, Sti, _St, Menu) ->
