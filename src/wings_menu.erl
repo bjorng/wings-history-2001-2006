@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.41 2002/04/11 16:12:04 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.42 2002/04/14 18:42:28 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -122,33 +122,42 @@ normalize_menu([{advanced,El}|Els], Hotkeys, true, Acc) ->
 normalize_menu([Elem0|Els], Hotkeys, Adv, Acc) ->
     Elem1 = case Elem0 of
 		{S,Name,Help,Ps} ->
-		    {S,Name,[],Help,adv_filter(Adv, Ps)};
+		    {S,Name,[],Help,Props=adv_filter(Adv, Ps)};
 		{S,Name,[C|_]=Help} when is_integer(C) ->
-		    {S,Name,[],Help,[]};
+		    {S,Name,[],Help,Props=[]};
 		{S,Name,Ps} ->
-		    {S,Name,[],[],adv_filter(Adv, Ps)};
+		    {S,Name,[],[],Props=adv_filter(Adv, Ps)};
 		{S,Name} ->
-		    {S,Name,[],[],[]};
+		    {S,Name,[],[],Props=[]};
 		separator ->
 		    Name = none,
+		    Props = [],
 		    separator
 	    end,
-    Elem = case keysearch(Name, 1, Hotkeys) of
-	       false when Hotkeys =/= [], is_function(Name) ->
-		   RealName = real_name(Name, []),
-		   case keysearch(RealName, 1, Hotkeys) of
-		       false -> Elem1;
-		       {value,{_,Hotkey}} -> setelement(3, Elem1, Hotkey)
-		   end;
-	       false -> Elem1;
-	       {value,{_,Hotkey}} -> setelement(3, Elem1, Hotkey)
-	   end,
+    Elem = norm_add_hotkey(Name, Elem1, Hotkeys, Props),
     normalize_menu(Els, Hotkeys, Adv, [Elem|Acc]);
 normalize_menu([], _Hotkeys, _Adv, Acc) -> list_to_tuple(reverse(Acc)).
 
 adv_filter(false, [magnet|T]) -> adv_filter(false, T);
 adv_filter(Flag, [H|T]) -> [H|adv_filter(Flag, T)];
 adv_filter(_, []) -> [].
+
+norm_add_hotkey(_, separator, _, _) -> separator;
+norm_add_hotkey(_, Elem, [], _) -> Elem;
+norm_add_hotkey(Name0, Elem, Hotkeys, Props) when is_function(Name0) ->
+    Name = real_name(Name0, []),
+    norm_add_hotkey(Name, Elem, Hotkeys, Props);
+norm_add_hotkey(Name, Elem, Hotkeys, Props) ->
+    Key = match_hotkey(Name, Hotkeys, have_option_box(Props)),
+    setelement(3, Elem, Key).
+
+match_hotkey(Name, [{Name,Key}|_], false) -> Key;
+match_hotkey(Name, [{{Name,Bool},Key}|_], true) when Bool == true;
+						     Bool == false ->
+    Key;
+match_hotkey(Name, [_|T], OptionBox) ->
+    match_hotkey(Name, T, OptionBox);
+match_hotkey(_, [], _) -> [].
     
 menu_dims(Menu) ->
     menu_dims(Menu, size(Menu), 0, 0, 0, []).
@@ -276,7 +285,8 @@ handle_key(#keysym{sym=?SDLK_DELETE}, Mi0) ->
     %% Delete hotkey bound to this entry.
     case current_command(Mi0) of
 	none -> keep;
-	Cmd ->
+	{Cmd0,OptionBox} ->
+	    Cmd = add_option(OptionBox, Cmd0, false),
 	    NextKey = wings_hotkey:delete_by_command(Cmd),
 	    Mi = set_hotkey(NextKey, Mi0),
 	    get_menu_event(Mi)
@@ -292,10 +302,10 @@ handle_key(_, _) -> keep.
 current_command(#mi{sel=none}) -> none;
 current_command(#mi{sel=Sel,menu=Menu,ns=Names}) ->
     case element(Sel, Menu) of
-	{_,Name,_,_,_} when is_atom(Name) ->
-	    build_command(Name, Names);
-	{_,Fun,_,_,_} when is_function(Fun) ->
-	    real_name(Fun, Names);
+	{_,Name,_,_,Ps} when is_atom(Name) ->
+	    {build_command(Name, Names),have_option_box(Ps)};
+	{_,Fun,_,_,Ps} when is_function(Fun) ->
+	    {real_name(Fun, Names),have_option_box(Ps)};
 	_Other -> none
     end.
 
@@ -686,8 +696,7 @@ left_of_parent(Mw, W, #mi{prev=[]}) -> W-Mw;
 left_of_parent(Mw, _, #mi{prev=#mi{xleft=X}}) -> X-Mw+10.
 
 have_option_box(Ps) ->
-    property_lists:is_defined(option, Ps) orelse
-	property_lists:is_defined(hotbox, Ps).	%Old name.
+    property_lists:is_defined(option, Ps).
 
 have_magnet(Ps) ->
     property_lists:is_defined(magnet, Ps).
@@ -697,14 +706,18 @@ have_magnet(Ps) ->
 %%%
 
 get_hotkey(Cmd, Mi) ->
-    help_message("Press key to bind command to."),
-    gl:swapBuffers(),
+    wings_wm:dirty(),
     {seq,{push,dummy},
      {replace,fun(Ev) ->
 		      handle_key_event(Ev, Cmd, Mi)
 	      end}}.
 
-handle_key_event(Ev, Cmd, Mi0) ->
+handle_key_event(redraw, _Cmd, Mi) ->
+    redraw(Mi),
+    help_message("Press key to bind command to."),
+    keep;
+handle_key_event(Ev, {Cmd0,OptionBox}, Mi0) ->
+    Cmd = add_option(OptionBox, Cmd0, false),
     case wings_hotkey:bind_from_event(Ev, Cmd) of
 	error -> keep;
 	Keyname when is_list(Keyname) ->
@@ -712,3 +725,12 @@ handle_key_event(Ev, Cmd, Mi0) ->
 	    wings_io:putback_event(Mi),
 	    pop
     end.
+
+add_option(false, Cmd, _) -> Cmd;
+add_option(true, Cmd, Val) ->
+    add_option_1(Cmd, Val).
+
+add_option_1({Desc,Tuple}, Val) when is_tuple(Tuple) ->
+    {Desc,add_option_1(Tuple, Val)};
+add_option_1({Desc,Leave}, Val) ->
+    {Desc,{Leave,Val}}.
