@@ -9,7 +9,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: mac_wings_image_drv.m,v 1.1 2002/11/14 12:18:43 bjorng Exp $
+ *     $Id: mac_wings_image_drv.m,v 1.2 2002/11/17 10:29:34 bjorng Exp $
  */
 
 #include <stdio.h>
@@ -87,6 +87,8 @@ static int mac_image_control(ErlDrvData handle, unsigned int command,
 			     char* buff, int count, 
 			     char** res, int res_size)
 {
+  NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+
   switch (command) {
   case 0: {			/* Read */
     NSString* name = [NSString stringWithCString:buff];
@@ -109,9 +111,11 @@ static int mac_image_control(ErlDrvData handle, unsigned int command,
       memcpy(rbuf+16, [bitmap bitmapData], size);
       *res = (void *) bin;
     }
+    [pool release];
     return 0;
   }
   default:
+    [pool release];
     return -1; /* Error return, throws exception in erlang */
   }
 }

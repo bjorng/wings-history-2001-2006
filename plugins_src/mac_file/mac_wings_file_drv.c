@@ -11,7 +11,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: mac_wings_file_drv.c,v 1.8 2002/11/17 10:00:40 bjorng Exp $
+ *     $Id: mac_wings_file_drv.c,v 1.9 2002/11/17 10:29:34 bjorng Exp $
  */
 
 #include <stdio.h>
@@ -100,11 +100,13 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
   int result;
   char *rbuff;
   char *defdir;
-    char *filter;
-    char *title;
-    char *text;
-    char *defname;
-    switch (command) {
+  char *filter;
+  char *title;
+  char *text;
+  char *defname;
+  NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+
+  switch (command) {
     case 0: /* Yes/No/Cancel question */
     case 4: /* Yes/No/Cancel question */
       {
@@ -114,12 +116,15 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
         switch (NSRunAlertPanel(title, text, @"Yes", @"No", @"Cancel")) {
 	case NSAlertDefaultReturn:
 	  strcpy(*res,"yes");
+	  [pool release];
 	  return 3;
 	case NSAlertAlternateReturn:
 	  strcpy(*res,"no");
+	  [pool release];
 	  return 2;
 	default:
 	  strcpy(*res,"aborted");
+	  [pool release];
 	  return 7;
 	}
       }
@@ -158,9 +163,11 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 	    NSString *aFile = [oPanel filename];
 	    [aFile getCString:rbuff];
 	    *res = rbuff;
+	    [pool release];
 	    return strlen(rbuff);
 	  }
 	  driver_free(rbuff);
+	  [pool release];
 	  return 0;
 	} else {
 	  NSSavePanel *sPanel = [NSSavePanel savePanel];
@@ -172,11 +179,14 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 	    NSString *aFile = [sPanel filename];
 	    [aFile getCString:rbuff];
 	    *res = rbuff;
+	    [pool release];
 	    return strlen(rbuff);
 	  }
 	  driver_free(rbuff);
+	  [pool release];
 	  return 0;
 	}
+	[pool release];
 	return 0;
       }
     case 3: /* Message box */
@@ -184,9 +194,11 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
       NSString *title = [NSString stringWithCString:buff];
       NSString *text = [NSString stringWithCString:buff + strlen(buff) + 1];
       NSRunAlertPanel(title, text, nil, nil, nil);	
+      [pool release];
       return 0;
     }
     default:
-        return -1; /* Error return, throws exception in erlang */
-    }
+      [pool release];
+      return -1; /* Error return, throws exception in erlang */
+  }
 }
