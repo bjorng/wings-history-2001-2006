@@ -5,11 +5,11 @@
 %%%               Segments Model into set of charts containg faces.
 %%% Created :  3 Oct 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2002 Dan Gudmundsson 
+%%  Copyright (c) 2001-2002 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.6 2002/10/14 14:46:11 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.7 2002/10/15 19:12:17 bjorng Exp $
 
 -module(auv_segment).
 
@@ -18,7 +18,7 @@
 -include("wings.hrl").
 -include("auv.hrl").
 
--import(lists, [map/2,sort/1]).
+-import(lists, [map/2,sort/1,foldl/3]).
 
 %% Returns segments=[Charts=[Faces]] and Bounds=[Edges]
 create(Mode, We0) ->
@@ -37,7 +37,7 @@ create(Mode, We0) ->
     end.
 
 
-%% Removes all boundery edges, i.e. only keeps edges that cut 
+%% Removes all boundary edges, i.e. only keeps edges that cut 
 %% a cluster. 
 cleanup_bounds(Bounds, Charts, We) when is_list(Charts) ->    
     case gb_sets:is_empty(Bounds) of
@@ -57,7 +57,7 @@ cleanup_bounds([Edge|R], Tree, Es, Acc) ->
 	    cleanup_bounds(R,Tree,Es,[Edge|Acc]);
 	false ->
 	    cleanup_bounds(R,Tree,Es,Acc);
-	Else ->
+	_Else ->
 	    ?DBG("~p ~p ~p ~p", [Edge, LF, RF, Tree])	 
     end;
 cleanup_bounds([],_,_,Acc) ->
@@ -255,7 +255,7 @@ get_edges(V, Current, CurrVect, We, Fd) ->
     Add = fun(Edge, Acc = {Acc1,Acc2}) ->
 		  case ?fdisneigh(Edge, Fd) of
 		      true ->
-			  ER = #edge{vs = Va,ve = Vb} = gb_trees:get(Edge, We#we.es),
+			  ER = gb_trees:get(Edge, We#we.es),
 			  Val = ?fdgetvalue(Edge,Fd),
 			  {Acc1,[{1-Val,{Edge,ER},V}|Acc2]};
 		      false ->			  
@@ -527,84 +527,46 @@ find_delete(Face,Level,Dist0,Next0,Fs0,Fg) ->
 	    {[{Level,Face}|Dist0],Next ++ Next0,Fs1}
     end.
 %%%%%%%%%%% End Feature detection
-%% Original autouv algorithm...
-segment_by_direction(We0) ->
-    Faces = gb_trees:keys(We0#we.fs),
-    FaceNormals = map(fun(Face) ->
-			      {Face,wings_face:normal(Face, We0)}
-		      end, Faces),
-    Clustered   = sort(map(fun(FN) ->
-				   determine_dir(FN) end,
-			   FaceNormals)),
-    segment_by_cluster(Clustered, We0).
 
-determine_dir({Face, {X0,Y0,Z0}}) ->
-    Max = lists:max([abs(X0), abs(Y0), abs(Z0)]),
-    Dir = if
-	      X0 =:= Max -> {1.0, 0.0, 0.0};
-	      Y0 =:= Max -> {0.0, 1.0, 0.0};
-	      Z0 =:= Max -> {0.0, 0.0, 1.0};
-	      -X0 =:= Max -> {-1.0, 0.0, 0.0};
-	      -Y0 =:= Max -> {0.0, -1.0, 0.0};
-	      -Z0 =:= Max -> {0.0, 0.0, -1.0}
-	  end,
-    {Dir, Face}.
+%%
+%% The original autouv algorithm...
+%%
+
+segment_by_direction(#we{fs=Ftab}=We) ->
+    Rel = foldl(fun({_,#face{mat='_hole_'}}, A) -> A;
+		   ({Face,_}, A) ->
+			N = wings_face:normal(Face, We),
+			[{seg_dir(N),Face}|A]
+		end, [], gb_trees:to_list(Ftab)),
+    segment_by_cluster(Rel, We).
+
+seg_dir({X,Y,Z}) ->
+    Max = lists:max([abs(X),abs(Y),abs(Z)]),
+    if
+	X =:= Max -> {1.0, 0.0, 0.0};
+	Y =:= Max -> {0.0, 1.0, 0.0};
+	Z =:= Max -> {0.0, 0.0, 1.0};
+	-X =:= Max -> {-1.0, 0.0, 0.0};
+	-Y =:= Max -> {0.0, -1.0, 0.0};
+	-Z =:= Max -> {0.0, 0.0, -1.0}
+    end.
+
 %% By Color 
-segment_by_material(We0) ->
-    Ftab = We0#we.fs,
-    Faces = gb_trees:keys(We0#we.fs),
-    Collect = fun(Face, Acc) ->
-		      #face{mat=MatName} =gb_trees:get(Face, Ftab),
-		      case MatName of
-			  '_hole_' -> Acc;
-			  _ ->
-			      [{MatName, Face}|Acc]
-		      end
-	      end,
-    Clustered  = sort(lists:foldl(Collect, [], Faces)),
-    segment_by_cluster(Clustered, We0).
-%% Common segmentation algo   
-segment_by_cluster(Sorted, We) ->
-    ClusterFunc = fun({CType, Face}, [{CType, List}|R]) ->
-			  [{CType, [Face|List]}|R];
-		     ({CType, Face}, Acc) ->
-			  [{CType, [Face]}|Acc]
-		  end,
-    Clustered = lists:foldl(ClusterFunc, [], Sorted),
-    Neigh = [cluster_neighbors(Cluster, We) || 
-		{_, Cluster} <- Clustered],
+segment_by_material(#we{fs=Ftab}=We) ->
+    Rel = foldl(fun({_,#face{mat='_hole_'}}, A) -> A;
+			  ({Face,#face{mat=Name}}, A) -> [{Name,Face}|A]
+		       end, [], gb_trees:to_list(Ftab)),
+    segment_by_cluster(Rel, We).
+
+%% Common segmentation algorithm
+segment_by_cluster(Rel0, We) ->
+    Rel = sofs:relation(Rel0),
+    Clustered = sofs:relation_to_family(Rel),
+    Groups0 = sofs:range(Clustered),
+    Groups = sofs:to_external(Groups0),
+    Neigh = [wings_sel:face_regions(Group, We) || Group <- Groups],
     Mod = fun(List, {N,Acc}) ->
-		  New = [{N, L} || L <- List],
-%		  New = {N, List},
-		  {N+1, New ++ Acc}
+		  {N+1,[{N,gb_sets:to_list(L)} || L <- List]++Acc}
 	  end,
-    {_, Charts0} = lists:foldl(Mod, {0,[]}, Neigh),
+    {_,Charts0} = lists:foldl(Mod, {0,[]}, Neigh),
     Charts0.
-
-cluster_neighbors(List, We) ->
-    Fs = gb_sets:from_list(List),
-    Surr = [{Face, get_surrounding_faces(Face,Fs,We)} ||  Face <- List],
-    Temp = digraph:new(),
-    Res = cluster_faces(sort(Surr), Temp),
-    digraph:delete(Temp),
-    Res.
-
-cluster_faces([{Face, Fcs}|Rest], DG) ->
-    digraph:add_vertex(DG, Face),
-    lists:foreach(fun(Connected) -> 
-			  digraph:add_vertex(DG, Connected),
-			  digraph:add_edge(DG, Face, Connected)
-		  end, Fcs),
-    cluster_faces(Rest, DG);
-cluster_faces([], DG) ->
-    digraph_utils:components(DG).
-
-get_surrounding_faces(Face, Fs, We) ->
-    Accept = fun(_V, _E, EdgeRec, Acc) ->
-		     Other = wings_face:other(Face, EdgeRec),
-		     case gb_sets:is_member(Other, Fs) of
-			 true -> [Other|Acc];
-			 false -> Acc
-		     end
-	     end,
-    sort(wings_face:fold(Accept, [], Face, We)).
