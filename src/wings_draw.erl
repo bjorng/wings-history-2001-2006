@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.190 2004/04/19 15:11:19 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.191 2004/04/20 06:22:19 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -520,10 +520,11 @@ split_1(D, Vs, St) ->
     split_2(D, Vs, update_materials(D, St)).
 
 split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
-	     proxy_data=Pd,ns=Ns0,needed=Needed}=D, Vs, St) ->
+	     proxy_data=Pd,ns=Ns0,needed=Needed}=D, Vs0, St) ->
+    Vs = sort(Vs0),
     Faces = vs_to_faces(Vs, We),
-    AllVs = faces_to_vs(Faces, We, Vs),
-    AllVsSet = sofs:from_external(AllVs, [vertex]),
+    StaticVs = static_vs(Faces, Vs, We),
+    AllVsSet = sofs:from_external(lists:merge(Vs, StaticVs), [vertex]),
 
     Ftab1 = gb_trees:to_list(Ftab0),
     Ftab = sofs:from_external(Ftab1, [{face,data}]),
@@ -534,10 +535,9 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
 
     WeDyn = wings_material:cleanup(We#we{fs=gb_trees:from_orddict(FtabDyn)}),
 
-    StaticVs0 = ordsets:subtract(AllVs, sort(Vs)),
-    StaticVs = sort(insert_vtx_data(StaticVs0, We#we.vp, [])),
+    StaticVtab = sort(insert_vtx_data(StaticVs, We#we.vp, [])),
     DynPlan = wings_draw_util:prepare(FtabDyn, We, St),
-    Split = #split{static_vs=StaticVs,dyn_vs=DynVs,
+    Split = #split{static_vs=StaticVtab,dyn_vs=DynVs,
 		   dyn_faces=Faces,dyn_plan=DynPlan,
 		   orig_ns=Ns0,orig_we=We},
     #dlo{work=Work,edges=[StaticEdgeDl],mirror=M,vs=VsDlist,
@@ -553,20 +553,19 @@ vs_to_faces_1([V|Vs], Fun, We, Acc0) ->
     vs_to_faces_1(Vs, Fun, We, Acc);
 vs_to_faces_1([], _, _, Acc) -> ordsets:from_list(Acc).
 
-faces_to_vs(Fs, We, Vs0) ->
-    Vs = gb_sets:from_list(Vs0),
+static_vs(Fs, Vs, We) ->
+    VsSet = gb_sets:from_ordset(Vs),
     Fun = fun(V, _, _, A) ->
-		  case gb_sets:is_member(V, Vs) of
-		      false -> [V|A];
-		      true -> A
-		  end
-	  end,
-    MoreVs = faces_to_vs_1(Fs, Fun, We, []),
-    ordsets:from_list(MoreVs ++ Vs0).
-    
-faces_to_vs_1([F|Fs], Fun, We, Acc) ->
-    faces_to_vs_1(Fs, Fun, We, wings_face:fold(Fun, Acc, F, We));
-faces_to_vs_1([], _, _, Acc) -> Acc.
+		  case gb_sets:is_member(V, VsSet) of
+ 		      false -> [V|A];
+ 		      true -> A
+ 		  end
+ 	  end,
+    static_vs_1(Fs, Fun, We, []).
+
+static_vs_1([F|Fs], Fun, We, Acc) ->
+    static_vs_1(Fs, Fun, We, wings_face:fold(Fun, Acc, F, We));
+static_vs_1([], _, _, Acc) -> ordsets:from_list(Acc).
 
 split_faces(#dlo{needed=Need}=D, Ftab, Faces, St) ->
     case member(work, Need) orelse member(smooth, Need) of
