@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.34 2003/03/03 21:44:13 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.35 2003/03/09 19:20:17 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -199,7 +199,9 @@ import_images_1([{Id0,Im}|T], Map) ->
 	W*H*PP =:= size(Pixels) -> ok;
 	true -> wings_util:error("Bad image: ~p\n", [Name])
     end,
+    MaskSize = proplists:get_value(mask_size, Im),
     Type = case PP of
+	       1 when MaskSize =:= 1 -> a8;
 	       1 -> g8;
 	       2 -> g8a8;
 	       3 -> r8g8b8;
@@ -390,12 +392,20 @@ export_images_1([]) -> [].
 
 export_image(#e3d_image{type=Type0,order=Order}=Im0) ->
     Im = case {export_img_type(Type0),Order} of
-	     {Type0,lower_left} -> Im0;
+	     {Type0=Type,lower_left} -> Im0;
 	     {Type,_} -> e3d_image:convert(Im0, Type, 1, lower_left)
 	 end,
     #e3d_image{width=W,height=H,bytes_pp=PP,image=Pixels,name=Name} = Im,
-    [{name,Name},{width,W},{height,H},{samples_per_pixel,PP},{pixels,Pixels}].
+    MaskSize = mask_size(Type),
+    [{name,Name},{width,W},{height,H},{samples_per_pixel,PP},
+     {mask_size,MaskSize},{pixels,Pixels}].
 
 export_img_type(b8g8r8) -> r8g8b8;
 export_img_type(b8g8r8a8) -> r8g8b8a8;
 export_img_type(Type) -> Type.
+
+mask_size(r8g8b8a8) -> 1;
+mask_size(a8) -> 1;
+mask_size(_) -> 0.
+
+    

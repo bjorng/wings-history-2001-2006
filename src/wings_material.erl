@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.88 2003/03/06 06:04:52 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.89 2003/03/09 19:20:17 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -348,6 +348,9 @@ apply_texture(Image) ->
 	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
 	    case wings_image:info(Image) of
 		#e3d_image{bytes_pp=4} ->
+		    gl:enable(?GL_ALPHA_TEST),
+		    gl:alphaFunc(?GL_GREATER, 0.5);
+		#e3d_image{type=a8} ->
 		    gl:enable(?GL_ALPHA_TEST),
 		    gl:alphaFunc(?GL_GREATER, 0.5);
 		_ -> 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.21 2003/03/06 19:20:40 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.22 2003/03/09 19:20:17 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -242,7 +242,8 @@ texture_format(#e3d_image{type=r8g8b8}) -> ?GL_RGB;
 texture_format(#e3d_image{type=r8g8b8a8}) -> ?GL_RGBA;
 texture_format(#e3d_image{type=b8g8r8}) -> ?GL_BGR;
 texture_format(#e3d_image{type=b8g8r8a8}) -> ?GL_BGRA;
-texture_format(#e3d_image{type=g8}) -> ?GL_LUMINANCE.
+texture_format(#e3d_image{type=g8}) -> ?GL_LUMINANCE;
+texture_format(#e3d_image{type=a8}) -> ?GL_ALPHA.
 
 %%  Hmmm we may want to used compressed alternatives if 
 %%  available (opengl 1.3) or compressed extension..
