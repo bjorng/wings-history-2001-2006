@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.96 2004/10/13 18:25:27 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.97 2004/10/14 05:58:54 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -24,7 +24,8 @@
 	 yes_string/0,no_string/0,cancel_string/0,
 	 get_matrices/2,mirror_matrix/1,
 	 mirror_flatten/2,
-	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
+	 cap/1,upper/1,stringify/1,quote/1,
+	 add_vpos/2,update_vpos/2,
 	 gb_trees_smallest_key/1,gb_trees_largest_key/1,
 	 nice_float/1,
 	 menu_restriction/2,
@@ -205,6 +206,9 @@ yes_no_fun(Fun) ->
 		Action -> wings_wm:send(This, {action,Action})
 	    end
     end.
+
+quote(Str) when is_list(Str) ->
+    [$",Str,$"].
 
 stringify({Atom,Other}) when is_atom(Atom) ->
     cap(atom_to_list(Atom)) ++

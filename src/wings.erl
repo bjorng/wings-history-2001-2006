@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.312 2004/10/13 18:43:09 bjorng Exp $
+%%     $Id: wings.erl,v 1.313 2004/10/14 05:58:54 bjorng Exp $
 %%
 
 -module(wings).
@@ -50,7 +50,8 @@ halt_loop(Wings) ->
 	{'EXIT',Wings,{window_crash,Name,Reason}} ->
 	    Log = wings_util:crash_log(Name, Reason),
 	    io:format("\n\n"),
-	    io:format(?STR(halt_loop,1,"Fatal internal error - log written to ~s\n"), [Log]),
+	    io:format(?STR(halt_loop,1,"Fatal internal error - log written to ~s\n"),
+		      [Log]),
 	    ok;
 	{'EXIT',Wings,Reason} ->
 	    Log = wings_util:crash_log(?STR(halt_loop,2,"<Unknown Window Name>"), Reason),
@@ -957,7 +958,8 @@ caption(#st{saved=true,file=Name}=St) ->
     sdl_video:wm_setCaption(Caption, Caption),
     St;
 caption(#st{saved=auto,file=Name}=St) ->
-    Caption = wings() ++ " - " ++ filename:basename(Name) ++ ?STR(caption,1,"* [auto-saved]"),
+    Caption = wings() ++ " - " ++ filename:basename(Name) ++
+	"* [" ++ ?STR(caption,1,"auto-saved") ++ "]",
     sdl_video:wm_setCaption(Caption, Caption),
     St;
 caption(#st{file=Name}=St) ->
@@ -966,19 +968,23 @@ caption(#st{file=Name}=St) ->
     St.
 
 command_name(_Repeat, #st{repeatable=ignore}) ->
-    ?STR(command_name,1,"(Can't repeat)");
+    "("++cannot_repeat()++")";
 command_name(Repeat, #st{repeatable={_,Cmd}}=St) ->
     CmdStr = wings_util:stringify(Cmd),
     command_name(Repeat, CmdStr, St).
 
 command_name(_Repeat, CmdStr, #st{sel=[]}) ->
-    lists:flatten([?STR(command_name,2,"(Can't repeat \""),CmdStr,?STR(command_name,3,"\")")]);
+    cannot_repeat(CmdStr);
 command_name(Repeat, CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
-    S = case repeatable(Mode, Cmd) of
-	    no -> [?STR(command_name,2,"(Can't repeat \""),CmdStr,?STR(command_name,3,"\")")];
-	    _ ->  [Repeat++" \"",CmdStr,"\""]
-	end,
-    lists:flatten(S).
+    case repeatable(Mode, Cmd) of
+	no -> cannot_repeat(CmdStr);
+	_ ->  lists:flatten([Repeat," ",wings_util:quote(CmdStr)])
+    end.
+
+cannot_repeat(Cmd) ->
+    lists:flatten(["(",cannot_repeat(),wings_util:quote(Cmd),")"]).
+
+cannot_repeat() -> ?STR(cannot_repeat,1,"Can't repeat").
 
 replace_ask(Term, none) -> Term;
 replace_ask({'ASK',_}, AskArgs) -> AskArgs;
@@ -994,9 +1000,11 @@ define_command(?SDL_RELEASED, N, #st{repeatable=Cmd,def=DefCmd0}) ->
 		 1 -> ?STR(define_command,1,"L");
 		 2 -> ?STR(define_command,2,"M")
 	     end,
-	wings_util:yes_no(?STR(define_command,3,"Do you want to define \"") ++ CmdStr ++
-		      ?STR(define_command,4,"\" as a default command ([Ctrl]+[") ++ Button ++
-		      ?STR(define_command,5,"])?"),
+    Q = lists:flatten([?STR(define_command,3,"Do you want to define"),
+		       " ",wings_util:quote(CmdStr), " ",
+		       ?STR(define_command,4,"as a default command"),
+		       " ([Ctrl]+" ++ Button ++ ")?"]),
+    wings_util:yes_no(Q,
 		      fun() ->
 			      DefCmd = setelement(N, DefCmd0, Cmd),
 			      wings_wm:send(This, {new_default_command,DefCmd}),
@@ -1045,10 +1053,13 @@ crash_handler(redraw, Log, _St) ->
     wings_wm:clear_background(),
     wings_io:ortho_setup(),
     wings_io:text_at(10, 2*?LINE_HEIGHT,
-		     ?STR(crash_handler,1,"Internal error - log written to ") ++ Log),
+		     ?STR(crash_handler,1,
+			  "Internal error - log written to") ++
+		     " " ++ Log),
     wings_io:text_at(10, 4*?LINE_HEIGHT,
-		     ?STR(crash_handler,2,"Click a mouse button to continue working")),
-    wings_wm:message(?STR(crash_handler,3,"[L] Continue working"), ""),
+		     ?STR(crash_handler,2,
+			  "Click a mouse button to continue working")),
+    wings_util:button_message(?STR(crash_handler,3,"Continue working")),
     keep;
 crash_handler(#mousebutton{}, _, St) ->
     wings_wm:message(""),

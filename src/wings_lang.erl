@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.5 2004/10/13 14:57:14 bjorng Exp $
+%%     $Id: wings_lang.erl,v 1.6 2004/10/14 05:58:54 bjorng Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -22,12 +22,12 @@
 	 load_language/1]).
 
 %% Translation support tools
--export([generate_template/0,generate_template/1,diff/2]).
+-export([generate_template/0,generate_template/1,diff/1,diff/2]).
 
--import(lists, [reverse/1]).
+-import(lists, [reverse/1,reverse/2]).
 
 -define(DEF_LANG, "en").  % English
--define(LANG_DIRS, ["ebin","src", "plugins"]).
+-define(LANG_DIRS, ["ebin","src","plugins"]).
 
 str(Key, DefStr) ->
     case get(?MODULE) of
@@ -131,7 +131,11 @@ available_languages() ->
     			     
 %%%%%%%%%% Tools %%%%%%%%%%%
 
-diff(LangFile,EngTmplFile) ->
+diff(LangFile) ->
+    EngTemplFile = get_en_template(LangFile),
+    diff(LangFile, EngTemplFile).
+    
+diff(LangFile, EngTmplFile) ->
     {ok, Lang} = file:consult(LangFile),
     {ok, Eng} = file:consult(EngTmplFile),
     diff(Eng,EngTmplFile,Lang,LangFile,[]).
@@ -277,3 +281,13 @@ files(Dir) ->
 		end
 	end,
     lists:foldl(Filter, [], lists:sort(Fs0)).
+
+get_en_template(Name) ->
+    get_en_template_1(reverse(filename:rootname(Name))).
+
+get_en_template_1([$_|T]) ->
+    reverse(T, "_en.lang");
+get_en_template_1([_|T]) ->
+    get_en_template_1(T).
+    
+    
