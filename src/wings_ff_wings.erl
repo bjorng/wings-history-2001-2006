@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.23 2002/06/04 19:50:12 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.24 2002/08/11 19:09:14 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -169,13 +169,15 @@ import_props([{selection,{Mode,Sel0}}|Ps], St) ->
 import_props([{saved_selection,{Mode,Sel0}}|Ps], St) ->
     Sel = import_sel(Sel0, St),
     import_props(Ps, St#st{ssel={Mode,Sel}});
+import_props([{lights,Lights}|Ps], St0) ->
+    St = wings_light:import(Lights, St0),
+    import_props(Ps, St);
 import_props([_|Ps], St) ->
     import_props(Ps, St);
 import_props([], St) -> St.
 
 import_sel(Sel, #st{onext=IdBase}) ->
     [{IdBase+Id,gb_sets:from_list(Elems)} || {Id,Elems} <- Sel].
-
 
 %%%
 %%% Import of old materials format (up to and including wings-0.94.02).
@@ -216,14 +218,28 @@ trans({Key,{R,G,B}}, Opac) -> {Key,{R,G,B,Opac}}.
 %%% Save a Wings file (in version 2).
 %%%
 
-export(Name, #st{shapes=Shs0}=St) ->
+export(Name, St0) ->
+    Lights = wings_light:export(St0),
+    #st{shapes=Shs0} = St = remove_lights(St0),
     Sel0 = collect_sel(St),
     {Shs1,Sel} = renumber(gb_trees:to_list(Shs0), Sel0, 0, [], []),
     Shs = foldl(fun shape/2, [], Shs1),
     Materials = wings_material:used_materials(St),
-    Props = export_props(Sel),
+    Props0 = export_props(Sel),
+    Props = case Lights of
+		[] -> Props0;
+		[_|_] -> [{lights,Lights}|Props0]
+	    end,
     Wings = {wings,2,{Shs,Materials,Props}},
     write_file(Name, term_to_binary(Wings, [compressed])).
+
+remove_lights(#st{sel=Sel0,shapes=Shs0}=St) ->
+    Shs1 = foldl(fun(We, A) when ?IS_LIGHT(We) -> A;
+		    (#we{id=Id}=We, A) -> [{Id,We}|A]
+		 end, [], gb_trees:values(Shs0)),
+    Shs = gb_trees:from_orddict(reverse(Shs1)),
+    Sel = [S || {Id,_}=S <- Sel0, gb_trees:is_defined(Id, Shs)],
+    St#st{sel=Sel,shapes=Shs}.
 
 collect_sel(#st{selmode=Mode,sel=Sel0,ssel={SMode,SSel}}=St) ->
     Sel1 = [{Id,{Mode,gb_sets:to_list(Elems),selection}} ||

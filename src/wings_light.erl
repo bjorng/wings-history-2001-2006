@@ -8,16 +8,19 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.6 2002/08/11 10:35:17 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.7 2002/08/11 19:09:14 bjorng Exp $
 %%
 
 -module(wings_light).
 -export([is_any_light_selected/1,menu/3,command/2,
 	 create/2,update_dynamic/2,update/1,render/1,
-	 global_lights/0,camera_lights/0]).
+	 global_lights/0,camera_lights/0,
+	 export/1,import/2]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
+
+-import(lists, [reverse/1,foldl/3]).
 
 -define(DEF_X, 0).
 -define(DEF_Y, 2).
@@ -82,7 +85,6 @@ color(St) ->
 
 color([H,I,S], #dlo{src_we=#we{light=L}=We0}=D, A) ->
     {R,G,B} = wings_color:hsi_to_rgb(H, S, I),
-    io:format("~p\n", [{R,G,B}]),
     Col = {R,G,B,A},
     We = We0#we{light=L#light{diffuse=Col}},
     update(D#dlo{work=none,src_we=We}).
@@ -208,19 +210,15 @@ edit_specific(_, L) -> L.
 %%%
 
 create(infinite, St) ->
-    build("infinite", #light{type=infinite}, St);
+    build("infinite", [{type,infinite}], St);
 create(point, St) ->
-    build("point", #light{type=point}, St);
+    build("point", [{type,point}], St);
 create(spot, St) ->
-    build("spot", #light{type=spot,spot_angle=40.0}, St).
+    build("spot", [{type,spot}], St).
 
-build(Prefix, L, #st{onext=Oid}=St) ->
-    Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
-    Vs = lists:duplicate(8, {0.0,3.0,0.0}),
-    We0 = wings_we:build(Fs, Vs),
-    We = We0#we{light=L#light{aim={0.0,0.0,0.0}}},
+build(Prefix, Ps, #st{onext=Oid}=St) ->
     Name = Prefix++integer_to_list(Oid),
-    wings_shape:new(Name, We, St).
+    import([{Name,[{opengl,Ps}]}], St).
 
 %%%
 %%% Updating, drawing and rendering lights.
@@ -326,6 +324,53 @@ render(#dlo{work=Light}) ->
     wings_draw_util:call(Light).
 
 %%%
+%%% Exporting lights.
+%%%
+
+export(#st{shapes=Shs}) ->
+    L = foldl(fun(We, A) when ?IS_LIGHT(We) ->
+		      [get_light(We)|A];
+		 (_, A) -> A
+	      end, [], gb_trees:values(Shs)),
+    reverse(L).
+
+get_light(#we{name=Name,light=L}=We) ->
+    #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
+	   aim=Aim,spot_angle=Angle} = L,
+    P = light_pos(We),
+    Common = [{type,Type},{position,P},{aim_point,Aim},
+	      {diffuse,Diff},{ambient,Amb},{specular,Spec}],
+    OpenGL = case Type of
+		 spot -> [{cone_angle,Angle}|Common];
+		 _ -> Common
+	     end,
+    {Name,[{opengl,OpenGL}]}.
+
+%%%
+%%% Importing lights.
+%%%
+
+import(Lights, St) ->
+    foldl(fun import_fun/2, St, Lights).
+
+import_fun({Name,Ps}, St) ->
+    OpenGL = property_lists:get_value(opengl, Ps, []),
+    Type = property_lists:get_value(type, OpenGL, point),
+    Pos = property_lists:get_value(position, OpenGL, {0.0,3.0,0.0}),
+    Diff = property_lists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
+    Amb = property_lists:get_value(ambient, OpenGL, {0.0,0.0,0.0,1.0}),
+    Spec = property_lists:get_value(specular, OpenGL, {1.0,1.0,1.0,1.0}),
+    Aim = property_lists:get_value(aim_point, OpenGL, {0.0,0.0,0.0}),
+    Angle = property_lists:get_value(cone_angle, OpenGL, 30.0),
+    L = #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
+	       aim=Aim,spot_angle=Angle},
+    Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
+    Vs = lists:duplicate(8, Pos),
+    We0 = wings_we:build(Fs, Vs),
+    We = We0#we{light=L},
+    wings_shape:new(Name, We, St).
+
+%%%
 %%% Setting up lights.
 %%%
 
@@ -365,6 +410,7 @@ modeling_lights(camera) ->
 
 scene_lights(camera) -> ok;
 scene_lights(global) ->
+    gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0.0,0.0,0.0,1.0}),
     Lnum = wings_draw_util:fold(fun scene_lights_fun/2, ?GL_LIGHT0),
     disable_from(Lnum).
 
