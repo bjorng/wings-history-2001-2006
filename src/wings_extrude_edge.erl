@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.10 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.11 2001/12/08 10:12:40 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -30,7 +30,8 @@ bevel(St0) ->
 
 bevel_edges(Id, Edges, #we{es=Etab,next_id=Next}=We0, {Tvs,Ss}) ->
     {We1,OrigVs} = extrude_edges(Edges, We0),
-    {We2,FaceSel0} = bevel_dissolve(Edges, We1),
+    OrigFaces = bevel_orig_faces(Edges, We1),
+    We2 = wings_edge:dissolve_edges(Edges, We1),
     Tv = bevel_tv(OrigVs, We2),
     #we{fs=Ftab,vs=Vtab0} = We3 =
 	foldl(fun(V, W0) ->
@@ -38,8 +39,8 @@ bevel_edges(Id, Edges, #we{es=Etab,next_id=Next}=We0, {Tvs,Ss}) ->
 	      end, We2, OrigVs),
     Vtab = bevel_reset_pos(OrigVs, We2, Vtab0),
     We = We3#we{vs=Vtab},
-    FaceSel1 = [Face || Face <- FaceSel0, gb_trees:is_defined(Face, Ftab)],
-    FaceSel = gb_sets:from_ordset(FaceSel1),
+    FaceSel0 = [Face || Face <- OrigFaces, gb_trees:is_defined(Face, Ftab)],
+    FaceSel = gb_sets:from_ordset(FaceSel0),
     {We,{[{Id,Tv}|Tvs],[{Id,FaceSel}|Ss]}}.
 
 bevel_tv(Vs, We) ->
@@ -67,13 +68,12 @@ bevel_reset_pos_1(V, We, Vtab) ->
 	      gb_trees:update(OtherV, Vtx#vtx{pos=Center}, Vt)
       end, Vtab, V, We).
 
-bevel_dissolve(Edges, #we{es=Etab}=We0) ->
+bevel_orig_faces(Edges, #we{es=Etab}=We0) ->
     Faces = foldl(fun(E, A) ->
 			  #edge{lf=Lf,rf=Rf} = gb_trees:get(E, Etab),
 			  [Lf,Rf|A]
 		  end, [], gb_sets:to_list(Edges)),
-    #we{fs=Ftab} = We = wings_edge:dissolve_edges(Edges, We0),
-    {We,Faces}.
+    ordsets:from_list(Faces).
 
 %%
 %% The Extrude command (for edges).
