@@ -8,13 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.84 2004/05/31 20:27:30 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.85 2004/06/01 10:57:59 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
 
 -export([init/0,menu/2,dialog/2,command/2]).
 
+%% Debug export
+-export([now_diff_1/1]).
 
 
 -include_lib("kernel/include/file.hrl").
@@ -2593,6 +2595,10 @@ zip([H1|T1], [H2|T2]) -> [{H1,H2}|zip(T1, T2)].
 %%% 	false -> filter2_1(Pred, T, True, [H|False])
 %%%     end.
 
+
+%% Returns the time difference as a deep string in 
+%% S.sss, M:S.sss, or H:M:S.sss deep string format, 
+%% with trailing format description.
 now_diff({A1,B1,C1}, {A2,B2,C2}) ->
     now_diff_1(((A1-A2)*1000000 + B1 - B2)*1000000 + C1 - C2).
 
@@ -2605,20 +2611,20 @@ now_diff_2(T0) ->
     T1 = T0 div 60000000,
     M = T1 rem 60,
     H = T1 div 60,
-    now_diff_h(H, M, Us, []).
+    case {H,M} of
+	{0,0} -> now_diff_us(Us);
+	{0,_} -> now_diff_m(M, Us);
+	{_,_} -> now_diff_h(H, M, Us)
+    end.
 
-now_diff_h(0, M, Us, []) ->
-    now_diff_m(M, Us, []);
-now_diff_h(H, M, Us, Unit) ->
-    [integer_to_list(H),$"|now_diff_m(M, Us, [$",$h|Unit])].
+now_diff_h(H, M, Us) ->
+    [integer_to_list(H),$:|now_diff_m(M, Us)].
 
-now_diff_m(0, Us, []) ->
-    now_diff_us(Us, []);
-now_diff_m(M, Us, Unit) ->
-    [integer_to_list(M),$'|now_diff_us(Us, [$',$m|Unit])].
+now_diff_m(M, Us) ->
+    [integer_to_list(M),$'|now_diff_us(Us)].
 
-now_diff_us(Us, Unit) ->
-    io_lib:format("~.3f ~s", [Us/1000000.0,reverse(Unit,[$s])]).
+now_diff_us(Us) ->
+    io_lib:format("~.3f\"", [Us/1000000.0]).
 
 %% Create a string unique for the OS process. It consists 
 %% of the OS process id, a dash, and seconds since Jan 1 1970
