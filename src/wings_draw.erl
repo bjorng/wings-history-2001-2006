@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.146 2003/08/30 08:16:09 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.147 2003/08/30 09:17:19 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -237,9 +237,12 @@ update_fun_2(light, D, _) ->
 update_fun_2(work, #dlo{work=none,src_we=#we{fs=Ftab}}=D, St) ->
     Dl = draw_faces(gb_trees:to_list(Ftab), D, St),
     D#dlo{work=Dl};
+update_fun_2(smooth, #dlo{smooth=none,proxy_data=none}=D, St) ->
+    {List,Tr} = smooth_dlist(D, St),
+    D#dlo{smooth=List,transparent=Tr};
 update_fun_2(smooth, #dlo{smooth=none}=D, St) ->
     We = wings_subdiv:smooth_we(D),
-    {List,Tr} = smooth_dlist(D#dlo{src_we=We}, St),
+    {List,Tr} = smooth_dlist(We, St),
     D#dlo{smooth=List,transparent=Tr};
 update_fun_2({vertex,PtSize}, #dlo{vs=none,src_we=#we{vp=Vtab}}=D, _) ->
     UnselDlist = gl:genLists(1),
