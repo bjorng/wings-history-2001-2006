@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.18 2003/11/28 18:29:04 bjorng Exp $
+%%     $Id: wpc_test_ask.erl,v 1.19 2003/12/02 14:44:53 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -141,13 +141,15 @@ large_result(St) ->
 	    end
     end.
 
-overlay_dialog(St) -> 
-    do_overlay_dialog(St, buttons, 1, false, true, false, undefined).
+overlay_dialog(St) ->
+    wings_ask:dialog("Test Ask Overlay", 
+		     mk_overlay_dialog(buttons, 1, false, true, false), 
+		     overlay_result(St)).
 
-do_overlay_dialog(St, Style, Active, MinimizedL, MinimizedC, MinimizedR, Pos) ->
+mk_overlay_dialog(Style, Active, MinimizedL, MinimizedC, MinimizedR) ->
     Dialog =
 	[{hframe,[{label,"Style  "},
-		  {hradio,[{"Buttons",buttons},{"Tabs",tabs},{"Menu",menu}],Style,
+		  {hradio,[{"Buttons",buttons},{"Menu",menu}],Style,
 		  [{hook,fun (update, {Var,_I,Val,Sto}) ->
 				 erlang:display({?MODULE,?LINE,
 						 [update,{Var,_I,Val,sto}]}),
@@ -157,26 +159,22 @@ do_overlay_dialog(St, Style, Active, MinimizedL, MinimizedC, MinimizedR, Pos) ->
 	  [{"Left frame",large_dialog_l(MinimizedL, MinimizedC)},
 	   {"Right frame",large_dialog_r(MinimizedR)}],
 	  Active,
-	  [{style,Style}]},
-	 {position,Pos,[{key,position}]}],
-    wings_ask:dialog("Test Ask Overlay", 
-		     {hframe,[{vframe,Dialog},
-			      {vframe,[{button,done,[ok]},
-				       {button,cancel,[cancel]}]}]}, 
-		     overlay_result(St)).
+	  [{style,Style}]}
+	],
+    {hframe,[{vframe,Dialog},
+	     {vframe,[{button,done,[ok]},
+		      {button,cancel,[cancel]}]}]}.
 
 overlay_result(St) ->
     fun ([Style,Active,MinimizedL|Res]) -> 
 	    erlang:display({?MODULE,?LINE,Res}),
 	    MinimizedC = proplists:get_value(minimized_c, Res),
 	    MinimizedR = proplists:get_value(minimized_r, Res),
-	    Pos = proplists:get_value(position, Res),
 	    case lists:last(Res) of
-		false -> 
-		    do_overlay_dialog(St, Style, Active,
-				      MinimizedL, MinimizedC, MinimizedR, 
-				      Pos),
-		    ignore;
+		false ->
+		    Dialog = mk_overlay_dialog(Style, Active, MinimizedL,
+					       MinimizedC, MinimizedR), 
+		    {dialog,Dialog,overlay_result(St)};
 		true -> ignore
 	    end
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.134 2003/12/01 21:19:28 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.135 2003/12/02 14:44:53 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -161,7 +161,7 @@ do_dialog(Title, Qs, Level, Fun) ->
     S = #s{fi=Fi,store=Store} = 
 	S0#s{ox=?HMARGIN,oy=?VMARGIN,level=Level,grab_win=GrabWin},
     Name = {dialog,hd(Level)},
-    setup_blanket(Name, S),
+    setup_blanket(Name, Fi, Store),
     Op = {seq,push,get_event(S)},
     {{X,Y},Anchor} 
 	= case find_position(Fi, Store) of
@@ -181,7 +181,7 @@ do_dialog(Title, Qs, Level, Fun) ->
 mouse_pos() ->
     {_,X,Y} = sdl_mouse:getMouseState(),
     {X,Y-?LINE_HEIGHT}.
-    
+
 
 setup_ask(Qs, Fun) ->
     ?DEBUG_FORMAT("setup_ask~n  (~p,~n   ~p)~n", [Qs,Fun]),
@@ -196,13 +196,22 @@ setup_ask(Qs, Fun) ->
     ?DEBUG_DISPLAY({W,H}),
     next_focus(1, S).
 
+setup_dialog(#s{level=Level,grab_win=GrabWin,owner=Owner}, Qs, Fun) ->
+    {Fi0,Sto,N} = mktree(Qs, gb_trees:empty()),
+    Fi = #fi{w=W0,h=H0} = layout(Fi0, Sto),
+    Focusable = focusable(Fi),
+    W = W0 + 2*?HMARGIN,
+    H = H0 + 2*?VMARGIN,
+    #s{ox=?HMARGIN,oy=?VMARGIN,w=W,h=H,
+       level=Level,grab_win=GrabWin,owner=Owner,
+       call=Fun,focus=N,focusable=Focusable,
+       fi=Fi,n=N,store=init_fields(Fi, Sto)}.
 
-setup_blanket(Dialog, #s{fi=Fi,store=Sto}) ->
+setup_blanket(Dialog, Fi, Sto) ->
     EyePicker = case find_eyepicker(Fi, Sto) of
 		    [#fi{}|_] -> true;
 		    [] -> false
 		end,
-
     %% The menu blanket window lies below the dialog, covering the entire
     %% screen and ignoring most events. Keyboard events will be forwarded
     %% to the active dialog window.
@@ -481,23 +490,27 @@ resize_maybe_move({W,H0}=Size) ->
     
 		
 
-return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto}=S) ->
+return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto}=S0) ->
     Res = collect_result(Fi, Sto),
     ?DEBUG_DISPLAY({return_result,Res}),
     case catch EndFun(Res) of
 	{command_error,Message} ->
 	    wings_util:message(Message),
-	    get_event(S);
+	    get_event(S0);
 	ignore ->
-	    delete(S);
+	    delete(S0);
 	#st{}=St ->
 	    ?DEBUG_DISPLAY({return_result,[Owner,new_state]}),
 	    wings_wm:send(Owner, {new_state,St}),
-	    delete(S);
+	    delete(S0);
+	{dialog,Qs,Fun} ->
+	    S = #s{w=W,h=H} = setup_dialog(S0, Qs, Fun),
+	    resize_maybe_move({W,H}),
+	    get_event(S);
 	Action when is_tuple(Action); is_atom(Action) ->
 	    ?DEBUG_DISPLAY({return_result,[Owner,{action,Action}]}),
 	    wings_wm:send(Owner, {action,Action}),
-	    delete(S)
+	    delete(S0)
     end.
 
 redraw(S=#s{w=W,h=H,ox=Ox,oy=Oy,focus=Index,fi=Fi0,store=Sto}) ->
@@ -908,7 +921,7 @@ mktree_container_1([Q|Qs], Sto0, I0, R) ->
     {Fi,Sto,I} = mktree(Q, Sto0, I0),
     mktree_container_1(Qs, Sto, I, [Fi|R]).
 
--record(oframe, {style,				%menu|tabs|buttons
+-record(oframe, {style,				%menu|buttons
 		 w,h,				%header size
 		 titles}).			%tuple() of list()
 
@@ -933,12 +946,6 @@ mktree_oframe(Qs, Def, Sto0, I0, Flags) when integer(Def), Def >= 1 ->
 			   fun (Title, Width) ->
 				   2*Cw+Width+wings_text:width(Title)
 			   end, 10+2*Cw, Titles),
-			 ?LINE_HEIGHT+10};
-		    tabs -> 
-			{lists:foldl(
-			   fun (Title, Width) ->
-				   2*Cw+Width+wings_text:width(Title)
-			   end, 2*Cw, Titles),
 			 ?LINE_HEIGHT+10}
 		end,
 	    Sto2 = gb_trees:insert(var(Key, I0), Def, Sto1),
@@ -1016,7 +1023,7 @@ layout(Fi=#fi{key=Key,index=Index,
        Sto, X0, Y0) ->
     #oframe{w=Wt,h=Ht} = gb_trees:get(-Index, Sto),
     Active = gb_trees:get(var(Key, Index), Sto),
-    Pad = 10, %case Style of menu -> 10; tabs -> 0 end,
+    Pad = 10,
     X1 = X0+Pad,
     Y1 = Y0+Ht,
     {Fields,X2,Y2} = layout_container(oframe, Fields0, Sto, X1, Y1),
@@ -1342,18 +1349,10 @@ oframe_event(#mousebutton{x=Xb,button=1,state=?SDL_PRESSED},
 	     Path=[#fi{x=X,w=W,key=Key,index=I,hook=Hook}|_], 
 	     Sto0) ->
     case gb_trees:get(-I, Sto0) of
-	#oframe{style=tabs,titles=Titles} ->
-	    case oframe_which_tab(X, Xb, Titles) of
-		undefined -> keep;
-		Val ->
-		    case hook(Hook, update, [var(Key, I), I, Val, Sto0]) of
-			{store,Sto} -> {layout,Sto};
-			Other -> Other
-		    end
-	    end;
 	#oframe{style=buttons,titles=Titles} ->
 	    #oframe{w=Wt} = gb_trees:get(-I, Sto0),
-	    case oframe_which_tab(X, Xb-(W-Wt) div 2, Titles) of
+	    Xt = oframe_title_xpos(X, W, Wt),
+	    case oframe_which_tab(Xt, Xb, Titles) of
 		undefined -> keep;
 		Val ->
 		    case hook(Hook, update, [var(Key, I), I, Val, Sto0]) of
@@ -1378,7 +1377,6 @@ oframe_event({key,$\s,0,$\s}, [#fi{x=X,y=Y,key=Key,index=I}|_], Sto) ->
 	#oframe{w=W,style=menu,titles=Titles} ->
 	    Menu = oframe_menu(Titles),
 	    menu_popup(X+10, Y, W, Menu, gb_trees:get(var(Key, I), Sto), []);
-	#oframe{style=tabs} -> keep;
 	#oframe{style=button} -> keep
     end;
 oframe_event({key,_,_,2}, Path, Sto) -> % Ctrl-B
@@ -1387,24 +1385,13 @@ oframe_event({key,_,_,6}, Path, Sto) -> % Ctrl-F
     oframe_step(+1, Path, Sto);
 oframe_event(_Ev, _Path, _Store) -> keep.
 
-oframe_which_tab(X0, Xb, Titles) when Xb >= X0 -> 
-    oframe_which_tab(X0, Xb, Titles, ?CHAR_WIDTH, 1);
-oframe_which_tab(_X0, _Xb, _Titles) -> undefined.
-
-oframe_which_tab(X0, Xb, Titles, Cw, I) when I =< size(Titles) ->
-    W = Cw + wings_text:width(element(I, Titles)) + Cw,
-    if  Xb < X0+W -> I;
-	true -> oframe_which_tab(X0+W, Xb, Titles, Cw, I+1)
-    end;
-oframe_which_tab(_, _, _, _, _) -> undefined.
-
 oframe_menu(Titles) -> oframe_menu(Titles, 1).
 
 oframe_menu(Titles, N) when N =< size(Titles) -> 
     [{element(N, Titles),N,[]}|oframe_menu(Titles, N+1)];
 oframe_menu(_Titles, _N) -> [].
 
-oframe_redraw(Active, 
+oframe_redraw(Active,
 	      #fi{x=X0,y=Y0,w=W0,h=H0,extra=#container{active=I}},
 	      #oframe{style=menu,w=Wt,h=Ht,titles=Titles}) ->
     Y = Y0+((Ht-10+4) div 2),
@@ -1420,25 +1407,9 @@ oframe_redraw(Active,
 		  gl:'end'()
 	  end),
     Title = element(I, Titles),
-    menu_draw(Active, X0+10, Y0, Wt, Ht-10+4, Title, keep);
-oframe_redraw(Active, 
-	      #fi{x=X0,y=Y0,w=W0,h=H0,extra=#container{active=I}},
-	      #oframe{style=tabs,h=Ht,titles=Titles}) ->
-    Y = Y0+Ht-5,
-    H = H0-(Y-Y0+5),
-    ColLow = color4_lowlight(),
-    ColHigh = color4_highlight(),
-    blend(fun(_Col) ->
-		  gl:'begin'(?GL_LINES),
- 		  hline(X0, Y, W0, ColLow, ColHigh),
-		  hline(X0, Y+H-2, W0, ColLow, ColHigh),
-		  vline(X0, Y+1, H-4, ColLow, ColHigh),
-		  vline(X0+W0, Y+1, H-4, ColLow, ColHigh),
-		  gl:'end'()
-	  end),
-    oframe_redraw_titles(Active, X0, Y0, Ht-5, I, Titles),
-    keep;
-oframe_redraw(Active, 
+    Xt = oframe_title_pos(X0, W0, W1),
+    menu_draw(Active, Xt, Y0, Wt, Ht-10+4, Title, keep);
+oframe_redraw(Active,
 	      #fi{x=X0,y=Y0,w=W0,h=H0,extra=#container{active=I}},
 	      #oframe{style=buttons,w=Wt,h=Ht,titles=Titles}) ->
     Y = Y0+((Ht-10+4) div 2),
@@ -1453,8 +1424,22 @@ oframe_redraw(Active,
 		  vline(X0+W0, Y+1, H-4, ColLow, ColHigh),
 		  gl:'end'()
 	  end),
-    oframe_redraw_titles(Active, X0+(W0-Wt) div 2, Y0, Ht-5, I, Titles),
+    Xt = oframe_title_xpos(X0, W0, Wt),
+    oframe_redraw_titles(Active, Xt, Y0, Ht-5, I, Titles),
     keep.
+
+oframe_title_xpos(X0, W0, Wt) -> X0 + ((W0-(Wt-10)) div 2).
+
+oframe_which_tab(X0, Xb, Titles) when Xb >= X0 -> 
+    oframe_which_tab(X0, Xb, Titles, ?CHAR_WIDTH, 1);
+oframe_which_tab(_X0, _Xb, _Titles) -> undefined.
+
+oframe_which_tab(X0, Xb, Titles, Cw, I) when I =< size(Titles) ->
+    W = Cw + wings_text:width(element(I, Titles)) + Cw,
+    if  Xb < X0+W -> I;
+	true -> oframe_which_tab(X0+W, Xb, Titles, Cw, I+1)
+    end;
+oframe_which_tab(_, _, _, _, _) -> undefined.
 
 oframe_redraw_titles(Focus, X, Y, H, Active, Titles) -> 
     Cw = ?CHAR_WIDTH,
@@ -1495,16 +1480,6 @@ oframe_redraw_titles(_Focus, _X, _Y, _H, _Active, _Titles,
 oframe_step(Step, [#fi{key=Key,index=I,hook=Hook,
 		       extra=#container{fields=Fields}}|_], Sto0) ->
     case gb_trees:get(-I, Sto0) of
-	#oframe{style=tabs} ->
-	    Var = var(Key, I),
-	    Val = gb_trees:get(Var, Sto0) + Step,
-	    if 1 =< Val, Val =< size(Fields) ->
-		    case hook(Hook, update, [Var, I, Val, Sto0]) of
-			{store,Sto} -> {layout,Sto};
-			Other -> Other
-		    end;
-	       true -> keep
-	    end;
 	#oframe{style=buttons} ->
 	    Var = var(Key, I),
 	    Val = gb_trees:get(Var, Sto0) + Step,
