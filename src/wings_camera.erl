@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.46 2002/10/13 19:11:42 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.47 2002/10/15 12:48:29 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -117,7 +117,7 @@ help() ->
     case wings_pref:get_value(camera_mode) of
 	blender ->
 	    case wings_pref:get_value(num_buttons) of
-		3 -> "[L] Tumble  [Shift]+[M] Track  [Ctrl]+[M] Dolly";
+		3 -> "[M] Tumble  [Shift]+[M] Track  [Ctrl]+[M] Dolly";
 		_ -> "[Alt]+[L] Tumble  [Alt]+[Shift]+[M] Track  "
 			 "[Alt]+[Ctrl]+[M] Dolly"
 	    end;
