@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.25 2002/11/27 05:48:31 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.26 2002/11/30 08:58:17 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -219,13 +219,22 @@ get_and_dispatch() ->
     Event = wings_io:get_event(),
     dispatch_event(Event).
 
-dispatch_event(#resize{w=W,h=H}=Event) ->
+dispatch_event(#resize{w=W0,h=H0}=Event) ->
     ?CHECK_ERROR(),
+    {W,H} = case sdl_video:wm_isMaximized() of
+		false -> {W0,H0};
+		true ->  {W0-8,H0-10}
+	    end,
+    wings_pref:set_value(window_size, {W,H}),
     put(wm_top_size, {W,H}),
+
     Win0 = get_window_data(top),
     Win1 = Win0#win{w=W,h=H},
     put_window_data(top, Win1),
     set_video_mode(W, H),
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    wings_io:resize(),
+
     {R,G,B} = wings_pref:get_value(background_color),
     gl:clearColor(R, G, B, 1.0),
     Win = send_event(Win1, Event),

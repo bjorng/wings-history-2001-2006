@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.171 2002/11/29 06:32:17 bjorng Exp $
+%%     $Id: wings.erl,v 1.172 2002/11/30 08:58:17 bjorng Exp $
 %%
 
 -module(wings).
@@ -167,7 +167,6 @@ locate(Name) ->
     end.
 
 resize(W, H, St) ->
-    wings_io:resize(W, H),
     wings_draw_util:init(),
     wings_material:init(St).
 

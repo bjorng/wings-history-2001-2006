@@ -8,18 +8,18 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.79 2002/11/26 20:05:29 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.80 2002/11/30 08:58:17 bjorng Exp $
 %%
 
 -module(wings_io).
--export([init/0,resize/2,
+-export([init/0,resize/0,
 	 icon_restriction/1,clear_icon_restriction/0,get_icon_restriction/0,
 	 arrow/0,hourglass/0,
 	 update/1,event/1,info/1,
 	 disable_progress/0,progress/1,progress_tick/0,
 	 border/5,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
-	 text_at/2,text_at/3,text/1,menu_text/3,axis_text/4,space_at/2,
+	 text_at/2,text_at/3,text/1,menu_text/3,space_at/2,
 	 draw_icon/3,draw_icon/5,draw_icon/7,
 	 set_color/1]).
 -export([putback_event/1,get_event/0,poll_event/0,
@@ -39,9 +39,7 @@
 -define(ICON_HEIGHT, 32).
 
 -record(io,
-	{w,					%Width of screen (pixels).
-	 h,					%Height of screen (pixels).
-	 eq,					%Event queue.
+	{eq,					%Event queue.
 	 tex=[],				%Textures.
 	 grab_count=0,				%Number of grabs.
 	 hourglass,				%Hourglass cursor.
@@ -83,15 +81,10 @@ read_icons() ->
 	    Bin
     end.
 
-resize(W0, H0) ->
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+resize() ->
     #io{raw_icons=RawIcons} = Io = get_state(),
     Tex = load_textures(RawIcons),
-    put_state(Io#io{w=W0,h=H0,tex=Tex}),
-    case sdl_video:wm_isMaximized() of
-	false -> wings_pref:set_value(window_size, {W0,H0});
-	true ->  wings_pref:set_value(window_size, {W0-8,H0-10})
-    end,
+    put_state(Io#io{tex=Tex}),
     make_font_dlists().
 
 make_font_dlists() ->
@@ -261,31 +254,6 @@ draw_reverse(S0) ->
 	true -> gl:callLists(length(S), ?GL_UNSIGNED_BYTE, S);
 	false -> wings_text:draw(S)
     end.
-
-axis_text(X, Y, C, Color) ->
-    #io{w=W,h=H} = get_state(),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:pushMatrix(),
-    gl:loadIdentity(),
-    glu:ortho2D(0, W, 0, H),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:pushMatrix(),
-    gl:loadIdentity(),
-    ClipX = min(trunc(X), W-9),
-    ClipY = max(min(trunc(Y-10), H-35), 74),
-    set_color(Color),
-    gl:rasterPos2i(ClipX, ClipY),
-    wings_text:char(C),
-    gl:popMatrix(),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:popMatrix(),
-    gl:matrixMode(?GL_MODELVIEW).
-
-min(A, B) when A < B -> A;
-min(_, B) -> B.
-
-max(A, B) when A > B -> A;
-max(_, B) -> B.
 
 ortho_setup() ->
     ?CHECK_ERROR(),

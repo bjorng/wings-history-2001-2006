@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.44 2002/11/23 08:48:49 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.45 2002/11/30 08:58:17 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -543,7 +543,7 @@ dummy_axis_letter() ->
     end.
 
 dummy_axis_letter(_, _, _) ->
-    wings_io:axis_text(10, 90, axisx, wings_pref:get_value(background_color)).
+    axis_text(10, 90, axisx, wings_pref:get_value(background_color)).
 
 axis_letters() ->
     case wings_pref:get_value(show_axis_letters) andalso
@@ -602,8 +602,30 @@ clip_1(_, [], _W) -> none.
 show_letter(X0, Y0, W, Char, Color, {Vx,Vy,Vw,Vh}) ->
     X = (0.5*X0/W + 0.5)*Vw + Vx,
     Y = (0.5*Y0/W + 0.5)*Vh + Vy,
-    wings_io:axis_text(X, Y, Char, Color).
-	    
+    axis_text(X, Y, Char, Color).
+
+axis_text(X, Y, C, Color) ->
+    {_,_,W,H} = wings_wm:viewport(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    glu:ortho2D(0, W, 0, H),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    ClipX = min(trunc(X), W-9),
+    ClipY = min(trunc(Y-10), H-10),
+    wings_io:set_color(Color),
+    gl:rasterPos2i(ClipX, ClipY),
+    wings_text:char(C),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_MODELVIEW).
+
+min(A, B) when A < B -> A;
+min(_, B) -> B.
+
 proj({X0,Y0,Z0}, MM, PM) ->
     Vec = e3d_mat:mul(MM, {X0,Y0,Z0,1.0}),
     e3d_mat:mul(PM, Vec).
