@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_turnedge.erl,v 1.2 2002/12/26 09:47:07 bjorng Exp $
+%%     $Id: wpc_turnedge.erl,v 1.3 2003/01/20 18:11:54 bjorng Exp $
 %%
 
 -module(wpc_turnedge).
@@ -59,7 +59,8 @@ turns() ->
 
 turn_menu(1) -> {edge,turn};
 turn_menu(3) -> {edge,turn_opt};
-turn_menu(help) -> turn_help().
+turn_menu(help) -> turn_help();
+turn_menu(_) -> ignore.
 
 turn_help() ->
     {"Turn edge", "", "Turns edge only if new edge length would be shorter"}.
