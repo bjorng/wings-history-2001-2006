@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.82 2003/11/22 07:53:35 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.83 2003/11/22 08:20:07 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -433,6 +433,9 @@ dissolve(St0) ->
     St = wings_sel:map(fun dissolve_edges/2, St0),
     wings_sel:clear(St).
 
+dissolve_edge(Edge, We) ->
+    dissolve_edges([Edge], We).
+
 dissolve_edges(Edges0, We0) when is_list(Edges0) ->
     #we{es=Etab} = We = foldl(fun internal_dissolve_edge/2, We0, Edges0),
     case [E || E <- Edges0, gb_trees:is_defined(E, Etab)] of
@@ -441,9 +444,6 @@ dissolve_edges(Edges0, We0) when is_list(Edges0) ->
     end;
 dissolve_edges(Edges, We) ->
     dissolve_edges(gb_sets:to_list(Edges), We).
-
-dissolve_edge(Edge, We) ->
-    wings_we:vertex_gc(internal_dissolve_edge(Edge, We)).
 
 internal_dissolve_edge(Edge, #we{es=Etab}=We0) ->
     case gb_trees:lookup(Edge, Etab) of
@@ -515,7 +515,13 @@ dissolve_edge_2(Edge, FaceRemove, FaceKeep,
 	    internal_dissolve_edge(AnEdge, We);
 	#edge{rf=FaceKeep,rtpr=Same,rtsu=Same} ->
 	    internal_dissolve_edge(AnEdge, We);
-	_Other -> We
+	_Other ->
+	    case wings_we:is_face_consistent(FaceKeep, We) of
+		true ->
+		    We;
+		false ->
+		    wings_util:error("Dissolving would cause a badly formed face.")
+	    end
     end.
 
 %% dissolve_isolated_vs([Vertex], We) -> We'
