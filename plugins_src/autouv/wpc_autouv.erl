@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.245 2004/05/18 06:46:48 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.246 2004/05/19 19:25:24 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -539,7 +539,7 @@ new_state(#st{bb=#uvstate{}=Uvs}=St0) ->
     get_event(St).
 
 handle_command(move, St) ->
-    drag(wings_move:setup(free_2d, St));
+    drag(wings_move:setup(free, St));
 handle_command({move,Magnet}, St) ->
     drag(wings_move:setup({free_2d,Magnet}, St));
 handle_command({scale,scale_uniform}, St) ->
