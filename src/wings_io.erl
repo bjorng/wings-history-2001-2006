@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.66 2002/10/09 05:52:26 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.67 2002/10/09 05:56:58 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -25,7 +25,8 @@
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,text/1,menu_text/3,axis_text/4,space_at/2,
 	 draw_icon/5,
-	 draw_message/1,draw_completions/1]).
+	 draw_message/1,draw_completions/1,
+	 set_color/1]).
 -export([putback_event/1,get_event/0,poll_event/0,
 	 set_timer/2,cancel_timer/1]).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.31 2002/09/18 13:16:07 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.32 2002/10/09 05:56:57 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -542,7 +542,7 @@ frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
 	    hline(X, Y+H-1, W-1),
 	    vline(X, Y+1, H-2),
 	    gl:'end'(),
-	    gl:color3fv(?MENU_COLOR),
+	    wings_io:set_color(?MENU_COLOR),
 	    TextPos = X + 3*?CHAR_WIDTH,
 	    gl:rectf(TextPos-?CHAR_WIDTH, Y-1,
 		     TextPos+(length(Title)+1)*?CHAR_WIDTH, Y+2),
