@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.285 2003/11/13 18:20:11 bjorng Exp $
+%%     $Id: wings.erl,v 1.286 2003/11/28 18:09:32 bjorng Exp $
 %%
 
 -module(wings).
@@ -554,8 +554,6 @@ command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,
 command({edit,repeat_drag}, St) -> St;
 command({edit,camera_settings}, _St) ->
     wings_camera:settings();
-command({edit,font}, St) ->
-    wings_text:command(font, St);
 command({edit,purge_undo}, _St) ->
     wings_util:yes_no("Are you sure (NOT undoable)?",
 		      fun() -> {edit,confirmed_purge_undo} end);
@@ -668,7 +666,7 @@ edit_menu(St) ->
      {command_name("Repeat", St),repeat},
      {command_name("Repeat Args", St),repeat_args},
      {command_name("Repeat Drag", St),repeat_drag},
-     separator|wings_camera:sub_menu(St)++wings_text:sub_menu(St)++
+     separator|wings_camera:sub_menu(St)++
      [separator|wings_pref:menu(St)++
       [separator,{"Purge Undo History",purge_undo,
 		  "Delete the undo history to reclaim memory"}|patches()]]].

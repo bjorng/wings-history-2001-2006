@@ -8,14 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.19 2003/03/12 06:19:39 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.20 2003/11/28 18:09:32 bjorng Exp $
 %%
 
 -module(wings_text).
 -export([init/0,width/0,width/1,height/0,draw/1,char/1]).
 -export([break_lines/2]).
--export([font_module/1,choose_font/0]).
--export([sub_menu/1,command/2]).
+-export([font_module/1,choose_font/0,fonts/0]).
 
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
@@ -50,19 +49,6 @@ draw(S) ->
 
 char(C) ->
     (get(?MODULE)):char(C).
-
-sub_menu(_St) ->
-    [{"Font...",font}].
-
-command(font, _St) ->
-    Qs = [{menu,fonts(),get(?MODULE)}],
-    wings_ask:dialog("Choose Font", Qs,
-		     fun([Font]) ->
-			     wings_pref:set_value(system_font, Font),
-			     wings_wm:reinit_opengl(),
-			     put(?MODULE, Font),
-			     ignore
-		     end).
 
 fonts() ->
     MatchSpec = ets:fun2ms(fun({Font,Desc}) -> {Desc,Font} end),
