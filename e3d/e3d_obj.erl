@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.12 2001/11/14 10:10:22 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.13 2001/11/15 11:44:01 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -243,12 +243,14 @@ skip_blanks(S) -> S.
 %%% Export.
 %%% 
 
-export(Name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
-    {ok,MtlLib} = materials(Name, Mat, Creator),
-    {ok,F} = file:open(Name, [write]),
+export(File, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
+    {ok,MtlLib} = materials(File, Mat, Creator),
+    {ok,F} = file:open(File, [write]),
     label(F, Creator),
     io:format(F, "mtllib ~s\n", [MtlLib]),
-    foldl(fun(Obj, {Vbase,Nbase}) ->
+    foldl(fun(#e3d_object{name=Name}=Obj, {Vbase,Nbase}) ->
+		  io:format(F, "o ~s\n", [Name]),
+		  io:format(F, "g ~s\n", [Name]),
 		  export_object(F, Obj, Vbase, Nbase)
 	  end, {1,1}, Objs),
     ok = file:close(F).
@@ -256,7 +258,6 @@ export(Name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
 export_object(F, #e3d_object{name=Name,obj=Mesh}, Vbase, Nbase) ->
     #e3d_mesh{vs=Vs} = Mesh,
     mesh_info(F, Mesh),
-    io:format(F, "g ~s\n", [Name]),
     foreach(fun({X,Y,Z}) ->
 		    io:format(F, "v ~p ~p ~p\n", [X,Y,Z])
 	    end, Vs),
