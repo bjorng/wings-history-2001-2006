@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.60 2002/06/21 07:36:31 bjorng Exp $
+%%     $Id: wings.hrl,v 1.61 2002/06/24 18:52:08 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -173,13 +173,16 @@
 	 pos					%Position ({X,Y,Z})
 	}).
 
-%% The current view.
+%% The current view/camera.
 -record(view,
-	{origo,
-	 distance,				% From origo
+	{origin,
+	 distance,				% From origo.
 	 azimuth,
 	 elevation,
 	 pan_x,					%Panning in X direction.
 	 pan_y,					%Panning in Y direction.
-	 along_axis=none			%Which axis viewed along.
-	 }).
+	 along_axis=none,			%Which axis viewed along.
+	 fov,					%Field of view.
+	 hither,				%Near clipping plane.
+	 yon					%Far clipping plane.
+	}).

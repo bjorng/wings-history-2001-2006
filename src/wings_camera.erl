@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.33 2002/06/02 20:49:02 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.34 2002/06/24 18:52:08 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -37,6 +37,9 @@ command(camera_mode, St) ->
     DefVar = {mode,wings_pref:get_value(camera_mode, blender)},
     ZoomFlag0 = wings_pref:get_value(wheel_zooms, true),
     ZoomFactor0 = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR),
+    Fov0 = wings_pref:get_value(camera_fov),
+    Hither0 = wings_pref:get_value(camera_hither),
+    Yon0 = wings_pref:get_value(camera_yon),
     Qs = [{vframe,[{alt,DefVar,"Wings/Blender",blender},
 		   {alt,DefVar,"Nendo",nendo},
 		   {alt,DefVar,"3ds max",tds},
@@ -46,12 +49,26 @@ command(camera_mode, St) ->
 	   [{"Wheel zooms",ZoomFlag0},
 	    {hframe,[{label,"Zoom Factor"},
 		     {text,ZoomFactor0,[{range,{1,50}}]},{label,"%"}]}],
-	   [{title,"Scroll Wheel"}]}],
+	   [{title,"Scroll Wheel"}]},
+	  {vframe,
+	   [{label_column,
+	     [{"Field Of View",{text,Fov0,[{range,1.0,180.0}]}},
+	      {"Near Clipping Plane",{text,Hither0,
+				      [{range,0.001,1000.0}]}},
+	      {"Far Clipping Plane",{text,Yon0,
+				     [{range,100.0,9.9e307}]}}]}],
+	   [{title,"Camera Parameters"}]}],
     wings_ask:dialog(Qs, St,
-		  fun([Mode,ZoomFlag,ZoomFactor]) ->
+		  fun([Mode,ZoomFlag,ZoomFactor,Fov,Hither,Yon]) ->
 			  wings_pref:set_value(camera_mode, Mode),
 			  wings_pref:set_value(wheel_zooms, ZoomFlag),
 			  wings_pref:set_value(wheel_zoom_factor, ZoomFactor),
+			  wings_pref:set_value(camera_fov, Fov),
+			  wings_pref:set_value(camera_hither, Hither),
+			  wings_pref:set_value(camera_yon, Yon),
+			  View0 = wings_view:current(),
+			  View = View0#view{fov=Fov,hither=Hither,yon=Yon},
+			  wings_view:set_current(View),
 			  ignore
 		  end).
 

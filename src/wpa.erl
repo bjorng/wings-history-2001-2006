@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.16 2002/05/05 07:41:53 bjorng Exp $
+%%     $Id: wpa.erl,v 1.17 2002/06/24 18:52:08 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,yes_no/1,
@@ -222,7 +222,7 @@ obj_id(#we{id=Id}) -> Id.
 camera_info(As) ->
     camera_info(As, wings_view:current()).
 
-camera_info([aim|As], #view{origo=Aim}=View) ->
+camera_info([aim|As], #view{origin=Aim}=View) ->
     [Aim|camera_info(As, View)];
 camera_info([distance_to_aim|As], #view{distance=Dist}=View) ->
     [Dist|camera_info(As, View)];
@@ -232,7 +232,13 @@ camera_info([elevation|As], #view{elevation=El}=View) ->
     [El|camera_info(As, View)];
 camera_info([tracking|As], #view{pan_x=X,pan_y=Y}=View) ->
     [{X,Y}|camera_info(As, View)];
-camera_info([fov|As], View) ->
-    %% Field of view. XXX Should not be hard-coded.
-    [45|camera_info(As, View)];
+camera_info([fov|As], #view{fov=Fov}=View) ->
+    %% Field of view.
+    [Fov|camera_info(As, View)];
+camera_info([hither|As], #view{hither=Hither}=View) ->
+    %% Near clipping plane.
+    [Hither|camera_info(As, View)];
+camera_info([yon|As], #view{yon=Yon}=View) ->
+    %% Far clipping plane.
+    [Yon|camera_info(As, View)];
 camera_info([], _) -> [].
