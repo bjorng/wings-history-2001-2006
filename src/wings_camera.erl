@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.64 2003/02/17 07:16:29 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.65 2003/03/03 06:30:48 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -33,9 +33,6 @@
 
 init() ->
     wings_pref:set_default(camera_mode, mirai),
-    wings_pref:set_default(camera_fov, 45.0),
-    wings_pref:set_default(camera_hither, 0.25),
-    wings_pref:set_default(camera_yon, 1000.0),
     wings_pref:set_default(num_buttons, 3),
     wings_pref:set_default(pan_speed, 25),
     case {wings_pref:get_value(num_buttons),wings_pref:get_value(camera_mode)} of
@@ -49,12 +46,12 @@ sub_menu(_St) ->
     [{"Camera Mode...",camera_mode}].
 
 command(camera_mode, _St) ->
+    Active = wings_wm:active_window(),
     ZoomFlag0 = wings_pref:get_value(wheel_zooms, true),
     ZoomFactor0 = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR),
-    Fov0 = wings_pref:get_value(camera_fov),
-    Hither0 = wings_pref:get_value(camera_hither),
-    Yon0 = wings_pref:get_value(camera_yon),
     PanSpeed0 = wings_pref:get_value(pan_speed),
+    View0 = wings_wm:get_prop(Active, current_view),
+    #view{fov=Fov0,hither=Hither0,yon=Yon0} = View0,
     Qs = [{vframe,
 	   [{menu,[{"One",1},{"Two",2},{"Three",3}],
 	     wings_pref:get_value(num_buttons)}],
@@ -78,19 +75,16 @@ command(camera_mode, _St) ->
 				     [{range,100.0,9.9e307}]}}]}],
 	   [{title,"Camera Parameters"}]}],
     wings_ask:dialog("Camera Settings", Qs,
-		     fun([Buttons,Mode,PanSpeed,ZoomFlag,ZoomFactor,Fov,Hither,Yon]) ->
+		     fun([Buttons,Mode,PanSpeed,ZoomFlag,ZoomFactor,
+			  Fov,Hither,Yon]) ->
 			     validate(Buttons, Mode),
 			     wings_pref:set_value(camera_mode, Mode),
 			     wings_pref:set_value(num_buttons, Buttons),
 			     wings_pref:set_value(pan_speed, PanSpeed),
 			     wings_pref:set_value(wheel_zooms, ZoomFlag),
 			     wings_pref:set_value(wheel_zoom_factor, ZoomFactor),
-			     wings_pref:set_value(camera_fov, Fov),
-			     wings_pref:set_value(camera_hither, Hither),
-			     wings_pref:set_value(camera_yon, Yon),
-			     View0 = wings_view:current(),
 			     View = View0#view{fov=Fov,hither=Hither,yon=Yon},
-			     wings_view:set_current(View),
+			     wings_wm:set_prop(Active, current_view, View),
 			     wings_wm:translation_change(),
 			     ignore
 		     end).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.56 2003/02/25 13:33:26 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.57 2003/03/03 06:30:48 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -533,19 +533,19 @@ ground_and_axes() ->
     ?CHECK_ERROR(),
     groundplane(Axes),
     ?CHECK_ERROR(),
+    #view{yon=Yon} = wings_view:current(),
     case Axes of
 	true ->
-	    axis(1, get_pref(x_color), get_pref(neg_x_color)),
-	    axis(2, get_pref(y_color), get_pref(neg_y_color)),
-	    axis(3, get_pref(z_color), get_pref(neg_z_color));
+	    axis(1, Yon, get_pref(x_color), get_pref(neg_x_color)),
+	    axis(2, Yon, get_pref(y_color), get_pref(neg_y_color)),
+	    axis(3, Yon, get_pref(z_color), get_pref(neg_z_color));
 	false -> ok
     end.
 
 get_pref(Key) ->
     wings_pref:get_value(Key).
 
-axis(I, Pos, Neg) ->
-    Yon = wings_pref:get_value(camera_yon),
+axis(I, Yon, Pos, Neg) ->
     A0 = {0.0,0.0,0.0},
     A = setelement(I, A0, Yon),
     B = setelement(I, A0, -Yon),
@@ -609,9 +609,10 @@ axis_letters() ->
 	    gl:pushMatrix(),
 	    gl:loadIdentity(),
 
-	    axis_letter(1, axisx, x_color, Info),
-	    axis_letter(2, axisy, y_color, Info),
- 	    axis_letter(3, axisz, z_color, Info),
+	    #view{yon=Yon} = wings_view:current(),
+	    axis_letter(1, Yon, axisx, x_color, Info),
+	    axis_letter(2, Yon, axisy, y_color, Info),
+ 	    axis_letter(3, Yon, axisz, z_color, Info),
 
 	    gl:popMatrix(),
 	    gl:matrixMode(?GL_PROJECTION),
@@ -619,9 +620,9 @@ axis_letters() ->
 	    gl:matrixMode(?GL_MODELVIEW)
     end.
 
-axis_letter(I, Char, Color0, {Start,{Ox,Oy,_,Ow},MM,PM,Viewport}) ->
+axis_letter(I, Yon, Char, Color0, {Start,{Ox,Oy,_,Ow},MM,PM,Viewport}) ->
     Color = wings_pref:get_value(Color0),
-    End = setelement(I, Start, wings_pref:get_value(camera_yon)),
+    End = setelement(I, Start, Yon),
     {Px,Py,_,Pw} = proj(End, MM, PM),
     if
 	-Pw < Px, Px < Pw, -Pw < Py, Py < Pw ->

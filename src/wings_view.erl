@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.106 2003/03/02 06:49:59 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.107 2003/03/03 06:30:48 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -822,22 +822,13 @@ toggle_option(Key) ->
     end.
 
 current() ->
-    case wings_wm:lookup_prop(current_view) of
-	none ->
-	    View = #view{fov=wings_pref:get_value(camera_fov),
-			 hither=wings_pref:get_value(camera_hither),
-			 yon=wings_pref:get_value(camera_yon)},
-	    reset(View);
-	{value,View} -> View
-    end.
+    wings_wm:get_prop(current_view).
 
 set_current(View) ->
     wings_wm:set_prop(current_view, View),
     View.
 
 init() ->
-    wings_pref:set_default(show_groundplane, true),
-    wings_pref:set_default(show_axes, true),
     wings_pref:set_default(show_edges, true),
     wings_pref:set_default(number_of_lights, 1),
     wings_pref:set_default(show_normals, false),
@@ -855,9 +846,10 @@ init() ->
 initial_properties() ->
     [{workmode,true},
      {orthogonal_view,false},
-     {show_axes,wings_pref:get_value(show_axes)},
-     {show_groundplane,wings_pref:get_value(show_groundplane)},
-     {wireframed_objects,gb_sets:empty()}].
+     {show_axes,true},
+     {show_groundplane,true},
+     {wireframed_objects,gb_sets:empty()},
+     {current_view,default_view()}].
 
 reset() ->
     reset(current()).
@@ -868,6 +860,16 @@ reset(View) ->
 			  distance=?CAMERA_DIST,
 			  pan_x=0.0,pan_y=0.0,
 			  along_axis=none}).
+
+default_view() ->
+    #view{origin={0.0,0.0,0.0},
+	  azimuth=-45.0,elevation=25.0,
+	  distance=?CAMERA_DIST,
+	  pan_x=0.0,pan_y=0.0,
+	  along_axis=none,
+	  fov=45.0,
+	  hither=0.1,
+	  yon=10000.0}.
 
 projection() ->
     gl:matrixMode(?GL_PROJECTION),

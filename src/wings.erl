@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.225 2003/03/02 06:49:59 bjorng Exp $
+%%     $Id: wings.erl,v 1.226 2003/03/03 06:30:47 bjorng Exp $
 %%
 
 -module(wings).
@@ -151,7 +151,7 @@ init(File, Root) ->
     
     Props = wings_view:initial_properties(),
     {{X,Y},{W,H}} = wings_wm:win_rect(desktop),
-    wings_wm:toplevel(geom, "Geometry", {X,Y,highest}, {W,H-40},
+    wings_wm:toplevel(geom, "Geometry", {X,Y,highest}, {W,H-80},
 		      [resizable,{anchor,nw},{toolbar,fun create_toolbar/3},
 		       menubar,{properties,Props}],
 		      Op),
@@ -177,13 +177,15 @@ new_viewer(St) ->
     {Pos,{W,H}} = wings_wm:win_rect(desktop),
     Size = {W div 2-40,H div 2-40},
     N = free_viewer_num(2),
+    Active = wings_wm:active_window(),
+    Props = wings_wm:get_props(Active),
+    ToolbarHidden = wings_wm:is_hidden({toolbar,Active}),
     Name = {geom,N},
-    new_viewer(Name, Pos, Size, false, St).
+    new_viewer(Name, Pos, Size, Props, ToolbarHidden, St).
 
-new_viewer({geom,N}=Name, {X,Y}, Size, ToolbarHidden, St) ->
+new_viewer({geom,N}=Name, {X,Y}, Size, Props, ToolbarHidden, St) ->
     Op = main_loop_noredraw(St),
     Title = "Geometry #" ++ integer_to_list(N),
-    Props = wings_view:initial_properties(),
     wings_wm:toplevel(Name, Title, {X,Y,highest}, Size,
 		      [resizable,closable,{anchor,nw},
 		       {toolbar,fun create_toolbar/3},
@@ -888,9 +890,21 @@ save_window(Name, Ns) ->
 
 save_geom_window(Name, Ns) ->
     {Pos,Size} = wings_wm:win_rect(Name),
-    ToolbarHidden = wings_wm:is_hidden({toolbar,Name}),
-    Geom = {Name,Pos,Size,ToolbarHidden},
+    Ps0 = [{toolbar_hidden,wings_wm:is_hidden({toolbar,Name})}],
+    Ps = save_geom_props(wings_wm:get_props(Name), Ps0),
+    Geom = {Name,Pos,Size,Ps},
     [Geom|save_windows_1(Ns)].
+
+save_geom_props([{show_axes,_}=P|T], Acc) ->
+    save_geom_props(T, [P|Acc]);
+save_geom_props([{show_groundplane,_}=P|T], Acc) ->
+    save_geom_props(T, [P|Acc]);
+save_geom_props([{current_view,View}|T], Acc) ->
+    #view{fov=Fov,hither=Hither,yon=Yon} = View,
+    save_geom_props(T, [{fov,Fov},{clipping_planes,Hither,Yon}|Acc]);
+save_geom_props([_|T], Acc) ->
+    save_geom_props(T, Acc);
+save_geom_props([], Acc) -> Acc.
 
 restore_windows(St) ->
     %% Sort windows using names as keys to make sure we
@@ -901,17 +915,24 @@ restore_windows(St) ->
     Windows = [W || {_,W} <- Windows1],
     restore_windows_1(Windows, St).
 
-restore_windows_1([{geom,{_,_}=Pos0,{_,_}=Size,ToolbarHidden}|Ws], St) ->
-    if
-	ToolbarHidden -> wings_wm:hide({toolbar,geom});
-	true -> ok
+restore_windows_1([{geom,{_,_}=Pos0,{_,_}=Size,Ps0}|Ws], St) ->
+    Ps = geom_props(Ps0),
+    case proplists:get_bool(toolbar_hidden, Ps) of
+	true -> wings_wm:hide({toolbar,geom});
+	false -> ok
     end,
     Pos = geom_pos(Pos0),
     wings_wm:move(geom, Pos, Size),
+    set_geom_props(Ps, geom),
     restore_windows_1(Ws, St);
-restore_windows_1([{{geom,_}=Name,Pos,Size,ToolbarHidden}|Ws], St) ->
-    new_viewer(Name, {0,0}, Size, ToolbarHidden, St),
+restore_windows_1([{{geom,_}=Name,Pos0,Size,Ps0}|Ws], St) ->
+    Ps = geom_props(Ps0),
+    ToolbarHidden = proplists:get_bool(toolbar_hidden, Ps),
+    new_viewer(Name, {0,0}, Size, wings_view:initial_properties(), 
+	       ToolbarHidden, St),
+    Pos = geom_pos(Pos0),
     wings_wm:move(Name, Pos, Size),
+    set_geom_props(Ps, Name),
     restore_windows_1(Ws, St);
 restore_windows_1([{{object,_}=Name,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
     wings_shape:window(Name, Pos, Size, St),
@@ -936,6 +957,30 @@ geom_pos({X,Y}=Pos) ->
 	Upper when Y < Upper -> {X,Upper};
 	_ -> Pos
     end.
+
+geom_props(B) when B == false; B == true ->
+    [{toolbar_hidden,B}];
+geom_props(L) when is_list(L) -> L;
+geom_props(_) -> [].
+
+set_geom_props([{show_axes,B}|T], Name) ->
+    wings_wm:set_prop(Name, show_axes, B),
+    set_geom_props(T, Name);
+set_geom_props([{show_groundplane,B}|T], Name) ->
+    wings_wm:set_prop(Name, show_groundplane, B),
+    set_geom_props(T, Name);
+set_geom_props([{fov,Fov}|T], Name) ->
+    View = wings_wm:get_prop(Name, current_view),
+    wings_wm:set_prop(Name, current_view, View#view{fov=Fov}),
+    set_geom_props(T, Name);
+set_geom_props([{clipping_planes,Hither,Yon}|T], Name)
+  when Hither > 0, Hither < Yon  ->
+    View = wings_wm:get_prop(Name, current_view),
+    wings_wm:set_prop(Name, current_view, View#view{hither=Hither,yon=Yon}),
+    set_geom_props(T, Name);
+set_geom_props([_|T], Name) ->
+    set_geom_props(T, Name);
+set_geom_props([], _) -> ok.
 
 %%%
 %%% The toolbar window with buttons.
