@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.1 2001/12/13 15:59:57 bjorng Exp $
+%%     $Id: user_default.erl,v 1.2 2001/12/13 19:41:27 bjorng Exp $
 %%
 
 -module(user_default).
 
 -export([help/0,wh/0,w/0,
-	 wua/2,wul/0,wud/1,
+	 wua/2,wur/2,wul/0,wud/1,
 	 wm/0,wicons/0,wtar/0]).
 
 help() ->
@@ -29,23 +29,28 @@ wh() ->
     p("wm()       -- make Wings\n"),
     p("wicons()   -- collect Wings icons (must be done once)\n"),
     p("** User defined expressions for Magnet **\n"),
-    p("wua(Str, Fun)   -- add user-defined expression\n"),
-    p("wul()           -- list user-defined expressions\n"),
-    p("wud(N)          -- delete user-defined expression\n"),
+    p("wul()      -- list user-defined expressions\n"),
+    p("wua(Str, Fun) -- add user-defined expression\n"),
+    p("wur(Num, Fun) -- replace user-defined expression\n"),
+    p("wud(Num)   -- delete user-defined expression\n"),
     ok.
 
 %%%
 %%% User defined expressions for the Magnet.
 %%%
 
-wua(Name, Fun) when is_list(Name),is_function(Fun) ->
+wua(Name, Fun) when is_list(Name), is_function(Fun) ->
     Body = extract_body(Fun),
     wings_magnet:add_user_expr(Name, Body).
+
+wur(N, Fun) when is_integer(N), is_function(Fun) ->
+    Body = extract_body(Fun),
+    wings_magnet:replace_user_expr(N, Body).
 
 wul() ->
     wings_magnet:list_user_exprs().
 
-wud(N) ->
+wud(N) when is_integer(N) ->
     wings_magnet:delete_user_expr(N).
 
 %%%

@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.14 2001/12/13 15:59:57 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.15 2001/12/13 19:41:27 bjorng Exp $
 %%
 
 -module(wings_magnet).
 -export([sub_menu/1,command/2]).
 
 %% Shell interface.
--export([add_user_expr/2,list_user_exprs/0,delete_user_expr/1]).
+-export([add_user_expr/2,replace_user_expr/2,
+	 list_user_exprs/0,delete_user_expr/1]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3]).
@@ -57,12 +58,22 @@ directions() ->
 add_user_expr(Name, Body) ->
     Uexprs = wings_pref:browse(magnet_uexpr),
     Key = list_to_atom("user" ++ integer_to_list(length(Uexprs))),
-    code:delete(wings__magnet),
-    code:purge(wings__magnet),
-    code:delete(wings__magnet),
-    code:purge(wings__magnet),
     wings_pref:set_value({magnet_uexpr,Key}, {Name,Body}),
+    unload(),
     ok.
+
+replace_user_expr(Num, Body) ->
+    Key = num_to_key(Num),
+    {Name,_} = wings_pref:get_value({magnet_uexpr,Key}),
+    wings_pref:set_value({magnet_uexpr,Key}, {Name,Body}),
+    unload(),
+    ok.
+
+unload() ->
+    code:delete(wings__magnet),
+    code:purge(wings__magnet),
+    code:delete(wings__magnet),
+    code:purge(wings__magnet).
 
 list_user_exprs() ->
     list_user_exprs(wings_pref:browse(magnet_uexpr), 1).
@@ -70,7 +81,7 @@ list_user_exprs() ->
 list_user_exprs([{_,{Name,Body}}|Us], I) ->
     Arity = func_arity(Body),
     Func = {function,1,'fun',Arity,Body},
-    io:format("~w) ~s\n", [I,erl_pp:function(Func)]),
+    io:format("~w) ~p\n~s\n", [I,Name,erl_pp:function(Func)]),
     list_user_exprs(Us, I+1);
 list_user_exprs([], I) -> ok.
 
@@ -78,13 +89,17 @@ func_arity([{clause,_,Args,_,_}|_]) ->
     length(Args).
 
 delete_user_expr(N) ->
-    delete_user_expr(wings_pref:browse(magnet_uexpr), 1, N).
+    case num_to_key(N) of
+	none -> not_found;
+	Key -> wings_pref:delete_value({magnet_uexpr,Key})
+    end.
 
-delete_user_expr([{Key,{Name,Body}}|Us], I, I) ->
-    wings_pref:delete_value({magnet_uexpr,Key});
-delete_user_expr([{Key,{Name,Body}}|Us], I, N) ->
-    delete_user_expr(Us, I+1, N);
-delete_user_expr([], _, _) -> not_found.
+num_to_key(Num) ->
+    num_to_key(wings_pref:browse(magnet_uexpr), 1, Num).
+
+num_to_key([{Key,{Name,Body}}|Us], Num, Num) -> Key;
+num_to_key([_|Us], I, Num) -> num_to_key(Us, I+1, Num);
+num_to_key([], I, Num) -> none.
 
 load_user_module() ->
     Uexprs = wings_pref:browse(magnet_uexpr),
