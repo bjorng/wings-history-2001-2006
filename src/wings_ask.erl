@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.47 2002/12/28 13:38:09 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.48 2002/12/28 14:47:27 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -90,7 +90,7 @@ do_dialog(Qs, Level, Fun) ->
     W = W0 + 2*?HMARGIN,
     H = H0 + 2*?VMARGIN,
     S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level},
-    Op = {seq,{push,dummy},get_event(S)},
+    Op = {seq,push,get_event(S)},
     Name = {dialog,Level},
     wings_wm:new(Name, {trunc(X),trunc(Y),Level}, {W,H}, Op),
     wings_wm:grab_focus(Name),
@@ -435,16 +435,24 @@ normalize({Prompt,Def}, Fi) when Def == false; Def == true ->
 normalize({Prompt,Def,Flags}, Fi) when Def == false; Def == true ->
     normalize_field(checkbox(Prompt, Def), Flags, Fi).
 
-expand_qs({alt,[{_,_}|_]=L,Var}) when is_atom(Var) ->
-    expand_qs_1(L, {Var,wings_pref:get_value(Var)});
-expand_qs({alt,[{_,_}|_]=L,{_,_}=VarDef}) ->
-    expand_qs_1(L, VarDef);
-expand_qs({alt,[{_,_}|_]=L,Var,Def}) ->
-    expand_qs_1(L, {Var,Def});
+expand_qs(Tuple) when is_tuple(Tuple) ->
+    case element(1, Tuple) of
+	Tag when Tag == alt; Tag == key_alt ->
+	    expand_qs_1(Tuple);
+	Other ->
+	    Other
+    end;
 expand_qs(Other) -> Other.
 
-expand_qs_1(L, VarDef) ->
-    [{alt,VarDef,S,K} || {S,K} <- L].
+expand_qs_1({Tag,[{_,_}|_]=L,Var}) when is_atom(Var) ->
+    expand_qs_2(L, Tag, {Var,wings_pref:get_value(Var)});
+expand_qs_1({Tag,[{_,_}|_]=L,{_,_}=VarDef}) ->
+    expand_qs_2(L, Tag, VarDef);
+expand_qs_1({Tag,[{_,_}|_]=L,Var,Def}) ->
+    expand_qs_2(L, Tag, {Var,Def}).
+
+expand_qs_2(L, Tag, VarDef) ->
+    [{Tag,VarDef,S,K} || {S,K} <- L].
 
 vframe(Qs0, #fi{x=X,y=Y0}=Fi0, Flags) ->
     Qs = expand_qs(Qs0),
