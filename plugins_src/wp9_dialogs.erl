@@ -3,12 +3,12 @@
 %%
 %%     Standard plugin for dialogs.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.14 2002/12/28 22:10:27 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.15 2003/03/11 20:06:53 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -39,7 +39,7 @@ ui(What, Next) -> Next(What).
 message(Message) ->
     Qs = {vframe,
 	  [{label,Message},
-	   {button,ok}]},
+	   {hframe,[{button,ok}]}]},
     wings_ask:dialog("Error!", Qs, fun(_) -> ignore end).
 
 open_file(Prompt, Prop) ->
