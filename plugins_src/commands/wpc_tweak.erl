@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.12 2002/06/02 20:49:02 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.13 2002/06/05 06:51:05 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -321,7 +321,8 @@ setup_magnet_fun(#dlo{drag=#drag{v=V}=Drag}=Dl0, #tweak{st=St}=T) ->
     Center = gb_trees:get(V, Vtab),
     {Vs,Mag} = begin_magnet(T, V, Center, We),
     Dl = wings_draw:split(Dl0, Vs, St),
-    Dl#dlo{drag=Drag#drag{mag=Mag}}.
+    Dl#dlo{drag=Drag#drag{mag=Mag}};
+setup_magnet_fun(Dl, _) -> Dl.
 
 begin_magnet(#tweak{magnet=false}, V, _, _) -> {[V],none};
 begin_magnet(#tweak{magnet=true}=T, CenterV, #vtx{pos=Center}, We) ->
