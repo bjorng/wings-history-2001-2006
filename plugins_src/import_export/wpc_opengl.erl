@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.54 2003/11/26 14:33:13 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.55 2003/11/27 10:54:10 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -1341,7 +1341,7 @@ load_program(Target, Prog) ->
     case Err of
 	[] -> PId;
 	_ -> 
-	    io:format("Error when loading program: ~s~n",Err),
+	    io:format("Error when loading program: ~p~n",Err),
 	    exit(prog_error)
     end.   
 
