@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.7 2003/01/23 22:21:40 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.8 2003/01/24 14:47:26 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -478,7 +478,7 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
 
 
 open(Filename, export) ->
-    file:open(Filename, [write,raw]).
+    file:open(Filename, [write,raw,delayed_write]).
 
 println(F) ->
     println(F, "").
