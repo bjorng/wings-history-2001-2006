@@ -9,7 +9,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings.nsi,v 1.4 2003/09/17 18:22:59 bjorng Exp $
+#     $Id: wings.nsi,v 1.5 2003/10/23 19:13:27 uid59848 Exp $
 #
 
 	!define MUI_PRODUCT "Wings 3D"
@@ -93,7 +93,7 @@ skip_silent_mode:
   	WriteRegStr HKLM "SOFTWARE\Wings 3D\${WINGS_VERSION}" "" $INSTDIR
 
 ; Install Erlang/OTP.
-  	ExecWait "Wings3D.exe --install"
+  	ExecWait "$INSTDIR\Wings3D.exe --install"
 
 ; Create uninstaller before shortcuts
   	WriteUninstaller "$INSTDIR\Uninstall.exe"
