@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.94 2004/12/30 05:37:36 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.95 2004/12/30 17:22:41 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -28,7 +28,7 @@
 	 new_items/3,new_items_as_ordset/3,new_items_as_gbset/3,
 	 is_consistent/1,is_face_consistent/2,
 	 hide_faces/2,show_faces/1,num_hidden/1,
-	 any_hidden/1,all_hidden/1,visible/1,visible/2,
+	 any_hidden/1,all_hidden/1,visible/1,visible/2,visible_vs/1,
 	 validate_mirror/1,mirror_flatten/2]).
 
 -include("wings.hrl").
@@ -152,6 +152,22 @@ visible_1(Fs) -> Fs.
 
 visible_2([F|Fs]) when F < 0 -> visible_2(Fs);
 visible_2(Fs) -> Fs.
+
+visible_vs(#we{es=Etab}) ->
+    visible_vs_1(gb_trees:values(Etab), []).
+
+visible_vs_1([#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}|Es], Acc0) ->
+    Acc1 = if
+	       Lf < 0 -> Acc0;
+	       true -> [Va|Acc0]
+	   end,
+    Acc = if
+	      Rf < 0 -> Acc0;
+	      true -> [Vb|Acc1]
+	  end,
+    visible_vs_1(Es, Acc);
+visible_vs_1([], Acc) ->
+    ordsets:from_list(Acc).
 
 show_faces(We) ->
     case any_hidden(We) of

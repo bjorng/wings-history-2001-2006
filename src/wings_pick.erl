@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.144 2004/12/18 19:36:21 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.145 2004/12/30 17:22:41 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -748,16 +748,33 @@ marquee_draw(#st{selmode=edge}) ->
 	   end,
     marquee_draw_1(Draw);
 marquee_draw(#st{selmode=vertex}) ->
-    Draw = fun(#we{vp=Vtab}) ->
-		   foreach(fun({V,Pos}) ->
-				   gl:loadName(V),
-				   gl:'begin'(?GL_POINTS),
-				   gl:vertex3fv(Pos),
-				   gl:'end'()
-			   end, gb_trees:to_list(Vtab))
+    Draw = fun(#we{vp=Vtab}=We) ->
+		   case wings_we:any_hidden(We) of
+		       false ->
+			   marquee_draw_all_vs(gb_trees:to_list(Vtab));
+		       true ->
+			   marquee_draw_some_vs(wings_we:visible_vs(We),
+						Vtab)
+		   end
 	   end,
     marquee_draw_1(Draw);
 marquee_draw(_) -> draw().
+
+marquee_draw_all_vs([{V,Pos}|VsPos]) ->
+    gl:loadName(V),
+    gl:'begin'(?GL_POINTS),
+    gl:vertex3fv(Pos),
+    gl:'end'(),
+    marquee_draw_all_vs(VsPos);
+marquee_draw_all_vs([]) -> ok.
+
+marquee_draw_some_vs([V|Vs], Vtab) ->
+    gl:loadName(V),
+    gl:'begin'(?GL_POINTS),
+    gl:vertex3fv(gb_trees:get(V, Vtab)),
+    gl:'end'(),
+    marquee_draw_some_vs(Vs, Vtab);
+marquee_draw_some_vs([], _) -> ok.
 
 marquee_draw_edges([{Edge,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}}|Es], Vtab, Vis) ->
     case gb_sets:is_member(Lf, Vis) orelse gb_sets:is_member(Rf, Vis) of

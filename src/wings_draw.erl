@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.211 2004/12/27 16:40:27 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.212 2004/12/30 17:22:41 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -318,13 +318,13 @@ update_fun_2(smooth, #dlo{smooth=none}=D, St) ->
     We = wings_proxy:smooth_we(D),
     {List,Tr} = smooth_dlist(We, St),
     D#dlo{smooth=List,transparent=Tr};
-update_fun_2({vertex,PtSize}, #dlo{vs=none,src_we=#we{vp=Vtab}}=D, _) ->
+update_fun_2({vertex,PtSize}, #dlo{vs=none,src_we=We}=D, _) ->
     UnselDlist = gl:genLists(1),
     gl:newList(UnselDlist, ?GL_COMPILE),
     gl:pointSize(PtSize),
     gl:color3b(0, 0, 0),
     gl:'begin'(?GL_POINTS),
-    pump_vertices(gb_trees:values(Vtab)),
+    pump_vertices(visible_vertices(We)),
     gl:'end'(),
     gl:endList(),
     D#dlo{vs=UnselDlist};
@@ -403,6 +403,17 @@ force_flat({call,_,Faces}, Color) ->
     wings_draw_util:force_flat_color(Faces, Color);
 force_flat(_, _) -> none.
 
+visible_vertices(#we{vp=Vtab0}=We) ->
+    case wings_we:any_hidden(We) of
+	false -> gb_trees:values(Vtab0);
+	true ->
+	    Vis0 = wings_we:visible_vs(We),
+	    Vis = sofs:from_external(Vis0, [vertex]),
+	    Vtab = sofs:from_external(gb_trees:to_list(Vtab0),
+				      [{vertex,position}]),
+	    sofs:to_external(sofs:image(Vtab, Vis))
+    end.
+    
 %%%
 %%% Update the selection display list.
 %%%
@@ -611,7 +622,7 @@ insert_vtx_data([V|Vs], Vtab, Acc) ->
     insert_vtx_data(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
 insert_vtx_data([], _, Acc) -> reverse(Acc).
 
-split_vs_dlist(Vs, StaticVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
+split_vs_dlist(Vs, StaticVs, {vertex,SelVs0}, #we{vp=Vtab}=We) ->
     case wings_pref:get_value(vertex_size) of
 	0.0 -> {none,none};
 	PtSize -> 
@@ -629,7 +640,14 @@ split_vs_dlist(Vs, StaticVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
 	    gl:'begin'(?GL_POINTS),
 	    List0 = sofs:from_external(gb_trees:to_list(Vtab), [{vertex,info}]),
 	    List1 = sofs:drestriction(List0, DynVs),
-	    List = sofs:to_external(List1),
+	    List2 = case wings_we:any_hidden(We) of
+			false -> List1;
+			true ->
+			    Vis0 = wings_we:visible_vs(We),
+			    Vis = sofs:from_external(Vis0, [vertex]),
+			    sofs:restriction(List1, Vis)
+		    end,
+	    List = sofs:to_external(List2),
 	    foreach(fun({_,Pos}) ->
 			    gl:vertex3fv(Pos)
 		    end, List),
