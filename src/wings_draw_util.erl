@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.67 2003/06/02 19:40:34 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.68 2003/06/02 20:13:13 bjorng Exp $
 %%
 
 -module(wings_draw_util).
 -export([init/0,tess/0,begin_end/1,begin_end/2,
 	 update/2,map/2,fold/2,changed_materials/1,
-	 render/1,call/1,face/2,face/3,flat_face/2,flat_face/3]).
+	 render/1,call/1,mat_faces/5,face/2,face/3,flat_face/2,flat_face/3]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -471,6 +471,23 @@ draw_normals(#dlo{normals=Ns}) ->
     gl:color3f(0, 0, 1),
     gl:lineWidth(2.0),
     call(Ns).
+
+%%%
+%%% Set material and draw faces.
+%%%
+
+mat_faces(List, Mode, We, #st{mat=Mtab}, DrawFun) ->
+    mat_faces_1(List, Mode, We, Mtab, DrawFun);
+mat_faces(List, Mode, We, Mtab, DrawFun) ->
+    mat_faces_1(List, Mode, We, Mtab, DrawFun).
+    
+mat_faces_1([{Mat,Faces}|T], Mode, We, Mtab, DrawFun) ->
+    gl:pushAttrib(?GL_TEXTURE_BIT),
+    wings_material:apply_material(Mat, Mtab),
+    wings_draw_util:begin_end(Mode, fun() -> DrawFun(Faces, We) end),
+    gl:popAttrib(),
+    mat_faces_1(T, Mode, We, Mtab, DrawFun);
+mat_faces_1([], _, _, _, _) -> ok.
 
 %%
 %% Tesselate and draw face. Include vertex colors or UV coordinates.

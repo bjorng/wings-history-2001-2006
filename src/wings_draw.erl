@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.117 2003/06/01 20:45:53 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.118 2003/06/02 20:13:13 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -391,64 +391,48 @@ static_dlist(Faces, Ftab, We, St) ->
     List.
 
 %%%
-%%% Drawing routines.
+%%% Drawing routines for workmode.
 %%%
 
-draw_faces(Ftab, #we{mode=uv}=We, #st{mat=Mtab}) ->
+draw_faces(Ftab, #we{mode=uv}=We, St) ->
     case wings_pref:get_value(show_textures) of
 	true ->
 	    MatFaces = wings_material:mat_faces(Ftab, We),
-	    draw_uv_faces(MatFaces, We, Mtab);
+	    draw_uv_faces(MatFaces, We, St);
 	false ->
-	    draw_mat_faces([{default,Ftab}], We, Mtab)
+	    draw_mat_faces([{default,Ftab}], We, St)
     end;
-draw_faces(Ftab, #we{mode=material}=We, #st{mat=Mtab}) ->
+draw_faces(Ftab, #we{mode=material}=We, St) ->
     MatFaces = case wings_pref:get_value(show_materials) of
 		   true -> wings_material:mat_faces(Ftab, We);
 		   false -> [{default,Ftab}]
 	       end,
     Tess = wings_draw_util:tess(),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-    draw_mat_faces(MatFaces, We, Mtab),
+    draw_mat_faces(MatFaces, We, St),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA);
-draw_faces(Ftab, #we{mode=vertex}=We, #st{mat=Mtab}) ->
+draw_faces(Ftab, #we{mode=vertex}=We, St) ->
     MatFaces = [{default,Ftab}],
     case wings_pref:get_value(show_colors) of
-	true -> draw_uv_faces(MatFaces, We, Mtab);
-	false -> draw_mat_faces(MatFaces, We, Mtab)
+	true -> draw_uv_faces(MatFaces, We, St);
+	false -> draw_mat_faces(MatFaces, We, St)
     end.
 
-draw_uv_faces([{Mat,Faces}|T], We, Mtab) ->
-    gl:pushAttrib(?GL_TEXTURE_BIT),
-    wings_material:apply_material(Mat, Mtab),
-    wings_draw_util:begin_end(
-      fun() ->
-	      draw_attr_faces(Faces, We)
-      end),
-    gl:popAttrib(),
-    draw_uv_faces(T, We, Mtab);
-draw_uv_faces([], _We, _Mtab) -> ok.
+draw_uv_faces(MatFaces, We, St) ->
+    wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St, fun draw_uv_faces_fun/2).
 
-draw_attr_faces([{Face,Edge}|Fs], We) ->
+draw_uv_faces_fun([{Face,Edge}|Fs], We) ->
     wings_draw_util:face(Face, Edge, We),
-    draw_attr_faces(Fs, We);
-draw_attr_faces([], _We) -> ok.
+    draw_uv_faces_fun(Fs, We);
+draw_uv_faces_fun([], _We) -> ok.
 
-draw_mat_faces([{Mat,Ftab}|T], We, Mtab) ->
-    gl:pushAttrib(?GL_TEXTURE_BIT),
-    wings_material:apply_material(Mat, Mtab),
-    wings_draw_util:begin_end(
-      fun() ->
-	      draw_plain_faces(Ftab, We)
-      end),
-    gl:popAttrib(),
-    draw_mat_faces(T, We, Mtab);
-draw_mat_faces([], _We, _Mtab) -> ok.
+draw_mat_faces(MatFaces, We, St) ->
+    wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St, fun draw_mat_faces_fun/2).
 
-draw_plain_faces([{Face,Edge}|Fs], We) ->
+draw_mat_faces_fun([{Face,Edge}|Fs], We) ->
     wings_draw_util:flat_face(Face, Edge, We),
-    draw_plain_faces(Fs, We);
-draw_plain_faces([], _We) -> ok.
+    draw_mat_faces_fun(Fs, We);
+draw_mat_faces_fun([], _We) -> ok.
 
 %%%
 %%% Smooth drawing.
