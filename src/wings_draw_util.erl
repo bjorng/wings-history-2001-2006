@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.29 2002/07/05 09:52:23 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.30 2002/07/15 20:59:33 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -275,8 +275,15 @@ render_smooth(#dlo{work=Work,smooth=Smooth}=D, RenderTrans) ->
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(2.0, 2.0),
-    gl:enable(?GL_BLEND),
-    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    case RenderTrans of
+	true ->
+	    gl:enable(?GL_BLEND),
+	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+	    gl:depthMask(?GL_FALSE);
+	false ->
+	    gl:disable(?GL_BLEND),
+	    gl:depthMask(?GL_TRUE)
+    end,
     case {Smooth,RenderTrans} of
 	{none,false} -> call(Work);
 	{[Op,_],false} -> call(Op);
@@ -285,6 +292,7 @@ render_smooth(#dlo{work=Work,smooth=Smooth}=D, RenderTrans) ->
 	{_,_} -> ok
     end,
     gl:disable(?GL_POLYGON_OFFSET_FILL),
+    gl:depthMask(?GL_TRUE),
     draw_edges(D).
 
 draw_edges(#dlo{work=Work,wire=Wire}=D) ->
