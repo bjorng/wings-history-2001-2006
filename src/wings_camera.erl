@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.40 2002/08/14 19:08:55 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.41 2002/08/18 10:44:05 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -295,8 +295,8 @@ maya(#mousebutton{x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
     end;
 maya(_, _) -> next.
 
-maya_event(#keyboard{keysym=#keysym{sym=?SDLK_LALT},state=?SDL_RELEASED},
-	   Camera, _Redraw) ->
+maya_event(#keyboard{keysym=#keysym{sym=Alt},state=?SDL_RELEASED},
+	   Camera, _Redraw) when Alt == ?SDLK_LALT; Alt == ?SDLK_RALT ->
     maya_stop_camera(Camera);
 maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
