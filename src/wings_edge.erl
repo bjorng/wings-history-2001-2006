@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.47 2002/06/19 09:37:43 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.48 2002/07/26 17:43:54 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -56,7 +56,7 @@ menu(X, Y, St) ->
 				   {"Hard",hard}]}},
 	    separator,
 	    {"Loop Cut",loop_cut,"Cut into two objects along edge loop"}],
-    wings_menu:popup_menu(X, Y, edge, Menu, St).
+    wings_menu:popup_menu(X, Y, edge, Menu).
 
 cut_fun() ->
     fun(help, _Ns) ->

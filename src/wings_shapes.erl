@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.21 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.22 2002/07/26 17:43:55 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -20,7 +20,7 @@
 -import(lists, [foreach/2,foldl/3,sort/1,last/1,seq/2,seq/3]).
 -import(math, [sqrt/1,cos/1,sin/1,pi/0]).
 
-menu(X, Y, St) ->
+menu(X, Y, _) ->
     Menu = [{"Tetrahedron",tetrahedron},
 	    {"Octahedron",octahedron},
 	    {"Octotoad",octotoad},
@@ -37,7 +37,7 @@ menu(X, Y, St) ->
 	    {"Grid",grid,[],[option]},
 	    separator,
 	    {"More",{more,[]},"More primitives"}],
-    wings_menu:popup_menu(X, Y, shape, Menu, St).
+    wings_menu:popup_menu(X, Y, shape, Menu).
 
 command(tetrahedron, St) -> tetrahedron(St);
 command(octahedron, St) -> octahedron(St);
@@ -215,7 +215,7 @@ torus_vertices(Ns, Nl, Hs) ->
     Circles = [circle(Ns, Pos, Rad) || {Pos, Rad} <- PosAndRads],
     lists:flatten(Circles).
 
-grid(Ask, St) when is_atom(Ask) ->
+grid(Ask, _) when is_atom(Ask) ->
     ask(grid, Ask, [{"Rows/cols",10,[{range,{1,128}}]}]);
 grid([Size], St) ->
     Vs = grid_vertices(Size),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.19 2002/07/26 07:14:05 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.20 2002/07/26 17:43:54 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -19,14 +19,14 @@
 -include("wings.hrl").
 -import(lists, [reverse/1,foldl/3]).
 
-menu(X, Y, St) ->
+menu(X, Y, _) ->
     Menu = [{"Two-Button Mouse",two_button},
 	    {"Assigning Hotkeys",defining_hotkeys},
 	    separator,
 	    {"OpenGL Info",opengl_info},
 	    separator,
 	    {"About",about}],
-    wings_menu:menu(X, Y, help, Menu, St).
+    wings_menu:menu(X, Y, help, Menu).
 
 command(two_button, _St) ->
     two_button();

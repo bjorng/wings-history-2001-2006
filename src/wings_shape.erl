@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.20 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.21 2002/07/26 17:43:55 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -70,7 +70,7 @@ menu(X, Y, #st{sel=Sel,shapes=Shapes}=St) ->
 	    {"Hide Selected",hide_selected},
 	    {"Hide Unselected",hide_unselected},
 	    {"Lock Unselected",lock_unselected}|Menu1],
-    wings_menu:menu(X, Y, objects, Menu, St).
+    wings_menu:menu(X, Y, objects, Menu).
 
 state(0, IsSel, Name) ->
     state_1(eye, IsSel, Name);

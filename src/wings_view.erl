@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.67 2002/07/26 07:14:06 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.68 2002/07/26 17:43:55 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -25,7 +25,7 @@
 
 -import(lists, [foreach/2,foldl/3]).
 
-menu(X, Y, St) ->
+menu(X, Y, _) ->
     L = wings_pref:get_value(number_of_lights),
     Menu = [{"Ground plane",show_groundplane,crossmark(show_groundplane)},
 	    {"Axes",show_axes,crossmark(show_axes)},
@@ -63,7 +63,7 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Align to Selection",align_to_selection},
 	    {"Auto Rotate",auto_rotate}],
-    wings_menu:menu(X, Y, view, Menu, St).
+    wings_menu:menu(X, Y, view, Menu).
 
 crossmark(Key) ->
     case wings_pref:get_value(Key) of

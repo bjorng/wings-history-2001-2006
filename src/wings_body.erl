@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.36 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.37 2002/07/26 17:43:54 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -54,7 +54,7 @@ menu(X, Y, St) ->
 	    {"Mode",{mode,[{"Vertex Color",vertex_color},
 			   {"Material",material}]}},
 	    {"Strip Texture",strip_texture}],
-    wings_menu:popup_menu(X, Y, body, Menu, St).
+    wings_menu:popup_menu(X, Y, body, Menu).
 
 command({move,Type}, St) ->
     wings_move:setup(Type, St);
@@ -105,7 +105,7 @@ convert_selection(#st{sel=Sel0}=St) ->
 %%% The Cleanup command.
 %%%
 
-cleanup(Ask, St) when is_atom(Ask) ->
+cleanup(Ask, _) when is_atom(Ask) ->
     Qs = [{"Short edges",true,[{key,short_edges}]},
 	  {hframe,
 	   [{label,"Length tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]},
@@ -307,7 +307,7 @@ separate(St) ->
 auto_smooth(St) ->
     do_auto_smooth(60, St).
 
-auto_smooth(Ask, St) when is_atom(Ask) ->
+auto_smooth(Ask, _) when is_atom(Ask) ->
     wings_ask:ask(Ask, [{"Crease Angle",60,[{range,{0,180}}]}],
 		  fun(Res) -> {body,{auto_smooth,Res}} end);
 auto_smooth([Angle], St) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.29 2002/06/08 04:54:40 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.30 2002/07/26 17:43:55 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -39,7 +39,7 @@ menu(X, Y, St) ->
 	    {"Dissolve",dissolve,"Delete selected vertices"},
 	    separator,
 	    {"Deform",wings_deform:sub_menu(St)}],
-    wings_menu:popup_menu(X, Y, vertex, Menu, St).
+    wings_menu:popup_menu(X, Y, vertex, Menu).
 
 %% Vertex menu.
 command({flatten,Plane}, St) ->

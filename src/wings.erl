@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.150 2002/07/26 17:25:03 bjorng Exp $
+%%     $Id: wings.erl,v 1.151 2002/07/26 17:43:54 bjorng Exp $
 %%
 
 -module(wings).
@@ -478,12 +478,12 @@ menu(X, Y, edit, St) ->
 	    wings_camera:sub_menu(St)|wings_pref:menu(St)++
 	    [separator,
 	     {"Purge Undo History",purge_undo}|patches()]],
-    wings_menu:menu(X, Y, edit, Menu, St);
+    wings_menu:menu(X, Y, edit, Menu);
 menu(X, Y, view, St) ->
     wings_view:menu(X, Y, St);
 menu(X, Y, select, St) ->
     wings_sel_cmd:menu(X, Y, St);
-menu(X, Y, tools, St) ->
+menu(X, Y, tools, _) ->
     Dirs = [{"All",all},
 	    {"X",x},
 	    {"Y",y},
@@ -510,7 +510,7 @@ menu(X, Y, tools, St) ->
 	       {"Freeze",freeze,
 		"Create real geometry from the virtual mirrors"}]}}
 	   ],
-    wings_menu:menu(X, Y, tools, Menu, St);
+    wings_menu:menu(X, Y, tools, Menu);
 menu(X, Y, objects, St) ->
     wings_shape:menu(X, Y, St);
 menu(X, Y, help, St) ->

@@ -8,12 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.51 2002/07/26 17:25:03 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.52 2002/07/26 17:43:54 bjorng Exp $
 %%
 
 -module(wings_menu).
--export([is_popup_event/1,menu/4,popup_menu/4,popup_menu/5,build_command/2]).
--export([menu/5,popup_menu/5]).
+-export([is_popup_event/1,menu/4,popup_menu/4,build_command/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -61,12 +60,6 @@ is_popup_event(#mousebutton{button=3,x=X,y=Y,state=State}) ->
     end;
 is_popup_event(_Event) -> no.
 
-menu(X, Y, Name, Menu, _) ->			%Obsolete.
-    menu(X, Y, Name, Menu).
-
-popup_menu(X, Y, Name, Menu, _) ->		%Obsolete.
-    popup_menu(X, Y, Name, Menu).
-
 menu(X, Y, Name, Menu) ->
     menu_setup(plain, X, Y, Name, Menu, #mi{adv=false}).
 
@@ -109,8 +102,7 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi0) ->
     keep.
 
 menu_show(#mi{ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
-    wings_io:border(0, 0, Mw, Mh + 2*Margin+3, ?MENU_COLOR),
-    gl:color3f(0, 0, 0),
+    wings_io:border(0, 0, Mw-1, Mh + 2*Margin+3, ?MENU_COLOR),
     menu_draw(3*?CHAR_WIDTH, Margin+?CHAR_HEIGHT,
 	      Shortcut, Mw, 1, Mi#mi.hs, Mi).
 
@@ -403,7 +395,7 @@ motion_outside_1(X, Y, #mi{level=Lev}) ->
 	{menu,L} when L > Lev ->
 	    wings_wm:set_active({menu,L}),
 	    none;
-	Other -> none
+	_ -> none
     end.
 
 clear_timer(#mi{timer=short}) -> ok;

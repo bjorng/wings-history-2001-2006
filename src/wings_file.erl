@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.74 2002/07/17 16:31:42 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.75 2002/07/26 17:43:54 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -46,7 +46,7 @@ init() ->
 finish() ->
     ok.
 
-menu(X, Y, St) ->
+menu(X, Y, _) ->
     Formats = [{"Nendo (.ndo)",ndo}],
     Menu = [{"New",new},
 	    {"Open",open},
@@ -64,7 +64,7 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Render",{render,[]}},
 	    separator|recent_files([{"Exit",quit}])],
-    wings_menu:menu(X, Y, file, Menu, St).
+    wings_menu:menu(X, Y, file, Menu).
 
 command(new, St0) ->
     case new(St0) of

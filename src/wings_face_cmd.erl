@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.59 2002/06/26 15:02:51 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.60 2002/07/26 17:43:54 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -54,7 +54,7 @@ menu(X, Y, St) ->
 	    {"Smooth",smooth,"Subdivide selected faces to smooth them"},
 	    separator,
 	    wings_material:sub_menu(face, St)],
-    wings_menu:popup_menu(X, Y, face, Menu, St).
+    wings_menu:popup_menu(X, Y, face, Menu).
 
 lift_fun(St) ->
     fun(help, _Ns) ->

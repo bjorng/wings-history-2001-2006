@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.38 2002/07/26 07:14:05 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.39 2002/07/26 17:43:55 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -248,13 +248,13 @@ exit_menu(X, Y, Mod, #ss{exit=Exit}=Ss, St) ->
     RmbMod = wings_camera:free_rmb_modifier(),
     case Exit(X, Y, St) of
 	invalid_selection ->
-	    exit_menu_invalid(X, Y, St);
+	    exit_menu_invalid(X, Y);
 	MenuEntry when Mod band RmbMod =:= 0 ->
 	    set_last_axis(Ss, St),
 	    execute(MenuEntry);
 	MenuEntry ->
 	    set_last_axis(Ss, St),
-	    exit_menu_done(X, Y, MenuEntry, St)
+	    exit_menu_done(X, Y, MenuEntry)
     end.
 
 execute(MenuEntry) ->
@@ -268,13 +268,13 @@ execute(MenuEntry) ->
     wings_wm:dirty(),
     pop.
 
-exit_menu_invalid(X, Y, St) ->
+exit_menu_invalid(X, Y) ->
     Menu = [{"Invalid Selection",ignore},{"Abort Command",abort}],
-    wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
+    wings_menu:popup_menu(X, Y, secondary_selection, Menu).
 
-exit_menu_done(X, Y, MenuEntry, St) ->
+exit_menu_done(X, Y, MenuEntry) ->
     Menu = [MenuEntry,{"Abort Command",abort}],
-    wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
+    wings_menu:popup_menu(X, Y, secondary_selection, Menu).
 
 common_exit(Check, More, Acc, Ns, #st{vec=none}=St) ->
     case Check(St) of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.17 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.18 2002/07/26 17:43:54 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -69,7 +69,7 @@ menu(X, Y, St) ->
 	    {"Union with stored",union},
 	    {"Subtract with stored",subtract},
 	    {"Intersection with stored",intersection}],
-    wings_menu:menu(X, Y, select, Menu, St).
+    wings_menu:menu(X, Y, select, Menu).
 
 sel_all_str(#st{selmode=vertex}) -> "All vertices";
 sel_all_str(#st{selmode=edge}) -> "All edges";
