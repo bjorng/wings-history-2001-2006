@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.52 2004/05/05 13:57:55 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.53 2004/05/05 16:42:24 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -885,7 +885,7 @@ stretch_opt(We0, OVs) ->
     wings_pb:update(0.01, "initializing"),
 
     {_,R1,R2} = now(),
-    random:seed(R2,R1,128731),
+    random:seed(R2, R1, 128731),
 
     %% {FaceToStretchMean, FaceToStretchWorst,FaceToVerts,VertToFaces,VertToUvs}
     {F2S2,_F2S8,Uvs,State,Scale} = stretch_setup(Fs,We0,OVs),
@@ -924,7 +924,12 @@ stretch_setup(Fs, We0, OVs) ->
 
 stretch_iter(S2V0={[{_,First}|_],_},I,MaxI,MinS,F2S20,Uvs0,State) 
   when First > MinS, I < MaxI ->
-    wings_pb:update(I/MaxI, "iteration "++integer_to_list(I)),
+    if
+	I rem 5 =:= 3 ->
+	    wings_pb:update(I/MaxI, "iteration "++integer_to_list(I));
+	true ->
+	    ok
+    end,
     {S2V,F2S2,Uvs} = 
 	?TC(stretch_iter2(S2V0,I,MaxI,MinS,F2S20,Uvs0,State,gb_sets:empty())),
     stretch_iter(S2V,I+1,MaxI,MinS,F2S2,Uvs,State);
@@ -954,7 +959,8 @@ stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,Uvs0,State,Acc)
 					 [{Vtx,gb_trees:get(Vtx, V2Fs)}|New]
 				 end, [], Vs0),
 		    Upd = ?TC(stretch_per_vertex(Upd0,F2S2,State,V2S0)),
-		    stretch_iter2(Upd,I,MaxI,MinS,F2S2,Uvs,State,gb_sets:insert(V,Acc))
+		    stretch_iter2(Upd,I,MaxI,MinS,F2S2,Uvs,State,
+				  gb_sets:insert(V,Acc))
 	    end
     end;
 stretch_iter2({_,S2V},_,_,_,F2S2,Uvs,State=#s{v2f=V2Fs},Acc0) ->
@@ -1078,7 +1084,7 @@ init_stretch([{Face,FUvs=[{Id1,P1},{Id2,P2},{Id3,P3}]}|R],
 		 [{Id1,Face},{Id2,Face},{Id3,Face}|V2Fs],
 		 FUvs ++ UVs);
 init_stretch([],_,F2S2,F2S8,F2Vs,V2Fs0,Uvs) ->
-    V2Fs1 = sofs:relation(lists:sort(V2Fs0)),
+    V2Fs1 = sofs:relation(V2Fs0),
     V2Fs2 = sofs:relation_to_family(V2Fs1),
     V2Fs = sofs:to_external(V2Fs2),
     {gb_trees:from_orddict(lists:sort(F2S2)),
@@ -1112,10 +1118,47 @@ model_l8([], _, Worst) -> Worst.
 
 model_l2([Face|R], F2S2, F2A, Mean, Area)  ->
     TriM = gb_trees:get(Face,F2S2),
-    A    = gb_trees:get(Face,F2A),
-    model_l2(R,F2S2,F2A,TriM*TriM*A+Mean,Area+A);
+    case gb_trees:get(Face,F2A) of
+	A when is_float(TriM), is_float(A) ->
+	    model_l2(R,F2S2,F2A,TriM*TriM*A+Mean,Area+A)
+    end;
 model_l2([],_,_,Mean,Area) ->
     math:sqrt(Mean/Area).
+
+l2(P1,P2,P3,Q1,Q2,Q3) ->  %% Mean stretch value
+    case area2d2(P1, P2, P3) of
+	A2 when A2 > 0.00000001 ->
+	    A = ss_dot(P1,P2,P3,Q1,Q2,Q3),
+	    C = st_dot(P1,P2,P3,Q1,Q2,Q3),
+	    case (A+C)/(2.0*A2*A2) of
+		Temp when Temp < 1.0 -> 1.0;
+		Temp -> math:sqrt(Temp)
+	    end;
+	_ -> 
+	    9999999999.9
+    end.
+
+ss_dot({_,T1},{_,T2},{_,T3},{Q1x,Q1y,Q1z},{Q2x,Q2y,Q2z},{Q3x,Q3y,Q3z}) 
+  when is_float(T1),is_float(T2),is_float(T3),
+       is_float(Q1x),is_float(Q1y),is_float(Q1z),
+       is_float(Q2x),is_float(Q2y),is_float(Q2z),
+       is_float(Q3x),is_float(Q3y),is_float(Q3z) ->
+    T23 = T2-T3,    T31 = T3-T1,    T12 = T1-T2,
+    X = Q1x*T23+Q2x*T31+Q3x*T12,
+    Y = Q1y*T23+Q2y*T31+Q3y*T12,
+    Z = Q1z*T23+Q2z*T31+Q3z*T12,
+    X*X+Y*Y+Z*Z.
+
+st_dot({S1,_},{S2,_},{S3,_},{Q1x,Q1y,Q1z},{Q2x,Q2y,Q2z},{Q3x,Q3y,Q3z}) 
+  when is_float(S1),is_float(S2),is_float(S3),
+       is_float(Q1x),is_float(Q1y),is_float(Q1z),
+       is_float(Q2x),is_float(Q2y),is_float(Q2z),
+       is_float(Q3x),is_float(Q3y),is_float(Q3z) ->
+    S32 = S3-S2,    S13 = S1-S3,    S21 = S2-S1,
+    X = Q1x*S32+Q2x*S13+Q3x*S21,
+    Y = Q1y*S32+Q2y*S13+Q3y*S21,
+    Z = Q1z*S32+Q2z*S13+Q3z*S21,
+    X*X+Y*Y+Z*Z.
 
 l8(P1,P2,P3,Q1,Q2,Q3) ->  %% Worst stretch value
     A2 = area2d2(P1,P2,P3),
@@ -1127,23 +1170,6 @@ l8(P1,P2,P3,Q1,Q2,Q3) ->  %% Worst stretch value
 	    C = e3d_vec:dot(ST,ST),
 	    math:sqrt(0.5*((A+C)+math:sqrt((A-C)*(A-C)+4*B*B)));
        true ->
-	    9999999999.9
-    end.
-
-l2(P1,P2,P3,Q1,Q2,Q3) ->  %% Mean stretch value
-    A2 = area2d2(P1,P2,P3),
-    if A2 > 0.00000001 ->
-	    SS = ss(P1,P2,P3,Q1,Q2,Q3,A2),
-	    ST = st(P1,P2,P3,Q1,Q2,Q3,A2),
-	    A = e3d_vec:dot(SS,SS),
-	    C = e3d_vec:dot(ST,ST),
-	    Temp = (A+C)/2.0,
-	    if Temp < 1.0 ->
-		    1.0;
-	       true ->
-		    math:sqrt(Temp)
-	    end;
-       true -> 
 	    9999999999.9
     end.
     
@@ -1160,7 +1186,6 @@ ss({_,T1},{_,T2},{_,T3},{Q1x,Q1y,Q1z},{Q2x,Q2y,Q2z},{Q3x,Q3y,Q3z},A)
     {(Q1x*T23+Q2x*T31+Q3x*T12)/A,
      (Q1y*T23+Q2y*T31+Q3y*T12)/A,
      (Q1z*T23+Q2z*T31+Q3z*T12)/A}.
-    
     
 st({S1,_},{S2,_},{S3,_},{Q1x,Q1y,Q1z},{Q2x,Q2y,Q2z},{Q3x,Q3y,Q3z},A) 
   when is_float(S1),is_float(S2),is_float(S3),
