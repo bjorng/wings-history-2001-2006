@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.122 2003/07/08 18:42:54 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.123 2003/07/09 09:28:24 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -28,14 +28,10 @@
 init() ->
     true.
 
-add_as(AsAA, TreeAA) ->
+add_areas(NewAreas, AreaTree) ->
     foldl(fun({[K|_],Area}, TreeBB) ->
  		  gb_trees:insert(K, Area, TreeBB) 
- 	  end, TreeAA, AsAA).
-
-add_areas(New, Areas) ->
-    NewAs = add_as(New, Areas),
-    NewAs.
+ 	  end, AreaTree, NewAreas).
 
 menu({tools}, Menu) ->
     Menu ++ [separator,
@@ -724,7 +720,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
     {_,_,_,OH} = wings_wm:viewport(),
     SX = MX,
     SY = OH-MY,
-    case select(Mode, SX, SY, add_as(Sel0,Curr0), ViewP) of
+    case select(Mode, SX, SY, add_areas(Sel0,Curr0), ViewP) of
 	none when Op == undefined ->
 	    keep;
 	none -> 
@@ -790,7 +786,7 @@ handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY},
 		      areas=Curr0}=Uvs0) 
   when Op == undefined ->
     {_,_,_,OH} = wings_wm:viewport(),
-    case select(Mode, MX, (OH-MY), add_as(Sel0, Curr0), ViewP) of
+    case select(Mode, MX, (OH-MY), add_areas(Sel0, Curr0), ViewP) of
 	none -> 
 	    get_event(Uvs0#uvstate{op=#op{name=boxsel, add={MX,MY}, 
 					  prev={MX+1,MY+1},undo=Uvs0}});
@@ -856,7 +852,7 @@ handle_event({action, {auv, {remap, Method}}},
 
 handle_event({action, {auv, rescale_all}},
 	     Uvs0=#uvstate{sel = Sel0,areas=Curr0})->
-    RscAreas = rescale_all(add_as(Sel0,Curr0)),
+    RscAreas = rescale_all(add_areas(Sel0,Curr0)),
     get_event(reset_dl(Uvs0#uvstate{sel = [],
 				    areas=RscAreas}));
 handle_event({action, {auv, {rotate, free}}}, Uvs) ->
@@ -1027,7 +1023,7 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
     end.
 
 update_selection_1(face, Faces, #uvstate{sel=Sel,areas=As0}=Uvs) ->
-    As = gb_trees:to_list(add_as(Sel, As0)),
+    As = gb_trees:to_list(add_areas(Sel, As0)),
     update_selection_2(As, Faces, Uvs, [], []);
 update_selection_1(_, _, Uvs) ->
     get_event_nodraw(Uvs).
