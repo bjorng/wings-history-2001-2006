@@ -1,13 +1,15 @@
-Original Author:
-
 Björn Gustavsson:
 	Has written the bulk of code.
+	Started writing Wings beginning of April 2001.
+	Most of the Nendo functionality (except Rotate Free/Plane Cut)
+	was in place in the middle of July 2001.
 
 Jakob Cederlund:
 	Implemented the Tube, Cone, Sphere, and Torus objects.
 	Brain-storming and discussion partner.
 	Implemented the Collapse commands. Original idea and
         implementation of the Intrude and Select Similar.
+	Plugins.
 
 Dan Gudmundsson:
 	Wrote the ESDL package that made it possible.
@@ -15,3 +17,7 @@ Dan Gudmundsson:
 	Wrote the e3d_image modules.
 
 Vlad Dumitrescu: Bugfix for middle-mouse button emulation.
+
+Patrik Nyblom: User interface plugins for file dialogs. Makefiles for Windows.
+
+Scorpius: Provided me with info on the NDO format.
