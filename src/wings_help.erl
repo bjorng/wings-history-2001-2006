@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.55 2003/07/21 15:03:58 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.56 2003/07/29 17:43:24 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -186,42 +186,46 @@ opengl_info() ->
 		      {"Range of antialised point sizes",?GL_SMOOTH_POINT_SIZE_RANGE},
 		      {"Range of aliased line widths",?GL_ALIASED_LINE_WIDTH_RANGE},
 		      {"Range of antialised line widths",?GL_SMOOTH_LINE_WIDTH_RANGE},
-		      {"Max width of convolution filter",?GL_MAX_CONVOLUTION_WIDTH},
-		      {"Max height of convolution filter",?GL_MAX_CONVOLUTION_HEIGHT},
 		      {"Recommended max number of indices for drawRangeElement()",
 		       ?GL_MAX_ELEMENTS_INDICES},
 		      {"Recommended max number of vertices for drawRangeElement()",
-		       ?GL_MAX_ELEMENTS_VERTICES},
-		      {"Max number of texturing units",?GL_MAX_TEXTURE_UNITS}]),
-	    compressed_texture_info(),
+		       ?GL_MAX_ELEMENTS_VERTICES}]),
+	    get_info([{"Max number of texturing units",?GL_MAX_TEXTURE_UNITS},
+		      {"Number of compression formats",
+		       ?GL_NUM_COMPRESSED_TEXTURE_FORMATS},
+		      {"Max number of vertex units",?GL_MAX_VERTEX_UNITS_ARB}]),
 	    "OpenGL Extensions",extensions()],
     help_window("OpenGL Info", Help).
 
 get_info([{Label,Attr}|T]) ->
     Val = gl:getIntegerv(Attr),
     ValStr = case {gl:getError(),Val} of
-		 {0,[A]} -> integer_to_list(A);
-		 {0,[A,B|_]} -> integer_to_list(A) ++ ", " ++ integer_to_list(B);
+		 {0,List} ->
+		     get_info_1(Attr, List);
 		 _ -> "---"
 	     end,
     Label ++ ": " ++ ValStr ++ "\n" ++ get_info(T);
 get_info([]) -> [].
+
+get_info_1(_, [A]) -> integer_to_list(A);
+get_info_1(Enum, [A,B|_]) ->
+    case has_one_elem(Enum) of
+	false -> integer_to_list(A) ++ ", " ++ integer_to_list(B);
+	true -> integer_to_list(A)
+    end.
+
+has_one_elem(?GL_MAX_ELEMENTS_VERTICES) -> true;
+has_one_elem(?GL_MAX_ELEMENTS_INDICES) -> true;
+has_one_elem(?GL_NUM_COMPRESSED_TEXTURE_FORMATS) -> true;
+has_one_elem(?GL_MAX_VERTEX_UNITS_ARB) -> true;
+has_one_elem(?GL_MAX_3D_TEXTURE_SIZE) -> true;
+has_one_elem(_) -> false.
 
 extensions() ->
     extensions(lists:sort(string:tokens(gl:getString(?GL_EXTENSIONS), " "))).
 
 extensions([H|T]) -> H ++ "\n" ++ extensions(T);
 extensions([]) -> [].
-
-compressed_texture_info() ->
-    N = gl:getIntegerv(?GL_NUM_COMPRESSED_TEXTURE_FORMATS),
-    case gl:getError() of
-	0 -> compressed_texture_info(N);
-	_ -> []
-    end.
-
-compressed_texture_info(N) ->
-    "Number of compression formats: " ++ integer_to_list(hd(N)).
 
 %%%
 %%% Scrollable help window.
