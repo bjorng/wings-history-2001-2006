@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.24 2002/01/04 09:28:04 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.25 2002/01/04 19:42:58 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -247,8 +247,14 @@ marque_convert_1(Faces, edge, Rect, #we{vs=Vtab}=We) ->
     Es = ordsets:from_list(Es0),
     [E || {E,#edge{vs=Va,ve=Vb}} <- Es,
 	  is_all_inside_rect([pos(Va, Vtab),pos(Vb, Vtab)], Rect)];
-marque_convert_1(Faces, body, RectData, We) -> [].
+marque_convert_1(Faces, body, Rect, #we{vs=Vtab}=We) ->
+    case is_all_inside_rect(gb_trees:values(Vtab), Rect) of
+	true -> [0];
+	false -> []
+    end.
 
+is_all_inside_rect([#vtx{pos=P}|Ps], Rect) ->
+    is_inside_rect(P, Rect) andalso is_all_inside_rect(Ps, Rect);
 is_all_inside_rect([P|Ps], Rect) ->
     is_inside_rect(P, Rect) andalso is_all_inside_rect(Ps, Rect);
 is_all_inside_rect([], Rect) -> true.
@@ -324,7 +330,8 @@ do_pick(X, Y, St) ->
 	Hit -> update_selection(Hit, St)
     end.
 
-do_pick_1(X0, Y0, #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St) ->
+do_pick_1(X0, Y0, #st{shapes=Shapes,selmode=Mode}=St) ->
+    HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
     gl:initNames(),
@@ -486,8 +493,8 @@ project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
 %%
 
 pick_all(DrawFaces, X, Y, W, H, St) when W < 1.0; H < 1.0 -> {none,St};
-pick_all(DrawFaces, X0, Y0, W, H, St0) ->
-    #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode} = St0,
+pick_all(DrawFaces, X0, Y0, W, H, #st{shapes=Shapes,selmode=Mode}=St0) ->
+    HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
     gl:initNames(),
