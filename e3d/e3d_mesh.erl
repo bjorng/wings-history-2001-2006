@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.5 2001/08/30 08:49:20 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.6 2001/08/31 09:46:13 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -248,7 +248,7 @@ make_quads(#e3d_mesh{type=triangle,fs=Fs0}=Mesh) ->
 	true ->
 	    Ftab1 = gb_trees:from_orddict(Ftab0),
 	    Ftab = merge_faces(Es, Ftab1),
-	    Fs = wings_util:gb_trees_values(Ftab),
+	    Fs = gb_trees:values(Ftab),
 	    Mesh#e3d_mesh{type=polygon,fs=Fs}
     end;
 make_quads(Mesh) -> Mesh.
@@ -477,7 +477,7 @@ vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
     %% Generate face data.
     VtxNormals = gb_trees:from_orddict(sort(VtxNormals1)),
     Faces = vn_faces(Ftab, VtxNormals, 0, []),
-    Normals0 = wings_util:gb_trees_values(VtxNormals),
+    Normals0 = gb_trees:values(VtxNormals),
     Normals1 = sort(Normals0),
     Normals = [N || {Vn,N} <- Normals1],
     {Faces,Normals}.

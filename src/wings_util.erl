@@ -8,14 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.2 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.3 2001/08/31 09:46:13 bjorng Exp $
 %%
 
 -module(wings_util).
--export([gb_trees_values/1]).
 -export([share/1,share/3,fold_shape/3,fold_shape_all/3,
 	 fold_face/3,fold_vertex/3,fold_edge/3,
-	 vertices/5,foreach_shape/2,foreach_face/2,foreach_edge/2,
+	 foreach_shape/2,foreach_face/2,foreach_edge/2,
 	 center/1,average_normals/1,
 	 crasch_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
@@ -35,16 +34,6 @@ share({X,X,Z}) -> {X,X,Z};
 share({X,Y,Y}) -> {X,Y,Y};
 share({X,Y,X}) -> {X,Y,X};
 share(Other) -> Other.
-
-%%%
-%%% XXX Temporary until added to gb_trees.
-%%%
-gb_trees_values({_, T}) ->
-    gb_trees_values(T, []).
-
-gb_trees_values({Key, Value, Small, Big}, L) ->
-    gb_trees_values(Small, [Value | gb_trees_values(Big, L)]);
-gb_trees_values(nil, L) -> L.
 
 %%%
 %%% `fold' functions.
@@ -104,24 +93,6 @@ fold_edge_1(F, Acc, Iter0) ->
 	{Edge,Rec,Iter} ->
 	    fold_edge_1(F, F(Edge, Rec, Acc), Iter)
     end.
-
-%%%
-%%% Miscellanous.
-%%%
-
-%% Get all vertices counter-clockwise.
-
-vertices(F, Acc, Face, Edge, #shape{sh=#we{es=Etab}}) ->
-    vertices(F, Acc, Face, Edge, Edge, Etab, not_done).
-
-vertices(F, Acc, Face, LastEdge, LastEdge, Etab, done) -> Acc;
-vertices(F, Acc, Face, Edge, LastEdge, Etab, _) ->
-    {Next,V} = case gb_trees:get(Edge, Etab) of
-		   #edge{ve=V0,lf=Face,ltpr=Next0} -> {Next0,V0};
-		   #edge{vs=V0,rf=Face,rtpr=Next0} -> {Next0,V0}
-	       end,
-    vertices(F, F(V, Acc), Face, Next, LastEdge, Etab, done).
-
 
 %%%
 %%% `foreach' functions.

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.5 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.6 2001/08/31 09:46:13 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -284,11 +284,11 @@ foreach_1(F, Iter0, Sh) ->
 %%%
 
 make(Filter, Mode, #st{shapes=Shapes}=St) ->
-    Sel0 = gb_trees:to_list(Shapes),
+    Sel0 = gb_trees:values(Shapes),
     Sel = make_1(Sel0, Filter, Mode),
     St#st{selmode=Mode,sel=Sel}.
 
-make_1([{Id,#shape{sh=#we{vs=Vtab,es=Etab,fs=Ftab}=We}}|Shs], Filter, Mode) ->
+make_1([#shape{id=Id,sh=#we{vs=Vtab,es=Etab,fs=Ftab}=We}|Shs], Filter, Mode) ->
     Tab = case Mode of
 	      vertex -> Vtab;
 	      edge -> Etab;

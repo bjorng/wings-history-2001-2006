@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.3 2001/08/30 08:49:20 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.4 2001/08/31 09:46:13 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -156,7 +156,7 @@ other_pos(V, #edge{ve=V,vs=Other}, Tab) -> pos(Other, Tab).
 center(#we{vs=Vtab}) ->
     Positions = foldl(fun(#vtx{pos=Pos}, A) ->
 			      [Pos|A]
-		      end, [], wings_util:gb_trees_values(Vtab)),
+		      end, [], gb_trees:values(Vtab)),
     wings_mat:average(Positions).
 
 %% center(VertexGbSet, We) -> {CenterX,CenterY,CenterZ}
@@ -177,7 +177,7 @@ bounding_box(We) ->
     bounding_box(We, none).
 
 bounding_box(#we{vs=Vtab}=We, BB) ->
-    do_bounding_box(wings_util:gb_trees_values(Vtab), BB);
+    do_bounding_box(gb_trees:values(Vtab), BB);
 bounding_box(Vs, We) ->
     bounding_box(Vs, We, none).
     

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.1 2001/08/14 18:16:35 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.2 2001/08/31 09:46:13 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -131,9 +131,9 @@ draw_we(#st{dl=#dl{we=DlistWe,dragging=WeDrag,matrix=Matrix}}) ->
 update_display_lists(#st{shapes=Shapes,dl=none,opts=#opt{smooth=Smooth}}=St) ->
     DlistWe = 98,
     gl:newList(DlistWe, ?GL_COMPILE),
-    foreach(fun({_,Sh}) ->
+    foreach(fun(Sh) ->
 		    shape(Sh, Smooth, St)
-	    end, gb_trees:to_list(Shapes)),
+	    end, gb_trees:values(Shapes)),
     gl:endList(),
     St#st{dl=#dl{we=DlistWe}};
 update_display_lists(#st{dl=#dl{drag_faces=none}}=St) -> St;
@@ -252,13 +252,13 @@ draw_face_1(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
 draw_hard_edges(#st{shapes=Shapes}) ->
     gl:color3f(0.0, 0.5, 0.0),
     foreach(
-      fun({Edge,#shape{sh=#we{he=Htab}=We}}) ->
+      fun(#shape{sh=#we{he=Htab}=We}) ->
 	      case gb_sets:is_empty(Htab) of
 		  true -> ok;
 		  false -> draw_hard_edges_1(We)
 	      end;
 	 (_) -> ok
-      end, gb_trees:to_list(Shapes)),
+      end, gb_trees:values(Shapes)),
     ?CHECK_ERROR(),
     gl:depthFunc(?GL_LESS).
 

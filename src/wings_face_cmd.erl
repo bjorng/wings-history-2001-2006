@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.4 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.5 2001/08/31 09:46:13 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -267,9 +267,9 @@ mirror_vs(Face, #we{vs=Vtab0}=We0, Mirrorout) ->
     Normal = wings_face:normal(Face, We0),
     Vs = wings_face:surrounding_vertices(Face, We0),
     Center = wings_vertex:center(Vs, We0),
-    Vtab = foldl(fun({V,_}, A) ->
+    Vtab = foldl(fun(V, A) ->
 			 flatten_move(V, Normal, Center, Mirrorout, A)
-		 end, Vtab0, gb_trees:to_list(Vtab0)),
+		 end, Vtab0, gb_trees:keys(Vtab0)),
     We = We0#we{vs=Vtab},
     wings_we:invert_normals(We).
 

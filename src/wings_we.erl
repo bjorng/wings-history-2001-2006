@@ -10,11 +10,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.5 2001/08/30 08:49:20 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.6 2001/08/31 09:46:13 bjorng Exp $
 %%
 
 -module(wings_we).
--export([empty/0,build/5,build/6,
+-export([build/5,build/6,
 	 new_wrap_range/3,id/2,bump_id/1,
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
@@ -29,10 +29,6 @@
 %%%
 %%% Build Winged-Edges.
 %%%
-
-empty() ->
-    Empty = gb_trees:empty(),
-    #we{es=Empty,fs=Empty,vs=Empty,he=gb_sets:empty(),first_id=0,next_id=0}.
 
 build(Name, Matrix, Fs, Vs, St) ->
     build(Name, Matrix, Fs, Vs, [], St).

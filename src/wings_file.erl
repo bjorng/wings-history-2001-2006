@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.5 2001/08/30 08:49:20 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.6 2001/08/31 09:46:13 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -258,7 +258,7 @@ do_export(#shape{name=Name,matrix=Matrix,sh=#we{}=We}, Acc) ->
 
 make_mesh(Matrix, We0) ->
     #we{vs=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We0, 0),
-    Vs = [P || #vtx{pos=P} <- wings_util:gb_trees_values(Vs0)],
+    Vs = [P || #vtx{pos=P} <- gb_trees:values(Vs0)],
     Fs1 = wings_util:fold_face(
 	    fun(Face, #face{mat=Mat}, A) ->
 		    [make_face(Face, Mat, We)|A]
@@ -306,4 +306,4 @@ used_materials_1(Ftab, Acc) ->
 		  gb_sets:union(A, gb_sets:from_list(Mat));
 	     (#face{mat=Mat}, A) ->
 		  gb_sets:add(Mat, A)
-	  end, Acc, wings_util:gb_trees_values(Ftab)).
+	  end, Acc, gb_trees:values(Ftab)).

@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.4 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.5 2001/08/31 09:46:13 bjorng Exp $
 %%
 
 -module(wings_edge).
 -export([convert_selection/1,select_more/1,select_less/1,
 	 to_vertices/2,
 	 select_loop/1,cut/2,cut/3,fast_cut/3,connect/1,dissolve/1,
-	 dissolve_edges/2,dissolve_edge/2,patch_edge/4,
+	 dissolve_edges/2,dissolve_edge/2,patch_edge/4,patch_edge/5,
 	 hardness/2,hardness/3,loop_cut/1,collect_faces/3]).
 
 -include("wings.hrl").
@@ -605,6 +605,19 @@ patch_edge(Edge, ToEdge, OrigEdge, Etab) ->
 	      #edge{rtsu=OrigEdge}=R ->
 		  R#edge{rtsu=ToEdge};
 	      #edge{rtpr=OrigEdge}=R ->
+		  R#edge{rtpr=ToEdge}
+	  end,
+    gb_trees:update(Edge, New, Etab).
+
+patch_edge(Edge, ToEdge, Face, OrigEdge, Etab) ->
+    New = case gb_trees:get(Edge, Etab) of
+	      #edge{lf=Face,ltsu=OrigEdge}=R ->
+		  R#edge{ltsu=ToEdge};
+	      #edge{lf=Face,ltpr=OrigEdge}=R ->
+		  R#edge{ltpr=ToEdge};
+	      #edge{rf=Face,rtsu=OrigEdge}=R ->
+		  R#edge{rtsu=ToEdge};
+	      #edge{rf=Face,rtpr=OrigEdge}=R ->
 		  R#edge{rtpr=ToEdge}
 	  end,
     gb_trees:update(Edge, New, Etab).
