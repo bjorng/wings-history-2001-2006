@@ -3,12 +3,12 @@
 %%
 %%     The main module of Wings 3D.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.289 2003/12/01 06:29:01 bjorng Exp $
+%%     $Id: wings.erl,v 1.290 2004/01/01 14:17:06 bjorng Exp $
 %%
 
 -module(wings).
@@ -433,8 +433,8 @@ command_response({drag,Drag}, Args, _) ->
     wings_drag:do_drag(Drag, Args);
 command_response({save_state,#st{}=St}, _, St0) ->
     save_state(St0, St);
-command_response({saved,St}, _, St0) ->
-    main_loop(wings_undo:save(St0, St));
+command_response({saved,St}, _, _) ->
+    main_loop(St);
 command_response({new,St}, _, _) ->
     main_loop(caption(wings_undo:init(St)));
 command_response({push,_}=Push, _, _) ->
@@ -552,9 +552,8 @@ command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,
 	    raw_command(Cmd, DragArgs, St)
     end;
 command({edit,repeat_drag}, St) -> St;
-command({edit,purge_undo}, _St) ->
-    wings_util:yes_no("Are you sure (NOT undoable)?",
-		      fun() -> {edit,confirmed_purge_undo} end);
+command({edit,purge_undo}, St) ->
+    purgo_undo(St);
 command({edit,confirmed_purge_undo}, St) ->
     wings_undo:init(St);
 command({edit,enable_patches}, St) ->
@@ -655,6 +654,8 @@ init_menubar() ->
     put(wings_menu_template, Menus).
 
 edit_menu(St) ->
+    UndoInfo = lists:flatten(["Delete undo history to reclaim memory (",
+			      undo_info(St),")"]),
     [{"Undo/Redo",undo_toggle,"Undo or redo the last command"},
      {"Redo",redo,"Redo the last command that was undone"},
      {"Undo",undo,"Undo the last command"},
@@ -666,8 +667,20 @@ edit_menu(St) ->
      wings_pref:menu(St),
      {"Plug-in Preferences",{plugin_preferences,[]}},
      separator,
-     {"Purge Undo History",purge_undo,
-      "Delete the undo history to reclaim memory"}|patches()].
+     {"Purge Undo History",purge_undo,UndoInfo}|patches()].
+
+undo_info(St) ->
+    {Un,Rn} = wings_undo:info(St),
+    Undo = case Un of
+	       0 -> "there are no undo states";
+	       1 -> "there is one undo state";
+	       _ -> io_lib:format("there are ~p undo states", [Un])
+	   end,
+    case Rn of
+	0 -> Undo;
+	1 -> [Undo|"; one operation can be redone"];
+	_ -> [Undo|io_lib:format("; ~p operations can be redone", [Rn])]
+    end.
 
 tools_menu(_) ->
     Dirs = [{"All",all},
@@ -725,6 +738,29 @@ set_temp_sel(#st{sh=Sh,selmode=Mode}, St) ->
 clear_temp_sel(#st{temp_sel=none}=St) -> St;
 clear_temp_sel(#st{temp_sel={Mode,Sh}}=St) ->
     St#st{temp_sel=none,selmode=Mode,sh=Sh,sel=[]}.
+
+
+purgo_undo(St) ->
+    This = wings_wm:this(),
+    {Un,Rn} = wings_undo:info(St),
+    Qs = {vframe,
+	  [{label,"Undo states: " ++ integer_to_list(Un)},
+	   {label,"Redo states: " ++ integer_to_list(Rn)},
+	   separator|
+	   if
+	       Un+Rn =:= 0 ->
+		   [{label,"Nothing to remove"},
+		    {hframe,[{button,ok}]}];
+	       true ->
+		   [{label,"Remove all states (NOT undoable)?"},
+		    {hframe,[{button,"Yes",
+			      fun(_) ->
+				      Action = {action,{edit,confirmed_purge_undo}},
+				      wings_wm:send(This, Action)
+			      end},
+			     {button,"No",cancel,[cancel]}]}]
+	   end]},
+    wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 info(#st{sel=[]}) -> [];
 info(St) ->
