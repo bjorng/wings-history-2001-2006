@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.108 2003/07/21 13:27:10 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.109 2003/07/21 14:14:01 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -120,7 +120,7 @@ setup_menu_killer(#mi{owner=Owner,level=Level}) ->
 	true ->
 	    if
 		Level =:= ?INITIAL_LEVEL ->
-		    %% An new top-level menu will be created. Make sure
+		    %% A new top-level menu will be created. Make sure
 		    %% that the menu killer window will be directly below it.
 		    wings_wm:raise(menu_killer),
 		    raise_menubar(Owner);
@@ -315,41 +315,42 @@ button_pressed(_, _) -> keep.
 
 button_pressed(Button, Mod, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
     clear_timer(Mi0),
-    Mi = update_highlight(X, Y, Mi0),
+    Mi1 = update_highlight(X, Y, Mi0),
+    Mi = update_flags(Mod, Mi1),
     case selected_item(Y, Mi) of
-	none -> get_menu_event(Mi);
-	Item when integer(Item) ->
+	none ->
+	    get_menu_event(Mi);
+	Item when is_integer(Item) ->
 	    case element(Item, Menu) of
 		{_,{'VALUE',Act0},_,_,Ps} ->
 		    Act = check_option_box(Act0, X, Ps, Mi),
-		    do_action(Act, Names, Mod, Ps, Mi);
+		    do_action(Act, Names, Ps, Mi);
 		{_,{Name,Submenu},_,_,_} when Adv == true ->
-		    popup_submenu(Button, Mod, X, Y, Name, Submenu, Mi);
+		    popup_submenu(Button, X, Y, Name, Submenu, Mi);
 		{_,{Name,Submenu},_,_,_} when Adv == false ->
 		    submenu(Item, Name, Submenu, Mi);
 		{_,Act0,_,_,Ps} when is_function(Act0) ->
-		    call_action(Act0, Button, Mod, Names, Ps, Mi);
+		    call_action(Act0, Button, Names, Ps, Mi);
 		{_,Act0,_,_,Ps} when is_atom(Act0); is_integer(Act0) ->
 		    Act = check_option_box(Act0, X, Ps, Mi),
-		    do_action(Act, Names, Mod, Ps, Mi)
+		    do_action(Act, Names, Ps, Mi)
 	    end
     end.
 
-call_action(Act, Button, Mod, Ns, Ps, #mi{flags=Flags}=Mi) ->
+call_action(Act, Button, Ns, Ps, Mi) ->
     case Act(Button, Ns) of
 	ignore -> keep;
 	Cmd0 when is_tuple(Cmd0) ->
-	    Cmd = case is_magnet_active(Mod, Ps, Mi) of
+	    Cmd = case is_magnet_active(Ps, Mi) of
 		      false -> Cmd0;
-		      true -> insert_magnet_flags(Cmd0, Flags)
+		      true -> insert_magnet_flags(Cmd0, Mi)
 		  end,
 	    send_action(Cmd, Mi)
     end.
 
-do_action(Act0, Ns, Mod, Ps, Mi) ->
-    Act1 = build_command(Act0, Ns),
-    Act = case is_magnet_active(Mod, Ps, Mi) of
-	      false -> Act1;
+do_action(Act0, Ns, Ps, Mi) ->
+    Act = case is_magnet_active(Ps, Mi) of
+	      false -> build_command(Act0, Ns);
 	      true -> {vector,{pick,[magnet],[Act0],Ns}}
 	  end,
     send_action(Act, Mi).
@@ -359,13 +360,8 @@ send_action(Action, #mi{owner=Owner}=Mi) ->
     wings_wm:send_after_redraw(Owner, {action,Action}),
     delete_all(Mi).
 
-is_magnet_active(Mod, Ps, #mi{flags=Flags}) ->
-    case have_magnet(Ps) of
-	false -> false;
-	true ->
-	    RmbMod = wings_camera:free_rmb_modifier(),
-	    Mod band RmbMod =/= 0 orelse have_magnet(Flags)
-    end.
+is_magnet_active(Ps, #mi{flags=Flags}) ->
+    have_magnet(Ps) andalso have_magnet(Flags).
 
 handle_key(Ev, Mi) ->
     handle_key_1(key(Ev), Mi).
@@ -438,14 +434,13 @@ set_hotkey(Val, #mi{sel=Sel,menu=Menu0}=Mi) ->
 	_Other -> Mi
     end.
 
-popup_submenu(Button, Mod, X0, Y0, SubName, SubMenu0,
+popup_submenu(Button, X0, Y0, SubName, SubMenu0,
 	      #mi{owner=Owner,level=Level}=Mi) ->
     %% Only in advanced menu mode.
-    Flags = magnet_flags(Mod),
     case expand_submenu(Button, SubName, SubMenu0, Mi) of
 	ignore -> keep;
 	Action0 when is_tuple(Action0); is_atom(Action0) ->
-	    Action = insert_magnet_flags(Action0, Flags),
+	    Action = insert_magnet_flags(Action0, Mi),
 	    clear_menu_selection(Mi),
 	    wings_wm:send(Owner, {action,Action}),
 	    delete_all(Mi);
@@ -453,21 +448,21 @@ popup_submenu(Button, Mod, X0, Y0, SubName, SubMenu0,
 	    clear_timer(Mi),
 	    {X,Y} = wings_wm:local2global(X0, Y0),
 	    menu_setup(popup, X, Y, SubName, SubMenu,
-		       Mi#mi{flags=Flags,level=Level+1}),
+		       Mi#mi{level=Level+1}),
 	    delete
     end.
 
-magnet_flags(Mod) ->
+update_flags(Mod, Mi) ->
     case wings_camera:free_rmb_modifier() of
 	RmbMod when Mod band RmbMod =/= 0 ->
-	    [magnet];
+	    Mi#mi{flags=[magnet]};
 	_ ->
-	    []
+	    Mi
     end.
 
-insert_magnet_flags(Action, []) ->
+insert_magnet_flags(Action, #mi{flags=[]}) ->
     Action;
-insert_magnet_flags({vector,{pick,Pl,Acc,Cmd}}, Flags) ->
+insert_magnet_flags({vector,{pick,Pl,Acc,Cmd}}, #mi{flags=Flags}) ->
     insert_magnet_flags_1(Cmd, Pl, Acc, Flags);
 insert_magnet_flags(Action, _) -> Action.
 
