@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.1 2002/01/28 17:33:40 bjorng Exp $
+#     $Id: Makefile,v 1.2 2002/04/12 12:03:54 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -18,6 +18,7 @@ ESRC=.
 EBIN=../../plugins/commands
 ERLC=erlc
 WINGS_SRC=../../src
+WINGS_E3D=../../e3d
 
 ifeq ($(TYPE),debug)
 TYPE_FLAGS=-DDEBUG +debug_info
@@ -26,14 +27,15 @@ TYPE_FLAGS=
 endif
 
 MODULES= \
-	wpc_region
+	wpc_region \
+	wpc_triquad_cmd
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 
 # ----------------------------------------------------
 # FLAGS
 # ----------------------------------------------------
-ERL_FLAGS += -I $(WINGS_SRC)
+ERL_FLAGS += -I $(WINGS_SRC) -I $(WINGS_E3D)
 ERL_COMPILE_FLAGS += -W $(TYPE_FLAGS)
 
 # ----------------------------------------------------
