@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.53 2002/02/23 18:48:59 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.54 2002/03/04 14:40:21 dgud Exp $
 %%
 
 -module(wings_file).
@@ -125,9 +125,14 @@ quit(St) ->
 	aborted -> St
     end.
 
-new(#st{saved=false}=St0) ->
+new(#st{saved=true}=St) ->
+    wings:caption(St#st{file=undefined,shapes=gb_trees:empty(),
+			sel=[],svec=[]});
+new(St0) -> %% File is not saved or autosaved.
+    wings:caption(St0#st{saved=false}), 
     case wings_util:yes_no("Do you want to save your changes?") of
-	no ->
+	no -> %% Remove autosaved file, user has explicitly said so.
+	    file:delete(autosave_filename(St0#st.file)),
 	    new(St0#st{saved=true});
 	yes ->
 	    case save(St0) of
@@ -136,10 +141,7 @@ new(#st{saved=false}=St0) ->
 		#st{}=St -> new(St)
 	    end;
 	aborted -> aborted
-    end;
-new(#st{saved=true}=St) ->
-    wings:caption(St#st{file=undefined,shapes=gb_trees:empty(),
-			sel=[],svec=[]}).
+    end.
 
 read(St0) ->
     case new(St0) of
