@@ -5,12 +5,12 @@
 %%     we records (winged-edged records, the central data structure
 %%     in Wings 3D).
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.78 2004/06/01 05:17:18 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.79 2004/06/01 05:18:03 bjorng Exp $
 %%
 
 -module(wings_we).
