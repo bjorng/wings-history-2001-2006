@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.203 2003/01/27 18:09:48 bjorng Exp $
+%%     $Id: wings.erl,v 1.204 2003/01/30 09:53:55 bjorng Exp $
 %%
 
 -module(wings).
@@ -279,6 +279,7 @@ handle_event_3(got_focus, _) ->
     wings_wm:message(Message),
     wings_wm:dirty();
 handle_event_3(lost_focus, _) -> keep;
+handle_event_3({note,_}, _) -> keep;
 handle_event_3(ignore, _St) -> keep.
 
 do_command(Cmd, St) ->    

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.74 2003/01/22 06:50:47 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.75 2003/01/30 09:53:56 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -147,7 +147,7 @@ load_maps([{Key,Filename}|T]) when is_list(Filename) ->
 load_maps([{Key,{W,H,Bits}}|T]) ->
     E3dImage = #e3d_image{type=r8g8b8,order=lower_left,
 			  width=W,height=H,image=Bits},
-    Id = wings_image:new(atom_to_list(Key)++" texture", E3dImage),
+    Id = wings_image:new(atom_to_list(Key), E3dImage),
     [{Key,Id}|load_maps(T)];
 load_maps([]) -> [].
     
@@ -163,14 +163,12 @@ load_map(MapName) ->
 load_map_1(none) -> none;
 load_map_1(File0) ->
     File = filename:absname(File0, wings_pref:get_value(current_directory)),
-    Ps = [{filename,File},{type,r8g8b8},{order,lower_left},{alignment,1}],
-    case wpa:image_read(Ps) of
-	#e3d_image{}=Im ->
-	    wings_image:new("ImportedImage", Im#e3d_image{filename=File});
+    case wings_image:from_file(File) of
 	{error,Error} ->
 	    io:format("Failed to load \"~s\": ~s\n",
 		      [File,file:format_error(Error)]),
-	    none
+	    none;
+	Im when integer(Im) -> Im
     end.
     
 add('_hole_'=Name, Mat, #st{mat=MatTab}=St) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.89 2003/01/28 13:17:22 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.90 2003/01/30 09:53:55 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -20,7 +20,7 @@
 	 text_at/2,text_at/3,text/1,menu_text/3,space_at/2,
 	 draw_icon/3,draw_icon/5,draw_icon/7,draw_char/1,
 	 set_color/1]).
--export([putback_event/1,get_event/0,get_matching_events/1,
+-export([putback_event/1,putback_event_once/1,get_event/0,get_matching_events/1,
 	 poll_event/0,set_timer/2,cancel_timer/1]).
 
 -export([reset_grab/0,grab/0,ungrab/0,is_grabbed/0,warp/2]).
@@ -311,6 +311,13 @@ inactive(_X, _Y, R, G, B) -> [R,G,B].
 putback_event(Event) ->
     #io{eq={In,Out}} = Io = get_state(),
     put_state(Io#io{eq={In,[Event|Out]}}).
+
+putback_event_once(Ev) ->
+    #io{eq={In,Out}} = Io = get_state(),
+    case member(Ev, In) orelse member(Ev, Out) of
+	true -> ok;
+	false -> put_state(Io#io{eq={In,[Ev|Out]}})
+    end.
 
 get_event() ->
     case get_sdl_event() of

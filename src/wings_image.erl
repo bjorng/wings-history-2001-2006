@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.8 2003/01/30 05:06:31 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.9 2003/01/30 09:53:55 bjorng Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
 	 from_file/1,new/2,rename/2,txid/1,info/1,images/0,
 	 next_id/0,delete_older/1,delete_from/1,
-	 update/2,
+	 update/2,update_filename/2,
 	 window/1]).
 
 -define(NEED_OPENGL, 1).
@@ -50,16 +50,16 @@ rename(Id, NewName) ->
     req({rename,Id,NewName}).
 
 txid(Id) ->
-    req({txid,Id}).
+    req({txid,Id}, false).
 
 info(Id) ->
-    req({info,Id}).
+    req({info,Id}, false).
 
 images() ->
-    req(images).
+    req(images, false).
 
 next_id() ->
-    req(next_id).
+    req(next_id, false).
 
 delete_older(Id) ->
     req({delete_older,Id}).
@@ -70,12 +70,23 @@ delete_from(Id) ->
 update(Id, Image) ->
     req({update,Id,Image}).
 
+update_filename(Id, Filename) ->
+    req({update_filename,Id,Filename}).
+
 req(Req) ->
+    req(Req, true).
+
+req(Req, Notify) ->
     Self = self(),
     Ref = make_ref(),
     wings_image ! {Self,Ref,Req},
     receive
-	{Ref,Answer} -> Answer
+	{Ref,Answer} ->
+	    case Notify of
+		false -> ok;
+		true -> wings_wm:notify(image_change)
+	    end,
+	    Answer
     end.
 
 %%%
@@ -142,7 +153,12 @@ handle({delete_older,Id}, S) ->
 handle({delete_from,Id}, S) ->
     delete_from(Id, S);
 handle({update,Id,Image}, S) ->
-    do_update(Id, Image, S).
+    do_update(Id, Image, S);
+handle({update_filename,Id,NewName}, #ist{images=Images0}=S) ->
+    Im0 = gb_trees:get(Id, Images0),
+    Im = Im0#e3d_image{filename=NewName},
+    Images = gb_trees:update(Id, Im, Images0),
+    S#ist{images=Images}.
 
 make_texture(Id, Image) ->
     TxId = init_texture(Image),
@@ -156,7 +172,6 @@ init_texture(Image0) ->
     gl:enable(?GL_TEXTURE_2D),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
     Format = texture_format(Image),
-    io:format("~p\n", [Format]),
     gl:texImage2D(?GL_TEXTURE_2D, 0, BytesPerPixel,
 		  W, H, 0, Format, ?GL_UNSIGNED_BYTE, Bits),
     gl:popAttrib(),
@@ -245,15 +260,17 @@ window(Id) ->
     end.
 
 window_params(Id) ->
-    #e3d_image{width=W0,height=H0,name=Name} = info(Id),
-    Title = flatten(io_lib:format("Image: ~s [~wx~w]", [Name,W0,H0])),
+    #e3d_image{width=W0,height=H0,name=Name,bytes_pp=BytesPerPixel} = info(Id),
+    Title = flatten(io_lib:format("Image: ~s [~wx~wx~w]",
+				  [Name,W0,H0,8*BytesPerPixel])),
     {DeskW,DeskH} = wings_wm:win_size(desktop),
     W = if
-	    W0+50 < DeskW -> W0;
+	    W0 < 250 -> 250;
+	    W0+50 < DeskW -> W0+2;
 	    true -> DeskW - 50
 	end,
     H = if
-	    H0+70 < DeskH -> H0;
+	    H0+70 < DeskH -> H0+2;
 	    true -> DeskH - 70
 	end,
     {{W,H},Title}.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.71 2003/01/28 13:17:22 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.72 2003/01/30 09:53:56 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -21,7 +21,7 @@
 	 set_timer/2,cancel_timer/1,
 	 active_window/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,
 	 update_window/2,
-	 callback/1,current_state/1,
+	 callback/1,current_state/1,notify/1,
 	 grab_focus/0,grab_focus/1,release_focus/0,
 	 grabbed_focus_window/0,actual_focus_window/0,
 	 top_size/0,viewport/0,viewport/1,
@@ -120,6 +120,10 @@ send(Name, Ev) ->
     wings_io:putback_event({wm,{send_to,Name,Ev}}),
     keep.
 
+send_once(Name, Ev) ->
+    wings_io:putback_event_once({wm,{send_to,Name,Ev}}),
+    keep.
+
 send_after_redraw(Name, Ev) ->
     wings_io:putback_event({wm,{send_after_redraw,Name,Ev}}).
 
@@ -129,10 +133,16 @@ current_state(St) ->
 	_ ->
 	    NewState = {current_state,St},
 	    foreach(fun(geom) -> ok;
-		       (top) -> ok;
+		       (desktop) -> ok;
 		       (Name) -> send(Name, NewState)
 		    end, gb_trees:keys(get(wm_windows)))
     end.
+
+notify(Note) ->
+    Msg = {note,Note},
+    foreach(fun(desktop) -> ok;
+	       (Name) -> send_once(Name, Msg)
+	    end, gb_trees:keys(get(wm_windows))).
 
 dirty() ->
     put(wm_dirty, dirty),

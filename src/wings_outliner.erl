@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.16 2003/01/27 18:09:51 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.17 2003/01/30 09:53:56 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -68,6 +68,10 @@ event(got_focus, _) ->
     wings_util:button_message("Select", [], "Show menu"),
     wings_wm:dirty();
 event({current_state,St}, Ost0) ->
+    Ost = update_state(St, Ost0),
+    update_scroller(Ost),
+    get_event(Ost);
+event({note,image_change}, #ost{st=St}=Ost0) ->
     Ost = update_state(St, Ost0),
     update_scroller(Ost),
     get_event(Ost);
@@ -143,7 +147,7 @@ image_menu(Id, Im) ->
 image_menu_1(Id, #e3d_image{filename=none}) ->
     [{"Make External",menu_cmd(make_external, Id)}|common_image_menu(Id)];
 image_menu_1(Id, _) ->
-    [{"Revert",menu_cmd(revert_image, Id)},
+    [{"Refresh",menu_cmd(refresh_image, Id)},
      {"Make Internal",menu_cmd(make_internal, Id)}|common_image_menu(Id)].
 
 common_image_menu(Id) ->
@@ -171,42 +175,47 @@ command({edit_light,Id}, _) ->
 command({show_image,Id}, _) ->
     wings_image:window(Id),
     keep;
-command({revert_image,Id}, Ost) ->
-    revert_image(Id, Ost);
-command({duplicate_image,Id}, Ost) ->
-    duplicate_image(Id, Ost);
-command({rename_image,Id}, Ost) ->
-    rename_image(Id, Ost);
+command({refresh_image,Id}, _) ->
+    refresh_image(Id);
+command({duplicate_image,Id}, _) ->
+    duplicate_image(Id);
+command({rename_image,Id}, _) ->
+    rename_image(Id);
+command({make_internal,Id}, _) ->
+    make_internal(Id);
 command(Cmd, _) ->
     io:format("NYI: ~p\n", [Cmd]),
     keep.
 
-revert_image(_, _) ->
-    keep.
-
-duplicate_image(Id, Ost) ->
+duplicate_image(Id) ->
     #e3d_image{name=Name0} = Im = wings_image:info(Id),
     Name = copy_of(Name0),
     wings_image:new(Name, Im),
-    force_update(Ost),
     keep.
 
 copy_of("Copy of "++_=Name) -> Name;
 copy_of(Name) -> "Copy of "++Name.
 
-rename_image(Id, Ost) ->
+rename_image(Id) ->
     #e3d_image{name=Name0} = wings_image:info(Id),
     wings_ask:ask("Rename Image",
 		  [{Name0,Name0}],
 		  fun([Name]) when Name =/= Name0 ->
 			  wings_image:rename(Id, Name),
-			  force_update(Ost),
 			  ignore;
 		     (_) -> ignore
 		  end).
 
-force_update(#ost{st=St}) ->
-    wings_wm:send(outliner, {current_state,St}).
+refresh_image(_) ->
+    keep.
+
+make_internal(Id) ->
+    wings_image:update_filename(Id, none),
+    keep.
+
+%%%
+%%% Updating the state.
+%%%
 
 update_state(St, #ost{first=OldFirst}=Ost0) ->
     #ost{first=First0} = Ost = update_state_1(St, Ost0),
