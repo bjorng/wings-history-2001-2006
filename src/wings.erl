@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.230 2003/03/09 07:23:57 bjorng Exp $
+%%     $Id: wings.erl,v 1.231 2003/03/10 17:28:57 bjorng Exp $
 %%
 
 -module(wings).
@@ -644,13 +644,7 @@ info(#st{sel=[]}) -> [];
 info(St) ->
     case wings_wm:get_prop(show_info_text) of
 	false -> [];
-	true ->
-	    Self = wings_wm:active_window(),
-	    case wings_wm:actual_focus_window() of
-		Self -> info_1(St);
-		{_,Self} -> info_1(St);
-		_ -> []
-	    end
+	true -> info_1(St)
     end.
 	    
 info_1(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
