@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.112 2003/07/23 17:38:38 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.113 2003/08/12 13:46:53 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -414,6 +414,12 @@ current_command(#mi{sel=Sel,menu=Menu,ns=Names,owner=Owner})
 	    {build_command(Name, Names),have_option_box(Ps)};
 	{_,Fun,_,_,Ps} when is_function(Fun) ->
 	    Cmd = Fun(1, Names),
+	    case is_ascii_clean(Cmd) of
+		true -> {Cmd,have_option_box(Ps)};
+		false -> none
+	    end;
+	{_,{Name,Fun},_,_,Ps} when is_function(Fun) ->
+	    Cmd = Fun(1, [Name|Names]),
 	    case is_ascii_clean(Cmd) of
 		true -> {Cmd,have_option_box(Ps)};
 		false -> none
