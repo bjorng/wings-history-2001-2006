@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.12 2004/04/12 09:02:57 bjorng Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.13 2004/04/20 11:53:49 bjorng Exp $
 %%
 
 -module(e3d__tri_quad).
@@ -744,7 +744,7 @@ rotate_normal_to_z(Vs, Vcoords) ->
 
 rot_normal_to_z(N, Vcoords) ->
     Rotm = e3d_mat:rotate_to_z(N),
-    Vrot = [e3d_mat:mul_point(Rotm, P) || P <- Vcoords],
+    Vrot = [begin {X,Y,_} = e3d_mat:mul_point(Rotm, P), {X,Y} end || P <- Vcoords],
     list_to_tuple(Vrot).
 
 polygon_plane(Vs, Vcoords) ->
@@ -761,8 +761,7 @@ polygon_plane(Vs, Vcoords) ->
     end.
 
 coords2(A, Vtab) ->
-    {X,Y,_} = element(A+1, Vtab),
-    {X,Y}.
+    element(A+1, Vtab).
 
 dot2({Ax,Ay}, {Bx,By}) -> Ax*Bx + Ay*By.
 
@@ -797,7 +796,7 @@ segsintersect(IA, IB, IC, ID, Vtab) ->
     V = sub2(D,C),
     W = sub2(A,C),
     PP = perp2(U,V),
-    case (-1.0e-7 < PP) and (PP < 1.0e-7) of
+    case (-1.0e-7 < PP) andalso (PP < 1.0e-7) of
 	false ->
 	    SI = perp2(V,W) / PP,
 	    TI = perp2(U,W) / PP,
@@ -820,13 +819,21 @@ segsintersect(IA, IB, IC, ID, Vtab) ->
 
 
 %% element(I,T), but wrap I if necessary to stay in range 1..N
-welement(I, N, T) -> element(windex(I,N), T).
+welement(I, N, T) -> element(windex(I, N), T).
 
-windex(I, N) ->
-    if
-	I > 0 -> 1 + ((I-1) rem N);
-	true -> 1 + N + ((I-1) rem N)
-    end.
+windex(I, N) when I < 1 -> windex(I+N, N);
+windex(I, N) when I =< N -> I;
+windex(I, N) -> windex(I-N, N).
+    
+
+
+%     if
+% 	I =< 0 -> 1 + N + ((I-1) rem N);
+% 	I < N -> I 
+% 	I > 0 -> 1 + ((I-1) rem N);
+	
+		     
+%     end.
 
 -ifdef(TESTING).
 
