@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.15 2002/12/28 22:10:28 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.16 2002/12/29 07:19:17 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -55,7 +55,7 @@ sub_menu(_St) ->
 
 command(font, _St) ->
     Def = {font,get(?MODULE)},
-    Qs = [{vframe,fonts(Def)}],
+    Qs = [{vframe,{alt,fonts(),Def}}],
     wings_ask:dialog("Choose Font", Qs,
 		     fun([Font]) ->
 			     wings_pref:set_value(system_font, Font),
@@ -65,6 +65,6 @@ command(font, _St) ->
 			     ignore
 		     end).
 
-fonts(Def) ->
-    MatchSpec = ets:fun2ms(fun({Font,Desc}) -> {alt,Def,Desc,Font} end),
+fonts() ->
+    MatchSpec = ets:fun2ms(fun({Font,Desc}) -> {Desc,Font} end),
     ets:select(wings_fonts, MatchSpec).
