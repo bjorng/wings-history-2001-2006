@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.30 2004/12/16 15:42:04 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.31 2004/12/16 20:05:12 bjorng Exp $
 %%
 
 {wings,
@@ -89,7 +89,7 @@
     {4,". P.Medio ~s ~s ~s.\nMateriale ~s"}]},
   {patches,
    [{1,"Usa "}]},
-  {purgo_undo,
+  {purge_undo,
    [{1,"Stati di annullamento: "},
     {2,"Stati di ripristino: "},
     {3,"Nulla da rimuovere"},
@@ -146,9 +146,6 @@
    [{1,"Espande questa cornice; collassa le altre"},
     {2,"Espandi questa cornice"},
     {3,"Collassa questa cornice"}]},
-  {get_event,
-   [{1,"La finestra di dialogo per l' evento ~p si e' rotta~n"
-     "Con la ragione ~p~n"}]},
   {mktree,
    [{1,"Sfoglia"}]}]}.
 {wings_body,
@@ -382,9 +379,8 @@
     {4,"Il modulo di esportazione e' morto"}]}]}.
 {wings_extrude_edge,
  [{bevel_faces,
-   [{1,"L'oggetto e' troppo piccolo per essere smussato."}]},
-  {connect,
-   [{1,"Non posso estrudere/smussare. Prova a pulire l'oggetto con Pulisci."}]}]}.
+   [{1,"L'oggetto e' troppo piccolo per essere smussato."}]}
+ ]}.
 {wings_face_cmd,
  [{bridge,
    [{1,"Le facce devono avere lo stesso numero di vertici."},
@@ -891,7 +887,9 @@
     {2,"Raggio di influenza"},
     {3,"Opzioni per il magnete"}]},
   {drag_help,
-   [{1,"[+] o [-] Varia il raggio  "}]}]}.
+   [{1,"[+] o [-] Varia il raggio  "}]},
+  {info_string,
+   [{1,"Percorso magnete:"}]}]}.
 {wings_material,
  [{edit,
    [{1,"Proprieta' del materiale: "}]},
@@ -1547,9 +1545,6 @@
     {smooth,"arrotondata ombreggiatura"},
     {flat,"piana ombreggiatura"}]}
  ]}.
-{wings_util,
- [{magnet_string,
-   [{1,"Percorso magnete:"}]}]}.
 {wings_vec,
  [{add_help_text,
    [{1,"Scegli un asse (ed un punto)"},

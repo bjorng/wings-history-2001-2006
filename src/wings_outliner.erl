@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.54 2004/11/15 04:10:32 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.55 2004/12/16 20:05:12 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -77,8 +77,8 @@ event(resized, Ost) ->
 event(close, _) ->
     delete;
 event(got_focus, _) ->
-    Msg = wings_util:button_format(?STR(event,1,"Select"), [],
-				   ?STR(event,2,"Show outliner menu (if selection) or creation menu (if no selection)")),
+    Msg = wings_msg:button_format(?__(1,"Select"), [],
+				  ?__(2,"Show outliner menu (if selection) or creation menu (if no selection)")),
     wings_wm:message(Msg),
     wings_wm:dirty();
 event({current_state,St}, Ost0) ->
@@ -173,11 +173,11 @@ event(Ev, Ost) ->
 
 handle_drop({image,Id,_}, {material,Name,_,_}, {X0,Y0}, _Ost) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
-    Menu = [{?STR(handle_drop,1,"Texture Type"),ignore},
+    Menu = [{?__(1,"Texture Type"),ignore},
 	     separator,
-	    {?STR(handle_drop,2,"Diffuse"),tx_cmd(diffuse, Id, Name)},
-	    {?STR(handle_drop,3,"Gloss"),tx_cmd(gloss, Id, Name)},
-	    {?STR(handle_drop,4,"Bump"),tx_cmd(bump, Id, Name)}],
+	    {?__(2,"Diffuse"),tx_cmd(diffuse, Id, Name)},
+	    {?__(3,"Gloss"),tx_cmd(gloss, Id, Name)},
+	    {?__(4,"Bump"),tx_cmd(bump, Id, Name)}],
     wings_menu:popup_menu(X, Y, outliner, Menu);
 handle_drop(_, _, _, _) -> keep.
 
@@ -188,35 +188,37 @@ do_menu(-1, _, _, _) -> keep;
 do_menu(Act, X, Y, #ost{os=Objs}) ->
     Menu = case lists:nth(Act+1, Objs) of
 	       {material,Name,_,_} ->
-		   [{?STR(do_menu,1,"Edit Material..."),menu_cmd(edit_material, Name),
-		     ?STR(do_menu,2,"Edit material properties")},
-		    {?STR(do_menu,3,"Assign to Selection"),menu_cmd(assign_material, Name),
-		     ?STR(do_menu,4,"Assign the material to the selected faces or bodies")},
+		   [{?__(1,"Edit Material..."),menu_cmd(edit_material, Name),
+		     ?__(2,"Edit material properties")},
+		    {?__(3,"Assign to Selection"),menu_cmd(assign_material, Name),
+		     ?__(4,"Assign the material to the selected faces or bodies")},
 		    separator,
-		    {?STR(do_menu,5,"Select"),menu_cmd(select_material, Name),
-		     ?STR(do_menu,6,"Select all faces that have this material")},
+		    {?__(5,"Select"),menu_cmd(select_material, Name),
+		     ?__(6,"Select all faces that have this material")},
 		    separator,
-		    {?STR(do_menu,7,"Duplicate"),menu_cmd(duplicate_material, Name),
-		     ?STR(do_menu,8,"Duplicate this material")},
-		    {?STR(do_menu,9,"Delete"),menu_cmd(delete_material, Name),
-		     ?STR(do_menu,10,"Delete this material")},
-		    {?STR(do_menu,11,"Rename"),menu_cmd(rename_material, Name),
-		     ?STR(do_menu,12,"Rename this material")}];
+		    {?__(7,"Duplicate"),menu_cmd(duplicate_material, Name),
+		     ?__(8,"Duplicate this material")},
+		    {?__(9,"Delete"),menu_cmd(delete_material, Name),
+		     ?__(10,"Delete this material")},
+		    {?__(11,"Rename"),menu_cmd(rename_material, Name),
+		     ?__(12,"Rename this material")}];
 	       {object,Id,_} ->
-		   [{?STR(do_menu,13,"Duplicate"),menu_cmd(duplicate_object, Id),
-		     ?STR(do_menu,14,"Duplicate this object")},
-		    {?STR(do_menu,15,"Delete"),menu_cmd(delete_object, Id),
-		     ?STR(do_menu,16,"Delete this object")},
-		    {?STR(do_menu,17,"Rename"),menu_cmd(rename_object, Id),
-		     ?STR(do_menu,18,"Rename this object")}];
+		   [{?__(13,"Duplicate"),menu_cmd(duplicate_object, Id),
+		     ?__(14,"Duplicate this object")},
+		    {?__(15,"Delete"),menu_cmd(delete_object, Id),
+		     ?__(16,"Delete this object")},
+		    {?__(17,"Rename"),menu_cmd(rename_object, Id),
+		     ?__(18,"Rename this object")}];
 	       {light,Id,_} ->
-		   [{?STR(do_menu,19,"Edit Light..."),menu_cmd(edit_light, Id),
-		     ?STR(do_menu,20,"Edit light properties")},
+		   [{?__(19,"Edit Light..."),menu_cmd(edit_light, Id),
+		     ?__(20,"Edit light properties")},
 		    separator,
-		    {?STR(do_menu,21,"Duplicate"),menu_cmd(duplicate_object, Id),?STR(do_menu,22,"Duplicate this light")},
-		    {?STR(do_menu,23,"Delete"),menu_cmd(delete_object, Id),?STR(do_menu,24,"Delete this light")},
-		    {?STR(do_menu,25,"Rename"),menu_cmd(rename_object, Id),
-		     ?STR(do_menu,26,"Rename this light")}];
+		    {?__(21,"Duplicate"),menu_cmd(duplicate_object, Id),
+		     ?__(22,"Duplicate this light")},
+		    {?__(23,"Delete"),menu_cmd(delete_object, Id),
+		     ?__(24,"Delete this light")},
+		    {?__(25,"Rename"),menu_cmd(rename_object, Id),
+		     ?__(26,"Rename this light")}];
 	       {image,Id,Im} ->
 		   image_menu(Id, Im);
 	       ignore -> none;
@@ -228,23 +230,27 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
     end.
 
 image_menu(Id, Im) ->
-    [{?STR(image_menu,1,"Show"),menu_cmd(show_image, Id),
-	?STR(image_menu,2,"Show the image in a window")}|image_menu_1(Id, Im)].
+    [{?__(1,"Show"),menu_cmd(show_image, Id),
+      ?__(2,"Show the image in a window")}|image_menu_1(Id, Im)].
 
 %% Currently disabled.
 image_menu_1(Id, #e3d_image{filename=none}) ->
-    [{?STR(image_menu_1,1,"Make External..."),menu_cmd(make_external, Id)}|common_image_menu(Id)];
+    [{?__(1,"Make External..."),menu_cmd(make_external, Id)}|common_image_menu(Id)];
 image_menu_1(Id, _) ->
-    [{?STR(image_menu_1,2,"Refresh"),menu_cmd(refresh_image, Id)},
-     {?STR(image_menu_1,3,"Make Internal"),menu_cmd(make_internal, Id)}|common_image_menu(Id)].
+    [{?__(2,"Refresh"),menu_cmd(refresh_image, Id)},
+     {?__(3,"Make Internal"),menu_cmd(make_internal, Id)}|common_image_menu(Id)].
 
 common_image_menu(Id) ->
     [separator,
-     {?STR(common_image_menu,1,"Export..."),menu_cmd(export_image, Id),?STR(common_image_menu,2,"Export the image")},
+     {?__(1,"Export..."),menu_cmd(export_image, Id),
+      ?__(2,"Export the image")},
      separator,
-     {?STR(common_image_menu,3,"Duplicate"),menu_cmd(duplicate_image, Id),?STR(common_image_menu,4,"Duplicate selected image")},
-     {?STR(common_image_menu,5,"Delete"),menu_cmd(delete_image, Id),?STR(common_image_menu,6,"Delete selected image")},
-     {?STR(common_image_menu,7,"Rename"),menu_cmd(rename_image, Id),?STR(common_image_menu,8,"Rename selected image")}].
+     {?__(3,"Duplicate"),menu_cmd(duplicate_image, Id),
+      ?__(4,"Duplicate selected image")},
+     {?__(5,"Delete"),menu_cmd(delete_image, Id),
+      ?__(6,"Delete selected image")},
+     {?__(7,"Rename"),menu_cmd(rename_image, Id),
+      ?__(8,"Rename selected image")}].
 
 menu_cmd(Cmd, Id) ->
     {'VALUE',{Cmd,Id}}.
@@ -294,7 +300,7 @@ command({make_external,Id}, _) ->
 command({export_image,Id}, _) ->
     export_image(Id);
 command(Cmd, _) ->
-    io:format(?STR(command,1,"NYI: ~p\n"), [Cmd]),
+    io:format(?__(1,"NYI: ~p\n"), [Cmd]),
     keep.
 
 prop_get_delete(Key, List) ->
@@ -312,10 +318,10 @@ delete_image(Id, #ost{st=St}) ->
     Used = wings_material:used_images(St),
     case gb_sets:is_member(Id, Used) of
 	true ->
-	    wings_util:message(?STR(delete_image,1,"The image is used by a material.")),
+	    wings_util:message(?__(1,"The image is used by a material.")),
 	    keep;
 	false ->
-	    wings_util:yes_no(?STR(delete_image,2,"Are you sure you want to delete the image (NOT undoable)?"),
+	    wings_util:yes_no(?__(2,"Are you sure you want to delete the image (NOT undoable)?"),
 			      fun() ->
 				      wings_image:delete(Id),
 				      wings_wm:send(geom, need_save),
@@ -328,7 +334,7 @@ copy_of(Name) -> "Copy of "++Name.
 
 rename_image(Id) ->
     #e3d_image{name=Name0} = wings_image:info(Id),
-    wings_ask:ask(?STR(rename_image,1,"Rename Image"),
+    wings_ask:ask(?__(1,"Rename Image"),
 		  [{Name0,Name0}],
 		  fun([Name]) when Name =/= Name0 ->
 			  wings_image:rename(Id, Name),
@@ -351,7 +357,8 @@ make_external(Id) ->
 		   end
 	   end,
     #e3d_image{name=ImageName} = wings_image:info(Id),
-    Ps = [{extensions,wpa:image_formats()},{title,?STR(make_external,1,"Make External")},
+    Ps = [{extensions,wpa:image_formats()},
+	  {title,?__(1,"Make External")},
 	  {default_filename,ImageName}],
     wpa:export_filename(Ps, Save).
 
@@ -364,7 +371,7 @@ refresh_image(Id) ->
 	    keep;
 	{error,R} ->
 	    Msg = e3d_image:format_error(R),
-	    wings_util:message(?STR(refresh_image,1,"Failed to refresh \"") 
+	    wings_util:message(?__(1,"Failed to refresh \"") 
 			       ++ Filename ++ "\": " ++ Msg)
     end.
 
@@ -599,4 +606,4 @@ lines(#ost{lh=Lh}) ->
     H div Lh.
 
 title() ->
-    ?STR(title,1,"Outliner").
+    ?__(1,"Outliner").

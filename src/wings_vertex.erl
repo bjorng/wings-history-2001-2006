@@ -3,12 +3,12 @@
 %%
 %%     This module contains utility functions for vertices.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.48 2003/11/23 17:39:42 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.49 2004/12/16 20:05:15 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -224,7 +224,7 @@ bounding_box_1(Vs0, #we{vp=Vtab}=We, BB) ->
 do_bounding_box(Vs, #we{mirror=none}, BB) ->
     do_bounding_box_1(Vs, BB);
 do_bounding_box(Vs0, #we{id=Id}, BB) ->
-    Mtx = wings_util:mirror_matrix(Id),
+    Mtx = wings_dl:mirror_matrix(Id),
     Vs = foldl(fun(P0, A) -> 
 		       P = e3d_mat:mul_point(Mtx, P0),
 		       [P,P0|A]
@@ -276,7 +276,7 @@ flatten(Vs, PlaneNormal, Center, #we{vp=Vtab0}=We0) when is_list(Vs) ->
 			 flatten_move(V, Flatten, Tab0)
 		 end, Vtab0, Vs),
     We = We0#we{vp=Vtab},
-    wings_util:mirror_flatten(We0, We);
+    wings_we:mirror_flatten(We0, We);
 flatten(Vs, PlaneNormal, Center, We) ->
     flatten(gb_sets:to_list(Vs), PlaneNormal, Center, We).
 

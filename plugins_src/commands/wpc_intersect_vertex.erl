@@ -10,7 +10,7 @@
 %%
 %%  Contributed by elrond79.
 %%
-%%     $Id: wpc_intersect_vertex.erl,v 1.2 2004/10/29 05:24:48 bjorng Exp $
+%%     $Id: wpc_intersect_vertex.erl,v 1.3 2004/12/16 20:04:50 bjorng Exp $
 %%
 %%  2000-10-01:  Changed help text to incorporate suggestions by Puzzled Paul
 %%  2000-09-21:  Normalized LD and PN (so dot product not <.001 if either is very
@@ -128,7 +128,7 @@ intersect_body(Vs, #we{vp=Vtab0}=We0, #intersect_data{} = IntersectData) when is
   			 intersect_vertex(V, VTabAcc, IntersectData)
   		 end, Vtab0, Vs),
     We = We0#we{vp=Vtab},
-    wings_util:mirror_flatten(We0, We);
+    wings_we:mirror_flatten(We0, We);
 intersect_body(Vs, We, #intersect_data{} = IntersectData) ->
     intersect_body(gb_sets:to_list(Vs), We, IntersectData).
 

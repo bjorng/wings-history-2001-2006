@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.80 2004/12/06 07:52:34 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.81 2004/12/16 20:05:11 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -102,12 +102,12 @@ getting_started(Head) ->
 	 ?__(2,
 	      "The actions for the mouse buttons are given first, labeled "),
 
-	 wings_util:button_format(B++?__(left_def,
+	 wings_msg:button_format(B++?__(left_def,
 					  "left mouse button")++E),
-	 wings_util:button_format([],
+	 wings_msg:button_format([],
 				  B++?__(middle_def,
 					  "middle button or scroll wheel")++E),
-	 wings_util:button_format([],
+	 wings_msg:button_format([],
 				  B++?__(right_def,
 					  "right button")++E),
 
@@ -484,7 +484,7 @@ handle_splash_event(lost_focus) -> keep;
 handle_splash_event(_) -> delete.
 
 message() ->
-    wings_util:button_message(?__(1,"Close help window")),
+    wings_msg:button(?__(1,"Close help window")),
     keep.
 
 splash_size() ->

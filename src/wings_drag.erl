@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.188 2004/12/16 15:42:04 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.189 2004/12/16 20:05:09 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -323,12 +323,12 @@ gl_rescale_normal() ->
     end.
 
 help_message(#drag{unit=Unit,mode_fun=ModeFun,mode_data=ModeData}) ->
-    Accept = wings_util:button_format(wings_s:accept()),
+    Accept = wings_msg:button_format(wings_s:accept()),
     ZMsg = zmove_help(Unit),
-    Cancel = wings_util:button_format([], [],wings_s:cancel()),
+    Cancel = wings_msg:button_format([], [],wings_s:cancel()),
     NumEntry = ?__(1,"Numeric entry"),
     Tab = wings_util:key_format("[Tab]", NumEntry),
-    Msg = wings_util:join_msg([Accept,ZMsg,Cancel,Tab]),
+    Msg = wings_msg:join([Accept,ZMsg,Cancel,Tab]),
     MsgRight = ModeFun(help, ModeData),
     wings_wm:message(Msg, MsgRight).
 
@@ -342,9 +342,9 @@ zmove_help([_,_,_|_]) ->
 
 zmove_help_1(Msg) ->
     case wings_pref:get_value(camera_mode) of
-	tds -> wings_camera:mod_format(?CTRL_BITS, 3, Msg);
-	blender -> wings_camera:mod_format(?CTRL_BITS, 3, Msg);
-	_ -> wings_camera:mod_format(0, 2, Msg)
+	tds -> wings_msg:mod_format(?CTRL_BITS, 3, Msg);
+	blender -> wings_msg:mod_format(?CTRL_BITS, 3, Msg);
+	_ -> wings_msg:mod_format(0, 2, Msg)
     end.
 
 get_drag_event(Drag) ->
@@ -588,7 +588,7 @@ mouse_range(#mousemotion{x=X0,y=Y0,state=Mask},
 		  unit_sc=UnitScales}=Drag) ->
     %%io:format("Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xs0,Ys0}]),
     {X,Y} = wings_wm:local2global(X0, Y0),
-    case wings_util:lowpass(X- OX, Y-OY) of
+    case wings_pref:lowpass(X- OX, Y-OY) of
 	{0,0} ->
 	    {mouse_scale([Xs0,-Ys0,-Zs0], UnitScales),
 	     Drag#drag{xt=0,yt=0}};

@@ -10,7 +10,7 @@
 %%
 %%  Contributed by elrond79.
 %%
-%%     $Id: wpc_intersect_edge.erl,v 1.2 2004/10/29 05:23:56 bjorng Exp $
+%%     $Id: wpc_intersect_edge.erl,v 1.3 2004/12/16 20:04:50 bjorng Exp $
 %%
 %%  2000-10-09:  Fixed undo bug (had forgotten to use "{save_state, ...}")
 %%  2000-10-01:  Incorporated help text suggestions from Puzzled Paul
@@ -145,7 +145,7 @@ validateSelAcc([SelEdge|OtherSelEdges], EdgeTab, VertexAcc) ->
 intersect_body(Edges, Plane, Center, #we{es=EdgeTab,vp=VertPosTab0}=We0) when is_list(Edges) ->
     VertPosTab = intersect_edges(Plane, Center, EdgeTab, VertPosTab0, Edges),
     We = We0#we{vp = VertPosTab},
-    wings_util:mirror_flatten(We0, We);
+    wings_we:mirror_flatten(We0, We);
 intersect_body(Edges, Plane, Center, We) ->
     intersect_body(gb_sets:to_list(Edges), Plane, Center, We).
 

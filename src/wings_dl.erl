@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dl.erl,v 1.2 2004/12/16 16:20:32 bjorng Exp $
+%%     $Id: wings_dl.erl,v 1.3 2004/12/16 20:05:09 bjorng Exp $
 %%
 
 -module(wings_dl).
@@ -17,7 +17,7 @@
 -export([init/0,delete_dlists/0,
 	 update/2,map/2,fold/2,changed_materials/1,
 	 display_lists/0,
-	 call/1]).
+	 call/1,mirror_matrix/1]).
 
 %%% This module manages display lists for all objects in a Geometry
 %%% or AutoUV window.
@@ -151,6 +151,14 @@ call({call_in_this_win,Win,Dl}) ->
 call([H|T]) -> call(H), call(T);
 call([]) -> ok;
 call(Dl) when is_integer(Dl) -> gl:callList(Dl).
+
+%% mirror_matrix(Id)
+%%  Return the mirror matrix for the object having id Id.
+
+mirror_matrix(Id) -> fold(fun mirror_matrix/2, Id).
+
+mirror_matrix(#dlo{mirror=Matrix,src_we=#we{id=Id}}, Id) -> Matrix;
+mirror_matrix(_, Acc) -> Acc.
 
 %%%
 %%% Local functions.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.47 2004/12/16 15:42:05 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.48 2004/12/16 20:05:14 bjorng Exp $
 %%
 
 {wings,
@@ -89,7 +89,7 @@
     {4,". Medelpunkt ~s ~s ~s.\nMaterial ~s"}]},
   {patches,
    [{1,"Använd "}]},
-  {purgo_undo,
+  {purge_undo,
    [{1,"Ångrade kommandon: "},
     {2,"Upprepade kommandon: "},
     {3,"Inget att rensa"},
@@ -960,7 +960,10 @@
     {2,"Influensradie"},
     {3,"Magnetval"}]},
   {drag_help,
-   [{1,"[+] eller [-] Justera radie  "}]}]}.
+   [{1,"[+] eller [-] Justera radie  "}]},
+  {info_string,
+   [{1,"Magnetväg:"}]}
+ ]}.
 {wings_material,
  [
   {edit,
@@ -1659,10 +1662,6 @@
     {smooth,"jämn skuggning"},
     {flat,"platt skuggning"}]}
  ]}.
-{wings_util,
- [
-  {magnet_string,
-   [{1,"Magnet väg:"}]}]}.
 {wings_vec,
  [
   {add_help_text,

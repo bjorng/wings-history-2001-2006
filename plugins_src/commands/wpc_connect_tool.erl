@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.9 2004/11/17 11:50:43 bjorng Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.10 2004/12/16 20:04:50 bjorng Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -344,16 +344,16 @@ obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
 %     glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
 
 help(#cs{v=[]}) ->
-    Msg1 = wings_util:button_format("Select vertex or cut edge [press button to slide]"),
+    Msg1 = wings_msg:button_format("Select vertex or cut edge [press button to slide]"),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_util:button_format([], [], "Exit Connect"),
-    Msg = wings_util:join_msg([Msg1,Msg2,Msg3]),
+    Msg3 = wings_msg:button_format([], [], "Exit Connect"),
+    Msg = wings_msg:join([Msg1,Msg2,Msg3]),
     wings_wm:message(Msg, "");
 help(_) ->
-    Msg1 = wings_util:button_format("Connects edge/vertex [reselect last vertex to end]"),
+    Msg1 = wings_msg:button_format("Connects edge/vertex [reselect last vertex to end]"),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_util:button_format([], [], "Exit Connect"),
-    Msg = wings_util:join_msg([Msg1,Msg2,Msg3]),
+    Msg3 = wings_msg:button_format([], [], "Exit Connect"),
+    Msg = wings_msg:join([Msg1,Msg2,Msg3]),
     wings_wm:message(Msg, "").
 
 fake_selection(St) ->

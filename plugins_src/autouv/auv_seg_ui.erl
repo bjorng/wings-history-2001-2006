@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.26 2004/11/21 10:19:33 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.27 2004/12/16 20:04:47 bjorng Exp $
 %%
 
 -module(auv_seg_ui).
@@ -50,10 +50,10 @@ start(#we{id=Id}=We0, OrigWe, St0) ->
     get_seg_event(Ss).
 
 seg_init_message(Ss) ->
-    Msg1 = wings_util:button_format("Select"),
+    Msg1 = wings_msg:button_format("Select"),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_util:button_format([], [], "Show menu"),
-    Msg = wings_util:join_msg([Msg1,Msg2,Msg3]),
+    Msg3 = wings_msg:button_format([], [], "Show menu"),
+    Msg = wings_msg:join([Msg1,Msg2,Msg3]),
     Ss#seg{msg=Msg}.
 
 get_seg_event(#seg{st=St}=Ss) ->

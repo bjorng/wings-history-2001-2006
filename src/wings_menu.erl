@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.129 2004/11/17 15:28:17 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.130 2004/12/16 20:05:12 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -274,7 +274,7 @@ norm_help_adv({T,N,Hot,{Hl,Hm,[]},Ps}=Item, _) ->
     case have_option_box(Ps) of
 	false -> Item;
 	true ->
-	    Hr = ?STR(norm_help_adv, 1, "Open option dialog"),
+	    Hr = ?__(1, "Open option dialog"),
 	    {T,N,Hot,{Hl,Hm,Hr},Ps}
     end.
 
@@ -556,7 +556,7 @@ popup_submenu(Button, X0, Y0, SubName, SubMenu0,
     end.
 
 update_flags(Mod, Mi) ->
-    case wings_camera:free_rmb_modifier() of
+    case wings_msg:free_rmb_modifier() of
 	RmbMod when Mod band RmbMod =/= 0 ->
 	    Mi#mi{flags=[magnet]};
 	_ ->
@@ -832,7 +832,7 @@ help_text(#mi{menu=Menu,sel=Sel}=Mi) ->
 
 help_text_1({Text,{Sub,_},_,_,_}, #mi{adv=false}) when Sub =/= 'VALUE' ->
     %% No specific help text for submenus in basic mode.
-    Help = [Text|?STR(help_text_1,1," submenu")],
+    Help = [Text|?__(1," submenu")],
     wings_wm:message(Help, "");
 help_text_1({_,{Name,Fun},_,_,Ps}, #mi{ns=Ns}=Mi)
   when is_function(Fun) ->
@@ -846,7 +846,7 @@ help_text_1({_,_,_,Help0,Ps}, Mi) ->
     magnet_help(Help, Ps, Mi);
 help_text_1(separator, _) -> ok.
 
-help_text_2({S1,S2,S3}) -> wings_util:button_format(S1, S2, S3);
+help_text_2({S1,S2,S3}) -> wings_msg:button_format(S1, S2, S3);
 help_text_2(Help) -> Help.
 
 magnet_help(Msg0, Ps, #mi{flags=Flags}) ->
@@ -856,15 +856,15 @@ magnet_help(Msg0, Ps, #mi{flags=Flags}) ->
 	true ->
 	    case have_magnet(Flags) of
 		false ->
-		    ModRmb = wings_camera:free_rmb_modifier(),
-		    ModName = wings_camera:mod_name(ModRmb),
+		    ModRmb = wings_msg:free_rmb_modifier(),
+		    ModName = wings_msg:mod_name(ModRmb),
 		    MagMsg = [ModName,$+,
-			      ?STR(magnet_help,2,"Click for Magnet")],
-		    Msg = wings_util:join_msg(Msg0, MagMsg),
+			      ?__(2,"Click for Magnet")],
+		    Msg = wings_msg:join(Msg0, MagMsg),
 		    wings_wm:message(Msg);
 		true ->
-		    Msg = wings_util:join_msg(Msg0,
-					      wings_util:magnet_string()),
+		    Msg = wings_msg:join(Msg0,
+					 wings_magnet:info_string()),
 		    wings_wm:message(Msg, "")
 	    end
     end.
@@ -959,7 +959,7 @@ have_magnet(Ps) ->
 
 get_hotkey(Cmd, Mi) ->
     wings_wm:dirty(),
-    wings_wm:message(?STR(get_hotkey,1,"Press key to bind command to.")),
+    wings_wm:message(?__(1,"Press key to bind command to.")),
     {push,fun(Ev) ->
 		  handle_key_event(Ev, Cmd, Mi)
 	  end}.
@@ -975,8 +975,8 @@ handle_key_event(#keyboard{}=Ev, Cmd, Mi) ->
 	next -> do_bind(Win, Ev, Cmd, Mi);
 	OtherCmd ->
 	    C = wings_util:stringify(OtherCmd),
-	    Q = ?STR(handle_key_event,1,"This key is already bound to the ") ++ C ++
-		?STR(handle_key_event,2," command. Do you want to re-define it?"),
+	    Q = ?__(1,"This key is already bound to the ") ++ C ++
+		?__(2," command. Do you want to re-define it?"),
 	    wings_util:yes_no(Q, fun() -> do_bind(Win, Ev, Cmd, Mi) end)
     end,
     pop;

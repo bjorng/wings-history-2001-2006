@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.12 2004/11/17 15:28:17 bjorng Exp $
+%%     $Id: wings_palette.erl,v 1.13 2004/12/16 20:05:12 bjorng Exp $
 %%
 -module(wings_palette).
 
@@ -65,7 +65,7 @@ window(Pos, {W,_}=Size, St) ->
     wings_wm:dirty().
 
 title() ->
-    ?STR(title,1,"Palette").
+    ?__(1,"Palette").
 
 palette(#st{pal=[]}) -> [];
 palette(#st{pal=Pal0}) ->
@@ -134,14 +134,14 @@ event({set_knob_pos, Pos}, Pst = #pst{h=N,knob=Knob}) ->
 event(close, _) ->
     delete;
 event(got_focus, _) ->
-    L = wings_util:button_format(?STR(event,1,"Assign color to selection")),
-    MR = wings_util:button_format([],
-				  ?STR(event,2,"Edit color"),
-				  ?STR(event,3,"Show menu")),
-    Mods = wings_camera:free_modifier(),
-    ModName = wings_camera:mod_name(Mods),
-    CL = [ModName,$+,wings_util:button_format(?STR(event,4,"Clear color"))],
-    Msg = wings_util:join_msg([L,CL,MR]),
+    L = wings_msg:button_format(?__(1,"Assign color to selection")),
+    MR = wings_msg:button_format([],
+				 ?__(2,"Edit color"),
+				 ?__(3,"Show menu")),
+    Mods = wings_msg:free_modifier(),
+    ModName = wings_msg:mod_name(Mods),
+    CL = [ModName,$+,wings_msg:button_format(?__(4,"Clear color"))],
+    Msg = wings_msg:join([L,CL,MR]),
     wings_wm:message(Msg),
     wings_wm:dirty();
 
@@ -177,7 +177,7 @@ event(#mousemotion{state=Bst,x=X,y=Y,mod=Mod}=Ev, #pst{sel=Sel,cols=Cols}=Pst)
 event(#mousebutton{button=Butt,x=X,y=Y,mod=Mod,state=?SDL_PRESSED},
       #pst{cols=Cols0}=Pst) 
   when Butt =:= 1; Butt =:= 2 ->
-    case Mod band wings_camera:free_modifier() =/= 0 of
+    case Mod band wings_msg:free_modifier() =/= 0 of
 	false ->
 	    get_event(Pst#pst{sel=select(X,Y,Pst)});
 	true when Butt =:= 1 ->
@@ -291,20 +291,20 @@ update_scroller(First,Visible,Total) ->
     wings_wm:set_knob(Name, First/Total, Visible/Total).
 
 do_menu(Id,X,Y,#pst{cols=Cols}) ->    
-    Menu = [{?STR(do_menu,1,"Edit"),{'VALUE',{edit,Id}},?STR(do_menu,2,"Edit color")}],
+    Menu = [{?__(1,"Edit"),{'VALUE',{edit,Id}},?__(2,"Edit color")}],
     Smooth = case lists:nth(Id+1, Cols) of
 		 none ->
-		     [{?STR(do_menu,3,"Interpolate"),{'VALUE',{smooth,Id}}, 
-		       ?STR(do_menu,4,"Interpolate Empty Colors")}];
+		     [{?__(3,"Interpolate"),{'VALUE',{smooth,Id}}, 
+		       ?__(4,"Interpolate Empty Colors")}];
 		 _ -> []
 	     end,
     Rest = [separator,
-	    {?STR(do_menu,5,"Clear All"), clear_all,?STR(do_menu,6,"Clear palette")},
-	    {?STR(do_menu,7,"Compact"), compact,?STR(do_menu,8,"Compact Palette")},
-	    {?STR(do_menu,9,"Scan Colors"), scan_all, ?STR(do_menu,10,"Scan colors from selected objects")},
+	    {?__(5,"Clear All"), clear_all,?__(6,"Clear palette")},
+	    {?__(7,"Compact"), compact,?__(8,"Compact Palette")},
+	    {?__(9,"Scan Colors"), scan_all, ?__(10,"Scan colors from selected objects")},
 	    separator,
-	    {?STR(do_menu,11,"Export"), export,?STR(do_menu,12,"Export palette to file")},
-	    {?STR(do_menu,13,"Import"), import,?STR(do_menu,14,"Import palette from file")}],
+	    {?__(11,"Export"), export,?__(12,"Export palette to file")},
+	    {?__(13,"Import"), import,?__(14,"Import palette from file")}],
     wings_menu:popup_menu(X,Y,palette,Menu ++ Smooth ++ Rest).
 
 command(clear_all, Pst = #pst{w=W,h=H}) ->
@@ -322,10 +322,10 @@ command({smooth,Id}, Pst = #pst{cols=Cols0}) ->
     {AC, Aft1} = del_empty(After0),
     case interpolate(Bef1,Aft1,AC+BC) of
 	no_start -> 
-	    wings_util:message(?STR(command,1,"No start color found.")),
+	    wings_util:message(?__(1,"No start color found.")),
 	    keep;
 	no_end -> 
-	    wings_util:message(?STR(command,2,"No end color found.")),
+	    wings_util:message(?__(2,"No end color found.")),
 	    keep;
 	IntCols ->
 	    Cols = reverse(Bef1) ++ IntCols ++ Aft1,
@@ -347,13 +347,13 @@ command(scan_all, #pst{st=St, cols=Cols}) ->
 
 command(export, #pst{cols=Cols}) ->
     Dir = wings_pref:get_value(current_directory),
-    Ps = [{title,?STR(command,3,"Export")},{directory,Dir},
-	  {ext,".wpal"},{ext_desc,?STR(command,5,"Wings Palette")}],
+    Ps = [{title,?__(3,"Export")},{directory,Dir},
+	  {ext,".wpal"},{ext_desc,?__(5,"Wings Palette")}],
     Fun = fun(Name) ->
 		  case write_file(Name, Cols) of
 		      ok -> keep;
 		      {error,Reason} ->
-			  Msg = io_lib:format(?STR(command,6,"Export error: ~w"), [Reason]),
+			  Msg = io_lib:format(?__(6,"Export error: ~w"), [Reason]),
 			  wings_util:message(Msg),
 			  keep
 		  end
@@ -362,8 +362,8 @@ command(export, #pst{cols=Cols}) ->
 
 command(import, #pst{cols=Cols0}) ->
     Dir = wings_pref:get_value(current_directory),
-    Ps = [{title,?STR(command,7,"Import")},{directory,Dir},
-	  {ext,".wpal"},{ext_desc,?STR(command,9,"Wings Palette")}],
+    Ps = [{title,?__(7,"Import")},{directory,Dir},
+	  {ext,".wpal"},{ext_desc,?__(9,"Wings Palette")}],
     Fun = fun(Name) ->
 		  case file:consult(Name) of
 		      {ok,Content} -> 
@@ -373,13 +373,13 @@ command(import, #pst{cols=Cols0}) ->
 				  wings_wm:send(palette, {new_color,Cols}),		  
 				  keep;
 			      _ ->
-				  Reason = ?STR(command,10,"No palette found"),
-				  Msg = io_lib:format(?STR(command,11,"Import error: ~w"), [Reason]),
+				  Reason = ?__(10,"No palette found"),
+				  Msg = io_lib:format(?__(11,"Import error: ~w"), [Reason]),
 				  wings_util:message(Msg),
 				  keep
 			  end;
 		      {error,Reason} ->
-			  Msg = io_lib:format(?STR(command,12,"Import error: ~w"), [Reason]),
+			  Msg = io_lib:format(?__(12,"Import error: ~w"), [Reason]),
 			  wings_util:message(Msg),
 			  keep
 		  end

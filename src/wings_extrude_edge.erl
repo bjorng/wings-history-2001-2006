@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.62 2004/12/16 08:04:36 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.63 2004/12/16 20:05:10 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -479,7 +479,7 @@ connect_inner({new,Va}, [Va,Vb,{new,Vb}], N, Face, ExtrudeDist, We0) ->
     Pos2 = e3d_vec:add_prod(APos, e3d_vec:cross(Vec, N), ExtrudeDist),
     We4 = wings_edge:dissolve_edge(TempE, We3),
     {We,_} = wings_edge:fast_cut(NewE, Pos2, We4),
-    wings_util:validate(We),
+    wings_we_util:validate(We),
     We;
 connect_inner({new,V}, [V|[B,C,_|_]=Next], N, Face, ExtrudeDist, We0) ->
     {We1,Current} = connect_one_inner(V, V, B, C, N, Face, ExtrudeDist, We0),

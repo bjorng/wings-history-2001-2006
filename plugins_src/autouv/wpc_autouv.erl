@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.274 2004/11/21 10:18:36 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.275 2004/12/16 20:04:47 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -449,7 +449,7 @@ handle_event(revert_state, St) ->
 handle_event(Ev, St) ->
     case wings_camera:event(Ev, fun() -> redraw(St) end) of
 	next ->
-	    FreeLmbMod = wings_camera:free_lmb_modifier(),
+	    FreeLmbMod = wings_msg:free_lmb_modifier(),
 	    handle_event_1(Ev, St, FreeLmbMod);
 	Other -> 
 	    Other
@@ -553,19 +553,19 @@ handle_event_3({action,Ev}, St) ->
 	    keep
     end;
 handle_event_3(got_focus, _) ->
-    Msg1 = wings_util:button_format("Select"),
+    Msg1 = wings_msg:button_format("Select"),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_util:button_format([], [], "Show menu"),
-    FreeMod = wings_camera:free_lmb_modifier(),
-    ModName = wings_camera:mod_name(FreeMod),
+    Msg3 = wings_msg:button_format([], [], "Show menu"),
+    FreeMod = wings_msg:free_lmb_modifier(),
+    ModName = wings_msg:mod_name(FreeMod),
     Move0 = "Move selected",
     Move = if
 	       (FreeMod band ?CTRL_BITS) =/= 0 ->
 		   [Move0," (release ",ModName," after clicking L)"];
 	       true -> Move0
 	   end,
-    Msg4 = [ModName,$+,wings_util:button_format(Move)],
-    Message = wings_util:join_msg([Msg1,Msg2,Msg3,Msg4]),
+    Msg4 = [ModName,$+,wings_msg:button_format(Move)],
+    Message = wings_msg:join([Msg1,Msg2,Msg3,Msg4]),
     wings_wm:message(Message, ""),
     wings_wm:dirty();
 handle_event_3(_Event, _) ->

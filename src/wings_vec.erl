@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.110 2004/12/06 07:59:32 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.111 2004/12/16 20:05:15 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -98,19 +98,19 @@ common_message(Msg, More, MagnetPossible, Right) ->
 	      [] -> ?__(1,"Execute");
 	      [_|_] ->?__(2,"Continue")
 	  end,
-    Message = wings_util:join_msg(wings_util:button_format(Msg, [], Rmb),
-				  common_magnet_message(MagnetPossible)),
+    Message = wings_msg:join(wings_msg:button_format(Msg, [], Rmb),
+			     common_magnet_message(MagnetPossible)),
     wings_wm:message(Message, Right).
 
 common_magnet_message(no) -> [];
 common_magnet_message(inactive) ->
-    [$\s,wings_util:rmb_format(?__(1,"Magnet"))];
+    [$\s,wings_msg:rmb_format(?__(1,"Magnet"))];
 common_magnet_message(active) ->
-    ["  "|wings_util:magnet_string()].
+    ["  "|wings_magnet:info_string()].
 
 magnet_message(Msg, Right) ->
-    Message = wings_util:join_msg(wings_util:button_format(Msg, [], ?__(1,"Execute ")),
-	     wings_util:rmb_format(?__(2,"Magnet options"))),
+    Message = wings_msg:join(wings_msg:button_format(Msg, [], ?__(1,"Execute ")),
+			     wings_msg:rmb_format(?__(2,"Magnet options"))),
     wings_wm:message(Message, Right).
 
 mode_restriction(Modes, #st{selmode=Mode}=St) ->
@@ -347,7 +347,7 @@ exit_menu(X, Y, Mod, #ss{f=Exit,vec=Vec}=Ss, St) ->
 common_exit(_, none, _, _, _, _, _) ->
     error;
 common_exit(Type, Vec, Mod, More, Acc, inactive, _St) ->
-    RmbMod = wings_camera:free_rmb_modifier(),
+    RmbMod = wings_msg:free_rmb_modifier(),
     if
 	Mod band RmbMod =:= 0 ->
 	    common_exit_1(Type, Vec, More, Acc);
@@ -547,7 +547,7 @@ kill_mirror_1([], Acc) ->
 %%%
 
 exit_magnet(Vec, Mod, Acc) ->
-    case wings_camera:free_rmb_modifier() of
+    case wings_msg:free_rmb_modifier() of
 	ModRmb when Mod band ModRmb =/= 0 ->
 	    Fun = fun(Mag) ->
 			  {[],[Mag|Acc]}

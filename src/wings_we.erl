@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.84 2004/12/16 16:06:22 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.85 2004/12/16 20:05:16 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -28,7 +28,7 @@
 	 new_items/3,
 	 is_consistent/1,is_face_consistent/2,
 	 hide_faces/2,show_faces/1,any_hidden/1,visible/1,visible/2,
-	 validate_mirror/1]).
+	 validate_mirror/1,mirror_flatten/2]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -168,6 +168,21 @@ validate_mirror(#we{fs=Ftab,mirror=Face}=We) ->
 	false -> We#we{mirror=none};
 	true -> We
     end.
+
+mirror_flatten(_, #we{mirror=none}=We) -> We;
+mirror_flatten(#we{mirror=OldFace}=OldWe, #we{mirror=Face,vp=Vtab0}=We) ->
+    PlaneNormal = wings_face:normal(OldFace, OldWe),
+    FaceVs = wings_face:to_vertices(gb_sets:singleton(OldFace), OldWe),
+    Origin = wings_vertex:center(FaceVs, OldWe),
+    M0 = e3d_mat:translate(Origin),
+    M = e3d_mat:mul(M0, e3d_mat:project_to_plane(PlaneNormal)),
+    Flatten = e3d_mat:mul(M, e3d_mat:translate(e3d_vec:neg(Origin))),
+    Vtab = foldl(fun(V, Vt) ->
+			 Pos0 = gb_trees:get(V, Vt),
+			 Pos = e3d_mat:mul_point(Flatten, Pos0),
+			 gb_trees:update(V, Pos, Vt)
+		 end, Vtab0, wings_face:vertices_ccw(Face, We)),
+    We#we{vp=Vtab}.
     
 %%%
 %%% Build Winged-Edges.
@@ -893,7 +908,7 @@ new_items_2(_Wid, _NewWid, _Tab, Acc) ->
     gb_sets:from_ordset(reverse(Acc)).
 
 %%%
-%%% Test if a winged-edge record is consistent.
+%%% Test the consistency of a #we{}.
 %%%
 
 is_consistent(#we{}=We) ->

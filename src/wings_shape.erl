@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.75 2004/11/14 13:47:26 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.76 2004/12/16 20:05:14 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -229,7 +229,7 @@ event(Ev, Ost) ->
 
 help(-1, _) -> wings_wm:message("");
 help(_, name) ->
-    wings_util:button_message(?STR(help,1,"Select"), [],?STR(help,2,"Show menu"));
+    wings_msg:button(?STR(help,1,"Select"), [],?STR(help,2,"Show menu"));
 help(_, visibility) ->
     help_1(?STR(help,3,"Toggle visibility of active object"),
 	   ?STR(help,4,"Toggle visibility of all other objects"));
@@ -244,7 +244,7 @@ help(_, wire) ->
 	   ?STR(help,10,"Toggle shaded/wireframe for all other objects")).
 
 help_1(OneMsg, ThreeMsg) ->
-    wings_util:button_message(OneMsg, [], ThreeMsg).
+    wings_msg:button(OneMsg, [], ThreeMsg).
 
 command({delete_object,Id}, _) ->
     send_client({action,{body,{delete_object,[Id]}}});

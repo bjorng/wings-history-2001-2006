@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.326 2004/11/22 19:13:11 bjorng Exp $
+%%     $Id: wings.erl,v 1.327 2004/12/16 20:05:07 bjorng Exp $
 %%
 
 -module(wings).
@@ -50,14 +50,14 @@ halt_loop(Wings) ->
 	{'EXIT',Wings,{window_crash,Name,Reason}} ->
 	    Log = wings_util:crash_log(Name, Reason),
 	    io:format("\n\n"),
-	    io:format(?STR(halt_loop,1,"Fatal internal error - log written to ~s\n"),
+	    io:format(?__(1,"Fatal internal error - log written to ~s\n"),
 		      [Log]),
 	    ok;
 	{'EXIT',Wings,Reason} ->
-	    Log = wings_util:crash_log(?STR(halt_loop,2,"<Unknown Window Name>"),
+	    Log = wings_util:crash_log(?__(2,"<Unknown Window Name>"),
 				       Reason),
 	    io:format("\n\n"),
-	    io:format(?STR(halt_loop,3,"Fatal internal error - log written to ~s\n"),
+	    io:format(?__(3,"Fatal internal error - log written to ~s\n"),
 		      [Log]),
 	    ok;
 	_Other ->				%Can't happen.
@@ -360,10 +360,10 @@ handle_event_3(need_save, St) ->
 handle_event_3({new_default_command,DefCmd}, St) ->
     main_loop_noredraw(St#st{def=DefCmd});
 handle_event_3(got_focus, _) ->
-    Msg1 = wings_util:button_format(?STR(handle_event_3,1,"Select")),
+    Msg1 = wings_msg:button_format(?__(1,"Select")),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_util:button_format([], [], ?STR(handle_event_3,2,"Show menu")),
-    Message = wings_util:join_msg([Msg1,Msg2,Msg3]),
+    Msg3 = wings_msg:button_format([], [], ?__(2,"Show menu")),
+    Message = wings_msg:join([Msg1,Msg2,Msg3]),
     wings_wm:message(Message),
     wings_wm:dirty();
 handle_event_3(lost_focus, _) -> keep;
@@ -560,7 +560,7 @@ command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,
     end;
 command({edit,repeat_drag}, St) -> St;
 command({edit,purge_undo}, St) ->
-    purgo_undo(St);
+    purge_undo(St);
 command({edit,confirmed_purge_undo}, St) ->
     wings_undo:init(St);
 command({edit,enable_patches}, St) ->
@@ -662,46 +662,46 @@ popup_menu(X, Y, #st{selmode=Mode}=St) ->
     end.
 
 init_menubar() ->
-   Menus = [{?STR(init_menubar,1,"File"),file,fun(St) -> wings_file:menu(St) end},
-          {?STR(init_menubar,2,"Edit"),edit,fun edit_menu/1},
-          {?STR(init_menubar,3,"View"),view,fun(St) -> wings_view:menu(St) end},
-          {?STR(init_menubar,4,"Select"),select,fun(St) -> wings_sel_cmd:menu(St) end},
-          {?STR(init_menubar,5,"Tools"),tools,fun tools_menu/1},
-          {?STR(init_menubar,6,"Window"),window,fun window_menu/1},
-          {?STR(init_menubar,7,"Help"),help,fun(St) -> wings_help:menu(St) end}],
+    Menus = [{?__(1,"File"),file,fun(St) -> wings_file:menu(St) end},
+          {?__(2,"Edit"),edit,fun edit_menu/1},
+          {?__(3,"View"),view,fun(St) -> wings_view:menu(St) end},
+          {?__(4,"Select"),select,fun(St) -> wings_sel_cmd:menu(St) end},
+          {?__(5,"Tools"),tools,fun tools_menu/1},
+          {?__(6,"Window"),window,fun window_menu/1},
+          {?__(7,"Help"),help,fun(St) -> wings_help:menu(St) end}],
     put(wings_menu_template, Menus).
 
 edit_menu(St) ->
-    UndoInfo = lists:flatten([?STR(edit_menu,1,
+    UndoInfo = lists:flatten([?__(1,
 				   "Delete undo history to reclaim memory"),
 			      " (",undo_info(St),")"]),
-    [{?STR(edit_menu,3,"Undo/Redo"),undo_toggle,
-      ?STR(edit_menu,4,"Undo or redo the last command")},
-     {?STR(edit_menu,5,"Redo"),redo,
-      ?STR(edit_menu,6,"Redo the last command that was undone")},
-     {?STR(edit_menu,7,"Undo"),undo,
-      ?STR(edit_menu,8,"Undo the last command")},
+    [{?__(3,"Undo/Redo"),undo_toggle,
+      ?__(4,"Undo or redo the last command")},
+     {?__(5,"Redo"),redo,
+      ?__(6,"Redo the last command that was undone")},
+     {?__(7,"Undo"),undo,
+      ?__(8,"Undo the last command")},
      separator,
-     {command_name(?STR(edit_menu,9,"Repeat"), St),repeat},
-     {command_name(?STR(edit_menu,10,"Repeat Args"), St),repeat_args},
-     {command_name(?STR(edit_menu,11,"Repeat Drag"), St),repeat_drag},
+     {command_name(?__(9,"Repeat"), St),repeat},
+     {command_name(?__(10,"Repeat Args"), St),repeat_args},
+     {command_name(?__(11,"Repeat Drag"), St),repeat_drag},
      separator,
      wings_pref:menu(St),
-     {?STR(edit_menu,12,"Plug-in Preferences"),{plugin_preferences,[]}},
+     {?__(12,"Plug-in Preferences"),{plugin_preferences,[]}},
      separator,
-     {?STR(edit_menu,13,"Purge Undo History"),purge_undo,UndoInfo}|patches()].
+     {?__(13,"Purge Undo History"),purge_undo,UndoInfo}|patches()].
 
 undo_info(St) ->
     {Un,Rn} = wings_undo:info(St),
     Undo = case Un of
-	       0 -> ?STR(undo_info,1,"there are no undo states");
-	       1 -> ?STR(undo_info,2,"there is one undo state");
-	       _ -> io_lib:format(?STR(undo_info,3,"there are ~p undo states"), [Un])
+	       0 -> ?__(1,"there are no undo states");
+	       1 -> ?__(2,"there is one undo state");
+	       _ -> io_lib:format(?__(3,"there are ~p undo states"), [Un])
 	   end,
     case Rn of
 	0 -> Undo;
-	1 -> [Undo|?STR(undo_info,4,"; one operation can be redone")];
-	_ -> [Undo|io_lib:format(?STR(undo_info,5,"; ~p operations can be redone"), [Rn])]
+	1 -> [Undo|?__(4,"; one operation can be redone")];
+	_ -> [Undo|io_lib:format(?__(5,"; ~p operations can be redone"), [Rn])]
     end.
 
 tools_menu(_) ->
@@ -712,56 +712,56 @@ tools_menu(_) ->
 	    {wings_s:dir(radial_x),radial_x},
 	    {wings_s:dir(radial_y),radial_y},
 	    {wings_s:dir(radial_z),radial_z}],
-    [{?STR(tools_menu,8,"Align"),{align,Dirs}},
-     {?STR(tools_menu,9,"Center"),{center,Dirs}},
+    [{?__(8,"Align"),{align,Dirs}},
+     {?__(9,"Center"),{center,Dirs}},
      separator,
-     {?STR(tools_menu,10,"Save Bounding Box"),save_bb},
-     {?STR(tools_menu,11,"Scale to Saved BB"),{scale_to_bb,Dirs}},
-     {?STR(tools_menu,12,"Scale to Saved BB Proportionally"),{scale_to_bb_prop,Dirs}},
-     {?STR(tools_menu,13,"Move to Saved BB"),{move_to_bb,wings_menu_util:all_xyz()}},
+     {?__(10,"Save Bounding Box"),save_bb},
+     {?__(11,"Scale to Saved BB"),{scale_to_bb,Dirs}},
+     {?__(12,"Scale to Saved BB Proportionally"),{scale_to_bb_prop,Dirs}},
+     {?__(13,"Move to Saved BB"),{move_to_bb,wings_menu_util:all_xyz()}},
      separator,
-     {?STR(tools_menu,14,"Set Default Axis"),set_default_axis,
-      ?STR(tools_menu,15,"Define and store axis (with ref. point) for later use with any ")++
-      ?STR(tools_menu,16,"\"Default Axis\" command (e.g. Scale|Default Axis)")},
+     {?__(14,"Set Default Axis"),set_default_axis,
+      ?__(15,"Define and store axis (with ref. point) for later use with any ")++
+      ?__(16,"\"Default Axis\" command (e.g. Scale|Default Axis)")},
      separator,
-     {?STR(tools_menu,17,"Virtual Mirror"),
+     {?__(17,"Virtual Mirror"),
       {virtual_mirror,
-       [{?STR(tools_menu,18,"Create"),create,
-	 ?STR(tools_menu,19,"Given a face selection, set up a virtual mirror")},
-	{?STR(tools_menu,20,"Break"),break,
-	 ?STR(tools_menu,21,"Remove virtual mirrors for all objects")},
-	{?STR(tools_menu,22,"Freeze"),freeze,
-	 ?STR(tools_menu,23,"Create real geometry from the virtual mirrors")}]}},
+       [{?__(18,"Create"),create,
+	 ?__(19,"Given a face selection, set up a virtual mirror")},
+	{?__(20,"Break"),break,
+	 ?__(21,"Remove virtual mirrors for all objects")},
+	{?__(22,"Freeze"),freeze,
+	 ?__(23,"Create real geometry from the virtual mirrors")}]}},
      separator,
-     {?STR(tools_menu,24,"Screenshot"), screenshot, 
-      ?STR(tools_menu,25,"Grab an image of the window (export it from the outliner)")}].
+     {?__(24,"Screenshot"), screenshot, 
+      ?__(25,"Grab an image of the window (export it from the outliner)")}].
 
 window_menu(_) ->
     Name = case wings_wm:this() of
 	       {_,geom} ->
-		   ?STR(window_menu,1,"Geometry Graph");
+		   ?__(1,"Geometry Graph");
 	       {_,{geom,N}} ->
-		   ?STR(window_menu,2,"Geometry Graph #") ++ integer_to_list(N)
+		   ?__(2,"Geometry Graph #") ++ integer_to_list(N)
 	   end,
-    [{?STR(window_menu,3,"Outliner"),outliner,
-      ?STR(window_menu,4,"Open the outliner window (showing materials and objects)")},
+    [{?__(3,"Outliner"),outliner,
+      ?__(4,"Open the outliner window (showing materials and objects)")},
      {Name,object,
-      ?STR(window_menu,5,"Open a Geometry Graph window (showing objects)")},
-     {?STR(window_menu,6,"Palette"), palette,?STR(window_menu,7,"Open the color palette window")},
+      ?__(5,"Open a Geometry Graph window (showing objects)")},
+     {?__(6,"Palette"), palette,?__(7,"Open the color palette window")},
      separator,
-     {?STR(window_menu,8,"New Geometry Window"),geom_viewer, ?STR(window_menu,9,"Open a new Geometry window")},
-     {?STR(window_menu,10,"Console"),console,?STR(window_menu,11,"Open a console window for information messages")},
+     {?__(8,"New Geometry Window"),geom_viewer, ?__(9,"Open a new Geometry window")},
+     {?__(10,"Console"),console,?__(11,"Open a console window for information messages")},
      separator,
-     {?STR(window_menu,12,"UV Editor Window"),uv_editor_window,
-      ?STR(window_menu,13,"Open a UV Editor window for each selected object")}].
+     {?__(12,"UV Editor Window"),uv_editor_window,
+      ?__(13,"Open a UV Editor window for each selected object")}].
 
 patches() ->
     case wings_start:get_patches() of
 	none -> [];
 	{enabled,Desc} ->
-	    [separator,{?STR(patches,1,"Use ")++Desc,disable_patches,[crossmark]}];
+	    [separator,{?__(1,"Use ")++Desc,disable_patches,[crossmark]}];
 	{disabled,Desc} ->
-	    [separator,{?STR(patches,1,"Use ")++Desc,enable_patches}]
+	    [separator,{?__(1,"Use ")++Desc,enable_patches}]
     end.
 
 set_temp_sel(#st{sh=Sh,selmode=Mode}, St) ->
@@ -772,19 +772,19 @@ clear_temp_sel(#st{temp_sel={Mode,Sh}}=St) ->
     St#st{temp_sel=none,selmode=Mode,sh=Sh,sel=[]}.
 
 
-purgo_undo(St) ->
+purge_undo(St) ->
     This = wings_wm:this(),
     {Un,Rn} = wings_undo:info(St),
     Qs = {vframe,
-         [{label,?STR(purgo_undo,1,"Undo states: ") ++ integer_to_list(Un)},
-          {label,?STR(purgo_undo,2,"Redo states: ")  ++ integer_to_list(Rn)},
+         [{label,?__(1,"Undo states: ") ++ integer_to_list(Un)},
+          {label,?__(2,"Redo states: ")  ++ integer_to_list(Rn)},
 	   separator|
 	   if
 	       Un+Rn =:= 0 ->
-		   [{label,?STR(purgo_undo,3,"Nothing to remove")},
+		   [{label,?__(3,"Nothing to remove")},
 		    {hframe,[{button,ok}]}];
 	       true ->
-		   [{label,?STR(purgo_undo,4,"Remove all states (NOT undoable)?")},
+		   [{label,?__(4,"Remove all states (NOT undoable)?")},
 		    {hframe,[{button,wings_s:yes(),
 			      fun(_) ->
 				      Action = {action,{edit,confirmed_purge_undo}},
@@ -811,47 +811,47 @@ info_1(#st{selmode=vertex,sel=[{_Id,Sel}]}=St) ->
 	0 -> "";
 	1 ->
 	    [V] = gb_sets:to_list(Sel),
-	    measure(io_lib:format(?STR(info_1,1,"Vertex ~p selected"), [V]), St);
+	    measure(io_lib:format(?__(1,"Vertex ~p selected"), [V]), St);
 	N when N < 5 ->
 	    Vs = gb_sets:to_list(Sel),
-	    measure(item_list(Vs, ?STR(info_1,2,"Vertices")), St);
+	    measure(item_list(Vs, ?__(2,"Vertices")), St);
 	N ->
-	    io_lib:format(?STR(info_1,3,"~p vertices selected"), [N])
+	    io_lib:format(?__(3,"~p vertices selected"), [N])
     end;
 info_1(#st{selmode=edge,sel=[{_,Sel}]}=St) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
 	    [Edge] = gb_sets:to_list(Sel),
-	    measure(io_lib:format(?STR(info_1,4,"Edge ~p selected"), [Edge]), St);
+	    measure(io_lib:format(?__(4,"Edge ~p selected"), [Edge]), St);
 	N when N < 5 ->
 	    Edges = gb_sets:to_list(Sel),
-	    item_list(Edges, ?STR(info_1,5,"Edges"));
+	    item_list(Edges, ?__(5,"Edges"));
 	N ->
-	    io_lib:format(?STR(info_1,6,"~p edges selected"), [N])
+	    io_lib:format(?__(6,"~p edges selected"), [N])
     end;
 info_1(#st{selmode=face,sel=[{_,Sel}]}=St) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
 	    [Face] = gb_sets:to_list(Sel),
-	    measure(io_lib:format(?STR(info_1,7,"Face ~p selected"), [Face]), St);
+	    measure(io_lib:format(?__(7,"Face ~p selected"), [Face]), St);
 	N when N < 5 ->
 	    Faces = gb_sets:to_list(Sel),
-	    item_list(Faces,?STR(info_1,8,"Faces"));
+	    item_list(Faces,?__(8,"Faces"));
 	N ->
-	    io_lib:format(?STR(info_1,9,"~p faces selected"), [N])
+	    io_lib:format(?__(9,"~p faces selected"), [N])
     end;
 info_1(#st{selmode=Mode,sel=Sel}=St) ->
     On = length(Sel),
     N = foldl(fun({_,S}, A) -> A+gb_sets:size(S) end, 0, Sel),
     Str = case Mode of
 	      vertex ->
-		  io_lib:format(?STR(info_1,10,"~p vertices selected in ~p objects"), [N,On]);
+		  io_lib:format(?__(10,"~p vertices selected in ~p objects"), [N,On]);
 	      edge ->
-		  io_lib:format(?STR(info_1,11,"~p edges selected in ~p objects"), [N,On]);
+		  io_lib:format(?__(11,"~p edges selected in ~p objects"), [N,On]);
 	      face ->
-		  io_lib:format(?STR(info_1,12,"~p faces selected in ~p objects"), [N,On])
+		  io_lib:format(?__(12,"~p faces selected in ~p objects"), [N,On])
 	  end,
     measure(Str, St).
 
@@ -861,7 +861,7 @@ measure(Base, #st{selmode=vertex,sel=[{Id,Vs}],shapes=Shs}) ->
 	    We = gb_trees:get(Id, Shs),
  	    [Va] = gb_sets:to_list(Vs),
 	    {X,Y,Z} = wings_vertex:pos(Va, We),
-	    [Base|io_lib:format(?STR(measure,1,". Position ~s ~s ~s"),
+	    [Base|io_lib:format(?__(1,". Position ~s ~s ~s"),
 				[wings_util:nice_float(X),
 				 wings_util:nice_float(Y),
 				 wings_util:nice_float(Z)])];
@@ -870,7 +870,7 @@ measure(Base, #st{selmode=vertex,sel=[{Id,Vs}],shapes=Shs}) ->
  	    [Va,Vb] = gb_sets:to_list(Vs),
  	    Dist = e3d_vec:dist(wings_vertex:pos(Va, We),
 				wings_vertex:pos(Vb, We)),
-	    [Base|io_lib:format(?STR(measure,2,". Distance ~s"),
+	    [Base|io_lib:format(?__(2,". Distance ~s"),
 				[wings_util:nice_float(Dist)])];
 	_ -> Base
     end;
@@ -884,7 +884,7 @@ measure(Base, #st{selmode=vertex,sel=[{IdA,VsA},{IdB,VsB}],shapes=Shs}) ->
  	    [Vb] = gb_sets:to_list(VsB),
  	    Dist = e3d_vec:dist(wings_vertex:pos(Va, WeA),
 				wings_vertex:pos(Vb, WeB)),
-	    [Base|io_lib:format(?STR(measure,2,". Distance ~s"),
+	    [Base|io_lib:format(?__(2,". Distance ~s"),
 				[wings_util:nice_float(Dist)])]
     end;
 measure(Base, #st{selmode=edge,sel=[{Id,Es}],shapes=Shs}) ->
@@ -897,7 +897,7 @@ measure(Base, #st{selmode=edge,sel=[{Id,Es}],shapes=Shs}) ->
 	    PosB = wings_vertex:pos(Vb, We),
  	    Dist = e3d_vec:dist(PosA, PosB),
 	    {X,Y,Z} = e3d_vec:average([PosA,PosB]),
-	    [Base|io_lib:format(?STR(measure,3,". Midpt ~s ~s ~s. Length ~s"),
+	    [Base|io_lib:format(?__(3,". Midpt ~s ~s ~s. Length ~s"),
 				[wings_util:nice_float(X),
 				 wings_util:nice_float(Y),
 				 wings_util:nice_float(Z),
@@ -911,7 +911,7 @@ measure(Base, #st{selmode=face,sel=[{Id,Fs}],shapes=Shs}) ->
  	    [Face] = gb_sets:to_list(Fs),
 	    {X,Y,Z} = wings_face:center(Face, We),
 	    Mat = wings_material:get(Face, We),
-	    [Base|io_lib:format(?STR(measure,4,". Midpt ~s ~s ~s.\nMaterial ~s"),
+	    [Base|io_lib:format(?__(4,". Midpt ~s ~s ~s.\nMaterial ~s"),
 				[wings_util:nice_float(X),
 				 wings_util:nice_float(Y),
 				 wings_util:nice_float(Z),
@@ -925,7 +925,7 @@ item_list(Items, Desc) ->
 
 item_list([Item|Items], Sep, Desc) ->
     item_list(Items, ", ", [Desc,Sep|integer_to_list(Item)]);
-item_list([], _Sep, Desc) -> [Desc|?STR(item_list,1," selected")].
+item_list([], _Sep, Desc) -> [Desc|?__(1," selected")].
 
 shape_info(We) when ?IS_LIGHT(We) ->
     wings_light:info(We);
@@ -933,7 +933,7 @@ shape_info(#we{id=Id,name=Name,fs=Ftab,es=Etab,vp=Vtab,mode=Mode}) ->
     Faces = gb_trees:size(Ftab),
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),
-    io_lib:format(?STR(shape_info,1,
+    io_lib:format(?__(1,
 		       "Object ~p \"~s\" has ~p polygons, "
 		       "~p edges, ~p vertices.\n"
 		       "Mode is ~p"),
@@ -949,7 +949,7 @@ shape_info([{Id,_}|Objs], Shs, On, Vn, En, Fn) ->
     Vertices = gb_trees:size(Vtab),
     shape_info(Objs, Shs, On+1, Vn+Vertices, En+Edges, Fn+Faces);
 shape_info([], _Shs, N, Vertices, Edges, Faces) ->
-    io_lib:format(?STR(shape_info,2,
+    io_lib:format(?__(2,
 		       "~p objects, ~p faces, ~p edges, ~p vertices"),
 		  [N,Faces,Edges,Vertices]).
 
@@ -963,7 +963,7 @@ caption(#st{saved=true,file=Name}=St) ->
     St;
 caption(#st{saved=auto,file=Name}=St) ->
     Caption = wings() ++ " - " ++ filename:basename(Name) ++
-	"* [" ++ ?STR(caption,1,"auto-saved") ++ "]",
+	"* [" ++ ?__(1,"auto-saved") ++ "]",
     sdl_video:wm_setCaption(Caption, Caption),
     St;
 caption(#st{file=Name}=St) ->
@@ -988,7 +988,7 @@ command_name(Repeat, CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
 cannot_repeat(Cmd) ->
     lists:flatten(["(",cannot_repeat(),wings_util:quote(Cmd),")"]).
 
-cannot_repeat() -> ?STR(cannot_repeat,1,"Can't repeat").
+cannot_repeat() -> ?__(1,"Can't repeat").
 
 replace_ask(Term, none) -> Term;
 replace_ask({'ASK',_}, AskArgs) -> AskArgs;
@@ -1004,9 +1004,9 @@ define_command(?SDL_RELEASED, N, #st{repeatable=Cmd,def=DefCmd0}) ->
 		 1 -> wings_s:lmb();
 		 2 -> wings_s:mmb()
 	     end,
-    Q = lists:flatten([?STR(define_command,1,"Do you want to define"),
+    Q = lists:flatten([?__(1,"Do you want to define"),
 		       " ",wings_util:quote(CmdStr), " ",
-		       ?STR(define_command,2,"as a default command"),
+		       ?__(2,"as a default command"),
 		       " (",wings_s:key(ctrl),"+",Button,")?"]),
     wings_util:yes_no(Q,
 		      fun() ->
@@ -1026,9 +1026,9 @@ use_command(#mousebutton{state=?SDL_RELEASED,button=N}=Ev,
 use_command(_, _) -> keep.
 
 geom_title(geom) ->
-    ?STR(geom_title,1,"Geometry");
+    ?__(1,"Geometry");
 geom_title({geom,N}) ->
-    ?STR(geom_title,2,"Geometry #") ++ integer_to_list(N).
+    ?__(2,"Geometry #") ++ integer_to_list(N).
 
 do_use_command(#mousebutton{x=X,y=Y}, Cmd0, #st{sel=[]}=St0) ->
     case wings_pref:get_value(use_temp_sel) of
@@ -1062,13 +1062,13 @@ crash_handler(redraw, Log, _St) ->
     wings_wm:clear_background(),
     wings_io:ortho_setup(),
     wings_io:text_at(10, 2*?LINE_HEIGHT,
-		     ?STR(crash_handler,1,
+		     ?__(1,
 			  "Internal error - log written to") ++
 		     " " ++ Log),
     wings_io:text_at(10, 4*?LINE_HEIGHT,
-		     ?STR(crash_handler,2,
+		     ?__(2,
 			  "Click a mouse button to continue working")),
-    wings_util:button_message(?STR(crash_handler,3,"Continue working")),
+    wings_msg:button(?__(3,"Continue working")),
     keep;
 crash_handler(#mousebutton{}, _, St) ->
     wings_wm:message(""),
@@ -1099,20 +1099,20 @@ handle_drop(DropData, {X0,Y0}, St) ->
 
 handle_drop_1(_, X, Y, #st{sel=[]}) ->
     wings_menu:popup_menu(X, Y, drop,
-			  [{ ?STR(handle_drop_1,1,"No Selection"),cancel_drop, ?STR(handle_drop_1,2,"Cancel drop operation")}]);
+			  [{?__(1,"No Selection"),cancel_drop, ?__(2,"Cancel drop operation")}]);
 handle_drop_1({material,Name}, X, Y, #st{selmode=face}) ->
-    Menu = [{ ?STR(handle_drop_1,3,"Assign material to selected faces"),menu_cmd(assign_to_sel, Name),
-	      ?STR(handle_drop_1,4,"Assign material \"")++Name++ ?STR(handle_drop_1,5,"\" only to selected faces")},
-	    { ?STR(handle_drop_1,6,"Assign material to all faces"),
+    Menu = [{ ?__(3,"Assign material to selected faces"),menu_cmd(assign_to_sel, Name),
+	      ?__(4,"Assign material \"")++Name++ ?__(5,"\" only to selected faces")},
+	    { ?__(6,"Assign material to all faces"),
 	     menu_cmd(assign_to_body, Name),
-	      ?STR(handle_drop_1,7,"Assign material \"")++Name++
-              ?STR(handle_drop_1,8,"\" to all faces in objects having a selection")}],
+	      ?__(7,"Assign material \"")++Name++
+              ?__(8,"\" to all faces in objects having a selection")}],
     wings_menu:popup_menu(X, Y, drop, Menu);
 handle_drop_1({material,Name}, X, Y, _) ->
-    Menu = [{ ?STR(handle_drop_1,9,"Assign material to all faces"),
+    Menu = [{ ?__(9,"Assign material to all faces"),
 	     menu_cmd(assign_to_body, Name),
-	      ?STR(handle_drop_1,10,"Assign material \"")++Name++
-	     ?STR(handle_drop_1,11,"\" to all faces in objects having a selection")}],
+	      ?__(10,"Assign material \"")++Name++
+	     ?__(11,"\" to all faces in objects having a selection")}],
     wings_menu:popup_menu(X, Y, drop, Menu).
     
 menu_cmd(Cmd, Id) ->

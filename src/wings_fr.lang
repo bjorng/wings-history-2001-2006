@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_fr.lang,v 1.3 2004/12/16 15:42:04 bjorng Exp $
+%%     $Id: wings_fr.lang,v 1.4 2004/12/16 20:05:11 bjorng Exp $
 %%
 
 {wings,
@@ -89,7 +89,7 @@
     {4,". Moyenne ~s ~s ~s.\nMateriau ~s"}]},
   {patches,
    [{1,"Utiliser "}]},
-  {purgo_undo,
+  {purge_undo,
    [{1,"Etats d'annulations: "},
     {2,"Etats de retablissements: "},
     {3,"Rien a effacer"},
@@ -393,9 +393,7 @@
 {wings_extrude_edge,
  [
   {bevel_faces,
-   [{1,"L'objet est trop petit pour etre biseaute."}]},
-  {connect,
-   [{1,"Impossible d'extruder ou de biseauter; essayez un nettoyage."}]}]}.
+   [{1,"L'objet est trop petit pour etre biseaute."}]}]}.
 {wings_face_cmd,
  [
   {bridge,
@@ -913,7 +911,10 @@
     {2,"Rayon d'influence"},
     {3,"Options de l'aimant"}]},
   {drag_help,
-   [{1,"[+] or [-] Ajuste le rayon  "}]}]}.
+   [{1,"[+] or [-] Ajuste le rayon  "}]},
+  {info_string,
+   [{1,"Chemin de l'aimant:"}]}
+ ]}.
 {wings_material,
  [
   {edit,
@@ -1611,10 +1612,6 @@
     {show,"Choisir"},
     {show_objects,"Choisir les objets avec"},
     {smooth,"Lissage des ombres"}]}]}.
-{wings_util,
- [
-  {magnet_string,
-   [{1,"Chemin de l'aimant:"}]}]}.
 {wings_vec,
  [
   {add_help_text,

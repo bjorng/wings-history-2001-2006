@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.142 2004/11/02 07:20:34 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.143 2004/12/16 20:05:13 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -225,7 +225,7 @@ clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
 		    "(De)select only elements wholly inside marquee"),
     Mctrl = wings_util:key_format(Ctrl, CtrlMsg),
     Mshift = wings_util:key_format(Shift, ShiftMsg),
-    Message = wings_util:join_msg(Mctrl, Mshift),
+    Message = wings_msg:join(Mctrl, Mshift),
     wings_wm:message(Message),
     wings_wm:dirty_mode(front),
     {seq,push,
@@ -572,7 +572,7 @@ best_face_hit_2(#we{id=AbsId}=We, Ns, Ray, {[{AbsId,Id,Face}|Hits],Hit0,T0}) ->
     end,
     P = if 
 	    Id < 0 ->
-		e3d_mat:mul_point(wings_util:mirror_matrix(AbsId), P0);
+		e3d_mat:mul_point(wings_dl:mirror_matrix(AbsId), P0);
 	    true ->
 		P0
 	end,

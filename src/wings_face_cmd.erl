@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.110 2004/11/20 07:06:58 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.111 2004/12/16 20:05:10 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -23,46 +23,53 @@
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
-    Menu = [{basic,{?STR(menu,1,"Face operations"),ignore}},
+    Menu = [{basic,{?__(1,"Face operations"),ignore}},
 	    {basic,separator},
-	    {?STR(menu,2,"Move"),{move,Dir},[],[magnet]},
+	    {?__(2,"Move"),{move,Dir},[],[magnet]},
 	    wings_menu_util:rotate(St),
 	    wings_menu_util:scale(St),
 	    separator,
-	    {?STR(menu,3,"Extrude"),{extrude,Dir}},
-	    {?STR(menu,4,"Extrude Region"),{extrude_region,Dir}},
-	    {?STR(menu,5,"Extract Region"),{extract_region,Dir}},
+	    {?__(3,"Extrude"),{extrude,Dir}},
+	    {?__(4,"Extrude Region"),{extrude_region,Dir}},
+	    {?__(5,"Extract Region"),{extract_region,Dir}},
 	    separator,
 	    wings_menu_util:flatten(),
 	    separator,
-	    {?STR(menu,6,"Inset"),inset,?STR(menu,7,"Inset a face inside the selected face")},
-	    {?STR(menu,8,"Intrude"),intrude,?STR(menu,9,"Carve out interior of object, making selected faces holes")},
-	    {?STR(menu,10,"Bevel"),bevel,?STR(menu,11,"Round off edges of selected faces")},
-	    {?STR(menu,12,"Bridge"),bridge,?STR(menu,13,"Create a bridge or tunnel between two faces")},
+	    {?__(6,"Inset"),inset,
+	     ?__(7,"Inset a face inside the selected face")},
+	    {?__(8,"Intrude"),intrude,
+	     ?__(9,"Carve out interior of object, making selected faces holes")},
+	    {?__(10,"Bevel"),bevel,
+	     ?__(11,"Round off edges of selected faces")},
+	    {?__(12,"Bridge"),bridge,
+	     ?__(13,"Create a bridge or tunnel between two faces")},
 	    {advanced,separator},
-	    {?STR(menu,14,"Bump"),bump,?STR(menu,15,"Create bump of selected faces")},
-	    {advanced,{?STR(menu,16,"Lift"),{lift,lift_fun(St)}}},
-	    {advanced,{?STR(menu,17,"Put On"),put_on_fun(),
-		       {?STR(menu,18,"Move and rotate object, aligning the selected face to another element"),[],
-		        ?STR(menu,19,"Clone object on to one or more elements")},[]}},
+	    {?__(14,"Bump"),bump,
+	     ?__(15,"Create bump of selected faces")},
+	    {advanced,{?__(16,"Lift"),{lift,lift_fun(St)}}},
+	    {advanced,{?__(17,"Put On"),put_on_fun(),
+		       {?__(18,"Move and rotate object, aligning the selected face to another element"),[],
+		        ?__(19,"Clone object on to one or more elements")},[]}},
 	    separator,
-	    {?STR(menu,20,"Mirror"),mirror_fun(),
-	     {?STR(menu,21,"Mirror object around selected faces and merge to object"),[],
-	  	?STR(menu,22,"Mirror and create separate objects")},[]},
-    	    {?STR(menu,23,"Dissolve"),dissolve,?STR(menu,24,"Eliminate all edges between selected faces")},
-	    {?STR(menu,25,"Collapse"),collapse,?STR(menu,26,"Delete faces, replacing them with vertices")},
-	    {?STR(menu,27,"Smooth"),smooth,
-		?STR(menu,28,"Subdivide selected faces to smooth them (Catmull-Clark)")},
-	    {?STR(menu,29,"Tesselate"),{subdivide,wings_tesselation:submenu()}},
+	    {?__(20,"Mirror"),mirror_fun(),
+	     {?__(21,"Mirror object around selected faces and merge to object"),[],
+	      ?__(22,"Mirror and create separate objects")},[]},
+    	    {?__(23,"Dissolve"),dissolve,
+	     ?__(24,"Eliminate all edges between selected faces")},
+	    {?__(25,"Collapse"),collapse,
+	     ?__(26,"Delete faces, replacing them with vertices")},
+	    {?__(27,"Smooth"),smooth,
+	     ?__(28,"Subdivide selected faces to smooth them (Catmull-Clark)")},
+	    {?__(29,"Tesselate"),{subdivide,wings_tesselation:submenu()}},
 	    separator] ++ wings_material:material_menu(St) ++
-	[{?STR(menu,30,"Vertex Color"),vertex_color,
-	  ?STR(menu,31,"Apply vertex colors to selected faces")}],
+	[{?__(30,"Vertex Color"),vertex_color,
+	  ?__(31,"Apply vertex colors to selected faces")}],
     wings_menu:popup_menu(X, Y, face, Menu).
 
 lift_fun(St) ->
     fun(help, _Ns) ->
-	    {?STR(lift_fun,1,"Lift, rotating face around edge or vertex"),[],
-	     ?STR(lift_fun,2,"Lift in std. directions")};
+	    {?__(1,"Lift, rotating face around edge or vertex"),[],
+	     ?__(2,"Lift in std. directions")};
        (1, Ns) ->
 	    Funs = lift_selection(rotate, St),
 	    wings_menu:build_command({'ASK',Funs}, Ns);
@@ -198,7 +205,7 @@ extrude_region_vmirror(OldWe, #we{mirror=Face0}=We0) ->
 	    We1 = dissolve(Dissolve, We0),
 	    [Face] = NewFace = gb_sets:to_list(wings_we:new_items(face, We0, We1)),
 	    We = wings_material:assign('_hole_', NewFace, We1),
-	    wings_util:mirror_flatten(OldWe, We#we{mirror=Face})
+	    wings_we:mirror_flatten(OldWe, We#we{mirror=Face})
     end.
 
 %%%
@@ -250,7 +257,7 @@ dissolve(Faces, #we{id=Id}=We0, Acc) ->
 	    Sel = wings_we:new_items(face, We0, We),
 	    {We,[{Id,Sel}|Acc]};
 	false ->
-	    wings_util:error(?STR(dissolve,1,"Dissolving would cause an inconsistent object structure."))
+	    wings_util:error(?__(1,"Dissolving would cause an inconsistent object structure."))
     end.
 		  
 dissolve_1(Faces, We) ->
@@ -584,12 +591,12 @@ smooth(St0) ->
 
 smooth(Faces0, #we{id=Id}=We0, Acc) ->
     Rs = wings_sel:face_regions(Faces0, We0),
-    wings_pb:start(?STR(smooth,1,"smoothing")),
+    wings_pb:start(?__(1,"smoothing")),
     We1 = wings_pb:done(smooth_regions(Rs, 1, length(Rs), We0)),
     NewFaces = wings_we:new_items(face, We0, We1),
     NewVs = wings_we:new_items(vertex, We0, We1),
     We2 = smooth_connect(NewVs, NewFaces, We1),
-    We = wings_util:mirror_flatten(We0, We2),
+    We = wings_we:mirror_flatten(We0, We2),
     {We,[{Id,NewFaces}|Acc]}.
 
 smooth_regions([Faces0|Rs], I, N, #we{he=Htab}=We0) ->
@@ -690,7 +697,8 @@ bridge(_St) ->
 
 unify_modes(#we{mode=Mode}, #we{mode=Mode}) -> Mode;
 unify_modes(_, _) ->
-    wings_util:error(?STR(unify_modes,1,"An object with vertex colors cannot be bridged with an object with materials.")).
+    wings_util:error(?__(1,
+			 "An object with vertex colors cannot be bridged with an object with materials.")).
 
 bridge_null_uvs(Mode, #we{mode=Mode}=We) -> We;
 bridge_null_uvs(uv, #we{es=Etab0}=We) ->
@@ -707,17 +715,17 @@ bridge(FaceA, FaceB, #we{vp=Vtab}=We) ->
     VsB = wings_face:vertices_ccw(FaceB, We),
     if
 	length(VsA) =/= length(VsB) ->
-	    bridge_error(?STR(bridge,1,"Faces must have the same number of vertices."));
+	    bridge_error(?__(1,"Faces must have the same number of vertices."));
 	true ->
 	    An = wings_face:face_normal_cw(VsA, Vtab),
 	    Bn = wings_face:face_normal_cw(VsB, Vtab),
 	    case e3d_vec:dot(An, Bn) of
 		Dot when Dot > 0.99 ->
-		    bridge_error(?STR(bridge,2,"Faces must not point in the same direction."));
+		    bridge_error(?__(2,"Faces must not point in the same direction."));
 		_Dot ->
 		    case wings_face:are_neighbors(FaceA, FaceB, We) of
 			true ->
-			    bridge_error(?STR(bridge,3,"Faces must not be neighbors."));
+			    bridge_error(?__(3,"Faces must not be neighbors."));
 			false ->
 			    bridge(FaceA, VsA, FaceB, VsB, We)
 		    end
@@ -827,7 +835,7 @@ get_edge(Edge, Etab) ->
     end.
 
 bridge_error() ->
-    bridge_error(?STR(bridge_error,1,"Exactly two faces must be selected.")).
+    bridge_error(?__(1,"Exactly two faces must be selected.")).
 
 bridge_error(Error) ->
     wings_util:error(Error).
@@ -844,7 +852,7 @@ bridge_color(Edge, Face, Iter) ->
 %%%
 
 lift_selection(Dir, OrigSt) ->
-    Desc = ?STR(lift_selection,1,"Select edge or vertex to act as hinge"),
+    Desc = ?__(1,"Select edge or vertex to act as hinge"),
     Fun = fun(check, St) ->
 		  lift_check_selection(St, OrigSt);
 	     (exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
@@ -867,7 +875,7 @@ lift_check_selection(#st{selmode=edge,sel=EdgeSel}, OrigSt) ->
 	    end, EdgeSel, OrigSt),
     case Res of
 	[] -> {none,""};
-	_ -> {none,?STR(lift_check_selection,1,"Face and edge selections don't match.")}
+	_ -> {none,?__(1,"Face and edge selections don't match.")}
     end;
 lift_check_selection(#st{selmode=vertex,sel=VsSel}, OrigSt) ->
     Res = wings_sel:fold(
@@ -881,7 +889,7 @@ lift_check_selection(#st{selmode=vertex,sel=VsSel}, OrigSt) ->
 	    end, VsSel, OrigSt),
     case Res of
 	[] -> {none,""};
-	_ -> {none,?STR(lift_check_selection,2,"Face and vertex selections don't match.")}
+	_ -> {none,?__(2,"Face and vertex selections don't match.")}
     end.
 
 lift({'ASK',Ask}, St) ->
@@ -917,7 +925,7 @@ lift_from_edge(Dir, EdgeSel, St0) ->
     end.
 
 lift_sel_mismatch() ->
-    wings_util:error(?STR(lift_sel_mismatch,1,"Face and edge selections don't match.")).
+    wings_util:error(?__(1,"Face and edge selections don't match.")).
 	
 lift_from_edge(Dir, Faces, Edges, We0, Tv) ->
     case lift_face_edge_pairs(Faces, Edges, We0) of
@@ -1008,7 +1016,7 @@ lift_from_vertex(Dir, VsSel, St0) ->
     end.
 
 lift_vtx_sel_mismatch() ->
-    wings_util:error(?STR(lift_vtx_sel_mismatch,1,"Face and vertex selections don't match.")).
+    wings_util:error(?__(1,"Face and vertex selections don't match.")).
 
 lift_from_vertex(Dir, Faces, Vs, We, Tv) ->
     case lift_face_vertex_pairs(Faces, Vs, We) of
@@ -1085,13 +1093,13 @@ put_on(#st{sel=[{_,Faces}]}=St) ->
 	1 ->
 	    wings:ask(put_on_selection(St), St, fun put_on/2);
 	_ ->
-	    wings_util:error(?STR(put_on,1,"There must only be one face selected."))
+	    wings_util:error(?__(1,"There must only be one face selected."))
     end;
 put_on(_) ->
-    wings_util:error(?STR(put_on,1,"There must only be one face selected.")).
+    wings_util:error(?__(1,"There must only be one face selected.")).
 
 put_on_selection(OrigSt) ->
-    Desc = ?STR(put_on_selection,1,"Select target element on which to put source object"),
+    Desc = ?__(1,"Select target element on which to put source object"),
     Fun = fun(check, St) -> put_on_check_selection(St, OrigSt);
 	     (exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
 		  case put_on_check_selection(St, OrigSt) of
@@ -1102,14 +1110,14 @@ put_on_selection(OrigSt) ->
     {[{Fun,Desc}],[],[],[face,edge,vertex]}.
 
 put_on_check_selection(#st{sel=[{Id,_}]}, #st{sel=[{Id,_}]}) ->
-    {none,?STR(put_on_check_selection,1,"Selection must not be in the same object.")};
+    {none,?__(1,"Selection must not be in the same object.")};
 put_on_check_selection(#st{sel=[{_,Elems}]}, _) ->
     case gb_trees:size(Elems) of
 	1 -> {none,""};
-	_ -> {none,?STR(put_on_check_selection,2,"Select only one element.")}
+	_ -> {none,?__(2,"Select only one element.")}
     end;
 put_on_check_selection(_, _) ->
-    {none,?STR(put_on_check_selection,2,"Select only one element.")}.
+    {none,?__(2,"Select only one element.")}.
 
 put_on({Mode,[{Id,Els}]}, #st{shapes=Shs}=St0) ->
     We0 = gb_trees:get(Id, Shs),
@@ -1140,13 +1148,13 @@ clone_on(#st{sel=[{_,Faces}]}=St) ->
 	1 ->
 	    wings:ask(clone_on_selection(), St, fun clone_on/2);
 	_ ->
-	    wings_util:error(?STR(clone_on,1,"There must only be one face selected."))
+	    wings_util:error(?__(1,"There must only be one face selected."))
     end;
 clone_on(_) ->
-    wings_util:error(?STR(clone_on,1,"There must only be one face selected.")).
+    wings_util:error(?__(1,"There must only be one face selected.")).
 
 clone_on_selection() ->
-    Desc = ?STR(clone_on_selection,1,"Select target elements on which to put clones"),
+    Desc = ?__(1,"Select target elements on which to put clones"),
     Fun = fun(check, _) ->
 		  {none,""};
 	     (exit, {_,_,#st{selmode=Mode,sel=Sel}}) ->

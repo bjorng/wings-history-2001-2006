@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.57 2004/11/17 11:06:43 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.58 2004/12/16 20:04:50 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -331,27 +331,27 @@ screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
     glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
 
 help(#tweak{magnet=false}) ->
-    Msg1 = wings_util:button_format("Drag element freely"),
+    Msg1 = wings_msg:button_format("Drag element freely"),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_util:button_format([], [], "Exit tweak mode"),
-    Msg = wings_util:join_msg([Msg1,Msg2,Msg3]),
+    Msg3 = wings_msg:button_format([], [], "Exit tweak mode"),
+    Msg = wings_msg:join([Msg1,Msg2,Msg3]),
     wings_wm:message(Msg, "[1] Magnet On");
 help(#tweak{magnet=true,mag_type=Type}) ->
-    Msg = wings_util:button_format("Drag", [], "Exit"),
+    Msg = wings_msg:button_format("Drag", [], "Exit"),
     Types = help_1(Type, [{2,dome},{3,straight},{4,spike}]),
-    MagMsg = wings_util:join_msg(["[1] Magnet Off",
-				  "[+]/[-] Tweak R",
-				  Types]),
+    MagMsg = wings_msg:join(["[1] Magnet Off",
+			     "[+]/[-] Tweak R",
+			     Types]),
     wings_wm:message(Msg, MagMsg).
 
 help_1(Type, [{Digit,Type}|T]) ->
-    wings_util:join_msg("[" ++ [$0+Digit] ++ "] " ++
-			[{bold,wings_util:cap(atom_to_list(Type))}],
-			help_1(Type, T));
+    wings_msg:join("[" ++ [$0+Digit] ++ "] " ++
+		   [{bold,wings_util:cap(atom_to_list(Type))}],
+		   help_1(Type, T));
 help_1(Type, [{Digit,ThisType}|T]) ->
-    wings_util:join_msg("[" ++ [$0+Digit] ++ "] " ++
-			wings_util:cap(atom_to_list(ThisType)),
-			help_1(Type, T));
+    wings_msg:join("[" ++ [$0+Digit] ++ "] " ++
+		   wings_util:cap(atom_to_list(ThisType)),
+		   help_1(Type, T));
 help_1(_, []) -> [].
 
 fake_selection(St) ->

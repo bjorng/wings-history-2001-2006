@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.186 2004/12/06 07:40:55 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.187 2004/12/16 20:05:08 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1576,13 +1576,13 @@ frame_event(#mousemotion{x=Xm,y=Ym,state=Bst},
 	    Minimized = gb_trees:get(var(Key, I), Store),
 	    case Minimized of
 		true ->
-		    wings_util:button_message(
+		    wings_msg:button(
 		      ?__(1,"Expand this frame; collapse other frames"),
 		      "",
 		      ?__(2,"Expand this frame"));
 		false ->
 		    Msg = ?__(3,"Collapse this frame"),
-		    wings_util:button_message(Msg, "", Msg);
+		    wings_msg:button(Msg, "", Msg);
 		undefined ->
 		    wings_wm:message("")
 	    end;

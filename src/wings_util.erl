@@ -8,21 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.103 2004/12/16 16:06:22 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.104 2004/12/16 20:05:14 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([error/1,error/2,share/1,share/3,make_vector/1,
 	 rel2fam/1,
-	 button_message/1,button_message/2,button_message/3,
-	 button_format/1,button_format/2,button_format/3,
-	 rmb_format/1,key_format/2,
-	 join_msg/1,join_msg/2,
+	 key_format/2,
 	 message/1,
-	 magnet_string/0,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
-	 get_matrices/2,mirror_matrix/1,
-	 mirror_flatten/2,
+	 get_matrices/2,
 	 cap/1,upper/1,stringify/1,quote/1,
 	 add_vpos/2,update_vpos/2,
 	 gb_trees_smallest_key/1,gb_trees_largest_key/1,
@@ -30,8 +25,8 @@
 	 menu_restriction/2,
 	 unique_name/2,
 	 geom_windows/0,
-	 tc/3,export_we/2,win_crash/1,crash_log/2,validate/1,validate/3,
-	 min/2,max/2,limit/2,lowpass/1,lowpass/2]).
+	 tc/3,export_we/2,win_crash/1,crash_log/2,
+	 min/2,max/2,limit/2]).
 -export([check_error/2,dump_we/2]).
 
 -define(NEED_OPENGL, 1).
@@ -88,35 +83,8 @@ make_vector(Axis) when Axis == last_axis; Axis == default_axis ->
     {_,Vec} = wings_pref:get_value(Axis),
     Vec.
 
-button_message(LmbMsg) ->
-    wings_wm:message(wings_camera:button_format(LmbMsg)).
-
-button_message(LmbMsg, MmbMsg) ->
-    wings_wm:message(wings_camera:button_format(LmbMsg, MmbMsg)).
-    
-button_message(LmbMsg, MmbMsg, RmbMessage) ->
-    wings_wm:message(wings_camera:button_format(LmbMsg, MmbMsg, RmbMessage)).
-
-button_format(LmbMsg) ->
-    wings_camera:button_format(LmbMsg).
-
-button_format(LmbMsg, MmbMsg) ->
-    wings_camera:button_format(LmbMsg, MmbMsg).
-
-button_format(LmbMsg, MmbMsg, RmbMsg) ->
-    wings_camera:button_format(LmbMsg, MmbMsg, RmbMsg).
-
-rmb_format(Msg) ->
-    wings_camera:rmb_format(Msg).
-
 key_format(Key, Msg) ->
     [Key,160,Msg].
-
-join_msg(Messages) ->
-    wings_camera:join_msg(Messages).
-
-join_msg(Msg1, Msg2) ->
-    wings_camera:join_msg(Msg1, Msg2).
 
 message(Message) ->
     Qs = {vframe,
@@ -124,16 +92,11 @@ message(Message) ->
 	   {hframe,[{button,ok,[ok]}]}]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
-magnet_string() ->
-    ["(",?__(1,"Magnet route:"),
-     atom_to_list(wings_pref:get_value(magnet_distance_route)),
-     ")"].
-
 get_matrices(Id, MM) ->
     wings_view:load_matrices(false),
     case MM of
 	mirror ->
-	    Matrix = mirror_matrix(Id),
+	    Matrix = wings_dl:mirror_matrix(Id),
 	    gl:multMatrixf(Matrix);
 	original -> ok
     end,
@@ -141,27 +104,6 @@ get_matrices(Id, MM) ->
     ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
     ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
     {ModelMatrix,ProjMatrix,{0,0,W,H}}.
-
-mirror_matrix(Id) ->
-    wings_dl:fold(fun mirror_matrix/2, Id).
-
-mirror_matrix(#dlo{mirror=Matrix,src_we=#we{id=Id}}, Id) -> Matrix;
-mirror_matrix(_, Acc) -> Acc.
-
-mirror_flatten(_, #we{mirror=none}=We) -> We;
-mirror_flatten(#we{mirror=OldFace}=OldWe, #we{mirror=Face,vp=Vtab0}=We) ->
-    PlaneNormal = wings_face:normal(OldFace, OldWe),
-    FaceVs = wings_face:to_vertices(gb_sets:singleton(OldFace), OldWe),
-    Origin = wings_vertex:center(FaceVs, OldWe),
-    M0 = e3d_mat:translate(Origin),
-    M = e3d_mat:mul(M0, e3d_mat:project_to_plane(PlaneNormal)),
-    Flatten = e3d_mat:mul(M, e3d_mat:translate(e3d_vec:neg(Origin))),
-    Vtab = foldl(fun(V, Vt) ->
-			 Pos0 = gb_trees:get(V, Vt),
-			 Pos = e3d_mat:mul_point(Flatten, Pos0),
-			 gb_trees:update(V, Pos, Vt)
-		 end, Vtab0, wings_face:vertices_ccw(Face, We)),
-    We#we{vp=Vtab}.
 
 rel2fam(Rel) ->
     sofs:to_external(sofs:relation_to_family(sofs:relation(Rel))).
@@ -470,123 +412,6 @@ dump_faces(F, Fs) ->
     io:format(F, "===========\n\n", []),
     foreach(fun({Face,Frec}) -> show_face(F, Face, Frec) end, Fs).
 
-%%
-%% Validation of shapes.
-%%
-
-validate(Mod, Line, X) ->
-    put(where, {Mod,Line}),
-    validate_1(X),
-    erase(where),
-    X.
-
-validate(X) ->
-    validate_1(X),
-    X.
-
-validate_1(#st{shapes=Shapes}) ->
-    foreach(fun ({_,#we{}=We}) ->
-		    validate_we(We);
-		({_,_}) -> ok end,
-	    gb_trees:to_list(Shapes));
-validate_1(#we{}=We) -> validate_we(We).
-
-validate_we(We) ->
-    validate_edge_tab(We),
-    validate_vertex_tab(We),
-    validate_faces(We),
-    wings_material:validate(We).
-    
-validate_faces(#we{fs=Ftab}=We) ->
-    foreach(fun({Face,Edge}) ->
-		    Cw = walk_face_cw(Face, Edge, Edge, We, []),
-		    Ccw = walk_face_ccw(Face, Edge, Edge, We, []),
- 		    case reverse(Ccw) of
- 			Cw -> ok;
- 			Other ->
- 			    crash({{face,Face},
-				   {cw,Cw},{ccw_reversed,Other}},
-				  We)
- 		    end,
-		    case {lists:sort(Cw),ordsets:from_list(Cw)} of
-			{Same,Same} -> ok;
-			_ ->
-			    crash({{face,Face},{repeated_vertex,Cw}}, We)
-		    end
-	    end,
-	    gb_trees:to_list(Ftab)).
-
-walk_face_cw(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
-walk_face_cw(Face, Edge, LastEdge, We, Acc) ->
-    #we{es=Etab} = We,
-    case catch gb_trees:get(Edge, Etab) of
-	#edge{vs=V,lf=Face,ltsu=Next} ->
-	    walk_face_cw(Face, Next, LastEdge, We, [V|Acc]);
-	#edge{ve=V,rf=Face,rtsu=Next} ->
-	    walk_face_cw(Face, Next, LastEdge, We, [V|Acc]);
-	{'EXIT',_} ->
-	    [{make_ref(),crash,missing_edge,Edge,
-	     [Face,Edge,LastEdge,We,Acc]}];
-	Other ->
-	    [{make_ref(),{crash,Other},
-	      {face,Face,edge,Edge,last_edge,LastEdge,acc,Acc}}]
-    end.
-
-walk_face_ccw(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
-walk_face_ccw(Face, Edge, LastEdge, We, Acc) ->
-    #we{es=Etab} = We,
-    case catch gb_trees:get(Edge, Etab) of
-	#edge{ve=V,lf=Face,ltpr=Next} ->
-	    walk_face_ccw(Face, Next, LastEdge, We, [V|Acc]);
-	#edge{vs=V,rf=Face,rtpr=Next} ->
-	    walk_face_ccw(Face, Next, LastEdge, We, [V|Acc]);
-	{'EXIT',_} ->
-	    [{make_ref(),crash,missing_edge,Edge,
-	     [Face,Edge,LastEdge,We,Acc]}];
-	Other ->
-	    [{make_ref(),{crash,Other},
-	      {face,Face,edge,Edge,last_edge,LastEdge,acc,Acc}}]
-    end.
-
-validate_vertex_tab(#we{es=Etab,vc=Vct,vp=Vtab}=We) ->
-    case {gb_trees:keys(Vct),gb_trees:keys(Vtab)} of
-	{Same,Same} -> ok;
-	{_,_} ->
-	    crash(vc_and_vp_have_different_keys, We)
-    end,
-    foreach(fun({V,Edge}) ->
-		    case gb_trees:get(Edge, Etab) of
-			#edge{vs=V}=Rec ->
-			    validate_edge_rec(Rec, We);
-			#edge{ve=V}=Rec ->
-			    validate_edge_rec(Rec, We);
-			_Other ->
-			    crash({vertex,V}, We)
-		    end
-	    end,
-	    gb_trees:to_list(Vct)).
-
-validate_edge_tab(#we{es=Etab}=We) ->
-    foreach(fun({E,#edge{vs=Va,ve=Vb}}) ->
-		    verify_vertex(Va, E, We),
-		    verify_vertex(Vb, E, We)
-	    end,
-	    gb_trees:to_list(Etab)).
-
-validate_edge_rec(Rec, We) ->
-    #edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
-    if
-	integer(LP+LS+RP+RS) -> ok;
-	true -> crash({non_integer_edges,Rec}, We)
-    end.
-
-verify_vertex(V, Edge, #we{vc=Vct}=We) ->
-    case gb_trees:is_defined(V, Vct) of
-	false ->
-	    crash({edge,Edge,referenced,undefined,vertex,V}, We);
-	true -> ok
-    end.
-
 -ifdef(DEBUG).
 check_error(Mod, Line) ->
     case wings_gl:gl_error_string(gl:getError()) of
@@ -601,9 +426,6 @@ check_error(_Mod, _Line) ->
     ok.
 -endif.
 
-crash(Reason, We) ->
-    erlang:fault({crash,get(where),Reason}, [We]).
-
 max(A, B) when A > B -> A;
 max(_A, B) -> B.
 
@@ -616,18 +438,3 @@ limit(Val, {'-infinity',Max}) when Val > Max -> Max;
 limit(Val, {Min,Max}) when Min < Max, Val < Min -> Min;
 limit(Val, {Min,Max}) when Min < Max, Val > Max -> Max;
 limit(Val, {Min,Max}) when Min < Max -> Val.
-
-lowpass(X, Y) ->
-    case wings_pref:get_value(jumpy_camera) of
-	false -> {X,Y};
-	true -> {lowpass(X),lowpass(Y)}
-    end.
-
-lowpass(N) when N > 0 -> lowpass_1(N);
-lowpass(N) -> -lowpass_1(-N).
-
-lowpass_1(N) when N =< 7 -> N;
-lowpass_1(N) when N =< 15 -> (N-7)*0.6 + lowpass_1(7);
-lowpass_1(N) when N =< 30 -> (N-15)*0.5 + lowpass_1(15);
-lowpass_1(N) when N =< 50 -> (N-30)*0.05 + lowpass_1(30);
-lowpass_1(_) -> lowpass_1(50).

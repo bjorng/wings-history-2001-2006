@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.23 2004/12/16 15:59:33 bjorng Exp $
+%%     $Id: user_default.erl,v 1.24 2004/12/16 20:05:06 bjorng Exp $
 %% 
 
 -module(user_default).
 
 -export([help/0,wh/0,
-	 wx/0,wxe/0,wxu/1,wxu/3,wxunref/0,wxundef/0,wxcs/0,wxq/1,
+	 wx/0,wxe/0,wxu/1,wxu/3,wxunref/0,wxundef/0,wxcs/0,
+	 wxc/1,wxq/1,
 	 wldiff/1,
 	 lm/0,mm/0]).
 
@@ -37,6 +38,7 @@ wh() ->
     p("wxundef()  -- print calls to undefined functions\n"),
     p("wxu(M)     -- print uses of module M\n"),
     p("wxu(M, F, A) -- print uses of M:F/A\n"),
+    p("wxc(M)     -- print modules that M calls\n"),
     p("wxcs()     -- print strong components\n"),
     p("wxq(Query) -- execute an XREF query\n"),
     p("** Language support **\n"),
@@ -80,7 +82,10 @@ wxu({M,_,_}=MFA) ->
 
 wxu(M, F, A) ->
     MFA = {M,F,A},
-    result(xref:q(s, make_query("domain(E || ~p) - ~p", [MFA,M]))).
+    wxq(make_query("domain(E || ~p) - ~p", [MFA,M])).
+
+wxc(Mod) when is_atom(Mod) ->
+    wxq(make_query("range(strict(ME|~p))*Wings", [Mod])).
 
 wxcs() ->
     print_components(xref:q(s, make_query("components ME", []))).

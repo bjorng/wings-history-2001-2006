@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.53 2004/12/06 07:48:10 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.54 2004/12/16 20:05:16 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -203,15 +203,15 @@ ctrl_event({title,Title}, Cs) ->
 ctrl_event(_, _) -> keep.
 
 ctrl_message() ->
-    M0 = wings_util:button_format(?__(1,"Drag to Move")),
+    M0 = wings_msg:button_format(?__(1,"Drag to Move")),
     M1 = case is_resizeable() of
 	     false -> [];
 	     true ->
-		 wings_util:button_format([],  
-					  ?__(2,"Fit"), 
-					  ?__(3,"Show menu"))
+		 wings_msg:button_format([],  
+					 ?__(2,"Fit"), 
+					 ?__(3,"Show menu"))
 	 end,
-    M = wings_util:join_msg(M0, M1),
+    M = wings_msg:join(M0, M1),
     wings_wm:message(M),
     wings_wm:dirty().
 
@@ -502,8 +502,8 @@ resize_event(redraw, #rsz{color=Color}) ->
 			end),
     keep;
 resize_event(got_focus, _) ->
-    wings_util:button_message(?__(1,"Resize"), 
-		    		?__(2,"Resize, keeping current aspect ratio")),
+    wings_msg:button(?__(1,"Resize"), 
+		     ?__(2,"Resize, keeping current aspect ratio")),
     wings_wm:dirty();
 resize_event(#mousebutton{button=1,state=?SDL_PRESSED},
 	     #rsz{state=moving,prev_focus=Focus}=Rst) ->

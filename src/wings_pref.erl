@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.130 2004/12/16 16:20:33 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.131 2004/12/16 20:05:13 bjorng Exp $
 %%
 
 -module(wings_pref).
 -export([init/0,finish/0,
 	 menu/1,command/2,
+	 lowpass/2,
 	 get_value/1,get_value/2,set_value/2,set_default/2,
 	 delete_value/1,
 	 get_scene_value/0,get_scene_value/1,get_scene_value/2,
@@ -68,6 +69,21 @@ finish() ->
     Str = lists:map(Write, List),
     catch file:write_file(PrefFile, Str),
     ok.
+
+lowpass(X, Y) ->
+    case get_value(jumpy_camera) of
+	false -> {X,Y};
+	true -> {lowpass(X),lowpass(Y)}
+    end.
+
+lowpass(N) when N > 0 -> lowpass_1(N);
+lowpass(N) -> -lowpass_1(-N).
+
+lowpass_1(N) when N =< 7 -> N;
+lowpass_1(N) when N =< 15 -> (N-7)*0.6 + lowpass_1(7);
+lowpass_1(N) when N =< 30 -> (N-15)*0.5 + lowpass_1(15);
+lowpass_1(N) when N =< 50 -> (N-30)*0.05 + lowpass_1(30);
+lowpass_1(_) -> lowpass_1(50).
 
 %% Insert CRs into a deep list to produce a correct Windows
 %% text file.

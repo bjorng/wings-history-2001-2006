@@ -8,18 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.111 2004/11/17 15:28:17 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.112 2004/12/16 20:05:09 bjorng Exp $
 %%
 
 -module(wings_camera).
 -export([init/0,prefs/0,help/0,event/2]).
--export([button_format/1,button_format/2,button_format/3,
-	 free_modifier/0,free_lmb_modifier/0,free_rmb_modifier/0,
-	 rmb_format/1,mod_name/1,
-	 mod_format/3,join_msg/1,join_msg/2]).
 
 -define(NEED_ESDL, 1).
--define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
 -import(lists, [foreach/2,map/2,foldl/3,sort/1,reverse/1,append/1]).
@@ -29,7 +24,6 @@
 -define(CAMMAX, 150).  %% Always larger than 300 on my pc
 
 -define(CSEP, 160).				%Short space.
--define(SEP, [$\s,$\s,160]).			%Two and a half.
 
 -record(camera,
 	{x,y,					%Current mouse position.
@@ -59,24 +53,24 @@ prefs() ->
 		     (_, _) -> void
 		 end},
     {vframe,
-     [{vframe,[mouse_buttons()],[{title,?STR(prefs,1,"Mouse Buttons")}]},
-      {vframe,[camera_modes()],[{title,?STR(prefs,2,"Camera Mode")}]},
+     [{vframe,[mouse_buttons()],[{title,?__(1,"Mouse Buttons")}]},
+      {vframe,[camera_modes()],[{title,?__(2,"Camera Mode")}]},
       {vframe,
        [{hframe,[{slider,{text,PanSpeed0,[{key,pan_speed},{range,{1,100}}]}}]}],
-       [{title,?STR(prefs,3,"Pan Speed")}]},
+       [{title,?__(3,"Pan Speed")}]},
       {vframe,
-       [{?STR(prefs,4,"Wheel Zooms"),ZoomFlag0,[{key,wheel_zooms}]},
-	{vradio,[{?STR(prefs,5,"Forwards Zooms In"),false},
-		 {?STR(prefs,6,"Forwards Zooms Out"),true}],
+       [{?__(4,"Wheel Zooms"),ZoomFlag0,[{key,wheel_zooms}]},
+	{vradio,[{?__(5,"Forwards Zooms In"),false},
+		 {?__(6,"Forwards Zooms Out"),true}],
 	 InvertZW,
 	 [{key,inverted_wheel_zoom},Hook]},
 	{hframe,
-	 [{label,?STR(prefs,7,"Zoom Factor"),[Hook]},
+	 [{label,?__(7,"Zoom Factor"),[Hook]},
 	  {text,ZoomFactor0,
 	   [{key,wheel_zoom_factor},
 	    {range,{1,50}},
 	    Hook]},
-	  {label,"%",[Hook]}]} ],[{title,?STR(prefs,9,"Scroll Wheel")}] } ]}.
+	  {label,"%",[Hook]}]} ],[{title,?__(9,"Scroll Wheel")}] } ]}.
 
 mouse_buttons() ->
     {menu,[{desc(1),1,[{info,info(1)}]},
@@ -111,177 +105,34 @@ camera_modes() ->
 		(_, _) -> void
 	    end}]}.
 
-desc(1) -> ?STR(desc,1,"One");
-desc(2) -> ?STR(desc,2,"Two");
-desc(3) -> ?STR(desc,3,"Three");
+desc(1) -> ?__(1,"One");
+desc(2) -> ?__(2,"Two");
+desc(3) -> ?__(3,"Three");
 desc(Other) -> wings_s:camera_mode(Other).
 
 info(1) ->
-    ?STR(info,1,"Note: Only the Nendo camera mode can be used with a one-button mouse");
+    ?__(1,"Note: Only the Nendo camera mode can be used with a one-button mouse");
 info(2) ->
-    ?STR(info,2,"Note: Only the Nendo and Blender camera modes can be used with a two-button mouse");
+    ?__(2,"Note: Only the Nendo and Blender camera modes can be used with a two-button mouse");
 info(3) -> "";
 info(nendo) -> "";
 info(blender) ->
-    [?STR(info,3,"Note: The "),desc(blender),
-     ?STR(info,4," camera mode requires at least 2 mouse buttons")];
+    [?__(3,"Note: The "),desc(blender),
+     ?__(4," camera mode requires at least 2 mouse buttons")];
 info(Mode) ->
-    [?STR(info,5,"Note: The "),desc(Mode),?STR(info,6," camera mode requires 3 mouse buttons")].
+    [?__(5,"Note: The "),desc(Mode),
+     ?__(6," camera mode requires 3 mouse buttons")].
 
 help() ->
     case wings_pref:get_value(camera_mode) of
 	blender -> blender_help();
-	nendo -> button_format([], ?STR(help,1,"Start camera"));
-	mirai -> button_format([], ?STR(help,1,"Start camera"));
+	nendo -> wings_msg:button_format([], ?__(1,"Start camera"));
+	mirai -> wings_msg:button_format([], ?__(1,"Start camera"));
 	tds -> tds_help();
 	maya -> maya_help();
 	mb -> mb_help()
     end.
 
-format([{Mod,But,Msg}|T]) ->
-    join_msg(mod_format(Mod, But, Msg), format(T));
-format([]) -> [].
-
-mod_format(Mod, 1, Msg) ->
-    mod_format(Mod, lmb_name(), Msg);
-mod_format(Mod, 2, Msg) ->
-    mod_format(Mod, mmb_name(), Msg);
-mod_format(Mod, 3, Msg) ->
-    mod_format(Mod, rmb_name(), Msg);
-mod_format(0, But, Msg) ->
-    [But,?CSEP,Msg];
-mod_format(Mod, But, Msg) ->
-    M0 = [But,?CSEP,Msg],
-    M1 = if
-	     (Mod band ?SHIFT_BITS) =/= 0 ->
-		 [wings_s:key(shift),$+|M0];
-	     true -> M0
-	 end,
-    M2 = if
-	     (Mod band ?ALT_BITS) =/= 0 ->
-		 [wings_s:key(alt),$+|M1];
-	     true -> M1
-	 end,
-    M3 = if
-	     (Mod band ?CTRL_BITS) =/= 0 ->
-		 [wings_s:key(ctrl),$+|M2];
-	     true -> M2
-	 end,
-    if
-	(Mod band ?META_BITS) =/= 0 ->
-	    [wings_s:key(command),$+|M3];
-	true -> M3
-    end.
-
-button_format(LmbMsg) ->
-    [lmb_name(),?CSEP|LmbMsg].
-
-button_format(LmbMsg, MmbMsg) ->
-    button_format(LmbMsg, MmbMsg, []).
-    
-button_format(Msg, [], Msg) when Msg =/= [] ->
-    Buttons = wings_pref:get_value(num_buttons),
-    Lmb = drop_last(lmb_name()),
-    Rmb = rmb_name(Buttons),
-    [Lmb,$,,Rmb,?CSEP|Msg];
-button_format(LmbMsg, Msg, Msg) when Msg =/= [] ->
-    Buttons = wings_pref:get_value(num_buttons),
-    Lmb = lmb_name(),
-    Mmb = drop_last(mmb_name(Buttons)),
-    Rmb = rmb_name(Buttons),
-    Lmsg = if
-	       LmbMsg =/= [] -> [Lmb,?CSEP|LmbMsg];
-	       true -> []
-	   end,
-    RMmsg = [Mmb,$,,Rmb,?CSEP|Msg],
-    join_msg(Lmsg, RMmsg);
-button_format(LmbMsg, MmbMsg, RmbMsg) ->
-    Buttons = wings_pref:get_value(num_buttons),
-    Lmb = lmb_name(),
-    Mmb = mmb_name(Buttons),
-    Rmb = rmb_name(Buttons),
-    Lmsg = if
-	       LmbMsg =/= [] -> [Lmb,?CSEP|LmbMsg];
-	       true -> []
-	   end,
-    Mmsg = if
-	       MmbMsg =/= [] -> [Mmb,?CSEP|MmbMsg];
-	       true -> []
-	   end,
-    Rmsg = if
-	       RmbMsg =/= [] -> [Rmb,?CSEP|RmbMsg];
-	       true -> []
-	   end,
-    join_msg(Lmsg, join_msg(Mmsg, Rmsg)).
-
-drop_last(S) ->
-    reverse(tl(reverse(S))).
-
-lmb_name() -> [wings_s:lmb()|":"].
-
-mmb_name() ->
-    mmb_name(wings_pref:get_value(num_buttons)).
-
-mmb_name(3) -> [wings_s:mmb()|":"];
-mmb_name(2) ->
-    case wings_pref:get_value(camera_mode) of
-	blender -> [wings_s:key(alt),$+|lmb_name()];
-	nendo -> [wings_s:key(ctrl),$+|rmb_name(2)]
-    end;
-mmb_name(1) -> [wings_s:key(alt),$+|lmb_name()].
-
-rmb_name() ->
-    rmb_name(wings_pref:get_value(num_buttons)).
-
-rmb_name(1) -> [wings_s:key(ctrl),$+,lmb_name()];
-rmb_name(_) -> [wings_s:rmb()|":"].
-
-rmb_format(Message) ->
-    ModName = mod_name(free_rmb_modifier()),
-    [ModName,$+,rmb_name(),?CSEP|Message].
-
-mod_name(?ALT_BITS) -> wings_s:key(alt);
-mod_name(?CTRL_BITS) -> wings_s:key(ctrl);
-mod_name(?META_BITS) -> wings_s:key(command).
-
-join_msg([M0,M1|T]) ->
-    join_msg(join_msg(M0, M1), join_msg(T));
-join_msg([M]) -> M;
-join_msg([]) -> [].
-
-join_msg([], Msg) -> Msg;
-join_msg(Msg, []) -> Msg;
-join_msg(Msg1, Msg2) -> [Msg1,?SEP,Msg2].
-
-free_modifier() ->
-    case wings_pref:get_value(num_buttons) of
-	1 -> ?META_BITS;
-	_ -> ?CTRL_BITS
-    end.
-
-free_lmb_modifier() ->
-    case wings_pref:get_value(camera_mode) of
-	maya -> ?CTRL_BITS;
-	blender -> ?CTRL_BITS;
-	nendo ->
-	    case wings_pref:get_value(num_buttons) of
-		1 -> ?META_BITS;
-		_ -> ?ALT_BITS
-	    end;
-	_ -> ?ALT_BITS
-    end.
-
-free_rmb_modifier() ->
-    case wings_pref:get_value(camera_mode) of
-	maya -> ?CTRL_BITS;
-	nendo ->
-	    case wings_pref:get_value(num_buttons) of
-		1 -> ?META_BITS;
-		_ -> ?ALT_BITS
-	    end;
-	_ -> ?ALT_BITS
-    end.
-						   
 %% Event handler.
 
 event(#mousebutton{button=4,state=?SDL_RELEASED}, _Redraw) ->
@@ -410,11 +261,11 @@ get_nendo_event(Camera, Redraw, MouseRotates) ->
     {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw, MouseRotates) end}.
 
 nendo_message(true) ->
-    Help = join_msg([button_format(wings_s:accept(),
-				   ?STR(message,2,"Drag to Dolly")),
-		     ?STR(message,3,"Move mouse to tumble"),
-		     [?STR(message,4,"[Q]"),?CSEP,
-		      ?STR(message,5,"Move mouse to track")]]),
+    Help = wings_msg:join([wings_msg:button_format(wings_s:accept(),
+						   ?STR(message,2,"Drag to Dolly")),
+			   ?STR(message,3,"Move mouse to tumble"),
+			   [?STR(message,4,"[Q]"),?CSEP,
+			    ?STR(message,5,"Move mouse to track")]]),
     message(Help);
 nendo_message(false) ->
     QText = case allow_rotation() of
@@ -422,9 +273,9 @@ nendo_message(false) ->
 		true -> [?STR(message,4,"[Q]"),?CSEP,
 			 ?STR(message,3,"Move mouse to tumble")]
 	    end,
-    Help = join_msg([button_format(wings_s:accept(),
-				   ?STR(message,2,"Drag to Dolly")),
-	 	     ?STR(message,7,"Restore view")|QText]),
+    Help = wings_msg:join([wings_msg:button_format(wings_s:accept(),
+						   ?STR(message,2,"Drag to Dolly")),
+			   ?STR(message,7,"Restore view")|QText]),
     message(Help).
 
 %%%
@@ -500,7 +351,7 @@ get_mirai_event(Camera, Redraw, MouseRotates, View) ->
     {replace,fun(Ev) -> mirai_event(Ev, Camera, Redraw, MouseRotates, View) end}.
 
 mirai_message(true) ->
-    Help = join_msg([button_format(wings_s:accept(),
+    Help = wings_msg:join([wings_msg:button_format(wings_s:accept(),
 				   ?STR(message,2,"Drag to Dolly"),
 				   ?STR(message,6,"Cancel/restore view")),
 		     ?STR(message,3,"Move mouse to tumble"),
@@ -512,9 +363,9 @@ mirai_message(false) ->
 		false -> [];
 		true -> [?STR(message,4,"[Q]"),?CSEP,?STR(message,3,"Move mouse to tumble")]
 	    end,
-    Help = join_msg([button_format(wings_s:accept(),
-				   ?STR(message,2,"Drag to Dolly"),
-				   ?STR(message,6,"Cancel/restore view")),
+    Help = wings_msg:join([wings_msg:button_format(wings_s:accept(),
+						   ?STR(message,2,"Drag to Dolly"),
+						   ?STR(message,6,"Cancel/restore view")),
 		     ?STR(message,5,"Move mouse to track")|QText]),
     message(Help).
 
@@ -526,7 +377,9 @@ tds(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     grab(),
-    message(join_msg(tds_help(), button_format([], [], ?STR(message,7,"Restore view")))),
+    message(wings_msg:join(tds_help(), 
+			   wings_msg:button_format([], [],
+						   ?STR(message,7,"Restore view")))),
     View = wings_view:current(),
     {seq,push,get_tds_event(Camera, Redraw, View)};
 tds(_, _) -> next.
@@ -724,8 +577,7 @@ zoom(Delta0) ->
 
 pan(Dx0, Dy0) ->
     #view{pan_x=PanX0,pan_y=PanY0,distance=D} = View = wings_view:current(),
-    %% The float/1 call below is a workaround for a compiler bug in R9C-0.
-    S = D*(1/20)/(101-float(wings_pref:get_value(pan_speed))),
+    S = D*(1/20)/(101-wings_pref:get_value(pan_speed)),
     Dx = Dx0*S,
     Dy = Dy0*S,
     PanX = PanX0 + Dx,
@@ -751,7 +603,7 @@ camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
     {X1,Y1} = wings_wm:local2global(X0, Y0),
     XD0 = (X1 - OX),
     YD0 = (Y1 - OY),
-    {XD,YD} = wings_util:lowpass(XD0 + Xt0, YD0 + Yt0),
+    {XD,YD} = wings_pref:lowpass(XD0 + Xt0, YD0 + Yt0),
 
     if
 	XD0 == 0, YD0 == 0 ->
@@ -793,3 +645,7 @@ update_sel(Fun) ->
 	false -> ok;
 	true -> wings_dl:map(Fun, [])
     end.
+
+format([{Mod,But,Msg}|T]) ->
+    wings_msg:join(wings_msg:mod_format(Mod, But, Msg), format(T));
+format([]) -> [].

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.43 2004/12/16 15:42:04 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.44 2004/12/16 20:05:11 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -519,8 +519,8 @@ event(close, _) ->
     delete;
 event(got_focus, _) ->
     Msg2 = wings_camera:help(),
-    Msg3 = wings_util:button_format([], [],?__(1,"Show menu")),
-    Message = wings_util:join_msg([Msg2,Msg3]),
+    Msg3 = wings_msg:button_format([], [],?__(1,"Show menu")),
+    Message = wings_msg:join([Msg2,Msg3]),
     wings_wm:message(Message),
     wings_wm:dirty();
 event({action,{viewer,Cmd}}, Id) ->
