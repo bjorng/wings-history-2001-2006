@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.2 2001/11/06 14:43:57 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.3 2001/11/06 14:54:58 dgud Exp $
 %%
 
 -module(wings_pref).
@@ -52,7 +52,7 @@ old_pref_file() ->
 new_pref_file() ->
     case os:type() of
 	{unix,_} ->
-	    old_pref_file();
+	    filename:join(os:getenv("HOME"), ".wings");
 	{win32,_} ->
 	    new_pref_file_win32()
     end.
