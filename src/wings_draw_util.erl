@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.112 2003/09/24 04:38:57 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.113 2003/10/27 17:59:09 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -520,11 +520,15 @@ edge_width(_) -> 1.
 prepare(Ftab, #dlo{src_we=We}, St) ->
     prepare(Ftab, We, St);
 prepare(Ftab, #we{mode=vertex}=We, St) ->
-    case wings_pref:get_value(show_colors) of
-	false ->
-	    MatFaces = [{default,Ftab}],
-	    {material,MatFaces,St};
-	true ->
+    case {wings_pref:get_value(show_colors),Ftab} of
+	{false,[{_,Edge}|_]} when is_integer(Edge) ->
+	    Fs0 = sofs:from_external(Ftab, [{face,edge}]),
+	    Fs1 = sofs:domain(Fs0),
+	    Fs = sofs:to_external(Fs1),
+	    {color,{[{wings_color:white(),Fs}],[]},St};
+	{false,_} ->
+	    {color,{[{wings_color:white(),Ftab}],[]},St};
+	{true,_} ->
 	    {color,vtx_color_split(Ftab, We),St}
     end;
 prepare(Ftab, #we{mode=material}=We, St) ->
