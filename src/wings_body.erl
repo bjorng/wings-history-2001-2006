@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.32 2002/04/27 07:41:35 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.33 2002/05/07 09:39:02 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -160,7 +160,7 @@ clean_short_edges(Tolerance, #we{es=Etab,vs=Vtab}=We) ->
 		      VbPos = wings_vertex:pos(Vb, Vtab),
 		      case abs(e3d_vec:dist(VaPos, VbPos)) of
 			  Dist when Dist < Tolerance -> [Edge|A];
-			  Dist -> A
+			  _Dist -> A
 		      end
 	      end, [], gb_trees:to_list(Etab)),
     foldl(fun(Edge, #we{es=Et}=W) ->
@@ -329,7 +329,7 @@ auto_smooth(Edge, #edge{lf=Lf,rf=Rf}, Cos, H0, We) ->
 	    case e3d_vec:dot(Ln, Lr) of
 		P when P < Cos ->
 		    wings_edge:hardness(Edge, hard, H0);
-		P ->				%angle =< 60
+		_ ->				%angle =< 60
 		    wings_edge:hardness(Edge, soft, H0)
 	    end
     end.
