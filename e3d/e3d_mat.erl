@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.13 2002/03/31 10:23:29 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.14 2002/06/14 13:02:16 bjorng Exp $
 %%
 
 -module(e3d_mat).
 
--export([identity/0,compress/1,expand/1,
+-export([identity/0,is_identity/1,compress/1,expand/1,
 	 translate/1,translate/3,scale/1,scale/3,rotate/2,rotate_to_z/1,
 	 transpose/1,mul/2,mul_point/2,mul_vector/2]).
 
@@ -24,6 +24,9 @@ identity() ->
      Zero,One,Zero,
      Zero,Zero,One,
      Zero,Zero,Zero}.
+
+is_identity({1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0}) -> true;
+is_identity({_,_,_,_,_,_,_,_,_,_,_,_}) -> false.
 
 compress({A,B,C,0.0,D,E,F,0.0,G,H,I,0.0,Tx,Ty,Tz,1.0}) ->
     {A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}.
@@ -42,7 +45,8 @@ translate(Tx, Ty, Tz) ->
      Zero,Zero,One,
      Tx,Ty,Tz}.
 
-scale({X,Y,Z}) -> scale(X, Y, Z).
+scale({X,Y,Z}) -> scale(X, Y, Z);
+scale(Sc) when is_float(Sc) -> scale(Sc, Sc, Sc).
 
 scale(Sx, Sy, Sz) ->
     Zero = 0.0,

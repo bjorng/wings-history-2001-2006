@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.20 2002/05/03 10:19:55 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.21 2002/06/14 13:02:16 bjorng Exp $
 %%
 
 -module(e3d_obj).
--export([import/1,export/2]).
+-export([import/1,export/2,export/3]).
 
 -include("e3d.hrl").
 -include("e3d_image.hrl").
@@ -266,18 +266,22 @@ skip_blanks(S) -> S.
 %%% Export.
 %%% 
 
-export(File, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
+export(File, Contents) ->
+    export(File, Contents, []).
+
+export(File, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Flags) ->
     {ok,MtlLib} = materials(File, Mat, Creator),
     {ok,F} = file:open(File, [write]),
     label(F, Creator),
     io:format(F, "mtllib ~s\n", [MtlLib]),
     foldl(fun(#e3d_object{name=Name}=Obj, {Vbase,UVbase,Nbase}) ->
 		  io:format(F, "o ~s\n", [Name]),
-		  export_object(F, Obj, Vbase, UVbase, Nbase)
+		  export_object(F, Obj, Flags, Vbase, UVbase, Nbase)
 	  end, {1,1,1}, Objs),
     ok = file:close(F).
 
-export_object(F, #e3d_object{name=Name,obj=Mesh0}, Vbase, UVbase, Nbase) ->
+export_object(F, #e3d_object{name=Name,obj=Mesh0}, Flags,
+	      Vbase, UVbase, Nbase) ->
     Mesh = e3d_mesh:vertex_normals(Mesh0),
     #e3d_mesh{fs=Fs0,vs=Vs,tx=Tx,ns=Ns} = Mesh,
     mesh_info(F, Mesh),
@@ -290,25 +294,39 @@ export_object(F, #e3d_object{name=Name,obj=Mesh0}, Vbase, UVbase, Nbase) ->
     foreach(fun({X,Y,Z}) ->
 		    io:format(F, "vn ~p ~p ~p\n", [X,Y,Z])
 	    end, Ns),
+    object_group(F, Name, Flags),
     Fs1 = [{Mat,FaceRec} || #e3d_face{mat=Mat}=FaceRec <- Fs0],
     Fs = sofs:to_external(sofs:relation_to_family(sofs:relation(Fs1))),
     foreach(fun(Face) ->
-		    face_mat(F, Name, Face, Vbase, UVbase, Nbase)
+		    face_mat(F, Name, Face, Flags, Vbase, UVbase, Nbase)
 	    end, Fs),
     {Vbase+length(Vs),UVbase+length(Tx),Nbase+length(Ns)}.
 
-face_mat(F, Name, {Ms,Fs}, Vbase, UVbase, Nbase) ->
-    io:format(F, "g ~s", [Name]),
-    foreach(fun(M) ->
-		    io:format(F, "_~s", [atom_to_list(M)])
-	    end, Ms),
-    io:nl(F),
+object_group(F, Name, Flags) ->
+    case property_lists:get_bool(group_per_material, Flags) of
+	true -> ok;
+	false -> io:format(F, "g ~s\n", [Name])
+    end.
+
+face_mat(F, Name, {Ms,Fs}, Flags, Vbase, UVbase, Nbase) ->
+    mat_group(F, Name, Ms, Flags),
     io:put_chars(F, "usemtl"),
     foldl(fun(M, Prefix) ->
 		  io:format(F, "~c~s", [Prefix,atom_to_list(M)])
 	  end, $\s, Ms),
     io:nl(F),
     foreach(fun(Vs) -> face(F, Vs, Vbase, UVbase, Nbase) end, Fs).
+
+mat_group(F, Name, Ms, Flags) ->
+    case property_lists:get_bool(group_per_material, Flags) of
+	true ->
+	    io:format(F, "g ~s", [Name]),
+	    foreach(fun(M) ->
+			    io:format(F, "_~s", [atom_to_list(M)])
+		    end, Ms),
+	    io:nl(F);
+	false -> ok
+    end.
 
 face(F, #e3d_face{vs=Vs,tx=[],ns=Ns}, Vbase, _UVbase, Nbase) ->
     io:put_chars(F, "f"),

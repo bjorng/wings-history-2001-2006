@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.18 2002/05/10 14:00:57 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.19 2002/06/14 13:02:16 bjorng Exp $
 %%
 
 -module(e3d_mesh).
--export([clean/1,renumber/1,triangulate/1,quadrangulate/1,
+-export([clean/1,transform/2,renumber/1,triangulate/1,quadrangulate/1,
 	 make_quads/1,vertex_normals/1]).
 -export([triangulate_face/2,triangulate_face_with_holes/3]).
 -export([quadrangulate_face/2,quadrangulate_face_with_holes/3]).
@@ -24,24 +24,20 @@
 clean(Mesh) ->
     e3d__meshclean:clean(Mesh).
 
-number_faces(Fs) ->
-    number_faces(Fs, 0, []).
-number_faces([F|Fs], Face, Acc) ->
-    number_faces(Fs, Face+1, [{Face,F}|Acc]);
-number_faces([], _Face, Acc) -> reverse(Acc).
+%%%
+%%% Transform all vertices in the mesh by the matrix.
+%%%
 
-pairs(Vs, Vis) ->
-    pairs(Vs, Vs, Vis, []).
-
-pairs([V1|[V2|_]=Vs], More, Vis, Acc) ->
-    State = visible(Vis),
-    pairs(Vs, More, Vis bsl 1, [{V1,V2,State}|Acc]);
-pairs([V1], [V2|_], Vis, Acc) ->
-    State = visible(Vis),
-    [{V1,V2,State}|Acc].
-
-visible(F) when F band 4 =/= 0 -> visible;
-visible(_) -> invisible.
+transform(#e3d_mesh{vs=Vs0}=Mesh, Matrix) ->
+    case e3d_mat:is_identity(Matrix) of
+	true -> Mesh;
+	false ->
+	    Vs1 = foldl(fun(P, A) ->
+				[e3d_mat:mul_point(Matrix, P)|A]
+			end, [], Vs0),
+	    Vs = reverse(Vs1),
+	    Mesh#e3d_mesh{vs=Vs}
+    end.
 
 %%%
 %%% If two adjacent triangles share a hidden edge, combine the
@@ -340,5 +336,24 @@ rn_make_map([V|Vs], I, Acc) ->
 rn_make_map([], _, Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
 
+
+number_faces(Fs) ->
+    number_faces(Fs, 0, []).
+number_faces([F|Fs], Face, Acc) ->
+    number_faces(Fs, Face+1, [{Face,F}|Acc]);
+number_faces([], _Face, Acc) -> reverse(Acc).
+
+pairs(Vs, Vis) ->
+    pairs(Vs, Vs, Vis, []).
+
+pairs([V1|[V2|_]=Vs], More, Vis, Acc) ->
+    State = visible(Vis),
+    pairs(Vs, More, Vis bsl 1, [{V1,V2,State}|Acc]);
+pairs([V1], [V2|_], Vis, Acc) ->
+    State = visible(Vis),
+    [{V1,V2,State}|Acc].
+
+visible(F) when F band 4 =/= 0 -> visible;
+visible(_) -> invisible.
     
     
