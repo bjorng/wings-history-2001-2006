@@ -48,7 +48,7 @@ command(_, _) ->
     next.
 
 menu_entry(Menu) ->
-    Menu ++ [{"Stanford ply (.ply)",ply,[option]}].
+    Menu ++ [{"Stanford ply (.ply)...",ply,[option]}].
 
 props() ->
     [{ext,".ply"},{ext_desc,"Stanford ply File"}].

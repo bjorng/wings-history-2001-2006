@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.53 2002/10/30 19:21:44 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.54 2002/11/07 07:49:43 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -39,10 +39,15 @@ init(#st{mat=MatTab}=St) ->
 
 sub_menu(face, St) ->
     Mlist = material_list(St),
-    Materials = [{"New",new},separator|Mlist],
+    Materials = [{"New...",new},separator|Mlist],
     {"Set Material",{material,Materials}};
 sub_menu(edit, St) ->
-    {"Material",{material,material_list(St)}};
+    MatList0 = material_list(St),
+    MatList = [begin
+		   Text = element(1, Elem),
+		   setelement(1, Elem, Text++"...")
+	       end || Elem <- MatList0],
+    {"Material",{material,MatList}};
 sub_menu(select, St) ->
     {"Material",{material,material_list(St)}}.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.22 2002/10/02 15:10:35 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.23 2002/11/07 07:49:43 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -97,7 +97,7 @@ choices(Sel, _IsSel) when is_tuple(Sel) ->
 
 more_choices() ->
     [{"Hide",hide},{"Hide Others",hide_others},
-     {"Lock",lock},{"Rename",rename}].
+     {"Lock",lock},{"Rename...",rename}].
 
 command({Id,select}, St) ->
     {save_state,wings_sel:select_object(Id, St)};

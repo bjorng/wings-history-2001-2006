@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_3ds.erl,v 1.6 2002/10/28 18:00:16 bjorng Exp $
+%%     $Id: wpc_3ds.erl,v 1.7 2002/11/07 07:49:40 bjorng Exp $
 %%
 
 -module(wpc_3ds).
@@ -38,7 +38,7 @@ command(_, _) ->
     next.
 
 menu_entry(Menu) ->
-    Menu ++ [{"3D Studio (.3ds)",tds,[option]}].
+    Menu ++ [{"3D Studio (.3ds)...",tds,[option]}].
 
 props() ->
     [{ext,".3ds"},{ext_desc,"3D Studio File"}].

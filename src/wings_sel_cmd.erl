@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.21 2002/09/22 09:45:44 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.22 2002/11/07 07:49:43 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -56,7 +56,7 @@ menu(X, Y, St) ->
 					  {"80%",80},
 					  {"90%",90}]}},
 		       {"Short edges",short_edges,[option]},
-		       {"Id",id}]}},
+		       {"Id...",id}]}},
 	    {"Lights",lights},
 	    separator,
 	    {sel_all_str(St),all},

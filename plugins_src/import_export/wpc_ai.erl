@@ -50,7 +50,7 @@
 init() -> true.
 
 menu({file,import}, Menu) ->
-	Menu ++ [{"Adobe Illustrator (.ai)",ai}];
+	Menu ++ [{"Adobe Illustrator (.ai)...",ai}];
 menu(_, Menu) -> Menu.
 
 command({file,{import,ai}}, St) ->
@@ -127,7 +127,7 @@ tokenize("<" ++ T, Toks) ->
 	tokenize(skiphexstring(T), [{tstring}|Toks]);
 tokenize([C|T], Toks) when C == $[; C == $]; C == ${; C == $} ->
 	tokenize(T, [{tname,[C]}|Toks]);
-tokenize([C|T] = Arg, Toks) when C >= $0, C =< $9 ->
+tokenize([C|_] = Arg, Toks) when C >= $0, C =< $9 ->
 	{Tok,TT} = parsenum(Arg),
 	tokenize(TT, [Tok|Toks]);
 tokenize(Arg, Toks) ->
@@ -161,16 +161,16 @@ parsenum([C|Rest]=L) ->
 skipline("\r\n" ++ T) -> T;
 skipline("\r" ++ T) -> T;	% sometimes find files with only CRs!
 skipline("\n" ++ T) -> T;
-skipline([C|T]) -> skipline(T);
+skipline([_|T]) -> skipline(T);
 skipline([]) -> [].
 
 % skip past next ")", but be careful about escaped ones
 % return rest
 skipstring([]) -> [];
 skipstring("\\") -> [];
-skipstring("\\" ++ [C|T]) -> skipstring(T);
+skipstring("\\" ++ [_|T]) -> skipstring(T);
 skipstring(")" ++ T) -> T;
-skipstring([C|T]) -> skipstring(T).
+skipstring([_|T]) -> skipstring(T).
 
 % skip past next ">", return rest
 skiphexstring([]) -> [];

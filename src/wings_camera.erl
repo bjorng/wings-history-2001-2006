@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.50 2002/11/04 07:10:22 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.51 2002/11/07 07:49:41 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -45,7 +45,7 @@ init() ->
     end.
     
 sub_menu(_St) ->
-    [{"Camera Mode",camera_mode}].
+    [{"Camera Mode...",camera_mode}].
 
 command(camera_mode, _St) ->
     DefVar = {mode,wings_pref:get_value(camera_mode)},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.59 2002/10/28 06:19:42 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.60 2002/11/07 07:49:43 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -55,10 +55,10 @@ prune_defaults(List) ->
     List -- defaults().
 
 menu(_St) ->
-    [{"Preferences",fun(_, _) ->
+    [{"Preferences...",fun(_, _) ->
 			    {edit,{preferences,prefs}}
 		    end,[],[]},
-     {"Compatibility",fun(_, _) ->
+     {"Compatibility...",fun(_, _) ->
 			      {edit,{preferences,compatibility}}
 		      end,[],[]}].
 

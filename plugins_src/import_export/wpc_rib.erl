@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.12 2002/09/18 13:16:07 bjorng Exp $
+%%     $Id: wpc_rib.erl,v 1.13 2002/11/07 07:49:41 bjorng Exp $
 
 -module(wpc_rib).
 -include_lib("e3d.hrl").
@@ -57,7 +57,7 @@ command({file, {render, {entropy, Ask}}}, St) ->
 command(_, _) -> next.
 
 menu_entry(Menu) ->
-    Menu ++ [{"RenderMan (.rib)",rib,[option]}].
+    Menu ++ [{"RenderMan (.rib)...",rib,[option]}].
 
 props() ->
     [{ext,".rib"},{ext_desc,"RenderMan File"}].
@@ -444,7 +444,7 @@ export_material(F, Name, Mat, Base, Attr) ->
     Shine = proplists:get_value(shininess, OpenGL),
     Ka = (Ar+Ag+Ab)/3,
     Kd = (Dr+Dg+Db)/3,
-    Ks = (Sr+Sg+Sb)/3,
+    %%%Ks = (Sr+Sg+Sb)/3,
     case proplists:get_value(diffuse, Maps, none) of
 	none ->
 	    io:format(F, "Surface \"plastic\"\n"

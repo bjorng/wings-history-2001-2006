@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.6 2002/06/09 18:40:43 bjorng Exp $
+%%     $Id: wpc_wrl.erl,v 1.7 2002/11/07 07:49:41 bjorng Exp $
 %%
 
 -module(wpc_wrl).
@@ -36,7 +36,7 @@ command({file, {export_selected, wrl}}, St) ->
 command(_, _) -> next.
 
 menu_entry(Menu) ->
-    Menu ++ [{"VRML 2.0 (.wrl)", wrl}].
+    Menu ++ [{"VRML 2.0 (.wrl)...", wrl}].
 
 props() ->
     [{ext, ".wrl"},{ext_desc, "VRML 2.0 File"}].
@@ -58,8 +58,6 @@ export(File_name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
 		  Used_mats
 	  end, [], Objs),
     ok = file:close(F).
-
-
 
 export_object(F, #e3d_mesh{fs=Fs,vs=Vs,vc=[]}, Mat_defs, Used_mats0) ->
     %% A first adventure into sofs. They seem extremely powerful if

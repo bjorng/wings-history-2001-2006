@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.7 2002/10/28 18:00:16 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.8 2002/11/07 07:49:41 bjorng Exp $
 %%
 
 -module(wpc_obj).
@@ -38,7 +38,7 @@ command(_, _) ->
     next.
 
 menu_entry(Menu) ->
-    Menu ++ [{"Wavefront (.obj)",obj,[option]}].
+    Menu ++ [{"Wavefront (.obj)...",obj,[option]}].
 
 props() ->
     [{ext,".obj"},{ext_desc,"Wavefront File"}].

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.85 2002/10/28 17:51:15 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.86 2002/11/07 07:49:42 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -48,16 +48,16 @@ finish() ->
     ok.
 
 menu(X, Y, _) ->
-    ImpFormats = [{"Nendo (.ndo)",ndo}],
-    ExpFormats = [{"Nendo (.ndo)",ndo},
-		  {"ExtremeUV [Experimental] (.xndo)",xndo}],
+    ImpFormats = [{"Nendo (.ndo)...",ndo}],
+    ExpFormats = [{"Nendo (.ndo)...",ndo},
+		  {"ExtremeUV [Experimental] (.xndo)...",xndo}],
     Menu = [{"New",new},
-	    {"Open",open},
-	    {"Merge",merge},
+	    {"Open...",open},
+	    {"Merge...",merge},
 	    separator,
 	    {"Save",save},
-	    {"Save As",save_as},
-	    {"Save Selected",save_selected},
+	    {"Save As...",save_as},
+	    {"Save Selected...",save_selected},
 	    separator,
 	    {"Revert",revert},
 	    separator,
