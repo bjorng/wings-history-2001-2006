@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.21 2003/04/21 10:16:57 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.22 2003/10/24 04:04:39 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -257,4 +257,6 @@ write_file(Name, Objects) ->
 convert_color(<<R:8,G:8,B:8,_A:8>>) ->
     wings_color:store({R/255,G/255,B/255});
 convert_color({R,G,B}) ->
-    [trunc(R*255),trunc(G*255),trunc(B*255),255].
+    [trunc(R*255),trunc(G*255),trunc(B*255),255];
+convert_color(none) ->
+    [255,255,255,255].
