@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.7 2001/11/07 09:41:49 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.8 2001/11/14 10:05:56 bjorng Exp $
 %%
 
 -module(wings_getline).
@@ -155,7 +155,11 @@ key(?SDLK_END, _, Ts) -> key(5, Ts);
 key(?SDLK_LEFT, _, Ts) -> key(2, Ts);
 key(?SDLK_RIGHT, _, Ts) -> key(6, Ts);
 key(?SDLK_DELETE, _, Ts) -> key(4, Ts);
-key(_, Unicode, Ts) ->
+key(?SDLK_KP_PERIOD, _, Ts) ->
+    key($., Ts);
+key(C, _, Ts) when ?SDLK_KP0 =< C, C < ?SDLK_KP9 ->
+    key(C-?SDLK_KP0+$0, Ts);
+key(Other, Unicode, Ts) ->
     key(Unicode, Ts).
 
 key($+, #text{number=true}=Ts) ->
@@ -183,7 +187,7 @@ key(4, #text{aft=[_|Aft]}=Ts) ->		%Ctrl-D
 key(C, #text{bef=Bef0}=Ts0) when $\s =< C, C < 256 ->
     Ts0#text{bef=[C|Bef0]};
 key(C, Ts) ->
-%%    erlang:display({C,Ts}),
+    %%erlang:display({C,Ts}),
     Ts.
 
 increment(Ts, Incr) ->
