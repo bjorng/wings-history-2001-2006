@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.7 2002/02/02 12:26:01 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.8 2002/02/03 22:43:45 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -19,10 +19,11 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [foldl/3,keydelete/3,reverse/1]).
+-import(lists, [foldl/3,keydelete/3,reverse/1,member/2]).
 
 -record(ss, {check,				%Check fun.
-	     exit				%Exit fun.
+	     exit,				%Exit fun.
+	     selmodes				%Legal selection modes.
 	    }).
 
 menu(St) ->
@@ -56,13 +57,17 @@ command({dynamic_use_vector,{Name,Vec0,Ns}}, St) ->
     wings_io:putback_event({action,Cmd}),
     move_to_front({Name,Vec0}, St#st{vec=Vec});
 command({pick_new,Names}, St0) ->
+    Modes = [vertex,edge,face],
+    wings_io:icon_restriction(Modes),
     Ss = #ss{check=fun check_vector/1,
-	     exit=fun(X, Y, St) -> exit_vector(X, Y, Names, St) end},
+	     exit=fun(X, Y, St) -> exit_vector(X, Y, Names, St) end,
+	     selmodes=Modes},
     wings_io:message("Select vector to use."),
     {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
-command({pick_special,{Init,Check,Exit}}, St0) ->
+command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
+    wings_io:icon_restriction(Modes),
     St = Init(St0),
-    Ss = #ss{check=Check,exit=Exit},
+    Ss = #ss{selmodes=Modes,check=Check,exit=Exit},
     {seq,{push,dummy},get_event(Ss, St)};
 command(rename, St) ->
     name_menu("Rename or Delete Vector", do_rename, dummy, St);
@@ -146,8 +151,8 @@ handle_event_4(Event, Ss, St0) ->
 	{select,Cmd} ->
 	    case wings_sel_cmd:command(Cmd, St0) of
 		St0 -> keep;
-		{save_state,St} -> handle_event({new_selection,St}, Ss, St);
-		St -> handle_event({new_selection,St}, Ss, St)
+		{save_state,St} -> filter_sel_command(Ss, St);
+		St -> filter_sel_command(Ss, St)
 	    end;
 	Other -> keep
     end.
@@ -164,18 +169,29 @@ handle_event_5(redraw, Ss, St) ->
     keep;
 handle_event_5({action,{secondary_selection,abort}}, Ss, St) ->
     wings_io:clear_message(),
+    wings_io:putback_event(redraw),
+    pop;
+handle_event_5({action,Cmd}, Ss, St) ->
+    wings_io:clear_message(),
+    wings_io:putback_event({action,Cmd}),
     pop;
 handle_event_5({action,{select,Cmd}}, Ss, St0) ->
     case wings_sel_cmd:command(Cmd, St0) of
 	St0 -> keep;
-	{save_state,St} -> handle_event({new_selection,St}, Ss, St);
-	St -> handle_event({new_selection,St}, Ss, St)
+	{save_state,St} -> filter_sel_command(Ss, St);
+	St -> filter_sel_command(Ss, St)
     end;
 handle_event_5(quit, Ss, St0) ->
     wings_io:putback_event(quit),
     pop;
 handle_event_5(Event, Ss, St) ->
     get_event(Ss, St).
+
+filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
+    case member(Mode, Modes) of
+	true -> handle_event({new_selection,St}, Ss, St);
+	false -> keep
+    end.
 
 translate_key(#keyboard{keysym=KeySym}) ->
     translate_key_1(KeySym);
@@ -188,34 +204,23 @@ translate_key_1(#keysym{sym=27}) ->		%Escape
 translate_key_1(Other) -> next.
 
 exit_menu(X, Y, #ss{exit=Exit}, St) ->
-    Exit(X, Y, St).
-
-exit_vector(X, Y, Names, St) ->
-    case check_vector(St) of
-	{none,Msg} ->
-	    wings_io:message(Msg),
-	    exit_menu_invalid(X, Y, Names, St);
-	{Vec,Msg} ->
-	    wings_io:message(Msg),
-	    exit_menu_done(X, Y, Vec, Names, St)
+    case Exit(X, Y, St) of
+	invalid_selection ->
+	    exit_menu_invalid(X, Y, St);
+	MenuEntry ->
+	    exit_menu_done(X, Y, MenuEntry, St)
     end.
 
-exit_menu_invalid(X, Y, Names, St) ->
+exit_menu_invalid(X, Y, St) ->
     Menu = [{"Invalid Selection",ignore},
 	    separator,
 	    {"Abort Command",abort}],
     wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
 
-exit_menu_done(X, Y, Vec, Ns, St) ->
-    UseAction = fun(_, _) -> {vector,{save_unnamed,{Vec,Ns}}} end,
-    FakeVec = {{0,0,0},{0,0,0}},
-    Command0 = wings_menu:build_command(FakeVec, Ns),
-    Command = wings_util:stringify(Command0),
-    Menu = [{"Vector Selection",ignore},
-	    separator,
-	    {"Execute " ++ Command,UseAction},
-	    {"Abort Command",aborted}],
-    {seq,pop,wings_menu:popup_menu(X, Y, secondary_selection, Menu, St)}.
+exit_menu_done(X, Y, MenuEntry, St) ->
+    Menu = [MenuEntry,
+	    {"Abort Command",abort}],
+    wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
 
 %%%
 %%% Show menu of named vectors.
@@ -267,10 +272,24 @@ pick_named([{Name0,Vec}|Vecs], Ns, Acc) ->
 	end,
     Name = stringify_name(Name0),
     pick_named(Vecs, Ns, [{Name,{use_vector,F}}|Acc]).
-	     
+
 %%%
 %%% Vector functions.
 %%%
+
+exit_vector(X, Y, Ns, St) ->
+    case check_vector(St) of
+	{none,Msg} ->
+	    wings_io:message(Msg),
+	    invalid_selection;
+	{Vec,Msg} ->
+	    wings_io:message(Msg),
+	    UseAction = fun(_, _) -> {vector,{save_unnamed,{Vec,Ns}}} end,
+	    FakeVec = {{0,0,0},{0,0,0}},
+	    Command0 = wings_menu:build_command(FakeVec, Ns),
+	    Command = wings_util:stringify(Command0),
+	    {Command,UseAction}
+    end.
 
 check_vector(#st{sel=[]}) -> {none,"Nothing selected"};
 check_vector(#st{selmode=Mode,sel=Sel}=St) ->
