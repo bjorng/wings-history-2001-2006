@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_region.erl,v 1.1 2002/01/28 17:33:40 bjorng Exp $
+%%     $Id: wpc_region.erl,v 1.2 2002/01/30 09:12:24 bjorng Exp $
 %%
 
 -module(wpc_region).
@@ -47,29 +47,26 @@ command({face,{move,region}}, St) ->
 		    Id = wpa:obj_id(We),
 		    [{Id,move_region(Faces, We)}|Acc]
 	    end, [], St),
-    init_drag(Tvs, St);
+    wings_drag:init_drag(Tvs, none, percent, St);
 command({face,{scale,region}}, St) ->
     Tvs = wpa:sel_fold(
 	    fun(Faces, We, Acc) ->
 		    Id = wpa:obj_id(We),
 		    [{Id,scale_region(Faces, We)}|Acc]
 	    end, [], St),
-    init_drag(Tvs, St);
+    wings_drag:init_drag(Tvs, {-1.0,?HUGE}, percent, St);
 command({face,{rotate,region}}, St) ->
     Tvs = wpa:sel_fold(
 	    fun(Faces, We, Acc) ->
 		    rotate_region(Faces, We, Acc)
 	    end, [], St),
-    init_drag(Tvs, St);
+    wings_drag:init_drag(Tvs, none, angle, St);
 command({face,{flatten,region}}, St) ->
     wpa:sel_map(
       fun(Faces, We) ->
 	      flatten_region(Faces, We)
       end, St);
 command(Cmd, _) -> next.
-
-init_drag(Tvs, St) ->
-    wings_drag:init_drag(Tvs, {-1.0,?HUGE}, percent, St).
 
 %%%
 %%% Move Region.
