@@ -195,9 +195,7 @@ set_materials(Image,St0) ->
 					{wings_material:assign(MatName,[Face],We1),NMats0}
 				end
 			end,
-		  {We,NewMats} = 
-		      wings_face:fold_faces(Set, {We0,NewMats0}, Items, We0),
-		  {We#we{mode=uv},NewMats}
+		  wings_face:fold_faces(Set, {We0,NewMats0}, Items, We0)
 	  end,
     {St1, {_,NewMats}} = wings_sel:mapfold(Fix, {[],St0}, St0),
     St1#st{mat=NewMats#st.mat}.
