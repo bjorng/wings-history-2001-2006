@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_texture.erl,v 1.6 2004/04/12 07:23:40 bjorng Exp $
+%%     $Id: auv_texture.erl,v 1.7 2004/05/12 19:56:59 dgud Exp $
 
 -module(auv_texture).
 -export([get_texture/1, get_texture/2, draw_options/0]).
@@ -202,11 +202,10 @@ calc_texsize(Vp, Tex, Orig) ->
 
 
 %%%
-draw_area(#we{fs=Fs0}=We,
-	  #opt{color=ColorMode,edges=EdgeMode}=Options, Materials) -> 
+draw_area(We,#opt{color=ColorMode,edges=EdgeMode}=Options, Materials) -> 
     gl:pushMatrix(),
     gl:lineWidth(Options#opt.edge_width),
-    Fs = gb_trees:keys(Fs0),
+    Fs = wings_we:visible(We),
     Tbe = auv_util:outer_edges(Fs, We),
     %% Draw Materials and Vertex Colors
     case EdgeMode of
@@ -229,9 +228,9 @@ draw_area(#we{fs=Fs0}=We,
 			fun({Edge,_}) ->
 				#edge{vs=Va, a=VaC, ve=Vb, b=VbC} =
 				    gb_trees:get(Edge, Etab),
-				gl:color3fv(VaC),
+				gl:color3fv(fix(VaC)),
 				gl:vertex3fv(wings_vertex:pos(Va, Vtab)),
-				gl:color3fv(VbC),
+				gl:color3fv(fix(VbC)),
 				gl:vertex3fv(wings_vertex:pos(Vb, Vtab))
 			end;
 		    _ ->
@@ -270,10 +269,6 @@ draw_area(#we{fs=Fs0}=We,
 		true -> gl:disable(?GL_TEXTURE_2D);
 		false -> ignore
 	    end;
-	is_tuple(ColorMode), size(ColorMode) == 4 ->
-	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-	    gl:color4fv(ColorMode),
-	    draw_faces(Fs, We#we{mode = material});
 	true ->
 	    ignore
     end,
@@ -301,12 +296,33 @@ draw_faces(Fs, We) ->
     foreach(Draw, Fs),
     gl:'end'().
 
+fix(none) -> {1.0,1.0,1.0};
+fix(C) -> C.
+   
 %% XXX Wrong.
-face(Face, #we{mode=material}=We) ->
-    wings_draw_util:plain_face(Face, We);
-face(Face, #we{mode=vertex}=We) ->
-    wings_draw_util:vcol_face(Face, We).
+face(Face, #we{mode=material,fs=Ftab}=We) ->
+    Edge = gb_trees:get(Face, Ftab),
+    Ps = wings_face:vertex_positions(Face, Edge, We),
+    case wings_draw:face_ns_data(Ps) of
+	[_N|VsPos] ->
+	    wings__du:plain_face(VsPos);
+	{_N,Fs,VsPos} ->
+	    wings__du:plain_face(Fs, VsPos)
+    end;
+%%wings_draw_util:plain_face(Face, We);
+face(Face, #we{mode=vertex,fs=Ftab}=We) ->
+    Cols = wings_face:vertex_info(Face, We),
+    Edge = gb_trees:get(Face, Ftab),
+    Ps = wings_face:vertex_positions(Face, Edge, We),
+    case wings_draw:face_ns_data(Ps) of
+	[_N|VsPos] ->
+	    wings__du:vcol_face(VsPos,Cols);
+	{_N,Fs,VsPos} ->
+	    wings__du:vcol_face(Fs, VsPos,Cols)
+    end.
+%    wings_draw_util:vcol_face(Face, We).
 
+    
 set_viewport({X,Y,W,H}=Viewport) ->
     put(wm_viewport, Viewport),
     gl:viewport(X, Y, W, H).
