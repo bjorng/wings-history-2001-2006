@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.64 2002/11/24 09:28:28 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.65 2002/11/25 20:07:16 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -350,12 +350,11 @@ popup_submenu(Button, X0, Y0, SubName, SubMenu0, #mi{owner=Owner}=Mi) ->
 	Action when is_tuple(Action); is_atom(Action) ->
 	    wings_io:clear_menu_sel(),
 	    wings_wm:send(Owner, {action,Action}),
-	    %%wings_io:putback_event({action,Action}),
 	    delete_all(Mi);
 	SubMenu when is_list(SubMenu) ->
 	    {X,Y} = wings_wm:local2global(X0, Y0),
 	    Cb = fun() -> menu_setup(popup, X, Y, SubName, SubMenu, Mi) end,
-	    wings_io:putback_event({callback,Cb}),
+	    wings_wm:callback(Cb),
 	    delete_all(Mi)
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.166 2002/11/23 20:34:31 bjorng Exp $
+%%     $Id: wings.erl,v 1.167 2002/11/25 20:07:15 bjorng Exp $
 %%
 
 -module(wings).
@@ -260,7 +260,6 @@ handle_event_3(quit, St) ->
 handle_event_3({new_state,St}, St0) ->
     wings_wm:dirty(),
     save_state(St0, St);
-handle_event_3({callback,Cb}, _) -> Cb();
 handle_event_3(ignore, _St) -> keep.
     
 do_command(Cmd, St0) ->

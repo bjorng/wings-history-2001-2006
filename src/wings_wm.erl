@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.19 2002/11/25 07:46:48 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.20 2002/11/25 20:07:17 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,new/4,delete/1,
 	 message/1,message/2,message_right/1,send/2,
 	 active_window/0,offset/3,pos/1,
+	 callback/1,
 	 grab_focus/1,release_focus/0,has_focus/1,
 	 top_size/0,viewport/0,viewport/1,
 	 local2global/2,global2local/2,local_mouse_state/0,
@@ -85,6 +86,9 @@ dirty() ->
 clean() ->
     erase(wm_dirty).
 
+callback(Cb) ->
+    wings_io:putback_event({wm,{callback,Cb}}).
+    
 new(Name, {X,Y,Z}, {W,H}, Op) when is_integer(X), is_integer(Y),
 				   is_integer(W), is_integer(H) ->
     dirty(),
@@ -352,7 +356,10 @@ wm_event({message_right,Name,Right0}) ->
     end,
     event_loop();
 wm_event({send_to,Name,Ev}) ->
-    do_dispatch(Name, Ev).
+    do_dispatch(Name, Ev);
+wm_event({callback,Cb}) ->
+    Cb(),
+    event_loop().
 
 %%%
 %%% Finding the active window.
@@ -458,7 +465,6 @@ translate_button_1(B, _, Mod) ->
 %% The message window.
 %%
 
-message_event({callback,Fun}) -> Fun();
 message_event(redraw) ->
     case find_active(redraw) of
 	none -> message_redraw([], []);
