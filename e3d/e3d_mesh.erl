@@ -8,11 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.12 2001/12/28 22:32:19 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.13 2002/01/15 07:20:01 bjorng Exp $
 %%
 
 -module(e3d_mesh).
--export([clean/1,triangulate/1,make_quads/1,vertex_normals/1]).
+-export([clean/1,triangulate/1,quadrilate/1,
+	 make_quads/1,vertex_normals/1]).
+-export([triangulate_face/2,triangulate_face_with_holes/3]).
+-export([quadrilate_face/2,quadrilate_face_with_holes/3]).
 
 -include("e3d.hrl").
 -import(lists, [foreach/2,sort/1,reverse/1,reverse/2,seq/2,
@@ -142,114 +145,45 @@ rhe_edges([], Face, Acc) -> Acc.
 
 triangulate(#e3d_mesh{type=triangle}=Mesh) -> Mesh;
 triangulate(#e3d_mesh{type=polygon,fs=Fs0,vs=Vs}=Mesh) ->
-    case triangulate(Fs0, list_to_tuple(Vs), []) of
+    case triangulate(Fs0, Vs, []) of
 	error -> error;
 	Fs -> Mesh#e3d_mesh{type=triangle,fs=Fs}
     end.
 
-triangulate([#e3d_face{vs=[_,_,_]}=Tri|Ps], Vtab, Acc) ->
-    triangulate(Ps, Vtab, [Tri|Acc]);
-triangulate([#e3d_face{vs=[A,B,C,D]}=Quad|Ps], Vtab, Acc) ->
-    TriA = Quad#e3d_face{vs=[A,B,C],vis=6},
-    TriB = Quad#e3d_face{vs=[C,D,A],vis=6},
-    triangulate(Ps, Vtab, [TriA,TriB|Acc]);
-triangulate([#e3d_face{vs=Vs}=FaceRec|Ps], Vtab, Acc0) ->
-    Plane = polygon_plane(Vs, Vtab),
-    Acc = case is_convex(Vs, Plane, Vtab) of
- 	      true ->
- 		  tri_convex_poly(Vs, FaceRec, -1, false, Acc0);
-  	      false ->
-		  tri_concave_poly(Vs, Vtab, Plane, FaceRec, Acc0)
-	  end,
-    if
-	Acc =:= error -> error;
-	true -> triangulate(Ps, Vtab, Acc)
-    end;
+triangulate([#e3d_face{vs=Vs}=FaceRec|Ps], Vtab, Acc) ->
+    Tris = triangulate_face(FaceRec, Vtab),
+    triangulate(Ps, Vtab, Tris++Acc);
 triangulate([], Vtab, Acc) -> reverse(Acc).
 
-tri_convex_poly([A,B,C|More0], FaceRec, Vis0, Dir, Acc0) ->
-    Tri = FaceRec#e3d_face{vs=[A,B,C],vis=(Vis0 bsl 1) band 7},
-    Acc = [Tri|Acc0],
-    case Dir of
-	false ->
-	    case reverse(More0) of
-		[] -> Acc;
-		[Last|More1] ->
-		    More = [Last,A,C|reverse(More1)],
-		    Vis = ((Vis0 bsr 3) bsl 3) bor
-			((Vis0 band 1) bsl 1) bor 1,
-		    tri_convex_poly(More, FaceRec, Vis, true, Acc)
-	    end;
-	true ->
-	    case More0 of
-		[] -> Acc;
-		Other ->
-		    More = [A,C|More0],
-		    Vis = ((Vis0 bsr 3) bsl 2) bor (Vis0 band 1),
-		    tri_convex_poly(More, FaceRec, Vis, false, Acc)
-	    end
+triangulate_face(Face, Vcoords) ->
+    e3d__tri_quad:triangulate_face(Face, Vcoords).
+
+triangulate_face_with_holes(Face, Holes, Vcoords) ->
+    e3d__tri_quad:triangulate_face_with_holes(Face, Holes, Vcoords).
+
+%%%
+%%% Mesh quadrilation.
+%%%
+
+quadrilate(#e3d_mesh{type=triangle}=Mesh) -> Mesh;
+quadrilate(#e3d_mesh{type=quad}=Mesh) -> Mesh;
+quadrilate(#e3d_mesh{type=polygon,fs=Fs0,vs=Vs}=Mesh) ->
+    io:format("Quadrilating mesh\n"),
+    case quadrilate(Fs0, Vs, []) of
+	error -> error;
+	Fs -> Mesh#e3d_mesh{type=quad,fs=Fs}
     end.
 
-tri_concave_poly(Vs, Vtab, Plane, FaceRec, Acc0) ->
-    case tri_concave_poly(Vs, [], Vtab, Plane, FaceRec, false, Acc0) of
-	error ->
-	    NegPlane = e3d_vec:neg(Plane),
-	    tri_concave_poly(Vs, [], Vtab, NegPlane, FaceRec, false, Acc0);
-	Acc -> Acc
-    end.
+quadrilate([#e3d_face{vs=Vs}=FaceRec|Ps], Vtab, Acc) ->
+    Tris = quadrilate_face(FaceRec, Vtab),
+    quadrilate(Ps, Vtab, Tris++Acc);
+quadrilate([], Vtab, Acc) -> reverse(Acc).
 
-tri_concave_poly([A,B], [_|_]=More0, Vtab, Plane, FaceRec, _, Acc) ->
-    case reverse(More0) of
-	[error|_] -> error;
-	More1 ->
-	    More = [A,B|More1],
-	    tri_concave_poly(More, [error], Vtab, Plane, FaceRec, false, Acc)
-    end;
-tri_concave_poly([A,B], [], Vtab, Plane, FaceRec, Convex, Acc) -> error;
-tri_concave_poly([A,B,C], [], Vtab, Plane, FaceRec, {Rest,Acc}, _) ->
-    Tri = FaceRec#e3d_face{vs=[A,B,C],vis=7},
-    [Tri|Acc];
-%%    tri_convex_poly(Rest, FaceRec, 7, false, Acc);
-tri_concave_poly([A|[B,C|Vs]=Vs0]=X, More0, Vtab, Plane, FaceRec,
-		 Convex0, Acc0) ->
-    case is_convex([A,B,C], Plane, Vtab) of
-	true ->
-	    Tri = FaceRec#e3d_face{vs=[A,B,C],vis=7},
-	    Acc = [Tri|Acc0],
-	    More = case reverse(More0) of
-		       [error|M] -> Vs++M;
-		       M -> Vs++M
-		   end,
-	    Rest = [A,C|More],
-	    Convex = if
-			 Convex0 =:= false -> {Rest,Acc};
-			 true -> Convex0
-		     end,
-	    tri_concave_poly(Rest, [], Vtab, Plane, FaceRec, Convex, Acc);
-	false ->
-	    tri_concave_poly(Vs0, [A|More0], Vtab, Plane, FaceRec, false, Acc0)
-    end.
+quadrilate_face(Face, Vcoords) ->
+    e3d__tri_quad:quadrilate_face(Face, Vcoords).
 
-polygon_plane([A,B,C|_], Vtab) ->
-    e3d_vec:normal(element(A+1, Vtab), element(B+1, Vtab), element(C+1, Vtab)).
-	    
-is_convex(Vs, Plane, Vtab) ->
-    is_convex(Vs, Vs, Plane, Vtab).
-
-is_convex([A0|[B0,C0|_]=Vs], More, Plane, Vtab) ->
-    A = element(A0+1, Vtab),
-    B = element(B0+1, Vtab),
-    C = element(C0+1, Vtab),
-    U = e3d_vec:sub(B, A),
-    N = e3d_vec:cross(e3d_vec:norm(e3d_vec:sub(C, B)), Plane),
-    Dot = e3d_vec:dot(U, N),
-    if
- 	Dot > 0 -> is_convex(Vs, More, Plane, Vtab);
- 	true -> false
-    end;
-is_convex([A,B], [C,D,E|_], Plane, Vtab) ->
-    is_convex([A,B,C,D,E], [], Plane, Vtab);
-is_convex([A,B], [], Plane, Vtab) -> true.
+quadrilate_face_with_holes(Face, Holes, Vcoords) ->
+    e3d__tri_quad:quadrilate_face_with_holes(Face, Holes, Vcoords).
 
 %%%
 %%% Calculate normals for each vertex in a mesh.
