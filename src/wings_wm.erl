@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.81 2003/02/25 17:43:15 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.82 2003/02/26 16:42:34 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -600,16 +600,18 @@ clear_background_1(Name) ->
 any_window_below(Name) ->
     Windows = gb_trees:values(get(wm_windows)),
     #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Name),
-    any_window_below_1(Windows, Z, {X,Y,W+W,Y+H}).
+    any_window_below_1(Windows, Name, Z, {X,Y,W+W,Y+H}).
 
-any_window_below_1([#win{z=ThisZ}|T], Z, Rect) when Z < ThisZ; ThisZ =< 0 ->
-    any_window_below_1(T, Z, Rect);
-any_window_below_1([W|T], Name, Rect) ->
+any_window_below_1([#win{name=Name}|T], Name, Z, Rect) ->
+    any_window_below_1(T, Name, Z, Rect);
+any_window_below_1([#win{z=ThisZ}|T], Name, Z, Rect) when Z < ThisZ; ThisZ =< 0 ->
+    any_window_below_1(T, Name, Z, Rect);
+any_window_below_1([W|T], Name, Z, Rect) ->
     case possible_intersection(W, Rect) of
 	true -> true;
-	false -> any_window_below_1(T, Name, Rect)
+	false -> any_window_below_1(T, Name, Z, Rect)
     end;
-any_window_below_1([], _, _) -> false.
+any_window_below_1([], _, _, _) -> false.
 
 possible_intersection(#win{x=X,y=Y,w=W,h=H}, {Left,Top,Right,Bot}) ->
     if
