@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.11 2002/11/17 16:22:11 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.12 2002/11/29 17:09:33 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
@@ -99,9 +99,16 @@ file_filters_1([{[$.|Ext],_Desc}|T], Acc0) ->
 file_filters_1([], Acc) -> [Acc,0].
 
 wait_for_modifiers_up() ->
-    case sdl_keyboard:getModState() of
-	0 -> ok;
-	Other ->
+    case sdl_keyboard:getModState() == 0 andalso no_key_pressed() of
+	true -> ok;
+	false ->
 	    sdl_events:peepEvents(16, ?SDL_PEEKEVENT, ?SDL_ALLEVENTS),
 	    wait_for_modifiers_up()
     end.
+
+no_key_pressed() ->
+    no_key_pressed(1, sdl_keyboard:getKeyState()).
+
+no_key_pressed(I, T) when element(I, T) =/= 0 -> false;
+no_key_pressed(I, T) when I =< size(T) -> no_key_pressed(I+1, T);
+no_key_pressed(_, _) -> true.
