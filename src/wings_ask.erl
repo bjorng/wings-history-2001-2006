@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.48 2002/12/28 14:47:27 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.49 2002/12/28 16:57:54 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -283,6 +283,10 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	{Fst,Common} when is_atom(element(1, Fst)), is_tuple(Common) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    get_event(S#s{priv=Priv,common=Common});
+	Action when is_function(Action) ->
+	    Res = collect_result(S),
+	    Action(Res),
+	    keep;
 	Fst when is_atom(element(1, Fst)) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    get_event(S#s{priv=Priv})
@@ -323,30 +327,9 @@ drag_event(Ev, _, _, _, _, _) ->
     io:format("~p\n", [Ev]),
     keep.
 
-return_result(#s{fi=Fis,priv=Priv}=S) ->
-    return_result(1, Fis, Priv, S, []).
-
-return_result(I, Fis, Priv, #s{common=Common}=S, Acc) when I =< size(Fis) ->
-    case element(I, Fis) of
-	#fi{inert=true} ->
-	    return_result(I+1, Fis, Priv, S, Acc);
-	#fi{handler=Handler,flags=Flags}=Fi ->
-	    Fst = element(I, Priv),
-	    case catch Handler(value, Fi, Fst, Common) of
-		{'EXIT',Reason} ->
-		    exit(Reason);
-		none ->
-		    return_result(I+1, Fis, Priv, S, Acc);
-		Res0 ->
-		    Res = case proplists:get_value(key, Flags) of
-			      undefined -> Res0;
-			      Key -> {Key,Res0}
-			  end,
-		    return_result(I+1, Fis, Priv, S, [Res|Acc])
-	    end
-    end;
-return_result(_, _, _, #s{call=EndFun}=S, Res) ->
-    case catch EndFun(reverse(Res)) of
+return_result(#s{call=EndFun}=S) ->
+    Res = collect_result(S),
+    case catch EndFun(Res) of
 	{'EXIT',Reason} ->
 	    exit(Reason);
 	{command_error,Message} ->
@@ -362,6 +345,30 @@ return_result(_, _, _, #s{call=EndFun}=S, Res) ->
 	    wings_io:putback_event({action,Action}),
 	    delete(S)
     end.
+
+collect_result(#s{fi=Fis,priv=Priv}=S) ->
+    collect_result(1, Fis, Priv, S, []).
+
+collect_result(I, Fis, Priv, #s{common=Common}=S, Acc) when I =< size(Fis) ->
+    case element(I, Fis) of
+	#fi{inert=true} ->
+	    collect_result(I+1, Fis, Priv, S, Acc);
+	#fi{handler=Handler,flags=Flags}=Fi ->
+	    Fst = element(I, Priv),
+	    case catch Handler(value, Fi, Fst, Common) of
+		{'EXIT',Reason} ->
+		    exit(Reason);
+		none ->
+		    collect_result(I+1, Fis, Priv, S, Acc);
+		Res0 ->
+		    Res = case proplists:get_value(key, Flags) of
+			      undefined -> Res0;
+			      Key -> {Key,Res0}
+			  end,
+		    collect_result(I+1, Fis, Priv, S, [Res|Acc])
+	    end
+    end;
+collect_result(_, _, _, _, Res) -> reverse(Res).
 
 redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fi,priv=Priv,common=Common}) ->
     wings_io:ortho_setup(),
@@ -794,8 +801,8 @@ button(Label, Action) ->
     {Fun,false,But,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT+2+2}.
 
 button_label(ok) -> "OK";
-button_label(Act) ->
-    wings_util:cap(atom_to_list(Act)).
+button_label(S) when is_list(S) -> S;
+button_label(Act) -> wings_util:cap(atom_to_list(Act)).
 
 button_fun() ->
     fun({redraw,Active}, Fi, But, _) ->
