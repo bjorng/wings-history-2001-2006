@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.304 2004/05/13 13:46:38 dgud Exp $
+%%     $Id: wings.erl,v 1.305 2004/05/14 05:29:49 bjorng Exp $
 %%
 
 -module(wings).
@@ -198,7 +198,7 @@ redraw(St) ->
 
 redraw(Info, St) ->
     wings_wm:clear_background(),
-    wings_draw_util:render(St),
+    wings_render:render(St),
     call_post_hook(St),
     case Info =/= [] andalso wings_wm:get_prop(show_info_text) of
 	true -> wings_io:info(Info);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.147 2004/05/07 09:56:59 raimo_niskanen Exp $
+%%     $Id: wings_view.erl,v 1.148 2004/05/14 05:29:49 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -520,7 +520,7 @@ auto_rotate_redraw(#tim{st=Redraw}) when is_function(Redraw) ->
     Redraw();
 auto_rotate_redraw(#tim{st=#st{}=St}) ->
     wings_wm:clear_background(),
-    wings_draw_util:render(St).
+    wings_render:render(St).
 
 auto_rotate_help() ->
     Msg1 = wings_util:button_format("Stop rotating"),
