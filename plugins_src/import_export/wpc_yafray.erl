@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.11 2003/02/27 12:58:10 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.12 2003/02/28 09:08:50 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -112,12 +112,18 @@ dialog({material_editor_setup,_Name,Mat}, Dialog) ->
 			     {slider,{text,MinRefle,
 				      [{range,{0.0,1.0}},
 				       {key,min_refle}]}}]}]
-		 }|modulator_dialogs(Modulators)],
+		 }|modulator_dialogs(Modulators, 1)],
 		[{title,"YafRay Options"}]}];
-dialog({material_editor_result,_Name,Mat0}, [A,B|Res0]) ->
-    {Modulators,Res} = modulator_result(Res0),
-    Mat = [{?TAG,[A,B,{modulators,Modulators}]}|keydelete(?TAG, 1, Mat0)],
-    {Mat,Res};
+dialog({material_editor_result,Name,Mat0}, [A,B|Res0]) ->
+    case A of
+	{ior,_} ->
+	    {Modulators,Res} = modulator_result(Res0),
+	    Mat = [{?TAG,[A,B,{modulators,Modulators}]}
+		   |keydelete(?TAG, 1, Mat0)],
+	    {Mat,Res};
+	_ ->
+	    exit({invalid_tag, {?MODULE, ?LINE, {Name,[A,B|Res0]}}})
+    end;
 dialog({light_editor_setup,_Name,Ps}, Dialog) ->
     YafRay = proplists:get_value(?TAG, Ps, []),
     Power = proplists:get_value(power, YafRay, 1.0),
@@ -134,18 +140,20 @@ dialog(_X, Dialog) ->
     io:format("~p\n", [{_X,Dialog}]),
     Dialog.
 
-modulator_dialogs([]) ->
+modulator_dialogs([], _) ->
     [{"Create a Modulator",false,[{key,create_modulator}]}];
-modulator_dialogs([Modulator|Modulators]) ->
-    modulator_dialog(Modulator)++
-	modulator_dialogs(Modulators).
+modulator_dialogs([Modulator|Modulators], M) ->
+    modulator_dialog(Modulator, M)++
+	modulator_dialogs(Modulators, M+1).
 
 modulator_dialog(#modulator{mode=Mode,size_x=SizeX,size_y=SizeY,size_z=SizeZ,
 			    opacity=Opacity,diffuse=Diffuse,specular=Specular,
 			    ambient=Ambient,shininess=Shininess,
 			    type=Type,
 			    filename=Filename,
-			    color1=Color1,color2=Color2,depth=Depth}) ->
+			    color1=Color1,color2=Color2,depth=Depth},
+		 M) ->
+    TypeTag = list_to_atom("type"++integer_to_list(M)),
     [{vframe,
       [{menu,[{"Delete",delete},
 	      {if Mode==off ->"Disabled";
@@ -169,8 +177,7 @@ modulator_dialog(#modulator{mode=Mode,size_x=SizeX,size_y=SizeY,size_z=SizeZ,
 			 {slider,{text,Specular,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Ambient,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Shininess,[{range,{0.0,1.0}}]}}]}]},
-       {hframe,[{vradio,[{"JPEG",jpeg},{"Clouds",clouds}],type,Type},
-%		{menu,[{"JPEG",jpeg},{"Clouds",clouds}],Type},
+       {hframe,[{vradio,[{"JPEG",jpeg},{"Clouds",clouds}],TypeTag,Type},
 		{vframe,[{hframe,[{label,"Filename"},{text,Filename}]},
 			 {hframe,[{label,"Color 1"},{color,Color1},
 				  {label,"Color 2"},{color,Color2},
