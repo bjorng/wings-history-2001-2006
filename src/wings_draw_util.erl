@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.81 2003/06/28 09:04:11 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.82 2003/06/29 10:27:45 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -222,10 +222,6 @@ render(#st{selmode=Mode}=St) ->
 		  ?GL_TEXTURE_BIT bor ?GL_POLYGON_BIT bor
 		  ?GL_LINE_BIT bor ?GL_COLOR_BUFFER_BIT bor
 		  ?GL_LIGHTING_BIT),
-    wings_io:ortho_setup(),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
-    {W,H} = wings_wm:win_size(),
-    gl:rectf(0.5, 0.5, W-0.5, H-0.5),
     gl:enable(?GL_DEPTH_TEST),
     gl:enable(?GL_CULL_FACE),
     wings_view:load_matrices(true),
@@ -239,6 +235,11 @@ render(#st{selmode=Mode}=St) ->
     dummy_axis_letter(),
     gl:disable(?GL_DEPTH_TEST),
     draw_vec(St),
+    gl:disable(?GL_CULL_FACE),
+    wings_io:ortho_setup(),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+    {W,H} = wings_wm:win_size(),
+    gl:rectf(0.5, 0.5, W-0.5, H-0.5),
     gl:popAttrib().
 
 render_scene(_, _, true, true) -> ok;
