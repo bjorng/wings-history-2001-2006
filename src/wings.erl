@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.135 2002/04/27 07:42:38 bjorng Exp $
+%%     $Id: wings.erl,v 1.136 2002/04/28 07:44:41 bjorng Exp $
 %%
 
 -module(wings).
@@ -466,9 +466,7 @@ menu(X, Y, tools, St) ->
 	    {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
 	    {"Move to Saved BB",{move_to_bb,wings_menu_util:all_xyz()}},
 	    separator,
-	    {"Set Default Axis",set_default_axis},
-	    separator,
-	    {"Strip Texture",strip_texture}],
+	    {"Set Default Axis",set_default_axis}],
     wings_menu:menu(X, Y, tools, Menu, St);
 menu(X, Y, objects, St) ->
     wings_shape:menu(X, Y, St);
