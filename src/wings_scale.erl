@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.42 2002/12/31 16:04:59 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.43 2002/12/31 19:24:11 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -218,7 +218,7 @@ scale(Vec0, Center, Magnet, Vs, #we{id=Id}=We, Acc) ->
     {Pre,Post} = make_matrices(Vec, Center),
     VsPos = mul(Vs, Post, We),
     Fun = fun([Dx], A0) ->
-		  {Sx,Sy,Sz} = make_scale(Dx, Vec),
+		  {Sx,Sy,Sz} = make_scale(Dx, {1.0,1.0,1.0}, Vec),
 		  Matrix = e3d_mat:mul(Pre, e3d_mat:scale(Sx, Sy, Sz)),
 		  foldl(fun({V,Pos0}, A) ->
 				Pos = e3d_mat:mul_point(Matrix, Pos0),
@@ -247,10 +247,9 @@ magnet_scale_fun(Vec, Pre, VsInf0, {_,R}=Magnet0) ->
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_scale_fun(Vec, Pre, VsInf, Magnet);
        ([Dx|_], A0) ->
-	    foldl(fun({V,{Px,Py,Pz},_,Inf}, A) ->
-			  {Sx,Sy,Sz} = make_scale(1.0+(Dx-1.0)*Inf, Vec),
-			  Pos0 = {Px*Sx,Py*Sy,Pz*Sz},
-			  Pos = e3d_mat:mul_point(Pre, Pos0),
+	    foldl(fun({V,Pos0,_,Inf}, A) ->
+			  Pos1 = make_scale(1.0+(Dx-1.0)*Inf, Pos0, Vec),
+			  Pos = e3d_mat:mul_point(Pre, Pos1),
 			  [{V,Pos}|A]
 		  end, A0, VsInf0)
     end.
@@ -267,12 +266,12 @@ make_vector(uniform) -> uniform.
 
 make_matrix(Dx, Vec, Center) ->
     {Pre,Post} = make_matrices(Vec, Center),
-    {Sx,Sy,Sz} = make_scale(Dx, Vec),
+    {Sx,Sy,Sz} = make_scale(Dx, {1.0,1.0,1.0}, Vec),
     e3d_mat:mul(e3d_mat:mul(Pre, e3d_mat:scale(Sx, Sy, Sz)), Post).
 
-make_scale(Dx, uniform) -> {Dx,Dx,Dx};
-make_scale(Dx, {radial,_}) -> {Dx,Dx,1.0};
-make_scale(Dx, _) -> {1.0,1.0,Dx}.
+make_scale(Dx, {X,Y,Z}, uniform) when is_float(Dx) -> {Dx*X,Dx*Y,Dx*Z};
+make_scale(Dx, {X,Y,Z}, {radial,_}) when is_float(Dx) -> {Dx*X,Dx*Y,Z};
+make_scale(Dx, {X,Y,Z}, _) when is_float(Dx) -> {X,Y,Dx*Z}.
 
 make_matrices(uniform, Center) ->
     Pre = e3d_mat:translate(Center),
