@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.15 2003/11/23 10:31:54 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.16 2004/04/17 06:52:41 dgud Exp $
 %%
 
 -module(wings_edge_loop).
@@ -16,7 +16,7 @@
 	 select_link_decr/1, select_link_incr/1]).
 
 %% Utilities.
--export([edge_loop_vertices/2,partition_edges/2]).
+-export([edge_loop_vertices/2,edge_links/2,partition_edges/2]).
 
 -include("wings.hrl").
 -import(lists, [sort/1,append/1,reverse/1]).
@@ -285,7 +285,6 @@ find_end_vs([], _G, Acc) -> Acc.
 %%  Given a set of edges that is supposed to form
 %%  one or more simple closed loops, this function returns
 %%  the vertices that make up each loop in the correct order.
-
 edge_loop_vertices(Edges, We) when is_list(Edges) ->
     edge_loop_vertices(gb_sets:from_list(Edges), We, []);
 edge_loop_vertices(Edges, We) ->
@@ -297,14 +296,14 @@ edge_loop_vertices(Edges0, #we{es=Etab}=We, Acc) ->
 	false ->
 	    {Edge,Edges1} = gb_sets:take_smallest(Edges0),
 	    #edge{vs=V,ve=Vend} = gb_trees:get(Edge, Etab),
-	    case edge_loop_vertices(Edges1, V, Vend, We, [Vend]) of
+	    case edge_loop_vertices1(Edges1, V, Vend, We, [Vend]) of
 		none -> none;
 		{Vs,Edges} -> edge_loop_vertices(Edges, We, [Vs|Acc])
 	    end
     end.
 
-edge_loop_vertices(Edges, Vend, Vend, _We, Acc) -> {Acc,Edges};
-edge_loop_vertices(Edges0, V, Vend, We, Acc) ->
+edge_loop_vertices1(Edges, Vend, Vend, _We, Acc) -> {Acc,Edges};
+edge_loop_vertices1(Edges0, V, Vend, We, Acc) ->
     Res = wings_vertex:until(
 	    fun(Edge, _, Rec, A) ->
 		    case gb_sets:is_member(Edge, Edges0) of
@@ -314,9 +313,53 @@ edge_loop_vertices(Edges0, V, Vend, We, Acc) ->
 	    end, none, V, We),
     case Res of
 	none -> none;
-	{Edge,OtherV} ->
+	{Edge,OtherV} -> 
 	    Edges = gb_sets:delete(Edge, Edges0),
-	    edge_loop_vertices(Edges, OtherV, Vend, We, [V|Acc])
+	    edge_loop_vertices1(Edges, OtherV, Vend, We, [V|Acc])
+    end.
+
+%% edge_link, find links in edges set and returns [[{Edge,Vs,Ve}]] in
+%% order.
+edge_links(Edges, We) when is_list(Edges) ->
+    edge_links(gb_sets:from_list(Edges), We, []);
+edge_links(Edges, We) ->
+    edge_links(Edges, We, []).
+
+edge_links(Edges0, #we{es=Etab}=We, Acc) ->
+    case gb_sets:is_empty(Edges0) of
+	true -> Acc;
+	false ->
+	    {Edge,Edges1} = gb_sets:take_smallest(Edges0),
+	    #edge{vs=V,ve=Vend} = gb_trees:get(Edge, Etab),
+	    case edge_link(Edges1, V, Vend, back, We, [{Edge,V,Vend}]) of
+		{Vs,Edges} -> edge_links(Edges, We, [Vs|Acc]);
+		{incomplete,Vs1,Edges2} ->
+		    case edge_link(Edges2, Vend,V,front,We,reverse(Vs1)) of 
+			{incomplete,Vs,Edges} ->
+			    edge_links(Edges, We, [Vs|Acc]);
+			{Vs,Edges} -> 
+			    edge_links(Edges, We, [Vs|Acc])
+		    end
+	    end
+    end.
+
+edge_link(Edges, Vend, Vend, _, _We, Acc) -> {Acc,Edges};
+edge_link(Edges0, V, Vend, Dir, We, Acc) ->
+    Res = wings_vertex:until(
+	    fun(Edge, _, Rec, A) ->
+		    case gb_sets:is_member(Edge, Edges0) of
+			true -> {Edge,wings_vertex:other(V, Rec)};
+			false -> A
+		    end
+	    end, none, V, We),
+    case Res of
+	none -> {incomplete,Acc,Edges0};
+	{Edge,OtherV} when Dir == back -> 
+	    Edges = gb_sets:delete(Edge, Edges0),
+	    edge_link(Edges,OtherV,Vend,Dir,We,[{Edge,OtherV,V}|Acc]);
+	{Edge,OtherV} when Dir == front -> 
+	    Edges = gb_sets:delete(Edge, Edges0),
+	    edge_link(Edges,OtherV,Vend,Dir,We,[{Edge,V,OtherV}|Acc])
     end.
 
 %% partition_edges(EdgeSet, WingedEdge) -> [[EdgeSet']]
