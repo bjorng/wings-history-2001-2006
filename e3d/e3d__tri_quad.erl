@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.5 2002/02/05 06:59:28 bjorng Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.6 2002/03/16 10:33:01 bjorng Exp $
 %%
 
 -module(e3d__tri_quad).
@@ -696,27 +696,9 @@ icc(A,Vtab) ->
 rotate_normal_to_z(Vs, Vcoords) ->
 	Vtab0 = list_to_tuple(Vcoords),
 	Fnorm = polygon_plane(Vs, Vtab0),
-	Rotm = getrotm(Fnorm),
-	Vrot = map(fun (P) -> e3d_mat:mul_point(Rotm, P) end, Vcoords),
+        Rotm = e3d_mat:rotate_to_z(Fnorm),
+        Vrot = map(fun (P) -> e3d_mat:mul_point(Rotm, P) end, Vcoords),
 	list_to_tuple(Vrot).
-
-% Get matrix to rotate (unit-length) N to (0,0,1).
-getrotm(N) ->
-	Uz = {0.0,0.0,1.0},
-	NU = e3d_vec:cross(N, Uz),
-	NUlen = e3d_vec:len(NU),
-	if
-	NUlen < ?TOL ->
-		% N is close to either Uz or -Uz
-		if
-		element(3,N) >= 0.0 -> e3d_mat:identity();
-		true -> e3d_mat:rotate(180.0, {0.0,1.0,0.0})
-		end;
-	true ->
-		Axis = e3d_vec:norm(NU),
-		Ang = math:asin(NUlen) * 180.0 / math:pi(),
-		e3d_mat:rotate(Ang, Axis)
-	end.
 
 polygon_plane(Vs, Vtab) ->
 	Nvs = length(Vs),
