@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.77 2004/12/31 07:56:25 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.78 2005/01/23 07:55:33 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -269,7 +269,7 @@ cleanup_rep_1([F|Fs], We0) ->
 	V ->
 	    io:format(?__(1,"Repeated vertex ~p in face ~p\n"), [V,F]),
 	    We = cleanup_rep_2(F, V, We0),
-	    NewFaces = gb_sets:to_list(wings_we:new_items(face, We0, We)),
+	    NewFaces = wings_we:new_items_as_ordset(face, We0, We),
 	    cleanup_rep_1(NewFaces++Fs, We)
     end;
 cleanup_rep_1([], We) -> We.
@@ -283,7 +283,9 @@ cleanup_rep_2(Face, V0, #we{es=Etab,fs=Ftab0}=We0) ->
 		       _ -> A
 		   end
 	   end, [], V0, We0),
-    Ves = wings_face:fold(fun(V, E, _, A) -> [{V,E}|A] end, [], Face, hd(Es), We0),
+    Ves = wings_face:fold(fun(V, E, _, A) ->
+				  [{V,E}|A]
+			  end, [], Face, hd(Es), We0),
     Ftab = gb_trees:delete(Face, Ftab0),
     Mat = wings_facemat:face(Face, We0),
     We1 = wings_facemat:delete_face(Face, We0),
@@ -357,7 +359,7 @@ cleanup_waists_1([V|Vs], [{V,AllEs}|VsEs], #we{es=Etab0,vp=Vtab0,vc=Vct0}=We0) -
 	    io:format(?__(1,"Removed waist vertex: ~p\n"), [V]),
 
 	    %% Re-process the newly added vertex. (Some of the
-	    %% edges may not be reachable from the incident of
+	    %% edges may not be reachable from the incident edge of
 	    %% the new vertex.)
 	    cleanup_waists_1([NewV|Vs], [{NewV,Es}|VsEs], We)
     end;
@@ -380,13 +382,28 @@ cleanup_2edged_faces(#we{fs=Ftab}=We) ->
     delete_2edged_faces_1(gb_trees:keys(Ftab), We).
 
 delete_2edged_faces_1([Face|Faces], We0) ->
-    case wings_face:delete_if_bad(Face, We0) of
+    case delete_if_bad(Face, We0) of
 	bad_edge ->
 	    wings_u:error(?__(1,"Face") ++ integer_to_list(Face) ++
 			     ?__(2,"has only one edge"));
 	We -> delete_2edged_faces_1(Faces, We)
     end;
 delete_2edged_faces_1([], We) -> We.
+
+delete_if_bad(Face, #we{fs=Ftab,es=Etab}=We) ->
+    case gb_trees:lookup(Face, Ftab) of
+	{value,Edge} ->
+	    case gb_trees:get(Edge, Etab) of
+		#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same} ->
+		    bad_edge;
+		#edge{ltpr=Same,ltsu=Same} ->
+		    wings_edge:dissolve_edge(Edge, We);
+		#edge{rtpr=Same,rtsu=Same} ->
+		    wings_edge:dissolve_edge(Edge, We);
+		_ -> We
+	    end;
+	none -> We
+    end.
 
 %%%
 %%% The Invert command.
@@ -805,9 +822,10 @@ try_weld_1(Fa, Fb, Tol, We0) ->
 	true ->
 	    {Vb,_,_,_} = wings_face:next_ccw(IterB0),
 	    We = wings_face_cmd:force_bridge(Fa, Va, Fb, Vb, We0),
-	    Es = wings_we:new_items(edge, We0, We),
-	    foldl(fun(E, W) -> wings_collapse:collapse_edge(E, W) end,
-		  We, gb_sets:to_list(Es))
+	    Es = wings_we:new_items_as_ordset(edge, We0, We),
+	    foldl(fun(E, W) ->
+			  wings_collapse:collapse_edge(E, W)
+		  end, We, Es)
     end.
 
 weld_synced_iterator(N, Face, Pos, We) ->

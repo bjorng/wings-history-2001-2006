@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.50 2005/01/15 14:44:06 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.51 2005/01/23 07:55:33 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -33,7 +33,7 @@
 	 next_cw/1,next_ccw/1,
 	 iter2etab/1,
 	 patch_face/3,patch_face/4,
-	 delete_bad_faces/2,delete_if_bad/2,
+	 delete_bad_faces/2,
 	 are_neighbors/3]).
 
 -include("wings.hrl").
@@ -461,7 +461,7 @@ bad_edges([F|Fs], Ftab, Etab, Acc) ->
 	{value,Edge} ->
 	    case gb_trees:get(Edge, Etab) of
 		#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same} ->
-		    bad_edge;
+		    erlang:error({internal_error,one_edged_face,F});
 		#edge{ltpr=Same,ltsu=Same} ->
 		    bad_edges(Fs, Ftab, Etab, [Edge|Acc]);
 		#edge{rtpr=Same,rtsu=Same} ->
@@ -471,23 +471,6 @@ bad_edges([F|Fs], Ftab, Etab, Acc) ->
 	none -> bad_edges(Fs, Ftab, Etab, Acc)
     end;
 bad_edges([], _, _, Acc) -> Acc.
-
-%% Delete the face if it only has two edges.
-
-delete_if_bad(Face, #we{fs=Ftab,es=Etab}=We) ->
-    case gb_trees:lookup(Face, Ftab) of
-	{value,Edge} ->
-	    case gb_trees:get(Edge, Etab) of
-		#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same} ->
-		    bad_edge;
-		#edge{ltpr=Same,ltsu=Same} ->
-		    wings_edge:dissolve_edge(Edge, We);
-		#edge{rtpr=Same,rtsu=Same} ->
-		    wings_edge:dissolve_edge(Edge, We);
-		_ -> We
-	    end;
-	none -> We
-    end.
 
 patch_face(Face, NewEdge, Ftab) ->
     case gb_trees:get(Face, Ftab) of
