@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.2 2004/10/15 15:40:30 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.3 2004/10/15 15:56:33 bjorng Exp $
 %%
 
 {wings,
@@ -278,22 +278,22 @@
    [{2,"Rör musen för att zooma"},
     {3,"Rör musen för att rotera"},
     {4,"[Q]"},
-    {5,"Move mouse to track"},
-    {6,"Cancel/restore view"},
-    {7,"Restore view"}]},
+    {5,"Rör musen för att flytta längs skärmplanet"},
+    {6,"Avbryt och återställ vy"},
+    {7,"Återställ vy"}]},
   {mode_help,
    [{1,"Track"},
     {2,"Dolly"},
     {3,"Tumble"}]},
   {prefs,
-   [{1,"Mouse Buttons"},
-    {2,"Camera Mode"},
+   [{1,"Antal musknappar"},
+    {2,"Kameraläge"},
     {3,"Pan Speed"},
-    {4,"Wheel Zooms"},
-    {5,"Forwards Zooms In"},
-    {6,"Forwards Zooms Out"},
-    {7,"Zoom Factor"},
-    {9,"Scroll Wheel"}]}]}.
+    {4,"Scrollhjulet zoomar"},
+    {5,"Framåt zoomar in"},
+    {6,"Framåt zoomar ut"},
+    {7,"Zoomfaktor"},
+    {9,"Scrollhjul"}]}]}.
 {wings_collapse,
  [
   {check_consistency,
