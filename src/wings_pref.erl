@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.8 2001/11/12 19:28:45 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.9 2001/11/21 07:11:25 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -138,7 +138,7 @@ defaults() ->
     [{Key,Val} || {_,Key,Val} <- presets()].
 
 presets() ->
-    [{"Background Color",background_color,{0.6,0.6,0.5}},
+    [{"Background Color",background_color,{0.4,0.4,0.4}},
      {"Face Color",face_color,{0.5,0.5,0.5}},
      {"Selection Color",selected_color,{0.65,0.0,0.0}},
      {"Hard Edge Color",hard_edge_color,{0.0,0.5,0.0}},
