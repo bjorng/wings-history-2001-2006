@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.41 2004/06/27 11:58:56 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.42 2004/06/27 13:52:24 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -125,18 +125,18 @@ editor(Tag, Chunk, Acc) ->
 
 keyframer(Bin) ->
     put(e3d_tds_node_id, -1),
-    fold_chunks(fun keyframer/3, [], Bin),
+    fold_chunks(fun(Tag, Contents, _) -> keyframer(Tag, Contents) end, [], Bin),
     erase(e3d_tds_node_id),
     ok.
 
-keyframer(16#B002, Contents, _) ->
+keyframer(16#B002, Contents) ->
     %% Node chunk - recurse into it.
-    fold_chunks(fun keyframer/3, [], Contents),
+    fold_chunks(fun(Tag, Cont, _) -> keyframer(Tag, Cont) end, [], Contents),
     put(e3d_tds_node_id, get(e3d_tds_node_id)+1);
-keyframer(16#B030, <<NodeId:16/little-signed>>, _) ->
+keyframer(16#B030, <<NodeId:16/little-signed>>) ->
     %% Node id for this node.
     put(e3d_tds_node_id, NodeId);
-keyframer(16#B010, Bin, _) ->
+keyframer(16#B010, Bin) ->
     %% Name+parent node.
     NameSz = size(Bin) - 7,
     <<Name0:NameSz/binary,_:5/unit:8,Parent:16/little-signed>> = Bin,
@@ -145,7 +145,17 @@ keyframer(16#B010, Bin, _) ->
     dbg("node ~p: ~p, parent ~p\n", [NodeId,Name,Parent]), 
     ets:insert(?MODULE, {NodeId,Name}),
     ets:insert(?MODULE, {Name,Parent});
-keyframer(Tag, Contents, _) ->
+keyframer(16#B00A, <<Rev:16/little,T0/binary>>) ->
+    %% Just print information (if debugging).
+    {Str,T} = get_cstring(T0),
+    dbg("Keyframe header: ~p ~p ~p\n", [Rev,Str,T]);
+keyframer(16#B013, <<X:32/?FLOAT,Y:32/?FLOAT,Z:32/?FLOAT>>) ->
+    %% Just print information (if debugging).
+    dbg(" pivot: ~p ~p ~p\n", [X,Y,Z]);
+keyframer(16#B021, <<A:32/?FLOAT,X:32/?FLOAT,Y:32/?FLOAT,Z:32/?FLOAT,_/binary>>) ->
+    %% Just print information (if debugging).
+    dbg(" rot_track_tag: ~p ~p ~p ~p\n", [A,X,Y,Z]);
+keyframer(Tag, Contents) ->
     %% Ignore all other keyframer chunks.
     dbg("~.16#: ~P\n", [Tag,Contents,15]).
 
@@ -345,6 +355,7 @@ fix_transform(Objs) ->
 
 fix_transform_1(#e3d_object{name=Name,obj=Mesh}=Obj) ->
     Matrix = get_transform(Name),
+    dbg("~p: ~p\n", [Name,Matrix]),
     Obj#e3d_object{obj=Mesh#e3d_mesh{matrix=Matrix}}.
 
 get_transform(Name) ->
