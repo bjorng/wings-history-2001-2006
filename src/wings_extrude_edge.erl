@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.51 2003/09/26 09:52:26 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.52 2003/09/26 10:25:50 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -326,17 +326,25 @@ straighten_1(Vec, N, {Cx,Cy,Cz}, OtherV, OPos0, Vt) ->
 extrude_edges(Edges, ExtrudeDist, We) ->
     extrude_edges(Edges, gb_sets:empty(), ExtrudeDist, We).
 
-extrude_edges(Edges, ForbiddenFaces, ExtrudeDist, #we{next_id=Wid,es=Etab}=We0) ->
+extrude_edges(Edges, ForbiddenFaces, ExtrudeDist,
+	      #we{next_id=Wid,es=Etab,vc=Vct0}=We0) ->
     G = digraph:new(),
-    foreach(fun(Edge) ->
-		    digraph_edge(G, ForbiddenFaces, gb_trees:get(Edge, Etab))
-	    end, gb_sets:to_list(Edges)),
+
+    %% We update the 'vc' table here to handle the case that a
+    %% a vertex's incident edge points to a completely unrelated
+    %% face (i.e. a vertex is shared by two faces that have no
+    %% common edge).
+    Vct = foldl(fun(Edge, A) ->
+			#edge{vs=Va,ve=Vb} = Rec = gb_trees:get(Edge, Etab),
+			digraph_edge(G, ForbiddenFaces, Rec),
+			gb_trees:update(Vb, Edge, gb_trees:update(Va, Edge, A))
+		end, Vct0, gb_sets:to_list(Edges)),
     Vs0 = digraph:vertices(G),
     Vs = sofs:to_external(sofs:domain(sofs:relation(Vs0))),
     {We1,Forbidden} =
 	foldl(fun(V, A) ->
 		      new_vertex(V, G, Edges, ForbiddenFaces, ExtrudeDist, A)
-	      end, {We0,[]}, Vs),
+	      end, {We0#we{vc=Vct},[]}, Vs),
     NewVs = wings_we:new_items(vertex, We0, We1),
     We = connect(G, ExtrudeDist, Wid, We1),
     digraph:delete(G),
