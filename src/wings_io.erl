@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.95 2003/03/07 05:16:06 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.96 2003/03/08 17:38:05 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -163,6 +163,9 @@ space_at(X, Y) ->
     gl:color3f(0.0, 0.0, 0.0).
 
 text_at(X, S) ->
+    setup_scissor(fun() -> text_at_1(X, S) end).
+
+text_at_1(X, S) ->
     gl:rasterPos2i(X, 0),
     case catch text(S, []) of
 	{newline,More} -> text_at(X, More);
@@ -170,6 +173,9 @@ text_at(X, S) ->
     end.
 
 text_at(X, Y, S) ->
+    setup_scissor(fun() -> text_at_1(X, Y, S) end).
+
+text_at_1(X, Y, S) ->
     gl:rasterPos2i(X, Y),
     case catch text(S, []) of
 	{newline,More} -> text_at(X, Y+?LINE_HEIGHT, More);
@@ -177,6 +183,9 @@ text_at(X, Y, S) ->
     end.
 
 text(S) ->
+    setup_scissor(fun() -> text_1(S) end).
+
+text_1(S) ->
     case catch text(S, []) of
 	{newline,More} -> text(More);
 	Other -> Other
@@ -198,6 +207,13 @@ text([L|Cs], Acc) when is_list(L) ->
     text(L, []),
     text(Cs, []);
 text([], Acc) -> draw_reverse(Acc).
+
+setup_scissor(DrawText) ->
+    {X,Y,W,H} = wings_wm:viewport(),
+    gl:scissor(X, Y, W, H),
+    gl:enable(?GL_SCISSOR_TEST),
+    DrawText(),
+    gl:disable(?GL_SCISSOR_TEST).
 
 menu_text(X, Y, S) ->
     gl:rasterPos2i(X, Y),
