@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.15 2003/03/03 08:31:56 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.16 2003/03/08 00:48:23 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -18,11 +18,13 @@
 
 
 -include("e3d.hrl").
+-include("e3d_image.hrl").
 
 -import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,keydelete/3,
 		foreach/2,map/2,foldl/3]).
 
 -define(TAG, yafray).
+-define(TAG_RENDER, yafray_render).
 
 %% Default values
 -define(DEF_IOR, 1.0).
@@ -63,6 +65,8 @@ menu({file,export}, Menu) ->
     menu_entry(Menu);
 menu({file,export_selected}, Menu) ->
     menu_entry(Menu);
+menu({file,render}, Menu) ->
+    menu_entry(Menu);
 menu(_, Menu) ->
     Menu.
 
@@ -73,26 +77,64 @@ command({file,{export,{?TAG,A}}}, St) ->
     command_file(export, A, St);
 command({file,{export_selected,{?TAG,A}}}, St) ->
     command_file(export_selected, A, St);
+command({file,{render,{?TAG,A}}}, St) ->
+    command_file(render, A, St);
+command({file,{?TAG_RENDER,Pid,Result,Ack}}, _St) ->
+    RenderFile = erase(?TAG_RENDER),
+    Pid ! Ack,
+    case RenderFile of
+	undefined ->
+	    keep;
+	_ ->
+	    case Result of
+		ok ->
+		    case wpa:image_read([{filename,RenderFile},
+					 {alignment,1}]) of
+			#e3d_image{}=Image ->
+			    Id = wings_image:new("Rendered (YafRay)", Image),
+			    wings_image:window(Id),
+			    keep;
+			_ ->
+			    wpa:error("Render failed")
+		    end;
+		_ ->
+		    wpa:error("Render failed")
+	    end
+    end;
 command(_, _St) ->
     next.
 
+command_file(render, Attr, St) when is_list(Attr) ->
+    set_pref(Attr),
+    case get(?TAG_RENDER) of
+	undefined ->
+	    wpa:export(props(tga), 
+		       fun_export_2(attr(St, [{?TAG_RENDER,true}|Attr])), St);
+       _RenderFile ->
+	    wpa:error("Already rendering.")
+    end;
+command_file(render, Ask, _St) when is_atom(Ask) ->
+    wpa:dialog(Ask, "YafRay Render Options", export_dialog(),
+	       fun(Attr) -> {file,{render,{?TAG,Attr}}} end);
 command_file(Op, Attr, St) when is_list(Attr) ->
     set_pref(Attr),
-    wpa:Op(props(), fun_export_2(attr(St, Attr)), St);
+    wpa:Op(props(?TAG), fun_export_2(attr(St, Attr)), St);
 command_file(Op, Ask, _St) when is_atom(Ask) ->
     wpa:dialog(Ask, "YafRay Export Options", export_dialog(),
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
     
 
-props() ->
+props(tga) ->
+    [{ext,".tga"},{ext_desc,"Targa File"}];
+props(?TAG) ->
     [{ext,".xml"},{ext_desc,"YafRay File"}].
 
 attr(St, Attr) ->
     [{lights,wpa:lights(St)}|Attr].
 
-fun_export_2(Props) ->
+fun_export_2(Attr) ->
     fun (Filename, Contents) ->
-	    export(Props, Filename, Contents)
+	    export(Attr, Filename, Contents)
     end.
 
 
@@ -264,20 +306,30 @@ export_dialog() ->
 
 
 export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
-    case open(Filename, export) of
+    Render = proplists:get_value(?TAG_RENDER, Attr, false),
+    {ExportFile,RenderFile} =
+	case Render of
+	    true ->
+		{A,B,C} = erlang:now(),
+		{lists:flatten(io_lib:format("~s-~s.~w.~w.~w.xml",
+					     [Filename,os:getpid(),A,B,C])),
+		 Filename};
+	    false ->
+		{Filename,
+		 filename:rootname(filename:basename(Filename))++".tga"}
+	end,
+    case open(ExportFile, export) of
 	{error,_}=Error -> 
 	    Error;
 	{ok,F} ->
 	    CameraName = "x_Camera",
 	    ConstBackgroundName = "x_ConstBackground",
 	    SunskyBackgroundName = "t_SunskyBackground",
-	    Basename = filename:basename(Filename),
-	    Outfile = filename:rootname(Basename)++".tga",
 	    %%
 	    Lights = proplists:get_value(lights, Attr, []),
 	    println(F, "<!-- ~s: Exported from ~s -->~n"++
 		    "~n"++
-		    "<scene>", [Basename, Creator]),
+		    "<scene>", [filename:basename(ExportFile), Creator]),
 	    %%
 	    section(F, "Shaders"),
 	    foreach(fun ({Name, Mat}) -> 
@@ -307,11 +359,70 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    println(F),
 	    export_camera(F, CameraName, Attr),
 	    println(F),
-	    export_render(F, CameraName, ConstBackgroundName, Outfile, Attr),
+	    export_render(F, CameraName, ConstBackgroundName, 
+			  filename:basename(RenderFile), Attr),
 	    %%
 	    println(F),
 	    println(F, "</scene>"),
-	    close(F)
+	    close(F),
+	    case Render of
+		true ->
+		    Parent = self(),
+		    spawn_link(
+		      fun () -> 
+			      file:delete(RenderFile),
+			      render(ExportFile, Parent) 
+		      end),
+		    put(?TAG_RENDER, RenderFile),
+		    ok;
+		false ->
+		    ok
+	    end
+    end.
+
+
+
+render(Filename, Parent) ->
+    process_flag(trap_exit, true),
+    Dirname = filename:dirname(Filename),
+    Basename = filename:basename(Filename),
+    Cmd = "yafray "++Basename,
+    Opts = [{line,8},{cd,Dirname},eof,stderr_to_stdout],
+    case catch open_port({spawn,Cmd}, Opts) of
+	Port when port(Port) ->
+	    render_done(Filename, Parent, render_loop(Port, []));
+	{'EXIT',Reason} ->
+	    render_done(Filename, Parent, {error,Reason})
+    end.
+
+render_done(Filename, Parent, Result) ->
+    file:delete(Filename),
+    render_cleanup(Parent, make_ref(), Result).
+
+render_cleanup(Parent, Ref, Result) ->
+    Ack = {Parent,ack,Ref},
+    Command = {file,{?TAG_RENDER,self(),Result,Ack}},
+    Parent ! {timeout,Ref,{event,{action,Command}}},
+    receive Ack -> 
+	    ok
+    after 5000 -> 
+	    render_cleanup(Parent, Ref, Result)
+    end.
+
+render_loop(Port, Buf) ->
+    receive
+	{Port,eof} ->
+	    ok;
+	{Port,{data,{Tag,Data}}} ->
+	    io:put_chars(Data),
+	    case Tag of	eol -> io:nl(); _ -> ok end,
+	    render_loop(Port, []);
+	{'EXIT',Port,Reason} ->
+	    {error,Reason};
+	Other ->
+	    io:format("Unexpected at ~s:~p: ~p~n", 
+		      [?MODULE_STRING,?LINE,Other]),
+	    render_loop(Port, Buf)
     end.
 
 
