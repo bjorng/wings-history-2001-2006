@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.80 2004/05/12 12:12:14 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.81 2004/05/17 09:43:48 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -86,6 +86,13 @@
 -define(DEF_CONE_ANGLE, 45.0).
 -define(DEF_SPOT_EXPONENT, 2.0).
 -define(DEF_BLEND, 5.0).
+-define(DEF_HALO, false).
+-define(DEF_HALO_RES, 512).
+-define(DEF_HALO_BLUR, 0.0).
+-define(DEF_HALO_SHADOW_BLUR, 0.0).
+-define(DEF_HALO_FOG_DENSITY, 0.0).
+-define(DEF_HALO_FOG_COLOR, {0.0,0.0,0.0}).
+
 %% Photonlight
 -define(DEF_MODE,diffuse).
 -define(DEF_PHOTONS,5000).
@@ -520,11 +527,11 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 		 [mod_enable_hook(M)]},
 		{button,"Delete",done}]},
        {hframe,[{label,"SizeX"},
-		{text,SizeX,[{range,0.0,1000.0},mod_enable_hook(M)]},
+		{text,SizeX,[{range,{0.0,1000.0}},mod_enable_hook(M)]},
 		{label,"SizeY"},
-		{text,SizeY,[{range,0.0,1000.0},mod_enable_hook(M)]},
+		{text,SizeY,[{range,{0.0,1000.0}},mod_enable_hook(M)]},
 		{label,"SizeZ"},
-		{text,SizeZ,[{range,0.0,1000.0},mod_enable_hook(M)]}]},
+		{text,SizeZ,[{range,{0.0,1000.0}},mod_enable_hook(M)]}]},
        {hframe,[{vframe,[{label,"Diffuse "},
 			 {label,"Specular"},
 			 {label,"Ambient"},
@@ -720,9 +727,9 @@ light_dialog(_Name, point, Ps) ->
 	[{vframe,[{label,"Bias"},
 		  {label,"Res"},
 		  {label,"Radius"}]},
-	 {vframe,[{text,Bias,[{range,0.0,1.0},{key,{?TAG,bias}}]},
-		  {text,Res,[{range,0,10000},{key,{?TAG,res}}]},
-		  {text,Radius,[{range,0,10000},{key,{?TAG,radius}}]}]}],
+	 {vframe,[{text,Bias,[{range,{0.0,1.0}},{key,{?TAG,bias}}]},
+		  {text,Res,[{range,{0,10000}},{key,{?TAG,res}}]},
+		  {text,Radius,[{range,{0,10000}},{key,{?TAG,radius}}]}]}],
 	[light_hook({?TAG,type}, softlight)]}]}];
 light_dialog(_Name, spot, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_SPOT_TYPE),
@@ -736,33 +743,100 @@ light_dialog(_Name, spot, Ps) ->
     Mindepth = proplists:get_value(mindepth, Ps, ?DEF_MINDEPTH),
     Cluster = proplists:get_value(cluster, Ps, ?DEF_CLUSTER),
     UseQMC = proplists:get_value(use_QMC, Ps, ?DEF_USE_QMC),
+    MinimizedHalo = proplists:get_value(minimized_halo, Ps, true),
+    Halo = proplists:get_value(halo, Ps, ?DEF_HALO),
+    HaloRes = proplists:get_value(halo_res, Ps, ?DEF_HALO_RES),
+    HaloSamples = proplists:get_value(halo_samples, Ps, HaloRes),
+    HaloShadowSamples = 
+	proplists:get_value(halo_shadow_samples, Ps, HaloRes),
+    HaloBlur = proplists:get_value(halo_blur, Ps, ?DEF_HALO_BLUR),
+    HaloShadowBlur = 
+	proplists:get_value(halo_shadow_blur, Ps, ?DEF_HALO_SHADOW_BLUR),
+    HaloFogDensity = 
+	proplists:get_value(halo_fog_density, Ps, ?DEF_HALO_FOG_DENSITY),
+    HaloFogColor = 
+	proplists:get_value(halo_fog_color, Ps, ?DEF_HALO_FOG_COLOR),
+    BlurRange = {range,{0.0,1.0}},
+    HaloFrame =
+	{hframe,
+	 [{vframe,[{label,"Res"},
+		   {label,"Samples"},
+		   {label,"Shadow Samples"},
+		   {label,"Blur"},
+		   {label,"Shadow Blur"},
+		   {label,"Fog Density"},
+		   {label,"Fog Color"}]},
+	  {vframe,[{text,HaloRes,
+		    [{range,{1,10000}},{key,{?TAG,halo_res}},
+		     {hook,
+		      fun (is_disabled, {_,_,Sto}) ->
+			      not gb_trees:get({?TAG,halo}, Sto);
+			  (update, {Key,_I,Val,Sto0}) ->
+			      Sto1 = gb_trees:update
+				       ({?TAG,halo_samples}, Val, Sto0),
+			      Sto = gb_trees:update
+				      ({?TAG,halo_shadow_samples}, Val, Sto1),
+			      {store,gb_trees:update(Key, Val, Sto)};
+			  (_, _) -> void
+		      end}]},
+		   {text,HaloSamples,
+		    [{range,{1,10000}},{key,{?TAG,halo_samples}},
+		     enable_hook({?TAG,halo})]},
+		   {text,HaloShadowSamples,
+		    [{range,{1,10000}},{key,{?TAG,halo_shadow_samples}},
+		     enable_hook({?TAG,halo})]},
+		   {text,HaloBlur,
+		    [BlurRange,{key,{?TAG,halo_blur}},
+		     enable_hook({?TAG,halo})]},
+		   {text,HaloShadowBlur,
+		    [BlurRange,{key,{?TAG,halo_shadow_blur}},
+		     enable_hook({?TAG,halo})]},
+		   {text,HaloFogDensity,
+		    [{range,{0.0,10.0}},{key,{?TAG,halo_fog_density}},
+		     enable_hook({?TAG,halo})]},
+		   {color,HaloFogColor,
+		    [{key,{?TAG,halo_fog_color}},enable_hook({?TAG,halo})]}]},
+	  {vframe,[panel,
+		   panel,
+		   panel,
+		   {slider,[BlurRange,{key,{?TAG,halo_blur}},
+			    enable_hook({?TAG,halo})]},
+		   {slider,[BlurRange,{key,{?TAG,halo_shadow_blur}},
+			    enable_hook({?TAG,halo})]},
+		   panel]}],
+	 [{title,"Halo"},
+	  {key,{?TAG,minimized_halo}},{minimized,MinimizedHalo}]},
+    %%
     [{hframe,
       [{hradio,[{"Spotlight",spotlight},
 		{"Photonlight",photonlight}],Type,[layout,{key,{?TAG,type}}]},
        {menu,[{"Diffuse",diffuse},{"Caustic",caustic}],Mode,
 	[{key,{?TAG,mode}},light_hook({?TAG,type}, photonlight)]},
        {"Use QMC",UseQMC,[{key,{?TAG,use_QMC}},
-		       light_hook({?TAG,type}, photonlight)]}]},
-     {hframe,
-      [{"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]},
-       {label,"Blend"},{text,Blend,[{range,0.0,100.0},{key,{?TAG,blend}}]}],
+			  light_hook({?TAG,type}, photonlight)]}]},
+     {vframe,
+      [{hframe,[{"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]},
+		{label,"Blend"},
+		{text,Blend,[{range,{0.0,100.0}},{key,{?TAG,blend}}]}]},
+       {hframe,[{"",Halo,[{key,{?TAG,halo}}]},
+		HaloFrame]}],
       [light_hook({?TAG,type}, spotlight)]},
      {hframe,[{vframe,[{label,"Photons"},
 		       {label,"Depth"},
 		       {label,"Fixedradius"}]},
-	      {vframe,[{text,Photons,[{range,0,1000000},
+	      {vframe,[{text,Photons,[{range,{0,1000000}},
 				      {key,{?TAG,photons}}]},
-		       {text,Depth,[{range,1,100},{key,{?TAG,depth}}]},
-		       {text,Fixedradius,[{range,1.0,1000000.0},
+		       {text,Depth,[{range,{1,100}},{key,{?TAG,depth}}]},
+		       {text,Fixedradius,[{range,{1.0,1000000.0}},
 					  {key,{?TAG,fixedradius}}]}]},
 	      {vframe,[{label,"Search"},
 		       {label,"Mindepth"},
 		       {label,"Cluster"}]},
-	      {vframe,[{text,Search,[{range,0,1000000},
+	      {vframe,[{text,Search,[{range,{0,1000000}},
 				     {key,{?TAG,search}}]},
-		       {text,Mindepth,[{range,0,1000000},
+		       {text,Mindepth,[{range,{0,1000000}},
 				       {key,{?TAG,mindepth}}]},
-		       {text,Cluster,[{range,0.0,1000000.0},
+		       {text,Cluster,[{range,{0.0,1000000.0}},
 				      {key,{?TAG,cluster}}]}]}],
       [light_hook({?TAG,type}, photonlight)]}];
 light_dialog(_Name, infinite, Ps) ->
@@ -778,7 +852,7 @@ light_dialog(_Name, infinite, Ps) ->
        {hframe,[{label,"Color"},
 		{color,BgColor,[{key,{?TAG,background_color}}]}],
 	[light_hook({?TAG,background}, constant)]},
-       {hframe,[{label,"Turbidity"},{text,Turbidity,[{range,0.0,100.0},
+       {hframe,[{label,"Turbidity"},{text,Turbidity,[{range,{0.0,100.0}},
 						     {key,{?TAG,turbidity}}]}],
 	[light_hook({?TAG,background}, sunsky)]}],
       [{title,"Background"}]}];
@@ -825,32 +899,32 @@ light_dialog(_Name, ambient, Ps) ->
 				  light_hook({?TAG,type}, [pathlight])]}]},
        {vframe,[{label,"Samples"},
 		{label,"Depth",[light_hook({?TAG,type}, [pathlight])]}]},
-       {vframe,[{text,Samples,[{range,1,1000000},{key,{?TAG,samples}}]},
-		{text,Depth,[{range,1,100},{key,{?TAG,depth}},
+       {vframe,[{text,Samples,[{range,{1,1000000}},{key,{?TAG,samples}}]},
+		{text,Depth,[{range,{1,100}},{key,{?TAG,depth}},
 			     light_hook({?TAG,type}, [pathlight])]}]},
        {vframe,[panel,
 		{label,"Caus Depth"}],
 	[light_hook({?TAG,type}, [pathlight])]},
        {vframe,[panel,
-		{text,CausDepth,[{range,1,100},{key,{?TAG,caus_depth}}]}],
+		{text,CausDepth,[{range,{1,100}},{key,{?TAG,caus_depth}}]}],
 	[light_hook({?TAG,type}, [pathlight])]}],
       [light_hook({?TAG,type}, [hemilight,pathlight])]},
      %% Global Photonlight
      {hframe,[{vframe,[{label,"Photons"},
 		       {label,"Depth"}]},
 	      {vframe,[{text,GplPhotons,
-			[{range,0,1000000},
+			[{range,{0,1000000}},
 			 {key,{?TAG,globalphotonlight_photons}}]},
 		       {text,GplDepth,
-			[{range,1,100},
+			[{range,{1,100}},
 			 {key,{?TAG,globalphotonlight_depth}}]}]},
 	      {vframe,[{label,"Radius"},
 		       {label,"Search"}]},
 	      {vframe,[{text,GplRadius,
-			[{range,1.0,1000000.0},
+			[{range,{1.0,1000000.0}},
 			 {key,{?TAG,globalphotonlight_radius}}]},
 		       {text,GplSearch,
-			[{range,0,1000000},
+			[{range,{0,1000000}},
 			 {key,{?TAG,globalphotonlight_search}}]}]}],
       [light_hook({?TAG,type}, [globalphotonlight])]},
      %% Backgrounds
@@ -912,6 +986,12 @@ light_hook(Key, Values) when list(Values) ->
      end};
 light_hook(Key, Value) -> light_hook(Key, [Value]).
 
+enable_hook(Key) ->
+    {hook,
+     fun (is_disabled, {_Var,_I,Store}) -> not gb_trees:get(Key, Store);
+	 (_, _) -> void
+     end}.
+
 
 light_result(_Name, Ps0, 
 	     [{{?TAG,minimized},Minimized},{{?TAG,power},Power}|Res0]) ->
@@ -929,9 +1009,9 @@ light_result([{{?TAG,type},softlight}|_]=Ps) ->
     split_list(Ps, 5);
 %% Spot
 light_result([{{?TAG,type},spotlight}|_]=Ps) ->
-    split_list(Ps, 11);
+    split_list(Ps, 20);
 light_result([{{?TAG,type},photonlight}|_]=Ps) ->
-    split_list(Ps, 11);
+    split_list(Ps, 20);
 %% Infinite
 light_result([_,{{?TAG,background},_}|_]=Ps) ->
     split_list(Ps, 4);
@@ -1006,7 +1086,7 @@ export_dialog(Operation) ->
     FogColor = get_pref(fog_color, ?DEF_FOG_COLOR),
     AA_pixelwidthFlags = [{range,{1.0,2.0}},{key,aa_pixelwidth}],
     [{hframe,[{label,"Sub-division Steps"},
-	      {text,SubDiv,[{key,subdivisions},{range,0,4}]}],
+	      {text,SubDiv,[{key,subdivisions},{range,{0,4}}]}],
       [{title,"Pre-rendering"}]},
      {hframe,
       [{vframe,[{label,"AA_passes"},
@@ -1756,9 +1836,40 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
 	    SpotExponent = 
 		proplists:get_value(spot_exponent, OpenGL, ?DEF_SPOT_EXPONENT),
 	    Blend = proplists:get_value(blend, YafRay, ?DEF_BLEND),
-	    println(F, "       cast_shadows=\"~s\" size=\"~.3f\"~n"++
-		    "       beam_falloff=\"~.10f\" blend=\"~.3f\">", 
-		    [format(CastShadows), ConeAngle, SpotExponent, Blend]);
+	    print(F, "       cast_shadows=\"~s\" size=\"~.3f\"~n"++
+		  "       beam_falloff=\"~.10f\" blend=\"~.3f\"", 
+		  [format(CastShadows), ConeAngle, SpotExponent, Blend]),
+	    case proplists:get_value(halo, YafRay, ?DEF_HALO) of
+		false -> 
+		    println(F, ">");
+		true ->
+		    HaloRes = 
+			proplists:get_value(halo_res, YafRay, ?DEF_HALO_RES),
+		    HaloSamples = 
+			proplists:get_value(halo_samples, YafRay, HaloRes),
+		    HaloShadowSamples = 
+			proplists:get_value(halo_shadow_samples, YafRay, 
+					    HaloRes),
+		    HaloBlur = 
+			proplists:get_value(halo_blur, YafRay, ?DEF_HALO_BLUR),
+		    HaloShadowBlur = 
+			proplists:get_value(halo_shadow_blur, YafRay, 
+					    ?DEF_HALO_SHADOW_BLUR),
+		    HaloFogDensity = 
+			proplists:get_value(halo_fog_density, YafRay, 
+					    ?DEF_HALO_FOG_DENSITY),
+		    HaloFogColor = 
+			proplists:get_value(halo_fog_color, YafRay, 
+					    ?DEF_HALO_FOG_COLOR),
+		    println(F, "~n       halo=\"~s\" res=\"~w\" "
+			    "samples=\"~w\" shadow_samples=\"~w\"~n"
+			    "       halo_blur=\"~.10f\" "
+			    "shadow_blur=\"~.10f\"~n"
+			    "       fog_density=\"~.10f\">",
+			  [format(true),HaloRes,HaloSamples,HaloShadowSamples,
+			   HaloBlur,HaloShadowBlur,HaloFogDensity]),
+		    export_rgb(F, fog, HaloFogColor)
+	    end;
 	photonlight ->
 	    Mode = proplists:get_value(mode, YafRay, ?DEF_MODE),
 	    Photons = proplists:get_value(photons, YafRay, ?DEF_PHOTONS),
@@ -1810,7 +1921,7 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
 	    UseQMC = proplists:get_value(use_QMC, YafRay, 
 					 ?DEF_USE_QMC),
 	    Depth = proplists:get_value(depth, YafRay, ?DEF_DEPTH),
-	    CausDepth = proplists:get_value(depth, YafRay, ?DEF_CAUS_DEPTH),
+	    CausDepth = proplists:get_value(caus_depth, YafRay, ?DEF_CAUS_DEPTH),
 	    Direct = proplists:get_value(direct, YafRay, ?DEF_DIRECT),
 	    Samples = proplists:get_value(samples, YafRay, 
 					  ?DEF_SAMPLES),
