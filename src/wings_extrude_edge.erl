@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.43 2003/04/26 08:36:16 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.44 2003/06/13 17:26:24 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -79,7 +79,6 @@ bevel_faces(St0) ->
     B = fun() ->
 		{St,{Tvs,C}} = wings_sel:mapfold(fun bevel_faces/3,
 						  {[],1.0E307}, St0),
-		%%{Tvs,C} = scale_tvs(Tvs0, C0),
 		wings_drag:setup(Tvs, [{distance,{0.0,C}}], St)
 	end,
     set_extrude_dist(?BEVEL_EXTRUDE_DIST_KLUDGE, B).
@@ -164,7 +163,7 @@ bevel_min_limit([{_,[{O1,D1},{O2,D2}]}|Tail], We, Min0) ->
     D1CrossD2 = e3d_vec:cross(D1, D2),
     LenD1CrossD2 = e3d_vec:len(D1CrossD2),
     case LenD1CrossD2*LenD1CrossD2 of
-	Z when abs(Z) < 0.00001 ->
+	Z when abs(Z) < 0.000001 ->
 	    %% No intersection.
 	    bevel_min_limit(Tail, We, Min0);
 	SqrLen ->
@@ -182,11 +181,16 @@ bevel_min_limit([{_,[{O1,D1},{O2,D2}]}|Tail], We, Min0) ->
 bevel_min_limit([{{Va,Vb},[{_,D1}]}|Tail], #we{vp=Vtab}=We, Min0) ->
     VaPos = gb_trees:get(Va, Vtab),
     VbPos = gb_trees:get(Vb, Vtab),
-    case e3d_vec:len(e3d_vec:sub(VaPos, VbPos)) / e3d_vec:len(D1) of
-	Min when Min < Min0 ->
-	    bevel_min_limit(Tail, We, Min);
-	_ ->
-	    bevel_min_limit(Tail, We, Min0)
+    case e3d_vec:len(D1) of
+	DLen when DLen < 0.000001 ->
+	    bevel_min_limit(Tail, We, 0.0);
+	DLen ->
+	    case e3d_vec:len(e3d_vec:sub(VaPos, VbPos)) / DLen of
+		Min when Min < Min0 ->
+		    bevel_min_limit(Tail, We, Min);
+		_ ->
+		    bevel_min_limit(Tail, We, Min0)
+	    end
     end;
 bevel_min_limit([], _, Min) -> Min.
 
