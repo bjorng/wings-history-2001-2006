@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.126 2003/06/13 17:09:18 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.127 2003/06/28 09:03:18 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -50,6 +50,8 @@ menu(St) ->
      separator,
      {"Show Saved BB",show_bb,"Display any saved bounding box",crossmark(show_bb)},
      {"Show Edges",show_edges,"Show edges in workmode",crossmark(show_edges)},
+     {"Show Wireframe Backfaces",show_wire_backfaces,
+      "Show wireframe backfaces",crossmark(show_wire_backfaces)},
      {"Show Normals",show_normals,"Show normals for selected elements",
       crossmark(show_normals)},
      separator,
@@ -387,6 +389,7 @@ set_current(View) ->
 
 init() ->
     wings_pref:set_default(show_edges, true),
+    wings_pref:set_default(show_wire_backfaces, false),
     wings_pref:set_default(number_of_lights, 1),
     wings_pref:set_default(show_normals, false),
     wings_pref:set_default(show_bb, true),
