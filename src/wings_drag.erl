@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.143 2003/06/08 08:57:15 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.144 2003/06/09 18:20:18 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -338,7 +338,8 @@ handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_RELEASED}, 
     pop;
 handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     ungrab(Drag0),
-    Drag = ?SLOW(motion_update(Move, Drag0)),
+    Drag1 = possible_falloff_update(Move, Drag0),
+    Drag = ?SLOW(motion_update(Move, Drag1)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
     wings_wm:later(DragEnded),
@@ -350,8 +351,8 @@ handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Drag) ->
     pop;
 handle_drag_event_1(view_changed, Drag) ->
     get_drag_event(view_changed(Drag));
-handle_drag_event_1({action,{numeric_input,Move}}, _) ->
-    wings_wm:later({drag_arguments,Move});
+handle_drag_event_1({action,{drag_arguments,_}=DragArgs}, _) ->
+    wings_wm:later(DragArgs);
 handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
     Drag = case wings_hotkey:event(Event) of
 	       next -> Drag0;
@@ -380,7 +381,7 @@ numeric_input(Drag0) ->
     {Move0,Drag} = mouse_translate(Ev, Drag0),
     wings_ask:dialog("Numeric Input", make_query(Move0, Drag),
 		     fun(Res) ->
-			     {numeric_input,make_move(Res, Drag)}
+			     {drag_arguments,make_move(Res, Drag)}
 		     end).
 
 make_query(Move, #drag{unit=Units}) ->
@@ -585,6 +586,11 @@ motion_update_fun(#dlo{drag=#do{funs=Tv}}=D, Move) ->
     wings_draw:update_dynamic(D, Vtab);
 motion_update_fun(D, _) -> D.
 
+possible_falloff_update(_, #drag{falloff=none}=Drag) -> Drag;
+possible_falloff_update(Move, Drag) ->
+    NewFalloff = lists:last(Move),
+    parameter_update(new_falloff, NewFalloff, Drag#drag{falloff=NewFalloff}).
+    
 parameter_update(Key, Val, Drag0) ->
     wings_draw_util:map(fun(D, _) ->
 				parameter_update_fun(D, Key, Val)
