@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.38 2001/12/26 18:42:34 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.39 2001/12/28 11:35:05 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -407,17 +407,24 @@ translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0,
 		 none -> identity;
 		 _ -> Matrix0
 	     end,
-    {Fs,UsedMat} = translate_faces(Fs0, [], UsedMat0),
+    Tx = list_to_tuple(Tx0),
+    {Fs,UsedMat} = translate_faces(Fs0, Tx, [], UsedMat0),
     wings_io:progress("Building Wings obj " ++ integer_to_list(I) ++ Suffix),
     St = build_object(Name, Matrix, Fs, Vs, He, St0),
     translate_objects(Os, UsedMat, I+1, Suffix, St);
 translate_objects([], UsedMat, _, _, St) -> {UsedMat,St}.
 
-translate_faces([#e3d_face{vs=Vs,tx=Tx,mat=Mat0}|Fs], Acc, UsedMat0) ->
+translate_faces([#e3d_face{vs=Vs,tx=Tx0,mat=Mat0}|Fs], Txs, Acc, UsedMat0) ->
     UsedMat = add_used_mat(Mat0, UsedMat0),
     Mat = translate_mat(Mat0),
-    translate_faces(Fs, [{Mat,Vs}|Acc], UsedMat);
-translate_faces([], Acc, UsedMat) -> {Acc,UsedMat}.
+    FaceData = case Tx0 of
+		   [] -> {Mat,Vs};
+		   Tx1 ->
+		       Tx = [element(Tx+1, Txs) || Tx <- Tx1],
+		       {Mat,Vs,Tx}
+	       end,
+    translate_faces(Fs, Txs, [FaceData|Acc], UsedMat);
+translate_faces([], Txs, Acc, UsedMat) -> {reverse(Acc),UsedMat}.
 
 add_used_mat([], UsedMat) -> UsedMat;
 add_used_mat([M|Ms], UsedMat) -> add_used_mat(Ms, gb_sets:add(M, UsedMat)).
