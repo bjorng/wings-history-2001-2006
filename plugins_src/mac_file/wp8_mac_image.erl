@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_image.erl,v 1.4 2003/03/16 17:26:39 bjorng Exp $
+%%     $Id: wp8_mac_image.erl,v 1.5 2003/12/31 10:48:19 bjorng Exp $
 %%
 
 -module(wp8_mac_image).
@@ -19,6 +19,11 @@
 
 %% Operations supported by driver.
 -define(OP_IMAGE_READ, 0).
+-define(OP_IMAGE_WRITE, 1).
+
+-define(IMG_FORMAT_PNG, 0).
+-define(IMG_FORMAT_GIF, 1).
+-define(IMG_FORMAT_JPEG, 2).
 
 init(Next) ->
     case os:type() of
@@ -51,6 +56,14 @@ fileop({image,read,Prop}=What, Next) ->
     Name = proplists:get_value(filename, Prop),
     case is_format_supported(Name) of
 	true -> read_image(Name, Prop);
+	false -> Next(What)
+    end;
+fileop({image,write,Prop}=What, Next) ->
+    Name = proplists:get_value(filename, Prop),
+    Image = proplists:get_value(image, Prop),
+    Ext = lower(filename:extension(Name)),
+    case is_format_supported(Name, Ext) of
+	true -> write_image(Name, Ext, Image, Prop);
 	false -> Next(What)
     end;
 fileop(What, Next) ->
@@ -95,8 +108,19 @@ read_image_2(<<W:32/native,H:32/native,SamplesPerPixel0:32/native,BytesPerRow:32
     NeededOrder = proplists:get_value(order, Prop, upper_left),
     e3d_image:convert(Image, NeededType, NeededAlignment, NeededOrder).
 
+write_image(Name, Ext, Image, Prop) ->
+    {ok,Tiff} = e3d_image:save_bin(Image, ".tiff"),
+    Data = [image_format(Ext)|Tiff],
+    case erlang:port_control(?MODULE, ?OP_IMAGE_WRITE, Data) of
+	[] -> {error,{none,?MODULE,format}};
+	Bin -> file:write_file(Name, Bin)
+    end.
+
 is_format_supported(Name) ->
     Ext = lower(filename:extension(Name)),
+    is_format_supported(Name, Ext).
+
+is_format_supported(Name, Ext) ->
     lists:keymember(Ext, 1, image_formats([])).
 
 lower([Upper|T]) when $A =< Upper, Upper =< $Z ->
@@ -109,3 +133,7 @@ image_formats(Fs) ->
     [{".png","PNG File"},
      {".gif","Compuserve GIF"},
      {".jpg","JPEG File"}|Fs].
+
+image_format(".png") -> ?IMG_FORMAT_PNG;
+image_format(".gif") -> ?IMG_FORMAT_GIF;
+image_format(".jpg") -> ?IMG_FORMAT_JPEG.

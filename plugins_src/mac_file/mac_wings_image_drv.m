@@ -9,7 +9,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: mac_wings_image_drv.m,v 1.2 2002/11/17 10:29:34 bjorng Exp $
+ *     $Id: mac_wings_image_drv.m,v 1.3 2003/12/31 10:48:19 bjorng Exp $
  */
 
 #include <stdio.h>
@@ -90,7 +90,7 @@ static int mac_image_control(ErlDrvData handle, unsigned int command,
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
   switch (command) {
-  case 0: {			/* Read */
+  case 0: {			// Read
     NSString* name = [NSString stringWithCString:buff];
     NSBitmapImageRep* bitmap = [NSBitmapImageRep imageRepWithContentsOfFile:name];
 
@@ -111,6 +111,33 @@ static int mac_image_control(ErlDrvData handle, unsigned int command,
       memcpy(rbuf+16, [bitmap bitmapData], size);
       *res = (void *) bin;
     }
+    [pool release];
+    return 0;
+  }
+  case 1: {			// Write
+    NSData* nsData;
+    NSBitmapImageRep* bitmap;
+    NSBitmapImageFileType fileType = 0;
+
+    switch (buff[0]) {
+    case 0: fileType = NSPNGFileType; break;
+    case 1: fileType = NSGIFFileType; break;
+    case 2: fileType = NSJPEGFileType; break;
+    }
+    buff++, count--;
+
+    nsData = [NSData dataWithBytes:(void *) buff length:(unsigned) count];
+    bitmap = [NSBitmapImageRep imageRepWithData:nsData];
+    nsData = [bitmap representationUsingType:fileType properties:nil];
+    if (nsData == 0) {
+      *res = (void *) 0;
+    } else {
+      ErlDrvBinary* bin = driver_alloc_binary([nsData length]);
+      unsigned char* rbin = bin->orig_bytes;
+      [nsData getBytes:(void *) rbin];
+      *res = (void *) bin;
+    }
+
     [pool release];
     return 0;
   }
