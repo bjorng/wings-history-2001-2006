@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.4 2004/06/11 10:07:53 raimo_niskanen Exp $
+%%     $Id: wpc_toxic.erl,v 1.5 2004/06/11 15:01:36 dgud Exp $
 %%
 
 -module(wpc_toxic).
@@ -229,11 +229,16 @@ props(export) ->
 props(export_selected) ->
     [{title,"Export Selected"},{ext,".xml"},{ext_desc,"Toxic File"}].
 
--record(camera_info, {pos,dir,up,fov}).
+-record(camera_info, {pos,dir,up,fov,origin,distance,azimuth,
+		      elevation,pan_x,pan_y}).
 
 attr(St, Attr) ->
-    [{Pos,Dir,Up},Fov] = wpa:camera_info([pos_dir_up,fov]),
-    CameraInfo = #camera_info{pos=Pos,dir=Dir,up=Up,fov=Fov},
+    [{Pos,Dir,Up},Fov,Origin,Dist,Az,El,{PanX,PanY}] = 
+	wpa:camera_info([pos_dir_up,fov,aim,distance_to_aim,
+			 azimuth,elevation,tracking]),
+    CameraInfo = #camera_info{pos=Pos,dir=Dir,up=Up,fov=Fov,
+			      origin=Origin,distance=Dist,azimuth=Az,
+			      elevation=El,pan_x=PanX,pan_y=PanY},
     [CameraInfo,{lights,wpa:lights(St)}|Attr].
 
 do_export(Op, Props0, Attr, St0) ->    
@@ -993,7 +998,9 @@ export_light(F, _, Scale, OpenGL, Toxic) ->
     println(F,"  </Object>").
 
 export_camera(F, Scale, Attr) ->
-    #camera_info{pos=Pos,dir=Dir,up=Up,fov=Fov} = 
+    #camera_info{ %pos=_Pos,dir=Dir,up=Up,fov=Fov,
+		 origin=Origin,distance=Dist,azimuth=Az,
+		 elevation=El,pan_x=PanX,pan_y=PanY} = 
 	proplists:lookup(camera_info, Attr),
     case pget(camera, Attr) of
 	pinhole ->
@@ -1013,35 +1020,45 @@ export_camera(F, Scale, Attr) ->
 			    [format(pget(focaldist,Attr))])
 	    end
     end,
-    println(F,"  <Parameter name=\"hfov\" value=\"~s\"/>", [format(Fov)]),
+%    println(F,"  <Parameter name=\"hfov\" value=\"~s\"/>", [format(Fov)]),
     println(F,"    <Transform>"),
-    println(F,"      <Translation value=\"~s ~s ~s\"/>", vector_to_list(Pos,Scale)),
-    {DirDeg, DirAxis} = rotate_vec(e3d_vec:norm(Dir), {0.0,0.0,-1.0}),
-    println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
-	    [format(DirDeg)|vector_to_list(DirAxis)]),
-    Rot = e3d_mat:rotate(DirDeg,DirAxis),
-    UpRot = e3d_mat:mul_vector(Rot,{0.0,1.0,0.0}),
-    {UpDeg, UpAxis} = rotate_vec(Up, UpRot),
-    println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
-	    [format(UpDeg)|vector_to_list(UpAxis)]),
-    io:format("Dir ~p DirDeg ~p DirAxis ~p~n", [Dir,DirDeg,DirAxis]),
-    io:format("Up ~p UpRot ~p UpDeg ~p UpAxis ~p~n", [Up,UpRot,UpDeg,UpAxis]),
+%     println(F,"      <Translation value=\"~s ~s ~s\"/>", vector_to_list(Pos,Scale)),
+%     {DirDeg, DirAxis} = rotate_vec(e3d_vec:norm(Dir), {0.0,0.0,-1.0}),
+%     println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
+% 	    [format(DirDeg)|vector_to_list(DirAxis)]),
+%     Rot = e3d_mat:rotate(DirDeg,DirAxis),
+%     UpRot = e3d_mat:mul_vector(Rot,{0.0,1.0,0.0}),
+%     {UpDeg, UpAxis} = rotate_vec(Up, UpRot),
+%     println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
+% 	    [format(UpDeg)|vector_to_list(UpAxis)]),
+%     io:format("Dir ~p DirDeg ~p DirAxis ~p~n", [Dir,DirDeg,DirAxis]),
+%     io:format("Up ~p UpRot ~p UpDeg ~p UpAxis ~p~n", [Up,UpRot,UpDeg,UpAxis]),
+
+%%%%%%%%%%% Same as wings %%%%%%%%%%%%
+    println(F,"      <Translation value=\"~s ~s ~s\"/>", 
+	    [format(PanX*Scale),format(PanY*Scale),format(-Dist*Scale)]),
+    println(F,"      <Rotation angle=\"~s\" axis=\"1.0 0.0 0.0\"/>", 
+	    [format(El)]),
+    println(F,"      <Rotation angle=\"~s\" axis=\"0.0 1.0 0.0\"/>", 
+	    [format(Az)]),
+    println(F,"      <Translation value=\"~s ~s ~s\"/>", 
+	    vector_to_list(Origin,Scale)),
     println(F,"    </Transform>"),
     println(F,"  </Object>"),
     ok.
 
-rotate_vec(V1,V2) ->
-    ACos = e3d_vec:dot(V1,V2),
-    Dir = math:acos(ACos)*180/math:pi(),
-    case e3d_vec:norm(e3d_vec:cross(V1,V2)) of
-	{0.0,0.0,0.0} ->
-	    {Dir, {0.0,1.0,0.0}};
-	Cross ->
-	    {Dir, Cross}
-    end.
+% rotate_vec(V1,V2) ->
+%     ACos = e3d_vec:dot(V1,V2),
+%     Dir = math:acos(ACos)*180/math:pi(),
+%     case e3d_vec:norm(e3d_vec:cross(V1,V2)) of
+% 	{0.0,0.0,0.0} ->
+% 	    {Dir, {0.0,1.0,0.0}};
+% 	Cross ->
+% 	    {Dir, Cross}
+%     end.
 
-vector_to_list({X,Y,Z}) ->
-    [format(X),format(Y),format(Z)].
+% vector_to_list({X,Y,Z}) ->
+%     [format(X),format(Y),format(Z)].
 vector_to_list({X,Y,Z},Scale) ->
     [format(X*Scale),format(Y*Scale),format(Z*Scale)].
 
