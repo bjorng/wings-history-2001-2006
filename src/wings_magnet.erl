@@ -3,17 +3,16 @@
 %%
 %%     This module implements the Magnet command.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.46 2003/11/28 15:35:04 raimo_niskanen Exp $
+%%     $Id: wings_magnet.erl,v 1.47 2004/04/18 06:13:15 bjorng Exp $
 %%
 
 -module(wings_magnet).
--export([setup/3,transform/2,recalc/3,flags/2,
-	 dialog/1,dialog/2,drag_help/1,hotkey/1]).
+-export([setup/3,transform/2,recalc/3,flags/2,dialog/1,dialog/2]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,sort/1,concat/1,reverse/1]).
@@ -45,8 +44,20 @@ recalc(Sc, VsInf, {Type,R0}) ->
 		  [{V,Vtx,Dist,mf(Type, R, R)}|A]
 	  end, [], VsInf).
 
-flags(none, Flags) -> Flags;
-flags({magnet,Type,_,_}, Flags) -> [{magnet,Type}|Flags].
+flags(none, Flags) ->
+    Flags;
+flags({magnet,Type,_,_}, Flags) ->
+    [{mode,{magnet_mode_fun(),Type}}|Flags].
+
+magnet_mode_fun() ->	    
+    fun(help, Type) ->
+	    drag_help(Type);
+       (key, C) ->
+	    hotkey(C);
+       (done, Type) ->
+	    wings_pref:set_value(magnet_type, Type);
+       (_, _) -> none
+    end.
 
 dialog(Fun) ->
     R0 = wings_pref:get_value(magnet_radius),

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.49 2004/03/08 13:26:22 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.50 2004/04/18 06:13:15 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -278,7 +278,7 @@ magnet_scale_fun(Vec, Pre, VsInf0, {_,R}=Magnet0) ->
     fun(new_falloff, Falloff) ->
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet0),
 	    magnet_scale_fun(Vec, Pre, VsInf, Magnet0);
-       (new_type, {Type,Falloff}) ->
+       (new_mode_data, {Type,Falloff}) ->
 	    Magnet = {Type,R},
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_scale_fun(Vec, Pre, VsInf, Magnet);

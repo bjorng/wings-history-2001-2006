@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.176 2004/04/14 17:59:14 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.177 2004/04/18 06:13:15 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -17,8 +17,6 @@
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
-
--define(CAMMAX, 150).
 
 -import(lists, [foreach/2,map/2,foldl/3,sort/1,keysort/2,
 		reverse/1,reverse/2,member/2]).
@@ -38,7 +36,8 @@
 	 unit_sc,				%Scales for each dimension.
 	 flags=[],				%Flags.
 	 falloff,				%Magnet falloff.
-	 magnet,				%Magnet: true|false.
+	 mode_fun,				%Special mode.
+	 mode_data,				%State for mode.
 	 info="",				%Information line.
 	 st,					%Saved st record.
 	 last_move				%Last move.
@@ -55,13 +54,16 @@ setup(Tvs, Unit, St) ->
 setup(Tvs, Units, Flags, St) ->
     wings_io:grab(),
     wings_wm:grab_focus(),
-    Magnet = proplists:get_value(magnet, Flags, none),
     Offset0 = proplists:get_value(initial, Flags, []),
     Offset1 = pad_offsets(Offset0),
     Offset = setup_offsets(Offset1, Units),
     UnitSc = unit_scales(Units),
+    Falloff = falloff(Units),
+    {ModeFun,ModeData} = setup_mode(Flags, Falloff),
     Drag = #drag{unit=Units,unit_sc=UnitSc,flags=Flags,offset=Offset,
-		 falloff=falloff(Units),magnet=Magnet,st=St},
+		 falloff=Falloff,
+		 mode_fun=ModeFun,mode_data=ModeData,
+		 st=St},
     case Tvs of
 	{matrix,TvMatrix} ->
 	    wings_draw:refresh_dlists(St),
@@ -74,6 +76,31 @@ setup(Tvs, Units, Flags, St) ->
 	    break_apart(Tvs, St)
     end,
     {drag,Drag}.
+
+setup_mode(Flags, Falloff) ->    
+    case proplists:get_value(mode, Flags, none) of
+	none ->
+	    {standard_mode_fun(Falloff),none};
+	{_,_}=Mode ->
+	    Mode
+    end.
+    
+standard_mode_fun(none) ->
+    fun(help, _) -> standard_help();
+       (key, _) -> none;
+       (done, _) -> ok;
+       (_, _) -> none
+     end;
+standard_mode_fun(_) ->
+    fun(help, _) ->
+	    ["[+] or [-] Adjust Radius  "|standard_help()];
+       (key, _) -> none;
+       (done, _) -> ok;
+       (_, _) -> none
+    end.
+
+standard_help() ->
+    "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain".
 
 unit_scales(Units) ->
     #view{distance=D} = wings_view:current(),
@@ -299,7 +326,7 @@ gl_rescale_normal() ->
 	false -> ?GL_NORMALIZE
     end.
 
-help_message(#drag{unit=Unit}=Drag) ->
+help_message(#drag{unit=Unit,mode_fun=ModeFun,mode_data=ModeData}) ->
     Accept = wings_util:button_format("Accept"),
     ZMsg = case length(Unit) > 2 of
 	       false -> [];
@@ -307,15 +334,8 @@ help_message(#drag{unit=Unit}=Drag) ->
 	   end,
     Cancel = wings_util:button_format([], [], "Cancel"),
     Msg = wings_camera:join_msg([Accept,ZMsg,Cancel]),
-    wings_wm:message(Msg, help_message_right(Drag)).
-
-help_message_right(#drag{magnet=none,falloff=Falloff}) ->
-    Help = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
-    case Falloff of
-	none -> Help;
-	_ -> ["[+] or [-] Adjust Radius  "|Help]
-    end;
-help_message_right(#drag{magnet=Type}) -> wings_magnet:drag_help(Type).
+    MsgRight = ModeFun(help, ModeData),
+    wings_wm:message(Msg, MsgRight).
 
 zmove_help(Msg) ->
     case wings_pref:get_value(camera_mode) of
@@ -362,15 +382,14 @@ handle_drag_event(Event, Drag) ->
 	    Other
     end.
 
-handle_drag_event_0(#keyboard{}=Ev, #drag{magnet=none}=Drag) ->
-    handle_drag_event_1(Ev, Drag);
-handle_drag_event_0(#keyboard{unicode=C}=Ev, Drag0) ->
-    case wings_magnet:hotkey(C) of
+handle_drag_event_0(#keyboard{unicode=C}=Ev, #drag{mode_fun=ModeFun}=Drag0) ->
+    case ModeFun(key, C) of
 	none -> handle_drag_event_1(Ev, Drag0);
-	Type ->
-	    wings_wm:message_right(wings_magnet:drag_help(Type)),
-	    Val = {Type,Drag0#drag.falloff},
-	    Drag = parameter_update(new_type, Val, Drag0#drag{magnet=Type}),
+	ModeData ->
+	    wings_wm:message_right(ModeFun(help, ModeData)),
+	    Val = {ModeData,Drag0#drag.falloff},
+	    Drag = parameter_update(new_mode_data, Val,
+				    Drag0#drag{mode_data=ModeData}),
 	    get_drag_event(Drag)
     end;
 handle_drag_event_0(Ev, Drag) -> handle_drag_event_1(Ev, Drag).
@@ -586,7 +605,7 @@ mouse_range(#mousemotion{x=X0,y=Y0,state=Mask},
 
 mouse_scale([D|Ds], [S|Ss]) ->
     [D*S|mouse_scale(Ds, Ss)];
-mouse_scale(Ds, []) -> Ds.
+mouse_scale(Ds, _) -> Ds.
 
 constrain(Ds0, Mod, #drag{unit=Unit}=Drag) ->
     Ds = constrain_0(Unit, Ds0, Mod, []),
@@ -714,13 +733,9 @@ trim([[_|_]=H|T]) ->
     end;
 trim(S) -> S.
     
-normalize(Move, #drag{magnet=none}=Drag) ->
-    normalize_1(Move, Drag);
-normalize(Move, #drag{magnet=Type}=Drag) ->
-    wings_pref:set_value(magnet_type, Type),
-    normalize_1(Move, Drag).
-
-normalize_1(Move, #drag{st=#st{shapes=Shs0}=St}) ->
+normalize(Move, #drag{mode_fun=ModeFun,mode_data=ModeData,
+		      st=#st{shapes=Shs0}=St}) ->
+    ModeFun(done, ModeData),
     gl:disable(gl_rescale_normal()),
     Shs = wings_draw_util:map(fun(D, Sh) ->
 				      normalize_fun(D, Move, Sh)

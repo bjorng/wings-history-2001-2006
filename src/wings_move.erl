@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.52 2004/04/13 16:50:40 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.53 2004/04/18 06:13:15 bjorng Exp $
 %%
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
@@ -351,7 +351,7 @@ magnet_move_fun({Xt0,Yt0,Zt0}=Vec, VsInf0, {_,R}=Magnet0) ->
     fun(new_falloff, Falloff) ->
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet0),
 	    magnet_move_fun(Vec, VsInf, Magnet0);
-       (new_type, {Type,Falloff}) ->
+       (new_mode_data, {Type,Falloff}) ->
 	    Magnet = {Type,R},
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_move_fun(Vec, VsInf, Magnet);
@@ -370,7 +370,7 @@ magnet_move_fun(free, VsInf0, {_,R}=Magnet0) ->
        (new_falloff, Falloff) ->
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet0),
 	    magnet_move_fun(free, VsInf, Magnet0);
-       (new_type, {Type,Falloff}) ->
+       (new_mode_data, {Type,Falloff}) ->
 	    Magnet = {Type,R},
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_move_fun(free, VsInf, Magnet);
@@ -388,7 +388,7 @@ magnet_move_fun(VsVec, VsInf0, {_,R}=Magnet0) ->
     fun(new_falloff, Falloff) ->
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet0),
 	    magnet_move_fun(VsVec, VsInf, Magnet0);
-       (new_type, {Type,Falloff}) ->
+       (new_mode_data, {Type,Falloff}) ->
 	    Magnet = {Type,R},
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_move_fun(VsVec, VsInf, Magnet);

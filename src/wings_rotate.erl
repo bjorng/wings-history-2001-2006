@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Rotate command.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.36 2003/11/12 21:40:12 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.37 2004/04/18 06:13:15 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -206,7 +206,7 @@ magnet_rotate_fun(Axis0, Center, VsInf0, {_,R}=Magnet0) ->
     fun(new_falloff, Falloff) ->
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet0),
 	    magnet_rotate_fun(Axis0, Center, VsInf, Magnet0);
-       (new_type, {Type,Falloff}) ->
+       (new_mode_data, {Type,Falloff}) ->
 	    Magnet = {Type,R},
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_rotate_fun(Axis0, Center, VsInf, Magnet);
