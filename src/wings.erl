@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.283 2003/11/12 21:40:12 bjorng Exp $
+%%     $Id: wings.erl,v 1.284 2003/11/13 05:33:17 bjorng Exp $
 %%
 
 -module(wings).
@@ -690,8 +690,8 @@ tools_menu(_) ->
      {"Move to Saved BB",{move_to_bb,wings_menu_util:all_xyz()}},
      separator,
      {"Set Default Axis",set_default_axis,
-      "Store a default axis that can later be used in many commands "
-      "(such as Move)"},
+      "Define and store axis (with ref. point) for later use with any "
+      "\"Default Axis\" command (e.g. Scale|Default Axis)"},
      separator,
      {"Virtual Mirror",
       {virtual_mirror,
