@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.37 2002/11/24 08:41:45 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.38 2002/11/28 20:22:21 dgud Exp $
 %%
 
 -module(wings_ask).
@@ -866,7 +866,8 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 	       {label_column,
 		[{"R",{slider,{text,trunc(R1*255),[{key,r}|Range]}}},
 		 {"G",{slider,{text,trunc(G1*255),[{key,g}|Range]}}},
-		 {"B",{slider,{text,trunc(B1*255),[{key,b}|Range]}}}]}]}],
+		 {"B",{slider,{text,trunc(B1*255),[{key,b}|Range]}}}
+		]}]}],
      fun([{r,R},{g,G},{b,B}]) ->
 	     Val = {R/255,G/255,B/255},
 		 {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
@@ -919,7 +920,7 @@ custom_fun() ->
 slider(Field) ->
     Flags = element(size(Field), Field),
     {Min,Max} = proplists:get_value(range, Flags),
-    Key = proplists:get_value(key, Flags),
+    Key = proplists:get_value(key, Flags),    
     Sl = #sl{min=Min,range=(Max-Min)/?SL_LENGTH,peer=Key},
     Fun = slider_fun(),
     {Fun,false,Sl,?SL_LENGTH+4,?LINE_HEIGHT+2}.
@@ -934,13 +935,38 @@ slider_fun() ->
        (value, _, _, _) -> none
     end.
 
+get_colRange(r,Common) ->
+    B = gb_trees:get(b, Common)/255,
+    G = gb_trees:get(g, Common)/255,
+    {{0,G,B},{1,G,B}};
+get_colRange(g, Common) ->
+    R = gb_trees:get(r, Common)/255,
+    B = gb_trees:get(b, Common)/255,
+    {{R,0,B},{R,1,B}};
+get_colRange(b, Common) ->
+    R = gb_trees:get(r, Common)/255,
+    G = gb_trees:get(g, Common)/255,
+    {{R,G,0},{R,G,1}};
+get_colRange(_E, _Common) ->
+    {?MENU_COLOR, ?MENU_COLOR}.
+    
 slider_redraw(#fi{x=X,y=Y0,w=W},
-	      #sl{min=Min,range=Range,peer=Peer}, Common) ->
-    Y = Y0+?LINE_HEIGHT div 2 + 4,
-    wings_io:sunken_rect(X, Y, W, 1, {0,0,0}),
+	      #sl{min=Min,range=Range,peer=Peer}, 
+	      Common) ->
+    {SCol,ECol} = get_colRange(Peer, Common),
+    Y = Y0+?LINE_HEIGHT div 2,
+    wings_io:sunken_rect(X, Y, W, 3, ?MENU_COLOR),
+    gl:shadeModel(?GL_SMOOTH),
+    gl:'begin'(?GL_LINES),
+    gl:color3fv(SCol), gl:vertex2f(X+1,Y+2),
+    gl:color3fv(ECol), gl:vertex2f(X+W,Y+2),
+    gl:color3fv(SCol), gl:vertex2f(X+1,Y+3),
+    gl:color3fv(ECol), gl:vertex2f(X+W,Y+3),
+    gl:'end'(),
     Val = gb_trees:get(Peer, Common),
     Pos = trunc((Val-Min) / Range),
-    wings_io:raised_rect(X+Pos, Y-5, 4, 10, ?MENU_COLOR).
+    wings_io:raised_rect(X+Pos, Y-7, 4, 16, ?MENU_COLOR).
+
 
 slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, Fi, Sl, Common) ->
     slider_move(Xb, Fi, Sl, Common);
