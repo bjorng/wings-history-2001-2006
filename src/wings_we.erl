@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.16 2001/10/17 07:48:25 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.17 2001/11/11 20:15:51 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -22,6 +22,7 @@
 	 merge/1,merge/2,renumber/1,renumber/2,renumber/3,
 	 transform_vs/2,
 	 separate/1,
+	 get_sub_object/2,
 	 normals/1,
 	 new_items/3]).
 -include("wings.hrl").
@@ -415,6 +416,20 @@ renum_hard_edge(Edge0, Emap, New) ->
 %%% Separate a combined winged-edge structure.
 %%%
 
+
+%% get_sub_object(Edge, We) -> We'
+%%  Returns a copy of the sub-object that is reachable from Edge.
+
+get_sub_object(Edge, #we{es=Etab0,vs=Vtab,fs=Ftab,he=Htab}=We) ->
+    Ws = gb_sets:singleton(Edge),
+    {EtabLeft,NewEtab} = separate(Ws, Etab0, gb_trees:empty()),
+    Iter = gb_trees:iterator(NewEtab),
+    Empty = gb_trees:empty(),
+    EmptySet = gb_sets:empty(),
+    Huge = 1.0E300,
+    NewWe = copy_dependents(Iter, We, Empty, Empty, EmptySet, Huge, -1),
+    NewWe#we{es=NewEtab}.
+
 separate(We) ->
     separate(We, []).
 
@@ -428,7 +443,7 @@ separate(#we{es=Etab0,vs=Vtab,fs=Ftab,he=Htab}=We, Acc) ->
 	    Iter = gb_trees:iterator(NewEtab),
 	    Empty = gb_trees:empty(),
 	    EmptySet = gb_sets:empty(),
-	    Huge = 1.0E200,
+	    Huge = 1.0E300,
 	    NewWe = copy_dependents(Iter, We, Empty, Empty, EmptySet, Huge, -1),
 	    separate(We#we{es=EtabLeft}, [NewWe#we{es=NewEtab}|Acc])
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.16 2001/11/08 14:01:09 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.17 2001/11/11 20:15:51 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -462,35 +462,31 @@ select_region(#shape{id=Id,sh=We0}=Sh, Edges, Sel) ->
 %%% The Loop Cut command.
 %%%
 
-loop_cut(#st{sel=OldSel}=St0) ->
+loop_cut(#st{onext=NextId}=St0) ->
     {Sel0,St1} = wings_sel:fold_shape(fun loop_cut/3, {[],St0}, St0),
-    Sel = sort(Sel0),
-    St2 = St1#st{selmode=face,sel=Sel},
-    St = wings_face_cmd:dissolve(St2),
-    wings_body:convert_selection(St#st{selmode=body,sel=OldSel}).
+    Sel1 = sort(Sel0),
+    St2 = St1#st{selmode=face,sel=Sel1},
+    #st{sel=Sel2} = St = wings_face_cmd:dissolve(St2),
+    Sel = [S || {Id,_}=S <- Sel2, Id >= NextId],
+    wings_body:convert_selection(St#st{selmode=body,sel=Sel}).
 
-loop_cut(#shape{id=Id,sh=We0}=Sh, Edges, {Sel0,#st{onext=NewId}=St0}=Acc) ->
+loop_cut(#shape{id=Id,sh=We}=Sh, Edges, Acc) ->
+    case wings_edge_loop:edge_loop_vertices(Edges, We) of
+	none -> Acc;
+	Other -> loop_cut_1(Sh, Edges, Acc)
+    end.
+
+loop_cut_1(#shape{id=Id,sh=We0}=Sh0, Edges, {Sel0,#st{onext=NewId}=St0}=Acc) ->
     #we{es=Etab,fs=Ftab} = We0,
     {AnEdge,_} = gb_sets:take_smallest(Edges),
     #edge{lf=Lf,rf=Rf} = gb_trees:get(AnEdge, Etab),
     LeftFaces = collect_faces(Lf, Edges, We0),
     RightFaces = collect_faces(Rf, Edges, We0),
-    case proper_division(LeftFaces, RightFaces, We0) of
-	false -> Acc;				%improper division
-	true ->
-	    St = wings_shape:insert(Sh, "cut", St0),
-	    Sel = [{Id,LeftFaces},{NewId,RightFaces}|Sel0],
-	    {Sel,St}
-    end.
-
-proper_division(Left, Right, #we{fs=Ftab}) ->
-    NumFaces = gb_trees:size(Ftab),
-    case gb_sets:size(Left) + gb_sets:size(Right) of
-	NumFaces ->
-	    gb_sets:is_empty(gb_sets:intersection(Left, Right));
-	Other ->
-	    false
-    end.
+    WeCopy = wings_we:get_sub_object(AnEdge, We0),
+    Sh = Sh0#shape{sh=WeCopy},
+    St = wings_shape:insert(Sh, "cut", St0),
+    Sel = [{Id,LeftFaces},{NewId,RightFaces}|Sel0],
+    {Sel,St}.
 
 collect_faces(Face, Edges, We) ->
     collect_faces(gb_sets:singleton(Face), We, Edges, gb_sets:empty()).

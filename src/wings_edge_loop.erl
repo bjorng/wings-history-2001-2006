@@ -8,11 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.2 2001/11/11 08:32:24 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.3 2001/11/11 20:15:51 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
 -export([select_next/1,select_prev/1,select_loop/1]).
+
+%% Utilities.
+-export([edge_loop_vertices/2]).
 
 -include("wings.hrl").
 -import(lists, [sort/1,append/1,reverse/1]).
@@ -50,8 +53,11 @@ find_loop(#st{sel=[{Id,Edges}=PrevSel],shapes=Shapes}=St, Dir0) ->
     St#st{sel=[Sel],edge_loop={Dir0,PrevSel}}.
 
 is_closed_loop(Edges, We) ->
-    edge_loop_vertices(Edges, We) =/= none.
-    
+    case edge_loop_vertices(Edges, We) of
+	[_] -> true;
+        _ -> false
+    end.
+
 get_edges(G, [C|Cs]) ->
     Es = gb_sets:from_list(append([digraph:edges(G, V) || V <- C])),
     [Es|get_edges(G, Cs)];
@@ -171,21 +177,27 @@ next_edge(From, V, Face, Edge, Etab) ->
 	#edge{ve=V,vs=Ov,lf=Face,ltpr=From,rtsu=To} -> To
     end.
 
-%% edge_loop_vertices(EdgeSet, WingedEdge) -> [Vertex] | none
+%% edge_loop_vertices(EdgeSet, WingedEdge) -> [[Vertex]] | none
 %%  Given a set of edges that is supposed to form
-%%  simple closed loop, this function returns the vertices
-%%  that make up the loop in the correct order.
+%%  one or more simple closed loops, this function returns
+%%  the vertices that make up each loop in the correct order.
 
-edge_loop_vertices(Edges0, #we{es=Etab}=We) ->
-    {Edge,Edges} = gb_sets:take_smallest(Edges0),
-    #edge{vs=V,ve=Vend} = gb_trees:get(Edge, Etab),
-    edge_loop_vertices(Edges, V, Edge, Vend, We, [Vend]).
+edge_loop_vertices(Edges, We) ->
+    edge_loop_vertices(Edges, We, []).
 
-edge_loop_vertices(Edges, Vend, Edge, Vend, We, Acc) ->
-    case gb_sets:is_empty(Edges) of
+edge_loop_vertices(Edges0, #we{es=Etab}=We, Acc) ->
+    case gb_sets:is_empty(Edges0) of
 	true -> Acc;
-	false -> none
-    end;
+	false ->
+	    {Edge,Edges1} = gb_sets:take_smallest(Edges0),
+	    #edge{vs=V,ve=Vend} = gb_trees:get(Edge, Etab),
+	    case edge_loop_vertices(Edges1, V, Edge, Vend, We, [Vend]) of
+		none -> none;
+		{Vs,Edges} -> edge_loop_vertices(Edges, We, [Vs|Acc])
+	    end
+    end.
+
+edge_loop_vertices(Edges, Vend, Edge, Vend, We, Acc) -> {Acc,Edges};
 edge_loop_vertices(Edges0, V, PrevEdge, Vend, We, Acc) ->
     Res = wings_vertex:until(
 	    fun(Edge, _, Rec, A) ->
