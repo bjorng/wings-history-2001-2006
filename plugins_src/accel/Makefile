@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.7 2004/04/21 11:27:18 bjorng Exp $
+#     $Id: Makefile,v 1.8 2004/10/25 16:25:31 bjorng Exp $
 #
 OS := $(shell uname -s)
 
@@ -49,14 +49,10 @@ $(LIBDIR)/%.beam: %.erl
 	$(ERLC) $(ERLC_FLAGS) $<
 
 ifdef CYGWIN
-$(LIBDIR)/wings_ogla_drv.dll: wings_ogla_drv.c \
-  erl_driver.h erl_win_dyn_driver.h
+$(LIBDIR)/wings_ogla_drv.dll: wings_ogla_drv.c
 	install -d $(LIBDIR)
-	mingw32-gcc -o $(LIBDIR)/wings_ogla_drv.dll \
+	mingw32-gcc -I$(ERL_INC) -o $(LIBDIR)/wings_ogla_drv.dll \
   wings_ogla_drv.c $(LIBS) $(GL_LIBS)
-
-erl_driver.h: $(ERL_INC)/erl_driver.h
-	cp $(ERL_INC)/erl_driver.h .
 
 erl_win_dyn_driver.h: $(ERL_INC)/erl_win_dyn_driver.h
 	sed 's,##Params, Params,g' "$(ERL_INC)/erl_win_dyn_driver.h" > erl_win_dyn_driver.h
