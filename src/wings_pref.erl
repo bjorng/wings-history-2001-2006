@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.96 2003/09/15 16:08:52 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.97 2003/09/16 20:03:52 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -22,7 +22,8 @@
 -import(lists, [foreach/2,keysearch/3,map/2,reverse/1,sort/1]).
 
 -define(MAC_PREFS, "Library/Preferences/Wings 3D Preferences.txt").
--define(WIN32_PREFS, "Preferences").
+-define(WIN32_OLD_PREFS, "Preferences").
+-define(WIN32_PREFS, "Wings3D/Preferences.txt").
 
 init() ->
     ets:new(wings_state, [named_table,public,ordered_set]),
@@ -289,6 +290,10 @@ make_query(Tuple) when is_tuple(Tuple) ->
     list_to_tuple([make_query(El) || El <- tuple_to_list(Tuple)]);
 make_query(Other) -> Other.
 
+%%%
+%%% Search for a pre-existing preference file.
+%%%
+
 old_pref_file() ->
     case os:type() of
 	{unix,darwin} ->
@@ -304,36 +309,49 @@ unix_pref() ->
     try_location(os:getenv("HOME"), ".wings").
 
 win32_pref() ->
-    case try_location(wings:root_dir(), ?WIN32_PREFS) of
-	none -> win32_pref_1();
-	File -> File
-    end.
-
-win32_pref_1() ->
-    %% Try to locate a preference file in an old installation of Wings.
     {ok,R} = win32reg:open([read]),
-    Res = win32_pref_2(R),
+    Res = win32_pref_1(R, ["AppData","Personal"]),
     ok = win32reg:close(R),
     Res.
 
+%% Search for a preference file in "special folders", such as "AppData"
+%% and "My Documents".
+win32_pref_1(R, [FolderType|T]) ->
+    case win32_special_folder(R, FolderType) of
+        none -> win32_pref_1(R, T);
+        Path ->
+            case try_location(Path, ?WIN32_PREFS) of
+                none -> win32_pref_1(R, T);
+                File -> File
+            end
+    end;
+win32_pref_1(R, []) ->
+    case try_location(code:lib_dir(wings), ?WIN32_PREFS) of
+        none -> win32_pref_2(R);
+        File -> File
+    end.
+            
+%% No preferences found so far. Search in old installations of
+%% Wings for preference files.
 win32_pref_2(R) ->
-    case win32_9816_or_higher(R) of
+    case win32_9816(R) of
         none -> win32_pref_pre9816(R);
         File -> File
     end.
 
-
-win32_9816_or_higher(R) ->
-    %% Search for a preference file in a Wings installation in 0.98.16 or higher.
+win32_9816(R) ->
+    %% Search for a preference file in a Wings installation in 0.98.16.
+    %% (Too bad... in a special place in this release only.)
     case win32reg:change_key(R, "\\hklm\\SOFTWARE\\Wings 3D") of
         ok ->
             case win32reg:sub_keys(R) of
                 {ok,SubKeys0} ->
                     SubKeys = reverse(sort(SubKeys0)),
                     {ok,Curr} = win32reg:current_key(R),
-                    win32_9816_or_higher_1(R, SubKeys, Curr);
+                    win32_9816_1(R, SubKeys, Curr);
                 {error,Error} ->
-                    io:format("Can't read sub keys for 'Wings 3D': ~p\n", [Error]),
+                    io:format("Can't read sub keys for 'Wings 3D': ~p\n",
+                              [Error]),
                     none
             end;
         {error,Error} ->
@@ -341,33 +359,45 @@ win32_9816_or_higher(R) ->
             none
     end.
 
-win32_9816_or_higher_1(R, [K|Keys], Curr) ->
+win32_9816_1(R, [K|Keys], Curr) ->
     ok = win32reg:change_key(R, K),
     Dir = reg_get_default(R),
     ok = win32reg:change_key(R, Curr),
     WingsDirs = filelib:wildcard(Dir++"/lib/wings-*"),
-    case try_locations(WingsDirs, ?WIN32_PREFS) of
-        none -> win32_9816_or_higher_1(R, Keys, Curr);
+    case try_locations(WingsDirs, ?WIN32_OLD_PREFS) of
+        none -> win32_9816_1(R, Keys, Curr);
         File -> File
     end;
-win32_9816_or_higher_1(_, [], _) -> none.
+win32_9816_1(_, [], _) -> none.
 
 win32_pref_pre9816(R) ->
-    %% Search for a preference file in a Wings installation older than 0.98.16.
+    %% Search for a preference file in a Wings installation older than 0.98.16
+    %% using the uninstall string.
     case win32reg:change_key(R, "\\hklm\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wings 3D") of
         ok ->
             case win32reg:value(R, "UninstallString") of
                 {ok,Str0} ->
                     Str = strip_quotes(Str0),
-                    try_location(filename:dirname(Str), ?WIN32_PREFS);
+                    try_location(filename:dirname(Str), ?WIN32_OLD_PREFS);
                 {error,_} -> none
             end;
         {error,_} -> none
     end.
 
+win32_special_folder(R, FolderType) ->
+    Key = "\\hkcu\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders",
+    case win32reg:change_key(R, Key) of
+        ok ->
+            case win32reg:value(R, FolderType) of
+                {error,_} -> error;
+                {ok,Value} -> Value
+            end;
+        _ -> error
+    end.
+
 reg_get_default(R) ->
-    %% There seems to be a bug in win32reg:value/2 preventing us from retrieving
-    %% the default value. Workaround follows.
+    %% There seems to be a bug in win32reg:value/2 preventing
+    %% us from retrieving the default value. Workaround follows.
     case win32reg:values(R) of
         {ok,Values} ->
             case keysearch(default, 1, Values) of
@@ -384,6 +414,43 @@ strip_quotes([$"|T0]) ->
     end;
 strip_quotes(S) -> S.
 
+%%%
+%%% Return a suitable path for a new preference file.
+%%%
+
+new_pref_file() ->
+    case os:type() of
+	{unix,darwin} ->
+	    filename:join(os:getenv("HOME"), ?MAC_PREFS);
+	{unix,_} ->
+	    filename:join(os:getenv("HOME"), ".wings");
+	{win32,_} ->
+            win32_new_pref()
+    end.
+
+win32_new_pref() ->
+    {ok,R} = win32reg:open([read]),
+    Res = win32_new_pref_1(R, ["AppData","Personal"]),
+    ok = win32reg:close(R),
+    Res.
+
+win32_new_pref_1(R, [FolderType|T]) ->
+    case win32_special_folder(R, FolderType) of
+        none -> win32_pref_1(R, T);
+        Path ->
+            File = filename:join(Path, ?WIN32_PREFS),
+            filelib:ensure_dir(File),
+            File
+    end;
+win32_new_pref_1(_, []) ->
+    %% Desperate fallback for very old Window systems.
+    %% (No "My Documents" folder.)
+    filename:join(code:lib_dir(wings), ?WIN32_PREFS).
+
+%%%
+%%% Utilities.
+%%%
+
 try_locations([D|Ds], File) ->
     case try_location(D, File) of
         none -> try_locations(Ds, File);
@@ -396,16 +463,6 @@ try_location(Dir, File) ->
     case filelib:is_file(Name) of
 	true -> Name;
 	false -> none
-    end.
-
-new_pref_file() ->
-    case os:type() of
-	{unix,darwin} ->
-	    filename:join(os:getenv("HOME"), ?MAC_PREFS);
-	{unix,_} ->
-	    filename:join(os:getenv("HOME"), ".wings");
-	{win32,_} ->
-	    filename:join(wings:root_dir(), ?WIN32_PREFS)
     end.
 
 get_value(Key) ->
