@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.150 2003/09/01 19:24:16 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.151 2003/09/02 16:50:10 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -463,7 +463,8 @@ update_dynamic(#dlo{work=[Work|_],vs=VsList0,
     #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_plan=DynPlan} = Split,
     Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
     We = We0#we{vp=Vtab},
-    D = changed_we(D0, D0),
+    D1 = D0#dlo{src_we=We},
+    D = changed_we(D0, D1),
     Dl = draw_faces(DynPlan, D),
     VsList = update_dynamic_vs(VsList0, DynVs, We),
     update_dynamic_1(D#dlo{work=[Work,Dl],vs=VsList,src_we=We}).
