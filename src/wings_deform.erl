@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.23 2002/02/07 11:49:08 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.24 2002/02/08 07:05:47 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -169,13 +169,9 @@ taper_2(Vs, #we{id=Id}=We, Primary, Effect, Acc) ->
     Key = key(Primary),
     Min = element(Key, MinR),
     Max = element(Key, MaxR),
-    case Max - Min of
-	Range when Range < 0.01 ->
-	    Axis = wings_util:upper(atom_to_list(Primary)),
-	    Error = lists:concat(["Extent along ",Axis," axis is too short."]),
-	    throw({command_error,Error});
-	Range -> taper_3(Id, Vs, We, Range, Key, Effect, MinR, MaxR, Acc)
-    end.
+    Range = Max - Min,
+    check_range(Range, Primary),
+    taper_3(Id, Vs, We, Range, Key, Effect, MinR, MaxR, Acc).
 
 taper_3(Id, Vs0, We, Range, Key, Effect, MinR, MaxR, Acc) ->
     Tf = taper_fun(Key, Effect, MinR, MaxR),
@@ -239,6 +235,7 @@ twist(Vs0, #we{id=Id}=We, Axis, Acc) ->
     Min = element(Key, MinR),
     Max = element(Key, MaxR),
     Range = Max - Min,
+    check_range(Range, Axis),
     Tf = twist_fun(Axis, e3d_vec:average([MinR,MaxR])),
     Vs = gb_sets:to_list(Vs0),
     Fun = twister_fun(Vs, Tf, Min, Range, We),
@@ -292,6 +289,7 @@ twisty_twist(Vs0, #we{id=Id}=We, Axis, Acc) ->
     Min = element(Key, MinR),
     Max = element(Key, MaxR),
     Range = Max - Min,
+    check_range(Range, Axis),
     Vs = gb_sets:to_list(Vs0),
     VsPos = wings_util:add_vpos(Vs, We),
     Fun = twister_fun(Vs, Tf, Min, Range, We),
@@ -339,3 +337,9 @@ twister_fun(Vs, Tf, Min, Range, We) ->
 			  [{V,Rec#vtx{pos=Pos}}|VsAcc]
 		  end, A, VsPos)
     end.
+
+check_range(Range, Axis0) when Range < 0.01 ->
+    Axis = wings_util:upper(atom_to_list(Axis0)),
+    Error = lists:concat(["Extent along ",Axis," axis is too short."]),
+    throw({command_error,Error});
+check_range(Range, Axis) -> ok.
