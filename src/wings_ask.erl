@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.34 2002/10/28 17:13:12 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.35 2002/11/12 06:51:02 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -582,7 +582,7 @@ have_border(Flags) ->
 
 separator() ->
     Fun = separator_fun(),
-    {Fun,true,{},4*?CHAR_WIDTH,10}.
+    {Fun,true,{separator},4*?CHAR_WIDTH,10}.
 
 separator_fun() ->
     fun({redraw,_Active}, Fi, _Dummy, _) ->
