@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.136 2003/08/03 11:03:24 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.137 2003/08/03 14:44:39 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -472,13 +472,13 @@ draw_faces(Ftab, We, St) ->
 draw_faces({uv,MatFaces,St}, We) ->
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
-    draw_uv_faces(MatFaces, We, St),
+    wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St),
     gl:endList(),
     Dl;
 draw_faces({material,MatFaces,St}, We) ->
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
-    draw_mat_faces(MatFaces, We, St),
+    wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St),
     gl:endList(),
     Dl;
 draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
@@ -523,25 +523,6 @@ draw_vtx_faces_3([F|Fs], We) ->
     wings_draw_util:vcol_face(F, We),
     draw_vtx_faces_3(Fs, We);
 draw_vtx_faces_3([], _) -> ok.
-
-draw_uv_faces(MatFaces, We, St) ->
-    wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St, fun draw_uv_faces_fun/2).
-
-draw_uv_faces_fun([{Face,Edge}|Fs], We) ->
-    wings_draw_util:uv_face(Face, Edge, We),
-    draw_uv_faces_fun(Fs, We);
-draw_uv_faces_fun([], _We) -> ok.
-
-draw_mat_faces(MatFaces, We, St) ->
-    Tess = wings_draw_util:tess(),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-    wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St, fun draw_mat_faces_fun/2),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA).
-
-draw_mat_faces_fun([{Face,Edge}|Fs], We) ->
-    wings_draw_util:flat_face(Face, Edge, We),
-    draw_mat_faces_fun(Fs, We);
-draw_mat_faces_fun([], _We) -> ok.
 
 %%%
 %%% Smooth drawing.

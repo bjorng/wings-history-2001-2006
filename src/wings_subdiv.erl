@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.56 2003/07/03 14:44:35 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.57 2003/08/03 14:44:39 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -544,13 +544,13 @@ inc_smooth(#we{vp=Vp,next_id=Next}=We0, #sp{we=OldWe}) ->
 draw_faces({uv,MatFaces,St}, We) ->
     Faces = gl:genLists(1),
     gl:newList(Faces, ?GL_COMPILE),
-    draw_uv_faces(MatFaces, We, St),
+    mat_faces(MatFaces, We, St),
     gl:endList(),
     {Faces,none};
 draw_faces({material,MatFaces,St}, We) ->
     Faces = gl:genLists(1),
     gl:newList(Faces, ?GL_COMPILE),
-    draw_mat_faces(MatFaces, We, St),
+    mat_faces(MatFaces, We, St),
     gl:endList(),
     {Faces,none};
 draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
@@ -597,13 +597,60 @@ draw_vtx_faces_3([F|Fs], We) ->
     draw_vtx_faces_3(Fs, We);
 draw_vtx_faces_3([], _) -> ok.
 
-draw_uv_faces(MatFaces, We, St) ->
-    wings_draw_util:mat_faces(MatFaces, ?GL_QUADS, We, St, fun draw_uv_faces_fun/2).
+mat_faces(MatFaces, We, #st{mat=Mtab}) ->
+    mat_faces_1(MatFaces, We, Mtab).
 
-draw_uv_faces_fun([{Face,Edge}|Fs], We) ->
+mat_faces_1([{Mat,Faces}|T], We, Mtab) ->
+    gl:pushAttrib(?GL_TEXTURE_BIT),
+    case wings_material:apply_material(Mat, Mtab) of
+	false ->
+	    Tess = wings_draw_util:tess(),
+	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
+	    gl:'begin'(?GL_QUADS),
+	    draw_mat_faces(Faces, We),
+	    gl:'end'(),
+	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA);
+	true ->
+	    gl:'begin'(?GL_QUADS),
+	    draw_uv_faces(Faces, We),
+	    gl:'end'()
+    end,
+    gl:edgeFlag(?GL_TRUE),
+    gl:popAttrib(),
+    mat_faces_1(T, We, Mtab);
+mat_faces_1([], _, _) -> ok.
+
+draw_mat_faces([{Face,Edge}|Fs], We) ->
+    mat_face(Face, Edge, We),
+    draw_mat_faces(Fs, We);
+draw_mat_faces([], _) -> ok.
+
+draw_uv_faces([{Face,Edge}|Fs], We) ->
     uv_face(Face, Edge, We),
-    draw_uv_faces_fun(Fs, We);
-draw_uv_faces_fun([], _We) -> ok.
+    draw_uv_faces(Fs, We);
+draw_uv_faces([], _) -> ok.
+
+mat_face(Face, #we{fs=Ftab}=We) ->
+    mat_face(Face, gb_trees:get(Face, Ftab), We).
+    
+mat_face(Face, Edge, #we{vp=Vtab}=We) ->
+    Vs = wings_face:vertices_cw(Face, Edge, We),
+    mat_face_1(Vs, Vtab, []).
+
+mat_face_1([V|Vs], Vtab, Acc) ->
+    mat_face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+mat_face_1([], _, VsPos) ->
+    N = e3d_vec:normal(VsPos),
+    gl:normal3fv(N),
+    case VsPos of
+	[A,B,C,D] ->
+	    gl:vertex3dv(A),
+	    gl:vertex3dv(B),
+	    gl:vertex3dv(C),
+	    gl:vertex3dv(D);
+	_ ->					%Could only be the virtual mirror face.
+	    ok
+    end.
 
 uv_face(Face, #we{fs=Ftab}=We) ->
     uv_face(Face, gb_trees:get(Face, Ftab), We).
@@ -628,33 +675,3 @@ uv_face_2([[Pos|Attr]|T]) ->
     gl:vertex3dv(Pos),
     uv_face_2(T);
 uv_face_2([]) -> ok.
-
-draw_mat_faces(MatFaces, We, St) ->
-    wings_draw_util:mat_faces(MatFaces, ?GL_QUADS, We, St, fun draw_mat_faces_fun/2).
-
-draw_mat_faces_fun([{Face,Edge}|Fs], We) ->
-    mat_face(Face, Edge, We),
-    draw_mat_faces_fun(Fs, We);
-draw_mat_faces_fun([], _We) -> ok.
-
-mat_face(Face, #we{fs=Ftab}=We) ->
-    mat_face(Face, gb_trees:get(Face, Ftab), We).
-    
-mat_face(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs = wings_face:vertices_cw(Face, Edge, We),
-    mat_face_1(Vs, Vtab, []).
-
-mat_face_1([V|Vs], Vtab, Acc) ->
-    mat_face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-mat_face_1([], _, VsPos) ->
-    N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
-    case VsPos of
-	[A,B,C,D] ->
-	    gl:vertex3dv(A),
-	    gl:vertex3dv(B),
-	    gl:vertex3dv(C),
-	    gl:vertex3dv(D);
-	_ ->					%Could only be the virtual mirror face.
-	    ok
-    end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.100 2003/06/28 18:24:37 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.101 2003/08/03 14:44:39 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -364,12 +364,14 @@ apply_texture(Image) ->
 		    gl:alphaFunc(?GL_GREATER, 0.5);
 		_ -> 
 		    gl:disable(?GL_ALPHA_TEST)
-	    end
+	    end,
+	    true
     end.
 
 no_texture() ->
     gl:disable(?GL_TEXTURE_2D),
-    gl:disable(?GL_ALPHA_TEST).
+    gl:disable(?GL_ALPHA_TEST),
+    false.
 
 %% Return the materials used by the objects in the scene.
 
