@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.58 2004/01/22 00:00:05 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.59 2004/01/26 10:55:23 bjorng Exp $
 %%
 
 -module(wpc_yafray).
@@ -1402,7 +1402,7 @@ export_faces(F, [#e3d_face{vs=[A,B,C],tx=Tx,mat=[Mat|_]}|T],
 		  io_lib:nl(),"           u_c=\"",format(Uc),
 		  "\" v_c=\"",format(-Vc),"\""];
 	     _ ->
-		 io:display("WARNING! Face has ~w =/= 3texture coordinates~n",
+		 io:format("WARNING! Face has ~w =/= 3texture coordinates~n",
 			    [length(Tx)]),
 		 ""
 	 end,
