@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.64 2002/09/08 20:19:26 bjorng Exp $
+%%     $Id: wings.hrl,v 1.65 2002/09/08 20:21:47 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -62,7 +62,7 @@
 -else.
 -define(ASSERT(E),ok).
 -define(VALIDATE_MODEL(St),ok).
--define(CHECK_ERROR(), wings_util:check_error(?MODULE, ?LINE)).
+-define(CHECK_ERROR(), ok).
 -endif.
 
 %% Display lists per object.
