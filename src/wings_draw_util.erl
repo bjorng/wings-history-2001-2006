@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.62 2003/05/29 18:56:04 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.63 2003/05/29 19:22:45 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -22,7 +22,7 @@
 -record(du,
 	{dl=[],					%Display lists
 	 mat=gb_trees:empty(),			%Materials.
-	 used=gb_sets:empty(),			%Display lists in use.
+	 used=[],				%Display lists in use.
 	 vec,					%Display list for vector.
 	 src_vec=undefined,			%Source for vector.
 	 tess					%Tesselator.
@@ -34,8 +34,7 @@ init() ->
 	#du{tess=OldTess,used=Used,vec=Vec} ->
 	    ?CHECK_ERROR(),
 	    glu:deleteTess(OldTess),
-	    foreach(fun(DL) -> gl:deleteLists(DL, 1) end,
-		    gb_sets:to_list(Used)),
+	    foreach(fun(DL) -> gl:deleteLists(DL, 1) end, Used),
 	    catch gl:deleteLists(Vec, 1),
 	    gl:getError()			%Clear error.
     end,
@@ -87,7 +86,7 @@ begin_end(Body) ->
 %%
 %% Get a list of all materials that were changed since the last time
 %% the display lists were updated. (The list does not include materials
-%% that were delete or added.)
+%% that were deleted or added.)
 %%
 
 changed_materials(#st{mat=NewMat}) ->
@@ -158,11 +157,10 @@ map_1(_Fun, [], Data, Seen, Acc) ->
 
 update_last(Data, Seen, Acc) ->
     #du{used=Used0} = Du = get(?MODULE),
-    Used = gb_sets:from_list(Seen),
-    NotUsed = gb_sets:difference(Used0, Used),
-    foreach(fun(DL) -> gl:deleteLists(DL, 1) end,
-	    gb_sets:to_list(NotUsed)),
+    Used = ordsets:from_list(Seen),
     put(?MODULE, Du#du{used=Used,dl=reverse(Acc)}),
+    NotUsed = ordsets:subtract(Used0, Used),
+    foreach(fun(DL) -> gl:deleteLists(DL, 1) end, NotUsed),
     Data.
 
 update_seen(D, Seen) ->
