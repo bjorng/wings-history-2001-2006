@@ -584,7 +584,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copy the SDL framework.\nINSTALL=/usr/bin/install\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/bin/Frameworks\n\n$INSTALL -d $dest\n\nfor i in \"/Library/Frameworks\" \"$HOME/Library/Frameworks\"; do\n    if [ -d $i/SDL.framework ]; then\n        sdl_framework=$i/SDL.framework\n    fi\ndone\nif [ -d $dest/SDL.framework ]; then\n    rm -rf $dest/SDL.framework\nfi\ncp -r $sdl_framework $dest/SDL.framework\nif [ -d $dest/SDL.framework/Headers ]; then\n    rm -rf $dest/SDL.framework/Headers\nfi\nfor i in $dest/SDL.framework/Versions/*; do\n    if [ -d $i/Headers ]; then\n        rm -rf $i/Headers\n    fi\ndone\n";
+			shellScript = "# Copy the SDL framework.\nINSTALL=/usr/bin/install\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/Frameworks\n\n$INSTALL -d $dest\n\nfor i in \"/Library/Frameworks\" \"$HOME/Library/Frameworks\"; do\n    if [ -d $i/SDL.framework ]; then\n        sdl_framework=$i/SDL.framework\n    fi\ndone\nif [ -d $dest/SDL.framework ]; then\n    rm -rf $dest/SDL.framework\nfi\ncp -r $sdl_framework $dest/SDL.framework\nif [ -d $dest/SDL.framework/Headers ]; then\n    rm -rf $dest/SDL.framework/Headers\nfi\nfor i in $dest/SDL.framework/Versions/*; do\n    if [ -d $i/Headers ]; then\n        rm -rf $i/Headers\n    fi\ndone\n";
 		};
 		F52CB4DE02E864E601A8000A = {
 			buildActionMask = 2147483647;
