@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.7 2002/11/26 09:46:26 dgud Exp $
+%%     $Id: e3d__tga.erl,v 1.8 2002/11/27 12:47:14 dgud Exp $
 %%
 
 -module(e3d__tga).
@@ -34,8 +34,12 @@ load(FileName, _Opts) ->
 	%% Black&White Image 
 	{ok, <<0,0,3,0,0,0,0,0,0,0,0,0, Image/binary>>} ->
 	    load_uncomp(Image);
+	%% Black&White Image 
+	{ok, <<0,0,11,0,0,0,0,0,0,0,0,0, Image/binary>>} ->
+	    load_comp(Image);
+
 	{ok, <<_Bin:12/binary, _Rest/binary>>} ->
-%%	    io:format("~p~n", [Bin]),
+	    io:format("~p~n", [_Bin]),
 	    {error, {none,?MODULE,unsupported_format}};
 	Error ->
 	    Error
@@ -59,7 +63,8 @@ load_uncomp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,Image/bi
 		       4 -> b8g8r8a8
 		   end,
 	    Size = BytesPerPixel * W * H,
-	    <<RealImage:Size/binary, _/binary>> = Image,
+	    <<RealImage:Size/binary, _Rest/binary>> = Image,
+	    io:format("Skipped ~p ~p ~n", [size(_Rest),_Rest]),
 	    #e3d_image{width = W, height = H, type = Type, 
 		       order = get_order(Order),
 		       bytes_pp = BytesPerPixel, alignment = 1,
@@ -68,9 +73,14 @@ load_uncomp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,Image/bi
 
 load_comp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,CImage/binary>>) ->
     BytesPerPixel = BitsPP div 8,
-    SpecOK = (W > 0) and (H > 0) and ((BitsPP == 32) or (BitsPP == 24)),
+    SpecOK = (W > 0) and (H > 0) and ((BitsPP == 32) 
+				      or (BitsPP == 24)
+				      or (BitsPP == 8)),
     if 
 	SpecOK == false ->
+	    io:format("Unsupported image spec W ~p H ~p BitsPP ~p Order ~p Alpha ~p ~n",
+		      [W,H,BitsPP,Order,Alpha]),
+
 	    {error, {none,?MODULE,bad_image_specifiction}};
 	true ->
 	    Type = case BytesPerPixel of
