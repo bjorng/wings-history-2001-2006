@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.134 2003/04/23 17:49:01 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.135 2003/05/18 08:48:09 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -275,7 +275,8 @@ zmove_help() ->
 	mirai -> "[M]";
 	maya -> "[M]";
 	tds -> "[Ctrl]+[R]";
-	blender -> "[Ctrl]+[R]"
+	blender -> "[Ctrl]+[R]";
+	mb -> "[M]"
     end.
 
 get_drag_event(#drag{st=St}=Drag) ->
