@@ -3,6 +3,13 @@ Wings on the net
 
 http://www.wings3d.com
 
+Unpacking the source release
+----------------------------
+
+To decompress the source tar file, you'll need bunzip2.
+
+See http://sources.redhat.com/bzip2.
+
 Building and running Wings 3D on Unix (including Mac OS X)
 ----------------------------------------------------------
 
