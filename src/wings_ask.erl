@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.150 2003/12/26 21:11:18 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.151 2003/12/27 14:50:26 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1050,6 +1050,11 @@ mktree({slider,Flags}, Sto, I) when is_list(Flags) ->
 %%
 mktree(separator, Sto, I) ->
     mktree_separator(Sto, I, []);
+%%
+mktree({table,Elements}, Sto, I) ->
+    mktree_table(Elements, Sto, I, []);
+mktree({table,Elements,Flags}, Sto, I) ->
+    mktree_table(Elements, Sto, I, Flags);
 %%
 mktree({text,Def}, Sto, I) ->
     mktree_text(Def, Sto, I, []);
@@ -2392,7 +2397,55 @@ label_draw([L|Lines], X, Y) ->
     keep;
 label_draw([], _, _) -> keep.
 
+%%%
+%%% Table field.
+%%%
 
+-record(table,
+	{head,					%Table header.
+	 el,					%Elements.
+	 elh,					%Height of each element.
+	 rows,					%Number of rows.
+	 first=0				%First row to show.
+	}).
+
+mktree_table([Head|Elements], Sto, I, Flags) ->
+    Rows = proplists:get_value(rows, Flags, 20),
+    Elh = proplists:get_value(element_height, Flags, ?LINE_HEIGHT),
+    Fun = fun table_event/3,
+    W = 30*wings_text:width(),
+    H = Rows * Elh + wings_text:height()+3+6,
+    Fi = mktree_leaf(Fun, enabled, undefined, W, H, I, Flags),
+    T = #table{head=tuple_to_list(Head),el=Elements,elh=Elh,rows=Rows},
+    mktree_priv(Fi, Sto, I, T).
+
+table_event({redraw,Active,DisEnabled}, [#fi{index=I}=Fi|_], Store) ->
+    table_redraw(Fi, gb_trees:get(-I, Store), DisEnabled, Active);
+table_event(value, _, _) ->
+    {value,nope};
+table_event(Ev, _Path, _Store) ->
+    io:format("~p\n", [Ev]),
+    keep;
+table_event(_Ev, _Path, _Store) -> keep.
+
+table_redraw(#fi{x=X,y=Y0,w=W,h=H}, #table{head=Head,el=Els,elh=Elh,rows=Rows},
+	     _DisEnabled, Active) ->
+    Ch = wings_text:height(),
+    wings_io:sunken_rect(X, Y0+Ch+2, W, H-Ch-2, {0.9,0.9,0.9}, color4(), Active),
+    wings_io:sunken_gradient(X, Y0+2, W, Ch+1,
+			     color3_high(), color4(), Active),
+    gl:color3fv(color3_text()),
+    Y = Y0 + Ch + 3,
+    wings_io:text_at(X+2, Y, hd(Head)),
+    table_draw_els(Els, Rows, X+2, Y, Elh),
+    keep.
+
+table_draw_els(_, 0, _, _, _) -> ok;
+table_draw_els([], _, _, _, _) -> ok;
+table_draw_els([El|Els], Rows, X, Y, Elh) ->
+    {_,Text} = element(1, El),
+    wings_io:text_at(X, Y+Elh, Text),
+    table_draw_els(Els, Rows-1, X, Y+Elh, Elh).
 
 %%%
 %%% Text and number input fields.
