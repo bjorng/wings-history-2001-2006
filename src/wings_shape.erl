@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.29 2003/01/01 23:20:24 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.30 2003/01/02 07:16:35 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -220,10 +220,10 @@ are_all_visible([#we{perm=P}|T], Id) ->
     end;
 are_all_visible([], _) -> true.
 
-toggle_lock(#we{id=Id,perm=Perm}, #ost{st=St0}=Ost) ->
+toggle_lock(#we{id=Id,perm=Perm}=We, #ost{st=St0}=Ost) ->
     case wings_wm:me_modifiers() of
 	Mod when Mod band ?ALT_BITS =/= 0 ->
-	    io:format("All\n"),
+	    toggle_lock_all(We, Ost),
 	    get_event(Ost#ost{op=none});
 	_ ->
 	    if
@@ -237,6 +237,27 @@ toggle_lock(#we{id=Id,perm=Perm}, #ost{st=St0}=Ost) ->
 		    get_event(Ost#ost{op=unlock})
 	    end
     end.
+
+toggle_lock_all(#we{id=Id}, #ost{st=St0,os=Objs}) ->
+    St = case are_all_visible_locked(Objs, Id) of
+	     true -> restore_all(St0);
+	     false -> lock_others(Id, St0)
+	 end,
+    wings_wm:send(geom, {new_state,St}).
+
+are_all_visible_locked([#we{id=Id}|T], Id) ->
+    are_all_visible_locked(T, Id);
+are_all_visible_locked([#we{perm=P}|T], Id) ->
+    case ?IS_VISIBLE(P) of
+	false ->
+	    are_all_visible_locked(T, Id);
+	true when ?IS_NOT_SELECTABLE(P) ->
+	    are_all_visible_locked(T, Id);
+	true ->
+	    false
+    end;
+are_all_visible_locked([], _) -> true.
+
 rename_object(#we{id=Id,name=Name}) ->
     wings_ask:ask("Rename Object",
 		  [{"New Name",Name}],
@@ -245,20 +266,24 @@ rename_object(#we{id=Id,name=Name}) ->
 		     (_) -> ignore
 		  end).
 
-toggle_sel(#we{id=Id}=We, #ost{st=St0,sel=Sel}=Ost) ->
+toggle_sel(#we{id=Id,perm=P}=We, #ost{st=St0,sel=Sel}=Ost) ->
     case wings_wm:me_modifiers() of
 	Mod when Mod band ?ALT_BITS =/= 0 ->
 	    toggle_sel_all(We, Ost),
 	    get_event(Ost#ost{op=none});
 	_ ->
-	    {Op,St} = case keymember(Id, 1, Sel) of
-			  false ->
-			      {select,wings_sel:select_object(Id, St0)};
-			  true ->
-			      {deselect,wings_sel:deselect_object(Id, St0)}
-		      end,
-	    wings_wm:send(geom, {new_state,St}),
-	    get_event(Ost#ost{op=Op})
+	    case keymember(Id, 1, Sel) of
+		false when ?IS_SELECTABLE(P) ->
+		    St = wings_sel:select_object(Id, St0),
+		    wings_wm:send(geom, {new_state,St}),
+		    get_event(Ost#ost{op=select});
+		true ->
+		    St = wings_sel:deselect_object(Id, St0),
+		    wings_wm:send(geom, {new_state,St}),
+		    get_event(Ost#ost{op=deselect});
+		false ->
+		    get_event(Ost#ost{op=none})
+	    end
     end.
 
 toggle_sel_all(_, #ost{st=#st{sel=[]}=St0}) ->
@@ -267,8 +292,9 @@ toggle_sel_all(_, #ost{st=#st{sel=[]}=St0}) ->
 toggle_sel_all(#we{id=Id}, #ost{st=#st{sel=[{Id,_}]}=St0}) ->
     St = wings_sel_cmd:select_all(St0),
     wings_wm:send(geom, {new_state,St});
-toggle_sel_all(#we{id=Id}, #ost{st=St}) ->
-    wings_wm:send(geom, {new_state,wings_sel:select_object(Id, St#st{sel=[]})}).
+toggle_sel_all(#we{id=Id,perm=P}, #ost{st=St}) when ?IS_SELECTABLE(P) ->
+    wings_wm:send(geom, {new_state,wings_sel:select_object(Id, St#st{sel=[]})});
+toggle_sel_all(_, _) -> ok.
 
 repeat_latest(_, #ost{active=-1}) -> ok;
 repeat_latest(Field, #ost{first=First,active=Obj,os=Objs}=Ost) ->
@@ -296,13 +322,8 @@ repeat_latest_1(_, _, _) -> ok.
 
 draw_objects(#ost{os=Objs0,first=First,lh=Lh,active=Active}=Ost) ->
     Objs = lists:nthtail(First, Objs0),
-    Y = ?CHAR_HEIGHT,
-    wings_io:text_at(5+3, Y, "V"),
-    wings_io:text_at(lock_pos()+3, Y, "L"),
-    wings_io:text_at(name_pos(), Y, "Name"),
     R = right_pos(),
-    wings_io:text_at(R+3, Y, "S"),
-    draw_objects_1(Objs, Ost, R, Active, Y+2+Lh-2).
+    draw_objects_1(Objs, Ost, R, Active, Lh-2).
 
 draw_objects_1([#we{id=Id,name=Name,perm=Perm}|Wes],
 	       #ost{sel=Sel,lh=Lh,eye=Eye,lock=Lock}=Ost, R, Active, Y) ->
@@ -367,9 +388,8 @@ lock_bitmap() ->
        2#0001101100000000:16,
        2#0000111000000000:16>>}.
 
-
 top_of_first_object() ->
-    ?LINE_HEIGHT.
+    0.
 
 right_pos() ->
     {_,_,W,_} = wings_wm:viewport(),
@@ -411,6 +431,18 @@ hide_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
     Sel = [This || {Id,_}=This <- Sel0, Id =:= ThisId],
     St#st{shapes=Shs,sel=Sel}.
 
+lock_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
+    Shs1 = map(fun(#we{id=Id}=We) when ThisId =:= Id ->
+		       {Id,We};
+		  (#we{id=Id,perm=P}=We) when ?IS_VISIBLE(P) ->
+		       {Id,We#we{perm=1}};
+		  (#we{id=Id}=We) ->
+		       {Id,We}
+	       end, gb_trees:values(Shs0)),
+    Shs = gb_trees:from_orddict(Shs1),
+    Sel = [This || {Id,_}=This <- Sel0, Id =:= ThisId],
+    St#st{shapes=Shs,sel=Sel}.
+
 restore_all(#st{shapes=Shs0,sel=Sel0}=St) ->
     Shs1 = gb_trees:values(Shs0),
     Shs2 = [{Id,We#we{perm=0}} || #we{id=Id}=We <- Shs1],
@@ -429,33 +461,6 @@ restore_all_sel([#we{id=Id,perm={SMode,Set0}}|T],
 restore_all_sel([_|T], St, Acc) ->
     restore_all_sel(T, St, Acc);
 restore_all_sel([], _St, Acc) -> Acc.
-
-hide_selected(#st{selmode=Mode,shapes=Shs0,sel=Sel}=St) ->
-    Shs1 = map(fun(#we{id=Id}=We) ->
-		       case keysearch(Id, 1, Sel) of
-			   false -> {Id,We};
-			   {value,{_,Set}} -> {Id,We#we{perm={Mode,Set}}}
-		       end
-	       end, gb_trees:values(Shs0)),
-    Shs = gb_trees:from_orddict(Shs1),
-    St#st{shapes=Shs,sel=[]}.
-
-hide_unselected(St) ->
-    update_unsel([], St).
-
-lock_unselected(St) ->
-    update_unsel(1, St).
-
-update_unsel(Perm, #st{shapes=Shs0,sel=Sel}=St) ->
-    Shs1 = map(fun(#we{id=Id,perm=0}=We) ->
-		       case keymember(Id, 1, Sel) of
-			   true -> {Id,We};
-			   false -> {Id,We#we{perm=Perm}}
-		       end;
-		  (#we{id=Id}=We) -> {Id,We}
-	       end, gb_trees:values(Shs0)),
-    Shs = gb_trees:from_orddict(Shs1),
-    St#st{shapes=Shs}.
 
 get_sel(Id, #st{selmode=Mode,sel=Sel}) ->
     case keysearch(Id, 1, Sel) of
