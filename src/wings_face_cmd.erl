@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.118 2004/12/22 08:05:34 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.119 2004/12/23 06:39:05 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -273,20 +273,20 @@ dissolve(Faces, We0) ->
 optimistic_dissolve(Faces0, We0) ->
     %% Optimistically assume that we have a simple region without
     %% any holes.
-    case outer_edge_partition(Faces0, We0) of
-	[_]=Parts ->
+    case outer_edge_loop(Faces0, We0) of
+	error ->
+	    %% Assumption was wrong. We need to partition the selection
+	    %% and dissolve each partition in turn.
+	    Parts = wings_sel:face_regions(Faces0, We0#we{vc=undefined}),
+	    wings_we:vertex_gc(standard_dissolve(Parts, We0));
+	[_|_]=Loop ->
 	    %% Assumption was correct.
 	    Faces = to_gb_set(Faces0),
 	    Face = gb_sets:smallest(Faces),
 	    Mat = wings_material:get(Face, We0),
 	    We1 = wings_material:delete_faces(Faces, We0),
-	    We = do_dissolve(Faces, Parts, Mat, We0, We1),
-	    wings_we:vertex_gc(We#we{vc=undefined});
-	[_|_] ->
-	    %% Assumption was wrong. We need to partition the selection
-	    %% and dissolve each partition in turn.
-	    Parts = wings_sel:face_regions(Faces0, We0#we{vc=undefined}),
-	    wings_we:vertex_gc(standard_dissolve(Parts, We0))
+	    We = do_dissolve(Faces, [Loop], Mat, We0, We1),
+	    wings_we:vertex_gc(We#we{vc=undefined})
     end.
 
 standard_dissolve([Faces|T], We0) ->
@@ -1265,6 +1265,46 @@ set_color_1([F|Fs], Color, #we{es=Etab0}=We) ->
 	     end, Etab0, F, We),
     set_color_1(Fs, Color, We#we{es=Etab});
 set_color_1([], _, We) -> We.
+
+%% outer_edge_loop(FaceSet, WingedEdge) -> [Edge] | error.
+%%  Partition the outer edges of the FaceSet into a single closed loop.
+%%  Return 'error' if the faces in FaceSet does not form a
+%%  simple region without holes.
+%%
+%%  Equvivalent to
+%%      case outer_edge_partition(FaceSet, WingedEdge) of
+%%         [Loop] -> Loop;
+%%         [_|_] -> error
+%%      end.
+%%  but faster.
+
+outer_edge_loop(Faces, We) ->
+    [{Key,Val}|Es0] = sort(collect_outer_edges(Faces, We)),
+    case any_duplicates(Es0, Key) of
+	false ->
+	    Es = gb_trees:from_orddict(Es0),
+	    outer_edge_loop_1(Key, Val, Es, []);
+	true -> error
+    end.
+
+outer_edge_loop_1(Va, {Edge,Va,Vb}, Es0, Acc0) ->
+    Acc = [Edge|Acc0],
+    case gb_trees:lookup(Vb, Es0) of
+	none ->
+	    %% This loop is finished. We'll succeed only if
+	    %% there are no more edges left.
+	    case gb_trees:is_empty(Es0) of
+		true -> Acc;
+		false -> error
+	    end;
+	{value,Val} ->
+	    Es = gb_trees:delete(Vb, Es0),
+	    outer_edge_loop_1(Vb, Val, Es, Acc)
+    end.
+
+any_duplicates([{V,_}|_], V) -> true;
+any_duplicates([_], _) -> false;
+any_duplicates([{V,_}|Es], _) -> any_duplicates(Es, V).
 
 %% outer_edge_partition(FaceSet, WingedEdge) -> [[Edge]].
 %%  Partition the outer edges of the FaceSet. Each partion
