@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dissolve.erl,v 1.2 2004/12/23 16:21:31 bjorng Exp $
+%%     $Id: wings_dissolve.erl,v 1.3 2004/12/24 08:30:05 bjorng Exp $
 %%
 
 -module(wings_dissolve).
@@ -42,17 +42,87 @@ optimistic_dissolve(Faces0, We0) ->
 	    %% Assumption was wrong. We need to partition the selection
 	    %% and dissolve each partition in turn.
 	    Parts = wings_sel:face_regions(Faces0, We0),
-	    standard_dissolve(Parts, We0);
+	    complex_dissolve(Parts, We0);
 	[_|_]=Loop ->
 	    %% Assumption was correct.
-	    Faces = to_gb_set(Faces0),
-	    Face = gb_sets:smallest(Faces),
-	    Mat = wings_material:get(Face, We0),
-	    We = wings_material:delete_faces(Faces, We0),
-	    do_dissolve(Faces, [Loop], Mat, We0, We)
+	    simple_dissolve(Faces0, Loop, We0)
     end.
 
-standard_dissolve([Faces|T], We0) ->
+%% simple_dissolve(Faces, Loop, We0) -> We
+%%  Dissolve a region of faces with no holes and no
+%%  repeated vertices in the outer edge loop.
+
+simple_dissolve(Faces0, Loop, We0) ->
+    Faces = to_gb_set(Faces0),
+    OldFace = gb_sets:smallest(Faces),
+    Mat = wings_material:get(OldFace, We0),
+    We1 = wings_material:delete_faces(Faces, We0),
+    #we{es=Etab0,fs=Ftab0,he=Htab0} = We1,
+    {Ftab1,Etab1,Htab} =
+	simple_del(Faces, Loop, Ftab0, Etab0, Htab0, We1),
+    {NewFace,We2} = wings_we:new_id(We1),
+    Ftab = gb_trees:insert(NewFace, hd(Loop), Ftab1),
+    Last = last(Loop),
+    Etab = update_outer([Last|Loop], Loop, NewFace, Ftab, Etab1),
+    We = We2#we{es=Etab,fs=Ftab,he=Htab},
+    wings_material:assign(Mat, [NewFace], We).
+
+to_gb_set(List) when is_list(List) ->
+    gb_sets:from_list(List);
+to_gb_set(S) -> S.
+
+%% Delete faces and inner edges for a simple region.
+simple_del(Faces, Loop, Ftab0, Etab0, Htab0, We) ->
+    case {gb_trees:size(Ftab0),gb_sets:size(Faces)} of
+	{AllSz,FaceSz} when AllSz < 2*FaceSz ->
+	    %% At least half of the faces are selected.
+	    %% It is faster to find the inner edges for the
+	    %% unselected faces.
+	    UnselFaces = ordsets:subtract(gb_trees:keys(Ftab0),
+					  gb_sets:to_list(Faces)),
+
+	    UnselSet = sofs:from_external(UnselFaces, [face]),
+	    Ftab1 = sofs:from_external(gb_trees:to_list(Ftab0),
+				       [{face,edge}]),
+	    Ftab2 = sofs:restriction(Ftab1, UnselSet),
+	    Ftab = gb_trees:from_orddict(sofs:to_external(Ftab2)),
+
+	    Keep0 = wings_face:inner_edges(UnselFaces, We) ++ Loop,
+	    Keep = sofs:set(Keep0, [edge]),
+	    Etab1 = sofs:from_external(gb_trees:to_list(Etab0),
+				       [{edge,info}]),
+	    Etab2 = sofs:restriction(Etab1, Keep),
+	    Etab = gb_trees:from_orddict(sofs:to_external(Etab2)),
+	    
+	    Htab = simple_del_hard(Htab0, sofs:to_external(Keep), undefined),
+	    {Ftab,Etab,Htab};
+	{_,_} ->
+	    Ftab = foldl(fun(Face, Ft) ->
+				 gb_trees:delete(Face, Ft)
+			 end, Ftab0, gb_sets:to_list(Faces)),
+	    Inner = wings_face:inner_edges(Faces, We),
+	    Etab = foldl(fun(Edge, Et) ->
+				 gb_trees:delete(Edge, Et)
+			 end, Etab0, Inner),
+	    Htab = simple_del_hard(Htab0, undefined, Inner),
+	    {Ftab,Etab,Htab}
+    end.
+
+simple_del_hard(Htab, Keep, Remove) ->
+    case gb_sets:is_empty(Htab) of
+	true -> Htab;
+	false -> simple_del_hard_1(Htab, Keep, Remove)
+    end.
+
+simple_del_hard_1(Htab, Keep, undefined) ->
+    gb_sets:intersection(Htab, gb_sets:from_ordset(Keep));
+simple_del_hard_1(Htab, undefined, Remove) ->
+    gb_sets:difference(Htab, gb_sets:from_ordset(Remove)).
+
+%% complex([Partition], We0) -> We0
+%%  The general dissolve.
+
+complex_dissolve([Faces|T], We0) ->
     Face = gb_sets:smallest(Faces),
     Mat = wings_material:get(Face, We0),
     We1 = wings_material:delete_faces(Faces, We0),
@@ -62,31 +132,26 @@ standard_dissolve([Faces|T], We0) ->
     We = foldl(fun(_, bad_edge) -> bad_edge;
 		  (F, W) -> wings_face:delete_if_bad(F, W)
 	       end, We2, NewFaces),
-    standard_dissolve(T, We);
-standard_dissolve([], We) -> We.
+    complex_dissolve(T, We);
+complex_dissolve([], We) -> We.
 
-to_gb_set(List) when is_list(List) ->
-    gb_sets:from_list(List);
-to_gb_set(S) -> S.
-    
 do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
     We1 = do_dissolve_faces(Faces, We0),
     Inner = wings_face:inner_edges(Faces, WeOrig),
     We2 = delete_inner(Inner, We1),
-    #we{he=Htab0} = We = do_dissolve_1(Ess, Mat, WeOrig, We2),
+    #we{he=Htab0} = We = do_dissolve_1(Ess, Mat, We2),
     Htab = gb_sets:difference(Htab0, gb_sets:from_list(Inner)),
     We#we{he=Htab}.
 
-do_dissolve_1([EdgeList|Ess], Mat, WeOrig, #we{es=Etab0,fs=Ftab0}=We0) ->
+do_dissolve_1([EdgeList|Ess], Mat, #we{es=Etab0,fs=Ftab0}=We0) ->
     {Face,We1} = wings_we:new_id(We0),
     Ftab = gb_trees:insert(Face, hd(EdgeList), Ftab0),
     Last = last(EdgeList),
-    Etab = update_outer([Last|EdgeList], EdgeList, Face, WeOrig,
-			Ftab, Etab0),
+    Etab = update_outer([Last|EdgeList], EdgeList, Face, Ftab, Etab0),
     We2 = We1#we{es=Etab,fs=Ftab},
     We = wings_material:assign(Mat, [Face], We2),
-    do_dissolve_1(Ess, Mat, WeOrig, We);
-do_dissolve_1([], _Mat, _WeOrig, We) -> We.
+    do_dissolve_1(Ess, Mat, We);
+do_dissolve_1([], _Mat, We) -> We.
 
 do_dissolve_faces(Faces, #we{fs=Ftab0}=We) ->
     Ftab = foldl(fun(Face, Ft) ->
@@ -100,7 +165,7 @@ delete_inner(Inner, #we{es=Etab0}=We) ->
 		 end, Etab0, Inner),
     We#we{es=Etab}.
 
-update_outer([Pred|[Edge|Succ]=T], More, Face, WeOrig, Ftab, Etab0) ->
+update_outer([Pred|[Edge|Succ]=T], More, Face, Ftab, Etab0) ->
     #edge{rf=Rf} = R0 = gb_trees:get(Edge, Etab0),
     Rec = case gb_trees:is_defined(Rf, Ftab) of
 	      true ->
@@ -113,8 +178,8 @@ update_outer([Pred|[Edge|Succ]=T], More, Face, WeOrig, Ftab, Etab0) ->
 		  R0#edge{rf=Face,rtpr=Pred,rtsu=RS}
 	  end,
     Etab = gb_trees:update(Edge, Rec, Etab0),
-    update_outer(T, More, Face, WeOrig, Ftab, Etab);
-update_outer([_], _More, _Face, _WeOrig, _Ftab, Etab) -> Etab.
+    update_outer(T, More, Face, Ftab, Etab);
+update_outer([_], _More, _Face, _Ftab, Etab) -> Etab.
 
 succ([Succ|_], _More) -> Succ;
 succ([], [Succ|_]) -> Succ.
@@ -178,7 +243,7 @@ collect_outer_edges(Faces, We) ->
     collect_outer_edges_1(gb_sets:to_list(Faces), Faces, We).
 
 collect_outer_edges_1(Fs0, Faces0, #we{fs=Ftab}=We) ->
-    case {gb_sets:size(Ftab),gb_sets:size(Faces0)} of
+    case {gb_trees:size(Ftab),gb_sets:size(Faces0)} of
 	{AllSz,FaceSz} when AllSz < 2*FaceSz ->
 	    Fs = ordsets:subtract(gb_trees:keys(Ftab), Fs0),
 	    Faces = gb_sets:from_ordset(Fs),
