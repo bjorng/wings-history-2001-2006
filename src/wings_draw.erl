@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.199 2004/04/23 09:57:40 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.200 2004/04/24 18:20:27 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -567,6 +567,8 @@ split_faces(#dlo{needed=Need}=D, Ftab0, Fs0, St) ->
 	    {[draw_faces(StaticFtab, D, St)],FtabDyn}
     end.
 
+make_static_edges(DynFaces, #dlo{ns=none}) ->
+    make_static_edges_1(DynFaces, [], []);
 make_static_edges(DynFaces, #dlo{ns=Ns}) ->
     make_static_edges_1(DynFaces, gb_trees:to_list(Ns), []).
 
