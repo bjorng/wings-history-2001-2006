@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.29 2003/04/22 22:37:53 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.30 2003/04/23 20:27:14 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -39,6 +39,9 @@
 -define(DEF_IOR, 1.0).
 -define(DEF_MIN_REFLE, 0.0).
 -define(DEF_AUTOSMOOTH_ANGLE, 0.0).
+-define(DEF_SHADOW,true).
+-define(DEF_EMIT_RAD,true).
+-define(DEF_RECV_RAD,true).
 
 %% Render
 -define(DEF_AA_PASSES, 1).
@@ -288,26 +291,29 @@ material_dialog(_Name, Mat) ->
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
     AutosmoothAngle = 
 	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
+    Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
+    EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
+    RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
     Modulators = proplists:get_value(modulators, YafRay, []),
     [{vframe,
       [{hframe,
-	[{vframe, [{label,"Index Of Reflection"},
-		   {label,"Minimum Reflection"},
-		   {label,"Autosmooth Angle"}]},
-	 {vframe, [{text,IOR,
-		    [{range,{0.0,100.0}},
-		     {key,ior}]},
-		   {slider,{text,MinRefle,
-			    [{range,{0.0,1.0}},
-			     {key,min_refle}]}},
-		   {slider,{text,AutosmoothAngle,
-			    [{range,{0.0,180.0}},
-			     {key,autosmooth_angle}]}}]}
-	]}|modulator_dialogs(Modulators, 1, Maps)],
+	[{vframe, 
+	  [{label,"Index Of Reflection"},
+	   {label,"Minimum Reflection"},
+	   {label,"Autosmooth Angle"}]},
+	 {vframe,
+	  [{hframe,[{text,IOR,[{range,{0.0,100.0}},{key,ior}]},
+		    {"Shadow",Shadow,[{key,shadow}]},
+		    {"Emit Rad",EmitRad,[{key,emit_rad}]},
+		    {"Recv Rad",RecvRad,[{key,recv_rad}]}]},
+	   {slider,{text,MinRefle,[{range,{0.0,1.0}},{key,min_refle}]}},
+	   {slider,{text,AutosmoothAngle,[{range,{0.0,180.0}},
+					  {key,autosmooth_angle}]}}]}]}
+       |modulator_dialogs(Modulators, 1, Maps)],
       [{title,"YafRay Options"}]}].
 
 material_result(_Name, Mat0, [{ior,_}|_]=Res) ->
-    {Ps,Res0} = split_list(Res, 3),
+    {Ps,Res0} = split_list(Res, 6),
     {Modulators,Res1} = modulator_result(Res0),
     Mat1 = [{?TAG,[{modulators,Modulators}|Ps]}|keydelete(?TAG, 1, Mat0)],
     {Mat1,Res1};
@@ -983,13 +989,16 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Mats) ->
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     AutosmoothAngle = 
 	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
+    Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
+    EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
+    RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
     {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
     Transparency = 1 - Opacity,
-    println(F, "<object name=\"~s\" shader_name=\"~s\" "++
-	    "shadow=\"on\" caus_IOR=\"~.10f\"~n"++
-	    "        emit_rad=\"on\" recv_rad=\"on\">~n"++
+    println(F, "<object name=\"~s\" shader_name=\"~s\" shadow=\"~s\"~n"++
+	    "        caus_IOR=\"~.10f\" emit_rad=\"~s\" recv_rad=\"~s\">~n"++
 	    "    <attributes>",
-	    [NameStr,"w_"++format(DefaultMaterial),IOR]),
+	    [NameStr,"w_"++format(DefaultMaterial),format(Shadow),
+	     IOR,format(EmitRad),format(RecvRad)]),
     export_rgb(F, caus_rcolor, proplists:get_value(ambient, OpenGL)),
 %    export_rgb(F, caus_rcolor, 
 %	       {Dr*Opacity,Dg*Opacity,Db*Opacity,1.0}),
