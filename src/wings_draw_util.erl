@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.77 2003/06/09 09:34:06 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.78 2003/06/10 19:31:52 bjorng Exp $
 %%
 
 -module(wings_draw_util).
 -export([init/0,tess/0,begin_end/1,begin_end/2,
 	 update/2,map/2,fold/2,changed_materials/1,
-	 render/1,call/1,
+	 render/1,call/1,call_one_of/2,
 	 prepare/3,mat_faces/5,face/2,face/3,flat_face/2,flat_face/3,
 	 force_flat_color/2]).
 
@@ -306,16 +306,11 @@ render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) 
     case Wire orelse wings_pref:get_value(show_edges) of
 	false -> ok;
 	true ->
-	    case Wire of
-		true ->
-		    gl:color3fv(wings_pref:get_value(wire_edge_color));
-		false ->
-		    case {SelMode,wings_pref:get_value(edge_color)} of
-			{body,{0.0,0.0,0.0}} ->
-			    gl:color3f(0.3, 0.3, 0.3);
-			{_,EdgeColor} ->
-			    gl:color3fv(EdgeColor)
-		    end
+	    case {SelMode,wings_pref:get_value(edge_color)} of
+		{body,{0.0,0.0,0.0}} ->
+		    gl:color3f(0.3, 0.3, 0.3);
+		{_,EdgeColor} ->
+		    gl:color3fv(EdgeColor)
 	    end,
 	    gl:lineWidth(case SelMode of
 			     edge -> wings_pref:get_value(edge_width);
@@ -337,9 +332,6 @@ render_plain(#dlo{src_we=We}=D, SelMode) ->
     Wire = wire(We),
     wings_subdiv:draw(D, Wire),
     render_plain_rest(D, Wire, SelMode).
-
-call_one_of(none, Dl) -> call(Dl);
-call_one_of(Dl, _) -> call(Dl).
 
 render_plain_rest(D, Wire, SelMode) ->
     gl:disable(?GL_POLYGON_OFFSET_LINE),
@@ -406,7 +398,7 @@ render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans,src_we=We,proxy_dat
     gl:shadeModel(?GL_FLAT),
     case wire(We) of
 	true when Pd =:= none ->
-	    gl:color3fv(wings_pref:get_value(wire_edge_color)),
+	    gl:color3fv(wings_pref:get_value(edge_color)),
 	    gl:lineWidth(?NORMAL_LINEWIDTH),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
@@ -694,6 +686,9 @@ call({call,Dl,_}) -> call(Dl);
 call([H|T]) -> call(H), call(T);
 call([]) -> ok;
 call(Dl) when is_integer(Dl) -> gl:callList(Dl).
+
+call_one_of(none, Dl) -> call(Dl);
+call_one_of(Dl, _) -> call(Dl).
 
 %%
 %% Miscellanous.

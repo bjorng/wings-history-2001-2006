@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.54 2003/06/09 18:36:50 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.55 2003/06/10 19:31:54 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -416,12 +416,9 @@ update(#dlo{proxy_faces=none,src_we=We0,proxy_data=Pd0}=D, St) ->
     Pd1 = clean(Pd0),
     Pd = proxy_smooth(We0, Pd1, St),
     #sp{we=We,plan=Plan} = Pd,
-    Faces = gl:genLists(1),
-    gl:newList(Faces, ?GL_COMPILE),
-    draw_faces(Plan, We),
-    gl:endList(),
+    {Faces,Edges} = draw_faces(Plan, We),
     ProxyEdges = update_edges(D, Pd),
-    D#dlo{proxy_faces=Faces,proxy_edges=ProxyEdges,proxy_data=[Faces,Pd]};
+    D#dlo{edges=Edges,proxy_faces=Faces,proxy_edges=ProxyEdges,proxy_data=[Faces,Pd]};
 update(#dlo{proxy_edges=none,proxy_data=Pd0}=D, _) ->
     Pd = clean(Pd0),
     ProxyEdges = update_edges(D, Pd),
@@ -468,11 +465,11 @@ any_proxy() ->
     wings_draw_util:fold(fun(#dlo{proxy_data=none}, A) -> A;
 			    (#dlo{}, _) -> true end, false).
 
-draw(#dlo{proxy_faces=Dl}=D, Wire) when is_integer(Dl) ->
-    draw_1(D, Dl, Wire, proxy_static_opacity, cage);
-draw(#dlo{proxy_data=[Dl|_]}=D, Wire) when is_integer(Dl) ->
+draw(#dlo{proxy_faces=none,proxy_data=[Dl|_]}=D, Wire) ->
     draw_1(D, Dl, Wire, proxy_moving_opacity, cage);
-draw(_, _) -> ok.
+draw(#dlo{proxy_faces=none}, _Wire) -> ok;
+draw(#dlo{proxy_faces=Dl}=D, Wire) ->
+    draw_1(D, Dl, Wire, proxy_static_opacity, cage).
 
 draw_1(D, Dl, Wire, Key, EdgeStyleKey) ->
     draw_edges(D, Wire, EdgeStyleKey),
@@ -504,17 +501,17 @@ draw_smooth_edges(D) ->
 draw_edges(_, false, _) -> ok;
 draw_edges(D, true, EdgeStyle) -> draw_edges_1(D, EdgeStyle).
 
-draw_edges_1(#dlo{work=Work}, cage) ->
-    gl:color3fv(wings_pref:get_value(wire_edge_color)),
+draw_edges_1(#dlo{work=Work,edges=Edges}, cage) ->
+    gl:color3fv(wings_pref:get_value(edge_color)),
     gl:lineWidth(?NORMAL_LINEWIDTH),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     gl:enable(?GL_POLYGON_OFFSET_LINE),
     gl:polygonOffset(1.0, 1.0),
     gl:disable(?GL_CULL_FACE),
-    wings_draw_util:call(Work),
+    wings_draw_util:call_one_of(Edges, Work),
     gl:enable(?GL_CULL_FACE);
 draw_edges_1(#dlo{proxy_edges=ProxyEdges}, _) ->
-    gl:color3fv(wings_pref:get_value(wire_edge_color)),
+    gl:color3fv(wings_pref:get_value(edge_color)),
     gl:lineWidth(?NORMAL_LINEWIDTH),
     wings_draw_util:call(ProxyEdges).
 
@@ -545,15 +542,37 @@ inc_smooth(#we{vp=Vp,next_id=Next}=We0, #sp{we=OldWe}) ->
 %%%
 
 draw_faces({uv,MatFaces,St}, We) ->
-    draw_uv_faces(MatFaces, We, St);
+    Faces = gl:genLists(1),
+    gl:newList(Faces, ?GL_COMPILE),
+    draw_uv_faces(MatFaces, We, St),
+    gl:endList(),
+    {Faces,none};
 draw_faces({material,MatFaces,St}, We) ->
-    draw_mat_faces(MatFaces, We, St);
+    Faces = gl:genLists(1),
+    gl:newList(Faces, ?GL_COMPILE),
+    draw_mat_faces(MatFaces, We, St),
+    gl:endList(),
+    {Faces,none};
 draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
+    BasicFaces = gl:genLists(2),
+    Dl = BasicFaces+1,
+    gl:newList(BasicFaces, ?GL_COMPILE),
+    draw_vtx_faces(Colors, We),
+    gl:endList(),
+    
+    gl:newList(Dl, ?GL_COMPILE),
     wings_material:apply_material(default, Mtab),
     gl:enable(?GL_COLOR_MATERIAL),
     gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
-    draw_vtx_faces(Colors, We),
-    gl:disable(?GL_COLOR_MATERIAL).
+    gl:callList(BasicFaces),
+    gl:disable(?GL_COLOR_MATERIAL),
+    gl:endList(),
+
+    Edges = wings_draw_util:force_flat_color(BasicFaces,
+					     wings_pref:get_value(edge_color)),
+
+    {{call,Dl,BasicFaces},Edges}.
+
 
 draw_vtx_faces({Same,Diff}, We) ->
     Draw = fun() ->

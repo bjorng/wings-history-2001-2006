@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.93 2003/06/09 09:34:06 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.94 2003/06/10 19:31:53 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -788,10 +788,10 @@ marquee_draw_fun(#dlo{mirror=Mirror,src_we=#we{id=Id}=We}, Draw) ->
 	none ->
 	    wings_draw_util:call(List);
 	Matrix ->
-	    gl:callList(List),
+	    wings_draw_util:call(List),
 	    gl:pushMatrix(),
 	    gl:multMatrixf(Matrix),
-	    gl:callList(List),
+	    wings_draw_util:call(List),
 	    gl:popMatrix()
     end,
     gl:popName(),
@@ -825,11 +825,11 @@ draw_dlist(#dlo{mirror=none,pick=Pick,src_we=#we{id=Id}}=D) ->
     D;
 draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:pushName(Id),
-    gl:callList(Pick),
+    wings_draw_util:call(Pick),
     gl:loadName(-Id),
     gl:pushMatrix(),
     gl:multMatrixf(Matrix),
-    gl:callList(Pick),
+    wings_draw_util:call(Pick),
     gl:popMatrix(),
     gl:popName(),
     D.
