@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings.nsi,v 1.2 2002/01/18 12:16:23 bjorng Exp $
+#     $Id: wings.nsi,v 1.3 2002/04/17 09:07:02 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -109,6 +109,7 @@ continue_1:
   Delete "$INSTDIR\Makefile"
   Delete "$INSTDIR\Makefile.win32"
   Delete "$INSTDIR\README"
+  Delete "$INSTDIR\plugins\primitives\wpc_plane.beam
 
   ; create shortcuts
   Call GetStartMenu
