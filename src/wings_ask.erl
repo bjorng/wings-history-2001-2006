@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.112 2003/11/10 23:19:07 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.113 2003/11/12 15:26:15 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -30,6 +30,8 @@
 -define(HFRAME_SPACING, (3*?CHAR_WIDTH div 2)).
 
 -define(IS_SHIFTED(Mod), ((Mod) band ?SHIFT_BITS =/= 0)).
+-define(BUTTON_MASK,
+	(?SDL_BUTTON_LMASK bor ?SDL_BUTTON_MMASK bor ?SDL_BUTTON_RMASK)).
 
 -import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3,member/2]).
 
@@ -214,12 +216,10 @@ event({current_state,_}, _) ->
     keep;
 event(#keyboard{sym=Sym,mod=Mod,unicode=Unicode}, S) ->
     event_key({key,Sym,Mod,Unicode}, S);
-event(#mousebutton{button=1,x=X,y=Y}=Ev, S) ->
-    mouse_event(X, Y, Ev, S);
-event(#mousebutton{}, _) ->
-    keep;
-event(#mousemotion{x=X,y=Y}=Ev, S) ->
-    mouse_event(X, Y, Ev, S);
+event(Ev=#mousebutton{}, S) ->
+      mouse_event(Ev, S);
+event(Ev=#mousemotion{}, S) ->
+    mouse_event(Ev, S);
 event({drop,{X,Y},DropData}, S) ->
     drop_event(X, Y, DropData, S);
 event({action,Action}, S) ->
@@ -255,7 +255,7 @@ escape_pressed(S0=#s{fi=Fi,store=Sto}) ->
     case escape_pressed(Fi, Sto) of
 	undefined -> keep;
 	Index -> 
-	    S = set_focus(Index, S0),
+	    S = set_focus(Index, S0, false),
 	    case field_event({key,$\s,$\s,$\s}, S) of
 		keep -> get_event(S);
 		Other -> Other
@@ -297,29 +297,28 @@ delete(S) ->
     delete_blanket(S),
     delete.
 
-mouse_event(X0, Y0, #mousemotion{}=Ev, 
-	    #s{focus=Index,mouse_focus=true,ox=Ox,oy=Oy}=S) ->
+mouse_event(Ev=#mousemotion{x=X0,y=Y0},
+	    #s{mouse_focus=true,ox=Ox,oy=Oy}=S) ->
     X = X0-Ox,
     Y = Y0-Oy,
-    field_event(Ev#mousemotion{x=X,y=Y}, Index, S);
-mouse_event(_X0, _Y0, #mousemotion{}, #s{}) -> 
+    field_event(Ev#mousemotion{x=X,y=Y}, S);
+mouse_event(#mousemotion{}, #s{}) -> 
     keep;
-mouse_event(X0, Y0, #mousebutton{state=State}=Ev, 
-	    #s{focus=Index,mouse_focus=MouseFocus,ox=Ox,oy=Oy,fi=Fi}=S0) ->
+mouse_event(Ev=#mousebutton{x=X0,y=Y0,state=State}, 
+	    S0=#s{mouse_focus=MouseFocus,ox=Ox,oy=Oy,fi=Fi}) ->
     X = X0-Ox,
     Y = Y0-Oy,
     case State of
 	?SDL_RELEASED ->
 	    case MouseFocus of
-		true ->field_event(Ev#mousebutton{x=X,y=Y}, Index, S0);
+		true ->field_event(Ev#mousebutton{x=X,y=Y}, S0);
 		false -> keep
 	    end;
 	?SDL_PRESSED ->
 	    case mouse_to_field(Fi, X, Y) of
 		none -> get_event(S0#s{mouse_focus=false});
 		Ix ->
-		    S1 = set_focus(Ix, S0),
-		    S = S1#s{mouse_focus=true},
+		    S = set_focus(Ix, S0, true),
 		    case field_event(Ev#mousebutton{x=X,y=Y}, S) of
 			keep -> get_event(S);
 			Other -> Other
@@ -329,9 +328,9 @@ mouse_event(X0, Y0, #mousebutton{state=State}=Ev,
 
 drop_event(X, Y, DropData, #s{ox=Ox,oy=Oy,fi=Fi}=S0) ->
     case mouse_to_field(Fi, X-Ox, Y-Oy) of
-	none -> keep;
+	none -> get_event(S0#s{mouse_focus=false});
 	I ->
-	    S = set_focus(I, S0),
+	    S = set_focus(I, S0, true),
 	    case field_event({drop,DropData}, S) of
 		keep -> get_event(S);
 		Other -> Other
@@ -350,12 +349,12 @@ next_focus(Dir, S=#s{focus=Index,focusable=Focusable}) ->
 	end,
     N = size(Focusable),
     case (J+Dir) rem N of
-	K when K =< 0 -> set_focus(element(N+K, Focusable), S);
-	K -> set_focus(element(K, Focusable), S)
+	K when K =< 0 -> set_focus(element(N+K, Focusable), S, false);
+	K -> set_focus(element(K, Focusable), S, false)
     end.
 
 set_focus(Index, #s{focus=OldIndex,focusable=_Focusable,
-		    fi=Fi,store=Store0}=S) ->
+		    fi=Fi,store=Store0}=S, MouseFocus) ->
     ?DEBUG_DISPLAY({set_focus,[OldIndex,Index,_Focusable]}),
     Old = get_fi(OldIndex, Fi),
     #fi{handler=OldHandler} = Old,
@@ -369,13 +368,10 @@ set_focus(Index, #s{focus=OldIndex,focusable=_Focusable,
 		{store,Store3} -> Store3;
 		_ -> Store2
 	    end,
-    S#s{focus=Index,store=Store}.
+    S#s{focus=Index,mouse_focus=MouseFocus,store=Store}.
 
-field_event(Ev, #s{focus=I}=S) ->
-    field_event(Ev, I, S).
-
-field_event(_Ev=#mousemotion{x=X,y=Y,state=Bst}, _, #s{fi=TopFi})
-  when Bst band ?SDL_BUTTON_LMASK == 0 ->
+field_event(_Ev=#mousemotion{x=X,y=Y,state=Bst}, #s{fi=TopFi})
+  when (Bst band ?BUTTON_MASK) == 0 ->
     case mouse_to_field(TopFi, X, Y) of
 	none ->
 	    wings_wm:allow_drag(false);
@@ -385,7 +381,7 @@ field_event(_Ev=#mousemotion{x=X,y=Y,state=Bst}, _, #s{fi=TopFi})
 	    wings_wm:allow_drag(member(drag, Flags))
     end,
     keep;
-field_event(Ev, I, #s{fi=TopFi=#fi{w=W0,h=H0},store=Store0}=S) ->
+field_event(Ev, #s{focus=I,fi=TopFi=#fi{w=W0,h=H0},store=Store0}=S) ->
     ?DEBUG_DISPLAY({field_handler,[I,Ev]}),
     #fi{handler=Handler} = Fi0 = get_fi(I, TopFi),
     Result = Handler(Ev, Fi0, I, Store0, TopFi),
@@ -947,18 +943,17 @@ frame_event({redraw,Active}, Fi=#fi{key=Key,hook=Hook,
 	    I, Store, _TopFi) ->
     DisEnable = hook(Hook, is_disabled, [key(Key, I), I, Store]),
     frame_redraw(Active, Fi, DisEnable, Minimized);
-frame_event(#mousebutton{x=Xb,y=Yb,button=Button,state=?SDL_RELEASED}, 
+frame_event(#mousebutton{x=Xb,y=Yb,button=Button,mod=Mod,state=?SDL_RELEASED}, 
 	    Fi=#fi{x=X0,y=Y0}, I, Store, TopFi) ->
     X = X0,
     Y = Y0+3,
     case inside(Xb, Yb, X, Y, 10, ?CHAR_HEIGHT) of
 	true -> 
 	    case Button of
-		1 -> frame_event({key,$\s,0,$\s}, Fi, I, Store, TopFi);
-		2 -> 
-		    Mod = ?SHIFT_BITS,
-		    frame_event({key,$\s,Mod,$\s}, Fi, I, Store, TopFi);
-		_ -> keep
+		1 -> frame_event({key,$\s,Mod,$\s}, Fi, I, Store, TopFi);
+		_ -> 
+		    M = ?SHIFT_BITS,
+		    frame_event({key,$\s,M,$\s}, Fi, I, Store, TopFi)
 	    end;
 	false -> keep
     end;
@@ -969,12 +964,12 @@ frame_event({key,_,Mod,$\s}, #fi{key=Key,
 	undefined -> keep;
 	true ->
 	    Store = 
-		if ?IS_SHIFTED(Mod) ->
+		if  ?IS_SHIFTED(Mod) -> Store0;
+		    true ->
 			case get_container(I, TopFi) of
 			    undefined -> Store0;
 			    Fi -> minimize_childs(Fi, Store0)
-			end;
-		   true -> Store0
+			end
 		end,
 	    {layout,gb_trees:update(key(Key, I), false, Store)};
 	false -> {layout,gb_trees:update(key(Key, I), true, Store0)}
@@ -1328,7 +1323,7 @@ menu_event({key,_,_,$\s}, Fi=#fi{hook=Hook}, I, Store, _TopFi) ->
     Val = gb_trees:get(Key, Store),
     Disabled = hook(Hook, menu_disabled, [Key, I, Store]),
     menu_popup(Fi, M, Val, Disabled);
-menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, 
+menu_event(#mousebutton{state=?SDL_PRESSED}, 
 	   Fi=#fi{hook=Hook}, I, Store, _TopFi) ->
     M = #menu{var=Var} = gb_trees:get(-I, Store),
     Key = key(Var, I),
@@ -1436,7 +1431,7 @@ popup_event(#mousemotion{y=Y}, #popup{menu=Menu,sel=Sel0}=Ps) ->
 	    end;
 	_ -> keep
     end;
-popup_event(#mousebutton{button=1,state=?SDL_RELEASED}, Ps) ->
+popup_event(#mousebutton{state=?SDL_RELEASED}, Ps) ->
     popup_key($ , 0, $ , Ps);
 popup_event(#keyboard{sym=Sym,mod=Mod,unicode=Unicode}, Ps) ->
     popup_key(Sym, Mod, Unicode, Ps);
