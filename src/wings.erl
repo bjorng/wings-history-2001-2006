@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.220 2003/02/25 17:43:13 bjorng Exp $
+%%     $Id: wings.erl,v 1.221 2003/02/26 06:59:07 bjorng Exp $
 %%
 
 -module(wings).
@@ -191,7 +191,7 @@ new_viewer({geom,N}=Name, {X,Y}, Size, ToolbarHidden, St) ->
 		       {properties,Props}],
 		      Op),
     wings_wm:menubar(Name, get(wings_menu_template)),
-
+    wings_wm:send({menubar,Name}, {current_state,St}),
     if
 	ToolbarHidden -> wings_wm:hide({toolbar,Name});
 	true -> ok
