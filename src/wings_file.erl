@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.134 2003/11/23 10:57:38 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.135 2003/12/03 05:31:05 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -368,9 +368,13 @@ get_autosave_event(Ref, St) ->
     
 autosave_event(start_timer, OldTimer, St) ->
     wings_wm:cancel_timer(OldTimer),
-    case wings_pref:get_value(autosave_time) of
-	0 -> delete;
-	N ->
+    case {wings_pref:get_value(autosave),wings_pref:get_value(autosave_time)} of
+	{false,_} -> delete;
+	{true,0} ->
+	    wings_pref:set_value(autosave_time, 1),
+	    Timer = wings_wm:set_timer(60000, autosave),
+	    get_autosave_event(Timer, St);
+	{true,N} ->
 	    Timer = wings_wm:set_timer(N*60000, autosave),
 	    get_autosave_event(Timer, St)
     end;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.109 2003/11/30 21:50:09 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.110 2003/12/03 05:31:06 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -232,33 +232,35 @@ misc_prefs() ->
 			   end},
 		     {info,"Opacity settings not supported using this version of OpenGL"}]
 	    end,
+    AutoFun = fun(is_disabled, {_Var,_I,Store}) ->
+		      not gb_trees:get(autosave, Store);
+		 (_, _) -> void
+	      end,
     {vframe,
-       [{vframe,
+     [{hframe,[{"Save automatically every",autosave},
+	       {text,autosave_time,[{hook,AutoFun},{range,{1,1440}}]},
+	       {label,"minutes"}]},
+      {vframe,
 	 [{label_column,
 	   [{"Angle",auto_rotate_angle},
 	    {"Delay (ms)",auto_rotate_delay}]}],
 	 [{title,"Auto Rotate"}]},
-	{vframe,
-	 [{label_column,
-	   [{"Auto-Save Interval (min)",autosave_time}]}
-	 ],
-	 [{title,"Auto Save"}]},
-	{vframe,
+      {vframe,
+       [{vframe,
+	 [{menu,[{"Cage",cage},
+		 {"Some Edges",some},
+		 {"All Edges",all}],
+	   proxy_shaded_edge_style}],
+	 [{title,"Shaded Mode Edge Style"}]},
+	{hframe,
 	 [{vframe,
-	   [{menu,[{"Cage",cage},
-		   {"Some Edges",some},
-		   {"All Edges",all}],
-	     proxy_shaded_edge_style}],
-	   [{title,"Shaded Mode Edge Style"}]},
-	  {hframe,
-	   [{vframe,
-	     [{label,"Stationary Opacity"},
-	      {label,"Moving Opacity"}]},
-	    {vframe,
-	     [{slider,{text,proxy_static_opacity,[{range,{0.0,1.0}}|Flags]}},
-	      {slider,{text,proxy_moving_opacity,[{range,{0.0,1.0}}|Flags]}}]}]}],
-	 [{title,"Proxy Mode"}]}
-       ]}.
+	   [{label,"Stationary Opacity"},
+	    {label,"Moving Opacity"}]},
+	  {vframe,
+	   [{slider,{text,proxy_static_opacity,[{range,{0.0,1.0}}|Flags]}},
+	    {slider,{text,proxy_moving_opacity,[{range,{0.0,1.0}}|Flags]}}]}]}],
+       [{title,"Proxy Mode"}]}
+     ]}.
 
 smart_set_value(Key, Val, St) ->
     case ets:lookup(wings_state, Key) of
@@ -336,9 +338,14 @@ make_query({menu,List,Key}) ->
 make_query({vradio,List,Key}) ->
     Def = get_value(Key),
     {vradio,List,Def,[{key,Key}]};
-make_query({slider,{text,Key,Flags}}) ->
+make_query({slider,Slider}) ->
+    {slider,make_query(Slider)};
+make_query({text,Key,Flags}) ->
     Def = get_value(Key),
-    {slider,{text,Def,[{key,Key}|Flags]}};
+    {text,Def,[{key,Key}|Flags]};
+make_query({text,Key}) ->
+    Def = get_value(Key),
+    {text,Def,[{key,Key}]};
 make_query(Tuple) when is_tuple(Tuple) ->
     list_to_tuple([make_query(El) || El <- tuple_to_list(Tuple)]);
 make_query(Other) -> Other.
@@ -572,6 +579,7 @@ defaults() ->
      {body_hilite,true},
      {auto_rotate_angle,1.0},
      {auto_rotate_delay,60},
+     {autosave,true},
      {autosave_time,10},
      {active_vector_size,1.0},
      {active_vector_width,2.0},
