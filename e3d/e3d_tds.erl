@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.42 2004/06/27 13:52:24 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.43 2004/06/30 13:49:25 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -68,7 +68,7 @@ import_2(<<16#4D4D:16/little,_Size:32/little,T/binary>>) ->
     Objs = case catch fix_transform(Objs0) of
 	       {'EXIT',Reason} ->
 		   io:format("~P\n", [Reason,20]),
-		   Objs0;
+		   reverse(Objs0);
 	       Other -> Other
 	   end,
     File#e3d_file{objs=Objs,mat=Mat};
@@ -202,6 +202,7 @@ trimesh(16#4160, <<V1X:32/?FLOAT,V1Y:32/?FLOAT,V1Z:32/?FLOAT,
 	      OX,OY,OZ},
     [{current_name,Name}] = ets:lookup(?MODULE, current_name),
     ets:insert(?MODULE, {{local_matrix,Name},Matrix}),
+    dbg("~p: ~p\n", [Name,Matrix]),
     Acc;
 trimesh(Tag, Chunk, Acc) ->
     dbg("~.16#: ~P\n", [Tag,Chunk,15]),
@@ -351,6 +352,12 @@ general_rest(<<Tag:16/little,Sz0:32/little,T0/binary>>) ->
     general_rest(T).
 
 fix_transform(Objs) ->
+    case ets:member(?MODULE, "$$$DUMMY") of
+	false -> reverse(Objs);
+	true -> fix_transform_0(Objs)
+    end.
+
+fix_transform_0(Objs) ->
     lists:foldl(fun(O, A) -> [fix_transform_1(O)|A] end, [], Objs).
 
 fix_transform_1(#e3d_object{name=Name,obj=Mesh}=Obj) ->
