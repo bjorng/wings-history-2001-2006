@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.32 2002/10/28 09:39:35 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.33 2002/10/28 18:30:58 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -159,7 +159,8 @@ seg_mode_menu(edge, _, Tail) ->
      separator,
      {"Select Marked Edges",select_hard_edges}|Tail];
 seg_mode_menu(face, _, Tail) ->
-    Menu0 = map(fun({Name,_}) -> {atom_to_list(Name),Name};
+    Menu0 = map(fun({Name,Color}) ->
+			{atom_to_list(Name),Name,[],[{color,Color}]};
 		   (Other) -> Other
 		end, seg_materials()),
     Menu = Menu0 ++
