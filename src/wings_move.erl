@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.33 2002/03/21 06:43:32 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.34 2002/03/24 07:41:13 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -320,10 +320,15 @@ translate_fun({Xt0,Yt0,Zt0}) ->
 %%%
 
 magnet_move(_, _Vec, none, _, Tv, Acc) -> [Tv|Acc];
-magnet_move(Tv0, Vec, Magnet0, #we{id=Id}=We, _, Acc) ->
-    Vs0 = affected(Tv0),
-    {VsInf,Magnet,Affected} = wings_magnet:setup(Magnet0, Vs0, We),
+magnet_move(Tv, Vec0, Magnet0, #we{id=Id}=We, _, Acc) ->
+    Vs = affected(Tv),
+    Vec = magnet_vec(Vec0, Tv),
+    {VsInf,Magnet,Affected} = wings_magnet:setup(Magnet0, Vs, We),
     [{Id,{Affected,magnet_move_fun(Vec, VsInf, Magnet)}}|Acc].
+
+magnet_vec(normal, Tv) ->
+    e3d_vec:norm(e3d_vec:add([Vec || {Vec,_} <- Tv]));
+magnet_vec(Vec, _) -> Vec.
 
 magnet_move_fun({Xt0,Yt0,Zt0}=Vec, VsInf0, {_,R}=Magnet0) ->
     fun(new_falloff, Falloff) ->

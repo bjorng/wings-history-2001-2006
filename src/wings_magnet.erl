@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.29 2002/03/23 20:03:36 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.30 2002/03/24 07:41:13 bjorng Exp $
 %%
 
 -module(wings_magnet).
--export([setup/3,transform/2,recalc/3,flags/2,help/1,hotkey/1]).
+-export([setup/3,transform/2,recalc/3,flags/2,
+	 menu_help/0,drag_help/1,hotkey/1]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,sort/1,concat/1,reverse/1]).
@@ -47,7 +48,10 @@ recalc(Sc, VsInf, {Type,R0}) ->
 flags(none, Flags) -> Flags;
 flags({magnet,Type,_,_}, Flags) -> [{magnet,Type}|Flags].
 
-help(Type) ->
+menu_help() ->
+    "Use magnet".
+    
+drag_help(Type) ->
     "[+] or [-] Tweak R  " ++
 	help_1(Type, [{1,dome},{2,bell},{3,straight},{4,spike}]).
 

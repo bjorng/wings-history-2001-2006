@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.10 2002/03/21 10:32:19 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.11 2002/03/24 07:41:13 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -239,7 +239,7 @@ move_axis_fun(Axis, Ns) ->
 	end,
     {wings_util:stringify(Axis),F,Help,magnet_props(Axis, Ns)}.
 
-magnet_props(normal, _) -> [];
+magnet_props(normal, [rotate|_]) -> [];
 magnet_props(_, [_,body]) -> [];
 magnet_props(_, [move|_]) -> [magnet];
 magnet_props(_, [scale|_]) -> [magnet];

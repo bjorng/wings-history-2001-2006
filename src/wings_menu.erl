@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.36 2002/03/18 08:03:44 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.37 2002/03/24 07:41:13 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -570,23 +570,36 @@ item_colors(_, _, _, _) -> gl:color3f(0, 0, 0). %Black text
 help_text(#mi{sel=none}) ->
     %% We don't want info display as wings_io:clear_message() would give.
     help_message("");
-help_text(#mi{menu=Menu,sel=Sel,ns=Names,adv=Adv}) ->
-    case element(Sel, Menu) of
-	{Text,{_,_},_,_,_} when Adv == false ->
-	    %% No specific help text for submenus in basic mode.
-	    Help = Text ++ " submenu",
-	    help_message(Help);
-        {_,{Name,Fun},_,_,_} when is_function(Fun) ->
-	    %% "Submenu" in advanced mode.
-	    Help0 = Fun(help, [Name|Names]),
-	    Help = help_text_1(Help0, Adv),
-	    help_message(Help);
-	{_,_,_,Help0,_} ->
-	    %% Plain entry - not submenu.
-	    Help = help_text_1(Help0, Adv),
-	    help_message(Help);
-	separator -> ok
+help_text(#mi{menu=Menu,sel=Sel}=Mi) ->
+    Elem = element(Sel, Menu),
+    case is_magnet_active(Elem, Mi) of
+	true -> help_message(wings_magnet:menu_help());
+	false -> plain_help(Elem, Mi)
     end.
+
+is_magnet_active({_,_,_,_,Ps}, #mi{xleft=Xleft,w=W}) ->
+    case have_magnet(Ps) of
+	false -> false;
+	true ->
+	    Right = Xleft+W-3*?CHAR_WIDTH,
+	    {_,Mx,_} = sdl_mouse:getMouseState(),
+	    Mx > Right
+    end.
+    
+plain_help({Text,{_,_},_,_,_}, #mi{adv=false}) ->
+    %% No specific help text for submenus in basic mode.
+    Help = Text ++ " submenu",
+    help_message(Help);
+plain_help({_,{Name,Fun},_,_,_}, #mi{ns=Ns,adv=Adv}) when is_function(Fun) ->
+    %% "Submenu" in advanced mode.
+    Help0 = Fun(help, [Name|Ns]),
+    Help = help_text_1(Help0, Adv),
+    help_message(Help);
+plain_help({_,_,_,Help0,_}, #mi{adv=Adv}) ->
+    %% Plain entry - not submenu.
+    Help = help_text_1(Help0, Adv),
+    help_message(Help);
+plain_help(separator, _) -> ok.
 
 help_text_1([_|_]=S, false) -> S;
 help_text_1({[_|_]=S,_}, false) -> S;

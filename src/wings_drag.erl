@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.69 2002/03/23 20:03:36 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.70 2002/03/24 07:41:13 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -192,7 +192,7 @@ drag_help(#drag{magnet=none,falloff=Falloff}) ->
 	none -> Help;
 	_ -> "[+] or [-] Tweak R  " ++ Help
     end;
-drag_help(#drag{magnet=Type}) -> wings_magnet:help(Type).
+drag_help(#drag{magnet=Type}) -> wings_magnet:drag_help(Type).
 
 get_drag_event(Drag) ->
     redraw(Drag),
@@ -216,7 +216,7 @@ handle_drag_event_0(#keyboard{keysym=#keysym{unicode=C}}=Ev, Drag0) ->
     case wings_magnet:hotkey(C) of
 	none -> handle_drag_event_1(Ev, Drag0);
 	Type ->
-	    Help = wings_magnet:help(Type),
+	    Help = wings_magnet:drag_help(Type),
 	    wings_io:message_right(Help),
 	    Val = {Type,Drag0#drag.falloff},
 	    Drag = parameter_update(new_type, Val, Drag0#drag{magnet=Type}),
