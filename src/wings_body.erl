@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.43 2002/12/17 19:07:24 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.44 2002/12/23 07:56:19 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -44,16 +44,20 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Cleanup",cleanup,"Remove various defects",[option]},
 	    {"Auto-Smooth",auto_smooth,
-	     "Set edges hard or soft dependning on the angle between faces",
+	     "Set edges hard or soft depending on the angle between faces",
 	     [option]},
 	    separator,
-	    {"Duplicate",{duplicate,Dir},
-	     "Duplicate and move selected object"},
+	    {"Duplicate",{duplicate,Dir}},
 	    {"Delete",delete,"Delete the selected objects"},
 	    separator,
-	    {"Mode",{mode,[{"Vertex Color",vertex_color},
-			   {"Material",material}]}},
-	    {"Strip Texture",strip_texture},
+	    {"Mode",{mode,
+		     [{"Vertex Color",vertex_color,
+		       "Vertex colors will be shown"},
+		      {"Material",material,
+		       "Materials will be shown"}]},
+	     "Change object mode to vertex colors or material"},
+	    {"Strip Texture",strip_texture,
+	     "Remove a texture, converting it to vertex colors"},
 	    separator,
 	    {"Weld",weld,"Merge pair of faces that are nearly coincident",
 	     [option]}],
@@ -67,6 +71,8 @@ command({scale,Type}, St) ->
     wings_scale:setup(Type, St);
 command(invert, St) ->
     {save_state,invert_normals(St)};
+command(duplicate, St) ->
+    duplicate(none, St);
 command({duplicate,Dir}, St) ->
     duplicate(Dir, St);
 command(delete, St) ->
@@ -111,9 +117,9 @@ convert_selection(#st{sel=Sel0}=St) ->
 %%%
 
 cleanup(Ask, _) when is_atom(Ask) ->
-    Qs = [{"Short edges",true,[{key,short_edges}]},
+    Qs = [{"Short Edges",true,[{key,short_edges}]},
 	  {hframe,
-	   [{label,"Length tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]},
+	   [{label,"Length Tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]},
 	  {"Isolated Vertices",true,[{key,isolated_vs}]}],
     wings_ask:dialog(Ask,
 		     [{vframe, Qs, [{title,"Remove"}]}],
@@ -173,13 +179,17 @@ invert_normals(St) ->
 
 duplicate(Dir, #st{onext=Oid0}=St0) ->
     Copy = "copy",
-    St = wings_sel:fold(fun(_, We, St) ->
-				wings_shape:insert(We, Copy, St)
-			end, St0, St0),
+    St1 = wings_sel:fold(fun(_, We, St) ->
+				 wings_shape:insert(We, Copy, St)
+			 end, St0, St0),
     %% Select the duplicate items, not the original items.
     Zero = gb_sets:singleton(0),
-    Sel = [{Id,Zero} || Id <- seq(Oid0, St#st.onext-1)],
-    wings_move:setup(Dir, wings_sel:set(Sel, St)).
+    Sel = [{Id,Zero} || Id <- seq(Oid0, St1#st.onext-1)],
+    St = wings_sel:set(Sel, St1),
+    case Dir of
+	none -> St;
+	_ -> wings_move:setup(Dir, St)
+    end.
 
 %%%
 %%% The Delete command.

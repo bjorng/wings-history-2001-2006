@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.14 2002/11/22 09:05:35 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.15 2002/12/23 07:56:19 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -23,6 +23,7 @@ directions(#st{selmode=Mode}) ->
     end.
 
 dirs(1, Mode, Ns) -> dirs_1(Mode, Ns);
+dirs(2, _Mode, [duplicate|_]) -> {body,duplicate};
 dirs(2, _Mode, _Ns) -> ignore;
 dirs(3, _Mode, [move|_]=Ns) -> {vector,{pick,[axis],[],Ns}};
 dirs(3, _Mode, Ns) -> {vector,{pick,[axis],[],Ns}};
@@ -39,6 +40,9 @@ dirs_help([extrude_region|_]) ->
     {"Extrude along std. axis",[],"Pick axis to extrude along"};
 dirs_help([extract_region|_]) ->
     {"Extract along std. axis",[],"Pick axis to extract along"};
+dirs_help([duplicate|_]) ->
+    {"Duplicate; move along std. axis","Duplicate; don't move",
+     "Duplicate; pick axis to move along"};
 dirs_help(_) -> "".
 
 dirs_1(body, Ns) -> directions([free,x,y,z], Ns);
@@ -305,6 +309,8 @@ dir_help_1([lift|_], [normal|_]) ->
     "Lift face along its normal";
 dir_help_1([lift|_], [free|Text]) ->
     "Lift face and move it " ++ Text;
+dir_help_1([duplicate|_], [free|Text]) ->
+    "Duplicate and move freely " ++ Text;
 
 %% Axis
 dir_help_1([move|_], Text) ->
@@ -327,4 +333,6 @@ dir_help_1([flatten_move|_], Text) ->
     "Flatten and move to " ++ Text;
 dir_help_1([lift|_], Text) ->
     "Lift face along " ++ Text;
+dir_help_1([duplicate|_], Text) ->
+    "Duplicate, then move along " ++ Text;
 dir_help_1(_, _) -> "".
