@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.92 2003/02/13 09:24:09 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.93 2003/02/16 14:24:13 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -868,10 +868,10 @@ command_menu(faceg, X,Y, _Uvs) ->
 	    {"Rescale All", rescale_all, "Pack the space in lower-left before rescaling"},
 	    separator,
 	    {"ReMap UV", {remap, [{"Project Normal", project, 
-				   "Project uv's from chart normal"},
-				  {"Unfold", lsqcm, " "},
-				  {"Stretch optimization", stretch_opt, 
-				   "Optimize the chart stretch"}
+				   "Project UVs from chart normal"},
+				  {"Unfold", lsqcm, " "}
+				  %%{"Stretch optimization", stretch_opt, 
+				  %%"Optimize the chart stretch"}
 				 ]}, 
 	     "Re-calculate new uv's with choosen algorithmen"}
 	   ] ++ option_menu(),
