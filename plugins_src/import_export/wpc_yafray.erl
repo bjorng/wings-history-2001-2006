@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.94 2004/08/22 01:41:31 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.95 2004/08/22 22:58:52 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -142,6 +142,7 @@ key(Key) -> {key,?KEY(Key)}.
 %% Modulator
 -define(DEF_MOD_ENABLED, true).
 -define(DEF_MOD_MODE, mix).
+-define(DEF_MOD_SIZE, 1.0).
 -define(DEF_MOD_SIZE_X, 1.0).
 -define(DEF_MOD_SIZE_Y, 1.0).
 -define(DEF_MOD_SIZE_Z, 1.0).
@@ -993,6 +994,9 @@ bs_dispatch(Type, Op) ->
 	conetrace    -> bs_conetrace(Op);
 	gobo         -> bs_gobo(Op);
 	colorband    -> bs_colorband(Op);
+	clouds       -> bs_clouds(Op);
+	marble       -> bs_marble(Op);
+	wood         -> bs_wood(Op);
 	%% Float output block shaders
 	color2float  -> bs_color2float(Op);
 	coords       -> bs_coords(Op);
@@ -1003,8 +1007,7 @@ bs_dispatch(Type, Op) ->
 bs_menu(top, L) ->
     [{"Phong",phong}|L];
 bs_menu(color, L) ->
-    [
-     {"(color)",float2color},
+    [{"(color)",float2color},
      {"RGB",rgb},
      {"HSV",hsv},
      {"Image",image},
@@ -1012,8 +1015,10 @@ bs_menu(color, L) ->
      {"Fresnel",fresnel},
      {"ConeTr",conetrace},
      {"Gobo",gobo},
-     {"ColBand",colorband}
-     |L];
+     {"ColBand",colorband},
+     {"Clouds",clouds},
+     {"Marble",marble},
+     {"Wood",wood}|L];
 bs_menu(float, L) ->
     [{"(float)",color2float},
      {"Coords",coords},
@@ -1024,7 +1029,9 @@ bs_print_tag(_F, _Tag, undefined) -> ok;
 bs_print_tag(F, Tag, Value) ->
     print(F, "~s=\"\~s\" ", [format(Tag),Value]).
 
-
+bs_print_attr(_F, _Attr, undefined) -> ok;
+bs_print_attr(F, Attr, Value) ->
+    println(F, "        <~s value=\"\~s\"/>", [format(Attr),Value]).
 
 %%%
 %%% Block shaders
@@ -1438,6 +1445,146 @@ bs_colorband_result([Value,Color,false|Rest0]) ->
     end;
 bs_colorband_result([_Value,_Color,true|Rest]) -> % Del
     bs_colorband_result(Rest).
+
+bs_clouds(#bs_dialog{ps=Ps}=Op) ->
+    Size = proplists:get_value(size, Ps, ?DEF_MOD_SIZE),
+    Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
+    {vframe,
+     [bs_prop(Op, {input_1,Ps,?DEF_BSCOL(?DEF_MOD_COLOR1)}, 
+	      ["Input 1",[color,undefined]]),
+      bs_prop(Op, {input_2,Ps,?DEF_BSCOL(?DEF_MOD_COLOR2)}, 
+	      ["Input 2",[color,undefined]]),
+      {hframe,[{label,"Size"},{text,Size,[range(size)]},
+	       {label,"Depth"},{text,Depth,[range(noise_depth)]}]}]};
+bs_clouds(#bs_result{}=Op0) ->
+    Op1 = bs(Op0, [input_1,{color,?DEF_MOD_COLOR1}]),
+    Op2 = #bs_result{result=[Size,Depth|Rest],ps=Ps} =
+	bs(Op1, [input_2,{color,?DEF_MOD_COLOR2}]),
+    Op2#bs_result{result=Rest,ps=[{size,Size},{depth,Depth}|Ps]};
+bs_clouds(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    Size = proplists:get_value(size, Ps, ?DEF_MOD_SIZE),
+    Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
+    Op1 = #bs_export{name=Input1} = 
+	bs_prop(Op0, {input_1,Ps,?DEF_BSCOL(?DEF_MOD_COLOR1)}), 
+    Op2 = #bs_export{name=Input2} = 
+	bs_prop(Op1, {input_2,Ps,?DEF_BSCOL(?DEF_MOD_COLOR2)}), 
+    println(F, "<shader type=\"clouds\" name=\"~s\"~n"
+	    "        size=\"~.3f\" depth=\"~w\" >~n"++
+	    "    <attributes>", [Name,Size,Depth]),
+    %% Input swap to compensate for inconsistency in YafRay
+    %% shader block versus procedural texture
+    bs_print_attr(F, input2, Input1),
+    bs_print_attr(F, input1, Input2),
+    println(F, "    </attributes>~n"++
+	    "</shader>~n", []),
+    Op2#bs_export{name=Name}.
+
+bs_marble(#bs_dialog{ps=Ps}=Op) ->
+    Size = proplists:get_value(size, Ps, ?DEF_MOD_SIZE),
+    Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
+    Hard = proplists:get_value(hard, Ps, ?DEF_MOD_HARD),
+    Turbulence = proplists:get_value(turbulence, Ps, ?DEF_MOD_TURBULENCE),
+    Sharpness = proplists:get_value(sharpness, Ps, ?DEF_MOD_SHARPNESS),
+    {vframe,
+     [bs_prop(Op, {input_1,Ps,?DEF_BSCOL(?DEF_MOD_COLOR1)}, 
+	      ["Input 1",[color,undefined]]),
+      bs_prop(Op, {input_2,Ps,?DEF_BSCOL(?DEF_MOD_COLOR2)}, 
+	      ["Input 2",[color,undefined]]),
+      {hframe,[{label,"Size"},{text,Size,[range(size)]},
+	       {label,"Depth"},{text,Depth,[range(noise_depth)]},
+	       {"Hard Noise",Hard}]},
+      {hframe,[{label,"Turbulence"},{text,Turbulence,[range(turbulence)]},
+	       {label,"Sharpness"},{text,Sharpness,[range(sharpness)]}]}]};
+bs_marble(#bs_result{}=Op0) ->
+    Op1 = bs(Op0, [input_1,{color,?DEF_MOD_COLOR1}]),
+    Op2 = #bs_result{result=[Size,Depth,Hard,Turbulence,Sharpness|Rest],
+		     ps=Ps} =
+	bs(Op1, [input_2,{color,?DEF_MOD_COLOR2}]),
+    Op2#bs_result{result=Rest,
+		  ps=[{size,Size},{depth,Depth},{hard,Hard},
+		      {turbulence,Turbulence},{sharpness,Sharpness}|Ps]};
+bs_marble(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    Size = proplists:get_value(size, Ps, ?DEF_MOD_SIZE),
+    Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
+    Hard = proplists:get_value(hard, Ps, ?DEF_MOD_HARD),
+    Turbulence = proplists:get_value(turbulence, Ps, ?DEF_MOD_TURBULENCE),
+    Sharpness = proplists:get_value(sharpness, Ps, ?DEF_MOD_SHARPNESS),
+    Op1 = #bs_export{name=Input1} = 
+	bs_prop(Op0, {input_1,Ps,?DEF_BSCOL(?DEF_MOD_COLOR1)}), 
+    Op2 = #bs_export{name=Input2} = 
+	bs_prop(Op1, {input_2,Ps,?DEF_BSCOL(?DEF_MOD_COLOR2)}), 
+    println(F, "<shader type=\"marble\" name=\"~s\"~n"
+	    "        size=\"~.3f\" depth=\"~w\" hard=\"~s\"~n"
+	    "        turbulence=\"~.6f\" sharpness=\"~.6f\" >~n"
+	    "    <attributes>", 
+	    [Name,Size,Depth,format(Hard),Turbulence,Sharpness]),
+    %% Input swap to compensate for inconsistency in YafRay
+    %% shader block versus procedural texture
+    bs_print_attr(F, input2, Input1),
+    bs_print_attr(F, input1, Input2),
+    println(F, "    </attributes>~n"++
+	    "</shader>~n", []),
+    Op2#bs_export{name=Name}.
+
+bs_wood(#bs_dialog{ps=Ps}=Op) ->
+    Size = proplists:get_value(size, Ps, ?DEF_MOD_SIZE),
+    Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
+    Turbulence = proplists:get_value(turbulence, Ps, ?DEF_MOD_TURBULENCE),
+    Hard = proplists:get_value(hard, Ps, ?DEF_MOD_HARD),
+    RingscaleX = proplists:get_value(ringscale_x, Ps, ?DEF_MOD_RINGSCALE_X),
+    RingscaleZ = proplists:get_value(ringscale_z, Ps, ?DEF_MOD_RINGSCALE_Z),
+    {vframe,
+     [bs_prop(Op, {input_1,Ps,?DEF_BSCOL(?DEF_MOD_COLOR1)}, 
+	      ["Input 1",[color,undefined]]),
+      bs_prop(Op, {input_2,Ps,?DEF_BSCOL(?DEF_MOD_COLOR2)}, 
+	      ["Input 2",[color,undefined]]),
+      {hframe,[{vframe,[{label,"Size"},
+			{label,"Turbulence"},
+			{label,"Ringscale X"}]},
+	       {vframe,[{text,Size,[range(size)]},
+			{text,Turbulence,[range(turbulence)]},
+			{text,RingscaleX,[range(scale)]}]},
+	       {vframe,[{label,"Depth"},
+			{"Hard Noise",Hard},
+			{label,"Ringscale Z"}]},
+	       {vframe,[{text,Depth,[range(noise_depth)]},
+			panel,
+			{text,RingscaleZ,[range(scale)]}]}]}]};
+bs_wood(#bs_result{}=Op0) ->
+    Op1 = bs(Op0, [input_1,{color,?DEF_MOD_COLOR1}]),
+    Op2 = #bs_result{result=[Size,Turbulence,RingscaleX,
+			     Hard,Depth,RingscaleZ|Rest],
+		     ps=Ps} =
+	bs(Op1, [input_2,{color,?DEF_MOD_COLOR2}]),
+    Op2#bs_result{result=Rest,
+		  ps=[{size,Size},{depth,Depth},
+		      {turbulence,Turbulence},{hard,Hard},
+		      {ringscale_x,RingscaleX},{ringscale_z,RingscaleZ}|Ps]};
+bs_wood(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    Size = proplists:get_value(size, Ps, ?DEF_MOD_SIZE),
+    Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
+    Turbulence = proplists:get_value(turbulence, Ps, ?DEF_MOD_TURBULENCE),
+    Hard = proplists:get_value(hard, Ps, ?DEF_MOD_HARD),
+    RingscaleX = proplists:get_value(ringscale_x, Ps, ?DEF_MOD_RINGSCALE_X),
+    RingscaleZ = proplists:get_value(ringscale_z, Ps, ?DEF_MOD_RINGSCALE_Z),
+    Op1 = #bs_export{name=Input1} = 
+	bs_prop(Op0, {input_1,Ps,?DEF_BSCOL(?DEF_MOD_COLOR1)}), 
+    Op2 = #bs_export{name=Input2} = 
+	bs_prop(Op1, {input_2,Ps,?DEF_BSCOL(?DEF_MOD_COLOR2)}), 
+    %% Coordinate rotation see export_pos/3
+    println(F, "<shader type=\"wood\" name=\"~s\"~n"
+	    "        size=\"~.3f\" depth=\"~w\"~n"
+	    "        turbulence=\"~.6f\"  hard=\"~s\"~n"
+	    "        ringscale_x=\"~.6f\" ringscale_y=\"~.6f\">~n"
+	    "    <attributes>", 
+	    [Name,Size,Depth,Turbulence,format(Hard),RingscaleZ,RingscaleX]),
+    %% Input swap to compensate for inconsistency in YafRay
+    %% shader block versus procedural texture
+    bs_print_attr(F, input2, Input1),
+    bs_print_attr(F, input1, Input2),
+    println(F, "    </attributes>~n"++
+	    "</shader>~n", []),
+    Op2#bs_export{name=Name}.
 
 %% Float output block shaders
 %%
@@ -2469,7 +2616,7 @@ export_texture(F, Name, Type, Ps) ->
 	    %% Coordinate rotation, see export_pos/3.
 	    println(F, "    <ringscale_x value=\"~.6f\"/>~n"++
 		    "    <ringscale_y value=\"~.6f\"/>",
-		    [RingscaleX,RingscaleZ]);
+		    [RingscaleZ,RingscaleX]);
 	clouds ->
 	    ok
     end,
