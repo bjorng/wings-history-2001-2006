@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.131 2004/03/01 06:47:50 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.132 2004/04/06 08:34:14 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -87,19 +87,7 @@ resize() ->
     #io{raw_icons=RawIcons} = Io = get_state(),
     Tex = load_textures(RawIcons),
     put_state(Io#io{tex=Tex}),
-    make_font_dlists().
-
-make_font_dlists() ->
-    Base = gl:genLists(256),
-    make_font_dlists(0, Base),
-    gl:listBase(Base).
-
-make_font_dlists(256, _) -> ok;
-make_font_dlists(C, Base) ->
-    gl:newList(Base+C, ?GL_COMPILE),
-    catch wings_text:char(C),
-    gl:endList(),
-    make_font_dlists(C+1, Base).
+    wings_text:resize().
 
 info(Info) ->
     ortho_setup(),
@@ -286,7 +274,7 @@ text([{bold,Str}|Cs], X0, Y, Acc) ->
 text([{ul,Str}|Cs], X0, Y, Acc) ->
     X1 = X0 + wings_text:width(Acc),
     draw_reverse(Acc),
-    draw_text(Str),
+    wings_text:draw(Str),
     W = wings_text:width(Str),
     X = X1 + W,
     LineY = Y+2,
@@ -325,13 +313,7 @@ setup_scissor(DrawText) ->
 draw_reverse([]) -> ok;
 draw_reverse(S0) ->
     S = reverse(S0),
-    draw_text(S).
-
-draw_text(S) ->
-    case wings_pref:get_value(text_display_lists, false) of
-	true -> gl:callLists(length(S), ?GL_UNSIGNED_BYTE, S);
-	false -> wings_text:draw(S)
-    end.
+    wings_text:draw(S).
 
 ortho_setup() ->
     gl:color3b(0, 0, 0),

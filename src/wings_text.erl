@@ -8,15 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.22 2004/03/01 06:47:50 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.23 2004/04/06 08:34:14 bjorng Exp $
 %%
 
 -module(wings_text).
--export([init/0,width/0,width/1,height/0,draw/1,char/1,bold/1]).
+-export([init/0,resize/0,width/0,width/1,height/0,draw/1,char/1,bold/1]).
 -export([break_lines/2]).
 -export([font_module/1,choose_font/0,fonts/0]).
 
 -define(NEED_ESDL, 1).
+-define(NEED_OPENGL, 1).
 -include("wings.hrl").
 -compile({parse_transform,ms_transform}).
 
@@ -25,6 +26,18 @@
 init() ->
     ets:new(wings_fonts, [named_table,ordered_set]),
     wings_pref:set_default(system_font, wpf_7x14).
+
+resize() ->
+    Base = gl:genLists(256),
+    make_font_dlists(0, Base),
+    gl:listBase(Base).
+
+make_font_dlists(256, _) -> ok;
+make_font_dlists(C, Base) ->
+    gl:newList(Base+C, ?GL_COMPILE),
+    catch char(C),
+    gl:endList(),
+    make_font_dlists(C+1, Base).
 
 font_module(Mod) ->
     Desc = Mod:desc(),
@@ -45,7 +58,10 @@ width() -> (get(?MODULE)):width().
 height() -> (get(?MODULE)):height().
 
 draw(S) ->
-    (get(?MODULE)):draw(S).
+    case wings_pref:get_value(text_display_lists, false) of
+	true -> gl:callLists(length(S), ?GL_UNSIGNED_BYTE, S);
+	false -> (get(?MODULE)):draw(S)
+    end.
 
 char(C) ->
     (get(?MODULE)):char(C).
