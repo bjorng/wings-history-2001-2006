@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.57 2002/02/11 12:26:28 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.58 2002/02/12 10:38:40 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -219,19 +219,18 @@ draw_faces(We, true, #st{mat=Mtab}) ->
     draw_smooth_faces(Mtab, We);
 draw_faces(#we{fs=Ftab}=We, false, St) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
-    gl:'begin'(?GL_TRIANGLES),
-    foreach(fun({Face,#face{edge=Edge}}) ->
-		    wings_draw_util:face(Face, Edge, We)
-	    end, gb_trees:to_list(Ftab)),
-    gl:'end'().
+    wings_draw_util:begin_end(
+      fun() ->
+	      foreach(fun({Face,#face{edge=Edge}}) ->
+			      wings_draw_util:face(Face, Edge, We)
+		      end, gb_trees:to_list(Ftab))
+      end).
 
 draw_smooth_faces(Mtab, #we{mode=vertex}=We) ->
     Faces = wings_we:normals(We),
     gl:enable(?GL_COLOR_MATERIAL),
     gl:colorMaterial(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE),
-    gl:'begin'(?GL_TRIANGLES),
-    draw_smooth_vcolor(Faces),
-    gl:'end'(),
+    wings_draw_util:begin_end(fun() -> draw_smooth_vcolor(Faces) end),
     gl:disable(?GL_COLOR_MATERIAL);
 draw_smooth_faces(Mtab, We) ->
     Faces0 = wings_we:normals(We),
@@ -243,15 +242,12 @@ draw_smooth_faces(Mtab, We) ->
 draw_smooth_1([{Mat,Faces}|T], Mtab) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     wings_material:apply_material(Mat, Mtab),
-    gl:'begin'(?GL_TRIANGLES),
-    draw_smooth_2(Faces),
-    gl:'end'(),
+    wings_draw_util:begin_end(fun() -> draw_smooth_2(Faces) end),
     gl:popAttrib(),
     draw_smooth_1(T, Mtab);
 draw_smooth_1([], Mtab) -> ok.
 
-draw_smooth_2([[_,_,_,_|_]=Vs|Fs]) ->
-    %% This face needs tesselation.
+draw_smooth_2([Vs|Fs]) ->
     Tess = wings_draw_util:tess(),
     glu:tessNormal(Tess, 0, 0, 0),
     glu:tessBeginPolygon(Tess),
@@ -262,20 +258,10 @@ draw_smooth_2([[_,_,_,_|_]=Vs|Fs]) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess),
     draw_smooth_2(Fs);
-draw_smooth_2([Vs|Fs]) ->
-    foreach(fun({P,{{U,V},N}}) ->
-		    gl:texCoord2f(U, V),
- 		    gl:normal3fv(N),
- 		    gl:vertex3fv(P);
-	       ({P,{Diff,N}}) ->
- 		    gl:normal3fv(N),
- 		    gl:vertex3fv(P)
- 	    end, Vs),
-    draw_smooth_2(Fs);
 draw_smooth_2([]) -> ok.
 
 %% Smooth drawing for vertex colors.
-draw_smooth_vcolor([{_,[_,_,_,_|_]=Vs}|T]) ->
+draw_smooth_vcolor([{_,Vs}|T]) ->
     Tess = wings_draw_util:tess(),
     glu:tessNormal(Tess, 0, 0, 0),
     glu:tessBeginPolygon(Tess),
@@ -287,16 +273,6 @@ draw_smooth_vcolor([{_,[_,_,_,_|_]=Vs}|T]) ->
 	    end, Vs),
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess),
-    draw_smooth_vcolor(T);
-draw_smooth_vcolor([{_,[_,_,_]=Vs}|T]) ->
-    foreach(fun({P,{{R,G,B}=Diff,N}}) ->
- 		    gl:normal3fv(N),
-		    gl:color3f(R, G, B),
- 		    gl:vertex3fv(P)
- 	    end, Vs),
-    draw_smooth_vcolor(T);
-draw_smooth_vcolor([_|T]) ->
-    %% Degenerate face.
     draw_smooth_vcolor(T);
 draw_smooth_vcolor([]) -> ok.
 
@@ -334,13 +310,14 @@ draw_selection(Smooth, #st{selmode=body}=St) ->
       end, St);
 draw_selection(Smooth, #st{selmode=face}=St) ->
     sel_color(),
-    gl:'begin'(?GL_TRIANGLES),
-    wings_sel:foreach(
-      fun(Face, #we{fs=Ftab}=We) ->
-	      #face{edge=Edge} = gb_trees:get(Face, Ftab),
-	      wings_draw_util:face(Face, Edge, We)
-      end, St),
-    gl:'end'();
+    wings_draw_util:begin_end(
+      fun() ->
+	      wings_sel:foreach(
+		fun(Face, #we{fs=Ftab}=We) ->
+			#face{edge=Edge} = gb_trees:get(Face, Ftab),
+			wings_draw_util:face(Face, Edge, We)
+		end, St)
+      end);
 draw_selection(Smooth, #st{selmode=edge}=St) ->
     sel_color(),
     gl:'begin'(?GL_LINES),

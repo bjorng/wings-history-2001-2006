@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.56 2002/02/11 21:50:57 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.57 2002/02/12 10:38:40 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -30,7 +30,7 @@
 -record(drag,
 	{x,					%Original 2D position
 	 y,					
-	 xs=0,                                  %Summery of mouse movements
+	 xs=0,                                  %Summary of mouse movements
 	 ys=0,
 	 xt=0,                                  %Last warp length
 	 yt=0,
@@ -626,18 +626,20 @@ make_dlist_1([], Fs, Draw) -> ok.
 draw_faces(#we{perm=Perm}=We) when ?IS_NOT_VISIBLE(Perm) -> ok;
 draw_faces(#we{fs=Ftab}=We) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
-    gl:'begin'(?GL_TRIANGLES),
-    foreach(fun({Face,#face{edge=Edge}}) ->
-		    wings_draw_util:face(Face, Edge, We)
-	    end, gb_trees:to_list(Ftab)),
-    gl:'end'().
+    wings_draw_util:begin_end(
+      fun() ->
+	      foreach(fun({Face,#face{edge=Edge}}) ->
+			      wings_draw_util:face(Face, Edge, We)
+		      end, gb_trees:to_list(Ftab))
+      end).
 
 draw_flat_faces(#we{first_id=Flist}=We) ->
-    gl:'begin'(?GL_TRIANGLES),
-    foreach(fun({Face,#face{edge=Edge}}) ->
-		    wings_draw_util:flat_face(Face, Edge, We)
-	    end, Flist),
-    gl:'end'().
+    wings_draw_util:begin_end(
+      fun() ->
+	      foreach(fun({Face,#face{edge=Edge}}) ->
+			      wings_draw_util:flat_face(Face, Edge, We)
+		      end, Flist)
+      end).
 
 %%
 %% Draw the currently selected items.
@@ -668,11 +670,12 @@ draw_sel(edge, Edges, #we{es=Etab,vs=Vtab}) ->
 	    end, Edges),
     gl:'end'();
 draw_sel(face, Faces, We) ->
-    gl:'begin'(?GL_TRIANGLES),
-    foreach(fun(Face) ->
-		    wings_draw_util:sel_face(Face, We)
-	    end, Faces),
-    gl:'end'();
+    wings_draw_util:begin_end(
+      fun() ->
+	      foreach(fun(Face) ->
+			      wings_draw_util:sel_face(Face, We)
+		      end, Faces)
+      end);
 draw_sel(body, Dummy, #we{fs=Ftab}=We) ->
     draw_sel(face, gb_trees:keys(Ftab), We).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.32 2002/02/12 09:04:23 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.33 2002/02/12 10:38:40 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -143,16 +143,15 @@ hilit_draw_sel(edge, Edge, #we{es=Etab,vs=Vtab}) ->
     gl:'end'();
 hilit_draw_sel(face, Face, We) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    gl:'begin'(?GL_TRIANGLES),
-    wings_draw_util:sel_face(Face, We),
-    gl:'end'();
+    wings_draw_util:begin_end(fun() -> wings_draw_util:sel_face(Face, We) end);
 hilit_draw_sel(body, _, #we{fs=Ftab}=We) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    gl:'begin'(?GL_TRIANGLES),
-    foreach(fun({Face,#face{edge=Edge}}) ->
-		    wings_draw_util:face(Face, Edge, We)
-	    end, gb_trees:to_list(Ftab)),
-    gl:'end'().
+    wings_draw_util:begin_end(
+      fun() ->
+	      foreach(fun({Face,#face{edge=Edge}}) ->
+			      wings_draw_util:face(Face, Edge, We)
+		      end, gb_trees:to_list(Ftab))
+      end).
 
 %%
 %% Marque picking.
@@ -634,26 +633,18 @@ foreach_we_1(F, Iter0) ->
     end.
 
 draw_face(Face, Edge, We) ->
-    case wings_face:draw_info(Face, Edge, We) of
-	[_,_,_,_|_]=Vs ->
-	    {X,Y,Z} = N = wings_face:draw_normal(Vs),
-	    Tess = wings_draw_util:tess(),
-	    gl:'begin'(?GL_TRIANGLES),
-	    glu:tessNormal(Tess, X, Y, Z),
-	    glu:tessBeginPolygon(Tess),
-	    glu:tessBeginContour(Tess),
-	    foreach(fun({Pos,Col}) ->
-			    glu:tessVertex(Tess, Pos)
-		    end, Vs),
-	    glu:tessEndContour(Tess),
-	    glu:tessEndPolygon(Tess),
-	    gl:edgeFlag(?GL_TRUE),
-	    gl:'end'();
-	[{A,_},{B,_},{C,_}] ->
-	    gl:'begin'(?GL_TRIANGLES),
-	    gl:vertex3fv(A),
-	    gl:vertex3fv(B),
-	    gl:vertex3fv(C),
-	    gl:'end'();
-	Vs -> ok
-    end.
+    Vs = wings_face:draw_info(Face, Edge, We),
+    {X,Y,Z} = N = wings_face:draw_normal(Vs),
+    Tess = wings_draw_util:tess(),
+    gl:'begin'(?GL_TRIANGLES),
+    glu:tessNormal(Tess, X, Y, Z),
+    glu:tessBeginPolygon(Tess),
+    glu:tessBeginContour(Tess),
+    foreach(fun({Pos,Col}) ->
+		    glu:tessVertex(Tess, Pos)
+	    end, Vs),
+    glu:tessEndContour(Tess),
+    glu:tessEndPolygon(Tess),
+    gl:'end'(),
+    gl:edgeFlag(?GL_TRUE).
+

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.30 2002/02/11 20:07:07 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.31 2002/02/12 10:38:40 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -99,6 +99,8 @@ command(other_prefs, St) ->
 	   {"Vector Display Width",active_vector_width},
 	   {"Vector Display Color",active_vector_color},
 	   separator,
+	   {"Display List Optimisation",display_list_opt},
+	   separator,
 	   {"Advanced Menus",advanced_menus}],
     Qs = make_query(Qs0),
     wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
@@ -109,6 +111,8 @@ command({set,List}, St) ->
 			background_color ->
 			    {R,G,B} = Val,
 			    gl:clearColor(R, G, B, 1.0);
+			display_list_opt ->
+			    wings_draw_util:init();
 			Other -> ok
 		    end
 	    end, List),
@@ -237,6 +241,8 @@ presets() ->
      {"Vector Display Size",active_vector_size,1.0},
      {"Vector Display Width",active_vector_width,2.0},
      {"Vector Display Color",active_vector_color,{0.0,0.0,0.65}},
+     separator,
+     {"Display List Optimisation",display_list_opt,false},
      separator,
      {"Advanced Menus",advanced_menus,false}
     ].
