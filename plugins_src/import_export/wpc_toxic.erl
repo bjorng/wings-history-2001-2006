@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.13 2004/06/17 19:31:30 dgud Exp $
+%%     $Id: wpc_toxic.erl,v 1.14 2004/07/01 08:22:56 dgud Exp $
 %%
 
 -module(wpc_toxic).
@@ -1376,15 +1376,18 @@ format_decimals_4(F) when is_float(F) ->
 
 %% Set and get preference variables saved in the .wings file for this module
 
-set_pref(Attr) ->
+set_pref(Attr) ->  % Both in scene and ~/.wings file
+    wpa:scene_pref_set(?MODULE, Attr),
     wpa:pref_set(?MODULE, Attr).
 get_pref(Key, Def) ->
-    case wpa:pref_get(?MODULE, {?TAG,Key}) of
-	undefined ->
-	    wpa:pref_get(?MODULE, Key, Def);
-	Else ->
-	    Else
-    end.
+    Wings = case wpa:pref_get(?MODULE, {?TAG,Key}) of
+		undefined ->
+		    wpa:pref_get(?MODULE, Key, Def);
+		Else ->
+		    Else
+	    end,
+    wpa:scene_pref_get(?MODULE, {?TAG,Key}, Wings).
+
 pget(Key,Attr) ->
     proplists:get_value({?TAG,Key}, Attr).
 pget(Key,Attr,Def) ->
