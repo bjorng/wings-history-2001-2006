@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.53 2004/04/22 04:39:01 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.54 2004/04/25 05:49:18 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -217,7 +217,7 @@ refresh_dlists({toggle_lights,_}, _) -> ok;
 refresh_dlists(_, St) -> wings_draw:refresh_dlists(St).
 
 select_cmd(deselect, #tweak{st=St0}=T) ->
-    St = St0#st{sh=true},
+    St = wings_sel:reset(St0),
     update_tweak_handler(T#tweak{st=St});
 select_cmd(less, T) ->
     update_tweak_handler(magnet_radius(-1, T));
