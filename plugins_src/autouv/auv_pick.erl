@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.10 2003/09/15 05:59:01 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.11 2003/09/15 15:19:10 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -192,7 +192,7 @@ marquee_event(redraw, #marquee{cx=Cx,cy=Cy,st=St}=M) ->
     draw_marquee(Cx, Cy, M),
     keep;
 marquee_event(init_opengl, #marquee{st=St}) ->
-    wpc_autouv:init_opengl(St);
+    wings:init_opengl(St);
 marquee_event(#mousemotion{x=X,y=Y}, #marquee{cx=Cx,cy=Cy}=M) ->
     wings_io:ortho_setup(),
     draw_marquee(Cx, Cy, M),
