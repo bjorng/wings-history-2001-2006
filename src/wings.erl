@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.278 2003/10/30 14:42:55 bjorng Exp $
+%%     $Id: wings.erl,v 1.279 2003/10/30 15:15:16 bjorng Exp $
 %%
 
 -module(wings).
@@ -448,6 +448,8 @@ command_response({init,_,_}=Init, _, _) ->
     Init;
 command_response({seq,_,_}=Seq, _, _) ->
     Seq;
+command_response({replace,_}=Replace, _, _) ->
+    Replace;
 command_response({replace,_,_}=Replace, _, _) ->
     Replace;
 command_response(keep, _, _) ->

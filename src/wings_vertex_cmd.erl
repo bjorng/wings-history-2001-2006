@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.42 2003/10/19 18:43:25 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.43 2003/10/30 15:15:16 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -49,7 +49,7 @@ menu(X, Y, St) ->
 
 %% Vertex menu.
 command({flatten,Plane}, St) ->
-    {save_state,flatten(Plane, St)};
+    flatten(Plane, St);
 command(connect, St) ->
     {save_state,connect(St)};
 command(tighten, St) ->
@@ -83,6 +83,8 @@ command(vertex_color, St) ->
 %%% The Flatten command.
 %%%
 
+flatten({'ASK',Ask}, St) ->
+    wings:ask(Ask, St, fun flatten/2);
 flatten({Plane,Center}, St) ->
     flatten(Plane, Center, St);
 flatten(Plane, St) ->
@@ -90,16 +92,18 @@ flatten(Plane, St) ->
 
 flatten(Plane0, average, St) ->
     Plane = wings_util:make_vector(Plane0),
-    wings_sel:map(
-      fun(Vs, We) ->
-	      wings_vertex:flatten(Vs, Plane, We)
-      end, St);
+    {save_state,
+     wings_sel:map(
+       fun(Vs, We) ->
+	       wings_vertex:flatten(Vs, Plane, We)
+       end, St)};
 flatten(Plane0, Center, St) ->
     Plane = wings_util:make_vector(Plane0),
-    wings_sel:map(
-      fun(Vs, We) ->
-	      wings_vertex:flatten(Vs, Plane, Center, We)
-      end, St).
+    {save_state,
+     wings_sel:map(
+       fun(Vs, We) ->
+	       wings_vertex:flatten(Vs, Plane, Center, We)
+       end, St)}.
     
 %%%
 %%% The Extrude command.
