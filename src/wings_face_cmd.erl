@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.43 2002/03/17 16:57:24 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.44 2002/04/02 15:55:27 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -332,11 +332,12 @@ mirror(St0) ->
     St = wings_sel:map(fun mirror_faces/2, St0),
     wings_sel:clear(St).
 
-mirror_faces(Faces, We0) ->
+mirror_faces(Faces, #we{mode=Mode}=We0) ->
     OrigWe = wings_we:invert_normals(We0),
-    gb_sets:fold(fun(Face, WeAcc) ->
-			 mirror_face(Face, OrigWe, WeAcc)
-		 end, We0, Faces).
+    We = foldl(fun(Face, WeAcc) ->
+		       mirror_face(Face, OrigWe, WeAcc)
+	       end, We0, gb_sets:to_list(Faces)),
+    We#we{mode=Mode}.
 
 mirror_face(Face, #we{fs=Ftab}=OrigWe, #we{next_id=Id}=We0) ->
     #face{edge=AnEdge} = gb_trees:get(Face, Ftab),
