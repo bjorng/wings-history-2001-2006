@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.36 2003/06/02 19:39:38 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.37 2003/06/08 08:56:05 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -17,7 +17,9 @@
 	 from_edges/2,
 	 other/2,vertices/2,
 	 to_vertices/2,
-	 normal/2,face_normal/2,good_normal/2,
+	 normal/2,normal/3,
+	 face_normal_cw/2,face_normal_ccw/2,
+	 good_normal/2,
 	 center/2,
 	 vinfo_cw/2,vinfo_cw/3,
 	 vinfo_ccw/2,vinfo_ccw/3,
@@ -155,18 +157,34 @@ normal(Face, #we{vp=Vtab}=We) ->
 		end, [], Face, We),
     e3d_vec:normal(Vpos).
 
-%% Return the normal for a face, with the face given explicitly
-%% as its vertices.
+normal(Face, Edge, We) ->
+    face_normal_cw(vertices_cw(Face, Edge, We), We).
 
-face_normal(Vs, #we{vp=Vtab}) ->
-    face_normal(Vs, Vtab, []);
-face_normal(Vs, Vtab) ->
-    face_normal(Vs, Vtab, []).
+%% face_normal_cw(Vertices, WeOrVtab) -> Normal
+%%  Returns the normal for face consisting of Vertices, listed
+%%  in clock-wise order. (Slightly more efficient than face_normal_ccw/2.)
+face_normal_cw(Vs, #we{vp=Vtab}) ->
+    face_normal_cw(Vs, Vtab, []);
+face_normal_cw(Vs, Vtab) ->
+    face_normal_cw(Vs, Vtab, []).
 
-face_normal([V|Vs], Vtab, Acc) ->
-    Pos = gb_trees:get(V, Vtab),
-    face_normal(Vs, Vtab, [Pos|Acc]);
-face_normal([], _Vtab, Acc) -> e3d_vec:normal(reverse(Acc)).
+face_normal_cw([V|Vs], Vtab, Acc) ->
+    face_normal_cw(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+face_normal_cw([], _Vtab, Acc) ->
+    e3d_vec:normal(Acc).
+
+%% face_normal_ccw(Vertices, WeOrVtab) -> Normal
+%%  Returns the normal for face consisting of Vertices, listed
+%%  in counter-clock order.
+face_normal_ccw(Vs, #we{vp=Vtab}) ->
+    face_normal_ccw(Vs, Vtab, []);
+face_normal_ccw(Vs, Vtab) ->
+    face_normal_ccw(Vs, Vtab, []).
+
+face_normal_ccw([V|Vs], Vtab, Acc) ->
+    face_normal_ccw(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+face_normal_ccw([], _Vtab, Acc) ->
+    e3d_vec:normal(reverse(Acc)).
 
 %% Tests if the face has a good normal.
 good_normal(Face, #we{vp=Vtab}=We) ->
