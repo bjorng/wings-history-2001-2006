@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.301 2004/04/30 06:11:53 bjorng Exp $
+%%     $Id: wings.erl,v 1.302 2004/05/06 05:13:51 bjorng Exp $
 %%
 
 -module(wings).
@@ -589,6 +589,12 @@ command({window,object}, St) ->
 command({window,console}, _St) ->
     wings_console:window(),
     keep;
+command({window,console}, _St) ->
+    wings_console:window(),
+    keep;
+command({window,uv_editor_window}, St) ->
+    wpc_autouv:window(St),
+    keep;
 
 %% Body menu.
 command({body,Cmd}, St) ->
@@ -732,11 +738,17 @@ window_menu(_) ->
 	       {_,{geom,N}} ->
 		   "Geometry Graph #" ++ integer_to_list(N)
 	   end,
-    [{"Outliner",outliner,[]},
-     {Name,object,[]},
+    [{"Outliner",outliner,
+      "Open the outliner window (showing materials and objects)"},
+     {Name,object,
+      "Open a Geometry Graph window (showing objects)"},
      separator,
-     {"New Geometry Window",geom_viewer},
-     {"Console",console}].
+     {"New Geometry Window",geom_viewer,
+      "Open a new Geometry window"},
+     {"Console",console,"Open a console window for information messages"},
+     separator,
+     {"UV Editor Window",uv_editor_window,
+      "Open a UV Editor window for each selected object"}].
 
 patches() ->
     case wings_start:get_patches() of

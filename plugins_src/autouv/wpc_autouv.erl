@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.228 2004/05/04 06:21:48 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.229 2004/05/06 05:13:52 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -19,7 +19,7 @@
 -include("e3d_image.hrl").
 -include("auv.hrl").
  
--export([init/0,menu/2,command/2,redraw/1]).
+-export([init/0,menu/2,command/2,redraw/1,window/1]).
 
 -import(lists, [sort/1,map/2,foldl/3,reverse/1,
 		append/1,delete/2,usort/1,max/1,min/1,
@@ -49,6 +49,9 @@ command({body,?MODULE}, St) ->
     ?DBG("Start shapes ~p~n",[gb_trees:keys(St#st.shapes)]), 
     start_uvmap(St);
 command(_, _) -> next.
+
+window(St) ->
+    start_uvmap(St).
 
 start_uvmap(#st{sel=Sel}=St) ->
     start_uvmap_1(Sel, St).
@@ -468,9 +471,8 @@ handle_event_1({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
     {GeomSt,MatName} = add_material(Tx, undefined, MatName0, GeomSt0),
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}});
-handle_event_1({action, {auv, {remap, Method}}}, St0) ->
-    St1 = wpa:sel_map(fun(_, We) -> remap(Method, We, St0) end, St0),
-    St  = update_selected_uvcoords(St1),
+handle_event_1({action,{auv,{remap,Method}}}, St0) ->
+    St = remap(Method, St0),
     get_event(St);
 
 %% Others
@@ -769,8 +771,20 @@ flip(Flip, We) ->
     T = e3d_mat:mul(e3d_mat:translate(Center), T1),
     wings_we:transform_vs(T, We).
 
+
+remap(Method, #st{sel=Sel}=St0) ->
+    wings_pb:start("remapping"),
+    wings_pb:update(0.001),
+    N = length(Sel),
+    {St,_} = wings_sel:mapfold(fun(_, We, I) ->
+				       Msg = "chart " ++ integer_to_list(I),
+				       wings_pb:update(I/N, Msg),
+				       {remap(Method, We, St0),I+1}
+			       end, 1, St0),
+    wings_pb:done(update_selected_uvcoords(St)).
+
 remap(stretch_opt, We, St) ->
-    Vs3d = orig_pos(We,St),
+    Vs3d = orig_pos(We, St),
     ?SLOW(auv_mapping:stretch_opt(We, Vs3d));
 remap(Type, #we{name=Ch}=We0, St) ->
     [Lower,Upper] = wings_vertex:bounding_box(We0),
