@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings2.nsi,v 1.2 2002/08/14 06:15:21 bjorng Exp $
+#     $Id: wings2.nsi,v 1.3 2002/08/14 18:34:15 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -51,7 +51,7 @@ FunctionEnd
 
 Section "ThisNameIsIgnoredSoWhyBother?"
   SetOutPath "$INSTDIR"
-  File /r AUTHORS license.terms
+  File /r AUTHORS license.terms vsn.mk
   SetOutPath "$INSTDIR\plugins"
   File /r plugins\*.*
   SetOutPath "$INSTDIR\ebin"
@@ -89,11 +89,14 @@ Section "ThisNameIsIgnoredSoWhyBother?"
 
   CreateDirectory "$3\Wings 3D"
   GetFullPathName /short $1 $INSTDIR
-  ClearErrors
-  CreateShortCut "$3\Wings 3D\Wings 3D.lnk" "$INSTDIR\erlang\bin\werl.exe" \
+  CreateShortCut "$DESKTOP\Wings 3D.lnk" "$INSTDIR\erlang\bin\werl.exe" \
     "-regkey Wings3D -pa $1\ebin -run wings_start start_halt"  "$INSTDIR\ebin\wings.icon" \
     0 SW_SHOWMINIMIZED
-  CreateShortCut "$DESKTOP\Wings 3D.lnk" "$INSTDIR\erlang\bin\werl.exe" \
+  CreateShortCut "$INSTDIR\Wings 3D.lnk" "$INSTDIR\erlang\bin\werl.exe" \
+    "-regkey Wings3D -pa $1\ebin -run wings_start start_halt"  "$INSTDIR\ebin\wings.icon" \
+    0 SW_SHOWMINIMIZED
+  ClearErrors
+  CreateShortCut "$3\Wings 3D\Wings 3D.lnk" "$INSTDIR\erlang\bin\werl.exe" \
     "-regkey Wings3D -pa $1\ebin -run wings_start start_halt"  "$INSTDIR\ebin\wings.icon" \
     0 SW_SHOWMINIMIZED
   IfErrors "" shortcut_created
@@ -121,7 +124,7 @@ shortcut_created:
 
   ; Write batch file to start Wings
   FileOpen $4 "$INSTDIR\wings_start.bat" w
-  FileWrite $4 '@start /min $0\bin\werl.exe -pa $1\ebin -run wings_start start_halt %1'
+  FileWrite $4 '@start /min "$INSTDIR\erlang\bin\werl.exe" -regkey Wings3D -pa $1\ebin -run wings_start start_halt %1'
   FileClose $4
   
 SectionEnd ; end of default section
