@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.74 2002/04/24 08:46:01 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.75 2002/05/03 12:03:04 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -69,7 +69,7 @@ init_1(Tvs0, Drag0, #st{selmode=Mode,sel=Sel0}=St0) ->
     wings_draw:make_vec_dlist(St),
     case combine(Tvs0) of
 	{matrix,Tv}=Tvs ->
-	    Faces = [{Id,matrix} || {Id,Trans,Matrix} <- Tv],
+	    Faces = [{Id,matrix} || {Id,_Trans,_Matrix} <- Tv],
 	    Drag = Drag0#drag{sel={Mode,[]},tvs=Tvs,st=St},
 	    static_display_list(Faces, St),
 	    wings_io:grab(),
@@ -402,7 +402,7 @@ constrain(Dx0, _Dy, #drag{unit=[angle|_]}=Drag) ->
 		 trunc(15*Dx0)/15;
 	     Mod when Mod band ?SHIFT_BITS =/= 0 ->
 		 float(trunc(Dx0));
-	     Mod -> Dx0
+	     _Mod -> Dx0
 	 end,
     [15*Dx|maybe_falloff(Drag)];
 constrain(Dx0, Dy0, #drag{unit=Unit}=Drag) ->
@@ -416,7 +416,7 @@ constrain(Dx0, Dy0, #drag{unit=Unit}=Drag) ->
 		      {trunc(D*Dx0)/D,trunc(D*Dy0)/D};
 		  Mod when Mod band ?SHIFT_BITS =/= 0 ->
 		      {float(trunc(Dx0)),float(trunc(Dy0))};
-		  Mod -> {Dx0,Dy0}
+		  _Mod -> {Dx0,Dy0}
 	      end,
     constrain_1(Unit, Dx, Dy, Drag).
 

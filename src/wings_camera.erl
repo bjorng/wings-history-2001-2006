@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.28 2002/04/23 12:34:33 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.29 2002/05/03 12:03:04 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -95,7 +95,7 @@ blender(#mousebutton{button=1,state=?SDL_PRESSED}=Mb, Redraw) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?ALT_BITS =/= 0 ->
 	    blender(Mb#mousebutton{button=2}, Redraw);
-	Mod -> next
+	_Mod -> next
     end;
 blender(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
@@ -136,13 +136,13 @@ nendo(#mousebutton{button=3,state=?SDL_PRESSED}, _Redraw) ->
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
 	    %% Make sure that no menu pop ups.
 	    keep;
-	Mod -> next
+	_Mod -> next
     end;
 nendo(#mousebutton{button=3,state=?SDL_RELEASED}=Mb, Redraw) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
 	    nendo(Mb#mousebutton{button=2}, Redraw);
-	Mod -> next
+	_Mod -> next
     end;
 nendo(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
@@ -248,7 +248,7 @@ maya(#mousebutton{x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
 	    wings_io:clear_message(),
 	    wings_io:message(help()),
 	    {seq,{push,dummy},get_maya_event(Camera, Redraw)};
-	Mod -> next
+	_Mod -> next
     end;
 maya(_, _) -> next.
 

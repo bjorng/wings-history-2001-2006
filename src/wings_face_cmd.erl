@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.47 2002/04/26 13:09:35 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.48 2002/05/03 12:03:04 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -644,7 +644,7 @@ bridge(FaceA, FaceB, #we{vs=Vtab}=We) ->
 	    case e3d_vec:dot(An, Bn) of
 		Dot when Dot > 0.99 ->
 		    bridge_error("Faces must not point in the same direction.");
-		Dot ->
+		_Dot ->
 		    case are_neighbors(FaceA, FaceB, We) of
 			true ->
 			    bridge_error("Faces must not be neighbors.");

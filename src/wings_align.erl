@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_align.erl,v 1.14 2002/04/26 13:08:05 bjorng Exp $
+%%     $Id: wings_align.erl,v 1.15 2002/05/03 12:03:04 bjorng Exp $
 %%
 
 -module(wings_align).
@@ -99,7 +99,7 @@ make_scales(Ta, Tb) ->
 make_scales(I, Ta, Tb) when I > size(Ta); I > size(Tb) -> [];
 make_scales(I, Ta, Tb) ->
     S = case {element(I, Ta),element(I, Tb)} of
-	    {A,0.0} -> none;
+	    {_,0.0} -> none;
 	    {A,B} ->
 		case catch A / B of		%catch if B is very small
 		    {'EXIT',_} -> none;
