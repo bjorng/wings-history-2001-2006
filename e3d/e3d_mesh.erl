@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.21 2002/06/16 18:04:08 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.22 2002/06/29 19:21:15 bjorng Exp $
 %%
 
 -module(e3d_mesh).
--export([clean/1,transform/1,transform/2,triangulate/1,quadrangulate/1,
+-export([clean_faces/1,orient_normals/1,transform/1,transform/2,
+	 triangulate/1,quadrangulate/1,
 	 make_quads/1,vertex_normals/1,renumber/1,partition/1]).
 -export([triangulate_face/2,triangulate_face_with_holes/3]).
 -export([quadrangulate_face/2,quadrangulate_face_with_holes/3]).
@@ -21,8 +22,15 @@
 -import(lists, [foreach/2,sort/1,reverse/1,reverse/2,seq/2,
 		foldl/3,filter/2,mapfoldl/3,mapfoldr/3,last/1]).
 
-clean(Mesh) ->
-    e3d__meshclean:clean(Mesh).
+%% orient_normals(Mesh0) -> Mesh
+%%  Orient the face normals consistently.
+orient_normals(Mesh) ->
+    e3d__meshclean:orient_normals(Mesh).
+
+%% clean_faces(Mesh0) -> Mesh
+%%  Remove duplicate vertices and faces with fewer than three edges.
+clean_faces(Mesh) ->
+    e3d__meshclean:clean_faces(Mesh).
 
 %% transform(Mesh0) -> Mesh
 %%  Transform all vertices in the mesh by the matrix in the e3d_mesh
@@ -266,7 +274,9 @@ face_normals(Ftab, Vtab) ->
 			      A = element(A0+1, Vtab),
 			      B = element(B0+1, Vtab),
 			      C = element(C0+1, Vtab),
-			      {{Face,e3d_vec:normal(A, B, C)},Face+1}
+			      {{Face,e3d_vec:normal(A, B, C)},Face+1};
+			 (_, Face) ->
+			      {{Face,e3d_vec:zero()},Face+1}
 		      end, 0, Ftab),
     gb_trees:from_orddict(Ns).
 

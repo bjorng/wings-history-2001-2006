@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.2 2002/06/17 07:58:12 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.3 2002/06/29 19:21:15 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -20,7 +20,8 @@
 
 %%-define(DUMP, 1).
 
-import(#e3d_object{obj=Mesh}, UsedMat) ->
+import(#e3d_object{obj=Mesh0}, UsedMat) ->
+    Mesh = e3d_mesh:clean_faces(Mesh0),
     import_1(e3d_mesh:partition(Mesh), UsedMat, []).
 
 import_1([Mesh|T], UsedMat0, Acc) ->
@@ -36,19 +37,31 @@ import_1([], UsedMat, [#we{mode=Mode}|_]=Wes) ->
     {We#we{mode=Mode},UsedMat}.
 
 import_mesh(Mesh0, UsedMat0) ->	
-    Mesh1 = e3d_mesh:clean(Mesh0),
-    Mesh2 = e3d_mesh:make_quads(Mesh1),
-    Mesh = e3d_mesh:transform(Mesh2),
+    Mesh1 = e3d_mesh:make_quads(Mesh0),
+    Mesh = e3d_mesh:transform(Mesh1),
     #e3d_mesh{tx=Tx0,fs=Fs0} = Mesh,
     UsedMat = used_mat(Fs0, UsedMat0),
     ObjType = obj_type(Tx0),
+    We = build(ObjType, Mesh),
+    {We,UsedMat}.
+
+build(ObjType, Mesh) ->
+    %% First attempt to build winged-edge object.
     case catch wings_we:build(ObjType, Mesh) of
-	{'EXIT',_} ->
-	    io:format("Ripping apart\n"),
+	{'EXIT',_R} ->
+	    build_1(ObjType, Mesh);
+	We -> We
+    end.
+
+build_1(ObjType, Mesh0) ->
+    %% Second attempt: Orient normals consistently.
+    Mesh = e3d_mesh:orient_normals(Mesh0),
+    case catch wings_we:build(ObjType, Mesh) of
+	{'EXIT',_R} ->
+	    %% Rip apart the object. It can't fail.
 	    dump(Mesh),
-	    {rip_apart(ObjType, Mesh),UsedMat};
-	We ->
-	    {We,UsedMat}
+	    rip_apart(ObjType, Mesh);
+	We -> We
     end.
     
 obj_type([]) -> material;

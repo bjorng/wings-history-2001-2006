@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.33 2002/06/24 18:49:57 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.34 2002/06/29 19:21:15 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -149,6 +149,9 @@ combine_half_edges([{Name,[{left,Ldata},{right,Rdata}]}|Hes], Good, Bad) ->
     combine_half_edges(Hes, [{Name,{Ldata,Rdata}}|Good], Bad);
 combine_half_edges([{_,[_]}=BadEdge|Hes], Good, Bad) ->
     combine_half_edges(Hes, Good, [BadEdge|Bad]);
+% combine_half_edges([BadEdge|Hes], Good, Bad) ->
+%     io:format("~p\n", [BadEdge]),
+%     combine_half_edges(Hes, Good, [bad|Bad]);
 combine_half_edges([], Good, Bad) ->
     {reverse(Good),reverse(Bad)}.
 
@@ -237,6 +240,7 @@ fill_holes(Es, Acc) ->
 make_hole_faces(G, [[V|_]|Cs], Acc) ->
     case digraph:get_cycle(G, V) of
 	[_|Vs] when length(Vs) >= 3 ->
+	    length(Vs) =:= length(ordsets:from_list(Vs)),
 	    make_hole_faces(G, Cs, [{'_hole_',Vs}|Acc]);
 	_Other ->
 	    make_hole_faces(G, Cs, Acc)

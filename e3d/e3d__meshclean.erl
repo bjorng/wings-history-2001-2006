@@ -8,16 +8,18 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__meshclean.erl,v 1.7 2002/04/08 08:08:31 bjorng Exp $
+%%     $Id: e3d__meshclean.erl,v 1.8 2002/06/29 19:21:15 bjorng Exp $
 %%
 
 -module(e3d__meshclean).
--export([clean/1]).
+-export([orient_normals/1,clean_faces/1]).
 -import(lists, [reverse/1,reverse/2]).
 
 -include("e3d.hrl").
 
-clean(#e3d_mesh{fs=Fs0}=Mesh) ->
+%% orient_normals(Mesh0) -> Mesh
+%%  Orient the face normals consistently.
+orient_normals(#e3d_mesh{fs=Fs0}=Mesh) ->
     InteriorBad = interior_bad_faces(Fs0),
     Fs = turn_normals(0, InteriorBad, Fs0, []),
     Mesh#e3d_mesh{fs=Fs}.
@@ -78,3 +80,33 @@ number_faces(Fs) ->
 number_faces([#e3d_face{vs=Vs}|Fs], Face, Acc) ->
     number_faces(Fs, Face+1, [{Face,Vs}|Acc]);
 number_faces([], _Face, Acc) -> Acc.
+
+%% clean_faces(Mesh0) -> Mesh
+%%  Remove duplicate vertices and faces with fewer than three edges.
+clean_faces(#e3d_mesh{fs=Fs0}=Mesh0) ->
+    Fs = clean_faces_1(Fs0, []),
+    Mesh = Mesh0#e3d_mesh{fs=Fs},
+    e3d_mesh:renumber(Mesh).
+
+clean_faces_1([#e3d_face{vs=Vs0}=Face|Fs], Acc) ->
+    case clean_dup_vs(Vs0, Vs0) of
+	[_,_,_|_]=Vs ->
+	    case length(ordsets:from_list(Vs)) =:= length(Vs) of
+		true ->
+		    clean_faces_1(Fs, [Face#e3d_face{vs=Vs}|Acc]);
+		false ->
+		    clean_faces_1(Fs, Acc)
+	    end;
+	_ -> clean_faces_1(Fs, Acc)
+    end;
+clean_faces_1([], Acc) -> reverse(Acc).
+	    
+clean_dup_vs([V|[V|_]=Vs], First) ->
+    clean_dup_vs(Vs, First);
+clean_dup_vs([V], [V|_]) -> [];
+clean_dup_vs([V|Vs], First) ->
+    [V|clean_dup_vs(Vs, First)];
+clean_dup_vs([], _) -> [].
+
+    
+    
