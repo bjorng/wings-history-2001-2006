@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.30 2003/09/26 04:27:47 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.31 2003/10/11 13:42:37 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -23,23 +23,26 @@ directions(#st{selmode=Mode}) ->
 
 dirs(1, Mode, Ns) -> dirs_1(Mode, Ns);
 dirs(2, _Mode, [duplicate|_]) -> {body,duplicate};
-dirs(2, _Mode, _Ns) -> ignore;
-dirs(3, _Mode, [move|_]=Ns) -> {vector,{pick,[axis],[],Ns}};
+dirs(2, _Mode, Ns) -> {vector,{pick,[],[normal],Ns}};
 dirs(3, _Mode, Ns) -> {vector,{pick,[axis],[],Ns}};
 dirs(help, _Mode, Ns) -> dirs_help(Ns).
 
 dirs_help([move|_]) ->
-    {"Move along std. axis",[],"Pick axis to move along"};
+    {"Move along std. axis","Move along selection's normal",
+     "Pick axis to move along"};
 dirs_help([rotate|_]) ->
     {"Rotate around std. axis","Pick axis to rotate around",
      "Pick axis and point to rotate through"};
 dirs_help([scale|_]) -> "Scale selected elements";
 dirs_help([extrude|_]) ->
-    {"Extrude along std. axis",[],"Pick axis to extrude along"};
+    {"Extrude along std. axis","Extrude along selection's normal",
+     "Pick axis to extrude along"};
 dirs_help([extrude_region|_]) ->
-    {"Extrude along std. axis",[],"Pick axis to extrude along"};
+    {"Extrude along std. axis","Extrude along selection's normal",
+     "Pick axis to extrude along"};
 dirs_help([extract_region|_]) ->
-    {"Extract along std. axis",[],"Pick axis to extract along"};
+    {"Extract along std. axis","Extract along selection's normal",
+     "Pick axis to extract along"};
 dirs_help([duplicate|_]) ->
     {"Duplicate; move along std. axis","Duplicate; don't move",
      "Duplicate; pick axis to move along"};
@@ -90,11 +93,11 @@ adv_scale_1(Flags, Mode) ->
      {"Scale Radial",{scale,fun(B, Ns) -> scale(B, Ns, [radial]) end},[],Flags}].
 
 uniform_scale(help, _, _) ->
-     {"Scale uniformly from midpoint of selection",[],
-      "Choose point to scale from"};
+    ChoosePoint = "Choose point to scale from",
+    {"Scale uniformly from midpoint of selection",ChoosePoint,ChoosePoint};
 uniform_scale(1, _Ns, Mode) ->
     {vector,{pick,[],[center,uniform],[scale,Mode]}};
-uniform_scale(2, _Ns, _) -> ignore;
+uniform_scale(2, Ns, _) -> {vector,{pick,[point],[],Ns}};
 uniform_scale(3, Ns, _) -> {vector,{pick,[point],[],Ns}}.
 
 scale(help, _, []) ->
