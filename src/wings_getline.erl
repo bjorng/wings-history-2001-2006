@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.17 2003/05/20 05:09:47 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.18 2003/07/12 09:01:10 bjorng Exp $
 %%
 
 -module(wings_getline).
--export([filename/2,yes_no/1]).
+-export([filename/2]).
 
 -import(lists, [reverse/1,reverse/2,prefix/2,nthtail/2,member/2]).
 
@@ -32,16 +32,6 @@
 filename(Prompt, Ext) ->
     Ts = init_text(cwd()),
     readline(Prompt, Ts#text{ext=Ext}).
-
-yes_no(Prompt0) ->
-    Prompt = Prompt0 ++ " (yes/no) ",
-    Ts = init_text(""),
-    case readline(Prompt, Ts) of
-	"yes" -> yes;
-	"no" -> no;
-	aborted -> aborted;
-	_ -> yes_no(Prompt0)
-    end.
 
 cwd() ->
     slashify(wings_pref:get_value(current_directory)).

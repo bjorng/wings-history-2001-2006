@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.16 2003/04/27 05:09:58 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.17 2003/07/12 09:01:10 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -32,8 +32,6 @@ ui({image,read,Prop}, _Next) ->
     read_image(Prop);
 ui({message,Message}, _Next) ->
     message(Message);
-ui({question,Question}, _Next) ->
-    wings_getline:yes_no(Question);
 ui(What, Next) -> Next(What).
 
 message(Message) ->
