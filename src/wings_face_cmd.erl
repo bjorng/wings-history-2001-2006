@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.22 2001/12/29 20:33:56 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.23 2002/01/02 21:03:33 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -729,17 +729,13 @@ bridge_error() ->
 bridge_error(Error) ->
     throw({command_error,Error}).
 
-%% Test if two faces are neighbors.
+%% Test whether two faces are neighbors or not. (In the sense that
+%% they share at least one vertex.)
 are_neighbors(FaceA, FaceB, We) ->
-    wings_face:fold(
-      fun (_, _, Rec, true) -> true;
-	  (_, _, Rec, false) ->
-	      case Rec of
-		  #edge{lf=FaceB} -> true;
-		  #edge{rf=FaceB} -> true;
-		  Other -> false
-	      end
-      end, false, FaceA, We).
+    VsA = wings_face:surrounding_vertices(FaceA, We),
+    VsB = wings_face:surrounding_vertices(FaceB, We),
+    ordsets:intersection(ordsets:from_list(VsA),
+			 ordsets:from_list(VsB)) =/= [].
 
 %% outer_edge_partition(FaceSet, WingedEdge) -> [[Edge]].
 %%  Partition all outer edges. Outer edges are all edges
