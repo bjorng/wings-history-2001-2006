@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.50 2002/06/04 19:48:46 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.51 2002/06/24 18:47:23 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -194,20 +194,34 @@ marquee_mode(Pick) ->
     {seq,{push,dummy},get_marquee_event(Pick)}.
 
 init_marquee_mode() ->
-    wings_io:setup_for_drawing(),
-    wings_io:draw_message(
-      fun() ->
-	      Message = "[Ctrl] Deselect  "
-		  "[Shift] (De)select only elements wholly inside marquee",
-	      wings_io:text_at(0, Message)
-      end).
+    Message = "[Ctrl] Deselect  "
+	"[Shift] (De)select only elements wholly inside marquee",
+    case wings_pref:get_value(use_front_buffer) of
+	false ->
+	    wings_io:message(Message);
+	true ->
+	    wings_io:setup_for_drawing(),
+	    wings_io:draw_message(
+	      fun() ->
+		      wings_io:text_at(0, Message)
+	      end)
+    end.
 
 get_marquee_event(Pick) ->
     {replace,fun(Ev) -> marquee_event(Ev, Pick) end}.
 
-marquee_event(#mousemotion{x=X,y=Y}, #marquee{cx=Cx,cy=Cy}=M) ->
+marquee_event(redraw, #marquee{cx=Cx,cy=Cy,st=St}=M) ->
+    wings:redraw(St),
     draw_marquee(Cx, Cy, M),
-    draw_marquee(X, Y, M),
+    keep;
+marquee_event(#mousemotion{x=X,y=Y}, #marquee{cx=Cx,cy=Cy}=M) ->
+    case wings_pref:get_value(use_front_buffer) of
+	false ->
+	    wings_wm:dirty();
+	true ->
+	    draw_marquee(Cx, Cy, M),
+	    draw_marquee(X, Y, M)
+    end,
     get_marquee_event(M#marquee{cx=X,cy=Y});
 marquee_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
     {Inside,Op} =
