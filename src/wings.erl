@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.24 2001/10/24 08:51:39 bjorng Exp $
+%%     $Id: wings.erl,v 1.25 2001/10/24 18:36:32 bjorng Exp $
 %%
 
 -module(wings).
@@ -233,8 +233,42 @@ remember_command({C,_}=Cmd, St) when C =:= vertex; C =:= edge;
 remember_command(Cmd, #st{last_command=Last}=St) ->
     St.
 
-command(ignore, St) ->
-    St;
+
+%% Test if the saved command can be safely repeated, and
+%% rewrite it with the current selection mode if needed.
+repeatable(Mode, Cmd) ->
+    case Cmd of
+	{Mode,_} -> Cmd;			%Same mode is always OK.
+
+	%% Commands safe in all modes.
+	{_,{move,normal}} when Mode == body -> no;
+	{_,{move,_}=C} -> {Mode,C};
+	{_,{rotate,normal}} when Mode == body -> no;
+	{_,{rotate,_}=C} -> {Mode,C};
+	{_,{scale,_}=C} -> {Mode,C};
+
+	%% Some special cases.
+	{_,tighten=C} when Mode == vertex; Mode == body -> {Mode,C};
+	{_,smooth=C} when Mode == face; Mode == body -> {Mode,C};
+	
+	%% No more commands are safe in body mode.
+	{_,_} when Mode == body -> no;
+	{_,{flatten,_}=C} when Mode == vertex; Mode == face -> {Mode,C};
+	{_,dissolve} when Mode == vertex -> no;
+	{_,dissolve=C} -> {Mode,C};
+	{_,bevel=C} -> {Mode,C};
+	{_,{extrude,_}=C} -> {Mode,C};
+	{_,collapse=C} -> {Mode,C};
+
+	%% Other special commands.
+	{_,connect} when Mode == face -> no;
+	{_,connect=C} -> {Mode,C};
+
+	%% Other commands only work in the saved mode.
+	_ -> no
+    end.
+
+command(ignore, St) -> St;
 command({_,{[_|_]}=Plugin}, St0) ->
     case wings_plugin:command(Plugin, St0) of
 	St0 -> St0;
@@ -306,24 +340,9 @@ command({edit,{material,Mat}}, St) ->
 command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{drag=undefined,camera=undefined,
 			   selmode=Mode,last_command=Cmd0}=St) ->
-    %% Test if the saved command can be safely repeated, and
-    %% rewrite it with the current selection mode if needed.
-    Cmd = case Cmd0 of
-	      {Mode,_} -> Cmd0;
-	      {_,{move,normal}} when Mode == body -> unsafe;
-	      {_,{move,_}=C} -> {Mode,C};
-	      {_,{rotate,normal}} when Mode == body -> unsafe;
-	      {_,{rotate,_}=C} -> {Mode,C};
-	      {_,{scale,_}=C} -> {Mode,C};
-	      {_,{extrude,_}} when Mode == body -> unsafe;
-	      {_,{extrude,_}=C} -> {Mode,C};
-	      {_,bevel} when Mode == body -> unsafe;
-	      {_,bevel} -> {Mode,bevel};
-	      _ -> unsafe
-	  end,
-    if
-	Cmd == unsafe -> ok;
-	true -> wings_io:putback_event({action,Cmd})
+    case repeatable(Mode, Cmd0) of
+	no -> ok;
+	Cmd when tuple(Cmd) -> wings_io:putback_event({action,Cmd})
     end,
     St;
 command({edit,repeat}, St) -> St;
@@ -1184,10 +1203,12 @@ command_name(#st{last_command={_,Cmd}}=St) ->
 
 command_name(CmdStr, #st{sel=[]}) ->
     lists:flatten(["(Can't repeat \"",CmdStr,"\")"]);
-command_name(CmdStr, #st{selmode=Mode,last_command={Mode,_}}) ->
-    lists:flatten(["Repeat \"",CmdStr,"\""]);
-command_name(CmdStr, St) ->
-    lists:flatten(["(Can't repeat \"",CmdStr,"\")"]).
+command_name(CmdStr, #st{selmode=Mode,last_command=Cmd}) ->
+    S = case repeatable(Mode, Cmd) of
+	    no -> ["(Can't repeat \"",CmdStr,"\")"];
+	    _ ->  ["Repeat \"",CmdStr,"\""]
+	end,
+    lists:flatten(S).
 
 stringify({Atom,Other}) when atom(Atom) ->
     cap(atom_to_list(Atom)) ++ "->" ++ stringify(Other);
