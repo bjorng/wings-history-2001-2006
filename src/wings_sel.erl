@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.24 2001/12/31 13:55:19 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.25 2002/01/02 12:21:53 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -166,8 +166,8 @@ make(Filter, Mode, #st{shapes=Shapes}=St) ->
     Sel = make_1(Sel0, Filter, Mode),
     St#st{selmode=Mode,sel=Sel}.
 
-make_1([#we{perm=Perm}|_], Filter, Mode) when ?IS_NOT_SELECTABLE(Perm) ->
-    [];
+make_1([#we{perm=Perm}|Shs], Filter, Mode) when ?IS_NOT_SELECTABLE(Perm) ->
+    make_1(Shs, Filter, Mode);
 make_1([#we{id=Id,vs=Vtab,es=Etab,fs=Ftab}=We|Shs], Filter, Mode) ->
     Tab = case Mode of
 	      vertex -> Vtab;
@@ -353,4 +353,3 @@ inverse_items_1(Items, Tab) ->
     Keys0 = gb_trees:keys(Tab),
     Keys = gb_sets:from_ordset(Keys0),
     gb_sets:difference(Keys, Items).
-
