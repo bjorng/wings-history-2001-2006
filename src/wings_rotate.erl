@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.12 2001/11/18 19:24:50 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.13 2001/11/25 13:44:45 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -44,7 +44,7 @@ setup(Type, #st{selmode=body}=St) ->
 	    fun(#shape{id=Id,sh=#we{}=We}=Sh, Acc) ->
 		    [{Id,body_to_vertices(We, Vec)}|Acc]
 	    end, [], St),
-    init_drag(Tvs, St).
+    init_drag({matrix,Tvs}, St).
 
 init_drag(Tvs, St) ->
     wings_drag:init_drag(Tvs, none, angle, St).
@@ -93,9 +93,29 @@ faces_to_vertices(Faces, We, Vec) ->
 %% Conversion of body selections (entire objects) to vertices.
 %%
 
-body_to_vertices(#we{vs=Vtab}=We, Vec) ->
-    rotate(gb_trees:keys(Vtab), We, Vec).
+body_to_vertices(We, Vec) ->
+    rotate_fun(We, Vec).
 
+rotate_fun(We, free) ->
+    {Cx,Cy,Cz} = wings_vertex:center(We),
+    fun(Matrix0, Dx, Dy, St) when float(Dx) ->
+	    wings_drag:message([Dx], angle),
+	    A = 15*Dx,
+	    Vec = view_vector(),
+	    M0 = e3d_mat:mul(Matrix0, e3d_mat:translate(Cx, Cy, Cz)),
+	    M = e3d_mat:mul(M0, e3d_mat:rotate(A, Vec)),
+	    e3d_mat:mul(M, e3d_mat:translate(-Cx, -Cy, -Cz))
+    end;
+rotate_fun(We, Vec) ->
+    {Cx,Cy,Cz} = wings_vertex:center(We),
+    fun(Matrix0, Dx, Dy, St) when float(Dx) ->
+	    wings_drag:message([Dx], angle),
+	    A = 15*Dx,
+	    M0 = e3d_mat:mul(Matrix0, e3d_mat:translate(Cx, Cy, Cz)),
+	    M = e3d_mat:mul(M0, e3d_mat:rotate(A, Vec)),
+	    e3d_mat:mul(M, e3d_mat:translate(-Cx, -Cy, -Cz))
+    end.
+	    
 %% Setup rotation.
 
 rotate(Vs, We, free) when list(Vs) ->
