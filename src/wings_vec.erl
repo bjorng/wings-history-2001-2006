@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.39 2002/07/26 17:43:55 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.40 2002/10/06 18:56:36 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -106,18 +106,16 @@ mode_restriction(Modes, #st{selmode=Mode}=St) ->
     end.
 
 pick_init(#st{selmode=Mode}) ->
-    wings_draw_util:update(fun(D, _) -> pick_init_1(D, Mode) end, []).
+    wings_draw_util:map(fun(D, _) -> pick_init_1(D, Mode) end, []).
 
-pick_init_1(eol, _) -> eol;
 pick_init_1(#dlo{orig_sel=none,sel=SelDlist}=D, Mode) ->
-    {D#dlo{orig_sel=SelDlist,orig_mode=Mode},[]};
-pick_init_1(D, _) -> {D,[]}.
+    D#dlo{orig_sel=SelDlist,orig_mode=Mode};
+pick_init_1(D, _) -> D.
 
 clear_orig_sel() ->
-    wings_draw_util:update(fun clear_orig_sel/2, []).
+    wings_draw_util:map(fun clear_orig_sel/2, []).
 
-clear_orig_sel(eol, _) -> eol;
-clear_orig_sel(D, _) -> {D#dlo{orig_sel=none,orig_mode=none},[]}.
+clear_orig_sel(D, _) -> D#dlo{orig_sel=none,orig_mode=none}.
 
 %%%
 %%% Event handler for secondary selection mode.
@@ -213,6 +211,9 @@ handle_event_5({action,Cmd}, Ss, St) ->
 handle_event_5(quit, _Ss, _St) ->
     wings_io:putback_event(quit),
     pop;
+handle_event_5(#resize{w=W,h=H}, Ss, St0) ->
+    St = wings:resize(W, H, St0),
+    get_event(Ss, St);
 handle_event_5(_Event, Ss, St) ->
     get_event(Ss, St).
 
