@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.15 2002/10/13 19:11:42 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.16 2002/11/22 13:34:20 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -32,6 +32,10 @@
 	 stk					%Event handler stack.
 	}).
 
+-record(se,					%Stack entry record.
+	{h,					%Handler (fun).
+	 msg=""}).				%Current message.
+
 %%%
 %%% Process dictionary usage:
 %%%
@@ -48,7 +52,8 @@ init() ->
     wings_pref:set_default(window_size, {780,570}),
     {W,H} = wings_pref:get_value(window_size),
     set_video_mode(W, H),			%Needed on Solaris/Sparc.
-    Win = #win{x=0,y=0,w=W,h=H,z=0,name=top,stk=[crash_handler()]},
+    Stk = default_stack(),
+    Win = #win{x=0,y=0,w=W,h=H,z=0,name=top,stk=Stk},
     put(wm_windows, gb_trees:from_orddict([{top,Win}])),
     put(wm_active, top),
     translation_change(),
@@ -63,7 +68,7 @@ clean() ->
 new(Name, {X,Y,Z}, {W,H}, Op) when is_integer(X), is_integer(Y),
 				   is_integer(W), is_integer(H) ->
     dirty(),
-    Stk = handle_response(Op, dummy_event, [crash_handler()]),
+    Stk = handle_response(Op, dummy_event, default_stack()),
     Win = #win{x=X,y=Y,z=Z,w=W,h=H,name=Name,stk=Stk},
     put(wm_windows, gb_trees:insert(Name, Win, get(wm_windows))),
     keep.
@@ -131,7 +136,7 @@ window_under([_|T], X, Y) ->
     
 top_window(Op) ->
     #win{z=0,w=W,h=H} = Win0 = get_window_data(top),
-    Stk = handle_response(Op, dummy_event, [crash_handler()]),
+    Stk = handle_response(Op, dummy_event, default_stack()),
     Win = Win0#win{stk=Stk},
     put_window_data(top, Win),
     erase(wm_dirty),
@@ -199,7 +204,7 @@ maybe_clear(_, _) -> ok.
 send_event(Win, {expose}) ->
     dirty(),
     Win;
-send_event(#win{name=Name,x=X,y=Y0,w=W,h=H,stk=[Handler|_]=Stk0}, Ev0) ->
+send_event(#win{name=Name,x=X,y=Y0,w=W,h=H,stk=[Se|_]=Stk0}, Ev0) ->
     Ev = translate_event(Ev0, X, Y0),
     {_,TopH} = get(wm_top_size),
     Y = TopH-(Y0+H),
@@ -208,7 +213,7 @@ send_event(#win{name=Name,x=X,y=Y0,w=W,h=H,stk=[Handler|_]=Stk0}, Ev0) ->
 	ViewPort -> ok;
 	_ -> gl:viewport(X, Y, W, H)
     end,
-    Stk = handle_event(Handler, Ev, Stk0),
+    Stk = handle_event(Se, Ev, Stk0),
     Win = get_window_data(Name),
     Win#win{stk=Stk}.
 
@@ -228,14 +233,14 @@ translate_event({drop,{X,Y},DropData}, Ox, Oy) ->
     {drop,{X-Ox,Y-Oy},DropData};
 translate_event(Ev, _, _) -> Ev.
     
-handle_event(Handler, Event, Stk) ->
+handle_event(#se{h=Handler}, Event, Stk) ->
     case catch Handler(Event) of
 	{'EXIT',normal} ->
 	    exit(normal);
 	{'EXIT',Reason} ->
 	    CrashHandler = last(Stk),
 	    handle_response(CrashHandler({crash,Reason}),
-			    Event, [crash_handler()]);
+			    Event, default_stack());
 	Res ->
 	    handle_response(Res, Event, Stk)
     end.
@@ -246,7 +251,7 @@ handle_response(Res, Event, Stk0) ->
 	next -> next_handler(Event, Stk0);
 	pop -> pop(Stk0);
 	delete -> delete;
-	{push,Top} -> [Top|Stk0];
+	{push,Top} -> [#se{h=Top}|Stk0];
 	{seq,First,Then} ->
 	    Stk = handle_response(First, Event, Stk0),
 	    handle_response(Then, Event, Stk);
@@ -256,16 +261,17 @@ handle_response(Res, Event, Stk0) ->
 
 pop([_|Stk]) -> Stk.
 
-replace_top(Top, [_|Stk]) -> [Top|Stk].
+replace_top(Top, [_|Stk]) -> [#se{h=Top}|Stk].
 
 next_handler(Event, [_|[Next|_]=Stk]) ->
     handle_event(Next, Event, Stk).
 
-crash_handler() ->
-    fun(Crash) ->
-	    io:format("Crashed: ~p\n", [Crash]),
-	    exit(too_bad)
-    end.
+default_stack() ->
+    Handler = fun(Crash) ->
+		      io:format("Crashed: ~p\n", [Crash]),
+		      exit(too_bad)
+	      end,
+    [#se{h=Handler}].
 
 %%%
 %%% Utility functions.
