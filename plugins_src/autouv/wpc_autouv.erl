@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.104 2003/02/27 12:58:06 raimo_niskanen Exp $
+%%     $Id: wpc_autouv.erl,v 1.105 2003/02/27 22:33:46 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -44,14 +44,16 @@ menu({body}, Menu) ->
 menu(_, Menu) -> Menu.
 
 command({body,?MODULE}, St) ->
+    ?DBG("Start shapes ~p~n",[gb_trees:keys(St#st.shapes)]), 
     start_uvmap(St);
 command({body,{?MODULE,ask_material,Fun}}, _St) ->
     Fun();
-command({body,?MODULE,discard_uvs,We}, St) ->
-    start_uvmap_1(St,{discard,We});
+command({body,?MODULE,discard_uvs,We,St2}, St) ->
+    start_uvmap_1(St,{discard,We,St2});
 command({body,{?MODULE,do_edit,{We,MatName,Faces}}}, St) ->
     do_edit(MatName, Faces, We, St);
 command({body,{?MODULE,show_map,Info}}, St) ->
+    ?DBG("Start shapes ~p~n",[gb_trees:keys(St#st.shapes)]), 
     {MappedCharts,OrigWe} = Info,
     init_show_maps(MappedCharts, OrigWe, St);
 command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, St0) ->
@@ -82,6 +84,7 @@ start_uvmap(_) ->
 %%%
 
 -record(seg, {st,				%Current St.
+	      origst,				%Current St.
 	      selmodes,				%Legal selection modes.
 	      we,				%Original We.
 	      msg				%Message.
@@ -93,14 +96,16 @@ start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0,Mode) ->
     We0 = gb_trees:get(Id, Shs),
     We = We0#we{mode=material},
     check_for_defects(We),
-    OrigWe = case Mode of 
-		 {discard,WeX} ->  
-		     WeX;
-		 _ -> We
-	     end,
+    {OrigWe,OrigSt}
+	= case Mode of 
+	      {discard,WeX,StO} ->  
+		  {WeX,StO};
+	      _ -> 
+		  {We,St0}
+	  end,
     St2 = seg_create_materials(St0),
     St = St2#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
-    Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=OrigWe}),
+    Ss = seg_init_message(#seg{selmodes=Modes,origst=OrigSt,st=St,we=OrigWe}),
     Active = wings_wm:active_window(),
     wings_wm:callback(fun() ->
 			      wings_util:menu_restriction(Active, [view,select,window])
@@ -338,23 +343,20 @@ seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
     Charts = auv_segment:cut_model(Charts1, Cuts, OrigWe),
     N = length(Charts),
-    seg_map_charts_1(Charts, Method, OrigWe, 1, N, [], Ss).
+    seg_map_charts_1(Charts, Method, 1, N, [], Ss).
 
-seg_map_charts_1(Cs, Type, Extra, I, N, Acc, Ss) when I =< N ->
-    MapChart = fun() -> seg_map_chart(Cs, Type, Extra, I, N, Acc, Ss) end,
+seg_map_charts_1(Cs, Type, I, N, Acc, Ss) when I =< N ->
+    MapChart = fun() -> seg_map_chart(Cs, Type, I, N, Acc, Ss) end,
     wings_wm:later({callback,MapChart}),
     Msg = io_lib:format("Mapping chart ~w of ~w", [I,N]),
     get_seg_event(Ss#seg{msg=Msg});
-seg_map_charts_1(_, _, OrigWe, _, _, MappedCharts, #seg{st=St0=#st{shapes=Shs0}}) ->
+seg_map_charts_1(_, _, _, _, MappedCharts, #seg{origst=St0,we=OrigWe}) ->
     Info = {MappedCharts,OrigWe},
-    #we{id=Id}=OrigWe,
-    Shs = gb_trees:update(Id, OrigWe, Shs0),
-    St = St0#st{shapes=Shs},
-    wings_wm:send(geom, {new_state,St}),
+    wings_wm:send(geom, {new_state,St0}),
     wings_wm:send(geom, {action,{body,{?MODULE,show_map,Info}}}),
     pop.
 
-seg_map_chart([{Fs,Vmap,We0}|Cs], Type, Extra, I, N, Acc0, Ss) ->
+seg_map_chart([{Fs,Vmap,We0}|Cs], Type, I, N, Acc0, Ss) ->
 %%    io:format("map_chart ~p ~p ~p~n", [I, Fs, MergedWe]),
     case auv_mapping:map_chart(Type, Fs, We0) of
 	{error,Message} ->
@@ -362,7 +364,7 @@ seg_map_chart([{Fs,Vmap,We0}|Cs], Type, Extra, I, N, Acc0, Ss) ->
 	Vs ->
 	    We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
 	    Acc = [#ch{we=We,fs=Fs,vmap=Vmap}|Acc0],
-	    seg_map_charts_1(Cs, Type, Extra, I+1, N, Acc, Ss)
+	    seg_map_charts_1(Cs, Type, I+1, N, Acc, Ss)
     end.
 
 seg_error(Message, Ss) ->
@@ -392,19 +394,19 @@ start_edit(_Id, We, St0) ->
 		   {alt,DefVar,"Discard existing UV mapping and start over",discard}],
 	   [{title,"Model is already UV-mapped"}]}],
     Geom = wings_wm:active_window(),
-    wings_ask:dialog("Model is Already UV Mapped", Qs,
-		     fun([Reply]) ->
-			     case Reply of
-				 edit ->
-				     start_edit_1(We, St0);
-				 discard ->
-				     St01 = discard_uvmap(We, St0),
-				     wings_wm:send(Geom, {new_state,St01}),
-				     Act = {action,{body,?MODULE,discard_uvs,We}},
-				     wings_wm:send(Geom, Act),
-				     ignore
-			     end
-		     end).
+    Ask = fun([Reply]) ->
+		  case Reply of
+		      edit ->
+			  start_edit_1(We, St0);
+		      discard ->
+			  St = discard_uvmap(We, St0),
+			  wings_wm:send(Geom, {new_state,St}),
+			  Act = {action,{body,?MODULE,discard_uvs,We,St0}},
+			  wings_wm:send(Geom, Act),
+			  ignore
+		  end
+	  end,
+    wings_ask:dialog("Model is Already UV Mapped", Qs,Ask).
 
 start_edit_1(#we{name=ObjName,fs=Ftab}=We, St) ->
     MatNames0 = foldl(fun({Face,#face{mat=Mat}}, A) ->
