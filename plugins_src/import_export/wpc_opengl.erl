@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.3 2002/07/14 20:14:51 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.4 2002/07/15 21:00:36 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -273,18 +273,32 @@ render_redraw_2(#dlo{smooth=Dlist,transparent=Trans}, RenderTrans) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
-    gl:enable(?GL_BLEND),
-    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    case Trans of
+    gl:enable(?GL_CULL_FACE),
+
+    case RenderTrans of
+	true ->
+	    %% Transparent materials should not update the depth buffer.
+	    gl:enable(?GL_BLEND),
+	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+	    gl:depthMask(?GL_FALSE);
+	false ->
+	    gl:disable(?GL_BLEND),
+	    gl:depthMask(?GL_TRUE)
+    end,
+
+    %% Backsides of opaque objects should be drawn if the object has any transparency.
+    case Trans andalso not RenderTrans of
 	true -> gl:disable(?GL_CULL_FACE);
 	false -> gl:enable(?GL_CULL_FACE)
     end,
+
     case {Dlist,RenderTrans} of
 	{[Op,_],false} -> gl:callList(Op);
 	{[_,Tr],true} -> gl:callList(Tr);
 	{Smooth,true} when is_integer(Smooth) -> gl:callList(Smooth);
 	{_,_} -> ok
     end,
+    gl:depthMask(?GL_TRUE),
     ?CHECK_ERROR().
 
 render_mask(#dlo{smoothed=Dlist,transparent=Trans}) ->
@@ -388,4 +402,3 @@ combine_img_1(<<>>, <<>>, Acc) ->
 combine_img_2([R,G,B|P], [A|M], Acc) ->
     combine_img_2(P, M, [[B,G,R,A]|Acc]);
 combine_img_2([], [], Acc) -> list_to_binary(reverse(Acc)).
-
