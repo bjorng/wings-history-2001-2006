@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.135 2004/05/12 19:57:28 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.136 2004/05/13 06:28:04 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -163,9 +163,17 @@ update_last(Data, Seen, Acc) ->
     Used = ordsets:from_list(Seen),
     put_dl_data(Du#du{used=Used,dl=reverse(Acc)}),
     NotUsed = ordsets:subtract(Used0, Used),
-    foreach(fun(DL) -> gl:deleteLists(DL, 1) end, NotUsed),
+    delete_lists(NotUsed),
     Data.
 
+delete_lists([]) -> ok;
+delete_lists([D1,D2|Dls]) when D1+1 =:= D2 ->
+    gl:deleteLists(D1, 2),
+    delete_lists(Dls);
+delete_lists([Dl|Dls]) ->
+    gl:deleteLists(Dl, 1),
+    delete_lists(Dls).
+    
 update_seen(D, Seen) ->
     update_seen_0(size(D), D, Seen).
 
