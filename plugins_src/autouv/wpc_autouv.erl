@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.40 2002/11/02 15:23:53 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.41 2002/11/06 14:38:58 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -1069,7 +1069,7 @@ handle_event(MB=#mousebutton{x=MX},
 	next -> keep;
 	Other -> Other
     end;
-handle_event(#keyboard{state = ?SDL_PRESSED, keysym = Sym}, 
+handle_event(Ev = #keyboard{state = ?SDL_PRESSED, keysym = Sym}, 
 	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{we=We,as=Curr0}}) ->
     case Sym of
 	#keysym{sym = ?SDLK_SPACE} ->
@@ -1078,23 +1078,35 @@ handle_event(#keyboard{state = ?SDL_PRESSED, keysym = Sym},
 				   areas = add_areas(Sel0,As),
 				   dl = undefined});
 	#keysym{sym = ?SDLK_F5} ->
-	    import_file(default, Uvs0);
-	#keysym{sym = $b} ->		    
-	    get_event(Uvs0#uvstate{mode = faceg});
-	#keysym{sym = $f} ->
-	    get_event(Uvs0#uvstate{mode = face});
-	#keysym{sym = $e} ->  %% Bugbug
-	    Old = Uvs0#uvstate.option,
-	    get_event(Uvs0#uvstate{mode = edge, dl=undefined, 
-				   option = Old#setng{edges = all_edges}});
-	#keysym{sym = $v} ->
-	    get_event(Uvs0#uvstate{mode = vertex});		
-	#keysym{sym = $p} ->
-	    [?DBG("DBG ~p\n", [_P]) || _P <- add_as(Sel0, Curr0)],
-	    keep;
-	_Key ->
-	    %%      ?DBG("Missed Key ~p ~p~n", [_Key, ?SDLK_SPACE]),
-	    keep
+	    import_file(default, Uvs0); 
+	_ -> 
+	    case wings_hotkey:event(Ev, Uvs0#uvstate.st) of
+		next ->
+		    keep;
+		Action ->
+		    {_, {X0,_,_,_,_,_,_}} = Uvs0#uvstate.geom,
+		    {_,X,_Y} = sdl_mouse:getMouseState(),
+		    Window = if X < X0 -> wings; true -> auv end,
+		    wings_io:putback_event({action,Window,Action}),
+		    keep
+	    end
+
+%	#keysym{sym = $b} ->		    
+%	    get_event(Uvs0#uvstate{mode = faceg});
+%	#keysym{sym = $f} ->
+%	    get_event(Uvs0#uvstate{mode = face});
+%	#keysym{sym = $e} ->  %% Bugbug
+%	    Old = Uvs0#uvstate.option,
+%	    get_event(Uvs0#uvstate{mode = edge, dl=undefined, 
+%				   option = Old#setng{edges = all_edges}});
+%	#keysym{sym = $v} ->
+%	    get_event(Uvs0#uvstate{mode = vertex});		
+%	#keysym{sym = $p} ->
+%	    [?DBG("DBG ~p\n", [_P]) || _P <- add_as(Sel0, Curr0)],
+%	    keep;
+%	_Key ->
+%	    %%      ?DBG("Missed Key ~p ~p~n", [_Key, ?SDLK_SPACE]),
+%	    keep
     end;
 
 handle_event({action, {auv, export}}, Uvs0) ->
@@ -1205,8 +1217,14 @@ handle_event({resize, NX,NY},Uvs0) ->
     St1 = wings_material:init(Uvs0#uvstate.st),	    
     Geom = init_drawarea(),
     get_event(Uvs0#uvstate{geom=Geom, st=St1, dl=undefined});
+handle_event({action,_, {view,smoothed_preview}}, _Uvs0) ->
+    keep; %% Bugbug didn't work crashes inside wings update_dlists
+handle_event({action,wings,{view, Cmd}}, Uvs0) ->
+    St = wings_view:command(Cmd, Uvs0#uvstate.st),
+    get_event(Uvs0#uvstate{st=St});
+
 handle_event(_Event,Uvs0) ->
-    %%	    ?DBG("Got unhandled Event ~p ~n", [_Event]),
+    ?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(Uvs0).
 
 handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
