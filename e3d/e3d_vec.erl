@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.15 2003/05/02 19:00:25 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.16 2003/07/29 19:28:08 bjorng Exp $
 %%
 
 -module(e3d_vec).
@@ -123,36 +123,36 @@ normal({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32})
 
 %% poly_normal([{X,Y,Z}]) ->
 %%  Calculate the averaged normal for the polygon using Newell's method.
-normal(Vpos) ->
-    normal(Vpos, Vpos, 0.0, 0.0, 0.0).
 
-normal([{Ax,Ay,Az}], [{Bx,By,Bz}|_], Sx, Sy, Sz)
+normal([{Ax,Ay,Az},{Bx,By,Bz}|[{Cx,Cy,Cz}|_]=T]=First)
   when is_float(Ax), is_float(Ay), is_float(Az),
-       is_float(Bx), is_float(By), is_float(Bz),
+       is_float(Bx), is_float(By), is_float(Bz) ->
+    Sx = (Ay-By)*(Az+Bz) + (By-Cy)*(Bz+Cz),
+    Sy = (Az-Bz)*(Ax+Bx) + (Bz-Cz)*(Bx+Cx),
+    Sz = (Ax-Bx)*(Ay+By) + (Bx-Cx)*(By+Cy),
+    normal_1(T, First, Sx, Sy, Sz).
+
+normal_1([{Ax,Ay,Az}], [{Bx,By,Bz}|_], Sx, Sy, Sz)
+  when is_float(Ax), is_float(Ay), is_float(Az),
        is_float(Sx), is_float(Sy), is_float(Sz) ->
     norm(Sx + (Ay-By)*(Az+Bz),
 	 Sy + (Az-Bz)*(Ax+Bx),
 	 Sz + (Ax-Bx)*(Ay+By));
-normal([{Ax,Ay,Az},{Bx,By,Bz}|[{Cx,Cy,Cz}|_]=T], First, Sx0, Sy0, Sz0)
+normal_1([{Ax,Ay,Az},{Bx,By,Bz}|[{Cx,Cy,Cz}|_]=T], First, Sx0, Sy0, Sz0)
   when is_float(Ax), is_float(Ay), is_float(Az),
        is_float(Bx), is_float(By), is_float(Bz),
-       is_float(Cx), is_float(Cy), is_float(Cz),
        is_float(Sx0), is_float(Sy0), is_float(Sz0) ->
-    Sx1 = Sx0 + (Ay-By)*(Az+Bz),
-    Sy1 = Sy0 + (Az-Bz)*(Ax+Bx),
-    Sz1 = Sz0 + (Ax-Bx)*(Ay+By),
-    Sx = Sx1 + (By-Cy)*(Bz+Cz),
-    Sy = Sy1 + (Bz-Cz)*(Bx+Cx),
-    Sz = Sz1 + (Bx-Cx)*(By+Cy),
-    normal(T, First, Sx, Sy, Sz);
-normal([{Ax,Ay,Az}|[{Bx,By,Bz}|_]=T], First, Sx0, Sy0, Sz0)
+    Sx = Sx0 + (Ay-By)*(Az+Bz) + (By-Cy)*(Bz+Cz),
+    Sy = Sy0 + (Az-Bz)*(Ax+Bx) + (Bz-Cz)*(Bx+Cx),
+    Sz = Sz0 + (Ax-Bx)*(Ay+By) + (Bx-Cx)*(By+Cy),
+    normal_1(T, First, Sx, Sy, Sz);
+normal_1([{Ax,Ay,Az}|[{Bx,By,Bz}|_]=T], First, Sx0, Sy0, Sz0)
   when is_float(Ax), is_float(Ay), is_float(Az),
-       is_float(Bx), is_float(By), is_float(Bz),
        is_float(Sx0), is_float(Sy0), is_float(Sz0) ->
     Sx = Sx0 + (Ay-By)*(Az+Bz),
     Sy = Sy0 + (Az-Bz)*(Ax+Bx),
     Sz = Sz0 + (Ax-Bx)*(Ay+By),
-    normal(T, First, Sx, Sy, Sz).
+    normal_1(T, First, Sx, Sy, Sz).
 
 %% average([{X,Y,Z}]) -> {Ax,Ay,Az}
 %%  Average the given list of points.
