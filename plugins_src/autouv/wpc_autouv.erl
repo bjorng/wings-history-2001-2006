@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.192 2004/03/06 08:57:10 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.193 2004/03/09 07:24:25 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -205,7 +205,27 @@ create_uv_state(Map, MatName0, We, GeomSt0) ->
 		   matname=MatName},
     St = GeomSt#st{selmode=body,sel=[],shapes=Map,bb=Uvs},
     Name = wings_wm:this(),
+
+    View = #view{origin={0.0,0.0,0.0},
+		 distance=0.65,
+		 azimuth=0.0,
+		 elevation=0.0,
+		 pan_x=-0.5,
+		 pan_y=-0.5,
+		 fov=90.0,
+		 hither=0.1,
+		 yon=50.0},
+    wings_view:set_current(View),
+
     wings_wm:set_prop(Name, drag_filter, fun drag_filter/1),
+    wings_wm:set_prop(show_info_text, false),
+    wings_wm:set_prop(orthogonal_view, true),
+    wings_wm:set_prop(show_axes, false),
+    wings_wm:set_prop(show_groundplane, false),
+    wings_wm:set_prop(wireframed_objects,
+		      lists:seq(1, gb_trees:size(Map))),
+    wings_wm:set_prop(allow_rotation, false),
+
     get_event(St).
 
 insert_initial_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
@@ -421,6 +441,12 @@ handle_event({new_uv_state,St0}, _) ->
     wings_wm:dirty(),
     get_event(St);
 handle_event(Ev, St) ->
+    case wings_camera:event(Ev, fun() -> redraw(St) end) of
+	next -> handle_event_0(Ev, St);
+	Other -> Other
+    end.
+
+handle_event_0(Ev, St) ->
     case auv_pick:event(Ev, St) of
 	next -> handle_event_1(Ev, St);
 	Other -> Other
@@ -460,6 +486,13 @@ handle_event_1({callback,Fun}, _) when is_function(Fun) ->
     Fun();
 handle_event_1({action,{auv,Cmd}}, St) ->
     handle_command(Cmd, St);
+handle_event_1(got_focus, _) ->
+    Msg1 = wings_util:button_format("Select"),
+    Msg2 = wings_camera:help(),
+    Msg3 = wings_util:button_format([], [], "Show menu"),
+    Message = wings_util:join_msg([Msg1,Msg2,Msg3]),
+    wings_wm:message(Message),
+    wings_wm:dirty();
 handle_event_1(_Event, St) ->
     ?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(St).
@@ -717,44 +750,27 @@ broken_event(Ev, _) ->
 
 redraw(#st{mat=Mats,bb=Uvs}=St) ->
     update_dlists(St#st{selmode=body}),
-    wings_util:button_message("Select", [], "Show menu"),
-
-    #uvstate{geom={Left,Right,Bottom,Top},matname=MatN} = Uvs,
 
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+
+    %% Draw background of AutoUV window.
+
+    {X,Y,W,H} = wings_wm:viewport(),
+    gl:scissor(X, Y, W, H),
+    gl:enable(?GL_SCISSOR_TEST),
+    gl:clearColor(1, 1, 1, 1),
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    gl:disable(?GL_SCISSOR_TEST),
+
+    #uvstate{matname=MatN} = Uvs,
 
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
 
-    gl:matrixMode(?GL_PROJECTION),
-    gl:loadIdentity(),
-    glu:ortho2D(Left, Right, Bottom, Top),
-
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
-
-    %% Draw background of AutoUV window.
-
-    gl:color3f(1, 1, 1),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    gl:translatef(0, 0, -0.99),
-    gl:rectf(Left, Bottom, Right, Top),
-
-    %% Draw border around the UV space.
-    gl:translatef(0, 0, 0.01),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
-    gl:color3b(0, 0, 0),
-    gl:'begin'(?GL_LINE_LOOP),
-    Dist = Left/10,
-    gl:vertex2f(Dist, Dist),
-    gl:vertex2f(1-Dist, Dist),
-    gl:vertex2f(1-Dist, 1-Dist),
-    gl:vertex2f(Dist, 1-Dist),
-    gl:'end'(),    
+    wings_view:load_matrices(false),
 
     %% Draw the background texture.
 
-    gl:loadIdentity(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1, 1, 1),			%Clear
     case has_texture(MatN, Mats) of
@@ -762,18 +778,23 @@ redraw(#st{mat=Mats,bb=Uvs}=St) ->
 	_ -> wings_material:apply_material(MatN, Mats)
     end,
     gl:'begin'(?GL_QUADS),
-    gl:texCoord2f(0,0),    gl:vertex3f(0,0,-0.9),
-    gl:texCoord2f(1,0),    gl:vertex3f(1,0,-0.9),
-    gl:texCoord2f(1,1),    gl:vertex3f(1,1,-0.9),
-    gl:texCoord2f(0,1),    gl:vertex3f(0,1,-0.9),
+    gl:texCoord2f(0, 0),    gl:vertex3f(0, 0, 0),
+    gl:texCoord2f(1, 0),    gl:vertex3f(1, 0, 0),
+    gl:texCoord2f(1, 1),    gl:vertex3f(1, 1, 0),
+    gl:texCoord2f(0, 1),    gl:vertex3f(0, 1, 0),
     gl:'end'(), 
     gl:disable(?GL_TEXTURE_2D),
+
+    %% Draw border around the UV space.
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+    gl:color3f(0, 0, 1),
+    gl:recti(0, 0, 1, 1),
 
     %% Now draw charts and selection.
 
     gl:enable(?GL_DEPTH_TEST),
     gl:depthFunc(?GL_LESS),
-    gl:shadeModel(?GL_SMOOTH),
+    gl:shadeModel(?GL_FLAT),
 
     wings_draw_util:fold(fun(D, _) ->
 				 draw_one_chart(D)
@@ -811,12 +832,9 @@ update_dlists(#st{}=St) ->
 update_edges(#dlo{edges=none,src_we=#we{name=#ch{fs=Fs}}=We}=D) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    gl:pushMatrix(),
     gl:lineWidth(1),
-    gl:translatef(0, 0, 0.9),
     gl:color3f(0.1, 0.1, 0.1),
     draw_all_face_edges(Fs, We),
-    gl:popMatrix(),
     gl:endList(),
     D#dlo{edges=List};
 update_edges(#dlo{}=D) -> D.

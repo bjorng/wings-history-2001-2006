@@ -3,12 +3,12 @@
 %%
 %%     This module handles picking in AutoUV using OpenGL.
 %%
-%%  Copyright (c) 2003 Bjorn Gustavsson
+%%  Copyright (c) 2003-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.14 2004/03/06 08:57:10 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.15 2004/03/09 07:24:25 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -418,7 +418,7 @@ update_selection(Id, Item, [{_,Items0}|T0], Acc) -> %Id == I
 update_selection(Id, Item, [], Acc) ->
     {add,reverse(Acc, [{Id,gb_sets:singleton(Item)}])}.
 
-raw_pick(X0, Y0, #st{selmode=Mode,bb=#uvstate{geom={Vx,Vy,Vw,Vh}}}) ->
+raw_pick(X0, Y0, #st{selmode=Mode}) ->
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
@@ -430,9 +430,8 @@ raw_pick(X0, Y0, #st{selmode=Mode,bb=#uvstate{geom={Vx,Vy,Vw,Vh}}}) ->
     Y = H-float(Y0),
     S = 5,
     glu:pickMatrix(X, Y, S, S, {0,0,W,H}),
-    glu:ortho2D(Vx, Vy, Vw, Vh),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
+    wings_view:projection(),
+    wings_view:modelview(),
     draw(),
     case get_hits(HitBuf) of
 	none -> none;
@@ -463,7 +462,7 @@ get_hits_1(N, [2,_,_,A,B|T], Acc) ->
 
 pick_all(_DrawFaces, _X, _Y, W, H, St) when W < 1.0; H < 1.0 ->
     {none,St};
-pick_all(DrawFaces, X, Y0, W, H, #st{bb=#uvstate{geom={Vx,Vy,Vw,Vh}}}=St) ->
+pick_all(DrawFaces, X, Y0, W, H, St) ->
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
@@ -473,9 +472,8 @@ pick_all(DrawFaces, X, Y0, W, H, #st{bb=#uvstate{geom={Vx,Vy,Vw,Vh}}}=St) ->
     {Ww,Wh} = wings_wm:win_size(),
     Y = Wh-Y0,
     glu:pickMatrix(X, Y, W, H, [0,0,Ww,Wh]),
-    glu:ortho2D(Vx, Vy, Vw, Vh),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
+    wings_view:projection(),
+    wings_view:modelview(),
     case DrawFaces of
 	true ->
 	    gl:enable(?GL_CULL_FACE),
