@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.29 2002/04/08 19:06:25 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.30 2002/04/11 16:12:04 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -215,7 +215,7 @@ handle_event_5(_Event, Ss, St) ->
 secondary_selection(abort, _Ss, _St) ->
     wings_draw:clear_orig_sel(),
     wings_io:clear_message(),
-    wings_io:putback_event(redraw),
+    wings_wm:dirty(),
     pop.
 
 set_last_axis(#ss{is_axis=true}, #st{vec={{_,_,_},{_,_,_}}=Vec}) ->
@@ -236,7 +236,7 @@ translate_key_1(#keysym{sym=27}) ->		%Escape
     wings_draw:clear_orig_sel(),
     wings_io:clear_message(),
     wings_io:message("Command aborted"),
-    wings_io:putback_event(redraw),
+    wings_wm:dirty(),
     pop;
 translate_key_1(_Other) -> next.
 

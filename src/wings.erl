@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.126 2002/03/31 10:26:17 bjorng Exp $
+%%     $Id: wings.erl,v 1.127 2002/04/11 16:12:04 bjorng Exp $
 %%
 
 -module(wings).
@@ -120,7 +120,7 @@ init_1(File) ->
     St2 = resize(W, H, St1),
     St3 = resize(W, H, St2),
     St = open_file(File, St3),
-    wings_io:enter_event_loop(main_loop(St)),
+    wings_wm:top_window(main_loop(St)),
     wings_file:finish(),
     wings_pref:finish(),
     sdl:quit(),
@@ -164,8 +164,7 @@ resize(W, H, St) ->
 redraw(St0) ->
     St = wings_draw:render(St0),
     wings_io:info(info(St)),
-    wings_io:update(St),
-    wings_io:swap_buffers().
+    wings_io:update(St).
 
 clean_state(St) ->
     caption(wings_draw:model_changed(St)).
@@ -181,7 +180,7 @@ save_state(St0, St1) ->
 main_loop(St) ->
     ?VALIDATE_MODEL(St),
     wings_io:clear_icon_restriction(),
-    redraw(St),
+    wings_wm:dirty(),
     main_loop_noredraw(St).
 
 main_loop_noredraw(St) ->
@@ -230,7 +229,9 @@ handle_event_3(#resize{w=W,h=H}, St0) ->
 handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(redraw, St) ->
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    wings_draw:render(St),
+    wings_io:info(info(St)),
+    wings_io:update(St),
     main_loop(St#st{vec=none});
 handle_event_3(quit, St) ->
     do_command({file,quit}, St);

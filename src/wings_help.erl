@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.9 2002/03/25 09:49:02 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.10 2002/04/11 16:12:04 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -70,14 +70,16 @@ about(St) ->
 wait_for_click(Redraw) ->
     {seq,{push,dummy},get_click_event(Redraw)}.
 
-get_click_event({Redraw,St}=S) ->
+get_click_event(S) ->
+    wings_wm:dirty(),
+    {replace,fun(Ev) -> wait_click_handler(Ev, S) end}.
+		     
+wait_click_handler(redraw, {Redraw,St}) ->
     redraw(St),
     wings_io:ortho_setup(),
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     Redraw(W, H),
-    wings_io:swap_buffers(),
-    {replace,fun(Ev) -> wait_click_handler(Ev, S) end}.
-		     
+    keep;
 wait_click_handler(#mousemotion{}, _) -> keep;
 wait_click_handler({resize,_,_}=Ev, _) ->
     wings_io:putback_event(Ev),
@@ -86,7 +88,7 @@ wait_click_handler(quit=Ev, _) ->
     wings_io:putback_event(Ev),
     pop;
 wait_click_handler(_, _) ->
-    wings_io:putback_event(redraw),
+    wings_wm:dirty(),
     pop.
 
 show_splash(W, H) ->

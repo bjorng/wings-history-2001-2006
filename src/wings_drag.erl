@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.71 2002/03/31 10:52:54 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.72 2002/04/11 16:12:04 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -201,8 +201,7 @@ drag_help(#drag{magnet=none,falloff=Falloff}) ->
 drag_help(#drag{magnet=Type}) -> wings_magnet:drag_help(Type).
 
 get_drag_event(Drag) ->
-    redraw(Drag),
-    wings_io:swap_buffers(),
+    wings_wm:dirty(),
     get_drag_event_1(Drag).
 
 get_drag_event_1(Drag) ->
@@ -232,7 +231,6 @@ handle_drag_event_0(Ev, Drag) -> handle_drag_event_1(Ev, Drag).
 
 handle_drag_event_1(redraw, Drag) ->
     redraw(Drag),
-    wings_io:swap_buffers(),
     get_drag_event_1(Drag);
 handle_drag_event_1(#mousemotion{x=X,y=Y}, Drag0) ->
     {Dx0,Dy0,Drag1} = mouse_range(X, Y, Drag0),
@@ -261,7 +259,7 @@ handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Drag) ->
     wings_io:ungrab(),
     wings_io:clear_message(),
     wings_draw:model_changed(),
-    wings_io:putback_event(redraw),
+    wings_wm:dirty(),
     pop;
 handle_drag_event_1(view_changed, Drag) ->
     get_drag_event(view_changed(Drag));

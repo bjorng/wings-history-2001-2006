@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.48 2002/04/02 15:53:37 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.49 2002/04/11 16:12:04 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -144,6 +144,9 @@ auto_rotate_event(Event, #tim{timer=Timer,st=St}=Tim) ->
 		 end,Other}
     end.
 
+auto_rotate_event_1(redraw, Tim) ->
+    auto_rotate_redraw(Tim),
+    keep;
 auto_rotate_event_1(#mousemotion{}, _) -> keep;
 auto_rotate_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
 auto_rotate_event_1(#keyboard{}=Kb, #tim{delay=Delay}=Tim) ->
@@ -155,23 +158,19 @@ auto_rotate_event_1(#keyboard{}=Kb, #tim{delay=Delay}=Tim) ->
 	_ ->
 	    keep
     end;
-auto_rotate_event_1(redraw, Tim) ->
-    auto_rotate_redraw(Tim),
-    keep;
 auto_rotate_event_1({view,rotate_left=Cmd}, #tim{st=St}=Tim) ->
     command(Cmd, St),
-    auto_rotate_redraw(Tim),
+    wings_wm:dirty(),
     set_auto_rotate_timer(Tim);
 auto_rotate_event_1(_Event, #tim{timer=Timer}) ->
-    wings_io:putback_event(redraw),
+    wings_wm:dirty(),
     wings_io:clear_message(),
     wings_io:cancel_timer(Timer),
     pop.
 
 auto_rotate_redraw(#tim{st=St}) ->
     wings_draw:render(St),
-    wings_io:update(St),
-    wings_io:swap_buffers().
+    wings_io:update(St).
 
 auto_rotate_help() ->
     Help = [lmb|" Stop rotating "] ++ wings_camera:help(),

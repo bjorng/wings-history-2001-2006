@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.40 2002/04/08 19:06:25 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.41 2002/04/11 16:12:04 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -41,7 +41,6 @@
 	 prev=[],				%Previous menu.
 	 redraw,				%Redraw parent fun.
 	 st,					%State record.
-	 num_redraws=0,				%Total number of redraws.
 	 adv,					%Advanced menus (true|false).
 	 type=plain				%Type of menu: plain|popup
 	}).
@@ -76,10 +75,9 @@ popup_menu(X, Y, Name, Menu, Redraw) ->
 store_redraw(Mi, #st{}=St0) ->
     Redraw = fun() ->
 		     St = wings_draw:render(St0),
-		     wings_io:info(wings:info(St)),
 		     wings_io:draw_ui(St)
 	     end,
-    Mi#mi{redraw=Redraw,st=St0,num_redraws=0};
+    Mi#mi{redraw=Redraw,st=St0};
 store_redraw(Mi, Redraw) when is_function(Redraw) ->
     Mi#mi{redraw=Redraw}.
 
@@ -188,8 +186,8 @@ hotkeys(Names) ->
 %%% Event loop for menus.
 %%%
 
-get_menu_event(Mi0) ->
-    Mi = redraw(Mi0),
+get_menu_event(Mi) ->
+    wings_wm:dirty(),
     {replace,fun(Ev) -> handle_menu_event(Ev, Mi) end}.
 
 handle_menu_event(Event, Mi0) ->
@@ -208,12 +206,10 @@ handle_menu_event(Event, Mi0) ->
 	    button_pressed(Event, Mi0);
 	{go_back,NewEvent} ->
 	    Mi1 = Mi0#mi.prev,
-	    Mi = Mi1#mi{timer=short,num_redraws=0,new=false,sel=none},
+	    Mi = Mi1#mi{timer=short,new=false,sel=none},
 	    handle_menu_event(NewEvent, Mi);
 	redraw ->
-	    get_menu_event(Mi0#mi{new=false,num_redraws=0});
-	{expose} ->
-	    get_menu_event(Mi0#mi{new=false,num_redraws=0});
+	    get_menu_event(redraw(Mi0#mi{new=false}));
 	{resize,_,_}=Resize ->
 	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
 	    wings_io:clear_menu_sel(),
@@ -269,12 +265,12 @@ do_action(Action) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     wings_io:clear_menu_sel(),
     wings_io:putback_event({action,Action}),
-    wings_io:putback_event(redraw),
+    wings_wm:dirty(),
     pop.
 	    
 handle_key(#keysym{sym=27}, _Mi) ->		%Escape.
     wings_io:clear_menu_sel(),
-    wings_io:putback_event(redraw),
+    wings_wm:dirty(),
     pop;
 handle_key(#keysym{sym=?SDLK_DELETE}, Mi0) ->
     %% Delete hotkey bound to this entry.
@@ -335,11 +331,12 @@ popup_submenu(Button, X, Y, SubName, SubMenu0, Mi0) ->
 	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
 	    wings_io:clear_menu_sel(),
 	    wings_io:putback_event({action,Action}),
-	    wings_io:putback_event(redraw),
+	    wings_wm:dirty(),
 	    pop;
 	SubMenu when is_list(SubMenu) ->
 	    Mi = menu_setup(popup, X, Y, SubName, SubMenu, Mi0),
-	    handle_menu_event(redraw, Mi)
+	    wings_wm:dirty(),
+	    get_menu_event(Mi)
     end.
 
 submenu(I, Name, Menu0, Mi0) ->
@@ -367,7 +364,7 @@ button_outside(#mousebutton{x=X,y=Y}=Ev, #mi{prev=[]}) ->
 	ButtonHit -> wings_io:putback_event({action,ButtonHit})
     end,
     wings_io:event(Ev),
-    wings_io:putback_event(redraw),
+    wings_wm:dirty(),
     pop;
 button_outside(#mousebutton{x=X,y=Y}=Event, #mi{prev=PrevMenu}=Mi) ->
     #mi{sel=PrevSel} = PrevMenu,
@@ -375,7 +372,7 @@ button_outside(#mousebutton{x=X,y=Y}=Event, #mi{prev=PrevMenu}=Mi) ->
 	PrevSel -> get_menu_event(Mi);
 	_Other ->
 	    wings_io:putback_event(Event),
-	    wings_io:putback_event(redraw),
+	    wings_wm:dirty(),
 	    pop
     end.
 
@@ -389,7 +386,7 @@ motion_outside(#mousemotion{x=X,y=Y}=Event, #mi{type=plain}=Mi) ->
 		false ->
 		    wings_io:putback_event({action,ButtonHit}),
 		    wings_io:putback_event(Event),
-		    wings_io:putback_event(redraw),
+		    wings_wm:dirty(),
 		    pop
 	    end
     end;
@@ -443,25 +440,20 @@ set_submenu_timer_1(#mi{sel=Sel,timer=OldTimer}=Mi, OldMi, X, Y) ->
 	    Mi#mi{timer=Timer}
     end.
 
-redraw(#mi{redraw=Redraw,num_redraws=NumRedraws}=Mi) ->
-    if
-	NumRedraws < 2 ->
-	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-	    Redraw();
-	true -> ok
-    end,
-    wings_io:ortho_setup(),
+redraw(#mi{redraw=Redraw}=Mi) ->
+    Redraw(),
     #mi{prev=PrevMenu} = Mi,
     case PrevMenu of
 	[] -> ok;
 	#mi{return_timer=none} -> ok;
-	#mi{} -> menu_show(PrevMenu)
+	#mi{} ->
+	    wings_io:ortho_setup(),
+	    menu_show(PrevMenu)
     end,
     wings_io:ortho_setup(),
     menu_show(Mi),
     help_text(Mi),
-    gl:swapBuffers(),
-    Mi#mi{num_redraws=NumRedraws+1}.
+    Mi.
 
 update_highlight(X, Y, Mi) ->
     case selected_item(X, Y, Mi) of

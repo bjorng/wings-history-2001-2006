@@ -8,16 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.42 2002/04/10 08:17:13 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.43 2002/04/11 16:12:04 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,menubar/1,resize/2,display/1,
 	 icon_restriction/1,clear_icon_restriction/0,
-	 hourglass/0,
+	 arrow/0,hourglass/0,
 	 draw_ui/1,
 	 update/1,
-	 swap_buffers/0,
 	 event/1,button/2,
 	 info/1,message/1,message_right/1,clear_message/0,
 	 progress/1,progress_tick/0,
@@ -27,8 +26,8 @@
 	 draw_icon/5,
 	 draw_message/1,draw_completions/1]).
 -export([putback_event/1,get_event/0,
-	 set_timer/2,cancel_timer/1,
-	 enter_event_loop/1]).
+	 set_timer/2,cancel_timer/1]).
+
 -export([reset_grab/0,grab/0,ungrab/0,warp/2]).
 -export([setup_for_drawing/0,cleanup_after_drawing/0,ortho_setup/0]).
 
@@ -178,11 +177,6 @@ draw_ui(St) ->
 update(St) ->
     display(fun(Io) -> update(Io, St) end, ?GL_BACK).
 
-swap_buffers() ->
-    gl:swapBuffers(),
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-    arrow().
-    
 draw_message(F) ->
     #io{h=H} = get_state(),
     gl:pushMatrix(),
@@ -687,57 +681,6 @@ warp(X, Y) ->
 	    sdl_mouse:showCursor(false);
 	_ ->
 	    sdl_mouse:warpMouse(X, Y)
-    end.
-
-%%%
-%%% Event loop.
-%%%
-
-enter_event_loop(Op) ->
-    Stk = handle_response(Op, dummy_event, [crash_handler()]),
-    event_loop(Stk).
-
-event_loop([Handler|_]=Stk0) ->
-    Event = wings_io:get_event(),
-    case handle_event(Handler, Event, Stk0) of
-	[] -> ok;
-	Stk -> event_loop(Stk)
-    end.
-    
-handle_event(Handler, Event, Stk) ->
-    case catch Handler(Event) of
-	{'EXIT',Reason} ->
-	    CrashHandler = last(Stk),
-	    handle_response(CrashHandler({crash,Reason}),
-			    Event, [crash_handler()]);
-	Res ->
-	    handle_response(Res, Event, Stk)
-    end.
-
-handle_response(Res, Event, Stk0) ->
-    case Res of
-	keep -> Stk0;
-	next -> next_handler(Event, Stk0);
-	pop -> pop(Stk0);
-	{push,Top} -> [Top|Stk0];
-	{seq,First,Then} ->
-	    Stk = handle_response(First, Event, Stk0),
-	    handle_response(Then, Event, Stk);
-	{replace,Top} when is_function(Top) -> replace_top(Top, Stk0);
-	Top when is_function(Top) -> replace_top(Top, Stk0)
-    end.
-
-pop([_|Stk]) -> Stk.
-
-replace_top(Top, [_|Stk]) -> [Top|Stk].
-
-next_handler(Event, [_|[Next|_]=Stk]) ->
-    handle_event(Next, Event, Stk).
-
-crash_handler() ->
-    fun(Crash) ->
-	    io:format("Crashed: ~p\n", [Crash]),
-	    exit(too_bad)
     end.
 
 %%%

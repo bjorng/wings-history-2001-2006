@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.15 2002/04/11 08:20:39 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.16 2002/04/11 16:12:04 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -127,10 +127,12 @@ init_origin(#s{w=Xs,h=Ys}=S) ->
     S#s{ox=Tx,oy=Ty}.
 
 get_event(S) ->
-    redraw(S),
-    wings_io:swap_buffers(),
+    wings_wm:dirty(),
     {replace,fun(Ev) -> event(Ev, S) end}.
 
+event(redraw, S) ->
+    redraw(S),
+    keep;
 event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=Unicode}}, S) ->
     event_key({key,Sym,Mod,Unicode}, S);
 event(#mousebutton{button=1,x=X,y=Y}=Ev, S) ->
@@ -152,7 +154,7 @@ event({action,{update,I,Fst}}, #s{priv=Priv0}=S) ->
 event(Ev, S) -> field_event(Ev, S).
 
 event_key({key,?SDLK_ESCAPE,_,_}, _S) ->
-    wings_io:putback_event(redraw),
+    wings_wm:dirty(),
     pop;
 event_key({key,?SDLK_TAB,Mod,_}, S) when Mod band ?SHIFT_BITS =/= 0 ->
     get_event(next_focus(S, -1));
@@ -247,7 +249,7 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	ok ->
 	    return_result(S);
 	cancel ->
-	    wings_io:putback_event(redraw),
+	    wings_wm:dirty(),
 	    pop;
 	{dialog,Qs,Fun} ->
 	    recursive_dialog(I, Qs, Fun, S);
@@ -299,7 +301,7 @@ return_result(_, _, _, #s{call=EndFun}=S, Res) ->
 	{'EXIT',Reason} ->
 	    exit(Reason);
 	ignore ->
-	    wings_io:putback_event(redraw),
+	    wings_wm:dirty(),
 	    pop;
 	#st{}=St ->
 	    wings_io:putback_event({new_state,St}),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.21 2002/04/11 08:20:39 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.22 2002/04/11 16:12:04 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -102,9 +102,10 @@ blender_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
 	_Other ->
 	    rotate(Dx, Dy)
     end,
-    redraw(Redraw),
+    wings_wm:dirty(),
     get_blender_event(Camera, Redraw);
-blender_event(_Other, _Camera, _Redraw) -> keep.
+blender_event(Other, Camera, Redraw) ->
+    generic_event(Other, Camera, Redraw).
 
 get_blender_event(Camera, Redraw) ->
     {replace,fun(Ev) -> blender_event(Ev, Camera, Redraw) end}.
@@ -135,7 +136,7 @@ nendo(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
     wings_io:message(Help),
     {seq,{push,dummy},get_nendo_event(Camera, Redraw)};
 nendo(#keyboard{keysym=#keysym{sym=Sym}}, Redraw) ->
-    nendo_pan(Sym, Redraw);
+    nendo_pan(Sym);
 nendo(_, _) -> next.
 
 nendo_event(#mousebutton{button=1,state=?SDL_RELEASED}, Camera, _Redraw) ->
@@ -150,7 +151,7 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
     end,
     get_nendo_event(Camera, Redraw);
 nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw) ->
-    case nendo_pan(Sym, Redraw) of
+    case nendo_pan(Sym) of
 	keep -> keep;
 	next ->
 	    case wings_hotkey:event(Event) of
@@ -161,25 +162,26 @@ nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw) ->
 	    end
     end,
     keep;
-nendo_event(_Event, _Camera, _Redraw) -> keep.
+nendo_event(Event, Camera, Redraw) ->
+    generic_event(Event, Camera, Redraw).
     
-nendo_pan(?SDLK_LEFT, Redraw) ->
-    nendo_pan(0.1, 0.0, Redraw);
-nendo_pan(?SDLK_RIGHT, Redraw) ->
-    nendo_pan(-0.1, 0.0, Redraw);
-nendo_pan(?SDLK_UP, Redraw) ->
-    nendo_pan(0.0, 0.1, Redraw);
-nendo_pan(?SDLK_DOWN, Redraw) ->
-    nendo_pan(0.0, -0.1, Redraw);
-nendo_pan(_, _) -> next.
+nendo_pan(?SDLK_LEFT) ->
+    nendo_pan(0.1, 0.0);
+nendo_pan(?SDLK_RIGHT) ->
+    nendo_pan(-0.1, 0.0);
+nendo_pan(?SDLK_UP) ->
+    nendo_pan(0.0, 0.1);
+nendo_pan(?SDLK_DOWN) ->
+    nendo_pan(0.0, -0.1);
+nendo_pan(_) -> next.
 
-nendo_pan(Dx, Dy, Redraw) ->
+nendo_pan(Dx, Dy) ->
     pan(Dx, Dy),
-    redraw(Redraw),
+    wings_wm:dirty(),
     keep.
     
 get_nendo_event(Camera, Redraw) ->
-    redraw(Redraw),
+    wings_wm:dirty(),
     {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw) end}.
 
 %%%
@@ -209,10 +211,11 @@ tds_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
 	    pan(Dx/10, Dy/10)
     end,
     get_tds_event(Camera, Redraw);
-tds_event(_Other, _Camera, _Redraw) -> keep.
+tds_event(Event, Camera, Redraw) ->
+    generic_event(Event, Camera, Redraw).
 
 get_tds_event(Camera, Redraw) ->
-    redraw(Redraw),
+    wings_wm:dirty(),
     {replace,fun(Ev) -> tds_event(Ev, Camera, Redraw) end}.
 
 %%%
@@ -249,10 +252,11 @@ maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
 	true -> ok
     end,
     get_maya_event(Camera, Redraw);
-maya_event(_Other, _Camera, _Redraw) -> keep.
+maya_event(Event, Camera, Redraw) ->
+    generic_event(Event, Camera, Redraw).
 
 get_maya_event(Camera, Redraw) ->
-    redraw(Redraw),
+    wings_wm:dirty(),
     {replace,fun(Ev) -> maya_event(Ev, Camera, Redraw) end}.
 
 maya_stop_camera(Camera) ->
@@ -263,11 +267,13 @@ maya_stop_camera(Camera) ->
 %%% Common utilities.
 %%%		     
 
-redraw(#st{}=St) ->
-    wings:redraw(St);
-redraw(Redraw) when is_function(Redraw) ->
+generic_event(redraw, _Camera, #st{}=St) ->
+    wings:redraw(St),
+    keep;
+generic_event(redraw, _Camera, Redraw) when is_function(Redraw) ->
     Redraw(),
-    wings_io:swap_buffers().
+    keep;
+generic_event(_, _, _) -> keep.
 
 get_st(#st{}=St) -> St;
 get_st(Redraw) when is_function(Redraw) ->

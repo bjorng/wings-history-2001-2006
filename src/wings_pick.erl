@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.37 2002/03/09 19:22:25 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.38 2002/04/11 16:12:04 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -38,7 +38,8 @@
 %% For highlighting.
 -record(hl,
 	{st,					%Saved state.
-	 prev=none				%Previous hit ({Id,Item}).
+	 prev=none,				%Previous hit ({Id,Item}).
+	 hilite=none				%Highlite fun.
 	}).
 
 event(#mousemotion{}=Mm, #st{selmode=Mode}=St) ->
@@ -67,7 +68,7 @@ pick(X, Y, St0) ->
 		    Pick = #marquee{ox=X,oy=Y,st=St0},
 		    marquee_mode(Pick);
 		{PickOp,St} ->
-		    wings:redraw(St),
+		    wings_wm:dirty(),
 		    Pick = #pick{st=St,op=PickOp},
 		    {seq,{push,dummy},get_pick_event(Pick)}
 	    end
@@ -80,17 +81,20 @@ pick(X, Y, St0) ->
 get_hilite_event(HL) ->
     fun(Ev) -> handle_hilite_event(Ev, HL) end.
 
+handle_hilite_event(redraw, #hl{st=St,hilite=Hilite}) ->
+    wings:redraw(St#st{hilite=Hilite}),
+    keep;
 handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
     case do_pick_1(X, Y, St) of
 	PrevHit ->
 	    get_hilite_event(HL);
 	none ->
-	    wings:redraw(St),
-	    get_hilite_event(HL#hl{prev=none});
+	    wings_wm:dirty(),
+	    get_hilite_event(HL#hl{prev=none,hilite=none});
 	Hit ->
+	    wings_wm:dirty(),
 	    DrawFun = hilite_draw_sel_fun(Hit, St),
-	    wings:redraw(St#st{hilite=DrawFun}),
-	    get_hilite_event(HL#hl{prev=Hit})
+	    get_hilite_event(HL#hl{prev=Hit,hilite=DrawFun})
     end;
 handle_hilite_event(_, _) -> next.
 
@@ -179,14 +183,13 @@ marquee_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
     Y = (Oy+Y0)/2.0,
     W = abs(Ox-X)*2.0,
     H = abs(Oy-Y)*2.0,
-    St = case marquee_pick(Inside, X, Y, W, H, St0) of
-	     {none,St1} -> St1;
-	     {Hits,St1} ->
-		 St2 = marquee_update_sel(Op, Hits, St0),
-		 wings_io:putback_event({new_state,St2}),
-		 St2
-	 end,
-    wings:redraw(St),
+    case marquee_pick(Inside, X, Y, W, H, St0) of
+	{none,_} -> ok;
+	{Hits,_} ->
+	    St = marquee_update_sel(Op, Hits, St0),
+	    wings_io:putback_event({new_state,St})
+    end,
+    wings_wm:dirty(),
     pop;
 marquee_event(_, _) -> keep.
 
@@ -332,11 +335,14 @@ marquee_update_sel_1(delete, Hits, #st{sel=Sel0}=St) ->
 get_pick_event(Pick) ->
     {replace,fun(Ev) -> pick_event(Ev, Pick) end}.
 
+pick_event(redraw, #pick{st=St}) ->
+    wings:redraw(St),
+    keep;
 pick_event(#mousemotion{x=X,y=Y}, #pick{op=Op,st=St0}=Pick) ->
     case do_pick(X, Y, St0) of
 	none -> keep;
 	{Op,St} ->
-	    wings:redraw(St),
+	    wings_wm:dirty(),
 	    get_pick_event(Pick#pick{st=St});
 	{_,_} -> keep
     end;
