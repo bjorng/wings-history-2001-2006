@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.16 2002/10/22 20:19:21 raimo_niskanen Exp $
+%%     $Id: auv_mapping.erl,v 1.17 2002/10/24 19:28:04 raimo_niskanen Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -342,7 +342,7 @@ minimize(A,B) ->
 mk_solve_matrix(Af,B) ->
     AfT = auv_matrix:trans(Af),
     AfTAf = auv_matrix:mult_trans(AfT, AfT),
-    AfTB = auv_matrix:mult(AfT, B),
+    AfTB = auv_matrix:mult(-1, auv_matrix:mult(AfT, B)),
     auv_matrix:cat_cols(AfTAf, AfTB).
 
 %%               _   _    2
@@ -368,8 +368,8 @@ minimize_cg(A, X0, B, Method) ->
 		%% This preconditioning is not worth the effort.
 		%% The time for convergence decreases, but that gain
 		%% is lost on the AtA multiplication.
-		AtA = ?TC(auv_matrix:mult_trans(At, At)),
-		Diag = ?TC(auv_matrix:diag(AtA)),
+		AtA_u = ?TC(auv_matrix:square_right(At)),
+		Diag = ?TC(auv_matrix:diag(AtA_u)),
 		case catch [1/V || V <- Diag] of
 		    {'EXIT', {badarith, _}} ->
 			fun (R_new) ->
@@ -384,6 +384,14 @@ minimize_cg(A, X0, B, Method) ->
 			end
 		end;
 	    cg_colnorm ->
+		%% A very cheap preconditioning. The column norm
+		%% takes no time to calculate compared to 
+		%% AtA above. The iteration time impact is also 
+		%% very low since it is a matrix multiplication
+		%% with a diagonal (i.e very sparse) matrix.
+		%% The preconditioning effect (on the required
+		%% number of iterations) is modest, but 
+		%% cost effective.
 		Diag = ?TC(auv_matrix:row_norm(At)),
 		case catch [1/V || V <- Diag] of
 		    {'EXIT', {badarith, _}} ->
@@ -399,6 +407,7 @@ minimize_cg(A, X0, B, Method) ->
 			end
 		end;
 	    _ ->
+		%% No (identity) preconditioning
 		fun (R_new) ->
 			auv_matrix:mult(1, R_new)
 		end

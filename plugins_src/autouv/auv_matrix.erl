@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_matrix.erl,v 1.10 2002/10/22 20:19:21 raimo_niskanen Exp $
+%%     $Id: auv_matrix.erl,v 1.11 2002/10/24 19:28:05 raimo_niskanen Exp $
 
 -module(auv_matrix).
 
@@ -20,6 +20,7 @@
 -export([cat_cols/2, cat_rows/2]).
 -export([diag/1, row_norm/1]).
 -export([trans/1, mult/2, mult_trans/2]).
+-export([square_right/1]).
 -export([add/2, sub/2]).
 -export([reduce/1, backsubst/1]).
 
@@ -47,7 +48,7 @@ dim(A) ->
 %% Exported
 %%
 vector({?TAG,_N,A}) ->
-    vector_to_list(A, []);
+    lists:reverse(vector_to_list_r(A, []));
 vector(V) when number(V) ->
     [V];
 vector(L) when list(L) ->
@@ -62,14 +63,14 @@ vector(L) when list(L) ->
 vector(L) ->
     erlang:fault(badarg, [L]).
 
-vector_to_list([], C) ->
-    lists:reverse(C);
-vector_to_list([V | A], C) when float(V) ->
-    vector_to_list(A, [V | C]);
-vector_to_list([1 | A], C) ->
-    vector_to_list(A, [0.0 | C]);
-vector_to_list([Z | A], C) ->
-    vector_to_list([Z-1 | A], [0.0 | C]).
+vector_to_list_r([], C) ->
+    C;
+vector_to_list_r([V | A], C) when float(V) ->
+    vector_to_list_r(A, [V | C]);
+vector_to_list_r([1 | A], C) ->
+    vector_to_list_r(A, [0.0 | C]);
+vector_to_list_r([Z | A], C) ->
+    vector_to_list_r([Z-1 | A], [0.0 | C]).
 
 vector_from_list(N, [], C) ->
     {lists:reverse(C), N};
@@ -355,12 +356,34 @@ mult(A, B) ->
     erlang:fault(badarg, [A, B]).
 
 mult_vec(VecA, B) ->
-    mult_vec(list_to_tuple(vector_to_list(VecA, [])), B, []).
+    mult_vec(list_to_tuple(lists:reverse(vector_to_list_r(VecA, []))), B, []).
 
 mult_vec(_, [], C) ->
     lists:reverse(C);
 mult_vec(VecA, [VecB | B], C) ->
-    mult_vec(VecA, B, push_v(vec_mult(VecA, VecB), C)).
+    mult_vec(VecA, B, [vec_mult(VecA, VecB) | C]).
+
+
+
+%% Exported
+%%
+square_right({?TAG,N,_,A}) ->
+    {?TAG,N,N,sq_r(0, A, [])};
+square_right(A) ->
+    erlang:fault(badarg, [A]).
+
+sq_r(_, [], C) ->
+    lists:reverse(C);
+sq_r(I, [RowA | A], C) ->
+    sq_r(I, A, C, 
+	 RowA,
+%%%	 list_to_tuple(lists:reverse(vector_to_list_r(RowA, []))), 
+	 A, [vec_sq(RowA, 0.0) | if I == 0 -> []; true -> [I] end]).
+
+sq_r(I, A0, C, _, [], RowC) ->
+    sq_r(I+1, A0, [lists:reverse(RowC) | C]);
+sq_r(I, A0, C, Row, [RowA | A], RowC) ->
+    sq_r(I, A0, C, Row, A, [vec_mult(Row, RowA) | RowC]).
 
 
 
@@ -452,37 +475,31 @@ reduce(A) ->
 
 reduce_sort([], C) ->
     reduce_row(lists:sort(C), []);
-reduce_sort([[V | _] = Row | A], C) when float(V) ->
-    reduce_sort(A, [[0, 1.0/abs(V) | Row] | C]);
-reduce_sort([[Z | [V | _] = Row] | A], C) when float(V) ->
-    reduce_sort(A, [[Z, 1.0/abs(V) | Row] | C]);
-reduce_sort([[Z] | A], C) ->
-    reduce_sort(A, [[Z, infinity] | C]).
+reduce_sort([Row | A], C) ->
+    reduce_sort(A, [reduce_presort(0, Row) | C]).
+
+reduce_presort(Z, []) ->
+    {Z, infinity, []};
+reduce_presort(Z, [0.0 | Row]) ->
+    reduce_presort(Z+1, Row);
+reduce_presort(Z, [V | _] = Row) when float(V) ->
+    {Z, 1.0/abs(V), Row};
+reduce_presort(Z, [Zr | Row]) ->
+    reduce_presort(Z+Zr, Row).
 
 reduce_row([], C) ->
     lists:reverse(C);
 reduce_row([Row | A], C) ->
-    reduce_row(reduce_zap(Row, A, []), 
-	       [case Row of
-		    [0, _ | R] ->
-			R;
-		    [Z, _ | R] ->
-			[Z | R]
-		end | C]).
+    reduce_row(reduce_zap(Row, A, []), [reduce_postsort(Row) | C]).
 
-reduce_zap([Z, _, V | Row] = R, [[Z, _, Va | RowA] | A], C) 
+reduce_postsort({0, _, Row}) ->
+    Row;
+reduce_postsort({Z, _, Row}) ->
+    [Z | Row].
+
+reduce_zap({Z, _, [V | Row]} = R, [{Z, _, [Va | RowA]} | A], C) 
   when float(V), float(Va) ->
-    reduce_zap(R, A,
-	       [case vec_add(RowA, -Va/V, Row) of
-		    [Vc | _] = RowC when float(Vc) ->
-			[Z+1, 1.0/abs(Vc) | RowC];
-		    [Zc | [Vc | _] = RowC] when float(Vc) ->
-			[Z+1+Zc, 1.0/abs(Vc) | RowC];
-		    [Zc] ->
-			[Z+1+Zc, infinity];
-		    [] ->
-			[Z+1, infinity]
-	       end | C]);
+    reduce_zap(R, A, [reduce_presort(Z+1, vec_add(RowA, -Va/V, Row)) | C]);
 reduce_zap(_, [], C) ->
     lists:sort(C);
 reduce_zap(_, A, C) ->
@@ -493,9 +510,20 @@ reduce_zap(_, A, C) ->
 %% Exported
 %%
 backsubst({?TAG, N, M, A} = AA) when M == N+1 ->
-    case catch backsubst_rev(A, [], []) of
-	B when list(B) ->
-	    {?TAG,N,B};
+    case catch backsubst_rev(0, A, []) of
+	A_tri when list(A_tri) ->
+	    case backsubst_const(A_tri, [], []) of
+		X when list(X) ->
+		    {?TAG,N,X};
+		{error, Reason} ->
+		    Reason;
+		{'EXIT', {badarith, []}} ->
+		    illconditioned;
+		{'EXIT', Reason} ->
+		    exit(Reason);
+		Fault ->
+		    erlang:fault(Fault, [AA])
+	    end;
 	{error, Reason} ->
 	    Reason;
 	{'EXIT', {badarith, []}} ->
@@ -508,50 +536,44 @@ backsubst({?TAG, N, M, A} = AA) when M == N+1 ->
 backsubst(A) ->
     erlang:fault(badarg, [A]).
 
-backsubst_rev([], B, C) ->
-    backsubst_row(B, C, []);
-backsubst_rev([[V | Row] | A], B, C) when float(V) ->
-    backsubst_rev([1.0 | vec_mult(1/V, Row)], A, B, C);
-backsubst_rev([[Z, V | Row] | A], B, C) when float(V) ->
-    backsubst_rev([Z, 1.0 | vec_mult(1/V, Row)], A, B, C);
-backsubst_rev([[_] | _], _, _) ->
-    {error, underdeterminded};
-backsubst_rev(_, _, _) ->
-    badarg.
+backsubst_rev(_, [], C) ->
+    lists:reverse(C);
+backsubst_rev(Z, [RowA | A], C) ->
+    backsubst_rev_z(Z, 0, RowA, A, C).
 
-backsubst_rev(Row, A, B, C) ->
-    case lists:reverse(Row) of
-	[Vc | R] when float(Vc) ->
-	    backsubst_rev(A, [R | B], [Vc | C]);
-	[1 | R] ->
-	    backsubst_rev(A, [R | B], [0.0 | C]);
-	[Zc | R] ->
-	    backsubst_rev(A, [[Zc-1 | R] | B], [0.0 | C])
-    end.
+backsubst_rev_z(Z, Za, _, _, _) when Za > Z ->
+    {error, not_reduced};
+backsubst_rev_z(_, _, [_], _, _) ->
+    {error, not_reduced};
+backsubst_rev_z(Z, Za, [0.0 | RowA], A, C) ->
+    backsubst_rev_z(Z, Za+1, RowA, A, C);
+backsubst_rev_z(Z, Za, [Va | _] = RowA, A, C) when float(Va) ->
+    if Z == Za ->
+	    backsubst_rev(Z+1, A, [vector_to_list_r(RowA, []) | C]);
+       true ->
+	    {error, undetermined}
+    end;
+backsubst_rev_z(Z, Za, [Zaa | RowA], A, C) ->
+    backsubst_rev_z(Z, Za+Zaa, RowA, A, C).
 
-backsubst_row([], [], X) ->
-    backsubst_vec(X, []);
-backsubst_row([Row | A], [Vc | C], X) ->
-    backsubst_row(A, C, X++[backsubst_col(Row, Vc, X)]).
+backsubst_const([], C, B) ->
+    backsubst_vec_r(C, B, []);
+backsubst_const([[_]], _, _) ->
+    {error, undetermined};
+backsubst_const([[V | RowA] | A], C, B) when float(V) ->
+    backsubst_const(A, [RowA | C], [-V | B]).
 
-backsubst_col([1.0], Vc, []) ->
-    Vc;
-backsubst_col([1.0, Z], Vc, [])
-  when integer(Z) ->
-    Vc;
-backsubst_col([V | Row], Vc, [Vx | X]) 
-  when float(V), float(Vc), float(Vx) ->
-    backsubst_col(Row, Vc-Vx*V, X);
-backsubst_col([1 | Row], Vc, [_ | X]) ->
-    backsubst_col(Row, Vc, X);
-backsubst_col([Z | Row], Vc, [_ | X])
-  when integer(Z) ->
-    backsubst_col([Z-1 | Row], Vc, X).
+backsubst_vec_r([], [], X) ->
+    lists:reverse(X);
+backsubst_vec_r([RowA | A], [Vb | B], X) ->
+    backsubst_vec_x(RowA, A, B, X, X, Vb).
 
-backsubst_vec([], C) ->
-    C;
-backsubst_vec([V | A], C) ->
-    backsubst_vec(A, push_v(V, C)).
+backsubst_vec_x([Va], A, B, [], X0, S) 
+  when float(Va), float(S) ->
+    backsubst_vec_r(A, B, X0++[S/Va]);
+backsubst_vec_x([Va | RowA], A, B, [Vx | X], X0, S) 
+  when float(Va), float(Vx), float(S) ->
+    backsubst_vec_x(RowA, A, B, X, X0, S - Va*Vx).
 
 
 
@@ -570,56 +592,79 @@ vecs(_, _, _, _) ->
 
 
 vec_add(A, B) ->
-    vec_add(A, B, []).
+    vec_add(0, A, 0, B, 0, []).
 
 vec_add(A, F, B) when float(F) ->
-    vec_add(A, F, B, []);
+    vec_add(0, A, F, 0, B, 0, []).
 
-vec_add([Va | A] = AA, [Vb | B], C) when integer(Va) ->
-    if integer(Vb) ->
-	    if Va == Vb ->
-		    vec_add(A, B, push_v(Va, C));
-	       Va < Vb ->
-		    vec_add(A, [Vb-Va | B], push_v(Va, C));
-	       true ->
-		    vec_add([Va-Vb | A], B, push_v(Vb, C))
-	    end;
-       true -> % float(Vb)
-	    vec_add(pop_z(AA), B, push_v(Vb, C))
+vec_add(Za, [Va | A], Zb, B, Zc, C) when integer(Va) ->
+    vec_add(Za+Va, A, Zb, B, Zc, C);
+vec_add(Za, A, Zb, [Vb | B], Zc, C) when integer(Vb) ->
+    vec_add(Za, A, Zb+Vb, B, Zc, C);
+vec_add(0, [], 0, [], Zc, C) ->
+    if Zc == 0 ->
+	    lists:reverse(C);
+       true ->
+	    lists:reverse(C, [Zc])
     end;
-vec_add([Va | A], [Vb | B] = BB, C) -> % when float(Va)
-    if integer(Vb) ->
-	    vec_add(A, pop_z(BB), push_v(Va, C));
-       float(Vb), float(Va) ->
-	    vec_add(A, B, push_v(Va + Vb, C))
-    end;
-vec_add([], _, C) ->
-    lists:reverse(C);
-vec_add(_, [], C) ->
-    lists:reverse(C).
+vec_add(0, [Va | A], 0, [Vb | B], Zc, C)
+  when float(Va), float(Vb) ->
+    Vc = Va + Vb,
+    vec_add(0, A, 0, B, 0, if Zc == 0 -> [Vc | C];
+			      true -> [Vc, Zc | C]
+			   end);
+vec_add(0, [Va | A], Zb, B, Zc, C) ->
+    vec_add(0, A, Zb-1, B, 0, if Zc == 0 -> [Va | C];
+				 true -> [Va, Zc | C]
+			      end);
+vec_add(Za, A, 0, [Vb | B], Zc, C) 
+  when float(Vb) ->
+    vec_add(Za-1, A, 0, B, 0, if Zc == 0 -> [Vb | C];
+				 true -> [Vb, Zc | C]
+			      end);
+vec_add(Za, A, Zb, B, Zc, C) ->
+    if Za < Zb ->
+	    vec_add(0, A, Zb-Za, B, Zc+Za, C);
+       Zb < Za ->
+	    vec_add(Za-Zb, A, 0, B, Zc+Zb, C);
+       true ->
+	    vec_add(0, A, 0, B, Zc+Za, C)
+    end.
 
-vec_add([Va | A] = AA, F, [Vb | B], C) when integer(Va) ->
-    if integer(Vb) ->
-	    if Va == Vb ->
-		    vec_add(A, F, B, push_v(Va, C));
-	       Va < Vb ->
-		    vec_add(A, F, [Vb-Va | B], push_v(Va, C));
-	       true ->
-		    vec_add([Va-Vb | A], F, B, push_v(Vb, C))
-	    end;
-       float(F), float(Vb) ->
-	    vec_add(pop_z(AA), F, B, push_v(F*Vb, C))
+vec_add(Za, [Va | A], F, Zb, B, Zc, C) when integer(Va) ->
+    vec_add(Za+Va, A, F, Zb, B, Zc, C);
+vec_add(Za, A, F, Zb, [Vb | B], Zc, C) when integer(Vb) ->
+    vec_add(Za, A, F, Zb+Vb, B, Zc, C);
+vec_add(0, [], _, 0, [], Zc, C) ->
+    if Zc == 0 ->
+	    lists:reverse(C);
+       true ->
+	    lists:reverse(C, [Zc])
     end;
-vec_add([Va | A], F, [Vb | B] = BB, C) -> % when float(Va)
-    if integer(Vb) ->
-	    vec_add(A, F, pop_z(BB), push_v(Va, C));
-       float(Vb), float(F), float(Va) ->
-	    vec_add(A, F, B, push_v(Va + F*Vb, C))
-    end;
-vec_add([], _, _, C) ->
-    lists:reverse(C);
-vec_add(_, _, [], C) ->
-    lists:reverse(C).
+vec_add(0, [Va | A], F, 0, [Vb | B], Zc, C)
+  when float(Va), float(F), float(Vb) ->
+    Vc = Va + F*Vb,
+    vec_add(0, A, F, 0, B, 0, if Zc == 0 -> [Vc | C];
+				 true -> [Vc, Zc | C]
+			      end);
+vec_add(0, [Va | A], F, Zb, B, Zc, C) ->
+    vec_add(0, A, F, Zb-1, B, 0, if Zc == 0 -> [Va | C];
+				    true -> [Va, Zc | C]
+				 end);
+vec_add(Za, A, F, 0, [Vb | B], Zc, C) 
+  when float(F), float(Vb) ->
+    Vc = F*Vb,
+    vec_add(Za-1, A, F, 0, B, 0, if Zc == 0 -> [Vc | C];
+				    true -> [Vc, Zc | C]
+				 end);
+vec_add(Za, A, F, Zb, B, Zc, C) ->
+    if Za < Zb ->
+	    vec_add(0, A, F, Zb-Za, B, Zc+Za, C);
+       Zb < Za ->
+	    vec_add(Za-Zb, A, F, 0, B, Zc+Zb, C);
+       true ->
+	    vec_add(0, A, F, 0, B, Zc+Za, C)
+    end.
 
 vec_mult(F, B) when float(F) ->
     vec_mult_const(F, B, []);
@@ -630,9 +675,9 @@ vec_mult(A, B) ->
 
 vec_mult_const(F, [V | B], C)
   when float(F), float(V) ->
-    vec_mult_const(F, B, push_v(F*V, C));
+    vec_mult_const(F, B, [F*V | C]);
 vec_mult_const(F, [Z | B], C) ->
-    vec_mult_const(F, B, push_v(Z, C));
+    vec_mult_const(F, B, [Z | C]);
 vec_mult_const(_, [], C) ->
     lists:reverse(C).
 
