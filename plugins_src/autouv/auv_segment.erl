@@ -9,12 +9,12 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.34 2002/10/30 14:01:37 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.35 2002/11/02 08:08:37 bjorng Exp $
 
 -module(auv_segment).
 
 -export([create/2, segment_by_material/1, cut_model/3,
-	 normalize_charts/3, map_vertex/2]).
+	 normalize_charts/3, map_vertex/2, uv_to_charts/2]).
 -export([degrees/0, find_features/3, build_seeds/2]). %% Debugging
 -include("wings.hrl").
 -include("auv.hrl").
@@ -616,7 +616,7 @@ map_vertex(V0, Vmap) ->
 %%% Cutting along hard edges.
 %%%
 
-cut_model(Cuts, Charts, #we{mode=Mode}=We0) ->
+cut_model(Charts, Cuts, #we{mode=Mode}=We0) ->
     Map0 = gb_trees:empty(),
     {Wes,{Map,_}} = mapfoldl(fun(Keep, {M,W}) ->
 				     cut_one_chart(Keep, Cuts, W, M)
@@ -833,3 +833,69 @@ collect_maybe_add(Work, Face, {Faces,Edges}, We, Res) ->
 		      end
 	      end
       end, Work, Face, We).
+
+%%%
+%%% Given a model having UV coordinates, partition it into charts.
+%%%
+
+uv_to_charts(Faces0, We) ->
+    Dict = make_uv_tab(Faces0, We, []),
+    Faces = gb_sets:from_list(Faces0),
+    Cuts = gb_sets:from_list(wings_face:inner_edges(Faces0, We)),
+    uv_to_charts_1(Faces, We, Dict, Cuts, []).
+
+make_uv_tab([F|Fs], We, Acc0) ->
+    Acc = [{{F,V},UV} || [V|UV] <- wings_face:vinfo(F, We)] ++ Acc0,
+    make_uv_tab(Fs, We, Acc);
+make_uv_tab([], _, Acc) ->
+    gb_trees:from_orddict(sort(Acc)).
+
+uv_to_charts_1(Faces0, We, D, Cuts0, Charts) ->
+    case gb_trees:is_empty(Faces0) of
+	true -> {Charts,Cuts0};
+	false ->
+	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
+	    Ws = gb_sets:singleton(Face),
+	    Empty = gb_sets:empty(),
+	    {Chart,Cuts,Faces} = collect_chart(Ws, We, D, Empty, Cuts0, Faces1),
+	    uv_to_charts_1(Faces, We, D, Cuts, [gb_sets:to_list(Chart)|Charts])
+    end.
+
+collect_chart(Ws0, We, D, Charts0, Cuts0, Faces0) ->
+    case gb_sets:is_empty(Ws0) of
+	true ->
+	    {Charts0,Cuts0,Faces0};
+	false ->
+	    {Face,Ws1} = gb_sets:take_smallest(Ws0),
+	    Charts = gb_sets:add(Face, Charts0),
+	    Cuts = remove_non_cutting(Face, D, We, Charts, Cuts0),
+	    {Ws,Faces} = collect_adj_faces(Face, We, D, Ws1, Faces0),
+	    collect_chart(Ws, We, D, Charts, Cuts, Faces)
+    end.
+
+collect_adj_faces(Face, We, D, Ws, Faces0) ->
+    wings_face:fold(
+      fun(_, _, Rec, {W0,F0}=A) ->
+	      Of = wings_face:other(Face, Rec),
+	      case gb_sets:is_member(Of, F0) andalso not is_cutting_edge(Rec, D) of
+		  false -> A;
+		  true -> {gb_sets:insert(Of, W0),gb_sets:delete(Of, F0)}
+	      end
+      end, {Ws,Faces0}, Face, We).
+
+remove_non_cutting(Face, D, We, Charts, Cuts0) ->
+    wings_face:fold(
+      fun(_, E, Rec, Cuts) ->
+	      Of = wings_face:other(Face, Rec),
+	      case gb_sets:is_member(Of, Charts) andalso
+		  not is_cutting_edge(Rec, D) of
+		  false -> Cuts;
+		  true -> gb_sets:delete_any(E, Cuts)
+	      end
+      end, Cuts0, Face, We).
+
+is_cutting_edge(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, D) ->
+    gb_trees:get({Lf,Va}, D) =/= gb_trees:get({Rf,Va}, D) orelse
+	gb_trees:get({Lf,Vb}, D) =/= gb_trees:get({Rf,Vb}, D).
+								  
+    

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.36 2002/10/30 14:01:38 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.37 2002/11/02 08:08:37 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -292,7 +292,7 @@ seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     [{_,#we{he=Cuts0}=We0}] = gb_trees:to_list(Shs),
     Charts0 = auv_segment:segment_by_material(We0),
     {Charts,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
-    {We,Vmap} = auv_segment:cut_model(Cuts, Charts, OrigWe),
+    {We,Vmap} = auv_segment:cut_model(Charts, Cuts, OrigWe),
     N = length(Charts),
     seg_map_charts_1(Charts, Method, We, {OrigWe,Vmap}, 1, N, [], Ss).
 
@@ -316,7 +316,6 @@ seg_map_chart([C|Cs], Type, We, Extra, I, N, Acc0, Ss) ->
 	    Acc = [#a{fs=C,vpos=Vs}|Acc0],
 	    seg_map_charts_1(Cs, Type, We, Extra, I+1, N, Acc, Ss)
     end.
-
 
 seg_error(Message, Ss) ->
     wings_io:putback_event({message,Message}),
@@ -474,23 +473,27 @@ init_edit(#we{fs=Ftab0}=We0, St0) ->
     MatNames = [Mat || {Name,_}=Mat <- MatNames1,
 		       has_texture(Name, St0)],
     [{MatName,Faces}|_] = MatNames,
-    Ftab1 = sofs:relation(gb_trees:to_list(Ftab0)),
-    Ftab2 = sofs:restriction(Ftab1, sofs:set(Faces)),
-    Ftab = gb_trees:from_orddict(sofs:to_external(Ftab2)),
-    Clusters = get_groups(Ftab, We0, []),
-    ?DBG("Edit UV ~p \n", [MatName]),
-    Empty = gb_sets:empty(),
-    {We,ChangedByCut} = auv_segment:cut_model(Empty, Clusters, We0),
-    Map1 = number(build_map(Clusters, We, []), 1),
+    {Charts0,Cuts0} = auv_segment:uv_to_charts(Faces, We0),
+    {Charts,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
+
+    %% XXX Because of a bug in the bevel code for vertices (which is
+    %% used by auv_segment:cut_model/3), we still can't handle charts
+    %% with cuts.
+    case gb_trees:is_empty(Cuts) of
+	true -> ok;
+	false -> wings_util:error("Cannot handle charts with cuts yet.")
+    end,
+    {We,Vmap} = auv_segment:cut_model(Charts, Cuts, We0#we{mode=material}),
+    Map1 = number(build_map(Charts, We, []), 1),
     Map = gb_trees:from_orddict(Map1),
-    #areas{we=We,orig_we=We0,as=Map,vmap=ChangedByCut,matname=MatName}.
+    #areas{we=We,orig_we=We0,as=Map,vmap=Vmap,matname=MatName}.
 
 build_map([Fs|T], We, Acc) ->
     UVs0 = foldl(fun(F, A) ->
-			 draw_info(F, We) ++ A
+			 [{V,UV} || [V|UV] <- wings_face:vinfo(F, We)] ++ A
 		 end, [], Fs),
     UVs1 = lists:usort(UVs0),
-    %% XXX We don't handle charts that must be cut yet. (Assertion)
+    %% Assertion.
     true = sofs:is_a_function(sofs:relation(UVs1, [{atom,atom}])),
     {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(UVs0),
     CX = BX0 + (BX1-BX0) / 2,
@@ -572,51 +575,6 @@ add_material(edit, Tx = {TxW,TxH,TxBin}, St0, As = #areas{matname = MatName}) ->
     NewMats = gb_trees:update(MatName, NewMat, Mats),
     
     {St0#st{mat = NewMats}, As}.
-
-get_groups(Ftab0, We, Acc) ->
-    case gb_trees:is_empty(Ftab0) of
-	true -> Acc;
-	false ->
-	    {Face,_,Ftab1} = gb_trees:take_smallest(Ftab0),
-	    {Faces,Ftab} = get_group([Face], Ftab1, We, []),
-	    get_groups(Ftab, We, [Faces|Acc])
-    end.
-
-get_group([Face|Rest], Ftab1, We = #we{es = Es}, AF) ->
-    Get = fun(W,_E,ER,Acc) -> get_group2(W,ER,Acc,Es) end,
-    {Fs,Ftab2} = wings_face:fold(Get, {[],Ftab1}, Face, We),
-    get_group(Rest ++ Fs, Ftab2, We, Fs ++ [Face|AF]);
-get_group([], Ftab, _We, AF) ->
-    {lists:usort(AF),Ftab}.
-
-get_group2(VO, #edge{lf=Face,vs=VO,ve=V,b=F1Uv,ltpr=Eid2}, {Fs,Ftab}, Etab) ->
-    case gb_trees:is_defined(Face, Ftab) of
-	false ->
-	    {Fs,Ftab};
-	true ->
-	    case gb_trees:get(Eid2, Etab) of
-		#edge{rf=Face,ve=V,b=F1Uv} ->
-		    {[Face|Fs], gb_trees:delete(Face, Ftab)};
-		#edge{lf=Face,vs=V,a=F1Uv} ->
-		    {[Face|Fs],gb_trees:delete(Face, Ftab)};
-		_Edge ->
-		    {Fs, Ftab}
-	    end
-    end;
-get_group2(VO, #edge{rf=Face,vs=V,ve=VO,a=F1Uv,rtpr=Eid2}, {Fs,Ftab},Etab) ->
-    case gb_trees:is_defined(Face, Ftab) of
-	false ->
-	    {Fs,Ftab};
-	true ->
-	    case gb_trees:get(Eid2, Etab) of
-		#edge{rf=Face,ve=V,b=F1Uv} ->
-		    {[Face|Fs],gb_trees:delete(Face, Ftab)};
-		#edge{lf=Face,vs=V,a=F1Uv} ->
-		    {[Face|Fs],gb_trees:delete(Face, Ftab)};
-		_Edge ->
-		    {Fs,Ftab}
-	    end
-    end.
 
 moveAndScale([{Id, {X0, Y0,_}}|R], XD, YD, Scale, Acc) ->
     moveAndScale(R, XD,YD, Scale, 
@@ -947,8 +905,8 @@ edge_option_menu(#uvstate{option = Option}) ->
     MaxTxs = min([4096,gl:getIntegerv(?GL_MAX_TEXTURE_SIZE)]),
     TxSzs = genSizeOption(128, MaxTxs, DefTSz, []),    
     
-    Qs = [{vframe,[{alt,DefVar,"Draw Border Edges", border_edges},
-		   {alt,DefVar,"Draw All Edges",    all_edges},
+    Qs = [{vframe,[{alt,DefVar,"Draw All Edges",    all_edges},
+		   {alt,DefVar,"Draw Border Edges", border_edges},
 		   {alt,DefVar,"Don't Draw Edges",  no_edges}],
 	   [{title,"Edge Options"}]},
 	  {vframe,[{"Use Face/Vertex Color on Border Edges", Option#setng.edge_color},
@@ -1740,19 +1698,4 @@ check_repeat(N, D) ->
     case N rem 2 of
 	0 -> [B|B];
 	1 -> [D,B|B]
-    end.
-
-%% XXX Probably better moved into Wings core.
-draw_info(Face, #we{es=Etab,fs=Ftab}) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
-    info_traverse(Face, Edge, Edge, Etab, []).
-
-info_traverse(_Face, LastEdge, LastEdge, _Etab, Acc) when Acc =/= [] -> Acc;
-info_traverse(Face, Edge, LastEdge, Etab, Acc) ->
-    case gb_trees:get(Edge, Etab) of
-	#edge{vs=V,a=Col,lf=Face,ltsu=NextEdge} ->
-	    info_traverse(Face, NextEdge, LastEdge, Etab, [{V,Col}|Acc]);
-	#edge{ve=V,b=Col,rf=Face,rtsu=NextEdge} ->
-	    info_traverse(Face, NextEdge, LastEdge, Etab,
-			  [{V,Col}|Acc])
     end.
