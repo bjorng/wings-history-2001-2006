@@ -8,10 +8,10 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.3 2003/07/08 07:05:31 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.4 2003/07/08 18:42:54 bjorng Exp $
 
 -module(auv_seg_ui).
--export([start/2]).
+-export([start/3]).
 
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
@@ -28,14 +28,14 @@
 	      msg				%Message.
 	     }).
 
-start(#we{id=Id}=We0, St0) ->
+start(#we{id=Id}=We0, OrigWe, St0) ->
     Modes = [vertex,edge,face],
     wings:mode_restriction(Modes),
     We = We0#we{mode=material},
     check_for_defects(We),
     St1 = seg_create_materials(St0),
     St = St1#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
-    Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=We}),
+    Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=OrigWe}),
     {seq,push,get_seg_event(Ss)}.
     
 %     Active = wings_wm:this(),
@@ -278,7 +278,7 @@ seg_map_chart([{Fs,Vmap,We0}|Cs], Type, I, N, Acc0, Ss) ->
 	{error,Message} ->
 	    seg_error(Message, Ss);
 	Vs ->
-	    We = We0#we{vp=gb_trees:from_orddict(sort(Vs)),mat=default},
+	    We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
 	    Acc = [#ch{we=We,fs=Fs,vmap=Vmap}|Acc0],
 	    seg_map_charts_1(Cs, Type, I+1, N, Acc, Ss)
     end.

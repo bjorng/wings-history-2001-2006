@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.121 2003/07/08 07:05:31 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.122 2003/07/08 18:42:54 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -120,11 +120,12 @@ auv_event({init_uvmapping,#we{mode=Mode}=We}, St) ->
     wings:init_opengl(St),
     case Mode of
 	uv -> start_edit(We, St);
-	_ -> auv_seg_ui:start(We, St)
+	_ -> auv_seg_ui:start(We, We, St)
     end;
-auv_event({discard_uvs,Id,#st{shapes=Shs}=St}, _) ->
+auv_event({discard_uvs,Id,#st{shapes=Shs}=St}, #st{shapes=ShsOrig}) ->
     We = gb_trees:get(Id, Shs),
-    auv_seg_ui:start(We, St);
+    OrigWe = gb_trees:get(Id, ShsOrig),
+    auv_seg_ui:start(We, OrigWe, St);
 auv_event({uv_edit,{MatName,Faces,We}}, St) ->
     do_edit(MatName, Faces, We, St);
 auv_event({init_show_maps,Id,Map}, #st{shapes=Shs}=St) ->
