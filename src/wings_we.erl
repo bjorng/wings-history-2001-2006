@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.52 2003/04/25 20:23:10 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.53 2003/05/11 06:34:37 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -407,7 +407,7 @@ do_renumber(We0, Id) ->
     We.
 
 do_renumber(#we{mode=Mode,vp=Vtab0,es=Etab0,fs=Ftab0,
-		mat=MatTab0,he=Htab0,perm=Perm0}=We0,
+		mat=MatTab0,he=Htab0,perm=Perm0,mirror=Mirror0}=We0,
 	    Id, RootSet0) ->
     Vtab1 = gb_trees:to_list(Vtab0),
     Vmap = make_map(Vtab1, Id),
@@ -437,9 +437,15 @@ do_renumber(#we{mode=Mode,vp=Vtab0,es=Etab0,fs=Ftab0,
 	       _ -> Perm0
 	   end,
 
+    Mirror = if
+		 Mirror0 == none -> Mirror0;
+		 true -> gb_trees:get(Mirror0, Fmap)
+	     end,
+
     RootSet = map_rootset(RootSet0, Emap, Vmap, Fmap),
     We = We0#we{mode=Mode,vc=undefined,fs=undefined,
-		vp=Vtab,es=Etab,mat=MatTab,he=Htab,perm=Perm},
+		vp=Vtab,es=Etab,mat=MatTab,he=Htab,
+		perm=Perm,mirror=Mirror},
 
     %% In case this function will be used for merging #we records,
     %% it is essential to update the next_id field. Its value can
