@@ -9,7 +9,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings.nsi,v 1.3 2003/09/12 15:05:22 bjorng Exp $
+#     $Id: wings.nsi,v 1.4 2003/09/17 18:22:59 bjorng Exp $
 #
 
 	!define MUI_PRODUCT "Wings 3D"
@@ -65,8 +65,6 @@
 		"Basic Wings components"
   	LangString DESC_SecWingsMakeDefault ${LANG_ENGLISH} \
 "Make this installation of Wings 3D the one that will be started when you double-click on a .wings file."
-  	LangString DESC_SecWingsClutter ${LANG_ENGLISH} \
-		"Clutter your computer with Wings 3D shortcuts."
   	LangString DESC_SecWingsClutterDesktop ${LANG_ENGLISH} \
 		"Create a shortcut to Wings3D on the Desktop."
   	LangString DESC_SecWingsClutterQuicklaunch ${LANG_ENGLISH} \
@@ -178,7 +176,6 @@ Section "Make Default" SecWingsMakeDefault
   WriteRegStr HKLM "SOFTWARE\Wings 3D\DefaultVersion" "" ${WINGS_VERSION}
 SectionEnd  
 
-SubSection "Shortcuts" SecWingsClutter
 Section "Desktop shortcut" SecWingsClutterDesktop
   SetShellVarContext All
   ClearErrors
@@ -199,7 +196,7 @@ Section "QuickLaunch shortcut" SecWingsClutterQuickLaunch
 continue_create:
 SectionEnd
 SubSectionEnd
-SubSectionEnd
+
 ;Display the Finish header
 	!insertmacro MUI_SECTIONS_FINISHHEADER
 
@@ -209,8 +206,6 @@ SubSectionEnd
   	!insertmacro MUI_DESCRIPTION_TEXT ${SecWings} $(DESC_SecWings)
   	!insertmacro MUI_DESCRIPTION_TEXT ${SecWingsBase} $(DESC_SecWingsBase)
   	!insertmacro MUI_DESCRIPTION_TEXT ${SecWingsMakeDefault} $(DESC_SecWingsMakeDefault)
-  	!insertmacro MUI_DESCRIPTION_TEXT ${SecWingsClutter} \
-		$(DESC_SecWingsClutter)
   	!insertmacro MUI_DESCRIPTION_TEXT ${SecWingsClutterDesktop} \
 		$(DESC_SecWingsClutterDesktop)
   	!insertmacro MUI_DESCRIPTION_TEXT ${SecWingsClutterQuicklaunch} \
