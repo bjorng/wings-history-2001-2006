@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.26 2002/05/25 18:10:08 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.27 2002/08/23 08:13:00 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -69,16 +69,21 @@ bevel_faces(St0) ->
 bevel_faces(Faces, #we{id=Id}=We0, {Tvs,Limit0}) ->
     Edges = wings_edge:from_faces(Faces, We0),
     {We1,OrigVs} = extrude_edges(Edges, We0),
-    We2 = wings_edge:dissolve_edges(Edges, We1),
-    Tv0 = bevel_tv(OrigVs, We2),
-    #we{vs=Vtab0} = We3 =
-	foldl(fun(V, W0) ->
-		      wings_collapse:collapse_vertex(V, W0)
-	      end, We2, OrigVs),
-    Vtab = bevel_reset_pos(OrigVs, We2, Vtab0),
-    We = We3#we{vs=Vtab},
-    {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
-    {We,{[{Id,Tv}|Tvs],Limit}}.
+    case {gb_trees:size(We0#we.es),gb_trees:size(We1#we.es)} of
+	{Same,Same} ->
+	    wings_util:error("Object is too small to bevel.");
+	{_,_} ->
+	    We2 = wings_edge:dissolve_edges(Edges, We1),
+	    Tv0 = bevel_tv(OrigVs, We2),
+	    #we{vs=Vtab0} = We3 =
+		foldl(fun(V, W0) ->
+			      wings_collapse:collapse_vertex(V, W0)
+		      end, We2, OrigVs),
+	    Vtab = bevel_reset_pos(OrigVs, We2, Vtab0),
+	    We = We3#we{vs=Vtab},
+	    {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
+	    {We,{[{Id,Tv}|Tvs],Limit}}
+    end.
 
 %%
 %% Common bevel utilities.
