@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.72 2003/01/09 12:44:51 raimo_niskanen Exp $
+%%     $Id: wpc_autouv.erl,v 1.73 2003/01/09 15:25:56 raimo_niskanen Exp $
 
 -module(wpc_autouv).
 
@@ -879,12 +879,17 @@ option_menu() ->
      {"Draw Options", edge_options, "Edit draw options"},
      separator,
      {"Export", export, "Export texture"},
-     {"Import", import, "Import texture"},
-     {"Checkerboard", checkerboard, "Generate checkerboard texture"},
-     {"Vertical Bars", vertical_bars, "Generate vertical bars texture"},
-     {"Horizontal Bars", horizontal_bars, "Generate horizontal bars texture"},
-     {"White", all_white, "Generate white texture"},
-     {"Black", all_black, "Generate black texture"},
+     {"Import", 
+      {import, [{"File", file, "Import texture from file"},
+		separator,
+		{"Checkerboard", checkerboard, "Generate checkerboard texture"},
+		{"Vertical Bars", vertical_bars, 
+		 "Generate vertical bars texture"},
+		{"Horizontal Bars", horizontal_bars, 
+		 "Generate horizontal bars texture"},
+		{"White", all_white, "Generate white texture"},
+		{"Black", all_black, "Generate black texture"}]}, 
+      "Import texture"},
      separator,
      {"Apply Texture", apply_texture, "Attach the current texture to the model"},
      separator,
@@ -948,36 +953,48 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0
 handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT}, 
 	     #uvstate{op=Op}) ->	   
     get_event(Op#op.undo);
-handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
-	     Uvs0 = #uvstate{geom=ViewP,
-			     mode=Mode,
-			     op=Op,
-			     sel=Sel0,
-			     areas=#areas{we=We,as=Curr0}=As})
-  when Op == undefined; Op#op.name == fmove ->
-    {_,_,_,OH} = wings_wm:viewport(),
-    SX = MX,
-    SY = OH-MY,
-    case select(Mode, SX, SY, add_as(Sel0,Curr0), We, ViewP) of
-	none when Op == undefined ->
-	    keep;
-	none -> 
-	    get_event(Uvs0#uvstate{op = undefined});
-	Hits ->
-	    {Sel1, Curr1} = 
-		case (sdl_keyboard:getModState() band ?KMOD_CTRL) /= 0 of
-		    true -> 
-			update_selection(Hits -- Sel0, Sel0, Curr0);
-		    false ->
-			update_selection([hd(Hits)], Sel0, Curr0)
-		end,
-	    WingsSt = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
-	    wings_wm:send(geom, {new_state,WingsSt}),
-	    get_event(reset_dl(Uvs0#uvstate{sel = Sel1,
-					    st=WingsSt,
-					    areas=As#areas{as=Curr1},
-					    op = undefined}))
+handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
+			  x=MX,y=MY}, 
+	     #uvstate{geom=ViewP,
+		      mode=Mode,
+		      op=Op,
+		      sel=Sel0,
+		      areas=#areas{we=We,as=Curr0}=As} = Uvs0)
+  when Op == undefined; 
+       record(Op, op), Op#op.name == fmove ->
+    case Op of
+	#op{name=fmove,add={X,Y}} when X /= MX; Y /= MY -> % fmove, not nowhere
+	    get_event(Uvs0#uvstate{op=undefined});
+	_ -> % deselection
+	    {_,_,_,OH} = wings_wm:viewport(),
+	    SX = MX,
+	    SY = OH-MY,
+	    case select(Mode, SX, SY, add_as(Sel0,Curr0), We, ViewP) of
+		none when Op == undefined ->
+		    keep;
+		none -> 
+		    get_event(Uvs0#uvstate{op = undefined});
+		Hits ->
+		    {Sel1, Curr1} = 
+			case (sdl_keyboard:getModState() band ?KMOD_CTRL) /= 0 
+			    of
+			    true -> 
+				update_selection(Hits -- Sel0, Sel0, Curr0);
+			    false ->
+				update_selection([hd(Hits)], Sel0, Curr0)
+			end,
+		    WingsSt = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
+		    wings_wm:send(geom, {new_state,WingsSt}),
+		    get_event(reset_dl(Uvs0#uvstate{sel = Sel1,
+						    st=WingsSt,
+						    areas=As#areas{as=Curr1},
+						    op = undefined}))
+	    end
     end;
+% handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
+% 			  x=MX,y=MY}, 
+% 	     #uvstate{op=#op{name=fmove,add={MX,MY}}} = Uvs0) ->
+%     get_event(Uvs0#uvstate{op=undefined});
 handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
 	     #uvstate{geom=ViewP,
 		      mode = Mode,
@@ -1002,7 +1019,8 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 		    {Sel1,Curr1} = update_selection(Hits, Sel0, Curr0),
 		    WingsSt = wings_select_faces(Sel1, We0, Uvs0#uvstate.st),
 		    wings_wm:send(geom, {new_state,WingsSt}),
-		    Uvs = Uvs0#uvstate{sel=Sel1,
+		    Uvs = Uvs0#uvstate{op=undefined,
+				       sel=Sel1,
 				       st=WingsSt,
 				       areas=As#areas{as=Curr1}},
 		    get_event(reset_dl(Uvs))
@@ -1032,7 +1050,8 @@ handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY},
 		Hits -> 
 		    keep;
 		_ -> %% Hit atleast one of the selected
-		    get_event(Uvs0#uvstate{op=#op{name=fmove, prev={MX,MY}, undo=Uvs0}})
+		    get_event(Uvs0#uvstate{op=#op{name=fmove, add={MX,MY},
+						  prev={MX,MY}, undo=Uvs0}})
 	    end
     end;
 handle_event(#keyboard{state=?SDL_PRESSED,keysym=Sym}, 
@@ -1061,7 +1080,7 @@ handle_event({action,{auv,export}}, Uvs0) ->
 		    wings_util:message("Export failed: " ++ Error)
 	    end
     end;
-handle_event({action,{auv,import}}, Uvs0) ->
+handle_event({action,{auv,{import,file}}}, Uvs0) ->
     Ps = [{extensions,wpa:image_formats()}],
     case wpa:import_filename(Ps) of
 	aborted -> 
@@ -1069,20 +1088,15 @@ handle_event({action,{auv,import}}, Uvs0) ->
 	FileName ->
 	    ?SLOW(import_file(FileName, Uvs0))
     end;
-% handle_event({action,{auv,checkerboard}}, #uvstate{option=Opt0}=Uvs) ->
-%     Sz = 512,
-%     Bin = checkerboard(Sz),
-%     Opt = Opt0#setng{texbg=true,color=false,edges=no_edges},
-%     add_texture_image(Sz, Sz, Bin, default, Uvs#uvstate{option=Opt});
-handle_event({action,{auv,checkerboard}}, Uvs) ->
+handle_event({action,{auv,{import,checkerboard}}}, Uvs) ->
     set_texture_image(fun checkerboard/2, Uvs);
-handle_event({action,{auv,vertical_bars}}, Uvs) ->
+handle_event({action,{auv,{import,vertical_bars}}}, Uvs) ->
     set_texture_image(fun vertical_bars/2, Uvs);
-handle_event({action,{auv,horizontal_bars}}, Uvs) ->
+handle_event({action,{auv,{import,horizontal_bars}}}, Uvs) ->
     set_texture_image(fun horizontal_bars/2, Uvs);
-handle_event({action,{auv,all_white}}, Uvs) ->
+handle_event({action,{auv,{import,all_white}}}, Uvs) ->
     set_texture_image(fun all_white/2, Uvs);
-handle_event({action,{auv,all_black}}, Uvs) ->
+handle_event({action,{auv,{import,all_black}}}, Uvs) ->
     set_texture_image(fun all_black/2, Uvs);
 handle_event({action,{auv,apply_texture}},
 	     #uvstate{st=St0,sel=Sel0,areas=As0}=Uvs) ->
