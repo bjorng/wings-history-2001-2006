@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.4 2004/05/17 19:06:50 dgud Exp $
+%%     $Id: wings_palette.erl,v 1.5 2004/05/18 08:19:56 dgud Exp $
 %%
 -module(wings_palette).
 
@@ -92,30 +92,58 @@ event(close, #pst{cols=Cols}) ->
     put(?MODULE, Cols),
     delete;
 event(got_focus, _) ->
-    Msg = wings_util:button_format("Assign color to selection", [],
+    Msg = wings_util:button_format("Assign color to selection  [Ctrl]+L: Clear Color",
+				   "Edit Color",
 				   "Show menu"),
     wings_wm:message(Msg),
     wings_wm:dirty();
 event({current_state,St}, Pst) ->
     get_event(Pst#pst{st=St});
-event(Ev = #mousemotion{state=Bst,x=X,y=Y}, Pst = #pst{sel=Sel,cols=Cols})
-  when Sel /= none, Bst band ?SDL_BUTTON_LMASK =/= 0 ->    
+event(Ev = #mousemotion{state=Bst,x=X,y=Y, mod=Mod}, Pst = #pst{sel=Sel,cols=Cols})
+  when Bst band ?SDL_BUTTON_LMASK =/= 0 ->
+    Delete = Mod band ?CTRL_BITS =/= 0,
     case select(X,Y) of
+	none -> keep;
  	Sel -> keep;
- 	_ ->
+	Id when Delete ->
+	    {Bef,[_Prev|Rest]} = lists:split(Id, Cols),
+	    get_event(Pst#pst{sel=none, cols=Bef++[none|Rest]});
+	_ when Sel == none ->
+	    keep;
+	_ ->
 	    case lists:nth(Sel+1, Cols) of
 		none -> 
-		    get_event(Pst#pst{sel=none});
+		    get_event(Pst#pst{sel=none});		
 		_ ->
 		    drag_and_drop(Ev, lists:nth(Sel+1, Cols)),
 		    keep	    
 	    end
     end;
-event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, #pst{}=Pst) ->
-    get_event(Pst#pst{sel=select(X,Y)});
+event(#mousebutton{button=Butt,x=X,y=Y,mod=Mod,state=?SDL_PRESSED}, #pst{cols=Cols0}=Pst) 
+  when Butt =:= 1; Butt =:= 2 ->
+    case Mod band ?CTRL_BITS =/= 0 of
+	false ->
+	    get_event(Pst#pst{sel=select(X,Y)});
+	true when Butt =:= 1 ->
+	    case select(X,Y) of
+		none -> keep;
+		Id ->
+		    {Bef,[_Prev|Rest]} = lists:split(Id, Cols0),		    
+		    get_event(Pst#pst{sel=none, cols=Bef++[none|Rest]})
+	    end;
+	true ->
+	    keep
+    end;
 
 event(#mousebutton{button=1,state=?SDL_RELEASED}, #pst{sel=none}) ->
     keep;
+event(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Pst = #pst{sel=Sel}) ->
+    case select(X,Y) of
+	Sel -> 
+	    command({edit,Sel}, Pst);
+	_ -> 
+	    get_event(Pst#pst{sel=none})
+    end;
 event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, #pst{sel=Sel,cols=Cols,st=St0}=Pst) ->
     Color = lists:nth(Sel+1, Cols),
     case select(X,Y) of
@@ -182,12 +210,15 @@ do_menu(Id,X,Y,#pst{cols=Cols}) ->
     Menu = [{"Edit",{'VALUE',{edit,Id}}, "Edit color"}],
     Smooth = case lists:nth(Id+1, Cols) of
 		 none ->
-		     [{"Smooth Colors",{'VALUE',{smooth,Id}}, 
+		     [{"Interpolate",{'VALUE',{smooth,Id}}, 
 		       "Interpolate Empty Colors"}];
 		 _ -> []
 	     end,
-    wings_menu:popup_menu(X,Y,palette,Menu ++ Smooth).
+    Rest = [{"Clear All", {'VALUE',clear_all}, "Clear palette"}],
+    wings_menu:popup_menu(X,Y,palette,Menu ++ Smooth ++ Rest).
 
+command(clear_all, Pst) ->
+    get_event(Pst#pst{sel=none,cols=lists:duplicate(?COLS_W*?COLS_H, none)});
 command({smooth,Id}, Pst = #pst{cols=Cols0}) ->
     {Bef0,After0} = lists:split(Id, Cols0),
     {BC, Bef1} = del_empty(reverse(Bef0)),
