@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.126 2003/11/05 19:12:45 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.127 2003/11/08 16:02:55 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -93,16 +93,8 @@
 
 init() ->
     put(wm_cursor, arrow),
-    wings_pref:set_default(window_size, {780,570}),
     {W,H} = TopSize = wings_pref:get_value(window_size),
     put(wm_top_size, TopSize),
-
-    %% Make sure that some vide mode works. Otherwise crash early.
-    %% From best to worst.
-    try_video_modes(opengl_modes()),
-    wings_util:init_gl_extensions(),
-    wings_util:init_gl_restrictions(),
-
     translation_change(),
     put(wm_windows, gb_trees:empty()),
     new(desktop, {0,0,0}, {0,0}, {push,fun desktop_event/1}),
@@ -110,22 +102,6 @@ init() ->
 	{push,fun message_event/1}),
     init_opengl(),
     resize_windows(W, H).
-
-opengl_modes() ->
-    [[{buffer_size,32},{depth_size,32},{stencil_size,8},{accum_size,16}],
-     [{buffer_size,24},{depth_size,32},{stencil_size,8},{accum_size,16}],
-     [{buffer_size,24},{depth_size,24},{stencil_size,8},{accum_size,16}],
-     [{buffer_size,24},{depth_size,24},{stencil_size,0},{accum_size,16}],
-     [{buffer_size,16},{depth_size,24},{stencil_size,8},{accum_size,16}],
-     [{buffer_size,16},{depth_size,16},{stencil_size,8},{accum_size,16}],
-     [{buffer_size,16},{depth_size,16},{stencil_size,0},{accum_size,16}],
-     [{buffer_size,16},{depth_size,16},{stencil_size,0},{accum_size,0}],
-     [{buffer_size,15},{depth_size,16},{stencil_size,8},{accum_size,16}],
-     [{buffer_size,15},{depth_size,16},{stencil_size,0},{accum_size,16}],
-     [{buffer_size,15},{depth_size,16},{stencil_size,0},{accum_size,0}],
-
-     %% Fallback - use default for all.
-     [{buffer_size,0},{depth_size,0},{stencil_size,0},{accum_size,0}]].
 
 desktop_event(got_focus) ->
     dirty(),
@@ -664,74 +640,6 @@ possible_intersection(#win{x=X,y=Y,w=W,h=H}, {Left,Top,Right,Bot}) ->
 
 reinit_opengl() ->
     wings_io:putback_event({wm,init_opengl}).
-
-try_video_modes(Modes) ->
-    io:format("Trying hardware-accelerated OpenGL modes\n"),
-    case try_video_modes_1(Modes, false) of
-	ok -> ok;
-	error ->
-	    io:format("Trying software OpenGL modes:\n"),
-	    case try_video_modes_1(Modes, true) of
-		ok -> ok;
-		error ->
-		    io:format("\n###########################################\n\n"),
-		    io:format("Failed to find any suitable OpenGL mode.\n\n"),
-		    io:format("Make sure that OpenGL drivers are installed.\n\n"),
-		    io:format("###########################################\n\n"),
-		    erlang:fault("No suitable OpenGL mode found (are OpenGL drivers installed?)")
-	    end
-    end.
-
-try_video_modes_1([Mode|Modes], AcceptSoftware) ->
-    io:format("  ~p\n", [Mode]),
-    case try_video_mode(Mode, AcceptSoftware) of
-	ok -> ok;
-	error -> try_video_modes_1(Modes, AcceptSoftware)
-    end;
-try_video_modes_1([], _) -> error.
-
-try_video_mode(Ps, AcceptSoftware) ->
-    set_video_props(Ps),
-    {W,H} = get(wm_top_size),
-    case catch set_video_mode(W, H) of
-	ok ->
-	    case AcceptSoftware orelse gl:getString(?GL_RENDERER) =/= "GDI Generic" of
-		false -> error;
-		true -> display_actual_mode()
-	    end;
-	_ -> error
-    end.
-
-set_video_props([{Prop,Val}|Ps]) ->
-    set_video_prop(Prop, Val),
-    set_video_props(Ps);
-set_video_props([]) -> ok.
-
-set_video_prop(buffer_size, Bits) ->
-    sdl_video:gl_setAttribute(?SDL_GL_BUFFER_SIZE, Bits);
-set_video_prop(depth_size, Depth) ->
-    sdl_video:gl_setAttribute(?SDL_GL_DEPTH_SIZE, Depth);
-set_video_prop(stencil_size, Bits) ->
-    sdl_video:gl_setAttribute(?SDL_GL_STENCIL_SIZE, Bits);
-set_video_prop(accum_size, Bits) ->
-    sdl_video:gl_setAttribute(?SDL_GL_ACCUM_RED_SIZE, Bits),
-    sdl_video:gl_setAttribute(?SDL_GL_ACCUM_GREEN_SIZE, Bits),
-    sdl_video:gl_setAttribute(?SDL_GL_ACCUM_BLUE_SIZE, Bits),
-    sdl_video:gl_setAttribute(?SDL_GL_ACCUM_ALPHA_SIZE, Bits).
-
-display_actual_mode() ->
-    Attrs = [?GL_RED_BITS,
-	     ?GL_GREEN_BITS,
-	     ?GL_BLUE_BITS,
-	     ?GL_ALPHA_BITS,
-	     ?GL_DEPTH_BITS,
-	     ?GL_STENCIL_BITS,
-	     ?GL_ACCUM_RED_BITS,
-	     ?GL_ACCUM_GREEN_BITS,
-	     ?GL_ACCUM_BLUE_BITS,
-	     ?GL_ACCUM_ALPHA_BITS],
-    io:format("Actual: RGBA: ~p ~p ~p ~p Depth: ~p Stencil: ~p Accum: ~p ~p ~p ~p\n",
-	      [hd(gl:getIntegerv(A)) || A <- Attrs]).
 
 init_opengl() ->
     {W,H} = get(wm_top_size),

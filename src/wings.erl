@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.281 2003/11/02 08:27:40 bjorng Exp $
+%%     $Id: wings.erl,v 1.282 2003/11/08 16:02:55 bjorng Exp $
 %%
 
 -module(wings).
@@ -74,7 +74,6 @@ do_spawn(File, Flags) ->
 
 init(File) ->
     register(wings, self()),
-    os:putenv("SDL_HAS3BUTTONMOUSE", "true"),
 
     OsType = os:type(),
     put(wings_os_type, OsType),
@@ -89,25 +88,8 @@ init(File) ->
 	_ -> ok
     end,
 
-    sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER bor
-	     ?SDL_INIT_NOPARACHUTE),
-    Ebin = filename:dirname(code:which(?MODULE)),
-    IconFile = filename:join(Ebin, "wings.icon"),
-    catch sdl_video:wm_setIcon(sdl_video:loadBMP(IconFile), null),
-    sdl_video:gl_setAttribute(?SDL_GL_DOUBLEBUFFER, 1),
-    sdl_events:eventState(?SDL_ALLEVENTS,?SDL_IGNORE),
-    sdl_events:eventState(?SDL_MOUSEMOTION, ?SDL_ENABLE),
-    sdl_events:eventState(?SDL_MOUSEBUTTONDOWN, ?SDL_ENABLE),
-    sdl_events:eventState(?SDL_MOUSEBUTTONUP, ?SDL_ENABLE),
-    sdl_events:eventState(?SDL_KEYDOWN, ?SDL_ENABLE),
-    sdl_events:eventState(?SDL_QUIT, ?SDL_ENABLE),
-    sdl_events:eventState(?SDL_VIDEORESIZE, ?SDL_ENABLE),
-    sdl_events:eventState(?SDL_VIDEOEXPOSE, ?SDL_ENABLE),
-    sdl_keyboard:enableUNICODE(true),
-    sdl_keyboard:enableKeyRepeat(?SDL_DEFAULT_REPEAT_DELAY,
-				 ?SDL_DEFAULT_REPEAT_INTERVAL),
-
     wings_pref:init(),
+    wings_init:init(),
     wings_text:init(),
     wings_image:init(),
     wings_plugin:init(),
