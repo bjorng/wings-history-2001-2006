@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.75 2002/08/08 07:58:07 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.76 2002/08/12 07:53:42 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -292,17 +292,19 @@ get_event(Tim) ->
 
 -record(sm,
 	{st,					%State
-	 wire=true,				%Show wireframe: true|false
+	 edges=true,				%Show edges: true|false
 	 cage=true}).				%Show cage: true|false
 
 smoothed_preview(St) ->
-    Sm = #sm{st=St},
+    Edges = wings_pref:get_value(smoothed_preview_edges),
+    Cage = wings_pref:get_value(smoothed_preview_cage),
+    Sm = #sm{st=St,edges=Edges,cage=Cage},
     smooth_help(Sm),
     smooth_dlist(St),
     wings_wm:dirty(),
     {seq,{push,dummy},get_smooth_event(Sm)}.
 
-smooth_help(#sm{wire=Wire,cage=Cage}) ->
+smooth_help(#sm{edges=Edges,cage=Cage}) ->
     Help = ["[L] Normal Mode ",wings_camera:help(),
 	    "  [W] ",
 	    case Cage of
@@ -310,7 +312,7 @@ smooth_help(#sm{wire=Wire,cage=Cage}) ->
 		true -> "Hide cage"
 	    end,
 	    "  [E] ",
-	    case Wire of
+	    case Edges of
 		false -> "Show edges";
 		true -> "Hide edges"
 	    end],
@@ -333,12 +335,16 @@ smooth_event_1(#mousemotion{}, _) -> keep;
 smooth_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
 smooth_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, _) ->
     smooth_exit();
-smooth_event_1(#keyboard{keysym=#keysym{unicode=$e}}, #sm{wire=Wire}=Sm) ->
+smooth_event_1(#keyboard{keysym=#keysym{unicode=$e}}, #sm{edges=Edges0}=Sm) ->
     wings_wm:dirty(),
-    get_smooth_event(Sm#sm{wire=not Wire});
-smooth_event_1(#keyboard{keysym=#keysym{unicode=$w}}, #sm{cage=Cage}=Sm) ->
+    Edges = not Edges0,
+    wings_pref:set_value(smoothed_preview_edges, Edges),
+    get_smooth_event(Sm#sm{edges=Edges});
+smooth_event_1(#keyboard{keysym=#keysym{unicode=$w}}, #sm{cage=Cage0}=Sm) ->
     wings_wm:dirty(),
-    get_smooth_event(Sm#sm{cage=not Cage});
+    Cage = not Cage0,
+    wings_pref:set_value(smoothed_preview_cage, Cage),
+    get_smooth_event(Sm#sm{cage=Cage});
 smooth_event_1(#keyboard{}=Kb, #sm{st=St}) ->
     case wings_hotkey:event(Kb) of
 	{view,workmode} ->
@@ -465,11 +471,11 @@ smooth_redraw_1(#dlo{smoothed=[Dlist,Es],transparent=Trans}=D, Sm, RenderTrans) 
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     ?CHECK_ERROR(),
     gl:depthMask(?GL_TRUE),
-    wireframe(D, Sm),
-    smooth_wireframe(Es, RenderTrans, Sm).
+    smooth_cage(D, Sm),
+    smooth_edges(Es, RenderTrans, Sm).
 
-wireframe(_, #sm{cage=false}) -> ok;
-wireframe(#dlo{work=Work}, #sm{cage=true}) ->
+smooth_cage(_, #sm{cage=false}) -> ok;
+smooth_cage(#dlo{work=Work}, #sm{cage=true}) ->
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_CULL_FACE),
@@ -478,9 +484,9 @@ wireframe(#dlo{work=Work}, #sm{cage=true}) ->
     gl:color3f(0, 0, 1),
     wings_draw_util:call(Work).
 
-smooth_wireframe(_, true, _) -> ok;
-smooth_wireframe(_, false, #sm{wire=false}) -> ok;
-smooth_wireframe(Dlist, false, #sm{wire=true}) ->
+smooth_edges(_, true, _) -> ok;
+smooth_edges(_, false, #sm{edges=false}) -> ok;
+smooth_edges(Dlist, false, #sm{edges=true}) ->
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:color3f(1, 1, 1),
@@ -518,6 +524,9 @@ init() ->
     wings_pref:set_default(camera_yon, 1000.0),
 
     wings_pref:set_default(scene_lights, false),
+
+    wings_pref:set_default(smoothed_preview_cage, false),
+    wings_pref:set_default(smoothed_preview_edges, false),
 
     %% Always reset the following preferences + the view itself.
     wings_pref:set_value(workmode, true),
