@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.114 2003/08/18 17:11:35 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.115 2003/08/23 13:43:10 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -135,7 +135,6 @@ insert_hilite_dl_1(#dlo{src_we=#we{id=Id}}=D, {_,_,{Id,_}}, DL) ->
     {D#dlo{hilite=DL},[]};
 insert_hilite_dl_1(D, _, _) -> {D#dlo{hilite=none},[]}.
 
-hilite_draw_sel_dl({_,_,{_}}, _) -> none;
 hilite_draw_sel_dl({Mode,_,{Id,Item}=Hit}, #st{shapes=Shs}=St) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),

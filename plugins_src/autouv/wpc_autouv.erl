@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.153 2003/08/17 08:41:42 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.154 2003/08/23 13:43:09 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -567,18 +567,19 @@ merge_texture(ImageBins,Wd,Hd,W,H,Acc) ->
 
 %%%%%%% Events handling and window redrawing 
    
-get_event(Uvs) ->
-    update_dlists(Uvs),
+get_event(#uvstate{areas=Shs,origst=#st{mat=Mat}}=Uvs) ->
+    St = #st{selmode=body,shapes=Shs,mat=Mat},
+    update_dlists(St),
     wings_wm:dirty(),
     get_event_nodraw(Uvs).
 
 get_event_nodraw(Uvs) ->
     {replace,fun(Ev) -> handle_event(Ev, Uvs) end}.
 
-redraw(#uvstate{mode=Mode,geom=Geom}=Uvs0) ->
-    Text = [atom_to_list(Mode)," mode: ",
-	    "[L] Select [R] Show menu"],
-    wings_wm:message(Text),
+redraw(#st{bb=Uvs}) ->
+    redraw(Uvs);
+redraw(#uvstate{geom=Geom}=Uvs0) ->
+    wings_util:button_message("Select", [], "Show menu"),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     setup_view(Geom, Uvs0),
     Uvs = draw_texture(Uvs0),
@@ -698,12 +699,14 @@ handle_event({current_state,geom_display_lists,St}, Uvs) ->
 	keep -> update_selection(St, Uvs);
 	Other -> Other
     end;
-handle_event({new_state,Uvs}, _) ->
+handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, Uvs0) ->
+    Uvs = Uvs0#uvstate{mode=Mode,sel=Sel,areas=Shs},
     GeomSt = wings_select_faces(Uvs),
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(reset_dl(Uvs#uvstate{st=GeomSt,op=undefined}));
-handle_event(Ev, Uvs) ->
-    case auv_pick:event(Ev, Uvs) of
+handle_event(Ev, #uvstate{areas=Shs,sel=Sel,mode=Mode,origst=#st{mat=Mat}}=Uvs) ->
+    St = #st{selmode=Mode,shapes=Shs,sel=Sel,mat=Mat,bb=Uvs},
+    case auv_pick:event(Ev, St) of
 	next -> handle_event_1(Ev, Uvs);
 	Other -> Other
     end.
@@ -1072,8 +1075,8 @@ restore_wings_window(Uvs) ->
 %%% internal structures.
 %%%
 
-update_dlists(#uvstate{areas=Shs,origst=#st{mat=Mat}}) ->
-    wings_draw:invalidate_dlists(#st{selmode=body,shapes=Shs,mat=Mat}).
+update_dlists(#st{}=St) ->
+    wings_draw:invalidate_dlists(St).
 
 clear_selection(Uvs) -> Uvs#uvstate{sel=[]}.
 

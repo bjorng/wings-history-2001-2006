@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.4 2003/08/17 08:41:42 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.5 2003/08/23 13:43:09 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -20,7 +20,7 @@
 -include("wings.hrl").
 -include("auv.hrl").
 
--import(lists, [foreach/2,map/2,reverse/2]).
+-import(lists, [foreach/2,map/2,reverse/2,keysearch/3]).
 
 %% For ordinary picking.
 -record(pick,
@@ -28,26 +28,129 @@
 	 op					%Operation: add/delete
 	}).
 
-% event(#mousemotion{}=Mm, Uvs) ->
-%     {seq,push,handle_hilite_event(Mm, #hl{st=St,redraw=Redraw};
-event(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_PRESSED}, Uvs) ->
-    pick(X, Y, Mod, Uvs);
+%% For highlighting.
+-record(hl,
+	{st,					%Saved state.
+	 prev=none				%Previous hit ({Id,Item}).
+	}).
+
+% event(#mousemotion{}=Mm, #st{selmode=Mode}=St) ->
+%     case hilite_enabled(Mode) of
+% 	false -> next;
+% 	true -> {seq,push,handle_hilite_event(Mm, #hl{st=St})}
+%     end;
+event(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_PRESSED}, St) ->
+    pick(X, Y, Mod, St);
 event(_, _) -> next.
 
-% pick(X, Y, Mod, Uvs) when Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
+hilite_enabled(_) -> true.
+
+% pick(X, Y, Mod, St) when Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
 %     Pick = #marquee{ox=X,oy=Y,st=Uvs},
 %     clear_hilite_marquee_mode(Pick);
-pick(X, Y, _, Uvs0) ->
-    case do_pick(X, Y, Uvs0) of
+pick(X, Y, _, St0) ->
+    case do_pick(X, Y, St0) of
 	none ->
 	    next;
 % 	    Pick = #marquee{ox=X,oy=Y,st=Uvs},
 % 	    clear_hilite_marquee_mode(Pick);
-	{PickOp,Uvs} ->
+	{PickOp,St} ->
 	    wings_wm:dirty(),
-	    Pick = #pick{st=Uvs,op=PickOp},
+	    Pick = #pick{st=St,op=PickOp},
 	    {seq,push,get_pick_event(Pick)}
     end.
+
+%%
+%% Highlighting on mouse move.
+%%
+
+get_hilite_event(HL) ->
+    fun(Ev) -> handle_hilite_event(Ev, HL) end.
+
+handle_hilite_event(redraw, #hl{st=St}) ->
+    wpc_autouv:redraw(St),
+    keep;
+handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
+    case raw_pick(X, Y, St) of
+	PrevHit ->
+	    get_hilite_event(HL);
+	none ->
+	    wings_wm:dirty(),
+	    insert_hilite_dl(none, none),
+	    wpc_autouv:update_dlists(St),
+	    get_hilite_event(HL#hl{prev=none});
+	Hit ->
+	    wings_wm:dirty(),
+	    DL = hilite_draw_sel_dl(Hit, St),
+	    insert_hilite_dl(Hit, DL),
+	    wpc_autouv:update_dlists(St),
+	    get_hilite_event(HL#hl{prev=Hit})
+    end;
+handle_hilite_event(init_opengl, #hl{st=St}) ->
+    wings:init_opengl(St);
+handle_hilite_event(_, _) ->
+    insert_hilite_dl(none, none),
+    next.
+
+insert_hilite_dl(Hit, DL) ->
+    wings_draw_util:map(fun(D, _) ->
+				insert_hilite_dl_1(D, Hit, DL)
+			end, []).
+
+insert_hilite_dl_1(#dlo{src_we=#we{id=Id}}=D, {_,{Id,_}}, DL) ->
+    {D#dlo{hilite=DL},[]};
+insert_hilite_dl_1(D, _, _) -> {D#dlo{hilite=none},[]}.
+
+hilite_draw_sel_dl({Mode,{Id,Item}=Hit}, #st{shapes=Shs}=St) ->
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    hilite_color(Hit, St),
+    We = gb_trees:get(Id, Shs),
+    hilit_draw_sel(Mode, Item, We),
+    gl:endList(),
+    List.
+
+hilite_color({Id,Item}, #st{sel=Sel}) ->
+    Key = case keysearch(Id, 1, Sel) of
+	      false -> unselected_hlite;
+	      {value,{Id,Items}} ->
+		  case gb_sets:is_member(Item, Items) of
+		      false -> unselected_hlite;
+		      true -> selected_hlite
+		  end
+	  end,
+    gl:color3fv(wings_pref:get_value(Key)).
+
+hilit_draw_sel(vertex, V, #we{vp=Vtab}) ->
+    gl:pointSize(wings_pref:get_value(selected_vertex_size)),
+    gl:'begin'(?GL_POINTS),
+    gl:vertex3fv(gb_trees:get(V, Vtab)),
+    gl:'end'();
+hilit_draw_sel(edge, Edge, #we{es=Etab,vp=Vtab}) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+    gl:lineWidth(wings_pref:get_value(selected_edge_width)),
+    gl:'begin'(?GL_LINES),
+    gl:vertex3fv(gb_trees:get(Va, Vtab)),
+    gl:vertex3fv(gb_trees:get(Vb, Vtab)),
+    gl:'end'();
+hilit_draw_sel(face, Face, We) ->
+    case wings_pref:get_value(selection_style) of
+	stippled -> gl:enable(?GL_POLYGON_STIPPLE);
+	solid -> ok
+    end,
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    wings_draw_util:begin_end(fun() ->
+				      wings_draw_util:flat_face(Face, We)
+			      end),
+    gl:disable(?GL_POLYGON_STIPPLE);
+hilit_draw_sel(body, _, #we{name=#ch{fs=Fs}}=We) ->
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    wings_draw_util:begin_end(
+      fun() ->
+	      foreach(fun(Face) ->
+			      wings_draw_util:flat_face(Face, We)
+		      end, Fs)
+      end).
 
 %%
 %% Drag picking.
@@ -56,30 +159,27 @@ pick(X, Y, _, Uvs0) ->
 get_pick_event(Pick) ->
     {replace,fun(Ev) -> pick_event(Ev, Pick) end}.
 
-pick_event(redraw, #pick{st=Uvs}) ->
-    wpc_autouv:redraw(Uvs),
+pick_event(redraw, #pick{st=St}) ->
+    wpc_autouv:redraw(St),
     keep;
-pick_event(#mousemotion{x=X,y=Y}, #pick{st=Uvs0,op=Op}=Pick) ->
-    case do_pick(X, Y, Uvs0) of
+pick_event(#mousemotion{x=X,y=Y}, #pick{st=St0,op=Op}=Pick) ->
+    case do_pick(X, Y, St0) of
 	none -> keep;
-	{Op,Uvs} ->
+	{Op,St} ->
 	    wings_wm:dirty(),
-	    wpc_autouv:update_dlists(Uvs),
-	    get_pick_event(Pick#pick{st=Uvs});
+	    wpc_autouv:update_dlists(St),
+	    get_pick_event(Pick#pick{st=St});
 	{_,_} -> keep
     end;
-pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{st=Uvs}) ->
-    wings_wm:later({new_state,Uvs}),
+pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{st=St}) ->
+    wings_wm:later({new_state,St}),
     pop;
 pick_event(_, _) -> keep.
 
-do_pick(X, Y, #uvstate{sel=Sel0}=Uvs) ->
-    case raw_pick(X, Y, Uvs) of
+do_pick(X, Y, St) ->
+    case raw_pick(X, Y, St) of
 	none -> none;
-	Hit ->
-	    St = #st{sel=Sel0},
-	    {Type,#st{sel=Sel}} = update_selection({body,Hit}, St),
-	    {Type,Uvs#uvstate{sel=Sel}}
+	Hit -> update_selection(Hit, St)
     end.
 
 update_selection({Mode,{Id,Item}}, #st{sel=Sel0}=St) ->
@@ -106,7 +206,7 @@ update_selection(Id, Item, [{_,Items0}|T0], Acc) -> %Id == I
 update_selection(Id, Item, [], Acc) ->
     {add,reverse(Acc, [{Id,gb_sets:singleton(Item)}])}.
 
-raw_pick(X0, Y0, #uvstate{geom={Vx,Vy,Vw,Vh}}) ->
+raw_pick(X0, Y0, #st{selmode=Mode,bb=#uvstate{geom={Vx,Vy,Vw,Vh}}}) ->
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
@@ -124,7 +224,7 @@ raw_pick(X0, Y0, #uvstate{geom={Vx,Vy,Vw,Vh}}) ->
     draw(),
     case get_hits(HitBuf) of
 	none -> none;
-	[Hit|_] -> Hit
+	[Hit|_] -> {Mode,Hit}
     end.
 
 %%%
@@ -177,14 +277,12 @@ draw_1(We) ->
     
 draw_2(#we{name=Ch}=We) ->
     #ch{fs=Fs} = Ch,
-    gl:pushMatrix(),
     gl:pushName(0),
     foreach(fun(Face) ->
 		    gl:loadName(Face),
 		    face(Face, We)
 	    end, Fs),
-    gl:popName(),
-    gl:popMatrix().
+    gl:popName().
 
 face(Face, #we{vp=Vtab}=We) ->
     Vs = wings_face:vertices_cw(Face, We),
