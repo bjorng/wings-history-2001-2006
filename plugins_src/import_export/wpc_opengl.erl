@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.34 2003/08/21 06:02:51 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.35 2003/08/21 08:15:23 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -23,10 +23,13 @@
 -import(lists, [foldl/3,map/2,foreach/2,reverse/1,seq/2,
 		flat_length/1,append/1,append/2]).
 
+
 %% 
 -ifndef(GL_DEPTH_CLAMP_NV).
 -define(GL_DEPTH_CLAMP_NV,      16#864F).
 -endif.
+
+-define(STENCIL_INIT, 128).
 
 -record(r,
 	{acc_size=6,
@@ -336,7 +339,7 @@ draw_all(#r{data=Wes,lights={Ligths,Amb},mat=Mat,shadow=true},false) ->
     end,
     ?CHECK_ERROR(),
     %% Carmack's reversed shadow algorithm
-    gl:clearStencil(128),
+    gl:clearStencil(?STENCIL_INIT),
     disable_lights(),
     gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_FALSE),    
     gl:clear(?GL_COLOR_BUFFER_BIT bor 
@@ -362,11 +365,11 @@ draw_all(#r{data=Wes,lights={Ligths,Amb},mat=Mat,shadow=true},false) ->
 		    gl:callList(DL) end, Wes),
     disable_lights(),
     gl:disable(?GL_LIGHTING),
+    gl:enable(?GL_BLEND),
     %% Blend in the other lights
     Count = 
 	case wings_util:is_gl_ext('GL_ARB_imaging') of
 	    true -> 
-		gl:enable(?GL_BLEND),
 		gl:blendFunc(?GL_CONSTANT_COLOR, ?GL_ONE_MINUS_CONSTANT_COLOR),
 		C = case Amb of
 			none -> 1;
@@ -376,10 +379,10 @@ draw_all(#r{data=Wes,lights={Ligths,Amb},mat=Mat,shadow=true},false) ->
 		gl:blendColor(PerLight,PerLight,PerLight,PerLight),
 		C;
 	    false ->
-		gl:disable(?GL_BLEND),
+		gl:blendFunc(?GL_ONE, ?GL_ONE),
 		0
 	end,
-    %% No more depth writes..
+    %% No more depth writes...
     gl:depthMask(?GL_FALSE),
     gl:enable(?GL_STENCIL_TEST),
     foldl(fun(L,Clear) -> draw_with_shadows(Clear, L, Wes, Mat) end, 
@@ -411,7 +414,7 @@ draw_with_shadows({true,LNo0}, L, Wes, _Mats) ->
 draw_with_shadows({false,LNo}, #l{pos=LPos,l=LRec,s_dl=Shadow}, Wes, _Mats) ->
     gl:colorMask(?GL_FALSE,?GL_FALSE,?GL_FALSE,?GL_FALSE),
 
-    gl:stencilFunc(?GL_ALWAYS, 128, 16#FFFFFFFF),
+    gl:stencilFunc(?GL_ALWAYS, ?STENCIL_INIT, 16#FFFFFFFF),
     gl:depthFunc(?GL_LESS),
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_FRONT),
@@ -421,7 +424,7 @@ draw_with_shadows({false,LNo}, #l{pos=LPos,l=LRec,s_dl=Shadow}, Wes, _Mats) ->
     gl:stencilOp(?GL_KEEP, ?GL_DECR, ?GL_KEEP),
     foreach(fun(DL) -> gl:callList(DL) end, Shadow),
 
-    gl:stencilFunc(?GL_EQUAL, 128, 16#FFFFFFFF),
+    gl:stencilFunc(?GL_EQUAL, ?STENCIL_INIT, 16#FFFFFFFF),
     gl:stencilOp(?GL_KEEP,?GL_KEEP,?GL_INCR),
     gl:colorMask(?GL_TRUE,?GL_TRUE,?GL_TRUE,?GL_TRUE),
     gl:depthFunc(?GL_EQUAL),
@@ -440,7 +443,7 @@ draw_with_shadows({false,LNo}, #l{pos=LPos,l=LRec,s_dl=Shadow}, Wes, _Mats) ->
 -ifdef(DEBUG).
 debug_shad(Lists) ->
     %% DEBUG draw shadows...
-    gl:stencilFunc(?GL_ALWAYS, 128, 16#FFFFFFFF),
+    gl:stencilFunc(?GL_ALWAYS, ?STENCIL_INIT, 16#FFFFFFFF),
     gl:stencilOp(?GL_KEEP,?GL_KEEP,?GL_KEEP),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_SRC_ALPHA),
     gl:color4f(0.0,0.0,1.0,0.5),
@@ -487,11 +490,12 @@ create_shadow_volume(#l{pos=LPos},#d{we= We = #we{fs=FTab}}) ->
 		       end, FF) 
       end),
     %% Draw bottom cap
+    gl:'begin'(?GL_TRIANGLES),
     foreach(fun(Face) -> 
 		    Vs = wings_face:vertices_ccw(Face, We),
 		    draw_bottom_face(Vs,LPos,We#we.vp) 
 	    end, BF),
-    ok.
+    gl:'end'().
 
 render_redraw(D, RMask, RenderTrans) ->
     case RMask of
@@ -745,22 +749,10 @@ build_shadow_edge_ext([], V, L, Vtab) ->
     gl:'end'().
 
 draw_bottom_face([V1,V2,V3],LPos,Vtab) ->
-    gl:'begin'(?GL_TRIANGLES),
     draw_bottom_face(gb_trees:get(V1,Vtab),LPos),
     draw_bottom_face(gb_trees:get(V2,Vtab),LPos),
-    draw_bottom_face(gb_trees:get(V3,Vtab),LPos),
-    gl:'end'();
-draw_bottom_face([V1,V2,V3,V4],LPos,Vtab) ->
-    gl:'begin'(?GL_QUADS),
-    draw_bottom_face(gb_trees:get(V1,Vtab),LPos),
-    draw_bottom_face(gb_trees:get(V2,Vtab),LPos),
-    draw_bottom_face(gb_trees:get(V3,Vtab),LPos),
-    draw_bottom_face(gb_trees:get(V4,Vtab),LPos),
-    gl:'end'();
-draw_bottom_face(Vs,LPos,Vtab) ->
-    gl:'begin'(?GL_POLYGON),
-    foreach(fun(V) -> draw_bottom_face(gb_trees:get(V,Vtab),LPos) end, Vs),
-    gl:'end'().
+    draw_bottom_face(gb_trees:get(V3,Vtab),LPos).
+
 draw_bottom_face(V,L) ->
     {X,Y,Z} = e3d_vec:sub(V,L),
     gl:vertex4f(X,Y,Z,0.0).
