@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.1 2003/08/21 06:02:51 bjorng Exp $
+%%     $Id: wings_tesselation.erl,v 1.2 2003/08/22 09:43:21 bjorng Exp $
 %%
 
 -module(wings_tesselation).
@@ -65,70 +65,60 @@ tess_faces([], We, _Q) -> We;
 tess_faces([F|T], We, Q) -> tess_faces(T, doface(F, We, Q), Q).
 
 doface(Face, #we{vp=Vtab}=We, Q) ->
-    Mat = wings_material:get(Face, We),
-    Vs = wpa:face_vertices(Face, We),
-    Len = length(Vs),
-    case (Q and (Len < 5)) orelse (not(Q) and (Len < 4)) of
-	true -> We;
-	_ ->
-	    Vcoords = coord_list(gb_trees:to_list(Vtab)),
-	    E3dface = #e3d_face{vs=Vs,mat=Mat},
+    Vs = wings_face:vertices_ccw(Face, We),
+    case length(Vs) of
+	Len when not Q, Len =< 3 -> We;
+	Len when Q, Len =< 4 -> We;
+	Len ->
+	    FaceVs = lists:seq(0, Len-1),
+	    Vcoords = [gb_trees:get(V, Vtab) || V <- Vs],
+	    E3dface = #e3d_face{vs=FaceVs},
 	    T3dfaces = case Q of
 			   true -> e3d_mesh:quadrangulate_face(E3dface, Vcoords);
-			   _ -> e3d_mesh:triangulate_face(E3dface, Vcoords)
+			   false -> e3d_mesh:triangulate_face(E3dface, Vcoords)
 		       end,
-	    Tfaces = [ X#e3d_face.vs || X <- T3dfaces],
+	    VsTuple = list_to_tuple(Vs),
+	    Tfaces = [renumber(FVs, VsTuple) || #e3d_face{vs=FVs} <- T3dfaces],
 	    Bord = bedges(Vs),
 	    Diags = diags(Tfaces, Bord),
 	    connect_diags(Diags, We)
     end.
 
+renumber(L, Vtab) ->
+    renumber(L, Vtab, []).
+renumber([V|Vs], Vtab, Acc) ->
+    renumber(Vs, Vtab, [element(V+1, Vtab)|Acc]);
+renumber([], _, Acc) -> reverse(Acc).
+
 %% This simple code only works because we assume that each
 %% vertex can appear only once in a face.
 connect_diags([], We) -> We;
-connect_diags([{A,B}|T], We) ->
-    Vs = gb_sets:from_ordset([A,B]),
-    We1 = wings_vertex_cmd:connect(Vs, We),
-    connect_diags(T, We1).
-
+connect_diags([{A,B}|T], We0) ->
+    We = wings_vertex_cmd:connect([A,B], We0),
+    connect_diags(T, We).
 
 %% Return GbSet of {A,B} where AB is an edge in face F
-bedges(F) -> bedges(F,F,gb_sets:empty()).
+bedges(F) -> bedges(F, F, []).
 
-bedges([], _, S) -> S;
-bedges([A],[B|_],S) -> gb_sets:add({A,B}, S);
-bedges([A,B|T],F,S) -> bedges([B|T], F, gb_sets:add({A,B}, S)).
+bedges([A], [B|_], S) -> gb_sets:from_list([{A,B}|S]);
+bedges([A|[B|_]=T], F, S) -> bedges(T, F, [{A,B}|S]).
 
 diags(Fl, Bord) -> diags(Fl, Bord, []).
 
 diags([], _, S) -> reverse(S);
-diags([Vs|T], Bord, S) ->
-    diags(T, Bord, diagsf(Vs, Vs, Bord, S)).
+diags([Vs|T], Bord, S) -> diags(T, Bord, diagsf(Vs, Vs, Bord, S)).
 
-diagsf([A], [First|_], Bord, S) -> trydiag({A,First}, Bord, S);
+diagsf([A], [First|_], Bord, S) ->
+    trydiag(A, First, Bord, S);
 diagsf([A|[B|_]=T], Vs, Bord, S) ->
-    diagsf(T, Vs, Bord, trydiag({A,B}, Bord, S)).
+    diagsf(T, Vs, Bord, trydiag(A, B, Bord, S)).
 
-trydiag(E={A,B}, Bord, S) ->
-    if
-	A > B -> S;	% only want one representative of diag
-	true ->
-	    case gb_sets:is_member(E, Bord) of
-		true -> S;
-		_ -> [E | S]
-	    end
-    end.
-
-%% L is ordered list of {index,pos} pairs.
-%% Return list of pos, with implicit indexing from 0 to max index
-%% (fill in missing coords with {0,0,0}).
-coord_list(L) -> coord_list(L, 0, []).
-
-coord_list([], _, Acc) -> reverse(Acc);
-coord_list(L=[{K,P}|Rest], I, Acc) ->
-    if
-	I < K ->
-	    coord_list(L, I+1, [e3d_vec:zero() | Acc]);
-	I == K ->
-	    coord_list(Rest, I+1, [P | Acc])
+trydiag(A, B, _, S) when A > B ->
+    %% only want one representative of diag
+    S;
+trydiag(A, B, Bord, S) ->
+    E = {A,B},
+    case gb_sets:is_member(E, Bord) of
+	true -> S;
+	false -> [E|S]
     end.
