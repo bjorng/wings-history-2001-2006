@@ -4,8 +4,8 @@ BUILDING WINGS 3D ON WINDOWS
 This guide describes how you can build Wings 3D from the
 sources on a Windows system.
 
-$Revision: 1.7 $
-$Date: 2003/09/28 16:15:32 $
+$Revision: 1.8 $
+$Date: 2003/09/29 05:28:57 $
 
 Required software
 =================
@@ -105,6 +105,9 @@ $ make win32
 .
 .
 $ 
+
+Running Wings
+============
 
 To run the Wings you have just build, you'll need to write a command line
 similar to this:

@@ -1,13 +1,18 @@
 WINGS 3D
 ========
 
-$Revision: 1.6 $
-$Date: 2003/09/28 16:15:32 $
+$Revision: 1.7 $
+$Date: 2003/09/29 05:28:57 $
 
 Wings on the net
 ----------------
 
 http://www.wings3d.com
+
+System Requirements for Running Wings
+-------------------------------------
+
+A working OpenGL driver.
 
 How to build Wings 3D
 ---------------------
@@ -15,28 +20,10 @@ How to build Wings 3D
 If you want to build Wings yourself, you'll need to the
 to download the source tar file from http://www.wings3d.com.
 
-Building and running Wings 3D on Unix (including Mac OS X)
-----------------------------------------------------------
+Build instructions are found in one of the following text files
+included in the source tar file.
 
-1) Set the environment variable ESDL_PATH to the root of your ESDL installation.
+BUILD.unix	How to build for a unix-like system, such as
+		GNU Linux or MacOS X.
 
-   Example:
-
-	# If you use bash or ksh.
-	export ESDL_PATH=/ldisk/bjorn/esdl-0.9.0906
-
-	# If you use csh or tcsh.
-	setenv ESDL_PATH /ldisk/bjorn/esdl-0.9.0906
-
-2) Run a GNU compatible `make'.
-
-3) Start Wings like this:
-
-	erl -pa $ESDL_PATH/ebin -pa MY_WINGS_PATH/ebin -run wings_start start_halt
-
-   where you should substitute MY_WINGS_PATH with the actual path to
-   your Wings directory.   
-
-   Example:
-
-	erl -pa $ESDL_PATH/ebin -pa /ldisk/bjorn/wings/ebin -run wings_start start_halt
+BUILD.win32	How to build for Microsoft Windows.
