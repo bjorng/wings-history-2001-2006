@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.47 2004/08/17 10:34:30 dgud Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.48 2004/10/08 06:02:31 dgud Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -23,31 +23,30 @@
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
-    Menu = [{basic,{"Vertex operations",ignore}},
+    Menu = [{basic,{?STR(menu,1,"Vertex operations"),ignore}},
 	    {basic,separator},
-	    {"Move",{move,Dir},[],[magnet]},
+	    {?STR(menu,2,"Move"),{move,Dir},[],[magnet]},
 	    wings_menu_util:rotate(St),
 	    wings_menu_util:scale(St),
 	    separator,
-	    {"Extrude",{extrude,Dir}},
+	    {?STR(menu,3,"Extrude"),{extrude,Dir}},
 	    separator,
 	    wings_menu_util:flatten(),
 	    separator,
-	    {"Connect",connect,
-	     "Create a new edge by connecting selected vertices"},
-	    {"Tighten",tighten,
-	     "Move selected vertices towards average "
-	     "midpoint",[magnet]},
-	    {"Bevel",bevel,"Create faces of selected vertices"},
-	    {"Dissolve",dissolve,
-	     "Delete selected vertices (clearing selection)"},
-	    {"Collapse",collapse,
-	     "Delete selected vertices (creating a face selection)"},
+	    {?STR(menu,4,"Connect"),connect,
+	     ?STR(menu,5,"Create a new edge by connecting selected vertices")},
+	    {?STR(menu,6,"Tighten"),tighten,
+	     ?STR(menu,7,"Move selected vertices towards average midpoint"),[magnet]},
+	    {?STR(menu,8,"Bevel"),bevel,?STR(menu,9,"Create faces of selected vertices")},
+	    {?STR(menu,10,"Dissolve"),dissolve,
+	     ?STR(menu,11,"Delete selected vertices (clearing selection)")},
+	    {?STR(menu,12,"Collapse"),collapse,
+	     ?STR(menu,13,"Delete selected vertices (creating a face selection)")},
 	    separator,
-	    {"Deform",wings_deform:sub_menu(St)},
+	    {?STR(menu,14,"Deform"),wings_deform:sub_menu(St)},
 	    separator,
-	    {"Vertex Color",vertex_color,
-	     "Apply vertex colors to selected vertices"}],
+	    {?STR(menu,15,"Vertex Color"),vertex_color,
+	     ?STR(menu,16,"Apply vertex colors to selected vertices")}],
     wings_menu:popup_menu(X, Y, vertex, Menu).
 
 %% Vertex menu.

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.30 2003/09/17 05:17:35 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.31 2004/10/08 06:02:30 dgud Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,dialog_result/2,command/2,call_ui/1]).
@@ -160,8 +160,7 @@ init_plugin(_, M) ->
     
 def_ui_plugin() ->
     fun(Missing) ->
-	    Msg = io_lib:format("Reinstall Wings. "
-				"Missing plugin for ~p.",
+	    Msg = io_lib:format(?STR(def_ui_plugin,1,"Reinstall Wings. Missing plugin for ~p."),
 				[Missing]),
 	    wings_wm:message(lists:flatten(Msg)),
 	    aborted
@@ -253,7 +252,7 @@ install(Name) ->
 	tar -> install_tar(Name)
     end,
     init_dir(plugin_dir()),
-    wings_util:message("The plug-in was successfully installed.").
+    wings_util:message(?STR(install,1,"The plug-in was successfully installed.")).
 
 install_file_type(Name) ->
     case filename:extension(Name) of
@@ -265,7 +264,7 @@ install_file_type(Name) ->
 		".tar" -> tar;
 		".beam" -> beam;
 		_ ->
-		    wings_util:error("File \"~s\": Unknown file type",
+		    wings_util:error(?STR(install_file_type,1,"File \"~s\": Unknown file type"),
 				     [filename:basename(Name)])
 	    end
     end.
@@ -279,11 +278,11 @@ install_beam(Name) ->
 	    case file:copy(Name, Dest) of
 		{ok,_} -> ok;
 		{error,Reason} ->
-		    wings_util:error("Install of \"~s\" failed: ~p",
+ 		 wings_util:error(?STR(install_beam,1,"Install of \"~s\" failed: ~p"),
 				     [filename:basename(Name),file:format_error(Reason)])
 	    end;
 	false ->
-	    wings_util:error("File \"~s\" is not a Wings plug-in module",
+	    wings_util:error(?STR(install_beam,2,"File \"~s\" is not a Wings plug-in module"),
 			     [filename:basename(Name)])
     end.
 
@@ -293,7 +292,7 @@ install_tar(Name) ->
     erl_tar:extract(Name, [compressed,{cwd,plugin_dir()}]).
 
 install_verify_files(["/"++_|_], Name) ->
-    wings_util:error("File \"~s\" contains a file with an absolute path",
+    wings_util:error(?STR(install_verify_files,1,"File \"~s\" contains a file with an absolute path"),
 		     [filename:basename(Name)]);
 install_verify_files([F|Fs], Name) ->
     case is_plugin(F) of
@@ -301,7 +300,7 @@ install_verify_files([F|Fs], Name) ->
 	true -> ok
     end;
 install_verify_files([], Name) ->
-    wings_util:error("File \"~s\" does not contain any Wings plug-in modules",
+    wings_util:error(?STR(install_verify_files,2,"File \"~s\" does not contain any Wings plug-in modules"),
 		     [filename:basename(Name)]).
 
 is_plugin(Name) ->
@@ -312,7 +311,7 @@ is_plugin(Name) ->
 
 plugin_dir() ->
     case try_dir(code:lib_dir(wings), "plugins") of
-	none -> wings_util:error("No \"plugins\" directory found");
+	none -> wings_util:error(?STR(plugin_dir,1,"No \"plugins\" directory found"));
 	PluginDir -> PluginDir
     end.
     

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.183 2004/05/15 18:00:58 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.184 2004/10/08 06:02:28 dgud Exp $
 %%
 
 -module(wings_drag).
@@ -86,11 +86,11 @@ setup_mode(Flags, Falloff) ->
     end.
     
 standard_mode_fun(Falloff) ->
-    Help0 = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
+    Help0 = ?STR(standard_mode_fun,1,"[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain"),
     Help = case Falloff of
 	       none -> Help0;
 	       _ ->
-		   lists:flatten(["[+] or [-] Adjust Radius  "|Help0])
+		   lists:flatten([?STR(standard_mode_fun,2,"[+] or [-] Adjust Radius  ")|Help0])
 	   end,
     fun(help, _) -> Help;
        (_, _) -> none
@@ -321,9 +321,9 @@ gl_rescale_normal() ->
     end.
 
 help_message(#drag{unit=Unit,mode_fun=ModeFun,mode_data=ModeData}) ->
-    Accept = wings_util:button_format("Accept"),
+    Accept = wings_util:button_format(?STR(help_message,1,"Accept")),
     ZMsg = zmove_help(Unit),
-    Cancel = wings_util:button_format([], [], "Cancel"),
+    Cancel = wings_util:button_format([], [],?STR(help_message,2,"Cancel")),    
     Msg = wings_camera:join_msg([Accept,ZMsg,Cancel]),
     MsgRight = ModeFun(help, ModeData),
     wings_wm:message(Msg, MsgRight).
@@ -332,9 +332,9 @@ zmove_help([_]) -> [];
 zmove_help([_,_]) -> [];
 zmove_help([_,_,falloff]) -> [];
 zmove_help([_,_,dz|_]) ->
-    zmove_help_1("Drag to move along Z");
+    zmove_help_1(?STR(zmove_help_1,1,"Drag to move along Z"));
 zmove_help([_,_,_|_]) ->
-    zmove_help_1("Drag to adjust third parameter").
+    zmove_help_1(?STR(zmove_help_1,2,"Drag to adjust third parameter")).
 
 zmove_help_1(Msg) ->
     case wings_pref:get_value(camera_mode) of
@@ -458,7 +458,8 @@ numeric_input(Drag0) ->
     {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0,mod=0},
     {Move0,Drag} = mouse_translate(Ev, Drag0),
-    wings_ask:dialog("Numeric Input", make_query(Move0, Drag),
+    wings_ask:dialog(?STR(numeric_input,1,"Numeric Input"), 
+		     make_query(Move0, Drag),
 		     fun(Res) ->
 			     {drag_arguments,make_move(Res, Drag)}
 		     end).
@@ -472,7 +473,7 @@ make_query_1([U0|Units], [V|Vals]) ->
 	    [{hframe,[{text,V*100.0,percent_qrange(U0)},{label,"%"}]}|
 	     make_query_1(Units, Vals)];
 	angle ->
-	    [{hframe,[{label,"A"},{text,V,qrange(U0)},{label,[?DEGREE]}]}|
+	    [{hframe,[{label,?STR(make_query_1,2,"A")},{text,V,qrange(U0)},{label,[?DEGREE]}]}|
 	     make_query_1(Units, Vals)];
 	U ->
 	    [{hframe,[{label,qstr(U)},{text,V,qrange(U0)}]}|
@@ -480,12 +481,12 @@ make_query_1([U0|Units], [V|Vals]) ->
     end;
 make_query_1([], []) -> [].
 
-qstr(distance) -> "Dx";
-qstr(dx) -> "Dx";
-qstr(dy) -> "Dy";
-qstr(dz) -> "Dz";
-qstr(falloff) -> "R";
-qstr(angle) -> "A";
+qstr(distance) -> ?STR(qstr,1,"Dx");
+qstr(dx) -> ?STR(qstr,2,"Dx");
+qstr(dy) -> ?STR(qstr,3,"Dy");
+qstr(dz) ->  ?STR(qstr,4,"R");
+qstr(falloff) ->  ?STR(qstr,5,"A");
+qstr(angle) ->  ?STR(qstr,6,"A");
 qstr(Atom) -> atom_to_list(Atom).
 
 qrange({_,{_,_}=Range}) -> [{range,Range}];

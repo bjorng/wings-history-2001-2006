@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.21 2003/11/20 23:40:45 raimo_niskanen Exp $
+%%     $Id: wings_color.erl,v 1.22 2004/10/08 06:02:28 dgud Exp $
 %%
 
 -module(wings_color).
@@ -267,8 +267,8 @@ choose_1(RGB0, Done) ->
 			end,
 		  Done(RGB)
 	  end,
-    wings_ask:dialog("Choose Color", Qs, Fun).
 
+wings_ask:dialog(?STR(choose_1,1,"Choose Color"), Qs, Fun).
 
 color_slider_flags(T, {_K1,K2,K3}=K123, Kabc, Range) ->
     [{color,{T,K2,K3}}|color_text_flags(T, K123, Kabc, Range)].

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.67 2004/06/27 06:05:46 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.68 2004/10/08 06:02:28 dgud Exp $
 %%
 
 -module(wings_body).
@@ -20,59 +20,59 @@
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
-    Menu = [{basic,{"Object operations",ignore}},
+    Menu = [{basic,{?STR(menu,1,"Object operations"),ignore}},
 	    {basic,separator},
-	    {"Move",{move,Dir}},
+	    {?STR(menu,2,"Move"),{move,Dir}},
 	    wings_menu_util:rotate(St),
 	    wings_menu_util:scale(St),
 	    separator,
-	    {"Flip",
-	     {flip,[{"X",x,"Flip the object around the X axis"},
-		    {"Y",y,"Flip the object around the Y axis"},
-		    {"Z",z,"Flip the object around the Z axis"}]}},
+	    {?STR(menu,3,"Flip"),
+	     {flip,[{?STR(menu,4,"X"),x,?STR(menu,5,"Flip the object around the X axis")},
+		    {?STR(menu,6,"Y"),y,?STR(menu,7,"Flip the object around the Y axis")},
+		    {?STR(menu,8,"Z"),z,?STR(menu,9,"Flip the object around the Z axis")}]}},
 	    separator,
-	    {"Invert",invert,
-	     "Flip all normals, turning the object inside out"},
+	    {?STR(menu,10,"Invert"),invert,
+	     ?STR(menu,11,"Flip all normals, turning the object inside out")},
 	    separator,
-	    {"Tighten",tighten,
-	     "Move vertices towards average midpoint"},
-	    {"Smooth",smooth,
-	     "Subdivide all faces to give the object a smoother apperance"},
-	    {"Combine",combine,
-	     "Combine multiple objects into a single object"},
-	    {"Separate",separate,
-	     "Separate a combined objects into its components"},
+	    {?STR(menu,12,"Tighten"),tighten,
+	     ?STR(menu,13,"Move vertices towards average midpoint")},
+	    {?STR(menu,14,"Smooth"),smooth,
+	     ?STR(menu,15,"Subdivide all faces to give the object a smoother apperance")},
+	    {?STR(menu,16,"Combine"),combine,
+	     ?STR(menu,17,"Combine multiple objects into a single object")},
+	    {?STR(menu,18,"Separate"),separate,
+	     ?STR(menu,19,"Separate a combined objects into its components")},
 	    separator,
-	    {"Weld",weld,"Merge pair of faces that are nearly coincident",
+	    {?STR(menu,20,"Weld"),weld,?STR(menu,21,"Merge pair of faces that are nearly coincident"),
 	     [option]},
 	    separator,
-	    {"Cleanup",cleanup,"Remove various defects",[option]},
-	    {"Auto-Smooth",auto_smooth,
-	     "Set edges hard or soft depending on the angle between faces",
+	    {?STR(menu,22,"Cleanup"),cleanup,?STR(menu,23,"Remove various defects"),[option]},
+	    {?STR(menu,24,"Auto-Smooth"),auto_smooth,
+	     ?STR(menu,25,"Set edges hard or soft depending on the angle between faces"),
 	     [option]},
 	    separator,
-	    {"Duplicate",{duplicate,Dir}},
-	    {"Delete",delete,"Delete the selected objects"},
-	    {"Rename...",rename,"Rename selected objects"},
-	    {"To Area Light",to_arealight,
-	     "Convert selected objects into area lights"},
-	    {"From Area Light",from_arealight,
-	     "Convert selected area lights into objects"},
+	    {?STR(menu,26,"Duplicate"),{duplicate,Dir}},
+	    {?STR(menu,27,"Delete"),delete,?STR(menu,28,"Delete the selected objects")},
+	    {?STR(menu,29,"Rename..."),rename,?STR(menu,30,"Rename selected objects")},
+	    {?STR(menu,31,"To Area Light"),to_arealight,
+	     ?STR(menu,32,"Convert selected objects into area light")},
+	    {?STR(menu,33,"From Area Light"),from_arealight,
+	     ?STR(menu,34,"Convert selected area lights into objects")},
 	    separator,
-	    {"Mode",{mode,
-		     [{"Vertex Color",vertex_color,
-		       "Vertex colors will be shown"},
-		      {"Material",material,
-		       "Materials will be shown"}]},
-	     "Change object mode to vertex colors or material"},
+	    {?STR(menu,35,"Mode"),{mode,
+		     [{?STR(menu,36,"Vertex Color"),vertex_color,
+		       ?STR(menu,37,"Vertex colors will be shown")},
+		      {?STR(menu,38,"Material"),material,
+		       ?STR(menu,39,"Materials will be shown")}]},
+	      ?STR(menu,40,"Change object mode to vertex colors or material")},
 	    separator,
-	    {"Materials to Colors",materials_to_colors,
-	     "Convert materials to vertex colors"},
-	    {"Colors to Materials",colors_to_materials,
-	     "Convert vertex colors to materials"},
+	    {?STR(menu,41,"Materials to Colors"),materials_to_colors,
+	     ?STR(menu,42,"Convert materials to vertex colors")},
+	    {?STR(menu,43,"Colors to Materials"),colors_to_materials,
+	     ?STR(menu,44,"Convert vertex colors to materials")},
 	    separator,
-	    {"Vertex Color",vertex_color,
-	     "Apply vertex colors to selected objects"}],
+	    {?STR(menu,45,"Vertex Color"),vertex_color,
+	     ?STR(menu,46,"Apply vertex colors to selected objects")}],
     wings_menu:popup_menu(X, Y, body, Menu).
 
 command({move,Type}, St) ->
@@ -151,11 +151,11 @@ convert_selection(#st{sel=Sel0}=St) ->
 %%%
 
 cleanup(Ask, _) when is_atom(Ask) ->
-    Qs = [{"Short Edges",true,[{key,short_edges}]},
+    Qs = [{?STR(cleanup,1,"Short Edges"),true,[{key,short_edges}]},
 	  {hframe,
-	   [{label,"Length Tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]},
-	  {"Isolated Vertices",true,[{key,isolated_vs}]}],
-    wings_ask:dialog(Ask, "Cleanup",
+	   [{label,?STR(cleanup,2,"Length Tolerance")},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]},
+	  {?STR(cleanup,3,"Isolated Vertices"),true,[{key,isolated_vs}]}],
+	   wings_ask:dialog(Ask, ?STR(cleanup,4,"Cleanup"),
 		     [{vframe,Qs}],
 		     fun(Res) -> {body,{cleanup,Res}} end);
 cleanup(Opts, St0) ->
@@ -183,10 +183,10 @@ clean_isolated_vertices(We) ->
     case wings_vertex:isolated(We) of
 	[] -> We;
 	[_]=Isolated ->
-	    io:put_chars("Removed 1 isolated vertex\n"),
+	    io:put_chars(?STR(clean_isolated_vertices,1,"Removed 1 isolated vertex\n")),
 	    wings_vertex:dissolve_isolated(Isolated, We);
 	Isolated ->
-	    io:format("Removed ~p isolated vertices\n", [length(Isolated)]),
+	    io:format(?STR(clean_isolated_vertices,2,"Removed ~p isolated vertices\n"), [length(Isolated)]),
 	    wings_vertex:dissolve_isolated(Isolated, We)
     end.
 		  
@@ -218,7 +218,7 @@ cleanup_rep_1([F|Fs], We0) ->
 	none ->
 	    cleanup_rep_1(Fs, We0);
 	V ->
-	    io:format("Repeated vertex ~p in face ~p\n", [V,F]),
+	    io:format(?STR(cleanup_rep_1,1,"Repeated vertex ~p in face ~p\n"), [V,F]),
 	    We = cleanup_rep_2(F, V, We0),
 	    NewFaces = gb_sets:to_list(wings_we:new_items(face, We0, We)),
 	    cleanup_rep_1(NewFaces++Fs, We)
@@ -305,7 +305,7 @@ cleanup_waists_1([V|Vs], [{V,AllEs}|VsEs], #we{es=Etab0,vp=Vtab0,vc=Vct0}=We0) -
 	    Vtab = gb_trees:insert(NewV, gb_trees:get(V, Vtab0), Vtab0),
 	    Vct = gb_trees:insert(NewV, AnEdge, Vct0),
 	    We = We1#we{es=Etab,vp=Vtab,vc=Vct},
-	    io:format("Removed waist vertex: ~p\n", [V]),
+	    io:format(?STR(cleanup_waists_1,1,"Removed waist vertex: ~p\n"), [V]),
 
 	    %% Re-process the newly added vertex. (Some of the
 	    %% edges may not be reachable from the incident of
@@ -333,8 +333,8 @@ cleanup_2edged_faces(#we{fs=Ftab}=We) ->
 delete_2edged_faces_1([Face|Faces], We0) ->
     case wings_face:delete_if_bad(Face, We0) of
 	bad_edge ->
-	    wings_util:error("Face " ++ integer_to_list(Face) ++
-			     " has only one edge.");
+	    wings_util:error(?STR(delete_2edged_faces_1,1,"Face") ++ integer_to_list(Face) ++
+			     ?STR(delete_2edged_faces_1,2,"has only one edge"));
 	We -> delete_2edged_faces_1(Faces, We)
     end;
 delete_2edged_faces_1([], We) -> We.
@@ -351,7 +351,7 @@ invert_normals(St) ->
 %%%
 
 duplicate(Dir, #st{onext=Oid0}=St0) ->
-    Copy = "copy",
+    Copy = ?STR(duplicate,1,"copy"),
     St1 = wings_sel:fold(fun(_, We, St) ->
 				 wings_shape:insert(We, Copy, St)
 			 end, St0, St0),
@@ -369,7 +369,7 @@ duplicate(Dir, #st{onext=Oid0}=St0) ->
 %%%
 
 duplicate_object(Objects, #st{shapes=Shs}=St) ->
-    Copy = "copy",
+    Copy =  ?STR(duplicate,1,"copy"),
     foldl(fun(Id, S) ->
 		  We = gb_trees:get(Id, Shs),
 		  wings_shape:insert(We, Copy, S)
@@ -462,8 +462,8 @@ unify_modes([#we{mode=Mode}|Wes]) ->
 unify_modes([#we{mode=Mode}|Wes], Mode) ->
     unify_modes(Wes, Mode);
 unify_modes([_|_], _) ->
-    wings_util:error("Objects with vertex colors cannot be combined "
-		     "with objects with materials.");
+    wings_util:error(?STR(unify_modes,1,"Objects with vertex colors cannot be combined " 
+			  "with objects with materials."));
 unify_modes([], Mode) -> Mode.
 		    
 %%%
@@ -492,8 +492,8 @@ auto_smooth(St) ->
     do_auto_smooth(60, St).
 
 auto_smooth(Ask, _) when is_atom(Ask) ->
-    wings_ask:ask(Ask, "Auto Smooth Parameters",
-		  [{"Crease Angle",60,[{range,{0,180}}]}],
+    wings_ask:ask(Ask,?STR(auto_smooth,1,"Auto Smooth Parameters"),
+		  [{?STR(auto_smooth,2,"Crease Angle"),60,[{range,{0,180}}]}],
 		  fun(Res) -> {body,{auto_smooth,Res}} end);
 auto_smooth([Angle], St) ->
     {save_state,do_auto_smooth(Angle, St)}.
@@ -540,7 +540,7 @@ rename(Objects, #st{shapes=Shs}=St) ->
 
 rename_1(Wes, St) ->
     Qs = rename_qs(Wes),
-    wings_ask:dialog("Rename", Qs,
+	wings_ask:dialog(?STR(rename_1,1,"Rename"), Qs,
 		     fun(NewNames) ->
 			     rename_1(NewNames, Wes, St)
 		     end).
@@ -655,7 +655,7 @@ colors_to_materials_2([], We, FaceMat, St) ->
     {wings_material:assign_materials(FaceMat, We),St}.
 
 color_material({R,G,B}=Color, #st{mat=Mat0}=St0) ->
-    Name0 = "color_" ++ fmt_int(R) ++ "_" ++ fmt_int(G) ++ "_" ++ fmt_int(B),
+    Name0 = ?STR(color_material,1,"color_")++ fmt_int(R) ++ "_" ++ fmt_int(G) ++ "_" ++ fmt_int(B),
     Name = list_to_atom(Name0),
     case gb_trees:is_defined(Name, Mat0) of
 	true -> {Name,St0};
@@ -680,8 +680,8 @@ fmt_int(N, L) -> fmt_int(N+1, [$0|L]).
 
 weld(Ask, _) when is_atom(Ask) ->
     Qs = [{hframe,
-	   [{label,"Distance Tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]}],
-    wings_ask:dialog(Ask, "Weld", Qs,
+	   [{label,?STR(weld,1,"Distance Tolerance")},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]}],
+	     wings_ask:dialog(Ask, ?STR(weld,2,"Weld"), Qs,
 		     fun(Res) -> {body,{weld,Res}} end);
 weld([Tolerance], St0) ->
     St1 = combine(St0),
@@ -701,7 +701,7 @@ weld_1(Tol, #we{id=Id,fs=Fs0}=We0, Acc) ->
     Part = sofs:to_external(Part1),
     case weld_2(Part, Tol, We0) of
 	We0 ->
-	    wings_util:error("Found no faces to weld.");
+	    wings_util:error(?STR(weld_1,1,"Found no faces to weld."));
 	We ->
 	    {We,[{Id,weld_selection(lists:append(Part), We0, We)}|Acc]}
     end.

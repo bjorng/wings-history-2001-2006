@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.104 2004/05/19 13:53:53 dgud Exp $
+%%     $Id: wings.hrl,v 1.105 2004/10/08 06:02:28 dgud Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -50,6 +50,8 @@
 
 -define(SLOW(Cmd), begin wings_io:hourglass(), Cmd end).
 -define(TC(Cmd), wings_util:tc(fun() -> Cmd end, ?MODULE, ?LINE)).
+
+-define(STR(A,B,Str), Str).
 				       
 -ifdef(DEBUG).
 -define(ASSERT(E), case E of

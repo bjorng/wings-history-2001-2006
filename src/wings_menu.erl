@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.126 2004/03/25 05:30:38 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.127 2004/10/08 06:02:30 dgud Exp $
 %%
 
 -module(wings_menu).
@@ -800,7 +800,7 @@ help_text(#mi{menu=Menu,sel=Sel}=Mi) ->
 
 help_text_1({Text,{Sub,_},_,_,_}, #mi{adv=false}) when Sub =/= 'VALUE' ->
     %% No specific help text for submenus in basic mode.
-    Help = [Text|" submenu"],
+    Help = [Text|?STR(help_text_1,1," submenu")],
     wings_wm:message(Help, "");
 help_text_1({_,{Name,Fun},_,_,Ps}, #mi{ns=Ns,adv=Adv}=Mi)
   when is_function(Fun) ->
@@ -836,7 +836,8 @@ magnet_help(Msg0, Ps, #mi{flags=Flags}) ->
 		false ->
 		    ModRmb = wings_camera:free_rmb_modifier(),
 		    ModName = wings_camera:mod_name(ModRmb),
-		    MagMsg = ["[",ModName,"]+Click for Magnet"],
+		    MagMsg = ["[",ModName,"]+" ++ 
+			      ?STR(magnet_help,2,"Click for Magnet")],
 		    Msg = wings_util:join_msg(Msg0, MagMsg),
 		    wings_wm:message(Msg);
 		true ->
@@ -936,7 +937,7 @@ have_magnet(Ps) ->
 
 get_hotkey(Cmd, Mi) ->
     wings_wm:dirty(),
-    wings_wm:message("Press key to bind command to."),
+    wings_wm:message(?STR(get_hotkey,1,"Press key to bind command to.")),
     {push,fun(Ev) ->
 		  handle_key_event(Ev, Cmd, Mi)
 	  end}.
@@ -952,8 +953,8 @@ handle_key_event(#keyboard{}=Ev, Cmd, Mi) ->
 	next -> do_bind(Win, Ev, Cmd, Mi);
 	OtherCmd ->
 	    C = wings_util:stringify(OtherCmd),
-	    Q = "This key is already bound to the " ++ C ++
-		" command. Do you want to re-define it?",
+	    Q = ?STR(handle_key_event,1,"This key is already bound to the ") ++ C ++
+		?STR(handle_key_event,2," command. Do you want to re-define it?"),
 	    wings_util:yes_no(Q, fun() -> do_bind(Win, Ev, Cmd, Mi) end)
     end,
     pop;

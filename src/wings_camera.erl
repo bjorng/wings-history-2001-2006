@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.105 2004/08/21 08:26:04 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.106 2004/10/08 06:02:28 dgud Exp $
 %%
 
 -module(wings_camera).
@@ -58,24 +58,24 @@ prefs() ->
 		     (_, _) -> void
 		 end},
     {vframe,
-     [{vframe,[mouse_buttons()],[{title,"Mouse Buttons"}]},
-      {vframe,[camera_modes()],[{title,"Camera Mode"}]},
+     [{vframe,[mouse_buttons()],[{title,?STR(prefs,1,"Mouse Buttons")}]},
+      {vframe,[camera_modes()],[{title,?STR(prefs,2,"Camera Mode")}]},
       {vframe,
        [{hframe,[{slider,{text,PanSpeed0,[{key,pan_speed},{range,{1,100}}]}}]}],
-       [{title,"Pan Speed"}]},
+       [{title,?STR(prefs,3,"Pan Speed")}]},
       {vframe,
-       [{"Wheel Zooms",ZoomFlag0,[{key,wheel_zooms}]},
-	{vradio,[{"Forward Zooms In",false},
-		 {"Forward Zooms Out",true}],
+       [{?STR(prefs,4,"Wheel Zooms"),ZoomFlag0,[{key,wheel_zooms}]},
+	{vradio,[{?STR(prefs,5,"Forwards Zooms In"),false},
+		 {?STR(prefs,6,"Forwards Zooms Out"),true}],
 	 InvertZW,
 	 [{key,inverted_wheel_zoom},Hook]},
 	{hframe,
-	 [{label,"Zoom Factor",[Hook]},
+	 [{label,?STR(prefs,7,"Zoom Factor"),[Hook]},
 	  {text,ZoomFactor0,
 	   [{key,wheel_zoom_factor},
 	    {range,{1,50}},
 	    Hook]},
-	  {label,"%",[Hook]}]} ],[{title,"Scroll Wheel"}] } ]}.
+	  {label,"%",[Hook]}]} ],[{title,?STR(prefs,9,"Scroll Wheel")}] } ]}.
 
 mouse_buttons() ->
     {menu,[{desc(1),1,[{info,info(1)}]},
@@ -110,35 +110,33 @@ camera_modes() ->
 		(_, _) -> void
 	    end}]}.
 
-desc(1) -> "One";
-desc(2) -> "Two";
-desc(3) -> "Three";
-desc(blender) -> "Blender";
-desc(nendo) -> "Nendo";
-desc(mirai) -> "Mirai";
-desc(tds) -> "3ds max";
-desc(maya) -> "Maya";
-desc(mb) -> "Motionbuilder".
+desc(1) -> ?STR(desc,1,"One");
+desc(2) -> ?STR(desc,2,"Two");
+desc(3) -> ?STR(desc,3,"Three");
+desc(blender) -> ?STR(desc,4,"Blender");
+desc(nendo) -> ?STR(desc,5,"Nendo");
+desc(mirai) -> ?STR(desc,6,"Mirai");
+desc(tds) -> ?STR(desc,7,"3ds max");
+desc(maya) -> ?STR(desc,8,"Maya");
+desc(mb) -> ?STR(desc,9,"Motionbuilder").
 
 info(1) ->
-    "Note: Only the Nendo camera mode can be used with "
-	"a one-button mouse";
+    ?STR(info,1,"Note: Only the Nendo camera mode can be used with a one-button mouse");
 info(2) ->
-    "Note: Only the Nendo and Blender camera modes can be used with "
-	"a two-button mouse";
+    ?STR(info,2,"Note: Only the Nendo and Blender camera modes can be used with a two-button mouse");
 info(3) -> "";
 info(nendo) -> "";
 info(blender) ->
-    ["Note: The ",desc(blender),
-     " camera mode requires at least 2 mouse buttons"];
+    [?STR(info,3,"Note: The "),desc(blender),
+     ?STR(info,4," camera mode requires at least 2 mouse buttons")];
 info(Mode) ->
-    ["Note: The ",desc(Mode)," camera mode requires 3 mouse buttons"].
+    [?STR(info,5,"Note: The "),desc(Mode),?STR(info,6," camera mode requires 3 mouse buttons")].
 
 help() ->
     case wings_pref:get_value(camera_mode) of
 	blender -> blender_help();
-	nendo -> button_format([], "Start camera");
-	mirai -> button_format([], "Start camera");
+	nendo -> button_format([], ?STR(help,1,"Start camera"));
+	mirai -> button_format([], ?STR(help,1,"Start camera"));
 	tds -> tds_help();
 	maya -> maya_help();
 	mb -> mb_help()
@@ -159,19 +157,19 @@ mod_format(0, But, Msg) ->
 mod_format(Mod, But, Msg) ->
     M0 = [But,?CSEP,Msg],
     M1 = if
-	     (Mod band ?SHIFT_BITS) =/= 0 -> ["[Shift]+"|M0];
+	     (Mod band ?SHIFT_BITS) =/= 0 -> [?STR(mod_format,1,"[Shift]+")|M0];
 	     true -> M0
 	 end,
     M2 = if
-	     (Mod band ?ALT_BITS) =/= 0 -> ["[Alt]+"|M1];
+	     (Mod band ?ALT_BITS) =/= 0 -> [?STR(mod_format,2,"[Alt]+")|M1];
 	     true -> M1
 	 end,
     M3 = if
-	     (Mod band ?CTRL_BITS) =/= 0 -> ["[Ctrl]+"|M2];
+	     (Mod band ?CTRL_BITS) =/= 0 -> [?STR(mod_format,3,"[Ctrl]+")|M2];
 	     true -> M2
 	 end,
     if
-	(Mod band ?META_BITS) =/= 0 -> ["[Command]+"|M3];
+	(Mod band ?META_BITS) =/= 0 -> [?STR(mod_format,4,"[Command]+")|M3];
 	true -> M3
     end.
 
@@ -219,32 +217,32 @@ button_format(LmbMsg, MmbMsg, RmbMsg) ->
 drop_last(S) ->
     reverse(tl(reverse(S))).
 
-lmb_name() -> "L:".
+lmb_name() -> ?STR(lmb_name,1,"L:").
 
 mmb_name() ->
     mmb_name(wings_pref:get_value(num_buttons)).
 
-mmb_name(3) -> "M:";
+mmb_name(3) -> ?STR(mmb_name,1,"M:");
 mmb_name(2) ->
     case wings_pref:get_value(camera_mode) of
-	blender -> ["[Alt]+"|lmb_name()];
-	nendo -> ["[Ctrl]+"|rmb_name(2)]
+	blender -> [?STR(mmb_name,2,"[Alt]+")|lmb_name()];
+	nendo -> [?STR(mmb_name,3,"[Ctrl]+")|rmb_name(2)]
     end;
-mmb_name(1) -> ["[Alt]+"|lmb_name()].
+mmb_name(1) -> [?STR(mmb_name,4,"[Alt]+")|lmb_name()].
 
 rmb_name() ->
     rmb_name(wings_pref:get_value(num_buttons)).
 
-rmb_name(1) -> "[Ctrl]+L:";
-rmb_name(_) -> "R:".
+rmb_name(1) -> ?STR(rmb_name,1,"[Ctrl]+L:");
+rmb_name(_) -> ?STR(rmb_name,2,"R:").
 
 rmb_format(Message) ->
     RmbMod = mod_name(free_rmb_modifier()),
     ["[",RmbMod,"]+",rmb_name(),?CSEP|Message].
 
-mod_name(?ALT_BITS) -> "Alt";
-mod_name(?CTRL_BITS) -> "Ctrl";
-mod_name(?META_BITS) -> "Command".
+mod_name(?ALT_BITS) -> ?STR(mod_name,1,"Alt");
+mod_name(?CTRL_BITS) -> ?STR(mod_name,2,"Ctrl");
+mod_name(?META_BITS) -> ?STR(mod_name,3,"Command").
 
 join_msg([M0,M1|T]) ->
     join_msg(join_msg(M0, M1), join_msg(T));
@@ -318,11 +316,11 @@ get_blender_event(Camera, Redraw) ->
     {replace,fun(Ev) -> blender_event(Ev, Camera, Redraw) end}.
 	    
 blender_help() ->
-    TrackDolly = [{?SHIFT_BITS,2,"Track"},
-		  {?CTRL_BITS,2,"Dolly"}],
+    TrackDolly = [{?SHIFT_BITS,2,?STR(mode_help,1,"Track")},
+		  {?CTRL_BITS,2,?STR(mode_help,2,"Dolly")}],
     case allow_rotation() of
 	false -> format(TrackDolly);
-	true -> format([{0,2,"Tumble"}|TrackDolly])
+	true -> format([{0,2,?STR(mode_help,3,"Tumble")}|TrackDolly])
     end.
 
 %%%
@@ -394,18 +392,18 @@ get_nendo_event(Camera, Redraw, MouseRotates) ->
     {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw, MouseRotates) end}.
 
 nendo_message(true) ->
-    Help = join_msg([button_format("Accept", "Drag to Dolly"),
-		     "Move mouse to tumble",
-		     ["[Q]",?CSEP,"Move mouse to track"]]),
+    Help = join_msg([button_format(?STR(message,1,"Accept"), ?STR(message,2,"Drag to Dolly")),
+		      ?STR(message,3,"Move mouse to tumble"),
+		     [?STR(message,4,"[Q]"),?CSEP,?STR(message,5,"Move mouse to track")]]),
     message(Help);
 nendo_message(false) ->
     QText = case allow_rotation() of
 		false -> [];
-		true -> ["[Q]",?CSEP,"Move mouse to tumble"]
+		true -> [?STR(message,4,"[Q]"),?CSEP,?STR(message,3,"Move mouse to tumble")]
 	    end,
-    Help = join_msg([button_format("Accept", "Drag to Dolly"),
-		     "Move mouse to track"|QText]),
-    message(Help).
+    Help = join_msg([button_format(?STR(message,1,"Accept"), ?STR(message,2,"Drag to Dolly")),
+	 	     ?STR(message,7,"Restore view")|QText]),
+		     message(Help).
 
 %%%
 %%% Mirai style camera.
@@ -480,21 +478,21 @@ get_mirai_event(Camera, Redraw, MouseRotates, View) ->
     {replace,fun(Ev) -> mirai_event(Ev, Camera, Redraw, MouseRotates, View) end}.
 
 mirai_message(true) ->
-    Help = join_msg([button_format("Accept",
-				   "Drag to Dolly",
-				   "Cancel/restore view"),
-		     "Move mouse to tumble",
-		     ["[Q]",?CSEP,"Move mouse to track"]]),
+    Help = join_msg([button_format(?STR(message,1,"Accept"),
+				   ?STR(message,2,"Drag to Dolly"),
+				   ?STR(message,6,"Cancel/restore view")),
+		     ?STR(message,3,"Move mouse to tumble"),
+		     [?STR(message,4,"[Q]"),?CSEP,?STR(message,5,"Move mouse to track")]]),
     message(Help);
 mirai_message(false) ->
     QText = case allow_rotation() of
 		false -> [];
-		true -> ["[Q]",?CSEP,"Move mouse to tumble"]
+		true -> [?STR(message,4,"[Q]"),?CSEP,?STR(message,3,"Move mouse to tumble")]
 	    end,
-    Help = join_msg([button_format("Accept",
-				   "Drag to Dolly",
-				   "Cancel/restore view"),
-		     "Move mouse to track"|QText]),
+    Help = join_msg([button_format(?STR(message,1,"Accept"),
+				   ?STR(message,2,"Drag to Dolly"),
+				   ?STR(message,6,"Cancel/restore view")),
+		     ?STR(message,5,"Move mouse to track")|QText]),
     message(Help).
 
 %%%
@@ -505,7 +503,7 @@ tds(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     grab(),
-    message(join_msg(tds_help(), button_format([], [], "Restore view"))),
+    message(join_msg(tds_help(), button_format([], [], ?STR(message,7,"Restore view")))),
     View = wings_view:current(),
     {seq,push,get_tds_event(Camera, Redraw, View)};
 tds(_, _) -> next.
@@ -536,11 +534,11 @@ get_tds_event(Camera, Redraw, View) ->
     {replace,fun(Ev) -> tds_event(Ev, Camera, Redraw, View) end}.
 
 tds_help() ->
-    TrackDolly = [{0,2,"Track"},
-		  {?CTRL_BITS bor ?ALT_BITS,2,"Dolly"}],
+    TrackDolly = [{0,2,?STR(mode_help,1,"Track")},
+		  {?CTRL_BITS bor ?ALT_BITS,2,?STR(mode_help,2,"Dolly")}],
     case allow_rotation() of
 	false -> format(TrackDolly);
-	true -> format([{?ALT_BITS,2,"Tumble"}|TrackDolly])
+	true -> format([{?ALT_BITS,2,?STR(mode_help,3,"Tumble")}|TrackDolly])
     end.
 
 %%%
@@ -596,11 +594,11 @@ maya_stop_camera(Camera) ->
     stop_camera(Camera).
 
 maya_help() ->
-    TrackDolly = [{?ALT_BITS,2,"Track"},
-		  {?ALT_BITS,3,"Dolly"}],
+    TrackDolly = [{?ALT_BITS,2,?STR(mode_help,1,"Track")},
+		  {?ALT_BITS,3,?STR(mode_help,2,"Dolly")}],
     case allow_rotation() of
 	false -> format(TrackDolly);
-	true -> format([{?ALT_BITS,1,"Tumble"}|TrackDolly])
+	true -> format([{?ALT_BITS,1,?STR(mode_help,3,"Tumble")}|TrackDolly])
     end.
 
 %%%
@@ -641,11 +639,11 @@ get_mb_event(Camera, Redraw) ->
     {replace,fun(Ev) -> mb_event(Ev, Camera, Redraw) end}.
 
 mb_help() ->
-    TrackDolly = [{?SHIFT_BITS,1,"Track"},
-		  {?CTRL_BITS,1,"Dolly"}],
+    TrackDolly = [{?SHIFT_BITS,1,?STR(mode_help,1,"Track")},
+		  {?CTRL_BITS,1,?STR(mode_help,2,"Dolly")}],
     case allow_rotation() of
 	false -> format(TrackDolly);
-	true -> format([{?SHIFT_BITS bor ?CTRL_BITS,1,"Tumble"}|TrackDolly])
+	true -> format([{?SHIFT_BITS bor ?CTRL_BITS,1,?STR(mode_help,3,"Tumble")}|TrackDolly])
     end.
     
 %%%

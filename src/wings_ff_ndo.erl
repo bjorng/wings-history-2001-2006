@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.22 2003/10/24 04:04:39 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.23 2004/10/08 06:02:29 dgud Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -22,28 +22,28 @@
 import(Name, St) ->
     case file:read_file(Name) of
 	{ok,<<?NDO_HEADER10,_Data/binary>>} ->
-            {error,"Nendo 1.0 files not supported"};
+            {error,?STR(import,1,"Nendo 1.0 files not supported")};
 	{ok,<<?NDO_HEADER11,Data/binary>>} ->
             import_1(Data, St);
 	{ok,_Bin} ->
-	    {error,"not a Nendo file"};
+	    {error,?STR(import,2,"not a Nendo file")};
 	{error,Reason} ->
 	    {error,file:format_error(Reason)}
     end.
 
 import_1(<<_:8,NumObjs:16,_:8,Objs/binary>>, St) ->
-    io:format("~w object(s)\n", [NumObjs]),
+    io:format(?STR(import_1,1,"~w object(s)\n"), [NumObjs]),
     read_objects(NumObjs, Objs, St).
 
 read_objects(0, _, St) -> St;
 read_objects(N, <<>>, St) ->
-    io:format("  ~w empty object(s)\n", [N]),
+    io:format(?STR(read_objects,1,"  ~w empty object(s)\n"), [N]),
     St;
 read_objects(N, Bin, St0) ->
     case read_object(Bin) of
 	bad ->
 	    <<First:16/binary,_/binary>> = Bin,
-	    io:format("  garbage: ~w\n", [First]),
+	   io:format(?STR(read_objects,2,"  garbage: ~w\n"), [First]),
 	    St0;
 	{Name,We,Rest} ->
 	    St = wings_shape:new(Name, We, St0),
@@ -67,7 +67,7 @@ read_object_1(<<L:16,T0/binary>>) ->
 	bad -> bad;
 	{Name,T1} ->
 	    <<Vis:8,Sensivity:8,_:8,_:8,_:72/binary,T2/binary>> = T1,
-	    io:format("~w: ~s: vis=~p sensitivity=~p\n",
+	    io:format(?STR(read_object_1,1,"~w: ~s: vis=~p sensitivity=~p\n"),
 		      [L,Name,Vis,Sensivity]),
 	    Perm = case {Vis,Sensivity} of
 		       {1,1} -> 0;		%Visible, unlocked
@@ -119,7 +119,7 @@ skip_texture(N, <<Pixels:8,_RGB:24,T/binary>>) when N > 0 ->
     skip_texture(N-Pixels, T).
 
 read_edges(<<NumEdges:16,T/binary>>) ->
-    io:format(" edges ~w\n", [NumEdges]),
+    io:format(?STR(read_edges,1," edges ~w\n"), [NumEdges]),
     read_edges(0, NumEdges, T, [], []).
     
 read_edges(N, N, T, Eacc, Hacc) ->
@@ -140,13 +140,13 @@ read_edges(Edge, N, <<EdgeRec0:25/binary,T/binary>>, Eacc, Hacc0) ->
     read_edges(Edge+1, N, T, [EdgeRec|Eacc], Hacc).
 
 skip_faces(<<NumFaces:16,T0/binary>>) ->
-    io:format(" faces ~w\n", [NumFaces]),
+    io:format(?STR(skip_faces,1," faces ~w\n"), [NumFaces]),
     Skip = 2*NumFaces,
     <<_:Skip/binary,T/binary>> = T0,
     T.
 
 read_vertices(<<NumVertices:16,T/binary>>) ->
-    io:format(" vertices ~w\n", [NumVertices]),
+    io:format(?STR(read_vertices,1," vertices ~w\n"), [NumVertices]),
     read_vertices(0, NumVertices, T, []).
     
 read_vertices(N, N, T, Acc) ->
@@ -163,7 +163,7 @@ clean_bad_edges([Edge|T], #we{es=Etab}=We0) ->
     We = case gb_trees:lookup(Edge, Etab) of
 	     none -> We0;
 	     {value,#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same}} ->
-		 io:format("Bad edge: ~w\n", [Edge]),
+	     io:format(?STR(clean_bad_edges,1,"Bad edge: ~w\n"), [Edge]),
 		 We0;
 	     {value,#edge{ltpr=Same,ltsu=Same}} ->
 		 wings_edge:dissolve_edge(Edge, We0);
@@ -190,8 +190,10 @@ export(Name, #st{shapes=Shapes0}=St) ->
 check_size(#we{name=Name,es=Etab}) ->
     case gb_trees:size(Etab) of
 	Sz when Sz > 65535 ->
-	    wings_util:error("Object \""++Name++"\" cannot be exported "
-			     "to Nendo format (too many edges).");
+	    wings_util:error(?STR(check_size,1,"Object \"")
+			    	++Name
+				++?STR(check_size,2,"\" cannot be exported ")
+			        ++?STR(check_size,3,"to Nendo format (too many edges)."));
 	_ -> ok
     end.
 	    

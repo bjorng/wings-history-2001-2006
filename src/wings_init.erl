@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_init.erl,v 1.3 2003/11/09 09:16:26 bjorng Exp $
+%%     $Id: wings_init.erl,v 1.4 2004/10/08 06:02:29 dgud Exp $
 %%
 
 -module(wings_init).
@@ -66,7 +66,7 @@ opengl_modes() ->
      [{buffer_size,0},{depth_size,0},{stencil_size,0},{accum_size,0}]].
 
 try_video_modes(Modes, TopSize) ->
-    io:format("Trying OpenGL modes\n"),
+    io:format(?STR(try_video_modes,1,"Trying OpenGL modes\n")),
     case try_video_modes_1(Modes, TopSize) of
 	ok -> ok;
 	error -> video_mode_failure()
@@ -74,10 +74,10 @@ try_video_modes(Modes, TopSize) ->
 
 video_mode_failure() ->
     io:format("\n###########################################\n\n"),
-    io:format("Failed to find any suitable OpenGL mode.\n\n"),
-    io:format("Make sure that OpenGL drivers are installed.\n\n"),
-    io:format("###########################################\n\n"),
-    erlang:fault("No suitable OpenGL mode found (are OpenGL drivers installed?)").
+    io:format(?STR(video_mode_failure,2,"Failed to find any suitable OpenGL mode.\n\n")),
+    io:format(?STR(video_mode_failure,3,"Make sure that OpenGL drivers are installed.\n\n")),
+    io:format("\n###########################################\n\n"),
+    erlang:fault(?STR(video_mode_failure,5,"No suitable OpenGL mode found (are OpenGL drivers installed?)")).
 
 try_video_modes_1([Mode|Modes], TopSize) ->
     io:format("  ~p\n", [Mode]),
@@ -124,7 +124,7 @@ display_actual_mode() ->
 	     ?GL_ACCUM_GREEN_BITS,
 	     ?GL_ACCUM_BLUE_BITS,
 	     ?GL_ACCUM_ALPHA_BITS],
-    io:format("Actual: RGBA: ~p ~p ~p ~p Depth: ~p Stencil: ~p Accum: ~p ~p ~p ~p\n",
+   	      io:format(?STR(display_actual_mode,1,"Actual: RGBA: ~p ~p ~p ~p Depth: ~p Stencil: ~p Accum: ~p ~p ~p ~p\n"),
 	      [hd(gl:getIntegerv(A)) || A <- Attrs]).
 
 set_video_mode(W, H) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.49 2004/04/20 07:52:37 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.50 2004/10/08 06:02:29 dgud Exp $
 %%
 
 -module(wings_magnet).
@@ -61,8 +61,8 @@ magnet_mode_fun() ->
 
 dialog(Fun) ->
     R0 = wings_pref:get_value(magnet_radius),
-    wings_ask:dialog("Magnet Options",
-      [{hframe,[{text,R0}],[{title,"Influence Radius"}]}|common_dialog()],
+	wings_ask:dialog(?STR(dialog,1,"Magnet Options"),
+      [{hframe,[{text,R0}],[{title,?STR(dialog,2,"Influence Radius")}]}|common_dialog()],
       fun([R,Route]) ->
 	      wings_pref:set_value(magnet_distance_route, Route),
 	      Type = wings_pref:get_value(magnet_type),
@@ -71,7 +71,7 @@ dialog(Fun) ->
       end).
 
 dialog(Point, Fun) ->
-    wings_ask:dialog("Magnet Options",
+    wings_ask:dialog(?STR(dialog,3,"Magnet Options"),
 		     common_dialog(),
 		     fun([Route]) ->
 			     wings_pref:set_value(magnet_distance_route, Route),
@@ -82,13 +82,13 @@ dialog(Point, Fun) ->
 
 common_dialog() ->
     Route = wings_pref:get_value(magnet_distance_route),
-    [{hradio,[{"Shortest",shortest},
-	      {"Midpoint",midpoint},
-	      {"Surface",surface}],
-      Route, [{title,"Distance Route"}]}].
+    [{hradio,[{?STR(common_dialog,1,"Shortest"),shortest},
+	      {?STR(common_dialog,2,"Midpoint"),midpoint},
+	      {?STR(common_dialog,3,"Surface"),surface}],
+      Route, [{title,?STR(common_dialog,4,"Distance Route")}]}].
 
 drag_help(Type) ->
-    "[+] or [-] Adjust Radius  " ++
+    ?STR(drag_help,1,"[+] or [-] Adjust Radius  ") ++
 	help_1(Type, [{1,bell},{2,dome},{3,straight},{4,spike}]).
 
 help_1(Type, [{Digit,Type}|T]) ->
@@ -117,7 +117,7 @@ mf(spike, D0, R) when is_float(D0), is_float(R) ->
     D*D.
 
 check_radius(R) when R < 1.0E-6 ->
-    wings_util:error("Too short influence radius.");
+    wings_util:error(?STR(check_radius,1,"Too short influence radius."));
 check_radius(_) -> ok.
 
 %%%

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.182 2004/08/15 07:22:14 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.183 2004/10/08 06:02:28 dgud Exp $
 %%
 
 -module(wings_ask).
@@ -462,8 +462,8 @@ get_event(S) ->
 	     case catch event1(Ev, S) of
 		 {'EXIT',Reason} ->
 		     %% dmptree(S#s.fi),
-		     io:format("Dialog crashed for event ~p~n"
-			       "With reason ~p~n", [Ev,Reason]),
+		     io:format(?STR(get_event,1,"Dialog crashed for event ~p~n"
+				    "With reason ~p~n"), [Ev,Reason]),
 		     delete(S);
 		 Result -> Result
 	     end
@@ -1162,7 +1162,7 @@ mktree({menu,Menu,Def,Flags}, Sto, I) when is_list(Flags) ->
 %%
 mktree({button,{text,_Def,Flags}=TextField}, Sto, I) ->
     mktree({hframe,[TextField,
-		    {button,"Browse",keep,
+		    {button,?STR(mktree,1,"Browse"),keep,
 		     [{hook,browse_hook_fun(-1, Flags)},
 		      {drop_flags,[{index,-1},
 				   {hook,drop_hook_fun(Flags)}
@@ -1586,12 +1586,12 @@ frame_event(#mousemotion{x=Xm,y=Ym,state=Bst},
 	    case Minimized of
 		true ->
 		    wings_util:button_message(
-		      "Expand this frame; collapse other frames",
+		      ?STR(frame_event,1,"Expand this frame; collapse other frames"),
 		      "",
-		      "Expand this frame");
+		      ?STR(frame_event,2,"Expand this frame"));
 		false ->
-		    wings_util:button_message(
-		      "Collapse this frame", "", "Collapse this frame");
+		    Msg = ?STR(frame_event,3,"Collapse this frame"),
+		    wings_util:button_message(Msg, "", Msg);
 		undefined ->
 		    wings_wm:message("")
 	    end;
@@ -2388,9 +2388,10 @@ mktree_button(Label, Action, Sto, I, Flags) ->
     But = #but{label=Label,action=Action},
     mktree_priv(Fi, gb_trees:enter(var(Key, I), Val, Sto), I, But).
 
-button_label(ok) -> "OK";
+button_label(ok) -> ?STR(button_label,1,"OK");
 button_label(S) when is_list(S) -> S;
 button_label(Act) -> wings_util:cap(atom_to_list(Act)).
+%%button_label(Act) -> wings_util:cap(wings_lang:get_act(Act)). %BUGBUG
 
 button_event({redraw,Active,DisEnabled}, [Fi=#fi{index=I}|_], Store) ->
     button_draw(Active, Fi, gb_trees:get(-I, Store), DisEnabled);

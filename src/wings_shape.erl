@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.71 2004/03/21 06:52:27 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.72 2004/10/08 06:02:31 dgud Exp $
 %%
 
 -module(wings_shape).
@@ -109,8 +109,8 @@ window(St) ->
 
 window({_,Client}=Name, Pos, Size, St) ->
     Title = case Client of
-		geom -> "Geometry Graph";
-		{geom,N} -> "Geometry Graph #" ++ integer_to_list(N)
+		geom -> ?STR(window,1,"Geometry Graph");
+		{geom,N} -> ?STR(window,2,"Geometry Graph #")++ integer_to_list(N)
 	    end,
     Ost = #ost{first=0,lh=18,active=-1},
     Current = {current_state,St},
@@ -174,19 +174,19 @@ event(Ev, Ost) ->
 
 help(-1, _) -> wings_wm:message("");
 help(_, name) ->
-    wings_util:button_message("Select", [], "Show menu");
+    wings_util:button_message(?STR(help,1,"Select"), [],?STR(help,2,"Show menu"));
 help(_, visibility) ->
-    help_1("Toggle visibility of active object",
-	   "Toggle visibility of all other objects");
+    help_1(?STR(help,2,"Show menu"),
+	   ?STR(help,3,"Toggle visibility of active object"));
 help(_, lock) ->
-    help_1("Lock/unlock active object",
-	   "Lock/unlock all objects");
+    help_1(?STR(help,4,"Toggle visibility of all other objects"),
+	   ?STR(help,5,"Lock/unlock active object"));
 help(_, selection) ->
-    help_1("Toggle selection for active object",
-	   "Toggle selection for all other objects");
+    help_1(?STR(help,6,"Lock/unlock all objects"),
+	   ?STR(help,7,"Toggle selection for active object"));
 help(_, wire) ->
-    help_1("Toggle shaded/wireframe for active object",
-	   "Toggle shaded/wireframe for all other objects").
+    help_1(?STR(help,8,"Toggle shaded/wireframe for active object"),
+	   ?STR(help,9,"Toggle shaded/wireframe for all other objects")).
 
 help_1(OneMsg, ThreeMsg) ->
     wings_util:button_message(OneMsg, [], ThreeMsg).
@@ -444,12 +444,12 @@ do_menu(-1, _, _, _) -> keep;
 do_menu(Act, X, Y, #ost{os=Objs}) ->
     Menu = case lists:nth(Act+1, Objs) of
 	       #we{id=Id} ->
-		   [{"Duplicate",menu_cmd(duplicate_object, Id),
-		     "Duplicate selected objects"},
-		    {"Delete",menu_cmd(delete_object, Id),
-		     "Delete selected objects"},
-		    {"Rename",menu_cmd(rename_object, Id),
-		     "Rename selected objects"}]
+		   [{?STR(do_menu,1,"Duplicate"),menu_cmd(duplicate_object, Id),
+		     ?STR(do_menu,2,"Duplicate selected objects")},
+		    {?STR(do_menu,3,"Delete"),menu_cmd(delete_object, Id),
+		     ?STR(do_menu,4,"Delete selected objects")},
+		    {?STR(do_menu,5,"Rename"),menu_cmd(rename_object, Id),
+		     ?STR(do_menu,6,"Rename selected objects")}]
 	   end,
     wings_menu:popup_menu(X, Y, objects, Menu).
 

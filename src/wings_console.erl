@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_console.erl,v 1.4 2004/04/22 09:13:16 raimo_niskanen Exp $
+%%     $Id: wings_console.erl,v 1.5 2004/10/08 06:02:28 dgud Exp $
 %%
 
 -module(wings_console).
@@ -199,7 +199,7 @@ do_window(Name, Font, {Cw,Lh}, {X,Y}, {W,H}=Size) -> % {X,Y} is upper right
 	   text_color=wings_pref:get_value(console_text_color),
 	   cursor_color=wings_pref:get_value(console_cursor_color)},
     Op = {seq,push,get_event(S)},
-    Title = "Console "++integer_to_list(Width)++"x"++integer_to_list(Height),
+    Title = ?STR(do_window,1,"Console ")++integer_to_list(Width)++?STR(do_window,2,"x")++integer_to_list(Height),
     Props = [{font,Font}],
     wings_wm:toplevel(Name, Title, {X,Y,highest}, Size,
 		      [closable,vscroller,{anchor,ne},
@@ -257,13 +257,13 @@ handle_event_1(_Ev, _) ->
 
 handle_action({popup,write_file}, _S) ->
     Dir = wings_pref:get_value(current_directory),
-    Ps = [{title,"Write"},{directory,Dir},
-	  {ext,".txt"},{ext_desc,"Text File"}],
+    Ps = [{title,?STR(handle_action,1,"Write")},{directory,Dir},
+	  {ext,".txt"},{ext_desc,?STR(handle_action,3,"Text File")}],
     Fun = fun(Name) ->
 		  case write_file(Name) of
 		      ok -> keep;
 		      {error,Reason} ->
-			  Msg = io_lib:format("Write error: ~w", [Reason]),
+			  Msg = io_lib:format(?STR(handle_action,4,"Write error: ~w"), [Reason]),
 			  wings_util:message(Msg),
 			  keep
 		  end
@@ -292,7 +292,8 @@ write_file(Name) ->
 
 popup_menu(X, Y, _S) ->
     Menu =
-	[{"Write to File",write_file,"Write console contents to a file"}],
+	[{?STR(popup_menu,1,"Write to File"),write_file,
+	  ?STR(popup_menu,2,"Write console contents to a file")}],
     wings_menu:popup_menu(X, Y, popup, Menu).
 
 zoom_step(Step, #s{height=Height}) ->
@@ -410,7 +411,7 @@ server_loop(#state{gmon=Gmon,tref=Tref}=State) ->
 		    server_loop(State#state{tref=undefined})
 	    end;
 	Unknown ->
-	    io:format(?MODULE_STRING":~w Received unknown: ~p~n", 
+	    io:format(?MODULE_STRING++?STR(server_loop,1,":~w Received unknown: ~p~n"), 
 		      [?LINE,Unknown]),
 	    server_loop(State)
     end.

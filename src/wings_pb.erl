@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.14 2004/05/06 14:14:17 bjorng Exp $
+%%     $Id: wings_pb.erl,v 1.15 2004/10/08 06:02:30 dgud Exp $
 %%
 
 -module(wings_pb).
@@ -124,7 +124,7 @@ loop(#state{refresh=After,level=Level,msg=Msg0}=S0) ->
 	    S = calc_position(S1),
 	    loop(draw_position(S#state{refresh=?REFRESH_T}));
 	{Pid,?PB,done} when Level =:= 1 ->
-	    S = update("done", 1.0, S0#state{next_pos=1.0,pos=1.0}),
+	    S = update(?STR(loop,1,"done"), 1.0, S0#state{next_pos=1.0,pos=1.0}),
 	    draw_position(S),
 	    reply(Pid, fun() -> print_stats(S) end),
 	    loop(#state{});

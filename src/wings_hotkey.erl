@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.46 2003/11/02 15:19:19 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.47 2004/10/08 06:02:29 dgud Exp $
 %%
 
 -module(wings_hotkey).
@@ -160,20 +160,20 @@ listing_1([{Mode,Keys}|T], Acc0) ->
     listing_1(T, Acc);
 listing_1([], Acc) -> reverse(Acc).
 
-list_header(all) -> "Hotkeys in all modes";
-list_header(body) -> "Hotkeys in object mode";
-list_header(edge) -> "Hotkeys in edge mode";
-list_header(face) -> "Hotkeys in face mode";
-list_header(light) -> "Hotkeys for lights";
-list_header(vertex) -> "Hotkeys for vertices";
+list_header(all) ->?STR(list_header,1,"Hotkeys in all modes");
+list_header(body) ->?STR(list_header,2,"Hotkeys in object mode");
+list_header(edge) -> ?STR(list_header,3,"Hotkeys in edge mode");
+list_header(face) -> ?STR(list_header,4,"Hotkeys in face mode");
+list_header(light) -> ?STR(list_header,5,"Hotkeys for lights");
+list_header(vertex) -> ?STR(list_header,6,"Hotkeys for vertices");
 list_header(A) -> atom_to_list(A).
 
 list_keys([{Key,Cmd,Src}|T]) ->
     KeyStr = keyname(Key),
     SrcStr = case Src of
 		 default -> "";
-		 user -> " (user-defined)";
-		 plugin -> " (plug-in-defined)"
+		 user -> ?STR(list_keys,1," (user-defined)");
+		 plugin -> ?STR(list_keys,2," (plug-in-defined)")
 	     end,
     KeyStr ++ ": " ++ wings_util:stringify(Cmd) ++ SrcStr ++ 
 	"\n" ++ list_keys(T);
@@ -210,14 +210,14 @@ keyname({bindkey,_Mode,Key}) ->
     keyname(Key);
 keyname({C,Mods}) ->
     modname(Mods) ++ vkeyname(C);
-keyname($\b) -> "Bksp";
-keyname($\t) -> "Tab";
-keyname($\s) -> "Space";
+keyname($\b) -> ?STR(keyname,1,"Bksp");
+keyname($\t) -> ?STR(keyname,2,"Tab");
+keyname($\s) -> ?STR(keyname,3,"Space");
 keyname(C) when $a =< C, C =< $z -> [C-32];
 keyname(C) when $A =< C, C =< $Z ->
     case get(wings_os_type) of
 	{unix,darwin} -> [shift,C];
-	_ -> "Shift+" ++ [C]
+	_ -> ?STR(keyname,4,"Shift+")++ [C]
     end;
 keyname(C) when is_integer(C), C < 256 -> [C];
 keyname(C) when is_integer(C), 63236 =< C, C =< 63247 ->
@@ -230,10 +230,10 @@ modname(Mods) ->
 	_ -> modname_1(Mods)
     end.
 
-modname_1([ctrl|T]) -> "Ctrl+"++modname_1(T);
-modname_1([shift|T]) -> "Shift+"++modname_1(T);
-modname_1([alt|T]) -> "Alt+"++modname_1(T);
-modname_1([command|T]) -> "Meta+"++modname_1(T);
+modname_1([ctrl|T]) ->?STR(modname_1,1,"Ctrl+")++modname_1(T);
+modname_1([shift|T]) ->?STR(modname_1,2,"Shift+")++modname_1(T);
+modname_1([alt|T]) -> ?STR(modname_1,3,"Alt+")++modname_1(T);
+modname_1([command|T]) -> ?STR(modname_1,4,"Meta+")++modname_1(T);
 modname_1([]) -> [].
 
 mac_modname([ctrl|T], Acc) ->
@@ -243,35 +243,35 @@ mac_modname([alt|T], Acc) -> mac_modname(T, [option|Acc]);
 mac_modname([command|T], Acc) -> mac_modname(T, Acc++[command]);
 mac_modname([], Acc) -> Acc.
 
-vkeyname(?SDLK_BACKSPACE) -> "Bksp";
-vkeyname(?SDLK_TAB) -> "Tab";
-vkeyname(?SDLK_RETURN) -> "Enter";
-vkeyname(?SDLK_PAUSE) -> "Pause";
-vkeyname(?SDLK_ESCAPE) -> "Esc";
-vkeyname(?SDLK_SPACE) -> "Space";
-vkeyname(?SDLK_DELETE) -> "Delete";
+vkeyname(?SDLK_BACKSPACE) -> ?STR(vkeyname,1,"Bksp");
+vkeyname(?SDLK_TAB) -> ?STR(vkeyname,2,"Tab");
+vkeyname(?SDLK_RETURN) -> ?STR(vkeyname,3,"Enter");
+vkeyname(?SDLK_PAUSE) -> ?STR(vkeyname,4,"Pause");
+vkeyname(?SDLK_ESCAPE) ->?STR(vkeyname,5,"Esc");
+vkeyname(?SDLK_SPACE) -> ?STR(vkeyname,6,"Space");
+vkeyname(?SDLK_DELETE) -> ?STR(vkeyname,7,"Delete");
 vkeyname(C) when $a =< C, C =< $z-> [C-32];
 vkeyname(C) when $\s < C, C < 256 -> [C];
 vkeyname(C) when ?SDLK_KP0 < C, C < ?SDLK_KP9 -> [C-?SDLK_KP0+$0];
 vkeyname(C) when ?SDLK_F1 =< C, C =< ?SDLK_F15 ->
     [$F|integer_to_list(C-?SDLK_F1+1)];
-vkeyname(?SDLK_KP_PERIOD) -> "Del";
-vkeyname(?SDLK_KP_DIVIDE) -> "Div";
-vkeyname(?SDLK_KP_MULTIPLY) -> "Mul";
-vkeyname(?SDLK_KP_MINUS) -> "-";
-vkeyname(?SDLK_KP_PLUS) -> "+";
-vkeyname(?SDLK_KP_ENTER) -> "Enter";
-vkeyname(?SDLK_KP_EQUALS) -> "=";
-vkeyname(?SDLK_UP) -> "Up";
-vkeyname(?SDLK_DOWN) -> "Down";
-vkeyname(?SDLK_RIGHT) -> "Right";
-vkeyname(?SDLK_LEFT) -> "Left";
-vkeyname(?SDLK_INSERT) -> "Insert";
-vkeyname(?SDLK_HOME) -> "Home";
-vkeyname(?SDLK_END) -> "End";
-vkeyname(?SDLK_PAGEUP) -> "Page Up";
-vkeyname(?SDLK_PAGEDOWN) -> "Page Down";
-vkeyname(_) -> "UKEY".
+vkeyname(?SDLK_KP_PERIOD) -> ?STR(vkeyname,8,"Del");
+vkeyname(?SDLK_KP_DIVIDE) -> ?STR(vkeyname,9,"Div");
+vkeyname(?SDLK_KP_MULTIPLY) -> ?STR(vkeyname,10,"Mul");
+vkeyname(?SDLK_KP_MINUS) -> ?STR(vkeyname,11,"-");
+vkeyname(?SDLK_KP_PLUS) -> ?STR(vkeyname,12,"+");
+vkeyname(?SDLK_KP_ENTER) -> ?STR(vkeyname,13,"Enter");
+vkeyname(?SDLK_KP_EQUALS) ->?STR(vkeyname,14,"=");
+vkeyname(?SDLK_UP) -> ?STR(vkeyname,15,"Up");
+vkeyname(?SDLK_DOWN) -> ?STR(vkeyname,16,"Down");
+vkeyname(?SDLK_RIGHT) -> ?STR(vkeyname,17,"Right");
+vkeyname(?SDLK_LEFT) -> ?STR(vkeyname,18,"Left");
+vkeyname(?SDLK_INSERT) -> ?STR(vkeyname,19,"Insert");
+vkeyname(?SDLK_HOME) -> ?STR(vkeyname,20,"Home");
+vkeyname(?SDLK_END) -> ?STR(vkeyname,21,"End");
+vkeyname(?SDLK_PAGEUP) -> ?STR(vkeyname,22,"Page Up");
+vkeyname(?SDLK_PAGEDOWN) ->?STR(vkeyname,23,"Page Down");
+vkeyname(_) -> ?STR(vkeyname,24,"UKEY").
 
 %%%
 %%% Default keybindings.

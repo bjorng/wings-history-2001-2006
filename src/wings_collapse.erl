@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.37 2003/11/17 04:40:46 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.38 2004/10/08 06:02:28 dgud Exp $
 %%
 
 -module(wings_collapse).
@@ -315,8 +315,9 @@ check_vertices(Vs0) ->
     check_vertices_1(sort(Vs0)).
 
 check_vertices_1([V,V|_]) ->
-    wings_util:error("Non-collapsible vertex (" ++ integer_to_list(V) ++
-		     ") - would leave waist.\n");
+    wings_util:error(?STR(check_vertices_1,1,"Non-collapsible vertex") ++ " ("
+		     ++ integer_to_list(V) ++ ") -"
+		     ++?STR(check_vertices_1,2,"would leave waist.\n"));
 check_vertices_1([_|Vs]) ->
     check_vertices(Vs);
 check_vertices_1([]) -> ok.
@@ -347,7 +348,7 @@ check_consistency(We) ->
     case wings_we:is_consistent(We) of
 	true -> ok;
 	false ->
-	    Msg = "Collapsing would cause an inconsistent object structure.",
+	    Msg = ?STR(check_consistency,1,"Collapsing would cause an inconsistent object structure."),
 	    wings_util:error(Msg)
     end.
 

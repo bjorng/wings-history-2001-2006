@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.5 2004/03/08 11:10:41 raimo_niskanen Exp $
+%%     $Id: wings_export.erl,v 1.6 2004/10/08 06:02:29 dgud Exp $
 %%
 
 -module(wings_export).
@@ -23,9 +23,10 @@ export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
     Objs = foldl(fun(W, A) ->
 			 export_1(W, SubDivs, A)
 		 end, [], gb_trees:values(Shs)),
-    wings_pb:start("exporting"),
-    wings_pb:update(0.01, "preparing"),
+    wings_pb:start(?STR(export,1,"exporting")),
+    wings_pb:update(0.01,?STR(export,2,"preparing")),
     Creator = "Wings 3D " ++ ?WINGS_VERSION,
+
     Mat0 = wings_material:used_materials(St),
     Mat1 = keydelete('_hole_', 1, Mat0),
     Mat = mat_images(Mat1),
@@ -39,7 +40,7 @@ export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
 	{error,Reason} ->
 	    wings_util:error(Reason);
 	{'EXIT',Reason} ->
-	    wings_util:error("Exporter crashed:\n~P\n", [Reason,20])
+	wings_util:error(?STR(export,4,"Exporter crashed:\n~P\n"), [Reason,20])
     end.
 
 save_images(#e3d_file{mat=Mat0}=E3DFile, Dir, Filetype) ->

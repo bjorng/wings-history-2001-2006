@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.39 2004/01/29 06:58:07 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.40 2004/10/08 06:02:30 dgud Exp $
 %%
 
 -module(wings_menu_util).
@@ -32,34 +32,29 @@ dirs(3, _Mode, Ns) ->
     Flags = magnet_props(some_axis, Ns),
     wings_menu:build_command({'ASK',{[axis],[],Flags}}, Ns);
 dirs(help, body, [move|_]) ->
-    {"Move along std. axis",[],"Pick axis to move along"};
+    {?STR(dirs,1,"Move along std. axis"),[],?STR(dirs,2,"Pick axis to move along")};
 dirs(help, _Mode, Ns) -> dirs_help(Ns).
 
 dirs_help([move|_]) ->
-    {"Move along std. axis","Move along selection's normal",
-     "Pick axis to move along"};
+    {?STR(dirs,3,"Move along std. axis"),?STR(dirs,4,"Move along selection's normal"),?STR(dirs,5,"Pick axis to move along")};
 dirs_help([extrude|_]) ->
-    {"Extrude along std. axis","Extrude along selection's normal",
-     "Pick axis to extrude along"};
+    {?STR(dirs,6,"Extrude along std. axis"),?STR(dirs,7,"Extrude along selection's normal"),?STR(dirs,8,"Pick axis to extrude along")};
 dirs_help([extrude_region|_]) ->
-    {"Extrude along std. axis","Extrude along selection's normal",
-     "Pick axis to extrude along"};
+    {?STR(dirs,9,"Extrude along std. axis"),?STR(dirs,10,"Extrude along selection's normal"),?STR(dirs,11,"Pick axis to extrude along")};
 dirs_help([extract_region|_]) ->
-    {"Extract along std. axis","Extract along selection's normal",
-     "Pick axis to extract along"};
+    {?STR(dirs,12,"Extract along std. axis"),?STR(dirs,13,"Extract along selection's normal"),?STR(dirs,14,"Pick axis to extract along")};
 dirs_help([duplicate|_]) ->
-    {"Duplicate; move along std. axis","Duplicate; don't move",
-     "Duplicate; pick axis to move along"};
+    {?STR(dirs,15,"Duplicate; move along std. axis"),?STR(dirs,16,"Duplicate; don't move"),?STR(dirs,17,"Duplicate; pick axis to move along")};
 dirs_help(_) -> "".
 
 dirs_1(body, Ns) -> directions([free,x,y,z], Ns);
 dirs_1(_, Ns) -> directions([normal,free,x,y,z], Ns).
 
 all_xyz() ->
-    [{"All",all},
-     {"X",x},
-     {"Y",y},
-     {"Z",z}].
+    [{?STR(all_xyz,1,"All"),all},
+     {?STR(all_xyz,2,"X"),x},
+     {?STR(all_xyz,3,"Y"),y},
+     {?STR(all_xyz,4,"Z"),z}].
 
 %%%
 %%% Scale sub-menu.
@@ -75,7 +70,7 @@ scale(St) ->
 basic_scale() ->
     Names = [scale],
     Dirs = [uniform,x,y,z,{radial,x},{radial,y},{radial,z}],
-    {"Scale",{scale,basic_scale_1(Dirs, Names)}}.
+    {?STR(basic_scale,1,"Scale"),{scale,basic_scale_1(Dirs, Names)}}.
 
 basic_scale_1([Dir|Dirs], Names) ->
     DirString = stringify_dir(Dir),
@@ -90,29 +85,29 @@ adv_scale(#st{selmode=body}) -> adv_scale_1([]);
 adv_scale(_) -> adv_scale_1([magnet]).
 
 adv_scale_1(MagFlags) ->
-    [{"Scale Uniform",{scale,fun(B, Ns) -> uniform_scale(B, Ns, MagFlags) end},
+    [{?STR(adv_scale_1,1,"Scale Uniform"),{scale,fun(B, Ns) -> uniform_scale(B, Ns, MagFlags) end},
       [],MagFlags},
-     {"Scale Axis",{scale,fun(B, Ns) -> scale(B, Ns, [], MagFlags) end},
+     {?STR(adv_scale_1,2,"Scale Axis"),{scale,fun(B, Ns) -> scale(B, Ns, [], MagFlags) end},
       [],MagFlags},
-     {"Scale Radial",{scale,fun(B, Ns) -> scale(B, Ns, [radial], MagFlags) end},
+     {?STR(adv_scale_1,3,"Scale Radial"),{scale,fun(B, Ns) -> scale(B, Ns, [radial], MagFlags) end},
       [],MagFlags}].
 
 uniform_scale(help, _, _) ->
-    ChoosePoint = "Choose point to scale from",
-    {"Scale uniformly from midpoint of selection",ChoosePoint,ChoosePoint};
+    ChoosePoint = ?STR(uniform_scale,1,"Choose point to scale from"),
+    {?STR(uniform_scale,2,"Scale uniformly from midpoint of selection"),ChoosePoint,ChoosePoint};
 uniform_scale(1, Ns, Flags) ->
     wings_menu:build_command({'ASK',{[],[center,uniform],Flags}}, Ns);
 uniform_scale(_, Ns, Flags) ->
     wings_menu:build_command({'ASK',{[point],[],Flags}}, Ns).
 
 scale(help, _, [radial],_) ->
-    {"Scale outward from std. axis",
-     "Pick axis and point to scale from",
-     "Pick axis to scale out from"};
+    {?STR(scale,1,"Scale outward from std. axis"),
+     ?STR(scale,2,"Pick axis and point to scale from"),
+     ?STR(scale,3,"Pick axis to scale out from")};
 scale(help, _, [], _) ->
-    {"Scale along std. axis",
-     "Pick axis and point to scale from",
-     "Pick axis to scale along"};
+    {?STR(scale,4,"Scale along std. axis"),
+     ?STR(scale,5,"Pick axis and point to scale from"),
+     ?STR(scale,6,"Pick axis to scale along")};
 scale(1, Ns, Flags, _MagFlags) ->
     [scale_fun(x, Ns, Flags),
      scale_fun(y, Ns, Flags),
@@ -131,10 +126,10 @@ scale_fun(Dir, Names, _Flags) ->
     DirString = stringify_dir(Dir),
     F = magnet_scale_rot_fun(Dir, center),
     Help0 = dir_help(Dir, Names),
-    Help = {Help0,[],"Pick point to scale from"},
+    Help = {Help0,[],?STR(scale_fun,1,"Pick point to scale from")},
     {DirString,F,Help,magnet_props(Dir, Names)}.
 
-stringify_dir({radial,Axis}) -> "Radial " ++ wings_util:stringify(Axis);
+stringify_dir({radial,Axis}) -> ?STR(stringify_dir,1,"Radial ") ++ wings_util:stringify(Axis);
 stringify_dir(Dir) -> wings_util:stringify(Dir).
 
 %%%
@@ -145,12 +140,12 @@ rotate(#st{selmode=body}) -> rotate_1([]);
 rotate(_) -> rotate_1([magnet]).
 
 rotate_1(Flags) ->    
-    {"Rotate",{rotate,fun rotate/2},[],Flags}.
+    {?STR(rotate_1,1,"Rotate"),{rotate,fun rotate/2},[],Flags}.
 
 rotate(help, _) ->
-    {"Rotate around std. axis",
-     "Pick axis and ref point",
-     "Pick axis to rotate around"};
+    {?STR(rotate,1,"Rotate around std. axis"),
+     ?STR(rotate,2,"Pick axis and ref point"),
+     ?STR(rotate,3,"Pick axis to rotate around")};
 rotate(1, [rotate,Mode]=Ns) when Mode == vertex; Mode == body ->
     rotate_common(Ns);
 rotate(1, Ns) ->
@@ -175,7 +170,7 @@ rotate_fun(Dir, Names) ->
     DirString = wings_util:stringify(Dir),
     F = magnet_scale_rot_fun(Dir, center),
     Help0 = dir_help(Dir, Names),
-    Help = {Help0,[],"Pick point for axis to pass through"},
+    Help = {Help0,[],?STR(rotate_fun,1,"Pick point for axis to pass through")},
     Ps = magnet_props(Dir, Names),
     {DirString,F,Help,Ps}.
 
@@ -195,12 +190,12 @@ magnet_scale_rot_fun(Vec, Point) ->
 %%%
 
 flatten() ->
-    {"Flatten",{flatten,fun flatten/2}}.
+    {?STR(flatten,1,"Flatten"),{flatten,fun flatten/2}}.
 
 flatten(help, _) ->
-    {"Flatten to std. planes",
-     "Pick plane and ref point on plane",
-     "Pick plane"};
+    {?STR(flatten,2,"Flatten to std. planes"),
+     ?STR(flatten,3,"Pick plane and ref point on plane"),
+     ?STR(flatten,4,"Pick plane")};
 flatten(1, [flatten,vertex]) ->
     %% Vertex mode flatten.
     flatten_common();
@@ -232,7 +227,7 @@ flatten_fun_1(Vec, Axis, String) ->
 		wings_menu:build_command({'ASK',{[point],[Vec]}}, Ns)
 	end,
     Help0 = dir_help(Axis, [flatten]),
-    Help = {Help0,[],"Pick point on plane"},
+    Help = {Help0,[],?STR(flatten_fun_1,1,"Pick point on plane")},
     {String,F,Help,[]}.
 
 %%%
@@ -260,73 +255,73 @@ magnet_props(_, [rotate|_]) -> [magnet];
 magnet_props(_, _) -> [].
 
 dir_help(Axis, Ns) when Axis == x; Axis == y; Axis == z ->
-    dir_help_1(Ns, "the " ++ wings_util:stringify(Axis) ++ " axis");
+    dir_help_1(Ns,?STR(dir_help,1,"the ") ++ wings_util:stringify(Axis) ++ ?STR(dir_help,2," axis"));
 dir_help(last_axis, Ns) ->
-    dir_help_1(Ns, "the last axis");
+    dir_help_1(Ns, ?STR(dir_help,3,"the last axis"));
 dir_help(default_axis, Ns) ->
-    dir_help_1(Ns, "the default axis");
+    dir_help_1(Ns, ?STR(dir_help,4,"the default axis"));
 dir_help({radial,Axis}, Ns) ->
-    dir_help_1(Ns, [around|"the " ++ wings_util:stringify(Axis) ++ " axis"]);
+    dir_help_1(Ns, [around|?STR(dir_help,5,"the ") ++ wings_util:stringify(Axis) ++?STR(dir_help,6," axis")]);
 dir_help(radial_x, Ns) ->
-    dir_help_1(Ns, [around|"around the X axis"]);
+    dir_help_1(Ns, [around|?STR(dir_help,7,"around the X axis")]);
 dir_help(radial_y, Ns) ->
-    dir_help_1(Ns, [around|"around the Y axis"]);
+    dir_help_1(Ns, [around|?STR(dir_help,8,"around the Y axis")]);
 dir_help(radial_z, Ns) ->
-    dir_help_1(Ns, [around|"around the Z axis"]);
+    dir_help_1(Ns, [around|?STR(dir_help,9,"around the Z axis")]);
 dir_help(normal, Ns) ->
-    dir_help_1(Ns, [normal|"along its normal"]);
+    dir_help_1(Ns, [normal|?STR(dir_help,10,"along its normal")]);
 dir_help(free, Ns) ->
-    dir_help_1(Ns, [free|"freely in all directions"]);
+    dir_help_1(Ns, [free|?STR(dir_help,11,"freely in all directions")]);
 dir_help(uniform, [scale|_]) ->
-    "Scale equally in all directions".
+    ?STR(dir_help,12,"Scale equally in all directions").
 
 %% Normal/Free.
 dir_help_1([move|_], [NF|Text]) when NF == normal; NF == free ->
-    "Move each element " ++ Text;
+    ?STR(dir_help_1,1,"Move each element ") ++ Text;
 dir_help_1([rotate|_], [free|_Text]) ->
-    "Rotate freely";
+    ?STR(dir_help_1,2,"Rotate freely");
 dir_help_1([rotate|_], [normal|_Text]) ->
-    "Rotate around each element's normal";
+    ?STR(dir_help_1,3,"Rotate around each element's normal");
 dir_help_1([extrude|_], [NF|Text]) when NF == normal; NF == free ->
-    "Extrude each element, then move it " ++ Text;
+    ?STR(dir_help_1,4,"Extrude each element, then move it ")++ Text;
 dir_help_1([extrude_region|_], [normal|_]) ->
-    "Extrude faces as region, then move faces along the region's normal";
+    ?STR(dir_help_1,5,"Extrude faces as region, then move faces along the region's normal");
 dir_help_1([extrude_region|_], [free|Text]) ->
-    "Extrude faces as region, then move faces " ++ Text;
+    ?STR(dir_help_1,6,"Extrude faces as region, then move faces ") ++ Text;
 dir_help_1([extract_region|_], [normal|_]) ->
-    "Extract faces, then move faces along the region's normal";
+    ?STR(dir_help_1,7,"Extract faces, then move faces along the region's normal");
 dir_help_1([extract_region|_], [free|Text]) ->
-    "Extract faces, then move faces " ++ Text;
+    ?STR(dir_help_1,8,"Extract faces, then move faces ") ++ Text;
 dir_help_1([flatten|_], [normal|_Text]) ->
-    "Flatten elements to normal plane";
+    ?STR(dir_help_1,9,"Flatten elements to normal plane");
 dir_help_1([lift|_], [normal|_]) ->
-    "Lift face along its normal";
+    ?STR(dir_help_1,10,"Lift face along its normal");
 dir_help_1([lift|_], [free|Text]) ->
-    "Lift face and move it " ++ Text;
+    ?STR(dir_help_1,11,"Lift face and move it ") ++ Text;
 dir_help_1([duplicate|_], [free|Text]) ->
-    "Duplicate and move freely " ++ Text;
+    ?STR(dir_help_1,12,"Duplicate and move freely ")++ Text;
 
 %% Axis
 dir_help_1([move|_], Text) ->
-    "Move each element along " ++ Text;
+    ?STR(dir_help_1,13,"Move each element along ") ++ Text;
 dir_help_1([extrude|_], Text) ->
-    "Extrude elements, then move along " ++ Text;
+    ?STR(dir_help_1,14,"Extrude elements, then move along ") ++ Text;
 dir_help_1([extrude_region|_], Text) ->
-    "Extrude faces as region, then move along " ++ Text;
+    ?STR(dir_help_1,15,"Extrude faces as region, then move along ") ++ Text;
 dir_help_1([extract_region|_], Text) ->
-    "Extract faces, then move along " ++ Text;
+    ?STR(dir_help_1,16,"Extract faces, then move along ") ++ Text;
 dir_help_1([rotate|_], Text) ->
-    "Rotate around " ++ Text;
+    ?STR(dir_help_1,17,"Rotate around ") ++ Text;
 dir_help_1([scale|_], [around|Text]) ->
-    "Scale " ++ Text;
+    ?STR(dir_help_1,18,"Scale ") ++ Text;
 dir_help_1([scale|_], Text) ->
-    "Scale along " ++ Text;
+    ?STR(dir_help_1,19,"Scale along ")++ Text;
 dir_help_1([flatten|_], Text) ->
-    "Flatten to " ++ Text;
+    ?STR(dir_help_1,20,"Flatten to ")++ Text;
 dir_help_1([flatten_move|_], Text) ->
-    "Flatten and move to " ++ Text;
+    ?STR(dir_help_1,21,"Flatten and move to ") ++ Text;
 dir_help_1([lift|_], Text) ->
-    "Lift face along " ++ Text;
+    ?STR(dir_help_1,22,"Lift face along ")++ Text;
 dir_help_1([duplicate|_], Text) ->
-    "Duplicate, then move along " ++ Text;
+    ?STR(dir_help_1,23,"Duplicate, then move along ")++ Text;
 dir_help_1(_, _) -> "".

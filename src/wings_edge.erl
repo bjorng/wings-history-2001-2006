@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.102 2004/05/23 14:37:50 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.103 2004/10/08 06:02:28 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -43,30 +43,30 @@
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
-    Menu = [{basic,{"Edge operations",ignore}},
+    Menu = [{basic,{?STR(menu,1,"Edge operations"),ignore}},
 	    {basic,separator},
-	    {"Move",{move,Dir},[],[magnet]},
+	    {?STR(menu,2,"Move"),{move,Dir},[],[magnet]},
 	    wings_menu_util:rotate(St),
 	    wings_menu_util:scale(St),
-	    {"Slide", slide, "Slide edges along neighbor edges"},
+	    {?STR(menu,3,"Slide"), slide, ?STR(menu,4,"Slide edges along neighbor edges")},
 	    separator,
-	    {"Extrude",{extrude,Dir}},
+	    {?STR(menu,5,"Extrude"),{extrude,Dir}},
 	    separator,
 	    cut_line(St),
-	    {"Connect",connect,
-	     "Create a new edge by connecting midpoints of selected edges"},
-	    {"Bevel",bevel,"Round off selected edges"},
+	    {?STR(menu,6,"Connect"),connect,
+	     ?STR(menu,7,"Create a new edge by connecting midpoints of selected edges")},
+	    {?STR(menu,8,"Bevel"),bevel,?STR(menu,9,"Round off selected edges")},
 	    separator,
-	    {"Dissolve",dissolve,"Eliminate selected edges"},
-	    {"Collapse",collapse,"Delete edges, replacing them with vertices"},
+	    {?STR(menu,10,"Dissolve"),dissolve,?STR(menu,11,"Eliminate selected edges")},
+	    {?STR(menu,12,"Collapse"),collapse,?STR(menu,13,"Delete edges, replacing them with vertices")},
 	    separator,
-	    {"Hardness",{hardness,[{"Soft",soft},
-				   {"Hard",hard}]}},
+	    {?STR(menu,14,"Hardness"),{hardness,[{?STR(menu,15,"Soft"),soft},
+				   {?STR(menu,16,"Hard"),hard}]}},
 	    separator,
-	    {"Loop Cut",loop_cut,"Cut into two objects along edge loop"},
+	    {?STR(menu,17,"Loop Cut"),loop_cut,?STR(menu,18,"Cut into two objects along edge loop")},
 	    separator,
-	    {"Vertex Color",vertex_color,
-	     "Apply vertex colors to selected edges"}],
+	    {?STR(menu,19,"Vertex Color"),vertex_color,
+	     ?STR(menu,20,"Apply vertex colors to selected edges")}],
     wings_menu:popup_menu(X, Y, edge, Menu).
 
 cut_line(#st{sel=[{_,Es}]}) ->
@@ -77,16 +77,16 @@ cut_line(#st{sel=[{_,Es}]}) ->
 cut_line(_) -> plain_cut_menu().
 
 plain_cut_menu() ->
-    {"Cut",{cut,cut_entries()},"Cut into edges of equal length"}.
+    {?STR(plain_cut_menu,1,"Cut"),{cut,cut_entries()},?STR(plain_cut_menu,2,"Cut into edges of equal length")}.
 
 cut_fun() ->
     F = fun(help, _Ns) ->
-		{"Cut into edges of equal length",[],"Cut at arbitrary position"};
+		{?STR(cut_fun,1,"Cut into edges of equal length"),[],?STR(cut_fun,2,"Cut at arbitrary position")};
 	   (1, _Ns) -> cut_entries();
 	   (2, _) -> ignore;
 	   (3, _) -> {edge,cut_pick}
 	end,
-    {"Cut",{cut,F}}.
+    {?STR(cut_fun,3,"Cut"),{cut,F}}.
 
 cut_entries() ->
     [cut_entry(2),
@@ -98,7 +98,7 @@ cut_entries() ->
 
 cut_entry(N) ->
     Str = integer_to_list(N),
-    {Str,N,"Cut into " ++ Str ++ " edges of equal length"}.
+    {Str,N,?STR(cut_entry,1,"Cut into ") ++ Str ++ ?STR(cut_entry,2," edges of equal length")}.
 
 %% Edge commands.
 command(bevel, St) ->
@@ -360,7 +360,7 @@ cut_pick(St) ->
     wings_drag:setup(Tvs, Units, Flags, wings_sel:set(vertex, Sel, St)).
 
 cut_pick_error() ->
-    wings_util:error("Only one edge can be cut at an arbitrary position.").
+    wings_util:error(?STR(cut_pick_error,1,"Only one edge can be cut at an arbitrary position.")).
 
 cut_pick_make_tvs(Edge, #we{id=Id,es=Etab,vp=Vtab,next_id=NewV}=We) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
@@ -472,12 +472,12 @@ slide_help({Mode,Freeze,Stop}) ->
      "  [2] ",slide_help_freeze(Freeze),
      "  [3] ",slide_help_stop(Stop)].
 
-slide_help_mode(relative) -> "Absolute";
-slide_help_mode(absolute) -> "Relative".
-slide_help_freeze(none)   -> "Freeze direction";
-slide_help_freeze(_)      -> "Thaw direction".
-slide_help_stop(false)    -> "Stop at other edges";
-slide_help_stop(true)     -> "Continue past other edges".
+slide_help_mode(relative) -> ?STR(slide_help_mode,1,"Absolute");
+slide_help_mode(absolute) -> ?STR(slide_help_mode,2,"Relative").
+slide_help_freeze(none)   -> ?STR(slide_help_mode,3,"Freeze direction");
+slide_help_freeze(_)      -> ?STR(slide_help_mode,4,"Thaw direction").
+slide_help_stop(false)    -> ?STR(slide_help_mode,5,"Stop at other edges");
+slide_help_stop(true)     -> ?STR(slide_help_mode,6,"Continue past other edges").
 
 make_slide_tv(Slides, State) ->
     Vs = gb_trees:keys(Slides),
@@ -774,7 +774,7 @@ dissolve_edge_2(Edge, FaceRemove, FaceKeep,
 		true ->
 		    We;
 		false ->
-		    wings_util:error("Dissolving would cause a badly formed face.")
+		    wings_util:error(?STR(dissolve_edge_2,1,"Dissolving would cause a badly formed face."))
 	    end
     end.
 
@@ -1065,8 +1065,7 @@ loop_cut(Edges, #we{name=Name,id=Id,es=Etab}=We, {Sel0,St}) ->
     AdjFaces = loop_cut_adj_faces(gb_sets:to_list(Edges), Etab, []),
     case loop_cut_1(AdjFaces, Edges, We, []) of
 	[_] ->
-	    wings_util:error("Edge loop doesn't divide ~p "
-			     " into two (or more) parts.", [Name]);
+	    wings_util:error(?STR(loop_cut,1,"Edge loop doesn't divide ~p  into two (or more) parts."), [Name]);
 	Parts0 ->
 	    Parts1 = [{gb_trees:size(P),P} || P <- Parts0],
 	    Parts2 = reverse(sort(Parts1)),
@@ -1079,7 +1078,7 @@ loop_cut(Edges, #we{name=Name,id=Id,es=Etab}=We, {Sel0,St}) ->
 
 loop_cut_make_copies([P|Parts], We, Sel0, #st{onext=Id}=St0) ->
     Sel = [{Id,wings_sel:inverse_items(face, P, We)}|Sel0],
-    St = wings_shape:insert(We, "cut", St0),
+    St = wings_shape:insert(We, ?STR(loop_cut_make_copies,1,"cut"), St0),
     loop_cut_make_copies(Parts, We, Sel, St);
 loop_cut_make_copies([], _, Sel, St) -> {Sel,St}.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.56 2004/06/23 11:25:34 raimo_niskanen Exp $
+%%     $Id: wings_ff_wings.erl,v 1.57 2004/10/08 06:02:29 dgud Exp $
 %%
 
 -module(wings_ff_wings).
@@ -23,36 +23,36 @@
 %% Load a wings file.
 
 import(Name, St) ->
-    wings_pb:start("opening wings file"),
-    wings_pb:update(0.07, "reading file"),
+    wings_pb:start(?STR(import,1,"opening wings file")),
+    wings_pb:update(0.07, ?STR(import,2,"reading file")),
     wings_pb:done(import_1(Name, St)).
 
 import_1(Name, St0) ->
     case file:read_file(Name) of
 	{ok,<<?WINGS_HEADER,Sz:32,Data/binary>>} when size(Data) =:= Sz ->
-	    wings_pb:update(0.08, "converting binary"),
+	   wings_pb:update(0.08, ?STR(import_1,1,"converting binary")),
 	    case catch binary_to_term(Data) of
 		{wings,0,_Shapes} ->
-                    {error,"Pre-0.80 Wings format no longer supported."};
+                    {error, ?STR(import_1,2,"Pre-0.80 Wings format no longer supported.")};
 		{wings,1,_,_,_} ->
                      %% Pre-0.92. No longer supported.
-                    {error,"Pre-0.92 Wings format no longer supported."};
+                    {error,?STR(import_1,3,"Pre-0.92 Wings format no longer supported.")};
 		{wings,2,{Shapes,Materials,Props}} ->
                     import_vsn2(Shapes, Materials, Props, St0);
 		{wings,_,_} ->
-		    {error,"unknown wings format"};
+		    {error,?STR(import_1,4,"unknown wings format")};
 		Other ->
 		    io:format("~P\n", [Other,20]),
-                    {error,"corrupt Wings file"}
+                    {error,?STR(import_1,5,"corrupt Wings file")}
 	    end;
 	{ok,_Bin} ->
-	    {error,"not a Wings file (or old Wings format)"};
+	    {error,?STR(import_1,6,"not a Wings file (or old Wings format)")};
 	{error,Reason} ->
 	    {error,file:format_error(Reason)}
     end.
 
 import_vsn2(Shapes, Materials0, Props, St0) ->
-    wings_pb:update(0.10, "images and materials"),
+    wings_pb:update(0.10, ?STR(import_vsn2,1,"images and materials")),
     Images = import_images(Props),
     Materials1 = translate_materials(Materials0),
     Materials = translate_map_images(Materials1, Images),
@@ -60,7 +60,7 @@ import_vsn2(Shapes, Materials0, Props, St0) ->
     NameMap1 = gb_trees:from_orddict(sort(NameMap0)),
     NameMap = optimize_name_map(Materials, NameMap1, []),
     St = import_props(Props, St1),
-    wings_pb:update(1.0, "objects"),
+    wings_pb:update(1.0,?STR(import_vsn2,2,"objects")),
     import_objects(Shapes, NameMap, St).
 
 optimize_name_map([{Name,_}|Ms], NameMap, Acc) ->
@@ -164,7 +164,7 @@ import_perm(Props) ->
 import_object_mode(Ps) ->
     case proplists:get_value(mode, Ps, material) of
 	undefined ->
-	    io:format("Changed undefined mode to material\n"),
+	    io:format(?STR(import_object_mode,1,"Changed undefined mode to material\n")),
 	    material;
 	uv -> material;
 	Other -> Other
@@ -175,7 +175,7 @@ import_props([{selection,{Mode,Sel0}}|Ps], St) ->
     import_props(Ps, St#st{selmode=Mode,sel=Sel});
 import_props([{saved_selection,{Mode,Sel0}}|Ps], St0) ->
     Sel = import_sel(Sel0, St0),
-    St = new_sel_group("<Stored Selection>", Mode, Sel, St0),
+    St = new_sel_group(?STR(import_props,1,"<Stored Selection>"), Mode, Sel, St0),
     import_props(Ps, St);
 import_props([{{selection_group,Name},{Mode,Sel0}}|Ps], St0) ->
     Sel = import_sel(Sel0, St0),
@@ -227,7 +227,7 @@ import_images_1([{Id0,Im}|T], Map) ->
 import_images_1([], Map) -> Map.
 
 import_image(Im) ->
-    Name = proplists:get_value(name, Im, "unnamed image"),
+    Name = proplists:get_value(name, Im, ?STR(import_image,1,"unnamed image")),
     case proplists:get_value(filename, Im) of
 	undefined ->
 	    W = proplists:get_value(width, Im, 0),
@@ -236,7 +236,7 @@ import_image(Im) ->
 	    Pixels = proplists:get_value(pixels, Im),
 	    if
 		W*H*PP =:= size(Pixels) -> ok;
-		true -> wings_util:error("Bad image: ~p\n", [Name])
+		true -> wings_util:error( ?STR(import_image,2,"Bad image: ~p\n"), [Name])
 	    end,
 	    MaskSize = proplists:get_value(mask_size, Im),
 	    Type = case PP of
@@ -273,7 +273,7 @@ translate_map_images_2([{Type,Im0}|T], Mat, ImMap) when is_integer(Im0) ->
     case gb_trees:lookup(Im0, ImMap) of
 	none ->
 	    %% Something wrong here.
-	    io:format("Material ~p, ~p texture: reference to non-existing image ~p\n",
+	    io:format( ?STR(translate_map_images_2,1,"Material ~p, ~p texture: reference to non-existing image ~p\n"),
 		      [Mat,Type,Im0]),
 	    translate_map_images_2(T, Mat, ImMap);
 	{value,Im} ->
@@ -413,16 +413,16 @@ trans({Key,{R,G,B}}, Opac) -> {Key,{R,G,B,Opac}}.
 %%%
 
 export(Name, St0) ->
-    wings_pb:start("saving"),
-    wings_pb:update(0.01, "lights"),
+    wings_pb:start( ?STR(export,1,"saving")),
+    wings_pb:update(0.01, ?STR(export,2,"lights")),
     Lights = wings_light:export(St0),
     #st{shapes=Shs0,views={CurrentView,_}} = St = 
 	remove_lights(St0),
     Sel0 = collect_sel(St),
-    wings_pb:update(0.65, "renumbering"),
+    wings_pb:update(0.65, ?STR(export,3,"renumbering")),
     {Shs1,Sel} = renumber(gb_trees:to_list(Shs0), Sel0, 0, [], []),
     Shs = foldl(fun shape/2, [], Shs1),
-    wings_pb:update(0.98, "objects"),
+    wings_pb:update(0.98, ?STR(export,4,"objects")),
     Materials = wings_material:used_materials(St),
     Props0 = export_props(Sel),
     Props1 = case Lights of
@@ -443,9 +443,9 @@ export(Name, St0) ->
 	     end,
     Props  = [{scene_prefs,wings_pref:get_scene_value()}|Props4],
     Wings = {wings,2,{Shs,Materials,Props}},
-    wings_pb:update(0.99, "compressing"),
+    wings_pb:update(0.99, ?STR(export,5,"compressing")),
     Bin = term_to_binary(Wings, [compressed]),
-    wings_pb:update(1.0, "writing file"),
+    wings_pb:update(1.0, ?STR(export,6,"writing file")),
     wings_pb:done(write_file(Name, Bin)).
 
 remove_lights(#st{sel=Sel0,shapes=Shs0}=St) ->

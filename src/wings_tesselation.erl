@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.6 2004/01/23 14:44:56 dgud Exp $
+%%     $Id: wings_tesselation.erl,v 1.7 2004/10/08 06:02:31 dgud Exp $
 %%
 
 -module(wings_tesselation).
@@ -20,8 +20,8 @@
 -import(lists, [map/2,reverse/1]).
 
 submenu() ->
-    [{"Triangulate",triangulate},
-     {"Quadrangulate",quadrangulate}].
+    [{?STR(submenu,1,"Triangulate"),triangulate},
+     {?STR(submenu,2,"Quadrangulate"),quadrangulate}].
 
 command(triangulate, St) ->
     Action = fun triangulate/2,

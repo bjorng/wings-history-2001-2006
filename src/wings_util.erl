@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.94 2004/06/17 09:57:58 raimo_niskanen Exp $
+%%     $Id: wings_util.erl,v 1.95 2004/10/08 06:02:31 dgud Exp $
 %%
 
 -module(wings_util).
@@ -131,7 +131,7 @@ message(Message) ->
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 magnet_string() ->
-    ["(Magnet route:",
+    [?STR(magnet_string,1,"(Magnet route:"),
      atom_to_list(wings_pref:get_value(magnet_distance_route))
      ,")"].
 
@@ -178,16 +178,16 @@ yes_no(Question, Yes) ->
 yes_no(Question, Yes, No) ->
     Qs = {vframe,
 	  [{label,Question,[{break,45}]},
-	   {hframe,[{button,"Yes",yes_no_fun(Yes)},
-		    {button,"No",yes_no_fun(No),[cancel]}]}]},
+	   {hframe,[{button,?STR(yes_no,1,"Yes"),yes_no_fun(Yes)},
+		    {button,?STR(yes_no,2,"No"),yes_no_fun(No),[cancel]}]}]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 yes_no_cancel(Question, Yes, No) ->
     Qs = {vframe,
 	  [{label,Question,[{break,45}]},
-	   {hframe,[{button,"Yes",yes_no_fun(Yes)},
-		    {button,"No",yes_no_fun(No)},
-		    {button,"Cancel",yes_no_fun(ignore),[cancel]}]}]},
+	   {hframe,[{button,?STR(yes_no_cancel,1,"Yes"),yes_no_fun(Yes)},
+		    {button,?STR(yes_no_cancel,2,"No"),yes_no_fun(No)},
+		    {button,?STR(yes_no_cancel,3,"Cancel"),yes_no_fun(ignore),[cancel]}]}]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 yes_no_fun(ignore) -> fun(_) -> ignore end;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.123 2004/06/23 11:25:34 raimo_niskanen Exp $
+%%     $Id: wings_pref.erl,v 1.124 2004/10/08 06:02:30 dgud Exp $
 %%
 
 -module(wings_pref).
@@ -80,20 +80,20 @@ prune_defaults(List) ->
     List -- defaults().
 
 menu(_St) ->
-    {"Preferences...",
+    {?STR(menu,1,"Preferences..."),
       fun(_, _) ->
 	      {edit,{preferences,prefs}}
-      end,"Edit the preferences for Wings",[]}.
+      end,?STR(menu,2,"Edit the preferences for Wings"),[]}.
 
 command(prefs, St) ->
-    PrefQs0 = [{"General",gen_prefs()},
-	       {"Camera",{'VALUE',wings_camera:prefs()}},
-	       {"Advanced",advanced_prefs()},
-	       {"User Interface",ui_prefs()},
-	       {"Misc",misc_prefs()}],
+    PrefQs0 = [{?STR(command,1,"General"),gen_prefs()},
+	       {?STR(command,2,"Camera"),{'VALUE',wings_camera:prefs()}},
+	       {?STR(command,3,"Advanced"),advanced_prefs()},
+	       {?STR(command,4,"User Interface"),ui_prefs()},
+	       {?STR(command,5,"Misc"),misc_prefs()}],
     PrefQs = [{Lbl,make_query(Ps)} || {Lbl,Ps} <- PrefQs0],
     Qs = [{oframe,PrefQs,1,[{style,buttons}]}],
-    wings_ask:dialog("Preferences", Qs,
+	wings_ask:dialog(?STR(command,6,"Preferences"), Qs,
 		     fun([_|Res]) ->
 			     Dl = wings_wm:get_prop(geom, display_lists),
 			     wings_wm:set_prop(wings_wm:this(), display_lists, Dl),
@@ -111,62 +111,62 @@ gen_prefs() ->
      [{hframe,
        [{vframe,
 	 [{label_column,
-	   [{"Unselected Size",vertex_size,
-	     [{info,"Size in pixels of unselected vertices (0.0 means not shown)"}]},
-	    {"Selected Size",selected_vertex_size,
-	     [{info,"Size in pixels of selected vertices"}]}]}],
-	 [{title,"Vertex Display"}]},
+	   [{?STR(gen_prefs,1,"Unselected Size"),vertex_size,
+	     [{info,?STR(gen_prefs,2,"Size in pixels of unselected vertices (0.0 means not shown)")}]},
+	    {?STR(gen_prefs,3,"Selected Size"),selected_vertex_size,
+	     [{info,?STR(gen_prefs,4,"Size in pixels of selected vertices")}]}]}],
+	 [{title,?STR(gen_prefs,5,"Vertex Display")}]},
 	{vframe,
 	 [{label_column,
-	   [{"Unselected Width",edge_width,
-	     [{info,"Width in pixels of unselected edges"}]},
-	    {"Selected Width",selected_edge_width,
-	     [{info,"Width in pixels of selected edges"}]},
-	    {color,"Soft Edges",edge_color,[{info,"Color of soft edges"}]},
-	    {color,"Hard Edges",hard_edge_color,[{info,"Color of hard edges"}]}]}],
-	 [{title,"Edge Display"}]}]},
+	   [{?STR(gen_prefs,6,"Unselected Width"),edge_width,
+	     [{info,?STR(gen_prefs,7,"Width in pixels of unselected edges")}]},
+	    {?STR(gen_prefs,8,"Selected Width"),selected_edge_width,
+	     [{info,?STR(gen_prefs,9,"Width in pixels of selected edges")}]},
+	    {color,?STR(gen_prefs,10,"Soft Edges"),edge_color,[{info,?STR(gen_prefs,11,"Color of soft edges")}]},
+	    {color,?STR(gen_prefs,12,"Hard Edges"),hard_edge_color,[{info,?STR(gen_prefs,13,"Color of hard edges")}]}]}],
+	 [{title,?STR(gen_prefs,14,"Edge Display")}]}]},
       {hframe,
        [{vframe,
 	 [{hframe,
-	   [{"Vertices",vertex_hilite},
-	    {"Edges",edge_hilite},
-	    {"Faces",face_hilite},
-	    {"Objects",body_hilite}]},
+	   [{?STR(gen_prefs,15,"Vertices"),vertex_hilite},
+	    {?STR(gen_prefs,16,"Edges"),edge_hilite},
+	    {?STR(gen_prefs,17,"Faces"),face_hilite},
+	    {?STR(gen_prefs,18,"Objects"),body_hilite}]},
 	  {hframe,
-	   [{label,"Unselected"},{color,unselected_hlite},
-	    {label,"Selected"},{color,selected_hlite}]},
-	  {"Smart Highlighting",smart_highlighting}],
-	 [{title,"Highlighting"}]},
+	   [{label,?STR(gen_prefs,19,"Unselected")},{color,unselected_hlite},
+	    {label,?STR(gen_prefs,20,"Selected")},{color,selected_hlite}]},
+	  {?STR(gen_prefs,21,"Smart Highlighting"),smart_highlighting}],
+	 [{title,?STR(gen_prefs,22,"Highlighting")}]},
 	{vframe,
-	 [{vradio,[{"Solid Face Selections",solid},
-		   {"Stippled Face Selections",stippled}],
+	 [{vradio,[{?STR(gen_prefs,23,"Solid Face Selections"),solid},
+		   {?STR(gen_prefs,24,"Stippled Face Selections"),stippled}],
 	   selection_style},
-	  {hframe,[{label,"Selection Color"},{color,selected_color}]} ],
-	 [{title,"Selection"}]}]},
+	  {hframe,[{label,?STR(gen_prefs,25,"Selection Color")},{color,selected_color}]} ],
+	 [{title,?STR(gen_prefs,26,"Selection")}]}]},
       {vframe,
        [{label_column,
-	 [{color,"Text",info_color,[{info,"Color of information text"}]},
-	  {color,"Background",info_background_color,
-	   [{info,"Color of background for information text (including transparency)"}]}]}],
-       [{title,"Information text"}]},
+	 [{color,?STR(gen_prefs,27,"Text"),info_color,[{info,?STR(gen_prefs,28,"Color of information text")}]},
+	  {color,?STR(gen_prefs,29,"Background"),info_background_color,
+	   [{info,?STR(gen_prefs,30,"Color of background for information text (including transparency)")}]}]}],
+       [{title,?STR(gen_prefs,31,"Information text")}]},
       {hframe,
-       [{label,"Color"},{color,grid_color},
-	{"Force Axis-Aligned Grid",force_show_along_grid,
-	 [{info,"Always show the grid when the view is aligned along one of the major axes"}]}],
-       [{title,"Grid"}]},
+       [{label,?STR(gen_prefs,32,"Color")},{color,grid_color},
+	{?STR(gen_prefs,33,"Force Axis-Aligned Grid"),force_show_along_grid,
+	 [{info,?STR(gen_prefs,34,"Always show the grid when the view is aligned along one of the major axes")}]}],
+       [{title,?STR(gen_prefs,35,"Grid")}]},
       {hframe,
        [{vframe,
-	 [{"Show Axis Letters",show_axis_letters},
+	 [{?STR(gen_prefs,36,"Show Axis Letters"),show_axis_letters},
 	  {hframe,
 	   [{label_column,
-	     [{color,"+X Color",x_color},
-	      {color,"+Y Color",y_color},
-	      {color,"+Z Color",z_color}]},
+	     [{color,?STR(gen_prefs,37,"+X Color"),x_color},
+	      {color,?STR(gen_prefs,38,"+Y Color"),y_color},
+	      {color,?STR(gen_prefs,39,"+Z Color"),z_color}]},
 	    {label_column,
-	     [{color,"-X Color",neg_x_color},
-	      {color,"-Y Color",neg_y_color},
-	      {color,"-Z Color",neg_z_color}]}]}],
-	 [{title,"Axes"}]}
+	     [{color,?STR(gen_prefs,40,"-X Color"),neg_x_color},
+	      {color,?STR(gen_prefs,41,"-Y Color"),neg_y_color},
+	      {color,?STR(gen_prefs,42,"-Z Color"),neg_z_color}]}]}],
+	 [{title,?STR(gen_prefs,43,"Axes")}]}
        ]}]}.
 
 advanced_prefs() ->
@@ -182,30 +182,29 @@ advanced_prefs() ->
     Flags = [{hook,DisableHook}],
 
     {vframe,
-     [{"Default Commands",default_commands,
-       [{info,"Allow defining commands that can be invoked by Ctrl+L or Ctrl+M"}]},
-      {"Use Highlight as Temporary Selection",use_temp_sel,
-       [{info,"If there is no selection, "
-	 "allow commands to act on the highlighted element"}]},
-      {"Hide Selection While Dragging",hide_sel_while_dragging,
-       [{info,"Don't show the selection in any interactive command"}]},
-      {"Hide Selection While Moving Camera",hide_sel_in_camera_moves,
-       [{info,"Don't show the selection when the camera is being moved"}]},
+     [{?STR(advanced_prefs,1,"Default Commands"),default_commands,
+       [{info,?STR(advanced_prefs,2,"Allow defining commands that can be invoked by Ctrl+L or Ctrl+M")}]},
+      {?STR(advanced_prefs,3,"Use Highlight as Temporary Selection"),use_temp_sel,
+       [{info,?STR(advanced_prefs,4,"If there is no selection, ")++
+	 ?STR(advanced_prefs,5,"allow commands to act on the highlighted element")}]},
+      {?STR(advanced_prefs,6,"Hide Selection While Dragging"),hide_sel_while_dragging,
+       [{info,?STR(advanced_prefs,7,"Don't show the selection in any interactive command")}]},
+      {?STR(advanced_prefs,8,"Hide Selection While Moving Camera"),hide_sel_in_camera_moves,
+       [{info,?STR(advanced_prefs,9,"Don't show the selection when the camera is being moved")}]},
       panel,
-      {"Advanced Menus",advanced_menus,
-       [{info,"More commands and more options, such as magnets"}]},
-      {"Power-user temporary selections",use_super_temp_sel,
-       [{info,"In the secondary selection mode, "
-	 "RMB-clicking always add to the selection"},{hook,SuperDisable}]},
+      {?STR(advanced_prefs,10,"Advanced Menus"),advanced_menus,
+       [{info,?STR(advanced_prefs,11,"More commands and more options, such as magnets")}]},
+      {?STR(advanced_prefs,12,"Power-user temporary selections"),use_super_temp_sel,
+       [{info,?STR(advanced_prefs,13,"In the secondary selection mode, RMB-clicking always add to the selection")},{hook,SuperDisable}]},
       {vframe,
        [{label_column,
-	 [{"Length",active_vector_size,
-	   [{info,"Length of vector in secondary selections"},{range,{0.1,10.0}}|Flags]},
-	  {"Width",active_vector_width,
-	   [{info,"Width of vector (in pixels)"},{range,{1.0,10.0}}|Flags]},
-	  {color,"Color",active_vector_color,
-	   [{info,"Color of vector"}|Flags]}]}],
-	[{title,"Vector Display"}]}
+	 [{?STR(advanced_prefs,14,"Length"),active_vector_size,
+	   [{info,?STR(advanced_prefs,15,"Length of vector in secondary selections")},{range,{0.1,10.0}}|Flags]},
+	   {?STR(advanced_prefs,16,"Width"),active_vector_width,
+	   [{info,?STR(advanced_prefs,17,"Width of vector (in pixels)")},{range,{1.0,10.0}}|Flags]},
+	  {color,?STR(advanced_prefs,18,"Color"),active_vector_color,
+	   [{info,?STR(advanced_prefs,19,"Color of vector")}|Flags]}]}],
+	[{title,?STR(advanced_prefs,20,"Vector Display")}]}
      ]}.
 
 ui_prefs() ->
@@ -214,20 +213,20 @@ ui_prefs() ->
      [{vframe,
        [{vframe,
 	 [{menu,Fonts,system_font}],
-	 [{title,"System Font"}]},
+	 [{title,?STR(ui_prefs,1,"System Font")}]},
 	{hframe,
 	 [{vframe,
-	   [{label,"Desktop/Geometry Background"},
-	    {label,"Menu Text"},
-	    {label,"Menu Highlight"},
-	    {label,"Menu Highlighted Text"},
-	    {label,"Menu Background"},
-	    {label,"Dialog Text"},
-	    {label,"Dialog (Disabled) Text"},
-	    {label,"Dialog Background"},
-	    {label,"Title Text"},
-	    {label,"Title (Passive) Background"},
-	    {label,"Title (Active) Background"}]},
+	   [{label,?STR(ui_prefs,2,"Desktop/Geometry Background")},
+	    {label,?STR(ui_prefs,3,"Menu Text")},
+	    {label,?STR(ui_prefs,4,"Menu Highlight")},
+	    {label,?STR(ui_prefs,5,"Menu Highlighted Text")},
+	    {label,?STR(ui_prefs,6,"Menu Background")},
+	    {label,?STR(ui_prefs,7,"Dialog Text")},
+	    {label,?STR(ui_prefs,8,"Dialog (Disabled) Text")},
+	    {label,?STR(ui_prefs,9,"Dialog Background")},
+	    {label,?STR(ui_prefs,10,"Title Text")},
+	    {label,?STR(ui_prefs,11,"Title (Passive) Background")},
+	    {label,?STR(ui_prefs,12,"Title (Active) Background")}]},
 	  {vframe,
 	   [{color,background_color},
 	    {color,menu_text},
@@ -240,26 +239,26 @@ ui_prefs() ->
 	    {color,title_text_color},
 	    {color,title_passive_color},
 	    {color,title_active_color}]}],
-	 [{title,"Colors"}]},
-	{"No Progress Bar",no_progress_bar}
+	 [{title,?STR(ui_prefs,13,"Colors")}]},
+	{?STR(ui_prefs,14,"No Progress Bar"),no_progress_bar}
        ]},
       {vframe,
        [{vframe,
 	 [{menu,Fonts,console_font}],
-	 [{title,"Console Font"}]},
-	{hframe,[{vframe,[{label,"Width"},
-			  {label,"Height"},
-			  {label,"Save Lines"},
-			  {label,"Background"},
-			  {label,"Text"},
-			  {label,"Cursor"}]},
+	 [{title,?STR(ui_prefs,15,"Console Font")}]},
+	{hframe,[{vframe,[{label,?STR(ui_prefs,16,"Width")},
+			  {label,?STR(ui_prefs,17,"Height")},
+			  {label,?STR(ui_prefs,18,"Save Lines")},
+			  {label,?STR(ui_prefs,19,"Background")},
+			  {label,?STR(ui_prefs,20,"Text")},
+			  {label,?STR(ui_prefs,21,"Cursor")}]},
 		 {vframe,[{text,console_width,[{range,{12,120}}]},
 			  {text,console_height,[{range,{3,72}}]},
 			  {text,console_save_lines,[{range,{0,10000}}]},
 			  {color,console_color},
 			  {color,console_text_color},
 			  {color,console_cursor_color}]}],
-	[{title,"Console"}]}]}
+	[{title,?STR(ui_prefs,22,"Console")}]}]}
      ]}.
 
 misc_prefs() ->
@@ -269,53 +268,62 @@ misc_prefs() ->
 		    [{hook,fun(is_disabled, _) -> true;
 			      (_, _) -> void
 			   end},
-		     {info,"Opacity settings not supported using this version of OpenGL"}]
+		     {info,?STR(misc_prefs,1,"Opacity settings not supported using this version of OpenGL")}]
 	    end,
     AutoFun = fun(is_disabled, {_Var,_I,Store}) ->
 		      not gb_trees:get(autosave, Store);
 		 (_, _) -> void
 	      end,
+%%    Lang = wings_lang:lang_list(),
     {vframe,
-     [{hframe,[{"Save automatically every",autosave},
+     [{hframe,[{?STR(misc_prefs,2,"Save automatically every"),autosave},
 	       {text,autosave_time,[{hook,AutoFun},{range,{1,1440}}]},
-	       {label,"minutes"}]},
-      {hframe,[{label,"Undo levels"},
+	       {label,?STR(misc_prefs,3,"minutes")}]},
+      {hframe,[{label,?STR(misc_prefs,4,"Undo levels")},
 	       {text,num_undo_levels,[{range,{10,128}}]}]},
       {vframe,
 	 [{label_column,
-	   [{"Angle",auto_rotate_angle},
-	    {"Delay (ms)",auto_rotate_delay}]}],
-	 [{title,"Auto Rotate"}]},
+	   [{?STR(misc_prefs,5,"Angle"),auto_rotate_angle},
+	    {?STR(misc_prefs,6,"Delay (ms)"),auto_rotate_delay}]}],
+	 [{title,?STR(misc_prefs,7,"Auto Rotate")}]},
       {vframe,
        [{vframe,
-	 [{menu,[{"Cage",cage},
-		 {"Some Edges",some},
-		 {"All Edges",all}],
+	 [{menu,[{?STR(misc_prefs,8,"Cage"),cage},
+		 {?STR(misc_prefs,9,"Some Edges"),some},
+		 {?STR(misc_prefs,10,"All Edges"),all}],
 	   proxy_shaded_edge_style}],
-	 [{title,"Shaded Mode Edge Style"}]},
+	 [{title,?STR(misc_prefs,11,"Shaded Mode Edge Style")}]},
 	{hframe,
 	 [{vframe,
-	   [{label,"Stationary Opacity"},
-	    {label,"Moving Opacity"}]},
+	   [{label,?STR(misc_prefs,12,"Stationary Opacity")},
+	    {label,?STR(misc_prefs,13,"Moving Opacity")}]},
 	  {vframe,
 	   [{slider,{text,proxy_static_opacity,[{range,{0.0,1.0}}|Flags]}},
 	    {slider,{text,proxy_moving_opacity,[{range,{0.0,1.0}}|Flags]}}]}]}],
-       [{title,"Proxy Mode"}]},
+       [{title,?STR(misc_prefs,14,"Proxy Mode")}]},
       {hframe,
        %% Note: text_display_lists is specially handled
        %% in make_query/1 and smart_set_value/3 to have its value inverted
        %% to keep preference files backward compatible.
        workaround([{text_display_lists,
-		    "Text in menus and dialogs disappear",
-		    "Problem occurs on some Matrox cards"},
+		    ?STR(misc_prefs,15,"Text in menus and dialogs disappear"),
+		    ?STR(misc_prefs,16,"Problem occurs on some Matrox cards")},
 		   {dummy_axis_letter,
-		    "Wings crashes if axes are turned off",
-		    "Problem occurs on some Matrox cards"},
+		    ?STR(misc_prefs,17,"Wings crashes if axes are turned off"),
+		    ?STR(misc_prefs,18,"Problem occurs on some Matrox cards")},
 		   {jumpy_camera,
-		    "Camera moves and interactive commands are jumpy",
-		    "Problem occurs on Mac OS X 10.3 (Panther)"}
+		    ?STR(misc_prefs,19,"Camera moves and interactive commands are jumpy"),
+		    ?STR(misc_prefs,20,"Problem occurs on Mac OS X 10.3 (Panther)")}
 		  ]),
-       [{title,"Workarounds"}]}
+       [{title,?STR(misc_prefs,21,"Workarounds")}]}
+%     {hframe,
+%       [{
+%       	menu,
+% %%     	Lang,
+%       	lang
+%       }],
+%       [{title,?STR(misc_prefs,22,"Languages")}]}
+       
      ]}.
 
 workaround(L) ->
@@ -328,8 +336,8 @@ workaround_1([{Key,Str,BadGuy}|T], A0, B0) ->
     B = [{Bl,Key,Info}|B0],
     workaround_1(T, A, B);
 workaround_1([], A, B) ->
-    [{vframe,[{label,"Problem"},separator|reverse(A)]},
-     {vframe,[{label,"Use Workaround?"},separator|reverse(B)]}].
+    [{vframe,[{label,?STR(workaround_1,1,"Problem")},separator|reverse(A)]},
+     {vframe,[{label,?STR(workaround_1,2,"Use Workaround?")},separator|reverse(B)]}].
 
 smart_set_value(text_display_lists=Key, Val, St) ->
     %% Reverse sense to keep backwards comptibility of preferences.
@@ -355,9 +363,7 @@ smart_set_value_1(Key, Val, St) ->
 		    clear_proxy_edges(St);
 		system_font ->
 		    delayed_set_value(Key, OldVal, Val),
-		    wings_util:message("The change to the system font "
-				       "will take effect the next time "
-				       "Wings 3D is started.");
+		    wings_util:message(?STR(smart_set_value_1,1,"The change to the system font will take effect the next time Wings 3D is started."));
 		console_font ->
 		    wings_console:window();
 		camera_mode ->
@@ -366,6 +372,9 @@ smart_set_value_1(Key, Val, St) ->
 		    wings_wm:translation_change();
 		no_progress_bar ->
 		    wings_pb:init();
+% 		lang->
+% 		    delayed_set_value(Key,OldVal,Val),  
+% 		    wings_util:message(?STR(smart_set_value_1,2,"The change to the system language will take effect the next time Wings 3D is started."));  
 		_Other -> ok
 	    end
     end.
@@ -499,12 +508,12 @@ win32_9816(R) ->
                     {ok,Curr} = win32reg:current_key(R),
                     win32_9816_1(R, SubKeys, Curr);
                 {error,Error} ->
-                    io:format("Can't read sub keys for 'Wings 3D': ~p\n",
+		    io:format(?STR(win32_9816,1,"Can't read sub keys for 'Wings 3D': ~p\n"),
                               [Error]),
                     none
             end;
         {error,Error} ->
-            io:format("No 'Wings 3D' key (this is STRANGE): ~p\n", [Error]),
+		    io:format(?STR(win32_9816,2,"No 'Wings 3D' key (this is STRANGE): ~p\n"), [Error]),
             none
     end.
 
@@ -760,7 +769,10 @@ defaults() ->
      {console_cursor_color,{1.0,1.0,1.0}},
 
      %% Undos.
-     {num_undo_levels,32}
+     {num_undo_levels,32},
+
+     %% Languages.
+     {lang,en}
     ].
 
 clean(List) ->

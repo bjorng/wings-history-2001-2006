@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.107 2004/05/15 18:01:01 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.108 2004/10/08 06:02:31 dgud Exp $
 %%
 
 -module(wings_vec).
@@ -76,10 +76,10 @@ add_help_text([{_,_}=Pair|T]) ->
 add_help_text([Type|T]) ->
     Val = {Type,
 	   case Type of
-	       axis_point -> "Pick axis (and point)";
-	       axis -> "Pick axis";
-	       point -> "Pick point";
-	       magnet -> "Pick outer boundary point for magnet influence";
+	       axis_point ->?STR(add_help_text,1,"Pick axis (and point)");
+	       axis -> ?STR(add_help_text,2,"Pick axis");
+	       point -> ?STR(add_help_text,3,"Pick point");
+	       magnet -> ?STR(add_help_text,4,"Pick outer boundary point for magnet influence");
 	       _ -> []
 	   end},
     [Val|add_help_text(T)];
@@ -95,8 +95,8 @@ magnet_possible_now(Pl, _) ->
 
 common_message(Msg, More, MagnetPossible, Right) ->
     Rmb = case More of
-	      [] -> "Execute";
-	      [_|_] -> "Continue"
+	      [] -> ?STR(common_message,1,"Execute");
+	      [_|_] ->?STR(common_message,2,"Continue")
 	  end,
     Message = wings_util:join_msg(wings_util:button_format(Msg, [], Rmb),
 				  common_magnet_message(MagnetPossible)),
@@ -104,13 +104,13 @@ common_message(Msg, More, MagnetPossible, Right) ->
 
 common_magnet_message(no) -> [];
 common_magnet_message(inactive) ->
-    [$\s,wings_util:rmb_format("Magnet")];
+    [$\s,wings_util:rmb_format(?STR(common_magnet_message,1,"Magnet"))];
 common_magnet_message(active) ->
     ["  "|wings_util:magnet_string()].
 
 magnet_message(Msg, Right) ->
-    Message = wings_util:join_msg(wings_util:button_format(Msg, [], "Execute "),
-				  wings_util:rmb_format("Magnet options")),
+    Message = wings_util:join_msg(wings_util:button_format(Msg, [], ?STR(magnet_message,1,"Execute ")),
+	     wings_util:rmb_format(?STR(magnet_message,2,"Magnet options"))),
     wings_wm:message(Message, Right).
 
 mode_restriction(Modes, #st{selmode=Mode}=St) ->
@@ -335,7 +335,7 @@ handle_key(_, _, _) -> next.
 exit_menu(X, Y, Mod, #ss{f=Exit,vec=Vec}=Ss, St) ->
     case Exit(exit, {Mod,Vec,St}) of
 	error ->
-	    Menu = [{"Cancel",abort,"Cancel current command"}],
+	    Menu = [{?STR(exit_menu,1,"Cancel"),abort,?STR(exit_menu,2,"Cancel current command")}],
 	    wings_menu:popup_menu(X, Y, secondary_selection, Menu);
 	keep ->
 	    keep;
@@ -370,7 +370,7 @@ common_exit_1(point, Point, PickList, Acc) ->
     {PickList,add_to_acc(Point, Acc)}.
 
 add_magnet(More) ->
-    More ++ [{magnet,"Pick outer boundary point for magnet influence"}].
+    More ++ [{magnet,?STR(add_magnet,1,"Pick outer boundary point for magnet influence")}].
 
 add_to_acc(Vec, [radial]) -> [{radial,Vec}];
 add_to_acc(Vec, Acc) -> [Vec|Acc].
@@ -393,7 +393,7 @@ check_vector(#st{selmode=Mode,sel=[{Id,Elems0}],shapes=Shs}) ->
     We = gb_trees:get(Id, Shs),
     Elems = gb_sets:to_list(Elems0),
     get_vec(Mode, Elems, We);
-check_vector(_) -> {none,"Select parts of one object only"}.
+check_vector(_) -> {none,?STR(check_vector,1,"Select parts of one object only")}.
 
 %% Use single edge as axis
 get_vec(edge, [Edge], #we{es=Etab,vp=Vtab}=We) ->
@@ -406,9 +406,9 @@ get_vec(edge, [Edge], #we{es=Etab,vp=Vtab}=We) ->
     Rn = wings_face:normal(Rf, We),
     Normal = e3d_vec:norm(e3d_vec:add(Ln, Rn)),
     [{{Center,Vec},
-      {"Edge saved as axis","Save edge normal"}},
+      {?STR(get_vec,1,"Edge saved as axis"),?STR(get_vec,2,"Save edge normal")}},
      {{Center,Normal},
-      {"Edge normal saved as axis","Save edge direction"}}];
+      {?STR(get_vec,3,"Edge normal saved as axis"),?STR(get_vec,4,"Save edge direction")}}];
 %% Use direction between two edges
 get_vec(edge, [Edge1,Edge2], #we{es=Etab,vp=Vtab}) ->
     #edge{vs=Va1,ve=Vb1} = gb_trees:get(Edge1, Etab),
@@ -421,23 +421,23 @@ get_vec(edge, [Edge1,Edge2], #we{es=Etab,vp=Vtab}) ->
     Center2 = e3d_vec:average([Va2Pos,Vb2Pos]),
     Center = e3d_vec:average([Center1,Center2]),
     Vec = e3d_vec:norm_sub(Center1, Center2),
-    [{{Center,Vec},"Direction between edges saved as axis."}];
+    [{{Center,Vec},?STR(get_vec,5,"Direction between edges saved as axis.")}];
 %% Use edge-loop normal.
 get_vec(edge, Edges, #we{vp=Vtab}=We) ->
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
 	[Vs] -> 
 	    Center = wings_vertex:center(Vs, We),
 	    Vec = wings_face:face_normal_ccw(Vs, Vtab),
-	    [{{Center,Vec},"Edge loop normal saved as axis."}];
+	    [{{Center,Vec},?STR(get_vec,6,"Edge loop normal saved as axis.")}];
 	_Other ->
-	    [{none,"Multi-edge selection must form a single closed edge loop."}]
+	    [{none,?STR(get_vec,7,"Multi-edge selection must form a single closed edge loop.")}]
     end;
 
 %% Vertex normal
 get_vec(vertex, [V], We) ->
     Vec = wings_vertex:normal(V, We),
     Center = wings_vertex:center([V], We),
-    [{{Center,Vec},"Vertex normal saved."}];
+    [{{Center,Vec},?STR(get_vec,8,"Vertex normal saved.")}];
 %% Direction between 2 vertices as axis
 get_vec(vertex, [Va,Vb]=Vs, We) ->
     VaPos = wings_vertex:pos(Va, We),
@@ -447,17 +447,17 @@ get_vec(vertex, [Va,Vb]=Vs, We) ->
     Normal = e3d_vec:norm(e3d_vec:add(wings_vertex:normal(Va, We),
 				      wings_vertex:normal(Vb, We))),
     [{{Center,Vec},
-      {"Direction between vertices saved as axis.",
-       "Use average of vertex normals as axis"}},
+      {?STR(get_vec,9,"Direction between vertices saved as axis."),
+       ?STR(get_vec,10,"Use average of vertex normals as axis")}},
      {{Center,Normal},
-      {"Average of vertex normals saved as axis.",
-       "Use direction between vertices as axis"}}];
+      {?STR(get_vec,11,"Average of vertex normals saved as axis."),
+       ?STR(get_vec,12,"Use direction between vertices as axis")}}];
 
 %% 3-point (defines face) perpendicular
 get_vec(vertex, [_,_,_]=Vs, #we{vp=Vtab}=We) ->
     Vec = wings_face:face_normal_ccw(Vs, Vtab),
     Center = wings_vertex:center(Vs, We),
-    [{{Center,Vec},"3-point perp. normal saved as axis."}];
+    [{{Center,Vec},?STR(get_vec,13,"3-point perp. normal saved as axis.")}];
 %% Take the edge loop normal.
 get_vec(vertex, Vs0, #we{vp=Vtab}=We) ->
     Edges = find_edges(Vs0, We),
@@ -465,9 +465,9 @@ get_vec(vertex, Vs0, #we{vp=Vtab}=We) ->
 	[Vs] -> 
 	    Center = wings_vertex:center(Vs, We),
 	    Vec = wings_face:face_normal_cw(Vs, Vtab),
-	    [{{Center,Vec},"Vertex loop normal saved as axis."}];
+	    [{{Center,Vec},?STR(get_vec,14,"Vertex loop normal saved as axis.")}];
 	_Other ->
-	    [{none,"Multi-vertex selection must form a single closed edge loop."}]
+	    [{none,?STR(get_vec,15,"Multi-vertex selection must form a single closed edge loop.")}]
     end;
 
 %% Face normal
@@ -475,7 +475,7 @@ get_vec(face, [Face], We) ->
     Vec = wings_face:normal(Face, We),
     Vs = wings_face:to_vertices([Face], We),
     Center = wings_vertex:center(Vs, We),
-    [{{Center,Vec},"Face normal saved as axis."}];
+    [{{Center,Vec},?STR(get_vec,16,"Face normal saved as axis.")}];
 %% Direction between two faces as axis
 get_vec(face, [Face1,Face2], We) ->
     Center1 = wings_face:center(Face1, We),
@@ -486,22 +486,22 @@ get_vec(face, [Face1,Face2], We) ->
     Face2n = wings_face:normal(Face2, We),
     Normal = e3d_vec:norm(e3d_vec:add(Face1n, Face2n)),
     [{{Center,Vec},
-      {"Direction between face centers saved as axis.",
-       "Use average of face normals"}},
+      {?STR(get_vec,17,"Direction between face centers saved as axis."),
+       ?STR(get_vec,18,"Use average of face normals")}},
      {{Center,Normal},
-      {"Average of face normals saved as axis.",
-       "Use direction between face centers"}}];
+      {?STR(get_vec,19,"Average of face normals saved as axis."),
+       ?STR(get_vec,20,"Use direction between face centers")}}];
 get_vec(face, Faces, #we{vp=Vtab}=We) ->
     case wings_vertex:outer_partition(Faces, We) of
 	[Vs] ->
 	    Center = wings_vertex:center(Vs, We),
 	    Vec = wings_face:face_normal_cw(Vs, Vtab),
-	    [{{Center,Vec},"Edge loop normal for region saved as axis."}];
+	    [{{Center,Vec},?STR(get_vec,21,"Edge loop normal for region saved as axis.")}];
 	_Other ->
-	    [{none,"Multi-face selection must have a single edge loop."}]
+	    [{none,?STR(get_vec,22,"Multi-face selection must have a single edge loop.")}]
     end;
 
-get_vec(_, _, _) -> {none,"Select vertices, edges, or faces."}.
+get_vec(_, _, _) -> {none,?STR(get_vec,23,"Select vertices, edges, or faces.")}.
 
 %%%
 %%% Point functions.
@@ -512,23 +512,23 @@ check_point(St) ->
     case kill_mirror(St) of
 	St ->
 	    Center = e3d_vec:average(wings_sel:bounding_box(St)),
-	    [{Center,"Midpoint of selection saved."}];
+	    [{Center,?STR(check_point,1,"Midpoint of selection saved.")}];
 	NoMirror ->
 	    Center = e3d_vec:average(wings_sel:bounding_box(St)),
 	    NoMirrorCenter = e3d_vec:average(wings_sel:bounding_box(NoMirror)),
 	    [{Center,
-	      {"Midpoint of selection saved.",
-	       "Disregard virtual mirror in reference point calculation"}},
+	      {?STR(check_point,2,"Midpoint of selection saved."),
+	       ?STR(check_point,3,"Disregard virtual mirror in reference point calculation")}},
 	     {NoMirrorCenter,
-	      {"Midpoint of selection saved.",
-	       "Include virtual mirror in reference point calculation"}}]
+	      {?STR(check_point,4,"Midpoint of selection saved."),
+	       ?STR(check_point,5,"Include virtual mirror in reference point calculation")}}]
     end.
 
 check_magnet_point(#st{sel=[]}) -> {none,""};
 check_magnet_point(St0) ->
     St = kill_mirror(St0),
     Center = e3d_vec:average(wings_sel:bounding_box(St)),
-    [{Center,"Midpoint of selection saved."}].
+    [{Center,?STR(check_magnet_point,1,"Midpoint of selection saved.")}].
 
 kill_mirror(#st{shapes=Shs0}=St) ->
     Shs = kill_mirror_1(gb_trees:values(Shs0), []),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.39 2004/03/18 06:55:02 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.40 2004/10/08 06:02:29 dgud Exp $
 %%
 
 -module(wings_image).
@@ -71,7 +71,7 @@ screenshot() ->
     gl:readPixels(0, 0, W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Mem),
     ImageBin = sdl_util:getBin(Mem),
     Image = #e3d_image{image=ImageBin,width=W,height=H},
-    Id = new_temp("<<Screenshot>>", Image),
+    Id = new_temp(?STR(screenshot,1,"<<Screenshot>>"), Image),
     wings_image:window(Id).
 
 bumpid(Id) ->
@@ -284,7 +284,7 @@ create_default(Type) when Type == diffuse; Type == gloss ->
 		     image= <<255,255,255>>}, % White and full specular.
     make_texture({?DEFAULT,Type},Img);
 create_default(Type) -> 
-    io:format("~p Don't know about the type ~p; ignoring\n", [?MODULE,Type]),
+    io:format(?STR(create_default,1,"~p Don't know about the type ~p; ignoring\n"), [?MODULE,Type]),
     none.
 
 create_normal_cube_map() ->
@@ -476,7 +476,7 @@ window(Id) ->
 
 window_params(Id) ->
     #e3d_image{width=W0,height=H0,name=Name,bytes_pp=BytesPerPixel} = info(Id),
-    Title = flatten(io_lib:format("Image: ~s [~wx~wx~w]",
+    Title = flatten(io_lib:format(?STR(window_params,1,"Image: ~s [~wx~wx~w]"),
 				  [Name,W0,H0,8*BytesPerPixel])),
     {DeskW,DeskH} = wings_wm:win_size(desktop),
     W = if
@@ -517,7 +517,7 @@ event(close, _) ->
     delete;
 event(got_focus, _) ->
     Msg2 = wings_camera:help(),
-    Msg3 = wings_util:button_format([], [], "Show menu"),
+    Msg3 = wings_util:button_format([], [],?STR(event,1,"Show menu")),
     Message = wings_util:join_msg([Msg2,Msg3]),
     wings_wm:message(Message),
     wings_wm:dirty();
@@ -537,7 +537,7 @@ event_1(Ev, _) ->
 		    {"25%",25},
 		    {"50%",50},
 		    separator,
-		    {"100%",100,"Show in natural size"},
+		    {"100%",100,?STR(event_1,1,"Show in natural size")},
 		    separator,
 		    {"200%",200},
 		    {"400%",400},
@@ -645,16 +645,16 @@ draw_image(X, Y, W, H, TxId) ->
 %%%
 
 create_image() ->
-    Qs = [{"Width",256,[{range,{8,1024}}]},
-	  {"Height",256,[{range,{8,1024}}]},
-	  {"Pattern",{menu,[{"Grid",grid},
-			    {"Checkerboard",checkerboard},
-			    {"Vertical Bars",vbars},
-			    {"Horizontal Bars",hbars},
-			    {"White",white},
-			    {"Black",black}],
+    Qs = [{?STR(create_image,1,"Width"),256,[{range,{8,1024}}]},
+	  {?STR(create_image,2,"Height"),256,[{range,{8,1024}}]},
+	  {?STR(create_image,3,"Pattern"),{menu,[{"Grid",grid},
+			    {?STR(create_image,4,"Grid"),checkerboard},
+			    {?STR(create_image,5,"Checkerboard"),vbars},
+			    {?STR(create_image,6,"Vertical Bars"),hbars},
+			    {?STR(create_image,7,"Horizontal Bars"),white},
+			    {?STR(create_image,8,"White"),black}],
 		      grid}}],
-    wings_ask:ask("Create Image", Qs,
+		wings_ask:ask(?STR(create_image,9,"Black"), Qs,
 		  fun([W,H,Pattern]) ->
 			  create_image_1(Pattern, W, H),
 			  ignore

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.116 2004/06/17 04:36:23 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.117 2004/10/08 06:02:30 dgud Exp $
 %%
 
 -module(wings_material).
@@ -33,17 +33,17 @@
 		keyreplace/4,keydelete/3,keysearch/3,flatten/1]).
 
 material_menu(St) ->
-    [{basic,{"Material",
+    [{basic,{?STR(material_menu,1,"Material"),
 	     {material,
-	      [{"New...",new,
-		"Create a new material and assign to selected faces"},
+	      [{?STR(material_menu,2,"New..."),new,
+		?STR(material_menu,3,"Create a new material and assign to selected faces")},
 	       separator|mat_list(St)]}}},
-     {advanced,{"Material",{material,material_fun(St)}}}].
+     {advanced,{?STR(material_menu,4,"Material"),{material,material_fun(St)}}}].
 
 material_fun(St) ->
     fun(help, _Ns) ->
-	    {"Assign existing material to selection",[],
-	     "Create and assign new material"};
+	    {?STR(material_fun,1,"Assign existing material to selection"),[],
+	     ?STR(material_fun,2,"Create and assign new material")};
        (1, _Ns) ->
 	    mat_list(St);
        (3, _) ->
@@ -65,8 +65,8 @@ new(_) ->
     new_1(new).
 
 new_1(Act) ->
-    wings_ask:ask("New Material",
-		  [{"Material Name","New Material"}],
+    wings_ask:ask(?STR(new_1,1,"New Material"),
+		  [{?STR(new_1,2,"Material Name"),?STR(new_1,3,"New Material")}],
 		  fun([Name]) ->
 			  Action = {action,{material,{Act,Name}}},
 			  wings_wm:send_after_redraw(geom, Action),
@@ -138,7 +138,7 @@ delete_material([], St) ->
 
 rename(Mats, St) ->
     Qs = rename_qs(Mats),
-    wings_ask:dialog("Rename", Qs,
+    wings_ask:dialog(?STR(rename,1,"Rename"), Qs,
 		     fun(NewNames) ->
 			     rename_1(NewNames, St, [])
 		     end).
@@ -314,7 +314,7 @@ load_map_1(File0) ->
 	    Name = filename:rootname(filename:basename(File)),
 	    wings_image:new(Name, Im#e3d_image{filename=File});
 	{error,Error} ->
-	    io:format("Failed to load \"~s\": ~s\n",
+	    io:format(?STR(load_map_1,1,"Failed to load") ++ " \"~s\": ~s\n",
 		      [File,file:format_error(Error)]),
 	    none
     end.
@@ -457,7 +457,7 @@ is_mat_transparent(Mat) ->
 edit(Name, Assign, #st{mat=Mtab}=St) ->
     Mat = gb_trees:get(Name, Mtab),
     {dialog,Qs,Fun} = edit_dialog(Name, Assign, St, Mat),
-    wings_ask:dialog("Material Properties: "++atom_to_list(Name), Qs, Fun).
+    wings_ask:dialog(?STR(edit,1,"Material Properties: ")++atom_to_list(Name), Qs, Fun).
     
 
 edit_dialog(Name, Assign, St=#st{mat=Mtab0}, Mat0) ->
@@ -476,10 +476,10 @@ edit_dialog(Name, Assign, St=#st{mat=Mtab0}, Mat0) ->
 	     {hframe, 
 	      [{custom,?PREVIEW_SIZE,?PREVIEW_SIZE+5,Preview},
 	       {vframe,
-		[{label,"Diffuse"},
-		 {label,"Ambient"},
-		 {label,"Specular"},
-		 {label,"Emission"}]
+		[{label,?STR(edit_dialog,1,"Diffuse")},
+		 {label,?STR(edit_dialog,2,"Ambient")},
+		 {label,?STR(edit_dialog,3,"Specular")},
+		 {label,?STR(edit_dialog,4,"Emission")}]
 	       },
 	       {vframe,
 		[{slider,{color,Diff0,[{key,diffuse}]}},
@@ -487,8 +487,8 @@ edit_dialog(Name, Assign, St=#st{mat=Mtab0}, Mat0) ->
 		 {slider,{color,Spec0,[{key,specular}]}},
 		 {slider,{color,Emiss0,[{key,emission}]}}
 		]}]},
-	     {hframe, [{vframe, [{label,"Shininess"},
-				 {label,"Opacity"}]},
+	     {hframe, [{vframe, [{label,?STR(edit_dialog,5,"Shininess")},
+				 {label,?STR(edit_dialog,6,"Opacity")}]},
 		       {vframe, [{slider,{text,Shine0,
 					  [{range,{0.0,1.0}},
 					   {key,shininess}]}},
@@ -499,8 +499,8 @@ edit_dialog(Name, Assign, St=#st{mat=Mtab0}, Mat0) ->
 	   }],
     Qs2 = wings_plugin:dialog({material_editor_setup,Name,Mat0}, Qs1),
     Qs = {hframe,[{vframe,Qs2},
-		  {vframe,[{button,"OK",done,[ok,{key,material_editor_ok}]},
-			   {button,cancel,[cancel]}]}]},
+		  {vframe,[{button,?STR(edit_dialog,7,"OK"),done,[ok,{key,material_editor_ok}]},
+			   {button,?STR(edit_dialog,8,"Cancel"),cancel,[cancel]}]}]},
     Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
 	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}|More0]) ->
 		  OpenGL = [ask_prop_put(diffuse, Diff, Opacity),
@@ -529,9 +529,9 @@ plugin_results(Name, Mat0, Res0) ->
 	{Mat,[{material_editor_ok,false}]} ->
 	    {again,Mat};
 	{_,Res} ->
-	    io:format("Material editor plugin(s) left garbage:~n    ~P~n", 
+	    io:format(?STR(plugin_results,1,"Material editor plugin(s) left garbage:~n    ~P~n"), 
 		      [Res,20]),
-	    wings_util:error("Plugin(s) left garbage")
+		      wings_util:error(?STR(plugin_results,2,"Plugin(s) left garbage"))
     end.
 
 update_maps(Mat0, More0) ->
@@ -551,18 +551,18 @@ show_maps(Mat) ->
 	[] -> [];
 	Maps ->
 	    MapDisp = [show_map(M) || M <- sort(Maps)],
-	    [{vframe,MapDisp,[{title,"Textures"}]}]
+	    [{vframe,MapDisp,[{title,?STR(show_maps,1,"Textures")}]}]
     end.
 
 show_map({Type,Image}) ->
     Texture = 
 	case wings_image:info(Image) of
 	    none ->
-		[{label,flatten(io_lib:format("~p: <image deleted>", [Type]))}];
+		[{label,flatten(io_lib:format(?STR(show_map,1,"~p: <image deleted>"), [Type]))}];
 	    #e3d_image{name=Name,width=W,height=H,bytes_pp=PP} ->
-		Label = flatten(io_lib:format("~p: ~p [~px~px~p]",
+		Label = flatten(io_lib:format(?STR(show_map,2,"~p: ~p [~px~px~p]"),
 					      [Type,Name,W,H,PP*8])),
-		[{label, Label},{button,"Delete",done}]
+		[{label, Label},{button,?STR(show_map,3,"Delete"),done}]
 	end,
     {hframe, Texture}.
 

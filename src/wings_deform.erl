@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.39 2004/04/19 16:50:09 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.40 2004/10/08 06:02:28 dgud Exp $
 %%
 
 -module(wings_deform).
@@ -19,24 +19,25 @@
 -define(PI, math:pi()).
 
 sub_menu(_St) ->
-    InflateHelp = {"Inflate elements",[],"Pick center and radius"},
-    {deform,[{"Crumple",{crumple,crumple_dirs()},
-	      "Randomly move vertices"},
-	     {"Inflate",inflate_fun(),InflateHelp,[]},
-	     {"Taper",{taper,
+    InflateHelp = {?STR(sub_menu,1,"Inflate elements"),[],?STR(sub_menu,2,"Pick center and radius")},
+    {deform,[{?STR(sub_menu,3,"Crumple"),{crumple,crumple_dirs()},
+	      ?STR(sub_menu,4,"Randomly move vertices")},
+	     {?STR(sub_menu,5,"Inflate"),inflate_fun(),InflateHelp,[]},
+	     {?STR(sub_menu,6,"Taper"),{taper,
 		       [taper_item(x),
 			taper_item(y),
 			taper_item(z)]}},
-	     {"Twist",{twist,dirs(twist)}},
-	     {"Torque",{torque,dirs(torque)}}]}.
+	     {?STR(sub_menu,7,"Twist"),{twist,dirs(twist)}},
+	     {?STR(sub_menu,8,"Torque"),{torque,dirs(torque)}}]}.
 
 crumple_dirs() ->
-    [{"Random",random,"Move each vertex a random amount "
-      "in a random direction"},
-     {"Normal",normal,"Move each vertex a random amount along its normal"},
-     {"X",x,"Move each vertex a random amount along the X axis"},
-     {"Y",y,"Move each vertex a random amount along the Y axis"},
-     {"Z",z,"Move each vertex a random amount along the Z axis"}].
+    [{?STR(crumple_dirs,1,"Random"),
+      random,
+      ?STR(crumple_dirs,2,"Move each vertex a random amount in a random direction")},
+     {?STR(crumple_dirs,3,"Normal"),normal,?STR(crumple_dirs,4,"Move each vertex a random amount along its normal")},
+     {?STR(crumple_dirs,5,"X"),x,?STR(crumple_dirs,8,"Move each vertex a random amount along the X axis")},
+     {?STR(crumple_dirs,6,"Y"),y,?STR(crumple_dirs,9,"Move each vertex a random amount along the Y axis")},
+     {?STR(crumple_dirs,7,"Z"),z,?STR(crumple_dirs,10,"Move each vertex a random amount along the Z axis")}].
 
 dirs(Cmd) ->
     [dir(x, Cmd),
@@ -45,10 +46,10 @@ dirs(Cmd) ->
 
 dir(Axis, Cmd) ->
     AxisStr = wings_util:upper(atom_to_list(Axis)),
-    Help = "Twist selected vertices around the " ++ AxisStr ++
+    Help = ?STR(dir,1,"Twist selected vertices around the ") ++ AxisStr ++
 	case Cmd of
-	    twist -> " passing through the center of the selection";
-	    torque -> " passing through the origin"
+	    twist -> ?STR(dir,2," passing through the center of the selection");
+	    torque ->?STR(dir,3," passing through the origin")
 	end,
     {AxisStr,Axis,Help,[]}.
 
@@ -61,16 +62,18 @@ taper_item(Axis) ->
 			[Effect|_] = Effects,
 			wings_menu:build_command({Axis,Effect}, Ns)
 		end,
-	    Help = "Taper along " ++ AxisStr,
+	    Help = ?STR(taper_item,1,"Taper along ")++ AxisStr,
 	    {AxisStr,F,Help};
 	true ->
 	    F = fun(help, _Ns) ->
 			[Effect|_] = Effects,
-			TaperAlong = "Taper along " ++ AxisStr,
-			{TaperAlong ++ " (with effect on " ++
-			 wings_util:upper(Effect) ++ ")",
-			 "Choose effect axis",
-			 "Pick axis center location"};
+			TaperAlong = ?STR(taper_item,1,"Taper along ") ++ AxisStr,
+			{TaperAlong ++?STR(taper_item,2," (with effect on ") 
+				    ++wings_util:upper(Effect) 
+				    ++ ?STR(taper_item,3,")"),
+			 		?STR(taper_item,4,"Choose effect axis"),
+					?STR(taper_item,5,"Pick axis center location")
+			};
 		   (1, Ns) ->
 			[Effect|_] = Effects,
 			wings_menu:build_command(Effect, Ns);
@@ -78,7 +81,7 @@ taper_item(Axis) ->
 			expand_effects(Effects, []);
 		   (3, Ns) ->
 			[Effect|_] = Effects,
-			Ask = {'ASK',{[{point,"Pick taper origin"}],[Effect]}},
+			Ask = {'ASK',{[{point,?STR(taper_item,6,"Pick taper origin")}],[Effect]}},
 			wings_menu:build_command(Ask, Ns)
 		end,
 	    {AxisStr,{Axis,F},[]}
@@ -90,7 +93,8 @@ effect_menu(z) -> [xy,x,y].
 
 expand_effects([H|T], Acc) ->
     Effect = wings_util:upper(H),
-    Help = {"Effect on "++Effect,[],"Pick axis center location"},
+    Help = {?STR(taper_item,7,"Effect on ")++Effect,[],
+	    ?STR(taper_item,4, "Pick axis center location")},
     Item = {Effect,effect_fun(H),Help,[]},
     expand_effects(T, [Item|Acc]);
 expand_effects([], Acc) -> reverse(Acc).
@@ -99,18 +103,18 @@ effect_fun(Effect) ->
     fun(1, Ns) -> wings_menu:build_command(Effect, Ns);
        (2, _Ns) -> ignore;
        (3, Ns) ->
-	    Ask = {'ASK',{[{point,"Pick taper origin"}],[Effect]}},
+	    Ask = {'ASK',{[{point,?STR(taper_item,6,"Pick taper origin")}],[Effect]}},
 	    wings_menu:build_command(Ask, Ns)
     end.
     
 inflate_fun() ->
     fun(help, _) ->
-	    PickHelp = "Pick center and radius",
-	    {"Inflate elements",PickHelp,PickHelp};
+	    PickHelp = ?STR(inflate_fun,1,"Pick center and radius"),
+	    {?STR(inflate_fun,2,"Inflate elements"),PickHelp,PickHelp};
        (1, _Ns) -> {vertex,{deform,inflate}};
        (_, Ns) ->
-	    Ask = {'ASK',{[{point,"Pick center point"},
-			   {point,"Pick point to define radius"}],[]}},
+	    Ask = {'ASK',{[{point,?STR(inflate_fun,3,"Pick center point")},
+			   {point,?STR(inflate_fun,4,"Pick point to define radius")}],[]}},
 	    wings_menu:build_command(Ask, [inflate|Ns])
     end.
 
@@ -429,6 +433,6 @@ twister_fun(Vs, Tf, Min, Range, We) ->
 
 check_range(Range, Axis0) when Range < 0.01 ->
     Axis = wings_util:upper(atom_to_list(Axis0)),
-    Error = lists:concat(["Extent along ",Axis," axis is too short."]),
+    Error = lists:concat([?STR(check_range,1,"Extent along "),Axis,?STR(check_range,2,"axis is too short.")]),
     wings_util:error(Error);
 check_range(_Range, _Axis) -> ok.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.149 2004/06/23 11:25:34 raimo_niskanen Exp $
+%%     $Id: wings_file.erl,v 1.150 2004/10/08 06:02:29 dgud Exp $
 %%
 
 -module(wings_file).
@@ -43,28 +43,29 @@ init() ->
 menu(_) ->
     ImpFormats = [{"Nendo (.ndo)...",ndo}],
     ExpFormats = [{"Nendo (.ndo)...",ndo}],
-    [{"New",new,"Create a new, empty scene"},
-     {"Open...",open,"Open a previously saved scene"},
-     {"Merge...",merge,"Merge a previously saved scene into the current scene"},
-     separator,
-     {"Save",save,"Save the current scene"},
-     {"Save As...",save_as,"Save the current scene under a new name"},
-     {"Save Selected...",save_selected,"Save only the selected objects or faces"},
-     {"Save Incrementally",save_incr},
-     separator,
-     {"Revert",revert,"Revert current scene to the saved contents"},
-     separator,
-     {"Import",{import,ImpFormats}},
-     {"Export",{export,ExpFormats}},
-     {"Export Selected",{export_selected,ExpFormats}},
-     separator,
-     {"Import Image...",import_image,"Import an image file"},
-     separator,
-     {"Render",{render,[]}},
-     separator,
-     {"Install Plug-In",install_plugin},
-     separator|recent_files([{"Exit",quit}])].
-
+    [{?STR(menu,3,"New"),new,?STR(menu,4,"Create a new, empty scene")},
+     {?STR(menu,5,"Open..."),open,?STR(menu,6,"Open a previously saved scene")},
+     {?STR(menu,7,"Merge..."),merge,?STR(menu,8,"Merge a previously saved scene into the current scene")},
+      separator,
+     {?STR(menu,9,"Save"),save,?STR(menu,10,"Save the current scene")},
+     {?STR(menu,11,"Save As..."),save_as,?STR(menu,12,"Save the current scene under a new name")},
+     {?STR(menu,13,"Save Selected..."),save_selected,?STR(menu,14,"Save only the selected objects or faces")},
+     {?STR(menu,15,"Save Incrementally"),save_incr},
+      separator,
+     {?STR(menu,16,"Revert"),revert,?STR(menu,17,"Revert current scene to the saved contents")},
+      separator,
+     {?STR(menu,18,"Import"),{import,ImpFormats}},
+     {?STR(menu,19,"Export"),{export,ExpFormats}},
+     {?STR(menu,20,"Export Selected"),{export_selected,ExpFormats}},
+      separator,
+     {?STR(menu,21,"Import Image..."),import_image,?STR(menu,22,"Import an image file")},
+      separator,
+     {?STR(menu,23,"Render"),{render,[]}},
+      separator,
+     {?STR(menu,24,"Install Plug-In"),install_plugin},
+      separator|recent_files([{?STR(menu,25,"Exit"),quit}])].
+												
+    
 command(new, St) ->
     new(St);
 command(confirmed_new, St) ->
@@ -98,7 +99,7 @@ command(save_incr, St) ->
 command(revert, St0) ->
     case revert(St0) of
 	{error,Reason} ->
-	    wings_util:error("Revert failed: " ++ Reason),
+	 wings_util:error(?STR(command,1,"Revert failed: ") ++ Reason),
 	    St0;
 	#st{}=St -> {save_state,St}
     end;
@@ -111,9 +112,9 @@ command(import_image, _St) ->
 command({import_image,Name}, _) ->
     import_image(Name);
 command({export,ndo}, St) ->
-    export_ndo(export, "Export", St);
+    export_ndo(export, ?STR(command,2,"Export"), St);
 command({export_selected,ndo}, St) ->
-    export_ndo(export_selected, "Export Selected", St);
+    export_ndo(export_selected, ?STR(command,3,"Export Selected"), St);
 command({export,{ndo,Filename}}, St) ->
     do_export_ndo(Filename, St);
 command({export_selected,{ndo,Filename}}, St) ->
@@ -129,7 +130,7 @@ command({install_plugin,Filename}, _St) ->
 command(quit, #st{saved=true}) ->
     quit;
 command(quit, _) ->
-    wings_util:yes_no_cancel("Do you want to save your changes before quitting?",
+    wings_util:yes_no_cancel(?STR(command,4,"Do you want to save your changes before quitting?"),
 			     fun() -> {file,{save,{file,quit}}} end,
 			     fun() -> {file,confirmed_quit} end);
 command(confirmed_quit, _) ->
@@ -143,7 +144,7 @@ command(Key, St) when is_integer(Key), 1 =< Key ->
 	false ->
 	    Recent = delete_nth(Recent0, Key),
 	    wings_pref:set_value(recent_files, Recent),
-	    wings_util:error("This file has been moved or deleted.")
+	    wings_util:error(?STR(command,5,"This file has been moved or deleted."))
     end.
 
 delete_nth([_|T], 1) -> T;
@@ -162,7 +163,7 @@ new(#st{saved=true}=St0) ->
     {new,St#st{saved=true}};
 new(St0) ->			     %File is not saved or autosaved.
     wings:caption(St0#st{saved=false}), 
-    wings_util:yes_no_cancel("Do you want to save your changes?",
+    wings_util:yes_no_cancel(?STR(new,1,"Do you want to save your changes?"),
 			     fun() -> {file,{save,{file,new}}} end,
 			     fun() -> {file,confirmed_new} end).
 
@@ -171,7 +172,7 @@ open(#st{saved=true}) ->
 open(St) ->
     wings:caption(St#st{saved=false}),		%Clear any autosave flag.
     Confirmed = {file,confirmed_open_dialog},
-    wings_util:yes_no_cancel("Do you want to save your changes?",
+    wings_util:yes_no_cancel(?STR(open,1,"Do you want to save your changes?"),
 			     fun() -> {file,{save,Confirmed}} end,
 			     fun() -> Confirmed end).
 
@@ -182,7 +183,7 @@ confirmed_open_dialog() ->
 
     Cont = fun(Filename) -> {file,{confirmed_open,Filename}} end,
     Dir = wings_pref:get_value(current_directory),
-    Ps = [{directory,Dir},{title,"Open"}|wings_prop()],
+    Ps = [{directory,Dir},{title,?STR(confirmed_open_dialog,1,"Open")}|wings_prop()],
     wpa:import_filename(Ps, Cont).
 
 confirmed_open(Name, St0) ->
@@ -200,7 +201,7 @@ confirmed_open(Name, St0) ->
 			  wings:caption(St#st{saved=true,file=Name});
 		      {error,Reason} ->
 			  clean_new_images(St2),
-			  wings_util:error("Read failed: " ++ Reason)
+			  wings_util:error(?STR(confirmed_open,1,"Read failed: ") ++ Reason)
 		  end
 	  end,
     use_autosave(Name, Fun).
@@ -210,14 +211,14 @@ named_open(Name, #st{saved=true}=St) ->
 named_open(Name, St) ->
     wings:caption(St#st{saved=false}),		%Clear any autosave flag.
     Confirmed = {file,{confirmed_open,Name}},
-    wings_util:yes_no_cancel("Do you want to save your changes?",
+    wings_util:yes_no_cancel(?STR(named_open,1,"Do you want to save your changes?"),
 			     fun() -> {file,{save,Confirmed}} end,
 			     fun() -> Confirmed end).
 
 merge() ->
     Cont = fun(Filename) -> {file,{merge,Filename}} end,
     Dir = wings_pref:get_value(current_directory),
-    Ps = [{title,"Merge"},{directory,Dir}|wings_prop()],
+    Ps = [{title,?STR(merge,1,"Merge")},{directory,Dir}|wings_prop()],
     wpa:import_filename(Ps, Cont).
 
 merge(Name, St0) ->
@@ -229,7 +230,7 @@ merge(Name, St0) ->
 		  case ?SLOW(wings_ff_wings:import(File, St0)) of
 		      {error,Reason} ->
 			  clean_new_images(St1),
-			  wings_util:error("Read failed: " ++ Reason);
+			  wings_util:error(?STR(merge,2,"Read failed: ") ++ Reason);
 		      #st{}=St ->
 			  set_cwd(dirname(Name)),
 			  St#st{saved=false}
@@ -249,7 +250,7 @@ save_as(Next, St) ->
 		   set_cwd(dirname(Name)),
 		   {file,{save_as,{Name,Next}}}
 	   end,
-    Ps = [{title,"Save"}|wings_prop()],
+    Ps = [{title,?STR(save_as,1,"Save")}|wings_prop()],
     wpa:export_filename(Ps, St, Cont).
 
 save_now(Next, #st{file=Name}=St) ->
@@ -263,16 +264,16 @@ save_now(Next, #st{file=Name}=St) ->
 	    maybe_send_action(Next),
 	    {saved,wings:caption(St#st{saved=true})};
 	{error,Reason} ->
-	    wings_util:error("Save failed: " ++ Reason)
+	    wings_util:error(?STR(save_now,1,"Save failed: ") ++ Reason)
     end.
 
 maybe_send_action(ignore) -> keep;
 maybe_send_action(Action) -> wings_wm:later({action,Action}).
     
 save_selected(#st{sel=[]}) ->
-    wings_util:error("This command requires a selection.");
+    wings_util:error(?STR(save_selected,1,"This command requires a selection."));
 save_selected(St) ->
-    Ps = [{title,"Save Selected"}|wings_prop()],
+    Ps = [{title,?STR(save_selected,2,"Save Selected")}|wings_prop()],
     Cont = fun(Name) -> {file,{save_selected,Name}} end,
     wpa:export_filename(Ps, St, Cont).
 
@@ -348,8 +349,7 @@ use_autosave_1(#file_info{mtime=SaveTime0}, File, Body) ->
 	    AutoTime = calendar:datetime_to_gregorian_seconds(AutoInfo0),
 	    if
 		AutoTime > SaveTime ->
-		    Msg = "An autosaved file with a later time stamp exists; "
-			"do you want to load the autosaved file instead?",
+		    Msg = ?STR(use_autosave_1,1,"An autosaved file with a later time stamp exists; do you want to load the autosaved file instead?"),
 		    wings_util:yes_no(Msg, autosave_fun(Body, Auto),
 				      autosave_fun(Body, File));
 		true ->
@@ -412,7 +412,7 @@ autosave(#st{file=Name}=St) ->
 	ok ->
 	    wings:caption(St#st{saved=auto});
 	{error,Reason} ->
-	    Msg = lists:flatten(io_lib:format("Autosaving \"~s\" failed: ~s", [Auto,Reason])),
+	    Msg = lists:flatten(io_lib:format(?STR(autosave,1,"Autosaving \"~s\" failed: ~s"), [Auto,Reason])),
 	    wings_util:message(Msg)
     end.
 
@@ -484,7 +484,7 @@ import_ndo(Name, St0) ->
 	#st{}=St ->
 	    {save_state,St};
 	{error,Reason} ->
-	    wings_util:error("Import failed: " ++ Reason),
+	    wings_util:error(?STR(import_ndo,1,"Import failed: ") ++ Reason),
 	    St0
     end.
 
@@ -498,7 +498,7 @@ import_image(Name) ->
 	Im when is_integer(Im) ->
 	    keep;
 	{error,Error} ->
-	    wings_util:error("Failed to load \"~s\": ~s\n",
+	    wings_util:error(?STR(import_image,1,"Failed to load \"~s\": ~s\n"),
 			     [Name,file:format_error(Error)])
     end.
 
@@ -522,12 +522,12 @@ do_export_ndo(Name, St) ->
 %%%
 
 install_plugin() ->
-    Props = [{title,"Install Plug-In"},
+    Props = [{title,?STR(install_plugin,1,"Install Plug-In")},
 	     {extensions,
-	      [{".gz","GZip Compressed File"},
-	       {".tar","Tar File"},
-	       {".tgz","Compressed Tar File"},
-	       {".beam","Beam File"}]}],
+	      [{".gz",?STR(install_plugin,2,"GZip Compressed File")},
+	       {".tar",?STR(install_plugin,3,"Tar File")},
+	       {".tgz",?STR(install_plugin,4,"Compressed Tar File")},
+	       {".beam",?STR(install_plugin,5,"Beam File")}]}],
     Cont = fun(Name) -> {file,{install_plugin,Name}} end,
     wpa:import_filename(Props, Cont).
 

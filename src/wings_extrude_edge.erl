@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.58 2004/05/19 03:45:22 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.59 2004/10/08 06:02:29 dgud Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -99,7 +99,7 @@ bevel_faces(Faces, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Limit0}) ->
     {We1,OrigVs,_,Forbidden} = extrude_edges(Edges, Dist, We0#we{mirror=none}),
     case {gb_trees:size(We0#we.es),gb_trees:size(We1#we.es)} of
 	{Same,Same} ->
-	    wings_util:error("Object is too small to bevel.");
+	wings_util:error(?STR(bevel_faces,1,"Object is too small to bevel."));
 	{_,_} ->
 	    We2 = wings_edge:dissolve_edges(Edges, We1),
 	    Tv0 = bevel_tv(OrigVs, We2, Forbidden),
@@ -434,7 +434,7 @@ connect(G, [C|Cs], ExtrudeDist, Wid, #we{mirror=Mirror}=We0, Closed) ->
 		    connect(G, Cs, ExtrudeDist, Wid, We0, [Face|Closed])
 	    end;
 	[_] ->
-	    wings_util:error("Can't extrude/bevel; try Cleanup.");
+	    wings_util:error(?STR(connect,1,"Can't extrude/bevel; try Cleanup."));
 	[Va0,Vb0] ->
 	    case digraph_get_path(G, Va0, Vb0) of
 		[{_,Mirror}|_] ->
