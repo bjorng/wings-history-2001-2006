@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.68 2003/09/25 13:26:25 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.69 2003/10/22 16:20:24 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -616,7 +616,7 @@ uv_to_color(#we{mode=material,es=Etab0}=We, St) ->
 		      [{Edge,Rec#edge{a=ColA,b=ColB}}|A]
 	      end, [], gb_trees:to_list(Etab0)),
     Etab = gb_trees:from_orddict(reverse(Etab1)),
-    We#we{mode=vertex,es=Etab,mat=default};
+    We#we{mode=vertex,es=Etab};
 uv_to_color(We, _St) -> We.
 
 %% uv_mapped_faces(We) -> [Face]
