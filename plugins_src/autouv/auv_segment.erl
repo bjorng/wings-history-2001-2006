@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.16 2002/10/22 14:21:26 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.17 2002/10/23 13:05:36 dgud Exp $
 
 -module(auv_segment).
 
@@ -575,32 +575,51 @@ segment_by_cluster(Rel0, We) ->
 %%% Cutting along hard edges.
 %%%
 
+
+get_border_vs(Faces, We) ->
+    BordersEdgs = wings_face:outer_edges(Faces,We),
+    foldl(fun(Edge, Acc) -> 
+		  #edge{vs = Va, ve = Vb} = gb_trees:get(Edge, We#we.es),
+		  [Va,Vb|Acc] end,
+	  [], BordersEdgs).
+
+cut_model([], _Faces, #we{vs=Vs}=We) ->
+    Map = reverse(foldl(fun(V, A) -> [{V,V}|A] end, [], gb_trees:keys(Vs))),
+    {We,Map};    
 cut_model(Cuts, [Faces], We) ->
     Vs = wings_face:to_vertices(Faces, We),
+    Bvs = get_border_vs(Faces,We),
     Map = reverse(foldl(fun(V, A) -> [{V,V}|A] end, [], Vs)),
-    cut_model_1(Cuts, [{We,Map}]);
+    cut_model_1(Cuts, [{We,Map}], gb_sets:from_list(Bvs));
 cut_model(Cuts, Clusters, We) ->
     AllFaces = wings_sel:get_all_items(face, We),
-    {WMs0,_} = mapfoldl(fun(Keep0, W0) ->
-				Keep = gb_sets:from_list(Keep0),
-				Del = gb_sets:difference(AllFaces, Keep),
-				W1 = wpa:face_dissolve(Del, W0),
-				{W,InvVmap} = cut_renumber(Keep, W1),
-				Next = lists:max([W0#we.next_id,W#we.next_id]),
-				{{W,InvVmap},W0#we{next_id=Next}}
-			end, We, Clusters),
-    cut_model_1(Cuts, WMs0).
+    {WMs0,{_,Bvs}} = mapfoldl(fun(Keep0, {W0,Bvs}) ->
+				      Keep = gb_sets:from_list(Keep0),
+				      Del = gb_sets:difference(AllFaces, Keep),
+				      W1 = wpa:face_dissolve(Del, W0),
+				      {W,InvVmap} = cut_renumber(Keep, W1),
+				      Bvs2 = get_border_vs(Keep0, W),
+				      Next = lists:max([W0#we.next_id,W#we.next_id]),
+				      {{W,InvVmap},{W0#we{next_id=Next}, Bvs2 ++ Bvs}}
+			      end, {We, []}, Clusters),
+    cut_model_1(Cuts, WMs0, gb_sets:from_list(Bvs)).
 
-cut_model_1(Cuts, WMs0) ->
+cut_model_1(Cuts, WMs0, Bvs) ->
+    ?DBG("Bvs: ~w~n", [gb_sets:to_list(Bvs)]),
     WMs1 = sofs:from_term(WMs0, [{we,[{atom,atom}]}]),
     Wes = sofs:to_external(sofs:domain(WMs1)),
     We1 = wings_we:force_merge(Wes),
-    {We,Imap0} = cut_edges(Cuts, We1),
+    ?DBG("Validate1~n", []),
+    wings_util:validate(We1),
+    ?DBG("Cuts: ~w~n", [gb_sets:to_list(Cuts)]),
+    {We,Imap0} = cut_edges(Cuts, Bvs, We1),
+    ?DBG("Validate2~n", []),
+    wings_util:validate(We),
     InvVmap0 = sofs:union_of_family(WMs1),
     InvVmap1 = sofs:converse(InvVmap0),
     Imap1 = sofs:family(Imap0, [{atom,[atom]}]),
     Imap2 = sofs:converse(sofs:family_to_relation(Imap1)),
-    Imap = sofs:composite(Imap2, InvVmap1),
+    Imap  = sofs:composite(Imap2, InvVmap1),
     InvVmap2 = sofs:union(InvVmap1, Imap),
     InvVmap = sofs:to_external(InvVmap2),
     {We,InvVmap}.
@@ -624,13 +643,13 @@ cut_make_map([E|Es], MustRenumber, Id, Acc) ->
 cut_make_map([], _, _, Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
 
-cut_edges(Edges, #we{next_id=Wid,es=Etab}=We0) ->
+cut_edges(Edges, Bvs, #we{next_id=Wid,es=Etab}=We0) ->
     G = digraph:new(),
     lists:foreach(fun(Edge) ->
 			  digraph_edge(G, gb_trees:get(Edge, Etab))
 		  end, gb_sets:to_list(Edges)),
     Vs0 = digraph:vertices(G),
-    {Vs,Ends} = exclude_ends(lists:sort(Vs0), undefined, 0, [], []),
+    {Vs,Ends} = exclude_ends(lists:sort(Vs0), undefined, 0, [], [], Bvs),
     {We1,Vmap} =
 	foldl(fun(V, A) ->
 		      new_vertex(V, G, Edges, A)
@@ -639,16 +658,22 @@ cut_edges(Edges, #we{next_id=Wid,es=Etab}=We0) ->
     digraph:delete(G),
     {We,Vmap}.
 
-exclude_ends([{Vs, _}|R], Vs, Count, Middle,Ends) ->
-    exclude_ends(R,Vs, Count+1, Middle,Ends);
-exclude_ends([{Vs, _}|R], Old, Count, Middle,Ends) when Count > 2 ->
-    exclude_ends(R,Vs,1,[Old|Middle],Ends);
-exclude_ends([{Vs,_}|R], Old, _, Middle,Ends) ->
-    exclude_ends(R,Vs,1,Middle,[Old|Ends]);
-exclude_ends([], Old, Count,Middle,Ends) when Count > 2 ->
-    {[Old|Middle],Ends};
-exclude_ends([],Old, _, Middle,Ends) ->
-    {Middle,[Old|Ends]}.
+exclude_ends([{Vs, _}|R], Vs, Count, Middle,Ends,Bvs) ->
+    exclude_ends(R,Vs, Count+1, Middle,Ends,Bvs);
+exclude_ends([{Vs, _}|R], Old, Count, Middle,Ends,Bvs) ->    
+    case Count > 2 orelse gb_sets:is_member(Old, Bvs) of
+	true -> 
+	    exclude_ends(R,Vs,1,[Old|Middle],Ends,Bvs);
+	false ->
+	    exclude_ends(R,Vs,1,Middle,[Old|Ends],Bvs)
+    end;
+exclude_ends([], Old, Count,Middle,Ends,Bvs) ->
+    case Count > 2 orelse gb_sets:is_member(Old, Bvs) of
+	true -> 
+	    {[Old|Middle],Ends};
+	false ->
+	    {Middle,[Old|Ends]}
+    end.
 
 new_vertex(V, G, Edges, {We0,F0}=Acc) ->
     case wings_vertex:fold(fun(E, F, R, A) -> [{E,F,R}|A] end, [], V, We0) of
