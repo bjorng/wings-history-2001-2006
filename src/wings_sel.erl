@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.49 2004/12/31 10:09:40 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.50 2004/12/31 10:30:42 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -326,8 +326,8 @@ get_all_items(Mode, Id, #st{shapes=Shapes}) ->
     We = gb_trees:get(Id, Shapes),
     get_all_items(Mode, We).
 
-get_all_items(vertex, #we{vc=Vct}) ->
-    gb_sets:from_ordset(gb_trees:keys(Vct));
+get_all_items(vertex, We) ->
+    gb_sets:from_ordset(wings_we:visible_vs(We));
 get_all_items(edge, #we{es=Etab}) ->
     gb_sets:from_ordset(gb_trees:keys(Etab));
 get_all_items(face, #we{}=We) ->

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.96 2004/12/31 10:09:40 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.97 2004/12/31 10:30:43 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -160,8 +160,11 @@ visible_1(Fs) -> Fs.
 visible_2([F|Fs]) when F < 0 -> visible_2(Fs);
 visible_2(Fs) -> Fs.
 
-visible_vs(#we{es=Etab}) ->
-    visible_vs_1(gb_trees:values(Etab), []).
+visible_vs(#we{vc=Vct,es=Etab}=We) ->
+    case any_hidden(We) of
+	false -> gb_trees:keys(Vct);
+	true -> visible_vs_1(gb_trees:values(Etab), [])
+    end.
 
 visible_vs_1([#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}|Es], Acc0) ->
     Acc1 = if

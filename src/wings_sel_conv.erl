@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_conv.erl,v 1.2 2004/12/31 10:09:40 bjorng Exp $
+%%     $Id: wings_sel_conv.erl,v 1.3 2004/12/31 10:30:43 bjorng Exp $
 %%
 
 -module(wings_sel_conv).
@@ -49,8 +49,8 @@ less(St) -> St.
 
 vertex_selection(#st{selmode=body}=St) ->
     conv_sel(
-      fun(_, #we{vp=Vtab}) ->
-	      gb_sets:from_list(gb_trees:keys(Vtab))
+      fun(_, We) ->
+	      gb_sets:from_list(wings_we:visible_vs(We))
       end, vertex, St);
 vertex_selection(#st{selmode=face}=St) ->
     conv_sel(
@@ -195,8 +195,8 @@ face_selection(#st{selmode=edge}=St) ->
 	     end, face, St);
 face_selection(#st{selmode=vertex}=St) ->
     conv_sel(fun(Vs, We) ->
-		     Fs0 = gb_sets:from_ordset(wings_face:from_vs(Vs, We)),
-		     remove_invisible_faces(Fs0, We)
+		     Fs = wings_we:visible(wings_face:from_vs(Vs, We), We),
+		     gb_sets:from_ordset(Fs)
 	     end, face, St).
 
 face_more(St) ->
