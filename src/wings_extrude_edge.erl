@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.50 2003/09/26 07:14:58 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.51 2003/09/26 09:52:26 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -327,7 +327,6 @@ extrude_edges(Edges, ExtrudeDist, We) ->
     extrude_edges(Edges, gb_sets:empty(), ExtrudeDist, We).
 
 extrude_edges(Edges, ForbiddenFaces, ExtrudeDist, #we{next_id=Wid,es=Etab}=We0) ->
-    put(wings_extrude_dist, ExtrudeDist),
     G = digraph:new(),
     foreach(fun(Edge) ->
 		    digraph_edge(G, ForbiddenFaces, gb_trees:get(Edge, Etab))
@@ -341,7 +340,6 @@ extrude_edges(Edges, ForbiddenFaces, ExtrudeDist, #we{next_id=Wid,es=Etab}=We0) 
     NewVs = wings_we:new_items(vertex, We0, We1),
     We = connect(G, ExtrudeDist, Wid, We1),
     digraph:delete(G),
-    erase(wings_extrude_dist),
     {We,Vs,NewVs,gb_sets:from_list(Forbidden)}.
 
 new_vertex(V, G, Edges, ForbiddenFaces, ExtrudeDist, {We0,F0}=Acc) ->
