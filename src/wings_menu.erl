@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.35 2002/03/16 10:30:35 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.36 2002/03/18 08:03:44 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -338,6 +338,7 @@ set_hotkey(Val, #mi{sel=Sel,menu=Menu0}=Mi) ->
 popup_submenu(Button, X, Y, SubName, SubMenu0, Mi0) ->
     %% Only in advanced menu mode.
     case expand_submenu(Button, SubName, SubMenu0, Mi0) of
+	ignore -> keep;
 	Action when is_tuple(Action); is_atom(Action) ->
 	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
 	    wings_io:clear_menu_sel(),
