@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.42 2003/06/01 06:31:45 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.43 2003/06/01 08:12:10 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -413,7 +413,7 @@ draw_1(Dl) ->
 clean([_,#sp{}=Pd]) -> Pd;
 clean(Other) -> Other.
 
-proxy_smooth(#we{es=Etab,he=Hard}=We0, #sp{src_we=#we{es=Etab,he=Hard}}=Pd) ->
+proxy_smooth(#we{es=Etab,he=Hard,mat=M}=We0, #sp{src_we=#we{es=Etab,he=Hard,mat=M}}=Pd) ->
     We = inc_smooth(We0, Pd),
     Pd#sp{src_we=We0,we=We};
 proxy_smooth(We0, Pd) ->
