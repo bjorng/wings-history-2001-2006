@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.63 2004/02/11 23:40:14 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.64 2004/03/03 10:29:47 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -848,23 +848,23 @@ light_result(_Name, Ps0,
 %    erlang:display({?MODULE,?LINE,[Ps,Res1]}),
     {Ps,Res1}.
 
-light_result([{{?TAG,type},pointlight}|_]=Res) ->
-    split_list(Res, 5);
-light_result([{{?TAG,type},softlight}|_]=Res) ->
-    split_list(Res, 5);
+light_result([{{?TAG,type},pointlight}|_]=Ps) ->
+    split_list(Ps, 5);
+light_result([{{?TAG,type},softlight}|_]=Ps) ->
+    split_list(Ps, 5);
 light_result([{{?TAG,type},spotlight}|_]=Ps) ->
-    split_list(Ps, 10);
+    split_list(Ps, 11);
 light_result([{{?TAG,type},photonlight}|_]=Ps) ->
     split_list(Ps, 11);
 light_result([_,{{?TAG,background},_}|_]=Ps) ->
     split_list(Ps, 4);
-light_result([{{?TAG,type},hemilight}|_]=Res) ->
-    split_list(Res, 10);
-light_result([{{?TAG,type},pathlight}|_]=Res) ->
-    split_list(Res, 10);
-light_result(Tail) ->
-%    erlang:display({?MODULE,?LINE,Tail}),
-    {[],Tail}.
+light_result([{{?TAG,type},hemilight}|_]=Ps) ->
+    split_list(Ps, 10);
+light_result([{{?TAG,type},pathlight}|_]=Ps) ->
+    split_list(Ps, 10);
+light_result(Ps) ->
+%    erlang:display({?MODULE,?LINE,Ps}),
+    {[],Ps}.
 
 
 
