@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.27 2002/06/21 07:36:32 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.28 2002/06/24 18:53:35 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -208,14 +208,14 @@ render_object(#dlo{mirror=Matrix}=D, Mode, Work, RenderTrans) ->
     render_object_1(D, Mode, Work, RenderTrans),
     gl:popMatrix().
 
-render_object_1(#dlo{transparent=true}, _, false, false) -> ok;
-render_object_1(#dlo{transparent=false}, _, false, true) -> ok;
-render_object_1(#dlo{transparent=true}=D, _, false, true) ->
+render_object_1(D, Mode, true, _) ->
+    render_plain(D, Mode);
+render_object_1(#dlo{transparent=true}=D, _, false, RenderTrans) ->
     gl:disable(?GL_CULL_FACE),
-    render_smooth(D),
+    render_smooth(D, RenderTrans),
     gl:enable(?GL_CULL_FACE);
-render_object_1(D, _, false, _) -> render_smooth(D);
-render_object_1(D, Mode, true, _) -> render_plain(D, Mode).
+render_object_1(#dlo{transparent=false}=D, _, false, RenderTrans) ->
+    render_smooth(D, RenderTrans).
 
 render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
 
@@ -267,22 +267,25 @@ render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
     draw_hard_edges(D),
     draw_normals(D).
 
-render_smooth(#dlo{work=Work,smooth=DlistSmooth,wire=Wire}=D) ->
+render_smooth(#dlo{work=Work,smooth=Smooth}=D, RenderTrans) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(2.0, 2.0),
-    if
-	DlistSmooth == none ->
-	    %% While dragging, we don't have a smooth list.
-	    call(Work);
-	true ->
-	    gl:enable(?GL_BLEND),
-	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-	    call(DlistSmooth)
+    gl:enable(?GL_BLEND),
+    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    case {Smooth,RenderTrans} of
+	{none,false} -> call(Work);
+	{[Op,_],false} -> call(Op);
+	{[_,Tr],true} -> call(Tr);
+	{Smooth,true} when is_integer(Smooth) -> call(Smooth);
+	{_,_} -> ok
     end,
     gl:disable(?GL_POLYGON_OFFSET_FILL),
+    draw_edges(D).
+
+draw_edges(#dlo{work=Work,wire=Wire}=D) ->
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     case Wire of

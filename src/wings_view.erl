@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.62 2002/05/28 08:36:22 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.63 2002/06/24 18:53:35 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -22,8 +22,6 @@
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
-
--define(FOV, 45).
 
 -import(lists, [foreach/2,foldl/3]).
 
@@ -376,12 +374,9 @@ smooth_dlist(St) ->
 smooth_dlist(eol, _) -> eol;
 smooth_dlist(#dlo{smoothed=none,src_we=We0}=D, St) ->
     wings_io:disable_progress(),
-    List = gl:genLists(1),
-    gl:newList(List, ?GL_COMPILE),
     We = wings_subdiv:smooth(We0),
-    wings_draw:smooth_faces(We, St),
-    gl:endList(),
-    {D#dlo{smoothed=List},[]};
+    {List,Tr} = wings_draw:smooth_dlist(We, St),
+    {D#dlo{smoothed=List,transparent=Tr},[]};
 smooth_dlist(D, _) -> {D,[]}.
 
 smooth_redraw(#sm{st=St}=Sm) ->
@@ -390,23 +385,25 @@ smooth_redraw(#sm{st=St}=Sm) ->
     gl:cullFace(?GL_BACK),
     wings_view:projection(),
     wings_view:model_transformations(),
-    wings_draw_util:fold(fun(D, _) -> smooth_redraw(D, Sm) end, []),
+    wings_draw_util:fold(fun(D, _) -> smooth_redraw(D, Sm, false) end, []),
+    wings_draw_util:fold(fun(D, _) -> smooth_redraw(D, Sm, true) end, []),
     gl:popAttrib(),
     wings_io:update(St).
 
-smooth_redraw(#dlo{mirror=none}=D, Sm) ->
-    smooth_redraw_1(D, Sm);
-smooth_redraw(#dlo{mirror=Matrix}=D, Sm) ->
+smooth_redraw(#dlo{mirror=none}=D, Sm, Flag) ->
+    smooth_redraw_1(D, Sm, Flag);
+smooth_redraw(#dlo{mirror=Matrix}=D, Sm, Flag) ->
     gl:cullFace(?GL_BACK),
-    smooth_redraw_1(D, Sm),
+    smooth_redraw_1(D, Sm, Flag),
     gl:cullFace(?GL_FRONT),
     gl:pushMatrix(),
     gl:multMatrixf(Matrix),
-    smooth_redraw_1(D, Sm),
+    smooth_redraw_1(D, Sm, Flag),
     gl:popMatrix(),
-    gl:cullFace(?GL_BACK).
+    gl:cullFace(?GL_BACK);
+smooth_redraw(_, _, _) -> ok.
 
-smooth_redraw_1(#dlo{smoothed=Dlist}=D, Sm) ->
+smooth_redraw_1(#dlo{smoothed=Dlist,transparent=Trans}=D, Sm, RenderTrans) ->
     ?CHECK_ERROR(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:shadeModel(?GL_SMOOTH),
@@ -414,8 +411,16 @@ smooth_redraw_1(#dlo{smoothed=Dlist}=D, Sm) ->
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    gl:enable(?GL_CULL_FACE),
-    gl:callList(Dlist),
+    case Trans of
+	true -> gl:disable(?GL_CULL_FACE);
+	false -> gl:enable(?GL_CULL_FACE)
+    end,
+    case {Dlist,RenderTrans} of
+	{[Op,_],false} -> gl:callList(Op);
+	{[_,Tr],true} -> gl:callList(Tr);
+	{Smooth,true} when is_integer(Smooth) -> gl:callList(Smooth);
+	{_,_} -> ok
+    end,
     ?CHECK_ERROR(),
     wireframe(D, Sm).
 
@@ -457,9 +462,18 @@ init() ->
     wings_pref:set_default(show_materials, true),
     wings_pref:set_default(show_textures, true),
 
+    wings_pref:set_default(camera_fov, 45.0),
+    wings_pref:set_default(camera_hither, 0.25),
+    wings_pref:set_default(camera_yon, 1000.0),
+
     %% Always reset the following preferences + the view itself.
     wings_pref:set_value(workmode, true),
     wings_pref:set_value(orthogonal_view, false),
+
+    View = #view{fov=wings_pref:get_value(camera_fov),
+		 hither=wings_pref:get_value(camera_hither),
+		 yon=wings_pref:get_value(camera_yon)},
+    set_current(View),
     reset().
 
 init_light() ->
@@ -474,10 +488,11 @@ init_light() ->
     end.
 
 reset() ->
-    set_current(#view{origo={0.0,0.0,0.0},
-		      azimuth=-45.0,elevation=25.0,
-		      distance=?CAMERA_DIST,
-		      pan_x=0.0,pan_y=0.0}).
+    View = current(),
+    set_current(View#view{origin={0.0,0.0,0.0},
+			  azimuth=-45.0,elevation=25.0,
+			  distance=?CAMERA_DIST,
+			  pan_x=0.0,pan_y=0.0}).
 
 projection() ->
     gl:matrixMode(?GL_PROJECTION),
@@ -487,18 +502,18 @@ projection() ->
 
 perspective() ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    #view{distance=D,fov=Fov,hither=Hither,yon=Yon} = current(),
     case wings_pref:get_value(orthogonal_view) of
 	false ->
-	    glu:perspective(?FOV, W/H, 0.25, 1000.0);
+	    glu:perspective(Fov, W/H, Hither, Yon);
 	true ->
-	    #view{distance=D0} = current(),
 	    Aspect = W/H,
-	    Sz = 4.0 * D0 / ?CAMERA_DIST,
-	    gl:ortho(-Sz*Aspect, Sz*Aspect, -Sz, Sz, 0.25, 1000.0)
+	    Sz = 4.0 * D / ?CAMERA_DIST,
+	    gl:ortho(-Sz*Aspect, Sz*Aspect, -Sz, Sz, Hither, Yon)
     end.
 
 model_transformations() ->
-    #view{origo=Origo,distance=Dist0,azimuth=Az,
+    #view{origin=Origin,distance=Dist0,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     gl:matrixMode(?GL_MODELVIEW),
@@ -515,15 +530,15 @@ model_transformations() ->
     gl:translatef(PanX, PanY, -Dist),
     gl:rotatef(El, 1.0, 0.0, 0.0),
     gl:rotatef(Az, 0.0, 1.0, 0.0),
-    {OX,OY,OZ} = Origo,
+    {OX,OY,OZ} = Origin,
     gl:translatef(OX, OY, OZ).
 
 eye_point() ->
-    #view{origo=Origo,distance=Dist0,azimuth=Az,
+    #view{origin=Origin,distance=Dist0,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     Dist = Dist0 * math:sqrt((W*H) / (640*480)),
-    M0 = e3d_mat:translate(e3d_vec:neg(Origo)),
+    M0 = e3d_mat:translate(e3d_vec:neg(Origin)),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
     M2 = e3d_mat:mul(M1, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
     M = e3d_mat:mul(M2, e3d_mat:translate(-PanX, -PanY, Dist)),
@@ -531,7 +546,7 @@ eye_point() ->
 
 aim(#st{sel=[]}) ->
     View = current(),
-    set_current(View#view{origo=e3d_vec:zero()});
+    set_current(View#view{origin=e3d_vec:zero()});
 aim(St) ->
     Centers = wings_sel:centers(St),
     Origin0 = e3d_vec:average(Centers),
@@ -541,7 +556,7 @@ aim(St) ->
 	       D when D < Dist0 -> D;
  	       _Other -> Dist0
  	   end,
-    set_current(View#view{origo=Origin,distance=Dist,pan_x=0.0,pan_y=0.0}).
+    set_current(View#view{origin=Origin,distance=Dist,pan_x=0.0,pan_y=0.0}).
 
 frame(#st{sel=[],shapes=Shs}) ->
     BB = foldl(fun(We, BB) -> wings_vertex:bounding_box(We, BB) end,
@@ -555,9 +570,9 @@ frame_1(BB) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     C = e3d_vec:average(BB),
     R = e3d_vec:len(e3d_vec:sub(C, hd(BB))),
-    Dist = R/math:tan(?FOV*3.1416/2/180) / math:sqrt((W*H) / (640*480)),
-    View = current(),
-    set_current(View#view{origo=e3d_vec:neg(C),
+    #view{fov=Fov} = View = current(),
+    Dist = R/math:tan(Fov*3.1416/2/180) / math:sqrt((W*H) / (640*480)),
+    set_current(View#view{origin=e3d_vec:neg(C),
 			  distance=Dist,pan_x=0.0,pan_y=0.0}).
 
 toggle_lights() ->
