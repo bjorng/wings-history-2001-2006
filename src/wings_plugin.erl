@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.28 2003/09/11 20:14:06 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.29 2003/09/12 16:32:29 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,dialog_result/2,command/2,call_ui/1]).
@@ -252,7 +252,8 @@ install(Name) ->
 	beam -> install_beam(Name);
 	tar -> install_tar(Name)
     end,
-    init_dir(plugin_dir()).
+    init_dir(plugin_dir()),
+    wings_util:message("The plug-in was successfully installed.").
 
 install_file_type(Name) ->
     case filename:extension(Name) of
