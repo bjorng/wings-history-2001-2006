@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.74 2003/01/09 15:38:25 raimo_niskanen Exp $
+%%     $Id: wpc_autouv.erl,v 1.75 2003/01/10 07:17:44 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -736,7 +736,7 @@ get_texture(#uvstate{option=#setng{texsz={TexW,TexH}},sel=Sel,areas=As}=Uvs0) ->
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
     Current = wings_wm:viewport(),
-    {_,_,W0,H0} = wings_wm:viewport(top),
+    {W0,H0} = wings_wm:top_size(),
     {W,Wd} = calc_texsize(W0, TexW),
     {H,Hd} = calc_texsize(H0, TexH),
     set_viewport({0,0,W,H}),

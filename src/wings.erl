@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.191 2003/01/09 19:57:38 bjorng Exp $
+%%     $Id: wings.erl,v 1.192 2003/01/10 07:17:45 bjorng Exp $
 %%
 
 -module(wings).
@@ -134,10 +134,12 @@ init(File, Root) ->
     caption(St),
     wings_wm:init(),
     init_menubar(),
-    {W,H} = wings_wm:top_size(),
     Op = main_loop_noredraw(St),		%Replace crash handler
 						%with this handler.
-    wings_wm:new(geom, {0,0,?Z_GEOM}, {W,H}, Op),
+    {X,Y,W,H} = wings_wm:viewport(desktop),
+    {_,TopH} = wings_wm:top_size(),
+    wings_wm:toplevel(geom, "Geometry", {X,TopH-(Y+H),?Z_GEOM}, {W,H-20},
+		      [resizable,{anchor,nw}], Op),
     open_file(File),
 
     case catch wings_wm:enter_event_loop() of
@@ -260,6 +262,7 @@ handle_event_3(init_opengl, St) ->
     init_opengl(St);
 handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
+handle_event_3(resized, _) -> keep;
 handle_event_3(redraw, St) ->
     wings_draw:render(St),
     wings_io:info(info(St)),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.52 2003/01/09 19:57:41 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.53 2003/01/10 07:17:45 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -67,7 +67,7 @@
 
 init() ->
     wings_pref:set_default(window_size, {780,570}),
-    {W,H} = TopSize =wings_pref:get_value(window_size),
+    {W,H} = TopSize = wings_pref:get_value(window_size),
     put(wm_top_size, TopSize),
     case get(wings_os_type) of
 	{unix,sunos} ->
@@ -77,11 +77,13 @@ init() ->
     translation_change(),
     put(wm_windows, gb_trees:empty()),
     new(desktop, {0,0,?Z_DESKTOP}, {0,0}, {push,fun(_) -> keep end}),
-    new(message, {0,0,?Z_MESSAGE}, {0,0}, {seq,push,{replace,fun message_event/1}}),
+    new(message, {0,0,?Z_MESSAGE}, {0,0}, {push,fun message_event/1}),
     ButtonH = ?BUTTON_HEIGHT+4,
     new(buttons, {0,0,?Z_BUTTONS}, {W,ButtonH}, init_button()),
     new(menubar, {0,0,?Z_MENUBAR}, {0,0}, init_menubar()),
-    put(wm_main, geom).
+    put(wm_main, geom),
+    init_opengl(),
+    resize_windows(W, H).
 
 message(Message) ->
     wings_io:putback_event({wm,{message,get(wm_active),Message}}).
@@ -288,8 +290,7 @@ local_mouse_state() ->
     {B,X,Y}.
 
 enter_event_loop() ->
-    {W,H} = top_size(),
-    dispatch_event(#resize{w=W,h=H}),
+    init_opengl(),
     event_loop().
 
 event_loop() ->
@@ -307,7 +308,7 @@ dispatch_matching(Filter) ->
     Evs = wings_io:get_matching_events(Filter),
     foreach(fun dispatch_event/1, Evs).
 
-dispatch_event(#resize{w=W,h=H}=Event) ->
+dispatch_event(#resize{w=W,h=H}) ->
     ?CHECK_ERROR(),
     {SaveW,SaveH} =
 	case sdl_video:wm_isMaximized() of
@@ -316,8 +317,19 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
 	end,
     wings_pref:set_value(window_size, {SaveW,SaveH}),
     put(wm_top_size, {W,H}),
+    init_opengl(),
+    resize_windows(W, H),
+    dirty();
+dispatch_event({wm,WmEvent}) ->
+    wm_event(WmEvent);
+dispatch_event(Event) ->
+    case find_active(Event) of
+	none -> ok;
+	Active -> do_dispatch(Active, Event)
+    end.
 
-    init_opengl(W, H),
+resize_windows(W, H) ->    
+    Event = #resize{w=W,h=H},
 
     MenubarData0 = get_window_data(menubar),
     MenubarH = ?CHAR_HEIGHT+6,
@@ -341,10 +353,6 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
     ButtonData = send_event(ButtonData1, Event#resize{w=W}),
     put_window_data(buttons, ButtonData),
 
-    GeomData0 = get_window_data(geom),
-    GeomData = GeomData0#win{x=0,y=MenubarH,w=W,h=H-MsgH-ButtonH-MenubarH},
-    put_window_data(geom, GeomData),
-
     DesktopData0 = get_window_data(desktop),
     DesktopData = DesktopData0#win{x=0,y=MenubarH,w=W,h=H-MsgH-ButtonH-MenubarH},
     put_window_data(desktop, DesktopData),
@@ -355,15 +363,6 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
 	    AutoUVData0 = get_window_data(autouv),
 	    AutoUVData = send_event(AutoUVData0, Event),
 	    put_window_data(autouv, AutoUVData)
-    end,
-
-    dirty();
-dispatch_event({wm,WmEvent}) ->
-    wm_event(WmEvent);
-dispatch_event(Event) ->
-    case find_active(Event) of
-	none -> ok;
-	Active -> do_dispatch(Active, Event)
     end.
 
 do_dispatch(Active, Ev) ->
@@ -408,7 +407,8 @@ maybe_clear(_, _) -> ok.
 reinit_opengl() ->
     wings_io:putback_event({wm,init_opengl}).
 
-init_opengl(W, H) ->
+init_opengl() ->
+    {W,H} = get(wm_top_size),
     set_video_mode(W, H),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
@@ -544,8 +544,7 @@ wm_event({send_after_redraw,Name,Ev}) ->
 wm_event({callback,Cb}) ->
     Cb();
 wm_event(init_opengl) ->
-    {W,H} = get(wm_top_size),
-    init_opengl(W, H).
+    init_opengl().
 
 %%%
 %%% Finding the active window.
@@ -1057,8 +1056,8 @@ new_controller(Client, Title, Flags) ->
     TitleBarH = ?LINE_HEIGHT+3,
     #win{x=X,y=Y,z=Z,w=W0} = Win = get_window_data(Client),
     Controller = {controller,Client},
-    Controlled0 = ctrl_create_windows(Flags, Client, Win),
-    Controlled = [Controller,Client|Controlled0],
+    Controlled0 = ctrl_create_windows(reverse(sort(Flags)), Client, Win),
+    Controlled = [Client,Controller|Controlled0],
     W = case is_window({vscroller,Client}) of
 	    false -> W0;
 	    true -> W0 + wings_win_scroller:width()
@@ -1090,7 +1089,10 @@ ctrl_anchor(Controlled, Flags, Size, TitleBarH) ->
 ctrl_anchor_1(nw, Controlled, _, Th) ->
     update_windows(Controlled, [{dy,Th}]);
 ctrl_anchor_1(ne, Controlled, {W,_}, Th) ->
-    update_windows(Controlled, [{dx,-W},{dy,Th}]).
+    update_windows(Controlled, [{dx,-W},{dy,Th}]);
+ctrl_anchor_1(sw, [Client|_]=Controlled, _, Th) ->
+    {_,_,_,H} = viewport(Client),
+    update_windows(Controlled, [{dy,Th-H}]).
 
 get_ctrl_event(Cs) ->
     {replace,fun(Ev) -> ctrl_event(Ev, Cs) end}.
@@ -1203,4 +1205,7 @@ resize_event(_, _) -> keep.
 
 resize_pos(Client) ->
     #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Client),
-    {X+W,Y+H-13,Z+0.5}.
+    case is_window({vscroller,Client}) of
+	false ->  {X+W-13,Y+H-13,Z+0.5};
+	true -> {X+W,Y+H-13,Z+0.5}
+    end.
