@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.90 2003/02/25 13:33:28 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.91 2003/02/26 16:04:25 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -134,8 +134,7 @@ delete_from(Level) ->
 
 setup_menu_killer(#mi{owner=Owner}) ->
     case wings_wm:is_window(menu_killer) of
-	true ->
-	    wings_wm:raise(menu_killer);
+	true -> ok;
 	false ->
 	    Op = {push,fun(Ev) -> menu_killer(Ev, Owner) end},
 	    {TopW,TopH} = wings_wm:top_size(),
