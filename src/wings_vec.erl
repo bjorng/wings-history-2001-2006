@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.80 2003/08/06 05:06:26 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.81 2003/08/06 05:23:57 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -446,7 +446,13 @@ get_vec(face, [Face1,Face2], We) ->
     Center2 = wings_face:center(Face2, We),
     Center = e3d_vec:average([Center1,Center2]),
     Vec = e3d_vec:norm(e3d_vec:sub(Center1, Center2)),
-    [{{Center,Vec},"Direction between faces saved as axis."}];
+    Face1n = wings_face:normal(Face1, We),
+    Face2n = wings_face:normal(Face2, We),
+    Normal = e3d_vec:norm(e3d_vec:add(Face1n, Face2n)),
+    [{{Center,Vec},"Direction between face centers saved as axis "
+      "(press \"2\" to save average of face normals)."},
+     {{Center,Normal},"Average of face normal saved as axis "
+      "(press \"1\" to save direction between face centers)."}];
 get_vec(face, Faces, #we{vp=Vtab}=We) ->
     case wings_vertex:outer_partition(Faces, We) of
 	[Vs] ->
