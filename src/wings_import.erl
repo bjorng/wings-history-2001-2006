@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.9 2003/05/04 07:13:30 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.10 2003/05/09 06:12:03 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -25,17 +25,8 @@ import(#e3d_file{objs=Objs,mat=Mat}, St0) ->
     Suffix = " of " ++ integer_to_list(NumObjs),
     {UsedMat,St1} = translate_objects(Objs, gb_sets:empty(),
 				      1, Suffix, St0),
-    {St2,NameMap} = add_materials(UsedMat, Mat, St1),
-    St = rename_materials(NameMap, St0, St2),
-    case gb_trees:size(St#st.shapes)-gb_trees:size(St0#st.shapes) of
-	NumObjs -> St;
-	N ->
-	    Warn = integer_to_list(NumObjs-N) ++
-		" object(s) out of " ++
-		integer_to_list(NumObjs) ++
-		" object(s) could not be converted.",
-	    {warning,Warn,St}
-    end.
+    {St,NameMap} = add_materials(UsedMat, Mat, St1),
+    rename_materials(NameMap, St0, St).
 
 translate_objects([#e3d_object{name=Name}=Obj|Os], UsedMat0,
 		  I, Suffix, St0) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.29 2003/05/04 10:00:41 bjorng Exp $
+%%     $Id: wpa.erl,v 1.30 2003/05/09 06:12:04 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,yes_no/1,
@@ -72,11 +72,11 @@ bind_virtual(Key, Mods, Command) ->
 %%% Import/export support.
 %%%
 
-%% returns: St | {warning,WarningMessage,St}
+%% returns: St
 import(#e3d_file{}=E3dFile, St) ->
     wings_import:import(E3dFile, St).
 
-%% returns: St | {error,Message} | {warning,WarningMessage,St}
+%% returns: St | {error,Message}
 import(Props, Importer, St) ->
     wings_file:import(Props, Importer, St).
 

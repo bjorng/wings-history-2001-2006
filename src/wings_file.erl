@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.116 2003/05/07 06:55:31 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.117 2003/05/09 06:12:03 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -109,13 +109,8 @@ command(revert, St0) ->
 	    St0;
 	#st{}=St -> {save_state,St}
     end;
-command({import,ndo}, St0) ->
-    case import_ndo(St0) of
-	{warning,Warn,St} ->
-	    wings_util:message(Warn, St),
-	    {save_state,St};
-	St -> {save_state,St}
-    end;
+command({import,ndo}, St) ->
+    import_ndo(St);
 command(import_image, St) ->
     import_image(),
     St;
@@ -456,9 +451,6 @@ import(Ps, Importer, St0) ->
 	Name ->
 	    case ?SLOW(do_import(Importer, Name, St0)) of
 		#st{}=St -> St;
-		{warning,Warn,St} ->
-		    wings_util:message(Warn, St),
-		    St;
 	    	{error,Reason} ->
 		    wings_util:error("Import failed: " ++ Reason)
 	    end
@@ -471,7 +463,7 @@ import_ndo(St0) ->
 	Name ->
 	    case ?SLOW(wings_ff_ndo:import(Name, St0)) of
 		#st{}=St ->
-		    St;
+		    {save_state,St};
 	    	{error,Reason} ->
 		    wings_util:error("Import failed: " ++ Reason),
 		    St0
