@@ -8,22 +8,25 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.32 2003/10/30 22:21:55 dgud Exp $
+%%     $Id: wings_image.erl,v 1.33 2003/11/10 14:22:48 dgud Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
 	 from_file/1,new/2,new_temp/2,create/1,
 	 rename/2,txid/1,info/1,images/0,
-	 bumpid/1, normal_cubemapid/0,
+	 bumpid/1, normal_cubemapid/0, default/1,
 	 next_id/0,delete_older/1,delete_from/1,delete/1,
 	 update/2,update_filename/2,draw_preview/5,
 	 window/1]).
 
+-export([loop/1]).
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 -include("e3d_image.hrl").
 -import(lists, [reverse/1,foreach/2,flatten/1]).
+
+-define(DEFAULT, '$Default Img').
 
 init() ->
     spawn_opt(fun server/0, [link,{fullsweep_after,0}]).
@@ -65,6 +68,9 @@ bumpid(Id) ->
 
 normal_cubemapid() ->
     req(normalCM, false).
+
+default(Type) ->
+    req({default,Type}, false).
 
 info(Id) ->
     req({info,Id}, false).
@@ -189,6 +195,17 @@ handle(normalCM, S) ->
 	 TxId -> 
 	     TxId
      end,S};
+handle({default,all},S) ->
+    All = [diffuse, bump, gloss],
+    Ids = [{Type,element(1, handle({default,Type},S))} || Type <- All],
+    {Ids, S};
+handle({default,Type},S) ->
+    {case get({?DEFAULT, Type}) of
+	 undefined -> 
+	     create_default(Type);
+	 TxId -> 
+	     TxId
+     end,S};
 handle({info,Id}, #ist{images=Images}=S) ->
     case gb_trees:lookup(Id, Images) of
 	{value,E3D} -> {E3D,S};
@@ -246,6 +263,18 @@ create_bump(Id, #ist{images=Images0}) ->
 	_ ->
 	    none
     end.
+
+create_default(bump) ->
+    Img = #e3d_image{width=1,height=1,        % Default direction
+		     image= <<127,127,255>>}, % Normal points to +Z
+    make_texture({?DEFAULT,bump},Img);
+create_default(Type) when Type == diffuse; Type == gloss ->
+    Img = #e3d_image{width=1,height=1,        % Default diffuse/spec
+		     image= <<255,255,255>>}, % White and full specular.
+    make_texture({?DEFAULT,Type},Img);
+create_default(Type) -> 
+    io:format("~p Don't know about the type ~p ignoreing~n", [?MODULE,Type]),
+    none.
 
 create_normal_cube_map() ->
     case wings_util:is_gl_ext('GL_ARB_texture_cube_map') of
