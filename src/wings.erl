@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.39 2001/11/10 10:27:50 bjorng Exp $
+%%     $Id: wings.erl,v 1.40 2001/11/12 19:28:45 bjorng Exp $
 %%
 
 -module(wings).
@@ -458,12 +458,8 @@ command({vertex,bevel}, St) ->
     wings_vertex_cmd:bevel(St);
 command({vertex,{extrude,Type}}, St) ->
     wings_vertex_cmd:extrude(Type, St);
-command({vertex,{deform,{Deformer,{Primary,Effect}}}}, St) ->
-    wings_deform:Deformer(Primary, Effect, St);
-command({vertex,{deform,{Deformer,Axis}}}, St) ->
-    wings_deform:Deformer(Axis, St);
-command({vertex,{deform,Deformer}}, St) ->
-    wings_deform:Deformer(St);
+command({vertex,{deform,Deform}}, St) ->
+    wings_deform:command(Deform, St);
 
 %% Magnetic commands.
 command({influence_radius,Sign}, #st{inf_r=InfR0}=St) ->
@@ -540,7 +536,7 @@ menu(X, Y, edit, St) ->
 	    separator,
 	    {"View Material [ALPHA]",{material,materials(St)}},
 	    separator,
-	    {"Preferences",{preferences,wings_pref:sub_menu(X, Y, St)}}},
+	    {"Preferences",{preferences,wings_pref:sub_menu(St)}}},
     wings_menu:menu(X, Y, edit, Menu);
 menu(X, Y, view, St) ->
     wings_view:menu(X, Y, St);
@@ -672,27 +668,9 @@ vertex_menu(X, Y, St) ->
 	    separator,
 	    {"Magnet",{magnet,{{"Gaussian",{gaussian,directions()}},
 			       {"Linear",{linear,directions()}}}}},
-	    {"Deform",{deform,{{"Crumple",crumple},
-			       {"Inflate",inflate},
-			       {"Taper",{taper,
-					 {{"Along",ignore},
-					  separator,
-					  {"X",taper(x)},
-					  {"Y",taper(y)},
-					  {"Z",taper(z)}}}},
-			       {"Twist",{twist,XYZ}}}}}},
+	    {"Deform",wings_deform:sub_menu(St)}},
     wings_menu:menu(X, Y, vertex, Menu).
 
-taper(x) -> taper_1([yz,y,z], x, []);
-taper(y) -> taper_1([xz,x,z], y, []);
-taper(z) -> taper_1([xy,x,y], z, []).
-
-taper_1([H|T], Label, Acc) ->		    
-    taper_1(T, Label, [{upper(atom_to_list(H)),H}|Acc]);
-taper_1([], Label, Acc) ->
-    {Label,list_to_tuple([{"Effect",ignore},
-			  separator|reverse(Acc)])}.
-    
 edge_menu(X, Y, St) ->
     Menu = {{"Edge operations",ignore},
 	    separator,
@@ -1102,12 +1080,6 @@ cap([$_|T], Any) ->
 cap([H|T], Any) ->
     [H|cap(T, false)];
 cap([], Flag) -> [].
-
-upper([Lower|T]) when $a =< Lower, Lower =< $z ->
-    [Lower-$a+$A|upper(T)];
-upper([H|T]) ->
-    [H|upper(T)];
-upper([]) -> [].
 
 -ifdef(DEBUG).
 wings() -> "Wings 3D [debug]".

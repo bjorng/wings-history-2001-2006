@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.15 2001/11/09 07:03:57 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.16 2001/11/12 19:28:45 bjorng Exp $
 %%
 
 -module(wings_util).
--export([share/1,share/3,make_vector/1,ask/3,
+-export([share/1,share/3,make_vector/1,ask/3,upper/1,
 	 fold_shape/3,fold_face/3,fold_vertex/3,fold_edge/3,
 	 foreach_shape/2,foreach_face/2,foreach_edge/2,
 	 average_normals/1,
@@ -50,6 +50,12 @@ ask(true, Qs, Fun) ->
 	aborted -> aborted;
 	Ns -> Fun(Ns)
     end.
+
+upper([Lower|T]) when $a =< Lower, Lower =< $z ->
+    [Lower-$a+$A|upper(T)];
+upper([H|T]) ->
+    [H|upper(T)];
+upper([]) -> [].
 
 %%%
 %%% `fold' functions.

@@ -8,17 +8,48 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.12 2001/10/24 08:51:39 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.13 2001/11/12 19:28:45 bjorng Exp $
 %%
 
 -module(wings_deform).
--export([crumple/1,inflate/1,taper/3,twist/2]).
+-export([sub_menu/1,command/2]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1]).
 -define(HUGE, 1.0E200).
 -define(PI, 3.1416).
 -compile({inline,[{mix,2}]}).
+
+sub_menu(St) ->
+    XYZ = {{"X",x},
+	   {"Y",y},
+	   {"Z",z}},
+    {deform,{{"Crumple",crumple},
+	     {"Inflate",inflate},
+	     {"Taper",{taper,
+		       {{"Along",ignore},
+			separator,
+			{"X",taper(x)},
+			{"Y",taper(y)},
+			{"Z",taper(z)}}}},
+	     {"Twist",{twist,XYZ}},
+	     {"Twisty Twist",{twisty_twist,XYZ}}}}.
+
+taper(x) -> taper_1([yz,y,z], x, []);
+taper(y) -> taper_1([xz,x,z], y, []);
+taper(z) -> taper_1([xy,x,y], z, []).
+
+taper_1([H|T], Label, Acc) ->		    
+    taper_1(T, Label, [{wings_util:upper(atom_to_list(H)),H}|Acc]);
+taper_1([], Label, Acc) ->
+    {Label,list_to_tuple([{"Effect",ignore},
+			  separator|reverse(Acc)])}.
+
+command(crumple, St) -> crumple(St);
+command(inflate, St) -> inflate(St);
+command({taper,{Primary,Effect}}, St) -> taper(Primary, Effect, St);
+command({twist,Axis}, St) -> twist(Axis, St);
+command({twisty_twist,Axis}, St) -> twisty_twist(Axis, St).
 
 %%
 %% The Crumple deformer.
@@ -128,7 +159,6 @@ taper_fun(Key, Effect, {IX,IY,IZ}=MinR, {AX,AY,AZ}=MaxR) ->
     Min = element(Key, MinR),
     Range = element(Key, MaxR) - element(Key, MinR),
     {Ekey1,Ekey2} = effect(Effect),
-    io:format("~w\n", [{Ekey1,Ekey2}]),
     Eoffset1 = (element(Ekey1, MinR)+element(Ekey1, MaxR))/2,
     case Ekey2 of
 	none ->
@@ -169,10 +199,12 @@ twist(Axis, St) ->
     wings_drag:init_drag(Tvs, none, St).
 
 twist(#shape{id=Id,sh=We}, Vs0, Axis, Acc) ->
-    Tf = twist_fun(Axis),
     Key = key(Axis),
-    {Min,Max} = range(Key, We),
-    Range = Max-Min,
+    [MinR,MaxR] = wings_vertex:bounding_box(Vs0, We),
+    Min = element(Key, MinR),
+    Max = element(Key, MaxR),
+    Range = Max - Min,
+    Tf = twist_fun(Axis, e3d_vec:average([MinR,MaxR])),
     Vs = gb_sets:to_list(Vs0),
     Fun = fun(#shape{sh=#we{vs=Vtab0}=W}=Sh, Dx, Dy, St) ->
 		  Angle = Dx * 15,
@@ -191,7 +223,73 @@ twist(#shape{id=Id,sh=We}, Vs0, Axis, Acc) ->
 	  end,
     [{Id,Fun}|Acc].
 
-twist_fun(x) ->
+twist_fun(x, {_,Cy,Cz}) ->
+    fun(U, Min, {X,Y0,Z0})
+       when float(U), float(Min), float(X), float(Y0), float(Z0) ->
+	    Angle = U*(X-Min),
+	    Cos = math:cos(Angle),
+	    Sin = math:sin(Angle),
+	    Y = Y0 - Cy,
+	    Z = Z0 - Cz,
+	    {X,Y*Cos-Z*Sin+Cy,Y*Sin+Z*Cos+Cz}
+    end;
+twist_fun(y, {Cx,_,Cz}) ->
+    fun(U, Min, {X0,Y,Z0})
+       when float(U), float(Min), float(X0), float(Y), float(Z0) ->
+	    Angle = U*(Y-Min),
+	    Cos = math:cos(Angle),
+	    Sin = math:sin(Angle),
+	    X = X0 - Cx,
+	    Z = Z0 - Cz,
+	    {X*Cos+Z*Sin+Cx,Y,Z*Cos-X*Sin+Cz}
+    end;
+twist_fun(z, {Cx,Cy,_}) ->
+    fun(U, Min, {X0,Y0,Z})
+       when float(U), float(Min), float(X0), float(Y0), float(Z) ->
+	    Angle = U*(Z-Min),
+	    Cos = math:cos(Angle),
+	    Sin = math:sin(Angle),
+	    X = X0 - Cx,
+	    Y = Y0 - Cy,
+	    {X*Cos-Y*Sin+Cx,X*Sin+Y*Cos+Cy,Z}
+    end.
+
+%%%
+%%% The Twist deformer.
+%%%
+
+twisty_twist(Axis, St) ->
+    Tvs = wings_sel:fold_shape(fun(Sh, Vs, Acc) ->
+				       twisty_twist(Sh, Vs, Axis, Acc)
+			       end, [], St),
+    wings_drag:init_drag(Tvs, none, St).
+
+twisty_twist(#shape{id=Id,sh=We}, Vs0, Axis, Acc) ->
+    Tf = twisty_twist_fun(Axis),
+    Key = key(Axis),
+    [MinR,MaxR] = wings_vertex:bounding_box(Vs0, We),
+    Min = element(Key, MinR),
+    Max = element(Key, MaxR),
+    Range = Max - Min,
+    Vs = gb_sets:to_list(Vs0),
+    Fun = fun(#shape{sh=#we{vs=Vtab0}=W}=Sh, Dx, Dy, St) ->
+		  Angle = Dx * 15,
+		  U = (Angle / 180.0 * ?PI)/Range,
+		  wings_io:message(lists:flatten(
+				     io_lib:format("A:~10p",
+						   [Angle]))),
+		  Vt = foldl(
+			 fun(V, Vt) ->
+				 Rec = gb_trees:get(V, Vt),
+				 #vtx{pos=Pos0} = Rec,
+				 Pos = Tf(U, Min, Pos0),
+				 gb_trees:update(V, Rec#vtx{pos=Pos}, Vt)
+			 end, Vtab0, Vs),
+		  {shape,Sh#shape{sh=W#we{vs=Vt}}}
+	  end,
+    [{Id,Fun}|Acc].
+
+twisty_twist_fun(x) ->
     fun(U, Min, {X,Y,Z})
        when float(U), float(Min), float(X), float(Y), float(Z) ->
 	    Angle = U*(X-Min),
@@ -199,7 +297,7 @@ twist_fun(x) ->
 	    Sin = math:sin(Angle),
 	    {X,Y*Cos-Z*Sin,Y*Sin+Z*Cos}
     end;
-twist_fun(y) ->
+twisty_twist_fun(y) ->
     fun(U, Min, {X,Y,Z})
        when float(U), float(Min), float(X), float(Y), float(Z) ->
 	    Angle = U*(Y-Min),
@@ -207,7 +305,7 @@ twist_fun(y) ->
 	    Sin = math:sin(Angle),
 	    {X*Cos+Z*Sin,Y,Z*Cos-X*Sin}
     end;
-twist_fun(z) ->
+twisty_twist_fun(z) ->
     fun(U, Min, {X,Y,Z})
        when float(U), float(Min), float(X), float(Y), float(Z) ->
 	    Angle = U*(Z-Min),
@@ -223,14 +321,3 @@ twist_fun(z) ->
 key(x) -> 1;
 key(y) -> 2;
 key(z) -> 3.
-
-range(Key, #we{vs=Vtab}) ->
-    [#vtx{pos=Pos0}|Vrecs] = gb_trees:values(Vtab),
-    M = element(Key, Pos0),
-    foldl(fun(#vtx{pos=Pos}, {Min0,Max0}=A) ->
-		  case element(Key, Pos) of
-		      Low when Low < Min0 -> {Low,Max0};
-		      High when Max0 < High -> {Min0,High};
-		      _ -> A
-		  end
-	  end, {M,M}, Vrecs).

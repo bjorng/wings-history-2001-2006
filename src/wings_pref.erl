@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.7 2001/11/12 07:22:59 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.8 2001/11/12 19:28:45 bjorng Exp $
 %%
 
 -module(wings_pref).
 -export([init/0,finish/0,
-	 sub_menu/3,command/1,
+	 sub_menu/1,command/1,
 	 get_value/1,get_value/2,set_value/2,set_default/2,
 	 locate/1]).
 
@@ -40,7 +40,7 @@ finish() ->
     catch file:write_file(PrefFile, Str),
     ok.
 
-sub_menu(X, Y, St) ->
+sub_menu(St) ->
     M = map(fun({Desc,Key,_}) -> {Desc,Key};
 	       (separator) -> separator
 	    end, presets()),
