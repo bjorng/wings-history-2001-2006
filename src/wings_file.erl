@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.104 2003/02/22 11:11:52 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.105 2003/02/26 12:33:40 dgud Exp $
 %%
 
 -module(wings_file).
@@ -370,17 +370,16 @@ set_autosave_timer() ->
     case wings_pref:get_value(autosave_time) of
 	0 -> ok;
 	N when is_number(N) ->
-	    wings_io:set_timer(trunc(N*60000), {action,{file,autosave}})
+	    Event = {timeout, make_ref(), {event,{action,{file,autosave}}}},
+	    timer:send_interval(trunc(N*60000), self(), Event)
+%	    wings_io:set_timer(trunc(N*60000), {action,{file,autosave}})
     end.
     
 autosave(#st{file=undefined} = St) -> 
-    set_autosave_timer(),
     St;
 autosave(#st{saved=true} = St) ->
-    set_autosave_timer(),
     St;
 autosave(#st{saved=auto} = St) ->
-    set_autosave_timer(),
     St;
 autosave(#st{file=Name}=St) ->
     Auto = autosave_filename(Name),
@@ -389,10 +388,8 @@ autosave(#st{file=Name}=St) ->
     %% But I don't want to copy a really big model either.
     case ?SLOW(wings_ff_wings:export(Auto, St)) of
 	ok ->
-	    set_autosave_timer(),
 	    wings:caption(St#st{saved=auto});
 	{error,Reason} ->
-	    set_autosave_timer(),
 	    wings_util:error("AutoSave failed: " ++ Reason),
             St
     end.
