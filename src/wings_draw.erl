@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.52 2002/01/25 09:04:36 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.53 2002/01/28 08:51:37 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -407,20 +407,20 @@ lookup_pos(Key, Tree) ->
 draw_normals() ->
     case get_dlist() of
 	#dl{normals=none} -> ok;
-	#dl{normals=DL} -> gl:callList(DL)
+	#dl{normals={_,DL}} -> gl:callList(DL)
     end.
 
-make_normals_dlist(St) ->
+make_normals_dlist(#st{selmode=Mode}=St) ->
     #dl{normals=OldDl} = DL = get_dlist(),
     case {wings_pref:get_value(show_normals),OldDl} of
 	{false,none} -> ok;
 	{false,_} -> put_dlist(DL#dl{normals=none});
-	{true,none} ->
+	{true,{Mode,DL}} -> ok;
+	{true,_} ->
 	    gl:newList(?DL_NORMALS, ?GL_COMPILE),
 	    make_normals_dlist_1(St),
 	    gl:endList(),
-	    put_dlist(DL#dl{normals=?DL_NORMALS});
-	{true,_} -> ok
+	    put_dlist(DL#dl{normals={Mode,?DL_NORMALS}})
     end.
 
 make_normals_dlist_1(#st{selmode=Mode,shapes=Shs}) ->
