@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.36 2003/03/27 10:25:11 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.37 2003/04/05 07:16:51 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -50,30 +50,41 @@ import_vsn2(Shapes, Materials0, Props, St0) ->
     Materials1 = translate_materials(Materials0),
     Materials = translate_map_images(Materials1, Images),
     {St1,NameMap0} = wings_material:add_materials(Materials, St0),
+    NameMap1 = gb_trees:from_orddict(sort(NameMap0)),
+    NameMap = optimize_name_map(Materials, NameMap1, []),
     St = import_props(Props, St1),
-    NameMap = gb_trees:from_orddict(sort(NameMap0)),
     import_objects(Shapes, NameMap, St).
+
+optimize_name_map([{Name,_}|Ms], NameMap, Acc) ->
+    case gb_trees:lookup(Name, NameMap) of
+	none ->
+	    optimize_name_map(Ms, NameMap, [{Name,#face{mat=Name}}|Acc]);
+	{value,NewName} ->
+	    optimize_name_map(Ms, NameMap, [{Name,#face{mat=NewName}}|Acc])
+    end;
+optimize_name_map([], _, Acc) -> gb_trees:from_orddict(sort(Acc)).
 
 import_objects(Shapes, NameMap, #st{selmode=Mode,shapes=Shs0,onext=Oid0}=St) ->
     {Objs,Oid} = import_objects(Shapes, Mode, NameMap, Oid0, []),
-    Shs = gb_trees:from_orddict(gb_trees:to_list(Shs0) ++ reverse(Objs)),
+    Shs = gb_trees:from_orddict(gb_trees:to_list(Shs0) ++ Objs),
     St#st{shapes=Shs,onext=Oid}.
 
 import_objects([Sh0|Shs], Mode, NameMap, Oid, ShAcc) ->
     {object,Name,{winged,Es,Fs,Vs,He},Props} = Sh0,
     ObjMode = import_object_mode(Props),
-    Etab0 = import_edges(Es, #edge{}, 0, []),
-    Etab = gb_trees:from_orddict(Etab0),
-    Ftab0 = import_faces(Fs, #face{}, NameMap, 0, []),
-    Ftab = face_add_incident(Ftab0, Etab0),
+    Etab = import_edges(Es, #edge{}, 0, []),
+    Ftab = import_faces(Fs, #face{}, NameMap, 0, []),
     Vtab = import_vs(Vs, 0, []),
     Htab = gb_sets:from_list(He),
     Perm = import_perm(Props),
-    We0 = #we{es=Etab,fs=Ftab,vp=Vtab,he=Htab,perm=Perm,
-	      id=Oid,name=Name,mode=ObjMode},
-    We = wings_we:rebuild(We0),
-    import_objects(Shs, Mode, NameMap, Oid+1, [{Oid,We}|ShAcc]);
-import_objects([], _Mode, _NameMap, Oid, ShAcc) -> {ShAcc,Oid}.
+    We = #we{es=Etab,fs=Ftab,vp=Vtab,he=Htab,perm=Perm,
+	     id=Oid,name=Name,mode=ObjMode},
+    import_objects(Shs, Mode, NameMap, Oid+1, [We|ShAcc]);
+import_objects([], _Mode, _NameMap, Oid, Objs0) ->
+    %%io:format("flat_size: ~p\n", [erts_debug:flat_size(Objs0)]),
+    Objs = share_list(Objs0),
+    %%io:format("size: ~p\n", [erts_debug:size(Objs)]),
+    {Objs,Oid}.
     
 import_edges([E|Es], Template, Edge, Acc) ->
     Rec = import_edge(E, Template),
@@ -86,10 +97,7 @@ import_edge([{edge,Va,Vb,Lf,Rf,Ltpr,Ltsu,Rtpr,Rtsu}|T], Rec0) ->
     import_edge(T, Rec);
 import_edge([{color,Bin}|T], Rec) ->
     <<R1/float,G1/float,B1/float,R2/float,G2/float,B2/float>> = Bin,
-    case {wings_color:share({R1,G1,B1}),wings_color:share({R2,G2,B2})} of
-	{Same,Same} -> import_edge(T, Rec#edge{a=Same,b=Same});
-	{A,B} -> import_edge(T, Rec#edge{a=A,b=B})
-    end;
+    import_edge(T, Rec#edge{a={R1,G1,B1},b={R2,G2,B2}});
 import_edge([{uv,Bin}|T], Rec) ->
     <<U1/float,V1/float,U2/float,V2/float>> = Bin,
     import_edge(T, Rec#edge{a={U1,V1},b={U2,V2}});
@@ -100,25 +108,22 @@ import_edge([], Rec) -> Rec.
 import_faces([F|Fs], Template, NameMap, Face, Acc) ->
     Rec = import_face(F, NameMap, Template),
     import_faces(Fs, Template, NameMap, Face+1, [{Face,Rec}|Acc]);
-import_faces([], _Template, _NameMap, _Face, Acc) -> reverse(Acc).
+import_faces([], _, _, _, Acc) -> reverse(Acc).
 
-import_face([{material,Mat0}|T], NameMap, Rec) ->
-    case gb_trees:lookup(Mat0, NameMap) of
-	none -> import_face(T, NameMap, Rec#face{mat=Mat0});
-	{value,NewName} -> import_face(T, NameMap, Rec#face{mat=NewName})
-    end;
+import_face([{material,Name}|T], NameMap, _) ->
+    Rec = gb_trees:get(Name, NameMap),
+    import_face(T, NameMap, Rec);
 import_face([_|T], NameMap, Rec) ->
     import_face(T, NameMap, Rec);
-import_face([], _NameMap, Rec) -> Rec.
+import_face([], _, Rec) -> Rec.
 
 import_vs([Vtx|Vs], V, Acc) -> 
     Rec = import_vertex(Vtx, []),
     import_vs(Vs, V+1, [{V,Rec}|Acc]);
-import_vs([], _V, Acc) ->
-    gb_trees:from_orddict(reverse(Acc)).
+import_vs([], _V, Acc) -> reverse(Acc).
 
 import_vertex([<<X/float,Y/float,Z/float>>|T], _) ->
-    import_vertex(T, wings_util:share(X, Y, Z));
+    import_vertex(T, {X,Y,Z});
 import_vertex([_|T], Rec) ->
     import_vertex(T, Rec);
 import_vertex([], Rec) -> Rec.
@@ -232,6 +237,94 @@ translate_map_images_2([{Type,Im0}|T], ImMap) when is_integer(Im0) ->
 translate_map_images_2([H|T], ImMap) ->
     [H|translate_map_images_2(T, ImMap)];
 translate_map_images_2([], _) -> [].
+
+%%%
+%%% Sharing of floating point numbers on import.
+%%%
+
+share_list(Wes) ->
+    Tabs0 = [{Vtab,Etab} || #we{vp=Vtab,es=Etab} <- Wes],
+    Floats = share_floats(Tabs0, tuple_to_list(wings_color:white())),
+    Tabs = share_list_1(Tabs0, Floats, gb_trees:empty(), []),
+    share_list_2(Tabs, Wes, []).
+
+share_list_1([{Vtab0,Etab0}|Ts], Floats, Tuples0, Acc) ->
+    Vtab = share_vs(Vtab0, Floats, []),
+    {Etab,Tuples} = share_es(Etab0, Floats, [], Tuples0),
+    share_list_1(Ts, Floats, Tuples, [{Vtab,Etab}|Acc]);
+share_list_1([], _, _, Ts) -> reverse(Ts).
+
+share_list_2([{Vtab0,Etab0}|Ts], [#we{id=Id,fs=Ftab0}=We0|Wes], Acc) ->
+    Ftab = face_add_incident(Ftab0, Etab0),
+    Vtab = gb_trees:from_orddict(Vtab0),
+    Etab = gb_trees:from_orddict(Etab0),
+    We = wings_we:rebuild(We0#we{vp=Vtab,es=Etab,fs=Ftab}),
+    share_list_2(Ts, Wes, [{Id,We}|Acc]);
+share_list_2([], [], Wes) -> sort(Wes).
+
+share_floats([{Vtab,Etab}|T], Shared0) ->
+    Shared1 = share_floats_1(Vtab, Shared0),
+    Shared = share_floats_2(Etab, Shared1),
+    share_floats(T, Shared);
+share_floats([], Shared0) ->
+    Shared1 = ordsets:from_list(Shared0),
+    Shared = share_floats_4(Shared1, []),
+    gb_trees:from_orddict(Shared).
+
+share_floats_1([{_,{A,B,C}}|T], Shared) ->
+    share_floats_1(T, [A,B,C|Shared]);
+share_floats_1([], Shared) -> Shared.
+
+share_floats_2([{_,#edge{a=A,b=B}}|T], Shared0) ->
+    Shared1 = share_floats_3(A, Shared0),
+    Shared = share_floats_3(B, Shared1),
+    share_floats_2(T, Shared);
+share_floats_2([], Shared) -> Shared.
+
+share_floats_3({A,B}, [A,B|_]=Shared) -> Shared;
+share_floats_3({A,B,C}, [A,B,C|_]=Shared) -> Shared;
+share_floats_3({A,B}, Shared) -> [A,B|Shared];
+share_floats_3({A,B,C}, Shared) -> [A,B,C|Shared].
+
+share_floats_4([F|Fs], Acc) ->
+    share_floats_4(Fs, [{F,F}|Acc]);
+share_floats_4([], Acc) -> reverse(Acc).
+
+share_vs([{V,{X0,Y0,Z0}}|Vs], Floats, Acc) ->
+    X = gb_trees:get(X0, Floats),
+    Y = gb_trees:get(Y0, Floats),
+    Z = gb_trees:get(Z0, Floats),
+    share_vs(Vs, Floats, [{V,{X,Y,Z}}|Acc]);
+share_vs([], _, Acc) -> reverse(Acc).
+
+share_es([{E,#edge{a=Same0,b=Same0}=Rec}|Vs], Floats, Acc, Shared0) ->
+    {Same,Shared} = share_tuple(Same0, Floats, Shared0),
+    share_es(Vs, Floats, [{E,Rec#edge{a=Same,b=Same}}|Acc], Shared);
+share_es([{E,#edge{a=A0,b=B0}=Rec}|Vs], Floats, Acc, Shared0) ->
+    {A,Shared1} = share_tuple(A0, Floats, Shared0),
+    {B,Shared} = share_tuple(B0, Floats, Shared1),
+    share_es(Vs, Floats, [{E,Rec#edge{a=A,b=B}}|Acc], Shared);
+share_es([], _, Acc, Shared) -> {reverse(Acc),Shared}.
+
+share_tuple({A0,B0}=Tuple0, Floats, Shared) ->
+    case gb_trees:lookup(Tuple0, Shared) of
+	none ->
+	    A = gb_trees:get(A0, Floats),
+	    B = gb_trees:get(B0, Floats),
+	    Tuple = {A,B},
+	    {Tuple,gb_trees:insert(Tuple, Tuple, Shared)};
+	{value,Tuple} -> {Tuple,Shared}
+    end;
+share_tuple({A0,B0,C0}=Tuple0, Floats, Shared) ->
+    case gb_trees:lookup(Tuple0, Shared) of
+	none ->
+	    A = gb_trees:get(A0, Floats),
+	    B = gb_trees:get(B0, Floats),
+	    C = gb_trees:get(C0, Floats),
+	    Tuple = {A,B,C},
+	    {Tuple,gb_trees:insert(Tuple, Tuple, Shared)};
+	{value,Tuple} -> {Tuple,Shared}
+    end.
 
 %%%
 %%% Import of old materials format (up to and including wings-0.94.02).
@@ -410,5 +503,3 @@ export_img_type(Type) -> Type.
 mask_size(r8g8b8a8) -> 1;
 mask_size(a8) -> 1;
 mask_size(_) -> 0.
-
-    
