@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.78 2003/04/21 10:16:57 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.79 2003/04/24 05:46:01 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -248,9 +248,12 @@ dissolve(Faces, #we{id=Id}=We0, Acc) ->
 dissolve_1(Faces, WeOrig, We0) ->
     {Face,_} = gb_sets:take_smallest(Faces),
     Mat = wings_material:get(Face, We0),
-    We = wings_material:delete_faces(Faces, We0),
-    Parts = outer_edge_partition(Faces, We),
-    do_dissolve(Faces, Parts, Mat, WeOrig, We).
+    We1 = wings_material:delete_faces(Faces, We0),
+    Parts = outer_edge_partition(Faces, We1),
+    We = do_dissolve(Faces, Parts, Mat, WeOrig, We1),
+    foldl(fun(_, bad_edge) -> bad_edge;
+	     (F, W) -> wings_face:delete_if_bad(F, W)
+	  end, We, gb_sets:to_list(wings_we:new_items(face, We0, We))).
 
 do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
     We1 = do_dissolve_faces(Faces, We0),
