@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.25 2002/12/26 17:28:24 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.26 2002/12/26 18:31:13 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -139,13 +139,12 @@ smooth_faces([], _, _, Es, Ftab0, NewVs, #we{es=Etab0}=We) ->
 smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat,
 	    {Etab0,Es0,Ftab0,Ids0}) ->
     LeftEdge = RFace = wings_we:id(0, Ids0),
-    NewEdge = wings_we:id(1, Ids0),
-    LFace = wings_we:id(1, Ids0),
+    NewEdge = LFace = wings_we:id(1, Ids0),
     RightEdge = wings_we:id(2, Ids0),
     case Rec0 of
 	#edge{ve=Vtx,b=OldCol,rf=Face} when Vtx >= Id ->
 	    Ids = Ids0,
-	    Ftab = [{RFace,#face{edge=NewEdge,mat=Mat}}|Ftab0],
+	    Ftab = [{RFace,#face{edge=LeftEdge,mat=Mat}}|Ftab0],
 	    Rec = Rec0#edge{rf=RFace,rtsu=NewEdge},
 	    NewErec0 = get_edge(NewEdge, Es0),
 	    NewErec = NewErec0#edge{vs=Vtx,a=OldCol,ve=NewV,b=Color,
@@ -153,24 +152,24 @@ smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat,
 				    rtpr=Edge,rtsu=LeftEdge};
 	#edge{vs=Vtx,a=OldCol,lf=Face} when Vtx >= Id ->
 	    Ids = Ids0,
-	    Ftab = [{RFace,#face{edge=NewEdge,mat=Mat}}|Ftab0],
+	    Ftab = [{RFace,#face{edge=LeftEdge,mat=Mat}}|Ftab0],
 	    Rec = Rec0#edge{lf=RFace,ltsu=NewEdge},
 	    NewErec0 = get_edge(NewEdge, Es0),
 	    NewErec = NewErec0#edge{vs=Vtx,a=OldCol,ve=NewV,b=Color,
 				    rf=RFace,lf=LFace,
 				    rtpr=Edge,rtsu=LeftEdge};
  	#edge{vs=Vtx,rf=Face} when Vtx >= Id ->
-	    Ids = wings_we:bump_id(Ids0),
 	    Ftab = Ftab0,
 	    Rec = Rec0#edge{rf=LFace,rtpr=NewEdge},
 	    NewErec0 = get_edge(NewEdge, Es0),
- 	    NewErec = NewErec0#edge{ltpr=RightEdge,ltsu=Edge};
+ 	    NewErec = NewErec0#edge{ltpr=RightEdge,ltsu=Edge},
+	    Ids = wings_we:bump_id(Ids0);
  	#edge{ve=Vtx,lf=Face} when Vtx >= Id ->
-	    Ids = wings_we:bump_id(Ids0),
 	    Ftab = Ftab0,
 	    Rec = Rec0#edge{lf=LFace,ltpr=NewEdge},
 	    NewErec0 = get_edge(NewEdge, Es0),
- 	    NewErec = NewErec0#edge{ltpr=RightEdge,ltsu=Edge}
+ 	    NewErec = NewErec0#edge{ltpr=RightEdge,ltsu=Edge},
+	    Ids = wings_we:bump_id(Ids0)
     end,
     Etab = gb_trees:update(Edge, Rec, Etab0),
     Es = store(NewEdge, NewErec, Es0),
