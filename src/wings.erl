@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.105 2002/02/04 08:34:30 bjorng Exp $
+%%     $Id: wings.erl,v 1.106 2002/02/04 14:02:39 dgud Exp $
 %%
 
 -module(wings).
@@ -63,7 +63,7 @@ init(File, Root) ->
 
 init_1(File) ->
     {ok,Cwd} = file:get_cwd(),
-    sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER),
+    sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER bor ?SDL_INIT_NOPARACHUTE),
     Icon = locate("wings.icon"),
     catch sdl_video:wm_setIcon(sdl_video:loadBMP(Icon), null),
     sdl_video:gl_setAttribute(?SDL_GL_DOUBLEBUFFER, 1),
