@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_util.erl,v 1.5 2003/04/21 10:16:54 bjorng Exp $
+%%     $Id: auv_util.erl,v 1.6 2003/09/16 09:01:49 dgud Exp $
 
 -module(auv_util).
 
@@ -150,4 +150,5 @@ seg_materials() -> % Intensity 0.7 for all
      separator,
      {'AuvChart7',{0.0,0.7,0.4}},  % Cyan -> Green
      {'AuvChart8',{0.4,0.0,0.7}},  % Magenta -> Blue
-     {'AuvChart9',{0.7,0.4,0.0}}]. % Yellow -> Red
+     {'AuvChart9',{0.7,0.4,0.0}},
+     {?HOLE,      {0.0,0.0,0.9}}]. % _Hole_

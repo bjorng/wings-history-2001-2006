@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.24 2003/09/14 11:48:08 bjorng Exp $
+%%     $Id: auv.hrl,v 1.25 2003/09/16 09:01:49 dgud Exp $
 
 %% Chart record (one for each chart).
 %% Stored in the 'name' field in the #we{} record.
@@ -43,6 +43,8 @@
 	 st,               %% My maybe modified st
 	 origst            %% Orignal st
 	}).             
+
+-define(HOLE, 'Ignore Chart').
 
 -ifdef(DEBUG).
 -define(DBG(S,A), io:format("~p:~p " ++ S, [?MODULE,?LINE|A])).

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.49 2003/08/16 17:50:34 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.50 2003/09/16 09:01:49 dgud Exp $
 
 -module(auv_segment).
 
@@ -651,6 +651,7 @@ seg_dir({X,Y,Z}) ->
 %% By Color 
 segment_by_material(We) ->
     Rel = foldl(fun({_,'_hole_'}, A) -> A;
+		   ({_, ?HOLE}, A) -> A;
 		   ({Face,Name}, A) -> [{Name,Face}|A]
 		end, [], wings_material:get_all(We)),
     segment_by_cluster(Rel, We).
