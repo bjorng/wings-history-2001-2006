@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.211 2003/02/17 07:16:28 bjorng Exp $
+%%     $Id: wings.erl,v 1.212 2003/02/17 19:17:38 bjorng Exp $
 %%
 
 -module(wings).
@@ -147,9 +147,11 @@ init(File, Root) ->
     init_menubar(),
     Op = main_loop_noredraw(St),		%Replace crash handler
 						%with this handler.
+    Props = wings_view:initial_properties(),
     {{X,Y},{W,H}} = wings_wm:win_rect(desktop),
     wings_wm:toplevel(geom, "Geometry", {X,Y,1}, {W,H-20},
-		      [resizable,{anchor,nw},{toolbar,fun create_toolbar/3}],
+		      [resizable,{anchor,nw},{toolbar,fun create_toolbar/3},
+		      {properties,Props}],
 		      Op),
     open_file(File),
 
@@ -172,9 +174,11 @@ new_viewer(St) ->
     Op = main_loop_noredraw(St),
     N = free_viewer_num(2),
     Name = "Geometry #" ++ integer_to_list(N),
+    Props = wings_view:initial_properties(),
     wings_wm:toplevel({geom,N}, Name, {X+20,Y+100,highest}, {W div 2-40,H div 2-40},
 		      [resizable,closable,{anchor,nw},
-		       {toolbar,fun create_toolbar/3}],
+		       {toolbar,fun create_toolbar/3},
+		       {properties,Props}],
 		      Op),
     keep.
 
@@ -942,7 +946,8 @@ button_event(#mousemotion{x=X}, But) ->
     button_help(X, But),
     keep;
 button_event({action,_}=Action, _) ->
-    wings_wm:send(geom, Action);
+    {toolbar,Client} = wings_wm:active_window(),
+    wings_wm:send(Client, Action);
 button_event({current_state,#st{selmode=Mode,sh=Sh}}, #but{mode=Mode,sh=Sh}) ->
     keep;
 button_event({current_state,#st{selmode=Mode,sh=Sh}}, But) ->
@@ -955,7 +960,8 @@ button_event({mode_restriction,Restr}, #but{all_buttons=AllButtons}=But) ->
     wings_wm:dirty(),
     get_button_event(But#but{buttons=Buttons,restr=Restr});
 button_event(#keyboard{}=Ev, _) ->
-    wings_wm:send(geom, Ev);
+    {toolbar,Client} = wings_wm:active_window(),
+    wings_wm:send(Client, Ev);
 button_event(_, _) -> keep.
 
 button_resized(#but{restr=Restr}=But) ->
@@ -1048,7 +1054,8 @@ button_value(Mode, Mode, false) -> {Mode,down};
 button_value(Name, _, _) -> {Name,up}.
 
 button_value_1(Name, Key, Val) ->
-    case wings_pref:get_value(Key) of
+    {toolbar,Client} = wings_wm:active_window(),
+    case wings_wm:get_prop(Client, Key) of
 	Val -> {Name,down};
 	_ -> {Name,up}
     end.
@@ -1065,7 +1072,8 @@ button_was_hit_1(X, [{Pos,Name}|_]) when Pos =< X, X < Pos+?BUTTON_WIDTH ->
 		 perspective -> {view,orthogonal_view};
 		 Other -> {select,Other}
 	     end,
-    wings_wm:send(geom, {action,Action});
+    {toolbar,Client} = wings_wm:active_window(),
+    wings_wm:send(Client, {action,Action});
 button_was_hit_1(X, [_|Is]) ->
     button_was_hit_1(X, Is);
 button_was_hit_1(_X, []) ->
@@ -1110,7 +1118,8 @@ button_restrict(Buttons0, Restr) ->
     sofs:to_external(Buttons).
 
 choose(Key, Val, First, Second) ->
-    case wings_pref:get_value(Key) of
+    {toolbar,Client} = wings_wm:active_window(),
+    case wings_wm:get_prop(Client, Key) of
 	Val -> First;
 	_ -> Second
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.52 2003/02/02 19:27:45 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.53 2003/02/17 19:17:39 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -210,7 +210,7 @@ render(#st{selmode=Mode}=St) ->
     ground_and_axes(),
     show_saved_bb(St),
     #du{dl=Dl} = get(?MODULE),
-    Work = wings_pref:get_value(workmode),
+    Work = wings_wm:get_prop(workmode),
     render_scene(Dl, Mode, Work, false),
     render_scene(Dl, Mode, Work, true),
     axis_letters(),
@@ -524,7 +524,7 @@ call(Dl) when is_integer(Dl) -> gl:callList(Dl).
 %%
 
 ground_and_axes() ->
-    Axes = wings_pref:get_value(show_axes),
+    Axes = wings_wm:get_prop(show_axes),
     ?CHECK_ERROR(),
     groundplane(Axes),
     ?CHECK_ERROR(),
@@ -556,7 +556,7 @@ axis(I, Pos, Neg) ->
 dummy_axis_letter() ->
     %% Attempt to work around a crash occurring with Matrox cards.
     case wings_pref:get_value(dummy_axis_letter) andalso
-	(wings_pref:get_value(show_axes) == false orelse
+	(wings_pref:get_prop(show_axes) == false orelse
 	 wings_pref:get_value(show_axis_letters) == false) of
 	false -> ok;
 	true ->
@@ -585,7 +585,7 @@ dummy_axis_letter(_, _, {_,_,W,H}) ->
 
 axis_letters() ->
     case wings_pref:get_value(show_axis_letters) andalso
-	wings_pref:get_value(show_axes) of
+	wings_wm:get_prop(show_axes) of
 	false -> ok;
 	true ->
 	    MM = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
@@ -673,7 +673,7 @@ sub({X1,Y1}, {X2,Y2}) -> {X1-X2,Y1-Y2}.
 mul({X,Y}, S) -> {X*S,Y*S}.
 
 groundplane(Axes) ->
-    case (wings_pref:get_value(show_groundplane) orelse
+    case (wings_wm:get_prop(show_groundplane) orelse
 	  (wings_pref:get_value(force_show_along_grid) andalso
 	   (wings_view:current())#view.along_axis =/= none)) of
 	true -> groundplane_1(Axes);

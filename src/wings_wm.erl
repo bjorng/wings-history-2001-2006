@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.75 2003/02/17 07:16:29 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.76 2003/02/17 19:17:42 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -16,7 +16,7 @@
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,reinit_opengl/0,
 	 new/4,delete/1,raise/1,
 	 link/2,hide/1,show/1,is_hidden/1,
-	 get_prop/1,lookup_prop/1,set_prop/2,
+	 get_prop/1,get_prop/2,lookup_prop/1,set_prop/2,set_prop/3,
 	 message/1,message/2,message_right/1,
 	 later/1,send/2,send_after_redraw/2,
 	 menubar/1,menubar/2,get_menubar/1,
@@ -418,19 +418,25 @@ local_mouse_state() ->
     {B,X,Y}.
 
 get_prop(Name) ->
-    #win{props=Props} = get_window_data(active_window()),
+    get_prop(active_window(), Name).
+
+get_prop(Win, Name) ->
+    #win{props=Props} = get_window_data(Win),
     gb_trees:get(Name, Props).
+    
 
 lookup_prop(Name) ->
     #win{props=Props} = get_window_data(active_window()),
     gb_trees:lookup(Name, Props).
 
 set_prop(Name, Value) ->
-    Active = active_window(),
-    #win{props=Props0} = Data = get_window_data(Active),
+    set_prop(active_window(), Name, Value).
+
+set_prop(Win, Name, Value) ->
+    #win{props=Props0} = Data = get_window_data(Win),
     Props = gb_trees:enter(Name, Value, Props0),
-    put_window_data(Active, Data#win{props=Props}).
-    
+    put_window_data(Win, Data#win{props=Props}).
+
 enter_event_loop() ->
     init_opengl(),
     event_loop().

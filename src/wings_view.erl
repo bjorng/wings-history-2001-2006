@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.95 2003/02/17 07:16:29 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.96 2003/02/17 19:17:40 bjorng Exp $
 %%
 
 -module(wings_view).
 -export([menu/1,command/2,
 	 virtual_mirror/2,
-	 init/0,
+	 init/0,initial_properties/0,
 	 current/0,set_current/1,
 	 projection/0,perspective/0,
 	 model_transformations/0,model_transformations/1,eye_point/0]).
@@ -102,10 +102,10 @@ command(workmode, St) ->
 command(smoothed_preview, St) ->
     ?SLOW(smoothed_preview(St));
 command(flatshade, St) ->
-    wings_pref:set_value(workmode, true),
+    wings_wm:set_prop(workmode, true),
     St;
 command(smoothshade, St) ->
-    wings_pref:set_value(workmode, false),
+    wings_wm:set_prop(workmode, false),
     St;
 command(toggle_wireframe, #st{sel=[]}=St) ->
     mode_change_all(toggle),
@@ -586,7 +586,15 @@ smooth_edges(_Plain, Cool, false, #sm{edge_style=cool}) ->
 %%%
 
 toggle_option(Key) ->
-    wings_pref:set_value(Key, not wings_pref:get_value(Key)).
+    case wings_wm:active_window() of
+	geom ->
+	    wings_pref:set_value(Key, not wings_pref:get_value(Key, false));
+	_ -> ok
+    end,
+    case wings_wm:lookup_prop(Key) of
+	none -> ok;
+	{value,Bool} -> wings_wm:set_prop(Key, not Bool)
+    end.
 
 current() ->
     case wings_wm:lookup_prop(current_view) of
@@ -618,11 +626,13 @@ init() ->
     wings_pref:set_default(scene_lights, false),
 
     wings_pref:set_default(smoothed_preview_cage, false),
-    wings_pref:set_default(smoothed_preview_edges, false),
+    wings_pref:set_default(smoothed_preview_edges, false).
 
-    %% Always reset the following preferences + the view itself.
-    wings_pref:set_value(workmode, true),
-    wings_pref:set_value(orthogonal_view, false).
+initial_properties() ->
+    [{workmode,true},
+     {orthogonal_view,false},
+     {show_axes,wings_pref:get_value(show_axes)},
+     {show_groundplane,wings_pref:get_value(show_groundplane)}].
 
 reset() ->
     reset(current()).
@@ -642,12 +652,12 @@ projection() ->
 
 perspective() ->
     {W,H} = wings_wm:win_size(),
+    Aspect = W/H,
     #view{distance=D,fov=Fov,hither=Hither,yon=Yon} = current(),
-    case wings_pref:get_value(orthogonal_view) of
+    case wings_wm:get_prop(orthogonal_view) of
 	false ->
-	    glu:perspective(Fov, W/H, Hither, Yon);
+	    glu:perspective(Fov, Aspect, Hither, Yon);
 	true ->
-	    Aspect = W/H,
 	    Sz = 4.0 * D / ?CAMERA_DIST,
 	    gl:ortho(-Sz*Aspect, Sz*Aspect, -Sz, Sz, Hither, Yon)
     end.

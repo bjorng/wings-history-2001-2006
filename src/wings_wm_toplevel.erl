@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.15 2003/02/17 07:16:29 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.16 2003/02/17 19:17:45 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
 
-%% Don't call any functions in this module directly. Used the supported
+%% Don't call any functions in this module directly. Use the supported
 %% API in wings_wm.
 
 -export([toplevel/6,set_knob/3]).
@@ -22,7 +22,7 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [reverse/1,keysearch/3,sort/1]).
+-import(lists, [reverse/1,keysearch/3,sort/1,foreach/2]).
 
 -compile(inline).
 
@@ -77,6 +77,9 @@ ctrl_create_windows([resizable|Flags], Client) ->
 ctrl_create_windows([closable|Flags], Client) ->
     Name = new_closer(Client),
     wings_wm:link(Client, Name),
+    ctrl_create_windows(Flags, Client);
+ctrl_create_windows([{properties,Props}|Flags], Client) ->
+    foreach(fun({K,V}) -> wings_wm:set_prop(Client, K, V) end, Props),
     ctrl_create_windows(Flags, Client);
 ctrl_create_windows([_|Flags], Client) ->
     ctrl_create_windows(Flags, Client);
