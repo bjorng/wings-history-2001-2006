@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.72 2001/12/13 15:59:57 bjorng Exp $
+%%     $Id: wings.erl,v 1.73 2001/12/23 11:30:45 bjorng Exp $
 %%
 
 -module(wings).
@@ -781,9 +781,12 @@ set_select_mode(deselect, St) -> {save_state,St#st{sel=[]}};
 set_select_mode(Type, St) ->
     {save_state,wings_sel:convert_selection(Type, St)}.
 
+info(#st{sel=[]}) -> "";
 info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
     Sh = gb_trees:get(Id, Shapes),
     shape_info(Sh);
+info(#st{shapes=Shapes,selmode=body,sel=Sel}) ->
+    shape_info(Sel, Shapes);
 info(#st{shapes=Shapes,selmode=vertex,sel=[{Id,Sel}]}) ->
     case gb_sets:size(Sel) of
 	0 -> "";
@@ -822,7 +825,14 @@ info(#st{shapes=Shapes,selmode=face,sel=[{Id,Sel}]}) ->
 	N ->
 	    flat_format("~p faces selected", [N])
     end;
-info(St) -> "".
+info(#st{selmode=Mode,sel=Sel}) ->
+    On = length(Sel),
+    N = foldl(fun({_,S}, A) -> A+gb_sets:size(S) end, 0, Sel),
+    case Mode of
+	vertex -> flat_format("~p vertices selected in ~p objects", [N,On]);
+	edge -> flat_format("~p edges selected in ~p objects", [N,On]);
+	face -> flat_format("~p faces selected in ~p objects", [N,On])
+    end.
 
 item_list(Items, Desc) ->
     item_list(Items, ": ", Desc).
@@ -837,7 +847,20 @@ shape_info(#shape{name=Name,sh=#we{fs=Ftab,es=Etab,vs=Vtab}}) ->
     Vertices = gb_trees:size(Vtab),
     flat_format("~s: ~p polygons, ~p edges, ~p vertices",
 		[Name,Faces,Edges,Vertices]).
-    
+
+shape_info(Objs, Shs) ->
+    shape_info(Objs, Shs, 0, 0, 0, 0).
+
+shape_info([{Id,_}|Objs], Shs, On, Vn, En, Fn) ->
+    #shape{sh=#we{fs=Ftab,es=Etab,vs=Vtab}} = gb_trees:get(Id, Shs),
+    Faces = gb_trees:size(Ftab),
+    Edges = gb_trees:size(Etab),
+    Vertices = gb_trees:size(Vtab),
+    shape_info(Objs, Shs, On+1, Vn+Vertices, En+Edges, Fn+Faces);
+shape_info([], Shs, N, Vertices, Edges, Faces) ->
+    flat_format("~p objects, ~p faces, ~p edges, ~p vertices",
+		[N,Faces,Edges,Vertices]).
+
 flat_format(Format, Args) ->
     lists:flatten(io_lib:format(Format, Args)).
 
