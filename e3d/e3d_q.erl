@@ -3,12 +3,12 @@
 %%
 %%     Operations on unit quaternions.
 %%
-%%  Copyright (c) 2003 Dan Gudmundsson
+%%  Copyright (c) 2003 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_q.erl,v 1.3 2003/05/06 13:45:42 bjorng Exp $
+%%     $Id: e3d_q.erl,v 1.4 2003/05/16 17:30:27 bjorng Exp $
 %%
 
 %% Quaternions are represented as a {{Qx,Qy,Qz},Qw}
@@ -26,7 +26,6 @@
 	 vec_rotate/2]).
 
 -compile(inline).
--compile({inline_size,24}).
 
 %% Multiplicative identity
 identity() ->
@@ -37,7 +36,7 @@ magnitude({{Qx,Qy,Qz},Qw})
     math:sqrt(Qx*Qx+Qy*Qy+Qz*Qz+Qw*Qw).
 
 conjugate({{Qx,Qy,Qz},Qw})
-  when is_float(Qx),is_float(Qy),is_float(Qz),is_float(Qw) ->
+  when is_float(Qx), is_float(Qy), is_float(Qz), is_float(Qw) ->
     {{-Qx,-Qy,-Qz},Qw}.
 
 inverse(Q) ->
@@ -117,17 +116,18 @@ from_rotation_matrix({M0, M4, M8,
 from_rotation_matrix(M) when size(M) =:= 16 ->
     from_rotation_matrix(e3d_mat:compress(M)).
 
-from_angle_axis(Angle0,Axis0) ->
-    HalfAngle = Angle0*3.14159/180/2,
-    {X,Y,Z} = e3d_vec:norm(Axis0),
+%% The Axis must be a unit-length vector.
+from_angle_axis(Angle, Axis) ->
+    HalfAngle = Angle*(3.14159/180.0/2.0),
     Sin = math:sin(HalfAngle),
     Cos = math:cos(HalfAngle),
+    {X,Y,Z} = Axis,
     {{X*Sin,Y*Sin,Z*Sin},Cos}.
 
 to_angle_axis(Q) ->
     {{Qx,Qy,Qz},Qw} = norm(Q),
     Cos = Qw,
-    Angle = math:acos(Cos) *2*180/3.14159,
+    Angle = math:acos(Cos) * (2*180/3.14159),
     Sin0  = math:sqrt(1.0 - Cos*Cos),
     Sin   = if
 		abs(Sin0) < 0.000005 -> 1.0;
@@ -135,12 +135,16 @@ to_angle_axis(Q) ->
 	    end,    
     {Angle,{Qx/Sin,Qy/Sin,Qz/Sin}}.
 
-vec_rotate(V = {_,_,_},Q) ->
-    IQ = inverse(Q),
-    {Vec0,Scale} = mul([Q,{V,1.0},IQ]),
-    if Scale =:= 1.0 -> 
-	    Vec0;
-       true ->
-	    e3d_vec:mul(Vec0, 1.0/Scale)       
-    end.
-
+%% vec_rotate(Vec, Q)
+%%  Rotate a vector or point using quaternion Q.
+vec_rotate({X2,Y2,Z2}, {{X1,Y1,Z1},W1})
+  when is_float(X1), is_float(Y1), is_float(Z1), is_float(W1),
+       is_float(X2), is_float(Y2), is_float(Z2)  ->
+    %% Calculate Q*{V,0}*^Q.
+    X3 = W1*X2+Y1*Z2-Z1*Y2,
+    Y3 = W1*Y2+Z1*X2-X1*Z2,
+    Z3 = W1*Z2+X1*Y2-Y1*X2,
+    W3 = -X1*X2-Y1*Y2-Z1*Z2,
+    {-W3*X1+X3*W1-Y3*Z1+Z3*Y1,
+     -W3*Y1+Y3*W1-Z3*X1+X3*Z1,
+     -W3*Z1+Z3*W1-X3*Y1+Y3*X1}.
