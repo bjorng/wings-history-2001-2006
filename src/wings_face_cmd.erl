@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.85 2003/07/23 05:09:17 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.86 2003/07/25 09:40:03 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -870,7 +870,7 @@ lift_selection(Dir, OrigSt) ->
     {[vertex,edge],
      fun(check, St) ->
 	     lift_check_selection(St, OrigSt);
-	(exit, {_,#st{selmode=Mode,sel=Sel}=St}) ->
+	(exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
 	     case lift_check_selection(St, OrigSt) of
 		 {_,[]} ->
 		     {face,{lift,{Dir,Mode,Sel}}};
@@ -1128,7 +1128,7 @@ put_on(_) ->
 put_on_selection(OrigSt) ->
     {[face,edge,vertex],
      fun(check, St) -> put_on_check_selection(St, OrigSt);
-	(exit, {_,#st{selmode=Mode,sel=Sel}=St}) ->
+	(exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
 	     case put_on_check_selection(St, OrigSt) of
 		 {_,[]} ->
 		     {face,{put_on,{Mode,Sel}}};
@@ -1191,7 +1191,7 @@ clone_on_selection() ->
     {[face,edge,vertex],
      fun(check, _) ->
 	     {none,""};
-	(exit, {_,#st{selmode=Mode,sel=Sel}}) ->
+	(exit, {_,_,#st{selmode=Mode,sel=Sel}}) ->
 	     {face,{clone_on,{Mode,Sel}}};
 	(message, _) ->
 	     Left = "Select target elements on which to put clones",

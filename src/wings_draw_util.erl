@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.88 2003/07/08 07:05:32 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.89 2003/07/25 09:40:03 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -27,11 +27,6 @@
 	 mat=gb_trees:empty(),			%Materials.
 	 used=[]				%Display lists in use.
 	 }).
-
--record(vec,
-	{vec,					%Display list for vector.
-	 src_vec=undefined			%Source for vector.
-	}).
 
 init() ->
     case get(wings_tesselator) of
@@ -77,9 +72,7 @@ init() ->
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55>>,
-    gl:polygonStipple(P),
-    
-    erase_vector().
+    gl:polygonStipple(P).
 
 delete_dlists() ->
     case erase(wings_wm:get_prop(display_lists)) of
@@ -248,8 +241,6 @@ render(#st{selmode=Mode}=St) ->
     render_scene(Dl, Mode, Work, true),
     axis_letters(),
     dummy_axis_letter(),
-    gl:disable(?GL_DEPTH_TEST),
-    draw_vec(St),
     gl:disable(?GL_CULL_FACE),
     gl:lineWidth(1),
     wings_io:ortho_setup(),
@@ -926,66 +917,3 @@ show_saved_bb(#st{bb=[{X1,Y1,Z1},{X2,Y2,Z2}]}) ->
 	    gl:'end'(),
 	    gl:disable(?GL_LINE_STIPPLE)
     end.
-
-%%%
-%%% Show active vector.
-%%%
-
-erase_vector() ->
-    case erase(wings_current_vector) of
-	undefined -> ok;
-	#vec{vec=VecDl} -> catch gl:deleteLists(VecDl, 1)
-    end.
-
-draw_vec(#st{vec=none}) ->
-    erase_vector();
-draw_vec(#st{vec=Vec}) ->
-    case get(wings_current_vector) of
-	#vec{src_vec=Vec,vec=VecDl} -> ok;
-	_ ->
-	    erase_vector(),
-	    VecDl = make_vec_dlist(Vec),
-	    put(wings_current_vector, #vec{vec=VecDl,src_vec=Vec}),
-	    VecDl
-    end,
-    call(VecDl).
-
-make_vec_dlist(Vec) ->
-    Dlist = gl:genLists(1),
-    gl:newList(Dlist, ?GL_COMPILE),
-    make_vec_dlist_1(Vec),
-    gl:endList(),
-    Dlist.
-
-make_vec_dlist_1({Center,Vec0}) ->
-    Vec = e3d_vec:mul(Vec0, wings_pref:get_value(active_vector_size)),
-    End = e3d_vec:add(Center,Vec),
-    HeadVec = e3d_vec:mul(Vec, -0.2),
-    HeadPt = e3d_vec:add(End, HeadVec),
-    case HeadVec of
-	{Same,Same,Same} ->
-	    PosHead0 = e3d_vec:cross(HeadVec, {0.25,-0.25,0.25}),
-	    PosHead1 = e3d_vec:cross(HeadVec, {-0.25,0.25,-0.25});
-	_Other ->
-	    PosHead0 = e3d_vec:cross(HeadVec, {0.25,0.25,0.25}),
-	    PosHead1 = e3d_vec:cross(HeadVec, {-0.25,-0.25,-0.25})
-    end,
-    Width = wings_pref:get_value(active_vector_width),
-    gl:color3fv(wings_pref:get_value(active_vector_color)),
-    gl:pointSize(Width*3.5),
-    gl:lineWidth(Width),
-    gl:'begin'(?GL_LINES),
-    gl:vertex3fv(Center),
-    gl:vertex3fv(End),
-    gl:vertex3fv(End),
-    gl:vertex3fv(e3d_vec:sub(HeadPt, PosHead0)),
-    gl:vertex3fv(End),
-    gl:vertex3fv(e3d_vec:sub(HeadPt, PosHead1)),
-    gl:'end'();
-make_vec_dlist_1(Center) ->
-    Width = wings_pref:get_value(active_vector_width),
-    gl:color3fv(wings_pref:get_value(active_vector_color)),
-    gl:pointSize(Width*3.5),
-    gl:'begin'(?GL_POINTS),
-    gl:vertex3fv(Center),
-    gl:'end'().

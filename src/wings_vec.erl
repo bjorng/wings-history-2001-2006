@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.77 2003/07/25 06:52:18 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.78 2003/07/25 09:40:03 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -24,8 +24,15 @@
 -record(ss, {f,					%Fun.
 	     selmodes,				%Legal selection modes.
 	     is_axis=false,			%True if axis.
-	     info=""				%Info message.
+	     info="",				%Info message.
+	     vec=none				%Current vector.
 	    }).
+
+%% Keep the display for the current vector.
+-record(vec,
+	{vec,					%Display list for vector.
+	 src_vec=undefined			%Source for vector.
+	}).
 
 init() ->
     DefAxis = {{0.0,0.0,0.0},{1.0,0.0,0.0}},
@@ -59,8 +66,8 @@ command_1(magnet, Msg, [], Acc, Names, _, St0) ->
     St = mode_restriction(Modes, St0),
     Ss = #ss{f=fun(check, S) ->
 		       check_point(S);
-		  (exit, {Mod,S}) ->
-		       exit_magnet(Mod, Acc, Names, S);
+		  (exit, {Mod,Vec,_}) ->
+		       exit_magnet(Vec, Mod, Acc, Names);
 		  (message, _) ->
 		       magnet_message(Msg, Names)
 	       end,
@@ -78,8 +85,8 @@ command_1(Type, Msg, More, Acc, Names, MagnetPossible, St0) ->
     IsAxis = (Type =/= point),
     Ss = #ss{f=fun(check, S) ->
 		       Check(S);
-		  (exit, {Mod,S}) ->
-		       common_exit(Type, Mod, More, Acc, Names,
+		  (exit, {Mod,Vec,S}) ->
+		       common_exit(Type, Vec, Mod, More, Acc, Names,
 				   MagnetPossible, S);
 		  (message, _) ->
 		       common_message(Msg, More, Names, MagnetPossible)
@@ -144,6 +151,8 @@ mode_restriction(Modes, #st{selmode=Mode}=St0) ->
     end.
 
 pick_init(#st{selmode=Mode}) ->
+    erase_vector(),				%Just in case to avoid
+						% a display list leak.
     Active = wings_wm:this(),
     wings_wm:callback(fun() ->
 			      wings_util:menu_restriction(Active, [view,select])
@@ -219,9 +228,9 @@ handle_event_3(Ev, Ss, St) -> handle_event_4(Ev, Ss, St).
 handle_event_4({new_state,St}, #ss{f=Check}=Ss, _St0) ->
     case Check(check, St) of
 	{Vec,Msg} -> 
-	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
+	    get_event(Ss#ss{info=Msg,vec=Vec}, St);
 	[{Vec,Msg}|_] ->
-	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec})
+	    get_event(Ss#ss{info=Msg,vec=Vec}, St)
     end;
 handle_event_4(redraw, Ss, St) ->
     redraw(Ss, St),
@@ -238,31 +247,42 @@ handle_event_4({action,{view,Cmd}}, Ss, St0) ->
     St = wings_view:command(Cmd, St0),
     get_event(Ss, St);
 handle_event_4({action,{secondary_selection,abort}}, _, _) ->
+    erase_vector(),
     wings_wm:later(revert_state),
     pick_finish(),
     pop;
-handle_event_4({action,Cmd}, Ss, St) ->
-    set_last_axis(Ss, St),
+handle_event_4({action,Cmd}, Ss, _) ->
+    erase_vector(),
+    set_last_axis(Ss),
     wings_io:putback_event({action,Cmd}),
     pop;
 handle_event_4(quit, _Ss, _St) ->
+    erase_vector(),
     wings_io:putback_event(quit),
     pop;
 handle_event_4(init_opengl, _, St) ->
+    erase_vector(),
     wings:init_opengl(St);
 handle_event_4({note,menu_aborted}, Ss, #st{temp_sel={_,_}}=St) ->
-    get_event(Ss, wings:clear_temp_sel(St#st{sel=[],vec=none}));
+    get_event(Ss#ss{vec=none}, wings:clear_temp_sel(St#st{sel=[]}));
 handle_event_4(_Event, Ss, St) ->
     get_event(Ss, St).
 
-redraw(#ss{info=Info,f=Message}, St) ->
+redraw(#ss{info=Info,f=Message,vec=Vec}, St) ->
     Message(message, St),
     wings:redraw(Info, St),
-    wings_wm:current_state(St#st{vec=none}).
+    gl:pushAttrib(?GL_CURRENT_BIT bor ?GL_ENABLE_BIT bor
+		  ?GL_TEXTURE_BIT bor ?GL_POLYGON_BIT bor
+		  ?GL_LINE_BIT bor ?GL_COLOR_BUFFER_BIT bor
+		  ?GL_LIGHTING_BIT),
+    wings_view:load_matrices(false),
+    draw_vec(Vec),
+    gl:popAttrib(),
+    wings_wm:current_state(St).
 
-set_last_axis(#ss{is_axis=true}, #st{vec={{_,_,_},{_,_,_}}=Vec}) ->
+set_last_axis(#ss{is_axis=true,vec={{_,_,_},{_,_,_}}=Vec}) ->
     wings_pref:set_value(last_axis, Vec);
-set_last_axis(_, _) -> ok.
+set_last_axis(_) -> ok.
 			       
 filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
     case member(Mode, Modes) of
@@ -276,54 +296,55 @@ handle_key(#keyboard{sym=$1}, _, St) ->	%1
 handle_key(#keyboard{sym=$2}, #ss{f=Check}=Ss, St) -> %2
     case Check(check, St) of
 	{Vec,Msg} -> 
-	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
+	    get_event(Ss#ss{info=Msg,vec=Vec}, St);
 	[_,{Vec,Msg}|_] ->
-	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
+	    get_event(Ss#ss{info=Msg,vec=Vec}, St);
 	[{Vec,Msg}] ->
-	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec})
+	    get_event(Ss#ss{info=Msg,vec=Vec}, St)
     end;
 handle_key(#keyboard{sym=27}, _, _) ->		%Escape
     wings_wm:later({action,{secondary_selection,abort}});
 handle_key(_, _, _) -> next.
 
-exit_menu(X, Y, Mod, #ss{f=Exit}=Ss, St) ->
-    case Exit(exit, {Mod,St}) of
+exit_menu(X, Y, Mod, #ss{f=Exit,vec=Vec}=Ss, St) ->
+    case Exit(exit, {Mod,Vec,St}) of
 	error ->
 	    Menu = [{"Cancel",abort,"Cancel current command"}],
 	    wings_menu:popup_menu(X, Y, secondary_selection, Menu);
 	keep ->
 	    keep;
 	Action ->
-	    set_last_axis(Ss, St),
+	    erase_vector(),
+	    set_last_axis(Ss),
 	    wings_wm:later({action,Action}),
 	    clear_sel(),
 	    pop
     end.
 
-common_exit(_, _, _, _, _, _, #st{vec=none}) ->
+common_exit(_, none, _, _, _, _, _, _) ->
     error;
-common_exit(Type, Mod, More, Acc, Ns, inactive, St) ->
+common_exit(Type, Vec, Mod, More, Acc, Ns, inactive, _St) ->
     RmbMod = wings_camera:free_rmb_modifier(),
     if
 	Mod band RmbMod =:= 0 ->
-	    common_exit_1(Type, More, Acc, Ns, St);
+	    common_exit_1(Type, Vec, More, Acc, Ns);
 	More =:= [] ->
-	    common_exit_1(Type, add_magnet(More), Acc, Ns, St);
+	    common_exit_1(Type, Vec, add_magnet(More), Acc, Ns);
 	true ->
 	    case last(More) of
-		{magnet,_,_} -> common_exit_1(Type, More, Acc, Ns, St);
-		_  -> common_exit_1(Type, add_magnet(More), Acc, Ns, St)
+		{magnet,_,_} -> common_exit_1(Type, Vec, More, Acc, Ns);
+		_  -> common_exit_1(Type, Vec, add_magnet(More), Acc, Ns)
 	    end
     end;
-common_exit(Type, _, More, Acc, Ns, _, St) ->
-    common_exit_1(Type, More, Acc, Ns, St).
+common_exit(Type, Vec, _, More, Acc, Ns, _, _) ->
+    common_exit_1(Type, Vec, More, Acc, Ns).
 
-common_exit_1(axis, PickList, Acc, Ns, #st{vec={_,Vec}}) ->
+common_exit_1(axis, {_,Vec}, PickList, Acc, Ns) ->
     {vector,{pick,PickList,add_to_acc(Vec, Acc),Ns}};
-common_exit_1(axis_point, PickList, Acc0, Ns, #st{vec={Point,Vec}}) ->
+common_exit_1(axis_point, {Point,Vec}, PickList, Acc0, Ns) ->
     Acc = add_to_acc(Point, add_to_acc(Vec, Acc0)),
     {vector,{pick,PickList,Acc,Ns}};
-common_exit_1(point, PickList, Acc, Ns, #st{vec=Point}) ->
+common_exit_1(point, Point, PickList, Acc, Ns) ->
     {vector,{pick,PickList,add_to_acc(Point, Acc),Ns}}.
 
 add_magnet(More) ->
@@ -450,23 +471,23 @@ check_point(St) ->
 %%% Magnet functions.
 %%%
 
-exit_magnet(Mod, Acc, Ns, St) ->
+exit_magnet(Vec, Mod, Acc, Ns) ->
     case wings_camera:free_rmb_modifier() of
 	ModRmb when Mod band ModRmb =/= 0 ->
 	    Fun = fun(Mag) ->
 			  {vector,{pick,[],[Mag|Acc],Ns}}
 		  end,
-	    case check_point(St) of
-		{none,_} ->
+	    case Vec  of
+		none ->
 		    wings_magnet:dialog(Fun);
-		[{Point,_}] ->
+		Point ->
 		    wings_magnet:dialog(Point, Fun)
 	    end;
 	_ ->
-	    case check_point(St) of
-		{none,_} ->
+	    case Vec of
+		none ->
 		    error;
-		[{Point,_}] ->
+		Point ->
 		    Mag = {magnet,wings_pref:get_value(magnet_type),
 			   wings_pref:get_value(magnet_distance_route),Point},
 		    {vector,{pick,[],[Mag|Acc],Ns}}
@@ -493,3 +514,66 @@ find_edges([V|Vs], VsSet, We, Acc0) ->
 	    end, Acc0, V, We),
     find_edges(Vs, VsSet, We, Acc);
 find_edges([], _VsSet, _We, Acc) -> Acc.
+
+%%%
+%%% Showing of active vector.
+%%%
+
+erase_vector() ->
+    case erase(wings_current_vector) of
+	undefined -> ok;
+	#vec{vec=VecDl} -> catch gl:deleteLists(VecDl, 1)
+    end.
+
+draw_vec(none) ->
+    erase_vector();
+draw_vec(Vec) ->
+    case get(wings_current_vector) of
+	#vec{src_vec=Vec,vec=VecDl} -> ok;
+	_ ->
+	    erase_vector(),
+	    VecDl = make_vec_dlist(Vec),
+	    put(wings_current_vector, #vec{vec=VecDl,src_vec=Vec}),
+	    VecDl
+    end,
+    wings_draw_util:call(VecDl).
+
+make_vec_dlist(Vec) ->
+    Dlist = gl:genLists(1),
+    gl:newList(Dlist, ?GL_COMPILE),
+    make_vec_dlist_1(Vec),
+    gl:endList(),
+    Dlist.
+
+make_vec_dlist_1({Center,Vec0}) ->
+    Vec = e3d_vec:mul(Vec0, wings_pref:get_value(active_vector_size)),
+    End = e3d_vec:add(Center,Vec),
+    HeadVec = e3d_vec:mul(Vec, -0.2),
+    HeadPt = e3d_vec:add(End, HeadVec),
+    case HeadVec of
+	{Same,Same,Same} ->
+	    PosHead0 = e3d_vec:cross(HeadVec, {0.25,-0.25,0.25}),
+	    PosHead1 = e3d_vec:cross(HeadVec, {-0.25,0.25,-0.25});
+	_Other ->
+	    PosHead0 = e3d_vec:cross(HeadVec, {0.25,0.25,0.25}),
+	    PosHead1 = e3d_vec:cross(HeadVec, {-0.25,-0.25,-0.25})
+    end,
+    Width = wings_pref:get_value(active_vector_width),
+    gl:color3fv(wings_pref:get_value(active_vector_color)),
+    gl:pointSize(Width*3.5),
+    gl:lineWidth(Width),
+    gl:'begin'(?GL_LINES),
+    gl:vertex3fv(Center),
+    gl:vertex3fv(End),
+    gl:vertex3fv(End),
+    gl:vertex3fv(e3d_vec:sub(HeadPt, PosHead0)),
+    gl:vertex3fv(End),
+    gl:vertex3fv(e3d_vec:sub(HeadPt, PosHead1)),
+    gl:'end'();
+make_vec_dlist_1(Center) ->
+    Width = wings_pref:get_value(active_vector_width),
+    gl:color3fv(wings_pref:get_value(active_vector_color)),
+    gl:pointSize(Width*3.5),
+    gl:'begin'(?GL_POINTS),
+    gl:vertex3fv(Center),
+    gl:'end'().
