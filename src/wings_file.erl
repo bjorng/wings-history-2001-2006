@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.89 2002/12/05 07:27:38 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.90 2002/12/05 07:33:39 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -297,10 +297,10 @@ increment_name(Name0) ->
     incr(reverse(Name)).
 
 incr(Name0) -> 
-    {Digits0,Base} = find_digits(Name0),
-    case Digits0 of
-	[] -> Base ++ "_01.wings";
-	_ ->
+    case find_digits(Name0)  of
+	{[],Base} ->
+	    Base ++ "_01.wings";
+	{Digits0,Base} ->
 	    Number = list_to_integer(Digits0) + 1,
 	    Digits = integer_to_list(Number),
 	    Base ++ lists:duplicate(length(Digits0)-length(Digits), $0) ++
