@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.25 2003/04/17 07:13:59 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.26 2003/04/17 14:13:22 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -47,10 +47,8 @@
 -define(DEF_AA_THRESHOLD, 0.1).
 -define(DEF_WIDTH, 100).
 -define(DEF_HEIGHT, 100).
--define(DEF_BACKGROUND_COLOR, {0.0,0.0,0.0}).
 
 %% Light
--define(DEF_POWER, 1.0).
 -define(DEF_ATTN_POWER, 10.0).
 -define(DEF_POINT_TYPE, pointlight).
 -define(DEF_CAST_SHADOWS, true).
@@ -70,6 +68,11 @@
 %% Softlight
 -define(DEF_RES, 100).
 -define(DEF_RADIUS, 1).
+%% Sunlight
+-define(DEF_POWER, 1.0).
+-define(DEF_BACKGROUND, undefined).
+-define(DEF_BACKGROUND_COLOR, {0.0,0.0,0.0}).
+-define(DEF_TURBIDITY, 4.0).
 
 %% Modulator
 -define(DEF_MOD_MODE, off).
@@ -247,7 +250,7 @@ fun_export_2(Attr) ->
 		ok ->
 		    ok;
 		Error ->
-		    io:format("Failed to export:~n~p~n", [Error]),
+		    io:format("ERROR: Failed to export:~n~p~n", [Error]),
 		    {error,"Failed to export"}
 	    end
     end.
@@ -471,6 +474,23 @@ light_dialog(_Name, spot, Ps) ->
 			   {text,Mindepth,[{range,0,1000000},{key,mindepth}]},
 			   {text,Cluster,[{range,0.0,1000000.0},
 					  {key,cluster}]}]}]}]}]}];
+light_dialog(_Name, infinite, Ps) ->
+    Bg = proplists:get_value(background, Ps, ?DEF_BACKGROUND),
+    BgDef = {background,Bg},
+    BgColor = proplists:get_value(background_color, Ps, ?DEF_BACKGROUND_COLOR),
+    CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
+    Turbidity = proplists:get_value(turbidity, Ps, ?DEF_TURBIDITY),
+    [{"Cast Shadows",CastShadows,[{key,cast_shadows}]},
+     {hframe,
+      [{vframe,[{key_alt,BgDef,"Constant",constant},
+		{key_alt,BgDef,"Sunsky",sunsky},
+		{key_alt,BgDef,"None", undefined}]},
+       {vframe,[{label,"Color"},
+		{label,"Turbidity"}]},
+       {vframe,[{color,BgColor,[{key,background_color}]},
+		{hframe,
+		 [{text,Turbidity,[{range,0.0,100.0},{key,turbidity}]}]}]}],
+      [{title,"Background"}]}];
 light_dialog(_Name, _Type, _Ps) ->
 %    erlang:display({?MODULE,?LINE,{_Name,_Type,_Ps}}),
     [].
@@ -478,6 +498,7 @@ light_dialog(_Name, _Type, _Ps) ->
 light_result(_Name, Ps0, [Power|Res0]) ->
     {LightPs,Res1} = light_result(Res0),
     Ps = [{?TAG,[Power|LightPs]}|keydelete(?TAG, 1, Ps0)],
+%    erlang:display({?MODULE,?LINE,[Ps,Res1]}),
     {Ps,Res1}.
 
 light_result([{type,pointlight}|_]=Res) ->
@@ -488,6 +509,8 @@ light_result([{type,spotlight}|_]=Ps) ->
     split_list(Ps, 10);
 light_result([_,_,{type,photonlight}|_]=Ps) ->
     split_list(Ps, 10);
+light_result([_,{background,_}|_]=Ps) ->
+    split_list(Ps, 4);
 light_result(Tail) ->
 %    erlang:display({?MODULE,?LINE,Tail}),
     {[],Tail}.
@@ -576,8 +599,7 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     ExportDir = filename:dirname(ExportFile),
     F = open(ExportFile, export),
     CameraName = "x_Camera",
-    ConstBackgroundName = "x_ConstBackground",
-    SunskyBackgroundName = "t_SunskyBackground",
+    ConstBgName = "x_ConstBackground",
     %%
     Lights = proplists:get_value(lights, Attr, []),
     println(F, "<!-- ~s: Exported from ~s -->~n"++
@@ -600,21 +622,37 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    Objs),
     %%
     section(F, "Lights"),
-    foreach(fun ({Name, Ps}) -> 
-		    export_light(F, "w_"++format(Name), Ps),
-		    println(F)
-	    end,
-	    Lights),
+    BgLights = 
+	reverse(
+	  foldl(fun ({Name, Ps}=Light, Bgs) -> 
+			Bg = export_light(F, "w_"++format(Name), Ps),
+			println(F),
+			case Bg of
+			    undefined -> Bgs;
+			    _ -> [Light|Bgs]
+			end
+		end, [], Lights)),
     %%
     section(F, "Background, Camera, Filter and Render"),
-    export_background_constant(F, ConstBackgroundName, Attr),
-    println(F),
-    export_background_sunsky(F, SunskyBackgroundName),
+    warn_multiple_backgrounds(BgLights),
+    BgName = 
+	case BgLights of
+	    [] ->
+		BgColor = proplists:get_value(background_color, Attr,
+					      ?DEF_BACKGROUND_COLOR),
+		Ps = [{?TAG,[{background,constant},
+			     {background_color,BgColor}]}],
+		export_background(F, ConstBgName, Ps),
+		ConstBgName;
+	    [{Name,Ps}|_] ->
+		N = "w_"++format(Name),
+		export_background(F, N, Ps),
+		N
+	end,
     println(F),
     export_camera(F, CameraName, Attr),
     println(F),
-    export_render(F, CameraName, ConstBackgroundName, 
-		  filename:basename(RenderFile), Attr),
+    export_render(F, CameraName, BgName, filename:basename(RenderFile), Attr),
     %%
     println(F),
     println(F, "</scene>"),
@@ -638,6 +676,18 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    set_var(rendering, RenderFile),
 	    ok
     end.
+
+warn_multiple_backgrounds([]) ->
+    ok;
+warn_multiple_backgrounds([_]) ->
+    ok;
+warn_multiple_backgrounds(BgLights) ->
+    io:format("WARNING: Multiple backgrounds - ", []),
+    foreach(fun ({Name,_}) ->
+		    io:put_chars([format(Name), $ ])
+	    end, BgLights),
+    io:nl(),
+    ok.
 
 
 
@@ -713,7 +763,7 @@ render_job(Port) ->
 	{'EXIT',Port,Reason} ->
 	    {error,Reason};
 	Other ->
-	    io:format("Unexpected at ~s:~p: ~p~n", 
+	    io:format("WARNING: Unexpected at ~s:~p: ~p~n", 
 		      [?MODULE_STRING,?LINE,Other]),
 	    render_job(Port)
     end.
@@ -969,16 +1019,27 @@ export_light(F, Name, point, OpenGL, YafRay) ->
     end,
     export_pos(F, from, Position),
     export_rgb(F, color, Diffuse),
-    println(F, "</light>~n~n", []);
+    println(F, "</light>"),
+    undefined;
 export_light(F, Name, infinite, OpenGL, YafRay) ->
+    Bg = proplists:get_value(background, YafRay, ?DEF_BACKGROUND),
     Power = proplists:get_value(power, YafRay, ?DEF_POWER),
-    Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
-    Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
-    println(F,"<light type=\"sunlight\" name=\"~s\" "++
-	    "power=\"~.3f\" cast_shadows=\"on\">", [Name, Power]),
-    export_pos(F, from, Position),
-    export_rgb(F, color, Diffuse),
-    println(F, "</light>");
+    case Power of
+	0.0 ->
+	    ok;
+	_ ->
+	    CastShadows = 
+		proplists:get_value(cast_shadows, YafRay, ?DEF_CAST_SHADOWS),
+	    Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
+	    Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
+	    println(F,"<light type=\"sunlight\" name=\"~s\" "++
+		    "power=\"~.3f\" cast_shadows=\"~s\">", 
+		    [Name, Power,format(CastShadows)]),
+	    export_pos(F, from, Position),
+	    export_rgb(F, color, Diffuse),
+	    println(F, "</light>")
+    end,
+    Bg;
 export_light(F, Name, spot, OpenGL, YafRay) ->
     Power = proplists:get_value(power, YafRay, ?DEF_ATTN_POWER),
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
@@ -1020,10 +1081,12 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
     export_pos(F, from, Position),
     export_pos(F, to, AimPoint),
     export_rgb(F, color, Diffuse),
-    println(F, "</light>");
+    println(F, "</light>"),
+    undefined;
 export_light(_F, Name, Type, _OpenGL, _YafRay) ->
-    io:format("Ignoring unknown light \"~s\" type: ~p~n", 
-	      [Name, format(Type)]).
+    io:format("WARNING: Ignoring unknown light \"~s\" type: ~p~n", 
+	      [Name, format(Type)]),
+    undefined.
 
 
 
@@ -1079,16 +1142,27 @@ limit_dist(_) -> 0.01.
 
 
 
-export_background_constant(F, Name, Attr) ->
-    {R,G,B} = proplists:get_value(background_color, Attr),
-    println(F, "<background type=\"constant\" name=\"~s\">", [Name]),
-    export_rgb(F, color, {R,G,B,1.0}),
-    println(F, "</background>").
-
-export_background_sunsky(F, Name) ->
-    println(F, "<background type=\"sunsky\" name=\"~s\"~n"++
-	    "            turbidity=\"4.0\" add_sun=\"off\">", [Name]),
-    export_pos(F, from, {1.0,1.0,1.0}),
+export_background(F, Name, Ps) ->
+    OpenGL = proplists:get_value(opengl, Ps, []),
+    YafRay = proplists:get_value(?TAG, Ps, []),
+    Bg = proplists:get_value(background, YafRay, ?DEF_BACKGROUND),
+    print(F, "<background type=\"~s\" name=\"~s\"", 
+	  [format(Bg),Name]),
+    case Bg of
+	constant ->
+	    println(F, ">"),
+	    {R,G,B} = proplists:get_value(background_color, YafRay, 
+					  ?DEF_BACKGROUND_COLOR),
+	    export_rgb(F, color, {R,G,B,1.0});
+	sunsky ->
+	    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
+	    AddSun = (Power > 0.0),
+	    Turbidity = proplists:get_value(turbidity, Ps, ?DEF_TURBIDITY),
+	    Position = proplists:get_value(position, OpenGL, {1.0,1.0,1.0}),
+	    println(F, "~n            turbidity=\"~.3f\" add_sun=\"~s\">", 
+		    [Turbidity,format(AddSun)]),
+	    export_pos(F, from, Position)
+    end,
     println(F, "</background>").
 
 
@@ -1128,12 +1202,28 @@ open(Filename, export) ->
 println(F) ->
     println(F, "").
 
+% print(F, DeepString) ->
+%     case file:write(F, DeepString) of
+% 	ok ->
+% 	    ok;
+% 	Error ->
+% 	    erlang:fault(Error, [F,DeepString])
+%     end.
+
 println(F, DeepString) ->
     case file:write(F, [DeepString,io_lib:nl()]) of
 	ok ->
 	    ok;
 	Error ->
 	    erlang:fault(Error, [F,DeepString])
+    end.
+
+print(F, Format, Args) ->
+    case file:write(F, io_lib:format(Format, Args)) of
+	ok ->
+	    ok;
+	Error ->
+	    erlang:fault(Error, [F,Format,Args])
     end.
 
 println(F, Format, Args) ->
