@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.64 2003/01/30 13:00:47 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.65 2003/02/03 20:58:02 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -306,15 +306,13 @@ recursive_dialog(Title, I, Qs, Fun, #s{level=Level}=S) ->
     do_dialog(Title, Qs, Level+1, fun(Vs) -> {update,I,Fun(Vs)} end),
     get_event(S).
 
-drag(#mousemotion{x=X0,y=Y0}, {W,H}, Fi0, Fst, Common, DropData,
-     #s{ox=Ox,oy=Oy,level=Level}=S) ->
-    X = Ox + X0,
-    Y = Oy + Y0,
+drag(#mousemotion{x=X0,y=Y0}, {W,H}, Fi0, Fst, Common, DropData, S) ->
+    {X,Y} = wings_wm:local2global(X0, Y0),
     Fi = Fi0#fi{x=0,y=0,w=W,h=H},
     Drag = fun(Ev) -> drag_event(Ev, Fi, Fst, Common, DropData, S) end,
     Op = {push,Drag},
     Name = dragger,
-    wings_wm:new(Name, {X,Y,Level+500}, {W,H}, Op),
+    wings_wm:new(Name, {X,Y,highest}, {W,H}, Op),
     wings_wm:grab_focus(Name),
     wings_wm:dirty(),
     keep.
@@ -644,15 +642,11 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
     LeftX = X,
     RightX = X+W,
     UpperY = Y + 5,
-    LowerY = UpperY + 1,
     gl:lineWidth(1.0),
     gl:'begin'(?GL_LINES),
     gl:color3f(0.10, 0.10, 0.10),
     gl:vertex2f(LeftX+0.5, UpperY+0.5),
     gl:vertex2f(RightX+0.5, UpperY+0.5),
-    gl:color3f(0.90, 0.90, 0.90),
-    gl:vertex2f(LeftX+1.5, LowerY+0.5),
-    gl:vertex2f(RightX+0.5, LowerY+0.5),
     gl:'end'(),
     gl:color3f(0, 0, 0),
     ?CHECK_ERROR().
@@ -666,7 +660,8 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
 	{label,
 	 labelw,				%Width of label in pixels.
 	 spacew,				%Width of a space character.
-	 state}).
+	 state
+	}).
 
 checkbox(Label, Def) ->
     LabelWidth = wings_text:width(Label),
@@ -701,7 +696,7 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
 
 cb_event({key,_,_,$\s}, _, #cb{state=State}=Cb) ->
     Cb#cb{state=not State};
-cb_event(#mousebutton{x=Xb,state=?SDL_RELEASED},
+cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED},
 	 #fi{x=X},
 	 #cb{state=State,labelw=LblW,spacew=SpaceW}=Cb) ->
     if
