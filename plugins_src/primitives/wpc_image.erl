@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.13 2003/03/03 17:26:51 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.14 2003/05/08 18:56:00 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -51,9 +51,8 @@ make_image() ->
 		#e3d_image{}=Image ->
 		    make_image_1(Name, Image);
 		{error,Error} ->
-		    E = io_lib:format("Failed to load \"~s\": ~s\n",
-				      [Name,file:format_error(Error)]),
-		    wings_util:error(E)
+		    wings_util:error("Failed to load \"~s\": ~s\n",
+				     [Name,file:format_error(Error)])
 	    end
     end.
 
