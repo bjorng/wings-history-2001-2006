@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.26 2001/12/26 14:46:25 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.27 2001/12/31 17:59:00 bjorng Exp $
 %%
 
 -module(wings_edge).
 -export([convert_selection/1,select_more/1,select_less/1,
+	 adjacent_edges/2,
 	 to_vertices/2,select_region/1,
 	 cut/2,cut/3,fast_cut/3,fast_cut/4,connect/1,dissolve/1,
 	 dissolve_edges/2,dissolve_edge/2,patch_edge/4,patch_edge/5,
@@ -85,6 +86,8 @@ select_less(St) ->
 	      gb_sets:subtract(Edges, AdjEdges)
       end, edge, St).
 
+adjacent_edges(Vs, We) ->
+    adjacent_edges(Vs, We, gb_sets:empty()).
 adjacent_edges(Vs, We, Acc) ->
     foldl(fun(V, A) ->
 		  wings_vertex:fold(
@@ -95,6 +98,8 @@ adjacent_edges(Vs, We, Acc) ->
 
 %% to_vertices(EdgeGbSet, We) -> VertexGbSet
 %%  Convert a set of edges to a set of vertices.
+to_vertices(Edges, #we{es=Etab}) when is_list(Edges) ->
+    to_vertices(Edges, Etab, []);
 to_vertices(Edges, #we{es=Etab}) ->
     to_vertices(gb_sets:to_list(Edges), Etab, []).
 

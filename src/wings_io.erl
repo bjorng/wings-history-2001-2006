@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.26 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.27 2001/12/31 17:59:00 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,menubar/1,resize/2,display/1,
 	 hourglass/0,
 	 draw_ui/1,
-	 update/1,button/2,
+	 update/1,
+	 event/1,button/2,
 	 info/1,message/1,clear_message/0,
 	 progress/1,progress_tick/0,
 	 clear_menu_sel/0,
@@ -262,6 +263,16 @@ icon_button(Name, Key, Val) ->
 	_ -> {Name,up}
     end.
 
+event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}=Mb) ->
+    case button(X, Y) of
+	none -> next;
+	ignore -> keep;
+	Other ->
+	    putback_event({action,Other}),
+	    keep
+    end;
+event(Other) -> next.
+
 button(X, Y) when Y > ?LINE_HEIGHT; X < ?MENU_MARGIN ->
     #io{h=H,icons=Icons} = get_state(),
     put_state((get_state())#io{sel=undefined}),
@@ -297,7 +308,7 @@ icon_row_hit(X, [{Pos,Name}|Is]) when Pos =< X, X < Pos+?ICON_WIDTH ->
 		 flatshade -> {view,flatshade};
 		 smooth -> {view,smoothshade};
 		 perspective -> {view,orthogonal_view};
-		 Other -> {select,Name}
+		 Other -> select_button(Other)
 	     end,
     putback_event({action,Action}),
     none;
@@ -305,6 +316,13 @@ icon_row_hit(X, [_|Is]) ->
     icon_row_hit(X, Is);
 icon_row_hit(X, []) -> none.
 
+select_button(Mode) ->
+    case sdl_keyboard:getModState() of
+	Mod when Mod band ?ALT_BITS =/= 0 ->
+	    {select,{boundary,Mode}};
+	Mod -> {select,Mode}
+    end.
+    
 raised_rect(X, Y, Mw, Mh) ->
     raised_rect(X, Y, Mw, Mh, ?PANE_COLOR).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.1 2001/12/31 13:55:19 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.2 2001/12/31 17:59:00 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -98,7 +98,7 @@ command({by,Command}, St) ->
 command(similar, St) ->
     {save_state,similar(St)};
 command({boundary,Mode}, St) ->
-    boundary(Mode, St);
+    {save_state,boundary(Mode, St)};
 command(save, St) ->
     {save_state,save(St)};
 command(load, St) ->
@@ -420,13 +420,28 @@ boundary(vertex, #st{selmode=Mode}=St) ->
 	      Vs = sel_to_vertices(Mode, Items, We),
 	      vtx_boundary(Vs, We)
       end, vertex, St);
+boundary(edge, #st{selmode=edge}=St) ->
+    wings_sel:convert_shape(
+      fun(Es0, We) ->
+	      Vs0 = wings_edge:to_vertices(Es0, We),
+	      Vs = vtx_boundary(Vs0, We),
+	      Es = wings_edge:adjacent_edges(Vs0, We),
+	      gb_sets:from_list(edge_boundary(Es, Vs, We))
+      end, edge, St);
 boundary(edge, #st{selmode=face}=St) ->
     wings_sel:convert_shape(
       fun(Faces, We) ->
-	      Es = wings_face_cmd:outer_edge_partition(Faces, We),
-	      gb_sets:from_list(lists:append(Es))
+	      gb_sets:from_list(wings_face:outer_edges(Faces, We))
       end, edge, St);
+boundary(face, #st{selmode=face}=St) ->
+    wings_sel:convert_shape(
+      fun(Faces, We) ->
+	      wings_face:bordering_faces(Faces, We)
+      end, face, St);
 boundary(Mode, St) -> St.
+
+
+%% Vertex boundaries.
 
 vtx_boundary(Vs, We) when is_list(Vs) ->
     vtx_boundary(Vs, gb_sets:from_list(Vs), We);
@@ -454,3 +469,15 @@ sel_to_vertices(edge, Edges, We) ->
     wings_edge:to_vertices(Edges, We);
 sel_to_vertices(face, Faces, We) ->
     wings_face:to_vertices(Faces, We).
+
+%% Edge boundaries.
+
+edge_boundary(Es, Vs, #we{es=Etab}=We) ->
+    foldl(fun(E, A) ->
+		  #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
+		  case gb_sets:is_member(Va, Vs) andalso
+		      gb_sets:is_member(Vb, Vs) of
+		      true -> [E|A];
+		      false -> A
+		  end
+	  end, [], gb_sets:to_list(Es)).

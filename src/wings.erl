@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.80 2001/12/31 13:55:19 bjorng Exp $
+%%     $Id: wings.erl,v 1.81 2001/12/31 17:59:00 bjorng Exp $
 %%
 
 -module(wings).
@@ -154,6 +154,12 @@ handle_event({crash,_}=Crash, St) ->
     wings_io:message("Internal error - log written to " ++ LogName),
     main_loop(St);
 handle_event(Event, St) ->
+    case wings_io:event(Event) of
+	next -> handle_event_0(Event, St);
+	Other -> Other
+    end.
+
+handle_event_0(Event, St) ->
     case wings_camera:event(Event, fun() -> redraw(St) end) of
 	next -> handle_event_1(Event, St);
 	Other -> Other
@@ -725,10 +731,7 @@ translate_event(ignore, St) -> ignore;
 translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, St) ->
     ignore;
 translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}=Mb, St) ->
-    case wings_io:button(X, Y) of
-	none -> {left_click,X,Y};
-	Other -> Other
-    end;
+    {left_click,X,Y};
 translate_event(#mousebutton{button=3,x=X,y=Y,state=?SDL_PRESSED}, St) ->
     {right_click,X,Y};
 translate_event(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}, St) ->
