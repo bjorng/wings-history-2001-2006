@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.33 2003/01/20 21:00:43 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.34 2003/01/29 16:06:00 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -18,7 +18,7 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [foldl/3,sort/1,foreach/2,map/2]).
+-import(lists, [foldl/3,sort/1,foreach/2,map/2,last/1]).
 
 -define(KL, wings_state).
 
@@ -109,21 +109,28 @@ bkey(Key, _Cmd) ->
     {bindkey,Key}.
     
 matching(Names) ->
+    M0 = matching_global(Names) ++ matching_mode(Names),
+    M = wings_util:rel2fam(M0),
+    [{Name,Key} || {Name,[{_,Key}|_]} <- M].
+
+matching_global(Names) ->
     Spec0 = foldl(fun(N, A) -> {N,A} end, '$1', Names),
-    Spec = [{{{bindkey,'$2'},Spec0,'_'},
+    Spec = [{{{bindkey,'$2'},Spec0,'$3'},
 	     [],
-	     [{{'$1','$2'}}]}],
-    [{Name,keyname(Key)} || {Name,Key} <- ets:select(?KL, Spec)] ++
-	matching_mode(Spec0).
+	     [{{'$1',{{'$3','$2'}}}}]}],
+    [{Name,mkeyname(Key)} || {Name,Key} <- ets:select(?KL, Spec)].
 
 matching_mode({Mode,_}=Spec0) when Mode == shapes; Mode == vertex;
 				   Mode == edge; Mode == face;
 				   Mode == body ->
-    Spec = [{{{bindkey,Mode,'$2'},Spec0,'_'},
+    Spec = [{{{bindkey,Mode,'$2'},Spec0,'$3'},
 	     [],
-	     [{{'$1','$2'}}]}],
-    [{Name,keyname(Key)} || {Name,Key} <- ets:select(?KL, Spec)];
+	     [{{'$1',{{'$3','$2'}}}}]}],
+    [{Name,mkeyname(Key)} || {Name,Key} <- ets:select(?KL, Spec)];
 matching_mode(_Other) -> [].
+
+mkeyname({user,K}) -> {1,keyname(K)};
+mkeyname({default,K}) -> {2,keyname(K)}.
 
 %%%
 %%% Local functions.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.84 2003/01/27 18:09:50 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.85 2003/01/29 16:06:00 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -249,9 +249,7 @@ right_width(Ps) ->
     end.
 
 hotkeys(Names) ->
-    R = sofs:relation(wings_hotkey:matching(Names)),
-    F = sofs:relation_to_family(R),
-    [{Name,Key} || {Name,[Key|_]} <- sofs:to_external(F)].
+    wings_hotkey:matching(Names).
 
 %%%
 %%% Event loop for menus.
