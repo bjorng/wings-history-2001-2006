@@ -3,12 +3,12 @@
 %%
 %%     OpenGL renderer.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.21 2003/01/11 17:06:57 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.22 2003/02/06 05:51:36 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -39,7 +39,7 @@ dialog_qs(render) ->
     SubDiv = get_pref(subdivisions, 0),
     Back = get_pref(background_color, {0.4,0.4,0.4}),
     Alpha = get_pref(render_alpha, false),
-    [{menu,[{"Render to Window",preview},
+    [{menu,[{"Render to Image Window",preview},
 	    {"Render to File",file}],
       DefOutput,[{key,output_type}]},
      aa_frame(),
@@ -218,7 +218,7 @@ render_to_file_1(MaskImage, Rr0) ->
 		       Image = combine_images(ObjectImage, MaskImage),
 		       RendFile = proplists:get_value(output_file, Attr),
 		       ok = e3d_image:save(Image, RendFile),
-		       wings_io:putback_event(time_to_quit),
+		       wings_wm:send(wings_wm:active_window(), time_to_quit),
 		       R
 	       end).
 
@@ -277,24 +277,11 @@ jitter_draw([{Jx,Jy}|J], #r{pass=Pass,acc_size=AccSize,attr=Attr}=Rr) ->
 	    Rr#r{pass=Pass+1,next=fun(R) -> jitter_draw(J, R) end};
 	true ->
 	    Image = capture(3, ?GL_RGB),
-	    wings_wm:message("[R] Exit render mode", "Done"),
-	    Rr#r{pass=done,next=fun(_) ->
-					draw_image(Image)
-				end}
+	    Id = wings_image:new("Rendered", Image),
+	    wings_image:window(Id),
+	    wings_wm:send(wings_wm:active_window(), time_to_quit),
+	    Rr#r{pass=done,next=fun(_) -> ok end}
     end.
-
-draw_image(#e3d_image{width=W,height=H,image=Pixels}) ->
-    gl:disable(?GL_DEPTH_TEST),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:loadIdentity(),
-    {_,_,W,H} = wings_wm:viewport(),
-    glu:ortho2D(0, W, 0, H),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
-    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-    gl:drawBuffer(?GL_BACK),
-    gl:rasterPos2i(0, 0),
-    gl:drawPixels(W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Pixels).
 
 draw_all(Rr) ->
     wings_view:model_transformations(true),
