@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.47 2002/05/06 07:21:00 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.48 2002/05/07 06:21:27 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -526,12 +526,13 @@ load_textures(Bin) ->
 	    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
 	    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
 	    Icons = create_buttons(Icons0),
-	    Tex = create_textures(Icons, 1),
+	    TxIds = gl:genTextures(length(Icons)),
+	    Tex = create_textures(Icons, TxIds),
 	    gl:popAttrib(),
 	    Tex
     end.
 
-create_textures([{Name,{W,H,Icon}}|T], Id) ->
+create_textures([{Name,{W,H,Icon}}|T], [Id|Ids]) ->
     gl:bindTexture(?GL_TEXTURE_2D, Id),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
@@ -539,7 +540,7 @@ create_textures([{Name,{W,H,Icon}}|T], Id) ->
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_CLAMP),
     gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
 		  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Icon),
-    [{Name,Id}|create_textures(T, Id+1)];
+    [{Name,Id}|create_textures(T, Ids)];
 create_textures([], _Id) -> [].
 
 create_buttons(Icons0) ->
