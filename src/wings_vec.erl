@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.88 2003/10/26 10:52:29 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.89 2003/10/26 15:21:17 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -260,10 +260,9 @@ handle_event_4({action,{pick,[{Type,Desc}|More],Acc}},
 	     magnet -> St0#st{selmode=vertex};
 	     _ -> St0
 	 end,
-    erase_vector(),
     clear_sel(),
     set_last_axis(Ss),
-    get_event(Ss#ss{f=Fun,is_axis=IsAxis}, wings_sel:reset(St));
+    get_event(Ss#ss{f=Fun,is_axis=IsAxis,vec=none,info=""}, wings_sel:reset(St));
 handle_event_4({action,Cmd}, Ss, _) ->
     erase_vector(),
     set_last_axis(Ss),
