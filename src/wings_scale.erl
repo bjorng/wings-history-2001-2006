@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.25 2002/02/28 21:09:59 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.26 2002/03/02 21:24:51 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -143,9 +143,9 @@ body_to_vertices(We, Type) ->
     Center = e3d_vec:average(wings_vertex:bounding_box(We)),
     {Xt0,Yt0,Zt0} = filter_vec(Type, {1.0,1.0,1.0}),
     fun(_Matrix0, [Dx]) when is_float(Dx) ->
-	    Xt = 1.01+Xt0*Dx,
-	    Yt = 1.01+Yt0*Dx,
-	    Zt = 1.01+Zt0*Dx,
+	    Xt = 1.0 + Xt0*Dx,
+	    Yt = 1.0 + Yt0*Dx,
+	    Zt = 1.0 + Zt0*Dx,
 	    Mat0 = e3d_mat:translate(Center),
 	    Mat = e3d_mat:mul(Mat0, e3d_mat:scale(Xt, Yt, Zt)),
 	    e3d_mat:mul(Mat, e3d_mat:translate(e3d_vec:neg(Center)))
