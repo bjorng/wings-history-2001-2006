@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.197 2004/03/11 06:12:47 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.198 2004/03/11 07:03:07 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -75,7 +75,7 @@ start_uvmap_3(Id, #we{name=ObjName}=We, St) ->
     Op = {push,fun(Ev) -> auv_event(Ev, St) end},
     Name = {autouv,Id},
     Title = "AutoUV: " ++ ObjName,
-    {{X,Y,W,H},_Geom} = init_drawarea(),
+    {X,Y,W,H} = init_drawarea(),
     Props = [{display_lists,Name}|wings_view:initial_properties()],
     CreateToolbar = fun(N, P, Wi) -> wings:create_toolbar(N, P, Wi) end,
     wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H},
@@ -189,7 +189,6 @@ create_uv_state(Charts0, MatName0, We, GeomSt0) ->
     Charts = restrict_ftab(Charts0),
     wings:mode_restriction([body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
-    {_,Geom} = init_drawarea(),
     {GeomSt1,MatName} = 
 	case has_texture(MatName0, GeomSt0) of
 	    true -> 
@@ -201,7 +200,6 @@ create_uv_state(Charts0, MatName0, We, GeomSt0) ->
     GeomSt = insert_initial_uvcoords(Charts, We#we.id, MatName, GeomSt1),
     wings_wm:send(geom, {new_state,GeomSt}),
     Uvs = #uvstate{st=wpa:sel_set(face, [], GeomSt),
-		   geom=Geom,
 		   id=We#we.id,
 		   matname=MatName},
     St = GeomSt#st{selmode=body,sel=[],shapes=Charts,bb=Uvs},
@@ -229,6 +227,8 @@ create_uv_state(Charts0, MatName0, We, GeomSt0) ->
 
     wings_wm:later(got_focus),
 
+    wings:register_postdraw_hook(wings_wm:this(), ?MODULE,
+				 fun draw_background/1),
     get_event(St).
 
 restrict_ftab(Charts0) ->
@@ -429,7 +429,7 @@ option_menu() ->
 %%% Event handling
 
 get_event(#st{}=St) ->
-    update_dlists(St),
+    wings_draw:update_dlists(St),
     wings_wm:dirty(),
     get_event_nodraw(St).
 
@@ -441,17 +441,15 @@ handle_event(redraw, St) ->
     get_event_nodraw(St);
 handle_event(init_opengl, St) ->
     wings:init_opengl(St),
-    {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
-    Geom = wingeom(W, H),
-    get_event(update_geom(St, Geom));
+    get_event(St);
 handle_event(resized, St) ->
-    {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
-    Geom = wingeom(W,H),
-    get_event(update_geom(St, Geom));
-handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, #st{bb=Uvs}=St) ->
-    GeomSt = wings_select_faces(Sel, St),
-    wings_wm:send(geom, {new_state,GeomSt}),
-    get_event(St#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs#uvstate{st=GeomSt}});
+    get_event(St);
+handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, #st{bb=Uvs}=St0) ->
+    St1 = St0#st{selmode=Mode,sel=Sel,shapes=Shs},
+    GeomSt = wings_select_faces(Sel, St1),
+    St2 = St1#st{bb=Uvs#uvstate{st=GeomSt}},
+    St = update_selected_uvcoords(St2),
+    get_event(St);
 handle_event({new_uv_state,St0}, _) ->
     St = update_selected_uvcoords(St0),
     wings_wm:dirty(),
@@ -513,13 +511,16 @@ handle_event_1(_Event, St) ->
     ?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(St).
 
-update_geom(#st{bb=Uvs}=St, Geom) ->
-    St#st{bb=Uvs#uvstate{geom=Geom}}.
-
+handle_command(move, St) ->
+    drag(wings_move:setup(free, St));
+handle_command({scale,scale_uniform}, St) ->
+    drag(wings_scale:setup({uniform,center}, St));
+handle_command({scale,scale_x}, St) ->
+    drag(wings_scale:setup({x,center}, St));
+handle_command({scale,scale_y}, St) ->
+    drag(wings_scale:setup({y,center}, St));
 handle_command({rotate,free}, St) ->
-    handle_command(rotate, St);
-handle_command({scale,Scale}, St) ->
-    handle_command(Scale, St);
+    drag(wings_rotate:setup({free,center}, St));
 handle_command({rotate,flip_horizontal}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> flip_horizontal(We) end, St0),
     St = update_selected_uvcoords(St1),
@@ -533,62 +534,15 @@ handle_command({rotate,Deg}, St0) ->
     St = update_selected_uvcoords(St1),
     get_event(St);
 handle_command(_, #st{sel=[]}) ->
-    keep;
-handle_command(Cmd, St) ->
-    {_,X,Y} = wings_wm:local_mouse_state(),
-    {seq,push,get_cmd_event(Cmd, X, Y, St)}.
+    keep.
+
+drag({drag,Drag}) ->
+    wings_drag:do_drag(Drag, none).
 
 % handle_command_1(rescale_all, Uvs0) ->
 %     Uvs = clear_selection(Uvs0),
 %     RscAreas = rescale_all(all_charts(Uvs)),
 %     get_event(reset_dl(Uvs0#uvstate{areas=RscAreas}));
-
-%%%
-%%% Command handling.
-%%%
-
--define(SS, 2.0).  % Scale mouse motion
-
-get_cmd_event(Op, X, Y, #st{}=St) ->
-    update_dlists(St),
-    wings_wm:dirty(),
-    get_cmd_event_noredraw(Op, X, Y, St).
-
-get_cmd_event_noredraw(Op, X, Y, #st{}=St) ->
-    {replace,fun(Ev) -> cmd_event(Ev, Op, X, Y, St) end}.
-
-cmd_event(redraw, Op, X, Y, St) ->
-    redraw(St),
-    get_cmd_event_noredraw(Op, X, Y, St);
-
-cmd_event(#mousemotion{x=MX0,y=MY0}, Op, X0, Y0, St0) ->
-    #st{bb=#uvstate{geom={X0Y0,MW0,X0Y0,MH0}}} = St0,
-    {_,_,W,H} = wings_wm:viewport(),
-    DX = MX0 - X0,
-    DY = MY0 - Y0,
-    MW =  (MW0-X0Y0) * DX/W,
-    MH = -(MH0-X0Y0) * DY/H,
-%%    ?DBG("Viewp ~p ~p ~p ~p ~n", [MW,MH,DX,DY]), 
-    St = case Op of
-	     move ->
-		 wpa:sel_map(fun(_, We) -> move_chart(4*MW, 4*MH, We) end, St0);
-	     rotate ->
-		 wpa:sel_map(fun(_, We) -> rotate_chart(MW*180, We) end, St0);
-	     scale_uniform ->
-		 wpa:sel_map(fun(_, We) -> scale_chart(1.0+MW*?SS, We) end, St0);
-	     scale_x ->
-		 wpa:sel_map(fun(_, We) -> scale_chart({1.0+MW*?SS,1.0,1.0}, We)end,St0);
-	     scale_y ->
-		 wpa:sel_map(fun(_, We) -> scale_chart({1.0,1.0+MH*?SS,1.0}, We)end,St0)
-	 end,
-    get_cmd_event(Op, MX0, MY0, St);
-cmd_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT}, _, _, _, St) ->
-    wings_wm:later({new_uv_state,St}),
-    pop;
-cmd_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT}, _, _, _, _) ->
-    wings_wm:dirty(),
-    pop;
-cmd_event(_, _, _, _, _) -> keep.
 
 drag_filter({image,_,_}) ->
     {yes,"Drop: Change the texture image"};
@@ -612,7 +566,7 @@ is_power_of_two(X) ->
     (X band -X ) == X.
 
 update_selection(#st{selmode=Mode,sel=Sel}=St,
-		 #st{bb = #uvstate{st=#st{selmode=Mode,sel=Sel}} = Uvs} = AuvSt) ->
+		 #st{bb=#uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs} = AuvSt) ->
     get_event_nodraw(AuvSt#st{bb = Uvs#uvstate{st=St}});
 update_selection(#st{selmode=Mode,sel=Sel}=St, #st{bb=#uvstate{id=Id}=Uvs}=AuvSt0) ->
     AuvSt = AuvSt0#st{sel=[], bb=Uvs#uvstate{st=St}},
@@ -649,23 +603,12 @@ wings_select_faces(Sel, #st{bb=#uvstate{st=GeomSt,id=Id}}=St) ->
 
 %%%% GUI Operations
 
-move_chart(Dx, Dy, We) ->
-    Translate = e3d_mat:translate(Dx, Dy, 0.0),
-    wings_we:transform_vs(Translate, We).
-
 rotate_chart(Angle, We) ->
     Center = wings_vertex:center(We),
     Rot0 = e3d_mat:translate(e3d_vec:neg(Center)),
     Rot1 = e3d_mat:mul(e3d_mat:rotate(float(trunc(Angle)), {0.0,0.0,1.0}), Rot0),
     Rot = e3d_mat:mul(e3d_mat:translate(Center), Rot1),
     wings_we:transform_vs(Rot, We).
-
-scale_chart(Size, We) ->
-    Center = wings_vertex:center(We),
-    Scale0 = e3d_mat:translate(e3d_vec:neg(Center)),
-    Scale1 = e3d_mat:mul(e3d_mat:scale(Size), Scale0),
-    Scale  = e3d_mat:mul(e3d_mat:translate(Center), Scale1),
-    wings_we:transform_vs(Scale, We).
 
 flip_horizontal(We) ->
     flip(e3d_mat:scale(-1.0, 1.0, 1.0), We).
@@ -765,126 +708,45 @@ broken_event(Ev, _) ->
 %%% Draw routines.
 %%%
 
-redraw(#st{mat=Mats,bb=Uvs}) ->
+draw_background(#st{mat=Mats,bb=#uvstate{matname=MatN}}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-
-    %% Draw background of AutoUV window.
-
-    {X,Y,W,H} = wings_wm:viewport(),
-    gl:scissor(X, Y, W, H),
-    gl:enable(?GL_SCISSOR_TEST),
-    gl:clearColor(1, 1, 1, 1),
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-    gl:disable(?GL_SCISSOR_TEST),
-
-    gl:disable(?GL_CULL_FACE),
-    gl:disable(?GL_LIGHTING),
-
     wings_view:load_matrices(false),
 
     %% Draw the background texture.
 
+    gl:enable(?GL_DEPTH_TEST),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1, 1, 1),			%Clear
-    #uvstate{matname=MatN} = Uvs,
     case has_texture(MatN, Mats) of
 	false -> ok;
 	_ -> wings_material:apply_material(MatN, Mats)
     end,
     gl:'begin'(?GL_QUADS),
-    gl:texCoord2f(0, 0),    gl:vertex3f(0, 0, 0),
-    gl:texCoord2f(1, 0),    gl:vertex3f(1, 0, 0),
-    gl:texCoord2f(1, 1),    gl:vertex3f(1, 1, 0),
-    gl:texCoord2f(0, 1),    gl:vertex3f(0, 1, 0),
+    gl:texCoord2f(0, 0),    gl:vertex3f(0, 0, -1),
+    gl:texCoord2f(1, 0),    gl:vertex3f(1, 0, -1),
+    gl:texCoord2f(1, 1),    gl:vertex3f(1, 1, -1),
+    gl:texCoord2f(0, 1),    gl:vertex3f(0, 1, -1),
     gl:'end'(), 
-    gl:disable(?GL_TEXTURE_2D),
 
     %% Draw border around the UV space.
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+    gl:lineWidth(2),
     gl:color3f(0, 0, 1),
+    gl:translatef(0, 0, -0.8),
     gl:recti(0, 0, 1, 1),
 
-    %% Now draw charts and selection.
-
-    gl:enable(?GL_DEPTH_TEST),
-    gl:depthFunc(?GL_LESS),
-    gl:shadeModel(?GL_FLAT),
-
-    wings_draw_util:fold(fun(D, _) ->
-				 draw_one_chart(D)
-			 end, []),
     gl:popAttrib().
+
+redraw(St) ->
+    wings:redraw(St).
 
 init_drawarea() ->
     {{X,TopY},{W0,TopH}} = wings_wm:win_rect(desktop),
     W = W0 div 2,
-    {{X+W,TopY+75,W,TopH-100}, wingeom(W, TopH)}.
+    {X+W,TopY+75,W,TopH-100}.
     
-wingeom(W,H) ->
-    Border = 15,
-    if 
-	W > H ->
-	    WF = Border / W,
-	    {-WF,W/H+WF,-WF,1+2*WF};
-	true ->
-	    WF = Border / H,
-	    {-WF,1+WF,-WF,H/W+WF}
-    end.
-
-draw_one_chart(#dlo{edges=Edges,sel=Sel}) ->
-    wings_draw_util:call(Edges),
-    wings_draw_util:call(Sel).
-
-update_dlists(#st{}=St) ->
-    wings_draw:invalidate_dlists(false, St),
-    wings_draw_util:map(fun(D0, _) ->
-				D = update_edges(D0),
-				update_sel(D)
-			end, []).
-
-update_edges(#dlo{edges=none,src_we=#we{name=#ch{fs=Fs}}=We}=D) ->
-    List = gl:genLists(1),
-    gl:newList(List, ?GL_COMPILE),
-    gl:lineWidth(1),
-    gl:color3f(0.1, 0.1, 0.1),
-    draw_all_face_edges(Fs, We),
-    gl:endList(),
-    D#dlo{edges=List};
-update_edges(#dlo{}=D) -> D.
-
-draw_all_face_edges([F|Fs], We) ->
-    draw_face_edges(F, We),
-    draw_all_face_edges(Fs, We);
-draw_all_face_edges([], _) -> ok.
-
-draw_face_edges(Face, #we{vp=Vtab}=We) ->
-    Vs = wings_face:vertices_cw(Face, We),
-    gl:'begin'(?GL_LINE_LOOP),
-    foreach(fun(V) -> gl:vertex3fv(gb_trees:get(V, Vtab)) end, Vs),
-    gl:'end'().
-
-draw_faces(Fs, We) ->
-    Draw = fun(Face) -> wings_draw_util:plain_face(Face, We) end,
-    wings_draw_util:begin_end(fun() -> foreach(Draw, Fs) end).
-
-update_sel(#dlo{sel=none,src_sel={body,_},src_we=#we{name=#ch{fs=Fs}}=We}=D) ->
-    List = gl:genLists(1),
-    gl:newList(List, ?GL_COMPILE),
-    {R,G,B} = wings_pref:get_value(selected_color),
-    gl:pushMatrix(),
-    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    gl:enable(?GL_BLEND),
-    gl:translatef(0, 0, 0.1),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    gl:color4f(R, G, B, 0.7),
-    draw_faces(Fs, We#we{mode=material}),
-    gl:disable(?GL_BLEND),
-    gl:popMatrix(),
-    gl:endList(),
-    D#dlo{sel=List};
-update_sel(#dlo{}=D) -> D.
-
 restore_wings_window() ->
+    wings:unregister_postdraw_hook(wings_wm:this(), ?MODULE),
     wings_draw_util:delete_dlists().
 
 %% Generate a checkerboard image of 4x4 squares 
