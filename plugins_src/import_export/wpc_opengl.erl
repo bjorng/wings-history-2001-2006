@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.56 2003/11/27 20:33:58 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.57 2003/11/27 23:09:23 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -499,8 +499,6 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:enable(?GL_LIGHTING),
     case programmable() of
 	true ->
-	    {Lx,Ly,Lz} = L#light.pos,
-	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,0,Lx,Ly,Lz,0.0),
 	    enable_shaders();
 	false ->
 	    skip
@@ -901,15 +899,33 @@ setup_light(#light{type=infinite,aim=Aim,pos=Pos,attr=L}) ->
     gl:lightf(?GL_LIGHT0, ?GL_LINEAR_ATTENUATION, 0.0),
     gl:lightf(?GL_LIGHT0, ?GL_QUADRATIC_ATTENUATION, 0.0),
     gl:lightf(?GL_LIGHT0, ?GL_SPOT_CUTOFF, 180.0),
+    case programmable() of 
+	true ->
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,1,X,Y,Z,0.0),
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,2,-X,-Y,-Z,1.0);
+	false ->   skip
+    end,
     setup_light_attr(L);
 setup_light(#light{type=point,pos={X,Y,Z},attr=L}) ->
     gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(?GL_LIGHT0, ?GL_SPOT_CUTOFF, 180.0),
+    case programmable() of 
+	true ->
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,1,X,Y,Z,1.0),
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,2,-1.0,-1.0,-1.0,1.0);
+	false ->   skip
+    end,
     setup_light_attr(L);
 setup_light(#light{type=spot,aim=Aim,pos=Pos={X,Y,Z},attr=L}) ->
-    Dir = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
+    Dir = {Sx,Sy,Sz} = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
     gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightfv(?GL_LIGHT0, ?GL_SPOT_DIRECTION, Dir),
+    case programmable() of 
+	true ->
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,1,X,Y,Z,1.0),
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,2,Sx,Sy,Sz,1.0);
+	false -> skip
+    end,
     setup_light_attr(L).
 
 setup_light_attr([]) ->
@@ -1308,9 +1324,7 @@ enable_shaders() ->
 	    {_InvMV,{Cx,Cy,Cz}} = mult_inverse_model_transform({0.0,0.0,0.0}),
 	    gl:enable(?GL_FRAGMENT_PROGRAM_ARB),
 	    gl:enable(?GL_VERTEX_PROGRAM_ARB),
-%% 	    io:format("L[~.2f,~.2f,~.2f] C[~.2f,~.2f,~.2f]~n",
-%% 		      [Lx,Ly,Lz,Cx,Cy,Cz]),
-	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,1,Cx,Cy,Cz,0);
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,0,Cx,Cy,Cz,0);
 	_ ->
 	    ok
     end.
@@ -1362,17 +1376,17 @@ print_program_1([], _) -> ok.
 vertex_prog() ->
     <<"!!ARBvp1.0
 
-PARAM mvp[4] = { state.matrix.mvp };
-
-PARAM light  = program.env[0];
-PARAM camera = program.env[1];
+PARAM mvp[4]  = { state.matrix.mvp };
+PARAM camera  = program.env[0];
+PARAM light   = program.env[1];
+PARAM spotdir = program.env[2];
 
 ATTRIB xyz = vertex.position;
 ATTRIB normal = vertex.normal;
 ATTRIB tangent = vertex.texcoord[0];
 ATTRIB st = vertex.texcoord[1];
 
-TEMP dir, binormal, ldist2, temp, cam;
+TEMP pos, dir, binormal, ldist2, temp, cam;
 
 XPD binormal, tangent, normal;
 
@@ -1381,15 +1395,23 @@ DP4 result.position.y, mvp[1], xyz;
 DP4 result.position.z, mvp[2], xyz;
 DP4 result.position.w, mvp[3], xyz;
 
-SUB dir, light, xyz;
-DP3 ldist2, dir, dir;
-RSQ dir.w, ldist2.w;
+# Check for infinite light
+SGE pos.w, light.w, 0.5;
+MUL pos, xyz, pos.w;
+SUB dir, light, pos;
+# Calc vector 
+DP3 ldist2.x, dir, dir;
+RSQ dir.w, ldist2.x;
 MUL dir.xyz, dir, dir.w;
 
 DP3 result.texcoord[1].x, tangent, dir;
 DP3 result.texcoord[1].y, binormal, dir;
 DP3 result.texcoord[1].z, normal, dir;
-MOV result.texcoord[1].w, ldist2;
+# Put dist*dist in w
+MOV result.texcoord[1].w, ldist2.x;
+
+# Calc spotdir dot3 ligthdir to get spot falloff
+DP3 ldist2.y, dir, -spotdir;
 
 SUB cam, camera, xyz;
 DP3 cam.w, cam, cam;
@@ -1403,6 +1425,8 @@ MUL dir.xyz, dir, dir.w;
 DP3 result.texcoord[2].x, tangent, dir;
 DP3 result.texcoord[2].y, binormal, dir;
 DP3 result.texcoord[2].z, normal, dir;
+# Store spot falloff
+MOV result.texcoord[2].w, ldist2.y;
 
 MOV result.texcoord[0], st;
 
@@ -1422,15 +1446,26 @@ PARAM matshin  = state.material.shininess;
 PARAM ldiff = state.light[0].diffuse;
 PARAM lspec = state.light[0].specular;
 
-TEMP base, dot3, gloss, color, diffuse, specular, lvec, ldist2, att;
+TEMP base, dot3, gloss, color, diffuse, specular, lvec, att, temp;
 
 # Attenuation
-MOV ldist2, fragment.texcoord[1].w;
-MAD att, state.light[0].attenuation.z, ldist2, state.light[0].attenuation.x;
-RSQ ldist2.w, ldist2.w;
-RCP ldist2.z, ldist2.w;
-MAD att, ldist2.z, state.light[0].attenuation.y, att.x;
-RCP att.x, att.x;
+MOV temp.w, fragment.texcoord[1].w;
+RSQ temp.x, temp.w;
+DST temp, temp.w, temp.x;  # temp = {1,d,d^2,1/d}
+DP3 att.w, temp, state.light[0].attenuation;
+RCP att.w, att.w;
+
+# Spot attenution
+MOV temp.y, fragment.texcoord[2].w;
+ADD temp.x, temp.y, -state.light[0].spot.direction.w;
+MOV temp.w, state.light[0].attenuation.w;
+LIT temp, temp;
+# if spot used i.e. tex.w > 0.999 
+SGE temp.x, fragment.texcoord[2].w, 0.999;
+SUB temp.y, 1.0, temp.z;
+MAD temp.z, temp.x, temp.y, temp.z;
+# mul with temp.z
+MUL att, att.w, temp.z;
 
 TEX base,  fragment.texcoord[0], texture[0], 2D;
 TEX dot3,  fragment.texcoord[0], texture[1], 2D;
