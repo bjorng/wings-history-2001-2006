@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.20 2001/11/24 18:36:17 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.21 2001/11/25 08:17:12 bjorng Exp $
 %%
 
 -module(wings_view).
 -export([menu/3,command/2,init/0,current/0,set_current/1,
 	 reset/0,projection/0,perspective/0,
-	 model_transformations/1,eye_point/0,
+	 model_transformations/0,eye_point/0,
 	 aim/1,along/2,align_to_selection/1]).
 
 -define(NEED_ESDL, 1).
@@ -142,7 +142,7 @@ perspective() ->
 	    gl:ortho(-Sz*Aspect, Sz*Aspect, -Sz, Sz, 0.25, 1000.0)
     end.
 
-model_transformations(St) ->
+model_transformations() ->
     #view{origo=Origo,distance=Dist0,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),

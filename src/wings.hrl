@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.25 2001/11/23 17:25:48 bjorng Exp $
+%%     $Id: wings.hrl,v 1.26 2001/11/25 08:17:11 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -100,7 +100,6 @@
 -record(shape,
 	{id,					%Shape id
 	 name,					%Shape name
-	 matrix=e3d_mat:identity(),		%Transformation matrix
 	 sh					%The shape itself:
 						% An 'we' record
 	}).

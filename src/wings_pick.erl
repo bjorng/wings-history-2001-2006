@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.11 2001/11/24 10:46:02 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.12 2001/11/25 08:17:12 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -199,7 +199,7 @@ convert_hit(body, X, Y, Id, Face, We) -> {Id,0};
 convert_hit(face, X, Y, Id, Face, We) -> {Id,Face};
 convert_hit(Mode, X, Y, Id, Face, We) ->
     wings_view:projection(),
-    wings_view:model_transformations(dummy),
+    wings_view:model_transformations(),
     ViewPort = gl:getIntegerv(?GL_VIEWPORT),
     ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
     ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
@@ -282,7 +282,7 @@ pick_all(X0, Y0, W, H, St) ->
     Y = Wh-float(Y0),
     glu:pickMatrix(X, Y, W, H, ViewPort),
     wings_view:perspective(),
-    wings_view:model_transformations(St),
+    wings_view:model_transformations(),
     marque_draw(St),
     gl:flush(),
     case gl:renderMode(?GL_RENDER) of
@@ -357,13 +357,12 @@ marque_draw(St) ->
 		       gl:popName()
 	       end, St).
 
-
 %%
 %% Draw for the purpose of picking the items that the user clicked on.
 %%
 
 select_draw(St0) ->
-    wings_view:model_transformations(St0),
+    wings_view:model_transformations(),
     #st{dl=#dl{pick=Dlist}=DL} = St = select_draw_0(St0),
     gl:callList(Dlist),
     St.

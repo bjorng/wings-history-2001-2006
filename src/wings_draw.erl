@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.24 2001/11/22 15:45:36 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.25 2001/11/25 08:17:11 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -39,7 +39,7 @@ render(#st{shapes=Shapes}=St0) ->
     St1 = update_display_lists(St0),
     St = make_sel_dlist(St1),
     wings_view:projection(),
-    wings_view:model_transformations(St0),
+    wings_view:model_transformations(),
     ground_and_axes(),
     draw_shapes(St),
     gl:popAttrib(),
@@ -304,11 +304,8 @@ draw_hard_edges_1(#we{es=Etab,he=Htab,vs=Vtab}) ->
 
 draw_selection(#st{selmode=body}=St) ->
     wings_sel:foreach(
-      fun(_, #shape{matrix=Matrix,sh=Data}) ->
-	      gl:pushMatrix(),
-	      gl:multMatrixf(e3d_mat:expand(Matrix)),
-	      draw_faces(Data, false, St),
-	      gl:popMatrix()
+      fun(_, #shape{sh=Data}) ->
+	      draw_faces(Data, false, St)
       end, St),
     St;
 draw_selection(#st{selmode=face}=St) ->

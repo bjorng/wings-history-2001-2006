@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.15 2001/11/18 19:25:28 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.16 2001/11/25 08:17:12 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -151,7 +151,7 @@ body_to_vertices(Sh, Type) ->
 scale_fun(#shape{sh=We}, Type) ->
     Center = e3d_vec:average(wings_vertex:bounding_box(We)),
     {Xt0,Yt0,Zt0} = filter_vec(Type, {1.0,1.0,1.0}),
-    fun(Sh, Dx, Dy, St) when float(Dx) ->
+    fun(Matrix0, Dx, Dy, St) when float(Dx) ->
 	    wings_drag:message([Dx], percent),
 	    Xt = 1.01+Xt0*Dx,
 	    Yt = 1.01+Yt0*Dx,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.31 2001/11/15 10:59:55 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.32 2001/11/25 08:17:12 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -443,11 +443,11 @@ do_export(Mod, Name, St) ->
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
     Mod:export(Name, Contents).
 
-do_export(#shape{name=Name,matrix=Matrix,sh=#we{}=We}, Acc) ->
-    Mesh = make_mesh(Matrix, We),
+do_export(#shape{name=Name,sh=#we{}=We}, Acc) ->
+    Mesh = make_mesh(We),
     [#e3d_object{name=Name,obj=Mesh}|Acc].
 
-make_mesh(Matrix, We0) ->
+make_mesh(We0) ->
     #we{vs=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We0, 0),
     Vs = [P || #vtx{pos=P} <- gb_trees:values(Vs0)],
     Fs1 = wings_util:fold_face(
@@ -456,6 +456,7 @@ make_mesh(Matrix, We0) ->
 	    end, [], We),
     Fs = reverse(Fs1),
     He = hard_edges(gb_sets:to_list(He0), Etab, []),
+    Matrix = e3d_mat:identity(),
     #e3d_mesh{type=polygon,fs=Fs,vs=Vs,he=He,matrix=Matrix}.
 
 make_face(Face, Mat, We) ->
