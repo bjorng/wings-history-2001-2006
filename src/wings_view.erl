@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.117 2003/05/08 07:00:56 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.118 2003/05/16 17:49:34 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -468,6 +468,10 @@ smooth_event_1({action,{view,View}}, #sm{st=St}=Sm) ->
 	    keep;
 	toggle_lights ->
 	    toggle_lights(),
+	    wings_wm:dirty(),
+	    keep;
+	scene_lights ->
+	    toggle_option(scene_lights),
 	    wings_wm:dirty(),
 	    keep;
 	auto_rotate ->
