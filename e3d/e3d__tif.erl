@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.10 2002/08/03 09:05:36 bjorng Exp $
+%%     $Id: e3d__tif.erl,v 1.11 2003/05/12 15:50:11 dgud Exp $
 %%
 
 -module(e3d__tif).
@@ -16,7 +16,7 @@
 -export([format_error/1]).
 -include("e3d_image.hrl").
 
--export([decompress/4]).
+-export([decompress/5]).
 
 format_error(unsupported_format) ->
     "Unsupported format or bad TIFF file";
@@ -25,18 +25,18 @@ format_error({none,?MODULE,{tif_decode,_}}) ->
 format_error({unsupported_compression,Comp}) ->
     io_lib:format("Unsupported compression type (~p)", [Comp]).
 
-load(FileName, Opts) ->
+load(FileName, _Opts) ->
     case file:read_file(FileName) of
-	{ok, Orig = <<16#4949:16, 42:16/little, IFDOffset:32/little, Rest/binary>>} ->
+	{ok, Orig = <<16#4949:16, 42:16/little, IFDOffset:32/little, _Rest/binary>>} ->
 %%	    io:format("Little tiff file~n", []),
 	    IFDs = getIFDs(little, IFDOffset, Orig),	    
-	    Image = load_image(little, hd(IFDs), Orig);
-	{ok, Orig = <<16#4D4D:16, 42:16, IFDOffset:32/big, Rest0/binary>>} ->
+	    load_image(little, hd(IFDs), Orig);
+	{ok, Orig = <<16#4D4D:16, 42:16, IFDOffset:32/big, _Rest/binary>>} ->
 	    IFDs = getIFDs(big, IFDOffset, Orig),
 %	    io:format("Big tiff file ~p ofs: ~p ~n ~p ~n", 
 %		      [size(Orig), IFDOffset, IFDs]),
-	    Image = load_image(big, hd(IFDs), Orig);
-	{ok, Bin} ->
+	    load_image(big, hd(IFDs), Orig);
+	{ok, _Bin} ->
 	    {error, {none,?MODULE,unsupported_format}};
 	Error ->
 	    Error
@@ -73,7 +73,7 @@ save2(Image0, FileName, Opts) ->
 -define(BIG_ENTRIESB_NEXT, EntriesB:EntSz/binary, NextIFD:32/big).
 -define(LITTLE_ENTRIESB_NEXT, EntriesB:EntSz/binary, NextIFD:32/little).
 
-getIFDs(T, 0, Orig) -> [];  %% Previous was last IFD
+getIFDs(_T, 0, _Orig) -> [];  %% Previous was last IFD
 getIFDs(T, IFDOffset, Orig) ->
     if 
 	T == big ->    <<?BIG_DIRENTRIES, Temp/binary>> = Orig;
@@ -81,8 +81,8 @@ getIFDs(T, IFDOffset, Orig) ->
     end,               
     EntSz = (12*DirEntries),        
     if                     
-	T == big ->     <<?BIG_ENTRIESB_NEXT, Skip2/binary>> = Temp;
-	T == little ->  <<?LITTLE_ENTRIESB_NEXT, Skip2/binary>> = Temp
+	T == big ->     <<?BIG_ENTRIESB_NEXT, _Skip2/binary>> = Temp;
+	T == little ->  <<?LITTLE_ENTRIESB_NEXT, _Skip2/binary>> = Temp
     end,                   
     Entries = getDirEntries(T, DirEntries, EntriesB),
     [Entries|getIFDs(T, NextIFD, Orig)].
@@ -100,6 +100,7 @@ getDirEntries(T, N, Bin) ->
     if 
 	%% Ignore Private fields
 	Tag >= 32768 -> 
+%%	    io:format("Skipped private tag: ~w~n", [Tag]),
 	    getDirEntries(T, N-1, Next);
 	true -> %% Not a private field read value or get pointer
 	    Type = type2type(IType),
@@ -121,12 +122,17 @@ getDirEntries(T, N, Bin) ->
 	    [{Tag, Type, Count, ValOrOffset} | getDirEntries(T, N-1, Next)]
     end.
 
+-define(NewSubFileType, 254).   %%% Subfile contents %% Not Supported
 -define(ImageWidth,  256).      %%% No of pixels per row
 -define(ImageLength, 257).      %%% No of rows
 
 -define(BitsPerSample, 258).    %%%  
 -define(Compression, 259).      %%% 1 No Comp; 2 CCITT G3 1-D Modified Huffman RLE
                                 %%% 5 Extension ; 32773 PackBits
+
+-define(DocumentName, 269).     %%% Skipped
+-define(ImageDescription, 270). %%% Skipped
+
 -define(Predictor, 317).        %%% 1 No differencing (default)
                                 %%% 2 Horizontal differencing
 
@@ -151,11 +157,13 @@ getDirEntries(T, N, Bin) ->
 
 load_image(Enc, IFDs, Orig) ->
     Tif = get_info(IFDs, #tif{}, Orig, Enc),
-%%    io:format("IFD ~p ~nFileSize ~p ~n ~p", [IFDs, size(Orig), Tif]),
-    RevStrips = get_strips(Tif#tif.so, Tif#tif.sbc, Orig, Enc, []),    
+    %%    io:format("IFD ~p ~nFileSize ~p ~n ~p", [IFDs, size(Orig), Tif]),
+    Strips = get_strips(Tif#tif.so, Tif#tif.sbc, Orig, Enc, []),    
     Size = Tif#tif.w * Tif#tif.h * (Tif#tif.bpp div 8),
-%%    io:format("Tif size ~p ~p ~n", [Size, {Tif#tif.w, Tif#tif.h,Tif#tif.bpp div 8}]),
-    case catch decompress(RevStrips, Tif#tif.comp, Tif, []) of
+%     io:format("Tif size ~p ~p ~p ~n", [Size, {Tif#tif.w, Tif#tif.h,Tif#tif.bpp div 8, 
+% 					      Tif#tif.order, Tif#tif.rps},
+% 				       {Tif#tif.bps, Tif#tif.spp, length(Strips)}]),
+    case catch decompress(Strips, Tif#tif.comp, Tif#tif.h, Tif, []) of
 	<<Image:Size/binary, _/binary>> ->    
 	    {Type,Bypp,Image2} = 
 		if 
@@ -173,7 +181,7 @@ load_image(Enc, IFDs, Orig) ->
 	    {error, {none,?MODULE,{tif_decode,Else}}}
     end.
 
-remove_extra_samples(RGBits, DiscardBits, <<>>, Acc) ->
+remove_extra_samples(_RGBits, _DiscardBits, <<>>, Acc) ->
     list_to_binary(lists:reverse(Acc));
 remove_extra_samples(RGBits, DiscardBits, Image, Acc) ->
     <<Keep:3/binary, _Del:DiscardBits, Rest/binary>> = Image,
@@ -235,7 +243,7 @@ save_image(Image, Compress, Offset1) ->
 	 EndOfBlock],
     {Offset5, Bin}.
          
-get_info([], Tif, Orig,Enc) -> Tif;
+get_info([], Tif, _Orig,_Enc) -> Tif;
 get_info([{?PhotoMetricInt, _, 1, {value, 2}}| R], Tif, Orig,Enc) ->  
     get_info(R, Tif, Orig,Enc);  %% Supports RGB only now
 get_info([{?ImageWidth, _, 1, {value, W}}|R], Tif, Orig,Enc) ->
@@ -259,7 +267,7 @@ get_info([{?SamplesPerPixel, _, 1, {value, SPP}}|R], Tif, Orig,Enc) ->
 get_info([{?ExtraSamples, Type = short, Count, {offset, Off}}|R], Tif, Orig,Enc) ->
     Len = typeSz(Type) * Count,
     <<_:Off/binary, Data:Len/binary, _/binary>> = Orig,
-    What = getdata(Enc, short, Count, Data),
+    _What = getdata(Enc, short, Count, Data),
 %%    io:format("Tif Extra Samples ~p~n", [What]),
     get_info(R, Tif, Orig, Enc);
 get_info([{?Compression, _, 1, {value, Comp}}|R], Tif, Orig,Enc) ->
@@ -280,7 +288,7 @@ get_info([{?StripOffsets, Type = long, Count, Where}|R], Tif, Orig,Enc) ->
 		getdata(Enc, Type, Count, OFSB)	
 	end,
     get_info(R, Tif#tif{so = Sofs}, Orig,Enc);
-get_info([{?RowsPerStrip, Type, 1, {value, Rows}}|R], Tif, Orig,Enc) ->
+get_info([{?RowsPerStrip, _Type, 1, {value, Rows}}|R], Tif, Orig,Enc) ->
     get_info(R, Tif#tif{rps = Rows}, Orig,Enc);
 get_info([{?StripByteCounts, Type, Count, What}|R], Tif, Orig,Enc) ->
     SBCS = 
@@ -294,7 +302,7 @@ get_info([{?StripByteCounts, Type, Count, What}|R], Tif, Orig,Enc) ->
 	end,	
     get_info(R, Tif#tif{sbc = SBCS}, Orig,Enc);
 
-get_info([{?Orientation, Type, 1, {value, Orient}}|R], Tif, Orig,Enc) ->
+get_info([{?Orientation, _Type, 1, {value, Orient}}|R], Tif, Orig,Enc) ->
     Order = 
 	case Orient of
 	    1 -> upper_left;
@@ -306,26 +314,34 @@ get_info([{?Orientation, Type, 1, {value, Orient}}|R], Tif, Orig,Enc) ->
 		erlang:fault({?MODULE, unsupported, {orientation, Err}})	
 	end,
     get_info(R, Tif#tif{order = Order}, Orig,Enc);
-get_info([{?PlanarConf, Type, 1, {value, 1}}|R], Tif, Orig,Enc) ->
+get_info([{?PlanarConf, _Type, 1, {value, 1}}|R], Tif, Orig,Enc) ->
     get_info(R, Tif, Orig,Enc);
 
 %% SKIP these 
-get_info([{?XResolution, _, _, {offset, W}}|R], Tif, Orig,Enc) -> %SKIP    
+get_info([{?XResolution, _, _, {offset, _W}}|R], Tif, Orig,Enc) -> %SKIP    
 %    <<_:W/binary, BPS:8/binary, _/binary>> = Orig,
 %    What = getdata(Enc, rational, 1, BPS),
 %    io:format("XREs ~p~n", [What]),
     get_info(R, Tif, Orig,Enc);
-get_info([{?YResolution, _, _, {offset,W}}|R], Tif, Orig,Enc) -> %SKIP
+get_info([{?YResolution, _, _, {offset,_W}}|R], Tif, Orig,Enc) -> %SKIP
     get_info(R, Tif, Orig,Enc);
 get_info([{?ResolutionUnit, _, _, _}|R], Tif, Orig,Enc) -> %SKIP
     get_info(R, Tif, Orig,Enc);
+get_info([{?NewSubFileType, _, _, _}|R], Tif, Orig,Enc) -> 
+    %% Skip it we don't support subfile contents anyway.
+    get_info(R, Tif, Orig,Enc);
+get_info([{?DocumentName, _, _, _}|R], Tif, Orig,Enc) -> %% Skip
+    get_info(R, Tif, Orig,Enc);
+get_info([{?ImageDescription, _, _, _}|R], Tif, Orig,Enc) -> %% Skip
+    get_info(R, Tif, Orig,Enc);
+
 
 get_info([Err|R], Tif, Orig,Enc) ->  
     io:format("~p: Unsupported TAG ~p ~n", [?MODULE, Err]),
     get_info(R, Tif, Orig,Enc).  
 
-get_strips([], [], Orig, Enc, Acc) ->
-    Acc;
+get_strips([], [], _Orig, _Enc, Acc) ->
+    lists:reverse(Acc);
 get_strips([StripOff|R1], [SBC|R2], Orig, Enc, Acc) ->
     case Orig of
 	<<_:StripOff/binary, Strip:SBC/binary, _/binary>> ->
@@ -344,10 +360,9 @@ get_strips([StripOff|R1], [SBC|R2], Orig, Enc, Acc) ->
 -define(get_lzw(Code), get(Code)).
 -define(add_lzw(Code, Str), put(Code, Str)).
 
-decompress(RevStrips, Comp = 1, _, _) ->  %% No Compression
-    list_to_binary(lists:reverse(RevStrips));
-decompress([CompStrip|Rest], Comp = 5, Tif, Acc) -> %% LZW-Compression
-%    io:format("~nStrip len ~p ~n", [size(CompStrip)]),
+decompress(RevStrips, 1, _, _, _) ->  %% No Compression
+    list_to_binary(RevStrips);
+decompress([CompStrip|Rest], Comp = 5, RowsLeft, Tif, Acc) -> %% LZW-Compression
     ReadCode = fun(BitLen, UsedBits) ->
 		       Shift = case ((UsedBits + BitLen) rem 8) of
 				   0 -> 0;
@@ -358,6 +373,7 @@ decompress([CompStrip|Rest], Comp = 5, Tif, Acc) -> %% LZW-Compression
 						%io:format("~p ",[Code]),
 			       {Code, UsedBits + BitLen};
 			   _ ->
+			       io:format("~nEOI ~p ~p'~n",[BitLen, UsedBits]),
 			       {?LZW_EOI, size(CompStrip) * 8}
 		       end
 	       end,
@@ -374,27 +390,37 @@ decompress([CompStrip|Rest], Comp = 5, Tif, Acc) -> %% LZW-Compression
 		Decomp
 	end,
     %% Some pictures seem to fail to create correct size in rows per strip
-    Size = Tif#tif.w * Tif#tif.rps * Tif#tif.bpp div 8,
-    TSize = length(lists:flatten(Decomp)),
+    Rows = case RowsLeft > Tif#tif.rps of
+	       true -> Tif#tif.rps;
+	       false -> RowsLeft
+	   end,
 
+    Size = Tif#tif.w * Rows * Tif#tif.bpp div 8,    
+%     io:format("Lens ~p ~p ~p ~p~n", 
+% 	      [Size, Rows, length(lists:flatten(Decomp)), 
+% 	       size(list_to_binary(Differented))]),
     <<StripBin:Size/binary, _/binary>> = list_to_binary(lists:reverse(Differented)),
+    decompress(Rest, Comp, RowsLeft-Rows, Tif, [StripBin|Acc]);
 
-    decompress(Rest, Comp, Tif, [StripBin|Acc]);
-decompress([CompStrip|Rest], Comp = 32773, Tif, Acc) ->  %% PackBits
+decompress([CompStrip|Rest], Comp = 32773, RowsLeft, Tif, Acc) ->  %% PackBits
     W = Tif#tif.w * (Tif#tif.bpp div 8),
-    Bins = unpack_bits(0, W, 0, Tif#tif.h, %% * Tif#tif.rps * (Tif#tif.bpp div 8), 
-		       CompStrip, []),
-    decompress(Rest, Comp, Tif, [Bins|Acc]);
-decompress([], Comp, _, Acc) -> 
-    list_to_binary(Acc);
-decompress(RevStrips, Comp, _, Acc) ->
+    Rows = case RowsLeft > Tif#tif.rps of
+	       true -> Tif#tif.rps;
+	       false -> RowsLeft
+	   end,
+    Bins = unpack_bits(0, W, 0, Rows, CompStrip, []),
+    Size = Tif#tif.w * Rows * Tif#tif.bpp div 8,    
+    <<StripBin:Size/binary, _/binary>> = list_to_binary(lists:reverse(Bins)),
+    decompress(Rest, Comp, RowsLeft-Rows, Tif, [StripBin|Acc]);
+decompress([], _Comp, 0, _, Acc) -> 
+    list_to_binary(lists:reverse(Acc));
+decompress(_RevStrips, Comp, 0, _, _Acc) ->
     io:format("~p: Unsupported Compression ~p ~n", [?MODULE, Comp]),
     {error, {none,?MODULE,{unsupported_compression,Comp}}}.
 
 undo_differencing4(W, W, Rest, _,_,_,_,Ack) ->
     undo_differencing4(0,W, Rest, 0,0,0,0,Ack);
 undo_differencing4(C, W, [R,G,B,A|Rest], AR,AG,AB,AA, Ack) ->
-%%    io:format("undo ~p ~n", [[{R,G,B,A}, {AR,AG,AB,AA}]]),
     RR = (R + AR) rem 256,    
     RG = (G + AG) rem 256, 
     RB = (B + AB) rem 256,
@@ -412,10 +438,9 @@ undo_differencing3(C, W, [R,G,B|Rest], AR,AG,AB, Ack) ->
 undo_differencing3(_, _, [], _,_,_, Ack) ->
     Ack.
 
-unpack_bits(0, W, H, H, _, Acc) ->
-    list_to_binary(lists:reverse(Acc));    
+unpack_bits(0, _W, H, H, _, Acc) ->
+    Acc;    
 unpack_bits(WC, W, HC, H, Bin, Acc) when WC == W ->
-%    io:format("~n ~p ~P ~n", [{WC, W, HC, H}, Bin, 10]),
     unpack_bits(0, W, HC+1, H, Bin, Acc);
 
 unpack_bits(BC, W, HC, H, <<Code:8/signed, Rest/binary>>, Acc) when BC < W ->
@@ -443,13 +468,15 @@ unpack_bits(BC, W, HC, H, <<Code:8/signed, Rest/binary>>, Acc) when BC < W ->
 % 
 lzw_decomp(S, Read, PrevCode, Count, BitLen, Acc) ->
     case (catch Read(BitLen,S)) of
-	{?LZW_EOI, _} ->	    	 
+	{?LZW_EOI, _Where} ->	    	 
+%	    io:format("~nEOI-1 ~p ~n", [{S, PrevCode, Count, BitLen, _Where}]),
 	    Acc;
 	{?LZW_CLEAR, NS} -> 
 	    lzw_init(0),
-%%	    io:format("~nClear table ~p~n", [{S, PrevCode, Count, BitLen}]),
+%	    io:format("~nClear table ~p~n", [{S, PrevCode, Count, BitLen}]),
 	    case catch Read(9, NS) of
 		{?LZW_EOI, _} ->
+%%		    io:format("~nEOI-2 ~p ~n", [{S, PrevCode, Count, BitLen}]),
 		    Acc;
 		{NewCode, NS2} when integer(NewCode) -> 
 		    Str = ?get_lzw(NewCode),
@@ -516,7 +543,7 @@ lzw_init_compress(Bin, W, BitLen, Build, Acc) ->
     {NBuild, Nacc} = lzw_write({BitLen,?LZW_CLEAR}, Build, Acc),
     lzw_compress(Bin, 0, W, [], ?LZW_STARTBITLEN, ?LZW_FIRST, NBuild, Nacc).
 
-lzw_compress(<<>>, CC, W, Omega, BitLen, TabCount, Build, Acc) ->
+lzw_compress(<<>>, CC, _W, Omega, BitLen, _TabCount, Build, Acc) ->
     Code =?get_lzw(Omega),
     {NBuild, Nacc} =  ?lzw_write({BitLen,Code}, Build, Acc),
 
@@ -527,7 +554,7 @@ lzw_compress(<<>>, CC, W, Omega, BitLen, TabCount, Build, Acc) ->
     case catch lzw_buildbin(lists:reverse([{PaddL, 0}|Codes])) of
         Bin when binary(Bin) -> 
             list_to_binary(lists:reverse([Bin|N2acc]));
-	Else ->
+	_Else ->
 	    io:format("~p:~p Error ~p ~p ~n", [?MODULE, ?LINE, {PaddL, Codes}, CC]),
 	    erlang:fault({?MODULE, decoder, {internal_error, ?LINE}})
     end;
@@ -603,7 +630,7 @@ lzw_buildbin([{L1,C1},{L2,C2},{L3,C3},{L4,C4},{L5,C5},{L6,C6},{L7,C7}]) ->
 lzw_buildbin([{L1,C1},{L2,C2},{L3,C3},{L4,C4},{L5,C5},{L6,C6},{L7,C7},{L8,C8}]) ->
     <<C1:L1,C2:L2,C3:L3,C4:L4,C5:L5,C6:L6,C7:L7,C8:L8>>;
 
-lzw_buildbin(DBG = [{L1,C1},{L2,C2},{L3,C3},{L4,C4},{L5,C5},{L6,C6},{L7,C7},{L8,C8},{L9,C9} | Rest]) ->
+lzw_buildbin(_DBG = [{L1,C1},{L2,C2},{L3,C3},{L4,C4},{L5,C5},{L6,C6},{L7,C7},{L8,C8},{L9,C9} | Rest]) ->
     RemL = (L1+L2+L3+L4+L5+L6+L7+L8) rem 8,
     AddL = 8 - RemL,
     KeepL = L9 - AddL,
@@ -622,17 +649,17 @@ getdata(Enc, Type, 1, Bin) ->
 getdata(Enc, Type, N, Bin) ->
     getdata2(Enc, Type, N, Bin).
 
-getdata2(_, _, 0, Bin) -> 
+getdata2(_, _, 0, _Bin) -> 
     [];
 
 getdata2(_, byte, Count, Bin) -> 
-    <<Data:Count/binary, Rest/binary>> = Bin,
+    <<Data:Count/binary, _Rest/binary>> = Bin,
     binary_to_list(Data);
 getdata2(Enc, sbyte, Count, <<V:8/signed, Bin/binary>>) -> 
     [V| getdata2(Enc, sbyte, Count -1, Bin)];
 
 getdata2(_, ascii, Count, Bin) ->
-    <<Data:Count/binary, Rest/binary>> = Bin,
+    <<Data:Count/binary, _Rest/binary>> = Bin,
     binary_to_list(Data);
 
 getdata2(big, short, Count, <<V:16/big, Bin/binary>>) ->
