@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.13 2002/06/05 06:51:05 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.14 2002/06/14 13:03:33 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -176,6 +176,7 @@ refresh_dlists(toggle_wireframe, _) -> ok;
 refresh_dlists(orthogonal_view, _) -> ok;
 refresh_dlists(aim, _) -> ok;
 refresh_dlists(frame, _) -> ok;
+refresh_dlists(toggle_lights, _) -> ok;
 refresh_dlists({along,_}, _) -> ok;
 refresh_dlists({toggle_lights,_}, _) -> ok;
 refresh_dlists(_, St) -> wings_draw:update_dlists(St).
