@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.3 2002/08/03 08:30:22 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.4 2002/08/12 09:10:12 dgud Exp $
 %%
 
 -module(wpc_image).
@@ -47,7 +47,7 @@ make_image(Format) ->
     case wpa:import_filename(Ps) of
 	aborted -> keep;
 	Name ->
-	    case e3d_image:load(Name, [{type,r8g8b8},{order,lower_left}]) of
+	    case e3d_image:load(Name, [{type,r8g8b8},{order,lower_left}, {alignment, 1}]) of
 		#e3d_image{width=W,height=H,image=Pixels} ->
 		    Image = {W,H,Pixels},
 		    make_image_1(Image);
