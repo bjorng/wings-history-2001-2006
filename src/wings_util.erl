@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.54 2002/12/30 13:30:52 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.55 2002/12/30 15:22:13 bjorng Exp $
 %%
 
 -module(wings_util).
--export([error/1,share/1,share/3,make_vector/1,
+-export([error/1,error/2,share/1,share/3,make_vector/1,
 	 validate_mirror/1,rel2fam/1,
 	 message/1,message/2,yes_no/1,
 	 get_matrices/2,mirror_matrix/1,
@@ -29,6 +29,9 @@
 
 error(Message) when is_list(Message) ->
     throw({command_error,Message}).
+
+error(Format, Arg) ->
+    throw({command_error,lists:flatten(io_lib:format(Format, Arg))}).
     
 share(X, X, X) -> {X,X,X};
 share(X, X, Z) -> {X,X,Z};

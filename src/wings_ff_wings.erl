@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.29 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.30 2002/12/30 15:22:11 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -170,12 +170,7 @@ import_sel(Sel, #st{onext=IdBase}) ->
     [{IdBase+Id,gb_sets:from_list(Elems)} || {Id,Elems} <- Sel].
 
 new_sel_group(Name, Mode, Sel, #st{ssels=Ssels0}=St) ->
-    Sid = case gb_trees:is_empty(Ssels0) of
-	      true -> 1;
-	      false -> wings_util:gb_trees_largest_key(Ssels0)+1
-	  end,
-    SelGroup = {Name,Sid,Mode,Sel},
-    Ssels = gb_trees:insert(Sid, SelGroup, Ssels0),
+    Ssels = gb_trees:insert({Mode,Name}, Sel, Ssels0),
     St#st{ssels=Ssels}.
 
 %%%
@@ -243,12 +238,12 @@ remove_lights(#st{sel=Sel0,shapes=Shs0}=St) ->
 collect_sel(#st{selmode=Mode,sel=Sel0,ssels=Ssels}=St) ->
     Sel1 = [{Id,{Mode,gb_sets:to_list(Elems),selection}} ||
 	       {Id,Elems} <- Sel0],
-    Sel2 = collect_sel_groups(gb_trees:values(Ssels), St, Sel1),
+    Sel2 = collect_sel_groups(gb_trees:to_list(Ssels), St, Sel1),
     Sel3 = sofs:relation(Sel2, [{id,data}]),
     Sel = sofs:relation_to_family(Sel3),
     sofs:to_external(Sel).
 
-collect_sel_groups([{Name,_,Mode,Sel}|Gs], St, Acc0) ->
+collect_sel_groups([{{Mode,Name},Sel}|Gs], St, Acc0) ->
     Acc = [{Id,{Mode,gb_sets:to_list(Elems),{selection_group,Name}}} ||
 	      {Id,Elems} <- wings_sel:valid_sel(Sel, Mode, St)] ++ Acc0,
     collect_sel_groups(Gs, St, Acc);
