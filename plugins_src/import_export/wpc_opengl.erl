@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.1 2002/07/08 17:13:09 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.2 2002/07/14 14:56:28 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -35,14 +35,32 @@ command({file,{render,{opengl,Ask}}}, St) ->
 command(_, _) -> next.
 
 dialog_qs(render) ->
-    DefVar = {aa,get_pref(aa, regular)},
+    Back = get_pref(background_color, {0.4,0.4,0.4}),
+    %%Mask = get_pref(render_alpha, false),
     [{hframe,
-      [{vframe,
-	[{key_alt,DefVar,"Draft (no AA)",draft},
-	 {key_alt,DefVar,"Regular (normal AA)",regular},
-	 {key_alt,DefVar,"Super",super},
-	 {key_alt,DefVar,"Premium",premium}],
-	[{title,"Quality"}]}]}].
+      [{label,"Background Color"},{color,Back,[{key,background_color}]}]},
+     %%{"Render Alpha Channel",Mask,[{key,render_alpha}]},
+     aa_frame()].
+
+aa_frame() ->
+    HaveAccum = have_accum(),
+    DefVar = {aa,get_pref(aa, if HaveAccum -> regular; true -> draft end)},
+    {hframe,
+     [{vframe,
+       [{key_alt,DefVar,"Draft (no AA)",draft}|
+	case have_accum() of
+	    false -> [];
+	    true ->
+		[{key_alt,DefVar,"Regular (normal AA)",regular},
+		 {key_alt,DefVar,"Super",super},
+		 {key_alt,DefVar,"Premium",premium}]
+	end],
+       [{title,"Quality"}]}]}.
+
+have_accum() ->
+    sdl_video:gl_getAttribute(?SDL_GL_ACCUM_RED_SIZE) >= 8 andalso
+	sdl_video:gl_getAttribute(?SDL_GL_ACCUM_GREEN_SIZE) >= 8 andalso
+	sdl_video:gl_getAttribute(?SDL_GL_ACCUM_BLUE_SIZE) >= 8.
 
 get_pref(Key, Def) ->
     wpa:pref_get(?MODULE, Key, Def).
@@ -56,7 +74,8 @@ set_pref(KeyVals) ->
 
 -record(r,
 	{pass=1,
-	 acc_size=6}).
+	 acc_size=6,
+	 attr}).
 
 do_render(Ask, St) when is_atom(Ask) ->
     wpa:dialog(Ask, dialog_qs(render), St,
@@ -69,14 +88,14 @@ do_render(Attr, St) ->
     wings_wm:dirty(),
     Aa = property_lists:get_value(aa, Attr),
     AccSize = translate_aa(Aa),
-    Rr = #r{acc_size=AccSize},
+    Rr = #r{acc_size=AccSize,attr=Attr},
     {seq,{push,dummy},get_render_event(Rr)}.
 
 translate_aa(draft) -> 1;
 translate_aa(regular) -> 4;
 translate_aa(super) -> 8;
 translate_aa(premium) -> 16.
-    
+
 get_render_event(Rr) ->
     {replace,fun(Ev) -> render_event(Ev, Rr) end}.
 
@@ -112,8 +131,10 @@ render_dlist(#dlo{smooth=none,src_we=We}=D, St) ->
     {D#dlo{smooth=List,transparent=Tr},[]};
 render_dlist(D, _) -> {D,[]}.
 
-render_redraw(Rr) ->
+render_redraw(#r{attr=Attr}=Rr) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    {R,G,B} = property_lists:get_value(background_color, Attr),
+    gl:clearColor(R, G, B, 1.0),
     gl:enable(?GL_DEPTH_TEST),
     gl:cullFace(?GL_BACK),
     gl:readBuffer(?GL_BACK),
