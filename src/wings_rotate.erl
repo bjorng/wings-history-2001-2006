@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.38 2004/10/08 06:02:30 dgud Exp $
+%%     $Id: wings_rotate.erl,v 1.39 2004/10/17 07:07:55 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -83,7 +83,9 @@ edges_to_vertices(Vec, center, Magnet, Edges0, We, Acc) ->
 	[Edges] ->
 	    edges_to_vertices_1(Vec, center, Magnet, Edges, We, Acc);
 	_Other ->
-	    wings_util:error(?STR(edges_to_vertices,1,"Magnt Rotate on multiple edge regions requires an explicit rotate origin."))
+	    wings_util:error(?STR(edges_to_vertices,1,
+				  "Magnet Rotate on multiple edge regions "
+				  "requires an explicit rotate origin."))
     end;
 edges_to_vertices(Vec, Center, Magnet, Edges, We, Acc) ->
     edges_to_vertices_1(Vec, Center, Magnet, Edges, We, Acc).
