@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.160 2003/09/14 14:09:03 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.161 2003/09/14 18:27:04 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -415,9 +415,8 @@ draw_selection(Uvs) ->
     sel_foreach(fun(We) -> draw_area(We, Settings, []) end, Uvs),
     gl:disable(?GL_BLEND).
 
-setup_view({Left,Right,Bottom,Top}, Uvs) ->
-    #uvstate{st=#st{mat=Mats},option=#setng{texbg=TexBg},
-	     matname=MatN} = Uvs,
+setup_view(#uvstate{geom={Left,Right,Bottom,Top},st=#st{mat=Mats},
+		    option=#setng{texbg=TexBg},matname=MatN}) ->
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
 
@@ -577,12 +576,12 @@ get_event_nodraw(Uvs) ->
 redraw(#st{bb=Uvs}=St) ->
     update_dlists(St),
     redraw(Uvs);
-redraw(#uvstate{geom=Geom,areas=Shs,origst=#st{mat=Mat}}=Uvs0) ->
+redraw(#uvstate{areas=Shs,origst=#st{mat=Mat}}=Uvs0) ->
     St = #st{selmode=body,shapes=Shs,mat=Mat},
     update_dlists(St),
     wings_util:button_message("Select", [], "Show menu"),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    setup_view(Geom, Uvs0),
+    setup_view(Uvs0),
     Uvs = draw_texture(Uvs0),
     gl:popAttrib(),
     Uvs.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.8 2003/09/14 14:08:17 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.9 2003/09/14 18:27:04 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -28,6 +28,13 @@
 	 op					%Operation: add/delete
 	}).
 
+%% For marquee picking.
+-record(marquee,
+	{ox,oy,					%Original X,Y.
+	 cx,cy,					%Current X,Y.
+	 st
+	}).
+
 %% For highlighting.
 -record(hl,
 	{st,					%Saved state.
@@ -45,15 +52,14 @@ event(_, _) -> next.
 
 hilite_enabled(_) -> true.
 
-% pick(X, Y, Mod, St) when Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
-%     Pick = #marquee{ox=X,oy=Y,st=Uvs},
-%     clear_hilite_marquee_mode(Pick);
+pick(X, Y, Mod, St) when Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
+    Pick = #marquee{ox=X,oy=Y,st=St},
+    clear_hilite_marquee_mode(Pick);
 pick(X, Y, _, St0) ->
     case do_pick(X, Y, St0) of
 	none ->
-	    next;
-% 	    Pick = #marquee{ox=X,oy=Y,st=Uvs},
-% 	    clear_hilite_marquee_mode(Pick);
+	    Pick = #marquee{ox=X,oy=Y,st=St0},
+	    clear_hilite_marquee_mode(Pick);
 	{PickOp,St} ->
 	    wings_wm:dirty(),
 	    Pick = #pick{st=St,op=PickOp},
@@ -152,6 +158,208 @@ hilit_draw_sel(body, _, #we{name=#ch{fs=Fs}}=We) ->
 			      wings_draw_util:unlit_face(Face, We)
 		      end, Fs)
       end).
+%%
+%% Marquee picking.
+%%
+clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
+    Message = "[Ctrl] Deselect  "
+	"[Shift] (De)select only elements wholly inside marquee",
+    wings_wm:message(Message),
+    {seq,push,
+     fun(redraw) ->
+	     wpc_autouv:redraw(St),
+	     wings_wm:later(now_enter_marquee_mode),
+	     keep;
+	(now_enter_marquee_mode) ->
+	     wings_wm:grab_focus(wings_wm:this()),
+	     wings_io:ortho_setup(),
+	     gl:flush(),
+	     gl:drawBuffer(?GL_FRONT),
+	     get_marquee_event(Pick);
+	(Ev) ->
+	     wings_io:putback_event(Ev),
+	     keep
+     end}.
+
+get_marquee_event(Pick) ->
+    {replace,fun(Ev) -> marquee_event(Ev, Pick) end}.
+
+marquee_event(redraw, #marquee{cx=Cx,cy=Cy,st=St}=M) ->
+    gl:drawBuffer(?GL_BACK),
+    wpc_autouv:redraw(St),
+    gl:drawBuffer(?GL_FRONT),
+    wings_io:ortho_setup(),
+    draw_marquee(Cx, Cy, M),
+    keep;
+marquee_event(init_opengl, #marquee{st=St}) ->
+    wpc_autouv:init_opengl(St);
+marquee_event(#mousemotion{x=X,y=Y}, #marquee{cx=Cx,cy=Cy}=M) ->
+    wings_io:ortho_setup(),
+    draw_marquee(Cx, Cy, M),
+    draw_marquee(X, Y, M),
+    get_marquee_event(M#marquee{cx=X,cy=Y});
+marquee_event(#mousebutton{x=X0,y=Y0,mod=Mod,button=1,state=?SDL_RELEASED}, M) ->
+    {Inside,Op} =
+	if
+	    Mod band ?SHIFT_BITS =/= 0, Mod band ?CTRL_BITS =/= 0 ->
+		{true,delete};
+	    Mod band ?CTRL_BITS =/= 0 ->
+		{false,delete};
+	    Mod band ?SHIFT_BITS =/= 0 ->
+		{true,add};
+	    true ->
+		{false,add}
+	end,
+    #marquee{ox=Ox,oy=Oy,st=St0} = M,
+    gl:drawBuffer(?GL_BACK),
+    X = (Ox+X0)/2.0,
+    Y = (Oy+Y0)/2.0,
+    W = abs(Ox-X)*2.0,
+    H = abs(Oy-Y)*2.0,
+    case marquee_pick(Inside, X, Y, W, H, St0) of
+	{none,_} -> ok;
+	{Hits,_} ->
+	    St = marquee_update_sel(Op, Hits, St0),
+	    wings_wm:later({new_state,St})
+    end,
+    wings_wm:release_focus(),
+    wings_wm:later(revert_state),
+    pop;
+marquee_event(_, _) -> keep.
+
+marquee_pick(false, X, Y, W, H, St0) ->
+    case pick_all(false, X, Y, W, H, St0) of
+	{none,_}=None -> None;
+	{Hits,St} -> {[{abs(Id),Face} || {Id,Face} <- Hits],St}
+    end;
+marquee_pick(true, X, Y0, W, H, St0) ->
+    case pick_all(true, X, Y0, W, H, St0) of
+	{none,_}=R -> R;
+	{Hits0,St} ->
+	    Hits1 = wings_util:rel2fam(Hits0),
+	    HitsOrig = [Hit || {Id,_}=Hit <- Hits1, Id > 0],
+	    HitsMirror = [Hit || {Id,_}=Hit <- Hits1, Id < 0],
+	    {MM,PM,ViewPort} = wings_util:get_matrices(0, original),
+	    {_,_,_,Wh} = ViewPort,
+	    Y = Wh - Y0,
+	    RectData = {MM,PM,ViewPort,X-W/2,Y-H/2,X+W/2,Y+H/2},
+	    Hits2 = marquee_convert(HitsOrig, RectData, St, []),
+	    Hits3 = marquee_convert(HitsMirror, RectData, St, []),
+	    Hits = sofs:to_external(sofs:union(Hits2, Hits3)),
+	    {Hits,St}
+    end.
+
+marquee_convert([{Id,Faces}|Hits], RectData0,
+	       #st{selmode=Mode,shapes=Shs}=St, Acc) ->
+    We = gb_trees:get(abs(Id), Shs),
+    RectData = if
+		   Id < 0 ->
+		       {MM,PM,_} = wings_util:get_matrices(-Id, mirror),
+		       RectData1 = setelement(2, RectData0, PM),
+		       setelement(1, RectData1, MM);
+		   true -> RectData0
+	       end,
+    case marquee_convert_1(Faces, Mode, RectData, We) of
+	[] ->
+	    marquee_convert(Hits, RectData, St, Acc);
+	Items ->
+	    marquee_convert(Hits, RectData, St, [{abs(Id),Items}|Acc])
+    end;
+marquee_convert([], _, _, Hits) ->
+    sofs:family_to_relation(sofs:family(Hits)).
+
+marquee_convert_1(Faces0, face, Rect, #we{vp=Vtab}=We) ->
+    Vfs0 = wings_face:fold_faces(
+	     fun(Face, V, _, _, A) ->
+		     [{V,Face}|A]
+	     end, [], Faces0, We),
+    Vfs = wings_util:rel2fam(Vfs0),
+    Kill0 = [Fs || {V,Fs} <- Vfs, not is_inside_rect(gb_trees:get(V, Vtab), Rect)],
+    Kill1 = sofs:set(Kill0, [[face]]),
+    Kill = sofs:union(Kill1),
+    Faces1 = sofs:from_external(Faces0, [face]),
+    Faces = sofs:difference(Faces1, Kill),
+    sofs:to_external(Faces);
+marquee_convert_1(Faces, vertex, Rect, #we{vp=Vtab}=We) ->
+    Vs0 = wings_face:fold_faces(fun(_, V, _, _, A) ->
+					[V|A]
+				end, [], Faces, We),
+    Vs = ordsets:from_list(Vs0),
+    [V || V <- Vs, is_inside_rect(gb_trees:get(V, Vtab), Rect)];
+marquee_convert_1(Faces, edge, Rect, #we{vp=Vtab}=We) ->
+    Es0 = wings_face:fold_faces(fun(_, _, E, Rec, A) ->
+					[{E,Rec}|A]
+				end, [], Faces, We),
+    Es = ordsets:from_list(Es0),
+    [E || {E,#edge{vs=Va,ve=Vb}} <- Es,
+	  is_all_inside_rect([gb_trees:get(Va, Vtab),gb_trees:get(Vb, Vtab)], Rect)];
+marquee_convert_1(_Faces, body, Rect, #we{vp=Vtab}) ->
+    case is_all_inside_rect(gb_trees:values(Vtab), Rect) of
+	true -> [0];
+	false -> []
+    end.
+
+is_all_inside_rect([P|Ps], Rect) ->
+    is_inside_rect(P, Rect) andalso is_all_inside_rect(Ps, Rect);
+is_all_inside_rect([], _Rect) -> true.
+
+is_inside_rect({Px,Py,Pz}, {MM,PM,ViewPort,X1,Y1,X2,Y2}) ->
+    {Sx,Sy,_} = glu:project(Px, Py, Pz, MM, PM, ViewPort),
+    X1 < Sx andalso Sx < X2 andalso
+	Y1 < Sy andalso Sy < Y2.
+
+draw_marquee(undefined, undefined, _) -> ok;
+draw_marquee(X, Y, #marquee{ox=Ox,oy=Oy}) ->
+    gl:color3f(1, 1, 1),
+    gl:enable(?GL_COLOR_LOGIC_OP),
+    gl:logicOp(?GL_XOR),
+    gl:'begin'(?GL_LINE_LOOP),
+    gl:vertex2i(X, Oy),
+    gl:vertex2i(X, Y),
+    gl:vertex2i(Ox, Y),
+    gl:vertex2i(Ox, Oy),
+    gl:'end'(),
+    gl:flush(),
+    gl:disable(?GL_COLOR_LOGIC_OP).
+
+marquee_update_sel(Op, Hits0, #st{selmode=body}=St) ->
+    Hits1 = sofs:relation(Hits0, [{id,data}]),
+    Hits2 = sofs:domain(Hits1),
+    Zero = sofs:from_term([0], [data]),
+    Hits = sofs:constant_function(Hits2, Zero),
+    marquee_update_sel_1(Op, Hits, St);
+marquee_update_sel(Op, Hits0, St) ->
+    Hits1 = sofs:relation(Hits0, [{id,data}]),
+    Hits = sofs:relation_to_family(Hits1),
+    marquee_update_sel_1(Op, Hits, St).
+
+marquee_update_sel_1(add, Hits0, #st{sel=Sel0}=St) ->
+    Hits = marquee_filter_hits(Hits0, St),
+    Sel1 = [{Id,gb_sets:to_list(Items)} || {Id,Items} <- Sel0],
+    Sel2 = sofs:from_external(Sel1, [{id,[data]}]),
+    Sel3 = sofs:family_union(Sel2, Hits),
+    Sel4 = sofs:to_external(Sel3),
+    Sel = [{Id,gb_sets:from_list(Items)} || {Id,Items} <- Sel4],
+    St#st{sel=Sel};
+marquee_update_sel_1(delete, Hits, #st{sel=Sel0}=St) ->
+    Sel1 = [{Id,gb_sets:to_list(Items)} || {Id,Items} <- Sel0],
+    Sel2 = sofs:from_external(Sel1, [{id,[data]}]),
+    Sel3 = sofs:family_difference(Sel2, Hits),
+    Sel4 = sofs:to_external(Sel3),
+    Sel = [{Id,gb_sets:from_list(Items)} || {Id,Items} <- Sel4, Items =/= []],
+    St#st{sel=Sel}.
+
+%% Filter out any mirror face from the hits.
+marquee_filter_hits(Hits0, #st{selmode=face,shapes=Shs}) ->
+    Type = sofs:type(Hits0),
+    Hits = map(fun({Id,Faces}=Hit) ->
+		case gb_trees:get(Id, Shs) of
+		    #we{mirror=none} -> Hit;
+		    #we{mirror=Face} -> {Id,lists:delete(Face, Faces)}
+		end
+	       end, sofs:to_external(Hits0)),
+    sofs:from_external(Hits, Type);
+marquee_filter_hits(Hits, _) -> Hits.
 
 %%
 %% Drag picking.
@@ -244,6 +452,82 @@ get_hits(HitBuf) ->
 get_hits_1(0, _, Acc) -> Acc;
 get_hits_1(N, [2,_,_,A,B|T], Acc) ->
     get_hits_1(N-1, T, [{A,B}|Acc]).
+
+%%
+%% Pick all in the given rectangle (with center at X,Y).
+%%
+
+pick_all(_DrawFaces, _X, _Y, W, H, St) when W < 1.0; H < 1.0 ->
+    {none,St};
+pick_all(DrawFaces, X, Y0, W, H, #st{bb=#uvstate{geom={Vx,Vy,Vw,Vh}}}=St) ->
+    HitBuf = get(wings_hitbuf),
+    gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
+    gl:renderMode(?GL_SELECT),
+    gl:initNames(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:loadIdentity(),
+    {Ww,Wh} = wings_wm:win_size(),
+    Y = Wh-Y0,
+    glu:pickMatrix(X, Y, W, H, [0,0,Ww,Wh]),
+    glu:ortho2D(Vx, Vy, Vw, Vh),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:loadIdentity(),
+    case DrawFaces of
+	true ->
+	    gl:enable(?GL_CULL_FACE),
+	    draw(),
+	    gl:disable(?GL_CULL_FACE);
+	false -> marquee_draw(St)
+    end,
+    {get_hits(HitBuf),St}.
+
+marquee_draw(#st{selmode=edge}) ->
+      Draw = fun(#we{es=Etab,vp=Vtab}) ->
+		     foreach(fun({Edge,#edge{vs=Va,ve=Vb}}) ->
+				     gl:loadName(Edge),
+				     gl:'begin'(?GL_LINES),
+				     gl:vertex3fv(gb_trees:get(Va, Vtab)),
+				     gl:vertex3fv(gb_trees:get(Vb, Vtab)),
+				     gl:'end'()
+			     end, gb_trees:to_list(Etab))
+	     end,
+    marquee_draw_1(Draw);
+marquee_draw(#st{selmode=vertex}) ->
+    Draw = fun(#we{vp=Vtab}) ->
+		   foreach(fun({V,Pos}) ->
+				   gl:loadName(V),
+				   gl:'begin'(?GL_POINTS),
+				   gl:vertex3fv(Pos),
+				   gl:'end'()
+			   end, gb_trees:to_list(Vtab))
+	   end,
+    marquee_draw_1(Draw);
+marquee_draw(_) -> draw().
+
+marquee_draw_1(Draw) ->
+    wings_draw_util:fold(fun(D, _) -> marquee_draw_fun(D, Draw) end, []).
+
+marquee_draw_fun(#dlo{src_we=#we{perm=Perm}}, _) when not ?IS_SELECTABLE(Perm) -> ok;
+marquee_draw_fun(#dlo{mirror=Mirror,src_we=#we{id=Id}=We}, Draw) ->
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    gl:pushName(0),
+    Draw(We),
+    gl:popName(),
+    gl:endList(),
+    gl:pushName(Id),
+    case Mirror of
+	none ->
+	    wings_draw_util:call(List);
+	Matrix ->
+	    wings_draw_util:call(List),
+	    gl:pushMatrix(),
+	    gl:multMatrixf(Matrix),
+	    wings_draw_util:call(List),
+	    gl:popMatrix()
+    end,
+    gl:popName(),
+    gl:deleteLists(List, 1).
 
 %%
 %% Draw for the purpose of picking the items that the user clicked on.
