@@ -3,12 +3,12 @@
 #
 #     Makefile for building the plug-ins.
 #
-#  Copyright (c) 2001-2003 Bjorn Gustavsson
+#  Copyright (c) 2001-2004 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.12 2004/03/01 13:26:34 dgud Exp $
+#     $Id: Makefile,v 1.13 2004/04/14 06:39:51 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -33,7 +33,6 @@ MODULES= \
 	wpc_3ds \
 	wpc_obj \
 	wpc_opengl \
-	wpc_ply \
 	wpc_rwx \
 	wpc_wrl \
 	wpc_hlines \
