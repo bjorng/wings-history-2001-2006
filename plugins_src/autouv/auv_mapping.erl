@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.37 2003/02/16 11:35:25 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.38 2003/02/18 16:06:11 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -847,9 +847,11 @@ t() ->
     [P2,P3] = [{-1.0,0.0},{1.0,0.0}],
     [Q1,Q2,Q3] = [{0.0,1.0,0.0},{-1.0,0.0,0.0},{1.0,0.0,0.0}],
     [io:format("~p ~p~n", [Y, area2d2({0.0,0.5-Y/10},P2,P3)]) 
-     || Y <- lists:seq(0,10)],
+     || Y <- lists:seq(-10,10)],
     [io:format("~p ~p~n", [Y, catch l2({0.0,0.5-Y/10},P2,P3,Q1,Q2,Q3)]) 
-     || Y <- lists:seq(0,10)].
+     || Y <- lists:seq(-10,10)],
+    [io:format("~p ~p~n", [Y, catch l8({0.0,0.5-Y/10},P2,P3,Q1,Q2,Q3)]) 
+     || Y <- lists:seq(-10,10)].
 
     
 
@@ -860,7 +862,6 @@ t() ->
 %% Pedro V. Sander, John Snyder Steven J. Gortler, Hugues Hoppe
 
 stretch_opt(Ch=#ch{fs=Fs,we=We0}, OVs) ->
-    io:format("Stretch ~n", []),
     {_,R1,R2} = now(),
     random:seed(R2,R1,128731),
     Be = wings_face:outer_edges(Fs, We0),
@@ -875,9 +876,10 @@ stretch_opt(Ch=#ch{fs=Fs,we=We0}, OVs) ->
 %     ?DBG("F2S8 ~w~n",[gb_trees:to_list(F2S8)]),
 %     ?DBG("F2Vs ~w~n",[gb_trees:to_list(F2Vs)]),
 %     ?DBG("UVs ~w~n", [gb_trees:to_list(Uvs)]),
-    S2V = stretch_per_vertex(model_l2,gb_trees:to_list(V2Fs),F2S2,F2Vs,OVs,Bv,[]),
-    MaxI = 50,   %% Max iterations
-    MinS = 0.01, %% Min Stretch
+    S2V = stretch_per_vertex(model_l2,gb_trees:to_list(V2Fs),F2S2,F2Vs,OVs,Bv,
+			     gb_trees:empty()),
+    MaxI = 100,   %% Max iterations
+    MinS = 0.001, %% Min Stretch
     {SUvs0,_F2S2} = stretch_iter(S2V,1,MaxI,MinS,F2S2,F2Vs,V2Fs,Uvs,OVs,Bv),    
     SUvs1 = gb_trees:to_list(SUvs0),
 %    ?DBG("SUvs ~p ~n", [SUvs1]),
@@ -885,7 +887,7 @@ stretch_opt(Ch=#ch{fs=Fs,we=We0}, OVs) ->
     Res = Ch#ch{we=We0#we{vp=gb_trees:from_orddict(Suvs)}},
 
     Mean2  = model_l2(gb_trees:keys(_F2S2), _F2S2, F2Vs, OVs,0.0, 0.0),
-    io:format("After Stretch sum (mean) ~p ~n",  [Mean2]),
+%%    io:format("After Stretch sum (mean) ~p ~n",  [Mean2]),
     stretch_setup(Fs, Res#ch.we,OVs),
     Res.
 
@@ -901,76 +903,100 @@ stretch_setup(Fs, We0, OVs) ->
     io:format("Stretch sum (mean) ~p ~n",  [Mean]),
     {Init,S}.
 
-stretch_iter(S2V0=[{First,_}|_],I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv) 
+stretch_iter(S2V0={[{_,First}|_],_},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv) 
   when (First > MinS), I < MaxI ->
-    {S2V,F2S2,Uvs} = stretch_iter2(S2V0,I,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv),
+    io:format(".",[]),
+    {S2V,F2S2,Uvs} = stretch_iter2(S2V0,I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,
+				   gb_sets:empty()),
     stretch_iter(S2V,I+1,MaxI,MinS,F2S2,F2Vs,V2Fs,Uvs,Ovs,Bv);
 stretch_iter(_,_,_,_,F2S2,_,_,Uvs,_,_) ->
     {Uvs,F2S2}.
 
-stretch_iter2([{Val,V}|R],I,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv) 
+stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,Acc)
   when Val > MinS ->
-    Line = random_line(),
-    Fs = gb_trees:get(V,V2Fs),
-    Max = 1/I,
-    Step = Max/10,
-%%    ?DBG("S ~.2f:",[Val]),
-    Uvs  = opt_v(Val,Step,Step,Max,V,Line,Fs,F2Vs,Uvs0,Ovs),
-%    ?DBG("~p ~p ~p~n",[V,gb_trees:get(V,Uvs0),gb_trees:get(V,Uvs)]),
-    F2S2 = lists:foldl(fun(Face,F2S) ->
-			       Vs = gb_trees:get(Face, F2Vs),
-			       S = l2(Vs,Uvs,Ovs),
-			       gb_trees:update(Face, S, F2S)
-		       end, F2S20, Fs),
-    stretch_iter2(R,I,MinS,F2S2,F2Vs,V2Fs,Uvs,Ovs,Bv);
-stretch_iter2(_,_,_,F2S2,F2Vs,V2Fs,Uvs,Ovs,Bv) ->
-    S2V = stretch_per_vertex(model_l2,gb_trees:to_list(V2Fs),F2S2,F2Vs,Ovs,Bv,[]),
-    {S2V, F2S2, Uvs}.
+    case gb_sets:is_member(V,Acc) of
+	true -> 
+	    stretch_iter2({R,V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,Acc);
+	false ->
+	    Line = random_line(),
+	    Fs   = gb_trees:get(V,V2Fs),
+	    Max  = 1.0 - I/MaxI,
+	    Step = Max/10.0,
+	    %%    ?DBG("S ~.2f:",[Val]),
+	    {PVal,Uvs,F2S2} = opt_v(Val,Step,Step,Max,V,Line,Fs,F2Vs,F2S20,Uvs0,Ovs),
+	    case PVal == Val of 
+		true -> 
+%		    ?DBG("Unchanged value for ~p ~p ~p ~n",[{V,Val}, I, R]),
+		    %%?DBG("~p ~p ~p~n",[V,gb_trees:get(V,Uvs0),gb_trees:get(V,Uvs)]),
+		    stretch_iter2({R,V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,
+				  Bv, gb_sets:add(V,Acc));
+		false ->
+		    Vs0 = lists:usort(lists:append([gb_trees:get(F,F2Vs)|| F<-Fs])),
+		    Upd0 = lists:foldl(fun(V,New) ->
+					       [{V,gb_trees:get(V,V2Fs)}|New]
+				       end, [], Vs0),
+		    Upd = stretch_per_vertex(model_l2,Upd0,F2S2,F2Vs,Ovs,
+					     Bv,V2S0),
+%		    ?DBG("Update value for ~p ~p~n ~w~n ~w ~n",
+%			[{V,Val},PVal,gb_sets:to_list(Acc),element(1,Upd)]),
+		    stretch_iter2(Upd,I,MaxI,MinS,F2S2,F2Vs,V2Fs,Uvs,Ovs,Bv,Acc)
+	    end
+    end;
+
+stretch_iter2({_,S2V},_,_,_,F2S2,F2Vs,V2Fs,Uvs,Ovs,Bv,Acc0) ->
+    Acc = lists:foldl(fun(V,Vals) ->
+			      [{V,gb_trees:get(V,V2Fs)}|Vals]
+		      end, [], gb_sets:to_list(Acc0)),
+    Upd = stretch_per_vertex(model_l2,Acc,F2S2,F2Vs,Ovs,Bv,S2V),
+    {Upd, F2S2, Uvs}.
 
 random_line() ->
     X   = random:uniform()-0.5,
     Y   = random:uniform()-0.5,
     Len = math:sqrt(X*X+Y*Y),
     {X/Len,Y/Len}.
-    
-opt_v(PVal,I,Step,Max,V,L={X,Y},Fs,F2Vs,Uvs0,Ovs) when I < Max ->
+
+opt_v(PVal,I,Step,Max,V,L={X,Y},Fs,F2Vs,F2S0,Uvs0,Ovs) 
+  when I =< Max, Step > 0.00001 ->
+    %%    ?DBG("~w ~w ~w ~w~n",[V, I,Step,Max]),
     {S0,T0} = gb_trees:get(V, Uvs0),
     St = {S0+X*I,T0+Y*I},
     Uvs = gb_trees:update(V,St,Uvs0),
-    Temp = lists:foldl(fun(Face,Acc) ->
-			       Vs = gb_trees:get(Face, F2Vs),
-			       L2 = l2(Vs,Uvs,Ovs),
-			       [{Face,L2}|Acc]
-		       end, [], Fs),    
-    Stretch = model_l2(Fs,gb_trees:from_orddict(lists:sort(Temp)),
-		       F2Vs, Ovs, 0.0,0.0),
-
+    F2S = lists:foldl(fun(Face,Acc) ->
+			      Vs = gb_trees:get(Face, F2Vs),
+			      S = l2(Vs,Uvs,Ovs),
+			      gb_trees:update(Face, S, Acc)
+		      end, F2S0, Fs),    
+    Stretch = model_l2(Fs,F2S,F2Vs, Ovs, 0.0,0.0),
+    
 %%    io:format("~.2f ",[Stretch]),
     if 
 	Stretch < PVal ->
 %	    ?DBG("Found better ~p ~p ~p ~p ~n",[I,Step,Stretch,PVal]),
-	    opt_v(Stretch,I+Step,Step,Max,V,L,Fs,F2Vs,Uvs,Ovs); 
+	    opt_v(Stretch,I+Step,Step,Max,V,L,Fs,F2Vs,F2S,Uvs,Ovs); 
 	true ->
-%%%         NewStep = 
-%%%         opt_v(PVal,I,Step,Max,V,L,Fs,F2Vs,Uvs0,Ovs)
+	    NewStep = Step/10,
+	    opt_v(PVal,I-Step+NewStep,NewStep,Step,V,L,Fs,F2Vs,F2S0,Uvs0,Ovs)
 %	    ?DBG("Miss ~p ~p ~p ~p ~n",[I,Step,Stretch,PVal]),
-	    opt_v(PVal,I+Step,Step,Max,V,L,Fs,F2Vs,Uvs0,Ovs)
+%%	    opt_v(PVal,I+Step,Step,Max,V,L,Fs,F2Vs,Uvs0,Ovs)
     end;
-opt_v(_PVal,_I,_Step,_Max,_V,_L,_Fs,_F2Vs,Uvs0,_Ovs) ->
-    Uvs0.
+opt_v(PVal,_I,_Step,_Max,_V,_L,_Fs,_F2Vs,F2S,Uvs0,_Ovs) ->
+    {PVal,Uvs0,F2S}.
 
 
 %% Hmm, I just sum this up.. should this be calc'ed as model_XX ??
-stretch_per_vertex(Method,[{V,Fs}|R],F2S,F2Vs,Ovs,Bv,Acc) ->
+stretch_per_vertex(Method,[{V,Fs}|R],F2S,F2Vs,Ovs,Bv,Tree) ->
     case gb_sets:is_member(V,Bv) of
 	false ->
 	    Res = ?MODULE:Method(Fs,F2S,F2Vs,Ovs,0.0,0.0),
-	    stretch_per_vertex(Method,R,F2S,F2Vs,Ovs,Bv,[{Res, V}|Acc]);
+	    stretch_per_vertex(Method,R,F2S,F2Vs,Ovs,Bv,
+			       gb_trees:enter(V,Res,Tree));
 	true ->
-	    stretch_per_vertex(Method,R,F2S,F2Vs,Ovs,Bv,Acc)
+	    stretch_per_vertex(Method,R,F2S,F2Vs,Ovs,Bv,Tree)
     end;
 stretch_per_vertex(_,[], _, _,_,_,Acc) ->
-    lists:reverse(lists:sort(Acc)).
+    {lists:reverse(lists:keysort(2,gb_trees:to_list(Acc))),
+     Acc}.
 
 init_stretch([{Face,FUvs=[{Id1,P1},{Id2,P2},{Id3,P3}]}|R],
 	     Ovs,F2S2,F2S8,F2Vs,V2Fs,UVs) ->
@@ -1024,7 +1050,7 @@ model_l2([Face|R], F2S2, F2Vs, Ovs, Mean, Area)  ->
     A = area3d(Q1,Q2,Q3),
     model_l2(R,F2S2,F2Vs,Ovs, TriM*TriM*A+Mean, Area+A);
 model_l2([],_,_,_,Mean,Area) ->
-    abs(math:sqrt(Mean/Area)-1.0).
+    math:sqrt(Mean/Area).
 
 % s(P,P1,P2,P3,Q1,Q2,Q3) ->
 %     M1 = e3d_vec:mul(Q1, area2d(P,P2,P3)),
@@ -1046,8 +1072,13 @@ l2(P1,P2,P3,Q1,Q2,Q3) ->  %% Mean stretch value
 	    ST = e3d_vec:divide(ST0,A2),
 	    A = e3d_vec:dot(SS,SS),
 	    C = e3d_vec:dot(ST,ST),
-	    Temp = (A+C)/2,
-	    math:sqrt(Temp);
+	    Temp = (A+C)/2.0,
+	    if Temp < 1.0 ->
+		    %% 1.0+1.0-math:sqrt(Temp);  %% This or 
+		    1.0;  %% that
+	       true ->
+		    math:sqrt(Temp)
+	    end;
        true -> 
 	    9999999999.9
     end.
