@@ -9,21 +9,21 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.13 2002/12/26 09:47:06 bjorng Exp $
+%%     $Id: auv_placement.erl,v 1.14 2003/01/24 15:48:05 dgud Exp $
 
 -module(auv_placement).
 
 -include("wings.hrl").
 -include("auv.hrl").
 
--export([place_areas/2,group_edge_loops/2]).
+-export([place_areas/1,group_edge_loops/2]).
 
 -import(lists, [max/1, sort/1, map/2, reverse/1]).
 
 %% Returns a gb_tree with areas...
-place_areas(Areas0,We) ->
+place_areas(Areas0) ->
     Rotate = fun(A, {C, BBs}) ->
-		     VL = rotate_area(A#ch.fs,A#ch.vpos,We),
+		     VL = rotate_area(A#ch.fs,A#ch.vpos,A#ch.we),
 		     {{_,Xmin},{_,Xmax},{_,Ymin},{_,Ymax}} = 
 			 auv_util:maxmin(VL),
 		     Dx = Xmax - Xmin,

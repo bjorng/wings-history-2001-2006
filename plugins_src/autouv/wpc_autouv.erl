@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.78 2003/01/20 07:36:55 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.79 2003/01/24 15:48:08 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -30,12 +30,12 @@ init() ->
 
 add_as(AsAA, TreeAA) ->
     foldl(fun({[K|_],Area}, TreeBB) ->
-		  gb_trees:insert(K, Area, TreeBB) 
-	  end, TreeAA, AsAA).
+ 		  gb_trees:insert(K, Area, TreeBB) 
+ 	  end, TreeAA, AsAA).
 
-add_areas(New, #areas{as=As}=Areas) ->
-    NewAs = add_as(New, As),
-    Areas#areas{as=NewAs}.
+add_areas(New, Areas) ->
+    NewAs = add_as(New, Areas),
+    NewAs.
 
 menu({body}, Menu) ->
     Menu ++ [separator,
@@ -51,16 +51,16 @@ command({body,{?MODULE,show_map,Info}}, St) ->
     {MappedCharts,We,Vmap,OrigWe} = Info,
     init_show_maps(MappedCharts, We, Vmap, OrigWe, St);
 command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, St0) ->
-    #uvstate{areas=Current,sel=Sel} = Uvs,
-    Charts0 = add_areas(Sel, Current),
-    {St1,Charts} =
+    #uvstate{areas=Current,sel=Sel,vmap=Vmap,matname=MatName0,orig_we=OrWe} = Uvs,
+    Charts = add_areas(Sel, Current),
+    {St1,MatName} =
 	case QuitOp of
 	    quit_uv_tex ->
 		Tx = ?SLOW(get_texture(Uvs)),
-		add_material(Tx, St0, Charts0);
-	    quit_uv -> {St0,Charts0}
+		add_material(Tx, MatName0, OrWe#we.name, St0);
+	    quit_uv -> {St0,MatName0}
 	end,
-    St = ?SLOW(insert_uvcoords(Charts, St1)),
+    St = ?SLOW(insert_uvcoords(Charts,OrWe#we.id,MatName,Vmap,St1)),
     reset_view(),
     St;
 command(_, _) -> next.
@@ -308,28 +308,29 @@ seg_create_materials(St0) ->
 seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     [{_,#we{he=Cuts0}=We0}] = gb_trees:to_list(Shs),
     Charts0 = auv_segment:segment_by_material(We0),
-    {Charts,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
-    {We,Vmap} = auv_segment:cut_model(Charts, Cuts, OrigWe),
+    {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
+    {Charts,MWe,Vmap} = auv_segment:cut_model(Charts1, Cuts, OrigWe),
     N = length(Charts),
-    seg_map_charts_1(Charts, Method, We, {OrigWe,Vmap}, 1, N, [], Ss).
+    seg_map_charts_1(Charts, Method, {MWe, OrigWe,Vmap}, 1, N, [], Ss).
 
-seg_map_charts_1(Cs, Type, We, Extra, I, N, Acc, Ss) when I =< N ->
-    MapChart = fun() -> seg_map_chart(Cs, Type, We, Extra, I, N, Acc, Ss) end,
+seg_map_charts_1(Cs, Type, Extra, I, N, Acc, Ss) when I =< N ->
+    MapChart = fun() -> seg_map_chart(Cs, Type, Extra, I, N, Acc, Ss) end,
     wings_io:putback_event({callback,MapChart}),
     Msg = io_lib:format("Mapping chart ~w of ~w", [I,N]),
     get_seg_event(Ss#seg{msg=Msg});
-seg_map_charts_1(_, _, We, {OrigWe,Vmap}, _, _, MappedCharts, _) ->
+seg_map_charts_1(_, _, {We,OrigWe,Vmap}, _, _, MappedCharts, _) ->
     Info = {MappedCharts,We,Vmap,OrigWe},
     wings_io:putback_event({action,{body,{?MODULE,show_map,Info}}}),
     pop.
 
-seg_map_chart([C|Cs], Type, We, Extra, I, N, Acc0, Ss) ->
-    case auv_mapping:map_chart(Type, C, We) of
+seg_map_chart([{Fs,We}|Cs], Type, Extra, I, N, Acc0, Ss) ->
+%%    io:format("map_chart ~p ~p ~p~n", [I, Fs, MergedWe]),
+    case auv_mapping:map_chart(Type, Fs, We) of
 	{error,Message} ->
 	    seg_error(Message, Ss);
 	Vs ->
-	    Acc = [#ch{fs=C,vpos=Vs}|Acc0],
-	    seg_map_charts_1(Cs, Type, We, Extra, I+1, N, Acc, Ss)
+	    Acc = [#ch{fs=Fs,vpos=Vs,we=We}|Acc0],
+	    seg_map_charts_1(Cs, Type, Extra, I+1, N, Acc, Ss)
     end.
 
 seg_error(Message, Ss) ->
@@ -412,14 +413,18 @@ discard_uvmap(#we{fs=Ftab}=We0, St) ->
     We = wings_we:uv_to_color(We0, St),
     mark_segments(Charts, Cuts, We, St).
 
-do_edit(MatName, Faces, We, St) ->
-    Areas = #areas{matname=MatName} = init_edit(MatName, Faces, We),
+do_edit(MatName0, Faces, We, St) ->
+    {Edges,Areas,Vmap,MatName} = init_edit(MatName0, Faces, We),
     {{X,Y,W,H},Geom} = init_drawarea(),
     TexSz = get_texture_size(MatName, St),
-    Uvs = #uvstate{st=wings_select_faces([], Areas#areas.we, St),
+    Uvs = #uvstate{st=wings_select_faces([], St),
 		   origst=St,
 		   areas=Areas,
 		   geom=Geom, 
+		   orig_we=We,
+		   edges=Edges,
+		   vmap=Vmap,
+		   matname=MatName,
 		   option=#setng{color=false,texbg=true,texsz=TexSz}},
     Op = {seq,push,get_event(Uvs)},
     wings_wm:toplevel(autouv, "AutoUV", {X,Y,?Z_GEOM+10}, {W,H}, [resizable], Op),
@@ -461,50 +466,51 @@ assign_materials([], #we{id=Id}=We, _, _, #st{shapes=Shs0}=St) ->
 
 %%%%%%
 
-replace_uvs(Map, We) when is_list(Map) ->
-    foldl(fun({_,Chart}, W) -> replace_uv(Chart, W) end, We, Map);
-replace_uvs(Map, We) ->
-    replace_uvs(gb_trees:to_list(Map), We).
+replace_uvs(Map) when is_list(Map) ->
+    lists:map(fun(Chart) -> replace_uv(Chart) end, Map);
+replace_uvs(Map) ->
+    replace_uvs(gb_trees:to_list(Map)).
 
-replace_uv(#ch{vpos=Vpos}, #we{vp=Vtab0}=We) ->
+replace_uv({Id,Ch = #ch{vpos=Vpos, we=We}}) ->
     Vtab = foldl(fun({V,Pos}, Vt) ->
 			 gb_trees:update(V, Pos, Vt)
-		 end, Vtab0, Vpos),
-    We#we{vp=Vtab}.
+		 end, We#we.vp, Vpos),    
+    {Id,Ch#ch{we=We#we{vp=Vtab}}}.
 
-find_boundary_edges([{Id,#ch{fs=Fs}=C}|Cs], We, Acc) ->
+find_boundary_edges([{Id,#ch{fs=Fs,we=We}=C}|Cs], Acc) ->
     Be = auv_util:outer_edges(Fs, We),
-    find_boundary_edges(Cs, We, [{Id,C#ch{be=Be}}|Acc]);
-find_boundary_edges([], _, Acc) -> sort(Acc).
+    find_boundary_edges(Cs, [{Id,C#ch{be=Be}}|Acc]);
+find_boundary_edges([], Acc) -> sort(Acc).
 
-init_show_maps(Map0, We0, Vmap, OrigWe, St0) ->
-    Map1 = auv_placement:place_areas(Map0, We0),
-    We = replace_uvs(Map1, We0),
-    Map2 = find_boundary_edges(Map1, We, []),
-    Map = gb_trees:from_orddict(Map2),
+init_show_maps(Map0, _We0, Vmap, OrigWe, St0) ->
+    Map1 = auv_placement:place_areas(Map0),
+    Map2 = replace_uvs(Map1),
+    Map3 = find_boundary_edges(Map2, []),
+    Map = gb_trees:from_orddict(Map3),
     Edges = gb_trees:keys(OrigWe#we.es),
-    Charts = #areas{we=We,orig_we=OrigWe,edges=Edges,
-		    as=Map,vmap=Vmap,
-		    matname=none},
     {{X,Y,W,H},Geom} = init_drawarea(),
-    Uvs = #uvstate{st=wings_select_faces([], Charts#areas.we, St0),
+    Uvs = #uvstate{st=wings_select_faces([], St0),
 		   origst=St0,
-		   areas=Charts,
-		   geom=Geom},
+		   areas=Map,
+		   geom=Geom,
+		   orig_we=OrigWe,
+		   edges=Edges,
+		   vmap=Vmap,
+		   matname=none},
     Op = {seq,push,get_event(Uvs)},
     wings_wm:toplevel(autouv, "AutoUV", {X,Y,?Z_GEOM+10}, {W,H}, [resizable], Op),
     wings_wm:callback(fun() -> wings_util:menu_restriction(autouv, []) end),
     keep.
    
-insert_uvcoords(#areas{orig_we=#we{id=Id}}=Charts, #st{shapes=Shs0}=St) ->
+insert_uvcoords(Charts,Id,MatName,Vmap,#st{shapes=Shs0}=St) ->
     We0 = gb_trees:get(Id, Shs0),
-    We = insert_uvcoords_1(We0, Charts),
+    We = insert_uvcoords_1(We0, Charts,MatName,Vmap),
     Shs = gb_trees:update(Id, We, Shs0),
     St#st{shapes=Shs}.
 
-insert_uvcoords_1(We0, #areas{we=WorkWe,as=Cs0,matname=MatName,vmap=Vmap}) ->
+insert_uvcoords_1(We0, Cs0,MatName,Vmap) ->
     Cs = gb_trees:values(Cs0),
-    UVpos = gen_uv_pos(Cs, WorkWe, []),
+    UVpos = gen_uv_pos(Cs, []),
     We1 = insert_coords(UVpos, Vmap, We0),
     We = insert_material(Cs, MatName, We1),
     We#we{mode=uv}.
@@ -519,7 +525,7 @@ insert_material(Cs, MatName, #we{fs=Ftab0}=We) ->
 		 end, Ftab0, Faces),
     We#we{fs=Ftab}.
 
-gen_uv_pos([#ch{fs=Fs,center={CX,CY},scale=Sc,vpos=Vs}|T], We, Acc) ->
+gen_uv_pos([#ch{fs=Fs,center={CX,CY},scale=Sc,vpos=Vs, we=We}|T], Acc) ->
     Vpos0 = auv_util:moveAndScale(Vs, CX, CY, Sc, []),
     VFace0 = wings_face:fold_faces(
 	       fun(Face, V, _, _, A) ->
@@ -529,8 +535,8 @@ gen_uv_pos([#ch{fs=Fs,center={CX,CY},scale=Sc,vpos=Vs}|T], We, Acc) ->
     Vpos = sofs:relation(Vpos0, [{vertex,uvinfo}]),
     Comb0 = sofs:relative_product({VFace,Vpos}),
     Comb = sofs:to_external(Comb0),
-    gen_uv_pos(T, We, Comb++Acc);
-gen_uv_pos([], _, Acc) -> Acc.
+    gen_uv_pos(T, Comb++Acc);
+gen_uv_pos([], Acc) -> Acc.
 
 insert_coords([{V0,{Face,{S,T,_}}}|Rest], Vmap, #we{es=Etab0}=We) ->
     V = auv_segment:map_vertex(V0, Vmap),
@@ -552,16 +558,16 @@ insert_coords([], _, We) -> We.
 
 init_edit(MatName, Faces, We0) ->
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
-    {Charts,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
-    {We1,Vmap} = auv_segment:cut_model(Charts, Cuts, We0),
+    {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
+    {Charts,We1,Vmap} = auv_segment:cut_model(Charts1, Cuts, We0),
     Map1 = auv_util:number(build_map(Charts, Vmap, FvUvMap, We1, []), 1),
-    We = replace_uvs(Map1, We1),
-    Map2 = find_boundary_edges(Map1, We, []),
-    Map = gb_trees:from_orddict(Map2),
-    Edges = gb_trees:keys(We0#we.es),
-    #areas{we=We,orig_we=We0,edges=Edges,as=Map,vmap=Vmap,matname=MatName}.
+    Map2 = replace_uvs(Map1),
+    Map3 = find_boundary_edges(Map2, []),
+    Map  = gb_trees:from_orddict(Map3),
+    Edges= gb_trees:keys(We0#we.es),
+    {Edges,Map,Vmap,MatName}.
 
-build_map([Fs|T], Vmap, FvUvMap, We, Acc) ->
+build_map([{Fs,We}|T], Vmap, FvUvMap, MergedWe, Acc) ->
     %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
     %% (bug in wings_vertex_cmd), we must fetch the UV coordinates
     %% from the original object.
@@ -570,7 +576,7 @@ build_map([Fs|T], Vmap, FvUvMap, We, Acc) ->
 		     OrigV = auv_segment:map_vertex(V, Vmap),
 		     UV = gb_trees:get({F,OrigV}, FvUvMap),
 		     [{V,UV}|A]
-	     end, [], Fs, We),
+	     end, [], Fs, MergedWe),
     UVs1 = lists:usort(UVs0),
     %% Assertion.
     true = sofs:is_a_function(sofs:relation(UVs1, [{atom,atom}])),
@@ -578,8 +584,8 @@ build_map([Fs|T], Vmap, FvUvMap, We, Acc) ->
     CX = BX0 + (BX1-BX0) / 2,
     CY = BY0 + (BY1-BY0) / 2,
     UVs = [{V,{X-CX,Y-CY,0.0}} || {V,{X,Y}} <- UVs1],
-    Chart = #ch{fs=Fs,vpos=UVs,center={CX,CY},size={BX1-BX0,BY1-BY0}},
-    build_map(T, Vmap, FvUvMap, We, [Chart|Acc]);
+    Chart = #ch{fs=Fs,vpos=UVs,we=We,center={CX,CY},size={BX1-BX0,BY1-BY0}},
+    build_map(T, Vmap, FvUvMap, MergedWe, [Chart|Acc]);
 build_map([], _, _, _, Acc) -> Acc.
 
 %%%%% Material handling
@@ -609,19 +615,19 @@ get_material(Face, Materials, #we{fs=Ftab}) ->
     Mat = gb_trees:get(MatName, Materials),
     proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
-add_material(Tx, St0, #areas{we=#we{name=Name},matname=none}=Charts) ->
+add_material(Tx,Name,none,St0) ->
     MatName0 = list_to_atom(Name++"_auv"),
     Mat = {MatName0,[{opengl,[]},{maps,[{diffuse,Tx}]}]},
     case wings_material:add_materials([Mat], St0) of
 	{St,[]} ->
-	    {St,Charts#areas{matname=MatName0}};
+	    {St,MatName0};
 	{St,[{MatName0,MatName}]} ->
-	    {St,Charts#areas{matname=MatName}}
+	    {St,MatName}
     end;
-add_material({W,H,Bits}, St, #areas{matname=MatName}=Charts) ->
+add_material({W,H,Bits}, _, MatName,St) ->
     Im = #e3d_image{width=W,height=H,image=Bits},
     wings_material:update_image(MatName, diffuse, Im, St),
-    {St,Charts}.
+    {St,MatName}.
     
 %%% Opengl drawing routines
 
@@ -640,18 +646,17 @@ init_drawarea() ->
 	     {-WF,1+WF,-WF,H/W+WF}
      end}.
 
-draw_texture(#uvstate{dl=undefined,option=Options}=Uvs) ->
+draw_texture(#uvstate{dl=undefined,option=Options,areas=As}=Uvs) ->
     Materials = (Uvs#uvstate.origst)#st.mat,
-    #areas{we=We,as=As0} = Uvs#uvstate.areas,
     DrawArea = fun({_,A}) ->
-		       draw_area(A, We, Options, Materials)
+		       draw_area(A, Options, Materials)
 	       end,
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
-    ?SLOW(foreach(DrawArea, gb_trees:to_list(As0))),
+    ?SLOW(foreach(DrawArea, gb_trees:to_list(As))),
     gl:endList(),
     draw_texture(Uvs#uvstate{dl=Dl});
-draw_texture(Uvs = #uvstate{dl=DL, sel=Sel, areas=#areas{we=We}}) ->
+draw_texture(Uvs = #uvstate{dl=DL, sel=Sel}) ->
     gl:callList(DL),
     case Sel of 
 	[] -> ignore;
@@ -661,8 +666,8 @@ draw_texture(Uvs = #uvstate{dl=DL, sel=Sel, areas=#areas{we=We}}) ->
 	    gl:enable(?GL_BLEND),
 	    gl:disable(?GL_DEPTH_TEST),
 	    DrawArea = fun({_,A}) -> 
-			       draw_area(A, We, #setng{color = {R,G,B,0.7}, 
-						       edges = no_edges}, []) 
+			       draw_area(A, #setng{color = {R,G,B,0.7}, 
+						   edges = no_edges}, []) 
 		       end,
 	    lists:foreach(DrawArea, Sel),
 	    gl:disable(?GL_BLEND)
@@ -671,7 +676,7 @@ draw_texture(Uvs = #uvstate{dl=DL, sel=Sel, areas=#areas{we=We}}) ->
 
 setup_view({Left,Right,Bottom,Top}, Uvs) ->
     #uvstate{st=#st{mat=Mats},option=#setng{texbg=TexBg},
-	     areas=#areas{matname=MatN}} = Uvs,
+	     matname=MatN} = Uvs,
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
@@ -773,7 +778,7 @@ get_texture(_, _, _, _, _, _, ImageAcc) -> reverse(ImageAcc).
 
 texture_view(WC, WD, HC, HD, Uvs) ->
     #uvstate{st=#st{mat=Mats}, option=#setng{texbg=TexBg},
-	     areas=#areas{matname = MatN}}=Uvs,
+	     matname = MatN}=Uvs,
     gl:disable(?GL_DEPTH_TEST),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
@@ -917,7 +922,7 @@ edge_option_menu(#uvstate{option = Option}) ->
 			     {auv, set_options, {Mode,BEC,BEW,Color,TexBg,TSz}}  end).
 
 quit_menu(Uvs) ->
-    #uvstate{st=St,areas=#areas{matname=MatN}} = Uvs,
+    #uvstate{st=St,matname=MatN} = Uvs,
     DefVar = {quit_mode,quit_uv_tex},
     A1 = {"Save UV Coordinates and Texture",quit_uv_tex},
     A2 = {"Save Only UV Coordinates",quit_uv},
@@ -965,14 +970,14 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
 		      mode=Mode,
 		      op=Op,
 		      sel=Sel0,
-		      areas=#areas{we=We,as=Curr0}=As} = Uvs0)
+		      areas=Curr0} = Uvs0)
   when Op == undefined; 
        record(Op, op), Op#op.name == fmove ->
     % Deselection
     {_,_,_,OH} = wings_wm:viewport(),
     SX = MX,
     SY = OH-MY,
-    case select(Mode, SX, SY, add_as(Sel0,Curr0), We, ViewP) of
+    case select(Mode, SX, SY, add_as(Sel0,Curr0), ViewP) of
 	none when Op == undefined ->
 	    keep;
 	none -> 
@@ -985,11 +990,11 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
 		    false ->
 			update_selection([hd(Hits)], Sel0, Curr0)
 		end,
-	    WingsSt = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
+	    WingsSt = wings_select_faces(Sel1, Uvs0#uvstate.st),
 	    wings_wm:send(geom, {new_state,WingsSt}),
 	    get_event(reset_dl(Uvs0#uvstate{sel = Sel1,
 					    st=WingsSt,
-					    areas=As#areas{as=Curr1},
+					    areas=Curr1,
 					    op = undefined}))
     end;
 handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
@@ -997,7 +1002,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 		      mode = Mode,
 		      op = Op,
 		      sel = Sel0,
-		      areas=#areas{we=We0,as=Curr0}=As}=Uvs0) ->
+		      areas=Curr0}=Uvs0) ->
     {_,_,_,OH} = wings_wm:viewport(),
     case Op#op.name of
 	boxsel when Op#op.add == {MX,MY} -> %% No box
@@ -1009,23 +1014,23 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 	    CX = if OX > MX -> MX + BW div 2; true -> MX - BW div 2 end,
 	    CY = if OY > MY -> MY + BH div 2; true -> MY - BH div 2 end,
 	    %%		    ?DBG("BW ~p BH ~p Center ~p \n",[BW,BH, {CX,CY}]),
-	    case select(Mode, CX,(OH-CY), BW,BH, Curr0, We0, ViewP) of
+	    case select(Mode, CX,(OH-CY), BW,BH, Curr0, ViewP) of
 		none -> 
 		    get_event(Uvs0#uvstate{op = undefined});
 		Hits -> 
 		    {Sel1,Curr1} = update_selection(Hits, Sel0, Curr0),
-		    WingsSt = wings_select_faces(Sel1, We0, Uvs0#uvstate.st),
+		    WingsSt = wings_select_faces(Sel1, Uvs0#uvstate.st),
 		    wings_wm:send(geom, {new_state,WingsSt}),
 		    Uvs = Uvs0#uvstate{op=undefined,
 				       sel=Sel1,
 				       st=WingsSt,
-				       areas=As#areas{as=Curr1}},
+				       areas=Curr1},
 		    get_event(reset_dl(Uvs))
 	    end;
 	rotate ->
-	    Sel = [finish_rotate(A)|| A <- Sel0],
-	    We = replace_uvs(Sel, We0),
-	    get_event(Uvs0#uvstate{op=undefined,sel=Sel,areas=As#areas{we=We}});
+	    Sel1 = [finish_rotate(A)|| A <- Sel0],
+	    Sel = replace_uvs(Sel1),
+	    get_event(Uvs0#uvstate{op=undefined,sel=Sel});
 	_ ->
 	    get_event(Uvs0#uvstate{op = undefined})
     end;
@@ -1035,10 +1040,10 @@ handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY},
 		      mode=Mode,
 		      op=Op,
 		      sel=Sel0,
-		      areas=#areas{we=We,as=Curr0}}=Uvs0) 
+		      areas=Curr0}=Uvs0) 
   when Op == undefined ->
     {_,_,_,OH} = wings_wm:viewport(),
-    case select(Mode, MX, (OH-MY), add_as(Sel0, Curr0), We, ViewP) of
+    case select(Mode, MX, (OH-MY), add_as(Sel0, Curr0), ViewP) of
 	none -> 
 	    get_event(Uvs0#uvstate{op=#op{name=boxsel, add={MX,MY}, 
 					  prev={MX+1,MY+1},undo=Uvs0}});
@@ -1052,10 +1057,10 @@ handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY},
 	    end
     end;
 handle_event(#keyboard{state=?SDL_PRESSED,keysym=Sym}, 
-	     #uvstate{st=St,areas=#areas{we=We}}=Uvs0) ->
+	     #uvstate{st=St}=Uvs0) ->
     case Sym of
 	#keysym{sym=?SDLK_SPACE} ->
-	    wings_wm:send(geom, {new_state,wings_select_faces([], We, St)}),
+	    wings_wm:send(geom, {new_state,wings_select_faces([], St)}),
 	    keep;
 	#keysym{sym = ?SDLK_F5} ->
 	    import_file(default, Uvs0); 
@@ -1096,13 +1101,15 @@ handle_event({action,{auv,{import,all_white}}}, Uvs) ->
 handle_event({action,{auv,{import,all_black}}}, Uvs) ->
     set_texture_image(fun all_black/2, Uvs);
 handle_event({action,{auv,apply_texture}},
-	     #uvstate{st=St0,sel=Sel0,areas=As0}=Uvs) ->
+	     #uvstate{st=St0,sel=Sel0,areas=As0,vmap=Vmap,
+		      orig_we=OWe,matname=MatName0}=Uvs) ->
     Tx = ?SLOW(get_texture(Uvs)),
-    As1 = add_areas(Sel0, As0),
-    {St1,As} = add_material(Tx, St0, As1),
-    St = insert_uvcoords(As, St1),
+    As = add_areas(Sel0, As0),
+    #we{name = Name, id=Id} = OWe,
+    {St1,MatName} = add_material(Tx,Name,MatName0,St0),
+    St = insert_uvcoords(As,Id,MatName,Vmap,St1),
     wings_wm:send(geom, {new_state,St}),
-    get_event(Uvs#uvstate{st=St,areas=As});
+    get_event(Uvs#uvstate{st=St,matname=MatName});
 handle_event({action, {auv, edge_options}}, Uvs) ->
     edge_option_menu(Uvs);
 handle_event({action,{auv,quit}}, Uvs) ->
@@ -1126,14 +1133,14 @@ handle_event({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
 		       },
     get_event(reset_dl(Uvs1));
 handle_event({action, {auv, rescale_all}},
-	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{as=Curr0}})->
+	     Uvs0=#uvstate{sel = Sel0,areas=Curr0})->
     RscAreas = rescale_all(add_as(Sel0,Curr0)),
     get_event(reset_dl(Uvs0#uvstate{sel = [],
-				    areas=As#areas{as=RscAreas}}));
+				    areas=RscAreas}));
 handle_event({action, {auv, {rotate, free}}}, Uvs) ->
     handle_event({action, {auv, rotate}}, Uvs);
 handle_event({action, {auv, {rotate, Deg}}},
-	     Uvs0=#uvstate{mode=Mode,sel=Sel0, areas=#areas{we=We0}=Areas}) ->
+	     Uvs0=#uvstate{mode=Mode,sel=Sel0}) ->
     Uvs = case Deg of
 	      rot_y_180 ->
 		  Sel1 = [transpose_x(Mode, A) || A <- Sel0],
@@ -1145,8 +1152,8 @@ handle_event({action, {auv, {rotate, Deg}}},
 		  Sel1 = [finish_rotate({Id,A#ch{rotate = Deg}})|| {Id,A} <- Sel0],
 		  Uvs0#uvstate{op = undefined, sel = Sel1}
 	  end,
-    We = replace_uvs(Uvs#uvstate.sel, We0),
-    get_event(Uvs#uvstate{areas=Areas#areas{we=We}});
+    Sel = replace_uvs(Uvs#uvstate.sel),
+    get_event(Uvs#uvstate{sel=Sel});
 handle_event({action, {auv, NewOp}},Uvs0=#uvstate{sel = Sel0}) ->
     case Sel0 of
 	[] ->
@@ -1245,10 +1252,13 @@ set_texture_image(TexFun, #uvstate{option=Opt0}=Uvs) ->
 		      Uvs#uvstate{option=Opt}).
 
 add_texture_image(TW, TH, TexBin, FileName,
-		  #uvstate{st=St0,option=Opt,areas=As0}=Uvs) ->
-    {St,As} = add_material({TW,TH,TexBin}, St0, As0),
+		  #uvstate{st=St0,option=Opt,
+			   orig_we=OWe,matname=MatName0}=Uvs) ->
+    Name = OWe#we.name,
+    {St,MatName} = add_material({TW,TH,TexBin},Name,MatName0,St0),
     wings_wm:send(geom, {new_state,St}),
-    get_event(reset_dl(Uvs#uvstate{st=St,areas=As,
+    get_event(reset_dl(Uvs#uvstate{st=St,
+				   matname=MatName,
 				   option=Opt#setng{texbg=true},
 				   last_file=FileName})).
 
@@ -1259,7 +1269,7 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs) ->
     get_event_nodraw(Uvs#uvstate{st=St});
 update_selection(#st{selmode=Mode,sel=Sel}=St,
-		 #uvstate{areas=#areas{orig_we=#we{id=Id}}=As,sel=ChSel}=Uvs) ->
+		 #uvstate{areas=As,orig_we=#we{id=Id},sel=ChSel}=Uvs) ->
     case keysearch(Id, 1, Sel) of
 	false ->
 	    get_event(reset_dl(Uvs#uvstate{st=St,sel=[],
@@ -1268,7 +1278,7 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
 	    update_selection_1(Mode, gb_sets:to_list(Elems), Uvs#uvstate{st=St})
     end.
 
-update_selection_1(face, Faces, #uvstate{sel=Sel,areas=#areas{as=As0}}=Uvs) ->
+update_selection_1(face, Faces, #uvstate{sel=Sel,areas=As0}=Uvs) ->
     As = gb_trees:to_list(add_as(Sel, As0)),
     update_selection_2(As, Faces, Uvs, [], []);
 update_selection_1(_, _, Uvs) ->
@@ -1279,8 +1289,8 @@ update_selection_2([{K,#ch{fs=Fs}=C}|Cs], Faces, Uvs, NonSel, Sel) ->
 	[] -> update_selection_2(Cs, Faces, Uvs, [{K,C}|NonSel], Sel);
 	_ -> update_selection_2(Cs, Faces, Uvs, NonSel, [{[K],C}|Sel])
     end;
-update_selection_2([], _, #uvstate{areas=As0}=Uvs0, NonSel, Sel) ->
-    As = As0#areas{as=gb_trees:from_orddict(sort(NonSel))},
+update_selection_2([], _, Uvs0, NonSel, Sel) ->
+    As = gb_trees:from_orddict(sort(NonSel)),
     Uvs = Uvs0#uvstate{sel=sort(Sel),areas=As},
     get_event(reset_dl(Uvs)).
 
@@ -1309,7 +1319,7 @@ update_selection(Areas, Sel0, Other0) ->
 		  end
 	  end, {Sel0, Other0}, Areas).
 
-select(Mode, X,Y, Objects, We, {XYS,XM,XYS,YM}=ViewP) ->
+select(Mode, X,Y, Objects, {XYS,XM,XYS,YM}=ViewP) ->
     {_,_,UVW,UVH} = wings_wm:viewport(),
     XT = (XM-XYS)*X/UVW+XYS,
     YT = (YM-XYS)*Y/UVH+XYS,
@@ -1317,10 +1327,10 @@ select(Mode, X,Y, Objects, We, {XYS,XM,XYS,YM}=ViewP) ->
 	[] -> 
 	    none;
 	Possible ->
-	    select(Mode, X,Y, 3,3, gb_trees:from_orddict(Possible), We, ViewP)
+	    select(Mode, X,Y, 3,3, gb_trees:from_orddict(Possible), ViewP)
     end.
 
-select(Mode, X,Y, W, H, Objects0, We, {XYS,XM,XYS,YM}) ->
+select(Mode, X,Y, W, H, Objects0, {XYS,XM,XYS,YM}) ->
     {_,_,UVW,UVH} = wings_wm:viewport(),
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
@@ -1334,7 +1344,7 @@ select(Mode, X,Y, W, H, Objects0, We, {XYS,XM,XYS,YM}) ->
     glu:ortho2D(XYS,XM,XYS,YM),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    select_draw(gb_trees:to_list(Objects0), Mode, We),
+    select_draw(gb_trees:to_list(Objects0), Mode),
     gl:flush(),
     gl:viewport(0,0,WH,WW),	    
     case gl:renderMode(?GL_RENDER) of
@@ -1351,9 +1361,9 @@ select(Mode, X,Y, W, H, Objects0, We, {XYS,XM,XYS,YM}) ->
 		end, lists:usort(Hits))
     end.
 
-select_draw([{Co,A}|R], Mode, We) ->
+select_draw([{Co,A}|R], Mode) ->
 %%    ?DBG("Co ~p\n",[Co]),
-    #ch{fs=Fs,center={CX,CY},scale=Scale,rotate=Rot} = A,
+    #ch{fs=Fs,center={CX,CY},scale=Scale,rotate=Rot,we=We} = A,
     gl:pushMatrix(),
     gl:pushName(0),
     gl:loadName(Co),
@@ -1363,8 +1373,8 @@ select_draw([{Co,A}|R], Mode, We) ->
     select_draw1(Mode, Fs, We#we{mode=material}),
     gl:popName(),
     gl:popMatrix(),
-    select_draw(R, Mode, We);
-select_draw([], _, _) ->
+    select_draw(R, Mode);
+select_draw([], _) ->
     ok.
 
 select_draw1(faceg, Fs, We) ->
@@ -1428,9 +1438,10 @@ find_selectable(X,Y, [_H|R], Acc) ->
 find_selectable(_X,_Y, [], Acc) ->
     reverse(Acc).
 
-wings_select_faces([], _, St) ->
+wings_select_faces([], St) ->
     wpa:sel_set(face, [], St);
-wings_select_faces(As, #we{id=Id}, St) ->
+wings_select_faces(As, St) ->
+    Id = ((hd(As))#ch.we)#we.id,
     Faces = [A#ch.fs || {_,A} <- As],
     wpa:sel_set(face, [{Id,gb_sets:from_list(lists:append(Faces))}], St).
 
@@ -1494,7 +1505,7 @@ verify_state(St, Uvs) ->
     end.
 
 same_topology(#st{shapes=Shs},
-	      #uvstate{areas=#areas{orig_we=#we{id=Id}=We,edges=Edges}}) ->
+	      #uvstate{orig_we=#we{id=Id}=We,edges=Edges}) ->
     case gb_trees:lookup(Id, Shs) of
 	none -> false;
 	{value,We} -> true;
@@ -1504,7 +1515,7 @@ same_topology(#st{shapes=Shs},
 get_broken_event(Uvs) ->
     {replace,fun(Ev) -> broken_event(Ev, Uvs) end}.
 
-broken_event(redraw, #uvstate{areas=#areas{orig_we=#we{name=Name}}}) ->
+broken_event(redraw, #uvstate{orig_we=#we{name=Name}}) ->
     {_,_,W,H} = wings_wm:viewport(),
     wings_io:ortho_setup(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
@@ -1540,8 +1551,8 @@ broken_event(Ev, _) ->
 %%%
 %%% Draw routines.
 %%%
-draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe}, 
-	  We, Options = #setng{color = ColorMode, edges = EdgeMode}, Materials) -> 
+draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe, we=We}, 
+	  Options = #setng{color = ColorMode, edges = EdgeMode}, Materials) -> 
     gl:pushMatrix(),
     gl:translatef(CX, CY, 0.0),
     gl:scalef(Scale, Scale, 1.0),
