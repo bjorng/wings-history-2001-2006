@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.20 2004/05/08 15:41:50 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.21 2004/05/16 18:28:20 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -257,7 +257,7 @@ seg_command_debug({debug,select_pinned}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
 -endif.
 
 seg_cancel() ->
-    wings_draw_util:delete_dlists(),
+    wings_dl:delete_dlists(),
     delete.
 
 seg_create_materials(St0) ->
@@ -300,9 +300,9 @@ seg_map_charts_1([], _, _, _, MappedCharts, #seg{we=#we{id=Id}}) ->
     wings_wm:later({init_show_maps,Id,reverse(MappedCharts)}),
 
     %% Empty display list structure.
-    wings_draw_util:update(fun(eol, _) -> eol;
-			      (_, _) -> deleted
-			   end, []),
+    wings_dl:update(fun(eol, _) -> eol;
+		       (_, _) -> deleted
+		    end, []),
     pop.
 
 segment(Mode, #st{shapes=Shs}=St) ->
