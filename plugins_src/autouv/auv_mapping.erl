@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.57 2004/05/06 15:28:15 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.58 2004/05/31 16:58:06 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -184,14 +184,14 @@ get_verts([],I,_,Acc) ->
 
 lsqcm(Fs, We) ->
     ?DBG("Project and tri ~n", []),
-    {Vs1,Area} = ?TC(project_and_triangulate(Fs,We,-1,[],0.0)),    
-    {V1, V2} = ?TC(find_pinned(Fs, We)),
+    {Vs1,Area} = project_and_triangulate(Fs,We,-1,[],0.0),
+    {V1, V2} = find_pinned(Fs, We),
     ?DBG("LSQ ~p ~p~n", [V1,V2]),
 %    Idstr = lists:flatten(io_lib:format("~p", [Id])),
 %    {ok, Fd} = file:open("raimo_" ++ Idstr, [write]),
 %    io:format(Fd, "{~w, ~w}.~n", [Vs1,[V1,V2]]),
 %    file:close(Fd),
-    case ?TC(lsq(Vs1,[V1,V2])) of
+    case lsq(Vs1, [V1,V2]) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
 	    exit({txmap_error, What});
@@ -255,7 +255,7 @@ lsqcm2impl(Fs, We) ->
     TempWe = wings_face_cmd:dissolve(DelFs, We),
     InnerFaces = gb_sets:to_list(wings_we:new_items(face, We, TempWe)),
     ?DBG("BordersFaces ~p ~p ~n", [TempFs, InnerFaces]),
-    {Vs0,_} = ?TC(project_and_triangulate(InnerFaces ++ TempFs,TempWe,-1,[],0.0)), 
+    {Vs0,_} = project_and_triangulate(InnerFaces ++ TempFs,TempWe,-1,[],0.0),
 
     {ok,PBVs}  = lsq(Vs0,[P1,P2]),
     PinnedBorder = foldl(fun(PV = {Vid, _}, Acc) ->
@@ -265,8 +265,8 @@ lsqcm2impl(Fs, We) ->
 				 end
 			 end, [], PBVs),
     ?DBG("LSQ2 (2pass) ~p ~n", [PinnedBorder]),
-    {Vs1,Area} = ?TC(project_and_triangulate(Fs,We,-1,[],0.0)),
-    case ?TC(lsq(Vs1, PinnedBorder)) of
+    {Vs1,Area} = project_and_triangulate(Fs,We,-1,[],0.0),
+    case lsq(Vs1, PinnedBorder) of
  	{error, What2} ->
  	    ?DBG("TXMAP (second pass) error ~p~n", [What2]),
  	    exit({txmap_error2, What2});
@@ -468,30 +468,30 @@ lsq_int(L, Lpuv, Method) ->
 	  {0,0,0}, Lquv),
     %% Build the basic submatrixes 
     %% M1 = Re(M), M2 = Im(M), M2n = -M2
-    {M1,M2,M2n} = ?TC(build_basic(M,L1,L2)),
+    {M1,M2,M2n} = build_basic(M,L1,L2),
     %% Compile the basic submatrixes into the ones related to 
     %% free points (Mf*) i.e unknown, 
     %% and pinned points (Mp*).
-    {Mfp1c,Mfp2c,Mfp2nc,LuLv} = ?TC(build_cols(M1,M2,M2n,Lquv)),
+    {Mfp1c,Mfp2c,Mfp2nc,LuLv} = build_cols(M1,M2,M2n,Lquv),
     ?DBG("lsq_int - LuLv = ~p~n", [LuLv]),
     %% Compose the matrix and vector to solve
     %% for a Least SQares solution.
-    {Af,B} = ?TC(build_matrixes(N,Mfp1c,Mfp2c,Mfp2nc,LuLv)),
+    {Af,B} = build_matrixes(N,Mfp1c,Mfp2c,Mfp2nc,LuLv),
     ?DBG("Solving matrixes~n", []),
     X = case Method of
 	    ge ->
-		?TC(minimize(Af,B));
+		minimize(Af,B);
 	    _ ->
 		X0 = auv_matrix:vector(lists:duplicate(M-Np, Usum/Np)++
 				       lists:duplicate(M-Np, Vsum/Np)),
-		{_,X1} = ?TC(minimize_cg(Af, X0, B, Method)),
+		{_,X1} = minimize_cg(Af, X0, B, Method),
 		X1
 	end,
 %%    ?DBG("X=~p~n", [X]),
     %% Extract the vector of previously unknown points,
     %% and insert the pinned points. Re-translate the
     %% original point identities.
-    ?TC(lsq_result(X, Lquv, Rdict)).
+    lsq_result(X, Lquv, Rdict).
 
 
 
@@ -551,10 +551,10 @@ keyseq(N, [X | L], R) ->
 %% using Gaussian Elimination and Back Substitution.
 %%
 minimize(A,B) ->
-    AA = ?TC(mk_solve_matrix(A, B)),
-    AAA = ?TC(auv_matrix:reduce(AA)),
+    AA = mk_solve_matrix(A, B),
+    AAA = auv_matrix:reduce(AA),
 %%    ?DBG("Reduced: ~p~n", [AAA]),
-    X   = ?TC(auv_matrix:backsubst(AAA)),
+    X   = auv_matrix:backsubst(AAA),
     ?DBG("Solved~n",[]),
     X.    
 
@@ -589,8 +589,8 @@ minimize_cg(A, X0, B, Method) ->
 		%% This preconditioning is not worth the effort.
 		%% The time for convergence decreases, but that gain
 		%% is lost on the AtA multiplication.
-		AtA_u = ?TC(auv_matrix:square_right(At)),
-		Diag = ?TC(auv_matrix:diag(AtA_u)),
+		AtA_u = auv_matrix:square_right(At),
+		Diag = auv_matrix:diag(AtA_u),
 		case catch [1/V || V <- Diag] of
 		    {'EXIT', {badarith, _}} ->
 			fun (R_new) ->
@@ -599,7 +599,7 @@ minimize_cg(A, X0, B, Method) ->
 		    {'EXIT', Reason} ->
 			exit(Reason);
 		    Diag_inv ->
-			M_i = ?TC(auv_matrix:diag(Diag_inv)),
+			M_i = auv_matrix:diag(Diag_inv),
 			fun (R_new) ->
 				auv_matrix:mult(M_i, R_new)
 			end
@@ -613,7 +613,7 @@ minimize_cg(A, X0, B, Method) ->
 		%% The preconditioning effect (on the required
 		%% number of iterations) is modest, but 
 		%% cost effective.
-		Diag = ?TC(auv_matrix:row_norm(At)),
+		Diag = auv_matrix:row_norm(At),
 		case catch [1/V || V <- Diag] of
 		    {'EXIT', {badarith, _}} ->
 			fun (R_new) ->
@@ -622,7 +622,7 @@ minimize_cg(A, X0, B, Method) ->
 		    {'EXIT', Reason} ->
 			exit(Reason);
 		    Diag_inv ->
-			M_i = ?TC(auv_matrix:diag(Diag_inv)),
+			M_i = auv_matrix:diag(Diag_inv),
 			fun (R_new) ->
 				auv_matrix:mult(M_i, R_new)
 			end
@@ -762,7 +762,7 @@ lsq_result(X, Lquv, Rdict) ->
 % 		  throw({error, {?FILE, ?LINE, [Other, State, X]}})
 % 	  end, {1, []}, auv_matrix:vector(X)),
 %     {Ulist, Vlist} = ?TC(split(lists:reverse(UlistVlistR), MM div 2)),
-    {Ulist, Vlist} = ?TC(split(auv_matrix:vector(X), MM div 2)),
+    {Ulist, Vlist} = split(auv_matrix:vector(X), MM div 2),
     {[],UVlistR} = 
 	foldl(
 	  fun (U, {[], R}) ->
@@ -897,7 +897,7 @@ stretch_opt(We0, OVs) ->
 
     V2S = stretch_per_vertex(gb_trees:to_list(State#s.v2f),F2S2,State,gb_trees:empty()),
     S2V = lists:reverse(lists:keysort(2,gb_trees:to_list(V2S))),
-    {SUvs0,_F2S2} = ?TC(wings_pb:done(stretch_iter(S2V,1,V2S,F2S2,Uvs,State))),
+    {SUvs0,_F2S2} = wings_pb:done(stretch_iter(S2V,1,V2S,F2S2,Uvs,State)),
     %% Verify
     _Mean2  = model_l2(gb_trees:keys(_F2S2), _F2S2, State#s.f2a,0.0, 0.0),
     io:format("After Stretch sum (mean) ~p ~n",  [_Mean2]),
@@ -933,8 +933,8 @@ stretch_iter(S2V0=[{_,First}|_],I,V2S0,F2S20,Uvs0,State)
 	true ->
 	    ok
     end,
-    {V2S,F2S2,Uvs} = ?TC(stretch_iter2(S2V0,V2S0,F2S20,Uvs0,State)),
-    S2V = lists:reverse(lists:keysort(2,gb_trees:to_list(V2S))),
+    {V2S,F2S2,Uvs} = stretch_iter2(S2V0,V2S0,F2S20,Uvs0,State),
+    S2V = lists:reverse(lists:keysort(2, gb_trees:to_list(V2S))),
     stretch_iter(S2V,I+1,V2S,F2S2,Uvs,State);
 stretch_iter(_,_,_,F2S2,Uvs,_) ->
     {Uvs,F2S2}.
@@ -946,7 +946,7 @@ stretch_iter2([{V,OldVal}|R],V2S0,F2S20,Uvs0,State)
     Fs   = gb_trees:get(V,V2Fs),
     Val  = gb_trees:get(V,V2S0),
     %%	    ?DBG("~p ~.4f:",[V,Val]), 
-    {PVal,Uvs,F2S2} = ?TC(opt_v(Val,0,?VERTEX_STEP,V,Line,Fs,F2S20,Uvs0,State)),
+    {PVal,Uvs,F2S2} = opt_v(Val,0,?VERTEX_STEP,V,Line,Fs,F2S20,Uvs0,State),
     case PVal == Val of 
 	true -> 
 	    stretch_iter2(R,V2S0,F2S20,Uvs0,State);
@@ -955,7 +955,7 @@ stretch_iter2([{V,OldVal}|R],V2S0,F2S20,Uvs0,State)
 	    Upd0 = foldl(fun(Vtx, New) ->
 				 [{Vtx,gb_trees:get(Vtx, V2Fs)}|New]
 			 end, [], Vs0),
-	    V2S = ?TC(stretch_per_vertex(Upd0,F2S2,State,V2S0)),
+	    V2S = stretch_per_vertex(Upd0,F2S2,State,V2S0),
 	    stretch_iter2(R,V2S,F2S2,Uvs,State)
     end;
 stretch_iter2(_,V2S,F2S2,Uvs,_) ->

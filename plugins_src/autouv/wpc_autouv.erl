@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.256 2004/05/29 14:54:29 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.257 2004/05/31 16:58:06 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -390,7 +390,7 @@ command_menu(vertex, X, Y) ->
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(_, X, Y) ->
-    Menu = option_menu(),
+    [_|Menu] = option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu).
 
 scale_directions() ->
@@ -663,8 +663,8 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
 new_geom_state_2(We, #st{shapes=OldCharts}=St) ->
     Faces = wings_we:uv_mapped_faces(We),
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We),
-    {Charts1,Cuts} = ?TC(auv_segment:uv_to_charts(Faces, FvUvMap, We)),
-    Charts2 = ?TC(auv_segment:cut_model(Charts1, Cuts, We)),
+    {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We),
+    Charts2 = auv_segment:cut_model(Charts1, Cuts, We),
     Charts3 = update_charts(Charts2, gb_trees:values(OldCharts)),
     Charts4 = build_map(Charts3, FvUvMap, []),
     Charts = gb_trees:from_orddict(keysort(1, Charts4)),

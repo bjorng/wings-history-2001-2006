@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.57 2004/05/23 15:33:05 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.58 2004/05/31 16:58:06 bjorng Exp $
 
 -module(auv_segment).
 
@@ -69,10 +69,10 @@ degrees(Deg) ->
     math:sqrt(X*X+Y*Y).
 
 segment_by_feature(We, SharpEdgeDeg, MinFeatureLen) ->
-    {Features,VEG,EWs} = ?TC(find_features(We, SharpEdgeDeg, MinFeatureLen)),
-    {LocalMaxs,Extra} = ?TC(build_seeds(Features, We)),
-    {Distances,Charts0,Cuts} = ?TC(build_charts(LocalMaxs, Extra, VEG, EWs, We)),    
-    Charts = ?TC(solve_map_problem(Charts0, We)),
+    {Features,VEG,EWs} = find_features(We, SharpEdgeDeg, MinFeatureLen),
+    {LocalMaxs,Extra} = build_seeds(Features, We),
+    {Distances,Charts0,Cuts} = build_charts(LocalMaxs, Extra, VEG, EWs, We),    
+    Charts = solve_map_problem(Charts0, We),
     {Distances,Charts,Cuts,Features}.
 
 

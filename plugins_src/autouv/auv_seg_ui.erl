@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.22 2004/05/24 11:23:31 dgud Exp $
+%%     $Id: auv_seg_ui.erl,v 1.23 2004/05/31 16:58:06 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -271,8 +271,8 @@ seg_hide_other(Id, St0 = #st{selmode=face, sel=Sel, shapes=Sh}) ->
     {value, {Id, Faces}} =  lists:keysearch(Id, 1, Sel),
     We0 = gb_trees:get(Id, Sh),
     Other = wings_sel:inverse_items(face, Faces, We0),
-%    We = wings_we:hide_faces(Other, We0),
-    We = We0,
+    We = wings_we:hide_faces(Other, We0),
+%    We = We0,
     St = St0#st{sel=[{Id,Other}],shapes = gb_trees:from_orddict([{Id,We}])},
     wings_material:command({assign,atom_to_list(?HOLE)}, St);
 seg_hide_other(_, St) -> St.    
