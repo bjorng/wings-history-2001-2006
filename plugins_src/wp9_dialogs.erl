@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.22 2003/12/21 21:01:03 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.23 2003/12/23 16:23:12 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
 -export([init/1]).
--import(lists, [reverse/1]).
+-import(lists, [reverse/1,reverse/2]).
 
 init(Next) ->
     fun(What) -> ui(What, Next) end.
@@ -125,24 +125,23 @@ do_dialog(Types, Title, Cont, Ps) ->
     Wc = atom_to_list(DefType),
     Files = filelib:wildcard(filename:join(Dir, "*."++Wc)),
     io:format("~p\n", [Files]),
+    DirMenu = dir_menu(Dir, []),
     ShowFiles = fun(X, Y, W, H, _Common) ->
 			wings_io:border(X, Y, W, H, {0.52,0.52,0.52}),
 			wings_io:text_at(X+5, Y+16, "Filter: "++atom_to_list(DefType)),
 			keep
 		end,
     Qs = {vframe,
-	  [{label,Dir},
-	   {text,Dir,[{key,directory},
-		      {hook,fun(is_minimized, _) -> true;
-			       (_, _) -> void
-			    end}]},
-	   {button,"Up",fun(_) -> ignore end,[{key,up},{hook,fun up_button/2}]},
+	  [{hframe,[{label,"Look in:"},
+		    {menu,DirMenu,Dir,[{key,directory},{hook,fun menu_hook/2}]},
+		    {button,"Up",fun(_) -> ignore end,[{key,up},{hook,fun up_button/2}]}]},
+	   separator,
 	   {custom,400,400,ShowFiles},
 	   separator,
 	   {hframe,
 	    [{vframe,
-	      [{label,"File name"},
-	       {label,"File format"}]},
+	      [{label,"File name:"},
+	       {label,"File format:"}]},
 	     {vframe,
 	      [{text,"",[{key,filename}]},
 	       {menu,Types,DefType,[{key,filetype},{hook,fun menu_hook/2}]}]},
@@ -156,6 +155,13 @@ do_dialog(Types, Title, Cont, Ps) ->
 		  do_dialog(Types, Title, Cont, Res)
 	  end,
     {dialog,Qs,Ask}.
+
+dir_menu(Dir0, Acc) ->
+    Entry = {Dir0,Dir0},
+    case filename:dirname(Dir0) of
+	Dir0 -> reverse(Acc, [Entry]);
+	Dir -> dir_menu(Dir, [Entry|Acc])
+    end.
 
 menu_hook(update, {Var,_I,Val,Sto}) ->
     {done,gb_trees:update(Var, Val, Sto)};
