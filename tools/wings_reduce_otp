@@ -2,7 +2,7 @@
 #
 # Reduce size of OTP by removing beam files that are not needed.
 #
-# $Id: wings_reduce_otp,v 1.1 2003/08/11 18:13:54 bjorng Exp $
+# $Id: wings_reduce_otp,v 1.2 2003/08/17 10:30:08 bjorng Exp $
 #
 
 erl_top=$1
@@ -49,3 +49,6 @@ rm -rf $td/erl_compile.beam
 
 # Only used by the compiler.
 rm -rf $td/ms_transform.beam
+
+# No use in Wings.
+rm -rf $td/beam_lib.beam
