@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.145 2003/06/19 09:31:45 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.146 2003/06/29 06:39:17 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -240,15 +240,23 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 %%% Handling of drag events.
 %%%
 
-do_drag(Drag, Args) ->
-    if
-	Args == none -> ok;
-	true -> wings_wm:later({drag_arguments,Args})
-    end,
+do_drag(Drag, none) ->
     {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0},
     {GX,GY} = wings_wm:local2global(X, Y),
-    {seq,push,handle_drag_event_1(Ev, Drag#drag{x=GX,y=GY})}.
+    {seq,push,handle_drag_event_1(Ev, Drag#drag{x=GX,y=GY})};
+do_drag(Drag0, Move) ->
+    {_,X,Y} = wings_wm:local_mouse_state(),
+    Ev = #mousemotion{x=X,y=Y,state=0},
+    {GX,GY} = wings_wm:local2global(X, Y),
+    {_,Drag1} = motion(Ev, Drag0#drag{x=GX,y=GY}),
+    ungrab(Drag1),
+    Drag2 = possible_falloff_update(Move, Drag1),
+    Drag = ?SLOW(motion_update(Move, Drag2)),
+    St = normalize(Drag),
+    DragEnded = {new_state,St#st{args=Move}},
+    wings_wm:later(DragEnded),
+    keep.
 
 help_message(#drag{unit=Unit}=Drag) ->
     Msg = "[L] Accept  [R] Cancel",
@@ -280,10 +288,11 @@ zmove_help() ->
     end.
 
 get_drag_event(#drag{st=St}=Drag) ->
-    clear_sel_dlists(),
     case wings_pref:get_value(hide_sel_while_dragging) of
 	true -> ok;
-	false -> wings_draw:update_sel_dlist()
+	false ->
+	    clear_sel_dlists(),
+	    wings_draw:update_sel_dlist()
     end,
     wings_wm:current_state(St),
     wings_wm:dirty(),
