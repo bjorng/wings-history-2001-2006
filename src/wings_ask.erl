@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.115 2003/11/12 23:59:49 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.116 2003/11/13 10:12:40 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -650,6 +650,8 @@ mktree({hframe,Qs}, Sto, I) ->
     mktree_container(Qs, Sto, I, [], hframe);
 mktree({hframe,Qs,Flags}, Sto, I) ->
     mktree_container(Qs, Sto, I, Flags, hframe);
+mktree(panel, Sto, I) ->
+    mktree_fi(panel(), Sto, I, []);
 mktree({label,Label}, Sto, I) ->
     mktree_fi(label(Label, []), Sto, I, []);
 mktree({label,Label,Flags}, Sto, I) ->
@@ -738,7 +740,8 @@ mktree_container(Qs, Sto0, I0, Flags, Type) ->
     {Fields,Sto1,I} = mktree_container(Qs, Sto0, I0+1, []),
     Minimized = proplists:get_value(minimized, Flags),
     Key = proplists:get_value(key, Flags, 0),
-    Sto = gb_trees:insert(key(Key, I0), Minimized, Sto1),
+    Sto2 = gb_trees:insert(key(Key, I0), Minimized, Sto1),
+    Sto = gb_trees:insert(-I0, Type, Sto2),
     {#fi{handler=fun frame_event/3,
 	 key=Key,
 	 inert=true,
@@ -1688,6 +1691,14 @@ custom_event(_Ev, _Path, _Store) -> keep.
 
 
 %%%
+%%% Panel
+%%%
+
+panel() -> {fun (_Ev, _Path, _Store) -> keep end, true, panel, 0, 0}.
+
+
+
+%%%
 %%% Label.
 %%%
 
@@ -1750,7 +1761,7 @@ label_draw([], _, _) -> keep.
 text(Val, Flags) ->
     IsInteger = is_integer(Val),
     ValStr = text_val_to_str(Val),
-    {Max,Validator,Charset,Range} = validator(Val, Flags),
+    {Max0,Validator,Charset,Range} = validator(Val, Flags),
     {SliderH,Val} =
 	case proplists:get_value(color, Flags) of
 	    {_Type,_KeyC}=TK ->
@@ -1758,6 +1769,10 @@ text(Val, Flags) ->
 	    undefined ->
 		{2,Val}
 	end,
+    Max = case proplists:get_value(width, Flags) of
+	      undefined -> Max0;
+	      M when integer(M), M >= 1 -> M
+	  end,
     Password = proplists:get_bool(password, Flags),
     Ts = #text{last_val=Val,bef=[],aft=ValStr,max=Max,
 	       integer=IsInteger,charset=Charset,
@@ -1894,7 +1909,7 @@ gen_text_handler(value, [#fi{key=Key,index=I}|_], Store) ->
 gen_text_handler(init, [#fi{key=Key,index=I}|_], Store) ->
     #text{last_val=Val} = gb_trees:get(-I, Store),
     {store,gb_trees:enter(key(Key, I), Val, Store)};
-gen_text_handler(Ev, [Fi=#fi{key=Key,index=I}|_], Store0) ->
+gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook}|_], Store0) ->
     #text{last_val=Val0} = Ts0 = gb_trees:get(-I, Store0),
     K = key(Key, I),
     Ts1 = case gb_trees:get(K, Store0) of
@@ -1905,16 +1920,21 @@ gen_text_handler(Ev, [Fi=#fi{key=Key,index=I}|_], Store0) ->
 		  Ts0#text{bef=[],aft=ValStr}
 	  end,
     Ts2 = text_event(Ev, Fi, Ts1),
-    {Ts,Store} = case text_get_val(Ts2) of
-		     Val0 -> {Ts2,Store0};
-		     Val  -> {Ts2#text{last_val=Val},
-			      gb_trees:update(K, Val, Store0)}
-		 end,
+    {Ts,Store} = 
+	case text_get_val(Ts2) of
+	    Val0 -> {Ts2,Store0};
+	    Val  -> 
+		{Ts2#text{last_val=Val},
+		 case hook(Hook, update, [K, I, Val, Store0]) of
+		     keep -> Store0;
+		     {store,S} -> S
+		 end}
+	end,
     {store,gb_trees:update(-I, Ts, Store)}.
 
 draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
 		   Val, DisEnable) ->
-    Str0 = text_val_to_str(Val),
+    Str0 = string:substr(text_val_to_str(Val), 1, Max),
     Str = case Password of
 	      true -> stars(Str0);
 	      false -> Str0
@@ -2399,6 +2419,7 @@ hook(Hook, update, [Var, I, Val, Store0]) ->
 	    case Hook(update, {Var,I,Val,Store}) of
 		void -> Default;
 		keep -> Default;
+		{store,Store} -> Default;
 		{store,_}=Result -> Result
 	    end
     end;

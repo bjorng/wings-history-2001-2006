@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.8 2003/11/10 14:44:03 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.9 2003/11/13 10:12:39 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -187,7 +187,7 @@ large_dialog_r() ->
       {color,{0.0,1.0,0.0,1.0}},
       {menu,[{"Alt 1",1},{"Alt 2",2},{"Alt 3",3}],d,3,
        [{key,menu},{hook,disable_hook(c)}]},
-      {color,{0.0,0.0,1.0}},
+      {hframe,[{color,{0.0,0.0,1.0}},panel]},
       {hframe,[{text,1.23},
 	       {button,"Ok",ok,[{hook,disable_hook(c)}]}]},
       {menu,[{"A",a},{"B",b},{"C",c}],m,a,

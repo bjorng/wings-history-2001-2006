@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.18 2003/10/24 15:56:29 raimo_niskanen Exp $
+%%     $Id: wings_color.erl,v 1.19 2003/11/13 10:12:40 raimo_niskanen Exp $
 %%
 
 -module(wings_color).
@@ -273,7 +273,7 @@ color_slider_flags(T, {_K1,K2,K3}=K123, Kabc, Range) ->
     [{color,{T,K2,K3}}|color_text_flags(T, K123, Kabc, Range)].
 
 color_text_flags(T, {K1,K2,K3}, Kabc, Range) ->
-    [{key,K1},{range,Range},{hook,color_update(T, {K2,K3}, Kabc)}].
+    [{key,K1},{range,Range},{width,5},{hook,color_update(T, {K2,K3}, Kabc)}].
 
 color_update(T, {K1,K2}, {Ka,Kb,Kc}) ->
     fun (update, {_Key,_I,Val,Store0}) ->
