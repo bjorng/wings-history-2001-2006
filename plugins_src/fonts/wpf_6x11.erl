@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_6x11.erl,v 1.14 2004/03/01 06:47:49 bjorng Exp $
+%%     $Id: wpf_6x11.erl,v 1.15 2004/03/01 07:16:13 bjorng Exp $
 %%
 
 -module(wpf_6x11).
@@ -40,11 +40,12 @@ cw(option) -> 12;
 cw(shift) -> 13;
 cw(space2) -> 12;
 cw(crossmark) -> 8;
-cw(32) -> 4;
+cw(32) -> 3;
 cw($.) -> 5;
 cw($,) -> 3;
 cw($:) -> 5;
 cw($-) -> 5;
+cw($c) -> 5;
 cw($f) -> 5;
 cw($i) -> 2;
 cw($j) -> 4;
@@ -58,7 +59,7 @@ cw($w) -> 8;
 cw($y) -> 8;
 cw($|) -> 2;
 cw($I) -> 4;
-cw(160) -> 3;
+cw(160) -> 2;
 cw(169) -> 9;
 cw(_) -> 6.
 
@@ -181,11 +182,11 @@ char(C) ->
 
 char2(32) ->
  B = <<>>,
- gl:bitmap(0, 0, 0, 0, 4, 0, B);
+ gl:bitmap(0, 0, 0, 0, 3, 0, B);
 
 char2(160) ->
  B = <<>>,
- gl:bitmap(0, 0, 0, 0, 3, 0, B);
+ gl:bitmap(0, 0, 0, 0, 2, 0, B);
 
 % char: 0xff
 
@@ -1068,7 +1069,7 @@ char2(99) ->
 	 2#10000000,
 	 2#01110000
 	 >>,
-    gl:bitmap(5, 5, 0, 0, 6, 0, B);
+    gl:bitmap(4, 5, 0, 0, 5, 0, B);
 
 % char: 0x62 'b' */
 
