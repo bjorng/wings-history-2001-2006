@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dl.erl,v 1.1 2004/05/15 07:25:58 bjorng Exp $
+%%     $Id: wings_dl.erl,v 1.2 2004/12/16 16:20:32 bjorng Exp $
 %%
 
 -module(wings_dl).
@@ -166,7 +166,7 @@ delete_dlists() ->
     end.
 
 clear_old_dl([#dlo{src_we=We,proxy_data=Pd0,ns=Ns}|T]) ->
-    Pd = wings_subdiv:clean(Pd0),
+    Pd = wings_proxy:clean(Pd0),
     [#dlo{src_we=We,mirror=none,proxy_data=Pd,ns=Ns}|clear_old_dl(T)];
 clear_old_dl([]) -> [].
 

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.5 2004/05/17 17:44:23 bjorng Exp $
+%%     $Id: wings_render.erl,v 1.6 2004/12/16 16:20:33 bjorng Exp $
 %%
 
 -module(wings_render).
@@ -151,7 +151,7 @@ render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) 
     render_plain_rest(D, Wire, SelMode);
 render_plain(#dlo{src_we=We}=D, SelMode) ->
     Wire = wire(We),
-    wings_subdiv:draw(D, Wire),
+    wings_proxy:draw(D, Wire),
     render_plain_rest(D, Wire, SelMode).
 
 render_plain_rest(D, Wire, SelMode) ->
@@ -208,7 +208,7 @@ render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
 		Pd =:= none ->
 		    wings_dl:call(Work);
 		true ->
-		    wings_subdiv:draw(D, wire(We))
+		    wings_proxy:draw(D, wire(We))
 	    end;
 	{[Op,_],false} -> wings_dl:call(Op);
 	{[_,Tr],true} -> wings_dl:call(Tr);
@@ -229,7 +229,7 @@ render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
 	    gl:polygonOffset(1, 1),
 	    wings_dl:call(Edges);
 	true ->
-	    wings_subdiv:draw_smooth_edges(D);
+	    wings_proxy:draw_smooth_edges(D);
 	false -> ok
     end,
     draw_hilite(D),

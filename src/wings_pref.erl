@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.129 2004/12/16 15:42:05 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.130 2004/12/16 16:20:33 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -399,7 +399,7 @@ clear_proxy_edges(St) ->
     wings_dl:map(fun(D, _) -> clear_proxy_edges(D, St) end, []).
 
 clear_proxy_edges(D, St) ->
-    wings_subdiv:update(D#dlo{proxy_edges=none}, St).
+    wings_proxy:update(D#dlo{proxy_edges=none}, St).
 
 make_query({'VALUE',Val}) ->
     Val;

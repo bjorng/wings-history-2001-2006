@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.206 2004/06/05 17:55:49 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.207 2004/12/16 16:20:32 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -310,7 +310,7 @@ update_fun_2(smooth, #dlo{smooth=none,proxy_data=none}=D, St) ->
     {List,Tr} = smooth_dlist(D, St),
     D#dlo{smooth=List,transparent=Tr};
 update_fun_2(smooth, #dlo{smooth=none}=D, St) ->
-    We = wings_subdiv:smooth_we(D),
+    We = wings_proxy:smooth_we(D),
     {List,Tr} = smooth_dlist(We, St),
     D#dlo{smooth=List,transparent=Tr};
 update_fun_2({vertex,PtSize}, #dlo{vs=none,src_we=#we{vp=Vtab}}=D, _) ->
@@ -342,7 +342,7 @@ update_fun_2(edges, #dlo{edges=none,ns=Ns}=D, _) ->
 update_fun_2(normals, D, _) ->
     make_normals_dlist(D);
 update_fun_2(proxy, D, St) ->
-    wings_subdiv:update(D, St);
+    wings_proxy:update(D, St);
 update_fun_2(_, D, _) -> D.
 
 make_edge_dl(Ns) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.163 2004/12/06 07:56:35 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.164 2004/12/16 16:20:33 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -281,10 +281,10 @@ command(shade, St) ->
     wireframe_sel(false, St),
     St;
 command(smooth_proxy, St) ->
-    wings_subdiv:setup(St),
+    wings_proxy:setup(St),
     St;
 command(quick_preview, St) ->
-    ?SLOW(wings_subdiv:quick_preview(St)),
+    ?SLOW(wings_proxy:quick_preview(St)),
     St;
 command(orthogonal_view, St) ->
     toggle_option(orthogonal_view),
