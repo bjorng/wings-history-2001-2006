@@ -10,12 +10,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.8 2002/11/17 10:00:40 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.9 2002/11/17 11:52:12 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
 
 -export([init/1]).
+
+-define(NEED_ESDL, 1).
+-include("wings.hrl").
 
 %% Operations supported by driver.
 -define(OP_QUESTION, 0).
@@ -81,10 +84,18 @@ file_dialog(Type, Prop, Title) ->
     DefName = proplists:get_value(default_filename, Prop, ""),
     Filters = file_filters(Prop),
     Data = [Dir,0,Title,0,DefName,0|Filters],
-    case erlang:port_control(wp8_file_port, Type, Data) of
-	[] -> aborted;
-	Else -> filename:absname(Else)
-    end.
+    
+    %% Disabling the key repeat here and then enable it again
+    %% seems to get rid of the annoying problem with repeating
+    %% dialog boxes.
+    sdl_keyboard:enableKeyRepeat(0, 0),
+    Res = case erlang:port_control(wp8_file_port, Type, Data) of
+	      [] -> aborted;
+	      Else -> filename:absname(Else)
+    end,
+    sdl_keyboard:enableKeyRepeat(?SDL_DEFAULT_REPEAT_DELAY,
+				 ?SDL_DEFAULT_REPEAT_INTERVAL),
+    Res.
 
 file_filters(Prop) ->
     case proplists:get_value(extensions, Prop, none) of
