@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.78 2003/02/24 06:08:29 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.79 2003/02/24 06:09:45 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -602,9 +602,9 @@ clear_background_1(Name) ->
     gl:popAttrib().
 
 any_windows_below(Name) ->
-    ZOrdered = gb_trees:values(get(wm_windows)),
+    Windows = gb_trees:values(get(wm_windows)),
     #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Name),
-    any_windows_below_1(ZOrdered, Z, {X,Y,W+W,Y+H}).
+    any_windows_below_1(Windows, Z, {X,Y,W+W,Y+H}).
 
 any_windows_below_1([#win{z=ThisZ}|T], Z, Rect) when Z < ThisZ; ThisZ =< 0 ->
     any_windows_below_1(T, Z, Rect);
