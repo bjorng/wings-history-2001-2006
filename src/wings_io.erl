@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.56 2002/07/26 17:25:03 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.57 2002/07/26 18:17:32 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -228,8 +228,8 @@ draw_completions(F) ->
     Margin = 10,
     gl:pushMatrix(),
     gl:loadIdentity(),
-    gl:translatef(float(Margin), H / 6, 0.0),
-    raised_rect(0, 0, W-2*Margin, 4*H div 6),
+    gl:translatef(float(Margin), H / 6, 0),
+    border(0, 0, W-2*Margin, 4*H div 6, ?MENU_COLOR),
     gl:translatef(10.0, float(?LINE_HEIGHT), 0.0),
     Res = F(),
     gl:popMatrix(),
@@ -283,7 +283,10 @@ maybe_show_mem_used(H) ->
 			true ->
 			    {(Sz+1024*512) div 1024 div 1024,"Mb"}
 		    end,
-	    Mem = ["Memory: ",integer_to_list(N),M],
+	    Dl = gl:genLists(1),
+	    gl:deleteLists(Dl, 1),
+	    Mem = ["Memory: ",integer_to_list(N),M,"  Dlist: ",
+		   integer_to_list(Dl)],
 	    ortho_setup(),
 	    text_at(4, H-5*?LINE_HEIGHT+5, Mem);
 	false -> ok
@@ -418,9 +421,6 @@ raised_rect(X, Y, Mw, Mh) ->
 
 raised_rect(X, Y, Mw, Mh, FillColor) ->
     sunken_rect(X+Mw, Y+Mh, -Mw, -Mh, FillColor).
-
-sunken_rect(X, Y, W, H) ->
-    sunken_rect(X, Y, W, H, ?PANE_COLOR).
 
 sunken_rect(X0, Y0, Mw0, Mh0, FillColor) ->
     X = X0 + 0.5,
