@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.68 2002/11/23 20:34:33 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.69 2002/11/26 08:10:02 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -714,17 +714,16 @@ restrict_hilite(face, Modes, Id, V, Edge, _Face, MM) ->
 
 pick_all(_DrawFaces, _X, _Y, W, H, St) when W < 1.0; H < 1.0 ->
     {none,St};
-pick_all(DrawFaces, X0, Y0, W, H, St0) ->
+pick_all(DrawFaces, X, Y0, W, H, St0) ->
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
     gl:initNames(),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    {_,_,_,Wh} = ViewPort = wings_wm:viewport(),
-    X = float(X0),
-    Y = Wh-float(Y0),
-    glu:pickMatrix(X, Y, W, H, ViewPort),
+    {_,_,Ww,Wh} = wings_wm:viewport(),
+    Y = Wh-Y0,
+    glu:pickMatrix(X, Y, W, H, [0,0,Ww,Wh]),
     wings_view:perspective(),
     wings_view:model_transformations(),
     case DrawFaces of
