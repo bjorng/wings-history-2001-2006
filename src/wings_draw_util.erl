@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.115 2003/12/05 19:59:55 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.116 2003/12/08 19:15:45 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -32,7 +32,6 @@
 	 }).
 
 init() ->
-    ensure_du_loaded(),
     case get(wings_tesselator) of
 	undefined -> ok;
 	OldTess -> glu:deleteTess(OldTess)
@@ -73,32 +72,6 @@ init_cb(Tess) ->
     glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
     glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE),
     wings__du:init_cb(Tess).
-
-ensure_du_loaded() ->
-    case erlang:function_exported(wings__du, is_quirky_loaded, 0) of
-	false -> load_du();
-	true ->
-	    QuirkyOn = not wings_pref:get_value(display_list_opt),
-	    case {wings__du:is_quirky_loaded(),QuirkyOn} of
-		{Same,Same} -> ok;
-		_ -> load_du()
-	    end
-    end.
-
-load_du() ->
-    case wings_pref:get_value(display_list_opt) of
-	false -> load_du_1("wings__du.quirky.beam");
-	true -> load_du_1("wings__du.beam")
-    end.
-
-load_du_1(Name) ->
-    Dir = filename:dirname(code:which(?MODULE)),
-    Path = filename:join(Dir, Name),
-    {ok,Code} = file:read_file(Path),
-    Mod = wings__du,
-    code:purge(Mod),
-    {module,Mod} = code:load_binary(Mod, Path, Code),
-    ok.
 
 delete_dlists() ->
     case erase(wings_wm:get_prop(display_lists)) of
@@ -376,7 +349,8 @@ wire(#we{id=Id}) ->
     W = wings_wm:get_prop(wireframed_objects),
     gb_sets:is_member(Id, W).
 
-render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans,src_we=We,proxy_data=Pd}=D,
+render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
+		   src_we=We,proxy_data=Pd}=D,
 	      RenderTrans) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
@@ -423,7 +397,7 @@ render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans,src_we=We,proxy_dat
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
 	    gl:polygonOffset(1, 1),
-	    call(Work);
+	    call(Edges);
 	true ->
 	    wings_subdiv:draw_smooth_edges(D);
 	false -> ok

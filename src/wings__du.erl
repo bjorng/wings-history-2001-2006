@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__du.erl,v 1.7 2003/08/31 11:00:25 bjorng Exp $
+%%     $Id: wings__du.erl,v 1.8 2003/12/08 19:15:45 bjorng Exp $
 %%
 
 -module(wings__du).
--export([is_quirky_loaded/0,init_cb/1,begin_end/2,
+-export([init_cb/1,begin_end/2,
 	 plain_face/1,plain_face/2,uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_plain_face/2,smooth_plain_face/3,
 	 smooth_uv_face/2,smooth_uv_face/3,
@@ -21,53 +21,19 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
-%%%
-%%% Some graphics cards such as the Nvdia's Riva TNT have quirks
-%%% when one gl:begin/gl:end pair is used for drawing many triangles
-%%% (when edge flags are used). Enclosing each triangle in its own
-%%% gl:begin/gl:end pair avoids the problem.
-%%%
-%%% This module will be compiled in two versions to avoid run-time
-%%% tests for whether the workaround should be used or not.
-%%%
-
--ifdef(QUIRKY_OPENGL).
--define(GL__BEGIN(Type), gl:'begin'(Type)).
--define(GL__END(Op), Op, gl:'end'()).
--else.
 -define(GL__BEGIN(Type), ok).
 -define(GL__END(Op), Op).
--endif.
 
--ifdef(QUIRKY_OPENGL).
-is_quirky_loaded() -> true.
--else.
-is_quirky_loaded() -> false.
--endif.
-
--ifdef(QUIRKY_OPENGL).
-init_cb(Tess) ->
-    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
-    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND).
--else.
 init_cb(Tess) ->
     glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
     glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE).
--endif.
 
--ifdef(QUIRKY_OPENGL).
-begin_end(_, Body) ->
-    Res = Body(),
-    gl:edgeFlag(?GL_TRUE),
-    Res.
--else.
 begin_end(Type, Body) ->
     gl:'begin'(Type),
     Res = Body(),
     gl:'end'(),
     gl:edgeFlag(?GL_TRUE),
     Res.
--endif.
 
 %% plain_face([Position]) -> ok
 %%  Draw a tri or quad face with neither UV coordinates nor vertex colors.
@@ -80,11 +46,9 @@ plain_face([A,B,C,D]) ->
     ?GL__BEGIN(?GL_TRIANGLES),
     gl:vertex3dv(A),
     gl:vertex3dv(B),
-    gl:edgeFlag(?GL_FALSE),
     ?GL__END(gl:vertex3dv(C)),
     ?GL__BEGIN(?GL_TRIANGLES),
     gl:vertex3dv(A),
-    gl:edgeFlag(?GL_TRUE),
     gl:vertex3dv(C),
     ?GL__END(gl:vertex3dv(D)).
 
@@ -117,11 +81,9 @@ uv_face([A,B,C,D], [UVa,UVb,UVc,UVd]) ->
     ?GL__BEGIN(?GL_TRIANGLES),
     uv_face_vtx(A, UVa),
     uv_face_vtx(B, UVb),
-    gl:edgeFlag(?GL_FALSE),
     ?GL__END(uv_face_vtx(C, UVc)),
     ?GL__BEGIN(?GL_TRIANGLES),
     uv_face_vtx(A, UVa),
-    gl:edgeFlag(?GL_TRUE),
     uv_face_vtx(C, UVc),
     ?GL__END(uv_face_vtx(D, UVd)).
 
@@ -165,11 +127,9 @@ vcol_face([A,B,C,D], [Ca,Cb,Cc,Cd]) ->
     ?GL__BEGIN(?GL_TRIANGLES),
     vcol_face_vtx(A, Ca),
     vcol_face_vtx(B, Cb),
-    gl:edgeFlag(?GL_FALSE),
     ?GL__END(vcol_face_vtx(C, Cc)),
     ?GL__BEGIN(?GL_TRIANGLES),
     vcol_face_vtx(A, Ca),
-    gl:edgeFlag(?GL_TRUE),
     vcol_face_vtx(C, Cc),
     ?GL__END(vcol_face_vtx(D, Cd)).
 

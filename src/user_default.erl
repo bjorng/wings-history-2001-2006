@@ -3,12 +3,12 @@
 %%
 %%     Extends the Erlang shell with Wings utilities.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.15 2003/08/25 06:10:44 bjorng Exp $
+%%     $Id: user_default.erl,v 1.16 2003/12/08 19:15:45 bjorng Exp $
 %% 
 
 -module(user_default).
@@ -42,7 +42,6 @@ wh() ->
 wx() ->
     WingsLib = code:lib_dir(wings),
     WingsEbin = filename:join(WingsLib, "ebin"),
-    file:delete(filename:join(WingsEbin, "wings__du.quirky.beam")),
     xref:start(s),
     xref:set_default(s, [{verbose,false},{warnings,false},{builtins,true}]),
     xref:set_library_path(s, code:get_path() -- [WingsEbin]),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.161 2003/12/05 19:50:34 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.162 2003/12/08 19:15:45 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -308,30 +308,20 @@ update_fun_2(proxy, D, St) ->
     wings_subdiv:update(D, St);
 update_fun_2(_, D, _) -> D.
 
-make_edge_dl(Faces, D) ->
-    case wings_pref:get_value(broken_gl_edge_flag) of
-	false -> make_edge_dl_1(D);
-	true -> make_edge_dl_2(Faces, D)
-    end.
-
-make_edge_dl_1(#dlo{work=Work,src_we=#we{mode=vertex}}) ->
-    force_flat(Work, wings_pref:get_value(edge_color));
-make_edge_dl_1(#dlo{work=Work}) -> Work.
-
-make_edge_dl_2(Faces, #dlo{ns=Ns}) ->
+make_edge_dl(Faces, #dlo{ns=Ns}) ->
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
-    make_edge_dl_3(Faces, Ns),
+    make_edge_dl_1(Faces, Ns),
     gl:endList(),
     Dl.
 
-make_edge_dl_3(Faces, Ns) ->
+make_edge_dl_1(Faces, Ns) ->
     case sofs:is_sofs_set(Faces) of
-	false -> make_edge_dl_4(gb_trees:keys(Faces), Ns);
-	true -> make_edge_dl_4(sofs:to_external(Faces), Ns)
+	false -> make_edge_dl_2(gb_trees:keys(Faces), Ns);
+	true -> make_edge_dl_2(sofs:to_external(Faces), Ns)
     end.
 
-make_edge_dl_4([F|Fs], Ns) ->
+make_edge_dl_2([F|Fs], Ns) ->
     case gb_trees:get(F, Ns) of
 	[_|[A,B,C]] ->
 	    gl:'begin'(?GL_TRIANGLES),
@@ -351,8 +341,8 @@ make_edge_dl_4([F|Fs], Ns) ->
 	    foreach(fun(V) -> gl:vertex3dv(V) end, VsPos),
 	    gl:'end'()
     end,
-    make_edge_dl_4(Fs, Ns);
-make_edge_dl_4([], _) -> ok.
+    make_edge_dl_2(Fs, Ns);
+make_edge_dl_2([], _) -> ok.
 
 force_flat([], _) -> [];
 force_flat([H|T], Color) ->
@@ -511,7 +501,7 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd,ns=Ns0}=D,
 		    Work = draw_faces(StaticFtab, D, St),
 		    Faces1
 	    end,
-    StaticEdgeDl = make_static_edges(Faces, Ftab, Work, D),
+    StaticEdgeDl = make_static_edges(Faces, Ftab, D),
     AllVs = sofs:image(F2V, Faces),
     
     {DynVs,VsDlist} = split_vs_dlist(AllVs, Sel, We),
@@ -548,13 +538,9 @@ update_dynamic_1(#dlo{edges=[StaticEdge|_],split=#split{dyn_faces=Faces}}=D) ->
     EdgeDl = make_edge_dl(Faces, D),
     D#dlo{edges=[StaticEdge,EdgeDl]}.
 
-make_static_edges(DynFaces, DynFtab, Work, D) ->
-    case wings_pref:get_value(broken_gl_edge_flag) of
-	false -> Work;
-	true ->
-	    Ftab = sofs:difference(sofs:domain(DynFtab), DynFaces),
-	    make_edge_dl(Ftab, D)
-    end.
+make_static_edges(DynFaces, DynFtab, D) ->
+    Ftab = sofs:difference(sofs:domain(DynFtab), DynFaces),
+    make_edge_dl(Ftab, D).
 
 update_dynamic_vs(VsList, none, _) -> VsList;
 update_dynamic_vs([Static|_], DynVs, #we{vp=Vtab}) ->

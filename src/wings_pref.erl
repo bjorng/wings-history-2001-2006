@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.112 2003/12/06 08:35:02 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.113 2003/12/08 19:15:45 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -81,7 +81,6 @@ command(prefs, St) ->
     PrefQs0 = [{"General",gen_prefs()},
 	       {"Camera",{'VALUE',wings_camera:prefs()}},
 	       {"Advanced",advanced_prefs()},
- 	       {"Workarounds",workaround_prefs()},
 	       {"User Interface",ui_prefs()},
 	       {"Misc",misc_prefs()}],
     PrefQs = [{Lbl,make_query(Ps)} || {Lbl,Ps} <- PrefQs0],
@@ -161,38 +160,6 @@ gen_prefs() ->
 	      {color,"-Z Color",neg_z_color}]}]}],
 	 [{title,"Axes"}]}
        ]}]}.
-
-workaround_prefs() ->
-    %% Note: display_list_opt and text_display_lists are specially handled
-    %% in make_query/1 and smart_set_value/3 to have their value inverted
-    %% to keep preference files backward compatible.
-    L = [{display_list_opt,
-	  "Some edges not shown (e.g. in a sphere)",
-	  "Problem occurs on (for instance) Nvidia TNT Riva-2"},
-	 {broken_gl_edge_flag,
-	  "Faces are shown triangulated",
-	  "Problem occurs on (for instance) ATI Radeon 9800/Mac OS 10.3"},
-	 {text_display_lists,
-	  "Text in menus and dialogs disappear",
-	  "Problem occurs on some Matrox cards"},
-	 {dummy_axis_letter,
-	  "Wings crashes if axes are turned off",
-	  "Problem occurs on some Matrox cards"}],
-    workaround(L).
-
-workaround(L) ->
-    workaround_1(L, [], []).
-
-workaround_1([{Key,Str,BadGuy}|T], A0, B0) ->
-    Bl = " ",
-    Info = [{info,BadGuy}],
-    A = [{label,Str,Info}|A0],
-    B = [{Bl,Key,Info}|B0],
-    workaround_1(T, A, B);
-workaround_1([], A, B) ->
-    {hframe,
-     [{vframe,[{label,"Problem"},separator|reverse(A)]},
-      {vframe,[{label,"Use Workaround?"},separator|reverse(B)]}]}.
 
 advanced_prefs() ->
     DisableHook = fun (is_disabled, {_Var,_I,Store}) ->
@@ -290,11 +257,34 @@ misc_prefs() ->
 	  {vframe,
 	   [{slider,{text,proxy_static_opacity,[{range,{0.0,1.0}}|Flags]}},
 	    {slider,{text,proxy_moving_opacity,[{range,{0.0,1.0}}|Flags]}}]}]}],
-       [{title,"Proxy Mode"}]}
+       [{title,"Proxy Mode"}]},
+      {hframe,
+       %% Note: text_display_lists is specially handled
+       %% in make_query/1 and smart_set_value/3 to have its value inverted
+       %% to keep preference files backward compatible.
+       workaround([{text_display_lists,
+		    "Text in menus and dialogs disappear",
+		    "Problem occurs on some Matrox cards"},
+		   {dummy_axis_letter,
+		    "Wings crashes if axes are turned off",
+		    "Problem occurs on some Matrox cards"}]),
+       [{title,"Workarounds"}]}
      ]}.
 
-smart_set_value(Key, Val, St) when Key == display_list_opt;
-				    Key == text_display_lists ->
+workaround(L) ->
+    workaround_1(L, [], []).
+
+workaround_1([{Key,Str,BadGuy}|T], A0, B0) ->
+    Bl = " ",
+    Info = [{info,BadGuy}],
+    A = [{label,Str,Info}|A0],
+    B = [{Bl,Key,Info}|B0],
+    workaround_1(T, A, B);
+workaround_1([], A, B) ->
+    [{vframe,[{label,"Problem"},separator|reverse(A)]},
+     {vframe,[{label,"Use Workaround?"},separator|reverse(B)]}].
+
+smart_set_value(text_display_lists=Key, Val, St) ->
     %% Reverse sense to keep backwards comptibility of preferences.
     smart_set_value_1(Key, not Val, St);
 smart_set_value(Key, Val, St) ->
@@ -316,10 +306,6 @@ smart_set_value_1(Key, Val, St) ->
 		    wings_file:init_autosave();
 		proxy_shaded_edge_style ->
 		    clear_proxy_edges(St);
-		display_list_opt ->
-		    wings_draw_util:init();
-		broken_gl_edge_flag ->
-		    wings_draw_util:init();
 		system_font ->
 		    wings_wm:reinit_opengl(),
 		    wings_text:choose_font();
@@ -355,12 +341,10 @@ make_query({color,[_|_]=Str,Key}) ->
 make_query({color,[_|_]=Str,Key,Flags}) ->
     Def = get_value(Key),
     {Str,{color,Def,[{key,Key}|Flags]}};
-make_query({[_|_]=Str,Key}) when Key == display_list_opt;
-				 Key == text_display_lists ->
+make_query({[_|_]=Str,text_display_lists=Key}) ->
     %% Reverse sense to keep backwards comptibility of preferences.
     {Str,not get_value(Key),[{key,Key}]};
-make_query({[_|_]=Str,Key,Flags}) when Key == display_list_opt;
-				       Key == text_display_lists ->
+make_query({[_|_]=Str,text_display_lists=Key,Flags}) ->
     %% Reverse sense to keep backwards comptibility of preferences.
     {Str,not get_value(Key),[{key,Key}|Flags]};
 make_query({[_|_]=Str,Key}) ->
@@ -639,9 +623,7 @@ defaults() ->
      {hide_sel_in_camera_moves,false},
 
      %% Compatibility preferences.
-     {display_list_opt,true},
      {text_display_lists,true},
-     {broken_gl_edge_flag,false},
      {dummy_axis_letter,false},
 
      %% Advanced features.
