@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.35 2002/05/12 17:36:01 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.36 2002/06/26 17:57:12 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -245,14 +245,16 @@ translate_key_1(#keysym{sym=27}) ->		%Escape
     pop;
 translate_key_1(_Other) -> next.
 
-exit_menu(X, Y, Mod, #ss{exit=Exit}, St) ->
+exit_menu(X, Y, Mod, #ss{exit=Exit}=Ss, St) ->
     RmbMod = wings_camera:free_rmb_modifier(),
     case Exit(X, Y, St) of
 	invalid_selection ->
 	    exit_menu_invalid(X, Y, St);
 	MenuEntry when Mod band RmbMod =:= 0 ->
+	    set_last_axis(Ss, St),
 	    execute(MenuEntry);
 	MenuEntry ->
+	    set_last_axis(Ss, St),
 	    exit_menu_done(X, Y, MenuEntry, St)
     end.
 
