@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.70 2001/12/12 15:12:47 bjorng Exp $
+%%     $Id: wings.erl,v 1.71 2001/12/13 12:01:40 bjorng Exp $
 %%
 
 -module(wings).
@@ -487,8 +487,8 @@ command({vertex,{deform,Deform}}, St0) ->
     wings_deform:command(Deform, St0);
 
 %% Magnetic commands.
-command({_,{magnet,{Type,Dir}}}, St) ->
-    wings_magnet:setup(Type, Dir, St);
+command({vertex,{magnet,Magnet}}, St) ->
+    wings_magnet:command(Magnet, St);
 
 %% Tools menu.
 
@@ -652,8 +652,7 @@ vertex_menu(X, Y, St) ->
 	    {"Bevel",bevel},
 	    {"Collapse","Bksp",collapse},
 	    separator,
-	    {"Magnet",{magnet,{{"Gaussian",{gaussian,directions()}},
-			       {"Linear",{linear,directions()}}}}},
+	    wings_magnet:sub_menu(St),
 	    {"Deform",wings_deform:sub_menu(St)}},
     wings_menu:popup_menu(X, Y, vertex, Menu, St).
 
