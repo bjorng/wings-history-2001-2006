@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.216 2004/04/04 06:55:31 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.217 2004/04/08 06:04:37 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -109,33 +109,10 @@ auv_event(_Ev, _) -> keep.
 init_uvmapping(We, St) ->
     case wings_we:uv_mapped_faces(We) of
 	[] -> auv_seg_ui:start(We, We, St);
-	Faces -> start_edit(Faces, We, St)
+	_Faces -> start_edit(We, St)
     end.
 
-start_edit(_Faces, We, St0) ->
-    This = wings_wm:this(),
-    Prompt = "The object already has UV coordinates.",
-    Qs = {vframe,
-	  [{label,Prompt,[{break,45}]},
-	   {hframe,[{button,"Edit UVs",
-		     fun(_) ->
-			     start_edit_1(This, We, St0) end},
-		    {button,"Discard UVs",
-		     fun(_) ->
-			     St = discard_uvmap(We, St0),
-			     wings_wm:send(This, {discard_uvs,We#we.id,St}),
-			     ignore
-		     end},
-		    {button,"Cancel",
-		     fun(_) ->
-			     wings_wm:delete(This),
-			     ignore
-		     end,[cancel]}]}]},
-    wings_ask:dialog("", Qs, fun(_) ->
-				     ignore
-			     end).
-
-start_edit_1(Win, #we{fs=Ftab}=We, St) ->
+start_edit(#we{fs=Ftab}=We, St) ->
     MatNames0 = wings_material:get_all(We),
     MatNames1 = sofs:from_external(MatNames0, [{face,material}]),
     MatNames2 = sofs:converse(MatNames1),
@@ -143,36 +120,12 @@ start_edit_1(Win, #we{fs=Ftab}=We, St) ->
     MatNames4 = sofs:to_external(MatNames3),
     MatNames = [Mat || {Name,_}=Mat <- MatNames4, has_texture(Name, St)],
     case MatNames of
-	[] ->
-	    Faces = gb_trees:keys(Ftab),
-	    gen_edit_event(Win, none, Faces, We);
 	[{MatName,Faces}] ->
-	    gen_edit_event(Win, MatName, Faces, We);
-	[{First,_}|_]=Ms ->
-	    Ask = fun() -> start_edit_cb(Win, First, Ms, We) end,
-	    wings_wm:send(Win, {callback,Ask}),
-	    ignore
+	    do_edit(MatName, Faces, We, St);
+	_ ->
+	    Faces = gb_trees:keys(Ftab),
+	    do_edit(none, Faces, We, St)
     end.
-
-start_edit_cb(Win, First, Ms, We) ->
-    Qs = [{vradio,[{"Material "++atom_to_list(M),M} || {M,_} <- Ms], First}],
-    wings_ask:dialog("Choose Material to Edit",
-		     Qs,
-		     fun([Mat]) ->
-			     {value,{_,Faces}} = keysearch(Mat, 1, Ms),
-			     gen_edit_event(Win, Mat, Faces, We)
-		     end).
-
-gen_edit_event(Win, MatName, Faces, We) ->
-    wings_wm:send(Win, {uv_edit,{MatName,Faces,We}}),
-    keep.
-
-discard_uvmap(#we{fs=Ftab}=We0, St) ->
-    Faces = gb_trees:keys(Ftab),
-    FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
-    {Charts,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
-    We = We0#we{mode=material},
-    auv_util:mark_segments(Charts, Cuts, We, St).
 
 do_edit(MatName0, Faces, We, St) ->
     {Areas,MatName} = init_edit(MatName0, Faces, We),
@@ -314,6 +267,12 @@ update_uvs_2([{V0,{X,Y,_}}|Vs], [{V0,Fs}|VFs], Vmap, We, Etab0) ->
 			 update_uvs_3(V, Face, UV, A, We)
 		 end, Etab0, Fs),
     update_uvs_2(Vs, VFs, Vmap, We, Etab);
+update_uvs_2([{V0,none}|Vs], [{V0,Fs}|VFs], Vmap, We, Etab0) ->
+    V = auv_segment:map_vertex(V0, Vmap),
+    Etab = foldl(fun(Face, A) ->
+			 update_uvs_3(V, Face, none, A, We)
+		 end, Etab0, Fs),
+    update_uvs_2(Vs, VFs, Vmap, We, Etab);
 update_uvs_2([], [], _, _, Etab) -> Etab.
 
 update_uvs_3(V, Face, UV, Etab, We) ->
@@ -418,27 +377,27 @@ command_menu(body, X, Y) ->
 	      {"Horizontal", scale_x, "Scale horizontally (X dir)"},
 	      {"Vertical",   scale_y, "Scale vertically (Y dir)"}],
 
-    Menu = [{"Face Group operations", ignore},
-	    separator,
+    Menu = [{basic,{"Chart operations",ignore}},
+	    {basic,separator},
 	    {"Move", move, "Move selected charts"},
 	    {"Scale", {scale, Scale}, "Scale selected charts"},
 	    {"Rotate", {rotate, Rotate}, "Rotate selected charts"},
 	    separator,
 	    {"Tighten",tighten,
-	     "Move UV coordinates towards average midpoint"}
-% 	    separator,
-% 	    {"Rescale All", rescale_all, "Pack the space in lower-left before rescaling"}
+	     "Move UV coordinates towards average midpoint"},
+	    separator,
+	    {"Delete",delete,"Remove UV-coordinates for the selected charts"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(face, X, Y) ->
-    Menu = [{"Face operations", ignore}, 
-	    separator,
+    Menu = [{basic,{"Face operations",ignore}},
+	    {basic,separator},
 	    {"Move",move,"Move selected faces"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(edge, X, Y) ->
-    Menu = [{"Edge operations", ignore},
-	    separator,
+    Menu = [{basic,{"Edge operations",ignore}},
+	    {basic,separator},
 	    {"Move",move,"Move selected edges"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
@@ -446,8 +405,8 @@ command_menu(vertex, X, Y) ->
     Scale =  [{"Uniform",    scale_uniform, "Scale in both directions"},
 	      {"Horizontal", scale_x, "Scale horizontally (X dir)"},
 	      {"Vertical",   scale_y, "Scale vertically (Y dir)"}],
-    Menu = [{"Vertex operations",ignore},
-	    separator,
+    Menu = [{basic,{"Vertex operations",ignore}},
+	    {basic,separator},
 	    {"Move",move,"Move selected vertices"},
 	    {"Scale", {scale, Scale}, "Scale selected vertices"}
 	   ] ++ option_menu(),
@@ -573,6 +532,8 @@ handle_command({rotate,Deg}, St0) ->
     get_event(St);
 handle_command(tighten, St) ->
     tighten(St);
+handle_command(delete, St) ->
+    get_event(delete_charts(St));
 handle_command(_, #st{sel=[]}) ->
     keep.
 
@@ -594,10 +555,18 @@ not_bordering(V, #we{fs=Ftab}=We) ->
 			 (_, F, _, true) -> gb_trees:is_defined(F, Ftab)
 		      end, true, V, We).
 
-% handle_command_1(rescale_all, Uvs0) ->
-%     Uvs = clear_selection(Uvs0),
-%     RscAreas = rescale_all(all_charts(Uvs)),
-%     get_event(reset_dl(Uvs0#uvstate{areas=RscAreas}));
+
+delete_charts(#st{shapes=Shs0}=St0) ->
+    St1 = wpa:sel_map(fun(_, #we{vp=Vp0}=We) ->
+			      Vp1 = gb_trees:to_list(Vp0),
+			      Vp = [{V,none} || {V,_} <- Vp1],
+			      We#we{vp=gb_trees:from_orddict(Vp)}
+		      end, St0),
+    St = update_selected_uvcoords(St1),
+    Shs = wpa:sel_fold(fun(_, #we{id=Id}, Shs) ->
+			       gb_trees:delete(Id, Shs)
+		       end, Shs0, St),
+    St#st{shapes=Shs,sel=[]}.
 
 drag_filter({image,_,_}) ->
     {yes,"Drop: Change the texture image"};

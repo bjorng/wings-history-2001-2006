@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.72 2004/04/06 04:38:13 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.73 2004/04/08 06:04:39 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -292,7 +292,7 @@ smooth_move_orig_1(V, S, MoveFun, We) ->
 smooth_move_orig_fun(Vtab, FacePos, Htab) ->
     case gb_sets:is_empty(Htab) of
 	true ->
-	    %% No hard eges imply that all faces can be found
+	    %% No hard edges imply that all faces can be found
 	    %% in the FacePos table. Therefore gb_trees:get/2 is safe.
 	    fun(_Edge, Face, Erec, {V,Ps,_}) ->
 		    OPos = wings_vertex:other_pos(V, Erec, Vtab),
@@ -548,7 +548,8 @@ inc_smooth(#we{vp=Vp,next_id=Next}=We0, #sp{we=OldWe}) ->
     FacePos = gb_trees:from_orddict(FacePos0),
     {UpdatedVs,Mid} = update_edge_vs(We0, FacePos, Htab, Vp, Next),
     NewVs = smooth_new_vs(FacePos0, Mid),
-    Vtab = smooth_move_orig(gb_trees:keys(Vp), FacePos, Htab, We0, UpdatedVs ++ NewVs),
+    Vtab = smooth_move_orig(gb_trees:keys(Vp), FacePos, Htab, We0,
+			    UpdatedVs ++ NewVs),
     OldWe#we{vp=Vtab}.
 
 %%%
