@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.45 2003/10/21 14:46:24 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.46 2003/11/24 12:53:10 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -174,6 +174,7 @@ handle_drop({image,Id,_}, {material,Name,_,_}, {X0,Y0}, _Ost) ->
     Menu = [{"Texture Type",ignore},
 	     separator,
 	    {"Diffuse",tx_cmd(diffuse, Id, Name)},
+	    {"Gloss",tx_cmd(gloss, Id, Name)},
 	    {"Bump",tx_cmd(bump, Id, Name)}],
     wings_menu:popup_menu(X, Y, outliner, Menu);
 handle_drop(_, _, _, _) -> keep.
