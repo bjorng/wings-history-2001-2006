@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.130 2003/06/29 15:42:36 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.131 2003/07/03 14:44:34 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -192,7 +192,7 @@ update_fun_2({vertex,PtSize}, #dlo{vs=none,src_we=#we{vp=Vtab}}=D, _) ->
     UnselDlist = gl:genLists(1),
     gl:newList(UnselDlist, ?GL_COMPILE),
     gl:pointSize(PtSize),
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     gl:'begin'(?GL_POINTS),
     foreach(fun(Pos) -> gl:vertex3fv(Pos) end, gb_trees:values(Vtab)),
     gl:'end'(),
@@ -415,7 +415,7 @@ update_dynamic_vs([Static|_], DynVs, #we{vp=Vtab}) ->
 	0.0 -> ok;
 	PtSize -> 
 	    gl:pointSize(PtSize),
-	    gl:color3f(0, 0, 0),
+	    gl:color3b(0, 0, 0),
 	    gl:'begin'(?GL_POINTS),
 	    foreach(fun(V) ->
 			    gl:vertex3fv(gb_trees:get(V, Vtab))
@@ -439,7 +439,7 @@ split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
 	0.0 -> ok;
 	PtSize -> 
 	    gl:pointSize(PtSize),
-	    gl:color3f(0, 0, 0),
+	    gl:color3b(0, 0, 0),
 	    gl:'begin'(?GL_POINTS),
 	    List0 = sofs:from_external(gb_trees:to_list(Vtab), [{vertex,info}]),
 	    List1 = sofs:drestriction(List0, DynVs),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.66 2003/07/02 18:45:12 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.67 2003/07/03 14:44:35 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -477,7 +477,7 @@ draw_objects_1(N, [#we{name=Name}|Wes],
 	true -> ok
     end,
     wings_io:text_at(name_pos(), Y, Name),
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     draw_objects_1(N-1, Wes, Ost, R, Active-1, Y+Lh).
 
 draw_icons(N, Objs, Ost, R, I, Y) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.115 2003/07/02 19:43:56 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.116 2003/07/03 14:44:35 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -722,7 +722,7 @@ init_opengl() ->
     wings_io:resize(),
     wings_image:init_opengl(),
     {R,G,B} = wings_pref:get_value(background_color),
-    gl:clearColor(R, G, B, 1.0),
+    gl:clearColor(R, G, B, 1),
     dirty(),
     foreach(fun(Name) ->
 		    do_dispatch(Name, init_opengl)
@@ -933,7 +933,7 @@ drag(Ev, Rect, DropData) ->
 		     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 		     gl:lineStipple(2, 2#0101010101010101),
 		     gl:enable(?GL_LINE_STIPPLE),
-		     gl:color3f(0, 0, 0),
+		     gl:color3b(0, 0, 0),
 		     {W,H} = wings_wm:win_size(),
 		     gl:rectf(0.5, 0.5, W-1, H-1),
 		     gl:popAttrib()
@@ -1121,7 +1121,7 @@ message_redraw(Msg, Right) ->
 	    wings_io:set_color(wings_pref:get_value(menu_color)),
 	    gl:recti(Pos-?CHAR_WIDTH, -?LINE_HEIGHT+3,
 		     Pos+(L+1)*?CHAR_WIDTH, 3),
-	    gl:color3f(0, 0, 0),
+	    gl:color3b(0, 0, 0),
 	    wings_io:text_at(Pos, Right);
 	_ -> ok
     end,
@@ -1186,9 +1186,9 @@ draw_completions(F) ->
     wings_io:ortho_setup(),
     gl:loadIdentity(),
     Margin = 10,
-    gl:translatef(float(Margin), H / 6, 0),
+    gl:translatef(Margin, H / 6, 0),
     wings_io:border(0, 0, W-2*Margin, 4*H div 6, wings_pref:get_value(menu_color)),
-    gl:translatef(10.0, float(?LINE_HEIGHT), 0.0),
+    gl:translatef(10, ?LINE_HEIGHT, 0),
     Res = F(),
     gl:drawBuffer(?GL_BACK),
 

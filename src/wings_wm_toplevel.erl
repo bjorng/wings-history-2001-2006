@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.33 2003/07/02 19:43:56 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.34 2003/07/03 14:44:35 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -750,7 +750,7 @@ menubar_draw([{Desc,Name,_}|T], X, Sel) ->
 			    W, H-2, wings_pref:get_value(menu_color));
 	true -> ok
     end,
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     wings_io:text_at(X, ?CHAR_HEIGHT, Desc),
     menubar_draw(T, X+W, Sel);
 menubar_draw([], _, _) -> keep.

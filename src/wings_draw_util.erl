@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.84 2003/06/29 15:42:36 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.85 2003/07/03 14:44:34 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -286,7 +286,7 @@ render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) 
 	false ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:enable(?GL_POLYGON_OFFSET_FILL),
-	    gl:polygonOffset(2.0, 2.0),
+	    gl:polygonOffset(2, 2),
 	    gl:shadeModel(?GL_SMOOTH),
 	    gl:enable(?GL_LIGHTING),
 	    call(Faces),
@@ -307,10 +307,10 @@ render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) 
 	    end,
 	    gl:lineWidth(case SelMode of
 			     edge -> wings_pref:get_value(edge_width);
-			     _ -> ?NORMAL_LINEWIDTH end),
+			     _ -> 1 end),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
-	    gl:polygonOffset(1.0, 1.0),
+	    gl:polygonOffset(1, 1),
 	    case Wire andalso wings_pref:get_value(show_wire_backfaces) =:= true of
 		true ->
 		    gl:disable(?GL_CULL_FACE),
@@ -355,7 +355,7 @@ render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans,src_we=We,proxy_dat
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
-    gl:polygonOffset(2.0, 2.0),
+    gl:polygonOffset(2, 2),
 
     case Trans of
 	false -> gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_FALSE);
@@ -392,10 +392,10 @@ render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans,src_we=We,proxy_dat
     case wire(We) of
 	true when Pd =:= none ->
 	    gl:color3fv(wings_pref:get_value(edge_color)),
-	    gl:lineWidth(?NORMAL_LINEWIDTH),
+	    gl:lineWidth(1),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
-	    gl:polygonOffset(1.0, 1.0),
+	    gl:polygonOffset(1, 1),
 	    call(Work);
 	true ->
 	    wings_subdiv:draw_smooth_edges(D);
@@ -416,7 +416,7 @@ draw_sel(#dlo{sel=SelDlist,src_sel={vertex,_}}) ->
 draw_sel(#dlo{orig_sel=OrigSel,sel=SelDlist}) ->
     sel_color(),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
-    gl:polygonOffset(1.0, 1.0),
+    gl:polygonOffset(1, 1),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     case OrigSel =/= none orelse wings_pref:get_value(selection_style) =:= solid of
 	true ->					%Solid selection style.
@@ -465,7 +465,7 @@ draw_orig_sel_1(_, DlistSel) ->
     gl:enable(?GL_POLYGON_STIPPLE),
     gl:depthMask(?GL_FALSE),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
-    gl:polygonOffset(1.0, 1.0),
+    gl:polygonOffset(1, 1),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     call(DlistSel),
     gl:depthMask(?GL_TRUE),
@@ -479,7 +479,7 @@ draw_hard_edges(#dlo{hard=Hard}) ->
 draw_normals(#dlo{normals=none}) -> ok;
 draw_normals(#dlo{normals=Ns}) ->
     gl:color3f(0, 0, 1),
-    gl:lineWidth(2.0),
+    gl:lineWidth(2),
     call(Ns).
 
 %%%
@@ -848,7 +848,7 @@ groundplane(Axes) ->
 groundplane_1(Axes) ->
     #view{along_axis=Along} = wings_view:current(),
     gl:color3fv(wings_pref:get_value(grid_color)),
-    gl:lineWidth(?NORMAL_LINEWIDTH),
+    gl:lineWidth(1),
     gl:matrixMode(?GL_MODELVIEW),
     gl:pushMatrix(),
     case Along of

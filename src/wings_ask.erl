@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.85 2003/06/27 19:44:23 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.86 2003/07/03 14:44:34 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -612,7 +612,7 @@ frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
 			  gl:rectf(TextPos-?CHAR_WIDTH, Y-1,
 				   TextPos+(length(Title)+1)*?CHAR_WIDTH, Y+2)
 		  end),
-	    gl:color3f(0, 0, 0),
+	    gl:color3b(0, 0, 0),
 	    wings_io:text_at(TextPos, Y0+?CHAR_HEIGHT, Title)
     end.
 
@@ -664,7 +664,7 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
     gl:vertex2f(LeftX+0.5, UpperY+0.5),
     gl:vertex2f(RightX+0.5, UpperY+0.5),
     gl:'end'(),
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     ?CHECK_ERROR().
 
 %%%
@@ -771,7 +771,7 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,var=Var,val=Val}, Common) ->
 	     2#00111000>>,
     gl:rasterPos2i(X, Y),
     gl:bitmap(7, 7, -1, 0, 7, 0, White),
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     B = case gb_trees:get(Var, Common) of
 	    Val ->
 	       	<<
@@ -861,7 +861,7 @@ menu_draw(#fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
 
     Xr = X + W-8,
     wings_io:border(Xr-1, Y-9, 10, 10, ?PANE_COLOR),
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     Arrows = <<
 	      2#00010000,
 	      2#00111000,
@@ -929,11 +929,11 @@ popup_redraw(#popup{sel=Sel,orig_sel=OrigSel,menu=Menu}) ->
     blend(fun(Col) ->
 		  wings_io:border(0, 0, W-1, H-1, Col)
 	  end),
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     X = 3*?CHAR_WIDTH-1,
     Y = ?CHAR_HEIGHT+2,
     popup_redraw_1(1, Menu, Sel, W, X, ?CHAR_HEIGHT+2),
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     wings_io:text_at(X-10, OrigSel*Y, [crossmark]),
     keep.
 
@@ -943,7 +943,7 @@ popup_redraw_1(Sel, Menu, Sel, W, X, Y) ->
     gl:recti(X-2, Y+2, X+W-4*?CHAR_WIDTH, Y-?CHAR_HEIGHT+2),
     gl:color3f(1, 1, 1),
     wings_io:text_at(X, Y, Desc),
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     popup_redraw_1(Sel+1, Menu, Sel, W, X, Y+?LINE_HEIGHT);
 popup_redraw_1(I, Menu, Sel, W, X, Y) when I =< size(Menu) ->
     {Desc,_} = element(I, Menu),
@@ -1465,7 +1465,7 @@ draw_text(Active, Fi, Ts, Common) ->
 draw_text_0(false, #fi{key=Key,x=X0,y=Y0}, #text{max=Max}, Common) ->
     Val = gb_trees:get(Key, Common),
     Str = text_val_to_str(Val),
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     wings_io:sunken_rect(X0, Y0+2,
 			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
 			 {1,1,1}),
@@ -1473,7 +1473,7 @@ draw_text_0(false, #fi{key=Key,x=X0,y=Y0}, #text{max=Max}, Common) ->
     X = X0 + 4,
     wings_io:text_at(X, Y, Str);
 draw_text_0(true, #fi{x=X0,y=Y0}, #text{sel=Sel,bef=Bef0,aft=Aft,max=Max}, _) ->
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     wings_io:sunken_rect(X0, Y0+2,
 			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
 			 {1,1,1}),
@@ -1490,7 +1490,7 @@ draw_text_0(true, #fi{x=X0,y=Y0}, #text{sel=Sel,bef=Bef0,aft=Aft,max=Max}, _) ->
  	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1-Sel*?CHAR_WIDTH, Y+2),
  	    gl:color3f(1, 1, 1),
 	    wings_io:text_at(X1, Y, lists:nthtail(Skip, Bef)),
-	    gl:color3f(0, 0, 0);
+	    gl:color3b(0, 0, 0);
 	Sel > 0 ->
 	    gl:color3f(0, 0, 0.5),
 	    X1 = X+length(Bef)*?CHAR_WIDTH,
@@ -1501,11 +1501,11 @@ draw_text_0(true, #fi{x=X0,y=Y0}, #text{sel=Sel,bef=Bef0,aft=Aft,max=Max}, _) ->
 	    gl:color3f(1, 0, 0),
 	    X1 = X+length(Bef)*?CHAR_WIDTH,
 	    wings_io:text_at(X1, Y, [caret]),
-	    gl:color3f(0, 0, 0)
+	    gl:color3b(0, 0, 0)
     end.
 
 draw_text_1(_, _, _, 0) ->
-    gl:color3f(0, 0, 0);
+    gl:color3b(0, 0, 0);
 draw_text_1(X, Y, [C|T], N) ->
     wings_io:text_at(X, Y, [C]),
     draw_text_1(X+?CHAR_WIDTH, Y, T, N-1).

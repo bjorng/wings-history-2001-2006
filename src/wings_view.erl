@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.128 2003/07/02 06:30:52 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.129 2003/07/03 14:44:35 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -462,8 +462,8 @@ modelview(IncludeLights) ->
 	true -> ok
     end,
     gl:translatef(PanX, PanY, -Dist),
-    gl:rotatef(El, 1.0, 0.0, 0.0),
-    gl:rotatef(Az, 0.0, 1.0, 0.0),
+    gl:rotatef(El, 1, 0, 0),
+    gl:rotatef(Az, 0, 1, 0),
     {OX,OY,OZ} = Origin,
     gl:translatef(OX, OY, OZ),
     if

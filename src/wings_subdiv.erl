@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.55 2003/06/10 19:31:54 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.56 2003/07/03 14:44:35 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -476,7 +476,7 @@ draw_1(D, Dl, Wire, Key, EdgeStyleKey) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
-    gl:polygonOffset(2.0, 2.0),
+    gl:polygonOffset(2, 2),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     case wings_util:is_gl_ext('GL_ARB_imaging') of
 	false -> ok;
@@ -503,16 +503,16 @@ draw_edges(D, true, EdgeStyle) -> draw_edges_1(D, EdgeStyle).
 
 draw_edges_1(#dlo{work=Work,edges=Edges}, cage) ->
     gl:color3fv(wings_pref:get_value(edge_color)),
-    gl:lineWidth(?NORMAL_LINEWIDTH),
+    gl:lineWidth(1),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     gl:enable(?GL_POLYGON_OFFSET_LINE),
-    gl:polygonOffset(1.0, 1.0),
+    gl:polygonOffset(1, 1),
     gl:disable(?GL_CULL_FACE),
     wings_draw_util:call_one_of(Edges, Work),
     gl:enable(?GL_CULL_FACE);
 draw_edges_1(#dlo{proxy_edges=ProxyEdges}, _) ->
     gl:color3fv(wings_pref:get_value(edge_color)),
-    gl:lineWidth(?NORMAL_LINEWIDTH),
+    gl:lineWidth(1),
     wings_draw_util:call(ProxyEdges).
 
 clean([_,#sp{}=Pd]) -> Pd;

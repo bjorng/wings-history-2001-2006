@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.102 2003/06/28 14:42:29 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.103 2003/07/03 14:44:34 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -474,8 +474,7 @@ delete_all(Mi) ->
 
 redraw(Mi) ->
     wings_io:ortho_setup(),
-    menu_show(Mi),
-    Mi.
+    menu_show(Mi).
 
 update_highlight(X, Y, #mi{menu=Menu,sel=OldSel,sel_side=OldSide,w=W}=Mi0) ->
     case selected_item(Y, Mi0) of
@@ -714,7 +713,7 @@ draw_right_1(X, Y, Ps) ->
 	true ->
 	    gl:color3f(1, 0, 0),
 	    wings_io:text_at(X, Y, [magnet_red]),
-	    gl:color3f(0, 0, 0),
+	    gl:color3b(0, 0, 0),
 	    wings_io:text_at(X, Y, [magnet_black]);
 	false -> draw_right_2(X, Y, Ps)
     end.
@@ -745,17 +744,16 @@ draw_submenu(false, _Item, X, Y) ->
 
 draw_separator(X, Y, Mw) ->
     ?CHECK_ERROR(),
-    LeftX = X-2*?CHAR_WIDTH,
-    RightX = X+Mw-4*?CHAR_WIDTH,
-    UpperY = Y-?SEPARATOR_HEIGHT,
-    gl:lineWidth(1.0),
-    gl:'begin'(?GL_LINES),
+    LeftX = X-2*?CHAR_WIDTH+0.5,
+    RightX = X+Mw-4*?CHAR_WIDTH+0.5,
+    UpperY = Y-?SEPARATOR_HEIGHT+0.5,
+    gl:lineWidth(1),
     gl:color3f(0.10, 0.10, 0.10),
-    gl:vertex2f(LeftX+0.5, UpperY+0.5),
-    gl:vertex2f(RightX+0.5, UpperY+0.5),
+    gl:'begin'(?GL_LINES),
+    gl:vertex2f(LeftX, UpperY),
+    gl:vertex2f(RightX, UpperY),
     gl:'end'(),
-    gl:color3f(0, 0, 0),
-    ?CHECK_ERROR().
+    gl:color3b(0, 0, 0).
 
 move_if_outside(X0, Y, Mw, Mh, Mi) ->
     {W,H} = wings_wm:top_size(),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.99 2003/06/14 07:53:07 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.100 2003/07/03 14:44:34 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -338,7 +338,7 @@ is_inside_rect({Px,Py,Pz}, {MM,PM,ViewPort,X1,Y1,X2,Y2}) ->
 
 draw_marquee(undefined, undefined, _) -> ok;
 draw_marquee(X, Y, #marquee{ox=Ox,oy=Oy}) ->
-    gl:color3f(1.0, 1.0, 1.0),
+    gl:color3f(1, 1, 1),
     gl:enable(?GL_COLOR_LOGIC_OP),
     gl:logicOp(?GL_XOR),
     gl:'begin'(?GL_LINE_LOOP),

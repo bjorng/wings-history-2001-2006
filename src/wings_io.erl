@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.108 2003/07/02 18:45:12 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.109 2003/07/03 14:44:34 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -177,12 +177,12 @@ sunken_rect(X0, Y0, Mw0, Mh0, FillColor) ->
     gl:vertex2f(X+Mw, Y+Mh),
     gl:vertex2f(X, Y+Mh),
     gl:'end'(),
-    gl:color3f(0, 0, 0).
+    gl:color3b(0, 0, 0).
 
 space_at(X, Y) ->
     set_color(?PANE_COLOR),
     gl:recti(X, Y-?LINE_HEIGHT+3, X+?CHAR_WIDTH, Y+3),
-    gl:color3f(0.0, 0.0, 0.0).
+    gl:color3b(0, 0, 0).
 
 text_at(X, S) ->
     setup_scissor(fun() -> text_at_1(X, S) end).
@@ -270,7 +270,7 @@ draw_reverse(S0) ->
     end.
 
 ortho_setup() ->
-    gl:color3f(0, 0, 0),
+    gl:color3b(0, 0, 0),
     ortho_setup_1().
 
 ortho_setup(Color) ->
