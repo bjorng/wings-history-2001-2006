@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.130 2003/08/03 19:31:11 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.131 2003/09/12 05:07:07 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -248,9 +248,10 @@ wireframe_all(true, St) ->
     All = wings_shape:all_selectable(St),
     wings_wm:set_prop(wireframed_objects, All);
 wireframe_all(toggle, St) ->
-    All = wings_shape:all_selectable(St),
+    Selectable = wings_shape:all_selectable(St),
     Prev = wings_wm:get_prop(wireframed_objects),
-    New = gb_sets:difference(All, Prev),
+    Changed = gb_sets:difference(Selectable, Prev),
+    New = gb_sets:union(Changed, gb_sets:difference(Prev, Selectable)),
     wings_wm:set_prop(wireframed_objects, New).
 
 wireframe_sel(false, St) ->
