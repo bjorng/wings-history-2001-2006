@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.26 2002/01/12 19:23:45 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.27 2002/01/20 11:14:38 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -215,54 +215,43 @@ bounding_box(body, Items, #we{vs=Vtab}=We, BB) ->
 %%% faces. We use a standard working-set algorithm.
 %%%
 
-face_regions(Faces, #we{es=Etab,fs=Ftab}) when is_list(Faces) ->
-    find_face_regions(gb_sets:from_list(Faces), Ftab, Etab, []);
-face_regions(Faces, #we{es=Etab,fs=Ftab}) ->
-    find_face_regions(Faces, Ftab, Etab, []).
+face_regions(Faces, We) when is_list(Faces) ->
+    find_face_regions(gb_sets:from_list(Faces), We, []);
+face_regions(Faces, We) ->
+    find_face_regions(Faces, We, []).
 
-find_face_regions(Faces0, Ftab, Etab, Acc) ->
+find_face_regions(Faces0, We, Acc) ->
     case gb_sets:is_empty(Faces0) of
 	true -> Acc;
 	false ->
 	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
-	    Reg0 = gb_sets:singleton(Face),
-	    Adj = find_adj(Face, Ftab, Etab),
-	    Ws = gb_sets:intersection(Adj, Faces1),
-	    case gb_sets:is_empty(Ws) of
-		true ->
-		    find_face_regions(Faces1, Ftab, Etab, [Reg0|Acc]);
-		false ->
-		    {Reg,Faces} = find_all_adj(Ws, Ftab, Etab, Reg0, Faces1),
-		    find_face_regions(Faces, Ftab, Etab, [Reg|Acc])
-	    end
+	    Ws = gb_sets:singleton(Face),
+	    {Reg,Faces} = collect_face_region(Ws, We, gb_sets:empty(), Faces1),
+	    find_face_regions(Faces, We, [Reg|Acc])
     end.
 
-find_all_adj(Ws0, Ftab, Etab, Reg0, Faces0) ->
+collect_face_region(Ws0, We, Reg0, Faces0) ->
     case gb_sets:is_empty(Ws0) of
 	true -> {Reg0,Faces0};
 	false ->
 	    {Face,Ws1} = gb_sets:take_smallest(Ws0),
 	    Reg = gb_sets:add(Face, Reg0),
-	    Adj = find_adj(Face, Ftab, Etab),
-	    AdjSel = gb_sets:intersection(Adj, Faces0),
-	    Ws = gb_sets:union(Ws1, AdjSel),
-	    Faces = gb_sets:difference(Faces0, AdjSel),
-	    find_all_adj(Ws, Ftab, Etab, Reg, Faces)
+	    {Ws,Faces} = collect_adj_sel(Face, We, Ws1, Faces0),
+	    collect_face_region(Ws, We, Reg, Faces)
     end.
 
-find_adj(Face, Ftab, Etab) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
-    find_adj(Face, Edge, Edge, Etab, gb_sets:singleton(Face), not_done).
-
-find_adj(Face, LastEdge, LastEdge, Etab, Acc, done) -> Acc;
-find_adj(Face, Edge, LastEdge, Etab, Acc, _) ->
-    {Next,Other} =
-	case gb_trees:get(Edge, Etab) of
-	    #edge{lf=Face,rf=Other0,ltpr=Next0} -> {Next0,Other0};
-	    #edge{rf=Face,lf=Other0,rtpr=Next0} -> {Next0,Other0}
-	end,
-    find_adj(Face, Next, LastEdge, Etab, gb_sets:add(Other, Acc), done).
-
+collect_adj_sel(Face, We, Ws0, Faces0) ->
+    wings_face:fold(
+      fun(_, _, Rec, {W0,F0}=A) ->
+	      Of = case Rec of
+		       #edge{lf=Face,rf=Of0} -> Of0;
+		       #edge{rf=Face,lf=Of0} -> Of0
+		   end,
+	      case gb_sets:is_member(Of, F0) of
+		  true -> {gb_sets:insert(Of, W0),gb_sets:delete(Of, F0)};
+		  false -> A
+	      end
+      end, {Ws0,Faces0}, Face, We).
 
 edge_regions(Edges, We) when is_list(Edges) ->
     find_edge_regions(gb_sets:from_list(Edges), We, []);
@@ -304,13 +293,17 @@ valid_sel(#st{sel=Sel,selmode=Mode}=St) ->
     
 valid_sel(Sel0, Mode, #st{shapes=Shapes}) ->
     Sel = foldl(
-	    fun({Id,Items}, A) ->
+	    fun({Id,Items0}, A) ->
 		    case gb_trees:lookup(Id, Shapes) of
 			none -> A;
 			{value,#we{perm=Perm}} when ?IS_NOT_SELECTABLE(Perm) ->
 			    A;
 			{value,We} ->
-			    [{Id,validate_items(Items, Mode, We)}|A]
+			    Items = validate_items(Items0, Mode, We),
+			    case gb_trees:is_empty(Items) of
+				false -> [{Id,Items}|A];
+				true -> A
+			    end
 		    end
 	    end, [], Sel0),
     reverse(Sel).
