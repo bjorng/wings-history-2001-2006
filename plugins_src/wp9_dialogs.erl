@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.40 2004/02/21 20:47:42 raimo_niskanen Exp $
+%%     $Id: wp9_dialogs.erl,v 1.41 2004/04/09 05:30:14 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -252,10 +252,12 @@ file_list_filter(Files0, Dir, Wc) ->
     {Folders,file_list_filter_1(Files, Wc)}.
 
 file_list_filter_1(Files, []) ->
-    [{F,[space2|F]} || F <- Files];
+    Space = {space,wings_text:width([folder])},
+    [{F,[Space|F]} || F <- Files];
 file_list_filter_1(Files, Wc) ->
+    Space = {space,wings_text:width([folder])},
     Ext = [$.|Wc],
-    [{F,[space2|F]} || F <- Files, lists:suffix(Ext, F)].
+    [{F,[Space|F]} || F <- Files, lists:suffix(Ext, F)].
 
 file_list_folders(["."++_|Fs], Dir, DirAcc, FileAcc) ->
     file_list_folders(Fs, Dir, DirAcc, FileAcc);

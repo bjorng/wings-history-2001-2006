@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.132 2004/04/06 08:34:14 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.133 2004/04/09 05:30:15 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -282,6 +282,11 @@ text([{ul,Str}|Cs], X0, Y, Acc) ->
     gl:vertex2i(X1, LineY),
     gl:vertex2i(X+1, LineY),
     gl:'end'(),
+    gl:rasterPos2i(X, Y),
+    text(Cs, X, Y, []);
+text([{space,W}|Cs], X0, Y, Acc) ->
+    X = X0+W,
+    draw_reverse(Acc),
     gl:rasterPos2i(X, Y),
     text(Cs, X, Y, []);
 text([C|Cs], X, Y, Acc) when is_integer(C) ->
