@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.18 2002/10/04 07:16:27 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.19 2002/10/06 19:16:20 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -153,16 +153,6 @@ closest_axis({X0,Y0,Z0}) ->
 	    end
     end.
     
-perpendicular_axis(S) ->
-    X = {1.0,0.0,0.0},
-    case e3d_vec:dot(S, X) of
-	Dot when abs(Dot) > 0.99 ->
-	    Y = {0.0,1.0,0.0},
-	    e3d_vec:norm(e3d_vec:cross(Y, S));
-	_ ->
-	    e3d_vec:norm(e3d_vec:cross(X, S))
-    end.
-
 rotate_s_to_t_1({Vx,Vy,Vz}=V, E) when is_float(Vx), is_float(Vy), is_float(Vz) ->
     H = (1.0 - E)/e3d_vec:dot(V, V),
     HVx = H*Vx,
