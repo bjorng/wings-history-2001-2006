@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.6 2004/04/20 12:25:35 bjorng Exp $
+#     $Id: Makefile,v 1.7 2004/04/21 11:27:18 bjorng Exp $
 #
 OS := $(shell uname -s)
 
@@ -33,7 +33,7 @@ else
    GL_LIBS =
  else
    LIBS = -shared -fpic
-   GL_LIBS = -lGL -lGLU
+   GL_LIBS = -lGLU -lGL
  endif
 endif
 
@@ -65,6 +65,6 @@ else
 $(LIBDIR)/wings_ogla_drv.so: wings_ogla_drv.c
 	install -d $(LIBDIR)
 	gcc -o $(LIBDIR)/wings_ogla_drv.so -I$(ERL_INC) \
-  wings_ogla_drv.c $(LIBS)
+  wings_ogla_drv.c $(LIBS) $(GL_LIBS)
 endif
 
