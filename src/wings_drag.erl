@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.123 2003/01/11 10:41:40 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.124 2003/01/13 10:39:43 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -73,8 +73,8 @@ falloff([]) -> none.
 
 pad_offsets(Ds) ->
     case length(Ds) of
-	L when L >= 3 -> Ds;
-	L -> Ds ++ lists:duplicate(3-L, 0.0)
+	L when L >= 4 -> Ds;
+	L -> Ds ++ lists:duplicate(4-L, 0.0)
     end.
 
 setup_offsets([O|Os], [U|Us]) ->
