@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.37 2003/02/14 22:16:11 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.38 2003/02/15 07:57:05 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -50,9 +50,7 @@ bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Sel0,Limit0}) ->
     We2 = wings_edge:dissolve_edges(Edges, We1),
     Tv = bevel_tv(OrigVs, We2, Forbidden),
     We3 = foldl(fun(V, W0) ->
-			WW = wings_collapse:collapse_vertex(V, W0),
-			wings_util:validate(WW),
-			WW
+			wings_collapse:collapse_vertex(V, W0)
 		end, We2, OrigVs),
     Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, We3#we.vp),
     We = We3#we{vp=Vtab},
@@ -256,27 +254,27 @@ straighten_1(Vec, N, {Cx,Cy,Cz}, OtherV, OPos0, Vt) ->
 extrude_edges(Edges, We) ->
     extrude_edges(Edges, gb_sets:empty(), We).
 
-extrude_edges(Edges, Faces, #we{next_id=Wid,es=Etab}=We0) ->
+extrude_edges(Edges, ForbiddenFaces, #we{next_id=Wid,es=Etab}=We0) ->
     G = digraph:new(),
     foreach(fun(Edge) ->
-		    digraph_edge(G, Faces, gb_trees:get(Edge, Etab))
+		    digraph_edge(G, ForbiddenFaces, gb_trees:get(Edge, Etab))
 	    end, gb_sets:to_list(Edges)),
     Vs0 = digraph:vertices(G),
     Vs1 = sofs:relation(Vs0),
     Vs = sofs:to_external(sofs:domain(Vs1)),
     {We1,Forbidden} =
 	foldl(fun(V, A) ->
-		      new_vertex(V, G, Edges, Faces, Wid, A)
+		      new_vertex(V, G, Edges, ForbiddenFaces, Wid, A)
 	      end, {We0,[]}, Vs),
     NewVs = wings_we:new_items(vertex, We0, We1),
     We = connect(G, Wid, We1),
     digraph:delete(G),
     {We,Vs,NewVs,gb_sets:from_list(Forbidden)}.
 
-new_vertex(V, G, Edges, Faces, Wid, {We0,F0}=Acc) ->
+new_vertex(V, G, Edges, ForbiddenFaces, Wid, {We0,F0}=Acc) ->
     case wings_vertex:fold(fun(E, F, R, A) -> [{E,F,R}|A] end, [], V, We0) of
 	[_,_]=Es ->
-	    case filter_edges(Es, Edges, Faces) of
+	    case filter_edges(Es, Edges, ForbiddenFaces) of
 		[] -> Acc;
 		[{Edge,_,#edge{lf=Lf,rf=Rf}}] ->
 		    New = {new,V},
@@ -287,12 +285,13 @@ new_vertex(V, G, Edges, Faces, Wid, {We0,F0}=Acc) ->
 		    {We0,[Edge|F0]}
 	    end;
 	Es0 ->
-	    Es = filter_edges(Es0, Edges, Faces),
+	    Es = filter_edges(Es0, Edges, ForbiddenFaces),
 	    Center = wings_vertex:pos(V, We0),
 	    We = foldl(fun({Edge,_,Rec}, W0) ->
 			       OtherV = wings_vertex:other(V, Rec),
 			       MeetsNew = OtherV >= Wid,
-			       do_new_vertex(V, MeetsNew, G, Edge, Faces, Center, W0)
+			       do_new_vertex(V, MeetsNew, G, Edge,
+					     ForbiddenFaces, Center, W0)
 		       end, We0, Es),
 	    {We,F0}
     end.
@@ -306,11 +305,11 @@ filter_edges(Es, EdgeSet, FaceSet) ->
 		  end
 	  end, [], Es).
 
-do_new_vertex(V, MeetsNew, G, Edge, Faces, Center, #we{es=Etab}=We0) ->
+do_new_vertex(V, MeetsNew, G, Edge, ForbiddenFaces, Center, #we{es=Etab}=We0) ->
     {We,NewE=NewV} = wings_edge:cut(Edge, 2, We0),
     Rec = get_edge_rec(V, NewV, Edge, NewE, We),
     digraph_edge(G, Rec),
-    case {gb_trees:is_empty(Faces),MeetsNew} of
+    case {gb_trees:is_empty(ForbiddenFaces),MeetsNew} of
 	{true,_} ->
 	    %% Extrude-edge case.
 	    move_vertex(NewV, Center, We);
@@ -351,12 +350,12 @@ digraph_edge(G, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
     digraph_insert(G, Va, Vb, Lf),
     digraph_insert(G, Vb, Va, Rf).
 
-digraph_edge(G, Faces, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
-    case gb_sets:is_member(Lf, Faces) of
+digraph_edge(G, ForbiddenFaces, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
+    case gb_sets:is_member(Lf, ForbiddenFaces) of
 	false -> digraph_insert(G, Va, Vb, Lf);
 	true -> ok
     end,
-    case gb_sets:is_member(Rf, Faces) of
+    case gb_sets:is_member(Rf, ForbiddenFaces) of
 	false -> digraph_insert(G, Vb, Va, Rf);
 	true -> ok
     end.
