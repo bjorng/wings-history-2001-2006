@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.21 2001/11/29 10:14:56 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.22 2001/12/11 10:26:08 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -486,23 +486,34 @@ loop_cut(#st{onext=NextId}=St0) ->
     Sel = [S || {Id,_}=S <- Sel2, Id >= NextId],
     wings_body:convert_selection(St#st{selmode=body,sel=Sel}).
 
-loop_cut(#shape{id=Id,sh=We}=Sh, Edges, Acc) ->
+loop_cut(#shape{id=Id,name=Name,sh=We}=Sh, Edges, Acc) ->
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
-	none -> Acc;
+	none ->
+	    Error = "Selected edges in \"" ++
+		Name ++ "\" does not form one or more loops.",
+	    throw({command_error,Error});
 	Other -> loop_cut_1(Sh, Edges, Acc)
     end.
 
-loop_cut_1(#shape{id=Id,sh=We0}=Sh0, Edges, {Sel0,#st{onext=NewId}=St0}=Acc) ->
+loop_cut_1(#shape{id=Id,name=Name,sh=We0}=Sh0, Edges, {Sel0,#st{onext=NewId}=St0}=Acc) ->
     #we{es=Etab,fs=Ftab} = We0,
     {AnEdge,_} = gb_sets:take_smallest(Edges),
     #edge{lf=Lf,rf=Rf} = gb_trees:get(AnEdge, Etab),
     LeftFaces = collect_faces(Lf, Edges, We0),
     RightFaces = collect_faces(Rf, Edges, We0),
-    WeCopy = wings_we:get_sub_object(AnEdge, We0),
-    Sh = Sh0#shape{sh=WeCopy},
-    St = wings_shape:insert(Sh, "cut", St0),
-    Sel = [{Id,LeftFaces},{NewId,RightFaces}|Sel0],
-    {Sel,St}.
+    case gb_sets:is_subset(LeftFaces, RightFaces) or
+	gb_sets:is_subset(RightFaces, LeftFaces) of
+	true ->
+	    Error = "Edge loop doesn't divide \"" ++
+		Name ++ "\" into two parts.",
+	    throw({command_error,Error});
+	false ->
+	    WeCopy = wings_we:get_sub_object(AnEdge, We0),
+	    Sh = Sh0#shape{sh=WeCopy},
+	    St = wings_shape:insert(Sh, "cut", St0),
+	    Sel = [{Id,LeftFaces},{NewId,RightFaces}|Sel0],
+	    {Sel,St}
+    end.
 
 collect_faces(Face, Edges, We) ->
     collect_faces(gb_sets:singleton(Face), We, Edges, gb_sets:empty()).
