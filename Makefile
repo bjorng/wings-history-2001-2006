@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.2 2001/10/24 08:51:39 bjorng Exp $
+#     $Id: Makefile,v 1.3 2002/01/10 14:10:01 boortz Exp $
 #
 
 all:
@@ -22,3 +22,10 @@ debug:
 	(cd e3d; $(MAKE) debug)
 	(cd plugins_src; $(MAKE) debug)
 	(cd icons; $(MAKE) debug)
+
+clean:
+	(cd src; $(MAKE) clean)
+	(cd e3d; $(MAKE) clean)
+	(cd plugins_src; $(MAKE) clean)
+	(cd icons; $(MAKE) clean)
+
