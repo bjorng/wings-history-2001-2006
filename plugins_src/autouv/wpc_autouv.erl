@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.173 2003/12/02 16:38:13 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.174 2003/12/02 19:10:56 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -69,9 +69,8 @@ command({_, {auv_snap,auv_cancel_snap}}, St) ->
 command({body,?MODULE}, St) ->
     ?DBG("Start shapes ~p~n",[gb_trees:keys(St#st.shapes)]), 
     start_uvmap(St);
-command({body,{?MODULE,uvmap_done,QuitOp,Uvs0}}, St0) ->
-    Uvs = clear_selection(Uvs0),
-    #uvstate{areas=Charts,matname=MatName0,orig_we=OrWe} = Uvs,
+command({body,{?MODULE,uvmap_done,QuitOp,#st{shapes=Charts,bb=Uvs}}}, St0) ->
+    #uvstate{matname=MatName0,orig_we=OrWe} = Uvs,
     {St,MatName} =
 	case QuitOp of
 	    quit_uv_tex ->
@@ -485,7 +484,7 @@ get_texture(#uvstate{option=#setng{texsz={TexW,TexH}}}=Uvs0) ->
     {H,Hd} = calc_texsize(H0, TexH),
     ?DBG("Get texture sz ~p ~p ~n", [{W,Wd},{H,Hd}]),
     set_viewport({0,0,W,H}),
-    Uvs = reset_dl(clear_selection(Uvs0)),
+    Uvs = reset_dl(Uvs0),
     ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Uvs, []),
     ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
     set_viewport(Current),
@@ -606,11 +605,11 @@ command_menu(vertex, X, Y) ->
 
 option_menu() ->
     [separator,
-     {"Draw Options", edge_options, "Edit draw options"},
+     {"Draw Options",draw_options,"Edit draw options"},
      separator,
-     {"Apply Texture", apply_texture, "Attach the current texture to the model"}].
+     {"Apply Texture",apply_texture,"Attach the current texture to the model"}].
 
-edge_option_menu(#uvstate{option = Option}) ->
+draw_options(#st{bb=#uvstate{option=Option}}) ->
     [MaxTxs0|_] = gl:getIntegerv(?GL_MAX_TEXTURE_SIZE),
     MaxTxs = min([4096,MaxTxs0]),
     
@@ -627,8 +626,15 @@ edge_option_menu(#uvstate{option = Option}) ->
 	  {vradio,gen_tx_sizes(MaxTxs, []),element(1, Option#setng.texsz),
 	   [{title,"Texture Size"}]}],
     wings_ask:dialog("Draw Options", Qs,
-		     fun([Mode,BEC,BEW,Color,TexBg, TSz]) -> 
-			     {auv, set_options, {Mode,BEC,BEW,Color,TexBg,TSz}}  end).
+		     fun([EMode,BEC,BEW,Color,TexBg,TexSz]) ->
+			     Opt = #setng{edges=EMode,
+					  edge_color=BEC,
+					  edge_width=BEW,
+					  color=Color, 
+					  texbg=TexBg,
+					  texsz={TexSz,TexSz}},
+			     {auv,{draw_options,Opt}}
+		     end).
 
 gen_tx_sizes(Sz, Acc) when Sz < 128 -> Acc;
 gen_tx_sizes(Sz, Acc) ->
@@ -644,8 +650,7 @@ gen_tx_sizes(Sz, Acc) ->
     Str = lists:flatten([Str0|SzStr]),
     gen_tx_sizes(Sz div 2, [{Str,Sz}|Acc]).
 
-quit_menu(Uvs) ->
-    #uvstate{st=St,matname=MatN} = Uvs,
+quit_menu(#st{bb=#uvstate{st=St,matname=MatN}}) ->
     A1 = {"Save UV Coordinates and Texture",quit_uv_tex},
     A2 = {"Save Only UV Coordinates",quit_uv},
     A3 = {"Discard All Changes",cancel},
@@ -731,40 +736,29 @@ handle_event_1({action,{auv,apply_texture}},
     GeomSt = insert_uvcoords(Charts, Id, MatName, GeomSt1),
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}});
-handle_event_1(Ev, #st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs}) ->
-    handle_event_2(Ev, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs}).
-    
-handle_event_2({action, {auv, edge_options}}, Uvs) ->
-    edge_option_menu(Uvs);
-handle_event_2({action,{auv,quit}}, Uvs) ->
-    quit_menu(Uvs);
-handle_event_2(close, Uvs) ->
-    quit_menu(Uvs);
-handle_event_2({action,{auv,quit,cancel}}, Uvs) ->
-    restore_wings_window(Uvs),
+handle_event_1({action,{auv,draw_options}}, St) ->
+    draw_options(St);
+handle_event_1({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs0}=St) ->
+    Uvs = Uvs0#uvstate{option=Opt},
+    get_event(reset_dl(St#st{bb=Uvs}));
+handle_event_1({action,{auv,quit}}, St) ->
+    quit_menu(St);
+handle_event_1(close, St) ->
+    quit_menu(St);
+handle_event_1({action,{auv,quit,cancel}}, St) ->
+    restore_wings_window(St),
     delete;
-handle_event_2({action, {auv,quit,QuitOp}}, Uvs) ->
-    restore_wings_window(Uvs),
-    wings_wm:send(geom, {action,{body,{?MODULE,uvmap_done,QuitOp,Uvs}}}),
+handle_event_1({action, {auv,quit,QuitOp}}, St) ->
+    restore_wings_window(St),
+    wings_wm:send(geom, {action,{body,{?MODULE,uvmap_done,QuitOp,St}}}),
     delete;
-handle_event_2({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
-	     Uvs0) ->
-    Uvs1 = Uvs0#uvstate{option = 
-			#setng{edges = EMode, 
-			       edge_color = BEC,
-			       edge_width = BEW,
-			       color = Color, 
-			       texbg = TexBG,
-			       texsz = {TexSz,TexSz}}
-		       },
-    get_event(reset_dl(Uvs1));
-handle_event_2({action,{auv,Command}}, Uvs) ->
-    handle_command(Command, Uvs);
-handle_event_2({callback, Fun}, _) when function(Fun) ->
+handle_event_1({callback,Fun}, _) when is_function(Fun) ->
     Fun();
-handle_event_2(_Event, Uvs) ->
+handle_event_1({action,{auv,Cmd}}, #st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs}) ->
+    handle_command(Cmd, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs});
+handle_event_1(_Event, St) ->
     ?DBG("Got unhandled Event ~p ~n", [_Event]),
-    get_event(Uvs).
+    get_event(St).
 
 update_geom(#st{bb=Uvs}=St, Geom) ->
     St#st{bb=Uvs#uvstate{geom=Geom}}.
@@ -855,7 +849,7 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
     get_event_nodraw(Uvs#uvstate{st=St});
 update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #uvstate{orig_we=#we{id=Id}}=Uvs0) ->
-    Uvs = reset_dl(clear_selection(Uvs0)),
+    Uvs = reset_dl(Uvs0),
     case keysearch(Id, 1, Sel) of
 	false ->
 	    get_event(Uvs);
@@ -1089,9 +1083,9 @@ set_viewport({X,Y,W,H}=Viewport) ->
     put(wm_viewport, Viewport),
     gl:viewport(X, Y, W, H).
 
-restore_wings_window(Uvs) ->
+restore_wings_window(St) ->
     wings_draw_util:delete_dlists(),
-    reset_dl(Uvs).
+    reset_dl(St).
 
 %%%
 %%% Most of this code will be rewritten as we slowly change the
@@ -1100,8 +1094,6 @@ restore_wings_window(Uvs) ->
 
 update_dlists(#st{}=St) ->
     wings_draw:invalidate_dlists(false, St).
-
-clear_selection(Uvs) -> Uvs#uvstate{sel=[]}.
 
 all_charts(#uvstate{areas=Charts}) -> Charts.
 
