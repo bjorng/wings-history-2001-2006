@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.15 2002/10/18 14:51:01 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.16 2002/10/18 21:57:29 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -23,7 +23,6 @@
 -export([menu/2,command/2, outer_edges/2, outer_edges/3]).
 -export([maxmin/1]).
 -export([moveAndScale/5]).
-
 -import(lists, [sort/1, map/2, foldl/3, reverse/1, 
 		append/1,delete/2, usort/1, max/1, min/1]).
 
@@ -132,9 +131,8 @@ command({body, {uvmap, edit}}, St0) ->
 	    Geom = init_drawarea(),
 	    [Areas = #areas{matname = MatName}|Remain] = AllAreas,
 	    TexSz = get_texture_size(MatName, St0#st.mat),
-	    Sel = [{(Areas#areas.we)#we.id, gb_sets:singleton(0)}],
 	    Uvs = #uvstate{command = edit, 
-			   st = wpa:sel_set(body, Sel, St0), 
+			   st = wings_select_faces([],Areas#areas.we,St0),
 			   origst = St0,
 			   areas = Areas, geom = Geom, 
 			   rest_objects = Remain,
@@ -229,19 +227,18 @@ set_material(Face, MatName, We= #we{fs = Fs}) ->
     Fs1 = gb_trees:update(Face, F#face{mat=MatName}, Fs), 
     We#we{fs = Fs1}.
 
+create_diffuse({0, Fs}, Max) ->
+    {grey_0, {0.7,0.7,0.7,1.0}, Fs};
 create_diffuse({Index0, Fs}, Max) ->
-%    ?DBG("~p ~p ~n", [Index0, Max]),
     {ColorI, Diff} = 
 	if Max =< 6 ->
 		{Index0 div 6, 0.0};
 	   true ->
-		MaxPerColor = Max div 6,
-		CI = Index0 div MaxPerColor,
-		Col = (CI+1) / (MaxPerColor+2),
+		MaxPerColor = 1 + (Max div 6),
+		CI = Index0 div 6,
+		Col = (CI+1) / (MaxPerColor+1),
 		{CI, Col}
 	end,
-%    ?DBG("~p of ~p => ~p = ~p in ~p ~n", 
-%          [Index0, Max, ColorI, Diff, Index0 rem 6]),
     case Index0 rem 6 of
 	0 ->
 	    Color = {1.0, Diff, Diff, 1.0},	    	   
@@ -277,8 +274,9 @@ init_uvmap(St0, Old, Type) ->
 	end, {[], Old}, St0)),
     Geom = init_drawarea(),
     [Areas|Remain] = AllAreas,
-    Sel = [{(Areas#areas.we)#we.id, gb_sets:singleton(0)}],
-    Uvs = #uvstate{command = create_mat, st=wpa:sel_set(body, Sel, St1), 
+    Uvs = #uvstate{command = create_mat, 
+		   %st=wpa:sel_set(body, Sel, St1), 
+		   st=wings_select_faces([],Areas#areas.we,St1),
 		   origst = Old,
 		   areas = Areas, 
 		   rest_objects = Remain, geom = Geom},
@@ -879,7 +877,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x = MX, y 
 			     op = Op,
 			     sel = Sel0,
 			     areas = As = #areas{we=We,as=Curr0}})
-  when Op == undefined; element(1,Op) == {fmove, MX,MY},
+  when Op == undefined; Op#op.name == fmove,
        MX > X0, MX < X0 + W, (OH - MY) > Y0, (OH - MY) < Y0 + H ->
     SX = (MX-X0),
     SY = ((OH-MY)-Y0),
@@ -1233,7 +1231,7 @@ update_selection(Areas, Sel0, Other0) ->
 		  end
 	  end, {Sel0, Other0}, Areas).
 
-select(Mode, X,Y, Objects, We, ViewP = {_UVX,_UVY,UVW,UVH,XYS,XM,YM}) ->         
+select(Mode, X,Y, Objects, We, ViewP = {_UVX,_UVY,UVW,UVH,XYS,XM,YM}) ->
     XT = (XM-XYS)*X/UVW+XYS,
     YT = (YM-XYS)*Y/UVH+XYS,
     case find_selectable(XT,YT, gb_trees:to_list(Objects), []) of

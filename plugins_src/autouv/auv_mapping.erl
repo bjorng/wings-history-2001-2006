@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.12 2002/10/18 14:51:00 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.13 2002/10/18 21:57:29 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -99,26 +99,23 @@ sum_crossp([V1,V2|Vs], Acc) ->
 sum_crossp([_Last], Acc) ->
     Acc.
 
-project_and_triangulate([Face|Fs], We, I, Acc) ->
+project_and_triangulate([Face|Fs], We, I, Tris,Area) ->
     Normal = wings_face:normal(Face, We),
     Vs0 = wpa:face_vertices(Face, We),
-%    ?DBG("Face ~p ~p~n", 
-%	[Face,[{Id,(gb_trees:get(Id,We#we.vs))#vtx.pos} 
-%	|| Id <- Vs0]]),
     Vs2 = project2d(Vs0, Normal, We),
-%    ?DBG("Projected ~p ~p~n", [Face,Vs2]),
+    NewArea = calc_area(Vs0, Normal, We) + Area,
     if length(Vs2) > 3 ->
 	    {Ids,Cds,All} = setup_tri_vs(Vs2,0,[],[],[]),
 	    NewFs = e3d_mesh:triangulate_face(#e3d_face{vs=Ids}, Cds),
 	    VT = gb_trees:from_orddict(All),
 	    {Add, I1} = get_verts(NewFs, I, VT, []),
-	    project_and_triangulate(Fs,We,I1,Add ++ Acc);
+	    project_and_triangulate(Fs,We,I1,Add ++ Tris,NewArea);
        true ->
 	    Vs3 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,_}} <- Vs2],
-	    project_and_triangulate(Fs,We,I,[{Face, Vs3}|Acc])
+	    project_and_triangulate(Fs,We,I,[{Face, Vs3}|Tris],NewArea)
     end;
-project_and_triangulate([],_,_,Acc) -> 
-    Acc.
+project_and_triangulate([],_,_,Tris,Area) -> 
+    {Tris,Area}.
 
 setup_tri_vs([{Old,Coord}|Vs],Id,Ids,Cds,All) ->
     setup_tri_vs(Vs,Id+1,[Id|Ids],[Coord|Cds],[{Id,{Old,Coord}}|All]);
@@ -137,7 +134,7 @@ get_verts([],I,_,Acc) ->
 
 lsqcm(C = {Id, Fs}, We) ->
     ?DBG("Project and tri ~n", []),
-    Vs1 = ?TC(project_and_triangulate(Fs,We,-1,[])),    
+    {Vs1,Area} = ?TC(project_and_triangulate(Fs,We,-1,[],0.0)),    
     {V1, V2} = ?TC(find_pinned(C, We)),
     ?DBG("LSQ ~p ~p~n", [V1,V2]),
 %    Idstr = lists:flatten(io_lib:format("~p", [Id])),
@@ -150,9 +147,27 @@ lsqcm(C = {Id, Fs}, We) ->
 	    exit({txmap_error, What});
 	{ok,Vs2} ->
 %	    ?DBG("LSQ res ~p~n", [Vs2]),
-	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt, {Ut,Vt, 0.0}} end,
-	    lists:map(Patch, Vs2)
+	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,#vtx{pos={Ut,Vt,0.0}}} end,
+	    Vs3 = lists:sort(lists:map(Patch, Vs2)),
+	    TempVs = gb_trees:from_orddict(Vs3),
+	    MappedArea = calc_2dface_area(Fs, We#we{vs=TempVs}, 0.0),	    
+	    Scale = Area/MappedArea,
+	    ?DBG("Scale Chart ~p ~n",[Scale]),
+	    scaleVs(Vs3,Scale,[])
     end.
+
+scaleVs([{Id, #vtx{pos={X,Y,_}}}|Rest],Scale,Acc) 
+  when float(X), float(Y), float(Scale) ->
+    scaleVs(Rest, Scale, [{Id, {X*Scale,Y*Scale,0.0}}|Acc]);
+scaleVs([],_,Acc) ->
+    Acc.
+
+calc_2dface_area([Face|Rest],We,Area) ->
+    Vs0 = wpa:face_vertices(Face, We),
+    NewArea = calc_area(Vs0, {0.0,0.0,1.0}, We) + Area,
+    calc_2dface_area(Rest,We,NewArea);
+calc_2dface_area([],_,Area) ->
+    Area.
 
 find_pinned(C = {_Id, Faces}, We) ->
     {Circumference, BorderEdges} = 
@@ -164,53 +179,25 @@ find_pinned(C = {_Id, Faces}, We) ->
 	end,
     Vs = [{(gb_trees:get(V1, We#we.vs))#vtx.pos,V1} || 
 	     {V1,_,_,_} <-BorderEdges],
-    [{V1pos,V1}|_] = lists:sort(Vs),
+    [{_V1pos,V1}|_] = lists:sort(Vs),
     BE1 = reorder_edge_loop(V1, BorderEdges, []),
-    {V2,Dist} = find_furthest_away(BE1, 0.0, Circumference/2),
-    V2pos = (gb_trees:get(V2, We#we.vs))#vtx.pos,
-    get_uvs(V1,V1pos,V2,V2pos,Dist).
+    {V2,Dx,Dy} = find_furthest_away(BE1,0.0,0.0,0.0,Circumference/2,We#we.vs),
+    {{V1,{0.0,0.0}},{V2,{Dx,Dy}}}.
     
-find_furthest_away([{V1,_,_,_}|_], Dist, Max) 
+find_furthest_away([{V1,V2,_,_}|_], DX,DY, Dist, Max,_) 
   when float(Dist), float(Max), Dist >= Max ->
-    {V1, Dist};
-find_furthest_away([{_,_,_,Delta}|Rest], Dist, Max) 
-  when float(Delta), float(Dist) ->
-    find_furthest_away(Rest, Delta+Dist, Max).
+    {V1, math:sqrt(DX),math:sqrt(DY)};
+find_furthest_away([{V1,V2,_,Delta}|Rest], DX0,DY0,Dist, Max,Vs) 
+  when float(DX0),float(DY0),float(Delta), float(Dist) ->
+    V1p = (gb_trees:get(V1,Vs))#vtx.pos,
+    V2p = (gb_trees:get(V2,Vs))#vtx.pos,
+    {Dx,Dy,Dz} = e3d_vec:sub(V2p, V1p),    
+    find_furthest_away(Rest,DX0+Dx*Dx+Dz*Dz,DY0+Dy*Dy,Delta+Dist,Max,Vs).
 
 reorder_edge_loop(V1, [{V1,_,_,_}|_] = Ordered, Acc) ->
     Ordered ++ lists:reverse(Acc);
 reorder_edge_loop(V1, [H|Tail], Acc) ->
     reorder_edge_loop(V1, Tail, [H|Acc]).
-
-get_uvs(V1,P1={X1,Y1,Z1},V2,P2={X2,Y2,Z2},CCirc) ->
-    XL = abs(X2-X1),  YL = abs(Y2-Y1), ZL = abs(Z2-Z1),
-%%    ?DBG("~p ~p~n", [{XL,YL,ZL}, Dist]),
-    Dist = e3d_vec:dist(P1,P2),
-    if XL >= YL, XL >= ZL ->
-	    Diff = get_other(XL,YL,ZL,Dist,CCirc),
-	    {{V1, {0.0, 0.0}}, {V2, {XL, Diff}}};
-       YL >= XL, YL >= ZL ->
-	    Diff = get_other(YL,XL,ZL,Dist,CCirc),
-	    {{V1, {0.0, 0.0}}, {V2, {Diff, YL}}};
-       true ->
-	    Diff = get_other(ZL,XL,YL,Dist,CCirc),
-	    {{V1, {0.0, 0.0}}, {V2, {Diff, ZL}}}
-    end.
-
-get_other(D1, D2, D3, Dist, Circf) ->
-%%    Tot-D1.
-    DLen = math:sqrt(D2*D2+D3*D3),
-    ?DBG("Choose ~p ~p ~p ~p~n",[D1, D2, Dist, Circf]),
-    if 
-	Dist == Circf -> %% One edge only
-	    0.0;
-	(Dist - D1) > 0.0 ->
-	    Dist - D1;
-	DLen >= 0.0 ->
-	    DLen;
-	true ->
-	    Circf - D1
-    end.
 
 -endif. % -ifdef(lsq_standalone). -else.
 

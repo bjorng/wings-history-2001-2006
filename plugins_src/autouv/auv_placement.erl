@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.4 2002/10/18 14:51:01 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.5 2002/10/18 21:57:29 dgud Exp $
 
 
 -module(auv_placement).
@@ -44,7 +44,7 @@ place_areas(Areas0,We) ->
     Areas2 = move_and_scale_areas(Areas1, 
 				  lists:sort(Positions0), 
 				  Scale, []),
-    gb_trees:from_orddict(Areas2).
+    gb_trees:from_orddict(lists:reverse(Areas2)).
 
 fill(Areas, [0,0]) ->  %% First time
     Map = fun({W,H,Id}) when W > H ->
