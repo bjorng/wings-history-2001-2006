@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.279 2003/10/30 15:15:16 bjorng Exp $
+%%     $Id: wings.erl,v 1.280 2003/10/31 20:04:39 bjorng Exp $
 %%
 
 -module(wings).
@@ -321,7 +321,7 @@ handle_event_3({action,Callback}, _) when is_function(Callback) ->
 handle_event_3({action,Cmd}, St) ->
     do_command(Cmd, St);
 handle_event_3({command,Command}, St) when is_function(Command) ->
-    command_response(Command(St), none, St);
+    command_response(catch Command(St), none, St);
 handle_event_3(#mousebutton{}, _St) -> keep;
 handle_event_3(#mousemotion{}, _St) -> keep;
 handle_event_3(init_opengl, St) ->
