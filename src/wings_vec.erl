@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.54 2002/12/26 09:47:09 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.55 2003/01/01 12:54:17 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -44,22 +44,27 @@ command({pick,[],Res,Ns}, St) ->
     Cmd = wings_menu:build_command(list_to_tuple(reverse(Res)), Ns),
     wings_io:putback_event({action,Cmd}),
     St;
-command({pick,[{Atom,Desc}|T],Acc,Names}, St) when is_atom(Atom) ->
-    command_1(Atom, Desc, T, Acc, Names, St);
-command({pick,[Atom|T],Acc,Names}, St) when is_atom(Atom) ->
-    Msg = case Atom of
-	      axis -> {"Pick axis for ",Names};
-	      point -> {"Pick point for ",Names};
-	      magnet -> {"Pick magnet influence for ",Names};
-	      _ -> []
-	  end,
-    command_1(Atom, Msg, T, Acc, Names, St);
+command({pick,PickList0,Acc,Names}, St) ->
+    [{Type,Desc}|More] = add_help_text(PickList0, Names),
+    command_1(Type, Desc, More, Acc, Names, St);
 command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
     pick_init(St0),
     wings_io:icon_restriction(Modes),
     St = Init(St0),
     Ss = #ss{selmodes=Modes,check=Check,exit=Exit},
     {seq,push,get_event(Ss, St)}.
+
+add_help_text([{Atom,Desc}=Pair|T], Names) when is_atom(Atom), is_list(Desc) ->
+    [Pair|add_help_text(T, Names)];
+add_help_text([Type|T], Names) ->
+    Pair = {Type,case Type of
+		     axis -> {"Pick axis for ",Names};
+		     point -> {"Pick point for ",Names};
+		     magnet -> {"Pick magnet influence for ",Names};
+		     _ -> []
+		 end},
+    [Pair|add_help_text(T, Names)];
+add_help_text([], _) -> [].
 
 command_1(axis, Msg, More, Acc, Names, St0) ->
     pick_init(St0),
@@ -297,7 +302,7 @@ exit_menu_done(X, Y, MenuEntry) ->
 
 common_exit(_, _, _, #st{vec=none}) ->
     invalid_selection;
-common_exit([point]=More, Acc, Ns, #st{vec={Point,Vec}}) ->
+common_exit([{point,_}]=More, Acc, Ns, #st{vec={Point,Vec}}) ->
     Command = command_name(Ns),
     F = fun({magnet,1}, _) ->
 		{vector,{pick,[magnet],[Point|add_to_acc(Vec, Acc)],Ns}};
@@ -315,6 +320,10 @@ common_exit([point]=More, Acc, Ns, #st{vec={Point,Vec}}) ->
 	end,
     Ps = wings_menu_util:magnet_props(vector, Ns),
     {Command,F,{"Execute command",[],pick_more_help(More, Ns)},Ps};
+common_exit([{second_point,Desc}], Acc, Ns, #st{vec=Point}) ->
+    More = [{point,Desc}],
+    F = fun(_, _) -> {vector,{pick,More,[Point|Acc],Ns}} end,
+    {Desc,F,pick_more_help(More, Ns),[]};
 common_exit(More, Acc, Ns, #st{vec={_,Vec}}) ->
     common_exit_1(Vec, More, Acc, Ns);
 common_exit(More, Acc, Ns, #st{vec=Vec}) ->
@@ -335,12 +344,8 @@ common_exit_1(Vec, [], Acc, Ns) ->
     Ps = wings_menu_util:magnet_props(vector, Ns),
     {Command,F,"Execute command",Ps}.
 
-pick_more_help([point|_], Ns) ->
-    "Continue to select point for " ++ command_name(Ns);
 pick_more_help([{point,_}|_], Ns) ->
     "Continue to select point for " ++ command_name(Ns);
-pick_more_help([axis|_], Ns) ->
-    "Continue to select axis for " ++ command_name(Ns);
 pick_more_help([{axis,_}|_], Ns) ->
     "Continue to select axis for " ++ command_name(Ns).
 
