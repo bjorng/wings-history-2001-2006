@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.21 2002/07/26 17:43:55 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.22 2002/10/02 15:10:35 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -55,7 +55,7 @@ replace(Id, We0, #st{shapes=Shapes0}=St) ->
 %%% Objects menu.
 %%%
 
-menu(X, Y, #st{sel=Sel,shapes=Shapes}=St) ->
+menu(X, Y, #st{sel=Sel,shapes=Shapes}) ->
     Menu0 = map(fun(#we{id=Id,perm=Perm,name=Name}) ->
 			IsSelected = keymember(Id, 1, Sel),
 			NameSt = state(Perm, IsSelected, Name),
@@ -109,7 +109,7 @@ command({Id,lock}, St) ->
     {save_state,lock_object(Id, St)};
 command({Id,restore}, St) ->
     {save_state,restore_object(Id, St)};
-command({Id,rename}, #st{shapes=Shs}=St) ->
+command({Id,rename}, #st{shapes=Shs}) ->
     #we{name=Name} = gb_trees:get(Id, Shs),
     wings_ask:ask([{"New Name",Name}],
 		  fun([NewName]) -> {objects,{Id,rename,NewName}} end);

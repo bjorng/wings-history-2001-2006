@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.42 2002/09/19 20:38:59 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.43 2002/10/02 15:10:36 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -154,7 +154,7 @@ simplify_float_1(F) -> F.
 
 tc(Fun) ->
     case timer:tc(erlang, apply, [Fun,[]]) of
-	{T,{'EXIT',Reason}} -> exit(Reason);
+	{_,{'EXIT',Reason}} -> exit(Reason);
 	{T,R} ->
 	    io:format("Time: ~p\n", [T]),
 	    R

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.50 2002/09/18 13:16:08 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.51 2002/10/02 15:10:34 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -253,7 +253,7 @@ is_transparent(Name, Mtab) ->
 
 edit(Name, #st{mat=Mtab0}=St) ->
     Mat0 = gb_trees:get(Name, Mtab0),
-    Maps = prop_get(maps, Mat0),
+    %%Maps = prop_get(maps, Mat0),
     OpenGL0 = prop_get(opengl, Mat0),
     {Diff0,Opacity0} = ask_prop_get(diffuse, OpenGL0),
     {Amb0,_} = ask_prop_get(ambient, OpenGL0),

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.24 2002/08/12 20:20:49 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.25 2002/10/02 15:10:35 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -135,7 +135,7 @@ circle(N, Y, R) ->
     Delta = pi()*2 / N,
     [{R*cos(I*Delta), Y, R*sin(I*Delta)} || I <- lists:seq(0, N-1)].
 
-cylinder(Ask, St) when is_atom(Ask) ->
+cylinder(Ask, _St) when is_atom(Ask) ->
     ask(cylinder, Ask, [{"Sections",16,[{range,{3,1024}}]}]);
 cylinder([Sections], St) ->
     Fs = cylinder_faces(Sections),
@@ -152,7 +152,7 @@ cylinder_faces(N) ->
 cylinder_vertices(N) ->
     circle(N, 1.0) ++ circle(N, -1.0).
 
-cone(Ask, St) when is_atom(Ask) ->
+cone(Ask, _St) when is_atom(Ask) ->
     ask(cone, Ask, [{"Sections",16,[{range,{3,1024}}]}]);
 cone([N], St) ->
     Ns = lists:seq(0, N-1),
@@ -185,7 +185,7 @@ sphere_faces(Ns, Nl) ->
 	      || J <- lists:seq(0, Nl-3)],
     Topf ++ Botf ++ lists:append(Slices).
 
-sphere(Ask, St) when is_atom(Ask) ->
+sphere(Ask, _St) when is_atom(Ask) ->
     ask(sphere, Ask, [{"Sections",16,[{range,{3,128}}]},
 		      {"Slices",8,[{range,{3,128}}]}]);
 sphere([Ns,Nl], St) ->
@@ -193,7 +193,7 @@ sphere([Ns,Nl], St) ->
     Vs = sphere_circles(Ns, Nl) ++ [{0.0, 1.0, 0.0}, {0.0, -1.0, 0.0}],
     build_shape("sphere", Fs, Vs, St).
     
-torus(Ask, St) when is_atom(Ask) ->
+torus(Ask, _St) when is_atom(Ask) ->
     ask(torus, Ask, [{"Sections",16,[{range,{3,128}}]},
 		     {"Slices",8,[{range,{1,128}}]}]);
 torus([Ns,Nl], St) ->

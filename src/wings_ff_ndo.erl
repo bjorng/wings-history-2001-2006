@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.13 2002/05/05 07:43:46 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.14 2002/10/02 15:10:33 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -21,7 +21,7 @@
 
 import(Name, St) ->
     case file:read_file(Name) of
-	{ok,<<?NDO_HEADER10,Data/binary>>} ->
+	{ok,<<?NDO_HEADER10,_Data/binary>>} ->
             {error,"Nendo 1.0 files not supported"};
 	{ok,<<?NDO_HEADER11,Data/binary>>} ->
             import_1(Data, St);

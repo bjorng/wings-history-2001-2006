@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.50 2002/09/25 16:32:42 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.51 2002/10/02 15:10:33 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -132,7 +132,7 @@ from_vs(Vs, We) ->
 from_vs([V|Vs], We, Acc0) ->
     Acc = wings_vertex:fold(fun(E, _, _, A) -> [E|A] end, Acc0, V, We),
     from_vs(Vs, We, Acc);
-from_vs([], We, Acc) -> gb_sets:from_list(Acc).
+from_vs([], _, Acc) -> gb_sets:from_list(Acc).
 
 %%% Select more or less.
 

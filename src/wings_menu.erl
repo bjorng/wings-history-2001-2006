@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.58 2002/09/25 16:32:42 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.59 2002/10/02 15:10:35 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -172,7 +172,7 @@ menu_dims(Menu, I, MaxA0, MaxB0, MaxC0, Hacc) ->
 	case element(I, Menu) of
  	    {S,ignore,[],[],[]} when I == 1, length(S)+1 =< MaxA0+MaxB0 ->
  		{0,0,0,?LINE_HEIGHT};
-	    {S,{_,_},Hotkey,_,Ps} ->
+	    {S,{_,_},Hotkey,_,_} ->
 		{length(S),length(Hotkey),1,?LINE_HEIGHT};
 	    {S,_,Hotkey,_,Ps} ->
 		{length(S),length(Hotkey),right_width(Ps),?LINE_HEIGHT};
@@ -332,13 +332,13 @@ virtual_button(false, _) -> 1;
 virtual_button(true, 1) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?ALT_BITS =/= 0 -> 2;
-	Mod -> 1
+	_Mod -> 1
     end;
 virtual_button(true, 2) -> 2;
 virtual_button(true, 3) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?CTRL_BITS =/= 0 -> 2;
-	Mod -> 3
+	_Mod -> 3
     end.
     
 set_hotkey(Val, #mi{sel=Sel,menu=Menu0}=Mi) ->
@@ -466,7 +466,7 @@ update_highlight(X, Y, #mi{menu=Menu,sel=OldSel,sel_side=OldSide,w=W}=Mi0) ->
 		Side =:= OldSide -> Mi0;
 		true ->
 		    wings_wm:dirty(),
-		    Mi = Mi0#mi{sel_side=Side}
+		    Mi0#mi{sel_side=Side}
 	    end;
 	OldSel -> Mi0;
 	NoSel when NoSel == outside; NoSel == none ->
@@ -542,7 +542,7 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 	    wings_io:menu_text(X, Y, Text),
 	    draw_hotkey(X, Y, Shortcut, Hotkey),
 	    draw_submenu(Adv, Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
-	{Text,Item,Hotkey,_Help,Ps} ->
+	{Text,_,Hotkey,_Help,Ps} ->
 	    item_colors(Y, Ps, I, Mi),
 	    draw_menu_text(X, Y, Text, Ps),
 	    draw_hotkey(X, Y, Shortcut, Hotkey),

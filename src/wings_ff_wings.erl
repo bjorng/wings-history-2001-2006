@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.25 2002/09/18 13:16:07 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.26 2002/10/02 15:10:33 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -24,7 +24,7 @@ import(Name, St0) ->
     case file:read_file(Name) of
 	{ok,<<?WINGS_HEADER,Sz:32,Data/binary>>} when size(Data) =:= Sz ->
 	    case catch binary_to_term(Data) of
-		{wings,0,Shapes} ->
+		{wings,0,_Shapes} ->
                     {error,"Pre-0.80 Wings format no longer supported."};
 		{wings,1,_,_,_} ->
                      %% Pre-0.92. No longer supported.
@@ -204,7 +204,7 @@ translate_material([Mat|Mats], Opac, OpenGL, Maps) ->
 	    translate_material(Mats, Opac, [trans(Amb, Opac)|OpenGL], Maps);
 	{specular,_}=Spec ->
 	    translate_material(Mats, Opac, [trans(Spec, Opac)|OpenGL], Maps);
-	{shininess,Sh}=Spec ->
+	{shininess,Sh} ->
 	    translate_material(Mats, Opac, [{shininess,1.0-Sh}|OpenGL], Maps);
 	_ ->
 	    translate_material(Mats, OpenGL, Opac, Maps)

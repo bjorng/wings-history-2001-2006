@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.82 2002/09/18 13:16:08 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.83 2002/10/02 15:10:34 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -306,11 +306,9 @@ use_autosave(File) ->
 	    end;
 	{error, _} -> %% use autosave if exists 
 	    Auto = autosave_filename(File),
-	    case file:read_file_info(Auto) of
-		{ok, AutoInfo} ->
-		    Auto;
-		_ -> %% Let reader take care of error
-		    File
+	    case filelib:is_file(Auto) of
+		true -> Auto;
+		false -> File			%Let reader handle error.
 	    end
     end.
 

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.31 2002/08/25 20:15:05 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.32 2002/10/02 15:10:33 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -219,7 +219,7 @@ orig_normals_1([{V,[{VecA,OtherV}]}|T], VsVec, Acc) ->
 	_ ->
 	    orig_normals_1(T, VsVec, Acc)
     end;
-orig_normals_1([H|T], VsVec, Acc) ->
+orig_normals_1([_|T], VsVec, Acc) ->
     orig_normals_1(T, VsVec, Acc);
 orig_normals_1([], _, Acc) -> reverse(Acc).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_start.erl,v 1.2 2002/03/15 13:17:32 bjorng Exp $
+%%     $Id: wings_start.erl,v 1.3 2002/10/02 15:10:35 bjorng Exp $
 %%
 
 -module(wings_start).
@@ -36,7 +36,7 @@ common_start(Start) ->
     Root0 = filename:dirname(code:which(?MODULE)),
     Root = case filename:basename(Root0) of
 	       "ebin" -> filename:dirname(Root0);
-	       Other -> Root0
+	       _Other -> Root0
 	   end,
     Start(Root).
 
@@ -55,7 +55,7 @@ patch_name(Dir) ->
     case file:read_file(filename:join(Dir, "DESCRIPTION")) of
 	{ok,<<Str:20,_/binary>>} -> binary_to_list(Str);
 	{ok,Bin} -> binary_to_list(Bin);
-	Other -> "Installed Patches"
+	_Other -> "Installed Patches"
     end.
 			
 enable_patches() ->
@@ -70,6 +70,6 @@ patch_dir() ->
     Base0 = filename:dirname(code:which(?MODULE)),
     Base = case filename:basename(Base0) of
 	       "ebin" -> filename:dirname(Base0);
-	       Other -> Base0
+	       _Other -> Base0
 	   end,
     filename:join(Base, "patches").

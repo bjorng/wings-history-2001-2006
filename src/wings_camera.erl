@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.43 2002/09/09 07:52:00 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.44 2002/10/02 15:10:31 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -221,7 +221,7 @@ nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _, _) ->
 	    end
     end,
     keep;
-nendo_event(Event, Camera, Redraw, _, View) ->
+nendo_event(Event, Camera, Redraw, _, _) ->
     generic_event(Event, Camera, Redraw).
     
 nendo_pan(?SDLK_LEFT) ->

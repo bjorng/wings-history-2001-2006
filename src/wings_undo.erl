@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_undo.erl,v 1.5 2001/12/11 07:46:51 bjorng Exp $
+%%     $Id: wings_undo.erl,v 1.6 2002/10/02 15:10:35 bjorng Exp $
 %%
 
 -module(wings_undo).
@@ -52,7 +52,7 @@ redo(St) -> St.
 purge(St) ->
     case wings_util:serious_yes_no("Are you sure (NOT undoable)?") of
 	yes -> init(St);
-	Other -> St
+	_Other -> St
     end.
 	    
 %%
@@ -98,9 +98,9 @@ pop(#st{top=[Est|Top]}=St0) ->
     St#st{top=Top};
 pop(#st{top=[],bottom=[_|_]=Bottom}=St) ->
     pop(St#st{top=reverse(Bottom),bottom=[]});
-pop(St) -> empty.
+pop(_) -> empty.
 
-discard_old_states(#st{top=Top,bottom=Bot,undone=Undone}=St)
+discard_old_states(#st{top=Top,bottom=Bot}=St)
   when length(Top) + length(Bot) > ?UNDO_LEVELS ->
     discard_old_state(St);
 discard_old_states(St) -> St.
