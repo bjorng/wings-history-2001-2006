@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.6 2004/07/14 13:10:26 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.7 2004/07/15 07:05:47 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -340,16 +340,15 @@ obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
 %     glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
 
 help(#cs{v=[]}) ->
-    Msg1 = wings_util:button_format("Select vertex or cut edge"),
+    Msg1 = wings_util:button_format("Select vertex or cut edge [press button to slide]"),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_util:button_format([], [], "Exit connect mode"),
+    Msg3 = wings_util:button_format([], [], "Exit Connect"),
     Msg = wings_util:join_msg([Msg1,Msg2,Msg3]),
     wings_wm:message(Msg, "");
 help(_) ->
-    Msg1 = wings_util:button_format("Connect to edge/vertex or finish loop"
-				    "by selecting the last vertex"),
+    Msg1 = wings_util:button_format("Connects edge/vertex [reselect last vertex to end]"),
     Msg2 = wings_camera:help(),
-    Msg3 = wings_util:button_format([], [], "Exit connect mode"),
+    Msg3 = wings_util:button_format([], [], "Exit Connect"),
     Msg = wings_util:join_msg([Msg1,Msg2,Msg3]),
     wings_wm:message(Msg, "").
 
@@ -400,17 +399,29 @@ draw_connect(#cs{v=[#vi{pos=Pos0,mm=MM}],we=Id}) ->
     gl:'end'(),
     gl:popAttrib().
 
-slide(#cs{st=St=#st{shapes=Sh},we=Shape,v=[#vi{id=Id1}|_]},Start,End) ->
-    We = gb_trees:get(Shape, Sh),
-    {Tvs,Sel,Init} = slide_make_tvs(Id1,Start,End,We),
+slide(#cs{st=St=#st{shapes=Sh},we=Shape,v=[#vi{id=Id1,mm=MM}|_]},S,E) ->
+    #we{vp=Vtab} = gb_trees:get(Shape, Sh),
+    Start0 = gb_trees:get(S, Vtab),
+    End0   = gb_trees:get(E, Vtab),
+    Curr  = gb_trees:get(Id1, Vtab),
+    Matrices = wings_util:get_matrices(Shape, MM),
+    P0 = {P0x,P0y,_} = obj_to_screen(Matrices, Start0),
+    P1 = {P1x,P1y,_} = obj_to_screen(Matrices, End0),
+    %% Decide whats up and down
+    {Dx,Dy,_} = e3d_vec:sub(P1, P0),
+    {Start,End} = 
+	if 
+	    abs(Dx) > abs(Dy), P0x < P1x ->  {Start0,End0};
+	    abs(Dx) > abs(Dy) ->             {End0,Start0};
+	    P0y < P1y ->  {Start0,End0};
+	    true ->       {End0,Start0}
+	end,
+    {Tvs,Sel,Init} = slide_make_tvs(Id1,Curr,Start,End,Shape),
     Units = [{percent,{0.0,1.0}}],
     Flags = [{initial,[Init]}],
     wings_drag:setup(Tvs, Units, Flags, wings_sel:set(vertex, Sel, St)).
 
-slide_make_tvs(V,S,E,#we{id=Id,vp=Vtab}) ->
-    Start = gb_trees:get(S, Vtab),
-    End   = gb_trees:get(E, Vtab),
-    Curr  = gb_trees:get(V, Vtab),
+slide_make_tvs(V,Curr,Start,End,Id) ->
     Dir = e3d_vec:sub(End, Start),
     TotDist = e3d_vec:len(Dir),
     Dist = e3d_vec:dist(Start,Curr),
