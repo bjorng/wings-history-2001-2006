@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.50 2003/06/04 06:05:54 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.51 2003/06/06 17:32:49 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -559,8 +559,13 @@ draw_faces(Ftab, #we{mode=material}=We, St) ->
 draw_faces(Ftab, #we{mode=vertex}=We, St) ->
     MatFaces = [{default,Ftab}],
     case wings_pref:get_value(show_colors) of
-	true -> draw_uv_faces(MatFaces, We, St);
-	false -> draw_mat_faces(MatFaces, We, St)
+	false ->
+	    draw_mat_faces(MatFaces, We, St);
+	true ->
+	    gl:enable(?GL_COLOR_MATERIAL),
+	    gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
+	    draw_uv_faces(MatFaces, We, St),
+	    gl:disable(?GL_COLOR_MATERIAL)
     end.
 
 draw_uv_faces(MatFaces, We, St) ->

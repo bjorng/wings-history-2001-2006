@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.71 2003/06/04 06:10:57 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.72 2003/06/06 17:32:49 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -534,8 +534,7 @@ tess_face_vtxcol(Tess, [[Pos|{_,_}=UV]|T]) ->
     glu:tessVertex(Tess, Pos, [{texcoord2,UV}]),
     tess_face_vtxcol(Tess, T);
 tess_face_vtxcol(Tess, [[Pos|{_,_,_}=Col]|T]) ->
-    glu:tessVertex(Tess, Pos, [{material,?GL_FRONT,
-				?GL_AMBIENT_AND_DIFFUSE,Col}]),
+    glu:tessVertex(Tess, Pos, [{color,Col}]),
     tess_face_vtxcol(Tess, T);
 tess_face_vtxcol(Tess, []) ->
     glu:tessEndContour(Tess),
