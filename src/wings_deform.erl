@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.26 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.27 2002/03/25 09:51:04 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -16,9 +16,7 @@
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1]).
--define(HUGE, 1.0E307).
 -define(PI, 3.1416).
--compile({inline,[{mix,2}]}).
 
 sub_menu(_St) ->
     InflateHelp = {"Inflate elements",[],"Pick center and radius"},
@@ -29,53 +27,10 @@ sub_menu(_St) ->
 			   {"Z",z}],
 		    [{"Crumple",crumple},
 		     {"Inflate",inflate_fun(),InflateHelp,[]},
-		     {"Taper",{taper,
-			       [{"Along",ignore},
-				separator,
-				taper_item(x),
-				taper_item(y),
-				taper_item(z)]}},
 		     {"Twist",{twist,XYZ}},
 		     {"Twisty Twist",{twisty_twist,XYZ}}];
 	       (_, _Ns) -> ignore
 	    end}.
-
-taper_item(Axis) ->
-    Effects = effect_menu(Axis),
-    AxisStr = wings_util:upper(Axis),
-    case wings_pref:get_value(advanced_menus) of
-	false ->
-	    F = fun(1, Ns) ->
-			[Effect|_] = Effects,
-			wings_menu:build_command({Axis,Effect}, Ns)
-		end,
-	    Help = "Taper along " ++ AxisStr,
-	    {AxisStr,F,Help};
-	true ->
-	    F = fun(help, _Ns) ->
-			[Effect|_] = Effects,
-			TaperAlong = "Taper along " ++ AxisStr,
-			{TaperAlong ++ " (with effect on " ++
-			 wings_util:upper(Effect) ++ ")",[],
-			 TaperAlong ++ " and choose effect axis"};
-		   (1, Ns) ->
-			[Effect|_] = Effects,
-			wings_menu:build_command(Effect, Ns);
-		   (3, _Ns) ->
-			expand_effects(Effects, []);
-		   (_, _Ns) -> ignore
-		end,
-	    {AxisStr,{Axis,F},[]}
-    end.
-
-effect_menu(x) -> [yz,y,z];
-effect_menu(y) -> [xz,x,z];
-effect_menu(z) -> [xy,x,y].
-
-expand_effects([H|T], Acc) ->		    
-    expand_effects(T, [{wings_util:upper(H),H}|Acc]);
-expand_effects([], Acc) ->
-    [{"Effect",ignore},separator|reverse(Acc)].
 
 inflate_fun() ->
     fun(help, _) -> {"Inflate elements",[],"Pick center and radius"};
@@ -87,7 +42,6 @@ inflate_fun() ->
 command(crumple, St) -> crumple(St);
 command(inflate, St) -> inflate(St);
 command({inflate,What}, St) -> inflate(What, St);
-command({taper,{Primary,Effect}}, St) -> taper(Primary, Effect, St);
 command({twist,Axis}, St) -> twist(Axis, St);
 command({twisty_twist,Axis}, St) -> twisty_twist(Axis, St).
 
@@ -169,71 +123,6 @@ inflate(Center, Radius, Vs, #we{id=Id,vs=Vtab}, Acc) ->
 		  Vec = e3d_vec:mul(Dir, Radius-D),
 		  [{Vec,[V]}|A]
 	  end, [], Vs)}|Acc].
-
-%%
-%% The Taper deformer.
-%%
-
-taper(Primary, Effect, St) ->
-    Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
-				 taper_2(Vs, We, Primary, Effect, Acc)
-			 end, [], St),
-    wings_drag:setup(Tvs, [{percent,{-1.0,?HUGE}}], St).
-
-taper_2(Vs, #we{id=Id}=We, Primary, Effect, Acc) ->
-    [MinR,MaxR] = wings_vertex:bounding_box(Vs, We),
-    Key = key(Primary),
-    Min = element(Key, MinR),
-    Max = element(Key, MaxR),
-    Range = Max - Min,
-    check_range(Range, Primary),
-    taper_3(Id, Vs, We, Key, Effect, MinR, MaxR, Acc).
-
-taper_3(Id, Vs0, We, Key, Effect, MinR, MaxR, Acc) ->
-    Tf = taper_fun(Key, Effect, MinR, MaxR),
-    Vs = gb_sets:to_list(Vs0),
-    VsPos = wings_util:add_vpos(Vs, We),
-    Fun = fun([Dx], A) ->
-		  U = Dx + 1.0,
-		  foldl(fun({V,#vtx{pos=Pos0}=Rec}, VsAcc) ->
-				Pos = Tf(U, Pos0),
-				[{V,Rec#vtx{pos=Pos}}|VsAcc]
-			end, A, VsPos)
-	  end,
-    [{Id,{Vs,Fun}}|Acc].
-
-taper_fun(Key, Effect, {_,_,_}=MinR, {_,_,_}=MaxR) ->
-    Min = element(Key, MinR),
-    Range = element(Key, MaxR) - element(Key, MinR),
-    {Ekey1,Ekey2} = effect(Effect),
-    Eoffset1 = (element(Ekey1, MinR)+element(Ekey1, MaxR))/2,
-    case Ekey2 of
-	none ->
-	    fun(U, Pos) when float(U), float(Min), float(Range) ->
-		    S0 = (element(Key, Pos)-Min)/Range,
-		    S = mix(S0, U),
-		    E = S * (element(Ekey1, Pos)-Eoffset1) + Eoffset1,
-		    setelement(Ekey1, Pos, E)
-	    end;
-	_Other ->
-	    Eoffset2 = (element(Ekey2, MinR)+element(Ekey2, MaxR))/2,
-	    fun(U, Pos0) when float(U), float(Min), float(Range) ->
-		    S0 = (element(Key, Pos0)-Min)/Range,
-		    S = mix(S0, U),
-		    E0 = S * (element(Ekey1, Pos0)-Eoffset1) + Eoffset1,
-		    E =  S * (element(Ekey2, Pos0)-Eoffset2) + Eoffset2,
-		    Pos = setelement(Ekey1, Pos0, E0),
-		    setelement(Ekey2, Pos, E)
-	    end
-    end.
-
-effect(yz) -> {2,3};
-effect(xy) -> {1,2};
-effect(xz) -> {1,3};
-effect(Single) -> {key(Single),none}.
-
-mix(A, F) ->
-    F + (1-F)*A.
     
 %%%
 %%% The Twist deformer.
