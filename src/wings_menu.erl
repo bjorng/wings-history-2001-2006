@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.30 2002/03/04 19:32:58 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.31 2002/03/13 11:57:39 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -241,17 +241,43 @@ button_pressed(Event, Button, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
 		    popup_submenu(Button, X, Y, Name, Submenu, Mi);
 		{_,{Name,Submenu},_,_,_} when Adv == false ->
 		    submenu(Item, Name, Submenu, Mi);
-		{_,Act0,_,_,_} when is_function(Act0) ->
-		    case Act0(Button, Names) of
-			ignore -> keep;
-			Act when is_tuple(Act) ->
-			    do_action(Act)
-		    end;
+		{_,Act0,_,_,Ps} when is_function(Act0) ->
+		    call_action(Act0, Button, Names, Ps);
 		{_,Act0,_,_,Ps} when is_atom(Act0); is_integer(Act0) ->
 		    Act = check_option_box(Act0, X, Ps, Mi),
-		    do_action(build_command(Act, Names))
+		    check_magnet(Act, Names, Ps)
 	    end
     end.
+
+call_action(Act, Button, Ns, Ps) ->
+    case property_lists:is_defined(magnet, Ps) of
+	false ->
+	    case Act(Button, Ns) of
+		ignore -> keep;
+		Cmd when is_tuple(Cmd) ->
+		    do_action(Cmd)
+	    end;
+	true ->
+	    Mag = case sdl_keyboard:getModState() band ?SHIFT_BITS =/= 0 of
+		      true -> [magnet];
+		      false -> []
+		  end,
+	    case Act(Button, Ns, Mag) of
+		ignore -> keep;
+		Cmd when is_tuple(Cmd) ->
+		    do_action(Cmd)
+	    end
+    end.
+
+check_magnet(Action, Names, Ps) ->
+    Cmd = case property_lists:is_defined(magnet, Ps) andalso
+	      sdl_keyboard:getModState() band ?SHIFT_BITS =/= 0 of
+	      true ->
+		  {vector,{pick,[magnet],[Action],Names}};
+	      false ->
+		  build_command(Action, Names)
+	  end,
+    do_action(Cmd).
 
 do_action(Action) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
@@ -259,7 +285,7 @@ do_action(Action) ->
     wings_io:putback_event({action,Action}),
     wings_io:putback_event(redraw),
     pop.
-
+	    
 handle_key(#keysym{sym=27}, _Mi) ->		%Escape.
     wings_io:clear_menu_sel(),
     wings_io:putback_event(redraw),
@@ -546,9 +572,10 @@ help_text(#mi{menu=Menu,sel=Sel,ns=Names,adv=Adv}) ->
 	    Help0 = Fun(help, [Name|Names]),
 	    Help = help_text_1(Help0, Adv),
 	    help_message(Help);
-	{_,_,_,Help0,_} ->
+	{_,_,_,Help0,Ps} ->
 	    %% Plain entry - not submenu.
-	    Help = help_text_1(Help0, Adv),
+	    Help1 = help_text_1(Help0, Adv),
+	    Help = magnet_help(Help1, Ps),
 	    help_message(Help);
 	separator -> ok
     end.
@@ -566,13 +593,18 @@ help_text_1({S1,S2,S3}, true) ->
     [lmb|" " ++ S1 ++ [$\s,mmb,$\s] ++ S2 ++ [$\s,rmb,$\s] ++ S3];
 help_text_1([]=S, _) -> S.
 
+magnet_help(Help, Ps) ->
+    case property_lists:is_defined(magnet, Ps) of
+	true -> Help ++ "   [Shift] Use magnet";
+	false -> Help
+    end.
+
 help_message(Msg) ->
     %% Replacement for wings_io:message/1 as it overwrites the icon area.
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     wings_io:sunken_rect(6, H-2*?LINE_HEIGHT+5, W-10,
 			 2*?LINE_HEIGHT-8, ?PANE_COLOR),
     wings_io:menu_text(8, H-?LINE_HEIGHT+5, Msg).
-
 
 draw_option_box(X, Y, Ps) ->
     case have_option_box(Ps) of

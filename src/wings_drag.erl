@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.61 2002/03/09 22:14:32 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.62 2002/03/13 11:57:39 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -82,28 +82,16 @@ init_1(Tvs0, Drag0, #st{selmode=Mode,sel=Sel0}=St0) ->
     end.
 
 %% 
-%% Mainly an optimisation. We want to combine translatation vectors
-%% that happens to be the same. We do some massage of the input.
+%% Massage the input transformation list to make it more regular.
 %%
 combine({matrix,Tvs0}) ->
     Ident = e3d_mat:identity(),
     Tvs = [{Id,Trans,Ident} || {Id,Trans} <- Tvs0],
     {matrix,sort(Tvs)};
-combine(Tvs) ->
-    S = sofs:relation(Tvs),
+combine(Tvs0) ->
+    S = sofs:relation(Tvs0, [{id,info}]),
     F = sofs:relation_to_family(S),
-    %% The rest of this function is an optimisation.
-    map(fun({Id,[{_,Fun0}|_]=Tv0}) when is_function(Fun0) ->
-		Tv = [Fun || {_,Fun} <- Tv0],
-		Vs = sort(concat([Vs || {Vs,_} <- Tv0])),
-		{Id,{Vs,Tv}};
-	   ({Id,L}) ->
-		SS = sofs:from_term(L, [[{vec,[vertex]}]]),
-		RR = sofs:union(SS),
- 		FF = sofs:relation_to_family(RR),
-  		FU = sofs:family_union(FF),
-		{Id,sofs:to_external(FU)}
-	end, sofs:to_external(F)).
+    sofs:to_external(F).
 
 %%
 %% Here we break apart the objects into two parts - static part
@@ -117,13 +105,14 @@ break_apart(Tvs, #st{shapes=Shs}) ->
 break_apart([{Id,_}|_]=Tvs, [{ShId,We}|Shs], Dyn) when ShId < Id ->
     draw_faces(We),
     break_apart(Tvs, Shs, Dyn);
-break_apart([{Id,Tv}|Tvs], [{Id,We0}|Shs], DynAcc) ->
+break_apart([{Id,TvList}|Tvs], [{Id,We0}|Shs], DynAcc) ->
+    {Vs0,FunList} = combine_tvs(TvList, We0),
+    Vs = sofs:set(Vs0, [vertex]),
     #we{es=Etab0,fs=Ftab0,vs=Vtab0} = We0,
     Etab1 = foldl(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A) ->
 			 [{Va,Lf},{Va,Rf},{Vb,Lf},{Vb,Rf}|A]
 		 end, [], gb_trees:values(Etab0)),
     Etab2 = sofs:relation(Etab1, [{vertex,face}]),
-    Vs = tv_vertices(Tv),
     Faces = sofs:image(Etab2, Vs),
     Ftab1 = sofs:relation(gb_trees:to_list(Ftab0), [{face,data}]),
     FtabStatic0 = sofs:drestriction(Ftab1, Faces),
@@ -139,25 +128,41 @@ break_apart([{Id,Tv}|Tvs], [{Id,We0}|Shs], DynAcc) ->
 		   vs=undefined},
     StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
     StaticVs = reverse(insert_vtx_data_1(StaticVs0, Vtab0, [])),
-    Dyn = case Tv of
-	      {Trans,FunList} ->
-		  {FunList,StaticVs,Id,WeDyn};
-	      Trans0 ->
-		  Trans1 = keysort(2, Trans0),
-		  Trans = insert_vtx_data(Trans1, Vtab0, []),
-		  {Trans,StaticVs,Id,WeDyn}
-	  end,
+    Dyn = {FunList,StaticVs,Id,WeDyn},
     break_apart(Tvs, Shs, [Dyn|DynAcc]);
 break_apart([], [{_,We}|Shs], Dyn) ->
     draw_faces(We),
     break_apart([], Shs, Dyn);
 break_apart([], [], Dyn) -> Dyn.
 
-tv_vertices({Vs,[Fun|_]}) when is_function(Fun) ->
-    sofs:set(Vs, [vertex]);
-tv_vertices(Tv) ->
-    Vs = foldl(fun({_,Vs}, A) -> [Vs|A] end, [], Tv),
-    sofs:union(sofs:from_term(Vs, [[vertex]])).
+combine_tvs(TvList, #we{vs=Vtab}) ->
+    {FunList,VecVs0} = split_tv(TvList, [], []),
+    SS = sofs:from_term(VecVs0, [{vec,[vertex]}]),
+    FF = sofs:relation_to_family(SS),
+    FU = sofs:family_union(FF),
+    VecVs1 = sofs:to_external(FU),
+    Affected = foldl(fun({_,Vs}, A) -> Vs++A end, [], VecVs1),
+    case insert_vtx_data(VecVs1, Vtab, []) of
+	[] -> combine_tv_1(FunList, Affected, []);
+	VecVs -> combine_tv_1(FunList, Affected, [translate_fun(VecVs)])
+    end.
+
+translate_fun(VecVs) ->
+    fun([Dx|_], Acc) ->
+	    foldl(fun({Vec,VsPos}, A) ->
+			  translate(Vec, Dx, VsPos, A)
+		  end, Acc, VecVs)
+    end.
+
+combine_tv_1([{Aff,Fun}|T], Aff0, FunList) ->
+    combine_tv_1(T, Aff++Aff0, [Fun|FunList]);
+combine_tv_1([], Aff, FunList) -> {Aff,FunList}.
+
+split_tv([{_,F}=Fun|T], Facc, Vacc) when is_function(F) ->
+    split_tv(T, [Fun|Facc], Vacc);
+split_tv([L|T], Facc, Vacc) when is_list(L) ->
+    split_tv(T, Facc, L++Vacc);
+split_tv([], Funs, VecVs) -> {Funs,VecVs}.
 
 insert_vtx_data([{Vec,Vs0}|VecVs], Vtab, Acc) ->
     Vs = insert_vtx_data_1(Vs0, Vtab, []),
@@ -429,7 +434,7 @@ motion_update(Move, #drag{tvs=Tvs,sel=Sel,done=Done}=Drag) ->
     Drag#drag{new=New}.
 
 motion_update_1([{Tv,StaticVs,Id,We0}|Tvs], Move, #drag{done=Done}=Drag, A) ->
-    Vtab0 = transform_vs(Tv, Move, StaticVs),
+    Vtab0 = foldl(fun(F, A0) -> F(Move, A0) end, StaticVs, Tv),
     Vtab = gb_trees:from_orddict(sort(Vtab0)),
     We = We0#we{vs=Vtab},
     if
@@ -438,13 +443,6 @@ motion_update_1([{Tv,StaticVs,Id,We0}|Tvs], Move, #drag{done=Done}=Drag, A) ->
     end,
     motion_update_1(Tvs, Move, Drag, [{Id,We}|A]);
 motion_update_1([], _Move, _Drag, A) -> A.
-
-transform_vs([F0|_]=Fs, Move, Acc) when is_function(F0) ->
-    foldl(fun(F, A) -> F(Move, A) end, Acc, Fs);
-transform_vs(Tvs, [Dx], Acc) ->
-    foldl(fun({Vec,Vs}, A) ->
-		  translate(Vec, Dx, Vs, A)
-	  end, Acc, Tvs).
 
 translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
     Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.37 2002/03/11 14:39:04 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.38 2002/03/13 11:57:39 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -293,7 +293,6 @@ remove_winged_vs(Vs, We) ->
 		  end
 	  end, We, Vs).
 
-
 %%%
 %%% The Dissolve command.
 %%%
@@ -345,8 +344,8 @@ dissolve_edge(Edge, FaceRemove, FaceKeep, Rec,
     %% First change face for all edges surrounding the face we will remove.
     Etab1 =
 	wings_face:fold(
-	  fun (V, E, R, IntEtab) when E =:= Edge -> IntEtab;
-	      (V, E, R, IntEtab) ->
+	  fun (_, E, _, IntEtab) when E =:= Edge -> IntEtab;
+	      (_, E, R, IntEtab) ->
 		  case R of
  		      #edge{lf=FaceRemove,rf=FaceKeep} ->
  			  throw(hole);
@@ -386,7 +385,7 @@ dissolve_edge(Edge, FaceRemove, FaceKeep, Rec,
 	    dissolve_edge(AnEdge, We);
 	#edge{rf=FaceKeep,rtpr=Same,rtsu=Same} ->
 	    dissolve_edge(AnEdge, We);
-	Other -> We
+	_Other -> We
     end.
 
 %% dissolve(Vertex, We) -> We|error
@@ -398,7 +397,7 @@ dissolve_vertex(V, #we{es=Etab,vs=Vtab}=We0) ->
 	    merge_edges(backward, Edge, Rec, We0);
 	{value,#edge{ve=V,rtsu=AnEdge,ltpr=AnEdge}=Rec} ->
 	    merge_edges(forward, Edge, Rec, We0);
-	Other -> error
+	_Other -> error
     end.
 
 %%
@@ -414,7 +413,7 @@ merge_edges(Dir, Edge, Rec, #we{es=Etab}=We) ->
 	    del_2edge_face(Dir, Edge, Rec, To, We);
 	#edge{vs=Vb,ve=Va} ->
 	    del_2edge_face(Dir, Edge, Rec, To, We);
-	Other ->
+	_Other ->
 	    merge(Dir, Edge, Rec, To, We)
     end.
 
@@ -470,7 +469,7 @@ del_2edge_face(Dir, EdgeA, RecA, EdgeB,
     Vtab = wings_vertex:patch_vertex(Vkeep, EdgeANear, Vtab1),
 
     %% Patch the face table.
-    #edge{lf=Klf,rf=Krf} = RecANear = gb_trees:get(EdgeANear, Etab),
+    #edge{lf=Klf,rf=Krf} = gb_trees:get(EdgeANear, Etab),
     KeepFaces = ordsets:from_list([Klf,Krf]),
     EdgeAFaces = ordsets:from_list([Lf,Rf]),
     [DelFace] = ordsets:subtract(EdgeAFaces, KeepFaces),
@@ -532,12 +531,12 @@ select_region_1([[AnEdge|_]|Ps], Edges, #we{es=Etab}=We, Acc) ->
     Left = collect_faces(Lf, Edges, We),
     Right = collect_faces(Rf, Edges, We),
     select_region_1(Ps, Edges, We, [Left,Right|Acc]);
-select_region_1([], Edges, We, [A,B]) ->
+select_region_1([], _Edges, _We, [A,B]) ->
     case {gb_sets:size(A),gb_sets:size(B)} of
 	{Sa,Sb} when Sa < Sb  -> A;
 	{_,_} -> B
     end;
-select_region_1([], Edges, We, Acc0) ->
+select_region_1([], _Edges, _We, Acc0) ->
     Acc = sort([gb_sets:to_list(P) || P <- Acc0]),
     select_region_2(Acc, []).
 
@@ -549,7 +548,7 @@ select_region_2([], Acc) ->
     gb_sets:from_ordset(lists:merge(Acc)).
 
 strip_prefix([Prefix|T], Prefix) -> strip_prefix(T, Prefix);
-strip_prefix(L, Prefix) -> L.
+strip_prefix(L, _Prefix) -> L.
 
 %%%
 %%% The Loop Cut command.
@@ -562,17 +561,17 @@ loop_cut(#st{onext=NextId}=St0) ->
     Sel = [S || {Id,_}=S <- Sel1, Id >= NextId],
     wings_body:convert_selection(wings_sel:set(body, Sel, St)).
 
-loop_cut(Edges, #we{id=Id,name=Name}=We, Acc) ->
+loop_cut(Edges, #we{name=Name}=We, Acc) ->
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
 	none ->
 	    Error = "Selected edges in \"" ++
 		Name ++ "\" does not form one or more loops.",
 	    throw({command_error,Error});
-	Other -> loop_cut_1(Edges, We, Acc)
+	_Other -> loop_cut_1(Edges, We, Acc)
     end.
 
-loop_cut_1(Edges, #we{id=Id,name=Name}=We0, {Sel0,#st{onext=NewId}=St0}=Acc) ->
-    #we{es=Etab,fs=Ftab} = We0,
+loop_cut_1(Edges, #we{id=Id,es=Etab,name=Name}=We0,
+	   {Sel0,#st{onext=NewId}=St0}) ->
     {AnEdge,_} = gb_sets:take_smallest(Edges),
     #edge{lf=Lf,rf=Rf} = gb_trees:get(AnEdge, Etab),
     LeftFaces = collect_faces(Lf, Edges, We0),
@@ -605,7 +604,7 @@ collect_faces(Work0, We, Edges, Acc0) ->
 
 collect_maybe_add(Work, Face, Edges, We, Res) ->
     wings_face:fold(
-      fun(V, Edge, Rec, A) ->
+      fun(_, Edge, Rec, A) ->
 	      case gb_sets:is_member(Edge, Edges) of
 		  true -> A;
 		  false ->
@@ -631,7 +630,7 @@ build_selection(Edges, #we{id=Id} = We, ObjAcc) ->
 		       grow_from_edge(Edge, We, EdgeAcc) 
 	       end, gb_sets:empty(), gb_sets:to_list(Edges))}|ObjAcc].
 
-grow_from_edge(unknown, We, Selected) -> Selected;
+grow_from_edge(unknown, _We, Selected) -> Selected;
 grow_from_edge(Edge, We, Selected0) ->
     Selected = gb_sets:add(Edge, Selected0),
     case gb_sets:is_member(Edge, Selected0) of
@@ -642,7 +641,7 @@ grow_from_edge(Edge, We, Selected0) ->
     end.
 
 opposing_edge(Edge, #we{es=Es}=We, Side) ->
-    #edge{lf=Left,rf=Right} = EdgeStruct = gb_trees:get(Edge, Es),
+    #edge{lf=Left,rf=Right} = gb_trees:get(Edge, Es),
     Face = case Side of
                left -> Left;
                right -> Right
@@ -653,10 +652,10 @@ opposing_edge(Edge, #we{es=Es}=We, Side) ->
         _ -> unknown
     end.
 
-next_edge(Edge, Face, #we{es = Es} = We)->
-    case gb_trees:get(Edge, Es) of
+next_edge(Edge, Face, #we{es=Etab})->
+    case gb_trees:get(Edge, Etab) of
         #edge{lf=Face,ltsu=NextEdge} -> NextEdge;
-        #edge{rf = Face, rtsu=NextEdge} -> NextEdge
+        #edge{rf=Face,rtsu=NextEdge} -> NextEdge
     end.
 
 %%%

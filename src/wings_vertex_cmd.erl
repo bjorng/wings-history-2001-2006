@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.23 2002/03/11 11:04:02 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.24 2002/03/13 11:57:39 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -38,7 +38,6 @@ menu(X, Y, St) ->
 	    {"Collapse",collapse,"Delete selected vertices"},
 	    {"Dissolve",dissolve,"Delete selected vertices"},
 	    separator,
-	    wings_magnet:sub_menu(St),
 	    {"Deform",wings_deform:sub_menu(St)}|wings_vec:menu(St)],
     wings_menu:popup_menu(X, Y, vertex, Menu, St).
 
@@ -59,8 +58,6 @@ command(auto_smooth, St) ->
     wings_body:auto_smooth(St);
 command(dissolve, St) ->
     {save_state,model_changed(dissolve(St))};
-command({magnet,Magnet}, St) ->
-    ?SLOW(wings_magnet:command(Magnet, St));
 command(collapse, St) ->
     {save_state,model_changed(wings_collapse:collapse(St))};
 command({move,Type}, St) ->

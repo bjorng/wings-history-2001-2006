@@ -8,13 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.6 2002/01/30 09:13:36 bjorng Exp $
-%%
+%%     $Id: user_default.erl,v 1.7 2002/03/13 11:57:39 bjorng Exp $
+%% 
 
 -module(user_default).
 
 -export([help/0,wh/0,w/0,wcp/1,wcp/2,
-	 wua/2,wur/2,wul/0,wud/1,
 	 wm/0,wicons/0,wtar/0]).
 
 help() ->
@@ -31,30 +30,7 @@ wh() ->
     p("wcp(Mod)   -- compile plugin-in (in plugins_src, to plugins)\n"),
     p("wcp(Mod, Kind) -- compile plugin-in (in plugins_src/Kind,\n"
       "                  to plugins/Kind)\n"),
-    p("** User defined expressions for Magnet **\n"),
-    p("wul()      -- list user-defined expressions\n"),
-    p("wua(Str, Fun) -- add user-defined expression\n"),
-    p("wur(Num, Fun) -- replace user-defined expression\n"),
-    p("wud(Num)   -- delete user-defined expression\n"),
     ok.
-
-%%%
-%%% User defined expressions for the Magnet.
-%%%
-
-wua(Name, Fun) when is_list(Name), is_function(Fun) ->
-    Body = extract_body(Fun),
-    wings_magnet:add_user_expr(Name, Body).
-
-wur(N, Fun) when is_integer(N), is_function(Fun) ->
-    Body = extract_body(Fun),
-    wings_magnet:replace_user_expr(N, Body).
-
-wul() ->
-    wings_magnet:list_user_exprs().
-
-wud(N) when is_integer(N) ->
-    wings_magnet:delete_user_expr(N).
 
 %%%
 %%% Compiling, running and so on.
@@ -95,16 +71,6 @@ wtar() ->
 %%% Internal functions.
 %%%
 
-extract_body(Fun) ->
-    case erlang:fun_info(Fun, module) of
-	{module,erl_eval} ->
-	    case erlang:fun_info(Fun, env) of
-		{env,[{eval,{shell,local_func},_},[],Body]} -> Body;
-		_ -> exit(failed_to_extract_expression_from_fun)
-	    end;
-	_ -> exit(not_a_shell_fun)
-    end.
-
 p(String) ->
     io:put_chars(String).
 
@@ -118,7 +84,7 @@ make() ->
 
 basic_opts() ->
 %%    [{d,'DEBUG'},debug_info,report].
-    [debug_info,report].
+    [debug_info,report,warn_unused_vars].
 
 opts() ->
     Opts = basic_opts(),

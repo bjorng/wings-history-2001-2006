@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.17 2002/02/14 17:50:18 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.18 2002/03/13 11:57:39 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -93,7 +93,7 @@ fold(F, Acc, V, #we{es=Etab,vs=Vtab}) ->
     #edge{lf=Face} = gb_trees:get(Edge, Etab),
     fold(F, Acc, V, Face, Edge, Edge, Etab, not_done).
 
-fold(F, Acc, V, Face, Last, Last, Etab, done) -> Acc;
+fold(_F, Acc, _V, _Face, Last, Last, _Etab, done) -> Acc;
 fold(F, Acc0, V, Face, Edge, LastEdge, Etab, _) ->
     Acc = case gb_trees:get(Edge, Etab) of
 	      #edge{vs=V,lf=Face,rf=Other,rtpr=NextEdge}=E ->
@@ -115,11 +115,11 @@ until(F, Acc, V, #we{vs=Vtab}=We) ->
     #vtx{edge=Edge} = gb_trees:get(V, Vtab),
     until(F, Acc, V, Edge, We).
 
-until(F, Acc, V, Edge, #we{es=Etab,vs=Vtab}) ->
+until(F, Acc, V, Edge, #we{es=Etab}) ->
     #edge{lf=Face} = gb_trees:get(Edge, Etab),
     until(F, Acc, V, Face, Edge, Edge, Etab, not_done).
 
-until(F, Acc, V, Face, Last, Last, Etab, done) -> Acc;
+until(_F, Acc, _V, _Face, Last, Last, _Etab, done) -> Acc;
 until(F, Acc0, V, Face, Edge, LastEdge, Etab, _) ->
     Acc = case gb_trees:get(Edge, Etab) of
 	      #edge{vs=V,lf=Face,rf=Other,rtpr=NextEdge}=E ->
@@ -180,7 +180,7 @@ center(Vlist, Vtab) ->
 bounding_box(We) ->
     bounding_box(We, none).
 
-bounding_box(#we{vs=Vtab}=We, BB) ->
+bounding_box(#we{vs=Vtab}, BB) ->
     do_bounding_box(gb_trees:values(Vtab), BB);
 bounding_box(Vs, We) ->
     bounding_box(Vs, We, none).
@@ -246,7 +246,7 @@ per_face([V|Vs], We, Acc0) ->
 		       [{Face,V}|A]
 	       end, Acc0, V, We),
     per_face(Vs, We, Acc);
-per_face([], We, Acc) ->
+per_face([], _We, Acc) ->
     R = sofs:relation(Acc),
     F = sofs:relation_to_family(R),
     sofs:to_external(F).
@@ -283,7 +283,7 @@ dissolve(V, We) ->
 
 %% Connect vertices (which must share a face).
 
-connect(Face, [_], We) -> We;
+connect(_Face, [_], We) -> We;
 connect(Face, Vs, #we{}=We0) ->
     case polygon_pairs(Face, Vs, We0) of
 	no ->
@@ -341,7 +341,7 @@ pp_next(Iter0, Vs, Start, Acc0) ->
 		true ->
 		    case Acc0 of
 			[{V,Start}] -> Acc0;
-			Other -> Acc
+			_Other -> Acc
 		    end;
 		false ->
 		    Iter = pp_skip_one(Iter1, Vs),
@@ -402,7 +402,7 @@ nearest_pair(Face, Vs, We) ->
     Iter = wings_face:iterator(Face, We),
     nearest_pair_1(NumV, Iter, NumV, Vs, Face, We, {none,1.0e200}).
 
-nearest_pair_1(0, Iter0, NumV, Vs, Face, We, {Pair,Dist}) -> Pair;
+nearest_pair_1(0, _Iter, _NumV, _Vs, _Face, _We, {Pair,_}) -> Pair;
 nearest_pair_1(N, Iter0, NumV, Vs, Face, We, PairDist0) ->
     #we{vs=Vtab} = We,
     {V,_,_,Iter1} = wings_face:next_cw(Iter0),
@@ -438,7 +438,7 @@ nearest_pair_2(N, Iter0, Vs, Face, We, Start, Pos, PairDist0) when N > 0 ->
 		end,
 	    nearest_pair_2(N-1, Iter, Vs, Face, We, Start, Pos, PairDist)
     end;
-nearest_pair_2(N, Iter, Vs, Face, We, Start, Pos, PairDist) -> PairDist.
+nearest_pair_2(_N, _Iter, _Vs, _Face, _We, _Start, _Pos, PairDist) -> PairDist.
 
 try_connect({Start,End}, Face, We0) ->
     {We,NewFace} = force_connect(Start, End, Face, We0),
@@ -509,7 +509,7 @@ connect_3(Iter0, Face, Vend, NewFace, Etab0) ->
     case Rec of
 	#edge{vs=Vend} -> {Etab,Iter0};
 	#edge{ve=Vend} -> {Etab,Iter0};
-	Other -> connect_3(Iter, Face, Vend, NewFace, Etab)
+	_Other -> connect_3(Iter, Face, Vend, NewFace, Etab)
     end.
 
 %% connect_4(Iter, Vend, NewEdge, NeRec, Etab0) -> Etab
@@ -560,7 +560,7 @@ collect_outer_edges([Face|Fs], Faces, We, Acc0) ->
 		    outer_edge(E, Erec, Face, Faces, A)
 	    end, Acc0, Face, We),
     collect_outer_edges(Fs, Faces, We, Acc);
-collect_outer_edges([], Faces, We, Acc) ->
+collect_outer_edges([], _Faces, _We, Acc) ->
     R = sofs:relation(Acc),
     F = sofs:relation_to_family(R),
     partition_edges(gb_trees:from_orddict(sofs:to_external(F)), []).
@@ -568,9 +568,9 @@ collect_outer_edges([], Faces, We, Acc) ->
 outer_edge(Edge, Erec, Face, Faces, Acc) ->
     {V,OtherV,OtherFace} =
 	case Erec of
-	    #edge{vs=Vs,ve=Ve,lf=Face,rf=Other0,ltpr=Next0} ->
+	    #edge{vs=Vs,ve=Ve,lf=Face,rf=Other0} ->
 		{Vs,Ve,Other0};
-	    #edge{vs=Vs,ve=Ve,rf=Face,lf=Other0,rtpr=Next0} ->
+	    #edge{vs=Vs,ve=Ve,rf=Face,lf=Other0} ->
 		{Ve,Vs,Other0}
 	end,
     case gb_sets:is_member(OtherFace, Faces) of
@@ -587,7 +587,7 @@ partition_edges(Es0, Acc) ->
 	    partition_edges(Es, [Part|Acc])
     end.
 
-partition_edges(Va, _, [{Edge,Va,Vb,Face}], Es0, Acc0) ->
+partition_edges(Va, _, [{_,Va,Vb,Face}], Es0, Acc0) ->
     Acc = [Va|Acc0],
     case gb_trees:lookup(Vb, Es0) of
 	none -> {Acc,Es0};

@@ -1,14 +1,14 @@
 %%
 %%  wings_vec.erl --
 %%
-%%     This module implements vectors and the secondary selection mode.
+%%     This module implements "vectors" and the secondary selection mode.
 %%
 %%  Copyright (c) 2002 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.13 2002/03/11 11:04:02 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.14 2002/03/13 11:57:39 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -34,23 +34,38 @@ command({pick,[],[Res],Ns}, St) ->
     St;
 command({pick,[],Res,Ns}, St) ->
     Cmd = wings_menu:build_command(list_to_tuple(reverse(Res)), Ns),
+
     wings_io:putback_event({action,Cmd}),
     St;
 command({pick,[axis|More],Acc,Names}, St0) ->
     Modes = [vertex,edge,face],
     wings_io:icon_restriction(Modes),
+    Check = fun vector_exit_check/1,
     Ss = #ss{check=fun check_vector/1,
-	     exit=fun(_X, _Y, St) -> exit_vector(More, Acc, Names, St) end,
+	     exit=fun(_X, _Y, St) ->
+			  common_exit(Check, More, Acc, Names, St)
+		  end,
 	     selmodes=Modes},
     command_message("Select axis for ", Names),
     {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
 command({pick,[point|More],Acc,Names}, St0) ->
     Modes = [vertex,edge,face],
     wings_io:icon_restriction(Modes),
-    Ss = #ss{check=fun check_point/1,
-	     exit=fun(_X, _Y, St) -> exit_point(More, Acc, Names, St) end,
+    Check = fun check_point/1,
+    Ss = #ss{check=Check,
+	     exit=fun(_X, _Y, St) ->
+			  common_exit(Check, More, Acc, Names, St)
+		  end,
 	     selmodes=Modes},
     command_message("Select point for ", Names),
+    {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
+command({pick,[magnet|More],Acc,Names}, St0) ->
+    Modes = [vertex,edge,face],
+    wings_io:icon_restriction(Modes),
+    Ss = #ss{check=fun check_point/1,
+	     exit=fun(_X, _Y, St) -> exit_magnet(More, Acc, Names, St) end,
+	     selmodes=Modes},
+    command_message("Select magnet falloff for ", Names),
     {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
 command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
     wings_io:icon_restriction(Modes),
@@ -58,9 +73,8 @@ command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
     Ss = #ss{selmodes=Modes,check=Check,exit=Exit},
     {seq,{push,dummy},get_event(Ss, St)}.
 
-command_message(Prefix, [N|Ns]) ->
-    Cmd = wings_util:stringify(wings_menu:build_command(N, Ns)),
-    wings_io:message_right(Prefix ++ Cmd),
+command_message(Prefix, Ns) ->
+    wings_io:message_right(Prefix ++ command_name(Ns)),
     wings_io:message("").
 
 %%%
@@ -185,23 +199,57 @@ exit_menu_done(X, Y, MenuEntry, St) ->
 	    {"Abort Command",abort}],
     wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
 
+common_exit(Check, More, Acc, Ns, St) ->
+    case Check(St) of
+	{none,Msg} ->
+	    wings_io:message(Msg),
+	    invalid_selection;
+	{Vec,Msg} ->
+	    wings_io:message(Msg),
+	    common_exit_1(Vec, More, Acc, Ns)
+    end.
+
+common_exit_1(Vec, [], Acc, Ns) ->
+    Ps = wings_menu_util:magnet_props(vector, Ns),
+    Command = command_name(Ns),
+    case wings_menu_util:magnet_props(vector, Ns) of
+	[] ->
+	    {Command,fun(_, _) ->
+			     {vector,{pick,[],add_to_acc(Vec, Acc),Ns}}
+		     end,
+	     "Execute command",[]};
+	[magnet]=Ps ->
+	    {Command,fun(_, _, [magnet]) ->
+			     {vector,{pick,[magnet],add_to_acc(Vec, Acc),Ns}};
+			(_, _, _) -> 
+			     {vector,{pick,[],add_to_acc(Vec, Acc),Ns}}
+		     end,
+	     "Execute command",Ps}
+    end;
+common_exit_1(Vec, More, Acc, Ns) ->
+    {"Continue",fun(_, _) ->
+			{vector,{pick,More,add_to_acc(Vec, Acc),Ns}}
+		end,pick_more_help(More, Ns),[]}.
+
+pick_more_help([point|_], Ns) ->
+    "Continue to select point for " ++ command_name(Ns);
+pick_more_help([axis|_], Ns) ->
+    "Continue to select axis for " ++ command_name(Ns).
+
+add_to_acc(Vec, [radial]) -> [{radial,Vec}];
+add_to_acc(Vec, Acc) -> [Vec|Acc].
+
+command_name([N|Ns]) ->
+    wings_util:stringify(wings_menu:build_command(N, Ns)).
+
 %%%
 %%% Vector functions.
 %%%
 
-exit_vector(More, Acc, [N|Ns0]=Ns, St) ->
+vector_exit_check(St) ->
     case check_vector(St) of
-	{none,Msg} ->
-	    wings_io:message(Msg),
-	    invalid_selection;
-	{{_,Vec},Msg} ->
-	    wings_io:message(Msg),
-	    {if
-		 More == [] ->
-		     Command0 = wings_menu:build_command(N, Ns0),
-		     wings_util:stringify(Command0);
-		 true -> "Continue"
-	     end,fun(_, _) -> {vector,{pick,More,[Vec|Acc],Ns}} end}
+	{none,_}=None -> None;
+	{{_,Vec},Msg} -> {Vec,Msg}
     end.
 
 check_vector(#st{sel=[]}) -> {none,"Nothing selected"};
@@ -303,24 +351,30 @@ get_vec(_, _, _) -> {none,"Select vertices, edges, or faces."}.
 %%% Point functions.
 %%%
 
-exit_point(More, Acc, Ns, St) ->
+check_point(#st{sel=[]}) -> {none,"Nothing selected."};
+check_point(St) ->
+    Center = e3d_vec:average(wings_sel:bounding_box(St)),
+    {Center,"Midpoint of selection saved."}.
+
+%%%
+%%% Magnet functions.
+%%%
+
+exit_magnet(More, Acc, [N|Ns0]=Ns, St) ->
     case check_point(St) of
 	{none,Msg} ->
 	    wings_io:message(Msg),
 	    invalid_selection;
 	{Point,Msg} ->
 	    wings_io:message(Msg),
-	    UseAction = fun(_, _) -> {vector,{pick,More,[Point|Acc],Ns}} end,
-	    FakePoint = {0,0,0},
-	    Command0 = wings_menu:build_command(FakePoint, Ns),
-	    Command = wings_util:stringify(Command0),
-	    {Command,UseAction}
+	    Mag = {magnet,Point},
+	    {if
+		 More == [] ->
+		     Command0 = wings_menu:build_command(N, Ns0),
+		     wings_util:stringify(Command0);
+		 true -> "Continue"
+	     end,fun(_, _) -> {vector,{pick,More,[Mag|Acc],Ns}} end}
     end.
-
-check_point(#st{sel=[]}) -> {none,"Nothing selected."};
-check_point(St) ->
-    Center = e3d_vec:average(wings_sel:bounding_box(St)),
-    {Center,"Midpoint of selection saved."}.
 
 %%%
 %%% Utilities.

@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.3 2002/03/11 11:04:02 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.4 2002/03/13 11:57:39 bjorng Exp $
 %%
 
 -module(wings_menu_util).
 -export([directions/1,directions/2,scale/0,rotate/0,flatten/0,
-	 xyz/0,all_xyz/0]).
+	 magnet_props/2,xyz/0,all_xyz/0]).
 
 -include("wings.hrl").
 
@@ -24,6 +24,7 @@ directions(#st{selmode=Mode}) ->
 
 dirs(1, Mode, Ns) -> dirs_1(Mode, Ns);
 dirs(2, _Mode, _Ns) -> ignore;
+dirs(3, _Mode, [move|_]=Ns) -> {vector,{pick,[axis],[],Ns}};
 dirs(3, _Mode, Ns) -> {vector,{pick,[axis],[],Ns}};
 dirs(help, _Mode, Ns) -> dirs_help(Ns).
 
@@ -63,26 +64,41 @@ scale() ->
 scale(help, _) ->
      {"Scale along std. axis","Pick axis for radial scale",
       "Pick axis to scale along"};
-scale(1, _) ->
-    [scale_fun(uniform),
-     scale_fun(x),
-     scale_fun(y),
-     scale_fun(z),
-     scale_fun(radial_x),
-     scale_fun(radial_y),
-     scale_fun(radial_z)];
+scale(1, Ns) ->
+    [scale_fun(uniform, Ns),
+     scale_fun(x, Ns),
+     scale_fun(y, Ns),
+     scale_fun(z, Ns),
+     scale_fun({radial,x}, Ns),
+     scale_fun({radial,y}, Ns),
+     scale_fun({radial,z}, Ns)];
 scale(2, Ns) -> {vector,{pick,[axis,point],[radial],Ns}};
 scale(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
 
-scale_fun(Dir) ->
-    DirString = wings_util:stringify(Dir),
-    F = fun(1, Ns) -> wings_menu:build_command(Dir, Ns);
-	   (2, _Ns) -> ignore;
-	   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}}
+scale_fun(Dir, Names) ->
+    DirString = stringify_dir(Dir),
+    Ps = magnet_props(Dir, Names),
+    F = case Ps of
+	    [] ->
+		fun(1, Ns) -> wings_menu:build_command({Dir,center}, Ns);
+		   (2, _Ns) -> ignore;
+		   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}}
+		end;
+	    _ ->
+		fun(1, Ns, [magnet]) ->
+			{vector,{pick,[magnet],[center,Dir],Ns}};
+		   (1, Ns, _Ps) ->
+			wings_menu:build_command({Dir,center}, Ns);
+		   (2, _Ns, _Ps) -> ignore;
+		   (3, Ns, _Ps) -> {vector,{pick,[point],[Dir],Ns}}
+		end
 	end,
-    Help0 = dir_help(Dir, [scale]),
+    Help0 = dir_help(Dir, Names),
     Help = {Help0,[],"Pick point to scale to"},
-    {DirString,F,Help,[]}.
+    {DirString,F,Help,Ps}.
+
+stringify_dir({radial,Axis}) -> "Radial " ++ wings_util:stringify(Axis);
+stringify_dir(Dir) -> wings_util:stringify(Dir).
 
 %%%
 %%% Rotate sub-menu.
@@ -93,28 +109,40 @@ rotate() ->
 
 rotate(help, _) ->
     {"Rotate along std. axis",[],"Pick axis to rotate around"};
-rotate(1, [rotate,vertex]) ->
-    [rotate_fun(free),
-     rotate_fun(x),
-     rotate_fun(y),
-     rotate_fun(z)];
-rotate(1, _) ->
-    [rotate_fun(normal),
-     rotate_fun(free),
-     rotate_fun(x),
-     rotate_fun(y),
-     rotate_fun(z)];
+rotate(1, [rotate,Mode]=Ns) when Mode == vertex; Mode == body ->
+    [rotate_fun(free, Ns),
+     rotate_fun(x, Ns),
+     rotate_fun(y, Ns),
+     rotate_fun(z, Ns)];
+rotate(1, Ns) ->
+    [rotate_fun(normal, Ns),
+     rotate_fun(free, Ns),
+     rotate_fun(x, Ns),
+     rotate_fun(y, Ns),
+     rotate_fun(z, Ns)];
+rotate(2, _) -> ignore;
 rotate(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
 
-rotate_fun(Dir) ->
+rotate_fun(Dir, Names) ->
     DirString = wings_util:stringify(Dir),
-    F = fun(1, Ns) -> wings_menu:build_command(Dir, Ns);
-	   (2, _Ns) -> ignore;
-	   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}}
+    Ps = magnet_props(Dir, Names),
+    F = case Ps of
+	    [] ->
+		fun(1, Ns) -> wings_menu:build_command({Dir,center}, Ns);
+		   (2, _Ns) -> ignore;
+		   (3, Ns) -> {vector,{pick,[point],[Dir],Ns}}
+		end;
+	    [magnet] ->
+		fun(1, Ns, []) -> wings_menu:build_command({Dir,center}, Ns);
+		   (1, Ns, [magnet]) ->
+			{vector,{pick,[magnet],[center,Dir],Ns}};
+		   (2, _Ns, _Ps) -> ignore;
+		   (3, Ns, _Ps) -> {vector,{pick,[point],[Dir],Ns}}
+		end
 	end,
-    Help0 = dir_help(Dir, [rotate]),
+    Help0 = dir_help(Dir, Names),
     Help = {Help0,[],"Pick point to rotate through"},
-    {DirString,F,Help,[]}.
+    {DirString,F,Help,Ps}.
 
 %%%
 %%% Flatten submenu.
@@ -156,10 +184,19 @@ directions([], _) -> [].
 
 direction(Dir, Ns) ->
     Help = dir_help(Dir, Ns),
-    {wings_util:stringify(Dir),Dir,Help}.
+    {wings_util:stringify(Dir),Dir,Help,magnet_props(Dir, Ns)}.
+
+magnet_props(normal, _) -> [];
+magnet_props(_, [_,body]) -> [];
+magnet_props(_, [move|_]) -> [magnet];
+magnet_props(_, [scale|_]) -> [magnet];
+magnet_props(_, [rotate|_]) -> [magnet];
+magnet_props(_, _) -> [].
 
 dir_help(Axis, Ns) when Axis == x; Axis == y; Axis == z ->
     dir_help_1(Ns, "the " ++ wings_util:stringify(Axis) ++ " axis");
+dir_help({radial,Axis}, Ns) ->
+    dir_help_1(Ns, [around|"the " ++ wings_util:stringify(Axis) ++ " axis"]);
 dir_help(radial_x, Ns) ->
     dir_help_1(Ns, [around|"around the X axis"]);
 dir_help(radial_y, Ns) ->
@@ -170,7 +207,7 @@ dir_help(normal, Ns) ->
     dir_help_1(Ns, [normal|"along its normal"]);
 dir_help(free, Ns) ->
     dir_help_1(Ns, [free|"freely in all directions"]);
-dir_help(uniform, [scale]) ->
+dir_help(uniform, [scale|_]) ->
     "Scale equally in all directions".
 
 %% Normal/Free.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.41 2002/03/11 11:04:02 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.42 2002/03/13 11:57:39 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -852,8 +852,8 @@ lift_from_edge_2(Dir, Face, Edge, Side, #we{id=Id,es=Etab}=We0, Tv) ->
 			right -> e3d_vec:sub(VaPos, VbPos)
 		    end,
 	    Axis = e3d_vec:norm(Axis0),
-	    Rot = wings_rotate:rotate(Axis, VaPos, FaceVs, We),
-	    {We,[{Id,Rot}|Tv]};
+	    Rot = wings_rotate:rotate(Axis, VaPos, FaceVs, We, Tv),
+	    {We,Rot};
 	_Other ->
 	    Vec = wings_util:make_vector(Dir),
 	    Move = wings_move:setup_we(vertex, Vec,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.25 2002/03/11 16:03:19 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.26 2002/03/13 11:57:39 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -21,13 +21,14 @@
 -compile({inline,[{mix,2}]}).
 
 sub_menu(_St) ->
+    InflateHelp = {"Inflate elements",[],"Pick center and radius"},
     {deform,fun(help, _Ns) -> "";
 	       (1, _Ns) ->
 		    XYZ = [{"X",x},
 			   {"Y",y},
 			   {"Z",z}],
 		    [{"Crumple",crumple},
-		     {"Inflate",{inflate,inflate_fun()}},
+		     {"Inflate",inflate_fun(),InflateHelp,[]},
 		     {"Taper",{taper,
 			       [{"Along",ignore},
 				separator,
@@ -80,7 +81,7 @@ inflate_fun() ->
     fun(help, _) -> {"Inflate elements",[],"Pick center and radius"};
        (1, _Ns) -> {vertex,{deform,inflate}};
        (2, _Ns) -> ignore;
-       (3, Ns) -> {vector,{pick,[point,point],[],Ns}}
+       (3, Ns) -> {vector,{pick,[point,point],[],[inflate|Ns]}}
     end.
 
 command(crumple, St) -> crumple(St);

@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.21 2002/03/03 17:02:53 bjorng Exp $
+#     $Id: Makefile,v 1.22 2002/03/13 11:57:39 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -23,7 +23,7 @@ ERLC=erlc
 ifeq ($(TYPE),debug)
 TYPE_FLAGS=-DDEBUG +debug_info
 else
-TYPE_FLAGS=
+TYPE_FLAGS=+warn_unused_vars
 endif
 
 MODULES= \
