@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.49 2001/11/20 12:49:22 bjorng Exp $
+%%     $Id: wings.erl,v 1.50 2001/11/20 13:52:35 bjorng Exp $
 %%
 
 -module(wings).
@@ -112,8 +112,10 @@ resize(W, H, St) ->
     sdl_video:setVideoMode(W, H, 16, ?SDL_OPENGL bor ?SDL_RESIZABLE),
     gl:enable(?GL_LIGHT0),
     gl:enable(?GL_LIGHT1),
-    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {0.75,0.75,0.75}),
-    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {0.25,0.25,0.25}),
+    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {1,1,1}),
+    gl:lightfv(?GL_LIGHT0, ?GL_AMBIENT, {0.2,0.2,0.2}),
+    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {0.5,0.5,0.5}),
+    gl:lightfv(?GL_LIGHT1, ?GL_AMBIENT, {0.2,0.2,0.2}),
     gl:enable(?GL_DEPTH_TEST),
     {R,G,B} = wings_pref:get_value(background_color),
     gl:clearColor(R, G, B, 1.0),
