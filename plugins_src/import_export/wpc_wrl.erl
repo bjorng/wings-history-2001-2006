@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.12 2005/02/03 11:42:07 dgud Exp $
+%%     $Id: wpc_wrl.erl,v 1.13 2005/02/05 15:07:02 dgud Exp $
 %%
 
 -module(wpc_wrl).
@@ -17,6 +17,7 @@
 %% Thanks KayosIII (Danni Aaron Coy) who wrote the export of UV coordinates 
 %%
 %% And I rewrote it to support normals and split_by_materials.
+%% Subdivision levels and stuff
 %% /Dan
 
 -export([init/0, menu/2, command/2]).
@@ -34,26 +35,50 @@ menu({file, export_selected}, Menu) ->
     menu_entry(Menu);
 menu(_, Menu) -> Menu.
 
-command({file, {export, wrl}}, St) ->
-    Props = props(),
-    wpa:export(Props, fun export/2, St);
-command({file, {export_selected, wrl}}, St) ->
-    Props = props(),
-    wpa:export_selected(Props, fun export/2, St);
+command({file,{export,{wrl,Ask}}}, St) ->
+    Exporter = fun(Ps, Fun) -> wpa:export(Ps, Fun, St) end,
+    do_export(Ask, export, Exporter, St);
+command({file,{export_selected,{wrl,Ask}}}, St) ->
+    Exporter = fun(Ps, Fun) -> wpa:export_selected(Ps, Fun, St) end,
+    do_export(Ask, export_selected, Exporter, St);
 command(_, _) -> next.
 
 menu_entry(Menu) ->
-    Menu ++ [{"VRML 2.0 (.wrl)...", wrl}].
+    Menu ++ [{"VRML 2.0 (.wrl)...", wrl, [option]}].
 
 props() ->
     [{ext, ".wrl"},{ext_desc, "VRML 2.0 File"}].
 
+do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
+    wpa:dialog(Ask, "VRML Export Options", dialog(export),
+	       fun(Res) ->
+		       {file,{Op,{wrl,Res}}}
+	       end);
+do_export(Attr, _Op, Exporter, _St) when is_list(Attr) ->
+    set_pref(Attr),
+    SubDivs = proplists:get_value(subdivisions, Attr, 0),
+    Ps = [{subdivisions,SubDivs}|props()],
+    Exporter(Ps, export_fun(Attr)).
+
+export_fun(Attr) ->
+    fun(Filename, Contents) ->
+	    export(Filename, Contents, Attr)
+    end.
+set_pref(KeyVals) ->
+    wpa:pref_set(?MODULE, KeyVals).
+
+dialog(export) ->
+    wpa:pref_set_default(?MODULE, default_filetype, ".jpg"),
+    [panel,wpa:dialog_template(?MODULE, export)].
+
 %% The intent is to create each object from
 %% a sequence of Shapes. Each "sub Shape" will consist of all the
 %% faces and vertices for one material..
-export(File_name, Export0) ->
-    %io:format("~p~n~p~n",[Objs, Mat]),
-    Export = wpa:save_images(Export0, filename:dirname(File_name), ".jpg"),
+export(File_name, Export0, Attr) ->
+    %%io:format("~p~n~p~n",[Objs, Mat]),
+    Filetype = proplists:get_value(default_filetype, Attr, ".jpg"),
+    Export1 = wpa:save_images(Export0, filename:dirname(File_name), Filetype),
+    Export = export_transform(Export1, Attr),
     #e3d_file{objs=Objs,mat=Mat,creator=Creator} = Export,
     {ok,F} = file:open(File_name, [write]),
     io:format(F, "#VRML V2.0 utf8\n", []),
@@ -74,6 +99,10 @@ export(File_name, Export0) ->
 	    io:format("VRML Error: ~P in ~p~n", [Err,30, erlang:get_stacktrace()])
     end,
     ok = file:close(F).
+
+export_transform(Contents, Attr) ->
+    Mat = wpa:export_matrix(Attr),
+    e3d_file:transform(Contents, Mat).
 
 export_object(F, #e3d_mesh{fs=Fs,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab}, 
 	      Mat_defs, Used_mats0) ->
@@ -123,7 +152,9 @@ export_object(F, #e3d_mesh{fs=Fs,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab},
 	    io:format(F, " ] }\n",[]),   
 	    io:put_chars(F, "        texCoordIndex [\n"),
 	    all(fun(#e3d_face{tx=UV}) -> print_face(F, UV) end,F,Fs),
-	    io:put_chars(F, " ]\n")
+	    io:put_chars(F, " ]\n");
+	true ->
+	    ignore
     end,
     %% Close Shape and IndexedFaceSet
     io:put_chars(F, "      }\n    }"),
