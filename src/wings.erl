@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.79 2001/12/30 22:18:44 bjorng Exp $
+%%     $Id: wings.erl,v 1.80 2001/12/31 13:55:19 bjorng Exp $
 %%
 
 -module(wings).
@@ -92,7 +92,7 @@ init_1() ->
     %% On Solaris/Sparc, we must initialize twice the first time to
     %% get the requested size. Should be harmless on other platforms.
     caption(St1),
-    St = resize(780, 580, St1),
+    St = resize(780, 570, St1),
     wings_io:enter_event_loop(main_loop(St)),
     wings_file:finish(),
     wings_pref:finish(),
@@ -309,71 +309,11 @@ command({edit,{preferences,Pref}}, St) ->
 command({edit,purge_undo}, St) ->
     wings_undo:purge(St);
 
-%% Select menu
-command({select,edge_loop}, St) ->
-    {save_state,wings_edge_loop:select_loop(St)};
-command({select,next_edge_loop}, St) ->
-    {save_state,wings_edge_loop:select_next(St)};
-command({select,prev_edge_loop}, St) ->
-    {save_state,wings_edge_loop:select_prev(St)};
-command({select,select_region}, St) ->
-    {save_state,wings_edge:select_region(St)};
-command({select,more}, St) ->
-    wings_sel:select_more(St);
-command({select,less}, St) ->
-    wings_sel:select_less(St);
-command({select,{material,Mat}}=Cmd, St) ->
-    wings_material:command(Cmd, St);
-command({select,all}, St) ->
-    {save_state,wings_sel:select_all(St)};
-command({select,{all,Mode}}, St) ->
-    wings_sel:select_all(St#st{selmode=Mode});
-command({select,hard_edges}, St) ->
-    Sel = fun(Edge, #we{he=Htab}) ->
-		  gb_sets:is_member(Edge, Htab)
-	  end,
-    {save_state,wings_sel:make(Sel, edge, St)};
-command({select,{vertices_with,N}}, St) ->
-    Sel = fun(V, We) ->
-		  Cnt = wings_vertex:fold(
-			  fun(_, _, _, Cnt) ->
-				  Cnt+1
-			  end, 0, V, We),
-		  Cnt =:= N
-	  end, 
-    {save_state,wings_sel:make(Sel, vertex, St)};
-command({select,{faces_with,5}}, St) ->
-    Sel = fun(Face, We) ->
-		    length(wings_face:surrounding_vertices(Face, We)) >= 5
-	    end,
-    {save_state,wings_sel:make(Sel, face, St)};
-command({select,{faces_with,N}}, St) ->
-    Sel = fun(Face, We) ->
-		  N =:= length(wings_face:surrounding_vertices(Face, We))
-	  end,
-    {save_state,wings_sel:make(Sel, face, St)};
-command({select,similar}, St) ->
-    {save_state,wings_sel:similar(St)};
-command({select,{random,Percent}}, St) ->
-    {save_state,wings_sel:random(Percent, St)};
-command({select,save}, St) ->
-    {save_state,wings_sel:save(St)};
-command({select,load}, St) ->
-    {save_state,wings_sel:load(St)};
-command({select,exchange}, St) ->
-    {save_state,wings_sel:exchange(St)};
-command({select,union}, St) ->
-    {save_state,wings_sel:union(St)};
-command({select,subtract}, St) ->
-    {save_state,wings_sel:subtract(St)};
-command({select,intersection}, St) ->
-    {save_state,wings_sel:intersection(St)};
-command({select,inverse}, St) ->
-    {save_state,wings_sel:inverse(St)};
+%% Select menu.
+command({select,Command}, St) ->
+    wings_sel_cmd:command(Command, St);
 
-command({select,Type}, St) ->
-    set_select_mode(Type, St);
-
+%% View menu.
 command({view,Command}, St) ->
     wings_view:command(Command, St);
 
@@ -517,57 +457,7 @@ menu(X, Y, edit, St) ->
 menu(X, Y, view, St) ->
     wings_view:menu(X, Y, St);
 menu(X, Y, select, St) ->
-    Menu = {{"Deselect","Space",deselect},
-	    separator,
-	    {"More","+",more},
-	    {"Less","-",less},
-	    {"Region","L",select_region},
-	    {"Edge Loop","l",edge_loop},
-	    {"Previous Edge Loop [BETA]","F3",prev_edge_loop},
-	    {"Next Edge Loop [BETA]","F4",next_edge_loop},
-	    {"Similar","i",similar},
-	    separator,
-	    {"Adjacent vertices","v",vertex},
-	    {"Adjacent edges","e",edge},
-	    {"Adjacent faces","f",face},
-	    separator,
-	    {"All",{all,{menu_item_sel_all(vertex, "vertices", St),
-			 menu_item_sel_all(face, "faces", St),
-			 menu_item_sel_all(edge, "edges", St),
-			 menu_item_sel_all(body, "objects", St)}}},
-	    separator,
-	    {"Hard edges",hard_edges},
-	    {"Vertices with",{vertices_with,
-			      {{"2 edges",2},
-			       {"3 edges",3},
-			       {"4 edges",4},
-			       {"5 edges",5}}}},
-	    {"Faces with",{faces_with,
-			   {{"2 edges",2},
-			    {"3 edges",3},
-			    {"4 edges",4},
-			    {"5 or more edges","F5",5}}}},
-	    wings_material:sub_menu(select, St),
-	    {"Random",{random,{{"10%",10},
-			       {"20%",20},
-			       {"30%",30},
-			       {"40%",40},
-			       {"50%",50},
-			       {"60%",60},
-			       {"70%",70},
-			       {"80%",80},
-			       {"90%",90}}}},
-	    separator,
-	    {"Inverse","Ctrl-Shift-I",inverse},
-	    separator,
-	    {"Store selection",save},
-	    {"Recall selection",load},
-	    {"Exchange selection",exchange},
-	    separator,
-	    {"Union with stored",union},
-	    {"Subtract with stored",subtract},
-	    {"Intersection with stored",intersection}},
-    wings_menu:menu(X, Y, select, Menu, St);
+    wings_sel_cmd:menu(X, Y, St);
 menu(X, Y, tools, St) ->
     Dirs = {{"All",all},
 	    {"X",x},
@@ -589,11 +479,6 @@ menu(X, Y, objects, St) ->
 menu(X, Y, help, St) ->
     Menu = {{"About",about}},
     wings_menu:menu(X, Y, help, Menu, St).
-
-menu_item_sel_all(Mode, What, #st{selmode=Mode}) ->
-    {cap(What),"Ctrl-A",Mode};
-menu_item_sel_all(Mode, What, St) ->
-    {cap(What),Mode}.
 
 vertex_menu(X, Y, St) ->
     XYZ = xyz(),
@@ -740,10 +625,6 @@ scale() ->
 	       {"Radial X (YZ)",radial_x},
 	       {"Radial Y (XZ)",radial_y},
 	       {"Radial Z (XY)",radial_z}}}}.
-
-set_select_mode(deselect, St) -> {save_state,St#st{sel=[]}};
-set_select_mode(Type, St) ->
-    {save_state,wings_sel:convert_selection(Type, St)}.
 
 info(#st{sel=[]}) -> "";
 info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
@@ -901,21 +782,11 @@ command_name(CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
     lists:flatten(S).
 
 stringify({Atom,Other}) when atom(Atom) ->
-    cap(atom_to_list(Atom)) ++ "->" ++ stringify(Other);
+    wings_util:cap(atom_to_list(Atom)) ++ "->" ++ stringify(Other);
 stringify(Atom) when atom(Atom) ->
-    cap(atom_to_list(Atom));
+    wings_util:cap(atom_to_list(Atom));
 stringify(Int) when integer(Int) ->
     integer_to_list(Int).
-
-cap(Str) ->
-    cap(Str, true).
-cap([Lower|T], true) when $a =< Lower, Lower =< $z ->
-    [Lower-$a+$A|cap(T, false)];
-cap([$_|T], Any) ->
-    [$\s|cap(T, true)];
-cap([H|T], Any) ->
-    [H|cap(T, false)];
-cap([], Flag) -> [].
 
 -ifdef(DEBUG).
 wings() -> "Wings 3D [debug]".
