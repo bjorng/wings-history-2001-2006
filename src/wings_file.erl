@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.100 2003/01/29 21:37:42 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.101 2003/01/30 09:43:12 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -415,7 +415,7 @@ add_recent(Name) ->
 	_Other -> ok
     end.
 
-add_recent(File, [A,B,C|_]) -> [File,A,B,C];
+add_recent(File, [A,B,C,D,E|_]) -> [File,A,B,C,D,E];
 add_recent(File, Recent) -> [File|Recent].
 
 recent_files(Rest) ->
