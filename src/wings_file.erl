@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.126 2003/07/12 08:58:38 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.127 2003/07/25 08:52:33 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -201,13 +201,13 @@ merge(St0) ->
 	aborted -> St0;
 	Name ->
 	    Fun = fun(File) ->
-			  St1 = St0#st{vec=wings_image:next_id()},
+			  St1 = St0#st{saved=wings_image:next_id()},
 			  case ?SLOW(wings_ff_wings:import(File, St0)) of
 			      {error,Reason} ->
 				  clean_new_images(St1),
 				  wings_util:error("Read failed: " ++ Reason);
 			      #st{}=St ->
-				  St#st{vec=none}
+				  St#st{saved=false}
 			  end
 		  end,
 	    use_autosave(Name, Fun)
@@ -555,16 +555,15 @@ clean_st(St) ->
     DefMat = wings_material:default(),
     Empty = gb_trees:empty(),
     Limit = wings_image:next_id(),
-    St#st{onext=1,shapes=Empty,mat=DefMat,sel=[],ssels=Empty,vec=Limit}.
+    St#st{onext=1,shapes=Empty,mat=DefMat,sel=[],ssels=Empty,saved=Limit}.
 
-clean_images(#st{vec=Limit}=St) when is_integer(Limit) ->
+clean_images(#st{saved=Limit}=St) when is_integer(Limit) ->
     wings_draw_util:map(fun(D, _) -> D#dlo{proxy_data=none} end, []),
     wings_image:delete_older(Limit),
-    St#st{vec=none}.
+    St#st{saved=false}.
 
-clean_new_images(#st{vec=Limit}=St) when is_integer(Limit) ->
-    wings_image:delete_from(Limit),
-    St#st{vec=none}.
+clean_new_images(#st{saved=Limit}) when is_integer(Limit) ->
+    wings_image:delete_from(Limit).
     
 %%%
 %%% Generic import code.
