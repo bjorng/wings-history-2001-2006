@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.63 2002/08/18 08:43:06 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.64 2002/08/27 05:37:04 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -701,7 +701,7 @@ read_out(Eq0) ->
 	    receive
 		{timeout,Ref,{event,Event}} when is_reference(Ref) ->
 		    {Event,Eq0}
-	    after 50 ->
+	    after 20 ->
 		    read_events(Eq)
 	    end
     end.
