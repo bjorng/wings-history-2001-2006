@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.97 2003/05/27 21:27:07 raimo_niskanen Exp $
+%%     $Id: wings_material.erl,v 1.98 2003/05/28 08:02:56 raimo_niskanen Exp $
 %%
 
 -module(wings_material).
@@ -453,7 +453,7 @@ edit(Name, Assign, #st{mat=Mtab0}=St) ->
 					   {key,opacity}]}}]}]
 	     }|Maps0]
 	   }],
-    {_,Qs} = wings_plugin:dialog(material_editor_setup, Name, Mat0, Qs1),
+    Qs = wings_plugin:dialog({material_editor_setup,Name,Mat0}, Qs1),
     Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
 	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}|More]) ->
 		  OpenGL = [ask_prop_put(diffuse, Diff, Opacity),
@@ -462,7 +462,7 @@ edit(Name, Assign, #st{mat=Mtab0}=St) ->
 			    ask_prop_put(emission, Emiss, Opacity),
 			    {shininess,Shine}],
 		  Mat1 = keyreplace(opengl, 1, Mat0, {opengl,OpenGL}),
-		  Mat = plugin_results(Name, More, Mat1),
+		  Mat = plugin_results(Name, Mat1, More),
 		  Mtab = gb_trees:update(Name, Mat, Mtab0),
 		  maybe_assign(Assign, Name, St#st{mat=Mtab})
 	  end,
@@ -471,8 +471,8 @@ edit(Name, Assign, #st{mat=Mtab0}=St) ->
 maybe_assign(false, _, St) -> St;
 maybe_assign(true, Name, St) -> set_material(Name, St).
 
-plugin_results(Name, Res0, Mat0) ->
-    case wings_plugin:dialog(material_editor_result, Name, Mat0, Res0) of
+plugin_results(Name, Mat0, Res0) ->
+    case wings_plugin:dialog_result({material_editor_result,Name,Mat0}, Res0) of
 	{Mat,[]} ->
 	    Mat;
 	{_,Res} ->

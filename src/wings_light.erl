@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.33 2003/05/27 21:27:07 raimo_niskanen Exp $
+%%     $Id: wings_light.erl,v 1.34 2003/05/28 08:02:55 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
@@ -330,7 +330,7 @@ edit_1(#we{id=Id,light=#light{type=ambient,ambient=Amb0}=L0}=We0, Shs, St) ->
     Qs = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
     wings_ask:dialog("Ambient Light Properties", Qs,
 		     fun([Amb|Res]) ->
-			     Prop = plugin_results(Name, Res, Prop0),
+			     Prop = plugin_results(Name, Prop0, Res),
 			     L = L0#light{ambient=Amb,prop=Prop},
 			     We = We0#we{light=L},
 			     St#st{shapes=gb_trees:update(Id, We, Shs)}
@@ -348,18 +348,18 @@ edit_1(#we{id=Id,light=L0}=We0, Shs, St) ->
 	       {color,Spec0}]}],
 	    [{title,"Colors"}]}|qs_specific(L0)],
     {Name,Prop0} = get_light(We0),
-    {_,Qs} = wings_plugin:dialog(light_editor_setup, Name, Prop0, Qs0),
+    Qs = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
     wings_ask:dialog("Light Properties", Qs,
 		     fun([Diff,Amb,Spec|More0]) ->
 			     L1 = L0#light{diffuse=Diff,ambient=Amb,specular=Spec},
 			     {L,More} = edit_specific(More0, L1),
-			     Prop = plugin_results(Name, More, Prop0),
+			     Prop = plugin_results(Name, Prop0, More),
 			     We = We0#we{light=L#light{prop=Prop}},
 			     St#st{shapes=gb_trees:update(Id, We, Shs)}
 		     end).
 
-plugin_results(Name, Res0, Prop0) ->
-    case wings_plugin:dialog(light_editor_result, Name, Prop0, Res0) of
+plugin_results(Name, Prop0, Res0) ->
+    case wings_plugin:dialog_result({light_editor_result,Name,Prop0}, Res0) of
 	{Prop,[]} ->
 	    keydelete(opengl, 1, Prop);
 	{_,Res} ->
