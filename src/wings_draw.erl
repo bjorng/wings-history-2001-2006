@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.73 2002/04/27 07:38:53 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.74 2002/05/07 06:22:09 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -278,27 +278,31 @@ draw_faces() ->
 
 update_display_lists(Workmode, St) ->
     case get_dlist() of
-	undefined -> update_display_lists_1(Workmode, #dl{}, St);
+	undefined ->
+	    put_dlist(#dl{}),
+	    update_display_lists(Workmode, St);
 	#dl{faces=none}=DL when Workmode == true ->
-	    update_display_lists_1(Workmode, DL, St);
+	    update_display_lists_plain(DL, St);
 	#dl{smooth=none}=DL when Workmode == false ->
-	    update_display_lists_1(Workmode, DL, St);
+	    update_display_lists_smooth(DL, St);
 	_ -> ok
+    end,
+    case {wings_pref:get_value(wire_mode),get_dlist()} of
+	{true,#dl{faces=none}} ->
+	    update_display_lists(true, St);
+	{_,_} -> ok
     end.
 
-update_display_lists_1(false, DL0, #st{shapes=Shs}=St) ->
+update_display_lists_smooth(DL0, #st{shapes=Shs}=St) ->
     gl:newList(?DL_SMOOTH, ?GL_COMPILE),
     foreach(fun(#we{perm=Perm}=We) when ?IS_VISIBLE(Perm) ->
 		    smooth_faces(We, St);
 	       (#we{}) -> ok
 	    end, gb_trees:values(Shs)),
     gl:endList(),
-    put_dlist(DL0#dl{smooth=?DL_SMOOTH}),
-    case wings_pref:get_value(wire_mode) of
-	false -> ok;
-	true -> update_display_lists(true, St)
-    end;
-update_display_lists_1(true, DL0, #st{shapes=Shs}=St) ->
+    put_dlist(DL0#dl{smooth=?DL_SMOOTH}).
+
+update_display_lists_plain(DL0, #st{shapes=Shs}=St) ->
     gl:newList(?DL_FACES, ?GL_COMPILE),
     foreach(fun(#we{perm=Perm}=We) when ?IS_VISIBLE(Perm) ->
 		    draw_faces(We, St);
