@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.126 2003/01/31 17:20:49 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.127 2003/02/05 06:57:10 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -335,7 +335,6 @@ handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, Drag0) -
 handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     wings_wm:release_focus(),
     wings_io:ungrab(),
-    clear_sel_dlists(),
     Drag = ?SLOW(motion_update(Move, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
@@ -349,8 +348,8 @@ handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, _Drag) ->
     pop;
 handle_drag_event_1(view_changed, Drag) ->
     get_drag_event(view_changed(Drag));
-handle_drag_event_1({action,{numeric_input,Move}}, Drag) ->
-    handle_drag_event_1({drag_arguments,Move}, Drag);
+handle_drag_event_1({action,{numeric_input,Move}}, _) ->
+    wings_wm:send(geom, {drag_arguments,Move});
 handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
     Drag = case wings_hotkey:event(Event) of
 	       next -> Drag0;
