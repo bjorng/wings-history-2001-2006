@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.37 2003/12/30 14:41:05 bjorng Exp $
+%%     $Id: wpa.erl,v 1.38 2003/12/30 15:52:57 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -28,7 +28,7 @@
 	 edge_loop_vertices/2,
 	 obj_name/1,obj_id/1,
 	 camera_info/1,lights/1,import_lights/2,
-	 image_formats/0,image_read/1,
+	 image_formats/0,image_read/1,image_write/1,
 	 vm_freeze/1,
 	 triangulate/1,triangulate/2,quadrangulate/1,quadrangulate/2
 	]).
@@ -347,6 +347,9 @@ image_formats() ->
 
 image_read(Ps) ->
     wings_plugin:call_ui({image,read,Ps}).
+
+image_write(Ps) ->
+    wings_plugin:call_ui({image,write,Ps}).
 
 %%%
 %%% Virtual mirror.

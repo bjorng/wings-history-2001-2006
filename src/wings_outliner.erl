@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.46 2003/11/24 12:53:10 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.47 2003/12/30 15:52:56 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -337,20 +337,21 @@ rename_image(Id) ->
 		  end).
 
 make_external(Id) ->
-    Ps = [{extensions,wpa:image_formats()}],
-    case wpa:export_filename(Ps, #st{file=undefined}) of
-	aborted -> keep;
-	FileName ->
-	    Image = wings_image:info(Id),
-	    case ?SLOW((catch e3d_image:save(Image, FileName))) of
-		ok ->
-		    wings_image:update_filename(Id, FileName),
-		    keep;
-		{_, Error0} ->
-		    Error = FileName ++ ": " ++ file:format_error(Error0),
-		    wings_util:message("Export failed: " ++ Error)
-	    end
-    end.
+    Save = fun(Name) ->
+		   Image = wings_image:info(Id),
+		   Ps = [{image,Image},{filename,Name}],
+		   case catch wpa:image_write(Ps) of
+		       ok ->
+			   wings_image:update_filename(Id, Name),
+			   keep;
+		       {_,Error0} ->
+			   Error = Name ++ ": " ++ file:format_error(Error0),
+			   wings_util:message(Error)
+		   end
+	   end,
+    Ps = [{directory,wings_pref:get_value(current_directory)},
+	  {extensions,wpa:image_formats()}],
+    wpa:export_filename(Ps, Save).
 
 refresh_image(Id) ->
     #e3d_image{filename=Filename} = wings_image:info(Id),
@@ -370,18 +371,19 @@ make_internal(Id) ->
     keep.
 
 export_image(Id) ->
-    Ps = [{extensions,wpa:image_formats()}],
-    case wpa:export_filename(Ps, #st{file=undefined}) of
-	aborted -> keep;
-	FileName ->
-	    Image = wings_image:info(Id),
-	    case ?SLOW((catch e3d_image:save(Image, FileName))) of
-		ok ->  keep;
-		{_, Error0} ->
-		    Error = FileName ++ ": " ++ file:format_error(Error0),
-		    wings_util:message("Export failed: " ++ Error)
-	    end
-    end.
+    Save = fun(Name) ->
+		   Image = wings_image:info(Id),
+		   Ps = [{image,Image},{filename,Name}],
+		   case catch wpa:image_write(Ps) of
+		       ok -> keep;
+		       {_,Error0} ->
+			   Error = Name ++ ": " ++ file:format_error(Error0),
+			   wings_util:message(Error)
+		   end
+	   end,
+    Ps = [{directory,wings_pref:get_value(current_directory)},
+	  {extensions,wpa:image_formats()}],
+    wpa:export_filename(Ps, Save).
 
 %%%
 %%% Drag and drop.

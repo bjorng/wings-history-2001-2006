@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.32 2003/12/30 14:37:19 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.33 2003/12/30 15:52:56 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -31,6 +31,8 @@ ui({image,formats,Formats}, _Next) ->
     image_formats(Formats);
 ui({image,read,Prop}, _Next) ->
     read_image(Prop);
+ui({image,write,Prop}, _Next) ->
+    write_image(Prop);
 ui(What, Next) -> Next(What).
 
 save_file(Prompt, Prop) ->
@@ -68,6 +70,11 @@ read_image(Prop) ->
     Name = proplists:get_value(filename, Prop),
     e3d_image:load(Name, Prop).
 
+write_image(Prop) ->
+    Name = proplists:get_value(filename, Prop),
+    Image = proplists:get_value(image, Prop),
+    e3d_image:save(Image, Name, Prop).
+
 image_formats(Fs0) ->
     Fs1 = [{".bmp","BMP Bitmap File"},
 	   {".tif","Tiff Bitmap"},
@@ -76,7 +83,6 @@ image_formats(Fs0) ->
     Fs3 = sofs:relation_to_family(Fs2),
     Fs = sofs:to_external(Fs3),
     [{Ext,Desc} || {Ext,[Desc|_]} <- Fs].
-
 
 %%%
 %%% File dialogs implemented using the dialog handler.
