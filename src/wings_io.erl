@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.35 2002/02/03 07:25:53 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.36 2002/02/03 22:44:21 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,menubar/1,resize/2,display/1,
+	 icon_restriction/1,clear_icon_restriction/0,
 	 hourglass/0,
 	 draw_ui/1,
 	 update/1,
@@ -34,7 +35,7 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [flatmap/2,foldl/3,keysearch/3,
+-import(lists, [flatmap/2,foldl/3,keysearch/3,member/2,
 		reverse/1,foreach/2,last/1]).
 
 -define(ICON_WIDTH, 45).
@@ -54,7 +55,8 @@
 	 hourglass,				%Hourglass cursor.
 	 arrow,					%Arrow cursor.
 	 raw_icons,				%Raw icon bundle.
-         progress_pos				%Progress position.
+         progress_pos,				%Progress position.
+	 selmodes=all				%Which icons to show.
 	}).
 
 init() ->
@@ -142,6 +144,13 @@ clear_message() ->
 
 clear_menu_sel() ->
     put_state((get_state())#io{sel=undefined,message=undefined}).
+
+icon_restriction(Modes) ->
+
+    put_state((get_state())#io{selmodes=Modes}).
+
+clear_icon_restriction() ->
+    put_state((get_state())#io{selmodes=all}).
 
 display(F) ->
     #io{w=W,h=H} = Io = get_state(),
@@ -235,11 +244,15 @@ draw_bar(X, [{Name,Item}|T], Sel) ->
     draw_bar(X+W, T, Sel);
 draw_bar(X, [], Sel) -> ok.
 
-draw_icons(#io{w=W,h=H,icons=Icons}, St) ->
+draw_icons(#io{w=W,h=H,icons=Icons0,selmodes=Modes}, St) ->
     raised_rect(-2, H-4*?LINE_HEIGHT-3, W+2, 4*?LINE_HEIGHT+3),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     Y = H-4*?LINE_HEIGHT+2,
+    Icons = case Modes of
+		all -> Icons0;
+		_ -> [Icon || {_,Name}=Icon <- Icons0, member(Name, Modes)]
+	    end,
     foreach(fun({X,Name}) ->
 		    draw_icon(X, Y, icon_button(Name, St))
 	    end, Icons),

@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.32 2002/02/03 08:57:29 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.33 2002/02/03 22:44:21 bjorng Exp $
 %f%
 
 -module(wings_face_cmd).
 -export([extrude/2,extrude_region/2,extract_region/2,
 	 inset/1,dissolve/1,smooth/1,bridge/1,
 	 intrude/1,mirror/1,flatten/2,flatten_move/2,
-	 lift_selection/1,lift/2]).
+	 lift_selection/2,lift/2]).
 -export([outer_edge_partition/2]).
 
 -include("wings.hrl").
@@ -666,68 +666,71 @@ are_neighbors(FaceA, FaceB, We) ->
 %%% The Lift command.
 %%%
 
-lift_selection(OrigSt) ->
-    {fun(St) ->
-	     wings_io:message("Select the edge to keep fixed."),
+lift_selection(Dir, OrigSt) ->
+    {[edge],
+     fun(St) ->
+	     wings_io:message("Select edge to work as hinge."),
 	     St#st{selmode=edge,sel=[]}
      end,
      fun(_) -> {none,""} end,
-     fun lift_exit/3}.
+     fun(X, Y, #st{selmode=Mode,sel=Sel}) ->
+	     Lift = fun(_, _) -> {face,{lift,{Dir,Mode,Sel}}} end,
+	     {"Lift",Lift}
+     end}.
 
-lift_exit(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
-    Lift = fun(_, _) -> {face,{lift,{Mode,Sel}}} end,
-    Menu = [{"Vector Selection",ignore},
-	    separator,
-	    {"Lift",Lift},
-	    {"Abort Command",aborted}],
-    {seq,pop,wings_menu:popup_menu(X, Y, secondary_selection, Menu, St)}.
+lift({Dir,edge,EdgeSel}, St) ->
+    lift_from_edge(Dir, EdgeSel, St);
+lift(Dir, St) ->
+    Funs = lift_selection(Dir, St),
+    wings_io:putback_event({action,{vector,{pick_special,Funs}}}),
+    St.
 
-lift({edge,EdgeSel}, St) ->
-    lift_from_edge(EdgeSel, St);
-lift(_, St) -> St.
-
-lift_from_edge(EdgeSel, St0) ->
+lift_from_edge(Dir, EdgeSel, St0) ->
     Res = wings_sel:mapfold(
 	    fun(Faces, #we{id=Id}=We0, {[{Id,Edges}|ES],Tv0}) ->
-		    {We,Tv} = lift_from_edge(Faces, Edges, We0, Tv0),
+		    {We,Tv} = lift_from_edge(Dir, Faces, Edges, We0, Tv0),
 		    {We,{ES,Tv}};
 	       (_, _, _) -> lift_sel_mismatch()
 	    end, {EdgeSel,[]}, St0),
     case Res of
-	{St,{[],Tvs}} ->
+	{St,{[],Tvs}} when Dir == rotate ->
 	    wings_drag:init_drag(Tvs, none, angle, St);
+	{St,{[],Tvs}} when Dir == free ->
+	    wings_drag:init_drag(Tvs, view_dependent, distance, St);
+	{St,{[],Tvs}} ->
+	    wings_drag:init_drag(Tvs, none, distance, St);
 	{_,_} -> lift_sel_mismatch()
     end.
 
 lift_sel_mismatch() ->
     throw({command_error, "Face and edge selections don't match."}).
 	
-lift_from_edge(Faces, Edges, We0, Tv) ->
+lift_from_edge(Dir, Faces, Edges, We0, Tv) ->
     EsFs0 = wings_face:fold_faces(
 	      fun(Face, _, Edge, _, A) -> [{Edge,Face}|A] end,
 	      [], Faces, We0),
     EsFs1 = sofs:relation(EsFs0, [{edge,face}]),
     EsFs = sofs:restriction(EsFs1, sofs:set(gb_sets:to_list(Edges), [edge])),
     FaceToEdge0 = sofs:converse(EsFs),
-    case sofs:is_a_function(FaceToEdge0)  of
+    case sofs:is_a_function(FaceToEdge0) of
 	false ->
 	    lift_sel_mismatch();
 	true ->
 	    FaceToEdge = sofs:to_external(FaceToEdge0),
 	    We = wings_extrude_face:faces(Faces, We0),
-	    lift_from_edge_1(FaceToEdge, We0, We, Tv)
+	    lift_from_edge_1(Dir, FaceToEdge, We0, We, Tv)
     end.
 
-lift_from_edge_1([{Face,Edge}|T], #we{es=Etab}=OrigWe, We0, Tv0) ->
+lift_from_edge_1(Dir, [{Face,Edge}|T], #we{es=Etab}=OrigWe, We0, Tv0) ->
     Side = case gb_trees:get(Edge, Etab) of
 	       #edge{lf=Face} -> left;
 	       #edge{rf=Face} -> right
 	   end,
-    {We,Tv} = lift_from_edge_2(Face, Edge, Side, We0, Tv0),
-    lift_from_edge_1(T, OrigWe, We, Tv);
-lift_from_edge_1([], OrigWe, We, Tv) -> {We,Tv}.
+    {We,Tv} = lift_from_edge_2(Dir, Face, Edge, Side, We0, Tv0),
+    lift_from_edge_1(Dir, T, OrigWe, We, Tv);
+lift_from_edge_1(Dir, [], OrigWe, We, Tv) -> {We,Tv}.
 
-lift_from_edge_2(Face, Edge, Side, #we{id=Id,es=Etab}=We0, Tv) ->
+lift_from_edge_2(Dir, Face, Edge, Side, #we{id=Id,es=Etab}=We0, Tv) ->
     FaceVs0 = ordsets:from_list(wings_face:surrounding_vertices(Face, We0)),
     #edge{vs=Va0,ve=Vb0} = gb_trees:get(Edge, Etab),
     {Va,Ea} = lift_edge_vs(Va0, FaceVs0, We0),
@@ -737,13 +740,21 @@ lift_from_edge_2(Face, Edge, Side, #we{id=Id,es=Etab}=We0, Tv) ->
     FaceVs = ordsets:subtract(FaceVs0, ordsets:from_list([Va,Vb])),
     VaPos = wings_vertex:pos(Va, We0),
     VbPos = wings_vertex:pos(Vb, We0),
-    Axis0 = case Side of
-		left -> e3d_vec:sub(VbPos, VaPos);
-		right -> e3d_vec:sub(VaPos, VbPos)
-	    end,
-    Axis = e3d_vec:norm(Axis0),
-    Rot = wings_rotate:rotate(FaceVs, We, {VaPos,Axis}),
-    {We,[{Id,Rot}|Tv]}.
+    case Dir of
+	rotate ->
+	    Axis0 = case Side of
+			left -> e3d_vec:sub(VbPos, VaPos);
+			right -> e3d_vec:sub(VaPos, VbPos)
+		    end,
+	    Axis = e3d_vec:norm(Axis0),
+	    Rot = wings_rotate:rotate(FaceVs, We, {VaPos,Axis}),
+	    {We,[{Id,Rot}|Tv]};
+	Other ->
+	    Vec = wings_util:make_vector(Dir),
+	    Move = wings_move:setup_we(vertex, Vec,
+				       gb_sets:from_list(FaceVs), We),
+	    {We,[{Id,Move}|Tv]}
+    end.
 
 lift_edge_vs(V, FaceVs, We) ->
     wings_vertex:fold(

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.103 2002/02/03 07:26:27 bjorng Exp $
+%%     $Id: wings.erl,v 1.104 2002/02/03 22:44:21 bjorng Exp $
 %%
 
 -module(wings).
@@ -179,6 +179,7 @@ save_state(St0, St1) ->
 
 main_loop(St) ->
     ?VALIDATE_MODEL(St),
+    wings_io:clear_icon_restriction(),
     redraw(St),
     main_loop_noredraw(St).
 
@@ -631,8 +632,7 @@ face_menu(X, Y, St) ->
 	    {"Bridge",bridge,"Create a bridge or tunnel between two faces"},
 	    {advanced,separator},
 	    {"Bump",bump,"Create bump of selected faces"},
-	    {advanced,{"Lift",lift_fun(St),
-		       "Lifts selected face, with one one edge pinned down"}},
+	    {advanced,{"Lift",{lift,lift_fun(St)}}},
 	    separator,
 	    {"Mirror",mirror,"Make mirror of object around selected faces"},
     	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
@@ -680,17 +680,17 @@ dirs(help, Mode, Ns) -> dirs_help(Ns).
 
 dirs_help([move|_]) ->
     {"Move along std. axis","Move along named axis",
-     "Pick vector to move along"};
+     "Select vector to move along"};
 dirs_help([rotate|_]) ->
     {"Rotate around std. axis","Rotate around named axis",
-     "Pick vector to rotate around"};
+     "Select vector to rotate around"};
 dirs_help([scale|_]) -> "Scale selected elements";
 dirs_help([extrude|_]) ->
     {"Extrude along std. axis","Extrude along named axis",
-     "Pick vector to extrude along"};
+     "Select vector to extrude along"};
 dirs_help([extrude_region|_]) ->
     {"Extrude along std. axis","Extrude along named axis",
-     "Pick vector to extrude along"};
+     "Select vector to extrude along"};
 dirs_help(Ns) -> "".
 
 dirs_1(body, Ns) -> directions([free,x,y,z], Ns);
@@ -794,6 +794,10 @@ dir_help_1([extrude_region|_], [free|Text]) ->
     "Extrude faces as region, then move faces " ++ Text;
 dir_help_1([flatten|_], [normal|Text]) ->
     "Flatten elements to normal plane";
+dir_help_1([lift|_], [normal|_]) ->
+    "Lift face along its normal";
+dir_help_1([lift|_], [free|Text]) ->
+    "Lift face and move it " ++ Text;
 
 %% Axis
 dir_help_1([move|_], Text) ->
@@ -812,12 +816,18 @@ dir_help_1([flatten|_], Text) ->
     "Flatten to " ++ Text;
 dir_help_1([flatten_move|_], Text) ->
     "Flatten and move to " ++ Text;
+dir_help_1([lift|_], Text) ->
+    "Lift face along " ++ Text;
 dir_help_1(_, _) -> "".
 
 lift_fun(St) ->
-    fun(help, Ns) -> "";
+    fun(help, Ns) ->
+	    {"Lift in std. directions",[],
+	     "Lift, rotating face around edge"};
        (1, Ns) ->
-	    Funs = wings_face_cmd:lift_selection(St),
+	    directions([normal,free,x,y,z], Ns);
+       (3, Ns) ->
+	    Funs = wings_face_cmd:lift_selection(rotate, St),
 	    {vector,{pick_special,Funs}};
        (_, _) -> ignore
     end.
