@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.15 2003/01/27 13:57:49 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.16 2003/01/29 06:22:30 bjorng Exp $
 
 -module(auv_placement).
 
@@ -22,8 +22,8 @@
 
 %% Returns a gb_tree with areas...
 place_areas(Areas0) ->
-    Rotate = fun(A = #ch{we=We, bf=Bf}, {C, BBs}) ->
-		     VL = rotate_area(Bf,We),
+    Rotate = fun(A = #ch{we=We,fs=Fs}, {C, BBs}) ->
+		     VL = rotate_area(Fs, We),
 		     {{_,Xmin},{_,Xmax},{_,Ymin},{_,Ymax}} = 
 			 auv_util:maxmin(VL),
 		     Dx = Xmax - Xmin,
@@ -122,8 +122,7 @@ move_and_scale_areas([Area|RA], [{C,{Cx,Cy}}|RP], S, Acc) ->
 move_and_scale_areas([],[],_,Acc) ->
     Acc.
 
-rotate_area(BackFace,We = #we{vp=VTab,fs=FTab}) ->
-    Fs = gb_trees:keys(FTab) -- BackFace,
+rotate_area(Fs, #we{vp=VTab}=We) ->
     Vs = gb_trees:to_list(VTab),
     [{_,Eds3}|_] = group_edge_loops(Fs,We),
     Eds4 = make_convex(reverse(Eds3), [], VTab),

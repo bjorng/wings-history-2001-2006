@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.14 2003/01/29 04:56:46 bjorng Exp $
+%%     $Id: auv.hrl,v 1.15 2003/01/29 06:22:30 bjorng Exp $
 
 %% Chart record (one for each chart).
 -record(ch,
@@ -18,9 +18,9 @@
 	 rotate = 0.0,
 	 size,
 	 be,					%Boundary edges.
-	 bf = [],			        %Backface created from cut.
-	 we,					%We per chart
-	 vmap					%Map back to original vertex numbers
+	 we,					%We per chart.
+	 fs,					%Faces in chart (list).
+	 vmap					%Map back to original vertex numbers.
 	}).
 
 -record(setng, {texsz = {512, 512},   %% Texture size

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.45 2003/01/29 05:29:31 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.46 2003/01/29 06:22:30 bjorng Exp $
 
 -module(auv_segment).
 
@@ -684,13 +684,7 @@ cut_one_chart(Keep0, Cuts, We0) ->
     OuterEdges = wings_face:outer_edges(Keep, We0),
     Map0 = gb_trees:empty(),
     {We1,Map1} = cut_shared_vertices(Keep, OuterEdges, We0, Map0),
-    {We2,Map} = cut_edges(Keep0, Cuts, We1, Map1),
-    AllFaces = wings_sel:get_all_items(face, We2),
-    Del = gb_sets:difference(AllFaces, Keep),
-    We = case gb_sets:is_empty(Del) of
-	     true -> We2;
-	     false -> wpa:face_dissolve(Del, We2)
-	 end,
+    {We,Map} = cut_edges(Keep0, Cuts, We1, Map1),
     {Keep0,Map,We}.
 
 cut_shared_vertices(Faces, Es, #we{es=Etab}=We0, InvVmap0) ->

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.84 2003/01/29 05:29:31 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.85 2003/01/29 06:22:30 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -329,16 +329,8 @@ seg_map_chart([{Fs,Vmap,We0}|Cs], Type, Extra, I, N, Acc0, Ss) ->
 	{error,Message} ->
 	    seg_error(Message, Ss);
 	Vs ->
-	    #we{fs=Fp,vp=Vp} = We0,
-	    VsK = [Key || {Key,_} <- Vs],
-	    [] = gb_trees:keys(Vp) -- VsK, %% Assert
-%	    io:format("~w ~w ~p~n", 
-%		      [gb_trees:keys(Fp) -- Fs,
-%		       gb_trees:keys(Vp) -- VsK,
-%		       {length(Fs),length(VsK)}]),
-	    BackFace = gb_trees:keys(Fp) -- Fs,
-	    We  = We0#we{vp = gb_trees:from_orddict(sort(Vs))},
-	    Acc = [#ch{we=We,bf=BackFace,vmap=Vmap}|Acc0],
+	    We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
+	    Acc = [#ch{we=We,fs=Fs,vmap=Vmap}|Acc0],
 	    seg_map_charts_1(Cs, Type, Extra, I+1, N, Acc, Ss)
     end.
 
@@ -476,8 +468,7 @@ assign_materials([], #we{id=Id}=We, _, _, #st{shapes=Shs0}=St) ->
 
 %%%%%%
 
-find_boundary_edges([{Id,#ch{bf=Bf,we=We}=C}|Cs], Acc) ->
-    Fs = gb_trees:keys(We#we.fs) -- Bf,
+find_boundary_edges([{Id,#ch{fs=Fs,we=We}=C}|Cs], Acc) ->
     Be = auv_util:outer_edges(Fs, We),
     find_boundary_edges(Cs, [{Id,C#ch{be=Be}}|Acc]);
 find_boundary_edges([], Acc) -> sort(Acc).
@@ -515,9 +506,8 @@ insert_uvcoords_1(We0, Cs0, MatName) ->
     We = insert_material(Cs, MatName, We1),
     We#we{mode=uv}.
 
-gen_uv_pos([#ch{bf=Bf,center={CX,CY},scale=Sc,we=We,vmap=Vmap}|T], Acc) ->
+gen_uv_pos([#ch{fs=Fs,center={CX,CY},scale=Sc,we=We,vmap=Vmap}|T], Acc) ->
     Vpos0 = auv_util:moveAndScale(gb_trees:to_list(We#we.vp), CX, CY, Sc, []),
-    Fs = gb_trees:keys(We#we.fs) -- Bf,
     VFace0 = wings_face:fold_faces(
 	       fun(Face, V, _, _, A) ->
 		       [{V,Face}|A]
@@ -551,8 +541,7 @@ insert_coords([{V,{Face,{S,T,_}}}|Rest], #we{es=Etab0}=We) ->
 insert_coords([], We) -> We.
 
 insert_material(Cs, MatName, #we{fs=Ftab0}=We) ->
-    Faces = lists:append([gb_trees:keys(ChFt) -- Bf || 
-			     #ch{we=#we{fs=ChFt},bf=Bf} <- Cs]),
+    Faces = lists:append([Fs || #ch{fs=Fs} <- Cs]),
     Ftab = foldl(fun(Face, A) ->
 			 case gb_trees:get(Face, A) of
 			     #face{mat=MatName} -> 
@@ -590,9 +579,8 @@ build_map([{Fs,We0}|T], Vmap, FvUvMap, No, Acc) ->
     CX = BX0 + (BX1-BX0) / 2,
     CY = BY0 + (BY1-BY0) / 2,
     UVs = [{V,{X-CX,Y-CY,0.0}} || {V,{X,Y}} <- UVs1],
-    BackFace = gb_trees:keys(We0#we.fs) -- Fs,
     We = We0#we{id=No,vp=gb_trees:from_orddict(UVs)},
-    Chart = #ch{we=We,bf=BackFace,center={CX,CY},size={BX1-BX0,BY1-BY0}},
+    Chart = #ch{we=We,fs=Fs,center={CX,CY},size={BX1-BX0,BY1-BY0}},
     build_map(T, Vmap, FvUvMap, No+1, [{No,Chart}|Acc]);
 build_map([], _, _, _, Acc) -> Acc.
 
@@ -1371,14 +1359,14 @@ select(Mode, X,Y, W, H, Objects0, {XYS,XM,XYS,YM}) ->
 
 select_draw([{Co,A}|R], Mode) ->
 %%    ?DBG("Co ~p\n",[Co]),
-    #ch{bf=Bf,center={CX,CY},scale=Scale,rotate=Rot,we=We} = A,
+    #ch{fs=Fs,center={CX,CY},scale=Scale,rotate=Rot,we=We} = A,
     gl:pushMatrix(),
     gl:pushName(0),
     gl:loadName(Co),
     gl:translatef(CX,CY,0.0),
     gl:scalef(Scale, Scale, 1.0),
     gl:rotatef(Rot,0,0,1),
-    select_draw1(Mode, gb_trees:keys(We#we.fs)--Bf, We#we{mode=material}),
+    select_draw1(Mode, Fs, We#we{mode=material}),
     gl:popName(),
     gl:popMatrix(),
     select_draw(R, Mode);
@@ -1446,13 +1434,13 @@ find_selectable(X,Y, [_H|R], Acc) ->
 find_selectable(_X,_Y, [], Acc) ->
     reverse(Acc).
 
-wings_select_faces([],_,St) ->
+wings_select_faces([], _, St) ->
     wpa:sel_set(face, [], St);
 wings_select_faces(As, Id, St) ->
-    Faces = foldl(fun({_, #ch{bf=Bf,we=#we{fs=FTab}}}, Set) ->
-			  S0 = gb_sets:from_ordset(gb_trees:keys(FTab)--Bf),
-			  gb_sets:union(S0, Set)
-		  end, gb_sets:empty(), As),
+    Faces0 = foldl(fun({_,#ch{fs=Fs}}, A) ->
+			   [Fs|A]
+		   end, [], As),
+    Faces = gb_sets:from_list(lists:append(Faces0)),
     wpa:sel_set(face, [{Id,Faces}], St).
 
 %%%% GUI Operations
@@ -1563,9 +1551,8 @@ broken_event(Ev, _) ->
 %%%
 %%% Draw routines.
 %%%
-draw_area(#ch{bf=BF,center={CX,CY},scale=Scale,rotate=R,be=Tbe, we=We}, 
+draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe, we=We}, 
 	  Options = #setng{color = ColorMode, edges = EdgeMode}, Materials) -> 
-    Fs = gb_trees:keys(We#we.fs) -- BF,
     gl:pushMatrix(),
     gl:translatef(CX, CY, 0.0),
     gl:scalef(Scale, Scale, 1.0),
