@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.102 2003/02/26 20:04:05 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.103 2003/02/26 20:12:05 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -195,7 +195,7 @@ seg_event_5(Ev, #seg{st=St0}=Ss) ->
     case wings_hotkey:event(Ev, St0) of
 	next -> seg_event_6(Ev, Ss);
 	Action ->
-	    wings_wm:send(geom, {action,Action}),
+	    wings_wm:later({action,Action}),
 	    keep
     end.
 
@@ -391,6 +391,7 @@ start_edit(_Id, We, St0) ->
     Qs = [{vframe,[{alt,DefVar,"Edit existing UV mapping",edit},
 		   {alt,DefVar,"Discard existing UV mapping and start over",discard}],
 	   [{title,"Model is already UV-mapped"}]}],
+    Geom = wings_wm:active_window(),
     wings_ask:dialog("Model is Already UV Mapped", Qs,
 		     fun([Reply]) ->
 			     case Reply of
@@ -398,9 +399,9 @@ start_edit(_Id, We, St0) ->
 				     start_edit_1(We, St0);
 				 discard ->
 				     St01 = discard_uvmap(We, St0),
-				     wings_wm:send(geom, {new_state,St01}),
+				     wings_wm:send(Geom, {new_state,St01}),
 				     Act = {action,{body,?MODULE,discard_uvs,We}},
-				     wings_wm:send(geom, Act),
+				     wings_wm:send(Geom, Act),
 				     ignore
 			     end
 		     end).
