@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.9 2003/02/21 14:56:21 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.10 2003/02/24 13:10:30 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -112,9 +112,11 @@ dialog({material_editor_setup,_Name,Mat}, Dialog) ->
 		 }|modulator_dialogs(Modulators)],
 		[{title,"YafRay Options"}]}];
 dialog({material_editor_result,_Name,Mat0}, [A,B|Res0]) ->
-    {Modulators,Res} = modulator_result(Res0),
+    {Modulators,_Res} = modulator_result([]),
+%    {Modulators,Res} = modulator_result(Res0),
     Mat = [{?TAG,[A,B,{modulators,Modulators}]}|keydelete(?TAG, 1, Mat0)],
-    {Mat,Res};
+    {Mat,Res0};
+%    {Mat,Res};
 dialog({light_editor_setup,_Name,Ps}, Dialog) ->
     YafRay = proplists:get_value(?TAG, Ps, []),
     Power = proplists:get_value(power, YafRay, 1.0),
@@ -133,7 +135,7 @@ dialog(_X, Dialog) ->
 
 modulator_dialogs([]) ->
     [];
-%%Yet to come...%%    modulator_dialog(#modulator{}, new_modulator);
+%    modulator_dialog(#modulator{}, new_modulator);
 modulator_dialogs([Modulator|Modulators]) ->
     modulator_dialog(Modulator, modulator)++
 	modulator_dialogs(Modulators).
