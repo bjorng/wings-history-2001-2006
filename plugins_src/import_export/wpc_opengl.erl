@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.43 2003/10/01 20:58:58 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.44 2003/10/02 08:54:48 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -904,7 +904,6 @@ mult_inverse_model_transform(Pos) ->
     e3d_mat:mul_point(M, Pos).
 
 draw_faces(MFlist, We, Mtab, L) ->    
-    io:format("Light ~p ~n",[L]),
     ListOp = gl:genLists(1),
     gl:newList(ListOp, ?GL_COMPILE),
     Trans = draw_smooth_opaque(MFlist, Mtab, We, L, []),
@@ -990,24 +989,25 @@ do_draw_bumped([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs], Txt, We, L) ->
     {S,T} = calcTS(V1,V2,V3,UV1,UV2,UV3,N1),
     gl:normal3fv(N1),
     texCoord(UV1, true, ?GL_TEXTURE1),
-    bumpCoord(S,T,N1,L),
+    bumpCoord(S,T,N1, e3d_vec:sub(L,V1)),
     texCoord(UV1, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V1),
 
     gl:normal3fv(N2),
     texCoord(UV2, true, ?GL_TEXTURE1),
-    bumpCoord(S,T,N2,L),
+    bumpCoord(S,T,N2, e3d_vec:sub(L,V2)),
     texCoord(UV2, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V2),
 
     gl:normal3fv(N3),
     texCoord(UV3, true, ?GL_TEXTURE1),
-    bumpCoord(S,T,N3,L),
+    bumpCoord(S,T,N3,e3d_vec:sub(L,V3)),
     texCoord(UV3, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V3),
     do_draw_bumped(Fs, Txt, We, L).
 
-bumpCoord(Vx,_, Vn, InvLight) ->
+bumpCoord(Vx,_, Vn, InvLight0) ->
+    InvLight = e3d_vec:norm(InvLight0),
     %% Calc orthonormal space per vertex.
     Vy = e3d_vec:norm(e3d_vec:cross(Vx,Vn)),
     %% {Vx,Vy,Vn}
@@ -1016,9 +1016,7 @@ bumpCoord(Vx,_, Vn, InvLight) ->
     X = e3d_vec:dot(Vx,InvLight),
     Y = e3d_vec:dot(Vy,InvLight),
     Z = e3d_vec:dot(Vn,InvLight),
-%    io:format("~p~n~p~n~p~n~n", [{Vx,Vy,Vn}, {X,Y,Z}, norm_rgb(X,Y,Z)]),
-    gl:multiTexCoord3fv(?GL_TEXTURE0, norm_rgb(X,Y,Z)).
-%    gl:color3fv(norm_rgb(X,Y,Z)).
+    gl:multiTexCoord3f(?GL_TEXTURE0, X,Y,Z).    
 
 
 apply_bumped_mat(Mat) ->
@@ -1102,12 +1100,12 @@ calcTS(V1,V2,V3,{S1,T1},{S2,T2},{S3,T3},N1) ->
 	    {Stan,Ttan}
     end.
 
-norm_rgb(V1, V2, V3) when is_float(V1), is_float(V2), is_float(V3) ->
-    D = math:sqrt(V1*V1+V2*V2+V3*V3),
-    case catch {0.5+V1/D*0.5,0.5+V2/D*0.5,0.5+V3/D*0.5} of
-	{'EXIT',_} -> {0.0,0.0,0.0};
-	R -> R
-    end.
+% norm_rgb(V1, V2, V3) when is_float(V1), is_float(V2), is_float(V3) ->
+%     D = math:sqrt(V1*V1+V2*V2+V3*V3),
+%     case catch {0.5+V1/D*0.5,0.5+V2/D*0.5,0.5+V3/D*0.5} of
+% 	{'EXIT',_} -> {0.0,0.0,0.0};
+% 	R -> R
+%     end.
 
 disable_bumps() ->
     gl:activeTexture(?GL_TEXTURE0),
