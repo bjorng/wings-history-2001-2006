@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.129 2005/01/20 07:52:24 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.130 2005/01/22 08:16:27 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -228,8 +228,9 @@ extract_region(Type, St0) ->
 
 extract_inverse(St) ->
     Sel = wings_sel:fold(
-	    fun(Faces, #we{id=Id}=We, A) ->
-		    Diff = wings_sel:inverse_items(face, Faces, We),
+	    fun(Faces, #we{fs=Ftab,id=Id}, A) ->
+		    All = wings_util:gb_trees_to_gb_set(Ftab),
+		    Diff = gb_sets:difference(All, Faces),
 		    case gb_sets:is_empty(Diff) of
 			true -> A;
 			false -> [{Id,Diff}|A]
