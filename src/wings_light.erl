@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.40 2003/12/23 01:38:25 raimo_niskanen Exp $
+%%     $Id: wings_light.erl,v 1.41 2004/01/12 18:40:39 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -120,9 +120,7 @@ command({edit,Id}, St) ->
 command(delete, St) ->
     {save_state,delete(St)};
 command({duplicate,Dir}, St) ->
-    duplicate(Dir, St);
-command(color, St) ->
-    St.
+    duplicate(Dir, St).
     
 is_any_light_selected(#st{sel=Sel,shapes=Shs}) ->
     is_any_light_selected(Sel, Shs).

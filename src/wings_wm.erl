@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.135 2004/01/01 15:08:17 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.136 2004/01/12 18:40:21 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -1081,8 +1081,7 @@ message_redraw(Msg, Right) ->
 		    gl:color3b(0, 0, 0),
 		    wings_io:text_at(Pos, Right);
 		true -> ok
-	    end;
-	_ -> ok
+	    end
     end,
     case OsType of
 	{unix,darwin} ->
