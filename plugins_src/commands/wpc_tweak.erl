@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.46 2004/02/27 20:08:44 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.47 2004/03/01 18:05:33 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -330,15 +330,23 @@ help_1(Type, [{Digit,ThisType}|T]) ->
 help_1(_, []) -> [].
 
 fake_selection(St) ->
-    Sel = wings_draw_util:fold(
-	    fun(#dlo{src_sel=none}, Sel) -> Sel;
-	       (#dlo{src_we=#we{id=Id},src_sel={Mode,Els}}, _) ->
-		    {Mode,Id,Els}
-	    end, none),
-    case Sel of
-	none -> St;
-	{Mode,Id,Els} ->
-	    St#st{selmode=Mode,sel=[{Id,Els}]}
+    wings_draw_util:fold(
+      fun(#dlo{src_sel=none}, S) ->
+	      %% No selection, try highlighting.
+	      fake_sel_1(S);
+	 (#dlo{src_we=#we{id=Id},src_sel={Mode,Els}}, S) ->
+	      S#st{selmode=Mode,sel=[{Id,Els}]}
+      end, St).
+
+fake_sel_1(St0) ->
+    case wings_pref:get_value(use_temp_sel) of
+	false -> St0;
+	true ->
+	    {_,X,Y} = wings_wm:local_mouse_state(),
+	    case wings_pick:do_pick(X, Y, St0) of
+		{add,_,St} -> St;
+		_ -> St0
+	    end
     end.
 
 %%%
