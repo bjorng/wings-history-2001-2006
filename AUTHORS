@@ -34,3 +34,5 @@ Chris Osgood (WingsOne):
 Howard Trickey:
 	Wrote the new, much better triangulator (and a quadrilator)
 	in e3d_mesh.
+
+Anders Conradi: Wrote the Select|Edge Ring command (originally as a plug-in).
