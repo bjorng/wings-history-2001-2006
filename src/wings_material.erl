@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.31 2002/04/11 08:20:39 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.32 2002/05/03 10:19:57 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -20,21 +20,14 @@
 -include("wings.hrl").
 -include("e3d_image.hrl").
 
--import(lists, [map/2,mapfoldl/3,sort/1,foldl/3,reverse/1]).
+-import(lists, [map/2,foreach/2,sort/1,foldl/3,reverse/1,keyreplace/4]).
 
-%% Material record.
--record(mat,
-	{ambient={0.0,0.0,0.0},			%Ambient color
-	 diffuse={0.0,0.0,0.0},			%Diffuse color
-	 specular={0.0,0.0,0.0},		%Specular color
-	 shininess=0.0,				%Shinininess (0..1)
-	 opacity=1.0,				%Opacity (0..1)
-	 twosided=false,			%Twosided material.
-	 diffuse_map=none,			%Diffuse map.
-	 diffuse_map_dl=none,			%Diffuse map.
-	 attr=[],				%Uinterpreted attributes
-	 setup					%Fun for OpenGL drawing
-	 }).
+init(#st{mat=MatTab}=St) ->
+    put(?MODULE, gb_trees:empty()),
+    foreach(fun({Name,Mat}) ->
+		    init_texture(Name, Mat)
+	    end, gb_trees:to_list(MatTab)),
+    St.
 
 sub_menu(face, St) ->
     Mlist = material_list(St),
@@ -48,12 +41,18 @@ sub_menu(select, St) ->
 command({face,{material,new}}, St) ->
     wings_ask:ask([{"Material Name",""}], St,
 		  fun([Name]) -> {face,{material,{new,Name}}} end);
-command({face,{material,{new,Name0}}}, St0) ->
+command({face,{material,{new,Name0}}}, #st{mat=Mtab}=St0) ->
     Name = list_to_atom(Name0),
-    Mat = make_default({1.0,1.0,1.0}, 1.0),
-    St1 = add(Name, Mat, St0),
-    St = set_material(Name, St1),
-    edit(Name, St);
+    case gb_trees:is_defined(Name, Mtab) of
+	true ->
+	    wings_util:error("Material name '" ++ Name0 ++
+			     "' is already defined.");
+	false ->
+	    Mat = make_default({1.0,1.0,1.0}, 1.0),
+	    St1 = add(Name, Mat, St0),
+	    St = set_material(Name, St1),
+	    edit(Name, St)
+    end;
 command({face,{material,Mat}}, St) ->
     set_material(Mat, St);
 command({select,{material,Mat}}, St) ->
@@ -63,15 +62,6 @@ command({select,{material,Mat}}, St) ->
 		   end, face, St);
 command({edit,{material,Mat}}, St) ->
     edit(Mat, St).
-
-init(#st{mat=Mat0}=St0) ->
-    St1 = St0#st{next_tx=100},
-    {Mat,St} = mapfoldl(fun({N,M0}, S0) ->
-				{M1,S} = init_texture(M0, S0),
-				M = setup_fun(M1),
-				{{N,M},S}
-			end, St1, gb_trees:to_list(Mat0)),
-    St#st{mat=gb_trees:from_orddict(Mat)}.
 
 material_list(#st{mat=Mat0}) ->
     map(fun(Id) ->
@@ -91,88 +81,120 @@ set_material(Mat, St) ->
 
 default() ->
     M = [{default,make_default({1.0,1.0,1.0}, 1.0)},
-	 {'_hole_',make_default({0.5,0.5,0.0}, 0.75)}],
+	 {'_hole_',make_default({0.0,0.0,0.9}, 0.50)}],
     gb_trees:from_orddict(sort(M)).
 
 make_default({R,G,B}, Opacity) ->
-    Color = {R,G,B},
-    White = {1.0,1.0,1.0},
-    setup_fun(#mat{ambient=Color,diffuse=Color,specular=White,
-		   shininess=0.0,opacity=Opacity}).
+    Color = {R,G,B,Opacity},
+    White = {1.0,1.0,1.0,Opacity},
+    Mat = [{opengl,[{diffuse,Color},{ambient,Color},{specular,White},
+		    {emission,{0.0,0.0,0.0,0.0}},{shininess,1.0}]},
+	   {maps,[]}],
+    sort([{K,sort(L)} || {K,L} <- Mat]).
 
-add_materials([{Name,Prop}|Ms], St0) ->
-    Mat0 = translate_mat(Prop, #mat{}),
-    {Mat,St1} = init_texture(Mat0, St0),
-    St = add(Name, Mat, St1),
-    add_materials(Ms, St);
-add_materials([], St) -> St.
+add_materials(Ms, St) ->
+    add_materials(Ms, St, []).
 
-translate_mat([{ambient,RGB}|T], Mat) ->
-    translate_mat(T, Mat#mat{ambient=RGB});
-translate_mat([{diffuse,RGB}|T], Mat) ->
-    translate_mat(T, Mat#mat{diffuse=RGB});
-translate_mat([{specular,RGB}|T], Mat) ->
-    translate_mat(T, Mat#mat{specular=RGB});
-translate_mat([{shininess,RGB}|T], Mat) ->
-    translate_mat(T, Mat#mat{shininess=RGB});
-translate_mat([{opacity,RGB}|T], Mat) ->
-    translate_mat(T, Mat#mat{opacity=RGB});
-translate_mat([{twosided,Boolean}|T], Mat) ->
-    translate_mat(T, Mat#mat{twosided=Boolean});
-translate_mat([{diffuse_map,{_,_,Bits}=Tx}|T], Mat) when is_binary(Bits) ->
-    translate_mat(T, Mat#mat{diffuse_map=Tx});
-translate_mat([{diffuse_map,Name}|T], Mat) ->
-    case catch loadTexture(Name) of
-	none -> translate_mat(T, Mat);
+add_materials([{Name,Mat0}|Ms], St0, NewNames) ->
+    Mat1 = add_defaults(Mat0),
+    Maps = load_maps(prop_get(maps, Mat1, [])),
+    Mat = keyreplace(maps, 1, Mat1, {maps,Maps}),
+    case add(Name, Mat, St0) of
+	#st{}=St ->
+	    add_materials(Ms, St, NewNames);
+	{#st{}=St,NewName} ->
+	    add_materials(Ms, St, [{Name,NewName}|NewNames])
+    end;
+add_materials([], St, NewNames) -> {St,NewNames}.
+
+add_defaults(Props) ->
+    OpenGL0 = prop_get(opengl, Props),
+    OpenGL = add_defaults_1(OpenGL0),
+    keyreplace(opengl, 1, Props, {opengl,OpenGL}).
+
+add_defaults_1(P) ->
+    Def = {1.0,1.0,1.0,1.0},
+    [{diffuse,norm(prop_get(diffuse, P, Def))},
+     {ambient,norm(prop_get(ambient, P, Def))},
+     {specular,norm(prop_get(specular, P, Def))},
+     {emission,norm(prop_get(emission, P, {0.0,0.0,0.0,0.0}))},
+     {shininess,prop_get(shininess, P, 1.0)}].
+
+norm({_,_,_,_}=Color) -> Color;
+norm({R,G,B}) -> {R,G,B,1.0}.
+    
+load_maps([{Key,Filename}|T]) when is_list(Filename) ->
+    [{Key,load_map(Filename)}|load_maps(T)];
+load_maps([H|T]) ->
+    [H|load_maps(T)];
+load_maps([]) -> [].
+    
+load_map(MapName) ->
+    case catch load_map_1(MapName) of
+	none -> none;
 	{'EXIT',R} ->
 	    io:format("~P\n", [R,20]),
-	    translate_mat(T, Mat);
-	{_,_,_}=Tx -> translate_mat(T, Mat#mat{diffuse_map=Tx})
+	    none;
+	{_,_,_}=Tx -> Tx
+    end.
+
+load_map_1(none) -> none;
+load_map_1(File) ->
+    Image = e3d_image:load(File, [{type,r8g8b8},{order,lower_left}]),
+    #e3d_image{width=W,height=H,image=Pixels} = Image,
+    {W,H,Pixels}.
+    
+add('_hole_'=Name, Mat, #st{mat=MatTab}=St) ->
+    case gb_trees:is_defined(Name, MatTab) of
+	true -> St;
+	false -> St#st{mat=gb_trees:insert(Name, Mat, MatTab)}
     end;
-translate_mat([Other|T], #mat{attr=Attr}=Mat) ->
-    translate_mat(T, Mat#mat{attr=[Other|Attr]});
-translate_mat([], Mat) -> Mat.
-
 add(Name, Mat0, #st{mat=MatTab}=St) ->
-    Mat = setup_fun(Mat0),
-    St#st{mat=gb_trees:enter(Name, Mat, MatTab)}.
+    Mat = sort([{K,sort(L)} || {K,L} <- Mat0]),
+    case gb_trees:lookup(Name, MatTab) of
+	none ->
+	    init_texture(Name, Mat),
+	    St#st{mat=gb_trees:insert(Name, Mat, MatTab)};
+	{value,Mat} -> St;
+	{value,_} ->
+	    NewName = new_name(atom_to_list(Name), MatTab, 0),
+	    {add(NewName, Mat, St),NewName}
+    end.
 
-setup_fun(Mat) ->
-    #mat{ambient=Amb0,diffuse=Diff0,specular=Spec0,
-	 shininess=Shine,opacity=Opac,diffuse_map_dl=Dmap} = Mat,
-    Amb = erlang:append_element(Amb0, Opac),
-    Diff = erlang:append_element(Diff0, Opac),
-    Spec = erlang:append_element(Spec0, Opac),
-    F = fun() ->
-		if
-		    Dmap =:= none ->
-			gl:disable(?GL_TEXTURE_2D);
-		    true ->
-			gl:enable(?GL_TEXTURE_2D),
-			gl:texEnvi(?GL_TEXTURE_ENV,
-				   ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
-			gl:bindTexture(?GL_TEXTURE_2D, Dmap),
-			gl:texParameteri(?GL_TEXTURE_2D,
-					 ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
-			gl:texParameteri(?GL_TEXTURE_2D,
-					 ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
-			gl:texParameteri(?GL_TEXTURE_2D,
-					 ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
-			gl:texParameteri(?GL_TEXTURE_2D,
-					 ?GL_TEXTURE_WRAP_T, ?GL_REPEAT)
-		end,
-		gl:materialfv(?GL_FRONT, ?GL_AMBIENT, Amb),
-		gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
-		gl:materialfv(?GL_FRONT, ?GL_SPECULAR, Spec),
-		gl:materialfv(?GL_FRONT, ?GL_SHININESS, (1.0-Shine)*128.0)
-	end,
-    Mat#mat{setup=F}.
+new_name(Name0, Tab, I) ->
+    Name = list_to_atom(Name0 ++ "_" ++ integer_to_list(I)),
+    case gb_trees:is_defined(Name, Tab) of
+	false -> Name;
+	true -> new_name(Name0, Tab, I+1)
+    end.
 
-apply_material(Mat, Mtab) when atom(Mat) ->
-    #mat{setup=Setup} = gb_trees:get(Mat, Mtab),
-    Setup();
-apply_material([Mat|_], Mtab) ->
-    apply_material(Mat, Mtab).
+apply_material(Name, Mtab) when is_atom(Name) ->
+    Mat = gb_trees:get(Name, Mtab),
+    OpenGL = prop_get(opengl, Mat),
+    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, prop_get(diffuse, OpenGL)), 
+    gl:materialfv(?GL_FRONT, ?GL_AMBIENT, prop_get(ambient, OpenGL)),
+    gl:materialfv(?GL_FRONT, ?GL_SPECULAR, prop_get(specular, OpenGL)),
+    Shine = prop_get(shininess, OpenGL)*128,
+    gl:materialfv(?GL_FRONT, ?GL_SHININESS, Shine),
+    gl:materialfv(?GL_FRONT, ?GL_EMISSION, prop_get(emission, OpenGL)),
+    Maps = prop_get(maps, Mat),
+    case prop_get(diffuse, Maps, none) of
+	none -> gl:disable(?GL_TEXTURE_2D);
+	_DiffMap ->
+	    gl:enable(?GL_TEXTURE_2D),
+	    gl:texEnvi(?GL_TEXTURE_ENV,
+		       ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
+	    gl:bindTexture(?GL_TEXTURE_2D, get_tx_id(Name)),
+	    gl:texParameteri(?GL_TEXTURE_2D,
+			     ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
+	    gl:texParameteri(?GL_TEXTURE_2D,
+			     ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
+	    gl:texParameteri(?GL_TEXTURE_2D,
+			     ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
+	    gl:texParameteri(?GL_TEXTURE_2D,
+			     ?GL_TEXTURE_WRAP_T, ?GL_REPEAT)
+    end.
+
 
 %%% Returns the materials used.
 
@@ -183,7 +205,7 @@ used_materials(#st{shapes=Shs,mat=Mat0}) ->
     Used1 = sofs:from_external(gb_sets:to_list(Used0), [name]),
     Mat = sofs:relation(gb_trees:to_list(Mat0), [{name,data}]),
     Used = sofs:restriction(Mat, Used1),
-    [to_external(M) || M <- sofs:to_external(Used)].
+    sofs:to_external(Used).
 
 used_materials_1(Ftab, Acc) ->
     foldl(fun(#face{mat=[_|_]=Mat}, A) ->
@@ -192,53 +214,60 @@ used_materials_1(Ftab, Acc) ->
 		  gb_sets:add(Mat, A)
 	  end, Acc, gb_trees:values(Ftab)).
 
-to_external({Name,#mat{ambient=Amb,diffuse=Diff,specular=Spec,
-		       shininess=Shine,opacity=Opacity,twosided=TwoSided,
-		       diffuse_map=Map,
-		       attr=Attr}}) ->
-    {Name,[{ambient,Amb},{diffuse,Diff},{specular,Spec},
-	   {shininess,Shine},{opacity,Opacity},
-	   {diffuse_map,Map},
-	   {twosided,TwoSided}|Attr]}.
-
 %%% The material editor.
 
 -define(PREVIEW_SIZE, 100).
 
 edit(Name, #st{mat=Mtab0}=St) ->
     Mat0 = gb_trees:get(Name, Mtab0),
-    #mat{ambient=Amb0,diffuse=Diff0,specular=Spec0,
-	 shininess=Shine0,opacity=Opacity0} = Mat0,
+    OpenGL0 = prop_get(opengl, Mat0),
+    {Diff0,Opacity0} = ask_prop_get(diffuse, OpenGL0),
+    {Amb0,_} = ask_prop_get(ambient, OpenGL0),
+    {Spec0,_} = ask_prop_get(specular, OpenGL0),
+    Shine0 = prop_get(shininess, OpenGL0),
+    {Emiss0,_} = ask_prop_get(emission, OpenGL0),
     Qs = [{hframe,
 	   [{custom,?PREVIEW_SIZE,?PREVIEW_SIZE,fun mat_preview/5},
 	    {vframe,
 	     [{label,"Diffuse"},
 	      {label,"Ambient"},
 	      {label,"Specular"},
+	      {label,"Emission"},
 	      {label,"Shininess"},
 	      {label,"Opacity"}]},
 	    {vframe,
 	     [{color,Diff0,[{key,diffuse}]},
 	      {color,Amb0,[{key,ambient}]},
 	      {color,Spec0,[{key,specular}]},
+	      {color,Emiss0,[{key,emission}]},
 	      {slider,{text,Shine0,[{range,{0.0,1.0}},{key,shininess}]}},
 	      {slider,{text,Opacity0,[{range,{0.0,1.0}},{key,opacity}]}}]}]}],
     Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
-	       {shininess,Shine},{opacity,Opacity}]) ->
-		  Mat1 = Mat0#mat{ambient=Amb,diffuse=Diff,specular=Spec,
-				  shininess=Shine,opacity=Opacity},
-		  Mat = setup_fun(Mat1),
+	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}]) ->
+		  OpenGL = [ask_prop_put(diffuse, Diff, Opacity),
+			    ask_prop_put(ambient, Amb, Opacity),
+			    ask_prop_put(specular, Spec, Opacity),
+			    ask_prop_put(emission, Emiss, Opacity),
+			    {shininess,Shine}],
+		  Mat = keyreplace(opengl, 1, Mat0, {opengl,OpenGL}),
 		  Mtab = gb_trees:update(Name, Mat, Mtab0),
 		  wings_draw:model_changed(St#st{mat=Mtab})
 	  end,
     wings_ask:dialog(Qs, St, Ask).
 
-mat_preview(X, Y, _W, _H, Common) ->
+ask_prop_get(Key, Props) ->
+    {R,G,B,Alpha} = prop_get(Key, Props),
+    {{R,G,B},Alpha}.
+
+ask_prop_put(Key, {R,G,B}, Opacity) ->
+    {Key,{R,G,B,Opacity}}.
+    
+mat_preview(X, Y, _W, PwH, Common) ->
     wings_io:sunken_rect(X, Y, ?PREVIEW_SIZE, ?PREVIEW_SIZE, ?PANE_COLOR),
     MM = gl:getDoublev(?GL_MODELVIEW_MATRIX),
     PM = gl:getDoublev(?GL_PROJECTION_MATRIX),
     [_,_,_,Wh] = ViewPort = gl:getIntegerv(?GL_VIEWPORT),
-    {true,Ox,Oy0,_} = glu:project(X, Y, 0, MM, PM, ViewPort),
+    {true,Ox,Oy0,_} = glu:project(X, Y+PwH-?PREVIEW_SIZE, 0, MM, PM, ViewPort),
     Oy = Wh-Oy0,
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.5, 0.5, -2, 1}),
@@ -255,7 +284,7 @@ mat_preview(X, Y, _W, _H, Common) ->
     Diff = preview_mat(diffuse, Common, Alpha),
     Spec = preview_mat(specular, Common, Alpha),
     Shine = gb_trees:get(shininess, Common),
-    gl:materialfv(?GL_FRONT, ?GL_SHININESS, (1.0-Shine)*128.0),
+    gl:materialfv(?GL_FRONT, ?GL_SHININESS, Shine*128.0),
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT, Amb),
     gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
     gl:materialfv(?GL_FRONT, ?GL_SPECULAR, Spec),
@@ -286,9 +315,15 @@ preview_mat(Key, Colors, Alpha) ->
 
 color(Face, {U,V}, #we{fs=Ftab}, #st{mat=Mtab}) ->
     #face{mat=Name} = gb_trees:get(Face, Ftab),
-    case gb_trees:get(Name, Mtab) of
-	#mat{diffuse_map=Tx} when Tx =/= none -> color_1(U, V, Tx);
-	#mat{diffuse=Diff} -> wings_color:share(Diff)
+    Props = gb_trees:get(Name, Mtab),
+    Maps = prop_get(maps, Props),
+    case prop_get(diffuse, Maps, none) of
+	none ->
+	    OpenGL = prop_get(opengl, Props),
+	    Diff = prop_get(diffuse, OpenGL),
+	    wings_color:share(Diff);
+	DiffMap ->
+	    color_1(U, V, DiffMap)
     end;
 color(_Face, {_,_,_}=RGB, _We, _St) -> RGB.
 
@@ -301,25 +336,37 @@ color_1(U0, V0, {W,H,Bits}) ->
     
 %%% Texture support.
 
-init_texture(#mat{diffuse_map={W,H,Bits}}=Mat, #st{next_tx=TxId}=St) ->
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-    gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
-    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
-    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
-    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
-    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
-    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
-		  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits),
-    gl:popAttrib(),
-    {Mat#mat{diffuse_map_dl=TxId},St#st{next_tx=TxId+1}};
-init_texture(Mat, St) ->
-    {Mat,St}.
+init_texture(Name, Mat) ->
+    Maps = prop_get(maps, Mat),
+    case prop_get(diffuse, Maps, none) of
+	none -> ok;
+	{W,H,Bits} ->
+	    [TxId] = gl:genTextures(1),
+	    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+	    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+	    gl:enable(?GL_TEXTURE_2D),
+	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
+	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER,
+			     ?GL_LINEAR),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER,
+			     ?GL_LINEAR),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
+	    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
+			  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits),
+	    gl:popAttrib(),
+	    TxDict0 = get(?MODULE),
+	    TxDict = gb_trees:insert(Name, TxId, TxDict0),
+	    put(?MODULE, TxDict)
+    end.
 
-loadTexture(none) -> none;
-loadTexture(File) ->
-    Image = e3d_image:load(File, [{type,r8g8b8},{order,lower_left}]),
-    #e3d_image{width=W,height=H,image=Pixels} = Image,
-    {W,H,Pixels}.
+get_tx_id(Name) ->
+    TxDict = get(?MODULE),
+    gb_trees:get(Name, TxDict).
+    
+prop_get(Key, Props) ->
+    property_lists:get_value(Key, Props).
+
+prop_get(Key, Props, Def) ->
+    property_lists:get_value(Key, Props, Def).

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.10 2002/01/28 08:42:17 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.11 2002/05/03 10:19:55 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -63,9 +63,12 @@ main(<<Chunk:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Sz = Sz0 - 6,
     <<_:Sz/binary,T/binary>> = T0,
     main(T, Acc);
-main(<<>>, Acc) -> Acc.
+main(<<>>, #e3d_file{mat=Mat0}=File) ->
+    Mat = reformat_material(Mat0),
+    File#e3d_file{mat=Mat}.
 
-editor(<<16#4000:16/little,Sz0:32/little,T0/binary>>, #e3d_file{objs=Objs0}=Acc) ->
+editor(<<16#4000:16/little,Sz0:32/little,T0/binary>>,
+       #e3d_file{objs=Objs0}=Acc) ->
     Sz = Sz0 - 6,
     <<Obj0:Sz/binary,T/binary>> = T0,
     {Name,Obj1} = get_cstring(Obj0),
@@ -73,10 +76,11 @@ editor(<<16#4000:16/little,Sz0:32/little,T0/binary>>, #e3d_file{objs=Objs0}=Acc)
     Obj = block(Obj1),
     Objs = [#e3d_object{name=Name,obj=Obj}|Objs0],
     editor(T, Acc#e3d_file{objs=Objs});
-editor(<<16#3d3e:16/little,Sz:32/little,Ver:32/little,T/binary>>, Acc) ->
+editor(<<16#3d3e:16/little,_Sz:32/little,Ver:32/little,T/binary>>, Acc) ->
     dbg("Mesh Version ~p ~n", [Ver]),
     editor(T, Acc);
-editor(<<16#0100:16/little,Sz:32/little,Scale:32/float-little,T/binary>>, Acc) ->
+editor(<<16#0100:16/little,_Sz:32/little,Scale:32/float-little,T/binary>>,
+       Acc) ->
     dbg("Object Scale ~p ~n", [Scale]),
     editor(T, Acc);
 editor(<<16#AFFF:16/little,Sz0:32/little,T0/binary>>, #e3d_file{mat=M}=Acc) ->
@@ -89,7 +93,7 @@ editor(<<>>, Acc) -> Acc.
 
 block(Bin) ->
     block(Bin, no_mesh).
-block(<<16#3d3e:16/little,Sz:32/little,Ver:32/little,T/binary>>, Acc) ->
+block(<<16#3d3e:16/little,_Sz:32/little,Ver:32/little,T/binary>>, Acc) ->
     dbg("Mesh Version ~p ~n", [Ver]),
     block(T, Acc);
 block(<<16#4100:16/little,Sz0:32/little,T0/binary>>, no_mesh) ->
@@ -123,8 +127,7 @@ trimesh(<<16#4140:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     <<_:16,Tx0:Sz/binary,T/binary>> = T0,
     Tx = get_uv(Tx0),
     trimesh(T, Acc#e3d_mesh{tx=Tx});
-trimesh(<<16#4160:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    Sz = Sz0 - 6,
+trimesh(<<16#4160:16/little,_Sz:32/little,T0/binary>>, Acc) ->
     <<V1X:32/float-little,V1Y:32/float-little,V1Z:32/float-little,
      V2X:32/float-little,V2Y:32/float-little,V2Z:32/float-little,
      V3X:32/float-little, V3Y:32/float-little,V3Z:32/float-little,
@@ -204,6 +207,35 @@ material(<<Tag:16/little,Sz0:32/little,T0/binary>>, [{Name,Props}|Acc]) ->
     material(T, [{Name,[{Tag,Chunk}|Props]}|Acc]);
 material(<<>>, Acc) -> Acc.
 
+reformat_material([{Name,Mat}|T]) ->
+    Opac = property_lists:get_value(opacity, Mat, 1.0),
+    [{Name,reformat_mat(Mat, Opac, [], [], [])}|reformat_material(T)];
+reformat_material([]) -> [].
+
+reformat_mat([{diffuse,_}=Col0|T], Opac, Ogl, Maps, Tds) ->
+    Col = reformat_color(Col0, Opac),
+    reformat_mat(T, Opac, [Col|Ogl], Maps, Tds);
+reformat_mat([{ambient,_}=Col0|T], Opac, Ogl, Maps, Tds) ->
+    Col = reformat_color(Col0, Opac),
+    reformat_mat(T, Opac, [Col|Ogl], Maps, Tds);
+reformat_mat([{specular,_}=Col0|T], Opac, Ogl, Maps, Tds) ->
+    Col = reformat_color(Col0, Opac),
+    reformat_mat(T, Opac, [Col|Ogl], Maps, Tds);
+reformat_mat([{emission,_}=Col0|T], Opac, Ogl, Maps, Tds) ->
+    Col = reformat_color(Col0, Opac),
+    reformat_mat(T, Opac, [Col|Ogl], Maps, Tds);
+reformat_mat([{shininess,Sh}|T], Opac, Ogl, Maps, Tds) ->
+    reformat_mat(T, Opac, [{shininess,1.0-Sh}|Ogl], Maps, Tds);
+reformat_mat([{opacity,_}|T], Opac, Ogl, Maps, Tds) ->
+    reformat_mat(T, Opac, Ogl, Maps, Tds);
+reformat_mat([Other|T], Opac, Ogl, Maps, Tds) ->
+    reformat_mat(T, Opac, Ogl, Maps, [Other|Tds]);
+reformat_mat([], _Opac, Ogl, Maps, Tds) ->
+    [{opengl,Ogl},{maps,Maps},{tds,Tds}].
+
+reformat_color({Key,{R,G,B}}, Opac) ->
+    {Key,{R,G,B,Opac}}.
+    
 mat_chunk(Type, Sz0, Bin, [{Name,Props}|Acc]) ->
     Sz = Sz0 - 6,
     <<Chunk:Sz/binary,T/binary>> = Bin,
@@ -211,15 +243,15 @@ mat_chunk(Type, Sz0, Bin, [{Name,Props}|Acc]) ->
     dbg("Material ~p, property ~p = ~p\n", [Name,Type,Value]),
     material(T, [{Name,[{Type,Value}|Props]}|Acc]).
 
-general(<<16#0010:16/little,Sz:32/little, 
+general(<<16#0010:16/little,_Sz:32/little, 
 	 R:32/float-little,G:32/float-little,B:32/float-little,
 	 T/binary>>) ->
     general_rest(T),
     {R,G,B};
-general(<<16#0011:16/little,Sz:32/little,R:8,G:8,B:8,T/binary>>) ->
+general(<<16#0011:16/little,_Sz:32/little,R:8,G:8,B:8,T/binary>>) ->
     general_rest(T),
     {R/255,G/255,B/255};
-general(<<16#0030:16/little,Sz:32/little,Percent:16/little>>) ->
+general(<<16#0030:16/little,_Sz:32/little,Percent:16/little>>) ->
     Percent/100.
 
 general_rest(<<>>) -> ok;
@@ -236,8 +268,8 @@ insert_mat([F|Fs], [MatFace|_]=Mfs, Face, Mat, Acc) when Face < MatFace ->
     insert_mat(Fs, Mfs, Face+1, Mat, [F|Acc]);
 insert_mat([#e3d_face{mat=Mat0}=F|Fs], [Face|Mfs], Face, Mat, Acc) ->
     insert_mat(Fs, Mfs, Face+1, Mat, [F#e3d_face{mat=[Mat|Mat0]}|Acc]);
-insert_mat([], _, Face, Mat, Acc) -> reverse(Acc);
-insert_mat(Rest, [], Face, Mat, Acc) -> reverse(Acc, Rest).
+insert_mat([], _, _Face, _Mat, Acc) -> reverse(Acc);
+insert_mat(Rest, [], _Face, _Mat, Acc) -> reverse(Acc, Rest).
 
 get_mat_faces(<<N:16/little,T/binary>>) ->
     dbg("Mat num entries: ~p\n", [N]),
@@ -296,7 +328,7 @@ hard_edges([], _, Acc) ->
     foldl(fun({Edge,[SG|SGs]}, He) ->
 		  case foldl(fun(SG, A) -> A band SG end, SG, SGs) of
 		      0 -> [Edge|He];
-		      Other -> He
+		      _Other -> He
 		  end
 	  end, [], F).
 
@@ -306,7 +338,7 @@ edge(A, B, SG) -> {{B,A},SG}.
 hex4(Num) ->
     hex(4, Num, []).
 
-hex(0, Num, Acc) -> Acc;
+hex(0, _Num, Acc) -> Acc;
 hex(N, Num, Acc) ->
     hex(N-1, Num div 10, [hexd(Num rem 16)|Acc]).
 
@@ -332,14 +364,14 @@ clean_mesh(#e3d_mesh{fs=Fs0,vs=Vs0}=Mesh) ->
 
 append_index(L) -> append_index(L, 0, []).
 append_index([H|T], I, Acc) -> append_index(T, I+1, [{H,I}|Acc]);
-append_index([], I, Acc) -> Acc.
+append_index([], _I, Acc) -> Acc.
 
 map_faces(Fs, Map) ->
     map_faces(Fs, Map, []).
 map_faces([#e3d_face{vs=Vs0}=Face|Fs], Map, Acc) ->
     Vs = [gb_trees:get(V, Map) || V <- Vs0],
     map_faces(Fs, Map, [Face#e3d_face{vs=Vs,tx=[]}|Acc]);
-map_faces([], Map, Acc) -> reverse(Acc).
+map_faces([], _Map, Acc) -> reverse(Acc).
 
 %%dbg(_, _) -> ok;
 dbg(Format, List) -> io:format(Format, List).
@@ -370,6 +402,7 @@ make_objects([#e3d_object{name=Name0,obj=Mesh0}|Objs]) ->
 make_objects([]) -> [].
 
 make_mesh(#e3d_mesh{vs=Vs,fs=Fs,he=He,matrix=Matrix0}) ->
+    %% XXX Matrix0 should be used here.
     VsChunk = make_vertices(Vs),
     FsChunk = make_faces(Fs, He),
     MD = <<1.0:32/float-little,0.0:32/float-little,0.0:32/float-little,
@@ -414,43 +447,44 @@ make_face_mat(Fs) ->
 
 make_face_mat_1([#e3d_face{mat=Mat}|Fs], Face, Acc) ->
     make_face_mat_1(Fs, Face+1, [{M,Face} || M <- Mat] ++ Acc);
-make_face_mat_1([], Face, Acc) -> Acc.
+make_face_mat_1([], _Face, Acc) -> Acc.
 
 make_smooth_groups(Fs, He) ->
+    %% XXX We should use He to make smooth groups.
     Contents = lists:duplicate(length(Fs), <<1:32/little>>),
     make_chunk(16#4150, Contents).
 
 make_material(Mat) ->
+    io:format("~p\n", [Mat]),
     [make_material_1(M) || M <- Mat].
 
 make_material_1({Name,Mat}) ->
     NameChunk = make_chunk(16#A000, [atom_to_list(Name),0]),
-    MatChunks = make_material_2(Mat, []),
+    OpenGL = property_lists:get_value(opengl, Mat),
+    MatChunks = make_material_2(OpenGL, []),
     make_chunk(16#AFFF, [NameChunk|MatChunks]).
 
+make_material_2([{diffuse,{_,_,_,Opac0}=Color}|T], Acc) ->
+    Chunk = make_chunk(16#A020, make_rgb(Color)),
+    Opacity = make_chunk(16#A050, make_percent(1-Opac0)),
+    make_material_2(T, [Chunk,Opacity|Acc]);
 make_material_2([{ambient,RGB}|T], Acc) ->
     Chunk = make_chunk(16#A010, make_rgb(RGB)),
-    make_material_2(T, [Chunk|Acc]);
-make_material_2([{diffuse,RGB}|T], Acc) ->
-    Chunk = make_chunk(16#A020, make_rgb(RGB)),
     make_material_2(T, [Chunk|Acc]);
 make_material_2([{specular,RGB}|T], Acc) ->
     Chunk = make_chunk(16#A030, make_rgb(RGB)),
     make_material_2(T, [Chunk|Acc]);
 make_material_2([{shininess,Percent}|T], Acc) ->
-    Chunk = make_chunk(16#A040, make_percent(Percent)),
+    Chunk = make_chunk(16#A040, make_percent(1.0-Percent)),
     make_material_2(T, [Chunk|Acc]);
-make_material_2([{opacity,Opacity}|T], Acc) ->
-    Chunk = make_chunk(16#A050, make_percent(1-Opacity)),
-    make_material_2(T, [Chunk|Acc]);
-make_material_2([H|T], Acc) ->
+make_material_2([_|T], Acc) ->
     make_material_2(T, Acc);
 make_material_2([], Acc) -> Acc.
 
-make_rgb({R0,G0,B0}) when float(R0), float(G0), float(B0) ->
+make_rgb({R0,G0,B0,_}) when float(R0), float(G0), float(B0) ->
     make_chunk(16#0010, <<R0:32/float-little,G0:32/float-little,
  			 B0:32/float-little>>);
-make_rgb({R,G,B}) when integer(R), integer(G), integer(B) ->
+make_rgb({R,G,B,_}) when integer(R), integer(G), integer(B) ->
     make_chunk(16#0011, <<R:8/little,G:8/little,B:8/little>>).
 
 make_percent(0) ->

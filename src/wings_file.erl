@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.58 2002/04/14 18:46:57 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.59 2002/05/03 10:19:57 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -492,7 +492,8 @@ do_import(Importer, Name, St0) ->
 	    Suffix = " of " ++ integer_to_list(NumObjs),
 	    {UsedMat,St1} = translate_objects(Objs, gb_sets:empty(),
 					     1, Suffix, St0),
-	    St = add_materials(UsedMat, Mat, St1),
+	    {St2,NameMap} = add_materials(UsedMat, Mat, St1),
+	    St = rename_materials(NameMap, St0, St2),
 	    case gb_trees:size(St#st.shapes)-gb_trees:size(St0#st.shapes) of
 		NumObjs -> St;
 		N ->
@@ -516,13 +517,32 @@ add_materials(UsedMat0, Mat0, St) ->
     Mat = sofs:to_external(sofs:union(Mat2, NotDefined)),
     wings_material:add_materials(Mat, St).
 
+rename_materials([], _, St) -> St;
+rename_materials(NameMap0, #st{onext=FirstId}, #st{shapes=Shs0}=St) ->
+    NameMap = gb_trees:from_orddict(sort(NameMap0)),
+    Shs = rename_mat(gb_trees:to_list(Shs0), NameMap, FirstId, []),
+    St#st{shapes=Shs}.
+
+rename_mat([{Id,_}=Obj|Objs], NameMap, FirstId, Acc) when Id < FirstId ->
+    rename_mat(Objs, NameMap, FirstId, [Obj|Acc]);
+rename_mat([{Id,#we{fs=Ftab0}=We}|Objs], NameMap, FirstId, Acc) ->
+    Ftab1 = foldl(fun({Face,#face{mat=Mat0}=Rec}=Pair, A) ->
+			  case gb_trees:lookup(Mat0, NameMap) of
+			      none -> [Pair|A];
+			      {value,Mat} -> [{Face,Rec#face{mat=Mat}}|A]
+			  end
+		  end, [], gb_trees:to_list(Ftab0)),
+    Ftab = gb_trees:from_orddict(reverse(Ftab1)),
+    rename_mat(Objs, NameMap, FirstId, [{Id,We#we{fs=Ftab}}|Acc]);
+rename_mat([], _, _, Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
+
 translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0,
 		  I, Suffix, St0) ->
     wings_io:progress("Converting obj " ++ integer_to_list(I) ++ Suffix),
     Obj1 = e3d_mesh:clean(Obj0),
     Obj = e3d_mesh:make_quads(Obj1),
     #e3d_mesh{matrix=Matrix,vs=Vs0,tx=Tx0,fs=Fs0,he=He} = Obj,
-    io:format("Name ~p\n", [Name]),
     Vs = scale_objects(Vs0, Matrix),
     Tx = list_to_tuple(Tx0),
     {Fs,UsedMat} = translate_faces(Fs0, Tx, [], UsedMat0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.19 2002/04/30 07:09:20 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.20 2002/05/03 10:19:55 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -89,7 +89,6 @@ read(Parse, "mtllib" ++ Name0, Fd, Acc0) ->
 	       [$\n,$\r|Name2] -> reverse(Name2);
 	       [$\n|Name2] -> reverse(Name2)
 	   end,
-    io:format("~s\n", [Name]),
     case Parse(["mtllib",Name], Acc0) of
 	eof -> Acc0;
 	Acc -> read(Parse, Fd, Acc)
@@ -217,25 +216,33 @@ try_matlib(Name) ->
 	{ok,Fd} ->
 	    Res = read(fun mtl_parse/2, Fd, []),
 	    file:close(Fd),
-	    Res;
+	    [{Mat,[{maps,Maps},{opengl,OpenGL}]} || {Mat,OpenGL,Maps} <- Res];
 	{error,_Reason} -> error
     end.
 
 mtl_parse(["newmtl",Name0], Ms) ->
     Name = list_to_atom(Name0),
-    [{Name,[]}|Ms];
+    [{Name,[],[]}|Ms];
 mtl_parse(["Ka"|RGB], Mtl) ->
     mtl_add({ambient,mtl_text_to_tuple(RGB)}, Mtl);
 mtl_parse(["Kd"|RGB], Mtl) ->
     mtl_add({diffuse,mtl_text_to_tuple(RGB)}, Mtl);
-mtl_parse(["map_Kd",Filename], Mtl) ->
-    mtl_add({diffuse_map,Filename}, Mtl);
-mtl_parse([_|_]=Other, [{Name,_}|_]=Mtl) ->
-    io:format("Material ~w: ~p\n", [Name,Other]),
-    Mtl.
+mtl_parse(["map_Kd"|Filename0], Mtl) ->
+    Filename = space_concat(Filename0),
+    map_add({diffuse,Filename}, Mtl);
+mtl_parse(["map_Ka"|Filename0], Mtl) ->
+    Filename = space_concat(Filename0),
+    map_add({ambient,Filename}, Mtl);
+mtl_parse(["map_Bump"|Filename0], Mtl) ->
+    Filename = space_concat(Filename0),
+    map_add({bump,Filename}, Mtl);
+mtl_parse([_|_], [{_,_,_}|_]=Mtl) -> Mtl.
 
-mtl_add(P, [{Name,Props}|Ms]) ->
-    [{Name,[P|Props]}|Ms].
+mtl_add(P, [{Name,OpenGL,Maps}|Ms]) ->
+    [{Name,[P|OpenGL],Maps}|Ms].
+
+map_add(P, [{Name,OpenGL,Maps}|Ms]) ->
+    [{Name,OpenGL,[P|Maps]}|Ms].
 
 mtl_text_to_tuple(L) ->
     list_to_tuple([str2float(F) || F <- L]).
@@ -245,6 +252,11 @@ str2float(S) ->
 	{'EXIT',_} -> float(list_to_integer(S));
 	F -> F
     end.
+
+space_concat([Str|[_|_]=T]) ->
+    Str ++ [$\s|space_concat(T)];
+space_concat([S]) -> S;
+space_concat([]) -> [].
 
 skip_blanks([$\s|T]) -> skip_blanks(T);
 skip_blanks([$\t|T]) -> skip_blanks(T);
@@ -328,29 +340,42 @@ materials(Name0, Mats, Creator) ->
     {ok,filename:basename(Name)}.
 
 material(F, Base, {Name,Mat}) ->
+    OpenGL = property_lists:get_value(opengl, Mat),
     io:format(F, "newmtl ~s\n", [atom_to_list(Name)]),
     io:format(F, "Ns 80\n", []),
     io:format(F, "d 1.000000\n", []),
     io:format(F, "illum 2\n", []),
-    mat_color(F, "Kd", diffuse, Mat),
-    mat_color(F, "Ka", ambient, Mat),
-    mat_color(F, "Ks", specular, Mat),
-    diff_map(F, Base, Name, Mat),
+    mat_color(F, "Kd", diffuse, OpenGL),
+    mat_color(F, "Ka", ambient, OpenGL),
+    mat_color(F, "Ks", specular, OpenGL),
+    Maps = property_lists:get_value(maps, Mat),
+    export_maps(F, Maps, Base, Name),
     io:nl(F).
 
 mat_color(F, Label, Key, Mat) ->
-    {R,G,B} = property_lists:get_value(Key, Mat),
+    {R,G,B,_} = property_lists:get_value(Key, Mat),
     io:format(F, "~s ~p ~p ~p\n", [Label,R,G,B]).
 
-diff_map(F, Base, Name, Mat) ->
-    case property_lists:get_value(diffuse_map, Mat, none) of
-	none -> ok;
-	{W,H,DiffMap} ->
-	    MapFile = Base ++ "_" ++ atom_to_list(Name) ++ "_diffmap.tga",
-	    io:format(F, "map_Kd ~s\n", [MapFile]),
-	    Image = #e3d_image{image=DiffMap,width=W,height=H},
-	    ok = e3d_image:save(Image, MapFile)
-    end.
+export_maps(F, [{diffuse,Map}|T], Base, Name) ->
+    export_map(F, "Kd", Map, Base, Name),
+    export_maps(F, T, Base, Name);
+export_maps(F, [{ambient,Map}|T], Base, Name) ->
+    export_map(F, "Ka", Map, Base, Name),
+    export_maps(F, T, Base, Name);
+export_maps(F, [{bump,Map}|T], Base, Name) ->
+    export_map(F, "Bump", Map, Base, Name),
+    export_maps(F, T, Base, Name);
+export_maps(F, [_|T], Base, Name) ->
+    export_maps(F, T, Base, Name);
+export_maps(_, [], _, _) -> ok.
+
+export_map(_, _, none, _, _) -> ok;
+export_map(F, Label0, {W,H,Map}, Base, Name) ->
+    Label = "map_" ++ Label0,
+    MapFile = Base ++ "_" ++ atom_to_list(Name) ++ "_" ++ Label ++ ".tga",
+    io:format(F, "~s ~s\n", [Label,MapFile]),
+    Image = #e3d_image{image=Map,width=W,height=H},
+    ok = e3d_image:save(Image, MapFile).
 
 label(F, Creator) ->
     io:format(F, "# Exported from ~s\n", [Creator]).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.20 2002/03/13 20:49:38 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.21 2002/05/03 10:19:57 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -26,17 +26,17 @@ import(Name, St0) ->
 	    case catch binary_to_term(Data) of
 		{wings,0,Shapes} ->
                     {error,"Pre-0.80 Wings format no longer supported."};
-		{wings,1,Shapes,Materials,Props} ->
-                    St1 = wings_material:add_materials(Materials, St0),
-                    St2 = St1#st{selmode=import_selmode(Props, St1)},
-		    case import_old_objects(Shapes, St2) of
+		{wings,1,Shapes,_Materials,Props} ->
+                    %% Support for this format will be removed
+                    %% in Wings 1.0. (Note: Materials intentionally
+                    %% ignored from 0.94.03.)
+                    St1 = St0#st{selmode=import_selmode(Props, St0)},
+		    case import_old_objects(Shapes, St1) of
 			#st{}=St -> St;
 			Other -> {error,"bad objects in Wings file"}
 		    end;
 		{wings,2,{Shapes,Materials,Props}} ->
-                    St1 = wings_material:add_materials(Materials, St0),
-                    St2 = import_props(Props, St1),
-		    St = import_objects(Shapes, St2);
+                    import_vsn2(Shapes, Materials, Props, St0);
 		{wings,_,_} ->
 		    {error,"unknown wings format"};
 		Other ->
@@ -49,17 +49,24 @@ import(Name, St0) ->
 	    {error,file:format_error(Reason)}
     end.
 
-import_objects(Shapes, #st{selmode=Mode,shapes=Shs0,onext=Oid0}=St) ->
-    {Objs,Oid} = import_objects(Shapes, Mode, Oid0, []),
+import_vsn2(Shapes, Materials0, Props, St0) ->
+    Materials = translate_materials(Materials0),
+    {St1,NameMap0} = wings_material:add_materials(Materials, St0),
+    St = import_props(Props, St1),
+    NameMap = gb_trees:from_orddict(sort(NameMap0)),
+    import_objects(Shapes, NameMap, St).
+
+import_objects(Shapes, NameMap, #st{selmode=Mode,shapes=Shs0,onext=Oid0}=St) ->
+    {Objs,Oid} = import_objects(Shapes, Mode, NameMap, Oid0, []),
     Shs = gb_trees:from_orddict(gb_trees:to_list(Shs0) ++ reverse(Objs)),
     St#st{shapes=Shs,onext=Oid}.
 
-import_objects([Sh0|Shs], Mode, Oid, ShAcc) ->
+import_objects([Sh0|Shs], Mode, NameMap, Oid, ShAcc) ->
     {object,Name,{winged,Es,Fs,Vs,He},Props} = Sh0,
     ObjMode = import_object_mode(Props),
     Etab0 = import_edges(Es, #edge{}, 0, []),
     Etab = gb_trees:from_orddict(Etab0),
-    Ftab0 = import_faces(Fs, #face{}, 0, []),
+    Ftab0 = import_faces(Fs, #face{}, NameMap, 0, []),
     Ftab = face_add_incident(Ftab0, Etab0),
     Vtab0 = import_vs(Vs, #vtx{}, 0, []),
     Vtab = vertex_add_incident(Vtab0, Etab0),
@@ -70,8 +77,8 @@ import_objects([Sh0|Shs], Mode, Oid, ShAcc) ->
 			  gb_trees:size(Vtab)]),
     We = #we{es=Etab,fs=Ftab,vs=Vtab,he=Htab,perm=Perm,
 	     id=Oid,first_id=0,next_id=NextId,name=Name,mode=ObjMode},
-    import_objects(Shs, Mode, Oid+1, [{Oid,We}|ShAcc]);
-import_objects([], _Mode, Oid, ShAcc) -> {ShAcc,Oid}.
+    import_objects(Shs, Mode, NameMap, Oid+1, [{Oid,We}|ShAcc]);
+import_objects([], _Mode, _NameMap, Oid, ShAcc) -> {ShAcc,Oid}.
     
 import_edges([E|Es], Template, Edge, Acc) ->
     Rec = import_edge(E, Template),
@@ -95,16 +102,19 @@ import_edge([_|T], Rec) ->
     import_edge(T, Rec);
 import_edge([], Rec) -> Rec.
 
-import_faces([F|Fs], Template, Face, Acc) ->
-    Rec = import_face(F, Template),
-    import_faces(Fs, Template, Face+1, [{Face,Rec}|Acc]);
-import_faces([], _Template, _Face, Acc) -> reverse(Acc).
+import_faces([F|Fs], Template, NameMap, Face, Acc) ->
+    Rec = import_face(F, NameMap, Template),
+    import_faces(Fs, Template, NameMap, Face+1, [{Face,Rec}|Acc]);
+import_faces([], _Template, _NameMap, _Face, Acc) -> reverse(Acc).
 
-import_face([{material,Mat}|T], Rec) ->
-    import_face(T, Rec#face{mat=Mat});
-import_face([_|T], Rec) ->
-    import_face(T, Rec);
-import_face([], Rec) -> Rec.
+import_face([{material,Mat0}|T], NameMap, Rec) ->
+    case gb_trees:lookup(Mat0, NameMap) of
+	none -> import_face(T, NameMap, Rec#face{mat=Mat0});
+	{value,NewName} -> import_face(T, NameMap, Rec#face{mat=NewName})
+    end;
+import_face([_|T], NameMap, Rec) ->
+    import_face(T, NameMap, Rec);
+import_face([], _NameMap, Rec) -> Rec.
 
 import_vs([Vtx|Vs], Template, V, Acc) -> 
     Rec = import_vertex(Vtx, Template),
@@ -164,12 +174,45 @@ import_props([_|Ps], St) ->
     import_props(Ps, St);
 import_props([], St) -> St.
 
-import_vectors(Svec, St) ->
-    [{Name,{Vec,{Mode,import_sel(Sel, St)}}} || {Name,Vec,Mode,Sel} <- Svec].
-    
 import_sel(Sel, #st{onext=IdBase}) ->
     [{IdBase+Id,gb_sets:from_list(Elems)} || {Id,Elems} <- Sel].
 
+
+%%%
+%%% Import of old materials format (up to and including wings-0.94.02).
+%%%
+
+translate_materials(Mats) ->
+    [translate_material(M) || M <- Mats].
+    
+translate_material({Name,Props}=Mat) ->
+    case property_lists:is_defined(opengl, Props) of
+	true -> Mat;
+	false ->
+	    Opac = property_lists:get_value(opacity, Props),
+	    {Name,translate_material(Props, Opac, [], [])}
+    end.
+
+translate_material([Mat|Mats], Opac, OpenGL, Maps) ->
+    case Mat of
+	{diffuse_map,Map} ->
+	    translate_material(Mats, Opac, OpenGL, [{diffuse,Map}|Maps]);
+	{diffuse,_}=Diff ->
+	    translate_material(Mats, Opac, [trans(Diff, Opac)|OpenGL], Maps);
+	{ambient,_}=Amb ->
+	    translate_material(Mats, Opac, [trans(Amb, Opac)|OpenGL], Maps);
+	{specular,_}=Spec ->
+	    translate_material(Mats, Opac, [trans(Spec, Opac)|OpenGL], Maps);
+	{shininess,Sh}=Spec ->
+	    translate_material(Mats, Opac, [{shininess,1.0-Sh}|OpenGL], Maps);
+	_ ->
+	    translate_material(Mats, OpenGL, Opac, Maps)
+    end;
+translate_material([], _, OpenGL, Maps) ->
+    [{opengl,OpenGL},{maps,Maps}].
+
+trans({Key,{R,G,B}}, Opac) -> {Key,{R,G,B,Opac}}.
+    
 %%%
 %%% Import of old Wings file in format 1.
 %%%
@@ -256,16 +299,9 @@ export_props(Sel0) ->
     Sel = sofs:relation_to_family(Sel3),
     export_props_1(sofs:to_external(Sel), []).
 
-export_props_1([{{{vector,_,Name,Vec},Mode},Sel}|_]=T, Acc) ->
-    export_vectors(T, Acc, []);
 export_props_1([{{What,Mode},Sel}|T], Acc) ->
     export_props_1(T, [{What,{Mode,Sel}}|Acc]);
 export_props_1([], Acc) -> Acc.
-
-export_vectors([{{{vector,_,Name,Vec},Mode},Sel}|T], Props, Acc) ->
-    export_vectors(T, Props, [{Name,Vec,Mode,Sel}|Acc]);
-export_vectors([], Props, Acc) ->
-    [{vectors,reverse(Acc)}|Props].
 
 write_file(Name, Bin) ->
     Data = <<?WINGS_HEADER,(size(Bin)):32,Bin/binary>>,
