@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.96 2003/03/08 17:38:05 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.97 2003/04/27 07:48:36 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,resize/0,
-	 arrow/0,hourglass/0,
+	 set_cursor/1,arrow/0,hourglass/0,
 	 info/1,
 	 blend/2,
 	 border/5,border/6,sunken_rect/5,raised_rect/4,raised_rect/5,
@@ -42,33 +42,32 @@
 	{eq,					%Event queue.
 	 tex=[],				%Textures.
 	 grab_count=0,				%Number of grabs.
-	 hourglass,				%Hourglass cursor.
-	 arrow,					%Arrow cursor.
+	 cursors,				%Mouse cursors.
 	 raw_icons				%Raw icon bundle.
 	}).
 
 init() ->
+    Cursors = build_cursors(),
     Icons = read_icons(),
-    Arrow = build_cursor(arrow_data()),
-    Hourglass = build_cursor(hourglass_data()),
-    set_cursor(Arrow),
-    put_state(#io{eq=queue:new(),raw_icons=Icons,
-		  arrow=Arrow,hourglass=Hourglass}).
+    put_state(#io{eq=queue:new(),raw_icons=Icons,cursors=Cursors}).
 
 hourglass() ->
-    #io{hourglass=Hg} = get_state(),
-    set_cursor(Hg).
+    set_cursor(hourglass).
 
 arrow() ->
-    #io{arrow=Arrow} = get_state(),
-    set_cursor(Arrow).
+    set_cursor(arrow).
 
 set_cursor(Cursor) ->
-    case os:type() of
-	{unix,darwin} -> ok;
-	_ -> sdl_mouse:setCursor(Cursor)
-    end.
-	    
+    #io{cursors=Cursors} = get_state(),
+    set_cursor_1(Cursors, Cursor).
+
+set_cursor_1([{Name,none}|_], Name) ->
+    ok;
+set_cursor_1([{Name,Cursor}|_], Name) ->
+    sdl_mouse:setCursor(Cursor);
+set_cursor_1([_|Cs], Name) ->
+    set_cursor_1(Cs, Name).
+
 read_icons() ->
     IconFile = filename:join([wings:root_dir(),"ebin","wings_icon.bundle"]),
     case file:read_file(IconFile) of
@@ -108,7 +107,7 @@ blend(Color, Draw) ->
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     Draw(Color),
     gl:disable(?GL_BLEND).
-    
+
 border(X, Y, W, H, FillColor) ->
     border(X, Y, W, H, FillColor, {0.20,0.20,0.20}).
 
@@ -129,7 +128,7 @@ border(X0, Y0, Mw, Mh, FillColor, BorderColor)
 
 set_color({_,_,_}=RGB) -> gl:color3fv(RGB);
 set_color({_,_,_,_}=RGBA) -> gl:color4fv(RGBA).
-    
+
 raised_rect(X, Y, Mw, Mh) ->
     raised_rect(X, Y, Mw, Mh, ?PANE_COLOR).
 
@@ -386,7 +385,7 @@ poll_event() ->
 	{{value,Ev},_} -> Ev;
 	{empty,_} -> none
     end.
-    
+
 get_sdl_event() ->
     Io0 = get_state(),
     {Event,Io} = get_sdl_event(Io0),
@@ -466,7 +465,7 @@ grab() ->
 
 do_grab(0) ->
     case os:type() of
-	{unix, darwin} -> 
+	{unix, darwin} ->
 	    ignore;  %% GRAB doesn't work good enough on Darwin
 	_ ->
 	    %% Good for Linux to read out any mouse events here.
@@ -515,18 +514,50 @@ warp(X, Y) ->
 %%% Cursors.
 %%%
 
-build_cursor(Data) ->
-    build_cursor(Data, 0, 0).
+build_cursors() ->
+    case os:type() of
+	{unix,darwin} ->
+	    [{arrow,sdl_mouse:getCursor()},
+	     {hourglass,none},
+	     {stop,build_cursor(stop_data())}];
+	_ ->
+	    [{arrow,build_cursor(arrow_data())},
+	     {hourglass,build_cursor(hourglass_data())},
+	     {stop,build_cursor(stop_data())}]
+    end.
 
-build_cursor([$\s|T], Mask, Bits) ->
-    build_cursor(T, Mask bsl 1, Bits bsl 1);
+build_cursor(Data0) ->
+    case os:type() of
+	{unix,darwin} ->
+	    build_cursor(Data0, 0, 0);
+	_ when length(Data0) =:= 256 ->
+	    Data = build_cursor_dup(Data0),
+	    build_cursor(Data, 0, 0);
+	_ ->
+	    build_cursor(Data0, 0, 0)
+    end.
+
+build_cursor_dup([C|Cs]) ->	    
+    [C,C|build_cursor_dup(Cs)];
+build_cursor_dup([]) -> [].
+
 build_cursor([$.|T], Mask, Bits) ->
     build_cursor(T, (Mask bsl 1) bor 1, Bits bsl 1);
-build_cursor([_|T], Mask, Bits) ->
+build_cursor([$X|T], Mask, Bits) ->
     build_cursor(T, (Mask bsl 1) bor 1, (Bits bsl 1) bor 1);
+build_cursor([$x|T], Mask, Bits) ->
+    build_cursor(T, (Mask bsl 1) bor 1, (Bits bsl 1) bor 1);
+build_cursor([_|T], Mask, Bits) ->
+    build_cursor(T, Mask bsl 1, Bits bsl 1);
 build_cursor([], Mask0, Bits0) ->
-    Bits = <<Bits0:1024>>,
-    Mask = <<Mask0:1024>>,
+    case os:type() of
+	{unix,darwin} ->
+	    Bits = <<Bits0:256>>,
+	    Mask = <<Mask0:256>>;
+	_ ->
+	    Bits = <<Bits0:1024>>,
+	    Mask = <<Mask0:1024>>
+    end,
     sdl_mouse:createCursor(Bits, Mask, 32, 32, 0, 0).
 
 hourglass_data() ->
@@ -562,7 +593,7 @@ hourglass_data() ->
        	"X..............................X"
        	" XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
        	"  ............................	 ".
-       	
+
 arrow_data() ->
     "X                               "
 	"XX                              "
@@ -596,3 +627,22 @@ arrow_data() ->
 	"                                "
 	"                                "
 	"                                ".
+
+stop_data() ->
+        "     xxxxxx     "
+       	"   xxxxxxxxxx   "
+       	"   xxx    xxx   "
+	" xxxxx      xxx "
+	" xxxxx      xxx "
+       	"xxxxxxx       xx"
+       	"xx   xxx      xx"
+	"xx    xxx     xx"
+	"xx     xxx    xx"
+	"xx    	 xxx   xx"
+	"xx       xxxxxxx"
+	" xxx      xxxxx "
+	" xxx      xxxxx "
+       	"   xxx    xxx   "
+       	"   xxxxxxxxxx   "
+        "     xxxxxx     ".
+

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.97 2003/04/23 17:51:02 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.98 2003/04/27 07:48:36 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -86,11 +86,13 @@
 %%% wm_dirty		Exists if redraw is needed.
 %%% wm_top_size         Size of top window.
 %%% wm_viewport		Current viewport.
+%%% wm_cursor		Default cursor.
 %%%
 %%% Event loop.
 %%%
 
 init() ->
+    put(wm_cursor, arrow),
     wings_pref:set_default(window_size, {780,570}),
     {W,H} = TopSize = wings_pref:get_value(window_size),
     put(wm_top_size, TopSize),
@@ -588,7 +590,7 @@ redraw_all() ->
     maybe_clear(early, EarlyBC),		%Clear immediately after
 						%buffer swap (early).
     clean(),
-    wings_io:arrow(),
+    wings_io:set_cursor(get(wm_cursor)),
     event_loop().
 
 maybe_clear(early, true) ->
@@ -604,8 +606,7 @@ clear_background() ->
     %% occupied by the window. Given a slow OpenGL implementation,
     %% it is a big win.
     case any_window_below(Name) of
-	true ->
-	    clear_background_1(Name);
+	true -> clear_background_1(Name);
 	false -> ok
     end.
 
@@ -834,7 +835,12 @@ window_below_1(_, _, _) -> none.
 %%%
 %%% Drag and drop support.
 %%%
-
+-record(drag,
+	{data,					%Drop data.
+	 bstate,				%State of mouse buttons.
+	 redraw,				%Redraw function.
+	 over=none				%We are over this window.
+	}).
 drag(Ev, Rect, DropData) ->
     Redraw = fun() ->
 		     gl:pushAttrib(?GL_POLYGON_BIT bor ?GL_LINE_BIT),
@@ -857,31 +863,47 @@ drag(#mousebutton{x=X,y=Y,button=B}, Rect, Redraw, DropData) ->
 drag_1(X0, Y0, State, {W,H}, Redraw, DropData) ->
     {X1,Y1} = wings_wm:local2global(X0, Y0),
     X = X1 - W div 2,
-    Y = Y1 - H div 2,    
-    Drag = fun(Ev) -> drag_event(Ev, State, DropData, Redraw) end,
-    Op = {push,Drag},
+    Y = Y1 - H div 2,
+    Drag = #drag{data=DropData,bstate=State,redraw=Redraw},
+    Op = {seq,push,get_drag_event(Drag)},
     Name = dragger,
-    wings_wm:new(Name, {X,Y,highest}, {W,H}, Op),
-    wings_wm:grab_focus(Name),
-    wings_wm:dirty(),
+    new(Name, {X,Y,highest}, {W,H}, Op),
+    grab_focus(Name),
+    put(wm_cursor, stop),
+    dirty(),
     keep.
 
-drag_event(redraw, _, _, Redraw) ->
+get_drag_event(Drag) ->
+    {replace,fun(Ev) -> drag_event(Ev, Drag) end}.
+		     
+drag_event(redraw, #drag{redraw=Redraw}) ->
     wings_io:ortho_setup(),
     Redraw(),
     keep;
-drag_event(#mousemotion{x=X,y=Y}, _, _, _) ->
+drag_event(#mousemotion{x=X0,y=Y0}, #drag{over=Over0}=Drag) ->
     {W,H} = wings_wm:win_size(),
-    wings_wm:offset(dragger, X - W div 2, Y - H div 2),
-    wings_wm:dirty(),
-    keep;
-drag_event(#mousebutton{button=B,state=?SDL_RELEASED}, State, DropData, _)
-  when (1 bsl (B-1)) band State =/= 0 ->
-    {{X,Y},{W,H}} = wings_wm:win_rect(dragger),
-    Ev = {drop,{X + W div 2,Y + H div 2},DropData},
-    wings_io:putback_event(Ev),
-    delete;
-drag_event(_, _, _, _) -> keep.
+    offset(dragger, X0 - W div 2, Y0 - H div 2),
+    {X,Y} = local2global(X0, Y0),
+    hide(dragger),
+    Over = window_below(X, Y),
+    show(dragger),
+    case Over of
+	Over0 -> keep;
+	_ ->
+	    get_drag_event(Drag#drag{over=Over})
+    end;
+drag_event(#mousebutton{button=B,state=?SDL_RELEASED},
+	   #drag{bstate=State,data=DropData}) ->
+    if
+	((1 bsl (B-1)) band State) =/= 0 ->
+	    {{X,Y},{W,H}} = wings_wm:win_rect(dragger),
+	    Ev = {drop,{X + W div 2,Y + H div 2},DropData},
+	    wings_io:putback_event(Ev),
+	    put(wm_cursor, arrow),
+	    delete;
+	true -> keep
+    end;
+drag_event(_, _) -> keep.
 
 %%%
 %%% Utility functions.
