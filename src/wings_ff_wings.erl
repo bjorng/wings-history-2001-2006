@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.54 2004/06/15 18:21:14 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.55 2004/06/17 04:34:56 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -297,8 +297,7 @@ share_list_2([{Vtab0,Etab0}|Ts], [#we{id=Id,mat=FaceMat}=We0|Wes], Acc) ->
     Vtab = gb_trees:from_orddict(Vtab0),
     Etab = gb_trees:from_orddict(Etab0),
     We1 = wings_we:rebuild(We0#we{vp=Vtab,es=Etab,mat=default}),
-    We2 = wings_material:assign_materials(FaceMat, We1),
-    We = We2#we{mode=We1#we.mode},
+    We = wings_material:assign_materials(FaceMat, We1),
     share_list_2(Ts, Wes, [{Id,We}|Acc]);
 share_list_2([], [], Wes) -> sort(Wes).
 
