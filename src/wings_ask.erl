@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.99 2003/10/23 13:31:41 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.100 2003/10/24 12:36:10 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -678,10 +678,12 @@ frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
 	    Y = Y0 + ?CHAR_HEIGHT div 2 + 3,
 	    H = H0 - (Y-Y0) - 4,
 	    gl:'begin'(?GL_LINES),
-	    vline(X+W-2, Y, H),
-	    hline(X, Y, W),
-	    hline(X, Y+H-1, W-1),
-	    vline(X, Y+1, H-2),
+	    ColLow = color3_lowlight(),
+	    ColHigh = color3_highlight(),
+	    vline(X+W-2, Y, H, ColLow, ColHigh),
+	    hline(X, Y, W, ColLow, ColHigh),
+	    hline(X, Y+H-1, W-1, ColLow, ColHigh),
+	    vline(X, Y+1, H-2, ColLow, ColHigh),
 	    gl:'end'(),
 	    TextPos = X + 3*?CHAR_WIDTH,
 	    blend(fun(Color) ->
@@ -689,28 +691,28 @@ frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
 			  gl:rectf(TextPos-?CHAR_WIDTH, Y-1,
 				   TextPos+(length(Title)+1)*?CHAR_WIDTH, Y+2)
 		  end),
-	    gl:color3b(0, 0, 0),
+	    gl:color3fv(color3_text()),
 	    wings_io:text_at(TextPos, Y0+?CHAR_HEIGHT, Title),
 	    keep
     end.
 
-hline(X0, Y0, W) ->
+hline(X0, Y0, W, ColLow, ColHigh) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
-    gl:color3f(0.5, 0.5, 0.5),
+    gl:color3fv(ColLow),
     gl:vertex2f(X, Y),
     gl:vertex2f(X+W, Y),
-    gl:color3f(1, 1, 1),
+    gl:color3fv(ColHigh),
     gl:vertex2f(X, Y+1),
     gl:vertex2f(X+W, Y+1).
 
-vline(X0, Y0, H) ->
+vline(X0, Y0, H, ColLow, ColHigh) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
-    gl:color3f(0.5, 0.5, 0.5),
+    gl:color3fv(ColLow),
     gl:vertex2f(X, Y),
     gl:vertex2f(X, Y+H),
-    gl:color3f(1, 1, 1),
+    gl:color3fv(ColHigh),
     gl:vertex2f(X+1, Y),
     gl:vertex2f(X+1, Y+H).
 
@@ -738,7 +740,7 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
     UpperY = Y + 5.5,
     gl:lineWidth(1),
     gl:'begin'(?GL_LINES),
-    gl:color3f(0.10, 0.10, 0.10),
+    gl:color3fv(color3_disabled()),
     gl:vertex2f(LeftX, UpperY),
     gl:vertex2f(RightX, UpperY),
     gl:'end'(),
@@ -797,16 +799,22 @@ cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED}, #fi{x=X,key=Key}, I, Store) ->
 cb_event(_Ev, _Fi, _I, _Store) -> keep.
 
 cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
+    FgColor = case DisEnable of 
+		  disable -> color3_disabled(); 
+		  _-> color3_text()
+	      end,
     wings_io:sunken_rect(X, Y0+?CHAR_HEIGHT-9, 8, 8, 
 			 case DisEnable of
-			     disable -> color();
+			     disable -> color3();
 			     _ -> {1,1,1}
-			 end),
+			 end, color4()),
     Y = Y0+?CHAR_HEIGHT,
+    gl:color3fv(FgColor),
     case Val of
 	false -> ok;
 	true -> wings_io:text_at(X+1, Y, [crossmark])
     end,
+    gl:color3fv(FgColor),
     wings_io:text_at(X+2*?CHAR_WIDTH, Y, Label),
     if
 	Active == true ->
@@ -814,6 +822,7 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
 			     duplicate(length(Label), $_));
 	true -> ok
     end,
+    gl:color3b(0, 0, 0),
     DisEnable.
 
 
@@ -868,10 +877,14 @@ rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, #fi{x=X}, I, Store) ->
 rb_event(_Ev, _Fi, _I, _Store) -> keep.
 
 rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
+    FgColor = case DisEnable of 
+		  disable -> color3_disabled(); 
+		  _-> color3_text()
+	      end,
     Y = Y0+?CHAR_HEIGHT,
-    gl:color4fv(case DisEnable of
-		    disable -> color();
-		    _ -> {1,1,1,1}
+    gl:color3fv(case DisEnable of
+		    disable -> color3();
+		    _ -> {1,1,1}
 		end),
     Fg = <<
 	     2#00111000,
@@ -883,7 +896,7 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
 	     2#00111000>>,
     gl:rasterPos2i(X, Y),
     gl:bitmap(7, 7, -1, 0, 7, 0, Fg),
-    gl:color3b(0, 0, 0),
+    gl:color3fv(FgColor),
     B = case Common of
 	    Val ->
 	       	<<
@@ -906,6 +919,7 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
     end,
     gl:rasterPos2i(X, Y),
     gl:bitmap(7, 7, -1, 0, 7, 0, B),
+    gl:color3fv(FgColor),
     wings_io:text_at(X+2*?CHAR_WIDTH, Y, Label),
     if
 	Active == true ->
@@ -913,6 +927,7 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
 			     duplicate(length(Label), $_));
 	true -> ok
     end,
+    gl:color3b(0, 0, 0),
     DisEnable.
 
 rb_set(#rb{var=Var,val=Val}, Store) ->
@@ -972,24 +987,30 @@ menu_width([{S,_}|T], W0) ->
 menu_width([], W) -> W.
 
 menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
+    FgColor = case DisEnable of 
+		  disable -> color3_disabled(); 
+		  _-> color3_text()
+	      end,
     blend(fun(Col) ->
 		  case DisEnable of
 		      disable ->
-			  wings_io:border(X, Y0+1, W-?CHAR_WIDTH+10, H-3, Col);
+			  wings_io:border(X, Y0+1, W-?CHAR_WIDTH+10, 
+					  H-3, Col, FgColor);
 		      _ ->
 			  wings_io:raised_rect(X, Y0+1, W-?CHAR_WIDTH+10, 
-					       H-3, Col)
+					       H-3, Col, Col)
 		  end
 	  end),
     Y = Y0+?CHAR_HEIGHT,
     ValStr = [Desc || {Desc,V} <- Menu, V =:= Val],
+    gl:color3fv(FgColor),
     wings_io:text_at(X+5, Y, ValStr),
     Xr = X + W-8,
     case Active of
-	false -> wings_io:border(Xr-1, Y-9, 10, 10, ?PANE_COLOR);
-	true -> wings_io:sunken_rect(Xr-1, Y-9, 10, 10, ?PANE_COLOR)
+	false -> wings_io:border(Xr-1, Y-9, 10, 10, color3(), FgColor);
+	true -> wings_io:sunken_rect(Xr-1, Y-9, 10, 10, color3(), color4())
     end,
-    gl:color3b(0, 0, 0),
+    gl:color3fv(FgColor),
     Arrows = <<
 	      2#00010000,
 	      2#00111000,
@@ -1000,6 +1021,7 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
 	      2#00010000>>,
     gl:rasterPos2f(Xr+0.5, Y+0.5),
     gl:bitmap(7, 7, 0, -1, 7, 0, Arrows),
+    gl:color3b(0, 0, 0),
     DisEnable.
 
 %% Menu popup
@@ -1013,10 +1035,10 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
 
 menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{menu=Menu0}, Val, Disabled) ->
     {X1,Y1} = wings_wm:local2global(X0+?HMARGIN, Y0+?VMARGIN),
-    case [V || {_,X}=V <- Menu0, not lists:member(X, Disabled)] of
-	[] -> ok;
-	Menu1 ->
-	    Sel = popup_find_index(Menu1, Val),
+    Menu1 = [{Desc,V,lists:member(V, Disabled)} || {Desc,V} <- Menu0],
+    case popup_find_index(Menu1, Val) of
+	0 -> ok;
+	Sel ->
 	    Menu = list_to_tuple(Menu1),
 	    Mh = size(Menu)*?LINE_HEIGHT,
 	    Ps = #popup{parent=wings_wm:this(),sel=Sel,orig_sel=Sel,menu=Menu},
@@ -1030,11 +1052,15 @@ menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{menu=Menu0}, Val, Disabled) ->
     keep.
 
 popup_find_index(Menu, Val) ->
-    popup_find_index(Menu, Val, 1).
+    popup_find_index(Menu, Val, 1, 0).
 
-popup_find_index([], _Val, _I) -> 1;
-popup_find_index([{_,Val}|_], Val, I) -> I;
-popup_find_index([_|T], Val, I) -> popup_find_index(T, Val, I+1).
+popup_find_index([], _Val, _I, J) -> J;
+popup_find_index([{_,Val,false}|_], Val, I, _J) -> I;
+popup_find_index([{_,_,false}|T], Val, I, 0) -> 
+    popup_find_index(T, Val, I+1, I);
+popup_find_index([_|T], Val, I, J) -> 
+    popup_find_index(T, Val, I+1, J).
+
 
 get_popup_event(Ps) ->
     {replace,fun(Ev) -> popup_event(Ev, Ps) end}.
@@ -1045,8 +1071,13 @@ popup_event(#mousemotion{y=Y}, #popup{menu=Menu,sel=Sel0}=Ps) ->
     case ((Y-2) div ?LINE_HEIGHT)+1 of
 	Sel0 -> keep;
 	Sel when 0 < Sel, Sel =< size(Menu) ->
-	    wings_wm:dirty(),
-	    get_popup_event(Ps#popup{sel=Sel});
+	    case element(Sel, Menu) of
+		{_,_,true} -> % disabled
+		    keep;
+		_ ->
+		    wings_wm:dirty(),
+		    get_popup_event(Ps#popup{sel=Sel})
+	    end;
 	_ -> keep
     end;
 popup_event(#mousebutton{button=1,state=?SDL_RELEASED}, Ps) ->
@@ -1068,8 +1099,8 @@ popup_key(?SDLK_DOWN, _Mod, _Unicode, Ps) ->
 popup_key(?SDLK_KP_ENTER, _Mod, _Unicode, Ps) -> 
     popup_key($ , Ps);
 popup_key(?SDLK_ESCAPE, _Mod, _Unicode, 
-	  #popup{parent=Parent,menu=Menu,orig_sel=Sel}) -> 
-    {_,Val} = element(Sel, Menu),
+	  #popup{parent=Parent,menu=Menu,orig_sel=OrigSel}) -> 
+    {_,Val,_} = element(OrigSel, Menu),
     wings_wm:send(Parent, {popup_result,Val}),
     delete;
 popup_key(_Sym, _Mod, $\r, Ps) -> 
@@ -1077,46 +1108,69 @@ popup_key(_Sym, _Mod, $\r, Ps) ->
 popup_key(_Sym, _Mod, Unicode, Ps) -> 
     popup_key(Unicode, Ps).
 
-popup_key(16, #popup{sel=Sel}=Ps) %Ctrl-P
-  when Sel > 1 ->
-    wings_wm:dirty(),
-    get_popup_event(Ps#popup{sel=Sel-1});
-popup_key(14, #popup{menu=Menu,sel=Sel}=Ps) %Ctrl-N
-  when Sel < size(Menu) ->
-    wings_wm:dirty(),
-    get_popup_event(Ps#popup{sel=Sel+1});
+popup_key(16, #popup{sel=Sel}=Ps) -> %Ctrl-P
+    case popup_sel(-1, Sel, Ps) of
+	Sel -> keep;
+	NewSel ->
+	    wings_wm:dirty(),
+	    get_popup_event(Ps#popup{sel=NewSel})
+    end;
+popup_key(14, #popup{sel=Sel}=Ps) -> %Ctrl-N
+    case popup_sel(+1, Sel, Ps) of
+	Sel -> keep;
+	NewSel ->
+	    wings_wm:dirty(),
+	    get_popup_event(Ps#popup{sel=NewSel})
+    end;
 popup_key($ , #popup{parent=Parent,menu=Menu,sel=Sel}) -> %Space
-    {_,Val} = element(Sel, Menu),
+    {_,Val,_} = element(Sel, Menu),
     wings_wm:send(Parent, {popup_result,Val}),
     delete;
 popup_key(_Unicode, _Ps) ->
     ?DEBUG_DISPLAY([_Unicode,_Ps]),
     keep.
 
+popup_sel(Step, Sel, #popup{sel=PrevSel,menu=Menu}=Ps) ->
+    case Sel+Step of
+	NewSel when NewSel >= 1, NewSel =< size(Menu) ->
+	    case element(NewSel, Menu) of
+		{_,_,false} -> NewSel; % not disabled
+		_ -> popup_sel(Step, NewSel, Ps)
+	    end;
+	_ -> PrevSel
+    end.
+
 popup_redraw(#popup{sel=Sel,orig_sel=OrigSel,menu=Menu}) ->
+    FgColor = color3_text(),
     wings_io:ortho_setup(),
     {_,_,W,H} = wings_wm:viewport(),
     blend(fun(Col) ->
-		  wings_io:border(0, 0, W-1, H-1, Col)
+		  wings_io:border(0, 0, W-1, H-1, Col, FgColor)
 	  end),
-    gl:color3b(0, 0, 0),
+    gl:color3fv(FgColor),
     X = 3*?CHAR_WIDTH-1,
     Y = ?CHAR_HEIGHT+2,
     popup_redraw_1(1, Menu, Sel, W, X, ?CHAR_HEIGHT+2),
-    gl:color3b(0, 0, 0),
+    gl:color3fv(FgColor),
     wings_io:text_at(X-10, OrigSel*Y, [crossmark]),
+    gl:color3b(0, 0, 0),
     keep.
 
 popup_redraw_1(Sel, Menu, Sel, W, X, Y) ->
-    {Desc,_} = element(Sel, Menu),
+    {Desc,_,_} = element(Sel, Menu),
     gl:color3f(0, 0, 0.5),
     gl:recti(X-2, Y+2, X+W-4*?CHAR_WIDTH, Y-?CHAR_HEIGHT+2),
-    gl:color3f(1, 1, 1),
+    gl:color3fv(color3()),
     wings_io:text_at(X, Y, Desc),
-    gl:color3b(0, 0, 0),
     popup_redraw_1(Sel+1, Menu, Sel, W, X, Y+?LINE_HEIGHT);
 popup_redraw_1(I, Menu, Sel, W, X, Y) when I =< size(Menu) ->
-    {Desc,_} = element(I, Menu),
+    {Desc,_,Disabled} = element(I, Menu),
+    case Disabled of
+	true ->
+	    gl:color3fv(color3_disabled());
+	false ->
+	    gl:color3fv(color3_text())
+    end,
     wings_io:text_at(X, Y, Desc),
     popup_redraw_1(I+1, Menu, Sel, W, X, Y+?LINE_HEIGHT);
 popup_redraw_1(_, _, _, _, _, _) -> keep.
@@ -1159,16 +1213,20 @@ button_event(_Ev, _Fi, _I, _Store) -> keep.
 
 button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnable) ->
     Y = Y0+?CHAR_HEIGHT+2,
-    case DisEnable of disable -> gl:enable(?GL_POLYGON_STIPPLE); _ -> ok end,
+    FgColor = case DisEnable of 
+		  disable -> color3_disabled(); 
+		  _-> color3_text()
+	      end,
     blend(fun(Col) ->
 		  case DisEnable of
 		      disable ->
-			  wings_io:border(X, Y0+2, W, H-4, Col);
+			  wings_io:border(X, Y0+2, W, H-4, Col, FgColor);
 		      _ ->
-			  wings_io:raised_rect(X, Y0+2, W, H-4, Col)
+			  wings_io:raised_rect(X, Y0+2, W, H-4, Col, Col)
 		  end
 	  end),
     TextX = X + 2 + (W-wings_text:width(Label)) div 2,
+    gl:color3fv(FgColor),
     wings_io:text_at(TextX, Y, Label),
     if
 	Active == true ->
@@ -1177,7 +1235,7 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnable) ->
 	    keep;
 	true -> keep
     end,
-    case DisEnable of disable -> gl:disable(?GL_POLYGON_STIPPLE); _ -> ok end,
+    gl:color3b(0, 0, 0),
     DisEnable.
 
 
@@ -1234,19 +1292,27 @@ replace_rgb({_,_,_,_}, {_,_,_,_}=RGB) -> RGB;
 replace_rgb({_,_,_,A}, {R,G,B}) -> {R,G,B,A}.
 
 col_draw(Active, #fi{x=X,y=Y0}, RGB, DisEnable) ->
+    FgColor = case DisEnable of 
+		  disable -> color3_disabled(); 
+		  _-> color3_text()
+	      end,
     case DisEnable of
 	disable ->
-	    wings_io:border(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT, RGB);
+	    wings_io:border(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT, 
+			    RGB, FgColor);
 	_ ->
-	    wings_io:sunken_rect(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT, RGB)
+	    wings_io:sunken_rect(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT, 
+				 RGB, color4())
     end,
     Y = Y0+?CHAR_HEIGHT,
     if
 	Active == true ->
+	    gl:color3fv(FgColor),
 	    wings_io:text_at(X, Y, "___"),
 	    keep;
 	true -> keep
     end,
+    gl:color3b(0, 0, 0),
     DisEnable.
 
 col_inside(Xm, Ym, #fi{x=X,y=Y}) ->
@@ -1303,13 +1369,16 @@ label_dimensions([L|Lines], W0, H) ->
 label_dimensions([], W, H) -> {W,H}.
 
 label_event({redraw,_Active}, #fi{x=X,y=Y}, I, Store) ->
-	    #label{lines=Lines} = gb_trees:get(-I, Store),
-	    label_draw(Lines, X, Y+?CHAR_HEIGHT);
+    #label{lines=Lines} = gb_trees:get(-I, Store),
+    gl:color3fv(color3_text()),
+    label_draw(Lines, X, Y+?CHAR_HEIGHT);
 label_event(_, _, _, _) -> keep.
 
 label_draw([L|Lines], X, Y) ->
+    gl:color3fv(color3_text()),
     wings_io:text_at(X, Y, L),
     label_draw(Lines, X, Y+?LINE_HEIGHT),
+    gl:color3b(0, 0, 0),
     keep;
 label_draw([], _, _) -> keep.
 
@@ -1503,28 +1572,33 @@ draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
 	      true -> stars(Str0);
 	      false -> Str0 
 	  end,
-    gl:color3b(0, 0, 0),
-    wings_io:sunken_rect(X0, Y0+2,
-			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
-			 case DisEnable of
-			     disable -> color();
-			     _ -> {1,1,1}
-			 end),
+    FgColor =
+	case DisEnable of
+	    disable ->
+		blend(fun(Col) ->
+			      wings_io:sunken_rect(X0, Y0+2, 
+						   (Max+1)*?CHAR_WIDTH, 
+						   ?CHAR_HEIGHT+1,
+						   Col, Col)
+		      end),
+		color3_disabled();
+	    _ ->
+		wings_io:sunken_rect(X0, Y0+2,
+				     (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
+				     {1,1,1}, color4()),
+		color3_text()
+	end,
     Y = Y0 + ?CHAR_HEIGHT,
     X = X0 + (?CHAR_WIDTH div 2),
+    gl:color3fv(FgColor),
     wings_io:text_at(X, Y, Str),
     DisEnable.
 
 draw_text_active(#fi{x=X0,y=Y0}, 
 		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password},
 		 DisEnable) ->
-    gl:color3b(0, 0, 0),
-    wings_io:sunken_rect(X0, Y0+2,
-			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
-			 case DisEnable of
-			     disable -> color();
-			     _ -> {1,1,1}
-			 end),
+    wings_io:sunken_rect(X0, Y0+2, (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
+			 {1,1,1}, color4()),
     Y = Y0 + ?CHAR_HEIGHT,
     X = X0 + (?CHAR_WIDTH div 2),
     Len = length(Bef),
@@ -1533,6 +1607,7 @@ draw_text_active(#fi{x=X0,y=Y0},
 	      false -> reverse(Bef, Aft)
 	  end,
     ?DEBUG_DISPLAY([Sel,Bef,Aft]),
+    gl:color3fv(color3_text()),
     wings_io:text_at(X, Y, Str),
     case {DisEnable,abs(Sel)} of
 	{disable,_} ->
@@ -1540,8 +1615,7 @@ draw_text_active(#fi{x=X0,y=Y0},
 	{_,0} ->
 	    gl:color3f(1, 0, 0),
 	    X1 = X+Len*?CHAR_WIDTH,
-	    wings_io:text_at(X1, Y, [caret]),
-	    gl:color3b(0, 0, 0);
+	    wings_io:text_at(X1, Y, [caret]);
 	{_,N} ->
 	    Skip = min(Len, Len+Sel),
 	    SelStr = string:substr(Str, Skip+1, N),
@@ -1549,9 +1623,9 @@ draw_text_active(#fi{x=X0,y=Y0},
 	    X1 = X+Skip*?CHAR_WIDTH,
  	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1+N*?CHAR_WIDTH, Y+2),
  	    gl:color3f(1, 1, 1),
-	    wings_io:text_at(X1, Y, SelStr),
-	    gl:color3b(0, 0, 0)
+	    wings_io:text_at(X1, Y, SelStr)
     end,
+    gl:color3b(0, 0, 0),
     DisEnable.
 
 stars(N) when integer(N) ->
@@ -1815,22 +1889,28 @@ slider_redraw_1(Active, #fi{x=X,y=Y0,w=W}, #sl{min=Min,range=Range,h=H}, C,
 		DisEnable) ->
     Y = Y0+?LINE_HEIGHT div 2 + 2,
     blend(fun(Col) ->
-		  wings_io:sunken_rect(X, Y-(H div 2), W, H, Col)
+		  wings_io:sunken_rect(X, Y-(H div 2), W, H, Col, Col)
 	  end),
     Val = color_slider(C, X, W, Y-(H div 2), H),
     Pos = round(?SL_LENGTH * (Val-Min) / Range),
-    blend(fun(Col) ->
-		  XPos = X+Pos,
-		  YPos = Y-(?SL_BAR_H div 2),
-		  case {DisEnable,Active} of
-		      {disable,_} ->
-			  wings_io:border(XPos, YPos, 4, ?SL_BAR_H, Col);
-		      {_,false} ->
-			  wings_io:raised_rect(XPos, YPos, 4, ?SL_BAR_H, Col);
-		      {_,true} ->
-			  wings_io:sunken_rect(XPos, YPos, 4, ?SL_BAR_H, Col)
-		  end
-	  end),
+    XPos = X+Pos,
+    YPos = Y-(?SL_BAR_H div 2),
+    case DisEnable of
+	disable ->
+	    blend(fun(Col) ->
+			  wings_io:border(XPos, YPos, 4, ?SL_BAR_H, 
+					  Col, color3_disabled())
+		  end);
+	_ ->
+	    Col = color4(),
+	    case Active of
+		false ->
+		    wings_io:raised_rect(XPos, YPos, 4, ?SL_BAR_H, Col, Col);
+		true ->
+		    wings_io:sunken_rect(XPos, YPos, 4, ?SL_BAR_H, Col, Col)
+	    end
+    end,
+    gl:color3b(0, 0, 0),
     DisEnable.
 
 color_slider({h,{Hue,S,V}},X,W,Y,H) ->
@@ -1883,7 +1963,7 @@ get_col_range({v, {V,H,S}}) ->
     V1 = hsv_to_rgb(H,S,1.0),
     {V,[V0,V1]};
 get_col_range(Val) when is_integer(Val); is_float(Val) ->
-    {Val,[color(),color()]}.
+    {Val,[color4(),color4()]}.
 
 
 
@@ -1896,9 +1976,27 @@ dialog_unzip([], AccA, AccB) ->
 
 
 blend(Draw) ->
-    wings_io:blend(color(), Draw).
+    wings_io:blend(color4(), Draw).
 
-color() ->
+
+color3_text() ->
+    wings_pref:get_value(dialog_text).
+    
+color3_disabled() ->
+    wings_pref:get_value(dialog_disabled).
+
+
+color3_highlight() ->
+    wings_color:mix(?BEVEL_HIGHLIGHT_MIX, {1,1,1}, color3()).
+
+color3_lowlight() ->
+    wings_color:mix(?BEVEL_LOWLIGHT_MIX, {0,0,0}, color3()).
+
+color3() ->    
+    {R,G,B,_} = color4(),
+    {R,G,B}.
+
+color4() ->
     wings_pref:get_value(dialog_color).
 
 rgb_to_hsv({R,G,B}) ->

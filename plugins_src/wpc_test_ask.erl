@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.5 2003/10/22 15:41:55 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.6 2003/10/24 12:36:10 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -163,7 +163,7 @@ command_dialog_r() ->
        [{hook,fun (menu_disabled, {_Var,_I,Sto}) ->
 		      case gb_trees:get(c, Sto) of
 			  true -> [];
-			  _ -> [c]
+			  _ -> [b]
 		      end;
 		  (_, _) -> void
 	      end}]}

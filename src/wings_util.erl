@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.83 2003/10/11 09:29:31 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.84 2003/10/24 12:36:10 raimo_niskanen Exp $
 %%
 
 -module(wings_util).
@@ -57,6 +57,25 @@ share({X,X,X}) -> {X,X,X};
 share({X,X,Z}) -> {X,X,Z};
 share({X,Y,Y}) -> {X,Y,Y};
 share({X,Y,X}) -> {X,Y,X};
+%%
+share({X,X,X,X}) -> {X,X,X,X};
+%%
+share({X,X,X,A}) -> {X,X,X,A};
+share({X,X,Z,X}) -> {X,X,Z,X};
+share({X,Y,X,X}) -> {X,Y,X,X};
+share({X,Y,Y,Y}) -> {X,Y,Y,Y};
+%%
+share({X,X,Y,Y}) -> {X,X,Y,Y};
+share({X,Y,X,Y}) -> {X,Y,X,Y};
+share({X,Y,Y,X}) -> {X,Y,Y,X};
+%%
+share({X,X,Z,A}) -> {X,X,Z,A};
+share({X,Y,X,A}) -> {X,Y,X,A};
+share({X,Y,Z,X}) -> {X,Y,Z,X};
+share({X,Y,Y,A}) -> {X,Y,Y,A};
+share({X,Y,Z,Y}) -> {X,Y,Z,Y};
+share({X,Y,Z,Z}) -> {X,Y,Z,Z};
+%%
 share(Other) -> Other.
 
 make_vector({_,_,_}=Vec) -> Vec;

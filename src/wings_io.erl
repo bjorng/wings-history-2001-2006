@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.116 2003/09/16 04:28:49 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.117 2003/10/24 12:36:10 raimo_niskanen Exp $
 %%
 
 -module(wings_io).
@@ -16,7 +16,9 @@
 	 set_cursor/1,hourglass/0,
 	 info/1,
 	 blend/2,
-	 border/5,border/6,sunken_rect/5,raised_rect/4,raised_rect/5,
+	 border/5,border/6,
+	 sunken_rect/4,sunken_rect/5,sunken_rect/6,
+	 raised_rect/4,raised_rect/5,raised_rect/6,
 	 text_at/2,text_at/3,text/1,menu_text/3,space_at/2,
 	 draw_icons/1,draw_icon/3,draw_char/1,
 	 set_color/1]).
@@ -148,12 +150,21 @@ set_color({_,_,_}=RGB) -> gl:color3fv(RGB);
 set_color({_,_,_,_}=RGBA) -> gl:color4fv(RGBA).
 
 raised_rect(X, Y, Mw, Mh) ->
-    raised_rect(X, Y, Mw, Mh, ?PANE_COLOR).
+    raised_rect(X, Y, Mw, Mh, ?PANE_COLOR, ?PANE_COLOR).
 
 raised_rect(X, Y, Mw, Mh, FillColor) ->
-    sunken_rect(X+Mw, Y+Mh, -Mw, -Mh, FillColor).
+    raised_rect(X, Y, Mw, Mh, FillColor, ?PANE_COLOR).
 
-sunken_rect(X0, Y0, Mw0, Mh0, FillColor) ->
+raised_rect(X, Y, Mw, Mh, FillColor, PaneColor) ->
+    sunken_rect(X+Mw, Y+Mh, -Mw, -Mh, FillColor, PaneColor).
+
+sunken_rect(X, Y, Mw, Mh) ->
+    sunken_rect(X, Y, Mw, Mh, ?PANE_COLOR, ?PANE_COLOR).
+
+sunken_rect(X, Y, Mw, Mh, FillColor) ->
+    sunken_rect(X, Y, Mw, Mh, FillColor, ?PANE_COLOR).
+
+sunken_rect(X0, Y0, Mw0, Mh0, FillColor, PaneColor) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
     Mw = Mw0 + 0.5,
@@ -161,12 +172,12 @@ sunken_rect(X0, Y0, Mw0, Mh0, FillColor) ->
     set_color(FillColor),
     gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
     gl:'begin'(?GL_LINES),
-    set_color(?BEVEL_LOWLIGHT),
+    set_color(wings_color:mix(?BEVEL_LOWLIGHT_MIX, {0,0,0}, PaneColor)),
     gl:vertex2f(X, Y+Mh),
     gl:vertex2f(X, Y),
     gl:vertex2f(X, Y),
     gl:vertex2f(X+Mw, Y),
-    set_color(?BEVEL_HIGHLIGHT),
+    set_color(wings_color:mix(?BEVEL_HIGHLIGHT_MIX, {1,1,1}, PaneColor)),
     gl:vertex2f(X+Mw, Y),
     gl:vertex2f(X+Mw, Y+Mh),
     gl:vertex2f(X+Mw, Y+Mh),

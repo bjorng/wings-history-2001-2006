@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.16 2003/10/21 16:55:52 bjorng Exp $
+%%     $Id: wings_color.erl,v 1.17 2003/10/24 12:36:10 raimo_niskanen Exp $
 %%
 
 -module(wings_color).
@@ -45,19 +45,25 @@ choose(Color, Done) ->
 
 share({Same,Same}) -> {Same,Same};
 share({_,_}=UV) -> UV;
-share({_,_,_}=RGB) ->
-    case get(RGB) of
-	undefined -> wings_util:share(RGB);
-	Other -> Other
+share({_,_,_}=RGB) -> share_1(RGB);
+share({_,_,_,_}=RGBA) -> share_1(RGBA).
+
+share_1(Color) ->
+    case get(Color) of
+	undefined -> wings_util:share(Color);
+	SharedColor -> SharedColor
     end.
 
-store({_,_,_}=RGB) ->
-    case get(RGB) of
+store({_,_,_}=RGB) -> store_1(RGB);
+store({_,_,_,_}=RGBA) -> store_1(RGBA).
+
+store_1(Color) ->
+    case get(Color) of
 	undefined ->
-	    C = wings_util:share(RGB),
+	    C = wings_util:share(Color),
 	    put(C, C),
 	    C;
-	Other -> Other
+	SharedColor -> SharedColor
     end.
 
 mix(_W, Same, Same) -> Same;
@@ -67,6 +73,13 @@ mix(Wa, {Ua,Va}, {Ub,Vb}) when is_float(Wa) ->
 mix(Wa, {Ra,Ga,Ba}, {Rb,Gb,Bb}) when is_float(Wa) ->
     Wb = 1.0 - Wa,
     share({Wa*Ra+Wb*Rb,Wa*Ga+Wb*Gb,Wa*Ba+Wb*Bb});
+mix(Wa, {Ra,Ga,Ba}, {_,_,_,Ab}=B) ->
+    mix(Wa, {Ra,Ga,Ba,Ab}, B);
+mix(Wa, {_,_,_,Aa}=A, {Rb,Gb,Bb}) ->
+    mix(Wa, A, {Rb,Gb,Bb,Aa});
+mix(Wa, {Ra,Ga,Ba,Aa}, {Rb,Gb,Bb,Ab}) when is_float(Wa) ->
+    Wb = 1.0 - Wa,
+    share({Wa*Ra+Wb*Rb,Wa*Ga+Wb*Gb,Wa*Ba+Wb*Bb,Wa*Aa+Wb*Ab});
 mix(_, _, _) -> none.
 
 white() ->
@@ -173,13 +186,14 @@ choose_1(RGB0, Done) ->
     HRange   = {0.0,360.0},
     SIRange  = {0.0,1.0},
     {H1,S1,V1} = rgb_to_hsv(R1, G1, B1),
+    PaneColor = wings_pref:get_value(dialog_color),
     Draw = fun(X, Y, W, _, Sto) ->
 		   H = ?COL_PREVIEW_HEIGHT,
 		   R = gb_trees:get(red, Sto),
 		   G = gb_trees:get(green, Sto),
 		   B = gb_trees:get(blue, Sto),
 		   Half = H div 2,
-		   wings_io:sunken_rect(X, Y, W, H, {R,G,B}),
+		   wings_io:sunken_rect(X, Y, W, H, {R,G,B}, PaneColor),
 		   gl:color3f(R1, G1, B1),
 		   gl:rectf(X+0.5, Y+Half, X+W, Y+H),
 		   gl:color3b(0, 0, 0),

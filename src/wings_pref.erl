@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.99 2003/09/19 05:25:21 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.100 2003/10/24 12:36:10 raimo_niskanen Exp $
 %%
 
 -module(wings_pref).
@@ -213,6 +213,8 @@ command(ui, _St) ->
 		       {label,"Menu Highlight"},
 		       {label,"Menu Highlighted Text"},
 		       {label,"Menu Background"},
+		       {label,"Dialog Text"},
+		       {label,"Dialog (Disabled) Text"},
 		       {label,"Dialog Background"},
 		       {label,"Title Text"},
 		       {label,"Title (Passive) Background"},
@@ -223,6 +225,8 @@ command(ui, _St) ->
 		       {color,menu_hilite},
 		       {color,menu_hilited_text},
 		       {color,menu_color},
+		       {color,dialog_text},
+		       {color,dialog_disabled},
 		       {color,dialog_color},
 		       {color,title_text_color},
 		       {color,title_passive_color},
@@ -562,6 +566,8 @@ defaults() ->
      {menu_hilite,{0.0,0.0,0.5}},
      {menu_hilited_text,{1.0,1.0,1.0}},
      {menu_color,{0.75,0.75,0.75,1.0}},
+     {dialog_text,{0.0,0.0,0.0}},
+     {dialog_disabled,{0.5,0.5,0.5}},
      {dialog_color,{0.75,0.75,0.75,1.0}},
      {title_active_color,{0.41,0.55,0.41,1.0}},
      {title_passive_color,{0.325,0.4,0.325,1.0}},

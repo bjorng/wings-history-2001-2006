@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.88 2003/10/23 13:31:41 raimo_niskanen Exp $
+%%     $Id: wings_camera.erl,v 1.89 2003/10/24 12:36:10 raimo_niskanen Exp $
 %%
 
 -module(wings_camera).
@@ -98,13 +98,7 @@ command(camera_mode, _St) ->
 mouse_buttons(DI) ->
     {menu,[{"One",1},{"Two",2},{"Three",3}],
      wings_pref:get_value(num_buttons),
-     [{hook,fun (is_disabled, {_Var,I,Sto}) ->
-		    case gb_trees:get(I+DI, Sto) of
-			nendo -> false;
-			blender -> false;
-			_ -> true
-		    end;
-		(menu_disabled, {_Var,I,Sto}) ->
+     [{hook,fun (menu_disabled, {_Var,I,Sto}) ->
 			   case gb_trees:get(I+2, Sto) of
 			       nendo -> [];
 			       blender -> [1];
@@ -117,12 +111,7 @@ camera_modes(DI) ->
     Modes = [mirai,nendo,maya,tds,blender,mb],
     {menu,[{desc(Mode),Mode} || Mode <- Modes],
      wings_pref:get_value(camera_mode),
-     [{hook,fun (is_disabled, {_Var,I,Sto}) ->
-		    case gb_trees:get(I+DI, Sto) of
-			1 -> true;
-			_ -> false
-		    end;
-		(menu_disabled, {_Var,I,Sto}) ->
+     [{hook,fun (menu_disabled, {_Var,I,Sto}) ->
 		    case gb_trees:get(I+DI, Sto) of
 			1 -> [mirai,maya,tds,blender,mb];
 			2 -> [mirai,maya,tds,mb];
