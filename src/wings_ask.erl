@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.148 2003/12/25 14:02:02 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.149 2003/12/26 08:04:42 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -2668,11 +2668,13 @@ get_text_r(#text{bef=Bef,aft=Aft}) ->
 
 text_event({key,Sym,Mod,Unicode}, _Fi, Ts) ->
     key(Sym, Mod, Unicode, Ts);
-text_event({focus,false}, _Fi, Ts) ->
-    validate_string(Ts);
+text_event({focus,false}, _Fi, Ts0) ->
+    Ts = validate_string(Ts0),
+    Str = get_text(Ts),
+    Ts#text{first=0,cpos=0,bef=[],aft=Str,sel=0};
 text_event({focus,true}, _Fi, Ts) ->
     Str = get_text(Ts),
-    Ts#text{bef=[],sel=length(Str),aft=Str};
+    Ts#text{first=0,cpos=0,bef=[],sel=length(Str),aft=Str};
 text_event(#mousebutton{x=X,state=?SDL_PRESSED,button=1}, Fi, Ts0) ->
     text_pos(X, Fi, Ts0);
 text_event(#mousebutton{x=X,state=?SDL_RELEASED,button=1}, Fi,
