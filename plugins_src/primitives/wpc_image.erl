@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.17 2003/12/29 16:01:10 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.18 2004/01/11 10:23:20 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -45,7 +45,7 @@ command(_, _) -> next.
 
 make_image() ->
     Ps = [{extensions,wpa:image_formats()}],
-    wpa:import_filename(Ps, fun make_image/1).
+    wpa:import_filename(Ps, fun(N) -> {shape,{image_plane,N}} end).
 
 make_image(Name) ->
     Props = [{filename,Name}],
