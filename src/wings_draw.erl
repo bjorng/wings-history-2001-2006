@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.99 2003/01/30 15:14:10 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.100 2003/02/02 19:27:44 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -49,6 +49,10 @@ render(St) ->
 
 update_dlists(#st{selmode=Mode,sel=Sel}=St) ->
     prepare_dlists(St),
+    case wings_draw_util:changed_materials(St) of
+	[] -> ok;
+	ChangedMat -> invalidate_by_mat(ChangedMat)
+    end,
     wings_draw_util:map(fun(D, Data) ->
 				sel_fun(D, Data, Mode)
 			end, Sel),
@@ -80,6 +84,26 @@ prepare_fun(#dlo{src_we=#we{id=Id},wire=W}, [#we{id=Id,perm=Perm}=We|Wes]) ->
     end;
 prepare_fun(#dlo{}, Wes) ->
     {deleted,Wes}.
+
+invalidate_by_mat(Changed0) ->
+    Changed = gb_sets:from_list(Changed0),
+    wings_draw_util:map(fun(D, _) -> invalidate_by_mat(D, Changed) end, []).
+
+invalidate_by_mat(#dlo{work=none,vs=none,smooth=none,smoothed=none}=D, _) ->
+    %% Nothing to do.
+    D;
+invalidate_by_mat(#dlo{src_we=#we{fs=Ftab}}=D, Changed) ->
+    case material_used(gb_trees:values(Ftab), Changed) of
+	false -> D;
+	true -> D#dlo{work=none,vs=none,smooth=none,smoothed=none}
+    end.
+
+material_used([#face{mat=Name}|T], Changed) ->
+    case gb_sets:is_member(Name, Changed) of
+	true -> true;
+	false -> material_used(T, Changed)
+    end;
+material_used([], _) -> false.
 
 empty_we(We) ->
     Et = gb_trees:empty(),

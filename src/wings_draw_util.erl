@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.51 2003/01/30 15:14:11 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.52 2003/02/02 19:27:45 bjorng Exp $
 %%
 
 -module(wings_draw_util).
--export([init/0,tess/0,begin_end/1,update/2,map/2,fold/2,render/1,
-	 call/1,face/2,face/3,flat_face/2,flat_face/3]).
+-export([init/0,tess/0,begin_end/1,update/2,map/2,fold/2,changed_materials/1,
+	 render/1,call/1,face/2,face/3,flat_face/2,flat_face/3]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -21,6 +21,7 @@
 
 -record(du,
 	{dl=[],					%Display lists
+	 mat=gb_trees:empty(),			%Materials.
 	 used=gb_sets:empty(),			%Display lists in use.
 	 vec,					%Display list for vector.
 	 src_vec=undefined,			%Source for vector.
@@ -82,6 +83,28 @@ begin_end(Body) ->
     end,
     gl:edgeFlag(?GL_TRUE),
     Res.
+
+%%
+%% Get a list of all materials that were changed since the last time
+%% the display lists were updated. (The list does not include materials
+%% that were delete or added.)
+%%
+
+changed_materials(#st{mat=NewMat}) ->
+    case get(?MODULE) of
+	#du{mat=NewMat} -> [];
+	#du{mat=OldMat}=Du ->
+	    put(?MODULE, Du#du{mat=NewMat}),
+	    changed_materials_1(gb_trees:to_list(OldMat), NewMat, [])
+    end.
+
+changed_materials_1([{Name,Val}|T], New, Acc) ->
+    case gb_trees:lookup(Name, New) of
+	none -> changed_materials_1(T, New, Acc);
+	{value,Val} -> changed_materials_1(T, New, Acc);
+	{value,_} -> changed_materials_1(T, New, [Name|Acc])
+    end;
+changed_materials_1([], _, Acc) -> Acc.
 
 %%
 %% Update allows addition of new objects at the end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.79 2003/02/02 16:47:56 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.80 2003/02/02 19:27:45 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -363,7 +363,6 @@ edit(Name, #st{mat=Mtab0}=St) ->
 		  Mat1 = keyreplace(opengl, 1, Mat0, {opengl,OpenGL}),
 		  Mat = plugin_results(Name, More, Mat1),
 		  Mtab = gb_trees:update(Name, Mat, Mtab0),
-		  wings_draw_util:map(fun invalidate_dlists/2, Name),
 		  St#st{mat=Mtab}
 	  end,
     wings_ask:dialog("Material Properties: "++atom_to_list(Name), Qs, Ask).
@@ -384,16 +383,6 @@ show_map({Type,Image}) ->
     Label = flatten(io_lib:format("~p ~px~p", [Type,W,H])),
     {hframe,
      [{label,Label}]}.
-
-invalidate_dlists(#dlo{src_we=#we{fs=Ftab}}=D, Name) ->
-    case material_used(gb_trees:values(Ftab), Name) of
-	false -> {D,Name};
-	true -> {D#dlo{work=none,vs=none,smooth=none,smoothed=none},Name}
-    end.
-
-material_used([#face{mat=Name}|_], Name) -> true;
-material_used([_|T], Name) -> material_used(T, Name);
-material_used([], _) -> false.
 
 ask_prop_get(Key, Props) ->
     {R,G,B,Alpha} = prop_get(Key, Props),
