@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.7 2002/05/28 12:07:51 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.8 2002/05/28 12:41:22 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -32,6 +32,13 @@
 	 cx,cy,					% current X,Y
 	 orig_st,				% keeps undo, selection
 	 st}).					% wings st record (working)
+
+-record(mag,
+	{orig,					%Orig pos of vertex being moved.
+	 vs,					%[{V,Vtx,Distance,Influence}]
+						%  (not changed while dragging)
+	 vtab=[]				%[{V,Vtx}] (latest)
+	}).
 
 init() -> true.
 
@@ -201,7 +208,7 @@ do_tweak(#dlo{drag={V,#vtx{pos=Pos0}=Vtx0,Mag0,MM,Plane,SplitData},
     Pos1 = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
     Pos = mirror_constrain(Plane, Pos1),
     Vtx = Vtx0#vtx{pos=Pos},
-    {MagVtab,Mag} = magnet_tweak(Mag0, Pos1, Pos0, Plane),
+    {MagVtab,Mag} = magnet_tweak(Mag0, Pos, Plane),
     Vtab = [{V,Vtx}|MagVtab],
     D = D0#dlo{sel=none,drag={V,Vtx,Mag,MM,Plane,SplitData}},
     wings_draw:update_dynamic(D, SplitData, Vtab);
@@ -239,9 +246,9 @@ help(T) ->
 	magnet_help(T).
 
 magnet_help(#tweak{magnet=false}) ->
-    wings_camera:help() ++ "  [0] Magnet On";
+    wings_camera:help() ++ "  [M] Magnet On";
 magnet_help(#tweak{magnet=true,mag_type=Type}) ->
-    "[0] Magnet Off  " ++
+    "[M] Magnet Off  " ++
 	help_1(Type, [{1,bell},{2,dome},{3,straight},{4,spike}]) ++
 	"  [+] or [-] Tweak R".
 
@@ -264,7 +271,8 @@ magnet_hotkey(C, #tweak{magnet=Mag,mag_type=Type0}=T) ->
 	Type -> setup_magnet(T#tweak{magnet=true,mag_type=Type})
     end.
 
-hotkey($0) -> toggle;
+hotkey($m) -> toggle;
+hotkey($M) -> toggle;
 hotkey($1) -> bell;
 hotkey($2) -> dome;
 hotkey($3) -> straight;
@@ -272,23 +280,25 @@ hotkey($4) -> spike;
 hotkey(_) -> none.
 
 setup_magnet(#tweak{tmode=drag}=T) ->
-    wings_wm:dirty(),
     wings_draw_util:map(fun(D, _) ->
 				setup_magnet_fun(D, T)
 			end, []),
+    do_tweak(0.0, 0.0),
+    wings_wm:dirty(),
     T;
 setup_magnet(T) -> T.
 
 setup_magnet_fun(#dlo{drag={_,_,none,_,_,_}}=D, _) -> D;
-setup_magnet_fun(#dlo{drag={V,Vtx,Mag0,MM,Plane,SplitData}}=Dl,
+setup_magnet_fun(#dlo{drag={V,Vtx,#mag{vs=MagVs0}=Mag0,MM,Plane,SplitData}}=Dl,
 		 #tweak{mag_r=R,mag_type=Type}) ->
-    Mag = foldl(fun({Va,VtxA,D,_}, A) ->
-			Inf = if
-				  D =< R -> mf(Type, D, R);
-				  true -> 0.0
-			      end,
-			[{Va,VtxA,D,Inf}|A]
-		end, [], Mag0),
+    MagVs = foldl(fun({Va,VtxA,D,_}, A) ->
+			  Inf = if
+				    D =< R -> mf(Type, D, R);
+				    true -> 0.0
+				end,
+			  [{Va,VtxA,D,Inf}|A]
+		  end, [], MagVs0),
+    Mag = Mag0#mag{vs=MagVs},
     Dl#dlo{drag={V,Vtx,Mag,MM,Plane,SplitData}}.
 
 begin_magnet(#tweak{magnet=false}, V, _, _) -> {[V],none};
@@ -303,7 +313,8 @@ begin_magnet(#tweak{magnet=true,mag_r=R,mag_type=Type},
 			 end;
 		    (_, A) -> A
 		 end, [], gb_trees:to_list(Vtab)),
-    {[CenterV|[Va || {Va,_,_,_} <- Near]],Near}.
+    Mag = #mag{orig=Center,vs=Near},
+    {[CenterV|[Va || {Va,_,_,_} <- Near]],Mag}.
 
 mf(bell, D, R) -> math:sin((R-D)/R*math:pi());
 mf(dome, D, R) -> math:sin((R-D)/R*math:pi()/2);
@@ -312,25 +323,25 @@ mf(spike, D0, R) when is_float(D0), is_float(R) ->
     D = (R-D0)/R,
     D*D.
 
-magnet_tweak(none, _, _, _) -> {[],none};
-magnet_tweak(Mag0, Pos, Pos0, Plane) ->
-    Vec = e3d_vec:sub(Pos, Pos0),
-    Mag = foldl(fun({V,#vtx{pos=P0}=Vtx,D,Inf}, A) ->
+magnet_tweak(none, _, _) -> {[],none};
+magnet_tweak(#mag{orig=Orig,vs=Vs}=Mag, Pos, Plane) ->
+    Vec = e3d_vec:sub(Pos, Orig),
+    Vtab = foldl(fun({V,#vtx{pos=P0}=Vtx,_,Inf}, A) ->
 			 P1 = e3d_vec:add(P0, e3d_vec:mul(Vec, Inf)),
 			 P = mirror_constrain(Plane, P1),
-			 [{V,Vtx#vtx{pos=P},D,Inf}|A]
-		 end, [], Mag0),
-    {[{V,Vtx} || {V,Vtx,_,_} <- Mag],Mag}.
+			 [{V,Vtx#vtx{pos=P}}|A]
+		 end, [], Vs),
+    {Vtab,Mag#mag{vtab=Vtab}}.
 
 magnet_end(none, Vtab) -> Vtab;
-magnet_end(Vs, Vtab) ->
-    foldl(fun({V,Vtx,_,_}, Vt) ->
+magnet_end(#mag{vtab=Vs}, Vtab) ->
+    foldl(fun({V,Vtx}, Vt) ->
 		  gb_trees:update(V, Vtx, Vt)
 	  end, Vtab, Vs).
 
 magnet_radius(Sign, #tweak{mag_r=Falloff0}=T) ->
     case Falloff0+Sign*?GROUND_GRID_SIZE/10 of
 	Falloff when Falloff > 0 ->
-	    T#tweak{mag_r=Falloff};
+	    setup_magnet(T#tweak{mag_r=Falloff});
 	_Falloff -> T
     end.
