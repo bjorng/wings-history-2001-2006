@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.14 2002/10/02 15:10:33 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.15 2002/10/29 06:29:00 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
 -export([import/2,export/2]).
 -include("wings.hrl").
--import(lists, [sort/1,reverse/1,foldl/3,last/1]).
+-import(lists, [sort/1,reverse/1,foldl/3,last/1,foreach/2]).
 
 -define(NDO_HEADER10, "nendo 1.0").
 -define(NDO_HEADER11, "nendo 1.1").
@@ -191,12 +191,21 @@ clean_bad_edges([], We) -> We.
 
 export(Name, #st{shapes=Shapes0}) ->
     Shapes1 = gb_trees:values(Shapes0),
+    foreach(fun check_size/1, Shapes1),
     Shapes2 = foldl(fun(Sh, A) ->
 			shape(Sh, A)
 		end, [], Shapes1),
     Shapes = reverse(Shapes2),
     write_file(Name, Shapes).
 
+check_size(#we{name=Name,es=Etab}) ->
+    case gb_trees:size(Etab) of
+	Sz when Sz > 65535 ->
+	    wings_util:error("Object \""++Name++"\" cannot be exported "
+			     "to Nendo format (too many edges).");
+	_ -> ok
+    end.
+	    
 shape(#we{name=Name,perm=Perm}=We0, Acc) ->
     NameChunk = [<<(length(Name)):16>>|Name],
     Vis = if
