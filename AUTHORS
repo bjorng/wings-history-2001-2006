@@ -10,3 +10,4 @@ Jakob Cederlund
 	Implemented the Collapse commands. Original idea and
         implementation of the Intrude and Select Similar.
 
+Vlad Dumitrescu: Bugfix for middle-mouse button emulation.
