@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.145 2004/12/30 17:22:41 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.146 2005/01/08 19:53:35 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -663,11 +663,12 @@ find_edge(Face, We, Cx, Cy, Trans) ->
 		      Ydist = By-Ay,
 		      L = Xdist*Xdist+Ydist*Ydist,
 		      {Px,Py} =
-			  case catch ((Cx-Ax)*Xdist+(Cy-Ay)*Ydist)/L of
-			      {'EXIT',_} -> {Ax,Ay};
+			  try ((Cx-Ax)*Xdist+(Cy-Ay)*Ydist)/L of
 			      R when R =< 0 -> {Ax,Ay};
 			      R when R >= 1 -> {Bx,By};
 			      R -> {Ax+R*Xdist,Ay+R*Ydist}
+			  catch
+			      error:badarith -> {Ax,Ay}
 			  end,
 		      Xdiff = Px-Cx,
 		      Ydiff = Py-Cy,
