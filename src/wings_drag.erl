@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.169 2004/03/20 18:42:38 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.170 2004/03/22 05:49:23 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -719,8 +719,9 @@ normalize_fun(#dlo{drag={matrix,_,_,Matrix}, src_we=#we{id=Id}=We0}=D0, Shs0) ->
     Shs = gb_trees:update(Id, We, Shs0),
     D = D0#dlo{work=none,edges=none,sel=none,drag=none,src_we=We,mirror=none},
     {wings_draw:changed_we(D, D),Shs};
-normalize_fun(#dlo{drag={general,_},src_we=#we{id=Id}=We}=D, Shs) ->
-    {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)};
+normalize_fun(#dlo{drag={general,_},src_we=#we{id=Id}=We}=D0, Shs) ->
+    D = D0#dlo{drag=none,sel=none},
+    {wings_draw:changed_we(D, D),gb_trees:update(Id, We, Shs)};
 normalize_fun(#dlo{src_we=#we{id=Id}}=D0, Shs) ->
     #dlo{src_we=We} = D = wings_draw:join(D0),
     {D,gb_trees:update(Id, We, Shs)}.
