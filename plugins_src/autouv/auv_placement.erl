@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.25 2005/03/10 10:52:55 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.26 2005/04/01 14:13:09 dgud Exp $
 
 -module(auv_placement).
 
@@ -129,7 +129,7 @@ rotate_area(Fs, #we{vp=VTab}=We) ->
     [{_,Eds3}|_] = group_edge_loops(Fs,We),
     Eds4 = make_convex(reverse(Eds3), [], VTab),
 
-    [{LV1,LV2,_,_Dist}|_] = lists:reverse(lists:keysort(4, Eds4)),
+    [{LV1,LV2,_,_,_Dist}|_] = lists:reverse(lists:keysort(5, Eds4)),
     LV1P = gb_trees:get(LV1, VTab),
     LV2P = gb_trees:get(LV2, VTab),
     Angle = math:atan2(element(2,LV2P)-element(2,LV1P),
@@ -151,15 +151,15 @@ group_edge_loops(Fs, We) ->
 			  case gb_trees:get(Edge, We#we.es) of
 			      #edge{vs=V1,ve=V2,lf=Face} ->
 				  Dist = dist(V1,V2,We#we.vp),
-				  {V1,V2,Edge,Dist};
+				  {V1,V2,Edge,Face,Dist};
 			      #edge{vs=V2,ve=V1,rf=Face} ->
 				  Dist = dist(V1,V2,We#we.vp),
-				  {V1,V2,Edge,Dist}
+				  {V1,V2,Edge,Face,Dist}
 			  end
 		  end,
 	    Eds2  = map(Map, Eds1),
 	    Loops = sort_edges(Eds2),
-	    Add = fun({_,_,_,Dist}, Acc) ->  Acc + Dist end,
+	    Add = fun({_,_,_,_,Dist}, Acc) ->  Acc + Dist end,
 	    SumLoops = [{lists:foldl(Add, 0, Loop), Loop} 
 			|| Loop <- Loops],
 	    lists:reverse(lists:sort(SumLoops))
@@ -173,6 +173,7 @@ make_convex([This, Next|Rest], Acc, Vs) ->
 	true ->
 	    New = {element(1,This), element(2,Next), 
 		   [element(3,This),element(3,Next)],
+		   ignore,
 		   dist(element(1,This),element(2,Next),Vs)}, 
 	    if Acc == [] ->
 		    make_convex([New|Rest], Acc, Vs);
@@ -188,6 +189,7 @@ make_convex([This],Acc, Vs) ->
 	true ->
 	    New = {element(1,This), element(2,Next), 
 		   [element(3,This),element(3,Next)],
+		   ignore,
 		   dist(element(1,This),element(2,Next),Vs)},
 	    Acc3 = reverse(Acc2),
 	    make_convex([hd(Acc3),New], tl(Acc3), Vs);
@@ -195,7 +197,7 @@ make_convex([This],Acc, Vs) ->
 	    [This|Acc]
     end.
 
-calc_dir({V11,V12,_E1,_},{V12,V22,_E2,_}, Vs) ->    
+calc_dir({V11,V12,_E1,_,_},{V12,V22,_E2,_,_}, Vs) ->    
     C  = gb_trees:get(V12, Vs),
     V1 = gb_trees:get(V11, Vs),
     V2 = gb_trees:get(V22, Vs),
@@ -216,21 +218,21 @@ dist(V1, V2, Vs) ->
 
 %% Returns a list of loops 
 sort_edges(Eds) ->
-    EdsT = lists:foldl(fun({V1,V2,Edge,Dist}, Tree) ->
-			       gb_trees:insert(V1,{V2,Edge,Dist}, Tree)
+    EdsT = lists:foldl(fun({V1,V2,Edge,Face,Dist}, Tree) ->
+			       gb_trees:insert(V1,{V2,Edge,Face,Dist}, Tree)
 		       end, gb_trees:empty(), Eds),    
-    {V1, {V2, Edge,Dist}, EdsT0} = gb_trees:take_smallest(EdsT),
-    sort_edges(V2, EdsT0, [[{V1,V2,Edge,Dist}]]).
+    {V1, {V2, Edge,Face,Dist}, EdsT0} = gb_trees:take_smallest(EdsT),
+    sort_edges(V2, EdsT0, [[{V1,V2,Edge,Face,Dist}]]).
 
 sort_edges(V21, EdsT0, All = [Current|Acc]) ->
     case gb_trees:lookup(V21, EdsT0) of
-	{value, {V22,Edge2,Dist}} -> 
+	{value, {V22,Edge2,Face,Dist}} -> 
 	    sort_edges(V22, gb_trees:delete(V21,EdsT0), 
-		       [[{V21,V22,Edge2,Dist}|Current]|Acc]);
+		       [[{V21,V22,Edge2,Face,Dist}|Current]|Acc]);
 	none ->	    
 	    case catch gb_trees:take_smallest(EdsT0) of
-		{V1, {V2, Edge1,Dist}, EdsT1} ->
-		    sort_edges(V2, EdsT1, [[{V1,V2,Edge1,Dist}]|All]);
+		{V1, {V2, Edge1,Face,Dist}, EdsT1} ->
+		    sort_edges(V2, EdsT1, [[{V1,V2,Edge1,Face,Dist}]|All]);
 		{'EXIT', _} -> %% Stop
 		    All
 	    end

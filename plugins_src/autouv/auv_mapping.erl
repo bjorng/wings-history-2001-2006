@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.67 2005/03/31 22:10:15 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.68 2005/04/01 14:13:09 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -82,36 +82,63 @@ map_chart_1(Type, Chart, Loop, Options, We) ->
 
 map_chart_2(project, C, _, _, We) ->    projectFromChartNormal(C, We);
 map_chart_2(camera, C, _, Dir, We) ->   projectFromCamera(C, Dir, We);
-map_chart_2(sphere, C, Loop, _, We) ->  spheremap(C, Loop,We);
+map_chart_2(sphere,C, Loop, Pinned, We) -> spheremap(C, Pinned, Loop,We);
 map_chart_2(lsqcm, C, Loop, Pinned, We) -> lsqcm(C, Pinned, Loop, We).
 
-
-spheremap(Chart, Loop, We = #we{vp=Vtab}) ->
+spheremap(Chart, Pinned, Loop ={_,BEdges}, We = #we{vp=Vtab}) ->
     %% Rotates to +Z axis
     Vs = projectFromChartNormal(Chart,We),
-    {{V1,_},{V2,_}} = find_pinned(Loop,We),
+    %% Get poles.
+    {{V1,_},{V2,_}} = case Pinned of 
+			  none -> find_pinned(Loop,We);
+			  _ -> Pinned
+		      end,
     V1p = gb_trees:get(V1,Vtab),
     V2p = gb_trees:get(V2,Vtab),
-    {Npole,Spole} = if element(2,V1p) > element(2,V2p) -> {V1p,V2p};
-		       true -> {V2p,V1p}
-		    end,
+    {Npole,Spole} = 
+	if element(2,V1p) > element(2,V2p) -> {V1p,V2p};
+	   true -> {V2p,V1p}
+	end,
     Center = e3d_vec:average(Npole,Spole),
+    ZAngle = math:acos(e3d_vec:dot(e3d_vec:norm(e3d_vec:sub(Npole,Center)),
+				   {0.0,1.0,0.0})),
+    Rot = e3d_mat:rotate(ZAngle*180/math:pi(), {0.0,0.0,1.0}),
     io:format("Center ~p is of ~p~n  ~p~n",[Center,{V1,V2},{Npole,Spole}]),
+    io:format("Angle is ~p degrees~n",[ZAngle]),
     Proj =
 	fun({V,Pos0}) ->
 		Pos1 = e3d_vec:sub(Pos0,Center),
-		%% Rotate and normalize
-		{X0,Y0,Z0} = e3d_vec:norm(Pos1),
+		%% Rotate and scale/normalize
+		{X0,Y0,Z0} = e3d_vec:norm(e3d_mat:mul_point(Rot,Pos1)),
 		X = clamp_near_zero(X0),
+		Z = clamp_near_zero(Z0),
 		T = math:acos(-Y0)/math:pi()-0.5,
-		S = case {X,clamp_near_zero(Z0)} of
+		S = case {X,Z} of
 			{0.0,0.0} -> 0.0;
-			{X,Z} -> math:atan2(X,Z)/math:pi()
+			{0.0, _} when Z < 0.0 ->
+			    %% On the border
+			    %% Remake this, it don't work face is not in correct position!!
+			    io:format("~p: ~p ~n",[?LINE,V]),
+			    case lists:keysearch(V, 1, BEdges) of 
+ 				{value, {V,_V2,_Edge,Face,_Dist}} ->
+				    case wings_face:center(Face,We) of
+					{X,_,_} when X < 0.0 ->
+					    io:format("~p: ~p ~n",[?LINE,V]),
+					    -1.0;
+					_ -> 
+					    io:format("~p: ~p ~n",[?LINE,V]),
+					    1.0
+				    end;
+				_What ->
+				    io:format("~p: ~p ~n",[?LINE,V]),
+				    1.0
+		 	    end;
+	 		_ -> math:atan2(X,Z)/math:pi()
 		    end,
-		io:format("~p: {~.5f,~.5f,~.5f} => {~.2f,~.2f}~n",
-			  [V,X0,Y0,Z0,S,T]),
+ 		io:format("~p: {~.5f,~.5f,~.5f} => {~.2f,~.2f}~n",
+	 		  [V,X0,Y0,Z0,S,T]),
 		{V,{S,T,0.0}}
-	end,
+ 	end,
     lists:map(Proj, Vs).
 	    
 clamp_near_zero(Z) when Z < 1.0e-5, Z > -1.0e-5 -> 0.0;
@@ -233,9 +260,9 @@ calc_2dface_area([],_,Area) ->
     Area.
 
 find_pinned({Circumference, BorderEdges}, We) ->
-    Vs = [gb_trees:get(V1, We#we.vp) || {V1,_,_,_} <- BorderEdges],
+    Vs = [gb_trees:get(V1, We#we.vp) || {V1,_,_,_,_} <- BorderEdges],
     Center = e3d_vec:average(Vs),
-    AllC = lists:map(fun({Id,_,_,_}) ->
+    AllC = lists:map(fun({Id,_,_,_,_}) ->
 			     Pos = gb_trees:get(Id, We#we.vp),
 			     Dist = e3d_vec:dist(Pos, Center),
 			     {Dist, Id, Pos}
@@ -246,7 +273,7 @@ find_pinned({Circumference, BorderEdges}, We) ->
     {V1, V2} = find_pinned(BE1, BE1, 0.0, HalfCC, HalfCC, undefined), 
     {{V1,{0.0,0.0}},{V2,{1.0,1.0}}}.
     
-find_pinned(Curr=[{C1,_,_,Clen}|CR],Start=[{_,S2,_,Slen}|SR],Len,HCC,Best,BVs) ->    
+find_pinned(Curr=[{C1,_,_,_,Clen}|CR],Start=[{_,S2,_,_,Slen}|SR],Len,HCC,Best,BVs) ->    
     Dlen = HCC-(Clen+Len),
     ADlen = abs(Dlen),
 %    ?DBG("Testing ~p ~p ~p ~p ~p~n", [{S2,C1},Dlen,{Len+Clen,HCC}, Best, BVs]),    
@@ -268,7 +295,7 @@ find_pinned([], _, _, _, _Best, Bvs) ->
 %    ?DBG("Found ~p ~p~n", [_Best, Bvs]),
     Bvs.
 
-reorder_edge_loop(V1, [Rec={V1,_,_,_}|Ordered], Acc) ->
+reorder_edge_loop(V1, [Rec={V1,_,_,_,_}|Ordered], Acc) ->
     Ordered ++ lists:reverse([Rec|Acc]);
 reorder_edge_loop(V1, [H|Tail], Acc) ->
     reorder_edge_loop(V1, Tail, [H|Acc]).
