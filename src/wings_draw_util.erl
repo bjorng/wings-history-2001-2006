@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.100 2003/08/23 09:32:01 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.101 2003/08/23 09:52:48 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -715,10 +715,12 @@ unlit_tri(Face, Edge, #we{vp=Vtab}=We) ->
 
 unlit_tri_1([V|Vs], Vtab, Acc) ->
     unlit_tri_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-unlit_tri_1([], _, VsPos) ->
-    %% Send a dummy normal. It will not be used (provided the face
-    %% really is a triangle).
-    wings__du:mat_face([], VsPos).
+unlit_tri_1([], _, [_,_,_]=VsPos) ->
+    %% Send a dummy normal. It will not be used.
+    wings__du:mat_face([], VsPos);
+unlit_tri_1([],_, VsPos) ->
+    %% Oops. Not a triangle. Handle it anyway.
+    wings__du:mat_face(e3d_vec:normal(VsPos), VsPos).
 
 %%
 %% Utilities.
