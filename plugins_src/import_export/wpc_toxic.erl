@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.8 2004/06/12 05:38:44 dgud Exp $
+%%     $Id: wpc_toxic.erl,v 1.9 2004/06/13 21:32:13 dgud Exp $
 %%
 
 -module(wpc_toxic).
@@ -963,10 +963,11 @@ export_obj_refs(F, [Obj|Os], Scale, File) ->
 	end,
 
     println(F,"  <Object type=\"mesh\">"),
-%     println(F,"     <Parameter name=\"~s\" value=\"~s\"/>", 
-% 	    ["href", filename:basename(File)]),
     println(F,"     <Parameter name=\"~s\" value=\"~s\"/>", 
 	    ["href", filename:basename(Name++".obj")]),
+%% If one file
+%     println(F,"     <Parameter name=\"~s\" value=\"~s\"/>", 
+% 	    ["href", filename:basename(File)]),
 %     println(F,"     <Parameter name=\"~s\" value=\"~s\"/>", 
 % 	    ["include", Name]),
     println(F,"     <Parameter name=\"~s\" value=\"~s\"/>", 
@@ -977,25 +978,76 @@ export_obj_refs(F, [Obj|Os], Scale, File) ->
 export_obj_refs(_, [],_,_) ->
     ok.
 
-export_lights(F, [{_Name,L}|Ls], Scale) ->
+export_lights(F, [{Name,L}|Ls], Scale) ->
     case proplists:get_value(visible,L,true) of
 	true ->
 	    OpenGL = proplists:get_value(opengl, L, []),
 	    Toxic  = proplists:get_value(?TAG, L, []),
 	    Type   = proplists:get_value(type, OpenGL, []),
-	    export_light(F, Type, Scale, OpenGL, Toxic);
+	    export_light(F, Name, Type, Scale, OpenGL, Toxic);
 	_ ->
 	    undefined
     end,
     export_lights(F, Ls,Scale);
 export_lights(_, [],_) -> ok.
 
-export_light(_, area, _, _, _) -> ignore;     %% BUGBUG Arealights.
-export_light(F, ambient, _, OpenGL, _) -> 
+export_light(F, Name, area, Scale, OpenGL, Toxic) -> 
+    {DR,DG,DB} = rgba2rgb(proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0})),
+    #e3d_mesh{vs=Vs0,fs=Fs0} = proplists:get_value(mesh, OpenGL, #e3d_mesh{}),
+    VsT = list_to_tuple(Vs0),
+    Fs = foldr(fun (Face, Acc) -> 
+		       e3d_mesh:quadrangulate_face(Face, Vs0)++Acc
+	       end, [], Fs0),
+    As = e3d_mesh:face_areas(Fs, Vs0),
+    Power = pget(power, Toxic, ?DEF_ATTN_POWER) / length(As),
+    println(F, "  <SurfaceShader name=\"~s\">", [to_list(Name)]),
+    println(F, "   <Reflectance>"),
+    println(F,"     <ConstantTexture value=\"~s ~s ~s\"/>",
+	    [format(DR),format(DG),format(DB)]),
+    println(F, "   </Reflectance>"),
+    println(F, "   <EDF type=\"lambertian\"/>"),
+    println(F, "   <RadiantExitance value=\"~s ~s ~s\"/>",
+	    [format(DR*Power), format(DB*Power), format(DG*Power)]),
+    println(F, "  </SurfaceShader>"),
+
+    foldl(
+      fun(#e3d_face{vs=VsF}, I) ->
+	      Vs = [A,B,C|_] = quadrangle_vertices(VsF, VsT),
+	      %% Since Toxic currently only handles squares
+	      %% I intentionally make them square
+	      Width  = Scale * e3d_vec:dist(A,B),
+	      Height = Scale * e3d_vec:dist(B,C),
+	      Pos = e3d_vec:average(Vs),
+	      io:format("Area light ~p ~p ~p ~p ~n", 
+			[Width,Height,Pos,Vs]),
+	      Normal = e3d_vec:normal(Vs),
+	      io:format("Normal ~p~n", [Normal]),
+	      {Ang,Axis} = rotate_vec(Normal, {0.0,1.0,0.0}, {1.0,0.0,0.0}),
+	      io:format("Rot ~p around ~p~n", [Ang,Axis]),
+	      println(F,"  <Object type=\"square\">"),
+	      println(F,"     <Parameter name=\"~s\" value=\"~s\"/>", 
+		      ["surfaceshader", Name]),
+	      println(F,"     <Transform>"),
+	      println(F,"      <Scale value=\"~s ~s ~s\"/>", 
+		      [format(Width), format(Scale), format(Height)]),
+% 	      println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
+% 		      [format(Ang)|vector_to_list(Axis)]),
+	      Mat = e3d_mat:rotate_s_to_t(Normal,{0.0,1.0,0.0}),
+	      print(F,"      <Matrix4>~n        ",[]),
+	      lists:foreach(fun(E) -> print(F,"~s ", [format(E)]) end,
+			    tuple_to_list(e3d_mat:expand(Mat))),
+	      println(F,"      ~n</Matrix4>",[]),
+	      println(F,"      <Translation value=\"~s ~s ~s\"/>",
+		      vector_to_list(Pos)),
+	      println(F,"     </Transform>"),
+	      println(F,"  </Object>"),
+	      I+1
+      end, 1, Fs);
+export_light(F, _, ambient, _, OpenGL, _) -> 
     {DR,DG,DB} = rgba2rgb(proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0})),
     println(F,"  <Parameter name=\"ambientillum\" value=\"~s ~s ~s\"/>", 
 	    [format(DR),format(DG),format(DB)]); 
-export_light(F, _, Scale, OpenGL, Toxic) ->
+export_light(F, _, _, Scale, OpenGL, Toxic) ->
     {X,Y,Z} = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     {DR,DG,DB} = rgba2rgb(proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0})),
     Power = pget(power, Toxic, ?DEF_ATTN_POWER),
@@ -1052,21 +1104,49 @@ export_camera(F, Scale, Attr) ->
     println(F,"  </Object>"),
     ok.
 
-% rotate_vec(V1,V2) ->
-%     ACos = e3d_vec:dot(V1,V2),
-%     Dir = math:acos(ACos)*180/math:pi(),
-%     case e3d_vec:norm(e3d_vec:cross(V1,V2)) of
-% 	{0.0,0.0,0.0} ->
-% 	    {Dir, {0.0,1.0,0.0}};
-% 	Cross ->
-% 	    {Dir, Cross}
-%     end.
+rotate_vec(V1,V2,Axis) ->
+    ACos = e3d_vec:dot(V1,V2),
+    Dir = math:acos(ACos)*180/math:pi(),
+    case e3d_vec:norm(e3d_vec:cross(V1,V2)) of
+ 	{0.0,0.0,0.0} ->
+ 	    {Dir, Axis};
+ 	Cross ->
+ 	    {Dir, Cross}
+    end.
 
 vector_to_list({X,Y,Z}) ->
     [format(X),format(Y),format(Z)].
 vector_to_list({X,Y,Z},Scale) ->
     [format(X*Scale),format(Y*Scale),format(Z*Scale)].
 
+
+
+%% Cut the longest edge of a triangle in half to make it a quad.
+%% Lookup vertex positions.
+%%
+quadrangle_vertices([V1,V2,V3], VsT) -> 
+    P1 = element(V1+1, VsT),
+    P2 = element(V2+1, VsT),
+    P3 = element(V3+1, VsT),
+    [L12,L23,L31] = 
+	[e3d_vec:dot(L, L) || 
+	    L <- [e3d_vec:sub(P1, P2),e3d_vec:sub(P2, P3),
+		  e3d_vec:sub(P3, P1)]],
+    if L23 > L31 ->
+	    if L12 > L23 -> [P1,e3d_vec:average([P1,P2]),P2,P3];
+	       true -> [P1,P2,e3d_vec:average([P2,P3]),P3]
+	    end;
+       true -> [P1,P2,P3,e3d_vec:average([P3,P1])]
+    end;
+quadrangle_vertices([V1,V2,V3,V4], VsT) -> 
+    [element(V1+1, VsT),element(V2+1, VsT),
+     element(V3+1, VsT),element(V4+1, VsT)].
+
+
+% %% Zip lists together into a list of tuples
+% %%
+% zip([], []) -> [];
+% zip([H1|T1], [H2|T2]) -> [{H1,H2}|zip(T1, T2)].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Render
@@ -1162,13 +1242,13 @@ open(Filename, export) ->
 %% println(F) ->
 %%     println(F, "").
 
-%% print(F, DeepString) ->
-%%     case file:write(F, DeepString) of
-%%  ok ->
-%%      ok;
-%%  Error ->
-%%      erlang:fault(Error, [F,DeepString])
-%%     end.
+% print(F, DeepString) ->
+%     case file:write(F, DeepString) of
+% 	ok ->
+% 	    ok;
+% 	Error ->
+% 	    erlang:fault(Error, [F,DeepString])
+%     end.
 
 println(F, DeepString) ->
     case file:write(F, [DeepString,io_lib:nl()]) of
@@ -1176,11 +1256,11 @@ println(F, DeepString) ->
 	Error -> erlang:fault(Error, [F,DeepString])
     end.
 
-%% print(F, Format, Args) ->
-%%     case file:write(F, io_lib:format(Format, Args)) of
-%%  	ok ->    ok;
-%%  	Error -> erlang:fault(Error, [F,Format,Args])
-%%     end.
+print(F, Format, Args) ->
+    case file:write(F, io_lib:format(Format, Args)) of
+ 	ok ->    ok;
+ 	Error -> erlang:fault(Error, [F,Format,Args])
+    end.
 
 println(F, Format, Args) ->
     case file:write(F, [io_lib:format(Format, Args),io_lib:nl()]) of
