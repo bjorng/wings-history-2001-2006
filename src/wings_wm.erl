@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.2 2002/04/27 07:42:38 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.3 2002/06/04 07:41:07 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -109,6 +109,8 @@ send_event(#win{x=X,y=Y,w=W,h=H,stk=[Handler|_]=Stk0}=Win, Event) ->
     
 handle_event(Handler, Event, Stk) ->
     case catch Handler(Event) of
+	{'EXIT',normal} ->
+	    exit(normal);
 	{'EXIT',Reason} ->
 	    CrashHandler = last(Stk),
 	    handle_response(CrashHandler({crash,Reason}),

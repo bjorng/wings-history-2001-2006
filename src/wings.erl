@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.145 2002/06/02 20:49:02 bjorng Exp $
+%%     $Id: wings.erl,v 1.146 2002/06/04 07:41:07 bjorng Exp $
 %%
 
 -module(wings).
@@ -31,23 +31,57 @@ start() ->
     %% Set a minimal heap size to avoiding garbage-collecting
     %% all the time. Don't set it too high to avoid keeping binaries
     %% too long.
-    spawn_opt(erlang, apply, [fun() -> init(none, Root) end,[]],
-	      [{fullsweep_after,16384},{min_heap_size,256*1204}]).
+    spawn(fun() ->
+		  {ok,Cwd} = file:get_cwd(),
+		  process_flag(trap_exit, true),
+		  Wings = do_spawn(none, Root, [link]),
+		  wait_for_exit(Wings, Cwd)
+	  end).
+
+wait_for_exit(Wings, Cwd) ->
+    receive
+	{'EXIT',Wings,_} ->
+	    file:set_cwd(Cwd);
+	_ ->					%Can't happen.
+	    wait_for_exit(Wings, Cwd)
+    end.
 
 start(Root) ->
-    spawn(fun() -> init(none, Root) end).
+    do_spawn(none, Root).
 
 start_halt(Root) ->
-    spawn(fun() ->
-		  init(none, Root),
-		  halt()
-	  end).
+    spawn_halt(none, Root).
 
 start_halt([File|_], Root) ->
+    spawn_halt(File, Root).
+
+spawn_halt(File, Root) ->
     spawn(fun() ->
-		  init(File, Root),
-		  halt()
-	  end).
+		  process_flag(trap_exit, true),
+		  Wings = do_spawn(File, Root, [link]),
+		  halt_loop(Wings)
+		  end).
+
+halt_loop(Wings) ->
+    receive
+	{'EXIT',Wings,normal} ->
+	    halt();
+	{'EXIT',Wings,_} ->
+	    ok;
+	_ ->					%Can't happen.
+	    halt_loop(Wings)
+    end.
+
+do_spawn(File, Root) ->
+    do_spawn(File, Root, []).
+
+do_spawn(File, Root, Flags) ->
+    %% Set a minimal heap size to avoiding garbage-collecting
+    %% all the time. Don't set it too high to avoid keeping binaries
+    %% too long.
+    Fun = fun() -> init(File, Root) end,
+    spawn_opt(erlang, apply, [Fun,[]],
+	      [{fullsweep_after,16384},{min_heap_size,256*1204}|Flags]).
 
 root_dir() ->
     get(wings_root_dir).
@@ -55,15 +89,6 @@ root_dir() ->
 init(File, Root) ->
     register(wings, self()),
     put(wings_root_dir, Root),
-    case
-	catch
-	init_1(File) of
-	{'EXIT',Reason} -> io:format("Crashed: ~P\n", [Reason,30]);
-	ok -> ok
-    end.
-
-init_1(File) ->
-    {ok,Cwd} = file:get_cwd(),
     sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER bor
 	     ?SDL_INIT_NOPARACHUTE),
     Icon = locate("wings.icon"),
@@ -114,12 +139,16 @@ init_1(File) ->
     caption(St1),
     St = open_file(File, St1),
     wings_wm:init(),
-    wings_wm:top_window(main_loop(St)),
-    wings_file:finish(),
-    wings_pref:finish(),
-    sdl:quit(),
-    ok = file:set_cwd(Cwd),
-    ok.
+    case catch wings_wm:top_window(main_loop(St)) of
+	{'EXIT',normal} ->
+	    wings_file:finish(),
+	    wings_pref:finish(),
+	    sdl_util:free(get(wings_hitbuf)),
+	    sdl:quit();
+	{'EXIT',_} ->
+	    sdl_util:free(get(wings_hitbuf)),
+	    sdl:quit()
+    end.
 
 open_file(none, St) -> St;
 open_file(Name, St0) ->
@@ -246,9 +275,7 @@ do_command(Cmd, St0) ->
 	{init,_,_}=Init -> Init;
 	{seq,_,_}=Seq -> Seq;
 	keep -> keep;
-	quit ->
-	    sdl_util:free(get(wings_hitbuf)),
-	    pop
+	quit -> exit(normal)
     end.
 
 do_command_1(Cmd, St0) ->
