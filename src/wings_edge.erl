@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.61 2003/02/05 12:28:48 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.62 2003/02/14 15:31:52 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -162,25 +162,33 @@ select_more(Edges, We) ->
 select_less(St) ->
     wings_sel:convert_shape(
       fun(Edges, #we{es=Etab}=We) ->
-	      Vs0 = gb_sets:fold(
-		      fun(Edge, A) ->
-			      Rec = gb_trees:get(Edge, Etab),
-			      #edge{vs=Va,ve=Vb,
-				    ltpr=LP,ltsu=LS,
-				    rtpr=RP,rtsu=RS} = Rec,
-			      Set = gb_sets:from_list([LP,LS,RP,RS]),
-			      case gb_sets:is_subset(Set, Edges) of
-				  true -> A;
-				  false -> [Va,Vb|A]
-			      end
-		      end, [], Edges),
+	      Vs0 = select_less_1(Edges, Etab),
 	      Vs = ordsets:from_list(Vs0),
-	      AdjEdges = adjacent_edges(Vs, We, gb_sets:empty()),
+	      AdjEdges = adjacent_edges(Vs, We),
 	      gb_sets:subtract(Edges, AdjEdges)
       end, edge, St).
 
+select_less_1(Edges, Etab) ->
+    foldl(fun(Edge, A0) ->
+		  Rec = gb_trees:get(Edge, Etab),
+		  #edge{vs=Va,ve=Vb,
+			ltpr=LP,ltsu=LS,
+			rtpr=RP,rtsu=RS} = Rec,
+		  A = case gb_sets:is_member(LS, Edges) andalso
+			  gb_sets:is_member(RP, Edges) of
+			  true -> A0;
+			  false -> [Va|A0]
+		      end,
+		  case gb_sets:is_member(LP, Edges) andalso
+		      gb_sets:is_member(RS, Edges) of
+		      true -> A;
+		      false -> [Vb|A]
+		  end
+	  end, [], gb_sets:to_list(Edges)).
+
 adjacent_edges(Vs, We) ->
     adjacent_edges(Vs, We, gb_sets:empty()).
+
 adjacent_edges(Vs, We, Acc) ->
     foldl(fun(V, A) ->
 		  wings_vertex:fold(
