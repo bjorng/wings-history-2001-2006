@@ -1,14 +1,14 @@
 %%
 %%  wings_util.erl --
 %%
-%%     Various utility function that not obviously fit somewhere else.
+%%     Various utility functions that not obviously fit somewhere else.
 %%
 %%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.82 2003/10/09 06:25:24 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.83 2003/10/11 09:29:31 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -17,6 +17,7 @@
 	 button_message/1,button_message/2,button_message/3,
 	 button_format/1,button_format/2,button_format/3,
 	 rmb_format/1,
+	 join_msg/1,join_msg/2,
 	 message/1,
 	 magnet_string/0,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
@@ -93,6 +94,12 @@ button_format(LmbMsg, MmbMsg, RmbMsg) ->
 
 rmb_format(Msg) ->
     wings_camera:rmb_format(Msg).
+
+join_msg(Messages) ->
+    wings_camera:join_msg(Messages).
+
+join_msg(Msg1, Msg2) ->
+    wings_camera:join_msg(Msg1, Msg2).
 
 message(Message) ->
     Qs = {vframe,

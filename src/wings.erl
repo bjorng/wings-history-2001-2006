@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.266 2003/10/09 06:25:23 bjorng Exp $
+%%     $Id: wings.erl,v 1.267 2003/10/11 09:29:31 bjorng Exp $
 %%
 
 -module(wings).
@@ -353,7 +353,9 @@ handle_event_3(need_save, St) ->
 handle_event_3({new_default_command,DefCmd}, St) ->
     main_loop_noredraw(St#st{def=DefCmd});
 handle_event_3(got_focus, _) ->
-    Message = [wings_util:button_format("Select",[],"Show menu")," "|wings_camera:help()],
+    Msg1 = wings_util:button_format("Select", [], "Show menu"),
+    Msg2 = wings_camera:help(),
+    Message = wings_util:join_msg(Msg1, Msg2),
     wings_wm:message(Message),
     wings_wm:dirty();
 handle_event_3(lost_focus, _) -> keep;

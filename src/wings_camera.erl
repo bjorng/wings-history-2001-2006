@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.81 2003/10/09 06:25:24 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.82 2003/10/11 09:29:31 bjorng Exp $
 %%
 
 -module(wings_camera).
 -export([init/0,sub_menu/1,command/2,help/0,event/2]).
 -export([button_format/1,button_format/2,button_format/3,
-	 free_rmb_modifier/0,rmb_format/1,mod_name/1]).
+	 free_rmb_modifier/0,rmb_format/1,mod_name/1,
+	 mod_format/3,join_msg/1,join_msg/2]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -25,6 +26,9 @@
 -define(ZOOM_FACTOR, 20).
 -define(CAMDIV, 4).
 -define(CAMMAX, 150).  %% Always larger than 300 on my pc
+
+-define(CSEP, 160).				%Short space.
+-define(SEP, [$\s,$\s,160]).			%Two and a half.
 
 -record(camera,
 	{x,y,					%Current mouse position.
@@ -123,20 +127,20 @@ help() ->
 	mb -> mb_help()
     end.
 
-format([{Mod,1,Msg}|T]) ->
-    [format_1(Mod, lmb_name(), Msg),$\s|format(T)];
-format([{Mod,2,Msg}|T]) ->
-    [format_1(Mod, mmb_name(), Msg),$\s|format(T)];
-format([{Mod,3,Msg}|T]) ->
-    [format_1(Mod, rmb_name(), Msg),$\s|format(T)];
-format([{Mod,But,Msg}|T]) when is_list(But) ->
-    [format_1(Mod, But, Msg),$\s|format(T)];
+format([{Mod,But,Msg}|T]) ->
+    [mod_format(Mod, But, Msg),?SEP|format(T)];
 format([]) -> [].
 
-format_1(0, But, Msg) ->
-    [But,$\s,Msg];
-format_1(Mod, But, Msg) ->
-    M0 = [But,$\s,Msg],
+mod_format(Mod, 1, Msg) ->
+    mod_format(Mod, lmb_name(), Msg);
+mod_format(Mod, 2, Msg) ->
+    mod_format(Mod, mmb_name(), Msg);
+mod_format(Mod, 3, Msg) ->
+    mod_format(Mod, rmb_name(), Msg);
+mod_format(0, But, Msg) ->
+    [But,?CSEP,Msg];
+mod_format(Mod, But, Msg) ->
+    M0 = [But,?CSEP,Msg],
     M1 = if
 	     (Mod band ?SHIFT_BITS) =/= 0 -> ["[Shift]+"|M0];
 	     true -> M0
@@ -155,7 +159,7 @@ format_1(Mod, But, Msg) ->
     end.
 
 button_format(LmbMsg) ->
-    [lmb_name(),$\s|LmbMsg].
+    [lmb_name(),?CSEP|LmbMsg].
 
 button_format(LmbMsg, MmbMsg) ->
     button_format(LmbMsg, MmbMsg, []).
@@ -165,25 +169,26 @@ button_format(LmbMsg, MmbMsg, RmbMsg) ->
     Lmb = lmb_name(),
     Mmb = mmb_name(Buttons),
     Rmb = rmb_name(Buttons),
-    [if
-	 LmbMsg =/= [] -> [Lmb,$\s|LmbMsg];
-	 true -> []
-     end,
-     if
-	 MmbMsg =/= [] -> [$\s,Mmb,$\s|MmbMsg];
-	 true -> []
-     end,
-     if
-	 RmbMsg =/= [] -> [$\s,Rmb,$\s|RmbMsg];
-	 true -> []
-     end].
+    Lmsg = if
+	       LmbMsg =/= [] -> [Lmb,?CSEP|LmbMsg];
+	       true -> []
+	   end,
+    Mmsg = if
+	       MmbMsg =/= [] -> [Mmb,?CSEP|MmbMsg];
+	       true -> []
+	   end,
+    Rmsg = if
+	       RmbMsg =/= [] -> [Rmb,?CSEP|RmbMsg];
+	       true -> []
+	   end,
+    join_msg(Lmsg, join_msg(Mmsg, Rmsg)).
 
-lmb_name() -> "[L]".
+lmb_name() -> "L:".
 
 mmb_name() ->
     mmb_name(wings_pref:get_value(num_buttons)).
 
-mmb_name(3) -> "[M]";
+mmb_name(3) -> "M:";
 mmb_name(2) ->
     case wings_pref:get_value(camera_mode) of
 	blender -> ["[Alt]+"|lmb_name()];
@@ -194,16 +199,25 @@ mmb_name(1) -> ["[Alt]+"|lmb_name()].
 rmb_name() ->
     rmb_name(wings_pref:get_value(num_buttons)).
 
-rmb_name(1) -> "[Ctrl]+[L]";
-rmb_name(_) -> "[R]".
+rmb_name(1) -> "[Ctrl]+L:";
+rmb_name(_) -> "R:".
 
 rmb_format(Message) ->
     RmbMod = mod_name(free_rmb_modifier()),
-    ["[",RmbMod,"]+",rmb_name()," "|Message].
+    ["[",RmbMod,"]+",rmb_name(),?CSEP|Message].
 
 mod_name(?ALT_BITS) -> "Alt";
 mod_name(?CTRL_BITS) -> "Ctrl";
 mod_name(?META_BITS) -> "Command".
+
+join_msg([M0,M1|T]) ->
+    join_msg(join_msg(M0, M1), join_msg(T));
+join_msg([M]) -> M;
+join_msg([]) -> [].
+
+join_msg([], Msg) -> Msg;
+join_msg(Msg, []) -> Msg;
+join_msg(Msg1, Msg2) -> [Msg1,?SEP,Msg2].
 
 free_rmb_modifier() ->
     case wings_pref:get_value(camera_mode) of
@@ -341,22 +355,17 @@ get_nendo_event(Camera, Redraw, MouseRotates) ->
     {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw, MouseRotates) end}.
 
 nendo_message(true) ->
-    Mbutton = nendo_mbutton(),
-    Help = ["[L] Accept  Move mouse to tumble  "
-	    "Drag ",Mbutton," to dolly  [Q] Move move to track"],
+    Help = join_msg([button_format("Accept"),
+		     "Move mouse to tumble",
+		     ["Drag-",button_format([], "Dolly")],
+		     ["[Q]",?CSEP,"Move mouse to track"]]),
     message(Help);
 nendo_message(false) ->
-    Mbutton = nendo_mbutton(),
-    Help = ["[L] Accept  Move mouse to track  "
-	    "Drag ",Mbutton," Dolly  [Q] Move mouse to rotate"],
+    Help = join_msg([button_format("Accept"),
+		     "Move mouse to track",
+		     ["Drag-",button_format([], "Dolly")],
+		     ["[Q]",?CSEP,"Move mouse to tumble"]]),
     message(Help).
-
-nendo_mbutton() ->
-    case wings_pref:get_value(num_buttons) of
-	1 -> "[Alt]+[L]";
-	2 -> "[R]";
-	3 -> "[M]"
-    end.
 
 %%%
 %%% Mirai style camera.
@@ -430,13 +439,18 @@ get_mirai_event(Camera, Redraw, MouseRotates, View) ->
     {replace,fun(Ev) -> mirai_event(Ev, Camera, Redraw, MouseRotates, View) end}.
 
 mirai_message(true) ->
-    Help = ["[L] Accept  [R] Cancel/restore view  Move mouse to tumble  "
-	    "Drag [M] to dolly  [Q] Move mouse to track"],
+    Help = join_msg([button_format("Accept",[],"Cancel/restore view"),
+		     "Move mouse to tumble",
+		     ["Drag-",button_format([], "Dolly")],
+		     ["[Q]",?CSEP,"Move mouse to track"]]),
     message(Help);
 mirai_message(false) ->
-    Help = ["[L] Accept  [R] Cancel/restore view  Move mouse to track  "
-	    "Drag [M] Dolly  [Q] Move mouse to rotate"],
+    Help = join_msg([button_format("Accept",[],"Cancel/restore view"),
+		     "Move mouse to track",
+		     ["Drag-",button_format([], "Dolly")],
+		     ["[Q]",?CSEP,"Move mouse to tumble"]]),
     message(Help).
+
 
 %%%
 %%% 3ds max style camera.
@@ -446,7 +460,7 @@ tds(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     grab(),
-    message([button_format([], [], "Restore view"),$\s|tds_help()]),
+    message([button_format([], [], "Restore view"),?SEP|tds_help()]),
     View = wings_view:current(),
     {seq,push,get_tds_event(Camera, Redraw, View)};
 tds(_, _) -> next.

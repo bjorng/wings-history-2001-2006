@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.117 2003/10/09 06:25:24 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.118 2003/10/11 09:29:31 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -769,7 +769,7 @@ help_text_2([_|_]=S, false) -> S;
 help_text_2({[_|_]=S,_}, false) -> S;
 help_text_2({[_|_]=S,_,_}, false) -> S;
 help_text_2([_|_]=S, true) ->
-    ["[L] "|S];
+    wings_util:button_format(S);
 help_text_2({S1,S2}, true) ->
     wings_util:button_format(S1, S2);
 help_text_2({S1,[],S2}, true) ->
@@ -778,18 +778,22 @@ help_text_2({S1,S2,S3}, true) ->
     wings_util:button_format(S1, S2, S3);
 help_text_2([]=S, _) -> S.
 
-magnet_help(Msg, Ps, #mi{flags=Flags}) ->
+magnet_help(Msg0, Ps, #mi{flags=Flags}) ->
     case have_magnet(Ps) of
 	false ->
-	    wings_wm:message(Msg);
+	    wings_wm:message(Msg0);
 	true ->
 	    case have_magnet(Flags) of
 		false ->
 		    ModRmb = wings_camera:free_rmb_modifier(),
 		    ModName = wings_camera:mod_name(ModRmb),
-		    wings_wm:message([Msg,"  [",ModName,"]+Click for Magnet"], "");
+		    MagMsg = ["[",ModName,"]+Click for Magnet"],
+		    Msg = wings_util:join_msg(Msg0, MagMsg),
+		    wings_wm:message(Msg);
 		true ->
-		    wings_wm:message([Msg,"  "|wings_util:magnet_string()], "")
+		    Msg = wings_util:join_msg(Msg0,
+					      wings_util:magnet_string()),
+		    wings_wm:message(Msg, "")
 	    end
     end.
 

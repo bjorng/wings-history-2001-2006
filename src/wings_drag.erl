@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.160 2003/09/04 05:20:45 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.161 2003/10/11 09:29:31 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -286,10 +286,10 @@ gl_rescale_normal() ->
     end.
 
 help_message(#drag{unit=Unit}=Drag) ->
-    Msg = "[L] Accept  [R] Cancel",
+    Msg = wings_util:button_format("Accept", [], "Cancel"),
     Zmsg = case length(Unit) > 2 of
 	       false -> [];
-	       true -> ["  Drag ",zmove_help()," Move along Z"]
+	       true -> ["  Drag ",zmove_help("Move along Z")]
 	   end,
     wings_wm:message([Msg,Zmsg], help_message_right(Drag)).
 
@@ -301,17 +301,11 @@ help_message_right(#drag{magnet=none,falloff=Falloff}) ->
     end;
 help_message_right(#drag{magnet=Type}) -> wings_magnet:drag_help(Type).
 
-zmove_help() ->
-    Buttons = wings_pref:get_value(num_buttons),
+zmove_help(Msg) ->
     case wings_pref:get_value(camera_mode) of
-	nendo when Buttons == 1 -> "[Alt]+[L]";
-	nendo when Buttons == 2 -> "[Ctrl]+[R]";
-	nendo -> "[M]";
-	mirai -> "[M]";
-	maya -> "[M]";
-	tds -> "[Ctrl]+[R]";
-	blender -> "[Ctrl]+[R]";
-	mb -> "[M]"
+	tds -> wings_camera:mod_format(?CTRL_BITS, 3, Msg);
+	blender -> wings_camera:mod_format(?CTRL_BITS, 3, Msg);
+	_ -> wings_camera:mod_format(0, 2, Msg)
     end.
 
 get_drag_event(Drag) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_7x14.erl,v 1.7 2003/07/21 06:13:54 bjorng Exp $
+%%     $Id: wpf_7x14.erl,v 1.8 2003/10/11 09:29:31 bjorng Exp $
 %%
 
 -module(wpf_7x14).
@@ -18,10 +18,12 @@ desc() ->
     "Large (7x14)".
 
 width(S) ->
-    7*len(S, 0).
+    len(S, 0).
 
-len([option|Cs], L) -> len(Cs, L+2);
-len([_|Cs], L) -> len(Cs, L+1);
+len([option|Cs], L) -> len(Cs, L+14);
+len([32|Cs], L) -> len(Cs, L+5);
+len([160|Cs], L) -> len(Cs, L+3);
+len([_|Cs], L) -> len(Cs, L+7);
 len([], L) -> L.
 
 width() -> 7.
@@ -126,7 +128,7 @@ char(axisz) ->
 
 char(32) ->
  B = <<>>,
- gl:bitmap(0, 0, 0, 0, 7, 0, B);
+ gl:bitmap(0, 0, 0, 0, 5, 0, B);
 
 char(127) ->
  B = <<>>,
@@ -134,7 +136,7 @@ char(127) ->
 
 char(160) ->
  B = <<>>,
- gl:bitmap(0, 0, 0, 0, 7, 0, B);
+ gl:bitmap(0, 0, 0, 0, 3, 0, B);
 
 % char: 0xff
 

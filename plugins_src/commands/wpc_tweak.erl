@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.43 2003/09/12 14:42:54 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.44 2003/10/11 09:29:30 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -302,21 +302,27 @@ screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
     glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
 
 help(#tweak{magnet=false}) ->
-    Msg = "[L] Drag vertices freely  [R] Exit tweak mode",
-    wings_wm:message(Msg ++ "  " ++ wings_camera:help(),
-		     "[1] Magnet On");
+    M0 = wings_util:button_format("Drag vertices freely", [],
+				  "Exit tweak mode"),
+    M1 = wings_camera:help(),
+    Msg = wings_util:join_msg(M0, M1),
+    wings_wm:message(Msg, "[1] Magnet On");
 help(#tweak{magnet=true,mag_type=Type}) ->
-    Msg = "[L] Drag  [R] Exit",
-    MagMsg = "[1] Magnet Off  [+]/[-] Tweak R  " ++
-	help_1(Type, [{2,dome},{3,straight},{4,spike}]),
+    Msg = wings_util:button_format("Drag", [], "Exit"),
+    Types = help_1(Type, [{2,dome},{3,straight},{4,spike}]),
+    MagMsg = wings_util:join_msg(["[1] Magnet Off",
+				  "[+]/[-] Tweak R",
+				  Types]),
     wings_wm:message(Msg, MagMsg).
 
 help_1(Type, [{Digit,Type}|T]) ->
-    "[" ++ [$0+Digit] ++ "] <<" ++
-	wings_util:cap(atom_to_list(Type)) ++ ">> " ++ help_1(Type, T);
+    wings_util:join_msg("[" ++ [$0+Digit] ++ "] <<" ++
+			wings_util:cap(atom_to_list(Type)) ++ ">>",
+			help_1(Type, T));
 help_1(Type, [{Digit,ThisType}|T]) ->
-    "[" ++ [$0+Digit] ++ "] " ++
-	wings_util:cap(atom_to_list(ThisType)) ++ " " ++ help_1(Type, T);
+    wings_util:join_msg("[" ++ [$0+Digit] ++ "] " ++
+			wings_util:cap(atom_to_list(ThisType)),
+			help_1(Type, T));
 help_1(_, []) -> [].
 
 %%%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.122 2003/08/16 17:50:35 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.123 2003/10/11 09:29:31 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -1115,17 +1115,22 @@ message_redraw(Msg, Right) ->
 	Msg == [] -> ok;
 	true -> wings_io:text_at(0, Msg)
     end,
-    Cw = wings_text:width(),
     case Right of
 	[] -> ok;
-	Right when length(Msg)+length(Right) < W div Cw - 5 ->
-	    L = length(Right),
-	    Pos = W-?CHAR_WIDTH*(L+5),
-	    wings_io:set_color(wings_pref:get_value(menu_color)),
-	    gl:recti(Pos-?CHAR_WIDTH, -?LINE_HEIGHT+3,
-		     Pos+(L+1)*?CHAR_WIDTH, 3),
-	    gl:color3b(0, 0, 0),
-	    wings_io:text_at(Pos, Right);
+	_ ->
+	    Cw = wings_text:width(),
+	    MsgW = wings_text:width(Msg),
+	    RightW = wings_text:width(Right),
+	    if 
+		MsgW+RightW < W - 5*Cw ->
+		    Pos = W - RightW - 5*Cw,
+		    wings_io:set_color(wings_pref:get_value(menu_color)),
+		    gl:recti(Pos-?CHAR_WIDTH, -?LINE_HEIGHT+3,
+			     Pos+RightW, 3),
+		    gl:color3b(0, 0, 0),
+		    wings_io:text_at(Pos, Right);
+		true -> ok
+	    end;
 	_ -> ok
     end,
     case os:type() of
