@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.24 2002/08/28 05:44:16 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.25 2002/09/22 09:37:26 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -29,6 +29,7 @@ menu(X, Y, _) ->
 	    separator,
 	    {"One-Button Mouse (Mac)",one_button},
 	    {"Two-Button Mouse",two_button},
+	    {"French And German Keyboards",international},
 	    separator,
 	    {"OpenGL Info",opengl_info},
 	    separator,
@@ -43,6 +44,8 @@ command(one_button, _St) ->
     one_button();
 command(two_button, _St) ->
     two_button();
+command(international, _St) ->
+    international();
 command(defining_hotkeys, _St) ->
     def_hotkeys();
 command(lights, _St) ->
@@ -135,6 +138,19 @@ two_button() ->
 	    "In the Advanced Menus (if enabled), "
 	    "you can use either [Alt]+[L] "
 	    "or [Ctrl]+[R] instead of [L]."],
+    help_window(Help).
+
+international() ->
+    Help = ["French And German Keyboards",
+	    "Unfortunately, on French and German keyboards (and possibly "
+	    "others), the Undo/Redo commands will not be bound to the [Z] "
+	    "key. (That might be changed in a future release of Wings.)",
+
+	    "On French keyboards, the Undo/Redo commands are found on the"
+	    "[W] key ([Ctrl]+[W], [Ctrl]+[Alt]+[W] and so on).",
+
+	    "On German keyboards, the Undo/Redo commands are found on the"
+	    "[Y] key ([Ctrl]+[Y], [Ctrl]+[Alt]+[Y] and so on)."],
     help_window(Help).
 
 def_hotkeys() ->
