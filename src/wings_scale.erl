@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.35 2002/03/20 20:35:04 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.36 2002/03/21 06:43:32 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -48,7 +48,7 @@ setup(Vec, Point, _Magnet, #st{selmode=body}=St) ->
 
 init_drag(Tvs, Magnet, St) ->
     wings_drag:setup(Tvs, [{percent,{-1.0,?HUGE}}|magnet_unit(Magnet)],
-		     [], St).
+		     wings_magnet:flags(Magnet, []), St).
 
 magnet_unit(none) -> [];
 magnet_unit(_) -> [falloff].
@@ -226,8 +226,12 @@ pre_transform(Matrix, VsInf) ->
 				   e3d_mat:mul_point(Matrix, Pos)
 			   end, VsInf).
     
-magnet_scale_fun(Vec, Pre, VsInf0, Magnet) ->
+magnet_scale_fun(Vec, Pre, VsInf0, {_,R}=Magnet0) ->
     fun(new_falloff, Falloff) ->
+	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet0),
+	    magnet_scale_fun(Vec, Pre, VsInf, Magnet0);
+       (new_type, {Type,Falloff}) ->
+	    Magnet = {Type,R},
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_scale_fun(Vec, Pre, VsInf, Magnet);
        ([Dx|_], A0) ->

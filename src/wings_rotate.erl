@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.27 2002/03/20 20:35:04 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.28 2002/03/21 06:43:32 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -48,7 +48,8 @@ setup(Vec, Center, _Magnet, #st{selmode=body}=St) ->
     init_drag({matrix,Tvs}, Vec, none, St).
 
 init_drag(Tvs, Vec, Magnet, St) ->
-    wings_drag:setup(Tvs, [angle|magnet_unit(Magnet)], flags(Vec), St).
+    Flags = wings_magnet:flags(Magnet, flags(Vec)),
+    wings_drag:setup(Tvs, [angle|magnet_unit(Magnet)], Flags, St).
 
 flags(free) -> [screen_relative];
 flags(_) -> [].
@@ -185,15 +186,19 @@ pre_transform(Center, VsInf) ->
 				   e3d_vec:sub(Pos, Center)
 			   end, VsInf).
 
-magnet_rotate_fun(Axis0, Center, VsInf0, Magnet) ->
+magnet_rotate_fun(Axis0, Center, VsInf0, {_,R}=Magnet0) ->
     fun(new_falloff, Falloff) ->
+	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet0),
+	    magnet_rotate_fun(Axis0, Center, VsInf, Magnet0);
+       (new_type, {Type,Falloff}) ->
+	    Magnet = {Type,R},
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_rotate_fun(Axis0, Center, VsInf, Magnet);
        (view_changed, NewWe) ->
 	    Axis = view_vector(),
 	    VsInf1 = wings_util:update_vpos(VsInf0, NewWe),
 	    VsInf = pre_transform(Center, VsInf1),
-	    magnet_rotate_fun(Axis, Center, VsInf, Magnet);
+	    magnet_rotate_fun(Axis, Center, VsInf, Magnet0);
        ([Dx|_], A) ->
 	    magnet_rotate(Axis0, Center, Dx, VsInf0, A)
     end.

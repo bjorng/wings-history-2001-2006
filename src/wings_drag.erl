@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.66 2002/03/20 20:35:04 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.67 2002/03/21 06:43:32 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -41,6 +41,7 @@
 	 sel,					%Massaged selection.
 	 matrices=none,				%Transformation matrices.
 	 falloff,				%Magnet falloff.
+	 magnet,				%Magnet: true|false.
 	 st,					%Saved st record.
 	 done=false				%Drag is done.
 	}).
@@ -54,13 +55,15 @@ setup(Tvs, Unit, St) ->
 
 setup(Tvs, Unit, Flags, St) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = #drag{x=X,y=Y,unit=Unit,flags=Flags,falloff=falloff(Unit)},
+    Magnet = property_lists:get_value(magnet, Flags, none),
+    Drag = #drag{x=X,y=Y,unit=Unit,flags=Flags,
+		 falloff=falloff(Unit),magnet=Magnet},
     init_1(Tvs, Drag, St).
 
 falloff([falloff|_]) -> 1.0;
 falloff([_|T]) -> falloff(T);
 falloff([]) -> none.
-    
+	    
 init_1(Tvs0, Drag0, #st{selmode=Mode,sel=Sel0}=St0) ->
     St = wings_draw:model_changed(St0),
     wings_draw:make_vec_dlist(St),
@@ -179,8 +182,16 @@ insert_vtx_data_1([], _Vtab, Acc) -> Acc.
 %%% Handling of drag events.
 %%%
 
-do_drag(Drag) ->
-    Help = "[Tab] Numeric entry  [Shift],[Ctrl] Constrain",
+do_drag(#drag{magnet=none,falloff=Falloff}=Drag) ->
+    Help0 = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
+    Help = case Falloff of
+	       none -> Help0;
+	       _ -> "[+] or [-] Tweak R  " ++ Help0
+	   end,
+    wings_io:message_right(Help),
+    {seq,{push,dummy},get_drag_event_1(Drag)};
+do_drag(#drag{magnet=Type}=Drag) ->
+    Help = wings_magnet:help(Type),
     wings_io:message_right(Help),
     {seq,{push,dummy},get_drag_event_1(Drag)}.
 
@@ -196,9 +207,23 @@ handle_drag_event(#keyboard{keysym=#keysym{sym=9}}, Drag) ->
     numeric_input(Drag);
 handle_drag_event(Event, Drag) ->
     case wings_camera:event(Event, fun() -> redraw(Drag) end) of
-	next -> handle_drag_event_1(Event, Drag);
+	next -> handle_drag_event_0(Event, Drag);
 	Other -> Other
     end.
+
+handle_drag_event_0(#keyboard{}=Ev, #drag{magnet=none}=Drag) ->
+    handle_drag_event_1(Ev, Drag);
+handle_drag_event_0(#keyboard{keysym=#keysym{unicode=C}}=Ev, Drag0) ->
+    case wings_magnet:hotkey(C) of
+	none -> handle_drag_event_1(Ev, Drag0);
+	Type ->
+	    Help = wings_magnet:help(Type),
+	    wings_io:message_right(Help),
+	    Val = {Type,Drag0#drag.falloff},
+	    Drag = parameter_update(new_type, Val, Drag0#drag{magnet=Type}),
+	    get_drag_event(Drag)
+    end;
+handle_drag_event_0(Ev, Drag) -> handle_drag_event_1(Ev, Drag).
 
 handle_drag_event_1(redraw, Drag) ->
     redraw(Drag),
@@ -493,12 +518,18 @@ unit(Unit, Move) ->
     io:format("~p\n", [{Unit,Move}]),
     [].
 
-normalize(#drag{new=New,matrices=none,st=#st{shapes=Shs0}=St}) ->
+normalize(#drag{magnet=none}=Drag) ->
+    normalize_1(Drag);
+normalize(#drag{magnet=Type}=Drag) ->
+    wings_pref:set_value(magnet_type, Type),
+    normalize_1(Drag).
+    
+normalize_1(#drag{new=New,matrices=none,st=#st{shapes=Shs0}=St}) ->
     Shs = foldl(fun({Id,We}, A) ->
 			normalize(Id, We, A)
 		end, Shs0, New),
     St#st{shapes=Shs};
-normalize(#drag{matrices=Mtxs,st=#st{shapes=Shs0}=St}) ->
+normalize_1(#drag{matrices=Mtxs,st=#st{shapes=Shs0}=St}) ->
     Shs = foldl(fun({Id,Matrix}, A) ->
 			normalize_matrix(Id, Matrix, A)
 		end, Shs0, Mtxs),

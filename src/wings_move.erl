@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.32 2002/03/20 20:35:04 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.33 2002/03/21 06:43:32 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -32,7 +32,8 @@ setup(Vec0, Magnet, #st{selmode=Mode}=St) ->
     Tvs = wings_sel:fold(fun(Items, We, Acc) ->
 				 setup_1(Vec, Magnet, Mode, We, Items, Acc)
 			 end, [], St),
-    wings_drag:setup(Tvs, unit(Vec0, magnet_unit(Magnet)), flags(Vec0), St).
+    Flags = wings_magnet:flags(Magnet, flags(Vec0)),
+    wings_drag:setup(Tvs, unit(Vec0, magnet_unit(Magnet)), Flags, St).
 
 setup_1(Vec, Magnet, Mode, #we{id=Id}=We, Items, Acc) ->
     Tv = setup_we(Mode, Vec, Items, We),
@@ -40,7 +41,7 @@ setup_1(Vec, Magnet, Mode, #we{id=Id}=We, Items, Acc) ->
 
 magnet_unit(none) -> [];
 magnet_unit(_) -> [falloff].
-     
+
 plus_minus(Type, Tvs0, #st{selmode=Mode}=St) ->
     Vec = wings_util:make_vector(Type),
     Tvs = plus_minus_2(Mode, Vec, Tvs0, []),
@@ -324,8 +325,12 @@ magnet_move(Tv0, Vec, Magnet0, #we{id=Id}=We, _, Acc) ->
     {VsInf,Magnet,Affected} = wings_magnet:setup(Magnet0, Vs0, We),
     [{Id,{Affected,magnet_move_fun(Vec, VsInf, Magnet)}}|Acc].
 
-magnet_move_fun({Xt0,Yt0,Zt0}=Vec, VsInf0, Magnet) ->
+magnet_move_fun({Xt0,Yt0,Zt0}=Vec, VsInf0, {_,R}=Magnet0) ->
     fun(new_falloff, Falloff) ->
+	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet0),
+	    magnet_move_fun(Vec, VsInf, Magnet0);
+       (new_type, {Type,Falloff}) ->
+	    Magnet = {Type,R},
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_move_fun(Vec, VsInf, Magnet);
        ([Dx0|_], A0) ->
@@ -336,11 +341,15 @@ magnet_move_fun({Xt0,Yt0,Zt0}=Vec, VsInf0, Magnet) ->
 			  [{V,Vtx#vtx{pos=Pos}}|A]
 		  end, A0, VsInf0)
     end;
-magnet_move_fun(free, VsInf0, Magnet) ->
+magnet_move_fun(free, VsInf0, {_,R}=Magnet0) ->
     fun(view_changed, We) ->
 	    VsInf = wings_util:update_vpos(VsInf0, We),
-	    magnet_move_fun(free, VsInf, Magnet);
+	    magnet_move_fun(free, VsInf, Magnet0);
        (new_falloff, Falloff) ->
+	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet0),
+	    magnet_move_fun(free, VsInf, Magnet0);
+       (new_type, {Type,Falloff}) ->
+	    Magnet = {Type,R},
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_move_fun(free, VsInf, Magnet);
        ([Dx,Dy|_], Acc) ->

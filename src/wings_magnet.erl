@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.27 2002/03/20 20:35:04 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.28 2002/03/21 06:43:32 bjorng Exp $
 %%
 
 -module(wings_magnet).
--export([setup/3,transform/2,recalc/3]).
+-export([setup/3,transform/2,recalc/3,flags/2,help/1,hotkey/1]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,sort/1,concat/1]).
@@ -50,6 +50,31 @@ recalc(Sc, VsInf, {Type,R0}) ->
 	     ({V,Vtx,Dist,_}, A) ->
 		  [{V,Vtx,Dist,mf(Type, R, R)}|A]
 	  end, [], VsInf).
+
+flags(none, Flags) -> Flags;
+flags({magnet,Type,_}, Flags) -> [{magnet,Type}|Flags].
+
+help(Type) ->
+    "[+] or [-] Tweak Influence  " ++
+	help_1(Type, [{1,dome},{2,bell},{3,straight},{4,spike}]).
+
+help_1(Type, [{Digit,Type}|T]) ->
+    "[" ++ [$0+Digit] ++ "] <<" ++
+	wings_util:cap(atom_to_list(Type)) ++ ">> " ++ help_1(Type, T);
+help_1(Type, [{Digit,ThisType}|T]) ->
+    "[" ++ [$0+Digit] ++ "] " ++
+	wings_util:cap(atom_to_list(ThisType)) ++ " " ++ help_1(Type, T);
+help_1(_, []) -> [].
+
+hotkey($1) -> dome;
+hotkey($2) -> bell;
+hotkey($3) -> straight;
+hotkey($4) -> spike;
+hotkey(_) -> none.
+    
+%%%
+%%% Local functions.
+%%%
 
 inf_1([{V,#vtx{pos=Pos}=Vtx}|T], VsSel, R, Acc) ->
     case inf_2(VsSel, V, Pos, none, R) of
