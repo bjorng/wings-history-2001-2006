@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.106 2003/03/12 10:04:21 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.107 2003/03/13 20:06:06 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -73,17 +73,15 @@ menu(_) ->
      {"Render",{render,[]}},
      separator|recent_files([{"Exit",quit}])].
 
-command(new, St0) ->
-    case new(St0) of
-	aborted -> St0;
-	St0 -> St0;
-	St -> {new,clean_images(St)}
-    end;
-command(open, St0) ->
-    case read(St0) of
-	St0 -> St0;
-	St -> {new,St}
-    end;
+command(new, St) ->
+    Next = fun(S) -> {new,clean_images(S)} end,
+    new(Next, St);
+command({save_new,Next}, St) ->
+    save_new(Next, St);
+command({confirmed_new,Next}, St) ->
+    confirmed_new(Next, St);
+command(open, St) ->
+    open(St);
 command(merge, St0) ->
     case merge(St0) of
 	St0 -> St0;
@@ -150,7 +148,7 @@ command(confirmed_quit, _) ->
 command(Key, St) when is_integer(Key) ->
     Recent = wings_pref:get_value(recent_files, []),
     {_,File} = lists:nth(Key, Recent),
-    {new,named_open(File, St)}.
+    named_open(File, St).
 
 quit(#st{saved=true}) -> quit;
 quit(St) ->
@@ -165,61 +163,61 @@ quit(St) ->
 				     {file,confirmed_quit}
 			     end).
 
-new(#st{saved=true}=St0) ->
+new(Next, #st{saved=true}=St0) ->
     St = clean_st(St0#st{file=undefined}),
     wings:caption(St),
-    St;
-new(St0) -> %% File is not saved or autosaved.
+    Next(St);
+new(Next, St0) -> %% File is not saved or autosaved.
     wings:caption(St0#st{saved=false}), 
-    case wings_util:yes_no("Do you want to save your changes?") of
-	no -> %% Remove autosaved file, user has explicitly said so.
-	    catch file:delete(autosave_filename(St0#st.file)),
-	    new(St0#st{saved=true});
-	yes ->
-	    case save(St0) of
-		aborted -> aborted;
-		{saved,St} -> new(St);
-		#st{}=St -> new(St)
-	    end;
-	aborted -> aborted
+    wings_util:yes_no_cancel("Do you want to save your changes?",
+			     fun() -> {file,{save_new,Next}} end,
+			     fun() -> {file,{confirmed_new,Next}} end).
+
+save_new(Next, St0) ->
+    case save_1(St0) of
+	aborted -> St0;
+	#st{}=St -> new(Next, St)
     end.
 
-read(St0) ->
-    case new(St0) of
-	aborted -> St0;
-	St1 ->
-	    case wings_plugin:call_ui({file,open_dialog,wings_prop()}) of
-		aborted -> St0;
-		Name ->
-		    set_cwd(dirname(Name)),
-		    File = use_autosave(Name),
-		    case ?SLOW(wings_ff_wings:import(File, St1)) of
-			#st{}=St2 ->
-			    St = clean_images(St2),
-			    add_recent(Name),
-			    wings:caption(St#st{saved=true,file=Name});
-			{error,Reason} ->
-			    clean_new_images(St1),
-			    wings_util:error("Read failed: " ++ Reason)
-		    end
-	    end
-    end.
+confirmed_new(Next, #st{file=File}=St) ->
+    %% Remove autosaved file; user has explicitly said so.
+    catch file:delete(autosave_filename(File)),
+    new(Next, St#st{saved=true}).
 
-named_open(Name, St0) ->
-    case new(St0) of
+open(St) ->
+    new(fun do_open/1, St).
+
+do_open(St0) ->
+    case wings_plugin:call_ui({file,open_dialog,wings_prop()}) of
 	aborted -> St0;
-	St1 ->
-	    add_recent(Name),
+	Name ->
+	    set_cwd(dirname(Name)),
 	    File = use_autosave(Name),
-	    case ?SLOW(wings_ff_wings:import(File, St1)) of
-		#st{}=St2 ->
-		    St = clean_images(St2),
-		    set_cwd(dirname(Name)),
+	    case ?SLOW(wings_ff_wings:import(File, St0)) of
+		#st{}=St1 ->
+		    St = clean_images(St1),
+		    add_recent(Name),
 		    wings:caption(St#st{saved=true,file=Name});
 		{error,Reason} ->
-		    clean_new_images(St1),
+		    clean_new_images(St0),
 		    wings_util:error("Read failed: " ++ Reason)
 	    end
+    end.
+
+named_open(Name, St) ->
+    new(fun(S) -> do_named_open(Name, S) end, St).
+
+do_named_open(Name, St0) ->
+    add_recent(Name),
+    File = use_autosave(Name),
+    case ?SLOW(wings_ff_wings:import(File, St0)) of
+	#st{}=St1 ->
+	    St = clean_images(St1),
+	    set_cwd(dirname(Name)),
+	    wings:caption(St#st{saved=true,file=Name});
+	{error,Reason} ->
+	    clean_new_images(St0),
+	    wings_util:error("Read failed: " ++ Reason)
     end.
 
 merge(St0) ->
