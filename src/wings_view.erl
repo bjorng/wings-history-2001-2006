@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.144 2004/04/27 10:04:46 raimo_niskanen Exp $
+%%     $Id: wings_view.erl,v 1.145 2004/04/28 08:04:22 raimo_niskanen Exp $
 %%
 
 -module(wings_view).
@@ -852,46 +852,50 @@ one_of(false,_, S) -> S.
 %%%
 
 export_views(St) ->
-    export_views_1([V || {V,_} <- queue:to_list(St#st.views)]).
+    export_views_1(queue:to_list(St#st.views)).
 
-export_views_1([View|Views]) ->
+export_views_1([{View,Name}|Views]) ->
     Tags = [aim,distance_to_aim,azimuth,elevation,tracking,fov,hither,yon],
-    [{view,zip(Tags, camera_info(Tags, View))}|export_views_1(Views)];
+    Props = [{name,Name}|zip(Tags, camera_info(Tags, View))],
+    [{view,Props}|export_views_1(Views)];
 export_views_1([]) -> [].
-
-import_views(Views, St) ->
-    L = [{V,view_legend(V)} || V <- import_views_1(Views)],
-    St#st{views=queue:from_list(L)}.
-
-import_views_1([{view,As}|Views]) ->
-    [import_view(As)|import_views_1(Views)];
-import_views_1([]) -> [].
 
 zip([H1|T1], [H2|T2]) ->
     [{H1,H2}|zip(T1, T2)];
 zip([], []) -> [].
 
-import_view(As) ->
-    import_view(As, #view{}).
+import_views(Views, St) ->
+    St#st{views=queue:from_list(import_views_1(Views))}.
 
-import_view([{aim,Aim}|As], View) ->
-    import_view(As, View#view{origin=Aim});
-import_view([{distance_to_aim,Dist}|As], View) ->
-    import_view(As, View#view{distance=Dist});
-import_view([{azimuth,Az}|As], View) ->
-    import_view(As, View#view{azimuth=Az});
-import_view([{elevation,El}|As], View) ->
-    import_view(As, View#view{elevation=El});
-import_view([{tracking,{X,Y}}|As], View) ->
-    import_view(As, View#view{pan_x=X,pan_y=Y});
-import_view([{fov,Fov}|As], View) ->
-    import_view(As, View#view{fov=Fov});
-import_view([{hither,Hither}|As], View) ->
-    import_view(As, View#view{hither=Hither});
-import_view([{yon,Yon}|As], View) ->
-    import_view(As, View#view{yon=Yon});
-import_view([], #view{azimuth=Az,elevation=El}=View) -> 
-    View#view{along_axis=along(Az, El)}.
+import_views_1([{view,As}|Views]) ->
+    [import_view(As)|import_views_1(Views)];
+import_views_1([]) -> [].
+
+import_view(As) ->
+    import_view(As, #view{}, undefined).
+
+import_view([{aim,Aim}|As], View, Name) ->
+    import_view(As, View#view{origin=Aim}, Name);
+import_view([{distance_to_aim,Dist}|As], View, Name) ->
+    import_view(As, View#view{distance=Dist}, Name);
+import_view([{azimuth,Az}|As], View, Name) ->
+    import_view(As, View#view{azimuth=Az}, Name);
+import_view([{elevation,El}|As], View, Name) ->
+    import_view(As, View#view{elevation=El}, Name);
+import_view([{tracking,{X,Y}}|As], View, Name) ->
+    import_view(As, View#view{pan_x=X,pan_y=Y}, Name);
+import_view([{fov,Fov}|As], View, Name) ->
+    import_view(As, View#view{fov=Fov}, Name);
+import_view([{hither,Hither}|As], View, Name) ->
+    import_view(As, View#view{hither=Hither}, Name);
+import_view([{yon,Yon}|As], View, Name) ->
+    import_view(As, View#view{yon=Yon}, Name);
+import_view([{name,Name}|As], View, _) ->
+    import_view(As, View, Name);
+import_view([], #view{azimuth=Az,elevation=El}=View, undefined) -> 
+    {View#view{along_axis=along(Az, El)},view_legend(View)};
+import_view([], #view{azimuth=Az,elevation=El}=View, Name) -> 
+    {View#view{along_axis=along(Az, El)},Name}.
 
 %%%
 %%% Camera info.
