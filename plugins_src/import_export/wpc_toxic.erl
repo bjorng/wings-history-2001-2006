@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.11 2004/06/17 10:23:17 dgud Exp $
+%%     $Id: wpc_toxic.erl,v 1.12 2004/06/17 15:15:38 dgud Exp $
 %%
 
 -module(wpc_toxic).
@@ -1137,7 +1137,7 @@ export_camera(F, Scale, Attr) ->
     end,
     W = pget(width, Attr),    H = pget(height, Attr),
     println(F,"  <Parameter name=\"hfov\" value=\"~s\"/>", 
-	    [format(2*math:atan(math:tan(0.5*Fov*?PI/180)*W/H)*180/?PI)]),
+	    [format(2*math:atan(2*math:tan(0.5*Fov*?PI/180)*W/H)*180/?PI)]),
     println(F,"    <Transform>"),
 
 %%%%%%%%%%% Almost Same as wings %%%%%%%%%%%%
