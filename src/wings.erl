@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.323 2004/11/14 13:06:11 bjorng Exp $
+%%     $Id: wings.erl,v 1.324 2004/11/14 13:47:26 bjorng Exp $
 %%
 
 -module(wings).
@@ -122,7 +122,7 @@ init(File) ->
     
     Props = initial_properties(),
     {{X,Y},{W,H}} = wings_wm:win_rect(desktop),
-    wings_wm:toplevel(geom,?STR(init,7,"Geometry"),
+    wings_wm:toplevel(geom, geom_title(geom),
 		      {X,Y,highest}, {W,H-80},
 		      [resizable,{anchor,nw},
 		       {toolbar,
@@ -156,9 +156,9 @@ new_viewer(St) ->
     Name = {geom,N},
     new_viewer(Name, Pos, Size, Props, ToolbarHidden, St).
 
-new_viewer({geom,N}=Name, {X,Y}, Size, Props, ToolbarHidden, St) ->
+new_viewer(Name, {X,Y}, Size, Props, ToolbarHidden, St) ->
     Op = main_loop_noredraw(St),
-    Title = ?STR(new_viewer,1,"Geometry #") ++ integer_to_list(N),
+    Title = geom_title(Name),
     wings_wm:toplevel(Name, Title, {X,Y,highest}, Size,
 		      [resizable,closable,{anchor,nw},
 		       {toolbar,
@@ -372,7 +372,9 @@ handle_event_3({note,_}, _) ->
 handle_event_3({drop,Pos,DropData}, St) ->
     handle_drop(DropData, Pos, St);
 handle_event_3(language_changed, _) ->
-    wings_wm:menubar(wings_wm:this(), get(wings_menu_template)),
+    This = wings_wm:this(),
+    wings_wm:toplevel_title(This, geom_title(This)),
+    wings_wm:menubar(This, get(wings_menu_template)),
     keep;
 handle_event_3(ignore, _St) -> keep.
 
@@ -1024,6 +1026,11 @@ use_command(#mousebutton{state=?SDL_RELEASED,button=N}=Ev,
 	    do_use_command(Ev, Cmd, St)
     end;
 use_command(_, _) -> keep.
+
+geom_title(geom) ->
+    ?STR(geom_title,1,"Geometry");
+geom_title({geom,N}) ->
+    ?STR(geom_title,2,"Geometry #") ++ integer_to_list(N).
 
 do_use_command(#mousebutton{x=X,y=Y}, Cmd0, #st{sel=[]}=St0) ->
     case wings_pref:get_value(use_temp_sel) of

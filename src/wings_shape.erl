@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.74 2004/11/13 04:39:26 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.75 2004/11/14 13:47:26 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -157,10 +157,7 @@ window(St) ->
     end.
 
 window({_,Client}=Name, Pos, Size, St) ->
-    Title = case Client of
-		geom -> ?STR(window,1,"Geometry Graph");
-		{geom,N} -> ?STR(window,2,"Geometry Graph #")++ integer_to_list(N)
-	    end,
+    Title = title(Client),
     Ost = #ost{first=0,lh=18,active=-1},
     Current = {current_state,St},
     Op = {seq,push,event(Current, Ost)},
@@ -168,6 +165,11 @@ window({_,Client}=Name, Pos, Size, St) ->
     wings_wm:toplevel(Name, Title, Pos, Size,
 		      [{sizeable,?PANE_COLOR},closable,vscroller,
 		       {anchor,ne},{properties,Props}], Op).
+
+title(geom) ->
+    ?STR(title,1,"Geometry Graph");
+title({geom,N}) ->
+    ?STR(title,2,"Geometry Graph #") ++ integer_to_list(N).
 
 get_event(Ost) ->
     {replace,fun(Ev) -> event(Ev, Ost) end}.
@@ -213,6 +215,10 @@ event({set_knob_pos,Pos}, #ost{first=First0,n=N}=Ost0) ->
     end;
 event({action,{objects,Cmd}}, Ost) ->
     command(Cmd, Ost);
+event(language_changed, _) ->
+    {object,Geom} = This = wings_wm:this(),
+    wings_wm:toplevel_title(This, title(Geom)),
+    keep;
 event(Ev, Ost) ->
     case wings_hotkey:event(Ev) of
 	{select,deselect} ->

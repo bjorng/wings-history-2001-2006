@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.24 2004/11/13 04:56:12 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.25 2004/11/14 13:47:26 bjorng Exp $
 %%
 
 {wings,
@@ -37,6 +37,9 @@
     {11,"Ripeti Trascina"},
     {12,"Preferenze Moduli"},
     {13,"Pulisci la memoria di annullamento"}]},
+  {geom_title,
+   [{1,"Geometrie"},
+    {2,"Geometrie #"}]},
   {halt_loop,
    [{1,"Errore interno fatale - verbale scritto in ~s\n"},
     {2,"<Nome Finestra Sconosciuto>"},
@@ -69,8 +72,6 @@
     {10,"~p vertici scelti in ~p oggetti"},
     {11,"~p spigoli scelti in ~p oggetti"},
     {12,"~p facce scelte in ~p oggetti"}]},
-  {init,
-   [{7,"Geometrie"}]},
   {init_menubar,
    [{1,"Archivio"},
     {2,"Modifica"},
@@ -86,8 +87,6 @@
     {2,". Distanza ~s"},
     {3,". P.Medio ~s ~s ~s. Lunghezza ~s"},
     {4,". P.Medio ~s ~s ~s.\nMateriale ~s"}]},
-  {new_viewer,
-   [{1,"Geometrie #"}]},
   {patches,
    [{1,"Usa "}]},
   {purgo_undo,
@@ -1083,7 +1082,7 @@
    [{1,"Non riesco ad aggiornare \""}]},
   {rename_image,
    [{1,"Rinomina immagine"}]},
-  {window,
+  {title,
    [{1,"Schematiche"}]}]}.
 {wings_palette,
  [{command,
@@ -1242,8 +1241,7 @@
     {20,"Il problema accade con MacOS X 10.3 (Panther)"},
     {21,"Raffazzonamenti"}]},
   {smart_set_value_1,
-   [{1,"Il cambiamento ai caratteri di sistema diverra' effettivo la prossima volta che avvii Wings 3D."},
-    {2,"Il cambiamento alla lingua di sistema diverra' effettivo la prossima volta che si riavvia Wings 3D"}]},
+   [{1,"Il cambiamento ai caratteri di sistema diverra' effettivo la prossima volta che avvii Wings 3D."}]},
   {ui_prefs,
    [{1,"Carattere di sistema"},
     {2,"Sfondo Scrivania/Geometrie"},
@@ -1470,7 +1468,7 @@
     {8,"Seleziona/deseleziona gli altri oggetti"},
     {9,"Cambia la visualizzazione ombreggiata/scheletro per l' oggetto attivo"},
     {10,"Cambia la visualizzazione ombreggiata/scheletro per gli altri oggetti"}]},
-  {window,
+  {title,
    [{1,"Grafico delle geometrie"},
     {2,"Grafico delle geometrie #"}]}]}.
 {wings_shapes,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.52 2004/10/08 06:02:30 dgud Exp $
+%%     $Id: wings_outliner.erl,v 1.53 2004/11/14 13:47:26 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -54,7 +54,7 @@ window(Pos, Size, St) ->
     Current = {current_state,St},
     Op = {seq,push,event(Current, Ost)},
     Props = [{display_lists,geom_display_lists}],
-	wings_wm:toplevel(outliner, ?STR(window,1,"Outliner"), Pos, Size,
+    wings_wm:toplevel(outliner, title(), Pos, Size,
 		      [{sizeable,?PANE_COLOR},closable,vscroller,{anchor,ne},
 		       {properties,Props}], Op),
     F = fun({image,_,_}) -> yes;
@@ -160,6 +160,9 @@ event({drop,{_,Y}=Pos,DropData}, #ost{os=Objs}=Ost) ->
 	    Obj = lists:nth(Act+1, Objs),
 	    handle_drop(DropData, Obj, Pos, Ost)
     end;
+event(language_changed, _) ->
+    wings_wm:toplevel_title(wings_wm:this(), title()),
+    keep;
 event(Ev, Ost) ->
     case wings_hotkey:event(Ev) of
 	{select,deselect} ->
@@ -594,3 +597,6 @@ name_pos() ->
 lines(#ost{lh=Lh}) ->
     {_,_,_,H} = wings_wm:viewport(),
     H div Lh.
+
+title() ->
+    ?STR(title,1,"Outliner").

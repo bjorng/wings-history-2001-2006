@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.38 2004/11/13 08:49:57 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.39 2004/11/14 13:47:26 bjorng Exp $
 %%
 
 {wings,
@@ -37,6 +37,9 @@
     {11,"Repetera Drag"},
     {12,"Insticksinställningar"},
     {13,"Ta bort historik"}]},
+  {geom_title,
+   [{1,"Geometri"},
+    {2,"Geometri #"}]},
   {halt_loop,
    [{1,"Fatalt internt fel - logg skriven till ~s\n"},
     {2,"<Okänt fönsternamn>"},
@@ -69,8 +72,6 @@
     {10,"~p punkter markeade i ~p objekt"},
     {11,"~p kanter markerade i ~p objekt"},
     {12,"~p ytor markerade i ~p objekt"}]},
-  {init,
-   [{7,"Geometri"}]},
   {init_menubar,
    [{1,"Arkiv"},
     {2,"Redigera"},
@@ -86,8 +87,6 @@
     {2,". Avstånd ~s"},
     {3,". Medelpunkt ~s ~s ~s. Längd ~s"},
     {4,". Medelpunkt ~s ~s ~s.\nMaterial ~s"}]},
-  {new_viewer,
-   [{1,"Geometri #"}]},
   {patches,
    [{1,"Använd "}]},
   {purgo_undo,
@@ -1128,9 +1127,9 @@
     {26,"Döp om ljuset"}]},
   {event,
    [{1,"Markera"},
-    {2,"Om markering finns visas outliner menyn annars skapa objekt menyn"}]},
+    {2,"Om något är markerat visas Outliner-menyn; annars visas Skapa-menyn"}]},
   {handle_drop,
-   [{1,"Textur Typ"},
+   [{1,"Texturtyp"},
     {2,"Diffuse"},
     {3,"Gloss"},
     {4,"Bump"}]},
@@ -1147,7 +1146,7 @@
    [{1,"Uppdatering fallerade \""}]},
   {rename_image,
    [{1,"Döp om bild"}]},
-  {window,
+  {title,
    [{1,"Outliner"}]}]}.
 {wings_palette,
  [
@@ -1546,13 +1545,13 @@
     {2,"Visa meny"},
     {3,"Toggla visning av aktiva objekt"},
     {4,"Toggla visning av alla andra objekt"},
-    {5,"Lås/låsupp activa objekt"},
-    {6,"Lås/låsupp alla andra objekt"},
+    {5,"Lås/lås upp activa objekt"},
+    {6,"Lås/lås upp alla andra objekt"},
     {7,"Toggla markering för aktiva objekt"},
     {8,"Toggla markering för alla andra objekt"},
     {9,"Toggla shaded/wireframe för aktiva objekt"},
     {10,"Toggla shaded/wireframe för alla andra objekt"}]},
-  {window,
+  {title,
    [{1,"Geometrigraf"},
     {2,"Geometrigraf #"}]}]}.
 {wings_shapes,

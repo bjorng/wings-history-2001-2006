@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.51 2004/11/13 04:39:27 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.52 2004/11/14 13:47:27 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -198,6 +198,8 @@ ctrl_event({window_updated,Client}, _) ->
     keep;
 ctrl_event({action,{titlebar,Action}}, Cs) ->
     ctrl_command(Action, Cs);
+ctrl_event({title,Title}, Cs) ->
+    get_ctrl_event(Cs#ctrl{title=Title});
 ctrl_event(_, _) -> keep.
 
 ctrl_message() ->
