@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.115 2003/05/22 05:58:13 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.116 2003/05/25 19:01:32 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -446,11 +446,9 @@ get_texture(#uvstate{option=#setng{texsz={TexW,TexH}},sel=Sel,areas=As}=Uvs0) ->
     {H,Hd} = calc_texsize(H0, TexH),
     ?DBG("Get texture sz ~p ~p ~n", [{W,Wd},{H,Hd}]),
     set_viewport({0,0,W,H}),
-    Mem = sdl_util:malloc(W*H*3, ?GL_BYTE),
     Uvs = reset_dl(Uvs0#uvstate{sel=[],areas=add_areas(Sel, As)}),
-    ImageBins = get_texture(0, Wd, 0, Hd, {W,H,Mem}, Uvs, []),
+    ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Uvs, []),
     ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
-    sdl_util:free(Mem),
     set_viewport(Current),
     gl:popAttrib(),
 
@@ -464,7 +462,7 @@ get_texture(#uvstate{option=#setng{texsz={TexW,TexH}},sel=Sel,areas=As}=Uvs0) ->
 				 W,Wd,H,Hd, BinSzs}})
     end.
 		 
-get_texture(Wc, Wd, Hc, Hd, {W,H,Mem}=Info, Uvs0, ImageAcc)
+get_texture(Wc, Wd, Hc, Hd, {W,H}=Info, Uvs0, ImageAcc)
   when Wc < Wd, Hc < Hd ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
@@ -476,8 +474,9 @@ get_texture(Wc, Wd, Hc, Hd, {W,H,Mem}=Info, Uvs0, ImageAcc)
     Uvs = draw_texture(Uvs0),
     gl:flush(),
     gl:readBuffer(?GL_BACK),
+    Mem = sdl_util:alloc(W*H*3, ?GL_UNSIGNED_BYTE),
     gl:readPixels(0, 0, W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Mem),
-    ImageBin = sdl_util:readBin(Mem, W*H*3),
+    ImageBin = sdl_util:getBin(Mem),
     get_texture(Wc+1, Wd, Hc, Hd, Info, Uvs, [ImageBin|ImageAcc]);
 get_texture(_Wc,Wd,Hc,Hd, Info, Uvs, ImageAcc) when Hc < Hd ->
     get_texture(0, Wd, Hc+1, Hd, Info, Uvs, ImageAcc);
