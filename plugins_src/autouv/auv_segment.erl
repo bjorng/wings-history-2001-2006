@@ -5,6 +5,14 @@
 %%%               Segments Model into set of charts containg faces.
 %%% Created :  3 Oct 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%%-------------------------------------------------------------------
+%%  Copyright (c) 2001-2002 Dan Gudmundsson 
+%%
+%%  See the file "license.terms" for information on usage and redistribution
+%%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%     $Id: auv_segment.erl,v 1.2 2002/10/08 11:32:24 dgud Exp $
+
+
+
 -module(auv_segment).
 
 -export([create/2, segment_by_material/1]).

@@ -5,6 +5,11 @@
 %%%
 %%% Created :  3 Oct 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%%-------------------------------------------------------------------
+%%  Copyright (c) 2001-2002 Dan Gudmundsson 
+%%
+%%  See the file "license.terms" for information on usage and redistribution
+%%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%     $Id: auv.hrl,v 1.2 2002/10/08 11:32:24 dgud Exp $
 
 -record(a, {center = {0,0}, scale = 1.0, rotate = 0.0, size, 
 	    fs, vpos,

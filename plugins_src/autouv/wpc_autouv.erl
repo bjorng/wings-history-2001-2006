@@ -4,6 +4,12 @@
 %%%
 %%% Created : 24 Jan 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%%-------------------------------------------------------------------
+%%  Copyright (c) 2001-2002 Dan Gudmundsson 
+%%
+%%  See the file "license.terms" for information on usage and redistribution
+%%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%     $Id: wpc_autouv.erl,v 1.2 2002/10/08 11:32:24 dgud Exp $
+
 -module(wpc_autouv).
 
 -define(NEED_OPENGL, 1).
@@ -213,9 +219,16 @@ set_material(Face, MatName, We= #we{fs = Fs}) ->
     We#we{fs = Fs1}.
 
 create_diffuse({Index0, Fs}, Max) ->
-    MaxPerColor = Max div 6,
-    ColorI = Index0 div MaxPerColor,
-    Diff = (ColorI+1) / (MaxPerColor+2),
+%    ?DBG("~p ~p ~n", [Index0, Max]),
+    {ColorI, Diff} = 
+	if Max =< 6 ->
+		{Index0 div 6, 0.0};
+	   true ->
+		MaxPerColor = Max div 6,
+		CI = Index0 div MaxPerColor,
+		Col = (CI+1) / (MaxPerColor+2),
+		{CI, Col}
+	end,
 %    ?DBG("~p of ~p => ~p = ~p in ~p ~n", 
 %          [Index0, Max, ColorI, Diff, Index0 rem 6]),
     case Index0 rem 6 of
@@ -245,12 +258,6 @@ create_diffuse({Index0, Fs}, Max) ->
 	     {MatName, Color, Fs}
     end.
 
-create_diffuse(N) when N =< 10 ->
-    {1.0, (10 - N) / 10.0, (10 - N) / 10.0, 1.0};
-create_diffuse(N) when N > 10, N =< 20 ->
-    {(20 - N) / 10.0, (20 - N) / 10.0, 1.0, 1.0};
-create_diffuse(N) when N > 20, N =< 30 ->
-    {(30 - N) / 10.0, 1.0, (30 - N) / 10.0, 1.0}.
 %%%%%%
 
 init_uvmap(St0, Old, Type) ->    
@@ -281,7 +288,7 @@ init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
 
 init_areas([Chart|R], A, Type, We) ->
     %% Raimo 
-    raimo(Chart, We),
+%    raimo(Chart, We),
     MappedVs = 
 	case Type of 
 	    project -> 
@@ -293,16 +300,16 @@ init_areas([], A, Type, _We) ->
     A.
 
 raimo({Id, Fs}, We) ->    
-    ?DBG("%% Chart ~p START~n",[Id]), 
+    io:format("%% Chart ~p START~n",[Id]), 
     Raimo = fun(Face) ->
 		    Normal = wings_face:normal(Face, We),
 		    Vs0 = wings_face:to_vertices([Face], We),
 		    Vs2 = auv_mapping:project2d(Vs0, Normal, We),
 		    Vs3 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,Vz}} <- Vs2],
-		    ?DBG("{~w, ~w}.~n", [Face, Vs3])
+		    io:format("{~w, ~w}.~n", [Face, Vs3])
 	    end,
     lists:foreach(Raimo, Fs),
-    ?DBG("%% Chart ~p END~n",[Id]). 
+    io:format("%% Chart ~p END~n",[Id]).
 
 create_area({_,Fs}, Vs0, We) ->    
     [{_, {X,Y,_}} |RVs1] = Vs0,
