@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_align.erl,v 1.12 2001/12/26 14:46:25 bjorng Exp $
+%%     $Id: wings_align.erl,v 1.13 2002/01/11 11:19:55 bjorng Exp $
 %%
 
 -module(wings_align).
@@ -90,8 +90,8 @@ make_prop_scale(Dir, Src0, Dest0) ->
     Src = filter_coord(Dir, Src1),
     Dest = filter_coord(Dir, Dest1),
     Sc0 = make_scales(Dest, Src),
-    Max = max_scale(Sc0),
-    e3d_mat:scale(Max, Max, Max).
+    Min = min_scale(Sc0),
+    e3d_mat:scale(Min, Min, Min).
 
 make_scales(Ta, Tb) ->
     make_scales(1, Ta, Tb).
@@ -108,16 +108,16 @@ make_scales(I, Ta, Tb) ->
 	end,
     [S|make_scales(I+1, Ta, Tb)].
 
-max_scale([none|Ss]) -> max_scale(Ss);
-max_scale([S|Ss]) -> max_scale(Ss, S).
+min_scale([none|Ss]) -> min_scale(Ss);
+min_scale([S|Ss]) -> min_scale(Ss, S).
 
-max_scale([none|Ss], Max) ->
-    max_scale(Ss, Max);
-max_scale([S|Ss], Max) when Max < S ->
-    max_scale(Ss, S);
-max_scale([_|Ss], Max) ->
-    max_scale(Ss, Max);
-max_scale([], Max) -> Max.
+min_scale([none|Ss], Min) ->
+    min_scale(Ss, Min);
+min_scale([S|Ss], Min) when S < Min ->
+    min_scale(Ss, S);
+min_scale([_|Ss], Min) ->
+    min_scale(Ss, Min);
+min_scale([], Min) -> Min.
 
 move_to(Center, Cs, Axis, St0) ->
     {St,_} = wings_sel:mapfold(
