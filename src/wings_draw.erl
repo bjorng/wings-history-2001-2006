@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.54 2002/01/29 14:17:17 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.55 2002/02/02 12:26:01 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([model_changed/1,sel_changed/1,
+	 make_vec_dlist/1,
 	 get_dlist/0,put_dlist/1,render/1,ground_and_axes/0,
 	 axis_letters/0]).
 
@@ -643,7 +644,6 @@ show_saved_bb(#st{bb=[{X1,Y1,Z1},{X2,Y2,Z2}]}) ->
 	    gl:disable(?GL_LINE_STIPPLE)
     end.
 
-
 %%%
 %%% Show active vector.
 %%%
@@ -652,6 +652,10 @@ make_vec_dlist(#st{vec=none}) ->
     gl:newList(?DL_UTIL, ?GL_COMPILE),
     gl:endList();
 make_vec_dlist(#st{vec={{Center,Vec},_}}) ->
+    gl:newList(?DL_UTIL, ?GL_COMPILE),
+    draw_vec(Center, Vec),
+    gl:endList();
+make_vec_dlist(#st{vec={Center,Vec}}) ->
     gl:newList(?DL_UTIL, ?GL_COMPILE),
     draw_vec(Center, Vec),
     gl:endList().

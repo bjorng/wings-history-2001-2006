@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.49 2002/01/30 14:55:06 dgud Exp $
+%%     $Id: wings_drag.erl,v 1.50 2002/02/02 12:26:01 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -61,6 +61,7 @@ init_drag_1(Tvs, Constraint, Unit, #st{inf_r=Falloff}=St) ->
 
 init_drag_2(Tvs0, Drag0, #st{selmode=Mode,sel=Sel0}=St0) ->
     St = wings_draw:model_changed(St0),
+    wings_draw:make_vec_dlist(St),
     case combine(Tvs0) of
 	{matrix,Tv}=Tvs ->
 	    Faces = [{Id,matrix} || {Id,Trans,Matrix} <- Tv],
@@ -513,6 +514,7 @@ render(Drag) ->
     wings_view:model_transformations(),
     wings_draw:ground_and_axes(),
     draw_shapes(Drag),
+    gl:callList(?DL_UTIL),
     wings_draw:axis_letters(),
     gl:popAttrib().
 

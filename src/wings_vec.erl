@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.6 2002/02/01 22:39:43 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.7 2002/02/02 12:26:01 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -49,12 +49,12 @@ command({pick_named,Names}, St) ->
 command({use_vector,{Name,{Vec,_}=Vec0,Ns}}, St) ->
     Cmd = wings_menu:build_command(Vec, Ns),
     wings_io:putback_event({action,Cmd}),
-    move_to_front({Name,Vec0}, St);
+    move_to_front({Name,Vec0}, St#st{vec=Vec});
 command({dynamic_use_vector,{Name,Vec0,Ns}}, St) ->
     Vec = get_dynamic_vector(Vec0, St),
     Cmd = wings_menu:build_command(Vec, Ns),
     wings_io:putback_event({action,Cmd}),
-    move_to_front({Name,Vec0}, St);
+    move_to_front({Name,Vec0}, St#st{vec=Vec});
 command({pick_new,Names}, St0) ->
     Ss = #ss{check=fun check_vector/1,
 	     exit=fun(X, Y, St) -> exit_vector(X, Y, Names, St) end},

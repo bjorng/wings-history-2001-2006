@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.101 2002/02/01 22:39:43 bjorng Exp $
+%%     $Id: wings.erl,v 1.102 2002/02/02 12:26:01 bjorng Exp $
 %%
 
 -module(wings).
@@ -170,7 +170,7 @@ clean_state(St) ->
     caption(wings_draw:model_changed(St)).
 
 save_state(St0, St1) ->
-    St = wings_undo:save(St0, St1),
+    St = wings_undo:save(St0, St1#st{vec=none}),
     wings_io:clear_message(),
     case St of
 	#st{saved=false} -> main_loop(St);
@@ -215,7 +215,7 @@ handle_event_2(Event, St) ->
 	    
 handle_event_3(drag_aborted, St) ->
     wings_io:clear_message(),
-    main_loop(model_changed(St));
+    main_loop(model_changed(St#st{vec=none}));
 handle_event_3({drag_ended,St}, St0) ->
     wings_io:clear_message(),
     save_state(St0, St);
