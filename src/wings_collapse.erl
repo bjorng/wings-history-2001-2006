@@ -1,8 +1,8 @@
 %%
 %%  wings_collapse.erl --
 %%
-%%     This module contains the Collapse commands (for vertices,
-%%     edges, and faces).
+%%     This module contains the Collapse commands
+%%     (for vertices, edges, and faces).
 %%
 %%  Copyright (c) 2001 Jakob Cederlund
 %%  Copyright (c) 2001-2003 Bjorn Gustavsson
@@ -10,11 +10,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.33 2003/09/25 15:11:13 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.34 2003/09/26 07:14:58 bjorng Exp $
 %%
 
 -module(wings_collapse).
--export([collapse/1,collapse_vertex/2,collapse_edge/2,collapse_edge/3]).
+-export([collapse/1,collapse_vertices/2,collapse_edge/2,collapse_edge/3]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
@@ -26,7 +26,7 @@ collapse(#st{selmode=edge}=St0) ->
     {St,Sel} = wings_sel:mapfold(fun collapse_edges/3, [], St0),
     wings_sel:valid_sel(wings_sel:set(vertex, Sel, St));
 collapse(#st{selmode=vertex}=St0) ->
-    {St1,Sel} = wings_sel:mapfold(fun collapse_vertices/3, [], St0),
+    {St1,Sel} = wings_sel:mapfold(fun collapse_vertices_cmd/3, [], St0),
     case wings_sel:valid_sel(wings_sel:set(face, Sel, St1)) of
 	#st{sel=[]}=St -> St#st{selmode=vertex};
 	St -> St
@@ -205,25 +205,30 @@ collapse_edge_1(Edge, Vkeep, Rec,
 %%
 %% The Collapse command on vertices.
 %%
-collapse_vertices(Vs, #we{id=Id}=We0, SelAcc) ->
-    {We,Sel} = foldl(fun(V, {W,S}) ->
-			     do_collapse_vertex(V, W, S)
-		     end, {We0,gb_sets:empty()}, gb_sets:to_list(Vs)),
+collapse_vertices_cmd(Vs, #we{id=Id}=We0, SelAcc) ->
+    {We,Sel} = do_collapse_vertices(gb_sets:to_list(Vs), We0),
     check_consistency(We),
     {We,[{Id,Sel}|SelAcc]}.
 
-%% collapse_vertex(V, We) -> We'
-%%  Remove a vertex, replacing it with a face.
-collapse_vertex(V, We0) ->
-    {We,_} = do_collapse_vertex(V, We0, gb_sets:empty()),
+%% collapse_vertices(Vs, We) -> We'
+%%  Remove vertices, replacing them with faces.
+collapse_vertices(Vs, We0) ->
+    {We,_} = do_collapse_vertices(Vs, We0),
     We.
 
-do_collapse_vertex(V, #we{vp=Vtab}=We, Sel) ->
+do_collapse_vertices(V, We) ->
+    do_collapse_vertices(V, We, gb_sets:empty()).
+
+do_collapse_vertices([V|Vs], #we{vp=Vtab}=We0, Sel0) ->
     case gb_trees:is_defined(V, Vtab) of
-	false -> {We,Sel};
-	true -> collapse_vertex_1(V, We, Sel)
-    end.
-	    
+	false ->
+	    do_collapse_vertices(Vs, We0, Sel0);
+	true ->
+	    {We,Sel} = collapse_vertex_1(V, We0, Sel0),
+	    do_collapse_vertices(Vs, We, Sel)
+    end;
+do_collapse_vertices([], We, Sel) -> {We,Sel}.
+
 collapse_vertex_1(Vremove, We0, Sel0)->
     VsEs = wings_vertex:fold(
 	     fun(E, _, Rec, Acc0) ->

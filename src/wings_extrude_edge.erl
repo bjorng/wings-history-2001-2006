@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.49 2003/07/28 19:16:21 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.50 2003/09/26 07:14:58 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -75,9 +75,7 @@ bevel_edges(Edges, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Sel0,Limit0}) ->
     We2 = wings_edge:dissolve_edges(Edges, We1),
     Tv0 = bevel_tv(OrigVs, We2, Forbidden),
     Tv = scale_tv(Tv0, ?BEVEL_EXTRUDE_DIST_KLUDGE),
-    We3 = foldl(fun(V, W0) ->
-			wings_collapse:collapse_vertex(V, W0)
-		end, We2, OrigVs),
+    We3 = wings_collapse:collapse_vertices(OrigVs, We2),
     Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, We3#we.vp),
     We = We3#we{vp=Vtab,mirror=MirrorFace},
     Limit = bevel_limit(Tv, We, Limit0),
@@ -106,10 +104,7 @@ bevel_faces(Faces, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Limit0}) ->
 	    We2 = wings_edge:dissolve_edges(Edges, We1),
 	    Tv0 = bevel_tv(OrigVs, We2, Forbidden),
 	    Tv = scale_tv(Tv0, Dist),
-	    #we{vp=Vtab0} = We3 =
-		foldl(fun(V, W0) ->
-			      wings_collapse:collapse_vertex(V, W0)
-		      end, We2, OrigVs),
+	    #we{vp=Vtab0} = We3 = wings_collapse:collapse_vertices(OrigVs, We2),
 	    Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, Vtab0),
 	    We = We3#we{vp=Vtab,mirror=MirrorFace},
 	    Limit = bevel_limit(Tv, We, Limit0),

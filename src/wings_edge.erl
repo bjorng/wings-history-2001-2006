@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.73 2003/09/25 15:11:13 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.74 2003/09/26 07:14:58 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -522,23 +522,33 @@ dissolve_edge_2(Edge, FaceRemove, FaceKeep,
 %% dissolve_isolated_vs([Vertex], We) -> We'
 %%  Remove all isolated vertices ("winged vertices", or vertices
 %%  having exactly two edges).
-dissolve_isolated_vs(Vs, We0) ->
-    We = foldl(fun(V, W0) ->
-		       case dissolve_vertex(V, W0) of
-			   error -> W0;
-			   W -> W
-		       end
-	       end, We0, Vs),
-    wings_we:vertex_gc(We).
+dissolve_isolated_vs([_|_]=Vs, We) ->
+    dissolve_isolated_vs_1(Vs, We, []);
+dissolve_isolated_vs([], We) -> We.
+
+dissolve_isolated_vs_1([V|Vs], We0, Acc) ->
+    case dissolve_vertex(V, We0) of
+	error -> dissolve_isolated_vs_1(Vs, We0, Acc);
+	We -> dissolve_isolated_vs_1(Vs, We, [V|Acc])
+    end;
+dissolve_isolated_vs_1([], We0, Vs) ->
+    We = wings_we:vertex_gc(We0),
+
+    %% Try again, as some vertices may have been common
+    %% to two faces that have no edge in common.
+    dissolve_isolated_vs(Vs, We).
 
 dissolve_vertex(V, #we{es=Etab,vc=Vct}=We0) ->
-    Edge = gb_trees:get(V, Vct),
-    case gb_trees:lookup(Edge, Etab) of
-	{value,#edge{vs=V,ltsu=AnEdge,rtpr=AnEdge}=Rec} ->
-	    merge_edges(backward, Edge, Rec, We0);
-	{value,#edge{ve=V,rtsu=AnEdge,ltpr=AnEdge}=Rec} ->
-	    merge_edges(forward, Edge, Rec, We0);
-	_Other -> error
+    case gb_trees:lookup(V, Vct) of
+	none -> error;
+	{value,Edge} ->
+	    case gb_trees:lookup(Edge, Etab) of
+		{value,#edge{vs=V,ltsu=AnEdge,rtpr=AnEdge}=Rec} ->
+		    merge_edges(backward, Edge, Rec, We0);
+		{value,#edge{ve=V,rtsu=AnEdge,ltpr=AnEdge}=Rec} ->
+		    merge_edges(forward, Edge, Rec, We0);
+		_Other -> error
+	    end
     end.
 
 %%
