@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.61 2002/11/29 14:58:57 dgud Exp $
+%%     $Id: wings_material.erl,v 1.62 2002/11/29 17:00:23 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -367,7 +367,6 @@ mat_preview(X, Y, _W, _H, Common) ->
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_BLEND),
     gl:enable(?GL_CULL_FACE),
-%    gl:enable(?GL_DEPTH_TEST),
     Obj = glu:newQuadric(),
     glu:quadricDrawStyle(Obj, ?GLU_FILL),
     glu:quadricNormals(Obj, ?GLU_SMOOTH),
@@ -375,7 +374,6 @@ mat_preview(X, Y, _W, _H, Common) ->
     glu:deleteQuadric(Obj),
     gl:disable(?GL_LIGHTING),
     gl:disable(?GL_BLEND),
-    gl:disable(?GL_DEPTH_TEST),
     gl:shadeModel(?GL_FLAT),
     gl:matrixMode(?GL_PROJECTION),
     gl:popMatrix(),
@@ -452,23 +450,13 @@ maybe_scale({W0,H0,Bits0}=Image) ->
 	    In = sdl_util:malloc(W0*H0*3, ?GL_UNSIGNED_BYTE),
 	    sdl_util:write(In, Bits0),
 	    Out = sdl_util:malloc(W*H*3, ?GL_UNSIGNED_BYTE),
-	    gluScaleImage(?GL_RGB, W0, H0, ?GL_UNSIGNED_BYTE,
+	    glu:scaleImage(?GL_RGB, W0, H0, ?GL_UNSIGNED_BYTE,
 			   In, W, H, ?GL_UNSIGNED_BYTE, Out),
 	    sdl_util:free(In),
 	    Bits = sdl_util:readBin(Out, W*H*3),
 	    sdl_util:free(Out),
 	    {W,H,Bits}
     end.
-
-gluScaleImage(Format, Widthin, Heightin, Typein, #sdlmem{ptr=Datain}, Widthout, 
-	      Heightout, Typeout, #sdlmem{ptr=Dataout}) ->
-    <<Bin:32>> = sdl:call(<<908:16,Format:32/unsigned, Widthin:32/signed,
-			   Heightin:32/signed, Typein:32/unsigned, 
-			   Datain:32/unsigned, 
-			   Widthout:32/signed, Heightout:32/signed, 
-			   Typeout:32/unsigned, 
-			   Dataout:32/unsigned>>),
-    Bin.
 
 nearest_power_two(N) when (N band -N) =:= N -> N;
 nearest_power_two(N) -> nearest_power_two(N, 1).
