@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.124 2003/10/29 15:03:22 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.125 2003/11/02 10:13:42 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -665,24 +665,40 @@ possible_intersection(#win{x=X,y=Y,w=W,h=H}, {Left,Top,Right,Bot}) ->
 reinit_opengl() ->
     wings_io:putback_event({wm,init_opengl}).
 
-try_video_modes([Mode|Modes]) ->
-    io:format("Trying: ~p\n", [Mode]),
-    case try_video_mode(Mode) of
+try_video_modes(Modes) ->
+    io:format("Trying hardware-accelerated OpenGL modes\n"),
+    case try_video_modes_1(Modes, false) of
 	ok -> ok;
-	error -> try_video_modes(Modes)
-    end;
-try_video_modes([]) ->
-    io:format("\n###########################################\n\n"),
-    io:format("Failed to find any suitable OpenGL mode.\n\n"),
-    io:format("Make sure that OpenGL drivers are installed.\n\n"),
-    io:format("###########################################\n\n"),
-    erlang:fault("No suitable OpenGL mode found (are OpenGL drivers installed?)").
+	error ->
+	    io:format("Trying software OpenGL modes:\n"),
+	    case try_video_modes_1(Modes, true) of
+		ok -> ok;
+		error ->
+		    io:format("\n###########################################\n\n"),
+		    io:format("Failed to find any suitable OpenGL mode.\n\n"),
+		    io:format("Make sure that OpenGL drivers are installed.\n\n"),
+		    io:format("###########################################\n\n"),
+		    erlang:fault("No suitable OpenGL mode found (are OpenGL drivers installed?)")
+	    end
+    end.
 
-try_video_mode(Ps) ->
+try_video_modes_1([Mode|Modes], AcceptSoftware) ->
+    io:format("  ~p\n", [Mode]),
+    case try_video_mode(Mode, AcceptSoftware) of
+	ok -> ok;
+	error -> try_video_modes_1(Modes, AcceptSoftware)
+    end;
+try_video_modes_1([], _) -> error.
+
+try_video_mode(Ps, AcceptSoftware) ->
     set_video_props(Ps),
     {W,H} = get(wm_top_size),
     case catch set_video_mode(W, H) of
-	ok -> display_actual_mode();
+	ok ->
+	    case AcceptSoftware orelse gl:getString(?GL_RENDERER) =/= "GDI Generic" of
+		false -> error;
+		true -> display_actual_mode()
+	    end;
 	_ -> error
     end.
 
