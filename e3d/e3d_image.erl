@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.5 2001/11/01 12:55:51 dgud Exp $
+%%     $Id: e3d_image.erl,v 1.6 2001/12/28 22:30:04 bjorng Exp $
 %%
 
 -module(e3d_image).
@@ -28,9 +28,9 @@
 %% Func: load(FileName[, Options])  
 %% Args: FileName = [Chars], Options = [Tagged Tuple]
 %% Rets: #e3d_image | {error, Reason}
-%% Desc: Loads a image file, currently BMP and TGA is supported
+%% Desc: Loads an image file.
 %%       Default loads image with type/alignment/order set to what is 
-%%       used in loaded file format.
+%%       stored in the file.
 %%       Conversion between fileformats type/alignment/order can be done with 
 %%       Options {type, Type} and/or {alignment, N} and/or {order, O} see e3d_image.hrl
 load(FileName) ->
@@ -45,7 +45,7 @@ load(FileName, Opts) when list(FileName), list(Opts) ->
 		e3d__bmp:load(FileName, Opts);
 	    ".tif" -> 
 		e3d__tif:load(FileName, Opts);
-	    "tiff" -> 
+	    ".tiff" -> 
 		e3d__tif:load(FileName, Opts);
 	    _ ->
 		{error, {not_supported, Extension}}
@@ -70,7 +70,7 @@ save(Image = #e3d_image{}, Filename, Opts) ->
 	    e3d__bmp:save(Image, Filename, Opts);
 	".tif" -> 
 	    e3d__tif:save(Image, Filename, Opts);
-	"tiff" -> 
+	".tiff" -> 
 	    e3d__tif:save(Image, Filename, Opts);
 	_ ->
 	    {error, {not_supported, Extension}}
@@ -113,7 +113,7 @@ bytes_pp(#e3d_image{bytes_pp = Bpp}) ->
 
 %% Helpers 
 file_extension(FileName) ->
-    lowercase(lists:reverse(lists:sublist(lists:reverse(FileName), 4))).
+    lowercase(filename:extension(FileName)).
 
 lowercase([H|R]) when H >= $A, H =< $Z ->
     [H + $a - $A | lowercase(R)];
