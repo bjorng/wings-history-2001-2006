@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.19 2002/12/29 11:12:15 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.20 2002/12/31 09:52:47 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -277,11 +277,25 @@ jitter_draw([{Jx,Jy}|J], #r{pass=Pass,acc_size=AccSize,attr=Attr}=Rr) ->
 	    wings_wm:callback(fun() -> wings_wm:dirty() end),
 	    Rr#r{pass=Pass+1,next=fun(R) -> jitter_draw(J, R) end};
 	true ->
+	    Image = capture(3, ?GL_RGB),
 	    wings_wm:message("[R] Exit render mode", "Done"),
-	    Rr#r{pass=done,next=fun(R) ->
-					R
+	    Rr#r{pass=done,next=fun(_) ->
+					draw_image(Image)
 				end}
     end.
+
+draw_image(#e3d_image{width=W,height=H,image=Pixels}) ->
+    gl:disable(?GL_DEPTH_TEST),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:loadIdentity(),
+    {_,_,W,H} = wings_wm:viewport(),
+    glu:ortho2D(0, W, 0, H),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:loadIdentity(),
+    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+    gl:drawBuffer(?GL_BACK),
+    gl:rasterPos2i(0, 0),
+    gl:drawPixels(W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Pixels).
 
 draw_all(Rr) ->
     wings_view:model_transformations(true),
