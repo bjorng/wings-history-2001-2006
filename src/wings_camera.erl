@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.20 2002/03/31 10:26:18 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.21 2002/04/11 08:20:39 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -36,7 +36,7 @@ command(camera_mode, St) ->
 		   {alt,DefVar,"3ds max",tds},
 		   {alt,DefVar,"Maya",maya}],
 	   [{title,"Camera Mode"}]}],
-    wings_ask:ask(Qs, St,
+    wings_ask:dialog(Qs, St,
 		  fun([Mode]) ->
 			  wings_pref:set_value(camera_mode, Mode),
 			  ignore

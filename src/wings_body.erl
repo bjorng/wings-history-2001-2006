@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.29 2002/03/31 10:26:18 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.30 2002/04/11 08:20:39 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -90,10 +90,12 @@ convert_selection(#st{sel=Sel0}=St) ->
 
 cleanup(Ask, St) when is_atom(Ask) ->
     Qs = [{"Short edges",true,[{key,short_edges}]},
-	  {"Length tolerance",1.0E-3,[{range,{1.0E-5,10.0}}]},
+	  {hframe,
+	   [{label,"Length tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]},
 	  {"Isolated Vertices",true,[{key,isolated_vs}]},
-	  {"Maximum Angle",1.0,[{range,{1.0E-5,180.0}}]}],
-    wings_ask:ask(Ask,
+	  {hframe,
+	   [{label,"Maximum Angle"},{text,1.0,[{range,{1.0E-5,180.0}}]}]}],
+    wings_ask:dialog(Ask,
 		  [{vframe, Qs, [{title,"Remove"}]}], St,
 		  fun(Res) -> {body,{cleanup,Res}} end);
 cleanup(Opts, St0) ->

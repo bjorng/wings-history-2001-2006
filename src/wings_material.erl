@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.30 2002/04/10 13:00:31 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.31 2002/04/11 08:20:39 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -210,13 +210,19 @@ edit(Name, #st{mat=Mtab0}=St) ->
     #mat{ambient=Amb0,diffuse=Diff0,specular=Spec0,
 	 shininess=Shine0,opacity=Opacity0} = Mat0,
     Qs = [{hframe,
-	   [{vframe,
-	     [{color,"Diffuse",Diff0,[{key,diffuse}]},
-	      {color,"Ambient",Amb0,[{key,ambient}]},
-	      {color,"Specular",Spec0,[{key,specular}]},
-	      {slider,{"Shininess",Shine0,[{range,{0.0,1.0}},{key,shininess}]}},
-	      {slider,{"Opacity",Opacity0,[{range,{0.0,1.0}},{key,opacity}]}}]},
-	    {custom,?PREVIEW_SIZE,?PREVIEW_SIZE,fun mat_preview/5}]}],
+	   [{custom,?PREVIEW_SIZE,?PREVIEW_SIZE,fun mat_preview/5},
+	    {vframe,
+	     [{label,"Diffuse"},
+	      {label,"Ambient"},
+	      {label,"Specular"},
+	      {label,"Shininess"},
+	      {label,"Opacity"}]},
+	    {vframe,
+	     [{color,Diff0,[{key,diffuse}]},
+	      {color,Amb0,[{key,ambient}]},
+	      {color,Spec0,[{key,specular}]},
+	      {slider,{text,Shine0,[{range,{0.0,1.0}},{key,shininess}]}},
+	      {slider,{text,Opacity0,[{range,{0.0,1.0}},{key,opacity}]}}]}]}],
     Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
 	       {shininess,Shine},{opacity,Opacity}]) ->
 		  Mat1 = Mat0#mat{ambient=Amb,diffuse=Diff,specular=Spec,
@@ -225,7 +231,7 @@ edit(Name, #st{mat=Mtab0}=St) ->
 		  Mtab = gb_trees:update(Name, Mat, Mtab0),
 		  wings_draw:model_changed(St#st{mat=Mtab})
 	  end,
-    wings_ask:ask(Qs, St, Ask).
+    wings_ask:dialog(Qs, St, Ask).
 
 mat_preview(X, Y, _W, _H, Common) ->
     wings_io:sunken_rect(X, Y, ?PREVIEW_SIZE, ?PREVIEW_SIZE, ?PANE_COLOR),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.12 2002/03/31 10:26:18 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.13 2002/04/11 08:20:39 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -423,9 +423,9 @@ random(Percent, #st{selmode=Mode}=St) ->
 %%
 
 short_edges(Ask, St) when is_atom(Ask) ->
-    Qs = [{"Length tolerance",1.0E-3,[{range,{1.0E-5,10.0}}]}],
-    wings_ask:ask(Ask,
-		  [{vframe, Qs, [{title,"Select Short Edges"}]}], St,
+    Qs = [{label,"Length tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}],
+    wings_ask:dialog(Ask,
+		  [{hframe, Qs, [{title,"Select Short Edges"}]}], St,
 		  fun(Res) -> {select,{by,{short_edges,Res}}} end);
 short_edges([Tolerance], St0) ->
     St = wings_sel:make(fun(Edge, We) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.52 2002/03/20 07:37:41 bjorng Exp $
+%%     $Id: wings.hrl,v 1.53 2002/04/11 08:20:39 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -91,7 +91,6 @@
 	 file,					%Current filename.
 	 saved,					%True if model has been saved.
 	 onext,					%Next object id to use.
-	 padding0,				%XXX
 	 bb=none,				%Saved bounding box.
 	 edge_loop=none,			%Previous edge loop.
     	 hilite=none,				%Highlight fun.
@@ -107,12 +106,7 @@
 	 undone,				%States that were undone.
 
 	 %% Vectors.
-	 vec=none,				%Currently visible vector.
-	 padding2,				%XXX To avoid breaking
-						%plug-ins.
-
-	 %% Extension field.
-	 wo					%For patches.
+	 vec=none				%Currently visible vector.
 	}).
 
 %% The Winged-Edge data structure.

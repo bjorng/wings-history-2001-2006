@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.14 2002/04/10 13:00:31 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.15 2002/04/11 08:20:39 bjorng Exp $
 %%
 
 -module(wings_ask).
--export([ask/3,ask/4]).
+-export([ask/3,ask/4,dialog/3,dialog/4]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -21,7 +21,7 @@
 -define(HMARGIN, 16).
 -define(VMARGIN, 8).
 
--define(HFRAME_SPACING, (2*?CHAR_WIDTH)).
+-define(HFRAME_SPACING, (3*?CHAR_WIDTH div 2)).
 
 -define(IS_SHIFTED(Mod), ((Mod) band ?SHIFT_BITS =/= 0)).
 -import(lists, [reverse/1,reverse/2,duplicate/2]).
@@ -47,18 +47,36 @@
 	 inert=true,				%Inert field.
 	 flags,					%Flags field.
 	 x,y,					%Upper left position.
-	 lw,					%Label width.
 	 w,h,					%Width, height.
 	 ipadx=0,ipady=0			%Internal padding.
 	}).
 
-ask(false, Qs, St, Fun) ->
+ask(Qs, St, Fun) ->
+    ask(true, Qs, St, Fun).
+
+ask(Bool, Qs0, St, Fun) ->
+    {Labels,Vals} = ask_unzip(Qs0),
+    Qs = [{hframe,
+	   [{vframe,Labels},
+	    {vframe,Vals}]}],
+    dialog(Bool, Qs, St, Fun).
+
+ask_unzip(Qs) ->
+    ask_unzip(Qs, [], []).
+ask_unzip([{Label,Def}|T], AccA, AccB) ->
+    ask_unzip(T, [{label,Label}|AccA], [{text,Def}|AccB]);
+ask_unzip([{Label,Def,Flags}|T], AccA, AccB) ->
+    ask_unzip(T, [{label,Label}|AccA], [{text,Def,Flags}|AccB]);
+ask_unzip([], Labels, Vals) ->
+    {reverse(Labels),reverse(Vals)}.
+
+dialog(false, Qs, St, Fun) ->
     S = setup_ask(Qs, St, Fun),
     return_result(S),
     keep;
-ask(true, Qs, St, Fun) -> ask(Qs, St, Fun).
+dialog(true, Qs, St, Fun) -> dialog(Qs, St, Fun).
 
-ask(Qs, Redraw, Fun) ->
+dialog(Qs, Redraw, Fun) ->
     S0 = setup_ask(Qs, Redraw, Fun),
     S1 = init_origin(S0),
     S = next_focus(S1, 1),
@@ -231,8 +249,8 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	cancel ->
 	    wings_io:putback_event(redraw),
 	    pop;
-	{ask,Qs,Fun} ->
-	    recursive_ask(I, Qs, Fun, S);
+	{dialog,Qs,Fun} ->
+	    recursive_dialog(I, Qs, Fun, S);
 	{Fst,Common} when is_atom(element(1, Fst)), is_tuple(Common) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    get_event(S#s{priv=Priv,common=Common});
@@ -241,12 +259,12 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	    get_event(S#s{priv=Priv})
     end.
 
-recursive_ask(I, Qs, Fun, S0) ->
+recursive_dialog(I, Qs, Fun, S0) ->
     S = S0#s{focus=none},
     Redraw = fun() ->
 		     redraw(S)
 	     end,
-    ask(Qs, Redraw, fun(Vs) -> {update,I,Fun(Vs)} end).
+    dialog(Qs, Redraw, fun(Vs) -> {update,I,Fun(Vs)} end).
 
 return_result(#s{fi=Fis,priv=Priv}=S) ->
     return_result(1, Fis, Priv, S, []).
@@ -325,6 +343,12 @@ normalize(Qs) when is_list(Qs) ->
 normalize(Qs) ->
     normalize(Qs, #fi{x=0,y=0}).
 
+normalize({label_column,Qs0}, Fi) ->
+    {Labels,Fields} = dialog_unzip(Qs0),
+    Qs = {hframe,
+	  [{vframe,Labels},
+	   {vframe,Fields}]},
+    normalize(Qs, Fi);
 normalize({vframe,Qs}, Fi) ->
     vframe(Qs, Fi, []);
 normalize({vframe,Qs,Flags}, Fi) ->
@@ -333,10 +357,12 @@ normalize({hframe,Qs}, Fi) ->
     hframe(Qs, Fi, []);
 normalize({hframe,Qs,Flags}, Fi) ->
     hframe(Qs, Fi, Flags);
-normalize({color,Prompt,Def}, Fi) ->
-    normalize_field(color(Prompt, Def), [], Fi);
-normalize({color,Prompt,Def,Flags}, Fi) ->
-    normalize_field(color(Prompt, Def), Flags, Fi);
+normalize({label,Label}, Fi) ->
+    normalize_field(label(Label), [], Fi);
+normalize({color,Def}, Fi) ->
+    normalize_field(color(Def), [], Fi);
+normalize({color,Def,Flags}, Fi) ->
+    normalize_field(color(Def), Flags, Fi);
 normalize({alt,VarDef,Prompt,Val}, Fi) ->
     normalize_field(radiobutton(VarDef, Prompt, Val), [], Fi);
 normalize({button,Action}, Fi) ->
@@ -352,21 +378,21 @@ normalize({internal_slider,Field}, Fi) ->
     normalize_field(slider(Field), [], Fi);
 normalize(separator, Fi) ->
     normalize_field(separator(), [], Fi);
+normalize({text,Def}, Fi) ->
+    normalize_field(text_field(Def, []), [], Fi);
+normalize({text,Def,Flags}, Fi) ->
+    normalize_field(text_field(Def, Flags), Flags, Fi);
 normalize({Prompt,Def}, Fi) when Def == false; Def == true ->
     normalize_field(checkbox(Prompt, Def), [], Fi);
 normalize({Prompt,Def,Flags}, Fi) when Def == false; Def == true ->
-    normalize_field(checkbox(Prompt, Def), Flags, Fi);
-normalize({Prompt,Def}, Fi) ->
-    normalize_field(text_field(Prompt, Def, []), [], Fi);
-normalize({Prompt,Def,Flags}, Fi) ->
-    normalize_field(text_field(Prompt, Def, Flags), Flags, Fi).
+    normalize_field(checkbox(Prompt, Def), Flags, Fi).
 
 vframe(Qs, #fi{x=X,y=Y0}=Fi0, Flags) ->
     {Dx,Dy} = case have_border(Flags) of
 		  true -> {10,?LINE_HEIGHT};
 		  false -> {0,0}
 	      end,
-    {Fields,Y,Lw,W0} = vframe_1(Qs, Fi0#fi{x=X+Dx,y=Y0+Dy}, 0, 0, []),
+    {Fields,Y,W0} = vframe_1(Qs, Fi0#fi{x=X+Dx,y=Y0+Dy}, 0, []),
     H0 = Y-Y0,
     {Ipadx,Ipady} = case have_border(Flags) of
 			true -> {2*10,10};
@@ -376,14 +402,14 @@ vframe(Qs, #fi{x=X,y=Y0}=Fi0, Flags) ->
     H = H0 + Ipady,
     Fun = frame_fun(),
     Fi = Fi0#fi{handler=Fun,inert=true,flags=Flags,
-		lw=0,w=W,h=H,ipadx=Ipadx,ipady=Ipady},
-    {Fi,{vframe,Lw,Fields}}.
+		w=W,h=H,ipadx=Ipadx,ipady=Ipady},
+    {Fi,{vframe,Fields}}.
 
-vframe_1([Q|Qs], #fi{y=Y}=Fi0, Lw0, W0, Acc) ->
-    {#fi{lw=Lw,w=W,h=H}=Fi,Priv} = normalize(Q, Fi0),
-    vframe_1(Qs, Fi#fi{y=Y+H}, max(Lw0, Lw),  max(W0, W), [{Fi,Priv}|Acc]);
-vframe_1([], #fi{y=Y}, Lw, W, Fields) ->
-    {reverse(Fields),Y,Lw,W}.
+vframe_1([Q|Qs], #fi{y=Y}=Fi0, W0, Acc) ->
+    {#fi{w=W,h=H}=Fi,Priv} = normalize(Q, Fi0),
+    vframe_1(Qs, Fi#fi{y=Y+H}, max(W0, W), [{Fi,Priv}|Acc]);
+vframe_1([], #fi{y=Y}, W, Fields) ->
+    {reverse(Fields),Y,W}.
 
 hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
     {Dx0,Dy0} = case have_border(Flags) of
@@ -391,7 +417,7 @@ hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
 		    false -> {0,0}
 		end,
     {Fields,X,H0} = hframe_1(Qs, Fi#fi{x=X0+Dx0,y=Y+Dy0}, 0, []),
-    W0 = X-X0,
+    W0 = X-X0-Dx0,
     {Ipadx,Ipady} = case have_border(Flags) of
 			true -> {2*10,?LINE_HEIGHT+10};
 			false -> {0,0}
@@ -400,7 +426,7 @@ hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
     H = H0 + Ipady,
     Fun = frame_fun(),
     {Fi#fi{handler=Fun,inert=true,flags=Flags,
-	   lw=0,w=W,h=H,ipadx=Ipadx,ipady=Ipady},
+	   w=W,h=H,ipadx=Ipadx,ipady=Ipady},
      {hframe,Fields}}.
 
 hframe_1([Q|Qs], #fi{x=X}=Fi0, H0, Acc) ->
@@ -408,56 +434,31 @@ hframe_1([Q|Qs], #fi{x=X}=Fi0, H0, Acc) ->
     hframe_1(Qs, Fi#fi{x=X+W+?HFRAME_SPACING},
 	     max(H0, H), [{Fi,Priv}|Acc]);
 hframe_1([], #fi{x=X}, H, Fields0) ->
-    {reverse(Fields0),X,H}.
+    {reverse(Fields0),X-?HFRAME_SPACING,H}.
 
-normalize_field({Handler,Inert,Priv,Lw,W,H}, Flags, Fi) ->
-    {Fi#fi{handler=Handler,inert=Inert,flags=Flags,w=W,h=H,lw=Lw},Priv}.
+normalize_field({Handler,Inert,Priv,W,H}, Flags, Fi) ->
+    {Fi#fi{handler=Handler,inert=Inert,flags=Flags,w=W,h=H},Priv}.
 
 %%%
 %%% Propagate changed sizes to all fields.
 %%%
 
-propagate_sizes(Fi) ->
-    propagate_sizes(Fi, 0).
+propagate_sizes({Fi,{vframe,Fields}}) ->
+    vframe_propagate(Fields, Fi, []);
+propagate_sizes({Fi,{hframe,Fields}}) ->
+    hframe_propagate(Fields, Fi, []);
+propagate_sizes(Other) -> Other.
 
-propagate_sizes({#fi{x=X}=Fi0,{vframe,Lw,Fields0}}, Xoffs) ->
-    case vframe_propagate(Fields0, Fi0#fi{lw=Lw}, Xoffs, []) of
-	{Fi0,Fields0} -> {Fi0#fi{lw=0},{vframe,Lw,Fields0}};
-	{Fi,Fields} -> propagate_sizes({Fi#fi{x=X+Xoffs},{vframe,Lw,Fields}})
-    end;
-propagate_sizes({#fi{x=X}=Fi0,{hframe,Fields0}}, Xoffs) ->
-    case hframe_propagate(Fields0, Fi0, Xoffs, []) of
-	{Fi0,Fields0} -> {Fi0,{hframe,Fields0}};
-	{Fi,Fields} -> propagate_sizes({Fi#fi{x=X+Xoffs},{hframe,Fields}})
-    end;
-propagate_sizes({#fi{x=X}=Fi,Priv}, Xoffs) ->
-    {Fi#fi{x=X+Xoffs},Priv}.
+vframe_propagate([{Fi,Priv}|Fis], #fi{w=SzW,ipadx=Ipadx}=Sz, Acc) ->
+    {#fi{w=W},_} = New = propagate_sizes({Fi#fi{w=SzW-Ipadx},Priv}),
+    vframe_propagate(Fis, Sz#fi{w=max(W+Ipadx, SzW)}, [New|Acc]);
+vframe_propagate([], Sz, Acc) -> {Sz,{vframe,reverse(Acc)}}.
 
-vframe_propagate([{#fi{lw=0}=Fi,Priv}|Fis],
-		 #fi{w=SzW,ipadx=Ipadx}=Sz, Xoffs, Acc) ->
-    {#fi{w=W},_} = New = propagate_sizes({Fi#fi{w=SzW-Ipadx},Priv}, Xoffs),
-    vframe_propagate(Fis, Sz#fi{w=max(W+Ipadx, SzW)}, Xoffs, [New|Acc]);
-vframe_propagate([{#fi{lw=ReqLw,w=ReqW}=Fi0,Priv}|Fis],
-		 #fi{lw=Lw,w=SzW,ipadx=Ipadx}=Sz, Xoffs, Acc)
-  when ReqW-ReqLw+Lw+Ipadx > SzW ->
-    W0 = ReqW-ReqLw+Lw,
-    Fi = Fi0#fi{lw=Lw,w=W0},
-    New = propagate_sizes({Fi,Priv}, Xoffs),
-    vframe_propagate(Fis, Sz#fi{w=W0+Ipadx}, Xoffs, [New|Acc]);
-vframe_propagate([{Fi0,Priv}|Fis], #fi{lw=Lw,w=SzW,ipadx=Ipadx}=Sz,
-		 Xoffs, Acc) ->
-    Fi = Fi0#fi{lw=Lw,w=SzW},
-    {#fi{w=W},_} = New = propagate_sizes({Fi#fi{w=SzW-Ipadx},Priv}, Xoffs),
-    vframe_propagate(Fis, Sz#fi{w=max(W+Ipadx, SzW)}, Xoffs, [New|Acc]);
-vframe_propagate([], Sz, _Xoffs, Acc) -> {Sz,reverse(Acc)}.
-
-hframe_propagate([{#fi{w=W0}=Fi,Priv}|Fis], Sz, Xoffs0, Acc) ->
+hframe_propagate([{Fi,Priv}|Fis], Sz, Acc) ->
     #fi{w=SzW,h=H,ipady=Ipady} = Sz,
-    {#fi{w=W},_} = New = propagate_sizes({Fi#fi{h=H-Ipady},Priv}, Xoffs0),
-    Dw = W - W0,
-    Xoffs = Xoffs0 + Dw,
-    hframe_propagate(Fis, Sz#fi{w=SzW+Dw}, Xoffs, [New|Acc]);
-hframe_propagate([], Fi, _Xoffs, Acc) -> {Fi,reverse(Acc)}.
+    New = propagate_sizes({Fi#fi{h=H-Ipady},Priv}),
+    hframe_propagate(Fis, Sz#fi{w=SzW}, [New|Acc]);
+hframe_propagate([], Fi, Acc) -> {Fi,{hframe,reverse(Acc)}}.
 
 %%%
 %%% Calculate flattened fields array.
@@ -467,7 +468,7 @@ flatten_fields({Fi,P}) ->
     {Fis,Priv} = flatten_fields(Fi, P, [], []),
     {reverse(Fis),reverse(Priv)}.
 
-flatten_fields(Fi, {vframe,_Lw,Fields}, FisAcc, PrivAcc) ->
+flatten_fields(Fi, {vframe,Fields}, FisAcc, PrivAcc) ->
     frame_flatten(Fields, [Fi|FisAcc], [{vframe,[]}|PrivAcc]);
 flatten_fields(Fi, {hframe,Fields}, FisAcc, PrivAcc) ->
     frame_flatten(Fields, [Fi|FisAcc], [{hframe,[]}|PrivAcc]);
@@ -535,7 +536,7 @@ have_border(Flags) ->
 
 separator() ->
     Fun = separator_fun(),
-    {Fun,true,{},0,4*?CHAR_WIDTH,10}.
+    {Fun,true,{},4*?CHAR_WIDTH,10}.
 
 separator_fun() ->
     fun({redraw,_Active}, Fi, _Dummy, _) ->
@@ -573,7 +574,7 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
 checkbox(Label, Def) ->
     Cb = #cb{label=Label,state=Def},
     Fun = checkbox_fun(),
-    {Fun,false,Cb,0,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT}.
+    {Fun,false,Cb,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
 checkbox_fun() ->
     fun({redraw,Active}, Fi, Cb, _) ->
@@ -623,7 +624,7 @@ cb_event(_Ev, _Fi, Cb) -> Cb.
 radiobutton({Var,Def}, Label, Val) ->
     Rb = #rb{var=Var,val=Val,label=Label},
     Fun = radiobutton_fun(Def),
-    {Fun,false,Rb,0,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT}.
+    {Fun,false,Rb,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
 radiobutton_fun(Def) ->
     fun({event,init}, _Fi, #rb{var=Var,val=Val}=Rb, Common) ->
@@ -712,7 +713,7 @@ rb_set(#rb{var=Var,val=Val}=Rb, Common0) ->
 button(Label, Action) ->
     But = #but{label=Label,action=Action},
     Fun = button_fun(),
-    {Fun,false,But,0,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT+6}.
+    {Fun,false,But,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT+6}.
 
 button_label(ok) -> "OK";
 button_label(Act) ->
@@ -747,14 +748,12 @@ button_event(_Ev, _Fi, But) -> But.
 %%%
 
 -record(col,
-	{label,
-	 val}).
+	{val}).
 
-color(Label, Def) ->
-    Col = #col{label=Label,val=Def},
+color(Def) ->
+    Col = #col{val=Def},
     Fun = color_fun(),
-    L = (length(Label)+1)*?CHAR_WIDTH,
-    {Fun,false,Col,L,L+3*?CHAR_WIDTH,?LINE_HEIGHT}.
+    {Fun,false,Col,3*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
 color_fun() ->
     fun({redraw,Active}, Fi, Col, Common) ->
@@ -767,24 +766,23 @@ color_fun() ->
 	    gb_trees:get(Key, Common)
     end.
 
-col_draw(Active, #fi{key=Key,x=X,y=Y0,lw=Lw}, #col{label=Label}, Common) ->
+col_draw(Active, #fi{key=Key,x=X,y=Y0}, _, Common) ->
     Color = gb_trees:get(Key, Common),
-    wings_io:sunken_rect(X+Lw, Y0+3,
-			 3*?CHAR_WIDTH, ?CHAR_HEIGHT-2, Color),
+    wings_io:sunken_rect(X, Y0+3,
+			 3*?CHAR_WIDTH, ?CHAR_HEIGHT, Color),
     Y = Y0+?CHAR_HEIGHT,
-    wings_io:text_at(X, Y, Label),
     if
 	Active == true ->
-	    L = length(Label),
-	    wings_io:text_at(X, Y, duplicate(L, $_));
+	    wings_io:text_at(X, Y, "___");
 	true -> ok
     end.
 
 col_event({key,_,_,$\s}, Fi, Col, Common) ->
     pick_color(Fi, Col, Common);
-col_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, #fi{x=X,lw=Lw}=Fi, Col, Common) ->
+col_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, #fi{x=X}=Fi,
+	  Col, Common) ->
     if
-	X+Lw =< Xb, Xb < X+Lw+3*?CHAR_WIDTH ->
+	X =< Xb, Xb < X+3*?CHAR_WIDTH ->
 	    pick_color(Fi, Col, Common);
 	true -> {Col,Common}
     end;
@@ -799,10 +797,11 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 			    gb_trees:get(b, Common)/255},
 		   wings_io:sunken_rect(X, Y, 50, 50-4, Color)
 	   end,
-    {ask,[{custom,50,50,Draw},
-	  {slider,{"R",trunc(R0*255),[{key,r}|Range]}},
-	  {slider,{"G",trunc(G0*255),[{key,g}|Range]}},
-	  {slider,{"B",trunc(B0*255),[{key,b}|Range]}}],
+    {dialog,[{custom,50,50,Draw},
+	     {label_column,
+	      [{"R",{slider,{text,trunc(R0*255),[{key,r}|Range]}}},
+	       {"G",{slider,{text,trunc(G0*255),[{key,g}|Range]}}},
+	       {"B",{slider,{text,trunc(B0*255),[{key,b}|Range]}}}]}],
      fun([{r,R},{g,G},{b,B}]) ->
 	     Val = {R/255,G/255,B/255},
 	     {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
@@ -819,7 +818,7 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 custom(W, H, Handler) ->
     Custom = #custom{handler=Handler},
     Fun = custom_fun(),
-    {Fun,true,Custom,0,W,H}.
+    {Fun,true,Custom,W,H}.
 
 custom_fun() ->
     fun({redraw,_Active}, #fi{x=X,y=Y,w=W,h=H},
@@ -846,7 +845,7 @@ slider(Field) ->
     Key = property_lists:get_value(key, Flags),
     Sl = #sl{min=Min,range=(Max-Min)/?SL_LENGTH,peer=Key},
     Fun = slider_fun(),
-    {Fun,false,Sl,0,?SL_LENGTH+4,?LINE_HEIGHT}.
+    {Fun,false,Sl,?SL_LENGTH+4,?LINE_HEIGHT+2}.
 
 slider_fun() ->
     fun({redraw,_Active}, Fi, Sl, Common) ->
@@ -880,6 +879,24 @@ slider_move(Xb, #fi{x=X}, #sl{min=Min,range=Range,peer=Peer}=Sl, Common) ->
 	      true -> Val0
 	  end,
     {Sl,gb_trees:update(Peer, Val, Common)}.
+
+%%%
+%%% Label.
+%%%
+
+-record(label, {label}).
+
+label(Text) ->
+    Lbl = #label{label=Text},
+    Fun = label_fun(),
+    {Fun,true,Lbl,length(Text)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
+
+label_fun() ->
+    fun({redraw,_Active}, #fi{x=X,y=Y}, #label{label=Text}, _Common) ->
+	    wings_io:text_at(X, Y+?CHAR_HEIGHT, Text);
+       ({event,_Ev}, _Fi, Label, _) ->
+	    Label
+    end.
     
 %%%
 %%% Text and number input fields.
@@ -889,7 +906,6 @@ slider_move(Xb, #fi{x=X}, #sl{min=Min,range=Range,peer=Peer}=Sl, Common) ->
 	{bef,
 	 aft,
 	 sel=0,
-	 label,
 	 max,
 	 integer=false,
 	 charset,				%Character set validator.
@@ -897,25 +913,24 @@ slider_move(Xb, #fi{x=X}, #sl{min=Min,range=Range,peer=Peer}=Sl, Common) ->
 	 validator
 	}).
 
-text_field(Label, Def, Flags) when is_float(Def) ->
+text_field(Def, Flags) when is_float(Def) ->
     DefStr = text_val_to_str(Def),
     {Max,Validator} = float_validator(Flags),
-    init_text(Label, Def, DefStr, Max, false,
+    init_text(Def, DefStr, Max, false,
 	      fun float_chars/1, Validator);
-text_field(Label, Def, Flags) when is_integer(Def) ->
+text_field(Def, Flags) when is_integer(Def) ->
     {Max,Validator} = integer_validator(Flags),
-    init_text(Label, Def, integer_to_list(Def), Max, true,
+    init_text(Def, integer_to_list(Def), Max, true,
 	      fun integer_chars/1, Validator);
-text_field(Label, Def, _Flags) when is_list(Def) ->
-    init_text(Label, Def, Def, 30, false,
+text_field(Def, _Flags) when is_list(Def) ->
+    init_text(Def, Def, 30, false,
 	      fun all_chars/1, fun(_) -> ok end).
 
-init_text(Label, Val, String, Max, IsInteger, Charset, Validator) ->
-    Ts = #text{last_val=Val,label=Label,bef=[],aft=String,max=Max,
+init_text(Val, String, Max, IsInteger, Charset, Validator) ->
+    Ts = #text{last_val=Val,bef=[],aft=String,max=Max,
 	       integer=IsInteger,charset=Charset,validator=Validator},
-    LblLen = (length(Label)+1)*?CHAR_WIDTH,
     Fun = fun gen_text_handler/4,
-    {Fun,false,Ts,LblLen,LblLen+(1+Max)*?CHAR_WIDTH,?LINE_HEIGHT+3}.
+    {Fun,false,Ts,(1+Max)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
 text_val_to_str(Val) when is_float(Val) ->
     simplify_float(lists:flatten(io_lib:format("~f", [Val])));
@@ -973,8 +988,11 @@ float_range(Min, Max) ->
 	    end
     end.
 
-text_get_val(#text{last_val=Val}=Ts) when is_integer(Val) ->
-    list_to_integer(get_text(validate_string(Ts)));
+text_get_val(#text{last_val=OldVal}=Ts) when is_integer(OldVal) ->
+    case catch list_to_integer(get_text(validate_string(Ts))) of
+	{'EXIT',_} -> OldVal;
+	Val -> Val
+    end;
 text_get_val(#text{last_val=Val}=Ts) when is_float(Val) ->
     Text = case get_text(Ts) of
 	       [$.|_]=T -> [$0|T];
@@ -1012,46 +1030,44 @@ gen_text_handler({event,Ev}, #fi{key=Key}=Fi,
 gen_text_handler(value, #fi{key=Key}, _, Common) ->
     gb_trees:get(Key, Common).
 
-draw_text(false, #fi{key=Key,x=X0,y=Y0,lw=Lw},
-	  #text{label=Label,max=Max}, Common) ->
+draw_text(false, #fi{key=Key,x=X0,y=Y0}, #text{max=Max}, Common) ->
     Val = gb_trees:get(Key, Common),
     Str = text_val_to_str(Val),
     gl:color3f(0, 0, 0),
-    wings_io:sunken_rect(X0+Lw-4, Y0+2,
-			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+2,
+    wings_io:sunken_rect(X0, Y0+2,
+			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
 			 {1,1,1}),
     Y = Y0 + ?CHAR_HEIGHT,
-    wings_io:text_at(X0, Y, Label),
-    wings_io:text_at(X0+Lw, Y, Str);
-draw_text(true, #fi{x=X0,y=Y0,lw=Lw},
-	  #text{label=Label,sel=Sel,bef=Bef0,aft=Aft,max=Max}, _) ->
+    X = X0 + 4,
+    wings_io:text_at(X, Y, Str);
+draw_text(true, #fi{x=X0,y=Y0}, #text{sel=Sel,bef=Bef0,aft=Aft,max=Max}, _) ->
     gl:color3f(0, 0, 0),
-    wings_io:sunken_rect(X0+Lw-4, Y0+2,
-			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+2,
+    wings_io:sunken_rect(X0, Y0+2,
+			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
 			 {1,1,1}),
     Y = Y0 + ?CHAR_HEIGHT,
-    wings_io:text_at(X0, Y, Label),
+    X = X0 + 4,
     Bef = reverse(Bef0),
-    wings_io:text_at(X0+Lw, Y, Bef),
+    wings_io:text_at(X, Y, Bef),
     wings_io:text(Aft),
     if
 	Sel < 0 ->
 	    gl:color3f(0, 0, 0.5),
 	    Skip = length(Bef)+Sel,
-	    X1 = X0+Lw+Skip*?CHAR_WIDTH,
+	    X1 = X+Skip*?CHAR_WIDTH,
  	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1-Sel*?CHAR_WIDTH, Y+2),
  	    gl:color3f(1, 1, 1),
 	    wings_io:text_at(X1, Y, lists:nthtail(Skip, Bef)),
 	    gl:color3f(0, 0, 0);
 	Sel > 0 ->
 	    gl:color3f(0, 0, 0.5),
-	    X1 = X0+Lw+length(Bef)*?CHAR_WIDTH,
+	    X1 = X+length(Bef)*?CHAR_WIDTH,
  	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1+Sel*?CHAR_WIDTH, Y+2),
  	    gl:color3f(1, 1, 1),
 	    draw_text_1(X1, Y, Aft, Sel);
 	true ->
 	    gl:color3f(1, 0, 0),
-	    X1 = X0+Lw+length(Bef)*?CHAR_WIDTH,
+	    X1 = X+length(Bef)*?CHAR_WIDTH,
 	    wings_io:text_at(X1, Y, [caret]),
 	    gl:color3f(0, 0, 0)
     end.
@@ -1086,8 +1102,8 @@ text_event(#mousemotion{x=X}, Fi, Ts) ->
     text_sel(X, Fi, Ts);
 text_event(_Ev, _Fi, Ts) -> Ts.
 
-text_pos(Mx0, #fi{x=X,lw=Lw}, Ts) ->
-    text_pos_1(round((Mx0-X-Lw)/?CHAR_WIDTH), Ts).
+text_pos(Mx0, #fi{x=X}, Ts) ->
+    text_pos_1(round((Mx0-X)/?CHAR_WIDTH), Ts).
 
 text_pos_1(Mx, #text{bef=[C|Bef],aft=Aft}=Ts) when Mx < length(Bef) ->
     text_pos_1(Mx, Ts#text{bef=Bef,aft=[C|Aft]});
@@ -1095,8 +1111,8 @@ text_pos_1(Mx, #text{bef=Bef,aft=[C|Aft]}=Ts) when Mx > length(Bef) ->
     text_pos_1(Mx, Ts#text{bef=[C|Bef],aft=Aft});
 text_pos_1(_Mx, Ts) -> Ts#text{sel=0}.
 
-text_sel(Mx0, #fi{x=X,lw=Lw}, Ts) ->
-    text_sel_1(round((Mx0-X-Lw)/?CHAR_WIDTH), Ts).
+text_sel(Mx0, #fi{x=X}, Ts) ->
+    text_sel_1(round((Mx0-X)/?CHAR_WIDTH), Ts).
 
 text_sel_1(Mx, #text{bef=Bef}=Ts) when Mx < length(Bef) ->
     Ts#text{sel=max(Mx, 0)-length(Bef)};
@@ -1201,3 +1217,10 @@ max(_A, B) -> B.
 
 min(A, B) when A < B -> A;
 min(_A, B) -> B.
+
+dialog_unzip(L) ->
+    dialog_unzip(L, [], []).
+dialog_unzip([{Lbl,F}|T], AccA, AccB) ->
+    dialog_unzip(T, [{label,Lbl}|AccA], [F|AccB]);
+dialog_unzip([], AccA, AccB) ->
+    {reverse(AccA),reverse(AccB)}.

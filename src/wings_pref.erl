@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.39 2002/04/01 17:02:07 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.40 2002/04/11 08:20:39 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -64,21 +64,23 @@ menu(_St) ->
 command(prefs, St) ->
     Qs0 = [{hframe,
 	    [{vframe,
-	      [{"Unselected Size",vertex_size},
-	       {"Selected Size",selected_vertex_size}],
+	      [{label_column,
+		[{"Unselected Size",vertex_size},
+		 {"Selected Size",selected_vertex_size}]}],
 	      [{title,"Vertex Display"}]},
 	     {vframe,
-	      [{"Unselected Width",edge_width},
-	       {"Selected Width",selected_edge_width}],
+	      [{label_column,
+		[{"Unselected Width",edge_width},
+		 {"Selected Width",selected_edge_width}]}],
 	      [{title,"Edge Display"}]}]},
 	   {hframe,
-	    [{color,"Background",background_color},
-	     {color,"Face",face_color},
-	     {color,"Selection",selected_color},
-	     {color,"Hard Edges",hard_edge_color}],
+	    [{label,"Background"},{color,background_color},
+	     {label,"Face"},{color,face_color},
+	     {label,"Selection"},{color,selected_color},
+	     {label,"Hard Edges"},{color,hard_edge_color}],
 	    [{title,"Colors"}]},
 	   {hframe,
-	    [{color,"Color",grid_color},
+	    [{label,"Color"},{color,grid_color},
 	     {"Force Axis-Aligned Grid",force_show_along_grid}],
 	    [{title,"Grid"}]},
 	   {vframe,
@@ -88,38 +90,43 @@ command(prefs, St) ->
 	       {"Faces",face_hilite},
 	       {"Objects",body_hilite}]},
 	     {hframe,
-	      [{color,"Unselected",unselected_hlite},
-	       {color,"Selected",selected_hlite}]}],
+	      [{label,"Unselected"},{color,unselected_hlite},
+	       {label,"Selected"},{color,selected_hlite}]}],
 	    [{title,"Highlighting"}]},
 	   {hframe,
-	    [{vframe,[{"Length",active_vector_size},
-		     {"Width",active_vector_width},
-		     {color,"Color",active_vector_color}],
+	    [{vframe,
+	      [{label_column,
+		[{"Length",active_vector_size},
+		 {"Width",active_vector_width},
+		 {color,"Color",active_vector_color}]}],
 	      [{title,"Vector Display"}]},
-	     {vframe,[{"Angle",auto_rotate_angle},
-		      {"Delay (ms)",auto_rotate_delay}],
+	     {vframe,
+	      [{label_column,
+		[{"Angle",auto_rotate_angle},
+		 {"Delay (ms)",auto_rotate_delay}]}],
 	      [{title,"Auto Rotate"}]}]},
 	   {hframe,
 	    [{vframe,
 	      [{"Show Axis Letters",show_axis_letters},
 	       {hframe,
-		[{color,"+X Color",x_color},
-		 {color,"-X Color",neg_x_color}]},
-	       {hframe,
-		[{color,"+Y Color",y_color},
-		 {color,"-Y Color",neg_y_color}]},
-	       {hframe,
-		[{color,"+Z Color",z_color},
-		 {color,"-Z Color",neg_z_color}]}],
+		[{label_column,
+		  [{color,"+X Color",x_color},
+		   {color,"+Y Color",y_color},
+		   {color,"+Z Color",z_color}]},
+		 {label_column,
+		  [{color,"-X Color",neg_x_color},
+		   {color,"-Y Color",neg_y_color},
+		   {color,"-Z Color",neg_z_color}]}]}],
 	      [{title,"Axes"}]},
 	     {vframe,
-	      [{"Auto-save interval (min)",autosave_time},
+	      [{label_column,
+		[{"Auto-save interval (min)",autosave_time}]},
 	       {"Show Memory Used",show_memory_used},
 	       {"Display List Optimization",display_list_opt},
 	       {"Advanced Menus",advanced_menus}],
 	      [{title,"Miscellanous"}]}]}],
     Qs = make_query(Qs0),
-    wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
+    wings_ask:dialog(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
 command({set,List}, _St) ->
     foreach(fun({Key,Val}) ->
 		    set_value(Key, Val),
@@ -139,12 +146,19 @@ command({set,List}, _St) ->
 
 make_query([_|_]=List)  ->
     [make_query(El) || El <- List];
-make_query({Str,Key}) when is_list(Str) ->
+make_query({color,Key}) ->
     Def = get_value(Key),
-    {Str,Def,[{key,Key}]};
+    {color,Def,[{key,Key}]};
 make_query({color,Str,Key}) when is_list(Str) ->
     Def = get_value(Key),
-    {color,Str,Def,[{key,Key}]};
+    {Str,{color,Def,[{key,Key}]}};
+make_query({Str,Key}) when is_list(Str) ->
+    case get_value(Key) of
+	Def when Def == true; Def == false ->
+	    {Str,Def,[{key,Key}]};
+	Def ->
+	    {Str,{text,Def,[{key,Key}]}}
+    end;
 make_query(Tuple) when is_tuple(Tuple) ->
     list_to_tuple([make_query(El) || El <- tuple_to_list(Tuple)]);
 make_query(Other) -> Other.
