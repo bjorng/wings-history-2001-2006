@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.8 2002/11/24 15:44:04 bjorng Exp $
+#     $Id: Makefile,v 1.9 2003/09/21 19:38:29 bjorng Exp $
 #
 
 all:
@@ -28,6 +28,13 @@ clean:
 	(cd e3d; $(MAKE) clean)
 	(cd plugins_src; $(MAKE) clean)
 	(cd icons; $(MAKE) clean)
+
+#
+# Build installer for Windows.
+#
+win32: all
+	(cd plugins_src/win32_file; $(MAKE))
+
 
 #
 # Build a package for MacOS X.

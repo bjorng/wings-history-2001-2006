@@ -1,87 +1,40 @@
-# wp8_file - Makefile for Windows NT
 #
-# It is assumed that the following environment variables have been set:
-# Run vcvars32.bat before attempting to make and have erlang in your path
+#  Makefile --
 #
-
+#     Makefile for building file dialog plug-in for Windows.
 #
-# Should one use the MT library as the emulator or the MD library
-# like programs that load dll's actually should do? 
-# Well, I hold for the later, so I'll try it as long as it works.
-# I.E /MD as compiler option and link with msvcrt.lib.
+#  Copyright (c) 2003 Bjorn Gustavsson
 #
-ERL_TOP = C:\progra~1\erl5.3
-LINK = link
-MLFLAGS= /nologo /subsystem:console /machine:I386 /nodefaultlib 
-MLIBS = kernel32.lib ws2_32.lib msvcrt.lib user32.lib comdlg32.lib
-
-LIBDIR = ..\..\plugins\win32_file
-OBJDIR = .
-
-!if !exist($(LIBDIR)) 
-!	if [mkdir $(LIBDIR)]
-!	error "wp8_file: cannot create LIBDIR"
-!	endif
-!endif
-
-!if !exist($(OBJDIR))
-!	if [mkdir $(OBJDIR)]
-!	error "wp8_file: cannot create OBJDIR"
-!	endif
-!endif
-
-# Includes
+#  See the file "license.terms" for information on usage and redistribution
+#  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-INCLUDES = -I. -I$(ERL_TOP)\usr\include
-
-# Compiler options
-# 
-OPTS = /G5 /Ox /O2 /Ob2
-CFLAGS = $(INCLUDES) /nologo /MD $(OPTS) -D__WIN32__ -DWIN32
-
-# Object files
+#     $Id: Makefile,v 1.11 2003/09/21 19:38:30 bjorng Exp $
 #
-OBJS = $(OBJDIR)\wings_file_drv.obj	
+LIBDIR = ../../plugins/win32_file
 
-DLLS = $(LIBDIR)\wings_file_drv.dll
+ERL_DIR := $(shell echo 'io:format("~s~n",[code:root_dir()]),halt().' | erl | sed 's,^[0-9]*> *,,g' | tail +2)
+ERL_INC = $(ERL_DIR)/usr/include
+BEAM = $(LIBDIR)/wp8_file.beam
+LIBS = -shared -lcomdlg32
 
-BEAM = $(LIBDIR)\wp8_file.beam
 ERLC = erlc
-ERLC_FLAGS = -o $(LIBDIR)
-#
-# Targets
-#
+ERLC_FLAGS = -o $(LIBDIR) -I ../../e3d -I ../../src -I $(ESDL_PATH)/include -pa $(ESDL_PATH)
 
-all:	$(DLLS) $(BEAM)
+DRV = $(LIBDIR)/wings_file_drv.dll
 
-clean: 
-	-del $(LIBDIR)\*.dll
-	-del $(LIBDIR)\*.exp
-	-del $(LIBDIR)\*.lib
-	-del $(LIBDIR)\*.beam
-	-del $(OBJDIR)\*.obj
+all: $(BEAM) $(DRV)
 
-$(LIBDIR)\wings_file_drv.dll:wings_file_drv.c
-	$(CC) $(CFLAGS) /c /Fo$(OBJDIR)\wings_file_drv.obj wings_file_drv.c
-	$(LINK) $(MLFLAGS) /dll /out:$(LIBDIR)\wings_file_drv.dll \
-		$(OBJS) $(MLIBS)
-	-del $(LIBDIR)\*.exp
-	-del $(LIBDIR)\*.lib
-	-del $(OBJDIR)\*.obj
+$(LIBDIR)/%.beam: %.erl
+	install -d $(LIBDIR)
+	$(ERLC) $(ERLC_FLAGS) $<
 
-$(LIBDIR)\wp8_file.beam: wp8_file.erl
-	$(ERLC) $(ERLC_FLAGS) wp8_file.erl
+$(LIBDIR)/wings_file_drv.dll: wings_file_drv.c \
+  erl_driver.h erl_win_dyn_driver.h
+	install -d $(LIBDIR)
+	mingw32-gcc -o $(LIBDIR)/wings_file_drv.dll wings_file_drv.c $(LIBS)
 
+erl_driver.h: $(ERL_INC)/erl_driver.h
+	cp $(ERL_INC)/erl_driver.h .
 
-
-
-
-
-
-
-
-
-
-
-
-
+erl_win_dyn_driver.h: $(ERL_INC)/erl_win_dyn_driver.h
+	sed 's,##Params, Params,g' "$(ERL_INC)/erl_win_dyn_driver.h" > erl_win_dyn_driver.h
