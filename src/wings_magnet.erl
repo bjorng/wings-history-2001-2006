@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Magnet command.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.20 2002/01/10 09:22:48 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.21 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -25,7 +25,7 @@ sub_menu(St) ->
     Dirs = directions(),
     M = [{"Gaussian",{gaussian,Dirs}},
 	 {"Linear",{linear,Dirs}}|user_defined(Dirs)],
-    {"Magnet",{magnet,list_to_tuple(M)}}.
+    {"Magnet",{magnet,M}}.
 
 user_defined(Dirs) ->
     case wings_pref:browse(magnet_uexpr) of
@@ -49,11 +49,11 @@ constraint(free) -> view_dependent;
 constraint(Other) -> none.
 
 directions() ->
-    {{"Normal",normal},
+    [{"Normal",normal},
      {"Free",free},
      {"X",x},
      {"Y",y},
-     {"Z",z}}.
+     {"Z",z}].
 
 add_user_expr(Name, Body) ->
     Uexprs = wings_pref:browse(magnet_uexpr),

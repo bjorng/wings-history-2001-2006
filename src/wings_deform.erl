@@ -3,12 +3,12 @@
 %%
 %%     This module contains the Deform commands for vertices.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.20 2001/12/26 14:46:25 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.21 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -21,19 +21,19 @@
 -compile({inline,[{mix,2}]}).
 
 sub_menu(St) ->
-    XYZ = {{"X",x},
+    XYZ = [{"X",x},
 	   {"Y",y},
-	   {"Z",z}},
-    {deform,{{"Crumple",crumple},
+	   {"Z",z}],
+    {deform,[{"Crumple",crumple},
 	     {"Inflate",inflate},
 	     {"Taper",{taper,
-		       {{"Along",ignore},
+		       [{"Along",ignore},
 			separator,
 			{"X",taper_item(x)},
 			{"Y",taper_item(y)},
-			{"Z",taper_item(z)}}}},
+			{"Z",taper_item(z)}]}},
 	     {"Twist",{twist,XYZ}},
-	     {"Twisty Twist",{twisty_twist,XYZ}}}}.
+	     {"Twisty Twist",{twisty_twist,XYZ}}]}.
 
 taper_item(x) -> taper_item_1([yz,y,z], x, []);
 taper_item(y) -> taper_item_1([xz,x,z], y, []);
@@ -42,8 +42,7 @@ taper_item(z) -> taper_item_1([xy,x,y], z, []).
 taper_item_1([H|T], Label, Acc) ->		    
     taper_item_1(T, Label, [{wings_util:upper(atom_to_list(H)),H}|Acc]);
 taper_item_1([], Label, Acc) ->
-    {Label,list_to_tuple([{"Effect",ignore},
-			  separator|reverse(Acc)])}.
+    {Label,[{"Effect",ignore},separator|reverse(Acc)]}.
 
 command(crumple, St) -> crumple(St);
 command(inflate, St) -> inflate(St);

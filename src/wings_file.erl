@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.47 2002/01/25 09:04:36 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.48 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -40,10 +40,10 @@ finish() ->
     end.
 
 menu(X, Y, St) ->
-    ExpFormats = {{"Nendo (.ndo)",ndo},
+    ExpFormats = [{"Nendo (.ndo)",ndo},
 		  {"3D Studio (.3ds)",tds},
 		  {"Wavefront (.obj)",obj},
-		  {"RenderMan (.rib)",rib}},
+		  {"RenderMan (.rib)",rib}],
     Menu = [{"New",new},
 	    {"Open",open},
 	    {"Merge",merge},
@@ -54,13 +54,13 @@ menu(X, Y, St) ->
 	    {"Revert",revert},
 	    separator,
 	    {"Import",{import,
-		       {{"Nendo (.ndo)",ndo},
+		       [{"Nendo (.ndo)",ndo},
 			{"3D Studio (.3ds)",tds},
-			{"Wavefront (.obj)",obj}}}},
+			{"Wavefront (.obj)",obj}]}},
 	    {"Export",{export,ExpFormats}},
 	    {"Export Selected",{export_selected,ExpFormats}},
 	    separator|recent_files([{"Exit",quit}])],
-    wings_menu:menu(X, Y, file, list_to_tuple(Menu), St).
+    wings_menu:menu(X, Y, file, Menu, St).
 
 command(new, St0) ->
     case new(St0) of

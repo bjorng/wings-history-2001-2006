@@ -3,12 +3,12 @@
 %%
 %%     This module handles camera moves (rotation, zooming, and panning).
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.11 2002/01/22 11:21:54 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.12 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -32,7 +32,7 @@ sub_menu(St) ->
 	      item(Mode, nendo),
 	      item(Mode, tds),
 	      item(Mode, maya)],
-    Modes = list_to_tuple(append(Modes0)),
+    Modes = append(Modes0),
     {"Camera Mode: " ++ mode_desc(Mode),
      {camera_mode,Modes}}.
 

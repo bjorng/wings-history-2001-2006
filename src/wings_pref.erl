@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.24 2002/01/26 11:26:51 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.25 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -62,7 +62,7 @@ menu(St) ->
 
 menu_1([{Desc,Key}|T0]) ->
     {Items,T} = collect_items(T0, []),
-    [{Desc,{Key,list_to_tuple(Items)}}|menu_1(T)];
+    [{Desc,{Key,Items}}|menu_1(T)];
 menu_1([]) -> [].
 
 collect_items([{Desc,Key,Bool}|T], A) when Bool == false; Bool == true ->

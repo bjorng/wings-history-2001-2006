@@ -3,12 +3,12 @@
 %%
 %%     Utilities for shape records.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.13 2002/01/05 23:54:53 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.14 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -60,7 +60,7 @@ menu(X, Y, #st{sel=Sel,shapes=Shapes}=St) ->
 			IsSelected = keymember(Id, 1, Sel),
 			NameSt = state(Perm, IsSelected, Name),
 			Choices = choices(Perm, IsSelected),
-			{NameSt,{Id,list_to_tuple(Choices)}}
+			{NameSt,{Id,Choices}}
 		end, gb_trees:values(Shapes)),
     Menu1 = case Menu0 of
 		[] -> [];
@@ -69,7 +69,7 @@ menu(X, Y, #st{sel=Sel,shapes=Shapes}=St) ->
     Menu2 = [{"Show And Unlock All",restore_all},
 	     {"Hide Unselected",hide_unselected},
 	     {"Lock Unselected",lock_unselected}|Menu1],
-    Menu = list_to_tuple(Menu2),
+    Menu = Menu2,
     wings_menu:menu(X, Y, objects, Menu, St).
 
 state(0, Sel, Name) -> state_1(eye, Sel, Name);

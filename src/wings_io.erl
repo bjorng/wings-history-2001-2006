@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.32 2002/01/22 10:02:35 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.33 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -141,7 +141,7 @@ clear_message() ->
     put_state(Io#io{message=undefined}).
 
 clear_menu_sel() ->
-    put_state((get_state())#io{sel=undefined}).
+    put_state((get_state())#io{sel=undefined,message=undefined}).
 
 display(F) ->
     #io{w=W,h=H} = Io = get_state(),

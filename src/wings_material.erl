@@ -3,12 +3,12 @@
 %%
 %%     This module manages the face materials (i.e. colors and textures).
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.21 2002/01/06 14:47:09 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.22 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -38,12 +38,12 @@
 
 sub_menu(face, St) ->
     Mlist = material_list(St),
-    Materials = list_to_tuple([{"New",new},separator|Mlist]),
+    Materials = [{"New",new},separator|Mlist],
     {"Set Material",{material,Materials}};
 sub_menu(edit, St) ->
-    {"Material [ALPHA]",{material,materials(St)}};
+    {"Material [ALPHA]",{material,material_list(St)}};
 sub_menu(select, St) ->
-    {"Material",{material,materials(St)}}.
+    {"Material",{material,material_list(St)}}.
 
 command({face,{material,new}}, St0) ->
     case wings_getline:string("Material Name: ") of
@@ -73,9 +73,6 @@ init(#st{mat=Mat0}=St0) ->
 				{{N,M},S}
 			end, St1, gb_trees:to_list(Mat0)),
     St#st{mat=gb_trees:from_orddict(Mat)}.
-
-materials(St) ->
-    list_to_tuple(material_list(St)).
 
 material_list(#st{mat=Mat0}) ->
     map(fun(Id) ->

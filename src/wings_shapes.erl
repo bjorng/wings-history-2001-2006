@@ -5,12 +5,12 @@
 %%     shapes that can be created, such as Cube, Sphere,
 %%     and Grid.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.14 2002/01/06 09:12:08 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.15 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -22,7 +22,7 @@
 -import(wings_util, [ask/3]).
 
 menu(X, Y, St) ->
-    Menu = {{"Tetrahedron",tetrahedron},
+    Menu = [{"Tetrahedron",tetrahedron},
 	    {"Octahedron",octahedron},
 	    {"Octotoad",octotoad},
 	    {"Dodecahedron",dodecahedron},
@@ -30,12 +30,12 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Cube",cube},
 	    separator,
-	    {"Cylinder",{cylinder}},
-	    {"Cone",{cone}},
-	    {"Sphere",{sphere}},
-	    {"Torus",{torus}},
+	    {"Cylinder",cylinder,[],[hotbox]},
+	    {"Cone",cone,[],[hotbox]},
+	    {"Sphere",sphere,[],[hotbox]},
+	    {"Torus",torus,[],[hotbox]},
 	    separator,
-	    {"Grid",{grid}}},
+	    {"Grid",grid,[],[hotbox]}],
     wings_menu:popup_menu(X, Y, shape, Menu, St).
 
 command(tetrahedron, _, St) -> tetrahedron(St);

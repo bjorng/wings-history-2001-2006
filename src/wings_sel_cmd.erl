@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.7 2002/01/25 09:04:38 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.8 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -19,7 +19,7 @@
 -import(lists, [foldl/3,reverse/1,reverse/2,sort/1,keydelete/3]).
 
 menu(X, Y, St) ->
-    Menu = {{"Deselect",deselect},
+    Menu = [{"Deselect",deselect},
 	    separator,
 	    {"More",more},
 	    {"Less",less},
@@ -30,22 +30,22 @@ menu(X, Y, St) ->
 	    {"Next Edge Loop",next_edge_loop},
 	    {"Similar",similar},
 	    separator,
-	    {"Adjacent",{adjacent,{{"Vertices",vertex},
+	    {"Adjacent",{adjacent,[{"Vertices",vertex},
 				   {"Edges",edge},
-				   {"Faces",face}}}},
-	    {"By",{by,{{"Hard edges",hard_edges},
+				   {"Faces",face}]}},
+	    {"By",{by,[{"Hard edges",hard_edges},
 		       {"Vertices with",{vertices_with,
-					 {{"2 edges",2},
+					 [{"2 edges",2},
 					  {"3 edges",3},
 					  {"4 edges",4},
-					  {"5 edges",5}}}},
+					  {"5 edges",5}]}},
 		       {"Faces with",{faces_with,
-				      {{"2 edges",2},
+				      [{"2 edges",2},
 				       {"3 edges",3},
 				       {"4 edges",4},
-				       {"5 or more",5}}}},
+				       {"5 or more",5}]}},
 		       wings_material:sub_menu(select, St),
-		       {"Random",{random,{{"10%",10},
+		       {"Random",{random,[{"10%",10},
 					  {"20%",20},
 					  {"30%",30},
 					  {"40%",40},
@@ -53,8 +53,8 @@ menu(X, Y, St) ->
 					  {"60%",60},
 					  {"70%",70},
 					  {"80%",80},
-					  {"90%",90}}}},
-		       {"Id",id}}}},
+					  {"90%",90}]}},
+		       {"Id",id}]}},
 	    separator,
 	    {sel_all_str(St),all},
 	    separator,
@@ -66,7 +66,7 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Union with stored",union},
 	    {"Subtract with stored",subtract},
-	    {"Intersection with stored",intersection}},
+	    {"Intersection with stored",intersection}],
     wings_menu:menu(X, Y, select, Menu, St).
 
 sel_all_str(#st{selmode=vertex}) -> "All vertices";

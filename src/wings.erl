@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.94 2002/01/26 11:26:51 bjorng Exp $
+%%     $Id: wings.erl,v 1.95 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings).
@@ -263,6 +263,7 @@ do_command(Cmd, St0) ->
 	{push,_}=Push -> Push;
 	{init,_,_}=Init -> Init;
 	{seq,_,_}=Seq -> Seq;
+	aborted -> main_loop(St0);
 	quit ->
 	    sdl_util:free(get(wings_hitbuf)),
 	    pop
@@ -316,8 +317,8 @@ repeatable(Mode, Cmd) ->
 	_ -> no
     end.
 
-command({pick,{What,Ns}}, St) ->
-    wings_vec:pick(What, Ns, St);
+command({vector,What}, St) ->
+    wings_vec:command(What, St);
 command({secondary_selection,aborted}, St) -> St;
 command({menu,Menu,X,Y}, St) ->
     menu(X, Y, Menu, St);
@@ -402,6 +403,8 @@ command({face,bump}, St) ->
     ?SLOW(wings_extrude_edge:bump(St));
 command({face,{flatten,Plane}}, St) ->
     {save_state,model_changed(wings_face_cmd:flatten(Plane, St))};
+command({face,{flatten_move,Type}}, St) ->
+    {save_state,model_changed(wings_face_cmd:flatten_move(Type, St))};
 command({face,bevel}, St) ->
     ?SLOW(wings_extrude_edge:bevel_faces(St));
 command({face,inset}, St) ->
@@ -438,6 +441,8 @@ command({edge,loop_cut}, St) ->
 %% Vertex menu.
 command({vertex,{flatten,Plane}}, St) ->
     {save_state,model_changed(wings_vertex_cmd:flatten(Plane, St))};
+command({vertex,{flatten_move,Type}}, St) ->
+    {save_state,model_changed(wings_vertex_cmd:flatten_move(Type, St))};
 command({vertex,connect}, St) ->
     {save_state,model_changed(wings_vertex_cmd:connect(St))};
 command({vertex,tighten}, St) ->
@@ -495,74 +500,47 @@ popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
 menu(X, Y, file, St) ->
     wings_file:menu(X, Y, St);
 menu(X, Y, edit, St) ->
-    Menu0 = [{"Undo/redo",undo_toggle},
-	     {"Redo",redo},
-	     {"Undo",undo},
-	     separator,
-	     {command_name(St),repeat},
-	     separator,
-	     wings_material:sub_menu(edit, St),
-	     separator,
-	     wings_camera:sub_menu(St)|wings_pref:menu(St)++
-	     [separator,
-	      {"Purge Undo History",purge_undo}|patches()]],
-    Menu = list_to_tuple(Menu0),
+    Menu = [{"Undo/redo",undo_toggle},
+	    {"Redo",redo},
+	    {"Undo",undo},
+	    separator,
+	    {command_name(St),repeat},
+	    separator,
+	    wings_material:sub_menu(edit, St),
+	    separator,
+	    wings_camera:sub_menu(St)|wings_pref:menu(St)++
+	    [separator,
+	     {"Purge Undo History",purge_undo}|patches()]],
     wings_menu:menu(X, Y, edit, Menu, St);
 menu(X, Y, view, St) ->
     wings_view:menu(X, Y, St);
 menu(X, Y, select, St) ->
     wings_sel_cmd:menu(X, Y, St);
 menu(X, Y, tools, St) ->
-    Dirs = {{"All",all},
+    Dirs = [{"All",all},
 	    {"X",x},
 	    {"Y",y},
 	    {"Z",z},
-	    {"Radial X (YZ)",radial_x},
-	    {"Radial Y (XZ)",radial_y},
-	    {"Radial Z (XY)",radial_z}},
-    Menu = {{"Align",{align,Dirs}},
+	    {"Radial X",radial_x},
+	    {"Radial Y",radial_y},
+	    {"Radial Z",radial_z}],
+    Menu = [{"Align",{align,Dirs}},
 	    {"Center",{center,Dirs}},
 	    separator,
 	    {"Save Bounding Box",save_bb},
 	    {"Scale to Saved BB",{scale_to_bb,Dirs}},
 	    {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
-	    {"Move to Saved BB",{move_to_bb,all_xyz()}}},
+	    {"Move to Saved BB",{move_to_bb,all_xyz()}}],
     wings_menu:menu(X, Y, tools, Menu, St);
 menu(X, Y, objects, St) ->
     wings_shape:menu(X, Y, St);
 menu(X, Y, help, St) ->
-    Menu = {{"About",about}},
+    Menu = [{"About",about}],
     wings_menu:menu(X, Y, help, Menu, St).
 
 vertex_menu(X, Y, St) ->
-    XYZ = xyz(),
-    XYZ_free = {{"Free",free},
-		{"X",x},
-		{"Y",y},
-		{"Z",z}},
     Dir = directions(St),
-    Menu = {{"Vertex operations",ignore},
-	    separator,
-	    {"Move",{move,Dir}},
-	    {"Rotate",{rotate,XYZ_free}},
-	    scale(),
-	    separator,
-	    {"Extrude",{extrude,Dir}},
-	    separator,
-	    {"Flatten",{flatten,XYZ}},
-	    separator,
-	    {"Connect",connect},
-	    {"Tighten",tighten},
-	    {"Bevel",bevel},
-	    {"Collapse",collapse},
-	    separator,
-	    wings_magnet:sub_menu(St),
-	    {"Deform",wings_deform:sub_menu(St)}},
-    wings_menu:popup_menu(X, Y, vertex, Menu, St).
-
-edge_menu(X, Y, St) ->
-    Dir = directions(St),
-    Menu = {{"Edge operations",ignore},
+    Menu = [{"Vertex operations",ignore},
 	    separator,
 	    {"Move",{move,Dir}},
 	    {"Rotate",{rotate,Dir}},
@@ -570,25 +548,48 @@ edge_menu(X, Y, St) ->
 	    separator,
 	    {"Extrude",{extrude,Dir}},
 	    separator,
-	    {"Cut",{cut,{{"2",2},
+	    {"Flatten",{flatten,flatten_dir(St)}},
+	    {advanced,{"Flatten Move",{flatten_move,flatten_dir(St)}}},
+	    separator,
+	    {"Connect",connect,
+	     "Create a new edge to connect selected vertices."},
+	    {"Tighten",tighten},
+	    {"Bevel",bevel,"Create faces of selected vertices."},
+	    {"Collapse",collapse,"Delete selected vertices."},
+	    separator,
+	    wings_magnet:sub_menu(St),
+	    {"Deform",wings_deform:sub_menu(St)}|wings_vec:menu(St)],
+    wings_menu:popup_menu(X, Y, vertex, Menu, St).
+
+edge_menu(X, Y, St) ->
+    Dir = directions(St),
+    Menu = [{"Edge operations",ignore},
+	    separator,
+	    {"Move",{move,Dir}},
+	    {"Rotate",{rotate,Dir}},
+	    scale(),
+	    separator,
+	    {"Extrude",{extrude,Dir}},
+	    separator,
+	    {"Cut",{cut,[{"2",2},
 			 {"3",3},
 			 {"4",4},
-			 {"5",5}}}},
-	    {"Connect",connect},
+			 {"5",5}]}},
+	    {"Connect",connect,"Create a new edge to connect selected edges."},
 	    {"Bevel",bevel},
 	    separator,
 	    {"Dissolve",dissolve},
 	    {"Collapse",collapse},
 	    separator,
-	    {"Hardness",{hardness,{{"Soft",soft},
-				   {"Hard",hard}}}},
+	    {"Hardness",{hardness,[{"Soft",soft},
+				   {"Hard",hard}]}},
 	    separator,
-	    {"Loop Cut",loop_cut}},
-        wings_menu:popup_menu(X, Y, edge, Menu, St).
- 
+	    {"Loop Cut",loop_cut}|wings_vec:menu(St)],
+    wings_menu:popup_menu(X, Y, edge, Menu, St).
+
 face_menu(X, Y, St) ->
     Dir = directions(St),
-    Menu = {{"Face operations",ignore},
+    Menu = [{"Face operations",ignore},
 	    separator,
 	    {"Move",{move,Dir}},
 	    {"Rotate",{rotate,Dir}},
@@ -598,11 +599,8 @@ face_menu(X, Y, St) ->
 	    {"Extrude Region",{extrude_region,Dir}},
 	    {"Extract Region",{extract_region,Dir}},
 	    separator,
-	    {"Flatten",{flatten,
-			{{"Normal",normal},
-			 {"X",x},
-			 {"Y",y},
-			 {"Z",z}}}},
+	    {"Flatten",{flatten,flatten_dir(St)}},
+	    {advanced,{"Flatten Move",{flatten_move,flatten_dir(St)}}},
 	    separator,
 	    {"Inset",inset},
 	    {"Intrude",intrude},
@@ -616,13 +614,13 @@ face_menu(X, Y, St) ->
 	    separator,
 	    {"Smooth",smooth},
 	    separator,
-	    wings_material:sub_menu(face, St)},
+	    wings_material:sub_menu(face, St)|wings_vec:menu(St)],
     wings_menu:popup_menu(X, Y, face, Menu, St).
 
 body_menu(X, Y, St) ->
     Dir = directions(St),
     XYZ = xyz(),
-    Menu = {{"Object operations",ignore},
+    Menu = [{"Object operations",ignore},
 	    separator,
 	    {"Move",{move,Dir}},
 	    {"Rotate",{rotate,Dir}},
@@ -641,7 +639,7 @@ body_menu(X, Y, St) ->
 	    {"Auto-Smooth",auto_smooth},
 	    separator,
 	    {"Duplicate",{duplicate,Dir}},
-	    {"Delete",delete}},
+	    {"Delete",delete}|wings_vec:menu(St)],
     wings_menu:popup_menu(X, Y, body, Menu, St).
 
 directions(#st{selmode=Mode}) ->
@@ -650,83 +648,146 @@ directions(#st{selmode=Mode}) ->
     end.
 
 dirs(1, Mode, Ns) -> dirs_1(Mode, Ns);
-dirs(2, Mode, Ns) -> {action,{pick,{named_vector,Ns}}};
-dirs(3, Mode, Ns) -> {action,{pick,{vector,Ns}}};
-dirs(submenu, Mode, Ns) -> dirs_1(Mode, Ns);
-dirs(help, Mode, Ns) -> "";
-dirs(adv_help, Mode, Ns) ->
-    adv_help(Ns).
+dirs(2, Mode, Ns) -> {vector,{pick_named,Ns}};
+dirs(3, Mode, Ns) -> {vector,{pick_new,Ns}};
+dirs(help, Mode, Ns) -> dirs_help(Ns).
 
-adv_help([move|_]) ->
+dirs_help([move|_]) ->
     {"Move along std. axis","Move along named axis",
      "Pick vector to move along"};
-adv_help([rotate|_]) ->
+dirs_help([rotate|_]) ->
     {"Rotate around std. axis","Rotate around named axis",
      "Pick vector to rotate around"};
-adv_help([scale|_]) -> "Scale selected elements";
-adv_help([extrude|_]) ->
+dirs_help([scale|_]) -> "Scale selected elements";
+dirs_help([extrude|_]) ->
     {"Extrude along std. axis","Extrude along named axis",
      "Pick vector to extrude along"};
-adv_help([extrude_region|_]) ->
+dirs_help([extrude_region|_]) ->
     {"Extrude along std. axis","Extrude along named axis",
      "Pick vector to extrude along"};
-adv_help(Ns) -> "".
+dirs_help(Ns) -> "".
 
-dirs_1(Mode, Ns) ->
-    Dirs = [{"Free",free,help(free, Ns)},
-	    {"X",x,help(x, Ns)},
-	    {"Y",y,help(y, Ns)},
-	    {"Z",z,help(z, Ns)}],
-    case Mode of
-	body -> Dirs;
-	Other -> [{"Normal",normal,help(normal, Ns)}|Dirs]
-    end;
-dirs_1(Mode, Names) -> "".
-
-help(normal, [move|_]) -> "Move each element along its normal.";
-help(normal, [extrude|_]) ->
-    "Extrude each element; move each element along its normal.";
-help(normal, [extrude_region|_]) ->
-    "Extrude faces as region; move faces along the region's normal.";
-help(free, [move|_]) -> "Move freely in all directions.";
-help(free, [extrude|_]) ->
-    "Extrude elements; move freely in all directions.";
-help(free, [extrude_region|_]) ->
-    "Extrude faces as region; move freely in all directions.";
-help(x, Ns) -> help_axis("X", Ns);
-help(y, Ns) -> help_axis("Y", Ns);
-help(z, Ns) -> help_axis("Z", Ns);
-help(_, _) -> "".
-
-help_axis(Axis, [move|_]) ->    
-    "Move elements along the " ++ Axis ++ " axis.";
-help_axis(Axis, [extrude|_]) ->
-    "Extrude elements; move along the " ++ Axis ++ " axis.";
-help_axis(Axis, [extrude_region|_]) ->
-    "Extrude faces as region; move faces along the "
-	++ Axis ++ " axis.";
-help_axis(_, _) -> "".
+dirs_1(body, Ns) -> directions([free,x,y,z], Ns);
+dirs_1(vertex, [rotate|_]=Ns) -> directions([free,x,y,z], Ns);
+dirs_1(Other, Ns) -> directions([normal,free,x,y,z], Ns).
 
 xyz() ->
-    {{"X",x},
+    [{"X",x},
      {"Y",y},
-     {"Z",z}}.
+     {"Z",z}].
 
 all_xyz() ->
-    {{"All",all},
+    [{"All",all},
      {"X",x},
      {"Y",y},
-     {"Z",z}}.
+     {"Z",z}].
 
 scale() ->
-    {"Scale",{scale,
-	      {{"Uniform",uniform},
-	       {"X",x},
-	       {"Y",y},
-	       {"Z",z},
-	       {"Radial X (YZ)",radial_x},
-	       {"Radial Y (XZ)",radial_y},
-	       {"Radial Z (XY)",radial_z}}}}.
+    {"Scale",{scale,fun scale/2},[]}.
+
+scale(help, Ns) -> "";
+scale(_, Ns) ->
+    [scale_fun(uniform),
+     scale_fun(x),
+     scale_fun(y),
+     scale_fun(z),
+     scale_fun(radial_x),
+     scale_fun(radial_y),
+     scale_fun(radial_z)].
+
+scale_fun(Dir) ->
+    DirString = stringify(Dir),
+    F = fun(1, Ns) -> wings_menu:build_command(Dir, Ns);
+	   (2, Ns) -> {vector,{pick_named,[Dir|Ns]}};
+	   (3, Ns) -> {vector,{pick_new,[Dir|Ns]}}
+	end,
+    Help0 = dir_help(Dir, [scale]),
+    Help = {Help0,"Scale to named vector.","Pick vector to scale to."},
+    {DirString,F,Help,[]}.
+
+%%%
+%%% Flatten submenu.
+%%%
+
+flatten_dir(#st{selmode=Mode}) ->
+    fun(B, Ns) -> flatten_dir_1(B, Mode, Ns) end.
+
+flatten_dir_1(help, _, Ns) ->
+    {"Flatten to std. planes","Flatten to named plane","Pick plane"};
+flatten_dir_1(1, _, [flatten_move|_]=Ns) ->
+    directions([x,y,z], Ns);
+flatten_dir_1(1, vertex, Ns) ->
+    directions([x,y,z], Ns);
+flatten_dir_1(1, face, Ns) ->
+    directions([normal,x,y,z], Ns);
+flatten_dir_1(2, Mode, Ns) ->
+    {vector,{pick_named,Ns}};
+flatten_dir_1(3, Mode, Ns) ->
+    {vector,{pick_new,Ns}};
+flatten_dir_1(_, _, _) -> ignore.
+
+
+%%%
+%%% General directions.
+%%%
+
+directions([D|Dirs], Ns) ->
+    [direction(D, Ns)|directions(Dirs, Ns)];
+directions([], Ns) -> [].
+
+direction(Dir, Ns) ->
+    Help = dir_help(Dir, Ns),
+    {stringify(Dir),Dir,Help}.
+
+dir_help(Axis, Ns) when Axis == x; Axis == y; Axis == z ->
+    dir_help_1(Ns, "the " ++ stringify(Axis) ++ " axis.");
+dir_help(radial_x, Ns) ->
+    dir_help_1(Ns, [around|"around the X axis."]);
+dir_help(radial_y, Ns) ->
+    dir_help_1(Ns, [around|"around the Y axis."]);
+dir_help(radial_z, Ns) ->
+    dir_help_1(Ns, [around|"around the Z axis."]);
+dir_help(normal, Ns) ->
+    dir_help_1(Ns, [normal|"along its normal."]);
+dir_help(free, Ns) ->
+    dir_help_1(Ns, [free|"freely in all directions."]);
+dir_help(uniform, [scale]) ->
+    "Scale equally in all directions.".
+
+%% Normal/Free.
+dir_help_1([move|_], [NF|Text]) when NF == normal; NF == free ->
+    "Move each element " ++ Text;
+dir_help_1([rotate|_], [free|Text]) ->
+    "Rotate freely.";
+dir_help_1([rotate|_], [normal|Text]) ->
+    "Rotate around each element's normal.";
+dir_help_1([extrude|_], [NF|Text]) when NF == normal; NF == free ->
+    "Extrude each element, then move it " ++ Text;
+dir_help_1([extrude_region|_], [normal|_]) ->
+    "Extrude faces as region, then move faces along the region's normal.";
+dir_help_1([extrude_region|_], [free|Text]) ->
+    "Extrude faces as region, then move faces " ++ Text;
+dir_help_1([flatten|_], [normal|Text]) ->
+    "Flatten elements to normal plane.";
+
+%% Axis
+dir_help_1([move|_], Text) ->
+    "Move each element along " ++ Text;
+dir_help_1([extrude|_], Text) ->
+    "Extrude elements, then move along " ++ Text;
+dir_help_1([extrude_region|_], Text) ->
+    "Extrude faces as region, then move along " ++ Text;
+dir_help_1([rotate|_], Text) ->
+    "Rotate around " ++ Text;
+dir_help_1([scale|_], [around|Text]) ->
+    "Scale " ++ Text;
+dir_help_1([scale|_], Text) ->
+    "Scale along " ++ Text;
+dir_help_1([flatten|_], Text) ->
+    "Flatten to " ++ Text;
+dir_help_1([flatten_move|_], Text) ->
+    "Flatten and move to " ++ Text;
+dir_help_1(_, _) -> "".
 
 patches() ->
     case wings_start:get_patches() of
@@ -871,8 +932,6 @@ translate_key_2(_, _) -> ignore.
 
 command_name(#st{repeatable=ignore}) ->
     "(Can't repeat)";
-command_name(#st{repeatable={_,[_|_]}}=St) ->
-    "Repeat last command";
 command_name(#st{repeatable={_,Cmd}}=St) ->
     CmdStr = stringify(Cmd),
     command_name(CmdStr, St).
@@ -886,12 +945,15 @@ command_name(CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
 	end,
     lists:flatten(S).
 
-stringify({Atom,Other}) when atom(Atom) ->
-    wings_util:cap(atom_to_list(Atom)) ++ "->" ++ stringify(Other);
-stringify(Atom) when atom(Atom) ->
+stringify({{_,_,_},{_,_,_}}) ->
+    "(vector)";
+stringify({Atom,Other}) when is_atom(Atom) ->
+    wings_util:cap(atom_to_list(Atom)) ++ "|" ++ stringify(Other);
+stringify(Atom) when is_atom(Atom) ->
     wings_util:cap(atom_to_list(Atom));
 stringify(Int) when integer(Int) ->
-    integer_to_list(Int).
+    integer_to_list(Int);
+stringify(Other) -> "UNKNOWN".
 
 -ifdef(DEBUG).
 wings() -> "Wings 3D [debug]".

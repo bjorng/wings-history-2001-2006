@@ -8,42 +8,93 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.2 2002/01/26 11:26:51 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.3 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_vec).
 
--export([pick/3]).
+-export([menu/1,command/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [foldl/3]).
+-import(lists, [foldl/3,keydelete/3]).
 
 -record(ss, {type,				%Type to pick.
 	     names,				%Names (command reversed).
 	     st					%Original st record.
 	    }).
 
-pick(save_unnamed, {Vec,Ns}=Args, St) ->
-    wings_io:putback_event({action,{pick,{use_vector,Args}}}),
+menu(St) ->
+    [{advanced,{"Named Vector",
+		{named_vector,fun(Key, Ns) ->
+				      named_vector(Key, St)
+			      end}}}].
+
+named_vector(help, St) ->
+    {"Save selection as vector",[],"Rename or delete vector"};
+named_vector(1, St) -> {vector,save_named};
+named_vector(2, St) -> ignore;
+named_vector(3, St) -> {vector,rename}.
+
+command(save_named, St) ->
+    St;
+command({save_unnamed,{Vec,Ns}}, St) ->
+    wings_io:putback_event({action,{vector,{use_vector,{unnamed,Vec,Ns}}}}),
     case St of
 	#st{svec=[{unnamed,_}|Vecs]} ->
 	    St#st{svec=[{unnamed,Vec}|Vecs]};
 	#st{svec=Vecs} ->
 	    St#st{svec=[{unnamed,Vec}|Vecs]}
     end;
-pick(named_vector, Names, St) ->
-    named_menu(Names, St);
-pick(use_vector, {{Vec,_},Ns}, St) ->
-    Cmd = wings_menu:build_command(Vec, Ns),
+command({pick_named,Names}, St) ->
+    name_menu("Use Vector", use_vector, Names, St);
+command({use_vector,{Name,{Vec0,_}=Vec,Ns}}, St) ->
+    Cmd = wings_menu:build_command(Vec0, Ns),
     wings_io:putback_event({action,Cmd}),
-    St;
-pick(vector, Names, St) ->
+    move_to_front({Name,Vec}, St);
+command({pick_new,Names}, St) ->
     Ss = #ss{type=vector,names=Names,st=St},
     wings_io:message("Select vector to use."),
-    {seq,{push,dummy},get_event(Ss, St#st{sel=[]})}.
+    {seq,{push,dummy},get_event(Ss, St#st{sel=[]})};
+command(rename, St) ->
+    name_menu("Rename or Delete Vector", do_rename, dummy, St);
+command({do_rename,{unnamed,Vec,_}}, St) ->
+    wings_util:prompt("New name (leave empty to delete)", "Unnamed",
+		      fun(Name) ->
+			      do_rename(unnamed, Name, Vec, St)
+		      end);
+command({do_rename,{Name0,Vec,_}}, St) ->
+    wings_util:prompt("New name (leave empty to delete)",
+		      atom_to_list(Name0),
+		      fun(Name) ->
+			      do_rename(Name0, Name, Vec, St)
+		      end).
+
+do_rename(Name, NewName0, Vec, #st{svec=Svec0}=St) ->
+    Svec1 = keydelete(Name, 1, Svec0),
+    Svec = case NewName0 of
+	       [] ->
+		   Svec1;
+	       Other ->
+		   NewName = list_to_atom(NewName0),
+		   insert_in_front({NewName,Vec}, Svec1)
+	   end,
+    St#st{svec=Svec}.
+
+move_to_front({Name,_}=Vec, #st{svec=Vecs0}=St) ->
+    Vecs = keydelete(Name, 1, Vecs0),
+    St#st{svec=insert_in_front(Vec, Vecs)}.
+    
+insert_in_front(Vec, [{unnamed,_}=Unnamed|Vecs]) ->
+    [Unnamed,Vec|Vecs];
+insert_in_front(Vec, Vecs) ->
+    [Vec|Vecs].
+
+%%%
+%%% Event handler for secondary selection mode.
+%%%
 
 get_event(Ss, St) ->
     wings:redraw(St),
@@ -108,41 +159,43 @@ exit_menu(X, Y, Ss, St) ->
     end.
 
 exit_menu_invalid(X, Y, #ss{type=Type,names=Names}, St) ->
-    Reselect = [fun(_, _) -> {pick,{Type,Names}} end],
-    Menu = {{"Invalid Vector Selection",ignore},
+    Reselect = fun(_, _) -> {vector,{Type,Names}} end,
+    Menu = [{"Invalid Vector Selection",ignore},
 	    separator,
-	    {"Abort Command",abort}},
+	    {"Abort Command",abort}],
     wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
 
 exit_menu_done(X, Y, Vec, #ss{names=Ns}, St) ->
-    UseAction = [fun(_, _) -> {pick,{save_unnamed,{Vec,Ns}}} end],
-    Menu = {{"Vector Selection",ignore},
+    UseAction = fun(_, _) -> {vector,{save_unnamed,{Vec,Ns}}} end,
+    Menu = [{"Vector Selection",ignore},
 	    separator,
 	    {"Use Current Vector",UseAction},
 	    separator,
-	    {"Abort Command",aborted}},
+	    {"Abort Command",aborted}],
     {seq,pop,wings_menu:popup_menu(X, Y, secondary_selection, Menu, St)}.
 
 %%%
 %%% Show menu of named vectors.
 %%%
 
-named_menu(Ns, #st{svec=Vecs}=St) ->
-    Menu = [{"Vector Menu",ignore},separator|named_vectors(Vecs, Ns)],
+name_menu(Title, CmdTag, Ns, #st{svec=Vecs}=St) ->
+    Menu = [{Title,ignore},separator|named_vectors(Vecs, CmdTag, Ns)],
     {_,X,Y} = sdl_mouse:getMouseState(),
     wings_menu:popup_menu(X, Y, use_named_vector, Menu, St).
 
-named_vectors([], Ns) -> {"(No vectors)",ignore};
-named_vectors([{unnamed,Vec}|T], Ns) ->
-    [{"(Last vector)",use_fun(Vec, Ns)}|named_vectors_1(T, Ns)];
-named_vectors(T, Ns) -> named_vectors_1(T, Ns).
+named_vectors([], CmdTag, Ns) -> [{"(No vectors)",ignore}];
+named_vectors([{unnamed,Vec}|T], CmdTag, Ns) ->
+    [{"(Last vector)",vec_fun(unnamed, Vec, CmdTag, Ns)}|
+     named_vectors_1(T, CmdTag, Ns)];
+named_vectors(T, CmdTag, Ns) -> named_vectors_1(T, CmdTag, Ns).
 
-named_vectors_1([{Name,Vec}|T], Ns) ->
-    [{atom_to_list(Name),use_fun(Vec, Ns)}|named_vectors_1(T, Ns)];
-named_vectors_1([], Ns) -> [].
+named_vectors_1([{Name,Vec}|T], CmdTag, Ns) ->
+    [{atom_to_list(Name),vec_fun(Name, Vec, CmdTag, Ns)}|
+     named_vectors_1(T, CmdTag, Ns)];
+named_vectors_1([], CmdTag, Ns) -> [].
     
-use_fun(Vec, Ns) ->
-    [fun(_, _) -> {pick,{use_vector,{Vec,Ns}}} end].
+vec_fun(Name, Vec, CmdTag, Ns) ->
+    fun(_, _) -> {vector,{CmdTag,{Name,Vec,Ns}}} end.
 	     
 %%%
 %%% Vector functions.

@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.26 2002/01/17 13:20:40 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.27 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([share/1,share/3,make_vector/1,
-	 message/1,yes_no/1,serious_yes_no/1,ask/3,
+	 message/1,yes_no/1,serious_yes_no/1,prompt/3,ask/3,
 	 cap/1,upper/1,add_vpos/2,update_vpos/2,
 	 delete_any/2,
 	 tc/1,crash_log/1,validate/1]).
@@ -50,7 +50,12 @@ yes_no(Question) ->
 
 serious_yes_no(Question) ->
     wings_plugin:call_ui({serious_question,Question}).
-    
+
+
+prompt(Prompt, Def, Fun) ->
+    ask(true, [{Prompt,Def}],
+	fun([Val]) -> Fun(Val) end).
+
 ask(false, Qs, Fun) ->
     Ns = [element(2, Q) || Q <- Qs],
     Fun(Ns);

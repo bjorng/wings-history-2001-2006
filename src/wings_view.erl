@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.39 2002/01/25 09:04:38 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.40 2002/01/27 11:50:28 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -26,7 +26,7 @@
 
 menu(X, Y, St) ->
     L = wings_pref:get_value(number_of_lights),
-    Menu = {{"Ground plane",show_groundplane,crossmark(show_groundplane)},
+    Menu = [{"Ground plane",show_groundplane,crossmark(show_groundplane)},
 	    {"Axes",show_axes,crossmark(show_axes)},
 	    separator,
 	    {"Wireframe",wire_mode,crossmark(wire_mode)},
@@ -42,16 +42,16 @@ menu(X, Y, St) ->
 	     crossmark(orthogonal_view)},
 	    {one_of(L == 1, "Two lights", "One light"),toggle_lights},
 	    separator,
-	    {"View Along",{along,{{"+X",x},
+	    {"View Along",{along,[{"+X",x},
 				  {"+Y",y},
 				  {"+Z",z},
 				  {"-X",neg_x},
 				  {"-Y",neg_y},
-				  {"-Z",neg_z}}}},
+				  {"-Z",neg_z}]}},
 	    separator,
 	    {"Align to Selection",align_to_selection},
 	    separator,
-	    {"Auto Rotate",auto_rotate}},
+	    {"Auto Rotate",auto_rotate}],
     wings_menu:menu(X, Y, view, Menu, St).
 
 crossmark(Key) ->
