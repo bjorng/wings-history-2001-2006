@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.7 2004/10/16 06:14:16 bjorng Exp $
+%%     $Id: wings_lang.erl,v 1.8 2004/10/30 09:19:07 bjorng Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -25,13 +25,14 @@
 
 -import(lists, [reverse/1,reverse/2]).
 
--define(DEF_LANG, "en").  % English
+-define(DEF_LANG_STR, "en").			% English
+-define(DEF_LANG_ATOM, en).			% English
 -define(LANG_DIRS, ["ebin","src","plugins"]).
 
 str(Key, DefStr) ->
     case get(?MODULE) of
-	?DEF_LANG -> DefStr;
-	_ -> %% Be safe and catch
+	?DEF_LANG_ATOM -> DefStr;
+	_ ->
 	    try ets:lookup_element(?MODULE, Key, 2) of
 		Str -> binary_to_list(Str)
 	    catch
@@ -40,29 +41,28 @@ str(Key, DefStr) ->
     end.
 
 init() ->
-    wings_pref:set_default(language, ?DEF_LANG),
+    wings_pref:set_default(language, ?DEF_LANG_STR),
     Lang = case wings_pref:get_value(language) of 
-	       ?DEF_LANG=L -> L;
+	       ?DEF_LANG_STR=L -> L;
 	       Other ->
 		   case lists:member(Other, available_languages()) of
 		       true -> Other;
-		       false -> ?DEF_LANG
+		       false -> ?DEF_LANG_STR
 		   end
 	   end,
     load_language(Lang).
 
-load_language(Lang) ->
+load_language(Lang0) when is_list(Lang0) ->
+    Lang = list_to_atom(Lang0),
+    put(?MODULE, Lang), 
     catch ets:delete(?MODULE), 
     case Lang of
-	?DEF_LANG -> 
-	    put(?MODULE, Lang), 
-	    ok;
+	?DEF_LANG_ATOM -> ok;
 	_  ->
 	    ets:new(?MODULE, [named_table]),
 	    Root = code:lib_dir(wings),
-	    load_language(Root,?LANG_DIRS,"_" ++ Lang++".lang"),
-	    put(?MODULE, Lang),
-	    ok
+	    LangFile = "_"++Lang0++".lang",
+	    load_language(Root, ?LANG_DIRS, LangFile)
     end.
 
 load_language(_, [],_) -> ok;
@@ -127,7 +127,7 @@ available_languages() ->
 			  _ -> Acc
 		      end
 	      end,
-    lists:usort([?DEF_LANG|lists:foldl(Extract, [], Files)]).
+    lists:usort([?DEF_LANG_STR|lists:foldl(Extract, [], Files)]).
     			     
 %%%%%%%%%% Tools %%%%%%%%%%%
 
