@@ -8,15 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.93 2004/06/24 09:43:45 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.94 2004/08/22 01:41:31 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
 
 -export([init/0,menu/2,dialog/2,command/2]).
 
-%% Debug export
--export([now_diff_1/1]).
+%% Debug exports
+%% -export([now_diff_1/1]).
 
 
 -include_lib("kernel/include/file.hrl").
@@ -48,6 +48,7 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_FOG_COLOR, {1.0,1.0,1.0,1.0}).
 
 %% Shader
+-define(DEF_USE_BLOCK_SHADER, false).
 -define(DEF_CAUS, false).
 -define(DEF_TIR, false).
 -define(DEF_IOR, 1.0).
@@ -161,6 +162,27 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_MOD_RINGSCALE_X, 1.0).
 -define(DEF_MOD_RINGSCALE_Z, 1.0).
 
+%% Block shaders
+-define(DEF_SHININESS, 1.0).
+-define(DEF_DIFFUSE, {1.0,1.0,1.0}).
+-define(DEF_BS, {block_shader,[]}).
+-define(DEF_BS_TOP, {phong,[]}).
+-define(DEF_BS_COLOR, {rgb, []}).
+-define(DEF_BSCOL(Color), {rgb,[{color,Color}]}).
+-define(DEF_BS_H, 1.0).
+-define(DEF_BS_S, 1.0).
+-define(DEF_BS_V, 1.0).
+-define(DEF_BS_FLOAT, {coords, []}).
+-define(DEF_BS_COORD, 'Y').
+-define(DEF_BS_MUL_VALUE, 1.0).
+-define(DEF_BS_MIX_MODE, add).
+-define(DEF_BS_CONE_MODE, reflect).
+-define(DEF_BS_CONE_SAMPLES, 1).
+-define(DEF_BS_CONE_ANGLE, 0.0).
+-define(DEF_BS_CONE_COLOR, {1.0,1.0,1.0}).
+-define(DEF_BS_GOBO_HARD, true).
+-define(DEF_BS_GOBO_EDGE, 0.5).
+
 range(T) -> {range,range_1(T)}.
 
 %% Material ranges
@@ -207,7 +229,11 @@ range_1(pixels)			-> {1,infinity};
 range_1(fog_density)		-> {0.0,infinity};
 range_1(antinoise_radius)	-> {0.0,infinity};
 range_1(antinoise_max_delta)	-> {0.0,infinity};
-range_1(dof_blur)		-> {0.0,infinity}.
+range_1(dof_blur)		-> {0.0,infinity};
+%% Block Shader ranges
+range_1(shininess)		-> {0.0,1.0};
+range_1(hsv)			-> {0.0,1.0};
+range_1(cone_angle)		-> {0.0,90.0}.
 
 
 
@@ -417,13 +443,14 @@ load_image(Filename) ->
 material_dialog(_Name, Mat) ->
     Maps = proplists:get_value(maps, Mat, []),
     OpenGL = proplists:get_value(opengl, Mat),
-    Ambient = rgba2rgb(proplists:get_value(ambient, OpenGL)),
-    DiffuseA = proplists:get_value(diffuse, OpenGL),
-    DefTransmitted = def_transmitted(DiffuseA),
-    Ambient = rgba2rgb(proplists:get_value(ambient, OpenGL)),
+    DefReflected = alpha(proplists:get_value(specular, OpenGL)),
+    DefTransmitted = def_transmitted(proplists:get_value(diffuse, OpenGL)),
     YafRay = proplists:get_value(?TAG, Mat, []),
     Minimized = proplists:get_value(minimized, YafRay, true),
     ObjectMinimized = proplists:get_value(object_minimized, YafRay, true),
+    UseBlockShader = proplists:get_value(use_block_shader, YafRay, 
+					 ?DEF_USE_BLOCK_SHADER),
+    BlockShader = proplists:get_value(block_shader, YafRay, ?DEF_BS),
     Caus = proplists:get_value(caus, YafRay, ?DEF_CAUS),
     Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
     EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
@@ -439,15 +466,15 @@ material_dialog(_Name, Mat) ->
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     FastFresnel = proplists:get_value(fast_fresnel, YafRay, ?DEF_FAST_FRESNEL),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
-    Reflected = proplists:get_value(reflected, YafRay, Ambient),
+    Reflected = proplists:get_value(reflected, YafRay, DefReflected),
     Transmitted = 
 	proplists:get_value(transmitted, YafRay, DefTransmitted),
     Fresnel2 = proplists:get_value(fresnel2, YafRay, false),
-    Reflected2 = proplists:get_value(reflected2, YafRay, Ambient),
+    Reflected2 = proplists:get_value(reflected2, YafRay, DefReflected),
     Transmitted2 = 
 	proplists:get_value(transmitted2, YafRay, DefTransmitted),
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
-    ObjectVframe = 
+    ObjectFrame = 
 	{vframe,
 	 [{hframe,[{"Cast Shadow",Shadow,[key(shadow)]},
 		   {"Emit Rad",EmitRad,[key(emit_rad)]},
@@ -465,7 +492,24 @@ material_dialog(_Name, Mat) ->
 			     hook(enable, ?KEY(autosmooth))]}}]}],
 	 [{title,"Object Parameters"},{minimized,ObjectMinimized},
 	  key(object_minimized)]},
-    FresnelVframe =
+    BlockShaderFlags = 
+	[key(block_shader),
+	 {hook,
+	  fun (update, {Var,_I,{block_shader,_}=Val,Sto}) ->
+%%% 		  io:format(?MODULE_STRING":~w ~p~n", 
+%%% 			    [?LINE,Val]),
+		  {store,gb_trees:update(Var, Val, Sto)};
+	      (_, _) -> void
+	  end}],
+    BlockShaderFrame =
+	{hframe,
+	 [{"Block Shader",UseBlockShader,[key(use_block_shader),layout]},
+	  {value,BlockShader,BlockShaderFlags},
+	  {button,"Edit",keep,
+	   [block_shader_hook(?KEY(use_block_shader), 
+			      ?KEY(block_shader)),
+	    {drop_flags, [{index,-1}|BlockShaderFlags]}]}]},
+    FresnelFrame =
 	{vframe,
 	 [{hframe,[{label,"Index Of Refraction"},
 		   {text,IOR,[range(ior),key(ior)]},
@@ -501,12 +545,15 @@ material_dialog(_Name, Mat) ->
 	  key(fresnel_minimized)]},
     %%
     [{vframe,
-      [ObjectVframe,
-       FresnelVframe
-       |modulator_dialogs(Modulators, Maps)],
+      [ObjectFrame,
+       FresnelFrame,
+       BlockShaderFrame,
+       {vframe,
+	modulator_dialogs(Modulators, Maps),
+	[hook(open, ['not',?KEY(use_block_shader)])]}],
       [{title,"YafRay Options"},{minimized,Minimized},key(minimized)]}].
 
-rgba2rgb({R,G,B,_}) -> {R,G,B}.
+alpha({R,G,B,A}) -> {R*A,G*A,B*A}.
 
 def_transmitted({Dr,Dg,Db,Da}) ->
     Dt = 1-Da,
@@ -538,7 +585,7 @@ def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
 material_result(_Name, Mat0, [{?KEY(minimized),_}|_]=Res0) ->
-    {Ps1,Res1} = split_list(Res0, 19),
+    {Ps1,Res1} = split_list(Res0, 21),
     Ps2 = [{Key,Val} || {?KEY(Key),Val} <- Ps1],
     {Ps,Res} = modulator_result(Ps2, Res1),
     Mat = [?KEY(Ps)|keydelete(?TAG, 1, Mat0)],
@@ -554,7 +601,7 @@ modulator_dialogs([], _Maps, M) ->
       [{button,"New Modulator",done,[key(new_modulator)]},
        panel|
        if M =:= 1 -> [{button,"Default Modulators",done}];
-	 true -> [] end]}];
+	  true -> [] end]}];
 modulator_dialogs([Modulator|Modulators], Maps, M) ->
     modulator_dialog(Modulator, Maps, M)++
 	modulator_dialogs(Modulators, Maps, M+1).
@@ -622,7 +669,7 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 	       {label,"Depth"},{text,Depth,[range(noise_depth)]},
 	       {"Hard Noise",Hard,
 		[hook(open, [member,{?TAG,type,M},marble,wood])]}],
-	      [hook(open, ['not',[member,{?TAG,type,M},image]])]}]},
+	      [hook(open, [member,{?TAG,type,M},clouds,marble,wood])]}]},
 	   {hframe,
 	    [{label,"Turbulence"},{text,Turbulence,[range(turbulence)]},
 	     {hframe,
@@ -716,7 +763,752 @@ modulator(Minimized, Enabled, Mode, Res0, M) ->
 	  {hard,Hard},{turbulence,Turbulence},{sharpness,Sharpness},
 	  {ringscale_x,RingscaleX},{ringscale_z,RingscaleZ}],
     {{modulator,Ps},Res}.
-	
+
+
+
+%%
+%% Block shaders framework
+%%
+
+%% Hook for the edit button in the enclosing dialog
+%%
+block_shader_hook(EnableVar, DropVar) ->
+    {hook,
+     fun (update, {_Var,_I,_Val,Sto}) ->
+	     Block = gb_trees:get(DropVar, Sto),
+%%% 	     io:format(?MODULE_STRING":~w Enter~n~p~n", [?LINE,Block]),
+	     Qs = bs_qs(Block, Sto),
+	     Fun = bs_fun(Block, Sto, wings_wm:this()),
+	     wings_ask:dialog("Block Shader", Qs, Fun);
+	 (is_minimized, {_Var,_I,Sto}) ->
+	     not gb_trees:get(EnableVar, Sto);
+	 (_, _) -> void
+    end}.
+
+-record(bs_dialog, {clipboard,parent_store,ps=[]}).
+-record(bs_result, {clipboard,parent_store,result,ps=[]}).
+-record(bs_export, {material,ps=[],dest,base_name="",name="",n=0}).
+
+%% Returns the dialog query term for the block shader editor
+%%
+bs_qs(Block, ParentStore) ->
+    BsQs = case catch bs(#bs_dialog{parent_store=ParentStore,
+				    clipboard=undefined}, 
+			 [Block,"Block Shader",[no_clipboard]]) of
+	       {'EXIT',_} = Exit ->
+		   io:format(?MODULE_STRING":~w 'EXIT'~n~p~n~p~n", 
+			     [?LINE,Block,Exit]),
+		   panel;
+	       BQ -> BQ
+	   end,
+    {hframe,[BsQs,{vframe,[{button,"OK",done,[ok]},
+			   {button,cancel,[cancel]}]}]}.
+
+%% Returns the dialog return fun for the block shader editor
+%%
+bs_fun(Block, ParentStore, Parent) ->
+    fun (Result) ->
+%%% 	    io:format(?MODULE_STRING":~w ~p~n", 
+%%% 		      [?LINE,Result]),
+	    case catch bs(#bs_result{result=Result,parent_store=ParentStore},
+			    [bs_fun]) of
+		#bs_result{ps=[{bs_fun,NewBlock}],
+			   result=[true]} -> % OK
+%%% 		    io:format(?MODULE_STRING":~w OK~n~p~n~p~n", 
+%%% 			      [?LINE,Block,NewBlock]),
+		    wpa:drop(Parent, NewBlock);
+		#bs_result{ps=[{bs_fun,NewBlock}],
+			   result=[false]} -> % Loop
+%%% 		    io:format(?MODULE_STRING":~w Loop~n~p~n~p~n", 
+%%% 			      [?LINE,Block,NewBlock]),
+		    {dialog,
+		     bs_qs(NewBlock, ParentStore),
+		     bs_fun(NewBlock, ParentStore, Parent)};
+		Other ->
+		    io:format(?MODULE_STRING":~w Other~n~p~n~p~n", 
+			      [?LINE,Block,Other]),
+		    {dialog,
+		     bs_qs(Block, ParentStore),
+		     bs_fun(Block, ParentStore, Parent)}
+	    end
+    end.
+
+%% Entry point for exporting a block shader tree
+%%
+export_block_shader(F, {Type,Ps}, Name, Mat) ->
+    bs_dispatch(Type,
+		#bs_export{material=Mat,ps=Ps,dest=F,
+			   base_name=Name,name=Name,n=0}).
+
+
+%% Convenient shorthand for calling bs/1,2 with a block shader
+%% from a property list
+%%
+bs_prop(Op, PropSpec) ->
+    bs_prop(Op, PropSpec, []).
+%%
+bs_prop(Op, {Tag,Ps}, Args) ->
+    bs(Op, [proplists:get_value(Tag, Ps)|Args]);
+bs_prop(Op, {Tag,Ps,Def}, Args) ->
+    bs(Op, [proplists:get_value(Tag, Ps, Def)|Args]).
+
+%%
+%% Block Shader Dialog
+%%
+bs(#bs_dialog{clipboard=undefined}=Op, Args) ->
+    bs(Op#bs_dialog{clipboard={undefined,[]}}, Args);
+bs(#bs_dialog{}=Op, [undefined|Args]) ->
+    bs(Op, [{undefined,[]}|Args]);
+bs(#bs_dialog{clipboard={TypeCB,_}}=Op, [{Type,Ps}=Default,Title0,Spec]) ->
+    Menu0 =
+	case proplists:get_bool(no_clipboard, Spec) of
+	    true -> [];
+	    false -> [{"[STO]",store},{"[RCL]",recall},{"[XCHG]",exchange}]
+	end,
+    Menu1 =
+	case proplists:get_bool(float, Spec) of
+	    true -> bs_menu(float, Menu0);
+	    false -> Menu0
+	end,
+    Menu2 =
+	case proplists:get_bool(color, Spec) of
+	    true -> bs_menu(color, Menu1);
+	    false -> Menu1
+	end,
+    Menu3 =
+	case proplists:get_bool(top, Spec) of
+	    true -> bs_menu(top, Menu2);
+	    false -> Menu2
+	end,
+    Menu =
+	case proplists:get_bool(undefined, Spec) of
+	    true -> [{"void",undefined}|Menu3];
+	    false -> Menu3
+	end,
+    Title = case Title0 of
+		"" ->
+		    {value,{T,Type}} = lists:keysearch(Type, 2, Menu),
+		    T;
+		_ -> Title0
+	    end,
+    case lists:delete(no_clipboard, Spec) of
+	[] ->
+	    {hframe,[{value,false},
+		     {value,Default},
+		     {value,Type},
+		     bs_dispatch(Type, Op#bs_dialog{ps=Ps})]};
+	[top] ->
+	    Minimized = proplists:get_value(minimized, Ps, false),
+	    {hframe,[{value,Default},
+		     {value,Type},
+		     bs_dispatch(Type, Op#bs_dialog{ps=Ps})],
+	     [{minimized,Minimized},{title,Title}]};
+	_ ->
+	    Compatible = lists:keymember(TypeCB, 2, Menu),
+	    Minimized = proplists:get_value(minimized, Ps, true),
+	    HookFun =
+		fun (update, {Var,_I,Val,Sto}) ->
+			{done,gb_trees:update(Var, Val, Sto)};
+		    (menu_disabled, {_Var,_I,_Sto}) when not Compatible ->
+			[recall,exchange];
+		    (_, _) -> void
+		end,
+	    {hframe,[{value,Default},
+		     {menu,Menu,Type,[{hook,HookFun}]},
+		     bs_dispatch(Type, Op#bs_dialog{ps=Ps})],
+	     [{minimized,Minimized},{title,Title}]}
+    end;
+%%
+%% Block Shader Result
+%%
+bs(#bs_result{clipboard=undefined}=Op, Args) ->
+    bs(Op#bs_result{clipboard={undefined,[]}}, Args);
+bs(#bs_result{result=[Minimized,{OldType,_},NewType|R],ps=ParentPs}=Op0,
+   [Tag|DefaultPs]) ->
+    #bs_result{result=Rest,clipboard={TypeCB,PsCB}=CB,ps=Ps} = Op =
+	bs_dispatch(OldType, Op0#bs_result{result=R,ps=[]}),
+    case NewType of
+	store ->
+	    NewBlock = {OldType,[{minimized,Minimized}|Ps]},
+	    NewCB = 
+		{OldType,
+		 [{minimized,proplists:get_value(minimized, PsCB, true)}|Ps]},
+%%% 	    io:format(?MODULE_STRING":~w store~n~p~n~p~n~p~n", 
+%%% 		      [?LINE,CB,NewBlock,NewCB]),
+	    Op#bs_result{ps=[{Tag,NewBlock}|ParentPs],
+			     result=Rest,
+			     clipboard=NewCB};
+	recall ->
+	    NewBlock = {TypeCB,[{minimized,Minimized}
+				|proplists:delete(minimized, PsCB)]},
+	    Op#bs_result{ps=[{Tag,NewBlock}|ParentPs],
+			     result=Rest,
+			     clipboard=CB};
+	exchange ->
+	    NewBlock = {TypeCB,[{minimized,Minimized}
+				|proplists:delete(minimized, PsCB)]},
+	    NewCB = 
+		{OldType,
+		 [{minimized,proplists:get_value(minimized, PsCB, true)}|Ps]},
+	    Op#bs_result{ps=[{Tag,NewBlock}|ParentPs],
+			     result=Rest,
+			     clipboard=NewCB};
+	OldType -> % Content change
+	    NewBlock = {OldType,[{minimized,Minimized}|Ps]},
+	    Op#bs_result{ps=[{Tag,NewBlock}|ParentPs],
+			     result=Rest,
+			     clipboard=CB};
+	_ -> % New type - should maybe convert old Ps to new block type
+	    NewBlock = {NewType,[{minimized,Minimized}|DefaultPs]},
+	    Op#bs_result{ps=[{Tag,NewBlock}|ParentPs],
+			     result=Rest,
+			     clipboard=CB}
+    end;
+%%
+%% Block Shader Export
+%%
+bs(#bs_export{}=Op, [undefined]) ->
+    bs(Op, [{undefined,[]}]);
+bs(#bs_export{base_name=BaseName,n=M}=Op, [{Type,Ps}]) ->
+    N = M+1,
+    bs_dispatch(Type, 
+		Op#bs_export{ps=Ps,
+			     name=BaseName++"_"++integer_to_list(N),
+			     n=N}).
+
+bs_dispatch(Type, Op) ->
+    case Type of
+	%% Internal virtual block shaders
+	undefined    -> bs_undefined(Op);
+	block_shader -> bs_block_shader(Op);
+	%% Top level block shader
+	phong        -> bs_phong(Op);
+	%% Color output block shaders
+	float2color  -> bs_float2color(Op);
+	rgb          -> bs_rgb(Op);
+	hsv          -> bs_hsv(Op);
+	image        -> bs_image(Op);
+	mix          -> bs_mix(Op);
+	fresnel      -> bs_fresnel(Op);
+	conetrace    -> bs_conetrace(Op);
+	gobo         -> bs_gobo(Op);
+	colorband    -> bs_colorband(Op);
+	%% Float output block shaders
+	color2float  -> bs_color2float(Op);
+	coords       -> bs_coords(Op);
+	mul          -> bs_mul(Op);
+ 	sin          -> bs_sin(Op)
+    end.
+
+bs_menu(top, L) ->
+    [{"Phong",phong}|L];
+bs_menu(color, L) ->
+    [
+     {"(color)",float2color},
+     {"RGB",rgb},
+     {"HSV",hsv},
+     {"Image",image},
+     {"Mix",mix},
+     {"Fresnel",fresnel},
+     {"ConeTr",conetrace},
+     {"Gobo",gobo},
+     {"ColBand",colorband}
+     |L];
+bs_menu(float, L) ->
+    [{"(float)",color2float},
+     {"Coords",coords},
+     {"Mul",mul},
+     {"Sin",sin}|L].
+
+bs_print_tag(_F, _Tag, undefined) -> ok;
+bs_print_tag(F, Tag, Value) ->
+    print(F, "~s=\"\~s\" ", [format(Tag),Value]).
+
+
+
+%%%
+%%% Block shaders
+%%%
+
+%% Internal virtual block shaders
+%%
+
+bs_undefined(#bs_dialog{}) ->
+    {vframe,[]};
+bs_undefined(#bs_result{}=Op) ->
+    Op;
+bs_undefined(#bs_export{}=Op) ->
+    Op#bs_export{name=undefined}.
+
+
+%% The toplevel block shader. Does dirty tricks with the clipboard.
+%%
+bs_block_shader(#bs_dialog{ps=Ps}=Op) ->
+    CB = proplists:get_value(clipboard, Ps),
+    {vframe,[{value,CB},
+	     bs_prop(Op#bs_dialog{clipboard=CB}, 
+		     {shader,Ps,?DEF_BS_TOP}, ["",[top,no_clipboard]]),
+	     {vframe,
+	      [bs(Op#bs_dialog{clipboard=CB}, 
+		  [CB,"[MEM]",[float,color,undefined,no_clipboard]])],
+	      [{hook,fun (is_disabled, {_Var,_I,_Sto}) -> true;
+			 (_, _) -> void end}]}]};
+bs_block_shader(#bs_result{result=[CB0|R]}=Op0) ->
+    Op1 = #bs_result{ps=Ps,clipboard=CB} =
+	bs(Op0#bs_result{clipboard=CB0,result=R}, [shader]),
+    Op2 = #bs_result{result=Rest} = bs(Op1, [clipboard]),
+%%%     io:format(?MODULE_STRING":~w result~n~p~n~p~n", 
+%%% 	      [?LINE,CB0,CB]),
+    Op2#bs_result{ps=[{clipboard,CB}|Ps],result=Rest};
+bs_block_shader(#bs_export{ps=Ps}=Op0) ->
+    Op = bs_prop(Op0, {shader,Ps,?DEF_BS_TOP}),
+    Op#bs_export{name=undefined}.
+
+%% Top level block shaders
+%%
+
+bs_phong(#bs_dialog{ps=Ps,parent_store=Sto}=Op) ->
+%%%     io:format(?MODULE_STRING":~w bs_phong::dialog~n~p~n", 
+%%% 	      [?LINE,Ps]),
+    DefDiffuse = gb_trees:get(diffuse, Sto),
+    DefAmbient = gb_trees:get(ambient, Sto),
+    DefSpecular = gb_trees:get(specular, Sto),
+    {vframe,[bs_prop(Op, {diffuse,Ps,?DEF_BSCOL(DefDiffuse)},
+		     ["Diffuse",[color]]),
+	     bs_prop(Op, {ambient,Ps,?DEF_BSCOL(DefAmbient)},
+		     ["Ambient",[color]]),
+	     bs_prop(Op, {specular,Ps,?DEF_BSCOL(DefSpecular)},
+		     ["Specular",[color]])]};
+bs_phong(#bs_result{parent_store=Sto}=Op0) ->
+    DefDiffuse = gb_trees:get(diffuse, Sto),
+    DefAmbient = gb_trees:get(ambient, Sto),
+    DefSpecular = gb_trees:get(specular, Sto),
+    Op1 = bs(Op0, [diffuse,{color,DefDiffuse}]),
+    Op2 = bs(Op1, [ambient,{color,DefAmbient}]),
+    bs(Op2, [specular,{color,DefSpecular}]);
+bs_phong(#bs_export{ps=Ps,dest=F,base_name=Name,material=Mat}=Op0) ->
+    OpenGL = proplists:get_value(opengl, Mat, []),
+    YafRay = proplists:get_value(?TAG, Mat, []),
+    DefDiffuse = alpha(proplists:get_value(diffuse, OpenGL)),
+    DefAmbient = alpha(proplists:get_value(ambient, OpenGL)),
+    DefSpecular = alpha(proplists:get_value(specular, OpenGL)),
+    Op1 = #bs_export{name=Diffuse} = 
+	bs_prop(Op0, {diffuse,Ps,?DEF_BSCOL(DefDiffuse)}),
+    Op2 = #bs_export{name=Specular} = 
+	bs_prop(Op1, {specular,Ps,?DEF_BSCOL(DefSpecular)}),
+    Op = #bs_export{name=Ambient} = 
+	bs_prop(Op2, {ambient,Ps,?DEF_BSCOL(DefAmbient)}),
+    Shininess = proplists:get_value(shininess, OpenGL),
+    IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
+    println(F, "<shader type=\"phong\" name=\"~s\">~n"++
+	    "    <attributes>", [Name]),
+    println(F, "        <color value=\"~s\"/>", [Diffuse]),
+    println(F, "        <specular value=\"~s\"/>", [Specular]),
+    println(F, "        <environment value=\"~s\"/>", [Ambient]),
+    println(F, "        <hard value=\"~.10f\"/>", [Shininess*128.0]),
+    println(F, "        <IOR value=\"~.10f\"/>", [IOR]),
+    println(F, "    </attributes>~n"++
+	    "</shader>~n", []),
+    Op#bs_export{name=Name}.
+
+%% Color output block shaders
+%%
+
+bs_float2color(#bs_dialog{ps=Ps}=Op) ->
+    bs_prop(Op, {input,Ps,?DEF_BS_FLOAT}, ["Input",[float]]);
+bs_float2color(#bs_result{}=Op) ->
+    bs(Op, [input]);
+bs_float2color(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    Op = #bs_export{name=Input} = bs_prop(Op0, {input,Ps,?DEF_BS_FLOAT}),
+    println(F, "<shader type=\"float2color\" name=\"~s\" input=\"~s\">~n"++
+ 	    "    <attributes>", [Name,Input]),
+    println(F, "    </attributes>~n"++
+ 	    "</shader>~n", []),
+    Op#bs_export{name=Name}.
+
+bs_rgb(#bs_dialog{ps=Ps}=Op) ->
+%%%     io:format(?MODULE_STRING":~w bs_rgb::dialog~n~p~n", 
+%%% 	      [?LINE,Ps]),
+    Color = proplists:get_value(color, Ps, ?DEF_DIFFUSE),
+    {vframe,
+     [bs_prop(Op, {input_r,Ps}, ["R",[float,undefined]]),
+      bs_prop(Op, {input_g,Ps}, ["G",[float,undefined]]),
+      bs_prop(Op, {input_b,Ps}, ["B",[float,undefined]]),
+      {hframe,[{label,"Default Color"},{color,Color}]}]};
+bs_rgb(#bs_result{}=Op0) ->
+    Op1 = bs(Op0, [input_r]),
+    Op2 = bs(Op1, [input_g]),
+    Op3 = #bs_result{result=[Color|Rest],ps=Ps} = bs(Op2, [input_b]),
+    Op3#bs_result{ps=[{color,Color}|Ps],result=Rest};
+bs_rgb(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    Op1 = #bs_export{name=InputR} = bs_prop(Op0, {input_r,Ps}),
+    Op2 = #bs_export{name=InputG} = bs_prop(Op1, {input_g,Ps}),
+    Op = #bs_export{name=InputB} = bs_prop(Op2, {input_b,Ps}),
+    Color = proplists:get_value(color, Ps, ?DEF_DIFFUSE),
+    print(F, "<shader type=\"RGB\" name=\"~s\"", [Name]),
+    if InputR =:= undefined, InputG =:= undefined, InputB =:= undefined ->
+	    println(F, ">");
+       true ->
+	    print(F, "~n        ", []),
+	    bs_print_tag(F, inputred, InputR),
+	    bs_print_tag(F, inputgreen, InputG),
+	    bs_print_tag(F, inputblue, InputB),
+	    println(F, ">")
+    end,
+    println(F, "    <attributes>"),
+    export_rgb(F, color, Color),
+    println(F, "    </attributes>~n"++
+	    "</shader>~n", []),
+    Op#bs_export{name=Name}.
+
+bs_hsv(#bs_dialog{ps=Ps}=Op) ->
+    Color = proplists:get_value(color, Ps, ?DEF_DIFFUSE),
+    {vframe,
+     [bs_prop(Op, {input_h,Ps}, ["H",[float,undefined]]),
+      bs_prop(Op, {input_s,Ps}, ["S",[float,undefined]]),
+      bs_prop(Op, {input_v,Ps}, ["V",[float,undefined]]),
+      {hframe,[{label,"Default Color"},{color,Color}]}]};
+bs_hsv(#bs_result{}=Op0) ->
+    Op1 = bs(Op0, [input_h]),
+    Op2 = bs(Op1, [input_s]),
+    Op3 = #bs_result{result=[Color|Rest],ps=Ps} = bs(Op2, [input_v]),
+    Op3#bs_result{ps=[{color,Color}|Ps],result=Rest};
+bs_hsv(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    Op1 = #bs_export{name=InputH} = bs_prop(Op0, {input_h,Ps}),
+    Op2 = #bs_export{name=InputS} = bs_prop(Op1, {input_s,Ps}),
+    Op = #bs_export{name=InputV} = bs_prop(Op2, {input_v,Ps}),
+    Color = proplists:get_value(color, Ps, ?DEF_DIFFUSE),
+    {H,S,V} = wings_ask:rgb_to_hsv(Color),
+    println(F, "<shader type=\"HSV\" name=\"~s\"", [Name]),
+    if InputH =:= undefined, InputS =:= undefined, InputV =:= undefined ->
+	    ok;
+       true ->
+	    print(F, "        "),
+	    bs_print_tag(F, inputhue, InputH),
+	    bs_print_tag(F, inputsaturation, InputS),
+	    bs_print_tag(F, inputvalue, InputV),
+	    println(F)
+    end,
+    println(F, "        hue=\"~s\" saturation=\"~s\" value=\"~s\">~n"
+	    "    <attributes>~n"
+	    "    </attributes>~n"
+	    "</shader>~n",
+	    [format(H/360),format(S),format(V)]),
+    Op#bs_export{name=Name}.
+
+bs_image(#bs_dialog{ps=Ps}) ->
+    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
+    BrowseProps = [{dialog_type,open_dialog},
+		   {extensions,[{".jpg","JPEG compressed image"},
+				{".tga","Targa bitmap"}]}],
+    {hframe,
+     [{label,"Filename"},
+      {button,{text,Filename,[{props,BrowseProps}]}}]};
+bs_image(#bs_result{result=[Filename|Rest],ps=Ps}=Op) ->
+    Op#bs_result{result=Rest,ps=[{filename,Filename}|Ps]};
+bs_image(#bs_export{ps=Ps,dest=F,name=Name}=Op) ->
+    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
+    println(F, "<shader type=\"image\" name=\"~s\">~n"++
+	    "    <attributes>~n"
+	    "        <filename value=\"~s\"/>~n"
+	    "    </attributes>~n"
+	    "</shader>~n", [Name,Filename]),
+    Op.
+
+bs_mix(#bs_dialog{ps=Ps}=Op) ->
+    Mode = proplists:get_value(mode, Ps, ?DEF_BS_MIX_MODE),
+    {vframe,
+     [{menu,
+       [{wings_util:cap(Tag),Tag} ||
+	   Tag <- [add,average,colorburn,colordodge,darken,
+		   difference,exclusion,freeze,hardlight,lighten,
+		   multiply,negation,overlay,reflect,screen,
+		   softlight,stamp,subtract]],
+       Mode},
+      bs_prop(Op, {input_1,Ps,?DEF_BS_COLOR}, ["Input 1",[color]]),
+      bs_prop(Op, {input_2,Ps,?DEF_BS_COLOR}, ["Input 2",[color]])]};
+bs_mix(#bs_result{result=[Mode|Rest],ps=Ps}=Op0) ->
+    Op1 = bs(Op0#bs_result{result=Rest,ps=[{mode,Mode}|Ps]}, [input_1]),
+    bs(Op1, [input_2]);
+bs_mix(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    Op1 = #bs_export{name=Input1} = bs_prop(Op0, {input_1,Ps,?DEF_BS_COLOR}), 
+    Op2 = #bs_export{name=Input2} = bs_prop(Op1, {input_2,Ps,?DEF_BS_COLOR}), 
+    Mode = proplists:get_value(mode, Ps, ?DEF_BS_MIX_MODE),
+    println(F, "<shader type=\"mix\" name=\"~s\"~n"
+	    "        input1=\"~s\" input2=\"~s\" mode=\"~s\" >~n"++
+	    "    <attributes>", [Name,Input1,Input2,format(Mode)]),
+    println(F, "    </attributes>~n"++
+	    "</shader>~n", []),
+    Op2#bs_export{name=Name}.
+
+bs_fresnel(#bs_dialog{ps=Ps,parent_store=Sto}=Op) ->
+    DefReflected = gb_trees:get(?KEY(reflected), Sto),
+    DefTransmitted = gb_trees:get(?KEY(transmitted), Sto),
+    {vframe,
+     [bs_prop(Op, {reflected,Ps,
+		   {conetrace,[{mode,reflect},{color,DefReflected}]}}, 
+	      ["Reflected",[color]]),
+      bs_prop(Op, {transmitted,Ps,
+		   {conetrace,[{mode,refract},{color,DefTransmitted}]}}, 
+	      ["Transmitted",[color]])]};
+bs_fresnel(#bs_result{parent_store=Sto}=Op0) ->
+    DefReflected = gb_trees:get(?KEY(reflected), Sto),
+    DefTransmitted = gb_trees:get(?KEY(transmitted), Sto),
+    Op1 = bs(Op0, [reflected,{mode,reflect},{color,DefReflected}]),
+    bs(Op1, [transmitted,{mode,refract},{color,DefTransmitted}]);
+bs_fresnel(#bs_export{ps=Ps,dest=F,name=Name,material=Mat}=Op0) ->
+    OpenGL = proplists:get_value(opengl, Mat),
+    DefReflected0 = alpha(proplists:get_value(specular, OpenGL)),
+    DefTransmitted0 = def_transmitted(proplists:get_value(diffuse, OpenGL)),
+    YafRay = proplists:get_value(?TAG, Mat, []),
+    DefReflected = proplists:get_value(reflected, YafRay, DefReflected0),
+    DefTransmitted = proplists:get_value(transmitted, YafRay, DefTransmitted0),
+    Op1 = #bs_export{name=Reflected} = 
+	bs_prop(Op0, {reflected,Ps,
+		      {conetrace,[{mode,reflect},
+				  {color,DefReflected}]}}),
+    Op = #bs_export{name=Transmitted} = 
+	bs_prop(Op1, {transmitted,Ps,
+		      {conetrace,[{mode,refract},
+				  {color,DefTransmitted}]}}),
+    IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
+    MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
+    println(F, "<shader type=\"fresnel\" name=\"~s\"~n"
+	    "        reflected=\"~s\" transmitted=\"~s\"~n"
+	    "        IOR=\"\~.10f\" min_refle=\"~.10f\" >~n"++
+	    "    <attributes>", [Name,Reflected,Transmitted,IOR,MinRefle]),
+    println(F, "    </attributes>~n"++
+	    "</shader>~n", []),
+    Op#bs_export{name=Name}.
+
+bs_conetrace(#bs_dialog{ps=Ps}) ->
+    Mode = proplists:get_value(mode, Ps, ?DEF_BS_CONE_MODE),
+    Angle = proplists:get_value(angle, Ps, ?DEF_BS_CONE_ANGLE),
+    Samples = proplists:get_value(samples, Ps, ?DEF_BS_CONE_SAMPLES),
+    Color = proplists:get_value(color, Ps, ?DEF_BS_CONE_COLOR),
+    {vframe,
+     [{menu,[{"Reflect",reflect},{"Refract",refract}],Mode},
+      {hframe,
+       [{vframe,[{label,"Angle"},
+		 {label,"Samples"}]},
+	{vframe,[{text,Angle,[range(cone_angle)]},
+		 {text,Samples,[range(samples)]}]},
+	{vframe,[{slider,[range(cone_angle),{key,-3}]},
+		 {hframe,[{label,"Color"},{color,Color}]}]}]}]};
+bs_conetrace(#bs_result{result=[Mode,Angle,Samples,Color|Rest],ps=Ps}=Op) ->
+    Op#bs_result{result=Rest,
+		 ps=[{mode,Mode},{angle,Angle},
+		     {samples,Samples},{color,Color}|Ps]};
+bs_conetrace(#bs_export{ps=Ps,dest=F,name=Name,material=Mat}=Op) ->
+    Reflect = (proplists:get_value(mode, Ps, ?DEF_BS_CONE_MODE) =:= reflect),
+    println(F, "<shader type=\"conetrace\" name=\"~s\" reflect=\"~s\"",
+	    [Name,format(Reflect)]),
+    Angle = proplists:get_value(angle, Ps, ?DEF_BS_CONE_ANGLE),
+    Samples = proplists:get_value(samples, Ps, ?DEF_BS_CONE_SAMPLES),
+    print(F, "angle=\"\~.3f\" samples=\"~w\"", [Angle,Samples]),
+    OpenGL = proplists:get_value(opengl, Mat),
+    YafRay = proplists:get_value(?TAG, Mat, []),
+    DefColor =
+	if Reflect ->
+		println(F, ">"),
+		DefReflected = alpha(proplists:get_value(specular, OpenGL)),
+		proplists:get_value(reflected, YafRay, DefReflected);
+	   true ->
+		IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
+		println(F, " IOR=\"~.10f\">", [IOR]),
+		DefTransmitted = def_transmitted(
+				   proplists:get_value(diffuse, OpenGL)),
+		proplists:get_value(transmitted, YafRay, DefTransmitted)
+	end,
+    println(F, "    <attributes>"),
+    export_rgb(F, color, proplists:get_value(color, Ps, DefColor)),
+    println(F, "    </attributes>~n"++
+	    "</shader>~n", []),
+    Op.
+
+bs_gobo(#bs_dialog{ps=Ps}=Op) ->
+    Hardedge = proplists:get_value(hardedge, Ps, ?DEF_BS_GOBO_HARD),
+    Edgeval = proplists:get_value(edgeval, Ps, ?DEF_BS_GOBO_EDGE),
+    {vframe,
+     [bs_prop(Op, {input_1,Ps,?DEF_BS_COLOR}, ["Input 1",[color]]),
+      bs_prop(Op, {input_2,Ps,?DEF_BS_COLOR}, ["Input 2",[color]]),
+      bs_prop(Op, {gobo,Ps,{image,[]}}, ["Gobo",[color,float]]),
+      {hframe,[{"Hard Edge Val",Hardedge},
+	       {text,Edgeval,[hook(enable, -1)]}]}]};
+bs_gobo(#bs_result{}=Op0) ->
+    Op1 = bs(Op0, [input_1]),
+    Op2 = bs(Op1, [input_2]),
+    Op = #bs_result{result=[Hardedge,Edgeval|Rest],ps=Ps} = bs(Op2, [gobo]),
+    Op#bs_result{result=Rest,ps=[{hardedge,Hardedge},{edgeval,Edgeval}|Ps]};
+bs_gobo(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    {GoboType,_} = GoboBlock = proplists:get_value(gobo, Ps, {image,[]}),
+    Op1 = #bs_export{name=Input1} = bs_prop(Op0, {input_1,Ps,?DEF_BS_COLOR}),
+    Op2 = #bs_export{name=Input2} = bs_prop(Op1, {input_2,Ps,?DEF_BS_COLOR}),
+    Op = #bs_export{name=Gobo} = bs(Op2, [GoboBlock]),
+    Hardedge = proplists:get_value(hardedge, Ps, ?DEF_BS_GOBO_HARD),
+    Edgeval = proplists:get_value(edgeval, Ps, ?DEF_BS_GOBO_EDGE),
+    println(F, "<shader type=\"gobo\" name=\"~s\">~n"
+	    "    <attributes>~n"
+	    "        <input1 value=\"~s\"/>~n"
+	    "        <input2 value=\"~s\"/>",
+	    [Name,Input1,Input2]),
+    case lists:keysearch(GoboType, 2, bs_menu(float, [])) of
+	{value,_} ->
+	    println(F, "        <goboFloat value=\"~s\"/>", [Gobo]);
+	false ->
+	    println(F, "        <goboColor value=\"~s\"/>", [Gobo])    end,
+    println(F, "        <hardedge value=\"~s\"/>", [format(Hardedge)]),
+    if Hardedge ->
+	    println(F, "        <edgeval value=\"~.10f\"/>", [Edgeval]);
+       true -> ok
+    end,
+    println(F, "    </attributes>~n"
+	    "</shader>~n", []),
+    Op#bs_export{name=Name}.
+
+bs_colorband(#bs_dialog{ps=Ps}=Op) ->
+    Bands = proplists:get_value(bands, Ps, 
+				[[{value,0.0},{color,?DEF_DIFFUSE}]]),
+    {vframe,
+     [bs_prop(Op, {input,Ps,?DEF_BS_FLOAT}, ["Input",[float]]),
+      {hframe,bs_colorband_dialog(Bands)}]};
+bs_colorband(#bs_result{}=Op0) ->
+    Op = #bs_result{result=Result,ps=Ps}= bs(Op0, [input]),
+    case bs_colorband_result(Result) of
+	{[true|Rest],Bands} -> % Sort
+	    Op#bs_result{result=Rest,ps=[{bands,lists:sort(Bands)}|Ps]};
+	{[false|Rest],Bands} ->
+	    Op#bs_result{result=Rest,ps=[{bands,Bands}|Ps]}
+    end;
+bs_colorband(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    Op = #bs_export{name=Input} = bs_prop(Op0, {input,Ps,?DEF_BS_FLOAT}), 
+    Bands = proplists:get_value(bands, Ps, 
+				[[{value,0.0},{color,?DEF_DIFFUSE}]]),
+    println(F, "<shader type=\"colorband\" name=\"~s\">~n"
+	    "    <attributes>~n"
+	    "        <input value=\"~s\"/>~n"
+	    "    </attributes>", [Name,Input]),
+    lists:foreach(
+      fun (Band) ->
+	      Value = proplists:get_value(value, Band),
+	      Color = proplists:get_value(color, Band),
+	      println(F, "    <modulator value=\"~.10f\">", [Value]),
+	      export_rgb(F, color, Color),
+	      println(F, "    </modulator>")
+      end,
+      lists:sort(Bands)),
+    println(F, "</shader>~n", []),
+    Op#bs_export{name=Name}.
+
+
+bs_colorband_dialog([_]=Bands) ->
+    DelButtonOpts =
+	[{hook,
+	  fun (is_disabled, _) -> true;
+	      (_, _) -> void
+	  end}],
+    bs_colorband_dialog_1(Bands, DelButtonOpts);
+bs_colorband_dialog(Bands) ->
+    bs_colorband_dialog_1(Bands, []).
+
+bs_colorband_dialog_1([Band|Bands], DelButtonOpts) ->
+    Value = proplists:get_value(value, Band, 0.0),
+    Color = proplists:get_value(color, Band, ?DEF_DIFFUSE),
+    [{vframe,[{text,Value,[{width,4}]},{color,Color},
+	      {button,"Del",done,DelButtonOpts}]}|
+     case Bands of
+	 [] ->
+	     [{vframe,[{button,"New",done},{button,"Sort",done}]}];
+	 _ ->
+	     bs_colorband_dialog_1(Bands, DelButtonOpts)
+     end].
+
+bs_colorband_result([_Value,_Color,true,false|Rest]) -> % Del
+    {Rest,[]};
+bs_colorband_result([Value,Color,false|Rest0]) ->
+    Band = [{value,Value},{color,Color}],
+    case Rest0 of
+	[true|Rest] -> % New
+	    {Rest,[Band,Band]};
+	[false|Rest] ->
+	    {Rest,[Band]};
+	_ ->
+	    {Rest,Bands} = bs_colorband_result(Rest0),
+	    {Rest,[Band|Bands]}
+    end;
+bs_colorband_result([_Value,_Color,true|Rest]) -> % Del
+    bs_colorband_result(Rest).
+
+%% Float output block shaders
+%%
+
+bs_color2float(#bs_dialog{ps=Ps}=Op) ->
+    bs_prop(Op, {input,Ps,?DEF_BS_COLOR}, ["Input",[color]]);
+bs_color2float(#bs_result{}=Op) ->
+    bs(Op, [input]);
+bs_color2float(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    Op = #bs_export{name=Input} = 
+	bs_prop(Op0, {input,Ps,?DEF_BS_COLOR}),
+    println(F, "<shader type=\"color2float\" name=\"~s\" input=\"~s\">~n"++
+	    "    <attributes>", [Name,Input]),
+    println(F, "    </attributes>~n"++
+	    "</shader>~n", []),
+    Op#bs_export{name=Name}.
+
+bs_coords(#bs_dialog{ps=Ps}) ->
+    %% Coordinate rotation see export_pos/3
+    Coord = proplists:get_value(coord, Ps, ?DEF_BS_COORD),
+    {menu,[{"X",'Y'},{"Y",'Z'},{"Z",'X'}],Coord};
+bs_coords(#bs_result{result=[Coord|Rest],ps=Ps}=Op) ->
+    Op#bs_result{result=Rest,ps=[{coord,Coord}|Ps]};
+bs_coords(#bs_export{ps=Ps,dest=F,name=Name}=Op) ->
+    Coord = proplists:get_value(coord, Ps, ?DEF_BS_COORD),
+    println(F, "<shader type=\"coords\" name=\"~s\" coord=\"~s\">~n"++
+	    "    <attributes>~n"
+	    "    </attributes>~n"
+	    "</shader>~n", [Name,format(Coord)]),
+    Op.
+
+bs_mul(#bs_dialog{ps=Ps}=Op) ->
+    Value = proplists:get_value(value, Ps, ?DEF_BS_MUL_VALUE),
+    {vframe,
+     [bs_prop(Op, {input_1,Ps}, ["Input 1",[float,undefined]]),
+      bs_prop(Op, {input_2,Ps}, ["Input 2",[float,undefined]]),
+      {hframe,[{label,"Value"},{text,Value}]}]};
+bs_mul(#bs_result{}=Op0) ->
+    Op1 = bs(Op0, [input_1]),
+    Op = #bs_result{result=[Value|Rest],ps=Ps} = bs(Op1, [input_2]),
+    Op#bs_result{result=Rest,ps=[{value,Value}|Ps]};
+bs_mul(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    Op1 = #bs_export{name=Input1} = bs_prop(Op0, {input_1,Ps}),
+    Op = #bs_export{name=Input2} = bs_prop(Op1, {input_2,Ps}),
+    Value = proplists:get_value(value, Ps, ?DEF_BS_MUL_VALUE),
+    print(F, "<shader type=\"mul\" name=\"~s\"~n        ", [Name]),
+    bs_print_tag(F, input1, Input1),
+    bs_print_tag(F, input2, Input2),
+    println(F, "value=\"~.10f\">~n"
+	    "    <attributes>~n"
+	    "    </attributes>~n"
+	    "</shader>~n", [Value]),
+    Op#bs_export{name=Name}.
+
+bs_sin(#bs_dialog{ps=Ps}=Op) ->
+    bs_prop(Op, {input,Ps,?DEF_BS_FLOAT}, ["Input",[float]]);
+bs_sin(#bs_result{}=Op) ->
+    bs(Op, [input]);
+bs_sin(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
+    Op = #bs_export{name=Input} = bs_prop(Op0, {input,Ps,?DEF_BS_FLOAT}),
+    println(F, "<shader type=\"sin\" name=\"~s\" input=\"~s\">~n"++
+	    "    <attributes>", [Name,Input]),
+    println(F, "    </attributes>~n"++
+	    "</shader>~n", []),
+    Op#bs_export{name=Name}.
+
+%%%
+%%% End of Block Shaders	   
+%%%
+
+
 light_dialog(Name, Ps) ->
     OpenGL = proplists:get_value(opengl, Ps, []),
     YafRay = proplists:get_value(?TAG, Ps, []),
@@ -1418,8 +2210,10 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     %%
     RenderTS = erlang:now(),
     Renderer = get_var(renderer),
-    Options = proplists:get_value(options,Attr,?DEF_OPTIONS),
-    LoadImage = proplists:get_value(load_image,Attr,?DEF_LOAD_IMAGE),
+    [{options,Options},{load_image,LoadImage}] =
+	get_user_prefs([{options,?DEF_OPTIONS},{load_image,?DEF_LOAD_IMAGE}]),
+%%%     Options = proplists:get_value(options,Attr,?DEF_OPTIONS),
+%%%     LoadImage = proplists:get_value(load_image,Attr,?DEF_LOAD_IMAGE),
     case {Renderer,Render} of
 	{_,false} ->
 	    io:format("Export time:     ~s~n", 
@@ -1542,9 +2336,20 @@ section(F, Name) ->
 
 
 export_shader(F, Name, Mat, ExportDir) ->
+    YafRay = proplists:get_value(?TAG, Mat, []),
+    UseBlockShader = proplists:get_value(use_block_shader, YafRay,
+					 ?DEF_USE_BLOCK_SHADER),
+    case UseBlockShader of
+	true ->
+	    BlockShader = proplists:get_value(block_shader, YafRay, ?DEF_BS),
+	    export_block_shader(F, BlockShader, Name, Mat);
+	false ->
+	    export_generic_shader(F, Name, Mat, ExportDir, YafRay)
+    end.
+
+export_generic_shader(F, Name, Mat, ExportDir, YafRay) ->
     OpenGL = proplists:get_value(opengl, Mat),
     Maps = proplists:get_value(maps, Mat, []),
-    YafRay = proplists:get_value(?TAG, Mat, []),
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     foldl(fun ({modulator,Ps}=M, N) when list(Ps) ->
 		  case export_texture(F, [Name,$_,format(N)], 
@@ -1562,7 +2367,7 @@ export_shader(F, Name, Mat, ExportDir) ->
     DiffuseA = {_,_,_,Opacity} = proplists:get_value(diffuse, OpenGL),
     Color = alpha(DiffuseA),
     Specular = alpha(proplists:get_value(specular, OpenGL)),
-    Ambient = rgba2rgb(proplists:get_value(ambient, OpenGL)),
+    DefReflected = Specular,
     DefTransmitted = def_transmitted(DiffuseA),
     export_rgb(F, color, Color),
     export_rgb(F, specular, Specular),
@@ -1572,13 +2377,13 @@ export_shader(F, Name, Mat, ExportDir) ->
     println(F, "        <hard value=\"~.10f\"/>", 
 		   [proplists:get_value(shininess, OpenGL)*128.0]),
     export_rgb(F, reflected, 
-	       proplists:get_value(reflected, YafRay, Ambient)),
+	       proplists:get_value(reflected, YafRay, DefReflected)),
     export_rgb(F, transmitted, 
 	       proplists:get_value(transmitted, YafRay, DefTransmitted)),
     case proplists:get_value(fresnel2, YafRay, false) of
 	true ->
 	    export_rgb(F, reflected2, 
-		       proplists:get_value(reflected2, YafRay, Ambient)),
+		       proplists:get_value(reflected2, YafRay, DefReflected)),
 	    export_rgb(F, transmitted2, 
 		       proplists:get_value(transmitted2, YafRay, 
 					   DefTransmitted));
@@ -1606,8 +2411,6 @@ export_shader(F, Name, Mat, ExportDir) ->
 		  N % Ignore old modulators
 	  end, 1, Modulators),
     println(F, "</shader>").
-
-alpha({R,G,B,A}) -> {R*A,G*A,B*A}.
 
 export_texture(F, Name, Maps, ExportDir, {modulator,Ps}) when list(Ps) ->
     case mod_enabled_mode_type(Ps, Maps) of
@@ -1663,7 +2466,7 @@ export_texture(F, Name, Type, Ps) ->
 					     ?DEF_MOD_RINGSCALE_X),
 	    RingscaleZ = proplists:get_value(ringscale_z, Ps, 
 					     ?DEF_MOD_RINGSCALE_Z),
-	    %% Coordinate rotation, see export_pos/2.
+	    %% Coordinate rotation, see export_pos/3.
 	    println(F, "    <ringscale_x value=\"~.6f\"/>~n"++
 		    "    <ringscale_y value=\"~.6f\"/>",
 		    [RingscaleX,RingscaleZ]);
@@ -1788,8 +2591,8 @@ export_object_1(F, NameStr, Mesh0=#e3d_mesh{he=He0}, DefaultMaterial, MatPs) ->
 	     end]++[format(EmitRad),format(RecvRad)]),
     println(F, "    <attributes>"),
     case Caus of true ->
-	    Ambient = rgba2rgb(proplists:get_value(ambient, OpenGL)),
-	    Reflected = proplists:get_value(reflected, YafRay, Ambient),
+	    DefReflected = alpha(proplists:get_value(specular, OpenGL)),
+	    Reflected = proplists:get_value(reflected, YafRay, DefReflected),
 	    DefTransmitted = 
 		def_transmitted(proplists:get_value(diffuse, OpenGL)),
 	    Transmitted = 
@@ -2072,7 +2875,7 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
 		  [format(UseQMC),Samples,Depth,CausDepth]),
 	    case Direct of
 		true ->
-		    print(F, " direct=\"on\"", []);
+		    print(F, " direct=\"on\"");
 		false ->
 		    case proplists:get_value(cache, YafRay, ?DEF_CACHE) of
 			true ->
@@ -2142,7 +2945,7 @@ export_light(F, Name, area, OpenGL, YafRay) ->
 		end, [], Fs0),
     As = e3d_mesh:face_areas(Fs, Vs),
     Area = foldl(fun (A, Acc) -> A+Acc end, 0.0, As),
-    AFs = zip(As, Fs),
+    AFs = zip_lists(As, Fs),
     foldl(
       fun ({Af,#e3d_face{vs=VsF}}, I) ->
 	      case catch Power*Af/Area of
@@ -2340,13 +3143,13 @@ open(Filename, export) ->
 println(F) ->
     println(F, "").
 
-% print(F, DeepString) ->
-%     case file:write(F, DeepString) of
-% 	ok ->
-% 	    ok;
-% 	Error ->
-% 	    erlang:fault(Error, [F,DeepString])
-%     end.
+print(F, DeepString) ->
+    case file:write(F, DeepString) of
+	ok ->
+	    ok;
+	Error ->
+	    erlang:fault(Error, [F,DeepString])
+    end.
 
 println(F, DeepString) ->
     case file:write(F, [DeepString,io_lib:nl()]) of
@@ -2666,8 +3469,8 @@ split_list1([H|T], Pos, Head) ->
 
 %% Zip lists together into a list of tuples
 %%
-zip([], []) -> [];
-zip([H1|T1], [H2|T2]) -> [{H1,H2}|zip(T1, T2)].
+zip_lists([], []) -> [];
+zip_lists([H1|T1], [H2|T2]) -> [{H1,H2}|zip_lists(T1, T2)].
 
 %%% %% {lists:filter(Pred, List),lists:filter(fun(X) -> not Pred(X) end, List)}
 %%% filter2(Pred, List) -> filter2_1(Pred, List, [], []).
