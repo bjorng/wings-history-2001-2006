@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.2 2001/11/27 20:58:02 bjorng Exp $
+%%     $Id: wings_color.erl,v 1.3 2001/12/10 07:28:16 bjorng Exp $
 %%
 
 -module(wings_color).
--export([init/0,default/0,share/1,average/1,average/2,
-	 white/0]).
+-export([init/0,default/0,share/1,store/1,
+	 average/1,average/2,white/0]).
 
 -include("wings.hrl").
 -import(lists, [foreach/2]).
@@ -25,9 +25,11 @@ init() ->
     Black = ?BLACK,
     White = ?WHITE,
     Standard = [Black,White,average(Black, White)],
-    foreach(fun(C) -> put(C, C) end, Standard),
-    put(White, White),
-    put(wings_default_color, White).
+    foreach(fun(C0) ->
+		    C = wings_util:share(C0),
+		    put(C, C)
+	    end, Standard),
+    put(wings_default_color, get(White)).
 
 default() ->
     get(wings_default_color).
@@ -35,6 +37,15 @@ default() ->
 share({_,_,_}=RGB) ->
     case get(RGB) of
 	undefined -> wings_util:share(RGB);
+	Other -> Other
+    end.
+
+store({_,_,_}=RGB) ->
+    case get(RGB) of
+	undefined ->
+	    C = wings_util:share(RGB),
+	    put(C, C),
+	    C;
 	Other -> Other
     end.
 
