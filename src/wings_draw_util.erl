@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.125 2004/03/17 12:23:26 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.126 2004/03/19 17:43:20 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -503,7 +503,8 @@ prepare(Ftab, #we{mode=vertex}=We, St) ->
 	{false,[{_,Edge}|_]} when is_integer(Edge) ->
 	    Fs0 = sofs:from_external(Ftab, [{face,edge}]),
 	    Fs1 = sofs:domain(Fs0),
-	    Fs = sofs:to_external(Fs1),
+	    Fs2 = sofs:to_external(Fs1),
+	    Fs = subtract_mirror_face(Fs2, We),
 	    {color,{[{wings_color:white(),Fs}],[]},St};
 	{false,_} ->
 	    {color,{[{wings_color:white(),Ftab}],[]},St};
@@ -514,10 +515,17 @@ prepare(Ftab, #we{mode=material}=We, St) ->
     MatFaces = wings_material:mat_faces(Ftab, We),
     {material,MatFaces,St}.
 
+subtract_mirror_face(Fs, #we{mirror=none}) -> Fs;
+subtract_mirror_face(Fs, #we{mirror=Face}) -> Fs -- [Face].
+
 vtx_color_split([{_,Edge}|_]=Ftab0, We) when is_integer(Edge) ->
     vtx_color_split_1(Ftab0, We, [], []);
 vtx_color_split(Ftab, _) -> vtx_smooth_color_split(Ftab).
 
+vtx_color_split_1([{Face,_}|Fs], #we{mirror=Face}=We, SameAcc, DiffAcc) ->
+    %% No need to show the mirror face, and it causes crashes with
+    %% certain OpenGL drivers. (GLU Tesselation + Vertex colors = Bad Crash)
+    vtx_color_split_1(Fs, We, SameAcc, DiffAcc);
 vtx_color_split_1([{Face,Edge}|Fs], We, SameAcc, DiffAcc) ->
     Cols = wings_face:vertex_info(Face, Edge, We),
     case vtx_color_split_2(Cols) of
