@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.84 2002/12/11 13:28:30 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.85 2002/12/14 14:24:30 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -27,7 +27,7 @@
 
 menu(_) ->
     L = wings_pref:get_value(number_of_lights),
-    [{"Ground plane",show_groundplane,crossmark(show_groundplane)},
+    [{"Ground Plane",show_groundplane,crossmark(show_groundplane)},
      {"Axes",show_axes,crossmark(show_axes)},
      separator,
      {"Workmode",workmode,crossmark(workmode)},
@@ -35,7 +35,7 @@ menu(_) ->
      separator,
      {"Wireframe",wireframe},
      {"Shade",shade},
-     {"Toggle wireframed/shaded",toggle_wireframe},
+     {"Toggle Wireframed/Shaded",toggle_wireframe},
      separator,
      {"Show Saved BB",show_bb,crossmark(show_bb)},
      {"Show Edges",show_edges,crossmark(show_edges)},
@@ -50,7 +50,7 @@ menu(_) ->
       crossmark(orthogonal_view)},
      separator,
      {"Scene Lights",scene_lights,crossmark(scene_lights)},
-     {one_of(L == 1, "Two lights", "One light"),toggle_lights},
+     {one_of(L == 1, "Two Lights", "One Light"),toggle_lights},
      separator,
      {"Show Colors",show_colors,crossmark(show_colors)},
      {"Show Materials",show_materials,crossmark(show_materials)},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.32 2002/11/26 20:05:29 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.33 2002/12/14 14:24:30 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -20,17 +20,17 @@
 -import(lists, [reverse/1,foldl/3]).
 
 menu(_) ->
-    [{"Getting Started...",getting_started},
-     {"Using a Mouse with One or Two Buttons...",one_or_two},
-     {"French And German Keyboards...",international},
+    [{"Getting Started",getting_started},
+     {"Using a Mouse With One or Two Buttons",one_or_two},
+     {"French and German Keyboards",international},
      separator,
-     {"Light Basics...",lights},
-     {"Assigning Hotkeys...",defining_hotkeys},
-     {"Advanced Menus...",advanced_menus},
+     {"Light Basics",lights},
+     {"Assigning Hotkeys",defining_hotkeys},
+     {"Advanced Menus",advanced_menus},
      separator,
-     {"OpenGL Info...",opengl_info},
+     {"OpenGL Info",opengl_info},
      separator,
-     {"About Wings 3D...",about}].
+     {"About Wings 3D",about}].
 
 command(getting_started, _St) ->
     getting_started();

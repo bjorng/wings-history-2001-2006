@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.26 2002/12/10 07:43:53 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.27 2002/12/14 14:24:30 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -35,18 +35,18 @@ menu(St) ->
 			    {"Edges",edge},
 			    {"Faces",face},
 			    {"Objects",body}]}},
-     {"By",{by,[{"Hard edges",hard_edges},
-		{"Isolated vertices",isolated_vertices},
-		{"Vertices with",{vertices_with,
-				  [{"2 edges",2},
-				   {"3 edges",3},
-				   {"4 edges",4},
-				   {"5 edges",5}]}},
-		{"Faces with",{faces_with,
-			       [{"2 edges",2},
-				{"3 edges",3},
-				{"4 edges",4},
-				{"5 or more",5}]}},
+     {"By",{by,[{"Hard Edges",hard_edges},
+		{"Isolated Vertices",isolated_vertices},
+		{"Vertices With",{vertices_with,
+				  [{"2 Edges",2},
+				   {"3 Edges",3},
+				   {"4 Edges",4},
+				   {"5 Edges",5}]}},
+		{"Faces With",{faces_with,
+			       [{"2 Edges",2},
+				{"3 Edges",3},
+				{"4 Edges",4},
+				{"5 or More",5}]}},
 		wings_material:sub_menu(select, St),
 		{"Random",{random,[{"10%",10},
 				   {"20%",20},
@@ -57,7 +57,7 @@ menu(St) ->
 				   {"70%",70},
 				   {"80%",80},
 				   {"90%",90}]}},
-		{"Short edges",short_edges,[option]},
+		{"Short Edges",short_edges,[option]},
 		{"Id...",id}]}},
      {"Lights",lights},
      separator,
@@ -67,10 +67,10 @@ menu(St) ->
      separator,
      {"New Group...", new_group} | GroupsMenu].
 
-sel_all_str(#st{selmode=vertex}) -> "All vertices";
-sel_all_str(#st{selmode=edge}) -> "All edges";
-sel_all_str(#st{selmode=face}) -> "All faces";
-sel_all_str(#st{selmode=body}) -> "All objects".
+sel_all_str(#st{selmode=vertex}) -> "All Vertices";
+sel_all_str(#st{selmode=edge}) -> "All Edges";
+sel_all_str(#st{selmode=face}) -> "All Faces";
+sel_all_str(#st{selmode=body}) -> "All Objects".
 
 groups_menu(#st{ssels=Ssels}=St) -> 
     case gb_trees:is_empty(Ssels) of

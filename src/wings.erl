@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.175 2002/12/12 18:04:42 bjorng Exp $
+%%     $Id: wings.erl,v 1.176 2002/12/14 14:24:30 bjorng Exp $
 %%
 
 -module(wings).
@@ -471,7 +471,7 @@ init_menubar() ->
     wings_wm:menubar(geom, Menus).
 
 edit_menu(St) ->
-    [{"Undo/redo",undo_toggle},
+    [{"Undo/Redo",undo_toggle},
      {"Redo",redo},
      {"Undo",undo},
      separator,

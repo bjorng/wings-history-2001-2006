@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.54 2002/11/26 20:05:29 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.55 2002/12/14 14:24:30 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -62,13 +62,13 @@ command(camera_mode, _St) ->
 	  {vframe,camera_modes(DefVar),
 	   [{title,"Camera Mode"}]},
 	  {vframe,
-	   [{"Wheel zooms",ZoomFlag0},
+	   [{"Wheel Zooms",ZoomFlag0},
 	    {hframe,[{label,"Zoom Factor"},
 		     {text,ZoomFactor0,[{range,{1,50}}]},{label,"%"}]}],
 	   [{title,"Scroll Wheel"}]},
 	  {vframe,
 	   [{label_column,
-	     [{"Field Of View",{text,Fov0,[{range,1.0,180.0}]}},
+	     [{"Field of View",{text,Fov0,[{range,1.0,180.0}]}},
 	      {"Near Clipping Plane",{text,Hither0,
 				      [{range,0.001,1000.0}]}},
 	      {"Far Clipping Plane",{text,Yon0,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.62 2002/12/08 17:30:33 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.63 2002/12/14 14:24:30 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -125,17 +125,17 @@ command(prefs, _St) ->
 	     [{title,"Axes"}]},
 	    {vframe,
 	     [{label_column,
-	       [{"Auto-save interval (min)",autosave_time}]},
+	       [{"Auto-Save Interval (min)",autosave_time}]},
 	      {"Advanced Menus",advanced_menus}
 	     ],
 	     [{title,"Miscellanous"}]}]}],
     dialog(Qs);
 command(compatibility, _St) ->
     Qs = [{vframe,
-	   [{"Optimize display lists",display_list_opt},
-	    {"Use display lists for text",text_display_lists},
-	    {"Show dummy axis letter",dummy_axis_letter},
-	    {"Early back buffer clear",early_buffer_clear}],
+	   [{"Optimize Display Lists",display_list_opt},
+	    {"Use Display Lists for Text",text_display_lists},
+	    {"Show Dummy Axis Letter",dummy_axis_letter},
+	    {"Early Back Buffer Clear",early_buffer_clear}],
 	   [{title,"Compatibility"}]}],
     dialog(Qs);
 command({set,List}, _St) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.24 2002/11/26 20:05:30 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.25 2002/12/14 14:24:30 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -66,7 +66,7 @@ menu(#st{sel=Sel,shapes=Shapes}) ->
 	       [] -> [];
 	       _ -> [separator|Menu0]
 	   end,
-    [{"Show And Unlock All",restore_all},
+    [{"Show and Unlock All",restore_all},
      {"Hide Selected",hide_selected},
      {"Hide Unselected",hide_unselected},
      {"Lock Unselected",lock_unselected}|Menu].
