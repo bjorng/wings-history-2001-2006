@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.11 2005/02/08 13:16:13 dgud Exp $
+%%     $Id: wings_tesselation.erl,v 1.12 2005/02/09 21:34:05 dgud Exp $
 %%
 
 -module(wings_tesselation).
@@ -52,7 +52,6 @@ quadrangulate(Faces, We) when is_list(Faces) ->
 quadrangulate(Faces, We) ->
     quadrangulate(gb_sets:to_list(Faces), We).
 
-
 %%%
 %%% Internal functions.
 %%%
@@ -70,7 +69,7 @@ doface(Face, We) ->
     case length(Vs) of
 	Len when Len =< 3 -> We;
 	Len when Len =< 4 -> We;
-	Len -> doface_1(Len, Vs, We, true)
+	Len -> doface_1(Face,Len, Vs, We, true)
     end.
 
 tri_faces(Fs0,We0) ->
@@ -94,7 +93,7 @@ triface(Face, Fs, TriV,We) ->
 	3 -> {[], Fs, TriV, We};
 	4 ->
 	    triangulate_quad(Face, Vs, TriV, Fs, We);
-	Len -> {[], Fs, TriV, doface_1(Len, Vs, We, false)}
+	Len -> {[], Fs, TriV, doface_1(Face,Len, Vs, We, false)}
     end.
 
 %%  Triangulates a quad, tries to make the triangulation so nice
@@ -111,7 +110,7 @@ triangulate_quad(F, Vs, TriV0, FsSet0, #we{vp=Vtab}=We0) ->
 	{Fs2, FsSet} = get_pref_faces(V2,FsSet1,We),
 	{Fs1++Fs2,FsSet,TriV,We}
     catch throw:_Problematic ->
-	    {[],FsSet0,TriV0, doface_1(4, Vs, We0, false)};
+	    {[],FsSet0,TriV0, doface_1(F,4, Vs, We0, false)};
 	Type:Err ->
 	    io:format("~p:~p: ~p ~p ~p~n", 
 		      [?MODULE,?LINE, Type, Err, erlang:get_stacktrace()])
@@ -165,7 +164,7 @@ select_newedge(_L = [A,B,C,D],[Ai,Bi,Ci,Di],N,F) ->
 	    end
     end.
 
-doface_1(Len, Vs, #we{vp=Vtab}=We, Q) ->
+doface_1(Face,Len,Vs,#we{vp=Vtab}=We, Q) ->
     FaceVs = lists:seq(0, Len-1),
     Vcoords = [gb_trees:get(V, Vtab) || V <- Vs],
     E3dface = #e3d_face{vs=FaceVs},
@@ -177,7 +176,7 @@ doface_1(Len, Vs, #we{vp=Vtab}=We, Q) ->
     Tfaces = [renumber(FVs, VsTuple) || #e3d_face{vs=FVs} <- T3dfaces],
     Bord = bedges(Vs),
     Diags = diags(Tfaces, Bord),
-    connect_diags(Diags, We).
+    connect_diags(Diags, [{Vs,Face}], Q, We).
 
 renumber(L, Vtab) ->
     renumber(L, Vtab, []).
@@ -187,33 +186,49 @@ renumber([], _, Acc) -> reverse(Acc).
 
 %% This simple code only works because we assume that each
 %% vertex can appear only once in a face.
-connect_diags([], We) -> We;
-connect_diags([{A,B}|T], We0) ->
-    We = wings_vertex_cmd:connect([A,B], We0),
-    connect_diags(T, We).
+connect_diags([], _Faces, _Q, We) -> We;
+connect_diags([{A,B}|T], Faces, Q, We0) ->
+    case find_face(A,B,Faces) of
+	none -> %% Hmm
+	    connect_diags(T, Faces, Q, We0);
+	Face -> 
+	    {We,NewFace} = wings_vertex:force_connect(A,B,Face,We0),
+	    Vs = wings_face:vertices_ccw(NewFace, We),
+	    connect_diags(T,[{Vs,NewFace}|Faces],Q,We)
+    end.
+
+find_face(_,_,[]) -> none;
+find_face(A,B,[{Vs, Face}|Fs]) ->
+    case lists:member(A,Vs) andalso lists:member(B,Vs) of
+	true ->  Face;
+	false -> find_face(A,B,Fs)
+    end.
 
 %% Return GbSet of {A,B} where AB is an edge in face F
 bedges(F) -> bedges(F, F, []).
 
 bedges([A], [B|_], S) -> gb_sets:from_list([{A,B}|S]);
-bedges([A|[B|_]=T], F, S) -> bedges(T, F, [{A,B}|S]).
+bedges([A|[B|_]=T], F, S) when A < B -> 
+    bedges(T, F, [{A,B}|S]);
+bedges([A|[B|_]=T], F, S) -> 
+    bedges(T, F, [{B,A}|S]).
 
-diags(Fl, Bord) -> diags(Fl, Bord, []).
+diags(Fl, Bord) -> diags1(Fl, {Bord, []}).
 
-diags([], _, S) -> reverse(S);
-diags([Vs|T], Bord, S) -> diags(T, Bord, diagsf(Vs, Vs, Bord, S)).
+diags1([], {_, S}) -> reverse(S);
+diags1([Vs|T], Acc) -> diags1(T, diagsf(Vs, Vs, Acc)).
 
-diagsf([A], [First|_], Bord, S) ->
-    trydiag(A, First, Bord, S);
-diagsf([A|[B|_]=T], Vs, Bord, S) ->
-    diagsf(T, Vs, Bord, trydiag(A, B, Bord, S)).
+diagsf([A], [First|_], Acc) ->
+    trydiag(A, First, Acc);
+diagsf([A|[B|_]=T], Vs, Acc) ->
+    diagsf(T,Vs,trydiag(A, B, Acc)).
 
-trydiag(A, B, _, S) when A > B ->
+trydiag(A, B, Acc) when A > B ->
     %% only want one representative of diag
-    S;
-trydiag(A, B, Bord, S) ->
+    Acc;
+trydiag(A, B, Old={Bord, S}) ->
     E = {A,B},
     case gb_sets:is_member(E, Bord) of
-	true -> S;
-	false -> [E|S]
+	true -> Old;
+	false -> {gb_sets:add(E,Bord),[E|S]}
     end.
