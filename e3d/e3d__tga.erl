@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.10 2003/11/11 17:18:24 dgud Exp $
+%%     $Id: e3d__tga.erl,v 1.11 2003/11/13 09:15:12 dgud Exp $
 %%
 
 -module(e3d__tga).
@@ -24,27 +24,23 @@ format_error(bad_image_specifiction) ->
 load(FileName, _Opts) ->
     case file:read_file(FileName) of
 	%% Uncompressed image
-	{ok, <<0,0,2,0,0,0,0,0,0,0,0,0,  Image/binary>>} ->
-%	    io:format("Loading uncompressed ~n",[]),
-	    load_uncomp(Image);
+	{ok, <<S,0,2,0,0,0,0,0,_,_,_,_, Image/binary>>} ->
+	    load_uncomp(S,Image);
 	%% Compressed image
-	{ok, <<0,0,10,0,0,0,0,0,0,0,0,0, Image/binary>>} ->
-%	    io:format("Loading compressed ~n",[]),
-	    load_comp(Image);
+	{ok, <<S,0,10,0,0,0,0,0,_,_,_,_, Image/binary>>} ->
+	    load_comp(S,Image);
 	%% Black&White Image 
-	{ok, <<0,0,3,0,0,0,0,0,0,0,0,0, Image/binary>>} ->
-	    load_uncomp(Image);
+	{ok, <<S,0,3,0,0,0,0,0,_,_,_,_, Image/binary>>} ->
+	    load_uncomp(S,Image);
 	%% Black&White Image 
-	{ok, <<0,0,11,0,0,0,0,0,0,0,0,0, Image/binary>>} ->
-	    load_comp(Image);
+	{ok, <<S,0,11,0,0,0,0,0,_,_,_,_,Image/binary>>} ->
+	    load_comp(S,Image);
 	%% ColorMap Image (uncompressed)
-	{ok, <<0,1,1,0:16/little,Len:16/little,B,0,0,0,0, Image/binary>>} 
-	when B == 24; B == 32 ->
-	    load_mapped(Len,B div 8,false, Image);
+	{ok, <<S,1,1,0:16/little,Len:16/little,B,_,_,_,_, Image/binary>>} ->
+	    load_mapped(Len,B,false,S,Image);
  	%% ColorMap Image (compressed)
-	{ok, <<0,1,9,0:16/little,Len:16/little,B,0,0,0,0, Image/binary>>} 
-	when B == 24; B == 32 ->
-	    load_mapped(Len,B div 8,true,Image);
+	{ok, <<S,1,9,0:16/little,Len:16/little,B,_,_,_,_, Image/binary>>} ->
+	    load_mapped(Len,B,true,S,Image);
 	{ok, <<_Bin:12/binary, _Rest/binary>>} ->
 	    io:format("~p~n", [_Bin]),
 	    {error, {none,?MODULE,unsupported_format}};
@@ -52,92 +48,68 @@ load(FileName, _Opts) ->
 	    Error
     end.
 
-load_mapped(Len,Bpp,Comp, <<W:16/little,H:16/little,
-			   8:8,0:1,0:1,Order:2,Alpha:4,Raw/binary>>) ->
+load_mapped(Len,Bitpp,Comp,Skip,
+	    <<W:16/little,H:16/little,8:8,0:1,0:1,
+	     Order:2,Alpha:4,Raw/binary>>) ->
     Size = W * H,
+    Bpp = (Bitpp + 1) div 8,
     MapSz = (Len*Bpp),
-    <<MapBin:MapSz/binary,Image0/binary>> = Raw,
-    Map = get_map(MapSz-Bpp,Bpp,MapBin,[]),
-
-    Image = case Comp of 
-		false -> 
-		    <<Image1:Size/binary, _/binary>> = Image0,
-		    Image1;
-		true ->
-		    load_comp(Image0, Size, Bpp, [])
-	    end,
-    RealImage = convert(Size-1,Image, Map, Bpp, []),
-
-    Type = case Bpp of
-	       1 when Alpha == 8 -> a8;
-	       1 -> g8;
-	       3 -> b8g8r8;
-	       4 -> b8g8r8a8
-	   end,
-    #e3d_image{width = W, height = H, type = Type, 
-	       order = get_order(Order),
-	       bytes_pp = Bpp, alignment = 1,
-	       image = RealImage}.
-
-get_map(I,B, <<>>, Acc) when I == -B ->
-    list_to_tuple(Acc);
-get_map(I,B,Map0,Acc) ->
-    <<Map:I/binary,C:B/binary>> = Map0,
-    get_map(I-B,B,Map,[C|Acc]).
-
-convert(-1,<<>>, _, _, Acc) ->
-    list_to_binary(Acc);
-convert(I, Image0, Map, B, Acc) ->
-    <<Image:I/binary,Index:8>> = Image0,
-    Col = element(Index+1, Map),
-    convert(I-1,Image, Map, B, [Col|Acc]).
-
-load_uncomp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,Image/binary>>) ->
-    BytesPerPixel = BitsPP div 8,
-    SpecOK = (W > 0) and (H > 0) 
-	and ((BitsPP == 32) or (BitsPP == 24) or (BitsPP == 8)),
-    if 
-	SpecOK == false ->
-	    io:format("Unsupported image spec W ~p H ~p BitsPP ~p Order ~p Alpha ~p ~n",
-		      [W,H,BitsPP,Order,Alpha]),
-	    {error, {none,?MODULE,bad_image_specifiction}};
-	true ->
-	    Type = case BytesPerPixel of
-		       1 when Alpha == 8 -> a8;
-		       1 -> g8;
-		       3 -> b8g8r8;
-		       4 -> b8g8r8a8
-		   end,
-	    Size = BytesPerPixel * W * H,
-	    <<RealImage:Size/binary, _Rest/binary>> = Image,
+    <<_:Skip/binary,MapBin0:MapSz/binary,Image0/binary>> = Raw,
+    case to_8bitpp(MapBin0,Bitpp,Alpha) of
+	MapBin when binary(MapBin) ->
+	    Map = get_map(MapSz,Bpp,MapBin,[]),
+	    Image = case Comp of 
+			false -> 
+			    <<Image1:Size/binary, _/binary>> = Image0,
+			    Image1;
+			true ->
+			    load_comp(Image0, Size, Bpp, [])
+		    end,
+	    RealImage = convert(Size,Image,Map,[]),
+	    
+	    Type = e3d_type(Bpp,Alpha),
 	    #e3d_image{width = W, height = H, type = Type, 
 		       order = get_order(Order),
-		       bytes_pp = BytesPerPixel, alignment = 1,
-		       image = RealImage}
+		       bytes_pp = e3d_image:bytes_pp(Type), 
+		       alignment = 1,
+		       image = RealImage};
+	Else ->
+	    Else
     end.
 
-load_comp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,CImage/binary>>) ->
-    BytesPerPixel = BitsPP div 8,
-    SpecOK = (W > 0) and (H > 0) and ((BitsPP == 32) 
-				      or (BitsPP == 24)
-				      or (BitsPP == 8)),
-    if 
-	SpecOK == false ->
-	    io:format("Unsupported image spec W ~p H ~p BitsPP ~p Order ~p Alpha ~p ~n",
-		      [W,H,BitsPP,Order,Alpha]),
+load_uncomp(Skip,<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,
+		  Order:2,Alpha:4,Image/binary>>) ->
+    BytesPerPixel = (BitsPP+1) div 8,
+    Type = e3d_type(BytesPerPixel,Alpha),
+    Size = BytesPerPixel * W * H,
+    <<_:Skip/binary, RealImage:Size/binary, _Rest/binary>> = Image,
+    case to_8bitpp(RealImage,BitsPP,Alpha) of
+	Bin when binary(Bin) ->
+	    #e3d_image{width = W, height = H, type = Type, 
+		       order = get_order(Order),
+		       bytes_pp = e3d_image:bytes_pp(Type), 
+		       alignment = 1,
+		       image = Bin};
+	Else ->
+	    Else
+    end.
 
-	    {error, {none,?MODULE,bad_image_specifiction}};
-	true ->
-	    Type = case BytesPerPixel of
-		       1 when Alpha == 8 -> a8;
-		       1 -> g8;
-		       3 -> b8g8r8;
-		       4 -> b8g8r8a8
-		   end,	    
-	    Size  = W * H,
-	    Image = load_comp(CImage, Size, BytesPerPixel, []),
-	    #e3d_image{width = W, height = H, type = Type, order = get_order(Order),
-		       bytes_pp = BytesPerPixel, image = Image}
+load_comp(Skip, Bin0) -> 
+    <<W:16/little,H:16/little,BitsPP:8,0:1,0:1,
+     Order:2,Alpha:4,_:Skip/binary,CImage/binary>> = Bin0,
+    BytesPerPixel = (BitsPP+1) div 8,
+    Type = e3d_type(BytesPerPixel,Alpha),
+    Size  = W * H,
+    Image = load_comp(CImage, Size, BytesPerPixel, []),
+    case to_8bitpp(Image,BitsPP,Alpha) of
+	Bin when binary(Bin) ->
+	    #e3d_image{width = W, height = H, type = Type, 
+		       order = get_order(Order),
+		       bytes_pp = e3d_image:bytes_pp(Type),
+		       alignment = 1,
+		       image = Bin};
+	Else ->
+	    Else
     end.
 
 load_comp(_, PL, _ByPP, Acc) when PL =< 0 ->
@@ -162,8 +134,9 @@ save(Image0, FileName, _Opts) ->
 		{e3d_image:convert(Image0, b8g8r8a8, 1), 32, <<Order:4, 8:4>>}
 	end,
     Head0 = <<0,0,2,0,0,0,0,0,0,0,0,0>> ,    
-    Head1 = <<(Image#e3d_image.width):16/little, (Image#e3d_image.height):16/little,
-               BitsPP:8,(Def)/binary>> ,
+    Head1 = <<(Image#e3d_image.width):16/little, 
+	     (Image#e3d_image.height):16/little,
+	     BitsPP:8,(Def)/binary>> ,
     Bin =  <<Head0/binary, Head1/binary, (Image#e3d_image.image)/binary>> ,
     file:write_file(FileName, Bin).
 
@@ -177,3 +150,71 @@ get_order(2) -> upper_left;
 get_order(3) -> upper_right.
 
      
+e3d_type(Bpp,Alpha) ->
+    case Bpp of
+	1 when Alpha == 8 -> a8;
+	1 -> g8;
+	2 when Alpha == 0 ->  b8g8r8;
+	2 when Alpha > 0 ->   b8g8r8a8;
+	3 -> b8g8r8;
+	4 -> b8g8r8a8
+    end.
+
+-define(B8(C,B),  (trunc((C)/((1 bsl (B))-1) *255))).
+to_8bitpp(Image, 8, _)  -> Image;
+to_8bitpp(Image, 24, _) -> Image;
+to_8bitpp(Image, 32, 8) -> Image;
+to_8bitpp(Image, Bitpp, Alpha) ->
+    ByPP = (Bitpp + 1) div 8,
+    Type =
+	if Alpha == 0, Bitpp == 15 -> {5,5,5,0,1};
+	   Alpha == 0, Bitpp == 16 -> {5,6,5,0,0};
+	   (Bitpp rem 8) == 0, ((Bitpp-Alpha) rem 3) == 0 -> % Assert
+		BpC = (Bitpp - Alpha) div 3,
+		{BpC,BpC,BpC, Alpha, 0};
+	   true -> {error, unsupported_format}
+	end,
+    case Type of
+	{R,G,B,A,S} ->
+	    to_8bitpp(size(Image), Image, ByPP,R,G,B,A,S,[]);
+	Else ->
+	    Else
+    end.
+to_8bitpp(0, _Image, _ByPP,_R,_G,_B,_A,_S, Acc) ->
+    list_to_binary(Acc);
+to_8bitpp(N, Image, ByPP = 2,Rs,Gs,Bs,As,Ss, Acc) ->
+    Prev = N - ByPP,
+    <<_:Prev/binary, RGB:16/little, _/binary>> = Image,
+    <<_A:As,_:Ss,R:Rs,G:Gs,B:Bs>> = <<RGB:16/big>>,
+    %% Alpha don't seem to be valid for 16bit images
+    %% atleast not the ones created with photoshop.
+    A = (1 bsl As) - 1, 
+    Pixel = if As == 0 -> [?B8(B,Bs),?B8(G,Gs),?B8(R,Rs)];
+	       As > 0 ->  [?B8(B,Bs),?B8(G,Gs),?B8(R,Rs),?B8(A,As)]
+	    end,
+    to_8bitpp(Prev,Image,ByPP,Rs,Gs,Bs,As,Ss,[Pixel|Acc]);
+to_8bitpp(N, Image, ByPP,Rs,Gs,Bs,0,Ss, Acc) ->
+    Prev = N - ByPP,
+    <<_:Prev/binary, R:Rs,G:Gs,B:Bs,_:Ss, _/binary>> = Image,
+    Pixel = [?B8(R,Rs),?B8(G,Gs),?B8(B,Bs)],
+    to_8bitpp(Prev,Image,ByPP,Rs,Gs,Bs,0,Ss,[Pixel|Acc]);
+to_8bitpp(N, Image, ByPP,Rs,Gs,Bs,As,Ss, Acc) ->
+    Prev = N - ByPP,
+    <<_:Prev/binary, A:As,R:Rs,G:Gs,B:Bs, _/binary>> = Image,
+    Pixel = [?B8(R,Rs),?B8(G,Gs),?B8(B,Bs),?B8(A,As)],
+    to_8bitpp(Prev,Image,ByPP,Rs,Gs,Bs,As,Ss,[Pixel|Acc]).
+
+get_map(0,_, _, Acc) ->
+    list_to_tuple(Acc);
+get_map(I,B,Map,Acc) ->
+    Prev = I-B,
+    <<_:Prev/binary,C:B/binary,_/binary>> = Map,
+    get_map(Prev,B,Map,[C|Acc]).
+
+convert(0,_, _, Acc) ->
+    list_to_binary(Acc);
+convert(I, Image, Map, Acc) ->
+    Prev = I-1,
+    <<_:Prev/binary,Index:8,_/binary>> = Image,
+    Col = element(Index+1, Map),
+    convert(Prev,Image, Map, [Col|Acc]).
