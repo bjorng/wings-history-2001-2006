@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.151 2002/07/26 17:43:54 bjorng Exp $
+%%     $Id: wings.erl,v 1.152 2002/08/05 05:48:17 bjorng Exp $
 %%
 
 -module(wings).
@@ -27,10 +27,6 @@ start() ->
     RootEbin = filename:dirname(filename:absname(code:which(?MODULE))),
     Split = filename:split(RootEbin),
     Root = filename:join(Split -- ["ebin"]),
-
-    %% Set a minimal heap size to avoiding garbage-collecting
-    %% all the time. Don't set it too high to avoid keeping binaries
-    %% too long.
     spawn(fun() ->
 		  {ok,Cwd} = file:get_cwd(),
 		  process_flag(trap_exit, true),
@@ -81,7 +77,7 @@ do_spawn(File, Root, Flags) ->
     %% too long.
     Fun = fun() -> init(File, Root) end,
     spawn_opt(erlang, apply, [Fun,[]],
-	      [{fullsweep_after,16384},{min_heap_size,256*1204}|Flags]).
+	      [{fullsweep_after,16384},{min_heap_size,128*1204}|Flags]).
 
 root_dir() ->
     get(wings_root_dir).
