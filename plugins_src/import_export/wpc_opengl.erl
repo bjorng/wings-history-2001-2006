@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.44 2003/10/02 08:54:48 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.45 2003/10/15 21:20:44 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -986,30 +986,63 @@ do_draw_faces([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs],Tex, We) ->
 do_draw_bumped([], _,_,_) -> ok;
 do_draw_bumped([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs], Txt, We, L) ->
     [V1,V2,V3] = wings_face:vertex_positions(Face, We),
-    {S,T} = calcTS(V1,V2,V3,UV1,UV2,UV3,N1),
+    TBN1 = calcTS(V3,V1,V2,UV3,UV1,UV2,N1),
     gl:normal3fv(N1),
     texCoord(UV1, true, ?GL_TEXTURE1),
-    bumpCoord(S,T,N1, e3d_vec:sub(L,V1)),
+%    io:format("V=~p.~p~n",[V1,[UV1|N1]]),
+    bumpCoord(TBN1, e3d_vec:sub(L,V1)),
     texCoord(UV1, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V1),
 
+    TBN2 = calcTS(V1,V2,V3,UV1,UV2,UV3,N2),
     gl:normal3fv(N2),
     texCoord(UV2, true, ?GL_TEXTURE1),
-    bumpCoord(S,T,N2, e3d_vec:sub(L,V2)),
+%    io:format("V=~p.~p~n",[V2,[UV2|N2]]),
+    bumpCoord(TBN2, e3d_vec:sub(L,V2)),
     texCoord(UV2, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V2),
 
+    TBN3 = calcTS(V2,V3,V1,UV2,UV3,UV1,N3),
     gl:normal3fv(N3),
     texCoord(UV3, true, ?GL_TEXTURE1),
-    bumpCoord(S,T,N3,e3d_vec:sub(L,V3)),
+%    io:format("V=~p.~p~n",[V3,[UV3|N3]]),
+    bumpCoord(TBN3, e3d_vec:sub(L,V3)),
     texCoord(UV3, Txt,  ?GL_TEXTURE3),
     gl:vertex3fv(V3),
     do_draw_bumped(Fs, Txt, We, L).
 
-bumpCoord(Vx,_, Vn, InvLight0) ->
+calcTS(V1,V2,V3,{S1,T1},{S2,T2},{S3,T3},N) ->
+    Side1 = e3d_vec:sub(V1,V2),
+    Side2 = e3d_vec:sub(V3,V2),
+    DT1 = T1-T2,
+    DT2 = T3-T2,
+    Stan1 = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DT2),
+				    e3d_vec:mul(Side2,DT1))),
+
+%    DS1 = S1-S2,
+%    DS2 = S3-S2,
+%    Ttan1 = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DS2),
+%				    e3d_vec:mul(Side2,DS1))),
+
+    Ttan2 = e3d_vec:norm(e3d_vec:cross(Stan1,N)),
+%    CN = e3d_vec:cross(Stan,Ttan),
+    Stan2 = e3d_vec:norm(e3d_vec:cross(Ttan2,N)),
+%     Stan = Stan1, Ttan = Tan1,
+%     Stan = Stan1, Ttan = Tan2,
+%     Stan = Stan2, Ttan = Tan1,
+    Stan = Stan2, Ttan = Ttan2,
+    Check = e3d_vec:dot(e3d_vec:cross(Stan,Ttan),N),
+    if 
+	Check < 0.0 ->
+	    {e3d_vec:mul(Stan,-1.0),e3d_vec:mul(Ttan,-1.0), N};
+	true ->
+	    {Stan,Ttan,N}
+    end.
+
+bumpCoord({Vx,Vy,Vn}, InvLight0) ->
     InvLight = e3d_vec:norm(InvLight0),
     %% Calc orthonormal space per vertex.
-    Vy = e3d_vec:norm(e3d_vec:cross(Vx,Vn)),
+    %% Vy = e3d_vec:norm(e3d_vec:cross(Vx,Vn)),
     %% {Vx,Vy,Vn}
     
     %% Norm RGB could (should) be done with a normal-cube map
@@ -1078,28 +1111,7 @@ apply_bumped_mat(Mat) ->
 	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE1_RGB,  ?GL_PREVIOUS),
 	    true
     end.
-
     
-% Calculate the the tangent space for polygon
-calcTS(V1,V2,V3,{S1,T1},{S2,T2},{S3,T3},N1) ->
-    Side1 = e3d_vec:sub(V1,V2),
-    Side2 = e3d_vec:sub(V3,V2),
-    DT1 = T1-T2,
-    DT2 = T3-T2,
-    Stan = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DT2),
-				    e3d_vec:mul(Side2,DT1))),
-    DS1 = S1-S2,
-    DS2 = S3-S1,
-    Ttan = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DS2),
-				    e3d_vec:mul(Side2,DS1))),
-    Check = e3d_vec:dot(e3d_vec:cross(Stan,Ttan),N1),
-    if 
-	Check < 0.0 ->
-	    {e3d_vec:mul(Stan,-1.0),e3d_vec:mul(Ttan,-1.0)};
-	true ->
-	    {Stan,Ttan}
-    end.
-
 % norm_rgb(V1, V2, V3) when is_float(V1), is_float(V2), is_float(V3) ->
 %     D = math:sqrt(V1*V1+V2*V2+V3*V3),
 %     case catch {0.5+V1/D*0.5,0.5+V2/D*0.5,0.5+V3/D*0.5} of
