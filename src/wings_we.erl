@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.101 2005/01/11 07:35:00 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.102 2005/01/15 08:38:26 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -176,6 +176,26 @@ visible_vs_1([#edge{lf=Lf,rf=Rf}|Es], Mirror, Acc) when Lf < 0, Rf < 0 ->
 visible_vs_1([#edge{vs=Va,ve=Vb}|Es], Mirror, Acc) ->
     visible_vs_1(Es, Mirror, [Va,Vb|Acc]);
 visible_vs_1([], _, Acc) -> ordsets:from_list(Acc).
+
+visible_vs(Vs, We) ->
+    case any_hidden(We) of
+	false -> Vs;
+	true ->
+	    Vis0 = visible_vs(We),
+	    case Vs of
+		[{_,_}|_] ->
+		    VsSet = sofs:relation(Vs),
+		    VisSet = sofs:from_external(Vis0, [atom]),
+		    sofs:to_external(sofs:restriction(VsSet, VisSet));
+		[_|_] ->
+		    ordsets:intersection(Vis0, Vs);
+		[] ->
+		    [];
+		true ->
+		    Vis = gb_sets:from_ordset(Vis0),
+		    gb_sets:intersection(Vis, Vs)
+	    end
+    end.
 
 visible_edges(#we{es=Etab,mirror=Face}=We) ->
     case any_hidden(We) of
@@ -853,7 +873,8 @@ normals(FaceNormals, #we{he=He}=We) ->
 
 all_soft(FaceNormals, #we{vp=Vtab}=We) ->
     wings_pb:update(0.10, ?__(1,"preparing")),
-    VtxNormals = soft_vertex_normals(gb_trees:to_list(Vtab), FaceNormals, We),
+    VisVs = visible_vs(gb_trees:to_list(Vtab), We),
+    VtxNormals = soft_vertex_normals(VisVs, FaceNormals, We),
     FoldFun = fun(V, VInfo, A) ->
 		      Normal = gb_trees:get(V, VtxNormals),
 		      [[VInfo|Normal]|A]
