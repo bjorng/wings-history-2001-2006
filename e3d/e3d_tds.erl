@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.19 2002/11/05 13:41:50 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.20 2002/11/05 15:27:18 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -178,7 +178,6 @@ face_desc(<<16#4150:16/little,Sz0:32/little,T0/binary>>, {Faces,_}) ->
     Sz = Sz0 - 6,
     <<Smooth0:Sz/binary,T/binary>> = T0,
     Smooth = get_smooth_groups(Smooth0),
-    io:format("~p\n", [Smooth]),
     face_desc(T, {Faces,Smooth});
 face_desc(<<>>, Acc) -> Acc.
 
@@ -582,39 +581,31 @@ make_smooth_groups(Fs, []) ->
 make_smooth_groups(Fs, He) ->
     Es = msg_edges(Fs, 0, []),
     R0 = sofs:relation(Es),
-    Ws0 = sofs:restriction(2, R0, sofs:set(He)),
-    Ws1 = sofs:relative_product(Ws0, sofs:converse(R0)),
+    ConvR = sofs:converse(R0),
+    {Ws0,Rs0} = sofs:partition(2, R0, sofs:set(He)),
+    Ws1 = sofs:relative_product(Ws0, ConvR),
     Ws2 = sofs:relation_to_family(Ws1),
     Ws = sofs:to_external(Ws2),
-    Groups1 = msg_assign(Ws, gb_trees:empty()),
-    %%NotAllowed = msg_not_allowed(Ws, Groups1, gb_trees:empty()),
-    Rs0 = sofs:drestriction(2, R0, sofs:set(He)),
     Rs1 = sofs:restriction(Rs0, sofs:domain(Ws2)),
-    Rs2 = sofs:relative_product(Rs1, sofs:converse(R0)),
+    Rs2 = sofs:relative_product(Rs1, ConvR),
     Rs3 = sofs:relation_to_family(Rs2),
     Rs = sofs:to_external(Rs3),
-    %%Groups2 = msg_assign_softness(Rs, NotAllowed, Groups1),
-    Groups2 = Groups1,
+    Groups1 = msg_assign_hardness(Ws, gb_trees:empty()),
+    Groups2 = msg_assign_softness(Rs, gb_trees:from_orddict(Ws), Groups1),
     Groups3 = gb_trees:to_list(Groups2),
+    AllGroupsUsed = msg_all_groups_used(Groups3, 0),
     Groups4 = sofs:from_external(Groups3, [{atom,atom}]),
     Groups5 = sofs:extension(Groups4, sofs:set(lists:seq(0, length(Fs)-1)),
-			     sofs:from_term(-1)),
+			     sofs:from_term(AllGroupsUsed)),
     Groups = sofs:to_external(Groups5),
-    io:format("~p\n", [Groups]),
     msg_chunk(Groups, []).
 
+msg_all_groups_used([{_,G}|T], Acc) ->
+    msg_all_groups_used(T, G bor Acc);
+msg_all_groups_used([], Acc) -> Acc.
+    
 msg_chunk([{_,SG}|T], Acc) -> msg_chunk(T, [<<SG:32/little>>|Acc]);
-msg_chunk([], Acc) -> make_chunk(16#4150, Acc).
-
-    %%make_chunk(16#4150, Contents).
-%     Rs0 = sofs:drestriction(2, R0, sofs:set(He)),
-%     Rs1 = sofs:relative_product(Rs0, sofs:converse(R0)),
-%     Rs2 = sofs:relation_to_family(Rs1),
-%     Rs = sofs:to_external(Rs2),
-%     io:format("~p\n", [Rs]),
-%     Groups = msg_assign_softness(Rs, NotAllowed, Groups1),
-%     io:format("~p\n", [Groups]),
-%     glurf.
+msg_chunk([], Acc) -> make_chunk(16#4150, reverse(Acc)).
 
 msg_edge(A, B) when A < B -> {A,B};
 msg_edge(A, B) -> {B,A}.
@@ -626,42 +617,61 @@ msg_edges([#e3d_face{vs=[A,B,C]}|T], Face, Acc) ->
     msg_edges(T, Face+1, [{Face,E1},{Face,E2},{Face,E3}|Acc]);
 msg_edges([], _, Acc) -> Acc.
 
-msg_assign([{Face,Fs}|T], Groups0) ->
-    Groups = msg_assign_1(Face, Fs, Groups0, 0),
-    msg_assign(T, Groups);
-msg_assign([], Groups) -> Groups.
+msg_assign_hardness([{Face,HardFs}|T], Groups0) ->
+    Groups = msg_assign_hardness_1(Face, HardFs, Groups0, 0),
+    msg_assign_hardness(T, Groups);
+msg_assign_hardness([], Groups) -> Groups.
 
-msg_assign_1(Face, [Face|Fs], Groups, Acc) ->
-    msg_assign_1(Face, Fs, Groups, Acc);
-msg_assign_1(Face, [AFace|Fs], Groups, Acc) ->
+msg_assign_hardness_1(Face, [Face|Fs], Groups, Acc) ->
+    msg_assign_hardness_1(Face, Fs, Groups, Acc);
+msg_assign_hardness_1(Face, [AFace|Fs], Groups, Acc) ->
     case gb_trees:lookup(AFace, Groups) of
-	none -> msg_assign_1(Face, Fs, Groups, Acc);
-	{value,G} -> msg_assign_1(Face, Fs, Groups, Acc bor G)
+	none -> msg_assign_hardness_1(Face, Fs, Groups, Acc);
+	{value,G} -> msg_assign_hardness_1(Face, Fs, Groups, Acc bor G)
     end;
-msg_assign_1(Face, [], Groups, NotAllowed) ->
+msg_assign_hardness_1(Face, [], Groups, NotAllowed) ->
     G = msg_find_group(NotAllowed),
     gb_trees:insert(Face, G, Groups).
 
-% msg_not_allowed([{Face,Fs}|T], Groups, Acc0) ->
-%     NotAllowed = msg_not_allowed_1(Face, Fs, Groups, 0),
-%     Acc = gb_trees:insert(Face, NotAllowed, Acc0),
-%     msg_not_allowed(T, Groups, Acc);
-% msg_not_allowed([], _, Acc) -> Acc.
+msg_assign_softness([{Face,SoftFs}|T], HardTab, Groups0) ->
+    Groups = msg_assign_softness_1(Face, SoftFs, HardTab, Groups0),
+    msg_assign_softness(T, HardTab, Groups);
+msg_assign_softness([], _, Groups) -> Groups.
 
-% msg_not_allowed_1(Face, [Face|Fs], Groups, Acc) ->
-%     msg_not_allowed_1(Face, Fs, Groups, Acc);
-% msg_not_allowed_1(Face, [AFace|Fs], Groups, Acc) ->
-%     msg_not_allowed_1(Face, Fs, Groups, Acc bor gb_trees:get(AFace, Groups));
-% msg_not_allowed_1(_, [], _, NotAllowed) -> NotAllowed.
+msg_assign_softness_1(Face, [Face|Fs], HardTab, Groups) ->
+    msg_assign_softness_1(Face, Fs, HardTab, Groups);
+msg_assign_softness_1(Face, [AFace|Fs], HardTab, Groups0) ->
+    case gb_trees:lookup(AFace, Groups0) of
+	none ->					%Will get default value.
+	    msg_assign_softness_1(Face, Fs, HardTab, Groups0);
+	{value,Ga} ->
+	    case gb_trees:get(Face, Groups0) of
+		G when G band Ga =:= 0 ->
+		    Groups = msg_assign_softness_2(Face, AFace, G, Ga,
+						   HardTab, Groups0),
+		    msg_assign_softness_1(Face, Fs, HardTab, Groups);
+		_ ->				%Already soft.
+		    msg_assign_softness_1(Face, Fs, HardTab, Groups0)
+	    end
+    end;
+msg_assign_softness_1(_, [], _, Groups) -> Groups.
 
-% msg_assign_softness([{Face,_}|T], NotAllowed, Groups0) ->
-%     G0 = gb_trees:get(Face, Groups0),
-%     Allowed = 16#FFFFffff bxor gb_trees:get(Face, NotAllowed),
-%     G = G0 bor Allowed,
-%     Groups = gb_trees:update(Face, G, Groups0),
-%     msg_assign_softness(T, NotAllowed, Groups);
-% msg_assign_softness([], _, Groups) -> Groups.
-
+msg_assign_softness_2(Face, AFace, G0, Ga0, HardTab, Groups0) ->
+    NotAllowed = msg_not_allowed(gb_trees:get(Face, HardTab), Groups0) bor
+	msg_not_allowed(gb_trees:get(AFace, HardTab), Groups0),
+    NewG = msg_find_group(NotAllowed),
+    G = G0 bor NewG,
+    Ga = Ga0 bor NewG,
+    Groups = gb_trees:update(Face, G, Groups0),
+    gb_trees:update(AFace, Ga, Groups).
+				 
+msg_not_allowed(Fs, Groups) ->
+    msg_not_allowed(Fs, Groups, 0).
+    
+msg_not_allowed([F|Fs], Groups, Acc) ->
+    msg_not_allowed(Fs, Groups, gb_trees:get(F, Groups) bor Acc);
+msg_not_allowed([], _, Acc) -> Acc.
+    
 msg_find_group(NotAllowed) ->
     msg_find_group(1, NotAllowed).
 
