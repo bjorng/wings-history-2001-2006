@@ -4,12 +4,12 @@
 %%     This module contains the Extrude (edge), Bevel (face/edge) and
 %%     Bump commands. (All based on edge extrusion.)
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.17 2002/01/19 07:53:49 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.18 2002/01/31 07:43:31 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -27,14 +27,13 @@
 
 bump(St0) ->
     {St,Tvs} = wings_sel:mapfold(fun bump/3, [], St0),
-    wings_drag:init_drag(Tvs, {radius,none}, distance, St#st{inf_r=1.0}).
+    wings_move:plus_minus(normal, Tvs, St).
 
 bump(Faces, #we{id=Id}=We0, Acc) ->
     Edges = gb_sets:from_list(wings_face:outer_edges(Faces, We0)),
     {We,_} = extrude_edges(Edges, Faces, We0),
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
-    Tv = wings_move:setup_we(face, normal, Faces, We),
-    plus_minus_move(Tv, NewVs, We, Acc).
+    {We,[{Faces,NewVs,We}|Acc]}.
 
 %%
 %% The Bevel command (for edges).
@@ -183,18 +182,12 @@ extrude(Type, St0) ->
 		 fun(Edges, We, A) ->
 			 extrude_1(Edges, Vec, We, A)
 		 end, [], St0),
-    Constraint = case Type of
-		     free -> view_dependent;
-		     Other -> none
-		 end,
-    wings_drag:init_drag(Tvs, {radius,Constraint},
-			 distance, St#st{inf_r=1.0}).
+    wings_move:plus_minus(Type, Tvs, St).
 
 extrude_1(Edges, Vec, We0, Acc) ->
     {We,_} = extrude_edges(Edges, We0),
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
-    Tv = wings_move:setup_we(edge, Vec, Edges, We),
-    plus_minus_move(Tv, NewVs, We, Acc).
+    {We,[{Edges,NewVs,We}|Acc]}.
 
 extrude_edges(Edges, We) ->
     extrude_edges(Edges, gb_sets:empty(), We).
@@ -368,66 +361,3 @@ remove_winged_vs(Cs0) ->
     P = sofs:partition(fun(C) -> sofs:domain(C) end, Cs),
     G = sofs:specification(fun(L) -> sofs:no_elements(L) =:= 1 end, P),
     sofs:to_external(sofs:union(G)).
-
-%%
-%% Move handling for Extrude/Bump.
-%%
-
-plus_minus_move([_|_]=Tv0, NewVs, #we{id=Id}=We, Acc) ->
-    Tv = [{Vec,wings_util:add_vpos(Vs0, We)} || {Vec,Vs0} <- Tv0],
-    Affected0 = lists:append([Vs0 || {Vec,Vs0} <- Tv0]),
-    MoveSel = {Affected0,move_fun(Tv)},
-    Vecs = move_vectors(NewVs, gb_sets:from_list(Affected0), We, []),
-    Affected = [V || {V,Vec,Pos} <- Vecs],
-    MoveAway = {Affected,move_away_fun(Vecs)},
-    {We,[{Id,MoveSel},{Id,MoveAway}|Acc]};
-plus_minus_move({Affected0,MoveFun0}, NewVs, #we{id=Id}=We, Acc) ->
-    MoveFun = free_move_fun(MoveFun0),
-    MoveSel = {Affected0,MoveFun},
-    Vecs = move_vectors(NewVs, gb_sets:from_list(Affected0), We, []),
-    Affected = [V || {V,Vec,Pos} <- Vecs],
-    MoveAway = {Affected,move_away_fun(Vecs)},
-    {We,[{Id,MoveSel},{Id,MoveAway}|Acc]}.
-
-move_fun(Tv) ->
-    fun({Dx,R}, Acc) ->
-	    wings_drag:message([Dx], distance),
-	    foldl(fun({Vec,VsPos}, A) ->
-			  wings_drag:translate(Vec, Dx, VsPos, A)
-		  end, Acc, Tv)
-    end.
-
-free_move_fun(MoveSel) ->
-    fun({Dx,Dy,R}, Acc) ->
-	    MoveSel({Dx,Dy}, Acc)
-    end.
-
-move_away_fun(Tv) ->
-    fun({Dx,R}, Acc) -> move_away(R, Tv, Acc);
-       ({Dx,Dy,R}, Acc) -> move_away(R, Tv, Acc)
-    end.
-
-move_away(R0, Tv, Acc) ->
-    R = R0-1.0,
-    foldl(fun({V,Vec,#vtx{pos={X,Y,Z}}=Rec}, A) -> 
-		  {Xt,Yt,Zt} = e3d_vec:mul(Vec, R),
-		  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
-		  [{V,Rec#vtx{pos=Pos}}|A]
-	  end, Acc, Tv).
-    
-move_vectors([V|Vs], VsSet, #we{vs=Vtab}=We, Acc0) ->
-    Acc = wings_vertex:fold(
-	    fun(_, _, Rec, A) ->
-		    OtherV = wings_vertex:other(V, Rec),
-		    case gb_sets:is_member(OtherV, VsSet) of
-			false -> A;
-			true ->
-			    Pa = wings_vertex:pos(OtherV, Vtab),
-			    #vtx{pos=Pb} = Pos = gb_trees:get(V, Vtab),
-			    Vec = e3d_vec:sub(Pb, Pa),
-			    [{V,Vec,Pos}|A]
-		    end
-	    end, Acc0, V, We),
-    move_vectors(Vs, VsSet, We, Acc);
-move_vectors([], VsSet, We, Acc) -> Acc.
-

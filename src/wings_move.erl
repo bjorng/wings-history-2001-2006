@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.24 2002/01/26 11:26:51 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.25 2002/01/31 07:43:31 bjorng Exp $
 %%
 
 -module(wings_move).
--export([setup/2,setup_we/4]).
+-export([setup/2,setup_we/4,plus_minus/3]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,sort/1]).
@@ -33,6 +33,38 @@ setup_1(Mode, #we{id=Id}=We, Items, Vec, Acc) ->
     Tv = setup_we(Mode, Vec, Items, We),
     [{Id,Tv}|Acc].
 
+plus_minus(free, Tvs, St) ->
+    plus_minus_1(free, view_dependent, Tvs, St);
+plus_minus(Type, Tvs, St) ->
+    plus_minus_1(Type, none, Tvs, St).
+
+plus_minus_1(Type, Constraint, Tvs0, #st{selmode=Mode}=St) ->
+    Vec = vector(Type),
+    Tvs = plus_minus_2(Mode, Vec, Tvs0, []),
+    wings_drag:init_drag(Tvs, {radius,Constraint}, distance, St#st{inf_r=1.0}).
+
+plus_minus_2(Mode, Vec, [{Items,NewVs,We}|T], Acc0) ->
+    Tv = setup_we(Mode, Vec, Items, We),
+    Acc = plus_minus_3(Tv, NewVs, We, Acc0),
+    plus_minus_2(Mode, Vec, T, Acc);
+plus_minus_2(Mode, Vec, [], Acc) -> Acc.
+
+plus_minus_3([_|_]=Tv0, NewVs, #we{id=Id}=We, Acc) ->
+    Tv = [{Vec,wings_util:add_vpos(Vs0, We)} || {Vec,Vs0} <- Tv0],
+    Affected0 = lists:append([Vs0 || {Vec,Vs0} <- Tv0]),
+    MoveSel = {Affected0,pm_move_fun(Tv)},
+    Vecs = move_vectors(NewVs, gb_sets:from_list(Affected0), We, []),
+    Affected = [V || {V,Vec,Pos} <- Vecs],
+    MoveAway = {Affected,move_away_fun(Vecs)},
+    [{Id,MoveSel},{Id,MoveAway}|Acc];
+plus_minus_3({Affected0,MoveFun0}, NewVs, #we{id=Id}=We, Acc) ->
+    MoveFun = free_move_fun(MoveFun0),
+    MoveSel = {Affected0,MoveFun},
+    Vecs = move_vectors(NewVs, gb_sets:from_list(Affected0), We, []),
+    Affected = [V || {V,Vec,Pos} <- Vecs],
+    MoveAway = {Affected,move_away_fun(Vecs)},
+    [{Id,MoveSel},{Id,MoveAway}|Acc].
+
 setup_we(vertex, Vec, Items, We) ->
     vertices_to_vertices(gb_sets:to_list(Items), We, Vec);
 setup_we(edge, Vec, Items, We) ->
@@ -46,6 +78,49 @@ constraint(Other) -> none.
 
 vector({_,{_,_,_}=Vec}) -> Vec;
 vector(Other) -> wings_util:make_vector(Other).
+
+pm_move_fun(Tv) ->
+    fun({Dx,R}, Acc) ->
+	    wings_drag:message([Dx], distance),
+	    foldl(fun({Vec,VsPos}, A) ->
+			  wings_drag:translate(Vec, Dx, VsPos, A)
+		  end, Acc, Tv)
+    end.
+
+free_move_fun(MoveSel) ->
+    fun({Dx,Dy,R}, Acc) ->
+	    MoveSel({Dx,Dy}, Acc)
+    end.
+
+move_away_fun(Tv) ->
+    fun({Dx,R}, Acc) -> move_away(R, Tv, Acc);
+       ({Dx,Dy,R}, Acc) -> move_away(R, Tv, Acc)
+    end.
+
+move_away(R0, Tv, Acc) ->
+    R = R0-1.0,
+    foldl(fun({V,Vec,#vtx{pos={X,Y,Z}}=Rec}, A) -> 
+		  {Xt,Yt,Zt} = e3d_vec:mul(Vec, R),
+		  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
+		  [{V,Rec#vtx{pos=Pos}}|A]
+	  end, Acc, Tv).
+    
+move_vectors([V|Vs], VsSet, #we{vs=Vtab}=We, Acc0) ->
+    Acc = wings_vertex:fold(
+	    fun(_, _, Rec, A) ->
+		    OtherV = wings_vertex:other(V, Rec),
+		    case gb_sets:is_member(OtherV, VsSet) of
+			false -> A;
+			true ->
+			    Pa = wings_vertex:pos(OtherV, Vtab),
+			    #vtx{pos=Pb} = Pos = gb_trees:get(V, Vtab),
+			    Vec = e3d_vec:sub(Pb, Pa),
+			    [{V,Vec,Pos}|A]
+		    end
+	    end, Acc0, V, We),
+    move_vectors(Vs, VsSet, We, Acc);
+move_vectors([], VsSet, We, Acc) -> Acc.
+
 
 %%
 %% Conversion of vertice selections to vertices. :-)

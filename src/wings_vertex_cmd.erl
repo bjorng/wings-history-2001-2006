@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.15 2002/01/27 11:48:30 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.16 2002/01/31 07:43:31 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -20,8 +20,6 @@
 
 -import(lists, [member/2,keymember/3,foldl/3,mapfoldl/3,
 		reverse/1,last/1,sort/1]).
-
--define(EXTRUDE_DIST, 0.2).
 
 %%%
 %%% The Flatten command.
@@ -58,33 +56,38 @@ flatten_move_vector(Plane) ->
 %%%
 
 extrude(Type, St0) ->
-    St = wings_sel:map(fun extrude_vertices/2, St0),
-    wings_move:setup(Type, St).
+    {St,Tvs} = wings_sel:mapfold(fun(Vs, We0, Acc) ->
+					 extrude_vertices(Vs, Type, We0, Acc)
+				 end, [], St0),
+    wings_move:plus_minus(Type, Tvs, St).
 
-extrude_vertices(Vs0, We0) ->
-    Vs = gb_sets:to_list(Vs0),
+extrude_vertices(Vs, Type0, We0, Acc) ->
     We = foldl(fun(V, A) ->
-		       ex_new_vertices(V, A)
-	       end, We0, Vs).
+		       ex_new_vertices(V, Vs, We0, A)
+	       end, We0, gb_sets:to_list(Vs)),
+    NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
+    {We,[{Vs,NewVs,We}|Acc]}.
 
-ex_new_vertices(V, #we{vs=Vtab}=We0) ->
+ex_new_vertices(V, VsSet, OrigWe, #we{vs=Vtab}=We0) ->
     Center = wings_vertex:pos(V, We0),
     {We,VsFaces} =
 	wings_vertex:fold(
 	  fun(Edge, Face, Rec, {W0,Vs}) ->
 		  OtherV = wings_vertex:other(V, Rec),
+		  R = edge_ratio(OtherV, VsSet, OrigWe),
 		  Pos0 = wings_vertex:pos(OtherV, Vtab),
-		  Dir0 = e3d_vec:sub(Pos0, Center),
-		  Dist = case e3d_vec:len(Dir0) of
-			     D when D < ?EXTRUDE_DIST+0.25 -> D/2;
-			     Other ->?EXTRUDE_DIST
-			 end,
-		  Dir = e3d_vec:norm(Dir0),
-		  Pos = e3d_vec:add(Center, e3d_vec:mul(Dir, Dist)),
+		  Dir = e3d_vec:sub(Pos0, Center),
+		  Pos = e3d_vec:add(Center, e3d_vec:mul(Dir, R)),
 		  {W,NewV} = wings_edge:fast_cut(Edge, Pos, W0),
 		  {W,[NewV,Face|Vs]}
 	  end, {We0,[]}, V, We0),
     ex_connect(VsFaces, VsFaces, We).
+
+edge_ratio(V, VsSet, #we{vs=Vtab}) ->
+    case gb_trees:is_defined(V, Vtab) of
+	false -> 1.0;
+	true -> 0.5
+    end.
 
 ex_connect([Va,Face|[Vb|_]=T], More, We0) ->
     {We,_} = wings_vertex:force_connect(Va, Vb, Face, We0),
