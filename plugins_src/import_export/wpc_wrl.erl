@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.14 2005/02/05 19:57:48 dgud Exp $
+%%     $Id: wpc_wrl.erl,v 1.15 2005/02/08 13:16:04 dgud Exp $
 %%
 
 -module(wpc_wrl).
@@ -57,7 +57,8 @@ do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
 do_export(Attr, _Op, Exporter, _St) when is_list(Attr) ->
     set_pref(Attr),
     SubDivs = proplists:get_value(subdivisions, Attr, 0),
-    Ps = [{subdivisions,SubDivs}|props()],
+    Tesselate = proplists:get_value(tesselation, Attr, none),
+    Ps = [{tesselation,Tesselate},{subdivisions,SubDivs}|props()],
     Exporter(Ps, export_fun(Attr)).
 
 export_fun(Attr) ->
@@ -69,7 +70,8 @@ set_pref(KeyVals) ->
 
 dialog(export) ->
     wpa:pref_set_default(?MODULE, default_filetype, ".jpg"),
-    [panel,wpa:dialog_template(?MODULE, export)].
+    [wpa:dialog_template(?MODULE,tesselate),
+     wpa:dialog_template(?MODULE, export)].
 
 %% The intent is to create each object from
 %% a sequence of Shapes. Each "sub Shape" will consist of all the
@@ -77,6 +79,9 @@ dialog(export) ->
 export(File_name, Export0, Attr) ->
     %%io:format("~p~n~p~n",[Objs, Mat]),
     Filetype = proplists:get_value(default_filetype, Attr, ".jpg"),
+    ExportN  = proplists:get_value(include_normal, Attr, true),
+    ExportUV = proplists:get_value(include_uv, Attr, true),
+    ExportVC = proplists:get_value(include_color, Attr, true),
     Export1 = wpa:save_images(Export0, filename:dirname(File_name), Filetype),
     Export = export_transform(Export1, Attr),
     #e3d_file{objs=Objs,mat=Mat,creator=Creator} = Export,
@@ -89,7 +94,11 @@ export(File_name, Export0, Attr) ->
 		      ObjMesh = e3d_mesh:vertex_normals(Obj),
 		      Meshes = e3d_mesh:split_by_material(ObjMesh),
 		      Used_mats = all(fun(Mesh,UsedMats) -> 
-					      export_object(F, Mesh, Mat, UsedMats)
+					      export_object(F, Mesh, Mat, 
+							    ExportN,
+							    ExportUV,
+							    ExportVC,
+							    UsedMats)
 				      end, F, Used_mats0, Meshes),
 		      io:put_chars(F, "\n  ]\n"),
 		      io:put_chars(F, "}\n\n"),
@@ -105,15 +114,20 @@ export_transform(Contents, Attr) ->
     e3d_file:transform(Contents, Mat).
 
 export_object(F, #e3d_mesh{fs=Fs0,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab}, 
-	      Mat_defs, Used_mats0) ->
+	      Mat_defs, ExportN, ExportUV, ExportVC, Used_mats0) ->
     %% We can use the indicies, vertex table, and color table directly.
     io:format(F, "    Shape {\n",[]),
     Fs = reorder(Fs0),
     [#e3d_face{mat=[Material|_]}|_] = Fs,
     Used_mats = material(F, Material, Mat_defs, Used_mats0),
     io:format(F, "      geometry IndexedFaceSet {\n",[]),
-    io:format(F, "        normalPerVertex TRUE\n",[]),
-    if ColTab == [] -> ignore;
+
+    if ExportN == true ->
+	    io:format(F, "        normalPerVertex TRUE\n",[]);
+       true -> ignore
+    end,
+    
+    if (ColTab == []) or (ExportVC == false) -> ignore;
        true -> %% Use vertex colors
 	    io:format(F, "        colorPerVertex TRUE\n",[])
     end,
@@ -129,25 +143,28 @@ export_object(F, #e3d_mesh{fs=Fs0,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab},
     io:put_chars(F, "        coordIndex [\n"),
     all(fun(#e3d_face{vs=Vs}) -> print_face(F, Vs) end,F,Fs),
     io:put_chars(F, " ]\n"),
-    
-    %% Write Normal vectors
-    io:format(F, "        normal Normal { vector [\n",[]),
-    all(W3,F,NTab),
-    io:format(F, " ] }\n",[]),
-    %% Write per-vertex normal index
-    io:put_chars(F, "        normalIndex [\n"),
-    all(fun(#e3d_face{ns=Ns}) -> print_face(F, Ns) end,F,Fs),
-    io:put_chars(F, " ]\n"),
+
+    if ExportN ->
+	    %% Write Normal vectors
+	    io:format(F, "        normal Normal { vector [\n",[]),
+	    all(W3,F,NTab),
+	    io:format(F, " ] }\n",[]),
+	    %% Write per-vertex normal index
+	    io:put_chars(F, "        normalIndex [\n"),
+	    all(fun(#e3d_face{ns=Ns}) -> print_face(F, Ns) end,F,Fs),
+	    io:put_chars(F, " ]\n");
+       true  -> ignore
+    end,
 
     if 
-       ColTab /= [] -> %% Use vertex colors
+	ColTab /= [], ExportVC -> %% Use vertex colors
 	    io:format(F, "        color Color { color [\n",[]),
 	    all(W3,F,ColTab),
 	    io:format(F, " ] }\n",[]),   
 	    io:put_chars(F, "        colorIndex [\n"),
 	    all(fun(#e3d_face{vc=Vc}) -> print_face(F, Vc) end,F,Fs),
 	    io:put_chars(F, " ]\n");
-	UVTab /= [] -> %% Use UV-coords
+	UVTab /= [], ExportUV -> %% Use UV-coords
 	    io:format(F, "        texCoord TextureCoordinate { point [\n",[]),
 	    all(W2,F,UVTab),
 	    io:format(F, " ] }\n",[]),   

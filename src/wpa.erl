@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.62 2005/01/29 18:25:14 bjorng Exp $
+%%     $Id: wpa.erl,v 1.63 2005/02/08 13:16:13 dgud Exp $
 %%
 %% Note: To keep the call graph clean, wpa MUST NOT be called
 %%       from the wings core modules.
@@ -130,7 +130,10 @@ export(none, Exporter, St) ->
     wings_export:export(Exporter, none, 0, St);
 export(Ps, Exporter, St) ->
     SubDivs = proplists:get_value(subdivisions, Ps, 0),
-    Cont = fun(Name) -> wings_export:export(Exporter, Name, SubDivs, St) end,
+    Tesselate = proplists:get_value(tesselation, Ps, none),
+    Cont = fun(Name) -> 
+		   wings_export:export(Exporter, Name, SubDivs, Tesselate,St) 
+	   end,
     export_filename(Ps, St, Cont).
 
 export_selected(Props, Exporter, #st{selmode=Mode}=St)
@@ -202,10 +205,22 @@ dialog_template(Mod, export) ->
 	{?__(6,"Sub-division Steps"),
 	 {text,pref_get(Mod, subdivisions, 0),
 	  [{key,subdivisions},{range,0,4}]}}]},
+      {?__(norms, "Include normals/smoothing groups"),  
+       pref_get(Mod, include_normal, true), [{key,include_normal}]},
+      {?__(uv,    "Include UV-Coords (if available)"), 
+       pref_get(Mod, include_uv, true), [{key, include_uv}]},
+      {?__(color, "Include vertex colors (if available)"),
+       pref_get(Mod, include_colors, true), [{key, include_color}]},
       panel,
       {vframe,
        [{menu,FileTypes,DefFileType,[{key,default_filetype}]}],
-       [{title,?__(7,"Default texture file type")}]} ]}.
+       [{title,?__(7,"Default texture file type")}]} ]};
+dialog_template(Mod, tesselate) ->
+    {vframe, [{label, "Tesselation:"},
+	      {hradio, [{"None",none},
+			{"Triangulate",triangulate},
+			{"Quadrangulate", quadrangulate}],
+	       pref_get(Mod,tesselation,none), [{key,tesselation}]}]}.
 
 import_scale_s() -> ?__( 1, "Import scale").
 export_scale_s() -> ?__( 1, "Export scale").

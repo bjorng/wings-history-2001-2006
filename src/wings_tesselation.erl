@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.10 2005/02/05 17:24:31 bjorng Exp $
+%%     $Id: wings_tesselation.erl,v 1.11 2005/02/08 13:16:13 dgud Exp $
 %%
 
 -module(wings_tesselation).
@@ -70,7 +70,7 @@ doface(Face, We) ->
     case length(Vs) of
 	Len when Len =< 3 -> We;
 	Len when Len =< 4 -> We;
-	Len -> doface_1(Len, Vs, We, false)
+	Len -> doface_1(Len, Vs, We, true)
     end.
 
 tri_faces(Fs0,We0) ->
@@ -94,7 +94,7 @@ triface(Face, Fs, TriV,We) ->
 	3 -> {[], Fs, TriV, We};
 	4 ->
 	    triangulate_quad(Face, Vs, TriV, Fs, We);
-	Len -> {[], Fs, TriV, doface_1(Len, Vs, We, true)}
+	Len -> {[], Fs, TriV, doface_1(Len, Vs, We, false)}
     end.
 
 %%  Triangulates a quad, tries to make the triangulation so nice
