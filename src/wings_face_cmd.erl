@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.46 2002/04/13 07:23:21 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.47 2002/04/26 13:09:35 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -42,7 +42,7 @@ menu(X, Y, St) ->
 	    {"Bridge",bridge,"Create a bridge or tunnel between two faces"},
 	    {advanced,separator},
 	    {"Bump",bump,"Create bump of selected faces"},
-	    {advanced,{"Lift",{lift,lift_fun()}}},
+	    {advanced,{"Lift",{lift,lift_fun(St)}}},
 	    separator,
 	    {"Mirror",mirror,"Make mirror of object around selected faces"},
     	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
@@ -53,15 +53,15 @@ menu(X, Y, St) ->
 	    wings_material:sub_menu(face, St)],
     wings_menu:popup_menu(X, Y, face, Menu, St).
 
-lift_fun() ->
+lift_fun(St) ->
     fun(help, _Ns) ->
-	    {"Lift in std. directions",[],
-	     "Lift, rotating face around edge"};
-       (1, Ns) ->
-	    wings_menu_util:directions([normal,free,x,y,z], Ns);
-       (3, _Ns) ->
-	    Funs = lift_selection(rotate),
+	    {"Lift, rotating face around edge or vertex",[],
+	     "Lift in std. directions"};
+       (1, _Ns) ->
+	    Funs = lift_selection(rotate, St),
 	    {vector,{pick_special,Funs}};
+       (3, Ns) ->
+	    wings_menu_util:directions([normal,free,x,y,z], Ns);
        (_, _) -> ignore
     end.
 
@@ -764,24 +764,65 @@ are_neighbors(FaceA, FaceB, We) ->
 %%% The Lift command.
 %%%
 
-lift_selection(Dir) ->
-    {[edge],
+lift_selection(Dir, OrigSt) ->
+    {[edge,vertex],
      fun(St) ->
-	     wings_io:message("Select edge to work as hinge."),
+	     wings_io:message("Select edge or vertex to work as hinge."),
 	     St#st{selmode=edge,sel=[]}
      end,
-     fun(_) -> {none,""} end,
-     fun(_X, _Y, #st{selmode=Mode,sel=Sel}) ->
-	     Lift = fun(_, _) -> {face,{lift,{Dir,Mode,Sel}}} end,
-	     {"Lift",Lift}
+     fun(St) -> lift_check_selection(St, OrigSt) end,
+     fun(_X, _Y, #st{selmode=Mode,sel=Sel}=St) ->
+	     case lift_check_selection(St, OrigSt) of
+		 {_,[]} ->
+		     Lift = fun(_, _) -> {face,{lift,{Dir,Mode,Sel}}} end,
+		     {"Lift",Lift};
+		 {_,Message} ->
+		     wings_io:message(Message),
+		     {"Invalid Selection",ignore}
+	     end
      end}.
+
+lift_check_selection(#st{selmode=edge,sel=EdgeSel}, OrigSt) ->
+    Res = wings_sel:fold(
+	    fun(_, _, error) -> error;
+	       (Faces, #we{id=Id}=We, [{Id,Edges}|More]) ->
+		    case lift_face_edge_pairs(Faces, Edges, We) of
+			error -> error;
+			_ -> More
+		    end;
+	       (_, _, _) -> error
+	    end, EdgeSel, OrigSt),
+    case Res of
+	error -> {none,"Face and edge selections don't match."};
+	[] -> {none,""}
+    end;
+lift_check_selection(#st{selmode=vertex,sel=VsSel}, OrigSt) ->
+    Res = wings_sel:fold(
+	    fun(_, _, error) -> error;
+	       (Faces, #we{id=Id}=We, [{Id,Vs}|More]) ->
+		    case lift_face_vertex_pairs(Faces, Vs, We) of
+			error -> error;
+			_ -> More
+		    end;
+	       (_, _, _) -> error
+	    end, VsSel, OrigSt),
+    case Res of
+	error -> {none,"Face and vertex selections don't match."};
+	[] -> {none,""}
+    end.
 
 lift({Dir,edge,EdgeSel}, St) ->
     lift_from_edge(Dir, EdgeSel, St);
+lift({Dir,vertex,VertexSel}, St) ->
+    lift_from_vertex(Dir, VertexSel, St);
 lift(Dir, St) ->
-    Funs = lift_selection(Dir),
+    Funs = lift_selection(Dir, St),
     wings_io:putback_event({action,{vector,{pick_special,Funs}}}),
     St.
+
+%%%
+%%% Lift from edge.
+%%%
 
 lift_from_edge(Dir, EdgeSel, St0) ->
     Res = wings_sel:mapfold(
@@ -801,27 +842,14 @@ lift_from_edge(Dir, EdgeSel, St0) ->
     end.
 
 lift_sel_mismatch() ->
-    throw({command_error,"Face and edge selections don't match."}).
+    wings_util:error("Face and edge selections don't match.").
 	
 lift_from_edge(Dir, Faces, Edges, We0, Tv) ->
-    EsFs0 = wings_face:fold_faces(
-	      fun(Face, _, Edge, _, A) -> [{Edge,Face}|A] end,
-	      [], Faces, We0),
-    EsFs1 = sofs:relation(EsFs0, [{edge,face}]),
-    EsFs = sofs:restriction(EsFs1, sofs:set(gb_sets:to_list(Edges), [edge])),
-    FaceToEdge0 = sofs:converse(EsFs),
-    case sofs:is_a_function(FaceToEdge0) of
-	false ->
-	    lift_sel_mismatch();
-	true ->
-	    FaceToEdge = sofs:to_external(FaceToEdge0),
-	    case gb_sets:size(Faces) of
-		Size when Size =:= length(FaceToEdge) ->
-		    We = wings_extrude_face:faces(Faces, We0),
-		    lift_from_edge_1(Dir, FaceToEdge, We0, We, Tv);
-		Size ->
-		    lift_sel_mismatch()
-	    end
+    case lift_face_edge_pairs(Faces, Edges, We0) of
+	error -> lift_sel_mismatch();		%Can happen if repeated.
+	FaceEdgeRel ->
+	    We = wings_extrude_face:faces(Faces, We0),
+	    lift_from_edge_1(Dir, FaceEdgeRel, We0, We, Tv)
     end.
 
 lift_from_edge_1(Dir, [{Face,Edge}|T], #we{es=Etab}=OrigWe, We0, Tv0) ->
@@ -869,6 +897,115 @@ lift_edge_vs(V, FaceVs, We) ->
 	      end;
 	 (_, _, _, A) -> A
       end, none, V, We).
+
+%% Pair the face selection with the edge selection (if possible).
+%%  Returns: [{Face,Edge}] | error
+lift_face_edge_pairs(Faces, Edges, We) ->
+    EsFs0 = wings_face:fold_faces(
+	      fun(Face, _, Edge, _, A) -> [{Edge,Face}|A] end,
+	      [], Faces, We),
+    EsFs1 = sofs:relation(EsFs0, [{edge,face}]),
+    EsFs = sofs:restriction(EsFs1, sofs:set(gb_sets:to_list(Edges), [edge])),
+    FaceEdgeRel0 = sofs:converse(EsFs),
+    case sofs:is_a_function(FaceEdgeRel0) of
+	false -> error;
+	true ->
+	    FaceEdgeRel = sofs:to_external(FaceEdgeRel0),
+	    case gb_sets:size(Faces) of
+		Size when Size =:= length(FaceEdgeRel) -> FaceEdgeRel;
+		_Size -> error
+	    end
+    end.
+
+%%%
+%%% Lift from vertex.
+%%%
+
+lift_from_vertex(Dir, VsSel, St0) ->
+    Res = wings_sel:mapfold(
+	    fun(Faces, #we{id=Id}=We0, {[{Id,Vs}|MoreVs],Tv0}) ->
+		    {We,Tv} = lift_from_vertex(Dir, Faces, Vs, We0, Tv0),
+		    {We,{MoreVs,Tv}};
+	       (_, _, _) -> lift_vtx_sel_mismatch()
+	    end, {VsSel,[]}, St0),
+    case Res of
+	{St,{[],Tvs}} when Dir == rotate ->
+	    wings_drag:setup(Tvs, [angle], St);
+	{St,{[],Tvs}} when Dir == free ->
+	    wings_drag:setup(Tvs, [dx,dy], [screen_relative], St);
+	{St,{[],Tvs}} ->
+	    wings_drag:setup(Tvs, [distance], St);
+	{_,_} -> lift_vtx_sel_mismatch()
+    end.
+
+lift_vtx_sel_mismatch() ->
+    wings_util:error("Face and vertex selections don't match.").
+
+lift_from_vertex(Dir, Faces, Vs, We, Tv) ->
+    case lift_face_vertex_pairs(Faces, Vs, We) of
+	error -> lift_vtx_sel_mismatch();	%Can happen if repeated.
+	FaceVtxRel ->
+	    lift_from_vertex_1(Dir, FaceVtxRel, We, Tv)
+    end.
+
+lift_from_vertex_1(Dir, [{Face,V}|T], We0, Tv0) ->
+    {We,Tv} = lift_from_vertex_2(Dir, Face, V, We0, Tv0),
+    lift_from_vertex_1(Dir, T, We, Tv);
+lift_from_vertex_1(_Dir, [], We, Tv) -> {We,Tv}.
+
+lift_from_vertex_2(Dir, Face, V, #we{id=Id,next_id=Next}=We0, Tv) ->
+    We1 = wings_extrude_face:faces([Face], We0),
+    We = wings_vertex:fold(
+	   fun(Edge, _, _, W) when Edge >= Next ->
+		   wings_collapse:collapse_edge(Edge, V, W);
+	      (_, _, _, W) -> W
+	   end, We1, V, We1),
+    FaceVs = wings_we:new_items(vertex, We0, We),
+    case Dir of
+	rotate ->
+	    Vpos = wings_vertex:pos(V, We),
+	    Vecs = wings_vertex:fold(
+		     fun(_, _, #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A)
+			when Lf =:= Face;
+			     Rf =:= Face ->
+			     Pos = case V of
+				       Va -> wings_vertex:pos(Vb, We);
+				       Vb -> wings_vertex:pos(Va, We)
+				   end,
+			     [e3d_vec:norm(e3d_vec:sub(Pos, Vpos))|A];
+			(_, _, _, A) -> A
+		     end, [], V, We),
+	    M = e3d_vec:norm(e3d_vec:add(Vecs)),
+	    N = wings_face:normal(Face, We),
+	    Axis = e3d_vec:cross(M, N),
+ 	    Rot = wings_rotate:rotate(Axis, Vpos, gb_sets:to_list(FaceVs),
+				      We, Tv),
+	    {We,Rot};
+	_Other ->
+	    Vec = wings_util:make_vector(Dir),
+	    Move = wings_move:setup_we(vertex, Vec, FaceVs, We),
+	    {We,[{Id,Move}|Tv]}
+    end.
+
+%% Pair the face selection with the vertex selection (if possible).
+%%  Returns: [{Face,Vertex}] | error
+lift_face_vertex_pairs(Faces, Vs, We) ->
+    VsFs0 = wings_face:fold_faces(
+	      fun(Face, V, _, _, A) ->
+		      [{V,Face}|A]
+	      end, [], Faces, We),
+    VsFs1 = sofs:relation(VsFs0, [{vertex,face}]),
+    VsFs = sofs:restriction(VsFs1, sofs:set(gb_sets:to_list(Vs), [vertex])),
+    FaceVtxRel0 = sofs:converse(VsFs),
+    case sofs:is_a_function(FaceVtxRel0) of
+	false -> error;
+	true ->
+	    FaceVtxRel = sofs:to_external(FaceVtxRel0),
+	    case gb_sets:size(Faces) of
+		Size when Size =:= length(FaceVtxRel) -> FaceVtxRel;
+		_Size -> error
+	    end
+    end.
 
 %% outer_edge_partition(FaceSet, WingedEdge) -> [[Edge]].
 %%  Partition all outer edges. Outer edges are all edges

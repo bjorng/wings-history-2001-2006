@@ -9,11 +9,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.20 2002/04/21 06:40:13 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.21 2002/04/26 13:09:34 bjorng Exp $
 %%
 
 -module(wings_collapse).
--export([collapse/1,collapse_vertex/2,collapse_edge/2]).
+-export([collapse/1,collapse_vertex/2,collapse_edge/2,collapse_edge/3]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
@@ -125,12 +125,24 @@ collapse_edges(Edges0, #we{id=Id,es=Etab}=We0, SelAcc)->
 
 collapse_edge(Edge, #we{es=Etab}=We)->
     case gb_trees:lookup(Edge, Etab) of
-	{value,Rec} -> collapse_edge_1(Edge, Rec, We);
+	{value,#edge{vs=Vkeep}=Rec} -> 
+	    collapse_edge_1(Edge, Vkeep, Rec, We);
 	none -> We
     end.
 
-collapse_edge_1(Edge, Rec, #we{es=Etab0,he=Htab0,fs=Ftab0,vs=Vtab0}=We0)->
-    #edge{vs=Vkeep,ve=Vremove} = Rec,
+collapse_edge(Edge, Vkeep, #we{es=Etab}=We)->
+    case gb_trees:lookup(Edge, Etab) of
+	{value,Rec} -> 
+	    collapse_edge_1(Edge, Vkeep, Rec, We);
+	none -> We
+    end.
+
+collapse_edge_1(Edge, Vkeep, Rec,
+		#we{es=Etab0,he=Htab0,fs=Ftab0,vs=Vtab0}=We0)->
+    case Rec of
+	#edge{vs=Vkeep,ve=Vremove} -> ok;
+	#edge{ve=Vkeep,vs=Vremove} -> ok
+    end,
     case is_waist(Vkeep, Vremove, We0) of
 	true -> We0;
 	false ->

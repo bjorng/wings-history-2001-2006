@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.31 2002/04/13 07:23:21 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.32 2002/04/26 13:09:35 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -118,7 +118,7 @@ pick_init(#st{selmode=Mode}) ->
 %%%
 
 get_event(Ss, St) ->
-    wings:redraw(St),
+    wings_wm:dirty(),
     {replace,fun(Ev) -> handle_event(Ev, Ss, St) end}.
 
 handle_event(Event, Ss, St) ->
