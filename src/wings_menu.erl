@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.53 2002/07/26 18:04:16 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.54 2002/07/28 13:03:35 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -31,6 +31,7 @@
 	 h,					%Height of menu (pixels)
 	 hs,					%Tuple: height of each entry.
 	 sel=none,				%Selected item (1..size(Menu))
+	 sel_side=left,				%Selection on left or right.
 	 ns=[],					%Name stack.
 	 menu,					%Original menu term
 	 timer=make_ref(),			%Active submenu timer.
@@ -429,8 +430,22 @@ redraw(Mi) ->
     menu_show(Mi),
     Mi.
 
-update_highlight(X, Y, #mi{sel=OldSel}=Mi0) ->
+update_highlight(X, Y, #mi{menu=Menu,sel=OldSel,sel_side=OldSide,w=W}=Mi0) ->
     case selected_item(X, Y, Mi0) of
+	OldSel when is_integer(OldSel) ->
+	    Ps = element(5, element(OldSel, Menu)),
+	    RightWidth = right_width(Ps),
+	    Right = W - (2*?CHAR_WIDTH*RightWidth) - ?CHAR_WIDTH,
+	    Side = if
+		       X < Right; RightWidth == 0 -> left;
+		       true -> right
+		   end,
+	    if
+		Side =:= OldSide -> Mi0;
+		true ->
+		    wings_wm:dirty(),
+		    Mi = Mi0#mi{sel_side=Side}
+	    end;
 	OldSel -> Mi0;
 	NoSel when NoSel == outside; NoSel == none ->
 	    wings_wm:dirty(),
@@ -526,19 +541,15 @@ draw_menu_text(X, Y, Text, Props) ->
 	    wings_io:menu_text(X-2*?CHAR_WIDTH, Y, [crossmark,$\s|Text])
     end.
 
-item_colors(Y, Ps, Sel, #mi{sel=Sel,w=W}) ->
+item_colors(Y, Ps, Sel, #mi{sel=Sel,sel_side=Side,w=W}) ->
     %% Draw blue background for highlighted item.
     gl:color3f(0, 0, 0.5),
-    HaveOptionBox = have_option_box(Ps) orelse have_magnet(Ps),
-    Right = case HaveOptionBox of
-		true -> W-3*?CHAR_WIDTH;
-		false -> W-?CHAR_WIDTH
-	    end,
-    case wings_wm:local_mouse_state() of
-	{_,Mx,_} when HaveOptionBox, Mx > Right ->
+    Right = W - (2*?CHAR_WIDTH*right_width(Ps)) - ?CHAR_WIDTH,
+    case Side of
+	right ->
 	    gl:recti(Right, Y-?CHAR_HEIGHT, Right+3*?CHAR_WIDTH-2, Y+3),
 	    gl:color3f(0, 0, 0);		%Black text
-	_ ->
+	left ->
 	    gl:recti(?CHAR_WIDTH, Y-?CHAR_HEIGHT, Right, Y+3),
 	    gl:color3f(1, 1, 1)			%White text
     end;
