@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.164 2003/10/30 14:29:00 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.165 2003/11/15 16:12:25 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -430,7 +430,7 @@ make_query(Move, #drag{unit=Units}) ->
 make_query_1([U0|Units], [V|Vals]) ->
     case clean_unit(U0) of
 	percent ->
-	    [{hframe,[{text,V*100.0,qrange(U0)},{label,"%"}]}|
+	    [{hframe,[{text,V*100.0,percent_qrange(U0)},{label,"%"}]}|
 	     make_query_1(Units, Vals)];
 	angle ->
 	    [{hframe,[{label,"A"},{text,V,qrange(U0)},{label,[?DEGREE]}]}|
@@ -451,6 +451,16 @@ qstr(Atom) -> atom_to_list(Atom).
 
 qrange({_,{_,_}=Range}) -> [{range,Range}];
 qrange(_) -> [].
+
+percent_qrange({_,{Min,Max}}) ->
+    [{range,{safe_mul_100(Min),safe_mul_100(Max)}}];
+percent_qrange(_) -> [].
+
+safe_mul_100(A) ->
+    case catch 100*A of
+	{'EXIT',_} -> A;
+	P -> P
+    end.
     
 make_move(Move, #drag{unit=Units}) ->
     make_move_1(Units, Move).
