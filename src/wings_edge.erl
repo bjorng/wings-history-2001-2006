@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.67 2003/07/21 13:08:09 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.68 2003/07/22 06:23:03 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -336,22 +336,23 @@ get_vtx_color(Edge, Face, Etab) ->
 %%%
 
 cut_pick(St) ->
-    Tvs = wings_sel:fold(fun(Es, We, []) ->
-				 case gb_sets:to_list(Es) of
-				     [E] -> cut_pick_make_tvs(E, We);
-				     _ -> cut_pick_error()
-				 end;
-			    (_, _, _) ->
-				 cut_pick_error()
-			 end, [], St),
+    {Tvs,Sel} = wings_sel:fold(
+		  fun(Es, We, []) ->
+			  case gb_sets:to_list(Es) of
+			      [E] -> cut_pick_make_tvs(E, We);
+			      _ -> cut_pick_error()
+			  end;
+		     (_, _, _) ->
+			  cut_pick_error()
+		  end, [], St),
     Units = [{percent,{0.0,1.0}}],
     Flags = [{initial,[0]}],
-    wings_drag:setup(Tvs, Units, Flags, St).
+    wings_drag:setup(Tvs, Units, Flags, wings_sel:set(vertex, Sel, St)).
 
 cut_pick_error() ->
     wings_util:error("Only one edge can be cut at an arbitrary position.").
 
-cut_pick_make_tvs(Edge, #we{id=Id,es=Etab,vp=Vtab}=We) ->
+cut_pick_make_tvs(Edge, #we{id=Id,es=Etab,vp=Vtab,next_id=NewV}=We) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
     Start = gb_trees:get(Va, Vtab),
     End = gb_trees:get(Vb, Vtab),
@@ -365,7 +366,8 @@ cut_pick_make_tvs(Edge, #we{id=Id,es=Etab,vp=Vtab}=We) ->
 	      2#10000010,
 	      2#01111100>>},
     Fun = fun(I, D) -> cut_pick_marker(I, D, Edge, We, Start, Dir, Char) end,
-    {general,[{Id,Fun}]}.
+    Sel = [{Id,gb_sets:singleton(NewV)}],
+    {{general,[{Id,Fun}]},Sel}.
 
 cut_pick_marker([I], D, Edge, We0, Start, Dir, Char) ->
     {X,Y,Z} = Pos = e3d_vec:add(Start, e3d_vec:mul(Dir, I)),
