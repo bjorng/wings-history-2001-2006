@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_file.erl,v 1.11 2002/11/16 12:18:54 bjorng Exp $
+%%     $Id: wp8_file.erl,v 1.12 2002/11/17 17:07:25 bjorng Exp $
 %%
 
 -module(wp8_file).
@@ -20,7 +20,6 @@
 -define(OP_READ, 1).
 -define(OP_WRITE, 2).
 -define(OP_MESSAGE, 3).
--define(OP_SERIOUS_QUESTION, 4).
 
 menus() -> [].
 
@@ -49,30 +48,15 @@ init(Next) ->
 fileop({question,Question}, _Next) ->
     list_to_atom(erlang:port_control(wp8_file_port, ?OP_QUESTION,
 				     ["Wings 3D",0,Question,0]));
-
-fileop({serious_question,Question}, _Next) ->
-    list_to_atom(erlang:port_control(wp8_file_port, ?OP_SERIOUS_QUESTION,
-				     ["Wings 3D",0,Question,0]));
-
 fileop({message,Message}, _Next) ->
     Title = "Wings 3D",
     erlang:port_control(wp8_file_port, ?OP_MESSAGE, [Title,0,Message,0]);
-
-fileop({file,open,Prop}, _Next) ->
-    file_dialog(?OP_READ, Prop, "Open Wings 3D file");
-
-fileop({file,save,Prop}, _Next) ->
-    file_dialog(?OP_WRITE, Prop, "Save Wings 3D file");
-
-fileop({file,import,Prop}, _Next) ->
-    file_dialog(?OP_READ, Prop, "Import file into Wings 3D");
-
-fileop({file,export,Prop}, _Next) ->
-    file_dialog(?OP_WRITE, Prop, "Export file from Wings 3D");
-
-fileop({file,merge,Prop}, _Next) ->
-    file_dialog(?OP_READ, Prop, "Merge Wings 3D file");
-
+fileop({file,open_dialog,Prop}, _Next) ->
+    Title = proplists:get_value(title, Prop, "Open"),
+    file_dialog(?OP_READ, Prop, Title);
+fileop({file,save_dialog,Prop}, _Next) ->
+    Title = proplists:get_value(title, Prop, "Save"),
+    file_dialog(?OP_WRITE, Prop, Title);
 fileop(What, Next) ->
     Next(What).
 
