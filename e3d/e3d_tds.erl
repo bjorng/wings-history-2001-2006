@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.12 2002/07/09 09:21:25 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.13 2002/07/17 04:51:53 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -151,10 +151,9 @@ trimesh(<<16#4160:16/little,_Sz:32/little,T0/binary>>, Acc) ->
 	  0.0,0.0,1.0,0.0,
 	  OX,OY,OZ,1.0},
     dbg("Local coordinate system: ~p\n", [CS]),
-    dbg(" ~p\n", [{V1X,V1Y,V1Z}]),
-    dbg(" ~p\n", [{V2X,V2Y,V2Z}]),
-    dbg(" ~p\n", [{V3X,V3Y,V3Z}]),
-    trimesh(T, Acc#e3d_mesh{matrix=CS});
+    %%trimesh(T, Acc#e3d_mesh{matrix=Id});
+    %% Ignore local coordinate system.
+    trimesh(T, Acc);
 trimesh(<<Chunk:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     dbg("Ignoring chunk ~s, size ~p\n", [hex4(Chunk),Sz0]),
     Sz = Sz0 - 6,
