@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.34 2002/04/01 16:30:43 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.35 2002/04/08 08:03:57 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -176,18 +176,23 @@ radius(Outer, [V0|Vs], Vtab) ->
 inf_midpoint({_,_,_}=Point, VsSel, We) ->
     Midpoint = wings_vertex:center(VsSel, We),
     R = e3d_vec:dist(Point, Midpoint),
-    inf_midpoint_1(R, Midpoint, We);
+    inf_midpoint_1(R, Midpoint, VsSel, We);
 inf_midpoint(R, VsSel, We) when is_number(R) ->
     check_radius(R),
     Midpoint = wings_vertex:center(VsSel, We),
-    inf_midpoint_1(R, Midpoint, We).
+    inf_midpoint_1(R, Midpoint, VsSel, We).
 
-inf_midpoint_1(R, Midpoint, #we{vs=Vtab}) ->
+inf_midpoint_1(R, Midpoint, Vs0, #we{vs=Vtab}) ->
+    Vs = gb_sets:from_list(Vs0),
     {foldl(fun({V,#vtx{pos=Pos}=Vtx}, A) ->
 		   case e3d_vec:dist(Pos, Midpoint) of
 		       Dist when Dist =< R ->
 			   [{V,Vtx,Dist,0}|A];
-		       _Dist -> A
+		       _Dist ->
+			   case gb_sets:is_member(V, Vs) of
+			       false -> A;
+			       true -> [{V,Vtx,R,0}|A]
+			   end
 		   end
 	   end, [], gb_trees:to_list(Vtab)),R}.
 
