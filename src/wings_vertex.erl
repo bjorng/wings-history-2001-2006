@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.18 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.19 2002/04/01 16:30:43 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -22,7 +22,7 @@
 	 dissolve/2,
 	 connect/3,force_connect/4,
 	 patch_vertex/3,pos/2,
-	 outer_partition/2]).
+	 outer_partition/2,reachable/2]).
 
 -include("wings.hrl").
 -import(lists, [member/2,keymember/3,foldl/3,reverse/1,last/1]).
@@ -602,3 +602,39 @@ partition_edges(Va, Face, Edges0, Es0, Acc) ->
     Edges = [E || {_,_,_,AFace}=E <- Edges0, AFace =/= Face],
     Es = gb_trees:insert(Va, Edges, Es0),
     partition_edges(Va, Face, [Val], Es, Acc).
+
+%% reachable([Vertex], We) -> [ReachableVertex]
+%%  Returns a list of the vertices that can be reached by following
+%%  edges from the given list of vertices.
+reachable(Vs0, #we{es=Etab,vs=Vtab}) when is_list(Vs0) ->
+    Es0 = foldl(fun(V, A) ->
+			#vtx{edge=E} = gb_trees:get(V, Vtab),
+			[E|A]
+		end, [], Vs0),
+    Es1 = gb_sets:from_list(Es0),
+    Es = reachable_edges(Es1, Etab, gb_trees:empty()),
+    Vs = foldl(fun(#edge{vs=Va,ve=Vb}, A) ->
+		       [Va,Vb|A]
+	       end, [], gb_trees:values(Es)),
+    ordsets:from_list(Vs).
+
+reachable_edges(Ws0, Etab, Reachable0) ->
+    case gb_sets:is_empty(Ws0) of
+	true -> Reachable0;
+	false ->
+	    {Edge,Ws1} = gb_sets:take_smallest(Ws0),
+	    Rec = gb_trees:get(Edge, Etab),
+	    Reachable = gb_trees:insert(Edge, Rec, Reachable0),
+	    #edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
+	    reachable_edges_1([LP,LS,RP,RS], Etab, Ws1, Reachable)
+    end.
+
+reachable_edges_1([E|Es], Etab, Ws, Reachable) ->
+    case gb_trees:is_defined(E, Reachable) of
+	true ->
+	    reachable_edges_1(Es, Etab, Ws, Reachable);
+	false ->
+	    reachable_edges_1(Es, Etab, gb_sets:add(E, Ws), Reachable)
+    end;
+reachable_edges_1([], Etab, Ws, Reachable) ->
+    reachable_edges(Ws, Etab, Reachable).
