@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.8 2002/03/02 14:29:35 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.9 2002/03/02 21:28:53 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -82,6 +82,7 @@ init_origin(#s{w=Xs,h=Ys}=S) ->
 
 get_event(S) ->
     redraw(S),
+    wings_io:swap_buffers(),
     {replace,fun(Ev) -> event(Ev, S) end}.
 
 event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=Unicode}}, S) ->
@@ -95,6 +96,9 @@ event(#mousemotion{x=X,y=Y}=Ev, S) ->
 event(#resize{}=Ev, _S) ->
     wings_io:putback_event(Ev),
     pop;
+event({action,{update,I,Fst}}, #s{priv=Priv0}=S) ->
+    Priv = setelement(I, Priv0, Fst),
+    get_event(S#s{priv=Priv});
 event(Ev, S) ->
     field_event(Ev, S).
 
@@ -134,8 +138,8 @@ mouse_event(X0, Y0, Ev, #s{fi=Fis,ox=Ox,oy=Oy}=S0) ->
 mouse_to_field(I, Fis, _X, _Y) when I > size(Fis) -> none;
 mouse_to_field(I, Fis, X, Y) ->
     case element(I, Fis) of
-	#fi{inert=false,x=Lx,y=Uy,lw=Lw,w=W,h=H}
-	when Lx =< X, X < Lx+Lw+W,
+	#fi{inert=false,x=Lx,y=Uy,w=W,h=H}
+	when Lx =< X, X < Lx+W,
 	     Uy =< Y, Y < Uy+H -> I;
 	_Other -> mouse_to_field(I+1, Fis, X, Y)
     end.
@@ -156,9 +160,9 @@ next_focus_1(I0, Dir, #s{fi=Fis}=S) ->
 
 set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0}=S) ->
     #fi{handler=OldHandler} = OldFi = element(OldFocus, Fis),
-    OldFst0 = element(I, Priv0),
+    OldFst0 = element(OldFocus, Priv0),
     OldFst = OldHandler({event,{focus,false}}, OldFi, OldFst0),
-    Priv1 = setelement(I, Priv0, OldFst),
+    Priv1 = setelement(OldFocus, Priv0, OldFst),
 
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv1),
@@ -173,9 +177,20 @@ field_event(Ev, #s{focus=I}=S) ->
 field_event(Ev, I, #s{fi=Fis,priv=Priv0}=S) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv0),
-    Fst = Handler({event,Ev}, Fi, Fst0),
-    Priv = setelement(I, Priv0, Fst),
-    get_event(S#s{priv=Priv}).
+    case Handler({event,Ev}, Fi, Fst0) of
+	{ask,Qs,Fun} ->
+	    recursive_ask(I, Qs, Fun, S);
+	Fst ->
+	    Priv = setelement(I, Priv0, Fst),
+	    get_event(S#s{priv=Priv})
+    end.
+
+recursive_ask(I, Qs, Fun, S0) ->
+    S = S0#s{focus=none},
+    Redraw = fun() ->
+		     redraw(S)
+	     end,
+    ask(Qs, Redraw, fun(Vs) -> {update,I,Fun(Vs)} end).
 
 return_result(#s{fi=Fis,priv=Priv}=S) ->
     return_result(1, Fis, Priv, S, []).
@@ -228,8 +243,7 @@ redraw(#s{w=W,h=H,ox=Ox,oy=Oy,redraw=Redraw,focus=Focus,fi=Fi,priv=Priv}) ->
     wings_io:raised_rect(-?HMARGIN, -?VMARGIN,
 			 W+2*?HMARGIN, H+2*?VMARGIN,
 			 ?MENU_COLOR),
-    draw_fields(1, Fi, Priv, Focus),
-    wings_io:swap_buffers().
+    draw_fields(1, Fi, Priv, Focus).
 
 draw_fields(I, Fis, Priv, Focus) when I =< size(Fis) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
@@ -251,6 +265,10 @@ normalize({vframe,Qs,Flags}, Fi) ->
     vframe(Qs, Fi, Flags);
 normalize({hframe,Qs,Flags}, Fi) ->
     hframe(Qs, Fi, Flags);
+normalize({color,Prompt,Def}, Fi) ->
+    normalize_field(color(Prompt, Def), [], Fi);
+normalize({color,Prompt,Def,Flags}, Fi) ->
+    normalize_field(color(Prompt, Def), Flags, Fi);
 normalize(separator, Fi) ->
     normalize_field(separator(), [], Fi);
 normalize({Prompt,Def}, Fi) when Def == false; Def == true ->
@@ -258,9 +276,9 @@ normalize({Prompt,Def}, Fi) when Def == false; Def == true ->
 normalize({Prompt,Def,Flags}, Fi) when Def == false; Def == true ->
     normalize_field(checkbox(Prompt, Def), Flags, Fi);
 normalize({Prompt,Def}, Fi) ->
-    normalize_field(text_field(Prompt, Def), [], Fi);
+    normalize_field(text_field(Prompt, Def, []), [], Fi);
 normalize({Prompt,Def,Flags}, Fi) ->
-    normalize_field(text_field(Prompt, Def), Flags, Fi).
+    normalize_field(text_field(Prompt, Def, Flags), Flags, Fi).
 
 vframe(Qs, #fi{x=X,y=Y0}=Fi0, Flags) ->
     {Dx,Dy} = case have_border(Flags) of
@@ -513,6 +531,58 @@ cb_event(#mousebutton{x=Xb,state=?SDL_RELEASED},
 cb_event(_Ev, _Fi, Cb) -> Cb.
 
 %%%
+%%% Color box.
+%%%
+
+-record(col,
+	{label,
+	 color}).
+
+color(Label, Def) ->
+    Col = #col{label=Label,color=Def},
+    Fun = color_fun(),
+    L = (length(Label)+1)*?CHAR_WIDTH,
+    {Fun,false,Col,L,L+3*?CHAR_WIDTH,?LINE_HEIGHT}.
+
+color_fun() ->
+    fun({redraw,Active}, Fi, Col) ->
+	    col_draw(Active, Fi, Col);
+       ({event,Ev}, Fi, Col) ->
+	    col_event(Ev, Fi, Col);
+       (value, _Fi, #col{color=Color}) ->
+	    Color
+    end.
+
+col_draw(Active, #fi{x=X,y=Y0,lw=Lw}, #col{label=Label,color=Color}) ->
+    wings_io:sunken_rect(X+Lw, Y0+3,
+			 3*?CHAR_WIDTH, ?CHAR_HEIGHT-2, Color),
+    Y = Y0+?CHAR_HEIGHT,
+    wings_io:text_at(X, Y, Label),
+    if
+	Active == true ->
+	    L = length(Label),
+	    wings_io:text_at(X, Y, duplicate(L, $_));
+	true -> ok
+    end.
+
+col_event({key,_,_,$\s}, _, Col) ->
+    pick_color(Col);
+col_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, #fi{x=X,lw=Lw}, Col) ->
+    if
+	X+Lw =< Xb, Xb < X+Lw+3*?CHAR_WIDTH ->
+	    pick_color(Col);
+	true -> Col
+    end;
+col_event(_Ev, _Fi, Col) -> Col.
+
+pick_color(#col{color={R0,G0,B0}}=Col) ->
+    Range = [{range,{0,255}}],
+    {ask,[{"R",trunc(R0*255),Range},
+	  {"G",trunc(G0*255),Range},
+	  {"B",trunc(B0*255),Range}],
+     fun([R,G,B]) -> Col#col{color={R/255,G/255,B/255}} end}.
+
+%%%
 %%% Text and number input fields.
 %%%
 
@@ -522,27 +592,59 @@ cb_event(_Ev, _Fi, Cb) -> Cb.
 	 sel=0,
 	 label,
 	 max,
-	 integer=false
+	 integer=false,
+	 charset,				%Character set validator.
+	 validator
 	}).
 
-text_field(Label, Def) when is_float(Def) ->
+text_field(Label, Def, Flags) when is_float(Def) ->
     Fun = float_fun(),
     DefStr = simplify_float(lists:flatten(io_lib:format("~f", [Def]))),
-    init_text(Fun, Label, DefStr, 15, false);
-text_field(Label, Def) when is_integer(Def) ->
-    init_text(integer_fun(), Label, integer_to_list(Def), 10, true);
-text_field(Label, Def) when is_list(Def) ->
-    init_text(string_fun(), Label, Def, 30, false);
-text_field(Label, Def) ->
-    TermStr = print_term(Def),
-    init_text(term_fun(), Label, TermStr, 30, false).
+    init_text(Fun, Label, DefStr, 15, false,
+	      fun float_chars/1, fun(_) -> ok end);
+text_field(Label, Def, Flags) when is_integer(Def) ->
+    {Max,Validator} = integer_validator(Flags),
+    init_text(integer_fun(), Label, integer_to_list(Def), Max, true,
+	      fun integer_chars/1, Validator);
+text_field(Label, Def, Flags) when is_list(Def) ->
+    init_text(string_fun(), Label, Def, 30, false,
+	      fun all_chars/1, fun(_) -> ok end).
 
-init_text(Fun, Label, String, Max0, IsInteger) ->
-    Max = max(Max0, length(String)+5),
-    Ts = #text{label=Label,bef=[],aft=String,max=Max,integer=IsInteger},
+init_text(Fun, Label, String, Max, IsInteger, Charset, Validator) ->
+    Ts = #text{label=Label,bef=[],aft=String,max=Max,
+	       integer=IsInteger,charset=Charset,validator=Validator},
     LblLen = (length(Label)+1)*?CHAR_WIDTH,
     {Fun,false,Ts,LblLen,LblLen+(1+Max)*?CHAR_WIDTH,?LINE_HEIGHT+3}.
 
+integer_chars(C) when $0 =< C, C =< $9 -> true;
+integer_chars(_) -> false.
+
+float_chars($.) -> true;
+float_chars(C) when $0 =< C, C =< $9 -> true;
+float_chars(_) -> false.
+
+all_chars(_) -> true.
+
+integer_validator(Flags) ->    
+    case property_lists:get_value(range, Flags) of
+	undefined -> {8,fun accept_all/1};
+	{Min,Max} when is_integer(Min), is_integer(Max), Min =< Max ->
+	    Digits = trunc(math:log(Max-Min+1)/math:log(10))+2,
+	    {Digits,integer_range(Min, Max)}
+    end.
+
+accept_all(_) -> ok.
+
+integer_range(Min, Max) ->
+    fun(Str) ->
+	    case catch list_to_integer(Str) of
+		{'EXIT',_} -> integer_to_list(Min);
+		Int when Int < Min -> integer_to_list(Min);
+		Int when Int > Max -> integer_to_list(Max);
+		Int when is_integer(Int) -> ok
+	    end
+    end.
+	    
 string_fun() ->
     fun(value, _Fi, Ts) -> get_text(Ts);
        (Other, Fi, Ts) -> gen_text_handler(Other, Fi, Ts)
@@ -550,11 +652,7 @@ string_fun() ->
 
 integer_fun() ->
     fun(value, _Fi, Ts) ->
-	    Text = get_text(Ts),
-	    case catch list_to_integer(Text) of
-		Int when is_integer(Int) -> Int;
-		_Crash -> wings_util:error("Bad integer ("++Text++")")
-	    end;
+	    list_to_integer(get_text(validate_string(Ts)));
        (Other, Fi, Ts) -> gen_text_handler(Other, Fi, Ts)
     end.
 
@@ -570,12 +668,6 @@ float_fun() ->
 			    wings_util:error("Bad number ("++Text++")")
 		    end
 	    end;
-       (Other, Fi, Ts) -> gen_text_handler(Other, Fi, Ts)
-    end.
-
-term_fun() ->
-    fun(value, _Fi, Ts) ->
-	    make_term(get_text(Ts));
        (Other, Fi, Ts) -> gen_text_handler(Other, Fi, Ts)
     end.
 
@@ -624,11 +716,19 @@ draw_text_1(X, Y, [C|T], N) ->
     wings_io:text_at(X, Y, [C]),
     draw_text_1(X+?CHAR_WIDTH, Y, T, N-1).
 
+validate_string(#text{validator=Validator}=Ts) ->
+    case Validator(get_text(Ts)) of
+	ok -> Ts;
+	Str when is_list(Str) -> Ts#text{bef=[],aft=Str,sel=0}
+    end.
+
 get_text(#text{bef=Bef,aft=Aft}) ->
     reverse(Bef, Aft).
 
 text_event({key,Sym,Mod,Unicode}, _Fi, Ts) ->
     key(Sym, Mod, Unicode, Ts);
+text_event({focus,false}, _Fi, Ts) ->
+    validate_string(Ts);
 text_event({focus,true}, _Fi, #text{bef=Bef,aft=Aft}=Ts) ->
     Str = reverse(Bef, Aft),
     Ts#text{bef=[],sel=length(Str),aft=Str};
@@ -714,9 +814,17 @@ key(4, _, #text{sel=0,aft=[_|Aft]}=Ts) ->	%Ctrl-D
     Ts#text{aft=Aft};
 key(4, _, Ts) ->				%Ctrl-D
     del_sel(Ts);
-key(C, _, #text{bef=Bef0,aft=Aft,max=Max}=Ts0)
-  when $\s =< C, C < 256, length(Bef0)+length(Aft) < Max ->
-    del_sel(Ts0#text{bef=[C|Bef0]});
+key(C, _, #text{max=Max,charset=Charset}=Ts0)
+  when $\s =< C, C < 256 ->
+    case Charset(C) of
+	true ->
+	    case del_sel(Ts0) of
+		#text{bef=Bef,aft=Aft}=Ts when length(Bef)+length(Aft) < Max ->
+		    Ts#text{bef=[C|Bef]};
+		_Other -> Ts0
+	    end;
+	false -> Ts0
+    end;
 key(_C, _Mod, Ts) -> Ts.
 
 del_sel(#text{sel=Sel,bef=Bef}=Ts) when Sel < 0 ->
@@ -734,42 +842,12 @@ increment(Ts, Incr) ->
 	    Ts#text{bef=reverse(Str),aft=[]}
     end.
 
-make_term(Str) ->
-    case erl_scan:string(Str) of
-	{ok, Tokens, _} ->
-	    case erl_parse:parse_term(Tokens ++ [{dot, 1}]) of
-		{ok, Term} -> Term;
-		{error,{_,_,Reason}} ->
-		    io:format("~s: ~s\n", [Reason,Str]),
-		    wings_util:error("Bad entry ("++Str++")")
-	    end;
-	{error,{_,_,Reason},_} ->
-	    io:format("~s: ~s~n", [Reason, Str]),
-	    wings_util:error("Bad entry ("++Str++")")
-    end.
-
 simplify_float(F) ->
     reverse(simplify_float_1(reverse(F))).
 
 simplify_float_1("0."++_=F) -> F;
 simplify_float_1("0"++F) -> simplify_float_1(F);
 simplify_float_1(F) -> F.
-
-print_term(Term) ->
-    lists:flatten(print_term_1(Term)).
-
-print_term_1(Tuple) when is_tuple(Tuple) ->
-    ["{",print_tuple(1, size(Tuple), Tuple),"}"];
-print_term_1(Float) when is_float(Float) ->
-    S = io_lib:format("~f", [Float]),
-    simplify_float(lists:flatten(S));
-print_term_1(Term) ->
-    io_lib:format("~p", [Term]).
-
-print_tuple(I, I, T) ->
-    print_term_1(element(I, T));
-print_tuple(I, Sz, T) ->
-    [print_term_1(element(I, T)),$,|print_tuple(I+1, Sz, T)].
 
 max(A, B) when A > B -> A;
 max(_A, B) -> B.
