@@ -3,12 +3,12 @@
 %%
 %%     Global record definition and defines.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.40 2002/01/12 19:24:24 bjorng Exp $
+%%     $Id: wings.hrl,v 1.41 2002/01/22 11:18:46 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -99,8 +99,11 @@
 	 top,					%Top of stack.
 	 bottom,				%Bottom of stack.
 	 next_is_undo,				%State of undo/redo toggle.
-	 undone					%States that were undone.
-	 }).
+	 undone,				%States that were undone.
+
+	 %% Extension field.
+	 wo					%For patches.
+	}).
 
 %% The Winged-Edge data structure.
 %% See http://www.cs.mtu.edu/~shene/COURSES/cs3621/NOTES/model/winged-e.html
@@ -160,5 +163,5 @@
 	 elevation,
 	 pan_x,					%Panning in X direction.
 	 pan_y,					%Panning in Y direction.
-	 along_axis=y				%Which axis viewed along.
+	 along_axis=none			%Which axis viewed along.
 	 }).
