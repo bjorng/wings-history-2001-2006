@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.27 2002/04/22 06:59:05 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.28 2002/04/23 12:34:33 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -42,7 +42,8 @@ command(camera_mode, St) ->
 	   [{title,"Camera Mode"}]},
 	  {vframe,
 	   [{"Wheel zooms",ZoomFlag0},
-	    {hframe,[{label,"Zoom Factor"},{text,ZoomFactor0},{label,"%"}]}],
+	    {hframe,[{label,"Zoom Factor"},
+		     {text,ZoomFactor0,[{range,{1,50}}]},{label,"%"}]}],
 	   [{title,"Scroll Wheel"}]}],
     wings_ask:dialog(Qs, St,
 		  fun([Mode,ZoomFlag,ZoomFactor]) ->
