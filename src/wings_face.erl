@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.26 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.27 2002/12/30 07:48:43 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -26,7 +26,8 @@
 	 iterator/2,skip_to_edge/2,skip_to_cw/2,skip_to_ccw/2,
 	 next_cw/1,next_ccw/1,
 	 iter2etab/1,
-	 patch_face/3,patch_face/4]).
+	 patch_face/3,patch_face/4,
+	 are_neighbors/3]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
@@ -374,3 +375,11 @@ patch_face(Face, Edge, NewEdge, Ftab) ->
 	    gb_trees:update(Face, Rec#face{edge=NewEdge}, Ftab);
 	_Other -> Ftab
     end.
+
+%% Test whether two faces are neighbors or not. (In the sense that
+%% they share at least one vertex.)
+are_neighbors(FaceA, FaceB, We) ->
+    VsA = wings_face:surrounding_vertices(FaceA, We),
+    VsB = wings_face:surrounding_vertices(FaceB, We),
+    ordsets:intersection(ordsets:from_list(VsA),
+			 ordsets:from_list(VsB)) =/= [].

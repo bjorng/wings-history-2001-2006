@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.46 2002/12/28 22:10:28 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.47 2002/12/30 07:48:42 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -417,12 +417,16 @@ weld_part_1(_, [], Tol, We, Acc) ->
     weld_part(Acc, Tol, We).
 
 try_weld(Fa, Fb, Tol, We) ->
-    Na = wings_face:normal(Fa, We),
-    Nb = wings_face:normal(Fb, We),
-    case e3d_vec:dot(Na, Nb) of
-	Dot when Dot < -0.99 ->
-	    try_weld_1(Fa, Fb, Tol, We);
-	_Dot -> no
+    case wings_face:are_neighbors(Fa, Fb, We) of
+	true -> no;
+	false ->
+	    Na = wings_face:normal(Fa, We),
+	    Nb = wings_face:normal(Fb, We),
+	    case e3d_vec:dot(Na, Nb) of
+		Dot when Dot < -0.99 ->
+		    try_weld_1(Fa, Fb, Tol, We);
+		_Dot -> no
+	    end
     end.
 
 try_weld_1(Fa, Fb, Tol, We0) ->

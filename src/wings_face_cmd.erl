@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.68 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.69 2002/12/30 07:48:43 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -222,8 +222,7 @@ dissolve(Faces, #we{id=Id}=We0, Acc) ->
 	    Sel = wings_we:new_items(face, We0, We),
 	    {We,[{Id,Sel}|Acc]};
 	false ->
-	    throw({command_error,
-		   "Dissolving would cause an inconsistent object structure."})
+	    wings_util:error("Dissolving would cause an inconsistent object structure.")
     end.
 		  
 dissolve_1(Faces, WeOrig, #we{fs=Ftab}=We0) ->
@@ -682,7 +681,7 @@ bridge(FaceA, FaceB, #we{vp=Vtab}=We) ->
 		Dot when Dot > 0.99 ->
 		    bridge_error("Faces must not point in the same direction.");
 		_Dot ->
-		    case are_neighbors(FaceA, FaceB, We) of
+		    case wings_face:are_neighbors(FaceA, FaceB, We) of
 			true ->
 			    bridge_error("Faces must not be neighbors.");
 			false ->
@@ -797,15 +796,7 @@ bridge_error() ->
     bridge_error("Exactly two faces must be selected.").
 
 bridge_error(Error) ->
-    throw({command_error,Error}).
-
-%% Test whether two faces are neighbors or not. (In the sense that
-%% they share at least one vertex.)
-are_neighbors(FaceA, FaceB, We) ->
-    VsA = wings_face:surrounding_vertices(FaceA, We),
-    VsB = wings_face:surrounding_vertices(FaceB, We),
-    ordsets:intersection(ordsets:from_list(VsA),
-			 ordsets:from_list(VsB)) =/= [].
+    wings_util:error(Error).
 
 bridge_color(Edge, Face, Iter) ->
     Etab = wings_face:iter2etab(Iter),
