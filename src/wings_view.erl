@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.142 2004/04/23 09:33:36 raimo_niskanen Exp $
+%%     $Id: wings_view.erl,v 1.143 2004/04/23 17:15:22 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -838,9 +838,9 @@ view_legend(#view{distance=Dist,along_axis=Along}=View) ->
 		   AimLen = e3d_vec:len(Aim),
 		   if AimLen < Dist*0.000001 ->
 			   %% Close enough to Origin
-			   "against Origin";
+			   "towards Origin";
 		      true ->
-			   "against "++pos_legend(e3d_vec:neg(Dir))
+			   "towards "++pos_legend(e3d_vec:neg(Dir))
 		   end
 	   end,
 	   Dist]),
