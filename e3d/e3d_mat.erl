@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.8 2001/11/18 19:23:39 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.9 2001/11/22 09:04:30 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -103,7 +103,17 @@ mul({B_a,B_b,B_c,B_d,B_e,B_f,B_g,B_h,B_i,B_tx,B_ty,B_tz},
      A_g*B_c + A_h*B_f + A_i*B_i,
      A_tx*B_a + A_ty*B_d + A_tz*B_g + B_tx,
      A_tx*B_b + A_ty*B_e + A_tz*B_h + B_ty,
-     A_tx*B_c + A_ty*B_f + A_tz*B_i + B_tz}.
+     A_tx*B_c + A_ty*B_f + A_tz*B_i + B_tz};
+mul({A,B,C,Q0,D,E,F,Q1,G,H,I,Q2,Tx,Ty,Tz,Q3}, {X,Y,Z,W})
+  when float(A), float(B), float(C), float(D), float(E),
+       float(F), float(G), float(H), float(I), 
+       float(Tx), float(Ty), float(Tz),
+       float(Q0), float(Q1), float(Q2), float(Q3),
+       float(X), float(Y), float(Z) ->
+    {X*A + Y*D + Z*G + W*Tx,
+     X*B + Y*E + Z*H + W*Ty,
+     X*C + Y*F + Z*I + W*Tz,
+     X*Q0 + Y*Q1 + Z*Q2 + W*Q3}.
 
 mul_point({A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}, {X,Y,Z})
   when float(A), float(B), float(C), float(D), float(E),
