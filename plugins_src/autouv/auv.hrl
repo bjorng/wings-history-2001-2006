@@ -9,17 +9,18 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.9 2002/11/02 10:11:47 bjorng Exp $
+%%     $Id: auv.hrl,v 1.10 2002/11/08 10:45:25 dgud Exp $
 
--record(a,
+%% Chart record (one for each chart).
+-record(ch,
 	{center = {0,0},
 	 scale = 1.0,
 	 rotate = 0.0,
 	 size,
-	 fs,
-	 vpos,
-	 %% temporary stuff
-	 twe,tbe}).
+	 fs,					%Faces in chart.
+	 vpos,					%UV coordinates.
+	 be					%Boundary edges.
+	}).
 
 -record(areas,
 	{as,

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.46 2002/11/08 09:18:37 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.47 2002/11/08 10:45:25 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -333,7 +333,7 @@ seg_map_chart([C|Cs], Type, We, Extra, I, N, Acc0, Ss) ->
 	{error,Message} ->
 	    seg_error(Message, Ss);
 	Vs ->
-	    Acc = [#a{fs=C,vpos=Vs}|Acc0],
+	    Acc = [#ch{fs=C,vpos=Vs}|Acc0],
 	    seg_map_charts_1(Cs, Type, We, Extra, I+1, N, Acc, Ss)
     end.
 
@@ -471,8 +471,28 @@ assign_materials([], #we{id=Id}=We, _, _, #st{shapes=Shs0}=St) ->
 
 %%%%%%
 
-init_show_maps(Areas0, #we{name=Name}=We, Vmap, OrigWe, St0) ->
-    Map = auv_placement:place_areas(Areas0, We),
+replace_uvs(Map, We) when is_list(Map) ->
+    foldl(fun({_,Chart}, W) -> replace_uv(Chart, W) end, We, Map);
+replace_uvs(Map, We) ->
+    replace_uvs(gb_trees:to_list(Map), We).
+
+replace_uv(#ch{vpos=Vpos}, #we{vs=Vtab0}=We) ->
+    Vtab = foldl(fun({V,Pos}, Vt) ->
+			 Vtx = gb_trees:get(V, Vt),
+			 gb_trees:update(V, Vtx#vtx{pos=Pos}, Vt)
+		 end, Vtab0, Vpos),
+    We#we{vs=Vtab}.
+
+find_boundary_edges([{Id,#ch{fs=Fs}=C}|Cs], We, Acc) ->
+    Be = outer_edges(Fs, We),
+    find_boundary_edges(Cs, We, [{Id,C#ch{be=Be}}|Acc]);
+find_boundary_edges([], _, Acc) -> sort(Acc).
+
+init_show_maps(Map0, #we{name=Name}=We0, Vmap, OrigWe, St0) ->
+    Map1 = auv_placement:place_areas(Map0, We0),
+    We = replace_uvs(Map1, We0),
+    Map2 = find_boundary_edges(Map1, We, []),
+    Map = gb_trees:from_orddict(Map2),
     As0 = #areas{we=We,orig_we=OrigWe,
 		 as=Map,vmap=Vmap,
 		 matname=list_to_atom(Name ++ "_auv")},
@@ -492,7 +512,7 @@ insert_uvcoords(#areas{orig_we=We0,we=WorkWe,as=UV,matname=MatName,vmap=Vmap}) -
     Ftab = gb_trees:from_orddict(Ftab0),
     We#we{mode=uv,fs=Ftab}.
 
-gen_uv_pos([#a{fs=Fs,center={CX,CY},scale=Sc,vpos=Vs}|T], We, Acc) ->
+gen_uv_pos([#ch{fs=Fs,center={CX,CY},scale=Sc,vpos=Vs}|T], We, Acc) ->
     Vpos0 = moveAndScale(Vs, CX, CY, Sc, []),
     VFace0 = wings_face:fold_faces(
 	       fun(Face, V, _, _, A) ->
@@ -526,9 +546,11 @@ insert_coords([], _, We) -> We.
 init_edit(MatName, Faces, We0) ->
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
-    {We,Vmap} = auv_segment:cut_model(Charts, Cuts, We0),
-    Map1 = number(build_map(Charts, Vmap, FvUvMap, We, []), 1),
-    Map = gb_trees:from_orddict(Map1),
+    {We1,Vmap} = auv_segment:cut_model(Charts, Cuts, We0),
+    Map1 = number(build_map(Charts, Vmap, FvUvMap, We1, []), 1),
+    We = replace_uvs(Map1, We1),
+    Map2 = find_boundary_edges(Map1, We, []),
+    Map = gb_trees:from_orddict(Map2),
     #areas{we=We,orig_we=We0,as=Map,vmap=Vmap,matname=MatName}.
 
 build_map([Fs|T], Vmap, FvUvMap, We, Acc) ->
@@ -548,7 +570,7 @@ build_map([Fs|T], Vmap, FvUvMap, We, Acc) ->
     CX = BX0 + (BX1-BX0) / 2,
     CY = BY0 + (BY1-BY0) / 2,
     UVs = [{V,{X-CX,Y-CY,0.0}} || {V,{X,Y}} <- UVs1],
-    Chart = #a{fs=Fs,vpos=UVs,center={CX,CY},size={BX1-BX0,BY1-BY0}},
+    Chart = #ch{fs=Fs,vpos=UVs,center={CX,CY},size={BX1-BX0,BY1-BY0}},
     build_map(T, Vmap, FvUvMap, We, [Chart|Acc]);
 build_map([], _, _, _, Acc) -> Acc.
 
@@ -672,16 +694,15 @@ init_drawarea() ->
 
 draw_texture(Uvs = #uvstate{dl=undefined,option=Options}) ->
     Materials = (Uvs#uvstate.origst)#st.mat,
-    Areas = #areas{we = We, as = As0} = Uvs#uvstate.areas,
-    DrawArea = fun({Id,A}) ->
-		       {Id,draw_area(A, We, Options, Materials)}
+    #areas{we=We,as=As0} = Uvs#uvstate.areas,
+    DrawArea = fun({_,A}) ->
+		       draw_area(A, We, Options, Materials)
 	       end,
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
-    As = ?SLOW(map(DrawArea, gb_trees:to_list(As0))),
+    ?SLOW(foreach(DrawArea, gb_trees:to_list(As0))),
     gl:endList(),
-    draw_texture(Uvs#uvstate{dl=Dl,
-			     areas=Areas#areas{as=gb_trees:from_orddict(As)}});
+    draw_texture(Uvs#uvstate{dl=Dl});
 draw_texture(Uvs = #uvstate{dl=DL, sel=Sel, areas=#areas{we=We}}) ->
     gl:callList(DL),
     case Sel of 
@@ -1010,7 +1031,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 			     mode = Mode,
 			     op = Op,
 			     sel = Sel0,
-			     areas = As = #areas{we=We,as=Curr0}}) ->	   
+			     areas=#areas{we=We0,as=Curr0}=As}) ->
     case Op#op.name of
 	boxsel when Op#op.add == {MX,MY} -> %% No box
 	    get_event(Uvs0#uvstate{op = undefined});
@@ -1021,20 +1042,21 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 	    CX = if OX > MX -> MX + BW div 2; true -> MX - BW div 2 end,
 	    CY = if OY > MY -> MY + BH div 2; true -> MY - BH div 2 end,
 	    %%		    ?DBG("BW ~p BH ~p Center ~p \n",[BW,BH, {CX,CY}]),
-	    case select(Mode, CX-X0,((OH-CY)-Y0), BW,BH, Curr0, We, ViewP) of
+	    case select(Mode, CX-X0,((OH-CY)-Y0), BW,BH, Curr0, We0, ViewP) of
 		none -> 
 		    get_event(Uvs0#uvstate{op = undefined});
 		Hits -> 
 		    %%			    ?DBG("Hit number ~p \n",[length(Hits)]),
 		    {Sel1, Curr1} = update_selection(Hits, Sel0, Curr0),
 		    get_event(Uvs0#uvstate{sel = Sel1,
-					   st = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
+					   st = wings_select_faces(Sel1, We0, Uvs0#uvstate.st),
 					   areas = As#areas{as=Curr1},
 					   dl = undefined, op = undefined})
 	    end;
 	rotate ->
-	    Sel1 = [finish_rotate(A)|| A <- Sel0],
-	    get_event(Uvs0#uvstate{op = undefined, sel = Sel1});
+	    Sel = [finish_rotate(A)|| A <- Sel0],
+	    We = replace_uvs(Sel, We0),
+	    get_event(Uvs0#uvstate{op=undefined,sel=Sel,areas=As#areas{we=We}});
 	_ ->
 	    get_event(Uvs0#uvstate{op = undefined})
     end;
@@ -1183,24 +1205,25 @@ handle_event({action, {auv, rescale_all}},
 	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{as=Curr0}})->
     RscAreas = rescale_all(add_as(Sel0,Curr0)),
     get_event(Uvs0#uvstate{sel = [],
-			   areas = As#areas{as=RscAreas},
+			   areas=As#areas{as=RscAreas},
 			   dl = undefined});
+handle_event({action, {auv, {rotate, free}}}, Uvs) ->
+    handle_event({action, {auv, rotate}}, Uvs);
 handle_event({action, {auv, {rotate, Deg}}},
-	     Uvs0=#uvstate{mode=Mode,sel = Sel0}) ->
-    case Deg of
-	rot_y_180 ->
-	    Sel1 = [transpose_x(Mode, A) || A <- Sel0],
-	    get_event(Uvs0#uvstate{sel = Sel1});
-	rot_x_180 ->
-	    Sel1 = [transpose_y(Mode, A) || A <- Sel0],
-	    get_event(Uvs0#uvstate{sel = Sel1});
-	free ->
-	    handle_event({action, {auv, rotate}}, Uvs0);
-	Deg ->
-	    Sel1 = [finish_rotate({Id,A#a{rotate = Deg}})|| {Id,A} <- Sel0],
-	    get_event(Uvs0#uvstate{op = undefined, sel = Sel1})
-    end;
-
+	     Uvs0=#uvstate{mode=Mode,sel=Sel0, areas=#areas{we=We0}=Areas}) ->
+    Uvs = case Deg of
+	      rot_y_180 ->
+		  Sel1 = [transpose_x(Mode, A) || A <- Sel0],
+		  Uvs0#uvstate{sel = Sel1};
+	      rot_x_180 ->
+		  Sel1 = [transpose_y(Mode, A) || A <- Sel0],
+		  Uvs0#uvstate{sel = Sel1};
+	      Deg ->
+		  Sel1 = [finish_rotate({Id,A#ch{rotate = Deg}})|| {Id,A} <- Sel0],
+		  Uvs0#uvstate{op = undefined, sel = Sel1}
+	  end,
+    We = replace_uvs(Uvs#uvstate.sel, We0),
+    get_event(Uvs#uvstate{areas=Areas#areas{we=We}});
 handle_event({action, {auv, NewOp}},Uvs0=#uvstate{sel = Sel0}) ->
     case Sel0 of
 	[] ->
@@ -1391,28 +1414,16 @@ select(Mode, X,Y, W, H, Objects0, We, {_UVX,_UVY,UVW,UVH,XYS,XM,YM}) ->
 		end, lists:usort(Hits))
     end.
 
-select_draw([{Co, A}|R], Mode, We = #we{vs = TempVs}) ->
+select_draw([{Co,A}|R], Mode, We) ->
 %%    ?DBG("Co ~p\n",[Co]),
-    #a{fs=Fs,vpos=Vs,center={CX,CY},
-       scale=Scale,rotate=Rot, twe = TempWe0} = A,
-    TempWe = 
-	case TempWe0 of 
-	    undefined ->
-		NewVs = foldl(fun({No, Pos}, Tree) ->
-				      Vtx = gb_trees:get(No,Tree),
-				      gb_trees:update(No, Vtx#vtx{pos=Pos}, Tree)
-			      end, TempVs, Vs),
-		We#we{vs = NewVs, mode=material}; %% We don't want verex colors
-	    Else -> 
-		Else#we{mode = material}
-	end,
+    #ch{fs=Fs,center={CX,CY},scale=Scale,rotate=Rot} = A,
     gl:pushMatrix(),
     gl:pushName(0),
     gl:loadName(Co),
     gl:translatef(CX,CY,0.0),
     gl:scalef(Scale, Scale, 1.0),
     gl:rotatef(Rot,0,0,1),
-    select_draw1(Mode, Fs, TempWe),
+    select_draw1(Mode, Fs, We#we{mode=material}),
     gl:popName(),
     gl:popMatrix(),
     select_draw(R, Mode, We);
@@ -1472,7 +1483,7 @@ get_name(N, <<Name:32,Names/binary>>, Acc) ->
 
 -define(OUT, 1.2/2). %% was 1/2 
 
-find_selectable(X,Y, [A={_, #a{center={CX,CY},size={W,H}}}|Rest], Acc)
+find_selectable(X,Y, [A={_, #ch{center={CX,CY},size={W,H}}}|Rest], Acc)
   when X > (CX-W*?OUT), X < (CX+W*?OUT), Y > (CY-H*?OUT), Y < (CY+H*?OUT) ->
     find_selectable(X,Y, Rest, [A|Acc]);
 find_selectable(X,Y, [_H|R], Acc) ->
@@ -1483,7 +1494,7 @@ find_selectable(_X,_Y, [], Acc) ->
 wings_select_faces([], _, St) ->
     wpa:sel_set(face, [], St);
 wings_select_faces(As, #we{id=Id}, St) ->
-    Faces = [A#a.fs || {_,A} <- As],
+    Faces = [A#ch.fs || {_,A} <- As],
     wpa:sel_set(face, [{Id,gb_sets:from_list(lists:append(Faces))}], St).
 
 %%%% GUI Operations
@@ -1495,26 +1506,27 @@ greatest(A,B) ->
 	    B
     end.
 
-move_area(faceg, {Id, A = #a{center = {X0,Y0}}}, DX, DY) ->
+move_area(faceg, {Id, A = #ch{center = {X0,Y0}}}, DX, DY) ->
 %    ?DBG("Move ~p ~p ~p~n", [{X0,Y0}, S, {DX, DY}]),
-%%    A#a{center = {X0+DX/S, Y0+DY/S}}.
-    {Id, A#a{center = {X0+DX, Y0+DY}}}.
-scale_area(faceg,{Id,A = #a{scale = S, size = {W,H}}}, DX, DY) ->
+%%    A#ch{center = {X0+DX/S, Y0+DY/S}}.
+    {Id, A#ch{center = {X0+DX, Y0+DY}}}.
+scale_area(faceg,{Id,A = #ch{scale = S, size = {W,H}}}, DX, DY) ->
     NS = greatest(DX,DY),
-    {Id,A#a{scale = S+NS, size = {W+W*NS, H+H*NS}}}.
-rotate_area(faceg, {Id,A = #a{rotate = R}}, DX, DY) ->
+    {Id,A#ch{scale = S+NS, size = {W+W*NS, H+H*NS}}}.
+rotate_area(faceg, {Id,A = #ch{rotate = R}}, DX, DY) ->
     NS = greatest(DX,DY),
     NewR = R + NS*180,
-    {Id,A#a{rotate = NewR}}.
-transpose_x(faceg,{Id,A = #a{vpos = Vpos}}) ->
+    {Id,A#ch{rotate = NewR}}.
+transpose_x(faceg,{Id,A = #ch{vpos = Vpos}}) ->
     New = [{Nr, {-X,Y,Z}} || {Nr, {X,Y,Z}} <- Vpos],
-    {Id,A#a{vpos = New, twe = undefined}}.
-transpose_y(faceg,{Id,A = #a{vpos = Vpos}}) ->
+    {Id,A#ch{vpos=New}}.
+transpose_y(faceg,{Id,A = #ch{vpos = Vpos}}) ->
     New = [{Nr, {X,-Y,Z}} || {Nr, {X,Y,Z}} <- Vpos],
-    {Id,A#a{vpos = New, twe = undefined}}.
+    {Id,A#ch{vpos=New}}.
+
 rescale_all(Areas0) ->
     Areas1 = gb_trees:to_list(Areas0),
-    Find = fun({_, #a{center = {CX,CY}, size = {W,H}}}, [MX,MY]) ->
+    Find = fun({_, #ch{center = {CX,CY}, size = {W,H}}}, [MX,MY]) ->
 		   TX = CX + W/2,
 		   TY = CY + H/2,
 		   NewMX = if TX > MX -> TX; true -> MX end,
@@ -1523,16 +1535,15 @@ rescale_all(Areas0) ->
 	   end,
     Max = max(foldl(Find, [0,0], Areas1)),
     NS = 1.0 / Max,
-    Rescale = fun({Id,A = #a{center = {CX0,CY0}, size = {W0,H0}, scale = S0}}) ->
-		      {Id,A#a{center = {CX0*NS,CY0*NS}, size = {W0*NS,H0*NS}, scale = S0*NS}}
+    Rescale = fun({Id,A = #ch{center = {CX0,CY0}, size = {W0,H0}, scale = S0}}) ->
+		      {Id,A#ch{center = {CX0*NS,CY0*NS}, size = {W0*NS,H0*NS}, scale = S0*NS}}
 	      end,
     gb_trees:from_orddict(map(Rescale, Areas1)).
-finish_rotate({Id,Area = #a{rotate = R, vpos = Vs0, scale = S}}) ->
+finish_rotate({Id,Area = #ch{rotate = R, vpos = Vs0, scale = S}}) ->
     Rot = e3d_mat:rotate(float(trunc(R)), {0.0,0.0,1.0}),
     Vs1 = [{IdV, e3d_mat:mul_point(Rot, Vec)} || {IdV, Vec} <- Vs0],
     {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(Vs1),
-    {Id,Area#a{rotate=0.0, vpos = Vs1, size={(BX1-BX0)*S, (BY1-BY0)*S}, 
-	       twe = undefined}}.
+    {Id,Area#ch{rotate=0.0, vpos = Vs1, size={(BX1-BX0)*S, (BY1-BY0)*S}}}.
 
 %%%% Draw routines
 outer_edges(Faces0, We) ->
@@ -1561,25 +1572,8 @@ outer_edges_1([E|T], Out) ->
     outer_edges_1(T, [E|Out]);
 outer_edges_1([], Out) -> reverse(Out).
 
-draw_area(A = #a{fs=Fs,vpos=Vs,center={CX,CY},scale=Scale,rotate=R,twe=Twe0,tbe=Tbe0}, 
+draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe}, 
 	  We, Options = #setng{color = ColorMode, edges = EdgeMode}, Materials) -> 
-    Twe = case Twe0 of
-		 undefined ->
-		     %% Temporary patch the we structure so we can use wings functions
-		     TempVs = We#we.vs,
-		     NewVs = foldl(fun({No, Pos}, Tree) ->
-					   Vtx = gb_trees:get(No,Tree),
-					   gb_trees:update(No, Vtx#vtx{pos=Pos}, Tree)
-				   end, TempVs, Vs),
-		     We#we{vs = NewVs};
-		 _ ->
-		     Twe0
-	     end,
-    Tbe = case Tbe0 of
-	      undefined -> outer_edges(Fs, Twe);
-	      _ -> Tbe0
-	  end,
-
     gl:pushMatrix(),
     gl:translatef(CX,CY,0.0),
     gl:scalef(Scale, Scale, 1.0),
@@ -1588,7 +1582,7 @@ draw_area(A = #a{fs=Fs,vpos=Vs,center={CX,CY},scale=Scale,rotate=R,twe=Twe0,tbe=
     if
 	EdgeMode == border_edges ->
 	    %% Draw outer edges only
-	    #we{es=Etab, vs=Vtab}=Twe,
+	    #we{es=Etab, vs=Vtab}=We,
 	    gl:pushMatrix(),
 	    gl:lineWidth(Options#setng.edge_width),
 	    DrawEdge = 
@@ -1628,7 +1622,7 @@ draw_area(A = #a{fs=Fs,vpos=Vs,center={CX,CY},scale=Scale,rotate=R,twe=Twe0,tbe=
 	EdgeMode == all_edges ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:color3f(0.6, 0.6, 0.6),
-	    draw_faces(Fs, Twe#we{mode = material});
+	    draw_faces(Fs, We#we{mode = material});
 	EdgeMode == no_edges ->
 	    ok
     end,
@@ -1639,7 +1633,7 @@ draw_area(A = #a{fs=Fs,vpos=Vs,center={CX,CY},scale=Scale,rotate=R,twe=Twe0,tbe=
 	    wings_material:apply_material(MatName, Materials),
 	    lists:foreach(fun(Face) ->
 				  gl:color4fv(get_material(Face, Materials, We)),
-				  draw_faces([Face], Twe)
+				  draw_faces([Face], We)
 			  end, Fs),
 	    case has_texture(MatName, Materials) of
 		true -> gl:disable(?GL_TEXTURE_2D);
@@ -1648,12 +1642,11 @@ draw_area(A = #a{fs=Fs,vpos=Vs,center={CX,CY},scale=Scale,rotate=R,twe=Twe0,tbe=
 	is_tuple(ColorMode), size(ColorMode) == 4 ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:color4fv(ColorMode),
-	    draw_faces(Fs, Twe#we{mode = material});
+	    draw_faces(Fs, We#we{mode = material});
 	true ->
 	    ignore
     end,
-    gl:popMatrix(),
-    A#a{twe=Twe,tbe=Tbe}.
+    gl:popMatrix().
 
 draw_faces(Fs, We) ->
     wings_draw_util:begin_end(fun() -> draw_faces2(Fs, We) end).
