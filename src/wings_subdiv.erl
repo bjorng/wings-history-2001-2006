@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.51 2003/06/06 17:32:49 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.52 2003/06/06 17:48:41 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -591,7 +591,7 @@ uv_face_1([], _, Nacc, Vs) ->
 uv_face_2([[Pos|Attr]|T]) ->
     case Attr of
 	{_,_}=UV -> gl:texCoord2fv(UV);
-	{_,_,_}=Col -> gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, Col)
+	{_,_,_}=Col -> gl:color3fv(Col)
     end,
     gl:vertex3dv(Pos),
     uv_face_2(T);
