@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.110 2003/07/21 14:56:51 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.111 2003/07/21 16:18:28 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -27,7 +27,7 @@
 %% Menu information kept for a popup menu.
 -record(mi,
 	{ymarg,					%Margin at top and bottom
-	 shortcut,				%Position for shortcut (chars)
+	 shortcut,				%Position for shortcut (pixels)
 	 w,					%Width of menu (pixels)
 	 h,					%Height of menu (pixels)
 	 hs,					%Tuple: height of each entry.
@@ -81,7 +81,8 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi0) ->
     Hotkeys = wings_hotkey:matching(Names),
     Menu = normalize_menu(Menu1, Hotkeys, Adv),
     {MwL,MwM,MwR,Hs} = menu_dims(Menu),
-    TotalW = MwM + (MwL+MwR+8) *  wings_text:width(),
+    Cw = wings_text:width(),
+    TotalW = MwL + MwM + MwR + 8* Cw,
     Mh = lists:sum(Hs),
     Margin = 3,
     {X1,Y1} = case Type of
@@ -94,7 +95,7 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi0) ->
 	      end,
     {X,Y} = move_if_outside(X1, Y1, TotalW, Mh+2*Margin, Mi0),
     W = TotalW-10,
-    Mi = Mi0#mi{ymarg=Margin,shortcut=MwL+1,w=TotalW-10,h=Mh,hs=Hs,
+    Mi = Mi0#mi{ymarg=Margin,shortcut=MwL+Cw,w=TotalW-10,h=Mh,hs=Hs,
 		sel=none,ns=Names,menu=Menu,adv=Adv,type=Type},
     #mi{level=Level} = Mi,
     setup_menu_killer(Mi),
@@ -232,12 +233,18 @@ menu_dims(_Menu, 0, MaxA, MaxB, MaxC, H) -> {MaxA,MaxB,MaxC,H};
 menu_dims(Menu, I, MaxA0, MaxB0, MaxC0, Hacc) ->
     {Wa,Wb,Wc,H} =
 	case element(I, Menu) of
- 	    {S,ignore,[],[],[]} when I == 1, length(S)+1 =< MaxA0+MaxB0 ->
- 		{0,0,0,?LINE_HEIGHT};
+ 	    {S,ignore,[],[],[]} when I == 1 ->
+		case wings_text:width([$\s|S]) - (MaxA0+MaxB0+MaxC0) of
+		    W when W < 0 ->
+			{0,0,0,?LINE_HEIGHT};
+		    W ->
+			{MaxA0+W,0,0,?LINE_HEIGHT}
+		end;
 	    {S,{_,_},Hotkey,_,_} ->
-		{length(S),wings_text:width(Hotkey),1,?LINE_HEIGHT};
+		{wings_text:width(S),wings_text:width(Hotkey),
+		 wings_text:width(),?LINE_HEIGHT};
 	    {S,_,Hotkey,_,Ps} ->
-		{length(S),wings_text:width(Hotkey),
+		{wings_text:width(S),wings_text:width(Hotkey),
 		 right_width(Ps),?LINE_HEIGHT};
 	    separator -> {0,0,0,?SEPARATOR_HEIGHT}
 	end,
@@ -248,12 +255,13 @@ max(A, B) when A > B -> A;
 max(_A, B) -> B.
 
 right_width(Ps) ->
+    Cw = wings_text:width(),
     case have_option_box(Ps) of
-	true -> 1;
+	true -> Cw;
 	false ->
 	    case proplists:get_value(color, Ps, none) of
 		none -> 0;
-		_  -> 1
+		_  -> Cw
 	    end
     end.
 
@@ -530,7 +538,7 @@ update_highlight(X, Y, #mi{menu=Menu,sel=OldSel,sel_side=OldSide,w=W}=Mi0) ->
 	OldSel when is_integer(OldSel) ->
 	    Ps = element(5, element(OldSel, Menu)),
 	    RightWidth = right_width(Ps),
-	    Right = W - (2*?CHAR_WIDTH*RightWidth) - ?CHAR_WIDTH,
+	    Right = W - (2*RightWidth) - ?CHAR_WIDTH,
 	    Side = if
 		       X < Right; RightWidth == 0 -> left;
 		       true -> right
@@ -675,10 +683,11 @@ menu_draw_1(Y, Ps, Sel, #mi{sel=Sel,sel_side=Side,w=W},
 	    DrawLeft, DrawRight) ->
     %% Draw blue background for highlighted item.
     wings_io:set_color(wings_pref:get_value(menu_hilite)),
-    Right = W - (2*?CHAR_WIDTH*right_width(Ps)) - ?CHAR_WIDTH,
+    Cw = wings_text:width(),
+    Right = W - (2*right_width(Ps)) - Cw,
     case Side of
 	right ->
-	    gl:recti(Right, Y-?CHAR_HEIGHT, Right+3*?CHAR_WIDTH-2, Y+3),
+	    gl:recti(Right, Y-?CHAR_HEIGHT, Right+3*Cw-2, Y+3),
 	    wings_io:set_color(wings_pref:get_value(menu_text));
 	left ->
 	    gl:recti(?CHAR_WIDTH, Y-?CHAR_HEIGHT, Right, Y+3),
@@ -708,8 +717,7 @@ menu_text({Text,_,_,_,_}, _) -> Text;
 menu_text(separator, _) -> [].
 
 draw_hotkey(_, _, _, []) -> ok;
-draw_hotkey(X, Y, Pos, Hotkey) ->
-    wings_io:text_at(X+Pos*?CHAR_WIDTH, Y, Hotkey).
+draw_hotkey(X, Y, Pos, Hotkey) -> wings_io:text_at(X+Pos, Y, Hotkey).
 
 draw_menu_text(X, Y, Text, Props) ->
     case proplists:is_defined(crossmark, Props) of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.20 2003/07/21 13:27:10 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.21 2003/07/21 16:18:29 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -180,16 +180,16 @@ flatten(1, [flatten,vertex]) ->
      flatten_fun(y),
      flatten_fun(z),
      {advanced,separator},
-     flatten_axis_fun(last_axis),
-     flatten_axis_fun(default_axis)];
+     {advanced,flatten_axis_fun(last_axis)},
+     {advanced,flatten_axis_fun(default_axis)}];
 flatten(1, _) ->
     [flatten_fun(normal),
      flatten_fun(x),
      flatten_fun(y),
      flatten_fun(z),
      {advanced,separator},
-     flatten_axis_fun(last_axis),
-     flatten_axis_fun(default_axis)];
+     {advanced,flatten_axis_fun(last_axis)},
+     {advanced,flatten_axis_fun(default_axis)}];
 flatten(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
 
 flatten_fun(Dir) ->
