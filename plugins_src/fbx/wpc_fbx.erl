@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_fbx.erl,v 1.6 2005/03/14 15:42:17 bjorng Exp $
+%%     $Id: wpc_fbx.erl,v 1.7 2005/03/14 18:21:09 bjorng Exp $
 %%
 
 -module(wpc_fbx).
@@ -507,33 +507,33 @@ import_tree_1(I, N, Importer, Global0, Acc0) ->
 %%     Tz = element(12, Mtx),
 %%     io:format("~p", [{Tx,Ty,Tz}]).
 
-%% print_tree() ->
-%%     Print = fun(Indent) ->
-%%                     Local = local_transformation(),
-%%                     Tx = element(10, Local),
-%%                     Ty = element(11, Local),
-%%                     Tz = element(12, Local),
-%%                     Trans = {Tx,Ty,Tz},
-%%                     io:format("~s~p: ~s (~p)\n",
-%%                               [Indent,node_type(),node_name(),Trans])
-%%             end,
-%%     print_tree(Print).
+print_tree() ->
+    Print = fun(Indent) ->
+                    Local = local_transformation(),
+                    Tx = element(10, Local),
+                    Ty = element(11, Local),
+                    Tz = element(12, Local),
+                    Trans = {Tx,Ty,Tz},
+                    io:format("~s~p: ~s (~p)\n",
+                              [Indent,node_type(),node_name(),Trans])
+            end,
+    print_tree(Print).
 
 
-%% print_tree(Printer) ->
-%%     print_tree(Printer, []).
+print_tree(Printer) ->
+    print_tree(Printer, []).
 
-%% print_tree(Printer, Indent) ->
-%%     Printer(Indent),
-%%     N = call(?ImpNumChildren),
-%%     print_tree_1(0, N, Printer, [$.|Indent]).
+print_tree(Printer, Indent) ->
+    Printer(Indent),
+    N = call(?ImpNumChildren),
+    print_tree_1(0, N, Printer, [$.|Indent]).
 
-%% print_tree_1(N, N, _, _) -> ok;
-%% print_tree_1(I, N, Printer, Indent) ->
-%%     enter_node(I),
-%%     print_tree(Printer, Indent),
-%%     pop_node(),
-%%     print_tree_1(I+1, N, Printer, Indent).
+print_tree_1(N, N, _, _) -> ok;
+print_tree_1(I, N, Printer, Indent) ->
+    enter_node(I),
+    print_tree(Printer, Indent),
+    pop_node(),
+    print_tree_1(I+1, N, Printer, Indent).
 
 %%%
 %%% Import a single mesh/object.
@@ -609,7 +609,7 @@ mesh_combine_mat_tx_1([#e3d_face{mat=[_,_]=MatTx}|Fs], Acc) ->
 mesh_combine_mat_tx_1([], Acc) -> ordsets:from_list(Acc);
 mesh_combine_mat_tx_1([H|_]=E, A) ->
     io:format("~p\n", [H]),
-    erlang:fault(badarg, [E,A]).
+    erlang:error(badarg, [E,A]).
 
 mesh_combine_mat_tx_2([[Name0,Tx]=Key|T], Mat0, MapAcc0) ->
     case gb_trees:get(Name0, Mat0) of
@@ -665,7 +665,11 @@ import_mat_mapping(MapMode, Mesh, Mat) ->
     MatNames = list_to_tuple([Name || {Name,_} <- Mat]),
     case MapMode of
         by_polygon -> import_mat_by_polygon(Mesh, MatNames);
-        all_same -> import_mat_all_same(Mesh, MatNames)
+        all_same -> import_mat_all_same(Mesh, MatNames);
+	Other ->
+	    io:format("Cannot handle material mapping mode: ~p\n",
+		      [Other]),
+	    Mesh
     end.
     
 import_mat_by_polygon(#e3d_mesh{fs=Fs0}=Mesh, MatNames) ->
@@ -695,22 +699,23 @@ import_mat_all_same(#e3d_mesh{fs=Fs0}=Mesh, MatNames) ->
 %%%
 
 import_uvs(Mesh) ->
-    Mesh.
-%%     case call(?ImpNumTextures) of
-%%         0 ->
-%%             Mesh;
-%%         _ ->
-%%             cast(?ImpTexture, <<0:32/native>>),
-%%             case tx_mapping_type() of
-%%                 uv -> import_uvs_1(Mesh);
-%%                 _ -> Mesh
-%%             end
-%%     end.
+    case call(?ImpInitUVs) of
+	false -> Mesh;
+	true ->
+	    case layer_elem_reference_mode() of
+		index ->
+		    %% Index mode does not make sense.
+		    {Mesh,[]};
+		RM ->
+		    MM = layer_elem_mapping_mode(),
+		    import_uvs_1(MM, Mesh)
+	    end
+    end.
 
-import_uvs_1(#e3d_mesh{vs=Vtab}=Mesh0) ->
+import_uvs_1(MM, #e3d_mesh{vs=Vtab}=Mesh0) ->
     Tx = import_uv_tab(),
     Mesh = Mesh0#e3d_mesh{tx=Tx},
-    case call(?ImpTextureUVMappingType) of
+    case MM of
         by_polygon_vertex ->
             import_vertex_uvs(Mesh);
         by_control_point ->
@@ -757,7 +762,20 @@ import_uvs(N, Acc) -> import_uvs(N-1, [call(?ImpUV)|Acc]).
 %%%
 
 import_tx(Mesh) ->
-    Mesh.
+    case call(?ImpInitTextures) of
+	false -> Mesh;
+	true ->
+	    case layer_elem_reference_mode() of
+		index ->
+		    %% Index mode does not make sense.
+		    {Mesh,[]};
+		RM ->
+		    MM = layer_elem_mapping_mode(),
+		    N = call(?ImpNumTextures),
+		    import_tx_1(MM, N, Mesh)
+	    end
+    end.
+
 %%     case call(?ImpNumTextures) of
 %%         0 ->
 %%             Mesh;
@@ -768,16 +786,13 @@ import_tx(Mesh) ->
 %%             end
 %%     end.
 
-import_tx_1(N, Mesh) ->
-    case call(?ImpTextureMappingType) of
-        all_same ->
-            import_tx_all_same(N, Mesh);
-        by_polygon ->
-            import_tx_by_polygon(N, Mesh);
-        _Other ->
-            io:format("~p\n", [{?LINE,_Other}]),
-            {Mesh,[]}
-    end.
+import_tx_1(all_same, N, Mesh) ->
+    import_tx_all_same(N, Mesh);
+import_tx_1(by_polygon, N, Mesh) ->
+    import_tx_by_polygon(N, Mesh);
+import_tx_1(_Other, _, Mesh) ->
+    io:format("~p\n", [{?LINE,_Other}]),
+    Mesh.
 
 import_tx_all_same(N, #e3d_mesh{fs=Fs0}=Mesh) ->
     Tx = import_one_tx(N-1),

@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_fbx.cxx,v 1.6 2005/03/14 15:42:16 bjorng Exp $
+ *     $Id: wings_fbx.cxx,v 1.7 2005/03/14 18:21:08 bjorng Exp $
  */
 
 
@@ -61,6 +61,8 @@ static KFbxLayer* Layer;	// Layer 0.
 static KFbxLayerElement* layerElem;	   // Current layer element.
 static KFbxLayerElementMaterial* matLayer; // In layer 0 for current mesh.
 static KFbxLayerElementVertexColor* colorLayer; // In layer 0 for current mesh.
+static KFbxLayerElementTexture* texLayer; // In layer 0 for current mesh.
+static KFbxLayerElementUV* uvLayer; // In layer 0 for current mesh.
 static KFbxVector4* Points;     // Control points or normals.
 static KFbxVector2* UVs;        // UV coordinates.
 
@@ -691,31 +693,83 @@ fbx_control(unsigned int command,
   case ImpOpacity:
     send_float(res, Material->GetOpacity());
     break;
-  case ImpNumTextures:
-#if 0
-    send_integer(res, Mesh->GetTextureCount());
-#endif
+
+    //
+    // Importing of UVs.
+    //
+
+  case ImpInitUVs:
+    {
+      unsigned b = 0;
+
+      if (Layer) {
+	layerElem = uvLayer = Layer->GetUVs();
+	if (uvLayer != NULL) {
+	  // There is a UV layer element. Unfortunately, careless
+	  // exporters (such as previous releases of this plug-in)
+	  // could create the layer element without filling it in.
+	  // Therefore, check that the needed arrays are really there.
+	  switch (layerElem->GetReferenceMode()) {
+	  case KFbxLayerElement::eDIRECT:
+	    b = uvLayer->GetDirectArray() != NULL;
+	    break;
+	  case KFbxLayerElement::eINDEX:
+	    b = uvLayer->GetIndexArray() != NULL;
+	    break;
+	  case KFbxLayerElement::eINDEX_TO_DIRECT:
+	    b = uvLayer->GetDirectArray() != NULL &&
+	      uvLayer->GetIndexArray() != NULL;
+	    break;
+	  }
+	}
+      }
+      send_bool(res, b);
+    }
     break;
   case ImpNumUVs:
     send_integer(res, Mesh->GetTextureUVCount());
     break;
-  case ImpTextureMappingType:
-#if 0
-    send_mapping_mode(res, Mesh->GetTextureMappingType());
-#endif
+
+    //
+    // Importing of textures.
+    //
+
+  case ImpInitTextures:
+    {
+      unsigned b = 0;
+
+      if (Layer) {
+	layerElem = texLayer = Layer->GetTextures();
+	if (texLayer != NULL) {
+	  // There is a texture layer element. Unfortunately, careless
+	  // exporters (such as previous releases of this plug-in)
+	  // could create the layer element without filling it in.
+	  // Therefore, check that the needed arrays are really there.
+	  switch (layerElem->GetReferenceMode()) {
+	  case KFbxLayerElement::eDIRECT:
+	    b = texLayer->GetDirectArray() != NULL;
+	    break;
+	  case KFbxLayerElement::eINDEX:
+	    b = texLayer->GetIndexArray() != NULL;
+	    break;
+	  case KFbxLayerElement::eINDEX_TO_DIRECT:
+	    b = texLayer->GetDirectArray() != NULL &&
+	      texLayer->GetIndexArray() != NULL;
+	    break;
+	  }
+	}
+	send_bool(res, b);
+      }
+    }
     break;
-  case ImpTextureUVMappingType:
-#if 0
-    send_mapping_mode(res, Mesh->GetTextureUVMappingType());
-#endif
+  case ImpNumTextures:
+    send_integer(res, texLayer->GetDirectArray().GetCount());
     break;
   case ImpTexture:
-#if 0
     {
       kInt index = *(kInt *) buff;
-      Texture = Mesh->GetTexture(index);
+      Texture = texLayer->GetDirectArray().GetAt(index);
     }
-#endif
     break;
   case ImpTextureFileName:
     send_string(res, Texture->GetFileName());
