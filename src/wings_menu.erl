@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.55 2002/08/02 20:14:40 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.56 2002/08/20 06:57:10 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -302,9 +302,27 @@ current_command(#mi{sel=Sel,menu=Menu,ns=Names}) ->
 	{_,Name,_,_,Ps} when is_atom(Name) ->
 	    {build_command(Name, Names),have_option_box(Ps)};
 	{_,Fun,_,_,Ps} when is_function(Fun) ->
-	    {Fun(1, Names),have_option_box(Ps)};
+	    Cmd = Fun(1, Names),
+	    case is_ascii_clean(Cmd) of
+		true -> {Cmd,have_option_box(Ps)};
+		false -> none
+	    end;
 	_Other -> none
     end.
+
+%% Test if a term can be represtend in a text file and read back.
+is_ascii_clean([H|T]) ->
+    is_ascii_clean(H) andalso is_ascii_clean(T);
+is_ascii_clean([]) -> true;
+is_ascii_clean(T) when is_tuple(T) ->
+    is_tuple_ascii_clean(1, size(T), T);
+is_ascii_clean(Num) when is_number(Num) -> true;
+is_ascii_clean(Atom) when is_atom(Atom) -> true;
+is_ascii_clean(_) -> false.
+
+is_tuple_ascii_clean(I, N, T) when I =< N ->
+    is_ascii_clean(element(I, T)) andalso is_tuple_ascii_clean(I+1, N, T);
+is_tuple_ascii_clean(_, _, _) -> true.
 
 virtual_button(false, _) -> 1;
 virtual_button(true, 1) ->
