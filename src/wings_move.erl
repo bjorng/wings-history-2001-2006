@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.20 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.21 2001/12/27 09:10:07 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -130,20 +130,22 @@ face_average(Vs, Vtab) ->
     R = sofs:relation(Vs),
     F = sofs:relation_to_family(R),
     foldl(fun({V,Ns0}, Acc) ->
-		  Ns = join_eq(Ns0),
-		  case face_average_normals(V, Ns, Vtab) of
-		      none -> Acc;
-		      N -> [{N,[V]}|Acc]
-		  end
+		  Ns = filter_normals(Ns0),
+		  N = face_average_normals(V, Ns, Vtab),
+		  [{N,[V]}|Acc]
 	  end, [], sofs:to_external(F)).
 
-face_average_normals(V, [], Vtab) -> none;
-face_average_normals(V, [Normal], Vtab) -> Normal;
+face_average_normals(V, [Na], Vtab) -> Na;
 face_average_normals(V, [Na,Nb], Vtab) ->
     N = e3d_vec:norm(e3d_vec:add(Na, Nb)),
-    Dot = e3d_vec:dot(N, Na),
-    e3d_vec:divide(N, Dot); 
-face_average_normals(V, [Na,Nb,Nc|T]=Ns, Vtab) ->
+    case e3d_vec:dot(N, Na) of
+	Dot when abs(Dot) < 1.0E-6 ->
+	    e3d_vec:add(Na, Nb);
+	Dot ->
+	    e3d_vec:divide(N, Dot)
+    end;
+face_average_normals(V, [Na,Nb,Nc], Vtab) ->
+    %% The caller assures that the normals are not co-linear.
     Vpos = wings_vertex:pos(V, Vtab),
     Nao = e3d_vec:add(Vpos, Na),
     Nbo = e3d_vec:add(Vpos, Nb),
@@ -168,8 +170,9 @@ face_average_normals(V, [Na,Nb,Nc|T]=Ns, Vtab) ->
 	    AKMinusJB = A*K - J*B,
 	    BLMinusKC = B*L - K*C,
 	    case A*EiMinusHf + B*GFMinusDI + C*DHMinusEG of
-		M when abs(M) < 1.0E-3 ->
-		    none;
+		M when abs(M) < 0.0001 ->
+		    %% Should not happen, but just in case...
+		    face_average_normals(V, [Na,Nb], Vtab);
 		M ->
 		    X = (J*EiMinusHf + K*GFMinusDI + L*DHMinusEG)/M,
 		    Y = (I*AKMinusJB + H*JCMinusAL + G*BLMinusKC)/M,
@@ -178,15 +181,52 @@ face_average_normals(V, [Na,Nb,Nc|T]=Ns, Vtab) ->
 	    end
     end.
 
-join_eq(Ns0) ->
-    Ns1 = [add_sort_key(N) || N <- Ns0, not e3d_vec:is_zero(N)],
-    Ns = sofs:relation(Ns1),
-    Fam = sofs:relation_to_family(Ns),
-    [N || {_,[N|_]} <- sofs:to_external(Fam)].
+%% Filter out normals that are too close to each other.
+filter_normals([_]=Ns) -> Ns;
+filter_normals([_,_]=Ns) -> Ns;
+filter_normals([Na|[N0|_]=Ns]) ->
+    %% Three or more normals. We want three normals that point
+    %% in as different directions as possible, or just two normals
+    %% if we can't find three different enough.
+    Nb = largest_angle(Ns, Na),
+    N1 = e3d_vec:cross(Na, Nb),
+    case smallest_angle(Ns, N1) of
+	{Nc,Dot} when Dot < 0.01 ->
+	    %% The third normal is not usable. It is too close to
+	    %% the plane of the other two.
+	    [Na,Nb];
+	{Nc,Dot} ->
+	    %% The third normal is OK.
+	    [Na,Nb,Nc]
+    end.
 
-add_sort_key({X,Y,Z}=N) ->
-    S = 1000,
-    {{trunc(X*S),trunc(Y*1000),trunc(Z*1000)},N}.
+%% Find the normal with the greatest angle from Na.
+largest_angle([N|Ns], Na) ->
+    Dot = abs(e3d_vec:dot(Na, N)),
+    largest_angle(Ns, Na, Dot, N).
+    
+largest_angle([N|Ns], Na, OldDot, OldN) ->
+    case abs(e3d_vec:dot(Na, N)) of
+	Dot when Dot < OldDot ->
+	    largest_angle(Ns, Na, Dot, N);
+	Dot ->
+	    largest_angle(Ns, Na, OldDot, OldN)
+    end;
+largest_angle([], Na, Dot, N) -> N.
+
+%% Find the normal with the smallest angle from Na.
+smallest_angle([N|Ns], Na) ->
+    Dot = abs(e3d_vec:dot(Na, N)),
+    smallest_angle(Ns, Na, Dot, N).
+    
+smallest_angle([N|Ns], Na, OldDot, OldN) ->
+    case abs(e3d_vec:dot(Na, N)) of
+	Dot when Dot > OldDot ->
+	    smallest_angle(Ns, Na, Dot, N);
+	Dot ->
+	    smallest_angle(Ns, Na, OldDot, OldN)
+    end;
+smallest_angle([], Na, Dot, N) -> {N,Dot}.
 
 %%
 %% Conversion of body selections (entire objects) to vertices.
