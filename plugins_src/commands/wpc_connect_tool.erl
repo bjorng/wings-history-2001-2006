@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.18 2005/01/28 21:32:43 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.19 2005/02/01 00:12:41 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -146,19 +146,19 @@ handle_connect_event1({current_state,St}=Ev, C) ->
     end;
 handle_connect_event1({slide_setup,Drag},_C) ->
     wings_drag:do_drag(Drag,none);
-handle_connect_event1({new_state,St0=#st{shapes=Sh}},C0=#cs{mode=slide,we=Shape,v=[V|VR]}) ->
+handle_connect_event1({new_state,St0=#st{shapes=Sh}},
+		      C0=#cs{mode=slide,we=Shape,v=[V|VR],backup=Old}) ->
     #we{vp=Vtab} = gb_trees:get(Shape, Sh),
     Pos = gb_trees:get(V#vi.id, Vtab),
     St1 = St0#st{sel=[],temp_sel=none, sh=true},    
     C1 = C0#cs{mode=normal,v=[V#vi{pos=Pos}|VR],st=St1},
     case connect_edge(C1) of
 	C1 when VR /= [] -> 
-	    C = C0#cs.backup,
-	    update_hook(C),
-	    wings_draw:refresh_dlists(C#cs.st),
-	    update_connect_handler(C);
+	    update_hook(Old),
+	    wings_draw:refresh_dlists(Old#cs.st),
+	    update_connect_handler(Old);
 	C ->
-	    St = wings_undo:save(St0, C#cs.st),
+	    St = wings_undo:save(Old#cs.st,C#cs.st),
 	    update_hook(C),
 	    wings_draw:refresh_dlists(St),
 	    update_connect_handler(C#cs{st=St})
@@ -313,9 +313,9 @@ connect_edge(C0=#cs{v=[VI=#vi{id=Id1,mm=MM},#vi{id=Id2}],we=Shape,st=St0}) ->
 	We=#we{}= connect_link(get_line(Id1,Id2,MM,We0),
 			       Id1,Fs,Id2,Ok,undefined,MM,We0),
 	St = St0#st{shapes=gb_trees:update(Shape,We,St0#st.shapes)},
-	C0#cs{v=[VI],we=Shape,last=Id1,st=St}
+	C0#cs{v=[VI],last=Id1,st=St}
     catch _E:_What -> 
-%%	    io:format("~p ignored ~w ~p~n", [?LINE,_What,erlang:get_stacktrace()]),
+	    io:format("~p ignored ~w ~p~n", [?LINE,_What,erlang:get_stacktrace()]),
 	    C0
     end.
 
@@ -340,36 +340,13 @@ vertex_fs(Id, We) ->
     ordsets:from_list(Fs).
 
 connect_link(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,MM,We0) ->
-%%    io:format("~p cut ~p <=> ~p ~n", [?LINE, IdStart, IdEnd]),
-    case ordsets:intersection(FacesStart,FacesEnd) of
-	[LastFace] -> %% Done
+    io:format("~p cut ~p <=> ~p ~n", [?LINE, IdStart, IdEnd]),    
+    case connect_done(FacesStart,FacesEnd,Prev,MM,We0) of
+	{true,LastFace} -> %% Done
+	    io:format("Done connecting~n",[]),
 	    wings_vertex:connect(LastFace,[IdStart,IdEnd],We0);
-	_ ->
-	    Find = fun(_, _, _, #edge{vs=V1,ve=V2}, Acc) 
-		      %% Already connected, ignore these
-		      when V1 == IdStart; V2 == IdStart; 
-			   V1 == IdEnd;   V2 == IdEnd;  
-			   V1 == Prev;    V2 == Prev -> Acc; 
-		      %% Acceptable connection
-		      (Face, _V, Edge, #edge{vs=Vs,ve=Ve}, Acc) -> 
-			   Edge2D = get_line(Vs,Ve,MM,We0),
-			   InterRes = line_intersect2d(CutLine,Edge2D),
-			   case InterRes of
-			       {false,{1,Pos2D}} -> 
-				   [{edge,Edge,Face,false,
-				     pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We0)}|Acc];
-			       {false,_} -> Acc;
-			       {true, Pos2D} ->
-				   [{edge,Edge,Face,true,
-				     pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We0)}|Acc];
-			       {{point, 3},_Pos2d} -> 
-				   [{vertex,Vs,Face}|Acc];
-			       {{point, 4},_Pos2d} -> 
-				   [{vertex,Ve,Face}|Acc];
-			       _Else -> 
-				   Acc
-			   end
-		   end,
+	{false,_} ->	    
+	    Find = check_possible(CutLine,IdStart,IdEnd,Prev,MM,We0),
 	    Cuts = wings_face:fold_faces(Find,[],FacesStart,We0),
 	    Selected = select_way(lists:usort(Cuts),We0,MM),
 	    {We1,Id1} = case Selected of
@@ -379,19 +356,58 @@ connect_link(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,MM,We0) ->
 				wings_edge:fast_cut(Edge, Pos, We0)
 			end,
 	    Ok = vertex_fs(Id1,We1),
-%%	    io:format("~p ~p of ~p fs ~w~n", [?LINE, Id1, Cuts, Selected]),
+	    io:format("~p ~p of ~p fs ~w~n", [?LINE, Id1, Cuts, Selected]),
 	    [First] = ordsets:intersection(Ok,FacesStart),
 	    We = wings_vertex:connect(First,[Id1,IdStart],We1),
 	    connect_link(CutLine,Id1,Ok,IdEnd,FacesEnd,IdStart,MM,We)
     end.
 
+check_possible(CutLine,IdStart,IdEnd,Prev,MM,We) ->
+    fun(_, _, _, #edge{vs=V1,ve=V2}, Acc) 
+       %% Already connected, ignore these
+       when V1 == IdStart; V2 == IdStart; 
+	    V1 == IdEnd;   V2 == IdEnd;  
+	    V1 == Prev;    V2 == Prev -> Acc; 
+       %% Acceptable connection
+       (Face, _V, Edge, #edge{vs=Vs,ve=Ve}, Acc) -> 
+	    Edge2D = get_line(Vs,Ve,MM,We),
+	    InterRes = line_intersect2d(CutLine,Edge2D),
+	    case InterRes of
+		{false,{1,Pos2D}} -> 
+		    [{edge,Edge,Face,false,
+		      pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We)}|Acc];
+		{false,_} -> Acc;
+		{true, Pos2D} ->
+		    [{edge,Edge,Face,true,
+		      pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We)}|Acc];
+		{{point, 3},_Pos2d} -> 
+		    [{vertex,Vs,Face}|Acc];
+		{{point, 4},_Pos2d} -> 
+		    [{vertex,Ve,Face}|Acc];
+		_Else -> 
+		    Acc
+	    end
+    end.
+
+
+
+connect_done(End,Start,Prev,MM,We) ->
+    io:format("Done ~p ~p ~p~n", [End,Start,Prev]),
+    case ordsets:intersection(Start,End) of
+	[LastFace] when Prev == undefined -> %% Done
+	    {check_normal(LastFace,MM,We), LastFace};
+	[LastFace] -> 
+	    {true,LastFace};
+	_ ->
+	    {false,undefined}
+    end.
+
 select_way([],_,_) -> exit(vertices_are_not_possible_to_connect);
 select_way([Cut],_,_) -> Cut;
-select_way(Cuts,We = #we{id=Id},MM) -> 
-    {MVM,_PM,_} = wings_u:get_matrices(Id, MM),
+select_way(Cuts,We,MM) ->     
     Priortize = 
 	fun(Cut = {edge,_,Face,Intersect,_}) ->
-		FaceScreen = check_normal(Face,MVM,We),
+		FaceScreen = check_normal(Face,MM,We),
 		if 
 		    FaceScreen and Intersect ->  {1,Cut};
 		    FaceScreen -> {3,Cut};
@@ -399,7 +415,7 @@ select_way(Cuts,We = #we{id=Id},MM) ->
 		    true ->  {6,Cut}
 		end;
 	   (Cut = {vertex,_,Face}) ->
-		FaceScreen = check_normal(Face,MVM,We),
+		FaceScreen = check_normal(Face,MM,We),
 		if 
 		    FaceScreen -> {2,Cut};
 		    true -> {5,Cut}
@@ -408,7 +424,8 @@ select_way(Cuts,We = #we{id=Id},MM) ->
     [{_P,Cut}|_R] =  lists:sort(lists:map(Priortize, Cuts)),
     Cut.
 
-check_normal(Face,MVM,We) ->
+check_normal(Face,MM,We = #we{id=Id}) ->
+    {MVM,_PM,_} = wings_u:get_matrices(Id, MM),
     Normal0 = wings_face:normal(Face,We),
     {_,_,Z} = e3d_mat:mul_vector(list_to_tuple(MVM),Normal0),
     Z > 0.1.
