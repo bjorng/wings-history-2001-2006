@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.25 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.26 2002/01/28 08:53:46 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -41,12 +41,20 @@ finish() ->
     List = prune_defaults(List0),
     Write = fun({{bindkey,_},_,default}) -> [];
 	       ({{bindkey,_},_,plugin}) -> [];
+	       ({{bindkey,_,_},_,default}) -> [];
+	       ({{bindkey,_,_},_,plugin}) -> [];
 	       ({{bindkey,{Key,Mods}},Action,Source}) ->
 		    io_lib:format("{{bindkey,{$~c,~p}},~p,~p}.\n",
 				  [Key,Mods,Action,Source]);
+	       ({{bindkey,Mode,{Key,Mods}},Action,Source}) ->
+		    io_lib:format("{{bindkey,~p,{$~c,~p}},~p,~p}.\n",
+				  [Mode,Key,Mods,Action,Source]);
 	       ({{bindkey,Key},Action,Source}) ->
 		    io_lib:format("{{bindkey,$~c},~p,~p}.\n",
 				  [Key,Action,Source]);
+	       ({{bindkey,Mode,Key},Action,Source}) ->
+		    io_lib:format("{{bindkey,~p,$~c},~p,~p}.\n",
+				  [Mode,Key,Action,Source]);
 	       (Else) ->
 		    io_lib:format("~p. \n", [Else])
 	    end,

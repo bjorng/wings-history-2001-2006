@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.95 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings.erl,v 1.96 2002/01/28 08:53:46 bjorng Exp $
 %%
 
 -module(wings).
@@ -421,6 +421,9 @@ command({face,bridge}, St) ->
     {save_state,model_changed(wings_face_cmd:bridge(St))};
 command({face,smooth}, St) ->
     ?SLOW({save_state,model_changed(wings_face_cmd:smooth(St))});
+command({face,auto_smooth}, St) ->
+    {save_state,model_changed(wings_body:auto_smooth(St))};
+
     
 %% Edge commands.
 command({edge,bevel}, St) ->
@@ -437,6 +440,8 @@ command({edge,{hardness,Type}}, St) ->
     {save_state,model_changed(wings_edge:hardness(Type, St))};
 command({edge,loop_cut}, St) ->
     ?SLOW({save_state,model_changed(wings_edge:loop_cut(St))});
+command({edge,auto_smooth}, St) ->
+    {save_state,model_changed(wings_body:auto_smooth(St))};
 
 %% Vertex menu.
 command({vertex,{flatten,Plane}}, St) ->
@@ -453,6 +458,8 @@ command({vertex,{extrude,Type}}, St) ->
     ?SLOW(wings_vertex_cmd:extrude(Type, St));
 command({vertex,{deform,Deform}}, St0) ->
     ?SLOW(wings_deform:command(Deform, St0));
+command({vertex,auto_smooth}, St) ->
+    {save_state,model_changed(wings_body:auto_smooth(St))};
 
 %% Magnetic commands.
 command({vertex,{magnet,Magnet}}, St) ->
@@ -899,7 +906,10 @@ caption(#st{file=Name}=St) ->
     St.
 
 translate_event(#keyboard{}=Event, St) ->
-    translate_key(Event, St);
+    case wings_hotkey:event(Event, St) of
+	next -> ignore;
+	Other -> Other
+    end;
 translate_event(quit, St) -> {file,quit};
 translate_event(ignore, St) -> ignore;
 translate_event(#mousebutton{}, St) -> ignore;
@@ -909,26 +919,6 @@ translate_event(#expose{}, St) -> redraw;
 translate_event(redraw_menu, St) -> ignore;
 translate_event(redraw, St) -> redraw;
 translate_event({action,Action}, St) -> Action.
-
-translate_key(Event, St) ->
-    case wings_hotkey:event(Event) of
-	next -> translate_key_1(Event, St);
-	Other -> Other
-    end.
-
-translate_key_1(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, St) ->
-    translate_key_1(Sym, Mod, C, St).
-
-translate_key_1($\b, Mod, C, #st{selmode=vertex}) -> {vertex,collapse};
-translate_key_1($\b, Mod, C, #st{selmode=edge}) -> {edge,dissolve};
-translate_key_1($\b, Mod, C, #st{selmode=face}) -> {face,dissolve};
-translate_key_1($\b, Mod, C, #st{selmode=body}) -> {body,delete};
-translate_key_1(Sym, Mod, C, St) -> translate_key_2(C, St).
-    
-translate_key_2($c, #st{selmode=vertex}) -> {vertex,connect};
-translate_key_2($c, #st{selmode=edge}) -> {edge,connect};
-translate_key_2($L, #st{selmode=edge}) -> {select,select_region};
-translate_key_2(_, _) -> ignore.
 
 command_name(#st{repeatable=ignore}) ->
     "(Can't repeat)";
