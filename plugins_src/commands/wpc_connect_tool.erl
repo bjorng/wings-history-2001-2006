@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.11 2004/12/18 19:36:02 bjorng Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.12 2005/01/24 16:17:11 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
 -export([init/0,menu/2,command/2]).
+-export([line_intersect2d/4]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -96,6 +97,7 @@ handle_connect_event1(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED},
 	    #edge{vs=V1,ve=V2} = gb_trees:get(Edge, Es),
 	    C = do_connect(X,Y,MM,St,C0),
 	    wings:unregister_postdraw_hook(geom,?MODULE),
+	    wings_draw:refresh_dlists(C#cs.st),
 	    {drag, Drag} = slide(C,V1,V2),
 	    wings_wm:later({slide_setup,Drag}),
 	    update_connect_handler(C#cs{mode=slide});
@@ -240,21 +242,23 @@ redraw(#cs{st=St}) ->
     keep.
 
 %%filter_hl(Hit,Cstate) -> true|false
-filter_hl(_, #cs{v=[]}) -> true;
-filter_hl({_,_,{Sh,_}},#cs{we=Prev}) when Sh /= Prev ->
-    false;
-filter_hl({edge,_,{Shape,Edge}}, #cs{last=Id,st=#st{shapes=Sh}}) ->
-    We = #we{es=Es} = gb_trees:get(Shape,Sh),
-    Ok = vertex_fs(Id, We),
-    #edge{lf=F1,rf=F2} = gb_trees:get(Edge, Es),
-    Fs = ordsets:from_list([F1,F2]),
-    length(ordsets:intersection(Fs,Ok)) == 1;
-filter_hl({vertex,_,{_,Id1}}, #cs{last=Id1}) -> true; %% Allow quitting
-filter_hl({vertex,_,{Shape,Id1}}, #cs{last=Id2,st=#st{shapes=Sh}}) ->
-    We = gb_trees:get(Shape,Sh),
-    Ok = vertex_fs(Id2, We),
-    Fs = vertex_fs(Id1, We),
-    length(ordsets:intersection(Fs,Ok)) == 1.
+
+filter_hl(_, _) -> true.  %% Debug connection
+%% filter_hl(_, #cs{v=[]}) -> true;
+%% filter_hl({_,_,{Sh,_}},#cs{we=Prev}) when Sh /= Prev ->
+%%     false;
+%% filter_hl({edge,_,{Shape,Edge}}, #cs{last=Id,st=#st{shapes=Sh}}) ->
+%%     We = #we{es=Es} = gb_trees:get(Shape,Sh),
+%%     Ok = vertex_fs(Id, We),
+%%     #edge{lf=F1,rf=F2} = gb_trees:get(Edge, Es),
+%%     Fs = ordsets:from_list([F1,F2]),
+%%     length(ordsets:intersection(Fs,Ok)) == 1;
+%% filter_hl({vertex,_,{_,Id1}}, #cs{last=Id1}) -> true; %% Allow quitting
+%% filter_hl({vertex,_,{Shape,Id1}}, #cs{last=Id2,st=#st{shapes=Sh}}) ->
+%%     We = gb_trees:get(Shape,Sh),
+%%     Ok = vertex_fs(Id2, We),
+%%     Fs = vertex_fs(Id1, We),
+%%     length(ordsets:intersection(Fs,Ok)) == 1.
 
 do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
 	   C0=#cs{v=VL,we=Prev}) ->
@@ -279,10 +283,15 @@ do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
 		    St = wings_undo:save(St0, St2),
 		    C0#cs{v=[VI],we=Shape,last=Id1,st=St};
 		_ ->
-		    C0
-	    end;
-	_ ->
-	    C0
+		    case connect_link(Id2,Ok,Id1,Fs,MM,We0) of
+			We = #we{} ->
+			    St2 = St1#st{shapes=gb_trees:update(Shape,We, Sh)},
+			    St = wings_undo:save(St0, St2),
+			    C0#cs{v=[VI],we=Shape,last=Id1,st=St};
+			_ ->
+			    C0
+		    end
+	    end
     end;
 do_connect(X,Y,MM,St0=#st{selmode=edge,sel=[{Shape,Sel0}],shapes=Sh},
 	   C0=#cs{v=VL,we=Prev}) ->
@@ -293,7 +302,7 @@ do_connect(X,Y,MM,St0=#st{selmode=edge,sel=[{Shape,Sel0}],shapes=Sh},
 	    C0;	    %% Wrong We, Ignore
 	true ->
 	    St1 = St0#st{sel=[],temp_sel=none,sh=true},
-	    {Pos,Fs} = calc_edgepos(X,Y,Edge,MM,We0),
+	    {Pos,Fs} = calc_edgepos(X,Y,Edge,MM,We0,VL),
 	    {We1,Id1} = wings_edge:fast_cut(Edge, Pos, We0),
 	    VI = #vi{id=Id1,mm=MM,pos=Pos},
 	    case VL of
@@ -308,18 +317,78 @@ do_connect(X,Y,MM,St0=#st{selmode=edge,sel=[{Shape,Sel0}],shapes=Sh},
 			    St = St1#st{shapes=gb_trees:update(Shape,We,Sh)},
 			    C0#cs{v=[VI],we=Shape,last=Id1,st=St};
 			_ ->
-			    C0
-		    end;
-		_ ->
-		    C0
+			    case connect_link(Id2,Ok,Id1,Fs,MM,We1) of
+				We = #we{} ->				    
+				    io:format("~p ~p~n", [?LINE,wings_we_util:validate(We)]),
+				    St2 = St1#st{shapes=gb_trees:update(Shape,We, Sh)},
+				    St = wings_undo:save(St0, St2),
+				    C0#cs{v=[VI],we=Shape,last=Id1,st=St};
+				_ ->
+				    C0
+			    end
+		    end
 	    end
     end.
-   
+
 vertex_fs(Id, We) ->
     Fs = wings_vertex:fold(fun(_,Face,_,Acc) -> [Face|Acc] end, [], Id, We),
     ordsets:from_list(Fs).
 
-calc_edgepos(X,Y0,Edge,MM,#we{id=Id,es=Es,vp=Vs}) ->
+connect_link(IdStart,FacesStart,IdEnd,FacesEnd,MM,We0) ->
+    CutLine = get_line(IdStart,IdEnd,MM,We0),
+    Find = fun(_, _, _, #edge{vs=V}, Acc) when V == IdStart -> Acc;
+	      (_, _, _, #edge{ve=V}, Acc) when V == IdStart -> Acc;
+	      (Face, _V, Edge, #edge{vs=Vs,ve=Ve}, Acc) -> 
+		   Edge2D = get_line(Vs,Ve,MM,We0),
+		   case line_intersect2d(CutLine,Edge2D) of
+		       {false,_} -> Acc;
+		       {true, Pos2D} ->			   
+			   [{Edge,Face,pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We0)}|Acc];
+		       Else -> 
+			   io:format("~p: unhandled ~p~n", [?LINE, Else]),
+			   Acc
+		   end
+	   end,
+    Cuts = wings_face:fold_faces(Find,[],FacesStart,We0),
+%%    io:format("~p: Result ~p ~n", [?LINE,Cuts]),
+    case Cuts of
+	[{Edge,_Face,Pos}] ->
+	    {We1,Id1} = wings_edge:fast_cut(Edge, Pos, We0),
+	    Ok = vertex_fs(Id1,We1),
+	    [First] = ordsets:intersection(Ok,FacesStart),
+	    We = wings_vertex:connect(First,[Id1,IdStart],We1),
+	    case ordsets:intersection(Ok,FacesEnd) of
+		[LastFace] -> %% Done
+		    WeLast = wings_vertex:connect(LastFace,[Id1,IdEnd],We),
+		    WeLast;
+		_ ->
+		    connect_link(Id1,Ok,IdEnd,FacesEnd,MM,We)
+	    end;
+	_What -> 
+	    io:format("~p: Got several possibilities ~p ~n", [?LINE,_What]),
+	    exit(nyi)
+    end.
+
+pos2Dto3D({IX,IY}, {V1Sp,V2Sp}, V1,V2,#we{vp=Vs}) ->
+    Pos1 = gb_trees:get(V1, Vs),
+    Pos2 = gb_trees:get(V2, Vs),
+    TotDist = e3d_vec:dist(V1Sp,V2Sp),
+    Dist = e3d_vec:dist(V1Sp,{float(IX),float(IY),0.0}) / TotDist,
+    Vec = e3d_vec:mul(e3d_vec:sub(Pos2,Pos1),Dist),
+    e3d_vec:add(Pos1, Vec).
+
+% vertex_edges(NewVI,OrigVI,We) ->
+%     ok.
+
+get_line(V1,V2,MM,#we{id=Id,vp=Vs}) ->
+    P1 = gb_trees:get(V1, Vs),
+    P2 = gb_trees:get(V2, Vs),
+    Matrices = wings_u:get_matrices(Id, MM),
+    V1Sp = setelement(3,obj_to_screen(Matrices, P1),0.0),
+    V2Sp = setelement(3,obj_to_screen(Matrices, P2),0.0),
+    {V1Sp,V2Sp}.
+
+calc_edgepos(X,Y0,Edge,MM,#we{id=Id,es=Es,vp=Vs},VL) ->
     {_,H} = wings_wm:win_size(),
     Y = H-Y0,
     #edge{vs=V1,ve=V2,lf=F1,rf=F2} = gb_trees:get(Edge, Es),
@@ -328,14 +397,60 @@ calc_edgepos(X,Y0,Edge,MM,#we{id=Id,es=Es,vp=Vs}) ->
     Matrices = wings_u:get_matrices(Id, MM),
     V1Sp = setelement(3,obj_to_screen(Matrices, Pos1),0.0),
     V2Sp = setelement(3,obj_to_screen(Matrices, Pos2),0.0),
-    V1Dist  = e3d_vec:dist(V1Sp,{float(X),float(Y),0.0}),
-    V2Dist  = e3d_vec:dist(V2Sp,{float(X),float(Y),0.0}),
-    %TotDist = e3d_vec:dist(V1Sp,V2Sp),
-    TotDist = V1Dist+V2Dist,
-    Dist = V1Dist/TotDist,
+    Dist = 
+	case VL of
+	    [] ->
+		V1Dist  = e3d_vec:dist(V1Sp,{float(X),float(Y),0.0}),
+		V2Dist  = e3d_vec:dist(V2Sp,{float(X),float(Y),0.0}),
+		%%TotDist = e3d_vec:dist(V1Sp,V2Sp),
+		TotDist = V1Dist+V2Dist,
+		V1Dist/TotDist;
+	    [#vi{pos=Start0}|_] ->
+		Start = setelement(3, obj_to_screen(Matrices, Start0), 0.0),
+		{IX,IY} = 
+		    case line_intersect2d(Start, {float(X),float(Y),0.0}, V1Sp,V2Sp) of
+			{_, IPoint} -> IPoint 
+%%%			{{point,_},IPoint} -> IPoint
+		    end,
+		TotDist = e3d_vec:dist(V1Sp,V2Sp),
+		e3d_vec:dist(V1Sp,{float(IX),float(IY),0.0}) / TotDist
+	end,
     Vec = e3d_vec:mul(e3d_vec:sub(Pos2,Pos1),Dist),
     Pos = e3d_vec:add(Pos1, Vec),
     {Pos, ordsets:from_list([F1,F2])}.
+
+
+
+
+line_intersect2d({V1,V2},{V3,V4}) ->
+    line_intersect2d(V1,V2,V3,V4).
+line_intersect2d({X1,Y1,_},{X2,Y2,_},{X3,Y3,_},{X4,Y4,_}) ->
+    line_intersect2d({X1,Y1},{X2,Y2},{X3,Y3},{X4,Y4});
+line_intersect2d({X1,Y1},{X2,Y2},{X3,Y3},{X4,Y4}) ->
+    Div = ((Y4-Y3)*(X2-X1)-(X4-X3)*(Y2-Y1)),
+    if Div == 0.0 -> {{false, 0},paralell};
+       true ->
+	    Ua = ((X4-X3)*(Y1-Y3)-(Y4-Y3)*(X1-X3)) / Div,
+	    Ub = ((X2-X1)*(Y1-Y3)-(Y2-Y1)*(X1-X3)) / Div,
+	    X = X1 + Ua*(X2-X1),
+	    Y = Y1 + Ua*(Y2-Y1),
+	    
+	    if 
+		(Ua < 0.0); (Ua > 1.0);
+		(Ub < 0.0); (Ub > 1.0)  ->
+		    {false, {X,Y}};
+		(Ua > 0.0), (Ua < 1.0) ->
+		    if (Ub > 0.0), (Ub < 1.0) -> {true, {X,Y}};
+		       Ub == 0.0 -> {{point,3},{X,Y}};
+		       Ub == 1.0 -> {{point,4},{X,Y}}
+		    end;
+		true ->
+		    if 
+			Ua == 0.0 -> {{point,1},{X,Y}};
+			Ua == 1.0 -> {{point,2},{X,Y}}
+		    end
+	    end
+    end.
 
 obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
     glu:project(X, Y, Z, MVM, PM, VP).
