@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.227 2003/03/03 21:40:36 bjorng Exp $
+%%     $Id: wings.erl,v 1.228 2003/03/05 06:58:25 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0,start/1,start_halt/1,start_halt/2]).
 -export([root_dir/0,caption/1,redraw/1,redraw/2,init_opengl/1,command/2]).
 -export([mode_restriction/1,clear_mode_restriction/0,get_mode_restriction/0]).
+-export([install_restorer/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -244,6 +245,12 @@ save_state(St0, St1) ->
 	_Other -> main_loop(caption(St#st{saved=false}))
     end.
 
+install_restorer(Next) ->
+    {seq,{pop_handler,fun() ->
+			      St = wings_wm:get_current_state(),
+			      main_loop(St)
+		      end},Next}.
+
 main_loop(St) ->
     ?VALIDATE_MODEL(St),
     clear_mode_restriction(),
@@ -360,7 +367,8 @@ do_command(Cmd, Args, St0) ->
 	{command_error,Error} -> wings_util:message(Error);
 	#st{}=St -> main_loop(St);
 	{drag,Drag} -> wings_drag:do_drag(Drag, Args);
-	{save_state,#st{}=St} -> save_state(St1, St);
+	{save_state,#st{}=St} ->
+	    save_state(St1, St);
 	{saved,St}=Res ->
 	    main_loop(wings_undo:save(St1, St));
 	{new,St}=Res -> main_loop(clean_state(wings_undo:init(St)));
