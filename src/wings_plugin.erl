@@ -3,12 +3,13 @@
 %%
 %%     Experimental support of plugins.
 %%
-%%  Copyright (c) 2001-2002 Jakob Cederlund, Bjorn Gustavsson
+%%  Copyright (c) 2001 Jakob Cederlund, Bjorn Gustavsson
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.20 2003/01/20 12:50:56 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.21 2003/05/04 07:13:30 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,command/2,call_ui/1]).
@@ -199,7 +200,7 @@ convert_type(_) -> undefined.
 
 check_result(_M, {command_error,_}=Error, _St) -> throw(Error);
 check_result(_M, {new_shape,Prefix,#e3d_object{}=Obj,Mat}, St0) ->
-    {We0,UsedMat} = wings_import:import(Obj, gb_sets:empty()),
+    {We0,UsedMat} = wings_import:import_object(Obj, gb_sets:empty()),
     {St,NameMap} = wings_import:add_materials(UsedMat, Mat, St0),
     We = wings_import:rename_materials(NameMap, We0),
     new_shape(Prefix, We, St);

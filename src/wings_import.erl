@@ -3,16 +3,16 @@
 %%
 %%     This module handles import of foreign objects.
 %%
-%%  Copyright (c) 2001-2000 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.8 2003/04/21 10:16:58 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.9 2003/05/04 07:13:30 bjorng Exp $
 %%
 
 -module(wings_import).
--export([import/2,add_materials/3,rename_materials/2]).
+-export([import/2,import_object/2,add_materials/3,rename_materials/2]).
 
 -include("e3d.hrl").
 -include("wings.hrl").
@@ -20,7 +20,52 @@
 
 %%-define(DUMP, 1).
 
-import(#e3d_object{obj=Mesh0}, UsedMat0) ->
+import(#e3d_file{objs=Objs,mat=Mat}, St0) ->
+    NumObjs = length(Objs),
+    Suffix = " of " ++ integer_to_list(NumObjs),
+    {UsedMat,St1} = translate_objects(Objs, gb_sets:empty(),
+				      1, Suffix, St0),
+    {St2,NameMap} = add_materials(UsedMat, Mat, St1),
+    St = rename_materials(NameMap, St0, St2),
+    case gb_trees:size(St#st.shapes)-gb_trees:size(St0#st.shapes) of
+	NumObjs -> St;
+	N ->
+	    Warn = integer_to_list(NumObjs-N) ++
+		" object(s) out of " ++
+		integer_to_list(NumObjs) ++
+		" object(s) could not be converted.",
+	    {warning,Warn,St}
+    end.
+
+translate_objects([#e3d_object{name=Name}=Obj|Os], UsedMat0,
+		  I, Suffix, St0) ->
+    {St,UsedMat} = case import_object(Obj, UsedMat0) of
+		       error -> {St0,UsedMat0};
+		       {We,Us0} -> {store_object(Name, We, St0),Us0}
+		   end,
+    translate_objects(Os, UsedMat, I+1, Suffix, St);
+translate_objects([], UsedMat, _, _, St) -> {UsedMat,St}.
+
+store_object(undefined, We, #st{onext=Oid}=St) ->
+    Name = "unnamed_object" ++ integer_to_list(Oid),
+    wings_shape:new(Name, We, St);
+store_object(Name, We, St) ->
+    wings_shape:new(Name, We, St).
+
+rename_materials([], _, St) -> St;
+rename_materials(NameMap0, #st{onext=FirstId}, #st{shapes=Shs0}=St) ->
+    NameMap = gb_trees:from_orddict(sort(NameMap0)),
+    Shs = rename_mat(gb_trees:to_list(Shs0), NameMap, FirstId, []),
+    St#st{shapes=Shs}.
+
+rename_mat([{Id,_}=Obj|Objs], NameMap, FirstId, Acc) when Id < FirstId ->
+    rename_mat(Objs, NameMap, FirstId, [Obj|Acc]);
+rename_mat([{Id,We0}|Objs], NameMap, FirstId, Acc) ->
+    We = rename_materials(NameMap, We0),
+    rename_mat(Objs, NameMap, FirstId, [{Id,We}|Acc]);
+rename_mat([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
+
+import_object(#e3d_object{obj=Mesh0}, UsedMat0) ->
     Mesh1 = e3d_mesh:clean_faces(Mesh0),
     {Mesh,ObjType,UsedMat} = prepare_mesh(Mesh1, UsedMat0),
     case catch wings_we:build(ObjType, Mesh) of

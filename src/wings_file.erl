@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.114 2003/04/23 17:49:04 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.115 2003/05/04 07:13:30 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -441,12 +441,9 @@ revert(#st{file=File}=St0) ->
 %% Import.
 %%
 
-get_import_filename(Ps0) ->
+import_filename(Ps0) ->
     Ps = Ps0 ++ [{title,"Import"}],
-    wings_plugin:call_ui({file,open_dialog,Ps}).
-
-import_filename(Ps) ->
-    case get_import_filename(Ps) of
+    case wings_plugin:call_ui({file,open_dialog,Ps}) of
 	aborted -> aborted;
 	Name ->
 	    set_cwd(dirname(Name)),
@@ -454,10 +451,9 @@ import_filename(Ps) ->
     end.
 
 import(Ps, Importer, St0) ->
-    case get_import_filename(Ps) of
+    case import_filename(Ps) of
 	aborted -> St0;
 	Name ->
-	    set_cwd(dirname(Name)),
 	    case ?SLOW(do_import(Importer, Name, St0)) of
 		#st{}=St -> St;
 		{warning,Warn,St} ->
@@ -470,12 +466,11 @@ import(Ps, Importer, St0) ->
 
 import_ndo(St0) ->
     Ps = [{ext,".ndo"},{ext_desc,"Nendo File"}],
-    case get_import_filename(Ps) of
+    case import_filename(Ps) of
 	aborted -> St0;
 	Name ->
 	    case ?SLOW(wings_ff_ndo:import(Name, St0)) of
 		#st{}=St ->
-		    set_cwd(dirname(Name)),
 		    St;
 	    	{error,Reason} ->
 		    wings_util:error("Import failed: " ++ Reason),
@@ -568,53 +563,11 @@ clean_new_images(#st{vec=Limit}=St) when is_integer(Limit) ->
 
 do_import(Importer, Name, St0) ->
     case Importer(Name) of
-	{ok,#e3d_file{objs=Objs,mat=Mat}} ->
-	    NumObjs = length(Objs),
-	    Suffix = " of " ++ integer_to_list(NumObjs),
-	    {UsedMat,St1} = translate_objects(Objs, gb_sets:empty(),
-					     1, Suffix, St0),
-	    {St2,NameMap} = wings_import:add_materials(UsedMat, Mat, St1),
-	    St = rename_materials(NameMap, St0, St2),
-	    case gb_trees:size(St#st.shapes)-gb_trees:size(St0#st.shapes) of
-		NumObjs -> St;
-		N ->
-		    Warn = integer_to_list(NumObjs-N) ++
-			" object(s) out of " ++
-			integer_to_list(NumObjs) ++
-			" object(s) could not be converted.",
-		    {warning,Warn,St}
-	    end;
+	{ok,#e3d_file{}=E3DFile} ->
+	    wings_import:import(E3DFile, St0);
 	{error,Reason} ->
 	    wings_util:error(Reason)
     end.
-
-translate_objects([#e3d_object{name=Name}=Obj|Os], UsedMat0,
-		  I, Suffix, St0) ->
-    {St,UsedMat} = case wings_import:import(Obj, UsedMat0) of
-		       error -> {St0,UsedMat0};
-		       {We,Us0} -> {store_object(Name, We, St0),Us0}
-		   end,
-    translate_objects(Os, UsedMat, I+1, Suffix, St);
-translate_objects([], UsedMat, _, _, St) -> {UsedMat,St}.
-
-store_object(undefined, We, #st{onext=Oid}=St) ->
-    Name = "unnamed_object" ++ integer_to_list(Oid),
-    wings_shape:new(Name, We, St);
-store_object(Name, We, St) ->
-    wings_shape:new(Name, We, St).
-
-rename_materials([], _, St) -> St;
-rename_materials(NameMap0, #st{onext=FirstId}, #st{shapes=Shs0}=St) ->
-    NameMap = gb_trees:from_orddict(sort(NameMap0)),
-    Shs = rename_mat(gb_trees:to_list(Shs0), NameMap, FirstId, []),
-    St#st{shapes=Shs}.
-
-rename_mat([{Id,_}=Obj|Objs], NameMap, FirstId, Acc) when Id < FirstId ->
-    rename_mat(Objs, NameMap, FirstId, [Obj|Acc]);
-rename_mat([{Id,We0}|Objs], NameMap, FirstId, Acc) ->
-    We = wings_import:rename_materials(NameMap, We0),
-    rename_mat(Objs, NameMap, FirstId, [{Id,We}|Acc]);
-rename_mat([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
 %%%
 %%% Generic export code.
