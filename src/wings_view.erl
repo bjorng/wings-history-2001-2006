@@ -1,14 +1,14 @@
 %%
 %%  wings_view.erl --
 %%
-%%     This module implements most of the command in the View menu.
+%%     This module implements most of the commands in the View menu.
 %%
 %%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.135 2004/03/08 20:46:57 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.136 2004/03/14 05:48:12 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -428,7 +428,6 @@ set_current(View) ->
 
 init() ->
     wings_pref:set_default(show_edges, true),
-    wings_pref:set_default(show_wire_backfaces, false),
     wings_pref:set_default(number_of_lights, 1),
     wings_pref:set_default(show_normals, false),
     wings_pref:set_default(show_bb, true),
@@ -449,7 +448,9 @@ initial_properties() ->
      {wireframed_objects,gb_sets:empty()},
      {current_view,default_view()},
      {allow_rotation,true},
-     {show_info_text,true}].
+     {show_info_text,true},
+     {show_wire_backfaces,false}
+    ].
 
 reset() ->
     reset(current()).

@@ -3,12 +3,12 @@
 %%
 %%     Preference management.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.114 2004/02/28 03:35:27 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.115 2004/03/14 05:48:12 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -709,6 +709,7 @@ not_bad(camera_yon, _) -> false;
 not_bad(right_click_sel_in_ss, _) -> false;
 not_bad(right_click_sel_in_geom, _) -> false;
 not_bad(wire_edge_color, _) -> false;
+not_bad(show_wire_backfaces, _) -> false;	%Now a window property.
 
 %% Crashes have occurred.
 not_bad(last_axis, Val) -> is_wings_vector(Val);
