@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.46 2002/12/28 10:21:51 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.47 2002/12/28 13:38:09 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -119,7 +119,7 @@ insert_keys([], _) -> [].
 init_fields(I, N, #s{fi=Fis,priv=Priv0,common=Common0}=S) when I =< N ->
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv0),
-    case Handler({event,init}, Fi, Fst0, Common0) of
+    case Handler(init, Fi, Fst0, Common0) of
 	{Fst,Common} when is_atom(element(1, Fst)), is_tuple(Common) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    init_fields(I+1, N, S#s{priv=Priv,common=Common});
@@ -244,7 +244,7 @@ set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0,common=Common0}=S) ->
     OldFst0 = element(OldFocus, Priv0),
     
     {OldFst,Common2} = 
-	case OldHandler({event,{focus,false}}, OldFi, OldFst0, Common0) of
+	case OldHandler({focus,false}, OldFi, OldFst0, Common0) of
 	    {Ofst,Common1} when is_atom(element(1, Ofst)), is_tuple(Common1) ->
 		{Ofst,Common1};
 	    Ofst when is_atom(element(1, Ofst)) ->
@@ -255,7 +255,7 @@ set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0,common=Common0}=S) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv1),
     {Fst,Common} =
-	case Handler({event,{focus,true}}, Fi, Fst0, Common2) of
+	case Handler({focus,true}, Fi, Fst0, Common2) of
 	    {Fst1,Common3} when is_atom(element(1, Fst1)), is_tuple(Common3) ->
 		{Fst1,Common3};
 	    Fst1 when is_atom(element(1, Fst1)) ->
@@ -271,7 +271,7 @@ field_event(Ev, #s{focus=I}=S) ->
 field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv0),
-    case Handler({event,Ev}, Fi, Fst0, Common0) of
+    case Handler(Ev, Fi, Fst0, Common0) of
 	ok ->
 	    return_result(S);
 	cancel ->
@@ -435,7 +435,19 @@ normalize({Prompt,Def}, Fi) when Def == false; Def == true ->
 normalize({Prompt,Def,Flags}, Fi) when Def == false; Def == true ->
     normalize_field(checkbox(Prompt, Def), Flags, Fi).
 
-vframe(Qs, #fi{x=X,y=Y0}=Fi0, Flags) ->
+expand_qs({alt,[{_,_}|_]=L,Var}) when is_atom(Var) ->
+    expand_qs_1(L, {Var,wings_pref:get_value(Var)});
+expand_qs({alt,[{_,_}|_]=L,{_,_}=VarDef}) ->
+    expand_qs_1(L, VarDef);
+expand_qs({alt,[{_,_}|_]=L,Var,Def}) ->
+    expand_qs_1(L, {Var,Def});
+expand_qs(Other) -> Other.
+
+expand_qs_1(L, VarDef) ->
+    [{alt,VarDef,S,K} || {S,K} <- L].
+
+vframe(Qs0, #fi{x=X,y=Y0}=Fi0, Flags) ->
+    Qs = expand_qs(Qs0),
     {Dx,Dy} = case have_border(Flags) of
 		  true -> {10,?LINE_HEIGHT};
 		  false -> {0,0}
@@ -459,7 +471,8 @@ vframe_1([Q|Qs], #fi{y=Y}=Fi0, W0, Acc) ->
 vframe_1([], #fi{y=Y}, W, Fields) ->
     {reverse(Fields),Y,W}.
 
-hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
+hframe(Qs0, #fi{x=X0,y=Y}=Fi, Flags) ->
+    Qs = expand_qs(Qs0),
     {Dx0,Dy0} = case have_border(Flags) of
 		    true -> {10,?LINE_HEIGHT};
 		    false -> {0,0}
@@ -531,7 +544,7 @@ frame_flatten([], FisAcc, PrivAcc) -> {FisAcc,PrivAcc}.
 frame_fun() ->
     fun({redraw,_Active}, Fi, _, _) ->
 	    frame_redraw(Fi);
-       ({event,_Ev}, _Fi, Frame, _) -> Frame
+       (_, _, Frame, _) -> Frame
     end.
 
 frame_redraw(#fi{flags=[]}) -> ok;
@@ -589,8 +602,7 @@ separator() ->
 separator_fun() ->
     fun({redraw,_Active}, Fi, _Dummy, _) ->
 	    separator_draw(Fi);
-       ({event,_Ev}, _Fi, Sep, _) ->
-	    Sep
+       (_, _, Sep, _) -> Sep
     end.
 
 separator_draw(#fi{x=X,y=Y,w=W}) ->
@@ -632,10 +644,10 @@ checkbox(Label, Def) ->
 checkbox_fun() ->
     fun({redraw,Active}, Fi, Cb, _) ->
 	    cb_draw(Active, Fi, Cb);
-       ({event,Ev}, Fi, Cb, _) ->
-	    cb_event(Ev, Fi, Cb);
        (value, _Fi, #cb{state=State}, _) ->
-	    State
+	    State;
+       (Ev, Fi, Cb, _) ->
+	    cb_event(Ev, Fi, Cb)
     end.
 
 cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
@@ -685,20 +697,20 @@ radiobutton({Var,Def}, Label, Val) ->
     {Fun,false,Rb,LabelWidth+2*SpaceWidth,?LINE_HEIGHT+2}.
 
 radiobutton_fun(Def) ->
-    fun({event,init}, _Fi, #rb{var=Var,val=Val}=Rb, Common) ->
+    fun(init, _Fi, #rb{var=Var,val=Val}=Rb, Common) ->
 	    case Val of
 		Def -> {Rb,gb_trees:insert(Var, Val, Common)};
 		_ -> Rb
 	    end;
-       ({event,Ev}, Fi, Rb, Common) ->
- 	    rb_event(Ev, Fi, Rb, Common);
        ({redraw,Active}, Fi, Rb, Common) ->
  	    rb_draw(Active, Fi, Rb, Common);
        (value, _Fi, #rb{var=Var,val=Val}, Common) ->
 	    case gb_trees:get(Var, Common) of
 		Val -> Val;
 		_ -> none
-	    end
+	    end;
+       (Ev, Fi, Rb, Common) ->
+ 	    rb_event(Ev, Fi, Rb, Common)
     end.
 
 rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,var=Var,val=Val}, Common) ->
@@ -780,9 +792,8 @@ button_label(Act) ->
 button_fun() ->
     fun({redraw,Active}, Fi, But, _) ->
 	    button_draw(Active, Fi, But);
-       ({event,Ev}, Fi, But, _) ->
-	    button_event(Ev, Fi, But);
-       (value, _, _, _) -> none
+       (value, _, _, _) -> none;
+       (Ev, Fi, But, _) -> button_event(Ev, Fi, But)
     end.
 
 button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
@@ -817,12 +828,12 @@ color(Def) ->
 color_fun() ->
     fun({redraw,Active}, Fi, Col, Common) ->
 	    col_draw(Active, Fi, Col, Common);
-       ({event,init}, #fi{key=Key}, #col{val=Val}=Col, Common) ->
+       (init, #fi{key=Key}, #col{val=Val}=Col, Common) ->
 	    {Col,gb_trees:insert(Key, Val, Common)};
-       ({event,Ev}, Fi, Col, Common) ->
-	    col_event(Ev, Fi, Col, Common);
        (value, #fi{key=Key}, _Col, Common) ->
-	    gb_trees:get(Key, Common)
+	    gb_trees:get(Key, Common);
+       (Ev, Fi, Col, Common) ->
+	    col_event(Ev, Fi, Col, Common)
     end.
 
 col_draw(Active, #fi{key=Key,x=X,y=Y0}, _, Common) ->
@@ -933,7 +944,7 @@ custom_fun() ->
     fun({redraw,_Active}, #fi{x=X,y=Y,w=W,h=H},
 	#custom{handler=Handler}, Common) ->
 	    Handler(X, Y, W, H, Common);
-       ({event,_Ev}, _Fi, Custom, _) -> Custom
+       (_, _, Custom, _) -> Custom
     end.
 
 %%%
@@ -965,11 +976,12 @@ slider(Field) ->
 slider_fun() ->
     fun({redraw,_Active}, Fi, Sl, Common) ->
 	    slider_redraw(Fi, Sl, Common);
-       ({event,init}, #fi{key=Key}, #sl{peer=undefined}=Sl, _) ->
+       (init, #fi{key=Key}, #sl{peer=undefined}=Sl, _) ->
 	    Sl#sl{peer=Key-1};
-       ({event,Ev}, Fi, Sl, Common) ->
-	    slider_event(Ev, Fi, Sl, Common);
-       (value, _, _, _) -> none
+       (value, _, _, _) ->
+	    none;
+       (Ev, Fi, Sl, Common) ->
+	    slider_event(Ev, Fi, Sl, Common)
     end.
 
 get_colRange(r,Common) ->
@@ -1092,8 +1104,7 @@ label(Text) ->
 label_fun() ->
     fun({redraw,_Active}, #fi{x=X,y=Y}, #label{label=Text}, _Common) ->
 	    wings_io:text_at(X, Y+?CHAR_HEIGHT, Text);
-       ({event,_Ev}, _Fi, Label, _) ->
-	    Label
+       (_, _, Label, _) -> Label
     end.
     
 %%%
@@ -1213,11 +1224,13 @@ text_get_val(#text{last_val=Val}=Ts) when is_list(Val) ->
 
 gen_text_handler({redraw,Active}, Fi, Ts, Common) ->
     draw_text(Active, Fi, Ts, Common);
-gen_text_handler({event,init}, #fi{key=Key},
+gen_text_handler(value, #fi{key=Key}, _, Common) ->
+    gb_trees:get(Key, Common);
+gen_text_handler(init, #fi{key=Key},
 		 #text{last_val=Val}=Ts, Common0) ->
     Common = gb_trees:insert(Key, Val, Common0),
     {Ts#text{last_val=Val},Common};
-gen_text_handler({event,Ev}, #fi{key=Key}=Fi,
+gen_text_handler(Ev, #fi{key=Key}=Fi,
 		 #text{last_val=Val0}=Ts0, Common0) ->
     Ts1 = case gb_trees:get(Key, Common0) of
 	      Val0 -> Ts0;
@@ -1229,9 +1242,7 @@ gen_text_handler({event,Ev}, #fi{key=Key}=Fi,
     Val = text_get_val(Ts),
     Common1 = gb_trees:update(Key, Val, Common0),
     Common = update_color(Key, Common1),
-    {Ts#text{last_val=Val},Common};
-gen_text_handler(value, #fi{key=Key}, _, Common) ->
-    gb_trees:get(Key, Common).
+    {Ts#text{last_val=Val},Common}.
 
 draw_text(false, #fi{key=Key,x=X0,y=Y0}, #text{max=Max}, Common) ->
     Val = gb_trees:get(Key, Common),

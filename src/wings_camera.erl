@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.56 2002/12/20 14:28:24 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.57 2002/12/28 13:38:09 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -48,19 +48,14 @@ sub_menu(_St) ->
     [{"Camera Mode...",camera_mode}].
 
 command(camera_mode, _St) ->
-    DefVar = {mode,wings_pref:get_value(camera_mode)},
-    DefButtons = {num_buttons,wings_pref:get_value(num_buttons)},
     ZoomFlag0 = wings_pref:get_value(wheel_zooms, true),
     ZoomFactor0 = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR),
     Fov0 = wings_pref:get_value(camera_fov),
     Hither0 = wings_pref:get_value(camera_hither),
     Yon0 = wings_pref:get_value(camera_yon),
-    Qs = [{hframe,[{alt,DefButtons,"One",1},
-		   {alt,DefButtons,"Two",2},
-		   {alt,DefButtons,"Three",3}],
+    Qs = [{hframe,{alt,[{"One",1},{"Two",2},{"Three",3}],num_buttons},
 	   [{title,"Mouse Buttons"}]},
-	  {vframe,camera_modes(DefVar),
-	   [{title,"Camera Mode"}]},
+	  {vframe,camera_modes(),[{title,"Camera Mode"}]},
 	  {vframe,
 	   [{"Wheel Zooms",ZoomFlag0},
 	    {hframe,[{label,"Zoom Factor"},
@@ -103,9 +98,9 @@ again(Mode, Buttons) ->
     wings_util:error("The " ++ desc(Mode) ++ " camera mode requires at least " ++
 		     integer_to_list(Buttons) ++ " buttons.").
       
-camera_modes(DefVar) ->
+camera_modes() ->
     Modes = [mirai,nendo,maya,tds,blender],
-    [{alt,DefVar,desc(Mode),Mode} || Mode <- Modes].
+    {alt,[{desc(Mode),Mode} || Mode <- Modes],camera_mode}.
 
 desc(blender) -> "Blender";
 desc(nendo) -> "Nendo";
