@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.169 2003/11/29 06:28:06 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.170 2003/12/02 12:11:18 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -646,7 +646,7 @@ edge_option_menu(#uvstate{option = Option}) ->
 	  {vframe,[{"Show Colors (or texture)",Option#setng.color},
 		   {"Texture Background (if available)", Option#setng.texbg}],
 	   [{title, "Display Color and texture?"}]},
-	  {vradio,gen_tx_sizes(MaxTxs, []),txsize,element(1, Option#setng.texsz),
+	  {vradio,gen_tx_sizes(MaxTxs, []),element(1, Option#setng.texsz),
 	   [{title,"Texture Size"}]}],
     wings_ask:dialog("Draw Options", Qs,
 		     fun([Mode,BEC,BEW,Color,TexBg, TSz]) -> 
