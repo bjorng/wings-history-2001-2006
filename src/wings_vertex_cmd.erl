@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.25 2002/04/13 07:21:34 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.26 2002/05/08 10:00:48 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -257,7 +257,7 @@ bevel_normalize_1(VecVs, Min0) ->
     mapfoldl(fun({Vec,V}, M0) ->
 		     Min = case e3d_vec:len(Vec) of
 			       Len when Len < M0 -> Len;
-			       Len -> M0
+			       _Len -> M0
 			   end,
 		     {{e3d_vec:norm(Vec),[V]},Min}
 	     end, Min0, VecVs).

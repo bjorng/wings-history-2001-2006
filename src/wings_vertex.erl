@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.20 2002/04/19 18:38:45 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.21 2002/05/08 10:00:48 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -434,7 +434,7 @@ nearest_pair_2(N, Iter0, Vs, Face, We, Start, Pos, PairDist0) when N > 0 ->
 			    no -> PairDist0;
 			    {_,_} -> {Pair,D}
 			end;
-		    D -> PairDist0
+		    _ -> PairDist0
 		end,
 	    nearest_pair_2(N-1, Iter, Vs, Face, We, Start, Pos, PairDist)
     end;
@@ -471,10 +471,10 @@ force_connect(Vstart, Vend, Face, #we{es=Etab0,fs=Ftab0}=We0) ->
 %%  Connect the edge immediately before Vstart.
 connect_1(Iter0, Vstart, NewEdge, NeRec0, Etab) ->
     case wings_face:next_cw(Iter0) of
-	{_,Edge,#edge{a=ColA,b=ColB,ve=Vstart}=Rec0,Iter} ->
+	{_,Edge,#edge{b=ColB,ve=Vstart}=Rec0,Iter} ->
 	    NeRec = NeRec0#edge{a=ColB,rtpr=Edge},
 	    Rec = Rec0#edge{rtsu=NewEdge};
-	{_,Edge,#edge{a=ColA,b=ColB,vs=Vstart}=Rec0,Iter} ->
+	{_,Edge,#edge{a=ColA,vs=Vstart}=Rec0,Iter} ->
 	    NeRec = NeRec0#edge{a=ColA,rtpr=Edge},
 	    Rec = Rec0#edge{ltsu=NewEdge}
     end,
@@ -517,10 +517,10 @@ connect_3(Iter0, Face, Vend, NewFace, Etab0) ->
 connect_4(Iter0, Vend, NewEdge, NeRec0, Etab0) ->
     {_,Edge,_,Iter} = wings_face:next_cw(Iter0),
     Rec = case gb_trees:get(Edge, Etab0) of
-	      #edge{a=ColA,b=ColB,ve=Vend}=Rec0 ->
+	      #edge{b=ColB,ve=Vend}=Rec0 ->
 		  NeRec1 = NeRec0#edge{b=ColB,ltpr=Edge},
 		  Rec0#edge{rtsu=NewEdge};
-	      #edge{a=ColA,b=ColB,vs=Vend}=Rec0 ->
+	      #edge{a=ColA,vs=Vend}=Rec0 ->
 		  NeRec1 = NeRec0#edge{b=ColA,ltpr=Edge},
 		  Rec0#edge{ltsu=NewEdge}
 	  end,

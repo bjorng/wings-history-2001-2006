@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.35 2002/03/31 17:27:36 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.36 2002/05/08 10:00:48 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -56,7 +56,7 @@ plus_minus_2(_Mode, _Vec, [], Acc) -> Acc.
 plus_minus_3(Tv0, NewVs, #we{id=Id}=We, Acc) ->
     Affected0 = affected(Tv0),
     Vecs = move_vectors(NewVs, gb_sets:from_list(Affected0), We, []),
-    Affected = [V || {V,Vec,Pos} <- Vecs],
+    Affected = [V || {V,_,_} <- Vecs],
     MoveAway = {Affected,move_away_fun(Vecs)},
     [{Id,Tv0},{Id,MoveAway}|Acc].
 
@@ -257,11 +257,11 @@ filter_normals([Na|[_|_]=Ns]) ->
     Nb = largest_angle(Ns, Na),
     N1 = e3d_vec:cross(Na, Nb),
     case smallest_angle(Ns, N1) of
-	{Nc,Dot} when Dot < 0.01 ->
+	{_Nc,Dot} when Dot < 0.01 ->
 	    %% The third normal is not usable. It is too close to
 	    %% the plane of the other two.
 	    [Na,Nb];
-	{Nc,Dot} ->
+	{Nc,_Dot} ->
 	    %% The third normal is OK.
 	    [Na,Nb,Nc]
     end.
@@ -275,7 +275,7 @@ largest_angle([N|Ns], Na, OldDot, OldN) ->
     case abs(e3d_vec:dot(Na, N)) of
 	Dot when Dot < OldDot ->
 	    largest_angle(Ns, Na, Dot, N);
-	Dot ->
+	_Dot ->
 	    largest_angle(Ns, Na, OldDot, OldN)
     end;
 largest_angle([], _Na, _Dot, N) -> N.
@@ -289,7 +289,7 @@ smallest_angle([N|Ns], Na, OldDot, OldN) ->
     case abs(e3d_vec:dot(Na, N)) of
 	Dot when Dot > OldDot ->
 	    smallest_angle(Ns, Na, Dot, N);
-	Dot ->
+	_Dot ->
 	    smallest_angle(Ns, Na, OldDot, OldN)
     end;
 smallest_angle([], _Na, Dot, N) -> {N,Dot}.
