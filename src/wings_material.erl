@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.10 2001/11/21 07:07:25 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.11 2001/11/21 11:25:55 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -87,6 +87,7 @@ add(Name, Mat0, #st{mat=MatTab}=St) ->
     St#st{mat=gb_trees:enter(Name, Mat, MatTab)}.
 
 setup_fun(Mat) ->
+    io:format("~w\n", [Mat]),
     #mat{ambient=Amb0,diffuse=Diff0,specular=Spec0,
 	 shininess=Shine,opacity=Opac,diffuse_map_dl=Dmap} = Mat,
     Amb = erlang:append_element(Amb0, Opac),

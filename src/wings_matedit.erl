@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.4 2001/11/21 11:03:57 dgud Exp $
+%%     $Id: wings_matedit.erl,v 1.5 2001/11/21 11:25:55 bjorng Exp $
 %%
 
 -module(wings_matedit).
@@ -136,15 +136,15 @@ edit(X, Y, PC) when record(PC, mat) ->
     gl:shadeModel (?GL_SMOOTH),
     case catch color_picker_loop(NS) of
 	{'EXIT',normal} ->
-	    restore_state(S),
-	    S#s.prev;
+	    restore_state(NS),
+	    NS#s.prev;
 	{'EXIT', {normal, Material}} ->
-	    restore_state(S),
+	    restore_state(NS),
 	    Material;
 	{'EXIT', Reason} ->
 	    io:format("Error Material Selection failed with Reason ~p ~n", [Reason]),
-	    restore_state(S),
-	    S#s.prev
+	    restore_state(NS),
+	    NS#s.prev
     end.
 
 restore_state(#s{orig_w=W,orig_h=H}) ->
@@ -469,11 +469,13 @@ scale_pos(X0,Y0,X1,Y1, Scale, Constraint) ->
     Y = (Y0 - Y1) / Scale,
     Length = math:sqrt(X*X+Y*Y),
     ConstraintMatch = 
-	(Length > Constraint) bor (abs(X) > Constraint) bor (abs(Y) > Constraint),
+	(Length > Constraint) or (abs(X) > Constraint) or (abs(Y) > Constraint),
     if 
-	Length > Constraint ->
+	Length == 0.0 ->
+	    {X, Y};
+	ConstraintMatch ->
 	    Div = Constraint / Length,
-	    {chop(X / Div, Constraint), chop(Y / Div, Constraint)};
+	    {chop(X * Div, Constraint), chop(Y * Div, Constraint)};
 	true ->
 	    {X, Y}
     end.
