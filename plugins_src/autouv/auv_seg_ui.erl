@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.27 2004/12/16 20:04:47 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.28 2004/12/18 19:36:01 bjorng Exp $
 %%
 
 -module(auv_seg_ui).
@@ -66,7 +66,7 @@ get_seg_event_noredraw(Ss) ->
     {replace,fun(Ev) -> seg_event(Ev, Ss) end}.
 
 seg_event({crash,Crash}, _) ->
-    wings_util:win_crash(Crash),
+    wings_u:win_crash(Crash),
     delete;
 seg_event(init_opengl, #seg{st=St}=Ss) ->
     wings:init_opengl(St),
@@ -188,7 +188,7 @@ seg_event_6({action,{auv_segmentation,Cmd}}, Ss) ->
 seg_event_6({callback, Fun}, _) when function(Fun) ->
     Fun();
 seg_event_6({message,Message}, _) ->
-    wings_util:message(Message);
+    wings_u:message(Message);
 seg_event_6(#mousemotion{}, _) -> keep;
 seg_event_6(#mousebutton{}, _) -> keep;
 seg_event_6(#keyboard{}, _) -> keep;
@@ -307,7 +307,7 @@ seg_map_charts_1([{Fs,We0}|Cs], Type, Id, N, Acc,
     case auv_mapping:map_chart(Type, We1, none) of
 	{error,Message} ->
 	    wings_pb:done(),
-	    wings_util:message(Message),
+	    wings_u:message(Message),
 	    Fs = wings_we:visible(We1),
 	    St = St0#st{selmode=face,sel=[{OrigId,gb_sets:from_ordset(Fs)}]},
 	    get_seg_event(seg_init_message(Ss#seg{st=St}));

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.73 2004/12/16 14:17:36 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.74 2004/12/18 19:36:03 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -383,7 +383,7 @@ cleanup_2edged_faces(#we{fs=Ftab}=We) ->
 delete_2edged_faces_1([Face|Faces], We0) ->
     case wings_face:delete_if_bad(Face, We0) of
 	bad_edge ->
-	    wings_util:error(?__(1,"Face") ++ integer_to_list(Face) ++
+	    wings_u:error(?__(1,"Face") ++ integer_to_list(Face) ++
 			     ?__(2,"has only one edge"));
 	We -> delete_2edged_faces_1(Faces, We)
     end;
@@ -510,7 +510,7 @@ unify_modes([#we{mode=Mode}|Wes]) ->
 unify_modes([#we{mode=Mode}|Wes], Mode) ->
     unify_modes(Wes, Mode);
 unify_modes([_|_], _) ->
-    wings_util:error(?__(1,
+    wings_u:error(?__(1,
 			 "Objects with vertex colors cannot be combined " 
 			 "with objects with materials."));
 unify_modes([], Mode) -> Mode.
@@ -751,7 +751,7 @@ weld_1(Tol, #we{id=Id,fs=Fs0}=We0, Acc) ->
     Part = sofs:to_external(Part1),
     case weld_2(Part, Tol, We0) of
 	We0 ->
-	    wings_util:error(?__(1,"Found no faces to weld."));
+	    wings_u:error(?__(1,"Found no faces to weld."));
 	We ->
 	    {We,[{Id,weld_selection(lists:append(Part), We0, We)}|Acc]}
     end.

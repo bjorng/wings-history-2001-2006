@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.8 2004/12/18 10:24:06 bjorng Exp $
+%%     $Id: wings_export.erl,v 1.9 2004/12/18 19:36:20 bjorng Exp $
 %%
 
 -module(wings_export).
@@ -24,8 +24,8 @@ export(Exporter, Name, SubDivs, #st{shapes=Shs}=St0) ->
     Objs = foldl(fun(W, A) ->
 			 export_1(W, SubDivs, A)
 		 end, [], gb_trees:values(Shs)),
-    wings_pb:start(?STR(export,1,"exporting")),
-    wings_pb:update(0.01,?STR(export,2,"preparing")),
+    wings_pb:start(?__(1,"exporting")),
+    wings_pb:update(0.01,?__(2,"preparing")),
     Creator = "Wings 3D " ++ ?WINGS_VERSION,
 
     Mat0 = wings_material:used_materials(St),
@@ -36,14 +36,14 @@ export(Exporter, Name, SubDivs, #st{shapes=Shs}=St0) ->
     try Exporter(Name, Contents) of
 	ok -> ok;
 	{error,Atom} when is_atom(Atom) ->
-	    wings_util:error(file:format_error(Atom));
+	    wings_u:error(file:format_error(Atom));
 	{error,Reason} ->
-	    wings_util:error(Reason)
+	    wings_u:error(Reason)
     catch
 	error:Reason ->
-	    Msg = ?STR(export,4,"Exporter crashed"),
-	    wings_util:error(Msg++": ~P\n\n~P\n",
-			     [Reason,20,erlang:get_stacktrace(),20])
+	    Msg = ?__(4,"Exporter crashed"),
+	    wings_u:error(Msg++": ~P\n\n~P\n",
+			  [Reason,20,erlang:get_stacktrace(),20])
     after
 	wings_pb:done()
     end.

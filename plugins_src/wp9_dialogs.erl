@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.41 2004/04/09 05:30:14 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.42 2004/12/18 19:35:58 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -187,7 +187,7 @@ check_filename(Store, DlgType) ->
 	open ->
 	    case filelib:is_file(Name) of
 		false ->
-		    wings_util:message(Name0 ++ " does not exist"),
+		    wings_u:message(Name0 ++ " does not exist"),
 		    done;
 		true ->
 		    {store,gb_trees:update(filename, Name1, Store)}

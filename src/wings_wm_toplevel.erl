@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.54 2004/12/16 20:05:16 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.55 2004/12/18 19:36:22 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -318,7 +318,7 @@ ctrl_resize(Client, W, H) ->
     {TopW,TopH} = wings_wm:top_size(),
     if
 	W > TopW; H > TopH ->
-	    wings_util:error(?__(1,"Too large size specified"));
+	    wings_u:error(?__(1,"Too large size specified"));
 	true ->
 	    wings_wm:resize(Client, {W,H})
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.150 2004/12/06 07:53:50 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.151 2004/12/18 19:36:22 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -725,7 +725,7 @@ handle_event(State, Event, Stk) ->
 	    handle_response(Res, Event, Stk)
     catch
 	throw:{command_error,Error} ->
-	    wings_util:message(Error),
+	    wings_u:message(Error),
 	    Stk;
 	  exit:normal ->
 	    exit(normal);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.276 2004/12/18 10:36:20 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.277 2004/12/18 19:36:01 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -435,10 +435,10 @@ get_event_nodraw(#st{}=St) ->
     {replace,fun(Ev) -> handle_event(Ev, St) end}.
 
 handle_event({crash,Crash}, _) ->
-    wings_util:win_crash(Crash),
+    wings_u:win_crash(Crash),
     delete;
 handle_event({command_error,Error}, _) ->
-    wings_util:message(Error);
+    wings_u:message(Error);
 handle_event(redraw, St) ->
     redraw(St),
     get_event_nodraw(St);
@@ -1057,7 +1057,7 @@ reunfold(#st{sel=Sel,selmode=vertex}=St0) ->
 		 case gb_sets:size(Vs) of
 		     N when N < 2 ->
 			 E = "At least two vertices per chart must be pinned",
-			 wings_util:error(E);
+			 wpa:error(E);
 		     _-> ok
 		 end
 	 end,
@@ -1102,7 +1102,7 @@ remap(Type, Pinned, #we{name=Ch}=We0, St) ->
     Vs3d = orig_pos(We0, St),
     case auv_mapping:map_chart(Type, We0#we{vp=Vs3d}, Pinned) of
 	{error,Msg} -> 
-	    wings_util:error(Msg);
+	    wpa:error(Msg);
 	Vs0 -> 
 	    We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs0))},
 	    Fs = wings_we:visible(We1),

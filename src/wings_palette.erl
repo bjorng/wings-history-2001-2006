@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.13 2004/12/16 20:05:12 bjorng Exp $
+%%     $Id: wings_palette.erl,v 1.14 2004/12/18 19:36:21 bjorng Exp $
 %%
 -module(wings_palette).
 
@@ -322,10 +322,10 @@ command({smooth,Id}, Pst = #pst{cols=Cols0}) ->
     {AC, Aft1} = del_empty(After0),
     case interpolate(Bef1,Aft1,AC+BC) of
 	no_start -> 
-	    wings_util:message(?__(1,"No start color found.")),
+	    wings_u:message(?__(1,"No start color found.")),
 	    keep;
 	no_end -> 
-	    wings_util:message(?__(2,"No end color found.")),
+	    wings_u:message(?__(2,"No end color found.")),
 	    keep;
 	IntCols ->
 	    Cols = reverse(Bef1) ++ IntCols ++ Aft1,
@@ -354,7 +354,7 @@ command(export, #pst{cols=Cols}) ->
 		      ok -> keep;
 		      {error,Reason} ->
 			  Msg = io_lib:format(?__(6,"Export error: ~w"), [Reason]),
-			  wings_util:message(Msg),
+			  wings_u:message(Msg),
 			  keep
 		  end
 	  end,
@@ -375,12 +375,12 @@ command(import, #pst{cols=Cols0}) ->
 			      _ ->
 				  Reason = ?__(10,"No palette found"),
 				  Msg = io_lib:format(?__(11,"Import error: ~w"), [Reason]),
-				  wings_util:message(Msg),
+				  wings_u:message(Msg),
 				  keep
 			  end;
 		      {error,Reason} ->
 			  Msg = io_lib:format(?__(12,"Import error: ~w"), [Reason]),
-			  wings_util:message(Msg),
+			  wings_u:message(Msg),
 			  keep
 		  end
 	  end,

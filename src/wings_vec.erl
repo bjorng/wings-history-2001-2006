@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.111 2004/12/16 20:05:15 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.112 2004/12/18 19:36:22 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -146,7 +146,7 @@ handle_event({ask_init,Do,Done}, #ss{selmodes=Modes}=Ss,
     wings_dl:map(fun(#dlo{orig_sel=none,sel=Dlist}=D, _) ->
 			 D#dlo{orig_sel=Dlist,orig_mode=Mode}
 		 end, []),
-    wings_util:menu_restriction(wings_wm:this(), [view,select]),
+    wings_u:menu_restriction(wings_wm:this(), [view,select]),
     St = wings_sel:reset(mode_restriction(Modes, St0)),
     pick_next(Do, Done, Ss, St);
 handle_event(Event, Ss, St) ->

@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.328 2004/12/18 10:36:33 bjorng Exp $
+%%     $Id: wings.erl,v 1.329 2004/12/18 19:36:02 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0,start_halt/0,start_halt/1]).
--export([caption/1,redraw/1,redraw/2,init_opengl/1,command/2]).
+-export([redraw/1,redraw/2,init_opengl/1,command/2]).
 -export([mode_restriction/1,clear_mode_restriction/0,get_mode_restriction/0]).
 -export([ask/3]).
 -export([init_menubar/0]).
@@ -48,14 +48,14 @@ halt_loop(Wings) ->
 	{'EXIT',Wings,normal} ->
 	    halt();
 	{'EXIT',Wings,{window_crash,Name,Reason}} ->
-	    Log = wings_util:crash_log(Name, Reason),
+	    Log = wings_u:crash_log(Name, Reason),
 	    io:format("\n\n"),
 	    io:format(?__(1,"Fatal internal error - log written to ~s\n"),
 		      [Log]),
 	    ok;
 	{'EXIT',Wings,Reason} ->
-	    Log = wings_util:crash_log(?__(2,"<Unknown Window Name>"),
-				       Reason),
+	    Log = wings_u:crash_log(?__(2,"<Unknown Window Name>"),
+				    Reason),
 	    io:format("\n\n"),
 	    io:format(?__(3,"Fatal internal error - log written to ~s\n"),
 		      [Log]),
@@ -81,6 +81,8 @@ init(File) ->
     OsType = os:type(),
     put(wings_os_type, OsType),
     wings_pref:init(),
+    wings_hotkey:set_default(),
+    wings_pref:load(),
     wings_lang:init(),
     
     group_leader(wings_console:start(), self()),
@@ -111,7 +113,7 @@ init(File) ->
     St = wings_undo:init(St1),
     wings_view:init(),
     wings_file:init(),
-    caption(St),
+    wings_u:caption(St),
     put(wings_hitbuf, sdl_util:alloc(?HIT_BUF_SIZE, ?GL_INT)),
     wings_wm:init(),
     wings_file:init_autosave(),
@@ -232,7 +234,7 @@ save_state(St0, St1) ->
     St2 = wings_undo:save(St0, St1),
     St = case St2 of
 	     #st{saved=false} -> St2;
-	     _Other -> caption(St2#st{saved=false})
+	     _Other -> wings_u:caption(St2#st{saved=false})
 	 end,
     main_loop(clear_temp_sel(St)).
 
@@ -258,7 +260,7 @@ handle_event({open_file,Name}, St0) ->
     case catch ?SLOW(wings_ff_wings:import(Name, St0)) of
 	#st{}=St ->
 	    wings_pref:set_value(current_directory, filename:dirname(Name)),
-	    main_loop(caption(St#st{saved=true,file=Name}));
+	    main_loop(wings_u:caption(St#st{saved=true,file=Name}));
 	{error,_} ->
 	    main_loop(St0)
     end;
@@ -356,7 +358,7 @@ handle_event_3({current_state,_,_}, _) ->
 handle_event_3(revert_state, St) ->
     main_loop(clear_temp_sel(St));
 handle_event_3(need_save, St) ->
-    main_loop(caption(St#st{saved=false}));
+    main_loop(wings_u:caption(St#st{saved=false}));
 handle_event_3({new_default_command,DefCmd}, St) ->
     main_loop_noredraw(St#st{def=DefCmd});
 handle_event_3(got_focus, _) ->
@@ -443,7 +445,7 @@ command_response({save_state,#st{}=St}, _, St0) ->
 command_response({saved,St}, _, _) ->
     main_loop(St);
 command_response({new,St}, _, _) ->
-    main_loop(caption(wings_undo:init(St)));
+    main_loop(wings_u:caption(wings_undo:init(St)));
 command_response({push,_}=Push, _, _) ->
     Push;
 command_response({init,_,_}=Init, _, _) ->
@@ -527,11 +529,11 @@ command({file,Command}, St) ->
 
 %% Edit menu.
 command({edit,undo_toggle}, St) ->
-    caption(wings_undo:undo_toggle(St));
+    wings_u:caption(wings_undo:undo_toggle(St));
 command({edit,undo}, St) ->
-    caption(wings_undo:undo(St));
+    wings_u:caption(wings_undo:undo(St));
 command({edit,redo}, St) ->
-    caption(wings_undo:redo(St));
+    wings_u:caption(wings_undo:redo(St));
 command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
@@ -570,7 +572,7 @@ command({edit,disable_patches}, St) ->
     wings_start:disable_patches(),
     St;
 command({edit,{preferences,Pref}}, St) ->
-    wings_pref:command(Pref, St);
+    wings_pref_dlg:command(Pref, St);
 
 %% Select menu.
 command({select,Command}, St) ->
@@ -683,7 +685,7 @@ edit_menu(St) ->
      {command_name(?__(10,"Repeat Args"), St),repeat_args},
      {command_name(?__(11,"Repeat Drag"), St),repeat_drag},
      separator,
-     wings_pref:menu(St),
+     wings_pref_dlg:menu(St),
      {?__(12,"Plug-in Preferences"),{plugin_preferences,[]}},
      separator,
      {?__(13,"Purge Undo History"),purge_undo,UndoInfo}|patches()].
@@ -947,24 +949,6 @@ shape_info([], _Shs, N, Vertices, Edges, Faces) ->
 		       "~p objects, ~p faces, ~p edges, ~p vertices"),
 		  [N,Faces,Edges,Vertices]).
 
-caption(#st{file=undefined}=St) ->
-    Caption = wings(),
-    sdl_video:wm_setCaption(Caption, Caption),
-    St;
-caption(#st{saved=true,file=Name}=St) ->
-    Caption = wings() ++ " - " ++ filename:basename(Name),
-    sdl_video:wm_setCaption(Caption, Caption),
-    St;
-caption(#st{saved=auto,file=Name}=St) ->
-    Caption = wings() ++ " - " ++ filename:basename(Name) ++
-	"* [" ++ ?__(1,"auto-saved") ++ "]",
-    sdl_video:wm_setCaption(Caption, Caption),
-    St;
-caption(#st{file=Name}=St) ->
-    Caption = wings() ++ " - " ++ filename:basename(Name) ++ "*",
-    sdl_video:wm_setCaption(Caption, Caption),
-    St.
-
 command_name(_Repeat, #st{repeatable=ignore}) ->
     "("++cannot_repeat()++")";
 command_name(Repeat, #st{repeatable={_,Cmd}}=St) ->
@@ -1002,12 +986,12 @@ define_command(?SDL_RELEASED, N, #st{repeatable=Cmd,def=DefCmd0}) ->
 		       " ",wings_util:quote(CmdStr), " ",
 		       ?__(2,"as a default command"),
 		       " (",wings_s:key(ctrl),"+",Button,")?"]),
-    wings_util:yes_no(Q,
-		      fun() ->
-			      DefCmd = setelement(N, DefCmd0, Cmd),
-			      wings_wm:send(This, {new_default_command,DefCmd}),
-			      ignore
-		      end, ignore);
+    wings_u:yes_no(Q,
+		   fun() ->
+			   DefCmd = setelement(N, DefCmd0, Cmd),
+			   wings_wm:send(This, {new_default_command,DefCmd}),
+			   ignore
+		   end, ignore);
 define_command(_, _, _) -> keep.
 
 use_command(#mousebutton{state=?SDL_RELEASED,button=N}=Ev,
@@ -1045,7 +1029,7 @@ do_use_command(#mousebutton{x=X,y=Y}, Cmd0, #st{sel=[]}=St0) ->
 do_use_command(_, Cmd, _) -> wings_wm:later({action,Cmd}).
 
 crash_logger(Crash, St) ->
-    LogName = wings_util:crash_log(geom, Crash),
+    LogName = wings_u:crash_log(geom, Crash),
     get_crash_event(LogName, St).
 
 get_crash_event(Log, St) ->
@@ -1070,12 +1054,6 @@ crash_handler(#mousebutton{}, _, St) ->
     main_loop(St);
 crash_handler(_, Log, St) ->
     get_crash_event(Log, St).
-
--ifdef(DEBUG).
-wings() -> "Wings 3D [debug]".
--else.
-wings() -> "Wings 3D".
--endif.
 
 %%%
 %%% Drag & Drop.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.19 2004/03/21 20:24:56 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.20 2004/12/18 19:36:02 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -53,8 +53,8 @@ make_image(Name) ->
 	#e3d_image{}=Image ->
 	    make_image_1(Name, Image);
 	{error,Error} ->
-	    wings_util:error("Failed to load \"~s\": ~s\n",
-			     [Name,file:format_error(Error)])
+	    wpa:error("Failed to load \"~s\": ~s\n",
+		      [Name,file:format_error(Error)])
     end.
 
 make_image_1(Name0, #e3d_image{type=Type}=Image0) ->
@@ -67,8 +67,8 @@ make_image_1(Name0, #e3d_image{type=Type}=Image0) ->
     ImageId = wings_image:new(Name, Image),
     case can_texture_be_loaded(Image) of
 	false ->
-	    wings_util:error("The image cannot be loaded as a texture "
-			     "(it is probably too large).");
+	    wpa:error("The image cannot be loaded as a texture "
+		      "(it is probably too large).");
 	true ->
 	    MaxU = W0/W,
 	    MaxV = H0/H,

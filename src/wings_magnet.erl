@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.51 2004/12/16 20:05:12 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.52 2004/12/18 19:36:20 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -123,7 +123,7 @@ mf(spike, D0, R) when is_float(D0), is_float(R) ->
     D*D.
 
 check_radius(R) when R < 1.0E-6 ->
-    wings_util:error(?__(1,"Too short influence radius."));
+    wings_u:error(?__(1,"Too short influence radius."));
 check_radius(_) -> ok.
 
 %%%

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.188 2004/12/17 10:36:22 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.189 2004/12/18 19:36:02 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -461,7 +461,7 @@ get_event(S) ->
 
 event1({crash,Reason}, S) ->
     %% dmptree(S#s.fi),
-    wings_util:win_crash(Reason),
+    wings_u:win_crash(Reason),
     delete(S);
 event1(redraw, S) ->
     ?DEBUG_DISPLAY(event, redraw),

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.58 2004/12/16 20:04:50 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.59 2004/12/18 19:36:02 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -61,7 +61,7 @@ menu(_, Menu) -> Menu.
 command({tools,tweak}, St0) ->
     wings:mode_restriction([vertex,edge,face,body]),
     Active = wings_wm:this(),
-    wings_wm:callback(fun() -> wings_util:menu_restriction(Active, [view]) end),
+    wings_wm:callback(fun() -> wings_u:menu_restriction(Active, [view]) end),
     case wpa:pref_get(?MODULE, sel_mode) of
 	{Mode,Sh0,Mag,MagType} ->
 	    MagR = 1.0;
@@ -308,7 +308,7 @@ do_tweak(DX, DY) ->
     				
 do_tweak(#dlo{drag={matrix,Pos0,Matrix0,_},
 	      src_we=#we{id=Id}}=D, DX, DY) ->
-    Matrices = wings_util:get_matrices(Id, original),
+    Matrices = wings_u:get_matrices(Id, original),
     {Xs,Ys,Zs} = obj_to_screen(Matrices, Pos0),
     Pos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
     Move = e3d_vec:sub(Pos, Pos0),
@@ -316,7 +316,7 @@ do_tweak(#dlo{drag={matrix,Pos0,Matrix0,_},
     D#dlo{drag={matrix,Pos,Matrix,e3d_mat:expand(Matrix)}};
 do_tweak(#dlo{drag=#drag{pos=Pos0,mag=Mag0,mm=MM}=Drag,
 	      src_we=#we{id=Id}}=D0, DX, DY) ->
-    Matrices = wings_util:get_matrices(Id, MM),
+    Matrices = wings_u:get_matrices(Id, MM),
     {Xs,Ys,Zs} = obj_to_screen(Matrices, Pos0),
     Pos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
     {Vtab,Mag} = magnet_tweak(Mag0, Pos),

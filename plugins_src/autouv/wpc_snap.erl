@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_snap.erl,v 1.6 2004/03/23 07:08:11 bjorng Exp $
+%%     $Id: wpc_snap.erl,v 1.7 2004/12/18 19:36:02 bjorng Exp $
 
 -module(wpc_snap).
 
@@ -212,7 +212,7 @@ draw_image(Image,_St) ->
     gl:popAttrib().
     
 calc_uv(_V = {X,Y,Z}) ->
-    {MM,PM,Viewport = {_,_,W,H}} = wings_util:get_matrices(0, original),
+    {MM,PM,Viewport = {_,_,W,H}} = wings_u:get_matrices(0, original),
     {S,T, _} = glu:project(X,Y,Z,MM,PM,Viewport),
     #s{w=IW,h=IH,sx=Sx,sy=Sy,tx=Tx,ty=Ty} = get(?MODULE),
     {Xs,Ys} = scale(W,H,IW,IH),

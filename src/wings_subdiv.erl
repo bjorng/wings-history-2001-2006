@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.85 2004/12/16 16:20:33 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.86 2004/12/18 19:36:22 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -93,8 +93,8 @@ face_centers([Face|Fs], We, Acc) ->
 		  end, {[],[]}, Face, We),
     case Vs of
 	[_,_] ->
-	    wings_util:error(?__(1,"Face ") ++ integer_to_list(Face) ++
-			     ?__(2," has only two edges."));
+	    wings_u:error(?__(1,"Face ") ++ integer_to_list(Face) ++
+			  ?__(2," has only two edges."));
 	_ ->
 	    Center0 = wings_vertex:center(Vs, We),
 	    Center = wings_util:share(Center0),

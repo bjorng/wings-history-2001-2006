@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.123 2004/12/18 10:24:06 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.124 2004/12/18 19:36:20 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -540,7 +540,7 @@ plugin_results(Name, Mat0, Res0) ->
 	{_,Res} ->
 	    io:format(?__(1,"Material editor plugin(s) left garbage:~n    ~P~n"), 
 		      [Res,20]),
-		      wings_util:error(?__(2,"Plugin(s) left garbage"))
+		      wings_u:error(?__(2,"Plugin(s) left garbage"))
     end.
 
 update_maps(Mat0, More0) ->

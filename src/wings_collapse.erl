@@ -5,12 +5,12 @@
 %%     (for vertices, edges, and faces).
 %%
 %%  Copyright (c) 2001 Jakob Cederlund
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.38 2004/10/08 06:02:28 dgud Exp $
+%%     $Id: wings_collapse.erl,v 1.39 2004/12/18 19:36:03 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -315,7 +315,7 @@ check_vertices(Vs0) ->
     check_vertices_1(sort(Vs0)).
 
 check_vertices_1([V,V|_]) ->
-    wings_util:error(?STR(check_vertices_1,1,"Non-collapsible vertex") ++ " ("
+    wings_u:error(?STR(check_vertices_1,1,"Non-collapsible vertex") ++ " ("
 		     ++ integer_to_list(V) ++ ") -"
 		     ++?STR(check_vertices_1,2,"would leave waist.\n"));
 check_vertices_1([_|Vs]) ->
@@ -349,7 +349,7 @@ check_consistency(We) ->
 	true -> ok;
 	false ->
 	    Msg = ?STR(check_consistency,1,"Collapsing would cause an inconsistent object structure."),
-	    wings_util:error(Msg)
+	    wings_u:error(Msg)
     end.
 
 	    

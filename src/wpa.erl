@@ -8,10 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.58 2004/12/18 10:24:06 bjorng Exp $
+%%     $Id: wpa.erl,v 1.59 2004/12/18 19:36:22 bjorng Exp $
 %%
+%% Note: To keep the call graph clean, wpa MUST NOT be called
+%%       from the wings core modules.
+
 -module(wpa).
--export([ask/3,ask/4,dialog/3,dialog/4,error/1,
+-export([ask/3,ask/4,dialog/3,dialog/4,error/1,error/2,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
 	 bind_unicode/2,bind_virtual/3,
 	 import/2,import/3,import_filename/2,
@@ -69,16 +72,19 @@ dialog(Bool, Title, Qs, Fun) ->
 
 %% Show String in a dialog box.
 error(String) ->
-    wings_util:error(String).
+    wings_u:error(String).
+
+error(Format, Args) ->
+    wings_u:error(Format, Args).
 
 yes_no(Question, Yes) ->
-    wings_util:yes_no(Question, Yes).
+    wings_u:yes_no(Question, Yes).
 
 yes_no(Question, Yes, No) ->
-    wings_util:yes_no(Question, Yes, No).
+    wings_u:yes_no(Question, Yes, No).
 
 yes_no_cancel(Question, Yes, No) ->
-    wings_util:yes_no_cancel(Question, Yes, No).
+    wings_u:yes_no_cancel(Question, Yes, No).
 
 bind_unicode(Key, Command) ->
     wings_hotkey:bind_unicode(Key, Command, plugin).
@@ -106,13 +112,13 @@ import(Props, Importer, St0) ->
     import_filename(Props, Cont).
 
 do_import(Importer, Name, St0) ->
-    wings_pb:start(?STR(import_filename,1,"reading file")),
+    wings_pb:start(?__(1,"reading file")),
     wings_pb:update(1.0),
     case wings_pb:done(Importer(Name)) of
 	{ok,#e3d_file{}=E3DFile} ->
 	    wings_import:import(E3DFile, St0);
 	{error,Reason} ->
-	    wings_util:error(Reason)
+	    wings_u:error(Reason)
     end.
 
 %% import_filename([Prop], Continuation).

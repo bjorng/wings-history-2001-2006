@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.130 2004/12/16 20:05:12 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.131 2004/12/18 19:36:20 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -977,7 +977,7 @@ handle_key_event(#keyboard{}=Ev, Cmd, Mi) ->
 	    C = wings_util:stringify(OtherCmd),
 	    Q = ?__(1,"This key is already bound to the ") ++ C ++
 		?__(2," command. Do you want to re-define it?"),
-	    wings_util:yes_no(Q, fun() -> do_bind(Win, Ev, Cmd, Mi) end)
+	    wings_u:yes_no(Q, fun() -> do_bind(Win, Ev, Cmd, Mi) end)
     end,
     pop;
 handle_key_event(_, _, _) -> keep.

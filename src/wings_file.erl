@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.155 2004/12/18 10:24:06 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.156 2004/12/18 19:36:20 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -44,11 +44,11 @@ export_filename(Prop0, #st{file=File}, Cont) ->
 import_filename(Ps0, Cont) ->
     This = wings_wm:this(),
     Dir = wings_pref:get_value(current_directory),
-    Ps = Ps0 ++ [{title,?__(2,"Import")},{directory,Dir}],
+    Ps = Ps0 ++ [{title,?__(1,"Import")},{directory,Dir}],
     Fun = fun(Name) ->
 		  case catch Cont(Name) of
 		      {command_error,Error} ->
-			  wings_util:message(Error);
+			  wings_u:message(Error);
 		      #st{}=St ->
 			  wings_wm:send(This, {new_state,St});
 		      Tuple when is_tuple(Tuple) ->
@@ -68,7 +68,7 @@ export_filename(Prop0, Cont) ->
     Fun = fun(Name) ->
 		  case catch Cont(Name) of
 		      {command_error,Error} ->
-			  wings_util:message(Error);
+			  wings_u:message(Error);
 		      #st{}=St ->
 			  wings_wm:send(This, {new_state,St});
 		      Tuple when is_tuple(Tuple) ->
@@ -164,7 +164,7 @@ command(save_incr, St) ->
 command(revert, St0) ->
     case revert(St0) of
 	{error,Reason} ->
-	    wings_util:error(?__(1,"Revert failed: ") ++ Reason),
+	    wings_u:error(?__(1,"Revert failed: ") ++ Reason),
 	    St0;
 	#st{}=St -> {save_state,St}
     end;
@@ -195,9 +195,9 @@ command({install_plugin,Filename}, _St) ->
 command(quit, #st{saved=true}) ->
     quit;
 command(quit, _) ->
-    wings_util:yes_no_cancel(?__(4,"Do you want to save your changes before quitting?"),
-			     fun() -> {file,{save,{file,quit}}} end,
-			     fun() -> {file,confirmed_quit} end);
+    wings_u:yes_no_cancel(?__(4,"Do you want to save your changes before quitting?"),
+			  fun() -> {file,{save,{file,quit}}} end,
+			  fun() -> {file,confirmed_quit} end);
 command(confirmed_quit, _) ->
     quit;
 command(Key, St) when is_integer(Key), 1 =< Key ->
@@ -209,7 +209,7 @@ command(Key, St) when is_integer(Key), 1 =< Key ->
 	false ->
 	    Recent = delete_nth(Recent0, Key),
 	    wings_pref:set_value(recent_files, Recent),
-	    wings_util:error(?__(5,"This file has been moved or deleted."))
+	    wings_u:error(?__(5,"This file has been moved or deleted."))
     end.
 
 delete_nth([_|T], 1) -> T;
@@ -224,22 +224,22 @@ confirmed_new(#st{file=File}=St) ->
 new(#st{saved=true}=St0) ->
     St1 = clean_st(St0#st{file=undefined}),
     St = clean_images(wings_undo:init(St1)),
-    wings:caption(St),
+    wings_u:caption(St),
     {new,St#st{saved=true}};
 new(St0) ->			     %File is not saved or autosaved.
-    wings:caption(St0#st{saved=false}), 
-    wings_util:yes_no_cancel(str_save_changes(),
-			     fun() -> {file,{save,{file,new}}} end,
-			     fun() -> {file,confirmed_new} end).
+    wings_u:caption(St0#st{saved=false}), 
+    wings_u:yes_no_cancel(str_save_changes(),
+			  fun() -> {file,{save,{file,new}}} end,
+			  fun() -> {file,confirmed_new} end).
 
 open(#st{saved=true}) ->
     confirmed_open_dialog();
 open(St) ->
-    wings:caption(St#st{saved=false}),		%Clear any autosave flag.
+    wings_u:caption(St#st{saved=false}),		%Clear any autosave flag.
     Confirmed = {file,confirmed_open_dialog},
-    wings_util:yes_no_cancel(str_save_changes(),
-			     fun() -> {file,{save,Confirmed}} end,
-			     fun() -> Confirmed end).
+    wings_u:yes_no_cancel(str_save_changes(),
+			  fun() -> {file,{save,Confirmed}} end,
+			  fun() -> Confirmed end).
 
 confirmed_open_dialog() ->
     %% All confirmation questions asked. The former contents has either
@@ -264,10 +264,10 @@ confirmed_open(Name, St0) ->
 			  set_cwd(dirname(File)),
 			  St = clean_images(St3),
 			  add_recent(Name),
-			  wings:caption(St#st{saved=true,file=Name});
+			  wings_u:caption(St#st{saved=true,file=Name});
 		      {error,Reason} ->
 			  clean_new_images(St2),
-			  wings_util:error(?__(1,"Read failed: ") ++ Reason)
+			  wings_u:error(?__(1,"Read failed: ") ++ Reason)
 		  end
 	  end,
     use_autosave(Name, Fun).
@@ -275,11 +275,11 @@ confirmed_open(Name, St0) ->
 named_open(Name, #st{saved=true}=St) ->
     confirmed_open(Name, St);
 named_open(Name, St) ->
-    wings:caption(St#st{saved=false}),		%Clear any autosave flag.
+    wings_u:caption(St#st{saved=false}),		%Clear any autosave flag.
     Confirmed = {file,{confirmed_open,Name}},
-    wings_util:yes_no_cancel(str_save_changes(),
-			     fun() -> {file,{save,Confirmed}} end,
-			     fun() -> Confirmed end).
+    wings_u:yes_no_cancel(str_save_changes(),
+			  fun() -> {file,{save,Confirmed}} end,
+			  fun() -> Confirmed end).
 
 str_save_changes() ->
     ?__(1,"Do you want to save your changes?").
@@ -299,7 +299,7 @@ merge(Name, St0) ->
 		  case ?SLOW(wings_ff_wings:import(File, St0)) of
 		      {error,Reason} ->
 			  clean_new_images(St1),
-			  wings_util:error(?__(2,"Read failed: ") ++ Reason);
+			  wings_u:error(?__(2,"Read failed: ") ++ Reason);
 		      #st{}=St ->
 			  set_cwd(dirname(Name)),
 			  St#st{saved=false}
@@ -331,16 +331,16 @@ save_now(Next, #st{file=Name}=St) ->
 	    set_cwd(dirname(Name)),
 	    add_recent(Name),
 	    maybe_send_action(Next),
-	    {saved,wings:caption(St#st{saved=true})};
+	    {saved,wings_u:caption(St#st{saved=true})};
 	{error,Reason} ->
-	    wings_util:error(?__(1,"Save failed: ") ++ Reason)
+	    wings_u:error(?__(1,"Save failed: ") ++ Reason)
     end.
 
 maybe_send_action(ignore) -> keep;
 maybe_send_action(Action) -> wings_wm:later({action,Action}).
     
 save_selected(#st{sel=[]}) ->
-    wings_util:error(?__(1,"This command requires a selection."));
+    wings_u:error(?__(1,"This command requires a selection."));
 save_selected(St) ->
     Ps = [{title,?__(2,"Save Selected")}|wings_prop()],
     Cont = fun(Name) -> {file,{save_selected,Name}} end,
@@ -352,7 +352,7 @@ save_selected(Name, #st{shapes=Shs0,sel=Sel}=St0) ->
     St = St0#st{shapes=gb_trees:from_orddict(Shs)},
     case ?SLOW(wings_ff_wings:export(Name, St)) of
 	ok -> keep;
-	{error,Reason} -> wings_util:error(Reason)
+	{error,Reason} -> wings_u:error(Reason)
     end.
 
 %%%
@@ -419,8 +419,8 @@ use_autosave_1(#file_info{mtime=SaveTime0}, File, Body) ->
 	    if
 		AutoTime > SaveTime ->
 		    Msg = ?__(1,"An autosaved file with a later time stamp exists; do you want to load the autosaved file instead?"),
-		    wings_util:yes_no(Msg, autosave_fun(Body, Auto),
-				      autosave_fun(Body, File));
+		    wings_u:yes_no(Msg, autosave_fun(Body, Auto),
+				   autosave_fun(Body, File));
 		true ->
 		    Body(File)
 	    end;
@@ -479,11 +479,11 @@ autosave(#st{file=Name}=St) ->
     %% But I don't want to copy a really big model either.
     case ?SLOW(wings_ff_wings:export(Auto, St)) of
 	ok ->
-	    wings:caption(St#st{saved=auto});
+	    wings_u:caption(St#st{saved=auto});
 	{error,Reason} ->
 	    F = ?__(1,"Autosaving \"~s\" failed: ~s"),
 	    Msg = lists:flatten(io_lib:format(F, [Auto,Reason])),
-	    wings_util:message(Msg)
+	    wings_u:message(Msg)
     end.
 
 autosave_filename(File) ->
@@ -556,7 +556,7 @@ import_ndo(Name, St0) ->
 	#st{}=St ->
 	    {save_state,St};
 	{error,Reason} ->
-	    wings_util:error(?__(1,"Import failed: ") ++ Reason),
+	    wings_u:error(?__(1,"Import failed: ") ++ Reason),
 	    St0
     end.
 
@@ -570,7 +570,7 @@ import_image(Name) ->
 	Im when is_integer(Im) ->
 	    keep;
 	{error,Error} ->
-	    wings_util:error(?__(1,"Failed to load \"~s\": ~s\n"),
+	    wings_u:error(?__(1,"Failed to load \"~s\": ~s\n"),
 			     [Name,file:format_error(Error)])
     end.
 
@@ -586,7 +586,7 @@ export_ndo(Cmd, Title, St) ->
 do_export_ndo(Name, St) ->
     case wings_ff_ndo:export(Name, St) of
 	ok -> keep;
-	{error,Reason} -> wings_util:error(Reason)
+	{error,Reason} -> wings_u:error(Reason)
     end.
 
 %%%
@@ -610,7 +610,7 @@ install_plugin() ->
 clean_st(St) ->
     foreach(fun(Win) ->
 		    wings_wm:set_prop(Win, wireframed_objects, gb_sets:empty())
-	    end, wings_util:geom_windows()),
+	    end, wings_u:geom_windows()),
     DefMat = wings_material:default(),
     Empty = gb_trees:empty(),
     Limit = wings_image:next_id(),

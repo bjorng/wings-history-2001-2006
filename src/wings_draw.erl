@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.207 2004/12/16 16:20:32 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.208 2004/12/18 19:36:03 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -273,7 +273,7 @@ more_need([], _, Acc) ->
 
 wins_of_same_class() ->
     case wings_wm:get_prop(display_lists) of
-	geom_display_lists -> wings_util:geom_windows();
+	geom_display_lists -> wings_u:geom_windows();
 	_ -> [wings_wm:this()]
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.10 2004/12/16 20:04:50 bjorng Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.11 2004/12/18 19:36:02 bjorng Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -47,7 +47,7 @@ menu(_, Menu) -> Menu.
 command({tools,connect}, St0) ->
     wings:mode_restriction([vertex,edge]), %% ,face
     Active = wings_wm:this(),
-    wings_wm:callback(fun() -> wings_util:menu_restriction(Active, [view]) end),
+    wings_wm:callback(fun() -> wings_u:menu_restriction(Active, [view]) end),
     St = wings_undo:init(St0#st{selmode=edge,sel=[],sh=true}),
     wings_draw:refresh_dlists(St),
     C = #cs{ost=St0, st=St},
@@ -325,7 +325,7 @@ calc_edgepos(X,Y0,Edge,MM,#we{id=Id,es=Es,vp=Vs}) ->
     #edge{vs=V1,ve=V2,lf=F1,rf=F2} = gb_trees:get(Edge, Es),
     Pos1 = gb_trees:get(V1, Vs),
     Pos2 = gb_trees:get(V2, Vs),
-    Matrices = wings_util:get_matrices(Id, MM),
+    Matrices = wings_u:get_matrices(Id, MM),
     V1Sp = setelement(3,obj_to_screen(Matrices, Pos1),0.0),
     V2Sp = setelement(3,obj_to_screen(Matrices, Pos2),0.0),
     V1Dist  = e3d_vec:dist(V1Sp,{float(X),float(Y),0.0}),
@@ -385,7 +385,7 @@ draw_connect(#cs{v=[#vi{pos=Pos0,mm=MM}],we=Id}) ->
     {W,H} = wings_wm:win_size(),
     {_,X,Y0} = wings_wm:local_mouse_state(),
     Y = H-Y0,
-    Matrices = wings_util:get_matrices(Id, MM),
+    Matrices = wings_u:get_matrices(Id, MM),
     Pos = setelement(3, obj_to_screen(Matrices, Pos0), 0.0),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:disable(?GL_LIGHTING),
@@ -408,7 +408,7 @@ slide(#cs{st=St=#st{shapes=Sh},we=Shape,v=[#vi{id=Id1,mm=MM}|_]},S,E) ->
     Start0 = gb_trees:get(S, Vtab),
     End0   = gb_trees:get(E, Vtab),
     Curr  = gb_trees:get(Id1, Vtab),
-    Matrices = wings_util:get_matrices(Shape, MM),
+    Matrices = wings_u:get_matrices(Shape, MM),
     P0 = {P0x,P0y,_} = obj_to_screen(Matrices, Start0),
     P1 = {P1x,P1y,_} = obj_to_screen(Matrices, End0),
     %% Decide what's up and down.

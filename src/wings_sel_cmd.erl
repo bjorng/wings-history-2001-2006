@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.54 2004/11/16 12:37:49 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.55 2004/12/18 19:36:22 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -23,59 +23,59 @@
 		keydelete/3,keymember/3,keysearch/3]).
 
 menu(St) ->
-    [{?STR(menu,1,"Deselect"),deselect,?STR(menu,2,"Clear the selection")},
+    [{?__(1,"Deselect"),deselect,?__(2,"Clear the selection")},
      separator,
-     {?STR(menu,3,"More"),more,more_help(St)},
-     {?STR(menu,4,"Less"),less,less_help(St)},
-     {?STR(menu,5,"Similar"),similar,similar_help(St)},
+     {?__(3,"More"),more,more_help(St)},
+     {?__(4,"Less"),less,less_help(St)},
+     {?__(5,"Similar"),similar,similar_help(St)},
      separator,
-     {?STR(menu,6,"Edge Loop"),
+     {?__(6,"Edge Loop"),
       {edge_loop,
-       [{?STR(menu,7,"Edge Loop"),
-	 edge_loop,?STR(menu,8,"Expand edge selection to loop; ")++
-	 ?STR(menu,9,"convert face selection to selected border edges")},
-	{?STR(menu,10,"Edge Loop to Region"),edge_loop_to_region,
-	 ?STR(menu,11,"Select all faces on one side of an edge loop")},
-	{?STR(menu,12,"Edge Ring"),
-	 edge_ring,?STR(menu,13,"Expand edge selection to ring")},
+       [{?__(7,"Edge Loop"),
+	 edge_loop,?__(8,"Expand edge selection to loop; ")++
+	 ?__(9,"convert face selection to selected border edges")},
+	{?__(10,"Edge Loop to Region"),edge_loop_to_region,
+	 ?__(11,"Select all faces on one side of an edge loop")},
+	{?__(12,"Edge Ring"),
+	 edge_ring,?__(13,"Expand edge selection to ring")},
 	separator,
-	{?STR(menu,14,"Previous Edge Loop"),
-	 prev_edge_loop,?STR(menu,15,"Select the previous edge loop")},
-	{?STR(menu,16,"Next Edge Loop"),
-	 next_edge_loop,?STR(menu,17,"Select the next edge loop")},
+	{?__(14,"Previous Edge Loop"),
+	 prev_edge_loop,?__(15,"Select the previous edge loop")},
+	{?__(16,"Next Edge Loop"),
+	 next_edge_loop,?__(17,"Select the next edge loop")},
 	separator,
-	{?STR(menu,18,"Grow Edge Loop"),edge_link_incr,
-	 ?STR(menu,19,"Grow edge selection by one edge in loop directions")},
-	{?STR(menu,20,"Shrink Edge Loop"),edge_link_decr,
-	 ?STR(menu,21,"Shrink edge selection by one in loop direction")},
-	{?STR(menu,22,"Grow Edge Ring"),edge_ring_incr,
-	 ?STR(menu,23,"Grow edge selection by one edge in ring direction")},
-	{?STR(menu,24,"Shrink Edge Ring"),edge_ring_decr,
-	 ?STR(menu,25,"Shrink edge selection by one edge in ring directions")}]}},
+	{?__(18,"Grow Edge Loop"),edge_link_incr,
+	 ?__(19,"Grow edge selection by one edge in loop directions")},
+	{?__(20,"Shrink Edge Loop"),edge_link_decr,
+	 ?__(21,"Shrink edge selection by one in loop direction")},
+	{?__(22,"Grow Edge Ring"),edge_ring_incr,
+	 ?__(23,"Grow edge selection by one edge in ring direction")},
+	{?__(24,"Shrink Edge Ring"),edge_ring_decr,
+	 ?__(25,"Shrink edge selection by one edge in ring directions")}]}},
      separator,
-     {?STR(menu,26,"Adjacent"),
-      {adjacent,[{?STR(menu,27,"Vertices"),vertex},
-		 {?STR(menu,28,"Edges"),edge},
-		 {?STR(menu,29,"Faces"),face},
-		 {?STR(menu,30,"Objects"),body}]}},
-     {?STR(menu,31,"By"),
-      {by,[{?STR(menu,32,"Hard Edges"),
-	    hard_edges,?STR(menu,33,"Select all hard edges")},
-	   {?STR(menu,34,"Isolated Vertices"),
-	    isolated_vertices,?STR(menu,35,"Select all isolated vertices")},
-	   {?STR(menu,36,"Vertices With"),
+     {?__(26,"Adjacent"),
+      {adjacent,[{?__(27,"Vertices"),vertex},
+		 {?__(28,"Edges"),edge},
+		 {?__(29,"Faces"),face},
+		 {?__(30,"Objects"),body}]}},
+     {?__(31,"By"),
+      {by,[{?__(32,"Hard Edges"),
+	    hard_edges,?__(33,"Select all hard edges")},
+	   {?__(34,"Isolated Vertices"),
+	    isolated_vertices,?__(35,"Select all isolated vertices")},
+	   {?__(36,"Vertices With"),
 	    {vertices_with,
-	     [{?STR(menu,37,"2 Edges"),2},
-	      {?STR(menu,38,"3 Edges"),3},
-	      {?STR(menu,39,"4 Edges"),4},
-	      {?STR(menu,40,"5 Edges"),5}]}},
-	   {?STR(menu,41,"Faces With"),
+	     [{?__(37,"2 Edges"),2},
+	      {?__(38,"3 Edges"),3},
+	      {?__(39,"4 Edges"),4},
+	      {?__(40,"5 Edges"),5}]}},
+	   {?__(41,"Faces With"),
 	    {faces_with,
-	     [{?STR(menu,42,"2 Edges"),2},
-	      {?STR(menu,43,"3 Edges"),3},
-	      {?STR(menu,44,"4 Edges"),4},
-	      {?STR(menu,45,"5 or More"),5}]}},
-	   {?STR(menu,46,"Random"),
+	     [{?__(42,"2 Edges"),2},
+	      {?__(43,"3 Edges"),3},
+	      {?__(44,"4 Edges"),4},
+	      {?__(45,"5 or More"),5}]}},
+	   {?__(46,"Random"),
 	    {random,[{"10%",10},
 		     {"20%",20},
 		     {"30%",30},
@@ -85,72 +85,72 @@ menu(St) ->
 		     {"70%",70},
 		     {"80%",80},
 		     {"90%",90}]}},
-	   {?STR(menu,56,"Short Edges"),
-	    short_edges,?STR(menu,57,"Select (too) short edges"),[option]},
-	   {?STR(menu,58,"Material Edges"),material_edges,
-	    ?STR(menu,59,"Select all edges between different materials")},
-	   {?STR(menu,60,"UV-Mapped Faces"),uv_mapped_faces,
-	    ?STR(menu,61,"Select all edges that have UV coordinates")},
-	   {?STR(menu,62,"Id..."),id,?STR(menu,63,"Select by numeric id")}]}},
-     {?STR(menu,64,"Lights"),lights,?STR(menu,65,"Select all lights")},
+	   {?__(56,"Short Edges"),
+	    short_edges,?__(57,"Select (too) short edges"),[option]},
+	   {?__(58,"Material Edges"),material_edges,
+	    ?__(59,"Select all edges between different materials")},
+	   {?__(60,"UV-Mapped Faces"),uv_mapped_faces,
+	    ?__(61,"Select all edges that have UV coordinates")},
+	   {?__(62,"Id..."),id,?__(63,"Select by numeric id")}]}},
+     {?__(64,"Lights"),lights,?__(65,"Select all lights")},
      separator,
-     {sel_all_str(St),all,?STR(menu,66,"Select all elements")},
+     {sel_all_str(St),all,?__(66,"Select all elements")},
      separator,
-     {?STR(menu,67,"Inverse"),inverse,?STR(menu,68,"Invert the selection")},
+     {?__(67,"Inverse"),inverse,?__(68,"Invert the selection")},
      separator,
-     {?STR(menu,69,"Hide Selected"),
+     {?__(69,"Hide Selected"),
       hide_selected,
-      ?STR(menu,70,"Hide all (partly or wholly) selected objects")},
-     {?STR(menu,71,"Hide Unselected"),
-      hide_unselected,?STR(menu,72,"Hide objects that have no selection")},
-     {?STR(menu,73,"Lock Unselected"),
-      lock_unselected,?STR(menu,74,"Lock objects that have no selection")},
+      ?__(70,"Hide all (partly or wholly) selected objects")},
+     {?__(71,"Hide Unselected"),
+      hide_unselected,?__(72,"Hide objects that have no selection")},
+     {?__(73,"Lock Unselected"),
+      lock_unselected,?__(74,"Lock objects that have no selection")},
      separator,
-     {?STR(menu,75,"Show All"),
-      show_all,?STR(menu,76,"Show all objects that have been hidden")},
-     {?STR(menu,77,"Unlock All"),
-      unlock_all,?STR(menu,78,"Unlock all locked objects")},
+     {?__(75,"Show All"),
+      show_all,?__(76,"Show all objects that have been hidden")},
+     {?__(77,"Unlock All"),
+      unlock_all,?__(78,"Unlock all locked objects")},
      separator,
-     {?STR(menu,79,"Store Selection"),store_selection,
-      ?STR(menu,80,"Store the selection into the selection group named \"StoredSelection\"")},
-     {?STR(menu,81,"Recall Selection"),recall_selection,
-      ?STR(menu,82,"Recall the selection from the selection group named \"StoredSelection\"")},
+     {?__(79,"Store Selection"),store_selection,
+      ?__(80,"Store the selection into the selection group named \"StoredSelection\"")},
+     {?__(81,"Recall Selection"),recall_selection,
+      ?__(82,"Recall the selection from the selection group named \"StoredSelection\"")},
      separator,
-     {?STR(menu,83,"New Group..."),new_group,?STR(menu,84,"Create a new selection group")}|groups_menu(St)].
+     {?__(83,"New Group..."),new_group,?__(84,"Create a new selection group")}|groups_menu(St)].
 
-sel_all_str(#st{selmode=vertex}) -> ?STR(sel_all_str,1,"All Vertices");
-sel_all_str(#st{selmode=edge}) -> ?STR(sel_all_str,2,"All Edges");
-sel_all_str(#st{selmode=face}) -> ?STR(sel_all_str,3,"All Faces");
-sel_all_str(#st{selmode=body}) -> ?STR(sel_all_str,4,"All Objects").
+sel_all_str(#st{selmode=vertex}) -> ?__(1,"All Vertices");
+sel_all_str(#st{selmode=edge}) -> ?__(2,"All Edges");
+sel_all_str(#st{selmode=face}) -> ?__(3,"All Faces");
+sel_all_str(#st{selmode=body}) -> ?__(4,"All Objects").
 
 groups_menu(#st{ssels=Ssels}=St) -> 
     case gb_trees:is_empty(Ssels) of
         true -> [];
         false ->
-	    [{?STR(groups_menu,1,"Delete Group"),
+	    [{?__(1,"Delete Group"),
 	      {delete_group,
-	       groups_and_help(?STR(groups_menu,2,"Delete group \""), "\"", St)}},
+	       groups_and_help(?__(2,"Delete group \""), "\"", St)}},
 	     separator,
-	     {?STR(groups_menu,4,"Add to Group"),
+	     {?__(4,"Add to Group"),
 	      {add_to_group, 
-	       groups_and_help(?STR(groups_menu,5,"Add current selection to group \""),"\"", St)}},
-	     {?STR(groups_menu,7,"Subtract from Group"),
+	       groups_and_help(?__(5,"Add current selection to group \""),"\"", St)}},
+	     {?__(7,"Subtract from Group"),
 	      {subtract_from_group,
-	       groups_and_help(?STR(groups_menu,8,"Subtract current selection from group \""),"\"", St)}},
+	       groups_and_help(?__(8,"Subtract current selection from group \""),"\"", St)}},
 	     separator,
-	     {?STR(groups_menu,10,"Select Group"),
+	     {?__(10,"Select Group"),
 	      {select_group, 
-	       groups_and_help(?STR(groups_menu,11,"Select group \""), "\"", St)}},
+	       groups_and_help(?__(11,"Select group \""), "\"", St)}},
 	     separator,
-	     {?STR(groups_menu,13,"Union Group"),
+	     {?__(13,"Union Group"),
 	      {union_group, 
-	       groups_and_help(?STR(groups_menu,14,"Union group \""),?STR(groups_menu,15,"\" with current selection"), St)}},
-	     {?STR(groups_menu,16,"Subtract Group"),
+	       groups_and_help(?__(14,"Union group \""),?__(15,"\" with current selection"), St)}},
+	     {?__(16,"Subtract Group"),
 	      {subtract_group, 
-	       groups_and_help(?STR(groups_menu,17,"Subtract group \""),?STR(groups_menu,18,"\" from current selection"), St)}},
-	     {?STR(groups_menu,19,"Intersect Group"),
+	       groups_and_help(?__(17,"Subtract group \""),?__(18,"\" from current selection"), St)}},
+	     {?__(19,"Intersect Group"),
 	      {intersect_group, 
-	       groups_and_help(?STR(groups_menu,20,"Intersect group \""),?STR(groups_menu,21,"\" with current selection"), St)}}]
+	       groups_and_help(?__(20,"Intersect group \""),?__(21,"\" with current selection"), St)}}]
     end.
       
 groups_and_help(Help0, Help1, #st{ssels=Ssels}) ->
@@ -162,35 +162,35 @@ groups_and_help(Help0, Help1, #st{ssels=Ssels}) ->
 	end,
 	gb_trees:keys(Ssels)).
 
-group_title(Name, vertex) -> ?STR(group_title,1,"vertex: ")++Name;
-group_title(Name, edge) -> ?STR(group_title,2,"edge: ")++Name;
-group_title(Name, face) -> ?STR(group_title,3,"face: ")++Name;
-group_title(Name, body) -> ?STR(group_title,4,"body: ")++Name.
+group_title(Name, vertex) -> ?__(1,"vertex: ")++Name;
+group_title(Name, edge) -> ?__(2,"edge: ")++Name;
+group_title(Name, face) -> ?__(3,"face: ")++Name;
+group_title(Name, body) -> ?__(4,"body: ")++Name.
 
 more_help(#st{selmode=vertex}) ->
-    ?STR(more_help,1,"Select all vertices adjacent to a selected vertex");
+    ?__(1,"Select all vertices adjacent to a selected vertex");
 more_help(#st{selmode=edge}) ->
-     ?STR(more_help,2,"Select all edges adjacent to a selected edge");
+     ?__(2,"Select all edges adjacent to a selected edge");
 more_help(#st{selmode=face}) ->
-     ?STR(more_help,3,"Select all faces sharing a vertex with a selected face");
+     ?__(3,"Select all faces sharing a vertex with a selected face");
 more_help(_) -> "".
 
 less_help(#st{selmode=vertex}) ->
-     ?STR(less_help,1,"Deselect all vertices adjacent to an unselected vertex");
+     ?__(1,"Deselect all vertices adjacent to an unselected vertex");
 less_help(#st{selmode=edge}) ->
-    ?STR(less_help,2,"Deselect all edges adjacent to an unselected edge");
+    ?__(2,"Deselect all edges adjacent to an unselected edge");
 less_help(#st{selmode=face}) ->
-    ?STR(less_help,3,"Deselect all faces sharing a vertex with an unselected face");
+    ?__(3,"Deselect all faces sharing a vertex with an unselected face");
 less_help(_) -> "".
 
 similar_help(#st{selmode=vertex}) ->
-    ?STR(similar_help,1,"Select vertices similar to the already selected vertices");
+    ?__(1,"Select vertices similar to the already selected vertices");
 similar_help(#st{selmode=edge}) ->
-    ?STR(similar_help,2,"Select edges similar to the already selected edges");
+    ?__(2,"Select edges similar to the already selected edges");
 similar_help(#st{selmode=face}) ->
-    ?STR(similar_help,3,"Select faces similar to the already selected faces");
+    ?__(3,"Select faces similar to the already selected faces");
 similar_help(#st{selmode=body}) ->
-    ?STR(similar_help,4,"Select objects with the same number of edges, faces, and vertices");
+    ?__(4,"Select objects with the same number of edges, faces, and vertices");
 similar_help(_) -> [].
     
 command({edge_loop,edge_loop}, #st{selmode=face}=St) ->
@@ -502,8 +502,8 @@ save_group(Key, Sel, #st{ssels=Ssels0}=St) ->
     St#st{ssels=Ssels}.
     
 new_group(_) ->
-    wings_ask:ask(?STR(new_group,1,"Create New Group"),
-		  [{?STR(new_group,2,"Group Name"), ""}],
+    wings_ask:ask(?__(1,"Create New Group"),
+		  [{?__(2,"Group Name"), ""}],
 		  fun([String]) -> {select,{new_group_name,String}} end).
 
 new_group_name(Name, #st{ssels=Ssels0,selmode=Mode,sel=Sel}=St) ->
@@ -511,7 +511,7 @@ new_group_name(Name, #st{ssels=Ssels0,selmode=Mode,sel=Sel}=St) ->
     case gb_trees:is_defined(Key, Ssels0) of
 	false -> ok;
 	true ->
-	    wings_util:error(?STR(new_group_name,1,"~s selection group ~p already exists."),
+	    wings_u:error(?__(1,"~s selection group ~p already exists."),
 			     [wings_util:cap(atom_to_list(Mode)),
 			      Name])
     end,
@@ -665,8 +665,9 @@ random(Percent, #st{selmode=Mode}=St) ->
 %%
 
 short_edges(Ask, _St) when is_atom(Ask) ->
-    Qs = [{label,?STR(short_edges,1,"Length tolerance")},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}],
-	 wings_ask:dialog(Ask, ?STR(short_edges,2,"Select Short Edges"),
+    Qs = [{label,?__(1,"Length tolerance")},
+	  {text,1.0E-3,[{range,{1.0E-5,10.0}}]}],
+    wings_ask:dialog(Ask, ?__(2,"Select Short Edges"),
 		     [{hframe,Qs}],
 		     fun(Res) -> {select,{by,{short_edges,Res}}} end);
 short_edges([Tolerance], St0) ->
@@ -730,14 +731,14 @@ item_by_id(Prompt, #st{sel=[{Id,_}]}) ->
 	end);
 item_by_id(Prompt, #st{shapes=Shs}) ->
     case gb_trees:to_list(Shs) of
-	[] -> wings_util:error(?STR(item_by_id,1,"Nothing to select."));
+	[] -> wings_u:error(?__(1,"Nothing to select."));
 	[{Id,_}] ->
 	    ask([{Prompt,0}],
 		fun([Item]) ->
 			{Prompt,[{Id,gb_sets:singleton(Item)}]}
 		end);
 	[{Id0,_}|_] ->
-	    ask([{?STR(item_by_id,2,"Object Id"),Id0},
+	    ask([{?__(2,"Object Id"),Id0},
 		 {Prompt,0}],
 		fun([Id,Item]) ->
 			{Prompt,[{Id,gb_sets:singleton(Item)}]}
@@ -754,17 +755,19 @@ valid_sel(Prompt, Sel, #st{shapes=Shs,selmode=Mode}=St) ->
 	    [Item] = gb_sets:to_list(Item0),
 	    case gb_trees:is_defined(Id, Shs) of
 		false ->
-		    wings_util:error(?STR(valid_sel,1,"The Object Id ")++
-				     integer_to_list(Id)++?STR(valid_sel,2," is invalid."));
+		    wings_u:error(?__(1,"The Object Id ")++
+				  integer_to_list(Id)++
+				  ?__(2," is invalid."));
 		true ->
-		    wings_util:error(?STR(valid_sel,3,"The ")++Prompt++" "++
-				     integer_to_list(Item)++?STR(valid_sel,4," is invalid."))
+		    wings_u:error(?__(3,"The ")++Prompt++" "++
+				  integer_to_list(Item)++
+				  ?__(4," is invalid."))
 	    end;
 	Sel -> Sel
     end.
     
 ask(Qs, Fun) ->
-    wings_ask:ask(?STR(ask,1,"Select By Id"), Qs,
+    wings_ask:ask(?__(1,"Select By Id"), Qs,
 		  fun(Res) ->
 			  Sel = Fun(Res),
 			  {select,{by,{id,Sel}}}

@@ -8,15 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.48 2004/12/16 20:05:14 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.49 2004/12/18 19:36:22 bjorng Exp $
 %%
 
 {wings,
  [
   {cannot_repeat,
    [{1,"Kan inte repetera"}]},
-  {caption,
-   [{1,"autosparad"}]},
   {crash_handler,
    [{1,"Internt fel - logg skriven till"},
     {2,"Klicka med en musknapp för att fortsätta"},
@@ -134,9 +132,8 @@
     {8,"Nytt geometrifönster"},
     {9,"Öppna ett nytt geomtrifönster"},
     {10,"Konsol"},
-    {11,"Öppna konsolfönster för informationsmeddelanden"},
-    {12,"UV-redigeringsfönster"},
-    {13,"Öppna UV-redigeringsfönster för varje valt objekt"}]}]}.
+    {11,"Öppna konsolfönster för informationsmeddelanden"}
+   ]}]}.
 {wings_ask,
  [
   {button_label,
@@ -543,6 +540,10 @@
    [{1,"Filläsning misslyckades: "}]},
   {confirmed_open_dialog,
    [{1,"Öppna"}]},
+  {export_filename,
+   [{1,"Exportera"}]},
+  {import_filename,
+   [{1,"Importerar"}]},
   {import_image,
    [{1,"Kunde inte läsa \"~s\": ~s\n"}]},
   {import_ndo,
@@ -1226,7 +1227,7 @@
     {2,"Fil \"~s\" innehåller inga insticksmoduler för Wings"}]},
   {plugin_dir,
    [{1,"Ingen \"plugins\"-katalog hittades"}]}]}.
-{wings_pref,
+{wings_pref_dlg,
  [
   {advanced_prefs,
    [{1,"Snabbkommandon"},
@@ -1353,9 +1354,6 @@
     {21,"Pekare"},
     {22,"Konsol"},
     {23,"Språk"}]},
-  {win32_9816,
-   [{1,"Kan inte läsa delnycklar för 'Wings 3D': ~p\n"},
-    {2,"Ingen 'Wings 3D' nyckel (detta är konstigt): ~p\n"}]},
   {workaround_1,
    [{1,"Problem"},
     {2,"Använd problemhantering?"}]}]}.
@@ -1662,6 +1660,13 @@
     {smooth,"jämn skuggning"},
     {flat,"platt skuggning"}]}
  ]}.
+{wings_u,
+ [
+  {caption,
+   [
+    {1,"autosparad"}
+   ]}
+ ]}.
 {wings_vec,
  [
   {add_help_text,
@@ -1949,8 +1954,8 @@
    [{1,"Skifta Y- och Z-axlar"},
     {6,"Utjämningsnivåer"},
     {7,"Filtyp för texturer "}]},
-  {export_filename,
-   [{1,"Exportera"}]},
+  {do_import,
+   [{1,"Läser fil"}]},
   {export_scale_s,
    [{1,"Skalning för export"}]},
   {export_selected,
@@ -1959,8 +1964,5 @@
    [{1,"Internt fel: ~P\n"}]},
   {import,
    [{1,"Importeringen misslyckades: "}]},
-  {import_filename,
-   [{1,"Läser fil"},
-    {2,"Importerar"}]},
   {import_scale_s,
    [{1,"Skalning för import"}]}]}.

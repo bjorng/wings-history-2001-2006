@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.11 2004/12/05 13:37:41 bjorng Exp $
+%%     $Id: wings_lang.erl,v 1.12 2004/12/18 19:36:20 bjorng Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -181,7 +181,7 @@ generate_template([Dir]) ->
     io:format("Writing: ~p\n", [filename:absname(OutFile)]),
     {ok,Out} = file:open(OutFile, [write]),
     io:put_chars(Out, "%% -*- mode:erlang; erlang-indent-level: 2 -*-\n"),
-    try foreach(fun(File) -> scan_file(File, Out) end, reverse(Fs))
+    try foreach(fun(File) -> scan_file(File, Out) end, Fs)
 	after
 	    file:close(Out)
 	end.

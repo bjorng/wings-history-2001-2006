@@ -4,12 +4,12 @@
 %%     Experimental support of plugins.
 %%
 %%  Copyright (c) 2001 Jakob Cederlund, Bjorn Gustavsson
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.32 2004/10/14 08:54:19 dgud Exp $
+%%     $Id: wings_plugin.erl,v 1.33 2004/12/18 19:36:21 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,dialog_result/2,command/2,call_ui/1]).
@@ -76,12 +76,12 @@ dialog_1(Dialog, Ps, [M|Tail]) ->
 	    dialog_1(Dialog, Ps, Tail);
 	{'EXIT',Reason} ->
 	    io:format("~w:dialog/2: crashed: ~P\n", [M,Reason,20]),
-	    wings_util:error("~w:dialog/2: crashed", [M]);
+	    wings_u:error("~w:dialog/2: crashed", [M]);
 	NewPs when is_list(NewPs) ->
 	    dialog_1(Dialog, NewPs, Tail);
 	Other ->
 	    io:format("~w:dialog/2: bad return value: ~P\n", [M,Other,20]),
-	    wings_util:error("~w:dialog/2: bad return value", [M])
+	    wings_u:error("~w:dialog/2: bad return value", [M])
     end;
 dialog_1(_Dialog, Ps, []) -> 
     Ps.
@@ -95,13 +95,13 @@ dialog_result1(Dialog, Ps, [M|Tail]) ->
 	    dialog_result1(Dialog, Ps, Tail);
 	{'EXIT',Reason} ->
 	    io:format("~w:dialog/2: crashed: ~P\n", [M,Reason,20]),
-	    wings_util:error("~w:dialog/2: crashed", [M]);
+	    wings_u:error("~w:dialog/2: crashed", [M]);
 	{Content,NewPs} when is_list(NewPs) ->
 	    dialog_result1(setelement(size(Dialog), Dialog, Content), 
 			   NewPs, Tail);
 	Other ->
 	    io:format("~w:dialog/2: bad return value: ~P\n", [M,Other,20]),
-	    wings_util:error("~w:dialog/2: bad return value", [M])
+	    wings_u:error("~w:dialog/2: bad return value", [M])
     end;
 dialog_result1(Dialog, Ps, []) -> 
     {element(size(Dialog), Dialog),Ps}.
@@ -160,7 +160,7 @@ init_plugin(_, M) ->
     
 def_ui_plugin() ->
     fun(Missing) ->
-	    Msg = io_lib:format(?STR(def_ui_plugin,1,"Reinstall Wings. Missing plugin for ~p."),
+	    Msg = io_lib:format(?__(1,"Reinstall Wings. Missing plugin for ~p."),
 				[Missing]),
 	    wings_wm:message(lists:flatten(Msg)),
 	    aborted
@@ -253,7 +253,7 @@ install(Name) ->
 	tar -> install_tar(Name)
     end,
     init_dir(plugin_dir()),
-    wings_util:message(?STR(install,1,"The plug-in was successfully installed.")).
+    wings_u:message(?__(1,"The plug-in was successfully installed.")).
 
 install_file_type(Name) ->
     case filename:extension(Name) of
@@ -265,8 +265,8 @@ install_file_type(Name) ->
 		".tar" -> tar;
 		".beam" -> beam;
 		_ ->
-		    wings_util:error(?STR(install_file_type,1,"File \"~s\": Unknown file type"),
-				     [filename:basename(Name)])
+		    wings_u:error(?__(1,"File \"~s\": Unknown file type"),
+				  [filename:basename(Name)])
 	    end
     end.
 
@@ -279,12 +279,13 @@ install_beam(Name) ->
 	    case file:copy(Name, Dest) of
 		{ok,_} -> ok;
 		{error,Reason} ->
- 		 wings_util:error(?STR(install_beam,1,"Install of \"~s\" failed: ~p"),
-				     [filename:basename(Name),file:format_error(Reason)])
+ 		 wings_u:error(?__(1,"Install of \"~s\" failed: ~p"),
+			       [filename:basename(Name),
+				file:format_error(Reason)])
 	    end;
 	false ->
-	    wings_util:error(?STR(install_beam,2,"File \"~s\" is not a Wings plug-in module"),
-			     [filename:basename(Name)])
+	    wings_u:error(?__(2,"File \"~s\" is not a Wings plug-in module"),
+			  [filename:basename(Name)])
     end.
 
 install_tar(Name) ->
@@ -293,16 +294,16 @@ install_tar(Name) ->
     erl_tar:extract(Name, [compressed,{cwd,plugin_dir()}]).
 
 install_verify_files(["/"++_|_], Name) ->
-    wings_util:error(?STR(install_verify_files,1,"File \"~s\" contains a file with an absolute path"),
-		     [filename:basename(Name)]);
+    wings_u:error(?__(1,"File \"~s\" contains a file with an absolute path"),
+		  [filename:basename(Name)]);
 install_verify_files([F|Fs], Name) ->
     case is_plugin(F) of
 	false -> install_verify_files(Fs, Name);
 	true -> ok
     end;
 install_verify_files([], Name) ->
-    wings_util:error(?STR(install_verify_files,2,"File \"~s\" does not contain any Wings plug-in modules"),
-		     [filename:basename(Name)]).
+    wings_u:error(?__(2,"File \"~s\" does not contain any Wings plug-in modules"),
+		  [filename:basename(Name)]).
 
 is_plugin(Name) ->
     case filename:basename(Name) of
@@ -312,7 +313,7 @@ is_plugin(Name) ->
 
 plugin_dir() ->
     case try_dir(code:lib_dir(wings), "plugins") of
-	none -> wings_util:error(?STR(plugin_dir,1,"No \"plugins\" directory found"));
+	none -> wings_u:error(?__(1,"No \"plugins\" directory found"));
 	PluginDir -> PluginDir
     end.
     

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.63 2004/12/16 20:05:10 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.64 2004/12/18 19:36:20 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -98,7 +98,7 @@ bevel_faces(Faces, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Limit0}) ->
     {We1,OrigVs,_,Forbidden} = extrude_edges(Edges, Dist, We0#we{mirror=none}),
     case {gb_trees:size(We0#we.es),gb_trees:size(We1#we.es)} of
 	{Same,Same} ->
-	    wings_util:error(?__(1,"Object is too small to bevel."));
+	    wings_u:error(?__(1,"Object is too small to bevel."));
 	{_,_} ->
 	    We2 = wings_edge:dissolve_edges(Edges, We1),
 	    Tv0 = bevel_tv(OrigVs, We2, Forbidden),
@@ -228,7 +228,7 @@ extrude_problem() ->
     M = ?__(1,"Can't extrude/bevel; two or more vertices are "
 	    "probably too near to each other.\n"
 	    "Try the Cleanup command."),
-    wings_util:error(M).
+    wings_u:error(M).
 
 %%
 %% The Extrude command (for edges).

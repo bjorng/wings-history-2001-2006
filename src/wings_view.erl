@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.165 2004/12/16 20:05:15 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.166 2004/12/18 19:36:22 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -363,7 +363,7 @@ virtual_mirror(create, #st{selmode=face}=St0) ->
     St = wings_sel:map(fun virtual_mirror_fun/2, St0),
     {save_state,St#st{sel=[]}};
 virtual_mirror(create, _) ->
-    wings_util:error(?__(1,"Virtual mirror requires a face selection."));
+    wings_u:error(?__(1,"Virtual mirror requires a face selection."));
 virtual_mirror(break, St0) ->
     case break_mirror(St0) of
 	St0 -> St0;
@@ -413,7 +413,7 @@ virtual_mirror_fun(Faces, We) ->
 	[Face] ->
 	    We#we{mirror=Face};
 	_ ->
-	    wings_util:error(?__(1,"Only a single face must be selected per object."))
+	    wings_u:error(?__(1,"Only a single face must be selected per object."))
     end.
 
 break_mirror(#st{shapes=Shs0}=St) ->
@@ -733,7 +733,7 @@ auto_rotate(St) ->
     Delay = wings_pref:get_value(auto_rotate_delay),
     Tim = #tim{delay=Delay,st=St},
     Active = wings_wm:this(),
-    wings_wm:callback(fun() -> wings_util:menu_restriction(Active, []) end),
+    wings_wm:callback(fun() -> wings_u:menu_restriction(Active, []) end),
     {seq,push,set_auto_rotate_timer(Tim)}.
     
 auto_rotate_event(Event, #tim{timer=Timer,st=St}=Tim) ->
@@ -966,7 +966,7 @@ views({save,Ask}, #st{views={CurrentView,Views}}) when is_atom(Ask) ->
     if S > 0 ->
 	    case element(view_index(CurrentView, S), Views) of
 		{View,_} ->
-		    wings_util:message(?__(1,"This view is already the current"));
+		    wings_u:message(?__(1,"This view is already the current"));
 		_ ->
 		    views_save_dialog(Ask, [view_legend(View)])
 	    end;
@@ -974,7 +974,7 @@ views({save,Ask}, #st{views={CurrentView,Views}}) when is_atom(Ask) ->
 	    views_save_dialog(Ask, [view_legend(View)])
     end;
 views(_, #st{views={_,{}}}) ->
-    wings_util:message(?__(2,"No saved views"));
+    wings_u:message(?__(2,"No saved views"));
 views(next, #st{views={CurrentView,Views}}=St) ->
     J = view_index(CurrentView + 1, size(Views)),
     {View,_} = element(J, Views),
@@ -1012,11 +1012,11 @@ views(delete, #st{views={CurrentView,Views}}=St) ->
 	    {L1,[_|L2]} = lists:split(I, tuple_to_list(Views)),
 	    St#st{views={I,list_to_tuple(L1++L2)}};
 	_ ->
-	    wings_util:message(?__(4,"You have to be at the current view"))
+	    wings_u:message(?__(4,"You have to be at the current view"))
     end;
 views(delete_all, St) ->
     This = wings_wm:this(),
-    wings_util:yes_no(
+    wings_u:yes_no(
       ?__(5,"Are you sure you want to delete all saved views?"),
       fun() -> 
 	      wings_wm:send(This, {new_state,delete_all(St)}),
@@ -1043,7 +1043,7 @@ views_jump(J, St, CurrentView, Views) ->
 	    set_current(View),
 	    St#st{views={J,Views}};
 	_ ->
-	    wings_util:message(?__(1,"No such view slot"))
+	    wings_u:message(?__(1,"No such view slot"))
     end.
 
 views_move(J, St, CurrentView, Views) ->
@@ -1064,7 +1064,7 @@ views_move(J, St, CurrentView, Views) ->
 	    set_current(View),
 	    St#st{views={J,list_to_tuple(V1++(V3++[VL|V4]))}};
 	_ ->
-	    wings_util:message(?__(1,"No such view [")++integer_to_list(J)++"]")
+	    wings_u:message(?__(1,"No such view [")++integer_to_list(J)++"]")
     end.
 
 toggle_lights() ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.56 2004/12/18 10:24:06 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.57 2004/12/18 19:36:20 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -318,15 +318,15 @@ delete_image(Id, #ost{st=St}) ->
     Used = wings_material:used_images(St),
     case gb_sets:is_member(Id, Used) of
 	true ->
-	    wings_util:message(?__(1,"The image is used by a material.")),
+	    wings_u:message(?__(1,"The image is used by a material.")),
 	    keep;
 	false ->
-	    wings_util:yes_no(?__(2,"Are you sure you want to delete the image (NOT undoable)?"),
-			      fun() ->
-				      wings_image:delete(Id),
-				      wings_wm:send(geom, need_save),
-				      ignore
-			      end, ignore)
+	    wings_u:yes_no(?__(2,"Are you sure you want to delete the image (NOT undoable)?"),
+			   fun() ->
+				   wings_image:delete(Id),
+				   wings_wm:send(geom, need_save),
+				   ignore
+			   end, ignore)
     end.
 
 copy_of("Copy of "++_=Name) -> Name;
@@ -353,7 +353,7 @@ make_external(Id) ->
 			   keep;
 		       {_,Error0} ->
 			   Error = Name ++ ": " ++ file:format_error(Error0),
-			   wings_util:message(Error)
+			   wings_u:message(Error)
 		   end
 	   end,
     #e3d_image{name=ImageName} = wings_image:info(Id),
@@ -371,7 +371,7 @@ refresh_image(Id) ->
 	    keep;
 	{error,R} ->
 	    Msg = e3d_image:format_error(R),
-	    wings_util:message(?__(1,"Failed to refresh \"") 
+	    wings_u:message(?__(1,"Failed to refresh \"") 
 			       ++ Filename ++ "\": " ++ Msg)
     end.
 
@@ -387,7 +387,7 @@ export_image(Id) ->
 		       ok -> keep;
 		       {_,Error0} ->
 			   Error = Name ++ ": " ++ file:format_error(Error0),
-			   wings_util:message(Error)
+			   wings_u:message(Error)
 		   end
 	   end,
     #e3d_image{name=ImageName} = wings_image:info(Id),

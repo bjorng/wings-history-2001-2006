@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_console.erl,v 1.5 2004/10/08 06:02:28 dgud Exp $
+%%     $Id: wings_console.erl,v 1.6 2004/12/18 19:36:03 bjorng Exp $
 %%
 
 -module(wings_console).
@@ -264,7 +264,7 @@ handle_action({popup,write_file}, _S) ->
 		      ok -> keep;
 		      {error,Reason} ->
 			  Msg = io_lib:format(?STR(handle_action,4,"Write error: ~w"), [Reason]),
-			  wings_util:message(Msg),
+			  wings_u:message(Msg),
 			  keep
 		  end
 	  end,

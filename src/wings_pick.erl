@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.143 2004/12/16 20:05:13 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.144 2004/12/18 19:36:21 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -105,7 +105,7 @@ handle_hilite_event(redraw, #hl{redraw=#st{sel=[]}=St,prev={_,Where,{_,Elem}}}) 
 	       mirror ->
 		   io_lib:format("#~p ~s", 
 				 [Elem,
-				  ?STR(handle_hilite_event,2,"(in mirror)")])
+				  ?__(2,"(in mirror)")])
 	   end,
     wings:redraw(Info, St),
     keep;
@@ -220,9 +220,9 @@ hilit_draw_sel(body, _, #dlo{src_we=We}=D) ->
 clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
     Ctrl = wings_s:key(ctrl),
     Shift = wings_s:key(shift),
-    CtrlMsg = ?STR(clear_hilite_marquee_mode,ctrl_action,"Deselect"),
-    ShiftMsg = ?STR(clear_hilite_marquee_mode,shift_action,
-		    "(De)select only elements wholly inside marquee"),
+    CtrlMsg = ?__(ctrl_action,"Deselect"),
+    ShiftMsg = ?__(shift_action,
+		   "(De)select only elements wholly inside marquee"),
     Mctrl = wings_util:key_format(Ctrl, CtrlMsg),
     Mshift = wings_util:key_format(Shift, ShiftMsg),
     Message = wings_msg:join(Mctrl, Mshift),
@@ -302,7 +302,7 @@ marquee_pick(true, X, Y0, W, H, St0) ->
 	    Hits1 = wings_util:rel2fam(Hits0),
 	    HitsOrig = [Hit || {Id,_}=Hit <- Hits1, Id > 0],
 	    HitsMirror = [Hit || {Id,_}=Hit <- Hits1, Id < 0],
-	    {MM,PM,ViewPort} = wings_util:get_matrices(0, original),
+	    {MM,PM,ViewPort} = wings_u:get_matrices(0, original),
 	    {_,_,_,Wh} = ViewPort,
 	    Y = Wh - Y0,
 	    RectData = {MM,PM,ViewPort,X-W/2,Y-H/2,X+W/2,Y+H/2},
@@ -317,7 +317,7 @@ marquee_convert([{Id,Faces}|Hits], RectData0,
     We = gb_trees:get(abs(Id), Shs),
     RectData = if
 		   Id < 0 ->
-		       {MM,PM,_} = wings_util:get_matrices(-Id, mirror),
+		       {MM,PM,_} = wings_u:get_matrices(-Id, mirror),
 		       RectData1 = setelement(2, RectData0, PM),
 		       setelement(1, RectData1, MM);
 		   true -> RectData0
@@ -613,7 +613,7 @@ convert_hit_1(body, _X, _Y, Id, _Face, MM, _We) ->
 convert_hit_1(face, _X, _Y, Id, Face, MM, _We) ->
     {face,MM,{Id,Face}};
 convert_hit_1({auto,_}, X, Y, Id, Face, MM, We) ->
-    Trans = wings_util:get_matrices(Id, MM),
+    Trans = wings_u:get_matrices(Id, MM),
     Vs = sort(find_vertex(Face, We, X, Y, Trans)),
     [{Vdist0,{Xva,Yva},V},{_,{Xvb,Yvb},_}|_] = Vs,
     Vdist = math:sqrt(Vdist0),
@@ -632,7 +632,7 @@ convert_hit_1({auto,_}, X, Y, Id, Face, MM, We) ->
 	     end,
     check_restriction(Hilite, Id, V, Edge, Face);
 convert_hit_1(Mode, X, Y, Id, Face, MM, We) ->
-    Trans = wings_util:get_matrices(Id, MM),
+    Trans = wings_u:get_matrices(Id, MM),
     case Mode of
 	vertex ->
 	    {_,_,V} = min(find_vertex(Face, We, X, Y, Trans)),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.31 2004/06/11 09:55:42 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.32 2004/12/18 19:35:58 bjorng Exp $
 %%
 
 -module(wpc_test_ask).
@@ -162,7 +162,7 @@ minimal_dialog(_St) ->
 		  ?DISPLAY(Res),
 		  case Res of 
 		      [{a,true}|_] -> 
-			  wings_util:error("Uncheck the checkbox!");
+			  wpa:error("Uncheck the checkbox!");
 		      _ -> ok
 		  end, ignore
 	  end,

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.51 2004/10/08 06:02:30 dgud Exp $
+%%     $Id: wings_scale.erl,v 1.52 2004/12/18 19:36:22 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -128,7 +128,7 @@ inset_face(Face, #we{vp=Vtab}=We, Acc) ->
 	      ToCenter = e3d_vec:sub(Center, Pos),
 	      case catch e3d_vec:dot(Dir, ToCenter) / DirSqr of
 		  {'EXIT',_} ->
-		  wings_util:error(?STR(inset_face,1,"There are too short edges in one or more selected faces. (Use Cleanup.)"));
+		      wings_u:error(?__(1,"There are too short edges in one or more selected faces. (Use Cleanup.)"));
 		  T0 ->
 		      PerpPos = e3d_vec:add_prod(Pos, Dir, T0),
 		      Vec = e3d_vec:sub(Center, PerpPos),
@@ -191,7 +191,7 @@ edges_to_vertices(Vec, center, Magnet, Edges0, We, Acc) ->
 	[Edges] ->
 	    edges_to_vertices_1(Vec, center, Magnet, Edges, We, Acc);
 	_Other ->
-	    wings_util:error(?STR(edges_to_vertices,1,"Magnet scale on multiple edge regions requires an explicit scale origin."))
+	    wings_u:error(?__(1,"Magnet scale on multiple edge regions requires an explicit scale origin."))
     end;
 edges_to_vertices(Vec, Point, Magnet, Edges, We, Acc) ->
     edges_to_vertices_1(Vec, Point, Magnet, Edges, We, Acc).
@@ -213,7 +213,7 @@ faces_to_vertices(Vec, center, Magnet, Faces0, We, Acc) ->
 	[Faces] ->
 	    faces_to_vertices_1(Vec, center, Magnet, Faces, We, Acc);
 	_Other ->
-	    wings_util:error(?STR(faces_to_vertices,1,"Magnet scale on multiple face regions requires an explicit scale origin."))
+	    wings_u:error(?__(1,"Magnet scale on multiple face regions requires an explicit scale origin."))
     end;
 faces_to_vertices(Vec, Point, Magnet, Faces, We, Acc) ->
     faces_to_vertices_1(Vec, Point, Magnet, Faces, We, Acc).

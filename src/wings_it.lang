@@ -8,15 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.31 2004/12/16 20:05:12 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.32 2004/12/18 19:36:20 bjorng Exp $
 %%
 
 {wings,
  [
   {cannot_repeat,
    [{1,"Impossibile ripetere"}]},
-  {caption,
-   [{1,"salvataggio-automatico"}]},
   {crash_handler,
    [{1,"Errore interno - registro scritto in"},
     {2,"Premi un pulsante del mouse per continuare a lavorare"},
@@ -134,9 +132,7 @@
     {8,"Nuova finestra delle geometrie"},
     {9,"Apre una nuova finestra delle geometrie"},
     {10,"Terminale"},
-    {11,"Apre una finestra di terminale per i messaggi di informazione"},
-    {12,"Finestra di modifica UV"},
-    {13,"Apre una finestra di modifica UV per ogni oggetto"}]}
+    {11,"Apre una finestra di terminale per i messaggi di informazione"}]}
   ]}.
 
 {wings_ask,
@@ -515,6 +511,10 @@
    [{1,"Lettura fallita: "}]},
   {confirmed_open_dialog,
    [{1,"Apri"}]},
+  {export_filename,
+   [{1,"Esporta"}]},
+  {import_filename,
+   [{1,"Importa"}]},
   {import_image,
    [{1,"Apertura di \"~s\" fallita: ~s\n"}]},
   {import_ndo,
@@ -1143,7 +1143,7 @@
     {2,"Il documento \"~s\" non contiene alcun modulo di Wings"}]},
   {plugin_dir,
    [{1,"Nessuna cartella \"plugins\" trovata"}]}]}.
-{wings_pref,
+{wings_pref_dlg,
  [{advanced_prefs,
    [{1,"Comandi predefiniti"},
     {2,"Permette la definizione di comandi che possono essere invocati con Ctrl+L o Ctrl+M"},
@@ -1267,9 +1267,6 @@
     {21,"Cursore"},
     {22,"Terminale"},
     {23,"Lingua interfaccia"}]},
-  {win32_9816,
-   [{1,"Non posso leggere le sottochiavi per 'Wings3D': ~p\n"},
-    {2,"Nessuna chiave 'Wings 3D' (questo e' STRANO): ~p\n"}]},
   {workaround_1,
    [{1,"Problema"},
     {2,"Raffazzono?"}]}]}.
@@ -1545,6 +1542,13 @@
     {smooth,"arrotondata ombreggiatura"},
     {flat,"piana ombreggiatura"}]}
  ]}.
+{wings_u,
+ [
+  {caption,
+   [
+    {1,"salvataggio-automatico"}
+   ]}
+ ]}.
 {wings_vec,
  [{add_help_text,
    [{1,"Scegli un asse (ed un punto)"},
@@ -1815,8 +1819,6 @@
    [{1,"Scambia asse X con asse Y"},
     {6,"Gradi di suddivisione"},
     {7,"Tipo di documento predefinito per le tessiture"}]},
-  {export_filename,
-   [{1,"Esporta"}]},
   {export_scale_s,
    [{1,"Scala di importazione"}]},
   {export_selected,
@@ -1825,8 +1827,5 @@
    [{1,"Errore interno: ~P\n"}]},
   {import,
    [{1,"Importazione fallita: "}]},
-  {import_filename,
-   [{2,"Importa"}]},
   {import_scale_s,
    [{1,"Scala di importazione"}]}]}.
-

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.111 2004/12/16 20:05:10 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.112 2004/12/18 19:36:20 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -257,7 +257,7 @@ dissolve(Faces, #we{id=Id}=We0, Acc) ->
 	    Sel = wings_we:new_items(face, We0, We),
 	    {We,[{Id,Sel}|Acc]};
 	false ->
-	    wings_util:error(?__(1,"Dissolving would cause an inconsistent object structure."))
+	    wings_u:error(?__(1,"Dissolving would cause an inconsistent object structure."))
     end.
 		  
 dissolve_1(Faces, We) ->
@@ -697,7 +697,7 @@ bridge(_St) ->
 
 unify_modes(#we{mode=Mode}, #we{mode=Mode}) -> Mode;
 unify_modes(_, _) ->
-    wings_util:error(?__(1,
+    wings_u:error(?__(1,
 			 "An object with vertex colors cannot be bridged with an object with materials.")).
 
 bridge_null_uvs(Mode, #we{mode=Mode}=We) -> We;
@@ -838,7 +838,7 @@ bridge_error() ->
     bridge_error(?__(1,"Exactly two faces must be selected.")).
 
 bridge_error(Error) ->
-    wings_util:error(Error).
+    wings_u:error(Error).
 
 bridge_color(Edge, Face, Iter) ->
     Etab = wings_face:iter2etab(Iter),
@@ -925,7 +925,7 @@ lift_from_edge(Dir, EdgeSel, St0) ->
     end.
 
 lift_sel_mismatch() ->
-    wings_util:error(?__(1,"Face and edge selections don't match.")).
+    wings_u:error(?__(1,"Face and edge selections don't match.")).
 	
 lift_from_edge(Dir, Faces, Edges, We0, Tv) ->
     case lift_face_edge_pairs(Faces, Edges, We0) of
@@ -1016,7 +1016,7 @@ lift_from_vertex(Dir, VsSel, St0) ->
     end.
 
 lift_vtx_sel_mismatch() ->
-    wings_util:error(?__(1,"Face and vertex selections don't match.")).
+    wings_u:error(?__(1,"Face and vertex selections don't match.")).
 
 lift_from_vertex(Dir, Faces, Vs, We, Tv) ->
     case lift_face_vertex_pairs(Faces, Vs, We) of
@@ -1093,10 +1093,10 @@ put_on(#st{sel=[{_,Faces}]}=St) ->
 	1 ->
 	    wings:ask(put_on_selection(St), St, fun put_on/2);
 	_ ->
-	    wings_util:error(?__(1,"There must only be one face selected."))
+	    wings_u:error(?__(1,"There must only be one face selected."))
     end;
 put_on(_) ->
-    wings_util:error(?__(1,"There must only be one face selected.")).
+    wings_u:error(?__(1,"There must only be one face selected.")).
 
 put_on_selection(OrigSt) ->
     Desc = ?__(1,"Select target element on which to put source object"),
@@ -1148,10 +1148,10 @@ clone_on(#st{sel=[{_,Faces}]}=St) ->
 	1 ->
 	    wings:ask(clone_on_selection(), St, fun clone_on/2);
 	_ ->
-	    wings_util:error(?__(1,"There must only be one face selected."))
+	    wings_u:error(?__(1,"There must only be one face selected."))
     end;
 clone_on(_) ->
-    wings_util:error(?__(1,"There must only be one face selected.")).
+    wings_u:error(?__(1,"There must only be one face selected.")).
 
 clone_on_selection() ->
     Desc = ?__(1,"Select target elements on which to put clones"),
