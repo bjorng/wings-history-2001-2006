@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.74 2003/09/26 07:14:58 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.75 2003/10/17 05:50:34 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -663,7 +663,17 @@ hardness(Edge, soft, Htab) ->
 hardness(Edge, hard, Htab) -> gb_sets:add(Edge, Htab).
 
 %%%
-%%% Select one side of an edge loop.
+%%% "Select faces on one side of an edge loop."
+%%%
+%%% This description is pretty ambigous. If there are
+%%% multiple edge loops, it is not clear what to select.
+%%%
+%%% What we do for each object is to collect all faces
+%%% sandwhiched between one or more edge loops. We then
+%%% partition all those face collection into one partition
+%%% for each sub-object (if there are any). For each
+%%% sub-object, we arbitrarily pick the face collection
+%%% having the smallest number of faces.
 %%%
 
 select_region(#st{selmode=edge}=St) ->
@@ -681,25 +691,64 @@ select_region_1([[AnEdge|_]|Ps], Edges, #we{es=Etab}=We, Acc) ->
     #edge{lf=Lf,rf=Rf} = gb_trees:get(AnEdge, Etab),
     Left = collect_faces(Lf, Edges, We),
     Right = collect_faces(Rf, Edges, We),
-    select_region_1(Ps, Edges, We, [Left,Right|Acc]);
-select_region_1([], _Edges, _We, [A,B]) ->
-    case {gb_sets:size(A),gb_sets:size(B)} of
-	{Sa,Sb} when Sa < Sb  -> A;
-	{_,_} -> B
-    end;
-select_region_1([], _Edges, _We, Acc0) ->
-    Acc = sort([gb_sets:to_list(P) || P <- Acc0]),
-    select_region_2(Acc, []).
 
-select_region_2([H,H|T], Acc) ->
-    select_region_2(strip_prefix(T, H), Acc);
-select_region_2([H|T], Acc) ->
-    select_region_2(T, [H|Acc]);
-select_region_2([], Acc) ->
-    gb_sets:from_ordset(lists:merge(Acc)).
+    %% We'll let AnEdge identify the edge loop that each
+    %% face collection borders to.
+    select_region_1(Ps, Edges, We, [{Left,AnEdge},{Right,AnEdge}|Acc]);
+select_region_1([], _Edges, _We, Acc) ->
+    %% Now we have all collections of faces sandwhiched between
+    %% one or more edge loops. Using the face collection as keys,
+    %% we will partition the edge loop identifiers into groups.
 
-strip_prefix([Prefix|T], Prefix) -> strip_prefix(T, Prefix);
-strip_prefix(L, _Prefix) -> L.
+    Rel0 = [{gb_sets:to_list(Set),Edge} || {Set,Edge} <- Acc],
+    Rel = sofs:relation(Rel0),
+    Fam = sofs:relation_to_family(Rel),
+    DirectCs = sofs:to_external(sofs:range(Fam)),
+
+    %% DirectCs now contains lists of edge loop identifiers that
+    %% can reach each other through a collection of face.
+    %% Using a digraph, partition edge loop into components
+    %% (each edge loop in a component can reach any other edge loop
+    %% directly or indirectly).
+
+    G = digraph:new(),
+    make_digraph(G, DirectCs),
+    Cs = digraph_utils:components(G),
+    digraph:delete(G),
+
+    %% Now having the components, consisting of edge identifiers
+    %% identifying the original edge loop, we now need to partition
+    %% the actual collection of faces.
+
+    PartKey0 = [[{K,sofs:from_term(F)} || K <- Ks] || [F|_]=Ks <- Cs],
+    PartKey = gb_trees:from_orddict(sort(lists:append(PartKey0))),
+    SetFun = fun(S) ->
+		     {_,E} = sofs:to_external(S),
+		     gb_trees:get(E, PartKey)
+	     end,
+    Part = sofs:to_external(sofs:partition(SetFun, Rel)),
+
+    %% We finally have one partition for each sub-object.
+    %% For each partition (sub-object), we want to retaining
+    %% only the face collection with the smallest number of faces.
+
+    Sel0 = [sort([{length(Fs),Fs} || {Fs,_} <- Plist]) || Plist <- Part],
+    Sel1 = [Fs || [{_,Fs}|_] <- Sel0],
+    Sel = lists:merge(Sel1),
+    gb_sets:from_ordset(Sel).
+
+make_digraph(G, [Es|T]) ->
+    make_digraph_1(G, Es),
+    make_digraph(G, T);
+make_digraph(_, []) -> ok.
+
+make_digraph_1(G, [E]) ->
+    digraph:add_vertex(G, E);
+make_digraph_1(G, [E1|[E2|_]=Es]) ->
+    digraph:add_vertex(G, E1),
+    digraph:add_vertex(G, E2),
+    digraph:add_edge(G, E1, E2),
+    make_digraph_1(G, Es).
 
 %%%
 %%% The Loop Cut command.
