@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.48 2003/06/03 17:29:45 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.49 2003/06/03 20:02:26 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -474,6 +474,7 @@ draw(#dlo{proxy_data=[Dl|_]}=D, Wire) when is_integer(Dl) ->
 draw(_, _) -> ok.
 
 draw_1(D, Dl, Wire, Key, EdgeStyleKey) ->
+    draw_edges(D, Wire, EdgeStyleKey),
     gl:shadeModel(?GL_SMOOTH),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
@@ -494,8 +495,7 @@ draw_1(D, Dl, Wire, Key, EdgeStyleKey) ->
     gl:disable(?GL_BLEND),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
-    gl:shadeModel(?GL_FLAT),
-    draw_edges(D, Wire, EdgeStyleKey).
+    gl:shadeModel(?GL_FLAT).
 
 draw_smooth_edges(D) ->
     draw_edges(D, true, wings_pref:get_value(proxy_shaded_edge_style)).
