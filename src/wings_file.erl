@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.96 2003/01/20 07:36:55 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.97 2003/01/21 20:16:15 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -430,7 +430,7 @@ revert(#st{file=undefined}=St) -> St;
 revert(#st{file=File}=St0) ->
     St1 = clean_st(St0),
     case ?SLOW(wings_ff_wings:import(File, St1)) of
-	#st{}=St -> St;
+	#st{}=St -> clean_images(St);
 	{error,_}=Error ->
 	    Error
     end.

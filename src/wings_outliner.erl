@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.6 2003/01/21 10:15:21 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.7 2003/01/21 20:16:15 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -17,6 +17,7 @@
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
+-include("e3d_image.hrl").
 -import(lists, [map/2,reverse/1,reverse/2,keymember/3,keysearch/3,sort/1]).
 -compile(inline).
 
@@ -74,6 +75,10 @@ event(#mousemotion{y=Y}, #ost{active=Act0}=Ost) ->
 	    wings_wm:dirty(),
 	    get_event(Ost#ost{active=Act})
     end;
+event(#mousebutton{button=4,state=?SDL_RELEASED}, Ost) ->
+    zoom_step(-1*lines(Ost) div 4, Ost);
+event(#mousebutton{button=5,state=?SDL_RELEASED}, Ost) ->
+    zoom_step(lines(Ost) div 4, Ost);
 event(#mousebutton{y=Y0}=Ev, Ost) ->
     case wings_menu:is_popup_event(Ev) of
 	no -> keep;
@@ -85,10 +90,6 @@ event(#mousebutton{y=Y0}=Ev, Ost) ->
 		    do_menu(Act, X, Y, Ost)
 	    end
     end;
-event(#mousebutton{button=4,state=?SDL_RELEASED}, Ost) ->
-    zoom_step(-1*lines(Ost) div 4, Ost);
-event(#mousebutton{button=5,state=?SDL_RELEASED}, Ost) ->
-    zoom_step(lines(Ost) div 4, Ost);
 event(scroll_page_up, Ost) ->
     zoom_step(-lines(Ost), Ost);
 event(scroll_page_down, Ost) ->
@@ -120,10 +121,20 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
 		    separator,
 		    {"Duplicate",menu_cmd(duplicate_object, Id)},
 		    {"Delete",menu_cmd(delete_object, Id)}];
-	       {image,Id,_} ->
-		   [{"Revert",menu_cmd(revert_image, Id)}]
+	       {image,Id,Im} ->
+		   image_menu(Id, Im)
 	   end,
     wings_menu:popup_menu(X, Y, outliner, Menu).
+
+image_menu(Id, #e3d_image{filename=none}) ->
+    [{"Make External",menu_cmd(make_external, Id)}|common_image_menu(Id)];
+image_menu(Id, _) ->
+    [{"Revert",menu_cmd(revert_image, Id)},
+     {"Make Internal",menu_cmd(make_internal, Id)}|common_image_menu(Id)].
+
+common_image_menu(Id) ->
+    [separator,
+     {"Duplicate",menu_cmd(duplicate_image, Id)}].
 
 menu_cmd(Cmd, Id) ->
     {'VALUE',{Cmd,Id}}.
@@ -144,6 +155,11 @@ command({edit_light,Id}, _) ->
     wings_wm:send(geom, {action,{light,{edit,Id}}}),
     keep;
 command({revert_image,Id}, Ost) ->
+    revert_image(Id, Ost);
+command({duplicate_image,Id}, Ost) ->
+    duplicate_image(Id, Ost);
+command(Cmd, _) ->
+    io:format("NYI: ~p\n", [Cmd]),
     keep.
 
 duplicate_object(Id, #ost{st=#st{shapes=Shs}=St0}) ->
@@ -157,6 +173,19 @@ delete_object(Id, #ost{st=#st{shapes=Shs0}=St0}) ->
     wings_wm:send(geom, {new_state,St}),
     keep.
 
+revert_image(_, _) ->
+    keep.
+
+duplicate_image(Id, #ost{st=St}=Ost0) ->
+    #e3d_image{name=Name0} = Im = wings_image:info(Id),
+    Name = copy_of(Name0),
+    wings_image:new(Name, Im),
+    Ost = update_state(St, Ost0),
+    get_event(Ost).
+
+copy_of("Copy of "++_=Name) -> Name;
+copy_of(Name) -> "Copy of "++Name.
+
 update_state(St, #ost{first=OldFirst}=Ost0) ->
     #ost{first=First0} = Ost = update_state_1(St, Ost0),
     case clamp(First0, Ost) of
@@ -166,15 +195,18 @@ update_state(St, #ost{first=OldFirst}=Ost0) ->
 	    Ost#ost{first=First}
     end.
 
-update_state_1(#st{shapes=Shs,mat=Mat}=St, #ost{st=#st{shapes=Shs,mat=Mat}}=Ost) ->
-    Ost#ost{st=St};
-update_state_1(#st{mat=Mat,shapes=Shs0}=St, #ost{os=Objs0}=Ost) ->
+% update_state_1(#st{shapes=Shs,mat=Mat}=St, #ost{st=#st{shapes=Shs,mat=Mat}}=Ost) ->
+%     Ost#ost{st=St};
+update_state_1(St, Ost) ->
+    update_state_2(St, Ost).
+
+update_state_2(#st{mat=Mat,shapes=Shs0}=St, #ost{os=Objs0}=Ost) ->
     Objs = [{object,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
 				?IS_NOT_LIGHT(We)] ++
 	[{light,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
 			    ?IS_LIGHT(We)] ++
 	[make_mat(M) || M <- gb_trees:to_list(Mat)] ++
-	[{image,Id,Name} || {Id,Name} <- wings_image:images()],
+	[{image,Id,Im} || {Id,Im} <- wings_image:images()],
     case Objs of
 	Objs0 -> ok;
 	_ -> wings_wm:dirty()
@@ -253,6 +285,7 @@ draw_objects_1(N, [O|Objs], #ost{lh=Lh}=Ost, R, Active, Y) ->
 	    gl:rasterPos2f(7, Y),
 	    wings_io:draw_char(m_bitmap()),
 	    gl:color3f(0, 0, 0);
+	{image,_,#e3d_image{name=Name}} -> ok;
 	{_,_,Name} -> ok
     end,
     if
@@ -283,11 +316,11 @@ draw_icons_1(N, [O|Objs], #ost{lh=Lh}=Ost, Y) ->
 	light ->
 	    wings_io:draw_icon(X, Y, 16, 16, small_light);
 	image ->
-	    if
-		element(2, O) rem 2 == 0 ->
-		    wings_io:draw_icon(X, Y, 16, 16, small_image);
-		true ->
-		    wings_io:draw_icon(X, Y, 16, 16, small_image2)
+	    case O of
+		#e3d_image{filename=none} ->
+		    wings_io:draw_icon(X, Y, 16, 16, small_image2);
+		_ ->
+		    wings_io:draw_icon(X, Y, 16, 16, small_image)
 	    end;
 	material -> ok
     end,

@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.2 2003/01/21 13:40:36 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.3 2003/01/21 20:16:15 bjorng Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
-	 new/2,new/3,delete_all/0,txid/1,info/1,images/0,
+	 new/2,new/3,txid/1,info/1,images/0,
 	 next_id/0,delete_older/1,delete_from/1,
 	 update/2]).
 
@@ -34,13 +34,10 @@ init_opengl() ->
 %%%
 
 new(Name, E3DImage) ->
-    req({new,Name,E3DImage,none}).
+    req({new,E3DImage#e3d_image{name=Name,filename=none}}).
 
 new(Name, E3DImage, Filename) ->
-    req({new,Name,E3DImage,Filename}).
-
-delete_all() ->
-    req(delete_all).
+    req({new,E3DImage#e3d_image{name=Name,filename=Filename}}).
 
 txid(Id) ->
     req({txid,Id}).
@@ -83,12 +80,6 @@ req(Req) ->
 	 images					%All images (gb_trees).
 	}).
 
--record(im,
-	{name,					%Name.
-	 file,					%Filename|none
-	 im					%e3d_image record.
-	}).
-
 server(SdlWrapper) ->
     put(sdlwrapper, SdlWrapper),
     register(wings_image, self()),
@@ -109,28 +100,25 @@ loop(S0) ->
     end.
 
 handle(init_opengl, #ist{images=Images}=S) ->
-    foreach(fun({Id,#im{im=Image}}) ->
+    foreach(fun({Id,Image}) ->
 		    make_texture(Id, Image)
 	    end, gb_trees:to_list(Images)),
     S;
-handle({new,Name0,E3D,Filename}, #ist{next=Id,images=Images0}=S) ->
+handle({new,#e3d_image{name=Name0}=Im0}, #ist{next=Id,images=Images0}=S) ->
     Name = make_unique(Name0, Images0),
-    Im = #im{name=Name,file=Filename,im=E3D},
+    Im = Im0#e3d_image{name=Name},
     Images = gb_trees:insert(Id, Im, Images0),
-    make_texture(Id, E3D),
+    make_texture(Id, Im),
     {Id,S#ist{next=Id+1,images=Images}};
-handle(delete_all, S) ->
-    S;
 handle({txid,Id}, S) ->
     {case get(Id) of
 	 undefined -> none;
 	 TxId -> TxId
      end,S};
 handle({info,Id}, #ist{images=Images}=S) ->
-    #im{im=Image} = gb_trees:get(Id, Images),
-    {Image,S};
+    {gb_trees:get(Id, Images),S};
 handle(images, #ist{images=Images}=S) ->
-    {[{Id,Name} || {Id,#im{name=Name}} <- gb_trees:to_list(Images)],S};
+    {gb_trees:to_list(Images),S};
 handle(next_id, #ist{next=Id}=S) ->
     {Id,S};
 handle({delete_older,Id}, S) ->
@@ -202,8 +190,8 @@ delete_from_1([], _, Acc) ->
     reverse(Acc).
 
 do_update(Id, #e3d_image{width=W,height=H,image=Bits}, #ist{images=Images0}=S) ->
-    #im{im=#e3d_image{width=W,height=H}=E3D} = Im0 = gb_trees:get(Id, Images0),
-    Im = Im0#im{im=E3D#e3d_image{image=Bits}},
+    #e3d_image{width=W,height=H} = Im0 = gb_trees:get(Id, Images0),
+    Im = Im0#e3d_image{image=Bits},
     Images = gb_trees:update(Id, Im, Images0),
     TxId = get(Id),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
@@ -212,6 +200,6 @@ do_update(Id, #e3d_image{width=W,height=H,image=Bits}, #ist{images=Images0}=S) -
     S#ist{images=Images}.
 
 make_unique(Name, Images0) ->
-    Images = [N || #im{name=N} <- gb_trees:values(Images0)],
+    Images = [N || #e3d_image{name=N} <- gb_trees:values(Images0)],
     wings_util:unique_name(Name, Images).
 
