@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.77 2003/03/13 13:39:32 raimo_niskanen Exp $
+%%     $Id: wings_pref.erl,v 1.78 2003/04/05 16:16:46 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -20,6 +20,8 @@
 -define(NEED_ESDL, 1).    %% Some keybindings
 -include("wings.hrl").
 -import(lists, [foreach/2,keysearch/3,map/2,reverse/1,sort/1]).
+
+-define(MAC_PREFS, "Library/Preferences/Wings 3D Preferences.txt").
 
 init() ->
     ets:new(wings_state, [named_table,public,ordered_set]),
@@ -239,17 +241,27 @@ make_query(Other) -> Other.
 
 old_pref_file() ->
     case os:type() of
-	{unix,_} ->
-	    Name = filename:join(os:getenv("HOME"), ".wings"),
+	{unix,darwin} ->
+	    Name = filename:join(os:getenv("HOME"), ?MAC_PREFS),
 	    case filelib:is_file(Name) of
 		true -> Name;
-		false -> none
+		false -> unix_pref()
 	    end;
+	{unix,_} -> unix_pref();
 	{win32,_} -> locate("Preferences")
+    end.
+
+unix_pref() ->
+    Name = filename:join(os:getenv("HOME"), ".wings"),
+    case filelib:is_file(Name) of
+	true -> Name;
+	false -> none
     end.
 
 new_pref_file() ->
     case os:type() of
+	{unix,darwin} ->
+	    filename:join(os:getenv("HOME"), ?MAC_PREFS);
 	{unix,_} ->
 	    filename:join(os:getenv("HOME"), ".wings");
 	{win32,_} ->
