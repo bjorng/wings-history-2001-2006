@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.56 2004/01/20 00:48:26 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.57 2004/01/21 00:25:19 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1258,7 +1258,7 @@ export_modulator(F, Texname, Maps, {modulator,Ps}, Opacity) when list(Ps) ->
     case mod_enabled_mode_type(Ps, Maps) of
 	{false,_,_} ->
 	    off;
-	{true,Mode,_} ->
+	{true,Mode,Type} ->
 	    SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
 	    SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
 	    SizeZ = proplists:get_value(size_z, Ps, ?DEF_MOD_SIZE_Z),
@@ -1271,8 +1271,18 @@ export_modulator(F, Texname, Maps, {modulator,Ps}, Opacity) when list(Ps) ->
 	    HardValue = Shininess,
 	    Transmission = Diffuse * (1.0 - Opacity),
 	    Reflection = Ambient,
+	    TexCo = 
+		case Type of
+		    image -> "texco=\"uv\" ";
+		    jpeg -> "texco=\"uv\" ";
+		    {map,_} -> "texco=\"uv\" ";
+		    marble -> "texco=\"global\" ";
+		    wood -> "texco=\"global\" ";
+		    clouds -> "texco=\"global\" ";
+		    _ -> ""
+		end,
 	    println(F, "        <modulator texname=\"~s\" mode=\"~s\"~n"++
-		    "         texco=\"uv\" clipping=\"repeat\"~n"++
+		    "         "++TexCo++"clipping=\"repeat\"~n"++
 		    "         sizex=\"~.3f\" sizey=\"~.3f\" sizez=\"~.3f\">~n"++
 		    "            <color value=\"~.3f\"/>~n"++
 		    "            <specular value=\"~.3f\"/>~n"++
@@ -1378,9 +1388,12 @@ export_faces(F, [#e3d_face{vs=[A,B,C],tx=Tx,mat=[Mat|_]}|T],
 		 {Ua,Va} = element(1+Ta, TxT),
 		 {Ub,Vb} = element(1+Tb, TxT),
 		 {Uc,Vc} = element(1+Tc, TxT),
-		 [" u_a=\"",format(Ua),"\" v_a=\"",format(-Va),
-		  "\" u_b=\"",format(Ub),"\" v_b=\"",format(-Vb),
-		  "\" u_c=\"",format(Uc),"\" v_c=\"",format(-Vc),"\""]
+		 [io_lib:nl(),"           u_a=\"",format(Ua),
+		  "\" v_a=\"",format(-Va),"\"",
+		  io_lib:nl(),"           u_b=\"",format(Ub),
+		  "\" v_b=\"",format(-Vb),"\"",
+		  io_lib:nl(),"           u_c=\"",format(Uc),
+		  "\" v_c=\"",format(-Vc),"\""]
 	 end,
     println(F, ["        <f a=\"",format(A),
 		"\" b=\"",format(B),"\" c=\"",format(C),"\"",
