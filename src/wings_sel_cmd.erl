@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.2 2001/12/31 17:59:00 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.3 2001/12/31 23:55:12 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -32,9 +32,6 @@ menu(X, Y, St) ->
 	    {"Adjacent",{adjacent,{{"Vertices","v",vertex},
 				   {"Edges","e",edge},
 				   {"Faces","f",face}}}},
-	    {"Boundary",{boundary,{{"Vertices","Alt-v",vertex},
-				   {"Edges","Alt-e",edge},
-				   {"Faces","Alt-f",face}}}},
 	    {"By",{by,{{"Hard edges",hard_edges},
 		       {"Vertices with",{vertices_with,
 					 {{"2 edges",2},
@@ -75,12 +72,18 @@ sel_all_str(#st{selmode=edge}) -> "All edges";
 sel_all_str(#st{selmode=face}) -> "All faces";
 sel_all_str(#st{selmode=body}) -> "All objects".
 
+command(edge_loop, #st{selmode=face}=St) ->
+    {save_state,
+     wings_sel:convert_shape(
+       fun(Faces, We) ->
+	       gb_sets:from_list(wings_face:outer_edges(Faces, We))
+       end, edge, St)};
+command(next_edge_loop, St) ->
+    {save_state,wings_edge_loop:select_next(St)};
 command(deselect, St) ->
     {save_state,St#st{sel=[]}};
 command(edge_loop, St) ->
     {save_state,wings_edge_loop:select_loop(St)};
-command(next_edge_loop, St) ->
-    {save_state,wings_edge_loop:select_next(St)};
 command(prev_edge_loop, St) ->
     {save_state,wings_edge_loop:select_prev(St)};
 command(select_region, St) ->
@@ -97,8 +100,6 @@ command({by,Command}, St) ->
     by_command(Command, St);
 command(similar, St) ->
     {save_state,similar(St)};
-command({boundary,Mode}, St) ->
-    {save_state,boundary(Mode, St)};
 command(save, St) ->
     {save_state,save(St)};
 command(load, St) ->
@@ -409,75 +410,3 @@ random(Percent, #st{selmode=body}=St) -> St;
 random(Percent, #st{selmode=Mode}=St) ->
     P = Percent / 100,
     wings_sel:make(fun(_, _) -> random:uniform() < P end, Mode, St).
-
-%%
-%% Selection border.
-%%
-
-boundary(vertex, #st{selmode=Mode}=St) ->
-    wings_sel:convert_shape(
-      fun(Items, We) ->
-	      Vs = sel_to_vertices(Mode, Items, We),
-	      vtx_boundary(Vs, We)
-      end, vertex, St);
-boundary(edge, #st{selmode=edge}=St) ->
-    wings_sel:convert_shape(
-      fun(Es0, We) ->
-	      Vs0 = wings_edge:to_vertices(Es0, We),
-	      Vs = vtx_boundary(Vs0, We),
-	      Es = wings_edge:adjacent_edges(Vs0, We),
-	      gb_sets:from_list(edge_boundary(Es, Vs, We))
-      end, edge, St);
-boundary(edge, #st{selmode=face}=St) ->
-    wings_sel:convert_shape(
-      fun(Faces, We) ->
-	      gb_sets:from_list(wings_face:outer_edges(Faces, We))
-      end, edge, St);
-boundary(face, #st{selmode=face}=St) ->
-    wings_sel:convert_shape(
-      fun(Faces, We) ->
-	      wings_face:bordering_faces(Faces, We)
-      end, face, St);
-boundary(Mode, St) -> St.
-
-
-%% Vertex boundaries.
-
-vtx_boundary(Vs, We) when is_list(Vs) ->
-    vtx_boundary(Vs, gb_sets:from_list(Vs), We);
-vtx_boundary(VsSet, We) ->
-    vtx_boundary(gb_sets:to_list(VsSet), VsSet, We).
-
-vtx_boundary(Vs, VsSet, We) ->
-    Bvs = foldl(fun(V, A) ->
-			case vtx_on_border(V, VsSet, We) of
-			    true -> [V|A];
-			    false -> A
-			end
-		end, [], Vs),
-    gb_sets:from_list(Bvs).
-
-vtx_on_border(V, Vs, We) ->
-    wings_vertex:until(
-      fun(_, _, Rec, false) ->
-	      OtherV = wings_vertex:other(V, Rec),
-	      not gb_sets:is_member(OtherV, Vs)
-      end, false, V, We).
-    
-sel_to_vertices(vertex, Vs, We) -> Vs;
-sel_to_vertices(edge, Edges, We) ->
-    wings_edge:to_vertices(Edges, We);
-sel_to_vertices(face, Faces, We) ->
-    wings_face:to_vertices(Faces, We).
-
-%% Edge boundaries.
-
-edge_boundary(Es, Vs, #we{es=Etab}=We) ->
-    foldl(fun(E, A) ->
-		  #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
-		  case gb_sets:is_member(Va, Vs) andalso
-		      gb_sets:is_member(Vb, Vs) of
-		      true -> [E|A];
-		      false -> A
-		  end
-	  end, [], gb_sets:to_list(Es)).

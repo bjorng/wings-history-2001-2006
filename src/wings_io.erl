@@ -3,12 +3,12 @@
 %%
 %%     This module contains most of the low-level GUI for Wings.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.27 2001/12/31 17:59:00 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.28 2001/12/31 23:55:12 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -308,20 +308,13 @@ icon_row_hit(X, [{Pos,Name}|Is]) when Pos =< X, X < Pos+?ICON_WIDTH ->
 		 flatshade -> {view,flatshade};
 		 smooth -> {view,smoothshade};
 		 perspective -> {view,orthogonal_view};
-		 Other -> select_button(Other)
+		 Other -> {select,Other}
 	     end,
     putback_event({action,Action}),
     none;
 icon_row_hit(X, [_|Is]) ->
     icon_row_hit(X, Is);
 icon_row_hit(X, []) -> none.
-
-select_button(Mode) ->
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?ALT_BITS =/= 0 ->
-	    {select,{boundary,Mode}};
-	Mod -> {select,Mode}
-    end.
     
 raised_rect(X, Y, Mw, Mh) ->
     raised_rect(X, Y, Mw, Mh, ?PANE_COLOR).

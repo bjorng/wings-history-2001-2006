@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.6 2001/12/31 13:55:19 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.7 2001/12/31 23:55:12 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -23,12 +23,6 @@ event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}) ->
     translate_key(Sym, Mod, C);
 event(_) -> next.
     
-translate_key($v, Mod, C) when Mod band ?ALT_BITS =/= 0 ->
-    {select,{boundary,vertex}};
-translate_key($e, Mod, C) when Mod band ?ALT_BITS =/= 0 ->
-    {select,{boundary,edge}};
-translate_key($f, Mod, C) when Mod band ?ALT_BITS =/= 0 ->
-    {select,{boundary,face}};
 translate_key($a, Mod, C) when Mod band ?CTRL_BITS =/= 0 -> {select,all};
 translate_key($i, Mod, C) when Mod band ?CTRL_BITS =/= 0,
 			       Mod band ?SHIFT_BITS =/= 0 -> {select,inverse};
