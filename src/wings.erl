@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.114 2002/03/04 12:53:11 bjorng Exp $
+%%     $Id: wings.erl,v 1.115 2002/03/09 07:46:32 bjorng Exp $
 %%
 
 -module(wings).
@@ -116,9 +116,9 @@ init_1(File) ->
     %% On Solaris/Sparc, we must resize twice the first time to
     %% get the requested size. Should be harmless on other platforms.
     St2 = resize(W, H, St1),
-    resize(W, H, St1),
+    St3 = resize(W, H, St2),
 
-    St = open_file(File, St2),
+    St = open_file(File, St3),
     wings_io:enter_event_loop(main_loop(St)),
     wings_file:finish(),
     wings_pref:finish(),
@@ -156,10 +156,6 @@ resize(W, H, St) ->
     {R,G,B} = wings_pref:get_value(background_color),
     gl:clearColor(R, G, B, 1.0),
     gl:viewport(0, 0, W, H),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:loadIdentity(),
-    wings_view:perspective(),
-    gl:matrixMode(?GL_MODELVIEW),
     wings_io:resize(W, H),
     wings_material:init(St).
 
@@ -167,8 +163,7 @@ redraw(St0) ->
     St = wings_draw:render(St0),
     wings_io:info(info(St)),
     wings_io:update(St),
-    wings_io:swap_buffers(),
-    St.
+    wings_io:swap_buffers().
 
 clean_state(St) ->
     caption(wings_draw:model_changed(St)).
@@ -188,7 +183,7 @@ main_loop(St) ->
     main_loop_noredraw(St).
 
 main_loop_noredraw(St) ->
-    fun(Event) -> handle_event(Event, St) end.
+    {replace,fun(Event) -> handle_event(Event, St) end}.
 
 handle_event({crash,_}=Crash, St) ->
     LogName = wings_util:crash_log(Crash),
@@ -218,6 +213,25 @@ handle_event_2(Event, St) ->
 	{yes,X,Y} -> popup_menu(X, Y, St)
     end.
 	    
+handle_event_3(#keyboard{}=Event, St) ->
+    case wings_hotkey:event(Event, St) of
+	next -> keep;
+	Cmd -> do_command(Cmd, St)
+    end;
+handle_event_3({action,Cmd}, St) ->
+    do_command(Cmd, St);
+handle_event_3(#mousebutton{}, _St) -> keep;
+handle_event_3(#mousemotion{}, _St) -> keep;
+handle_event_3(#resize{w=W,h=H}, St0) ->
+    St = resize(W, H, St0),
+    main_loop(model_changed(St));
+handle_event_3(#expose{}, St) ->
+    handle_event_3(redraw, St);
+handle_event_3(redraw, St) ->
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    main_loop(St);
+handle_event_3(quit, St) ->
+    do_command({file,quit}, St);
 handle_event_3(drag_aborted, St) ->
     wings_io:clear_message(),
     main_loop(model_changed(St#st{vec=none}));
@@ -226,34 +240,7 @@ handle_event_3({drag_ended,St}, St0) ->
     save_state(St0, St);
 handle_event_3({new_selection,St}, St0) ->
     save_state(St0, St);
-handle_event_3(Event, St0) ->
-    case translate_event(Event, St0) of
-	#mousebutton{} -> keep;
-	#mousemotion{} -> keep;
-	ignore -> keep;
-	redraw ->
-	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-	    main_loop(St0);
- 	{resize,W,H} ->
- 	    St = resize(W, H, St0),
- 	    main_loop(model_changed(St));
- 	{edit,undo_toggle} ->
-	    St = wings_undo:undo_toggle(St0),
-	    main_loop(clean_state(St));
- 	{edit,undo} ->
-	    St = wings_undo:undo(St0),
-	    main_loop(clean_state(St));
- 	{edit,redo} ->
-	    St = wings_undo:redo(St0),
-	    main_loop(clean_state(St));
-	{wings,reset} ->
-	    {W,H} = wings_pref:get_value(window_size),
- 	    St = resize(W, H, St0),
-	    wings_io:reset_grab(),
-	    wings_view:command(reset, St),
- 	    main_loop(model_changed(St));
-	Cmd -> do_command(Cmd, St0)
-    end.
+handle_event_3(ignore, _St) -> keep.
     
 do_command(Cmd, St0) ->
     St1 = remember_command(Cmd, St0),
@@ -328,6 +315,14 @@ repeatable(Mode, Cmd) ->
 	_ -> no
     end.
 
+%% Wings reset.
+command({wings,reset}, St0) ->
+    {W,H} = wings_pref:get_value(window_size),
+    St = resize(W, H, St0),
+    wings_io:reset_grab(),
+    wings_view:command(reset, St),
+    model_changed(St);
+
 %% Vector and secondary-selection commands.
 command({vector,What}, St) ->
     wings_vec:command(What, St);
@@ -348,6 +343,12 @@ command({file,Command}, St) ->
     wings_file:command(Command, St);
 
 %% Edit menu.
+command({edit,undo_toggle}, St) ->
+    clean_state(wings_undo:undo_toggle(St));
+command({edit,undo}, St) ->
+    clean_state(wings_undo:undo(St));
+command({edit,redo}, St) ->
+    clean_state(wings_undo:redo(St));
 command({edit,{material,_}}=Cmd, St) ->
     wings_material:command(Cmd, St);
 command({edit,repeat}, #st{sel=[]}=St) -> St;
@@ -697,21 +698,6 @@ caption(#st{file=Name}=St) ->
     Caption = wings() ++ " - " ++ filename:basename(Name) ++ "*",
     sdl_video:wm_setCaption(Caption, Caption),
     St.
-
-translate_event(#keyboard{}=Event, St) ->
-    case wings_hotkey:event(Event, St) of
-	next -> ignore;
-	Other -> Other
-    end;
-translate_event(quit, _St) -> {file,quit};
-translate_event(ignore, _St) -> ignore;
-translate_event(#mousebutton{}, _St) -> ignore;
-translate_event(#mousemotion{}, _St) -> ignore;
-translate_event(#resize{w=W,h=H}, _St) -> {resize,W,H};
-translate_event(#expose{}, _St) -> redraw;
-translate_event(redraw_menu, _St) -> ignore;
-translate_event(redraw, _St) -> redraw;
-translate_event({action,Action}, _St) -> Action.
 
 command_name(_Repeat, #st{repeatable=ignore}) ->
     "(Can't repeat)";

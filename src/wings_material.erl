@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.26 2002/03/05 07:11:55 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.27 2002/03/09 07:46:32 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -126,14 +126,14 @@ translate_mat([{opacity,RGB}|T], Mat) ->
     translate_mat(T, Mat#mat{opacity=RGB});
 translate_mat([{twosided,Boolean}|T], Mat) ->
     translate_mat(T, Mat#mat{twosided=Boolean});
-translate_mat([{diffuse_map,{W,H,Bits}=Tx}|T], Mat) when binary(Bits) ->
+translate_mat([{diffuse_map,{_,_,Bits}=Tx}|T], Mat) when is_binary(Bits) ->
     translate_mat(T, Mat#mat{diffuse_map=Tx});
 translate_mat([{diffuse_map,Name}|T], Mat) ->
     case catch loadTexture(Name) of
 	{'EXIT',R} ->
 	    io:format("~P\n", [R,20]),
 	    translate_mat(T, Mat);
-	{W,H,Bits}=Tx -> translate_mat(T, Mat#mat{diffuse_map=Tx})
+	{_,_,_}=Tx -> translate_mat(T, Mat#mat{diffuse_map=Tx})
     end;
 translate_mat([Other|T], #mat{attr=Attr}=Mat) ->
     translate_mat(T, Mat#mat{attr=[Other|Attr]});
@@ -182,7 +182,7 @@ apply_material([Mat|_], Mtab) ->
 
 %%% Returns the materials used.
 
-used_materials(#st{shapes=Shs,mat=Mat0}=St) ->
+used_materials(#st{shapes=Shs,mat=Mat0}) ->
     Used0 = foldl(fun(#we{fs=Ftab}, A) ->
 			  used_materials_1(Ftab, A)
 		  end, gb_sets:empty(), gb_trees:values(Shs)),
@@ -253,7 +253,6 @@ init_texture(Mat, St) ->
 
 loadTexture(none) -> exit(no_texture);
 loadTexture(File) ->
-    io:format("Loading ~s\n", [File]),
     Image = e3d_image:load(File, [{type,r8g8b8},{order,lower_left}]),
     #e3d_image{width=W,height=H,image=Pixels} = Image,
     {W,H,Pixels}.

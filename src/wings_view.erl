@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.44 2002/02/28 06:18:18 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.45 2002/03/09 07:46:32 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -85,7 +85,6 @@ command(smoothshade, St) ->
     model_changed(St);
 command(orthogonal_view, St) ->
     toggle_option(orthogonal_view),
-    projection(),
     St;
 command(show_textures, St) ->
     toggle_option(show_textures),
