@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.42 2003/09/26 15:02:55 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.43 2003/09/26 17:34:17 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -23,7 +23,7 @@
 -include("e3d_image.hrl").
 
 -import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,keydelete/3,
-		foreach/2,map/2,foldl/3]).
+		foreach/2,foldl/3]).
 
 -define(TAG, yafray).
 -define(TAG_RENDER, yafray_render).
@@ -399,8 +399,6 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 	    _ ->  [{hframe,[{key_alt,TaggedType,atom_to_list(Map),{map,Map}} ||
 			       {Map,_} <- Maps]}]
 	end,
-    erlang:display({?MODULE,?LINE,Maps}),
-    erlang:display({?MODULE,?LINE,MapsFrame}),
     [{vframe,
       [{menu,[{"Delete",delete},
 	      {if Mode==off ->"Disabled";
@@ -1010,11 +1008,10 @@ export_shader(F, Name, Mat, ExportDir) ->
 	    "        <min_refle value=\"~.10f\"/>~n"++
 	    "    </attributes>", [IOR, MinRefle]),
     foldl(fun ({modulator,Ps}=M, N) when list(Ps) ->
-		  case proplists:get_value(mode, Ps) of
-		      off ->
-			  N+1;
-		      _ ->
-			  export_modulator(F, [Name,$_,format(N)], M, Opacity),
+		  case export_modulator(F, [Name,$_,format(N)], 
+					Maps, M, Opacity) of
+		      off -> N+1;
+		      ok ->
 			  println(F),
 			  N+1
 		  end;
@@ -1086,31 +1083,36 @@ export_texture(F, Name, Type, Ps) ->
     end,
     println(F, "</texture>").
 
-export_modulator(F, Texname, {modulator,Ps}, Opacity) when list(Ps) ->
-    Mode = proplists:get_value(mode, Ps, ?DEF_MOD_MODE),
-    SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
-    SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
-    SizeZ = proplists:get_value(size_z, Ps, ?DEF_MOD_SIZE_Z),
-    Diffuse = proplists:get_value(diffuse, Ps, ?DEF_MOD_DIFFUSE),
-    Specular = proplists:get_value(specular, Ps, ?DEF_MOD_SPECULAR),
-    Ambient = proplists:get_value(ambient, Ps, ?DEF_MOD_AMBIENT),
-    Shininess = proplists:get_value(shininess, Ps, ?DEF_MOD_SHININESS),
-    Normal = proplists:get_value(normal, Ps, ?DEF_MOD_NORMAL),
-    Color = Diffuse * Opacity,
-    HardValue = Shininess,
-    Transmission = Diffuse * (1.0 - Opacity),
-    Reflection = Ambient,
-    println(F, "        <modulator texname=\"~s\" mode=\"~s\"~n"++
-	    "         sizex=\"~.3f\" sizey=\"~.3f\" sizez=\"~.3f\">~n"++
-	    "            <color value=\"~.3f\"/>~n"++
-	    "            <specular value=\"~.3f\"/>~n"++
-	    "            <hard value=\"~.3f\"/>~n"++
-	    "            <transmission value=\"~.3f\"/>~n"++
-	    "            <reflection value=\"~.3f\"/>~n"++
-	    "            <normal value=\"~.3f\"/>~n"++
-	    "        </modulator>", 
-	    [Texname,format(Mode),SizeX,SizeY,SizeZ,
-	     Color,Specular,HardValue,Transmission,Reflection,Normal]).
+export_modulator(F, Texname, Maps, {modulator,Ps}, Opacity) when list(Ps) ->
+    case mod_mode_type(Ps, Maps) of
+	{off,_} ->
+	    off;
+	_ ->
+	    Mode = proplists:get_value(mode, Ps, ?DEF_MOD_MODE),
+	    SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
+	    SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
+	    SizeZ = proplists:get_value(size_z, Ps, ?DEF_MOD_SIZE_Z),
+	    Diffuse = proplists:get_value(diffuse, Ps, ?DEF_MOD_DIFFUSE),
+	    Specular = proplists:get_value(specular, Ps, ?DEF_MOD_SPECULAR),
+	    Ambient = proplists:get_value(ambient, Ps, ?DEF_MOD_AMBIENT),
+	    Shininess = proplists:get_value(shininess, Ps, ?DEF_MOD_SHININESS),
+	    Normal = proplists:get_value(normal, Ps, ?DEF_MOD_NORMAL),
+	    Color = Diffuse * Opacity,
+	    HardValue = Shininess,
+	    Transmission = Diffuse * (1.0 - Opacity),
+	    Reflection = Ambient,
+	    println(F, "        <modulator texname=\"~s\" mode=\"~s\"~n"++
+		    "         sizex=\"~.3f\" sizey=\"~.3f\" sizez=\"~.3f\">~n"++
+		    "            <color value=\"~.3f\"/>~n"++
+		    "            <specular value=\"~.3f\"/>~n"++
+		    "            <hard value=\"~.3f\"/>~n"++
+		    "            <transmission value=\"~.3f\"/>~n"++
+		    "            <reflection value=\"~.3f\"/>~n"++
+		    "            <normal value=\"~.3f\"/>~n"++
+		    "        </modulator>", 
+		    [Texname,format(Mode),SizeX,SizeY,SizeZ,
+		     Color,Specular,HardValue,Transmission,Reflection,Normal])
+    end.
 
 
 
