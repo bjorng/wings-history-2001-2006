@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings2.nsi,v 1.6 2002/11/21 08:34:49 bjorng Exp $
+#     $Id: wings2.nsi,v 1.7 2002/12/01 11:53:43 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -74,23 +74,19 @@ Section "ThisNameIsIgnoredSoWhyBother?"
 
   ; create shortcuts
 
-  CreateShortCut "$DESKTOP\Wings 3D.lnk" "$INSTDIR\Wings3D.exe" "" \
-	"$INSTDIR\ebin\wings.icon"
-  CreateShortCut "$QUICKLAUNCH\Wings 3D.lnk" "$INSTDIR\Wings3D.exe" "" \
-	"$INSTDIR\ebin\wings.icon"
+  CreateShortCut "$DESKTOP\Wings 3D.lnk" "$INSTDIR\Wings3D.exe"
+  CreateShortCut "$QUICKLAUNCH\Wings 3D.lnk" "$INSTDIR\Wings3D.exe"
 
   SetShellVarContext all
   CreateDirectory "$SMPROGRAMS\Wings 3D"
   GetFullPathName /short $1 $INSTDIR
   ClearErrors
-  CreateShortCut "$SMPROGRAMS\Wings 3D\Wings 3D.lnk" \
-           "$INSTDIR\Wings3D.exe" "" "$INSTDIR\ebin\wings.icon"
+  CreateShortCut "$SMPROGRAMS\Wings 3D\Wings 3D.lnk" "$INSTDIR\Wings3D.exe"
   IfErrors "" shortcut_created
 
   SetShellVarContext current
   CreateDirectory "$SMPROGRAMS\Wings 3D"
-  CreateShortCut "$SMPROGRAMS\Wings 3D\Wings 3D.lnk" \
-	"$INSTDIR\Wings3D.exe" "" "$INSTDIR\ebin\wings.icon"
+  CreateShortCut "$SMPROGRAMS\Wings 3D\Wings 3D.lnk" "$INSTDIR\Wings3D.exe"
 
 shortcut_created:
 
@@ -105,7 +101,7 @@ shortcut_created:
   WriteRegStr HKCR ".wings" "" "Wings3DFile"
   WriteRegStr HKCR "Wings3DFile" "" "Wings 3D File"
   WriteRegStr HKCR "Wings3DFile\shell" "" "open"
-  WriteRegStr HKCR "Wings3DFile\DefaultIcon" "" $INSTDIR\ebin\wings.icon,0
+  WriteRegStr HKCR "Wings3DFile\DefaultIcon" "" $INSTDIR\Wings3D.exe,0
   WriteRegStr HKCR "Wings3DFile\shell\open\command" "" '$1\Wings3D.exe "%1"'
   
 SectionEnd ; end of default section
