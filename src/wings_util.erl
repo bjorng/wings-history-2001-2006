@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.56 2003/01/21 06:43:57 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.57 2003/01/21 11:02:36 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([error/1,error/2,share/1,share/3,make_vector/1,
 	 validate_mirror/1,rel2fam/1,
+	 button_message/1,button_message/2,button_message/3,
 	 message/1,message/2,yes_no/1,
 	 get_matrices/2,mirror_matrix/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
@@ -60,6 +61,28 @@ validate_mirror(#we{fs=Ftab,mirror=Face}=We) ->
 	false -> We#we{mirror=none};
 	true -> We
     end.
+
+button_message(MsgOne) ->
+    button_message(MsgOne, [], []).
+
+button_message(MsgOne, MsgTwo) ->
+    button_message(MsgOne, MsgTwo, []).
+    
+button_message(MsgOne, MsgTwo, MsgThree) ->
+    {One,Two,Three} = wings_camera:button_names(),
+    Msg = [if
+	       MsgOne =/= [] -> [One,$\s|MsgOne];
+	       true -> []
+	   end,
+	   if
+	       MsgTwo =/= [] -> [$\s,Two,$\s|MsgTwo];
+	       true -> []
+	   end,
+	   if
+	       MsgThree =/= [] -> [$\s,Three,$\s|MsgThree];
+	       true -> []
+	   end],
+    wings_wm:message(Msg).
 
 message(Message, _) ->
     message(Message).

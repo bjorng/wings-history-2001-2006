@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.4 2003/01/18 09:05:39 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.5 2003/01/21 11:02:36 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -204,7 +204,8 @@ ctrl_menu(X, Y) ->
 		"Let window use all available space by expanding it horizontally"},
 	       {"Vertical",vertical,
 		"Let window use all available space by expanding it vertically"}
-	      ]}}|ctrl_menu_toolbar()],
+	      ]}},
+	    {"Size",size,"Set size numerically"}|ctrl_menu_toolbar()],
     wings_menu:popup_menu(X, Y, titlebar, Menu).
 
 ctrl_menu_toolbar() ->
@@ -239,7 +240,17 @@ ctrl_command(show_toolbar, _) ->
     keep;
 ctrl_command({fit,Fit}, _) ->
     ctrl_fit(Fit),
-    keep.
+    keep;
+ctrl_command(size, _) ->
+    {_,Client} = wings_wm:active_window(),
+    {W0,H0} = wings_wm:win_size(Client),
+    Qs = [{"Width",W0},
+	  {"Height",H0}],
+    wings_ask:ask("Set Window Size", Qs,
+		  fun([W,H]) ->
+			  wings_wm:update_window(Client, [{w,W},{h,H}]),
+			  ignore
+		  end).
 
 ctrl_fit(both) ->
     fit_horizontal(),
@@ -326,6 +337,7 @@ have_horizontal_overlap(Name, X, W) ->
 
 -record(rsz,
 	{state=idle,				%idle|moving
+	 aspect=none,				%Aspect ratio to preserve.
 	 local,
 	 prev_focus				%Previous focus holder.
 	}).
@@ -344,6 +356,7 @@ get_resize_event(Rst) ->
 resize_event(redraw, _) ->
     wings_io:ortho_setup(),
     wings_wm:draw_resizer(0, 0),
+    wings_util:button_message("Resize", "Resize, keeping current aspect ratio"),
     keep;
 resize_event(#mousebutton{button=1,state=?SDL_PRESSED},
 	     #rsz{state=moving,prev_focus=Focus}=Rst) ->
@@ -352,26 +365,31 @@ resize_event(#mousebutton{button=1,state=?SDL_PRESSED},
 resize_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
     Focus = wings_wm:focus_window(),
     wings_wm:grab_focus(get(wm_active)),
-    get_resize_event(Rst#rsz{local={X,Y},state=moving,prev_focus=Focus});
+    get_resize_event(Rst#rsz{local={X,Y},state=moving,aspect=none,prev_focus=Focus});
+resize_event(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
+    {_,Client} = wings_wm:active_window(),
+    {W,H} = wings_wm:win_size(Client),
+    Focus = wings_wm:focus_window(),
+    wings_wm:grab_focus(get(wm_active)),
+    get_resize_event(Rst#rsz{local={X,Y},state=moving,aspect=W/H,prev_focus=Focus});
 resize_event(#mousebutton{button=1,state=?SDL_RELEASED}, #rsz{prev_focus=Focus}=Rst) ->
     wings_wm:grab_focus(Focus),
     get_resize_event(Rst#rsz{state=idle});
-resize_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
-	     #rsz{state=moving,local={LocX,LocY}}) ->
+resize_event(#mousemotion{state=0}, #rsz{state=moving,prev_focus=Focus}=Rst) ->
+    wings_wm:grab_focus(Focus),
+    get_resize_event(Rst#rsz{state=idle});
+resize_event(#mousemotion{x=X0,y=Y0},
+	     #rsz{state=moving,local={LocX,LocY},aspect=Aspect}) ->
     {X1,Y1} = wings_wm:local2global(X0, Y0),
     X = X1 - LocX,
     Y = Y1 - LocY,
     {OldX,OldY} = wings_wm:win_ul(),
     Dx0 = X-OldX,
     Dy0 = Y-OldY,
-    {Dx,Dy} = resize_constrain(Dx0, Dy0),
-    {resizer,Client} = get(wm_active),
+    {resizer,Client} = wings_wm:active_window(),
+    {Dx,Dy} = resize_constrain(Client, Dx0, Dy0, Aspect),
     wings_wm:update_window(Client, [{dw,Dx},{dh,Dy}]),
     keep;
-resize_event(#mousemotion{state=?SDL_RELEASED},
-	   #rsz{state=moving,prev_focus=Focus}=Rst) ->
-    wings_wm:grab_focus(Focus),
-    get_resize_event(Rst#rsz{state=idle});
 resize_event({window_updated,Client}, _) ->
     Pos = resize_pos(Client),
     wings_wm:move(wings_wm:active_window(), Pos),
@@ -386,7 +404,7 @@ resize_pos(Client) ->
 	true -> {X+W,Y+H-13,Z+0.5}
     end.
 
-resize_constrain(Dx0, Dy0) ->
+resize_constrain(Client, Dx0, Dy0, Aspect) ->
     {{DeskX,DeskY},{DeskW,DeskH}} = wings_wm:win_rect(desktop),
     {{X,Y},{W,H}} = wings_wm:win_rect(),
     Dx = if
@@ -401,7 +419,15 @@ resize_constrain(Dx0, Dy0) ->
 	     true ->
 		 Dy0
 	 end,
-    {Dx,Dy}.
+    resize_constrain_1(Client, Dx, Dy, Aspect).
+
+resize_constrain_1(_, Dx, Dy, none) -> {Dx,Dy};
+resize_constrain_1(Client, Dx, Dy, Aspect) ->
+    {W,H} = wings_wm:win_size(Client),
+    if
+	Dx > Dy ->{round(Aspect*(H+Dy)-W),Dy};
+	true -> {Dx,round((W+Dx)/Aspect)-H}
+    end.
 
 %%%
 %%% A vertical scroller.
