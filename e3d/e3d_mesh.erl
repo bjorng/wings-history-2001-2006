@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.45 2004/11/14 12:36:36 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.46 2004/12/16 18:49:50 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -863,14 +863,12 @@ slit_hard_x_cut(_Old=#e3d_mesh{vs=VsT,vc=VcT,tx=TxT,ns=NsT},
     Pos = e3d_vec:average([element(VsJ+1, VsT),element(VsK+1, VsT)]),
     Color = case {VcJ,VcK} of
 		{[Vcj],[Vck]} ->
-		    [wings_color:mix(
-		       0.5, element(Vcj+1, VcT), element(Vck+1, VcT))];
+		    [mix(0.5, element(Vcj+1, VcT), element(Vck+1, VcT))];
 		_ -> []
 	    end,
     UV = case {TxJ,TxK} of
 	     {[Txj],[Txk]} ->
-		 [wings_color:mix(
-		    0.5, element(Txj+1, TxT), element(Txk+1, TxT))];
+		 [mix(0.5, element(Txj+1, TxT), element(Txk+1, TxT))];
 	     _ -> []
 	 end,
     Norm = case {NsJ,NsK} of
@@ -902,6 +900,22 @@ slit_hard_x_dup(_Old=#e3d_mesh{vs=VsT},
 
 mk_edge(V1, V2) when V1 > V2 -> {V2,V1};
 mk_edge(V1, V2) -> {V1,V2}.
+
+mix(_W, Same, Same) -> Same;
+mix(Wa, {Ua,Va}, {Ub,Vb}) when is_float(Wa) ->
+    Wb = 1.0 - Wa,
+    {Wa*Ua+Wb*Ub,Wa*Va+Wb*Vb};
+mix(Wa, {Ra,Ga,Ba}, {Rb,Gb,Bb}) when is_float(Wa) ->
+    Wb = 1.0 - Wa,
+    {Wa*Ra+Wb*Rb,Wa*Ga+Wb*Gb,Wa*Ba+Wb*Bb};
+mix(Wa, {Ra,Ga,Ba}, {_,_,_,Ab}=B) ->
+    mix(Wa, {Ra,Ga,Ba,Ab}, B);
+mix(Wa, {_,_,_,Aa}=A, {Rb,Gb,Bb}) ->
+    mix(Wa, A, {Rb,Gb,Bb,Aa});
+mix(Wa, {Ra,Ga,Ba,Aa}, {Rb,Gb,Bb,Ab}) when is_float(Wa) ->
+    Wb = 1.0 - Wa,
+    {Wa*Ra+Wb*Rb,Wa*Ga+Wb*Gb,Wa*Ba+Wb*Bb,Wa*Aa+Wb*Ab};
+mix(_, _, _) -> none.
 
 %%%
 %%% Help function for face_areas/1,2.
