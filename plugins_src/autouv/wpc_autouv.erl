@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.155 2003/08/24 09:20:21 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.156 2003/08/27 06:47:39 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1058,7 +1058,7 @@ draw_faces(Fs, We) ->
 
 %% XXX Wrong.
 face(Face, #we{mode=material}=We) ->
-    wings_draw_util:flat_face(Face, We);
+    wings_draw_util:plain_face(Face, We);
 face(Face, #we{mode=vertex}=We) ->
     wings_draw_util:vcol_face(Face, We).
 

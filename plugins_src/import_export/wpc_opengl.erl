@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.38 2003/08/26 22:09:06 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.39 2003/08/27 06:47:39 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -291,7 +291,7 @@ dlist_mask(true, #we{fs=Ftab}=We) ->
     List.
 
 dlist_mask_2([{Face,Edge}|Fs], We) ->
-    wings_draw_util:unlit_tri(Face, Edge, We),
+    wings_draw_util:unlit_face(Face, Edge, We),
     dlist_mask_2(Fs, We);
 dlist_mask_2([], _We) -> ok.
 
@@ -495,7 +495,7 @@ create_shadow_volume(#light{type=infinite,aim=Aim,pos=LPos},
     wings_draw_util:begin_end(
       fun() -> foreach(fun(Face) -> 
 			       Edge = gb_trees:get(Face, FTab),
-			       wings_draw_util:unlit_tri(Face, Edge, We)
+			       wings_draw_util:unlit_face(Face, Edge, We)
 		       end, FF) 
       end);
 create_shadow_volume(#light{pos=LPos},#d{we= We = #we{fs=FTab}}) ->
@@ -506,7 +506,7 @@ create_shadow_volume(#light{pos=LPos},#d{we= We = #we{fs=FTab}}) ->
     wings_draw_util:begin_end(
       fun() -> foreach(fun(Face) -> 
 			       Edge = gb_trees:get(Face, FTab),
-			       wings_draw_util:unlit_tri(Face, Edge, We)
+			       wings_draw_util:unlit_face(Face, Edge, We)
 		       end, FF) 
       end),
     %% Draw bottom cap

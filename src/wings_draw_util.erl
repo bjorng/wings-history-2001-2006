@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.102 2003/08/24 09:20:22 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.103 2003/08/27 06:47:39 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -16,10 +16,9 @@
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,call_one_of/2,
 	 prepare/3,
-	 flat_face/2,flat_face/3,
-	 uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
+	 plain_face/2,plain_face/3,uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_mat_faces/1,smooth_uv_faces/1,smooth_vcol_faces/1,
-	 unlit_tri/2,unlit_tri/3,
+	 unlit_face/2,unlit_face/3,
 	 force_flat_color/2,consistent_normal/4,good_triangulation/5]).
 
 -define(NEED_OPENGL, 1).
@@ -582,20 +581,20 @@ vtx_smooth_face_color_1([], Col) -> Col.
 %% Triangulate and draw a face.
 %%
 
-flat_face(Face, #we{fs=Ftab}=We) ->
+plain_face(Face, #we{fs=Ftab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
-    flat_face(Face, Edge, We).
+    plain_face(Face, Edge, We).
 
-flat_face(Face, Edge, #we{vp=Vtab}=We) ->
+plain_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs = wings_face:vertices_cw(Face, Edge, We),
-    flat_face_1(Vs, Vtab, []).
+    plain_face_1(Vs, Vtab, []).
 
-flat_face_1([V|Vs], Vtab, Acc) ->
-    flat_face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-flat_face_1([], _, VsPos) ->
+plain_face_1([V|Vs], Vtab, Acc) ->
+    plain_face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+plain_face_1([], _, VsPos) ->
     N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
-    wings__du:mat_face(N, VsPos).
+    wings__du:plain_face(N, VsPos).
 
 %%
 %% Tesselate and draw face. Include UV coordinates.
@@ -696,7 +695,7 @@ force_flat_color(OriginalDlist, {R,G,B}) ->
     {call,Dl,OriginalDlist}.
 
 smooth_mat_faces([{_,{N,Vs}}|Fs]) ->
-    wings__du:smooth_mat_face(N, Vs),
+    wings__du:smooth_plain_face(N, Vs),
     smooth_mat_faces(Fs);
 smooth_mat_faces([]) -> ok.
 
@@ -710,23 +709,23 @@ smooth_vcol_faces([{_,{N,Vs}}|Fs]) ->
     smooth_vcol_faces(Fs);
 smooth_vcol_faces([]) -> ok.
 
-%% Draw a face that is assumed to be a triangle without lighting.
-unlit_tri(Face, #we{fs=Ftab}=We) ->
+%% Draw a face without any lighting.
+unlit_face(Face, #we{fs=Ftab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
-    unlit_tri(Face, Edge, We).
+    unlit_face(Face, Edge, We).
 
-unlit_tri(Face, Edge, #we{vp=Vtab}=We) ->
+unlit_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs = wings_face:vertices_cw(Face, Edge, We),
-    unlit_tri_1(Vs, Vtab, []).
+    unlit_face_1(Vs, Vtab, []).
 
-unlit_tri_1([V|Vs], Vtab, Acc) ->
-    unlit_tri_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-unlit_tri_1([], _, [_,_,_]=VsPos) ->
-    %% Send a dummy normal. It will not be used.
-    wings__du:mat_face([], VsPos);
-unlit_tri_1([],_, VsPos) ->
-    %% Oops. Not a triangle. Handle it anyway.
-    wings__du:mat_face(e3d_vec:normal(VsPos), VsPos).
+unlit_face_1([V|Vs], Vtab, Acc) ->
+    unlit_face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+unlit_face_1([], _, [_,_,_]=VsPos) ->
+    %% Triangle. Send a dummy normal. It will not be used.
+    wings__du:plain_face([], VsPos);
+unlit_face_1([], _, VsPos) ->
+    N = e3d_vec:normal(VsPos),
+    wings__du:plain_face(N, VsPos).
 
 %%
 %% Utilities.

@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__du.erl,v 1.3 2003/08/24 17:39:38 bjorng Exp $
+%%     $Id: wings__du.erl,v 1.4 2003/08/27 06:47:39 bjorng Exp $
 %%
 
 -module(wings__du).
 -export([is_quirky_loaded/0,init_cb/1,begin_end/2,
-	 mat_face/2,uv_face/2,vcol_face/2,
-	 smooth_mat_face/2,smooth_uv_face/2,smooth_vcol_face/2]).
+	 plain_face/2,uv_face/2,vcol_face/2,
+	 smooth_plain_face/2,smooth_uv_face/2,smooth_vcol_face/2]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -67,17 +67,17 @@ begin_end(Type, Body) ->
     Res.
 -endif.
 
-%% mat_face(FaceNormal, [Position]) -> ok
+%% plain_face(FaceNormal, [Position]) -> ok
 %%  Draw a face with neither UV coordinates nor vertex colors.
-mat_face(_, [A,B,C]) ->
+plain_face(_, [A,B,C]) ->
     ?GL__BEGIN(?GL_TRIANGLES),
     gl:vertex3dv(A),
     gl:vertex3dv(B),
     ?GL__END(gl:vertex3dv(C));
-mat_face(N, [A,B,C,D]=VsPos) ->
+plain_face(N, [A,B,C,D]=VsPos) ->
     case wings_draw_util:good_triangulation(N, A, B, C, D) of
 	false ->
-	    mat_face_1(N, VsPos);
+	    plain_face_1(N, VsPos);
 	true ->
 	    ?GL__BEGIN(?GL_TRIANGLES),
 	    gl:vertex3dv(A),
@@ -90,20 +90,20 @@ mat_face(N, [A,B,C,D]=VsPos) ->
 	    gl:vertex3dv(C),
  	    ?GL__END(gl:vertex3dv(D))
     end;
-mat_face(N, VsPos) -> mat_face_1(N, VsPos).
+plain_face(N, VsPos) -> plain_face_1(N, VsPos).
 
-mat_face_1(N, VsPos) ->
+plain_face_1(N, VsPos) ->
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    mat_face_2(Tess, VsPos).
+    plain_face_2(Tess, VsPos).
 
-mat_face_2(Tess, [P|T]) ->
+plain_face_2(Tess, [P|T]) ->
     glu:tessVertex(Tess, P),
-    mat_face_2(Tess, T);
-mat_face_2(Tess, []) ->
+    plain_face_2(Tess, T);
+plain_face_2(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
 
@@ -213,14 +213,14 @@ vcol_face_vtx([Pos|_]) ->
 %%% Drawing of faces with smooth normals.
 %%%
 
-%% smooth_mat_face(FaceNormal, [Position,_,VertexNormal]) -> ok
+%% smooth_plain_face(FaceNormal, [Position,_,VertexNormal]) -> ok
 %%  Draw a smooth face with neither UV coordinates nor vertex colors.
-smooth_mat_face(_, [A,B,C]) ->
+smooth_plain_face(_, [A,B,C]) ->
     ?GL__BEGIN(?GL_TRIANGLES),
-    smooth_mat_face_vtx(A),
-    smooth_mat_face_vtx(B),
-    ?GL__END(smooth_mat_face_vtx(C));
-smooth_mat_face(N, [A,B,C,D]=Vs) ->
+    smooth_plain_face_vtx(A),
+    smooth_plain_face_vtx(B),
+    ?GL__END(smooth_plain_face_vtx(C));
+smooth_plain_face(N, [A,B,C,D]=Vs) ->
     Ap = element(1, A),
     Bp = element(1, B),
     Cp = element(1, C),
@@ -228,33 +228,33 @@ smooth_mat_face(N, [A,B,C,D]=Vs) ->
     case wings_draw_util:good_triangulation(N, Ap, Bp, Cp, Dp) of
 	true ->
 	    ?GL__BEGIN(?GL_TRIANGLES),
-	    smooth_mat_face_vtx(A),
-	    smooth_mat_face_vtx(B),
-	    ?GL__END(smooth_mat_face_vtx(C)),
+	    smooth_plain_face_vtx(A),
+	    smooth_plain_face_vtx(B),
+	    ?GL__END(smooth_plain_face_vtx(C)),
 	    ?GL__BEGIN(?GL_TRIANGLES),
-	    smooth_mat_face_vtx(A),
-	    smooth_mat_face_vtx(C),
-	    ?GL__END(smooth_mat_face_vtx(D));
+	    smooth_plain_face_vtx(A),
+	    smooth_plain_face_vtx(C),
+	    ?GL__END(smooth_plain_face_vtx(D));
 	false ->
-	    smooth_mat_face_1(N, Vs)
+	    smooth_plain_face_1(N, Vs)
     end;
-smooth_mat_face(N, Vs) -> smooth_mat_face_1(N, Vs).
+smooth_plain_face(N, Vs) -> smooth_plain_face_1(N, Vs).
 	    
-smooth_mat_face_1({X,Y,Z}, Vs) ->
+smooth_plain_face_1({X,Y,Z}, Vs) ->
     Tess = wings_draw_util:tess(),
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    smooth_mat_face_2(Vs, Tess),
+    smooth_plain_face_2(Vs, Tess),
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
 
-smooth_mat_face_2([{P,_,N}|Vs], Tess) ->
+smooth_plain_face_2([{P,_,N}|Vs], Tess) ->
     glu:tessVertex(Tess, P, [{normal,N}]),
-    smooth_mat_face_2(Vs, Tess);
-smooth_mat_face_2([], _) -> ok.
+    smooth_plain_face_2(Vs, Tess);
+smooth_plain_face_2([], _) -> ok.
 
-smooth_mat_face_vtx({P,_,N}) ->
+smooth_plain_face_vtx({P,_,N}) ->
     gl:normal3fv(N),
     gl:vertex3dv(P).
 

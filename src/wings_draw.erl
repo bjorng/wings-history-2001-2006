@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.141 2003/08/26 11:42:25 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.142 2003/08/27 06:47:39 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -314,7 +314,7 @@ update_sel(#dlo{sel=none,src_sel={face,Faces},src_we=#we{fs=Ftab}=We}=D) ->
 	    wings_draw_util:begin_end(
 	      fun() ->
 		      foreach(fun(Face) ->
-				      wings_draw_util:flat_face(Face, We)
+				      wings_draw_util:unlit_face(Face, We)
 			      end, gb_sets:to_list(Faces))
 	      end),
 	    gl:endList(),
@@ -380,7 +380,7 @@ update_sel_all(#dlo{src_we=#we{fs=Ftab}=We,work=none}=D) ->
     wings_draw_util:begin_end(
       fun() ->
 	      foreach(fun({Face,Edge}) ->
-			      wings_draw_util:flat_face(Face, Edge, We)
+			      wings_draw_util:unlit_face(Face, Edge, We)
 		      end, gb_trees:to_list(Ftab))
       end),
     gl:endList(),
@@ -580,7 +580,7 @@ draw_vtx_faces_1([{Col,Faces}|Fs], We) ->
 draw_vtx_faces_1([], _) -> ok.
 
 draw_vtx_faces_2([F|Fs], We) ->
-    wings_draw_util:flat_face(F, We),
+    wings_draw_util:plain_face(F, We),
     draw_vtx_faces_2(Fs, We);
 draw_vtx_faces_2([], _) -> ok.
 
@@ -615,7 +615,7 @@ mat_faces_1([{Mat,Faces}|T], We, Mtab) ->
 mat_faces_1([], _, _) -> ok.
 
 draw_mat_faces([{Face,Edge}|Fs], We) ->
-    wings_draw_util:flat_face(Face, Edge, We),
+    wings_draw_util:plain_face(Face, Edge, We),
     draw_mat_faces(Fs, We);
 draw_mat_faces([], _) -> ok.
 

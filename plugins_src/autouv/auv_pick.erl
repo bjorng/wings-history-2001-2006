@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.6 2003/08/24 09:20:21 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.7 2003/08/27 06:47:39 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -140,7 +140,7 @@ hilit_draw_sel(face, Face, We) ->
     end,
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     wings_draw_util:begin_end(fun() ->
-				      wings_draw_util:flat_face(Face, We)
+				      wings_draw_util:unlit_face(Face, We)
 			      end),
     gl:disable(?GL_POLYGON_STIPPLE);
 hilit_draw_sel(body, _, #we{name=#ch{fs=Fs}}=We) ->
@@ -148,7 +148,7 @@ hilit_draw_sel(body, _, #we{name=#ch{fs=Fs}}=We) ->
     wings_draw_util:begin_end(
       fun() ->
 	      foreach(fun(Face) ->
-			      wings_draw_util:flat_face(Face, We)
+			      wings_draw_util:unlit_face(Face, We)
 		      end, Fs)
       end).
 
