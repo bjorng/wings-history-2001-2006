@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.33 2001/11/07 07:09:59 bjorng Exp $
+%%     $Id: wings.erl,v 1.34 2001/11/07 09:41:49 bjorng Exp $
 %%
 
 -module(wings).
@@ -1054,6 +1054,7 @@ translate_key($9, St) -> {edge,{cut,9}};
 translate_key($0, St) -> {edge,{cut,10}};
 translate_key(?SDLK_TAB, St)  -> {view,smooth_preview};
 translate_key(?SDLK_PLUS, St)  -> {select,more};
+translate_key($=, St)  -> {select,more};
 translate_key(?SDLK_MINUS, St)  -> {select,less};
 translate_key(_, _) -> ignore.
 

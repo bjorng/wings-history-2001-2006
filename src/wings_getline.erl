@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.6 2001/10/21 07:53:11 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.7 2001/11/07 09:41:49 bjorng Exp $
 %%
 
 -module(wings_getline).
@@ -159,6 +159,8 @@ key(_, Unicode, Ts) ->
     key(Unicode, Ts).
 
 key($+, #text{number=true}=Ts) ->
+    increment(Ts, 1);
+key($=, #text{number=true}=Ts) ->		%Same key as plus on American keybd.
     increment(Ts, 1);
 key($-, #text{number=true}=Ts) ->
     increment(Ts, -1);
