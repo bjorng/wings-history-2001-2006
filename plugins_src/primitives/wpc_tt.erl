@@ -42,11 +42,14 @@ menu({shape}, Menu) ->
 menu(_, Menu) -> Menu.
 
 insert_before_more([H|_]=More) when element(1, element(2, H)) == more ->
-    [{"Text",text,[option]},separator|More];
+    [menu_entry(),separator|More];
 insert_before_more([H|T]) ->
     [H|insert_before_more(T)];
 insert_before_more([]) ->
-    [{"Text",text,[option]}].
+    [menu_entry()].
+
+menu_entry() ->
+    {"Text",text,"Convert text to a 3D object",[option]}.
 
 command({shape,{text,Ask}}, _St) -> make_text(Ask);
 command(_, _) -> next.
