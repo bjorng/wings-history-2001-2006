@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.48 2003/07/19 12:08:36 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.49 2003/07/28 19:16:21 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -170,16 +170,34 @@ bevel_limit_1(V, Vec, #we{vp=Vtab}=We, Acc) ->
 edge_name(Va, Vb) when Va < Vb -> {Va,Vb};
 edge_name(Va, Vb) -> {Vb,Va}.
 
-bevel_min_limit([{_,[{O1,D1},{O2,D2}]}|Tail], We, Min0) ->
+bevel_min_limit([{_Edge,[{O1,D1},{O2,D2}]}|Tail], We, Min0) ->
     %% Find intersection between lines.
     O2MinusO1 = e3d_vec:sub(O2, O1),
     D1CrossD2 = e3d_vec:cross(D1, D2),
     LenD1CrossD2 = e3d_vec:len(D1CrossD2),
     case LenD1CrossD2*LenD1CrossD2 of
 	Z when abs(Z) < 0.000001 ->
-	    %% No intersection.
-	    bevel_min_limit(Tail, We, Min0);
+	    %% There is no intersection between the lines.
+	    case e3d_vec:len(O2MinusO1) of
+		Odist when Odist < 0.000001 ->
+		    %% As the vertices are already near each other,
+		    %% we will assume that they will be moving apart.
+		    bevel_min_limit(Tail, We, Min0);
+		Odist ->
+		    D1Len = e3d_vec:len(D1),
+		    case e3d_vec:dist(e3d_vec:mul(D1, Odist/D1Len), O2MinusO1) of
+			Dist when Dist < 0.000001 ->
+			    %% The vertices will be moved directly towards each
+			    %% others.
+			    S = Odist / (2*D1Len),
+			    bevel_min_limit(Tail, We, lists:min([Min0,S]));
+			_ ->
+			    %% The vertices will not meet each other.
+			    bevel_min_limit(Tail, We, Min0)
+		    end
+	    end;
 	SqrLen ->
+	    %% There is an intersection. Calculate its parameters.
 	    S = e3d_vec:dot(e3d_vec:cross(O2MinusO1, D2), D1CrossD2)/SqrLen,
 	    T = e3d_vec:dot(e3d_vec:cross(O2MinusO1, D1), D1CrossD2)/SqrLen,
 	    if
