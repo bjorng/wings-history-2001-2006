@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.47 2003/02/13 18:33:16 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.48 2003/02/13 20:25:15 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -831,10 +831,19 @@ validate_faces(#we{fs=Ftab}=We) ->
 		    Cw = walk_face_cw(Face, Edge, Edge, We, []),
 		    Ccw = walk_face_ccw(Face, Edge, Edge, We, []),
  		    case reverse(Ccw) of
- 			Cw -> ok;
+ 			Cw -> validate_face_vertices(Cw);
  			_Other -> exit({face_cw_ccw_inconsistency,Face})
  		    end
 	    end, gb_trees:to_list(Ftab)).
+
+validate_face_vertices(Vs) ->
+    validate_face_vertices_1(sort(Vs)).
+
+validate_face_vertices_1([V,V|_]) ->
+    exit(repeated_vertex);
+validate_face_vertices_1([_|T]) ->
+    validate_face_vertices_1(T);
+validate_face_vertices_1([]) -> ok.
 
 walk_face_cw(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
 walk_face_cw(Face, Edge, LastEdge, We, Acc) ->

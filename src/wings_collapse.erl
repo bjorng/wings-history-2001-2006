@@ -4,12 +4,12 @@
 %%     This module contains the Collapse commands (for vertices,
 %%     edges, and faces).
 %%
-%%  Copyright (c) 2001-2002 Jakob Cederlund, Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Jakob Cederlund, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.28 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.29 2003/02/13 20:25:15 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -33,6 +33,7 @@ collapse(#st{selmode=vertex}=St0) ->
 
 collapse_faces(Faces, #we{id=Id}=We0, SelAcc)->
     We = foldl(fun collapse_face/2, We0, gb_sets:to_list(Faces)),
+    check_consistency(We),
     Sel = wings_we:new_items(vertex, We0, We),
     {We,[{Id,Sel}|SelAcc]}.
 
@@ -130,6 +131,7 @@ delete_edges(V, Edge, Face, {Etab0,Vct0,Vtab0,Ftab0,Htab0}) ->
 collapse_edges(Edges0, #we{id=Id,es=Etab}=We0, SelAcc)->
     Edges = gb_sets:to_list(Edges0),
     We = foldl(fun collapse_edge/2, We0, Edges),
+    check_consistency(We),
     Sel = foldl(fun(Edge, A) ->
 			#edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
 			gb_sets:add(Va, gb_sets:add(Vb, A))
@@ -205,6 +207,7 @@ collapse_vertices(Vs, #we{id=Id}=We0, SelAcc) ->
     {We,Sel} = foldl(fun(V, {W,S}) ->
 			     do_collapse_vertex(V, W, S)
 		     end, {We0,gb_sets:empty()}, gb_sets:to_list(Vs)),
+    check_consistency(We),
     {We,[{Id,Sel}|SelAcc]}.
 
 %% collapse_vertex(V, We) -> We'
@@ -333,3 +336,13 @@ patch_vtx_refs(OldV, NewV, We, {_,_}=Acc) ->
 		  none -> A		%An deleted edge.
 	      end
       end, Acc, OldV, We).
+
+check_consistency(We) ->
+    case wings_we:is_consistent(We) of
+	true -> ok;
+	false ->
+	    Msg = "Collapsing would cause an inconsistent object structure.",
+	    wings_util:error(Msg)
+    end.
+
+	    
