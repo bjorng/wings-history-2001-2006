@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.76 2002/08/12 07:53:42 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.77 2002/09/10 07:02:11 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -132,6 +132,15 @@ command(show_colors, St) ->
 	 (D, _) -> D
       end, []),
     St;
+command(show_normals, St) ->
+    Bool = wings_pref:get_value(show_normals),
+    wings_pref:set_value(show_normals, not Bool),
+    case Bool of
+	false -> St;
+	true ->
+	    wings_draw_util:map(fun(D, _) -> D#dlo{normals=none} end, []),
+	    St
+    end;
 command(aim, St) ->
     aim(St),
     St;
@@ -144,7 +153,7 @@ command({along,Axis}, St) ->
 command(auto_rotate, St) ->
     auto_rotate(St);
 command(rotate_left, St) ->
-    #view{azimuth=Az0} = View = wings_view:current(),
+    #view{azimuth=Az0} = View = current(),
     Az = Az0 + wings_pref:get_value(auto_rotate_angle),
     set_current(View#view{azimuth=Az}),
     St;
