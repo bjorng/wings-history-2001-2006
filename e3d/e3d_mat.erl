@@ -3,12 +3,12 @@
 %%
 %%     Operations on matrices.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.26 2003/05/16 17:31:19 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.27 2004/06/09 18:48:30 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -96,7 +96,8 @@ project_to_plane(Vec) ->
      Uz,Vz,_,
      _,_,_} = rotate_to_z(Vec),
     if
-	is_float(Ux), is_float(Uy), is_float(Uz) ->
+	is_float(Ux), is_float(Uy), is_float(Uz),
+	is_float(Vx), is_float(Vy), is_float(Vz) ->
 	    {Ux*Ux+Vx*Vx,Uy*Ux+Vy*Vx,Uz*Ux+Vz*Vx,
 	     Ux*Uy+Vx*Vy,Uy*Uy+Vy*Vy,Uz*Uy+Vz*Vy,
 	     Ux*Uz+Vx*Vz,Uy*Uz+Vy*Vz,Uz*Uz+Vz*Vz,
