@@ -1,16 +1,14 @@
 %%
 %%  wings_subdiv.erl --
 %%
-%%     This module implements the Smooth command for faces.
-%%     (Currently, there is similar code in the wings_body.erl
-%%     for smoothing an entire object.)
+%%     This module implements the Smooth command for objects and faces.
 %%
 %%  Copyright (c) 2001 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.9 2001/09/25 09:39:18 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.10 2001/10/03 09:24:11 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -44,7 +42,7 @@ face_centers(Faces, #we{fs=Ftab}=We) ->
 
 face_centers([Face|Fs], We, Acc) ->
     Vs = wings_face:surrounding_vertices(Face, We),
-    Center0 = e3d_vec:average(wings_vertex:bounding_box(Vs, We)),
+    Center0 = wings_vertex:center(Vs, We),
     Center = wings_util:share(Center0),
     face_centers(Fs, We, [{Face,[Center|length(Vs)]}|Acc]);
 face_centers([], We, Acc) -> Acc.
@@ -77,7 +75,7 @@ smooth_move_orig_1(V, FacePosTab, Htab, #we{es=Etab,vs=OVtab}=We, Vtab) ->
 	    Ps = e3d_vec:add(Ps0),
 	    N = float(length(Ps0) bsr 1),
 	    Pos0 = e3d_vec:add(e3d_vec:divide(Ps, (N*N)),
-				 e3d_vec:mul(S, (N-2.0)/N)),
+			       e3d_vec:mul(S, (N-2.0)/N)),
 	    Pos = wings_util:share(Pos0),
 	    gb_trees:update(V, Vrec#vtx{pos=Pos}, Vtab);
 	NumHard when NumHard =:= 2 ->

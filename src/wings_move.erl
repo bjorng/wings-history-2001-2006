@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.9 2001/09/25 09:39:18 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.10 2001/10/03 09:24:11 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -69,7 +69,7 @@ edges_to_vertices(Es, We, normal) ->
 		       Normal = e3d_vec:norm(e3d_vec:add(NL, NR)),
 		       [{Va,{Normal,VaPos,EdgeDir}},
 			{Vb,{Normal,VbPos,e3d_vec:neg(EdgeDir)}}|D0]
-	       end, [], Es),
+	       end, [], gb_sets:to_list(Es)),
     average(Vs);
 edges_to_vertices(Es, We, Vec) ->
     make_tvs(wings_edge:to_vertices(Es, We), Vec).
