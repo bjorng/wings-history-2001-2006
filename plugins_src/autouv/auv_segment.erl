@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.11 2002/10/17 20:21:30 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.12 2002/10/18 19:53:44 bjorng Exp $
 
 -module(auv_segment).
 
@@ -575,8 +575,11 @@ segment_by_cluster(Rel0, We) ->
 %%% Cutting along hard edges.
 %%%
 
-cut_model(Cuts, Clusters, We0) ->
-    AllFaces = wings_sel:get_all_items(face, We0),
+cut_model(Cuts, [Faces], We) ->
+    Map = reverse(foldl(fun(F, A) -> [{F,F}|A] end, [], Faces)),
+    cut_model_1(Cuts, [{We,Map}]);
+cut_model(Cuts, Clusters, We) ->
+    AllFaces = wings_sel:get_all_items(face, We),
     {WMs0,_} = mapfoldl(fun(Keep0, W0) ->
 				Keep = gb_sets:from_list(Keep0),
 				Del = gb_sets:difference(AllFaces, Keep),
@@ -584,7 +587,10 @@ cut_model(Cuts, Clusters, We0) ->
 				{W,InvVmap} = cut_renumber(Keep, W1),
 				Next = lists:max([W0#we.next_id,W#we.next_id]),
 				{{W,InvVmap},W0#we{next_id=Next}}
-			end, We0, Clusters),
+			end, We, Clusters),
+    cut_model_1(Cuts, WMs0).
+
+cut_model_1(Cuts, WMs0) ->
     WMs1 = sofs:from_term(WMs0, [{we,[{atom,atom}]}]),
     Wes = sofs:to_external(sofs:domain(WMs1)),
     We1 = wings_we:force_merge(Wes),
