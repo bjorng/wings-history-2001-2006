@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.18 2003/03/14 11:22:55 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.19 2003/03/14 12:41:06 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -30,6 +30,7 @@
 
 -define(DEF_DIALOGS, auto).
 -define(DEF_RENDERER, "yafray").
+-define(DEF_OPTIONS, "").
 -define(DEF_LOAD_IMAGE, true).
 
 %% Shader
@@ -444,6 +445,7 @@ export_dialog(Operation) ->
     Height = get_pref(height, ?DEF_HEIGHT),
     BgColor = get_pref(background_color, ?DEF_BACKGROUND_COLOR),
     LoadImage = get_pref(load_image, ?DEF_LOAD_IMAGE),
+    Options = get_pref(options, ?DEF_OPTIONS),
     [{hframe,
       [{vframe,[{label,"AA_passes"},
 		{label,"AA_threshold"}]},
@@ -466,7 +468,10 @@ export_dialog(Operation) ->
        {vframe,[{text,Height,[{range,{1,10000}},{key,height}]}]}],
       [{title,"Camera"}]}|
      case Operation of render ->
-	     [{hframe,[{"Load Image",LoadImage,[{key,load_image}]}]}];
+	     [{hframe,[{label,"Options"},
+		       {text,Options,[{key,options}]},
+		       {"Load Image",LoadImage,[{key,load_image}]}],
+	       [{title,"Rendering Job"}]}];
 	 export ->
 	     []
      end].
@@ -533,35 +538,40 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    println(F),
 	    println(F, "</scene>"),
 	    close(F),
-	    Renderer = get_pref(renderer, ?DEF_RENDERER),
+	    Renderer = get_var(renderer),
+	    Options = proplists:get_value(options,Attr,?DEF_OPTIONS),
 	    LoadImage = proplists:get_value(load_image,Attr,?DEF_LOAD_IMAGE),
-	    case Render of
-		true ->
+	    case {Renderer,Render} of
+		{false,_} ->
+		    ok;
+		{_,false} ->
+		    ok;
+		_ ->
 		    Parent = self(),
 		    spawn_link(
 		      fun () -> 
 			      file:delete(RenderFile),
-			      render(Renderer, ExportFile, Parent, LoadImage) 
+			      render(Renderer, Options, ExportFile, 
+				     Parent, LoadImage) 
 		      end),
 		    set_var(rendering, RenderFile),
-		    ok;
-		false ->
 		    ok
 	    end
     end.
 
 
 
-render(Renderer, Filename, Parent, LoadImage) ->
+render(Renderer, Options, Filename, Parent, LoadImage) ->
     process_flag(trap_exit, true),
     Dirname = filename:dirname(Filename),
     Basename = filename:basename(Filename),
-    Cmd = Renderer++" "++Basename,
-    Opts = [{line,8},{cd,Dirname},eof,exit_status,stderr_to_stdout],
+    Cmd = Renderer++" "++Options++" "++Basename,
+    PortOpts = [{line,8},{cd,Dirname},eof,exit_status,stderr_to_stdout],
     io:format("Rendering Job started ~p:~n>~s~n", [self(),Cmd]),
-    case catch open_port({spawn,Cmd}, Opts) of
+    case catch open_port({spawn,Cmd}, PortOpts) of
 	Port when port(Port) ->
-	    render_done(Filename, Parent, render_job(Port), LoadImage);
+	    Result = render_job(Port),
+	    render_done(Filename, Parent, Result, LoadImage);
 	{'EXIT',Reason} ->
 	    render_done(Filename, Parent, {error,Reason}, LoadImage)
     end.
