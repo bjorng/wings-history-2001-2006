@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.248 2004/05/21 09:22:52 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.249 2004/05/23 08:25:05 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -608,19 +608,10 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
 	{none,_} -> delete;
 	{{value,We},{value,We}} -> {AuvSt,false};
 	{{value,#we{es=Etab}},{value,#we{es=Etab}}} -> {AuvSt,false};
-	{{value,#we{es=Etab1}=We},{value,#we{es=Etab2}}} ->
-	    case gb_trees:keys(Etab1) =:= gb_trees:keys(Etab2) of
-		false -> topology_updated(We, AuvSt);
-		true -> uvs_updated(We, AuvSt)
-	    end;
-	{{value,We},none} ->
-	    topology_updated(We, AuvSt)
+	{{value,We},_} -> new_geom_state_2(We, AuvSt)
     end.
 
-uvs_updated(We, AuvSt) ->
-    topology_updated(We, AuvSt).
-
-topology_updated(We, St) ->
+new_geom_state_2(We, St) ->
     Faces = wings_we:uv_mapped_faces(We),
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We),
     {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We),
