@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_texture.erl,v 1.3 2004/02/13 08:02:41 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.4 2004/02/18 13:42:41 dgud Exp $
 
 -module(auv_texture).
 -export([get_texture/1, get_texture/2, draw_options/0]).
@@ -94,10 +94,10 @@ gen_tx_sizes(Sz, Acc) ->
 
 %%% Texture Creation
 
-get_texture(Uvs) ->    
+get_texture(St) ->    
     Ops = list_to_prefs(get_pref(draw_prefs, list_to_prefs(#opt{}))),
-    get_pref(Uvs, Ops).
-get_texture(#uvstate{st=#st{mat=Mats}, areas=As, matname=MatN}, Options) ->
+    get_pref(St, Ops).
+get_texture(#st{mat=Mats, shapes=As, bb=#uvstate{matname=MatN}}, Options) ->
     #opt{texsz={TexW,TexH}, texbg=TexBg} = Options,
     MI = {Mats,TexBg,MatN},
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),

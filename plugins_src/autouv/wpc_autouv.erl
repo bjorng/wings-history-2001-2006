@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.185 2004/02/17 17:12:45 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.186 2004/02/18 13:42:41 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -176,18 +176,17 @@ discard_uvmap(#we{fs=Ftab}=We0, St) ->
     auv_util:mark_segments(Charts, Cuts, We, St).
 
 do_edit(MatName0, Faces, We, St) ->
-    {Edges,Areas,MatName} = init_edit(MatName0, Faces, We),
-    create_uv_state(Edges, Areas, MatName, We, St).
+    {Areas,MatName} = init_edit(MatName0, Faces, We),
+    create_uv_state(Areas, MatName, We, St).
 
 %%%%%%
 
-init_show_maps(Map0, #we{es=Etab}=We, St) ->
+init_show_maps(Map0, We, St) ->
     Map1  = auv_placement:place_areas(Map0),
     Map   = gb_trees:from_orddict(sort(Map1)),
-    Edges = gb_trees:keys(Etab),
-    create_uv_state(Edges, Map, none, We, St).
+    create_uv_state(Map, none, We, St).
 
-create_uv_state(Edges, Map, MatName0, We, GeomSt0) ->
+create_uv_state(Map, MatName0, We, GeomSt0) ->
     wings:mode_restriction([body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {_,Geom} = init_drawarea(),
@@ -202,11 +201,8 @@ create_uv_state(Edges, Map, MatName0, We, GeomSt0) ->
     GeomSt = insert_uvcoords(Map, We#we.id, MatName, GeomSt1),
     wings_wm:send(geom, {new_state,GeomSt}),
     Uvs = #uvstate{st=wpa:sel_set(face, [], GeomSt),
-		   origst=GeomSt,
-		   areas=Map,
 		   geom=Geom,
-		   orig_we=We,
-		   edges=Edges,
+		   id=We#we.id,
 		   matname=MatName},
     St = GeomSt#st{selmode=body,sel=[],shapes=Map,bb=Uvs},
     Name = wings_wm:this(),
@@ -226,7 +222,7 @@ update_selected_uvcoords(St) ->
     update_uvcoords(Wes, St).
     
 update_uvcoords(Charts, #st{bb=Uvs} = St) ->
-    #uvstate{st=#st{shapes=Shs0}=GeomSt0, orig_we=#we{id=Id}} = Uvs,
+    #uvstate{st=#st{shapes=Shs0}=GeomSt0, id=Id} = Uvs,
     We0 = gb_trees:get(Id, Shs0),
     UVpos = gen_uv_pos(Charts, []),
     We  = insert_coords(UVpos, We0),    
@@ -295,8 +291,7 @@ init_edit(MatName, Faces, We0) ->
     Charts = auv_segment:cut_model(Charts1, Cuts, We0),
     Map1 = build_map(Charts, FvUvMap, 1, []),
     Map  = gb_trees:from_orddict(sort(Map1)),
-    Edges= gb_trees:keys(We0#we.es),
-    {Edges,Map,MatName}.
+    {Map,MatName}.
 
 build_map([{Fs,Vmap,We0}|T], FvUvMap, No, Acc) ->
     %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
@@ -375,31 +370,40 @@ wingeom(W,H) ->
 	    {-WF,1+WF,-WF,H/W+WF}
     end.
 
-draw_texture(#uvstate{dl=undefined,areas=As}=Uvs) ->
+draw_texture(#st{sel=Sel,shapes=Shs,bb=#uvstate{dl=undefined}=Uvs}=St) ->
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
-    foreach(fun(#we{}=We) ->
-		    draw_area(We, false)
-	    end, gb_trees:values(As)),
+    foreach(fun(#we{id=Id}=We) ->
+		    case lists:keymember(Id, 1, Sel) of
+			true ->
+			    ok;
+			false ->
+			    draw_area(We, false)
+		    end
+	    end, gb_trees:values(Shs)),
     gl:endList(),
-    draw_texture(Uvs#uvstate{dl=Dl});
-draw_texture(#uvstate{dl=DL}=Uvs) ->
+    draw_texture(St#st{bb=Uvs#uvstate{dl=Dl}});
+draw_texture(#st{bb=#uvstate{dl=DL}} = St) ->
     gl:enable(?GL_DEPTH_TEST),
     gl:callList(DL),
-    draw_selection(Uvs),
-    Uvs.
+    draw_selection(St),
+    St.
 
-draw_selection(#uvstate{sel=[]}) -> ok;
-draw_selection(Uvs) ->
-    {R,G,B} = wings_pref:get_value(selected_color),
-    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    gl:enable(?GL_BLEND),
-    gl:translatef(0.0, 0.0, 0.1),
-    Settings = {R,G,B,0.7},
-    sel_foreach(fun(We) -> draw_area(We, Settings) end, Uvs),
-    gl:disable(?GL_BLEND).
+draw_selection(#st{sel=Sel} = St) ->
+    case gb_sets:is_empty(Sel) of
+	true -> 
+	    ok;
+	false ->
+	    {R,G,B} = wings_pref:get_value(selected_color),
+	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+	    gl:enable(?GL_BLEND),
+	    gl:translatef(0.0, 0.0, 0.1),
+	    Settings = {R,G,B,0.7},
+	    sel_foreach(fun(We) -> draw_area(We, Settings) end, St),
+	    gl:disable(?GL_BLEND)
+    end.
 
-setup_view(#uvstate{geom={Left,Right,Bottom,Top},st=#st{mat=Mats},matname=MatN}) ->
+setup_view(#st{mat=Mats,bb=#uvstate{geom={Left,Right,Bottom,Top},matname=MatN}}) ->
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
 
@@ -495,28 +499,21 @@ option_menu() ->
 
 %%% Event handling
 
-get_event(#uvstate{mode=Mode,sel=Sel,areas=Shs,origst=OrigSt}=Uvs) ->
-    St = OrigSt#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs},
-    get_event(St);
 get_event(#st{}=St) ->
     wings_wm:dirty(),
     get_event_nodraw(St).
 
-get_event_nodraw(#uvstate{mode=Mode,sel=Sel,areas=Shs,origst=OrigSt}=Uvs) ->
-    St = OrigSt#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs},
-    get_event(St);
 get_event_nodraw(#st{}=St) ->
     {replace,fun(Ev) -> handle_event(Ev, St) end}.
 
-redraw(#st{sel=Sel,shapes=Shs,bb=Uvs0}=St) ->
-    update_dlists(St#st{selmode=body}),
-    Uvs1 = Uvs0#uvstate{sel=Sel,areas=Shs},
+redraw(#st{}=St0) ->
+    update_dlists(St0#st{selmode=body}),
     wings_util:button_message("Select", [], "Show menu"),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    setup_view(Uvs1),
-    Uvs = draw_texture(Uvs1),
+    setup_view(St0),
+    St = draw_texture(St0),
     gl:popAttrib(),
-    St#st{bb=Uvs}.
+    St.
 
 handle_event(redraw, St0) ->
     St = redraw(St0),
@@ -544,11 +541,10 @@ handle_event(Ev, St) ->
 	Other -> Other
     end.
 
-handle_event_1({current_state,geom_display_lists,GeomSt}, #st{bb=Uvs}=St0) ->
-    case verify_state(GeomSt, Uvs) of
+handle_event_1({current_state,geom_display_lists,GeomSt}, AuvSt) ->
+    case verify_state(GeomSt, AuvSt) of
 	keep ->
-	    #st{selmode=Mode,sel=Sel,shapes=Shs} = St0,
-	    update_selection(GeomSt, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs});
+	    update_selection(GeomSt, AuvSt);
 	Other -> Other
     end;
 handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0},
@@ -563,10 +559,9 @@ handle_event_1({drop,_,DropData}, St) ->
 handle_event_1({action,{auv,create_texture}},_St) ->
     auv_texture:draw_options();
 handle_event_1({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
-    #uvstate{st=GeomSt0,orig_we=OWe,matname=MatName0} = Uvs,
-    Tx = ?SLOW(auv_texture:get_texture(Uvs, Opt)),
-    #we{name=Name,id=_Id} = OWe,
-    {GeomSt,MatName} = add_material(Tx, Name, MatName0, GeomSt0),
+    #uvstate{st=GeomSt0,matname=MatName0} = Uvs,
+    Tx = ?SLOW(auv_texture:get_texture(St, Opt)),
+    {GeomSt,MatName} = add_material(Tx, undefined, MatName0, GeomSt0),
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}});
 %% Others
@@ -668,8 +663,8 @@ handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #st{bb=Uvs0}=St) ->
     case W =:= H andalso is_power_of_two(W) of
 	false -> keep;
 	true ->
-	    #uvstate{st=GeomSt0,orig_we=#we{name=Name},matname=MatName0} = Uvs0,
-	    {GeomSt,MatName} = add_material(Im, Name, MatName0, GeomSt0),
+	    #uvstate{st=GeomSt0,matname=MatName0} = Uvs0,
+	    {GeomSt,MatName} = add_material(Im, undefined, MatName0, GeomSt0),
 	    wings_wm:send(geom, {new_state,GeomSt}),
 	    Uvs = Uvs0#uvstate{st=GeomSt,matname=MatName},
 	    get_event(reset_dl(St#st{bb=Uvs}))
@@ -682,36 +677,35 @@ is_power_of_two(X) ->
     (X band -X ) == X.
 
 update_selection(#st{selmode=Mode,sel=Sel}=St,
-		 #uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs) ->
-    get_event_nodraw(Uvs#uvstate{st=St});
-update_selection(#st{selmode=Mode,sel=Sel}=St,
-		 #uvstate{orig_we=#we{id=Id}}=Uvs0) ->
-    Uvs = reset_dl(Uvs0#uvstate{sel=[]}),
+		 #st{bb = #uvstate{st=#st{selmode=Mode,sel=Sel}} = Uvs} = AuvSt) ->
+    get_event_nodraw(AuvSt#st{bb = Uvs#uvstate{st=St}});
+update_selection(#st{selmode=Mode,sel=Sel}=St, #st{bb=#uvstate{id=Id}=Uvs}=AuvSt0) ->
+    AuvSt = reset_dl(AuvSt0#st{sel=[], bb=Uvs#uvstate{st=St}}),
     case keysearch(Id, 1, Sel) of
 	false ->
-	    get_event(Uvs);
+	    get_event(AuvSt);
 	{value,{Id,Elems}} ->
-	    update_selection_1(Mode, gb_sets:to_list(Elems), Uvs#uvstate{st=St})
+	    update_selection_1(Mode, gb_sets:to_list(Elems), AuvSt)
     end.
 
-update_selection_1(face, Faces, #uvstate{areas=Charts}=Uvs) ->
-    update_selection_2(gb_trees:to_list(Charts), Faces, Uvs, []);
-update_selection_1(_, _, Uvs) ->
-    get_event_nodraw(Uvs).
+update_selection_1(face, Faces, #st{shapes=Charts}=St) ->
+    update_selection_2(gb_trees:to_list(Charts), Faces, St, []);
+update_selection_1(_, _, St) ->
+    get_event_nodraw(St).
 
-update_selection_2([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, Uvs, Sel) ->
+update_selection_2([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, St, Sel) ->
     case ordsets:intersection(sort(Fs), Faces) of
-	[] -> update_selection_2(Cs, Faces, Uvs, Sel);
-	_ -> update_selection_2(Cs, Faces, Uvs, [{K,gb_sets:singleton(0)}|Sel])
+	[] -> update_selection_2(Cs, Faces, St, Sel);
+	_ -> update_selection_2(Cs, Faces, St, [{K,gb_sets:singleton(0)}|Sel])
     end;
-update_selection_2([], _, Uvs, Sel) ->
-    get_event(Uvs#uvstate{sel=sort(Sel)}).
+update_selection_2([], _, St, Sel) ->
+    get_event(St#st{sel=sort(Sel)}).
     
 -define(OUT, 1.2/2). %% was 1/2 
 
 wings_select_faces([], #st{bb=#uvstate{st=GeomSt}}) ->
     wpa:sel_set(face, [], GeomSt);
-wings_select_faces(Sel, #st{bb=#uvstate{st=GeomSt,orig_we=#we{id=Id}}}=St) ->
+wings_select_faces(Sel, #st{bb=#uvstate{st=GeomSt,id=Id}}=St) ->
     Fs0 = wpa:sel_fold(fun(_, #we{name=#ch{fs=Fs}}, A) ->
 			       Fs++A
 		       end, [], St#st{sel=Sel}),
@@ -774,25 +768,28 @@ flip(Flip, We) ->
 %%%
 %%% Verify that the model in the geometry window hasn't changed its topology.
 %%%
-verify_state(St, Uvs) ->
-    case same_topology(St, Uvs) of
+verify_state(WingsSt, AuvSt) ->
+    case same_topology(WingsSt,AuvSt) of
 	true -> keep;
 	false ->
 	    wings_wm:dirty(),
-	    {seq,push,get_broken_event(Uvs)}
+	    {seq,push,get_broken_event(AuvSt)}
     end.
 
-same_topology(#st{shapes=Shs}, #uvstate{orig_we=#we{id=Id}=We,edges=Edges}) ->
-    case gb_trees:lookup(Id, Shs) of
-	none -> false;
-	{value,We} -> true;
-	{value,#we{es=Etab}} -> gb_trees:keys(Etab) =:= Edges
+same_topology(#st{shapes=Shs}, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}) ->
+    case {gb_trees:lookup(Id, Shs), gb_trees:lookup(Id, Orig)} of
+	{{value,We},{value,We}} -> true;
+	{value,#we{es=Etab1}, {value,#we{es=Etab2}}} -> 
+	    gb_trees:keys(Etab1) =:= gb_trees:keys(Etab2);
+	_ ->
+	    false
     end.
 
-get_broken_event(Uvs) ->
-    {replace,fun(Ev) -> broken_event(Ev, Uvs) end}.
+get_broken_event(AuvSt) ->
+    {replace,fun(Ev) -> broken_event(Ev, AuvSt) end}.
 
-broken_event(redraw, #uvstate{orig_we=#we{name=Name}}) ->
+broken_event(redraw, #st{bb=#uvstate{id=Id, st=#st{shapes=Shs}}}) ->
+    {value, #we{name=Name}} = gb_trees:lookup(Id, Shs),
     {_,_,W,H} = wings_wm:viewport(),
     wings_io:ortho_setup(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
@@ -807,17 +804,17 @@ broken_event(redraw, #uvstate{orig_we=#we{name=Name}}) ->
 		     "Either quit AutoUV and start over, or Undo your changes."),
     wings_wm:message("[R] Show menu"),
     keep;
-broken_event({current_state,geom_display_lists,St}, Uvs) ->
-    case same_topology(St, Uvs) of
+broken_event({current_state,geom_display_lists,St}, AuvSt) ->
+    case same_topology(St, AuvSt) of
 	false -> keep;
 	true ->
 	    wings_wm:dirty(),
 	    pop
     end;
-broken_event(close, Uvs) ->
-    restore_wings_window(Uvs),
+broken_event(close, AuvSt) ->
+    restore_wings_window(AuvSt),
     delete;
-broken_event(#keyboard{}=Ev, _Uvs) ->
+broken_event(#keyboard{}=Ev, _St) ->
     %% To accept Undo.
     wings_wm:send(geom, Ev),
     keep;
@@ -867,11 +864,7 @@ draw_faces(Fs, We) ->
 reset_dl(#st{bb=#uvstate{dl=undefined}}=St) -> St;
 reset_dl(#st{bb=#uvstate{dl=DL}=Uvs}=St) ->
     gl:deleteLists(DL, 1),
-    St#st{bb=Uvs#uvstate{dl=undefined}};
-reset_dl(#uvstate{dl=undefined}=Uvs) -> Uvs;
-reset_dl(#uvstate{dl=DL}=Uvs) ->
-    gl:deleteLists(DL, 1),
-    Uvs#uvstate{dl=undefined}.
+    St#st{bb=Uvs#uvstate{dl=undefined}}.
 
 restore_wings_window(St) ->
     wings_draw_util:delete_dlists(),
@@ -885,9 +878,8 @@ restore_wings_window(St) ->
 update_dlists(#st{}=St) ->
     wings_draw:invalidate_dlists(false, St).
 
-sel_foreach(F, #uvstate{sel=Sel,areas=Shs}) ->
+sel_foreach(F, #st{sel=Sel,shapes=Shs}) ->
     foreach(fun({Id,_}) -> F(gb_trees:get(Id, Shs)) end, Sel).
-
 
 %% Generate a checkerboard image of 4x4 squares 
 %% with given side length in pixels.

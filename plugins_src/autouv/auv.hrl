@@ -5,11 +5,11 @@
 %%%
 %%% Created :  3 Oct 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2002 Dan Gudmundsson 
+%%  Copyright (c) 2001-2004 Dan Gudmundsson 
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.26 2004/02/17 17:12:45 dgud Exp $
+%%     $Id: auv.hrl,v 1.27 2004/02/18 13:42:40 dgud Exp $
 
 %% Chart record (one for each chart).
 %% Stored in the 'name' field in the #we{} record.
@@ -19,29 +19,15 @@
 	 vmap					%Map back to original vertex numbers.
 	}).
 
--record(setng, {texsz = {512, 512},   %% Texture size
-		texbg = false,        %% Texture background
-		color = true,         %% Texture drawing options
-		edges = all_edges,    %% Draw edges ??
-		edge_color = false,   %% Use vertex/face color on edges
-		edge_width = 2.0      %% Edge Thickness (overdraw help)
-	       }).
-
 -record(uvstate,
-	{mode = body,      %% body, face, edge, vertex
-	 geom,             %% Window geom
-	 dl,               %% Display list for non selected areas
-
-	 sel=[],           %% Selection: [{Id,GbSet}]
-	 areas,            %% The charts 
-
-	 matname,
-	 orig_we,	    % Original We.
-	 edges,		    % Edge numbers.
-%%
-	 st,               %% My maybe modified st
-	 origst            %% Orignal st
-	}).             
+	{ geom,             %% Window geom
+	  dl,               %% Display list for non selected areas
+	  
+	  matname,          %% The textured MatName
+	  id,               %% The we id of the shape we are working with.
+	  
+	  st                %% Wings st, i.e. no autouv stuff in this one
+	 }).
 
 -define(HOLE, 'Ignore Chart').
 
