@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.145 2003/08/13 11:11:09 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.146 2003/08/13 11:29:52 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -27,11 +27,6 @@
 
 init() ->
     true.
-
-add_areas(NewAreas, AreaTree) ->
-    foldl(fun({K,Area}, TreeBB) when is_integer(K) ->
- 		  gb_trees:insert(K, Area, TreeBB) 
- 	  end, AreaTree, NewAreas).
 
 menu({tools}, Menu) ->
     Menu ++ [separator,
@@ -74,9 +69,9 @@ command({_, {auv_snap,auv_cancel_snap}}, St) ->
 command({body,?MODULE}, St) ->
     ?DBG("Start shapes ~p~n",[gb_trees:keys(St#st.shapes)]), 
     start_uvmap(St);
-command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, St0) ->
-    #uvstate{areas=Current,sel=Sel,matname=MatName0,orig_we=OrWe} = Uvs,
-    Charts = add_areas(Sel, Current),
+command({body,{?MODULE,uvmap_done,QuitOp,Uvs0}}, St0) ->
+    Uvs = clear_selection(Uvs0),
+    #uvstate{areas=Charts,matname=MatName0,orig_we=OrWe} = Uvs,
     {St,MatName} =
 	case QuitOp of
 	    quit_uv_tex ->
@@ -488,7 +483,7 @@ calc_texsize(Vp, Tex, Orig) when Tex < Vp ->
 calc_texsize(Vp, Tex, Orig) ->
     calc_texsize(Vp, Tex div 2, Orig).
 
-get_texture(#uvstate{option=#setng{texsz={TexW,TexH}},sel=Sel,areas=As}=Uvs0) ->
+get_texture(#uvstate{option=#setng{texsz={TexW,TexH}}}=Uvs0) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     Current = wings_wm:viewport(),
     {W0,H0} = wings_wm:top_size(),
@@ -496,7 +491,7 @@ get_texture(#uvstate{option=#setng{texsz={TexW,TexH}},sel=Sel,areas=As}=Uvs0) ->
     {H,Hd} = calc_texsize(H0, TexH),
     ?DBG("Get texture sz ~p ~p ~n", [{W,Wd},{H,Hd}]),
     set_viewport({0,0,W,H}),
-    Uvs = reset_dl(Uvs0#uvstate{sel=[],areas=add_areas(Sel, As)}),
+    Uvs = reset_dl(clear_selection(Uvs0)),
     ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Uvs, []),
     ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
     set_viewport(Current),
@@ -772,13 +767,12 @@ handle_event_1(#keyboard{state=?SDL_PRESSED,sym=Sym},
 handle_event_1({drop,_,DropData}, Uvs) ->
     handle_drop(DropData, Uvs);
 handle_event_1({action,{auv,apply_texture}},
-	     #uvstate{st=St0,sel=Sel0,areas=As0,
-		      orig_we=OWe,matname=MatName0}=Uvs) ->
+	       #uvstate{st=St0,orig_we=OWe,matname=MatName0}=Uvs) ->
     Tx = ?SLOW(get_texture(Uvs)),
-    As = add_areas(Sel0, As0),
-    #we{name = Name, id=Id} = OWe,
-    {St1,MatName} = add_material(Tx,Name,MatName0,St0),
-    St = insert_uvcoords(As, Id, MatName, St1),
+    Charts = all_charts(Uvs),
+    #we{name=Name,id=Id} = OWe,
+    {St1,MatName} = add_material(Tx, Name, MatName0, St0),
+    St = insert_uvcoords(Charts, Id, MatName, St1),
     wings_wm:send(geom, {new_state,St}),
     get_event(Uvs#uvstate{st=St,matname=MatName});
 handle_event_1({action, {auv, edge_options}}, Uvs) ->
@@ -813,9 +807,10 @@ handle_event_1(_Event, Uvs) ->
     ?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(Uvs).
 
-handle_command(rescale_all, Uvs0=#uvstate{sel=Sel,areas=Curr}) ->
-    RscAreas = rescale_all(add_areas(Sel, Curr)),
-    get_event(reset_dl(Uvs0#uvstate{sel=[], areas=RscAreas}));
+handle_command(rescale_all, Uvs0) ->
+    Uvs = clear_selection(Uvs0),
+    RscAreas = rescale_all(all_charts(Uvs)),
+    get_event(reset_dl(Uvs0#uvstate{areas=RscAreas}));
 handle_command({rotate,free}, Uvs) ->
     handle_command(rotate, Uvs);
 handle_command({rotate,Deg}, #uvstate{mode=Mode,sel=Sel0}=Uvs0) ->
@@ -897,22 +892,21 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs) ->
     get_event_nodraw(Uvs#uvstate{st=St});
 update_selection(#st{selmode=Mode,sel=Sel}=St,
-		 #uvstate{areas=As,orig_we=#we{id=Id},sel=ChSel}=Uvs) ->
+		 #uvstate{orig_we=#we{id=Id}}=Uvs0) ->
+    Uvs = reset_dl(clear_selection(Uvs0)),
     case keysearch(Id, 1, Sel) of
 	false ->
-	    get_event(reset_dl(Uvs#uvstate{st=St,sel=[],
-					   areas=add_areas(ChSel, As)}));
+	    get_event(Uvs);
 	{value,{Id,Elems}} ->
 	    update_selection_1(Mode, gb_sets:to_list(Elems), Uvs#uvstate{st=St})
     end.
 
-update_selection_1(face, Faces, #uvstate{sel=Sel,areas=As0}=Uvs) ->
-    As = gb_trees:to_list(add_areas(Sel, As0)),
-    update_selection_2(As, Faces, Uvs, [], []);
+update_selection_1(face, Faces, #uvstate{areas=Charts}=Uvs) ->
+    update_selection_2(Charts, Faces, Uvs, [], []);
 update_selection_1(_, _, Uvs) ->
     get_event_nodraw(Uvs).
 
-update_selection_2([{K,#we{name=#ch{fs=Fs}}=C}|Cs],Faces,Uvs,NonSel,Sel) ->
+update_selection_2([{K,#we{name=#ch{fs=Fs}}=C}|Cs], Faces, Uvs, NonSel, Sel) ->
     case ordsets:intersection(sort(Fs), Faces) of
 	[] -> update_selection_2(Cs, Faces, Uvs, [{K,C}|NonSel], Sel);
 	_ -> update_selection_2(Cs, Faces, Uvs, NonSel, [{K,C}|Sel])
@@ -1140,3 +1134,16 @@ set_viewport({X,Y,W,H}=Viewport) ->
 restore_wings_window(Uvs) ->
     wings_draw_util:delete_dlists(),
     reset_dl(Uvs).
+
+clear_selection(#uvstate{sel=[]}=Uvs) -> Uvs;
+clear_selection(#uvstate{sel=Sel,areas=Charts}=Uvs) ->
+    Uvs#uvstate{sel=[],areas=merge_chart_lists(Sel, Charts)}.
+
+all_charts(#uvstate{sel=Sel,areas=Charts}) ->
+    merge_chart_lists(Sel, Charts).
+
+%% XXX Do not use this function directly - it will soon be removed.
+merge_chart_lists(NewAreas, AreaTree) ->
+    foldl(fun({K,Area}, TreeBB) when is_integer(K) ->
+ 		  gb_trees:insert(K, Area, TreeBB) 
+ 	  end, AreaTree, NewAreas).
