@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.7 2002/12/28 10:26:07 bjorng Exp $
+#     $Id: Makefile,v 1.8 2003/10/11 07:19:59 raimo_niskanen Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -25,6 +25,7 @@ TYPE_FLAGS=
 endif
 
 MODULES= \
+	wpc_test_ask \
 	wp9_dialogs
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)

@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.91 2003/08/07 05:04:22 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.92 2003/10/11 07:19:59 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
--export([ask/3,ask/4,dialog/3,dialog/4]).
+-export([ask/3,ask/4,dialog/3,dialog/4,
+	 hsv_to_rgb/1,hsv_to_rgb/3,rgb_to_hsv/1,rgb_to_hsv/3]).
 
 -import(wings_util, [min/2,max/2]).
 
@@ -29,6 +30,16 @@
 
 -import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3,member/2]).
 
+%-define(DEBUG, true).
+-ifdef(DEBUG).
+-define(DEBUG_DISPLAY(X), (erlang:display({?MODULE,?LINE,X}))).
+-define(DEBUG_FORMAT(Fmt,Args), 
+	(io:format(?MODULE_STRING":"++integer_to_list(?LINE)++" "++Fmt, Args))).
+-else.
+-define(DEBUG_DISPLAY(_X), true).
+-define(DEBUG_FORMAT(_Fmt,_Args), ok).
+-endif.
+
 -record(s,
 	{w,
 	 h,
@@ -37,9 +48,8 @@
 	 call,
 	 focus,
 	 fi,					%Static data for all fields.
-	 priv,					%States for all fields.
 	 coords,				%Coordinates for hit testing.
-	 common=gb_trees:empty(),		%Data common for all fields.
+	 store,					%Data for all fields.
 	 level,					%Levels of nesting.
 	 owner=Owner,				%Where to send result.
 	 grab_win				%Previous grabbed focus window.
@@ -122,38 +132,39 @@ do_dialog(Title, Qs, Level, Fun) ->
     wings_wm:set_prop(Name, drag_filter, fun(_) -> yes end),
     keep.
 
-setup_ask(Qs0, Fun) ->
-    Qs1 = normalize(Qs0),
-    Qs = propagate_sizes(Qs1),
-    {Fis0,Priv0} = flatten_fields(Qs),
-    Fis1 = insert_keys(Fis0, 1),
-    Fis = list_to_tuple(Fis1),
-    Priv = list_to_tuple(Priv0),
-    {#fi{w=W,h=H},_} = Qs,
+setup_ask(Qs, Fun) ->
+    ?DEBUG_FORMAT("setup_ask~n  (~p,~n   ~p)~n", [Qs,Fun]),
+    Qs1 = normalize(Qs),
+%%%    ?DEBUG_FORMAT("normalize() ->~n  ~p~n", [Qs1]),
+    Qs2 = propagate_sizes(Qs1),
+%%%    ?DEBUG_FORMAT(":propagate_sizes() ->~n  ~p~n", [Qs2]),
+    {Fis,Store} = flatten_fields(Qs2, gb_trees:empty()),
+    ?DEBUG_FORMAT("flatten_fields() ->~n  {~p,~n   ~p}~n", [Fis,Store]),
+    FisT = list_to_tuple(Fis),
+    {#fi{w=W,h=H},_} = Qs2,
     Owner = wings_wm:this(),
-    S = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis),owner=Owner},
-    init_fields(1, size(Priv), S).
+    S = #s{w=W,h=H,call=Fun,fi=FisT,focus=size(FisT),owner=Owner,store=Store},
+    init_fields(S).
 
-insert_keys([#fi{flags=Flags}=Fi|T], I) ->
-    Key = case proplists:get_value(key, Flags) of
-	      undefined -> I;
-	      Key0 -> Key0
-	  end,
-    [Fi#fi{key=Key}|insert_keys(T, I+1)];
-insert_keys([], _) -> [].
 
-init_fields(I, N, #s{fi=Fis,priv=Priv0,common=Common0}=S) when I =< N ->
+init_fields(S) ->
+    init_fields(1, S).
+
+init_fields(I, #s{fi=Fis,store=Store}=S) ->
+    Store1 = init_fields(I, Fis, Store),
+    S#s{store=Store1}.
+
+init_fields(I, Fis, Store0) when I =< size(Fis) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
-    Fst0 = element(I, Priv0),
-    case Handler(init, Fi, Fst0, Common0) of
-	{Fst,Common} when is_atom(element(1, Fst)), is_tuple(Common) ->
-	    Priv = setelement(I, Priv0, Fst),
-	    init_fields(I+1, N, S#s{priv=Priv,common=Common});
-	Fst when is_atom(element(1, Fst)) ->
-	    Priv = setelement(I, Priv0, Fst),
-	    init_fields(I+1, N, S#s{priv=Priv})
+%    ?DEBUG_DISPLAY([init,Fi,I]),
+    case Handler(init, Fi, I, Store0) of
+	{store,Store} ->
+	    init_fields(I+1, Fis, Store);
+	keep ->
+	    init_fields(I+1, Fis, Store0)
     end;
-init_fields(_, _, S) -> S.
+init_fields(_, _, Store) -> Store.
+
 
 setup_blanket(Dialog) ->
     %% The menu blanket window lies below the dialog, covering the entire
@@ -173,9 +184,19 @@ blanket(_, _) -> keep.
 
 get_event(S) ->
     wings_wm:dirty(),
-    {replace,fun(Ev) -> event(Ev, S) end}.
+    {replace,
+     fun(Ev) -> 
+	     case catch event(Ev, S) of
+		 {'EXIT',Reason} ->
+		     io:format("Dialog ~p~nCrashed for event ~p~n"
+			       "With reason ~p", [S,Ev,Reason]),
+		     delete(S);
+		 Result -> Result
+	     end
+     end}.
 
 event(redraw, S) ->
+    ?DEBUG_DISPLAY(redraw),
     redraw(S),
     keep;
 event({current_state,_}, _) ->
@@ -190,18 +211,13 @@ event(#mousemotion{x=X,y=Y}=Ev, S) ->
     mouse_event(X, Y, Ev, S);
 event({drop,{X,Y},DropData}, S) ->
     drop_event(X, Y, DropData, S);
-event({action,{update,I,{Fst,Common}}}, #s{priv=Priv0}=S)
-  when is_atom(element(1, Fst)), is_tuple(Common) ->
-    Priv = setelement(I, Priv0, Fst),
-    get_event(S#s{priv=Priv,common=Common});
-event({action,{update,I,Fst}}, #s{priv=Priv0}=S) ->
-    Priv = setelement(I, Priv0, Fst),
-    get_event(S#s{priv=Priv});
+event({action,Action}, S) ->
+    field_event(Action, S);
 event(Ev, S) -> field_event(Ev, S).
 
 event_key({key,?SDLK_ESCAPE,_,_}, S) ->
     escape_pressed(S);
-event_key({key,?SDLK_TAB,Mod,_}, S) when Mod band ?SHIFT_BITS =/= 0 ->
+event_key({key,?SDLK_TAB,Mod,_}, S) when ?IS_SHIFTED(Mod) ->
     get_event(next_focus(S, -1));
 event_key({key,?SDLK_TAB,_,_}, S) ->
     get_event(next_focus(S, 1));
@@ -211,36 +227,42 @@ event_key({key,?SDLK_KP_ENTER,_,_}, S) ->
     enter_pressed({key,$\r,$\r,$\r}, S);
 event_key({key,_,_,$\r}=Ev, S) ->
     enter_pressed(Ev, S);
+event_key({key,_,_,$!}=Ev, S) ->
+    ?DEBUG_DISPLAY([Ev,S]),
+    field_event(Ev, S);
 event_key(Ev, S) ->
     field_event(Ev, S).
 
-enter_pressed(Ev, #s{focus=I}=S) ->
-    case field_type(I, S) of
+enter_pressed(Ev, #s{focus=I,store=Store}=S) ->
+    case field_type(I, Store) of
 	but -> field_event(Ev, S);
 	_ -> return_result(S)
     end.
 
-escape_pressed(#s{fi=Fi}=S) ->
-    escape_pressed_1(1, size(Fi), S).
+escape_pressed(#s{fi=Fi,store=Store}=S) ->
+    escape_pressed_1(1, Fi, Store, S).
 
-escape_pressed_1(I, Sz, S) when I =< Sz ->
-    case field_type(I, S) of
+escape_pressed_1(I, Fi, Store, S) when I =< size(Fi) ->
+    case field_type(I, Store) of
 	but ->
-	    case member(cancel, field_flags(I, S)) of
+	    case member(cancel, field_flags(I, Fi)) of
 		false ->
-		    escape_pressed_1(I+1, Sz, S);
+		    escape_pressed_1(I+1, Fi, Store, S);
 		true ->
 		    field_event({key,$\s,$\s,$\s}, S#s{focus=I})
 	    end;
 	_ ->
-	    escape_pressed_1(I+1, Sz, S)
+	    escape_pressed_1(I+1, Fi, Store, S)
     end;
-escape_pressed_1(_, _, _) -> keep.
+escape_pressed_1(_, _, _, _) -> keep.
 
-field_type(I, #s{priv=Priv}) ->
-    element(1, element(I, Priv)).
+field_type(I, Store) ->
+    case gb_trees:lookup(-I, Store) of
+	{value,F} -> element(1, F);
+	none -> undefined
+    end.
 
-field_flags(I, #s{fi=Fi}) ->
+field_flags(I, Fi) ->
     #fi{flags=Flags} = element(I, Fi),
     Flags.
 
@@ -256,7 +278,8 @@ mouse_event(X0, Y0, #mousemotion{}=Ev, #s{focus=I,ox=Ox,oy=Oy}=S) ->
     X = X0-Ox,
     Y = Y0-Oy,
     field_event(Ev#mousemotion{x=X,y=Y}, I, S);
-mouse_event(X0, Y0, #mousebutton{state=State}=Ev, #s{focus=I0,ox=Ox,oy=Oy,fi=Fis}=S0) ->
+mouse_event(X0, Y0, #mousebutton{state=State}=Ev, 
+	    #s{focus=I0,ox=Ox,oy=Oy,fi=Fis}=S0) ->
     X = X0-Ox,
     Y = Y0-Oy,
     case State of
@@ -302,31 +325,21 @@ next_focus_1(I0, Dir, #s{fi=Fis}=S) ->
 	_ -> set_focus(I, S)
     end.
 
-set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0,common=Common0}=S) ->
+set_focus(I, #s{focus=OldFocus,fi=Fis,store=Store0}=S) ->
+    ?DEBUG_DISPLAY({set_focus,[OldFocus,I]}),
     #fi{handler=OldHandler} = OldFi = element(OldFocus, Fis),
-    OldFst0 = element(OldFocus, Priv0),
-
-    {OldFst,Common2} =
-	case OldHandler({focus,false}, OldFi, OldFst0, Common0) of
-	    {Ofst,Common1} when is_atom(element(1, Ofst)), is_tuple(Common1) ->
-		{Ofst,Common1};
-	    Ofst when is_atom(element(1, Ofst)) ->
-		{Ofst,Common0}
-	end,
-    Priv1 = setelement(OldFocus, Priv0, OldFst),
-
+    Store2 = case OldHandler({focus,false}, OldFi, OldFocus, Store0) of
+		 {store,Store1} -> Store1;
+		 _ -> Store0
+	     end,
     #fi{handler=Handler} = Fi = element(I, Fis),
-    Fst0 = element(I, Priv1),
-    {Fst,Common} =
-	case Handler({focus,true}, Fi, Fst0, Common2) of
-	    {Fst1,Common3} when is_atom(element(1, Fst1)), is_tuple(Common3) ->
-		{Fst1,Common3};
-	    Fst1 when is_atom(element(1, Fst1)) ->
-		{Fst1,Common2}
-	end,
-    Priv = setelement(I, Priv1, Fst),
+    Store = case Handler({focus,false}, Fi, I, Store2) of
+		{store,Store3} -> Store3;
+		_ -> Store2
+	    end,
+    S#s{focus=I,store=Store}.
 
-    S#s{focus=I,priv=Priv,common=Common}.
+		    
 
 field_event(Ev, #s{focus=I}=S) ->
     field_event(Ev, I, S).
@@ -341,83 +354,76 @@ field_event(#mousemotion{x=X,y=Y,state=Bst}, _, #s{fi=Fis})
 	    wings_wm:allow_drag(member(drag, Flags))
     end,
     keep;
-field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
+field_event(Ev, I, #s{fi=Fis,store=Store}=S) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
-    Fst0 = element(I, Priv0),
-    case Handler(Ev, Fi, Fst0, Common0) of
+    ?DEBUG_DISPLAY({field_handler,[I,Ev]}),
+    Result = Handler(Ev, Fi, I, Store),
+    ?DEBUG_DISPLAY({field_handler,Result}),
+    case Result of
 	ok ->
 	    return_result(S);
 	cancel ->
 	    delete(S);
+	keep ->
+	    get_event(S);
 	{recursive,Return} ->
 	    Return;
 	{dialog,Title,Qs,Fun} ->
-	    recursive_dialog(Title, I, Qs, Fun, S);
-	{drag,WH,DropData} ->
-	    drag(Ev, WH, Fi, Fst0, Common0, DropData);
-	{Fst,Common} when is_atom(element(1, Fst)), is_tuple(Common) ->
-	    Priv = setelement(I, Priv0, Fst),
-	    get_event(S#s{priv=Priv,common=Common});
+	    recursive_dialog(Title, Qs, Fun, S);
+	{drag,{_,_}=WH,DropData} ->
+	    wings_wm:drag(Ev, WH, DropData);
+	{store,Store1} ->
+	    get_event(S#s{store=Store1});
 	Action when is_function(Action) ->
 	    Res = collect_result(S),
-	    Action(Res),
-	    delete(S);
-	Fst when is_atom(element(1, Fst)) ->
-	    Priv = setelement(I, Priv0, Fst),
-	    get_event(S#s{priv=Priv})
+    Action(Res),
+	    delete(S)
     end.
 
-recursive_dialog(Title, I, Qs, Fun, #s{level=Level}=S) ->
-    do_dialog(Title, Qs, [make_ref()|Level],
-	      fun(Vs) -> {update,I,Fun(Vs)} end),
+recursive_dialog(Title, Qs, Fun, #s{level=Level}=S) ->
+    do_dialog(Title, Qs, [make_ref()|Level], Fun),
     get_event(S).
-
-drag(Ev, {_,_}=Pos, _, _, _, DropData) ->
-    wings_wm:drag(Ev, Pos, DropData).
 
 return_result(#s{call=EndFun,owner=Owner}=S) ->
     Res = collect_result(S),
-    case catch EndFun(Res) of
-	{'EXIT',Reason} ->
-	    exit(Reason);
+    ?DEBUG_DISPLAY({return_result,Res}),
+    case EndFun(Res) of
 	{command_error,Message} ->
 	    wings_util:message(Message),
 	    get_event(S);
 	ignore ->
 	    delete(S);
 	#st{}=St ->
+	    ?DEBUG_DISPLAY({return_result,[Owner,new_state]}),
 	    wings_wm:send(Owner, {new_state,St}),
 	    delete(S);
 	Action when is_tuple(Action); is_atom(Action) ->
+	    ?DEBUG_DISPLAY({return_result,[Owner,{action,Action}]}),
 	    wings_wm:send(Owner, {action,Action}),
 	    delete(S)
     end.
 
-collect_result(#s{fi=Fis,priv=Priv}=S) ->
-    collect_result(1, Fis, Priv, S, []).
+collect_result(#s{fi=Fis,store=Store}) ->
+    collect_result(1, Fis, Store).
 
-collect_result(I, Fis, Priv, #s{common=Common}=S, Acc) when I =< size(Fis) ->
+collect_result(I, Fis, Store) when I =< size(Fis) ->
     case element(I, Fis) of
 	#fi{inert=true} ->
-	    collect_result(I+1, Fis, Priv, S, Acc);
-	#fi{handler=Handler,flags=Flags}=Fi ->
-	    Fst = element(I, Priv),
-	    case catch Handler(value, Fi, Fst, Common) of
-		{'EXIT',Reason} ->
-		    exit(Reason);
+	    collect_result(I+1, Fis, Store);
+	#fi{handler=Handler,key=Key}=Fi ->
+	    case Handler(value, Fi, I, Store) of
 		none ->
-		    collect_result(I+1, Fis, Priv, S, Acc);
-		Res0 ->
-		    Res = case proplists:get_value(key, Flags) of
-			      undefined -> Res0;
-			      Key -> {Key,Res0}
-			  end,
-		    collect_result(I+1, Fis, Priv, S, [Res|Acc])
+		    collect_result(I+1, Fis, Store);
+		{value,Res} ->
+		    [case Key of 
+			 0 -> Res; 
+			 _ -> {Key,Res} 
+		     end|collect_result(I+1, Fis, Store)]
 	    end
     end;
-collect_result(_, _, _, _, Res) -> reverse(Res).
+collect_result(_, _, _) -> [].
 
-redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fi,priv=Priv,common=Common}) ->
+redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fis,store=Store}) ->
     wings_io:ortho_setup(),
     gl:translated(Ox, Oy, 0),
     blend(fun(Color) ->
@@ -425,14 +431,13 @@ redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fi,priv=Priv,common=Common}) ->
 				  W+2*?HMARGIN-1, H+2*?VMARGIN-1,
 				  Color)
 	  end),
-    draw_fields(1, Fi, Priv, Focus, Common).
+    draw_fields(1, Fis, Focus, Store).
 
-draw_fields(I, Fis, Priv, Focus, Common) when I =< size(Fis) ->
+draw_fields(I, Fis, Focus, Store) when I =< size(Fis) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
-    Fst = element(I, Priv),
-    Handler({redraw,I =:= Focus}, Fi, Fst, Common),
-    draw_fields(I+1, Fis, Priv, Focus, Common);
-draw_fields(_, _, _, _, _) -> ok.
+    Handler({redraw,I =:= Focus}, Fi, I, Store),
+    draw_fields(I+1, Fis, Focus, Store);
+draw_fields(_, _, _, _) -> ok.
 
 %%%
 %%% Conversion of queries to internal format and dimension calculation.
@@ -475,18 +480,18 @@ normalize({color,Def}, Fi) ->
     normalize_field(color(Def), [drag], Fi);
 normalize({color,Def,Flags}, Fi) ->
     normalize_field(color(Def), [drag|Flags], Fi);
-normalize({alt,VarDef,Prompt,Val}, Fi) ->
-    normalize_field(radiobutton(VarDef, Prompt, Val), [], Fi);
-normalize({key_alt,{Key,_}=VarDef,Prompt,Val}, Fi) ->
-    normalize_field(radiobutton(VarDef, Prompt, Val), [{key,Key}], Fi);
-normalize({menu,Alt,{Val,VarDef}}, Fi) ->
-    normalize_field(menu(Val, VarDef, Alt), [], Fi);
-normalize({menu,Alt,VarDef}, Fi) ->
-    normalize_field(menu(none, VarDef, Alt), [], Fi);
-normalize({menu,Alt,{Val,VarDef},Flags}, Fi) ->
-    normalize_field(menu(Val, VarDef, Alt), Flags, Fi);
-normalize({menu,Alt,VarDef,Flags}, Fi) ->
-    normalize_field(menu(none, VarDef, Alt), Flags, Fi);    
+normalize({alt,{Var,Def},Prompt,Val}, Fi) ->
+    normalize_field(radiobutton(Var, Def, Prompt, Val), [], Fi);
+normalize({key_alt,{Var,Def},Prompt,Val}, Fi) ->
+    normalize_field(radiobutton(Var, Def, Prompt, Val), [{key,Var}], Fi);
+normalize({menu,Menu,{Var,Def}}, Fi) ->
+    normalize_field(menu(Var, Def, Menu), [{key,Var}], Fi);    
+normalize({menu,Menu,VarDef}, Fi) ->
+    normalize({menu,Menu,VarDef,[]}, Fi);
+normalize({menu,Menu,{Var,Def},Flags}, Fi) ->
+    normalize_field(menu(Var, Def, Menu), Flags, Fi);    
+normalize({menu,Menu,Def,Flags}, Fi) ->
+    normalize_field(menu(0, Def, Menu), Flags, Fi);    
 normalize({button,Action}, Fi) when is_atom(Action) ->
     Label = button_label(Action),
     Flags = case Action of
@@ -500,10 +505,12 @@ normalize({button,Label,Action,Flags}, Fi) ->
     normalize_field(button(Label, Action), Flags, Fi);
 normalize({custom,W,H,Custom}, Fi) ->
     normalize_field(custom(W, H, Custom), [], Fi);
-normalize({slider,Field}, Fi) ->
-    normalize({hframe,[Field,{internal_slider,Field}]}, Fi);
-normalize({internal_slider,Field}, Fi) ->
-    normalize_field(slider(Field), [], Fi);
+normalize({custom,W,H,Custom,Flags}, Fi) ->
+    normalize_field(custom(W, H, Custom), Flags, Fi);
+normalize({slider,{text,_,Flags}=Field}, Fi) ->
+    normalize({hframe,[Field,{slider,Flags}]}, Fi);
+normalize({slider,Flags}, Fi) when is_list(Flags) ->
+    normalize_field(slider(Flags), Flags, Fi);
 normalize(separator, Fi) ->
     normalize_field(separator(), [], Fi);
 normalize({text,Def}, Fi) ->
@@ -524,6 +531,8 @@ radio(FrameType, Qs0, Var, Def, Flags) ->
     Qs = [{AltTag,VarDef,Prompt,Val} || {Prompt,Val} <- Qs0],
     {FrameType,Qs,Flags}.
 
+-record(vframe, {fields=[]}).
+
 vframe(Qs, #fi{x=X,y=Y0}=Fi0, Flags) ->
     {Dx,Dy} = case have_border(Flags) of
 		  true -> {10,?LINE_HEIGHT};
@@ -538,7 +547,7 @@ vframe(Qs, #fi{x=X,y=Y0}=Fi0, Flags) ->
 		    end,
     W = W1 + Ipadx,
     H = H0 + Ipady,
-    Fun = frame_fun(),
+    Fun = fun frame_event/4,
     Fi = Fi0#fi{handler=Fun,inert=true,flags=Flags,
 		w=W,h=H,ipadx=Ipadx,ipady=Ipady},
     {Fi,{vframe,Fields}}.
@@ -548,6 +557,8 @@ vframe_1([Q|Qs], #fi{y=Y}=Fi0, W0, Acc) ->
     vframe_1(Qs, Fi#fi{y=Y+H}, max(W0, W), [{Fi,Priv}|Acc]);
 vframe_1([], #fi{y=Y}, W, Fields) ->
     {reverse(Fields),Y,W}.
+
+-record(hframe, {fields=[]}).
 
 hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
     {Dx0,Dy0} = case have_border(Flags) of
@@ -562,7 +573,7 @@ hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
 		    end,
     W = W0 + Ipadx,
     H = H0 + Ipady,
-    Fun = frame_fun(),
+    Fun = fun frame_event/4,
     {Fi#fi{handler=Fun,inert=true,flags=Flags,
 	   w=W,h=H,ipadx=Ipadx,ipady=Ipady},
      {hframe,Fields}}.
@@ -605,30 +616,42 @@ hframe_propagate([{Fi,Priv}|Fis], Sz, Acc) ->
 hframe_propagate([], Fi, Acc) -> {Fi,{hframe,reverse(Acc)}}.
 
 %%%
-%%% Calculate flattened fields array.
+%%% Calculate flattened fields array, set keys and store fields data.
 %%%
 
-flatten_fields({Fi,P}) ->
-    {Fis,Priv} = flatten_fields(Fi, P, [], []),
-    {reverse(Fis),reverse(Priv)}.
+flatten_fields(FiPriv, Store0) ->
+    {Store,_,Fis} = flatten_fields([FiPriv], Store0, 1, []),
+    {lists:reverse(Fis),Store}.
 
-flatten_fields(Fi, {vframe,Fields}, FisAcc, PrivAcc) ->
-    frame_flatten(Fields, [Fi|FisAcc], [{vframe,[]}|PrivAcc]);
-flatten_fields(Fi, {hframe,Fields}, FisAcc, PrivAcc) ->
-    frame_flatten(Fields, [Fi|FisAcc], [{hframe,[]}|PrivAcc]);
-flatten_fields(Fi, Priv, FisAcc, PrivAcc) ->
-    {[Fi|FisAcc],[Priv|PrivAcc]}.
-
-frame_flatten([{Fi,Priv}|T], FisAcc0, PrivAcc0) ->
-    {FisAcc,PrivAcc} = flatten_fields(Fi, Priv, FisAcc0, PrivAcc0),
-    frame_flatten(T, FisAcc, PrivAcc);
-frame_flatten([], FisAcc, PrivAcc) -> {FisAcc,PrivAcc}.
-
-frame_fun() ->
-    fun({redraw,_Active}, Fi, _, _) ->
-	    frame_redraw(Fi);
-       (_, _, Frame, _) -> Frame
+flatten_fields([], Store, I, Fis) ->
+    {Store,I,Fis};
+flatten_fields([{#fi{flags=Flags}=Fi0,Priv}|FiPrivs], Store0, I0, Fis0) ->
+    Fi = Fi0#fi{key=proplists:get_value(key, Flags, 0)},
+    case Priv of
+	#vframe{} ->
+	    {Store,I,Fis} = 
+		flatten_fields(Priv#vframe.fields, Store0, I0+1, [Fi|Fis0]),
+	    flatten_fields(FiPrivs, Store, I, Fis);
+	#hframe{} ->
+	    {Store,I,Fis} = 
+		flatten_fields(Priv#hframe.fields, Store0, I0+1, [Fi|Fis0]),
+	    flatten_fields(FiPrivs, Store, I, Fis);
+	undefined ->
+	    flatten_fields(FiPrivs, Store0, I0+1, Fis0);
+	_ ->
+	    Store = gb_trees:insert(-I0, Priv, Store0),
+	    flatten_fields(FiPrivs, Store, I0+1, [Fi|Fis0])
     end.
+
+
+
+%% 
+%% Hframe and Vframe
+%%
+
+frame_event({redraw,_Active}, Fi, _, _) ->
+    frame_redraw(Fi);
+frame_event(_, _, _, _) -> keep.
 
 frame_redraw(#fi{flags=[]}) -> ok;
 frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
@@ -676,19 +699,19 @@ vline(X0, Y0, H) ->
 have_border(Flags) ->
     proplists:is_defined(title, Flags).
 
+
+
 %%%
 %%% Separator.
 %%%
 
 separator() ->
-    Fun = separator_fun(),
+    Fun = fun separator_event/4,
     {Fun,true,{separator},4*?CHAR_WIDTH,10}.
 
-separator_fun() ->
-    fun({redraw,_Active}, Fi, _Dummy, _) ->
-	    separator_draw(Fi);
-       (_, _, Sep, _) -> Sep
-    end.
+separator_event({redraw,_Active}, Fi, _, _) ->
+    separator_draw(Fi);
+separator_event(_, _, _, _) -> keep.
 
 separator_draw(#fi{x=X,y=Y,w=W}) ->
     ?CHECK_ERROR(),
@@ -704,45 +727,56 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
     gl:color3b(0, 0, 0),
     ?CHECK_ERROR().
 
+
+
 %%%
-%%% Checkboxes.
+%%% Checkbox
 %%%
+
 -define(CB_SIZE, 8).
 
 -record(cb,
 	{label,
 	 labelw,				%Width of label in pixels.
 	 spacew,				%Width of a space character.
-	 state
+	 val
 	}).
 
-checkbox(Label, Def) ->
+checkbox(Label, Val) ->
     LabelWidth = wings_text:width(Label),
     SpaceWidth = wings_text:width(" "),
-    Cb = #cb{label=Label,state=Def,labelw=LabelWidth,spacew=SpaceWidth},
-    Fun = fun(Ev, Fi, C, _) -> cb_event(Ev, Fi, C) end,
+    Cb = #cb{label=Label,val=Val,labelw=LabelWidth,spacew=SpaceWidth},
+    Fun = fun cb_event/4,
     {Fun,false,Cb,LabelWidth+SpaceWidth+?CB_SIZE,?LINE_HEIGHT+2}.
 
-cb_event(value, _, #cb{state=Val}) ->
-    Val;
-cb_event({redraw,Active}, Fi, Cb) ->
-    cb_draw(Active, Fi, Cb);
-cb_event({key,_,_,$\s}, _, #cb{state=State}=Cb) ->
-    Cb#cb{state=not State};
-cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED},
-	 #fi{x=X},
-	 #cb{state=State,labelw=LblW,spacew=SpaceW}=Cb) ->
+cb_event(init, #fi{key=Key}, I, Store) ->
+    #cb{val=Val} = gb_trees:get(-I, Store),
+    {store,gb_trees:enter(ck(Key, I), Val, Store)};
+cb_event(value, #fi{key=Key}, I, Store) ->
+    {value,gb_trees:get(ck(Key, I), Store)};
+cb_event({redraw,Active}, #fi{key=Key}=Fi, I, Store) ->
+    Cb = gb_trees:get(-I, Store),
+    Val = gb_trees:get(ck(Key, I), Store),
+    cb_draw(Active, Fi, Cb, Val);
+cb_event({key,_,_,$\s}, #fi{key=Key}, I, Store) ->
+    Ck = ck(Key, I),
+    Val = gb_trees:get(Ck, Store),
+    {store,gb_trees:update(Ck, not Val, Store)};
+cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED}, #fi{x=X,key=Key}, I, Store) ->
+    #cb{labelw=LblW,spacew=SpaceW} = gb_trees:get(-I, Store),
     if
 	Xb-X < LblW+4*SpaceW ->
-	    Cb#cb{state=not State};
-	true -> Cb
+	    Ck = ck(Key, I),
+	    Val = gb_trees:get(Ck, Store),
+	    {store,gb_trees:update(Ck, not Val, Store)};
+	true -> keep
     end;
-cb_event(_Ev, _Fi, Cb) -> Cb.
+cb_event(_Ev, _Fi, _I, _Store) -> keep.
 
-cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
+cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val) ->
     wings_io:sunken_rect(X, Y0+?CHAR_HEIGHT-9, 8, 8, {1,1,1}),
     Y = Y0+?CHAR_HEIGHT,
-    case State of
+    case Val of
 	false -> ok;
 	true -> wings_io:text_at(X+1, Y, [crossmark])
     end,
@@ -754,8 +788,10 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
 	true -> ok
     end.
 
+
+
 %%%
-%%% Radio buttons.
+%%% Radio button
 %%%
 
 -record(rb,
@@ -767,37 +803,40 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
 	 spacew				  %Width of a space character.
 	}).
 
-radiobutton({Var,Def}, Label, Val) ->
+radiobutton(Var, Def, Label, Val) when not is_integer(Var) ->
     LabelWidth = wings_text:width(Label),
     SpaceWidth = wings_text:width(" "),
-    Rb = #rb{var=Var,def=Def,val=Val,label=Label,labelw=LabelWidth,spacew=SpaceWidth},
+    Rb = #rb{var=Var,def=Def,val=Val,label=Label,
+	     labelw=LabelWidth,spacew=SpaceWidth},
     Fun = fun rb_event/4,
     {Fun,false,Rb,LabelWidth+2*SpaceWidth,?LINE_HEIGHT+2}.
 
-rb_event(init, _Fi, #rb{var=Var,def=Def,val=Val}=Rb, Common) ->
+rb_event(init, _Fi, I, Store) ->
+    #rb{var=Var,def=Def,val=Val} = gb_trees:get(-I, Store),
     case Val of
-	Def -> {Rb,gb_trees:insert(Var, Val, Common)};
-	_ -> Rb
+	Def -> {store,gb_trees:enter(Var, Val, Store)};
+	_ -> keep
     end;
-rb_event({redraw,Active}, Fi, Rb, Common) ->
-    rb_draw(Active, Fi, Rb, Common);
-rb_event(value, _Fi, #rb{var=Var,val=Val}, Common) ->
-    case gb_trees:get(Var, Common) of
-	Val -> Val;
+rb_event({redraw,Active}, Fi, I, Store) ->
+    #rb{var=Var} = Rb = gb_trees:get(-I, Store),
+    rb_draw(Active, Fi, Rb, gb_trees:get(Var, Store));
+rb_event(value, _Fi, I, Store) ->
+    #rb{var=Var,val=Val} = gb_trees:get(-I, Store),
+    case gb_trees:get(Var, Store) of
+	Val -> {value,Val};
 	_ -> none
     end;
-rb_event({key,_,_,$\s}, _, Rb, Common) ->
-    rb_set(Rb, Common);
-rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED},
-	 #fi{x=X}, #rb{labelw=LblW,spacew=SpaceW}=Rb, Common) ->
+rb_event({key,_,_,$\s}, _Fi, I, Store) ->
+    rb_set(gb_trees:get(-I, Store), Store);
+rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, #fi{x=X}, I, Store) ->
+    #rb{labelw=LblW,spacew=SpaceW} = Rb = gb_trees:get(-I, Store),
     if
-	Xb-X < LblW+4*SpaceW ->
-	    rb_set(Rb, Common);
-	true -> Rb
+	Xb-X < LblW+4*SpaceW -> rb_set(Rb, Store);
+	true -> keep
     end;
-rb_event(_Ev, _Fi, Rb, _Common) -> Rb.
+rb_event(_Ev, _Fi, _I, _Store) -> keep.
 
-rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,var=Var,val=Val}, Common) ->
+rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common) ->
     Y = Y0+?CHAR_HEIGHT,
     gl:color3f(1, 1, 1),
     White = <<
@@ -811,7 +850,7 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,var=Var,val=Val}, Common) ->
     gl:rasterPos2i(X, Y),
     gl:bitmap(7, 7, -1, 0, 7, 0, White),
     gl:color3b(0, 0, 0),
-    B = case gb_trees:get(Var, Common) of
+    B = case Common of
 	    Val ->
 	       	<<
 	       	 2#00111000,
@@ -821,7 +860,7 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,var=Var,val=Val}, Common) ->
 	       	 2#10111010,
 	       	 2#01000100,
 	       	 2#00111000>>;
-	_ ->
+	    _ ->
 	       	<<
 	       	 2#00111000,
 	       	 2#01000100,
@@ -841,38 +880,49 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,var=Var,val=Val}, Common) ->
 	true -> ok
     end.
 
-rb_set(#rb{var=Var,val=Val}=Rb, Common0) ->
-    Common = gb_trees:update(Var, Val, Common0),
-    {Rb,Common}.
+rb_set(#rb{var=Var,val=Val}, Store) ->
+    {store,gb_trees:update(Var, Val, Store)}.
+
+
 
 %%%
-%%% Menu.
+%%% Menu
 %%%
 
 -record(menu,
 	{var,
-	 key,
+	 def,
 	 menu
 	}).
 
-menu(Var, Key, Alt) ->
-    W = menu_width(Alt, 0) + 2*wings_text:width(" ") + 10,
-    M = #menu{var=Var,key=Key,menu=Alt},
-    Fun = fun(Ev, Fi, State, _) -> menu_event(Ev, Fi, State) end,
+menu(Var, Def, Menu) ->
+    W = menu_width(Menu, 0) + 2*wings_text:width(" ") + 10,
+    M = #menu{var=Var,def=Def,menu=Menu},
+    Fun = fun menu_event/4,
     {Fun,false,M,W,?LINE_HEIGHT+4}.
 
-menu_event({redraw,_Active}, Fi, M) ->
-    menu_draw(Fi, M);
-menu_event(value, _, #menu{var=none,key=Key}) ->
-    Key;
-menu_event(value, _, #menu{var=Var,key=Key}) ->
-    {Var,Key};
-menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, Fi, M) ->
-    menu_popup(Fi, M),
-    M;
-menu_event({popup_result,Key}, _, M) ->
-    M#menu{key=Key};
-menu_event(_, _, M) -> M.
+menu_event({redraw,Active}, Fi, I, Store) ->
+    #menu{var=Var} = M = gb_trees:get(-I, Store),
+    menu_draw(Active, Fi, M, gb_trees:get(ck(Var, I), Store)),
+    keep;
+menu_event(init, _Fi, I, Store) ->
+    #menu{var=Var,def=Def} = gb_trees:get(-I, Store),
+    {store,gb_trees:enter(ck(Var, I), Def, Store)};
+menu_event(value, _Fi, I, Store) ->
+    #menu{var=Var} = gb_trees:get(-I, Store),
+    {value,gb_trees:get(ck(Var, I), Store)};
+menu_event({key,_,_,$\s}, Fi, I, Store) ->
+    #menu{var=Var} = M = gb_trees:get(-I, Store),
+    menu_popup(Fi, M, gb_trees:get(ck(Var, I), Store)),
+    keep;
+menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, Fi, I, Store) ->
+    #menu{var=Var} = M = gb_trees:get(-I, Store),
+    menu_popup(Fi, M, gb_trees:get(ck(Var, I), Store)),
+    keep;
+menu_event({popup_result,Val}, _Fi, I, Store) ->
+    #menu{var=Var} = gb_trees:get(-I, Store),
+    {store,gb_trees:update(ck(Var, I), Val, Store)};
+menu_event(_, _, _, _) -> keep.
 
 menu_width([{S,_}|T], W0) ->
     case wings_text:width(S) of
@@ -881,16 +931,18 @@ menu_width([{S,_}|T], W0) ->
     end;
 menu_width([], W) -> W.
 
-menu_draw(#fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
+menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val) ->
     blend(fun(Col) ->
 		  wings_io:raised_rect(X, Y0+1, W-?CHAR_WIDTH+10, H-3, Col)
 	  end),
     Y = Y0+?CHAR_HEIGHT,
-    Val = [Desc || {Desc,K} <- Menu, K =:= Key],
-    wings_io:text_at(X+5, Y, Val),
-
+    ValStr = [Desc || {Desc,V} <- Menu, V =:= Val],
+    wings_io:text_at(X+5, Y, ValStr),
     Xr = X + W-8,
-    wings_io:border(Xr-1, Y-9, 10, 10, ?PANE_COLOR),
+    case Active of
+	false -> wings_io:border(Xr-1, Y-9, 10, 10, ?PANE_COLOR);
+	true -> wings_io:sunken_rect(Xr-1, Y-9, 10, 10, ?PANE_COLOR)
+    end,
     gl:color3b(0, 0, 0),
     Arrows = <<
 	      2#00010000,
@@ -901,8 +953,9 @@ menu_draw(#fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
 	      2#00111000,
 	      2#00010000>>,
     gl:rasterPos2f(Xr+0.5, Y+0.5),
-    gl:bitmap(7, 7, 0, -1, 7, 0, Arrows),
-    M.
+    gl:bitmap(7, 7, 0, -1, 7, 0, Arrows).
+
+%% Menu popup
 
 -record(popup,
 	{parent,				%Parent window name.
@@ -911,9 +964,9 @@ menu_draw(#fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
 	 menu					%Tuple.
 	}).
 
-menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{key=Key,menu=Menu0}) ->
+menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{menu=Menu0}, Val) ->
     {X1,Y1} = wings_wm:local2global(X0+?HMARGIN, Y0+?VMARGIN),
-    Sel = popup_find_index(Menu0, Key, 1),
+    Sel = popup_find_index(Menu0, Val, 1),
     Menu = list_to_tuple(Menu0),
     Mh = size(Menu)*?LINE_HEIGHT,
     Ps = #popup{parent=wings_wm:this(),sel=Sel,orig_sel=Sel,menu=Menu},
@@ -923,8 +976,8 @@ menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{key=Key,menu=Menu0}) ->
     wings_wm:new(menu_popup, {X,Y,highest}, {W+2*?CHAR_WIDTH,Mh+10}, Op),
     wings_wm:grab_focus(menu_popup).
 
-popup_find_index([{_,Key}|_], Key, I) -> I;
-popup_find_index([_|T], Key, I) -> popup_find_index(T, Key, I+1).
+popup_find_index([{_,Val}|_], Val, I) -> I;
+popup_find_index([_|T], Val, I) -> popup_find_index(T, Val, I+1).
 
 get_popup_event(Ps) ->
     {replace,fun(Ev) -> popup_event(Ev, Ps) end}.
@@ -939,12 +992,49 @@ popup_event(#mousemotion{y=Y}, #popup{menu=Menu,sel=Sel0}=Ps) ->
 	    get_popup_event(Ps#popup{sel=Sel});
 	_ -> keep
     end;
-popup_event(#mousebutton{button=1,state=?SDL_RELEASED},
-	    #popup{parent=Parent,menu=Menu,sel=Sel}) ->
-    {_,Key} = element(Sel, Menu),
-    wings_wm:send(Parent, {popup_result,Key}),
+popup_event(#mousebutton{button=1,state=?SDL_RELEASED}, Ps) ->
+    popup_key($ , 0, $ , Ps);
+popup_event(#keyboard{sym=Sym,mod=Mod,unicode=Unicode}, Ps) -> 
+    popup_key(Sym, Mod, Unicode, Ps);
+popup_event(_Event, _Ps) -> 
+    ?DEBUG_DISPLAY([_Event,_Ps]),
+    keep.
+
+popup_key(?SDLK_TAB, Mod, _Unicode, Ps) when ?IS_SHIFTED(Mod) -> 
+    popup_key(16, Ps);
+popup_key(?SDLK_TAB, _Mod, _Unicode, Ps) -> 
+    popup_key(14, Ps);
+popup_key(?SDLK_UP, _Mod, _Unicode, Ps) -> 
+    popup_key(16, Ps);
+popup_key(?SDLK_DOWN, _Mod, _Unicode, Ps) -> 
+    popup_key(14, Ps);
+popup_key(?SDLK_KP_ENTER, _Mod, _Unicode, Ps) -> 
+    popup_key($ , Ps);
+popup_key(?SDLK_ESCAPE, _Mod, _Unicode, 
+	  #popup{parent=Parent,menu=Menu,orig_sel=Sel}) -> 
+    {_,Val} = element(Sel, Menu),
+    wings_wm:send(Parent, {popup_result,Val}),
     delete;
-popup_event(_, _) -> keep.
+popup_key(_Sym, _Mod, $\r, Ps) -> 
+    popup_key($ , Ps);
+popup_key(_Sym, _Mod, Unicode, Ps) -> 
+    popup_key(Unicode, Ps).
+
+popup_key(16, #popup{sel=Sel}=Ps) %Ctrl-P
+  when Sel > 1 ->
+    wings_wm:dirty(),
+    get_popup_event(Ps#popup{sel=Sel-1});
+popup_key(14, #popup{menu=Menu,sel=Sel}=Ps) %Ctrl-N
+  when Sel < size(Menu) ->
+    wings_wm:dirty(),
+    get_popup_event(Ps#popup{sel=Sel+1});
+popup_key($ , #popup{parent=Parent,menu=Menu,sel=Sel}) -> %Space
+    {_,Val} = element(Sel, Menu),
+    wings_wm:send(Parent, {popup_result,Val}),
+    delete;
+popup_key(_Unicode, _Ps) ->
+    ?DEBUG_DISPLAY([_Unicode,_Ps]),
+    keep.
 
 popup_redraw(#popup{sel=Sel,orig_sel=OrigSel,menu=Menu}) ->
     wings_io:ortho_setup(),
@@ -974,8 +1064,10 @@ popup_redraw_1(I, Menu, Sel, W, X, Y) when I =< size(Menu) ->
     popup_redraw_1(I+1, Menu, Sel, W, X, Y+?LINE_HEIGHT);
 popup_redraw_1(_, _, _, _, _, _) -> keep.
 
+
+
 %%%
-%%% Buttons.
+%%% Buttons
 %%%
 
 -record(but,
@@ -986,24 +1078,26 @@ button(Label, Action) ->
     W = lists:max([wings_text:width([$\s,$\s|Label]),
 		   wings_text:width(" cancel ")]),
     But = #but{label=Label,action=Action},
-    Fun = fun(Ev, Fi, State, _) -> button_event(Ev, Fi, State) end,
+    Fun = fun button_event/4,
     {Fun,false,But,W,?LINE_HEIGHT+2+2}.
 
 button_label(ok) -> "OK";
 button_label(S) when is_list(S) -> S;
 button_label(Act) -> wings_util:cap(atom_to_list(Act)).
 
-button_event({redraw,Active}, Fi, But) ->
-    button_draw(Active, Fi, But);
-button_event(value, _, _) ->
+button_event({redraw,Active}, Fi, I, Store) ->
+    button_draw(Active, Fi, gb_trees:get(-I, Store));
+button_event(value, _, _, _) ->
     none;
-button_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED}, #fi{x=Bx,y=By,w=W,h=H},
-	     #but{action=Action}) when Bx =< X, X =< Bx+W, By =< Y, Y =< By+H ->
+button_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED}, 
+	     #fi{x=Bx,y=By,w=W,h=H}, I, Store) 
+  when Bx =< X, X =< Bx+W, By =< Y, Y =< By+H ->
+    #but{action=Action} = gb_trees:get(-I, Store),
     Action;
-button_event({key,_,_,Key}, _, #but{action=Action}) when Key =:= $\r; Key =:= $\s ->
+button_event({key,_,_,K}, _, I, Store) when K =:= $\r; K =:= $\s ->
+    #but{action=Action} = gb_trees:get(-I, Store),
     Action;
-button_event(_Ev, _Fi, But) ->
-    But.
+button_event(_Ev, _Fi, _I, _Store) -> keep.
 
 button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
     Y = Y0+?CHAR_HEIGHT+2,
@@ -1019,42 +1113,48 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
 	true -> ok
     end.
 
+
+
 %%%
 %%% Color box.
 %%%
+
 -define(COL_PREVIEW_SZ, 60).
 
 -record(col,
 	{val}).
 
-color(Def) ->
-    Col = #col{val=Def},
+color(RGB) ->
+    Col = #col{val=RGB},
     Fun = fun col_event/4,
     {Fun,false,Col,3*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
-col_event({redraw,Active}, Fi, Col, Common) ->
-    col_draw(Active, Fi, Col, Common);
-col_event(init, #fi{key=Key}, #col{val=Val}=Col, Common) ->
-	    {Col,gb_trees:insert(Key, Val, Common)};
-col_event(value, #fi{key=Key}, _Col, Common) ->
-    gb_trees:get(Key, Common);
-col_event({key,_,_,$\s}, Fi, Col, Common) ->
-    pick_color(Fi, Col, Common);
-col_event(#mousemotion{x=Xm,y=Ym}, Fi, #col{val=RGB}=Col, Common) ->
+col_event({redraw,Active}, #fi{key=Key}=Fi, I, Store) ->
+    col_draw(Active, Fi, gb_trees:get(ck(Key, I), Store));
+col_event(init, #fi{key=Key}, I, Store) ->
+    #col{val=RGB} = gb_trees:get(-I, Store),
+    {store,gb_trees:enter(ck(Key, I), RGB, Store)};
+col_event(value, #fi{key=Key}, I, Store) ->
+    {value,gb_trees:get(ck(Key, I), Store)};
+col_event({key,_,_,$\s}, Fi, I, Store) ->
+    pick_color(Fi, I, Store);
+col_event(#mousemotion{x=Xm,y=Ym}, #fi{key=Key}=Fi, I, Store) ->
     case col_inside(Xm, Ym, Fi) of
-	true -> {Col,Common};
-	false -> {drag,{3*?CHAR_WIDTH,?CHAR_HEIGHT},{color,RGB}}
+	true -> keep;
+	false -> 
+	    RGB = gb_trees:get(ck(Key, I), Store),
+	    {drag,{3*?CHAR_WIDTH,?CHAR_HEIGHT},{color,RGB}}
     end;
-col_event(#mousebutton{x=Xm,y=Ym,state=?SDL_RELEASED}, Fi, Col, Common) ->
+col_event(#mousebutton{x=Xm,y=Ym,state=?SDL_RELEASED}, Fi, I, Store) ->
     case col_inside(Xm, Ym, Fi) of
-	true -> pick_color(Fi, Col, Common);
-	false -> {Col,Common}
+	true -> pick_color(Fi, I, Store);
+	false -> keep
     end;
-col_event({drop,{color,RGB1}}, #fi{key=Key}, Col, Common) ->
-    RGB0 = gb_trees:get(Key, Common),
+col_event({drop,{color,RGB1}}, #fi{key=Key}, I, Store) ->
+    RGB0 = gb_trees:get(ck(Key, I), Store),
     RGB = replace_rgb(RGB0, RGB1),
-    {Col#col{val=RGB},gb_trees:update(Key, RGB, Common)};
-col_event(_Ev, _Fi, Col, Common) -> {Col,Common}.
+    {store,gb_trees:update(ck(Key, I), RGB, Store)};
+col_event(_Ev, _Fi, _I, _Store) -> keep.
 
 %% replace_rgb(OldRGBA, NewRGBA) -> RGBA
 %%  Replace a color (RGB + possibly A) with a new color, 
@@ -1064,10 +1164,8 @@ replace_rgb({_,_,_}, {R,G,B,_}) -> {R,G,B};
 replace_rgb({_,_,_,_}, {_,_,_,_}=RGB) -> RGB;
 replace_rgb({_,_,_,A}, {R,G,B}) -> {R,G,B,A}.
 
-col_draw(Active, #fi{key=Key,x=X,y=Y0}, _, Common) ->
-    Color = gb_trees:get(Key, Common),
-    wings_io:border(X, Y0+3,
-			 3*?CHAR_WIDTH, ?CHAR_HEIGHT, Color),
+col_draw(Active, #fi{x=X,y=Y0}, RGB) ->
+    wings_io:border(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT, RGB),
     Y = Y0+?CHAR_HEIGHT,
     if
 	Active == true ->
@@ -1079,34 +1177,30 @@ col_inside(Xm, Ym, #fi{x=X,y=Y}) ->
     X =< Xm andalso Xm < X+3*?CHAR_WIDTH andalso
 	Y+3 =< Ym andalso Ym < Y+?CHAR_HEIGHT+2.
 
-rgb_to_hsv(R,G,B) ->
-    {H,S,V} = wings_color:rgb_to_hsv(R,G,B),
-    {round(H),S,V}.
-
-pick_color(#fi{key=Key}, Col, Common0) ->
+pick_color(#fi{key=Key}, I, Store) ->
+    RGB0 = gb_trees:get(ck(Key, I), Store),
     {R1,G1,B1,A1} =
-	case gb_trees:get(Key, Common0) of
-	    {R0,G0,B0} -> {R0,G0,B0,none};
+	case RGB0 of
+	    {R0,G0,B0}    -> {R0,G0,B0,none};
 	    {R0,G0,B0,A0} -> {R0,G0,B0,A0}
 	end,
+    RGBRange = {0.0,1.0},
+    HRange   = {0,360},
+    SIRange  = {0.0,1.0},
     {H1,S1,V1} = rgb_to_hsv(R1, G1, B1),
-    RGBRange = [{range,{0.0,1.0}},color],
-    HRange   = [{range,{0, 360}},color],
-    SIRange  = [{range,{0.0,1.0}},color],
-    Draw = fun(X, Y, _W, _H, Common) ->
-		   Color = {gb_trees:get(r, Common),
-			    gb_trees:get(g, Common),
-			    gb_trees:get(b, Common)},
-		   wings_io:sunken_rect(X, Y, ?COL_PREVIEW_SZ,
-					?COL_PREVIEW_SZ-4, Color)
+    Draw = fun(X, Y, W, H, Sto) ->
+		   R = gb_trees:get(red, Sto),
+		   G = gb_trees:get(green, Sto),
+		   B = gb_trees:get(blue, Sto),
+		   wings_io:sunken_rect(X, Y, W, H, {R,G,B})
 	   end,
     Aslider = case A1 of
 		  none -> [];
 		  _ ->
 		      [separator,
-		       {hframe,
-			[{hframe,[{label,"A"},{text,A1,[{key,a}|RGBRange]}]},
-			 {internal_slider,{text,A1,[{key,a}|RGBRange]}}]}]
+		       {hframe,[{label,"A"},
+				{slider,
+				 {text,A1,[{key,alpha},{range,RGBRange}]}}]}]
 	      end,
     {dialog,
      "Pick Color",
@@ -1115,197 +1209,109 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 	{vframe,
 	 [{hframe,
 	   [{vframe,
-	     [{hframe,[{label,"R"},{text,R1,[{key,r}|RGBRange]}]},
-	      {hframe,[{label,"G"},{text,G1,[{key,g}|RGBRange]}]},
-	      {hframe,[{label,"B"},{text,B1,[{key,b}|RGBRange]}]}]},
+	     [{hframe,
+	       [{label,"R"},
+		{text,R1,color_text_flags(r, {red,green,blue},
+					  {hue,sat,val}, RGBRange)}]},
+	      {hframe,
+	       [{label,"G"},
+		{text,G1,color_text_flags(g, {green,red,blue},
+					  {hue,sat,val}, RGBRange)}]},
+	      {hframe,
+	       [{label,"B"},
+		{text,B1,color_text_flags(b, {blue,red,green},
+					  {hue,sat,val}, RGBRange)}]}]},
 	    {vframe,
-	     [{internal_slider,{text,R1,[{key,r}|RGBRange]}},
-	      {internal_slider,{text,G1,[{key,g}|RGBRange]}},
-	      {internal_slider,{text,B1,[{key,b}|RGBRange]}}]}]},
+	     [{slider,color_slider_flags(r, {red,green,blue},
+					 {hue,sat,val}, RGBRange)},
+	      {slider,color_slider_flags(g, {green,red,blue},
+					 {hue,sat,val}, RGBRange)},
+	      {slider,color_slider_flags(b, {blue,red,green},
+					 {hue,sat,val}, RGBRange)}]}]},
 	  separator,
 	  {hframe,
 	   [{vframe,
-	     [{hframe,[{label,"H"},{text,H1,[{key,h}|HRange]}]},
-	      {hframe,[{label,"S"},{text,S1,[{key,s}|SIRange]}]},
-	      {hframe,[{label,"V"},{text,V1,[{key,v}|SIRange]}]}]},
+	     [{hframe,
+	       [{label,"H"},
+		{text,H1,color_text_flags(h, {hue,sat,val},
+					  {red,green,blue}, HRange)}]},
+	      {hframe,
+	       [{label,"S"},
+		{text,S1,color_text_flags(s, {sat,hue,val},
+					  {red,green,blue}, SIRange)}]},
+	      {hframe,
+	       [{label,"V"},
+		{text,V1,color_text_flags(v, {val,hue,sat},
+					  {red,green,blue}, SIRange)}]}]},
 	    {vframe,
-	     [{internal_slider,{text,H1,[{key,h}|HRange]}},
-	      {internal_slider,{text,S1,[{key,s}|SIRange]}},
-	      {internal_slider,{text,V1,[{key,v}|SIRange]}}]}]}|Aslider]}]}],
-     fun([{r,R},{g,G},{b,B}|More]) ->
-	     Val = case keysearch(a, 1, More) of
+	     [{slider,color_slider_flags(h, {hue,sat,val},
+					 {red,green,blue}, HRange)},
+	      {slider,color_slider_flags(s, {sat,hue,val},
+					 {red,green,blue}, SIRange)},
+	      {slider,color_slider_flags(v, {val,hue,sat},
+					 {red,green,blue}, SIRange)}]}]}
+	  |Aslider]}]}],
+     fun([{red,R},{green,G},{blue,B}|More]) ->
+	     RGB = case keysearch(alpha, 1, More) of
 		       false -> {R,G,B};
-		       {value,{a,A}} -> {R,G,B,A}
+		       {value,{alpha,A}} -> {R,G,B,A}
 		   end,
-	     {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
+	     ?DEBUG_DISPLAY(RGB),
+	     {drop,{color,RGB}}
      end}.
 
+color_slider_flags(T, {_K1,K2,K3}=K123, Kabc, Range) ->
+    [{color,{T,K2,K3}}|color_text_flags(T, K123, Kabc, Range)].
+
+color_text_flags(T, {K1,K2,K3}, Kabc, Range) ->
+    [{key,K1},{range,Range},{hook,color_update(T, {K2,K3}, Kabc)}].
+
+color_update(T, {K1,K2}, {Ka,Kb,Kc}) ->
+    fun (update, {_Key,Val,Store0}) ->
+	    V1 = gb_trees:get(K1, Store0),
+	    V2 = gb_trees:get(K2, Store0),
+	    {Va,Vb,Vc} = color_update(T, Val, V1, V2),
+	    Store1 = gb_trees:update(Ka, Va, Store0),
+	    Store2 = gb_trees:update(Kb, Vb, Store1),
+	    Store = gb_trees:update(Kc, Vc, Store2),
+	    {store,Store};
+	(_, _) ->
+	    void
+    end.
+
+color_update(r, R, G, B) ->
+    rgb_to_hsv(R, G, B);
+color_update(g, G, R, B) ->
+    rgb_to_hsv(R, G, B);
+color_update(b, B, R, G) ->
+    rgb_to_hsv(R, G, B);
+color_update(h, H, S, V) ->
+    hsv_to_rgb(H, S, V);
+color_update(s, S, H, V) ->
+    hsv_to_rgb(H, S, V);
+color_update(v, V, H, S) ->
+    hsv_to_rgb(H, S, V).
+
+
 %%%
-%%% Custom field.
+%%% Custom
 %%%
 
 -record(custom,
-	{handler}
+	{handler, val}
        ).
 
 custom(W, H, Handler) ->
     Custom = #custom{handler=Handler},
-    Fun = custom_fun(),
+    Fun = fun custom_event/4,
     {Fun,true,Custom,W,H}.
 
-custom_fun() ->
-    fun({redraw,_Active}, #fi{x=X,y=Y,w=W,h=H},
-	#custom{handler=Handler}, Common) ->
-	    Handler(X, Y, W, H, Common);
-       (_, _, Custom, _) -> Custom
-    end.
+custom_event({redraw,_Active}, #fi{x=X,y=Y,w=W,h=H}, I, Store) ->
+    #custom{handler=Handler} = gb_trees:get(-I, Store),
+    Handler(X, Y, W, H, Store);
+custom_event(_, _, _, _) -> keep.
 
-%%%
-%%% Slider.
-%%%
 
--define(SL_LENGTH, 150).
--define(SL_BAR_H, (?LINE_HEIGHT-3)).
-
--record(sl,
-	{min,
-	 range,
-	 peer,
-	 h					%Slider height.
-	}).
-
-slider(Field) ->
-    Flags = element(size(Field), Field),
-    {Min,Max} = proplists:get_value(range, Flags),
-    Key = proplists:get_value(key, Flags),
-    H = case proplists:get_bool(color, Flags) of
-	    false -> 2;
-	    true -> 9
-	end,
-    Sl = #sl{min=Min,range=(Max-Min)/?SL_LENGTH,peer=Key,h=H},
-    Fun = slider_fun(),
-    {Fun,false,Sl,?SL_LENGTH+4,?LINE_HEIGHT+2}.
-
-slider_fun() ->
-    fun({redraw,_Active}, Fi, Sl, Common) ->
-	    slider_redraw(Fi, Sl, Common);
-       (init, #fi{key=Key}, #sl{peer=undefined}=Sl, _) ->
-	    Sl#sl{peer=Key-1};
-       (value, _, _, _) ->
-	    none;
-       (Ev, Fi, Sl, Common) ->
-	    slider_event(Ev, Fi, Sl, Common)
-    end.
-
-get_colRange(r,Common) ->
-    B = gb_trees:get(b, Common),
-    G = gb_trees:get(g, Common),
-    [{0,G,B},{1,G,B}];
-get_colRange(g, Common) ->
-    R = gb_trees:get(r, Common),
-    B = gb_trees:get(b, Common),
-    [{R,0,B},{R,1,B}];
-get_colRange(b, Common) ->
-    R = gb_trees:get(r, Common),
-    G = gb_trees:get(g, Common),
-    [{R,G,0},{R,G,1}];
-get_colRange(s, Common) ->
-    H = gb_trees:get(h, Common),
-    V = gb_trees:get(v, Common),
-    S0 = wings_color:hsv_to_rgb(H,0.0,V),
-    S1 = wings_color:hsv_to_rgb(H,1.0,V),
-    [S0,S1];
-get_colRange(v, Common) ->
-    H = gb_trees:get(h, Common),
-    S = gb_trees:get(s, Common),
-    V0 = wings_color:hsv_to_rgb(H,S,0.0),
-    V1 = wings_color:hsv_to_rgb(H,S,1.0),
-    [V0,V1];
-get_colRange(_E, _Common) ->
-    [color(), color()].
-
-hue_color_slider(Hue,_,_,_,_,_,_) when Hue > (360-60) ->
-    ok;
-hue_color_slider(Hue,S,V,X,W,Y,H) ->
-    X0 = (X+1)+W*Hue/360.0,
-    X1 = (X+1)+W*(Hue+60)/360.0,
-    gl:vertex2f(X0,Y+H),
-    gl:vertex2f(X0,Y+1),
-    gl:color3fv(wings_color:hsv_to_rgb(60+Hue,S,V)),
-    gl:vertex2f(X1,Y+1),
-    gl:vertex2f(X1,Y+H),
-    hue_color_slider(Hue+60,S,V,X,W,Y,H).
-
-color_slider(h,X,W,Y,H,Common) ->
-    gl:shadeModel(?GL_SMOOTH),
-    gl:'begin'(?GL_QUADS),
-    S = gb_trees:get(s, Common),
-    V = gb_trees:get(v, Common),
-    wings_io:set_color(wings_color:hsv_to_rgb(0, S, V)),
-    hue_color_slider(0,S,V,X,W,Y,H),
-    gl:'end'();
-color_slider(Peer,X,W,Y,H,Common) ->
-    [SCol,ECol] = get_colRange(Peer, Common),
-    gl:shadeModel(?GL_SMOOTH),
-    gl:'begin'(?GL_QUADS),
-    wings_io:set_color(SCol),
-    gl:vertex2f(X+1,Y+H),
-    gl:vertex2f(X+1,Y+1),
-    wings_io:set_color(ECol),
-    gl:vertex2f(X+1+W,Y+1),
-    gl:vertex2f(X+1+W,Y+H),
-    gl:'end'().
-
-slider_redraw(#fi{x=X,y=Y0,w=W},
-	      #sl{min=Min,range=Range,peer=Peer,h=H},
-	      Common) ->
-    Y = Y0+?LINE_HEIGHT div 2 + 2,
-    blend(fun(Col) ->
-		  wings_io:sunken_rect(X, Y-(H div 2), W, H, Col)
-	  end),
-    color_slider(Peer, X, W, Y-(H div 2), H, Common),
-    Val = gb_trees:get(Peer, Common),
-    Pos = trunc((Val-Min) / Range),
-    blend(fun(Col) ->
-		  wings_io:raised_rect(X+Pos, Y-(?SL_BAR_H div 2),
-				       4, ?SL_BAR_H, Col)
-	  end).
-
-slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, Fi, Sl, Common) ->
-    slider_move(Xb, Fi, Sl, Common);
-slider_event(#mousemotion{x=Xb}, Fi, Sl, Common) ->
-    slider_move(Xb, Fi, Sl, Common);
-slider_event(_, _, Sl, _) -> Sl.
-
-slider_move(Xb, #fi{x=X}, #sl{min=Min,range=Range,peer=Peer}=Sl, Common0) ->
-    Pos = max(0, min(Xb-X, ?SL_LENGTH)),
-    Val0 = Min + Pos*Range,
-    Val = if
-	      is_integer(Min) -> round(Val0);
-	      true -> Val0
-	  end,
-    Common1 = gb_trees:update(Peer, Val, Common0),
-    Common  = update_color(Peer, Common1),
-    {Sl,Common}.
-
-update_color(RGB, Common0) when RGB == r; RGB == g; RGB == b ->
-    R = gb_trees:get(r, Common0),
-    G = gb_trees:get(g, Common0),
-    B = gb_trees:get(b, Common0),
-    {H,S,V} = rgb_to_hsv(R,G,B),
-    Common1 = gb_trees:update(h, H, Common0),
-    Common2 = gb_trees:update(s, S, Common1),
-    gb_trees:update(v, V, Common2);
-update_color(HSV, Common0) when HSV == h; HSV == s; HSV == v ->
-    H = gb_trees:get(h, Common0),
-    S = gb_trees:get(s, Common0),
-    V = gb_trees:get(v, Common0),
-    {R,G,B} = wings_color:hsv_to_rgb(H,S,V),
-    Common1 = gb_trees:update(r, R, Common0),
-    Common2 = gb_trees:update(g, G, Common1),
-    gb_trees:update(b, B, Common2);
-update_color(_, Common) ->
-    Common.
 
 %%%
 %%% Label.
@@ -1319,7 +1325,7 @@ label(Text, Flags) ->
     Limit = proplists:get_value(break, Flags, infinite),
     {_,Lines} = wings_text:break_lines([Text], Limit),
     Lbl = #label{lines=Lines},
-    Fun = label_fun(),
+    Fun = fun label_event/4,
     {W,H} = label_dimensions(Lines, 0, 2),
     {Fun,true,Lbl,W,H}.
 
@@ -1330,16 +1336,17 @@ label_dimensions([L|Lines], W0, H) ->
     end;
 label_dimensions([], W, H) -> {W,H}.
 
-label_fun() ->
-    fun({redraw,_Active}, #fi{x=X,y=Y}, #label{lines=Lines}, _Common) ->
+label_event({redraw,_Active}, #fi{x=X,y=Y}, I, Store) ->
+	    #label{lines=Lines} = gb_trees:get(-I, Store),
 	    label_draw(Lines, X, Y+?CHAR_HEIGHT);
-       (_, _, Label, _) -> Label
-    end.
+label_event(_, _, _, _) -> keep.
 
 label_draw([L|Lines], X, Y) ->
     wings_io:text_at(X, Y, L),
     label_draw(Lines, X, Y+?LINE_HEIGHT);
 label_draw([], _, _) -> ok.
+
+
 
 %%%
 %%% Text and number input fields.
@@ -1354,27 +1361,28 @@ label_draw([], _, _) -> ok.
 	 charset,				%Character set validator.
 	 last_val,
 	 validator,
-         password=false
+         password=false,
+	 slider_h,
+	 slider_range,
+	 val
 	}).
 
-text_field(Def, Flags) when is_float(Def) ->
-    DefStr = text_val_to_str(Def),
-    {Max,Validator} = float_validator(Flags),
-    init_text(Def, DefStr, Max, false,
-	      fun float_chars/1, Validator, Flags);
-text_field(Def, Flags) when is_integer(Def) ->
-    {Max,Validator} = integer_validator(Flags),
-    init_text(Def, integer_to_list(Def), Max, true,
-	      fun integer_chars/1, Validator, Flags);
-text_field(Def, Flags) when is_list(Def) ->
-    init_text(Def, Def, 30, false,
-	      fun all_chars/1, fun(_) -> ok end, Flags).
-
-init_text(Val, String, Max, IsInteger, Charset, Validator, Flags) ->
+text_field(Val, Flags) ->
+    IsInteger = is_integer(Val),
+    ValStr = text_val_to_str(Val),
+    {Max,Validator,Charset,Range} = validator(Val, Flags),
+    {SliderH,Val} =
+	case proplists:get_value(color, Flags) of
+	    {_Type,_KeyC}=TK ->
+		{9,TK};
+	    undefined ->
+		{2,Val}
+	end,
     Password = proplists:get_bool(password, Flags),
-    Ts = #text{last_val=Val,bef=[],aft=String,max=Max,
+    Ts = #text{last_val=Val,bef=[],aft=ValStr,max=Max,
 	       integer=IsInteger,charset=Charset,
-               validator=Validator,password=Password},
+               validator=Validator,password=Password,
+	       slider_h=SliderH,slider_range=Range,val=Val},
     Fun = fun gen_text_handler/4,
     {Fun,false,Ts,(1+Max)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
@@ -1384,6 +1392,34 @@ text_val_to_str(Val) when is_integer(Val) ->
     integer_to_list(Val);
 text_val_to_str(Val) when is_list(Val) ->
     Val.
+
+%% -> {MaxFieldWidth,FieldValidator,CharsetPredicate}
+%%
+validator(Val, Flags) when is_integer(Val) ->
+    integer_validator(Flags);
+validator(Val, Flags) when is_float(Val) ->
+    float_validator(Flags);
+validator(Val, _Flags) when is_list(Val) ->
+    string_validator().
+
+integer_validator(Flags) ->
+    case proplists:get_value(range, Flags) of
+	undefined -> {8,fun accept_all/1,fun integer_chars/1,undefined};
+	{Min,Max}=Range when is_integer(Min), is_integer(Max), Min =< Max ->
+	    Digits = trunc(math:log(Max-Min+1)/math:log(10))+2,
+	    {Digits,integer_range(Min, Max),fun integer_chars/1,Range}
+    end.
+
+float_validator(Flags) ->
+    case proplists:get_value(range, Flags) of
+	undefined -> {12,fun accept_all/1,fun float_chars/1,undefined};
+	{Min,Max}=Range when is_float(Min), is_float(Max), Min =< Max ->
+	    Digits = min(trunc(math:log(Max-Min+1)/math:log(10))+8, 20),
+	    {Digits,float_range(Min, Max),fun float_chars/1,Range}
+    end.
+
+string_validator() ->
+    {30,fun accept_all/1,fun all_chars/1,undefined}.
 
 integer_chars($-) -> true;
 integer_chars(C) when $0 =< C, C =< $9 -> true;
@@ -1395,24 +1431,6 @@ float_chars(C) when $0 =< C, C =< $9 -> true;
 float_chars(_) -> false.
 
 all_chars(_) -> true.
-
-integer_validator(Flags) ->
-    case proplists:get_value(range, Flags) of
-	undefined -> {8,fun accept_all/1};
-	{Min,Max} when is_integer(Min), is_integer(Max), Min =< Max ->
-	    Digits = trunc(math:log(Max-Min+1)/math:log(10))+2,
-	    {Digits,integer_range(Min, Max)}
-    end.
-
-float_validator(Flags) ->
-    case proplists:get_value(range, Flags) of
-	undefined -> {12,fun accept_all/1};
-	{Min,Max} when is_float(Min), is_float(Max), Min =< Max ->
-	    Digits = min(trunc(math:log(Max-Min+1)/math:log(10))+8, 20),
-	    {Digits,float_range(Min, Max)}
-    end.
-
-accept_all(_) -> ok.
 
 integer_range(Min, Max) ->
     fun(Str) ->
@@ -1433,6 +1451,10 @@ float_range(Min, Max) ->
 		Float when is_float(Float) -> ok
 	    end
     end.
+
+accept_all(_) -> ok.
+
+
 
 text_get_val(#text{last_val=OldVal}=Ts) when is_integer(OldVal) ->
     case catch list_to_integer(get_text(validate_string(Ts))) of
@@ -1462,85 +1484,83 @@ string_to_float(Str0) ->
 	    end
     end.
 
-gen_text_handler({redraw,Active}, Fi, Ts, Common) ->
-    draw_text(Active, Fi, Ts, Common);
-gen_text_handler(value, #fi{key=Key}, _, Common) ->
-    gb_trees:get(Key, Common);
-gen_text_handler(init, #fi{key=Key},
-		 #text{last_val=Val}=Ts, Common0) ->
-    Common = gb_trees:insert(Key, Val, Common0),
-    {Ts#text{last_val=Val},Common};
-gen_text_handler(Ev, #fi{key=Key}=Fi,
-		 #text{last_val=Val0}=Ts0, Common0) ->
-    Ts1 = case gb_trees:get(Key, Common0) of
+gen_text_handler({redraw,true}, Fi, I, Store) ->
+    draw_text_active(Fi, gb_trees:get(-I, Store));
+gen_text_handler({redraw,false}, #fi{key=Key}=Fi, I, Store) ->
+    Val = gb_trees:get(ck(Key, I), Store),
+    draw_text_inactive(Fi, gb_trees:get(-I, Store), Val);
+gen_text_handler(value, #fi{key=Key}, I, Store) ->
+    {value,gb_trees:get(ck(Key, I), Store)};
+gen_text_handler(init, #fi{key=Key}, I, Store) ->
+    #text{last_val=Val} = gb_trees:get(-I, Store),
+    {store,gb_trees:enter(ck(Key, I), Val, Store)};
+gen_text_handler(Ev, #fi{key=Key}=Fi, I, Store0) ->
+    #text{last_val=Val0} = Ts0 = gb_trees:get(-I, Store0),
+    Ts1 = case gb_trees:get(ck(Key, I), Store0) of
 	      Val0 -> Ts0;
 	      Val1 ->
+		  ?DEBUG_DISPLAY([Key,I,Val1]),
 		  ValStr = text_val_to_str(Val1),
 		  Ts0#text{bef=[],aft=ValStr}
 	  end,
-    Ts = text_event(Ev, Fi, Ts1),
-    Val = text_get_val(Ts),
-    Common1 = gb_trees:update(Key, Val, Common0),
-    Common = update_color(Key, Common1),
-    {Ts#text{last_val=Val},Common}.
+    Ts2 = text_event(Ev, Fi, Ts1),
+    {Ts,Store} = case text_get_val(Ts2) of
+		     Val0 -> {Ts2,Store0};
+		     Val  -> {Ts2#text{last_val=Val},
+			      gb_trees:update(ck(Key, I), Val, Store0)}
+		 end,
+    {store,gb_trees:update(-I, Ts, Store)}.
 
-draw_text(Active, Fi, #text{bef=Bef0,aft=Aft0,password=true}=Ts, Common) ->
-    Bef = subst_stars(Bef0),
-    Aft = subst_stars(Aft0),
-    draw_text_0(Active, Fi, Ts#text{bef=Bef,aft=Aft}, Common);
-draw_text(Active, Fi, Ts, Common) ->
-    draw_text_0(Active, Fi, Ts, Common).
-
-draw_text_0(false, #fi{key=Key,x=X0,y=Y0}, #text{max=Max}, Common) ->
-    Val = gb_trees:get(Key, Common),
-    Str = text_val_to_str(Val),
+draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password}, Val) ->
+    Str0 = text_val_to_str(Val),
+    Str = case Password of 
+	      true -> stars(Str0);
+	      false -> Str0 
+	  end,
     gl:color3b(0, 0, 0),
     wings_io:sunken_rect(X0, Y0+2,
 			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
 			 {1,1,1}),
     Y = Y0 + ?CHAR_HEIGHT,
-    X = X0 + 4,
-    wings_io:text_at(X, Y, Str);
-draw_text_0(true, #fi{x=X0,y=Y0}, #text{sel=Sel,bef=Bef0,aft=Aft,max=Max}, _) ->
+    X = X0 + (?CHAR_WIDTH div 2),
+    wings_io:text_at(X, Y, Str).
+
+draw_text_active(#fi{x=X0,y=Y0}, 
+		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password}) ->
     gl:color3b(0, 0, 0),
     wings_io:sunken_rect(X0, Y0+2,
 			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
 			 {1,1,1}),
     Y = Y0 + ?CHAR_HEIGHT,
-    X = X0 + 4,
-    Bef = reverse(Bef0),
-    wings_io:text_at(X, Y, Bef),
-    wings_io:text(Aft),
-    if
-	Sel < 0 ->
+    X = X0 + (?CHAR_WIDTH div 2),
+    Len = length(Bef),
+    Str = case Password of
+	      true -> stars(Len+length(Aft));
+	      false -> reverse(Bef, Aft)
+	  end,
+    ?DEBUG_DISPLAY([Sel,Bef,Aft]),
+    wings_io:text_at(X, Y, Str),
+    case abs(Sel) of
+	N when N /= 0 ->
+	    Skip = min(Len, Len+Sel),
+	    SelStr = string:substr(Str, Skip+1, N),
 	    gl:color3f(0, 0, 0.5),
-	    Skip = length(Bef)+Sel,
 	    X1 = X+Skip*?CHAR_WIDTH,
- 	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1-Sel*?CHAR_WIDTH, Y+2),
+ 	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1+N*?CHAR_WIDTH, Y+2),
  	    gl:color3f(1, 1, 1),
-	    wings_io:text_at(X1, Y, lists:nthtail(Skip, Bef)),
+	    wings_io:text_at(X1, Y, SelStr),
 	    gl:color3b(0, 0, 0);
-	Sel > 0 ->
-	    gl:color3f(0, 0, 0.5),
-	    X1 = X+length(Bef)*?CHAR_WIDTH,
- 	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1+Sel*?CHAR_WIDTH, Y+2),
- 	    gl:color3f(1, 1, 1),
-	    draw_text_1(X1, Y, Aft, Sel);
-	true ->
+	_ ->
 	    gl:color3f(1, 0, 0),
-	    X1 = X+length(Bef)*?CHAR_WIDTH,
+	    X1 = X+Len*?CHAR_WIDTH,
 	    wings_io:text_at(X1, Y, [caret]),
 	    gl:color3b(0, 0, 0)
     end.
 
-draw_text_1(_, _, _, 0) ->
-    gl:color3b(0, 0, 0);
-draw_text_1(X, Y, [C|T], N) ->
-    wings_io:text_at(X, Y, [C]),
-    draw_text_1(X+?CHAR_WIDTH, Y, T, N-1).
-
-subst_stars(S) ->
-    lists:duplicate(length(S), $*).
+stars(N) when integer(N) ->
+    lists:duplicate(N, $*);
+stars(Str) ->
+    stars(length(Str)).
 
 validate_string(#text{validator=Validator,sel=Sel0}=Ts) ->
     case Validator(get_text(Ts)) of
@@ -1556,38 +1576,48 @@ validate_string(#text{validator=Validator,sel=Sel0}=Ts) ->
 get_text(#text{bef=Bef,aft=Aft}) ->
     reverse(Bef, Aft).
 
+get_text_r(#text{bef=Bef,aft=Aft}) ->
+    reverse(Aft, Bef).
+
 text_event({key,Sym,Mod,Unicode}, _Fi, Ts) ->
     key(Sym, Mod, Unicode, Ts);
 text_event({focus,false}, _Fi, Ts) ->
     validate_string(Ts);
-text_event({focus,true}, _Fi, #text{bef=Bef,aft=Aft}=Ts) ->
-    Str = reverse(Bef, Aft),
+text_event({focus,true}, _Fi, Ts) ->
+    Str = get_text(Ts),
     Ts#text{bef=[],sel=length(Str),aft=Str};
-text_event(#mousebutton{x=X,state=?SDL_PRESSED}, Fi, Ts) ->
-    text_pos(X, Fi, Ts);
-text_event(#mousebutton{x=X,state=?SDL_RELEASED}, Fi, Ts) ->
-    text_sel(X, Fi, Ts);
+text_event(#mousebutton{x=X,state=?SDL_PRESSED}, Fi, Ts0) ->
+    Ts = text_pos(X, Fi, Ts0),
+    ?DEBUG_DISPLAY(Ts),
+    Ts;
+text_event(#mousebutton{x=X,state=?SDL_RELEASED}, Fi, Ts0) ->
+    Ts = text_sel(X, Fi, Ts0),
+    ?DEBUG_DISPLAY(Ts),
+    Ts;
 text_event(#mousemotion{x=X}, Fi, Ts) ->
     text_sel(X, Fi, Ts);
 text_event(_Ev, _Fi, Ts) -> Ts.
 
-text_pos(Mx0, #fi{x=X}, Ts) ->
-    text_pos_1(round((Mx0-X)/?CHAR_WIDTH), Ts).
+text_pos(Mx0, #fi{x=X}, #text{bef=Bef,aft=Aft}=Ts) ->
+    D = round((Mx0-X-(?CHAR_WIDTH div 2))/?CHAR_WIDTH) - length(Bef),
+    ?DEBUG_DISPLAY([Mx0,X,?CHAR_WIDTH,length(Bef)]),
+    text_pos_1(D, Bef, Aft, Ts).
 
-text_pos_1(Mx, #text{bef=[C|Bef],aft=Aft}=Ts) when Mx < length(Bef) ->
-    text_pos_1(Mx, Ts#text{bef=Bef,aft=[C|Aft]});
-text_pos_1(Mx, #text{bef=Bef,aft=[C|Aft]}=Ts) when Mx > length(Bef) ->
-    text_pos_1(Mx, Ts#text{bef=[C|Bef],aft=Aft});
-text_pos_1(_Mx, Ts) -> Ts#text{sel=0}.
+text_pos_1(D, [C|Bef], Aft, Ts) when D < 0 ->
+    text_pos_1(D+1, Bef, [C|Aft], Ts);
+text_pos_1(D, Bef, [C|Aft], Ts) when D > 0 ->
+    text_pos_1(D-1, [C|Bef], Aft, Ts);
+text_pos_1(_, Bef, Aft, Ts) ->
+    Ts#text{bef=Bef,aft=Aft,sel=0}.
 
-text_sel(Mx0, #fi{x=X}, Ts) ->
-    text_sel_1(round((Mx0-X)/?CHAR_WIDTH), Ts).
+text_sel(Mx0, #fi{x=X}, #text{bef=Bef}=Ts) ->
+    Len = length(Bef),
+    text_sel_1(round((Mx0-X-(?CHAR_WIDTH div 2))/?CHAR_WIDTH)-Len, Len, Ts).
 
-text_sel_1(Mx, #text{bef=Bef}=Ts) when Mx < length(Bef) ->
-    Ts#text{sel=max(Mx, 0)-length(Bef)};
-text_sel_1(Mx, #text{bef=Bef,aft=Aft}=Ts) ->
-    Ts#text{sel=min(Mx-length(Bef),length(Aft))};
-text_sel_1(_Mx, Ts) -> Ts.
+text_sel_1(D, Len, #text{}=Ts) when D < 0 ->
+    Ts#text{sel=max(D, -Len)};
+text_sel_1(D, _Len, #text{aft=Aft}=Ts) ->
+    Ts#text{sel=min(D, length(Aft))}.
 
 key(?SDLK_KP_PLUS, _, _, #text{integer=true}=Ts) ->
     increment(Ts, 1);
@@ -1616,7 +1646,7 @@ key($\b, _, #text{sel=0,bef=[_|Bef]}=Ts) ->	%Bksp (no selection).
     Ts#text{bef=Bef};
 key($\b, _, Ts) ->				%Bksp (selection).
     del_sel(Ts);
-key(2, Mod, #text{sel=Sel,bef=Bef}=Ts) when ?IS_SHIFTED(Mod) ->
+key(2, Mod, #text{sel=Sel,bef=Bef}=Ts) when ?IS_SHIFTED(Mod) ->	%Ctrl-B
     if
 	-length(Bef) < Sel -> Ts#text{sel=Sel-1};
 	true -> Ts
@@ -1634,12 +1664,12 @@ key(6, _, #text{bef=Bef,aft=[C|Aft]}=Ts) ->	%Ctrl-F
     Ts#text{sel=0,bef=[C|Bef],aft=Aft};
 key(1, Mod, #text{bef=Bef}=Ts) when ?IS_SHIFTED(Mod) ->
     Ts#text{sel=-length(Bef)};
-key(1, _, #text{bef=Bef,aft=Aft}=Ts) ->		%Ctrl-A
-    Ts#text{sel=0,bef=[],aft=reverse(Bef, Aft)};
+key(1, _, #text{}=Ts) ->			%Ctrl-A
+    Ts#text{sel=0,bef=[],aft=get_text(Ts)};
 key(5, Mod, #text{aft=Aft}=Ts) when ?IS_SHIFTED(Mod) ->
     Ts#text{sel=length(Aft)};
-key(5, _, #text{bef=Bef,aft=Aft}=Ts) ->		%Ctrl-E
-    Ts#text{sel=0,bef=reverse(Aft, Bef),aft=[]};
+key(5, _, #text{}=Ts) ->			%Ctrl-E
+    Ts#text{sel=0,bef=get_text_r(Ts),aft=[]};
 key(11, _, #text{}=Ts) ->			%Ctrl-K
     Ts#text{aft=[]};
 key(4, _, #text{sel=0,aft=[_|Aft]}=Ts) ->	%Ctrl-D
@@ -1675,6 +1705,196 @@ increment(Ts0, Incr) ->
 	    validate_string(Ts)
     end.
 
+
+
+%%%
+%%% Slider
+%%%
+
+-define(SL_LENGTH, 150).
+-define(SL_BAR_H, (?LINE_HEIGHT-3)).
+
+-record(sl,
+	{min,
+	 range,
+	 hook,
+	 color,
+	 h
+	}).
+
+slider(Flags) ->
+    {Min,Max} = proplists:get_value(range, Flags),
+    {Color,H} = 
+	case proplists:get_value(color, Flags) of
+	    undefined -> {undefined,2};
+	    {T,_,_}=C when T==r;T==g;T==b;T==h;T==s;T==v -> {C,9}
+	end,
+    Hook = proplists:get_value(hook, Flags),
+    Sl = #sl{min=Min,range=Max-Min,hook=Hook,color=Color,h=H},
+    Fun = fun slider_event/4,
+    {Fun,false,Sl,?SL_LENGTH+4,?LINE_HEIGHT+2}.
+
+slider_event(init, #fi{key=Key,flags=Flags}, I, Store) ->
+    case proplists:get_value(value, Flags) of
+	undefined ->
+	    keep;
+	Val ->
+	    {store,gb_trees:enter(sk(Key, I), Val, Store)}
+    end;
+slider_event({redraw,Active}, #fi{key=Key}=Fi, I, Store) ->
+    Sl = gb_trees:get(-I, Store),
+    Val = gb_trees:get(sk(Key, I), Store),
+    slider_redraw(Active, Fi, Sl, Val, Store);
+slider_event(value, #fi{flags=Flags,key=Key}, I, Store) ->
+    case proplists:get_value(value, Flags) of
+	undefined ->
+	    none;
+	_ ->
+	    {value,gb_trees:get(sk(Key, I), Store)}
+    end;
+slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, Fi, I, Store) ->
+    slider_event_move(Xb, Fi, I, Store);
+slider_event(#mousemotion{x=Xb}, Fi, I, Store) ->
+    slider_event_move(Xb, Fi, I, Store);
+slider_event({key,?SDLK_LEFT,_,_}, Fi, I, Store) ->
+    slider_move(-1, Fi, I, Store);
+slider_event({key,?SDLK_RIGHT,_,_}, Fi, I, Store) ->
+    slider_move(1, Fi, I, Store);
+slider_event({key,?SDLK_LEFT,_,_}, Fi, I, Store) ->
+    slider_move(1, Fi, I, Store);
+slider_event({key,?SDLK_UP,_,_}, Fi, I, Store) ->
+    slider_move(10, Fi, I, Store);
+slider_event({key,?SDLK_DOWN,_,_}, Fi, I, Store) ->
+    slider_move(-10, Fi, I, Store);
+slider_event({key,?SDLK_HOME,_,_}, #fi{key=Key}, I, Store) ->
+    #sl{min=Min,hook=Hook} = gb_trees:get(-I, Store),
+    slider_update(Hook, Min, Key, I, Store);
+slider_event({key,?SDLK_END,_,_}, #fi{key=Key}, I, Store) ->
+    #sl{min=Min,range=Range,hook=Hook} = gb_trees:get(-I, Store),
+    slider_update(Hook, Min+Range, Key, I, Store);
+slider_event({key,_,_,6}, Fi, I, Store) -> %Ctrl-F
+    slider_move(1, Fi, I, Store);
+slider_event({key,_,_,2}, Fi, I, Store) -> %Ctrl-B
+    slider_move(-1, Fi, I, Store);
+slider_event({key,_,_,16}, Fi, I, Store) -> %Ctrl-P
+    slider_move(10, Fi, I, Store);
+slider_event({key,_,_,14}, Fi, I, Store) -> %Ctrl-N
+    slider_move(-10, Fi, I, Store);
+slider_event(_, _, _, _) -> keep.
+
+slider_move(D0, #fi{key=Key}, I, Store) ->
+    #sl{min=Min,range=Range,hook=Hook} = gb_trees:get(-I, Store),
+    Val0 = gb_trees:get(sk(Key, I), Store),
+    D = if
+	     is_integer(Min), D0 > 0 -> max(round(D0*0.01*Range), 1);
+	     is_integer(Min), D0 < 0 -> min(round(D0*0.01*Range), -1);
+	     is_float(Min) -> D0*0.01*Range
+	 end,
+    Val = max(Min, min(Min+Range, Val0+D)),
+    slider_update(Hook, Val, Key, I, Store).
+
+slider_event_move(Xb, #fi{x=X,key=Key}, I, Store) ->
+    #sl{min=Min,range=Range,hook=Hook} = gb_trees:get(-I, Store),
+    Pos = max(0, min(Xb-X, ?SL_LENGTH)),
+    V = Min + Pos*Range/?SL_LENGTH,
+    Val = if
+	      is_integer(Min) -> round(V);
+	      true -> V
+	  end,
+    slider_update(Hook, Val, Key, I, Store).
+
+slider_update(Hook, Val, Key, I, Store) ->
+    Sk = sk(Key, I),
+    ?DEBUG_DISPLAY([Val,Sk]),
+    case Hook of
+	undefined ->
+	    {store,gb_trees:update(Sk, Val, Store)};
+	_ when is_function(Hook) ->
+	    case Hook(update, {Key,Val,gb_trees:update(Sk, Val, Store)}) of
+		void -> keep;
+		Result -> Result
+	    end
+    end.
+
+slider_redraw(Active, Fi, #sl{color={T,K1,K2}}=Sl, Val, Store) ->
+    V1 = gb_trees:get(K1, Store),
+    V2 = gb_trees:get(K2, Store),
+    slider_redraw_1(Active, Fi, Sl, {T, {Val,V1,V2}});
+slider_redraw(Active, Fi, #sl{color=undefined}=Sl, Val, _Store) ->
+    slider_redraw_1(Active, Fi, Sl, Val).
+
+slider_redraw_1(Active, #fi{x=X,y=Y0,w=W}, #sl{min=Min,range=Range,h=H}, C) ->
+    Y = Y0+?LINE_HEIGHT div 2 + 2,
+    blend(fun(Col) ->
+		  wings_io:sunken_rect(X, Y-(H div 2), W, H, Col)
+	  end),
+    Val = color_slider(C, X, W, Y-(H div 2), H),
+    Pos = round(?SL_LENGTH * (Val-Min) / Range),
+    blend(fun(Col) ->
+		  case Active of
+		      false ->
+			  wings_io:raised_rect(X+Pos, Y-(?SL_BAR_H div 2),
+					       4, ?SL_BAR_H, Col);
+		      true ->
+			  wings_io:sunken_rect(X+Pos, Y-(?SL_BAR_H div 2),
+					       4, ?SL_BAR_H, Col)
+		  end
+	  end).
+
+color_slider({h,{Hue,S,V}},X,W,Y,H) ->
+    gl:shadeModel(?GL_SMOOTH),
+    gl:'begin'(?GL_QUADS),
+    hue_color_slider(S,V,X,W,Y,H),
+    gl:'end'(),
+    Hue;
+color_slider(C,X,W,Y,H) ->
+    {Val,[SCol,ECol]} = get_col_range(C),
+    gl:shadeModel(?GL_SMOOTH),
+    gl:'begin'(?GL_QUADS),
+    wings_io:set_color(SCol),
+    gl:vertex2f(X+1,Y+H),
+    gl:vertex2f(X+1,Y+1),
+    wings_io:set_color(ECol),
+    gl:vertex2f(X+1+W,Y+1),
+    gl:vertex2f(X+1+W,Y+H),
+    gl:'end'(),
+    Val.
+
+hue_color_slider(S, V, X, W, Y, H) ->
+    wings_io:set_color(hsv_to_rgb(0, S, V)),
+    hue_color_slider(S, V, X, W, Y, H, 0).
+
+hue_color_slider(_, _, _, _, _, _, Hue) when Hue > (360-60) ->
+    ok;
+hue_color_slider(S, V, X, W, Y, H, Hue) ->
+    X0 = (X+1)+W*Hue/360.0,
+    X1 = (X+1)+W*(Hue+60)/360.0,
+    gl:vertex2f(X0,Y+H),
+    gl:vertex2f(X0,Y+1),
+    gl:color3fv(hsv_to_rgb(60+Hue, S, V)),
+    gl:vertex2f(X1,Y+1),
+    gl:vertex2f(X1,Y+H),
+    hue_color_slider(S, V, X, W, Y, H, Hue+60).
+
+get_col_range({r, {R,G,B}}) ->
+    {R,[{0,G,B},{1,G,B}]};
+get_col_range({g, {G,R,B}}) ->
+    {G,[{R,0,B},{R,1,B}]};
+get_col_range({b, {B,R,G}}) ->
+    {B,[{R,G,0},{R,G,1}]};
+get_col_range({s, {S,H,V}}) ->
+    S0 = hsv_to_rgb(H,0.0,V),
+    S1 = hsv_to_rgb(H,1.0,V),
+    {S,[S0,S1]};
+get_col_range({v, {V,H,S}}) ->
+    V0 = hsv_to_rgb(H,S,0.0),
+    V1 = hsv_to_rgb(H,S,1.0),
+    {V,[V0,V1]};
+get_col_range(Val) when is_integer(Val); is_float(Val) ->
+    {Val,[color(),color()]}.
+
+
+
 dialog_unzip(L) ->
     dialog_unzip(L, [], []).
 dialog_unzip([{Lbl,F}|T], AccA, AccB) ->
@@ -1682,8 +1902,34 @@ dialog_unzip([{Lbl,F}|T], AccA, AccB) ->
 dialog_unzip([], AccA, AccB) ->
     {reverse(AccA),reverse(AccB)}.
 
+
 blend(Draw) ->
     wings_io:blend(color(), Draw).
 
 color() ->
     wings_pref:get_value(dialog_color).
+
+rgb_to_hsv({R,G,B}) ->
+    rgb_to_hsv(R, G, B).
+
+rgb_to_hsv(R,G,B) ->
+    {H,S,V} = wings_color:rgb_to_hsv(R,G,B),
+    {round(H),S,V}.
+
+hsv_to_rgb({H,S,V}) ->
+    hsv_to_rgb(H, S, V).
+
+hsv_to_rgb(H, S, V) ->
+    wings_color:hsv_to_rgb(H, S, V).
+
+%% Common data storage key
+ck(0, I) when is_integer(I), I > 0 ->
+    I;
+ck(Key, I) when not is_integer(Key), is_integer(I) ->
+    Key.
+
+%% Slider data storage key
+sk(0, I) when is_integer(I), I > 0 ->
+    I-1;
+sk(Key, I) when not is_integer(Key), is_integer(I) ->
+    Key.
