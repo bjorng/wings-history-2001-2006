@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.17 2005/01/28 16:09:51 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.18 2005/01/28 21:32:43 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -389,25 +389,30 @@ select_way([],_,_) -> exit(vertices_are_not_possible_to_connect);
 select_way([Cut],_,_) -> Cut;
 select_way(Cuts,We = #we{id=Id},MM) -> 
     {MVM,_PM,_} = wings_u:get_matrices(Id, MM),
-    Check = fun(Cut, Acc) ->
-		    Face = element(3,Cut), %% Ouch ugly
-		    Normal0 = wings_face:normal(Face,We),
-		    {_,_,Z} = e3d_mat:mul_vector(list_to_tuple(MVM),Normal0),
-		    case Z > 0.0 of
-			true when element(4, Cut) == true ->
-			    [Cut|Acc];
-			true when element(1, Cut) == vertex ->
-			    [Cut|Acc];
-			_ ->
-			    Acc ++ [Cut]
-		    end
-	    end,
-    case lists:foldl(Check, [], Cuts) of
-	[] -> hd(Cuts);
-	[Cut] -> Cut;
-	[Cut|_] -> Cut
-    end.
+    Priortize = 
+	fun(Cut = {edge,_,Face,Intersect,_}) ->
+		FaceScreen = check_normal(Face,MVM,We),
+		if 
+		    FaceScreen and Intersect ->  {1,Cut};
+		    FaceScreen -> {3,Cut};
+		    Intersect ->  {4,Cut};
+		    true ->  {6,Cut}
+		end;
+	   (Cut = {vertex,_,Face}) ->
+		FaceScreen = check_normal(Face,MVM,We),
+		if 
+		    FaceScreen -> {2,Cut};
+		    true -> {5,Cut}
+		end
+	end,
+    [{_P,Cut}|_R] =  lists:sort(lists:map(Priortize, Cuts)),
+    Cut.
 
+check_normal(Face,MVM,We) ->
+    Normal0 = wings_face:normal(Face,We),
+    {_,_,Z} = e3d_mat:mul_vector(list_to_tuple(MVM),Normal0),
+    Z > 0.1.
+   
 pos2Dto3D({IX,IY}, {V1Sp,V2Sp}, V1,V2,#we{vp=Vs}) ->
     Pos1 = gb_trees:get(V1, Vs),
     Pos2 = gb_trees:get(V2, Vs),
@@ -415,9 +420,6 @@ pos2Dto3D({IX,IY}, {V1Sp,V2Sp}, V1,V2,#we{vp=Vs}) ->
     Dist = e3d_vec:dist(V1Sp,{float(IX),float(IY),0.0}) / TotDist,
     Vec = e3d_vec:mul(e3d_vec:sub(Pos2,Pos1),Dist),
     e3d_vec:add(Pos1, Vec).
-
-% vertex_edges(NewVI,OrigVI,We) ->
-%     ok.
 
 get_line(V1,V2,MM,#we{id=Id,vp=Vs}) ->
     P1 = gb_trees:get(V1, Vs),
@@ -497,9 +499,6 @@ line_intersect2d({X1,Y1},{X2,Y2},{X3,Y3},{X4,Y4}) ->
 
 obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
     glu:project(X, Y, Z, MVM, PM, VP).
-
-% screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
-%     glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
 
 help(#cs{v=[]}) ->
     Msg1 = wings_msg:button_format("Select vertex or cut edge [press button to slide]"),
