@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.23 2002/12/26 22:38:03 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.24 2003/03/07 07:59:57 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -72,10 +72,13 @@ rotate(A0, {X,Y,Z}) when is_float(X), is_float(Y), is_float(Z) ->
 	{-ZSinA,YSinA,
 	 ZSinA,-XSinA,
 	 -YSinA,XSinA},
-    {U1,U2,U3,U4,U5,U6,U7,U8,U9} =
+    {U1,U2,U3, U5,U6, U9} =
 	{X*X,X*Y,X*Z,
-	 Y*X,Y*Y,Y*Z,
-	 Z*X,Z*Y,Z*Z},
+	     Y*Y,Y*Z,
+	         Z*Z},
+    U4 = U2,
+    U7 = U3,
+    U8 = U6,
     S = CosA,
     NegS = -S,
     {U1+S*(1.0-U1), U4+NegS*U4+C4, U7+NegS*U7+C7,
