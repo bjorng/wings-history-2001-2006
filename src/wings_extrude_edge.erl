@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.28 2002/08/25 08:13:13 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.29 2002/08/25 09:42:31 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -46,16 +46,19 @@ bevel(St0) ->
 		     wings_sel:set(face, Sel, St)).
 
 bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Sel0,Limit0}) ->
-    {We1,OrigVs,_} = extrude_edges(Edges, We0),
+    {We1,OrigVs,Forbidden} = extrude_edges(Edges, We0),
     We2 = wings_edge:dissolve_edges(Edges, We1),
-    Tv0 = bevel_tv(OrigVs, We2),
+    Tv0 = bevel_tv(OrigVs, We2, Forbidden),
     We3 = foldl(fun(V, W0) ->
 			wings_collapse:collapse_vertex(V, W0)
 		end, We2, OrigVs),
-    Vtab = bevel_reset_pos(OrigVs, We2, We3#we.vs),
+    Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, We3#we.vs),
     We = We3#we{vs=Vtab},
     {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
-    Sel = [{Id,wings_we:new_items(face, We0, We)}|Sel0],
+    Sel = case gb_sets:is_empty(Forbidden) of
+	      true -> [{Id,wings_we:new_items(face, We0, We)}|Sel0];
+	      false -> Sel0
+	  end,
     {We,{[{Id,Tv}|Tvs],Sel,Limit}}.
 
 %%
@@ -63,23 +66,23 @@ bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Sel0,Limit0}) ->
 %%
 
 bevel_faces(St0) ->
-    {St,{Tvs,C}} = wings_sel:mapfold(fun bevel_faces/3, {[],1.0E300}, St0),
+    {St,{Tvs,C}} = wings_sel:mapfold(fun bevel_faces/3, {[],1.0E307}, St0),
     wings_drag:setup(Tvs, [{distance,{0.0,C}}], St).
 
 bevel_faces(Faces, #we{id=Id}=We0, {Tvs,Limit0}) ->
     Edges = wings_edge:from_faces(Faces, We0),
-    {We1,OrigVs,_} = extrude_edges(Edges, We0),
+    {We1,OrigVs,Forbidden} = extrude_edges(Edges, We0),
     case {gb_trees:size(We0#we.es),gb_trees:size(We1#we.es)} of
 	{Same,Same} ->
 	    wings_util:error("Object is too small to bevel.");
 	{_,_} ->
 	    We2 = wings_edge:dissolve_edges(Edges, We1),
-	    Tv0 = bevel_tv(OrigVs, We2),
+	    Tv0 = bevel_tv(OrigVs, We2, Forbidden),
 	    #we{vs=Vtab0} = We3 =
 		foldl(fun(V, W0) ->
 			      wings_collapse:collapse_vertex(V, W0)
 		      end, We2, OrigVs),
-	    Vtab = bevel_reset_pos(OrigVs, We2, Vtab0),
+	    Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, Vtab0),
 	    We = We3#we{vs=Vtab},
 	    {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
 	    {We,{[{Id,Tv}|Tvs],Limit}}
@@ -89,29 +92,37 @@ bevel_faces(Faces, #we{id=Id}=We0, {Tvs,Limit0}) ->
 %% Common bevel utilities.
 %%
 
-bevel_tv(Vs, We) ->
-    foldl(fun(V, A) -> bevel_tv_1(V, We, A) end, [], Vs).
+bevel_tv(Vs, We, Forbidden) ->
+    foldl(fun(V, A) -> bevel_tv_1(V, We, Forbidden, A) end, [], Vs).
 
-bevel_tv_1(V, We, Acc) ->
+bevel_tv_1(V, We, Forbidden, Acc) ->
     Center = wings_vertex:pos(V, We),
     wings_vertex:fold(
-      fun(_, _, Rec, Tv0) ->
-	      OtherV = wings_vertex:other(V, Rec),
-	      Pos = wings_vertex:pos(OtherV, We),
-	      Vec = e3d_vec:norm(e3d_vec:sub(Pos, Center)),
-	      [{Vec,[OtherV]}|Tv0]
+      fun(Edge, _, Rec, Tv0) ->
+	      case gb_sets:is_member(Edge, Forbidden) of
+		  true -> Tv0;
+		  false ->
+		      OtherV = wings_vertex:other(V, Rec),
+		      Pos = wings_vertex:pos(OtherV, We),
+		      Vec = e3d_vec:norm(e3d_vec:sub(Pos, Center)),
+		      [{Vec,[OtherV]}|Tv0]
+	      end
       end, Acc, V, We).
 
-bevel_reset_pos(Vs, We, Vtab) ->
-    foldl(fun(V, A) -> bevel_reset_pos_1(V, We, A) end, Vtab, Vs).
+bevel_reset_pos(Vs, We, Forbidden, Vtab) ->
+    foldl(fun(V, A) -> bevel_reset_pos_1(V, We, Forbidden, A) end, Vtab, Vs).
 
-bevel_reset_pos_1(V, We, Vtab) ->
+bevel_reset_pos_1(V, We, Forbidden, Vtab) ->
     Center = wings_vertex:pos(V, We),
     wings_vertex:fold(
-      fun(_, _, Rec, Vt) ->
-	      OtherV = wings_vertex:other(V, Rec),
-	      Vtx = gb_trees:get(OtherV, Vt),
-	      gb_trees:update(OtherV, Vtx#vtx{pos=Center}, Vt)
+      fun(Edge, _, Rec, Vt) ->
+	      case gb_sets:is_member(Edge, Forbidden) of
+		  true -> Vt;
+		  false ->
+		      OtherV = wings_vertex:other(V, Rec),
+		      Vtx = gb_trees:get(OtherV, Vt),
+		      gb_trees:update(OtherV, Vtx#vtx{pos=Center}, Vt)
+	      end
       end, Vtab, V, We).
 
 bevel_limit(Tv0, We, Limit0) ->
@@ -342,7 +353,6 @@ connect_inner({new,V}, [V|[B,C,_|_]=Next], N, Face, We0) ->
     {We,_} = wings_edge:fast_cut(Edge, Pos, We2),
     We;
 connect_inner({new,_}, [A|[B,C]], _, Face, We0) ->
-    io:format("~p\n", [{?LINE,A}]),
     {We1,Edge} = wings_vertex:force_connect(C, A, Face, We0),
     #we{vs=Vtab} = We1,
     APos = wings_vertex:pos(A, Vtab),
@@ -352,7 +362,6 @@ connect_inner({new,_}, [A|[B,C]], _, Face, We0) ->
     {We,_} = wings_edge:fast_cut(Edge, Pos, We1),
     We;
 connect_inner(C, [B|[A,{new,_}]], N, Face, We0) ->
-    io:format("~p\n", [{?LINE,A}]),
     {We1,Edge} = wings_vertex:force_connect(A, C, Face, We0),
     #we{vs=Vtab} = We1,
     APos = wings_vertex:pos(A, Vtab),
