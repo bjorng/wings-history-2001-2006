@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.4 2001/11/01 12:47:20 dgud Exp $
+%%     $Id: e3d_image.erl,v 1.5 2001/11/01 12:55:51 dgud Exp $
 %%
 
 -module(e3d_image).
@@ -54,8 +54,11 @@ load(FileName, Opts) when list(FileName), list(Opts) ->
 
 %% Func: save(#e3d_image, FileName [, Opts]
 %% Rets: ok | {error, Reason}
-%% Desc: Saves image to file using extension to know 
-%%       of filename as file type.
+%% Desc: Saves image to file. Using extension to 
+%%       know which fileformat to use. 
+%%       Opts is a list of options. 
+%%       Available options: compress 
+%%        compress - compresses the file if it is possible/implemented (currently tif).
 save(Image, Filename) ->
     save(Image, Filename, []).
 save(Image = #e3d_image{}, Filename, Opts) ->
