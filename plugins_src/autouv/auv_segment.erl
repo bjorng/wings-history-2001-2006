@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.64 2004/12/25 07:45:15 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.65 2004/12/25 07:54:00 bjorng Exp $
 
 -module(auv_segment).
 
@@ -885,7 +885,7 @@ collect_fun(Cuts) ->
     end.
 
 %%%
-%%% Build a map {F,V} => UV.
+%%% Build a map [F|V] => UV.
 %%%
 
 fv_to_uv_map(#we{fs=Ftab}=We) ->
@@ -904,7 +904,7 @@ uv_info(F, E, We) ->
     uv_info_1(wings_face:vinfo_ccw(F, E, We), F, []).
 
 uv_info_1([[V|UV]|T], F, Acc) ->
-    uv_info_1(T, F, [{{F,V},UV}|Acc]);
+    uv_info_1(T, F, [{[F|V],UV}|Acc]);
 uv_info_1([_|_], _, _) -> error;
 uv_info_1([], _, Acc) -> Acc.
 
@@ -965,8 +965,8 @@ remove_non_cutting(Face, D, We, Charts, Cuts0) ->
       end, Cuts0, Face, We).
 
 is_cutting_edge(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, D) ->
-    gb_trees:get({Lf,Va}, D) =/= gb_trees:get({Rf,Va}, D) orelse
-	gb_trees:get({Lf,Vb}, D) =/= gb_trees:get({Rf,Vb}, D).
+    gb_trees:get([Lf|Va], D) =/= gb_trees:get([Rf|Va], D) orelse
+	gb_trees:get([Lf|Vb], D) =/= gb_trees:get([Rf|Vb], D).
 
 remove_boundary_edges(Cuts, Charts, We) ->
     AllInner0 = lists:append([wings_face:inner_edges(C, We) || C <- Charts]),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.279 2004/12/25 07:45:15 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.280 2004/12/25 07:54:00 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -791,7 +791,6 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
     end.
 
 rebuild_charts(We, St, ExtraCuts) ->
-    %%Faces = ?TC(wings_we:uv_mapped_faces(We)),
     {Faces,FvUvMap} = ?TC(auv_segment:fv_to_uv_map(We)),
     {Charts0,Cuts0} = ?TC(auv_segment:uv_to_charts(Faces, FvUvMap, We)),
     {Charts1,Cuts} =
@@ -819,7 +818,7 @@ finalize_charts_1([{Fs0,#we{name=#ch{vmap=Vmap}}=We0}|Cs], FvUvMap, Z,
     UVs0 = wings_face:fold_faces(
 	     fun(F, V, _, _, A) ->
 		     OrigV = auv_segment:map_vertex(V, Vmap),
-		     {X,Y} = gb_trees:get({F,OrigV}, FvUvMap),
+		     {X,Y} = gb_trees:get([F|OrigV], FvUvMap),
 		     [{V,{X,Y,Z}}|A]
 	     end, [], Fs, We0),
     UVs = gb_trees:from_orddict(orddict:from_list(UVs0)),
