@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.40 2004/12/12 10:24:08 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.41 2005/01/02 10:31:15 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -106,28 +106,29 @@ make_ftab([], Acc) -> Acc.
 
 read(Parse, Fd0, Acc) ->
     {Line,Fd} = get_line(Fd0),
-    read(Parse, Line, Fd, Acc).
+    read_1(Parse, Line, Fd, Acc).
 
-read(_, eof, _, Acc) -> Acc;
-read(Parse, "#" ++ _Comment, Fd, Acc) ->
+read_1(_, eof, _, Acc) -> Acc;
+read_1(Parse, [], Fd, Acc) ->
+    %% Blank line - ignore and read the next line.
     read(Parse, Fd, Acc);
-read(Parse, "\n", Fd, Acc) ->
+read_1(Parse, "#" ++ _Comment, Fd, Acc) ->
+    %% Comment - ignore and read the next line.
     read(Parse, Fd, Acc);
-read(Parse, " " ++ Line, Fd, Acc) ->
-    read(Parse, Line, Fd, Acc);
-read(Parse, "\t" ++ Line, Fd, Acc) ->
-    read(Parse, Line, Fd, Acc);
-read(Parse, "mtllib" ++ Name0, Fd, Acc0) ->
-    Name1 = skip_blanks(Name0),
-    Name = case reverse(Name1) of
-	       [$\n|Name2] -> reverse(Name2)
-	   end,
+read_1(Parse, [Ctrl|Line], Fd, Acc) when Ctrl =< $\s ->
+    %% Ignore any leading whitespace (especially TAB and spaces,
+    %% but also control characters such as ^@ which ZBrush 2
+    %% emits at the end of a file).
+    read_1(Parse, Line, Fd, Acc);
+read_1(Parse, "mtllib" ++ Name0, Fd, Acc0) ->
+    Name = skip_blanks(Name0),
     case Parse(["mtllib",Name], Acc0) of
 	eof -> Acc0;
 	Acc -> read(Parse, Fd, Acc)
     end;
-read(Parse, Line, Fd, Acc0) ->
-    case Parse(collect(Line, [], []), Acc0) of
+read_1(Parse, Line, Fd, Acc0) ->
+    Tokens = collect(Line, [], []),
+    case Parse(Tokens, Acc0) of
 	eof -> Acc0;
 	Acc -> read(Parse, Fd, Acc)
     end.
@@ -136,12 +137,12 @@ collect([$\s|T], [], Tokens) ->
     collect(T, [], Tokens);
 collect([$\s|T], Curr, Tokens) ->
     collect(T, [], [reverse(Curr)|Tokens]);
-collect([$\n|T], Curr, Tokens) ->
-    collect([$\s|T], Curr, Tokens);
 collect([H|T], Curr, Tokens) ->
     collect(T, [H|Curr], Tokens);
+collect([], [], Tokens) ->
+    reverse(Tokens);
 collect([], Curr, Tokens) ->
-    reverse(Tokens, reverse(Curr)).
+    collect([], [], [reverse(Curr)|Tokens]).
 
 parse(["v",X0,Y0,Z0|_], #ost{v=Vtab}=Ost) ->
     X = str2float(X0),
@@ -171,7 +172,9 @@ parse(["usemtl"|[Mat|_]], Ost) ->
 parse(["mtllib",FileName], #ost{dir=Dir}=Ost) ->
     Mat = read_matlib(FileName, Dir),
     Ost#ost{matdef=Mat};
-parse(["End","Of","File"], _Ost) -> eof;	%In files written by ZBrush.
+parse(["End","Of","File"], _Ost) ->
+    %% In files written by ZBrush 1.x.
+    eof;
 parse([Tag|_]=Other, #ost{seen=Seen}=Ost) ->
     case gb_sets:is_member(Tag, Seen) of
 	true -> Ost;
@@ -291,22 +294,28 @@ map_add(P, [{Name,OpenGL,Maps}|Ms]) ->
 mtl_text_to_tuple(L) ->
     list_to_tuple([str2float(F) || F <- L]).
 
-str2float(S) ->
-    case catch list_to_float(S) of
-	{'EXIT',_} -> str2float_1(S, []);
-	F -> F
+str2float("."++_=S) -> str2float_1("0"++S);
+str2float([$-|"."++_=S]) -> str2float_1("-0"++S);
+str2float(S) -> str2float_1(S).
+
+str2float_1(S) ->
+    try
+	list_to_float(S)
+    catch
+	error:badarg ->
+	    str2float_2(S, [])
     end.
 
-str2float_1([H|T], Acc) when H == $e; H == $E ->
+str2float_2([H|T], Acc) when H == $e; H == $E ->
     foreach(fun($-) -> ok;
 	       ($+) -> ok;
 	       (D) when $0 =< D, D =< $9 -> ok
 	    end, Acc),
     NumStr = reverse(Acc, ".0e") ++ T,
     list_to_float(NumStr);
-str2float_1([H|T], Acc) ->
-    str2float_1(T, [H|Acc]);
-str2float_1([], Acc) ->
+str2float_2([H|T], Acc) ->
+    str2float_2(T, [H|Acc]);
+str2float_2([], Acc) ->
     float(list_to_integer(reverse(Acc))).
 
 space_concat([Str|[_|_]=T]) ->
@@ -340,9 +349,9 @@ get_line([], Fd, Line) ->
 	{ok,Cs} -> get_line(Cs, Fd, Line)
     end;
 get_line([$\r|Cs], Fd, Line) ->
-    {reverse(Line, [$\n]),{Fd,Cs}};
+    {reverse(Line),{Fd,Cs}};
 get_line([$\n|Cs], Fd, Line) ->
-    {reverse(Line, [$\n]),{Fd,Cs}};
+    {reverse(Line),{Fd,Cs}};
 get_line([C|Cs], Fd, Line) ->
     get_line(Cs, Fd, [C|Line]).
     
