@@ -1,6 +1,6 @@
 %% File    : wpc_autouv.erl
 %% Author  : Dan Gudmundsson <dgud@erix.ericsson.se>
-%% Description : A semi-simple semi-automatic UV-mapping plugin
+%% Description : A semi-simple semi-automatic UV-mapping semi-plugin
 %%
 %% Created : 24 Jan 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%-------------------------------------------------------------------
@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.204 2004/03/15 18:49:07 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.205 2004/03/16 06:58:14 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -187,7 +187,7 @@ init_show_maps(Map0, We, St) ->
 
 create_uv_state(Charts0, MatName0, We, GeomSt0) ->
     Charts = restrict_ftab(Charts0),
-    wings:mode_restriction([body]),
+    wings:mode_restriction([vertex,edge,face,body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {GeomSt1,MatName} = 
 	case has_texture(MatName0, GeomSt0) of
@@ -404,17 +404,20 @@ command_menu(body, X, Y) ->
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(face, X, Y) ->
     Menu = [{"Face operations", ignore}, 
-	    {"Email your ideas", ignore}
+	    separator,
+	    {"Nothing here yet",ignore}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(edge, X, Y) ->
     Menu = [{"Edge operations", ignore},
-	    {"Email your ideas", ignore}
+	    separator,
+	    {"Nothing here yet",ignore}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(vertex, X, Y) ->
-    Menu = [{"Vertex operations", ignore},
-	    {"Email your ideas", ignore}
+    Menu = [{"Vertex operations",ignore},
+	    separator,
+	    {"Nothing here yet",ignore}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu).
 
@@ -426,6 +429,7 @@ option_menu() ->
 
 get_event(#st{}=St) ->
     wings_draw:update_dlists(St),
+    wings_wm:current_state(St),
     wings_wm:dirty(),
     get_event_nodraw(St).
 
@@ -453,7 +457,7 @@ handle_event(Ev, St) ->
     end.
 
 handle_event_0(Ev, St) ->
-    case auv_pick:event(Ev, St) of
+    case wings_pick:event(Ev, St) of
 	next -> handle_event_1(Ev, St);
 	Other -> Other
     end.
@@ -468,8 +472,8 @@ handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=
 	       #st{selmode=Mode}) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     command_menu(Mode, X, Y);
-handle_event_1(#keyboard{state=?SDL_PRESSED,sym=?SDLK_SPACE}, #st{bb=#uvstate{st=St}}) ->
-    wings_wm:send(geom, {new_state,wpa:sel_set(face, [], St)});
+handle_event_1(#keyboard{state=?SDL_PRESSED,sym=?SDLK_SPACE}, _) ->
+    wings_wm:later({action,{select,deselect}});
 handle_event_1({drop,_,DropData}, St) ->
     handle_drop(DropData, St);
 %% Create Texture (see auv_texture)
@@ -492,6 +496,13 @@ handle_event_1({callback,Fun}, _) when is_function(Fun) ->
     Fun();
 handle_event_1({action,{auv,Cmd}}, St) ->
     handle_command(Cmd, St);
+handle_event_1({action,{select,Command}}, St0) ->
+    case wings_sel_cmd:command(Command, St0) of
+	{save_state,St1} -> ok;
+	#st{}=St1 -> ok
+    end,
+    St = filter_selection(St1),
+    get_event(St);
 handle_event_1(got_focus, _) ->
     Msg1 = wings_util:button_format("Select"),
     Msg2 = wings_camera:help(),
@@ -573,6 +584,36 @@ handle_drop(_DropData, _) ->
 
 is_power_of_two(X) ->
     (X band -X ) == X.
+
+%% filter_selection(St0) -> St
+%%  Remove any items in the selection that are outside of a chart.
+filter_selection(#st{sel=[]}=St) -> St;
+filter_selection(#st{selmode=vertex}=St) ->
+    Sel = wpa:sel_fold(fun(Vs0, #we{id=Id,vp=Vtab}, A) ->
+			       Vs1 = gb_trees:keys(Vtab),
+			       Vs2 = gb_sets:from_ordset(Vs1),
+			       Vs = gb_sets:intersection(Vs0, Vs2),
+			       [{Id,Vs}|A]
+		       end, [], St),
+    wpa:sel_set(vertex, Sel, St);
+filter_selection(#st{selmode=edge}=St) ->
+    Sel = wpa:sel_fold(fun(Es0, #we{id=Id,fs=Ftab}=We, A) ->
+			       Fs = gb_trees:keys(Ftab),
+			       Inner0 = wings_face:inner_edges(Fs, We),
+			       Inner = gb_sets:from_ordset(Inner0),
+			       Es = gb_sets:intersection(Es0, Inner),
+			       [{Id,Es}|A]
+		       end, [], St),
+    wpa:sel_set(edge, Sel, St);
+filter_selection(#st{selmode=face}=St) ->
+    Sel = wpa:sel_fold(fun(Fs0, #we{id=Id,fs=Ftab}, A) ->
+			       Fs1 = gb_trees:keys(Ftab),
+			       Fs2 = gb_sets:from_ordset(Fs1),
+			       Fs = gb_sets:intersection(Fs0, Fs2),
+			       [{Id,Fs}|A]
+		       end, [], St),
+    wpa:sel_set(face, Sel, St);
+filter_selection(#st{selmode=body}=St) -> St.
 
 update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #st{bb=#uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs} = AuvSt) ->
