@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.18 2002/12/28 22:10:27 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.19 2002/12/29 11:12:15 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -35,15 +35,13 @@ command({file,{render,{opengl,Ask}}}, St) ->
 command(_, _) -> next.
 
 dialog_qs(render) ->
-    DefVar = {output_type,get_pref(output_type, preview)},
+    DefOutput = get_pref(output_type, preview),
     SubDiv = get_pref(subdivisions, 0),
     Back = get_pref(background_color, {0.4,0.4,0.4}),
     Alpha = get_pref(render_alpha, false),
-    [{hframe,
-      [{vframe,
-	[{key_alt,DefVar,"Preview Window",preview},
-	 {key_alt,DefVar,"File",file}],
-	[{title,"Output"}]}]},
+    [{menu,[{"Render to Window",preview},
+	    {"Render to File",file}],
+      DefOutput,[{key,output_type}]},
      aa_frame(),
      {hframe,
       [{label,"Sub-division Steps"},{text,SubDiv,[{key,subdivisions},
@@ -54,18 +52,17 @@ dialog_qs(render) ->
 
 aa_frame() ->
     HaveAccum = have_accum(),
-    DefVar = {aa,get_pref(aa, if HaveAccum -> regular; true -> draft end)},
+    Def = get_pref(aa, if HaveAccum -> regular; true -> draft end),
     {hframe,
-     [{vframe,
-       [{key_alt,DefVar,"Draft (no AA)",draft}|
+     [{menu,
+       [{"Draft Quality (no AA)",draft}|
 	case have_accum() of
 	    false -> [];
 	    true ->
-		[{key_alt,DefVar,"Regular (normal AA)",regular},
-		 {key_alt,DefVar,"Super",super},
-		 {key_alt,DefVar,"Premium",premium}]
-	end],
-       [{title,"Quality"}]}]}.
+		[{"Regular Quality (normal AA)",regular},
+		 {"Super Quality",super},
+		 {"Premium Quality",premium}]
+	end],Def,[{key,aa}]}]}.
 
 have_accum() ->
     sdl_video:gl_getAttribute(?SDL_GL_ACCUM_RED_SIZE) >= 8 andalso
