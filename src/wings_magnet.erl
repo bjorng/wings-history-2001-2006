@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.31 2002/03/25 09:54:15 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.32 2002/03/26 12:41:28 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -55,7 +55,7 @@ menu_help() ->
     
 drag_help(Type) ->
     "[+] or [-] Tweak R  " ++
-	help_1(Type, [{1,dome},{2,bell},{3,straight},{4,spike}]).
+	help_1(Type, [{1,bell},{2,dome},{3,straight},{4,spike}]).
 
 help_1(Type, [{Digit,Type}|T]) ->
     "[" ++ [$0+Digit] ++ "] <<" ++
@@ -65,8 +65,8 @@ help_1(Type, [{Digit,ThisType}|T]) ->
 	wings_util:cap(atom_to_list(ThisType)) ++ " " ++ help_1(Type, T);
 help_1(_, []) -> [].
 
-hotkey($1) -> dome;
-hotkey($2) -> bell;
+hotkey($1) -> bell;
+hotkey($2) -> dome;
 hotkey($3) -> straight;
 hotkey($4) -> spike;
 hotkey(_) -> none.
@@ -79,8 +79,8 @@ mf(bell, D, R) -> math:sin((R-D)/R*math:pi());
 mf(dome, D, R) -> math:sin((R-D)/R*math:pi()/2);
 mf(straight, D, R) -> (R-D)/R;
 mf(spike, D0, R) when is_float(D0), is_float(R) ->
-    D = R-D0,
-    D*D/R*R.
+    D = (R-D0)/R,
+    D*D.
 
 %%%
 %%% Calculation of influence radius: Shortest distance route.
