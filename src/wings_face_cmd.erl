@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.79 2003/04/24 05:46:01 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.80 2003/04/24 06:43:31 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -271,12 +271,13 @@ do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
 do_dissolve_1([EdgeList|Ess], Mat, WeOrig,
 	      KeepVs0, #we{es=Etab0,fs=Ftab0}=We0) ->
     {Face,We1} = wings_we:new_id(We0),
-    We = wings_material:assign(Mat, [Face], We1),
     Ftab = gb_trees:insert(Face, hd(EdgeList), Ftab0),
     Last = last(EdgeList),
     {KeepVs,Etab} = update_outer([Last|EdgeList], EdgeList, Face, WeOrig,
 				 Ftab, KeepVs0, Etab0),
-    do_dissolve_1(Ess, Mat, WeOrig, KeepVs, We#we{es=Etab,fs=Ftab});
+    We2 = We1#we{es=Etab,fs=Ftab},
+    We = wings_material:assign(Mat, [Face], We2),
+    do_dissolve_1(Ess, Mat, WeOrig, KeepVs, We);
 do_dissolve_1([], _Mat, _WeOrig, KeepVs, We) -> {KeepVs,We}.
 
 do_dissolve_faces(Faces, #we{fs=Ftab0}=We) ->
