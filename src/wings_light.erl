@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.50 2004/03/25 23:04:31 raimo_niskanen Exp $
+%%     $Id: wings_light.erl,v 1.51 2004/04/19 16:50:10 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -150,7 +150,7 @@ info(#we{name=Name,light=#light{type=Type}=L}=We) ->
 info1(point, _, _) -> [];
 info1(Type, Pos, #light{aim=Aim,spot_angle=A}) ->
     {Ax,Ay,Az} = Aim,
-    {Dx,Dy,Dz} = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
+    {Dx,Dy,Dz} = e3d_vec:norm_sub(Aim, Pos),
     Info = io_lib:format(". Aim ~s ~s ~s. Dir ~s ~s ~s",
 			 [wings_util:nice_float(Ax),
 			  wings_util:nice_float(Ay),
@@ -469,7 +469,7 @@ update_2(infinite, Selected, #we{light=#light{aim=Aim}}=We) ->
     glu:quadricNormals(Obj, ?GLU_SMOOTH),
     glu:sphere(Obj, 0.08, 25, 25),
     glu:deleteQuadric(Obj),
-    Vec = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
+    Vec = e3d_vec:norm_sub(Aim, Pos),
     set_sel_color(Selected),
     gl:'begin'(?GL_LINES),
     gl:vertex3fv(e3d_vec:mul(Vec, 0.2)),
@@ -508,7 +508,7 @@ update_2(spot, Selected, #we{light=#light{aim=Aim,spot_angle=Angle}}=We) ->
     glu:quadricNormals(Obj, ?GLU_SMOOTH),
     glu:sphere(Obj, 0.08, 25, 25),
     set_sel_color(Selected),
-    SpotDir = e3d_vec:norm(e3d_vec:sub(Aim, Top)),
+    SpotDir = e3d_vec:norm_sub(Aim, Top),
     Rad = 3.1416*Angle/180,
     R = math:sin(Rad),
     H = math:cos(Rad),
@@ -790,7 +790,7 @@ setup_light(Lnum, #light{type=ambient,ambient=Amb}, _We, _M) ->
     gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, Amb),
     Lnum;
 setup_light(Lnum, #light{type=infinite,aim=Aim}=L, We, _M) ->
-    {X,Y,Z} = e3d_vec:norm(e3d_vec:sub(light_pos(We), Aim)),
+    {X,Y,Z} = e3d_vec:norm_sub(light_pos(We), Aim),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,0}),
     setup_color(Lnum, L),
     gl:enable(Lnum),
@@ -806,7 +806,7 @@ setup_light(Lnum, #light{type=point}=L, We, _M) ->
 setup_light(Lnum, #light{type=spot,aim=Aim,spot_angle=Angle,spot_exp=Exp}=L, 
 	    We, _M) ->
     Pos = {X,Y,Z} = light_pos(We),
-    Dir = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
+    Dir = e3d_vec:norm_sub(Aim, Pos),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, Angle),
     gl:lightf(Lnum, ?GL_SPOT_EXPONENT, Exp),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.38 2004/03/08 13:26:22 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.39 2004/04/19 16:50:09 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -16,7 +16,7 @@
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1]).
--define(PI, 3.1416).
+-define(PI, math:pi()).
 
 sub_menu(_St) ->
     InflateHelp = {"Inflate elements",[],"Pick center and radius"},
@@ -218,7 +218,7 @@ inflate(Center, Radius, Vs, #we{id=Id,vp=Vtab}, Acc) ->
     [{Id,foldl(fun(V, A) ->
 		       VPos = gb_trees:get(V, Vtab),
 		       D = e3d_vec:dist(Center, VPos),
-		       Dir = e3d_vec:norm(e3d_vec:sub(VPos, Center)),
+		       Dir = e3d_vec:norm_sub(VPos, Center),
 		       Vec = e3d_vec:mul(Dir, Radius-D),
 		       [{Vec,[V]}|A]
 	       end, [], Vs)}|Acc].
