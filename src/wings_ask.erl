@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.185 2004/11/21 10:19:34 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.186 2004/12/06 07:40:55 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1153,7 +1153,7 @@ mktree({menu,Menu,Def,Flags}, Sto, I) when is_list(Flags) ->
 %%
 mktree({button,{text,_Def,Flags}=TextField}, Sto, I) ->
     mktree({hframe,[TextField,
-		    {button,?STR(mktree,1,"Browse"),keep,
+		    {button,?__(1,"Browse"),keep,
 		     [{hook,browse_hook_fun(-1, Flags)},
 		      {drop_flags,[{index,-1},
 				   {hook,drop_hook_fun(Flags)}
@@ -1577,11 +1577,11 @@ frame_event(#mousemotion{x=Xm,y=Ym,state=Bst},
 	    case Minimized of
 		true ->
 		    wings_util:button_message(
-		      ?STR(frame_event,1,"Expand this frame; collapse other frames"),
+		      ?__(1,"Expand this frame; collapse other frames"),
 		      "",
-		      ?STR(frame_event,2,"Expand this frame"));
+		      ?__(2,"Expand this frame"));
 		false ->
-		    Msg = ?STR(frame_event,3,"Collapse this frame"),
+		    Msg = ?__(3,"Collapse this frame"),
 		    wings_util:button_message(Msg, "", Msg);
 		undefined ->
 		    wings_wm:message("")
@@ -2379,7 +2379,8 @@ mktree_button(Label, Action, Sto, I, Flags) ->
     But = #but{label=Label,action=Action},
     mktree_priv(Fi, gb_trees:enter(var(Key, I), Val, Sto), I, But).
 
-button_label(ok) -> ?STR(button_label,1,"OK");
+button_label(ok) -> ?__(1,"OK");
+button_label(cancel) -> wings_s:cancel();
 button_label(S) when is_list(S) -> S;
 button_label(Act) -> wings_util:cap(atom_to_list(Act)).
 %%button_label(Act) -> wings_util:cap(wings_lang:get_act(Act)). %BUGBUG

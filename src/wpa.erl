@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.56 2004/10/31 09:12:11 bjorng Exp $
+%%     $Id: wpa.erl,v 1.57 2004/12/06 07:45:47 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -48,7 +48,7 @@
 -import(lists, [reverse/1,foldl/3,foreach/2]).
 
 format_error({crash,Term}) ->
-    lists:flatten(io_lib:format(?STR(format_error,1,"Internal error: ~P\n"), [Term,20])).
+    lists:flatten(io_lib:format(?__(1,"Internal error: ~P\n"), [Term,20])).
 
 %%%
 %%% ask/3,4 is simpler to use, but only supports a single list of fields.
@@ -100,7 +100,7 @@ import(Props, Importer, St0) ->
 		   case ?SLOW(do_import(Importer, Name, St0)) of
 		       #st{}=St -> St;
 		       {error,Reason} ->
-			   error(?STR(import,1,"Import failed: ") ++ Reason)
+			   error(?__(1,"Import failed: ") ++ Reason)
 		   end
 	   end,
     import_filename(Props, Cont).
@@ -120,7 +120,7 @@ do_import(Importer, Name, St0) ->
 import_filename(Ps0, Cont) ->
     This = wings_wm:this(),
     Dir = wings_pref:get_value(current_directory),
-    Ps = Ps0 ++ [{title,?STR(import_filename,2,"Import")},{directory,Dir}],
+    Ps = Ps0 ++ [{title,?__(2,"Import")},{directory,Dir}],
     Fun = fun(Name) ->
 		  case catch Cont(Name) of
 		      {command_error,Error} ->
@@ -150,7 +150,7 @@ export_selected(Props, Exporter, #st{selmode=Mode}=St)
 	     end, [], St),
     Shs = gb_trees:from_orddict(reverse(Shs0)),
     export(Props, Exporter, St#st{shapes=Shs});
-export_selected(_, _, _) -> error(?STR(export_selected,1,"Select objects or faces.")).
+export_selected(_, _, _) -> error(?__(1,"Select objects or faces.")).
 
 export_sel_set_holes(body, _, We) -> We;
 export_sel_set_holes(face, Faces0, #we{fs=Ftab}=We) ->
@@ -178,7 +178,7 @@ export_filename(Prop0, Cont) ->
 		      ok -> keep
 		  end
 	  end,
-	wings_plugin:call_ui({file,save_dialog,Prop++[{title,?STR(export_filename,1,"Export")}],Fun}).
+	wings_plugin:call_ui({file,save_dialog,Prop++[{title,?__(1,"Export")}],Fun}).
 
 %% export_filename([Prop], St, Continuation).
 %%   The St will only be used to setup the default filename.
@@ -208,7 +208,7 @@ save_images(E3DFile, Directory, Filetype) ->
 %%  Type = import|export
 dialog_template(Mod, import) ->
     {vframe,
-     [{?STR(dialog_template,1,"Swap Y and Z Axes"),pref_get(Mod, swap_y_z, false),
+     [{?__(1,"Swap Y and Z Axes"),pref_get(Mod, swap_y_z, false),
        [{key,swap_y_z}]},
       {label_column,
        [{import_scale_s(),
@@ -223,7 +223,7 @@ dialog_template(Mod, export) ->
 		    {Key,Val} <- image_formats()],
     DefFileType = pref_get(Mod, default_filetype, ".bmp"),
     {vframe,
-     [{?STR(dialog_template,1,"Swap Y and Z Axes"),pref_get(Mod, swap_y_z, false),
+     [{?__(1,"Swap Y and Z Axes"),pref_get(Mod, swap_y_z, false),
        [{key,swap_y_z}]},
       {label_column,
        [{"("++import_scale_s()++")",
@@ -232,16 +232,16 @@ dialog_template(Mod, export) ->
 	{export_scale_s(),
 	 {text,pref_get(Mod, export_scale, 1.0),
 	  [{key,export_scale}]}},
-	{?STR(dialog_template,6,"Sub-division Steps"),
+	{?__(6,"Sub-division Steps"),
 	 {text,pref_get(Mod, subdivisions, 0),
 	  [{key,subdivisions},{range,0,4}]}}]},
       panel,
       {vframe,
        [{menu,FileTypes,DefFileType,[{key,default_filetype}]}],
-       [{title,?STR(dialog_template,7,"Default texture file type")}]} ]}.
+       [{title,?__(7,"Default texture file type")}]} ]}.
 
-import_scale_s() -> ?STR(import_scale_s, 1, "Import scale").
-export_scale_s() -> ?STR(export_scale_s, 1, "Export scale").
+import_scale_s() -> ?__( 1, "Import scale").
+export_scale_s() -> ?__( 1, "Export scale").
 
 import_matrix(Attr) ->
     Scale = e3d_mat:scale(proplists:get_value(import_scale, Attr, 1.0)),
