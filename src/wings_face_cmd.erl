@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.30 2002/01/28 08:39:19 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.31 2002/02/01 22:39:43 bjorng Exp $
 %f%
 
 -module(wings_face_cmd).
 -export([extrude/2,extrude_region/2,extract_region/2,
 	 inset/1,dissolve/1,smooth/1,bridge/1,
-	 intrude/1,mirror/1,flatten/2,flatten_move/2]).
+	 intrude/1,mirror/1,flatten/2,flatten_move/2,
+	 lift_selection/1,lift/2]).
 -export([outer_edge_partition/2]).
 
 -include("wings.hrl").
@@ -670,6 +671,100 @@ are_neighbors(FaceA, FaceB, We) ->
     ordsets:intersection(ordsets:from_list(VsA),
 			 ordsets:from_list(VsB)) =/= [].
 
+%%%
+%%% The Lift command.
+%%%
+
+lift_selection(OrigSt) ->
+    {fun(St) ->
+	     wings_io:message("Select the edge to keep fixed."),
+	     St#st{selmode=edge,sel=[]}
+     end,
+     fun(_) -> {none,""} end,
+     fun lift_exit/3}.
+
+lift_exit(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
+    Lift = fun(_, _) -> {face,{lift,{Mode,Sel}}} end,
+    Menu = [{"Vector Selection",ignore},
+	    separator,
+	    {"Lift",Lift},
+	    {"Abort Command",aborted}],
+    {seq,pop,wings_menu:popup_menu(X, Y, secondary_selection, Menu, St)}.
+
+lift({edge,EdgeSel}, St) ->
+    lift_from_edge(EdgeSel, St);
+lift(_, St) -> St.
+
+lift_from_edge(EdgeSel, St0) ->
+    Res = wings_sel:mapfold(
+	    fun(Faces, #we{id=Id}=We0, {[{Id,Edges}|ES],Tv0}) ->
+		    {We,Tv} = lift_from_edge(Faces, Edges, We0, Tv0),
+		    {We,{ES,Tv}};
+	       (_, _, _) -> lift_sel_mismatch()
+	    end, {EdgeSel,[]}, St0),
+    case Res of
+	{St,{[],Tvs}} ->
+	    wings_drag:init_drag(Tvs, none, angle, St);
+	{_,_} -> lift_sel_mismatch()
+    end.
+
+lift_sel_mismatch() ->
+    throw({command_error, "Face and edge selections don't match."}).
+	
+lift_from_edge(Faces, Edges, We0, Tv) ->
+    EsFs0 = wings_face:fold_faces(
+	      fun(Face, _, Edge, _, A) -> [{Edge,Face}|A] end,
+	      [], Faces, We0),
+    EsFs1 = sofs:relation(EsFs0, [{edge,face}]),
+    EsFs = sofs:restriction(EsFs1, sofs:set(gb_sets:to_list(Edges), [edge])),
+    FaceToEdge0 = sofs:converse(EsFs),
+    case sofs:is_a_function(FaceToEdge0)  of
+	false ->
+	    lift_sel_mismatch();
+	true ->
+	    FaceToEdge = sofs:to_external(FaceToEdge0),
+	    We = wings_extrude_face:faces(Faces, We0),
+	    lift_from_edge_1(FaceToEdge, We0, We, Tv)
+    end.
+
+lift_from_edge_1([{Face,Edge}|T], #we{es=Etab}=OrigWe, We0, Tv0) ->
+    Side = case gb_trees:get(Edge, Etab) of
+	       #edge{lf=Face} -> left;
+	       #edge{rf=Face} -> right
+	   end,
+    {We,Tv} = lift_from_edge_2(Face, Edge, Side, We0, Tv0),
+    lift_from_edge_1(T, OrigWe, We, Tv);
+lift_from_edge_1([], OrigWe, We, Tv) -> {We,Tv}.
+
+lift_from_edge_2(Face, Edge, Side, #we{id=Id,es=Etab}=We0, Tv) ->
+    FaceVs0 = ordsets:from_list(wings_face:surrounding_vertices(Face, We0)),
+    #edge{vs=Va0,ve=Vb0} = gb_trees:get(Edge, Etab),
+    {Va,Ea} = lift_edge_vs(Va0, FaceVs0, We0),
+    {Vb,Eb} = lift_edge_vs(Vb0, FaceVs0, We0),
+    We1 = wings_collapse:collapse_edge(Ea, We0),
+    We = wings_collapse:collapse_edge(Eb, We1),
+    FaceVs = ordsets:subtract(FaceVs0, ordsets:from_list([Va,Vb])),
+    VaPos = wings_vertex:pos(Va, We0),
+    VbPos = wings_vertex:pos(Vb, We0),
+    Axis0 = case Side of
+		left -> e3d_vec:sub(VbPos, VaPos);
+		right -> e3d_vec:sub(VaPos, VbPos)
+	    end,
+    Axis = e3d_vec:norm(Axis0),
+    Rot = wings_rotate:rotate(FaceVs, We, {VaPos,Axis}),
+    {We,[{Id,Rot}|Tv]}.
+
+lift_edge_vs(V, FaceVs, We) ->
+    wings_vertex:fold(
+      fun(Edge, _, Rec, none) ->
+	      OtherV = wings_vertex:other(V, Rec),
+	      case member(OtherV, FaceVs) of
+		  true -> {OtherV,Edge};
+		  false -> none
+	      end;
+	 (_, _, _, A) -> A
+      end, none, V, We).
+
 %% outer_edge_partition(FaceSet, WingedEdge) -> [[Edge]].
 %%  Partition all outer edges. Outer edges are all edges
 %%  between one face in the set and one outside.
@@ -726,7 +821,6 @@ partition_edges(Va, [{Edge,Va,Vb}], Faces, Es0, We, Acc0) ->
 	    partition_edges(Vb, Val, Faces, Es, We, Acc)
     end;
 partition_edges(Va, [Val|More], Faces, Es0, We, []) ->
-    %%io:format("line:~w, ~w\n", [?LINE,Va]),
     Es = gb_trees:insert(Va, More, Es0),
     partition_edges(Va, [Val], Faces, Es, We, []);
 partition_edges(Va, Edges, Faces, Es, We, Acc) ->
@@ -737,7 +831,6 @@ partition_edges(Va, Edges, Faces, Es, We, Acc) ->
 %% that don't return us to the Va vertex.
 %% (We want edge loops without repeated vertices.)
 part_try_all_edges(Va, [Val|More], Faces, Es0, We, Acc, Alt0, Path0) ->
-    %%io:format("line:~w, ~w\n", [?LINE,Va]),
     Es1 = gb_trees:insert(Va, [{repeated,Va,fake}], Es0),
     case partition_edges(Va, [Val], Faces, Es1, We, Acc) of
 	none ->
@@ -761,7 +854,5 @@ part_try_all_edges(Va, [], _, _, _, _, Alt, none) ->
     none.
 
 part_shortest_path(none, Path) -> Path;
-% part_shortest_path(Old, {[_,_],_}) -> Old;
-% part_shortest_path(Old, {[_],_}) -> Old;
 part_shortest_path({AccA,_}=A, {AccB,_}) when length(AccA) < length(AccB) -> A;
 part_shortest_path({_,_}, {_,_}=B) -> B.

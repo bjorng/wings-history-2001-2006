@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.5 2002/01/28 08:52:31 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.6 2002/02/01 22:39:43 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -21,9 +21,8 @@
 
 -import(lists, [foldl/3,keydelete/3,reverse/1]).
 
--record(ss, {type,				%Type to pick.
-	     names,				%Names (command reversed).
-	     st					%Original st record.
+-record(ss, {check,				%Check fun.
+	     exit				%Exit fun.
 	    }).
 
 menu(St) ->
@@ -56,10 +55,15 @@ command({dynamic_use_vector,{Name,Vec0,Ns}}, St) ->
     Cmd = wings_menu:build_command(Vec, Ns),
     wings_io:putback_event({action,Cmd}),
     move_to_front({Name,Vec0}, St);
-command({pick_new,Names}, St) ->
-    Ss = #ss{type=vector,names=Names,st=St},
+command({pick_new,Names}, St0) ->
+    Ss = #ss{check=fun check_vector/1,
+	     exit=fun(X, Y, St) -> exit_vector(X, Y, Names, St) end},
     wings_io:message("Select vector to use."),
-    {seq,{push,dummy},get_event(Ss, St#st{sel=[]})};
+    {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
+command({pick_special,{Init,Check,Exit}}, St0) ->
+    St = Init(St0),
+    Ss = #ss{check=Check,exit=Exit},
+    {seq,{push,dummy},get_event(Ss, St)};
 command(rename, St) ->
     name_menu("Rename or Delete Vector", do_rename, dummy, St);
 command({do_rename,{unnamed,Vec,_}}, St) ->
@@ -148,8 +152,8 @@ handle_event_4(Event, Ss, St0) ->
 	Other -> keep
     end.
 
-handle_event_5({new_selection,St}, Ss, St0) ->
-    {Vec,Msg} = check_vector(St),
+handle_event_5({new_selection,St}, #ss{check=Check}=Ss, St0) ->
+    {Vec,Msg} = Check(St),
     wings_io:message(Msg),
     get_event(Ss, St#st{vec=Vec});
 handle_event_5(#keyboard{}=Event, Ss, St) ->
@@ -183,24 +187,26 @@ translate_key_1(#keysym{sym=27}) ->		%Escape
     pop;
 translate_key_1(Other) -> next.
 
-exit_menu(X, Y, Ss, St) ->
+exit_menu(X, Y, #ss{exit=Exit}, St) ->
+    Exit(X, Y, St).
+
+exit_vector(X, Y, Names, St) ->
     case check_vector(St) of
 	{none,Msg} ->
 	    wings_io:message(Msg),
-	    exit_menu_invalid(X, Y, Ss, St);
+	    exit_menu_invalid(X, Y, Names, St);
 	{Vec,Msg} ->
 	    wings_io:message(Msg),
-	    exit_menu_done(X, Y, Vec, Ss, St)
+	    exit_menu_done(X, Y, Vec, Names, St)
     end.
 
-exit_menu_invalid(X, Y, #ss{type=Type,names=Names}, St) ->
-    Reselect = fun(_, _) -> {vector,{Type,Names}} end,
-    Menu = [{"Invalid wings_menu:build_command(FakeVec, Ns)Vector Selection",ignore},
+exit_menu_invalid(X, Y, Names, St) ->
+    Menu = [{"Invalid Selection",ignore},
 	    separator,
 	    {"Abort Command",abort}],
     wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
 
-exit_menu_done(X, Y, Vec, #ss{names=Ns}, St) ->
+exit_menu_done(X, Y, Vec, Ns, St) ->
     UseAction = fun(_, _) -> {vector,{save_unnamed,{Vec,Ns}}} end,
     FakeVec = {{0,0,0},{0,0,0}},
     Command0 = wings_menu:build_command(FakeVec, Ns),
@@ -403,4 +409,3 @@ find_edges([V|Vs], VsSet, We, Acc0) ->
 	    end, Acc0, V, We),
     find_edges(Vs, VsSet, We, Acc);
 find_edges([], VsSet, We, Acc) -> Acc.
-	      

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.100 2002/02/01 05:19:10 bjorng Exp $
+%%     $Id: wings.erl,v 1.101 2002/02/01 22:39:43 bjorng Exp $
 %%
 
 -module(wings).
@@ -438,7 +438,8 @@ command({face,smooth}, St) ->
     ?SLOW({save_state,model_changed(wings_face_cmd:smooth(St))});
 command({face,auto_smooth}, St) ->
     {save_state,model_changed(wings_body:auto_smooth(St))};
-
+command({face,{lift,Lift}}, St) ->
+    wings_face_cmd:lift(Lift, St);
     
 %% Edge commands.
 command({edge,bevel}, St) ->
@@ -628,8 +629,9 @@ face_menu(X, Y, St) ->
 	    {"Inset",inset},
 	    {"Intrude",intrude},
 	    {"Bevel",bevel},
-	    {"Bump",bump},
 	    {"Bridge",bridge},
+	    {"Bump",bump},
+	    {advanced,{"Lift",lift_fun(St)}},
 	    separator,
 	    {"Mirror",mirror},
     	    {"Dissolve",dissolve},
@@ -749,7 +751,6 @@ flatten_dir_1(3, Mode, Ns) ->
     {vector,{pick_new,Ns}};
 flatten_dir_1(_, _, _) -> ignore.
 
-
 %%%
 %%% General directions.
 %%%
@@ -811,6 +812,14 @@ dir_help_1([flatten|_], Text) ->
 dir_help_1([flatten_move|_], Text) ->
     "Flatten and move to " ++ Text;
 dir_help_1(_, _) -> "".
+
+lift_fun(St) ->
+    fun(help, Ns) -> "no help yet";
+       (1, Ns) ->
+	    Funs = wings_face_cmd:lift_selection(St),
+	    {vector,{pick_special,Funs}};
+       (_, _) -> ignore
+    end.
 
 patches() ->
     case wings_start:get_patches() of
