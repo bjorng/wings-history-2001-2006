@@ -9,12 +9,12 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.27 2002/10/27 06:53:13 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.28 2002/10/27 10:12:33 bjorng Exp $
 
 -module(auv_segment).
 
 -export([create/2, segment_by_material/1, cut_model/3, map_vertex/2]).
--export([degrees/0]). %% Debug
+-export([degrees/0, find_features/1, build_seeds/2]). %% Debugging
 -include("wings.hrl").
 -include("auv.hrl").
 
@@ -88,11 +88,11 @@ degrees() ->
 	      [?MAX_DIRECTION, ?MIN_SHARPNESS]),
     lists:foreach(Test, lists:seq(0,360,15)).
 
-segment_by_feature(We0) ->
-    {Features,VEG,EWs} = ?TC(find_features(We0)),
-%%    ?DBG("Features ~p ~n", [lists:sort(Features)]),
-    {Distances, Charts1, Bounds1} = ?TC(build_charts(Features, VEG, EWs, We0)),
-    {Distances, Charts1, Bounds1,Features}.
+segment_by_feature(We) ->
+    {Features,VEG,EWs} = ?TC(find_features(We)),
+    {LocalMaxs,Extra} = ?TC(build_seeds(Features, We)),
+    {Distances,Charts,Bounds} = ?TC(build_charts(LocalMaxs, Extra, VEG, EWs, We)),
+    {Distances,Charts,Bounds,Features}.
     
 find_features(We0) ->
     {Sorted, N, _FNormals} = sort_edges_by_weight(We0),
@@ -301,12 +301,13 @@ find_extremities(#we{vs= Vs}) ->
     E2 = (gb_trees:get(V2, Vs))#vtx.edge,
     [E1,E2].
 
-build_charts(Features0, VEG, EWs, We0) ->
-    FaceGraph = build_face_graph(gb_trees:keys(We0#we.fs), We0, gb_trees:empty()), 
-    Distances = [{Max, _}|_] = calc_distance(Features0, FaceGraph, We0),
-%    ?DBG("Dists ~p ~n", [Distances]),
-    {DistTree,LocalMaxs} = find_local_max(Distances, Features0, FaceGraph, We0),
-    ?DBG("local max ~p ~p ~n", [length(LocalMaxs), LocalMaxs]),
+build_seeds(Features0, #we{fs=Ftab}=We) ->
+    FaceGraph = build_face_graph(gb_trees:keys(Ftab), We, gb_trees:empty()), 
+    Distances = [{Max, _}|_] = calc_distance(Features0, FaceGraph, We),
+    {DistTree,LocalMaxs} = find_local_max(Distances, Features0, FaceGraph, We),
+    {LocalMaxs,{DistTree,Max,Distances}}.
+
+build_charts(LocalMaxs, {DistTree,Max,Distances}, VEG, EWs, We0) ->
     {Charts0,Bounds0} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We0),
     Charts1 = sofs:from_external(gb_trees:to_list(Charts0), [{atom,atom}]),
     Charts2 = sofs:converse(Charts1),
@@ -314,6 +315,20 @@ build_charts(Features0, VEG, EWs, We0) ->
     Charts = sofs:to_external(sofs:range(Charts3)),
     Bounds = cleanup_bounds(Bounds0, Charts0, We0),
     {Distances, Charts, Bounds}.
+
+% build_charts(Features0, VEG, EWs, We0) ->
+%     FaceGraph = build_face_graph(gb_trees:keys(We0#we.fs), We0, gb_trees:empty()), 
+%     Distances = [{Max, _}|_] = calc_distance(Features0, FaceGraph, We0),
+% %    ?DBG("Dists ~p ~n", [Distances]),
+%     {DistTree,LocalMaxs} = find_local_max(Distances, Features0, FaceGraph, We0),
+%     ?DBG("local max ~p ~p ~n", [length(LocalMaxs), LocalMaxs]),
+%     {Charts0,Bounds0} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We0),
+%     Charts1 = sofs:from_external(gb_trees:to_list(Charts0), [{atom,atom}]),
+%     Charts2 = sofs:converse(Charts1),
+%     Charts3 = sofs:relation_to_family(Charts2),
+%     Charts = sofs:to_external(sofs:range(Charts3)),
+%     Bounds = cleanup_bounds(Bounds0, Charts0, We0),
+%     {Distances, Charts, Bounds}.
     
 add_face_edges_to_heap(Face, FaceDist, ChartBds, Heap, EWs, We) ->
     Find = fun(_V, Edge, #edge{lf=LF,rf=RF}, Heap0) ->		   

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.30 2002/10/27 09:36:15 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.31 2002/10/27 10:12:33 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -142,6 +142,11 @@ seg_event_3(Ev, #seg{st=#st{selmode=Mode}}=Ss) ->
 				    {"Feature Detection",feature}]}}|
 		    seg_mode_menu(Mode, Ss,
 				  [separator,
+				   {"Debugging",
+				    {debug,
+				     [{"Select features",select_features},
+				      {"Select seeds",select_seeds}]}},
+				   separator,
 				   {"Cancel",cancel}])],
 	    wings_menu:popup_menu(X, Y, auv_segmentation, Menu)
     end.
@@ -233,6 +238,16 @@ seg_command({select,Mat}, _) ->
 seg_command({segment,Type}, #seg{st=St0}=Ss) ->
     St = segment(Type, St0),
     get_seg_event(Ss#seg{st=St});
+seg_command({debug,select_features}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
+    {Es,_,_} = auv_segment:find_features(We),
+    Sel = [{Id,gb_sets:from_list(Es)}],
+    get_seg_event(Ss#seg{st=St#st{selmode=edge,sel=Sel}});
+seg_command({debug,select_seeds}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
+    {Features,_,_} = auv_segment:find_features(We),
+    {Seeds0,_} = auv_segment:build_seeds(Features, We),
+    Seeds = [S || {_,S} <- Seeds0],
+    Sel = [{Id,gb_sets:from_list(Seeds)}],
+    get_seg_event(Ss#seg{st=St#st{selmode=face,sel=Sel}});
 seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
     case gb_trees:is_defined(Cmd, Mat) of
 	false ->
