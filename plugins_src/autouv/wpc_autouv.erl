@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.182 2004/02/12 15:13:00 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.183 2004/02/13 08:02:41 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -193,7 +193,7 @@ do_edit(MatName0, Faces, We, St) ->
 
 init_show_maps(Map0, #we{es=Etab}=We, St) ->
     Map1  = auv_placement:place_areas(Map0),
-    Map   = gb_trees:from_orddict(Map1),
+    Map   = gb_trees:from_orddict(sort(Map1)),
     Edges = gb_trees:keys(Etab),
     create_uv_state(Edges, Map, none, We, St).
 
@@ -280,7 +280,7 @@ init_edit(MatName, Faces, We0) ->
     {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
     Charts = auv_segment:cut_model(Charts1, Cuts, We0),
     Map1 = build_map(Charts, FvUvMap, 1, []),
-    Map  = gb_trees:from_orddict(Map1),
+    Map  = gb_trees:from_orddict(sort(Map1)),
     Edges= gb_trees:keys(We0#we.es),
     {Edges,Map,MatName}.
 
@@ -556,7 +556,7 @@ handle_event_1({drop,_,DropData}, St) ->
     handle_drop(DropData, St);
 %% Create Texture (see auv_texture)
 handle_event_1({action,{auv,create_texture}},St) ->
-    auv_texture:draw_options(St);
+    auv_texture:draw_options();
 handle_event_1({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
     #uvstate{st=GeomSt0,orig_we=OWe,matname=MatName0} = Uvs,
     Tx = ?SLOW(auv_texture:get_texture(Uvs, Opt)),

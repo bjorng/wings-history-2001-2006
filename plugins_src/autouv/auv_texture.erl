@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_texture.erl,v 1.2 2004/02/12 15:13:00 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.3 2004/02/13 08:02:41 dgud Exp $
 
 -module(auv_texture).
 -export([get_texture/1, get_texture/2, draw_options/0]).
@@ -35,7 +35,7 @@
 draw_options() ->
     [MaxTxs0|_] = gl:getIntegerv(?GL_MAX_TEXTURE_SIZE),
     MaxTxs = min([4096,MaxTxs0]),
-    Option = list_to_prefs(get_pref(draw_prefs, list_to_prefs(#opt{}))),
+    Option = list_to_prefs(get_pref(draw_prefs, pref_to_list(#opt{}))),
     
     Qs = [{vradio,[{"Draw All Edges",    all_edges},
 		   {"Draw Border Edges", border_edges},
@@ -52,7 +52,7 @@ draw_options() ->
     wings_ask:dialog("Draw Options", Qs,
 		     fun(Options) ->
 			     Opt = list_to_prefs(Options),
-			     set_pref([draw_prefs, pref_to_list(Opt)]),
+			     set_pref([{draw_prefs, pref_to_list(Opt)}]),
 			     {auv,{draw_options,Opt}}
 		     end).
 
@@ -63,20 +63,20 @@ set_pref(KeyVals) ->
     wpa:pref_set(autouv, KeyVals).
 
 pref_to_list(#opt{edges=EMode,edge_color=BEC,
-		    edge_width=BEW, color=Color, 
-		    texbg=TexBg, texsz={TexSz,TexSz}}) ->
+		  edge_width=BEW, color=Color, 
+		  texbg=TexBg, texsz={TexSz,_TexSz}}) ->
     [{edges,EMode}, {edge_color,BEC},{edge_width,BEW}, 
-     {color, Color},{texbg,TexBg}, {texsz=TexSz}].
+     {color, Color},{texbg,TexBg}, {texsz,TexSz}].
 
 list_to_prefs([{edges,EMode}, {edge_color,BEC},{edge_width,BEW}, 
-	       {color, Color},{texbg,TexBg}, {texsz=TexSz}]) ->
+	       {color, Color},{texbg,TexBg}, {texsz,TexSz}]) ->
     #opt{edges=EMode,edge_color=BEC,
-	   edge_width=BEW, color=Color, 
-	   texbg=TexBg, texsz={TexSz,TexSz}};
+	 edge_width=BEW, color=Color, 
+	 texbg=TexBg, texsz={TexSz,TexSz}};
 list_to_prefs([EMode,BEC,BEW,Color,TexBg,TexSz]) ->
     #opt{edges=EMode,edge_color=BEC,
-	   edge_width=BEW, color=Color, 
-	   texbg=TexBg, texsz={TexSz,TexSz}}.
+	 edge_width=BEW, color=Color, 
+	 texbg=TexBg, texsz={TexSz,TexSz}}.
 
 gen_tx_sizes(Sz, Acc) when Sz < 128 -> Acc;
 gen_tx_sizes(Sz, Acc) ->
