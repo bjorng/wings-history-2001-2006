@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.19 2002/10/27 06:53:13 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.20 2002/10/27 08:08:01 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -46,10 +46,11 @@ tc(Module, Line, Fun) ->
     Result.
 -else.
 
+-export([map_chart/3, project2d/3]).
+
 -include("wings.hrl").
 -include("auv.hrl").
 -include("e3d.hrl").
--export([projectFromChartNormal/2, project2d/3, lsqcm/2]).
 
 %%% From camera would look something like this!! 
 %%% It actually worked once :-) 
@@ -64,6 +65,9 @@ tc(Module, Line, Fun) ->
 %    N2 = e3d_mat:mul_vector(ElevRot, N1),
 %    %%		?DBG("Projected by ~p using camera ~p ~n", [N2, _CI]),
 %    [create_area(Clustered, N2, We0)];
+
+map_chart(project, C, We) -> projectFromChartNormal(C, We);
+map_chart(lsqcm, C, We) -> lsqcm(C, We).
 
 projectFromChartNormal(Chart, We) ->
     CalcNormal = fun(Face, Sum) ->

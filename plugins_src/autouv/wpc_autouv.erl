@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.28 2002/10/27 06:53:13 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.29 2002/10/27 08:08:01 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -49,8 +49,9 @@ command({body,?MODULE}, St) ->
     start_uvmap(St);
 command({body,{?MODULE,do_edit,We}}, St) ->
     do_edit(We, St);
-command({body,{?MODULE,do_uvmap,Method,We}}, St) ->
-    init_uvmap(Method, We, St);
+command({body,{?MODULE,show_map,Info}}, St) ->
+    {MappedCharts,We,Vmap,OrigWe} = Info,
+    init_show_maps(MappedCharts, We, Vmap, OrigWe, St);
 command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, _) ->
     #uvstate{st=St0,areas=Current,sel=Sel} = Uvs,
     Areas1 = add_areas(Sel, Current),
@@ -82,7 +83,9 @@ start_uvmap(_) ->
 %%%
 
 -record(seg, {st,				%Current St.
-	      selmodes				%Legal selection modes.
+	      selmodes,				%Legal selection modes.
+	      we,				%Original We.
+	      msg				%Message.
 	     }).
 
 start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0) ->
@@ -92,15 +95,15 @@ start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0) ->
     We = We0#we{mode=material},
     St1 = seg_create_materials(St0),
     St = St1#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
-    {seq,{push,dummy},get_seg_event(#seg{selmodes=Modes,st=St})}.
+    Msg = ["[L] Select  [R] Show menu  "|wings_camera:help()],
+    {seq,{push,dummy},get_seg_event(#seg{selmodes=Modes,st=St,we=We0,msg=Msg})}.
 
 get_seg_event(Ss) ->
     wings_wm:dirty(),
     {replace,fun(Ev) -> seg_event(Ev, Ss) end}.
 
-seg_event(redraw, #seg{st=St}) ->
-    Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
-    wings_io:message(Message),
+seg_event(redraw, #seg{st=St,msg=Msg}) ->
+    wings_io:message(Msg),
     wings_io:message_right("Segmenting"),
     wings:redraw(St),
     keep;
@@ -201,12 +204,8 @@ filter_sel_command(#seg{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
 	true -> seg_event({new_state,St}, Ss)
     end.
 
-seg_command({continue,Method}, #seg{st=#st{shapes=Shs}}) ->
-    [{_,We}] = gb_trees:to_list(Shs),
-    wings_io:clear_icon_restriction(),
-    wings_io:clear_message(),
-    wings_io:putback_event({action,{body,{?MODULE,do_uvmap,Method,We}}}),
-    pop;
+seg_command({continue,Method}, Ss) ->
+    seg_map_charts(Method, Ss);
 seg_command(cancel, _) ->
     seg_cancel();
 seg_command(cut_edges, #seg{st=St0}=Ss) ->
@@ -254,10 +253,34 @@ seg_create_materials(St0) ->
     {St,[]} = wings_material:add_materials(M, St0),
     St.
 
+seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
+    [{_,#we{he=Cuts}=We0}] = gb_trees:to_list(Shs),
+    Charts = auv_segment:segment_by_material(We0),
+    {We,Vmap} = auv_segment:cut_model(Cuts, Charts, OrigWe),
+    N = length(Charts),
+    seg_map_charts_1(Charts, Method, We, {OrigWe,Vmap}, 1, N, [], Ss).
+
+seg_map_charts_1(Cs, Type, We, Extra, I, N, Acc, Ss) when I =< N ->
+    MapChart = fun() -> seg_map_chart(Cs, Type, We, Extra, I, N, Acc, Ss) end,
+    wings_io:putback_event({callback,MapChart}),
+    Msg = io_lib:format("Mapping chart ~w of ~w\n", [I,N]),
+    get_seg_event(Ss#seg{msg=Msg});
+seg_map_charts_1(_, _, We, {OrigWe,Vmap}, _, _, MappedCharts, _) ->
+    wings_io:clear_icon_restriction(),
+    wings_io:clear_message(),
+    Info = {MappedCharts,We,Vmap,OrigWe},
+    wings_io:putback_event({action,{body,{?MODULE,show_map,Info}}}),
+    pop.
+
+seg_map_chart([C|Cs], Type, We, Extra, I, N, Acc, Ss) ->
+    Vs = auv_mapping:map_chart(Type, C, We),
+    seg_map_charts_1(Cs, Type, We, Extra, I+1, N, [#a{fs=C,vpos=Vs}|Acc], Ss).
+
 make_mat(Diff) ->
     [{opengl,[{diffuse,Diff},
 	      {ambient,Diff},
 	      {specular,{0.0,0.0,0.0}}]}].
+
 %%%
 %%% Edit interface.
 %%%
@@ -328,18 +351,10 @@ assign_materials([], #we{id=Id}=We, _, _, #st{shapes=Shs0}=St) ->
 
 %%%%%%
 
-init_uvmap(Method, #we{id=Id,name=Name,he=Cuts}=We0, St0) ->
-    Charts = auv_segment:segment_by_material(We0),
-    ?DBG("Found ~p charts~n", [length(Charts)]),
-    We1 = gb_trees:get(Id, St0#st.shapes),
-    {We,ChangedByCut} = auv_segment:cut_model(Cuts, Charts, We1),
-    ?DBG("Vertex map: ~p\n", [gb_trees:to_list(ChangedByCut)]),
-    Areas0 = init_charts(Charts, Method, We, []),
-
-    %% Place the cluster on the texturemap
+init_show_maps(Areas0, #we{name=Name}=We, Vmap, OrigWe, St0) ->
     Map = auv_placement:place_areas(Areas0, We),
-    As0 = #areas{we=We,orig_we=We1,as=Map,
-		 vmap=ChangedByCut,
+    As0 = #areas{we=We,orig_we=OrigWe,
+		 as=Map,vmap=Vmap,
 		 matname=list_to_atom(Name ++ "_auv")},
     {St1,Areas} = add_material(create_mat, none, St0, As0),
     Geom = init_drawarea(),
@@ -348,16 +363,6 @@ init_uvmap(Method, #we{id=Id,name=Name,he=Cuts}=We0, St0) ->
 		   areas=Areas, 
 		   geom=Geom},
     {seq,{push,dummy},get_event(Uvs)}.
-
-init_charts([C|Cs], Type, We, A) ->
-    Vs = case Type of 
-	     project -> 
-		 auv_mapping:projectFromChartNormal(C, We);
-	     lsqcm ->
-		 auv_mapping:lsqcm(C, We)
-	 end,
-    init_charts(Cs, Type, We, [#a{fs=C,vpos=Vs}|A]);
-init_charts([], _, _, A) -> A.
    
 insert_uvcoords(#areas{orig_we=We0,we=WorkWe,as=UV,matname=MatName,vmap=Vmap}) ->
     UVpos = gen_uv_pos(gb_trees:values(UV), WorkWe, []),
