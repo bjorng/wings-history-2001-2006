@@ -4,17 +4,16 @@
 %%     This module contains help routines for faces, such as fold functions
 %%     face iterators.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.47 2004/12/26 10:40:13 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.48 2004/12/31 07:56:29 bjorng Exp $
 %%
 
 -module(wings_face).
--export([convert_selection/1,select_more/1,select_less/1,
-	 from_edges/2,from_vs/2,
+-export([from_edges/2,from_vs/2,
 	 other/2,vertices/2,
 	 to_edges/2,to_vertices/2,
 	 normal/2,normal/3,
@@ -40,23 +39,6 @@
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
 
-%%
-%% Convert the current selection to a face selection.
-%%
-convert_selection(#st{selmode=body}=St) ->
-    wings_sel:convert_shape(
-      fun(_, We) ->
-	      wings_sel:get_all_items(face, We)
-      end, face, St);
-convert_selection(#st{selmode=face}=St) ->
-    wings_sel:convert_shape(
-      fun(Sel0, We) ->
-	      extend_border(Sel0, We)
-      end, face, St);
-convert_selection(#st{selmode=edge}=St) ->
-    wings_sel:convert_shape(fun(Es, We) -> from_edges(Es, We) end, face, St);
-convert_selection(#st{selmode=vertex}=St) ->
-    wings_sel:convert_shape(fun(Vs, We) -> from_vs(Vs, We) end, face, St).
 
 from_edges(Es, #we{es=Etab}=We) ->
     Fs = from_edges(gb_sets:to_list(Es), Etab, []),
@@ -75,59 +57,6 @@ from_vs([V|Vs], We, Acc0) ->
     from_vs(Vs, We, Acc);
 from_vs([], We, Acc) ->
     wings_sel:subtract_mirror_face(gb_sets:from_list(Acc), We).
-
-%%% Select more.
-select_more(St) ->
-    wings_sel:convert_shape(fun select_more/2, face, St).
-
-select_more(Fs0, We) ->
-    Fs = foldl(fun(Face, A) ->
-		       do_select_more(Face, We, A)
-	       end, Fs0, gb_sets:to_list(Fs0)),
-    wings_sel:subtract_mirror_face(Fs, We).
-
-do_select_more(Face, We, Acc) ->
-    foldl(fun(V, A0) ->
-		  wings_vertex:fold(
-		    fun(_, AFace, _, A1) ->
-			    gb_sets:add(AFace, A1)
-		    end, A0, V, We)
-	  end, Acc, vertices_ccw(Face, We)).
-
-select_less(St) ->
-    wings_sel:convert_shape(
-      fun(Faces0, We) ->
-	      Faces1 = gb_sets:to_list(Faces0),
-	      Faces = sofs:from_external(Faces1, [face]),
-	      VsFs0 = vs_faces(Faces1, We),
-	      VsFs = sofs:relation(VsFs0, [{vertex,face}]),
-	      Vs = sofs:to_external(sofs:domain(VsFs)),
-	      BorderVs0 = vs_bordering(Vs, Faces0, We),
-	      BorderVs = sofs:from_external(BorderVs0, [vertex]),
-	      BorderFs = sofs:restriction(VsFs, BorderVs),
-	      Border = sofs:range(BorderFs),
-	      Sel = sofs:difference(Faces, Border),
-	      gb_sets:from_ordset(sofs:to_external(Sel))
-      end, face, St).
-
-vs_faces(Faces, We) ->
-    fold_faces(fun(Face, V, _, _, A) -> [{V,Face}|A] end, [], Faces, We).
-
-vs_bordering(Vs, FaceSet, We) ->
-    B = foldl(fun(V, A) ->
-		      case vtx_bordering(V, FaceSet, We) of
-			  true -> [V|A];
-			  false -> A
-		      end
-	      end, [], Vs),
-    ordsets:from_list(B).
-
-vtx_bordering(V, FaceSet, We) ->
-    wings_vertex:fold(
-      fun(_, _, _, true) -> true;
-	 (_, Face, _, false) ->
-	      not gb_sets:is_member(Face, FaceSet)
-      end, false, V, We).
 
 %% other(Face, EdgeRecord) -> OtherFace
 %%  Pick up the "other face" from an edge record.

@@ -3,12 +3,12 @@
 %%
 %%     Maintains the vertex palette window.
 %%
-%%  Copyright (c) 2004 Bjorn Gustavsson, Dan Gudmundsson
+%%  Copyright (c) 2004-2005 Bjorn Gustavsson, Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.15 2004/12/24 10:03:40 bjorng Exp $
+%%     $Id: wings_palette.erl,v 1.16 2004/12/31 07:56:29 bjorng Exp $
 %%
 -module(wings_palette).
 
@@ -215,7 +215,7 @@ event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, #pst{sel=Sel,cols=Cols
 		     face ->
 			 wings_face_cmd:set_color(Color, St0);
 		     body -> 
-			 St1 = wings_sel:convert_selection(face, St0),
+			 St1 = wings_sel_conv:mode(face, St0),
 			 St2 = wings_face_cmd:set_color(Color, St1),
 			 St2#st{sel=St0#st.sel,selmode=St0#st.selmode};
 		     _ ->

@@ -3,17 +3,16 @@
 %%
 %%     This module contains utility functions for vertices.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.50 2004/12/29 09:58:22 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.51 2004/12/31 07:56:30 bjorng Exp $
 %%
 
 -module(wings_vertex).
--export([convert_selection/1,select_more/1,select_less/1,
-	 from_edges/2,from_faces/2,
+-export([from_edges/2,from_faces/2,
 	 fold/4,other/2,other_pos/3,
 	 until/4,until/5,
 	 center/1,center/2,
@@ -28,27 +27,6 @@
 -include("wings.hrl").
 -import(lists, [member/2,keymember/3,foldl/3,reverse/1,last/1,sort/1]).
 
-%%
-%% Convert the current selection to a vertex selection.
-%%
-convert_selection(#st{selmode=body}=St) ->
-    wings_sel:convert_shape(
-      fun(_, #we{vp=Vtab}) ->
-	      gb_sets:from_list(gb_trees:keys(Vtab))
-      end, vertex, St);
-convert_selection(#st{selmode=face}=St) ->
-    wings_sel:convert_shape(
-      fun(Fs, We) ->
-	      gb_sets:from_ordset(from_faces(Fs, We))
-      end, vertex, St);
-convert_selection(#st{selmode=edge}=St) ->
-    wings_sel:convert_shape(
-      fun(Es, We) ->
-	      gb_sets:from_ordset(from_edges(Es, We))
-      end, vertex, St);
-convert_selection(#st{selmode=vertex}=St) ->
-    select_more(St).
-
 %% from_faces(FaceGbSet, We) -> VertexList
 %%  Convert a set of faces to a list of vertices.
 from_faces(Fs, We) ->
@@ -58,38 +36,6 @@ from_faces(Fs, We) ->
 %%  Convert a set of edges to a set of vertices.
 from_edges(Es, We) ->
     wings_edge:to_vertices(Es, We).
-
-%%% Select more or less.
-
-select_more(St) ->
-    wings_sel:convert_shape(
-      fun(Vs, We) ->
-	      gb_sets:fold(
-		fun(V, S0) ->
-			fold(
-			  fun(_, _, Rec, S1) ->
-				  Other = other(V, Rec),
-				  gb_sets:add(Other, S1)
-			  end, S0, V, We)
-		end, Vs, Vs)
-      end, vertex, St).
-
-select_less(St) ->
-    wings_sel:convert_shape(
-      fun(Vs, We) ->
-	      gb_sets:fold(
-		fun(V, A) ->
-			Set = fold(
-				fun(_, _, Rec, S) ->
-					Other = other(V, Rec),
-					gb_sets:add(Other, S)
-				end, gb_sets:empty(), V, We),
-			case gb_sets:is_subset(Set, Vs) of
-			    true -> gb_sets:add(V, A);
-			    false -> A
-			end
-		end, gb_sets:empty(), Vs)
-      end, vertex, St).
 
 %%
 %% Fold over all edges/faces surrounding a vertex.

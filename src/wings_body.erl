@@ -3,16 +3,16 @@
 %%
 %%     This module contains most of the command for entire Wings objects.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.76 2004/12/29 09:58:21 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.77 2004/12/31 07:56:25 bjorng Exp $
 %%
 
 -module(wings_body).
--export([menu/3,command/2,convert_selection/1]).
+-export([menu/3,command/2]).
 -export([auto_smooth/1]).
 
 -include("wings.hrl").
@@ -191,15 +191,6 @@ command(show_all, St) ->
      wings_sel:map(fun(_, We) ->
 			   wings_we:show_faces(We)
 		   end, St)}.
-
-%%
-%% Convert the current selection to a body selection.
-%%
-convert_selection(#st{sel=Sel0}=St) ->
-    Zero = gb_sets:singleton(0),
-    Sel = [{Id,Zero} || {Id,_} <- Sel0],
-    wings_sel:set(body, Sel, St).
-
 %%%
 %%% The Cleanup command.
 %%%

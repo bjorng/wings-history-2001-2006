@@ -3,18 +3,17 @@
 %%
 %%     This module implements selection utilities.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.47 2004/05/09 12:10:51 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.48 2004/12/31 07:56:29 bjorng Exp $
 %%
 
 -module(wings_sel).
 
 -export([clear/1,reset/1,set/2,set/3,
-	 convert_shape/3,convert_selection/2,
 	 map/2,fold/3,mapfold/3,
 	 make/3,valid_sel/1,valid_sel/3,
 	 center/1,bounding_box/1,bounding_boxes/1,
@@ -42,34 +41,6 @@ set(Sel, St) ->
 
 set(Mode, Sel, St) ->
     St#st{selmode=Mode,sel=sort(Sel),sh=false}.
-
-%%%
-%%% Convert selection.
-%%%
-
-convert_selection(Mode, #st{sel=[]}=St) ->
-    St#st{selmode=Mode,sh=false};
-convert_selection(Mode, St) ->
-    ?SLOW(conv_sel(Mode, St#st{sh=false})).
-
-conv_sel(vertex, St) -> wings_vertex:convert_selection(St);
-conv_sel(edge, St) -> wings_edge:convert_selection(St);
-conv_sel(face, St) -> wings_face:convert_selection(St);
-conv_sel(body, St) -> wings_body:convert_selection(St).
-
-%%%
-%%% Convert selection (helpers for wings_{vertex,edge,face,body}.
-%%%
-
-convert_shape(F, NewType, St) ->
-    Sel = fold(fun(Items0, #we{id=Id}=We, Acc) ->
-		       Items = F(Items0, We),
-		       case gb_sets:is_empty(Items) of
-			   true -> Acc;
-			   false -> [{Id,Items}|Acc]
-		       end
-	       end, [], St),
-    St#st{selmode=NewType,sel=reverse(Sel)}.
 
 %%%
 %%% Map over the selection, modifying the selected objects.

@@ -3,26 +3,23 @@
 %%
 %%     This module contains most edge command and edge utility functions.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson.
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.112 2004/12/29 09:58:21 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.113 2004/12/31 07:56:29 bjorng Exp $
 %%
 
 -module(wings_edge).
 
 %% Utilities.
--export([convert_selection/1,
-	 select_more/1,select_less/1,
-	 from_vs/2,
+-export([from_vs/2,
 	 select_region/1,
 	 select_edge_ring/1,select_edge_ring_incr/1,select_edge_ring_decr/1,
 	 cut/3,fast_cut/3,screaming_cut/3,
 	 dissolve_edges/2,dissolve_edge/2,
 	 hardness/2,hardness/3,
-	 adjacent_edges/2,
 	 to_vertices/2,from_faces/2,extend_sel/2,
 	 set_color/2,
 	 patch_edge/4,patch_edge/5]).
@@ -33,27 +30,6 @@
 -import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,
 		seq/2,sort/1]).
 
-%%
-%% Convert the current selection to an edge selection.
-%%
-convert_selection(#st{selmode=body}=St) ->
-    wings_sel:convert_shape(
-      fun(_, #we{es=Etab}) ->
-	      gb_sets:from_list(gb_trees:keys(Etab))
-      end, edge, St);
-convert_selection(#st{selmode=face}=St) ->
-    wings_sel:convert_shape(
-      fun(Faces, We) ->
-	      from_faces(Faces, We)
-      end, edge, St);
-convert_selection(#st{selmode=edge}=St) ->
-    wings_sel:convert_shape(
-      fun(Edges, We) ->
-	      extend_sel(Edges, We)
-      end, edge, St);
-convert_selection(#st{selmode=vertex}=St) ->
-    wings_sel:convert_shape(fun(Vs, We) -> from_vs(Vs, We) end, edge, St).
-
 from_vs(Vs, We) when is_list(Vs) ->
     from_vs(Vs, We, []);
 from_vs(Vs, We) ->
@@ -63,53 +39,6 @@ from_vs([V|Vs], We, Acc0) ->
     Acc = wings_vertex:fold(fun(E, _, _, A) -> [E|A] end, Acc0, V, We),
     from_vs(Vs, We, Acc);
 from_vs([], _, Acc) -> Acc.
-
-%%% Select more or less.
-
-select_more(St) ->
-    wings_sel:convert_shape(fun select_more/2, edge, St).
-
-select_more(Edges, We) ->
-    Vs = to_vertices(Edges, We),
-    adjacent_edges(Vs, We, Edges).
-
-select_less(St) ->
-    wings_sel:convert_shape(
-      fun(Edges, #we{es=Etab}=We) ->
-	      Vs0 = select_less_1(Edges, Etab),
-	      Vs = ordsets:from_list(Vs0),
-	      AdjEdges = adjacent_edges(Vs, We),
-	      gb_sets:subtract(Edges, AdjEdges)
-      end, edge, St).
-
-select_less_1(Edges, Etab) ->
-    foldl(fun(Edge, A0) ->
-		  Rec = gb_trees:get(Edge, Etab),
-		  #edge{vs=Va,ve=Vb,
-			ltpr=LP,ltsu=LS,
-			rtpr=RP,rtsu=RS} = Rec,
-		  A = case gb_sets:is_member(LS, Edges) andalso
-			  gb_sets:is_member(RP, Edges) of
-			  true -> A0;
-			  false -> [Va|A0]
-		      end,
-		  case gb_sets:is_member(LP, Edges) andalso
-		      gb_sets:is_member(RS, Edges) of
-		      true -> A;
-		      false -> [Vb|A]
-		  end
-	  end, [], gb_sets:to_list(Edges)).
-
-adjacent_edges(Vs, We) ->
-    adjacent_edges(Vs, We, gb_sets:empty()).
-
-adjacent_edges(Vs, We, Acc) ->
-    foldl(fun(V, A) ->
-		  wings_vertex:fold(
-		    fun(Edge, _, _, AA) ->
-			    gb_sets:add(Edge, AA)
-		    end, A, V, We)
-	  end, Acc, Vs).
 
 %% to_vertices(EdgeGbSet, We) -> VertexGbSet
 %%  Convert a set of edges to a set of vertices.

@@ -3,12 +3,12 @@
 %%
 %%     Utilities for shape records.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.76 2004/12/16 20:05:14 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.77 2004/12/31 07:56:30 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -672,7 +672,7 @@ show_all_sel([#we{id=Id,perm={Mode,Set}}|T],
 show_all_sel([#we{id=Id,perm={SMode,Set0}}|T],
 		#st{selmode=Mode}=St, Acc) ->
     StTemp = St#st{selmode=SMode,sel=[{Id,Set0}]},
-    #st{sel=[{Id,Set}]} = wings_sel:convert_selection(Mode, StTemp),
+    #st{sel=[{Id,Set}]} = wings_sel_conv:mode(Mode, StTemp),
     show_all_sel(T, St, [{Id,Set}|Acc]);
 show_all_sel([_|T], St, Acc) ->
     show_all_sel(T, St, Acc);
@@ -703,7 +703,7 @@ update_sel(#we{id=Id,perm={Mode,Set}}, #st{selmode=Mode,sel=Sel}) ->
     sort([{Id,Set}|Sel]);
 update_sel(#we{id=Id,perm={SMode,Elems0}}, #st{selmode=Mode,sel=Sel}=St) ->
     StTemp = St#st{selmode=SMode,sel=[{Id,Elems0}]},
-    #st{sel=[{Id,Elems}]} = wings_sel:convert_selection(Mode, StTemp),
+    #st{sel=[{Id,Elems}]} = wings_sel_conv:mode(Mode, StTemp),
     sort([{Id,Elems}|Sel]);
 update_sel(_, #st{sel=Sel}) -> Sel.
 

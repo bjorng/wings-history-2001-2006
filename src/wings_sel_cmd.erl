@@ -3,12 +3,12 @@
 %%
 %%     This module implements the commands in the selection menu.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.56 2004/12/29 09:58:22 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.57 2004/12/31 07:56:30 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -194,11 +194,12 @@ similar_help(#st{selmode=body}) ->
 similar_help(_) -> [].
     
 command({edge_loop,edge_loop}, #st{selmode=face}=St) ->
-    {save_state,
-     wings_sel:convert_shape(
-       fun(Faces, We) ->
-	       gb_sets:from_list(wings_face:outer_edges(Faces, We))
-       end, edge, St)};
+    Sel = wings_sel:fold(
+	    fun(Fs, #we{id=Id}=We, Acc) ->
+		    Es = gb_sets:from_list(wings_face:outer_edges(Fs, We)),
+		    [{Id,Es}|Acc]
+	    end, [], St),
+    {save_state,wings_sel:set(edge, Sel, St)};
 command({edge_loop,edge_loop}, St) ->
     {save_state,wings_edge_loop:select_loop(St)};
 command({edge_loop,edge_link_decr}, St) ->
@@ -220,9 +221,9 @@ command({edge_loop,edge_loop_to_region}, St) ->
 command(deselect, St) ->
     {save_state,wings_sel:reset(St)};
 command(more, St) ->
-    select_more(St);
+    wings_sel_conv:more(St);
 command(less, St) ->
-    select_less(St);
+    wings_sel_conv:less(St);
 command(all, St) ->
     {save_state,select_all(St)};
 command(lights, St) ->
@@ -322,7 +323,7 @@ by_command({id,Sel}, St) ->
 %%%
 
 set_select_mode(Type, St) ->
-    {save_state,wings_sel:convert_selection(Type, St)}.
+    {save_state,wings_sel_conv:mode(Type, St)}.
 
 select_all(#st{selmode=body,shapes=Shapes}=St) ->
     Items = gb_sets:singleton(0),
@@ -337,22 +338,6 @@ select_all(#st{selmode=Mode,sel=[],shapes=Shapes}=St) ->
 select_all(#st{selmode=Mode,sel=Sel0}=St) ->
     Sel = [{Id,wings_sel:get_all_items(Mode, Id, St)} || {Id,_} <- Sel0],
     St#st{sel=Sel}.
-
-select_more(#st{selmode=vertex}=St) ->
-    wings_vertex:select_more(St);
-select_more(#st{selmode=edge}=St) ->
-    wings_edge:select_more(St);
-select_more(#st{selmode=face}=St) ->
-    wings_face:select_more(St);
-select_more(St) -> St.
-
-select_less(#st{selmode=vertex}=St) ->
-    wings_vertex:select_less(St);
-select_less(#st{selmode=edge}=St) ->
-    wings_edge:select_less(St);
-select_less(#st{selmode=face}=St) ->
-    wings_face:select_less(St);
-select_less(St) -> St.
 
 %%%
 %%% Select Inverse.
@@ -472,7 +457,7 @@ coerce_ssel({Mode,_}=Key, #st{ssels=Ssels}=St) ->
 coerce_ssel(Mode, Ssel, #st{selmode=Mode}) -> Ssel;
 coerce_ssel(Smode, Ssel0, #st{selmode=Mode}=St) ->
     StTemp = St#st{selmode=Smode,sel=wings_sel:valid_sel(Ssel0, Smode, St)},
-    #st{sel=Ssel} = wings_sel:convert_selection(Mode, StTemp),
+    #st{sel=Ssel} = wings_sel_conv:mode(Mode, StTemp),
     Ssel.
 
 select_group({Mode,_}=Key, #st{ssels=Ssels}=St) ->
@@ -495,7 +480,7 @@ subtract_from_group({Mode,_}=Key, #st{ssels=Ssels}=St) ->
     save_group(Key, Ssel, St).
     
 possibly_convert(Mode, #st{selmode=Mode}=St) -> St;
-possibly_convert(Mode, St) -> wings_sel:convert_selection(Mode, St).
+possibly_convert(Mode, St) -> wings_sel_conv:mode(Mode, St).
     
 save_group(Key, Sel, #st{ssels=Ssels0}=St) ->
     Ssels = gb_trees:update(Key, Sel, Ssels0),

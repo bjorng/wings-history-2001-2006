@@ -3,12 +3,12 @@
 %%
 %%     This module contains most edge command and edge utility functions.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson.
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_cmd.erl,v 1.1 2004/12/24 12:24:40 bjorng Exp $
+%%     $Id: wings_edge_cmd.erl,v 1.2 2004/12/31 07:56:29 bjorng Exp $
 %%
 
 -module(wings_edge_cmd).
@@ -507,8 +507,9 @@ loop_cut(#st{onext=NextId}=St0) ->
     {Sel0,St2} = wings_sel:fold(fun loop_cut/3, {[],St1}, St1),
     St3 = wings_sel:set(face, Sel0, St2),
     #st{sel=Sel1} = St = wings_face_cmd:dissolve(St3),
-    Sel = [S || {Id,_}=S <- Sel1, Id >= NextId],
-    wings_body:convert_selection(wings_sel:set(body, Sel, St)).
+    Zero = gb_sets:singleton(0),
+    Sel = [{Id,Zero} || {Id,_} <- Sel1, Id >= NextId],
+    wings_sel:set(body, Sel, St).
 
 loop_cut(Edges, #we{name=Name,id=Id,es=Etab}=We, {Sel0,St}) ->
     AdjFaces = loop_cut_adj_faces(gb_sets:to_list(Edges), Etab, []),
