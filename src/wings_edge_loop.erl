@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.8 2002/02/06 17:01:09 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.9 2002/05/08 09:53:30 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
@@ -61,9 +61,9 @@ is_closed_loop(Edges, We) ->
 get_edges(G, [C|Cs]) ->
     Es = gb_sets:from_list(append([digraph:edges(G, V) || V <- C])),
     [Es|get_edges(G, Cs)];
-get_edges(G, []) -> [].
+get_edges(_, []) -> [].
 
-prev_loop(Dir, #st{edge_loop=none}) -> {none,none};
+prev_loop(_, #st{edge_loop=none}) -> {none,none};
 prev_loop(Same, #st{sel=[{Id,_}],edge_loop={Same,{Id,L}}}) ->
     {away,L};
 prev_loop(_, #st{sel=[{Id,_}],edge_loop={_,{Id,L}}}) ->
@@ -79,17 +79,16 @@ pick_loop([C|Cs], Dir, PrevLoop, #st{sel=[{Id,_}]}=St) ->
 	    pick_loop(Cs, Dir, PrevLoop, St);
 	true -> {Id,C}
     end;
-pick_loop([], Dir, PrevLoop, #st{sel=[Sel]}) -> none.
+pick_loop([], _, _, #st{sel=[_]}) -> none.
 
 build_digraph(G, [E|Es], Edges, Etab) ->
-    Erec = gb_trees:get(E, Etab),
-    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,ltpr=Lp,ltsu=Ls,rtpr=Rp,rtsu=Rs} = Erec,
+    #edge{ltpr=Lp,ltsu=Ls,rtpr=Rp,rtsu=Rs} = gb_trees:get(E, Etab),
     follow_edge(G, Ls, Edges, Etab),
     follow_edge(G, Rp, Edges, Etab),
     follow_edge(G, Lp, Edges, Etab),
     follow_edge(G, Rs, Edges, Etab),
     build_digraph(G, Es, Edges, Etab);
-build_digraph(G, [], Edges, We) -> ok.
+build_digraph(_, [], _, _) -> ok.
 
 follow_edge(G, E, Edges, Etab) ->
     case gb_sets:is_member(E, Edges) of
@@ -125,7 +124,7 @@ select_loop(#st{selmode=edge}=St) ->
     wings_sel:set(Sel, St);
 select_loop(St) -> St.
 
-select_loop(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
+select_loop(Edges0, #we{id=Id,es=Etab}, Acc) ->
     Edges = select_loop_1(Edges0, Etab, gb_sets:empty()),
     [{Id,Edges}|Acc].
 
@@ -171,10 +170,10 @@ try_edge_from_1(V, From, Erec, Etab) ->
 
 next_edge(From, V, Face, Edge, Etab) ->
     case gb_trees:get(Edge, Etab) of
-	#edge{vs=V,ve=Ov,rf=Face,rtpr=From,ltsu=To} -> To;
-	#edge{vs=V,ve=Ov,lf=Face,ltsu=From,rtpr=To} -> To;
-	#edge{ve=V,vs=Ov,rf=Face,rtsu=From,ltpr=To} -> To;
-	#edge{ve=V,vs=Ov,lf=Face,ltpr=From,rtsu=To} -> To
+	#edge{vs=V,rf=Face,rtpr=From,ltsu=To} -> To;
+	#edge{vs=V,lf=Face,ltsu=From,rtpr=To} -> To;
+	#edge{ve=V,rf=Face,rtsu=From,ltpr=To} -> To;
+	#edge{ve=V,lf=Face,ltpr=From,rtsu=To} -> To
     end.
 
 %% edge_loop_vertices(EdgeSet, WingedEdge) -> [[Vertex]] | none
@@ -193,14 +192,14 @@ edge_loop_vertices(Edges0, #we{es=Etab}=We, Acc) ->
 	false ->
 	    {Edge,Edges1} = gb_sets:take_smallest(Edges0),
 	    #edge{vs=V,ve=Vend} = gb_trees:get(Edge, Etab),
-	    case edge_loop_vertices(Edges1, V, Edge, Vend, We, [Vend]) of
+	    case edge_loop_vertices(Edges1, V, Vend, We, [Vend]) of
 		none -> none;
 		{Vs,Edges} -> edge_loop_vertices(Edges, We, [Vs|Acc])
 	    end
     end.
 
-edge_loop_vertices(Edges, Vend, Edge, Vend, We, Acc) -> {Acc,Edges};
-edge_loop_vertices(Edges0, V, PrevEdge, Vend, We, Acc) ->
+edge_loop_vertices(Edges, Vend, Vend, _We, Acc) -> {Acc,Edges};
+edge_loop_vertices(Edges0, V, Vend, We, Acc) ->
     Res = wings_vertex:until(
 	    fun(Edge, _, Rec, A) ->
 		    case gb_sets:is_member(Edge, Edges0) of
@@ -212,7 +211,7 @@ edge_loop_vertices(Edges0, V, PrevEdge, Vend, We, Acc) ->
 	none -> none;
 	{Edge,OtherV} ->
 	    Edges = gb_sets:delete(Edge, Edges0),
-	    edge_loop_vertices(Edges, OtherV, Edge, Vend, We, [V|Acc])
+	    edge_loop_vertices(Edges, OtherV, Vend, We, [V|Acc])
     end.
 
 %% partition_edges(EdgeSet, WingedEdge) -> [[EdgeSet']]
