@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.141 2003/06/04 05:39:09 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.142 2003/06/04 06:51:52 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -664,7 +664,7 @@ normalize_fun(#dlo{drag={matrix,_,_,Matrix},
 		   src_we=#we{id=Id,mirror=M}=We0}=D, Shs0) ->
     We = wings_we:transform_vs(Matrix, We0),
     Shs = gb_trees:update(Id, We, Shs0),
-    {D#dlo{work=none,sel=none,drag=none,src_we=We,mirror={M}},Shs};
+    {D#dlo{work=none,sel=none,drag=none,src_we=We,mirror=check_mirror(M)},Shs};
 normalize_fun(#dlo{drag={general,_},src_we=#we{id=Id}=We}=D, Shs) ->
     {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)};
 normalize_fun(#dlo{src_we=#we{id=Id,vp=Vtab0}}=D, Shs) ->
@@ -688,6 +688,9 @@ normalize_fun(#dlo{src_we=#we{id=Id,vp=Vtab0}}=D, Shs) ->
 % 			   erts_debug:flat_size([OldVtab,Vtab])]),
     We = We0#we{vp=Vtab},
     {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)}.
+
+check_mirror(none) -> none;
+check_mirror(Face) -> {Face}.
 
 norm_update(New, Old) ->
     norm_update(gb_trees:to_list(New), gb_trees:to_list(Old), Old).
