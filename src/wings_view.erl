@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.43 2002/02/27 21:48:44 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.44 2002/02/28 06:18:18 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -107,6 +107,7 @@ command(rotate_left, St) ->
     set_current(View#view{azimuth=Az}),
     St;
 command(align_to_selection, St) ->
+    aim(St),
     align_to_selection(St);
 command(toggle_lights, St) ->
     Lights = case wings_pref:get_value(number_of_lights) of
@@ -132,11 +133,11 @@ auto_rotate_event(Event, Timer, St) ->
 
 auto_rotate_event_1(#mousemotion{}, _Timer, _St) -> keep;
 auto_rotate_event_1(#mousebutton{state=?SDL_PRESSED}, _Timer, _St) -> keep;
-auto_rotate_event_1({view,rotate_left=Cmd}, Timer, St) ->
+auto_rotate_event_1({view,rotate_left=Cmd}, _Timer, St) ->
     command(Cmd, dummy),
     wings:redraw(St),
     set_auto_rotate_timer(St);
-auto_rotate_event_1(Other, Timer, St) ->
+auto_rotate_event_1(_Event, Timer, _St) ->
     wings_io:cancel_timer(Timer),
     pop.
 
@@ -251,18 +252,18 @@ aim(St) ->
     #view{distance=Dist0} = View = current(),
     Dist = case e3d_vec:dist(eye_point(), Origin0) of
 	       D when D < Dist0 -> D;
- 	       Other -> Dist0
+ 	       _Other -> Dist0
  	   end,
     set_current(View#view{origo=Origin,distance=Dist,pan_x=0.0,pan_y=0.0}).
 
-frame(#st{sel=[],shapes=Shs}=St) ->
+frame(#st{sel=[],shapes=Shs}) ->
     BB = foldl(fun(We, BB) -> wings_vertex:bounding_box(We, BB) end,
 	       none, gb_trees:values(Shs)),
-    frame(BB);
-frame(#st{selmode=Mode}=St) ->
-    frame(wings_sel:bounding_box(St));
+    frame_1(BB);
+frame(St) ->
+    frame_1(wings_sel:bounding_box(St)).
 
-frame(BB) ->
+frame_1(BB) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     C = e3d_vec:average(BB),
     R = e3d_vec:len(e3d_vec:sub(C, hd(BB))),
@@ -318,16 +319,16 @@ average_normals(CalcNormals, St) ->
 	   end, [], St),
     e3d_vec:norm(e3d_vec:add(Ns)).
 
-align_to_selection({Nx,Ny,Nz}=N, St) ->
+align_to_selection({Nx,Ny,Nz}, St) ->
     Z = {0.0,0.0,1.0},
     Az0 = e3d_vec:dot(e3d_vec:norm({Nx,0.0,Nz}), Z),
-    Az1 = to_degrees(arccos(Az0)),
+    Az1 = to_degrees(math:acos(Az0)),
     Az = if
 	     Nx < 0 -> Az1;
 	     true -> -Az1
 	 end,
     El0 = if
-	      Nz > Nx ->
+	      abs(Nx) < abs(Nz) ->
 		  Nyz = e3d_vec:norm({0.0,Ny,Nz}),
 		  e3d_vec:cross(Nyz, Z);
 	      true ->
@@ -336,7 +337,7 @@ align_to_selection({Nx,Ny,Nz}=N, St) ->
 		  e3d_vec:cross(Nxy, X)
 	  end,
     El1 = e3d_vec:len(El0),
-    El2 = to_degrees(arcsin(El1)),
+    El2 = to_degrees(math:asin(El1)),
     El = if
 	     Ny < 0.0 -> -El2;
 	     true -> El2
@@ -344,14 +345,8 @@ align_to_selection({Nx,Ny,Nz}=N, St) ->
     View = current(),
     set_current(View#view{azimuth=Az,elevation=El}),
     St.
-    
-arccos(X) when float(X) ->
-    math:atan2(math:sqrt(1.0-X*X), X).
 
-arcsin(X) when float(X) ->
-    math:atan2(X, math:sqrt(1.0-X*X)).
-
-to_degrees(A) when float(A) ->
+to_degrees(A) when is_float(A) ->
     A*180.0/3.1416.
 
 one_of(true, S, _) -> S;
