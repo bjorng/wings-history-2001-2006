@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.22 2002/02/07 11:49:08 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.23 2002/02/08 21:03:51 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -17,13 +17,10 @@
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3]).
--define(HUGE, 1.0E200).
+-define(HUGE, 1.0E307).
 
 setup(Type, #st{selmode=vertex}=St) ->
-    Tvs = wings_sel:fold(
-	    fun(Vs, #we{id=Id}=We, Acc) ->
-		    [{Id,scale_vertices(Type, gb_sets:to_list(Vs), We)}|Acc]
-	    end, [], St),
+    Tvs = scale_vertices(Type, St),
     init_drag(Tvs, St);
 setup(Type, #st{selmode=edge}=St) ->
     Tvs = wings_sel:fold(
@@ -98,6 +95,22 @@ average_vectors({V,[VecA,VecB]=Vecs}, Acc) ->
     [{Vec,[V]}|Acc].
 
 %%
+%% Scaling of vertices.
+%%
+
+scale_vertices(Type, St) ->
+    Tvs = wings_sel:fold(fun(Vs, #we{id=Id}=We, Acc) ->
+				 [{Id,gb_sets:to_list(Vs),We}|Acc]
+			 end, [], St),
+    BB = foldl(fun({_,Vs,We}, BB) ->
+		       wings_vertex:bounding_box(Vs, We, BB)
+	       end, none, Tvs),
+    Center = e3d_vec:average(BB),
+    foldl(fun({Id,Vs,We}, Acc) ->
+		  [{Id,scale_vertices(Type, Center, Vs, We, [])}|Acc]
+	  end, [], Tvs).
+
+%%
 %% Conversion of edge selections to vertices.
 %%
 
@@ -136,9 +149,6 @@ body_to_vertices(We, Type) ->
 %%%
 %%% Utilities.
 %%%
-
-scale_vertices(Type, Vs, We) ->
-    scale_vertices(Type, Vs, We, []).
 
 scale_vertices({Type,{Center,Vec}}, Vs, We, Acc) ->
     scale_vertices(Type, Center, Vs, We, Acc);
