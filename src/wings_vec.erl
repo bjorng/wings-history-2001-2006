@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.41 2002/10/15 06:24:14 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.42 2002/11/16 08:06:42 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -218,12 +218,16 @@ secondary_selection(abort, _Ss, _St) ->
     pop.
 
 redraw(#ss{info=Info}, St) ->
-    RmbMod = case wings_camera:free_rmb_modifier() of
-		 ?ALT_BITS -> "Alt";
-		 ?CTRL_BITS -> "Ctrl"
-	     end,
-    Message = ["[L] Select  [R] Execute  ["] ++ RmbMod ++ "]+[R] Menu  ",
-    wings_io:message(Message),
+    case wings_wm:is_window_active(top) of
+	false -> ok;
+	true ->
+	    RmbMod = case wings_camera:free_rmb_modifier() of
+			 ?ALT_BITS -> "Alt";
+			 ?CTRL_BITS -> "Ctrl"
+		     end,
+	    Message = ["[L] Select  [R] Execute  ["] ++ RmbMod ++ "]+[R] Menu  ",
+	    wings_io:message(Message)
+    end,
     wings_draw:render(St),
     wings_io:info(Info),
     wings_io:update(St).

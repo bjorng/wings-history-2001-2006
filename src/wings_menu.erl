@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.61 2002/10/28 18:24:04 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.62 2002/11/16 08:06:42 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -456,6 +456,7 @@ update_highlight(X, Y, #mi{menu=Menu,sel=OldSel,sel_side=OldSide,w=W}=Mi0) ->
 		Side =:= OldSide -> Mi0;
 		true ->
 		    wings_wm:dirty(),
+		    help_text(Mi0),
 		    Mi0#mi{sel_side=Side}
 	    end;
 	OldSel -> Mi0;
@@ -573,7 +574,7 @@ help_text(#mi{sel=none}) ->
 help_text(#mi{menu=Menu,sel=Sel}=Mi) ->
     Elem = element(Sel, Menu),
     case is_magnet_active(Elem, Mi) of
-	true -> wings_io:message(wings_magnet:menu_help());
+	true -> wings_magnet:menu_help();
 	false -> plain_help(Elem, Mi)
     end.
 

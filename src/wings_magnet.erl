@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.38 2002/07/26 07:14:05 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.39 2002/11/16 08:06:42 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -52,9 +52,10 @@ flags({magnet,Type,_,_}, Flags) -> [{magnet,Type}|Flags].
 dialog(Fun) ->
     R0 = wings_pref:get_value(magnet_radius),
     wings_ask:dialog(
-      [{label,"Influence Radius"},{text,R0}|common_dialog()],
-      fun([R,Route,Type]) ->
+      [{hframe,[{text,R0}],[{title,"Influence Radius"}]}|common_dialog()],
+      fun([R,Route]) ->
 	      wings_pref:set_value(magnet_distance_route, Route),
+	      Type = wings_pref:get_value(magnet_type),
 	      Mag = {magnet,Type,Route,R},
 	      Fun(Mag)
       end).
@@ -62,31 +63,28 @@ dialog(Fun) ->
 dialog(Point, Fun) ->
     wings_ask:dialog(
       common_dialog(),
-      fun([Route,Type]) ->
+      fun([Route]) ->
 	      wings_pref:set_value(magnet_distance_route, Route),
+	      Type = wings_pref:get_value(magnet_type),
 	      Mag = {magnet,Type,Route,Point},
 	      Fun(Mag)
       end).
 
 common_dialog() ->
-    DefType = {type,wings_pref:get_value(magnet_type)},
     DefRoute = {route,wings_pref:get_value(magnet_distance_route)},
     [{hframe,
       [{alt,DefRoute,"Shortest",shortest},
        {alt,DefRoute,"Midpoint",midpoint},
        {alt,DefRoute,"Surface",surface}],
-      [{title,"Distance Route"}]},
-     {hframe,
-      [{alt,DefType,"Bell",bell},
-       {alt,DefType,"Dome",dome},
-       {alt,DefType,"Straight",straight},
-       {alt,DefType,"Spike",spike}],
-      [{title,"Falloff"}]}].
+      [{title,"Distance Route"}]}].
 			  
 menu_help() ->
-    "Magnet: [L] Pick influence radius  "
-	"[M] Specify radius numerically  "
-	"[R] Use last radius".
+    wings_io:message("Magnet: [L] Pick influence radius  "
+		     "[M] Specify radius numerically  "
+		     "[R] Use last radius"),
+    Route0 = wings_pref:get_value(magnet_distance_route),
+    Route = wings_util:cap(atom_to_list(Route0)),
+    wings_io:message_right(["Route: "|Route]).
     
 drag_help(Type) ->
     "[+] or [-] Tweak R  " ++
