@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.78 2002/08/19 17:29:49 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.79 2002/08/25 15:55:21 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -48,7 +48,9 @@ finish() ->
     ok.
 
 menu(X, Y, _) ->
-    Formats = [{"Nendo (.ndo)",ndo}],
+    ImpFormats = [{"Nendo (.ndo)",ndo}],
+    ExpFormats = [{"Nendo (.ndo)",ndo},
+		  {"ExtremeUV [Experimental] (.xndo)",xndo}],
     Menu = [{"New",new},
 	    {"Open",open},
 	    {"Merge",merge},
@@ -59,9 +61,9 @@ menu(X, Y, _) ->
 	    separator,
 	    {"Revert",revert},
 	    separator,
-	    {"Import",{import,Formats}},
-	    {"Export",{export,Formats}},
-	    {"Export Selected",{export_selected,Formats}},
+	    {"Import",{import,ImpFormats}},
+	    {"Export",{export,ExpFormats}},
+	    {"Export Selected",{export_selected,ExpFormats}},
 	    separator,
 	    {"Render",{render,[]}},
 	    separator|recent_files([{"Exit",quit}])],
@@ -118,6 +120,16 @@ command({export_selected,ndo}, St) ->
 			  end, [], St),
     Shs = gb_trees:from_orddict(reverse(Shs0)),
     export_ndo(St#st{shapes=Shs}),
+    St;
+command({export,xndo}, St) ->
+    export_xndo(St),
+    St;
+command({export_selected,xndo}, St) ->
+    Shs0 = wings_sel:fold(fun(_, #we{id=Id}=We, A) ->
+				  [{Id,We}|A]
+			  end, [], St),
+    Shs = gb_trees:from_orddict(reverse(Shs0)),
+    export_xndo(St#st{shapes=Shs}),
     St;
 command(quit, St) ->
     quit(St);
@@ -454,6 +466,35 @@ export_ndo(St) ->
 	Name -> wings_ff_ndo:export(Name, St)
     end.
 
+export_xndo(St0) ->
+    St = xndo_rewrite(St0),
+    Prop = [{ext,".xndo"},{ext_desc,"ExtremeUV Nendo File"}],
+    case output_file(export, export_file_prop(Prop, St)) of
+	aborted -> St;
+	Name -> wings_ff_ndo:export(Name, St)
+    end.
+
+xndo_rewrite(#st{mat=Mat,shapes=Shs0}=St) ->
+    MatTab = number_materials(gb_trees:keys(Mat), 0, []),
+    Shs = xndo_rewrite_1(gb_trees:to_list(Shs0), MatTab),
+    St#st{shapes=gb_trees:from_orddict(Shs)}.
+
+xndo_rewrite_1([{Id,#we{fs=Ftab0}=We}|Shs], MatTab) ->
+    Ftab = xndo_rewrite_ftab(gb_trees:to_list(Ftab0), MatTab, []),
+    [{Id,We#we{fs=Ftab}}|xndo_rewrite_1(Shs, MatTab)];
+xndo_rewrite_1([], _) -> [].
+
+xndo_rewrite_ftab([{Face,#face{mat=M}=Rec}|T], MatTab, Acc0) ->
+    Acc = [{Face,Rec#face{edge=gb_trees:get(M, MatTab)}}|Acc0],
+    xndo_rewrite_ftab(T, MatTab, Acc);
+xndo_rewrite_ftab([], _, Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
+
+number_materials([M|Ms], I, Acc) ->
+    number_materials(Ms, I+1, [{M,I}|Acc]);
+number_materials([], _, Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
+    
 %%% Utilities.
 
 export_file_prop(none, _) -> none;
