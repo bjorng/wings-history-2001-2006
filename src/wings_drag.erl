@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.57 2002/02/12 10:38:40 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.58 2002/02/24 22:36:52 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -673,7 +673,7 @@ draw_sel(face, Faces, We) ->
     wings_draw_util:begin_end(
       fun() ->
 	      foreach(fun(Face) ->
-			      wings_draw_util:sel_face(Face, We)
+			      wings_draw_util:flat_face(Face, We)
 		      end, Faces)
       end);
 draw_sel(body, Dummy, #we{fs=Ftab}=We) ->

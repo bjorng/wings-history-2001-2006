@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.41 2002/02/03 07:22:41 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.42 2002/02/24 22:36:52 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -43,6 +43,10 @@ menu(X, Y, St) ->
 	    {"Ortographic View",orthogonal_view,
 	     crossmark(orthogonal_view)},
 	    {one_of(L == 1, "Two lights", "One light"),toggle_lights},
+	    separator,
+% 	    {"Show Colors",show_colors,crossmark(show_colors)},
+% 	    {"Show Materials",show_materials,crossmark(show_materials)},
+	    {"Show Textures",show_textures,crossmark(show_textures)},
 	    separator,
 	    {"View Along",{along,[{"+X",x},
 				  {"+Y",y},
@@ -80,9 +84,9 @@ command(orthogonal_view, St) ->
     toggle_option(orthogonal_view),
     projection(),
     St;
-command(show_edges, St) ->
-    toggle_option(show_edges),
-    St;
+command(show_textures, St) ->
+    toggle_option(show_textures),
+    model_changed(St);
 command(aim, St) ->
     aim(St),
     St;
@@ -154,6 +158,9 @@ init() ->
     wings_pref:set_default(show_normals, false),
     wings_pref:set_default(show_bb, true),
     wings_pref:set_default(show_wire_backfaces, false),
+    wings_pref:set_default(show_colors, true),
+    wings_pref:set_default(show_materials, true),
+    wings_pref:set_default(show_textures, true),
 
     %% Always reset the following preferences + the view itself.
     wings_pref:set_value(wire_mode, false),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.35 2002/02/23 18:42:42 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.36 2002/02/24 22:36:52 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -144,7 +144,9 @@ hilit_draw_sel(edge, Edge, #we{es=Etab,vs=Vtab}) ->
     gl:'end'();
 hilit_draw_sel(face, Face, We) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    wings_draw_util:begin_end(fun() -> wings_draw_util:sel_face(Face, We) end);
+    wings_draw_util:begin_end(fun() ->
+				      wings_draw_util:flat_face(Face, We)
+			      end);
 hilit_draw_sel(body, _, #we{fs=Ftab}=We) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     wings_draw_util:begin_end(

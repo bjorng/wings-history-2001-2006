@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.59 2002/02/12 19:46:17 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.60 2002/02/24 22:36:52 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -81,6 +81,7 @@ draw_smooth_shapes(St) ->
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:enable(?GL_BLEND),
+    gl:lightModeli(?GL_LIGHT_MODEL_COLOR_CONTROL, ?GL_SEPARATE_SPECULAR_COLOR),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     gl:polygonOffset(2.0, 2.0),
     draw_faces(),
@@ -89,7 +90,8 @@ draw_smooth_shapes(St) ->
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_CULL_FACE),
     ?CHECK_ERROR(),
-    draw_sel(St).
+    draw_sel(St),
+    gl:lightModeli(?GL_LIGHT_MODEL_COLOR_CONTROL, ?GL_SINGLE_COLOR).
 
 draw_plain_shapes(#st{selmode=SelMode}=St) ->
     gl:enable(?GL_CULL_FACE),
@@ -160,7 +162,7 @@ draw_sel(#st{selmode=edge}) ->
 draw_sel(#st{selmode=vertex}) ->
     #dl{sel=DlistSel} = get_dlist(),
     gl:callList(DlistSel);
-draw_sel(St) ->
+draw_sel(_St) ->
     #dl{sel=DlistSel} = get_dlist(),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(1.0, 1.0),
@@ -182,7 +184,7 @@ update_display_lists(#st{shapes=Shapes}=St) ->
 		    end, gb_trees:values(Shapes)),
 	    gl:endList(),
 	    put_dlist(#dl{faces=?DL_FACES});
-	DL -> ok
+	_DL -> ok
     end.
 
 make_sel_dlist(Smooth, St) ->
@@ -217,8 +219,15 @@ do_make_sel_dlist_1(Smooth, #st{sel=Sel}=St) ->
     
 draw_faces(We, true, #st{mat=Mtab}) ->
     draw_smooth_faces(Mtab, We);
-draw_faces(#we{fs=Ftab}=We, false, St) ->
-    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
+draw_faces(#we{mode=uv}=We, false, #st{mat=Mtab}=St) ->
+    case wings_pref:get_value(show_textures) of
+	true ->
+	    MatFaces = mat_faces(We),
+	    draw_uv_faces(MatFaces, We, Mtab);
+	false -> draw_faces(We#we{mode=none}, false, St)
+    end;
+draw_faces(#we{fs=Ftab}=We, false, _St) ->
+    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1,1,1,1}),
     wings_draw_util:begin_end(
       fun() ->
 	      foreach(fun({Face,#face{edge=Edge}}) ->
@@ -226,30 +235,60 @@ draw_faces(#we{fs=Ftab}=We, false, St) ->
 		      end, gb_trees:to_list(Ftab))
       end).
 
-draw_smooth_faces(Mtab, #we{mode=vertex}=We) ->
+draw_uv_faces([{Mat,Faces}|T], We, Mtab) ->
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    wings_material:apply_material(Mat, Mtab),
+    wings_draw_util:begin_end(
+      fun() ->
+	      draw_uv_faces_1(Faces, We)
+      end),
+    gl:popAttrib(),
+    draw_uv_faces(T, We, Mtab);
+draw_uv_faces([], _We, _Mtab) -> ok.
+
+draw_uv_faces_1([{Face,Edge}|Fs], We) ->
+    wings_draw_util:face(Face, Edge, We),
+    draw_uv_faces_1(Fs, We);
+draw_uv_faces_1([], _We) -> ok.
+
+mat_faces(#we{fs=Ftab}) ->
+    mat_faces(gb_trees:to_list(Ftab), []).
+
+mat_faces([{Face,#face{mat=Mat,edge=Edge}}|Fs], Acc) ->
+    mat_faces(Fs, [{Mat,{Face,Edge}}|Acc]);
+mat_faces([], Faces0) ->
+    Faces1 = sofs:relation(Faces0),
+    Faces = sofs:relation_to_family(Faces1),
+    sofs:to_external(Faces).
+
+draw_smooth_faces(_Mtab, #we{mode=vertex}=We) ->
     Faces = wings_we:normals(We),
     gl:enable(?GL_COLOR_MATERIAL),
     gl:colorMaterial(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE),
     wings_draw_util:begin_end(fun() -> draw_smooth_vcolor(Faces) end),
     gl:disable(?GL_COLOR_MATERIAL);
-draw_smooth_faces(Mtab, We) ->
+draw_smooth_faces(Mtab, #we{mode=Mode}=We) ->
     Faces0 = wings_we:normals(We),
     Faces1 = sofs:relation(Faces0),
     Faces2 = sofs:relation_to_family(Faces1),
     Faces = sofs:to_external(Faces2),
-    draw_smooth_1(Faces, Mtab).
+    case wings_pref:get_value(show_textures) of
+	false when Mode == uv ->
+	    draw_smooth_plain(Faces0);
+	_Other ->
+	    draw_smooth_1(Faces, Mtab)
+    end.
     
 draw_smooth_1([{Mat,Faces}|T], Mtab) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     wings_material:apply_material(Mat, Mtab),
     wings_draw_util:begin_end(
       fun() ->
-	      wings_material:apply_material(Mat, Mtab),
 	      draw_smooth_2(Faces)
       end),
     gl:popAttrib(),
     draw_smooth_1(T, Mtab);
-draw_smooth_1([], Mtab) -> ok.
+draw_smooth_1([], _Mtab) -> ok.
 
 draw_smooth_2([Vs|Fs]) ->
     Tess = wings_draw_util:tess(),
@@ -272,7 +311,7 @@ draw_smooth_vcolor([{_,Vs}|T]) ->
     glu:tessNormal(Tess, 0, 0, 0),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    foreach(fun({P,{{R,G,B}=Diff,N}}) ->
+    foreach(fun({P,{{_,_,_}=Diff,N}}) ->
 		    glu:tessVertex(Tess, P,
 				   [{normal,N},
 				    {color,Diff}])
@@ -281,6 +320,27 @@ draw_smooth_vcolor([{_,Vs}|T]) ->
     glu:tessEndPolygon(Tess),
     draw_smooth_vcolor(T);
 draw_smooth_vcolor([]) -> ok.
+
+%% Smooth drawing without any materials.
+draw_smooth_plain(Faces) ->
+    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1,1,1,1}),
+    wings_draw_util:begin_end(
+      fun() ->
+	      draw_smooth_plain_1(Faces)
+      end).
+
+draw_smooth_plain_1([{_,Vs}|T]) ->
+    Tess = wings_draw_util:tess(),
+    glu:tessNormal(Tess, 0, 0, 0),
+    glu:tessBeginPolygon(Tess),
+    glu:tessBeginContour(Tess),
+    foreach(fun({P,{_,N}}) ->
+		    glu:tessVertex(Tess, P, [{normal,N}])
+	    end, Vs),
+    glu:tessEndContour(Tess),
+    glu:tessEndPolygon(Tess),
+    draw_smooth_plain_1(T);
+draw_smooth_plain_1([]) -> ok.
 
 draw_hard_edges(#st{shapes=Shapes}) ->
     gl:color3fv(wings_pref:get_value(hard_edge_color)),
@@ -308,13 +368,13 @@ draw_hard_edges_1(#we{es=Etab,he=Htab,vs=Vtab}) ->
 %% Draw the currently selected items.
 %%
 
-draw_selection(Smooth, #st{selmode=body}=St) ->
+draw_selection(_Smooth, #st{selmode=body}=St) ->
     sel_color(),
     wings_sel:foreach(
       fun(_, We) ->
 	      draw_faces(We, false, St)
       end, St);
-draw_selection(Smooth, #st{selmode=face}=St) ->
+draw_selection(_Smooth, #st{selmode=face}=St) ->
     sel_color(),
     wings_draw_util:begin_end(
       fun() ->
@@ -324,7 +384,7 @@ draw_selection(Smooth, #st{selmode=face}=St) ->
 			wings_draw_util:face(Face, Edge, We)
 		end, St)
       end);
-draw_selection(Smooth, #st{selmode=edge}=St) ->
+draw_selection(_Smooth, #st{selmode=edge}=St) ->
     sel_color(),
     gl:'begin'(?GL_LINES),
     wings_sel:foreach(
@@ -340,8 +400,7 @@ draw_selection(Smooth, #st{selmode=vertex}=St) ->
 draw_vtx_sel(Smooth, #st{shapes=Shapes,sel=Sel}) ->
     draw_vtx_sel(gb_trees:to_list(Shapes), Sel, Smooth).
 
-draw_vtx_sel([{Id1,#we{vs=Vtab}}|Shs], [{Id2,_}|_]=Sel, true)
-  when Id1 < Id2 ->
+draw_vtx_sel([{Id1,_}|Shs], [{Id2,_}|_]=Sel, true) when Id1 < Id2 ->
     draw_vtx_sel(Shs, Sel, true);
 draw_vtx_sel([{Id1,#we{vs=Vtab}=We}|Shs], [{Id2,_}|_]=Sel, false)
   when Id1 < Id2 ->
@@ -379,7 +438,7 @@ draw_vtx_sel([{Id,#we{vs=Vtab0}=We}|Shs], [{Id,Vs}|Sel], Smooth) ->
 	      end, We)
     end,
     draw_vtx_sel(Shs, Sel, Smooth);
-draw_vtx_sel([], [], Smooth) -> ok.
+draw_vtx_sel([], [], _Smooth) -> ok.
 
 draw_unsel_vtx(Draw, #we{perm=Perm}) when ?IS_NOT_VISIBLE(Perm)->
     ok;
@@ -602,7 +661,7 @@ groundplane(Along, X, Last, Sz, Axes) ->
             gl:vertex3f(X, Sz, 0),
             gl:vertex3f(-Sz, X, 0),
             gl:vertex3f(Sz, X, 0);
-	Other ->
+	_Other ->
             gl:vertex3f(X, 0, -Sz),
             gl:vertex3f(X, 0, Sz),
             gl:vertex3f(-Sz, 0, X),
@@ -666,7 +725,7 @@ draw_vec(Center, Vec0) ->
 	{Same,Same,Same} ->
 	    PosHead0 = e3d_vec:cross(HeadVec, {0.25,-0.25,0.25}),
 	    PosHead1 = e3d_vec:cross(HeadVec, {-0.25,0.25,-0.25});
-	Other ->
+	_Other ->
 	    PosHead0 = e3d_vec:cross(HeadVec, {0.25,0.25,0.25}),
 	    PosHead1 = e3d_vec:cross(HeadVec, {-0.25,-0.25,-0.25})
     end,

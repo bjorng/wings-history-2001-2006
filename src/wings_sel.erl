@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.29 2002/02/22 11:20:58 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.30 2002/02/24 22:36:52 bjorng Exp $
 %%
 
 -module(wings_sel).
 
 -export([clear/1,set/2,set/3,
 	 convert/3,convert_shape/3,convert_selection/2,
-	 fold/3,map/2,mapfold/3,
+	 map_vs/2,map/2,fold/3,mapfold/3,
 	 foreach/2,make/3,valid_sel/1,valid_sel/3,
 	 centers/1,bounding_box/1,
 	 face_regions/2,edge_regions/2,validate_items/3,
@@ -84,6 +84,24 @@ convert_items(F, Acc0, Iter0, We) ->
     end.
 
 %%%
+%%% Map over the selection, allowing modifications only
+%%% to vertex positions.
+%%%
+
+map_vs(F, #st{shapes=Shs0,sel=Sel}=St) ->
+    Shs1 = gb_trees:to_list(Shs0),
+    Shs = map_vs_1(F, Sel, Shs1, St, []),
+    St#st{shapes=Shs}.
+
+map_vs_1(F, [{Id,Items}|Sel], [{Id,We}|Shs], St, Acc) ->
+    #we{vs=Vtab} = F(Items, We),
+    map_vs_1(F, Sel, Shs, St, [{Id,We#we{vs=Vtab}}|Acc]);
+map_vs_1(F, [_|_]=Sel, [Pair|Shs], St, Acc) ->
+    map_vs_1(F, Sel, Shs, St, [Pair|Acc]);
+map_vs_1(_F, [], Shs, _St, Acc) ->
+    gb_trees:from_orddict(reverse(Acc, Shs)).
+
+%%%
 %%% Map over the selection, modifying the selected objects.
 %%%
 
@@ -92,6 +110,13 @@ map(F, #st{shapes=Shs0,sel=Sel}=St) ->
     Shs = map_1(F, Sel, Shs1, St, []),
     St#st{shapes=Shs}.
 
+map_1(F, [{Id,Items}|Sel], [{Id,#we{mode=uv}=We0}|Shs], St, Acc) ->
+    #we{es=Etab} = We1 = wings_we:uv_to_color(We0, St),
+    We = case F(Items, We1) of
+	     #we{es=Etab}=We2 -> We2#we{mode=uv,es=We0#we.es};
+	     We2 -> We2
+	 end,
+    map_1(F, Sel, Shs, St, [{Id,We}|Acc]);
 map_1(F, [{Id,Items}|Sel], [{Id,We0}|Shs], St, Acc) ->
     ?ASSERT(We0#we.id =:= Id),
     We = F(Items, wings_we:uv_to_color(We0, St)),
@@ -123,6 +148,14 @@ mapfold(F, Acc0, #st{shapes=Shs0,sel=Sel}=St) ->
     {Shs,Acc} = mapfold_1(F, Acc0, Sel, Shs1, St, []),
     {St#st{shapes=Shs},Acc}.
 
+mapfold_1(F, Acc0, [{Id,Items}|Sel], [{Id,#we{mode=uv}=We0}|Shs],
+	  St, ShsAcc) ->
+    #we{es=Etab} = We1 = wings_we:uv_to_color(We0, St),
+    We = case F(Items, We1, Acc0) of
+	     {#we{es=Etab}=We2,Acc} -> We2#we{mode=uv,es=We0#we.es};
+	     {We2,Acc} -> We2
+	 end,
+    mapfold_1(F, Acc, Sel, Shs, St, [{Id,We}|ShsAcc]);
 mapfold_1(F, Acc0, [{Id,Items}|Sel], [{Id,We0}|Shs], St, ShsAcc) ->
     ?ASSERT(We0#we.id =:= Id),
     {We,Acc} = F(Items, wings_we:uv_to_color(We0, St), Acc0),
