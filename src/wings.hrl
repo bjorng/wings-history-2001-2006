@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.83 2003/05/30 07:41:32 bjorng Exp $
+%%     $Id: wings.hrl,v 1.84 2003/06/03 15:15:18 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -66,6 +66,9 @@
 -endif.
 
 %% Display lists per object.
+%%  Important: Plain integers and integers in lists will be assumed to
+%%  be display lists. Arbitrary integers must be stored inside a tuple
+%%  or record to not be interpreted as a display list.
 -record(dlo,
 	{work=none,				%Workmode faces.
 	 smooth=none,				%Smooth-shaded faces.
