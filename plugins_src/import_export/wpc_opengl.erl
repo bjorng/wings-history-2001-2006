@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.39 2003/08/27 06:47:39 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.40 2003/08/27 21:23:10 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -56,19 +56,6 @@
 		attr, 
 		sv = []  % List of display lists of shadow volumes
 	       }).
-
-% -record(light,
-% 	{type,
-% 	 diffuse={1.0,1.0,1.0,1.0},
-% 	 ambient={0.0,0.0,0.0,1.0},
-% 	 specular={1.0,1.0,1.0,1.0},
-% 	 aim, %Aim point for spot/infinite.
-% 	 lin_att, %Linear attenuation.
-% 	 quad_att, %Quadratic attenuation.
-% 	 spot_angle,
-% 	 spot_exp, %Spot exponent.
-% 	 prop=[] %Extra properties.
-% 	}).
 
 init() ->
     true.
@@ -263,13 +250,15 @@ create_light_data([{_Name,L0}|Ls], Ds, C, Amb, Acc) ->
 	    create_light_data(Ls, Ds, C, Amb, Acc);
 	_ ->
 	    Li = create_light(L,#light{}, []),
-	    SVs = lists:map(fun(D) ->
-				    List = gl:genLists(1),
-				    gl:newList(List, ?GL_COMPILE),    
-				    create_shadow_volume(Li, D),
-				    gl:endList(),
-				    List
-			    end, Ds),
+	    SVs = lists:foldl(fun(D = #d{tr=false},SL) ->
+				      List = gl:genLists(1),
+				      gl:newList(List, ?GL_COMPILE),    
+				      create_shadow_volume(Li, D),
+				      gl:endList(),
+				      [List|SL];
+				 %% Transperant objects don't cast shadows
+				 (_,SL) -> SL
+			      end, [], Ds),
 	    create_light_data(Ls, Ds, C+1, Amb, [Li#light{sv = SVs}|Acc])
     end.
 
@@ -377,7 +366,6 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,no_l=NoL,mat=Mat,shadow=true},false) 
 
     gl:frontFace(?GL_CCW),
     gl:shadeModel(?GL_SMOOTH),
-    gl:enable(?GL_CULL_FACE),
 
     gl:enable(?GL_DEPTH_TEST),
     gl:depthMask(?GL_TRUE),
@@ -388,6 +376,7 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,no_l=NoL,mat=Mat,shadow=true},false) 
 
     setup_amb(Amb,NoL),
     gl:enable(?GL_LIGHTING),
+    gl:disable(?GL_CULL_FACE),
     foreach(fun(#d{s=DL}) ->         
 		    gl:callList(DL) end, Wes),
     disable_lights(),
@@ -425,9 +414,10 @@ draw_with_shadows({true,N}, NoL, L, Wes, _Mats) ->
     case wings_util:is_gl_ext('GL_ARB_imaging') of
 	true -> 
 	    PerLight = 1/N,
-	    gl:blendColor(PerLight,PerLight,PerLight,PerLight);
-	false ->  %% ARB_imaging not available  
-	    ignore
+	    gl:blendColor(PerLight,PerLight,PerLight,PerLight),
+	    gl:blendFunc(?GL_CONSTANT_COLOR, ?GL_ONE_MINUS_CONSTANT_COLOR);
+	false -> %% ARB_imaging not available  
+	    gl:blendFunc(?GL_ONE, ?GL_ONE)
     end,
     gl:enable(?GL_BLEND), %% blend all other lights
     draw_with_shadows({false,N}, NoL, L, Wes, _Mats);
@@ -445,16 +435,30 @@ draw_with_shadows({false,LNo}, NoL, L=#light{sv=Shadow}, Wes, _Mats) ->
     foreach(fun(DL) -> gl:callList(DL) end, Shadow),
 
     gl:stencilFunc(?GL_EQUAL, ?STENCIL_INIT, 16#FFFFFFFF),
-    gl:stencilOp(?GL_KEEP,?GL_KEEP,?GL_INCR),
+    gl:stencilOp(?GL_KEEP,?GL_KEEP,?GL_KEEP),
     gl:colorMask(?GL_TRUE,?GL_TRUE,?GL_TRUE,?GL_TRUE),
     gl:depthFunc(?GL_EQUAL),
     setup_light(L,NoL),
     gl:enable(?GL_LIGHTING),
-    foreach(fun(#d{s=DL}) -> gl:callList(DL) end, Wes),
+    foreach(fun(#d{s=DL,tr=Trans}) -> 
+		    case Trans of
+			true -> 
+			    gl:disable(?GL_CULL_FACE),    
+			    gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE);
+			false ->
+			    gl:enable(?GL_CULL_FACE),
+			    gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_FALSE)
+		    end,
+		    gl:callList(DL) 
+	    end, Wes),
+    gl:enable(?GL_CULL_FACE),
+    gl:depthFunc(?GL_LESS),
+    gl:enable(?GL_BLEND),
+    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE),
+    foreach(fun(#d{trl=DL, tr=true}) -> gl:callList(DL); (_) -> ok end, Wes),
     gl:disable(?GL_LIGHTING),
     disable_lights(),
-    gl:disable(?GL_CULL_FACE),
-    gl:depthFunc(?GL_LESS),
 %    debug_shad(Shadow),
     {true,LNo+1}.
 
@@ -523,6 +527,7 @@ render_redraw(D, RMask, RenderTrans) ->
 	true -> render_mask(D)
     end.
 
+render_redraw_1(#d{tr=false}, true) -> ok;
 render_redraw_1(#d{s=Dlist,tr=Trans,trl=TRL}, RenderTrans) ->
     ?CHECK_ERROR(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
