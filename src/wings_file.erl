@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.110 2003/04/21 10:16:58 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.111 2003/04/22 03:37:25 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -51,8 +51,6 @@ finish() ->
 menu(_) ->
     ImpFormats = [{"Nendo (.ndo)...",ndo}],
     ExpFormats = [{"Nendo (.ndo)...",ndo}],
-%%    ExpFormats = [{"Nendo (.ndo)...",ndo},
-%%		  {"ExtremeUV [Experimental] (.xndo)...",xndo}],
     [{"New",new,"Create a new, empty scene"},
      {"Open...",open,"Open a previously saved scene"},
      {"Merge...",merge,"Merge a previously saved scene into the current scene"},
@@ -539,36 +537,6 @@ export_ndo(St) ->
 	aborted -> St;
 	Name -> wings_ff_ndo:export(Name, St)
     end.
-
-% export_xndo(St0) ->
-%     St = xndo_rewrite(St0),
-%     Prop = [{ext,".xndo"},{ext_desc,"ExtremeUV Nendo File"}],
-%     case output_file("Export", export_file_prop(Prop, St)) of
-% 	aborted -> St;
-% 	Name -> wings_ff_ndo:export(Name, St)
-%     end.
-
-% xndo_rewrite(#st{mat=Mat,shapes=Shs0}=St) ->
-%     MatTab = number_materials(gb_trees:keys(Mat), 0, []),
-%     Shs = xndo_rewrite_1(gb_trees:to_list(Shs0), MatTab),
-%     St#st{shapes=gb_trees:from_orddict(Shs)}.
-
-% xndo_rewrite_1([{Id,We0}|Shs], MatTab) ->
-%     #we{fs=Ftab0} = We = wings_we:renumber(We0, 0),
-%     Ftab = xndo_rewrite_ftab(gb_trees:to_list(Ftab0), MatTab, []),
-%     [{Id,We#we{fs=Ftab}}|xndo_rewrite_1(Shs, MatTab)];
-% xndo_rewrite_1([], _) -> [].
-
-% xndo_rewrite_ftab([{Face,#face{mat=M}=Rec}|T], MatTab, Acc0) ->
-%     Acc = [{Face,Rec#face{edge=gb_trees:get(M, MatTab)}}|Acc0],
-%     xndo_rewrite_ftab(T, MatTab, Acc);
-% xndo_rewrite_ftab([], _, Acc) ->
-%     gb_trees:from_orddict(reverse(Acc)).
-
-% number_materials([M|Ms], I, Acc) ->
-%     number_materials(Ms, I+1, [{M,I}|Acc]);
-% number_materials([], _, Acc) ->
-%     gb_trees:from_orddict(reverse(Acc)).
     
 %%% Utilities.
 
