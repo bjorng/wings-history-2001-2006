@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.25 2003/03/06 20:18:11 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.26 2003/04/05 09:41:27 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -52,7 +52,11 @@ dialog_qs(render) ->
 
 aa_frame() ->
     HaveAccum = have_accum(),
-    Def = get_pref(aa, if HaveAccum -> regular; true -> draft end),
+    Def0 = get_pref(aa, if HaveAccum -> regular; true -> draft end),
+    Def = case HaveAccum of
+	      false -> draft;
+	      true -> Def0
+	  end,
     {hframe,
      [{menu,
        [{"Draft Quality (no AA)",draft}|
@@ -65,9 +69,10 @@ aa_frame() ->
 	end],Def,[{key,aa}]}]}.
 
 have_accum() ->
-    sdl_video:gl_getAttribute(?SDL_GL_ACCUM_RED_SIZE) >= 8 andalso
-	sdl_video:gl_getAttribute(?SDL_GL_ACCUM_GREEN_SIZE) >= 8 andalso
-	sdl_video:gl_getAttribute(?SDL_GL_ACCUM_BLUE_SIZE) >= 8.
+    [R] = gl:getIntegerv(?GL_ACCUM_RED_BITS),
+    [G] = gl:getIntegerv(?GL_ACCUM_GREEN_BITS),
+    [B] = gl:getIntegerv(?GL_ACCUM_BLUE_BITS),
+    R >= 16 andalso G >= 16 andalso B >= 16.
 
 get_pref(Key, Def) ->
     wpa:pref_get(?MODULE, Key, Def).
@@ -222,6 +227,7 @@ render_image(#r{acc_size=AccSize,attr=Attr}=Rr) ->
     end,
     J = jitter(AccSize),
     jitter_draw(J, ?GL_LOAD, Rr),
+    gl:accum(?GL_RETURN, 1.0),
     gl:popAttrib().
 
 jitter_draw([{Jx,Jy}|J], Op, #r{acc_size=AccSize}=Rr) ->
