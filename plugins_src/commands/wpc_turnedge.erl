@@ -3,12 +3,13 @@
 %%
 %%     Plug-in for turning edges
 %%
-%%  Copyright (c) 2002 Chris Osgood
+%%  Copyright (c) 2002 Chris Osgood,
+%%		  2003 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_turnedge.erl,v 1.3 2003/01/20 18:11:54 bjorng Exp $
+%%     $Id: wpc_turnedge.erl,v 1.4 2003/03/14 05:50:52 bjorng Exp $
 %%
 
 -module(wpc_turnedge).
@@ -18,38 +19,49 @@
 -include_lib("wings.hrl").
 
 init() ->
-    wpa:bind_unicode($t, {edge,turn}),
-    wpa:bind_unicode($T, {edge,turn_opt}),
+    init_pref(),
     true.
 
-menu({edge}, Menu0) ->
+menu({edge}, Menu) ->
+    case is_enabled() of
+	true -> menu_entry(Menu);
+	false -> Menu
+    end;
+menu({edit,plugin_preferences}, Menu) ->
+    Menu ++ [{"Turn Edge",turn_edge}];
+menu(_, Menu) -> Menu.
+
+menu_entry(Menu) ->
     case wings_pref:get_value(advanced_menus) of
 	true ->
 	    TurnMenu = turns(),
-	    Menu0 ++ [separator,
-		      {"Turn",{turn, TurnMenu}}];
+	    Menu ++ [separator,
+		     {"Turn",{turn,TurnMenu}}];
 	false ->
-	    Menu0 ++ [separator,
-		      {"Turn",turn,"Turn edge"},
-		      {"Optimized Turn", turn_opt,
-		       "Turns edge only if new edge length would be shorter"}]
-    end;
-menu(_, Menu) -> Menu.
+	    Menu ++ [separator,
+		     {"Turn",turn,"Turn edge"},
+		     {"Optimized Turn",optimized_turn,
+		      "Turn edge only if new edge length would be shorter"}]
+    end.
 
 command({edge,turn}, St0) ->
     {Sel, St} = wpa:sel_fold(
 		  fun(Edges, We, {Sel,StAcc}) ->
-			  {Sel1, StAcc0} = turn_edges(gb_sets:to_list(Edges), We, false, StAcc),
+			  {Sel1, StAcc0} = turn_edges(gb_sets:to_list(Edges),
+						      We, false, StAcc),
 			  {[Sel1|Sel], StAcc0}
 		  end, {[],St0}, St0),
     St#st{sel=Sel};
-command({edge,turn_opt}, St0) ->
+command({edge,optimized_turn}, St0) ->
     {Sel, St} = wpa:sel_fold(
 		  fun(Edges, We, {Sel, StAcc}) ->
-			  {Sel1, StAcc0} = turn_edges(gb_sets:to_list(Edges), We, true, StAcc),
+			  {Sel1, StAcc0} = turn_edges(gb_sets:to_list(Edges),
+						      We, true, StAcc),
 			  {[Sel1|Sel], StAcc0}
 		  end, {[],St0}, St0),
     St#st{sel=Sel};
+command({edit,{plugin_preferences,turn_edge}}, St) ->
+    pref_edit(St);
 command(_Cmd, _) -> next.
 
 turns() ->
@@ -58,7 +70,7 @@ turns() ->
     end.
 
 turn_menu(1) -> {edge,turn};
-turn_menu(3) -> {edge,turn_opt};
+turn_menu(3) -> {edge,optimized_turn};
 turn_menu(help) -> turn_help();
 turn_menu(_) -> ignore.
 
@@ -114,3 +126,36 @@ optimize(Evs1, Evs2, VsList1, VsList2, Opt, Vtab) ->
         true -> none;
         false -> {V1, V2}
     end.
+
+%%%
+%%% Preference support.
+%%%
+
+pref_edit(St) ->
+    Enabled = get_pref(enabled, false),
+    wpa:dialog("Turn Edge Preferences",
+	       [{hframe,[{"Enabled",Enabled,[{key,enabled}]}]}],
+	       fun(Attr) -> pref_result(Attr, St) end).
+
+pref_result(Attr, St) ->
+    set_pref(Attr),
+    init_pref(),
+    St.
+
+set_pref(Attr) ->
+    wpa:pref_set(?MODULE, Attr).
+
+get_pref(Key, Def) ->
+    wpa:pref_get(?MODULE, Key, Def).
+
+init_pref() ->
+    Enabled = get_pref(enabled, false),
+    put({?MODULE,enabled}, Enabled),
+    case Enabled of
+	true ->
+	    wpa:bind_unicode($t, {edge,turn}),
+	    wpa:bind_unicode($T, {edge,optimized_turn});
+	false -> ok
+    end.
+
+is_enabled() -> get({?MODULE,enabled}).
