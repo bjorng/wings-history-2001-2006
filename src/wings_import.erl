@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.5 2002/10/18 17:50:05 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.6 2002/12/02 14:59:43 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -81,7 +81,7 @@ rip_apart(Mode, #e3d_mesh{fs=Fs}=Mesh) ->
 rip_apart([#e3d_face{vs=Vs,tx=Tx}=Face|T], Mode, Template, Acc) ->
     BackFace = Face#e3d_face{vs=reverse(Vs),tx=reverse(Tx),mat=['_hole_']},
     Fs = [Face,BackFace],
-    Mesh = e3d_mesh:renumber(Template#e3d_mesh{fs=Fs}),
+    Mesh = e3d_mesh:renumber(Template#e3d_mesh{fs=Fs,he=[]}),
     We = wings_we:build(Mode, Mesh),
     rip_apart(T, Mode, Template, [We|Acc]);
 rip_apart([], _, _, Wes) -> Wes.
