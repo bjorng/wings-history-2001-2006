@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.28 2003/05/09 14:19:30 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.29 2003/06/15 11:30:57 bjorng Exp $
 %%
 
 -module(e3d_mesh).
 -export([clean_faces/1,orient_normals/1,transform/1,transform/2,
 	 merge_vertices/1,triangulate/1,quadrangulate/1,
-	 make_quads/1,vertex_normals/1,renumber/1,partition/1]).
+	 make_quads/1,vertex_normals/1,renumber/1,partition/1,
+	 used_materials/1]).
 -export([triangulate_face/2,triangulate_face_with_holes/3]).
 -export([quadrangulate_face/2,quadrangulate_face_with_holes/3]).
 
@@ -158,6 +159,11 @@ partition(#e3d_mesh{fs=Faces0,he=He0}=Template) ->
 			[Mesh|A]
 		end, [], sort(FacePart)),
     reverse(Res).
+
+%% used_materials(Mesh) -> [MaterialName]
+%%  Returns a sorted list of all materials used in the given mesh.
+used_materials(#e3d_mesh{fs=Fs0}) ->
+    used_materials_1(Fs0, []).
 
 %%%
 %%% End of exported functions. Local functions follow.
@@ -509,6 +515,14 @@ map_faces([#e3d_face{vs=Vs0}=Face|Fs], Map, Acc) ->
     map_faces(Fs, Map, [Face#e3d_face{vs=Vs}|Acc]);
 map_faces([], _Map, Acc) -> reverse(Acc).
 
+%%%
+%%% Help function for used_materials/1.
+
+used_materials_1([#e3d_face{mat=[Mat]}|Fs], [Mat|_]=Acc) ->
+    used_materials_1(Fs, Acc);
+used_materials_1([#e3d_face{mat=[Mat]}|Fs], Acc) ->
+    used_materials_1(Fs, [Mat|Acc]);
+used_materials_1([], Acc) -> ordsets:from_list(Acc).
 
 %%%
 %%% Common help functions.
