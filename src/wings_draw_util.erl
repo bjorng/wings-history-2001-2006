@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.85 2003/07/03 14:44:34 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.86 2003/07/03 17:12:34 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -741,7 +741,8 @@ dummy_axis_letter(_, _, {_,_,W,H}) ->
     gl:matrixMode(?GL_MODELVIEW),
     gl:pushMatrix(),
     gl:loadIdentity(),
-    axis_text(10, 90, axisx, wings_pref:get_value(background_color)),
+    wings_io:set_color(wings_pref:get_value(background_color)),
+    axis_text(10, 90, axisx),
     gl:popMatrix(),
     gl:matrixMode(?GL_PROJECTION),
     gl:popMatrix(),
@@ -781,22 +782,23 @@ axis_letters() ->
 
 axis_letter(I, Yon, Char, Color0, {Start,{Ox,Oy,_,Ow},MM,PM,Viewport}) ->
     Color = wings_pref:get_value(Color0),
+    wings_io:set_color(Color),
     End = setelement(I, Start, Yon),
     {Px,Py,_,Pw} = proj(End, MM, PM),
     if
 	-Pw < Px, Px < Pw, -Pw < Py, Py < Pw ->
-	    show_letter(Px, Py, Pw, Char, Color, Viewport);
+	    show_letter(Px, Py, Pw, Char, Viewport);
 	true ->
-	    clip(Ox, Oy, Ow, Px, Py, Pw, Char, Color, Viewport)
+	    clip(Ox, Oy, Ow, Px, Py, Pw, Char, Viewport)
     end.
 
-clip(Ox, Oy, Ow, Px, Py, Pw, Char, Color, Viewport) ->
+clip(Ox, Oy, Ow, Px, Py, Pw, Char, Viewport) ->
     AxisRay = line(Ox, Oy, Px, Py),
     Lines = [line(-Ow, -Ow, Ow, -Ow),line(-Ow, Ow, Ow, Ow),
 	     line(-Ow, -Ow, -Ow, Ow),line(Ow, -Ow, Ow, Ow)],
     case clip_1(AxisRay, Lines, {Ow,Pw}) of
 	none -> ok;
-	{X,Y,W} -> show_letter(X, Y, W, Char, Color, Viewport)
+	{X,Y,W} -> show_letter(X, Y, W, Char, Viewport)
     end.
 
 clip_1({O1,D1}=Axis, [{O2,D2}|Lines], {Ow,_}=W) ->
@@ -817,13 +819,12 @@ clip_1({O1,D1}=Axis, [{O2,D2}|Lines], {Ow,_}=W) ->
     end;
 clip_1(_, [], _W) -> none.
 
-show_letter(X0, Y0, W, Char, Color, {_,_,Vw,Vh}) ->
+show_letter(X0, Y0, W, Char, {_,_,Vw,Vh}) ->
     X = trunc((0.5*X0/W+0.5)*(Vw-20) + 10),
     Y = trunc((0.5*Y0/W+0.5)*(Vh-16) + 7),
-    axis_text(X, Y, Char, Color).
+    axis_text(X, Y, Char).
 
-axis_text(X, Y, C, Color) ->
-    wings_io:set_color(Color),
+axis_text(X, Y, C) ->
     gl:rasterPos2i(X, Y),
     wings_text:char(C).
 
