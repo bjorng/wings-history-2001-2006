@@ -3,12 +3,12 @@
 #
 #     Top-level Makefile for building Wings 3D.
 #
-#  Copyright (c) 2001-2003 Bjorn Gustavsson
+#  Copyright (c) 2001-2004 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.12 2003/11/27 09:21:09 bjorng Exp $
+#     $Id: Makefile,v 1.13 2004/01/18 18:23:43 bjorng Exp $
 #
 
 all:
@@ -35,6 +35,7 @@ clean:
 win32: all
 	(cd plugins_src/win32_file; $(MAKE))
 	(cd win32; $(MAKE))
+	(cd jpeg; $(MAKE))
 	win32/make_installer
 
 #
@@ -46,8 +47,9 @@ macosx: all
 	sh tools/mac_make_dmg
 
 #
-# Build installer for Unix.
+# Build package for Unix.
 #
 unix: all
+	(cd jpeg; $(MAKE))
 	unix/make_installer
 
