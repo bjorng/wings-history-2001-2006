@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.22 2004/04/20 19:42:29 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.23 2004/05/19 03:45:18 bjorng Exp $
 %%
 
 -module(e3d_vec).
 
 -export([zero/0,is_zero/1,add/1,add/2,add_prod/3,sub/1,sub/2,norm_sub/2,mul/2,
-	 divide/2,neg/1,dot/2,cross/2,norm_cross/2,len/1,dist/2,dist_sqr/2,
+	 divide/2,neg/1,dot/2,cross/2,len/1,dist/2,dist_sqr/2,
 	 norm/1,norm/3,normal/3,normal/1,average/1,average/2,average/4,
 	 bounding_box/1,area/3]).
 
@@ -47,16 +47,22 @@ add([{V10,V11,V12},{V20,V21,V22}|T], A0, A1, A2)
        is_float(V20), is_float(V21), is_float(V22),
        is_float(A0), is_float(A1), is_float(A2) ->
     add(T, A0+V10+V20, A1+V11+V21, A2+V12+V22);
-add([{V10,V11,V12}|T], A0, A1, A2) when is_float(V10), is_float(V11), is_float(V12),
-					is_float(A0), is_float(A1), is_float(A2) ->
+add([{V10,V11,V12}|T], A0, A1, A2)
+  when is_float(V10), is_float(V11), is_float(V12),
+       is_float(A0), is_float(A1), is_float(A2) ->
     add(T, A0+V10, A1+V11, A2+V12);
 add([], A0, A1, A2) -> {A0,A1,A2}.
 
 sub({V10,V11,V12}, {V20,V21,V22}) ->
     {V10-V20,V11-V21,V12-V22}.
 
-norm_sub({V10,V11,V12}, {V20,V21,V22}) ->
-    norm(V10-V20, V11-V21, V12-V22).
+norm_sub({V10,V11,V12}, {V20,V21,V22})
+  when is_float(V10), is_float(V11), is_float(V12) ->
+    Nx = V10-V20,
+    Ny = V11-V21,
+    Nz = V12-V22,
+    SqrLen = Nx*Nx + Ny*Ny + Nz*Nz,
+    norm(SqrLen, Nx, Ny, Nz).
 
 sub([{V10,V11,V12}|T]) ->
     sub(V10, V11, V12, T).
@@ -77,14 +83,10 @@ neg({X,Y,Z}) -> {-X,-Y,-Z}.
 dot({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12) ->
     V10*V20 + V11*V21 + V12*V22.
 
-cross({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12),
-					 is_float(V20), is_float(V21), is_float(V22) ->
-    {V11*V22-V12*V21,V12*V20-V10*V22,V10*V21-V11*V20}.
-
-norm_cross({V10,V11,V12}, {V20,V21,V22})
+cross({V10,V11,V12}, {V20,V21,V22})
   when is_float(V10), is_float(V11), is_float(V12),
        is_float(V20), is_float(V21), is_float(V22) ->
-    norm(V11*V22-V12*V21, V12*V20-V10*V22, V10*V21-V11*V20).
+    {V11*V22-V12*V21,V12*V20-V10*V22,V10*V21-V11*V20}.
 
 len({X,Y,Z}) when is_float(X), is_float(Y), is_float(Z) ->
     math:sqrt(X*X+Y*Y+Z*Z).
@@ -108,6 +110,13 @@ norm({V1,V2,V3}) ->
 
 norm(V1, V2, V3) when is_float(V1), is_float(V2), is_float(V3) ->
     D = math:sqrt(V1*V1+V2*V2+V3*V3),
+    case catch {V1/D,V2/D,V3/D} of
+	{'EXIT',_} -> {0.0,0.0,0.0};
+	R -> R
+    end.
+
+norm(SqrLen, V1, V2, V3) ->
+    D = math:sqrt(SqrLen),
     case catch {V1/D,V2/D,V3/D} of
 	{'EXIT',_} -> {0.0,0.0,0.0};
 	R -> R
@@ -156,7 +165,8 @@ normal([{Ax,Ay,Az},{Bx,By,Bz},{Cx,Cy,Cz}])
     Sx = (Ay-By)*(Az+Bz) + (By-Cy)*(Bz+Cz) + (Cy-Ay)*(Cz+Az),
     Sy = (Az-Bz)*(Ax+Bx) + (Bz-Cz)*(Bx+Cx) + (Cz-Az)*(Cx+Ax),
     Sz = (Ax-Bx)*(Ay+By) + (Bx-Cx)*(By+Cy) + (Cx-Ax)*(Cy+Ay),
-    norm(Sx, Sy, Sz);
+    SqrLen = Sx*Sx + Sy*Sy + Sz*Sz,
+    norm(SqrLen, Sx, Sy, Sz);
 normal([{Ax,Ay,Az},{Bx,By,Bz},{Cx,Cy,Cz},{Dx,Dy,Dz}])
   when is_float(Ax), is_float(Ay), is_float(Az),
        is_float(Bx), is_float(By), is_float(Bz),
@@ -169,7 +179,8 @@ normal([{Ax,Ay,Az},{Bx,By,Bz},{Cx,Cy,Cz},{Dx,Dy,Dz}])
     Nx = By*CzMinusAz + Cy*DzMinusBz - Dy*CzMinusAz - Ay*DzMinusBz,
     Ny = Bz*CxMinusAx + Cz*DxMinusBx - Dz*CxMinusAx - Az*DxMinusBx,
     Nz = Bx*CyMinusAy + Cx*DyMinusBy - Dx*CyMinusAy - Ax*DyMinusBy,
-    norm(Nx, Ny, Nz);
+    SqrLen = Nx*Nx + Ny*Ny + Nz*Nz,
+    norm(SqrLen, Nx, Ny, Nz);
 normal([{Ax,Ay,Az},{Bx,By,Bz}|[{Cx,Cy,Cz}|_]=T]=First)
   when is_float(Ax), is_float(Ay), is_float(Az),
        is_float(Bx), is_float(By), is_float(Bz) ->
@@ -181,9 +192,11 @@ normal([{Ax,Ay,Az},{Bx,By,Bz}|[{Cx,Cy,Cz}|_]=T]=First)
 normal_1([{Ax,Ay,Az}], [{Bx,By,Bz}|_], Sx, Sy, Sz)
   when is_float(Ax), is_float(Ay), is_float(Az),
        is_float(Sx), is_float(Sy), is_float(Sz) ->
-    norm(Sx + (Ay-By)*(Az+Bz),
-	 Sy + (Az-Bz)*(Ax+Bx),
-	 Sz + (Ax-Bx)*(Ay+By));
+    Nx = Sx + (Ay-By)*(Az+Bz),
+    Ny = Sy + (Az-Bz)*(Ax+Bx),
+    Nz = Sz + (Ax-Bx)*(Ay+By),
+    SqrLen = Nx*Nx + Ny*Ny + Nz*Nz,
+    norm(SqrLen, Nx, Ny, Nz);
 normal_1([{Ax,Ay,Az}|[{Bx,By,Bz}|_]=T], First, Sx0, Sy0, Sz0)
   when is_float(Ax), is_float(Ay), is_float(Az),
        is_float(Sx0), is_float(Sy0), is_float(Sz0) ->

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.57 2004/03/29 07:18:49 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.58 2004/05/19 03:45:22 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -542,8 +542,8 @@ new_vertex_pos(A, B, C, N, ExtrudeDist, Vtab) ->
     CPos = gb_trees:get(C, Vtab),
     VecA0 = e3d_vec:norm_sub(APos, BPos),
     VecB0 = e3d_vec:norm_sub(BPos, CPos),
-    VecA = e3d_vec:norm_cross(VecA0, N),
-    VecB = e3d_vec:norm_cross(VecB0, N),
+    VecA = e3d_vec:norm(e3d_vec:cross(VecA0, N)),
+    VecB = e3d_vec:norm(e3d_vec:cross(VecB0, N)),
     Vec = average(VecA, VecB),
     e3d_vec:add_prod(BPos, Vec, ExtrudeDist).
 
