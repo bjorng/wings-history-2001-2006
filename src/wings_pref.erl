@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.38 2002/03/31 17:28:39 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.39 2002/04/01 17:02:07 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -124,6 +124,8 @@ command({set,List}, _St) ->
     foreach(fun({Key,Val}) ->
 		    set_value(Key, Val),
 		    case Key of
+			vertex_size ->
+			    wings_draw:model_changed();
 			background_color ->
 			    {R,G,B} = Val,
 			    gl:clearColor(R, G, B, 1.0);
