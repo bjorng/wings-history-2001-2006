@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.64 2004/02/11 23:40:19 raimo_niskanen Exp $
+%%     $Id: wings_help.erl,v 1.65 2004/02/26 21:06:25 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -60,12 +60,13 @@ command(about, _St) ->
 
 getting_started() ->
     Help = ["When learning Wings, keep an eye at the information line at "
-	    "bottom of the screen. Generally it shows what the "
+	    "the bottom of the screen. Generally it shows what the "
 	    "mouse buttons will do at any given moment.",
 
 	    "The actions for the mouse buttons are given first, "
 	    "labeled L: (left mouse button), "
-	    "M: (middle button or scroll wheel), R: (right button).",
+	    "M: (middle button or scroll wheel), R: (right button), "
+	    "followed by any hotkey actions.",
 
 	    "To use mice with only one or two buttons, "
 	    "you must inform Wings how many buttons your mouse has "
@@ -85,7 +86,7 @@ one_or_two() ->
 
 	    "Note that only the Nendo and Blender modes can be "
 	    "used with a two-button mouse. Only the Nendo mode can "
-	    "be used with one-button mouse."],
+	    "be used with an one-button mouse."],
     help_window("Using a mouse with One or Two buttons", Help).
 
 advanced_menus() ->
