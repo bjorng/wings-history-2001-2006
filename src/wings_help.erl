@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.49 2003/03/12 06:26:01 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.50 2003/04/05 09:43:30 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -151,18 +151,17 @@ opengl_info() ->
 	    "Vendor: " ++ gl:getString(?GL_VENDOR) ++ "\n" ++
 	    "Renderer: " ++ gl:getString(?GL_RENDERER) ++ "\n" ++
 	    "Version: " ++ gl:getString(?GL_VERSION),
-	    deep_info([{"Red size",?SDL_GL_RED_SIZE},
-		       {"Green size",?SDL_GL_GREEN_SIZE},
-		       {"Blue size",?SDL_GL_BLUE_SIZE},
-		       {"Alpha size",?SDL_GL_ALPHA_SIZE},
-		       {"Buffer size",?SDL_GL_BUFFER_SIZE},
-		       {"Depth size",?SDL_GL_DEPTH_SIZE},
-		       {"Stencil size",?SDL_GL_STENCIL_SIZE},
-		       {"Accum. red size",?SDL_GL_ACCUM_RED_SIZE},
-		       {"Accum. green size",?SDL_GL_ACCUM_GREEN_SIZE},
-		       {"Accum. blue size",?SDL_GL_ACCUM_BLUE_SIZE},
-		       {"Accum. alpha size",?SDL_GL_ACCUM_ALPHA_SIZE}]),
-	    get_info([{"Max number of lights",?GL_MAX_LIGHTS},
+	    get_info([{"Red bits",?GL_RED_BITS},
+		      {"Green bits",?GL_GREEN_BITS},
+		      {"Blue bits",?GL_BLUE_BITS},
+		      {"Alpha bits",?GL_ALPHA_BITS},
+		      {"Depth bits",?GL_DEPTH_BITS},
+		      {"Stencil bits",?GL_STENCIL_BITS},
+		      {"Accum. red bits",?GL_ACCUM_RED_BITS},
+		      {"Accum. green bits",?GL_ACCUM_GREEN_BITS},
+		      {"Accum. blue bits",?GL_ACCUM_BLUE_BITS},
+		      {"Accum. alpha bits",?GL_ACCUM_ALPHA_BITS},
+		      {"Max number of lights",?GL_MAX_LIGHTS},
 		      {"Max clip planes",?GL_MAX_CLIP_PLANES},
 		      {"Max modelview stack depth",?GL_MAX_MODELVIEW_STACK_DEPTH},
 		      {"Max projection stack depth",?GL_MAX_PROJECTION_STACK_DEPTH},
@@ -178,16 +177,16 @@ opengl_info() ->
 		      {"Max depth of attribute stack",?GL_MAX_ATTRIB_STACK_DEPTH},
 		      {"Max depth of client attribute stack",
 		       ?GL_MAX_CLIENT_ATTRIB_STACK_DEPTH},
+		      {"Number of auxiliary buffers",?GL_AUX_BUFFERS},
+		      {"Color buffers store RGBA",?GL_RGBA_MODE},
+		      {"Color buffers store indicies",?GL_INDEX_MODE},
+		      {"Double buffering",?GL_DOUBLEBUFFER},
+		      {"Stereo buffers",?GL_STEREO},
 		      {"Max number of texturing units",
 		       ?GL_MAX_TEXTURE_UNITS}]),
 	    compressed_texture_info(),
 	    "OpenGL Extensions",extensions()],
     help_window("OpenGL Info", Help).
-
-deep_info([{Label,Attr}|T]) ->
-    Label ++ ": " ++ integer_to_list(sdl_video:gl_getAttribute(Attr)) ++ "\n" ++
-	deep_info(T);
-deep_info([]) -> [].
 
 get_info([{Label,Attr}|T]) ->
     Val = gl:getIntegerv(Attr),
