@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.45 2002/11/07 20:41:38 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.46 2002/11/08 09:18:37 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -526,7 +526,7 @@ insert_coords([], _, We) -> We.
 init_edit(MatName, Faces, We0) ->
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
-    {We,Vmap} = auv_segment:cut_model(Charts, Cuts, We0#we{mode=material}),
+    {We,Vmap} = auv_segment:cut_model(Charts, Cuts, We0),
     Map1 = number(build_map(Charts, Vmap, FvUvMap, We, []), 1),
     Map = gb_trees:from_orddict(Map1),
     #areas{we=We,orig_we=We0,as=Map,vmap=Vmap,matname=MatName}.
@@ -704,7 +704,7 @@ setup_view(Geom,Uvs) ->
     setup_view(Geom, undefined,Uvs).
 
 setup_view({X0,Y0,W,H,X0Y0,XM,YM}, Part, Uvs) ->
-    #uvstate{st = #st{mat=Mats}, 
+    #uvstate{st = #st{mat=Mats}, option=#setng{texbg=TexBg},
 	     areas = #areas{matname = MatN}} = Uvs,
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),    
     gl:viewport(X0,Y0,W,H),
@@ -740,7 +740,12 @@ setup_view({X0,Y0,W,H,X0Y0,XM,YM}, Part, Uvs) ->
     gl:'end'(),    
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1.0, 1.0, 1.0),   %%Clear
-    wings_material:apply_material(MatN, Mats),
+    case TexBg of
+	true ->
+	    wings_material:apply_material(MatN, Mats);
+	false ->
+	    ok
+    end,
     gl:'begin'(?GL_QUADS),
     gl:texCoord2f(0,0),    gl:vertex3f(0,0,-0.9),
     gl:texCoord2f(1,0),    gl:vertex3f(1,0,-0.9),
@@ -1219,7 +1224,7 @@ handle_event({action,wings,{view, Cmd}}, Uvs0) ->
     get_event(Uvs0#uvstate{st=St});
 
 handle_event(_Event,Uvs0) ->
-    ?DBG("Got unhandled Event ~p ~n", [_Event]),
+    %%?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(Uvs0).
 
 handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
@@ -1556,9 +1561,9 @@ outer_edges_1([E|T], Out) ->
     outer_edges_1(T, [E|Out]);
 outer_edges_1([], Out) -> reverse(Out).
 
-draw_area(A = #a{fs=Fs, vpos=Vs, center={CX,CY}, scale=Scale, rotate = R, twe=Twe,tbe=Tbe}, 
+draw_area(A = #a{fs=Fs,vpos=Vs,center={CX,CY},scale=Scale,rotate=R,twe=Twe0,tbe=Tbe0}, 
 	  We, Options = #setng{color = ColorMode, edges = EdgeMode}, Materials) -> 
-    TempWe = case Twe of
+    Twe = case Twe0 of
 		 undefined ->
 		     %% Temporary patch the we structure so we can use wings functions
 		     TempVs = We#we.vs,
@@ -1568,9 +1573,12 @@ draw_area(A = #a{fs=Fs, vpos=Vs, center={CX,CY}, scale=Scale, rotate = R, twe=Tw
 				   end, TempVs, Vs),
 		     We#we{vs = NewVs};
 		 _ ->
-		     Twe
+		     Twe0
 	     end,
-    TempBE = case Tbe of undefined -> outer_edges(Fs, TempWe); _ -> Tbe end,
+    Tbe = case Tbe0 of
+	      undefined -> outer_edges(Fs, Twe);
+	      _ -> Tbe0
+	  end,
 
     gl:pushMatrix(),
     gl:translatef(CX,CY,0.0),
@@ -1580,7 +1588,7 @@ draw_area(A = #a{fs=Fs, vpos=Vs, center={CX,CY}, scale=Scale, rotate = R, twe=Tw
     if
 	EdgeMode == border_edges ->
 	    %% Draw outer edges only
-	    #we{es=Etab, vs=Vtab}=TempWe,
+	    #we{es=Etab, vs=Vtab}=Twe,
 	    gl:pushMatrix(),
 	    gl:lineWidth(Options#setng.edge_width),
 	    DrawEdge = 
@@ -1614,13 +1622,13 @@ draw_area(A = #a{fs=Fs, vpos=Vs, center={CX,CY}, scale=Scale, rotate = R, twe=Tw
 		end,
 	    gl:glBegin(?GL_LINES),
 	    gl:color3f(0.6, 0.6, 0.6),
-	    lists:foreach(DrawEdge, TempBE),
+	    lists:foreach(DrawEdge, Tbe),
 	    gl:glEnd(),
 	    gl:popMatrix();
 	EdgeMode == all_edges ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:color3f(0.6, 0.6, 0.6),
-	    draw_faces(Fs, TempWe#we{mode = material});
+	    draw_faces(Fs, Twe#we{mode = material});
 	EdgeMode == no_edges ->
 	    ok
     end,
@@ -1628,13 +1636,10 @@ draw_area(A = #a{fs=Fs, vpos=Vs, center={CX,CY}, scale=Scale, rotate = R, twe=Tw
 	ColorMode == true ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    MatName = (gb_trees:get(hd(Fs), We#we.fs))#face.mat,
-	    case has_texture(MatName, Materials) of
-		true -> gl:enable(?GL_TEXTURE_2D);
-		false -> ignore
-	    end,
+	    wings_material:apply_material(MatName, Materials),
 	    lists:foreach(fun(Face) ->
 				  gl:color4fv(get_material(Face, Materials, We)),
-				  draw_faces([Face], TempWe)
+				  draw_faces([Face], Twe)
 			  end, Fs),
 	    case has_texture(MatName, Materials) of
 		true -> gl:disable(?GL_TEXTURE_2D);
@@ -1643,12 +1648,12 @@ draw_area(A = #a{fs=Fs, vpos=Vs, center={CX,CY}, scale=Scale, rotate = R, twe=Tw
 	is_tuple(ColorMode), size(ColorMode) == 4 ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:color4fv(ColorMode),
-	    draw_faces(Fs, TempWe#we{mode = material});
+	    draw_faces(Fs, Twe#we{mode = material});
 	true ->
 	    ignore
     end,
     gl:popMatrix(),
-    A#a{twe = TempWe, tbe = TempBE}.
+    A#a{twe=Twe,tbe=Tbe}.
 
 draw_faces(Fs, We) ->
     wings_draw_util:begin_end(fun() -> draw_faces2(Fs, We) end).
