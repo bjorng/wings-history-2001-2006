@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.49 2002/08/18 12:00:54 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.50 2002/09/25 16:32:42 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -37,8 +37,8 @@
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
-    Menu = [{"Edge operations",ignore},
-	    separator,
+    Menu = [{basic,{"Edge operations",ignore}},
+	    {basic,separator},
 	    {"Move",{move,Dir}},
 	    wings_menu_util:rotate(),
 	    wings_menu_util:scale(),

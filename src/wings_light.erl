@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.16 2002/09/18 13:16:08 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.17 2002/09/25 16:32:42 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -50,8 +50,8 @@ menu(X, Y, St) ->
     NotAmb = {iff,[spot,infinite,point]},
     One = one_light,
     Dir = wings_menu_util:directions(St#st{selmode=body}),
-    Menu0 = [{"Light operations",ignore},
-	     separator,
+    Menu0 = [{basic,{"Light operations",ignore}},
+	     {basic,separator},
 	     {"Move",{move_light,Dir}},
 	     {NotAmb,separator},
 	     {NotAmb,{"Position Highlight",position_fun(),

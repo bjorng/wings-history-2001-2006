@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.57 2002/09/18 13:16:08 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.58 2002/09/25 16:32:42 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -110,6 +110,10 @@ menu_show(#mi{ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
 normalize_menu(Menu, Hotkeys, Adv) ->
     normalize_menu(Menu, Hotkeys, Adv, []).
 
+normalize_menu([{basic,_}|Els], Hotkeys, true, Acc) ->
+    normalize_menu(Els, Hotkeys, true, Acc);
+normalize_menu([{basic,El}|Els], Hotkeys, false, Acc) ->
+    normalize_menu([El|Els], Hotkeys, false, Acc);
 normalize_menu([{advanced,_}|Els], Hotkeys, false, Acc) ->
     normalize_menu(Els, Hotkeys, false, Acc);
 normalize_menu([{advanced,El}|Els], Hotkeys, true, Acc) ->

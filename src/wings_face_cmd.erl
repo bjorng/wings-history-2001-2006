@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.61 2002/08/23 07:24:08 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.62 2002/09/25 16:32:42 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -22,8 +22,8 @@
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
-    Menu = [{"Face operations",ignore},
-	    separator,
+    Menu = [{basic,{"Face operations",ignore}},
+	    {basic,separator},
 	    {"Move",{move,Dir}},
 	    wings_menu_util:rotate(),
 	    wings_menu_util:scale(),
