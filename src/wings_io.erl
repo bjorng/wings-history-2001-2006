@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.101 2003/04/27 18:38:43 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.102 2003/05/20 04:45:16 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -398,8 +398,8 @@ get_sdl_event(#io{eq=Eq0}=Io) ->
 
 read_events(Eq0) ->
     case sdl_events:peepEvents(16, ?SDL_GETEVENT, ?SDL_ALLEVENTS) of
-	{0,[]} -> read_out(Eq0);
-	{_,Evs} -> read_events(enter_events(Evs, Eq0))
+	[] -> read_out(Eq0);
+	[_|_]=Evs -> read_events(enter_events(Evs, Eq0))
     end.
 
 enter_events([E|Evs], Eq) ->
