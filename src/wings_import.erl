@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.20 2004/07/01 14:02:42 dgud Exp $
+%%     $Id: wings_import.erl,v 1.21 2004/10/12 18:05:30 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -22,29 +22,34 @@
 
 import(File0, St) ->
     wings_pb:start("importing"),
-    #e3d_file{objs=Objs} = distribute_materials(File0),
+    #e3d_file{objs=Objs,dir=Dir0} = distribute_materials(File0),
+    Dir = get_file_directory(Dir0),
     N = length(Objs),
     Faces = foldl(fun(#e3d_object{obj=#e3d_mesh{fs=Ftab}}, S) ->
 			  S+length(Ftab)+1
 		  end, 0, Objs),
-    wings_pb:done(translate_objects(Objs, 1, N, 0, Faces, St)).
+    wings_pb:done(translate_objects(Objs, 1, N, 0, Faces, Dir, St)).
+
+get_file_directory(undefined) ->
+    wings_pref:get_value(current_directory);
+get_file_directory(Dir) when is_list(Dir) -> Dir.
 
 translate_objects([#e3d_object{name=Name,mat=Mat,obj=#e3d_mesh{fs=Fs}}=Obj|Os],
-		  I, N, Fsum0, Faces, St0) ->
+		  I, N, Fsum0, Faces, Dir, St0) ->
     Fsum = Fsum0 + length(Fs) + 1,
     wings_pb:update(Fsum/Faces,
 		    integer_to_list(I) ++ " of " ++ integer_to_list(N)),
     case import_object(Obj) of
         error ->
-            translate_objects(Os, I+1, N, Fsum, Faces, St0);
+            translate_objects(Os, I+1, N, Fsum, Faces, Dir, St0);
         We0 ->
-            {St1,NameMap} = wings_material:add_materials(Mat, St0),
+            {St1,NameMap} = wings_material:add_materials(Mat, Dir, St0),
             We1 = rename_materials(NameMap, We0),
             We = import_attributes(We1, Obj),
             St = store_object(Name, We, St1),
-            translate_objects(Os, I+1, N, Fsum, Faces, St)
+            translate_objects(Os, I+1, N, Fsum, Faces, Dir, St)
     end;
-translate_objects([], _, _, _, _, St) -> St.
+translate_objects([], _, _, _, _, _, St) -> St.
 
 import_attributes(We, #e3d_object{attr=Attr}) ->
     Visible = proplists:get_value(visible, Attr, true),
