@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.103 2003/11/28 18:09:32 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.104 2003/11/28 18:28:47 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -84,7 +84,7 @@ command(prefs, _St) ->
 	       {"User Interface",ui_prefs()},
 	       {"Misc",misc_prefs()}],
     PrefQs = [{Lbl,make_query(Ps)} || {Lbl,Ps} <- PrefQs0],
-    Qs = [{oframe,PrefQs,1,[{style,tabs}]}],
+    Qs = [{oframe,PrefQs,1,[{style,buttons}]}],
     wings_ask:dialog("Preferences", Qs,
 		     fun([_|Res]) ->
 			     {edit,{preferences,{set,Res}}}
