@@ -8,58 +8,30 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.5 2004/02/07 19:35:07 bjorng Exp $
+%%     $Id: wings_pb.erl,v 1.6 2004/02/08 15:29:35 bjorng Exp $
 %%
 
 -module(wings_pb).
 
 -define(NEED_OPENGL, 1).
-%%%-define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--export([start/1,done/0,done/1,update/1,update/2,
-	 init/0,loop/1]).
+-export([start/1,update/1,update/2,
+	 done/0,done/1,done_stat/0,done_stat/1]).
+
+-export([init/0,loop/1]).
 
 -define(PB, progress_bar).
 
-%% API %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Usage
-%%
-%% Start progress bar, you can't use opengl during start and stop
-%% Two modes Percent or Parts both moves has a default time 20+ secs
-%% the progress-speed slows down to zero when reaching the end
-%%
-%% Examples Mode1 (percentage): 
-%% Basic progress bar takes 20-30 secs to completion
-%% pb:start("Heavy calc1"), heavy_calc(xxx), pb:stop(),
-%% additionaly you can change the msg with pb:update("New Msg") 
-%% in between
-%%
-%% or in millisecs you specify the time
-%% pb:start("Very Heavy", {time, 60000}),  heavy_calc(xxx), pb:stop(),
-%% 
-%% If you know the percentage of completion
-%% you can call pb:update("New Msg", N/Max)  periodicly
-%% to help compensate the speed
-%% 
-%% You can also help with speed compensation by giving the number of
-%% parts/phases/stages that you have
-
-%% Examples Mode2 (parts)
-%% pb:start("Init", {parts, 3}), blaba,
-%% pb:update("Second Phase"), blalba,
-%% pb:update("Last Phase"), blalba,
-%% pb:stop()
-%%
-%% or (not so well currently)
-%% pb:start("Init", {parts, 238444}), loop(balal),
-%% pb:update("Second Phase", 23434), baslsd,
-%% pb:update("Second Phase", 43343), ...
-%% pb:stop()
-
 start(Msg) when is_list(Msg) ->
     WinInfo = wings_wm:viewport(message),
-    call({start,Msg,percent,WinInfo}).
+    cast({start,Msg,percent,WinInfo}).
+
+update(Percent) when is_float(Percent) -> 
+    cast({update,"",Percent}).
+
+update(Percent, Msg) when is_list(Msg), is_float(Percent) -> 
+    cast({update,Msg,Percent}).
 
 done() ->
     call(done).
@@ -68,13 +40,14 @@ done(Ret) ->
     done(),
     Ret.
 
-% Next part is completed or in percent mode change help-msg
-update(Msg) when is_list(Msg) -> 
-    cast({update, Msg, undefined}).
+done_stat() ->
+    Stat = done(),
+    Stat().
 
-%% Time in percent or in completed part number
-update(Percent, Msg) when is_list(Msg),  is_number(Percent) -> 
-    cast({update,Msg,Percent}).
+done_stat(Ret) ->
+    Stat = done(),
+    Stat(),
+    Ret.
 
 %% Helpers
 
@@ -103,15 +76,13 @@ reply(Pid, What) ->
     Pid ! {?PB,What},
     ok.
 	   
-%% Progress bar internals %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%
+%%%%%%%% Progress bar internals %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--define(REFRESH_T, 200).    % Nice enough animation 10 fps?
--define(MAX_T, 20000).      % 20 sek is average completion time ?
+-define(REFRESH_T, 200).			%Refresh interval.
 
 -record(state,
 	{refresh=infinity,
-	 activity=false,
+	 level=0,
 	 msg=[], 
 	 pos=0.0,
 	 next_pos=0.0,
@@ -125,28 +96,34 @@ init() ->
     register(?PB, Pid),
     ok.
 
-loop(#state{refresh=After,activity=Active}=S0) ->
+loop(#state{refresh=After,level=Level}=S0) ->
     receive
-	{Pid,?PB,{start,Msg,_Data,{X,Y,W,H}}} when Active == false ->
-	    S = #state{refresh=?REFRESH_T,activity=percent,
+	{?PB,{start,Msg,_Data,{X,Y,W,H}}} when Level =:= 0 ->
+	    S = #state{refresh=?REFRESH_T,level=1,
 		       msg=["",Msg],t0=now()},
 	    put(wm_viewport, {X,Y,W-17,H}),
 	    wings_text:choose_font(),
-	    reply(Pid, ok),
 	    loop(draw_position(S));
-	{?PB,{update,Msg,Time}} ->
+	{?PB,{update,Msg,Time}} when Level =:= 1 ->
 	    S1 = update(Msg, Time, S0),
 	    S = calc_position(S1),
 	    loop(draw_position(S));
-	{Pid,?PB,done} ->
+	{Pid,?PB,done} when Level =:= 1 ->
 	    S = update("done", 1.0, S0#state{next_pos=1.0,pos=1.0}),
-	    print_stats(S),
 	    draw_position(S),
-	    reply(Pid, ok),
+	    reply(Pid, fun() -> print_stats(S) end),
 	    loop(#state{});
+	{?PB,{start,_Msg,_Data,_}} ->
+	    S = S0#state{level=Level+1},
+	    loop(S);
+	{?PB,{update,_,_}} ->
+	    loop(S0);
+	{Pid,?PB,done} ->
+	    reply(Pid, ok),
+	    loop(S0#state{level=Level-1});
 	Msg ->
 	    io:format("~p: got unexpected msg ~p~n", [?MODULE, Msg]),
-	    loop(draw_position(S0))
+	    loop(S0)
     after After ->
 	    S = calc_position(S0),
 	    loop(draw_position(S))
@@ -158,7 +135,7 @@ update(Msg, Percent, #state{msg=[_|Msg0],stats=Stats0,t0=Time0}=S) ->
     S#state{msg=[Msg|Msg0],next_pos=Percent,stats=Stats}.
 
 calc_position(#state{pos=Pos0,next_pos=NextPos}=S) when Pos0 < NextPos ->
-    Pos = Pos0 + (NextPos - Pos0) / 4,
+    Pos = Pos0 + (NextPos - Pos0) / 5,
     S#state{pos=Pos}.
 
 print_stats(#state{t0=Time0,stats=[_|Stats0]}) ->
@@ -178,7 +155,6 @@ now_diff({A2, B2, C2}, {A1, B1, C1}) ->
 
 %% Draw Progress Bar 
 
-draw_position(#state{activity=false}=S) -> S;
 draw_position(#state{msg=Msg,pos=Pos}=S) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     {X,Y,W,H} = get(wm_viewport),
@@ -230,6 +206,5 @@ double_gradient(X, Y, BarW, W, H) ->
     gl:shadeModel(?GL_FLAT).
 
 build_msg([M]) -> M;
+build_msg([[]|T]) -> build_msg(T);
 build_msg([H|T]) -> build_msg(T) ++ ": " ++ H.
-
-    

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.2 2004/01/04 16:08:36 bjorng Exp $
+%%     $Id: wings_export.erl,v 1.3 2004/02/08 15:29:32 bjorng Exp $
 %%
 
 -module(wings_export).
@@ -23,12 +23,16 @@ export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
     Objs = foldl(fun(W, A) ->
 			 export_1(W, SubDivs, A)
 		 end, [], gb_trees:values(Shs)),
+    wings_pb:start("exporting"),
+    wings_pb:update(0.01, "preparing"),
     Creator = "Wings 3D " ++ ?WINGS_VERSION,
     Mat0 = wings_material:used_materials(St),
     Mat1 = keydelete('_hole_', 1, Mat0),
     Mat = mat_images(Mat1),
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
-    case Exporter(Name, Contents) of
+    wings_pb:update(1.0),
+    Res = wings_pb:done(Exporter(Name, Contents)),
+    case Res of
 	ok -> ok;
 	{error,Atom} when is_atom(Atom) ->
 	    wings_util:error(file:format_error(Atom));

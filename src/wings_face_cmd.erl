@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.100 2003/11/19 21:00:47 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.101 2004/02/08 15:29:32 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -587,21 +587,23 @@ smooth(St0) ->
 
 smooth(Faces0, #we{id=Id}=We0, Acc) ->
     Rs = wings_sel:face_regions(Faces0, We0),
-    We1 = smooth_regions(Rs, We0),
+    wings_pb:start("smoothing"),
+    We1 = wings_pb:done(smooth_regions(Rs, 1, length(Rs), We0)),
     NewFaces = wings_we:new_items(face, We0, We1),
     NewVs = wings_we:new_items(vertex, We0, We1),
     We2 = smooth_connect(NewVs, NewFaces, We1),
     We = wings_util:mirror_flatten(We0, We2),
     {We,[{Id,NewFaces}|Acc]}.
 
-smooth_regions([Faces0|Rs], #we{he=Htab}=We0) ->
+smooth_regions([Faces0|Rs], I, N, #we{he=Htab}=We0) ->
+    wings_pb:update(I/N, io_lib:format("~p/~p\n", [I,N])),
     HardEdges0 = wings_face:outer_edges(Faces0, We0),
     HardEdges = gb_sets:union(gb_sets:from_list(HardEdges0), Htab),
     Faces = gb_sets:to_list(Faces0),
     {Vs,Es} = all_edges(Faces0, We0),
     We = wings_subdiv:smooth(Faces, Vs, Es, HardEdges, We0),
-    smooth_regions(Rs, We);
-smooth_regions([], We) -> We.
+    smooth_regions(Rs, I+1, N, We);
+smooth_regions([], _, _, We) -> We.
 
 all_edges(Faces, We) ->
     {Vs,Es} = wings_face:fold_faces(
