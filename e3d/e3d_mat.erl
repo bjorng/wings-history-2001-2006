@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.19 2002/10/06 19:16:20 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.20 2002/12/16 22:06:16 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -17,6 +17,7 @@
 	 translate/1,translate/3,scale/1,scale/3,
 	 rotate/2,rotate_to_z/1,rotate_s_to_t/2,
 	 transpose/1,mul/2,mul_point/2,mul_vector/2]).
+-compile(inline).
 
 identity() ->
     Zero = 0.0,
@@ -63,29 +64,27 @@ rotate(A0, {X,Y,Z}) when is_float(X), is_float(Y), is_float(Z) ->
     A = A0*3.1416/180,
     CosA = math:cos(A),
     SinA = math:sin(A),
-    SSinA = {0.0,-Z*SinA,Y*SinA,
-	     Z*SinA,0.0,-X*SinA,
-	     -Y*SinA,X*SinA,0.0},
+    XSinA = X*SinA,
+    YSinA = Y*SinA,
+    ZSinA = Z*SinA,
+    SSinA = {0.0,-ZSinA,YSinA,
+	     ZSinA,0.0,-XSinA,
+	     -YSinA,XSinA,0.0},
     Uut = {X*X,X*Y,X*Z,
 	   Y*X,Y*Y,Y*Z,
 	   Z*X,Z*Y,Z*Z},
-    rot_add(Uut, rot_ineg_mul(Uut, CosA), SSinA).
+    rot_imul_add(Uut, CosA, SSinA).
 
-rot_add({A1,A2,A3,A4,A5,A6,A7,A8,A9},
-	{B1,B2,B3,B4,B5,B6,B7,B8,B9},
-	{C1,C2,C3,C4,C5,C6,C7,C8,C9})
+rot_imul_add({A1,A2,A3,A4,A5,A6,A7,A8,A9}, S,
+	     {C1,C2,C3,C4,C5,C6,C7,C8,C9})
   when is_float(A1), is_float(A2), is_float(A3),
        is_float(A4), is_float(A5), is_float(A6),
-       is_float(A7), is_float(A8), is_float(A9) ->
-    {A1+B1+C1,A4+B4+C4,A7+B7+C7,
-     A2+B2+C2,A5+B5+C5,A8+B8+C8,
-     A3+B3+C3,A6+B6+C6,A9+B9+C9,
+       is_float(A7), is_float(A8), is_float(A9), is_float(S) ->
+    NegS = -S,
+    {A1+S*(1.0-A1)+C1, A4+NegS*A4+C4, A7+NegS*A7+C7,
+     A2+NegS*A2+C2, A5+S*(1.0-A5)+C5, A8+NegS*A8+C8,
+     A3+NegS*A3+C3, A6+NegS*A6+C6,    A9+S*(1.0-A9)+C9,
      0.0,0.0,0.0}.
-
-rot_ineg_mul({M1,M2,M3,M4,M5,M6,M7,M8,M9}, S) when is_float(S) ->
-    {S*(1.0-M1),-S*M2,-S*M3,
-     -S*M4,S*(1.0-M5),-S*M6,
-     -S*M7,-S*M8,S*(1.0-M9)}.
 
 rotate_to_z(Vec) ->
     {Vx,Vy,Vz} = V =
@@ -171,6 +170,16 @@ transpose({M1,M2,M3,M4,M5,M6,M7,M8,M9,0.0=Z,0.0,0.0}) ->
      M3,M6,M9,
      Z,Z,Z}.
 
+mul({1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,B_tx,B_ty,B_tz},
+    {A_a,A_b,A_c,A_d,A_e,A_f,A_g,A_h,A_i,A_tx,A_ty,A_tz})
+  when is_float(A_tx), is_float(A_ty), is_float(A_tz),
+       is_float(B_tx), is_float(B_ty), is_float(B_tz) ->
+    {A_a, A_b, A_c,
+     A_d, A_e, A_f,
+     A_g, A_h, A_i,
+     A_tx + B_tx,
+     A_ty + B_ty,
+     A_tz + B_tz};
 mul({B_a,B_b,B_c,B_d,B_e,B_f,B_g,B_h,B_i,B_tx,B_ty,B_tz},
     {A_a,A_b,A_c,A_d,A_e,A_f,A_g,A_h,A_i,A_tx,A_ty,A_tz})
   when is_float(A_a), is_float(A_b), is_float(A_c), is_float(A_d), is_float(A_e),
