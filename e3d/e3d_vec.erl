@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.14 2003/04/12 06:35:44 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.15 2003/05/02 19:00:25 bjorng Exp $
 %%
 
 -module(e3d_vec).
 
 -export([zero/0,is_zero/1,add/1,add/2,sub/1,sub/2,mul/2,divide/2,neg/1,
 	 dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,norm/3,
-	 normal/3,normal/1,average/1,average/2,average/4]).
+	 normal/3,normal/1,average/1,average/2,average/4,
+	 bounding_box/1]).
 
 -compile(inline).
 -compile({inline_size,24}).
@@ -209,3 +210,23 @@ average({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32}, {V40,V41,V42})
     when is_float(V10), is_float(V11), is_float(V12) ->
     L = 0.25,
     {L*(V10+V20+V30+V40),L*(V11+V21+V31+V41),L*(V12+V22+V32+V42)}.
+
+bounding_box([{X,Y,Z}|Vs]) ->
+    bounding_box_1(Vs, X, X, Y, Y, Z, Z).
+
+bounding_box_1([{X,_,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when X < X0 ->
+    bounding_box_1(Vs, X, X1, Y0, Y1, Z0, Z1);
+bounding_box_1([{X,_,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when X > X1 ->
+    bounding_box_1(Vs, X0, X, Y0, Y1, Z0, Z1);
+bounding_box_1([{_,Y,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Y < Y0 ->
+    bounding_box_1(Vs, X0, X1, Y, Y1, Z0, Z1);
+bounding_box_1([{_,Y,_}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Y > Y1 ->
+    bounding_box_1(Vs, X0, X1, Y0, Y, Z0, Z1);
+bounding_box_1([{_,_,Z}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Z < Z0 ->
+    bounding_box_1(Vs, X0, X1, Y0, Y1, Z, Z1);
+bounding_box_1([{_,_,Z}|_]=Vs, X0, X1, Y0, Y1, Z0, Z1) when Z > Z1 ->
+    bounding_box_1(Vs, X0, X1, Y0, Y1, Z0, Z);
+bounding_box_1([_|Vs], X0, X1, Y0, Y1, Z0, Z1) ->
+    bounding_box_1(Vs, X0, X1, Y0, Y1, Z0, Z1);
+bounding_box_1([], X0, X1, Y0, Y1, Z0, Z1) ->
+    [{X0,Y0,Z0},{X1,Y1,Z1}].
