@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.103 2003/07/26 09:49:06 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.104 2003/07/26 09:49:32 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -729,7 +729,7 @@ select_draw_fun(#dlo{work=Work,src_we=#we{id=Id,perm=Perm}=We}=D, _)
 select_draw_fun(#dlo{pick=none,src_we=We}=D, _) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    ?TC(select_draw_1(We)),
+    select_draw_1(We),
     gl:endList(),
     draw_dlist(D#dlo{pick=List});
 select_draw_fun(D, _) -> draw_dlist(D).
