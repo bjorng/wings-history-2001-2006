@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dissolve.erl,v 1.10 2005/03/20 18:49:54 dgud Exp $
+%%     $Id: wings_dissolve.erl,v 1.11 2005/03/22 19:35:34 dgud Exp $
 %%
 
 -module(wings_dissolve).
@@ -23,9 +23,13 @@ faces([], We) -> We;
 faces(Faces, #we{fs=Ftab0}=We) ->
     case gb_sets:is_empty(Faces) of
 	true -> We;
-	false -> 
+	false when is_list(Faces) -> 
 	    Complement = ordsets:subtract(gb_trees:keys(Ftab0), 
-					  ordsets:from_list(Faces)),    
+					  ordsets:from_list(Faces)),
+	    dissolve_1(Faces, Complement, We);
+	false ->
+	    Complement = ordsets:subtract(gb_trees:keys(Ftab0), 
+					  gb_sets:to_list(Faces)),
 	    dissolve_1(Faces, Complement, We)
     end.
 
