@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.1 2002/02/02 07:13:28 bjorng Exp $
+%%     $Id: wpc_wrl.erl,v 1.2 2002/02/04 15:48:47 bjorng Exp $
 %%
 
 -module(wpc_wrl).
@@ -51,18 +51,22 @@ export(File_name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}=St) ->
     {ok,F} = file:open(File_name, [write]),
     io:format(F, "#VRML V2.0 utf8\n", []),
     io:format(F, "#Exported from ~s\n",[Creator]),
+    foreach(fun(Mt) ->
+		    def_material(F, Mt)
+	    end, Mat),
     foreach(fun(#e3d_object{name = Name, obj=Obj}) ->
 		    io:format(F, "DEF ~s Transform {\n",[Name]),
 		    io:format(F, "  children [\n",[]),
-		    export_object(F, Obj, Mat),
+		    export_object(F, Obj),
 		    io:put_chars(F, "  ]\n"),
 		    io:put_chars(F, "}\n") end, Objs),
     ok = file:close(F).
 
 
+
 % A first adventure into sofs. They seem extremely powerful if
 % I could only make any sense of the documentation ;)
-export_object(F, #e3d_mesh{fs=Fs,vs=Vs}, Mat_defs) ->
+export_object(F, #e3d_mesh{fs=Fs,vs=Vs}) ->
     Rel = map(fun(#e3d_face{mat=[Mat0], vs=Vs1}) ->
 		      {Mat0, Vs1}
 	      end, Fs),
@@ -83,7 +87,7 @@ export_object(F, #e3d_mesh{fs=Fs,vs=Vs}, Mat_defs) ->
     {_, Vs1} = to_gb_tree(Vs),
     foreach_except_last(fun({Mat, Vtxs, Fces}) ->
 				io:format(F, "    Shape {\n",[]),
-				material(F, lookup(Mat, Mat_defs)),
+				material(F, Mat),
 				coords(F, Vtxs, Vs1),
 				coord_index(F, Vtxs, Fces)
 			end,
@@ -91,23 +95,26 @@ export_object(F, #e3d_mesh{fs=Fs,vs=Vs}, Mat_defs) ->
 
 % Note: vrml represents ambient colour as a proportion of 
 % diffuse colour, not in its own right.
-material(F, Mat) ->
-    io:format(F, "      appearance Appearance {\n",[]),
-    io:format(F, "        material Material {\n",[]),
+def_material(F, {Name, Mat}) ->
+    io:format(F, "DEF ~p Material {\n",[Name]),
     {Ar, Ag, Ab} = lookup(ambient, Mat),
     {Dr, Dg, Db} = lookup(diffuse, Mat),
-    io:format(F, "          diffuseColor ~p ~p ~p\n",[Dr, Dg, Db]),
-    io:format(F, "          emissiveColor ~p ~p ~p\n",[0.0, 0.0, 0.0]),
+    io:format(F, "  diffuseColor ~p ~p ~p\n",[Dr, Dg, Db]),
+    io:format(F, "  emissiveColor ~p ~p ~p\n",[0.0, 0.0, 0.0]),
     {Sr, Sg, Sb} = lookup(specular, Mat),
-    io:format(F, "          specularColor ~p ~p ~p\n",[Sr, Sg, Sb]),
+    io:format(F, "  specularColor ~p ~p ~p\n",[Sr, Sg, Sb]),
     Amb = (Ar+Ag+Ab)/3,
-    io:format(F, "          ambientIntensity ~p\n",[Amb]),
+    io:format(F, "  ambientIntensity ~p\n",[Amb]),
     O = lookup(opacity, Mat),
-    io:format(F, "          transparency ~p\n",[1.0-O]),
+    io:format(F, "  transparency ~p\n",[1.0-O]),
     S = lookup(shininess, Mat),
-    io:format(F, "          shininess ~p\n",[S]),
-    io:put_chars(F, "        }\n      }\n").
+    io:format(F, "  shininess ~p\n",[S]),
+    io:put_chars(F, "}\n\n").
     
+material(F, Mat) ->
+    io:format(F, "      appearance Appearance {\n",[]),
+    io:format(F, "        material USE ~p\n",[Mat]),
+    io:format(F, "      }\n", []).
 
 coords(F, Vtxs, Vs) ->
     io:format(F, "      geometry IndexedFaceSet {\n",[]),
