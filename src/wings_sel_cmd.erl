@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.15 2002/05/28 08:31:51 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.16 2002/06/13 07:34:40 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -32,7 +32,8 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Adjacent",{adjacent,[{"Vertices",vertex},
 				   {"Edges",edge},
-				   {"Faces",face}]}},
+				   {"Faces",face},
+				   {"Objects",body}]}},
 	    {"By",{by,[{"Hard edges",hard_edges},
 		       {"Vertices with",{vertices_with,
 					 [{"2 edges",2},
