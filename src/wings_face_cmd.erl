@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.117 2004/12/22 07:24:52 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.118 2004/12/22 08:05:34 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -256,37 +256,56 @@ dissolve_sel(Faces, #we{id=Id}=We0, Acc) ->
     Sel = wings_we:new_items(face, We0, We),
     {We,[{Id,Sel}|Acc]}.
 		  
+dissolve([], We) -> We;
 dissolve(Faces, We0) ->
-    We = dissolve_1(Faces, We0),
-    case wings_we:is_consistent(We) of
-	true ->
-	    We;
-	false ->
-	    wings_u:error(?__(1,"Dissolving would cause an inconsistent object structure."))
-    end.
-
-dissolve_1(Faces, We) ->
     case gb_sets:is_empty(Faces) of
-	true -> We;
-	false -> wings_we:vertex_gc(dissolve_2(Faces, We#we{vc=undefined}))
+	true -> We0;
+	false ->
+	    We = optimistic_dissolve(Faces, We0),
+	    case wings_we:is_consistent(We) of
+		true ->
+		    We;
+		false ->
+		    wings_u:error(?__(1,"Dissolving would cause an inconsistent object structure."))
+	    end
     end.
 
-dissolve_2(Faces, We) ->
-    Parts = wings_sel:face_regions(Faces, We),
-    dissolve_3(Parts, We).
+optimistic_dissolve(Faces0, We0) ->
+    %% Optimistically assume that we have a simple region without
+    %% any holes.
+    case outer_edge_partition(Faces0, We0) of
+	[_]=Parts ->
+	    %% Assumption was correct.
+	    Faces = to_gb_set(Faces0),
+	    Face = gb_sets:smallest(Faces),
+	    Mat = wings_material:get(Face, We0),
+	    We1 = wings_material:delete_faces(Faces, We0),
+	    We = do_dissolve(Faces, Parts, Mat, We0, We1),
+	    wings_we:vertex_gc(We#we{vc=undefined});
+	[_|_] ->
+	    %% Assumption was wrong. We need to partition the selection
+	    %% and dissolve each partition in turn.
+	    Parts = wings_sel:face_regions(Faces0, We0#we{vc=undefined}),
+	    wings_we:vertex_gc(standard_dissolve(Parts, We0))
+    end.
 
-dissolve_3([Faces|T], We0) ->
+standard_dissolve([Faces|T], We0) ->
     Face = gb_sets:smallest(Faces),
     Mat = wings_material:get(Face, We0),
     We1 = wings_material:delete_faces(Faces, We0),
     Parts = outer_edge_partition(Faces, We1),
     We2 = do_dissolve(Faces, Parts, Mat, We0, We1),
+    NewFaces = gb_sets:to_list(wings_we:new_items(face, We0, We2)),
     We = foldl(fun(_, bad_edge) -> bad_edge;
 		  (F, W) -> wings_face:delete_if_bad(F, W)
-	       end, We2, gb_sets:to_list(wings_we:new_items(face, We0, We2))),
-    dissolve_3(T, We);
-dissolve_3([], We) -> We.
+	       end, We2, NewFaces),
+    standard_dissolve(T, We);
+standard_dissolve([], We) -> We.
 
+to_gb_set(List) when is_list(List) ->
+    gb_sets:from_list(List);
+to_gb_set(S) -> S.
+    
 do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
     We1 = do_dissolve_faces(Faces, We0),
     Inner = wings_face:inner_edges(Faces, WeOrig),
