@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.9 2002/05/08 09:53:30 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.10 2002/05/22 06:58:01 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
@@ -124,8 +124,9 @@ select_loop(#st{selmode=edge}=St) ->
     wings_sel:set(Sel, St);
 select_loop(St) -> St.
 
-select_loop(Edges0, #we{id=Id,es=Etab}, Acc) ->
-    Edges = select_loop_1(Edges0, Etab, gb_sets:empty()),
+select_loop(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
+    Edges1 = select_loop_1(Edges0, Etab, gb_sets:empty()),
+    Edges = add_mirror_edges(Edges1, We),
     [{Id,Edges}|Acc].
 
 select_loop_1(Edges0, Etab, Sel0) ->
@@ -174,6 +175,14 @@ next_edge(From, V, Face, Edge, Etab) ->
 	#edge{vs=V,lf=Face,ltsu=From,rtpr=To} -> To;
 	#edge{ve=V,rf=Face,rtsu=From,ltpr=To} -> To;
 	#edge{ve=V,lf=Face,ltpr=From,rtsu=To} -> To
+    end.
+
+add_mirror_edges(Edges, #we{mirror=none}) -> Edges;
+add_mirror_edges(Edges, #we{mirror=Face}=We) ->
+    MirrorEdges = gb_sets:from_ordset(wings_face:outer_edges([Face], We)),
+    case gb_sets:is_empty(gb_sets:intersection(Edges, MirrorEdges)) of
+	true -> Edges;
+	false -> gb_sets:union(Edges, MirrorEdges)
     end.
 
 %% edge_loop_vertices(EdgeSet, WingedEdge) -> [[Vertex]] | none
