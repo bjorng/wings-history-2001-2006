@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.119 2002/12/28 22:10:28 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.120 2003/01/01 15:32:24 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -26,13 +26,14 @@
 %% Main drag record. Kept in state.
 -record(drag,
 	{x,					%Original 2D position
-	 y,					
+	 y,
 	 xs=0,                                  %Summary of mouse movements
 	 ys=0,
 	 zs=0,
 	 xt=0,                                  %Last warp length
 	 yt=0,
 	 mmb_count=0,
+	 offset,				%Offset for each dimension.
 	 unit,					%Unit that drag is done in.
 	 flags=[],				%Flags.
 	 falloff,				%Magnet falloff.
@@ -53,8 +54,9 @@ setup(Tvs, Unit, Flags, St) ->
     wings_io:grab(),
     wings_wm:grab_focus(geom),
     Magnet = proplists:get_value(magnet, Flags, none),
-    {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = #drag{x=X,y=Y,unit=Unit,flags=Flags,
+    Offset0 = proplists:get_value(initial, Flags, []),
+    Offset = pad_initials(Offset0),
+    Drag = #drag{unit=Unit,flags=Flags,offset=Offset,
 		 falloff=falloff(Unit),magnet=Magnet,st=St},
     wings_draw:update_dlists(St),
     case Tvs of
@@ -219,9 +221,10 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 %%% Handling of drag events.
 %%%
 
-do_drag(Drag0) ->
-    {Event,Drag} = initial_motion(Drag0),
-    {seq,push,handle_drag_event_1(Event, Drag)}.
+do_drag(Drag) ->
+    {_,X,Y} = sdl_mouse:getMouseState(),
+    Ev = #mousemotion{x=X,y=Y,state=0},
+    {seq,push,handle_drag_event_1(Ev, Drag#drag{x=X,y=Y})}.
 
 help_message(#drag{unit=Unit}=Drag) ->
     Msg = "[L] Accept  [R] Cancel",
@@ -248,33 +251,13 @@ zmove_help() ->
 	mirai -> "[M]";
 	maya -> "[M]";
 	tds -> "[Ctrl]+[R]";
-	blender when Buttons == 2 -> "[Ctrl]+[R]";
-	blender -> "[Ctrl]+[R]"  %% Was "[Alt]+[M]" but that didn't work fixme bjorn
+	blender -> "[Ctrl]+[R]"
     end.
-
-initial_motion(#drag{x=X0,y=Y0,flags=Flags,unit=Unit}=Drag) ->
-    Ds0 = proplists:get_value(initial, Flags, []),
-    Ds = pad_initials(Ds0),
-    [X1,Y1,Z] = initial_motion_1(Unit, Ds),
-    X = X0 + X1, Y = Y0 - Y1,
-    {#mousemotion{x=X,y=Y,state=0},Drag#drag{zs=-Z}}.
-
-initial_motion_1([U|Us], [D|Ds]) ->
-    P = case clean_unit(U) of
-	    angle -> round(D*?MOUSE_DIVIDER/15);
-	    number -> round(D*?MOUSE_DIVIDER/20);
-	    _ -> round(D*?MOUSE_DIVIDER)
-	end,
-    [P|initial_motion_1(Us, Ds)];
-initial_motion_1([], [_|Ds]) ->
-    [0.0|initial_motion_1([], Ds)];
-initial_motion_1([falloff], []) -> [];
-initial_motion_1([], []) -> [].
 
 pad_initials(Ds) ->
     case length(Ds) of
 	L when L >= 3 -> Ds;
-	L -> Ds ++ lists:duplicate(3-L, 0)
+	L -> Ds ++ lists:duplicate(3-L, 0.0)
     end.
 
 get_drag_event(Drag) ->
@@ -462,9 +445,17 @@ motion(Event, Drag0) ->
 mouse_translate(Event0, Drag0) ->
     Mode = wings_pref:get_value(camera_mode),
     {Event,Mod} = mouse_pre_translate(Mode, wings_wm:me_modifiers(), Event0),
-    {Ds,Drag} = mouse_range(Event, Drag0),
+    {Ds0,Drag} = mouse_range(Event, Drag0),
+    Ds = add_offset(Ds0, Drag),
     Move = constrain(Ds, Mod, Drag),
     {Move,Drag}.
+
+add_offset(Ds, #drag{offset=Offset}) ->
+    add_offset_1(Ds, Offset).
+
+add_offset_1([D|Ds], [O|Ofs]) ->
+    [D+O|add_offset_1(Ds, Ofs)];
+add_offset_1([], _) -> [].
 
 mouse_pre_translate(_, Mod, #mousemotion{state=Mask}=Ev) ->
     if
