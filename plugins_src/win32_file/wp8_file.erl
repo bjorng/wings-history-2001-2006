@@ -55,10 +55,11 @@ fileop({file,merge}, _Next) ->
     file_dialog(1,".wings","Merge Wings 3D file");
 
 fileop(What,Next) ->
-    io:format("Default called for ~p~n",[What]),
-    Ret=Next(What),
-    io:format("Default returned ~p~n",[Ret]),
-    Ret.
+%     io:format("Default called for ~p~n",[What]),
+%     Ret=Next(What),
+%     io:format("Default returned ~p~n",[Ret]),
+%     Ret.
+    Next(What).
 
 file_dialog(Type,Ext,Title) ->
     Dir = case get(wp8_file_defdir) of
