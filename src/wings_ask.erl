@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.77 2003/03/12 08:26:07 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.78 2003/03/12 10:04:20 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -963,12 +963,12 @@ popup_redraw_1(_, _, _, _, _, _) -> keep.
 
 -record(but,
 	{label,					%Textual label.
-	 w,					%Width of button in pixels.
 	 action}).
 
 button(Label, Action) ->
-    W = wings_text:width([$\s,$\s|Label]),
-    But = #but{label=Label,w=W,action=Action},
+    W = lists:max([wings_text:width([$\s,$\s|Label]),
+		   wings_text:width(" cancel ")]),
+    But = #but{label=Label,action=Action},
     Fun = button_fun(),
     {Fun,false,But,W,?LINE_HEIGHT+2+2}.
 
@@ -988,7 +988,7 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
     blend(fun(Col) ->
 		  wings_io:raised_rect(X, Y0+2, W, H-4, Col)
 	  end),
-    TextX = X + (W-length(Label)*?CHAR_WIDTH) div 2,
+    TextX = X + 2 + (W-wings_text:width(Label)) div 2,
     wings_io:text_at(TextX, Y, Label),
     if
 	Active == true ->

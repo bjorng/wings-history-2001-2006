@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.232 2003/03/11 21:24:01 bjorng Exp $
+%%     $Id: wings.erl,v 1.233 2003/03/12 10:04:19 bjorng Exp $
 %%
 
 -module(wings).
@@ -843,7 +843,8 @@ define_command(?SDL_RELEASED, N, #st{repeatable=Cmd,def=DefCmd0}) ->
 		      "])?",
 		      fun() ->
 			      DefCmd = setelement(N, DefCmd0, Cmd),
-			      wings_wm:send(This, {new_default_command,DefCmd})
+			      wings_wm:send(This, {new_default_command,DefCmd}),
+			      ignore
 		      end, ignore);
 define_command(_, _, _) -> keep.
 

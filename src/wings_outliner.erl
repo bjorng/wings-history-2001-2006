@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.32 2003/03/12 06:26:21 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.33 2003/03/12 10:04:22 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -249,7 +249,8 @@ delete_image(Id, #ost{st=St}) ->
 			      "(NOT undoable)?",
 			      fun() ->
 				      wings_image:delete(Id),
-				      wings_wm:send(geom, need_save)
+				      wings_wm:send(geom, need_save),
+				      ignore
 			      end, ignore)
     end.
 

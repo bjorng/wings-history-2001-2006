@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.66 2003/03/12 06:19:39 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.67 2003/03/12 10:04:22 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -17,7 +17,8 @@
 	 button_message/1,button_message/2,button_message/3,
 	 button_format/1,button_format/2,button_format/3,
 	 rmb_format/1,
-	 message/1,message/2,yes_no/1,yes_no/3,
+	 message/1,message/2,
+	 yes_no/1,yes_no/2,yes_no/3,yes_no_cancel/3,
 	 get_matrices/2,mirror_matrix/1,
 	 mirror_flatten/2,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
@@ -109,12 +110,10 @@ message(Message, _) ->
     message(Message).
 
 message(Message) ->
-%     Qs = {vframe,
-% 	  [{label,Message},
-% 	   {hframe,[{button,ok}]}]},
-%     wings_ask:dialog("Error!", Qs, fun(_) -> ignore end).
-    wings_plugin:call_ui({message,Message}),
-    keep.
+    Qs = {vframe,
+	  [{label,Message},
+	   {hframe,[{button,ok}]}]},
+    wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 get_matrices(Id, MM) ->
     wings_view:projection(),
@@ -157,6 +156,9 @@ rel2fam(Rel) ->
 yes_no(Question) ->
     wings_plugin:call_ui({question,Question}).
 
+yes_no(Question, Yes) ->
+    yes_no(Question, Yes, ignore).
+
 yes_no(Question, Yes, No) ->
     Qs = {vframe,
 	  [{label,Question,[{break,45}]},
@@ -164,8 +166,23 @@ yes_no(Question, Yes, No) ->
 		    {button,"No",yes_no_fun(No)}]}]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
+yes_no_cancel(Question, Yes, No) ->
+    Qs = {vframe,
+	  [{label,Question,[{break,45}]},
+	   {hframe,[{button,"Yes",yes_no_fun(Yes)},
+		    {button,"No",yes_no_fun(No)},
+		    {button,"Cancel",yes_no_fun(ignore)}]}]},
+    wings_ask:dialog("", Qs, fun(_) -> ignore end).
+
 yes_no_fun(ignore) -> fun(_) -> ignore end;
-yes_no_fun(Fun) -> fun(_) -> Fun() end.
+yes_no_fun(Fun) ->
+    This = wings_wm:this(),
+    fun(_) ->
+	    case Fun() of
+		ignore -> ignore;
+		Action -> wings_wm:send(This, {action,Action})
+	    end
+    end.
 
 stringify({Atom,Other}) when is_atom(Atom) ->
     cap(atom_to_list(Atom)) ++

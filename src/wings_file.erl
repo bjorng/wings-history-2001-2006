@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.105 2003/02/26 12:33:40 dgud Exp $
+%%     $Id: wings_file.erl,v 1.106 2003/03/12 10:04:21 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -145,6 +145,8 @@ command({export_selected,xndo}, St) ->
     St;
 command(quit, St) ->
     quit(St);
+command(confirmed_quit, _) ->
+    quit;
 command(Key, St) when is_integer(Key) ->
     Recent = wings_pref:get_value(recent_files, []),
     {_,File} = lists:nth(Key, Recent),
@@ -152,16 +154,16 @@ command(Key, St) when is_integer(Key) ->
 
 quit(#st{saved=true}) -> quit;
 quit(St) ->
-    case wings_util:yes_no("Do you want to save your changes before "
-			   "quitting?") of
-	no -> quit;
-	yes ->
-	    case save(St) of
-		aborted -> St;
-		_Other -> quit
-	    end;
-	aborted -> St
-    end.
+    wings_util:yes_no_cancel("Do you want to save your changes before quitting?",
+			     fun() ->
+				     case save(St) of
+					 aborted -> ignore;
+					 _Other -> {file,confirmed_quit}
+				     end
+			     end,
+			     fun() ->
+				     {file,confirmed_quit}
+			     end).
 
 new(#st{saved=true}=St0) ->
     St = clean_st(St0#st{file=undefined}),

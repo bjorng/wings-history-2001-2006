@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.23 2003/03/11 13:43:15 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.24 2003/03/12 10:04:23 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -90,22 +90,24 @@ ctrl_anchor(Client, Flags) ->
 	    {_,Cy} = wings_wm:win_ul(Client),
 	    ctrl_anchor_1(Anchor, Client, Cy-Y),
 	    {Lt,Top} = wings_wm:win_ul(Client),
+	    CtrlHeight = ?LINE_HEIGHT+3,
 	    if
-		Lt < 0 -> wings_wm:update_window(Client, [{x,0}]);
+		Lt < 0 -> wings_wm:update_window(Client, [{x,2}]);
 		true -> ok
 	    end,
 	    if
-		Top < 0 -> wings_wm:update_window(Client, [{x,0}]);
+		Top < CtrlHeight ->
+		    wings_wm:update_window(Client, [{y,CtrlHeight}]);
 		true -> ok
 	    end,
 	    {W,H} = wings_wm:top_size(),
 	    {Rt,Bot} = wings_wm:win_lr(Client),
 	    if
-		W < Rt -> wings_wm:update_window(Client, [{dx,W-Rt}]);
+		W < Rt -> wings_wm:update_window(Client, [{dx,W-Rt-2}]);
 		true -> ok
 	    end,
 	    if
-		H < Bot -> wings_wm:update_window(Client, [{dy,H-Bot}]);
+		H < Bot -> wings_wm:update_window(Client, [{dy,H-Bot-2}]);
 		true -> ok
 	    end
     end.
