@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.106 2003/11/09 08:35:59 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.107 2003/11/09 11:19:47 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -33,7 +33,7 @@
 %-define(DEBUG, true).
 -ifdef(DEBUG).
 -define(DEBUG_DISPLAY(X), (erlang:display({?MODULE,?LINE,X}))).
--define(DEBUG_FORMAT(Fmt,Args), 
+-define(DEBUG_FORMAT(Fmt,Args),
 	(io:format(?MODULE_STRING":"++integer_to_list(?LINE)++" "++Fmt, Args))).
 -else.
 -define(DEBUG_DISPLAY(_X), true).
@@ -91,14 +91,14 @@ ask_unzip([], Labels, Vals) ->
 
 %%
 %% Syntax of Qs.
-%% 
+%%
 %% {hframe,Qs [,Flags]}				-- Horizontal frame
 %% {vframe,Qs [,Flags]}				-- Vertical frame
 %%     Flags = [Flag]
 %%     Flag = {title,Title,String}
-%% 
+%%
 %% {label,LabelString}				-- Textual label
-%% 
+%%
 %% {vradio,Alts,VarName,DefaultValue,Flags}	-- Radio buttons vertically
 %% {hradio,Alts,VarName,DefaultValue,Flags}     -- Radio buttons horizontally
 %%     Alts = [{PromptString,Value}]
@@ -187,7 +187,7 @@ blanket(_, _) -> keep.
 get_event(S) ->
     wings_wm:dirty(),
     {replace,
-     fun(Ev) -> 
+     fun(Ev) ->
 	     case catch event(Ev, S) of
 		 {'EXIT',Reason} ->
 		     io:format("Dialog ~p~nCrashed for event ~p~n"
@@ -279,7 +279,7 @@ mouse_event(X0, Y0, #mousemotion{}=Ev, #s{focus=I,ox=Ox,oy=Oy}=S) ->
     X = X0-Ox,
     Y = Y0-Oy,
     field_event(Ev#mousemotion{x=X,y=Y}, I, S);
-mouse_event(X0, Y0, #mousebutton{state=State}=Ev, 
+mouse_event(X0, Y0, #mousebutton{state=State}=Ev,
 	    #s{focus=I0,ox=Ox,oy=Oy,fi=Fis}=S0) ->
     X = X0-Ox,
     Y = Y0-Oy,
@@ -341,7 +341,7 @@ set_focus(I, #s{focus=OldFocus,fi=Fis,store=Store0}=S) ->
 	    end,
     S#s{focus=I,store=Store}.
 
-		    
+
 
 field_event(Ev, #s{focus=I}=S) ->
     field_event(Ev, I, S).
@@ -411,9 +411,9 @@ collect_result(I, Fis, Store) when I =< size(Fis) ->
 		none ->
 		    collect_result(I+1, Fis, Store);
 		{value,Res} ->
-		    [case Key of 
-			 0 -> Res; 
-			 _ -> {Key,Res} 
+		    [case Key of
+			 0 -> Res;
+			 _ -> {Key,Res}
 		     end|collect_result(I+1, Fis, Store)]
 	    end
     end;
@@ -442,7 +442,7 @@ draw_fields(I, Fis, Focus, Store, Keep) when I =< size(Fis) ->
 	enable when Disabled == true ->
 	    draw_fields(I+1, setelement(I, Fis, Fi#fi{disabled=false}),
 			Focus, Store, change);
-	disable when Disabled == false -> 
+	disable when Disabled == false ->
 	    draw_fields(I+1, setelement(I, Fis, Fi#fi{disabled=true}),
 			Focus, Store, change);
 	_ ->
@@ -501,13 +501,13 @@ normalize({key_alt,{Var,Def},Prompt,Val}, Fi) ->
 normalize({key_alt,{Var,Def},Prompt,Val,Flags}, Fi) ->
     normalize_field(radiobutton(Var, Def, Prompt, Val), [{key,Var}|Flags], Fi);
 normalize({menu,Menu,{Var,Def}}, Fi) ->
-    normalize_field(menu(Var, Def, Menu), [{key,Var}], Fi);    
+    normalize_field(menu(Var, Def, Menu), [{key,Var}], Fi);
 normalize({menu,Menu,VarDef}, Fi) ->
     normalize({menu,Menu,VarDef,[]}, Fi);
 normalize({menu,Menu,{Var,Def},Flags}, Fi) ->
-    normalize_field(menu(Var, Def, Menu), [{key,Var}|Flags], Fi);    
+    normalize_field(menu(Var, Def, Menu), [{key,Var}|Flags], Fi);
 normalize({menu,Menu,Def,Flags}, Fi) ->
-    normalize_field(menu(0, Def, Menu), Flags, Fi);    
+    normalize_field(menu(0, Def, Menu), Flags, Fi);
 normalize({button,Action}, Fi) when is_atom(Action) ->
     Label = button_label(Action),
     Flags = case Action of
@@ -606,7 +606,7 @@ frame_fit_title(W, Flags) ->
 	undefined -> W;
 	Title -> max(3*?CHAR_WIDTH+wings_text:width(Title), W)
     end.
-	     
+
 normalize_field({Handler,Inert,Priv,W,H}, Flags, Fi) ->
     {Fi#fi{handler=Handler,inert=Inert,flags=Flags,w=W,h=H},Priv}.
 
@@ -646,11 +646,11 @@ flatten_fields([{#fi{flags=Flags}=Fi0,Priv}|FiPrivs], Store0, I0, Fis0) ->
 		hook=proplists:get_value(hook, Flags)},
     case Priv of
 	#vframe{} ->
-	    {Store,I,Fis} = 
+	    {Store,I,Fis} =
 		flatten_fields(Priv#vframe.fields, Store0, I0+1, [Fi|Fis0]),
 	    flatten_fields(FiPrivs, Store, I, Fis);
 	#hframe{} ->
-	    {Store,I,Fis} = 
+	    {Store,I,Fis} =
 		flatten_fields(Priv#hframe.fields, Store0, I0+1, [Fi|Fis0]),
 	    flatten_fields(FiPrivs, Store, I, Fis);
 	undefined ->
@@ -662,7 +662,7 @@ flatten_fields([{#fi{flags=Flags}=Fi0,Priv}|FiPrivs], Store0, I0, Fis0) ->
 
 
 
-%% 
+%%
 %% Hframe and Vframe
 %%
 
@@ -805,13 +805,13 @@ cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED}, #fi{x=X,key=Key}, I, Store) ->
 cb_event(_Ev, _Fi, _I, _Store) -> keep.
 
 cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
-    wings_io:sunken_gradient(X, Y0+?CHAR_HEIGHT-9, 8, 8, 
+    wings_io:sunken_gradient(X, Y0+?CHAR_HEIGHT-9, 8, 8,
 			     case DisEnable of
 				 disable -> color3();
 				 _ -> {0.82,0.82,0.82}
 			     end, color4(), Active),
-    FgColor = case DisEnable of 
-		  disable -> color3_disabled(); 
+    FgColor = case DisEnable of
+		  disable -> color3_disabled();
 		  _-> color3_text()
 	      end,
     gl:color3fv(FgColor),
@@ -874,8 +874,8 @@ rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, #fi{x=X}, I, Store) ->
 rb_event(_Ev, _Fi, _I, _Store) -> keep.
 
 rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
-    FgColor = case DisEnable of 
-		  disable -> color3_disabled(); 
+    FgColor = case DisEnable of
+		  disable -> color3_disabled();
 		  _-> color3_text()
 	      end,
     Y = Y0+?CHAR_HEIGHT,
@@ -920,8 +920,18 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
     wings_io:text_at(X+2*?CHAR_WIDTH, Y, Label),
     if
 	Active == true ->
-	    wings_io:text_at(X+2*?CHAR_WIDTH, Y,
-			     duplicate(length(Label), $_));
+	    Border = <<
+		      2#0011111000000000:16,
+		      2#0111111100000000:16,
+		      2#1100000110000000:16,
+		      2#1100000110000000:16,
+		      2#1100000110000000:16,
+		      2#1100000110000000:16,
+		      2#1100000110000000:16,
+		      2#0111111100000000:16,
+		      2#0011111000000000:16>>,
+	    gl:rasterPos2i(X, Y),
+	    gl:bitmap(9, 9, 0, 1, 0, 0, Border);
 	true -> ok
     end,
     gl:color3b(0, 0, 0),
@@ -964,7 +974,7 @@ menu_event({key,_,_,$\s}, #fi{hook=Hook}=Fi, I, Store) ->
     Val = gb_trees:get(Ck, Store),
     Disabled = hook(Hook, menu_disabled, [Ck, I, Store]),
     menu_popup(Fi, M, Val, Disabled);
-menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, #fi{hook=Hook}=Fi, 
+menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, #fi{hook=Hook}=Fi,
 	   I, Store) ->
     #menu{var=Var} = M = gb_trees:get(-I, Store),
     Ck = ck(Var, I),
@@ -984,17 +994,17 @@ menu_width([{S,_}|T], W0) ->
 menu_width([], W) -> W.
 
 menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
-    FgColor = case DisEnable of 
-		  disable -> color3_disabled(); 
+    FgColor = case DisEnable of
+		  disable -> color3_disabled();
 		  _-> color3_text()
 	      end,
     blend(fun(Col) ->
 		  case DisEnable of
 		      disable ->
-			  wings_io:border(X, Y0+1, W-?CHAR_WIDTH+10, 
+			  wings_io:border(X, Y0+1, W-?CHAR_WIDTH+10,
 					  H-3, Col, FgColor);
 		      _ ->
-			  wings_io:gradient_border(X, Y0+1, W-?CHAR_WIDTH+10, 
+			  wings_io:gradient_border(X, Y0+1, W-?CHAR_WIDTH+10,
 						   H-3, Col, FgColor, Active)
 		  end
 	  end),
@@ -1037,7 +1047,7 @@ menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{menu=Menu0}, Val, Disabled) ->
 	    Op = {seq,push,get_popup_event(Ps)},
 	    X = X1-2*?CHAR_WIDTH,
 	    Y = Y1-2-(Sel-1)*?LINE_HEIGHT,
-	    wings_wm:new(menu_popup, {X,Y,highest}, 
+	    wings_wm:new(menu_popup, {X,Y,highest},
 			 {W+2*?CHAR_WIDTH,Mh+10}, Op),
 	    wings_wm:grab_focus(menu_popup)
     end,
@@ -1048,9 +1058,9 @@ popup_find_index(Menu, Val) ->
 
 popup_find_index([], _Val, _I, J) -> J;
 popup_find_index([{_,Val,false}|_], Val, I, _J) -> I;
-popup_find_index([{_,_,false}|T], Val, I, 0) -> 
+popup_find_index([{_,_,false}|T], Val, I, 0) ->
     popup_find_index(T, Val, I+1, I);
-popup_find_index([_|T], Val, I, J) -> 
+popup_find_index([_|T], Val, I, J) ->
     popup_find_index(T, Val, I+1, J).
 
 
@@ -1074,30 +1084,30 @@ popup_event(#mousemotion{y=Y}, #popup{menu=Menu,sel=Sel0}=Ps) ->
     end;
 popup_event(#mousebutton{button=1,state=?SDL_RELEASED}, Ps) ->
     popup_key($ , 0, $ , Ps);
-popup_event(#keyboard{sym=Sym,mod=Mod,unicode=Unicode}, Ps) -> 
+popup_event(#keyboard{sym=Sym,mod=Mod,unicode=Unicode}, Ps) ->
     popup_key(Sym, Mod, Unicode, Ps);
-popup_event(_Event, _Ps) -> 
+popup_event(_Event, _Ps) ->
     ?DEBUG_DISPLAY([_Event,_Ps]),
     keep.
 
-popup_key(?SDLK_TAB, Mod, _Unicode, Ps) when ?IS_SHIFTED(Mod) -> 
+popup_key(?SDLK_TAB, Mod, _Unicode, Ps) when ?IS_SHIFTED(Mod) ->
     popup_key(16, Ps);
-popup_key(?SDLK_TAB, _Mod, _Unicode, Ps) -> 
+popup_key(?SDLK_TAB, _Mod, _Unicode, Ps) ->
     popup_key(14, Ps);
-popup_key(?SDLK_UP, _Mod, _Unicode, Ps) -> 
+popup_key(?SDLK_UP, _Mod, _Unicode, Ps) ->
     popup_key(16, Ps);
-popup_key(?SDLK_DOWN, _Mod, _Unicode, Ps) -> 
+popup_key(?SDLK_DOWN, _Mod, _Unicode, Ps) ->
     popup_key(14, Ps);
-popup_key(?SDLK_KP_ENTER, _Mod, _Unicode, Ps) -> 
+popup_key(?SDLK_KP_ENTER, _Mod, _Unicode, Ps) ->
     popup_key($ , Ps);
-popup_key(?SDLK_ESCAPE, _Mod, _Unicode, 
-	  #popup{parent=Parent,menu=Menu,orig_sel=OrigSel}) -> 
+popup_key(?SDLK_ESCAPE, _Mod, _Unicode,
+	  #popup{parent=Parent,menu=Menu,orig_sel=OrigSel}) ->
     {_,Val,_} = element(OrigSel, Menu),
     wings_wm:send(Parent, {popup_result,Val}),
     delete;
-popup_key(_Sym, _Mod, $\r, Ps) -> 
+popup_key(_Sym, _Mod, $\r, Ps) ->
     popup_key($ , Ps);
-popup_key(_Sym, _Mod, Unicode, Ps) -> 
+popup_key(_Sym, _Mod, Unicode, Ps) ->
     popup_key(Unicode, Ps).
 
 popup_key(16, #popup{sel=Sel}=Ps) -> %Ctrl-P
@@ -1193,8 +1203,8 @@ button_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
     button_draw(Active, Fi, gb_trees:get(-I, Store), DisEnable);
 button_event(value, _, _, _) ->
     none;
-button_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED}, 
-	     #fi{x=Bx,y=By,w=W,h=H}, I, Store) 
+button_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED},
+	     #fi{x=Bx,y=By,w=W,h=H}, I, Store)
   when Bx =< X, X =< Bx+W, By =< Y, Y =< By+H ->
     #but{action=Action} = gb_trees:get(-I, Store),
     Action;
@@ -1205,8 +1215,8 @@ button_event(_Ev, _Fi, _I, _Store) -> keep.
 
 button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnable) ->
     Y = Y0+?CHAR_HEIGHT+2,
-    FgColor = case DisEnable of 
-		  disable -> color3_disabled(); 
+    FgColor = case DisEnable of
+		  disable -> color3_disabled();
 		  _ -> color3_text()
 	      end,
     blend(fun(Col) ->
@@ -1254,7 +1264,7 @@ col_event({key,_,_,$\s}, Fi, I, Store) ->
 col_event(#mousemotion{x=Xm,y=Ym}, #fi{key=Key}=Fi, I, Store) ->
     case col_inside(Xm, Ym, Fi) of
 	true -> keep;
-	false -> 
+	false ->
 	    RGB = gb_trees:get(ck(Key, I), Store),
 	    {drag,{3*?CHAR_WIDTH,?CHAR_HEIGHT},{color,RGB}}
     end;
@@ -1270,7 +1280,7 @@ col_event({drop,{color,RGB1}}, #fi{key=Key}, I, Store) ->
 col_event(_Ev, _Fi, _I, _Store) -> keep.
 
 %% replace_rgb(OldRGBA, NewRGBA) -> RGBA
-%%  Replace a color (RGB + possibly A) with a new color, 
+%%  Replace a color (RGB + possibly A) with a new color,
 %%  making sure that the new color has the same number of components.
 replace_rgb({_,_,_}, {_,_,_}=RGB) -> RGB;
 replace_rgb({_,_,_}, {R,G,B,_}) -> {R,G,B};
@@ -1278,16 +1288,16 @@ replace_rgb({_,_,_,_}, {_,_,_,_}=RGB) -> RGB;
 replace_rgb({_,_,_,A}, {R,G,B}) -> {R,G,B,A}.
 
 col_draw(Active, #fi{x=X,y=Y0}, RGB, DisEnable) ->
-    FgColor = case DisEnable of 
-		  disable -> color3_disabled(); 
+    FgColor = case DisEnable of
+		  disable -> color3_disabled();
 		  _-> color3_text()
 	      end,
     case DisEnable of
 	disable ->
-	    wings_io:border(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT, 
+	    wings_io:border(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT,
 			    RGB, FgColor);
 	_ ->
-	    wings_io:sunken_rect(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT, 
+	    wings_io:sunken_rect(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT,
 				 RGB, color4(), Active)
     end,
     gl:color3b(0, 0, 0),
@@ -1449,7 +1459,7 @@ integer_chars(Min, Max) ->
 
 float_chars() ->
     float_chars(-1.0, +1.0).
-	    
+
 float_chars(Min, Max) ->
     fun ($-) when Min < 0.0 -> true;
 	($+) when Max > 0.0 -> true;
@@ -1457,7 +1467,7 @@ float_chars(Min, Max) ->
 	($.) -> true;
 	(_) -> false
     end.
-	    
+
 all_chars(_) -> true.
 
 integer_range(Min, Max) ->
@@ -1543,19 +1553,19 @@ gen_text_handler(Ev, #fi{key=Key}=Fi, I, Store0) ->
 		 end,
     {store,gb_trees:update(-I, Ts, Store)}.
 
-draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password}, 
+draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
 		   Val, DisEnable) ->
     Str0 = text_val_to_str(Val),
-    Str = case Password of 
+    Str = case Password of
 	      true -> stars(Str0);
-	      false -> Str0 
+	      false -> Str0
 	  end,
     FgColor =
 	case DisEnable of
 	    disable ->
 		blend(fun(Col) ->
-			      wings_io:sunken_rect(X0, Y0+2, 
-						   (Max+1)*?CHAR_WIDTH, 
+			      wings_io:sunken_rect(X0, Y0+2,
+						   (Max+1)*?CHAR_WIDTH,
 						   ?CHAR_HEIGHT+1,
 						   Col, Col)
 		      end),
@@ -1572,7 +1582,7 @@ draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
     wings_io:text_at(X, Y, Str),
     DisEnable.
 
-draw_text_active(#fi{x=X0,y=Y0}, 
+draw_text_active(#fi{x=X0,y=Y0},
 		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password},
 		 DisEnable) ->
     wings_io:sunken_gradient(X0, Y0+2, (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
@@ -1963,7 +1973,7 @@ blend(Draw) ->
 
 color3_text() ->
     wings_pref:get_value(dialog_text).
-    
+
 color3_disabled() ->
     wings_pref:get_value(dialog_disabled).
 
@@ -1974,7 +1984,7 @@ color4_highlight() ->
 color4_lowlight() ->
     wings_color:mix(?BEVEL_LOWLIGHT_MIX, {0,0,0}, color4()).
 
-color3() ->    
+color3() ->
     {R,G,B,_} = color4(),
     {R,G,B}.
 
