@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.184 2003/01/03 07:00:37 bjorng Exp $
+%%     $Id: wings.erl,v 1.185 2003/01/03 07:46:51 bjorng Exp $
 %%
 
 -module(wings).
@@ -134,11 +134,11 @@ init(File, Root) ->
     caption(St),
     wings_wm:init(),
     init_menubar(),
-    open_file(File),
     {W,H} = wings_wm:top_size(),
     Op = main_loop_noredraw(St),		%Replace crash handler
 						%with this handler.
     wings_wm:new(geom, {0,0,1}, {W,H}, Op),
+    open_file(File),
 
     case catch wings_wm:enter_event_loop() of
 	{'EXIT',normal} ->
@@ -153,7 +153,7 @@ init(File, Root) ->
     end.
 
 open_file(none) -> ok;
-open_file(Name) -> wings_io:putback_event({open_file,Name}).
+open_file(Name) -> wings_wm:send(geom, {open_file,Name}).
 
 locate(Name) ->
     case filelib:is_file(Name) of
