@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.92 2004/04/19 19:05:14 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.93 2004/04/19 23:08:04 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -437,10 +437,8 @@ slide_mode() ->
 	    "[1] Toggle Absolute/Relative mode "
 		"[2] Toggle freeze direction";
        (key, $1) ->
-	    io:format("Toggle mode \n",[]),
 	    toggle_mode;
        (key, $2) ->
-	    io:format("Toggle freeze \n",[]),
 	    toggle_freeze;
        (done, _Type) ->
 	    ok;
@@ -449,7 +447,8 @@ slide_mode() ->
 
 make_slide_tv(Slides) ->
     Vs = gb_trees:keys(Slides),
-    {Vs, make_slide_fun(Vs, Slides, relative, false)}.
+    Mode = wings_pref:get_value(slide_mode, relative),
+    {Vs, make_slide_fun(Vs, Slides, Mode, false)}.
 
 make_slide_fun(Vs, Slides, Mode, Freeze) ->
     fun([Dx|_],Acc) ->
@@ -481,8 +480,10 @@ make_slide_fun(Vs, Slides, Mode, Freeze) ->
 			  [{V,e3d_vec:add(Pos, ScaleDir)}|A]
 		  end, Acc, Vs);
        (new_mode_data, {toggle_mode,_}) when Mode == relative ->
+	    wings_pref:set_value(slide_mode, absolute),
 	    make_slide_fun(Vs,Slides, absolute, Freeze);
        (new_mode_data, {toggle_mode,_}) when Mode == absolute ->
+	    wings_pref:set_value(slide_mode, relative),
 	    make_slide_fun(Vs,Slides, relative, Freeze);
        (new_mode_data, {toggle_freeze,_}) when Freeze == false ->	    
 	    case get(wings_slide) of
@@ -507,25 +508,29 @@ slide_setup_edges([], Up,Dw,N,_,Slides) ->
     {Slides,Up,Dw,N}.
 
 slide_add_edges([{LUp,LDw,LN,Es}|Parts],GUp0,GDw0,GN0,Acc0) ->
-    case (len(LUp) > len(LN)) or (length(Es) == 1) of
-	true ->
-	    %%	    io:format("Up ~p ~p~n", [len(LUp), len(LN)]),
-	    case abs(dot(LUp,GUp0)) >= abs(dot(LUp,GDw0)) of
-		true -> 
-		    Norm0 = norm(LUp),
-		    Dot = dot(Norm0,norm(GUp0)),
-		    Norm = if Dot < 0.0 -> neg(Norm0); true -> Norm0 end,
-		    Acc = slide_dirs(Es,Dot,Acc0),
-		    slide_add_edges(Parts,add(Norm, GUp0),GDw0,GN0,Acc);
-		false ->
-		    Norm0 = norm(LUp),
-		    Dot = dot(Norm0,norm(GDw0)),
-		    Norm = if Dot < 0.0 -> neg(Norm0); true -> Norm0 end,
-		    Acc = slide_dirs(Es,Dot,Acc0),
-		    slide_add_edges(Parts,GUp0,add(Norm,GDw0),GN0,Acc)
+%    io:format("UDN ~p ~p ~p~n", [len(LUp), len(LDw), len(LN)]),
+    case (len(LUp) >= len(LN)) or (len(LUp) >= len(LN)) or (length(Es) < 4) of
+	true -> %% Make sure up is up..
+	    Vec1   = norm(LUp),
+	    Vec2   = norm(LDw),
+	    DotUp1 = dot(Vec1,norm(GUp0)), 
+	    %%DotDw1 = dot(Vec1,norm(GDw0)),
+	    %%DotUp2 = dot(Vec2,norm(GUp0)), 
+	    DotDw2 = dot(Vec2,norm(GDw0)),
+%	    io:format(" ~p ~p~n", [DotUp1,DotDw2]),
+	    if (DotUp1 >= 0) and (DotDw2 >= 0) ->
+		    Acc  = slide_dirs(Es,1.0,Acc0),
+		    slide_add_edges(Parts,add(Vec1, GUp0),add(Vec2,GDw0),GN0,Acc);
+	       (DotUp1 =< 0) and (DotDw2 =< 0) ->
+		    Acc  = slide_dirs(Es,-1.0,Acc0),
+		    slide_add_edges(Parts,add(neg(Vec1),GUp0),
+				    add(neg(Vec2),GDw0),GN0,Acc);
+	       true ->
+		    Acc  = slide_dirs(Es,-1.0,Acc0),
+		    slide_add_edges(Parts,add(Vec2,GUp0),
+				    add(Vec1,GDw0),GN0,Acc)
 	    end;
-	false ->
-	    %%	    io:format("Normal ~p ~p~n", [len(LUp), len(LN)]),
+	false -> %% Probably a loop, make sure it goes in/out and not out/in.
 	    Norm0 = norm(LN),
 	    Dot = dot(Norm0,norm(GUp0)),
 	    Norm = if Dot < 0.0 -> neg(Norm0); true -> Norm0 end,
@@ -549,8 +554,8 @@ slide_dirs([{V1,V1dir},{V2,V2dir}|Es],Up,Acc0) ->
 slide_dirs([],_,Acc) -> Acc.
 
 slide_part_loop(Es,We) ->
-    Def = {0.0,0.0,0.0},
-    Eis = slide_gather_info(Es,We,[]),
+    Def   = {0.0,0.0,0.0},
+    Eis   = slide_gather_info(Es,We,[]),
     Parts = wings_edge_loop:edge_links(Es,We),
     [slide_dir(P,Eis,Def,Def,Def,[]) || P <- Parts].
 
