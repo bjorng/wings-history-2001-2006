@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.85 2003/10/12 06:35:58 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.86 2003/10/18 19:03:12 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -524,6 +524,16 @@ maya(_, _) -> next.
 maya_event(#keyboard{sym=Alt,state=?SDL_RELEASED},
 	   Camera, _Redraw) when Alt == ?SDLK_LALT; Alt == ?SDLK_RALT ->
     maya_stop_camera(Camera);
+maya_event(#mousebutton{button=B,state=?SDL_RELEASED}, Camera, _)
+  when B < 4 ->
+    case sdl_mouse:getMouseState() of
+	{0,_,_} ->
+	    %% Exit camera mode if all mouse buttons released.
+	    maya_stop_camera(Camera);
+	_ ->
+	    %% Some mouse button still pressed.
+	    keep
+    end;
 maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     if
