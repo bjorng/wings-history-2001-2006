@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.24 2002/05/23 07:00:13 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.25 2002/06/04 20:22:52 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -235,14 +235,14 @@ collapse_vertex_1(Vremove, We0, Sel0)->
     Edges = [E || {_,E} <- VsEs],
     We1 = wings_edge:dissolve_edges(Edges, We0),
     
-    %% Simple test to see if we need to connect vertices
+    %% Connect vertices.
     Pairs = make_pairs(Vlist),
     We = foldl(fun(Pair, W) ->
 		       wings_vertex_cmd:connect(Pair, W)
 	       end, We1, Pairs),
     Faces = collapse_vtx_faces(Vlist, We, []),
-    SelFace = collapse_vtx_sel(Faces, ordsets:from_list(Vlist), We),
-    {We,gb_sets:add(SelFace, Sel0)}.
+    Sel = collapse_vtx_sel(Faces, ordsets:from_list(Vlist), We, Sel0),
+    {We,Sel}.
 
 collapse_vtx_faces([V|Vs], We, Acc0) ->
     Acc = wings_vertex:fold(
@@ -253,11 +253,12 @@ collapse_vtx_faces([V|Vs], We, Acc0) ->
 collapse_vtx_faces([], _, Acc) ->
     ordsets:from_list(Acc).
 
-collapse_vtx_sel([Face|Fs], NewVs, We) ->
+collapse_vtx_sel([Face|Fs], NewVs, We, Sel) ->
     case ordsets:from_list(wings_face:surrounding_vertices(Face, We)) of
-	NewVs -> Face;
-	_ -> collapse_vtx_sel(Fs, NewVs, We)
-    end.
+	NewVs -> gb_sets:add(Face, Sel);
+	_ -> collapse_vtx_sel(Fs, NewVs, We, Sel)
+    end;
+collapse_vtx_sel([], _, _, Sel) -> Sel.
 
 make_pairs([H|_]=L) ->
     make_pairs(L, H, []).
