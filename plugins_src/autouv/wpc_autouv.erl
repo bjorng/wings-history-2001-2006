@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.44 2002/11/07 20:12:32 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.45 2002/11/07 20:41:38 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -155,7 +155,8 @@ seg_debug(Tail) ->
      {"Debugging",
       {debug,
        [{"Select features",select_features},
-	{"Select seeds",select_seeds}]}}|Tail].
+	{"Select seeds",select_seeds},
+        {"Select Pinned vertices", select_pinned}]}}|Tail].
 -endif.
 
 seg_mode_menu(vertex, _, Tail) -> Tail;
@@ -258,6 +259,19 @@ seg_command({debug,select_seeds}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
     Seeds = [S || {_,S} <- Seeds0],
     Sel = [{Id,gb_sets:from_list(Seeds)}],
     get_seg_event(Ss#seg{st=St#st{selmode=face,sel=Sel}});
+seg_command({debug,select_pinned}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
+    [{Id,SetOfFaces}] = St#st.sel,
+    case {St#st.selmode == face, gb_sets:to_list(SetOfFaces)} of
+	{true,Fs} when Fs /= [] ->
+	    {{V1,UV1},{V2,UV2}} = auv_mapping:find_pinned(Fs, We),
+	    ?DBG("Pinned ~p ~n", [{{V1,UV1},{V2,UV2}}]),
+	    Sel = [{Id,gb_sets:from_list([V1,V2])}],
+	    get_seg_event(Ss#seg{st=St#st{selmode=vertex,sel=Sel}});
+	_ -> 
+	    ?DBG("Not in face mode~n", []),
+	    keep
+    end;
+
 seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
     case gb_trees:is_defined(Cmd, Mat) of
 	false ->
