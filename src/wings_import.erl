@@ -3,12 +3,12 @@
 %%
 %%     This module handles import of foreign objects.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.16 2004/03/08 11:10:41 raimo_niskanen Exp $
+%%     $Id: wings_import.erl,v 1.17 2004/06/29 08:32:57 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -90,7 +90,7 @@ build_1(ObjType, Mesh0) ->
     Mesh = e3d_mesh:orient_normals(Mesh0),
     case catch wings_we:build(ObjType, Mesh) of
 	{'EXIT',_R} ->
-	    io:format("~p\n", [_R]),
+	    io:format("~P\n", [_R,10]),
 	    %% Rip apart the object. It can't fail.
 	    dump(Mesh),
 	    rip_apart(ObjType, Mesh);
