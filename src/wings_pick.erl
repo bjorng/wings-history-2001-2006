@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.1 2001/10/21 20:31:06 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.2 2001/11/04 20:11:03 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -93,22 +93,27 @@ get_name(N, <<Name:32,Names/binary>>, Acc) ->
 %% Draw for the purpose of picking the items that the user clicked on.
 %%
 
-select_draw(#st{dl=#dl{pick=Dlist0}=DL}=St) ->
-    wings_view:model_transformations(St),
-    case Dlist0 of
-	none ->
-	    Dlist = 100,
-	    gl:newList(Dlist, ?GL_COMPILE),
-	    gl:pushAttrib(?GL_LINE_BIT),
-	    select_draw_1(St),
-	    gl:popAttrib(),
-	    gl:endList(),
-	    gl:callList(Dlist),
-	    St#st{dl=DL#dl{pick=Dlist}};
-	Dlist ->
-	    gl:callList(Dlist),
-	    St
-    end.
+select_draw(St0) ->
+    wings_view:model_transformations(St0),
+    #st{dl=#dl{pick=Dlist}=DL} = St = select_draw_0(St0),
+    gl:callList(Dlist),
+    St.
+
+select_draw_0(#st{dl=#dl{pick=none}=DL}=St) ->
+    make_dlist(St);
+select_draw_0(#st{selmode=Mode,dl=#dl{pick_mode=Mode}=DL}=St) ->
+    St;
+select_draw_0(St) ->
+    make_dlist(St).
+
+make_dlist(#st{selmode=Mode,dl=DL}=St) ->
+    Dlist = 100,
+    gl:newList(Dlist, ?GL_COMPILE),
+    gl:pushAttrib(?GL_LINE_BIT),
+    select_draw_1(St),
+    gl:popAttrib(),
+    gl:endList(),
+    St#st{dl=DL#dl{pick=Dlist,pick_mode=Mode}}.
 
 select_draw_1(#st{selmode=body}=St) ->
     wings_util:foreach_shape(

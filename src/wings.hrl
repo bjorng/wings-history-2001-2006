@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.12 2001/10/20 19:14:17 bjorng Exp $
+%%     $Id: wings.hrl,v 1.13 2001/11/04 20:11:03 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -63,6 +63,7 @@
 	 dragging=none,				%WE faces being dragged.
 	 drag_faces=none,			%GbSet containing faces.
 	 pick=none,				%For picking.
+	 pick_mode,				%Mode pick list was created in.
 	 old_sel,				%Actual selection.
 	 sel=none,				%For selected faces.
 	 matrix=e3d_mat:identity()}).
