@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.133 2003/07/25 21:40:19 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.134 2003/07/26 06:22:13 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -370,19 +370,21 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd}=D,
     Ftab = sofs:from_external(gb_trees:to_list(Ftab0), [{face,data}]),
     Faces = case sofs:is_subset(Faces1, Faces0) of
 		true ->
+		    FtabDyn0 = sofs:restriction(Ftab, Faces0),
 		    case D#dlo.work of
 			[List|_] -> Faces0;
 			List when is_integer(List) -> Faces0
 		    end;
 		false ->
-		    List = static_dlist(Faces1, Ftab, We, St),
+		    {FtabDyn0,StaticFtab0} = sofs:partition(1, Ftab, Faces1),
+		    StaticFtab = sofs:to_external(StaticFtab0),
+		    List = draw_faces(StaticFtab, We, St),
 		    Faces1
 	    end,
     AllVs = sofs:image(F2V, Faces),
     
     {DynVs,VsDlist} = split_vs_dlist(AllVs, Sel, We),
 
-    FtabDyn0 = sofs:restriction(Ftab, Faces),
     FtabDyn = sofs:to_external(FtabDyn0),
     WeDyn = wings_material:cleanup(We#we{fs=gb_trees:from_orddict(FtabDyn)}),
 
@@ -459,10 +461,6 @@ split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
     gl:endList(),
     {UnselDyn,[UnselDlist]};
 split_vs_dlist(_, _, _) -> {none,none}.
-
-static_dlist(Faces, Ftab, We, St) ->
-    StaticFtab = sofs:to_external(sofs:drestriction(Ftab, Faces)),
-    draw_faces(StaticFtab, We, St).
 
 %%%
 %%% Drawing routines for workmode.
