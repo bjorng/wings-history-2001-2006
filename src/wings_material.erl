@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.94 2003/04/25 19:38:37 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.95 2003/05/06 04:08:06 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -20,9 +20,8 @@
 	 apply_material/2,is_transparent/2,
 	 renumber/2,merge/1]).
 
--ifdef(DEBUG).
+%% For debugging.
 -export([validate/1]).
--endif.
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -722,9 +721,7 @@ all_same([{M,_}|T], M) ->
 all_same([], _) -> true;
 all_same([_|_], _) -> false.
 
--ifdef(DEBUG).
 validate(#we{mat=Mat}) when is_atom(Mat) -> ok;
 validate(#we{mat=Mat,fs=Ftab}) ->
     Faces = gb_trees:keys(Ftab),
     Faces = [F || {F,_} <- Mat].
--endif.
