@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.67 2003/03/12 10:04:22 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.68 2003/04/21 10:16:58 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -324,8 +324,8 @@ show_edge(F, Edge, #edge{vs=Vs,ve=Ve,a=A,b=B,lf=Lf,rf=Rf,ltpr=Lpred,ltsu=Lsucc,
     io:format(F, "  left: face=~p pred=~p succ=~p\n", [Lf,Lpred,Lsucc]),
     io:format(F, "  right: face=~p pred=~p succ=~p\n", [Rf,Rpred,Rsucc]).
 
-show_face(F, Face, #face{edge=Edge,mat=Mat}) ->
-    io:format(F, "~p: edge=~p mat=~p\n", [Face,Edge,Mat]).
+show_face(F, Face, Edge) ->
+    io:format(F, "~p: edge=~p\n", [Face,Edge]).
 
 %%%
 %%% Dump the winged-edge structure in a textual format.
@@ -402,9 +402,6 @@ try_arg(F, {I,_}=GbTree, N) when integer(I) ->
 	[{_,#edge{}}|_]=Es ->
 	    arg(F, N),
 	    dump_edges(F, Es);
-	[{_,#face{}}|_]=Fs ->
-	    arg(F, N),
-	    dump_faces(F, Fs);
 	_ -> ok
     end;
 try_arg(_, _, _) -> ok.
@@ -460,10 +457,11 @@ validate_1(#we{}=We) -> validate_we(We).
 validate_we(We) ->
     validate_edge_tab(We),
     validate_vertex_tab(We),
-    validate_faces(We).
+    validate_faces(We),
+    wings_material:validate(We).
     
 validate_faces(#we{fs=Ftab}=We) ->
-    foreach(fun({Face,#face{edge=Edge}}) ->
+    foreach(fun({Face,Edge}) ->
 		    Cw = walk_face_cw(Face, Edge, Edge, We, []),
 		    Ccw = walk_face_ccw(Face, Edge, Edge, We, []),
  		    case reverse(Ccw) of

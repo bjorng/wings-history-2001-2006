@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.31 2003/04/17 14:43:47 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.32 2003/04/21 10:16:57 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -199,7 +199,7 @@ center(Face, We) ->
 %% Vertex info for drawing.
 
 vinfo(Face, #we{fs=Ftab}=We) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    Edge = gb_trees:get(Face, Ftab),
     vinfo(Face, Edge, We).
 
 vinfo(Face, Edge, #we{es=Etab}) ->
@@ -224,7 +224,7 @@ surrounding_vertices(Face, Edge, We) ->
     vertices_ccw(Face, Edge, We).
 
 vertices_cw(Face, #we{es=Etab,fs=Ftab}) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    Edge = gb_trees:get(Face, Ftab),
     vertices_cw_1(Face, Edge, Edge, Etab, []).
 
 vertices_cw(Face, Edge, #we{es=Etab}) ->
@@ -240,7 +240,7 @@ vertices_cw_1(Face, Edge, LastEdge, Etab, Acc) ->
     end.
 
 vertices_ccw(Face, #we{es=Etab,fs=Ftab}) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    Edge = gb_trees:get(Face, Ftab),
     vertices_ccw_1(Face, Edge, Edge, Etab, []).
 
 vertices_ccw(Face, Edge, #we{es=Etab}) ->
@@ -308,7 +308,7 @@ outer_edges_1([], Out) -> reverse(Out).
 %% Fold over all edges surrounding a face.
 
 fold(F, Acc, Face, #we{es=Etab,fs=Ftab}) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    Edge = gb_trees:get(Face, Ftab),
     fold(F, Acc, Face, Edge, Edge, Etab, not_done).
 
 fold(F, Acc, Face, Edge, #we{es=Etab}) ->
@@ -325,7 +325,7 @@ fold(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
     fold(F, Acc, Face, NextEdge, LastEdge, Etab, done).
 
 fold_vinfo(F, Acc, Face, #we{es=Etab,fs=Ftab}) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    Edge = gb_trees:get(Face, Ftab),
     fold_vinfo(F, Acc, Face, Edge, Edge, Etab, not_done).
 
 %% Fold over all edges surrounding a face.
@@ -354,7 +354,7 @@ fold_faces(F, Acc, Faces, We) ->
 %% Return an iterator which can be used to traverse the face.
 
 iterator(Face, #we{es=Etab,fs=Ftab}) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    Edge = gb_trees:get(Face, Ftab),
     {face_iterator,Edge,Face,Etab}.
 
 skip_to_edge(Edge, {face_iterator,_,_,_}=Iter0) ->
@@ -401,15 +401,14 @@ next_ccw({face_iterator,Edge,Face,Etab}) ->
 
 patch_face(Face, NewEdge, Ftab) ->
     case gb_trees:get(Face, Ftab) of
-	#face{edge=NewEdge} -> Ftab;
-	Rec -> gb_trees:update(Face, Rec#face{edge=NewEdge}, Ftab)
+	NewEdge -> Ftab;
+	_ -> gb_trees:update(Face, NewEdge, Ftab)
     end.
 
 patch_face(Face, Edge, NewEdge, Ftab) ->
     case gb_trees:get(Face, Ftab) of
-	#face{edge=Edge}=Rec ->
-	    gb_trees:update(Face, Rec#face{edge=NewEdge}, Ftab);
-	_Other -> Ftab
+	Edge -> gb_trees:update(Face, NewEdge, Ftab);
+	_ -> Ftab
     end.
 
 %% Test whether two faces are neighbors or not. (In the sense that

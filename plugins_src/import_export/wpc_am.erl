@@ -2,7 +2,7 @@
 %
 % Howard Trickey
 %
-% $Id: wpc_am.erl,v 1.2 2003/02/27 11:15:11 bjorng Exp $
+% $Id: wpc_am.erl,v 1.3 2003/04/21 10:16:55 bjorng Exp $
 %
 -module(wpc_am).
 -export([init/0,menu/2,command/2]).
@@ -318,24 +318,20 @@ out_pels(V, Vexclude, We) ->
 % Exclude faces that have the _hole_ material,
 % as they should be treated like "internal patches",
 % and made not to render.
-get_face_patches(#we{fs=Fs}=We) ->
-	foldl(fun(F,Acc) -> face_patch(F, We, Acc) end, [], gb_trees:keys(Fs)).
+get_face_patches(We) ->
+    Ms = wings_material:get_all(We),
+    foldl(fun({F,Mat}, Acc) -> face_patch(F, Mat, We, Acc) end, [], Ms).
 
-face_patch(Face, #we{fs=Ftab}=We, Acc) ->
-	#face{mat=Mat} = gb_trees:get(Face, Ftab),
-	case Mat of
-	'_hole_' ->
-		Acc;
-	_ ->
-		Pels = wings_face:fold(
-			fun(V, Edge, Erec, Acc0) ->
-				[pel_for(Erec, Edge, V) | Acc0] end,
-			[], Face, We),
-		Pels1 = reverse(Pels),
-		Pels2 = canon(Pels1),
-		% io:format("face patch: ~p~n", [Pels2]),
-		[Pels2 | Acc]
-	end.
+face_patch(_, '_hole_', _, Acc) -> Acc;
+face_patch(Face, _, We, Acc) ->
+    Pels = wings_face:fold(
+	     fun(V, Edge, Erec, Acc0) ->
+		     [pel_for(Erec, Edge, V) | Acc0] end,
+	     [], Face, We),
+    Pels1 = reverse(Pels),
+    Pels2 = canon(Pels1),
+    %% io:format("face patch: ~p~n", [Pels2]),
+    [Pels2 | Acc].
 
 pel_for(E, Edge, Vs) ->
 	case E of
@@ -665,15 +661,16 @@ tfaces(#we{fs=Ftab}=We, TessN) ->
 	tfaces_loop(It, We, TessN, []).
 
 tfaces_loop(It, We, TessN, Acc) ->
-	case gb_trees:next(It) of
-	{Fid, #face{mat=Mat}, It1} ->
-		case (Mat == '_hole_') orelse (wings_face:vertices(Fid, We) < TessN) of
+    case gb_trees:next(It) of
+	{Fid, _, It1} ->
+	    Mat = wings_material:get(Fid, We),
+	    case (Mat == '_hole_') orelse (wings_face:vertices(Fid, We) < TessN) of
 		true -> tfaces_loop(It1, We, TessN, Acc);
 		_ -> tfaces_loop(It1, We, TessN, [Fid | Acc])
-		end;
+	    end;
 	none ->
-		Acc
-	end.
+	    Acc
+    end.
 
 % FP5 is list of pels representing 5pt patches.
 % Return Mdl modified with patches5 = corresponding list of #patch records.

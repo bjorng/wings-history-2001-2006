@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.110 2003/04/17 14:43:46 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.111 2003/04/21 10:16:56 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -81,18 +81,12 @@ invalidate_by_mat(Changed0) ->
 invalidate_by_mat(#dlo{work=none,vs=none,smooth=none,smoothed=none}=D, _) ->
     %% Nothing to do.
     D;
-invalidate_by_mat(#dlo{src_we=#we{fs=Ftab}}=D, Changed) ->
-    case material_used(gb_trees:values(Ftab), Changed) of
-	false -> D;
-	true -> D#dlo{work=none,vs=none,smooth=none,smoothed=none}
+invalidate_by_mat(#dlo{src_we=We}=D, Changed) ->
+    Used = wings_material:used_materials_we(We),
+    case gb_sets:is_empty(gb_sets:intersection(Used, Changed)) of
+	true -> D;
+	false -> D#dlo{work=none,vs=none,smooth=none,smoothed=none}
     end.
-
-material_used([#face{mat=Name}|T], Changed) ->
-    case gb_sets:is_member(Name, Changed) of
-	true -> true;
-	false -> material_used(T, Changed)
-    end;
-material_used([], _) -> false.
 
 empty_we(We) ->
     Et = gb_trees:empty(),
@@ -204,7 +198,7 @@ update_sel(#dlo{sel=none,src_sel={face,Faces}}=D) ->
 	      fun() ->
 		      foreach(
 			fun(Face) ->
-				#face{edge=Edge} = gb_trees:get(Face, Ftab),
+				Edge = gb_trees:get(Face, Ftab),
 				wings_draw_util:flat_face(Face, Edge, We)
 			end, gb_sets:to_list(Faces))
 	      end),
@@ -400,14 +394,14 @@ static_dlist(Faces, Ftab, We, St) ->
 draw_faces(Ftab, #we{mode=uv}=We, #st{mat=Mtab}) ->
     case wings_pref:get_value(show_textures) of
 	true ->
-	    MatFaces = mat_faces(Ftab),
+	    MatFaces = wings_material:mat_faces(Ftab, We),
 	    draw_uv_faces(MatFaces, We, Mtab);
 	false ->
 	    draw_mat_faces([{default,Ftab}], We, Mtab)
     end;
 draw_faces(Ftab, #we{mode=material}=We, #st{mat=Mtab}) ->
     MatFaces = case wings_pref:get_value(show_materials) of
-		   true -> mat_faces(Ftab);
+		   true -> wings_material:mat_faces(Ftab, We);
 		   false -> [{default,Ftab}]
 	       end,
     Tess = wings_draw_util:tess(),
@@ -421,16 +415,6 @@ draw_faces(Ftab, #we{mode=vertex}=We, #st{mat=Mtab}) ->
 	false -> draw_mat_faces(MatFaces, We, Mtab)
     end.
 
-mat_faces(Ftab) ->
-    mat_faces(Ftab, []).
-
-mat_faces([{_,#face{mat=Mat}}=Rec|Fs], Acc) ->
-    mat_faces(Fs, [{Mat,Rec}|Acc]);
-mat_faces([], Faces0) ->
-    Faces1 = sofs:relation(Faces0),
-    Faces = sofs:relation_to_family(Faces1),
-    sofs:to_external(Faces).
-
 draw_uv_faces([{Mat,Faces}|T], We, Mtab) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
     wings_material:apply_material(Mat, Mtab),
@@ -442,7 +426,7 @@ draw_uv_faces([{Mat,Faces}|T], We, Mtab) ->
     draw_uv_faces(T, We, Mtab);
 draw_uv_faces([], _We, _Mtab) -> ok.
 
-draw_attr_faces([{Face,#face{edge=Edge}}|Fs], We) ->
+draw_attr_faces([{Face,Edge}|Fs], We) ->
     wings_draw_util:face(Face, Edge, We),
     draw_attr_faces(Fs, We);
 draw_attr_faces([], _We) -> ok.
@@ -458,7 +442,7 @@ draw_mat_faces([{Mat,Ftab}|T], We, Mtab) ->
     draw_mat_faces(T, We, Mtab);
 draw_mat_faces([], _We, _Mtab) -> ok.
 
-draw_plain_faces([{Face,#face{edge=Edge}}|Fs], We) ->
+draw_plain_faces([{Face,Edge}|Fs], We) ->
     wings_draw_util:flat_face(Face, Edge, We),
     draw_plain_faces(Fs, We);
 draw_plain_faces([], _We) -> ok.
@@ -497,22 +481,15 @@ smooth_faces(Faces, #we{mode=vertex}, _Mtab) ->
     gl:newList(ListTr, ?GL_COMPILE),
     gl:endList(),
     {[ListOp,ListTr],false};
-smooth_faces(Faces0, #we{mode=material}, Mtab) ->
-    Faces1 = sofs:relation(Faces0),
-    Faces = case wings_pref:get_value(show_materials) of
-		false ->
-		    [{default,sofs:to_external(sofs:range(Faces1))}];
-		true ->
-		    sofs:to_external(sofs:relation_to_family(Faces1))
-	    end,
-    draw_smooth_1(Faces, Mtab);
-smooth_faces(Faces0, #we{mode=uv}, Mtab) ->
-    Faces1 = sofs:relation(Faces0),
-    Faces = case wings_pref:get_value(show_textures) of
-		false ->
-		    [{default,sofs:to_external(sofs:range(Faces1))}];
-		true ->
-		    sofs:to_external(sofs:relation_to_family(Faces1))
+smooth_faces(Faces, #we{mode=material}=We, Mtab) ->
+    smooth_faces_0(show_materials, Faces, We, Mtab);
+smooth_faces(Faces, #we{mode=uv}=We, Mtab) ->
+    smooth_faces_0(show_textures, Faces, We, Mtab).
+
+smooth_faces_0(PrefKey, Faces0, We, Mtab) ->
+    Faces = case wings_pref:get_value(PrefKey) of
+		false -> [{default,Faces0}];
+		true -> wings_material:mat_faces(Faces0, We)
 	    end,
     draw_smooth_1(Faces, Mtab).
 
@@ -547,7 +524,7 @@ draw_smooth_2(Mat, Faces, Mtab) ->
       end),
     gl:popAttrib().
 
-draw_smooth_3([{{X,Y,Z},Vs}|Fs], Tess) ->
+draw_smooth_3([{_,{{X,Y,Z},Vs}}|Fs], Tess) ->
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),

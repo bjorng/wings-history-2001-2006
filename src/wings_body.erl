@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.54 2003/04/18 19:50:54 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.55 2003/04/21 10:16:56 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -213,21 +213,23 @@ cleanup_rep_2(Face, V0, #we{es=Etab,fs=Ftab0}=We0) ->
 		   end
 	   end, [], V0, We0),
     Ves = wings_face:fold(fun(V, E, _, A) -> [{V,E}|A] end, [], Face, hd(Es), We0),
-    Frec = gb_trees:get(Face, Ftab0),
     Ftab = gb_trees:delete(Face, Ftab0),
-    cleanup_rep_3(Ves, V0, Face, Frec, Ftab, Etab, We0).
+    Mat = wings_material:get(Face, We0),
+    We1 = wings_material:delete_face(Face, We0),
+    cleanup_rep_3(Ves, V0, Face, Mat, Ftab, Etab, We1).
 
 cleanup_rep_3([], _, _, _, Ftab, Etab, We) ->
     We#we{fs=Ftab,es=Etab};
-cleanup_rep_3(Ves0, V, Face, Frec, Ftab0, Etab0, We0) ->
+cleanup_rep_3(Ves0, V, Face, Mat, Ftab0, Etab0, We0) ->
     [{_,First}|_] = Ves0,
-    {NewFace,We} = wings_we:new_id(We0),
-    Ftab = gb_trees:insert(NewFace, Frec#face{edge=First}, Ftab0),
+    {NewFace,We1} = wings_we:new_id(We0),
+    We = wings_material:assign(Mat, [NewFace], We1),
+    Ftab = gb_trees:insert(NewFace, First, Ftab0),
     {Ves,Etab1} = cleanup_rep_4(Ves0, V, Face, NewFace, Etab0),
     [{_,Last}|NextVes] = Ves,
     Etab2 = cleanup_patch_edge(V, NewFace, First, Last, Etab1),
     Etab = cleanup_patch_edge(V, NewFace, Last, First, Etab2),
-    cleanup_rep_3(NextVes, V, Face, Frec, Ftab, Etab, We).
+    cleanup_rep_3(NextVes, V, Face, Mat, Ftab, Etab, We).
 
 cleanup_rep_4([{Vtx,Edge}|T]=Ves, V0, Face, NewFace, Etab0) ->
     Rec = case gb_trees:get(Edge, Etab0) of
@@ -310,7 +312,7 @@ delete_2edged_faces_1([Face|Faces], #we{fs=Ftab,es=Etab}=We0) ->
     %% Note: The face could have been deleted by a previous
     %% wings_edge:dissolve_edge/2.
     We = case gb_trees:lookup(Face, Ftab) of
-	     {value,#face{edge=Edge}} ->
+	     {value,Edge} ->
 		 case gb_trees:get(Edge, Etab) of
 		     #edge{ltpr=Same,ltsu=Same} ->
 			 wings_edge:dissolve_edge(Edge, We0);
@@ -584,17 +586,16 @@ colors_to_materials(St0) ->
     St#st{mat=Mat}.
 
 colors_to_materials_1(#we{mode=vertex,fs=Ftab}=We0, St) ->
-    colors_to_materials_2(gb_trees:keys(Ftab), We0#we{mode=material}, St);
+    colors_to_materials_2(gb_trees:keys(Ftab), We0#we{mode=material}, [], St);
 colors_to_materials_1(We, St) -> {We,St}.
 
-colors_to_materials_2([F|Fs], #we{fs=Ftab0}=We, St0) ->
+colors_to_materials_2([F|Fs], We, Acc, St0) ->
     Colors = [C || [_|C] <- wings_face:vinfo(F, We)],
     Color = e3d_vec:average(Colors),
     {Name,St} = color_material(Color, St0),
-    FaceInfo = gb_trees:get(F, Ftab0),
-    Ftab = gb_trees:update(F, FaceInfo#face{mat=Name}, Ftab0),
-    colors_to_materials_2(Fs, We#we{fs=Ftab}, St);
-colors_to_materials_2([], We, St) -> {We,St}.
+    colors_to_materials_2(Fs, We, [{Name,F}|Acc], St);
+colors_to_materials_2([], We, FaceMat, St) ->
+    {wings_material:assign_materials(FaceMat, We),St}.
 
 color_material({R,G,B}=Color, #st{mat=Mat0}=St0) ->
     Name0 = "color_" ++ fmt_int(R) ++ "_" ++ fmt_int(G) ++ "_" ++ fmt_int(B),

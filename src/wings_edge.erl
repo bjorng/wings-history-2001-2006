@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.64 2003/03/20 06:03:29 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.65 2003/04/21 10:16:57 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -465,22 +465,22 @@ dissolve_edge(Edge, FaceRemove, FaceKeep, Rec,
 
     %% Remove the face. Patch the face entry for the remaining face.
     Ftab1 = gb_trees:delete(FaceRemove, Ftab0),
-    FaceRec = gb_trees:get(FaceKeep, Ftab1),
-    Ftab = gb_trees:update(FaceKeep, FaceRec#face{edge=LP}, Ftab1),
+    We1 = wings_material:delete_face(FaceRemove, We0),
+    Ftab = gb_trees:update(FaceKeep, LP, Ftab1),
 
     %% Patch the vertices referenced by the removed edge.
     Vct1 = wings_vertex:patch_vertex(Vstart, RP, Vct0),
     Vct = wings_vertex:patch_vertex(Vend, RS, Vct1),
 
     %% Return result.
-    We1 = We0#we{es=Etab,fs=Ftab,vc=Vct,he=Htab},
-    #face{edge=AnEdge} = gb_trees:get(FaceKeep, Ftab),
+    We2 = We1#we{es=Etab,fs=Ftab,vc=Vct,he=Htab},
+    AnEdge = gb_trees:get(FaceKeep, Ftab),
     We = case gb_trees:get(AnEdge, Etab) of
 	     #edge{lf=FaceKeep,ltpr=Same,ltsu=Same} ->
-		 dissolve_edge(AnEdge, We1);
+		 dissolve_edge(AnEdge, We2);
 	     #edge{rf=FaceKeep,rtpr=Same,rtsu=Same} ->
-		 dissolve_edge(AnEdge, We1);
-	     _Other -> We1
+		 dissolve_edge(AnEdge, We2);
+	     _Other -> We2
 	 end,
     case wings_we:is_face_consistent(FaceKeep, We) of
 	true -> We;
@@ -543,8 +543,8 @@ check_edge(Edge, #we{es=Etab}=We) ->
 
 update_face(Face, Edge, OldEdge, Ftab) ->
     case gb_trees:get(Face, Ftab) of
-	#face{edge=OldEdge}=Frec ->
-	    gb_trees:update(Face, Frec#face{edge=Edge}, Ftab);
+	OldEdge ->
+	    gb_trees:update(Face, Edge, Ftab);
 	_Other -> Ftab
     end.
 

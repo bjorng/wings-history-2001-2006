@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Smooth command for objects and faces.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.27 2003/04/12 06:36:02 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.28 2003/04/21 10:16:58 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -36,11 +36,18 @@ smooth(Fs, Vs, Es, Htab, #we{next_id=Id}=We0) ->
     FacePos0 = face_centers(Fs, We0),
     FacePos = gb_trees:from_orddict(reverse(FacePos0)),
     We1 = cut_edges(Es, FacePos, Htab, We0#we{vc=undefined}),
-    {We,NewVs} = smooth_faces(Fs, Id, FacePos, We1),
+    {We2,NewVs} = smooth_faces(Fs, Id, FacePos, We1),
+    We = fix_materials(We2),
     #we{vp=Vtab2} = We,
     Vtab3 = smooth_move_orig(Vs, FacePos, Htab, We0, Vtab2),
     Vtab = gb_trees:from_orddict(gb_trees:to_list(Vtab3) ++ reverse(NewVs)),
     wings_util:validate_mirror(wings_we:rebuild(We#we{vp=Vtab})).
+
+fix_materials(#we{mat=Atom}=We) when is_atom(Atom) -> We;
+fix_materials(We) ->
+    %% XXX Materials lost.
+    io:format("Materials lost\n"),
+    We#we{mat=default}.
 
 face_centers(Faces, We) ->
     face_centers(Faces, We, []).
@@ -103,48 +110,32 @@ smooth_move_orig_1(V, FacePosTab, Htab, #we{vp=OVtab}=We, Vtab) ->
 	_ThreeOrMore -> Vtab
     end.
 
-smooth_faces(Faces0, Id, FacePos, #we{fs=Ftab0}=We) ->
-    {Faces,FaceAcc} =
-	case {length(Faces0),gb_trees:size(Ftab0)} of
-	    {Same,Same} ->
-		{gb_trees:to_list(Ftab0),[]};
-	    {_,_} ->
-		Ftab1 = gb_trees:to_list(Ftab0),
-		Ftab2 = sofs:relation(Ftab1, [{face,data}]),
-		FaceSet = sofs:set(Faces0, [face]),
-		{Faces1,Ftab} = sofs:partition(1, Ftab2, FaceSet),
-		{sofs:to_external(Faces1),sofs:to_external(Ftab)}
-	end,
-    smooth_faces(Faces, Id, FacePos, [], FaceAcc, [], We).
+smooth_faces(Faces, Id, FacePos, We) ->
+    smooth_faces(Faces, Id, FacePos, [], [], We).
     
-smooth_faces([{Face,#face{mat=Mat}}|Faces], Id, FacePos,
-	     EsAcc0, Ftab0, Vtab0, #we{es=Etab0}=We0) ->
+smooth_faces([Face|Faces], Id, FacePos, EsAcc0, Vtab0, #we{es=Etab0}=We0) ->
     {NewV,We1} = wings_we:new_id(We0),
     {Center,Color,NumIds} = gb_trees:get(Face, FacePos),
     {Ids,We} = wings_we:new_wrap_range(NumIds, 1, We1),
     Vtab = [{NewV,Center}|Vtab0],
-    {Etab,EsAcc,Ftab,_} =
+    {Etab,EsAcc,_} =
 	wings_face:fold(
 	  fun(_, E, Rec, A) ->
-		  smooth_edge(Face, E, Rec, NewV,
-			      Color, Id, Mat, A)
-	  end, {Etab0,EsAcc0,Ftab0,Ids}, Face, We),
-    smooth_faces(Faces, Id, FacePos, EsAcc, Ftab, Vtab, We#we{es=Etab});
-smooth_faces([], _, _, Es, Ftab0, NewVs, #we{es=Etab0}=We) ->
+		  smooth_edge(Face, E, Rec, NewV, Color, Id, A)
+	  end, {Etab0,EsAcc0,Ids}, Face, We),
+    smooth_faces(Faces, Id, FacePos, EsAcc, Vtab, We#we{es=Etab});
+smooth_faces([], _, _, Es, NewVs, #we{es=Etab0}=We) ->
     Etab1 = gb_trees:to_list(Etab0) ++ reverse(Es),
     Etab = gb_trees:from_orddict(Etab1),
-    Ftab = gb_trees:from_orddict(sort(Ftab0)),
-    {We#we{es=Etab,fs=Ftab},NewVs}.
+    {We#we{es=Etab,fs=undefined},NewVs}.
 
-smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat,
-	    {Etab0,Es0,Ftab0,Ids0}) ->
+smooth_edge(Face, Edge, Rec0, NewV, Color, Id, {Etab0,Es0,Ids0}) ->
     LeftEdge = RFace = wings_we:id(0, Ids0),
     NewEdge = LFace = wings_we:id(1, Ids0),
     RightEdge = wings_we:id(2, Ids0),
     case Rec0 of
 	#edge{ve=Vtx,b=OldCol,rf=Face} when Vtx >= Id ->
 	    Ids = Ids0,
-	    Ftab = [{RFace,#face{edge=LeftEdge,mat=Mat}}|Ftab0],
 	    Rec = Rec0#edge{rf=RFace,rtsu=NewEdge},
 	    NewErec0 = get_edge(NewEdge, Es0),
 	    NewErec = NewErec0#edge{vs=Vtx,a=OldCol,ve=NewV,b=Color,
@@ -152,20 +143,17 @@ smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat,
 				    rtpr=Edge,rtsu=LeftEdge};
 	#edge{vs=Vtx,a=OldCol,lf=Face} when Vtx >= Id ->
 	    Ids = Ids0,
-	    Ftab = [{RFace,#face{edge=LeftEdge,mat=Mat}}|Ftab0],
 	    Rec = Rec0#edge{lf=RFace,ltsu=NewEdge},
 	    NewErec0 = get_edge(NewEdge, Es0),
 	    NewErec = NewErec0#edge{vs=Vtx,a=OldCol,ve=NewV,b=Color,
 				    rf=RFace,lf=LFace,
 				    rtpr=Edge,rtsu=LeftEdge};
  	#edge{vs=Vtx,rf=Face} when Vtx >= Id ->
-	    Ftab = Ftab0,
 	    Rec = Rec0#edge{rf=LFace,rtpr=NewEdge},
 	    NewErec0 = get_edge(NewEdge, Es0),
  	    NewErec = NewErec0#edge{ltpr=RightEdge,ltsu=Edge},
 	    Ids = wings_we:bump_id(Ids0);
  	#edge{ve=Vtx,lf=Face} when Vtx >= Id ->
-	    Ftab = Ftab0,
 	    Rec = Rec0#edge{lf=LFace,ltpr=NewEdge},
 	    NewErec0 = get_edge(NewEdge, Es0),
  	    NewErec = NewErec0#edge{ltpr=RightEdge,ltsu=Edge},
@@ -173,7 +161,7 @@ smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat,
     end,
     Etab = gb_trees:update(Edge, Rec, Etab0),
     Es = store(NewEdge, NewErec, Es0),
-    {Etab,Es,Ftab,Ids}.
+    {Etab,Es,Ids}.
 
 get_edge(Key, [{K,_Value}|_]) when Key > K -> #edge{};
 get_edge(Key, [{K,_Value}|D]) when Key < K -> get_edge(Key, D);

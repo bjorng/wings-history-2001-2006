@@ -3,12 +3,12 @@
 %%
 %%     This module contains most of the commands for vertices.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.37 2003/01/03 05:48:59 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.38 2003/04/21 10:16:59 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -198,8 +198,8 @@ bevel_vertices([], _, _, We, Acc, Facc) -> {We,Acc,Facc}.
 
 bevel_vertex_1(V, Es, NumEdges, Adj, We0, Vec0) ->
     {InnerFace,We1} = wings_we:new_id(We0),
-    {Ids,We} = wings_we:new_wrap_range(NumEdges, 2, We1),
-    #we{es=Etab0,vc=Vct0,vp=Vtab0,fs=Ftab0}= We,
+    {Ids,We2} = wings_we:new_wrap_range(NumEdges, 2, We1),
+    #we{es=Etab0,vc=Vct0,vp=Vtab0,fs=Ftab0} = We1,
     {Vct,Vtab} = bevel_vertices_1(V, Ids, NumEdges, Vct0, Vtab0),
     {_,Etab,Vec} = foldl(
 		     fun(E, {Ids0,Etab1,Vs0}) ->
@@ -207,17 +207,18 @@ bevel_vertex_1(V, Es, NumEdges, Adj, We0, Vec0) ->
 						Adj, Vtab0, Etab0, Etab1),
 			     {wings_we:bump_id(Ids0),Etab,[Vec|Vs0]}
 		     end, {Ids,Etab0,Vec0}, Es),
-    Mat = bevel_material(Es, We),
-    FaceRec = #face{mat=Mat,edge=wings_we:id(1, Ids)},
-    Ftab = gb_trees:insert(InnerFace, FaceRec, Ftab0),
+    Mat = bevel_material(Es, We2),
+    NewEdge = wings_we:id(1, Ids),
+    Ftab = gb_trees:insert(InnerFace, NewEdge, Ftab0),
+    We = wings_material:assign(Mat, [InnerFace], We2),
     {We#we{es=Etab,fs=Ftab,vc=Vct,vp=Vtab},Vec,InnerFace}.
 
-bevel_material(Es, #we{fs=Ftab}) ->
-    bevel_material(Es, Ftab, []).
+bevel_material(Es, We) ->
+    bevel_material(Es, We, []).
 
-bevel_material([{_,Face,_}|Es], Ftab, Acc) ->
-    #face{mat=Mat} = gb_trees:get(Face, Ftab),
-    bevel_material(Es, Ftab, [{Mat,Face}|Acc]);
+bevel_material([{_,Face,_}|Es], We, Acc) ->
+    Mat = wings_material:get(Face, We),
+    bevel_material(Es, We, [{Mat,Face}|Acc]);
 bevel_material([], _, A0) ->
     A1 = sofs:relation(A0, [{mat,face}]),
     A2 = sofs:relation_to_family(A1),

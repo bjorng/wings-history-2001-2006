@@ -8,20 +8,28 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.89 2003/03/09 19:20:17 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.90 2003/04/21 10:16:58 bjorng Exp $
 %%
 
 -module(wings_material).
 -export([material_menu/1,command/2,new/1,color/4,default/0,
-	 add_materials/2,update_image/4,used_images/1,
-	 used_materials/1,apply_material/2,is_transparent/2]).
+	 mat_faces/2,add_materials/2,update_image/4,used_images/1,
+	 get/2,get_all/1,delete_face/2,delete_faces/2,cleanup/1,
+	 assign/3,assign_materials/2,
+	 used_materials/1,used_materials_we/1,
+	 apply_material/2,is_transparent/2,
+	 renumber/2,merge/1]).
+
+-ifdef(DEBUG).
+-export([validate/1]).
+-endif.
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 -include("e3d_image.hrl").
 
--import(lists, [map/2,foreach/2,sort/1,foldl/3,reverse/1,
+-import(lists, [map/2,foreach/2,sort/1,foldl/3,reverse/1,reverse/2,
 		keyreplace/4,keydelete/3,keysearch/3,flatten/1]).
 
 material_menu(St) ->
@@ -170,36 +178,38 @@ make_fake_selection(OldMat, #st{shapes=Shapes}=St) ->
     Sel = make_fake_selection_1(Sel0, OldMat),
     St#st{selmode=face,sel=Sel}.
 
-make_fake_selection_1([#we{id=Id,fs=Ftab}|Shs], OldMat) ->
-    Keys = gb_trees:to_list(Ftab),
-    case [Face || {Face,#face{mat=Mat}} <- Keys, Mat =:= OldMat] of
+make_fake_selection_1([#we{id=Id,fs=Ftab,mat=OldMat}|Shs], OldMat) ->
+    [{Id,gb_trees:keys(Ftab)}|make_fake_selection_1(Shs, OldMat)];
+make_fake_selection_1([#we{mat=Atom}|Shs], OldMat) when is_atom(Atom) ->
+    make_fake_selection_1(Shs, OldMat);
+make_fake_selection_1([#we{id=Id,mat=MatTab}|Shs], OldMat) ->
+    case [Face || {Face,Mat} <- MatTab, Mat =:= OldMat] of
 	[] -> make_fake_selection_1(Shs, OldMat);
 	Sel -> [{Id,gb_sets:from_ordset(Sel)}|make_fake_selection_1(Shs, OldMat)]
     end;
 make_fake_selection_1([], _) -> [].
 
 select_material(Mat, St) ->
-    wings_sel:make(fun(Face, #we{fs=Ftab}) ->
-			   #face{mat=M} = gb_trees:get(Face, Ftab),
-			   M =:= Mat
+    %% XXX Works but is slow.
+    wings_sel:make(fun(_, #we{mat=AtomMat}) when is_atom(AtomMat) ->
+			   Mat =:= AtomMat;
+		      (Face, #we{mat=MatTab}) ->
+			   case keysearch(Face, 1, MatTab) of
+			       false -> false;
+			       {value,{_,Mat}} -> true;
+			       {value,_} -> false
+			   end
 		   end, face, St).
 
 set_material(Mat, #st{selmode=face}=St) ->
     wings_sel:map(fun(Faces, We) ->
-			  set_material_1(Mat, gb_sets:to_list(Faces), We)
+			  assign(Mat, Faces, We)
 		  end, St);
 set_material(Mat, #st{selmode=body}=St) ->
     wings_sel:map(fun(_, #we{fs=Ftab}=We) ->
-			  set_material_1(Mat, gb_trees:keys(Ftab), We)
+			  assign(Mat, gb_trees:keys(Ftab), We)
 		  end, St);
 set_material(_, St) -> St.
-
-set_material_1(Mat, Faces, #we{fs=Ftab0}=We) ->
-    Ftab = foldl(fun(Face, Ft) ->
-			 Rec = gb_trees:get(Face, Ft),
-			 gb_trees:update(Face, Rec#face{mat=Mat}, Ft)
-		 end, Ftab0, Faces),
-    We#we{fs=Ftab}.
 
 default() ->
     M = [{default,make_default({1.0,1.0,1.0}, 1.0)},
@@ -365,20 +375,21 @@ no_texture() ->
 %% Return the materials used by the objects in the scene.
 
 used_materials(#st{shapes=Shs,mat=Mat0}) ->
-    Used0 = foldl(fun(#we{fs=Ftab}, A) ->
-			  used_materials_1(Ftab, A)
-		  end, gb_sets:empty(), gb_trees:values(Shs)),
-    Used1 = sofs:from_external(gb_sets:to_list(Used0), [name]),
+    Used0 = foldl(fun(We, A) ->
+			  [used_materials_we(We)|A]
+		  end, [], gb_trees:values(Shs)),
+    Used1 = gb_sets:union(Used0),
+    Used2 = sofs:from_external(gb_sets:to_list(Used1), [name]),
     Mat = sofs:relation(gb_trees:to_list(Mat0), [{name,data}]),
-    Used = sofs:restriction(Mat, Used1),
+    Used = sofs:restriction(Mat, Used2),
     sofs:to_external(Used).
 
-used_materials_1(Ftab, Acc) ->
-    foldl(fun(#face{mat=[_|_]=Mat}, A) ->
-		  gb_sets:union(A, gb_sets:from_list(Mat));
-	     (#face{mat=Mat}, A) ->
-		  gb_sets:add(Mat, A)
-	  end, Acc, gb_trees:values(Ftab)).
+used_materials_we(#we{mat=Mat}) when is_atom(Mat) ->
+    gb_sets:singleton(Mat);
+used_materials_we(#we{mat=MatTab}) ->
+    Used0 = sofs:from_external(MatTab, [{face,material}]),
+    Used = sofs:range(Used0),
+    gb_sets:from_list(sofs:to_external(Used)).
 
 %% Return all image ids used by materials.
 
@@ -544,8 +555,8 @@ preview_mat(Key, Colors, Alpha) ->
     
 %%% Return color in texture for the given UV coordinates.
 
-color(Face, {U,V}, #we{fs=Ftab}, #st{mat=Mtab}) ->
-    #face{mat=Name} = gb_trees:get(Face, Ftab),
+color(Face, {U,V}, We, #st{mat=Mtab}) ->
+    Name = get(Face, We),
     Props = gb_trees:get(Name, Mtab),
     Maps = prop_get(maps, Props),
     case prop_get(diffuse, Maps, none) of
@@ -571,3 +582,128 @@ prop_get(Key, Props) ->
 
 prop_get(Key, Props, Def) ->
     proplists:get_value(Key, Props, Def).
+
+%%%
+%%% New low-level interface introduced when the #face record was
+%%% removed. Ideally, the functions below should be the only ones
+%%% that exactly know how materials are implemented.
+%%%
+
+%% mat_faces([{Face,Info}], We) -> [{Mat,[{Face,Info}]}]
+%%  Group face tab into groups based on material.
+%%  Used for displaying objects.
+mat_faces(Ftab, #we{mat=AtomMat}) when is_atom(AtomMat) ->
+    [{AtomMat,Ftab}];
+mat_faces(Ftab0, #we{mat=MatTab}) ->
+    Ftab1 = mat_join(Ftab0, MatTab, []),
+    Ftab2 = sofs:from_external(Ftab1, [{material,info}]),
+    Ftab = sofs:relation_to_family(Ftab2),
+    sofs:to_external(Ftab).
+
+mat_join([{F1,_}|_]=Fs, [{F2,_}|Ms], Acc) when F2 < F1 ->
+    mat_join(Fs, Ms, Acc);
+mat_join([{F,Info}|Fs], [{F,Mat}|Ms], Acc) ->
+    mat_join(Fs, Ms, [{Mat,{F,Info}}|Acc]);
+mat_join([], _, Acc) -> reverse(Acc).
+
+get_all(#we{mat=Mat,fs=Ftab}) ->
+    force_list(Mat, Ftab).
+
+get(_, #we{mat=Atom}) when is_atom(Atom) -> Atom;
+get(Face, #we{mat=Tab}) ->
+    {value,{_,Mat}} = keysearch(Face, 1, Tab),
+    Mat.
+
+delete_face(_, #we{mat=AtomMat}=We) when is_atom(AtomMat) -> We;
+delete_face(Face, #we{mat=MatTab0}=We) ->
+    MatTab = orddict:erase(Face, MatTab0),
+    We#we{mat=MatTab}.
+
+delete_faces(_, #we{mat=AtomMat}=We) when is_atom(AtomMat) -> We;
+delete_faces(Faces0, #we{mat=MatTab0}=We) when is_list(Faces0) ->
+    Faces = sofs:from_external(Faces0, [face]),
+    MatTab1 = sofs:from_external(MatTab0, [{face,mat}]),
+    MatTab2 = sofs:drestriction(MatTab1, Faces),
+    MatTab = sofs:to_external(MatTab2),
+    We#we{mat=MatTab};
+delete_faces(Faces, We) ->
+    delete_faces(gb_sets:to_list(Faces), We).
+
+cleanup(#we{mat=Mat}=We) when is_atom(Mat) -> We;
+cleanup(#we{mat=Mat0,fs=Ftab}=We) ->
+    Fs = sofs:from_external(gb_trees:keys(Ftab), [face]),
+    Mat1 = sofs:from_external(Mat0, [{face,material}]),
+    Mat2 = sofs:restriction(Mat1, Fs),
+    Mat = sofs:to_external(Mat2),
+    We#we{mat=Mat}.
+    
+assign_materials([{M,F}|_]=MatFace, We) when is_atom(M), is_integer(F) ->
+    foldl(fun({Mat,Faces}, W) ->
+		  assign(Mat, Faces, W)
+	  end, We, wings_util:rel2fam(MatFace));
+assign_materials([{F,M}|_]=MatFace0, We) when is_integer(F), is_atom(M) ->
+    MatFace1 = sofs:relation(MatFace0),
+    MatFace2 = sofs:converse(MatFace1),
+    MatFace = sofs:to_external(MatFace2),
+    assign_materials(MatFace, We).
+
+assign(Mat, _, #we{mat=Mat}=We) -> We;
+assign(Mat, Faces, #we{mat=Tab0,fs=Ftab}=We) when is_list(Faces) ->
+    case length(Faces) =:= gb_trees:size(Ftab) of
+	true ->
+	    We#we{mat=Mat};
+	false ->
+	    Tab = force_list(Tab0, Ftab),
+	    NewTab = sort(make_tab(Mat, Faces)),
+	    MatTab = mat_merge(NewTab, Tab, []),
+	    We#we{mat=MatTab}
+    end;
+assign(Mat, Faces, We) ->
+    assign(Mat, gb_sets:to_list(Faces), We).
+
+force_list(L, _) when is_list(L) -> L;
+force_list(M, Ftab) when is_atom(M) ->
+    reverse(make_tab(M, gb_trees:keys(Ftab))).
+
+make_tab(M, List) ->
+    foldl(fun(F, A) -> [{F,M}|A] end, [], List).
+
+mat_merge([{Fn,_}|_]=Fns, [{Fo,_}=Fold|Fos], Acc) when Fo < Fn ->
+    mat_merge(Fns, Fos, [Fold|Acc]);
+mat_merge([{Fn,_}=Fnew|Fns], [{Fo,_}|_]=Fos, Acc) when Fo > Fn ->
+    mat_merge(Fns, Fos, [Fnew|Acc]);
+mat_merge([Fnew|Fns], [_|Fos], Acc) -> % Equality
+    mat_merge(Fns, Fos, [Fnew|Acc]);
+mat_merge([], Fos, Acc) ->
+    reverse(Acc, Fos);
+mat_merge(Fns, [], Acc) ->
+    reverse(Acc, Fns).
+
+renumber(Mat, _) when is_atom(Mat) -> Mat;
+renumber(L, Fmap) -> renumber_1(L, Fmap, []).
+
+renumber_1([{F,M}|T], Fmap, Acc) ->
+    renumber_1(T, Fmap, [{gb_trees:get(F, Fmap),M}|Acc]);
+renumber_1([], _, Acc) -> reverse(Acc).
+
+merge([{M,_}|T]=L) ->
+    case all_same(T, M) of
+	true -> M;
+	false -> merge_1(L, [])
+    end.
+
+merge_1([{M,#we{fs=Ftab}}|T], Acc) ->
+    merge_1(T, [force_list(M, Ftab)|Acc]);
+merge_1([], Acc) -> lists:merge(Acc).
+
+all_same([{M,_}|T], M) ->
+    all_same(T, M);
+all_same([], _) -> true;
+all_same([_|_], _) -> false.
+
+-ifdef(DEBUG).
+validate(#we{mat=Mat}) when is_atom(Mat) -> ok;
+validate(#we{mat=Mat,fs=Ftab}) ->
+    Faces = gb_trees:keys(Ftab),
+    Faces = [F || {F,_} <- Mat].
+-endif.

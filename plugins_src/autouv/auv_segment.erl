@@ -5,11 +5,11 @@
 %%%               Segments Model into set of charts containg faces.
 %%% Created :  3 Oct 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2002 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.46 2003/01/29 06:22:30 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.47 2003/04/21 10:16:54 bjorng Exp $
 
 -module(auv_segment).
 
@@ -625,12 +625,12 @@ find_delete(Face,Level,Dist0,Next0,Fs0,Fg) ->
 %% The original autouv algorithm...
 %%
 
-segment_by_direction(#we{fs=Ftab}=We) ->
-    Rel = foldl(fun({_,#face{mat='_hole_'}}, A) -> A;
+segment_by_direction(We) ->
+    Rel = foldl(fun({_,'_hole_'}, A) -> A;
 		   ({Face,_}, A) ->
 			N = wings_face:normal(Face, We),
 			[{seg_dir(N),Face}|A]
-		end, [], gb_trees:to_list(Ftab)),
+		end, [], wings_material:get_all(We)),
     segment_by_cluster(Rel, We).
 
 seg_dir({X,Y,Z}) ->
@@ -645,10 +645,10 @@ seg_dir({X,Y,Z}) ->
     end.
 
 %% By Color 
-segment_by_material(#we{fs=Ftab}=We) ->
-    Rel = foldl(fun({_,#face{mat='_hole_'}}, A) -> A;
-		   ({Face,#face{mat=Name}}, A) -> [{Name,Face}|A]
-		end, [], gb_trees:to_list(Ftab)),
+segment_by_material(We) ->
+    Rel = foldl(fun({_,'_hole_'}, A) -> A;
+		   ({Face,Name}, A) -> [{Name,Face}|A]
+		end, [], wings_material:get_all(We)),
     segment_by_cluster(Rel, We).
 
 %% Common segmentation algorithm

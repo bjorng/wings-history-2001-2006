@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.7 2003/01/01 14:58:47 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.8 2003/04/21 10:16:58 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -53,6 +53,7 @@ prepare_mesh(Mesh0, UsedMat0) ->
 import_mesh(Mesh, ObjType) ->
     case catch wings_we:build(ObjType, Mesh) of
 	{'EXIT',_R} ->
+	    io:format("~p\n", [_R]),
 	    build_1(ObjType, Mesh);
 	We -> We
     end.
@@ -105,15 +106,15 @@ rename_materials([], We) -> We;
 rename_materials([_|_]=NameMap0, We) ->
     NameMap = gb_trees:from_orddict(sort(NameMap0)),
     rename_materials(NameMap, We);
-rename_materials(NameMap, #we{fs=Ftab0}=We) ->
-    Ftab1 = foldl(fun({Face,#face{mat=Mat0}=Rec}=Pair, A) ->
-			  case gb_trees:lookup(Mat0, NameMap) of
-			      none -> [Pair|A];
-			      {value,Mat} -> [{Face,Rec#face{mat=Mat}}|A]
-			  end
-		  end, [], gb_trees:to_list(Ftab0)),
-    Ftab = gb_trees:from_orddict(reverse(Ftab1)),
-    We#we{fs=Ftab}.
+rename_materials(NameMap, We) ->
+    MatTab0 = wings_material:get_all(We),
+    MatTab = foldl(fun({Face,Mat0}=Pair, A) ->
+			   case gb_trees:lookup(Mat0, NameMap) of
+			       none -> [Pair|A];
+			       {value,Mat} -> [{Face,Mat}|A]
+			   end
+		   end, [], MatTab0),
+    wings_material:assign_materials(MatTab, We).
 
 -ifndef(DUMP).
 dump(_) -> ok.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.80 2003/02/23 10:36:46 bjorng Exp $
+%%     $Id: wings.hrl,v 1.81 2003/04/21 10:16:56 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -139,6 +139,7 @@
 	 vc,					%Connection info (=incident edge)
 						% for vertices.
 	 vp,					%Vertex positions.
+	 mat=default,				%Materials.
 	 next_id,				%Next free ID for vertices,
 						% edges, and faces.
 						% (Needed because we never re-use
@@ -168,12 +169,6 @@
 	 ltsu,					%Left traversal successor
 	 rtpr,					%Right traversal predecessor
 	 rtsu					%Right traversal successor
-	}).
-
-%% A face in a winged-edge shape.
--record(face,
-	{edge,					%Incident edge
-	 mat=default				%Material for face
 	}).
 
 %% The current view/camera.

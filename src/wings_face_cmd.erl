@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.77 2003/04/17 14:43:47 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.78 2003/04/21 10:16:57 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -187,11 +187,10 @@ extrude_region_vmirror(OldWe, #we{mirror=Face0}=We0) ->
     Bordering = wings_face:extend_border(FaceSet, We0),
     NewFaces = wings_we:new_items(face, OldWe, We0),
     Dissolve = gb_sets:union(FaceSet, gb_sets:intersection(Bordering, NewFaces)),
-    #we{fs=Ftab0} = We = dissolve(Dissolve, We0),
-    [Face] = gb_sets:to_list(wings_we:new_items(face, We0, We)),
-    FaceRec = gb_trees:get(Face, Ftab0),
-    Ftab = gb_trees:update(Face, FaceRec#face{mat='_hole_'}, Ftab0),
-    wings_util:mirror_flatten(OldWe, We#we{mirror=Face,fs=Ftab}).
+    We1 = dissolve(Dissolve, We0),
+    [Face] = NewFace = gb_sets:to_list(wings_we:new_items(face, We0, We1)),
+    We = wings_material:assign('_hole_', NewFace, We1),
+    wings_util:mirror_flatten(OldWe, We#we{mirror=Face}).
     
 %%%
 %%% The Extract Region command.
@@ -246,11 +245,12 @@ dissolve(Faces, #we{id=Id}=We0, Acc) ->
 	    wings_util:error("Dissolving would cause an inconsistent object structure.")
     end.
 		  
-dissolve_1(Faces, WeOrig, #we{fs=Ftab}=We0) ->
+dissolve_1(Faces, WeOrig, We0) ->
     {Face,_} = gb_sets:take_smallest(Faces),
-    #face{mat=Mat} = gb_trees:get(Face, Ftab),
-    Parts = outer_edge_partition(Faces, We0),
-    do_dissolve(Faces, Parts, Mat, WeOrig, We0).
+    Mat = wings_material:get(Face, We0),
+    We = wings_material:delete_faces(Faces, We0),
+    Parts = outer_edge_partition(Faces, We),
+    do_dissolve(Faces, Parts, Mat, WeOrig, We).
 
 do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
     We1 = do_dissolve_faces(Faces, We0),
@@ -267,9 +267,9 @@ do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
 
 do_dissolve_1([EdgeList|Ess], Mat, WeOrig,
 	      KeepVs0, #we{es=Etab0,fs=Ftab0}=We0) ->
-    {Face,We} = wings_we:new_id(We0),
-    FaceRec = #face{edge=hd(EdgeList),mat=Mat},
-    Ftab = gb_trees:insert(Face, FaceRec, Ftab0),
+    {Face,We1} = wings_we:new_id(We0),
+    We = wings_material:assign(Mat, [Face], We1),
+    Ftab = gb_trees:insert(Face, hd(EdgeList), Ftab0),
     Last = last(EdgeList),
     {KeepVs,Etab} = update_outer([Last|EdgeList], EdgeList, Face, WeOrig,
 				 Ftab, KeepVs0, Etab0),
@@ -348,7 +348,7 @@ intrude(Faces0, #we{id=Id,es=Etab,fs=Ftab,next_id=Wid}=We0, SelAcc) ->
     Faces = gb_sets:to_list(Faces0),
     RootSet0 = foldl(
 		 fun(F, A) ->
-			 #face{edge=Edge} = gb_trees:get(F, Ftab),
+			 Edge = gb_trees:get(F, Ftab),
 			 #edge{vs=V} = gb_trees:get(Edge, Etab),
 			 [{face,F},{vertex,V}|A]
 		 end, [], Faces),
@@ -402,7 +402,7 @@ mirror_faces(Faces, We) ->
     mirror_faces(gb_sets:to_list(Faces), We).
 
 mirror_face(Face, #we{fs=Ftab}=OrigWe, #we{next_id=Id}=We0) ->
-    #face{edge=AnEdge} = gb_trees:get(Face, Ftab),
+    AnEdge = gb_trees:get(Face, Ftab),
     RootSet0 = [{face,Face},{edge,AnEdge}],
     {WeNew0,RootSet} = wings_we:renumber(OrigWe, Id, RootSet0),
     [{face,FaceNew},{edge,ANewEdge}] = RootSet,
@@ -436,7 +436,7 @@ mirror_move_vs({V,Pos0}, PlaneNormal, Center, A) ->
 mirror_weld(0, _IterA0, FaceA, _IterB0, FaceB, _WeOrig, #we{fs=Ftab0}=We) ->
     Ftab1 = gb_trees:delete(FaceA, Ftab0),
     Ftab = gb_trees:delete(FaceB, Ftab1),
-    We#we{fs=Ftab};
+    wings_material:delete_faces([FaceA,FaceB], We#we{fs=Ftab});
 mirror_weld(N, IterA0, FaceA, IterB0, FaceB, WeOrig, We0) ->
     %% We will remove FaceA and FaceB, as well as all edges and vertices
     %% surrounding FaceB.
@@ -631,9 +631,9 @@ smooth_connect(Vs, Faces0, We0) ->
     FaceVs = sofs:to_external(FaceVs2),
     smooth_connect_0(FaceVs, We0).
 
-smooth_connect_0([{Face,Vs}|Fvs], #we{fs=Ftab}=We0) ->
-    case gb_trees:get(Face, Ftab) of
-	#face{mat='_hole_'} ->
+smooth_connect_0([{Face,Vs}|Fvs], We0) ->
+    case wings_material:get(Face, We0) of
+	'_hole_' ->
 	    smooth_connect_0(Fvs, We0);
 	_ ->
 	    We = smooth_connect_1(Face, Vs, We0),
@@ -787,7 +787,7 @@ force_bridge(FaceA, Va, FaceB, Vb, We0) ->
 do_bridge(0, _Va, FaceA, _IterA, _Vb, FaceB, _IterB, _, #we{fs=Ftab0}=We) ->
     Ftab1 = gb_trees:delete(FaceA, Ftab0),
     Ftab = gb_trees:delete(FaceB, Ftab1),
-    We#we{fs=Ftab};
+    wings_material:delete_faces([FaceA,FaceB], We#we{fs=Ftab});
 do_bridge(N, Va0, FaceA, IterA0, Vb0, FaceB, IterB0, Ids0, We0) ->
     #we{es=Etab0,fs=Ftab0} = We0,
     NewEdge = wings_we:id(2, Ids0),
@@ -829,11 +829,11 @@ do_bridge(N, Va0, FaceA, IterA0, Vb0, FaceB, IterB0, Ids0, We0) ->
 			  rf=RightFace,rtpr=EdgeB,rtsu=EdgeA},
     Etab = gb_trees:enter(NewEdge, NewRec, Etab3),
 
-    FaceRec0 = gb_trees:get(FaceA, Ftab0),	%Pick up material.
-    FaceRec = FaceRec0#face{edge=NewEdge},
-    Ftab = gb_trees:insert(RightFace, FaceRec, Ftab0),
+    Mat = wings_material:get(FaceA, We0),
+    We1 = wings_material:assign(Mat, [RightFace], We0),
+    Ftab = gb_trees:insert(RightFace, NewEdge, Ftab0),
     
-    We = We0#we{es=Etab,fs=Ftab},
+    We = We1#we{es=Etab,fs=Ftab},
     Ids = wings_we:bump_id(Ids0),
     Va = wings_vertex:other(Va0, RecA0),
     Vb = wings_vertex:other(Vb0, RecB0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.114 2003/03/21 13:16:30 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.115 2003/04/21 10:16:59 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -274,12 +274,10 @@ sel_to_set(#st{sel=Sel0}) ->
     Sel = foldl(fun({Id,_}, A) -> [Id|A] end, [], Sel0),
     gb_sets:from_list(Sel).
 
-virtual_mirror_fun(Faces, #we{fs=Ftab0}=We) ->
+virtual_mirror_fun(Faces, We) ->
     case gb_sets:to_list(Faces) of
 	[Face] ->
-	    Frec = gb_trees:get(Face, Ftab0),
-	    Ftab = gb_trees:update(Face, Frec#face{mat='_hole_'}, Ftab0),
-	    We#we{fs=Ftab,mirror=Face};
+	    wings_material:assign('_hole_', [Face], We#we{mirror=Face});
 	_ ->
 	    wings_util:error("Only a single face must be selected per object.")
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.58 2003/04/17 11:30:51 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.59 2003/04/21 10:16:57 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -453,7 +453,7 @@ draw_normals(#dlo{normals=Ns}) ->
 %%
 
 face(Face, #we{fs=Ftab}=We) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    Edge = gb_trees:get(Face, Ftab),
     face(Face, Edge, We).
 
 face(Face, Edge, #we{vp=Vtab}=We) ->
@@ -489,7 +489,7 @@ tess_face_vtxcol(Tess, []) ->
 %%
 
 flat_face(Face, #we{fs=Ftab}=We) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    Edge = gb_trees:get(Face, Ftab),
     flat_face(Face, Edge, We).
 
 flat_face(Face, Edge, #we{vp=Vtab}=We) ->

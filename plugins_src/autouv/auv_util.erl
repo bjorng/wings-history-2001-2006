@@ -1,15 +1,15 @@
 %%%-------------------------------------------------------------------
 %%% File    : auv_util.erl
 %%% Author  : Dan Gudmundsson <dgud@erix.ericsson.se>
-%%% Description : Algotrihms for placing charts on texture.
+%%% Description : Algorithms for placing charts on texture.
 %%%
 %%% Created :  7 Nov 2002 by Bjorn Gustavsson
 %%%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2002 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_util.erl,v 1.4 2003/04/18 08:11:36 bjorng Exp $
+%%     $Id: auv_util.erl,v 1.5 2003/04/21 10:16:54 bjorng Exp $
 
 -module(auv_util).
 
@@ -118,14 +118,10 @@ mark_segments(Charts, Cuts, We0, St) ->
     Template = list_to_tuple([auv_util:make_mat(Diff) || {_,Diff} <- seg_materials()]),
     assign_materials(Charts, We, Template, 0, St).
 
-assign_materials([Faces|T], #we{fs=Ftab0}=We0, Template, I0, #st{mat=Mat0}=St0) ->
+assign_materials([Faces|T], We0, Template, I0, #st{mat=Mat0}=St0) ->
     I = I0 + 1,
     MatName = list_to_atom("AuvChart" ++ integer_to_list(I)),
-    Ftab = foldl(fun(F, A) ->
-			 Rec = gb_trees:get(F, A),
-			 gb_trees:update(F, Rec#face{mat=MatName}, A)
-		 end, Ftab0, Faces),
-    We = We0#we{fs=Ftab},
+    We = wings_material:assign(MatName, Faces, We0),
     case gb_trees:is_defined(MatName, Mat0) of
 	true ->
 	    assign_materials(T, We, Template, I, St0);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.26 2003/04/05 09:41:27 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.27 2003/04/21 10:16:55 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -170,7 +170,7 @@ dlist_mask(#we{fs=Ftab}=We) ->
     gl:endList(),
     List.
 
-dlist_mask([{Face,#face{edge=Edge}}|Fs], We) ->
+dlist_mask([{Face,Edge}|Fs], We) ->
     wings_draw_util:flat_face(Face, Edge, We),
     dlist_mask(Fs, We);
 dlist_mask([], _We) -> ok.

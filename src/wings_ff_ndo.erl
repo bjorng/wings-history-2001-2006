@@ -3,12 +3,12 @@
 %%
 %%     Import of Nendo .ndo files.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.20 2003/04/18 03:47:18 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.21 2003/04/21 10:16:57 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -76,10 +76,10 @@ read_object_1(<<L:16,T0/binary>>) ->
 		       {0,0} -> 3		%Hidden, locked
 		   end,
 	    {Etab,Htab,T3} = read_edges(T2),
-	    {Ftab,T4} = read_faces(T3),
+	    T4 = skip_faces(T3),
 	    {Vtab,T5} = read_vertices(T4),
 	    T = skip_rest(T5),
-	    We0 = #we{mode=vertex,es=Etab,vp=Vtab,fs=Ftab,he=Htab,perm=Perm},
+	    We0 = #we{mode=vertex,es=Etab,vp=Vtab,he=Htab,perm=Perm},
 	    We1 = wings_we:rebuild(We0),
 	    We = clean_bad_edges(We1),
 	    {Name,We,T}
@@ -139,15 +139,11 @@ read_edges(Edge, N, <<EdgeRec0:25/binary,T/binary>>, Eacc, Hacc0) ->
 	   end,
     read_edges(Edge+1, N, T, [EdgeRec|Eacc], Hacc).
 
-read_faces(<<NumFaces:16,T/binary>>) ->
+skip_faces(<<NumFaces:16,T0/binary>>) ->
     io:format(" faces ~w\n", [NumFaces]),
-    read_faces(0, NumFaces, T, []).
-
-read_faces(N, N, T, Acc) ->
-    {gb_trees:from_orddict(reverse(Acc)),T};
-read_faces(Face, N, <<Edge:16,T/binary>>, Acc) ->
-    FaceRec = {Face,#face{edge=Edge}},
-    read_faces(Face+1, N, T, [FaceRec|Acc]).
+    Skip = 2*NumFaces,
+    <<_:Skip/binary,T/binary>> = T0,
+    T.
 
 read_vertices(<<NumVertices:16,T/binary>>) ->
     io:format(" vertices ~w\n", [NumVertices]),
@@ -235,7 +231,7 @@ write_edges([{Edge,Erec0}|Es], Htab, Acc) ->
 write_edges([], _Htab, Acc) ->
     list_to_binary([<<(length(Acc)):16>>|reverse(Acc)]).
 
-write_faces([#face{edge=Edge}|Fs], Acc) ->
+write_faces([Edge|Fs], Acc) ->
     write_faces(Fs, [<<Edge:16>>|Acc]);
 write_faces([], Acc) ->
     list_to_binary([<<(length(Acc)):16>>|reverse(Acc)]).

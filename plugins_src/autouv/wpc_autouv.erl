@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.108 2003/04/18 08:11:37 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.109 2003/04/21 10:16:54 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -104,11 +104,12 @@ start_edit(_Id, We, St0) ->
     wings_ask:dialog("Model is Already UV Mapped", Qs,Ask).
 
 start_edit_1(#we{name=ObjName,fs=Ftab}=We, St) ->
-    MatNames0 = foldl(fun({Face,#face{mat=Mat}}, A) ->
-			      [{Mat,Face}|A]
-		      end, [], gb_trees:to_list(Ftab)),
-    MatNames1 = sofs:to_external(sofs:relation_to_family(sofs:relation(MatNames0))),
-    MatNames = [Mat || {Name,_}=Mat <- MatNames1, has_texture(Name, St)],
+    MatNames0 = wings_material:get_all(We),
+    MatNames1 = sofs:from_external(MatNames0, [{face,material}]),
+    MatNames2 = sofs:converse(MatNames1),
+    MatNames3 = sofs:relation_to_family(MatNames2),
+    MatNames4 = sofs:to_external(MatNames3),
+    MatNames = [Mat || {Name,_}=Mat <- MatNames4, has_texture(Name, St)],
     case MatNames of
 	[] ->
 	    Faces = gb_trees:keys(Ftab),
@@ -248,17 +249,9 @@ insert_coords([], We0 = #we{es=Etab0}) ->
 		    end, gb_trees:to_list(Etab0)),
     We0#we{es=gb_trees:from_orddict(Etab)}.
 
-insert_material(Cs, MatName, #we{fs=Ftab0}=We) ->
+insert_material(Cs, MatName, We) ->
     Faces = lists:append([Fs || #ch{fs=Fs} <- Cs]),
-    Ftab = foldl(fun(Face, A) ->
-			 case gb_trees:get(Face, A) of
-			     #face{mat=MatName} -> 
-				 A;
-			     Rec -> 
-				 gb_trees:update(Face,Rec#face{mat=MatName},A)
-			 end
-		 end, Ftab0, Faces),
-    We#we{fs=Ftab}.
+    wings_material:assign(MatName, Faces, We).
 
 init_edit(MatName, Faces, We0) ->
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
@@ -314,8 +307,8 @@ get_texture_size(MatName, #st{mat=Materials}) ->
 	    {W,H}
     end.	     
 
-get_material(Face, Materials, #we{fs=Ftab}) ->
-    #face{mat=MatName} = gb_trees:get(Face, Ftab),
+get_material(Face, Materials, We) ->
+    MatName = wings_material:get(Face, We),
     Mat = gb_trees:get(MatName, Materials),
     proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
@@ -639,7 +632,6 @@ edge_option_menu(#uvstate{option = Option}) ->
 
 quit_menu(Uvs) ->
     #uvstate{st=St,matname=MatN} = Uvs,
-%    DefVar = {quit_mode,quit_uv_tex},
     A1 = {"Save UV Coordinates and Texture",quit_uv_tex},
     A2 = {"Save Only UV Coordinates",quit_uv},
     A3 = {"Discard All Changes",cancel},
@@ -648,8 +640,6 @@ quit_menu(Uvs) ->
 	       false -> [A1,A3]
 	   end,
     Qs = [{vradio,Alts,quit_mode,quit_uv_tex}],
-
-%    Qs = [{vframe,{alt,Alts,DefVar}}],
     wings_ask:dialog("Exit Options",
 		     Qs, fun([Quit]) -> {auv,quit,Quit} end).
 
@@ -1372,7 +1362,7 @@ draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe, we=We},
     if
 	ColorMode == true ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-	    MatName = (gb_trees:get(hd(Fs), We#we.fs))#face.mat,
+	    MatName = wings_material:get(hd(Fs), We),
 	    wings_material:apply_material(MatName, Materials),
 	    lists:foreach(fun(Face) ->
 				  gl:color4fv(get_material(Face, Materials, We)),

@@ -4,6 +4,7 @@
 %%     Triangulate, Quadrangulate faces plugin.
 %%
 %%  Copyright (c) 2001 Howard Trickey
+%%		  2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -50,11 +51,12 @@ dofaces(Faces, #we{id=Id}=We0, Q, Acc) ->
 tess_faces([], We, _Q) -> We;
 tess_faces([F|T], We, Q) -> tess_faces(T, doface(F, We, Q), Q).
 
-doface(Face,#we{fs=Ftab,vp=Vtab}=We,Q) ->
-    #face{mat=Mat} = gb_trees:get(Face, Ftab),
+doface(Face, #we{vp=Vtab}=We, Q) ->
+    Mat = wings_material:get(Face, We),
+    %%#face{mat=Mat} = gb_trees:get(Face, Ftab),
     Vs = wpa:face_vertices(Face, We),
     Len = length(Vs),
-    case (Q and (Len < 5)) or (not(Q) and (Len < 4)) of
+    case (Q and (Len < 5)) orelse (not(Q) and (Len < 4)) of
 	true -> We;
 	_ ->
 	    Vcoords = coord_list(gb_trees:to_list(Vtab)),

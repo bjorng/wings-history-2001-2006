@@ -4,12 +4,13 @@
 %%     This module contains the Collapse commands (for vertices,
 %%     edges, and faces).
 %%
-%%  Copyright (c) 2001-2003 Jakob Cederlund, Bjorn Gustavsson
+%%  Copyright (c) 2001 Jakob Cederlund
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.29 2003/02/13 20:25:15 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.30 2003/04/21 10:16:56 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -32,7 +33,8 @@ collapse(#st{selmode=vertex}=St0) ->
     end.
 
 collapse_faces(Faces, #we{id=Id}=We0, SelAcc)->
-    We = foldl(fun collapse_face/2, We0, gb_sets:to_list(Faces)),
+    We1 = foldl(fun collapse_face/2, We0, gb_sets:to_list(Faces)),
+    We = wings_material:cleanup(We1),
     check_consistency(We),
     Sel = wings_we:new_items(vertex, We0, We),
     {We,[{Id,Sel}|SelAcc]}.
@@ -302,7 +304,7 @@ delete_degenerated(Face, #we{fs=Ftab,es=Etab}=We) ->
     %% Note: The face could have been deleted by a previous
     %% wings_edge:dissolve_edge/2.
     case gb_trees:lookup(Face, Ftab) of
-	{value,#face{edge=Edge}} ->
+	{value,Edge} ->
 	    case gb_trees:get(Edge, Etab) of
 		#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same} ->
 		    bad_edge;

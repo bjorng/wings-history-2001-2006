@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.26 2003/04/17 14:43:48 bjorng Exp $
+%%     $Id: wpa.erl,v 1.27 2003/04/21 10:16:59 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,yes_no/1,
@@ -89,14 +89,11 @@ export_selected(Props, Exporter, #st{selmode=Mode}=St)
 export_selected(_, _, _) -> error("Select objects or faces.").
 
 export_sel_set_holes(body, _, We) -> We;
-export_sel_set_holes(face, Faces, #we{fs=Ftab0}=We) ->
-    Ftab = foldl(fun({Face,Rec}=Keep, A) ->
-			 case gb_sets:is_member(Face, Faces) of
-			     true -> [Keep|A];
-			     false -> [{Face,Rec#face{mat='_hole_'}}|A]
-			 end
-		 end, [], gb_trees:to_list(Ftab0)),
-    We#we{fs=gb_trees:from_orddict(reverse(Ftab))}.
+export_sel_set_holes(face, Faces0, #we{fs=Ftab}=We) ->
+    Faces1 = gb_sets:to_list(Faces0),
+    AllFaces = gb_trees:keys(Ftab),
+    Faces = ordsets:subtract(AllFaces, Faces1),
+    wings_material:assign('_hole_', Faces, We).
 
 export_filename(Prop, St) ->
     wings_file:export_filename(Prop, St).
