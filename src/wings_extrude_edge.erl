@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.32 2002/10/02 15:10:33 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.33 2002/11/15 17:01:54 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -377,8 +377,7 @@ digraph_insert(G, Va0, Vb0, Face) ->
     digraph:add_edge(G, Va, Vb).
 
 connect(G, Wid, We) ->
-    Cs0 = digraph_utils:components(G),
-    Cs = remove_winged_vs(Cs0),
+    Cs = digraph_utils:components(G),
     connect(G, Cs, Wid, We, []).
 
 connect(G, [C|Cs], Wid, We0, Closed) ->
@@ -403,6 +402,21 @@ digraph_get_path(G, Va, Vb) ->
 	Path -> Path
     end.
 
+connect_inner({new,Va}, [Va,Vb,{new,Vb}], N, Face, We0) ->
+    EdgeThrough = edge_through(Va, Vb, We0),
+    {We1,TempE} = wings_edge:fast_cut(EdgeThrough, default, We0),
+    {We2,Edge} = wings_vertex:force_connect(Vb, Va, Face, We1),
+    #we{vs=Vtab} = We2,
+    APos = wings_vertex:pos(Va, Vtab),
+    BPos = wings_vertex:pos(Vb, Vtab),
+    Vec = e3d_vec:sub(APos, BPos),
+    Pos1 = e3d_vec:add(BPos, e3d_vec:mul(e3d_vec:cross(Vec, N), ?EXTRUDE_DIST)),
+    {We3,NewE} = wings_edge:fast_cut(Edge, Pos1, We2),
+    Pos2 = e3d_vec:add(APos, e3d_vec:mul(e3d_vec:cross(Vec, N), ?EXTRUDE_DIST)),
+    We4 = wings_edge:dissolve_edge(TempE, We3),
+    {We,_} = wings_edge:fast_cut(NewE, Pos2, We4),
+    wings_util:validate(We),
+    We;
 connect_inner({new,V}, [V|[B,C,_|_]=Next], N, Face, We0) ->
     {We1,Current} = connect_one_inner(V, V, B, C, N, Face, We0),
     #we{vs=Vtab} = We2 = connect_inner(Current, Next, N, Face, We1),
@@ -446,6 +460,14 @@ connect_inner(Current, [_,Last], _, Face, We0) ->
     {We,_} = wings_vertex:force_connect(Last, Current, Face, We0),
     We.
 
+edge_through(Va, Vb, We) ->
+    wings_vertex:until(fun(E, _, Rec, A) ->
+			       case wings_vertex:other(Va, Rec) of
+				   Vb -> E;
+				   _ -> A
+			       end
+		       end, none, Va, We).
+
 connect_one_inner(Current, A, B, C, N, Face, We0) ->
     {We1,Edge} = wings_vertex:force_connect(B, Current, Face, We0),
     #we{vs=Vtab} = We1,
@@ -486,9 +508,3 @@ new_vertex_pos(A, B, C, N, Vtab) ->
 	Sin ->
 	    e3d_vec:add(BPos, e3d_vec:mul(Vec, ?EXTRUDE_DIST/Sin))
     end.
-
-remove_winged_vs(Cs0) ->
-    Cs = sofs:from_term(Cs0, [[{vertex,face}]]),
-    P = sofs:partition(fun(C) -> sofs:domain(C) end, Cs),
-    G = sofs:specification(fun(L) -> sofs:no_elements(L) =:= 1 end, P),
-    sofs:to_external(sofs:union(G)).
