@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.82 2004/05/18 13:07:49 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.83 2004/05/31 12:46:41 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -118,6 +118,13 @@
 -define(DEF_BACKGROUND_MAPPING, probe).
 -define(DEF_BACKGROUND_POWER, 1.0).
 -define(DEF_SAMPLES, 256).
+%% Pathlight
+-define(DEF_CACHE, false).
+-define(DEF_CACHE_SIZE, 0.01).
+-define(DEF_ANGLE_THRESHOLD, 0.2).
+-define(DEF_SHADOW_THRESHOLD, 0.3).
+-define(DEF_GRADIENT, false).
+-define(DEF_SHOW_SAMPLES, false).
 %% Global Photonlight
 -define(DEF_GLOBALPHOTONLIGHT_PHOTONS, 50000).
 -define(DEF_GLOBALPHOTONLIGHT_RADIUS, 1.0).
@@ -874,12 +881,27 @@ light_dialog(_Name, ambient, Ps) ->
 				    ?DEF_BACKGROUND_MAPPING),
     BgPower = proplists:get_value(background_power, Ps, 
 				  ?DEF_BACKGROUND_POWER),
+    %%
     Type = proplists:get_value(type, Ps, ?DEF_AMBIENT_TYPE),
     Samples = proplists:get_value(samples, Ps, ?DEF_SAMPLES),
     Depth = proplists:get_value(depth, Ps, ?DEF_DEPTH),
     CausDepth = proplists:get_value(caus_depth, Ps, ?DEF_CAUS_DEPTH),
     Direct = proplists:get_value(direct, Ps, ?DEF_DIRECT),
     UseQMC = proplists:get_value(use_QMC, Ps, ?DEF_USE_QMC),
+    %%
+    CacheMinimized = proplists:get_value(cache_minimized, Ps, true),
+    Cache = proplists:get_value(cache, Ps, ?DEF_CACHE),
+    CacheSize = proplists:get_value(cache_size, Ps, ?DEF_CACHE_SIZE),
+    AngleThreshold = proplists:get_value(angle_threshold, Ps, 
+					 ?DEF_ANGLE_THRESHOLD),
+    AngleKey = {?TAG,angle_threshold},
+    AngleRange = {0.0,1.0},
+    ShadowThreshold = proplists:get_value(shadow_threshold, Ps, 
+					  ?DEF_SHADOW_THRESHOLD),
+    Gradient = proplists:get_value(gradient, Ps, ?DEF_GRADIENT),
+    ShowSamples = proplists:get_value(show_samples, Ps, ?DEF_SHOW_SAMPLES),
+    Search = proplists:get_value(search, Ps, ?DEF_SEARCH),
+    %%
     GplPhotons = proplists:get_value(globalphotonlight_photons, Ps,
 				     ?DEF_GLOBALPHOTONLIGHT_PHOTONS),
     GplRadius = proplists:get_value(globalphotonlight_radius, Ps,
@@ -909,6 +931,49 @@ light_dialog(_Name, ambient, Ps) ->
 		{text,CausDepth,[{range,{1,100}},{key,{?TAG,caus_depth}}]}],
 	[light_hook({?TAG,type}, [pathlight])]}],
       [light_hook({?TAG,type}, [hemilight,pathlight])]},
+     %% Pathlight
+     {hframe,
+      [{"",Cache,[{key,{?TAG,cache}},enable_hook(['not',{?TAG,direct}])]},
+       {hframe,
+	[{vframe,
+	  [{label,"Size"},
+	   {label,"Angle Threshold"},
+	   panel,
+	   {label,"Shadow Threshold"},
+	   {"Gradient",Gradient,[{key,{?TAG,gradient}},
+				 enable_hook(['and',
+					      ['not',{?TAG,direct}],
+					      {?TAG,cache}])]},
+	   {label,"Search"}]},
+	 {vframe,
+	  [{text,CacheSize,[{key,{?TAG,cache_size}},
+			    {range,{0.0,1000000.0}},
+			    enable_hook(['and',
+					 ['not',{?TAG,direct}],
+					 {?TAG,cache}])]},
+	   {text,AngleThreshold,[{key,AngleKey},{range,AngleRange},
+				 enable_hook(['and',
+					      ['not',{?TAG,direct}],
+					      {?TAG,cache}])]},
+	   {slider,[{key,AngleKey},{range,AngleRange},
+		    enable_hook({?TAG,cache})]},
+	   {text,ShadowThreshold,[{key,{?TAG,shadow_threshold}},
+				  {range,{0.0,1000000.0}},
+				  enable_hook(['and',
+					       ['not',{?TAG,direct}],
+					       {?TAG,cache}])]},
+	   {"Show Samples",ShowSamples,[{key,{?TAG,show_samples}},
+					enable_hook(['and',
+						     ['not',{?TAG,direct}],
+						     {?TAG,cache}])]},
+	   {text,Search,[{key,{?TAG,search}},
+			 {range,{3,10000}},
+			 enable_hook(['and',
+				      ['not',{?TAG,direct}],
+				      {?TAG,cache}])]}]}],
+	[{title,"Irradiance Cache"},
+	 {minimized,CacheMinimized},{key,{?TAG,cache_minimized}}]}],
+      [light_hook({?TAG,type}, [pathlight])]},
      %% Global Photonlight
      {hframe,[{vframe,[{label,"Photons"},
 		       {label,"Depth"}]},
@@ -988,10 +1053,29 @@ light_hook(Key, Value) -> light_hook(Key, [Value]).
 
 enable_hook(Key) ->
     {hook,
-     fun (is_disabled, {_Var,_I,Store}) -> not gb_trees:get(Key, Store);
+     fun (is_disabled, {_Var,_I,Store}) -> 
+	     not enable_hook_eval(Key, Store);
 	 (_, _) -> void
      end}.
 
+enable_hook_eval(['not',Key], Store) ->
+    not enable_hook_eval(Key, Store);
+enable_hook_eval(['and'|Keys], Store) ->
+    enable_hook_and(Keys, Store);
+enable_hook_eval(['or'|Keys], Store) ->
+    enable_hook_or(Keys, Store);
+enable_hook_eval(Key, Store) when not is_list(Key) ->
+    gb_trees:get(Key, Store).
+
+enable_hook_and([Key], Store) -> 
+    enable_hook_eval(Key, Store);
+enable_hook_and([Key|Keys], Store) ->
+    enable_hook_eval(Key, Store) andalso enable_hook_and(Keys, Store).
+
+enable_hook_or([Key], Store) -> 
+    enable_hook_eval(Key, Store);
+enable_hook_or([Key|Keys], Store) ->
+    enable_hook_eval(Key, Store) orelse enable_hook_or(Keys, Store).
 
 light_result(_Name, Ps0, 
 	     [{{?TAG,minimized},Minimized},{{?TAG,power},Power}|Res0]) ->
@@ -1020,11 +1104,11 @@ light_result([_,{{?TAG,arealight_samples},_}|_]=Ps) ->
     split_list(Ps, 3);
 %% Ambient
 light_result([{{?TAG,type},hemilight}|_]=Ps) ->
-    split_list(Ps, 17);
+    split_list(Ps, 25);
 light_result([{{?TAG,type},pathlight}|_]=Ps) ->
-    split_list(Ps, 17);
+    split_list(Ps, 25);
 light_result([{{?TAG,type},globalphotonlight}|_]=Ps) ->
-    split_list(Ps, 17);
+    split_list(Ps, 25);
 light_result(Ps) ->
 %    erlang:display({?MODULE,?LINE,Ps}),
     {[],Ps}.
@@ -1281,7 +1365,7 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     LoadImage = proplists:get_value(load_image,Attr,?DEF_LOAD_IMAGE),
     case {Renderer,Render} of
 	{_,false} ->
-	    io:format("Export time:     ~.3f s~n", 
+	    io:format("Export time:     ~s~n", 
 		      [now_diff(RenderTS, ExportTS)]),
 	    ok;
 	{false,_} ->
@@ -1337,9 +1421,9 @@ render_done(Filename, ExitStatus, LoadImage) ->
     ExportTS = get_var(export_ts),
     RenderTS = get_var(render_ts),
     FinishTS = erlang:now(),
-    io:format("Export time:     ~.3f s~n"++
-	      "Render time:     ~.3f s~n"++
-	      "Total time:      ~.3f s~n",
+    io:format("Export time:     ~s~n"++
+	      "Render time:     ~s~n"++
+	      "Total time:      ~s~n",
 	      [now_diff(RenderTS, ExportTS),
 	       now_diff(FinishTS, RenderTS),
 	       now_diff(FinishTS, ExportTS)]),
@@ -1925,10 +2009,45 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
 	    Direct = proplists:get_value(direct, YafRay, ?DEF_DIRECT),
 	    Samples = proplists:get_value(samples, YafRay, 
 					  ?DEF_SAMPLES),
-	    println(F,"       use_QMC=\"~s\" samples=\"~w\" "
-		    "depth=\"~w\" caus_depth=\"~w\" direct=\"~s\">", 
-		    [format(UseQMC),Samples,Depth,CausDepth,format(Direct)]),
-	    println(F, "</light>");
+	    print(F, "       use_QMC=\"~s\" samples=\"~w\" "
+		  "depth=\"~w\" caus_depth=\"~w\"", 
+		  [format(UseQMC),Samples,Depth,CausDepth]),
+	    case Direct of
+		true ->
+		    print(F, " direct=\"on\"", []);
+		false ->
+		    case proplists:get_value(cache, YafRay, ?DEF_CACHE) of
+			true ->
+			    CacheSize = 
+				proplists:get_value(cache_size, YafRay, 
+						    ?DEF_CACHE_SIZE),
+			    AngleThreshold = 
+				proplists:get_value(angle_threshold, YafRay, 
+						    ?DEF_ANGLE_THRESHOLD),
+			    ShadowThreshold = 
+				proplists:get_value(shadow_threshold, YafRay, 
+						    ?DEF_SHADOW_THRESHOLD),
+			    Gradient = 
+				proplists:get_value(gradient, YafRay, 
+						    ?DEF_GRADIENT),
+			    ShowSamples = 
+				proplists:get_value(show_samples, YafRay, 
+						    ?DEF_SHOW_SAMPLES),
+			    Search = 
+				proplists:get_value(search, YafRay, ?DEF_SEARCH),
+			    print(F, " cache=\"on\"~n"
+				  "       cache_size=\"~.10f\" "
+				  "angle_threshold=\"~.10f\"~n"
+				  "       shadow_threshold=\"~.10f\" "
+				  "gradient=\"~s\"~n"
+				  "       show_samples=\"~s\" search=\"~w\"",
+				  [CacheSize,AngleThreshold,
+				   ShadowThreshold,format(Gradient),
+				   format(ShowSamples),Search]);
+			false -> ok
+		    end
+	    end,
+	    println(F, ">~n</light>", []);
 	pathlight -> ok;
 	globalphotonlight ->
 	    println(F,"<light type=\"~w\" name=\"~s\"", [Type,Name]),
@@ -2117,8 +2236,8 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
     FogDensity = proplists:get_value(fog_density, Attr),
     println(F, "<render camera_name=\"~s\" "
 	    "AA_passes=\"~w\" raydepth=\"~w\"~n"
-	    "        bias=\"~.10f\" AA_threshold=\"~.10f\""
-	    "AA_minsamples=\"~w\" AA_pixelwidth=\"~.10f\">~n"
+	    "        bias=\"~.10f\" AA_threshold=\"~.10f\"~n"
+	    "        AA_minsamples=\"~w\" AA_pixelwidth=\"~.10f\">~n"
 	    "    <background_name value=\"~s\"/>~n"
 	    "    <outfile value=\"~s\"/>~n"
 	    "    <indirect_samples value=\"0\"/>~n"
@@ -2472,7 +2591,31 @@ zip([H1|T1], [H2|T2]) -> [{H1,H2}|zip(T1, T2)].
 %%%     end.
 
 now_diff({A1,B1,C1}, {A2,B2,C2}) ->
-    (A1-A2)*1000000.0 + float(B1-B2) + (C1-C2)*0.000001.
+    now_diff_1(((A1-A2)*1000000 + B1 - B2)*1000000 + C1 - C2).
+
+now_diff_1(T) when T < 0 -> 
+    [$-|now_diff_2(-T)];
+now_diff_1(T) -> now_diff_2(T).
+
+now_diff_2(T0) ->
+    Us = T0 rem 60000000,
+    T1 = T0 div 60000000,
+    M = T1 rem 60,
+    H = T1 div 60,
+    now_diff_h(H, M, Us, []).
+
+now_diff_h(0, M, Us, []) ->
+    now_diff_m(M, Us, []);
+now_diff_h(H, M, Us, Unit) ->
+    [integer_to_list(H),$"|now_diff_m(M, Us, [$",$h|Unit])].
+
+now_diff_m(0, Us, []) ->
+    now_diff_us(Us, []);
+now_diff_m(M, Us, Unit) ->
+    [integer_to_list(M),$'|now_diff_us(Us, [$',$m|Unit])].
+
+now_diff_us(Us, Unit) ->
+    io_lib:format("~.3f ~s", [Us/1000000.0,reverse(Unit,[$s])]).
 
 %% Create a string unique for the OS process. It consists 
 %% of the OS process id, a dash, and seconds since Jan 1 1970
