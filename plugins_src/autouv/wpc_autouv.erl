@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.128 2003/07/11 13:18:43 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.129 2003/07/12 07:42:19 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -638,9 +638,7 @@ option_menu() ->
     [separator,
      {"Draw Options", edge_options, "Edit draw options"},
      separator,
-     {"Apply Texture", apply_texture, "Attach the current texture to the model"},
-     separator,
-     {"Quit", quit, "Quit AutoUv-mapper"}].
+     {"Apply Texture", apply_texture, "Attach the current texture to the model"}].
 
 edge_option_menu(#uvstate{option = Option}) ->
     DefVar = {edge_mode, Option#setng.edges},
@@ -832,8 +830,7 @@ handle_event({action, {auv, edge_options}}, Uvs) ->
 handle_event({action,{auv,quit}}, Uvs) ->
     quit_menu(Uvs);
 handle_event(close, Uvs) ->
-    restore_wings_window(Uvs),
-    delete;
+    quit_menu(Uvs);
 handle_event({action,{auv,quit,cancel}}, Uvs) ->
     restore_wings_window(Uvs),
     delete;
