@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.15 2002/01/13 15:26:58 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.16 2002/01/14 08:21:51 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -220,7 +220,10 @@ new_vertices(V, G, Edges, Faces, We0) ->
 		      NewE = NewV,
 		      Rec = get_edge_rec(V, NewV, Edge, NewE, W1),
 		      digraph_edge(G, Rec),
-		      move_vertex(NewV, Center, W1)
+		      case gb_trees:is_empty(Faces) of
+			  true -> move_vertex(NewV, Center, W1);
+			  false -> W1
+		      end
 	      end
       end, We0, V, We0).
 
