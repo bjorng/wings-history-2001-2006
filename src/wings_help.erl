@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.67 2004/03/28 16:39:42 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.68 2004/04/07 11:08:17 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -378,6 +378,7 @@ about() ->
     X = trunc((W-Xs) / 2),
     Y = trunc((H-Ys) / 2),
     Op = {push,fun handle_splash_event/1},
+    wings_wm:delete(help),
     wings_wm:new(help, {X,Y,highest}, {Xs,Ys+?LINE_HEIGHT}, Op),
     wings_wm:grab_focus(help),
     wings_wm:dirty(),
