@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.112 2003/07/27 13:40:21 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.113 2003/08/06 11:02:41 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -603,8 +603,8 @@ warp(X, Y) ->
 
 build_cursors() ->
     [{stop,build_cursor(stop_data())},
-     {pointing_hand,build_cursor(pointing_hand_data())},
-     {closed_hand,build_cursor(closed_hand_data())}|
+     {pointing_hand,build_cursor(pointing_hand_data(), 16, 16)},
+     {closed_hand,build_cursor(closed_hand_data(), 16, 16)}|
      case os:type() of
 	 {unix,darwin} ->
 	     [{arrow,sdl_mouse:getCursor()},
@@ -614,15 +614,18 @@ build_cursors() ->
 	     {hourglass,build_cursor(hourglass_data())}]
      end].
 
-build_cursor(Data0) ->
+build_cursor(Data) ->
+    build_cursor(Data, 0, 0).
+
+build_cursor(Data0, HotX, HotY) ->
     case os:type() of
  	{unix,darwin} ->
- 	    build_cursor(Data0, 0, 0);
+ 	    build_cursor_1(Data0, {HotX div 2,HotY div 2}, 0, 0);
 	_ when length(Data0) =:= 256 ->
 	    Data = build_cursor_dup(Data0, 0, []),
-	    build_cursor(Data, 0, 0);
+	    build_cursor_1(Data, {HotX div 2,HotY div 2}, 0, 0);
 	_ ->
-	    build_cursor(Data0, 0, 0)
+	    build_cursor_1(Data0, {HotX,HotY}, 0, 0)
     end.
 
 build_cursor_dup(Cs, 16, Row0) ->
@@ -634,15 +637,15 @@ build_cursor_dup([C|Cs], N, Acc) ->
 build_cursor_dup([], _, _) ->
     lists:duplicate(16*16, $\s).
 
-build_cursor([$.|T], Mask, Bits) ->
-    build_cursor(T, (Mask bsl 1) bor 1, Bits bsl 1);
-build_cursor([$X|T], Mask, Bits) ->
-    build_cursor(T, (Mask bsl 1) bor 1, (Bits bsl 1) bor 1);
-build_cursor([$x|T], Mask, Bits) ->
-    build_cursor(T, (Mask bsl 1) bor 1, (Bits bsl 1) bor 1);
-build_cursor([_|T], Mask, Bits) ->
-    build_cursor(T, Mask bsl 1, Bits bsl 1);
-build_cursor([], Mask0, Bits0) ->
+build_cursor_1([$.|T], Hot, Mask, Bits) ->
+    build_cursor_1(T, Hot, (Mask bsl 1) bor 1, Bits bsl 1);
+build_cursor_1([$X|T], Hot, Mask, Bits) ->
+    build_cursor_1(T, Hot, (Mask bsl 1) bor 1, (Bits bsl 1) bor 1);
+build_cursor_1([$x|T], Hot, Mask, Bits) ->
+    build_cursor_1(T, Hot, (Mask bsl 1) bor 1, (Bits bsl 1) bor 1);
+build_cursor_1([_|T], Hot, Mask, Bits) ->
+    build_cursor_1(T, Hot, Mask bsl 1, Bits bsl 1);
+build_cursor_1([], {HotX,HotY}, Mask0, Bits0) ->
     case os:type() of
 	{unix,darwin} ->
 	    Bits = <<Bits0:256>>,
@@ -651,7 +654,7 @@ build_cursor([], Mask0, Bits0) ->
 	    Bits = <<Bits0:1024>>,
 	    Mask = <<Mask0:1024>>
     end,
-    sdl_mouse:createCursor(Bits, Mask, 32, 32, 0, 0).
+    sdl_mouse:createCursor(Bits, Mask, 32, 32, HotX, HotY).
 
 hourglass_data() ->
         "  ............................	 "
