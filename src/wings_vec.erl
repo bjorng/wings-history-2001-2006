@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.58 2003/01/09 19:18:37 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.59 2003/01/11 09:42:45 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -49,7 +49,7 @@ command({pick,PickList0,Acc,Names}, St) ->
     command_1(Type, Desc, More, Acc, Names, St);
 command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
     pick_init(St0),
-    wings_io:icon_restriction(Modes),
+    wings:mode_restriction(Modes),
     St = Init(St0),
     Ss = #ss{selmodes=Modes,check=Check,exit=Exit},
     {seq,push,get_event(Ss, St)}.
@@ -69,36 +69,36 @@ add_help_text([], _) -> [].
 command_1(axis, Msg, More, Acc, Names, St0) ->
     pick_init(St0),
     Modes = [vertex,edge,face],
-    St1 = mode_restriction(Modes, St0),
+    St = mode_restriction(Modes, St0),
     Ss = #ss{check=fun check_vector/1,
-	     exit=fun(_X, _Y, St) ->
-			  common_exit(More, Acc, Names, St)
+	     exit=fun(_X, _Y, S) ->
+			  common_exit(More, Acc, Names, S)
 		  end,
 	     selmodes=Modes,
 	     is_axis=true},
     command_message(Msg),
-    {seq,push,get_event(Ss, St1#st{sel=[]})};
+    {seq,push,get_event(Ss, wings_sel:reset(St))};
 command_1(point, Msg, More, Acc, Names, St0) ->
     pick_init(St0),
     Modes = [vertex,edge,face],
-    St1 = mode_restriction(Modes, St0),
+    St = mode_restriction(Modes, St0),
     Check = fun check_point/1,
     Ss = #ss{check=Check,
-	     exit=fun(_X, _Y, St) ->
-			  common_exit(More, Acc, Names, St)
+	     exit=fun(_X, _Y, S) ->
+			  common_exit(More, Acc, Names, S)
 		  end,
 	     selmodes=Modes},
     command_message(Msg),
-    {seq,push,get_event(Ss, St1#st{sel=[]})};
-command_1(magnet, Msg, [], Acc, Names, St0) ->
-    pick_init(St0),
+    {seq,push,get_event(Ss, wings_sel:reset(St))};
+command_1(magnet, Msg, [], Acc, Names, St) ->
+    pick_init(St),
     Modes = [vertex,edge,face],
-    wings_io:icon_restriction(Modes),
+    wings:mode_restriction(Modes),
     Ss = #ss{check=fun check_point/1,
-	     exit=fun(_X, _Y, St) -> exit_magnet([], Acc, Names, St) end,
+	     exit=fun(_X, _Y, S) -> exit_magnet([], Acc, Names, S) end,
 	     selmodes=Modes},
     command_message(Msg),
-    {seq,push,get_event(Ss, St0#st{selmode=vertex,sel=[]})};
+    {seq,push,get_event(Ss, wings_sel:reset(St#st{selmode=vertex}))};
 command_1(magnet_options, _, [], Acc, Names, _St) ->
     wings_magnet:dialog(fun(Mag) ->
 				{vector,{pick,[],[Mag|Acc],Names}}
@@ -115,7 +115,7 @@ command_message(Msg) ->
     wings_wm:message_right(Msg).
 
 mode_restriction(Modes, #st{selmode=Mode}=St) ->
-    wings_io:icon_restriction(Modes),
+    wings:mode_restriction(Modes),
     case member(Mode, Modes) of
 	true -> St;
 	false -> St#st{sel=[],selmode=last(Modes)}

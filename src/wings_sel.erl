@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.41 2003/01/10 10:26:33 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.42 2003/01/11 09:42:45 bjorng Exp $
 %%
 
 -module(wings_sel).
 
--export([clear/1,set/2,set/3,
+-export([clear/1,reset/1,set/2,set/3,
 	 convert_shape/3,convert_selection/2,
 	 map/2,fold/3,mapfold/3,
 	 foreach/2,make/3,valid_sel/1,valid_sel/3,
@@ -28,7 +28,10 @@
 -import(lists, [foldl/3,reverse/1,reverse/2,sort/1,keydelete/3,keymember/3]).
 
 clear(St) ->
-    St#st{sel=[]}.
+    St#st{sel=[],sh=false}.
+
+reset(St) ->
+    St#st{sel=[],sh=wings_pref:get_value(smart_highlighting)}.
 
 set(Sel, St) ->
     St#st{sel=sort(Sel),sh=false}.

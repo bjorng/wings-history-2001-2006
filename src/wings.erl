@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.194 2003/01/10 20:52:09 bjorng Exp $
+%%     $Id: wings.erl,v 1.195 2003/01/11 09:42:45 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0,start/1,start_halt/1,start_halt/2]).
 -export([root_dir/0,caption/1,redraw/1,init_opengl/1,command/2]).
+-export([mode_restriction/1,clear_mode_restriction/0,get_mode_restriction/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -126,8 +127,9 @@ init(File, Root) ->
 	      repeatable=ignore,
 	      args=none,
 	      def={ignore,ignore}
-	    },
-    St = wings_undo:init(St0),
+	     },
+    St1 = wings_sel:reset(St0),
+    St = wings_undo:init(St1),
     wings_view:init(),
     wings_file:init(),
     put(wings_hitbuf, sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)),
@@ -192,7 +194,7 @@ save_state(St0, St1) ->
 
 main_loop(St) ->
     ?VALIDATE_MODEL(St),
-    wings_io:clear_icon_restriction(),
+    clear_mode_restriction(),
     wings_wm:dirty(),
     Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
     wings_wm:message(Message),
@@ -775,11 +777,25 @@ wings() -> "Wings 3D".
 -define(BUTTON_HEIGHT, 32).
 
 -record(but,
-	{mode,
-	 buttons,
-	 all_buttons,
-	 restr=none
+	{mode,					%Selection mode.
+	 sh,					%Smart highlighting (true|false).
+	 buttons,				%Buttons to show.
+	 all_buttons,				%All buttons.
+	 restr=none				%Restriction (none|[Mode]).
 	}).
+
+mode_restriction(none) ->
+    put(wings_mode_restriction, [edge,vertex,face,body]),
+    wings_wm:send({toolbar,geom}, {mode_restriction,none});
+mode_restriction(Modes) ->
+    put(wings_mode_restriction, Modes),
+    wings_wm:send({toolbar,geom}, {mode_restriction,Modes}).
+
+clear_mode_restriction() ->
+    mode_restriction(none).
+
+get_mode_restriction() ->
+    get(wings_mode_restriction).
 
 create_toolbar(Name, Pos, W) ->
     ButtonH = ?BUTTON_HEIGHT+6,
@@ -811,11 +827,11 @@ button_event(#mousemotion{x=X}, But) ->
     keep;
 button_event({action,_}=Action, _) ->
     wings_wm:send(geom, Action);
-button_event({current_state,#st{selmode=Mode}}, #but{mode=Mode}) ->
+button_event({current_state,#st{selmode=Mode,sh=Sh}}, #but{mode=Mode,sh=Sh}) ->
     keep;
-button_event({current_state,#st{selmode=Mode}}, But) ->
+button_event({current_state,#st{selmode=Mode,sh=Sh}}, But) ->
     wings_wm:dirty(),
-    get_button_event(But#but{mode=Mode});
+    get_button_event(But#but{mode=Mode,sh=Sh});
 button_event({mode_restriction,Restr}, #but{restr=Restr}) ->
     keep;
 button_event({mode_restriction,Restr}, #but{all_buttons=AllButtons}=But) ->
@@ -834,7 +850,8 @@ button_resized(#but{restr=Restr}=But) ->
     Buttons = button_restrict(AllButtons, Restr),
     But#but{buttons=Buttons,all_buttons=AllButtons}.
 
-button_redraw(#but{mode=Mode,buttons=Buttons}) ->
+button_redraw(#but{mode=Mode,buttons=Buttons,sh=Sh0}) ->
+    Sh = button_sh_filter(Mode, Sh0),
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(),
     wings_io:border(0, 0.5, W-0.5, H-1.5, ?PANE_COLOR),
@@ -847,10 +864,36 @@ button_redraw(#but{mode=Mode,buttons=Buttons}) ->
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     foreach(fun({X,Name}) ->
-		    wings_io:draw_icon(X, 3, button_value(Name, Mode))
+		    wings_io:draw_icon(X, 3, button_value(Name, Mode, Sh))
 	    end, Buttons),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
-    gl:disable(?GL_TEXTURE_2D).
+    gl:disable(?GL_TEXTURE_2D),
+    button_redraw_sh(Sh, Buttons).
+
+button_redraw_sh(false, _) -> ok;
+button_redraw_sh(true, Buttons) ->
+    Pos = [X || {X,M} <- Buttons, button_sh_filter(M, true)],
+    case Pos of
+	[] -> ok;
+	[Left|_] ->
+	    gl:pushAttrib(?GL_POLYGON_BIT bor ?GL_LINE_BIT),
+	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+	    gl:lineStipple(2, 2#0101010101010101),
+	    gl:enable(?GL_LINE_STIPPLE),
+	    Right = lists:last(Pos),
+	    gl:color3f(1, 1, 1),
+	    gl:recti(Left-1, 3, Right+?BUTTON_WIDTH, 3+?BUTTON_HEIGHT),
+	    gl:popAttrib()
+    end.
+
+button_sh_filter(_, false) -> false;
+button_sh_filter(vertex, true) ->
+    wings_pref:get_value(vertex_hilite);
+button_sh_filter(edge, true) ->
+    wings_pref:get_value(edge_hilite);
+button_sh_filter(face, true) ->
+    wings_pref:get_value(face_hilite);
+button_sh_filter(_, _) -> false.
 
 buttons_place(W) when W < 300 ->
     [{0,vertex},{?BUTTON_WIDTH,edge},
@@ -872,20 +915,20 @@ buttons_place(W) ->
      {W-2*?BUTTON_WIDTH-Rmarg,groundplane},
      {W-?BUTTON_WIDTH-Rmarg,axes}].
 
-button_value(groundplane=Name, _) ->
-    button_value(Name, show_groundplane, true);
-button_value(axes=Name, _) ->
-    button_value(Name, show_axes, true);
-button_value(flatshade=Name, _) ->
-    button_value(Name, workmode, true);
-button_value(smooth=Name, _) ->
-    button_value(Name, workmode, false);
-button_value(perspective=Name, _) ->
-    button_value(Name, orthogonal_view, true);
-button_value(Mode, Mode) -> {Mode,down};
-button_value(Name, _St) -> {Name,up}.
+button_value(groundplane=Name, _, _) ->
+    button_value_1(Name, show_groundplane, true);
+button_value(axes=Name, _, _) ->
+    button_value_1(Name, show_axes, true);
+button_value(flatshade=Name, _, _) ->
+    button_value_1(Name, workmode, true);
+button_value(smooth=Name, _, _) ->
+    button_value_1(Name, workmode, false);
+button_value(perspective=Name, _, _) ->
+    button_value_1(Name, orthogonal_view, true);
+button_value(Mode, Mode, false) -> {Mode,down};
+button_value(Name, _, _) -> {Name,up}.
 
-button_value(Name, Key, Val) ->
+button_value_1(Name, Key, Val) ->
     case wings_pref:get_value(Key) of
 	Val -> {Name,down};
 	_ -> {Name,up}

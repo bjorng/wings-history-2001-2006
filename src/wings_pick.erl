@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.76 2003/01/10 10:26:33 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.77 2003/01/11 09:42:45 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -671,7 +671,7 @@ project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
     {Xs,Ys}.
 
 check_restriction({Mode,MM,_}=Hilite, Id, V, Edge, Face) ->
-    case wings_io:get_icon_restriction() of
+    case wings:get_mode_restriction() of
 	all -> Hilite;
 	Modes ->
 	    case member(Mode, Modes) of

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.76 2003/01/10 17:16:17 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.77 2003/01/11 09:42:44 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -85,7 +85,7 @@ start_uvmap(_) ->
 
 start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0) ->
     Modes = [vertex,edge,face],
-    wings_io:icon_restriction(Modes),
+    wings:mode_restriction(Modes),
     We0 = gb_trees:get(Id, Shs),
     We = We0#we{mode=material},
     check_for_defects(We),
@@ -283,7 +283,6 @@ seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
     end.
 
 seg_cancel() ->
-    wings_io:clear_icon_restriction(),
     wings_wm:dirty(),
     pop.
 
@@ -320,7 +319,6 @@ seg_map_charts_1(Cs, Type, We, Extra, I, N, Acc, Ss) when I =< N ->
     Msg = io_lib:format("Mapping chart ~w of ~w", [I,N]),
     get_seg_event(Ss#seg{msg=Msg});
 seg_map_charts_1(_, _, We, {OrigWe,Vmap}, _, _, MappedCharts, _) ->
-    wings_io:clear_icon_restriction(),
     Info = {MappedCharts,We,Vmap,OrigWe},
     wings_io:putback_event({action,{body,{?MODULE,show_map,Info}}}),
     pop.

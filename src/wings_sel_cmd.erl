@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.35 2003/01/10 10:26:33 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.36 2003/01/11 09:42:45 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -164,7 +164,7 @@ command(prev_edge_loop, St) ->
 command(select_region, St) ->
     {save_state,wings_edge:select_region(St)};
 command(deselect, St) ->
-    {save_state,St#st{sel=[],sh=true}};
+    {save_state,wings_sel:reset(St)};
 command(more, St) ->
     select_more(St);
 command(less, St) ->
