@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__bmp.erl,v 1.8 2003/11/13 14:15:50 dgud Exp $
+%%     $Id: e3d__bmp.erl,v 1.9 2003/11/14 14:16:33 dgud Exp $
 %%
 
 -module(e3d__bmp).
@@ -46,13 +46,14 @@ load(FileName, _Opts) ->
     case file:read_file(FileName) of	
 	{ok, <<?BITMAPFILEHEADER, ?BITMAPINFOHEADER, TmpImage/binary>>} 
 	when _BiPlanes == 1, _BiCompression == 0 -> % Supported formats
-%	    ?DBGOUT(),	    
+	    ?DBGOUT(),	    
 	    MapSz =  if  % No map for 24 and 32 bit images
 			 _BiBitCount > 16 ->   0;
 			 true ->  (1 bsl _BiBitCount) * 4
 		     end,
 	    RbitLen = _BiW*_BiBitCount,
-	    RowLength = (RbitLen + e3d_image:pad_len(RbitLen, 32)) div 8,
+	    PadBits = e3d_image:pad_len(RbitLen, 32),
+	    RowLength = (RbitLen + PadBits) div 8,
 	    InSz = _BiH * RowLength,
 	    <<MapBin:MapSz/binary, Image0:InSz/binary, _/binary>> = TmpImage,
 	    Map = get_map(size(MapBin), 4, MapBin, []),
@@ -60,23 +61,26 @@ load(FileName, _Opts) ->
 			      type = b8g8r8,
 			      bytes_pp = 3, 
 			      alignment = 4},
-	    %% Strip off last bytes on padded images so we get correct length
-	    ResSz = _BiW*_BiH*3,	    
 	    case _BiBitCount of
 		1 -> 
-		    <<Image:ResSz/binary, _/binary>> = 
-			convert1(size(Image0), Image0, Map, []),
+		    Image1 = convert1(size(Image0), Image0, Map, []),
+		    PaddRow = _BiW*3+(PadBits div 1)*3,
+		    Image  = strip(_BiH, Image1, _BiW*3, PaddRow, []),
 		    Orig#e3d_image{image=Image,alignment=1};
 		4 -> 
-		    <<Image:ResSz/binary, _/binary>> = 
-			convert4(size(Image0), Image0, Map, []),
+		    Image1 = convert4(size(Image0), Image0, Map, []),
+		    PaddRow = _BiW*3+(PadBits div 4)*3,
+		    Image  = strip(_BiH, Image1, _BiW*3, PaddRow, []),
 		    Orig#e3d_image{image=Image,alignment=1};
 		8 ->  
-		    <<Image:ResSz/binary, _/binary>> = 
-			convert8(size(Image0), Image0, Map, []),
+		    Image1 = convert8(size(Image0), Image0, Map, []),
+		    PaddRow = _BiW*3+(PadBits div 8)*3,
+		    Image  = strip(_BiH, Image1, _BiW*3, PaddRow, []),
 		    Orig#e3d_image{image=Image,alignment=1};
 		16 ->
-		    <<Image:ResSz/binary, _/binary>> = to_8bitpp(Image0),
+		    Image1  = to_8bitpp(Image0),
+		    PaddRow = _BiW*3+(PadBits div 16)*3,
+		    Image   = strip(_BiH, Image1, _BiW*3, PaddRow, []),
 		    Orig#e3d_image{image=Image,alignment=1};
 		24 -> 
 		    Orig#e3d_image{image=Image0};
@@ -116,6 +120,13 @@ save(Image0, FileName, _Opts) ->
 %     debug(R1,R2, N+1);
 % debug(I1, I2, N) ->
 %     io:format("Diff: in Pixel ~p ~n~P~n~P~n", [N, I1, 10, I2, 10]).
+
+strip(0, _Image, _RowL, _PaddL, Acc) ->
+    list_to_binary(Acc);
+strip(Row, Image, RowL, PaddL, Acc) ->
+    Skip = (Row-1)*PaddL,
+    <<_:Skip/binary, RowBin:RowL/binary, _/binary>> = Image,
+    strip(Row-1, Image, RowL, PaddL, [RowBin|Acc]).
 
 -define(B8(C,B),  (trunc((C)/((1 bsl (B))-1) *255))).
 to_8bitpp(Image) ->

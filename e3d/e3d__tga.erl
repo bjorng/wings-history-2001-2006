@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.11 2003/11/13 09:15:12 dgud Exp $
+%%     $Id: e3d__tga.erl,v 1.12 2003/11/14 14:16:33 dgud Exp $
 %%
 
 -module(e3d__tga).
@@ -32,7 +32,7 @@ load(FileName, _Opts) ->
 	%% Black&White Image 
 	{ok, <<S,0,3,0,0,0,0,0,_,_,_,_, Image/binary>>} ->
 	    load_uncomp(S,Image);
-	%% Black&White Image 
+	%% Black&White Image Compressed
 	{ok, <<S,0,11,0,0,0,0,0,_,_,_,_,Image/binary>>} ->
 	    load_comp(S,Image);
 	%% ColorMap Image (uncompressed)
@@ -124,16 +124,20 @@ load_comp(<<1:1, Len:7, RestImage0/binary>>, PLeft, ByPP, Acc) ->
     Pixels = lists:duplicate(Len+1, Pixel),
     load_comp(RestImage, PLeft-(Len+1), ByPP, [Pixels| Acc]).
 
-save(Image0, FileName, _Opts) ->
+save(Image0 = #e3d_image{bytes_pp=Bpp,type=Type}, FileName, _Opts) ->
     Order = get_order(Image0#e3d_image.order),
-    {Image, BitsPP, Def} = 
+    {TC,Image, BitsPP, Def} = 
 	if 
-	    Image0#e3d_image.bytes_pp == 3 ->
-		{e3d_image:convert(Image0, b8g8r8, 1), 24,   <<Order:4, 0:4>>};
-	    Image0#e3d_image.bytes_pp == 4 ->
-		{e3d_image:convert(Image0, b8g8r8a8, 1), 32, <<Order:4, 8:4>>}
+	    Bpp == 1, Type == g8 ->
+		{3,e3d_image:convert(Image0, g8, 1), 8, <<Order:4, 0:4>> };
+	    Bpp == 1, Type == a8 ->
+		{3,e3d_image:convert(Image0, a8, 1), 8, <<Order:4, 8:4>> };
+	    Bpp == 3 ->
+		{2,e3d_image:convert(Image0, b8g8r8, 1), 24, <<Order:4, 0:4>>};
+	    Bpp == 4 ->
+		{2,e3d_image:convert(Image0, b8g8r8a8, 1), 32, <<Order:4, 8:4>>}
 	end,
-    Head0 = <<0,0,2,0,0,0,0,0,0,0,0,0>> ,    
+    Head0 = <<0,0,TC,0,0,0,0,0,0,0,0,0>> ,    
     Head1 = <<(Image#e3d_image.width):16/little, 
 	     (Image#e3d_image.height):16/little,
 	     BitsPP:8,(Def)/binary>> ,
@@ -149,7 +153,6 @@ get_order(1) -> lower_right;
 get_order(2) -> upper_left;
 get_order(3) -> upper_right.
 
-     
 e3d_type(Bpp,Alpha) ->
     case Bpp of
 	1 when Alpha == 8 -> a8;

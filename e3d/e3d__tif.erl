@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.11 2003/05/12 15:50:11 dgud Exp $
+%%     $Id: e3d__tif.erl,v 1.12 2003/11/14 14:16:33 dgud Exp $
 %%
 
 -module(e3d__tif).
@@ -26,6 +26,14 @@ format_error({unsupported_compression,Comp}) ->
     io_lib:format("Unsupported compression type (~p)", [Comp]).
 
 load(FileName, _Opts) ->
+    case catch load1(FileName,_Opts) of
+	{'EXIT', Reason} ->
+	    {error, {?MODULE,Reason}};
+	Else -> 
+	    Else
+    end.
+    
+load1(FileName, _Opts) ->
     case file:read_file(FileName) of
 	{ok, Orig = <<16#4949:16, 42:16/little, IFDOffset:32/little, _Rest/binary>>} ->
 %%	    io:format("Little tiff file~n", []),
@@ -54,10 +62,10 @@ save(Father, Image, FileName, Opts) ->
 
 save2(Image0, FileName, Opts) ->
     if 
-	Image0#e3d_image.bytes_pp == 3 ->
-	    Image = e3d_image:convert(Image0, r8g8b8, 1, upper_left);
 	Image0#e3d_image.bytes_pp == 4 ->
-	    Image = e3d_image:convert(Image0, r8g8b8a8, 1, upper_left)
+	    Image = e3d_image:convert(Image0, r8g8b8a8, 1, upper_left);
+	true ->	    
+	    Image = e3d_image:convert(Image0, r8g8b8, 1, upper_left)
     end,
     Compress = lists:member(compress, Opts),    
     {Where, BinList} = save_image(Image, Compress, 8),
@@ -136,7 +144,7 @@ getDirEntries(T, N, Bin) ->
 -define(Predictor, 317).        %%% 1 No differencing (default)
                                 %%% 2 Horizontal differencing
 
--define(PhotoMetricInt, 262).   %%% 0 WhiteisZero; 1 BlackIsZero ; 2 RGB
+-define(PhotoMetricInt, 262).   %%% 0 WhiteisZero;1 BlackIsZero;2 RGB;3 RGB ColMap
 
 -define(StripOffsets, 273).     %% Pointer to each chunk
 -define(SamplesPerPixel, 277).  %%   
@@ -151,34 +159,54 @@ getDirEntries(T, N, Bin) ->
 -define(Orientation, 274).      
 -define(PlanarConf, 284).       
 
+-define(ColorMap, 320).
 -define(ExtraSamples, 338).
--record(tif, {w, h, order = upper_left, bpp, bps, spp, rps, so, sbc, 
-	      comp, pred}).
+-record(tif, {w,h,type,order = upper_left, bpp, bps, spp, rps, so, sbc, 
+	      map,comp, pred}).
 
 load_image(Enc, IFDs, Orig) ->
     Tif = get_info(IFDs, #tif{}, Orig, Enc),
-    %%    io:format("IFD ~p ~nFileSize ~p ~n ~p", [IFDs, size(Orig), Tif]),
+    %%    io:format("IFD ~p ~nFileSize ~p ~n ~p", 
+    %%               [IFDs, size(Orig), Tif]),
     Strips = get_strips(Tif#tif.so, Tif#tif.sbc, Orig, Enc, []),    
     Size = Tif#tif.w * Tif#tif.h * (Tif#tif.bpp div 8),
-%     io:format("Tif size ~p ~p ~p ~n", [Size, {Tif#tif.w, Tif#tif.h,Tif#tif.bpp div 8, 
-% 					      Tif#tif.order, Tif#tif.rps},
-% 				       {Tif#tif.bps, Tif#tif.spp, length(Strips)}]),
-    case catch decompress(Strips, Tif#tif.comp, Tif#tif.h, Tif, []) of
-	<<Image:Size/binary, _/binary>> ->    
-	    {Type,Bypp,Image2} = 
-		if 
-		    Tif#tif.bpp == 24 -> {r8g8b8, 3, Image};
-		    Tif#tif.bpp == 32 -> {r8g8b8a8, 4, Image};
+%     io:format("Tif size ~w ~w ~w ~n", 
+% 	      [Size, {Tif#tif.w, Tif#tif.h,Tif#tif.bpp, 
+% 		      Tif#tif.order, Tif#tif.rps},
+% 	       {Tif#tif.type,Tif#tif.bps, Tif#tif.spp, length(Strips)}]),
+    #tif{type=Type, bpp=Bpp} = Tif,
+    case decompress(Strips, Tif#tif.comp, Tif#tif.h, Tif, []) of
+	BinImage = <<Image0:Size/binary, _/binary>> ->
+	    {ResType,Image2} = 
+		if
+		    Bpp == 1 -> 			
+			Map = if Type == bw -> {0,255};
+				 Type == wb -> {255,0}
+			      end,
+			Image1 = convert1(size(BinImage), BinImage, Map, []),
+			PaddL = Tif#tif.w + e3d_image:pad_len(Tif#tif.w, 8),
+			Image = strip(Tif#tif.h, Image1, Tif#tif.w, PaddL, []),
+			{g8, Image};
+		    Type == bw,     Bpp == 8 -> {g8, Image0};
+		    Type == alpha,  Bpp == 8 -> {a8, Image0};
+		    Type == maprgb -> 
+			Image = convert(size(Image0), Image0, Tif#tif.map, []),
+			{r8g8b8, Image};
+		    Type == rgb, Bpp > 32, Tif#tif.spp > 3 -> 
+			Image = remove_extra_samples(3,(Tif#tif.bpp-24),Image0,[]),
+			{r8g8b8, 3, Image};
+		    Type == rgb, Bpp > 16 ->
+			{e3d_type(Bpp,nil), Image0};
 		    true ->
-			{r8g8b8, 3, remove_extra_samples(3, (Tif#tif.bpp-24), Image, [])}
+			exit(unsupported_format)
 		end,
-	    #e3d_image{width = Tif#tif.w, height = Tif#tif.h, alignment = 1, %% Correct ??
+	    #e3d_image{width = Tif#tif.w, height = Tif#tif.h, 
+		       alignment = 1,%% Correct ??
 		       image = Image2, order = Tif#tif.order, 
-		       type = Type, bytes_pp = Bypp};
+		       type = ResType, 
+		       bytes_pp = e3d_image:bytes_pp(ResType)};
  	{error,_}=Error ->
- 	    Error;
-	Else ->
-	    {error, {none,?MODULE,{tif_decode,Else}}}
+ 	    Error
     end.
 
 remove_extra_samples(_RGBits, _DiscardBits, <<>>, Acc) ->
@@ -186,6 +214,17 @@ remove_extra_samples(_RGBits, _DiscardBits, <<>>, Acc) ->
 remove_extra_samples(RGBits, DiscardBits, Image, Acc) ->
     <<Keep:3/binary, _Del:DiscardBits, Rest/binary>> = Image,
     remove_extra_samples(RGBits, DiscardBits, Rest, [Keep|Acc]).
+
+e3d_type(Bpp,Alpha) ->
+    case Bpp of
+	8 when Alpha == 8 -> a8;
+	8 -> g8;
+	16 when Alpha == 0 ->  r8g8b8;
+	16 when Alpha > 0 ->   r8g8b8a8;
+	24 -> r8g8b8;
+	32 -> r8g8b8a8;
+	Exit -> exit({unsupported_format, Exit})
+    end.
 
 save_image(Image, Compress, Offset1) ->
     W = <<?ImageWidth:16, (type2type(long)):16, 1:32, (Image#e3d_image.width):32>> , 
@@ -244,26 +283,41 @@ save_image(Image, Compress, Offset1) ->
     {Offset5, Bin}.
          
 get_info([], Tif, _Orig,_Enc) -> Tif;
-get_info([{?PhotoMetricInt, _, 1, {value, 2}}| R], Tif, Orig,Enc) ->  
-    get_info(R, Tif, Orig,Enc);  %% Supports RGB only now
+get_info([{?PhotoMetricInt, _, 1, {value, Val}}| R], Tif, Orig,Enc) ->  
+    Type = case Val of
+	       1 -> bw;
+	       2 -> rgb;
+	       3 -> maprgb;
+	       4 -> alpha;
+	       _ -> exit(unsupported_format)
+	   end,
+    get_info(R, Tif#tif{type=Type}, Orig,Enc);
 get_info([{?ImageWidth, _, 1, {value, W}}|R], Tif, Orig,Enc) ->
     get_info(R, Tif#tif{w = W}, Orig,Enc);
 get_info([{?ImageLength, _, 1, {value, H}}|R], Tif, Orig,Enc) ->
     get_info(R, Tif#tif{h = H}, Orig,Enc);
+get_info([{?BitsPerSample, short, 1, {value, Bpp}}|R], Tif, Orig,Enc) ->
+    get_info(R, Tif#tif{bps = [Bpp]}, Orig,Enc);
 get_info([{?BitsPerSample, Type = short, Count, {offset, Off}}|R], Tif, Orig,Enc) ->
     Len = typeSz(Type) * Count,
     <<_:Off/binary, BPS:Len/binary, _/binary>> = Orig,
-    Bpp = 
-	case getdata(Enc, Type, Count, BPS) of
-	    Bps = [8,8,8|_] -> Bps;
-	    Err ->
-		io:format("~p: Unsupported BitsPerSample ~p ~n", [?MODULE, Err]),
-		erlang:fault({?MODULE, unsupported, bitsPerSample})
-	end,
+    Bpp = getdata(Enc, Type, Count, BPS),
+% 	case getdata(Enc, Type, Count, BPS) of
+% 	    Bps = [8,8,8|_] -> Bps;
+% 	    Err ->
+% 		io:format("~p: Unsupported BitsPerSample ~p ~n", [?MODULE, Err]),
+% 		erlang:fault({?MODULE, unsupported, bitsPerSample})
+% 	end,
     get_info(R, Tif#tif{bps = Bpp}, Orig,Enc);
 get_info([{?SamplesPerPixel, _, 1, {value, SPP}}|R], Tif, Orig,Enc) ->
     SPP = length(Tif#tif.bps), %% Assert
     get_info(R, Tif#tif{spp = SPP, bpp = lists:sum(Tif#tif.bps)}, Orig,Enc);	
+get_info([{?ColorMap, Type = short, Count, {offset, Off}}|R], Tif, Orig,Enc) ->
+    Len = typeSz(Type) * Count,
+    <<_:Off/binary, MapBin:Len/binary, _/binary>> = Orig,
+    Map  = get_map(MapBin, Enc),
+    get_info(R, Tif#tif{map=Map}, Orig, Enc);
+
 get_info([{?ExtraSamples, Type = short, Count, {offset, Off}}|R], Tif, Orig,Enc) ->
     Len = typeSz(Type) * Count,
     <<_:Off/binary, Data:Len/binary, _/binary>> = Orig,
@@ -310,8 +364,9 @@ get_info([{?Orientation, _Type, 1, {value, Orient}}|R], Tif, Orig,Enc) ->
 	    3 -> lower_rigth;
 	    4 -> lower_left;
 	    Err ->
+		
 		io:format("~p: Unsupported orientation ~p ~n", [?MODULE, Err]),
-		erlang:fault({?MODULE, unsupported, {orientation, Err}})	
+		exit({orientation, Err})
 	end,
     get_info(R, Tif#tif{order = Order}, Orig,Enc);
 get_info([{?PlanarConf, _Type, 1, {value, 1}}|R], Tif, Orig,Enc) ->
@@ -347,6 +402,62 @@ get_strips([StripOff|R1], [SBC|R2], Orig, Enc, Acc) ->
 	<<_:StripOff/binary, Strip:SBC/binary, _/binary>> ->
 	    get_strips(R1, R2, Orig, Enc, [Strip|Acc])
     end.
+
+-define(c16to8(C), round(((C) *255) / ((1 bsl 16) -1))).
+%% Color Map
+get_map(Bin,Enc) ->
+    Sz = size(Bin) div 3,
+    <<R:Sz/binary,G:Sz/binary,B:Sz/binary>> = Bin,
+    get_map(Sz,R,G,B,Enc,[]).
+    
+get_map(0,_,_, _, _Enc,Acc) ->
+    list_to_tuple(Acc);
+get_map(I,RB,GB,BB,little,Acc) ->
+    Prev = I-2,
+    <<_:Prev/binary,R:16/little,_/binary>> = RB,
+    <<_:Prev/binary,G:16/little,_/binary>> = GB,
+    <<_:Prev/binary,B:16/little,_/binary>> = BB,
+    get_map(Prev,RB,GB,BB,little,[[?c16to8(R),?c16to8(G),?c16to8(B)]|Acc]);
+get_map(I,RB,GB,BB,big,Acc) ->
+    Prev = I-2,
+    <<_:Prev/binary,R:16/big,_/binary>> = RB,
+    <<_:Prev/binary,G:16/big,_/binary>> = GB,
+    <<_:Prev/binary,B:16/big,_/binary>> = BB,
+    get_map(Prev,RB,GB,BB,big,[[?c16to8(R),?c16to8(G),?c16to8(B)]|Acc]).
+
+convert(0,_, _, Acc) ->
+    list_to_binary(Acc);
+convert(I, Image, Map, Acc) ->
+    Prev = I-1,
+    <<_:Prev/binary,Index:8,_/binary>> = Image,
+    Col = element(Index+1, Map),
+    convert(Prev,Image, Map, [Col|Acc]).
+
+convert1(0,_, _, Acc) ->
+    list_to_binary(Acc);
+convert1(N, Image, Map, Acc) ->
+    Prev = N-1,
+    <<_:Prev/binary,I1:1,I2:1,I3:1,I4:1,I5:1,I6:1,I7:1,I8:1,_/binary>> = Image,
+    Col1 = element(I1+1, Map),
+    Col2 = element(I2+1, Map),
+    Col3 = element(I3+1, Map),
+    Col4 = element(I4+1, Map),
+    Col5 = element(I5+1, Map),
+    Col6 = element(I6+1, Map),
+    Col7 = element(I7+1, Map),
+    Col8 = element(I8+1, Map),
+    
+    convert1(Prev,Image, Map, 
+	     [Col1,Col2,Col3,Col4,Col5,Col6,Col7,Col8|Acc]).
+
+strip(0, _Image, _RowL, _PaddL, Acc) ->
+    list_to_binary(Acc);
+strip(Row, Image, RowL, PaddL, Acc) ->
+    Skip = (Row-1)*PaddL,
+    <<_:Skip/binary, RowBin:RowL/binary, _/binary>> = Image,
+    strip(Row-1, Image, RowL, PaddL, [RowBin|Acc]).
+
+%% Compression
 
 -define(LZW_CLEAR,           256).
 -define(LZW_EOI,             257).
@@ -484,7 +595,7 @@ lzw_decomp(S, Read, PrevCode, Count, BitLen, Acc) ->
 	    	Else ->
 		    io:format("~n~p: Error ~p Args: ~p ~n", 
 			      [?MODULE, Else, {NS, PrevCode, Count, BitLen}]),
-		    erlang:fault({?MODULE, decoder, {badly_compressed_data}})
+		    exit({badly_compressed_data})
 	    end;
 	{NewCode, NS} when integer(NewCode) ->
 	    case ?get_lzw(NewCode) of
@@ -499,12 +610,12 @@ lzw_decomp(S, Read, PrevCode, Count, BitLen, Acc) ->
 		Else ->
 		    io:format("~n~p: Error Case Clause ~p ~p Args ~p ~n", 
 			      [?MODULE, Else, NewCode, {S, PrevCode, Count, BitLen}]),
-		    erlang:fault({?MODULE, decoder, {badly_compressed_data}})
+		    exit({badly_compressed_data})
 	    end;
 	Else ->
 	    io:format("~n~p: Error ~p Args: ~p ~n", 
 		      [?MODULE, Else, {S, PrevCode, Count, BitLen}]),
-	    erlang:fault({?MODULE, decoder, {badly_compressed_data}})
+	    exit({badly_compressed_data})
     end.
 
 lzw_bl(?LZW_SWAP_9, Len) ->  Len +1;
