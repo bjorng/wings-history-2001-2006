@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.33 2003/04/28 14:48:23 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.34 2003/04/29 13:11:11 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -109,6 +109,11 @@
 -define(DEF_MOD_COLOR1, {0.0,0.0,0.0,1.0}).
 -define(DEF_MOD_COLOR2, {1.0,1.0,1.0,1.0}).
 -define(DEF_MOD_DEPTH, 2).
+-define(DEF_MOD_HARD, false).
+-define(DEF_MOD_TURBULENCE, 1.0).
+-define(DEF_MOD_SHARPNESS, 1.0).
+-define(DEF_MOD_RINGSCALE_X, 1.0).
+-define(DEF_MOD_RINGSCALE_Z, 1.0).
 
 
 
@@ -295,13 +300,6 @@ load_image(Filename) ->
 
 material_dialog(_Name, Mat) ->
     Maps = proplists:get_value(maps, Mat, []),
-    ModulatorsDefault = 
-	case Maps of
-	    [{diffuse,_}|_] ->
-		[{modulator,[{type,{map,diffuse}},{diffuse,1.0}]}];
-	    _ ->
-		[]
-	end,
     YafRay = proplists:get_value(?TAG, Mat, []),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
@@ -310,7 +308,7 @@ material_dialog(_Name, Mat) ->
     Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
     EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
     RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
-    Modulators = proplists:get_value(modulators, YafRay, ModulatorsDefault),
+    Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     [{vframe,
       [{hframe,
 	[{vframe, 
@@ -325,8 +323,22 @@ material_dialog(_Name, Mat) ->
 	   {slider,{text,MinRefle,[{range,{0.0,1.0}},{key,min_refle}]}},
 	   {slider,{text,AutosmoothAngle,[{range,{0.0,180.0}},
 					  {key,autosmooth_angle}]}}]}]}
-       |modulator_dialogs(Modulators, 1, Maps)],
+       |modulator_dialogs(Modulators, Maps)],
       [{title,"YafRay Options"}]}].
+
+def_modulators([]) ->
+    [];
+def_modulators([{diffuse,_}|Maps]) ->
+    [{modulator,[{type,{map,diffuse}},{diffuse,1.0}]}
+     |def_modulators(Maps)];
+def_modulators([{ambient,_}|Maps]) ->
+    [{modulator,[{type,{map,ambient}},{ambient,1.0}]}
+     |def_modulators(Maps)];
+def_modulators([{bump,_}|Maps]) ->
+    [{modulator,[{type,{map,bump}},{normal,1.0}]}
+     |def_modulators(Maps)];
+def_modulators([_|Maps]) ->
+    def_modulators(Maps).
 
 material_result(_Name, Mat0, [{ior,_}|_]=Res) ->
     {Ps,Res0} = split_list(Res, 6),
@@ -336,19 +348,21 @@ material_result(_Name, Mat0, [{ior,_}|_]=Res) ->
 material_result(Name, Mat, Res) ->
     exit({invalid_tag,{?MODULE,?LINE,[Name,Mat,Res]}}).
 
-modulator_dialogs([], _, _Maps) ->
-    [{"Create a Modulator",false,[{key,create_modulator}]}];
-modulator_dialogs([Modulator|Modulators], M, Maps) ->
-    modulator_dialog(Modulator, M, Maps)++
-	modulator_dialogs(Modulators, M+1, Maps).
+modulator_dialogs(Modulators, Maps) ->
+    modulator_dialogs(Modulators, Maps, 1).
 
-modulator_dialog({modulator,Ps}, M, Maps) when list(Ps) ->
+modulator_dialogs([], _Maps, _) ->
+    [{"Create a Modulator",false,[{key,create_modulator}]}];
+modulator_dialogs([Modulator|Modulators], Maps, M) ->
+    modulator_dialog(Modulator, Maps, M)++
+	modulator_dialogs(Modulators, Maps, M+1).
+
+modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 %    erlang:display({?MODULE,?LINE,[Ps,M,Maps]}),
     Mode = proplists:get_value(mode, Ps, ?DEF_MOD_MODE),
     SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
     SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
     SizeZ = proplists:get_value(size_z, Ps, ?DEF_MOD_SIZE_Z),
-    Opacity = proplists:get_value(opacity, Ps, ?DEF_MOD_OPACITY),
     Diffuse = proplists:get_value(diffuse, Ps, ?DEF_MOD_DIFFUSE),
     Specular = proplists:get_value(specular, Ps, ?DEF_MOD_SPECULAR),
     Ambient = proplists:get_value(ambient, Ps, ?DEF_MOD_AMBIENT),
@@ -363,6 +377,11 @@ modulator_dialog({modulator,Ps}, M, Maps) when list(Ps) ->
     Color1 = proplists:get_value(color1, Ps, ?DEF_MOD_COLOR1),
     Color2 = proplists:get_value(color2, Ps, ?DEF_MOD_COLOR2),
     Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
+    Hard = proplists:get_value(hard, Ps, ?DEF_MOD_HARD),
+    Turbulence = proplists:get_value(turbulence, Ps, ?DEF_MOD_TURBULENCE),
+    Sharpness = proplists:get_value(sharpness, Ps, ?DEF_MOD_SHARPNESS),
+    RingscaleX = proplists:get_value(ringscale_x, Ps, ?DEF_MOD_RINGSCALE_X),
+    RingscaleZ = proplists:get_value(ringscale_z, Ps, ?DEF_MOD_RINGSCALE_Z),
     TypeTag = list_to_atom("type"++integer_to_list(M)),
     TaggedType = {TypeTag,Type},
     MapsFrame = 
@@ -389,56 +408,82 @@ modulator_dialog({modulator,Ps}, M, Maps) when list(Ps) ->
 		{text,SizeY,[{range,0.0,1000.0}]},
 		{label,"SizeZ"},
 		{text,SizeZ,[{range,0.0,1000.0}]}]},
-       {hframe,[{vframe,[{label,"Opacity"},
-			 {label,"Diffuse "},
+       {hframe,[{vframe,[{label,"Diffuse "},
 			 {label,"Specular"},
 			 {label,"Ambient"},
 			 {label,"Shininess"},
 			 {label,"Normal"}]},
-		{vframe,[{slider,{text,Opacity,[{range,{0.0,1.0}}]}},
-			 {slider,{text,Diffuse,[{range,{0.0,1.0}}]}},
+		{vframe,[{slider,{text,Diffuse,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Specular,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Ambient,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Shininess,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Normal,[{range,{0.0,1.0}}]}}]}]}]++
       MapsFrame++
-      [{hframe,[{vframe,[{key_alt,TaggedType,"Image",image},
-			 {key_alt,TaggedType,"Clouds",clouds}]},
-		{vframe,[{hframe,[{label,"Filename"},{text,Filename}]},
-			 {hframe,[{label,"Color 1"},{color,Color1},
-				  {label,"Color 2"},{color,Color2},
-				  {label,"Depth"},
-				  {text,Depth,[{range,{1,1000}}]}]}]}]}
-      ],
+      [{hframe,
+	[{vframe,[{key_alt,TaggedType,"Image",image},
+		  {key_alt,TaggedType,"Clouds",clouds},
+		  {key_alt,TaggedType,"Marble",marble},
+		  {key_alt,TaggedType,"Wood",wood}]},
+	 {vframe,
+	  [{hframe,
+	    [{vframe,[{label,"Filename"},
+		      {label,"Color 1"},
+		      {label,"Turbulence"},
+		      {label,"Ringscale X"}]},
+	     {vframe,[{text,Filename},
+		      {hframe,
+		       [{vframe,[{color,Color1},
+				 {text,Turbulence,[{range,{0.01,100.0}}]},
+				 {text,RingscaleX,[{range,{0.01,1000.0}}]}]},
+			{vframe,[{label,"Color 2"},
+				 {label,"Sharpness"},
+				 {label,"Ringscale Z"}]},
+			{vframe,[{color,Color2},
+				 {text,Sharpness,[{range,{1.0,100.0}}]},
+				 {text,RingscaleZ,[{range,{0.01,1000.0}}]}]},
+			{vframe,[{hframe,
+				  [{label,"Depth"},
+				   {text,Depth,[{range,{1,1000}}]}]},
+				 {"Hard Noise",Hard}]}]}]}]}]}]}],
       [{title,"Modulator"}]}];
-modulator_dialog(_Modulator, _M, _Maps) ->
+modulator_dialog(_Modulator, _Maps, _) ->
     []. % Discard old modulators that anyone may have
 
 modulator_result(Res) ->
-    modulator_result(Res, []).
+    modulator_result(Res, 1, []).
 
-modulator_result([], Ms) ->
+modulator_result([], _, Modulators) ->
     %% Should not happen
-    {reverse(Ms), []};
-modulator_result([{create_modulator,false}|Res], Ms) ->
-    {reverse(Ms),Res};
-modulator_result([{create_modulator,true}|Res], Ms) ->
-    {reverse(Ms, [{modulator,[]}]),Res};
-modulator_result([delete|Res0], Ms) ->
-    {_,Res} = modulator(delete, Res0),
-    modulator_result(Res, Ms);
-modulator_result([Mode|Res0], Ms) ->
-    {M,Res} = modulator(Mode, Res0),
-    modulator_result(Res, [M|Ms]).
+    {reverse(Modulators), []};
+modulator_result([{create_modulator,false}|Res], _, Modulators) ->
+    {reverse(Modulators),Res};
+modulator_result([{create_modulator,true}|Res], _, Modulators) ->
+    {reverse(Modulators, [{modulator,[]}]),Res};
+modulator_result([delete|Res0], M, Modulators) ->
+    {_,Res} = modulator(delete, Res0, M),
+    modulator_result(Res, M+1, Modulators);
+modulator_result([Mode|Res0], M, Modulators) ->
+    {Modulator,Res} = modulator(Mode, Res0, M),
+    modulator_result(Res, M+1, [Modulator|Modulators]).
 
-modulator(Mode, [SizeX,SizeY,SizeZ,
-		 Opacity,Diffuse,Specular,Ambient,Shininess,Normal,
-		 {_,Type},Filename,Color1,Color2,Depth|Res]) ->
+modulator(Mode, Res0, M) ->
+    {Res1,Res} = split_list(Res0, 18),
+    TypeTag = list_to_atom("type"++integer_to_list(M)),
+    {value,{TypeTag,Type}} = lists:keysearch(TypeTag, 1, Res1),
+    [SizeX,SizeY,SizeZ,
+     Diffuse,Specular,Ambient,Shininess,Normal,
+     Filename,
+     Color1,Turbulence,RingscaleX,
+     Color2,Sharpness,RingscaleZ,
+     Depth,Hard] %% 17 values = 18-1
+	= lists:keydelete(TypeTag, 1, Res1),
     Ps = [{mode,Mode},{size_x,SizeX},{size_y,SizeY},{size_z,SizeZ},
-		 {opacity,Opacity},{diffuse,Diffuse},{specular,Specular},
-		 {ambient,Ambient},{shininess,Shininess},{normal,Normal},
-		 {type,Type},{filename,Filename},
-		 {color1,Color1},{color2,Color2},{depth,Depth}],
+	  {diffuse,Diffuse},{specular,Specular},{ambient,Ambient},
+	  {shininess,Shininess},{normal,Normal},
+	  {type,Type},
+	  {filename,Filename},{color1,Color1},{color2,Color2},{depth,Depth},
+	  {hard,Hard},{turbulence,Turbulence},{sharpness,Sharpness},
+	  {ringscale_x,RingscaleX},{ringscale_z,RingscaleZ}],
     {{modulator,Ps},Res}.
 
 light_dialog(Name, Ps) ->
@@ -891,10 +936,10 @@ section(F, Name) ->
 
 
 export_shader(F, Name, Mat, ExportDir) ->
+    Maps = proplists:get_value(maps, Mat, []),
     OpenGL = proplists:get_value(opengl, Mat),
     YafRay = proplists:get_value(?TAG, Mat, []),
-    Modulators = proplists:get_value(modulators, YafRay, []),
-    Maps = proplists:get_value(maps, Mat, []),
+    Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     foldl(fun ({modulator,Ps}=M, N) when list(Ps) ->
 		  case proplists:get_value(mode, Ps) of
 		      off ->
@@ -933,7 +978,7 @@ export_shader(F, Name, Mat, ExportDir) ->
 		      off ->
 			  N+1;
 		      _ ->
-			  export_modulator(F, [Name,$_,format(N)], M),
+			  export_modulator(F, [Name,$_,format(N)], M, Opacity),
 			  println(F),
 			  N+1
 		  end;
@@ -945,23 +990,11 @@ export_shader(F, Name, Mat, ExportDir) ->
 export_texture(F, Name, Maps, ExportDir, {modulator,Ps}) when list(Ps) ->
     case proplists:get_value(type, Ps) of
 	image ->
-	    Filename = 
-		proplists:get_value(filename, Ps, 
-				    ?DEF_MOD_FILENAME),
-	    export_texture_image(F, Name, Filename);
+	    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
+	    export_texture(F, Name, image, Filename);
 	jpeg -> %% Old tag
-	    Filename = 
-		proplists:get_value(filename, Ps, 
-				    ?DEF_MOD_FILENAME),
-	    export_texture_image(F, Name, Filename);
-	clouds ->
-	    Color1 = proplists:get_value(color1, Ps, 
-					 ?DEF_MOD_COLOR1),
-	    Color2 = proplists:get_value(color2, Ps, 
-					 ?DEF_MOD_COLOR2),
-	    Depth = proplists:get_value(depth, Ps, 
-					?DEF_MOD_DEPTH),
-	    export_texture_clouds(F, Name, Color1, Color2, Depth);
+	    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
+	    export_texture(F, Name, image, Filename);
 	{map,Map} ->
 	    case proplists:get_value(Map, Maps, none) of
 		none ->
@@ -970,28 +1003,56 @@ export_texture(F, Name, Maps, ExportDir, {modulator,Ps}) when list(Ps) ->
 		    MapFile = ImageName++".tga",
 		    ok = e3d_image:save(Image, 
 					filename:join(ExportDir, MapFile)),
-		    export_texture_image(F, Name, MapFile)
-	    end
+		    export_texture(F, Name, image, MapFile)
+	    end;
+	Type ->
+	    export_texture(F, Name, Type, Ps)
     end.
 
-export_texture_image(F, Name, Filename) ->
+export_texture(F, Name, image, Filename) ->
     println(F, "<texture type=\"image\" name=\"~s\">~n"++
 	    "    <filename value=\"~s\"/>~n"++
-	    "</texture>", [Name,Filename]).
-
-export_texture_clouds(F, Name, Color1, Color2, Depth) ->
-    println(F, "<texture type=\"clouds\" name=\"~s\">~n"++
-	    "    <depth value=\"~w\"/>", [Name, Depth]),
+	    "</texture>", [Name,Filename]);
+export_texture(F, Name, Type, Ps) ->
+    println(F, "<texture type=\"~s\" name=\"~s\">", [format(Type),Name]),
+    Color1 = proplists:get_value(color1, Ps, ?DEF_MOD_COLOR1),
+    Color2 = proplists:get_value(color2, Ps, ?DEF_MOD_COLOR2),
+    Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
     export_rgb(F, color1, Color1),
     export_rgb(F, color2, Color2),
+    println(F, "    <depth value=\"~w\"/>", [Depth]),
+    if Type =/= clouds ->
+	    Turbulence = proplists:get_value(turbulence, Ps, 
+					     ?DEF_MOD_TURBULENCE),
+	    Hard = proplists:get_value(hard, Ps, ?DEF_MOD_HARD),
+	    println(F, "    <turbulence value=\"~.6f\"/>~n"++
+		    "    <hard value=\"~s\"/>", [Turbulence,format(Hard)]);
+       true ->
+	    ok
+    end,
+    case Type of
+	marble ->
+	    Sharpness = proplists:get_value(sharpness, Ps, ?DEF_MOD_SHARPNESS),
+	    println(F, "    <sharpness value=\"~.6f\"/>", [Sharpness]);
+	wood ->
+	    RingscaleX = proplists:get_value(ringscale_x, Ps, 
+					     ?DEF_MOD_RINGSCALE_X),
+	    RingscaleZ = proplists:get_value(ringscale_z, Ps, 
+					     ?DEF_MOD_RINGSCALE_Z),
+	    %% Coordinate rotation, see export_pos/2.
+	    println(F, "    <ringscale_x value=\"~.6f\"/>~n"++
+		    "    <ringscale_y value=\"~.6f\"/>",
+		    [RingscaleX,RingscaleZ]);
+	clouds ->
+	    ok
+    end,
     println(F, "</texture>").
 
-export_modulator(F, Texname, {modulator,Ps}) when list(Ps) ->
+export_modulator(F, Texname, {modulator,Ps}, Opacity) when list(Ps) ->
     Mode = proplists:get_value(mode, Ps, ?DEF_MOD_MODE),
     SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
     SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
     SizeZ = proplists:get_value(size_z, Ps, ?DEF_MOD_SIZE_Z),
-    Opacity = proplists:get_value(opacity, Ps, ?DEF_MOD_OPACITY),
     Diffuse = proplists:get_value(diffuse, Ps, ?DEF_MOD_DIFFUSE),
     Specular = proplists:get_value(specular, Ps, ?DEF_MOD_SPECULAR),
     Ambient = proplists:get_value(ambient, Ps, ?DEF_MOD_AMBIENT),
