@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.13 2004/04/14 06:39:51 bjorng Exp $
+#     $Id: Makefile,v 1.14 2004/06/16 12:14:26 dgud Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -36,6 +36,7 @@ MODULES= \
 	wpc_rwx \
 	wpc_wrl \
 	wpc_hlines \
+	wpc_toxic \
 	wpc_yafray
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.9 2004/06/13 21:32:13 dgud Exp $
+%%     $Id: wpc_toxic.erl,v 1.10 2004/06/16 12:14:26 dgud Exp $
 %%
 
 -module(wpc_toxic).
@@ -24,9 +24,11 @@
 -import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,keydelete/3,
 		foreach/2,foldl/3,foldr/3]).
 
+
+
 -define(TAG, toxic).
 -define(TAG_RENDER, toxic_render).
-
+-define(PI, 3.1415926536).
 %%% Default values
 
 -define(DEF_DIALOGS, auto).
@@ -236,7 +238,7 @@ attr(St, Attr) ->
     [{Pos,Dir,Up},Fov,Origin,Dist,Az,El,{PanX,PanY}] = 
 	wpa:camera_info([pos_dir_up,fov,aim,distance_to_aim,
 			 azimuth,elevation,tracking]),
-    
+%%    CurrSz = wings_wm:win_size(),
     CameraInfo = #camera_info{pos=Pos,dir=Dir,up=Up,fov=Fov,
 			      origin=Origin,distance=Dist,azimuth=Az,
 			      elevation=El,pan_x=PanX,pan_y=PanY},
@@ -285,9 +287,9 @@ material_dialog(_Name, Mat) ->
     Toxic   = proplists:get_value(?TAG, Mat, []),
     Min     = pget(shader_minimized, Toxic, true),
     BDF     = pget(bdf, Toxic, ?DEF_BDF),
-    EDF     = pget(edf, Toxic, ?DEF_EDF),
-    Radiant = pget(radiant, Toxic, if EDF == false -> 0;
-				      true -> ?DEF_EDF_RADIANCE end),
+%    EDF     = pget(edf, Toxic, ?DEF_EDF),
+%    Radiant = pget(radiant, Toxic, if EDF == false -> 0;
+%				      true -> ?DEF_EDF_RADIANCE end),
     [{vframe,
       [{hframe,
 	[{label, "BRDF"},
@@ -295,12 +297,13 @@ material_dialog(_Name, Mat) ->
 		  {"Perfect Specular",perfectspecular}],
 	  BDF,[layout,{key,{?TAG,bdf}}]},
 	 panel,
-	 help_button({material_dialog,shaders})]},
-       {hframe,
-	[{"Enable Emission", EDF, [{key, {?TAG,edf}}]},
-	 {label, "Radiant Exitance"},
-	 {text, Radiant, [{range, {0, 500000}}, {key, {?TAG, radiant}},
-			  enable_hook({?TAG, edf})]}]}],
+	 help_button({material_dialog,shaders})]}
+%        {hframe,
+% 	[{"Enable Emission", EDF, [{key, {?TAG,edf}}]},
+% 	 {label, "Radiant Exitance"},
+% 	 {text, Radiant, [{range, {0, 500000}}, {key, {?TAG, radiant}},
+% 			  enable_hook({?TAG, edf})]}]}
+      ],
       [{title,"Toxic Options"},{minimized,Min},
        {key,{?TAG,shader_minimized}}]}].
 
@@ -327,7 +330,13 @@ light_dialog(_Name, Ps) ->
     Power = pget(power, Toxic, DefPower),
     CastShadows = pget(cast_shadows, Toxic, true),
     case Type of
-	area -> [{label, "Not supported for toxic use emission in material setting instead"}];
+	area ->
+ 	    [{vframe,
+	      [{hframe,[{label,"Power"},
+			{text,Power,[{range,{0.0,10000.0}},{key,{?TAG,power}}]},
+			panel,
+			help_button(light_dialog)]}],
+	      [{title,"Toxic Options"},{key,{?TAG,minimized}},{minimized,Minimized}]}];
 	ambient -> [];
 	_ ->
 	    [{vframe,
@@ -376,12 +385,10 @@ enable_hook_or([Key], Store) ->
 enable_hook_or([Key|Keys], Store) ->
     enable_hook_eval(Key, Store) orelse enable_hook_or(Keys, Store).
 
-light_result(_Name, Ps0, [{{?TAG,minimized},_}|_]=Res0) ->
+light_result(_Name, Ps0, Res0) ->
     {LightPs,Res} = split_list(Res0,3),
     Ps = [{?TAG,LightPs} | keydelete(?TAG, 1, Ps0)],
     %%    erlang:display({?MODULE,?LINE,[Ps,Res1]}),
-    {Ps,Res};
-light_result(_Name, Ps, Res) ->
     {Ps,Res}.
 
 pref_edit(St) ->
@@ -741,33 +748,55 @@ export_objs(F=#files{dir=Dir}, [E3F|R]) ->
 export_objs(#files{objects=File}, E3DExport) ->
     e3d_obj:export(File, E3DExport).
 
-obj_per_mat(EF = #e3d_file{objs=Objs0}) ->
-    Objs = split_objs(Objs0, []),
-    EF#e3d_file{objs=Objs}.
+% obj_per_mat(EF = #e3d_file{objs=Objs0}) ->
+%     Objs = split_objs(Objs0, []),
+%     EF#e3d_file{objs=Objs}.
 
 obj_per_file(EF = #e3d_file{objs=Objs0, mat=Mtab}) ->
     Objs = split_objs(Objs0, []),
-    [EF#e3d_file{objs=[Obj],
- 		 mat=[element(2,lists:keysearch(hd(Obj#e3d_object.mat),1,Mtab))]}
-     || Obj <- Objs].
+    lists:map(fun(Obj = #e3d_object{mat=[Mat0|_], obj=Mesh = #e3d_mesh{fs=Fs0}}) ->
+		      Mat = fixName(Mat0),
+		      Fs = [F#e3d_face{mat=[Mat]} || F <- Fs0],
+		      {value, {_,MatDef}} = lists:keysearch(Mat0,1,Mtab),
+		      EF#e3d_file{objs=[Obj#e3d_object{mat=[Mat], 
+						       obj=Mesh#e3d_mesh{fs=Fs}}],
+				  mat=[{Mat,MatDef}]}
+	      end, Objs).
 
 split_objs([Ok=#e3d_object{mat=[_OneMat]}|R], Acc) ->
     split_objs(R, [Ok|Acc]);
-split_objs([Obj0=#e3d_object{obj=Mesh0=#e3d_mesh{fs=FaceL0},name=Name}|R],Acc) ->
+split_objs([Obj0=#e3d_object{obj=Mesh0=#e3d_mesh{fs=FaceL0}}|R],Acc) ->
     case lists:keysort(#e3d_face.mat, FaceL0) of
 	[] -> % hmm no faces..
 	    split_objs(R, Acc);
 	[First|SortedFL] ->
-	    Objs = [Obj0#e3d_object{obj=Mesh0#e3d_mesh{fs=FaceL},
-				    mat=Mat,name=mkName(Name,Mat)}
-		    ||{Mat, FaceL} <- split_fs(SortedFL, First#e3d_face.mat, [[First]])],
+	    Objs = [mkObj(Obj0,Mesh0, SplitFs) 
+		    ||SplitFs <- split_fs(SortedFL, First#e3d_face.mat, [[First]])],
 	    split_objs(R, Objs ++ Acc)
     end;
 split_objs([], Acc) -> Acc.
 
+mkObj(Obj=#e3d_object{name=Name},Mesh,{Mat,FaceL}) ->
+    Obj#e3d_object{obj=Mesh#e3d_mesh{fs=FaceL},
+		   mat=Mat,
+		   name=mkName(Name,Mat)}.
+
+fixName(Name) when is_atom(Name) ->
+    list_to_atom(fixName2(atom_to_list(Name)));
+fixName(Name) ->
+    fixName2(Name).
+
+fixName2([$_|R]) ->
+    [$_,$_|fixName2(R)];
+fixName2([$ |R]) ->
+    [$_|fixName2(R)];
+fixName2([A|R]) ->
+    [A|fixName2(R)];
+fixName2([]) -> [].
+
 mkName(Name, [Mat0]) when list(Name) ->
     Mat = to_list(Mat0),
-    Name ++ "_" ++ Mat;
+    fixName(Name) ++ "_" ++ fixName(Mat);
 mkName(Name, Mat) ->
     erlang:fault({strange_names, Name,Mat}).
 
@@ -1022,21 +1051,29 @@ export_light(F, Name, area, Scale, OpenGL, Toxic) ->
 			[Width,Height,Pos,Vs]),
 	      Normal = e3d_vec:normal(Vs),
 	      io:format("Normal ~p~n", [Normal]),
-	      {Ang,Axis} = rotate_vec(Normal, {0.0,1.0,0.0}, {1.0,0.0,0.0}),
-	      io:format("Rot ~p around ~p~n", [Ang,Axis]),
 	      println(F,"  <Object type=\"square\">"),
 	      println(F,"     <Parameter name=\"~s\" value=\"~s\"/>", 
 		      ["surfaceshader", Name]),
 	      println(F,"     <Transform>"),
 	      println(F,"      <Scale value=\"~s ~s ~s\"/>", 
 		      [format(Width), format(Scale), format(Height)]),
-% 	      println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
-% 		      [format(Ang)|vector_to_list(Axis)]),
+	      %% Rotate plane to get correct lie
 	      Mat = e3d_mat:rotate_s_to_t(Normal,{0.0,1.0,0.0}),
 	      print(F,"      <Matrix4>~n        ",[]),
 	      lists:foreach(fun(E) -> print(F,"~s ", [format(E)]) end,
 			    tuple_to_list(e3d_mat:expand(Mat))),
-	      println(F,"      ~n</Matrix4>",[]),
+	      println(F,"      ~n       </Matrix4>",[]),
+	      %% Rotate plane around normal
+	      A1 = e3d_mat:mul_point(Mat, {0.5,0.0,0.5}),
+%	      B1 = e3d_mat:mul_point(Mat, {0.5,0.0,-0.5}),
+	      V1 = e3d_vec:norm(e3d_vec:sub(A,Pos)),
+	      V2 = e3d_vec:norm(e3d_vec:sub(A1,Pos)),
+	      ACos = case e3d_vec:cross(V1,V2) < 0.0 of
+			 true -> - e3d_vec:dot(V1,V2);
+			 false -> e3d_vec:dot(V1,V2)
+		     end,		  
+	      println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
+		      [format(math:acos(ACos)*180/?PI)|vector_to_list(Normal)]),
 	      println(F,"      <Translation value=\"~s ~s ~s\"/>",
 		      vector_to_list(Pos)),
 	      println(F,"     </Transform>"),
@@ -1087,32 +1124,25 @@ export_camera(F, Scale, Attr) ->
 			    [format(pget(focaldist,Attr))])
 	    end
     end,
-%    println(F,"  <Parameter name=\"hfov\" value=\"~s\"/>", [format(Fov)]),
+    W = pget(width, Attr),    H = pget(height, Attr),
+    println(F,"  <Parameter name=\"hfov\" value=\"~s\"/>", 
+	    [format(2*math:atan(math:tan(0.5*Fov*?PI/180)*W/H)*180/?PI)]),
     println(F,"    <Transform>"),
 
 %%%%%%%%%%% Almost Same as wings %%%%%%%%%%%%
-%%% After trial and error, This works..
+%%% After trial and error, It looks like this works..
     println(F,"      <Translation value=\"~s ~s ~s\"/>", 
-	    [format(-PanX*Scale),format(-PanY*Scale),format(Dist*Scale)]),
+ 	    [format(-PanX*Scale),format(-PanY*Scale),format(Dist*Scale)]),
     println(F,"      <Rotation angle=\"~s\" axis=\"1.0 0.0 0.0\"/>", 
-	    [format(-El)]),
+ 	    [format(-El)]),
     println(F,"      <Rotation angle=\"~s\" axis=\"0.0 1.0 0.0\"/>", 
-	    [format(-Az)]),
+ 	    [format(-Az)]),
     println(F,"      <Translation value=\"~s ~s ~s\"/>", 
-	    vector_to_list(Origin,-Scale)),
+ 	    vector_to_list(Origin,-Scale)),
+
     println(F,"    </Transform>"),
     println(F,"  </Object>"),
     ok.
-
-rotate_vec(V1,V2,Axis) ->
-    ACos = e3d_vec:dot(V1,V2),
-    Dir = math:acos(ACos)*180/math:pi(),
-    case e3d_vec:norm(e3d_vec:cross(V1,V2)) of
- 	{0.0,0.0,0.0} ->
- 	    {Dir, Axis};
- 	Cross ->
- 	    {Dir, Cross}
-    end.
 
 vector_to_list({X,Y,Z}) ->
     [format(X),format(Y),format(Z)].
@@ -1503,20 +1533,29 @@ uquote_needed([_|Cs]) -> uquote_needed(Cs).
 
 %% Split a list into a list of length Pos, and the tail
 %%
-split_list(List, Pos) when list(List), integer(Pos), Pos >= 0 ->
-    case split_list1(List, Pos, []) of
-	{_,_}=Result ->
-	    Result;
-	Error ->
-	    erlang:fault(Error, [List, Pos])
-    end.
-%%
-split_list1(List, 0, Head) ->
-    {lists:reverse(Head),List};
-split_list1([], _Pos, _) ->
-    badarg;
-split_list1([H|T], Pos, Head) ->
-    split_list1(T, Pos-1, [H|Head]).
+
+split_list(List,_) ->
+    split_list1(List, []).
+
+split_list1([T={TAG, _}|R], Toxic) when element(1, TAG) == ?TAG ->
+    split_list1(R, [T|Toxic]);
+split_list1(R,Toxic) ->
+    {lists:reverse(Toxic),R}.
+ 
+% split_list(List, Pos) when list(List), integer(Pos), Pos >= 0 ->
+%     case split_list1(List, Pos, []) of
+% 	{_,_}=Result ->
+% 	    Result;
+% 	Error ->
+% 	    erlang:fault(Error, [List, Pos])
+%     end.
+% %%
+% split_list1(List, 0, Head) ->
+%     {lists:reverse(Head),List};
+% split_list1([], _Pos, _) ->
+%     badarg;
+% split_list1([H|T], Pos, Head) ->
+%     split_list1(T, Pos-1, [H|Head]).
 
 %%% %% {lists:filter(Pred, List),lists:filter(fun(X) -> not Pred(X) end,List)}
 %%% filter2(Pred, List) -> filter2_1(Pred, List, [], []).
@@ -1625,10 +1664,10 @@ help(text, {material_dialog,shaders}) ->
       "other option is a perfectly specular surface">>,
      <<" The diffuse color is used in toxic as the reflectance color"
       " for all different types of BRDF."
-      " If the material has an diffuse texture it will replace the reflectance color">>,
-     <<"If emission is enabled, EDF will be set to lambertian, "
-      "Radiant Exitance will be multiplied with the emission color, and"
-      " it is expressed in W.m^-2">>];
+      " If the material has an diffuse texture it will replace the reflectance color">>];
+%     <<"If emission is enabled, EDF will be set to lambertian, "
+%       "Radiant Exitance will be multiplied with the emission color, and"
+%       " it is expressed in W.m^-2">>];
 %%
 help(title, light_dialog) ->
     "Toxic Light Properties";
@@ -1636,9 +1675,7 @@ help(text, light_dialog) ->
     [<<"Toxic only has one light type, pointlight, it produces true hard shadows."
       " The diffuse color is multiplied with the power value, "
       "to get the emission power in Watts.">>,
-     <<"All Wings3D lights (except area lights) uses the Toxic point light.",
-      " Area lights are currently not supported (or exported). Instead you should use"
-      " the emission setting in material dialog to create area lights">>].
+     <<"All Wings3D lights (except area lights) uses the Toxic point light.">>].
 
 
 
