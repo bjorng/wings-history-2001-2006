@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.15 2001/11/07 07:09:59 bjorng Exp $
+%%     $Id: wings.hrl,v 1.16 2001/11/07 20:55:55 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -82,7 +82,13 @@
 	 hit_buf,				%Hit buffer for hit testing.
 	 inf_r,					%Radius of influence (for magnet).
 	 last_command,				%Last command.
-	 bb=none				%Saved bounding box.
+	 bb=none,				%Saved bounding box.
+
+	 %% Undo information.
+	 top,					%Top of stack.
+	 bottom,				%Bottom of stack.
+	 next_is_undo,				%State of undo/redo toggle.
+	 undone					%States that were undone.
 	 }).
 
 %% Shape (or object) which can be implemented in different ways.

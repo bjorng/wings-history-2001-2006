@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.35 2001/11/07 15:40:52 bjorng Exp $
+%%     $Id: wings.erl,v 1.36 2001/11/07 20:55:55 bjorng Exp $
 %%
 
 -module(wings).
@@ -80,12 +80,13 @@ init_1() ->
 	     saved=true,
 	     onext=0,
 	     last_command=ignore,
-	     hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)},
+	     hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)
+	    },
     wings_view:init(),
     wings_file:init(),
     resize(800, 600, St),
     caption(St),
-    top_level(St, wings_undo:new(32)),
+    top_level(wings_undo:init(St)),
     wings_file:finish(),
     wings_pref:finish(),
     sdl:quit(),
@@ -116,42 +117,41 @@ resize(W, H, St) ->
     gl:matrixMode(?GL_MODELVIEW),
     wings_io:resize(W, H).
 
-top_level(St, Undo) ->
+top_level(St) ->
     wings_io:clear_message(),
-    top_level_1(St, Undo).
+    top_level_1(St).
 
-top_level_1(St0, Undo0) ->
+top_level_1(St0) ->
     case
 	catch
 	main_loop(St0) of
-	St when record(St, st) ->		%Undoable operation.
-	    ?ASSERT(St#st.drag == undefined),
-	    ?ASSERT(St#st.camera == undefined),
-	    Undo = wings_undo:save(St0, Undo0),
-	    top_level(St#st{saved=false}, Undo);
+	#st{}=St1 ->				%Undoable operation.
+	    ?ASSERT(St1#st.drag == undefined),
+	    ?ASSERT(St1#st.camera == undefined),
+	    St = wings_undo:save(St0, St1),
+	    top_level(St#st{saved=false});
 	{saved,St} ->
-	    Undo = wings_undo:save(St0, Undo0),
-	    top_level(St, Undo);
+	    top_level(wings_undo:save(St0, St));
 	{new,St} ->
-	    top_level(St, wings_undo:new(?UNDO_LEVELS));
+	    top_level(wings_undo:init(St));
 	drag_aborted ->
-	    top_level(clean_state(St0), Undo0);
+	    top_level(clean_state(St0));
 	{undo,St1} -> 
-	    {St,Undo} = wings_undo:undo(St1, Undo0),
-	    top_level(clean_state(St), Undo);
+	    St = wings_undo:undo(St1),
+	    top_level(clean_state(St));
 	{redo,St1} -> 
-	    {St,Undo} = wings_undo:redo(St1, Undo0),
-	    top_level(clean_state(St), Undo);
+	    St = wings_undo:redo(St1),
+	    top_level(clean_state(St));
 	{undo_toggle,St1} -> 
-	    {St,Undo} = wings_undo:undo_toggle(St1, Undo0),
-	    top_level(clean_state(St), Undo);
+	    St = wings_undo:undo_toggle(St1),
+	    top_level(clean_state(St));
 	quit ->
 	    sdl_util:free(St0#st.hit_buf),
 	    ok;
 	{'EXIT',Crasch} ->
 	    LogName = wings_util:crasch_log(Crasch),
 	    wings_io:message("Internal error - log written to " ++ LogName),
-	    top_level_1(St0, Undo0)
+	    top_level_1(St0)
     end.
 
 clean_state(St0) ->

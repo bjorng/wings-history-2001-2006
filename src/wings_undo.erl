@@ -8,23 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_undo.erl,v 1.1 2001/08/14 18:16:37 bjorng Exp $
+%%     $Id: wings_undo.erl,v 1.2 2001/11/07 20:55:55 bjorng Exp $
 %%
 
 -module(wings_undo).
--export([new/1,save/2,undo_toggle/2,undo/2,redo/2]).
+-export([init/1,save/2,undo_toggle/1,undo/1,redo/1]).
 -import(lists, [reverse/1]).
 
 -include("wings.hrl").
-
--record(undo,
-	{max,					%Max levels of undo.
-	 levels,				%Current number of levels.
-	 top,					%Top of stack.
-	 bottom,				%Bottom of stack.
-	 next_is_undo,				%State of undo/redo toggle.
-	 undone					%States that were undone.
-	 }).
 
 %% The essential part of the state record.
 -record(est,
@@ -33,63 +24,48 @@
 	 sel,
 	 onext}).
 
-new(MaxLevels) ->
-    #undo{levels=0,max=MaxLevels,top=[],bottom=[],undone=[],next_is_undo=true}.
+init(St) ->
+    St#st{top=[],bottom=[],undone=[],next_is_undo=true}.
+    
+save(OldState, St0) ->
+    St1 = discard_old_states(St0),
+    St = push(St1, OldState),
+    St#st{undone=[],next_is_undo=true}.
 
-save(St, #undo{max=Max,levels=Levels}=Undo0) when Levels >= Max ->
-    {_,Undo} = shift(Undo0),
-    save(St, Undo);
-save(St, Undo0) ->
-    Undo = push(Undo0, St),
-    Undo#undo{undone=[],next_is_undo=true}.
+undo_toggle(#st{next_is_undo=true}=St) -> undo(St);
+undo_toggle(St) -> redo(St).
 
-undo_toggle(St0, #undo{undone=Undone,next_is_undo=true}=Undo0) ->
-    case pop(Undo0, St0) of
-	empty ->
-	    {St0,Undo0};
-	{St,Undo} ->
-	    {St,Undo#undo{undone=[St0|Undone],next_is_undo=false}}
-    end;
-undo_toggle(St0, #undo{undone=[StOld|Undone]}=Undo0) ->
-    Undo = push(Undo0, St0),
-    #st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext} = StOld,
-    St = St0#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext},
-    {St,Undo#undo{undone=Undone,next_is_undo=true}};
-undo_toggle(St, Undo) -> {St,Undo}.
-
-undo(St0, #undo{undone=Undone}=Undo0) ->
-    case pop(Undo0, St0) of
-	empty ->
-	    {St0,Undo0};
-	{St,Undo} ->
-	    {St,Undo#undo{undone=[St0|Undone],next_is_undo=false}}
+undo(#st{undone=Undone}=St0) ->
+    case pop(St0) of
+	empty -> St0;
+	St -> St#st{undone=[St0|Undone],next_is_undo=false}
     end.
 
-redo(St0, #undo{undone=[StOld|Undone]}=Undo0) ->
-    Undo = push(Undo0, St0),
+redo(#st{undone=[StOld|Undone]}=St0) ->
+    St1 = push(St0, St0),
     #st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext} = StOld,
-    St = St0#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext},
-    {St,Undo#undo{undone=Undone,next_is_undo=true}};
-redo(St, Undo) -> {St,Undo}.
+    St = St1#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext},
+    St#st{undone=Undone,next_is_undo=true};
+redo(St) -> St.
     
 %%
-%% Low-level queue operations. Similar to Perl's array operators.
+%% Low-level queue operations.
 %%
 
-push(#undo{}=Undo, #st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext}) ->
+push(St, #st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext}) ->
     Est = #est{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext},
-    push(Undo, Est);
-push(#undo{top=[],bottom=[_|_]=Bottom}=Undo, #est{}=Est) ->
-    push(Undo#undo{top=reverse(Bottom),bottom=[]}, Est);
-push(#undo{top=[],bottom=[],levels=Levels}=Undo, #est{}=Est) ->
-    Undo#undo{top=[Est],levels=Levels+1};
-push(#undo{top=[PrevEst|PrevTop]=Top,levels=Levels}=Undo, #est{}=Est) ->
+    push_1(St, Est).
+
+push_1(#st{top=[],bottom=[_|_]=Bottom}=St, #est{}=Est) ->
+    push_1(St#st{top=reverse(Bottom),bottom=[]}, Est);
+push_1(#st{top=[],bottom=[]}=St, #est{}=Est) ->
+    St#st{top=[Est]};
+push_1(#st{top=[PrevEst|PrevTop]=Top}=St, #est{}=Est) ->
     case compare_states(PrevEst, Est) of
-	new ->
-	    Undo#undo{top=[Est|Top],levels=Levels+1};
+	new -> St#st{top=[Est|Top]};
 	new_sel ->
 	    #est{sel=Sel} = Est,
-	    Undo#undo{top=[PrevEst#est{sel=Sel}|PrevTop]}
+	    St#st{top=[PrevEst#est{sel=Sel}|PrevTop]}
     end.
 
 compare_states(Old, New) ->
@@ -106,16 +82,20 @@ compare_states(Old, New) ->
 	true -> new
     end.
 
-pop(#undo{top=[Est|Top],levels=Levels}=Undo, St0) ->
+pop(#st{top=[Est|Top]}=St0) ->
     #est{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext} = Est,
     St = St0#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext},
-    {St,Undo#undo{top=Top,levels=Levels-1}};
-pop(#undo{top=[],bottom=[_|_]=Bottom}=Undo, St) ->
-    pop(Undo#undo{top=reverse(Bottom),bottom=[]}, St);
-pop(_, St) -> empty.
+    St#st{top=Top};
+pop(#st{top=[],bottom=[_|_]=Bottom}=St) ->
+    pop(St#st{top=reverse(Bottom),bottom=[]});
+pop(St) -> empty.
 
-shift(#undo{bottom=[St|Bottom],levels=Levels}=Undo) ->
-    {St,Undo#undo{bottom=Bottom,levels=Levels-1}};
-shift(#undo{bottom=[],top=[_|_]=Top}=Undo) ->
-    shift(Undo#undo{bottom=reverse(Top),top=[]});
-shift(Undo) -> empty.
+discard_old_states(#st{top=Top,bottom=Bot,undone=Undone}=St)
+  when length(Top) + length(Bot) > ?UNDO_LEVELS ->
+    discard_old_state(St);
+discard_old_states(St) -> St.
+    
+discard_old_state(#st{bottom=[_|Bottom]}=St) ->
+    St#st{bottom=Bottom};
+discard_old_state(#st{bottom=[],top=[_|_]=Top}=St) ->
+    discard_old_state(St#st{bottom=reverse(Top),top=[]}).
