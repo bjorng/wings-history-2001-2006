@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.72 2002/08/01 20:13:36 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.73 2002/08/02 08:44:10 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -190,10 +190,12 @@ mode_change_sel(#dlo{src_sel={_,_}}=D, Wire) ->
     {D#dlo{wire=Wire},Wire};
 mode_change_sel(D, Wire) -> {D,Wire}.
 
-virtual_mirror_fun(Faces, We) ->
+virtual_mirror_fun(Faces, #we{fs=Ftab0}=We) ->
     case gb_sets:to_list(Faces) of
 	[Face] ->
-	    We#we{mirror=Face};
+	    Frec = gb_trees:get(Face, Ftab0),
+	    Ftab = gb_trees:update(Face, Frec#face{mat='_hole_'}, Ftab0),
+	    We#we{fs=Ftab,mirror=Face};
 	_ ->
 	    wings_util:error("Only a single face must be selected per object.")
     end.
