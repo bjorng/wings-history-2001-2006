@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.18 2002/02/23 18:48:59 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.19 2002/02/25 08:49:19 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -69,7 +69,7 @@ import_objects([Sh0|Shs], Mode, Oid, ShAcc) ->
 			  gb_trees:size(Ftab),
 			  gb_trees:size(Vtab)]),
     We = #we{es=Etab,fs=Ftab,vs=Vtab,he=Htab,perm=Perm,
-	     id=Oid,next_id=NextId,name=Name,mode=ObjMode},
+	     id=Oid,first_id=0,next_id=NextId,name=Name,mode=ObjMode},
     import_objects(Shs, Mode, Oid+1, [{Oid,We}|ShAcc]);
 import_objects([], _Mode, Oid, ShAcc) -> {ShAcc,Oid}.
     
