@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.244 2003/05/26 16:38:05 bjorng Exp $
+%%     $Id: wings.erl,v 1.245 2003/05/27 08:34:21 bjorng Exp $
 %%
 
 -module(wings).
@@ -1165,8 +1165,6 @@ button_redraw_sh(true, Buttons) ->
 	[Left|_] ->
 	    gl:pushAttrib(?GL_POLYGON_BIT bor ?GL_LINE_BIT),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
-	    gl:lineStipple(2, 2#0101010101010101),
-	    gl:enable(?GL_LINE_STIPPLE),
 	    Right = lists:last(Pos),
 	    gl:color3f(1, 1, 1),
 	    gl:recti(Left-1, 3, Right+?BUTTON_WIDTH, 3+?BUTTON_HEIGHT),
