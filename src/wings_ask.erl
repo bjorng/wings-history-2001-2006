@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.181 2004/07/18 17:26:40 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.182 2004/08/15 07:22:14 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -1445,10 +1445,13 @@ layout_vframe(_I, _Fields, _Sto, X, Y, W, R, S) ->
 layout_hframe(I, Fields, Sto, X0, Y0, H0, R, S) when I =< size(Fields) ->
     Fi = #fi{x=X0,y=Y0,w=W,h=H,stretch=Stretch} = 
 	layout(element(I, Fields), Sto, X0, Y0),
-    layout_hframe(I+1, Fields, Sto, X0+W+?HFRAME_SPACING, Y0, max(H, H0), 
+    Ws = if W =/= 0, I < size(Fields) -> ?HFRAME_SPACING;
+	    true -> 0
+	 end,
+    layout_hframe(I+1, Fields, Sto, X0+Ws+W, Y0, max(H, H0), 
 		  [Fi|R], S+Stretch);
 layout_hframe(_I, _Fields, _Sto, X, Y, H, R, S) ->
-    {R,X-?HFRAME_SPACING,Y+H, S}.
+    {R,X,Y+H, S}.
 
 layout_oframe(I, Fields, Sto, X, Y, W0, H0, R, S) when I =< size(Fields) ->
     Fi = #fi{x=X,y=Y,w=W,h=H,stretch=Stretch} = 
