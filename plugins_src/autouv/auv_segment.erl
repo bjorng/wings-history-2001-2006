@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.51 2004/04/02 16:40:10 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.52 2004/04/02 17:06:15 bjorng Exp $
 
 -module(auv_segment).
 
@@ -684,7 +684,7 @@ map_vertex(V0, Vmap) ->
 %%%
 
 cut_model(Charts, Cuts, We) ->
-    map(fun(Keep) -> cut_one_chart(Keep, Cuts, We) end, Charts).
+    map(fun(Keep) -> cut_one_chart(Keep, Cuts, We#we{mirror=none}) end, Charts).
 
 cut_one_chart(Keep0, Cuts, We0) ->
     Keep = gb_sets:from_list(Keep0),
