@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.17 2002/02/11 20:07:07 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.18 2002/03/02 21:28:15 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -128,11 +128,11 @@ circle(N, Y) ->
     circle(N, Y, 1.0).
 
 circle(N, Y, R) ->
-    Delta= pi()*2 / N,
+    Delta = pi()*2 / N,
     [{R*cos(I*Delta), Y, R*sin(I*Delta)} || I <- lists:seq(0, N-1)].
 
 cylinder(Ask, St) when is_atom(Ask) ->
-    ask(cylinder, Ask, St, [{"Sections",16}]);
+    ask(cylinder, Ask, St, [{"Sections",16,[{range,{3,1024}}]}]);
 cylinder([Sections], St) ->
     Fs = cylinder_faces(Sections),
     Vs = cylinder_vertices(Sections),
@@ -149,7 +149,7 @@ cylinder_vertices(N) ->
     circle(N, 1.0) ++ circle(N, -1.0).
 
 cone(Ask, St) when is_atom(Ask) ->
-    ask(cone, Ask, St, [{"Sections",16}]);
+    ask(cone, Ask, St, [{"Sections",16,[{range,{3,1024}}]}]);
 cone([N], St) ->
     Ns = lists:seq(0, N-1),
     Lower = lists:seq(0, N-1),
@@ -160,9 +160,9 @@ cone([N], St) ->
     build_shape("cone", Fs, Vs, St).
     
 sphere_circles(Ns, Nl) ->
-    Delta= pi() / Nl,
+    Delta = pi() / Nl,
     PosAndRads= [{cos(I*Delta), sin(I*Delta)} || I <- lists:seq(1, Nl-1)],
-    Circles= [circle(Ns, Pos, Rad) || {Pos, Rad} <- PosAndRads],
+    Circles = [circle(Ns, Pos, Rad) || {Pos, Rad} <- PosAndRads],
     lists:flatten(Circles).
 
 sphere_faces(Ns, Nl) ->
@@ -182,14 +182,16 @@ sphere_faces(Ns, Nl) ->
     Topf ++ Botf ++ lists:append(Slices).
 
 sphere(Ask, St) when is_atom(Ask) ->
-    ask(sphere, Ask, St, [{"Sections",16},{"Slices",8}]);
+    ask(sphere, Ask, St, [{"Sections",16,[{range,{3,128}}]},
+			  {"Slices",8,[{range,{3,128}}]}]);
 sphere([Ns,Nl], St) ->
     Vs = sphere_circles(Ns, Nl) ++ [{0.0, 1.0, 0.0}, {0.0, -1.0, 0.0}],
     Fs = sphere_faces(Ns, Nl),
     build_shape("sphere", Fs, Vs, St).
     
 torus(Ask, St) when is_atom(Ask) ->
-    ask(torus, Ask, St, [{"Sections",16},{"Slices",8}]);
+    ask(torus, Ask, St, [{"Sections",16,[{range,{3,128}}]},
+			 {"Slices",8,[{range,{1,128}}]}]);
 torus([Ns,Nl], St) ->
     Vs = torus_vertices(Ns, Nl, 0.75),
     Fs = torus_faces(Ns, Nl),
@@ -212,7 +214,7 @@ torus_vertices(Ns, Nl, Hs) ->
     lists:flatten(Circles).
 
 grid(Ask, St) when is_atom(Ask) ->
-    ask(grid, Ask, St, [{"Rows/cols",10}]);
+    ask(grid, Ask, St, [{"Rows/cols",10,[{range,{1,128}}]}]);
 grid([Size], St) ->
     Vs = grid_vertices(Size),
     Fs = grid_faces(Size),
