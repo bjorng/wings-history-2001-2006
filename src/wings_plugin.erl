@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.24 2003/06/15 12:43:32 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.25 2003/09/06 14:43:18 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,dialog_result/2,command/2,call_ui/1]).
@@ -42,7 +42,7 @@
 init() ->
     put(wings_plugins, []),
     put(wings_ui, def_ui_plugin()),
-    case try_dirs() of
+    case try_dir(wings:root_dir(), "plugins") of
 	none -> ok;
 	PluginDir -> init(PluginDir)
     end.
@@ -169,9 +169,8 @@ def_ui_plugin() ->
 	    aborted
     end.
 
-try_dirs() ->
-    Dir0 = wings:root_dir(),
-    Dir = filename:absname("plugins", Dir0),
+try_dir(Base, Dir0) ->
+    Dir = filename:join(Base, Dir0),
     case filelib:is_dir(Dir) of
 	true -> Dir;
 	false -> none
@@ -199,10 +198,9 @@ list_dir_1([[$w,$p,_,$_|_]=N|Ns], Dir0, Dirs, Beams) ->
 	_ -> list_dir_1(Ns, Dir0, Dirs, Beams)
     end;
 list_dir_1([N|Ns], Dir0, Dirs, Beams) ->
-    Dir = filename:join(Dir0, N),
-    case filelib:is_dir(Dir) of
-	true -> list_dir_1(Ns, Dir0, [Dir|Dirs], Beams);
-	false -> list_dir_1(Ns, Dir0, Dirs, Beams)
+    case try_dir(Dir0, N) of
+	none -> list_dir_1(Ns, Dir0, Dirs, Beams);
+	Dir -> list_dir_1(Ns, Dir0, [Dir|Dirs], Beams)
     end;
 list_dir_1([], _Dir, Dirs, Beams) -> {Dirs,Beams}.
     
