@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.45 2001/11/17 07:02:37 bjorng Exp $
+%%     $Id: wings.erl,v 1.46 2001/11/17 13:16:11 bjorng Exp $
 %%
 
 -module(wings).
@@ -213,7 +213,10 @@ do_command(Cmd, St0) ->
     case do_command_1(Cmd, St1) of
 	quit -> return_to_top(quit);
 	#st{drag=undefined}=St -> main_loop(St);
-	#st{}=St -> wings_drag:do_drag(St);
+	#st{}=StDrag ->
+	    St = model_changed(St1#st{drag=undefined}),
+	    {seq,{replace,fun(Event) -> handle_event(Event, St) end},
+	     wings_drag:do_drag(StDrag)};
 	{save_state,#st{}=St} -> return_to_top(St);
 	{saved,#st{}}=Res -> return_to_top(Res);
 	{new,#st{}}=Res -> return_to_top(Res);
@@ -278,14 +281,14 @@ repeatable(Mode, Cmd) ->
 command({_,{[_|_]}=Plugin}, St0) ->
     case wings_plugin:command(Plugin, St0) of
 	St0 -> St0;
-	#st{dl=#dl{drag_faces=Faces}}=St when is_list(Faces) -> St;
-	St -> {save_state,model_changed(St)}
+	#st{drag=none}=St -> {save_state,model_changed(St)};
+	St -> St
     end;
 command({_,[_|_]=Plugin}, St0) ->
     case wings_plugin:command(Plugin, St0) of
 	St0 -> St0;
-	#st{dl=#dl{drag_faces=Faces}}=St when is_list(Faces) -> St;
-	St -> {save_state,model_changed(St)}
+	#st{drag=none}=St -> {save_state,model_changed(St)};
+	St -> St
     end;
 command({menu,Menu,X,Y}, St) ->
     menu(X, Y, Menu, St);

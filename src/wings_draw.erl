@@ -8,18 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.19 2001/11/16 12:20:28 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.20 2001/11/17 13:16:11 bjorng Exp $
 %%
 
 -module(wings_draw).
--export([model_changed/1,render/1]).
+-export([model_changed/1,render/1,ground_and_axes/0]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1]).
-
--define(NORMAL_LINEWIDTH, 0.1).
 
 model_changed(St) -> St#st{dl=none}.
 
@@ -36,7 +34,7 @@ render(#st{shapes=Shapes}=St0) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     ?CHECK_ERROR(),
     wings_view:model_transformations(St0),
-    ground_and_axes(St0),
+    ground_and_axes(),
     St1 = update_display_lists(St0),
     St = make_sel_dlist(St1),
     draw_shapes(St),
@@ -50,7 +48,7 @@ draw_shapes(St) ->
 	false -> draw_plain_shapes(St)
     end.
 	    
-draw_smooth_shapes(#st{dl=#dl{drag_faces=none}=DL}=St) ->
+draw_smooth_shapes(#st{dl=DL}=St) ->
     #dl{we=DlistWe} = DL,
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_BACK),
@@ -147,16 +145,8 @@ draw_sel(#st{dl=#dl{sel=DlistSel}}) ->
 	_ -> ok
     end.
     
-draw_we(#st{dl=#dl{we=DlistWe,dragging=WeDrag,matrix=Matrix}}) ->
-    gl:callList(DlistWe),
-    case WeDrag of
-	none -> ok;
-	Other ->
-	    gl:pushMatrix(),
-	    gl:multMatrixf(e3d_mat:expand(Matrix)),
-	    gl:callList(WeDrag),
-	    gl:popMatrix()
-    end.
+draw_we(#st{dl=#dl{we=DlistWe}}) ->
+    gl:callList(DlistWe).
 
 update_display_lists(#st{shapes=Shapes,dl=none}=St) ->
     Smooth = wings_pref:get_value(smooth_preview),
@@ -167,15 +157,6 @@ update_display_lists(#st{shapes=Shapes,dl=none}=St) ->
 	    end, gb_trees:values(Shapes)),
     gl:endList(),
     St#st{dl=#dl{we=DlistWe}};
-update_display_lists(#st{dl=#dl{drag_faces=none}}=St) -> St;
-update_display_lists(#st{dl=#dl{we=none,drag_faces=Faces}=DL}=St) ->
-    %% Collect the static display list - faces that will not be moved.
-    DlistId = make_dlist(98, Faces, false, St),
-    update_display_lists(St#st{dl=DL#dl{we=DlistId}});
-update_display_lists(#st{dl=#dl{dragging=none,drag_faces=Faces}=DL}=St) ->
-    %% Collect the dynamic display list - everything that will be moved.
-    DlistId = make_dlist(97, Faces, true, St),
-    update_display_lists(St#st{dl=DL#dl{dragging=DlistId}});
 update_display_lists(St) -> St.
 
 make_sel_dlist(#st{sel=[],dl=DL}=St) ->
@@ -194,32 +175,6 @@ do_make_sel_dlist(#st{sel=Sel,dl=DL}=St) ->
     draw_selection(St),
     gl:endList(),
     St#st{dl=DL#dl{old_sel=Sel,sel=DlistSel}}.
-
-make_dlist(DlistId, Faces, DrawMembers, #st{shapes=Shapes0}=St) ->
-    gl:newList(DlistId, ?GL_COMPILE),
-    make_dlist_1(gb_trees:to_list(Shapes0), Faces, DrawMembers),
-    gl:endList(),
-    DlistId.
-
-make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], DrawMembers) ->
-    Draw = fun(F, Fs0) -> DrawMembers =:= gb_sets:is_member(F, Fs0) end,
-    mkdl_draw_faces(Shape, Faces, Draw),
-    make_dlist_1(Shs, Fs, DrawMembers);
-make_dlist_1([{Id,Shape}|Shs], Fs, DrawMembers) ->
-    Draw = not DrawMembers,
-    mkdl_draw_faces(Shape, dummy, fun(_, _) -> Draw end),
-    make_dlist_1(Shs, Fs, DrawMembers);
-make_dlist_1([], Fs, Draw) -> ok.
-
-mkdl_draw_faces(#shape{sh=#we{}=We}, Faces, Draw) ->
-    wings_util:fold_face(
-      fun(Face, #face{edge=Edge}, _) ->
-	      case Draw(Face, Faces) of
-		  true -> draw_face(Face, Edge, We);
-		  false -> ok
-	      end
-      end, [], We);
-mkdl_draw_faces(_, _, _) -> ok.
 
 shape(#shape{sh=Data}, Smooth, St) ->
     draw_faces(Data, Smooth, St).
@@ -279,8 +234,10 @@ draw_smooth_2([Vs|Fs]) ->
     draw_smooth_2(Fs);
 draw_smooth_2([]) -> ok.
 
-draw_face(Face, Edge, #we{es=Etab,vs=Vtab}) ->
+draw_face(Face, Edge, #we{es=Etab,vs=Vtab}=We) ->
+    Normal = wings_face:normal(Face, We),
     gl:'begin'(?GL_POLYGON),
+%%    gl:normal3fv(Normal),
     draw_face_1(Face, Edge, Edge, Etab, Vtab, not_done),
     gl:'end'().
 
@@ -361,7 +318,7 @@ lookup_pos(Key, Tree) ->
 %% Miscellanous.
 %%
 
-ground_and_axes(St) ->
+ground_and_axes() ->
     Ground = wings_pref:get_value(show_groundplane),
     Axes = wings_pref:get_value(show_axes),
     ?CHECK_ERROR(),

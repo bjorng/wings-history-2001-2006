@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.18 2001/11/16 18:19:40 bjorng Exp $
+%%     $Id: wings.hrl,v 1.19 2001/11/17 13:16:11 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -30,6 +30,7 @@
 -define(LINE_HEIGHT, (?CHAR_HEIGHT+3)).
 -define(GROUND_GRID_SIZE, 1.0).
 -define(CAMERA_DIST, (8*?GROUND_GRID_SIZE)).
+-define(NORMAL_LINEWIDTH, 0.1).
 
 -define(MOUSE_DIVIDER, 500).
 
@@ -50,16 +51,16 @@
 -define(CHECK_ERROR(), ok).
 -endif.
 
+%% Display lists.
 -record(dl,
 	{we=none,				%Winged edge objects.
-	 dragging=none,				%WE faces being dragged.
-	 drag_faces=none,			%GbSet containing faces.
 	 pick=none,				%For picking.
 	 pick_mode,				%Mode pick list was created in.
 	 old_sel,				%Actual selection.
-	 sel=none,				%For selected faces.
-	 matrix=e3d_mat:identity()}).
+	 sel=none				%For selected faces.
+	}).
 
+%% Main state record containing all objects and other important state.
 -record(st,
 	{shapes,				%All visible shapes
 	 hidden,				%Hidden shapes

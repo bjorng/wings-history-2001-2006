@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.22 2001/11/16 18:19:41 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.23 2001/11/17 13:16:11 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -33,8 +33,19 @@
 	 tvs,					%[{Vertex,Vec}...]
 	 constraint,				%Constraints for motion
 	 unit,					%Unit that drag is done in.
-	 shapes					%Shapes before drag
-	 }).
+	 shapes,				%Shapes before drag.
+	 dl					%Private version of dl
+						% (temporary hack).
+	}).
+
+%% Display lists. XXX Temporary, should go into the drag record.
+-record(adl,
+	{we=none,				%Winged edge objects.
+	 dragging=none,				%WE faces being dragged.
+	 drag_faces=none,			%GbSet containing faces.
+	 old_sel,				%Actual selection.
+	 sel=none,				%For selected faces.
+	 matrix=e3d_mat:identity()}).
 
 init_drag(Tvs, Constraint, St) ->
     init_drag(Tvs, Constraint, none, St).
@@ -44,10 +55,15 @@ init_drag(Tvs0, Constraint, Unit, #st{shapes=OldShapes}=St0) ->
     Faces = faces(Tvs, St0),
     wings_io:grab(),
     {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = #drag{x=X,y=Y,tvs=Tvs,constraint=Constraint,
-		 unit=Unit,shapes=OldShapes},
-    St = St0#st{saved=false,drag=Drag,dl=#dl{drag_faces=Faces}},
-    motion(X, Y, St).
+    Drag0 = #drag{x=X,y=Y,tvs=Tvs,constraint=Constraint,
+		  unit=Unit,shapes=OldShapes},
+
+    %% Temporary hack to enable us to have our private display list
+    %% record here. Should be moved into drag.
+    St1 = St0#st{saved=false,drag=Drag0,dl=#adl{drag_faces=Faces}},
+    #st{dl=Dl} = St = motion(X, Y, St1),
+    Drag = Drag0#drag{dl=Dl},
+    St#st{drag=Drag,dl=none}.
 
 combine(Tvs) ->
     S = sofs:relation(Tvs),
@@ -62,11 +78,12 @@ combine(Tvs) ->
 		{Id,sofs:to_external(FU)}
 	end, sofs:to_external(F)).
 
-do_drag(St) ->
+do_drag(#st{drag=#drag{dl=Dl}}=St0) ->
+    St = St0#st{dl=Dl},
     {seq,{push,dummy},get_drag_event(St)}.
 
 get_drag_event(St) ->
-    wings:redraw(St),
+    redraw(St),
     {replace,fun(Ev) -> handle_drag_event(Ev, St) end}.
 
 handle_drag_event(Event, St) ->
@@ -226,10 +243,10 @@ motion_update(Tvs, Dx, Dy, #st{shapes=Shapes0,dl=Dl}=St) ->
 	      end, {none,Shapes0}, Tvs),
     case Matrix of
 	none ->
-	    St#st{shapes=Shapes,dl=Dl#dl{dragging=none,sel=none,
+	    St#st{shapes=Shapes,dl=Dl#adl{dragging=none,sel=none,
 					 matrix=e3d_mat:identity()}};
 	Other ->
-	    St#st{shapes=Shapes,dl=Dl#dl{matrix=Matrix,sel=none}}
+	    St#st{shapes=Shapes,dl=Dl#adl{matrix=Matrix,sel=none}}
     end.
 
 transform_vs(Tvs, Dx, Dy, St, #shape{sh=#we{vs=Vtab0}=We}=Shape0) ->
@@ -335,3 +352,262 @@ normalize({Id,#shape{matrix=Matrix,sh=#we{vs=Vtab0}=We}=Sh0}, Ident, A) ->
     Vtab = gb_trees:from_orddict(reverse(Vtab1)),
     Sh = Sh0#shape{matrix=Ident,sh=We#we{vs=Vtab}},
     gb_trees:update(Id, Sh, A).
+
+%%%
+%%% Redrawing while dragging.
+%%%
+
+redraw(St0) ->
+    St = render(St0),
+    wings_io:update(St).
+
+render(#st{shapes=Shapes}=St0) ->
+    ?CHECK_ERROR(),
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    gl:enable(?GL_DEPTH_TEST),
+    wings_view:projection(),
+    ?CHECK_ERROR(),
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    ?CHECK_ERROR(),
+    wings_view:model_transformations(St0),
+    wings_draw:ground_and_axes(),
+    St1 = update_display_lists(St0),
+    St = make_sel_dlist(St1),
+    draw_shapes(St),
+    gl:popAttrib(),
+    ?CHECK_ERROR(),
+    St.
+
+draw_shapes(#st{selmode=SelMode}=St) ->
+    Wire = wings_pref:get_value(wire_mode),
+    gl:enable(?GL_CULL_FACE),
+    gl:cullFace(?GL_BACK),
+
+    %% Draw faces for winged-edge-objects.
+    case Wire of
+	true -> ok;
+	false ->
+	    FaceColor = wings_pref:get_value(face_color),
+	    gl:color3fv(FaceColor),
+	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+	    gl:enable(?GL_POLYGON_OFFSET_FILL),
+	    gl:polygonOffset(2.0, 2.0),
+	    draw_we(St)
+    end,
+
+    %% Draw edges.
+    case {Wire,SelMode} of
+	{true,_} -> gl:color3f(1.0, 1.0, 1.0);
+	{_,body} -> gl:color3f(0.3, 0.3, 0.3);
+	{_,_} -> gl:color3f(0.0, 0.0, 0.0)
+    end,
+    gl:lineWidth(case SelMode of
+		     edge -> wings_pref:get_value(edge_width);
+		     _ -> ?NORMAL_LINEWIDTH end),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+    gl:enable(?GL_POLYGON_OFFSET_LINE),
+    gl:polygonOffset(1.0, 1.0),
+    draw_we(St),
+
+    %% If vertex selection mode, draw vertices.
+    case SelMode of
+	vertex ->
+	    gl:color3f(0.0, 0.0, 0.0), 
+	    gl:pointSize(wings_pref:get_value(vertex_size)),
+	    gl:enable(?GL_POLYGON_OFFSET_POINT),
+	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_POINT),
+	    draw_we(St);
+	NotVertex -> ok
+    end,
+
+    gl:disable(?GL_POLYGON_OFFSET_LINE),
+    gl:disable(?GL_POLYGON_OFFSET_POINT),
+    gl:disable(?GL_POLYGON_OFFSET_FILL),
+
+    %% Selection.
+    draw_sel(St),
+
+    %% Draw hard edges.
+    draw_hard_edges(St).
+
+sel_color() ->
+    gl:color3fv(wings_pref:get_value(selected_color)).
+
+draw_sel(#st{sel=[],dl=#adl{sel=none}}=St) -> ok;
+draw_sel(#st{selmode=edge,dl=#adl{sel=DlistSel}}) ->
+    sel_color(),
+    gl:lineWidth(wings_pref:get_value(selected_edge_width)),
+    gl:callList(DlistSel);
+draw_sel(#st{selmode=vertex,dl=#adl{sel=DlistSel}}) ->
+    sel_color(),
+    gl:pointSize(wings_pref:get_value(selected_vertex_size)),
+    gl:callList(DlistSel);
+draw_sel(#st{dl=#adl{sel=DlistSel}}) ->
+    gl:enable(?GL_POLYGON_OFFSET_FILL),
+    gl:polygonOffset(1.0, 1.0),
+    sel_color(),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    case catch gl:callList(DlistSel) of
+	{'EXIT',_} -> exit({bad_call_list,DlistSel});
+	_ -> ok
+    end.
+    
+draw_we(#st{dl=#adl{we=DlistWe,dragging=WeDrag,matrix=Matrix}}) ->
+    gl:callList(DlistWe),
+    case WeDrag of
+	none -> ok;
+	Other ->
+	    gl:pushMatrix(),
+	    gl:multMatrixf(e3d_mat:expand(Matrix)),
+	    gl:callList(WeDrag),
+	    gl:popMatrix()
+    end.
+
+update_display_lists(#st{shapes=Shapes,dl=none}=St) ->
+    DlistWe = 98,
+    gl:newList(DlistWe, ?GL_COMPILE),
+    foreach(fun(Sh) ->
+		    shape(Sh, St)
+	    end, gb_trees:values(Shapes)),
+    gl:endList(),
+    St#st{dl=#adl{we=DlistWe}};
+update_display_lists(#st{dl=#adl{drag_faces=none}}=St) -> St;
+update_display_lists(#st{dl=#adl{we=none,drag_faces=Faces}=DL}=St) ->
+    %% Collect the static display list - faces that will not be moved.
+    DlistId = make_dlist(98, Faces, false, St),
+    update_display_lists(St#st{dl=DL#adl{we=DlistId}});
+update_display_lists(#st{dl=#adl{dragging=none,drag_faces=Faces}=DL}=St) ->
+    %% Collect the dynamic display list - everything that will be moved.
+    DlistId = make_dlist(97, Faces, true, St),
+    update_display_lists(St#st{dl=DL#adl{dragging=DlistId}});
+update_display_lists(St) -> St.
+
+make_sel_dlist(#st{sel=[],dl=DL}=St) ->
+    St#st{dl=DL#adl{sel=none}};
+make_sel_dlist(#st{dl=#adl{sel=none}}=St) ->
+    do_make_sel_dlist(St);
+make_sel_dlist(#st{sel=Sel,dl=#adl{old_sel=Sel}}=St) ->
+    St;
+make_sel_dlist(#st{dl=DL}=St) ->
+    do_make_sel_dlist(St);
+make_sel_dlist(St) -> St.
+
+do_make_sel_dlist(#st{sel=Sel,dl=DL}=St) ->
+    DlistSel = 95,
+    gl:newList(DlistSel, ?GL_COMPILE),
+    draw_selection(St),
+    gl:endList(),
+    St#st{dl=DL#adl{old_sel=Sel,sel=DlistSel}}.
+
+make_dlist(DlistId, Faces, DrawMembers, #st{shapes=Shapes0}=St) ->
+    gl:newList(DlistId, ?GL_COMPILE),
+    make_dlist_1(gb_trees:to_list(Shapes0), Faces, DrawMembers),
+    gl:endList(),
+    DlistId.
+
+make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], DrawMembers) ->
+    Draw = fun(F, Fs0) -> DrawMembers =:= gb_sets:is_member(F, Fs0) end,
+    mkdl_draw_faces(Shape, Faces, Draw),
+    make_dlist_1(Shs, Fs, DrawMembers);
+make_dlist_1([{Id,Shape}|Shs], Fs, DrawMembers) ->
+    Draw = not DrawMembers,
+    mkdl_draw_faces(Shape, dummy, fun(_, _) -> Draw end),
+    make_dlist_1(Shs, Fs, DrawMembers);
+make_dlist_1([], Fs, Draw) -> ok.
+
+mkdl_draw_faces(#shape{sh=#we{}=We}, Faces, Draw) ->
+    wings_util:fold_face(
+      fun(Face, #face{edge=Edge}, _) ->
+	      case Draw(Face, Faces) of
+		  true -> draw_face(Face, Edge, We);
+		  false -> ok
+	      end
+      end, [], We);
+mkdl_draw_faces(_, _, _) -> ok.
+
+shape(#shape{sh=Data}, St) ->
+    draw_faces(Data, St).
+
+draw_faces(#we{}=We, St) ->
+    wings_util:fold_face(
+      fun(Face, #face{edge=Edge}, _) ->
+	      draw_face(Face, Edge, We)
+      end, [], We).
+
+draw_face(Face, Edge, #we{es=Etab,vs=Vtab}) ->
+    gl:'begin'(?GL_POLYGON),
+    draw_face_1(Face, Edge, Edge, Etab, Vtab, not_done),
+    gl:'end'().
+
+draw_face_1(Face, LastEdge, LastEdge, Etab, Vtab, done) -> ok;
+draw_face_1(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
+    {Next,V} = case gb_trees:get(Edge, Etab) of
+		   #edge{ve=V0,lf=Face,ltpr=Next0}=Rec -> {Next0,V0};
+		   #edge{vs=V0,rf=Face,rtpr=Next0}=Rec -> {Next0,V0}
+	       end,
+    gl:vertex3fv(lookup_pos(V, Vtab)),
+    draw_face_1(Face, Next, LastEdge, Etab, Vtab, done).
+
+draw_hard_edges(#st{shapes=Shapes}) ->
+    gl:color3fv(wings_pref:get_value(hard_edge_color)),
+    foreach(
+      fun(#shape{sh=#we{he=Htab}=We}) ->
+	      case gb_sets:is_empty(Htab) of
+		  true -> ok;
+		  false -> draw_hard_edges_1(We)
+	      end;
+	 (_) -> ok
+      end, gb_trees:values(Shapes)),
+    ?CHECK_ERROR().
+
+draw_hard_edges_1(#we{es=Etab,he=Htab,vs=Vtab}) ->
+    foreach(fun(Edge) ->
+		    #edge{vs=Vstart,ve=Vend} = gb_trees:get(Edge, Etab),
+		    gl:'begin'(?GL_LINES),
+		    gl:vertex3fv(lookup_pos(Vstart, Vtab)),
+		    gl:vertex3fv(lookup_pos(Vend, Vtab)),
+		    gl:'end'()
+	    end, gb_sets:to_list(Htab)).
+
+%%
+%% Draw the currently selected items.
+%% 
+
+draw_selection(#st{selmode=body}=St) ->
+    wings_sel:foreach(
+      fun(_, #shape{matrix=Matrix,sh=Data}) ->
+	      gl:pushMatrix(),
+	      gl:multMatrixf(e3d_mat:expand(Matrix)),
+	      draw_faces(Data, St),
+	      gl:popMatrix()
+      end, St),
+    St;
+draw_selection(#st{selmode=face}=St) ->
+    wings_sel:foreach(
+      fun(Face, #shape{sh=#we{fs=Ftab}=We}) ->
+	      #face{edge=Edge} = gb_trees:get(Face, Ftab),
+	      draw_face(Face, Edge, We)
+      end, St),
+    St;
+draw_selection(#st{selmode=edge}=St) ->
+    gl:'begin'(?GL_LINES),
+    wings_sel:foreach(
+      fun(Edge, #shape{sh=#we{es=Etab,vs=Vtab}}=Sh) ->
+	      #edge{vs=Vstart,ve=Vend} = gb_trees:get(Edge, Etab),
+	      gl:vertex3fv(lookup_pos(Vstart, Vtab)),
+	      gl:vertex3fv(lookup_pos(Vend, Vtab))
+      end, St),
+    gl:'end'(),
+    St;
+draw_selection(#st{selmode=vertex}=St) ->
+    gl:'begin'(?GL_POINTS),
+    wings_sel:foreach(
+      fun(V, #shape{sh=#we{vs=Vtab}}) ->
+	      gl:vertex3fv(lookup_pos(V, Vtab))
+      end, St),
+    gl:'end'(),
+    St.
+
+lookup_pos(Key, Tree) ->
+    #vtx{pos=Pos} = gb_trees:get(Key, Tree),
+    Pos.
