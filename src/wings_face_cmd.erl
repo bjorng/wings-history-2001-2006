@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.98 2003/10/30 12:25:13 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.99 2003/11/15 21:18:19 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -419,10 +419,11 @@ mirror_move_vs({V,Pos0}, PlaneNormal, Center, A) ->
     Pos = wings_util:share(e3d_vec:add(Pos0, ToPlane)),
     [{V,Pos}|A].
 
-mirror_weld(0, _IterA0, FaceA, _IterB0, FaceB, _WeOrig, #we{fs=Ftab0}=We) ->
+mirror_weld(0, _IterA0, FaceA, _IterB0, FaceB, _WeOrig, #we{fs=Ftab0}=We0) ->
     Ftab1 = gb_trees:delete(FaceA, Ftab0),
     Ftab = gb_trees:delete(FaceB, Ftab1),
-    wings_material:delete_faces([FaceA,FaceB], We#we{fs=Ftab});
+    We = wings_material:delete_faces([FaceA,FaceB], We0#we{fs=Ftab}),
+    wings_we:vertex_gc(We);
 mirror_weld(N, IterA0, FaceA, IterB0, FaceB, WeOrig, We0) ->
     %% We will remove FaceA and FaceB, as well as all edges and vertices
     %% surrounding FaceB.
@@ -448,17 +449,7 @@ mirror_weld(N, IterA0, FaceA, IterB0, FaceB, WeOrig, We0) ->
 			    #edge.rf, #edge.rtpr, #edge.rtsu,
 			    #edge.ltpr, #edge.ltsu)
 	    end,
-    #we{es=Etab0,vc=Vct0,vp=Vtab0,fs=Ftab0,he=Htab0} = We0,
-
-    %% Update vertex table.
-    #edge{vs=VstartB,ve=VendB} = RecB,
-    Vtab1 = gb_trees:delete_any(VstartB, Vtab0),
-    Vtab = gb_trees:delete_any(VendB, Vtab1),
-    Vct1 = gb_trees:delete_any(VstartB, Vct0),
-    Vct2 = gb_trees:delete_any(VendB, Vct1),
-    #edge{vs=VstartA,ve=VendA} = RecA,
-    Vct3 = wings_vertex:patch_vertex(VstartA, EdgeA, Vct2),
-    Vct = wings_vertex:patch_vertex(VendA, EdgeA, Vct3),
+    #we{es=Etab0,fs=Ftab0,he=Htab0} = We0,
 
     %% Update edge table.
     DelEdges = case RecB of
@@ -471,6 +462,8 @@ mirror_weld(N, IterA0, FaceA, IterB0, FaceB, WeOrig, We0) ->
     Etab4 = cond_patch_edge(Succ, EdgeA, EdgeB, Etab3),
 
     %% Patch references to the vertices that we have removed.
+    #edge{vs=VstartB,ve=VendB} = RecB,
+    #edge{vs=VstartA,ve=VendA} = RecA,
     Etab5 = replace_vertex(VstartB, VstartA, WeOrig, Etab4),
     Etab = replace_vertex(VendB, VendA, WeOrig, Etab5),
 
@@ -480,7 +473,7 @@ mirror_weld(N, IterA0, FaceA, IterB0, FaceB, WeOrig, We0) ->
     Ftab = wings_face:patch_face(wings_face:other(FaceB, RecB), EdgeA, Ftab1),
 
     %% Next edge.
-    We = We0#we{es=Etab,fs=Ftab,vc=Vct,vp=Vtab,he=Htab},
+    We = We0#we{es=Etab,fs=Ftab,vc=undefined,he=Htab},
     mirror_weld(N-1, IterA, FaceA, IterB, FaceB, WeOrig, We).
 
 update_edge(New0, Old, FaceP, PrP, SuP, OPrP, OSuP) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.79 2003/10/19 19:42:14 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.80 2003/11/15 21:18:19 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -474,8 +474,8 @@ dissolve_edge_1(Edge, #edge{lf=Keep,rf=Remove}=Rec, We) ->
     dissolve_edge_2(Edge, Remove, Keep, Rec, We).
 
 dissolve_edge_2(Edge, FaceRemove, FaceKeep,
-		#edge{vs=Vstart,ve=Vend,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS},
-		#we{fs=Ftab0,es=Etab0,vc=Vct0,he=Htab0}=We0) ->
+		#edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS},
+		#we{fs=Ftab0,es=Etab0,he=Htab0}=We0) ->
     %% First change face for all edges surrounding the face we will remove.
     Etab1 = wings_face:fold(
 	      fun (_, E, _, IntEtab) when E =:= Edge -> IntEtab;
@@ -507,12 +507,8 @@ dissolve_edge_2(Edge, FaceRemove, FaceKeep,
     We1 = wings_material:delete_face(FaceRemove, We0),
     Ftab = gb_trees:update(FaceKeep, LP, Ftab1),
 
-    %% Patch the vertices referenced by the removed edge.
-    Vct1 = wings_vertex:patch_vertex(Vstart, RP, Vct0),
-    Vct = wings_vertex:patch_vertex(Vend, RS, Vct1),
-
     %% Return result.
-    We2 = We1#we{es=Etab,fs=Ftab,vc=Vct,he=Htab},
+    We2 = We1#we{es=Etab,fs=Ftab,vc=undefined,he=Htab},
     AnEdge = gb_trees:get(FaceKeep, Ftab),
     We = case gb_trees:get(AnEdge, Etab) of
 	     #edge{lf=FaceKeep,ltpr=Same,ltsu=Same} ->
@@ -575,7 +571,7 @@ merge_edges(Dir, Edge, Rec, #we{es=Etab}=We) ->
 	    merge_1(Dir, Edge, Rec, To, We)
     end.
 
-merge_1(Dir, Edge, Rec, To, #we{es=Etab0,vc=Vct0,fs=Ftab0,he=Htab0}=We) ->
+merge_1(Dir, Edge, Rec, To, #we{es=Etab0,fs=Ftab0,he=Htab0}=We) ->
     OtherDir = reverse_dir(Dir),
     {Vkeep,Vdelete,Lf,Rf,A,B,L,R} = half_edge(OtherDir, Rec),
     Etab1 = patch_edge(L, To, Edge, Etab0),
@@ -583,11 +579,10 @@ merge_1(Dir, Edge, Rec, To, #we{es=Etab0,vc=Vct0,fs=Ftab0,he=Htab0}=We) ->
     Etab3 = patch_half_edge(To, Vkeep, Lf, A, L, Rf, B, R, Vdelete, Etab2),
     Htab = hardness(Edge, soft, Htab0),
     Etab = gb_trees:delete(Edge, Etab3),
-    Vct = wings_vertex:patch_vertex(Vkeep, To, Vct0),
     #edge{lf=Lf,rf=Rf} = Rec,
     Ftab1 = update_face(Lf, To, Edge, Ftab0),
     Ftab = update_face(Rf, To, Edge, Ftab1),
-    check_edge(To, We#we{es=Etab,vc=Vct,fs=Ftab,he=Htab}).
+    check_edge(To, We#we{es=Etab,fs=Ftab,he=Htab,vc=undefined}).
 
 check_edge(Edge, #we{es=Etab}=We) ->
     case gb_trees:get(Edge, Etab) of
@@ -605,8 +600,8 @@ update_face(Face, Edge, OldEdge, Ftab) ->
     end.
 
 del_2edge_face(Dir, EdgeA, RecA, EdgeB,
-	       #we{vc=Vct0,vp=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We) ->
-    {Vkeep,Vdelete,Lf,Rf,_,_,_,_} = half_edge(reverse_dir(Dir), RecA),
+	       #we{es=Etab0,fs=Ftab0,he=Htab0}=We) ->
+    {_,_,Lf,Rf,_,_,_,_} = half_edge(reverse_dir(Dir), RecA),
     RecB = gb_trees:get(EdgeB, Etab0),
     Del = gb_sets:from_list([EdgeA,EdgeB]),
     EdgeANear = stabile_neighbor(RecA, Del),
@@ -620,11 +615,6 @@ del_2edge_face(Dir, EdgeA, RecA, EdgeB,
     Htab1 = hardness(EdgeA, soft, Htab0),
     Htab = hardness(EdgeB, soft, Htab1),
 
-    %% Patch vertex table.
-    Vtab = gb_trees:delete(Vdelete, Vtab0),
-    Vct1 = gb_trees:delete(Vdelete, Vct0),
-    Vct = wings_vertex:patch_vertex(Vkeep, EdgeANear, Vct1),
-
     %% Patch the face table.
     #edge{lf=Klf,rf=Krf} = gb_trees:get(EdgeANear, Etab),
     KeepFaces = ordsets:from_list([Klf,Krf]),
@@ -636,7 +626,7 @@ del_2edge_face(Dir, EdgeA, RecA, EdgeB,
     Ftab = update_face(KeepFace, EdgeBNear, EdgeB, Ftab2),
 
     %% Return result.
-    We#we{vc=Vct,vp=Vtab,es=Etab,fs=Ftab,he=Htab}.
+    We#we{vc=undefined,es=Etab,fs=Ftab,he=Htab}.
 
 stabile_neighbor(#edge{ltpr=Ea,ltsu=Eb,rtpr=Ec,rtsu=Ed}, Del) ->
     [Edge] = foldl(fun(E, A) ->
