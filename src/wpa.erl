@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.34 2003/12/29 09:57:15 bjorng Exp $
+%%     $Id: wpa.erl,v 1.35 2003/12/29 16:01:11 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -84,23 +84,56 @@ bind_virtual(Key, Mods, Command) ->
 import(#e3d_file{}=E3dFile, St) ->
     wings_import:import(E3dFile, St).
 
-%% returns: St | {error,Message}
-import(Props, Importer, St) ->
-    wings_file:import(Props, Importer, St).
+%% Does not return.
+import(Props, Importer, St0) ->
+    Cont = fun(Name) ->
+		   case ?SLOW(do_import(Importer, Name, St0)) of
+		       #st{}=St -> St;
+		       {error,Reason} ->
+			   error("Import failed: " ++ Reason)
+		   end
+	   end,
+    import_filename(Props, Cont).
+
+do_import(Importer, Name, St0) ->
+    case Importer(Name) of
+	{ok,#e3d_file{}=E3DFile} ->
+	    wings_import:import(E3DFile, St0);
+	{error,Reason} ->
+	    wings_util:error(Reason)
+    end.
 
 %% This function is not recommend. It will be removed in
 %% a future release. Use import_filename/2 instead.
 %%
 %% returns: FilenameString | aborted
-import_filename(Prop) ->
-    wings_file:import_filename(Prop).
+import_filename(Ps0) ->
+    Ps = Ps0 ++ [{title,"Import"}],
+    case wings_plugin:call_ui({file,open_dialog,Ps}) of
+	aborted -> aborted;
+	Name ->
+	    wings_pref:set_value(current_directory,
+				 filename:dirname(Name)),
+	    Name
+    end.
 
 %% import_filename([Prop], Continuation).
 %%   The Continuation fun will be called like this: Continuation(Filename).
 import_filename(Ps0, Cont) ->
+    This = wings_wm:this(),
     Dir = wings_pref:get_value(current_directory),
     Ps = Ps0 ++ [{title,"Import"},{directory,Dir}],
-    wings_plugin:call_ui({file,open_dialog,Ps,Cont}).
+    Fun = fun(Name) ->
+		  case catch Cont(Name) of
+		      {command_error,Error} ->
+			  wings_util:message(Error);
+		      #st{}=St ->
+			  wings_wm:send(This, {new_state,St});
+		      _ ->
+			  keep
+		  end
+	  end,
+    wings_plugin:call_ui({file,open_dialog,Ps,Fun}).
 
 export(Props, Exporter, St) ->
     wings_file:export(Props, Exporter, St),

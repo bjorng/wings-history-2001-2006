@@ -8,13 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.140 2003/12/29 15:21:32 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.141 2003/12/29 16:01:11 bjorng Exp $
 %%
 
 -module(wings_file).
 -export([init/0,init_autosave/0,menu/1,command/2,
-	 export/3,export_filename/2,
-	 import/3,import_filename/1]).
+	 export/3,export_filename/2]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -509,29 +508,9 @@ revert(#st{file=File}=St0) ->
 %% Import.
 %%
 
-import_filename(Ps0) ->
-    Ps = Ps0 ++ [{title,"Import"}],
-    case wings_plugin:call_ui({file,open_dialog,Ps}) of
-	aborted -> aborted;
-	Name ->
-	    set_cwd(dirname(Name)),
-	    Name
-    end.
-
-import(Ps, Importer, St0) ->
-    case import_filename(Ps) of
-	aborted -> St0;
-	Name ->
-	    case ?SLOW(do_import(Importer, Name, St0)) of
-		#st{}=St -> St;
-	    	{error,Reason} ->
-		    wings_util:error("Import failed: " ++ Reason)
-	    end
-    end.
-
 import_ndo(St0) ->
     Ps = [{ext,".ndo"},{ext_desc,"Nendo File"}],
-    case import_filename(Ps) of
+    case wpa:import_filename(Ps) of
 	aborted -> St0;
 	Name ->
 	    case ?SLOW(wings_ff_ndo:import(Name, St0)) of
@@ -644,18 +623,6 @@ clean_images(#st{saved=Limit}=St) when is_integer(Limit) ->
 clean_new_images(#st{saved=Limit}) when is_integer(Limit) ->
     wings_image:delete_from(Limit).
     
-%%%
-%%% Generic import code.
-%%%
-
-do_import(Importer, Name, St0) ->
-    case Importer(Name) of
-	{ok,#e3d_file{}=E3DFile} ->
-	    wings_import:import(E3DFile, St0);
-	{error,Reason} ->
-	    wings_util:error(Reason)
-    end.
-
 %%%
 %%% Generic export code.
 %%%

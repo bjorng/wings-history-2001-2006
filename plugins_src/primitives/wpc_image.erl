@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.16 2003/12/29 09:57:43 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.17 2003/12/29 16:01:10 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -44,13 +44,8 @@ command({shape,{image_plane,Name}}, _St) ->
 command(_, _) -> next.
 
 make_image() ->
-    This = wings_wm:this(),
     Ps = [{extensions,wpa:image_formats()}],
-    Cont = fun(Name) ->
-		   wings_wm:send(This, {action,{shape,{image_plane,Name}}}),
-		   ignore
-	   end,
-    wpa:import_filename(Ps, Cont).
+    wpa:import_filename(Ps, fun make_image/1).
 
 make_image(Name) ->
     Props = [{filename,Name}],
