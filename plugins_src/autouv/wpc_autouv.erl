@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.277 2004/12/18 19:36:01 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.278 2004/12/25 07:21:59 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -622,7 +622,7 @@ handle_command(stitch, St0 = #st{selmode=edge}) ->
     St1 = stitch(St0),
     AuvSt = #st{bb=#uvstate{id=Id,st=Geom}} = update_selected_uvcoords(St1),
     %% Do something here, i.e. restart uvmapper.
-    St = rebuild_charts(gb_trees:get(Id,Geom#st.shapes),AuvSt,false,[]),
+    St = rebuild_charts(gb_trees:get(Id,Geom#st.shapes), AuvSt, []),
     get_event(St);
 handle_command(cut_edges, St0 = #st{selmode=edge,bb=#uvstate{id=Id,st=Geom}}) ->
     Es = wpa:sel_fold(fun(Es,#we{name=#ch{emap=Emap}},A) ->
@@ -630,7 +630,7 @@ handle_command(cut_edges, St0 = #st{selmode=edge,bb=#uvstate{id=Id,st=Geom}}) ->
 			       || E<-gb_sets:to_list(Es)] ++ A
 		      end, [], St0),
     %% Do something here, i.e. restart uvmapper.
-    St = rebuild_charts(gb_trees:get(Id,Geom#st.shapes),St0,false,Es),
+    St = rebuild_charts(gb_trees:get(Id,Geom#st.shapes), St0, Es),
     get_event(St);
 
 %%    get_event(St);
@@ -787,88 +787,35 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
 	{none,_} -> delete;
 	{{value,We},{value,We}} -> {AuvSt,false};
 	{{value,#we{es=Etab}},{value,#we{es=Etab}}} -> {AuvSt,false};
-	{{value,We},_} -> {rebuild_charts(We, AuvSt,true,[]),true}
+	{{value,We},_} -> {rebuild_charts(We, AuvSt, []),true}
     end.
 
-rebuild_charts(We, #st{shapes=OldCharts}=St,Reuse,ExtraCuts) ->
-    Faces = wings_we:uv_mapped_faces(We),
-    FvUvMap = auv_segment:fv_to_uv_map(Faces, We),
-    {Charts0,Cuts0} = auv_segment:uv_to_charts(Faces, FvUvMap, We),
+rebuild_charts(We, St, ExtraCuts) ->
+    Faces = ?TC(wings_we:uv_mapped_faces(We)),
+    FvUvMap = ?TC(auv_segment:fv_to_uv_map(Faces, We)),
+    {Charts0,Cuts0} = ?TC(auv_segment:uv_to_charts(Faces, FvUvMap, We)),
     {Charts1,Cuts} =
 	case ExtraCuts of
-	    [] ->  {Charts0,Cuts0};
+	    [] -> {Charts0,Cuts0};
 	    _ ->
-		Cuts1 = foldl(fun(Edge,Cuts) -> gb_sets:add(Edge,Cuts) end, 
-			      Cuts0, ExtraCuts),
-		auv_segment:normalize_charts(Charts0,Cuts1,We)
+		Cuts1 = gb_sets:union(Cuts0, gb_sets:from_list(ExtraCuts)),
+		auv_segment:normalize_charts(Charts0, Cuts1, We)
 	end,
-    Charts2 = auv_segment:cut_model(Charts1, Cuts, We),
-    Old = if Reuse -> gb_trees:values(OldCharts);
-	     true -> []
-	  end,
-    Charts3 = update_charts(Charts2, Old),
-    Charts4 = build_map(Charts3, FvUvMap, []),
-    Charts = gb_trees:from_orddict(keysort(1, Charts4)),
+    Charts2 = ?TC(auv_segment:cut_model(Charts1, Cuts, We)),
+    Charts = ?TC(finalize_charts(Charts2, FvUvMap)),
+    io:format("\n", []),
     wings_wm:set_prop(wireframed_objects,
 		      gb_sets:from_list(gb_trees:keys(Charts))),
     St#st{sel=[],shapes=Charts}.
 
-update_charts(Cs, OldCs) ->
+finalize_charts(Cs, FvUvMap) ->
     Id = length(Cs),
-    update_charts_1(Cs, reverse(OldCs), Id, []).
+    finalize_charts_1(Cs, FvUvMap, 0.0, Id, []).
 
-update_charts_1([{Fs,We0}|Cs], [OldWe|OldCs], Id, Acc) ->
-    We = update_chart(Fs, We0#we{id=Id}, OldWe),
-    update_charts_1(Cs, OldCs, Id-1, [We|Acc]);
-update_charts_1([{Fs,We0}|Cs], [], Id, Acc) ->
-    We = auv_segment:finalize_chart(Fs, We0#we{id=Id}),
-    update_charts_1(Cs, [], Id-1, [We|Acc]);
-update_charts_1([], _, 0, Acc) -> Acc.
-
-update_chart(Fs, We, OldWe) ->
-    case wings_we:visible(OldWe) of
-	Fs -> update_chart_1(Fs, We, OldWe);
-	_ -> auv_segment:finalize_chart(Fs, We)
-    end.
-
-update_chart_1(Fs, We, OldWe) ->
-    case same_topology(Fs, We, OldWe) of
-	false -> auv_segment:finalize_chart(Fs, We);
-	true -> OldWe
-    end.
-
-same_topology([F|Fs], We, OldWe) ->
-    case same_toplolgy_1(F, We, OldWe) of
-	false -> false;
-	true -> same_topology(Fs, We, OldWe)
-    end;
-same_topology([], _, _) -> true.
-
-same_toplolgy_1(F, #we{es=EtabA,fs=FtabA}, #we{es=EtabB,fs=FtabB}) ->
-    EdgeA = gb_trees:get(F, FtabA),
-    EdgeB = gb_trees:get(F, FtabB),
-    same_toplogy_2(F, EtabA, EdgeA, EdgeA, EtabB, EdgeB, EdgeB).
-    
-same_toplogy_2(_F, _EtabA, LastA, LastA, _EtabB, LastB, LastB) -> true;
-same_toplogy_2(F, EtabA, EdgeA, LastA, EtabB, EdgeB, LastB) ->
-    case {gb_trees:get(EdgeA, EtabA),gb_trees:get(EdgeB, EtabB)} of
-	{#edge{vs=Eq,lf=F,ltsu=NextA},#edge{vs=Eq,lf=F,ltsu=NextB}} ->
-	    same_toplogy_2(F, EtabA, NextA, LastA, EtabB, NextB, LastB);
-	{#edge{ve=Eq,rf=F,rtsu=NextA},#edge{vs=Eq,lf=F,ltsu=NextB}} ->
-	    same_toplogy_2(F, EtabA, NextA, LastA, EtabB, NextB, LastB);
-	{#edge{vs=Eq,lf=F,ltsu=NextA},#edge{ve=Eq,rf=F,rtsu=NextB}} ->
-	    same_toplogy_2(F, EtabA, NextA, LastA, EtabB, NextB, LastB);
-	{#edge{ve=Eq,rf=F,rtsu=NextA},#edge{ve=Eq,rf=F,rtsu=NextB}} ->
-	    same_toplogy_2(F, EtabA, NextA, LastA, EtabB, NextB, LastB);
-	{_,_} -> false
-    end.
-
-build_map([#we{id=Id,name=#ch{vmap=Vmap}}=We0|T], FvUvMap, Acc) ->
-    %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
-    %% (bug in wings_vertex_cmd), we must fetch the UV coordinates
-    %% from the original object.
-    Fs = wings_we:visible(We0),
-    Z = zero(),
+finalize_charts_1([{Fs0,#we{name=#ch{vmap=Vmap}}=We0}|Cs], FvUvMap, Z,
+		  Id, Acc) ->
+    We1 = auv_segment:finalize_chart(Fs0, We0#we{id=Id}),
+    Fs = wings_we:visible(We1),
     UVs0 = wings_face:fold_faces(
 	     fun(F, V, _, _, A) ->
 		     OrigV = auv_segment:map_vertex(V, Vmap),
@@ -876,12 +823,10 @@ build_map([#we{id=Id,name=#ch{vmap=Vmap}}=We0|T], FvUvMap, Acc) ->
 		     [{V,{X,Y,Z}}|A]
 	     end, [], Fs, We0),
     UVs = gb_trees:from_orddict(orddict:from_list(UVs0)),
-    We = We0#we{vp=UVs},
-    build_map(T, FvUvMap, [{Id,We}|Acc]);
-build_map([], _, Acc) -> reverse(Acc).
-
-zero() ->
-    0.0.
+    We = We1#we{vp=UVs},
+    finalize_charts_1(Cs, FvUvMap, Z, Id-1, [{Id,We}|Acc]);
+finalize_charts_1([], _, _, 0, Acc) ->
+    gb_trees:from_orddict(Acc).
 
 %% update_selection(GemoSt, AuvSt0) -> AuvSt
 %%  Update the selection in the AutoUV window given a selection
