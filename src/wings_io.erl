@@ -8,12 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.85 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.86 2003/01/11 09:42:26 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,resize/0,
-	 icon_restriction/1,clear_icon_restriction/0,get_icon_restriction/0,
 	 arrow/0,hourglass/0,
 	 info/1,
 	 border/5,
@@ -45,8 +44,7 @@
 	 grab_count=0,				%Number of grabs.
 	 hourglass,				%Hourglass cursor.
 	 arrow,					%Arrow cursor.
-	 raw_icons,				%Raw icon bundle.
-	 selmodes=all				%Which icons to show.
+	 raw_icons				%Raw icon bundle.
 	}).
 
 init() ->
@@ -104,18 +102,6 @@ info(Info) ->
     set_color(wings_pref:get_value(info_color)),
     text_at(4, ?CHAR_HEIGHT, Info).
     
-icon_restriction(Modes) ->
-    wings_wm:send(buttons, {mode_restriction,Modes}),
-    put_state((get_state())#io{selmodes=Modes}).
-
-clear_icon_restriction() ->
-    wings_wm:send(buttons, {mode_restriction,none}),
-    put_state((get_state())#io{selmodes=all}).
-
-get_icon_restriction() ->
-    #io{selmodes=Modes} = get_state(),
-    Modes.
-
 border(X0, Y0, Mw0, Mh0, FillColor) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
