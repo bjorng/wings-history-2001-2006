@@ -3,12 +3,12 @@
 %%
 %%     Image plane plug-in
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson.
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.10 2003/01/30 12:15:45 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.11 2003/01/31 21:10:48 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -23,13 +23,22 @@
 init() ->
     true.
 
-menu({tools}, Menu) ->
-    Menu ++ [separator,
-	     {"Make Image Plane...",make_image_plane,
-	      "Create a plane containing an image"}];
+menu({shape}, Menu) ->
+    insert_before_more(Menu);
 menu(_, Menu) -> Menu.
 
-command({tools,make_image_plane}, _St) -> make_image();
+insert_before_more([H|_]=More) when element(1, element(2, H)) == more ->
+    [image_menu(),separator|More];
+insert_before_more([H|T]) ->
+    [H|insert_before_more(T)];
+insert_before_more([]) ->
+    [image_menu()].
+
+image_menu() ->
+    {"Image Plane...",image_plane,"Create a plane containing an image"}.
+
+command({shape,image_plane}, _St) ->
+    make_image();
 command(_, _) -> next.
 
 make_image() ->
