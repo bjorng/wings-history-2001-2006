@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.26 2002/02/07 11:49:08 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.27 2002/02/11 20:01:13 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -95,12 +95,15 @@ pm_move_fun(Tv) ->
 
 free_move_fun(MoveSel) ->
     fun([Dx,Dy,R], Acc) ->
-	    MoveSel([Dx,Dy], Acc)
+	    MoveSel([Dx,Dy], Acc);
+       (view_changed, Acc) ->
+	    MoveSel(view_changed, Acc)
     end.
 
 move_away_fun(Tv) ->
     fun([Dx,R], Acc) -> move_away(R, Tv, Acc);
-       ([Dx,Dy,R], Acc) -> move_away(R, Tv, Acc)
+       ([Dx,Dy,R], Acc) -> move_away(R, Tv, Acc);
+       (view_changed, Acc) -> move_away_fun(Tv)
     end.
 
 move_away(R0, Tv, Acc) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.22 2002/02/07 11:49:08 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.23 2002/02/11 20:01:13 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -141,7 +141,7 @@ make_tvs(Type, Vec, Vs, #we{vs=Vtab}=We) ->
 
 magnet_fun(DF, Vec, Center, VsPos) ->
     fun(view_changed, NewWe) ->
-	    magnet_fun(DF, Center, Vec,
+	    magnet_fun(DF, Vec, Center,
 		       wings_util:update_vpos(VsPos, NewWe));
        ([Dx,Falloff], A) ->
 	    move(Dx, Falloff, DF, Vec, Center, VsPos, A);
