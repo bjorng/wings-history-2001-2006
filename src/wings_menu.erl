@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.17 2002/01/05 23:54:50 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.18 2002/01/06 17:14:39 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -175,7 +175,7 @@ motion_outside(#mousemotion{x=X,y=Y}=Event, #mi{prev=[]}=Mi) -> none;
 motion_outside(#mousemotion{x=X,y=Y}=Event, #mi{prev=PrevMenu0}=Mi) ->
     #mi{sel=PrevSel} = PrevMenu0,
     case selected_item(X, Y, PrevMenu0) of
-	outside -> motion_outside(Event, PrevMenu0);
+	outside -> none;
 	none -> none;
 	PrevSel -> keep;
 	OtherSel ->
