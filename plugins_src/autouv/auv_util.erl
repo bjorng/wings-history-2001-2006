@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_util.erl,v 1.3 2003/01/27 13:57:49 dgud Exp $
+%%     $Id: auv_util.erl,v 1.4 2003/04/18 08:11:36 bjorng Exp $
 
 -module(auv_util).
 
@@ -17,7 +17,7 @@
 -export([moveAndScale/5]).
 -export([outer_edges/2,outer_edges/3]).
 -export([number/1,number/2]).
-
+-export([mark_segments/4,make_mat/1,seg_materials/0]).
 
 -include("wings.hrl").
 -include("auv.hrl").
@@ -109,3 +109,49 @@ number(L) ->
 number([H|T], N) ->
     [{N,H}|number(T, N+1)];
 number([], _) -> [].
+
+
+mark_segments(Charts, Cuts, We0, St) ->
+    We = We0#we{he=Cuts},			%Hard edges mark the cuts.
+
+    %% Use materials to mark different charts.
+    Template = list_to_tuple([auv_util:make_mat(Diff) || {_,Diff} <- seg_materials()]),
+    assign_materials(Charts, We, Template, 0, St).
+
+assign_materials([Faces|T], #we{fs=Ftab0}=We0, Template, I0, #st{mat=Mat0}=St0) ->
+    I = I0 + 1,
+    MatName = list_to_atom("AuvChart" ++ integer_to_list(I)),
+    Ftab = foldl(fun(F, A) ->
+			 Rec = gb_trees:get(F, A),
+			 gb_trees:update(F, Rec#face{mat=MatName}, A)
+		 end, Ftab0, Faces),
+    We = We0#we{fs=Ftab},
+    case gb_trees:is_defined(MatName, Mat0) of
+	true ->
+	    assign_materials(T, We, Template, I, St0);
+	false ->
+	    MatDef = element(I0 rem size(Template) + 1, Template),
+	    {St,[]} = wings_material:add_materials([{MatName,MatDef}], St0),
+	    assign_materials(T, We, Template, I, St)
+    end;
+assign_materials([], #we{id=Id}=We, _, _, #st{shapes=Shs0}=St) ->
+    Shs = gb_trees:update(Id, We, Shs0),
+    St#st{shapes=Shs}.
+
+make_mat(Diff) ->
+    [{opengl,[{diffuse,Diff},
+	      {ambient,Diff},
+	      {specular,{0.0,0.0,0.0}}]}].
+
+seg_materials() -> % Intensity 0.7 for all
+    [{'AuvChart1',{0.7,0.7,0.0}},  % Yellow
+     {'AuvChart2',{0.0,0.7,0.7}},  % Cyan
+     {'AuvChart3',{0.7,0.0,0.7}},  % Magenta
+     separator,
+     {'AuvChart4',{0.4,0.7,0.0}},  % Yellow -> Green
+     {'AuvChart5',{0.0,0.4,0.7}},  % Cyan -> Blue
+     {'AuvChart6',{0.7,0.0,0.4}},  % Magenta -> Red
+     separator,
+     {'AuvChart7',{0.0,0.7,0.4}},  % Cyan -> Green
+     {'AuvChart8',{0.4,0.0,0.7}},  % Magenta -> Blue
+     {'AuvChart9',{0.7,0.4,0.0}}]. % Yellow -> Red
