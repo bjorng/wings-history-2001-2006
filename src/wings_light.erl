@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.34 2003/05/28 08:02:55 raimo_niskanen Exp $
+%%     $Id: wings_light.erl,v 1.35 2003/07/23 05:06:29 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -209,20 +209,21 @@ position_fun() ->
     end.
 
 position_sel() ->
-    {[face,edge,vertex],
-     fun(St) ->
-	     wings_wm:message_right("Select element to set highlight to"),
-	     St#st{selmode=face,sel=[]}
-     end,
-     fun position_check_selection/1,
-     fun(_X, _Y, #st{selmode=Mode,sel=Sel}=St) ->
+    {[vertex,edge,face],
+     fun(check, St) ->
+	     position_check_selection(St);
+	(exit, {_,#st{selmode=Mode,sel=Sel}=St}) ->
 	     case position_check_selection(St) of
 		 {none,""} ->
-		     F = fun(_, _) -> {light,{position_highlight,{Mode,Sel}}} end,
-		     {"Position Highlight",F};
+		     {light,{position_highlight,{Mode,Sel}}};
 		 {_,_} ->
-		     invalid_selection
-	     end
+		     error
+	     end;
+	(message, _) ->
+	     Left = "Choose position for highlight",
+	     Message = ["Position Highlight: ",
+			wings_util:button_format(Left, [],  "Execute")],
+	     wings_wm:message(Message, "")
      end}.
 
 position_check_selection(#st{sel=[{_,Elems}]}) ->
