@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.186 2004/11/18 19:08:17 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.187 2004/11/21 07:50:46 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -86,15 +86,17 @@ setup_mode(Flags, Falloff) ->
     end.
     
 standard_mode_fun(Falloff) ->
-    Help0 = ?STR(standard_mode_fun,1,"[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain"),
+    Help0 = ?STR(standard_mode_fun,1,"[Shift] and/or [Ctrl] Constrain"),
     Help = case Falloff of
 	       none -> Help0;
 	       _ ->
-		   lists:flatten([?STR(standard_mode_fun,2,"[+] or [-] Adjust Radius  ")|Help0])
+		   M = [?STR(standard_mode_fun,2,"[+] or [-] Adjust Radius"),
+			"  "|Help0],
+		   lists:flatten(M)
 	   end,
     fun(help, _) -> Help;
        (_, _) -> none
-     end.
+    end.
 
 unit_scales(Units) ->
     #view{distance=D} = wings_view:current(),
@@ -324,7 +326,9 @@ help_message(#drag{unit=Unit,mode_fun=ModeFun,mode_data=ModeData}) ->
     Accept = wings_util:button_format(wings_s:accept()),
     ZMsg = zmove_help(Unit),
     Cancel = wings_util:button_format([], [],wings_s:cancel()),
-    Msg = wings_camera:join_msg([Accept,ZMsg,Cancel]),
+    NumEntry = ?STR(help_message,1,"Numeric entry"),
+    Tab = wings_util:key_format("[Tab]", NumEntry),
+    Msg = wings_util:join_msg([Accept,ZMsg,Cancel,Tab]),
     MsgRight = ModeFun(help, ModeData),
     wings_wm:message(Msg, MsgRight).
 
