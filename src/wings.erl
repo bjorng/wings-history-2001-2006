@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.250 2003/06/25 17:05:17 bjorng Exp $
+%%     $Id: wings.erl,v 1.251 2003/06/26 19:54:09 bjorng Exp $
 %%
 
 -module(wings).
@@ -347,10 +347,10 @@ handle_event_2(#mousebutton{x=X,y=Y}=Ev0, #st{sel=Sel}=St0) ->
     end;
 handle_event_2(Ev, St) -> handle_event_3(Ev, St).
 	    
-handle_event_3(#keyboard{}=Ev, St) ->
-    case wings_hotkey:event(Ev, St) of
+handle_event_3(#keyboard{}=Ev, St0) ->
+    case do_hotkey(Ev, St0) of
 	next -> keep;
-	Cmd -> do_hotkey(Cmd, St)
+	{Cmd,St} -> do_command(Cmd, St)
     end;
 handle_event_3({action,Cmd}, St) ->
     do_command(Cmd, St);
@@ -403,28 +403,38 @@ handle_event_3({drop,Pos,DropData}, St) ->
     handle_drop(DropData, Pos, St);
 handle_event_3(ignore, _St) -> keep.
 
-do_hotkey({edit,undo_toggle}=Cmd, St) ->
-    do_command(Cmd, St);
-do_hotkey({edit,undo}=Cmd, St) ->
-    do_command(Cmd, St);
-do_hotkey({edit,redo}=Cmd, St) ->
-    do_command(Cmd, St);
-do_hotkey({view,_}=Cmd, St) ->
-    do_command(Cmd, St);
-do_hotkey(Cmd, #st{sel=[]}=St0) ->
+do_hotkey(Ev, #st{sel=[]}=St0) ->
     case wings_pref:get_value(use_temp_sel) of
 	false ->
-	    do_command(Cmd, St0);
+	    do_hotkey_1(Ev, St0);
 	true ->
 	    {_,X,Y} = wings_wm:local_mouse_state(),
 	    case wings_pick:do_pick(X, Y, St0) of
 		{add,_,St} ->
-		    do_command(Cmd, St#st{temp_sel=true});
-		_Other ->
-		    do_command(Cmd, St0)
+		    case wings_hotkey:event(Ev, St) of
+			next -> next;
+			Cmd ->
+			    case no_temp_sel(Cmd) of
+				true -> {Cmd,St0};
+				false -> {Cmd,St#st{temp_sel=true}}
+			    end
+		    end;
+		_Other -> do_hotkey_1(Ev, St0)
 	    end
     end;
-do_hotkey(Cmd, St) -> do_command(Cmd, St).
+do_hotkey(Ev, St) -> do_hotkey_1(Ev, St).
+
+do_hotkey_1(Ev, St) ->
+    case wings_hotkey:event(Ev, St) of
+ 	next -> next;
+	Cmd -> {Cmd,St}
+    end.
+
+no_temp_sel({edit,undo_toggle}) -> true;
+no_temp_sel({edit,undo}) -> true;
+no_temp_sel({edit,redo}) -> true;
+no_temp_sel({view,_}) -> true;
+no_temp_sel(_) -> false.
 
 do_command(Cmd, St) ->    
     do_command(Cmd, none, St).
