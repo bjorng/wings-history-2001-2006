@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.28 2003/03/21 07:05:20 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.29 2003/03/27 12:59:36 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -205,9 +205,9 @@ ctrl_redraw(#ctrl{title=Title}) ->
     {W,_} = wings_wm:win_size(),
     TitleBarH = title_height(),
     Pref = case {wings_wm:this(),wings_wm:actual_focus_window()} of
-		{{_,Client},Client} -> title_active_color;
-		{{_,Client},{_,Client}} -> title_active_color;
-		{_,_} -> title_passive_color
+	       {{_,Client},Client} -> title_active_color;
+	       {{_,Client},{_,Client}} -> title_active_color;
+	       {_,_} -> title_passive_color
 	   end,
     wings_io:blend(wings_pref:get_value(Pref),
 		   fun(C) ->
@@ -236,9 +236,11 @@ ctrl_constrain_move(Client, Dx0, Dy0) ->
 	     Y0+Dy0 < DeskY ->
 		 DeskY-Y0;
 	     Cy+Ch+Dy0 >= DeskY+DeskH ->
-		 DeskY+DeskH-Cy-Ch;
-	     true ->
-		 Dy0
+		 case DeskY+DeskH-Cy-Ch of
+		     Dy1 when Y0+Dy1 < DeskY -> Dy0;
+		     Dy1 -> Dy1
+		 end;
+	     true -> Dy0
 	 end,
     {Dx,Dy}.
 
@@ -309,29 +311,31 @@ ctrl_resize(Client, W, H) ->
 ctrl_fit(How) ->
     {_,Client} = wings_wm:this(),
     wings_wm:raise(Client),
-    ctrl_fit_1(How).
-
-ctrl_fit_1(both) ->
-    fit_horizontal(),
-    wings_wm:later({action,{titlebar,{fit,vertical}}});
-ctrl_fit_1(horizontal) ->
-    fit_horizontal();
-ctrl_fit_1(vertical) ->
-    fit_vertical().
-
-fit_horizontal() ->
-    {_,Client} = This = wings_wm:this(),
     {X,Y} = wings_wm:win_center(Client),
     wings_wm:hide(Client),
     Below = wings_wm:window_below(X, Y),
     wings_wm:show(Client),
+    if
+	Below == none -> ok;
+	true -> ctrl_fit_1(How, Client, Below, X, Y)
+    end.
+
+ctrl_fit_1(both, Client, Below, X, Y) ->
+    fit_horizontal(Client, Below, X, Y),
+    wings_wm:later({action,{titlebar,{fit,vertical}}});
+ctrl_fit_1(horizontal, Client, Below, X, Y) ->
+    fit_horizontal(Client, Below, X, Y);
+ctrl_fit_1(vertical, Client, Below, X, Y) ->
+    fit_vertical(Client, Below, X, Y).
+
+fit_horizontal(Client, Below, X, _) ->
     {Left,_} = wings_wm:win_ul(Below),
     {Right,_} = case wings_wm:is_window(Scroller={vscroller,Below}) of
 		    true -> wings_wm:win_ur(Scroller);
 		    false -> wings_wm:win_ur(Below)
 		end,
     Win0 = fit_filter(wings_wm:windows(), Client, Below),
-    {{_,Top},{_,H}} = wings_wm:win_rect(This),
+    {{_,Top},{_,H}} = wings_wm:win_rect(),
     Win = [Wi || Wi <- Win0, have_vertical_overlap(Wi, Top, H)],
     fit_horizontal_1(Win, X, Client, Left, Right).
 
@@ -359,19 +363,14 @@ fit_horizontal_1([], _, Client, Left, Right) ->
 	end,
     wings_wm:update_window(Client, [{dx,Left-Left0},{w,W}]).
 
-fit_vertical() ->
-    {_,Client} = This = wings_wm:this(),
-    {X,Y} = wings_wm:win_center(Client),
-    wings_wm:hide(Client),
-    Below = wings_wm:window_below(X, Y),
-    wings_wm:show(Client),
+fit_vertical(Client, Below, _, Y) ->
     {_,Top} = case wings_wm:is_window(Ctrl={controller,Below}) of
 		  true -> wings_wm:win_ul(Ctrl);
 		  false -> wings_wm:win_ul(Below)
 	      end,
     {_,Bottom} = wings_wm:win_ll(Below),
     Win0 = fit_filter(wings_wm:windows(), Client, Below),
-    {{Left,_},{W,_}} = wings_wm:win_rect(This),
+    {{Left,_},{W,_}} = wings_wm:win_rect(),
     Win = [Wi || Wi <- Win0, have_horizontal_overlap(Wi, Left, W)],
     fit_vert_1(Win, Y, Client, Top, Bottom).
 

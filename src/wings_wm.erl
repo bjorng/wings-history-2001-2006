@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.94 2003/03/21 07:05:20 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.95 2003/03/27 12:59:36 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -827,7 +827,7 @@ window_below(X, Y) ->
     All = reverse(sort(gb_trees:values(get(wm_windows)))),
     window_below_1(All, X, Y).
 
-window_below_1([#win{x=Wx,y=Wy,w=W,h=H,name=Name}|T], X, Y) ->
+window_below_1([#win{x=Wx,y=Wy,w=W,h=H,name=Name,z=Z}|T], X, Y) when Z >= 0 ->
     case {X-Wx,Y-Wy} of
 	{Rx,Ry} when 0 =< Rx, Rx < W,0 =< Ry, Ry < H -> Name;
 	_ -> window_below_1(T, X, Y)
