@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__du.erl,v 1.2 2003/08/24 09:20:22 bjorng Exp $
+%%     $Id: wings__du.erl,v 1.3 2003/08/24 17:39:38 bjorng Exp $
 %%
 
 -module(wings__du).
@@ -115,8 +115,8 @@ uv_face(_, [A,B,C]) ->
     uv_face_vtx(A),
     uv_face_vtx(B),
     ?GL__END(uv_face_vtx(C));
-uv_face(N, [[A0|_]=A,[B0|_]=B,[C0|_]=C,[D0|_]=D]=VsPos) ->
-    case wings_draw_util:good_triangulation(N, A0, B0, C0, D0) of
+uv_face(N, [A,B,C,D]=VsPos) ->
+    case wings_draw_util:good_triangulation(N, hd(A), hd(B), hd(C), hd(D)) of
 	false ->
 	    uv_face_1(N, VsPos);
 	true ->
@@ -166,8 +166,8 @@ vcol_face(_, [A,B,C]) ->
     vcol_face_vtx(A),
     vcol_face_vtx(B),
     ?GL__END(vcol_face_vtx(C));
-vcol_face(N, [[A0|_]=A,[B0|_]=B,[C0|_]=C,[D0|_]=D]=VsPos) ->
-    case wings_draw_util:good_triangulation(N, A0, B0, C0, D0) of
+vcol_face(N, [A,B,C,D]=VsPos) ->
+    case wings_draw_util:good_triangulation(N, hd(A), hd(B), hd(C), hd(D)) of
 	false ->
 	    vcol_face_1(N, VsPos);
 	true ->
