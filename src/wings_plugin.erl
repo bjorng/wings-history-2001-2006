@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.13 2002/02/04 15:19:59 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.14 2002/02/04 23:30:54 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2,call_ui/1]).
@@ -176,6 +176,7 @@ convert_type($8) -> user_interface;
 convert_type($9) -> user_interface;
 convert_type(_) -> undefined.
 
+check_result(M, {command_error,_}=Error, St) -> throw(Error);
 check_result(M, {new_shape,Prefix,#e3d_object{}=Obj,Mat}, St0) ->
     {We,UsedMat} = import_object(Obj),
     St = add_materials(UsedMat, Mat, St0),
