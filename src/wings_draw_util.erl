@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.86 2003/07/03 17:12:34 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.87 2003/07/05 18:52:01 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -23,27 +23,23 @@
 -import(lists, [reverse/1,foreach/2,foldl/3]).
 
 -record(du,
-	{dl=[],					%Display lists
+	{dl=[],					%Display list records.
 	 mat=gb_trees:empty(),			%Materials.
-	 used=[],				%Display lists in use.
-	 vec,					%Display list for vector.
-	 src_vec=undefined,			%Source for vector.
-	 tess					%Tesselator.
+	 used=[]				%Display lists in use.
 	 }).
 
+-record(vec,
+	{vec,					%Display list for vector.
+	 src_vec=undefined			%Source for vector.
+	}).
+
 init() ->
-    Dl = case get(?MODULE) of
-	     undefined -> [];
-	     #du{dl=Dl0,tess=OldTess,used=Used,vec=Vec} ->
-		 ?CHECK_ERROR(),
-		 glu:deleteTess(OldTess),
-		 foreach(fun(DL) -> gl:deleteLists(DL, 1) end, Used),
-		 catch gl:deleteLists(Vec, 1),
-		 gl:getError(),			%Clear error.
-		 clear_old_dl(Dl0)
-	 end,
-    Tess = glu:newTess(),
-    put(?MODULE, #du{dl=Dl,tess=Tess,vec=gl:genLists(1)}),
+    case get(wings_tesselator) of
+	undefined -> ok;
+	OldTess -> glu:deleteTess(OldTess)
+    end,
+    Tess=glu:newTess(),
+    put(wings_tesselator, Tess),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
     glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
     glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE),
@@ -55,7 +51,17 @@ init() ->
 	    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
 	    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE)
     end,
-        P = <<16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+
+    Dl = case get(?MODULE) of
+	     undefined -> [];
+	     #du{dl=Dl0,used=Used} ->
+		 ?CHECK_ERROR(),
+		 foreach(fun(DL) -> gl:deleteLists(DL, 1) end, Used),
+		 gl:getError(),			%Clear error.
+		 clear_old_dl(Dl0)
+	 end,
+    put(?MODULE, #du{dl=Dl}),
+    P = <<16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
@@ -71,7 +77,9 @@ init() ->
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55>>,
-    gl:polygonStipple(P).
+    gl:polygonStipple(P),
+    
+    erase_vector().
 
 clear_old_dl([#dlo{src_we=We,proxy_data=Pd0}|T]) ->
     Pd = wings_subdiv:clean(Pd0),
@@ -79,8 +87,7 @@ clear_old_dl([#dlo{src_we=We,proxy_data=Pd0}|T]) ->
 clear_old_dl([]) -> [].
 
 tess() ->
-    #du{tess=Tess} = get(?MODULE),
-    Tess.
+    get(wings_tesselator).
 
 begin_end(Body) ->
     begin_end(?GL_TRIANGLES, Body).
@@ -909,36 +916,33 @@ show_saved_bb(#st{bb=[{X1,Y1,Z1},{X2,Y2,Z2}]}) ->
 %%% Show active vector.
 %%%
 
-draw_vec(St) ->
-    #du{vec=VecDl,src_vec=SrcVec0} = Du = get(?MODULE),
-    case make_vec_dlist(St, SrcVec0, VecDl) of
-	SrcVec0 -> ok;
-	SrcVec -> put(?MODULE, Du#du{src_vec=SrcVec})
+erase_vector() ->
+    case erase(wings_current_vector) of
+	undefined -> ok;
+	#vec{vec=VecDl} -> catch gl:deleteLists(VecDl, 1)
+    end.
+
+draw_vec(#st{vec=none}) ->
+    erase_vector();
+draw_vec(#st{vec=Vec}) ->
+    case get(wings_current_vector) of
+	#vec{src_vec=Vec,vec=VecDl} -> ok;
+	_ ->
+	    erase_vector(),
+	    VecDl = make_vec_dlist(Vec),
+	    put(wings_current_vector, #vec{vec=VecDl,src_vec=Vec}),
+	    VecDl
     end,
-    gl:callList(VecDl).
+    call(VecDl).
 
-make_vec_dlist(#st{vec=Vec}, Vec, _) -> Vec;
-make_vec_dlist(#st{vec=none}, _, Dlist) ->
+make_vec_dlist(Vec) ->
+    Dlist = gl:genLists(1),
     gl:newList(Dlist, ?GL_COMPILE),
+    make_vec_dlist_1(Vec),
     gl:endList(),
-    none;
-make_vec_dlist(#st{vec={Center,Vec}=Src}, _, Dlist) ->
-    gl:newList(Dlist, ?GL_COMPILE),
-    do_draw_vec(Center, Vec),
-    gl:endList(),
-    Src;
-make_vec_dlist(#st{vec=Center}, _, Dlist) ->
-    gl:newList(Dlist, ?GL_COMPILE),
-    Width = wings_pref:get_value(active_vector_width),
-    gl:color3fv(wings_pref:get_value(active_vector_color)),
-    gl:pointSize(Width*3.5),
-    gl:'begin'(?GL_POINTS),
-    gl:vertex3fv(Center),
-    gl:'end'(),
-    gl:endList(),
-    Center.
+    Dlist.
 
-do_draw_vec(Center, Vec0) ->
+make_vec_dlist_1({Center,Vec0}) ->
     Vec = e3d_vec:mul(Vec0, wings_pref:get_value(active_vector_size)),
     End = e3d_vec:add(Center,Vec),
     HeadVec = e3d_vec:mul(Vec, -0.2),
@@ -959,7 +963,14 @@ do_draw_vec(Center, Vec0) ->
     gl:vertex3fv(Center),
     gl:vertex3fv(End),
     gl:vertex3fv(End),
-    gl:vertex3fv(e3d_vec:sub(HeadPt,PosHead0)),
+    gl:vertex3fv(e3d_vec:sub(HeadPt, PosHead0)),
     gl:vertex3fv(End),
-    gl:vertex3fv(e3d_vec:sub(HeadPt,PosHead1)),
+    gl:vertex3fv(e3d_vec:sub(HeadPt, PosHead1)),
+    gl:'end'();
+make_vec_dlist_1(Center) ->
+    Width = wings_pref:get_value(active_vector_width),
+    gl:color3fv(wings_pref:get_value(active_vector_color)),
+    gl:pointSize(Width*3.5),
+    gl:'begin'(?GL_POINTS),
+    gl:vertex3fv(Center),
     gl:'end'().
