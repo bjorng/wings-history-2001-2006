@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.114 2003/12/05 19:50:34 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.115 2003/12/05 19:59:55 bjorng Exp $
 %%
 
 -module(wings_draw_util).
 -export([init/0,init_cb/1,delete_dlists/0,tess/0,begin_end/1,begin_end/2,
 	 update/2,map/2,fold/2,changed_materials/1,
-	 render/1,call/1,call_one_of/2,
+	 render/1,call/1,
 	 prepare/3,
 	 plain_face/2,plain_face/3,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_plain_faces/2,smooth_uv_faces/2,smooth_vcol_faces/2,
@@ -341,10 +341,10 @@ render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) 
 	    case Wire andalso wings_pref:get_value(show_wire_backfaces) =:= true of
 		true ->
 		    gl:disable(?GL_CULL_FACE),
-		    call_one_of(Edges, Faces),
+		    call(Edges),
 		    gl:enable(?GL_CULL_FACE);
 		false ->
-		    call_one_of(Edges, Faces)
+		    call(Edges)
 	    end
     end,
     render_plain_rest(D, Wire, SelMode);
@@ -813,9 +813,6 @@ call({call_in_this_win,Win,Dl}) ->
 call([H|T]) -> call(H), call(T);
 call([]) -> ok;
 call(Dl) when is_integer(Dl) -> gl:callList(Dl).
-
-call_one_of(none, Dl) -> call(Dl);
-call_one_of(Dl, _) -> call(Dl).
 
 %%
 %% Miscellanous.

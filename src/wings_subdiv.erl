@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.63 2003/12/05 19:50:34 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.64 2003/12/05 19:59:55 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -501,14 +501,14 @@ draw_smooth_edges(D) ->
 draw_edges(_, false, _) -> ok;
 draw_edges(D, true, EdgeStyle) -> draw_edges_1(D, EdgeStyle).
 
-draw_edges_1(#dlo{work=Work,edges=Edges}, cage) ->
+draw_edges_1(#dlo{edges=Edges}, cage) ->
     gl:color3fv(wings_pref:get_value(edge_color)),
     gl:lineWidth(1),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     gl:enable(?GL_POLYGON_OFFSET_LINE),
     gl:polygonOffset(1, 1),
     gl:disable(?GL_CULL_FACE),
-    wings_draw_util:call_one_of(Edges, Work),
+    wings_draw_util:call(Edges),
     gl:enable(?GL_CULL_FACE);
 draw_edges_1(#dlo{proxy_edges=ProxyEdges}, _) ->
     gl:color3fv(wings_pref:get_value(edge_color)),
@@ -561,11 +561,9 @@ draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
     gl:callList(BasicFaces),
     gl:disable(?GL_COLOR_MATERIAL),
     gl:endList(),
-
     
     Edges = wings_draw_util:force_flat_color(BasicFaces,
 					     wings_pref:get_value(edge_color)),
-
     {{call,Dl,BasicFaces},Edges}.
 
 
