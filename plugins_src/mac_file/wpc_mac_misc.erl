@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_mac_misc.erl,v 1.1 2004/08/28 07:29:47 bjorng Exp $
+%%     $Id: wpc_mac_misc.erl,v 1.2 2004/08/28 07:59:15 bjorng Exp $
 %%
 
 -module(wpc_mac_misc).
@@ -41,20 +41,10 @@ mac_stuff(Menu) ->
       case wpa:pref_get(?MODULE, native_file_dialog) of
 	  false -> [];
 	  true -> [crossmark]
-      end},
-     {"Open Plug-Ins Folder",plugins_folder,
-      "Open the plug-ins folder in the Finder"}|Menu].
+      end}|Menu].
 
 command({file,native_file_dialog}, St) ->
     wpa:pref_set(?MODULE, native_file_dialog,
 		 not wpa:pref_get(?MODULE, native_file_dialog)),
-    St;
-command({file,plugins_folder}, St) ->
-    case code:which(?MODULE) of
-	Path when is_list(Path) ->
-	    Plugins = filename:dirname(filename:dirname(Path)),
-	    os:cmd("open \"" ++ Plugins ++ "\"");
-	_ -> ok
-    end,
     St;
 command(_, _) -> next.
