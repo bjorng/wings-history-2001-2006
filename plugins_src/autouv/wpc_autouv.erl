@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.17 2002/10/19 10:18:33 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.18 2002/10/19 11:20:44 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -375,14 +375,18 @@ insert_coords([{V0,{Face,{S,T,_}}}|Rest], Vmap, #we{es=Etab0}=We) ->
     insert_coords(Rest, Vmap, We#we{es=Etab});
 insert_coords([], _, We) -> We.
 
-init_edit(We = #we{fs = Ftab0}, St0) ->
-    MatNames0 = find_mats(gb_trees:next(gb_trees:iterator(Ftab0)), []),
-    MatNames1 = [Mat || Mat = {MatName,_,_} <- MatNames0,  %% Filter materials with textures
-			has_texture(MatName, St0#st.mat)],    
-    [{MatName, Faces, _}|_] = MatNames1,
-    Ftab1 = foldl(fun(Face, FtabX) -> gb_trees:delete(Face, FtabX) end,
-		  Ftab0, gb_trees:keys(Ftab0) -- Faces),
-    Clusters = get_groups(Ftab1, We, []),
+init_edit(#we{fs=Ftab0}=We, St0) ->
+    MatNames0 = foldl(fun({Face,#face{mat=Mat}}, A) ->
+			      [{Mat,Face}|A]
+		      end, [], gb_trees:to_list(Ftab0)),
+    MatNames1 = sofs:to_external(sofs:relation_to_family(sofs:relation(MatNames0))),
+    MatNames = [Mat || {Name,_}=Mat <- MatNames1,
+		       has_texture(Name, St0)],
+    [{MatName,Faces}|_] = MatNames,
+    Ftab1 = sofs:relation(gb_trees:to_list(Ftab0)),
+    Ftab2 = sofs:restriction(Ftab1, sofs:set(Faces)),
+    Ftab = gb_trees:from_orddict(sofs:to_external(Ftab2)),
+    Clusters = get_groups(Ftab, We, []),
     Create = fun({FS, UVs},Count) ->
 		     {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(UVs),
 		     CX = BX0 + (BX1-BX0) / 2,
@@ -400,10 +404,13 @@ init_edit(We = #we{fs = Ftab0}, St0) ->
 
 %%%%% Material handling
 
+has_texture(MatName, #st{mat=Materials}) ->
+    has_texture(MatName, Materials);
 has_texture(MatName, Materials) ->
     Mat = gb_trees:get(MatName, Materials),
-    Maps = proplists:get_value(maps,Mat,[]),
+    Maps = proplists:get_value(maps,Mat, []),
     none /= proplists:get_value(diffuse, Maps, none).
+
 get_texture_size(MatName, Materials) ->
     Mat = gb_trees:get(MatName, Materials),
     Maps = proplists:get_value(maps,Mat,[]),
@@ -463,20 +470,6 @@ add_material(edit, Tx = {TxW,TxH,TxBin}, St0, As = #areas{matname = MatName}) ->
     NewMats = gb_trees:update(MatName, NewMat, Mats),
     
     {St0#st{mat = NewMats}, As}.
-
-find_mats(none, Acc) ->
-    S = sort(Acc),
-    ClusterFunc = fun({CType, Face}, []) ->
-			  [{CType, [Face], 1}];
-		     ({CType, Face}, [{CType, List, C}|R]) ->
-			  [{CType, [Face|List], C+1}|R];
-		     ({CType, Face}, List) ->
-			  [{CType, [Face], 1}|List]
-		  end,
-    Clustered = lists:foldl(ClusterFunc, [], S),
-    reverse(lists:keysort(3, Clustered));
-find_mats({Key, #face{mat = Mat}, Next}, Acc) ->
-    find_mats(gb_trees:next(Next), [{Mat, Key}|Acc]).
 
 get_groups(Ftab0, We, Acc) ->
     case gb_trees:is_empty(Ftab0) of
@@ -868,13 +861,12 @@ edge_option_menu(#uvstate{option = Option}) ->
 			     {auv, set_options, {Mode,BEC,BEW,Color,TexBg,TSz}}  end).
 
 quit_menu(Uvs) ->
-    #uvstate{st = #st{mat=Mats}, 
-	     areas = #areas{matname = MatN}} = Uvs,
+    #uvstate{st=St,areas=#areas{matname=MatN}} = Uvs,
     DefVar = {quit_mode, quit_uv_tex},
     A1 = {alt,DefVar, "Quit and save UV-coords and texture",quit_uv_tex},
     A2 = {alt,DefVar, "Quit and save only UV-coords (use old or imported texture)", quit_uv},
     A3 = {alt,DefVar, "Quit and cancel all changes", cancel},
-    Alts = case has_texture(MatN, Mats) of
+    Alts = case has_texture(MatN, St) of
 	       true ->
 		   [A1,A2,A3];
 	       false ->
