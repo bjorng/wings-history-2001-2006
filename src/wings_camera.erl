@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.48 2002/10/31 06:47:22 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.49 2002/10/31 06:51:56 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -362,7 +362,7 @@ get_mirai_event(Camera, Redraw, MouseRotates, View) ->
     {replace,fun(Ev) -> mirai_event(Ev, Camera, Redraw, MouseRotates, View) end}.
 
 mirai_message(true) ->
-    Help = ["[L] Accept  [R] Cancel  Move mouse to tumble  "
+    Help = ["[L] Accept  [R] Cancel/restore view  Move mouse to tumble  "
 	    "Drag [M] to dolly  [Q] Mouse move will track"],
     wings_io:message(Help);
 mirai_message(false) ->
@@ -378,7 +378,7 @@ tds(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
     wings_io:clear_message(),
-    wings_io:message(["[R] Cancel  "|help()]),
+    wings_io:message(["[R] Restore view  "|help()]),
     View = wings_view:current(),
     {seq,{push,dummy},get_tds_event(Camera, Redraw, View)};
 tds(_, _) -> next.
