@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.24 2003/03/30 20:52:40 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.25 2003/04/17 07:13:59 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1051,9 +1051,9 @@ export_camera(F, Name, Attr) ->
     DownN = e3d_vec:norm_cross(Rev, LeftN),
     Transl = e3d_vec:add(e3d_vec:mul(LeftN, TrackX), 
 			 e3d_vec:mul(DownN, TrackY)),
-    Pos = e3d_vec:add(Aim, Rev),
+    Pos = e3d_vec:sub(Rev, Aim), % Aim is the vector from aim point to origo
     From = e3d_vec:add(Pos, Transl),
-    To = e3d_vec:add(Aim, Transl),
+    To = e3d_vec:sub(Transl, Aim), % Aim is the vector from aim point to origo
     Up = e3d_vec:sub(From, DownN),
     println(F, "<camera name=\"~s\" "++
 	    "resx=\"~w\" resy=\"~w\" focal=\"~.10f\">",
