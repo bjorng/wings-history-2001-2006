@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.75 2003/03/07 18:34:02 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.76 2003/03/08 07:22:01 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -152,15 +152,15 @@ extrude_faces(St) ->
 %%% Extrude the selected regions.
 
 extrude_region(Type, St0) ->
-    {St,Sel} = wings_sel:mapfold(fun extrude_region/3, [], St0),
-    wings_move:setup(Type, wings_sel:set(Sel, St)).
+    St = wings_sel:map(fun extrude_region_0/2, St0),
+    wings_move:setup(Type, St).
 
-extrude_region(Faces0, #we{id=Id}=We0, Acc) ->
+extrude_region_0(Faces0, We0) ->
     %% We KNOW that a gb_set with fewer elements sorts before
     %% a gb_set with more elements.
     Rs = sort(wings_sel:face_regions(Faces0, We0)),
-    {We,Sel} = extrude_region_1(Rs, We0, []),
-    {We,[{Id,Sel}|Acc]}.
+    We = extrude_region_1(Rs, We0, []),
+    extrude_region_vmirror(We0, We).
 
 extrude_region_1([Faces0|Rs0]=Rs, We0, Acc) ->
     case gb_sets:size(Faces0) of
@@ -169,19 +169,30 @@ extrude_region_1([Faces0|Rs0]=Rs, We0, Acc) ->
 	    extrude_region_1(Rs0, We0, [Face|Acc]);
 	_Other ->
 	    We = wings_extrude_face:faces(Acc, We0),
-	    Sel = [gb_sets:from_list(Acc)],
-	    extrude_region_2(Rs, We, Sel)
+	    extrude_region_2(Rs, We)
     end;
-extrude_region_1([], We0, Faces) ->
-    We = wings_extrude_face:faces(Faces, We0),
-    {We,gb_sets:from_list(Faces)}.
+extrude_region_1([], We, Faces) ->
+    wings_extrude_face:faces(Faces, We).
 
-extrude_region_2([Faces|Rs], We0, Sel0) ->
-    {We,Sel} = wings_extrude_face:region(Faces, We0),
-    extrude_region_2(Rs, We, [Sel|Sel0]);
-extrude_region_2([], We, Sel) ->
-    {We,gb_sets:union(Sel)}.
+extrude_region_2([Faces|Rs], We0) ->
+    We = wings_extrude_face:region(Faces, We0),
+    extrude_region_2(Rs, We);
+extrude_region_2([], We) -> We.
 
+extrude_region_vmirror(_, #we{mirror=none}=We) -> We;
+extrude_region_vmirror(OldWe, #we{mirror=Face0}=We0) ->
+    %% Merge the mirror face and any newly created faces to one new mirror face
+    %% and flatten it.
+    FaceSet = gb_sets:singleton(Face0),
+    Bordering = wings_face:extend_border(FaceSet, We0),
+    NewFaces = wings_we:new_items(face, OldWe, We0),
+    Dissolve = gb_sets:union(FaceSet, gb_sets:intersection(Bordering, NewFaces)),
+    #we{fs=Ftab0} = We = dissolve(Dissolve, We0),
+    [Face] = gb_sets:to_list(wings_we:new_items(face, We0, We)),
+    FaceRec = gb_trees:get(Face, Ftab0),
+    Ftab = gb_trees:update(Face, FaceRec#face{mat='_hole_'}, Ftab0),
+    wings_util:mirror_flatten(OldWe, We#we{mirror=Face,fs=Ftab}).
+    
 %%%
 %%% The Extract Region command.
 %%%
