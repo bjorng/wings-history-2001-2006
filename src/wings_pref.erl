@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.70 2003/02/03 05:09:47 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.71 2003/02/03 05:30:51 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -86,8 +86,7 @@ command(prefs, _St) ->
 		{"Selected Width",selected_edge_width}]}],
 	     [{title,"Edge Display"}]}]},
 	  {hframe,
-	   [{label,"Background"},{color,background_color},
-	    {label,"Text"},{color,info_color},
+	   [{label,"Info Text"},{color,info_color},
 	    {label,"Selection"},{color,selected_color},
 	    {label,"Edges"},{color,edge_color},
 	    {label,"Hard Edges"},{color,hard_edge_color},
@@ -159,7 +158,8 @@ command(advanced, _St) ->
 command(ui, _St) ->
     Qs = [{vframe,
 	   [{hframe,[{vframe,
-		      [{label,"Menu Text"},
+		      [{label,"Desktop/Geometry Background"},
+		       {label,"Menu Text"},
 		       {label,"Menu Highlight"},
 		       {label,"Menu Highlighted Text"},
 		       {label,"Menu Background"},
@@ -168,7 +168,8 @@ command(ui, _St) ->
 		       {label,"Title (Passive) Background"},
 		       {label,"Title (Active) Background"}]},
 		     {vframe,
-		      [{color,menu_text},
+		      [{color,background_color},
+		       {color,menu_text},
 		       {color,menu_hilite},
 		       {color,menu_hilited_text},
 		       {color,menu_color},
@@ -181,8 +182,7 @@ command({set,List}, _St) ->
     foreach(fun({Key,Val}) ->
 		    smart_set_value(Key, Val)
 	    end, List),
-    wings_wm:dirty(),
-    keep.
+    wings_wm:dirty().
 
 dialog(Title, Qs0) ->
     Qs = make_query(Qs0),
