@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.11 2002/08/21 20:30:33 bjorng Exp $
+%%     $Id: wpc_rib.erl,v 1.12 2002/09/18 13:16:07 bjorng Exp $
 
 -module(wpc_rib).
 -include_lib("e3d.hrl").
@@ -132,7 +132,7 @@ do_render(Ask, Engine, St) when is_atom(Ask) ->
 	       end);
 do_render(Attr0, Engine, St) ->
     set_pref(Attr0),
-    Attr1 = case property_lists:get_value(render_type, Attr0) of
+    Attr1 = case proplists:get_value(render_type, Attr0) of
 		file ->
 		    RendFile = wpa:export_filename(render_props(), St),
 		    [{render_file,RendFile}|Attr0];
@@ -144,7 +144,7 @@ do_render(Attr0, Engine, St) ->
     wpa:export(none, render_fun(Attr), St).
 
 add_attr(rendrib, Attr) ->
-    case property_lists:get_value(mesh_type, Attr) of
+    case proplists:get_value(mesh_type, Attr) of
 	poly ->
 	    TriFs = true, ExpandFs = true;
 	_ ->
@@ -167,9 +167,9 @@ render_fun(Attr) ->
 render(none, Contents, Attr) ->
     TmpName = "wpc_rib_temp" ++ random_string() ++ ".rib",
     TxList = export_1(TmpName, Contents, Attr),
-    Width = property_lists:get_value(width, Attr),
-    Height = property_lists:get_value(height, Attr),
-    Renderer0 = property_lists:get_value(tmp_render, Attr),
+    Width = proplists:get_value(width, Attr),
+    Height = proplists:get_value(height, Attr),
+    Renderer0 = proplists:get_value(tmp_render, Attr),
     Options1 = case Renderer0 of
 		   rendrib ->
 		       " -silent -res " ++ integer_to_list(Width) ++ " " ++
@@ -192,7 +192,7 @@ render(none, Contents, Attr) ->
 	       end,
     Renderer = atom_to_list(Renderer0),
     F = fun() ->
-		case property_lists:get_value(render_file, Attr) of
+		case proplists:get_value(render_file, Attr) of
 		    undefined ->
 			os:cmd(Renderer ++ Options1 ++ TmpName);
 		    RendFile ->
@@ -243,7 +243,7 @@ export_1(Name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Attr) ->
     {ok,F} = file:open(Name, [write]),
     Base = filename:basename(filename:rootname(Name, ".rib")),
     io:format(F, "# Exported from ~s\n", [Creator]),
-    case property_lists:get_value(render_file, Attr) of
+    case proplists:get_value(render_file, Attr) of
     	undefined -> ok;
 	RenderFile0 ->
 	    RenderFile = filename:basename(RenderFile0),
@@ -257,13 +257,13 @@ export_1(Name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Attr) ->
     foreach(fun(Obj) -> export_object(F, Obj, Mat, Base, Attr) end, Objs),
     io:put_chars(F, "WorldEnd\n"),
     ok = file:close(F),
-    case property_lists:get_value(tmp_render, Attr) of
+    case proplists:get_value(tmp_render, Attr) of
   	none -> true;
   	_ -> TmpImgs
     end.
 
 export_object(F, #e3d_object{name=Name,obj=Mesh0}, Mat, Base, Attr) ->
-    Mesh1 = case property_lists:get_bool(triangulate, Attr) of
+    Mesh1 = case proplists:get_bool(triangulate, Attr) of
 		true -> e3d_mesh:triangulate(Mesh0);
 		false -> Mesh0
 	    end,
@@ -280,7 +280,7 @@ export_object(F, #e3d_object{name=Name,obj=Mesh0}, Mat, Base, Attr) ->
 export_all(F, [{[MatName],Faces}|T], OrigMesh, Base, Mat, Attr) ->
     write_shader(F, MatName, Mat, Base, Attr),
     Mesh = OrigMesh#e3d_mesh{fs=Faces},
-    MeshType = property_lists:get_value(mesh_type, Attr),
+    MeshType = proplists:get_value(mesh_type, Attr),
     export_mesh(F, MeshType, Mesh, Attr),
     export_all(F, T, OrigMesh, Base, Mat, Attr);
 export_all(_F, [], _, _, _, _) -> ok.
@@ -294,8 +294,8 @@ export_mesh(F, _, Mesh, Attr) ->
     export_mesh(F, Fs, FsV, FsN, FsUV, Vs, Ns, Tx, He, Attr).
     
 export_mesh(F, Fs, FsV, FsN, FsUV, Vs, Ns, Tx, He0, Attr) ->
-    MeshType = property_lists:get_value(mesh_type, Attr),
-    ExpandFaces = property_lists:get_bool(expand_faces, Attr),
+    MeshType = proplists:get_value(mesh_type, Attr),
+    ExpandFaces = proplists:get_bool(expand_faces, Attr),
     case MeshType of
     	subdiv ->
 	    io:put_chars(F, "SubdivisionMesh \"catmull-clark\"\n");
@@ -358,7 +358,7 @@ export_mesh(F, Fs, FsV, FsN, FsUV, Vs, Ns, Tx, He0, Attr) ->
     io:put_chars(F, "]\n"),
 
     %% Normals
-    case property_lists:get_bool(export_normals, Attr) of
+    case proplists:get_bool(export_normals, Attr) of
 	true ->
 	    case ExpandFaces of
 		true ->
@@ -375,7 +375,7 @@ export_mesh(F, Fs, FsV, FsN, FsUV, Vs, Ns, Tx, He0, Attr) ->
     end,
 
     %% UV coordinates
-    case property_lists:get_bool(export_uv, Attr) andalso FsUV =/= [] of
+    case proplists:get_bool(export_uv, Attr) andalso FsUV =/= [] of
 	true ->
 	    case ExpandFaces of
 		true ->
@@ -407,11 +407,11 @@ export_materials_one(Mats, Base, Attr) ->
     export_materials_one(Mats, Base, Attr, []).
 
 export_materials_one([{Name,Mat}|T], Base, Attr, Acc) ->
-    case property_lists:get_value(diffuse_map, Mat, none) of
+    case proplists:get_value(diffuse_map, Mat, none) of
 	none ->
 	    export_materials_one(T,Base, Attr, Acc);
 	{W,H,DiffMap} ->
-	    case property_lists:get_value(tmp_render, Attr) of
+	    case proplists:get_value(tmp_render, Attr) of
 		none ->
 		    MapFile = Base ++ "_" ++ atom_to_list(Name) ++
 			"_diffmap.tif",
@@ -434,18 +434,18 @@ write_shader(F, Name, [_|T], Base, Attr) ->
     write_shader(F, Name, T, Base, Attr).
 
 export_material(F, Name, Mat, Base, Attr) ->
-    OpenGL = property_lists:get_value(opengl, Mat),
-    Maps = property_lists:get_value(maps, Mat),
-    {Dr,Dg,Db,Opacity} = property_lists:get_value(diffuse, OpenGL),
+    OpenGL = proplists:get_value(opengl, Mat),
+    Maps = proplists:get_value(maps, Mat),
+    {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
     io:format(F, "Color ~p ~p ~p\n", [Dr,Dg,Db]),
     io:format(F, "Opacity ~p ~p ~p\n", [Opacity,Opacity,Opacity]),
-    {Ar,Ag,Ab,_} = property_lists:get_value(ambient, OpenGL),
-    {Sr,Sg,Sb,_} = property_lists:get_value(specular, OpenGL),
-    Shine = property_lists:get_value(shininess, OpenGL),
+    {Ar,Ag,Ab,_} = proplists:get_value(ambient, OpenGL),
+    {Sr,Sg,Sb,_} = proplists:get_value(specular, OpenGL),
+    Shine = proplists:get_value(shininess, OpenGL),
     Ka = (Ar+Ag+Ab)/3,
     Kd = (Dr+Dg+Db)/3,
     Ks = (Sr+Sg+Sb)/3,
-    case property_lists:get_value(diffuse, Maps, none) of
+    case proplists:get_value(diffuse, Maps, none) of
 	none ->
 	    io:format(F, "Surface \"plastic\"\n"
 		      " \"float Ka\" [~p]\n"
@@ -455,7 +455,7 @@ export_material(F, Name, Mat, Base, Attr) ->
 		      " \"color specularcolor\" [~p ~p ~p]\n",
 		      [Ka,Kd,Shine,0.1,Sr,Sg,Sb]);
 	{_,_,_DiffMap} ->
-	    MapFile  = case property_lists:get_value(tmp_render, Attr) of
+	    MapFile  = case proplists:get_value(tmp_render, Attr) of
 			   none -> Base ++ "_" ++ atom_to_list(Name) ++ "_diffmap.tif";
 			   _ -> "wpc_tif_temp_" ++ atom_to_list(Name) ++ os:getpid() ++ ".tif"
 		       end,
@@ -473,12 +473,12 @@ export_lights(F, Attr) ->
     declare(F, "from", "point"),
     declare(F, "to", "point"),
     declare(F, "lightcolor", "color"),
-    Ls = property_lists:get_value(lights, Attr),
+    Ls = proplists:get_value(lights, Attr),
     foldl(fun(L, I) -> export_light(F, I, L), I+1 end, 0, Ls).
     
 export_light(F, I, {_,Ps}) ->
-    OpenGL = property_lists:get_value(opengl, Ps, []),
-    Type = property_lists:get_value(type, OpenGL, point),
+    OpenGL = proplists:get_value(opengl, Ps, []),
+    Type = proplists:get_value(type, OpenGL, point),
     export_light(F, Type, I, OpenGL).
 
 export_light(F, point, I, OpenGL) ->
@@ -486,14 +486,14 @@ export_light(F, point, I, OpenGL) ->
     export_light_common(F, OpenGL),
     io:nl(F);
 export_light(F, infinite, I, OpenGL) ->
-    To = property_lists:get_value(aim_point, OpenGL, {0,0,1}),
+    To = proplists:get_value(aim_point, OpenGL, {0,0,1}),
     io:format(F, "LightSource ~p ~p", ["distantlight",I]),
     export_light_common(F, OpenGL),
     show_point(F, "to", To),
     io:nl(F);
 export_light(F, spot, I, OpenGL) ->
-    To = property_lists:get_value(aim_point, OpenGL, {0,0,1}),
-    Angle0 = property_lists:get_value(cone_angle, OpenGL, 30),
+    To = proplists:get_value(aim_point, OpenGL, {0,0,1}),
+    Angle0 = proplists:get_value(cone_angle, OpenGL, 30),
     Angle = Angle0*math:pi()/180,
     io:format(F, "LightSource ~p ~p", ["spotlight",I]),
     export_light_common(F, OpenGL),
@@ -502,7 +502,7 @@ export_light(F, spot, I, OpenGL) ->
     io:nl(F);
 export_light(F, ambient, I, OpenGL) ->
     io:format(F, "LightSource ~p ~p", ["ambientlight",I]),
-    {R,G,B,_} = property_lists:get_value(ambient, OpenGL, {0.0,0.0,0.0,1.0}),
+    {R,G,B,_} = proplists:get_value(ambient, OpenGL, {0.0,0.0,0.0,1.0}),
     io:format(F, " ~p ~p ", ["intensity",1.0]),
     show_point(F, "lightcolor", {R,G,B}),
     io:nl(F);
@@ -510,8 +510,8 @@ export_light(_, Type, _, _) ->
     io:format("Ignoring unknown light type: ~p\n", [Type]).
 
 export_light_common(F, OpenGL) ->
-    From = property_lists:get_value(position, OpenGL, {0,0,0}),
-    {R,G,B,_} = property_lists:get_value(diffuse, OpenGL, {1,1,1,1}),
+    From = proplists:get_value(position, OpenGL, {0,0,0}),
+    {R,G,B,_} = proplists:get_value(diffuse, OpenGL, {1,1,1,1}),
     io:format(F, " ~p ~p ", ["intensity",1.0]),
     show_point(F, "lightcolor", {R,G,B}),
     show_point(F, "from", From).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_3ds.erl,v 1.4 2002/08/21 20:30:33 bjorng Exp $
+%%     $Id: wpc_3ds.erl,v 1.5 2002/09/18 13:16:06 bjorng Exp $
 %%
 
 -module(wpc_3ds).
@@ -106,9 +106,9 @@ set_pref(KeyVals) ->
     wpa:pref_set(?MODULE, KeyVals).
 
 export_transform(Contents, Attr) ->
-    Mat = e3d_mat:scale(property_lists:get_value(export_scale, Attr, 1.0)),
+    Mat = e3d_mat:scale(proplists:get_value(export_scale, Attr, 1.0)),
     e3d_file:transform(Contents, Mat).
 
 import_transform(Contents, Attr) ->
-    Mat = e3d_mat:scale(property_lists:get_value(import_scale, Attr, 1.0)),
+    Mat = e3d_mat:scale(proplists:get_value(import_scale, Attr, 1.0)),
     e3d_file:transform(Contents, Mat).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.56 2002/08/20 06:57:10 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.57 2002/09/18 13:16:08 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -552,7 +552,7 @@ draw_hotkey(X, Y, Pos, Hotkey) ->
     wings_io:text_at(X+Pos*?CHAR_WIDTH, Y, Hotkey).
     
 draw_menu_text(X, Y, Text, Props) ->
-    case property_lists:is_defined(crossmark, Props) of
+    case proplists:is_defined(crossmark, Props) of
 	false ->
 	    wings_io:menu_text(X, Y, Text);
 	true ->
@@ -689,10 +689,10 @@ left_of_parent(Mw, _, #mi{level=Level}) ->
     X-Mw+10.
 
 have_option_box(Ps) ->
-    property_lists:is_defined(option, Ps).
+    proplists:is_defined(option, Ps).
 
 have_magnet(Ps) ->
-    property_lists:is_defined(magnet, Ps).
+    proplists:is_defined(magnet, Ps).
 
 %%%
 %%% Get a key to bind a command to.

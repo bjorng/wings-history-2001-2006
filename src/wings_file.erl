@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.81 2002/09/15 18:42:53 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.82 2002/09/18 13:16:08 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -501,7 +501,7 @@ number_materials([], _, Acc) ->
 export_file_prop(none, _) -> none;
 export_file_prop(Prop, #st{file=undefined}) -> Prop;
 export_file_prop(Prop, #st{file=File}) ->
-    Ext = property_lists:get_value(ext, Prop),
+    Ext = proplists:get_value(ext, Prop),
     Def = filename:rootname(filename:basename(File), ?WINGS) ++ Ext,
     [{default_filename,Def}|Prop].
 

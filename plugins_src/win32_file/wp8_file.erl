@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_file.erl,v 1.8 2002/07/12 08:05:29 bjorng Exp $
+%%     $Id: wp8_file.erl,v 1.9 2002/09/18 13:16:07 bjorng Exp $
 %%
 
 -module(wp8_file).
@@ -77,10 +77,10 @@ fileop(What, Next) ->
     Next(What).
 
 file_dialog(Type, Prop, Title) ->
-    Ext = property_lists:get_value(ext, Prop, ".wings"),
-    ExtDesc = property_lists:get_value(ext_desc, Prop, "Default type"),
+    Ext = proplists:get_value(ext, Prop, ".wings"),
+    ExtDesc = proplists:get_value(ext_desc, Prop, "Default type"),
     Dir = wings_pref:get_value(current_directory),
-    DefName = property_lists:get_value(default_filename, Prop, ""),
+    DefName = proplists:get_value(default_filename, Prop, ""),
     {ok,Cwd} = file:get_cwd(),
     file:set_cwd(Dir),
     Data = [Dir,0,Ext,0,ExtDesc,0,Title,0,DefName,0],

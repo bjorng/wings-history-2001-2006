@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.15 2002/07/17 17:00:54 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.16 2002/09/18 13:16:06 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -245,7 +245,7 @@ read_map_chunks(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
 read_map_chunks(<<>>, Acc) -> Acc.
 
 reformat_material([{Name,Mat}|T]) ->
-    Opac = property_lists:get_value(opacity, Mat, 1.0),
+    Opac = proplists:get_value(opacity, Mat, 1.0),
     [{Name,reformat_mat(Mat, Opac, [], [], [])}|reformat_material(T)];
 reformat_material([]) -> [].
 
@@ -500,7 +500,7 @@ make_material(Mat) ->
 
 make_material_1({Name,Mat}) ->
     NameChunk = make_chunk(16#A000, [atom_to_list(Name),0]),
-    OpenGL = property_lists:get_value(opengl, Mat),
+    OpenGL = proplists:get_value(opengl, Mat),
     MatChunks = make_material_2(OpenGL, []),
     make_chunk(16#AFFF, [NameChunk|MatChunks]).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.24 2002/08/11 19:09:14 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.25 2002/09/18 13:16:07 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -122,7 +122,7 @@ import_vertex([_|T], Rec) ->
 import_vertex([], Rec) -> Rec.
 
 import_perm(Props) ->
-    case property_lists:get_value(state, Props) of
+    case proplists:get_value(state, Props) of
 	undefined -> 0;
 	locked -> 1;
 	hidden -> [];
@@ -156,7 +156,7 @@ vertex_add_incident(Vtab0, Es) ->
     gb_trees:from_orddict(reverse(Vtab)).
 
 import_object_mode(Ps) ->
-    case property_lists:get_value(mode, Ps, material) of
+    case proplists:get_value(mode, Ps, material) of
 	undefined ->
 	    io:format("Changed undefined mode to material\n"),
 	    material;
@@ -187,10 +187,10 @@ translate_materials(Mats) ->
     [translate_material(M) || M <- Mats].
     
 translate_material({Name,Props}=Mat) ->
-    case property_lists:is_defined(opengl, Props) of
+    case proplists:is_defined(opengl, Props) of
 	true -> Mat;
 	false ->
-	    Opac = property_lists:get_value(opacity, Props),
+	    Opac = proplists:get_value(opacity, Props),
 	    {Name,translate_material(Props, Opac, [], [])}
     end.
 

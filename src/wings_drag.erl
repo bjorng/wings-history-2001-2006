@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.105 2002/08/25 11:06:35 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.106 2002/09/18 13:16:07 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -49,7 +49,7 @@ setup(Tvs, Unit, St) ->
     setup(Tvs, Unit, [], St).
 
 setup(Tvs, Unit, Flags, St) ->
-    Magnet = property_lists:get_value(magnet, Flags, none),
+    Magnet = proplists:get_value(magnet, Flags, none),
     {_,X,Y} = sdl_mouse:getMouseState(),
     Drag = #drag{x=X,y=Y,unit=Unit,flags=Flags,
 		 falloff=falloff(Unit),magnet=Magnet,st=St},
@@ -223,7 +223,7 @@ do_drag(Drag0) ->
     {seq,{push,dummy},handle_drag_event_1(Event, Drag)}.
 
 initial_motion(#drag{x=X0,y=Y0,flags=Flags,unit=Unit}=Drag) ->
-    Ds0 = property_lists:get_value(initial, Flags, []),
+    Ds0 = proplists:get_value(initial, Flags, []),
     Ds = pad_initials(Ds0),
     [X1,Y1,Z] = initial_motion_1(Unit, Ds),
     X = X0 + X1, Y = Y0 - Y1,

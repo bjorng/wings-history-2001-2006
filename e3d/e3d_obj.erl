@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.29 2002/09/08 16:23:45 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.30 2002/09/18 13:16:06 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -258,9 +258,9 @@ try_matlib(Name) ->
 
 %% Combine diffuse color with opacity.
 fixup_mat(OpenGL0) ->
-    Opacity = property_lists:get_value(opacity, OpenGL0, 1.0),
+    Opacity = proplists:get_value(opacity, OpenGL0, 1.0),
     OpenGL1 = lists:keydelete(opacity, 1, OpenGL0),
-    {R,G,B} = property_lists:get_value(diffuse, OpenGL1, {1.0,1.0,1.0}),
+    {R,G,B} = proplists:get_value(diffuse, OpenGL1, {1.0,1.0,1.0}),
     OpenGL = lists:keydelete(diffuse, 1, OpenGL0),
     [{diffuse,{R,G,B,Opacity}}|OpenGL].
 
@@ -357,7 +357,7 @@ export(File, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Flags) ->
     {ok,MtlLib} = materials(File, Mat, Creator),
     {ok,F} = file:open(File, [write]),
     label(F, Creator),
-    case property_lists:get_bool(dot_slash_mtllib, Flags) of
+    case proplists:get_bool(dot_slash_mtllib, Flags) of
 	false -> io:format(F, "mtllib ~s\n", [MtlLib]);
 	true -> io:format(F, "mtllib ./~s\n", [MtlLib])
     end,
@@ -391,7 +391,7 @@ export_object(F, #e3d_object{name=Name,obj=Mesh0}, Flags,
     {Vbase+length(Vs),UVbase+length(Tx),Nbase+length(Ns)}.
 
 object_group(F, Name, Flags) ->
-    case property_lists:get_bool(group_per_material, Flags) of
+    case proplists:get_bool(group_per_material, Flags) of
 	true -> ok;
 	false -> io:format(F, "g ~s\n", [Name])
     end.
@@ -406,7 +406,7 @@ face_mat(F, Name, {Ms,Fs}, Flags, Vbase, UVbase, Nbase) ->
     foreach(fun(Vs) -> face(F, Vs, Vbase, UVbase, Nbase) end, Fs).
 
 mat_group(F, Name, Ms, Flags) ->
-    case property_lists:get_bool(group_per_material, Flags) of
+    case proplists:get_bool(group_per_material, Flags) of
 	true ->
 	    io:format(F, "g ~s", [Name]),
 	    foreach(fun(M) ->
@@ -445,9 +445,9 @@ materials(Name0, Mats, Creator) ->
     {ok,filename:basename(Name)}.
 
 material(F, Root, {Name,Mat}) ->
-    OpenGL = property_lists:get_value(opengl, Mat),
-    {_,_,_,Opacity} = property_lists:get_value(diffuse, OpenGL),
-    Shininess = property_lists:get_value(shininess, OpenGL),
+    OpenGL = proplists:get_value(opengl, Mat),
+    {_,_,_,Opacity} = proplists:get_value(diffuse, OpenGL),
+    Shininess = proplists:get_value(shininess, OpenGL),
     io:format(F, "newmtl ~s\n", [atom_to_list(Name)]),
     io:format(F, "Ns ~p\n", [Shininess*100]),
     io:format(F, "d ~p\n", [Opacity]),
@@ -455,12 +455,12 @@ material(F, Root, {Name,Mat}) ->
     mat_color(F, "Kd", diffuse, OpenGL),
     mat_color(F, "Ka", ambient, OpenGL),
     mat_color(F, "Ks", specular, OpenGL),
-    Maps = property_lists:get_value(maps, Mat),
+    Maps = proplists:get_value(maps, Mat),
     export_maps(F, Maps, Root, Name),
     io:nl(F).
 
 mat_color(F, Label, Key, Mat) ->
-    {R,G,B,_} = property_lists:get_value(Key, Mat),
+    {R,G,B,_} = proplists:get_value(Key, Mat),
     io:format(F, "~s ~p ~p ~p\n", [Label,R,G,B]).
 
 export_maps(F, [{diffuse,Map}|T], Base, Name) ->

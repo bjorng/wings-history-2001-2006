@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.15 2002/08/30 07:24:01 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.16 2002/09/18 13:16:08 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -567,17 +567,17 @@ import(Lights, St) ->
     foldl(fun import_fun/2, St, Lights).
 
 import_fun({Name,Ps}, St) ->
-    OpenGL = property_lists:get_value(opengl, Ps, []),
-    Type = property_lists:get_value(type, OpenGL, point),
-    Pos = property_lists:get_value(position, OpenGL, {0.0,3.0,0.0}),
-    Diff = property_lists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
+    OpenGL = proplists:get_value(opengl, Ps, []),
+    Type = proplists:get_value(type, OpenGL, point),
+    Pos = proplists:get_value(position, OpenGL, {0.0,3.0,0.0}),
+    Diff = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
     Amb = import_ambient(Type, OpenGL),
-    Spec = property_lists:get_value(specular, OpenGL, {1.0,1.0,1.0,1.0}),
-    Aim = property_lists:get_value(aim_point, OpenGL, {0.0,0.0,0.0}),
-    LinAtt = property_lists:get_value(linear_attenuation, OpenGL, 0.0),
-    QuadAtt = property_lists:get_value(quadratic_attenuation, OpenGL, 0.0),
-    Angle = property_lists:get_value(cone_angle, OpenGL, 30.0),
-    SpotExp = property_lists:get_value(spot_exponent, OpenGL, 0.0),
+    Spec = proplists:get_value(specular, OpenGL, {1.0,1.0,1.0,1.0}),
+    Aim = proplists:get_value(aim_point, OpenGL, {0.0,0.0,0.0}),
+    LinAtt = proplists:get_value(linear_attenuation, OpenGL, 0.0),
+    QuadAtt = proplists:get_value(quadratic_attenuation, OpenGL, 0.0),
+    Angle = proplists:get_value(cone_angle, OpenGL, 30.0),
+    SpotExp = proplists:get_value(spot_exponent, OpenGL, 0.0),
     L = #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
 	       aim=Aim,lin_att=LinAtt,quad_att=QuadAtt,
 	       spot_angle=Angle,spot_exp=SpotExp},
@@ -588,9 +588,9 @@ import_fun({Name,Ps}, St) ->
     wings_shape:new(Name, We, St).
 
 import_ambient(ambient, OpenGL) ->
-    property_lists:get_value(ambient, OpenGL, {0.1,0.1,0.1,1.0});
+    proplists:get_value(ambient, OpenGL, {0.1,0.1,0.1,1.0});
 import_ambient(_, OpenGL) ->
-    property_lists:get_value(ambient, OpenGL, {0.0,0.0,0.0,1.0}).
+    proplists:get_value(ambient, OpenGL, {0.0,0.0,0.0,1.0}).
 
 %%%
 %%% Setting up lights.

@@ -81,8 +81,8 @@ fileop(What, Next) ->
     Next(What).
 
 file_dialog(Type, Prop, Title) ->
-    Ext = property_lists:get_value(ext, Prop, ".wings"),
-    ExtDesc = property_lists:get_value(ext_desc, Prop, "Default type"),
+    Ext = proplists:get_value(ext, Prop, ".wings"),
+    ExtDesc = proplists:get_value(ext_desc, Prop, "Default type"),
 
     Dir = case get(wp8_file_defdir) of
 	      undefined ->
@@ -90,7 +90,7 @@ file_dialog(Type, Prop, Title) ->
 	      DefDir ->
 		  filename:nativename(DefDir)
 	  end,
-    DefName = property_lists:get_value(default_filename, Prop, ""),
+    DefName = proplists:get_value(default_filename, Prop, ""),
     Data = [Dir,0,Ext,0,ExtDesc,0,Title,0,DefName,0],
     case erlang:port_control(wp8_file_port, Type, Data) of
 	[] ->

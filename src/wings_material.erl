@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.49 2002/08/12 09:10:12 dgud Exp $
+%%     $Id: wings_material.erl,v 1.50 2002/09/18 13:16:08 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -413,7 +413,7 @@ get_tx_id(Name) ->
     gb_trees:get(Name, TxDict).
     
 prop_get(Key, Props) ->
-    property_lists:get_value(Key, Props).
+    proplists:get_value(Key, Props).
 
 prop_get(Key, Props, Def) ->
-    property_lists:get_value(Key, Props, Def).
+    proplists:get_value(Key, Props, Def).

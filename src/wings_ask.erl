@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.30 2002/08/30 16:03:13 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.31 2002/09/18 13:16:07 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -109,7 +109,7 @@ setup_ask(Qs0, Fun) ->
     init_fields(1, size(Priv), S).
 
 insert_keys([#fi{flags=Flags}=Fi|T], I) ->
-    Key = case property_lists:get_value(key, Flags) of
+    Key = case proplists:get_value(key, Flags) of
 	      undefined -> I;
 	      Key0 -> Key0
 	  end,
@@ -336,7 +336,7 @@ return_result(I, Fis, Priv, #s{common=Common}=S, Acc) when I =< size(Fis) ->
 		none ->
 		    return_result(I+1, Fis, Priv, S, Acc);
 		Res0 ->
-		    Res = case property_lists:get_value(key, Flags) of
+		    Res = case proplists:get_value(key, Flags) of
 			      undefined -> Res0;
 			      Key -> {Key,Res0}
 			  end,
@@ -531,7 +531,7 @@ frame_fun() ->
 
 frame_redraw(#fi{flags=[]}) -> ok;
 frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
-    case property_lists:get_value(title, Flags) of
+    case proplists:get_value(title, Flags) of
 	undefined -> ok;
 	Title ->
 	    Y = Y0 + ?CHAR_HEIGHT div 2 + 3,
@@ -571,7 +571,7 @@ vline(X0, Y0, H) ->
     gl:vertex2f(X+1, Y+H).
 
 have_border(Flags) ->
-    property_lists:is_defined(title, Flags).
+    proplists:is_defined(title, Flags).
 
 %%%
 %%% Separator.
@@ -905,8 +905,8 @@ custom_fun() ->
 
 slider(Field) ->
     Flags = element(size(Field), Field),
-    {Min,Max} = property_lists:get_value(range, Flags),
-    Key = property_lists:get_value(key, Flags),
+    {Min,Max} = proplists:get_value(range, Flags),
+    Key = proplists:get_value(key, Flags),
     Sl = #sl{min=Min,range=(Max-Min)/?SL_LENGTH,peer=Key},
     Fun = slider_fun(),
     {Fun,false,Sl,?SL_LENGTH+4,?LINE_HEIGHT+2}.
@@ -1015,7 +1015,7 @@ float_chars(_) -> false.
 all_chars(_) -> true.
 
 integer_validator(Flags) ->
-    case property_lists:get_value(range, Flags) of
+    case proplists:get_value(range, Flags) of
 	undefined -> {8,fun accept_all/1};
 	{Min,Max} when is_integer(Min), is_integer(Max), Min =< Max ->
 	    Digits = trunc(math:log(Max-Min+1)/math:log(10))+2,
@@ -1023,7 +1023,7 @@ integer_validator(Flags) ->
     end.
 
 float_validator(Flags) ->
-    case property_lists:get_value(range, Flags) of
+    case proplists:get_value(range, Flags) of
 	undefined -> {12,fun accept_all/1};
 	{Min,Max} when is_float(Min), is_float(Max), Min =< Max ->
 	    Digits = min(trunc(math:log(Max-Min+1)/math:log(10))+8, 20),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.12 2002/08/26 12:55:21 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.13 2002/09/18 13:16:07 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -98,7 +98,7 @@ do_render(Attr0, St) ->
 	Attr ->
 	    render_dlist(St, Attr),
 	    wings_wm:dirty(),
-	    Aa = property_lists:get_value(aa, Attr),
+	    Aa = proplists:get_value(aa, Attr),
 	    AccSize = translate_aa(Aa),
 	    Rr = #r{acc_size=AccSize,attr=Attr},
 	    {seq,{push,dummy},get_render_event(Rr)}
@@ -110,7 +110,7 @@ translate_aa(super) -> 8;
 translate_aa(premium) -> 16.
 
 get_filename(Attr, St) ->
-    case property_lists:get_value(output_type, Attr) of
+    case proplists:get_value(output_type, Attr) of
 	preview -> Attr;
 	file ->
 	    Props = [{ext,".tga"},{ext_desc,"Targa File"}],
@@ -146,7 +146,7 @@ render_exit() ->
 
 render_dlist(St0, Attr) ->
     St = invisible_holes(St0),
-    SubDiv = property_lists:get_value(subdivisions, Attr),
+    SubDiv = proplists:get_value(subdivisions, Attr),
     wings_draw_util:map(fun(D, []) ->
 				render_dlist(D, St, SubDiv)
 			end, []).
@@ -176,7 +176,7 @@ dlist_mask([], _We) -> ok.
 %% Make the hole material a true hole (entirely invisible).
 invisible_holes(#st{mat=Mat}=St) ->
     Hole0 = gb_trees:get('_hole_', Mat),
-    OpenGl0 = property_lists:get_value(opengl, Hole0),
+    OpenGl0 = proplists:get_value(opengl, Hole0),
     OpenGl = map(fun({Key,{R,G,B,_}}) -> {Key,{R,G,B,0.0}};
 		    (Other) -> Other end, OpenGl0),
     Hole = [{opengl,OpenGl}|lists:keydelete(opengl, 1, Hole0)],
@@ -190,7 +190,7 @@ sub_divide(N, We) -> sub_divide(N-1, wings_subdiv:smooth(We)).
 %%%
 
 render_redraw(#r{attr=Attr}=Rr) ->
-    case property_lists:get_value(output_type, Attr) of
+    case proplists:get_value(output_type, Attr) of
 	preview -> render_image(Rr);
 	file ->
 	    render_to_file(Rr),
@@ -203,14 +203,14 @@ render_to_file(#r{attr=Attr}=Rr) ->
     render_image(Rr#r{attr=[{render_alpha,false}|Attr]}),
     ObjectImage = capture(3, ?GL_RGB),
     Image = combine_images(ObjectImage, MaskImage),
-    RendFile = property_lists:get_value(output_file, Attr),
+    RendFile = proplists:get_value(output_file, Attr),
     ok = e3d_image:save(Image, RendFile).
 
 render_image(#r{attr=Attr}=Rr) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    case property_lists:get_bool(render_alpha, Attr) of
+    case proplists:get_bool(render_alpha, Attr) of
 	false ->
-	    {R,G,B} = property_lists:get_value(background_color, Attr),
+	    {R,G,B} = proplists:get_value(background_color, Attr),
 	    gl:clearColor(R, G, B, 1);
 	true ->
 	    gl:clearColor(0, 0, 0, 1),
@@ -277,7 +277,7 @@ render_redraw(#dlo{mirror=Matrix}=D, Rr, Flag) ->
 render_redraw(_, _, _) -> ok.
 
 render_redraw_1(Dl, #r{attr=Attr}, RenderTrans) ->
-    case property_lists:get_bool(render_alpha, Attr) of
+    case proplists:get_bool(render_alpha, Attr) of
 	false -> render_redraw_2(Dl, RenderTrans);
 	true -> render_mask(Dl)
     end.

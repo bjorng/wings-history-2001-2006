@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.10 2002/07/14 09:25:52 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.11 2002/09/18 13:16:06 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -49,14 +49,14 @@ message(Message) ->
     wings_ask:dialog(Qs, fun(_) -> ignore end).
 
 open_file(Prompt, Prop) ->
-    Ext = property_lists:get_value(ext, Prop, ".wings"),
+    Ext = proplists:get_value(ext, Prop, ".wings"),
     case wings_getline:filename(Prompt, Ext) of
 	aborted -> aborted;
 	Name -> ensure_extension(Name, Ext)
     end.
 
 save_file(Prompt, Prop) ->
-    Ext = property_lists:get_value(ext, Prop, ".wings"),
+    Ext = proplists:get_value(ext, Prop, ".wings"),
     case wings_getline:filename(Prompt, Ext) of
 	aborted -> aborted;
 	Name0 ->
