@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.19 2002/10/24 14:31:31 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.20 2002/10/24 20:17:28 bjorng Exp $
 
 -module(auv_segment).
 
@@ -18,7 +18,7 @@
 -include("wings.hrl").
 -include("auv.hrl").
 
--import(lists, [reverse/1,map/2,mapfoldl/3,sort/1,foldl/3]).
+-import(lists, [reverse/1,map/2,mapfoldl/3,sort/1,foldl/3,member/2]).
 
 %% Returns segments=[Charts={Id,[Faces]}] and Bounds=gb_sets([Edges])
 create(Mode, We0) ->
@@ -560,8 +560,8 @@ seg_dir({X,Y,Z}) ->
 %% By Color 
 segment_by_material(#we{fs=Ftab}=We) ->
     Rel = foldl(fun({_,#face{mat='_hole_'}}, A) -> A;
-			  ({Face,#face{mat=Name}}, A) -> [{Name,Face}|A]
-		       end, [], gb_trees:to_list(Ftab)),
+		   ({Face,#face{mat=Name}}, A) -> [{Name,Face}|A]
+		end, [], gb_trees:to_list(Ftab)),
     segment_by_cluster(Rel, We).
 
 %% Common segmentation algorithm
@@ -581,7 +581,6 @@ segment_by_cluster(Rel0, We) ->
 %%% Cutting along hard edges.
 %%%
 
-
 get_border_vs(Faces, We) ->
     BordersEdgs = wings_face:outer_edges(Faces,We),
     foldl(fun(Edge, Acc) -> 
@@ -589,9 +588,6 @@ get_border_vs(Faces, We) ->
 		  [Va,Vb|Acc] end,
 	  [], BordersEdgs).
 
-cut_model([], _Faces, #we{vs=Vs}=We) ->
-    Map = reverse(foldl(fun(V, A) -> [{V,V}|A] end, [], gb_trees:keys(Vs))),
-    {We,Map};    
 cut_model(Cuts, [Faces], We) ->
     Vs = wings_face:to_vertices(Faces, We),
     Bvs = get_border_vs(Faces,We),
@@ -628,7 +624,6 @@ cut_model_1(Cuts, WMs0, Bvs) ->
     Imap0b = lists:concat(Imap0a),
     Imap0c = sofs:relation(Imap0b),
     Imap1 = sofs:relation_to_family(Imap0c),
-    %%Imap1 = sofs:family(Imap0, [{atom,[atom]}]),
     Imap2 = sofs:converse(sofs:family_to_relation(Imap1)),
     Imap  = sofs:composite(Imap2, InvVmap1),
     InvVmap2 = sofs:union(InvVmap1, Imap),
@@ -655,6 +650,7 @@ cut_make_map([], _, _, Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
 
 cut_edges(Edges, Bvs, #we{next_id=Wid,es=Etab}=We0) ->
+    Faces = wings_face:from_edges(Edges, We0),
     G = digraph:new(),
     lists:foreach(fun(Edge) ->
 			  digraph_edge(G, gb_trees:get(Edge, Etab))
@@ -665,7 +661,7 @@ cut_edges(Edges, Bvs, #we{next_id=Wid,es=Etab}=We0) ->
 	foldl(fun(V, A) ->
 		      new_vertex(V, G, Edges, A)
 	      end, {We0,[]}, Vs),
-    {We,Vmap} = connect(G, Wid, Ends, We1, Vmap0),
+    {We,Vmap} = connect(G, Wid, Faces, Ends, We1, Vmap0),
     digraph:delete(G),
     {We,Vmap}.
 
@@ -747,25 +743,28 @@ digraph_insert(G, Va0, Vb0, Face) ->
     digraph:add_vertex(G, Vb),
     digraph:add_edge(G, Va, Vb).
 
-connect(G, Wid, Ends, We, Vmap) ->
+connect(G, Wid, Faces, Ends, We, Vmap) ->
     Cs0 = digraph_utils:components(G),
-    Cs = remove_winged_vs(Cs0),
+    Cs1 = remove_winged_vs(Cs0),
+    Cs = [C || [{_,Face}|_]=C <- Cs1, gb_sets:is_member(Face, Faces)],
     connect(G, Cs, Wid, Ends, We, Vmap, []).
 
 connect(G, [C|Cs], Wid, Ends, We0, Vmap0, Closed) ->
-    case [VF || {V,_}=VF <- C, V >= Wid] of
+    case [VF || {V,_}=VF <- C, V >= Wid orelse member(V, Ends)] of
 	[] ->
 	    [{_,Face}|_] = C,
 	    connect(G, Cs, Wid, Ends, We0, Vmap0, [Face|Closed]);
-	[Va0] -> %% End case
-	    [Vb0] = lists:filter(fun({V,_}) -> lists:member(V,Ends) end, C),
-	    [{Va,Face}|Path0] = digraph_get_path(G, Va0, Vb0),
-	    Path = [V || {V,_} <- Path0],
-	    {We,Vmap} = connect_inner(Va, Path, Face, We0, Vmap0),
- 	    connect(G, Cs, Wid, Ends, We, Vmap, Closed);
 	[Va0,Vb0] ->
-	    [{Va,Face}|Path0] = digraph_get_path(G, Va0, Vb0),
-	    Path = [V || {V,_} <- Path0],
+	    Path0 = digraph_get_path(G, Va0, Vb0),
+	    [{_,Face}|_] = Path0,
+	    Path1 = map(fun({V,_}) ->
+				case member(V, Ends) of
+				    false -> V;
+				    true -> {endpoint,V}
+				end
+			end, Path0),
+	    Path2 = connect_clean(Path1),
+	    [Va|Path] = Path2,
 	    {We,Vmap} = connect_inner(Va, Path, Face, We0, Vmap0),
  	    connect(G, Cs, Wid, Ends, We, Vmap, Closed)
     end;
@@ -774,57 +773,41 @@ connect(_, [], _Wid, _Ends, We0, Vmap, Closed) ->
     We = wings_extrude_face:faces(Closed, We0),
     {move_vertices(Closed, We),Vmap}.
 
+connect_clean([{endpoint,_}=EndPoint|T]) ->
+    [EndPoint|connect_clean_1(T)];
+connect_clean([H,_|T]) -> [H|connect_clean_1(T)].
+
+connect_clean_1([_,{endpoint,_}]=L) -> L;
+connect_clean_1([_,P]) -> [P];
+connect_clean_1([H|T]) -> [H|connect_clean_1(T)];
+connect_clean_1([]) -> [].
+    
 digraph_get_path(G, Va, Vb) ->
     case digraph:get_path(G, Va, Vb) of
 	false -> digraph:get_path(G, Vb, Va);
 	Path -> Path
     end.
 
-connect_inner({new,V}, [V|[B,C,_|_]=Next], Face, We0, Vmap0) ->
-    erlang:fault({nyi,?LINE}),
-    {We1,Current} = connect_one_inner(V, V, B, C, Face, We0),
-    Vmap1 = [{B,[Current]}|Vmap0],
-    {#we{vs=Vtab}=We2,Vmap} = connect_inner(Current, Next, Face, We1, Vmap1),
-    Edge = wings_vertex:fold(
-	     fun(E, _, R, A) ->
-		     case wings_vertex:other(V, R) of
-			 Current -> E;
-			 _ -> A
-		     end
-	     end, none, V, We2),
-    Pos = wings_vertex:pos(V, Vtab),
-    {We,NewV} = wings_edge:fast_cut(Edge, Pos, We2),
-    ?DBG("~p\n", [NewV]),
+connect_inner({endpoint,V}, [Last], Face, We0, Vmap) ->
+    {We,_} = wings_vertex:force_connect(Last, V, Face, We0),
     {We,Vmap};
-connect_inner({new,_}, [A|[_B,C]], Face, We0, Vmap0) ->
-    erlang:fault({nyi,?LINE}),
-    {We1,Edge} = wings_vertex:force_connect(C, A, Face, We0),
-    #we{vs=Vtab} = We1,
-    Pos = wings_vertex:pos(A, Vtab),
-    {We,NewV} = wings_edge:fast_cut(Edge, Pos, We1),
-    ?DBG("~p\n", [NewV]),
-    {We,Vmap0};
-connect_inner(C, [_B|[A,{new,_}]], Face, We0, Vmap0) ->
-    erlang:fault({nyi,?LINE}),
-    {We1,Edge} = wings_vertex:force_connect(A, C, Face, We0),
-    #we{vs=Vtab} = We1,
-    Pos = wings_vertex:pos(A, Vtab),
-    {We,NewV} = wings_edge:fast_cut(Edge, Pos, We1),
-    ?DBG("~p\n", [NewV]),
-    {We,Vmap0};
-connect_inner(Current0, [A|[B,C,_|_]=Next], Face, We0, Vmap0) ->
-    {We,Current} = connect_one_inner(Current0, A, B, C, Face, We0),
-    Vmap = [{B,[Current]}|Vmap0],
-    ?DBG("~w\n", [{B,Current}]),
+connect_inner({endpoint,V}, [A|Next], Face, We0, Vmap0) ->
+    {We1,Current} = connect_one_inner(V, A, Face, We0),
+    Vmap1 = [{A,[Current]}|Vmap0],
+    {We,Vmap} = connect_inner(Current, Next, Face, We1, Vmap1),
+    {We,Vmap};
+connect_inner(Current0, [V|[_|_]=Next], Face, We0, Vmap0) ->
+    {We,Current} = connect_one_inner(Current0, V, Face, We0),
+    Vmap = [{V,[Current]}|Vmap0],
     connect_inner(Current, Next, Face, We, Vmap);
-connect_inner(Current, [_|[_,_]=Next], Face, We, Vmap) ->
-    connect_inner(Current, Next, Face, We, Vmap);
-connect_inner(Current, [_,Last], Face, We0, Vmap) ->
-    {We,XXX} = wings_vertex:force_connect(Last, Current, Face, We0),
-    ?DBG("~w\n", [XXX]),
+connect_inner(C, [{endpoint,V}], Face, We0, Vmap) ->
+    {We,_} = wings_vertex:force_connect(V, C, Face, We0),
+    {We,Vmap};
+connect_inner(Current, [Last], Face, We0, Vmap) ->
+    {We,_} = wings_vertex:force_connect(Last, Current, Face, We0),
     {We,Vmap}.
 
-connect_one_inner(Current, _A, B, _C, Face, We0) ->
+connect_one_inner(Current, B, Face, We0) ->
     {We1,Edge} = wings_vertex:force_connect(B, Current, Face, We0),
     #we{vs=Vtab} = We1,
     Pos = wings_vertex:pos(B, Vtab),
