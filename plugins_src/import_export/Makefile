@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.9 2003/09/25 08:25:28 bjorng Exp $
+#     $Id: Makefile,v 1.10 2003/12/30 14:42:02 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -33,7 +33,6 @@ MODULES= \
 	wpc_3ds \
 	wpc_obj \
 	wpc_opengl \
-	wpc_rib \
 	wpc_ply \
 	wpc_wrl \
 	wpc_yafray
