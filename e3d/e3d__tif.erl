@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.3 2002/01/09 13:08:04 dgud Exp $
+%%     $Id: e3d__tif.erl,v 1.4 2002/01/09 14:59:30 dgud Exp $
 %%
 
 -module(e3d__tif).
@@ -336,12 +336,14 @@ decompress([CompStrip|Rest], Comp = 5, Tif, Acc) -> %% LZW-Compression
     Decomp = lzw_decomp(0, ReadCode, 0, 258, ?LZW_STARTBITLEN, []),
     Differented = 
 	case Tif#tif.pred of
-	    1 -> %% No differencing
-		Decomp;
 	    2 when Tif#tif.bpp == 32 -> %% Horizontal differencing
-		undo_differencing4(0, Tif#tif.w, lists:append(lists:reverse(Decomp)), 0,0,0,0, []);
+		undo_differencing4(0, Tif#tif.w, lists:append(lists:reverse(Decomp)), 
+				   0,0,0,0, []);
 	    2 when Tif#tif.bpp == 24 -> %% Horizontal differencing
-		undo_differencing3(0, Tif#tif.w, lists:append(lists:reverse(Decomp)), 0,0,0, [])
+		undo_differencing3(0, Tif#tif.w, lists:append(lists:reverse(Decomp)), 
+				   0,0,0, []);
+	    _ -> %% No differencing
+		Decomp
 	end,
     decompress(Rest, Comp, Tif, [list_to_binary(lists:reverse(Differented))|Acc]);
 decompress([CompStrip|Rest], Comp = 32773, Tif, Acc) ->  %% PackBits
