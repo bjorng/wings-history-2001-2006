@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.40 2002/05/04 07:46:17 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.41 2002/05/05 07:45:17 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -479,13 +479,17 @@ convert_hit(auto, X, Y, Id, Face, We) ->
     ModelMatrix = gl:getDoublev(?GL_MODELVIEW_MATRIX),
     ProjMatrix = gl:getDoublev(?GL_PROJECTION_MATRIX),
     Trans = {ModelMatrix,ProjMatrix,ViewPort},
-    {Vdist0,V} = find_vertex(Face, We, X, Y, Trans),
+    Vs = sort(find_vertex(Face, We, X, Y, Trans)),
+    [{Vdist0,{Xva,Yva},V},{_,{Xvb,Yvb},_}|_] = Vs,
     Vdist = math:sqrt(Vdist0),
     Es = find_edge(Face, We, X, Y, Trans),
     {Edist0,_,Edge} = min(Es),
     Edist = math:sqrt(Edist0),
-    Lim0 = min([math:sqrt(L) || {_,L,_} <- Es]) / 4,
-    Lim = min([20.0,Lim0]),
+    Xd = Xva-Xvb,
+    Yd = Yva-Yvb,
+    Lim0 = math:sqrt(Xd*Xd+Yd*Yd) / 4,
+    Lim1 = min([math:sqrt(L) || {_,L,_} <- Es]) / 4,
+    Lim = min([20.0,Lim0,Lim1]),
     if
 	Vdist < Lim -> {vertex,{Id,V}};
 	Edist < Lim -> {edge,{Id,Edge}};
@@ -500,7 +504,7 @@ convert_hit(Mode, X, Y, Id, Face, We) ->
     Trans = {ModelMatrix,ProjMatrix,ViewPort},
     case Mode of
 	vertex ->
-	    {_,V} = find_vertex(Face, We, X, Y, Trans),
+	    {_,_,V} = min(find_vertex(Face, We, X, Y, Trans)),
 	    {vertex,{Id,V}};
 	edge ->
 	    {_,_,E} = min(find_edge(Face, We, X, Y, Trans)),
@@ -509,13 +513,12 @@ convert_hit(Mode, X, Y, Id, Face, We) ->
 
 find_vertex(Face, We, X, Y, Trans) ->
     Vs0 = wings_face:surrounding_vertices(Face, We),
-    Vs = map(fun(V) ->
-		     {Xs,Ys} = project_vertex(V, We, Trans),
-		     Dx = X-Xs,
-		     Dy = Y-Ys,
-		     {Dx*Dx+Dy*Dy,V}
-	     end, Vs0),
-    min(Vs).
+    map(fun(V) ->
+		{Xs,Ys} = Pos = project_vertex(V, We, Trans),
+		Dx = X-Xs,
+		Dy = Y-Ys,
+		{Dx*Dx+Dy*Dy,Pos,V}
+	end, Vs0).
 
 find_edge(Face, We, Cx, Cy, Trans) ->
     wings_face:fold(
