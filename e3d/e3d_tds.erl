@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.14 2002/07/17 06:28:07 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.15 2002/07/17 17:00:54 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -104,7 +104,8 @@ block(<<16#4100:16/little,Sz0:32/little,T0/binary>>, no_mesh) ->
     Sz = Sz0 - 6,
     <<TriMesh0:Sz/binary,T/binary>> = T0,
     TriMesh1 = trimesh(TriMesh0, #e3d_mesh{type=triangle}),
-    TriMesh = clean_mesh(TriMesh1),
+    TriMesh2 = add_uv_to_faces(TriMesh1),
+    TriMesh = clean_mesh(TriMesh2),
     block(T, TriMesh);
 block(<<16#4700:16/little,Sz0:32/little,T0/binary>>, Mesh) ->
     dbg("Camera (ignoring) ~p bytes\n", [Sz0]),
@@ -212,18 +213,36 @@ material(<<16#A081:16/little,6:32/little,T/binary>>,
     material(T, [{Name,[{twosided,true}|Props]}|Acc]);
 material(<<16#A084:16/little,Sz:32/little,T/binary>>, Acc) ->
     mat_chunk(emissive, Sz, T, Acc);
-material(<<16#A200:16/little,Sz0:32/little,T0/binary>>, [{Name,Props}|Acc]) ->
-    Tag = 16#A200,
-    dbg("Diffuse map\n", []),
-    Sz = Sz0 - 6,
-    <<Chunk:Sz/binary,T/binary>> = T0,
-    material(T, [{Name,[{Tag,Chunk}|Props]}|Acc]);
+material(<<16#A200:16/little,T/binary>>, Acc) ->
+    read_map(T, diffuse, Acc);
+material(<<16#A210:16/little,T/binary>>, Acc) ->
+    read_map(T, opacity, Acc);
+material(<<16#A230:16/little,T/binary>>, Acc) ->
+    read_map(T, bump, Acc);
 material(<<Tag:16/little,Sz0:32/little,T0/binary>>, [{Name,Props}|Acc]) ->
     dbg("Unknown material tag ~s\n", [hex4(Tag)]),
     Sz = Sz0 - 6,
     <<Chunk:Sz/binary,T/binary>> = T0,
     material(T, [{Name,[{Tag,Chunk}|Props]}|Acc]);
 material(<<>>, Acc) -> Acc.
+
+read_map(<<Sz0:32/little,T0/binary>>, Type, [{Name,Props}|Acc]) ->
+    dbg("Map: ~p\n", [Type]),
+    Sz = Sz0 - 6,
+    <<Chunk:Sz/binary,T/binary>> = T0,
+    Map = read_map_chunks(Chunk, none),
+    material(T, [{Name,[{map,Type,Map}|Props]}|Acc]).
+
+read_map_chunks(<<16#A300:16/little,Sz0:32/little,T0/binary>>, Acc) ->
+    Sz = Sz0 - 6 - 1,
+    <<Filename:Sz/binary,_:8,T/binary>> = T0,
+    read_map_chunks(T, binary_to_list(Filename));
+read_map_chunks(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
+    dbg("Unknown map sub-chunk: ~s\n", [hex4(Tag)]),
+    Sz = Sz0 - 6,
+    <<_:Sz/binary,T/binary>> = T0,
+    read_map_chunks(T, Acc);
+read_map_chunks(<<>>, Acc) -> Acc.
 
 reformat_material([{Name,Mat}|T]) ->
     Opac = property_lists:get_value(opacity, Mat, 1.0),
@@ -246,6 +265,8 @@ reformat_mat([{shininess,Sh}|T], Opac, Ogl, Maps, Tds) ->
     reformat_mat(T, Opac, [{shininess,1.0-Sh}|Ogl], Maps, Tds);
 reformat_mat([{opacity,_}|T], Opac, Ogl, Maps, Tds) ->
     reformat_mat(T, Opac, Ogl, Maps, Tds);
+reformat_mat([{map,Name,Data}|T], Opac, Ogl, Maps, Tds) ->
+    reformat_mat(T, Opac, Ogl, [{Name,Data}|Maps], Tds);
 reformat_mat([Other|T], Opac, Ogl, Maps, Tds) ->
     reformat_mat(T, Opac, Ogl, Maps, [Other|Tds]);
 reformat_mat([], _Opac, Ogl, Maps, Tds) ->
@@ -362,7 +383,14 @@ hex(N, Num, Acc) -> hex(N-1, Num div 16, [hexd(Num rem 16)|Acc]).
 hexd(D) when 0 =< D, D =< 9 -> D+$0;
 hexd(D) when 10 =< D, D =< 16 -> D+$A-10.
 
-clean_mesh(#e3d_mesh{fs=Fs0,vs=Vs0}=Mesh0) ->
+add_uv_to_faces(#e3d_mesh{tx=[]}=Mesh) -> Mesh;
+add_uv_to_faces(#e3d_mesh{fs=Fs0}=Mesh) ->
+    Fs = foldl(fun(#e3d_face{vs=Vs}=Face, A) ->
+		       [Face#e3d_face{tx=Vs}|A]
+	       end, [], Fs0),
+    Mesh#e3d_mesh{fs=reverse(Fs)}.
+
+clean_mesh(#e3d_mesh{fs=Fs0,vs=Vs0,tx=Tx}=Mesh0) ->
     %% Here we combines vertices that have exactly the same position
     %% and renumber vertices to leave no gaps.
     R = sofs:relation(append_index(Vs0), [{pos,old_vertex}]),
