@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.124 2003/01/13 10:39:43 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.125 2003/01/20 18:05:03 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -354,6 +354,7 @@ handle_drag_event_1({action,{numeric_input,Move}}, Drag) ->
 handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
     Drag = case wings_hotkey:event(Event) of
 	       next -> Drag0;
+	       {view,smoothed_preview} -> Drag0;
 	       {view,Cmd} ->
 		   wings_view:command(Cmd, St),
 		   view_changed(Drag0);
