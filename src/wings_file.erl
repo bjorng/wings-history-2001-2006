@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.153 2004/12/06 07:33:12 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.154 2004/12/14 06:48:14 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -43,6 +43,7 @@ init() ->
 menu(_) ->
     ImpFormats = [{"Nendo (.ndo)...",ndo}],
     ExpFormats = [{"Nendo (.ndo)...",ndo}],
+    Tail = [{?__(25,"Exit"),quit,?__(28,"Exit Wings 3D")}],
     [{?__(3,"New"),new,
       ?__(4,"Create a new, empty scene")},
      {?__(5,"Open..."),open,
@@ -72,7 +73,7 @@ menu(_) ->
      separator,
      {?__(24,"Install Plug-In"),install_plugin,
       ?__(27,"Install a plug-in")},
-     separator|recent_files([{?__(25,"Exit"),quit}])].
+     separator|recent_files(Tail)].
     
 command(new, St) ->
     new(St);
@@ -460,15 +461,17 @@ update_recent(Old, New) ->
 add_recent(File, [A,B,C,D,E|_]) -> [File,A,B,C,D,E];
 add_recent(File, Recent) -> [File|Recent].
 
-recent_files(Rest) ->
+recent_files(Tail) ->
     case wings_pref:get_value(recent_files, []) of
-	[] -> Rest;
-	Files -> number_files(Files, 1, [separator|Rest])
+	[] -> Tail;
+	Files ->
+	    Help = ?__(1,"Open this recently used file"),
+	    recent_files_1(Files, 1, Help, [separator|Tail])
     end.
 
-number_files([{Base,_}|T], I, Rest) ->
-    [{Base,I}|number_files(T, I+1, Rest)];
-number_files([], _I, Rest) -> Rest.
+recent_files_1([{Base,_}|T], I, Help, Tail) ->
+    [{Base,I,Help}|recent_files_1(T, I+1, Help, Tail)];
+recent_files_1([], _, _, Tail) -> Tail.
 
 %%
 %% The Revert command.
