@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.12 2002/11/29 17:09:33 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.13 2003/05/21 04:58:17 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
@@ -82,6 +82,7 @@ file_dialog(Type, Prop, Title) ->
     end,
     sdl_keyboard:enableKeyRepeat(?SDL_DEFAULT_REPEAT_DELAY,
 				 ?SDL_DEFAULT_REPEAT_INTERVAL),
+    sdl_keyboard:setModState(0),
     Res.
 
 file_filters(Prop) ->
