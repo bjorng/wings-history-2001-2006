@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.99 2003/02/20 18:49:49 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.100 2003/02/20 21:48:39 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -47,8 +47,8 @@ command({body,?MODULE}, St) ->
     start_uvmap(St);
 command({body,{?MODULE,ask_material,Fun}}, _St) ->
     Fun();
-command({body,?MODULE,discard_uvs}, St) ->
-    start_uvmap_1(St,discard);
+command({body,?MODULE,discard_uvs,We}, St) ->
+    start_uvmap_1(St,{discard,We});
 command({body,{?MODULE,do_edit,{We,MatName,Faces}}}, St) ->
     do_edit(MatName, Faces, We, St);
 command({body,{?MODULE,show_map,Info}}, St) ->
@@ -93,13 +93,14 @@ start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0,Mode) ->
     We0 = gb_trees:get(Id, Shs),
     We = We0#we{mode=material},
     check_for_defects(We),
-    St1 = case Mode of 
-	      discard -> discard_uvmap(We, St0);
-	      _ -> St0
-	  end,
-    St2 = seg_create_materials(St1),
+    OrigWe = case Mode of 
+		 {discard,WeX} ->  
+		     WeX;
+		 _ -> We
+	     end,
+    St2 = seg_create_materials(St0),
     St = St2#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
-    Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=We0}),
+    Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=OrigWe}),
     wings_wm:callback(fun() ->
 			      wings_util:menu_restriction(geom,[view,select,window])
 		      end),
@@ -206,10 +207,10 @@ seg_event_6({action,{view,Cmd}}, #seg{st=St0}=Ss) ->
     end;
 seg_event_6({action,{select,Cmd}}, #seg{st=St0}=Ss) ->
     case wings_sel_cmd:command(Cmd, St0) of
-	St0 -> keep;
-	{save_state,St} -> filter_sel_command(Ss, St);
-	#st{}=St -> filter_sel_command(Ss, St);
-	Other -> Other
+	St0 ->     keep;
+	{save_state,St} ->  filter_sel_command(Ss, St);
+	#st{}=St ->  	    filter_sel_command(Ss, St);
+	Other -> 	    Other
     end;
 seg_event_6({action,{window,geom_viewer}}, _) ->
     keep;
@@ -343,8 +344,12 @@ seg_map_charts_1(Cs, Type, Extra, I, N, Acc, Ss) when I =< N ->
     wings_wm:send(geom, {callback,MapChart}),
     Msg = io_lib:format("Mapping chart ~w of ~w", [I,N]),
     get_seg_event(Ss#seg{msg=Msg});
-seg_map_charts_1(_, _, OrigWe, _, _, MappedCharts, _) ->
+seg_map_charts_1(_, _, OrigWe, _, _, MappedCharts, #seg{st=St0=#st{shapes=Shs0}}) ->
     Info = {MappedCharts,OrigWe},
+    #we{id=Id}=OrigWe,
+    Shs = gb_trees:update(Id, OrigWe, Shs0),
+    St = St0#st{shapes=Shs},
+    wings_wm:send(geom,{new_state,St}),
     wings_wm:send(geom, {action,{body,{?MODULE,show_map,Info}}}),
     pop.
 
@@ -391,7 +396,9 @@ start_edit(_Id, We, St0) ->
 				 edit ->
 				     start_edit_1(We, St0);
 				 discard ->
-				     Act = {action,{body,?MODULE,discard_uvs}},
+				     St01 = discard_uvmap(We, St0),
+				     wings_wm:send(geom, {new_state,St01}),
+				     Act = {action,{body,?MODULE,discard_uvs,We}},
 				     wings_wm:send(geom, Act),
 				     ignore
 			     end
@@ -568,7 +575,16 @@ insert_coords([{V,{Face,{S,T,_}}}|Rest], #we{es=Etab0}=We) ->
 		     end
 	     end, Etab0, V, We),
     insert_coords(Rest, We#we{es=Etab});
-insert_coords([], We) -> We.
+insert_coords([], We0 = #we{es=Etab0}) -> 
+    %% Assure that no vertex colors pre-exist after insert coords 
+    %% i.e. face marked with hole material
+    Etab = lists:map(fun(Rec = {_,#edge{a={_,_},b={_,_}}}) -> Rec;
+		       ({Id,E=#edge{a={_,_,_},b={_,_}}}) -> {Id,E#edge{a ={0.0,0.0}}};
+		       ({Id,E=#edge{a={_,_},b={_,_,_}}}) -> {Id,E#edge{b ={0.0,0.0}}};
+		       ({Id,E=#edge{a={_,_,_},b={_,_,_}}}) -> 
+			    {Id,E#edge{a={0.0,0.0},b={0.0,0.0}}}
+		    end, gb_trees:to_list(Etab0)),
+    We0#we{es=gb_trees:from_orddict(Etab)}.
 
 insert_material(Cs, MatName, #we{fs=Ftab0}=We) ->
     Faces = lists:append([Fs || #ch{fs=Fs} <- Cs]),
@@ -712,6 +728,7 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
 
     wings_wm:viewport(),
     wings_io:ortho_setup(),
+    gl:enable(?GL_DEPTH_TEST),
     gl:depthFunc(?GL_ALWAYS),    
 
     gl:matrixMode(?GL_PROJECTION),
@@ -797,7 +814,7 @@ get_texture(#uvstate{option=#setng{texsz={TexW,TexH}},sel=Sel,areas=As}=Uvs0) ->
 		 
 get_texture(Wc, Wd, Hc, Hd, {W,H,Mem}=Info, Uvs0, ImageAcc)
   when Wc < Wd, Hc < Hd ->
-        gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     gl:clearColor(1, 1, 1, 1),
     gl:shadeModel(?GL_SMOOTH),
