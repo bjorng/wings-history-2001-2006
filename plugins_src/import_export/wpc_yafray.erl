@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.37 2003/05/14 15:30:45 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.38 2003/05/27 21:27:06 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -367,7 +367,7 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
     Specular = proplists:get_value(specular, Ps, ?DEF_MOD_SPECULAR),
     Ambient = proplists:get_value(ambient, Ps, ?DEF_MOD_AMBIENT),
     Shininess = proplists:get_value(shininess, Ps, ?DEF_MOD_SHININESS),
-    Normal = proplists:get_value(normap, Ps, ?DEF_MOD_NORMAL),
+    Normal = proplists:get_value(normal, Ps, ?DEF_MOD_NORMAL),
     Type = 
 	case proplists:get_value(type, Ps, ?DEF_MOD_TYPE) of
 	    jpeg -> image;
@@ -1745,7 +1745,7 @@ split_list(List, Pos) when list(List), integer(Pos), Pos >= 0 ->
 split_list1(List, 0, Head) ->
     {lists:reverse(Head),List};
 split_list1([], _Pos, _) ->
-    error;
+    badarg;
 split_list1([H|T], Pos, Head) ->
     split_list1(T, Pos-1, [H|Head]).
 

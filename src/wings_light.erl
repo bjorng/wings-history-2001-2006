@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.32 2003/05/20 17:30:26 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.33 2003/05/27 21:27:07 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
@@ -348,7 +348,7 @@ edit_1(#we{id=Id,light=L0}=We0, Shs, St) ->
 	       {color,Spec0}]}],
 	    [{title,"Colors"}]}|qs_specific(L0)],
     {Name,Prop0} = get_light(We0),
-    Qs = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
+    {_,Qs} = wings_plugin:dialog(light_editor_setup, Name, Prop0, Qs0),
     wings_ask:dialog("Light Properties", Qs,
 		     fun([Diff,Amb,Spec|More0]) ->
 			     L1 = L0#light{diffuse=Diff,ambient=Amb,specular=Spec},
@@ -358,11 +358,15 @@ edit_1(#we{id=Id,light=L0}=We0, Shs, St) ->
 			     St#st{shapes=gb_trees:update(Id, We, Shs)}
 		     end).
 
-plugin_results(_, [], Prop) ->
-    keydelete(opengl, 1, Prop);
 plugin_results(Name, Res0, Prop0) ->
-    {Prop,Res} = wings_plugin:dialog({light_editor_result,Name,Prop0}, Res0),
-    plugin_results(Name, Res, Prop).
+    case wings_plugin:dialog(light_editor_result, Name, Prop0, Res0) of
+	{Prop,[]} ->
+	    keydelete(opengl, 1, Prop);
+	{_,Res} ->
+	    io:format("Light editor plugin(s) left garbage:~n    ~P~n", 
+		      [Res,20]),
+	    wings_util:error("Plugin(s) left garbage")
+    end.
 
 qs_specific(#light{type=spot,spot_angle=Angle,spot_exp=SpotExp}=L) ->
     Spot = [{vframe,[{label,"Angle"},

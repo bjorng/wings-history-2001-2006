@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.96 2003/05/24 12:55:20 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.97 2003/05/27 21:27:07 raimo_niskanen Exp $
 %%
 
 -module(wings_material).
@@ -453,7 +453,7 @@ edit(Name, Assign, #st{mat=Mtab0}=St) ->
 					   {key,opacity}]}}]}]
 	     }|Maps0]
 	   }],
-    Qs = wings_plugin:dialog({material_editor_setup,Name,Mat0}, Qs1),
+    {_,Qs} = wings_plugin:dialog(material_editor_setup, Name, Mat0, Qs1),
     Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
 	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}|More]) ->
 		  OpenGL = [ask_prop_put(diffuse, Diff, Opacity),
@@ -470,11 +470,16 @@ edit(Name, Assign, #st{mat=Mtab0}=St) ->
 
 maybe_assign(false, _, St) -> St;
 maybe_assign(true, Name, St) -> set_material(Name, St).
-    
-plugin_results(_, [], Mat) -> Mat;
+
 plugin_results(Name, Res0, Mat0) ->
-    {Mat,Res} = wings_plugin:dialog({material_editor_result,Name,Mat0}, Res0),
-    plugin_results(Name, Res, Mat).
+    case wings_plugin:dialog(material_editor_result, Name, Mat0, Res0) of
+	{Mat,[]} ->
+	    Mat;
+	{_,Res} ->
+	    io:format("Material editor plugin(s) left garbage:~n    ~P~n", 
+		      [Res,20]),
+	    wings_util:error("Plugin(s) left garbage")
+    end.
 
 show_maps(Mat) ->
     case prop_get(maps, Mat) of

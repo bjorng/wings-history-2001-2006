@@ -9,10 +9,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.21 2003/05/04 07:13:30 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.22 2003/05/27 21:27:07 raimo_niskanen Exp $
 %%
 -module(wings_plugin).
--export([init/0,menu/2,dialog/2,command/2,call_ui/1]).
+-export([init/0,menu/2,dialog/4,command/2,call_ui/1]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -65,20 +65,26 @@ menu_1([M|Ps], Name, Menu0) ->
 menu_1([], _Name, Menu) -> Menu.
 
 
-dialog(Name, Dialog) ->
-    dialog_1(get(wings_plugins), Name, Dialog).
+dialog(Id, Name, Content, Ps) ->
+    dialog_1(Id, Name, Content, Ps, get(wings_plugins)).
 
-dialog_1([M|Ps], Name, Dialog0) ->
-    case catch M:dialog(Name, Dialog0) of
+dialog_1(Id, Name, Content0, Ps0, [M|Tail]) ->
+    case catch M:dialog({Id,Name,Content0}, Ps0) of
 	{'EXIT',{undef,_}} ->
-	    dialog_1(Ps, Name, Dialog0);
-	Dialog when is_list(Dialog); is_tuple(Dialog) ->
-	    dialog_1(Ps, Name, Dialog);
+	    dialog_1(Id, Name, Content0, Ps0, Tail);
+	{'EXIT',Reason} ->
+	    io:format("~w:dialog/2: crashed: ~P\n", [M,Reason,20]),
+	    wings_util:error("~w:dialog/2: crashed", [M]);
+	Ps when is_list(Ps) ->
+	    dialog_1(Id, Name, Content0, Ps, Tail);
+	{Content,Ps} ->
+	    dialog_1(Id, Name, Content, Ps, Tail);
 	Other ->
 	    io:format("~w:dialog/2: bad return value: ~P\n", [M,Other,20]),
-	    dialog_1(Ps, Name, Dialog0)
+	    wings_util:error("~w:dialog/2: bad return value", [M])
     end;
-dialog_1([], _Name, Dialog) -> Dialog.
+dialog_1(_Id, _Name, Content, Ps, []) -> 
+    {Content,Ps}.
 
 command(Cmd, St) ->
     command(get(wings_plugins), Cmd, St).
