@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.24 2003/03/07 07:59:57 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.25 2003/05/13 14:38:11 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -217,6 +217,31 @@ mul({B_a,B_b,B_c,B_d,B_e,B_f,B_g,B_h,B_i,B_tx,B_ty,B_tz},
      A_tx*B_a + A_ty*B_d + A_tz*B_g + B_tx,
      A_tx*B_b + A_ty*B_e + A_tz*B_h + B_ty,
      A_tx*B_c + A_ty*B_f + A_tz*B_i + B_tz};
+mul({B_a,B_b,B_c,B_d,B_e,B_f,B_g,B_h,B_i,B_j,B_k,B_l,B_tx,B_ty,B_tz,B_w},
+    {A_a,A_b,A_c,A_d,A_e,A_f,A_g,A_h,A_i,A_j,A_k,A_l,A_tx,A_ty,A_tz,A_w})
+  when is_float(A_a), is_float(A_b), is_float(A_c), is_float(A_d),
+       is_float(A_e), is_float(A_f), is_float(A_g), is_float(A_h),
+       is_float(A_i), is_float(A_j), is_float(A_k), is_float(A_l),
+       is_float(A_tx),is_float(A_ty), is_float(A_tz), is_float(A_w) ->
+    {A_a*B_a + A_b*B_e + A_c*B_i + A_d*B_tx,
+     A_a*B_b + A_b*B_f + A_c*B_j + A_d*B_ty,
+     A_a*B_c + A_b*B_g + A_c*B_k + A_d*B_tz,
+     A_a*B_d + A_b*B_h + A_c*B_l + A_d*B_w,
+
+     A_e*B_a + A_f*B_e + A_g*B_i + A_h*B_tx,
+     A_e*B_b + A_f*B_f + A_g*B_j + A_h*B_ty,
+     A_e*B_c + A_f*B_g + A_g*B_k + A_h*B_tz,
+     A_e*B_d + A_f*B_h + A_g*B_l + A_h*B_w,
+
+     A_i*B_a + A_j*B_e + A_k*B_i + A_l*B_tx,
+     A_i*B_b + A_j*B_f + A_k*B_j + A_l*B_ty,
+     A_i*B_c + A_j*B_g + A_k*B_k + A_l*B_tz,
+     A_i*B_d + A_j*B_h + A_k*B_l + A_l*B_w,
+
+     A_tx*B_a + A_ty*B_e + A_tz*B_i + A_w*B_tx,
+     A_tx*B_b + A_ty*B_f + A_tz*B_j + A_w*B_ty,
+     A_tx*B_c + A_ty*B_g + A_tz*B_k + A_w*B_tz,
+     A_tx*B_d + A_ty*B_h + A_tz*B_l + A_w*B_w};
 mul({A,B,C,Q0,D,E,F,Q1,G,H,I,Q2,Tx,Ty,Tz,Q3}, {X,Y,Z,W})
   when is_float(A), is_float(B), is_float(C), is_float(D), is_float(E),
        is_float(F), is_float(G), is_float(H), is_float(I), 
