@@ -31,8 +31,8 @@
     NSMutableDictionary *env = [[NSMutableDictionary alloc] init];
     NSString *appDir = [[NSBundle mainBundle] bundlePath];
     NSString *erlangDir = [appDir stringByAppendingString:@"/Contents/Resources/erlang"];
-    NSString *execFile = [erlangDir stringByAppendingString:@"/erts-5.2.3.3/bin/erlexec"];
-    NSString *binDir = [erlangDir stringByAppendingString:@"/erts-5.2.3.3/bin"];
+    NSString *execFile = [erlangDir stringByAppendingString:@"/erts-5.3/bin/erlexec"];
+    NSString *binDir = [erlangDir stringByAppendingString:@"/erts-5.3/bin"];
     NSArray *args;
     UInt32 version;
 
