@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.42 2003/07/11 10:26:28 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.43 2003/07/18 17:32:55 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -497,7 +497,12 @@ draw_objects_1(N, [O|Objs], #ost{lh=Lh}=Ost, R, Active, Y) ->
     draw_objects_1(N-1, Objs, Ost, R, Active-1, Y+Lh).
 
 draw_icons(N, Objs, Ost, Y) ->
-    wings_io:draw_icons(fun() -> draw_icons_1(N, Objs, Ost, Y-14) end).
+    wings_io:draw_icons(fun() -> draw_icons_1(N, Objs, Ost, Y-14) end),
+    gl:enable(?GL_TEXTURE_2D),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+    draw_previews(N, Objs, Ost, Y-14),
+    gl:bindTexture(?GL_TEXTURE_2D, 0),
+    gl:disable(?GL_TEXTURE_2D).
     
 draw_icons_1(0, _, _, _) -> ok;
 draw_icons_1(N, [ignore|Objs], #ost{lh=Lh}=Ost, Y) ->
@@ -517,12 +522,18 @@ draw_icons_1(N, [O|Objs], #ost{lh=Lh}=Ost, Y) ->
 		_ ->
 		    wings_io:draw_icon(X, Y, small_image2)
 	    end;
-	image_preview ->
-	    W = H = 2*Lh,
-	    wings_image:draw_preview(name_pos(), Y, W, H, element(2, O));
+	image_preview -> ok;
 	material -> ok
     end,
     draw_icons_1(N-1, Objs, Ost, Y+Lh).
+
+draw_previews(0, _, _, _) -> ok;
+draw_previews(N, [{image_preview,Im}|Objs], #ost{lh=Lh}=Ost, Y) ->
+    W = H = 2*Lh,
+    wings_image:draw_preview(name_pos(), Y, W, H, Im),
+    draw_previews(N-1, Objs, Ost, Y+Lh);
+draw_previews(N, [_|Objs], #ost{lh=Lh}=Ost, Y) ->
+    draw_previews(N-1, Objs, Ost, Y+Lh).
 
 m_bitmap() ->
     {7,8,0,0,8,0,
