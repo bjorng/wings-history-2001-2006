@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.40 2002/10/06 18:56:36 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.41 2002/10/15 06:24:14 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -24,7 +24,8 @@
 -record(ss, {check,				%Check fun.
 	     exit,				%Exit fun.
 	     selmodes,				%Legal selection modes.
-	     is_axis=false			%True if axis.
+	     is_axis=false,			%True if axis.
+	     info=""				%Info message.
 	    }).
 
 init() ->
@@ -138,7 +139,7 @@ handle_event_0(Event, Ss, St) ->
     end.
 
 handle_event_1(Event, Ss, St) ->
-    case wings_pick:event(Event, St) of
+    case wings_pick:event(Event, St, fun() -> redraw(Ss, St) end) of
 	next -> handle_event_2(Event, Ss, St);
 	Other -> Other
     end.
@@ -180,18 +181,11 @@ handle_event_4(Event, Ss, St0) ->
 
 handle_event_5({new_state,St}, #ss{check=Check}=Ss, _St0) ->
     {Vec,Msg} = Check(St),
-    wings_io:message(Msg),
-    get_event(Ss, St#st{vec=Vec});
+    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
 handle_event_5(#keyboard{}, Ss, St) ->
     get_event(Ss, St);
-handle_event_5(redraw, _Ss, St) ->
-    RmbMod = case wings_camera:free_rmb_modifier() of
-		 ?ALT_BITS -> "Alt";
-		 ?CTRL_BITS -> "Ctrl"
-	     end,
-    Message = ["[L] Select  [R] Execute  ["] ++ RmbMod ++ "]+[R] Menu  ",
-    wings_io:message(Message),
-    wings:redraw(St),
+handle_event_5(redraw, Ss, St) ->
+    redraw(Ss, St),
     keep;
 handle_event_5({action,{select,Cmd}}, Ss, St0) ->
     case wings_sel_cmd:command(Cmd, St0) of
@@ -222,6 +216,17 @@ secondary_selection(abort, _Ss, _St) ->
     wings_io:clear_message(),
     wings_wm:dirty(),
     pop.
+
+redraw(#ss{info=Info}, St) ->
+    RmbMod = case wings_camera:free_rmb_modifier() of
+		 ?ALT_BITS -> "Alt";
+		 ?CTRL_BITS -> "Ctrl"
+	     end,
+    Message = ["[L] Select  [R] Execute  ["] ++ RmbMod ++ "]+[R] Menu  ",
+    wings_io:message(Message),
+    wings_draw:render(St),
+    wings_io:info(Info),
+    wings_io:update(St).
 
 set_last_axis(#ss{is_axis=true}, #st{vec={{_,_,_},{_,_,_}}=Vec}) ->
     wings_pref:set_value(last_axis, Vec);
@@ -349,7 +354,7 @@ vector_exit_check(St) ->
 	{{_,Vec},Msg} -> {Vec,Msg}
     end.
 
-check_vector(#st{sel=[]}) -> {none,"Nothing selected"};
+check_vector(#st{sel=[]}) -> {none,""};
 check_vector(#st{selmode=Mode,sel=[{Id,Elems0}],shapes=Shs}) ->
     We = gb_trees:get(Id, Shs),
     Elems = gb_sets:to_list(Elems0),
@@ -448,7 +453,7 @@ get_vec(_, _, _) -> {none,"Select vertices, edges, or faces."}.
 %%% Point functions.
 %%%
 
-check_point(#st{sel=[]}) -> {none,"Nothing selected."};
+check_point(#st{sel=[]}) -> {none,""};
 check_point(St) ->
     Center = e3d_vec:average(wings_sel:bounding_box(St)),
     {Center,"Midpoint of selection saved."}.

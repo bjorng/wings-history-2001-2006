@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.62 2002/10/07 16:59:06 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.63 2002/10/15 06:24:14 bjorng Exp $
 %%
 
 -module(wings_pick).
--export([event/2,hilite_event/3]).
+-export([event/2,event/3,hilite_event/3]).
 -export([do_pick/3]).
 
 -define(NEED_OPENGL, 1).
@@ -43,16 +43,19 @@
 	 prev=none				%Previous hit ({Id,Item}).
 	}).
 
-event(#mousemotion{}=Mm, #st{selmode=Mode}=St) ->
+event(Ev, St) ->
+    event(Ev, St, St).
+
+event(#mousemotion{}=Mm, #st{selmode=Mode}=St, Redraw) ->
     case hilite_enabled(Mode) of
 	false -> next;
 	true ->
 	    {seq,{push,dummy},
-	     handle_hilite_event(Mm, #hl{st=St,redraw=St})}
+	     handle_hilite_event(Mm, #hl{st=St,redraw=Redraw})}
     end;
-event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St) ->
+event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St, _) ->
     pick(X, Y, St);
-event(_, _) -> next.
+event(_, _, _) -> next.
 
 hilite_event(#mousemotion{}=Mm, #st{selmode=Mode}=St, Redraw) ->
     case hilite_enabled(Mode) of
