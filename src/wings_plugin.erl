@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.3 2001/10/24 08:51:39 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.4 2001/11/07 07:01:49 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2,call_ui/1]).
@@ -116,6 +116,8 @@ list_dir([Dir|Dirs0], Pas, Beams0) ->
     end;
 list_dir([], Pas, Beams) -> {Pas,Beams}.
 
+list_dir_1([[$~|_]|Ns], Dir0, Dirs, Beams) ->
+    list_dir_1(Ns, Dir0, Dirs, Beams);
 list_dir_1([[$w,$p,T,$_|_]=N|Ns], Dir0, Dirs, Beams) ->
     case filename:extension(N) of
 	".beam" -> list_dir_1(Ns, Dir0, Dirs, [N|Beams]);
