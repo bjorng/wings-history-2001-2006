@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.38 2003/02/18 16:06:11 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.39 2003/07/11 17:58:16 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -78,7 +78,9 @@ tc(Module, Line, Fun) ->
 
 map_chart(Type, Chart, We) ->
     case wpa:face_outer_edges(Chart, We) of
-	[] -> {error,"A closed surface cannot be mapped."};
+	[] ->
+	    {error,"A closed surface cannot be mapped. "
+	     "(Either divide into into two or charts, or cut along some edges.)"};
 	_ -> map_chart_1(Type, Chart, We)
     end.
 
@@ -871,7 +873,7 @@ stretch_opt(Ch=#ch{fs=Fs,we=We0}, OVs) ->
 		      end, [], Be),
     Bv = gb_sets:from_list(Bv0),
     %% {FaceToStretchMean, FaceToStretchWorst,FaceToVerts,VertToFaces,VertToUvs}
-    {{F2S2,F2S8,F2Vs,V2Fs,Uvs},S} = stretch_setup(Fs,We0,OVs),
+    {{F2S2,_F2S8,F2Vs,V2Fs,Uvs},S} = stretch_setup(Fs,We0,OVs),
     ?DBG("F2S2 ~w~n",[gb_trees:to_list(F2S2)]),
 %     ?DBG("F2S8 ~w~n",[gb_trees:to_list(F2S8)]),
 %     ?DBG("F2Vs ~w~n",[gb_trees:to_list(F2Vs)]),
@@ -886,8 +888,8 @@ stretch_opt(Ch=#ch{fs=Fs,we=We0}, OVs) ->
     Suvs = [{Id,{S0/S,T0/S,0.0}} || {Id,{S0,T0}} <- SUvs1],
     Res = Ch#ch{we=We0#we{vp=gb_trees:from_orddict(Suvs)}},
 
-    Mean2  = model_l2(gb_trees:keys(_F2S2), _F2S2, F2Vs, OVs,0.0, 0.0),
-%%    io:format("After Stretch sum (mean) ~p ~n",  [Mean2]),
+    _Mean2  = model_l2(gb_trees:keys(_F2S2), _F2S2, F2Vs, OVs,0.0, 0.0),
+%%    io:format("After Stretch sum (mean) ~p ~n",  [_Mean2]),
     stretch_setup(Fs, Res#ch.we,OVs),
     Res.
 
