@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.186 2004/02/18 13:42:41 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.187 2004/02/22 17:34:58 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -32,7 +32,7 @@ init() ->
     true.
 
 menu({body}, Menu) ->
-    case auv_snap:active() of
+    case wpc_snap:active() of
 	true ->
 	    Menu;
 	false ->
