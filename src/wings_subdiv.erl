@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.18 2002/04/22 06:59:05 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.19 2002/04/22 18:21:52 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -32,10 +32,11 @@ smooth(AllFs, Fs, Vs, Es, Htab, #we{next_id=Id}=We0) ->
     wings_io:progress_tick(),
     We1 = cut_edges(Es, FacePos, Htab, We0),
     wings_io:progress_tick(),
-    We = smooth_faces(Fs, Id, FacePos, We1),
+    {We,NewVs} = smooth_faces(Fs, Id, FacePos, We1),
     wings_io:progress_tick(),
     #we{vs=Vtab2} = We,
-    Vtab = smooth_move_orig(Vs, FacePos, Htab, We0, Vtab2),
+    Vtab3 = smooth_move_orig(Vs, FacePos, Htab, We0, Vtab2),
+    Vtab = gb_trees:from_orddict(gb_trees:to_list(Vtab3) ++ reverse(NewVs)),
     wings_io:progress_tick(),
     We#we{vs=Vtab}.
 
@@ -87,8 +88,8 @@ smooth_move_orig_1(V, FacePosTab, Htab, #we{vs=OVtab}=We, Vtab) ->
     case length(Hard) of
 	NumHard when NumHard < 2 ->
 	    Ps = e3d_vec:add(Ps0),
-	    N = float(length(Ps0) bsr 1),
-	    Pos0 = e3d_vec:add(e3d_vec:divide(Ps, (N*N)),
+	    N = length(Ps0) bsr 1,
+	    Pos0 = e3d_vec:add(e3d_vec:mul(Ps, 1/(N*N)),
 			       e3d_vec:mul(S, (N-2.0)/N)),
 	    Pos = wings_util:share(Pos0),
 	    gb_trees:update(V, Vrec#vtx{pos=Pos}, Vtab);
@@ -113,29 +114,27 @@ smooth_faces(Faces0, Id, FacePos, #we{fs=Ftab0}=We) ->
 		Faces1 = sofs:restriction(Ftab2, FaceSet),
 		{sofs:to_external(Faces1),sofs:to_external(Ftab)}
 	end,
-    smooth_faces(Faces, Id, FacePos, [], FaceAcc, We).
+    smooth_faces(Faces, Id, FacePos, [], FaceAcc, [], We).
     
-smooth_faces([{Face,#face{mat=Mat}}|Faces], Id, FacePos, Es0, Ftab0, We0) ->
-    {We,Ftab,Es} = smooth_face(Face, Mat, Id, FacePos, Es0, Ftab0, We0),
-    smooth_faces(Faces, Id, FacePos, Es, Ftab, We);
-smooth_faces([], _, _, Es, Ftab, #we{es=Etab0}=We) ->
-    Etab1 = gb_trees:to_list(Etab0) ++ reverse(Es),
-    Etab = gb_trees:from_orddict(Etab1),
-    We#we{es=Etab,fs=gb_trees:from_orddict(sort(Ftab))}.
-
-smooth_face(Face, Mat, Id, FacePos, EsAcc0, Ftab0, #we{es=Etab0}=We0) ->
+smooth_faces([{Face,#face{mat=Mat}}|Faces], Id, FacePos,
+	     EsAcc0, Ftab0, Vtab0, #we{es=Etab0}=We0) ->
     {NewV,We1} = wings_we:new_id(We0),
     {Center,Color,NumIds} = gb_trees:get(Face, FacePos),
     {Ids,We} = wings_we:new_wrap_range(NumIds, 2, We1),
+    AnEdge = wings_we:id(0, Ids),
+    Vtab = [{NewV,#vtx{pos=Center,edge=AnEdge}}|Vtab0],
     {Etab,EsAcc,Ftab,_} =
 	wings_face:fold(
 	  fun(_, E, Rec, A) ->
 		  smooth_edge(Face, E, Rec, NewV,
 			      Color, Id, Mat, A)
 	  end, {Etab0,EsAcc0,Ftab0,Ids}, Face, We),
-    AnEdge = wings_we:id(0, Ids),
-    Vtab = gb_trees:insert(NewV, #vtx{pos=Center,edge=AnEdge}, We#we.vs),
-    {We#we{es=Etab,vs=Vtab},Ftab,EsAcc}.
+    smooth_faces(Faces, Id, FacePos, EsAcc, Ftab, Vtab, We#we{es=Etab});
+smooth_faces([], _, _, Es, Ftab0, NewVs, #we{es=Etab0}=We) ->
+    Etab1 = gb_trees:to_list(Etab0) ++ reverse(Es),
+    Etab = gb_trees:from_orddict(Etab1),
+    Ftab = gb_trees:from_orddict(sort(Ftab0)),
+    {We#we{es=Etab,fs=Ftab},NewVs}.
 
 smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat,
 	    {Etab0,Es0,Ftab0,Ids0}) ->
@@ -198,12 +197,15 @@ store(Key, New, []) -> [{Key,New}].
 
 cut_edges(Es, FacePos, Htab0,
 	  #we{mode=Mode,es=Etab0,vs=Vtab0,next_id=Id0}=We) ->
-    {Id,Vtab,Etab,Htab} = cut_edges_1(Es, FacePos, Mode, Id0, Etab0,
- 				      Vtab0, Htab0, []),
+    Etab1 = {Id0,Etab0,gb_trees:empty()},
+    {Id,Vtab,{_,Etab2,Etab3},Htab} =
+	cut_edges_1(Es, FacePos, Mode, Id0, Etab1, Vtab0, Htab0, []),
+    Etab = gb_trees:from_orddict(gb_trees:to_list(Etab2) ++
+				 gb_trees:to_list(Etab3)),
     We#we{vs=Vtab,es=Etab,he=Htab,next_id=Id}.
 
 cut_edges_1([Edge|Es], FacePos, Mode, NewEdge, Etab0, Vtab0, Htab0, VsAcc0) ->
-    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = Rec = gb_trees:get(Edge, Etab0),
+    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = Rec = edge_get(Edge, Etab0),
     Pos0 = [wings_vertex:pos(Va, Vtab0),wings_vertex:pos(Vb, Vtab0)],
     {Pos1,Htab} =
 	case gb_sets:is_member(Edge, Htab0) of
@@ -244,21 +246,22 @@ fast_cut(Edge, Template, Mode, NewV=NewEdge, Etab0) ->
 	    NewColB = wings_color:mix(0.5, BCol, BColOther)
     end,
 
+    {Id,EtabA0,EtabB0} = Etab0,
     NewEdgeRec = Template#edge{vs=NewV,a=NewColA,ltsu=Edge,rtpr=Edge},
-    Etab1 = gb_trees:insert(NewEdge, NewEdgeRec, Etab0),
-    Etab2 = patch_edge(EdgeA, NewEdge, Edge, Etab1),
-    Etab = patch_edge(EdgeB, NewEdge, Edge, Etab2),
+    EtabB = gb_trees:insert(NewEdge, NewEdgeRec, EtabB0),
     EdgeRec = Template#edge{ve=NewV,b=NewColB,rtsu=NewEdge,ltpr=NewEdge},
-    gb_trees:update(Edge, EdgeRec, Etab).
+    EtabA = gb_trees:update(Edge, EdgeRec, EtabA0),
+    Etab = patch_edge(EdgeA, NewEdge, Edge, {Id,EtabA,EtabB}),
+    patch_edge(EdgeB, NewEdge, Edge, Etab).
 
 get_vtx_color(Edge, Face, Etab) ->
-    case gb_trees:get(Edge, Etab) of
+    case edge_get(Edge, Etab) of
 	#edge{lf=Face,a=Col} -> Col;
 	#edge{rf=Face,b=Col} -> Col
     end.
 
-patch_edge(Edge, ToEdge, OrigEdge, Etab) ->
-    New = case gb_trees:get(Edge, Etab) of
+patch_edge(Edge, ToEdge, OrigEdge, {Id,EtabA,EtabB}) when Edge < Id ->
+    New = case gb_trees:get(Edge, EtabA) of
 	      #edge{ltsu=OrigEdge}=R ->
 		  R#edge{ltsu=ToEdge};
 	      #edge{ltpr=OrigEdge}=R ->
@@ -268,4 +271,21 @@ patch_edge(Edge, ToEdge, OrigEdge, Etab) ->
 	      #edge{rtpr=OrigEdge}=R ->
 		  R#edge{rtpr=ToEdge}
 	  end,
-    gb_trees:update(Edge, New, Etab).
+    {Id,gb_trees:update(Edge, New, EtabA),EtabB};
+patch_edge(Edge, ToEdge, OrigEdge, {Id,EtabA,EtabB}) ->
+    New = case gb_trees:get(Edge, EtabB) of
+	      #edge{ltsu=OrigEdge}=R ->
+		  R#edge{ltsu=ToEdge};
+	      #edge{ltpr=OrigEdge}=R ->
+		  R#edge{ltpr=ToEdge};
+	      #edge{rtsu=OrigEdge}=R ->
+		  R#edge{rtsu=ToEdge};
+	      #edge{rtpr=OrigEdge}=R ->
+		  R#edge{rtpr=ToEdge}
+	  end,
+    {Id,EtabA,gb_trees:update(Edge, New, EtabB)}.
+
+edge_get(Edge, {Id,Etab,_}) when Edge < Id ->
+    gb_trees:get(Edge, Etab);
+edge_get(Edge, {_,_,Etab}) ->
+    gb_trees:get(Edge, Etab).
