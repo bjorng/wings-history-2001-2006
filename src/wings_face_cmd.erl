@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.35 2002/02/07 11:49:08 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.36 2002/02/07 19:57:21 bjorng Exp $
 %f%
 
 -module(wings_face_cmd).
@@ -717,8 +717,13 @@ lift_from_edge(Dir, Faces, Edges, We0, Tv) ->
 	    lift_sel_mismatch();
 	true ->
 	    FaceToEdge = sofs:to_external(FaceToEdge0),
-	    We = wings_extrude_face:faces(Faces, We0),
-	    lift_from_edge_1(Dir, FaceToEdge, We0, We, Tv)
+	    case gb_sets:size(Faces) of
+		Size when Size =:= length(FaceToEdge) ->
+		    We = wings_extrude_face:faces(Faces, We0),
+		    lift_from_edge_1(Dir, FaceToEdge, We0, We, Tv);
+		Size ->
+		    lift_sel_mismatch()
+	    end
     end.
 
 lift_from_edge_1(Dir, [{Face,Edge}|T], #we{es=Etab}=OrigWe, We0, Tv0) ->
