@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.34 2002/12/14 07:49:56 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.35 2002/12/14 10:04:10 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -244,13 +244,14 @@ get_and_dispatch() ->
     Event = wings_io:get_event(),
     dispatch_event(Event).
 
-dispatch_event(#resize{w=W0,h=H0}=Event) ->
+dispatch_event(#resize{w=W,h=H}=Event) ->
     ?CHECK_ERROR(),
-    {W,H} = case sdl_video:wm_isMaximized() of
-		false -> {W0,H0};
-		true ->  {W0-8,H0-10}
-	    end,
-    wings_pref:set_value(window_size, {W,H}),
+    {SaveW,SaveH} =
+	case sdl_video:wm_isMaximized() of
+	    false -> {W,H};
+	    true ->  {W-8,H-10}
+	end,
+    wings_pref:set_value(window_size, {SaveW,SaveH}),
     put(wm_top_size, {W,H}),
 
     Win0 = get_window_data(top),
