@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.134 2003/07/16 05:56:12 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.135 2003/07/16 12:01:47 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -224,7 +224,6 @@ create_uv_state(Edges, Map, MatName, Options, #we{id=Id}=We, St) ->
     {_,Geom} = init_drawarea(),
     Uvs = #uvstate{st=wings_select_faces([], Id, St),
 		   origst=St,
-		   id=Id,
 		   areas=Map,
 		   geom=Geom,
 		   orig_we=We,
@@ -738,7 +737,7 @@ handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
 	     #uvstate{geom=ViewP,
 		      mode=Mode,
 		      op=Op,
-		      id=Id,
+		      orig_we=#we{id=Id},
 		      sel=Sel0,
 		      areas=Curr0} = Uvs0)
   when Op == undefined; 
@@ -771,7 +770,7 @@ handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=M
 	     #uvstate{geom=ViewP,
 		      mode = Mode,
 		      op = Op,
-		      id = Id,
+		      orig_we=#we{id=Id},
 		      sel = Sel0,
 		      areas=Curr0}=Uvs0) ->
     {_,_,_,OH} = wings_wm:viewport(),
@@ -828,7 +827,7 @@ handle_event_1(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY
 	    end
     end;
 handle_event_1(#keyboard{state=?SDL_PRESSED,sym=Sym},
-	     #uvstate{st=St,id=Id}) ->
+	       #uvstate{st=St,orig_we=#we{id=Id}}) ->
     case Sym of
 	?SDLK_SPACE ->
 	    wings_wm:send(geom, {new_state,wings_select_faces([],Id,St)}),

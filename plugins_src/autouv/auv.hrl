@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.17 2003/07/16 04:25:41 bjorng Exp $
+%%     $Id: auv.hrl,v 1.18 2003/07/16 12:01:47 bjorng Exp $
 
 %% Chart record (one for each chart).
 %% Stored in the 'name' field in the #we{} record.
@@ -42,7 +42,6 @@
 	 sel = [],         %% Selected areas
 	 areas,            %% The charts 
 %%
-	 id,               %% We Id of orig_we.
 	 matname,
 	 orig_we,	    % Original We.
 	 edges,		    % Edge numbers.
