@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.12 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_lang.erl,v 1.13 2005/03/02 11:54:32 dgud Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -146,29 +146,43 @@ diff(LangFile) ->
 diff(LangFile, EngTmplFile) ->
     {ok, Lang} = file:consult(LangFile),
     {ok, Eng} = file:consult(EngTmplFile),
-    diff(Eng,EngTmplFile,Lang,LangFile,[]).
-
-diff(_,_,_,_,[_,_,_]) -> ok;
-diff([{Key,Info}|ER],EF,Lang0,LF,Mode) ->
+    case diff(Eng,Lang,LangFile,[],[]) of
+	[] -> ok;
+	Miss ->
+	    io:format("%% Missing translations in ~s~n", [LangFile]),
+	    lists:foreach(fun(M) -> io:format("~p.~n",[M]) end,
+			  reverse(Miss))
+    end.
+    
+diff([{Key,Info}|ER],Lang0,LF,Lev,Miss0) ->
     case get_key(Key,Lang0) of
 	{Info2, Lang} ->
-	    diff(Info,EF,Info2,LF,[Key|Mode]),
-	    diff(ER,EF,Lang,LF,Mode);
+	    Miss = case diff(Info,Info2,LF,Lev++[Key],[]) of
+		       [] -> Miss0;
+		       Miss1 -> [{Key,Miss1}|Miss0]
+		   end,
+	    diff(ER,Lang,LF,Lev,Miss);
 	Lang ->
-	    io:format("Missing ~p in ~s~n", 
-		      [reverse([Key|Mode]),LF]),
-	    diff(ER,EF,Lang,LF,Mode)
+	    diff(ER,Lang,LF,Lev,[{Key,Info}|Miss0])
     end;
-diff([],_,Keys,LF,Mode) ->
+diff([],Keys,LF,Lev,Miss) ->
     Info = fun({Key,_}) -> 
-		   io:format("Not used ~p in ~p~n", 
-			     [reverse([Key|Mode]),LF])
+		   io:format("%% Not used ~p in ~p~n",[Lev++[Key],LF])
 	   end,
-    lists:foreach(Info, Keys).
+    lists:foreach(Info, Keys),
+    Miss;
+diff([Char|_], _Lang, _LF, _Level, Miss) when is_integer(Char) ->
+    Miss.
 
 get_key(Key, List) ->
     get_key(List,Key,[]).
-get_key([{Key,Found}|Rest],Key,Acc) -> {Found,lists:reverse(Acc,Rest)};
+get_key([{Key,Found}|Rest],Key,Acc) -> 
+    case get_key(Rest, Key, Acc) of
+	{Found2, Rest2} ->
+	    {Found2++Found,lists:reverse(Acc,Rest2)};
+	_ ->
+	    {Found,lists:reverse(Acc,Rest)}
+    end;
 get_key([Miss|Rest],Key,Acc) -> get_key(Rest,Key,[Miss|Acc]);
 get_key([],_,Acc) -> lists:reverse(Acc).
 
