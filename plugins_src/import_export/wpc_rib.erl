@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.6 2002/04/28 07:50:52 bjorng Exp $
+%%     $Id: wpc_rib.erl,v 1.7 2002/05/05 13:14:50 bjorng Exp $
 
 -module(wpc_rib).
 -include_lib("e3d.hrl").
@@ -431,14 +431,18 @@ write_shader(F, Name, [_|T], Base, Attr) ->
     write_shader(F, Name, T, Base, Attr).
 
 export_material(F, Name, Mat, Base, Attr) ->
-    [{_,{Ar,Ag,Ab}},{_,{Dr,Dg,Db}},{_,{Sr,Sg,Sb}},
-     {_,Shine},{_,Opacity}|_]=Mat,
+    OpenGL = property_lists:get_value(opengl, Mat),
+    Maps = property_lists:get_value(maps, Mat),
+    {Dr,Dg,Db,Opacity} = property_lists:get_value(diffuse, OpenGL),
     io:format(F, "Color ~p ~p ~p\n", [Dr,Dg,Db]),
     io:format(F, "Opacity ~p ~p ~p\n", [Opacity,Opacity,Opacity]),
+    {Ar,Ag,Ab,_} = property_lists:get_value(ambient, OpenGL),
+    {Sr,Sg,Sb,_} = property_lists:get_value(specular, OpenGL),
+    Shine = property_lists:get_value(shininess, OpenGL),
     Ka = (Ar+Ag+Ab)/3,
     Kd = (Dr+Dg+Db)/3,
     Ks = (Sr+Sg+Sb)/3,
-    case property_lists:get_value(diffuse_map, Mat, none) of
+    case property_lists:get_value(diffuse, Maps, none) of
 	none ->
 	    io:format(F, "Surface \"plastic\"\n"
 		      " \"float Ka\" [~p]\n"
