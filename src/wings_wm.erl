@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.98 2003/04/27 07:48:36 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.99 2003/04/27 08:38:10 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -880,7 +880,7 @@ drag_event(redraw, #drag{redraw=Redraw}) ->
     wings_io:ortho_setup(),
     Redraw(),
     keep;
-drag_event(#mousemotion{x=X0,y=Y0}, #drag{over=Over0}=Drag) ->
+drag_event(#mousemotion{x=X0,y=Y0}, #drag{over=Over0}=Drag0) ->
     {W,H} = wings_wm:win_size(),
     offset(dragger, X0 - W div 2, Y0 - H div 2),
     {X,Y} = local2global(X0, Y0),
@@ -890,7 +890,9 @@ drag_event(#mousemotion{x=X0,y=Y0}, #drag{over=Over0}=Drag) ->
     case Over of
 	Over0 -> keep;
 	_ ->
-	    get_drag_event(Drag#drag{over=Over})
+	    Drag = Drag0#drag{over=Over},
+	    drag_filter(Drag),
+	    get_drag_event(Drag)
     end;
 drag_event(#mousebutton{button=B,state=?SDL_RELEASED},
 	   #drag{bstate=State,data=DropData}) ->
@@ -904,6 +906,20 @@ drag_event(#mousebutton{button=B,state=?SDL_RELEASED},
 	true -> keep
     end;
 drag_event(_, _) -> keep.
+
+drag_filter(#drag{over=none}) ->
+    message("");
+drag_filter(#drag{over=Win,data=DropData}) ->
+    case lookup_prop(Win, drag_filter) of
+	{value,Fun} when is_function(Fun) ->
+	    case Fun(DropData) of
+		{ok,Message} ->
+		    message(Message),
+		    put(wm_cursor, arrow);
+		no -> ok
+	    end;
+	none -> ok
+    end.
 
 %%%
 %%% Utility functions.

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.111 2003/04/23 11:33:06 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.112 2003/04/27 08:38:06 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -163,6 +163,7 @@ do_edit(MatName0, Faces, We, St) ->
     Op = {seq,push,get_event(Uvs)},
     wings_wm:toplevel(autouv, "AutoUV", {X,Y,highest}, {W,H}, [resizable], Op),
     wings_wm:callback(fun() -> wings_util:menu_restriction(autouv, []) end),
+    wings_wm:set_prop(autouv, drag_filter, fun drag_filter/1),
     keep.
 
 %%%%%%
@@ -190,6 +191,7 @@ init_show_maps(Map0, OrigWe, St0) ->
     Op = {seq,push,get_event(Uvs)},
     wings_wm:toplevel(autouv, "AutoUV", {X,Y,highest}, {W,H}, [resizable], Op),
     wings_wm:callback(fun() -> wings_util:menu_restriction(autouv, []) end),
+    wings_wm:set_prop(autouv, drag_filter, fun drag_filter/1),
     keep.
    
 insert_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
@@ -933,6 +935,10 @@ remap({Id, Chart0 = #ch{fs=Fs,we=We0,vmap=Vmap,size={W,H}}}, Type, #we{vp=Vs3d0}
 	    end,
     We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
     {Id, Chart0#ch{we=We, size={Dx*Scale, Dy*Scale}, scale=Scale}}.
+
+drag_filter({image,_,_}) ->
+    {ok,"Drop: Change the texture image"};
+drag_filter(_) -> no.
 
 handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #uvstate{option=Opt0}=Uvs) ->
     case W =:= H andalso is_power_of_two(W) of
