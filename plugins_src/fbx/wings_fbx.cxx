@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_fbx.cxx,v 1.3 2005/03/13 11:29:42 bjorng Exp $
+ *     $Id: wings_fbx.cxx,v 1.4 2005/03/13 13:17:02 bjorng Exp $
  */
 
 
@@ -45,7 +45,8 @@ static void send_float(char** res, double f);
 static void send_integer(char** res, int integer, int resp=RespInteger);
 static void send_string(char** res, char* s);
 static void send_color(char** res, KFbxColor& color);
-static void send_mapping_type(char** res, kInt mapping_type);
+static void send_mapping_mode(char** res, kInt mapping_mode);
+static void send_reference_mode(char** res, kInt ref_mode);
 static void send_bool(char** res, int b);
 
 // Global variables.
@@ -503,6 +504,7 @@ fbx_control(unsigned int command,
     break;
   case ImpMesh:
     Mesh = (KFbxMesh*) Node->GetNodeAttribute();
+    Layer = Mesh->GetLayer(0);
     break;
   case ImpConvertToMesh:
     {
@@ -605,7 +607,7 @@ fbx_control(unsigned int command,
     break;
   case ImpMaterialMappingType:
 #if 0
-    send_mapping_type(res, Mesh->GetMaterialMappingType());
+    send_mapping_mode(res, Mesh->GetMaterialMappingType());
 #endif
     break;
   case ImpMaterialIndices:
@@ -670,12 +672,12 @@ fbx_control(unsigned int command,
     break;
   case ImpTextureMappingType:
 #if 0
-    send_mapping_type(res, Mesh->GetTextureMappingType());
+    send_mapping_mode(res, Mesh->GetTextureMappingType());
 #endif
     break;
   case ImpTextureUVMappingType:
 #if 0
-    send_mapping_type(res, Mesh->GetTextureUVMappingType());
+    send_mapping_mode(res, Mesh->GetTextureUVMappingType());
 #endif
     break;
   case ImpTexture:
@@ -749,6 +751,29 @@ fbx_control(unsigned int command,
   case ImpConeAngle:
     send_float(res, Light->GetDefaultConeAngle());
     break;
+
+    // Vertex colors.
+
+  case ImpInitVertexColors:
+    {
+      unsigned b = 0;
+
+      if (Layer) {
+	colorLayer = Layer->GetVertexColors();
+	b = (colorLayer != NULL);
+      }
+      send_bool(res, b);
+    }
+    break;
+
+  case ImpVertexColorMappingMode:
+    send_mapping_mode(res, colorLayer->GetMappingMode());
+    break;
+
+  case ImpVertexColorReferenceMode:
+    send_reference_mode(res, colorLayer->GetReferenceMode());
+    break;
+
   default:
     return -1;
   }
@@ -855,11 +880,11 @@ send_string(char** res, char* s)
 }
 
 static void
-send_mapping_type(char** res, kInt mapping_type)
+send_mapping_mode(char** res, kInt mapping_mode)
 {
   int type = MappingByControlPoint;
 
-  switch (mapping_type) {
+  switch (mapping_mode) {
   case KFbxLayerElement::eBY_CONTROL_POINT:
     type = MappingByControlPoint;
     break;
@@ -873,7 +898,26 @@ send_mapping_type(char** res, kInt mapping_type)
     type = MappingAllSame;
     break;
   }
-  send_integer(res, type, RespMappingType);
+  send_integer(res, type, RespMappingMode);
+}
+
+static void
+send_reference_mode(char** res, kInt ref_mode)
+{
+  int type = RefModeDirect;
+
+  switch (ref_mode) {
+  case KFbxLayerElement::eDIRECT:
+    type = RefModeDirect;
+    break;
+  case KFbxLayerElement::eINDEX:
+    type = RefModeIndex;
+    break;
+  case KFbxLayerElement::eINDEX_TO_DIRECT:
+    type = RefIndexToDirect;
+    break;
+  }
+  send_integer(res, type, RespReferenceMode);
 }
 
 static void

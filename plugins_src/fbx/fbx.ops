@@ -9,7 +9,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: fbx.ops,v 1.3 2005/03/13 11:29:42 bjorng Exp $
+#     $Id: fbx.ops,v 1.4 2005/03/13 13:17:02 bjorng Exp $
 #
 
 #
@@ -20,7 +20,8 @@ RespBoolean
 RespFloat
 RespInteger
 RespString
-RespMappingType
+RespMappingMode
+RespReferenceMode
 RespPasswordProtected
 
 #
@@ -41,12 +42,19 @@ LightDirectional
 LightSpot
 
 #
-# Material mapping types.
+# Material mapping modes.
 #
 MappingByControlPoint
 MappingByPolygonVertex
 MappingByPolygon
 MappingAllSame
+
+#
+# Reference modes.
+#
+RefModeDirect
+RefModeIndex
+RefIndexToDirect
 
 #
 # General.
@@ -171,6 +179,11 @@ ImpLight
 ImpLightType
 ImpLightColor
 ImpConeAngle
+
+# Vertex colors.
+ImpInitVertexColors
+ImpVertexColorMappingMode
+ImpVertexColorReferenceMode
 
 #
 # Node attribute types.

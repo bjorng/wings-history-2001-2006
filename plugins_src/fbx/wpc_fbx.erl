@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_fbx.erl,v 1.3 2005/03/13 11:29:42 bjorng Exp $
+%%     $Id: wpc_fbx.erl,v 1.4 2005/03/13 13:17:03 bjorng Exp $
 %%
 
 -module(wpc_fbx).
@@ -201,7 +201,7 @@ export_face([V|Vs], [T|Ts]) ->
     export_face(Vs, Ts);
 export_face([], []) -> ok.
 
-export_vc(Fs, []) -> ok;
+export_vc(_Fs, []) -> ok;
 export_vc(Fs, Vc) ->
     cast(?ExpInitVertexColorTable),
     export_color_table(Vc),
@@ -558,9 +558,10 @@ import_mesh(mesh, GlobalTransform, Acc) ->
     Mat0 = import_materials(),
     Mesh2 = import_mat_mapping(Mesh1, Mat0),
     Mesh3 = import_tx(Mesh2),
-    Mesh4 = e3d_mesh:transform(Mesh3, GlobalTransform),
-    Mesh5 = e3d_mesh:merge_vertices(Mesh4),
-    {Mesh,Mat} = mesh_combine_mat_tx(Mesh5, Mat0),
+    Mesh4 = import_vc(Mesh3),
+    Mesh5 = e3d_mesh:transform(Mesh4, GlobalTransform),
+    Mesh6 = e3d_mesh:merge_vertices(Mesh5),
+    {Mesh,Mat} = mesh_combine_mat_tx(Mesh6, Mat0),
     Attr = [{visible,call(?ImpIsVisible)}],
     [#e3d_object{name=Name,obj=Mesh,mat=Mat,attr=Attr}|Acc];
 import_mesh(_, _, Acc) -> Acc.
@@ -648,7 +649,7 @@ import_materials_1(I, N, Acc) ->
     Ps = [{opengl,OpenGL}],
     import_materials_1(I+1, N, [{Name,Ps}|Acc]).
 
-import_mat_mapping(Mesh, Mat) ->
+import_mat_mapping(Mesh, _Mat) ->
     Mesh.
 %%     MatNames = list_to_tuple([Name || {Name,_} <- Mat]),
 %%     case call(?ImpMaterialMappingType) of
@@ -825,7 +826,23 @@ local_transformation() ->
     Matrix0 = e3d_mat:translate(T),
     Matrix = e3d_mat:mul(Matrix0, RotMat),
     e3d_mat:mul(Matrix, e3d_mat:scale(S)).
-    
+
+%% Import vertex colors.
+import_vc(Mesh) ->
+    case call(?ImpInitVertexColors) of
+	false -> Mesh;
+	true ->
+	    MM = call(?ImpVertexColorMappingMode),
+	    RM = call(?ImpVertexColorReferenceMode),
+	    import_vc_1(Mesh, MM, RM)
+    end.
+
+import_vc_1(Mesh, MM, RM) ->
+    io:format("NYI: vertex color import:\n  "
+	      "mapping mode = ~p, ref mode = ~p\n",
+	      [MM,RM]),
+    Mesh.
+
 %%%
 %%% Import utilities.
 %%%
@@ -928,14 +945,19 @@ call(Cmd, Data) ->
         <<?RespFloat:8,T/binary>> -> get_float(T);
         <<?RespInteger:8,T/binary>> -> get_integer(T);
         <<?RespString:8,T/binary>> -> binary_to_list(T);
-        <<?RespMappingType:8,M:32/native>> -> get_mapping_type(M);
+        <<?RespMappingMode:8,M:32/native>> -> get_mapping_mode(M);
+        <<?RespReferenceMode:8,M:32/native>> -> get_reference_mode(M);
         <<?RespPasswordProtected:8>> -> password_protected
     end.
 
-get_mapping_type(?MappingByControlPoint) -> by_control_point;
-get_mapping_type(?MappingByPolygonVertex) -> by_polygon_vertex;
-get_mapping_type(?MappingByPolygon) -> by_polygon;
-get_mapping_type(?MappingAllSame) -> all_same.
+get_mapping_mode(?MappingByControlPoint) -> by_control_point;
+get_mapping_mode(?MappingByPolygonVertex) -> by_polygon_vertex;
+get_mapping_mode(?MappingByPolygon) -> by_polygon;
+get_mapping_mode(?MappingAllSame) -> all_same.
+
+get_reference_mode(?RefModeDirect) -> direct;
+get_reference_mode(?RefModeIndex) -> index;
+get_reference_mode(?RefIndexToDirect) -> index_to_direct.
 
 get_float(<<F:64/native-float>>) -> F;
 get_float(<<F:64/native-float,T/binary>>) ->
