@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.13 2005/01/25 14:29:44 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.14 2005/01/25 15:28:49 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -197,7 +197,12 @@ handle_connect_event1({action,Action}, #cs{st=St0}=C) ->
 	{edit,redo} ->
 	    St = wings_undo:redo(St0),
 	    undo_refresh(St,C);
-	_Ignore -> keep
+	Tweak = {tools, tweak} ->
+	    wings_wm:later({action,Tweak}),
+	    exit_connect(C);
+	_Ignore -> 
+	    io:format("Action: ~p~n",[_Ignore]),
+	    keep
     end;
 handle_connect_event1(Ev, #cs{st=St}) ->
     case wings_hotkey:event(Ev, St) of
@@ -425,7 +430,8 @@ calc_edgepos(X,Y0,Edge,MM,#we{id=Id,es=Es,vp=Vs},VL) ->
 	    [#vi{pos=Start0}|_] ->
 		Start = setelement(3, obj_to_screen(Matrices, Start0), 0.0),
 		{IX,IY} = 
-		    case line_intersect2d(Start, {float(X),float(Y),0.0}, V1Sp,V2Sp) of
+		    case line_intersect2d(Start,{float(X),float(Y),0.0},V1Sp,V2Sp) of
+			{false,paralell} -> exit(paralell);
 			{_, IPoint} -> IPoint 
 %%%			{{point,_},IPoint} -> IPoint
 		    end,
@@ -578,5 +584,7 @@ slide_make_tvs(V,Curr,Start,End,Id,C) ->
 
 sliding([Dx|_],Acc,V,Start,Dir,C= #cs{v=[Vi|Vr]}) ->
     Pos = e3d_vec:add_prod(Start, Dir, Dx),
-    update_hook(C#cs{v=[Vi#vi{pos=Pos}|Vr]}),
+    if Vr == [] -> ignore; %% No line when sliding single vertex
+       true -> update_hook(C#cs{v=[Vi#vi{pos=Pos}|Vr]})
+    end,
     [{V,Pos}|Acc].
