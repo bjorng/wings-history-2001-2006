@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.146 2003/06/29 06:39:17 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.147 2003/06/29 09:48:36 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -241,6 +241,10 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 %%%
 
 do_drag(Drag, none) ->
+    case wings_pref:get_value(hide_sel_while_dragging) of
+	true -> clear_sel_dlists();
+	false -> ok
+    end,
     {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0},
     {GX,GY} = wings_wm:local2global(X, Y),
@@ -306,12 +310,12 @@ handle_drag_event(#keyboard{sym=9}, Drag) ->
 handle_drag_event(#mousebutton{button=2,state=?SDL_RELEASED},
 		  #drag{mmb_count=C}=Drag) when C > 2 ->
     get_drag_event_1(Drag#drag{mmb_count=0});
-handle_drag_event(#mousebutton{button=3,state=?SDL_RELEASED}=Ev,
+handle_drag_event(#mousebutton{button=3,state=?SDL_RELEASED,mod=Mod}=Ev,
 		  #drag{mmb_count=C}=Drag) when C > 2 ->
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?CTRL_BITS =/= 0 ->
-           get_drag_event_1(Drag#drag{mmb_count=0});
-	_ ->
+    if
+	Mod band ?CTRL_BITS =/= 0 ->
+	    get_drag_event_1(Drag#drag{mmb_count=0});
+	true ->
 	    handle_drag_event_0(Ev, Drag)
     end;
 handle_drag_event(Event, Drag) ->
