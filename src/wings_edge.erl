@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.99 2004/04/26 14:42:39 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.100 2004/04/26 19:34:10 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -421,21 +421,22 @@ slide(St) ->
     Mode = wings_pref:get_value(slide_mode, relative),
     Stop = wings_pref:get_value(slide_stop, false),
     State = {Mode,none,Stop},
-    SUp = SDown = SN = {0.0,0.0,0.0},
-    {Tvs,_,_,_} = 
+    SUp = SDown = SN = SBi = {0.0,0.0,0.0},
+    {Tvs,_,_,_,_,MinUp,MinDw} = 
 	wings_sel:fold(
-	  fun(EsSet, #we{id=Id} = We, {Acc,Up0,Dw0,N0}) ->
+	  fun(EsSet, #we{id=Id} = We, {Acc,Up0,Dw0,N0,Bi0,MinUp,MinDw}) ->
 		  LofEs0 = wings_edge_loop:partition_edges(EsSet, We),
 		  LofEs = reverse(sort([{length(Es),Es} || Es <- LofEs0])),
-		  {Slides,Up,Dw,N} = slide_setup_edges(LofEs,Up0,Dw0,N0,We,
-						       {gb_trees:empty(), unknown, unknown}),
-		  {[{Id, make_slide_tv(Slides, State)}| Acc], Up,Dw,N}
-	  end, {[], SUp, SDown, SN}, St),
-    Units = slide_units(State),
-    Flags = [{mode,{slide_mode(),State}},{initial,[0]}],
+		  {{Slides,MUp,MDw},Up,Dw,N,Bi} = 
+		      slide_setup_edges(LofEs,Up0,Dw0,N0,Bi0,We,
+					{gb_trees:empty(),MinUp,MinDw}),
+		  {[{Id,make_slide_tv(Slides, State)}|Acc],Up,Dw,N,Bi,MUp,MDw}
+	  end, {[], SUp, SDown, SN, SBi, unknown,unknown}, St),
+    Units = slide_units(State,MinUp,MinDw),
+    Flags = [{mode,{slide_mode(MinUp,MinDw),State}},{initial,[0]}],
     wings_drag:setup(Tvs, Units, Flags, St).
 
-slide_mode() ->
+slide_mode(MinUp,MinDw) ->
     fun(help, State)              ->    slide_help(State);
        ({key,$1}, {relative,F,S}) ->    {absolute,F,S};
        ({key,$1}, {absolute,F,S}) ->    {relative,F,S};
@@ -453,7 +454,7 @@ slide_mode() ->
        ({key,$3}, {Mode,F,true})  ->    {Mode,F,false};
 
        (units, NewState) ->
-	    slide_units(NewState);
+	    slide_units(NewState,MinUp,MinDw);
        
        (done, {NewMode,_,NewStop})->
 	    wings_pref:set_value(slide_mode, NewMode),
@@ -463,13 +464,11 @@ slide_mode() ->
        (_, _) -> none
     end.
 
-slide_units({absolute,_,false}) -> [distance];
-slide_units({absolute,_Freeze,true}) ->
-    %% I leave as an exercise to Dan to calculate the proper
-    %% limits in absolute mode.
-    [distance];
-slide_units({relative,_,false}) -> [percent];
-slide_units({relative,_,true}) -> [{percent,{-1.0,1.0}}].
+slide_units({absolute,_,false},_,_) -> [distance];
+slide_units({absolute,_Freeze,true},MinUp,MinDw) ->
+    [{distance, {-MinUp, MinDw}}];
+slide_units({relative,_,false},_,_) -> [percent];
+slide_units({relative,_,true},_,_) -> [{percent,{-1.0,1.0}}].
 
 slide_help({Mode,Freeze,Stop}) ->
     ["[1] ",slide_help_mode(Mode),
@@ -484,17 +483,17 @@ slide_help_stop(false)    -> "Stop at other edges";
 slide_help_stop(true)     -> "Continue past other edges".
 
 make_slide_tv(Slides, State) ->
-    Vs = gb_trees:keys(element(1,Slides)),
+    Vs = gb_trees:keys(Slides),
     {Vs,make_slide_fun(Vs, Slides, State)}.
 
 %% The calculating fun
-slide_fun(Dx0,{Mode,Freeze,Stop}, {Slides,MinDw,MinUp}) ->
-    {Dx,I,Min} = 
+slide_fun(Dx0,{Mode,Freeze,_Stop}, Slides) ->
+    {Dx,I} = 
 	case Freeze of   %% 3 = UP, 2 = Down
-	    none when Dx0 >= 0 -> {Dx0, 3, MinUp};
-	    none ->               {-Dx0,2, MinDw};
-	    positive -> 	  {Dx0, 3, MinUp};
-	    negative ->           {-Dx0,2, MinDw}
+	    none when Dx0 >= 0 -> {Dx0, 3};
+	    none ->               {-Dx0,2};
+	    positive -> 	  {Dx0, 3};
+	    negative ->           {-Dx0,2}
 	end,
     case Mode of 
 	relative ->
@@ -502,13 +501,6 @@ slide_fun(Dx0,{Mode,Freeze,Stop}, {Slides,MinDw,MinUp}) ->
 		    Slide = gb_trees:get(V, Slides),
 		    {Dir, Len, Count} = element(I, Slide),
 		    ScaleDir = e3d_vec:mul(e3d_vec:norm(Dir), Dx*(Len/Count)),
-		    [{V,e3d_vec:add(element(1,Slide), ScaleDir)}|A]
-	    end;
-	absolute when Stop == true, abs(Dx) > Min ->
-	    fun(V,A) ->
-		    Slide = gb_trees:get(V, Slides),
-		    {Dir, _Len, _C} = element(I, Slide),
-		    ScaleDir = e3d_vec:mul(e3d_vec:norm(Dir), Min),
 		    [{V,e3d_vec:add(element(1,Slide), ScaleDir)}|A]
 	    end;
 	absolute ->
@@ -531,46 +523,61 @@ make_slide_fun(Vs, Slides, State) ->
 	    make_slide_fun(Vs,Slides,State)
     end.
 
-slide_setup_edges([{_Sz,Es0}|LofEs],GUp0,GDw0,GN0,We,Acc0) ->
+slide_setup_edges([{_Sz,Es0}|LofEs],GUp0,GDw0,GN0,GBi0,We,Acc0) ->
     Parts = slide_part_loop(Es0,We),
-    {GUp,GDw,GN,Acc} = slide_add_edges(Parts,GUp0,GDw0,GN0,Acc0),
-    slide_setup_edges(LofEs,GUp,GDw,GN,We,Acc);
-slide_setup_edges([], Up,Dw,N,_,Slides) ->
-    {Slides,Up,Dw,N}.
+    {GUp,GDw,GN,GBi,Acc} = slide_add_edges(Parts,GUp0,GDw0,GN0,GBi0,Acc0),
+    slide_setup_edges(LofEs,GUp,GDw,GN,GBi,We,Acc);
+slide_setup_edges([], Up,Dw,N,Bi,_,Slides) ->
+    {Slides,Up,Dw,N,Bi}.
 
-slide_add_edges([{LUp,LDw,LN,Es}|Parts],GUp0,GDw0,GN0,Acc0) ->
+slide_add_edges([{LUp,LDw,LN,Es}|Parts],GUp,GDw,GN,GBi,Acc0) ->
     %%    io:format("UDN ~p ~p ~p ~p~n", [len(LUp), len(LDw), len(LN), length(Es)]),
-    case (len(LUp) >= 1) or (len(LDw) >= 1)
-	or (len(LN) =< 1) or (length(Es) < 4) of
-	true -> %% Make sure up is up..
-	    Vec1   = norm(LUp),
-	    Vec2   = norm(LDw),
-	    DotUp1 = dot(Vec1,norm(GUp0)), 
-	    %%DotDw1 = dot(Vec1,norm(GDw0)),
-	    %%DotUp2 = dot(Vec2,norm(GUp0)), 
-	    DotDw2 = dot(Vec2,norm(GDw0)),
-						%     io:format(" ~p ~p~n", [DotUp1,DotDw2]),
-	    if (DotUp1 >= 0) and (DotDw2 >= 0) ->
-		    Acc  = slide_dirs(Es,1.0,Acc0),
-		    slide_add_edges(Parts,add(Vec1, GUp0),add(Vec2,GDw0),GN0,Acc);
-	       (DotUp1 =< 0) and (DotDw2 =< 0) ->
-		    Acc  = slide_dirs(Es,-1.0,Acc0),
-		    slide_add_edges(Parts,add(neg(Vec1),GUp0),
-				    add(neg(Vec2),GDw0),GN0,Acc);
-	       true ->
-		    Acc  = slide_dirs(Es,-1.0,Acc0),
-		    slide_add_edges(Parts,add(Vec2,GUp0),
-				    add(Vec1,GDw0),GN0,Acc)
-	    end;
-	false -> %% Probably a loop, make sure it goes in/out and not out/in.
-	    Norm0 = norm(LN),
-	    Dot = dot(Norm0,norm(GUp0)),
-	    Norm = if Dot < 0.0 -> neg(Norm0); true -> Norm0 end,
-	    Acc = slide_dirs(Es,Dot,Acc0),
-	    slide_add_edges(Parts,GUp0,add(Norm, GDw0),GN0,Acc)
+    Count  = length(Es)/2,    
+    Vec1   = norm(LUp), LenUp = len(LUp),
+    Vec2   = norm(LDw), LenDw = len(LDw),
+    Vec3   = norm(LN),  LenN  = len(LN),
+    Bi     = norm(cross(Vec1,Vec3)),
+    Rotation = dot(Bi, norm(GBi)),
+%    io:format("BIs ~p ~p ~p ~p ~n", [Bi, norm(GBi), Rotation, Count]),
+    case (LenUp/Count > 0.707) and (LenN/Count > 0.707) and
+	(abs(Rotation) > 0.707) of
+	true ->  %% Edge rings
+	    Acc  = slide_dirs(Es,Rotation,Acc0),
+	    slide_add_edges(Parts,GUp,GDw,GN,GBi,Acc);
+	false ->
+	    case (LenUp >= 1) or (LenDw >= 1)
+		or (LenN =< 1) or (Count < 4) of
+		true -> %% Make sure up is up..
+		    DotUp1 = dot(Vec1,norm(GUp)), 
+		    %%DotDw1 = dot(Vec1,norm(GDw)),
+		    %%DotUp2 = dot(Vec2,norm(GUp)), 
+		    DotDw2 = dot(Vec2,norm(GDw)),
+		    if (DotUp1 >= 0) and (DotDw2 >= 0) ->
+			    Acc  = slide_dirs(Es,1.0,Acc0),
+			    slide_add_edges(Parts,add(Vec1, GUp),add(Vec2,GDw),
+					    GN,add(GBi,Bi), Acc);
+		       (DotUp1 =< 0) and (DotDw2 =< 0) ->
+			    Acc  = slide_dirs(Es,-1.0,Acc0),
+			    slide_add_edges(Parts,add(neg(Vec1),GUp),
+					    add(neg(Vec2),GDw),
+					    GN,add(GBi,neg(Bi)),Acc);
+		       true ->
+			    Acc  = slide_dirs(Es,-1.0,Acc0),
+			    slide_add_edges(Parts,add(Vec2,GUp),
+					    add(Vec1,GDw),GN,add(GBi,Bi),Acc)
+		    end;
+		false -> 
+		    %% Probably a loop, make sure it goes in/out and not out/in.
+		    %% BUGBUG this isn't good enough..
+		    Norm0 = Vec3,
+		    Dot = dot(Norm0,norm(GUp)),
+		    Norm = if Dot < 0.0 -> neg(Norm0); true -> Norm0 end,
+		    Acc = slide_dirs(Es,Dot,Acc0),
+		    slide_add_edges(Parts,GUp,add(Norm, GDw),GN,GBi,Acc)
+	    end
     end;
-slide_add_edges([],GUp,GDw,GN,Acc) ->
-    {GUp,GDw,GN,Acc}.
+slide_add_edges([],GUp,GDw,GN,GBi,Acc) ->
+    {GUp,GDw,GN,GBi,Acc}.
 
 slide_dirs([{V1,V1dir},{V2,V2dir}|Es],Up,{Acc0,MinU0,MinD0}) ->
     {_,{_,V1M1},{_,V1M2}} = V1dir,
