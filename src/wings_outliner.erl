@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.20 2003/02/01 09:12:54 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.21 2003/02/01 17:09:52 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -317,12 +317,20 @@ clamp(F, #ost{n=N}=Ost) ->
 	true -> F
     end.
     
-active_object(Y0, #ost{lh=Lh,first=First,n=N}) ->
+active_object(Y0, #ost{lh=Lh,first=First,n=N,os=Os}) ->
     case Y0 - top_of_first_object() of
 	Y when Y < 0 -> -1;
 	Y1 ->
 	    case Y1 div Lh of
-		Y when First+Y < N -> First+Y;
+		Y when First+Y < N ->
+		    Act = First+Y,
+		    %% Ugly hack until we rewrite different element
+		    %% type to have different height.
+		    case lists:nth(Act+1, Os) of
+			{image_preview,_} -> Act-1;
+			ignore -> Act-2;
+			_ -> Act
+		    end;
 		_ -> -1
 	    end
     end.
