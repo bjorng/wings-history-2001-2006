@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.106 2003/06/14 15:57:47 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.107 2003/07/02 16:39:57 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -18,7 +18,7 @@
 	 blend/2,
 	 border/5,border/6,sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,text/1,menu_text/3,space_at/2,
-	 draw_icon/3,draw_icon/5,draw_icon/7,draw_char/1,
+	 draw_icon/3,draw_char/1,
 	 set_color/1]).
 -export([putback_event/1,putback_event_once/1,get_event/0,get_matching_events/1,
 	 poll_event/0,set_timer/2,cancel_timer/1]).
@@ -291,25 +291,17 @@ put_state(Io) ->
     put(wings_io, Io).
 
 draw_icon(X, Y, Icon) ->
-    draw_icon(X, Y, ?ICON_WIDTH, ?ICON_HEIGHT, 32, 32, Icon).
-
-draw_icon(X, Y, W, H, Icon) ->
-    draw_icon(X, Y, W, H, W, H, Icon).
-
-draw_icon(X, Y, W, H, Wtot, Htot, Icon) ->
     #io{tex=Tex} = get_state(),
     case keysearch(Icon, 1, Tex) of
 	false -> ok;
-	{value,{Icon,Id}} ->
+	{value,{Icon,{Id,W,H,MinU,MinV,MaxU,MaxV}}} ->
 	    gl:bindTexture(?GL_TEXTURE_2D, Id),
-	    MaxU = W/Wtot,
-	    MaxV = H/Htot,
 	    gl:'begin'(?GL_QUADS),
-	    gl:texCoord2f(0, MaxV),
+	    gl:texCoord2f(MinU, MaxV),
 	    gl:vertex2i(X, Y),
-	    gl:texCoord2f(0, 0),
+	    gl:texCoord2f(MinU, MinV),
 	    gl:vertex2i(X, Y+H),
-	    gl:texCoord2f(MaxU, 0),
+	    gl:texCoord2f(MaxU, MinV),
 	    gl:vertex2i(X+W, Y+H),
 	    gl:texCoord2f(MaxU, MaxV),
 	    gl:vertex2i(X+W, Y),
@@ -321,7 +313,8 @@ load_textures(Bin) ->
 	{'EXIT',_} -> [];
 	Icons0 ->
 	    gl:pushAttrib(?GL_TEXTURE_BIT),
-	    Icons = create_buttons(Icons0),
+	    Icons1 = create_buttons(Icons0),
+	    Icons = lists:keysort(2, Icons1),
 	    TxIds = gl:genTextures(length(Icons)),
 	    Tex = create_textures(Icons, TxIds),
 	    gl:popAttrib(),
@@ -331,21 +324,32 @@ load_textures(Bin) ->
 draw_char({A,B,C,D,E,F,Bitmap}) ->
     gl:bitmap(A, B, C, D, E, F, Bitmap).
 
-create_textures([{Name,{W,H,Icon}}|T], [Id|Ids]) ->
+create_textures([{Name,{W,H,Icon}}|T], Ids) ->
+    create_textures([{Name,{W,H,W,H,Icon}}|T], Ids);
+create_textures([{Name,{W,H,Wtot,Htot,Icon}}|T], [Id|Ids]) ->
     gl:bindTexture(?GL_TEXTURE_2D, Id),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_CLAMP),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_CLAMP),
     gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
-		  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Icon),
-    [{Name,Id}|create_textures(T, Ids)];
+		  Wtot, Htot, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Icon),
+    MaxU = div_uv(W, Wtot),
+    MaxV = div_uv(H, Htot),
+    [{Name,{Id,W,H,0,0,MaxU,MaxV}}|create_textures(T, Ids)];
 create_textures([], _Id) -> [].
+
+div_uv(X, X) -> 1;
+div_uv(X, Y) -> X/Y.
 
 create_buttons(Icons0) ->
     flatmap(fun({Name,{32,32,Icon}}) ->
 		    [{{Name,down},create_button(fun active/5, Icon)},
 		     {{Name,up},create_button(fun inactive/5, Icon)}];
+	       ({resize,{16,16,Icon}}) ->
+		    [{resize,{12,12,16,16,Icon}}];
+	       ({small_close,{W,H,Icon}}) ->
+		    [{small_close,{14,13,W,H,Icon}}];
 	       ({_Name,_Icon}=T) -> [T]
 	    end, Icons0).
 
@@ -355,7 +359,7 @@ create_button(Tr, Icon) ->
 create_button(Tr, T, 32, Y, Acc) ->
     create_button(Tr, T, 0, Y+1, Acc);
 create_button(_Tr, <<>>, _X, _Y, Acc) ->
-    {32,32,list_to_binary(reverse(Acc))};
+    {?ICON_WIDTH,?ICON_HEIGHT,32,32,list_to_binary(reverse(Acc))};
 create_button(Tr, <<R:8,G:8,B:8,T/binary>>, X, Y, Acc) ->
     create_button(Tr, T, X+1, Y, [Tr(X, Y, R, G, B)|Acc]).
 

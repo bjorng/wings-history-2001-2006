@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.52 2003/06/12 06:20:38 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.53 2003/07/02 16:39:57 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -337,7 +337,7 @@ handle_splash_event(redraw) ->
     gl:color3f(1.0, 0.0, 1.0),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    wings_io:draw_icon(10, 10, 256, 128, wings),
+    wings_io:draw_icon(10, 10, wings),
     gl:disable(?GL_TEXTURE_2D),
     gl:color3f(0.0, 0.0, 0.0),
     wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION),

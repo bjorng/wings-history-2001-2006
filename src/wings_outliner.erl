@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.38 2003/04/27 18:30:41 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.39 2003/07/02 16:39:57 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -509,15 +509,15 @@ draw_icons_1(N, [O|Objs], #ost{lh=Lh}=Ost, Y) ->
     Type = element(1, O),
     case Type of
 	object ->
-	    wings_io:draw_icon(X, Y, 16, 16, small_object);
+	    wings_io:draw_icon(X, Y, small_object);
 	light ->
-	    wings_io:draw_icon(X, Y, 16, 16, small_light);
+	    wings_io:draw_icon(X, Y, small_light);
 	image ->
 	    case O of
 		{_,_,#e3d_image{filename=none}} ->
-		    wings_io:draw_icon(X, Y, 16, 16, small_image);
+		    wings_io:draw_icon(X, Y, small_image);
 		_ ->
-		    wings_io:draw_icon(X, Y, 16, 16, small_image2)
+		    wings_io:draw_icon(X, Y, small_image2)
 	    end;
 	image_preview ->
 	    W = H = 2*Lh,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.64 2003/07/02 06:30:52 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.65 2003/07/02 16:39:57 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -502,31 +502,31 @@ draw_icons_1(#dlo{src_we=#we{id=Id}},
     Wire = gb_sets:is_member(Id, Wires),
     if
 	Perm =:= 1; Perm =:= 3 ->
-	    wings_io:draw_icon(LockPos, IconY, 16, 16, small_locked);
+	    wings_io:draw_icon(LockPos, IconY, small_locked);
 	true ->
-	    wings_io:draw_icon(LockPos, IconY, 16, 16, small_unlocked)
+	    wings_io:draw_icon(LockPos, IconY, small_unlocked)
     end,
     if
 	?IS_VISIBLE(Perm) ->
-	    wings_io:draw_icon(EyePos, IconY, 16, 16, small_eye),
+	    wings_io:draw_icon(EyePos, IconY, small_eye),
 	    case Wire of
 		false ->
-		    wings_io:draw_icon(WirePos, IconY, 16, 16, small_object);
+		    wings_io:draw_icon(WirePos, IconY, small_object);
 		true ->
-		    wings_io:draw_icon(WirePos, IconY, 16, 16, small_wire)
+		    wings_io:draw_icon(WirePos, IconY, small_wire)
 	    end;
 	true ->
-	    wings_io:draw_icon(EyePos, IconY, 16, 16, small_closed_eye)
+	    wings_io:draw_icon(EyePos, IconY, small_closed_eye)
     end,
     case keymember(Id, 1, Sel) of
 	false when ?IS_LIGHT(We) ->
-	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_light);
+	    wings_io:draw_icon(SelPos, IconY, small_light);
 	false ->
-	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_object);
+	    wings_io:draw_icon(SelPos, IconY, small_object);
 	true when ?IS_LIGHT(We) ->
-	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_sel_light);
+	    wings_io:draw_icon(SelPos, IconY, small_sel_light);
 	true ->
-	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_sel)
+	    wings_io:draw_icon(SelPos, IconY, small_sel)
     end,
     {N-1,Wes,Ost,R,Active-1,Y+Lh,Wires};
 draw_icons_1(_, Acc) -> Acc.
