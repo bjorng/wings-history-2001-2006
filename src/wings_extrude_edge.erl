@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.45 2003/07/18 06:45:34 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.46 2003/07/18 07:54:29 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -28,11 +28,32 @@
 %%%
 
 bump(St0) ->
-    default_extrude_dist(
-      fun() ->
-	      {St,Tvs} = wings_sel:mapfold(fun bump/3, [], St0),
-	      wings_move:plus_minus(normal, Tvs, St)
-      end).
+    D = calc_bump_dist(St0),
+    set_extrude_dist(D,
+		     fun() ->
+			     {St,Tvs} = wings_sel:mapfold(fun bump/3, [], St0),
+			     wings_move:plus_minus(normal, Tvs, St)
+		     end).
+
+calc_bump_dist(St) ->
+    wings_sel:fold(fun(Edges, We, D) ->
+			   calc_bump_dist_1(Edges, We, D)
+		   end, infinite, St).
+
+calc_bump_dist_1(Faces, We, D) ->
+    Edges0 = gb_sets:to_list(wings_edge:from_faces(Faces, We)),
+    Vs = wings_vertex:from_edges(Edges0, We),
+    Edges1 = ordsets:from_list(wings_edge:from_vs(Vs, We)),
+    Edges = ordsets:subtract(Edges1, Edges0),
+    calc_bump_dist_2(Edges, We, D).
+
+calc_bump_dist_2([E|Es], #we{es=Etab,vp=Vtab}=We, D0) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
+    case e3d_vec:dist(gb_trees:get(Va, Vtab), gb_trees:get(Vb, Vtab)) / 2 of
+	D when D < D0 -> calc_bump_dist_2(Es, We, D);
+	_ -> calc_bump_dist_2(Es, We, D0)
+    end;
+calc_bump_dist_2([], _, D) -> D.
 
 bump(Faces, We0, Acc) ->
     Edges = gb_sets:from_list(wings_face:outer_edges(Faces, We0)),
@@ -47,8 +68,7 @@ bump(Faces, We0, Acc) ->
 bevel(St0) ->
     B = fun() ->
 		{St,{Tvs,Sel,Limit}} =
-		    wings_sel:mapfold(fun bevel_edges/3, {[],[],1.0E307}, St0),
-		%%{Tvs,Limit} = scale_tvs(Tvs0, Limit0),
+		    wings_sel:mapfold(fun bevel_edges/3, {[],[],infinite}, St0),
 		wings_drag:setup(Tvs, [{distance,{0.0,Limit}}],
 				 wings_sel:set(face, Sel, St))
 	end,
@@ -78,7 +98,7 @@ bevel_edges(Edges, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Sel0,Limit0}) ->
 bevel_faces(St0) ->
     B = fun() ->
 		{St,{Tvs,C}} = wings_sel:mapfold(fun bevel_faces/3,
-						  {[],1.0E307}, St0),
+						 {[],infinite}, St0),
 		wings_drag:setup(Tvs, [{distance,{0.0,C}}], St)
 	end,
     set_extrude_dist(?BEVEL_EXTRUDE_DIST_KLUDGE, B).
@@ -217,7 +237,7 @@ calc_extrude_dist(St) ->
 calc_extrude_dist_1(Edges0, We, D) ->
     Edges1 = gb_sets:to_list(Edges0),
     Vs = wings_vertex:from_edges(Edges1, We),
-    Edges2 = wings_edge:from_vs(Vs, We),
+    Edges2 = ordsets:from_list(wings_edge:from_vs(Vs, We)),
     Edges = ordsets:subtract(Edges2, Edges1),
     calc_extrude_dist_2(Edges, We, D).
 
@@ -314,14 +334,14 @@ extrude_edges(Edges, ForbiddenFaces, #we{next_id=Wid,es=Etab}=We0) ->
     Vs = sofs:to_external(sofs:domain(sofs:relation(Vs0))),
     {We1,Forbidden} =
 	foldl(fun(V, A) ->
-		      new_vertex(V, G, Edges, ForbiddenFaces, Wid, A)
+		      new_vertex(V, G, Edges, ForbiddenFaces, A)
 	      end, {We0,[]}, Vs),
     NewVs = wings_we:new_items(vertex, We0, We1),
     We = connect(G, Wid, We1),
     digraph:delete(G),
     {We,Vs,NewVs,gb_sets:from_list(Forbidden)}.
 
-new_vertex(V, G, Edges, ForbiddenFaces, Wid, {We0,F0}=Acc) ->
+new_vertex(V, G, Edges, ForbiddenFaces, {We0,F0}=Acc) ->
     case wings_vertex:fold(fun(E, F, R, A) -> [{E,F,R}|A] end, [], V, We0) of
 	[_,_]=Es ->
 	    case filter_edges(Es, Edges, ForbiddenFaces) of
@@ -337,11 +357,8 @@ new_vertex(V, G, Edges, ForbiddenFaces, Wid, {We0,F0}=Acc) ->
 	Es0 ->
 	    Es = filter_edges(Es0, Edges, ForbiddenFaces),
 	    Center = wings_vertex:pos(V, We0),
-	    We = foldl(fun({Edge,_,Rec}, W0) ->
-			       OtherV = wings_vertex:other(V, Rec),
-			       MeetsNew = OtherV >= Wid,
-			       do_new_vertex(V, MeetsNew, G, Edge,
-					     ForbiddenFaces, Center, W0)
+	    We = foldl(fun({Edge,_,_}, W0) ->
+			       do_new_vertex(V, G, Edge, Center, W0)
 		       end, We0, Es),
 	    {We,F0}
     end.
@@ -355,25 +372,11 @@ filter_edges(Es, EdgeSet, FaceSet) ->
 		  end
 	  end, [], Es).
 
-do_new_vertex(V, MeetsNew, G, Edge, ForbiddenFaces, Center, #we{es=Etab}=We0) ->
+do_new_vertex(V, G, Edge, Center, We0) ->
     {We,NewE=NewV} = wings_edge:cut(Edge, 2, We0),
     Rec = get_edge_rec(V, NewV, Edge, NewE, We),
     digraph_edge(G, Rec),
-    case {gb_trees:is_empty(ForbiddenFaces),MeetsNew} of
-	{true,_} ->
-	    %% Extrude-edge case.
-	    move_vertex(NewV, Center, We);
-	{false,false} ->
-	    %% Bump case.
-	    We;
-	{false,true} ->
-	    %% Bump case, meeting another new vertex.
-	    OtherV = wings_vertex:other(V, gb_trees:get(Edge, Etab)),
-	    #we{vp=Vtab0} = We,
-	    Pos = gb_trees:get(OtherV, Vtab0),
-	    Vtab = gb_trees:update(NewV, Pos, Vtab0),
-	    We#we{vp=Vtab}
-    end.
+    move_vertex(NewV, Center, We).
 
 move_vertex(V, Center, #we{vp=Vtab0}=We) ->
     Pos0 = gb_trees:get(V, Vtab0),
@@ -563,9 +566,6 @@ scale_tv_1([], _, Acc) -> Acc.
 %%%
 %%% Kludge for handling of extrude distance.
 %%%
-
-default_extrude_dist(Body) ->
-    set_extrude_dist(?DEFAULT_EXTRUDE_DIST, Body).
 
 set_extrude_dist(Dist, Body) ->
     put(wings_extrude_dist, Dist),
