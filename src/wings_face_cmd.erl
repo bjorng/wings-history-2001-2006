@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.60 2002/07/26 17:43:54 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.61 2002/08/23 07:24:08 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -843,8 +843,8 @@ lift_check_selection(#st{selmode=edge,sel=EdgeSel}, OrigSt) ->
 	       (_, _, _) -> error
 	    end, EdgeSel, OrigSt),
     case Res of
-	error -> {none,"Face and edge selections don't match."};
-	[] -> {none,""}
+	[] -> {none,""};
+	_ -> {none,"Face and edge selections don't match."}
     end;
 lift_check_selection(#st{selmode=vertex,sel=VsSel}, OrigSt) ->
     Res = wings_sel:fold(
@@ -857,8 +857,8 @@ lift_check_selection(#st{selmode=vertex,sel=VsSel}, OrigSt) ->
 	       (_, _, _) -> error
 	    end, VsSel, OrigSt),
     case Res of
-	error -> {none,"Face and vertex selections don't match."};
-	[] -> {none,""}
+	[] -> {none,""};
+	_ -> {none,"Face and vertex selections don't match."}
     end.
 
 lift({Dir,edge,EdgeSel}, St) ->
