@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.7 2002/02/25 12:38:03 dgud Exp $
+%%     $Id: e3d__tif.erl,v 1.8 2002/02/26 10:54:38 bjorng Exp $
 %%
 
 -module(e3d__tif).
@@ -355,7 +355,6 @@ decompress([CompStrip|Rest], Comp = 5, Tif, Acc) -> %% LZW-Compression
     %% Some pictures seem to fail to create correct size in rows per strip
     Size = Tif#tif.w * Tif#tif.rps * Tif#tif.bpp div 8,
     TSize = length(lists:flatten(Decomp)),
-    io:format("Size of decompressed strip ~p~n", [{Size, TSize,  Tif#tif.w, Tif#tif.rps, Tif#tif.bpp div 8}]),
 
     <<StripBin:Size/binary, _/binary>> = list_to_binary(lists:reverse(Differented)),
 
@@ -701,8 +700,3 @@ type2type(Id) ->
 	double -> 12;
 	_ -> Id
     end.
-    
-     
-
-
-
