@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.85 2003/06/03 17:29:44 bjorng Exp $
+%%     $Id: wings.hrl,v 1.86 2003/06/07 12:49:57 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -72,6 +72,7 @@
 -record(dlo,
 	{work=none,				%Workmode faces.
 	 smooth=none,				%Smooth-shaded faces.
+	 edges=none,				%Edges and wire-frame.
 	 vs=none,				%Unselected vertices.
 	 hard=none,				%Hard edges.
 	 sel=none,				%Selected items.
