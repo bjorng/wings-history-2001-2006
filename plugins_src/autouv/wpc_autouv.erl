@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.156 2003/08/27 06:47:39 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.157 2003/09/07 05:32:57 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1082,7 +1082,7 @@ restore_wings_window(Uvs) ->
 %%%
 
 update_dlists(#st{}=St) ->
-    wings_draw:invalidate_dlists(St).
+    wings_draw:invalidate_dlists(false, St).
 
 clear_selection(Uvs) -> Uvs#uvstate{sel=[]}.
 

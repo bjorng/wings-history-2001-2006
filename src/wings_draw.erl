@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.151 2003/09/02 16:50:10 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.152 2003/09/07 05:32:57 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -60,10 +60,10 @@ prepare_dlists(Update, #st{shapes=Shs}) ->
     wings_draw_util:update(fun(D, A) -> prepare_fun(D, Update, A) end,
 			   gb_trees:values(Shs)).
 
-prepare_fun(eol, _, [#we{perm=Perm}=We|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
-    {new_we(#dlo{src_we=empty_we(We)}),Wes};
-prepare_fun(eol, _, [We|Wes]) ->
-    {new_we(#dlo{src_we=We}),Wes};
+prepare_fun(eol, Update, [#we{perm=Perm}=We|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
+    {new_we(#dlo{src_we=empty_we(We)}, Update),Wes};
+prepare_fun(eol, Update, [We|Wes]) ->
+    {new_we(#dlo{src_we=We}, Update),Wes};
 prepare_fun(eol, _, []) ->
     eol;
 prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, _, [We|Wes]) ->
@@ -108,7 +108,8 @@ sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
 sel_fun(D, Sel, _) ->
     {D#dlo{sel=none,src_sel=none},Sel}.
 
-new_we(#dlo{src_we=We}=D) ->
+new_we(D, false) -> D;
+new_we(#dlo{src_we=We}=D, true) ->
     Ns = changed_we_1(none, We),
     D#dlo{ns=Ns}.
     
