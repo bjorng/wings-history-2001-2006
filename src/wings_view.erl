@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.108 2003/03/05 06:54:56 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.109 2003/03/05 18:50:39 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -466,7 +466,8 @@ smooth_event_1(quit, Sm) ->
     wings_wm:later(quit),
     smooth_exit(Sm);
 smooth_event_1(close, Sm) ->
-    wings_wm:later(close),
+    Active = wings_wm:active_window(),
+    wings_wm:send_after_redraw(Active, close),
     smooth_exit(Sm);
 smooth_event_1({current_state,#st{shapes=Shs}=St}, #sm{st=#st{shapes=Shs}}=Sm) ->
     refresh_dlist(St),
