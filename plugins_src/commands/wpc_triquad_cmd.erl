@@ -10,7 +10,7 @@
 
 -module(wpc_triquad_cmd).
 
--export([init/0,menu/2,command/2]).
+-export([init/0,menu/2,command/2,tess_faces/3]).
 
 -import(lists, [map/2,reverse/1]).
 
@@ -39,19 +39,19 @@ command({face, {tesselate,quadrangulate}}, St) ->
     St1#st{sel=reverse(Sel)};
 command(_, _) -> next.
 
-%% First arg is list of Face ids to operate on in We.
+%% First arg is set of Face ids to operate on in We.
 %% Q says whether to quadrangulate (true) or triangulate (false).
 %% Returns modifed We.
 dofaces(Faces, #we{id=Id}=We0, Q, Acc) ->
-    We = dofaces_1(gb_sets:to_list(Faces), We0, Q),
+    We = tess_faces(gb_sets:to_list(Faces), We0, Q),
     Sel = gb_sets:union(wings_we:new_items(face, We0, We), Faces),
     {We,[{Id,Sel}|Acc]}.
 
-dofaces_1([], We, Q) -> We;
-dofaces_1([F|T], We, Q) -> dofaces_1(T, doface(F, We, Q), Q).
+tess_faces([], We, _Q) -> We;
+tess_faces([F|T], We, Q) -> tess_faces(T, doface(F, We, Q), Q).
 
-doface(Face,#we{es=Etab,fs=Ftab,vs=Vtab}=We,Q) ->
-    #face{edge=Edge,mat=Mat} = gb_trees:get(Face, Ftab),
+doface(Face,#we{fs=Ftab,vs=Vtab}=We,Q) ->
+    #face{mat=Mat} = gb_trees:get(Face, Ftab),
     Vs = wpa:face_vertices(Face, We),
     Len = length(Vs),
     case (Q and (Len < 5)) or (not(Q) and (Len < 4)) of
