@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.9 2001/11/21 07:11:25 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.10 2001/12/07 19:48:30 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -35,10 +35,14 @@ init() ->
 finish() ->
     ets:delete(wings_state, neg_axes_intensity),
     PrefFile = new_pref_file(),
-    List = ets:tab2list(wings_state),
+    List0 = ets:tab2list(wings_state),
+    List = prune_defaults(List0),
     Str = [io_lib:format("~p. \n", [P]) || P <- List],
     catch file:write_file(PrefFile, Str),
     ok.
+
+prune_defaults(List) ->
+    List -- [{Key,Val} || {_,Key,Val} <- presets()].
 
 sub_menu(St) ->
     M = map(fun({Desc,Key,_}) -> {Desc,Key};
@@ -139,6 +143,7 @@ defaults() ->
 
 presets() ->
     [{"Background Color",background_color,{0.4,0.4,0.4}},
+     {"Grid Color",grid_color,{0.0,0.0,0.0}},
      {"Face Color",face_color,{0.5,0.5,0.5}},
      {"Selection Color",selected_color,{0.65,0.0,0.0}},
      {"Hard Edge Color",hard_edge_color,{0.0,0.5,0.0}},
@@ -153,5 +158,7 @@ presets() ->
      {"Vertex Size",vertex_size,4.0},
      {"Selected Vertex Size",selected_vertex_size,5.0},
      {"Edge Width",edge_width,2.0},
-     {"Selected Edge Width",selected_edge_width,2.0}
+     {"Selected Edge Width",selected_edge_width,2.0},
+     separator,
+     {"Show Memory Used",show_memory_used,false}
     ].
