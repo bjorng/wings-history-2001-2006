@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.105 2003/05/26 05:31:42 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.106 2003/05/27 17:20:30 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -23,7 +23,7 @@
 	 update_window/2,clear_background/0,
 	 callback/1,current_state/1,get_current_state/0,notify/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
-	 translation_change/0,me_modifiers/0,set_me_modifiers/1,
+	 translation_change/0,
 	 draw_message/1,draw_completions/1,draw_resizer/2]).
 
 %% Window information.
@@ -679,18 +679,19 @@ send_event(#win{name=Name,x=X,y=Y0,w=W,h=H,stk=[Se|_]=Stk0}, Ev0) ->
     Win = get_window_data(Name),
     Win#win{stk=Stk}.
 
-translate_event(#mousemotion{state=Mask0,x=X,y=Y}=M, Ox, Oy) ->
-    Mask = translate_bmask(Mask0),
-    M#mousemotion{state=Mask,x=X-Ox,y=Y-Oy};
-translate_event(#mousebutton{button=B0,x=X,y=Y,state=?SDL_PRESSED}=M, Ox, Oy) ->
-    B = translate_button(B0),
-    M#mousebutton{button=B,x=X-Ox,y=Y-Oy};
+translate_event(#mousemotion{state=Mask0,x=X,y=Y,mod=Mod0}=M, Ox, Oy) ->
+    {Mask,Mod} = translate_bmask(Mask0, Mod0),
+    M#mousemotion{state=Mask,x=X-Ox,y=Y-Oy,mod=Mod};
+translate_event(#mousebutton{button=B0,x=X,y=Y,mod=Mod0,state=?SDL_PRESSED}=M, Ox, Oy) ->
+    {B,Mod} = translate_button(B0, Mod0),
+    M#mousebutton{button=B,x=X-Ox,y=Y-Oy,mod=Mod};
 translate_event(#mousebutton{button=B0,x=X,y=Y,state=?SDL_RELEASED}=M, Ox, Oy) ->
-    B = case erase({button_up,B0}) of
-	    undefined -> B0;
-	    Other -> Other
-	end,
-    M#mousebutton{button=B,x=X-Ox,y=Y-Oy};
+    case erase({button_up,B0}) of
+	undefined ->
+	    M#mousebutton{x=X-Ox,y=Y-Oy};
+	{B,Mod} ->
+	    M#mousebutton{button=B,x=X-Ox,y=Y-Oy,mod=Mod}
+    end;
 translate_event({drop,{X,Y},DropData}, Ox, Oy) ->
     {drop,{X-Ox,Y-Oy},DropData};
 translate_event(Ev, _, _) -> Ev.
@@ -971,12 +972,6 @@ set_video_mode(W, H) ->
 %%% Button translation.
 %%%
 
-me_modifiers() ->
-    get(mouse_event_modifiers).
-
-set_me_modifiers(Mod) ->
-    put(mouse_event_modifiers, Mod).
-
 translation_change() ->
     case wings_pref:get_value(num_buttons) of
 	3 -> erase(mouse_translation);
@@ -985,34 +980,29 @@ translation_change() ->
 	    put(mouse_translation, {Mode,Buttons})
     end.
 
-translate_bmask(0) ->
-    put(mouse_event_modifiers, sdl_keyboard:getModState()),
-    0;
-translate_bmask(Mask) ->
-    translate_bmask(Mask, 2#001, 1) bor
-	translate_bmask(Mask, 2#010, 2) bor
-	translate_bmask(Mask, 2#100, 3).
+translate_bmask(0, Mod) -> {0, Mod};
+translate_bmask(Mask, Mod) -> translate_bmask_1(1, Mask, Mod, 0).
 
-translate_bmask(Mask, Bit, _) when Mask band Bit == 0 -> 0;
-translate_bmask(_Mask, Bit, B0) ->
-    case translate_button(B0) of
-	B0 -> Bit;
-	B -> (1 bsl (B-1))
+translate_bmask_1(4, _, Mod, Acc) -> {Acc,Mod};
+translate_bmask_1(B0, Mask, Mod0, Acc) ->
+    case 1 bsl (B0-1) of
+	Bit when Bit band Mask =:= 0 ->
+	    translate_bmask_1(B0+1, Mask, Mod0, Acc);
+	_ ->
+	    {B,Mod} = translate_button(B0, Mod0),
+	    translate_bmask_1(B0+1, Mask, Mod, Acc bor (1 bsl (B-1)))
     end.
     
-translate_button(B0) ->
+translate_button(B0, Mod0) ->
     Type = get(mouse_translation),
-    {B,M} = translate_button_1(B0, Type, sdl_keyboard:getModState()),
-    put(mouse_event_modifiers, M),
-    if
-	B =/= B0 -> put({button_up,B0}, B);
-	true -> ok
-    end,
-    B.
+    case translate_button_1(B0, Type, Mod0) of
+	{B0,_}=Res -> Res;
+	{_,_}=Res ->
+	    put({button_up,B0}, Res),
+	    Res
+    end.
 
-translate_button_1(1, {blender,1}, Mod) when Mod band ?CTRL_BITS =/= 0 ->
-    {3,Mod band (bnot ?CTRL_BITS)};
-translate_button_1(1, {blender,_}, Mod) when Mod band ?ALT_BITS =/= 0 ->
+translate_button_1(1, {blender,2}, Mod) when Mod band ?ALT_BITS =/= 0 ->
     {2,Mod band (bnot ?ALT_BITS)};
 translate_button_1(1, {nendo,1}, Mod) when Mod band ?CTRL_BITS =/= 0 ->
     {3,Mod band (bnot ?CTRL_BITS)};
@@ -1020,8 +1010,7 @@ translate_button_1(1, {nendo,1}, Mod) when Mod band ?ALT_BITS =/= 0 ->
     {2,Mod band (bnot ?ALT_BITS)};
 translate_button_1(3, {nendo,2}, Mod) when Mod band ?CTRL_BITS =/= 0 ->
     {2,Mod band (bnot ?CTRL_BITS)};
-translate_button_1(B, _, Mod) ->
-    {B,Mod}.
+translate_button_1(B, _, Mod) -> {B,Mod}.
 
 %%
 %% The message window.

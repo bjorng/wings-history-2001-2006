@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.137 2003/05/20 17:30:23 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.138 2003/05/27 17:20:28 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -376,8 +376,7 @@ invalidate_fun(#dlo{src_we=We}=D, _) -> D#dlo{src_we=We#we{es=none}}.
     
 numeric_input(Drag0) ->
     {_,X,Y} = wings_wm:local_mouse_state(),
-    Ev = #mousemotion{x=X,y=Y,state=0},
-    wings_wm:set_me_modifiers(0),
+    Ev = #mousemotion{x=X,y=Y,state=0,mod=0},
     {Move0,Drag} = mouse_translate(Ev, Drag0),
     wings_ask:dialog("Numeric Input", make_query(Move0, Drag),
 		     fun(Res) ->
@@ -466,7 +465,7 @@ motion(Event, Drag0) ->
 
 mouse_translate(Event0, Drag0) ->
     Mode = wings_pref:get_value(camera_mode),
-    {Event,Mod} = mouse_pre_translate(Mode, wings_wm:me_modifiers(), Event0),
+    {Event,Mod} = mouse_pre_translate(Mode, Event0),
     {Ds0,Drag} = mouse_range(Event, Drag0),
     Ds = add_offset(Ds0, Drag),
     Move = constrain(Ds, Mod, Drag),
@@ -479,15 +478,13 @@ add_offset_1([D|Ds], [O|Ofs]) ->
     [D+O|add_offset_1(Ds, Ofs)];
 add_offset_1([], _) -> [].
 
-mouse_pre_translate(_, Mod, #mousemotion{state=Mask}=Ev) ->
+mouse_pre_translate(_, #mousemotion{state=Mask,mod=Mod}=Ev) ->
     if
 	Mask band ?SDL_BUTTON_RMASK =/= 0,
 	Mod band ?CTRL_BITS =/= 0 ->
 	    {Ev#mousemotion{state=?SDL_BUTTON_MMASK},Mod band (bnot ?CTRL_BITS)};
 	true -> {Ev,Mod}
-    end;
-mouse_pre_translate(blender, Mod, Ev) -> {Ev,Mod};
-mouse_pre_translate(_, Mod, Ev) -> {Ev,Mod}.
+    end.
 
 mouse_range(#mousemotion{x=X0,y=Y0,state=Mask},
 	    #drag{x=OX,y=OY,xs=Xs0,ys=Ys0,zs=Zs0,
