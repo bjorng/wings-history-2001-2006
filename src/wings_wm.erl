@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.137 2004/03/17 05:40:22 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.138 2004/03/17 12:23:26 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -46,7 +46,8 @@
 
 %% Window property mangagement.
 -export([get_props/1,get_prop/1,get_prop/2,lookup_prop/1,lookup_prop/2,
-	 set_prop/2,set_prop/3,erase_prop/1,erase_prop/2]).
+	 set_prop/2,set_prop/3,erase_prop/1,erase_prop/2,
+	 is_prop_defined/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -490,6 +491,10 @@ erase_prop(Win, Name) ->
     #win{props=Props0} = Data = get_window_data(Win),
     Props = gb_trees:delete_any(Name, Props0),
     put_window_data(Win, Data#win{props=Props}).
+
+is_prop_defined(Win, Name) ->
+    #win{props=Props} = get_window_data(Win),
+    gb_trees:is_defined(Name, Props).
 
 enter_event_loop() ->
     init_opengl(),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.101 2004/03/09 19:40:40 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.102 2004/03/17 12:23:26 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -712,12 +712,7 @@ stop_camera(#camera{ox=Ox,oy=Oy}) ->
 	    wings_wm:release_focus(),
 	    wings_wm:dirty()
     end,
-    case wings_pref:get_value(hide_sel_in_camera_moves) of
-	false ->
-	    ok;
-	true ->
-	    wings_draw_util:map(fun show_sel_fun/2, [])
-    end,
+    update_sel(fun show_sel_fun/2),
     pop.
 
 camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
@@ -750,12 +745,7 @@ message(Message) ->
 grab() ->
     wings_io:grab(),
     wings_wm:grab_focus(),
-    case wings_pref:get_value(hide_sel_in_camera_moves) of
-	false ->
-	    ok;
-	true ->
-	    wings_draw_util:map(fun hide_sel_fun/2, [])
-    end.
+    update_sel(fun hide_sel_fun/2).
 
 hide_sel_fun(#dlo{sel=Sel}=D, _) ->
     D#dlo{sel={call,none,Sel}}.
@@ -766,3 +756,9 @@ show_sel_fun(D, _) -> D.
 
 allow_rotation() ->
     wings_wm:get_prop(allow_rotation).
+
+update_sel(Fun) ->
+    case wings_pref:get_value(hide_sel_in_camera_moves) of
+	false -> ok;
+	true -> wings_draw_util:map(Fun, [])
+    end.

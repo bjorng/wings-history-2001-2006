@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.124 2004/03/14 05:48:12 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.125 2004/03/17 12:23:26 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -96,7 +96,10 @@ begin_end(Type, Body) ->
     wings__du:begin_end(Type, Body).
 
 get_dl_data() ->
-    get(wings_wm:get_prop(display_lists)).
+    case wings_wm:lookup_prop(display_lists) of
+	none -> undefined;
+	{value,DlName} -> get(DlName)
+    end.
 
 put_dl_data(Data) ->
     put(wings_wm:get_prop(display_lists), Data).
@@ -158,8 +161,11 @@ update_1(Fun, [], Data0, Seen0, Acc) ->
 %%
 
 map(Fun, Data) ->
-    #du{dl=Dlists} = get_dl_data(),
-    map_1(Fun, Dlists, Data, [], []).
+    case get_dl_data() of
+	undefined -> ok;
+	#du{dl=Dlists} ->
+	    map_1(Fun, Dlists, Data, [], [])
+    end.
 
 map_1(Fun, [D0|Dlists], Data0, Seen0, Acc) ->
     case Fun(D0, Data0) of
