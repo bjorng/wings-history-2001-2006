@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.26 2002/11/30 08:58:17 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.27 2002/12/01 08:25:31 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -643,6 +643,7 @@ draw_completions(F) ->
 -record(but,
 	{mode,
 	 buttons,
+	 all_buttons,
 	 restr=none
 	}).
 
@@ -655,9 +656,10 @@ init_button() ->
 get_button_event(But) ->
     {replace,fun(Ev) -> button_event(Ev, But) end}.
 		     
-button_event(#resize{w=W}, But) ->
-    Buttons = buttons_place(W),
-    get_button_event(But#but{buttons=Buttons});
+button_event(#resize{w=W}, #but{restr=Restr}=But) ->
+    AllButtons = buttons_place(W),
+    Buttons = button_restrict(AllButtons, Restr),
+    get_button_event(But#but{buttons=Buttons,all_buttons=AllButtons});
 button_event(redraw, But) ->
     button_redraw(But),
     keep;
@@ -679,12 +681,13 @@ button_event({current,#st{selmode=Mode}}, But) ->
     get_button_event(But#but{mode=Mode});
 button_event({mode_restriction,Restr}, #but{restr=Restr}) ->
     keep;
-button_event({mode_restriction,Restr}, But) ->
+button_event({mode_restriction,Restr}, #but{all_buttons=AllButtons}=But) ->
+    Buttons = button_restrict(AllButtons, Restr),
     dirty(),
-    get_button_event(But#but{restr=Restr});
+    get_button_event(But#but{buttons=Buttons,restr=Restr});
 button_event(_, _) -> keep.
 
-button_redraw(#but{mode=Mode,buttons=Buttons0,restr=Restr}) ->
+button_redraw(#but{mode=Mode,buttons=Buttons}) ->
     {_,_,W,H} = viewport(),
     wings_io:ortho_setup(),
     wings_io:set_color(?PANE_COLOR),
@@ -697,11 +700,6 @@ button_redraw(#but{mode=Mode,buttons=Buttons0,restr=Restr}) ->
     gl:color3f(0, 0, 0),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    Buttons = case Restr of
-		  none -> Buttons0;
-		  _ -> [Button || {_,Name}=Button <- Buttons0,
-				  member(Name, Restr)]
-	      end,
     foreach(fun({X,Name}) ->
 		    wings_io:draw_icon(X, 3, button_value(Name, Mode))
 	    end, Buttons),
@@ -787,6 +785,12 @@ button_help_3(smooth) ->
     choose(workmode, true, "Show objects with smooth shading", "");
 button_help_3(flatshade) ->
     choose(workmode, false, "Show objects with flat shading", "").
+
+button_restrict(Buttons, none) -> Buttons;
+button_restrict(Buttons0, Restr) ->
+    Buttons1 = sofs:from_external(Buttons0, [{atom,atom}]),
+    Buttons = sofs:restriction(2, Buttons1, sofs:set(Restr)),
+    sofs:to_external(Buttons).
 
 choose(Key, Val, First, Second) ->
     case wings_pref:get_value(Key) of
