@@ -3,12 +3,12 @@
 %%
 %%     Maintains the outliner window.
 %%
-%%  Copyright (c) 2003 Bjorn Gustavsson
+%%  Copyright (c) 2003-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.49 2003/12/31 20:45:59 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.50 2004/01/17 09:41:52 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -349,7 +349,9 @@ make_external(Id) ->
 			   wings_util:message(Error)
 		   end
 	   end,
-    Ps = [{extensions,wpa:image_formats()}],
+    #e3d_image{name=ImageName} = wings_image:info(Id),
+    Ps = [{extensions,wpa:image_formats()},{title,"Make External"},
+	  {default_filename,ImageName}],
     wpa:export_filename(Ps, Save).
 
 refresh_image(Id) ->
@@ -380,7 +382,8 @@ export_image(Id) ->
 			   wings_util:message(Error)
 		   end
 	   end,
-    Ps = [{extensions,wpa:image_formats()}],
+    #e3d_image{name=ImageName} = wings_image:info(Id),
+    Ps = [{extensions,wpa:image_formats()},{default_filename,ImageName}],
     wpa:export_filename(Ps, Save).
 
 %%%
