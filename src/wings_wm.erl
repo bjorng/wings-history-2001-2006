@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.1 2002/04/11 16:12:04 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.2 2002/04/27 07:42:38 bjorng Exp $
 %%
 
 -module(wings_wm).
--export([top_window/1,dirty/0]).
+-export([init/0,top_window/1,dirty/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -20,9 +20,11 @@
 -import(lists, [map/2,last/1]).
 
 -record(win,
-	{z,					%Z order (0 highest).
+	{z,					%Z order.
 	 x,y,					%Position.
 	 w,h,					%Size.
+	 parent=none,				%Parent window.
+	 children=[],				%Child windows.
 	 stk					%Event handler stack.
 	}).
 
@@ -36,28 +38,37 @@
 %%% Event loop.
 %%%
 
+init() ->
+    wings_pref:set_default(window_size, {780,570}),
+    {W,H} = wings_pref:get_value(window_size),
+    set_video_mode(W, H),			%Needed on Solaris/Sparc.
+    Win = #win{x=0,y=0,w=W,h=H,z=0,stk=[crash_handler()]},
+    put(wings_windows, gb_trees:from_orddict([{top,Win}])),
+    put(wings_active, top),
+    ok.
+
 dirty() ->
     put(wings_dirty, dirty).
 
 top_window(Op) ->
+    #win{w=W,h=H} = Win0 = get_window_data(top),
     Stk = handle_response(Op, dummy_event, [crash_handler()]),
-    [X,Y,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    Win = #win{x=X,y=Y,w=W,h=H,z=0,stk=Stk},
-    put(wings_active, top),
-    put(wings_windows, gb_trees:from_orddict([{top,Win}])),
+    Win = Win0#win{stk=Stk},
+    put_window_data(top, Win),
+    erase(wings_dirty),
+    wings_io:putback_event(#resize{w=W,h=H}),
     event_loop().
 
 event_loop() ->
     case get(wings_dirty) of
 	undefined ->
-	    Ws = get(wings_windows),
+	    Event = get_event(),
 	    Active = get(wings_active),
-	    Win0 = gb_trees:get(Active, Ws),
-	    Event = wings_io:get_event(),
+	    Win0 = get_window_data(Active),
 	    case send_event(Win0, Event) of
 		#win{stk=[]} -> ok;
 		Win ->
-		    put(wings_windows, gb_trees:update(Active, Win, Ws)),
+		    put_window_data(Active, Win),
 		    event_loop()
 	    end;
 	_ ->
@@ -75,10 +86,24 @@ redraw_all() ->
     erase(wings_dirty),
     event_loop().
 
+get_event() ->
+    case wings_io:get_event() of
+	#resize{w=W,h=H}=Resize ->
+	    Win = get_window_data(top),
+	    put_window_data(top, Win#win{w=W,h=H}),
+	    set_video_mode(W, H),
+	    {R,G,B} = wings_pref:get_value(background_color),
+	    gl:clearColor(R, G, B, 1.0),
+	    dirty(),
+	    Resize;
+	Other -> Other
+    end.
+
 send_event(Win, {expose}) ->
     dirty(),
     Win;
-send_event(#win{stk=[Handler|_]=Stk0}=Win, Event) ->
+send_event(#win{x=X,y=Y,w=W,h=H,stk=[Handler|_]=Stk0}=Win, Event) ->
+    gl:viewport(X, Y, W, H),
     Stk = handle_event(Handler, Event, Stk0),
     Win#win{stk=Stk}.
     
@@ -117,3 +142,17 @@ crash_handler() ->
 	    io:format("Crashed: ~p\n", [Crash]),
 	    exit(too_bad)
     end.
+
+%%%
+%%% Utility functions.
+%%%
+
+get_window_data(Name) ->
+    gb_trees:get(Name, get(wings_windows)).
+
+put_window_data(Name, Data) ->
+    put(wings_windows, gb_trees:update(Name, Data, get(wings_windows))).
+
+set_video_mode(W, H) ->
+    sdl_video:setVideoMode(W, H, 0, ?SDL_OPENGL bor ?SDL_RESIZABLE).
+

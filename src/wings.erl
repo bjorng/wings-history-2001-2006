@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.134 2002/04/26 13:07:24 bjorng Exp $
+%%     $Id: wings.erl,v 1.135 2002/04/27 07:42:38 bjorng Exp $
 %%
 
 -module(wings).
@@ -107,16 +107,9 @@ init_1(File) ->
     wings_view:init(),
     wings_file:init(),
     put(wings_hitbuf, sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)),
-
     caption(St1),
-    wings_pref:set_default(window_size, {780,570}),
-
-    %% On Solaris/Sparc, we must resize twice the first time to
-    %% get the requested size. Should be harmless on other platforms.
-    {W,H} = wings_pref:get_value(window_size),
-    set_video_mode(W, H),
-    St2 = resize(W, H, St1),
-    St = open_file(File, St2),
+    St = open_file(File, St1),
+    wings_wm:init(),
     wings_wm:top_window(main_loop(St)),
     wings_file:finish(),
     wings_pref:finish(),
@@ -148,19 +141,11 @@ locate(Name) ->
     end.
 
 resize(W, H, St) ->
-    set_video_mode(W, H),
     wings_view:init_light(),
-    gl:enable(?GL_DEPTH_TEST),
-    {R,G,B} = wings_pref:get_value(background_color),
-    gl:clearColor(R, G, B, 1.0),
-    gl:viewport(0, 0, W, H),
     wings_io:resize(W, H),
     wings_draw_util:init(),
     wings_material:init(St).
 
-set_video_mode(W, H) ->
-    sdl_video:setVideoMode(W, H, 0, ?SDL_OPENGL bor ?SDL_RESIZABLE).
-    
 redraw(St0) ->
     St = wings_draw:render(St0),
     wings_io:info(info(St)),
@@ -481,7 +466,9 @@ menu(X, Y, tools, St) ->
 	    {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
 	    {"Move to Saved BB",{move_to_bb,wings_menu_util:all_xyz()}},
 	    separator,
-	    {"Set Default Axis",set_default_axis}],
+	    {"Set Default Axis",set_default_axis},
+	    separator,
+	    {"Strip Texture",strip_texture}],
     wings_menu:menu(X, Y, tools, Menu, St);
 menu(X, Y, objects, St) ->
     wings_shape:menu(X, Y, St);
