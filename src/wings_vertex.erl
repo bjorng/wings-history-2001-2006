@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.28 2002/10/17 18:57:31 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.29 2002/11/10 10:36:42 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -22,7 +22,8 @@
 	 dissolve/2,
 	 connect/3,force_connect/4,
 	 patch_vertex/3,pos/2,
-	 outer_partition/2,reachable/2]).
+	 outer_partition/2,reachable/2,
+	 isolated/1]).
 
 -include("wings.hrl").
 -import(lists, [member/2,keymember/3,foldl/3,reverse/1,last/1,sort/1]).
@@ -637,3 +638,59 @@ reachable_edges_1([E|Es], Etab, Ws, Reachable) ->
     end;
 reachable_edges_1([], Etab, Ws, Reachable) ->
     reachable_edges(Ws, Etab, Reachable).
+
+%% isolated(We) -> GbSet
+%%  Returns a set containing all isolated vertices in We.
+
+isolated(#we{vs=Vtab}=We) ->
+    Vs0 = foldl(fun(V, A) -> 
+			isolated_1(V, We, A)
+		end, [], gb_trees:keys(Vtab)),
+    Vs1 = sofs:relation(Vs0),
+    Fs0 = sofs:domain(Vs1),
+    Fs = sofs:to_external(Fs0),
+    StableFaces = sofs:set(stable_faces(Fs, We)),
+    Vs2 = sofs:image(Vs1, StableFaces),
+    Vs = sofs:to_external(Vs2),
+    gb_sets:from_ordset(Vs).
+
+isolated_1(V, We, Acc) ->
+    Fs = fold(fun(_, Face, _, A) ->
+		      [Face|A]
+	      end, [], V, We),
+    case Fs of
+	[A,B] -> [{A,V},{B,V}|Acc];
+	[_|_] -> Acc
+    end.
+	
+%% stable_faces(Faces, We) -> StableFaces
+%%  Returns a list of the stable faces. Stable faces have at least
+%%  three corner vertices (vertices with 3 or more neighboring edges),
+%%  meaning that the face will not collapse if any vertices with only
+%%  two edges are removed from it.
+
+stable_faces(Fs, We) ->
+    stable_faces(Fs, We, []).
+
+stable_faces([F|Fs], We, Acc) ->
+    case is_face_stable(F, We) of
+	true -> stable_faces(Fs, We, [F|Acc]);
+	false -> stable_faces(Fs, We, Acc)
+    end;
+stable_faces([], _, Acc) -> Acc.
+
+is_face_stable(Face, We) ->
+    Vs = wings_face:surrounding_vertices(Face, We),
+    is_face_stable_1(Vs, We, 0).
+
+is_face_stable_1([V|Vs], We, N) ->
+    case is_corner(V, We) of
+	true -> is_face_stable_1(Vs, We, N+1);
+	false -> is_face_stable_1(Vs, We, N)
+    end;
+is_face_stable_1([], _, N) -> N >= 3.
+
+is_corner(V, We) ->
+    N = fold(fun(_, _, _, A) -> A+1 end, 0, V, We),
+    N >= 3.
+		     
