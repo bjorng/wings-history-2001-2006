@@ -1,5 +1,5 @@
 %%
-%%  wpc_yafray.erl --
+%%  wpc_yafray.erl
 %%
 %%     YafRay Plugin User Interface.
 %%
@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.28 2003/04/20 20:19:18 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.29 2003/04/22 22:37:53 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -47,6 +47,13 @@
 -define(DEF_AA_THRESHOLD, 0.1).
 -define(DEF_WIDTH, 100).
 -define(DEF_HEIGHT, 100).
+-define(DEF_DOF_FILTER, false).
+-define(DEF_NEAR_BLUR, 1.0).
+-define(DEF_FAR_BLUR, 1.0).
+-define(DEF_DOF_SCALE, 1.0).
+-define(DEF_ANTINOISE_FILTER, false).
+-define(DEF_ANTINOISE_RADIUS, 1.0).
+-define(DEF_ANTINOISE_MAX_DELTA, 1.0).
 
 %% Light
 -define(DEF_ATTN_POWER, 10.0).
@@ -566,6 +573,13 @@ export_dialog(Operation) ->
     BgColor = get_pref(background_color, ?DEF_BACKGROUND_COLOR),
     LoadImage = get_pref(load_image, ?DEF_LOAD_IMAGE),
     Options = get_pref(options, ?DEF_OPTIONS),
+    DofFilter = get_pref(dof_filter, ?DEF_DOF_FILTER),
+    NearBlur = get_pref(near_blur, ?DEF_NEAR_BLUR),
+    FarBlur = get_pref(far_blur, ?DEF_FAR_BLUR),
+    DofScale = get_pref(dof_scale, ?DEF_DOF_SCALE),
+    AntinoiseFilter = get_pref(antinoise_filter, ?DEF_ANTINOISE_FILTER),
+    AntinoiseRadius = get_pref(antinoise_radius, ?DEF_ANTINOISE_RADIUS),
+    AntinoiseMaxDelta = get_pref(antinoise_radius, ?DEF_ANTINOISE_MAX_DELTA),
     [{hframe,
       [{vframe,[{label,"AA_passes"},
 		{label,"AA_threshold"}]},
@@ -586,7 +600,24 @@ export_dialog(Operation) ->
        {vframe,[{text,Width,[{range,{1,10000}},{key,width}]}]},
        {vframe,[{label,"Height"}]},
        {vframe,[{text,Height,[{range,{1,10000}},{key,height}]}]}],
-      [{title,"Camera"}]}|
+      [{title,"Camera"}]},
+     {hframe,
+      [{vframe,[{"Antinoise",AntinoiseFilter,[{key,antinoise_filter}]},
+		{"DOF",DofFilter,[{key,dof_filter}]}]},
+       {vframe,[{label,"Radius"},
+		{label,"Near Blur"},
+		{label,"Scale"}]},
+       {vframe,[{text,AntinoiseRadius,[{range,{0.0,100.0}},
+				       {key,antinoise_radius}]},
+		{text,NearBlur,[{range,{0.0,100.0}},{key,near_blur}]},
+		{text,DofScale,[{range,{0.0,100.0}},{key,dof_scale}]}]},
+       {vframe,[{label,"Max Delta"},
+		{label,"Far Blur"}]},
+       {vframe,[{text,AntinoiseMaxDelta,[{range,{0.0,100.0}},
+					 {key,antinoise_max_delta}]},
+		{text,FarBlur,[{range,{0.0,100.0}},{key,far_blur}]}]}],
+      [{title,"Filters"}]}
+     |
      case Operation of render ->
 	     [{hframe,[{label,"Options"},
 		       {text,Options,[{key,options}]},
@@ -670,6 +701,20 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     println(F),
     export_camera(F, CameraName, Attr),
     println(F),
+    case proplists:get_value(dof_filter, Attr, ?DEF_DOF_FILTER) of
+	true ->
+	    export_filter(F, "x_Dof", dof, Attr),
+	    println(F);
+	false ->
+	    ok
+    end,
+    case proplists:get_value(antinoise_filter, Attr, ?DEF_ANTINOISE_FILTER) of
+	true ->
+	    export_filter(F, "x_Antinoise", antinoise, Attr),
+	    println(F);
+	false ->
+	    ok
+    end,
     export_render(F, CameraName, BgName, filename:basename(RenderFile), Attr),
     %%
     println(F),
@@ -1202,6 +1247,28 @@ export_background(F, Name, Ps) ->
     println(F, "</background>").
 
 
+export_filter(F, Name, dof, Attr) ->
+    [Dist] = wpa:camera_info([distance_to_aim]),
+    Focus = limit_dist(Dist),
+    NearBlur = proplists:get_value(near_blur, Attr),
+    FarBlur = proplists:get_value(far_blur, Attr),
+    Scale = proplists:get_value(dof_scale, Attr),
+    println(F, "<filter name=\"~s\" type=\"dof\" focus=\"~s\"", 
+	    [Name,format(Focus)]),
+    println(F, "        near_blur=\"~.3f\" far_blur=\"~.3f\" scale=\"~.3f\">",
+	    [NearBlur,FarBlur,Scale]),
+    println(F, "</filter>");
+export_filter(F, Name, antinoise, Attr) ->
+    Radius = proplists:get_value(antinoise_radius, Attr),
+    MaxDelta = proplists:get_value(antinoise_max_delta, Attr),
+    println(F, "<filter name=\"~s\" type=\"antinoise\"", [Name]),
+    println(F, "        radius=\"~.3f\" max_delta=\"~.3f\">",
+	    [Radius,MaxDelta]),
+    println(F, "</filter>");
+export_filter(_F, Name, Type, _Attr) ->
+    io:format("WARNING: Ignoring unknown filter \"~s\" type: ~w~n", 
+	      [Name, Type]),
+    ok.
 
 export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
     AA_passes = proplists:get_value(aa_passes, Attr),
