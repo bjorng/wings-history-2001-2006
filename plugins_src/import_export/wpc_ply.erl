@@ -30,10 +30,10 @@ init() ->
 
 menu({file,import}, Menu) ->
     menu_entry(Menu);
-menu({file,export}, Menu) ->
-    menu_entry(Menu);
-menu({file,export_selected}, Menu) ->
-    menu_entry(Menu);
+% menu({file,export}, Menu) ->
+%     menu_entry(Menu);
+% menu({file,export_selected}, Menu) ->
+%     menu_entry(Menu);
 menu(_, Menu) -> Menu.
 
 command({file,{import,{ply,Ask}}}, St) ->
@@ -57,8 +57,9 @@ props() ->
 %%% Import.
 %%%
 
-do_import(Ask, St) when is_atom(Ask) ->
-    wpa:dialog(Ask, dialog(import), St,
+do_import(Ask, _) when is_atom(Ask) ->
+    wpa:dialog(Ask, "Stanford PLY Import Options",
+	       dialog(import),
 	       fun(Res) ->
 		       {file,{import,{ply,Res}}}
 	       end);
