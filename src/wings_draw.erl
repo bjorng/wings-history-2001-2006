@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.201 2004/04/25 14:13:49 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.202 2004/04/29 04:59:59 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -526,6 +526,7 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab}=We,
 	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd,
 	 needed=Needed}.
 
+remove_stale_ns(none, _) -> none;
 remove_stale_ns(Ns, Ftab) ->
     remove_stale_ns_1(gb_trees:to_list(Ns), Ftab, []).
 
