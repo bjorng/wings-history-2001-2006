@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.5 2001/12/29 20:33:56 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.6 2002/01/07 00:15:20 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
 -export([select_next/1,select_prev/1,select_loop/1]).
 
 %% Utilities.
--export([edge_loop_vertices/2]).
+-export([edge_loop_vertices/2,partition_edges/2]).
 
 -include("wings.hrl").
 -import(lists, [sort/1,append/1,reverse/1]).
@@ -213,4 +213,42 @@ edge_loop_vertices(Edges0, V, PrevEdge, Vend, We, Acc) ->
 	{Edge,OtherV} ->
 	    Edges = gb_sets:delete(Edge, Edges0),
 	    edge_loop_vertices(Edges, OtherV, Edge, Vend, We, [V|Acc])
+    end.
+
+%% partition_edges(EdgeSet, WingedEdge) -> [[EdgeSet']]
+%%  Given a set of edges, partition the edges into connected groups.
+
+partition_edges(Edges, We) when is_list(Edges) ->
+    partition_edges(gb_sets:from_list(Edges), We, []);
+partition_edges(Edges, We) ->
+    partition_edges(Edges, We, []).
+
+partition_edges(Edges0, #we{es=Etab}=We, Acc) ->
+    case gb_sets:is_empty(Edges0) of
+	true -> Acc;
+	false ->
+	    {Edge,Edges1} = gb_sets:take_smallest(Edges0),
+	    #edge{vs=V} = gb_trees:get(Edge, Etab),
+	    Ws = gb_sets:singleton({V,Edge}),
+	    {Part,Edges} = partition_edges_1(Ws, We, Edges0, []),
+	    partition_edges(Edges, We, [Part|Acc])
+    end.
+
+partition_edges_1(Ws0, We, Edges0, EdgeAcc0) ->
+    case gb_sets:is_empty(Ws0) of
+	true -> {EdgeAcc0,Edges0};
+	false ->
+	    {{V,Edge},Ws1} = gb_sets:take_smallest(Ws0),
+	    EdgeAcc = [Edge|EdgeAcc0],
+	    Edges = gb_sets:delete(Edge, Edges0),
+	    Ws = wings_vertex:fold(
+		   fun(E, _, Rec, A) ->
+			   case gb_sets:is_member(E, Edges) of
+			       true ->
+				   OtherV = wings_vertex:other(V, Rec),
+				   gb_sets:add({OtherV,E}, A);
+			       false -> A
+			   end
+		   end, Ws1, V, We),
+	    partition_edges_1(Ws, We, Edges, EdgeAcc)
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.27 2001/12/31 17:59:00 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.28 2002/01/07 00:15:20 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -20,7 +20,8 @@
 	 hardness/2,hardness/3,loop_cut/1]).
 
 -include("wings.hrl").
--import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,seq/2,sort/1]).
+-import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,
+		seq/2,sort/1]).
 
 %%
 %% Convert the current selection to an edge selection.
@@ -479,17 +480,35 @@ select_region(St0) ->
     Sel = sort(Sel0),
     St#st{selmode=face,sel=Sel}.
 
-select_region(Edges, #we{id=Id}=We0, Sel) ->
-    #we{es=Etab,fs=Ftab} = We0,
-    {AnEdge,_} = gb_sets:take_smallest(Edges),
+select_region(Edges, #we{id=Id}=We, Acc) ->
+    Part = wings_edge_loop:partition_edges(Edges, We),
+    io:format("~w\n", [Part]),
+    FaceSel = select_region_1(Part, Edges, We, []),
+    [{Id,FaceSel}|Acc].
+
+select_region_1([[AnEdge|_]|Ps], Edges, #we{es=Etab}=We, Acc) ->
     #edge{lf=Lf,rf=Rf} = gb_trees:get(AnEdge, Etab),
-    Left = collect_faces(Lf, Edges, We0),
-    Right = collect_faces(Rf, Edges, We0),
-    Smallest = case {gb_sets:size(Left),gb_sets:size(Right)} of
-		   {L,R} when L < R -> Left;
-		   {_,_} -> Right
-	       end,
-    [{Id,Smallest}|Sel].
+    Left = collect_faces(Lf, Edges, We),
+    Right = collect_faces(Rf, Edges, We),
+    select_region_1(Ps, Edges, We, [Left,Right|Acc]);
+select_region_1([], Edges, We, [A,B]) ->
+    case {gb_sets:size(A),gb_sets:size(B)} of
+	{Sa,Sb} when Sa < Sb  -> A;
+	{_,_} -> B
+    end;
+select_region_1([], Edges, We, Acc0) ->
+    Acc = sort([gb_sets:to_list(P) || P <- Acc0]),
+    select_region_2(Acc, []).
+
+select_region_2([H,H|T], Acc) ->
+    select_region_2(strip_prefix(T, H), Acc);
+select_region_2([H|T], Acc) ->
+    select_region_2(T, [H|Acc]);
+select_region_2([], Acc) ->
+    gb_sets:from_ordset(lists:merge(Acc)).
+
+strip_prefix([Prefix|T], Prefix) -> strip_prefix(T, Prefix);
+strip_prefix(L, Prefix) -> L.
 
 %%%
 %%% The Loop Cut command.
