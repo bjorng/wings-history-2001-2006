@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.247 2003/06/02 08:03:18 dgud Exp $
+%%     $Id: wings.erl,v 1.248 2003/06/19 16:54:04 bjorng Exp $
 %%
 
 -module(wings).
@@ -330,10 +330,10 @@ handle_event_2(Event, St) ->
 	Other -> Other
     end.
 	    
-handle_event_3(#keyboard{}=Event, St) ->
-    case wings_hotkey:event(Event, St) of
+handle_event_3(#keyboard{}=Ev, St) ->
+    case wings_hotkey:event(Ev, St) of
 	next -> keep;
-	Cmd -> do_command(Cmd, St)
+	Cmd -> do_hotkey(Cmd, St)
     end;
 handle_event_3({action,Cmd}, St) ->
     do_command(Cmd, St);
@@ -380,6 +380,22 @@ handle_event_3({note,_}, _) -> keep;
 handle_event_3({drop,Pos,DropData}, St) ->
     handle_drop(DropData, Pos, St);
 handle_event_3(ignore, _St) -> keep.
+
+do_hotkey(Cmd, St0) ->
+    case wings_pref:get_value(right_click_sel_in_geom) of
+	false ->
+	    do_command(Cmd, St0);
+	true ->
+	    {_,X,Y} = wings_wm:local_mouse_state(),
+	    case wings_pick:do_pick(X, Y, St0) of
+		{add,_,St} ->
+		    wings_io:putback_event({action,Cmd}),
+		    wings_wm:later({new_state,St}),
+		    keep;
+		_Other ->
+		    do_command(Cmd, St0)
+	    end
+    end.
 
 do_command(Cmd, St) ->    
     do_command(Cmd, none, St).
