@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.113 2003/11/12 15:26:15 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.114 2003/11/12 17:44:11 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -251,36 +251,36 @@ enter_pressed(Ev, #s{focus=Index,store=Store}=S) ->
     end.
 
 
-escape_pressed(S0=#s{fi=Fi,store=Sto}) -> 
-    case escape_pressed(Fi, Sto) of
-	undefined -> keep;
-	Index -> 
-	    S = set_focus(Index, S0, false),
+escape_pressed(S0=#s{fi=TopFi,store=Sto}) -> 
+    case escape_pressed(TopFi, Sto, []) of
+	[] -> keep;
+	[Fi|_] -> 
+	    S = set_focus(Fi, S0, false),
 	    case field_event({key,$\s,$\s,$\s}, S) of
 		keep -> get_event(S);
 		Other -> Other
 	    end
     end.
 
-escape_pressed(#fi{extra=#container{fields=Fields}}, Sto) ->
-    escape_pressed(1, Fields, Sto);
-escape_pressed(#fi{index=Index,flags=Flags}, Sto) ->
+escape_pressed(Fi=#fi{extra=#container{fields=Fields}}, Sto, Path) ->
+    escape_pressed(size(Fields), Fields, Sto, [Fi|Path]);
+escape_pressed(Fi=#fi{index=Index,flags=Flags}, Sto, Path) ->
     case field_type(Index, Sto) of
 	but ->
 	    case member(cancel, Flags) of
-		false -> undefined;
-		true -> Index
+		false -> [];
+		true -> [Fi|Path]
 	    end;
-	_ -> undefined
+	_ -> []
     end.
 
-escape_pressed(I, Fields, Sto) when I =< size(Fields) ->
-    case escape_pressed(element(I, Fields), Sto) of
-	undefined -> escape_pressed(I+1, Fields, Sto);
-	Index -> Index
+escape_pressed(I, Fields, Sto, Path) when I >= 1 ->
+    case escape_pressed(element(I, Fields), Sto, Path) of
+	[] -> escape_pressed(I-1, Fields, Sto);
+	P -> P
     end;
-escape_pressed(_I, _Fields, _Sto) ->
-    undefined.
+escape_pressed(_I, _Fields, _Sto, _Path) ->
+    [].
 
 
 field_type(I, Store) ->
@@ -305,7 +305,7 @@ mouse_event(Ev=#mousemotion{x=X0,y=Y0},
 mouse_event(#mousemotion{}, #s{}) -> 
     keep;
 mouse_event(Ev=#mousebutton{x=X0,y=Y0,state=State}, 
-	    S0=#s{mouse_focus=MouseFocus,ox=Ox,oy=Oy,fi=Fi}) ->
+	    S0=#s{mouse_focus=MouseFocus,ox=Ox,oy=Oy,fi=TopFi}) ->
     X = X0-Ox,
     Y = Y0-Oy,
     case State of
@@ -315,10 +315,10 @@ mouse_event(Ev=#mousebutton{x=X0,y=Y0,state=State},
 		false -> keep
 	    end;
 	?SDL_PRESSED ->
-	    case mouse_to_field(Fi, X, Y) of
-		none -> get_event(S0#s{mouse_focus=false});
-		Ix ->
-		    S = set_focus(Ix, S0, true),
+	    case mouse_to_field(X, Y, TopFi) of
+		[] -> get_event(S0#s{mouse_focus=false});
+		[Fi|_] ->
+		    S = set_focus(Fi, S0, true),
 		    case field_event(Ev#mousebutton{x=X,y=Y}, S) of
 			keep -> get_event(S);
 			Other -> Other
@@ -326,11 +326,11 @@ mouse_event(Ev=#mousebutton{x=X0,y=Y0,state=State},
 	    end
     end.
 
-drop_event(X, Y, DropData, #s{ox=Ox,oy=Oy,fi=Fi}=S0) ->
-    case mouse_to_field(Fi, X-Ox, Y-Oy) of
-	none -> get_event(S0#s{mouse_focus=false});
-	I ->
-	    S = set_focus(I, S0, true),
+drop_event(X, Y, DropData, #s{ox=Ox,oy=Oy,fi=TopFi}=S0) ->
+    case mouse_to_field(X-Ox, Y-Oy, TopFi) of
+	[] -> get_event(S0#s{mouse_focus=false});
+	[Fi|_] ->
+	    S = set_focus(Fi, S0, true),
 	    case field_event({drop,DropData}, S) of
 		keep -> get_event(S);
 		Other -> Other
@@ -338,7 +338,7 @@ drop_event(X, Y, DropData, #s{ox=Ox,oy=Oy,fi=Fi}=S0) ->
     end.
 
 
-next_focus(Dir, S=#s{focus=Index,focusable=Focusable}) ->
+next_focus(Dir, S=#s{focus=Index,focusable=Focusable,fi=TopFi}) ->
     J = case binsearch(fun (I) when I < Index -> -1;
 			   (I) when Index < I -> +1;
 			   (_) -> 0 end, 
@@ -349,41 +349,42 @@ next_focus(Dir, S=#s{focus=Index,focusable=Focusable}) ->
 	end,
     N = size(Focusable),
     case (J+Dir) rem N of
-	K when K =< 0 -> set_focus(element(N+K, Focusable), S, false);
-	K -> set_focus(element(K, Focusable), S, false)
+	K when K =< 0 -> 
+	    [Fi|_] = get_fi(element(N+K, Focusable), TopFi),
+	    set_focus(Fi, S, false);
+	K -> 
+	    [Fi|_] = get_fi(element(K, Focusable), TopFi),
+	    set_focus(Fi, S, false)
     end.
 
-set_focus(Index, #s{focus=OldIndex,focusable=_Focusable,
-		    fi=Fi,store=Store0}=S, MouseFocus) ->
+set_focus(New=#fi{index=NewIndex,handler=NewHandler}, 
+	  #s{focus=OldIndex,focusable=_Focusable,
+	     fi=TopFi,store=Store0}=S, MouseFocus) ->
     ?DEBUG_DISPLAY({set_focus,[OldIndex,Index,_Focusable]}),
-    Old = get_fi(OldIndex, Fi),
-    #fi{handler=OldHandler} = Old,
-    Store2 = case OldHandler({focus,false}, Old, OldIndex, Store0, Fi) of
+    [Old=#fi{handler=OldHandler}|_] = get_fi(OldIndex, TopFi),
+    Store2 = case OldHandler({focus,false}, Old, OldIndex, Store0, TopFi) of
 		 {store,Store1} -> Store1;
 		 _ -> Store0
 	     end,
-    New = get_fi(Index, Fi),
-    #fi{handler=Handler} = New,
-    Store = case Handler({focus,true}, New, Index, Store2, Fi) of
+    Store = case NewHandler({focus,true}, New, NewIndex, Store2, TopFi) of
 		{store,Store3} -> Store3;
 		_ -> Store2
 	    end,
-    S#s{focus=Index,mouse_focus=MouseFocus,store=Store}.
+    S#s{focus=NewIndex,mouse_focus=MouseFocus,store=Store}.
 
-field_event(_Ev=#mousemotion{x=X,y=Y,state=Bst}, #s{fi=TopFi})
+field_event(_Ev=#mousemotion{x=X,y=Y,state=Bst}, #s{fi=Fi})
   when (Bst band ?BUTTON_MASK) == 0 ->
-    case mouse_to_field(TopFi, X, Y) of
-	none ->
+    case mouse_to_field(X, Y, Fi) of
+	[] ->
 	    wings_wm:allow_drag(false);
-	I ->
-	    ?DEBUG_DISPLAY({field_event,[I,_Ev]}),
-	    #fi{flags=Flags} = get_fi(I, TopFi),
+	[#fi{index=_I,flags=Flags}|_] ->
+	    ?DEBUG_DISPLAY({field_event,[_I,_Ev]}),
 	    wings_wm:allow_drag(member(drag, Flags))
     end,
     keep;
 field_event(Ev, #s{focus=I,fi=TopFi=#fi{w=W0,h=H0},store=Store0}=S) ->
     ?DEBUG_DISPLAY({field_handler,[I,Ev]}),
-    #fi{handler=Handler} = Fi0 = get_fi(I, TopFi),
+    [#fi{handler=Handler}=Fi0|_] = get_fi(I, TopFi),
     Result = Handler(Ev, Fi0, I, Store0, TopFi),
 %    ?DEBUG_DISPLAY({field_handler,Result}),
     case Result of
@@ -539,22 +540,27 @@ draw_fields(Fields, _Focus, _Sto, _TopFi, _I, _R, false) ->
 draw_fields(_Fields, _Focus, _Sto, _TopFi, _I, R, true) ->
     list_to_tuple(reverse(R)).
 
-%% Get field index from mouse position
-%%
+%% Get field index from mouse position.
+%% Return path to root.
 
-mouse_to_field(#fi{extra=#container{x=X0,y=Y0,w=W,h=H,
+mouse_to_field(X, Y, Fi) -> mouse_to_field(X, Y, Fi, [Fi]).
+
+mouse_to_field(X, Y, 
+	       #fi{extra=#container{x=X0,y=Y0,w=W,h=H,
 				    type=Type,fields=Fields,
-				    minimized=Minimized}}, X, Y)
+				    minimized=Minimized}}, 
+	       Path)
   when Minimized =/= true, X0 =< X, X < X0+W, Y0 =< Y, Y < Y0+H ->
-    mouse_to_field(Fields, X, Y, Type);
-mouse_to_field(#fi{index=Index,inert=false,disabled=false,
-		   x=X0,y=Y0,w=W,h=H}, X, Y)
+    mouse_to_field(X, Y, Fields, Path, Type);
+mouse_to_field(X, Y, #fi{inert=false,disabled=false,
+			 x=X0,y=Y0,w=W,h=H}, 
+	       Path)
   when X0 =< X, X < X0+W, Y0 =< Y, Y < Y0+H ->
-    Index;
-mouse_to_field(#fi{}, _X, _Y) ->
-    none.
+    Path;
+mouse_to_field(_X, _Y, #fi{}, _Path) ->
+    [].
 
-mouse_to_field(Fields, Xm, Ym, vframe) ->
+mouse_to_field(Xm, Ym, Fields, Path, vframe) ->
     Cmp = fun (#fi{y=Y,h=H}) when Y+H =< Ym -> -1;
 	      (#fi{y=Y}) when Ym < Y -> 1;
 	      (#fi{}) -> 0 end,
@@ -563,8 +569,9 @@ mouse_to_field(Fields, Xm, Ym, vframe) ->
 		{I,_} -> I;
 		I -> I
 	    end,
-    mouse_to_field(element(Index, Fields), Xm, Ym);
-mouse_to_field(Fields, Xm, Ym, hframe) ->
+    Fi = element(Index, Fields),
+    mouse_to_field(Xm, Ym, Fi, [Fi|Path]);
+mouse_to_field(Xm, Ym, Fields, Path, hframe) ->
     Cmp = fun (#fi{x=X,w=W}) when X+W =< Xm -> -1;
 	      (#fi{x=X}) when Xm < X -> 1;
 	      (#fi{}) -> 0 end,
@@ -573,43 +580,54 @@ mouse_to_field(Fields, Xm, Ym, hframe) ->
 		{I,_} -> I;
 		I -> I
 	    end,
-    mouse_to_field(element(Index, Fields), Xm, Ym).
+    Fi = element(Index, Fields),
+    mouse_to_field(Xm, Ym, Fi, [Fi|Path]).
     
 %% Get field from field index
-%%
+%% Return path to root.
 
-get_fi(Index, Fi=#fi{index=Index}) ->
-    Fi;
-get_fi(Index, #fi{extra=#container{fields=Fields}}) ->
+get_fi(Index, Fi) -> get_fi(Index, Fi, [Fi]).
+
+get_fi(Index, #fi{index=Index}, Path) ->
+    Path;
+get_fi(Index, #fi{extra=#container{fields=Fields}}, Path) ->
     Cmp = fun (#fi{index=I}) when I < Index -> -1;
 	      (#fi{index=I}) when Index < I -> 1;
 	      (_) -> 0 end,
     case binsearch(Cmp, Fields) of
-	{0,1} -> undefined;
-	{I,_} -> get_fi(Index, element(I, Fields));
-	I -> element(I, Fields)
+	{0,1} -> [];
+	{I,_} -> 
+	    Fi = element(I, Fields),
+	    get_fi(Index, Fi, [Fi|Path]);
+	I -> [element(I, Fields)|Path]
     end.% ;
 % get_fi(_Index, #fi{extra=#leaf{}}) ->
-%     undefined.
+%     [].
 
 %% Get field container from field index
 %%
 
-get_container(Index, Fi) -> get_container(Index, Fi, undefined).
+get_container(Index, Fi) ->
+    case get_fi(Index, Fi) of
+	[_,ContFi|_] -> ContFi;
+	_ -> undefined
+    end.
 
-get_container(Index, #fi{index=Index}, Container) ->
-    Container;
-get_container(Index, Container=#fi{extra=#container{fields=Fields}}, _) ->
-    Cmp = fun (#fi{index=I}) when I < Index -> -1;
-	      (#fi{index=I}) when Index < I -> 1;
-	      (_) -> 0 end,
-    case binsearch(Cmp, Fields) of
-	{0,1} -> undefined;
-	{I,_} -> get_container(Index, element(I, Fields), Container);
-	_ -> Container
-    end.% ;
-% get_fi(_Index, #fi{extra=#leaf{}}) ->
-%     undefined.
+% get_container(Index, Fi) -> get_container(Index, Fi, undefined).
+
+% get_container(Index, #fi{index=Index}, Container) ->
+%     Container;
+% get_container(Index, Container=#fi{extra=#container{fields=Fields}}, _) ->
+%     Cmp = fun (#fi{index=I}) when I < Index -> -1;
+% 	      (#fi{index=I}) when Index < I -> 1;
+% 	      (_) -> 0 end,
+%     case binsearch(Cmp, Fields) of
+% 	{0,1} -> undefined;
+% 	{I,_} -> get_container(Index, element(I, Fields), Container);
+% 	_ -> Container
+%     end.% ;
+% % get_container(_Index, #fi{extra=#leaf{}}, _Container) ->
+% %     undefined.
 
 
 %%
