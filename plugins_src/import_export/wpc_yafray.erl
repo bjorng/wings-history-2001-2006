@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.51 2003/12/27 15:21:44 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.52 2003/12/30 02:35:26 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -95,6 +95,7 @@
 -define(DEF_SAMPLES, 256).
 
 %% Modulator
+-define(DEF_MOD_ENABLED, true).
 -define(DEF_MOD_MODE, mix).
 -define(DEF_MOD_SIZE_X, 1.0).
 -define(DEF_MOD_SIZE_Y, 1.0).
@@ -335,8 +336,9 @@ material_dialog(_Name, Mat) ->
 		    {"Caustics",Caus,[{key,{?TAG,caus}}]}]},
 	   {hframe,[{"Emit Rad",EmitRad,[{key,{?TAG,emit_rad}}]},
 		    {"Recv Rad",RecvRad,[{key,{?TAG,recv_rad}}]}]},
-	   {slider,{text,MinRefle,[{range,{0.0,1.0}},{key,{?TAG,min_refle}}]}},
-	   {slider,{text,AutosmoothAngle,[{range,{0.0,180.0}},
+	   {slider,{text,MinRefle,[{range,{0.0,1.0}},{width,5},
+				   {key,{?TAG,min_refle}}]}},
+	   {slider,{text,AutosmoothAngle,[{range,{0.0,180.0}},{width,5},
 					  {key,{?TAG,autosmooth_angle}}]}}]}]}
        |modulator_dialogs(Modulators, Maps)],
       [{title,"YafRay Options"},{minimized,Minimized},{key,{?TAG,minimized}}]}].
@@ -352,32 +354,37 @@ def_modulators([{ambient,_}|Maps]) ->
 def_modulators([{bump,_}|Maps]) ->
     [{modulator,[{type,{map,bump}},{normal,1.0}]}
      |def_modulators(Maps)];
+def_modulators([{gloss,_}|Maps]) ->
+    [{modulator,[{type,{map,gloss}},{shininess,1.0}]}
+     |def_modulators(Maps)];
 def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
-material_result(_Name, Mat0, [{{?TAG,minimized},_}|_]=Res) ->
-    {Ps0,Res0} = split_list(Res, 8),
-    Ps = [{Key,Val} || {{?TAG,Key},Val} <- Ps0],
-    {Modulators,Res1} = modulator_result(Res0),
-    Mat1 = [{?TAG,[{modulators,Modulators}|Ps]}|keydelete(?TAG, 1, Mat0)],
-    {Mat1,Res1};
+material_result(_Name, Mat0, [{{?TAG,minimized},_}|_]=Res0) ->
+    {Ps1,Res1} = split_list(Res0, 8),
+    Ps2 = [{Key,Val} || {{?TAG,Key},Val} <- Ps1],
+    {Ps,Res} = modulator_result(Ps2, Res1),
+    Mat = [{?TAG,Ps}|keydelete(?TAG, 1, Mat0)],
+    {Mat,Res};
 material_result(Name, Mat, Res) ->
     exit({invalid_tag,{?MODULE,?LINE,[Name,Mat,Res]}}).
 
 modulator_dialogs(Modulators, Maps) ->
     modulator_dialogs(Modulators, Maps, 1).
 
-modulator_dialogs([], _Maps, _) ->
+modulator_dialogs([], _Maps, M) ->
     [{hframe,
       [{button,"New Modulator",done,[{key,{?TAG,new_modulator}}]},
-       panel]}];
+       panel|
+       if M =:= 1 -> [{button,"Default Modulators",done}];
+	 true -> [] end]}];
 modulator_dialogs([Modulator|Modulators], Maps, M) ->
     modulator_dialog(Modulator, Maps, M)++
 	modulator_dialogs(Modulators, Maps, M+1).
 
 modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 %    erlang:display({?MODULE,?LINE,[Ps,M,Maps]}),
-    {Mode,Type} = mod_mode_type(Ps, Maps),
+    {Enabled,Mode,Type} = mod_enabled_mode_type(Ps, Maps),
     Minimized = proplists:get_value(minimized, Ps, true),
     SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
     SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
@@ -398,95 +405,157 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
     RingscaleZ = proplists:get_value(ringscale_z, Ps, ?DEF_MOD_RINGSCALE_Z),
     TypeTag = {?TAG,type,M},
     MapsFrame = [{hradio,[{atom_to_list(Map),{map,Map}} || {Map,_} <- Maps],
-		  Type,[{key,TypeTag}]}],
+		  Type,[{key,TypeTag},mod_enable_hook(M),layout]}],
     [{vframe,
-      [{hframe,[{menu,[{"Off",off},{"Mix",mix},{"Mul",mul},{"Add",add}],
-		 Mode},
+      [{hframe,[{"Enabled",Enabled,[{key,{?TAG,enabled,M}}]},
+		{menu,[{"Mix",mix},{"Mul",mul},{"Add",add}],Mode,
+		 [mod_enable_hook(M)]},
 		{button,"Delete",done}]},
        {hframe,[{label,"SizeX"},
-		{text,SizeX,[{range,0.0,1000.0}]},
+		{text,SizeX,[{range,0.0,1000.0},mod_enable_hook(M)]},
 		{label,"SizeY"},
-		{text,SizeY,[{range,0.0,1000.0}]},
+		{text,SizeY,[{range,0.0,1000.0},mod_enable_hook(M)]},
 		{label,"SizeZ"},
-		{text,SizeZ,[{range,0.0,1000.0}]}]},
+		{text,SizeZ,[{range,0.0,1000.0},mod_enable_hook(M)]}]},
        {hframe,[{vframe,[{label,"Diffuse "},
 			 {label,"Specular"},
 			 {label,"Ambient"},
 			 {label,"Shininess"},
 			 {label,"Normal"}]},
-		{vframe,[{slider,{text,Diffuse,[{range,{0.0,1.0}}]}},
-			 {slider,{text,Specular,[{range,{0.0,1.0}}]}},
-			 {slider,{text,Ambient,[{range,{0.0,1.0}}]}},
-			 {slider,{text,Shininess,[{range,{0.0,1.0}}]}},
-			 {slider,{text,Normal,[{range,{0.0,1.0}}]}}]}]}]++
+		{vframe,[{slider,{text,Diffuse,
+				  [{range,{0.0,1.0}},mod_enable_hook(M)]}},
+			 {slider,{text,Specular,
+				  [{range,{0.0,1.0}},mod_enable_hook(M)]}},
+			 {slider,{text,Ambient,
+				  [{range,{0.0,1.0}},mod_enable_hook(M)]}},
+			 {slider,{text,Shininess,
+				  [{range,{0.0,1.0}},mod_enable_hook(M)]}},
+			 {slider,{text,Normal,
+				  [{range,{0.0,1.0}},
+				   mod_enable_hook(M)]}}]}]}]++
       MapsFrame++
-      [{hframe,
-	[{vradio,[{"Image",image},{"Clouds",clouds},
-		  {"Marble",marble},{"Wood",wood}],Type,[{key,TypeTag}]},
-	 {vframe,
-	  [{hframe,
-	    [{vframe,[{label,"Filename"},
-		      {label,"Color 1"},
-		      {label,"Turbulence"},
-		      {label,"Ringscale X"}]},
-	     {vframe,[{text,Filename},
-		      {hframe,
-		       [{vframe,[{color,Color1},
-				 {text,Turbulence,[{range,{0.01,100.0}}]},
-				 {text,RingscaleX,[{range,{0.01,1000.0}}]}]},
-			{vframe,[{label,"Color 2"},
-				 {label,"Sharpness"},
-				 {label,"Ringscale Z"}]},
-			{vframe,[{color,Color2},
-				 {text,Sharpness,[{range,{1.0,100.0}}]},
-				 {text,RingscaleZ,[{range,{0.01,1000.0}}]}]},
-			{vframe,[{hframe,
-				  [{label,"Depth"},
-				   {text,Depth,[{range,{1,1000}}]}]},
-				 {"Hard Noise",Hard}]}]}]}]}]}]}],
-      [{title,"Modulator "++integer_to_list(M)++mod_legend(Mode, Type)},
+      [{hradio,[{"Image",image},{"Clouds",clouds},
+		  {"Marble",marble},{"Wood",wood}],
+	  Type,[{key,TypeTag},mod_enable_hook(M),layout]},
+       {hframe,
+	[{vframe,[{label,"Filename",[mod_enable_hook(M, [image])]},
+		  {label,"Color 1",
+		   [mod_enable_hook(M, [marble,wood,clouds])]},
+		  {label,"Turbulence",[mod_enable_hook(M, [marble,wood])]},
+		  {label,"Ringscale X",[mod_enable_hook(M, [wood])]}]},
+	 {vframe,[{text,Filename,[mod_enable_hook(M, [image])]},
+		  {hframe,
+		   [{vframe,[{color,Color1,
+			      [mod_enable_hook(M, [marble,wood,clouds])]},
+			     {text,Turbulence,
+			      [{range,{0.01,100.0}},
+			       mod_enable_hook(M, [marble,wood])]},
+			     {text,RingscaleX,
+			      [{range,{0.01,1000.0}},
+			       mod_enable_hook(M, [wood])]}]},
+		    {vframe,[{label,"Color 2",
+			      [mod_enable_hook(M, [marble,wood,clouds])]},
+			     {label,"Sharpness",
+			      [mod_enable_hook(M, [marble])]},
+			     {panel,[mod_enable_hook(M, [wood])]},
+			     {label,"Ringscale Z",
+			      [mod_enable_hook(M, [wood])]}]},
+		    {vframe,[{color,Color2,
+			      [mod_enable_hook(M, [marble,wood,clouds])]},
+			     {text,Sharpness,
+			      [{range,{1.0,100.0}},
+			       mod_enable_hook(M, [marble])]},
+			     {panel,[mod_enable_hook(M, [wood])]},
+			     {text,RingscaleZ,
+			      [{range,{0.01,1000.0}},
+			       mod_enable_hook(M, [wood])]}]},
+		    {vframe,[{hframe,
+			      [{label,"Depth",
+				[mod_enable_hook(M, 
+						 [marble,wood,clouds])]},
+			       {text,Depth,
+				[{range,{1,1000}},
+				 mod_enable_hook(M,
+						 [marble,wood,clouds])]}]},
+			     {"Hard Noise",Hard,
+			      [mod_enable_hook(M, [marble, wood])]}
+			    ]}]}]}]}],
+      [{title,
+	"Modulator "++integer_to_list(M)++mod_legend(Enabled, Mode, Type)},
        {minimized,Minimized}]}];
 modulator_dialog(_Modulator, _Maps, _) ->
     []. % Discard old modulators that anyone may have
 
-mod_mode_type(Ps, Maps) ->
-    case proplists:get_value(type, Ps) of
-	undefined -> def_mod_mode_type(Ps, ?DEF_MOD_TYPE);
-	{map,Map}=Type ->
+mod_enable_hook(M) ->
+    {hook,fun (is_disabled, {_Var,_I,Sto}) ->
+		  not gb_trees:get({?TAG,enabled,M}, Sto);
+	      (_, _) -> void end}.
+
+mod_enable_hook(M, Types) ->
+    {hook,fun (is_disabled, {_Var,_I,Sto}) ->
+		  not gb_trees:get({?TAG,enabled,M}, Sto);
+	      (is_minimized, {_Var,_I,Sto}) ->
+		  Type = gb_trees:get({?TAG,type,M}, Sto),
+		  not lists:member(Type, Types);
+	      (_, _) -> void end}.
+
+mod_enabled_mode_type(Ps, Maps) ->
+    {Enabled,Mode} = 
+	case proplists:get_value(mode, Ps, ?DEF_MOD_MODE) of
+	    off -> {false,?DEF_MOD_MODE};
+	    Mode1 -> {proplists:get_value(enabled, Ps, ?DEF_MOD_ENABLED),Mode1}
+	end,
+    Type = proplists:get_value(type, Ps, ?DEF_MOD_TYPE),
+    case Type of
+	{map,Map} ->
 	    case lists:keymember(Map, 1, Maps) of
-		true ->  def_mod_mode_type(Ps, Type);
-		false -> {off,?DEF_MOD_TYPE}
+		true -> {Enabled,Mode,Type};
+		false -> {false,Mode,?DEF_MOD_TYPE}
 	    end;
-	Type -> def_mod_mode_type(Ps, Type)
+	_ -> {Enabled,Mode,Type}
     end.
 
-def_mod_mode_type(Ps, Type) ->
-    {proplists:get_value(mode, Ps, ?DEF_MOD_MODE),Type}.
+mod_legend(Enabled, Mode, {map,Map}) ->
+    mod_legend(Enabled, Mode, atom_to_list(Map));
+mod_legend(Enabled, Mode, Type) when atom(Mode) ->
+    mod_legend(Enabled, wings_util:cap(Mode), Type);
+mod_legend(Enabled, Mode, Type) when atom(Type) ->
+    mod_legend(Enabled, Mode, wings_util:cap(Type));
+mod_legend(Enabled, Mode, Type) when list(Mode), list(Type) ->
+    case Enabled of
+	true -> " (enabled, ";
+	false -> " (disabled, "
+    end++Mode++", "++Type++")".
 
-mod_legend(Mode, {map,Map}) ->
-    mod_legend(Mode, Map);
-mod_legend(Mode, Type) ->
-    " ("++atom_to_list(Mode)++", "++atom_to_list(Type)++")".
-		   
 
-modulator_result(Res) ->
-    modulator_result(Res, 1, []).
+modulator_result(Ps, Res) ->
+    modulator_result(Ps, Res, 1, []).
 
-modulator_result([], _, Modulators) ->
+modulator_result(Ps, [], _, Modulators) ->
     %% Should not happen
-    {reverse(Modulators), []};
-modulator_result([{{?TAG,new_modulator},false}|Res], _, Modulators) ->
-    {reverse(Modulators),Res};
-modulator_result([{{?TAG,new_modulator},true}|Res], _, Modulators) ->
-    {reverse(Modulators, [{modulator,[]}]),Res};
-modulator_result([_Minimized,_Mode,true|Res0], M, Modulators) -> %Delete
+    {[{modulators,reverse(Modulators)}|Ps], []};
+modulator_result(Ps, [{{?TAG,new_modulator},false},false|Res], 1, []) ->
+    {[{modulators,[]}|Ps],Res};
+modulator_result(Ps, [{{?TAG,new_modulator},false},true|Res], 1, []) ->
+    %% Default Modulators
+    {Ps,Res};
+modulator_result(Ps, [{{?TAG,new_modulator},true},_|Res], 1, []) ->
+    {[{modulators,[{modulator,[]}]}|Ps],Res};
+modulator_result(Ps, [{{?TAG,new_modulator},false}|Res], _, Modulators) ->
+    {[{modulators,reverse(Modulators)}|Ps],Res};
+modulator_result(Ps, [{{?TAG,new_modulator},true}|Res], _, Modulators) ->
+    {[{modulators,reverse(Modulators, [{modulator,[]}])}|Ps],Res};
+modulator_result(Ps, [_Minimized,{{?TAG,enabled,M},_},_Mode,true|Res0], 
+		 M, Modulators) -> 
+    %% Delete
     {_,Res} = split_list(Res0, 18),
-    modulator_result(Res, M+1, Modulators);
-modulator_result([Minimized,Mode,false|Res0], M, Modulators) ->
-    {Modulator,Res} = modulator(Minimized, Mode, Res0, M),
-    modulator_result(Res, M+1, [Modulator|Modulators]).
+    modulator_result(Ps, Res, M+1, Modulators);
+modulator_result(Ps, [Minimized,{{?TAG,enabled,M},Enabled},Mode,false|Res0], 
+		 M, Modulators) ->
+    {Modulator,Res} = modulator(Minimized, Enabled, Mode, Res0, M),
+    modulator_result(Ps, Res, M+1, [Modulator|Modulators]).
 
-modulator(Minimized, Mode, Res0, M) ->
+modulator(Minimized, Enabled, Mode, Res0, M) ->
     {Res1,Res} = split_list(Res0, 18),
     TypeTag = {?TAG,type,M},
     {value,{TypeTag,Type}} = lists:keysearch(TypeTag, 1, Res1),
@@ -497,7 +566,7 @@ modulator(Minimized, Mode, Res0, M) ->
      Color2,Sharpness,RingscaleZ,
      Depth,Hard] %% 17 values = 18-1
 	= lists:keydelete(TypeTag, 1, Res1),
-    Ps = [{minimized,Minimized},{mode,Mode},
+    Ps = [{minimized,Minimized},{enabled,Enabled},{mode,Mode},
 	  {size_x,SizeX},{size_y,SizeY},{size_z,SizeZ},
 	  {diffuse,Diffuse},{specular,Specular},{ambient,Ambient},
 	  {shininess,Shininess},{normal,Normal},
@@ -1042,16 +1111,16 @@ export_shader(F, Name, Mat, ExportDir) ->
     println(F, "</shader>").
 
 export_texture(F, Name, Maps, ExportDir, {modulator,Ps}) when list(Ps) ->
-    case mod_mode_type(Ps, Maps) of
-	{off,_} ->
+    case mod_enabled_mode_type(Ps, Maps) of
+	{false,_,_} ->
 	    off;
-	{_,image} ->
+	{true,_,image} ->
 	    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
 	    export_texture(F, Name, image, Filename);
-	{_,jpeg} -> %% Old tag
+	{true,_,jpeg} -> %% Old tag
 	    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
 	    export_texture(F, Name, image, Filename);
-	{_,{map,Map}} ->
+	{true,_,{map,Map}} ->
 	    case proplists:get_value(Map, Maps, undefined) of
 		undefined ->
 		    exit({unknown_texture_map,{?MODULE,?LINE,[Name,Map]}});
@@ -1061,7 +1130,7 @@ export_texture(F, Name, Maps, ExportDir, {modulator,Ps}) when list(Ps) ->
 					filename:join(ExportDir, MapFile)),
 		    export_texture(F, Name, image, MapFile)
 	    end;
-	{_,Type} ->
+	{true,_,Type} ->
 	    export_texture(F, Name, Type, Ps)
     end.
 
@@ -1105,11 +1174,10 @@ export_texture(F, Name, Type, Ps) ->
     println(F, "</texture>").
 
 export_modulator(F, Texname, Maps, {modulator,Ps}, Opacity) when list(Ps) ->
-    case mod_mode_type(Ps, Maps) of
-	{off,_} ->
+    case mod_enabled_mode_type(Ps, Maps) of
+	{false,_,_} ->
 	    off;
-	_ ->
-	    Mode = proplists:get_value(mode, Ps, ?DEF_MOD_MODE),
+	{true,Mode,_} ->
 	    SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
 	    SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
 	    SizeZ = proplists:get_value(size_z, Ps, ?DEF_MOD_SIZE_Z),

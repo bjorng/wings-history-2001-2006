@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.156 2003/12/28 14:06:43 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.157 2003/12/30 02:35:27 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -977,6 +977,8 @@ mktree({oframe,Qs,Def,Flags}, Sto, I) ->
 %%
 mktree(panel, Sto, I) ->
     mktree_panel(Sto, I, []);
+mktree({panel,Flags}, Sto, I) ->
+    mktree_panel(Sto, I, Flags);
 %%
 mktree({eyepicker,Hook}, Sto, I) ->
     mktree_eyepicker(Sto, I, [{hook,Hook}]);
@@ -2336,7 +2338,7 @@ custom_event(_Ev, _Path, _Store) -> keep.
 
 mktree_panel(Sto, I, Flags) ->
     Fi = mktree_leaf(fun (_Ev, _Path, _Store) -> keep end, inert, undefined,
-		     0, 0, I, Flags),
+		     0, ?LINE_HEIGHT+2, I, Flags),
     mktree_priv(Fi, Sto, I, #panel{}).
 
 %%%
