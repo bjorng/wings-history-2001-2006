@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.250 2004/05/23 08:38:35 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.251 2004/05/23 10:48:37 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -611,17 +611,67 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
 	{{value,We},_} -> new_geom_state_2(We, AuvSt)
     end.
 
-new_geom_state_2(We, St) ->
-    Faces = ?TC(wings_we:uv_mapped_faces(We)),
-    FvUvMap = ?TC(auv_segment:fv_to_uv_map(Faces, We)),
-    {Charts1,Cuts} = ?TC(auv_segment:uv_to_charts(Faces, FvUvMap, We)),
-    Charts2 = ?TC(auv_segment:cut_model(Charts1, Cuts, We)),
-    Charts3 = ?TC(auv_segment:finalize_charts(Charts2)),
-    Charts4 = ?TC(build_map(Charts3, FvUvMap, [])),
-    Charts = ?TC(gb_trees:from_orddict(sort(Charts4))),
+new_geom_state_2(We, #st{shapes=OldCharts}=St) ->
+    Faces = wings_we:uv_mapped_faces(We),
+    FvUvMap = auv_segment:fv_to_uv_map(Faces, We),
+    {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We),
+    Charts2 = auv_segment:cut_model(Charts1, Cuts, We),
+    Charts3 = update_charts(Charts2, gb_trees:values(OldCharts)),
+    Charts4 = build_map(Charts3, FvUvMap, []),
+    Charts = gb_trees:from_orddict(keysort(1, Charts4)),
     wings_wm:set_prop(wireframed_objects,
 		      gb_sets:from_list(gb_trees:keys(Charts))),
     {St#st{sel=[],shapes=Charts},true}.
+
+update_charts(Cs, OldCs) ->
+    Id = length(Cs),
+    update_charts_1(Cs, reverse(OldCs), Id, []).
+
+update_charts_1([{Fs,We0}|Cs], [OldWe|OldCs], Id, Acc) ->
+    We = update_chart(Fs, We0#we{id=Id}, OldWe),
+    update_charts_1(Cs, OldCs, Id-1, [We|Acc]);
+update_charts_1([{Fs,We0}|Cs], [], Id, Acc) ->
+    We = auv_segment:finalize_chart(Fs, We0#we{id=Id}),
+    update_charts_1(Cs, [], Id-1, [We|Acc]);
+update_charts_1([], _, 0, Acc) -> Acc.
+
+update_chart(Fs, We, OldWe) ->
+    case wings_we:visible(OldWe) of
+	Fs -> update_chart_1(Fs, We, OldWe);
+	_ -> auv_segment:finalize_chart(Fs, We)
+    end.
+
+update_chart_1(Fs, We, OldWe) ->
+    case same_topology(Fs, We, OldWe) of
+	false -> auv_segment:finalize_chart(Fs, We);
+	true -> OldWe
+    end.
+
+same_topology([F|Fs], We, OldWe) ->
+    case same_toplolgy_1(F, We, OldWe) of
+	false -> false;
+	true -> same_topology(Fs, We, OldWe)
+    end;
+same_topology([], _, _) -> true.
+
+same_toplolgy_1(F, #we{es=EtabA,fs=FtabA}, #we{es=EtabB,fs=FtabB}) ->
+    EdgeA = gb_trees:get(F, FtabA),
+    EdgeB = gb_trees:get(F, FtabB),
+    same_toplogy_2(F, EtabA, EdgeA, EdgeA, EtabB, EdgeB, EdgeB).
+    
+same_toplogy_2(_F, _EtabA, LastA, LastA, _EtabB, LastB, LastB) -> true;
+same_toplogy_2(F, EtabA, EdgeA, LastA, EtabB, EdgeB, LastB) ->
+    case {gb_trees:get(EdgeA, EtabA),gb_trees:get(EdgeB, EtabB)} of
+	{#edge{vs=Eq,lf=F,ltsu=NextA},#edge{vs=Eq,lf=F,ltsu=NextB}} ->
+	    same_toplogy_2(F, EtabA, NextA, LastA, EtabB, NextB, LastB);
+	{#edge{ve=Eq,rf=F,rtsu=NextA},#edge{vs=Eq,lf=F,ltsu=NextB}} ->
+	    same_toplogy_2(F, EtabA, NextA, LastA, EtabB, NextB, LastB);
+	{#edge{vs=Eq,lf=F,ltsu=NextA},#edge{ve=Eq,rf=F,rtsu=NextB}} ->
+	    same_toplogy_2(F, EtabA, NextA, LastA, EtabB, NextB, LastB);
+	{#edge{ve=Eq,rf=F,rtsu=NextA},#edge{ve=Eq,rf=F,rtsu=NextB}} ->
+	    same_toplogy_2(F, EtabA, NextA, LastA, EtabB, NextB, LastB);
+	{_,_} -> false
+    end.
 
 build_map([#we{id=Id,name=#ch{vmap=Vmap}}=We0|T], FvUvMap, Acc) ->
     %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
