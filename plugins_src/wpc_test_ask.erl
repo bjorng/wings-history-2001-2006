@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.2 2003/10/20 12:51:41 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.3 2003/10/20 15:24:00 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -105,7 +105,7 @@ command_dialog(_St) ->
 					       false -> {0,1,1} end,
 				   wings_io:sunken_rect(X, Y, W, H, Color)
 			   end},
-	     {slider,[{range,{1,3}},{key,d}]},
+	     {slider,[{range,{1,3}},{key,d},{hook,disable_hook(c)}]},
 	     {key_alt,{d,1},"Alt 2",2,[{hook,disable_hook(c)}]},
 	     separator,
 	     {custom,40,10,fun (X, Y, W, H, Store) ->
@@ -144,7 +144,7 @@ command_dialog(_St) ->
 			   color_update(v, {hue,sat}, {red,green,blue})}]}
 		]}]}]},
 	   {vframe,
-	    [{text,123},
+	    [{text,123,[{hook,disable_hook(c)}]},
 	     {slider,{text,0.5,[{range,{0.0,1.0}}]}},
 	     {color,{1.0,0.0,0.0}},
 	     {color,{0.0,1.0,0.0,1.0}},

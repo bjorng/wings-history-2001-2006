@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.93 2003/10/20 12:51:42 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.94 2003/10/20 15:24:06 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -435,7 +435,11 @@ redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fis0,store=Store} = S) ->
 	  end),
     case draw_fields(1, Fis0, Focus, Store, keep) of
 	keep -> keep;
-	Fis ->  get_event(S#s{fi=Fis})
+	Fis ->
+	    case element(Focus, Fis) of
+		#fi{disabled=true} -> get_event(next_focus(S#s{fi=Fis}, 1));
+		_ -> get_event(S#s{fi=Fis})
+	    end
     end.
 
 draw_fields(I, Fis, Focus, Store, Keep) when I =< size(Fis) ->
@@ -872,9 +876,9 @@ rb_event(_Ev, _Fi, _I, _Store) -> keep.
 rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
     Y = Y0+?CHAR_HEIGHT,
     gl:color4fv(case DisEnable of
-		   disable -> color();
-		   _ -> {1,1,1,1}
-	       end),
+		    disable -> color();
+		    _ -> {1,1,1,1}
+		end),
     Fg = <<
 	     2#00111000,
 	     2#01111100,
@@ -1539,11 +1543,14 @@ string_to_float(Str0) ->
 	    end
     end.
 
-gen_text_handler({redraw,true}, Fi, I, Store) ->
-    draw_text_active(Fi, gb_trees:get(-I, Store));
-gen_text_handler({redraw,false}, #fi{key=Key}=Fi, I, Store) ->
-    Val = gb_trees:get(ck(Key, I), Store),
-    draw_text_inactive(Fi, gb_trees:get(-I, Store), Val);
+gen_text_handler({redraw,true}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
+    DisEnable = hook_is_disabled(Hook, ck(Key, I), I, Store),
+    draw_text_active(Fi, gb_trees:get(-I, Store), DisEnable);
+gen_text_handler({redraw,false}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
+    Var = ck(Key, I),
+    DisEnable = hook_is_disabled(Hook, Var, I, Store),
+    Val = gb_trees:get(Var, Store),
+    draw_text_inactive(Fi, gb_trees:get(-I, Store), Val, DisEnable);
 gen_text_handler(value, #fi{key=Key}, I, Store) ->
     {value,gb_trees:get(ck(Key, I), Store)};
 gen_text_handler(init, #fi{key=Key}, I, Store) ->
@@ -1566,7 +1573,8 @@ gen_text_handler(Ev, #fi{key=Key}=Fi, I, Store0) ->
 		 end,
     {store,gb_trees:update(-I, Ts, Store)}.
 
-draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password}, Val) ->
+draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password}, 
+		   Val, DisEnable) ->
     Str0 = text_val_to_str(Val),
     Str = case Password of 
 	      true -> stars(Str0);
@@ -1575,18 +1583,25 @@ draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password}, Val) ->
     gl:color3b(0, 0, 0),
     wings_io:sunken_rect(X0, Y0+2,
 			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
-			 {1,1,1}),
+			 case DisEnable of
+			     disable -> color();
+			     _ -> {1,1,1}
+			 end),
     Y = Y0 + ?CHAR_HEIGHT,
     X = X0 + (?CHAR_WIDTH div 2),
     wings_io:text_at(X, Y, Str),
-    keep.
+    DisEnable.
 
 draw_text_active(#fi{x=X0,y=Y0}, 
-		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password}) ->
+		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password},
+		 DisEnable) ->
     gl:color3b(0, 0, 0),
     wings_io:sunken_rect(X0, Y0+2,
 			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
-			 {1,1,1}),
+			 case DisEnable of
+			     disable -> color();
+			     _ -> {1,1,1}
+			 end),
     Y = Y0 + ?CHAR_HEIGHT,
     X = X0 + (?CHAR_WIDTH div 2),
     Len = length(Bef),
@@ -1596,8 +1611,15 @@ draw_text_active(#fi{x=X0,y=Y0},
 	  end,
     ?DEBUG_DISPLAY([Sel,Bef,Aft]),
     wings_io:text_at(X, Y, Str),
-    case abs(Sel) of
-	N when N /= 0 ->
+    case {DisEnable,abs(Sel)} of
+	{disable,_} ->
+	    ok;
+	{_,0} ->
+	    gl:color3f(1, 0, 0),
+	    X1 = X+Len*?CHAR_WIDTH,
+	    wings_io:text_at(X1, Y, [caret]),
+	    gl:color3b(0, 0, 0);
+	{_,N} ->
 	    Skip = min(Len, Len+Sel),
 	    SelStr = string:substr(Str, Skip+1, N),
 	    gl:color3f(0, 0, 0.5),
@@ -1605,15 +1627,9 @@ draw_text_active(#fi{x=X0,y=Y0},
  	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1+N*?CHAR_WIDTH, Y+2),
  	    gl:color3f(1, 1, 1),
 	    wings_io:text_at(X1, Y, SelStr),
-	    gl:color3b(0, 0, 0),
-	    keep;
-	_ ->
-	    gl:color3f(1, 0, 0),
-	    X1 = X+Len*?CHAR_WIDTH,
-	    wings_io:text_at(X1, Y, [caret]),
-	    gl:color3b(0, 0, 0),
-	    keep
-    end.
+	    gl:color3b(0, 0, 0)
+    end,
+    DisEnable.
 
 stars(N) when integer(N) ->
     lists:duplicate(N, $*);
@@ -1797,10 +1813,11 @@ slider_event(init, #fi{key=Key,flags=Flags}, I, Store) ->
 	Val ->
 	    {store,gb_trees:enter(sk(Key, I), Val, Store)}
     end;
-slider_event({redraw,Active}, #fi{key=Key}=Fi, I, Store) ->
+slider_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
     Sl = gb_trees:get(-I, Store),
     Val = gb_trees:get(sk(Key, I), Store),
-    slider_redraw(Active, Fi, Sl, Val, Store);
+    DisEnable = hook_is_disabled(Hook, Sl, I, Store),
+    slider_redraw(Active, Fi, Sl, Val, Store, DisEnable);
 slider_event(value, #fi{flags=Flags,key=Key}, I, Store) ->
     case proplists:get_value(value, Flags) of
 	undefined ->
@@ -1864,14 +1881,15 @@ slider_update(Hook, Val, Key, I, Store) ->
     ?DEBUG_DISPLAY([Val,Sk]),
     hook_update(Hook, Sk, I, Val, Store).
 
-slider_redraw(Active, Fi, #sl{color={T,K1,K2}}=Sl, Val, Store) ->
+slider_redraw(Active, Fi, #sl{color={T,K1,K2}}=Sl, Val, Store, DisEnable) ->
     V1 = gb_trees:get(K1, Store),
     V2 = gb_trees:get(K2, Store),
-    slider_redraw_1(Active, Fi, Sl, {T, {Val,V1,V2}});
-slider_redraw(Active, Fi, #sl{color=undefined}=Sl, Val, _Store) ->
-    slider_redraw_1(Active, Fi, Sl, Val).
+    slider_redraw_1(Active, Fi, Sl, {T, {Val,V1,V2}}, DisEnable);
+slider_redraw(Active, Fi, #sl{color=undefined}=Sl, Val, _Store, DisEnable) ->
+    slider_redraw_1(Active, Fi, Sl, Val, DisEnable).
 
-slider_redraw_1(Active, #fi{x=X,y=Y0,w=W}, #sl{min=Min,range=Range,h=H}, C) ->
+slider_redraw_1(Active, #fi{x=X,y=Y0,w=W}, #sl{min=Min,range=Range,h=H}, C,
+		DisEnable) ->
     Y = Y0+?LINE_HEIGHT div 2 + 2,
     blend(fun(Col) ->
 		  wings_io:sunken_rect(X, Y-(H div 2), W, H, Col)
@@ -1879,16 +1897,18 @@ slider_redraw_1(Active, #fi{x=X,y=Y0,w=W}, #sl{min=Min,range=Range,h=H}, C) ->
     Val = color_slider(C, X, W, Y-(H div 2), H),
     Pos = round(?SL_LENGTH * (Val-Min) / Range),
     blend(fun(Col) ->
-		  case Active of
-		      false ->
-			  wings_io:raised_rect(X+Pos, Y-(?SL_BAR_H div 2),
-					       4, ?SL_BAR_H, Col);
-		      true ->
-			  wings_io:sunken_rect(X+Pos, Y-(?SL_BAR_H div 2),
-					       4, ?SL_BAR_H, Col)
+		  XPos = X+Pos,
+		  YPos = Y-(?SL_BAR_H div 2),
+		  case {DisEnable,Active} of
+		      {disable,_} ->
+			  wings_io:border(XPos, YPos, 4, ?SL_BAR_H, Col);
+		      {_,false} ->
+			  wings_io:raised_rect(XPos, YPos, 4, ?SL_BAR_H, Col);
+		      {_,true} ->
+			  wings_io:sunken_rect(XPos, YPos, 4, ?SL_BAR_H, Col)
 		  end
 	  end),
-    keep.
+    DisEnable.
 
 color_slider({h,{Hue,S,V}},X,W,Y,H) ->
     gl:shadeModel(?GL_SMOOTH),
