@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.37 2001/12/11 15:48:34 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.38 2001/12/12 10:21:41 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -76,7 +76,6 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
 
     %% Draw faces for winged-edge-objects.
     Wire = wings_pref:get_value(wire_mode),
-    ShowEdges = 
     case Wire of
 	true -> ok;
 	false ->
@@ -135,9 +134,6 @@ draw_sel(#st{dl=#dl{sel=DlistSel}}) ->
 draw_faces(#st{dl=#dl{faces=DlistFaces}}) ->
     gl:callList(DlistFaces).
 
-% draw_edges(#st{dl=#dl{edges=DlistEdges}}) ->
-%     gl:callList(DlistEdges).
-
 update_display_lists(#st{shapes=Shapes,dl=none}=St) ->
     Smooth = wings_pref:get_value(smooth_preview),
     gl:newList(?DL_FACES, ?GL_COMPILE),
@@ -147,30 +143,7 @@ update_display_lists(#st{shapes=Shapes,dl=none}=St) ->
     gl:endList(),
     Dl = #dl{faces=?DL_FACES},
     St#st{dl=Dl};
-%     case Smooth of
-% 	true -> St#st{dl=Dl};
-% 	false -> make_edge_dlist(Dl, St)
-%     end;
 update_display_lists(St) -> St.
-
-% make_edge_dlist(Dl, #st{shapes=Shapes}=St) ->
-%     gl:newList(?DL_EDGES, ?GL_COMPILE),
-%     foreach(fun(Sh) ->
-% 		    edges(Sh)
-% 	    end, gb_trees:values(Shapes)),
-%     gl:endList(),
-%     St#st{dl=Dl#dl{edges=?DL_EDGES}}.
-
-% edges(#shape{sh=#we{es=Etab,vs=Vtab,he=Htab}}) ->
-%     gl:'begin'(?GL_LINES),
-%     draw_edges(gb_trees:values(Etab), Vtab),
-%     gl:'end'().
-
-% draw_edges([#edge{vs=Va,ve=Vb}|Es], Vtab) ->
-%     gl:vertex3fv(lookup_pos(Va, Vtab)),
-%     gl:vertex3fv(lookup_pos(Vb, Vtab)),
-%     draw_edges(Es, Vtab);
-% draw_edges([], Vtab) -> ok.
 
 make_sel_dlist(Smooth, #st{dl=#dl{sel=none}}=St) ->
     do_make_sel_dlist(Smooth, St);
@@ -178,7 +151,21 @@ make_sel_dlist(_, #st{sel=Sel,dl=#dl{old_sel=Sel}}=St) -> St;
 make_sel_dlist(Smooth, #st{dl=DL}=St) -> do_make_sel_dlist(Smooth, St);
 make_sel_dlist(Smooth, St) -> St.
 
-do_make_sel_dlist(Smooth, #st{sel=Sel,dl=DL}=St) ->
+do_make_sel_dlist(false, #st{selmode=body,sel=Sel,shapes=Shs,dl=DL}=St) ->
+    DlistSel = ?DL_SEL,
+    gl:newList(DlistSel, ?GL_COMPILE),
+    case {gb_trees:size(Shs),length(Sel)} of
+	{Sz,Sz} ->
+	    sel_color(),
+	    draw_faces(St);
+	{_,_} ->
+	    draw_selection(false, St)
+    end,
+    gl:endList(),
+    St#st{dl=DL#dl{old_sel=Sel,sel=DlistSel}};
+do_make_sel_dlist(Smooth, St) -> do_make_sel_dlist_1(Smooth, St).
+
+do_make_sel_dlist_1(Smooth, #st{sel=Sel,dl=DL}=St) ->
     DlistSel = ?DL_SEL,
     gl:newList(DlistSel, ?GL_COMPILE),
     draw_selection(Smooth, St),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.24 2001/12/11 10:54:16 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.25 2001/12/12 10:21:41 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -509,7 +509,7 @@ loop_cut_1(#shape{id=Id,name=Name,sh=We0}=Sh0, Edges, {Sel0,#st{onext=NewId}=St0
     #edge{lf=Lf,rf=Rf} = gb_trees:get(AnEdge, Etab),
     LeftFaces = collect_faces(Lf, Edges, We0),
     RightFaces = collect_faces(Rf, Edges, We0),
-    case gb_sets:is_subset(LeftFaces, RightFaces) or
+    case gb_sets:is_subset(LeftFaces, RightFaces) orelse
 	gb_sets:is_subset(RightFaces, LeftFaces) of
 	true ->
 	    Error = "Edge loop doesn't divide \"" ++ Name ++

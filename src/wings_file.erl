@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.35 2001/12/11 15:10:44 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.36 2001/12/12 10:21:41 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -375,11 +375,12 @@ output_file(Tag, Prop) ->
 %%%
 
 do_import(Mod, Name, St0) ->
-    wings_io:progress("Importing: ", 0),
+    wings_io:progress("Reading " ++ filename:basename(Name)),
     case Mod:import(Name) of
 	{ok,#e3d_file{objs=Objs,mat=Mat}} ->
-	    wings_io:progress("Importing: ", 50),
-	    {UsedMat,St} = translate_objects(Objs, gb_sets:empty(), St0),
+	    Suffix = " of " ++ integer_to_list(length(Objs)),
+	    {UsedMat,St} = translate_objects(Objs, gb_sets:empty(),
+					     1, Suffix, St0),
 	    add_materials(UsedMat, Mat, St);
 	{error,Reason}=Error ->
 	    Error
@@ -395,7 +396,9 @@ add_materials(UsedMat0, Mat0, St) ->
     Mat = sofs:to_external(sofs:union(Mat2, NotDefined)),
     wings_material:add_materials(Mat, St).
 
-translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0, St0) ->
+translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0,
+		  I, Suffix, St0) ->
+    wings_io:progress("Converting obj " ++ integer_to_list(I) ++ Suffix),
     Obj1 = e3d_mesh:clean(Obj0),
     Obj = e3d_mesh:make_quads(Obj1),
     #e3d_mesh{matrix=Matrix0,type=Type,vs=Vs,tx=Tx0,fs=Fs0,he=He} = Obj,
@@ -405,9 +408,10 @@ translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0, St0) ->
 		 _ -> Matrix0
 	     end,
     {Fs,UsedMat} = translate_faces(Fs0, [], UsedMat0),
+    wings_io:progress("Building Wings obj " ++ integer_to_list(I) ++ Suffix),
     St = build_object(Name, Matrix, Fs, Vs, He, St0),
-    translate_objects(Os, UsedMat, St);
-translate_objects([], UsedMat, St) -> {UsedMat,St}.
+    translate_objects(Os, UsedMat, I+1, Suffix, St);
+translate_objects([], UsedMat, _, _, St) -> {UsedMat,St}.
 
 translate_faces([#e3d_face{vs=Vs,tx=Tx,mat=Mat0}|Fs], Acc, UsedMat0) ->
     UsedMat = add_used_mat(Mat0, UsedMat0),

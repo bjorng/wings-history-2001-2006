@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.30 2001/12/11 15:10:43 bjorng Exp $
+%%     $Id: wings.hrl,v 1.31 2001/12/12 10:21:41 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -42,8 +42,9 @@
 -define(BEVEL_HIGHLIGHT, {0.9,0.9,0.9}).
 -define(BEVEL_LOWLIGHT, {0.3,0.3,0.3}).
 
--define(SLOW(Cmd), wings_io:slow(fun() -> Cmd end)).
-
+-define(SLOW(Cmd), begin wings_io:hourglass(), Cmd end).
+-define(TC(Cmd), wings_util:tc(fun() -> Cmd end)).
+				       
 -ifdef(DEBUG).
 -define(ASSERT(E), case E of
 		       true -> ok;
@@ -64,10 +65,9 @@
 %% Display lists.
 -record(dl,
 	{faces=none,				%Faces.
-	 edges=none,				%Edges.
 	 pick=none,				%For picking.
 	 old_sel,				%Actual selection.
-	 sel=none				%For selected faces.
+	 sel=none				%Selected items.
 	}).
 
 %% Main state record containing all objects and other important state.

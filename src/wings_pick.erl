@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.17 2001/12/10 18:39:58 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.18 2001/12/12 10:21:41 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -125,7 +125,7 @@ do_pick(X0, Y0, #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0) ->
     case gl:renderMode(?GL_RENDER) of
 	0 -> none;
 	NumHits ->
-	    HitData = sdl_util:readBin(HitBuf, ?HIT_BUF_SIZE),
+	    HitData = sdl_util:readBin(HitBuf, 5*NumHits),
 	    Hits = get_hits(NumHits, HitData, []),
 	    case filter_hits(Hits, X, Y, St) of
 		none -> none;
@@ -286,7 +286,7 @@ pick_all(X0, Y0, W, H, St) ->
     case gl:renderMode(?GL_RENDER) of
 	0 -> none;
 	NumHits ->
- 	    HitData = sdl_util:readBin(HitBuf, ?HIT_BUF_SIZE),
+ 	    HitData = sdl_util:readBin(HitBuf, 5*NumHits),
  	    Hits = get_hits(NumHits, HitData, []),
 	    add_to_selection(Hits, St)
     end.

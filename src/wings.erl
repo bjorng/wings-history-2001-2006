@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.68 2001/12/11 15:48:33 bjorng Exp $
+%%     $Id: wings.erl,v 1.69 2001/12/12 10:21:41 bjorng Exp $
 %%
 
 -module(wings).
@@ -435,9 +435,9 @@ command({body,cleanup}, St) ->
 
 %% Face menu.
 command({face,{extrude,Type}}, St) ->
-    wings_face_cmd:extrude(Type, St);
+    ?SLOW(wings_face_cmd:extrude(Type, St));
 command({face,{extrude_region,Type}}, St) ->
-    wings_face_cmd:extrude_region(Type, St);
+    ?SLOW(wings_face_cmd:extrude_region(Type, St));
 command({face,{extract_region,Type}}, St) ->
     wings_face_cmd:extract_region(Type, St);
 command({face,{flatten,Plane}}, St) ->
@@ -449,7 +449,7 @@ command({face,inset}, St) ->
 command({face,mirror}, St) ->
     {save_state,model_changed(wings_face_cmd:mirror(St))};
 command({face,intrude}, St) ->
-    wings_face_cmd:intrude(St);
+    ?SLOW(wings_face_cmd:intrude(St));
 command({face,dissolve}, St) ->
     {save_state,model_changed(wings_face_cmd:dissolve(St))};
 command({face,{material,Mat}}=Cmd, St) ->
@@ -457,7 +457,7 @@ command({face,{material,Mat}}=Cmd, St) ->
 command({face,bridge}, St) ->
     {save_state,model_changed(wings_face_cmd:bridge(St))};
 command({face,smooth}, St) ->
-    {save_state,model_changed(wings_face_cmd:smooth(St))};
+    ?SLOW({save_state,model_changed(wings_face_cmd:smooth(St))});
     
 %% Edge commands.
 command({edge,bevel}, St) ->

@@ -8,15 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.23 2001/12/11 15:48:34 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.24 2001/12/12 10:21:41 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,menubar/1,resize/2,display/1,
-	 slow/1,arrow/0,hourglass/0,
+	 hourglass/0,
 	 draw_ui/1,
 	 update/1,button/2,
-	 info/1,message/1,clear_message/0,progress/2,
+	 info/1,message/1,clear_message/0,
+	 progress/1,
 	 clear_menu_sel/0,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,menu_text/3,space_at/2,
@@ -62,15 +63,6 @@ init() ->
     put_state(#io{eq=queue:new(),raw_icons=Icons,
 		  arrow=Arrow,hourglass=Hourglass}).
 
-slow(F) ->
-    hourglass(),
-    R = (catch F()),
-    arrow(),
-    case R of
-	{'EXIT',Reason} -> exit(Reason);
-	Other -> Other
-    end.
-
 hourglass() ->
     #io{hourglass=Hg} = get_state(),
     sdl_mouse:setCursor(Hg).
@@ -107,17 +99,10 @@ menubar(Menubar) ->
     Io = get_state(),
     put_state(Io#io{menubar=Menubar}).
 
-progress(Message, Percent) ->
+progress(Message) ->
     display(fun(W, H) ->
-		    draw_message(fun() -> progress_1(Message, Percent) end)
+		    draw_message(fun() -> text_at(0, Message) end)
 	    end).
-
-progress_1(Message, Percent) ->
-    text_at(0, Message),
-    X = length(Message) * ?CHAR_WIDTH,
-    sunken_rect(X, -?LINE_HEIGHT+3, 100, ?LINE_HEIGHT+3),
-    gl:color3f(0.0, 0.0, 1.0),
-    gl:recti(X, -?CHAR_HEIGHT, X+Percent, 3).
 
 info(Info) ->
     Io = get_state(),
@@ -148,6 +133,7 @@ draw_ui(St) ->
 update(St) ->
     display(fun(Io) -> update(Io, St) end, ?GL_BACK),
     gl:swapBuffers(),
+    arrow(),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT).
 
 draw_message(F) ->
@@ -661,10 +647,10 @@ hourglass_data() ->
 	"   ..    X............X    ..   "
 	"   ..    X............X    ..   "
 	"   ..     X..........X     ..   "
-	"   ..     X..........X     ..   "
-	"   ..     X..........X     ..   "
-	"   ..      X........X      ..   "
-	"   ..       X......X       ..   "
+	"   ..     X.X......X.X     ..   "
+	"   ..     X.X.X..X.X.X     ..   "
+       	"   ..      X.X.X.X.XX      ..   "
+	"   ..       X..XX..X       ..   "
 	"   ..       X......X       ..   "
 	"   ..      X........X      ..   "
        	"   ..     X..........X     ..   "
@@ -672,11 +658,11 @@ hourglass_data() ->
 	"   ..     X..........X     ..   "
 	"   ..    X............X    ..   "
 	"   ..    X............X    ..   "
-	"   ..    X............X    ..   "
-	"   ..   X..............X   ..   "
-	"   ..   X..............X   ..   "
-	"   ..   X..............X   ..   "
-       	"   ..   X..............X   ..   "
+	"   ..    X......X.....X    ..   "
+	"   ..   X....X.X.X.X...X   ..   "
+	"   ..   X...X.X.X.X.X..X   ..   "
+	"   ..   X..X.X.X.X.X.X.X   ..   "
+       	"   ..   X.X.X.X.X.X.XX.X   ..   "
        	" XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
        	"X..............................X"
        	" XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
