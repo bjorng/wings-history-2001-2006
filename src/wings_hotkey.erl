@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.30 2002/09/16 19:29:19 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.31 2002/12/23 08:01:09 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -198,7 +198,7 @@ vkeyname(C) when $\s < C, C < 256 -> [C];
 vkeyname(C) when ?SDLK_KP0 < C, C < ?SDLK_KP9 -> [C-?SDLK_KP0+$0];
 vkeyname(C) when ?SDLK_F1 =< C, C =< ?SDLK_F15 ->
     [$F|integer_to_list(C-?SDLK_F1+1)];
-vkeyname(?SDLK_KP_PERIOD) -> ".";
+vkeyname(?SDLK_KP_PERIOD) -> "Del";
 vkeyname(?SDLK_KP_DIVIDE) -> "Div";
 vkeyname(?SDLK_KP_MULTIPLY) -> "Mul";
 vkeyname(?SDLK_KP_MINUS) -> "-";
