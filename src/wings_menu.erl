@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.85 2003/01/29 16:06:00 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.86 2003/02/03 05:09:47 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -616,17 +616,18 @@ draw_menu_text(X, Y, Text, Props) ->
 
 item_colors(Y, Ps, Sel, #mi{sel=Sel,sel_side=Side,w=W}) ->
     %% Draw blue background for highlighted item.
-    gl:color3f(0, 0, 0.5),
+    wings_io:set_color(wings_pref:get_value(menu_hilite)),
     Right = W - (2*?CHAR_WIDTH*right_width(Ps)) - ?CHAR_WIDTH,
     case Side of
 	right ->
 	    gl:recti(Right, Y-?CHAR_HEIGHT, Right+3*?CHAR_WIDTH-2, Y+3),
-	    gl:color3f(0, 0, 0);		%Black text
+	    wings_io:set_color(wings_pref:get_value(menu_text));
 	left ->
 	    gl:recti(?CHAR_WIDTH, Y-?CHAR_HEIGHT, Right, Y+3),
-	    gl:color3f(1, 1, 1)			%White text
+	    wings_io:set_color(wings_pref:get_value(menu_hilited_text))
     end;
-item_colors(_, _, _, _) -> gl:color3f(0, 0, 0). %Black text
+item_colors(_, _, _, _) ->
+    wings_io:set_color(wings_pref:get_value(menu_text)).
 
 help_text(#mi{sel=none}) ->
     wings_wm:message("");

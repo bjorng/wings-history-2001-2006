@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.69 2003/01/25 14:05:56 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.70 2003/02/03 05:09:47 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -159,13 +159,19 @@ command(advanced, _St) ->
 command(ui, _St) ->
     Qs = [{vframe,
 	   [{hframe,[{vframe,
-		      [{label,"Menu Background"},
+		      [{label,"Menu Text"},
+		       {label,"Menu Highlight"},
+		       {label,"Menu Highlighted Text"},
+		       {label,"Menu Background"},
 		       {label,"Dialog Background"},
 		       {label,"Title Text"},
 		       {label,"Title (Passive) Background"},
 		       {label,"Title (Active) Background"}]},
 		     {vframe,
-		      [{color,menu_color},
+		      [{color,menu_text},
+		       {color,menu_hilite},
+		       {color,menu_hilited_text},
+		       {color,menu_color},
 		       {color,dialog_color},
 		       {color,title_text_color},
 		       {color,title_passive_color},
@@ -343,6 +349,9 @@ defaults() ->
      {right_click_sel_in_geom,false},
 
      %% User interface preferences.
+     {menu_text,{0.0,0.0,0.0}},
+     {menu_hilite,{0.0,0.0,0.5}},
+     {menu_hilited_text,{1.0,1.0,1.0}},
      {menu_color,{0.75,0.75,0.75,1.0}},
      {dialog_color,{0.75,0.75,0.75,1.0}},
      {title_active_color,{0.41,0.55,0.41,1.0}},
