@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.25 2002/02/23 18:48:59 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.26 2002/04/08 08:08:32 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -143,7 +143,7 @@ tx_filler(Vs) ->
     tx_filler(Vs, wings_color:default(), []).
 tx_filler([_|Vs], Col, Acc) ->
     tx_filler(Vs, Col, [Col|Acc]);
-tx_filler([], Col, Acc) -> Acc.
+tx_filler([], _Col, Acc) -> Acc.
 
 combine_half_edges(HalfEdges) ->
     combine_half_edges(HalfEdges, [], []).
@@ -165,17 +165,17 @@ combine_half_edges([], Good, Bad) ->
 combine_half_edges_1(Name, [{left,Ldata}|Les], [{right,Rdata}|Res], Good0) ->
     Good = [{Name,{Ldata,Rdata}}|Good0],
     combine_half_edges_1(Name, Les, Res, Good);
-combine_half_edges_1(Name, [], [], Good) -> Good.
+combine_half_edges_1(_Name, [], [], Good) -> Good.
 
 number_edges(Es) ->
     number_edges(Es, 1, []).
 
-number_edges([{Name,{Ldata,Rdata}=Data}|Es], Edge, Tab0) ->
+number_edges([{Name,{_Ldata,_Rdata}=Data}|Es], Edge, Tab0) ->
     Tab = [{Name,{Edge,Data}}|Tab0],
     number_edges(Es, Edge+1, Tab);
-number_edges([], Edge, Tab) -> reverse(Tab).
+number_edges([], _Edge, Tab) -> reverse(Tab).
 
-vpairs_to_edges([], Es) -> gb_sets:empty();
+vpairs_to_edges([], _) -> gb_sets:empty();
 vpairs_to_edges(HardNames0, Es) ->
     HardNames = sofs:set([edge_name(He) || He <- HardNames0], [name]),
     SofsEdges = sofs:from_external(Es, [{name,{edge,info}}]),
@@ -200,7 +200,7 @@ build_tables([H|T], Emap, Vtab0, Etab0, Ftab0) ->
     Ftab = [{Lf,Edge},{Rf,Edge}|Ftab0],
     Vtab = [{Vs,Edge},{Ve,Edge}|Vtab0],
     build_tables(T, Emap, Vtab, Etab, Ftab);
-build_tables([], Etree, Vtab, Etab0, Ftab) ->
+build_tables([], _Emap, Vtab, Etab0, Ftab) ->
     Etab = gb_trees:from_orddict(reverse(Etab0)),
     {Vtab,Etab,Ftab}.
 
@@ -232,9 +232,9 @@ build_faces(Ftab0, Fs) ->
     Ftab = sofs:to_external(Ftab2),
     build_faces(Ftab, Fs, []).
 
-build_faces([{Face,[Edge|_]}|Fs0], [{Material,Vs,Tx}|Fs1], Acc) ->
+build_faces([{Face,[Edge|_]}|Fs0], [{Material,_Vs,_Tx}|Fs1], Acc) ->
     build_faces(Fs0, Fs1, [{Face,#face{edge=Edge,mat=Material}}|Acc]);
-build_faces([{Face,[Edge|_]}|Fs0], [{Material,Vs}|Fs1], Acc) ->
+build_faces([{Face,[Edge|_]}|Fs0], [{Material,_Vs}|Fs1], Acc) ->
     build_faces(Fs0, Fs1, [{Face,#face{edge=Edge,mat=Material}}|Acc]);
 build_faces([{Face,[Edge|_]}|Fs0], [_|Fs1], Acc) ->
     build_faces(Fs0, Fs1, [{Face,#face{edge=Edge}}|Acc]);
@@ -252,24 +252,24 @@ fill_holes(Es, Acc) ->
 make_hole_faces(G, [[V|_]|Cs], Acc) ->
     case digraph:get_cycle(G, V) of
 	[_|Vs] when length(Vs) >= 3 ->
-	    make_hole_faces(G, Cs, [{hole,Vs}|Acc]);
-	Other ->
+	    make_hole_faces(G, Cs, [{'_hole_',Vs}|Acc]);
+	_Other ->
 	    make_hole_faces(G, Cs, Acc)
     end;
-make_hole_faces(G, [], Acc) -> Acc.
+make_hole_faces(_G, [], Acc) -> Acc.
     
-make_digraph([{{Va,Vb},[{right,Data}]}|Es], G) ->
+make_digraph([{{Va,Vb},[{right,_Data}]}|Es], G) ->
     digraph:add_vertex(G, Va),
     digraph:add_vertex(G, Vb),
     digraph:add_edge(G, Va, Vb),
     make_digraph(Es, G);
-make_digraph([{{Vb,Va},[{left,Data}]}|Es], G) ->
+make_digraph([{{Vb,Va},[{left,_Data}]}|Es], G) ->
     digraph:add_vertex(G, Va),
     digraph:add_vertex(G, Vb),
     digraph:add_edge(G, Va, Vb),
     make_digraph(Es, G);
 make_digraph([_|Es], G) -> make_digraph(Es, G);
-make_digraph([], G) -> ok.
+make_digraph([], _G) -> ok.
 
 %%% Utilities for allocating IDs.
 
@@ -277,7 +277,7 @@ new_wrap_range(Items, Inc, #we{next_id=Id}=We) ->
     NumIds = Items*Inc,
     {{0,Id,Inc,NumIds},We#we{next_id=Id+NumIds}}.
 
-id(N, {Current,BaseId,Inc,NumIds}) ->
+id(N, {Current,BaseId,_Inc,NumIds}) ->
     BaseId + ((Current+N) rem NumIds).
 
 bump_id({Id,BaseId,Inc,NumIds}) ->
@@ -456,20 +456,20 @@ renum_hard_edge(Edge0, Emap, New) ->
 %% get_sub_object(Edge, We) -> We'
 %%  Returns a copy of the sub-object that is reachable from Edge.
 
-get_sub_object(Edge, #we{es=Etab0,vs=Vtab,fs=Ftab,he=Htab}=We) ->
+get_sub_object(Edge, #we{es=Etab0}=We) ->
     Ws = gb_sets:singleton(Edge),
-    {EtabLeft,NewEtab} = separate(Ws, Etab0, gb_trees:empty()),
+    {_,NewEtab} = separate(Ws, Etab0, gb_trees:empty()),
     NewWe = copy_dependents(NewEtab, We),
     NewWe#we{es=NewEtab}.
 
 separate(We) ->
     separate(We, []).
 
-separate(#we{es=Etab0,vs=Vtab,fs=Ftab,he=Htab}=We, Acc) ->
+separate(#we{es=Etab0}=We, Acc) ->
     case gb_trees:is_empty(Etab0) of
 	true -> Acc;
 	false ->
-	    {Edge,Rec,_} = gb_trees:take_smallest(Etab0),
+	    {Edge,_,_} = gb_trees:take_smallest(Etab0),
 	    Ws = gb_sets:singleton(Edge),
 	    {EtabLeft,NewEtab} = separate(Ws, Etab0, gb_trees:empty()),
 	    NewWe = copy_dependents(NewEtab, We),
@@ -607,7 +607,7 @@ vertex_normals(#we{vs=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
 
 soft_vtx_normal(V, FaceNormals, We) ->
     Ns = wings_vertex:fold(
-	   fun(Edge, Face, _, A) ->
+	   fun(_, Face, _, A) ->
 		   [gb_trees:get(Face, FaceNormals)|A]
 	   end, [], V, We),
     e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns)).
@@ -693,7 +693,7 @@ new_items(face, #we{next_id=Wid}, #we{next_id=NewWid,fs=Tab}) ->
 
 new_items_1(Tab, Wid, NewWid) when NewWid-Wid < 32 ->
     new_items_2(Wid, NewWid, Tab, []);
-new_items_1(Tab, Wid, NewWid) ->
+new_items_1(Tab, Wid, _NewWid) ->
     Items = [Item || Item <- gb_trees:keys(Tab), Item >= Wid],
     gb_sets:from_ordset(Items).
 
@@ -702,7 +702,7 @@ new_items_2(Wid, NewWid, Tab, Acc) when Wid < NewWid ->
 	true -> new_items_2(Wid+1, NewWid, Tab, [Wid|Acc]);
 	false -> new_items_2(Wid+1, NewWid, Tab, Acc)
     end;
-new_items_2(Wid, NewWid, Tab, Acc) ->
+new_items_2(_Wid, _NewWid, _Tab, Acc) ->
     gb_sets:from_ordset(reverse(Acc)).
 
 %%%

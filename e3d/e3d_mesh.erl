@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.15 2002/02/02 07:11:08 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.16 2002/04/08 08:08:32 bjorng Exp $
 %%
 
 -module(e3d_mesh).
--export([clean/1,triangulate/1,quadrangulate/1,
+-export([clean/1,renumber/1,triangulate/1,quadrangulate/1,
 	 make_quads/1,vertex_normals/1]).
 -export([triangulate_face/2,triangulate_face_with_holes/3]).
 -export([quadrangulate_face/2,quadrangulate_face_with_holes/3]).
@@ -28,7 +28,7 @@ number_faces(Fs) ->
     number_faces(Fs, 0, []).
 number_faces([F|Fs], Face, Acc) ->
     number_faces(Fs, Face+1, [{Face,F}|Acc]);
-number_faces([], Face, Acc) -> reverse(Acc).
+number_faces([], _Face, Acc) -> reverse(Acc).
 
 pairs(Vs, Vis) ->
     pairs(Vs, Vs, Vis, []).
@@ -41,7 +41,7 @@ pairs([V1], [V2|_], Vis, Acc) ->
     [{V1,V2,State}|Acc].
 
 visible(F) when F band 4 =/= 0 -> visible;
-visible(F) -> invisible.
+visible(_) -> invisible.
 
 %%%
 %%% If two adjacent triangles share a hidden edge, combine the
@@ -59,11 +59,11 @@ make_quads(#e3d_mesh{type=triangle,fs=Fs0}=Mesh) ->
     Mesh#e3d_mesh{type=polygon,fs=Fs};
 make_quads(Mesh) -> Mesh.
 
-merge_faces([{Name,L}|Es], Ftab0) ->
+merge_faces([{_Name,L}|Es], Ftab0) ->
     Ftab = case L of
 	       [{Fa,Va,Vb,invisible},{Fb,_,_,invisible}] ->
 		   merge_faces_1(Fa, Fb, Va, Vb, Ftab0);
-	       Other -> Ftab0
+	       _Other -> Ftab0
 	   end,
     merge_faces(Es, Ftab);
 merge_faces([], Ftab) -> Ftab.
@@ -92,7 +92,7 @@ merge_faces_3(Va, Vb, [Va,Vb|Vs1], [Vb,Va|Vs2]) ->
     [Vb|Vs1]++[Va|Vs2];
 merge_faces_3(Va, Vb, [Va,Vb|Vs1], [Va,Vb|Vs2]) ->
     [Vb|Vs1]++[Va|Vs2];
-merge_faces_3(Va, Vb, Vs1, Vs2) -> error.
+merge_faces_3(_Va, _Vb, _Vs1, _Vs2) -> error.
 
 rot_face(Va, Vb, [Va,Vb|_]=Face) -> Face;
 rot_face(Va, Vb, [Vb,Va|_]=Face) -> Face;
@@ -105,10 +105,10 @@ rot_face(Va, Vb, Vs) ->
 
 rot_face(Va, Vb, [Va,Vb|_]=Vs, Acc) -> Vs ++ reverse(Acc);
 rot_face(Va, Vb, [Vb,Va|_]=Vs, Acc) -> Vs ++ reverse(Acc);
-rot_face(Va, Vb, [Va|_]=Vs0, Acc) ->
+rot_face(Va, Vb, [Va|_]=Vs0, _Acc) ->
     [Vb|Vs] = reverse(Vs0),
     [Vb|reverse(Vs)];
-rot_face(Va, Vb, [Vb|_]=Vs0, Acc) ->
+rot_face(Va, Vb, [Vb|_]=Vs0, _Acc) ->
     [Va|Vs] = reverse(Vs0),
     [Va|reverse(Vs)];
 rot_face(Va, Vb, [V|Vs], Acc) -> rot_face(Va, Vb, Vs, [V|Acc]).
@@ -131,13 +131,13 @@ rhe_collect_edges([], Es0) ->
     Es = sofs:relation_to_family(Es1),
     sofs:to_external(Es).
 
-rhe_edges([{Va,Vb,Vis}=Vs|Ps], Face, Acc) when Va < Vb ->
+rhe_edges([{Va,Vb,Vis}|Ps], Face, Acc) when Va < Vb ->
     Name = {Va,Vb},
     rhe_edges(Ps, Face, [{Name,{Face,Va,Vb,Vis}}|Acc]);
-rhe_edges([{Va,Vb,Vis}=Vs|Ps], Face, Acc) ->
+rhe_edges([{Va,Vb,Vis}|Ps], Face, Acc) ->
     Name = {Vb,Va},
     rhe_edges(Ps, Face, [{Name,{Face,Va,Vb,Vis}}|Acc]);
-rhe_edges([], Face, Acc) -> Acc.
+rhe_edges([], _Face, Acc) -> Acc.
 
 %%%
 %%% Mesh triangulation.
@@ -169,7 +169,7 @@ quadrangulate_face_with_holes(Face, Holes, Vcoords) ->
 %%% Calculate normals for each vertex in a mesh.
 %%%
 
-vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
+vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}) ->
     Vtab = list_to_tuple(Vtab0),
     FaceNormals = face_normals(Ftab, Vtab),
 
@@ -202,7 +202,7 @@ vn_faces([#e3d_face{mat=Mat,vs=Vs0,tx=Tx}|Fs], VtxNormals, Face, Acc) ->
     Vs2 = reverse(Vs1),
     Vs = add_uv(Vs2, Tx),
     vn_faces(Fs, VtxNormals, Face+1, [{Mat,Vs}|Acc]);
-vn_faces([], VtxNormals, Face, Acc) -> reverse(Acc).
+vn_faces([], _VtxNormals, _Face, Acc) -> reverse(Acc).
 
 add_uv(Vs, []) -> Vs;
 add_uv([{V,N}|Vs], [UV|UVs]) ->
@@ -235,7 +235,7 @@ vtx_to_face_tab(Fs) ->
 vtx_to_face_tab([#e3d_face{vs=Vs}|Fs], Face, Acc0) ->
     Acc = [{V,Face} || V <- Vs] ++ Acc0,
     vtx_to_face_tab(Fs, Face+1, Acc);
-vtx_to_face_tab([], Face, Acc) -> Acc.
+vtx_to_face_tab([], _Face, Acc) -> Acc.
 
 vertex_normals(Vfs, Vn, FaceNormals) ->
     vertex_normals(Vfs, Vn, FaceNormals, []).
@@ -244,9 +244,10 @@ vertex_normals([{V,Fs}|Vfs], Vn, FaceNormals, Acc) ->
     Ns = [gb_trees:get(F, FaceNormals) || F <- Fs],
     N = e3d_vec:norm(e3d_vec:add(Ns)),
     vertex_normals(Vfs, Vn+1, FaceNormals, [{V,{Vn,N}}|Acc]);
-vertex_normals([], Vn, FaceNormals, Acc) -> Acc.
+vertex_normals([], _Vn, _FaceNormals, Acc) -> Acc.
 
-vn_hard_normals([], HardVtxFace, Fs, FaceNormals, VtxNormals) -> VtxNormals;
+vn_hard_normals([], _HardVtxFace, _Fs, _FaceNormals, VtxNormals) ->
+    VtxNormals;
 vn_hard_normals(He, HardVtxFace, Fs, FaceNormals, VtxNormals0) ->
     Hard = sofs:set(He),
     Edges = sofs:relation(vn_face_edges(Fs, 0, [])),
@@ -268,7 +269,7 @@ vn_hard_normals_1(G, [VF|VFs], FaceNormals, Vn, Acc) ->
 	    Ns -> e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns))
 	end,
     vn_hard_normals_1(G, VFs, FaceNormals, Vn+1, [{VF,{Vn,N}}|Acc]);
-vn_hard_normals_1(G, [], FaceNormals, Vn, Acc) -> Acc.
+vn_hard_normals_1(_G, [], _FaceNormals, _Vn, Acc) -> Acc.
     
 make_digraph_1(G, [{{Va,Vb},[Fx,Fy]}|T]) ->
     digraph_add_edge(G, {Va,Fx}, {Va,Fy}),
@@ -276,7 +277,7 @@ make_digraph_1(G, [{{Va,Vb},[Fx,Fy]}|T]) ->
     make_digraph_1(G, T);
 make_digraph_1(G, [_|T]) ->
     make_digraph_1(G, T);
-make_digraph_1(G, []) -> ok.
+make_digraph_1(_G, []) -> ok.
 
 digraph_add_edge(G, Va, Vb) ->
     digraph:add_vertex(G, Va),
@@ -286,7 +287,7 @@ digraph_add_edge(G, Va, Vb) ->
 
 vn_face_edges([#e3d_face{vs=Vs}|Fs], Face, Acc) ->
     vn_face_edges(Fs, Face+1, vn_pairs(Vs, Vs, Face, Acc));
-vn_face_edges([], Face, Acc) -> Acc.
+vn_face_edges([], _Face, Acc) -> Acc.
 
 vn_pairs([V1|[V2|_]=Vs], More, Face, Acc) ->
     vn_pairs(Vs, More, Face, [{vn_edge_name(V1, V2),Face}|Acc]);
@@ -295,3 +296,50 @@ vn_pairs([V1], [V2|_], Face, Acc) ->
 
 vn_edge_name(Va, Vb) when Va < Vb -> {Va,Vb};
 vn_edge_name(Va, Vb) -> {Vb,Va}.
+
+%% renumber(Mesh0) -> Mesh
+%%  Removes vertices and UV coordinates that are not referenced
+%%  from any faces and renumbers vertices and UV coordinates to
+%%  remove the gaps.
+renumber(#e3d_mesh{tx=Tx,vs=Vtab}=Mesh) ->
+    {UsedVs,UsedUv} = rn_used_vs(Mesh),
+    if
+	length(Vtab) =/= length(UsedVs);
+	length(Tx) =/= length(UsedUv) ->
+	    renumber_1(Mesh, UsedVs, UsedUv);
+	true -> Mesh
+    end.
+
+renumber_1(#e3d_mesh{fs=Ftab0,vs=Vs0,tx=Tx0}=Mesh, UsedVs, UsedUV) ->
+    VsMap = rn_make_map(UsedVs, 0, []),
+    UVMap = rn_make_map(UsedUV, 0, []),
+    Ftab = renumber_ftab(Ftab0, VsMap, UVMap, []),
+    Vs = rn_remove_unused(Vs0, VsMap, 0, []),
+    Tx = rn_remove_unused(Tx0, UVMap, 0, []),
+    Mesh#e3d_mesh{fs=Ftab,vs=Vs,tx=Tx}.
+
+renumber_ftab([#e3d_face{vs=Vs0,tx=Tx0}=Rec|Fs], VsMap, UVMap, Acc) ->
+    Vs = [gb_trees:get(V, VsMap) || V <- Vs0],
+    Tx = [gb_trees:get(V, UVMap) || V <- Tx0],
+    renumber_ftab(Fs, VsMap, UVMap, [Rec#e3d_face{vs=Vs,tx=Tx}|Acc]);
+renumber_ftab([], _, _, Acc) -> Acc.
+
+rn_remove_unused([V|Vs], Map, I, Acc) ->
+    case gb_trees:is_defined(I, Map) of
+	true -> rn_remove_unused(Vs, Map, I+1, [V|Acc]);
+	false -> rn_remove_unused(Vs, Map, I+1, Acc)
+    end;
+rn_remove_unused([], _, _, Acc) -> reverse(Acc).
+
+rn_used_vs(#e3d_mesh{fs=Ftab}) ->
+    Vs = foldl(fun(#e3d_face{vs=Vs}, A) -> Vs++A end, [], Ftab),
+    UV = foldl(fun(#e3d_face{tx=Tx}, A) -> Tx++A end, [], Ftab),
+    {ordsets:from_list(Vs),ordsets:from_list(UV)}.
+
+rn_make_map([V|Vs], I, Acc) ->
+    rn_make_map(Vs, I+1, [{V,I}|Acc]);
+rn_make_map([], _, Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
+
+    
+    

@@ -3,12 +3,12 @@
 %%
 %%     Internal module for cleaning E3D meshes.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__meshclean.erl,v 1.6 2001/10/17 07:47:47 bjorng Exp $
+%%     $Id: e3d__meshclean.erl,v 1.7 2002/04/08 08:08:31 bjorng Exp $
 %%
 
 -module(e3d__meshclean).
@@ -26,7 +26,7 @@ turn_normals(Face, [Face|BadFs], [#e3d_face{vs=Vs}=Rec|Fs], Acc) ->
     turn_normals(Face+1, BadFs, Fs, [Rec#e3d_face{vs=reverse(Vs)}|Acc]);
 turn_normals(Face, BadFs, [Rec|Fs], Acc) ->
     turn_normals(Face+1, BadFs, Fs, [Rec|Acc]);
-turn_normals(Face, [], Fs, Acc) -> reverse(Acc, Fs).
+turn_normals(_Face, [], Fs, Acc) -> reverse(Acc, Fs).
     
 interior_bad_faces(Fs) ->
     Faces = number_faces(Fs),
@@ -77,4 +77,4 @@ number_faces(Fs) ->
     number_faces(Fs, 0, []).
 number_faces([#e3d_face{vs=Vs}|Fs], Face, Acc) ->
     number_faces(Fs, Face+1, [{Face,Vs}|Acc]);
-number_faces([], Face, Acc) -> Acc.
+number_faces([], _Face, Acc) -> Acc.

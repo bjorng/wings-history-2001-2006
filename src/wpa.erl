@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.13 2002/04/05 05:51:21 bjorng Exp $
+%%     $Id: wpa.erl,v 1.14 2002/04/08 08:08:32 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,error/1,message/1,yes_no/1,
@@ -27,7 +27,7 @@
 	]).
 
 -include("wings.hrl").
--import(lists, [reverse/1]).
+-import(lists, [reverse/1,foldl/3]).
 
 ask(Qs, St, Fun) ->
     wings_ask:ask(Qs, St, Fun).
@@ -37,7 +37,7 @@ ask(Ask, Qs, St, Fun) ->
 
 %% Show String in a dialog box.
 error(String) ->
-    throw({command_error,String}).
+    wings_util:error(String).
 
 %% Show message and wait for OK.
 message(Message) ->
@@ -64,14 +64,27 @@ export(Props, Exporter, St) ->
     wings_file:export(Props, Exporter, St),
     St.
 
-export_selected(Props, Exporter, St) ->
-    Shs0 = wings_sel:fold(fun(_, #we{id=Id}=We, A) ->
-				  [{Id,We}|A]
-			  end, [], St),
+export_selected(Props, Exporter, #st{selmode=Mode}=St)
+  when Mode == body; Mode == face ->
+    Shs0 = wings_sel:fold(
+	     fun(Elems, #we{id=Id}=We, A) ->
+		     [{Id,export_sel_set_holes(Mode, Elems, We)}|A]
+	     end, [], St),
     Shs = gb_trees:from_orddict(reverse(Shs0)),
     wings_file:export(Props, Exporter, St#st{shapes=Shs}),
-    St.
+    St;
+export_selected(_, _, _) -> error("Select objects or faces.").
 
+export_sel_set_holes(body, _, We) -> We;
+export_sel_set_holes(face, Faces, #we{fs=Ftab0}=We) ->
+    Ftab = foldl(fun({Face,Rec}=Keep, A) ->
+			 case gb_sets:is_member(Face, Faces) of
+			     true -> [Keep|A];
+			     false -> [{Face,Rec#face{mat='_hole_'}}|A]
+			 end
+		 end, [], gb_trees:to_list(Ftab0)),
+    We#we{fs=gb_trees:from_orddict(reverse(Ftab))}.
+    
 %%%
 %%% Preferences.
 %%%

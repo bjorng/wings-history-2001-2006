@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.28 2002/04/04 18:01:25 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.29 2002/04/08 08:08:32 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -50,7 +50,7 @@ command({face,{material,new}}, St) ->
 		  fun([Name]) -> {face,{material,{new,Name}}} end);
 command({face,{material,{new,Name0}}}, St0) ->
     Name = list_to_atom(Name0),
-    Mat = make_default({1.0,1.0,1.0}),
+    Mat = make_default({1.0,1.0,1.0}, 1.0),
     St1 = add(Name, Mat, St0),
     St = edit(Name, St1),
     set_material(Name, St);
@@ -90,13 +90,11 @@ set_material(Mat, St) ->
       end, St).
 
 default() ->
-    M0 = [{default,wings_util:share(1.0, 1.0, 1.0)},
-	  {hole,wings_util:share(0.5, 0.5, 0.0)}],
-    M = [{Key,make_default(Color)} || {Key,Color} <- M0],
+    M = [{default,make_default({1.0,1.0,1.0}, 1.0)},
+	 {'_hole_',make_default({0.5,0.5,0.0}, 0.75)}],
     gb_trees:from_orddict(sort(M)).
 
-make_default({R,G,B}) ->
-    Opacity = 1.0,
+make_default({R,G,B}, Opacity) ->
     Color = {R,G,B},
     White = {1.0,1.0,1.0},
     setup_fun(#mat{ambient=Color,diffuse=Color,specular=White,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.56 2002/03/13 20:49:38 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.57 2002/04/08 08:08:32 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -120,7 +120,7 @@ quit(St) ->
 	yes ->
 	    case save(St) of
 		aborted -> St;
-		Other -> quit
+		_Other -> quit
 	    end;
 	aborted -> St
     end.
@@ -203,7 +203,7 @@ save(St0) ->
 save_1(#st{saved=true}=St) -> St;
 save_1(#st{file=undefined}=St) ->
     save_as(St);
-save_1(#st{shapes=Shapes,file=Name}=St) ->
+save_1(#st{file=Name}=St) ->
     Backup = backup_filename(Name),
     file:rename(Name, Backup),
     file:delete(autosave_filename(Name)),
@@ -215,7 +215,7 @@ save_1(#st{shapes=Shapes,file=Name}=St) ->
 	    wings_plugin:call_ui({failure,"Save failed: " ++ Reason})
     end.
 
-save_as(#st{shapes=Shapes}=St) ->
+save_as(St) ->
     case output_file(save, wings_prop()) of
 	false -> St;
 	aborted -> aborted;
@@ -321,7 +321,7 @@ add_recent(Name) ->
 	    Recent1 = Recent0 -- [File],
 	    Recent = add_recent(File, Recent1),
 	    wings_pref:set_value(recent_files, Recent);
-	Other -> ok
+	_Other -> ok
     end.
 
 add_recent(File, [A,B,C|_]) -> [File,A,B,C];
@@ -335,7 +335,7 @@ recent_files(Rest) ->
 
 number_files([{Base,_}|T], I, Rest) ->
     [{Base,I}|number_files(T, I+1, Rest)];
-number_files([], I, Rest) -> Rest.
+number_files([], _I, Rest) -> Rest.
     
 %%
 %% The Revert command.
@@ -354,7 +354,6 @@ revert(#st{file=File}=St0) ->
 %%
 
 import(Prop, Importer, St0) ->
-    Ext = property_lists:get_value(ext, Prop),
     case wings_plugin:call_ui({file,import,Prop}) of
 	aborted -> aborted;
 	Name ->
@@ -439,12 +438,12 @@ eq_extensions(Ext, Actual) ->
 		 end,
     eq_extensions(Ext, Actual, IgnoreCase).
 
-eq_extensions([C|T1], [C|T2], IgnoreCase) ->
+eq_extensions([C|T1], [C|T2], _IgnoreCase) ->
     eq_extensions(T1, T2);
 eq_extensions([L|T1], [C|T2], true) when $A =< C, C =< $Z, L-C =:= 32 ->
     eq_extensions(T1, T2);
-eq_extensions([_|_], [_|_], IgnoreCase) -> false;
-eq_extensions([], [], IgnoreCase) -> true.
+eq_extensions([_|_], [_|_], _IgnoreCase) -> false;
+eq_extensions([], [], _IgnoreCase) -> true.
 
 output_file(Tag, Prop) ->
     case wings_plugin:call_ui({file,Tag,Prop}) of
@@ -458,7 +457,7 @@ output_file(Tag, Prop) ->
 		    OProp = [{existing_file,Base}],
 		    case wings_plugin:call_ui({file,overwrite,OProp}) of
 			yes -> Name;
-			Other -> aborted
+			_Other -> aborted
 		    end;
 		false -> Name
 	    end
@@ -486,8 +485,8 @@ do_import(Importer, Name, St0) ->
 			" object(s) could not be converted.",
 		    {warning,Warn,St}
 	    end;
-	{error,Reason}=Error ->
-	    throw({command_error,Reason})
+	{error,Reason} ->
+	    wings_util:error(Reason)
     end.
 
 add_materials(UsedMat0, Mat0, St) ->
@@ -517,7 +516,7 @@ translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0,
 translate_objects([], UsedMat, _, _, St) -> {UsedMat,St}.
     
 obj_type([]) -> material;
-obj_type(L) -> uv.
+obj_type([_|_]) -> uv.
 
 scale_objects(Vs, none) -> Vs;
 scale_objects(Vs, Matrix) -> [e3d_mat:mul_point(Matrix, P) || P <- Vs].
@@ -532,7 +531,7 @@ translate_faces([#e3d_face{vs=Vs,tx=Tx0,mat=Mat0}|Fs], Txs, Acc, UsedMat0) ->
 		       {Mat,Vs,Tx}
 	       end,
     translate_faces(Fs, Txs, [FaceData|Acc], UsedMat);
-translate_faces([], Txs, Acc, UsedMat) -> {reverse(Acc),UsedMat}.
+translate_faces([], _Txs, Acc, UsedMat) -> {reverse(Acc),UsedMat}.
 
 add_used_mat([], UsedMat) -> UsedMat;
 add_used_mat([M|Ms], UsedMat) -> add_used_mat(Ms, gb_sets:add(M, UsedMat)).
@@ -573,20 +572,22 @@ do_export(#we{name=Name}=We, Acc) ->
 make_mesh(We0) ->
     #we{fs=Ftab,vs=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We0, 0),
     Vs = [P || #vtx{pos=P} <- gb_trees:values(Vs0)],
-    Fs0 = foldl(fun({Face,#face{mat=Mat}}, A) ->
+    Fs0 = foldl(fun({_,#face{mat='_hole_'}}, A) -> A;
+		   ({Face,#face{mat=Mat}}, A) ->
 			[make_face(Face, Mat, We)|A]
 		end, [], gb_trees:to_list(Ftab)),
     Fs1 = reverse(Fs0),
     {Fs,UVTab} = make_uv(Fs1),
     He = hard_edges(gb_sets:to_list(He0), Etab, []),
     Matrix = e3d_mat:identity(),
-    #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=UVTab,he=He,matrix=Matrix}.
+    Mesh = #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=UVTab,he=He,matrix=Matrix},
+    e3d_mesh:renumber(Mesh).
 
 make_face(Face, Mat, #we{mode=uv}=We) ->
     {Vs,UVs} = wings_face:fold_vinfo(
 		 fun(V, {_,_}=UV, {VAcc,UVAcc}) ->
 			 {[V|VAcc],[UV|UVAcc]};
-		    (V, Info, {VAcc,UVAcc}) ->
+		    (V, _Info, {VAcc,UVAcc}) ->
 			 {[V|VAcc],UVAcc}
 		 end, {[],[]}, Face, We),
     {Vs,UVs,Mat};
@@ -615,7 +616,7 @@ make_uv_1([], UVMap, Acc) ->
 
 number([UV|UVs], I, Acc) ->
     number(UVs, I+1, [{UV,I}|Acc]);
-number([], I, Acc) -> Acc.
+number([], _I, Acc) -> Acc.
 
 make_face_mat([_|_]=Mat) -> Mat;
 make_face_mat(Mat) -> [Mat].
@@ -623,7 +624,7 @@ make_face_mat(Mat) -> [Mat].
 hard_edges([E|Es], Etab, Acc) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
     hard_edges(Es, Etab, [hard(Va, Vb)|Acc]);
-hard_edges([], Etab, Acc) -> Acc.
+hard_edges([], _Etab, Acc) -> Acc.
 
 hard(A, B) when A < B -> {A,B};
 hard(A, B) -> {B,A}.
