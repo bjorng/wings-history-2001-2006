@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.79 2004/05/10 21:08:24 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.80 2004/05/12 12:12:14 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -91,6 +91,8 @@
 -define(DEF_PHOTONS,5000).
 -define(DEF_SEARCH,50).
 -define(DEF_DEPTH,3).
+-define(DEF_CAUS_DEPTH,4).
+-define(DEF_DIRECT,false).
 -define(DEF_MINDEPTH,1).
 -define(DEF_FIXEDRADIUS,1.0).
 -define(DEF_CLUSTER,1.0).
@@ -773,7 +775,8 @@ light_dialog(_Name, infinite, Ps) ->
       [{hradio,[{"Constant",constant},
 		{"Sunsky",sunsky},
 		{"None", undefined}],Bg,[layout,{key,{?TAG,background}}]},
-       {hframe,[{label,"Color"},{color,BgColor,[{key,{?TAG,background_color}}]}],
+       {hframe,[{label,"Color"},
+		{color,BgColor,[{key,{?TAG,background_color}}]}],
 	[light_hook({?TAG,background}, constant)]},
        {hframe,[{label,"Turbidity"},{text,Turbidity,[{range,0.0,100.0},
 						     {key,{?TAG,turbidity}}]}],
@@ -781,6 +784,7 @@ light_dialog(_Name, infinite, Ps) ->
       [{title,"Background"}]}];
 light_dialog(_Name, ambient, Ps) ->
     Bg = proplists:get_value(background, Ps, ?DEF_BACKGROUND),
+    BgColor = proplists:get_value(background_color, Ps, ?DEF_BACKGROUND_COLOR),
     BgFnameImage = proplists:get_value(background_filename_image, Ps, 
 				       ?DEF_BACKGROUND_FILENAME),
     BrowsePropsImage = [{dialog_type,open_dialog},
@@ -799,6 +803,8 @@ light_dialog(_Name, ambient, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_AMBIENT_TYPE),
     Samples = proplists:get_value(samples, Ps, ?DEF_SAMPLES),
     Depth = proplists:get_value(depth, Ps, ?DEF_DEPTH),
+    CausDepth = proplists:get_value(caus_depth, Ps, ?DEF_CAUS_DEPTH),
+    Direct = proplists:get_value(direct, Ps, ?DEF_DIRECT),
     UseQMC = proplists:get_value(use_QMC, Ps, ?DEF_USE_QMC),
     GplPhotons = proplists:get_value(globalphotonlight_photons, Ps,
 				     ?DEF_GLOBALPHOTONLIGHT_PHOTONS),
@@ -808,19 +814,28 @@ light_dialog(_Name, ambient, Ps) ->
 				   ?DEF_GLOBALPHOTONLIGHT_DEPTH),
     GplSearch = proplists:get_value(globalphotonlight_search, Ps,
 				    ?DEF_GLOBALPHOTONLIGHT_SEARCH),
-    [{hframe,
-      [{hradio,[{"Hemilight",hemilight},
-		{"Pathlight",pathlight},
-		{"Global Photonlight",globalphotonlight}],
-	Type,[layout,{key,{?TAG,type}}]},
-       {"Use QMC",UseQMC,[{key,{?TAG,use_QMC}},
-			  light_hook({?TAG,type}, [hemilight,pathlight])]}]},
-     {hframe,[{label,"Samples"}, 
-	      {text,Samples,[{range,1,1000000},{key,{?TAG,samples}}]},
-	      {hframe,[{label,"Depth"},
-		       {text,Depth,[{range,1,100},{key,{?TAG,depth}}]}],
-	       [light_hook({?TAG,type}, pathlight)]}],
+    [{hradio,[{"Hemilight",hemilight},
+	      {"Pathlight",pathlight},
+	      {"Global Photonlight",globalphotonlight}],
+      Type,[layout,{key,{?TAG,type}}]},
+     %% Hemilight and Pathlight
+     {hframe,
+      [{vframe,[{"Use QMC",UseQMC,[{key,{?TAG,use_QMC}}]},
+		{"Direct",Direct,[{key,{?TAG,direct}},
+				  light_hook({?TAG,type}, [pathlight])]}]},
+       {vframe,[{label,"Samples"},
+		{label,"Depth",[light_hook({?TAG,type}, [pathlight])]}]},
+       {vframe,[{text,Samples,[{range,1,1000000},{key,{?TAG,samples}}]},
+		{text,Depth,[{range,1,100},{key,{?TAG,depth}},
+			     light_hook({?TAG,type}, [pathlight])]}]},
+       {vframe,[panel,
+		{label,"Caus Depth"}],
+	[light_hook({?TAG,type}, [pathlight])]},
+       {vframe,[panel,
+		{text,CausDepth,[{range,1,100},{key,{?TAG,caus_depth}}]}],
+	[light_hook({?TAG,type}, [pathlight])]}],
       [light_hook({?TAG,type}, [hemilight,pathlight])]},
+     %% Global Photonlight
      {hframe,[{vframe,[{label,"Photons"},
 		       {label,"Depth"}]},
 	      {vframe,[{text,GplPhotons,
@@ -838,9 +853,11 @@ light_dialog(_Name, ambient, Ps) ->
 			[{range,0,1000000},
 			 {key,{?TAG,globalphotonlight_search}}]}]}],
       [light_hook({?TAG,type}, [globalphotonlight])]},
+     %% Backgrounds
      {vframe,
       [{hradio,[{"HDRI",'HDRI'},
 		{"Image",image},
+		{"Constant",constant},
 		{"None", undefined}],Bg,[layout,{key,{?TAG,background}}]},
        {hframe,[{label,"Filename"},
 		{button,{text,BgFnameHDRI,
@@ -861,7 +878,10 @@ light_dialog(_Name, ambient, Ps) ->
        {hframe,[{label,"Power"},
 		{text,BgPower,[{key,{?TAG,background_power}},
 			       {range,{0.0,128.0}}]}],
-	[light_hook({?TAG,background}, image)]}],
+	[light_hook({?TAG,background}, image)]},
+       {hframe,[{label,"Color"},
+		{color,BgColor,[{key,{?TAG,background_color}}]}],
+	[light_hook({?TAG,background}, constant)]}],
       [{title,"Background"}]}];
 light_dialog(_Name, area, Ps) ->
     ArealightSamples = proplists:get_value(arealight_samples, Ps, 
@@ -902,24 +922,29 @@ light_result(_Name, Ps0,
 %    erlang:display({?MODULE,?LINE,[Ps,Res1]}),
     {Ps,Res1}.
 
+%% Point
 light_result([{{?TAG,type},pointlight}|_]=Ps) ->
     split_list(Ps, 5);
 light_result([{{?TAG,type},softlight}|_]=Ps) ->
     split_list(Ps, 5);
+%% Spot
 light_result([{{?TAG,type},spotlight}|_]=Ps) ->
     split_list(Ps, 11);
 light_result([{{?TAG,type},photonlight}|_]=Ps) ->
     split_list(Ps, 11);
-light_result([_,{{?TAG,background},_}|_]=Ps) -> % infinite
+%% Infinite
+light_result([_,{{?TAG,background},_}|_]=Ps) ->
     split_list(Ps, 4);
-light_result([_,{{?TAG,arealight_samples},_}|_]=Ps) -> % area
+%% Area
+light_result([_,{{?TAG,arealight_samples},_}|_]=Ps) ->
     split_list(Ps, 3);
+%% Ambient
 light_result([{{?TAG,type},hemilight}|_]=Ps) ->
-    split_list(Ps, 14);
+    split_list(Ps, 17);
 light_result([{{?TAG,type},pathlight}|_]=Ps) ->
-    split_list(Ps, 14);
+    split_list(Ps, 17);
 light_result([{{?TAG,type},globalphotonlight}|_]=Ps) ->
-    split_list(Ps, 14);
+    split_list(Ps, 17);
 light_result(Ps) ->
 %    erlang:display({?MODULE,?LINE,Ps}),
     {[],Ps}.
@@ -1785,10 +1810,13 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
 	    UseQMC = proplists:get_value(use_QMC, YafRay, 
 					 ?DEF_USE_QMC),
 	    Depth = proplists:get_value(depth, YafRay, ?DEF_DEPTH),
+	    CausDepth = proplists:get_value(depth, YafRay, ?DEF_CAUS_DEPTH),
+	    Direct = proplists:get_value(direct, YafRay, ?DEF_DIRECT),
 	    Samples = proplists:get_value(samples, YafRay, 
 					  ?DEF_SAMPLES),
-	    println(F,"       use_QMC=\"~s\" samples=\"~w\" depth=\"~w\">", 
-		    [format(UseQMC),Samples,Depth]),
+	    println(F,"       use_QMC=\"~s\" samples=\"~w\" "
+		    "depth=\"~w\" caus_depth=\"~w\" direct=\"~s\">", 
+		    [format(UseQMC),Samples,Depth,CausDepth,format(Direct)]),
 	    println(F, "</light>");
 	pathlight -> ok;
 	globalphotonlight ->
@@ -2418,4 +2446,6 @@ help(text, light_dialog) ->
      <<"All other OpenGl properties are ignored, particulary the "
       "Attenuation properties">>,
      <<"YafRay parameters mapping is pretty straightforward - "
-      "the dialog field names should be self-explanatory">>].
+      "the dialog field names should be self-explanatory">>,
+    <<"Note: For a YafRay Global Photon Light (one of the Ambient lights) - "
+     "the Power parameter is ignored">>].
