@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.132 2003/11/12 18:58:53 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.133 2003/11/21 12:01:55 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -357,7 +357,7 @@ init_autosave() ->
 	true -> ok;
 	false ->
 	    Op = {seq,push,get_autosave_event(make_ref(), #st{saved=auto})},
-	    wings_wm:new(Name, {0,0,1}, {1,1}, Op),
+	    wings_wm:new(Name, {0,0,1}, {0,0}, Op),
 	    wings_wm:hide(Name),
 	    wings_wm:set_prop(Name, display_lists, geom_display_lists)
     end,
