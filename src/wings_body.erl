@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.47 2002/12/30 07:48:42 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.48 2003/01/05 08:12:46 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -370,10 +370,13 @@ weld(Ask, _) when is_atom(Ask) ->
 		     fun(Res) -> {body,{weld,Res}} end);
 weld([Tolerance], St0) ->
     St1 = combine(St0),
-    St = wings_sel:map(fun(_, We) -> weld_1(Tolerance, We) end, St1),
-    {save_state,St}.
+    {St2,Sel} = wings_sel:mapfold(fun(_, We, Acc) ->
+					  weld_1(Tolerance, We, Acc)
+				  end, [], St1),
+    St = wings_sel:set(vertex, Sel, St2),
+    {save_state,wings_sel:valid_sel(St)}.
 
-weld_1(Tol, #we{fs=Fs0}=We0) ->
+weld_1(Tol, #we{id=Id,fs=Fs0}=We0, Acc) ->
     Fs = weld_1_list(gb_trees:keys(Fs0), Tol, We0, []),
     R = sofs:relation(Fs, [{key,face}]),
     F = sofs:relation_to_family(R),
@@ -384,7 +387,8 @@ weld_1(Tol, #we{fs=Fs0}=We0) ->
     case weld_2(Part, Tol, We0) of
 	We0 ->
 	    wings_util:error("Found no faces to weld.");
-	We -> We
+	We ->
+	    {We,[{Id,weld_selection(lists:append(Part), We0, We)}|Acc]}
     end.
 
 weld_1_list([F|Fs], Tol, We, Acc) ->
@@ -467,3 +471,18 @@ weld_same_positions(N, IterA0, IterB0, Tol, We) ->
 	D when abs(D) < Tol -> weld_same_positions(N-1, IterA, IterB, Tol, We);
 	_D -> false
     end.
+
+weld_selection(Fs, OldWe, We) ->
+    weld_selection(Fs, OldWe, We, []).
+
+weld_selection([F|Fs], OldWe, #we{fs=Ftab}=We, Acc) ->
+    case gb_trees:is_defined(F, Ftab) of
+	true -> weld_selection(Fs, OldWe, We, Acc);
+	false ->
+	    Vs = wings_face:surrounding_vertices(F, OldWe),
+	    weld_selection(Fs, OldWe, We, Vs++Acc)
+    end;
+weld_selection([], _, _, Acc) ->
+    gb_sets:from_list(Acc).
+	    
+    
