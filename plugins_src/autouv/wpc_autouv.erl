@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.208 2004/03/17 05:56:20 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.209 2004/03/19 07:42:15 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -187,11 +187,11 @@ init_show_maps(Map0, We, St) ->
 
 create_uv_state(Charts0, MatName0, We, GeomSt0) ->
     Charts = restrict_ftab(Charts0),
-    wings:mode_restriction([vertex,edge,face,body]),
+    wings:mode_restriction([body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {GeomSt1,MatName} = 
 	case has_texture(MatName0, GeomSt0) of
-	    true -> 
+	    true ->
 		{GeomSt0,MatName0};
 	    false ->
 		Tx = checkerboard(128, 128),
@@ -406,19 +406,23 @@ command_menu(body, X, Y) ->
 command_menu(face, X, Y) ->
     Menu = [{"Face operations", ignore}, 
 	    separator,
-	    {"Nothing here yet",ignore}
+	    {"Move",move,"Move selected faces"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(edge, X, Y) ->
     Menu = [{"Edge operations", ignore},
 	    separator,
-	    {"Nothing here yet",ignore}
+	    {"Move",move,"Move selected edges"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(vertex, X, Y) ->
+    Scale =  [{"Uniform",    scale_uniform, "Scale in both directions"},
+	      {"Horizontal", scale_x, "Scale horizontally (X dir)"},
+	      {"Vertical",   scale_y, "Scale vertically (Y dir)"}],
     Menu = [{"Vertex operations",ignore},
 	    separator,
-	    {"Nothing here yet",ignore}
+	    {"Move",move,"Move selected vertices"},
+	    {"Scale", {scale, Scale}, "Scale selected vertices"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu).
 
@@ -445,11 +449,8 @@ handle_event(init_opengl, St) ->
     get_event(St);
 handle_event(resized, St) ->
     get_event(St);
-handle_event({new_state,#st{bb=#uvstate{}=Uvs,sel=Sel}=St0}, _) ->
-    GeomSt = wings_select_faces(Sel, St0),
-    St1 = St0#st{bb=Uvs#uvstate{st=GeomSt}},
-    St = update_selected_uvcoords(St1),
-    get_event(St);
+handle_event({new_state,St}, _) ->
+    new_state(St);
 handle_event(Ev, St) ->
     case wings_camera:event(Ev, fun() -> redraw(St) end) of
 	next -> handle_event_0(Ev, St);
@@ -502,7 +503,7 @@ handle_event_1({action,{select,Command}}, St0) ->
 	#st{}=St1 -> ok
     end,
     St = filter_selection(St1),
-    get_event(St);
+    new_state(St);
 handle_event_1(got_focus, _) ->
     Msg1 = wings_util:button_format("Select"),
     Msg2 = wings_camera:help(),
@@ -513,6 +514,12 @@ handle_event_1(got_focus, _) ->
 handle_event_1(_Event, St) ->
     ?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(St).
+
+new_state(#st{bb=#uvstate{}=Uvs,sel=Sel}=St0) ->
+    GeomSt = wings_select_faces(Sel, St0),
+    St1 = St0#st{bb=Uvs#uvstate{st=GeomSt}},
+    St = update_selected_uvcoords(St1),
+    get_event(St#st{selmode=body,sh=false}).
 
 handle_command(move, St) ->
     drag(wings_move:setup(free_2d, St));
@@ -618,8 +625,9 @@ filter_selection(#st{selmode=body}=St) -> St.
 update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #st{bb=#uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs}=AuvSt) ->
     get_event_nodraw(AuvSt#st{bb=Uvs#uvstate{st=St}});
-update_selection(#st{selmode=Mode,sel=Sel}=St, #st{bb=#uvstate{id=Id}=Uvs}=AuvSt0) ->
-    AuvSt = AuvSt0#st{sel=[],sh=true,bb=Uvs#uvstate{st=St}},
+update_selection(#st{selmode=Mode,sel=Sel}=St,
+		 #st{bb=#uvstate{id=Id}=Uvs}=AuvSt0) ->
+    AuvSt = reset_sel(AuvSt0#st{bb=Uvs#uvstate{st=St}}),
     case keysearch(Id, 1, Sel) of
 	false ->
 	    get_event(AuvSt);
@@ -650,6 +658,12 @@ wings_select_faces(Sel, #st{bb=#uvstate{st=GeomSt,id=Id}}=St) ->
 		       end, [], St#st{sel=Sel}),
     Fs = gb_sets:from_list(Fs0),
     wpa:sel_set(face, [{Id,Fs}], GeomSt).
+
+reset_sel(St0) ->
+    case wings_sel:reset(St0) of
+	#st{selmode=body,sh=false}=St -> St;
+	St -> St#st{selmode=body,sh=false}
+    end.
 
 %%%% GUI Operations
 
