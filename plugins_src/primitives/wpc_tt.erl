@@ -3,7 +3,7 @@
 %%
 %%     Functions for reading TrueType fonts (.tt)
 %%
-%%  Copyright (c) 2001 Howard Trickey
+%%  Copyright (c) 2001-2004 Howard Trickey
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -79,41 +79,54 @@ gen(Font, Dir, Text, Nsubsteps) ->
 	    S;
 	{error,Reason} ->
 	    wpa:error("Text failed: " ++ Reason);
-	_ ->
+	X ->
+	    io:format("caught error: ~p~n", [X]),
 	    wpa:error("Text failed: internal error")
     end.
 
 trygen(File, Text, Nsubsteps) ->
     case file:read_file(File) of
-	{ok,<<16#00010000:32,Rest/binary>>} ->
-		Ttf = parsett(Rest),
-		Pa = getpolyareas(Text, Ttf, Nsubsteps),
-		{Vs,Fs} = polyareas_to_faces(Pa),
-		{new_shape,"text",Fs,Vs};
-	    {ok,_} ->
-		{error,"Not a TrueType file version 1.0"};
-	    {error,Reason} ->
-		{error,file:format_error(Reason)}
-	end.
+	{ok,Filecontents} ->
+		case ttfpart(Filecontents) of
+		    {ok, TTFpart} ->
+			Ttf = parsett(TTFpart),
+			Pa = getpolyareas(Text, Ttf, Nsubsteps),
+			{Vs,Fs} = polyareas_to_faces(Pa),
+			{new_shape,"text",Fs,Vs};
+		    _ -> {error, "Can't find TrueType section in " ++ File}
+		end;
+	{error,Reason} ->
+	    {error,file:format_error(Reason)}
+    end.
 
 % Try to map a Name to a font file using registry
-% and in any case, concatenate Dir in front of it (if Dir != "")
+% and in any case, concatenate Dir in front of it (if Dir != "").
+% If dir is empty and we didn't find it in the current dir,
+% try the sysfontdir again.
 font_file(Name, Dir) ->
-    case os:type() of
-	{win32,_} ->
-	    Name1 = case winregval("Fonts", Name ++ " (TrueType)") of
-			none -> Name;
-			Fname -> Fname
-		    end,
-	    case Dir of
-		"" -> Name1;
-		_ -> filename:absname(Dir ++ "\\" ++ Name1)
-	    end;
+    Name1 = case Dir of
+	"" -> Name;
+	_ -> filename:join([Dir,Name])
+	end,
+    case filelib:is_regular(Name1) of
+	true -> Name1;
 	_ ->
-	    case Dir of
-		"" -> Name;
-		_ -> filename:absname(Dir ++ "/" ++ Name)
-	    end
+		case os:type() of
+		    {win32,_} ->
+			Name2 = case winregval("Fonts", Name ++ " (TrueType)") of
+				    none -> Name;
+				    Fname -> Fname
+		    		end,
+			case Dir of
+			    "" -> filename:join([sysfontdir(),Name2]);
+			    _ -> filename:absname(Dir ++ "\\" ++ Name2)
+			end;
+		    _ ->
+			case Dir of
+			    "" -> filename:join([sysfontdir(),Name]);
+			    _ -> Name1
+		end
+	end
     end.
 
 % Look up value with Name in Windows registry,
@@ -160,8 +173,11 @@ sysfontdir() ->
 		     Val -> Val
 		 end,
 	    SR ++ "\\Fonts";
-	{unix,linux} -> 
-	    Dir = "/usr/lib/X11/fonts/TTF/",
+	{unix,Utype} -> 
+	    Dir = case Utype of
+		    darwin -> "/Library/Fonts";
+		    _ -> "/usr/lib/X11/fonts/TTF/"
+		  end,
 	    case file:list_dir(Dir) of
 		{error, _} -> 
 		    "/YOUR/PATH/TO/TTF_FONTS/";
@@ -169,7 +185,7 @@ sysfontdir() ->
 		    Dir
 	    end;
 	_ ->
-	    "/usr/lib/font"		% guess for non-windows, likely to be wrong
+	    "/usr/lib/font"		% guess for rest, likely to be wrong
     end.
 
 default_font(Dir) ->
@@ -183,7 +199,8 @@ default_font(Dir) ->
 		    Def;
 		{ok, List} ->
 		    Find = fun(File) -> 
-				   filename:extension(File) /= ".ttf" 
+				   Ext = filename:extension(File),
+				   Ext /= ".ttf" andalso Ext /= ".dfont"
 			   end,
 		    case lists:dropwhile(Find, List) of
 			[H|_] ->
@@ -214,11 +231,101 @@ concatvfs([{Vs,Fs}|Rest], Offset, Vsacc, Fsacc) ->
 	concatvfs(Rest, Off1,
 		[Vs|Vsacc], Fsacc ++ Fs1).
 
+% For TrueType format, see
+% http://developer.apple.com/fonts/TTRefMan/index.html
+% or
+% http://www.microsoft.com/typography/otspec/
 
-% Parse binary arg, which should be a TrueType file after the version number,
+ttfpart(Filecontents) ->
+	case is_ttf(Filecontents) of
+	    true ->
+		{ok,Filecontents};
+	    _ ->
+		case parse_dfont(Filecontents) of
+		    <<>> ->
+			    case parse_embedded_ttf(Filecontents) of
+				<<>> -> {error,<<>>};
+				B -> {ok, B}
+			    end;
+		    B -> {ok, B}
+		end
+	end.
+
+% ttf fonts start with an "offset subtable":
+%  uint32 - tag to mark as TTF (one of the 0,1,0,0; "true"; or "OTTO")
+%  uint16 - number of directory tables
+%  uint16 - search range: (maximum power of 2 <= numTables)*16
+%  uint16 - entry selector: log2(maximum power of 2 <= numTables)
+%  uint16 - range shift: numTables*16-searchRange
+
+is_ttf(<<0,1,0,0,R/binary>>) -> is_ttf_fin(R);
+is_ttf(<<"true",R/binary>>) -> is_ttf_fin(R);
+is_ttf(<<"OTTO",R/binary>>) -> is_ttf_fin(R);
+is_ttf(_) -> false.
+
+is_ttf_fin(<<NumTabs:16, SrchRng:16, _EntSel:16, Rsh:16, B/binary>>) ->
+	(size(B) > NumTabs*16)
+	andalso
+	(Rsh == NumTabs*16 - SrchRng).
+
+% An Apple "dfont" has many resources
+% in a merged resource fork/data fork.
+% Some of those resources may be 'sfnt's, and those may by ttf format.
+% We could parse the resource map, find all the 'sfnt's, parse the
+% name/map at the end, and give the user a choice.
+% For now, just do the easy thing: source through all the resources
+% until find one that starts like a ttf font.
+parse_dfont(<<Rpos:32, Mpos:32, Rlen:32, _Mlen:32, B/binary>>) ->
+    Skip = Rpos - 16,
+    case (Mpos == Rpos + Rlen) andalso (Rlen > 0)
+	 andalso (Skip >= 0) andalso (Skip < size(B)) of
+	true ->
+	    <<_Skipped:Skip/binary, B2/binary>> = B,
+	    findttfres(B2, Rlen);
+	_ -> <<>>
+    end;
+parse_dfont(_) -> <<>>.
+
+findttfres(_, 0) -> <<>>;
+findttfres(<<Reslen:32, B/binary>>, Rlenleft) ->
+    if
+	(size(B) >= Reslen) ->
+	    <<Res:Reslen/binary, B2/binary>> = B,
+	    case is_ttf(Res) of
+		true -> Res;
+		_ -> findttfres(B2, Rlenleft - Reslen - 4)
+	    end;
+	true -> <<>>
+    end;
+findttfres(_, _) -> {nil, << 0 >> }.
+
+% This is a desperation move to handle files whose format
+% we don't know, but might have a valid ttf section inside it
+% (some old Mac files are like this).
+% Just go byte-by-byte, looking for the start of a valid ttf section.
+parse_embedded_ttf(B) ->
+	case is_ttf(B) of
+	    true -> B;
+	    _ ->
+		case B of
+		    <<_C,Brest/binary>> -> parse_embedded_ttf(Brest);
+		    _ -> <<>>
+		end
+	end.
+
+% Parse binary arg, which should be a TrueType file,
 % and return a ttfont.
 % Throws {error,reason} or a badmatch if the file format is wrong.
-parsett(<<Ntabs:16/unsigned,_Srchrng:16/unsigned,
+%
+% After the offset table (see above), comes a number of table
+% directories (each with a 4-character tag), and then the binary
+% data making up the tables themselves (the directories have pointers
+% into the binary data).
+% We parse all the directories (Dirs), then use that to get all the
+% tables as binaries (Tabs), and then finally parse the tables we need.
+% The actual polygons are in the glyf table, which is parsed for
+% only the needed glyfs, later.
+parsett(<<_C1,_C2,_C3,_C4,Ntabs:16/unsigned,_Srchrng:16/unsigned,
 	  _Esel:16/unsigned,_Rngshift:16/unsigned,B/binary>>) ->
 	{Dirs,B1} = getdirs(Ntabs,B),
 	Dirs1 = sort(fun({X,_,_},{Y,_,_}) -> X < Y end, Dirs),
@@ -238,6 +345,11 @@ parsett(_) ->
 % returns list of table directory entries: {offset,length,name} tuples
 getdirs(Ntabs,B) -> getdirs(Ntabs,B,[]).
 
+% Table directory format:
+%  uint32 - tag (4 ascii chars identifying table kind)
+%  uint32 - checksum for this table
+%  uint32 - offset from beginning of ttf font
+%  uint32 - length of table in bytes (actual, not padded)
 getdirs(0, B, Acc) ->
 	{reverse(Acc),B};
 getdirs(Nleft,<<W,X,Y,Z,_Csum:32,Off:32,Len:32,B/binary>>,Acc) ->
@@ -282,25 +394,138 @@ parsemaxptab(Tabs) ->
 
 % Parse the "cmap" (Character to Glyph Index) tab of Tabs.
 % Return 256-long tuple where element (c+1) is glyph number for character c.
+%
+% cmap table format:
+%  uint16 - version (should be 0)
+%  uint16 - number of subtables
+% followed by the subtables, each in format:
+%  uint16 - platformID
+%  uint16 - platform-specific encoding id
+%  uint32 - offset of mapping table
+%
+% Currently, we can handle format 0 (single byte table)
+% and format 4 (two-byte, segmented encoding format)
 parsecmaptab(Tabs) ->
 	Tab = findtab("cmap", Tabs),
 	<<0:16,Nsubtabs:16,T1/binary>> = Tab,
-	getcmap10(Nsubtabs, T1, Tab).
+	ST = getcmapsubtabs(Nsubtabs, T1, Tab, []),
+	SortST = sort(fun cmapcmp/2, ST),
+	case SortST of
+	    [{_P,_E,0,Off}|_] ->
+		list_to_tuple(binary_to_list(Tab,Off+1+6,Off+256+6));
+	    [{_P,_E,4,Off}|_] ->
+		cmapf4(Tab, Off);
+	    _ -> throw({error,"No suitable character map"})
+	end.
 
-% Look for a subtable for Platform 1, Encoding 0, Format 0 (Apple, Roman)
-% because it is the easiest one to deal with.
-% If not found, throw an error.
-getcmap10(0, _, _) ->
-	throw({error,"No suitable character map"});
-getcmap10(_N, <<1:16,0:16,Off:32,_/binary>>, Tab) ->
-	case list_to_tuple(binary_to_list(Tab,Off+1,Off+2)) of
-	    {0,0} ->	% format 0 is easy: byte encoding table
-		list_to_tuple(binary_to_list(Tab,Off+1+6,Off+255+6));
-	    _ ->
-		throw({error,"No suitable character map"})
-	end;
-getcmap10(N, <<_Pid:16,_Eid:16,_Off:32,T/binary>>, Tab) ->
-	getcmap10(N-1, T, Tab).
+getcmapsubtabs(0, _, _, Acc) ->
+	Acc;
+getcmapsubtabs(N, <<Pid:16,Eid:16,Off:32,T/binary>>, Tab, Acc) ->
+	{Fhigh,Flow} = list_to_tuple(binary_to_list(Tab,Off+1,Off+2)),
+	Format = toushort(Fhigh,Flow),
+	getcmapsubtabs(N-1, T, Tab, [{Pid,Eid,Format,Off}|Acc]).
+
+% Need a format 0 or 4 table,
+% prefer Platform 0 (Unicode),
+% and prefer Platform specific encodoing 1 in both cases
+cmapcmp({P1,E1,F1,_},{P2,E2,F2,_}) ->
+	if
+	    F1 == 0, F2 /= 0 -> true;
+	    F2 == 0 -> false;
+	    F1 == 4, F2 /= 4 -> true;
+	    F2 == 4 -> false;
+	    true ->
+		if
+		    P1 < P2 -> true;
+		    P1 > P2 -> false;
+		    true ->
+			if
+			    E1 == 1 -> true;
+			    E2 == 1 -> false;
+			    true -> E1 < E2
+			end
+		end
+	end.
+
+% Format 4 cmap subtables have this format:
+%  uint16 - format (will be 4)
+%  uint16 - length in bytes of subtable
+%  uint16 - language
+%  uint16 - segcountX2 : 2 * segment count
+%  uint16 - searchRange : 2 * (2**Floor(log2 segcount))
+%  uint16 - entrySelector : log2(searchRange/2)
+%  uint16 - rangeShift : (2 * segCount) - searchRange
+%  uint16 * segCount : endCode[]: ending character code for each seg, FFFF last
+%  uint16 - reserved pad
+%  uint16 * segCount : startCode[]: starting character code for each seg
+%  uint16 * segCount : idDelta[]: delta for all character codes in seg
+%  uint16 * segCount : idRangeOffset[]: offset in bytes to glyph index array or 0
+%  uint16 * variable : Glyph index array
+%
+% segments are sorted in increasing endCode value
+cmapf4(Tab, Off) ->
+	<<_Before:Off/binary,4:16,Len:16,_Lang:16,SegcountX2:16,_SrchRng:16,
+	  _EntSel:16,_RngSh:16,
+	  BEnds:SegcountX2/binary,_Pad:16,BStarts:SegcountX2/binary,
+	  BDeltas:SegcountX2/binary, T/binary>> = Tab,
+	N = SegcountX2 div 2,
+	NGI = (Len - 8*2 - 4*SegcountX2) div 2,
+	{Ends,_} = takeushorts(N, binary_to_list(BEnds)),
+	{Starts,_} = takeushorts(N, binary_to_list(BStarts)),
+	{Deltas,_} = takeushorts(N, binary_to_list(BDeltas)),
+	{ROffsGlinds,_} = takeushorts(N+NGI, binary_to_list(T,1,SegcountX2+2*NGI)),
+	docmapf4(1,N,Ends,Starts,Deltas,ROffsGlinds,0,[]).
+
+docmapf4(I,N,_Ends,_Starts,_Deltas,_ROffsGlinds,Alen,Acc)
+  when (I > N) or (Alen >= 256) ->
+	fincmapf4(Acc,Alen);
+docmapf4(I,N,Ends,Starts,Deltas,ROffsGlinds,Alen,Acc) ->
+	E = element(I,Ends),
+	S = element(I,Starts),
+	D = element(I,Deltas),
+	R = element(I,ROffsGlinds),
+	E2 = if E > 255 -> 255; true -> E end,
+	S2 = if S >= Alen -> S; true -> Alen end,
+	case (S2 >= 256) or (S2 > E2) of
+	    true -> fincmapf4(Acc,Alen);
+	    false ->
+		Padlen = S2 - Alen,
+		Pad = lists:duplicate(Padlen, 0),
+		Mplen = E2-S2+1,
+		Mpart =
+		    case R of
+			0 -> cmapf4r0(E2,S2,D);
+			16#FFFF -> lists:duplicate(Mplen,0);
+			_ -> cmapf4rx(E2,S2,D,R,I,ROffsGlinds)
+		    end,
+		Acc2 = lists:append([Acc,Pad,Mpart]),
+		Alen2 = Alen + Padlen + Mplen,
+		docmapf4(I+1,N,Ends,Starts,Deltas,ROffsGlinds,Alen2,Acc2)
+	end.
+
+fincmapf4(Acc,Alen) when Alen == 256 -> list_to_tuple(Acc);
+fincmapf4(Acc,Alen) when Alen < 256 ->
+	Padlen = 256 - Alen,
+	list_to_tuple(Acc ++ lists:duplicate(Padlen,0));
+fincmapf4(Acc,Alen) when Alen > 256 ->
+	list_to_tuple(lists:sublist(Acc, 1, 256)).
+
+% offset 0 case of format 4: just add D to [S, S+1, ..., E]
+% to get mapped glyphs.
+cmapf4r0(E,S,D) -> [ ushortmod(K+D) || K <- lists:seq(S,E) ].
+
+% offset !0 case of format 4: have to look at offset table and glyph
+% index table as concatenated; add offset (as byte count) to current
+% address of current place in the offset table, then look at the
+% ushort there, and if not zero, add delta to it to get mapped glyph
+% for S.  Continue through until get mapped glyph for E.
+cmapf4rx(E,S,D,R,I,T) when S =< E ->
+	J = I + (R div 2),
+	IDXS = [ element(J+K, T) || K <- lists:seq(0,E-S) ],
+	map(fun (A) -> if A == 0 -> 0; true -> ushortmod(A+D) end end, IDXS);
+cmapf4rx(_,_,_,_,_,_) -> [].
+
+ushortmod(X) -> X rem 65536.
 
 % Parse the "head" (Font Header) tab of Tabs and return {units-per-em, shortloca}
 % where shortloca is true if loca table uses "short" format
@@ -373,8 +598,8 @@ getpolyareas([], _, _, Acc) ->
 	flatten(reverse(Acc));
 getpolyareas([C|Rest], #ttfont{nglyph=Ng,adv=Adv,cmap=Cmap}=Ttf, X, Acc) ->
 	{X1,Acc1} =
-		if
-		    C >= 0, C < 256 ->
+		case (C >= 0) and (C < 256) of
+		    true ->
 			G = element(C+1, Cmap),
 			if
 			    G < Ng ->
@@ -388,13 +613,22 @@ getpolyareas([C|Rest], #ttfont{nglyph=Ng,adv=Adv,cmap=Cmap}=Ttf, X, Acc) ->
 			    true ->
 				{X, Acc}
 			end;
-	   	 true ->
+	   	    false ->
 			{X, Acc}
 		end,
 	getpolyareas(Rest, Ttf, X1, Acc1).
 
 % Get contours for glyph G (known to be in range 0..nglyph-1).
 % Return nil if no data or no contours for glyph G.
+%
+% Format of glyph data:
+%  uint16 - number of contours (-1 means this is made of other chars, 0 means no data)
+%  FWord - xmin
+%  FWord - ymin
+%  FWord - xmax
+%  FWord - ymax
+%  then comes data for simple or compound glyph
+
 glyphpolyareas(G, #ttfont{loca=Loca,glyf=Glyf,uperem=Uperem}, X) ->
 	Off = element(G+1, Loca),
 	Len = element(G+2, Loca) - Off,
@@ -408,6 +642,8 @@ glyphpolyareas(G, #ttfont{loca=Loca,glyf=Glyf,uperem=Uperem}, X) ->
 		if
 		    Ncont == 0 ->
 			nil;
+		    Ncont == 65535 ->
+			nil;
 		    true ->
 			% Calculate scale so Em box measures 2 by 2
 			% (about the scale of wings primatives)
@@ -418,6 +654,25 @@ glyphpolyareas(G, #ttfont{loca=Loca,glyf=Glyf,uperem=Uperem}, X) ->
 
 % continue glyphpolyareas, when there are > 0 contours
 % (Gdat is now at start of endPtsOfContours array)
+% format expected for Gdat:
+%  uint16 * number_of_contours : endPtsOfContours array (entries are point indices)
+%      (the total number of points is one more than last entry in that array)
+%  uint16 : instruction length, the number of bytes used for instructions
+%  uint8 * instruction_length : the instructions for this glyph
+%  uint8 * (variable) : flags array: one per point, or less, if repeats
+%  (uint8 | uint16) sequence : x coordinates (each could be one or two bytes or same as prev)
+%  (uint8 | uint16) sequence : y coordinates (each could be one or two bytes or same as prev)
+%
+% flag bits:
+%   0 (1) : on curve (if set, point is on curve, else it's off)
+%   1 (2) : x-short (if set, x coord is one byte and x-same bit gives sign,
+%                    else x coord is two bytes unless x-same bit is set - then xcoord
+%                    is omitted because it is same as previous x coord)
+%   2 (4) : y-short
+%   3 (8) : repeat (if set, next byte gives count: repeat this flag count times after)
+%   4 (16): x-same (used in conjunction with x-short)
+%   5 (32): y-same
+
 gpa(Gdat, Ncont, Xorg, Scale) ->
 	{Eoc,T1} = takeushorts(Ncont,Gdat),
 	Npt = element(Ncont, Eoc)+1,
@@ -431,7 +686,17 @@ gpa(Gdat, Ncont, Xorg, Scale) ->
 	Y = makeabs(Y0, 0, Scale),
 	Cntrs = contours(Ncont, Eoc, X, Y, Flags),
 	Ccntrs = map(fun getcedges/1, Cntrs),
-	findpolyareas(Ccntrs).
+	Ccntrs1 = lists:filter(fun (V) -> length(V) > 2 end, Ccntrs),
+	findpolyareas(Ccntrs1).
+
+% For debugging
+% dumpsvg(X,Y) -> dsvg(X,Y,[],[], 0).
+% dsvg([],[],Plist,Vlist,_) ->
+%	Vtab = list_to_tuple(reverse(Vlist)),
+%	Ps = [reverse(Plist)],
+%	wpc_svg:write_polys("try.svg", Ps, Vtab);
+% dsvg([X1 | XR], [Y1 | YR], Pl, Vl, I) ->
+%	dsvg(XR, YR, [I|Pl], [{X1,Y1}|Vl], I + 1).
 
 % Take N pairs of bytes off of L, convert each pair to ushort,
 % return {tuple of the ushorts, remainder of L}.
@@ -521,40 +786,55 @@ getcedges({X,Y,Flags}) ->
 	N = length(X),
 	if
 	    N >= 3 ->
-		getcedges(X, Y, Flags, hd(X), hd(Y), []);
+		getcedges(X, Y, Flags, X, Y, Flags, []);
 	    true ->
 		[]
 	end.
 
-getcedges([], [], [], X0, Y0, [#cedge{ve={XL,YL}=VL}|_]=Acc) ->
-	case (X0 == XL) and (Y0 == YL) of
-	    true ->
-		reverse(Acc);
-	    _ ->
-		% need straight line to close
-		LastE = #cedge{vs=VL, ve={X0,Y0}},
-		reverse([LastE | Acc])
-	end;
-getcedges([_|Xt]=X, [_|Yt]=Y, [_|Ft]=Flags, X0, Y0, Acc) ->
-	{Cur,Ison} = nthptandison(1, X, Y, Flags, X0, Y0),
-	{Next,Isnexton} = nthptandison(2, X, Y, Flags, X0, Y0),
-	{Anext,Isanexton} = nthptandison(3, X, Y, Flags, X0, Y0),
+% Quadratic B-spline edges go between "on-curve" points with one
+% intermediate "off-curve" control point. But if the points don't
+% alternate on-off-on-off..., you can derive the missing ones by
+% averaging their neighbors.
+% Looking at the on-curve/off-curve status of the head three points
+% on the lists, there are six cases to worry about:
+%       i    i+1   i+2
+% a.   off    on    -
+%    .........+           dotted line shows edge assumed previously added
+%
+% b.   on    off   on     qedge {i,i+1,i+2}
+%      +______o_____+     underscore shows edge between + points, with 'o' ctl
+%
+% c.   on    off   off    qedge {i,I+1,avg(i+1,i+2)}
+%      +_____o___*        edge goes to interpolated '*' point
+%
+% d.   on    on     -     line {i,i+1}
+%      +_____+            straight edge
+%
+% e.   off   off   on     qedge {avg(i,i+1),i+1,i+2}
+%    ......*__o_____+     incoming edge assumed previously added
+%
+% f.   off   off   off    qedge {avg(i,i+1),i+1,avg(i+1,i+2)}
+%    ......*__o__*
+
+getcedges([], [], [], _, _, _, Acc) ->
+	reverse(Acc);
+getcedges([_|Xt]=X, [_|Yt]=Y, [_|Ft]=Flags, Xo, Yo, Fo, Acc) ->
+	{Cur,Ison} = nthptandison(1, X, Y, Flags, Xo, Yo, Fo),
+	{Next,Isnexton} = nthptandison(2, X, Y, Flags, Xo, Yo, Fo),
+	{Anext,Isanexton} = nthptandison(3, X, Y, Flags, Xo, Yo, Fo),
 	case (not(Ison) and Isnexton) of
 	    true ->
 		% this case generates no segment
-		getcedges(Xt, Yt, Ft, X0, Y0, Acc);
+		getcedges(Xt, Yt, Ft, Xo, Yo, Fo, Acc);
 	    _ ->
-		Curon = case Ison of true -> Cur; _ -> avg(Cur,Next) end,
-		Nexton = if
-			    Isnexton -> Next;
-			    Isanexton -> Anext;
-			    true -> avg(Next,Anext)
-			end,
-		Ctl = if
-			    Ison and Isnexton -> nil;
-			    Isnexton -> avg(Curon, Next);
-			    true -> Next
-			end,
+		{Curon,Ctl,Nexton} =
+		case {Ison,Isnexton,Isanexton} of
+		    {true,false,true} -> {Cur,Next,Anext};
+		    {true,false,false} -> {Cur,Next,avg(Next,Anext)};
+		    {true,true,_} -> {Cur,nil,Next};
+		    {false,false,true} -> {avg(Cur,Next),Next,Anext};
+		    {false,false,false} -> {avg(Cur,Next),Next,avg(Next,Anext)}
+		end,
 		% Ctl, if not nil, is quadratic Bezier control point.
 		% Following uses degree-elevation theory to get cubic cps.
 		{Cp1,Cp2} = case Ctl of
@@ -563,7 +843,7 @@ getcedges([_|Xt]=X, [_|Yt]=Y, [_|Ft]=Flags, X0, Y0, Acc) ->
 				  lininterp(2.0/3.0, Nexton, Ctl)}
 			end,
 		Edge = #cedge{vs=Curon, cp1=Cp1, cp2=Cp2, ve=Nexton},
-		getcedges(Xt, Yt, Ft, X0, Y0, [Edge|Acc])
+		getcedges(Xt, Yt, Ft, Xo, Yo, Fo, [Edge|Acc])
 	end.
 
 avg({X1,Y1},{X2,Y2}) -> {0.5*(X1+X2), 0.5*(Y1+Y2)}.
@@ -571,13 +851,13 @@ avg({X1,Y1},{X2,Y2}) -> {0.5*(X1+X2), 0.5*(Y1+Y2)}.
 lininterp(F,{X1,Y1},{X2,Y2}) -> {(1.0-F)*X1 + F*X2, (1.0-F)*Y1 + F*Y2}.
 
 % Return {Nth point, is-on-curve flag} based on args
-% (use beginning (X0,Y0) when wrap).
-nthptandison(1, [X|_], [Y|_], [F|_], _X0, _Y0) ->
+% (use (Xo,Yo,Fo), the original list, when need to wrap).
+nthptandison(1, [X|_], [Y|_], [F|_], _Xo, _Yo, _Fo) ->
 	{{X,Y}, if (F band 1) == 1 -> true; true -> false end};
-nthptandison(_N, [], _, _, X0, Y0) ->
-	{{X0,Y0}, true};
-nthptandison(N, [_|Xt], [_|Yt], [_|Ft], X0, Y0) ->
-	nthptandison(N-1, Xt, Yt, Ft, X0, Y0).
+nthptandison(N, [_|Xt], [_|Yt], [_|Ft], Xo, Yo, Fo) ->
+	nthptandison(N-1, Xt, Yt, Ft, Xo, Yo, Fo);
+nthptandison(N, [], _, _, Xo, Yo, Fo) ->
+	nthptandison(N, Xo, Yo, Fo, Xo, Yo, Fo).
 
 % Cconts is list of "curved contours".
 % Each curved contour is a list of cedges, representing a closed contour.
