@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.24 2002/01/10 09:22:48 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.25 2002/01/12 16:29:29 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -80,13 +80,9 @@ bump(St0) ->
     wings_drag:init_drag(Tvs, {radius,none}, distance, St#st{inf_r=1.0}).
 
 bump(Faces, #we{id=Id}=We0, Acc) ->
-    Es0 = wings_face:fold_faces(
-	    fun(_, _, Edge, _, A) ->
-		    [Edge|A]
-	    end, [], Faces, We0),
-    Es1 = gb_sets:from_list(Es0),
-    Es2 = wings_edge:select_more(Es1, We0),
-    Es = gb_sets:difference(Es2, Es1),
+    Es0 = wings_edge:from_faces(Faces, We0),
+    Es1 = wings_edge:select_more(Es0, We0),
+    Es = gb_sets:difference(Es1, Es0),
     We = wings_edge:connect(Es, We0),
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
     Tv0 = wings_move:setup_we(face, normal, Faces, We),
@@ -155,6 +151,43 @@ bevel_faces_1([Faces|T], #we{id=Id}=We0, Acc) ->
     We = dissolve_more_edges(OrigVs, NewVs, We3),
     bevel_faces_1(T, We, [{Id,MoveEdges}|Acc]);
 bevel_faces_1([], We, Acc) -> {We,Acc}.
+
+%% XXX Experimental start of a better version. To be completed when
+%% there is more time.
+% bevel_faces_1([Faces|T], #we{id=Id}=We0, Acc) ->
+%     OrigEdges = wings_edge:from_faces(Faces, We0),
+%     DisEdges = wings_face:inner_edges(Faces, We0),
+%     OrigVs = wings_face:to_vertices(Faces, We0),
+%     io:format("~w\n", [OrigVs]),
+%     %%MoveEdges = bevel_move_edges(Faces, We0),
+%     MoveEdges = [],
+%     We1 = wings_extrude_face:faces(Faces, We0),
+%     NewVs0 = wings_we:new_items(vertex, We0, We1),
+%     We2 = dissolve_edges(DisEdges, We1),
+%     {We3,NewVs1} = cut_edges(OrigVs, OrigEdges, We0, We2),
+%     NewVs = gb_sets:union(NewVs0, gb_sets:from_list(NewVs1)),
+%     We4 = bevel_connect(OrigVs, NewVs, We3),
+%     We = We4,
+%     %%We = dissolve_more_edges(OrigVs, NewVs, We4),
+%     bevel_faces_1(T, We, [{Id,MoveEdges}|Acc]);
+% bevel_faces_1([], We, Acc) -> {We,Acc}.
+
+% cut_edges(Vs, OrigEdges, #we{es=OldEtab}, We) ->
+%     foldl(fun(V, A) ->
+% 		  cut_edges_1(V, OrigEdges, OldEtab, A)
+% 	  end, {We,[]}, Vs).
+
+% cut_edges_1(V, OrigEdges, OldEtab, {We,_}=Acc) ->
+%     wings_vertex:fold(
+%       fun(Edge, _, Rec, {W0,VsAcc}=A) ->
+% 	      case gb_trees:is_defined(Edge, OldEtab) andalso
+% 		  not gb_sets:is_member(Edge, OrigEdges) of
+% 		  false -> A;
+% 		  true ->
+% 		      {W,NewV} = wings_edge:fast_cut(Edge, default, W0),
+% 		      {W,[NewV|VsAcc]}
+% 	      end
+%       end, Acc, V, We).
 
 bevel_connect(Vs, NewVs, We) ->
     foldl(fun(V, A) -> bevel_connect_1(V, NewVs, A) end, We, Vs).
