@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.52 2003/01/27 18:09:51 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.53 2003/02/05 05:34:18 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -457,31 +457,31 @@ draw_icons_1(#dlo{src_we=#we{id=Id},wire=Wire},
     IconY = Y - 14,
     if
 	?IS_VISIBLE(Perm) ->
-	    wings_io:draw_icon(EyePos, IconY, 16, 16, small_eye);
+	    wings_io:draw_icon(EyePos, IconY, 16, 16, small_eye),
+	    if
+		?IS_SELECTABLE(Perm) ->
+		    wings_io:draw_icon(LockPos, IconY, 16, 16, small_unlocked);
+		true ->
+		    wings_io:draw_icon(LockPos, IconY, 16, 16, small_locked)
+	    end,
+	    case keymember(Id, 1, Sel) of
+		false when ?IS_LIGHT(We) ->
+		    wings_io:draw_icon(SelPos, IconY, 16, 16, small_light);
+		false ->
+		    wings_io:draw_icon(SelPos, IconY, 16, 16, small_object);
+		true when ?IS_LIGHT(We) ->
+		    wings_io:draw_icon(SelPos, IconY, 16, 16, small_sel_light);
+		true ->
+		    wings_io:draw_icon(SelPos, IconY, 16, 16, small_sel)
+	    end,
+	    case Wire of
+		false ->
+		    wings_io:draw_icon(WirePos, IconY, 16, 16, small_object);
+		true ->
+		    wings_io:draw_icon(WirePos, IconY, 16, 16, small_wire)
+	    end;
 	true ->
 	    wings_io:draw_icon(EyePos, IconY, 16, 16, small_closed_eye)
-    end,
-    if
-	?IS_SELECTABLE(Perm) ->
-	    wings_io:draw_icon(LockPos, IconY, 16, 16, small_unlocked);
-	true ->
-	    wings_io:draw_icon(LockPos, IconY, 16, 16, small_locked)
-    end,
-    case keymember(Id, 1, Sel) of
-	false when ?IS_LIGHT(We) ->
-	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_light);
-	false ->
-	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_object);
-	true when ?IS_LIGHT(We) ->
-	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_sel_light);
-	true ->
-	    wings_io:draw_icon(SelPos, IconY, 16, 16, small_sel)
-    end,
-    case Wire of
-	false ->
-	    wings_io:draw_icon(WirePos, IconY, 16, 16, small_object);
-	true ->
-	    wings_io:draw_icon(WirePos, IconY, 16, 16, small_wire)
     end,
     {N-1,Wes,Ost,R,Active-1,Y+Lh};
 draw_icons_1(_, Acc) -> Acc.
