@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.82 2003/05/20 05:09:47 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.83 2003/06/02 05:50:56 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -493,12 +493,13 @@ vframe(Qs, #fi{x=X,y=Y0}=Fi0, Flags) ->
 		  false -> {0,0}
 	      end,
     {Fields,Y,W0} = vframe_1(Qs, Fi0#fi{x=X+Dx,y=Y0+Dy}, 0, []),
+    W1 = frame_fit_title(W0, Flags),
     H0 = Y-Y0,
     {Ipadx,Ipady} = case have_border(Flags) of
 			true -> {2*10,10};
 			false -> {0,0}
 		    end,
-    W = W0 + Ipadx,
+    W = W1 + Ipadx,
     H = H0 + Ipady,
     Fun = frame_fun(),
     Fi = Fi0#fi{handler=Fun,inert=true,flags=Flags,
@@ -517,7 +518,7 @@ hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
 		    false -> {0,0}
 		end,
     {Fields,X,H0} = hframe_1(Qs, Fi#fi{x=X0+Dx0,y=Y+Dy0}, 0, []),
-    W0 = X-X0-Dx0,
+    W0 = frame_fit_title(X-X0-Dx0, Flags),
     {Ipadx,Ipady} = case have_border(Flags) of
 			true -> {2*10,?LINE_HEIGHT+10};
 			false -> {0,0}
@@ -536,6 +537,12 @@ hframe_1([Q|Qs], #fi{x=X}=Fi0, H0, Acc) ->
 hframe_1([], #fi{x=X}, H, Fields0) ->
     {reverse(Fields0),X-?HFRAME_SPACING,H}.
 
+frame_fit_title(W, Flags) ->
+    case proplists:get_value(title, Flags) of
+	undefined -> W;
+	Title -> max(3*?CHAR_WIDTH+wings_text:width(Title), W)
+    end.
+	     
 normalize_field({Handler,Inert,Priv,W,H}, Flags, Fi) ->
     {Fi#fi{handler=Handler,inert=Inert,flags=Flags,w=W,h=H},Priv}.
 
