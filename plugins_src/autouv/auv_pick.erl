@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.11 2003/09/15 15:19:10 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.12 2003/11/29 07:19:09 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -165,6 +165,7 @@ clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
     Message = "[Ctrl] Deselect  "
 	"[Shift] (De)select only elements wholly inside marquee",
     wings_wm:message(Message),
+    wings_wm:dirty_mode(front),
     {seq,push,
      fun(redraw) ->
 	     wpc_autouv:redraw(St),
@@ -224,6 +225,8 @@ marquee_event(#mousebutton{x=X0,y=Y0,mod=Mod,button=1,state=?SDL_RELEASED}, M) -
     end,
     wings_wm:release_focus(),
     wings_wm:later(revert_state),
+    wings_wm:dirty_mode(back),
+    wings_wm:dirty(),
     pop;
 marquee_event(_, _) -> keep.
 

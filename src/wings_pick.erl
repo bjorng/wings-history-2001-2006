@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.125 2003/10/23 19:42:50 uid59848 Exp $
+%%     $Id: wings_pick.erl,v 1.126 2003/11/29 07:19:09 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -195,6 +195,7 @@ clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
     Message = "[Ctrl] Deselect  "
 	"[Shift] (De)select only elements wholly inside marquee",
     wings_wm:message(Message),
+    wings_wm:dirty_mode(front),
     {seq,push,
      fun(redraw) ->
 	     wings:redraw(St),
@@ -253,6 +254,7 @@ marquee_event(#mousebutton{x=X0,y=Y0,mod=Mod,button=1,state=?SDL_RELEASED}, M) -
     end,
     wings_wm:release_focus(),
     wings_wm:later(revert_state),
+    wings_wm:dirty_mode(back),
     pop;
 marquee_event(_, _) -> keep.
 

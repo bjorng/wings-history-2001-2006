@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.104 2003/11/28 18:28:47 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.105 2003/11/29 07:19:09 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -158,8 +158,7 @@ compatibility_prefs() ->
     {vframe,
      [{"Optimized Display-List Use",display_list_opt},
       {"Use Display Lists for Text",text_display_lists},
-      {"Show Dummy Axis Letter",dummy_axis_letter},
-      {"Clear Back Buffer Early",early_buffer_clear}]}.
+      {"Show Dummy Axis Letter",dummy_axis_letter}]}.
 
 advanced_prefs() ->
     {vframe,
@@ -549,7 +548,6 @@ defaults() ->
      {display_list_opt,true},
      {text_display_lists,true},
      {dummy_axis_letter,false},
-     {early_buffer_clear,os:type() =/= {unix,darwin}},
 
      %% Advanced features.
      {advanced_menus,false},

@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.131 2003/11/23 07:24:35 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.132 2003/11/29 07:19:09 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([toplevel/6,set_knob/3]).
--export([init/0,enter_event_loop/0,dirty/0,reinit_opengl/0,
+-export([init/0,enter_event_loop/0,dirty/0,dirty_mode/1,reinit_opengl/0,
 	 new/4,delete/1,raise/1,
 	 link/2,hide/1,show/1,is_hidden/1,
 	 later/1,send/2,send_after_redraw/2,
@@ -84,6 +84,7 @@
 %%% wm_focus_grab	Window name of forced focus window or 'undefined'.
 %%% wm_windows		All windows.
 %%% wm_dirty		Exists if redraw is needed.
+%%% wm_dirty_mode       front|back
 %%% wm_top_size         Size of top window.
 %%% wm_viewport		Current viewport.
 %%% wm_cursor		Default cursor.
@@ -92,6 +93,7 @@
 %%%
 
 init() ->
+    put(wm_dirty_mode, back),
     put(wm_cursor, arrow),
     {W,H} = TopSize = wings_pref:get_value(window_size),
     put(wm_top_size, TopSize),
@@ -165,6 +167,12 @@ notify(Note) ->
     foreach(fun(desktop) -> ok;
 	       (Name) -> send_once(Name, Msg)
 	    end, gb_trees:keys(get(wm_windows))).
+
+dirty_mode(front=Mode) ->
+    put(wm_dirty_mode, Mode);
+dirty_mode(back=Mode) ->
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    put(wm_dirty_mode, Mode).
 
 dirty() ->
     put(wm_dirty, dirty),
@@ -573,9 +581,13 @@ do_dispatch(Active, Ev) ->
     end.
 
 redraw_all() ->
-    EarlyBC = wings_pref:get_value(early_buffer_clear),
-    maybe_clear(late, EarlyBC),			%Clear right before
-						%drawing (late).
+    case get(wm_dirty_mode) of
+	back -> ok;
+	front ->
+	    %% If front drawing is taking place (e.g. a marquee selection),
+	    %% buffers weren't cleared directly after buffer swapping.
+	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT)
+    end,
     Windows = keysort(2, gb_trees:to_list(get(wm_windows))),
     foreach(fun({Name,_}) ->
 		    dispatch_matching(fun({wm,{send_to,N,_}}) ->
@@ -585,17 +597,22 @@ redraw_all() ->
 		    do_dispatch(Name, redraw)
 	    end, Windows),
     gl:swapBuffers(),
-    maybe_clear(early, EarlyBC),		%Clear immediately after
-						%buffer swap (early).
+
+    case get(wm_dirty_mode) of
+	back ->
+	    %% By clearing now, we might be able to overlap the time
+	    %% for clearing with calculations done by the CPU,
+	    %% thus pontentially gaining some speed.
+	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT);
+	front ->
+	    %% If front drawing is taking place, clearing the back buffer
+	    %% might destroy the front buffer too. Do nothing.
+	    ok
+    end,
+
     clean(),
     wings_io:set_cursor(get(wm_cursor)),
     event_loop().
-
-maybe_clear(early, true) ->
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT);
-maybe_clear(late, false) ->
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT);
-maybe_clear(_, _) -> ok.
 
 clear_background() ->
     Name = this(),
