@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.67 2004/12/25 11:03:25 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.68 2004/12/26 05:52:07 bjorng Exp $
 
 -module(auv_segment).
 
@@ -708,7 +708,7 @@ cut_one_chart(Keep0, Cuts, We0) ->
     Map0 = gb_trees:empty(),
     {We1,Map1} = cut_shared_vertices(Keep, OuterEdges, We0, Map0),
     {We2,Vmap} = cut_edges(Keep0, Cuts, We1, Map1),
-    Me = gb_sets:to_list(wings_we:new_items(edge, We1, We2)),
+    Me = wings_we:new_items_as_list(edge, We1, We2),
     
     %% Testing
     Emap = 
@@ -790,28 +790,43 @@ cut_edges(Faces, Cuts0, We, Map) ->
 cut_edges_1(Faces, Cuts, We0, Map0) ->
     Vs = wings_edge:to_vertices(Cuts, We0),
     {We1,Map1} = bevel_cut_vs(Vs, We0, Map0),
-    NewEdges = gb_sets:to_list(wings_we:new_items(edge, We0, We1)),
-    {We2,Map,MaybeRem} = cut_new_edges(NewEdges, We1, Map1, []),
+    CutEdges = cut_edges(Cuts, We1),
+    {We2,Map} = cut_new_edges(CutEdges, We1, Map1),
+    MaybeRem = wings_we:new_items_as_list(edge, We0, We2),
     We3 = connect_edges(Cuts, We2),
     We = cut_cleanup(Faces, MaybeRem, We3),
     {We,Map}.
 
 bevel_cut_vs([V|Vs], We0, Map0) ->
     We = wings_vertex_cmd:bevel_vertex(V, We0),
-    NewVs = wings_we:new_items(vertex, We0, We),
-    Map = add_new_vs(V, gb_sets:to_list(NewVs), Map0),
+    NewVs = wings_we:new_items_as_list(vertex, We0, We),
+    Map = add_new_vs(V, NewVs, Map0),
     bevel_cut_vs(Vs, We, Map);
 bevel_cut_vs([], We, Map) -> {We,Map}.
 
-cut_new_edges([Edge|Es], #we{es=Etab}=We0, Map0, MaybeRemove0) ->
+cut_edges(Es, #we{es=Etab}) ->
+    cut_edges_1(Es, Etab, []).
+
+cut_edges_1([E|Es], Etab, Acc) ->
+    #edge{ltpr=Lp,ltsu=Lu,rtpr=Rp,rtsu=Ru} = gb_trees:get(E, Etab),
+    cut_edges_1(Es, Etab, [Lp,Lu,Rp,Ru|Acc]);
+cut_edges_1([], _, Es) ->
+    cut_edges_2(sort(Es), []).
+
+cut_edges_2([E,E|Es], Acc) ->
+    cut_edges_2(Es, [E|Acc]);
+cut_edges_2([_|Es], Acc) ->
+    cut_edges_2(Es, Acc);
+cut_edges_2([], Acc) ->
+    ordsets:from_list(Acc).
+
+cut_new_edges([Edge|Es], #we{es=Etab}=We0, Map0) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
     Pos = wpa:vertex_pos(Va, We0),
-    {We,NewV=NewEdge} = wings_edge:fast_cut(Edge, Pos, We0),
+    {We,NewV} = wings_edge:fast_cut(Edge, Pos, We0),
     Map = add_new_vs(Vb, [NewV], add_new_vs(Va, [NewV], Map0)),
-    MaybeRemove = [Edge,NewEdge|MaybeRemove0],
-    cut_new_edges(Es, We, Map, MaybeRemove);
-cut_new_edges([], We, Map, MaybeRemove) ->
-    {We,Map,ordsets:from_list(MaybeRemove)}.
+    cut_new_edges(Es, We, Map);
+cut_new_edges([], We, Map) -> {We,Map}.
 
 connect_edges([E|Es], #we{es=Etab}=We0) ->
     #edge{vs=Va,ve=Vb,lf=Lf,ltpr=Lp,ltsu=Lu,
