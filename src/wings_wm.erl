@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.77 2003/02/23 07:29:32 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.78 2003/02/24 06:08:29 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -568,16 +568,24 @@ maybe_clear(_, _) -> ok.
 clear_background() ->
     case active_window() of
 	geom -> ok;
-	_ -> clear_background_1()
+	Name ->
+	    %% "Optimization": Check if we really need to clear the area
+	    %% occupied by the window. We actually lose time on my iMac.
+	    %% But given a slow OpenGL implementation, it should be a
+	    %% win (I hope).
+	    case any_windows_below(Name) of
+		true -> clear_background_1(Name);
+		false -> ok
+	    end
     end.
 
-clear_background_1() ->
+clear_background_1(Name) ->
     gl:pushAttrib(?GL_ENABLE_BIT bor ?GL_DEPTH_BUFFER_BIT),
     gl:enable(?GL_DEPTH_TEST),
     gl:depthFunc(?GL_ALWAYS),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    {W,H} = wings_wm:win_size(),
+    #win{w=W,h=H} = get_window_data(Name),
     glu:ortho2D(0, W, 0, H),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
@@ -592,6 +600,26 @@ clear_background_1() ->
     gl:vertex3f(0, 0, Z),
     gl:'end'(),
     gl:popAttrib().
+
+any_windows_below(Name) ->
+    ZOrdered = gb_trees:values(get(wm_windows)),
+    #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Name),
+    any_windows_below_1(ZOrdered, Z, {X,Y,W+W,Y+H}).
+
+any_windows_below_1([#win{z=ThisZ}|T], Z, Rect) when Z < ThisZ; ThisZ =< 0 ->
+    any_windows_below_1(T, Z, Rect);
+any_windows_below_1([W|T], Name, Rect) ->
+    case possible_intersection(W, Rect) of
+	true -> true;
+	false -> any_windows_below_1(T, Name, Rect)
+    end;
+any_windows_below_1([], _, _) -> false.
+
+possible_intersection(#win{x=X,y=Y,w=W,h=H}, {Left,Top,Right,Bot}) ->
+    if
+	Right =< X; Bot =< Y; X+W =< Left; Y+H =< Top -> false;
+	true -> true
+    end.
 
 reinit_opengl() ->
     wings_io:putback_event({wm,init_opengl}).
