@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.60 2003/02/13 11:34:34 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.61 2003/02/13 19:48:10 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -408,13 +408,17 @@ validate_faces(#we{fs=Ftab}=We) ->
 		    Cw = walk_face_cw(Face, Edge, Edge, We, []),
 		    Ccw = walk_face_ccw(Face, Edge, Edge, We, []),
  		    case reverse(Ccw) of
- 			Cw ->
- 			    ok;
+ 			Cw -> ok;
  			Other ->
  			    crash({{face,Face},
 				   {cw,Cw},{ccw_reversed,Other}},
 				  We)
- 		    end
+ 		    end,
+		    case {lists:sort(Cw),ordsets:from_list(Cw)} of
+			{Same,Same} -> ok;
+			_ ->
+			    crash({{face,Face},{repeated_vertex,Cw}}, We)
+		    end
 	    end,
 	    gb_trees:to_list(Ftab)).
 
