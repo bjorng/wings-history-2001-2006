@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.25 2003/03/12 14:34:40 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.26 2003/03/13 19:43:53 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -176,6 +176,9 @@ ctrl_event(#mousebutton{}=Ev, _) ->
 	    end
     end,
     keep;
+ctrl_event(#keyboard{}=Ev, _) ->
+    {_,Client} = wings_wm:this(),
+    wings_wm:send(Client, Ev);
 ctrl_event({window_updated,Client}, _) ->
     W = controller_width(Client),
     H = ?LINE_HEIGHT+3,
