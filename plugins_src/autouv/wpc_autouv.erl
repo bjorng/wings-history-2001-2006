@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.39 2002/11/02 10:11:47 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.40 2002/11/02 15:23:53 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -353,7 +353,7 @@ check_isolated_vertex(V, We) ->
 %%% Edit interface.
 %%%
 
-start_edit(Id, We0, #st{shapes=Shs0}=St) ->
+start_edit(_Id, We0, St) ->
     DefVar = {answer,edit},
     Qs = [{vframe,[{alt,DefVar,"Edit existing UV mapping",edit},
 		   {alt,DefVar,"Discard existing UV mapping and start over",discard}],
@@ -368,12 +368,17 @@ start_edit(Id, We0, #st{shapes=Shs0}=St) ->
 				     wings_io:putback_event(Act),
 				     ignore;
 				 discard ->
-				     We = wings_we:uv_to_color(We0, St),
-				     Shs = gb_trees:update(Id, We, Shs0),
 				     wings_io:putback_event({action,{body,?MODULE}}),
-				     St#st{shapes=Shs}
+				     discard_uvmap(We0, St)
 			     end
 		     end).
+
+discard_uvmap(#we{fs=Ftab}=We0, St) ->
+    Faces = gb_trees:keys(Ftab),
+    FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
+    {Charts,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
+    We = wings_we:uv_to_color(We0, St),
+    mark_segments(Charts, Cuts, We, St).
 
 do_edit(We, St0) ->
     Areas = #areas{matname=MatName} = init_edit(We, St0),
@@ -387,15 +392,16 @@ do_edit(We, St0) ->
     {seq,{push,dummy}, get_event(Uvs)}.
 
 segment(Mode, #st{shapes=Shs}=St) ->
-    [{_,We0}] = gb_trees:to_list(Shs),
-    {Charts,Bounds} = auv_segment:create(Mode, We0),
+    [{_,We}] = gb_trees:to_list(Shs),
+    {Charts,Cuts} = auv_segment:create(Mode, We),
+    mark_segments(Charts, Cuts, We, St).
 
-    %% Use hard edges to mark boundaries.
-    We1 = We0#we{he=Bounds},
+mark_segments(Charts, Cuts, We0, St) ->
+    We = We0#we{he=Cuts},			%Hard edges mark the cuts.
 
-    %% Use materials to mark different charts
+    %% Use materials to mark different charts.
     Template = list_to_tuple([make_mat(Diff) || {_,Diff} <- seg_materials()]),
-    assign_materials(Charts, We1, Template, 0, St).
+    assign_materials(Charts, We, Template, 0, St).
 
 assign_materials([Faces|T], #we{fs=Ftab0}=We0, Template, I0, #st{mat=Mat0}=St0) ->
     I = I0 + 1,
@@ -480,8 +486,7 @@ init_edit(#we{fs=Ftab0}=We0, St0) ->
 		       has_texture(Name, St0)],
     [{MatName,Faces}|_] = MatNames,
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
-    {Charts0,Cuts0} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
-    {Charts,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
+    {Charts,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
     {We,Vmap} = auv_segment:cut_model(Charts, Cuts, We0#we{mode=material}),
     Map1 = number(build_map(Charts, Vmap, FvUvMap, We, []), 1),
     Map = gb_trees:from_orddict(Map1),

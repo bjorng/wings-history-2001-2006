@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.36 2002/11/02 09:48:23 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.37 2002/11/02 15:23:53 bjorng Exp $
 
 -module(auv_segment).
 
@@ -855,7 +855,8 @@ fv_to_uv_map([], _, Acc) ->
 
 uv_to_charts_1(Faces0, We, D, Cuts0, Charts) ->
     case gb_trees:is_empty(Faces0) of
-	true -> {Charts,Cuts0};
+	true ->
+	    normalize_charts(Charts, Cuts0, We);
 	false ->
 	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
 	    Ws = gb_sets:singleton(Face),
