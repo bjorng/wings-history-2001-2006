@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.31 2002/02/12 10:38:40 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.32 2002/02/12 19:44:15 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -51,7 +51,7 @@ finish() ->
     ok.
     
 prune_defaults(List) ->
-    List -- [{Key,Val} || {_,Key,Val} <- presets()].
+    List -- defaults().
 
 menu(St) ->
     [{"Color Preferences",fun(_, _) ->
@@ -62,10 +62,10 @@ menu(St) ->
 			  end,[],[]}].
 
 command(color_prefs, St) ->
-    Qs0 = [{vframe,[{"Background Color",background_color},
-		    {"Grid Color",grid_color},
-		    {"Face Color",face_color},
-		    {"Hard Edge Color",hard_edge_color}],[]},
+    Qs0 = [{"Background Color",background_color},
+	   {"Grid Color",grid_color},
+	   {"Face Color",face_color},
+	   {"Hard Edge Color",hard_edge_color},
 	   separator,
 	   {"Selection Color",selected_color},
 	   {"Unselected Hilite",unselected_hlite},
@@ -80,7 +80,12 @@ command(color_prefs, St) ->
     Qs = make_query(Qs0),
     wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
 command(other_prefs, St) ->
-    Qs0 = [{"Show Axis Letters",show_axis_letters},
+    Qs0 = [{"Vertex Size",vertex_size},
+	   {"Selected Vertex Size",selected_vertex_size},
+	   {"Edge Width",edge_width},
+	   {"Selected Edge Width",selected_edge_width},
+	   separator,
+	   {"Show Axis Letters",show_axis_letters},
 	   {"Force Axis-aligned Grid",force_show_along_grid},
 	   separator,
 	   {"Vertex highlighting",vertex_hilite},
@@ -197,52 +202,37 @@ locate(File) ->
     end.
 
 defaults() ->
-    [{Key,Val} || {_,Key,Val} <- presets()].
+    [{background_color,{0.4,0.4,0.4}},
+     {grid_color,{0.0,0.0,0.0}},
+     {face_color,{0.5,0.5,0.5}},
+     {hard_edge_color,{0.0,0.5,0.0}},
+     {selected_color,{0.65,0.0,0.0}},
+     {unselected_hlite,{0.0,0.65,0.0}},
+     {selected_hlite,{0.70,0.70,0.0}},
+     {x_color,{1.0,0.0,0.0}},
+     {y_color,{0.0,1.0,0.0}},
+     {z_color,{0.0,0.0,1.0}},
+     {neg_x_color,{0.0,0.8,0.8}},
+     {neg_y_color,{0.8,0.0,0.8}},
+     {neg_z_color,{0.8,0.8,0.0}},
 
-presets() ->
-    [{"Color Preferences",color_prefs},
-     {"Background Color",background_color,{0.4,0.4,0.4}},
-     {"Grid Color",grid_color,{0.0,0.0,0.0}},
-     {"Face Color",face_color,{0.5,0.5,0.5}},
-     {"Hard Edge Color",hard_edge_color,{0.0,0.5,0.0}},
-     separator,
-     {"Selection Color",selected_color,{0.65,0.0,0.0}},
-     {"Unselected Hilite",unselected_hlite,{0.0,0.65,0.0}},
-     {"Selected Hilite",selected_hlite,{0.70,0.70,0.0}},
-     separator,
-     {"+X Color",x_color,{1.0,0.0,0.0}},
-     {"+Y Color",y_color,{0.0,1.0,0.0}},
-     {"+Z Color",z_color,{0.0,0.0,1.0}},
-     {"-X Color",neg_x_color,{0.0,0.8,0.8}},
-     {"-Y Color",neg_y_color,{0.8,0.0,0.8}},
-     {"-Z Color",neg_z_color,{0.8,0.8,0.0}},
-
-     {"Other Preferences",other_prefs},
-     {"Vertex Size",vertex_size,4.0},
-     {"Selected Vertex Size",selected_vertex_size,5.0},
-     {"Edge Width",edge_width,2.0},
-     {"Selected Edge Width",selected_edge_width,2.0},
-     separator,
-     {"Show Axis Letters",show_axis_letters,true},
-     {"Force Axis-aligned Grid",force_show_along_grid,false},
-     separator,
-     {"Vertex highlighting",vertex_hilite,true},
-     {"Edge highlighting",edge_hilite,true},
-     {"Face highlighting",face_hilite,true},
-     {"Object highlighting",body_hilite,true},
-     separator,
-     {"Show Memory Used",show_memory_used,false},
-     separator,
-     {"Auto-rotate angle",auto_rotate_angle,1.0},
-     {"Auto-rotate delay (ms)",auto_rotate_delay,60},
-     separator,
-     {"Auto-save interval (minutes) [0 is off]",autosave_time,2},
-     separator,
-     {"Vector Display Size",active_vector_size,1.0},
-     {"Vector Display Width",active_vector_width,2.0},
-     {"Vector Display Color",active_vector_color,{0.0,0.0,0.65}},
-     separator,
-     {"Display List Optimisation",display_list_opt,false},
-     separator,
-     {"Advanced Menus",advanced_menus,false}
+     {vertex_size,4.0},
+     {selected_vertex_size,5.0},
+     {edge_width,2.0},
+     {selected_edge_width,2.0},
+     {show_axis_letters,true},
+     {force_show_along_grid,false},
+     {vertex_hilite,true},
+     {edge_hilite,true},
+     {face_hilite,true},
+     {body_hilite,true},
+     {show_memory_used,false},
+     {auto_rotate_angle,1.0},
+     {auto_rotate_delay,60},
+     {autosave_time,2},
+     {active_vector_size,1.0},
+     {active_vector_width,2.0},
+     {active_vector_color,{0.0,0.0,0.65}},
+     {display_list_opt,false},
+     {advanced_menus,false}
     ].
