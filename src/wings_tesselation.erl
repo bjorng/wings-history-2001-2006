@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.8 2005/01/30 11:34:30 bjorng Exp $
+%%     $Id: wings_tesselation.erl,v 1.9 2005/02/05 00:15:32 dgud Exp $
 %%
 
 -module(wings_tesselation).
@@ -37,20 +37,21 @@ command(quadrangulate, St) ->
     {save_state,St1#st{sel=reverse(Sel)}}.
 
 triangulate(#we{fs=Ftab}=We) ->
-    triangulate(gb_trees:keys(Ftab), We).
+    triangulate(gs_sets:from_ordset(gb_trees:keys(Ftab)), We).
 
 triangulate(Faces, We) when is_list(Faces) ->
-    tess_faces(Faces, We, false);
+    triangulate(gb_sets:from_list(Faces), We);
 triangulate(Faces, We) ->
-    triangulate(gb_sets:to_list(Faces), We).
+    tri_faces(Faces, We).
 
 quadrangulate(#we{fs=Ftab}=We) ->
     quadrangulate(gb_trees:keys(Ftab), We).
 
 quadrangulate(Faces, We) when is_list(Faces) ->
-    tess_faces(Faces, We, true);
+    tess_faces(Faces, We);
 quadrangulate(Faces, We) ->
     quadrangulate(gb_sets:to_list(Faces), We).
+
 
 %%%
 %%% Internal functions.
@@ -61,101 +62,108 @@ do_faces(Action, Faces, #we{id=Id}=We0, Acc) ->
     Sel = gb_sets:union(wings_we:new_items_as_gbset(face, We0, We), Faces),
     {We,[{Id,Sel}|Acc]}.
 
-tess_faces([], We, _Q) -> We;
-tess_faces([F|T], We, Q) -> tess_faces(T, doface(F, We, Q), Q).
+tess_faces([], We) -> We;
+tess_faces([F|T], We) -> tess_faces(T, doface(F, We)).
 
-doface(Face, We, Q) ->
+doface(Face, We) ->
     Vs = wings_face:vertices_ccw(Face, We),
     case length(Vs) of
-	4 when not Q -> triangulate_quad(Vs, We);
-	Len when not Q, Len =< 3 -> We;
-	Len when Q, Len =< 4 -> We;
-	Len -> doface_1(Len, Vs, We, Q)
+	Len when Len =< 3 -> We;
+	Len when Len =< 4 -> We;
+	Len -> doface_1(Len, Vs, We, false)
     end.
 
-%% triangulate_quad([VertexIndex], We) -> We'
-%%  Quickly triangulates a quad by connecting along the shortest diagonal,
-%%  and then checking that normals for the triangles are consistent with
-%%  the normal for the quad. Falls back to the general triangulator if
+tri_faces(Fs0,We0) ->
+    tri_faces([],Fs0,gb_sets:empty(), We0).   
+
+tri_faces([], Fs0, TriV0, We0) ->
+    case gb_sets:is_empty(Fs0) of
+	true -> We0;
+	false ->
+	    {Face, Fs1} = gb_sets:take_smallest(Fs0),
+	    {Pref, Fs, TriV, We} = triface(Face,Fs1,TriV0,We0),
+	    tri_faces(Pref, Fs,TriV,We)
+    end;
+tri_faces([Face|R],Fs0,TriV0,We0) ->
+    {Pref, Fs, TriV,We} = triface(Face,Fs0,TriV0,We0),
+    tri_faces(Pref ++ R,Fs,TriV,We).
+
+triface(Face, Fs, TriV,We) ->
+    Vs = wings_face:vertices_ccw(Face, We),
+    case length(Vs) of
+	3 -> {[], Fs, TriV, We};
+	4 ->
+	    triangulate_quad(Face, Vs, TriV, Fs, We);
+	Len -> {[], Fs, TriV, doface_1(Len, Vs, We, true)}
+    end.
+
+%%  Triangulates a quad, tries to make the triangulation so nice
+%%  patterns emerges, or otherwise along the shortest diagonal, Then
+%%  checking that normals for the triangles are consistent with the
+%%  normal for the quad. Falls back to the general triangulator if
 %%  normals are inconsistent (= concave or otherwise strange quad).
-triangulate_quad(Vs, #we{vp=Vtab}=We0) ->
-    case triangulate_quad_1(Vs, Vs, Vtab, We0, []) of
-	error -> doface_1(4, Vs, We0, false);
-	We -> We
+
+triangulate_quad(F, Vs, TriV0, FsSet0, #we{vp=Vtab}=We0) ->
+    VsPos = [gb_trees:get(V, Vtab) || V <- Vs],
+    try 
+	{V1,V2,TriV,We} = triangulate_quad_1(VsPos, Vs, F, TriV0, We0),
+	{Fs1, FsSet1} = get_pref_faces(V1,FsSet0,We),
+	{Fs2, FsSet} = get_pref_faces(V2,FsSet1,We),
+	{Fs1++Fs2,FsSet,TriV,We}
+    catch throw:Problematic ->
+	    {[],FsSet0,TriV0, doface_1(4, Vs, We0, false)};
+	Type:Err ->
+	    io:format("~p:~p: ~p ~p ~p~n", 
+		      [?MODULE,?LINE, Type, Err, erlang:get_stacktrace()])
     end.
 
-triangulate_quad_1([V|Vs], Vs0, Vtab, We, Acc) ->
-    triangulate_quad_1(Vs, Vs0, Vtab, We, [gb_trees:get(V, Vtab)|Acc]);
-triangulate_quad_1([], [Ai,Bi,Ci,Di], _, We, VsPos) ->
+get_pref_faces(V,Fs0,We) ->
+    wings_vertex:fold(fun(_,F,_,{Acc,FsSet}) ->
+			      case gb_sets:is_member(F,FsSet) of
+				  true -> {[F|Acc], gb_sets:delete(F,FsSet)};
+				  false -> {Acc,FsSet}
+			      end
+		      end, {[],Fs0}, V, We).
+
+triangulate_quad_1(VsPos=[A,B,C,D], Vi=[Ai,Bi,Ci,Di], F, TriV, We) ->
     N = e3d_vec:normal(VsPos),
-    [D,C,B,A] = VsPos,
+    ACgood = gb_sets:is_member(Ai,TriV) orelse 
+	gb_sets:is_member(Ci,TriV),
+    BDgood = gb_sets:is_member(Bi,TriV) orelse 
+	gb_sets:is_member(Di,TriV),
+    [V1,V2] = 
+	if ACgood, (not BDgood) ->
+		case wings_draw_util:good_triangulation(N,A,B,C,D) of
+		    false -> throw(F);
+		    true -> [Ai,Ci]
+		end;
+	   BDgood, (not ACgood) ->
+		case wings_draw_util:good_triangulation(N,B,C,D,A) of
+		    false -> throw(F);
+		    true -> [Bi,Di]
+		end;
+	   true ->
+		select_newedge(VsPos,Vi,N,F)
+	end,
+    {NewWe,_NewFace} = wings_vertex:force_connect(V1,V2,F,We),
+    {V1,V2,gb_sets:add(V2,gb_sets:add(V1,TriV)), NewWe}.
+
+select_newedge(_L = [A,B,C,D],[Ai,Bi,Ci,Di],N,F) ->
     AC = e3d_vec:dist(A, C),
     BD = e3d_vec:dist(B, D),
     Epsilon = 0.15,  %% 1/6 diffs Is rougly equal 
-%     io:format("Vs ~p=~p AC=~p BD=~p ~p ~n", 
-% 	      [[Ai,Bi,Ci,Di],lists:reverse(VsPos), AC, BD,
-% 	       {((BD-AC) / BD), ((AC-BD) / AC)}]),
     case AC < BD of
 	true when ((BD-AC) / BD)  > Epsilon ->
-	    case wings_draw_util:good_triangulation(N, D, C, B, A) of
-		false -> error;
-		true -> wings_vertex_cmd:connect([Ai,Ci], We)
-	    end;
-	false when ((AC-BD) / AC) > Epsilon ->
-	    case wings_draw_util:good_triangulation(N, C, B, A, D) of
-		false -> error;
-		true -> wings_vertex_cmd:connect([Bi,Di], We)
+	    case wings_draw_util:good_triangulation(N,A,B,C,D) of
+		false -> throw(F);
+		true -> [Ai,Ci]
 	    end;
 	_ ->
-	    %% Both diagonal rougly equal in length, use 3d position
-	    %% to place the diagonal to get uniform triangulation over 
-	    %% a quad mesh.
-	    
-	    [Dp,Cp,Bp,Ap] = project_to_2d([D,C,B,A]),
-	    
-%	    Rotm = e3d_mat:rotate_s_to_t(N, {0.0,0.0,1.0}),
-%	    [Dp,Cp,Bp,Ap] = map(fun (P) -> e3d_mat:mul_point(Rotm, P) end, VsPos),	    
-	    
-	    ACS = if Ap < Cp -> Ap; true -> Cp end,
-	    DBS = if Bp < Dp -> Bp; true -> Dp end,
-	    if ACS < DBS ->
-		    case wings_draw_util:good_triangulation(N, D, C, B, A) of
-			false -> error;
-			true -> wings_vertex_cmd:connect([Ai,Ci], We)
-		    end;
-	       true ->
-		    case wings_draw_util:good_triangulation(N, C, B, A, D) of
-			false -> error;
-			true -> wings_vertex_cmd:connect([Bi,Di], We)
-		    end
+	    case wings_draw_util:good_triangulation(N,B,C,D,A) of
+		false -> throw(F);
+		true -> [Bi,Di]
 	    end
     end.
-
-project_to_2d(List) ->
-    Dir = project_to_2d(List, 0.0, undefined),
-    case Dir of
-	x ->
-	    [{A,B} || {_,A,B} <- List];
-	y ->
-	    [{A,B} || {A,_,B} <- List];
-	z ->
-	    [{A,B} || {A,B,_} <- List]
-    end.
-
-project_to_2d([{X0,Y0,Z0}|R], Old, OldD) ->
-    X = abs(X0),    Y = abs(Y0),    Z = abs(Z0),
-    if 
-	(X > Old) and (X > Y) and (Y > Z) ->
-	    project_to_2d(R, X, x);
-	(Y > Old) and (Y > Z) ->
-	    project_to_2d(R, Y, y);
-	Z > Old ->
-	    project_to_2d(R, Z, z);
-	true ->
-	    project_to_2d(R, Old, OldD)
-    end;
-project_to_2d([],_,Dir) -> Dir. 
-
 
 doface_1(Len, Vs, #we{vp=Vtab}=We, Q) ->
     FaceVs = lists:seq(0, Len-1),
