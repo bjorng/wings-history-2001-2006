@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.25 2002/07/08 17:53:26 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.26 2002/07/12 07:39:52 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -25,7 +25,7 @@
 -record(ost,
 	{v=[],					%Vertices.
 	 vt=[],					%Texture vertices.
-	 vn=[],					%Vertice normals.
+	 vn=[],					%Vertex normals.
 	 f=[],					%Faces.
 	 g=[],					%Groups.
 	 mat=[],				%Current material.
