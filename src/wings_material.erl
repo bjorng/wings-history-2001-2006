@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.98 2003/05/28 08:02:56 raimo_niskanen Exp $
+%%     $Id: wings_material.erl,v 1.99 2003/06/12 04:53:40 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -645,8 +645,8 @@ cleanup(#we{mat=Mat0,fs=Ftab}=We) ->
 	    We#we{mat=Mat}
     end.
 
-mat_all_same([{_,M}|T]) ->
-    mat_all_same_1(T, M).
+mat_all_same([]) -> false;
+mat_all_same([{_,M}|T]) -> mat_all_same_1(T, M).
 
 mat_all_same_1([{_,M}|T], M) -> mat_all_same_1(T, M);
 mat_all_same_1([], _) -> true;
