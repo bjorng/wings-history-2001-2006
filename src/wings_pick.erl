@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.64 2002/10/20 12:38:43 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.65 2002/11/07 17:28:02 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -864,14 +864,21 @@ pos(Key, Tree) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tree),
     Pos.
 
-draw_face(Face, Edge, We) ->
-    Vs = wings_face:draw_info(Face, Edge, We),
-    {X,Y,Z} = wings_face:draw_normal(Vs),
+draw_face(Face, Edge, #we{vs=Vtab}=We) ->
+    Vs0 = wings_face:vinfo(Face, Edge, We),
+    draw_face_1(Vs0, Vtab, [], []).
+
+draw_face_1([[V|_]|Vs], Vtab, Nacc, VsAcc) ->
+    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+    draw_face_1(Vs, Vtab, [Pos|Nacc], [Pos|VsAcc]);
+draw_face_1([], _, Nacc, Vs) ->
+    N = e3d_vec:normal(reverse(Nacc)),
     Tess = wings_draw_util:tess(),
+    {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    foreach(fun({Pos,_}) ->
+    foreach(fun(Pos) ->
 		    glu:tessVertex(Tess, Pos)
 	    end, Vs),
     glu:tessEndContour(Tess),

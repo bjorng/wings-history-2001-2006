@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.24 2002/11/01 19:32:26 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.25 2002/11/07 17:28:01 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -18,7 +18,6 @@
 	 other/2,vertices/2,
 	 to_vertices/2,
 	 normal/2,face_normal/2,good_normal/2,
-	 draw_info/3,draw_normal/1,
 	 vinfo/2,vinfo/3,
 	 surrounding_vertices/2,surrounding_vertices/3,
 	 bordering_faces/2,
@@ -186,30 +185,6 @@ good_normal(D1, [_Va|[Vb,Vc|_]=Vs], More) ->
 good_normal(D1, Vs, [Va,Vb|_]) ->
     good_normal(D1, Vs++[Va,Vb], []);
 good_normal(_, _, _) -> false.
-
-%% Returns all the information you need to draw a face.
-
-draw_info(Face, Edge, #we{vs=Vtab,es=Etab}) ->
-    info_traverse(Face, Edge, Edge, Etab, Vtab, []).
-
-info_traverse(_Face, LastEdge, LastEdge, _Etab, _Vtab, Acc)
-  when Acc =/= [] -> Acc;
-info_traverse(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
-    case gb_trees:get(Edge, Etab) of
-	#edge{vs=V,a=Col,lf=Face,ltsu=NextEdge} ->
-	    info_traverse(Face, NextEdge, LastEdge, Etab, Vtab,
-			  [{wings_vertex:pos(V, Vtab),Col}|Acc]);
-	#edge{ve=V,b=Col,rf=Face,rtsu=NextEdge} ->
-	    info_traverse(Face, NextEdge, LastEdge, Etab, Vtab,
-			  [{wings_vertex:pos(V, Vtab),Col}|Acc])
-    end.
-
-draw_normal(Vpos) ->
-    draw_normal(Vpos, []).
-
-draw_normal([{Pos,_}|Vs], Acc) ->
-    draw_normal(Vs, [Pos|Acc]);
-draw_normal([], Acc) -> e3d_vec:normal(reverse(Acc)).
 
 %% Vertex info for drawing.
 
