@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.13 2003/01/31 18:03:04 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.14 2003/01/31 21:15:25 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -268,7 +268,7 @@ window(Id) ->
     Name = {image,Id},
     case wings_wm:is_window(Name) of
 	true ->
-	    wings_wm:delete(Name);
+	    wings_wm:raise(Name);
 	false ->
 	    {Size,Title} = window_params(Id),
 	    Pos = {10,50,highest},

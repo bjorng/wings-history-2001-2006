@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.30 2003/01/30 13:00:49 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.31 2003/01/31 21:15:26 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -38,7 +38,8 @@ menu(X, Y, _) ->
 	     separator,
 	     {"Light",{light,wings_light:light_types()}},
 	     {"Material...",material},
-	     {"Image...",image},
+	     %% Currently disabled.
+	     %%{"Image...",image},
 	     separator,
 	     {"More",{more,[]},"More primitives"}],
     Menu = [prim_help(Item) || Item <- Menu0],

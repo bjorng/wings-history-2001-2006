@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.18 2003/01/30 10:31:04 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.19 2003/01/31 21:15:25 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -129,13 +129,15 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
 		    {"Delete",menu_cmd(delete_object, Id),
 		     "Delete this object"},
 		    {"Rename",menu_cmd(rename_object, Id),
-		     "Rename selected objects"}];
+		     "Rename this object"}];
 	       {light,Id,_} ->
 		   [{"Edit Light...",menu_cmd(edit_light, Id),
 		    "Edit light properties"},
 		    separator,
 		    {"Duplicate",menu_cmd(duplicate_object, Id),"Duplicate this light"},
-		    {"Delete",menu_cmd(delete_object, Id),"Delete this light"}];
+		    {"Delete",menu_cmd(delete_object, Id),"Delete this light"},
+		    {"Rename",menu_cmd(rename_object, Id),
+		     "Rename this light"}];
 	       {image,Id,Im} ->
 		   image_menu(Id, Im);
 	       ignore -> none;
@@ -148,8 +150,9 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
 
 image_menu(Id, Im) ->
     [{"Show",menu_cmd(show_image, Id),
-      "Show the image in a window"}|image_menu_1(Id, Im)].
+      "Show the image in a window"}|begin image_menu_1(Id, Im), [] end].
 
+%% Currently disabled.
 image_menu_1(Id, #e3d_image{filename=none}) ->
     [{"Make External",menu_cmd(make_external, Id)}|common_image_menu(Id)];
 image_menu_1(Id, _) ->

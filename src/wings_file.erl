@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.101 2003/01/30 09:43:12 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.102 2003/01/31 21:15:23 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -52,22 +52,23 @@ menu(_) ->
     ImpFormats = [{"Nendo (.ndo)...",ndo}],
     ExpFormats = [{"Nendo (.ndo)...",ndo},
 		  {"ExtremeUV [Experimental] (.xndo)...",xndo}],
-    [{"New",new},
-     {"Open...",open},
-     {"Merge...",merge},
+    [{"New",new,"Create a new, empty scene"},
+     {"Open...",open,"Open a previously saved scene"},
+     {"Merge...",merge,"Merge a previously saved scene into the current scene"},
      separator,
-     {"Save",save},
-     {"Save As...",save_as},
-     {"Save Selected...",save_selected},
+     {"Save",save,"Save the current scene"},
+     {"Save As...",save_as,"Save the current scene under a new name"},
+     {"Save Selected...",save_selected,"Save only the selected objects or faces"},
      {"Save Incrementally",save_incr},
      separator,
-     {"Revert",revert},
+     {"Revert",revert,"Revert current scene to the save contents"},
      separator,
      {"Import",{import,ImpFormats}},
      {"Export",{export,ExpFormats}},
      {"Export Selected",{export_selected,ExpFormats}},
-     separator,
-     {"Import Image...",import_image},
+     %% Temporarily disabled.
+%      separator,
+%      {"Import Image...",import_image,"Import an image file"},
      separator,
      {"Render",{render,[]}},
      separator|recent_files([{"Exit",quit}])].
