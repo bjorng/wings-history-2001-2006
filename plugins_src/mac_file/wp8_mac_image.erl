@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_image.erl,v 1.3 2003/03/15 08:08:33 bjorng Exp $
+%%     $Id: wp8_mac_image.erl,v 1.4 2003/03/16 17:26:39 bjorng Exp $
 %%
 
 -module(wp8_mac_image).
@@ -96,8 +96,14 @@ read_image_2(<<W:32/native,H:32/native,SamplesPerPixel0:32/native,BytesPerRow:32
     e3d_image:convert(Image, NeededType, NeededAlignment, NeededOrder).
 
 is_format_supported(Name) ->
-    Ext = filename:extension(Name),
+    Ext = lower(filename:extension(Name)),
     lists:keymember(Ext, 1, image_formats([])).
+
+lower([Upper|T]) when $A =< Upper, Upper =< $Z ->
+    [Upper-$A+$a|lower(T)];
+lower([H|T]) ->
+    [H|lower(T)];
+lower([]) -> [].
 
 image_formats(Fs) ->
     [{".png","PNG File"},
