@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.36 2002/06/21 07:36:32 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.37 2002/07/05 09:51:01 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -92,7 +92,7 @@ default() ->
 
 make_default({R,G,B}, Opacity) ->
     Color = {R,G,B,Opacity},
-    White = {1.0,1.0,1.0,Opacity},
+    White = {1.0,1.0,1.0,1.0},
     Mat = [{opengl,[{diffuse,Color},{ambient,Color},{specular,White},
 		    {emission,{0.0,0.0,0.0,0.0}},{shininess,1.0}]},
 	   {maps,[]}],
@@ -292,6 +292,8 @@ ask_prop_get(Key, Props) ->
     {R,G,B,Alpha} = prop_get(Key, Props),
     {{R,G,B},Alpha}.
 
+ask_prop_put(specular=Key, {R,G,B}, _) ->
+    {Key,{R,G,B,1.0}};
 ask_prop_put(Key, {R,G,B}, Opacity) ->
     {Key,{R,G,B,Opacity}}.
     
