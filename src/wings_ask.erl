@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.142 2003/12/23 01:38:25 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.143 2003/12/24 13:21:18 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -2353,15 +2353,14 @@ label_draw([], _, _) -> keep.
 
 
 
-
-
 %%%
 %%% Text and number input fields.
 %%%
 
 -record(text,
-	{bef,
-	 aft,
+	{bef,					%Reversed list of characters before cursor
+	 aft,					%List of characters after cursor.
+	 first=0,			        %First character shown.
 	 sel=0,
 	 max,
 	 integer=false,
@@ -2377,7 +2376,7 @@ mktree_text(Val, Sto, I, Flags) ->
     {Max0,Validator,Charset} = validator(Val, Flags),
     Max = case proplists:get_value(width, Flags) of
 	      undefined -> Max0;
-	      M when integer(M), M >= 1 -> M
+	      M when is_integer(M), M >= 1 -> M
 	  end,
     Password = proplists:get_bool(password, Flags),
     Ts = #text{last_val=Val,bef=[],aft=ValStr,max=Max,
@@ -2467,7 +2466,6 @@ float_range(Min, Max) ->
 accept_all(_) -> ok.
 
 
-
 text_get_val(#text{last_val=OldVal}=Ts) when is_integer(OldVal) ->
     case catch list_to_integer(get_text(validate_string(Ts))) of
 	{'EXIT',_} -> OldVal;
@@ -2552,32 +2550,36 @@ draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
     wings_io:text_at(X, Y, Str),
     keep.
 
-draw_text_active(#fi{x=X0,y=Y0},
-		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password},
+draw_text_active(#fi{x=X0,y=Y0,w=W,h=H},
+		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password}=Text,
 		 DisEnabled) ->
-    wings_io:sunken_gradient(X0, Y0+2, (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
+    Ch = wings_text:height(),
+    Cw = wings_text:width(),
+
+    wings_io:sunken_gradient(X0, Y0+2, (Max+1)*Ch, Ch+1,
 			     color3_high(), color4(), true),
-    Y = Y0 + ?CHAR_HEIGHT,
-    X = X0 + (?CHAR_WIDTH div 2),
+    Y = Y0 + Ch,
+    X = X0 + (Cw div 2),
     Len = length(Bef),
     Str0 = case Password of
-	      true -> stars(Len+length(Aft));
-	      false -> reverse(Bef, Aft)
-	  end,
+	       true -> stars(Len+length(Aft));
+	       false -> get_text(Text)
+	   end,
     Str = string:substr(Str0, 1, Max),
     gl:color3fv(color3_text()),
     wings_io:text_at(X, Y, Str),
+
     case {DisEnabled,abs(Sel)} of
 	{enabled,0} ->
 	    gl:color3f(1, 0, 0),
-	    X1 = X+Len*?CHAR_WIDTH,
+	    X1 = X+wings_text:width(Bef),
 	    wings_io:text_at(X1, Y, [caret]);
 	{enabled,N} ->
 	    Skip = min(Len, Len+Sel),
 	    SelStr = string:substr(Str, Skip+1, N),
 	    gl:color3f(0, 0, 0.5),
-	    X1 = X+Skip*?CHAR_WIDTH,
- 	    gl:recti(X1, Y-?CHAR_HEIGHT+3, X1+N*?CHAR_WIDTH, Y+2),
+	    X1 = X+Skip*Cw,
+ 	    gl:recti(X1, Y-Ch+3, X1+N*Cw, Y+2),
  	    gl:color3f(1, 1, 1),
 	    wings_io:text_at(X1, Y, SelStr);
 	_ ->
@@ -2586,7 +2588,7 @@ draw_text_active(#fi{x=X0,y=Y0},
     gl:color3b(0, 0, 0),
     keep.
 
-stars(N) when integer(N) ->
+stars(N) when is_integer(N) ->
     duplicate(N, $*);
 stars(Str) ->
     stars(length(Str)).
