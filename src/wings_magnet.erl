@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.7 2001/09/18 12:02:54 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.8 2001/09/24 07:24:53 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -18,11 +18,11 @@
 -import(lists, [map/2,foldr/3,foldl/3]).
 
 setup(Type, Dir, #st{selmode=vertex}=St) ->
-    Vec = make_vector(Dir, St),
+    Vec = wings_util:make_vector(Dir),
     Tvs = wings_sel:fold_shape(fun(Sh, Items, Acc) ->
 				       setup_1(Sh, Items, Vec, Type, Acc)
 			       end, [], St),
-    wings_drag:init_drag(Tvs, constraint(Type), St#st{inf_r=?GROUND_GRID_SIZE}).
+    wings_drag:init_drag(Tvs, constraint(Type), St#st{inf_r=1.0}).
 
 setup_1(#shape{id=Id,sh=We}=Sh, Items, Vec, Type, Acc) ->
     Tv = vertices_to_vertices(gb_sets:to_list(Items), We, Type, Vec),
@@ -30,12 +30,6 @@ setup_1(#shape{id=Id,sh=We}=Sh, Items, Vec, Type, Acc) ->
 
 constraint(free) -> view_dependent;
 constraint(Other) -> none.
-    
-make_vector(x, St) -> {?GROUND_GRID_SIZE,0.0,0.0};
-make_vector(y, St) -> {0.0,?GROUND_GRID_SIZE,0.0};
-make_vector(z, St) -> {0.0,0.0,?GROUND_GRID_SIZE};
-make_vector(free, St) -> free;
-make_vector(normal, St) -> normal.
 
 %%
 %% Conversion of vertice selections to vertices. :-)
@@ -49,8 +43,7 @@ vertices_to_vertices(Vs, We, Type, Vec) -> make_tvs(Type, Vs, Vec).
 
 vertex_normals(We, Vs) ->
     foldl(fun(V, Acc) ->
-		  Vec = e3d_vec:mul(wings_vertex:normal(V, We),
-				    float(?GROUND_GRID_SIZE)),
+		  Vec = wings_vertex:normal(V, We),
 		  [{Vec,[V]}|Acc]
 	  end, [], Vs).
 
@@ -79,10 +72,8 @@ distance_fun(gaussian) ->
 
 magnet_move([{free,Vs}|Tvs], Dx, Dy, IR, St, OVtab, Vtab0) ->
     #st{azimuth=Az,elevation=El} = St,
-    G = ?GROUND_GRID_SIZE,
     M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
-    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
-    M = e3d_mat:mul(M1, e3d_mat:scale(G, G, G)),
+    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
     {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx,Dy,0.0}),
     Vtab = magnet_move_1({Xt,Yt,Zt}, Vs, IR, OVtab, Vtab0),
     magnet_move(Tvs, Dx, Dy, IR, St, OVtab, Vtab);

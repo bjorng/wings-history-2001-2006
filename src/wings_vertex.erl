@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.10 2001/09/18 12:02:55 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.11 2001/09/24 07:24:53 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -288,9 +288,9 @@ connect(Face, Vs, #we{}=We0) ->
 %% +----*----+
 
 polygon_pairs(Face, Vs, #we{}=We0) ->
+    ?ASSERT(length(Vs) > 1),
     Iter = wings_face:iterator(Face, We0),
-    N = wings_face:vertices(Face, We0),
-    case catch pp_start(N, Iter, Vs, []) of
+    case catch pp_start(Iter, Vs) of
 	{'EXIT',Reason} -> exit(Reason);
 	no -> no;
 	Pairs when list(Pairs) ->
@@ -302,36 +302,30 @@ polygon_pairs(Face, Vs, #we{}=We0) ->
 		  end, We0, Pairs)
     end.
 
-pp_start(0, Iter, Vs, Acc) -> Acc;
-pp_start(N, Iter0, Vs, Acc) ->
+pp_start(Iter0, Vs) ->
     {V,_,_,Iter1} = wings_face:next_cw(Iter0),
     case member(V, Vs) of
-	false ->
-	    pp_start(N-1, Iter1, Vs, Acc);
+	false -> pp_start(Iter1, Vs);
 	true ->
 	    Iter = pp_skip_one(Iter1, Vs),
-	    pp_next(Iter, Vs, V, Acc)
+	    pp_next(Iter, Vs, V, [])
     end.
 
 pp_next(Iter0, Vs, Start, Acc0) ->
-    case wings_face:next_cw(Iter0) of
-	{Start,_,_,_} -> Acc0;
-	{V,_,_,Iter1} ->
-	    case member(V, Vs) of
-		false ->
-		    pp_next(Iter1, Vs, Start, Acc0);
+    {V,_,_,Iter1} = wings_face:next_cw(Iter0),
+    case member(V, Vs) of
+	false -> pp_next(Iter1, Vs, Start, Acc0);
+	true ->
+	    Acc = [{Start,V}|Acc0],
+	    case keymember(V, 1, Acc0) of
 		true ->
-		    Acc = [{Start,V}|Acc0],
-		    case keymember(V, 1, Acc0) of
-			true ->
-			    case Acc0 of
-				[{V,Start}] -> Acc0;
-				Other -> Acc
-			    end;
-			false ->
-			    Iter = pp_skip_one(Iter1, Vs),
-			    pp_next(Iter, Vs, V, Acc)
-		    end
+		    case Acc0 of
+			[{V,Start}] -> Acc0;
+			Other -> Acc
+		    end;
+		false ->
+		    Iter = pp_skip_one(Iter1, Vs),
+		    pp_next(Iter, Vs, V, Acc)
 	    end
     end.
 
@@ -344,7 +338,7 @@ pp_skip_one(Iter0, Vs) ->
 
 %% If polygon_pairs/3 failed, we search for the two
 %% vertices which are nearest each other. We try to connect,
-%% the repeat the search in both the original face and the
+%% then repeat the search in both the original face and the
 %% the newly created face. We continue until no more connections
 %% are possible. Two vertices that have been connected cannot be
 %% connected again (in the same face).

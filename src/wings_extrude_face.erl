@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.3 2001/09/18 12:02:54 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.4 2001/09/24 07:24:53 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
@@ -180,6 +180,16 @@ connect(C, We0, Acc) ->
 	[Va|Path] ->
 	    {connect_inner(Va, Path, We0),Acc}
     end.
+
+% get_edge_chains(G) ->
+%% XXX Not yet.
+%     Vs = digraph:source_vertices(G),
+%     get_edge_chains(G, Vs, []).
+
+% get_edge_chains(G, [V|Vs], Acc) ->
+%     Chain = collect_chain(G, V, []),
+%     get_edge_chains(G, Vs, [Chain|Acc]);
+% get_edge_chains(G, [], Acc) -> Acc.
 
 get_edge_chains(G) ->
     Vs = digraph:vertices(G),

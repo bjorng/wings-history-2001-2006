@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.11 2001/09/18 12:02:54 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.12 2001/09/24 07:24:53 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -180,15 +180,28 @@ bevel_move_edges(Faces, We) ->
 
 extract_region(Type, #st{onext=Id0,shapes=Shapes0}=St0) ->
     St1 = wings_sel:fold_shape(
-	    fun(Sh, Faces, #st{sel=Sel0,onext=Oid}=St0) ->
-		    St = wings_shape:insert(Sh, "extract", St0),
+	    fun(Sh, Faces, #st{sel=Sel0,onext=Oid}=S0) ->
+		    S = wings_shape:insert(Sh, "extract", S0),
 		    Sel = [{Oid,Faces}|Sel0],
-		    St#st{sel=Sel}
+		    S#st{sel=Sel}
 	    end, St0#st{sel=[]}, St0),
-    St2 = wings_sel:inverse(St1),
-    St3 = dissolve(St2),
-    St = wings_sel:inverse(St3),
+    Sel = reverse(St1#st.sel),
+    St2 = St1#st{sel=Sel},
+    St3 = extract_inverse(St2),
+    St4 = dissolve(St3),
+    St = St4#st{sel=Sel},
     wings_move:setup(Type, St).
+
+extract_inverse(St) ->
+    Sel = wings_sel:fold_shape(
+	    fun(#shape{id=Id,sh=We}, Items, A) ->
+		    Diff = wings_sel:inverse_items(face, Items, We),
+		    case gb_sets:is_empty(Diff) of
+			true -> A;
+			false -> [{Id,Diff}|A]
+		    end
+	    end, [], St),
+    St#st{sel=reverse(Sel)}.
     
 %%%
 %%% The Dissolve command.
@@ -370,8 +383,8 @@ mirror_vs(Face, #we{vs=Vtab0}=We0, Mirrorout) ->
     Vs = wings_face:surrounding_vertices(Face, We0),
     Center = wings_vertex:center(Vs, We0),
     Vtab = foldl(fun(V, A) ->
-			 flatten_move(V, Normal, Center, Mirrorout, A)
-		 end, Vtab0, gb_trees:keys(Vtab0)),
+ 			 flatten_move(V, Normal, Center, Mirrorout, A)
+ 		 end, Vtab0, gb_trees:keys(Vtab0)),
     We = We0#we{vs=Vtab},
     wings_we:invert_normals(We).
 
@@ -483,16 +496,11 @@ replace_vertex(Old, New, We, Etab0) ->
 %%%
 
 flatten(Plane0, St) ->
-    Plane = plane_normal(Plane0),
+    Plane = wings_util:make_vector(Plane0),
     wings_sel:map_region(
       fun(Faces, We) ->
 	      flatten(Faces, Plane, We)
       end, St).
-
-plane_normal(x) -> {1.0,0.0,0.0};
-plane_normal(y) -> {0.0,1.0,0.0};
-plane_normal(z) -> {0.0,0.0,1.0};
-plane_normal(normal) -> normal.
 
 flatten(Faces, normal, We) ->
     N = gb_sets:fold(fun(Face, Normal) ->
@@ -525,17 +533,25 @@ flatten_move(V, PlaneNormal, Center, Dist, Tab0) ->
 %%%
 
 smooth(St0) ->
-    {St,Sel} = wings_sel:mapfold_region(fun smooth/4, [], St0),
+    {St,Sel} = wings_sel:mapfold_shape(fun smooth/4, [], St0),
     St#st{sel=Sel}.
 
-smooth(Id, Faces0, #we{es=Etab,he=Htab}=We0, Acc) ->
+smooth(Id, Faces0, We0, Acc) ->
+    Rs = wings_sel:find_face_regions(Faces0, We0),
+    We1 = smooth_regions(Rs, We0),
+    NewFaces = wings_we:new_items(face, We0, We1),
+    NewVs = wings_we:new_items(vertex, We0, We1),
+    We = smooth_connect(NewVs, NewFaces, We1),
+    {We,[{Id,NewFaces}|Acc]}.
+
+smooth_regions([Faces0|Rs], #we{es=Etab,he=Htab}=We0) ->
     HardEdges0 = wings_face:outer_edges(Faces0, We0),
     HardEdges = gb_sets:union(gb_sets:from_list(HardEdges0), Htab),
     Faces = gb_sets:to_list(Faces0),
     {Vs,Es} = all_edges(Faces0, We0),
     We = wings_subdiv:smooth(Faces, Faces, Vs, Es, HardEdges, We0),
-    Sel = wings_we:new_items(face, We0, We),
-    {We,[{Id,Sel}|Acc]}.
+    smooth_regions(Rs, We);
+smooth_regions([], We) -> We.
 
 all_edges(Faces, We) ->
     {Vs,Es} = wings_face:fold_faces(
@@ -544,6 +560,41 @@ all_edges(Faces, We) ->
 		{[],[]}, Faces, We),
     {ordsets:from_list(Vs),ordsets:from_list(Es)}.
 
+smooth_connect(Vs, Faces0, We0) ->
+    Faces = sofs:from_external(gb_sets:to_list(Faces0), [face]),
+    FaceVs0 = wings_vertex:per_face(Vs, We0),
+    FaceVs1 = sofs:from_external(FaceVs0, [{face,[vertex]}]),
+    FaceVs2 = sofs:drestriction(FaceVs1, Faces),
+    FaceVs = sofs:to_external(FaceVs2),
+    smooth_connect_1(FaceVs, We0).
+
+smooth_connect_1([{Face,[V]}|Fvs], We0) ->
+    Iter0 = wings_face:iterator(Face, We0),
+    IterCw = wings_face:skip_to_cw(V, Iter0),
+    IterCcw = wings_face:skip_to_ccw(V, Iter0),
+    We = smooth_connect_2(IterCw, IterCcw, V, Face, We0),
+    smooth_connect_1(Fvs, We);
+smooth_connect_1([{Face,Vs}|Fvs], We0) ->
+    We = wings_vertex:connect(Face, Vs, We0),
+    smooth_connect_1(Fvs, We);
+smooth_connect_1([], We) -> We.
+
+smooth_connect_2(IterCw0, IterCcw0, V, Face, We0) ->
+    case {wings_face:next_cw(IterCw0),wings_face:next_ccw(IterCcw0)} of
+	{{_,Edge,_,_},{_,Edge,_,_}} ->
+	    {We1,NewV} = wings_edge:cut(Edge, 2, We0),
+	    {We,_} = wings_vertex:force_connect(V, NewV, Face, We1),
+	    We;
+	{{Va,_,_,IterCw},{Vb,_,Rec,IterCcw}} ->
+	    case wings_vertex:other(Vb, Rec) of
+		Va when Va =/= V ->
+		    {We,_} = wings_vertex:force_connect(V, Va, Face, We0),
+		    We;
+		Other ->
+		    smooth_connect_2(IterCw, IterCcw, V, Face, We0)
+	    end
+    end.
+    
 %%%
 %%% The Bridge command.
 %%%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.7 2001/09/18 12:02:55 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.8 2001/09/24 07:24:53 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -18,7 +18,7 @@
 -import(lists, [map/2,foldr/3,foldl/3]).
 
 setup(Type, #st{selmode=Mode}=St) ->
-    Vec = make_vector(Type, St),
+    Vec = wings_util:make_vector(Type),
     Tvs = wings_sel:fold_shape(fun(Sh, Items, Acc) ->
 				       setup_1(Mode, Sh, Items, Vec, Acc)
 			       end, [], St),
@@ -27,7 +27,7 @@ setup(Type, #st{selmode=Mode}=St) ->
 setup_1(Mode, #shape{id=Id,sh=We}=Sh, Items, Vec, Acc) ->
     Tv = case Mode of
 	     vertex -> vertices_to_vertices(gb_sets:to_list(Items), We, Vec);
-	     edge -> edges_to_vertices(gb_sets:to_list(Items), We, Vec);
+	     edge -> edges_to_vertices(Items, We, Vec);
 	     face -> faces_to_vertices(Items, We, Vec);
 	     body -> body_to_vertices(Sh, Vec)
 	 end,
@@ -37,13 +37,6 @@ constraint(free) -> view_dependent;
 constraint(intrude) -> {0.025,1.0E200};
 constraint(Other) -> none.
     
-make_vector(x, St) -> {?GROUND_GRID_SIZE,0.0,0.0};
-make_vector(y, St) -> {0.0,?GROUND_GRID_SIZE,0.0};
-make_vector(z, St) -> {0.0,0.0,?GROUND_GRID_SIZE};
-make_vector(free, St) -> free;
-make_vector(normal, St) -> normal;
-make_vector(intrude, St) -> normal.
-
 %%
 %% Conversion of vertice selections to vertices. :-)
 %% Not entirely pointless, as we'll need to add vectors for
@@ -55,8 +48,7 @@ vertices_to_vertices(Vs, We, Vec) -> make_tvs(Vs, Vec).
 
 vertex_normals(We, Vs) ->
     foldl(fun(V, Acc) ->
-		  Vec = e3d_vec:mul(wings_vertex:normal(V, We),
-				    float(?GROUND_GRID_SIZE)),
+		  Vec = wings_vertex:normal(V, We),
 		  [{Vec,[V]}|Acc]
 	  end, [], Vs).
 
@@ -79,12 +71,8 @@ edges_to_vertices(Es, We, normal) ->
 			{Vb,{Normal,VbPos,e3d_vec:neg(EdgeDir)}}|D0]
 	       end, [], Es),
     average(Vs);
-edges_to_vertices(Es, #we{es=Etab}, Vec) ->
-    Vs0 = foldl(fun(Edge, Acc) ->
-			#edge{vs=Vstart,ve=Vend} = gb_trees:get(Edge, Etab),
-			[Vstart,Vend|Acc]
-		end, [], Es),
-    make_tvs(ordsets:from_list(Vs0), Vec).
+edges_to_vertices(Es, We, Vec) ->
+    make_tvs(wings_edge:to_vertices(Es, We), Vec).
 
 average(Vs) ->
     R = sofs:relation(Vs),
@@ -92,7 +80,7 @@ average(Vs) ->
     foldl(fun average/2, [], sofs:to_external(F)).
 
 average({V,Info}, Acc) ->
-    Normal = e3d_vec:mul(average_normals(Info), ?GROUND_GRID_SIZE),
+    Normal = average_normals(Info),
     [{Normal,[V]}|Acc].
 
 average_normals([{Normal,_,_}]) -> Normal;
@@ -139,8 +127,7 @@ face_average(Vs, Vtab) ->
     R = sofs:relation(Vs),
     F = sofs:relation_to_family(R),
     foldl(fun({V,Ns}, Acc) ->
-		  N0 = face_average_normals(V, Ns, Vtab),
-		  N = e3d_vec:mul(N0, ?GROUND_GRID_SIZE),
+		  N = face_average_normals(V, Ns, Vtab),
 		  [{N,[V]}|Acc]
 	  end, [], sofs:to_external(F)).
 
@@ -215,11 +202,9 @@ translate_fun(free) ->
     fun(#shape{matrix=Matrix0}, Dx, Dy, #st{azimuth=Az,elevation=El}) ->
 	    wings_io:message(lists:flatten(io_lib:format("X:~10p Y:~10p",
 							 [Dx,Dy]))),
-	    G = ?GROUND_GRID_SIZE,
 	    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
 	    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
-	    M2 = e3d_mat:mul(M1, e3d_mat:scale(G, G, G)),
-	    {Xt,Yt,Zt} = e3d_mat:mul_point(M2, {Dx,Dy,0.0}),
+	    {Xt,Yt,Zt} = e3d_mat:mul_point(M1, {Dx,Dy,0.0}),
 	    M3 = e3d_mat:translate(Xt, Yt, Zt),
 	    Matrix = e3d_mat:mul(Matrix0, M3),
 	    {shape_matrix,Matrix}
@@ -245,7 +230,5 @@ make_tvs(Vs, free) ->
 make_tvs(Vs, Vec) -> [{Vec,Vs}].
 
 free_translation(Dx, Dy, #st{azimuth=Az,elevation=El}) ->
-    G = ?GROUND_GRID_SIZE,
-    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
-    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
-    e3d_mat:mul(M, e3d_mat:scale(G, G, G)).
+    M = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
+    e3d_mat:mul(M, e3d_mat:rotate(-El, {1.0,0.0,0.0})).

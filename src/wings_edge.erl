@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.11 2001/09/18 12:02:54 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.12 2001/09/24 07:24:53 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -56,23 +56,23 @@ convert_selection(#st{selmode=vertex}=St) ->
 		end, Sel0, V, We)
       end, edge, St).
 
-adjacent_edges(Vs, We, Acc) ->
-    gb_sets:fold(
-      fun(V, A) ->
-	      wings_vertex:fold(
-		fun(Edge, _, _, AA) ->
-			gb_sets:add(Edge, AA)
-		end, A, V, We)
-      end, Acc, Vs).
-
 %%% Select more or less.
 
 select_more(St) ->
     wings_sel:convert_shape(
       fun(Edges, We) ->
 	      Vs = to_vertices(Edges, We),
-	      adjacent_edges(Vs, We, gb_sets:empty())
+	      adjacent_edges(Vs, We, Edges)
       end, edge, St).
+
+adjacent_edges(Vs, We, Acc) ->
+    foldl(fun(V, A) ->
+		  wings_vertex:fold(
+		    fun(Edge, _, _, AA) ->
+			    gb_sets:add(Edge, AA)
+		    end, A, V, We)
+	  end, Acc, Vs).
+
 
 select_less(St) ->
     wings_sel:convert_shape(
@@ -83,27 +83,21 @@ select_less(St) ->
 			#edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
 			Set = gb_sets:from_list([LP,LS,RP,RS]),
 			case gb_sets:is_subset(Set, Edges) of
-			    true -> gb_sets:add(Edge, A);
-			    false -> A
+			    true -> A;
+			    false -> gb_sets:delete(Edge, A)
 			end
-		end, gb_sets:empty(), Edges)
+		end, Edges, Edges)
       end, edge, St).
 
 %% to_vertices(EdgeGbSet, We) -> VertexGbSet
 %%  Convert a set of edges to a set of vertices.
 to_vertices(Edges, #we{es=Etab}) ->
-    to_vertices(gb_sets:iterator(Edges), Etab, gb_sets:empty()).
+    to_vertices(gb_sets:to_list(Edges), Etab, []).
 
-to_vertices(Iter0, Etab, Acc0) ->
-    case gb_sets:next(Iter0) of
-	none -> Acc0;
-	{Edge,Iter} ->
-	    #edge{vs=Vstart,ve=Vend} = gb_trees:get(Edge, Etab),
-	    Acc1 = gb_sets:add(Vstart, Acc0),
-	    Acc = gb_sets:add(Vend, Acc1),
-	    to_vertices(Iter, Etab, Acc)
-    end.
-
+to_vertices([], Etab, Acc) -> ordsets:from_list(Acc);
+to_vertices([E|Es], Etab, Acc) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
+    to_vertices(Es, Etab, [Va,Vb|Acc]).
 
 %%% The Select Edge Loop command.
 
@@ -112,41 +106,36 @@ select_loop(#st{selmode=edge}=St) ->
     St#st{sel=reverse(Sel)};
 select_loop(St) -> St.
 
-select_loop(#shape{id=Id,sh=We}, Edges0, Acc) ->
-    Edges = select_loop_1(gb_sets:iterator(Edges0), We, Edges0),
+select_loop(#shape{id=Id,sh=#we{es=Etab}=We}, Edges0, Acc) ->
+    Edges = select_loop_1(Edges0, Etab, gb_sets:empty()),
     [{Id,Edges}|Acc].
 
-select_loop_1(Iter0, We, Sel0) ->
-    case gb_sets:next(Iter0) of
-	none -> Sel0;
-	{Edge,Iter} ->
-	    Sel = loop_from_edge(Edge, We, Sel0),
-	    select_loop_1(Iter, We, Sel)
+select_loop_1(Edges0, Etab, Sel0) ->
+    case gb_sets:is_empty(Edges0) of
+	true -> Sel0;
+	false ->
+	    {Edge,Edges1} = gb_sets:take_smallest(Edges0),
+	    Sel = gb_sets:insert(Edge, Sel0),
+	    Edges = select_loop_edges(Edge, Etab, Sel, Edges1),
+	    select_loop_1(Edges, Etab, Sel)
     end.
 
-loop_from_edge(Edge, #we{es=Etab}, Sel0) ->
-    #edge{vs=Vs,ve=Ve} = Erec = gb_trees:get(Edge, Etab),
-    Sel = try_edge_from(Edge, Erec, Vs, Etab, Sel0),
-    try_edge_from(Edge, Erec, Ve, Etab, Sel).
+select_loop_edges(Edge, Etab, Sel, Edges0) ->
+    #edge{vs=Va,ve=Vb} = Erec = gb_trees:get(Edge, Etab),
+    Edges = try_edge_from(Va, Edge, Erec, Etab, Sel, Edges0),
+    try_edge_from(Vb, Edge, Erec, Etab, Sel, Edges).
 
-try_edge_from(From, Erec0, V, Etab, Sel0) ->
-    case try_edge_from_1(From, Erec0, V, Etab) of
-	no -> Sel0;
+try_edge_from(V, FromEdge, Erec, Etab, Sel, Edges) ->
+    case try_edge_from_1(V, FromEdge, Erec, Etab) of
+	none -> Edges;
 	Edge ->
-	    case gb_sets:is_member(Edge, Sel0) of
-		true -> Sel0;
-		false ->
-		    Sel = gb_sets:add(Edge, Sel0),
-		    case gb_trees:get(Edge, Etab) of
-			#edge{vs=V,ve=Ov}=Erec ->
-			    try_edge_from(Edge, Erec, Ov, Etab, Sel);
-			#edge{ve=V,vs=Ov}=Erec ->
-			    try_edge_from(Edge, Erec, Ov, Etab, Sel)
-		    end
+	    case gb_sets:is_member(Edge, Sel) of
+		true -> Edges;
+		false -> gb_sets:add(Edge, Edges)
 	    end
     end.
 
-try_edge_from_1(From, Erec, V, Etab) ->
+try_edge_from_1(V, From, Erec, Etab) ->
     case Erec of
 	#edge{vs=V,lf=FL,rf=FR,ltsu=EL,rtpr=ER} -> ok;
 	#edge{ve=V,lf=FL,rf=FR,ltpr=EL,rtsu=ER} -> ok
@@ -157,7 +146,7 @@ try_edge_from_1(From, Erec, V, Etab) ->
 	    case {next_edge(From, V, FL, EL, Etab),
 		  next_edge(From, V, FR, ER, Etab)} of
 		{Edge,Edge} -> Edge;
-		{_,_} -> no
+		{_,_} -> none
 	    end
     end.
 
@@ -166,8 +155,7 @@ next_edge(From, V, Face, Edge, Etab) ->
 	#edge{vs=V,ve=Ov,rf=Face,rtpr=From,ltsu=To} -> To;
 	#edge{vs=V,ve=Ov,lf=Face,ltsu=From,rtpr=To} -> To;
 	#edge{ve=V,vs=Ov,rf=Face,rtsu=From,ltpr=To} -> To;
-	#edge{ve=V,vs=Ov,lf=Face,ltpr=From,rtsu=To} -> To;
-	Other -> erlang:fault(crasch, [From,V,Face,Edge,Etab])
+	#edge{ve=V,vs=Ov,lf=Face,ltpr=From,rtsu=To} -> To
     end.
 
 %%%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.7 2001/09/18 12:02:54 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.8 2001/09/24 07:24:53 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -26,7 +26,7 @@
 
 crumple(St) ->
     Tvs = wings_sel:fold_shape(fun crumple/3, [], St),
-    wings_drag:init_drag(Tvs, {0.0,1.0}, St).
+    wings_drag:init_drag(Tvs, {0.0,10.0}, St).
 
 crumple(#shape{id=Id,sh=#we{vs=Vtab}=We}, Vs0, Acc) ->
     {Sa,Sb,Sc} = now(),
@@ -35,7 +35,7 @@ crumple(#shape{id=Id,sh=#we{vs=Vtab}=We}, Vs0, Acc) ->
 		  random:seed(Sa, Sb, Sc),
 		  Vt = foldl(
 			 fun(V, Vt) ->
-				 {R1,R2,R3} = rnd(Dx*2),
+				 {R1,R2,R3} = rnd(Dx/4),
 				 Rec = gb_trees:get(V, Vt),
 				 #vtx{pos={X0,Y0,Z0}} = Rec,
 				 X = X0 + R1,

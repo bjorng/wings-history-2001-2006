@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.8 2001/09/18 12:02:54 bjorng Exp $
+%%     $Id: wings.hrl,v 1.9 2001/09/24 07:24:53 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -22,7 +22,6 @@
 -include_lib("esdl/include/gl.hrl").
 -include_lib("esdl/include/glu.hrl").
 -endif.
-
 -define(WINGS_VERSION, ?wings_version).
 
 -define(CHAR_HEIGHT, 14).

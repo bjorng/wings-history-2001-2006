@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.7 2001/09/18 12:02:55 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.8 2001/09/24 07:24:53 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -44,7 +44,8 @@ face_centers(Faces, #we{fs=Ftab}=We) ->
 
 face_centers([Face|Fs], We, Acc) ->
     Vs = wings_face:surrounding_vertices(Face, We),
-    Center = wings_util:share(wings_vertex:center(Vs, We)),
+    Center0 = e3d_vec:average(wings_vertex:bounding_box(Vs, We)),
+    Center = wings_util:share(Center0),
     face_centers(Fs, We, [{Face,[Center|length(Vs)]}|Acc]);
 face_centers([], We, Acc) -> Acc.
 

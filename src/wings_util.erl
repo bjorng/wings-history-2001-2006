@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.9 2001/09/18 12:02:55 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.10 2001/09/24 07:24:53 bjorng Exp $
 %%
 
 -module(wings_util).
--export([share/1,share/3,fold_shape/3,fold_shape_all/3,
+-export([share/1,share/3,make_vector/1,
+	 fold_shape/3,fold_shape_all/3,
 	 fold_face/3,fold_vertex/3,fold_edge/3,
 	 foreach_shape/2,foreach_face/2,foreach_edge/2,
 	 average_normals/1,
@@ -34,6 +35,13 @@ share({X,X,Z}) -> {X,X,Z};
 share({X,Y,Y}) -> {X,Y,Y};
 share({X,Y,X}) -> {X,Y,X};
 share(Other) -> Other.
+
+make_vector(x) -> {1.0,0.0,0.0};
+make_vector(y) -> {0.0,1.0,0.0};
+make_vector(z) -> {0.0,0.0,1.0};
+make_vector(free) -> free;
+make_vector(normal) -> normal;
+make_vector(intrude) -> normal.
 
 %%%
 %%% `fold' functions.
@@ -162,8 +170,7 @@ average_normals(Vs) ->
     foldl(fun average_normals/2, [], sofs:to_external(F)).
 
 average_normals({V,Normals}, Acc) ->
-    Normal = e3d_vec:mul(average_normals_1(Normals),
-			 ?GROUND_GRID_SIZE),
+    Normal = average_normals_1(Normals),
     [{Normal,[V]}|Acc].
 
 %% average_normals(Normals) -> Normal

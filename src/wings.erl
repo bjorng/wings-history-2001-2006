@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.10 2001/09/18 12:02:54 bjorng Exp $
+%%     $Id: wings.erl,v 1.11 2001/09/24 07:24:53 bjorng Exp $
 %%
 
 -module(wings).
@@ -371,6 +371,8 @@ command({view,flyaround}, St) ->
 command({view,rotate_left}, #st{azimuth=Az0}=St) ->
     Az = Az0 + 1.0,
     St#st{azimuth=Az};
+command({view,align_to_selection}, St) ->
+    wings_view:align_to_selection(St);
 
 %% Body menu.
 command({body,invert}, St) ->
@@ -568,7 +570,10 @@ menu(X, Y, view, #st{opts=#opt{wire=Wire,ground=G,axes=A,smooth=S,ortho=O}}) ->
 				  {"+Z","z",z},
 				  {"-X","X",neg_x},
 				  {"-Y","Y",neg_y},
-				  {"-Z","Z",neg_z}}}}},
+				  {"-Z","Z",neg_z}}}},
+	    separator,
+	    {"Align to Selection",align_to_selection}},
+    
     wings_menu:menu(X, Y, view, Menu);
 menu(X, Y, select, St) ->
     Menu = {{"Deselect","Space",deselect},
