@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.193 2004/04/21 06:54:03 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.194 2004/04/22 13:36:18 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -333,8 +333,8 @@ update_fun_2(hard_edges, #dlo{hard=none,src_we=#we{he=Htab}=We}=D, _) ->
     gl:'end'(),
     gl:endList(),
     D#dlo{hard=List};
-update_fun_2(edges, #dlo{edges=none,src_we=#we{fs=Ftab}}=D, _) ->
-    EdgeDl = make_edge_dl(Ftab, D),
+update_fun_2(edges, #dlo{edges=none,ns=Ns}=D, _) ->
+    EdgeDl = make_edge_dl(gb_trees:values(Ns)),
     D#dlo{edges=EdgeDl};
 update_fun_2(normals, D, _) ->
     make_normals_dlist(D);
@@ -342,51 +342,40 @@ update_fun_2(proxy, D, St) ->
     wings_subdiv:update(D, St);
 update_fun_2(_, D, _) -> D.
 
-make_edge_dl(Faces, #dlo{src_we=We,ns=Ns}) ->
+make_edge_dl(Ns) ->
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
-    make_edge_dl_1(Faces, Ns, We),
+    make_edge_dl_1(Ns, none),
     gl:endList(),
     Dl.
 
-make_edge_dl_1(Fs0, Ns, We) when is_list(Fs0) ->
-    Fs = wings_draw_util:subtract_mirror_face(Fs0, We),
-    make_edge_dl_2(Fs, Ns, none);
-make_edge_dl_1(Fs0, Ns, We) ->
-    Fs1 = gb_trees:keys(Fs0),
-    Fs = wings_draw_util:subtract_mirror_face(Fs1, We),
-    make_edge_dl_2(Fs, Ns, none).
-
-make_edge_dl_2([F|Fs], Ns, Mode) ->
-    case gb_trees:get(F, Ns) of
-	[_|[A,B,C]] ->
-	    end_begin(?GL_TRIANGLES, Mode),
-	    wpc_ogla:tri(A, B, C),
-	    make_edge_dl_2(Fs, Ns, ?GL_TRIANGLES);
-	[_|[A,B,C,D]] ->
-	    end_begin(?GL_QUADS, Mode),
-	    wpc_ogla:quad(A, B, C, D),
-	    make_edge_dl_2(Fs, Ns, ?GL_QUADS);
-	{_,_,VsPos} ->
-	    maybe_end(Mode),
-	    gl:'begin'(?GL_POLYGON),
-	    pump_vertices(VsPos),
-	    gl:'end'(),
-	    make_edge_dl_2(Fs, Ns, none)
-    end;
-make_edge_dl_2([], _, Mode) ->
+make_edge_dl_1([[_|[A,B,C]]|Ns], ?GL_TRIANGLES) ->
+    wpc_ogla:tri(A, B, C),
+    make_edge_dl_1(Ns, ?GL_TRIANGLES);
+make_edge_dl_1([[_|[A,B,C]]|Ns], _Mode) ->
+    gl:'end'(),
+    gl:'begin'(?GL_TRIANGLES),
+    wpc_ogla:tri(A, B, C),
+    make_edge_dl_1(Ns, ?GL_TRIANGLES);
+make_edge_dl_1([[_|[A,B,C,D]]|Ns], ?GL_QUADS) ->
+    wpc_ogla:quad(A, B, C, D),
+    make_edge_dl_1(Ns, ?GL_QUADS);
+make_edge_dl_1([[_|[A,B,C,D]]|Ns], _Mode) ->
+    gl:'end'(),
+    gl:'begin'(?GL_QUADS),
+    wpc_ogla:quad(A, B, C, D),
+    make_edge_dl_1(Ns, ?GL_QUADS);
+make_edge_dl_1([{_,_,VsPos}|Ns], Mode) ->
+    maybe_end(Mode),
+    gl:'begin'(?GL_POLYGON),
+    pump_vertices(VsPos),
+    gl:'end'(),
+    make_edge_dl_1(Ns, none);
+make_edge_dl_1([], Mode) ->
     maybe_end(Mode).
 
 maybe_end(none) -> ok;
 maybe_end(_) -> gl:'end'().
-
-end_begin(New, none) ->
-    gl:'begin'(New);
-end_begin(Same, Same) ->
-    ok;
-end_begin(New, _Old) ->
-    gl:'end'(),
-    gl:'begin'(New).
 
 pump_vertices([A,B,C,D|Vs]) ->
     wpc_ogla:quad(A, B, C, D),
@@ -529,7 +518,7 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
     Ftab = sofs:from_external(Ftab1, [{face,data}]),
     FaceSet = sofs:from_external(Faces, [face]),
     {Work,FtabDyn} = split_faces(D, Ftab, FaceSet, St),
-    StaticEdgeDl = make_static_edges(FaceSet, Ftab, D),
+    StaticEdgeDl = make_static_edges(Faces, D),
     {DynVs,VsDlist} = split_vs_dlist(AllVsSet, Sel, We),
 
     WeDyn = wings_material:cleanup(We#we{fs=gb_trees:from_orddict(FtabDyn)}),
@@ -581,10 +570,20 @@ split_faces(#dlo{needed=Need}=D, Ftab, Faces, St) ->
 	    {[draw_faces(StaticFtab, D, St)],FtabDyn}
     end.
 
-make_static_edges(DynFaces, DynFtab, D) ->
-    Ftab0 = sofs:difference(sofs:domain(DynFtab), DynFaces),
-    Ftab = sofs:to_external(Ftab0),
-    make_edge_dl(Ftab, D).
+make_static_edges(DynFaces, #dlo{ns=Ns}) ->
+    make_static_edges_1(DynFaces, gb_trees:to_list(Ns), []).
+
+make_static_edges_1([F|Fs], [{F,_}|Ns], Acc) ->
+    make_static_edges_1(Fs, Ns, Acc);
+make_static_edges_1([_|_]=Fs, [{_,N}|Ns], Acc) ->
+    make_static_edges_1(Fs, Ns, [N|Acc]);
+make_static_edges_1(_, Ns, Acc) ->
+    make_static_edges_2(Ns, Acc).
+
+make_static_edges_2([{_,N}|Ns], Acc) ->
+    make_static_edges_2(Ns, [N|Acc]);
+make_static_edges_2([], Acc) ->
+    make_edge_dl(Acc).
 
 insert_vtx_data([V|Vs], Vtab, Acc) ->
     insert_vtx_data(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
@@ -641,8 +640,8 @@ dynamic_faces(#dlo{work=[Work|_],split=#split{dyn_plan=DynPlan}}=D) ->
     D#dlo{work=[Work,Dl]};
 dynamic_faces(#dlo{work=none}=D) -> D.
 
-dynamic_edges(#dlo{edges=[StaticEdge|_],split=#split{dyn_faces=Faces}}=D) ->
-    EdgeDl = make_edge_dl(Faces, D),
+dynamic_edges(#dlo{edges=[StaticEdge|_],ns=Ns}=D) ->
+    EdgeDl = make_edge_dl(gb_trees:values(Ns)),
     D#dlo{edges=[StaticEdge,EdgeDl]}.
 
 dynamic_vs(#dlo{split=#split{dyn_vs=none}}=D) -> D;
