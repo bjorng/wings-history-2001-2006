@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.74 2004/12/18 19:36:03 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.75 2004/12/19 14:03:00 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -59,7 +59,10 @@ menu(X, Y, St) ->
 	    {?__(26,"Duplicate"),{duplicate,Dir}},
 	    {?__(27,"Delete"),delete,?__(28,"Delete the selected objects")},
 	    {?__(29,"Rename..."),rename,
-	     ?__(30,"Rename selected objects")}|mode_dependent(St)],
+	     ?__(30,"Rename selected objects")},
+	    separator,
+	    {?__(31,"Show All"),show_all,
+	     ?__(32,"Show all faces for this object")}|mode_dependent(St)],
     wings_menu:popup_menu(X, Y, body, Menu).
 
 mode_dependent(St) ->
@@ -182,7 +185,12 @@ command({weld,Ask}, St) ->
 command(vertex_color, St) ->
     wings_color:choose(fun(Color) ->
 			       set_color(Color, St)
-		       end).
+		       end);
+command(show_all, St) ->
+    {save_state,
+     wings_sel:map(fun(_, We) ->
+			   wings_we:show_faces(We)
+		   end, St)}.
 
 %%
 %% Convert the current selection to a body selection.

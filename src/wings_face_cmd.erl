@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.114 2004/12/19 10:04:04 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.115 2004/12/19 14:03:01 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -61,6 +61,8 @@ menu(X, Y, St) ->
 	    {?__(27,"Smooth"),smooth,
 	     ?__(28,"Subdivide selected faces to smooth them (Catmull-Clark)")},
 	    {?__(29,"Tesselate"),{subdivide,wings_tesselation:submenu()}},
+	    separator,
+	    {?__(32,"Hide"),hide,?__(33,"Hide the selected faces")},
 	    separator] ++ wings_material:material_menu(St) ++
 	[{?__(30,"Vertex Color"),vertex_color,
 	  ?__(31,"Apply vertex colors to selected faces")}],
@@ -143,7 +145,10 @@ command({subdivide,Subdivide}, St) ->
 command(vertex_color, St) ->
     wings_color:choose(fun(Color) ->
 			       set_color(Color, St)
-		       end).
+		       end);
+command(hide, St) ->
+    {save_state,hide_faces(St)}.
+    
 
 %%%
 %%% Extrude, Extrude Region, and Inset commands.
@@ -1192,6 +1197,13 @@ clone_3(El, We, Tr, N, Clone, #st{selmode=Mode}=St) ->
     M = e3d_mat:mul(M1, Tr),
     NewWe = wings_we:transform_vs(M, Clone),
     wings_shape:insert(NewWe, clone, St).
+
+hide_faces(St0) ->
+    St = wings_sel:map(fun(Faces, We) ->
+			       wings_we:hide_faces(Faces, We)
+		       end, St0),
+    wings_sel:clear(St).
+
 
 %%
 %% Common help function.

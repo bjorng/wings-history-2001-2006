@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.86 2004/12/19 11:30:24 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.87 2004/12/19 14:03:01 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -791,20 +791,6 @@ all_soft_1(FoldFun, [{Face,_}|FNs], We, Acc) ->
     all_soft_1(FoldFun, FNs, We, [{Face,Vs}|Acc]);
 all_soft_1(_, [], _, Acc) -> reverse(Acc).
 
-soft_vertex_normals(Vtab, FaceNormals0, We) when is_list(FaceNormals0) ->
-    FaceNormals = gb_trees:from_orddict(FaceNormals0),
-    soft_vertex_normals(Vtab, FaceNormals, We);
-soft_vertex_normals(Vtab, FaceNormals, We) ->
-    FoldFun = fun(_, Face, _, A) ->
-		      [gb_trees:get(Face, FaceNormals)|A]
-	      end,
-    Soft = foldl(fun({V,_}, Acc) ->
-			 Ns = wings_vertex:fold(FoldFun, [], V, We),
-			 N = e3d_vec:norm(e3d_vec:add(Ns)),
-			 [{V,N}|Acc]
-		 end, [], Vtab),
-    gb_trees:from_orddict(reverse(Soft)).
-
 mixed_edges(FaceNormals0, We) ->
     wings_pb:update(0.20, ?__(1,"preparing")),
     G = digraph:new(),
@@ -847,7 +833,20 @@ two_faced_1(Face, Normal, We) ->
 				  [[VInfo|Normal]|Acc]
 			  end, [], Face, We).
 
-vertex_normals(#we{vp=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
+vertex_normals(#we{vp=Vtab}=We, G, FaceNormals) ->
+    Vs0 = sofs:from_external(gb_trees:to_list(Vtab), [{vertex,data}]),
+    case any_hidden(We) of
+	false ->
+	    vertex_normals_1(Vs0, We, G, FaceNormals);
+	true ->
+	    Vis = visible(We),
+	    VisVs0 = wings_face:to_vertices(Vis, We),
+	    VisVs = sofs:set(VisVs0, [vertex]),
+	    Vs = sofs:restriction(Vs0, VisVs),
+	    vertex_normals_1(Vs, We, G, FaceNormals)
+    end.
+
+vertex_normals_1(Vs, #we{es=Etab,he=Htab}=We, G, FaceNormals) ->
     He0 = gb_sets:to_list(Htab),
     He = sofs:from_external(He0, [edge]),
     Es0 = gb_trees:to_list(Etab),
@@ -857,7 +856,6 @@ vertex_normals(#we{vp=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
 			 [Va,Vb|A]
 		 end, [], sofs:to_external(Es)),
     Hvs = sofs:set(Hvs0, [vertex]),
-    Vs = sofs:from_external(gb_trees:to_list(Vtab), [{vertex,data}]),
     Svs = sofs:drestriction(Vs, Hvs),
     SoftVs = sofs:to_external(Svs),
     HardVs = sofs:to_external(Hvs),
@@ -878,6 +876,20 @@ update_digraph(G, V, #we{he=Htab}=We) ->
 		      digraph:add_edge(G, Rf, Lf)
 	      end
       end, [], V, We).
+
+soft_vertex_normals(Vtab, FaceNormals0, We) when is_list(FaceNormals0) ->
+    FaceNormals = gb_trees:from_orddict(FaceNormals0),
+    soft_vertex_normals(Vtab, FaceNormals, We);
+soft_vertex_normals(Vtab, FaceNormals, We) ->
+    FoldFun = fun(_, Face, _, A) ->
+		      [gb_trees:get(Face, FaceNormals)|A]
+	      end,
+    Soft = foldl(fun({V,_}, Acc) ->
+			 Ns = wings_vertex:fold(FoldFun, [], V, We),
+			 N = e3d_vec:norm(e3d_vec:add(Ns)),
+			 [{V,N}|Acc]
+		 end, [], Vtab),
+    gb_trees:from_orddict(reverse(Soft)).
 
 %%%
 %%% Returns sets of newly created items.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.208 2004/12/18 19:36:03 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.209 2004/12/19 14:03:01 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -892,17 +892,27 @@ smooth_dlist(#dlo{src_we=#we{he=Htab0,fs=Ftab,mirror=Face}=We,ns=Ns0}=D, St) ->
     Ns = reverse(Ns1),
     case gb_trees:is_defined(Face, Ftab) of
 	false ->
-	    Flist = wings_we:normals(Ns, We),
+	    Flist = soft_normals(Ns, We),
 	    smooth_faces(Flist, D, St);
 	true ->
 	    Edges = wings_face:outer_edges([Face], We),
 	    Htab = gb_sets:union(Htab0, gb_sets:from_list(Edges)),
-	    Flist = wings_we:normals(Ns, We#we{he=Htab}),
+	    Flist = soft_normals(Ns, We#we{he=Htab}),
 	    smooth_faces(Flist, D, St)
     end;
 smooth_dlist(We, St) ->
     D = update_normals(changed_we(#dlo{}, #dlo{src_we=We})),
     smooth_dlist(D, St).
+
+soft_normals(Ns, #we{he=Htab0}=We) ->
+    case wings_we:any_hidden(We) of
+	false ->
+	    wings_we:normals(Ns, We);
+	true ->
+	    Edges = wings_face:outer_edges(wings_we:visible(We), We),
+	    Htab = gb_sets:union(Htab0, gb_sets:from_list(Edges)),
+	    wings_we:normals(Ns, We#we{he=Htab})
+    end.
 
 smooth_faces(Ftab, D, St) ->
     smooth_faces(wings_draw_util:prepare(Ftab, D, St), D).
