@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.88 2002/01/15 19:10:48 bjorng Exp $
+%%     $Id: wings.erl,v 1.89 2002/01/16 13:32:17 bjorng Exp $
 %%
 
 -module(wings).
--export([start/0,start_halt/0]).
+-export([start/0,start_halt/0,start_halt/1]).
 -export([caption/1,redraw/1,info/1]).
 
 -define(NEED_OPENGL, 1).
@@ -26,24 +26,30 @@
 -import(wings_draw, [model_changed/1]).
 
 start() ->
-    spawn(fun init/0).
+    spawn(fun() -> init(none) end).
 
 start_halt() ->
     spawn(fun() ->
-		  init(),
+		  init(none),
 		  halt()
 	  end).
 
-init() ->
+start_halt([File|_]) ->
+    spawn(fun() ->
+		  init(File),
+		  halt()
+	  end).
+
+init(File) ->
     register(wings, self()),
     case
 	catch
-	init_1() of
+	init_1(File) of
 	{'EXIT',Reason} -> io:format("Crashed: ~P\n", [Reason,30]);
 	ok -> ok
     end.
 
-init_1() ->
+init_1(File) ->
     {ok,Cwd} = file:get_cwd(),
     wings_plugin:init(),
     sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER),
@@ -93,13 +99,26 @@ init_1() ->
     %% On Solaris/Sparc, we must initialize twice the first time to
     %% get the requested size. Should be harmless on other platforms.
     caption(St1),
-    St = resize(780, 570, St1),
+    St2 = resize(780, 570, St1),
+    St = open_file(File, St2),
     wings_io:enter_event_loop(main_loop(St)),
     wings_file:finish(),
     wings_pref:finish(),
     sdl:quit(),
     ok = file:set_cwd(Cwd),
     ok.
+
+
+open_file(none, St) -> St;
+open_file(Name, St0) ->
+    case ?SLOW(wings_ff_wings:import(Name, St0)) of
+	#st{}=St ->
+	    wings_getline:set_cwd(filename:dirname(Name)),
+	    wings:caption(St#st{saved=true,file=Name});
+	{error,Reason} ->
+	    wings_io:message("Read failed: " ++ Reason),
+	    St0
+    end.
 
 locate(Name) ->
     case filelib:is_file(Name) of
