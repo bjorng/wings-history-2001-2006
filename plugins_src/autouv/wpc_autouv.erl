@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.13 2002/10/16 19:45:18 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.14 2002/10/17 19:03:29 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -296,8 +296,8 @@ init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
     %% Place the cluster on the texturemap
     Map = auv_placement:place_areas(Areas),
     %%    ?DBG("AUV Maps ~p\n", [Map]),
-    As0 = #areas{we = We2, as = Map,
-		 chbycut = ChangedByCut,
+    As0 = #areas{we = We2, orig_we = We1, as = Map,
+		 vmap = ChangedByCut,
 		 matname = list_to_atom(Name ++ "_auv")},
     {St1, As1} = add_material(create_mat, none, St0, As0),
     {[As1|A], St1}.
@@ -322,26 +322,44 @@ create_area({_,Fs}, Vs0) ->
     Vs3 = moveAndScale(Vs0, -CX, -CY, 1, []),
     #a{fs = Fs, vpos = Vs3, size = {BX1-BX0, BY1 -BY0}}.  
 
-insert_uvcoords(#areas{we=We0, as = Map0, matname = MatName}) ->
-    Map1 = [A#a{vpos = moveAndScale(Vtxs, CX, CY, S, [])} ||
-	       {_, A = #a{center = {CX,CY}, scale = S, vpos = Vtxs}} 
-		   <- gb_trees:to_list(Map0)],
-    %% Insert UV coords to WE structure
-    %% Set everyone to {0,0} first we don't want to mix vertex cols and uv's.
-    %% wings can't handle that..
-%    Zero = {0.0,0.0}, 
-%    NewEs = [{Id,E#edge{a=Zero,b=Zero}}||
-%		{Id,E}<-gb_trees:to_list(We0#we.es)],
-%    We1 = We0#we{es= gb_trees:from_orddict(NewEs)},
-    We1 = We0, %% temp
-    We2 = gen_coords(Map1, We1),
-%    Ftab1 = lists:append([[{Face,Rec#face{mat=MatName}} ||
-%		 {Face,Rec} <- Fs] || #a{fs=Fs} <- Map1]),
-    Ftab1 = [{Face,Rec#face{mat=MatName}} || {Face,Rec} <- gb_trees:to_list(We0#we.fs)],
-    Ftab = gb_trees:from_orddict(lists:sort(Ftab1)),
-    We = We2#we{mode=uv,fs=Ftab},
-    %% Done
-    We.
+insert_uvcoords(#areas{orig_we=We0,we=WorkWe,as=UV,matname=MatName,vmap=Vmap}) ->
+    UVpos = gen_uv_pos(gb_trees:values(UV), WorkWe, []),
+    We = insert_coords(UVpos, gb_trees:from_orddict(Vmap), We0),
+    Ftab0 = [{Face,Rec#face{mat=MatName}} ||
+ 		{Face,Rec} <- gb_trees:to_list(We#we.fs)],
+    Ftab = gb_trees:from_orddict(Ftab0),
+    We#we{mode=uv,fs=Ftab}.
+
+gen_uv_pos([#a{fs=Fs,center={CX,CY},scale=Sc,vpos=Vs}|T], We, Acc) ->
+    Vpos0 = moveAndScale(Vs, CX, CY, Sc, []),
+    VFace0 = wings_face:fold_faces(
+	       fun(Face, V, _, _, A) ->
+		       [{V,Face}|A]
+	       end, [], Fs, We),
+    VFace = sofs:relation(VFace0, [{vertex,face}]),
+    Vpos = sofs:relation(Vpos0, [{vertex,uvinfo}]),
+    Comb0 = sofs:relative_product({VFace,Vpos}),
+    Comb = sofs:to_external(Comb0),
+    gen_uv_pos(T, We, Comb++Acc);
+gen_uv_pos([], _, Acc) -> Acc.
+
+insert_coords([{V0,{Face,{S,T,_}}}|Rest], Vmap, #we{es=Etab0}=We) ->
+    V = gb_trees:get(V0, Vmap),
+    Etab = wings_vertex:fold(
+	     fun(Edge, _, Rec0, E0) ->
+		     case Rec0 of
+			 #edge{vs=V,lf=Face} ->
+			     Rec = gb_trees:get(Edge, E0),
+			     gb_trees:update(Edge, Rec#edge{a={S,T}}, E0);
+			 #edge{ve=V,rf=Face} ->
+			     Rec = gb_trees:get(Edge, E0),
+			     gb_trees:update(Edge, Rec#edge{b={S,T}}, E0);
+			 _ ->
+			     E0
+		     end
+	     end, Etab0, V, We),
+    insert_coords(Rest, Vmap, We#we{es=Etab});
+insert_coords([], _, We) -> We.
 
 init_edit(#we{name = Name, mode = Mode}, Acc, _St) when Mode /= uv ->
     wpa:error("Error: " ++ Name ++ " doesn't contain uv coords"),
@@ -524,38 +542,6 @@ maxmin([{Id, {X,Y,_}}|Rest],
 	true ->
 	    maxmin(Rest,XMin, XMax, YMin, YMax)
     end.
-
-%%% UV-coords map handling
-
-gen_coords([#a{fs=Fs,vpos=Vpos0}|T], #we{es=Etab0}=We) ->
-    VFace0 = wings_face:fold_faces(
-	       fun(Face, V, _, _, A) ->
-		       [{V,Face}|A]
-	       end, [], Fs, We),
-    VFace1 = sofs:relation(VFace0, [{vertex,face}]),
-    Vpos1 = sofs:relation(Vpos0, [{vertex,uvinfo}]),
-    Comb0 = sofs:relative_product({VFace1,Vpos1}),
-    Comb = sofs:to_external(Comb0),
-    Etab = insert_coords(Comb, We, Etab0),
-    gen_coords(T, We#we{es=Etab});
-gen_coords([], We) -> We.
-
-insert_coords([{V,{Face,{S,T,_}}}|Rest], We, Etab0) ->
-    Etab = wings_vertex:fold(
-	     fun(Edge, _, Rec0, E0) ->
-		     case Rec0 of
-			 #edge{vs=V,lf=Face} ->
-			     Rec = gb_trees:get(Edge, E0),
-			     gb_trees:update(Edge, Rec#edge{a={S,T}}, E0);
-			 #edge{ve=V,rf=Face} ->
-			     Rec = gb_trees:get(Edge, E0),
-			     gb_trees:update(Edge, Rec#edge{b={S,T}}, E0);
-			 _ ->
-			     E0
-		     end
-	     end, Etab0, V, We),
-    insert_coords(Rest, We, Etab);
-insert_coords([], _We, Etab) -> Etab.
 
 %%% Opengl drawing routines
 

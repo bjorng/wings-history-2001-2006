@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.9 2002/10/16 19:45:18 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.10 2002/10/17 19:03:29 bjorng Exp $
 
 -module(auv_segment).
 
@@ -18,7 +18,7 @@
 -include("wings.hrl").
 -include("auv.hrl").
 
--import(lists, [map/2,sort/1,foldl/3]).
+-import(lists, [reverse/1,map/2,mapfoldl/3,sort/1,foldl/3]).
 
 %% Returns segments=[Charts=[Faces]] and Bounds=[Edges]
 create(Mode, We0) ->
@@ -575,8 +575,41 @@ segment_by_cluster(Rel0, We) ->
 %%% Cutting along hard edges.
 %%%
 
-cut_model(Cuts, _, We) ->
-    cut_edges(Cuts, We).
+cut_model(Cuts, Clusters, We0) ->
+    cut_edges(Cuts, We0),			%Avoids a lot of warnings.
+    AllFaces = wings_sel:get_all_items(face, We0),
+    {WMs0,_} = mapfoldl(fun(Keep0, W0) ->
+				Keep = gb_sets:from_list(Keep0),
+				Del = gb_sets:difference(AllFaces, Keep),
+				W1 = wpa:face_dissolve(Del, W0),
+				{W,InvVmap} = cut_renumber(Keep, W1),
+				Next = lists:max([W0#we.next_id,W#we.next_id]),
+				{{W,InvVmap},W0#we{next_id=Next}}
+			end, We0, Clusters),
+    WMs1 = sofs:from_term(WMs0, [{we,[{old,new}]}]),
+    Wes = sofs:to_external(sofs:domain(WMs1)),
+    InvVmap = sofs:to_external(sofs:converse(sofs:union_of_family(WMs1))),
+    We = wings_we:force_merge(Wes),
+    {We,InvVmap}.
+
+cut_renumber(Faces, #we{vs=Vtab,es=Etab,fs=Ftab,next_id=Next}=We0) ->
+    Vs = lists:concat(wpa:face_outer_vertices(Faces, We0)),
+    Vmap = cut_make_map(gb_trees:keys(Vtab), gb_sets:from_list(Vs), Next, []),
+    Es = lists:concat(wpa:face_outer_edges(Faces, We0)),
+    Emap = cut_make_map(gb_trees:keys(Etab), gb_sets:from_list(Es), Next, []),
+    Fmap = cut_make_map(gb_trees:keys(Ftab), gb_sets:empty(), Next, []),
+    We = wings_we:map_renumber(We0, #we{vs=Vmap,es=Emap,fs=Fmap}),
+    {We,gb_trees:to_list(Vmap)}.
+
+cut_make_map([E|Es], MustRenumber, Id, Acc) ->
+    case gb_sets:is_member(E, MustRenumber) of
+	false ->
+	    cut_make_map(Es, MustRenumber, Id, [{E,E}|Acc]);
+	true ->
+	    cut_make_map(Es, MustRenumber, Id+1, [{E,Id}|Acc])
+    end;
+cut_make_map([], _, _, Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
 
 cut_edges(Cuts, We0) ->
     {We,_,NewVs,_Forbidden} = extrude_edges(Cuts,We0),

@@ -9,14 +9,25 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.3 2002/10/13 21:25:42 dgud Exp $
+%%     $Id: auv.hrl,v 1.4 2002/10/17 19:03:28 bjorng Exp $
 
--record(a, {center = {0,0}, scale = 1.0, rotate = 0.0, size, 
-	    fs, vpos,
-	    %% temporary stuff
-	    twe,tbe}).
+-record(a,
+	{center = {0,0},
+	 scale = 1.0,
+	 rotate = 0.0,
+	 size,
+	 fs,
+	 vpos,
+	 %% temporary stuff
+	 twe,tbe}).
 
--record(areas, {as, matname, we, chbycut}).
+-record(areas,
+	{as,
+	 matname,
+	 we,					%Working We.
+	 orig_we,				%Original We.
+	 vmap	       %Map for going back to original vertex numbers.
+	}).
 
 -define(add_as(AsAA,TreeAA), 
 	lists:foldl(fun({K,Area}, TreeBB) -> 
