@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.75 2003/03/12 06:19:39 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.76 2003/03/12 06:21:49 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1292,8 +1292,7 @@ update_color(_, Common) ->
 
 label(Text, Flags) ->
     Limit = proplists:get_value(break, Flags, infinite),
-    {Num,Lines} = wings_text:break_lines([Text], Limit),
-    io:format("~p\n", [{Num,Lines}]),
+    {_,Lines} = wings_text:break_lines([Text], Limit),
     Lbl = #label{lines=Lines},
     Fun = label_fun(),
     {W,H} = label_dimensions(Lines, 0, 2),
