@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.21 2002/10/27 09:36:14 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.22 2002/10/27 17:41:34 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -177,7 +177,7 @@ calc_2dface_area([],_,Area) ->
 
 find_pinned(Faces, We) ->
     {Circumference, BorderEdges} = 
-	case auv_placement:group_edge_loops(Faces, We, false) of
+	case auv_placement:group_edge_loops(Faces, We) of
 	    [] -> 
 		exit({invalid_chart, {Faces, is_closed_surface}});
 	    [Best|_] ->

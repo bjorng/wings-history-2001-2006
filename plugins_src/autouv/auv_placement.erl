@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.7 2002/10/23 14:22:27 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.8 2002/10/27 17:41:34 bjorng Exp $
 
 
 -module(auv_placement).
@@ -17,8 +17,7 @@
 -include("auv.hrl").
 -include("wings.hrl").
 
--export([place_areas/2]).
--export([group_edge_loops/3]).
+-export([place_areas/2,group_edge_loops/2]).
 
 -import(lists, [max/1, sort/1, map/2, reverse/1]).
 
@@ -129,7 +128,7 @@ rotate_area(Fs, Vs0, We) ->
 				Vtx = gb_trees:get(No,Tree),
 				gb_trees:update(No, Vtx#vtx{pos=Pos}, Tree)
 			end, We#we.vs, Vs0),
-    [{_,Eds3}|_] = group_edge_loops(Fs,We#we{vs = NewVs}, true),
+    [{_,Eds3}|_] = group_edge_loops(Fs,We#we{vs = NewVs}),
     Eds4 = make_convex(reverse(Eds3), [], NewVs),
 
 %    Vs1  = [{V1,(gb_trees:get(V1, NewVs))#vtx.pos}||{V1,_,_,_}<-Eds4],
@@ -219,11 +218,10 @@ angle_to_min_area(Ta,Ax0,P1,P2,Ay0,P3,P4,Old={_,Area0},Next) ->
 			          
 %% Group edgeloops and return a list sorted by total dist.
 %% [{TotDist, [{V1,V2,Edge,Dist},...]}, ...]
-group_edge_loops(Fs,We, OnlyVisible) ->
-    Eds1 = wpc_autouv:outer_edges(Fs, We, OnlyVisible),
-    if Eds1 == [] ->
-	    [];
-       true ->
+group_edge_loops(Fs, We) ->
+    case wpc_autouv:outer_edges(Fs, We, false) of
+	[] -> [];
+	Eds1 ->
 	    Map = fun({Edge,Face}) ->
 			  case gb_trees:get(Edge, We#we.es) of
 			      #edge{vs=V1,ve=V2,lf=Face} ->
