@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.127 2004/03/20 17:54:49 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.128 2004/04/06 03:50:14 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -19,7 +19,8 @@
 	 plain_face/2,plain_face/3,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_plain_faces/2,smooth_uv_faces/2,smooth_vcol_faces/2,
 	 unlit_face/2,unlit_face/3,
-	 force_flat_color/2,force_flat_color/3,good_triangulation/5]).
+	 force_flat_color/2,force_flat_color/3,good_triangulation/5,
+	 subtract_mirror_face/2]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.181 2004/03/31 17:38:28 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.182 2004/04/06 03:50:14 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -330,17 +330,20 @@ update_fun_2(proxy, D, St) ->
     wings_subdiv:update(D, St);
 update_fun_2(_, D, _) -> D.
 
-make_edge_dl(Faces, #dlo{ns=Ns}) ->
+make_edge_dl(Faces, #dlo{src_we=We,ns=Ns}) ->
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
-    make_edge_dl_1(Faces, Ns),
+    make_edge_dl_1(Faces, Ns, We),
     gl:endList(),
     Dl.
 
-make_edge_dl_1(Fs, Ns) when is_list(Fs) ->
+make_edge_dl_1(Fs0, Ns, We) when is_list(Fs0) ->
+    Fs = wings_draw_util:subtract_mirror_face(Fs0, We),
     make_edge_dl_2(Fs, Ns, none);
-make_edge_dl_1(Fs, Ns) ->
-    make_edge_dl_2(gb_trees:keys(Fs), Ns, none).
+make_edge_dl_1(Fs0, Ns, We) ->
+    Fs1 = gb_trees:keys(Fs0),
+    Fs = wings_draw_util:subtract_mirror_face(Fs1, We),
+    make_edge_dl_2(Fs, Ns, none).
 
 make_edge_dl_2([F|Fs], Ns, Mode) ->
     case gb_trees:get(F, Ns) of
