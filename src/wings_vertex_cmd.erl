@@ -3,16 +3,17 @@
 %%
 %%     This module contains most of the commands for vertices.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.45 2004/05/13 13:46:38 dgud Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.46 2004/05/29 14:54:34 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
--export([menu/3,command/2,tighten/3,connect/2,bevel_vertex/2]).
+-export([menu/3,command/2,tighten/3,tighten/4,
+	 connect/2,bevel_vertex/2]).
 
 -export([set_color/2]).
 

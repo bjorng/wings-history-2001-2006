@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.255 2004/05/29 13:10:30 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.256 2004/05/29 14:54:29 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -353,7 +353,7 @@ command_menu(body, X, Y) ->
 				   "Project UVs from chart normal"},
 				  {"Unfold", lsqcm, "Unfold the chart"}
 				 ]}, 
-	     "Calculate new UVs with choosen algorithm"}
+	     "Calculate new UVs with chosen algorithm"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(face, X, Y) ->
@@ -382,7 +382,11 @@ command_menu(vertex, X, Y) ->
 	    {basic,separator},
 	    {"Move",move,"Move selected vertices",[magnet]},
 	    {"Scale",{scale,Scale},"Scale selected vertices"},
-	    {"Rotate",{rotate,Rotate},"Rotate selected vertices"}
+	    {"Rotate",{rotate,Rotate},"Rotate selected vertices"},
+	    separator,
+	    {"Tighten",tighten,
+	     "Move UV coordinates towards average midpoint",
+	     [magnet]}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(_, X, Y) ->
@@ -546,6 +550,8 @@ handle_command({rotate,Deg}, St0) ->
     get_event(St);
 handle_command(tighten, St) ->
     tighten(St);
+handle_command({tighten,Magnet}, St) ->
+    tighten(Magnet, St);
 handle_command(delete, St) ->
     get_event(delete_charts(St));
 handle_command({'ASK',Ask}, St) ->
@@ -558,15 +564,38 @@ drag({drag,Drag}) ->
     wings_wm:set_prop(show_info_text, true),
     wings_drag:do_drag(Drag, none).
 
-tighten(St) ->
-    Tvs = wings_sel:fold(fun tighten/3, [], St),
+tighten(#st{selmode=vertex}=St) ->
+    tighten_1(fun vertex_tighten/3, St);
+tighten(#st{selmode=body}=St) ->
+    tighten_1(fun(_, We, A) -> body_tighten(We, A) end, St).
+
+tighten_1(Tighten, St) ->    
+    Tvs = wings_sel:fold(Tighten, [], St),
     {drag,Drag} = wings_drag:setup(Tvs, [percent], St),
     wings_drag:do_drag(Drag, none).
 
-tighten(_, #we{vp=Vtab}=We, A) ->
+vertex_tighten(Vs0, We, A) ->
+    Vis = gb_sets:from_ordset(wings_we:visible(We)),
+    Vs = [V || V <- gb_sets:to_list(Vs0), not_bordering(V, Vis, We)],
+    wings_vertex_cmd:tighten(Vs, We, A).
+
+body_tighten(#we{mode=body,vp=Vtab}=We, A) ->
     Vis = gb_sets:from_ordset(wings_we:visible(We)),
     Vs = [V || V <- gb_trees:keys(Vtab), not_bordering(V, Vis, We)],
     wings_vertex_cmd:tighten(Vs, We, A).
+
+tighten(Magnet, St) ->
+    Tvs = wings_sel:fold(fun(Vs, We, A) ->
+				 mag_vertex_tighten(Vs, We, Magnet, A)
+			 end, [], St),
+    Flags = wings_magnet:flags(Magnet, []),
+    {drag,Drag} = wings_drag:setup(Tvs, [percent,falloff], Flags, St),
+    wings_drag:do_drag(Drag, none).
+
+mag_vertex_tighten(Vs0, We, Magnet, A) ->
+    Vis = gb_sets:from_ordset(wings_we:visible(We)),
+    Vs = [V || V <- gb_sets:to_list(Vs0), not_bordering(V, Vis, We)],
+    wings_vertex_cmd:tighten(Vs, We, Magnet, A).
 
 not_bordering(V, Vis, We) ->
     wings_vertex:fold(fun(_, _, _, false) -> false;
