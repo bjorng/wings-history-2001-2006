@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.105 2004/04/17 06:33:04 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.106 2004/04/25 13:43:32 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -26,6 +26,8 @@
 	     is_axis=false,			%True if axis.
 	     info="",				%Info message.
 	     vec=none,				%Current vector.
+	     alt_vec=none,			%Alternative vector (no mirror).
+	     sw_msg=none,			%Message for switching.
 	     cb,				%Callback
 	     mag=false,				%Magnet possible or not.
 	     new_st				%St to be used during
@@ -91,14 +93,14 @@ magnet_possible_now(Pl, _) ->
 	_ -> inactive
     end.
 
-common_message(Msg, More, MagnetPossible) ->
+common_message(Msg, More, MagnetPossible, Right) ->
     Rmb = case More of
 	      [] -> "Execute";
 	      [_|_] -> "Continue"
 	  end,
     Message = wings_util:join_msg(wings_util:button_format(Msg, [], Rmb),
 				  common_magnet_message(MagnetPossible)),
-    wings_wm:message(Message, "").
+    wings_wm:message(Message, Right).
 
 common_magnet_message(no) -> [];
 common_magnet_message(inactive) ->
@@ -106,10 +108,10 @@ common_magnet_message(inactive) ->
 common_magnet_message(active) ->
     ["  "|wings_util:magnet_string()].
 
-magnet_message(Msg) ->
+magnet_message(Msg, Right) ->
     Message = wings_util:join_msg(wings_util:button_format(Msg, [], "Execute "),
 				  wings_util:rmb_format("Magnet options")),
-    wings_wm:message(Message, "").
+    wings_wm:message(Message, Right).
 
 mode_restriction(Modes, #st{selmode=Mode}=St) ->
     wings:mode_restriction(Modes),
@@ -191,9 +193,11 @@ handle_event_3(Ev, Ss, St) -> handle_event_4(Ev, Ss, St).
 handle_event_4({new_state,St}, #ss{f=Check}=Ss, _St0) ->
     case Check(check, St) of
 	{Vec,Msg} -> 
-	    get_event(Ss#ss{info=Msg,vec=Vec}, St);
-	[{Vec,Msg}|_] ->
-	    get_event(Ss#ss{info=Msg,vec=Vec}, St)
+	    get_event(Ss#ss{info=Msg,vec=Vec,alt_vec=none,sw_msg=none}, St);
+	[{Vec,Msg}] -> 
+	    get_event(Ss#ss{info=Msg,vec=Vec,alt_vec=none,sw_msg=none}, St);
+	[{Vec,{Msg,SwMsg}},{AltVec,_}] ->
+	    get_event(Ss#ss{info=Msg,vec=Vec,alt_vec=AltVec,sw_msg=SwMsg}, St)
     end;
 handle_event_4(redraw, Ss, St) ->
     redraw(Ss, St),
@@ -251,7 +255,7 @@ pick_next_1([], Res, #ss{cb=Cb,new_st=NewSt}, _) ->
     wings_wm:later(build_result(Res, Cb, NewSt)),
     pop;
 pick_next_1([{Fun0,Desc}|More], _Done, Ss, St) when is_function(Fun0) ->
-    Fun = fun(message, _) -> common_message(Desc, More, no);
+    Fun = fun(message, Right) -> common_message(Desc, More, no, Right);
 	     (A, B) -> Fun0(A, B)
 	  end,
     get_event(Ss#ss{f=Fun,is_axis=false,vec=none,info=""}, wings_sel:reset(St));
@@ -269,8 +273,8 @@ pick_next_1([{Type,Desc}|More], Done, Ss, St0) ->
 			  check_magnet_point(S);
 		     (exit, {Mod,Vec,_}) ->
 			  exit_magnet(Vec, Mod, Done);
-		     (message, _) ->
-			  magnet_message(Desc)
+		     (message, Right) ->
+			  magnet_message(Desc, Right)
 		  end;
 	      _ ->
 		  fun(check, S) ->
@@ -278,8 +282,8 @@ pick_next_1([{Type,Desc}|More], Done, Ss, St0) ->
 		     (exit, {Mod,Vec,S}) ->
 			  common_exit(Type, Vec, Mod, More, Done,
 				      MagnetPossible, S);
-		     (message, _) ->
-			  common_message(Desc, More, MagnetPossible)
+		     (message, Right) ->
+			  common_message(Desc, More, MagnetPossible, Right)
 		  end
 	  end,
     IsAxis = (Type =/= point andalso Type =/= magnet),
@@ -290,8 +294,8 @@ pick_next_1([{Type,Desc}|More], Done, Ss, St0) ->
     clear_sel(),
     get_event(Ss#ss{f=Fun,is_axis=IsAxis,vec=none,info=""}, wings_sel:reset(St)).
 
-redraw(#ss{info=Info,f=Message,vec=Vec}, St) ->
-    Message(message, St),
+redraw(#ss{info=Info,f=Message,vec=Vec}=Ss, St) ->
+    Message(message, right_message(Ss)),
     wings:redraw(Info, St),
     gl:pushAttrib(?GL_CURRENT_BIT bor ?GL_ENABLE_BIT bor
 		  ?GL_TEXTURE_BIT bor ?GL_POLYGON_BIT bor
@@ -302,23 +306,27 @@ redraw(#ss{info=Info,f=Message,vec=Vec}, St) ->
     gl:popAttrib(),
     wings_wm:current_state(St).
 
+right_message(#ss{alt_vec=none}) -> [];
+right_message(#ss{sw_msg=Msg}) ->
+    "[1] " ++ Msg.
+
 filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
     case member(Mode, Modes) of
 	true -> handle_event({new_state,St}, Ss, St);
 	false -> keep
     end.
 
-handle_key(#keyboard{sym=$1}, _, St) ->	%1
+handle_key(#keyboard{sym=$1}, #ss{vec=Vec,alt_vec=Vec}, St) ->
     wings_io:putback_event({new_state,St}),
     keep;
-handle_key(#keyboard{sym=$2}, #ss{f=Check}=Ss, St) -> %2
+handle_key(#keyboard{sym=$1}, #ss{f=Check}=Ss, St) ->
     case Check(check, St) of
 	{Vec,Msg} -> 
-	    get_event(Ss#ss{info=Msg,vec=Vec}, St);
-	[_,{Vec,Msg}|_] ->
-	    get_event(Ss#ss{info=Msg,vec=Vec}, St);
-	[{Vec,Msg}] ->
-	    get_event(Ss#ss{info=Msg,vec=Vec}, St)
+	    get_event(Ss#ss{info=Msg,vec=Vec,alt_vec=none,sw_msg=none}, St);
+	[{Vec,Msg}] -> 
+	    get_event(Ss#ss{info=Msg,vec=Vec,alt_vec=none,sw_msg=none}, St);
+	[_,{AltVec,{Msg,SwMsg}}] ->
+	    get_event(Ss#ss{info=Msg,vec=AltVec,alt_vec=AltVec,sw_msg=SwMsg}, St)
     end;
 handle_key(#keyboard{sym=27}, _, _) ->		%Escape
     wings_wm:later({action,{secondary_selection,abort}});
@@ -397,9 +405,10 @@ get_vec(edge, [Edge], #we{es=Etab,vp=Vtab}=We) ->
     Ln = wings_face:normal(Lf, We),
     Rn = wings_face:normal(Rf, We),
     Normal = e3d_vec:norm(e3d_vec:add(Ln, Rn)),
-    [{{Center,Vec},"Edge saved as axis (press \"2\" to save edge normal)."},
+    [{{Center,Vec},
+      {"Edge saved as axis","Save edge normal"}},
      {{Center,Normal},
-      "Edge normal saved as axis (press \"1\" to save edge direction)."}];
+      {"Edge normal saved as axis","Save edge direction"}}];
 %% Use direction between two edges
 get_vec(edge, [Edge1,Edge2], #we{es=Etab,vp=Vtab}) ->
     #edge{vs=Va1,ve=Vb1} = gb_trees:get(Edge1, Etab),
@@ -421,7 +430,7 @@ get_vec(edge, Edges, #we{vp=Vtab}=We) ->
 	    Vec = wings_face:face_normal_ccw(Vs, Vtab),
 	    [{{Center,Vec},"Edge loop normal saved as axis."}];
 	_Other ->
-	    {none,"Multi-edge selection must form a single closed edge loop."}
+	    [{none,"Multi-edge selection must form a single closed edge loop."}]
     end;
 
 %% Vertex normal
@@ -437,10 +446,12 @@ get_vec(vertex, [Va,Vb]=Vs, We) ->
     Center = wings_vertex:center(Vs, We),
     Normal = e3d_vec:norm(e3d_vec:add(wings_vertex:normal(Va, We),
 				      wings_vertex:normal(Vb, We))),
-    [{{Center,Vec},"Direction between vertices saved as axis "
-      "(press \"2\" to save average of vertex normals)."},
-     {{Center,Normal},"Average of vertex normals saved as axis "
-      "(press \"1\" to save direction between vertices)."}];
+    [{{Center,Vec},
+      {"Direction between vertices saved as axis.",
+       "Use average of vertex normals as axis"}},
+     {{Center,Normal},
+      {"Average of vertex normals saved as axis.",
+       "Use direction between vertices as axis"}}];
 
 %% 3-point (defines face) perpendicular
 get_vec(vertex, [_,_,_]=Vs, #we{vp=Vtab}=We) ->
@@ -454,9 +465,9 @@ get_vec(vertex, Vs0, #we{vp=Vtab}=We) ->
 	[Vs] -> 
 	    Center = wings_vertex:center(Vs, We),
 	    Vec = wings_face:face_normal_cw(Vs, Vtab),
-	    [{{Center,Vec},"Edge loop normal saved as axis."}];
+	    [{{Center,Vec},"Vertex loop normal saved as axis."}];
 	_Other ->
-	    {none,"Multi-vertex selection must form a single closed edge loop."}
+	    [{none,"Multi-vertex selection must form a single closed edge loop."}]
     end;
 
 %% Face normal
@@ -474,10 +485,12 @@ get_vec(face, [Face1,Face2], We) ->
     Face1n = wings_face:normal(Face1, We),
     Face2n = wings_face:normal(Face2, We),
     Normal = e3d_vec:norm(e3d_vec:add(Face1n, Face2n)),
-    [{{Center,Vec},"Direction between face centers saved as axis "
-      "(press \"2\" to save average of face normals)."},
-     {{Center,Normal},"Average of face normals saved as axis "
-      "(press \"1\" to save direction between face centers)."}];
+    [{{Center,Vec},
+      {"Direction between face centers saved as axis.",
+       "Use average of face normals"}},
+     {{Center,Normal},
+      {"Average of face normals saved as axis.",
+       "Use direction between face centers"}}];
 get_vec(face, Faces, #we{vp=Vtab}=We) ->
     case wings_vertex:outer_partition(Faces, We) of
 	[Vs] ->
@@ -485,7 +498,7 @@ get_vec(face, Faces, #we{vp=Vtab}=We) ->
 	    Vec = wings_face:face_normal_cw(Vs, Vtab),
 	    [{{Center,Vec},"Edge loop normal for region saved as axis."}];
 	_Other ->
-	    {none,"Multi-face selection must have a single edge loop."}
+	    [{none,"Multi-face selection must have a single edge loop."}]
     end;
 
 get_vec(_, _, _) -> {none,"Select vertices, edges, or faces."}.
@@ -503,12 +516,12 @@ check_point(St) ->
 	NoMirror ->
 	    Center = e3d_vec:average(wings_sel:bounding_box(St)),
 	    NoMirrorCenter = e3d_vec:average(wings_sel:bounding_box(NoMirror)),
-	    [{Center,"Midpoint of selection saved "
-	      "(press \"2\" to disregard virtual mirror in "
-	      "reference point calculation)"},
-	     {NoMirrorCenter,"Midpoint of selection saved "
-	      "(press \"1\" to include virtual mirror in " 
-	      "reference point calculation)"}]
+	    [{Center,
+	      {"Midpoint of selection saved.",
+	       "Disregard virtual mirror in reference point calculation"}},
+	     {NoMirrorCenter,
+	      {"Midpoint of selection saved.",
+	       "Include virtual mirror in reference point calculation"}}]
     end.
 
 check_magnet_point(#st{sel=[]}) -> {none,""};
