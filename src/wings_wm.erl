@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.36 2002/12/15 11:32:48 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.37 2002/12/27 08:38:59 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -62,7 +62,11 @@
 init() ->
     wings_pref:set_default(window_size, {780,570}),
     {W,H} = wings_pref:get_value(window_size),
-    set_video_mode(W, H),			%Needed on Solaris/Sparc.
+    case get(wings_os_type) of
+	{unix,sunos} ->
+	    set_video_mode(W, H);			%Needed on Solaris/Sparc.
+	_ -> ok
+    end,
     translation_change(),
     put(wm_windows, gb_trees:empty()),
     new(top, {0,0,0}, {W,H}, {push,fun(_) -> keep end}),
