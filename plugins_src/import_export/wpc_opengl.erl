@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.57 2003/11/27 23:09:23 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.58 2003/11/28 15:23:24 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -23,6 +23,7 @@
 -import(lists, [foldl/3,map/2,foreach/2,reverse/1,seq/2,
 		flat_length/1,append/1,append/2]).
 
+-export([calcTS/4]). %% debug
 
 %% UNTIL ESDL catches up..
 -ifndef(GL_DEPTH_CLAMP_NV).
@@ -1189,6 +1190,22 @@ calcTS(V1,V2,V3,UV1,UV2,UV3,N) ->
 	    {Stan,Ttan,N}
     end.
 
+calcTS(V10,V20,V30,N) ->
+    M = e3d_mat:rotate_s_to_t(N, {0.0,0.0,1.0}),
+    MI = e3d_mat:transpose(M),
+    [O,V1,V2] = lists:sort([e3d_mat:mul_point(M,V) || V <- [V10,V20,V30]]),
+    S1 = e3d_vec:sub(V1,O),
+    S2 = e3d_vec:sub(V2,O),
+    Ls1 = e3d_vec:dot(S1,S1),
+    Ls2 = e3d_vec:dot(S2,S2),
+    Dir = if Ls1 > Ls2 -> S1;
+	     true -> S2
+	  end,
+    V  = e3d_mat:mul_point(MI,Dir),
+    Bi = e3d_vec:cross(V, N),
+    T  = e3d_vec:cross(Bi, N),
+    {T, Bi, N}.
+		   
 bumpCoord({Vx,Vy,Vn}, Vpos, {Type,InvLight0}) ->
     LDir = case Type of
 	       dir ->
