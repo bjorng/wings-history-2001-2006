@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.10 2003/07/16 19:55:42 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.11 2003/08/12 18:12:19 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -269,6 +269,11 @@ seg_map_charts_1(Cs, Type, I, N, Acc, Ss) when I =< N ->
     get_seg_event(Ss#seg{msg=Msg});
 seg_map_charts_1(_, _, _, _, MappedCharts, #seg{we=#we{id=Id}}) ->
     wings_wm:later({init_show_maps,Id,MappedCharts}),
+
+    %% Empty display list structure.
+    wings_draw_util:update(fun(eol, _) -> eol;
+			      (_, _) -> deleted
+			   end, []),
     pop.
 
 seg_map_chart([{Fs,Vmap,#we{id=Id}=We0}|Cs], Type, I, N, Acc0, #seg{st=St0}=Ss) ->
