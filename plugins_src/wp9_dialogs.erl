@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.27 2003/12/27 15:30:40 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.28 2003/12/27 16:34:02 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -220,16 +220,18 @@ file_list_folders([F|Fs], Dir, DirAcc, FileAcc) ->
     end;
 file_list_folders([], _, DirAcc, FileAcc) -> {DirAcc,FileAcc}.
 
-choose_file(update, {Var,_I,File,Sto0}) ->
-    Sto1 = gb_trees:update(Var, File, Sto0),
-    Dir0 = gb_trees:get(directory, Sto1),
-    Full = filename:join(Dir0, File),
-    case filelib:is_dir(Full) of
-	true ->
+choose_file(update, {_Var,_I,{[],_},_Sto}) ->
+    void;
+choose_file(update, {Var,_I,{[Sel],Els}=Val,Sto0}) ->
+    case lists:nth(Sel+1, Els) of
+	{{{dir,File},_}} ->
+	    Sto1 = gb_trees:update(Var, Val, Sto0),
+	    Dir0 = gb_trees:get(directory, Sto1),
 	    Dir = filename:join(Dir0, File),
 	    Sto = gb_trees:update(filename, "", Sto1),
 	    {done,gb_trees:update(directory, Dir, Sto)};
-	false ->
-	    {store,gb_trees:update(filename, File, Sto0)}
+	{{File,_}} ->
+	    Sto1 = gb_trees:update(Var, Val, Sto0),
+	    {store,gb_trees:update(filename, File, Sto1)}
     end;
 choose_file(_, _) -> void.
