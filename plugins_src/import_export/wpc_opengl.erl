@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.31 2003/06/08 19:28:15 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.32 2003/06/13 17:09:17 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -243,7 +243,7 @@ jitter_draw([{Jx,Jy}|J], Op, #r{acc_size=AccSize}=Rr) ->
 jitter_draw([], _, _) -> ok.
 
 draw_all(Rr) ->
-    wings_view:model_transformations(true),
+    wings_view:modelview(true),
     wings_draw_util:fold(fun(D, _) -> render_redraw(D, Rr, false) end, []),
     wings_draw_util:fold(fun(D, _) -> render_redraw(D, Rr, true) end, []).
 

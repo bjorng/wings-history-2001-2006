@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.125 2003/06/13 16:43:11 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.126 2003/06/13 17:09:18 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -16,8 +16,9 @@
 	 virtual_mirror/2,
 	 init/0,initial_properties/0,
 	 current/0,set_current/1,
-	 projection/0,perspective/0,
-	 model_transformations/0,model_transformations/1,eye_point/0]).
+	 load_matrices/1,projection/0,
+	 modelview/0,modelview/1,
+	 eye_point/0]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -427,13 +428,13 @@ default_view() ->
 	  hither=0.1,
 	  yon=10000.0}.
 
-projection() ->
+load_matrices(IncludeLights) ->
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    perspective(),
-    gl:matrixMode(?GL_MODELVIEW).
+    projection(),
+    modelview(IncludeLights).
 
-perspective() ->
+projection() ->
     {W,H} = wings_wm:win_size(),
     Aspect = W/H,
     #view{distance=D,fov=Fov,hither=Hither,yon=Yon} = current(),
@@ -445,10 +446,10 @@ perspective() ->
 	    gl:ortho(-Sz*Aspect, Sz*Aspect, -Sz, Sz, Hither, Yon)
     end.
 
-model_transformations() ->
-    model_transformations(false).
+modelview() ->
+    modelview(false).
 
-model_transformations(IncludeLights) ->
+modelview(IncludeLights) ->
     #view{origin=Origin,distance=Dist,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
     gl:matrixMode(?GL_MODELVIEW),

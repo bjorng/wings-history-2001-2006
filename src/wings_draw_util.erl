@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.79 2003/06/12 06:20:36 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.80 2003/06/13 17:09:17 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -228,8 +228,7 @@ render(#st{selmode=Mode}=St) ->
     gl:rectf(0.5, 0.5, W-0.5, H-0.5),
     gl:enable(?GL_DEPTH_TEST),
     gl:enable(?GL_CULL_FACE),
-    wings_view:projection(),
-    wings_view:model_transformations(true),
+    wings_view:load_matrices(true),
     ground_and_axes(),
     show_saved_bb(St),
     #du{dl=Dl} = get(?MODULE),

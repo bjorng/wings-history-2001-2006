@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.71 2003/06/12 11:37:40 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.72 2003/06/13 17:09:18 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -118,8 +118,7 @@ message(Message) ->
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 get_matrices(Id, MM) ->
-    wings_view:projection(),
-    wings_view:model_transformations(),
+    wings_view:load_matrices(false),
     case MM of
 	mirror ->
 	    Matrix = mirror_matrix(Id),

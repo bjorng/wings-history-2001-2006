@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.39 2003/06/04 06:52:54 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.40 2003/06/13 17:09:17 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -420,8 +420,7 @@ draw_magnet(#tweak{mag_r=R}) ->
     gl:disable(?GL_DEPTH_TEST),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    wings_view:projection(),
-    wings_view:model_transformations(),
+    wings_view:load_matrices(false),
     gl:color4f(0, 0, 1, 0.1),
     wings_draw_util:fold(fun(D, _) ->
 				 draw_magnet_1(D, R)

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.96 2003/06/13 12:04:18 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.97 2003/06/13 17:09:18 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -436,8 +436,8 @@ raw_pick(X0, Y0, St) ->
     Y = H-float(Y0),
     S = 5,
     glu:pickMatrix(X, Y, S, S, {0,0,W,H}),
-    wings_view:perspective(),
-    wings_view:model_transformations(),
+    wings_view:projection(),
+    wings_view:modelview(),
     gl:enable(?GL_CULL_FACE),
     select_draw(St),
     gl:disable(?GL_CULL_FACE),
@@ -692,8 +692,8 @@ pick_all(DrawFaces, X, Y0, W, H, St) ->
     {Ww,Wh} = wings_wm:win_size(),
     Y = Wh-Y0,
     glu:pickMatrix(X, Y, W, H, [0,0,Ww,Wh]),
-    wings_view:perspective(),
-    wings_view:model_transformations(),
+    wings_view:projection(),
+    wings_view:modelview(),
     case DrawFaces of
 	true ->
 	    gl:enable(?GL_CULL_FACE),
