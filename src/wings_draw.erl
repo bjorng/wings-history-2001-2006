@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.87 2002/06/02 20:49:02 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.88 2002/06/16 08:22:31 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -269,12 +269,14 @@ split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We}=D,
     Faces1 = sofs:image(V2F, Vs),
     Ftab = sofs:from_external(gb_trees:to_list(Ftab0), [{face,data}]),
     Faces = case sofs:is_subset(Faces1, Faces0) of
+		true ->
+		    case D#dlo.work of
+			[List|_] -> Faces0;
+			List when is_integer(List) -> Faces0
+		    end;
 		false ->
 		    List = static_dlist(Faces1, Ftab, We, St),
-		    Faces1;
-		true ->
-		    List = hd(D#dlo.work),
-		    Faces0
+		    Faces1
 	    end,
     AllVs = sofs:image(F2V, Faces),
     
