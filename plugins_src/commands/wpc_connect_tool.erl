@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.16 2005/01/26 13:25:18 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.17 2005/01/28 16:09:51 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -291,13 +291,13 @@ do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
 	[#vi{id=Id2}|_] when Prev == Shape ->
 	    Ok = vertex_fs(Id2,We0),
 	    try 
-		We=#we{}=connect_link(Id1,Fs,Id2,Ok,MM,We0),
+		We=#we{}=connect_link(get_line(Id1,Id2,MM,We0),
+				      Id1,Fs,Id2,Ok,undefined,MM,We0),
 		St2 = St1#st{shapes=gb_trees:update(Shape,We, Sh)},
 		St = wings_undo:save(St0, St2),
 		C0#cs{v=[VI],we=Shape,last=Id1,st=St}
 	    catch _:_What -> 
-%%   		    io:format("~p catched ~w ~p~n", 
-%%   			      [?LINE,_What,erlang:get_stacktrace()]),
+%%    		    io:format("~p catched ~w ~p~n",[?LINE,_What,erlang:get_stacktrace()]),
 		    C0
 	    end
     end;
@@ -310,7 +310,8 @@ connect_edge(C0=#cs{v=[VI=#vi{id=Id1,mm=MM},#vi{id=Id2}],we=Shape,st=St0}) ->
     Fs = vertex_fs(Id1,We0),
     Ok = vertex_fs(Id2,We0),
     try 
-	We=#we{}= connect_link(Id1,Fs,Id2,Ok,MM,We0),
+	We=#we{}= connect_link(get_line(Id1,Id2,MM,We0),
+			       Id1,Fs,Id2,Ok,undefined,MM,We0),
 	St = St0#st{shapes=gb_trees:update(Shape,We,St0#st.shapes)},
 	C0#cs{v=[VI],we=Shape,last=Id1,st=St}
     catch _E:_What -> 
@@ -338,20 +339,28 @@ vertex_fs(Id, We) ->
     Fs = wings_vertex:fold(fun(_,Face,_,Acc) -> [Face|Acc] end, [], Id, We),
     ordsets:from_list(Fs).
 
-connect_link(IdStart,FacesStart,IdEnd,FacesEnd,MM,We0) ->
+connect_link(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,MM,We0) ->
+%%    io:format("~p cut ~p <=> ~p ~n", [?LINE, IdStart, IdEnd]),
     case ordsets:intersection(FacesStart,FacesEnd) of
 	[LastFace] -> %% Done
 	    wings_vertex:connect(LastFace,[IdStart,IdEnd],We0);
 	_ ->
-	    CutLine = get_line(IdStart,IdEnd,MM,We0),
-	    Find = fun(_, _, _, #edge{vs=V}, Acc) when V == IdStart -> Acc;
-		      (_, _, _, #edge{ve=V}, Acc) when V == IdStart -> Acc;
+	    Find = fun(_, _, _, #edge{vs=V1,ve=V2}, Acc) 
+		      %% Already connected, ignore these
+		      when V1 == IdStart; V2 == IdStart; 
+			   V1 == IdEnd;   V2 == IdEnd;  
+			   V1 == Prev;    V2 == Prev -> Acc; 
+		      %% Acceptable connection
 		      (Face, _V, Edge, #edge{vs=Vs,ve=Ve}, Acc) -> 
 			   Edge2D = get_line(Vs,Ve,MM,We0),
-			   case line_intersect2d(CutLine,Edge2D) of
+			   InterRes = line_intersect2d(CutLine,Edge2D),
+			   case InterRes of
+			       {false,{1,Pos2D}} -> 
+				   [{edge,Edge,Face,false,
+				     pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We0)}|Acc];
 			       {false,_} -> Acc;
 			       {true, Pos2D} ->
-				   [{edge,Edge,Face, 
+				   [{edge,Edge,Face,true,
 				     pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We0)}|Acc];
 			       {{point, 3},_Pos2d} -> 
 				   [{vertex,Vs,Face}|Acc];
@@ -362,34 +371,42 @@ connect_link(IdStart,FacesStart,IdEnd,FacesEnd,MM,We0) ->
 			   end
 		   end,
 	    Cuts = wings_face:fold_faces(Find,[],FacesStart,We0),
-	    {We1,Id1} = case select_way(lists:usort(Cuts),We0,MM) of
+	    Selected = select_way(lists:usort(Cuts),We0,MM),
+	    {We1,Id1} = case Selected of
 			    {vertex,Id,_Face} ->
 				{We0, Id};
-			    {edge,Edge,_Face,Pos} ->
+			    {edge,Edge,_Face,_,Pos} ->
 				wings_edge:fast_cut(Edge, Pos, We0)
 			end,
 	    Ok = vertex_fs(Id1,We1),
+%%	    io:format("~p ~p of ~p fs ~w~n", [?LINE, Id1, Cuts, Selected]),
 	    [First] = ordsets:intersection(Ok,FacesStart),
 	    We = wings_vertex:connect(First,[Id1,IdStart],We1),
-	    connect_link(Id1,Ok,IdEnd,FacesEnd,MM,We)
+	    connect_link(CutLine,Id1,Ok,IdEnd,FacesEnd,IdStart,MM,We)
     end.
 
 select_way([],_,_) -> exit(vertices_are_not_possible_to_connect);
 select_way([Cut],_,_) -> Cut;
 select_way(Cuts,We = #we{id=Id},MM) -> 
     {MVM,_PM,_} = wings_u:get_matrices(Id, MM),
-    Check = fun(Cut) ->
+    Check = fun(Cut, Acc) ->
 		    Face = element(3,Cut), %% Ouch ugly
 		    Normal0 = wings_face:normal(Face,We),
 		    {_,_,Z} = e3d_mat:mul_vector(list_to_tuple(MVM),Normal0),
-		    Z > 0.0
+		    case Z > 0.0 of
+			true when element(4, Cut) == true ->
+			    [Cut|Acc];
+			true when element(1, Cut) == vertex ->
+			    [Cut|Acc];
+			_ ->
+			    Acc ++ [Cut]
+		    end
 	    end,
-    case lists:filter(Check, Cuts) of
+    case lists:foldl(Check, [], Cuts) of
 	[] -> hd(Cuts);
 	[Cut] -> Cut;
 	[Cut|_] -> Cut
     end.
-
 
 pos2Dto3D({IX,IY}, {V1Sp,V2Sp}, V1,V2,#we{vp=Vs}) ->
     Pos1 = gb_trees:get(V1, Vs),
@@ -431,7 +448,8 @@ calc_edgepos(X,Y0,Edge,MM,#we{id=Id,es=Es,vp=Vs},VL) ->
 		Start = setelement(3, obj_to_screen(Matrices, Start0), 0.0),
 		{IX,IY} = 
 		    case line_intersect2d(Start,{float(X),float(Y),0.0},V1Sp,V2Sp) of
-			{false,paralell} -> exit(paralell);
+			{false,{_, paralell}} -> exit(paralell);
+			{false,{_,IPoint}} -> IPoint;
 			{_, IPoint} -> IPoint 
 %%%			{{point,_},IPoint} -> IPoint
 		    end,
@@ -448,7 +466,7 @@ line_intersect2d({X1,Y1,_},{X2,Y2,_},{X3,Y3,_},{X4,Y4,_}) ->
     line_intersect2d({X1,Y1},{X2,Y2},{X3,Y3},{X4,Y4});
 line_intersect2d({X1,Y1},{X2,Y2},{X3,Y3},{X4,Y4}) ->
     Div = ((Y4-Y3)*(X2-X1)-(X4-X3)*(Y2-Y1)),
-    if Div == 0.0 -> {false,paralell};
+    if Div == 0.0 -> {false,{both,paralell}};
        true ->
 	    Ua = ((X4-X3)*(Y1-Y3)-(Y4-Y3)*(X1-X3)) / Div,
 	    Ub = ((X2-X1)*(Y1-Y3)-(Y2-Y1)*(X1-X3)) / Div,
@@ -456,9 +474,14 @@ line_intersect2d({X1,Y1},{X2,Y2},{X3,Y3},{X4,Y4}) ->
 	    Y = Y1 + Ua*(Y2-Y1),
 	    
 	    if 
-		(Ua < -?EPS); (Ua > 1.0+?EPS);
+		(Ua < -?EPS); (Ua > 1.0+?EPS) ->
+		    if (Ub < -?EPS); (Ub > 1.0+?EPS) -> 
+			    {false,{both,{X,Y}}};
+		       true -> 
+			    {false,{1,{X,Y}}}
+		    end;
 		(Ub < -?EPS); (Ub > 1.0+?EPS)  ->
-		    {false, {X,Y}};
+		    {false, {2, {X,Y}}};
 		(Ua > -?EPS), (Ua < 1.0+?EPS) ->
 		    if (Ub > ?EPS), (Ub < 1.0-?EPS) -> {true, {X,Y}};
 		       Ub > -?EPS, Ub < ?EPS -> {{point,3},{X,Y}};
