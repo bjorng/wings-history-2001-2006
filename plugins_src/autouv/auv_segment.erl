@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.21 2002/10/25 07:59:32 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.22 2002/10/25 08:59:53 bjorng Exp $
 
 -module(auv_segment).
 
@@ -583,28 +583,29 @@ segment_by_cluster(Rel0, We) ->
 
 cut_model(Cuts, [Faces], We) ->
     Vs = wings_face:to_vertices(Faces, We),
-    Bvs = wpa:face_outer_vertices(Faces, We),
     Map = reverse(foldl(fun(V, A) -> [{V,V}|A] end, [], Vs)),
-    cut_model_1(Cuts, [{We,Map}], gb_sets:from_list(Bvs));
-cut_model(Cuts, Clusters, We) ->
+    cut_model_1(Cuts, [Faces], [{We,Map}]);
+cut_model(Cuts, Charts, We) ->
     AllFaces = wings_sel:get_all_items(face, We),
-    {WMs0,{_,Bvs}} =
-	mapfoldl(fun(Keep0, {W0,B0}) ->
-			 Keep = gb_sets:from_list(Keep0),
-			 Del = gb_sets:difference(AllFaces, Keep),
-			 W1 = wpa:face_dissolve(Del, W0),
-			 {W,InvVmap} = cut_renumber(Keep, W1),
-			 B = wpa:face_outer_vertices(Keep, W),
-			 Next = lists:max([W0#we.next_id,W#we.next_id]),
-			 {{W,InvVmap},{W0#we{next_id=Next},B++B0}}
-		 end, {We, []}, Clusters),
-    cut_model_1(Cuts, WMs0, gb_sets:from_list(Bvs)).
+    {WMs0,_} = mapfoldl(fun(Keep0, W0) ->
+				Keep = gb_sets:from_list(Keep0),
+				Del = gb_sets:difference(AllFaces, Keep),
+				W1 = wpa:face_dissolve(Del, W0),
+				{W,InvVmap} = cut_renumber(Keep, W1),
+				Next = lists:max([W0#we.next_id,W#we.next_id]),
+				{{W,InvVmap},W0#we{next_id=Next}}
+			end, We, Charts),
+    cut_model_1(Cuts, Charts, WMs0).
 
-cut_model_1(Cuts, WMs0, Bvs) ->
-    ?DBG("Bvs: ~w~n", [gb_sets:to_list(Bvs)]),
+cut_model_1(Cuts, Charts, WMs0) ->
     WMs1 = sofs:from_term(WMs0, [{we,[{atom,atom}]}]),
     Wes = sofs:to_external(sofs:domain(WMs1)),
     We1 = wings_we:force_merge(Wes),
+    Bvs0 = foldl(fun(Faces, A) ->
+			 lists:append(wpa:face_outer_vertices(Faces, We1)++[A])
+		 end, [], Charts),
+    Bvs = gb_sets:from_list(Bvs0),
+    ?DBG("Bvs: ~w\n", [Bvs]),
     ?DBG("Validate1~n", []),
     wings_util:validate(We1),
     ?DBG("Cuts: ~w~n", [gb_sets:to_list(Cuts)]),
@@ -613,7 +614,6 @@ cut_model_1(Cuts, WMs0, Bvs) ->
     wings_util:validate(We),
     InvVmap0 = sofs:union_of_family(WMs1),
     InvVmap1 = sofs:converse(InvVmap0),
-    ?DBG("~p\n", [Imap0]),
     Imap1 = sofs:relation(Imap0),
     Imap2 = sofs:converse(Imap1),
     Imap  = sofs:composite(Imap2, InvVmap1),
@@ -648,6 +648,8 @@ cut_edges(Edges, Bvs, #we{next_id=Wid,es=Etab}=We0) ->
 		  end, gb_sets:to_list(Edges)),
     Vs0 = digraph:vertices(G),
     {Vs,Ends} = exclude_ends(lists:sort(Vs0), undefined, 0, [], [], Bvs),
+    ?DBG("~w\n", [gb_sets:to_list(Bvs)]),
+    ?DBG("~w\n", [Ends]),
     {We1,Vmap0} =
 	foldl(fun(V, A) ->
 		      new_vertex(V, G, Edges, A)
