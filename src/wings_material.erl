@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.27 2002/03/09 07:46:32 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.28 2002/04/04 18:01:25 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -75,12 +75,7 @@ init(#st{mat=Mat0}=St0) ->
 
 material_list(#st{mat=Mat0}) ->
     map(fun(Id) ->
-		Name = case atom_to_list(Id) of
-			   [H|T] when $a =< H, H =< $z ->
-			       [H-$\s|T];
-			   Name0 -> Name0
-		       end,
-		{Name,Id}
+		{atom_to_list(Id),Id}
 	end, gb_trees:keys(Mat0)).
 
 set_material(Mat, St) ->
@@ -130,6 +125,7 @@ translate_mat([{diffuse_map,{_,_,Bits}=Tx}|T], Mat) when is_binary(Bits) ->
     translate_mat(T, Mat#mat{diffuse_map=Tx});
 translate_mat([{diffuse_map,Name}|T], Mat) ->
     case catch loadTexture(Name) of
+	none -> translate_mat(T, Mat);
 	{'EXIT',R} ->
 	    io:format("~P\n", [R,20]),
 	    translate_mat(T, Mat);
@@ -251,7 +247,7 @@ init_texture(#mat{diffuse_map={W,H,Bits}}=Mat, #st{next_tx=TxId}=St) ->
 init_texture(Mat, St) ->
     {Mat,St}.
 
-loadTexture(none) -> exit(no_texture);
+loadTexture(none) -> none;
 loadTexture(File) ->
     Image = e3d_image:load(File, [{type,r8g8b8},{order,lower_left}]),
     #e3d_image{width=W,height=H,image=Pixels} = Image,
