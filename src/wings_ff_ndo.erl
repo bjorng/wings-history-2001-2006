@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.17 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.18 2003/02/01 20:02:53 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -106,6 +106,9 @@ skip_rest_1(<<Sz0:16,T0/binary>>) ->
 
 skip_rest_2(<<0:8,T/binary>>) -> T;
 skip_rest_2(<<2:8,Sz1:16,Sz2:16,T/binary>>) ->
+    Sz = Sz1 * Sz2,
+    skip_texture(Sz, T);
+skip_rest_2(<<4:8,Sz1:16,Sz2:16,T/binary>>) ->
     Sz = Sz1 * Sz2,
     skip_texture(Sz, T).
 
