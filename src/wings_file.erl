@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.26 2001/11/06 10:22:36 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.27 2001/11/07 07:09:59 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -83,7 +83,7 @@ command({export,Type}, St) ->
 command(quit, St) ->
     quit(St);
 command(Key, St) when is_integer(Key) ->
-    Recent = wings_pref:get_value(recent_files),
+    Recent = wings_pref:get_value(recent_files, []),
     {_,File} = lists:nth(Key, Recent),
     {new,model_changed(named_open(File, St))}.
 
@@ -202,7 +202,7 @@ wings_prop() ->
 add_recent(Name) ->
     Base = filename:basename(Name),
     File = {Base,Name},
-    Recent0 = wings_pref:get_value(recent_files),
+    Recent0 = wings_pref:get_value(recent_files, []),
     Recent1 = Recent0 -- [File],
     Recent = add_recent(File, Recent1),
     wings_pref:set_value(recent_files, Recent).
@@ -211,7 +211,7 @@ add_recent(File, [A,B,C|_]) -> [File,A,B,C];
 add_recent(File, Recent) -> [File|Recent].
 
 recent_files(Rest) ->
-    case wings_pref:get_value(recent_files) of
+    case wings_pref:get_value(recent_files, []) of
 	[] -> Rest;
 	Files -> number_files(Files, 1, [separator|Rest])
     end.

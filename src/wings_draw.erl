@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.15 2001/11/06 07:06:13 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.16 2001/11/07 07:09:59 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -19,10 +19,7 @@
 
 -import(lists, [foreach/2,last/1,reverse/1]).
 
--define(EDGE_MODE_LINEWIDTH, 2.0).
 -define(NORMAL_LINEWIDTH, 0.1).
--define(VERTEX_MODE_POINTSIZE, 5.0).
--define(SEL_COLOR, {0.65,0.0,0.0}).
 
 model_changed(St) -> St#st{dl=none}.
 
@@ -45,7 +42,13 @@ render(#st{shapes=Shapes}=St0) ->
     ?CHECK_ERROR(),
     St.
 
-draw_shapes(#st{opts=#opt{smooth=true},dl=#dl{drag_faces=none}=DL}=St) ->
+draw_shapes(St) ->
+    case wings_pref:get_value(smooth_preview) of
+	true -> draw_smooth_shapes(St);
+	false -> draw_plain_shapes(St)
+    end.
+	    
+draw_smooth_shapes(#st{dl=#dl{drag_faces=none}=DL}=St) ->
     #dl{we=DlistWe} = DL,
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_BACK),
@@ -65,8 +68,10 @@ draw_shapes(#st{opts=#opt{smooth=true},dl=#dl{drag_faces=none}=DL}=St) ->
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_CULL_FACE),
-    draw_sel(St);
-draw_shapes(#st{selmode=SelMode,opts=#opt{wire=Wire}}=St) ->
+    draw_sel(St).
+
+draw_plain_shapes(#st{selmode=SelMode}=St) ->
+    Wire = wings_pref:get_value(wire_mode),
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_BACK),
 
@@ -74,7 +79,8 @@ draw_shapes(#st{selmode=SelMode,opts=#opt{wire=Wire}}=St) ->
     case Wire of
 	true -> ok;
 	false ->
-	    gl:color3f(0.5, 0.5, 0.5),
+	    FaceColor = wings_pref:get_value(face_color),
+	    gl:color3fv(FaceColor),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:enable(?GL_POLYGON_OFFSET_FILL),
 	    gl:polygonOffset(2.0, 2.0),
@@ -88,7 +94,7 @@ draw_shapes(#st{selmode=SelMode,opts=#opt{wire=Wire}}=St) ->
 	{_,_} -> gl:color3f(0.0, 0.0, 0.0)
     end,
     gl:lineWidth(case SelMode of
-		     edge -> ?EDGE_MODE_LINEWIDTH;
+		     edge -> wings_pref:get_value(edge_width);
 		     _ -> ?NORMAL_LINEWIDTH end),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     gl:enable(?GL_POLYGON_OFFSET_LINE),
@@ -100,7 +106,7 @@ draw_shapes(#st{selmode=SelMode,opts=#opt{wire=Wire}}=St) ->
     case SelMode of
 	vertex ->
 	    gl:color3f(0.0, 0.0, 0.0), 
-	    gl:pointSize(?VERTEX_MODE_POINTSIZE),
+	    gl:pointSize(wings_pref:get_value(vertex_size)),
 	    gl:enable(?GL_POLYGON_OFFSET_POINT),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_POINT),
 	    draw_we(St);
@@ -117,19 +123,22 @@ draw_shapes(#st{selmode=SelMode,opts=#opt{wire=Wire}}=St) ->
     %% Draw hard edges.
     draw_hard_edges(St).
 
+sel_color() ->
+    gl:color3fv(wings_pref:get_value(selected_color)).
+
 draw_sel(#st{sel=[],dl=#dl{sel=none}}=St) -> ok;
 draw_sel(#st{selmode=edge,dl=#dl{sel=DlistSel}}) ->
-    gl:color3fv(?SEL_COLOR),
-    gl:lineWidth(?EDGE_MODE_LINEWIDTH),
+    sel_color(),
+    gl:lineWidth(wings_pref:get_value(selected_edge_width)),
     gl:callList(DlistSel);
 draw_sel(#st{selmode=vertex,dl=#dl{sel=DlistSel}}) ->
-    gl:color3fv(?SEL_COLOR),
-    gl:pointSize(?VERTEX_MODE_POINTSIZE),
+    sel_color(),
+    gl:pointSize(wings_pref:get_value(selected_vertex_size)),
     gl:callList(DlistSel);
 draw_sel(#st{dl=#dl{sel=DlistSel}}) ->
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(1.0, 1.0),
-    gl:color3fv(?SEL_COLOR),
+    sel_color(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     case catch gl:callList(DlistSel) of
 	{'EXIT',_} -> exit({bad_call_list,DlistSel});
@@ -147,7 +156,8 @@ draw_we(#st{dl=#dl{we=DlistWe,dragging=WeDrag,matrix=Matrix}}) ->
 	    gl:popMatrix()
     end.
 
-update_display_lists(#st{shapes=Shapes,dl=none,opts=#opt{smooth=Smooth}}=St) ->
+update_display_lists(#st{shapes=Shapes,dl=none}=St) ->
+    Smooth = wings_pref:get_value(smooth_preview),
     DlistWe = 98,
     gl:newList(DlistWe, ?GL_COMPILE),
     foreach(fun(Sh) ->
@@ -282,7 +292,7 @@ draw_face_1(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
     draw_face_1(Face, Next, LastEdge, Etab, Vtab, done).
 
 draw_hard_edges(#st{shapes=Shapes}) ->
-    gl:color3f(0.0, 0.5, 0.0),
+    gl:color3fv(wings_pref:get_value(hard_edge_color)),
     foreach(
       fun(#shape{sh=#we{he=Htab}=We}) ->
 	      case gb_sets:is_empty(Htab) of
@@ -349,7 +359,9 @@ lookup_pos(Key, Tree) ->
 %% Miscellanous.
 %%
 
-ground_and_axes(#st{opts=#opt{ground=Ground,axes=Axes}}) ->
+ground_and_axes(St) ->
+    Ground = wings_pref:get_value(show_groundplane),
+    Axes = wings_pref:get_value(show_axes),
     ?CHECK_ERROR(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     case Ground of
@@ -372,7 +384,8 @@ axis(I) ->
     A = setelement(I, A0, 1000.0),
     B = setelement(I, A0, -1000.0),
     C = setelement(I, A0, 1.0),
-    C2 = setelement(I, {0.8,0.8,0.8}, 0.0),
+    NI = wings_pref:get_value(neg_axes_intensity),
+    C2 = setelement(I, {NI,NI,NI}, 0.0),
     gl:'begin'(?GL_LINES),
     gl:color3fv(C),
     gl:vertex3fv(A0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.5 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.6 2001/11/07 07:09:59 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -170,21 +170,25 @@ draw_icons(#io{w=W,h=H,icons=Icons}, St) ->
 	    end, Icons),
     gl:disable(?GL_TEXTURE_2D).
 
-icon_button(groundplane=Name, #st{opts=#opt{ground=true}}) ->
-    {Name,down};
-icon_button(axes=Name, #st{opts=#opt{axes=true}}) ->
-    {Name,down};
-icon_button(wire=Name, #st{opts=#opt{wire=true}}) ->
-    {Name,down};
-icon_button(smooth=Name, #st{opts=#opt{smooth=true}}) ->
-    {Name,down};
-icon_button(perspective=Name, #st{opts=#opt{ortho=false}}) ->
-    {Name,down};
-icon_button(ortho=Name, #st{opts=#opt{ortho=true}}) ->
-    {Name,down};
+icon_button(groundplane=Name, St) ->
+    icon_button(Name, show_groundplane, true);
+icon_button(axes=Name, St) ->
+    icon_button(Name, show_axes, true);
+icon_button(wire=Name, St) ->
+    icon_button(Name, wire_mode, true);
+icon_button(smooth=Name, St) ->
+    icon_button(Name, smooth_preview, true);
+icon_button(perspective=Name, St) ->
+    icon_button(Name, orthogonal_view, false);
 icon_button(Name, #st{selmode=Name}) -> {Name,down};
-icon_button(Name, Mode) -> {Name,up}.
+icon_button(Name, St) -> {Name,up}.
 
+icon_button(Name, Key, Val) ->
+    case wings_pref:get_value(Key) of
+	Val -> {Name,down};
+	_ -> {Name,up}
+    end.
+	    
 button(X, Y) when Y > ?LINE_HEIGHT; X < ?MENU_MARGIN ->
     #io{h=H,icons=Icons} = get_state(),
     put_state((get_state())#io{sel=undefined}),
@@ -218,12 +222,11 @@ button_1(XRel, X, []) ->
 
 icon_row_hit(X, [{Pos,Name}|Is]) when Pos =< X, X < Pos+32 ->
     Action = case Name of
-		 groundplane -> {view,toggle_groundplane};
-		 axes -> {view,toggle_axes};
-		 wire -> {view,toggle_wireframe};
-		 smooth -> {view,smooth};
-		 perspective -> {view,toggle_ortho};
-		 ortho -> {view,toggle_ortho};
+		 groundplane -> {view,show_groundplane};
+		 axes -> {view,show_axes};
+		 wire -> {view,wire_mode};
+		 smooth -> {view,smooth_preview};
+		 perspective -> {view,orthogonal_view};
 		 Other -> {select,Name}
 	     end,
     putback_event({action,Action}),

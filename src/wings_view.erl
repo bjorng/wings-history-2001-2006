@@ -8,17 +8,81 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.11 2001/11/06 07:06:13 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.12 2001/11/07 07:09:59 bjorng Exp $
 %%
 
 -module(wings_view).
--export([current/0,set_current/1,default_view/1,
-	 projection/1,perspective/1,
+-export([menu/3,command/2,init/0,current/0,set_current/1,
+	 projection/0,perspective/0,
 	 model_transformations/1,aim/1,along/2,
 	 align_to_selection/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
+
+-import(lists, [foreach/2]).
+-import(wings_draw, [model_changed/1]).
+
+menu(X, Y, St) ->
+    Wire = wings_pref:get_value(wire_mode, false),
+    G = wings_pref:get_value(show_groundplane),
+    A = wings_pref:get_value(show_axes),
+    S = wings_pref:get_value(smooth_preview),
+    O = wings_pref:get_value(orthogonal_view),
+    Menu = {{one_of(G, "Hide", "Show") ++ " ground plane",show_groundplane},
+	    {one_of(A, "Hide", "Show") ++ " axes",show_axes},
+	    separator,
+	    {one_of(Wire, "Filled", "Wireframe"),"w",wire_mode},
+	    {one_of(S, "Flat Apperance", "Smooth Preview"),
+	     "Tab",smooth_preview},
+	    separator,
+	    {"Reset View","r",reset},
+	    {"Aim","a",aim},
+	    {one_of(O, "Perspective View", "Ortographic View"),
+	     "o",orthogonal_view},
+	    separator,
+	    {"View Along",{along,{{"+X","x",x},
+				  {"+Y","y",y},
+				  {"+Z","z",z},
+				  {"-X","X",neg_x},
+				  {"-Y","Y",neg_y},
+				  {"-Z","Z",neg_z}}}},
+	    separator,
+	    {"Align to Selection",align_to_selection}},
+    wings_menu:menu(X, Y, view, Menu).
+
+command(reset, St) ->
+    default_view(St);
+command(smooth_preview, St) ->
+    toggle_option(smooth_preview),
+    model_changed(St);
+command(orthogonal_view, St) ->
+    toggle_option(orthogonal_view),
+    projection(),
+    St;
+command(aim, St) ->
+    wings_view:aim(St);
+command({along,Axis}, St) ->
+    wings_view:along(Axis, St);
+command(flyaround, St) ->
+    case wings_io:has_periodic_event() of
+	true -> wings_io:cancel_periodic_event();
+	false -> wings_io:periodic_event(60, {view,rotate_left})
+    end,
+    St;
+command(rotate_left, St) ->
+    #view{azimuth=Az0} = View = wings_view:current(),
+    Az = Az0 + 1.0,
+    set_current(View#view{azimuth=Az}),
+    St;
+command(align_to_selection, St) ->
+    align_to_selection(St);
+command(Key, St) ->
+    toggle_option(Key),
+    St.
+
+toggle_option(Key) ->
+    wings_pref:set_value(Key, not wings_pref:get_value(Key)).
 
 current() ->
     [{_,View}] = ets:lookup(wings_state, view),
@@ -28,28 +92,41 @@ set_current(View) ->
     true = ets:insert(wings_state, {view,View}),
     View.
 
+init() ->
+    wings_pref:set_default(show_groundplane, true),
+    wings_pref:set_default(show_axes, true),
+
+    %% Always reset the following preferences + the view itself.
+    wings_pref:set_value(wire_mode, false),
+    wings_pref:set_value(smooth_preview, false),
+    wings_pref:set_value(orthogonal_view, false),
+    reset_view().
+
 default_view(St) ->
-    set_current(#view{origo={0.0,0.0,0.0},
-	      azimuth=-45.0,elevation=25.0,
-	      distance=?CAMERA_DIST,
-	      pan_x=0.0,pan_y=0.0}),
+    reset_view(),
     wings_drag:view_changed(St).
 
-projection(St) ->
+reset_view() ->
+    set_current(#view{origo={0.0,0.0,0.0},
+		      azimuth=-45.0,elevation=25.0,
+		      distance=?CAMERA_DIST,
+		      pan_x=0.0,pan_y=0.0}).
+
+projection() ->
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    perspective(St),
-    gl:matrixMode(?GL_MODELVIEW),
-    St.
+    perspective(),
+    gl:matrixMode(?GL_MODELVIEW).
 
-perspective(#st{opts=#opt{ortho=false}}) ->
+perspective() ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    glu:perspective(45.0, W/H, 0.25, 1000.0);
-perspective(#st{opts=#opt{ortho=true}}) ->
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    Aspect = W/H,
-    Sz = 4.0,
-    gl:ortho(-Sz*Aspect, Sz*Aspect, -Sz, Sz, 0.25, 1000.0).
+    case wings_pref:get_value(orthogonal_view) of
+	false -> glu:perspective(45.0, W/H, 0.25, 1000.0);
+	true ->
+	    Aspect = W/H,
+	    Sz = 4.0,
+	    gl:ortho(-Sz*Aspect, Sz*Aspect, -Sz, Sz, 0.25, 1000.0)
+    end.
 
 model_transformations(St) ->
     #view{origo=Origo,distance=Dist0,azimuth=Az,
@@ -144,3 +221,6 @@ arcsin(X) when float(X) ->
 
 to_degrees(A) when float(A) ->
     A*180.0/3.1416.
+
+one_of(true, S, _) -> S;
+one_of(false,_, S) -> S.

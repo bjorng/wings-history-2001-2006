@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.2 2001/11/04 20:11:03 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.3 2001/11/07 07:09:59 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -28,7 +28,7 @@ pick(#st{hit_buf=HitBuf,shapes=Shapes}=St0, X, Y) ->
     gl:pushMatrix(),
     gl:loadIdentity(),
     pick_matrix(St0, X, Y),
-    wings_view:perspective(St0),
+    wings_view:perspective(),
     St = select_draw(St0),
 
     gl:matrixMode(?GL_PROJECTION),

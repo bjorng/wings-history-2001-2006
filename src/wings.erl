@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.32 2001/11/06 10:22:36 bjorng Exp $
+%%     $Id: wings.erl,v 1.33 2001/11/07 07:09:59 bjorng Exp $
 %%
 
 -module(wings).
@@ -60,6 +60,7 @@ init_1() ->
     sdl_keyboard:enableKeyRepeat(?SDL_DEFAULT_REPEAT_DELAY,
 				 ?SDL_DEFAULT_REPEAT_INTERVAL),
 
+    wings_pref:init(),
     wings_io:init(),
     wings_io:menubar([{"File",file},
 		      {"Edit",edit},
@@ -69,20 +70,18 @@ init_1() ->
 		      {"Objects",objects},
 		      {"Help",help}]),
     Empty = gb_trees:empty(),
-    St0 = #st{shapes=Empty,
-	      hidden=Empty,
-	      selmode=face,
-	      sel=[],
-	      hsel=Empty,
-	      ssel={face,[]},
-	      mat=wings_material:default(),
-	      saved=true,
-	      opts=#opt{},
-	      onext=0,
-	      last_command=ignore,
-	      hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)},
-    wings_pref:init(),
-    St = wings_view:default_view(St0),
+    St = #st{shapes=Empty,
+	     hidden=Empty,
+	     selmode=face,
+	     sel=[],
+	     hsel=Empty,
+	     ssel={face,[]},
+	     mat=wings_material:default(),
+	     saved=true,
+	     onext=0,
+	     last_command=ignore,
+	     hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)},
+    wings_view:init(),
     resize(800, 600, St),
     caption(St),
     top_level(St, wings_undo:new(32)),
@@ -106,11 +105,12 @@ locate(Name) ->
 resize(W, H, St) ->
     sdl_video:setVideoMode(W, H, 16, ?SDL_OPENGL bor ?SDL_RESIZABLE),
     gl:enable(?GL_DEPTH_TEST),
-    gl:clearColor(0.6, 0.6, 0.5, 1.0),
+    {R,G,B} = wings_pref:get_value(background_color),
+    gl:clearColor(R, G, B, 1.0),
     gl:viewport(0, 0, W, H),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    wings_view:perspective(St),
+    wings_view:perspective(),
     gl:matrixMode(?GL_MODELVIEW),
     wings_io:resize(W, H).
 
@@ -120,7 +120,7 @@ top_level(St, Undo) ->
 
 top_level_1(St0, Undo0) ->
     case
-	catch
+	%%catch
 	main_loop(St0) of
 	St when record(St, st) ->		%Undoable operation.
 	    ?ASSERT(St#st.drag == undefined),
@@ -305,6 +305,9 @@ command({edit,repeat}, #st{drag=undefined,camera=undefined,
     end,
     St;
 command({edit,repeat}, St) -> St;
+command({edit,{preferences,Pref}}, St) ->
+    wings_pref:command(Pref),
+    St;
 
 %% Select menu
 command({select,edge_loop}, St) ->
@@ -367,39 +370,8 @@ command({select,inverse}, St) ->
 command({select,Type}, St) ->
     set_select_mode(Type, St);
 
-%% Miscellanous.
-command({view,reset}, St) ->
-    wings_view:default_view(St);
-command({view,toggle_wireframe}, St) ->
-    toggle_option(#opt.wire, St);
-command({view,toggle_groundplane}, St) ->
-    toggle_option(#opt.ground, St);
-command({view,toggle_axes}, St) ->
-    toggle_option(#opt.axes, St);
-command({view,smooth}, St) ->
-    model_changed(toggle_option(#opt.smooth, St));
-command({view,toggle_ortho}, St) ->
-    wings_view:projection(toggle_option(#opt.ortho, St));
-command({view,aim}, St) ->
-    wings_view:aim(St);
-command({view,info}, St) ->
-    print_info(St),
-    St;
-command({view,{along,Axis}}, St) ->
-    wings_view:along(Axis, St);
-command({view,flyaround}, St) ->
-    case wings_io:has_periodic_event() of
-	true -> wings_io:cancel_periodic_event();
-	false -> wings_io:periodic_event(60, {view,rotate_left})
-    end,
-    St;
-command({view,rotate_left}, St) ->
-    #view{azimuth=Az0} = View = wings_view:current(),
-    Az = Az0 + 1.0,
-    wings_view:set_current(View#view{azimuth=Az}),
-    St;
-command({view,align_to_selection}, St) ->
-    wings_view:align_to_selection(St);
+command({view,Command}, St) ->
+    wings_view:command(Command, St);
 
 %% Body menu.
 command({body,invert}, St) ->
@@ -561,29 +533,12 @@ menu(X, Y, edit, St) ->
 	    separator,
 	    {command_name(St),"d",repeat},
 	    separator,
-	    {"Material",{material,materials(St)}}},
+	    {"Material",{material,materials(St)}},
+	    separator,
+	    {"Preferences",{preferences,wings_pref:sub_menu(X, Y, St)}}},
     wings_menu:menu(X, Y, edit, Menu);
-menu(X, Y, view, #st{opts=#opt{wire=Wire,ground=G,axes=A,smooth=S,ortho=O}}) ->
-    Menu = {{one_of(G, "Hide", "Show") ++ " ground plane",toggle_groundplane},
-	    {one_of(A, "Hide", "Show") ++ " axes",toggle_axes},
-	    separator,
-	    {one_of(Wire, "Filled", "Wireframe"),"w",toggle_wireframe},
-	    {one_of(S, "Flat Apperance", "Smooth Preview"),"Tab",smooth},
-	    separator,
-	    {"Reset View","r",reset},
-	    {"Aim","a",aim},
-	    {one_of(O, "Perspective View", "Ortographic View"),"o",toggle_ortho},
-	    separator,
-	    {"View Along",{along,{{"+X","x",x},
-				  {"+Y","y",y},
-				  {"+Z","z",z},
-				  {"-X","X",neg_x},
-				  {"-Y","Y",neg_y},
-				  {"-Z","Z",neg_z}}}},
-	    separator,
-	    {"Align to Selection",align_to_selection}},
-    
-    wings_menu:menu(X, Y, view, Menu);
+menu(X, Y, view, St) ->
+    wings_view:menu(X, Y, St);
 menu(X, Y, select, St) ->
     Menu = {{"Deselect","Space",deselect},
 	    separator,
@@ -927,22 +882,14 @@ item_list(Items, Desc) ->
 item_list([Item|Items], Sep, Desc) ->
     item_list(Items, ", ", Desc++Sep++integer_to_list(Item));
 item_list([], Sep, Desc) -> Desc.
-    
-print_info(#st{shapes=Shapes}) ->
-    io:format("Memory used: ~p\n", [process_info(self(),memory)]),
-    foreach(fun(Sh) -> print_info_1(Sh) end, gb_trees:to_list(Shapes)).
-
-print_info_1({Id,Sh}) ->
-    io:put_chars(shape_info(Sh)),
-    io:nl().
 
 shape_info(#shape{name=Name,sh=#we{fs=Ftab,es=Etab,vs=Vtab}}) ->
     Faces = gb_trees:size(Ftab),
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),
     flat_format("~s: ~p polygons, ~p edges, ~p vertices",
-	      [Name,Faces,Edges,Vertices]).
-
+		[Name,Faces,Edges,Vertices]).
+    
 flat_format(Format, Args) ->
     lists:flatten(io_lib:format(Format, Args)).
 
@@ -1084,14 +1031,12 @@ translate_key($f, St) -> {select,face};
 translate_key($i, St) -> {select,similar};
 translate_key($l, St) -> {select,edge_loop};
 translate_key($L, #st{selmode=edge}) -> {select,select_region};
-translate_key($o, St) -> {view,toggle_ortho};
-translate_key($p, St) -> {view,info};
-translate_key($q, St) -> {file,{import,ndo}};
+translate_key($o, St) -> {view,orthogonal_view};
 translate_key($r, St) -> {view,reset};
 translate_key($s, St) -> {body,auto_smooth};
 translate_key($u, St) -> {view,flyaround};
 translate_key($v, St) -> {select,vertex};
-translate_key($w, St) -> {view,toggle_wireframe};
+translate_key($w, St) -> {view,wire_mode};
 translate_key($x, St) -> {view,{along,x}};
 translate_key($y, St) -> {view,{along,y}};
 translate_key($z, St) -> {view,{along,z}};
@@ -1107,17 +1052,10 @@ translate_key($7, St) -> {edge,{cut,7}};
 translate_key($8, St) -> {edge,{cut,8}};
 translate_key($9, St) -> {edge,{cut,9}};
 translate_key($0, St) -> {edge,{cut,10}};
-translate_key(?SDLK_TAB, St)  -> {view,smooth};
+translate_key(?SDLK_TAB, St)  -> {view,smooth_preview};
 translate_key(?SDLK_PLUS, St)  -> {select,more};
 translate_key(?SDLK_MINUS, St)  -> {select,less};
 translate_key(_, _) -> ignore.
-
-toggle_option(Field, #st{opts=Opts}=St) ->
-    Val = element(Field, Opts),
-    St#st{opts=setelement(Field, Opts, not Val)}.
-
-one_of(true, S, _) -> S;
-one_of(false,_, S) -> S.
 
 command_name(#st{last_command=ignore}) ->
     "(Can't repeat)";

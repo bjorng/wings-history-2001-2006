@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.14 2001/11/06 07:06:13 bjorng Exp $
+%%     $Id: wings.hrl,v 1.15 2001/11/07 07:09:59 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -50,14 +50,6 @@
 -define(CHECK_ERROR(), ok).
 -endif.
 
--record(opt,
-	{wire=false,				%Wireframe model (true/false).
-	 ground=true,				%Show ground plane (true/false).
-	 axes=true,				%Show axes.
-	 ortho=false,				%Orthogonal view.
-	 smooth=false				%Smooth preview.
-	}).
-
 -record(dl,
 	{we=none,				%Winged edge objects.
 	 dragging=none,				%WE faces being dragged.
@@ -84,7 +76,6 @@
 	 camera,				%Camera information or
 						% 'undefined'.
 	 dl=none,				%Cached display lists.
-	 opts,					%Options record.
 	 file,					%Current filename.
 	 saved,					%True if model has been saved.
 	 onext,					%Next object id to use.
@@ -100,8 +91,7 @@
 	 name,					%Shape name
 	 matrix=e3d_mat:identity(),		%Transformation matrix
 	 sh					%The shape itself:
-						% An 'we' or 'trimesh'
-						% record
+						% An 'we' record
 	}).
 
 %% The Winged-Edge data structure.
