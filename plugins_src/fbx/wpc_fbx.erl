@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_fbx.erl,v 1.4 2005/03/13 13:17:03 bjorng Exp $
+%%     $Id: wpc_fbx.erl,v 1.5 2005/03/14 06:35:42 bjorng Exp $
 %%
 
 -module(wpc_fbx).
@@ -555,8 +555,7 @@ import_mesh(mesh, GlobalTransform, Acc) ->
     Fs = import_faces(NumFaces-1, []),
     Mesh0 = #e3d_mesh{type=polygon,vs=Vs,ns=Ns,fs=Fs},
     Mesh1 = import_uvs(Mesh0),
-    Mat0 = import_materials(),
-    Mesh2 = import_mat_mapping(Mesh1, Mat0),
+    {Mesh2,Mat0} = import_materials(Mesh1),
     Mesh3 = import_tx(Mesh2),
     Mesh4 = import_vc(Mesh3),
     Mesh5 = e3d_mesh:transform(Mesh4, GlobalTransform),
@@ -629,9 +628,18 @@ mesh_combine_mat_tx_2([], Mat, MapAcc) ->
 %%% Import materials.
 %%%
 
-import_materials() ->
-    [].
-    %%import_materials_1(0, call(?ImpNumMaterials), []).
+import_materials(Mesh) ->
+    case call(?ImpInitMaterials) of
+	false ->
+	    {Mesh,[]};
+	true ->
+	    MM = layer_elem_mapping_mode(),
+	    RM = layer_elem_reference_mode(),
+	    io:format("layer: ~p ~p\n", [MM,RM]),
+	    N = call(?ImpNumMaterials),
+	    io:format("# mat: ~p\n", [N]),
+	    {Mesh,[]}
+    end.
 
 import_materials_1(N, N, Acc) -> reverse(Acc);
 import_materials_1(I, N, Acc) ->
@@ -832,8 +840,8 @@ import_vc(Mesh) ->
     case call(?ImpInitVertexColors) of
 	false -> Mesh;
 	true ->
-	    MM = call(?ImpVertexColorMappingMode),
-	    RM = call(?ImpVertexColorReferenceMode),
+	    MM = layer_elem_mapping_mode(),
+	    RM = layer_elem_reference_mode(),
 	    import_vc_1(Mesh, MM, RM)
     end.
 
@@ -906,6 +914,12 @@ light_type() ->
         ?LightDirectional -> infinite;
         ?LightSpot -> spot
     end.
+
+layer_elem_mapping_mode() ->
+    call(?ImpMappingMode).
+
+layer_elem_reference_mode() ->
+    call(?ImpReferenceMode).
              
 %%%
 %%% Utilities.

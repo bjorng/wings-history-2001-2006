@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_fbx.cxx,v 1.4 2005/03/13 13:17:02 bjorng Exp $
+ *     $Id: wings_fbx.cxx,v 1.5 2005/03/14 06:35:41 bjorng Exp $
  */
 
 
@@ -58,6 +58,7 @@ static KFbxNode** objects = NULL;
 // Current mesh.
 static KFbxMesh* Mesh;          // Mesh itself.
 static KFbxLayer* Layer;	// Layer 0.
+static KFbxLayerElement* layerElem;	   // Current layer element.
 static KFbxLayerElementMaterial* matLayer; // In layer 0 for current mesh.
 static KFbxLayerElementVertexColor* colorLayer; // In layer 0 for current mesh.
 static KFbxVector4* Points;     // Control points or normals.
@@ -605,10 +606,31 @@ fbx_control(unsigned int command,
   case ImpNumShapes:
     send_integer(res, Mesh->GetShapeCount());
     break;
-  case ImpMaterialMappingType:
-#if 0
-    send_mapping_mode(res, Mesh->GetMaterialMappingType());
-#endif
+
+    //
+    // General layer element support.
+    //
+  case ImpMappingMode:
+    send_mapping_mode(res, layerElem->GetMappingMode());
+    break;
+  case ImpReferenceMode:
+    send_reference_mode(res, layerElem->GetReferenceMode());
+    break;
+
+    //
+    // Material import.
+    //
+
+  case ImpInitMaterials:
+    {
+      unsigned b = 0;
+
+      if (Layer) {
+	layerElem = matLayer = Layer->GetMaterials();
+	b = (layerElem != NULL);
+      }
+      send_bool(res, b);
+    }
     break;
   case ImpMaterialIndices:
     MaterialIndices = Mesh->GetMaterialIndices();
@@ -617,6 +639,20 @@ fbx_control(unsigned int command,
     send_integer(res, *MaterialIndices++);
     break;
   case ImpNumMaterials:
+    switch (layerElem->GetReferenceMode()) {
+    case KFbxLayerElement::eDIRECT:
+    case KFbxLayerElement::eINDEX_TO_DIRECT:
+      send_integer(res, matLayer->GetDirectArray().GetCount());
+      break;
+    case KFbxLayerElement::eINDEX:
+      send_integer(res, matLayer->GetIndexArray().GetCount());
+      break;
+    default:
+      send_integer(res, 0);
+      break;
+    }
+    break;
+
 #if 0
     send_integer(res, Mesh->GetMaterialCount());
 #endif
@@ -759,19 +795,11 @@ fbx_control(unsigned int command,
       unsigned b = 0;
 
       if (Layer) {
-	colorLayer = Layer->GetVertexColors();
-	b = (colorLayer != NULL);
+	layerElem = colorLayer = Layer->GetVertexColors();
+	b = (layerElem != NULL);
       }
       send_bool(res, b);
     }
-    break;
-
-  case ImpVertexColorMappingMode:
-    send_mapping_mode(res, colorLayer->GetMappingMode());
-    break;
-
-  case ImpVertexColorReferenceMode:
-    send_reference_mode(res, colorLayer->GetReferenceMode());
     break;
 
   default:
