@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.1 2001/08/14 18:16:36 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.2 2001/08/16 09:52:58 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -205,23 +205,26 @@ grid(St) ->
 make_grid(Ask, St0) ->
     ask(Ask, [{"Rows/cols",10,2,unlimited}],
 	fun([Size], St) ->
-		HalfSize = Size div 2,
-		Vs = grid_vertices(HalfSize),
-		Fs = grid_faces(HalfSize),
+		Vs = grid_vertices(Size),
+		Fs = grid_faces(Size),
 		build_shape("grid", Fs, Vs, St)
 	end, St0).
 
-grid_vertices(HalfSize) ->
+grid_vertices(Size) ->
+    {Low,High} = case Size rem 2 of
+		     0 -> {-Size,Size};
+		     1 -> {-Size,Size}
+		 end,
     Sz = 0.5,
     H = 0.1,
-    TopSeq = seq(-HalfSize, HalfSize),
-    BotSeq = [-HalfSize,HalfSize],
-    VsBot = [{I*Sz,-H,J*Sz} || J <- BotSeq, I <- BotSeq],
-    [{I*Sz,H,J*Sz} || J <- TopSeq, I <- TopSeq] ++ VsBot.
+    TopSeq = seq(Low, High, 2),
+    BotSeq = [Low,High],
+    VsBot = [{I*Sz/2,-H,J*Sz/2} || J <- BotSeq, I <- BotSeq],
+    [{I*Sz/2,H,J*Sz/2} || J <- TopSeq, I <- TopSeq] ++ VsBot.
 
-grid_faces(HalfSize) ->
-    TopSeq = seq(0, 2*HalfSize-1),
-    Rsz = 2*HalfSize+1,
+grid_faces(Size) ->
+    TopSeq = seq(0, Size-1),
+    Rsz = Size+1,
     TopFs = [grid_face(I, J, Rsz) || I <- TopSeq, J <- TopSeq],
     ULv = Rsz*Rsz,
     Fs0 = [[ULv,ULv+1,ULv+3,ULv+2]|TopFs],	%Add bottom.
