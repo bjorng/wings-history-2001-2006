@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.187 2004/04/19 04:33:59 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.188 2004/04/19 07:54:48 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -528,7 +528,7 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
     F2V0 = wings_face:fold_faces(fun(F, V, _, _, A) ->
 					 [{F,V}|A]
 				 end, [], gb_trees:keys(Ftab0), We),
-    F2V = sofs:relation(F2V0, [{face,vertex}]),
+    F2V = sofs:relation(reverse(F2V0), [{face,vertex}]),
     V2F = sofs:converse(F2V),
     Vs = sofs:set(Vs0, [vertex]),
     Faces0 = sofs:image(V2F, Vs),
