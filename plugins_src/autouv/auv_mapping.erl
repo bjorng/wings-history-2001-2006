@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.24 2002/11/07 20:41:38 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.25 2002/11/07 22:18:26 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -183,25 +183,43 @@ find_pinned(Faces, We) ->
 	    [Best|_] ->
 		Best
 	end,
-    Vs = [{(gb_trees:get(V1, We#we.vs))#vtx.pos,V1} || 
-	     {V1,_,_,_} <-BorderEdges],
-    [{_V1pos,V1}|_] = lists:sort(Vs),
+    Vs = [(gb_trees:get(V1, We#we.vs))#vtx.pos || {V1,_,_,_} <-BorderEdges],
+    Center = e3d_vec:average(Vs),
+    AllC = lists:map(fun({Id,_,_,_}) ->
+			     Pos = (gb_trees:get(Id, We#we.vs))#vtx.pos,
+			     Dist = e3d_vec:dist(Pos, Center),
+			     {Dist, Id, Pos}
+		     end, BorderEdges),
+    [{_,V1,_V1Pos}|_] = lists:reverse(lists:sort(AllC)),
+
+%%    [{_V1pos,V1}|_] = lists:sort(Vs),
     BE1 = reorder_edge_loop(V1, BorderEdges, []),
-    {V2,Dx,Dy} = find_furthest_away(BE1,0.0,0.0,0.0,Circumference/2,We#we.vs),
-    {{V1,{0.0,0.0}},{V2,{Dx,Dy}}}.
+    HalfCC = Circumference/2, %% - Circumference/100,
+%%    ?DBG("CC ~p Half ~p ~p~n", [Circumference, HalfCC,BorderEdges]),
+    {V2,Dx,Dy} = find_furthest_away(BE1,0.0,0.0,0.0,HalfCC,We#we.vs),
+    {{V1,{0.0,0.0}},{V2,{1.0,1.0}}}.
     
-find_furthest_away([{V1,_V2,_,_}|_], DX,DY, Dist, Max,_) 
-  when float(Dist), float(Max), Dist >= Max ->
-    {V1, math:sqrt(DX),math:sqrt(DY)};
+find_furthest_away([{V1,V2,_,New}|_], DX0,DY0, Dist, Max,Vs) 
+  when float(Dist), float(Max), Dist + New >= Max ->
+%%    ?DBG("Quit dist ~p ~p ~n",[{V1,V2},Dist + New]),
+    if (Max-Dist) < ((Dist+New) - Max) ->
+	    {V2, math:sqrt(DX0),math:sqrt(DY0)};
+       true -> 
+	    V1p = (gb_trees:get(V1,Vs))#vtx.pos,
+	    V2p = (gb_trees:get(V2,Vs))#vtx.pos,
+	    {Dx,Dy,Dz} = e3d_vec:sub(V2p, V1p),    
+	    {V1, math:sqrt(DX0+Dx*Dx+Dz*Dz),math:sqrt(DY0+Dy*Dy)}
+    end;
 find_furthest_away([{V1,V2,_,Delta}|Rest], DX0,DY0,Dist, Max,Vs) 
   when float(DX0),float(DY0),float(Delta), float(Dist) ->
+%%    ?DBG("Dist ~p ~p ~n",[{V1,V2}, Dist+Delta]),
     V1p = (gb_trees:get(V1,Vs))#vtx.pos,
     V2p = (gb_trees:get(V2,Vs))#vtx.pos,
     {Dx,Dy,Dz} = e3d_vec:sub(V2p, V1p),    
     find_furthest_away(Rest,DX0+Dx*Dx+Dz*Dz,DY0+Dy*Dy,Delta+Dist,Max,Vs).
 
-reorder_edge_loop(V1, [{V1,_,_,_}|_] = Ordered, Acc) ->
-    Ordered ++ lists:reverse(Acc);
+reorder_edge_loop(V1, [{V1,_,_,_}|Ordered], Acc) ->
+    Ordered ++ lists:reverse([V1|Acc]);
 reorder_edge_loop(V1, [H|Tail], Acc) ->
     reorder_edge_loop(V1, Tail, [H|Acc]).
 
