@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.20 2002/08/11 19:08:40 bjorng Exp $
+%%     $Id: wpa.erl,v 1.21 2002/10/17 18:57:32 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/2,ask/3,ask/4,dialog/2,dialog/3,dialog/4,error/1,yes_no/1,
@@ -22,6 +22,7 @@
 	 pick/3,
 	 vertices/1,vertex_pos/2,vertex_flatten/3,vertex_center/2,
 	 faces/1,face_vertices/2,face_outer_vertices/2,face_outer_edges/2,
+	 face_dissolve/2,
 	 edge_loop_vertices/2,
 	 obj_name/1,obj_id/1,
 	 camera_info/1,lights/1
@@ -223,6 +224,11 @@ face_outer_vertices(Faces, We) ->
 
 face_outer_edges(Faces, We) ->
     wings_face_cmd:outer_edge_partition(Faces, We).
+
+face_dissolve(Faces, We) when is_list(Faces) ->
+    wings_face_cmd:dissolve(gb_sets:from_list(Faces), We);
+face_dissolve(Faces, We) ->
+    wings_face_cmd:dissolve(Faces, We).
 
 %%% Objects.
 

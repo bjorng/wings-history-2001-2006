@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.38 2002/10/08 09:20:45 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.39 2002/10/17 18:57:31 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -18,7 +18,8 @@
 	 new_wrap_range/3,id/2,bump_id/1,
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
-	 merge/1,merge/2,renumber/1,renumber/2,renumber/3,
+	 merge/1,merge/2,force_merge/1,
+	 renumber/1,renumber/2,renumber/3,map_renumber/2,
 	 uv_to_color/2,
 	 transform_vs/2,
 	 separate/1,
@@ -78,9 +79,9 @@ build_rest(Type, Es, Fs, Vs, HardEdges) ->
     {Vtab0,Etab,Ftab0} = build_tables(Es),
     Ftab = build_faces(Ftab0, Fs),
     Vtab = fill_in_vertices(Vs, Vtab0),
-    NextId = 2+last(sort([gb_trees:size(Etab),
-			  gb_trees:size(Ftab),
-			  gb_trees:size(Vtab)])),
+    NextId = 1+lists:max([wings_util:gb_trees_largest_key(Etab),
+			  wings_util:gb_trees_largest_key(Ftab),
+			  wings_util:gb_trees_largest_key(Vtab)]),
     #we{mode=Type,es=Etab,fs=Ftab,vs=Vtab,he=Htab,first_id=0,next_id=NextId}.
 
 build_edges(Fs, Type) ->
@@ -316,21 +317,40 @@ slide_colors(Face, Edge, LastEdge, Etab0, PrevCol, _) ->
 	    slide_colors(Face, NextEdge, LastEdge, Etab, Col, done)
     end.
 
-%%% Merge two winged-edge structures.
+%% Merge two winged-edge structures.
 merge(We0, We1) ->
     merge([We0,We1]).
 
-%%% Merge a list of winged-edge structures.
+%% Merge a list of winged-edge structures.
 merge([]) -> [];
 merge([We]) -> We;
 merge([#we{id=Id,name=Name}|_]=Wes0) ->
-    {Wes1,First,Next} = merge_renumber(Wes0),
-    We = merge_1(Wes1),
-    We#we{id=Id,name=Name,first_id=First,next_id=Next}.
+    Wes1 = merge_renumber(Wes0),
+    {Vt0,Et0,Ft0,Ht0} = merge_1(Wes1),
+    Vt = gb_trees:from_orddict(Vt0),
+    Et = gb_trees:from_orddict(Et0),
+    Ft = gb_trees:from_orddict(Ft0),
+    Ht = gb_sets:from_ordset(Ht0),
+    update_id_bounds(#we{id=Id,name=Name,vs=Vt,es=Et,fs=Ft,he=Ht}).
+
+%% Combine winged-edge structures withtout any renumbering.
+%% Will crash if any vertex/edge/face identifier occurs in more than one #we{}.
+force_merge([]) -> [];
+force_merge([We]) -> We;
+force_merge([#we{id=Id,name=Name}|_]=Wes0) ->
+    {Vt0,Et0,Ft0,Ht0} = merge_1(Wes0),
+    true = sofs:is_a_function(sofs:from_term(Ft0, [{id,value}])),
+    true = sofs:is_a_function(sofs:from_term(Et0, [{id,value}])),
+    true = sofs:is_a_function(sofs:from_term(Ht0, [{id,value}])),
+    true = sofs:is_a_function(sofs:from_term(Vt0, [{id,value}])),
+    Vt = gb_trees:from_orddict(Vt0),
+    Et = gb_trees:from_orddict(Et0),
+    Ft = gb_trees:from_orddict(Ft0),
+    Ht = gb_sets:from_ordset(Ht0),
+    update_id_bounds(#we{id=Id,name=Name,vs=Vt,es=Et,fs=Ft,he=Ht}).
 
 merge_1([We]) -> We;
-merge_1(Wes) ->
-    merge_1(Wes, [], [], [], []).
+merge_1(Wes) -> merge_1(Wes, [], [], [], []).
 
 merge_1([#we{vs=Vs,es=Es,fs=Fs,he=He}|Wes], Vt0, Et0, Ft0, Ht0) ->
     Vt = [gb_trees:to_list(Vs)|Vt0],
@@ -339,16 +359,17 @@ merge_1([#we{vs=Vs,es=Es,fs=Fs,he=He}|Wes], Vt0, Et0, Ft0, Ht0) ->
     Ht = [gb_sets:to_list(He)|Ht0],
     merge_1(Wes, Vt, Et, Ft, Ht);
 merge_1([], Vt0, Et0, Ft0, Ht0) ->
-    Vt = gb_trees:from_orddict(lists:merge(Vt0)),
-    Et = gb_trees:from_orddict(lists:merge(Et0)),
-    Ft = gb_trees:from_orddict(lists:merge(Ft0)),
-    Ht = gb_sets:from_ordset(lists:merge(Ht0)),
-    #we{vs=Vt,es=Et,fs=Ft,he=Ht}.
+    Vt = lists:merge(Vt0),
+    Et = lists:merge(Et0),
+    Ft = lists:merge(Ft0),
+    Ht = lists:merge(Ht0),
+    {Vt,Et,Ft,Ht}.
 			       
 merge_renumber(Wes0) ->
-    [We0|Wes1] = keysort(#we.first_id, Wes0),
-    {Wes,Next} = merge_renumber(Wes1, [We0], []),
-    {Wes,We0#we.first_id,Next}.
+    Wes1 = foldl(fun(W, A) -> [update_id_bounds(W)|A] end, [], Wes0),
+    [We0|Wes2] = keysort(#we.first_id, Wes1),
+    Wes = merge_renumber(Wes2, [We0], []),
+    Wes.
 
 merge_renumber([#we{first_id=Low}=We|Wes], [#we{next_id=Next}|_]=Done, NotDone)
   when Low >= Next ->
@@ -361,7 +382,7 @@ merge_renumber([], [#we{next_id=Next}|_]=Done, NotDone) ->
 merge_renumber_rest([We0|Wes], Next0, Acc) ->
     #we{next_id=Next} = We = renumber(We0, Next0),
     merge_renumber_rest(Wes, Next, [We|Acc]);
-merge_renumber_rest([], Next, Acc) -> {Acc,Next}.
+merge_renumber_rest([], _, Acc) -> Acc.
 
 %%% Renumber a winged-edge structure.
 renumber(#we{next_id=Id}=We) ->
@@ -374,17 +395,17 @@ renumber(We0, Id) ->
 renumber(#we{mode=Mode,vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0,perm=Perm0}=We0,
 	 Id, RootSet0) ->
     Etab1 = gb_trees:to_list(Etab0),
-    {Emap,IdE} = make_map(Etab1, Id),
+    Emap = make_map(Etab1, Id),
 
     Vtab1 = gb_trees:to_list(Vtab0),
-    {Vmap,IdV} = make_map(Vtab1, Id),
+    Vmap = make_map(Vtab1, Id),
     Vtab2 = foldl(fun(V, A) ->
 			  renum_vertex(V, Emap, Vmap, A)
 		  end, [], Vtab1),
     Vtab = gb_trees:from_orddict(reverse(Vtab2)),
 
     Ftab1 = gb_trees:to_list(Ftab0),
-    {Fmap,IdF} = make_map(Ftab1, Id),
+    Fmap = make_map(Ftab1, Id),
     Ftab2 = foldl(fun(F, A) ->
 			  renum_face(F, Emap, Fmap, A)
 		  end, [], Ftab1),
@@ -409,10 +430,36 @@ renumber(#we{mode=Mode,vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0,perm=Perm0}=We0,
 	   end,
 
     RootSet = map_rootset(RootSet0, Emap, Vmap, Fmap),
-    NextId = last(sort([IdV,IdE,IdF])),
-    We = We0#we{mode=Mode,vs=Vtab,es=Etab,fs=Ftab,he=Htab,perm=Perm,
-		first_id=Id,next_id=NextId},
+    We1 = We0#we{mode=Mode,vs=Vtab,es=Etab,fs=Ftab,he=Htab,perm=Perm},
+    We = update_id_bounds(We1),
     {We,RootSet}.
+
+map_renumber(#we{mode=Mode,vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We0,
+	     #we{vs=Vmap,es=Emap,fs=Fmap}) ->
+    Etab1 = gb_trees:to_list(Etab0),
+    Vtab1 = gb_trees:to_list(Vtab0),
+    Vtab2 = foldl(fun(V, A) ->
+			  renum_vertex(V, Emap, Vmap, A)
+		  end, [], Vtab1),
+    Vtab = gb_trees:from_orddict(sort(Vtab2)),
+
+    Ftab1 = gb_trees:to_list(Ftab0),
+    Ftab2 = foldl(fun(F, A) ->
+			  renum_face(F, Emap, Fmap, A)
+		  end, [], Ftab1),
+    Ftab = gb_trees:from_orddict(sort(Ftab2)),
+
+    Etab2 = foldl(fun(E, A) ->
+			  renum_edge(E, Emap, Vmap, Fmap, A)
+		  end, [], Etab1),
+    Etab = gb_trees:from_orddict(sort(Etab2)),
+
+    Htab1 = foldl(fun(E, A) ->
+			  renum_hard_edge(E, Emap, A)
+		  end, [], gb_sets:to_list(Htab0)),
+    Htab = gb_sets:from_list(Htab1),
+    We = We0#we{mode=Mode,vs=Vtab,es=Etab,fs=Ftab,he=Htab,perm=0},
+    update_id_bounds(We).
 
 map_rootset([{vertex,Vs,Data}|T], Emap, Vmap, Fmap) when is_list(Vs) ->
     [map_all(vertex, Vs, Data, Vmap)|map_rootset(T, Emap, Vmap, Fmap)];
@@ -439,8 +486,7 @@ make_map(Tab, Id0) ->
     make_map(Tab, Id0, []).
 make_map([{Old,_}|T], Id, Map) ->
     make_map(T, Id+1, [{Old,Id}|Map]);
-make_map([], Id, Map) ->
-    {gb_trees:from_orddict(reverse(Map)),Id}.
+make_map([], _, Map) -> gb_trees:from_orddict(reverse(Map)).
 
 renum_edge({Edge0,Rec0}, Emap, Vmap, Fmap, New) ->
     Edge = gb_trees:get(Edge0, Emap),
@@ -467,6 +513,15 @@ renum_face({Face0,#face{edge=Edge}=Rec0}, Emap, Fmap, New) ->
 renum_hard_edge(Edge0, Emap, New) ->
     Edge = gb_trees:get(Edge0, Emap),
     [Edge|New].
+
+update_id_bounds(#we{vs=Vtab,es=Etab,fs=Ftab}=We) ->
+    FirstId = lists:min([wings_util:gb_trees_smallest_key(Vtab),
+			 wings_util:gb_trees_smallest_key(Etab),
+			 wings_util:gb_trees_smallest_key(Ftab)]),
+    LastId = lists:max([wings_util:gb_trees_largest_key(Vtab),
+			wings_util:gb_trees_largest_key(Etab),
+			wings_util:gb_trees_largest_key(Ftab)]),
+    We#we{first_id=FirstId,next_id=LastId+1}.
 
 %%%
 %%% Separate a combined winged-edge structure.

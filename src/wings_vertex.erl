@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.27 2002/09/10 09:07:09 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.28 2002/10/17 18:57:31 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -546,7 +546,7 @@ patch_vertex(V, Edge, Vtab) ->
     end.
 
 %% outer_partition(Faces, We) -> [[V]]
-%%  Returns a list of the vertics of the outer edges of the faces.
+%%  Returns a list of the vertices of the outer edges of the faces.
 %%  Vertices are ordered CCW.
 outer_partition(Faces, We) when is_list(Faces) ->
     collect_outer_edges(Faces, gb_sets:from_list(Faces), We, []);
