@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.38 2002/08/11 10:35:17 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.39 2002/08/25 08:13:13 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -45,15 +45,15 @@ plus_minus(Type, Tvs0, #st{selmode=Mode}=St) ->
     Tvs = plus_minus_2(Mode, Vec, Tvs0, []),
     wings_drag:setup(Tvs, unit(Type, [falloff]), flags(Type), St).
 
-plus_minus_2(Mode, Vec, [{Items,NewVs,We}|T], Acc0) ->
+plus_minus_2(Mode, Vec, [{Items,NewVs,Forbidden,We}|T], Acc0) ->
     Tv = setup_we(Mode, Vec, Items, We),
-    Acc = plus_minus_3(Tv, NewVs, We, Acc0),
+    Acc = plus_minus_3(Tv, NewVs, Forbidden, We, Acc0),
     plus_minus_2(Mode, Vec, T, Acc);
 plus_minus_2(_Mode, _Vec, [], Acc) -> Acc.
 
-plus_minus_3(Tv0, NewVs, #we{id=Id}=We, Acc) ->
+plus_minus_3(Tv0, NewVs, Forbidden, #we{id=Id}=We, Acc) ->
     Affected0 = affected(Tv0),
-    Vecs = move_vectors(NewVs, gb_sets:from_list(Affected0), We, []),
+    Vecs = move_vectors(NewVs, Forbidden, gb_sets:from_list(Affected0), We, []),
     Affected = [V || {V,_,_} <- Vecs],
     MoveAway = {Affected,move_away_fun(Vecs)},
     [{Id,Tv0},{Id,MoveAway}|Acc].
@@ -89,11 +89,12 @@ move_away(R0, Tv, Acc) ->
 		  [{V,Rec#vtx{pos=Pos}}|A]
 	  end, Acc, Tv).
     
-move_vectors([V|Vs], VsSet, #we{vs=Vtab}=We, Acc0) ->
+move_vectors([V|Vs], Forbidden, VsSet, #we{vs=Vtab}=We, Acc0) ->
     Acc = wings_vertex:fold(
-	    fun(_, _, Rec, A) ->
+	    fun(Edge, _, Rec, A) ->
 		    OtherV = wings_vertex:other(V, Rec),
-		    case gb_sets:is_member(OtherV, VsSet) of
+		    case gb_sets:is_member(OtherV, VsSet) andalso
+			not gb_sets:is_member(Edge, Forbidden) of
 			false -> A;
 			true ->
 			    Pa = wings_vertex:pos(OtherV, Vtab),
@@ -102,8 +103,8 @@ move_vectors([V|Vs], VsSet, #we{vs=Vtab}=We, Acc0) ->
 			    [{V,Vec,Pos}|A]
 		    end
 	    end, Acc0, V, We),
-    move_vectors(Vs, VsSet, We, Acc);
-move_vectors([], _VsSet, _We, Acc) -> Acc.
+    move_vectors(Vs, Forbidden, VsSet, We, Acc);
+move_vectors([], _, _, _, Acc) -> Acc.
 
 %%
 %% Conversion of vertice selections to vertices. :-)

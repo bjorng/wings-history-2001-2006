@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.30 2002/07/26 17:43:55 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.31 2002/08/25 08:13:13 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -105,7 +105,7 @@ extrude_vertices(Vs, We0, Acc) ->
 		       ex_new_vertices(V, We0, A)
 	       end, We0, gb_sets:to_list(Vs)),
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
-    {We,[{Vs,NewVs,We}|Acc]}.
+    {We,[{Vs,NewVs,gb_sets:empty(),We}|Acc]}.
 
 ex_new_vertices(V, OrigWe, #we{vs=Vtab}=We0) ->
     Center = wings_vertex:pos(V, We0),
