@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.17 2004/08/05 05:44:44 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.18 2004/08/28 07:29:47 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
@@ -34,7 +34,7 @@ init(Next) ->
 			Port when is_port(Port) ->
 			    register(wp8_file_port, Port),
 			    fun(What) ->
-				    fileop(What,Next)
+				    fileop(What, Next)
 			    end;
 			_Other ->
 			    Next
@@ -46,21 +46,27 @@ init(Next) ->
 	    Next
     end.
 
-fileop({file,open_dialog,Prop,Cont}, _Next) ->
+fileop(What, Next) ->
+    case wpa:pref_get(wpc_mac_misc, native_file_dialog) of
+	true -> fileop_1(What, Next);
+	false -> Next(What)
+    end.
+
+fileop_1({file,open_dialog,Prop,Cont}, _Next) ->
     Title = proplists:get_value(title, Prop, "Open"),
     Dir = proplists:get_value(directory, Prop),
     case file_dialog(?OP_READ, Dir, Prop, Title) of
 	aborted -> keep;
 	Res -> Cont(Res)
     end;
-fileop({file,save_dialog,Prop,Cont}, _Next) ->
+fileop_1({file,save_dialog,Prop,Cont}, _Next) ->
     Title = proplists:get_value(title, Prop, "Save"),
     Dir = proplists:get_value(directory, Prop),
     case file_dialog(?OP_WRITE, Dir, Prop, Title) of
 	aborted -> keep;
 	Res -> Cont(Res)
     end;
-fileop(What, Next) ->
+fileop_1(What, Next) ->
     Next(What).
 
 file_dialog(Type, Dir, Prop, Title) ->
