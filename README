@@ -27,11 +27,11 @@ Building and running Wings 3D on Unix (including Mac OS X)
 
 3) Start Wings like this:
 
-	erl -pa $ESDL_PATH/ebin MY_WINGS_PATH/ebin -run wings_start start_halt
+	erl -pa $ESDL_PATH/ebin -pa MY_WINGS_PATH/ebin -run wings_start start_halt
 
    where you should substitute MY_WINGS_PATH with the actual path to
    your Wings directory.   
 
    Example:
 
-	erl -pa $ESDL_PATH/ebin /ldisk/bjorn/wings/ebin -run wings_start start_halt
+	erl -pa $ESDL_PATH/ebin -pa /ldisk/bjorn/wings/ebin -run wings_start start_halt
