@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.23 2002/07/14 14:56:01 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.24 2002/07/21 12:24:14 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -149,8 +149,6 @@ event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=Unicode}}, S) ->
     event_key({key,Sym,Mod,Unicode}, S);
 event(#mousebutton{button=1,x=X,y=Y}=Ev, S) ->
     mouse_event(X, Y, Ev, S);
-event(#mousemotion{state=Bst}, _S) when Bst band ?SDL_BUTTON_LMASK == 0 ->
-    keep;
 event(#mousemotion{x=X,y=Y}=Ev, S) ->
     mouse_event(X, Y, Ev, S);
 event({action,{update,I,{Fst,Common}}}, #s{priv=Priv0}=S)
@@ -182,24 +180,24 @@ delete(#s{level=Level}) ->
     wings_wm:set_active({dialog,Level-1}),
     delete.
 
+mouse_event(_, _, #mousemotion{state=Bst}, _) when Bst band ?SDL_BUTTON_LMASK == 0 ->
+    keep;
 mouse_event(X0, Y0, #mousemotion{}=Ev, #s{focus=I,ox=Ox,oy=Oy}=S) ->
     X = X0-Ox,
     Y = Y0-Oy,
     field_event(Ev#mousemotion{x=X,y=Y}, I, S);
-mouse_event(X0, Y0, Ev, #s{fi=Fis,ox=Ox,oy=Oy}=S0) ->
+mouse_event(X0, Y0, #mousebutton{state=State}=Ev, #s{focus=I0,ox=Ox,oy=Oy,fi=Fis}=S0) ->
     X = X0-Ox,
     Y = Y0-Oy,
-    case mouse_to_field(1, Fis, X, Y) of
-	none -> keep;
-	I ->
-	    case Ev of
-		#mousebutton{state=?SDL_PRESSED} ->
+    case State of
+	?SDL_RELEASED ->
+	    field_event(Ev#mousebutton{x=X,y=Y}, I0, S0);
+	?SDL_PRESSED ->
+	    case mouse_to_field(1, Fis, X, Y) of
+		none -> keep;
+		I ->
 		    S = set_focus(I, S0),
-		    field_event(Ev#mousebutton{x=X,y=Y}, S);
-		#mousebutton{} ->
-		    field_event(Ev#mousebutton{x=X,y=Y}, I, S0);
-		#mousemotion{} ->
-		    field_event(Ev#mousemotion{x=X,y=Y}, I, S0)
+		    field_event(Ev#mousebutton{x=X,y=Y}, S)
 	    end
     end.
 
