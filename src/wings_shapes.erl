@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.25 2002/10/02 15:10:35 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.26 2002/10/24 06:03:39 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -21,24 +21,36 @@
 -import(math, [sqrt/1,cos/1,sin/1,pi/0]).
 
 menu(X, Y, _) ->
-    Menu = [{"Tetrahedron",tetrahedron},
-	    {"Octahedron",octahedron},
-	    {"Octotoad",octotoad},
-	    {"Dodecahedron",dodecahedron},
-	    {"Icosahedron",icosahedron},
-	    separator,
-	    {"Cube",cube},
-	    separator,
-	    {"Cylinder",cylinder,[],[option]},
-	    {"Cone",cone,[],[option]},
-	    {"Sphere",sphere,[],[option]},
-	    {"Torus",torus,[],[option]},
-	    separator,
-	    {"Grid",grid,[],[option]},
-	    separator,
-	    {"Light",{light,wings_light:light_types()}},
-	    {"More",{more,[]},"More primitives"}],
+    Menu0 = [{"Tetrahedron",tetrahedron},
+	     {"Octahedron",octahedron},
+	     {"Octotoad",octotoad},
+	     {"Dodecahedron",dodecahedron},
+	     {"Icosahedron",icosahedron},
+	     separator,
+	     {"Cube",cube},
+	     separator,
+	     {"Cylinder",cylinder,[],[option]},
+	     {"Cone",cone,[],[option]},
+	     {"Sphere",sphere,[],[option]},
+	     {"Torus",torus,[],[option]},
+	     separator,
+	     {"Grid",grid,[],[option]},
+	     separator,
+	     {"Light",{light,wings_light:light_types()}},
+	     {"More",{more,[]},"More primitives"}],
+    Menu = [prim_help(Item) || Item <- Menu0],
     wings_menu:popup_menu(X, Y, shape, Menu).
+
+prim_help({S,K}) ->
+    {S,K,create_help(S)};
+prim_help({S,K,[],Opts}) when is_atom(K) ->
+    {S,K,create_help(S),Opts};
+prim_help(Other) -> Other.
+
+create_help([Vowel|T]) when Vowel == $O; Vowel == $I ->
+    "Create an "++[Vowel+($a-$A)|T];
+create_help([H|T]) ->
+    "Create a "++[H+($a-$A)|T].
 
 command(tetrahedron, St) -> tetrahedron(St);
 command(octahedron, St) -> octahedron(St);
