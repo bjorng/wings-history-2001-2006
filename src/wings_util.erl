@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.79 2003/08/16 17:50:35 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.80 2003/09/17 18:50:00 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -394,14 +394,20 @@ log_file_dir() ->
 
 log_file_dir({unix,_}) -> os:getenv("HOME");
 log_file_dir({win32,_}) ->
-    case code:which(?MODULE) of
-	Name0 when is_list(Name0) ->
-	    Name = filename:dirname(Name0),
-	    case filename:basename(Name) of
-		"ebin" -> filename:dirname(Name);
-		"patches" -> filename:dirname(Name);
-		_Other -> Name
-	    end
+    Root = code:root_dir(),
+    case filelib:is_file("Wings3D.exe") of
+        true -> Root;
+        false ->
+            %% Development system.
+            case code:which(?MODULE) of
+                Name0 when is_list(Name0) ->
+                    Name = filename:dirname(Name0),
+                    case filename:basename(Name) of
+                        "ebin" -> filename:dirname(Name);
+                        "patches" -> filename:dirname(Name);
+                        _Other -> Name
+                    end
+            end
     end.
 	
 open_log_file(Name) ->
