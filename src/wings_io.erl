@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.52 2002/06/02 20:49:02 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.53 2002/06/24 18:43:26 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -442,9 +442,6 @@ text([L|Cs], Acc) when is_list(L) ->
     text(Cs, []);
 text([], Acc) -> draw_reverse(Acc).
 
-draw_reverse([]) -> ok;
-draw_reverse(S) -> gl:callLists(length(S), ?GL_UNSIGNED_BYTE, reverse(S)).
-
 menu_text(X, Y, S) ->
     gl:rasterPos2i(X, Y),
     menu_text(S, []).
@@ -462,6 +459,14 @@ menu_text([L|Cs], Acc) when is_list(L) ->
     text(L, []),
     menu_text(Cs, []);
 menu_text([], Acc) -> draw_reverse(Acc).
+
+draw_reverse([]) -> ok;
+draw_reverse(S0) ->
+    S = reverse(S0),
+    case wings_pref:get_value(text_display_lists, false) of
+	true -> gl:callLists(length(S), ?GL_UNSIGNED_BYTE, S);
+	false -> wings_text:draw(S)
+    end.
 
 axis_text(X, Y, C, Color) ->
     #io{w=W,h=H} = get_state(),

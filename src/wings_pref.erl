@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.49 2002/05/28 08:36:22 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.50 2002/06/24 18:43:26 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -59,83 +59,99 @@ prune_defaults(List) ->
 menu(_St) ->
     [{"Preferences",fun(_, _) ->
 			    {edit,{preferences,prefs}}
-		    end,[],[]}].
+		    end,[],[]},
+     {"Compatibility",fun(_, _) ->
+			      {edit,{preferences,compatibility}}
+		      end,[],[]}].
 
 command(prefs, St) ->
-    Qs0 = [{hframe,
-	    [{vframe,
-	      [{label_column,
-		[{"Unselected Size",vertex_size},
-		 {"Selected Size",selected_vertex_size}]}],
-	      [{title,"Vertex Display"}]},
-	     {vframe,
-	      [{label_column,
-		[{"Unselected Width",edge_width},
-		 {"Selected Width",selected_edge_width}]}],
-	      [{title,"Edge Display"}]}]},
-	   {hframe,
-	    [{label,"Background"},{color,background_color},
-	     {label,"Text"},{color,info_color},
-	     {label,"Face"},{color,face_color},
-	     {label,"Selection"},{color,selected_color},
-	     {label,"Hard Edges"},{color,hard_edge_color}],
-	    [{title,"Colors"}]},
-	   {hframe,
-	    [{label,"Color"},{color,grid_color},
-	     {"Force Axis-Aligned Grid",force_show_along_grid}],
-	    [{title,"Grid"}]},
-	   {vframe,
-	    [{hframe,
-	      [{"Vertices",vertex_hilite},
-	       {"Edges",edge_hilite},
-	       {"Faces",face_hilite},
-	       {"Objects",body_hilite}]},
-	     {hframe,
-	      [{label,"Unselected"},{color,unselected_hlite},
-	       {label,"Selected"},{color,selected_hlite}]},
-	     {"Smart Highlighting",smart_highlighting}],
-	    [{title,"Highlighting"}]},
-	   {hframe,
-	    [{vframe,
-	      [{label_column,
-		[{"Length",active_vector_size},
-		 {"Width",active_vector_width},
-		 {color,"Color",active_vector_color}]}],
-	      [{title,"Vector Display"}]},
-	     {vframe,
-	      [{label_column,
-		[{"Angle",auto_rotate_angle},
-		 {"Delay (ms)",auto_rotate_delay}]}],
-	      [{title,"Auto Rotate"}]}]},
-	   {hframe,
-	    [{vframe,
-	      [{"Show Axis Letters",show_axis_letters},
-	       {hframe,
-		[{label_column,
-		  [{color,"+X Color",x_color},
-		   {color,"+Y Color",y_color},
-		   {color,"+Z Color",z_color}]},
-		 {label_column,
-		  [{color,"-X Color",neg_x_color},
-		   {color,"-Y Color",neg_y_color},
-		   {color,"-Z Color",neg_z_color}]}]}],
-	      [{title,"Axes"}]},
-	     {vframe,
-	      [{label_column,
-		[{"Auto-save interval (min)",autosave_time}]},
-	       {"Show Memory Used",show_memory_used},
-	       {"Display List Optimization",display_list_opt},
-	       {"Advanced Menus",advanced_menus}
-	      ],
-	      [{title,"Miscellanous"}]}]}],
-    Qs = make_query(Qs0),
-    wings_ask:dialog(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
+    Qs = [{hframe,
+	   [{vframe,
+	     [{label_column,
+	       [{"Unselected Size",vertex_size},
+		{"Selected Size",selected_vertex_size}]}],
+	     [{title,"Vertex Display"}]},
+	    {vframe,
+	     [{label_column,
+	       [{"Unselected Width",edge_width},
+		{"Selected Width",selected_edge_width}]}],
+	     [{title,"Edge Display"}]}]},
+	  {hframe,
+	   [{label,"Background"},{color,background_color},
+	    {label,"Text"},{color,info_color},
+	    {label,"Face"},{color,face_color},
+	    {label,"Selection"},{color,selected_color},
+	    {label,"Hard Edges"},{color,hard_edge_color}],
+	   [{title,"Colors"}]},
+	  {hframe,
+	   [{label,"Color"},{color,grid_color},
+	    {"Force Axis-Aligned Grid",force_show_along_grid}],
+	   [{title,"Grid"}]},
+	  {vframe,
+	   [{hframe,
+	     [{"Vertices",vertex_hilite},
+	      {"Edges",edge_hilite},
+	      {"Faces",face_hilite},
+	      {"Objects",body_hilite}]},
+	    {hframe,
+	     [{label,"Unselected"},{color,unselected_hlite},
+	      {label,"Selected"},{color,selected_hlite}]},
+	    {"Smart Highlighting",smart_highlighting}],
+	   [{title,"Highlighting"}]},
+	  {hframe,
+	   [{vframe,
+	     [{label_column,
+	       [{"Length",active_vector_size},
+		{"Width",active_vector_width},
+		{color,"Color",active_vector_color}]}],
+	     [{title,"Vector Display"}]},
+	    {vframe,
+	     [{label_column,
+	       [{"Angle",auto_rotate_angle},
+		{"Delay (ms)",auto_rotate_delay}]}],
+	     [{title,"Auto Rotate"}]}]},
+	  {hframe,
+	   [{vframe,
+	     [{"Show Axis Letters",show_axis_letters},
+	      {hframe,
+	       [{label_column,
+		 [{color,"+X Color",x_color},
+		  {color,"+Y Color",y_color},
+		  {color,"+Z Color",z_color}]},
+		{label_column,
+		 [{color,"-X Color",neg_x_color},
+		  {color,"-Y Color",neg_y_color},
+		  {color,"-Z Color",neg_z_color}]}]}],
+	     [{title,"Axes"}]},
+	    {vframe,
+	     [{label_column,
+	       [{"Auto-save interval (min)",autosave_time}]},
+	      {"Advanced Menus",advanced_menus},
+	      {"Show Memory Used",show_memory_used}
+	     ],
+	     [{title,"Miscellanous"}]}]}],
+    dialog(Qs, St);
+command(compatibility, St) ->
+    Qs = [{vframe,
+	    [{"Optimize display lists",display_list_opt},
+	     {"Use display lists for text",text_display_lists},
+	     {"Use front buffer",use_front_buffer}
+	    ],
+	   [{title,"Compatibility"}]}],
+    dialog(Qs, St);
 command({set,List}, _St) ->
     foreach(fun({Key,Val}) ->
 		    smart_set_value(Key, Val)
 	    end, List),
     wings_io:putback_event(redraw),
     keep.
+
+dialog(Qs0, St) ->
+    Qs = make_query(Qs0),
+    wings_ask:dialog(Qs, St,
+		     fun(Res) ->
+			     {edit,{preferences,{set,Res}}}
+		     end).
 
 smart_set_value(Key, Val) ->
     case ets:lookup(wings_state, Key) of
@@ -280,9 +296,13 @@ defaults() ->
      {active_vector_size,1.0},
      {active_vector_width,2.0},
      {active_vector_color,{0.0,0.0,0.65}},
-     {display_list_opt,true},
      {advanced_menus,false},
-     {smart_highlighting,false}
+     {smart_highlighting,false},
+
+     %% Compatibility preferences.
+     {display_list_opt,true},
+     {text_display_lists,true},
+     {use_front_buffer,os:type() =/= {unix,darwin}}
     ].
 
 clean(List) ->

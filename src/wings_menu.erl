@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.47 2002/06/18 06:11:06 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.48 2002/06/24 18:43:26 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -109,7 +109,6 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi) ->
 	  sel=none,ns=Names,menu=Menu,adv=Adv,type=Type}.
 
 menu_show(#mi{xleft=X,ytop=Y,ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
-    matrox_workaround(X, Y),
     wings_io:raised_rect(X, Y, Mw, Mh + 2*Margin+3, ?MENU_COLOR),
     gl:color3f(0, 0, 0),
     menu_draw(X+3*?CHAR_WIDTH, Y+Margin+?CHAR_HEIGHT,
@@ -744,8 +743,3 @@ add_option_1({Desc,Tuple}, Val) when is_tuple(Tuple) ->
     {Desc,add_option_1(Tuple, Val)};
 add_option_1({Desc,Leave}, Val) ->
     {Desc,{Leave,Val}}.
-
-matrox_workaround(X, Y) ->
-    %% Some Matrox OpenGL drivers are strange. Attempt to workaround.
-    gl:rasterPos2i(X, Y),
-    wings_text:char($\s).
