@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.229 2003/03/07 05:16:06 bjorng Exp $
+%%     $Id: wings.erl,v 1.230 2003/03/09 07:23:57 bjorng Exp $
 %%
 
 -module(wings).
@@ -341,8 +341,11 @@ handle_event_3(quit, St) ->
 	geom -> do_command({file,quit}, St);
 	_ -> keep
     end;
+handle_event_3({new_state_no_redraw,St1}, St0) ->
+    St = wings_undo:save(St0, St1),
+    wings_wm:current_state(St),
+    main_loop_noredraw(St);
 handle_event_3({new_state,St}, St0) ->
-    wings_wm:dirty(),
     save_state(St0, St);
 handle_event_3({current_state,St}, _) ->
     main_loop_noredraw(St);
@@ -641,7 +644,13 @@ info(#st{sel=[]}) -> [];
 info(St) ->
     case wings_wm:get_prop(show_info_text) of
 	false -> [];
-	true -> info_1(St)
+	true ->
+	    Self = wings_wm:active_window(),
+	    case wings_wm:actual_focus_window() of
+		Self -> info_1(St);
+		{_,Self} -> info_1(St);
+		_ -> []
+	    end
     end.
 	    
 info_1(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
