@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.4 2004/10/15 19:45:20 dgud Exp $
+%%     $Id: wings_sv.lang,v 1.5 2004/10/16 05:45:13 bjorng Exp $
 %%
 
 {wings,
@@ -96,7 +96,7 @@
     {11,"~p kanter markerade i ~p objekt"},
     {12,"~p ytor markerade i ~p objekt"}]},
   {init,
-   [{1,"\n\nOBS: Ovanstående meddelanden om TCP/IP är helt normalt.\n Det görs för att föhindra erlang att kontakta DNS via internet\n(ofarligt, men onödigt)\n\n"},
+   [{1,"\n\nOBS! Ovanstående meddelanden om TCP/IP är helt normalt.\n Det görs för att föhindra erlang att kontakta DNS via internet\n(ofarligt, men onödigt)\n\n"},
     {7,"Geometri"}]},
   {init_menubar,
    [{1,"Arkiv"},
@@ -142,15 +142,15 @@
     {20,"Avbryt"},
     {21,"Ta bort virtuella speglingar för alla objekt"},
     {22,"Frys"},
-    {23,"Skapa riktigt geometri ifrån virtuella spegling"},
+    {23,"Skapa riktig geometri från virtuell spegling"},
     {24,"Screenshot"},
     {25,"Ta en bild av Wings fönstret (exportera den ifrån Outliner)"}]},
   {undo_info,
-   [{1,"det finns inga \"ångra\" tillstånd"},
-    {2,"det finns ett \"ångra\" tillstång"},
-    {3,"det finns ~p \"ångra\" tillstånd"},
-    {4,"; ett kommando kan bli upprepat"},
-    {5,"; ~p kommadon kan bli upprepade"}]},
+   [{1,"det finns inga ångrade kommandon"},
+    {2,"det finns ett ångrat kommando"},
+    {3,"det finns ~p ångrade kommandon"},
+    {4,"; ett kommando kan upprepas"},
+    {5,"; ~p kommadon kan upprepas"}]},
   {window_menu,
    [{1,"Geometrigraf"},
     {2,"Geometrigraf #"},
@@ -228,7 +228,7 @@
     {29,"Döp om..."},
     {30,"Döp om valda objekt"},
     {31,"Till arealjus"},
-    {32,"Konvertera valda objekt till arealysen"},
+    {32,"Konvertera valda objekt till arealjus"},
     {33,"Från arealjus"},
     {34,"Konvertera markerade arealjus till objekt"},
     {35,"Läge"},
@@ -248,7 +248,7 @@
   {unify_modes,
    [{1,"Objekt med färgpunkter kan inte kombineras med objekt med material."}]},
   {weld,
-   [{1,"Distans Tolerans"},
+   [{1,"Avståndstolerans"},
     {2,"Sätt ihop"}]},
   {weld_1,
    [{1,"Hittade inga ytor att sätta ihop."}]}]}.
@@ -267,12 +267,12 @@
   {help,
    [{1,"Starta kameran"}]},
   {info,
-   [{1,"OBS: Bara Nendo-kameraläget kan användas med en enknappsmus."},
-    {2,"OBS: Bara Nendo- och Blender-kameralägena kan användas "
+   [{1,"OBS! Bara Nendo-kameraläget kan användas med en enknappsmus."},
+    {2,"OBS! Bara Nendo- och Blender-kameralägena kan användas "
      "med en tvåknapparsmus."},
-    {3,"OBS: "},
+    {3,"OBS! "},
     {4,"-kameraläget kräver minst två musknappar"},
-    {5,"OBS: "},
+    {5,"OBS! "},
     {6,"-kameraläget kräver minst tre musknappar"}]},
   {message,
    [{2,"Rör musen för att zooma"},
