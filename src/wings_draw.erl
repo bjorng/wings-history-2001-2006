@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.53 2002/01/28 08:51:37 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.54 2002/01/29 14:17:17 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -661,12 +661,17 @@ draw_vec(Center, Vec0) ->
     End = e3d_vec:add(Center,Vec),
     HeadVec = e3d_vec:mul(Vec, -0.2),
     HeadPt = e3d_vec:add(End, HeadVec),
-    PosHead0 = e3d_vec:cross(HeadVec, {0.25,0.25,0.25}),
-    PosHead1 = e3d_vec:cross(HeadVec, {-0.25,-0.25,-0.25}),
-
+    case HeadVec of
+	{Same,Same,Same} ->
+	    PosHead0 = e3d_vec:cross(HeadVec, {0.25,-0.25,0.25}),
+	    PosHead1 = e3d_vec:cross(HeadVec, {-0.25,0.25,-0.25});
+	Other ->
+	    PosHead0 = e3d_vec:cross(HeadVec, {0.25,0.25,0.25}),
+	    PosHead1 = e3d_vec:cross(HeadVec, {-0.25,-0.25,-0.25})
+    end,
     Width = wings_pref:get_value(active_vector_width),
     gl:color3fv(wings_pref:get_value(active_vector_color)),
-    gl:pointSize(Width*4),
+    gl:pointSize(Width*3.5),
 
     gl:'begin'(?GL_POINTS),
     gl:vertex3fv(Center),
