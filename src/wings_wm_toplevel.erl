@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.5 2003/01/21 11:02:36 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.6 2003/01/22 21:34:40 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -38,7 +38,7 @@ toplevel(Name, Title, Pos, Size, Flags, Op) ->
 	}).
 
 new_controller(Client, Title, Flags) ->
-    TitleBarH = ?LINE_HEIGHT+3,
+    TitleBarH = title_height(),
     {{X,Y},{W0,_}} = wings_wm:win_rect(Client),
     Z = wings_wm:win_z(Client),
     Controller = {controller,Client},
@@ -72,6 +72,10 @@ ctrl_create_windows([{toolbar,Create}|Flags], Client) ->
     ctrl_create_windows(Flags, Client);
 ctrl_create_windows([resizable|Flags], Client) ->
     Name = ctrl_new_resizer(Client),
+    wings_wm:link(Client, Name),
+    ctrl_create_windows(Flags, Client);
+ctrl_create_windows([closable|Flags], Client) ->
+    Name = new_closer(Client),
     wings_wm:link(Client, Name),
     ctrl_create_windows(Flags, Client);
 ctrl_create_windows([_|Flags], Client) ->
@@ -128,7 +132,7 @@ ctrl_event(#mousemotion{state=?SDL_RELEASED},
 	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
     wings_wm:grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
-ctrl_event(#mousemotion{state=?SDL_RELEASED}, _) ->
+ctrl_event(#mousemotion{}, _) ->
     {One,Two,Three} = wings_camera:button_names(),
     wings_wm:message(["Drag ",One," Move  ",Two," Fit  ",Three," Show menu"]),
     keep;
@@ -163,14 +167,17 @@ ctrl_event({action,{titlebar,Action}}, Cs) ->
 ctrl_event(_, _) -> keep.
 
 ctrl_redraw(#ctrl{title=Title}) ->
-    TitleBarH = ?LINE_HEIGHT+3,
     wings_io:ortho_setup(),
     {W,_} = wings_wm:win_size(),
     Color = {0.3,0.4,0.3},
+    TitleBarH = title_height(),
     wings_io:border(0, 0, W-0.5, TitleBarH, Color),
     gl:color3f(1, 1, 1),
     wings_io:text_at(10, TitleBarH-5, Title),
     keep.
+
+title_height() ->
+    ?LINE_HEIGHT+3.
 
 ctrl_constrain_move(Dx0, Dy0) ->
     {{DeskX,DeskY},{DeskW,DeskH}} = wings_wm:win_rect(desktop),
@@ -454,10 +461,6 @@ set_knob(Name, Pos, Proportion) ->
 vscroller_width() ->
     13.
 
-%%%
-%%% Implementation.
-%%%
-
 get_event(Ss) ->
     {replace,fun(Ev) -> event(Ev, Ss) end}.
 
@@ -529,3 +532,42 @@ min(_, B) -> B.
 
 max(A, B) when A > B -> A;
 max(_, B) -> B.
+
+%%%
+%%% A close box.
+%%%
+
+new_closer(Client) ->
+    {X,Y,Z} = closer_pos(Client),
+    Name = {closer,Client},
+    wings_wm:new(Name, {X,Y,Z}, {14,13},
+		 {push,fun close_event/1}),
+    Name.
+
+close_event(redraw) ->
+    wings_io:ortho_setup(),
+    gl:enable(?GL_TEXTURE_2D),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+    wings_io:draw_icon(0, 0, 14, 13, 16, 16, small_close),
+    gl:bindTexture(?GL_TEXTURE_2D, 0),
+    gl:disable(?GL_TEXTURE_2D),
+    keep;
+close_event(#mousebutton{button=1,state=?SDL_RELEASED}) ->
+    {_,Client} = wings_wm:active_window(),
+    wings_wm:delete(Client),
+    delete;
+close_event({window_updated,Client}) ->
+    Pos = closer_pos(Client),
+    wings_wm:move(wings_wm:active_window(), Pos),
+    keep;
+close_event(_) -> keep.
+
+closer_pos(Client) ->
+    {{X0,Y0},{W,_}} = wings_wm:win_rect(Client),
+    TitleH = title_height(),
+    Y = Y0 - TitleH + (TitleH-14) div 2 + 1,
+    Z = wings_wm:win_z(Client),
+    case wings_wm:is_window({vscroller,Client}) of
+	false ->  {X0+W-16,Y,Z+0.6};
+	true -> {X0+W+13-16,Y,Z+0.6}
+    end.

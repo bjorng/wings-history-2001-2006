@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.9 2003/01/22 06:50:47 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.10 2003/01/22 21:34:40 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -47,7 +47,7 @@ window(St) ->
 	    Pos = {DeskW-5,DeskY+55,?Z_OUTLINER},
 	    Size = {W,DeskH div 2},
 	    wings_wm:toplevel(outliner, "Outliner", Pos, Size,
-			      [resizable,vscroller,{anchor,ne}], Op),
+			      [resizable,closable,vscroller,{anchor,ne}], Op),
 	    wings_wm:send(outliner, Current),
 	    keep
     end.

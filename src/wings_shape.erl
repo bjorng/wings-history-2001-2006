@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.46 2003/01/18 21:12:40 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.47 2003/01/22 21:34:40 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -80,7 +80,7 @@ window(St) ->
 	    Pos = {DeskW-5,DeskY+55,?Z_OBJECTS},
 	    Size = {W,DeskH div 2},
 	    wings_wm:toplevel(object, "Objects", Pos, Size,
-			      [resizable,vscroller,{anchor,ne}], Op),
+			      [resizable,closable,vscroller,{anchor,ne}], Op),
 	    wings_wm:send(object, Current),
 	    keep
     end.
