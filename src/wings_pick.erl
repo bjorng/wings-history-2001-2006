@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.119 2003/08/31 12:30:12 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.120 2003/08/31 19:43:45 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -433,7 +433,9 @@ raw_pick(X0, Y0, St) ->
     gl:disable(?GL_CULL_FACE),
     case get_hits(HitBuf) of
 	none -> none;
-	Hits -> filter_hits(Hits, X, Y, St)
+	Hits ->
+	    {Id,Face} = best_face_hit(Hits),
+	    convert_hit(Id, Face, X, Y, St)
     end.
 
 update_selection({Mode,MM,{Id,Item}}, #st{sel=Sel0}=St) ->
@@ -478,58 +480,65 @@ get_hits_1(N, [2,_,_,A,B|T], Acc) ->
     get_hits_1(N-1, T, [{A,B}|Acc]).
 
 %%%
-%%% Filter hits to obtain just one hit.
+%%% Filter face hits to obtain just one hit.
 %%%
 
-filter_hits(Hits, X, Y, #st{selmode=Mode0,shapes=Shs,sel=Sel,sh=Sh}) ->
+best_face_hit([Hit]) -> Hit;
+best_face_hit(Hits0) ->
+    Hits = sort([{abs(Id),Id,Face} || {Id,Face} <- Hits0]),
+    EyePoint = wings_view:eye_point(),
+    {_,Best,_} = wings_draw_util:fold(fun(D, A) ->
+					      best_face_hit_1(D, EyePoint, A) end,
+				      {Hits,none,infinite}),
+    Best.
+
+best_face_hit_1(#dlo{src_we=#we{id=Id}=We}, EyePoint,
+		{[{Id,_,_}|_],_,_}=A) ->
+    best_face_hit_2(We, EyePoint, A);
+best_face_hit_1(_, _, A) -> A.
+
+best_face_hit_2(#we{id=AbsId}=We, EyePoint, {[{AbsId,Id,Face}|Hits],PrevHit,DistSqr0}) ->
+    Mtx = if 
+	      Id < 0 -> wings_util:mirror_matrix(AbsId);
+	      true -> identity
+	  end,
+    Vs = wings_face:vertices_cw(Face, We),
+    Center = mul_point(Mtx, wings_vertex:center(Vs, We)),
+    Vec = e3d_vec:sub(Center, EyePoint),
+    DistSqr = e3d_vec:dot(Vec, Vec),
+    A = if
+	    DistSqr < DistSqr0 ->
+		{Hits,{Id,Face},DistSqr};
+	    true ->
+		{Hits,PrevHit,DistSqr0}
+	end,
+    best_face_hit_2(We, EyePoint, A);
+best_face_hit_2(_, _, A) -> A.
+
+mul_point(identity, P) -> P;
+mul_point(Mtx, P) -> e3d_mat:mul_point(Mtx, P).
+
+%%
+%% Given a face selection hit, return the correct vertex/edge/face/body.
+%%
+
+convert_hit(Id, Face, X, Y, #st{selmode=Mode0,shapes=Shs,sel=Sel,sh=Sh}) ->
     Mode = if
 	       Sh, Mode0 =/= body, Sel == [] ->
 		   {auto,Mode0};
 	       true -> Mode0
 	   end,
-    EyePoint = wings_view:eye_point(),
-    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, none).
-
-filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
-    Mtx = if 
-	      Id < 0 -> wings_util:mirror_matrix(-Id);
-	      true -> identity
-	  end,
     We = gb_trees:get(abs(Id), Shs),
-    Vs = wings_face:vertices_cw(Face, We),
-    Hit = best_hit(Id, Face, Vs, We, EyePoint, Mtx, Hit0),
-    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit);
-filter_hits_1([], _Shs, _Mode, _X, _Y, _EyePoint, none) -> none;
-filter_hits_1([], _Shs, Mode, X, Y, _EyePoint, {_,{Id,Face,We}}) ->
     if
-	Id < 0 -> convert_hit(Mode, X, Y, -Id, Face, mirror, We);
-	true -> convert_hit(Mode, X, Y, Id, Face, original, We)
+	Id < 0 -> convert_hit_1(Mode, X, Y, -Id, Face, mirror, We);
+	true -> convert_hit_1(Mode, X, Y, Id, Face, original, We)
     end.
 
-mul_point(identity, P) -> P;
-mul_point(Mtx, P) -> e3d_mat:mul_point(Mtx, P).
-
-best_hit(Id, Face, Vs, We, EyePoint, Matrix, Hit0) ->
-    Center = mul_point(Matrix, wings_vertex:center(Vs, We)),
-    D = e3d_vec:sub(Center, EyePoint),
-    DistSqr = e3d_vec:dot(D, D),
-    case Hit0 of
-	none ->
-	    {DistSqr,{Id,Face,We}};
-	{DistSqr0,_} when DistSqr < DistSqr0 ->
-	    {DistSqr,{Id,Face,We}};
-	_Other -> Hit0
-    end.
-
-%%
-%% Given a selection hit, return the correct vertex/edge/face/body.
-%%
-
-convert_hit(body, _X, _Y, Id, _Face, MM, _We) ->
+convert_hit_1(body, _X, _Y, Id, _Face, MM, _We) ->
     {body,MM,{Id,0}};
-convert_hit(face, _X, _Y, Id, Face, MM, _We) ->
+convert_hit_1(face, _X, _Y, Id, Face, MM, _We) ->
     {face,MM,{Id,Face}};
-convert_hit({auto,_}, X, Y, Id, Face, MM, We) ->
+convert_hit_1({auto,_}, X, Y, Id, Face, MM, We) ->
     Trans = wings_util:get_matrices(Id, MM),
     Vs = sort(find_vertex(Face, We, X, Y, Trans)),
     [{Vdist0,{Xva,Yva},V},{_,{Xvb,Yvb},_}|_] = Vs,
@@ -548,7 +557,7 @@ convert_hit({auto,_}, X, Y, Id, Face, MM, We) ->
 		 true -> {face,MM,{Id,Face}}
 	     end,
     check_restriction(Hilite, Id, V, Edge, Face);
-convert_hit(Mode, X, Y, Id, Face, MM, We) ->
+convert_hit_1(Mode, X, Y, Id, Face, MM, We) ->
     Trans = wings_util:get_matrices(Id, MM),
     case Mode of
 	vertex ->
