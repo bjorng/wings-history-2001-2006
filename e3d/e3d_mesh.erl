@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.2 2001/08/20 07:34:28 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.3 2001/08/24 08:44:12 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -458,34 +458,41 @@ is_convex([A,B], [], Plane, Vtab) -> true.
 vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
     Vtab = list_to_tuple(Vtab0),
     FaceNormals = face_normals(Ftab, Vtab),
-    AllVs = sofs:from_term(seq(0, size(Vtab)-1), [atom]),
-    HardVs = hard_vertices(He),
-    SoftVs = sofs:difference(AllVs, HardVs),
+
+    %% Calculate normals for vertices with no hard edges.
     VtxFace0 = vtx_to_face_tab(Ftab),
-    VtxFace = sofs:restriction(VtxFace0, SoftVs),
+    HardVs = sofs:field(sofs:relation(He)),
+    VtxFace = sofs:drestriction(VtxFace0, HardVs),
     VtxNormals0 = vertex_normals(sofs:to_external(VtxFace), 0, FaceNormals),
-    VtxNormals = gb_trees:from_orddict(VtxNormals0),
-    Faces = vn_faces(Ftab, VtxNormals, FaceNormals, []),
+
+    %% Calculate normals for vertices surrounded by one or more hard edges.
+    VtxNormals1 = vn_hard_normals(He, Ftab, FaceNormals, VtxNormals0),
+
+    %% Generate face data.
+    VtxNormals = gb_trees:from_orddict(sort(VtxNormals1)),
+    Faces = vn_faces(Ftab, VtxNormals, 0, []),
     Normals0 = wings_util:gb_trees_values(VtxNormals),
     Normals1 = sort(Normals0),
     Normals = [N || {Vn,N} <- Normals1],
     {Faces,Normals}.
 
-vn_faces([#e3d_face{mat=Mat,vs=Vs0}|Fs], VtxNs, FNs, Acc) ->
+vn_faces([#e3d_face{mat=Mat,vs=Vs0}|Fs], VtxNormals, Face, Acc) ->
     Vs1 = foldl(fun(V, A) ->
-			vn_face(V, VtxNs, FNs, A)
+			vn_face(V, VtxNormals, Face, A)
 		end, [], Vs0),
     Vs = reverse(Vs1),
-    vn_faces(Fs, VtxNs, FNs, [{Mat,Vs}|Acc]);
-vn_faces([], VtxNs, FNs, Acc) -> reverse(Acc).
+    vn_faces(Fs, VtxNormals, Face+1, [{Mat,Vs}|Acc]);
+vn_faces([], VtxNormals, Face, Acc) -> reverse(Acc).
 
-vn_face(V, VtxNs, FNs, Acc) ->
-    [{V,vn_lookup(V, VtxNs)}|Acc].
+vn_face(V, VtxNormals, Face, Acc) ->
+    [{V,vn_lookup(V, Face, VtxNormals)}|Acc].
     
-vn_lookup(V, VtxNs) ->
-    case gb_trees:lookup(V, VtxNs) of
+vn_lookup(V, Face, VtxNormals) ->
+    case gb_trees:lookup(V, VtxNormals) of
 	{value,{Vn,_}} -> Vn;
-	none -> -1
+	none ->
+	    {Vn,_} = gb_trees:get({V,Face}, VtxNormals),
+	    Vn
     end.
 	    
 face_normals(Ftab, Vtab) ->
@@ -514,8 +521,55 @@ vertex_normals([{V,Fs}|Vfs], Vn, FaceNormals, Acc) ->
     Ns = [gb_trees:get(F, FaceNormals) || F <- Fs],
     N = e3d_vec:norm(e3d_vec:add(Ns)),
     vertex_normals(Vfs, Vn+1, FaceNormals, [{V,{Vn,N}}|Acc]);
-vertex_normals([], Vn, FaceNormals, Acc) -> reverse(Acc).
+vertex_normals([], Vn, FaceNormals, Acc) -> Acc.
 
-hard_vertices(He) ->
-    R = sofs:relation(He),
-    sofs:field(R).
+vn_hard_normals([], Fs, FaceNormals, VtxNormals) -> VtxNormals;
+vn_hard_normals(He, Fs, FaceNormals, VtxNormals0) ->
+    G = make_digraph(He, Fs),
+    Vs = digraph:vertices(G),
+    VtxNormals = vn_hard_normals_1(G, Vs, FaceNormals,
+				   length(VtxNormals0), VtxNormals0),
+    digraph:delete(G),
+    VtxNormals.
+
+vn_hard_normals_1(G, [Vg|Vgs], FaceNormals, Vn, Acc) ->
+    Reachable = digraph_utils:reachable([Vg], G),
+    N = case [gb_trees:get(Face, FaceNormals) || {_,Face} <- Reachable] of
+	    [N0] -> N0;
+	    Ns -> e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns))
+	end,
+    vn_hard_normals_1(G, Vgs, FaceNormals, Vn+1, [{Vg,{Vn,N}}|Acc]);
+vn_hard_normals_1(G, [], FaceNormals, Vn, Acc) -> Acc.
+    
+make_digraph(He, Fs) ->
+    Hard = sofs:from_list(He),
+    Edges = sofs:relation(vn_face_edges(Fs, 0, [])),
+    Soft0 = sofs:restriction(Edges, Hard),
+    Soft = sofs:relation_to_family(Soft0),
+    make_digraph_1(digraph:new(), sofs:to_external(Soft)).
+
+make_digraph_1(G, [{{Va,Vb},[Fx,Fy]}|T]) ->
+    digraph_add_edge(G, {Va,Fx}, {Va,Fy}),
+    digraph_add_edge(G, {Vb,Fx}, {Vb,Fy}),
+    make_digraph_1(G, T);
+make_digraph_1(G, [_|T]) ->
+    make_digraph_1(G, T);
+make_digraph_1(G, []) -> G.
+
+digraph_add_edge(G, Va, Vb) ->
+    digraph:add_vertex(G, Va),
+    digraph:add_vertex(G, Vb),
+    digraph:add_edge(G, Va, Vb),
+    digraph:add_edge(G, Vb, Va).
+
+vn_face_edges([#e3d_face{vs=Vs}|Fs], Face, Acc) ->
+    vn_face_edges(Fs, Face+1, vn_pairs(Vs, Vs, Face, Acc));
+vn_face_edges([], Face, Acc) -> Acc.
+
+vn_pairs([V1|[V2|_]=Vs], More, Face, Acc) ->
+    vn_pairs(Vs, More, Face, [{vn_edge_name(V1, V2),Face}|Acc]);
+vn_pairs([V1], [V2|_], Face, Acc) ->
+    [{vn_edge_name(V1, V2),Face}|Acc].
+
+vn_edge_name(Va, Vb) when Va < Vb -> {Va,Vb};
+vn_edge_name(Va, Vb) -> {Vb,Va}.

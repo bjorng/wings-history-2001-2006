@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.1 2001/08/14 18:16:31 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.2 2001/08/24 08:44:12 bjorng Exp $
 %%
 
 -module(e3d_vec).
 
--export([zero/0,add/1,add/2,sub/2,mul/2,neg/1,
+-export([zero/0,add/1,add/2,sub/2,mul/2,divide/2,neg/1,
 	 dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,normal/3]).
 -compile({inline,[{norm,3}]}).
 
@@ -49,6 +49,9 @@ sub({V10,V11,V12}, {V20,V21,V22}) when float(V10), float(V11), float(V12),
 
 mul({V10,V11,V12}, S) when float(V10), float(V11), float(V12), float(S) ->
     {V10*S,V11*S,V12*S}.
+
+divide({V10,V11,V12}, S) when float(V10), float(V11), float(V12), float(S) ->
+    {V10/S,V11/S,V12/S}.
 
 neg({X,Y,Z}) -> {-X,-Y,-Z}.
 
