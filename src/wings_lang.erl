@@ -14,17 +14,134 @@
 %%   riccardo venier (verme@insiberia.net)
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
+%%  
 %%  /Dan
 
 -module(wings_lang).
 -include("wings.hrl").
 
+%% Wings api
+-export([str/2, str/4, 
+	 available_languages/0, 
+	 load_language/1]).
+
+%% Translation support tools
 -export([generate_template/1,diff/2]).
-%%-compile(export_all).
+
 -import(lists, [reverse/1]).
 
+-define(DEF_LANG, "en").  % English
+-define(LANG_DIRS, ["ebin","src", "plugins"]).
 
-%% Tools
+str(Key, DefStr) ->
+    case get(?MODULE) of
+	?DEF_LANG -> DefStr;
+	_ -> %% Be safe and catch
+	    case catch ets:lookup(?MODULE,Key) of
+		[{_,Str}] -> binary_to_list(Str);
+		_ -> DefStr
+	    end
+    end.
+
+str(K1,K2,K3,DefStr) ->
+    str({K1,K2,K3}, DefStr).
+
+init() ->
+    Lang = 
+	case wings_pref:get_value(language) of 
+	    undefined -> 
+		wings_pref:set_value(language, ?DEF_LANG),
+		?DEF_LANG;
+	    Else ->
+		case lists:member(Else, available_languages()) of
+		    true -> 
+			Else;
+		    false ->
+			?DEF_LANG
+		end
+	end,
+    load_language(Lang),
+    ok.
+
+load_language(Lang) when atom(Lang) ->
+    load_language(atom_to_list(Lang));
+load_language(Lang) ->
+    catch ets:delete(?MODULE), 
+    case Lang of
+	?DEF_LANG -> 
+	    put(?MODULE, Lang), 
+	    ok;
+	_  ->
+	    ets:new(?MODULE, [named_table]),
+	    Root = code:lib_dir(wings),
+	    load_language(Root,?LANG_DIRS,"_" ++ Lang++".lang"),
+	    put(?MODULE, Lang),
+	    ok
+    end.
+
+load_language(_, [],_) -> ok;
+load_language(Root, [Dir|Dirs], Lang) ->
+    Path = filename:join(Root, Dir),
+    case file:list_dir(Path) of
+	{ok, List} ->
+	    load_language2(Path, List, Lang),
+	    load_language(Root,Dirs,Lang);
+	_ -> 
+	    load_language(Root,Dirs, Lang)
+    end.
+
+load_language2(Dir, [File|Fs], Lang) ->
+    case catch lists:nthtail(length(File)-length(Lang), File) of
+	Lang -> 
+	    case file:consult(filename:join(Dir,File)) of
+		{ok, Terms} -> load_file(Terms);
+		Error ->
+		    io:format("Couldn't read language file ~p: ~p~n",
+			      [File, Error])
+	    end;
+	_ ->
+	    Path = filename:join(Dir,File),
+	    case filelib:is_dir(Path) of
+		true ->
+		    load_language(Dir, [File], Lang);
+		false ->
+		    ignore
+	    end
+    end,
+    load_language2(Dir,Fs,Lang);
+load_language2(_,[],_) -> ok.
+
+load_file(Trans) ->
+    Add = fun(Level,Str) -> 
+		  Key = list_to_tuple(reverse(Level)),
+		  ets:insert(?MODULE,{Key,list_to_binary(Str)}) 
+	  end,
+    Trav = 
+	fun(Data = [Cont|_], Level, Trav) when is_tuple(Cont) ->
+		Insert = fun({Key, Next}) ->
+				 Trav(Next, [Key|Level], Trav)
+			 end,
+		lists:foreach(Insert, Data);
+	   (Str, Level, _) ->
+		Add(Level,Str)
+	end,
+    Trav(Trans,[],Trav).
+
+available_languages() ->
+    Root = code:lib_dir(wings),
+    Files = 
+	filelib:wildcard(filename:join([Root,"src","*.lang"])) ++ 
+	filelib:wildcard(filename:join([Root,"ebin","*.lang"])),
+    Extract = fun(File, Acc) ->
+		      case string:tokens(filename:rootname(File),[$_]) of
+			  [_Name,Lang] -> [Lang|Acc];
+			  _ -> Acc
+		      end
+	      end,
+    lists:usort([?DEF_LANG|lists:foldl(Extract, [], Files)]).
+    			     
+%%%%%%%%%% Tools %%%%%%%%%%%
+
 diff(LangFile,EngTmplFile) ->
     {ok, Lang} = file:consult(LangFile),
     {ok, Eng} = file:consult(EngTmplFile),

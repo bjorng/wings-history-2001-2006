@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.124 2004/10/08 06:02:30 dgud Exp $
+%%     $Id: wings_pref.erl,v 1.125 2004/10/13 13:59:46 dgud Exp $
 %%
 
 -module(wings_pref).
@@ -209,6 +209,8 @@ advanced_prefs() ->
 
 ui_prefs() ->
     Fonts = wings_text:fonts(),
+    Langs0 = wings_lang:available_languages(),
+    Langs = [{Lang,Lang} || Lang <- Langs0],
     {hframe,
      [{vframe,
        [{vframe,
@@ -244,6 +246,9 @@ ui_prefs() ->
        ]},
       {vframe,
        [{vframe,
+	 [{menu,Langs,language}],
+	 [{title,?STR(ui_prefs,23,"Language")}]},
+	{vframe,
 	 [{menu,Fonts,console_font}],
 	 [{title,?STR(ui_prefs,15,"Console Font")}]},
 	{hframe,[{vframe,[{label,?STR(ui_prefs,16,"Width")},
@@ -274,7 +279,6 @@ misc_prefs() ->
 		      not gb_trees:get(autosave, Store);
 		 (_, _) -> void
 	      end,
-%%    Lang = wings_lang:lang_list(),
     {vframe,
      [{hframe,[{?STR(misc_prefs,2,"Save automatically every"),autosave},
 	       {text,autosave_time,[{hook,AutoFun},{range,{1,1440}}]},
@@ -316,14 +320,6 @@ misc_prefs() ->
 		    ?STR(misc_prefs,20,"Problem occurs on Mac OS X 10.3 (Panther)")}
 		  ]),
        [{title,?STR(misc_prefs,21,"Workarounds")}]}
-%     {hframe,
-%       [{
-%       	menu,
-% %%     	Lang,
-%       	lang
-%       }],
-%       [{title,?STR(misc_prefs,22,"Languages")}]}
-       
      ]}.
 
 workaround(L) ->
@@ -372,10 +368,9 @@ smart_set_value_1(Key, Val, St) ->
 		    wings_wm:translation_change();
 		no_progress_bar ->
 		    wings_pb:init();
-% 		lang->
-% 		    delayed_set_value(Key,OldVal,Val),  
-% 		    wings_util:message(?STR(smart_set_value_1,2,"The change to the system language will take effect the next time Wings 3D is started."));  
-		_Other -> ok
+ 		language ->
+		    wings_lang:load_language(Val);
+        	_Other -> ok
 	    end
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.310 2004/10/08 14:33:06 dgud Exp $
+%%     $Id: wings.erl,v 1.311 2004/10/13 13:59:45 dgud Exp $
 %%
 
 -module(wings).
@@ -74,21 +74,20 @@ do_spawn(File, Flags) ->
 
 init(File) ->
     register(wings, self()),
-
+    
     OsType = os:type(),
     put(wings_os_type, OsType),
     wings_pref:init(),
-%    wings_lang:init(),
-%    wings_lang:init("src",?MODULE),	
+    wings_lang:init(),
     
     case OsType of
 	{win32,_} ->
-	 io:format(?STR(init,1,
-			"\n\nNote: The above messages about failing "
-			"to locate TCP/IP parameters are normal.\n"
-			"It is done to prevent Erlang from contacting "
-			"DNS name servers on the Internet\n"
-			"(harmless, but no need for Wings to do it)\n\n"));         
+	    io:format(?STR(init,1,
+			   "\n\nNote: The above messages about failing "
+			   "to locate TCP/IP parameters are normal.\n"
+			   "It is done to prevent Erlang from contacting "
+			   "DNS name servers on the Internet\n"
+			   "(harmless, but no need for Wings to do it)\n\n"));
 	_-> ok
     end,
 
@@ -102,9 +101,7 @@ init(File) ->
 
     wings_camera:init(),
     wings_vec:init(),
-    
-%    wings_lang:init(all,modules),
-    
+        
     Empty = gb_trees:empty(),
     St0 = #st{shapes=Empty,
 	      selmode=face,
