@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.110 2003/12/03 05:31:06 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.111 2003/12/05 19:50:34 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -166,6 +166,8 @@ compatibility_prefs() ->
        [{info,"Try turning this preference off if get strange display artifacts such as missing edges"}]},
       {"Use Display Lists for Text",text_display_lists,
        [{info,"Try turning this preference off if there are problems displaying text"}]},
+      {"Broken glEdgeFlag",broken_gl_edge_flag,
+       [{info,"If faces are shown triangulated, try turning on this preference"}]},
       {"Show Dummy Axis Letter",dummy_axis_letter,
        [{info,"Showing a dummy axis letter can prevent a crash with some Matrox graphics cards/drivers"}]}
      ]}.
@@ -593,6 +595,7 @@ defaults() ->
      %% Compatibility preferences.
      {display_list_opt,true},
      {text_display_lists,true},
+     {broken_gl_edge_flag,false},
      {dummy_axis_letter,false},
 
      %% Advanced features.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.113 2003/10/27 17:59:09 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.114 2003/12/05 19:50:34 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -19,7 +19,7 @@
 	 plain_face/2,plain_face/3,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_plain_faces/2,smooth_uv_faces/2,smooth_vcol_faces/2,
 	 unlit_face/2,unlit_face/3,
-	 force_flat_color/2,good_triangulation/5]).
+	 force_flat_color/2,force_flat_color/3,good_triangulation/5]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -719,13 +719,17 @@ good_triangulation_1(_, _) -> false.
 %%  Wrap a previous display list (that includes gl:color*() calls)
 %%  into a new display lists that forces the flat color Color
 %%  on all elements.
-force_flat_color(OriginalDlist, {R,G,B}) ->
+force_flat_color(Dl, RGB) ->
+    force_flat_color(Dl, RGB, fun() -> ok end).
+
+force_flat_color(OriginalDlist, {R,G,B}, DrawExtra) ->
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
     gl:pushAttrib(?GL_CURRENT_BIT bor ?GL_ENABLE_BIT bor
 		  ?GL_POLYGON_BIT bor ?GL_LINE_BIT bor
 		  ?GL_COLOR_BUFFER_BIT bor
 		  ?GL_LIGHTING_BIT),
+    DrawExtra(),
     gl:enable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_LIGHT0),

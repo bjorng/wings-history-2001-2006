@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.62 2003/11/28 05:59:03 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.63 2003/12/05 19:50:34 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -562,6 +562,7 @@ draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
     gl:disable(?GL_COLOR_MATERIAL),
     gl:endList(),
 
+    
     Edges = wings_draw_util:force_flat_color(BasicFaces,
 					     wings_pref:get_value(edge_color)),
 

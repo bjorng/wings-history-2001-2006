@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.160 2003/11/09 19:20:24 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.161 2003/12/05 19:50:34 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -110,7 +110,7 @@ invalidate_by_mat(#dlo{src_we=We}=D, Changed) ->
     Used = wings_material:used_materials_we(We),
     case gb_sets:is_empty(gb_sets:intersection(Used, Changed)) of
 	true -> D;
-	false -> D#dlo{work=none,vs=none,smooth=none,proxy_faces=none}
+	false -> D#dlo{work=none,edges=none,vs=none,smooth=none,proxy_faces=none}
     end.
 
 empty_we(We) ->
@@ -182,7 +182,7 @@ face_ns_data(N, Ps) -> {N,Ps}.
 %%%
 
 %%
-%% Pass 1 starts here.
+%% Pass 1 starts here. (Find out needed display lists.)
 %%
 
 do_update_dlists(#st{selmode=vertex}=St) ->
@@ -232,7 +232,7 @@ do_update_dlists_3(CommonNeed, St) ->
 
 need_fun(#dlo{src_we=We}, _, _, Acc) when ?IS_LIGHT(We) ->
     [[light]|Acc];
-need_fun(#dlo{src_we=#we{he=Htab,mode=Mode},proxy_data=Pd}, Need0, _St, Acc) ->
+need_fun(#dlo{src_we=#we{he=Htab},proxy_data=Pd}, Need0, _St, Acc) ->
     Need1 = case gb_sets:is_empty(Htab) orelse not wings_pref:get_value(show_edges) of
 		false -> [hard_edges|Need0];
 		true -> Need0
@@ -241,10 +241,7 @@ need_fun(#dlo{src_we=#we{he=Htab,mode=Mode},proxy_data=Pd}, Need0, _St, Acc) ->
 		Pd =:= none -> Need1;
 		true -> [proxy|Need1]
 	    end,
-    Need = if
-	       Mode =:= vertex -> Need2 ++ [vertex_mode_edges];
-	       true -> Need2
-	   end,
+    Need = Need2 ++ [edges],
     [Need|Acc].
 
 wins_of_same_class() ->
@@ -302,14 +299,60 @@ update_fun_2(hard_edges, #dlo{hard=none,src_we=#we{he=Htab}=We}=D, _) ->
     gl:'end'(),
     gl:endList(),
     D#dlo{hard=List};
-update_fun_2(vertex_mode_edges, #dlo{work=Work}=D, _) ->
-    Dl = force_flat(Work, wings_pref:get_value(edge_color)),
-    D#dlo{edges=Dl};
+update_fun_2(edges, #dlo{edges=none,src_we=#we{fs=Ftab}}=D, _) ->
+    EdgeDl = make_edge_dl(Ftab, D),
+    D#dlo{edges=EdgeDl};
 update_fun_2(normals, D, _) ->
     make_normals_dlist(D);
 update_fun_2(proxy, D, St) ->
     wings_subdiv:update(D, St);
 update_fun_2(_, D, _) -> D.
+
+make_edge_dl(Faces, D) ->
+    case wings_pref:get_value(broken_gl_edge_flag) of
+	false -> make_edge_dl_1(D);
+	true -> make_edge_dl_2(Faces, D)
+    end.
+
+make_edge_dl_1(#dlo{work=Work,src_we=#we{mode=vertex}}) ->
+    force_flat(Work, wings_pref:get_value(edge_color));
+make_edge_dl_1(#dlo{work=Work}) -> Work.
+
+make_edge_dl_2(Faces, #dlo{ns=Ns}) ->
+    Dl = gl:genLists(1),
+    gl:newList(Dl, ?GL_COMPILE),
+    make_edge_dl_3(Faces, Ns),
+    gl:endList(),
+    Dl.
+
+make_edge_dl_3(Faces, Ns) ->
+    case sofs:is_sofs_set(Faces) of
+	false -> make_edge_dl_4(gb_trees:keys(Faces), Ns);
+	true -> make_edge_dl_4(sofs:to_external(Faces), Ns)
+    end.
+
+make_edge_dl_4([F|Fs], Ns) ->
+    case gb_trees:get(F, Ns) of
+	[_|[A,B,C]] ->
+	    gl:'begin'(?GL_TRIANGLES),
+	    gl:vertex3dv(A),
+	    gl:vertex3dv(B),
+	    gl:vertex3dv(C),
+	    gl:'end'();
+	[_|[A,B,C,D]] ->
+	    gl:'begin'(?GL_QUADS),
+	    gl:vertex3dv(A),
+	    gl:vertex3dv(B),
+	    gl:vertex3dv(C),
+	    gl:vertex3dv(D),
+	    gl:'end'();
+	{_,VsPos} ->
+	    gl:'begin'(?GL_POLYGON),
+	    foreach(fun(V) -> gl:vertex3dv(V) end, VsPos),
+	    gl:'end'()
+    end,
+    make_edge_dl_4(Fs, Ns);
+make_edge_dl_4([], _) -> ok.
 
 force_flat([], _) -> [];
 force_flat([H|T], Color) ->
@@ -458,16 +501,17 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd,ns=Ns0}=D,
 		true ->
 		    FtabDyn0 = sofs:restriction(Ftab, Faces0),
 		    case D#dlo.work of
-			[List|_] -> Faces0;
-			{call,_,_}=List -> Faces0;
-			List when is_integer(List) -> Faces0
+			[Work|_] -> Faces0;
+			{call,_,_}=Work -> Faces0;
+			Work when is_integer(Work) -> Faces0
 		    end;
 		false ->
 		    {FtabDyn0,StaticFtab0} = sofs:partition(1, Ftab, Faces1),
 		    StaticFtab = sofs:to_external(StaticFtab0),
-		    List = draw_faces(StaticFtab, D, St),
+		    Work = draw_faces(StaticFtab, D, St),
 		    Faces1
 	    end,
+    StaticEdgeDl = make_static_edges(Faces, Ftab, Work, D),
     AllVs = sofs:image(F2V, Faces),
     
     {DynVs,VsDlist} = split_vs_dlist(AllVs, Sel, We),
@@ -481,7 +525,7 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd,ns=Ns0}=D,
     Split = Split0#split{static_vs=StaticVs,dyn_vs=DynVs,
 			 dyn_faces=Faces,dyn_plan=DynPlan,
 			 orig_ns=Ns0,orig_we=We},
-    #dlo{work=[List],mirror=M,vs=VsDlist,
+    #dlo{work=[Work],edges=[StaticEdgeDl],mirror=M,vs=VsDlist,
 	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd}.
 
 original_we(#dlo{split=#split{orig_we=We}}) -> We;
@@ -500,10 +544,17 @@ update_dynamic(#dlo{work=[Work|_],vs=VsList0,
     VsList = update_dynamic_vs(VsList0, DynVs, We),
     update_dynamic_1(D#dlo{work=[Work,Dl],vs=VsList,src_we=We}).
 
-update_dynamic_1(#dlo{work=Faces,src_we=#we{mode=vertex}}=D) ->
-    Dl = force_flat(Faces, wings_pref:get_value(edge_color)),
-    D#dlo{edges=Dl};
-update_dynamic_1(D) -> D.
+update_dynamic_1(#dlo{edges=[StaticEdge|_],split=#split{dyn_faces=Faces}}=D) ->
+    EdgeDl = make_edge_dl(Faces, D),
+    D#dlo{edges=[StaticEdge,EdgeDl]}.
+
+make_static_edges(DynFaces, DynFtab, Work, D) ->
+    case wings_pref:get_value(broken_gl_edge_flag) of
+	false -> Work;
+	true ->
+	    Ftab = sofs:difference(sofs:domain(DynFtab), DynFaces),
+	    make_edge_dl(Ftab, D)
+    end.
 
 update_dynamic_vs(VsList, none, _) -> VsList;
 update_dynamic_vs([Static|_], DynVs, #we{vp=Vtab}) ->
