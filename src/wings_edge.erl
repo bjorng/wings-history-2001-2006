@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.60 2003/02/02 16:24:36 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.61 2003/02/05 12:28:48 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -20,7 +20,8 @@
 -export([convert_selection/1,
 	 select_more/1,select_more/2,
 	 from_vs/2,
-	 select_region/1,select_edge_ring/1,
+	 select_region/1,
+	 select_edge_ring/1,select_edge_ring_incr/1, select_edge_ring_decr/1,
  	 cut/3,fast_cut/3,
  	 dissolve_edges/2,dissolve_edge/2,
  	 hardness/2,hardness/3,
@@ -726,6 +727,16 @@ select_edge_ring(#st{selmode=edge}=St) ->
     wings_sel:set(Sel, St);
 select_edge_ring(St) -> St.
 
+select_edge_ring_incr(#st{selmode=edge}=St) ->
+    Sel = wings_sel:fold(fun incr_ring_selection/3, [], St),
+    wings_sel:set(Sel, St);
+select_edge_ring_incr(St) -> St.
+
+select_edge_ring_decr(#st{selmode=edge}=St) ->
+    Sel = wings_sel:fold(fun decr_ring_selection/3, [], St),
+    wings_sel:set(Sel, St);
+select_edge_ring_decr(St) -> St.
+
 build_selection(Edges, #we{id=Id} = We, ObjAcc) ->
     [{Id,foldl(fun(Edge, EdgeAcc) -> 
 		       grow_from_edge(Edge, We, EdgeAcc) 
@@ -733,10 +744,11 @@ build_selection(Edges, #we{id=Id} = We, ObjAcc) ->
 
 grow_from_edge(unknown, _We, Selected) -> Selected;
 grow_from_edge(Edge, We, Selected0) ->
-    Selected = gb_sets:add(Edge, Selected0),
     case gb_sets:is_member(Edge, Selected0) of
-        true -> Selected;
+        true -> 
+	    Selected0;
         false ->
+	    Selected = gb_sets:add(Edge, Selected0),
 	    LeftSet = grow_from_edge(opposing_edge(Edge, We, left), We, Selected),
 	    grow_from_edge(opposing_edge(Edge, We, right), We, LeftSet)
     end.
@@ -757,6 +769,44 @@ next_edge(Edge, Face, #we{es=Etab})->
     case gb_trees:get(Edge, Etab) of
         #edge{lf=Face,ltsu=NextEdge} -> NextEdge;
         #edge{rf=Face,rtsu=NextEdge} -> NextEdge
+    end.
+
+incr_ring_selection(Edges, #we{id=Id} = We, ObjAcc) ->
+    [{Id,foldl(fun(Edge, EdgeAcc) -> 
+		       incr_from_edge(Edge, We, EdgeAcc) 
+	       end, gb_sets:empty(), gb_sets:to_list(Edges))}|ObjAcc].
+
+incr_from_edge(Edge, We, Acc) ->    
+    Selected = gb_sets:add(Edge, Acc),
+    LeftSet = 
+	case opposing_edge(Edge, We, left) of 
+	    unknown -> Selected;
+	    Left -> gb_sets:add(Left, Selected)
+	end,
+    case opposing_edge(Edge, We, right) of 
+	unknown -> LeftSet;
+	Right -> gb_sets:add(Right, LeftSet)
+    end.
+    
+decr_ring_selection(Edges, #we{id=Id} = We, ObjAcc) ->
+    [{Id,foldl(fun(Edge, EdgeAcc) -> 
+		       decr_from_edge(Edge, We, Edges, EdgeAcc) 
+	       end, Edges, gb_sets:to_list(Edges))}|ObjAcc].
+
+decr_from_edge(Edge, We, Orig, Acc) ->
+    Left = opposing_edge(Edge, We, left),
+    Right =  opposing_edge(Edge, We, right),
+    case (Left == unknown) or (Right == unknown) of
+	true ->
+	    gb_sets:delete(Edge,Acc);
+	false ->
+	    case gb_sets:is_member(Left, Orig) and 
+		gb_sets:is_member(Right, Orig) of
+		true -> 
+		    Acc;
+		false ->
+		    gb_sets:delete(Edge,Acc)
+	    end
     end.
 
 %%%

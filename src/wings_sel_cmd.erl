@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.41 2003/02/05 11:01:39 dgud Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.42 2003/02/05 12:28:49 dgud Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -27,20 +27,26 @@ menu(St) ->
      separator,
      {"More",more,more_help(St)},
      {"Less",less,less_help(St)},
-     {"Edge Loops", {edgesel, 
-		[
-		 {"Edge Loop to Region",select_region},
-		 {"Edge Loop",edge_loop,"Expand edge selection to loop; "
-		  "convert face selection to selected border edges"},
-		 {"Edge Ring",edge_ring,"Expand edge selection to ring"},
-		 {"Edge Incr (Loop)",edge_link_incr,
-		  "Increase edge selection by one in loop dir"},
-		 {"Edge Decr (Loop)",edge_link_decr,
-		  "Decrease edge selection by one in loop dir"},
-		 {"Previous Edge Loop",prev_edge_loop,"Select the next edge loop"},
-		 {"Next Edge Loop",next_edge_loop,"Select the previous edge loop"}
-		]}},
      {"Similar",similar,similar_help(St)},
+     separator,
+     {"Edge Loops", {edgesel, 
+		     [
+		      {"Edge Loop to Region",select_region},
+		      {"Edge Loop",edge_loop,"Expand edge selection to loop; "
+		       "convert face selection to selected border edges"},
+		      {"Edge Ring",edge_ring,"Expand edge selection to ring"},
+		      {"Previous Edge Loop",prev_edge_loop,"Select the next edge loop"},
+		      {"Next Edge Loop",next_edge_loop,"Select the previous edge loop"},
+		      separator,
+		      {"Edge Incr (Loop)",edge_link_incr,
+		       "Increase edge selection by one in loop dir"},
+		      {"Edge Decr (Loop)",edge_link_decr,
+		       "Decrease edge selection by one in loop dir"},
+		      {"Edge Incr (Ring)",edge_ring_incr,
+		       "Increase edge selection by one in ring dir"},
+		      {"Edge Decr (Ring)",edge_ring_decr,
+		       "Decrease edge selection by one in ring dir"}
+		     ]}},
      separator,
      {"Adjacent",{adjacent,[{"Vertices",vertex},
 			    {"Edges",edge},
@@ -176,6 +182,10 @@ command({edgesel,edge_link_incr}, St) ->
     {save_state,wings_edge_loop:select_link_incr(St)};
 command({edgesel,edge_ring}, St) ->
     {save_state,wings_edge:select_edge_ring(St)};
+command({edgesel,edge_ring_incr}, St) ->
+    {save_state,wings_edge:select_edge_ring_incr(St)};
+command({edgesel,edge_ring_decr}, St) ->
+    {save_state,wings_edge:select_edge_ring_decr(St)};
 command({edgesel,next_edge_loop}, St) ->
     {save_state,wings_edge_loop:select_next(St)};
 command({edgesel,prev_edge_loop}, St) ->
