@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.32 2002/09/25 16:32:42 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.33 2002/10/25 14:03:30 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
--export([menu/3,command/2,tighten/3,connect/2]).
+-export([menu/3,command/2,tighten/3,connect/2,bevel_vertex/2]).
 
 -include("wings.hrl").
 -import(lists, [member/2,keymember/3,foldl/3,mapfoldl/3,
@@ -142,18 +142,25 @@ ex_connect([Va,Face], [Vb|_], We0) ->
 bevel(St0) ->
     {St,{Tvs0,FaceSel}} =
 	wings_sel:mapfold(
-	  fun(VsSet, #we{id=Id}=We0, {Tvs,Fa}) ->
-		  Vs = gb_sets:to_list(VsSet),
-		  {We,Tv,Fs0} = bevel_vertices(Vs, VsSet, We0, We0, [], []),
-		  FaceSel = case Fs0 of
-				[] -> Fa;
-				_ -> [{Id,gb_sets:from_list(Fs0)}|Fa]
-			    end,
-		  {We,{[{Id,Tv}|Tvs],FaceSel}}
+	  fun(VsSet, We, A) ->
+		  bevel_1(VsSet, We, A)
 	  end, {[],[]}, St0),
     {Min,Tvs} = bevel_normalize(Tvs0),
     wings_drag:setup(Tvs, [{distance,{0.0,Min}}],
 		     wings_sel:set(face, FaceSel, St)).
+
+bevel_vertex(V, We0) ->
+    {We,_} = bevel_1(gb_sets:singleton(V), We0, {[],[]}),
+    We.
+
+bevel_1(VsSet, #we{id=Id}=We0, {Tvs,Fa}) ->
+    Vs = gb_sets:to_list(VsSet),
+    {We,Tv,Fs0} = bevel_vertices(Vs, VsSet, We0, We0, [], []),
+    FaceSel = case Fs0 of
+		  [] -> Fa;
+		  _ -> [{Id,gb_sets:from_list(Fs0)}|Fa]
+	      end,
+    {We,{[{Id,Tv}|Tvs],FaceSel}}.
 
 bevel_vertices([V|Vs], VsSet, WeOrig, We0, Acc0, Facc) ->
     Adj = adjacent(V, VsSet, WeOrig),
