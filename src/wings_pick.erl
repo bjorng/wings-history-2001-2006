@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.65 2002/11/07 17:28:02 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.66 2002/11/15 11:44:02 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -116,7 +116,7 @@ handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
 	    insert_hilite_fun(Hit, DrawFun),
 	    get_hilite_event(HL#hl{prev=Hit})
     end;
-handle_hilite_event(#resize{w=W,h=H}, #hl{redraw=St}) ->
+handle_hilite_event(#resize{w=W,h=H}=Resize, #hl{st=St}) ->
     wings:resize(W, H, St),
     keep;
 handle_hilite_event(_, _) ->
