@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.54 2004/12/23 16:12:50 bjorng Exp $
+#     $Id: Makefile,v 1.55 2004/12/24 12:24:40 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -46,6 +46,7 @@ MODULES= \
 	wings_draw \
 	wings_draw_util \
 	wings_edge \
+	wings_edge_cmd \
 	wings_edge_loop \
 	wings_export \
 	wings_extrude_edge \

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.329 2004/12/18 19:36:02 bjorng Exp $
+%%     $Id: wings.erl,v 1.330 2004/12/24 12:24:40 bjorng Exp $
 %%
 
 -module(wings).
@@ -606,7 +606,7 @@ command({face,Cmd}, St) ->
 
 %% Edge commands.
 command({edge,Cmd}, St) ->
-    wings_edge:command(Cmd, St);
+    wings_edge_cmd:command(Cmd, St);
 
 %% Vertex menu.
 command({vertex,Cmd}, St) ->
@@ -654,7 +654,7 @@ popup_menu(X, Y, #st{selmode=Mode}=St) ->
 	false ->
 	    case Mode of
 		vertex -> wings_vertex_cmd:menu(X, Y, St);
-		edge -> wings_edge:menu(X, Y, St);
+		edge -> wings_edge_cmd:menu(X, Y, St);
 		face -> wings_face_cmd:menu(X, Y, St);
 		body -> wings_body:menu(X, Y, St)
 	    end
