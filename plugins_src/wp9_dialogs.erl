@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.15 2003/03/11 20:06:53 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.16 2003/04/27 05:09:58 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -46,15 +46,15 @@ open_file(Prompt, Prop) ->
     Exts = file_filters(Prop),
     case wings_getline:filename(Prompt, Exts) of
 	aborted -> aborted;
-	Name -> Name
+	Name -> ensure_extension(Name, Exts)
     end.
 
 save_file(Prompt, Prop) ->
-    Ext = proplists:get_value(ext, Prop, ".wings"),
-    case wings_getline:filename(Prompt, Ext) of
+    Exts = file_filters(Prop),
+    case wings_getline:filename(Prompt, Exts) of
 	aborted -> aborted;
 	Name0 ->
-	    Name = ensure_extension(Name0, Ext),
+	    Name = ensure_extension(Name0, Exts),
 	    case filelib:is_file(Name) of
 		false ->
 		    Name;
@@ -80,11 +80,12 @@ file_filters_1([{Ext,_Desc}|T], Acc) ->
     file_filters_1(T, [Ext|Acc]);
 file_filters_1([], Acc) -> reverse(Acc).
 
-ensure_extension(Name, Ext) ->
+ensure_extension(Name, [Ext]) ->
     case eq_extensions(Ext, filename:extension(Name)) of
 	true -> Name;
 	false -> Name ++ Ext
-    end.
+    end;
+ensure_extension(Name, [_|_]) -> Name.
 
 eq_extensions(Ext, Actual) when length(Ext) =/= length(Actual) ->
     false;

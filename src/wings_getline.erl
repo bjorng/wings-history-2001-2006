@@ -3,12 +3,12 @@
 %%
 %%     This module provides a read-line interface with editing.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.15 2003/01/01 12:09:47 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.16 2003/04/27 05:09:59 bjorng Exp $
 %%
 
 -module(wings_getline).
