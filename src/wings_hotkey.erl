@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.39 2003/06/03 17:29:45 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.40 2003/06/28 14:41:37 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -122,17 +122,27 @@ matching_global(Names) ->
 	     [{{'$1',{{'$3','$2'}}}}]}],
     [{Name,mkeyname(Key)} || {Name,Key} <- ets:select(?KL, Spec)].
 
-matching_mode({Mode,_}=Spec0) when Mode == shapes; Mode == vertex;
-				   Mode == edge; Mode == face;
-				   Mode == body ->
-    Spec = [{{{bindkey,Mode,'$2'},Spec0,'$3'},
-	     [],
-	     [{{'$1',{{'$3','$2'}}}}]}],
-    [{Name,mkeyname(Key)} || {Name,Key} <- ets:select(?KL, Spec)];
-matching_mode(_Other) -> [].
+matching_mode(Names) ->
+    Mode = lists:last(Names),
+    case suitable_mode(Mode) of
+	false -> [];
+	true ->
+	    Spec0 = foldl(fun(N, A) -> {N,A} end, '$1', Names),
+	    Spec = [{{{bindkey,Mode,'$2'},Spec0,'$3'},
+		     [],
+		     [{{'$1',{{'$3','$2'}}}}]}],
+	    [{Name,mkeyname(Key)} || {Name,Key} <- ets:select(?KL, Spec)]
+    end.
 
 mkeyname({user,K}) -> {1,keyname(K)};
 mkeyname({default,K}) -> {2,keyname(K)}.
+
+suitable_mode(shapes) -> true;
+suitable_mode(vertex) -> true;
+suitable_mode(edge) -> true;
+suitable_mode(face) -> true;
+suitable_mode(body) -> true;
+suitable_mode(_) -> false.
 
 %%%
 %%% Make a listing of all hotkeys.
