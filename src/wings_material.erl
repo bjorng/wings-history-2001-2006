@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.40 2002/07/17 16:31:42 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.41 2002/07/17 16:59:58 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -25,18 +25,17 @@
 -import(lists, [map/2,foreach/2,sort/1,foldl/3,reverse/1,keyreplace/4]).
 
 init(#st{mat=MatTab}=St) ->
-    case get(?MODULE) of
+    case put(?MODULE, gb_trees:empty()) of
 	undefined ->
-	    put(?MODULE, gb_trees:empty()),
 	    foreach(fun({Name,Mat}) ->
 			    init_texture(Name, Mat)
-		    end, gb_trees:to_list(MatTab)),
-	    St;
+		    end, gb_trees:to_list(MatTab));
 	Txs ->
 	    foreach(fun(Tx) ->
 			    gl:deleteTextures(1, [Tx])
 		    end, gb_trees:values(Txs))
-    end.
+    end,
+    St.
 
 sub_menu(face, St) ->
     Mlist = material_list(St),
