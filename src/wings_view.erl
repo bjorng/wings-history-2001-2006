@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.136 2004/03/14 05:48:12 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.137 2004/03/17 17:47:51 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -486,7 +486,7 @@ projection() ->
 	false ->
 	    glu:perspective(Fov, Aspect, Hither, Yon);
 	true ->
-	    Sz = D*math:tan(Fov*3.14159/180/2),
+	    Sz = D*math:tan(Fov*math:pi()/180/2),
 	    gl:ortho(-Sz*Aspect, Sz*Aspect, -Sz, Sz, Hither, Yon)
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.36 2004/03/17 11:21:43 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.37 2004/03/17 17:47:51 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -470,7 +470,8 @@ window(Id) ->
 	    Op = {seq,push,window_fun(Id)},
 	    Props = window_props(),
 	    wings_wm:toplevel(Name, Title, Pos, Size,
-			      [resizable,closable,{properties,Props}], Op)
+			      [resizable,closable,{properties,Props}], Op),
+	    wings_wm:send(Name, {action,{viewer,100}})
     end.
 
 window_params(Id) ->
@@ -497,8 +498,8 @@ window_props() ->
 		 pan_x=-0.5,
 		 pan_y=-0.5,
 		 fov=90.0,
-		 hither=0.1,
-		 yon=50.0},
+		 hither=0.001,
+		 yon=100.0},
     [{current_view,View},
      {orthogonal_view,true},
      {allow_rotation,false},
@@ -514,12 +515,46 @@ event(redraw, Id) ->
     keep;
 event(close, _) ->
     delete;
+event(got_focus, _) ->
+    Msg2 = wings_camera:help(),
+    Msg3 = wings_util:button_format([], [], "Show menu"),
+    Message = wings_util:join_msg([Msg2,Msg3]),
+    wings_wm:message(Message),
+    wings_wm:dirty();
+event({action,{viewer,Cmd}}, Id) ->
+    command(Cmd, Id);
 event(Ev, Id) ->
     case wings_camera:event(Ev, fun() -> redraw(Id) end) of
-	next -> keep;
+	next -> event_1(Ev, Id);
 	Other -> Other
     end.
 
+event_1(Ev, _) ->
+    case wings_menu:is_popup_event(Ev) of
+	no -> keep;
+	{yes,X,Y,_} ->
+	    Menu = [{"12%",12},
+		    {"25%",25},
+		    {"50%",50},
+		    separator,
+		    {"100%",100,"Show in natural size"},
+		    separator,
+		    {"200%",200},
+		    {"400%",400},
+		    {"800%",800}
+		   ],
+	    wings_menu:popup_menu(X, Y, viewer, Menu)
+    end.
+
+command(Percent, Id) when is_integer(Percent) ->
+    View = wings_view:current(),
+    #e3d_image{height=Ih} = info(Id),
+    {W,H} = wings_wm:win_size(),
+    Dist = 100*H/Ih/2/Percent,
+    wings_view:set_current(View#view{distance=Dist,pan_x=-W/H/2,pan_y=-0.5}),
+    wings_wm:dirty(),
+    keep.
+    
 redraw(Id) ->
     case info(Id) of
 	none ->
@@ -531,29 +566,45 @@ redraw(Id) ->
 redraw_1(Id, #e3d_image{width=Iw,height=Ih}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     wings_wm:clear_background(),
-    wings_io:ortho_setup(),
-    {W0,H0} = wings_wm:win_size(),
-    wings_io:border(0, 0, W0-1, H0-1, ?PANE_COLOR),
+
     wings_view:load_matrices(false),
-    {W,H} = if
-		W0 < H0, Ih > Iw; W0 >= H0, Iw >= Ih ->
-		    {1,Ih/Iw};
-		true ->
-		    {Iw/Ih,1}
-	    end,
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     gl:disable(?GL_DEPTH_TEST),
-    draw_image(1, 1, txid(background)),
+    %%draw_background(0, 0, Iw/Ih, 1),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    draw_image(W, H, txid(Id)),
+    draw_image(Iw/Ih, 1, txid(Id)),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
+
+    %% Draw window border.
+    wings_io:ortho_setup(),
+    gl:color3i(0, 0, 0),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+    {W,H} = wings_wm:win_size(),
+    gl:rectf(0.5, 0.5, W-0.5, H-0.5),
     gl:popAttrib().
+
+% draw_background(X, Y, W, H) ->
+%     Ua = 0,
+%     Ub = 16*(W div 16)/16,
+%     Va = 0,
+%     Vb = 16*(H div 16)/16,
+%     gl:bindTexture(?GL_TEXTURE_2D, txid(background)),
+%     gl:'begin'(?GL_QUADS),
+%     gl:texCoord2f(Ua, Va),
+%     gl:vertex2f(X, Y),
+%     gl:texCoord2f(Ua, Vb),
+%     gl:vertex2f(X, Y+H),
+%     gl:texCoord2f(Ub, Vb),
+%     gl:vertex2f(X+W, Y+H),
+%     gl:texCoord2f(Ub, Va),
+%     gl:vertex2f(X+W, Y),
+%     gl:'end'().
 
 draw_image(W, H, TxId) ->
     Ua = 0, Ub = 1,
-    Va = 1, Vb = 0,
+    Va = 0, Vb = 1,
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
     gl:'begin'(?GL_QUADS),
     gl:texCoord2i(Ua, Va),
