@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.47 2004/10/16 07:20:17 bjorng Exp $
+#     $Id: Makefile,v 1.48 2004/10/24 05:51:39 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -116,6 +116,9 @@ common: $(TARGET_FILES)
 
 template:
 	erl -pa $(EBIN) -run wings_lang generate_template -run erlang halt
+
+lang: template
+	cp *.lang $(EBIN)
 
 clean:
 	rm -f $(TARGET_FILES)
