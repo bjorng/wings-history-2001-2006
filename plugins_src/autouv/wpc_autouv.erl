@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.214 2004/04/03 17:35:24 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.215 2004/04/04 05:19:20 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -657,30 +657,84 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #st{bb=#uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs}=AuvSt) ->
     get_event_nodraw(AuvSt#st{bb=Uvs#uvstate{st=St}});
 update_selection(#st{selmode=Mode,sel=Sel}=St,
-		 #st{bb=#uvstate{id=Id}=Uvs}=AuvSt0) ->
-    AuvSt = reset_sel(AuvSt0#st{bb=Uvs#uvstate{st=St}}),
+		 #st{selmode=AuvMode,bb=#uvstate{id=Id}=Uvs,
+		     shapes=Charts0}=AuvSt0) ->
     case keysearch(Id, 1, Sel) of
 	false ->
+	    AuvSt = reset_sel(AuvSt0#st{bb=Uvs#uvstate{st=St}}),
 	    get_event(AuvSt);
-	{value,{Id,Elems}} ->
-	    update_selection_1(Mode, gb_sets:to_list(Elems), AuvSt)
+	{value,{Id,Elems0}} ->
+	    Elems = gb_sets:to_list(Elems0),
+	    Charts = gb_trees:to_list(Charts0),
+	    Res = update_selection_1(AuvMode, Mode, Elems, Charts),
+	    case Res of
+		none ->
+		    AuvSt = AuvSt0#st{sel=[],sh=false,bb=Uvs#uvstate{st=St}},
+		    get_event_nodraw(AuvSt);
+		NewSel ->
+		    AuvSt = AuvSt0#st{sel=sort(NewSel),sh=false,
+				      bb=Uvs#uvstate{st=St}},
+		    get_event(AuvSt)
+	    end
     end.
 
-update_selection_1(face, Faces, #st{shapes=Charts}=St) ->
-    update_selection_2(gb_trees:to_list(Charts), Faces, St, []);
-update_selection_1(_, _, St) ->
-    get_event_nodraw(St).
+update_selection_1(vertex, _, _, _) ->
+    io:format("~p\n", [?LINE]),
+    none;
+update_selection_1(edge, _, _, _) ->
+    io:format("~p\n", [?LINE]),
+    none;
+update_selection_1(face, Mode, Elems, Charts) ->
+    update_face_sel(Mode, Elems, Charts);
+update_selection_1(body, Mode, Elems, Charts) ->
+    update_body_sel(Mode, Elems, Charts).
 
-update_selection_2([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, #st{selmode=body}=St, Sel) ->
+update_face_sel(face, Faces, Charts) ->
+    face_sel_to_face(Charts, Faces, []);
+update_face_sel(body, _, Charts) ->
+    body_sel_to_face(Charts, []);
+update_face_sel(Mode, _, _) ->
+    io:format("~p: ~p\n", [?LINE,Mode]),
+    none.
+
+update_body_sel(face, Elems, Charts) ->
+    face_sel_to_body(Charts, Elems, []);
+update_body_sel(Mode, _, _) ->
+    io:format("~p: ~p\n", [?LINE,Mode]),
+    none.
+
+%% Convert a face selection in the geometry window to
+%% a face selection in the AutoUV window.
+face_sel_to_face([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, Sel) ->
     case ordsets:intersection(sort(Fs), Faces) of
-	[] -> update_selection_2(Cs, Faces, St, Sel);
-	_ -> update_selection_2(Cs, Faces, St, [{K,gb_sets:singleton(0)}|Sel])
+ 	[] ->
+	    face_sel_to_face(Cs, Faces, Sel);
+ 	FaceSel0 ->
+	    FaceSel = gb_sets:from_list(FaceSel0),
+	    face_sel_to_face(Cs, Faces, [{K,FaceSel}|Sel])
     end;
-update_selection_2([_|Cs], Faces, St, Sel) ->
-    update_selection_2(Cs, Faces, St, Sel);
-update_selection_2([], _, St, Sel) ->
-    get_event(St#st{sel=sort(Sel)}).
+face_sel_to_face([], _, Sel) -> Sel.
 
+%% Convert a body selection in the geometry window to
+%% a face selection in the AutoUV window.
+body_sel_to_face([{K,#we{fs=Ftab}}|Cs], Sel) ->
+    FaceSel = gb_sets:from_ordset(gb_trees:keys(Ftab)),
+    body_sel_to_face(Cs, [{K,FaceSel}|Sel]);
+body_sel_to_face([], Sel) -> Sel.
+
+
+%% Convert a face selection in the geometry window to
+%% a body selection in the AutoUV window.
+face_sel_to_body([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, Sel) ->
+    case ordsets:intersection(sort(Fs), Faces) of
+ 	[] ->
+	    face_sel_to_body(Cs, Faces, Sel);
+ 	_ ->
+	    Zero = gb_sets:singleton(0),
+	    face_sel_to_body(Cs, Faces, [{K,Zero}|Sel])
+    end;
+face_sel_to_body([], _, Sel) -> Sel.
+    
 %% update_geom_selection(AuvSt)
 %%  Given the selection in the AutoUV window, update the selection
 %%  in the geometry window.
