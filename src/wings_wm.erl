@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.85 2003/03/02 08:38:58 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.86 2003/03/05 06:53:46 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -25,7 +25,7 @@
 	 set_timer/2,cancel_timer/1,
 	 active_window/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,
 	 update_window/2,clear_background/0,
-	 callback/1,current_state/1,notify/1,
+	 callback/1,current_state/1,get_current_state/0,notify/1,
 	 grab_focus/0,grab_focus/1,release_focus/0,
 	 grabbed_focus_window/0,actual_focus_window/0,
 	 top_size/0,viewport/0,viewport/1,
@@ -142,6 +142,9 @@ current_state(St) ->
 		       (Name) -> send(Name, NewState)
 		    end, gb_trees:keys(get(wm_windows)))
     end.
+
+get_current_state() ->
+    get(wm_current_state).
 
 notify(Note) ->
     Msg = {note,Note},
@@ -682,9 +685,9 @@ handle_event(#se{h=Handler}, Event, Stk) ->
 	{'EXIT',normal} ->
 	    exit(normal);
 	{'EXIT',Reason} ->
-	    #se{h=CrashHandler} = last(Stk),
-	    handle_response(CrashHandler({crash,Reason}),
-			    Event, default_stack(unknown_window));
+	    [#se{h=CrashHandler}] = pop_all_but_one(Stk),
+	    handle_response(CrashHandler({crash,Reason}), Event,
+			    default_stack(unknown_window));
 	Res ->
 	    handle_response(Res, Event, Stk)
     end.
@@ -705,10 +708,20 @@ handle_response(Res, Event, Stk0) ->
 	    Stk = handle_response(First, Event, Stk0),
 	    handle_response(Then, Event, Stk);
 	{replace,Top} when is_function(Top) -> replace_handler(Top, Stk0);
+	{pop_handler,_}=PopH -> replace_handler(PopH, Stk0);
 	Top when is_function(Top) -> replace_handler(Top, Stk0)
     end.
 
-pop([_|Stk]) -> Stk.
+pop_all_but_one([_]=Stk) -> Stk;
+pop_all_but_one(Stk) -> pop_all_but_one(pop(Stk)).
+    
+pop([_|Stk]) ->
+    case Stk of
+	[#se{h={pop_handler,Handler0}}|_] ->
+	    {replace,Handler} = Handler0(),
+	    replace_handler(Handler, Stk);
+	_ -> Stk
+    end.
 
 replace_handler(Handler, [Top|Stk]) -> [Top#se{h=Handler}|Stk].
 
