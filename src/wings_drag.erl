@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.46 2002/01/12 19:24:25 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.47 2002/01/13 15:26:58 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -230,7 +230,7 @@ cleanup(#drag{matrices=Mtxs}) ->
 
 magnet_radius(Sign, #drag{falloff=Falloff0}=Drag) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
-    case Falloff0+Sign*?GROUND_GRID_SIZE/4 of
+    case Falloff0+Sign*?GROUND_GRID_SIZE/5 of
 	Falloff when Falloff > 0 ->
 	    motion(X, Y, Drag#drag{falloff=Falloff});
 	Other -> Drag

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.85 2002/01/13 11:11:11 bjorng Exp $
+%%     $Id: wings.erl,v 1.86 2002/01/13 15:26:58 bjorng Exp $
 %%
 
 -module(wings).
@@ -359,7 +359,7 @@ command({face,{extrude_region,Type}}, St) ->
 command({face,{extract_region,Type}}, St) ->
     wings_face_cmd:extract_region(Type, St);
 command({face,bump}, St) ->
-    ?SLOW(wings_face_cmd:bump(St));
+    ?SLOW(wings_extrude_edge:bump(St));
 command({face,{flatten,Plane}}, St) ->
     {save_state,model_changed(wings_face_cmd:flatten(Plane, St))};
 command({face,bevel}, St) ->

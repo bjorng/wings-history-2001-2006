@@ -1,26 +1,40 @@
 %%
 %%  wings_extrude_edge.erl --
 %%
-%%     This module contains the Extrude and Bevel commands for edges.
+%%     This module contains the Extrude (edge), Bevel (face/edge) and
+%%     Bump commands. (All based on edge extrusion.)
 %%
 %%  Copyright (c) 2001 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.14 2002/01/13 11:11:11 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.15 2002/01/13 15:26:58 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
--export([bevel/1,bevel_faces/1,extrude/2]).
-
--export([extrude_edges/2]).
+-export([bump/1,bevel/1,bevel_faces/1,extrude/2]).
 
 -include("wings.hrl").
 -import(lists, [foldl/3,keydelete/3,member/2,sort/1,
 		reverse/1,reverse/2,last/1,foreach/2]).
 
 -define(EXTRUDE_DIST, 0.2).
+
+%%%
+%%% The Bump command.
+%%%
+
+bump(St0) ->
+    {St,Tvs} = wings_sel:mapfold(fun bump/3, [], St0),
+    wings_drag:init_drag(Tvs, {radius,none}, distance, St#st{inf_r=1.0}).
+
+bump(Faces, #we{id=Id}=We0, Acc) ->
+    Edges = gb_sets:from_list(wings_face:outer_edges(Faces, We0)),
+    {We,_} = extrude_edges(Edges, Faces, We0),
+    NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
+    Tv = wings_move:setup_we(face, normal, Faces, We),
+    plus_minus_move(Tv, NewVs, We, Acc).
 
 %%
 %% The Bevel command (for edges).
@@ -58,7 +72,7 @@ bevel_faces(St0) ->
 
 bevel_faces(Faces, #we{id=Id,es=Etab,next_id=Next}=We0, {Tvs,Limit0}) ->
     Edges = wings_edge:from_faces(Faces, We0),
-    {We1,OrigVs} = wings_extrude_edge:extrude_edges(Edges, We0),
+    {We1,OrigVs} = extrude_edges(Edges, We0),
     We2 = wings_edge:dissolve_edges(Edges, We1),
     Tv0 = bevel_tv(OrigVs, We2),
     #we{fs=Ftab,vs=Vtab0} = We3 =
@@ -164,33 +178,42 @@ bevel_min_limit([], Min) -> Min.
 %%
 
 extrude(Type, St0) ->
-    St = wings_sel:map(
-	   fun(Edges, We0) ->
-		   {We,_} = extrude_edges(Edges, We0),
-		   We
-	   end, St0),
-    wings_move:setup(Type, St).
+    {St,Tvs} = wings_sel:mapfold(
+	   fun(Edges, We, A) ->
+		   extrude_1(Edges, We, A)
+	   end, [], St0),
+    wings_drag:init_drag(Tvs, {radius,none}, distance, St#st{inf_r=1.0}).
 
-extrude_edges(Edges, #we{next_id=Wid,es=Etab}=We0) ->
+extrude_1(Edges, We0, Acc) ->
+    {We,_} = extrude_edges(Edges, We0),
+    NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
+    Tv = wings_move:setup_we(edge, normal, Edges, We),
+    plus_minus_move(Tv, NewVs, We, Acc).
+
+extrude_edges(Edges, We) ->
+    extrude_edges(Edges, gb_sets:empty(), We).
+
+extrude_edges(Edges, Faces, #we{next_id=Wid,es=Etab}=We0) ->
     G = digraph:new(),
     foreach(fun(Edge) ->
-		    digraph_edge(G, gb_trees:get(Edge, Etab))
+		    digraph_edge(G, Faces, gb_trees:get(Edge, Etab))
 	    end, gb_sets:to_list(Edges)),
     Vs0 = digraph:vertices(G),
     Vs1 = sofs:relation(Vs0),
     Vs = sofs:to_external(sofs:domain(Vs1)),
     We2 = foldl(fun(V, A) ->
-			new_vertices(V, G, Edges, A)
+			new_vertices(V, G, Edges, Faces, A)
 		end, We0, Vs),
     We = connect(G, Wid, We2),
     digraph:delete(G),
     {We,Vs}.
 
-new_vertices(V, G, Edges, We0) ->
+new_vertices(V, G, Edges, Faces, We0) ->
     Center = wings_vertex:pos(V, We0),
     wings_vertex:fold(
-      fun(Edge, _, _, #we{es=Etab}=W0=A) ->
-	      case gb_sets:is_member(Edge, Edges) of
+      fun(Edge, Face, _, #we{es=Etab}=W0=A) ->
+	      case gb_sets:is_member(Edge, Edges) orelse
+		  gb_sets:is_member(Face, Faces) of
 		  true -> A;
 		  false ->
 		      {W1,NewV} = wings_edge:cut(Edge, 2, W0),
@@ -225,6 +248,16 @@ get_edge_rec(Va, Vb, EdgeA, EdgeB, #we{es=Etab}) ->
 digraph_edge(G, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
     digraph_insert(G, Va, Vb, Lf),
     digraph_insert(G, Vb, Va, Rf).
+
+digraph_edge(G, Faces, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
+    case gb_sets:is_member(Lf, Faces) of
+	false -> digraph_insert(G, Va, Vb, Lf);
+	true -> ok
+    end,
+    case gb_sets:is_member(Rf, Faces) of
+	false -> digraph_insert(G, Vb, Va, Rf);
+	true -> ok
+    end.
 
 digraph_insert(G, Va0, Vb0, Face) ->
     Va = {Va0,Face},
@@ -326,3 +359,51 @@ remove_winged_vs(Cs0) ->
     P = sofs:partition(fun(C) -> sofs:domain(C) end, Cs),
     G = sofs:specification(fun(L) -> sofs:no_elements(L) =:= 1 end, P),
     sofs:to_external(sofs:union(G)).
+
+%%
+%% Move handling for Extrude/Bump.
+%%
+
+plus_minus_move(Tv0, NewVs, #we{id=Id}=We, Acc) ->
+    Tv = [{Vec,wings_util:add_vpos(Vs0, We)} || {Vec,Vs0} <- Tv0],
+    Affected0 = lists:append([Vs0 || {Vec,Vs0} <- Tv0]),
+    MoveSel = {Affected0,move_fun(Tv)},
+    Vecs = move_vectors(NewVs, gb_sets:from_list(Affected0), We, []),
+    Affected = [V || {V,Vec,Pos} <- Vecs],
+    MoveAway = {Affected,move_away_fun(Vecs)},
+    {We,[{Id,MoveSel},{Id,MoveAway}|Acc]}.
+
+move_fun(Tv) ->
+    fun({Dx,R}, Acc) ->
+	    wings_drag:message([Dx], distance),
+	    foldl(fun({Vec,VsPos}, A) ->
+			  wings_drag:translate(Vec, Dx, VsPos, A)
+		  end, Acc, Tv)
+    end.
+
+move_away_fun(Tv) ->
+    fun({Dx,R0}, Acc) ->
+	    R = R0-1.0,
+	    foldl(fun({V,Vec,#vtx{pos={X,Y,Z}}=Rec}, A) -> 
+			  {Xt,Yt,Zt} = e3d_vec:mul(Vec, R),
+			  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
+			  [{V,Rec#vtx{pos=Pos}}|A]
+		  end, Acc, Tv)
+    end.
+    
+move_vectors([V|Vs], VsSet, #we{vs=Vtab}=We, Acc0) ->
+    Acc = wings_vertex:fold(
+	    fun(_, _, Rec, A) ->
+		    OtherV = wings_vertex:other(V, Rec),
+		    case gb_sets:is_member(OtherV, VsSet) of
+			false -> A;
+			true ->
+			    Pa = wings_vertex:pos(OtherV, Vtab),
+			    #vtx{pos=Pb} = Pos = gb_trees:get(V, Vtab),
+			    Vec = e3d_vec:sub(Pb, Pa),
+			    [{V,Vec,Pos}|A]
+		    end
+	    end, Acc0, V, We),
+    move_vectors(Vs, VsSet, We, Acc);
+move_vectors([], VsSet, We, Acc) -> Acc.
+
