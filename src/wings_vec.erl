@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.73 2003/07/22 11:04:55 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.74 2003/07/22 18:50:47 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -22,6 +22,7 @@
 -import(lists, [foldl/3,keydelete/3,reverse/1,member/2,last/1]).
 
 -record(ss, {f,					%Fun.
+	     def=none,				%Default vector.
 	     selmodes,				%Legal selection modes.
 	     is_axis=false,			%True if axis.
 	     info=""				%Info message.
@@ -67,7 +68,7 @@ command_1(magnet, Msg, [], Acc, Names, _, St) ->
 	       end,
 	     selmodes=Modes},
     {seq,push,get_event(Ss, wings_sel:reset(St#st{selmode=vertex}))};
-command_1(Type, Msg, More, Acc, Names, MagnetPossible, St0) ->
+command_1(Type, Msg, More, Acc, Names, MagnetPossible, #st{vec=Vec}=St0) ->
     pick_init(St0),
     Modes = [vertex,edge,face],
     St = mode_restriction(Modes, St0),
@@ -76,15 +77,16 @@ command_1(Type, Msg, More, Acc, Names, MagnetPossible, St0) ->
 		axis -> fun check_vector/1;
 		axis_point -> fun check_vector/1
 	    end,
+    IsAxis = (Type =/= point),
     Ss = #ss{f=fun(check, S) ->
 		       Check(S);
 		  (exit, {Mod,S}) ->
-		       common_exit(Type, Mod, More, Acc, Names, MagnetPossible, S);
+		       common_exit(Type, Mod, More, Acc, Names,
+				   MagnetPossible, S);
 		  (message, _) ->
 		       common_message(Msg, More, Names, MagnetPossible)
 	       end,
-	     selmodes=Modes,
-	     is_axis=true},
+	     selmodes=Modes,def=Vec,is_axis=IsAxis},
     {seq,push,get_event(Ss, wings_sel:reset(St))}.
 
 add_help_text([{Atom,Desc}|T], Names) when is_atom(Atom) ->
@@ -183,7 +185,7 @@ handle_event_1(Event, Ss, St) ->
 	Other -> Other
     end.
 
-handle_event_2(#mousebutton{x=X,y=Y}=Ev0, Ss, St0) ->
+handle_event_2(#mousebutton{x=X,y=Y}=Ev0, #ss{def=none}=Ss, St0) ->
     case wings_menu:is_popup_event(Ev0) of
 	{yes,Xglobal,Yglobal,Mod} ->
 	    case wings_pick:do_pick(X, Y, St0) of
@@ -195,6 +197,13 @@ handle_event_2(#mousebutton{x=X,y=Y}=Ev0, Ss, St0) ->
 		    exit_menu(Xglobal, Yglobal, Mod, Ss, St0)
 	    end;
 	no -> handle_event_3(Ev0, Ss, St0)
+    end;
+handle_event_2(#mousebutton{}=Ev, Ss, St) ->
+    case wings_menu:is_popup_event(Ev) of
+	{yes,Xglobal,Yglobal,Mod} ->
+	    exit_menu(Xglobal, Yglobal, Mod, Ss, St);
+	no ->
+	    handle_event_3(Ev, Ss, St)
     end;
 handle_event_2(Ev, Ss, St) -> handle_event_3(Ev, Ss, St).
 
@@ -215,9 +224,9 @@ handle_event_3(Ev, Ss, St) -> handle_event_4(Ev, Ss, St).
 handle_event_4({new_state,St}, #ss{f=Check}=Ss, _St0) ->
     case Check(check, St) of
 	{Vec,Msg} -> 
-	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
+	    get_event(Ss#ss{info=Msg,def=none}, St#st{vec=Vec});
 	[{Vec,Msg}|_] ->
-	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec})
+	    get_event(Ss#ss{info=Msg,def=none}, St#st{vec=Vec})
     end;
 handle_event_4(redraw, Ss, St) ->
     redraw(Ss, St),
@@ -272,11 +281,11 @@ handle_key(#keyboard{sym=$1}, _, St) ->	%1
 handle_key(#keyboard{sym=$2}, #ss{f=Check}=Ss, St) -> %2
     case Check(check, St) of
 	{Vec,Msg} -> 
-	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
+	    get_event(Ss#ss{info=Msg,def=none}, St#st{vec=Vec});
 	[_,{Vec,Msg}|_] ->
-	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
+	    get_event(Ss#ss{info=Msg,def=none}, St#st{vec=Vec});
 	[{Vec,Msg}] ->
-	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec})
+	    get_event(Ss#ss{info=Msg,def=none}, St#st{vec=Vec})
     end;
 handle_key(#keyboard{sym=27}, _, _) ->		%Escape
     wings_wm:later({action,{secondary_selection,abort}});
@@ -314,10 +323,6 @@ common_exit(Type, Mod, More, Acc, Ns, inactive, St) ->
 common_exit(Type, _, More, Acc, Ns, _, St) ->
     common_exit_1(Type, More, Acc, Ns, St).
 
-add_magnet(More) ->
-    More ++ [{magnet,none,
-	      "Pick outer boundary point for magnet influence"}].
-
 common_exit_1(_, [{point,_,Desc}|More], Acc, Ns, #st{vec={Point,Vec}}) ->
     PickList = [{point,Point,Desc}|More],
     {vector,{pick,PickList,add_to_acc(Vec, Acc),Ns}};
@@ -328,6 +333,10 @@ common_exit_1(axis_point, PickList, Acc0, Ns, #st{vec={Point,Vec}}) ->
     {vector,{pick,PickList,Acc,Ns}};
 common_exit_1(point, PickList, Acc, Ns, #st{vec=Point}) ->
     {vector,{pick,PickList,add_to_acc(Point, Acc),Ns}}.
+
+add_magnet(More) ->
+    More ++ [{magnet,none,
+	      "Pick outer boundary point for magnet influence"}].
 
 add_to_acc(Vec, [radial]) -> [{radial,Vec}];
 add_to_acc(Vec, Acc) -> [Vec|Acc].
