@@ -2,7 +2,7 @@
 %
 % Howard Trickey
 %
-% $Id: wpc_am.erl,v 1.1 2003/01/15 20:50:44 bjorng Exp $
+% $Id: wpc_am.erl,v 1.2 2003/02/27 11:15:11 bjorng Exp $
 %
 -module(wpc_am).
 -export([init/0,menu/2,command/2]).
@@ -101,32 +101,28 @@ command(_, _) ->
 	next.
 
 dialog_qs() ->
-	VerVar = {mdl_ver,get_pref(mdl_ver, v9)},
-	P5Var = {use_5pt,get_pref(use_5pt, true)},
-	IPatchVar = {avoid_ipatch,get_pref(avoid_ipatch, true)},
-	SmoothVar = {smooth,get_pref(smooth,true)},
-	[{vframe,
-	  [{key_alt,VerVar,"A:M V9 or V9.5 format",v9},
-	   {key_alt,VerVar,"A:M V6 -- V8.5 format",v6}],
-	  [{title,"Mdl Format"}]},
-	 {vframe,
-	  [{key_alt,P5Var,"yes",true},
-	   {key_alt,P5Var,"no",false}],
-	  [{title,"Generate 5-point patches?"}]},
-	 {vframe,
-	  [{key_alt,IPatchVar,"yes",true},
-	   {key_alt,IPatchVar,"no",false}],
-	  [{title,"Avoid internal patches?"}]},
-	 {vframe,
-	  [{key_alt,SmoothVar,"smooth when > smooth-angle",true},
-	   {key_alt,SmoothVar,"all peaked",false}],
-	  [{title,"Control point smoothness"}]},
-	 {vframe,
-	  [{label_column,
-	    [{"Smooth angle",
-	      {slider,{text,get_pref(smooth_angle,135),
-		    [{range,{0,180}},{key,smooth_angle}]}}}]}]}
-	].
+    [{vradio,[{"A:M V9 or V9.5 format",v9},
+	      {"A:M V6 -- V8.5 format",v6}],
+      mdl_ver,get_pref(mdl_ver, v9),
+      [key,{title,"Mdl Format"}]},
+     {vradio,[{"yes",true},
+	      {"no",false}],
+      use_5pt,get_pref(use_5pt, true),
+      [key,{title,"Generate 5-point patches?"}]},
+     {vradio,[{"yes",true},
+	      {"no",false}],
+      avoid_ipatch,get_pref(avoid_ipatch, true),
+      [key,{title,"Avoid internal patches?"}]},
+     {vradio,[{"smooth when > smooth-angle",true},
+	      {"all peaked",false}],
+      smooth,get_pref(smooth,true),
+      [key,{title,"Control point smoothness"}]},
+     {vframe,
+      [{label_column,
+	[{"Smooth angle",
+	  {slider,{text,get_pref(smooth_angle,135),
+		   [{range,{0,180}},{key,smooth_angle}]}}}]}]}
+    ].
 
 get_pref(Key, Def) ->
     wpa:pref_get(?MODULE, Key, Def).
