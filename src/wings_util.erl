@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.72 2003/06/13 17:09:18 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.73 2003/07/12 08:56:45 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -18,7 +18,7 @@
 	 button_format/1,button_format/2,button_format/3,
 	 rmb_format/1,
 	 message/1,message/2,
-	 yes_no/1,yes_no/2,yes_no/3,yes_no_cancel/3,
+	 yes_no/2,yes_no/3,yes_no_cancel/3,
 	 get_matrices/2,mirror_matrix/1,
 	 mirror_flatten/2,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
@@ -153,9 +153,6 @@ mirror_flatten(#we{mirror=OldFace}=OldWe, #we{mirror=Face,vp=Vtab0}=We) ->
 
 rel2fam(Rel) ->
     sofs:to_external(sofs:relation_to_family(sofs:relation(Rel))).
-
-yes_no(Question) ->
-    wings_plugin:call_ui({question,Question}).
 
 yes_no(Question, Yes) ->
     yes_no(Question, Yes, ignore).
