@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.30 2004/12/27 16:40:21 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.31 2004/12/30 06:28:06 bjorng Exp $
 %%
 
 -module(auv_seg_ui).
@@ -293,9 +293,13 @@ seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     wings_pb:update(1.0, "cutting"),
     Charts = auv_segment:cut_model(Charts1, Cuts, OrigWe),
     wings_pb:done(),
-    N = length(Charts),
-    wings_pb:start("mapping"),
-    seg_map_charts_1(Charts, Method, 1, N, [], Ss).
+    case length(Charts) of
+	0 ->
+	    wings_u:error("No mappable faces.");
+	N ->
+	    wings_pb:start("mapping"),
+	    seg_map_charts_1(Charts, Method, 1, N, [], Ss)
+    end.
 
 seg_map_charts_1([We0|Cs], Type, Id, N, Acc,
 		 #seg{we=#we{id=OrigId},st=St0}=Ss) ->
