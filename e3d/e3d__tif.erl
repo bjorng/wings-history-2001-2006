@@ -8,12 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.5 2002/02/18 15:56:34 dgud Exp $
+%%     $Id: e3d__tif.erl,v 1.6 2002/02/25 10:58:16 dgud Exp $
 %%
 
 -module(e3d__tif).
 -export([load/2, save/3, save/4]).
 -include("e3d_image.hrl").
+
+-export([decompress/4]).
+
 
 load(FileName, Opts) ->
     case file:read_file(FileName) of
@@ -141,8 +144,10 @@ load_image(Enc, IFDs, Orig) ->
     Tif = get_info(IFDs, #tif{}, Orig, Enc),
 %%    io:format("IFD ~p ~nFileSize ~p ~n ~p", [IFDs, size(Orig), Tif]),
     RevStrips = get_strips(Tif#tif.so, Tif#tif.sbc, Orig, Enc, []),    
+    Size = Tif#tif.w * Tif#tif.h * (Tif#tif.bpp div 8),
+%%    io:format("Tif size ~p ~p ~n", [Size, {Tif#tif.w, Tif#tif.h,Tif#tif.bpp div 8}]),
     case catch decompress(RevStrips, Tif#tif.comp, Tif, []) of
-	Image when binary(Image) ->    
+	<<Image:Size/binary, _/binary>> ->    
 	    Type = if Tif#tif.bpp == 24 -> r8g8b8;
 		      Tif#tif.bpp == 32 -> r8g8b8a8
 		   end,
@@ -237,8 +242,10 @@ get_info([{?SamplesPerPixel, _, 1, {value, SPP}}|R], Tif, Orig,Enc) ->
     end,
     get_info(R, Tif#tif{bpp = lists:sum(Tif#tif.bps)}, Orig,Enc);	
 get_info([{?Compression, _, 1, {value, Comp}}|R], Tif, Orig,Enc) ->
+%%    io:format("Compression ~p ~n", [Comp]),
     get_info(R, Tif#tif{comp = Comp}, Orig,Enc);
 get_info([{?Predictor, _, 1, {value, Pred}}|R], Tif, Orig,Enc) ->
+%%    io:format("Predictor ~p ~n", [Pred]),
     get_info(R, Tif#tif{pred = Pred}, Orig,Enc);
 
 get_info([{?StripOffsets, Type = long, Count, Where}|R], Tif, Orig,Enc) ->
@@ -333,7 +340,7 @@ decompress([CompStrip|Rest], Comp = 5, Tif, Acc) -> %% LZW-Compression
 			       {?LZW_EOI, size(CompStrip) * 8}
 		       end
 	       end,
-    Decomp = lzw_decomp(0, ReadCode, 0, 258, ?LZW_STARTBITLEN, []),
+    Decomp = lzw_decomp(0, ReadCode, 0, 258, ?LZW_STARTBITLEN, []),    
     Differented = 
 	case Tif#tif.pred of
 	    2 when Tif#tif.bpp == 32 -> %% Horizontal differencing
@@ -345,7 +352,20 @@ decompress([CompStrip|Rest], Comp = 5, Tif, Acc) -> %% LZW-Compression
 	    _ -> %% No differencing
 		Decomp
 	end,
-    decompress(Rest, Comp, Tif, [list_to_binary(lists:reverse(Differented))|Acc]);
+    
+    %% Some pictures seem to fail to create correct size in rows per strip
+    Size = Tif#tif.w * Tif#tif.rps * Tif#tif.bpp div 8,
+    <<StripBin:Size/binary, _/binary>> = list_to_binary(lists:reverse(Differented)),
+
+%    %% Debug ..
+%    TSize = length(lists:flatten(Decomp)),
+%    io:format("Size of decompressed strip ~p~n", [{Size, TSize}]),
+%    case TSize of
+%	Size -> ok;
+%	Else -> exit({TSize, Size, CompStrip})
+%    end,    
+%    %% Debug
+    decompress(Rest, Comp, Tif, [StripBin|Acc]);
 decompress([CompStrip|Rest], Comp = 32773, Tif, Acc) ->  %% PackBits
     W = Tif#tif.w * (Tif#tif.bpp div 8),
     Bins = unpack_bits(0, W, 0, Tif#tif.h, %% * Tif#tif.rps * (Tif#tif.bpp div 8), 
@@ -413,7 +433,7 @@ lzw_decomp(S, Read, PrevCode, Count, BitLen, Acc) ->
 	    Acc;
 	{?LZW_CLEAR, NS} -> 
 	    lzw_init(0),
-%	    io:format("~nClear table ~p~n", [{S, PrevCode, Count, BitLen}]),
+%%	    io:format("~nClear table ~p~n", [{S, PrevCode, Count, BitLen}]),
 	    case catch Read(9, NS) of
 		{?LZW_EOI, _} ->
 		    Acc;
