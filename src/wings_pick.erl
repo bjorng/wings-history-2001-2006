@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.55 2002/08/08 07:58:06 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.56 2002/08/11 20:21:40 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -488,13 +488,11 @@ get_name(N, <<Name:32/signed,Names/binary>>, Acc) ->
 %%% Filter hits to obtain just one hit.
 %%%
 
-filter_hits([{Id}|_], _, _, #st{selmode=Mode}) ->
-    {Mode,original,{Id}};
 filter_hits(Hits, X, Y, #st{selmode=Mode0,shapes=Shs,sel=Sel}) ->
     Mode = case Sel of
 	       [] when Mode0 =/= body ->
 		   case wings_pref:get_value(smart_highlighting) of
-		       true -> auto;
+		       true -> {auto,Mode0};
 		       false -> Mode0
 		   end;
 	       _ -> Mode0
@@ -502,6 +500,20 @@ filter_hits(Hits, X, Y, #st{selmode=Mode0,shapes=Shs,sel=Sel}) ->
     EyePoint = wings_view:eye_point(),
     filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, none).
 
+filter_hits_1([{Id}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
+    %% This is a light.
+    We = gb_trees:get(Id, Shs),
+    Center = wings_vertex:pos(1, We),
+    D = e3d_vec:sub(Center, EyePoint),
+    DistSqr = e3d_vec:dot(D, D),
+    Hit = case Hit0 of
+	      none ->
+		  {DistSqr,{Id,We}};
+	      {DistSqr0,_} when DistSqr < DistSqr0 ->
+		  {DistSqr,{Id,We}};
+	      _Other -> Hit0
+	  end,
+    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit);
 filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
     Mtx = if 
 	      Id < 0 ->
@@ -525,6 +537,12 @@ filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
 	    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit)
     end;
 filter_hits_1([], _Shs, _Mode, _X, _Y, _EyePoint, none) -> none;
+filter_hits_1([], _Shs, Mode0, _X, _Y, _EyePoint, {_,{Id,_}}) ->
+    %% This is a light.
+    case Mode0 of
+	{auto,Mode} -> {Mode,original,{Id}};
+	Mode -> {Mode,original,{Id}}
+    end;
 filter_hits_1([], _Shs, Mode, X, Y, _EyePoint, {_,{Id,Face,We}}) ->
     if
 	Id < 0 -> convert_hit(Mode, X, Y, -Id, Face, mirror, We);
@@ -557,7 +575,7 @@ convert_hit(body, _X, _Y, Id, _Face, MM, _We) ->
     {body,MM,{Id,0}};
 convert_hit(face, _X, _Y, Id, Face, MM, _We) ->
     {face,MM,{Id,Face}};
-convert_hit(auto, X, Y, Id, Face, MM, We) ->
+convert_hit({auto,_}, X, Y, Id, Face, MM, We) ->
     Trans = wings_util:get_matrices(Id, MM),
     Vs = sort(find_vertex(Face, We, X, Y, Trans)),
     [{Vdist0,{Xva,Yva},V},{_,{Xvb,Yvb},_}|_] = Vs,
