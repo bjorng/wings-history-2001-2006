@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.82 2003/10/11 09:29:31 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.83 2003/10/11 13:40:58 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -164,6 +164,18 @@ button_format(LmbMsg) ->
 button_format(LmbMsg, MmbMsg) ->
     button_format(LmbMsg, MmbMsg, []).
     
+button_format(LmbMsg, Msg, Msg) when Msg =/= [] ->
+    Buttons = wings_pref:get_value(num_buttons),
+    Lmb = lmb_name(),
+    Mmb0 = mmb_name(Buttons),
+    Rmb = rmb_name(Buttons),
+    Lmsg = if
+	       LmbMsg =/= [] -> [Lmb,?CSEP|LmbMsg];
+	       true -> []
+	   end,
+    Mmb = reverse(tl(reverse(Mmb0))),
+    RMmsg = [Mmb,$,,Rmb,?CSEP|Msg],
+    join_msg(Lmsg, RMmsg);
 button_format(LmbMsg, MmbMsg, RmbMsg) ->
     Buttons = wings_pref:get_value(num_buttons),
     Lmb = lmb_name(),
