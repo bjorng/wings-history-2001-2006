@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.71 2003/01/20 07:36:55 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.72 2003/01/20 12:50:55 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -267,45 +267,52 @@ edit(Name, #st{mat=Mtab0}=St) ->
     Shine0 = prop_get(shininess, OpenGL0),
     {Emiss0,_} = ask_prop_get(emission, OpenGL0),
     Maps0 = show_maps(Mat0),
-    Qs = [{vframe,
-	   [
-	    {hframe, 
-	     [{custom,?PREVIEW_SIZE,?PREVIEW_SIZE+5,fun mat_preview/5},
-	      {vframe,
-	       [{label,"Diffuse"},
-		{label,"Ambient"},
-		{label,"Specular"},
-		{label,"Emission"}]
-	      },
-	      {vframe,
-	       [{color,Diff0,[{key,diffuse}]},
-		{color,Amb0,[{key,ambient}]},
-		{color,Spec0,[{key,specular}]},
-		{color,Emiss0,[{key,emission}]}
-	       ]}]},
-	    {hframe, [{vframe, [{label,"Shininess"},
-				{label,"Opacity"}]},
-		      {vframe, [{slider,{text,Shine0,
-					 [{range,{0.0,1.0}},
-					  {key,shininess}]}},
-				{slider,{text,Opacity0,
-					 [{range,{0.0,1.0}},
-					  {key,opacity}]}}]}]
-	    }]
-	  }|Maps0],
+    Qs1 = [{vframe,
+	    [
+	     {hframe, 
+	      [{custom,?PREVIEW_SIZE,?PREVIEW_SIZE+5,fun mat_preview/5},
+	       {vframe,
+		[{label,"Diffuse"},
+		 {label,"Ambient"},
+		 {label,"Specular"},
+		 {label,"Emission"}]
+	       },
+	       {vframe,
+		[{color,Diff0,[{key,diffuse}]},
+		 {color,Amb0,[{key,ambient}]},
+		 {color,Spec0,[{key,specular}]},
+		 {color,Emiss0,[{key,emission}]}
+		]}]},
+	     {hframe, [{vframe, [{label,"Shininess"},
+				 {label,"Opacity"}]},
+		       {vframe, [{slider,{text,Shine0,
+					  [{range,{0.0,1.0}},
+					   {key,shininess}]}},
+				 {slider,{text,Opacity0,
+					  [{range,{0.0,1.0}},
+					   {key,opacity}]}}]}]
+	     }]
+	   }],
+    Qs = wings_plugin:dialog({material_editor_setup,Name,Mat0}, Qs1),
     Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
-	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}|_Maps]) ->
+	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}|More]) ->
 		  OpenGL = [ask_prop_put(diffuse, Diff, Opacity),
 			    ask_prop_put(ambient, Amb, Opacity),
 			    ask_prop_put(specular, Spec, Opacity),
 			    ask_prop_put(emission, Emiss, Opacity),
 			    {shininess,Shine}],
-		  Mat = keyreplace(opengl, 1, Mat0, {opengl,OpenGL}),
+		  Mat1 = keyreplace(opengl, 1, Mat0, {opengl,OpenGL}),
+		  Mat = plugin_results(Name, More, Mat1),
 		  Mtab = gb_trees:update(Name, Mat, Mtab0),
 		  wings_draw_util:map(fun invalidate_dlists/2, Name),
 		  St#st{mat=Mtab}
 	  end,
     wings_ask:dialog("Material Properties", Qs, Ask).
+
+plugin_results(_, [], Mat) -> Mat;
+plugin_results(Name, Res0, Mat0) ->
+    {Mat,Res} = wings_plugin:dialog({material_editor_result,Name,Mat0}, Res0),
+    plugin_results(Name, Res, Mat).
 
 show_maps(Mat) ->
     case prop_get(maps, Mat) of

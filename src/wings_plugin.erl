@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.19 2002/12/28 10:21:52 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.20 2003/01/20 12:50:56 bjorng Exp $
 %%
 -module(wings_plugin).
--export([init/0,menu/2,command/2,call_ui/1]).
+-export([init/0,menu/2,dialog/2,command/2,call_ui/1]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -62,6 +62,22 @@ menu_1([M|Ps], Name, Menu0) ->
 	    menu_1(Ps, Name, Menu0)
     end;
 menu_1([], _Name, Menu) -> Menu.
+
+
+dialog(Name, Dialog) ->
+    dialog_1(get(wings_plugins), Name, Dialog).
+
+dialog_1([M|Ps], Name, Dialog0) ->
+    case catch M:dialog(Name, Dialog0) of
+	{'EXIT',{undef,_}} ->
+	    dialog_1(Ps, Name, Dialog0);
+	Dialog when is_list(Dialog); is_tuple(Dialog) ->
+	    dialog_1(Ps, Name, Dialog);
+	Other ->
+	    io:format("~w:dialog/2: bad return value: ~P\n", [M,Other,20]),
+	    dialog_1(Ps, Name, Dialog0)
+    end;
+dialog_1([], _Name, Dialog) -> Dialog.
 
 command(Cmd, St) ->
     command(get(wings_plugins), Cmd, St).

@@ -8,17 +8,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.3 2003/01/17 23:16:07 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.4 2003/01/20 12:50:55 bjorng Exp $
 %%
 
 -module(wpc_yafray).
 
--export([init/0,menu/2,command/2]).
+-export([init/0,menu/2,dialog/2,command/2]).
 
 -include("e3d.hrl").
 
--import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,foreach/2,
-		map/2,foldl/3]).
+-import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,keydelete/3,
+		foreach/2,map/2,foldl/3]).
 
 
 
@@ -35,6 +35,38 @@ menu(_, Menu) ->
 menu_entry(Menu) ->
     Menu ++ [{"YafRay [Experimental] (.xml)",yafray, []}].
 
+dialog({material_editor_setup,_Name,Mat}, Dialog) ->
+    Yafray = proplists:get_value(yafray, Mat, []),
+    Ior = proplists:get_value(ior, Yafray, 1.0),
+    Minr = proplists:get_value(minr, Yafray, 0.0),
+    Dialog ++ [{hframe,
+		[{vframe, [{label,"Index of Reflection"},
+			   {label,"Minimum Reflection"}]},
+		 {vframe, [{slider,{text,Ior,
+				  [{range,{1.0,2.0}},
+				   {key,ior}]}},
+			   {slider,{text,Minr,
+				    [{range,{0.0,1.0}},
+				     {key,minr}]}}]}],
+		[{title,"YafRay Options"}]}];
+dialog({material_editor_result,_Name,Mat0}, [A,B|Res]) ->
+    Mat = [{yafray,[A,B]}|keydelete(yafray, 1, Mat0)],
+    {Mat,Res};
+dialog({light_editor_setup,_Name,Ps}, Dialog) ->
+    Yafray = proplists:get_value(yafray, Ps, []),
+    Power = proplists:get_value(power, Yafray, 1.0),
+    Dialog ++ [{hframe,
+		[{vframe, [{label,"Power"}]},
+		 {vframe, [{slider,{text,Power,
+				    [{range,{0.0,1.0}},
+				     {key,power}]}}]}],
+		[{title,"YafRay Options"}]}];
+dialog({light_editor_result,_Name,Ps0}, [A|Res]) ->
+    Ps = [{yafray,[A]}|keydelete(yafray, 1, Ps0)],
+    {Ps,Res};
+dialog(_X, Dialog) ->
+    io:format("~p\n", [{_X,Dialog}]),
+    Dialog.
 
 
 command({file,{export,yafray}}, St) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.28 2003/01/19 05:43:42 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.29 2003/01/20 12:50:55 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -20,7 +20,7 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
--import(lists, [reverse/1,foldl/3,member/2]).
+-import(lists, [reverse/1,foldl/3,member/2,keydelete/3]).
 
 -define(DEF_X, 0).
 -define(DEF_Y, 2).
@@ -36,7 +36,8 @@
 	 lin_att,				%Linear attenuation.
 	 quad_att,				%Quadratic attenuation.
 	 spot_angle,
-	 spot_exp				%Spot exponent.
+	 spot_exp,				%Spot exponent.
+	 prop=[]				%Extra properties.
 	}).
 
 light_types() ->
@@ -74,7 +75,7 @@ menu(X, Y, St) ->
 			"Interactivly adjust how much light weakens farther away "
 			"from the center of the spotlight cone"}},
 	     {One,separator},
-	     {One,{"Edit Properties",edit,"Edit light properties"}},
+	     {One,{"Edit Properties...",edit,"Edit light properties"}},
 	     separator,
 	     {"Duplicate",{duplicate,Dir},
 	      "Duplicate and move selected lights"},
@@ -321,35 +322,47 @@ edit(Id, #st{shapes=Shs}=St) ->
     edit_1(We, Shs, St).
     
 edit_1(#we{id=Id,light=#light{type=ambient,ambient=Amb0}=L0}=We0, Shs, St) ->
-    Qs = [{hframe,
-	   [{vframe,[{label,"Ambient"}]},
-	    {vframe,[{color,Amb0}]}],
-	   [{title,"Color"}]}|qs_specific(L0)],
+    Qs0 = [{hframe,
+	    [{vframe,[{label,"Ambient"}]},
+	     {vframe,[{color,Amb0}]}],
+	    [{title,"Color"}]}|qs_specific(L0)],
+    {Name,Prop0} = get_light(We0),
+    Qs = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
     wings_ask:dialog("Ambient Light Properties", Qs,
-		     fun([Amb]) ->
-			     L = L0#light{ambient=Amb},
+		     fun([Amb|Res]) ->
+			     Prop = plugin_results(Name, Res, Prop0),
+			     L = L0#light{ambient=Amb,prop=Prop},
 			     We = We0#we{light=L},
 			     St#st{shapes=gb_trees:update(Id, We, Shs)}
 		     end);
 edit_1(#we{id=Id,light=L0}=We0, Shs, St) ->
     #light{diffuse=Diff0,ambient=Amb0,specular=Spec0} = L0,
-    Qs = [{hframe,
-	   [{vframe,
-	     [{label,"Diffuse"},
-	      {label,"Ambient"},
-	      {label,"Specular"}]},
-	    {vframe,
-	     [{color,Diff0},
-	      {color,Amb0},
-	      {color,Spec0}]}],
-	   [{title,"Colors"}]}|qs_specific(L0)],
+    Qs0 = [{hframe,
+	    [{vframe,
+	      [{label,"Diffuse"},
+	       {label,"Ambient"},
+	       {label,"Specular"}]},
+	     {vframe,
+	      [{color,Diff0},
+	       {color,Amb0},
+	       {color,Spec0}]}],
+	    [{title,"Colors"}]}|qs_specific(L0)],
+    {Name,Prop0} = get_light(We0),
+    Qs = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
     wings_ask:dialog("Light Properties", Qs,
-		     fun([Diff,Amb,Spec|More]) ->
+		     fun([Diff,Amb,Spec|More0]) ->
 			     L1 = L0#light{diffuse=Diff,ambient=Amb,specular=Spec},
-			     L = edit_specific(More, L1),
-			     We = We0#we{light=L},
+			     {L,More} = edit_specific(More0, L1),
+			     Prop = plugin_results(Name, More, Prop0),
+			     We = We0#we{light=L#light{prop=Prop}},
 			     St#st{shapes=gb_trees:update(Id, We, Shs)}
 		     end).
+
+plugin_results(_, [], Prop) ->
+    keydelete(opengl, 1, Prop);
+plugin_results(Name, Res0, Prop0) ->
+    {Prop,Res} = wings_plugin:dialog({light_editor_result,Name,Prop0}, Res0),
+    plugin_results(Name, Res, Prop).
 
 qs_specific(#light{type=spot,spot_angle=Angle,spot_exp=SpotExp}=L) ->
     Spot = [{vframe,[{label,"Angle"},
@@ -368,11 +381,11 @@ qs_att(#light{lin_att=Lin,quad_att=Quad}, Tail) ->
 	      {slider,{text,Quad,[{range,{0.0,0.5}}]}}],
       [{title,"Attenuation"}]}|Tail].
     
-edit_specific([LinAtt,QuadAtt,Angle,SpotExp], #light{type=spot}=L) ->
-    L#light{spot_angle=Angle,spot_exp=SpotExp,lin_att=LinAtt,quad_att=QuadAtt};
-edit_specific([LinAtt,QuadAtt], #light{type=point}=L) ->
-    L#light{lin_att=LinAtt,quad_att=QuadAtt};
-edit_specific(_, L) -> L.
+edit_specific([LinAtt,QuadAtt,Angle,SpotExp|More], #light{type=spot}=L) ->
+    {L#light{spot_angle=Angle,spot_exp=SpotExp,lin_att=LinAtt,quad_att=QuadAtt},More};
+edit_specific([LinAtt,QuadAtt|More], #light{type=point}=L) ->
+    {L#light{lin_att=LinAtt,quad_att=QuadAtt},More};
+edit_specific(More, L) -> {L,More}.
 
 %%%
 %%% The Delete command.
@@ -527,14 +540,14 @@ export(#st{shapes=Shs}) ->
 	      end, [], gb_trees:values(Shs)),
     reverse(L).
 
-get_light(#we{name=Name,light=#light{type=ambient,ambient=Amb}}=We) ->
+get_light(#we{name=Name,light=#light{type=ambient,ambient=Amb,prop=Prop}}=We) ->
     P = light_pos(We),
     OpenGL = [{type,ambient},{ambient,Amb},{position,P}],
-    {Name,[{opengl,OpenGL}]};
+    {Name,[{opengl,OpenGL}|Prop]};
 get_light(#we{name=Name,light=L}=We) ->
     #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
 	   aim=Aim,spot_angle=Angle,spot_exp=SpotExp,
-	   lin_att=LinAtt,quad_att=QuadAtt} = L,
+	   lin_att=LinAtt,quad_att=QuadAtt,prop=Prop} = L,
     P = light_pos(We),
     Common = [{type,Type},{position,P},{aim_point,Aim},
 	      {diffuse,Diff},{ambient,Amb},{specular,Spec}],
@@ -550,7 +563,7 @@ get_light(#we{name=Name,light=L}=We) ->
 		      {quadratic_attenuation,QuadAtt}|OpenGL0];
 		 true -> OpenGL0
 	     end,
-    {Name,[{opengl,OpenGL}]}.
+    {Name,[{opengl,OpenGL}|Prop]}.
 
 %%%
 %%% Importing lights.
