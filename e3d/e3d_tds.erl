@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.43 2004/06/30 13:49:25 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.44 2004/10/12 17:46:14 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -20,9 +20,6 @@
 
 -import(lists, [map/2,foldl/3,mapfoldl/3,reverse/1,reverse/2,
 		sort/1,keysort/2,usort/1,keydelete/3,keyreplace/4]).
-
-%% R9C required is required if debugging is turned on,
-%% sinced the debug printouts use the new hex formatting characters.
 
 %%-define(DEBUG, 1).
 
@@ -47,18 +44,20 @@ import(Name) ->
     case file:read_file(Name) of
 	{ok,Bin} ->
 	    ?MODULE = ets:new(?MODULE, [named_table,ordered_set]),
-	    Res = import_1(Bin),
+	    Dir = filename:dirname(Name),
+	    Res = import_1(Bin, Dir),
 	    ets:delete(?MODULE),
 	    Res;
 	{error,Reason} ->
 	    {error,file:format_error(Reason)}
     end.
 
-import_1(Bin) ->
-    case catch import_2(Bin) of
-	{'EXIT',Reason} -> exit(Reason);
-	{error,_}=Error -> Error;
-	#e3d_file{}=E3dFile -> {ok,E3dFile}
+import_1(Bin, Dir) ->
+    try import_2(Bin) of
+	#e3d_file{}=E3dFile ->
+	    {ok,E3dFile#e3d_file{dir=Dir}}
+    catch
+	throw:Error -> Error
     end.
 
 import_2(<<16#4D4D:16/little,_Size:32/little,T/binary>>) ->
