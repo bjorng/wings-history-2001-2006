@@ -8,13 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d.hrl,v 1.8 2004/06/27 11:58:56 bjorng Exp $
+%%     $Id: e3d.hrl,v 1.9 2004/10/12 17:44:34 bjorng Exp $
 %%
 
 -record(e3d_file,
 	{objs=[],				%List of objects.
 	 mat=[],				%List of materials.
-	 creator=""}).				%Creator string.
+	 creator="", 				%Creator string.
+	 dir					%Directory for file.
+	}).
 
 -record(e3d_object,
 	{name,					%Name of object (string),
