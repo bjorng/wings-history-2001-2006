@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.58 2003/11/28 15:23:24 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.59 2003/11/28 22:15:21 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -763,7 +763,7 @@ setup_projection_matrix() ->
     gl:matrixMode(?GL_MODELVIEW).
 
 %% All vertices must be backfacing for the face to be backfaced.
-frontfacing(_,[]) ->  false;
+frontfacing([],_) ->  false;
 frontfacing([[_|{_,_,N1}]|RN],[L1|RL]) when tuple(N1) ->
     case e3d_vec:dot(N1, L1) >= 0 of
 	true -> % Backfacing
@@ -1156,44 +1156,36 @@ calcTS(V1,V2,V3,UV1,UV2,UV3,N) ->
     {S1,T1} = default_uv(UV1),
     {S2,T2} = default_uv(UV2),
     {S3,T3} = default_uv(UV3),
-    Side1 = e3d_vec:sub(V1,V2),
-    Side2 = e3d_vec:sub(V3,V2),
-    DT1 = T1-T2,
-    DT2 = T3-T2,
-    Stan1 = 
-	if (DT1 == 0.0) and (DT2 == 0.0) -> 
-		%% if no uv-coords..
-		e3d_vec:norm(e3d_vec:sub(Side1,Side2));
-	   true ->
-		e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DT2),
-					 e3d_vec:mul(Side2,DT1)))
-	end,	   
-    DS1 = S1-S2,
-    DS2 = S3-S2,
-    Ttan1 = 
-	if 
-	    (DS1 == 0.0) and (DS2 == 0.0) -> 
-		e3d_vec:norm(e3d_vec:cross(Stan1,N));
-	    true ->
-		e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DS2),
-					 e3d_vec:mul(Side2,DS1)))
-	end,
-    %% OK we the 2 tangents but cross them again with normal
-    %% so they are orthogonal
-    Stan  = e3d_vec:norm(e3d_vec:cross(Ttan1,N)),
-    Ttan  = e3d_vec:norm(e3d_vec:cross(Stan,N)),
-    Check = e3d_vec:dot(e3d_vec:cross(Stan,Ttan),N),
-    if 
-	Check < 0.0 ->
-	    {e3d_vec:mul(Stan,-1.0),e3d_vec:mul(Ttan,-1.0), N};
-	true ->
-	    {Stan,Ttan,N}
+    if S1 == S2;
+       S3 == S2;
+       T1 == T2;
+       T3 == T2 ->
+	    calcTS(V1,V2,V3,N);
+       true ->
+	    Side1 = e3d_vec:sub(V1,V2),
+	    Side2 = e3d_vec:sub(V3,V2),
+	    DT1 = T1-T2,
+	    DT2 = T3-T2,
+	    Stan1 = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DT2),
+					     e3d_vec:mul(Side2,DT1))),	    
+	    DS1 = S1-S2,
+	    DS2 = S3-S2,
+	    Ttan1 = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DS2),
+					     e3d_vec:mul(Side2,DS1))),
+	    %% OK we the 2 tangents but cross them again with normal
+	    %% so they are orthogonal
+	    Stan  = e3d_vec:norm(e3d_vec:cross(Ttan1,N)),
+	    Ttan  = e3d_vec:norm(e3d_vec:cross(Stan1,N)),
+	    check_coordsys(Stan,Ttan,N)
     end.
 
 calcTS(V10,V20,V30,N) ->
-    M = e3d_mat:rotate_s_to_t(N, {0.0,0.0,1.0}),
-    MI = e3d_mat:transpose(M),
-    [O,V1,V2] = lists:sort([e3d_mat:mul_point(M,V) || V <- [V10,V20,V30]]),
+    %% We don't have good uv's to base our calcs on 
+    %% so fix something that looks ok.
+    %% We pick one vertex of the face
+    %% we must always pick the same vertex when checking a face
+    %% to get the coordinate system in a consistent dir
+    [O,V1,V2] = lists:sort([V10,V20,V30]),
     S1 = e3d_vec:sub(V1,O),
     S2 = e3d_vec:sub(V2,O),
     Ls1 = e3d_vec:dot(S1,S1),
@@ -1201,10 +1193,19 @@ calcTS(V10,V20,V30,N) ->
     Dir = if Ls1 > Ls2 -> S1;
 	     true -> S2
 	  end,
-    V  = e3d_mat:mul_point(MI,Dir),
-    Bi = e3d_vec:cross(V, N),
-    T  = e3d_vec:cross(Bi, N),
-    {T, Bi, N}.
+    V = Dir,
+    Bi = e3d_vec:norm(e3d_vec:cross(V, N)),
+    T  = e3d_vec:norm(e3d_vec:cross(Bi, N)),
+    check_coordsys(T, Bi, N).
+
+check_coordsys(Stan,Ttan,N) ->
+    Check = e3d_vec:dot(e3d_vec:cross(Stan,Ttan),N),
+    if 
+	Check < 0.0 ->
+	    {e3d_vec:mul(Stan,-1.0),e3d_vec:mul(Ttan,-1.0), N};
+	true ->
+	    {Stan,Ttan,N}
+    end.
 		   
 bumpCoord({Vx,Vy,Vn}, Vpos, {Type,InvLight0}) ->
     LDir = case Type of
