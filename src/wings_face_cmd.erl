@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.56 2002/06/19 09:39:39 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.57 2002/06/21 07:32:16 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -1096,13 +1096,23 @@ put_on_1(Face, Axis, Target, We) ->
     M = e3d_mat:mul(M1, e3d_mat:translate(e3d_vec:neg(Center))),
     wings_we:transform_vs(M, We).
 
-put_on_target({Mode,[{Id,Faces}]}, #st{shapes=Shs}=St) ->
-    Cs = wings_sel:centers(St#st{selmode=Mode,sel=[{Id,Faces}]}),
+put_on_target({Mode,[{Id,Elems}]=Sel}, #st{shapes=Shs}=St) ->
+    Cs = wings_sel:centers(St#st{selmode=Mode,sel=Sel}),
     Center = e3d_vec:average(Cs),
-    [Face] = gb_sets:to_list(Faces),
-    We = gb_trees:get(Id, Shs),
-    N = wings_face:normal(Face, We),
+    [Elem] = gb_sets:to_list(Elems),
+    #we{es=Etab} = We = gb_trees:get(Id, Shs),
+    N = case Mode of
+	    face ->
+		wings_face:normal(Elem, We);
+	    edge ->
+		#edge{lf=Lf,rf=Rf} = gb_trees:get(Elem, Etab),
+		e3d_vec:norm(e3d_vec:add([wings_face:normal(Lf, We),
+					  wings_face:normal(Rf, We)]));
+	    vertex ->
+		wings_vertex:normal(Elem, We)
+	end,
     {N,Center}.
+
     
 %% outer_edge_partition(FaceSet, WingedEdge) -> [[Edge]].
 %%  Partition all outer edges. Outer edges are all edges
