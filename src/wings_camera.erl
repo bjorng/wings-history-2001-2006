@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.104 2004/05/17 17:51:10 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.105 2004/08/21 08:26:04 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -40,6 +40,7 @@ init() ->
     wings_pref:set_default(camera_mode, mirai),
     wings_pref:set_default(num_buttons, 3),
     wings_pref:set_default(pan_speed, 25),
+    wings_pref:set_default(inverted_wheel_zoom, false),
     case {wings_pref:get_value(num_buttons),wings_pref:get_value(camera_mode)} of
 	{3,_} -> ok;
 	{_,nendo} -> ok;
@@ -51,6 +52,11 @@ prefs() ->
     ZoomFlag0 = wings_pref:get_value(wheel_zooms, true),
     ZoomFactor0 = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR),
     PanSpeed0 = wings_pref:get_value(pan_speed),
+    InvertZW = wings_pref:get_value(inverted_wheel_zoom),
+    Hook = {hook,fun (is_disabled, {_Var,_I,Sto}) ->
+			 not gb_trees:get(wheel_zooms, Sto);
+		     (_, _) -> void
+		 end},
     {vframe,
      [{vframe,[mouse_buttons()],[{title,"Mouse Buttons"}]},
       {vframe,[camera_modes()],[{title,"Camera Mode"}]},
@@ -59,17 +65,17 @@ prefs() ->
        [{title,"Pan Speed"}]},
       {vframe,
        [{"Wheel Zooms",ZoomFlag0,[{key,wheel_zooms}]},
+	{vradio,[{"Forward Zooms In",false},
+		 {"Forward Zooms Out",true}],
+	 InvertZW,
+	 [{key,inverted_wheel_zoom},Hook]},
 	{hframe,
-	 [{label,"Zoom Factor"},
+	 [{label,"Zoom Factor",[Hook]},
 	  {text,ZoomFactor0,
 	   [{key,wheel_zoom_factor},
 	    {range,{1,50}},
-	    {hook,fun (is_disabled, {_Var,_I,Sto}) ->
-			  not gb_trees:get(wheel_zooms, Sto);
-		      (_, _) -> void
-		  end}]},
-	  {label,"%"}],
-	 [{title,"Scroll Wheel"}]}]} ]}.
+	    Hook]},
+	  {label,"%",[Hook]}]} ],[{title,"Scroll Wheel"}] } ]}.
 
 mouse_buttons() ->
     {menu,[{desc(1),1,[{info,info(1)}]},
@@ -680,7 +686,11 @@ zoom_step(Dir) ->
 	true ->
 	    wings_wm:dirty(),
 	    #view{distance=Dist} = View = wings_view:current(),
-	    ZoomPercent = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR)/100,
+	    ZoomPercent0 = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR)/100,
+	    ZoomPercent = case wings_pref:get_value(inverted_wheel_zoom) of
+			      false -> ZoomPercent0;
+			      true -> -ZoomPercent0
+			  end,
 	    Delta = dist_factor(Dist)*Dir*ZoomPercent,
 	    wings_view:set_current(View#view{distance=Dist+Delta}),
 	    keep
