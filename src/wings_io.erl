@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.30 2002/01/17 13:20:40 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.31 2002/01/18 18:49:28 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -75,8 +75,13 @@ arrow() ->
 
 read_icons() ->
     IconFile = filename:join([wings:root_dir(),"ebin","wings_icon.bundle"]),
-    {ok,Bin} = file:read_file(IconFile),
-    Bin.
+    case file:read_file(IconFile) of
+	{ok,Bin} -> Bin;
+	{error,enoent} ->
+	    IconFile2 = filename:join([wings:root_dir(),"wings_icon.bundle"]),
+	    {ok,Bin} = file:read_file(IconFile2),
+	    Bin
+    end.
 
 resize(W, H) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
