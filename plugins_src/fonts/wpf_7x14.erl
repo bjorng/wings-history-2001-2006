@@ -1,14 +1,14 @@
 %%
-%%  font7x14.erl --
+%%  wpf_7x14.erl --
 %%
-%%     7x14 bitmap font.
+%%     7x14 proportional bitmap font.
 %%
 %%  Copyright (c) 2001-2004 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_7x14.erl,v 1.15 2004/03/01 06:47:49 bjorng Exp $
+%%     $Id: wpf_7x14.erl,v 1.16 2004/04/07 05:27:46 bjorng Exp $
 %%
 
 -module(wpf_7x14).
