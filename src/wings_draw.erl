@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.176 2004/03/24 07:53:28 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.177 2004/03/24 07:59:03 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -567,11 +567,14 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
 	 needed=Needed}.
 
 split_faces(#dlo{needed=Need}=D, Ftab, Faces, St) ->
-    case member(work, Need) of
+    case member(work, Need) orelse member(smooth, Need) of
 	false ->
+	    %% This is wireframe mode. We don't need any
+	    %% 'work' display list for faces.
 	    FtabDyn = sofs:to_external(sofs:restriction(Ftab, Faces)),
 	    {none,FtabDyn};
 	true ->
+	    %% Faces needed. (Either workmode or smooth mode.)
 	    {FtabDyn0,StaticFtab0} = sofs:partition(1, Ftab, Faces),
 	    FtabDyn = sofs:to_external(FtabDyn0),
 	    StaticFtab = sofs:to_external(StaticFtab0),
