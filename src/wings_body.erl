@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.63 2003/09/25 15:11:13 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.64 2003/10/19 19:22:57 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -65,7 +65,10 @@ menu(X, Y, St) ->
 	    {"Materials to Colors",materials_to_colors,
 	     "Convert materials to vertex colors"},
 	    {"Colors to Materials",colors_to_materials,
-	     "Convert vertex colors to materials"}],
+	     "Convert vertex colors to materials"},
+	    separator,
+	    {"Vertex Color",vertex_color,
+	     "Apply vertex colors to selected objects"}],
     wings_menu:popup_menu(X, Y, body, Menu).
 
 command({move,Type}, St) ->
@@ -117,7 +120,11 @@ command(colors_to_materials, St) ->
 command({mode,Mode}, St) ->
     {save_state,set_mode(Mode, St)};
 command({weld,Ask}, St) ->
-    weld(Ask, St).
+    weld(Ask, St);
+command(vertex_color, St) ->
+    wings_color:choose(fun(Color) ->
+			       set_color(Color, St)
+		       end).
 
 %%
 %% Convert the current selection to a body selection.
@@ -718,3 +725,19 @@ weld_selection([F|Fs], OldWe, #we{fs=Ftab}=We, Acc) ->
     end;
 weld_selection([], _, _, Acc) ->
     gb_sets:from_list(Acc).
+
+%%%
+%%% Set vertex color for selected objects.
+%%%
+
+set_color(Color, St) ->
+    wings_sel:map(fun(_, We) ->
+			  set_color_1(Color, We)
+		  end, St).
+
+set_color_1(Color, #we{es=Etab0}=We) ->
+    Etab1 = foldl(fun({E,Rec}, A) ->
+			  [{E,Rec#edge{a=Color,b=Color}}|A]
+		  end, [], gb_trees:to_list(Etab0)),
+    Etab = gb_trees:from_orddict(reverse(Etab1)),
+    We#we{es=Etab,mode=vertex}.
