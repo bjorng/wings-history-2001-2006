@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Windows.
 #
-# $Id: make_installer,v 1.5 2004/01/18 18:41:06 bjorng Exp $
+# $Id: make_installer,v 1.6 2004/04/19 04:46:49 bjorng Exp $
 #
 OS=`uname -o`
 if [ X$OS != XCygwin ]; then
@@ -51,11 +51,13 @@ dest="$DEST_ROOT/lib/$WINGS_APP"
 $INSTALL -d "$dest" "$dest/ebin" "$dest/patches"
 $INSTALL -c -m 644 ebin/* "$dest/ebin"
 
-$INSTALL -d "$dest/plugins/default" "$dest/plugins/fonts" \
+$INSTALL -d "$dest/plugins/default" "$dest/plugins/accel" \
+ "$dest/plugins/fonts" \
  "$dest/plugins/import_export" "$dest/plugins/commands" \
  "$dest/plugins/primitives" "$dest/plugins/win32_file" \
  "$dest/plugins/autouv" "$dest/plugins/jpeg"
 $INSTALL -c -m 644 plugins/default/wp9_dialogs.beam "$dest/plugins/default"
+$INSTALL -c -m 644 plugins/accel/* "$dest/plugins/accel"
 $INSTALL -c -m 644 plugins/fonts/* "$dest/plugins/fonts"
 $INSTALL -c -m 644 plugins/import_export/* "$dest/plugins/import_export"
 $INSTALL -c -m 644 plugins/commands/* "$dest/plugins/commands"
