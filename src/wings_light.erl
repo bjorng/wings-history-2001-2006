@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.45 2004/03/16 23:19:34 raimo_niskanen Exp $
+%%     $Id: wings_light.erl,v 1.46 2004/03/17 00:22:29 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
@@ -852,37 +852,33 @@ arealight_posdirexp(#we{light=#light{type=area}}=We) ->
     FaceMats = wings_material:get_all(We),
     ANCs = 
 	[begin 
-	     Area = wings_face:area(Face, We),
-	     {Area,
-	      e3d_vec:mul(wings_face:normal(Face, We), Area),
-	      e3d_vec:mul(wings_face:center(Face, We), Area)}
+	     {wings_face:area(Face, We),
+	      wings_face:normal(Face, We),
+	      wings_face:center(Face, We)}
 	 end || {Face,Mat} <- FaceMats, 
 		(Mat =/= '_hole_') andalso wings_face:good_normal(Face, We)],
     Area = foldl(fun ({A,_,_}, Acc) -> A+Acc end, 0.0, ANCs),
-    Normal = 
-	e3d_vec:divide(foldl(fun ({_,N,_}, Acc) -> e3d_vec:add(N, Acc) end, 
-			     {0.0,0.0,0.0}, ANCs),
-		       Area),
-    Center = 
-	e3d_vec:divide(foldl(fun ({_,_,C}, Acc) -> e3d_vec:add(C, Acc) end, 
-			     {0.0,0.0,0.0}, ANCs),
-		       Area),
-    NormalLen = e3d_vec:len(Normal),
-    Norm = e3d_vec:norm(Normal),
-    if NormalLen >= 0.9 -> 
+    AreaNormal = 
+	foldl(fun ({A,N,_}, Acc) -> 
+		      e3d_vec:add(e3d_vec:mul(N, A), Acc) end, 
+	      {0.0,0.0,0.0}, ANCs),
+    Center = e3d_vec:average([C || {_,_,C} <- ANCs]),
+    Normal = e3d_vec:norm(AreaNormal),
+    AreaNormalLen = e3d_vec:len(AreaNormal),
+    if AreaNormalLen >= (0.9 * Area) -> 
 	    %% 90 percent of all light in one direction; spotlight with falloff
-	    {Center,Norm,1.0};
+	    {Center,Normal,1.0};
        true ->
 	    Rear = foldl(fun ({_,N,_}, Acc) ->
-				 A = e3d_vec:dot(Norm, N),
+				 A = e3d_vec:dot(Normal, N),
 				 if A < 0.0 -> Acc-A; true -> Acc end
-			 end, 0.0, ANCs) / Area,
-	    if Rear > 0.1 ->
+			 end, 0.0, ANCs),
+	    if Rear > (0.1 * Area) ->
 		    %% At least 10 percent rear light; pointlight
 		    {Center,{0.0,0.0,0.0},0.0};
 	       true ->
 		    %% Front and side light, but no rear; hemispherical spot
-		    {Center,Norm,0.0}
+		    {Center,Normal,0.0}
 	    end
     end.
 
