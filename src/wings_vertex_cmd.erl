@@ -8,10 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.13 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.14 2001/12/29 20:33:56 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
+
 -export([flatten/2,extrude/2,bevel/1,connect/1,connect/2,
 	 tighten/1,tighten/3]).
 
@@ -27,34 +28,14 @@
 %%%
 
 flatten(Plane0, St) ->
-    Plane = plane_normal(Plane0),
+    Plane = wings_util:make_vector(Plane0),
     wings_sel:map(
       fun(Vs, We) ->
 	      case gb_sets:size(Vs) of
 		  Sz when Sz < 2 -> We;
-		  Sz -> flatten(Vs, Plane, We)
+		  Sz -> wings_vertex:flatten(Vs, Plane, We)
 	      end
       end, St).
-
-plane_normal(x) -> {1.0,0.0,0.0};
-plane_normal(y) -> {0.0,1.0,0.0};
-plane_normal(z) -> {0.0,0.0,1.0}.
-
-flatten(Vs, PlaneNormal, #we{vs=Vtab0}=We) ->
-    Center = wings_vertex:center(Vs, We),
-    Vtab = foldl(
-	     fun(V, Tab0) ->
-		     flatten_move(V, PlaneNormal, Center, Tab0)
-	     end, Vtab0, gb_sets:to_list(Vs)),
-    We#we{vs=Vtab}.
-
-flatten_move(V, PlaneNormal, Center, Tab0) ->
-    #vtx{pos=Pos0} = Vtx = gb_trees:get(V, Tab0),
-    ToCenter = e3d_vec:sub(Center, Pos0),
-    Dot = e3d_vec:dot(ToCenter, PlaneNormal),
-    ToPlane = e3d_vec:mul(PlaneNormal, Dot),
-    Pos = e3d_vec:add(Pos0, ToPlane),
-    gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab0).
 
 %%%
 %%% The Extrude command.

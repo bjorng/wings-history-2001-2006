@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.21 2001/12/28 22:36:16 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.22 2001/12/29 20:33:56 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -221,6 +221,8 @@ bounding_box(body, Items, #we{vs=Vtab}=We, BB) ->
 %%% faces. We use a standard working-set algorithm.
 %%%
 
+face_regions(Faces, #we{es=Etab,fs=Ftab}) when is_list(Faces) ->
+    find_face_regions(gb_sets:from_list(Faces), Ftab, Etab, []);
 face_regions(Faces, #we{es=Etab,fs=Ftab}) ->
     find_face_regions(Faces, Ftab, Etab, []).
 
@@ -268,6 +270,8 @@ find_adj(Face, Edge, LastEdge, Etab, Acc, _) ->
     find_adj(Face, Next, LastEdge, Etab, gb_sets:add(Other, Acc), done).
 
 
+edge_regions(Edges, We) when is_list(Edges) ->
+    find_edge_regions(gb_sets:from_list(Edges), We, []);
 edge_regions(Edges, We) ->
     find_edge_regions(Edges, We, []).
 

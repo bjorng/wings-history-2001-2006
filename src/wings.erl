@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.77 2001/12/28 22:36:58 bjorng Exp $
+%%     $Id: wings.erl,v 1.78 2001/12/29 20:33:56 bjorng Exp $
 %%
 
 -module(wings).
@@ -262,14 +262,14 @@ repeatable(Mode, Cmd) ->
 command({_,{[_|_]}=Plugin}, St0) ->
     case wings_plugin:command(Plugin, St0) of
 	St0 -> St0;
-	{drag,Drag} -> Drag;
+	{drag,_}=Drag -> Drag;
 	#st{}=St -> {save_state,model_changed(St)};
 	St -> St
     end;
 command({_,[_|_]=Plugin}, St0) ->
     case wings_plugin:command(Plugin, St0) of
 	St0 -> St0;
-	{drag,Drag} -> Drag;
+	{drag,_}=Drag -> Drag;
 	#st{}=St -> {save_state,model_changed(St)};
 	St -> St
     end;

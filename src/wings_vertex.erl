@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.13 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.14 2001/12/29 20:33:56 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -18,6 +18,7 @@
 	 center/1,center/2,
 	 bounding_box/1,bounding_box/2,bounding_box/3,
 	 normal/2,per_face/2,
+	 flatten/3,
 	 dissolve/2,
 	 connect/3,force_connect/4,
 	 patch_vertex/3,pos/2]).
@@ -248,6 +249,28 @@ per_face([], We, Acc) ->
     R = sofs:relation(Acc),
     F = sofs:relation_to_family(R),
     sofs:to_external(F).
+
+%% flatten(Vs, PlaneNormal, We) -> We'
+%%  Flatten vertices by projecting them to the given plane.
+flatten(Vs, PlaneNormal, #we{vs=Vtab0}=We) when is_list(Vs) ->
+    Center = wings_vertex:center(Vs, We),
+    Vtab = foldl(
+	     fun(V, Tab0) ->
+		     flatten_move(V, PlaneNormal, Center, Tab0)
+	     end, Vtab0, Vs),
+    We#we{vs=Vtab};
+flatten(Vs, PlaneNormal, We) ->
+    flatten(gb_sets:to_list(Vs), PlaneNormal, We).
+    
+
+flatten_move(V, PlaneNormal, Center, Tab0) ->
+    #vtx{pos=Pos0} = Vtx = gb_trees:get(V, Tab0),
+    ToCenter = e3d_vec:sub(Center, Pos0),
+    Dot = e3d_vec:dot(ToCenter, PlaneNormal),
+    ToPlane = e3d_vec:mul(PlaneNormal, Dot),
+    Pos = e3d_vec:add(Pos0, ToPlane),
+    gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab0).
+
 
 %% dissolve(Vertex, We) -> We|error
 %%  Remove a "winged vertex" - a vertex with exactly two edges.

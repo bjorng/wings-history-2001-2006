@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.21 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.22 2001/12/29 20:33:56 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
 -export([bevel_faces/1,extrude/2,extrude_region/2,extract_region/2,
 	 inset/1,dissolve/1,smooth/1,bridge/1,
 	 intrude/1,mirror/1,flatten/2]).
+-export([outer_edge_partition/2]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keysort/2,
@@ -744,6 +745,8 @@ are_neighbors(FaceA, FaceB, We) ->
 %%  Partition all outer edges. Outer edges are all edges
 %%  between one face in the set and one outside.
 
+outer_edge_partition(Faces, We) when is_list(Faces) ->
+    collect_outer_edges(Faces, gb_sets:from_list(Faces), We, []);
 outer_edge_partition(Faces, We) ->
     collect_outer_edges(gb_sets:to_list(Faces), Faces, We, []).
 

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.14 2001/12/26 18:43:08 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.15 2001/12/29 20:33:56 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -84,6 +84,8 @@ other(Face, #edge{rf=Face,lf=Other}) -> Other.
 
 %% to_vertices(FaceGbSet, We) -> VertexGbSet
 %%  Convert a set of faces to a set of vertices.
+to_vertices(Faces, We) when is_list(Faces) ->
+    to_vertices(Faces, We, []);
 to_vertices(Faces, We) ->
     to_vertices(gb_sets:to_list(Faces), We, []).
 

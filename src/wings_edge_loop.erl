@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.4 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.5 2001/12/29 20:33:56 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
@@ -182,6 +182,8 @@ next_edge(From, V, Face, Edge, Etab) ->
 %%  one or more simple closed loops, this function returns
 %%  the vertices that make up each loop in the correct order.
 
+edge_loop_vertices(Edges, We) when is_list(Edges) ->
+    edge_loop_vertices(gb_sets:from_list(Edges), We, []);
 edge_loop_vertices(Edges, We) ->
     edge_loop_vertices(Edges, We, []).
 
