@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.6 2002/11/14 09:02:20 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.7 2002/11/14 12:18:43 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
@@ -81,7 +81,6 @@ file_dialog(Type, Prop, Title) ->
 		 [$.|Ext] -> Ext;
 		 none -> []
 	     end,
-    io:format("~p\n", [proplists:get_value(extensions, Prop, kalle)]),
     Dir = wings_pref:get_value(current_directory),
     DefName = proplists:get_value(default_filename, Prop, ""),
     Data = [Dir,0,Title,0,DefName,0,Filter,0],
