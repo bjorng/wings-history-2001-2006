@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.43 2003/05/08 07:00:56 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.44 2003/05/29 05:50:49 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -30,8 +30,12 @@
 clear(St) ->
     St#st{sel=[],sh=false}.
 
-reset(St) ->
-    St#st{sel=[],sh=wings_pref:get_value(smart_highlighting)}.
+reset(#st{selmode=Mode}=St) ->
+    case wings_pref:get_value(smart_highlighting) of
+	false -> St#st{sel=[],sh=false};
+	true when Mode =:= body -> St#st{selmode=face,sel=[],sh=true};
+	true -> St#st{sel=[],sh=true}
+    end.
 
 set(Sel, St) ->
     St#st{sel=sort(Sel),sh=false}.
