@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.76 2004/10/30 08:02:34 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.77 2004/10/31 10:13:22 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -21,48 +21,78 @@
 -import(lists, [reverse/1,foldl/3]).
 
 menu(_) ->
-    [{?STR(menu,1,"Getting Started"),getting_started},
-     {?STR(menu,2,"Using a Mouse With One or Two Buttons"),one_or_two},
-     {?STR(menu,3,"French and German Keyboards"),international},
-     separator,
-     {?STR(menu,4,"Defined Hotkeys"),hotkeys},
-     {?STR(menu,5,"How To Define Hotkeys"),defining_hotkeys},
-     separator,
-     {?STR(menu,6,"Light Basics"),lights},
-     separator,
-     {?STR(menu,7,"Advanced Menus"),advanced_menus},
-     {?STR(menu,8,"Default Commands"),default_commands},
-     separator,
-     {?STR(menu,9,"Performance Tips"),performance_tips},
-     separator,
-     {?STR(menu,10,"OpenGL Info"),opengl_info},
-     separator,
-     {?STR(menu,11,"About Wings 3D"),about}].
+    L = [getting_started,
+	 one_or_two,
+	 international,
+	 separator,
+	 hotkeys,
+	 defining_hotkeys,
+	 separator,
+	 lights,
+	 separator,
+	 advanced_menus,
+	 default_commands,
+	 separator,
+	 performance_tips,
+	 separator,
+	 opengl_info,
+	 separator,
+	 about],
+    [if
+	 I == separator -> I;
+	 true -> {header(I),I}
+     end || I <- L].
 
-command(getting_started, _St) ->
-    getting_started();
-command(one_or_two, _St) ->
-    one_or_two();
-command(international, _St) ->
-    international();
-command(defining_hotkeys, _St) ->
-    def_hotkeys();
-command(hotkeys, _St) ->
-    hotkeys();
-command(default_commands, _St) ->
-    def_commands();
-command(lights, _St) ->
-    lights();
-command(advanced_menus, _St) ->
-    advanced_menus();
-command(performance_tips, _St) ->
-    performance_tips();
-command(opengl_info, _St) ->
-    opengl_info();
-command(about, _St) ->
-    about().
+header(getting_started) ->
+    ?STR(header,1,"Getting Started");
+header(one_or_two) ->
+    ?STR(header,2,"Using a Mouse With One or Two Buttons");
+header(international) ->
+    ?STR(header,3,"French and German Keyboards");
+header(hotkeys) ->
+    ?STR(header,4,"Defined Hotkeys");
+header(defining_hotkeys) ->
+    ?STR(header,5,"How To Define Hotkeys");
+header(lights) ->
+    ?STR(header,6,"Light Basics");
+header(advanced_menus) ->
+    ?STR(header,7,"Advanced Menus");
+header(default_commands) ->
+    ?STR(header,8,"Default Commands");
+header(performance_tips) ->
+    ?STR(header,9,"Performance Tips");
+header(opengl_info) ->
+    ?STR(header,10,"OpenGL Info");
+header(about) ->
+    ?STR(header,11,"About Wings 3D").
 
-getting_started() ->
+command(Item, _St) ->
+    command_1(Item, header(Item)).
+
+command_1(getting_started, Header) ->
+    getting_started(Header);
+command_1(one_or_two, Header) ->
+    one_or_two(Header);
+command_1(international, Header) ->
+    international(Header);
+command_1(defining_hotkeys, Header) ->
+    def_hotkeys(Header);
+command_1(hotkeys, Header) ->
+    hotkeys(Header);
+command_1(default_commands, Header) ->
+    def_commands(Header);
+command_1(lights, Header) ->
+    lights(Header);
+command_1(advanced_menus, Header) ->
+    advanced_menus(Header);
+command_1(performance_tips, Header) ->
+    performance_tips(Header);
+command_1(opengl_info, Header) ->
+    opengl_info(Header);
+command_1(about, Header) ->
+    about(Header).
+
+getting_started(Head) ->
     B = "(",
     E = ")",
     H = [?STR(getting_started,1,
@@ -93,9 +123,9 @@ getting_started() ->
 	 ?STR(getting_started,7,
 	      "Generally, L (left mouse button) is used for selecting and accepting, M (middle mouse button) for operating the camera, and R (right mouse button) to access the context-sensitive pop-up menus.")
 	],
-    help_window(?STR(getting_started,8,"Getting Started"), H).
+    help_window(Head, H).
 
-one_or_two() ->
+one_or_two(Head) ->
     Nendo = [{ul,wings_s:camera_mode(nendo)}],
     Help = [?STR(getting_started,9,"To use mice with only one or two buttons, you must inform Wings how many buttons your mouse has in the ")
 		++cmd([?STR(getting_started,10,"Edit"),
@@ -114,10 +144,9 @@ one_or_two() ->
 	    ?STR(getting_started,19,
 		 " mode can be used with an one-button mouse.")
 	   ],
-    help_window(?STR(getting_started,20,
-		     "Using a mouse with One or Two buttons"), Help).
+    help_window(Head, Help).
 
-advanced_menus() ->
+advanced_menus(Head) ->
     Help = [?STR(advanced_menus,1,"In the ")
 	    ++cmd([?STR(advanced_menus,2,"Edit"),
 		   ?STR(advanced_menus,3,"Preferences")
@@ -140,15 +169,15 @@ advanced_menus() ->
 	    ?STR(advanced_menus,16,"For instance, R clicking on the Rotate command allows you to specify an axis (or vector) to rotate your selection around, while M clicking lets you define an axis - and a new point through which that axis will pass. (A vector does not have to be parallel to an x, y or z axis.)"),
 
 	    ?STR(advanced_menus,17,"Reading the contents of the info line at the bottom of the Wings window is highly recommended when using advanced menus.")],
-    help_window(?STR(advanced_menus,18,"Advanced Menus"), Help).
+    help_window(Head, Help).
 
-international() ->
+international(Head) ->
     Help = [?STR(international,1,"Unfortunately, on French and German keyboards (and possibly others), the Undo/Redo commands will not be bound to the [Z] key. (That might be changed in a future release of Wings.)"),
 	    ?STR(international,2,"On French keyboards, the Undo/Redo commands are found on the [W] key ([Ctrl]+[W], [Ctrl]+[Alt]+[W] and so on)."),
 	    ?STR(international,3,"On German keyboards, the Undo/Redo commands are found on the [Y] key ([Ctrl]+[Y], [Ctrl]+[Alt]+[Y] and so on).")],
-    help_window(?STR(international,4,"French And German Keyboards"), Help).
+    help_window(Head, Help).
 
-def_commands() ->
+def_commands(Head) ->
     Ctrl = wings_s:key(ctrl)++ "+",
     ShiftCtrl = wings_s:key(shift)++ "+" ++ Ctrl,
     Help = [?STR(def_commands,1,"In the")++" "
@@ -169,9 +198,9 @@ def_commands() ->
 	    [{ul,wings_s:camera_mode(blender)}] ++
 	    ?STR(def_commands,15,
 		 " camera modes, the second default command cannot be used.")],
-    help_window(?STR(def_commands,16,"Assigning Default Commands"), Help).
+    help_window(Head, Help).
 
-performance_tips() ->
+performance_tips(Head) ->
     B = [bullet]++" ",
     H = [?STR(performance_tips,1,"The performance of Wings is dependent on many different things, such as"),
 	 B++?STR(performance_tips,2,"the speed of the CPU"),
@@ -213,19 +242,19 @@ performance_tips() ->
 	         ?STR(performance_tips,29,"Show Edges")])
 	  ++?STR(performance_tips,30," command.")
 	],
-    help_window(?STR(performance_tips,31,"Performance Tips"), H).
+    help_window(Head, H).
 
-hotkeys() ->
+hotkeys(Head) ->
     Help = wings_hotkey:listing(),
-    help_window(?STR(hotkeys,1,"Defined Hotkeys"), Help)
-.
-def_hotkeys() ->
+    help_window(Head, Help).
+
+def_hotkeys(Head) ->
     Help = [?STR(def_hotkeys,1,"Any command that appears in a menu, can be assigned a keyboard short-cut (hotkey)."),
     	    ?STR(def_hotkeys,2,"To assign a hotkey to a command, open the menu containing the command. With the command high-lighted, press the [Insert] or [/] key, and then press the key you want to assign the command to."),
 	    ?STR(def_hotkeys,3,"To delete a hotkey, similarly high-light the command in a menu, and press the [Del] or [\] key.")],
-    help_window(?STR(def_hotkeys,4,"How To Define Hotkeys"), Help).
+    help_window(Head, Help).
 
-lights() ->
+lights(Head) ->
     Help = [?STR(lights,1,"1. Create lights using the Light command in the primitives menu (R-click when there is no selection)."),
     	    ?STR(lights,2,"2. Select a light by L-clicking on it. When any light is selected, a special Light menu will pop up when you R-click."),
 	    ?STR(lights,3,"3. To tell Wings to actually use the lights you have created, use the ")
@@ -233,9 +262,9 @@ lights() ->
 	 	   ?STR(lights,5,"Scene Lights")
 		  ])
 	    ++?STR(lights,6," command.")],
-    help_window(?STR(lights,7,"Light Basics"), Help).
+    help_window(Head, Help).
 
-opengl_info() ->
+opengl_info(Head) ->
     gl:getError(),			%Clear any previous error.
     [{_,VerTuple}] = ets:lookup(wings_gl_ext, version),
     Help = [
@@ -287,7 +316,7 @@ opengl_info() ->
 		       ?GL_NUM_COMPRESSED_TEXTURE_FORMATS},
 		      {?STR(opengl_info,43,"Max number of vertex units"),?GL_MAX_VERTEX_UNITS_ARB}]),
 		?STR(opengl_info,44,"OpenGL Extensions"),extensions()],
-    help_window(?STR(opengl_info,45,"OpenGL Info"), Help).
+    help_window(Head, Help).
 
 get_info([{Label,Attr}|T]) ->
     Val = gl:getIntegerv(Attr),
@@ -421,7 +450,7 @@ cmd([M]) -> [{bold,M}].
 
 -define(MARGIN, 12).
 
-about() ->
+about(_) ->
 %% \		    /
 %%  \		   /		    	         __    	__
 %%   \		  /    .	    	   	/  \   |  \
