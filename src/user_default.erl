@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.2 2001/12/13 19:41:27 bjorng Exp $
+%%     $Id: user_default.erl,v 1.3 2002/01/05 21:22:48 bjorng Exp $
 %%
 
 -module(user_default).
@@ -123,7 +123,7 @@ get_vsn_1(_) -> [].
 
 tar() ->
     Name = tar_file_name(),
-    Files = filelib:wildcard("*.{erl,hrl,c,bundle,icon,mk}") ++
+    Files = filelib:wildcard("*.{erl,hrl,c,icon,mk}") ++
 	filelib:wildcard("icons/*.bmp") ++
 	filelib:wildcard("plugins/default/*.erl") ++
 	filelib:wildcard("plugins/win32_file/*.{erl,c}"),
