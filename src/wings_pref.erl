@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.27 2002/02/04 23:32:40 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.28 2002/02/10 18:17:11 bjorng Exp $
 %%
 
 -module(wings_pref).
 -export([init/0,finish/0,
-	 menu/1,command/1,
+	 menu/1,command/2,
 	 get_value/1,get_value/2,set_value/2,set_default/2,
 	 delete_value/1,browse/1]).
 
@@ -72,25 +72,25 @@ collect_items([separator|T], A) -> collect_items(T, [separator|A]);
 collect_items([{Desc,Key}|_]=T, A) -> {reverse(A),T};
 collect_items([], A) -> {reverse(A),[]}.
 
-command(Key) ->
+command(Key, St) when is_atom(Key) ->
     {value,{Prompt,_,Def}} = keysearch(Key, 2, presets()),
-    command_1(Key, Prompt, Def).
+    command_1(Key, Prompt, Def, St).
 
-command_1(Key, Prompt, Bool) when Bool == false; Bool == true ->
+command_1(Key, Prompt, Bool, St) when Bool == false; Bool == true ->
     set_value(Key, not get_value(Key));
-command_1(Key, Prompt, _) ->
+command_1(Key, Prompt, _, St) ->
     Def = get_value(Key),
-    wings_util:ask(true,
-		   [{Prompt,Def}],
-		   fun([Val]) ->
-			   set_value(Key, Val),
-			   case Key of
-			       background_color ->
-				   {R,G,B} = Val,
-				   gl:clearColor(R, G, B, 1.0);
-			       Other -> ok
-			   end
-		   end).
+    wings_ask:ask([{Prompt,Def}], St,
+		  fun([Val]) ->
+			  set_value(Key, Val),
+			  case Key of
+			      background_color ->
+				  {R,G,B} = Val,
+				  gl:clearColor(R, G, B, 1.0);
+			      Other -> ok
+			  end,
+			  ignore
+		  end).
 
 old_pref_file() ->
     case os:type() of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.8 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.9 2002/02/10 18:17:11 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -150,7 +150,9 @@ by_command({material,Mat}=Cmd, St) ->
 by_command({random,Percent}, St) ->
     {save_state,random(Percent, St)};
 by_command(id, St) ->
-    {save_state,by_id(St)}.
+    by_id(St);
+by_command({id,Sel}, St) ->
+    {save_state,wings_sel:set(Sel, St)}.
 
 %%%
 %%% Selection commands.
@@ -422,7 +424,7 @@ random(Percent, #st{selmode=Mode}=St) ->
 %%
 
 by_id(#st{selmode=body}=St) ->
-    ask([{"Object Id",0,0,unlimited}],
+    ask([{"Object Id",0,0,unlimited}], St,
 	fun([Id]) ->
 		valid_sel("", [{Id,gb_sets:singleton(0)}], St)
 	end);
@@ -433,15 +435,14 @@ by_id(#st{selmode=edge}=St) ->
 by_id(#st{selmode=face}=St) ->
     item_by_id("Face Id", St).
 
-
 item_by_id(Prompt, #st{sel=[{Id,_}]}=St) ->
-    ask([{Prompt,0,0,unlimited}],
+    ask([{Prompt,0,0,unlimited}], St,
 	fun([Item]) ->
 		valid_sel(Prompt, [{Id,gb_sets:singleton(Item)}], St)
 	end);
 item_by_id(Prompt, St) ->
     ask([{"Object Id",0,0,unlimited},
-	 {Prompt,0,0,unlimited}],
+	 {Prompt,0,0,unlimited}], St,
 	fun([Id,Item]) ->
 		valid_sel(Prompt, [{Id,gb_sets:singleton(Item)}], St)
 	end).
@@ -459,9 +460,11 @@ valid_sel(Prompt, Sel, #st{shapes=Shs,selmode=Mode}=St) ->
 		    throw({command_error,"The "++Prompt++" "++
 			   integer_to_list(Item)++" is invalid."})
 	    end;
-	Sel ->
-	    St#st{sel=Sel}
+	Sel -> Sel
     end.
     
-ask(Qs, Fun) ->
-    wings_util:ask(true, Qs, Fun).
+ask(Qs, St, Fun) ->
+    wings_ask:ask(Qs, St, fun(Res) ->
+				  Sel = Fun(Res),
+				  {select,{by,{id,Sel}}}
+			  end).

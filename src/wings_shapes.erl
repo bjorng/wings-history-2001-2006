@@ -10,16 +10,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.15 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.16 2002/02/10 18:17:11 bjorng Exp $
 %%
 
 -module(wings_shapes).
--export([menu/3,command/3]).
+-export([menu/3,command/2]).
 -include("wings.hrl").
 
 -import(lists, [foreach/2,foldl/3,sort/1,last/1,seq/2,seq/3]).
 -import(math, [sqrt/1,cos/1,sin/1,pi/0]).
--import(wings_util, [ask/3]).
 
 menu(X, Y, St) ->
     Menu = [{"Tetrahedron",tetrahedron},
@@ -38,17 +37,17 @@ menu(X, Y, St) ->
 	    {"Grid",grid,[],[hotbox]}],
     wings_menu:popup_menu(X, Y, shape, Menu, St).
 
-command(tetrahedron, _, St) -> tetrahedron(St);
-command(octahedron, _, St) -> octahedron(St);
-command(octotoad, _, St) -> octotoad(St);
-command(dodecahedron, _, St) -> dodecahedron(St);
-command(icosahedron, _, St) -> icosahedron(St);
-command(cube, _, St) -> cube(St);
-command(cylinder, Ask, St) -> cylinder(Ask, St);
-command(cone, Ask, St) -> cone(Ask, St);
-command(sphere, Ask, St) -> sphere(Ask, St);
-command(torus, Ask, St) -> torus(Ask, St);
-command(grid, Ask, St) -> grid(Ask, St).
+command(tetrahedron, St) -> tetrahedron(St);
+command(octahedron, St) -> octahedron(St);
+command(octotoad, St) -> octotoad(St);
+command(dodecahedron, St) -> dodecahedron(St);
+command(icosahedron, St) -> icosahedron(St);
+command(cube, St) -> cube(St);
+command({cylinder,Ask}, St) -> cylinder(Ask, St);
+command({cone,Ask}, St) -> cone(Ask, St);
+command({sphere,Ask}, St) -> sphere(Ask, St);
+command({torus,Ask}, St) -> torus(Ask, St);
+command({grid,Ask}, St) -> grid(Ask, St).
 
 build_shape(Prefix, Fs, Vs, #st{onext=Oid}=St) ->
     We = wings_we:build(Fs, Vs),
@@ -132,16 +131,15 @@ circle(N, Y, R) ->
     Delta= pi()*2 / N,
     [{R*cos(I*Delta), Y, R*sin(I*Delta)} || I <- lists:seq(0, N-1)].
 
-cylinder(Ask, St) ->
-    ask(Ask, [{"Sections",16,3,unlimited}],
-	fun([Sections]) ->
-		Fs = cylinder_faces(Sections),
-		Vs = cylinder_vertices(Sections),
-		build_shape("cylinder", Fs, Vs, St)
-	end).
+cylinder(Ask, St) when is_atom(Ask) ->
+    ask(cylinder, Ask, St, [{"Sections",16,3,unlimited}]);
+cylinder([Sections], St) ->
+    Fs = cylinder_faces(Sections),
+    Vs = cylinder_vertices(Sections),
+    build_shape("cylinder", Fs, Vs, St).
 
 cylinder_faces(N) ->
-    Ns= lists:reverse(lists:seq(0, N-1)),
+    Ns =lists:reverse(lists:seq(0, N-1)),
     Upper= Ns,
     Lower= lists:seq(N, N+N-1),
     Sides= [[I, (I+1) rem N, N + (I+1) rem N, N + I] || I <- Ns],
@@ -150,17 +148,16 @@ cylinder_faces(N) ->
 cylinder_vertices(N) ->
     circle(N, 1.0) ++ circle(N, -1.0).
 
-cone(Ask, St) ->
-    ask(Ask, [{"Sections",16,3,unlimited}],
-	fun([N]) ->
-		Ns = lists:seq(0, N-1),
-		Lower = lists:seq(0, N-1),
-		C = circle(N, -1.0),
-		Vs = C ++ [{0.0, 1.0, 0.0}],
-		Sides = [[N, (I+1) rem N, I] || I <- Ns],
-		Fs = [Lower | Sides],
-		build_shape("cone", Fs, Vs, St)
-	end).
+cone(Ask, St) when is_atom(Ask) ->
+    ask(cone, Ask, St, [{"Sections",16,3,unlimited}]);
+cone([N], St) ->
+    Ns = lists:seq(0, N-1),
+    Lower = lists:seq(0, N-1),
+    C = circle(N, -1.0),
+    Vs = C ++ [{0.0, 1.0, 0.0}],
+    Sides = [[N, (I+1) rem N, I] || I <- Ns],
+    Fs = [Lower | Sides],
+    build_shape("cone", Fs, Vs, St).
     
 sphere_circles(Ns, Nl) ->
     Delta= pi() / Nl,
@@ -184,16 +181,24 @@ sphere_faces(Ns, Nl) ->
 	      || J <- lists:seq(0, Nl-3)],
     Topf ++ Botf ++ lists:append(Slices).
 
-sphere(Ask, St) ->
-    ask(Ask, [{"Sections",16,0,unlimited},
-	      {"Slices",8,0,unlimited}],
-	fun([Ns,Nl]) ->
-		Vs = sphere_circles(Ns, Nl) ++
-		    [{0.0, 1.0, 0.0}, {0.0, -1.0, 0.0}],
-		Fs = sphere_faces(Ns, Nl),
-		build_shape("sphere", Fs, Vs, St)
-	end).
+sphere(Ask, St) when is_atom(Ask) ->
+    ask(sphere, Ask, St,
+	[{"Sections",16,0,unlimited},
+	 {"Slices",8,0,unlimited}]);
+sphere([Ns,Nl], St) ->
+    Vs = sphere_circles(Ns, Nl) ++ [{0.0, 1.0, 0.0}, {0.0, -1.0, 0.0}],
+    Fs = sphere_faces(Ns, Nl),
+    build_shape("sphere", Fs, Vs, St).
     
+torus(Ask, St) when is_atom(Ask) ->
+    ask(torus, Ask, St,
+	[{"Sections",16,0,unlimited},
+	 {"Slices",8,0,unlimited}]);
+torus([Ns,Nl], St) ->
+    Vs = torus_vertices(Ns, Nl, 0.75),
+    Fs = torus_faces(Ns, Nl),
+    build_shape("torus", Fs, Vs, St).
+
 torus_faces(Ns, Nl) ->
     Nl2= Nl*2,
     Slices= [ [ [(I+1) rem Ns + J*Ns, I + J*Ns,
@@ -202,30 +207,20 @@ torus_faces(Ns, Nl) ->
 	      || J <- lists:seq(0, Nl2 - 1)],
     lists:append(Slices).
 
-torus_vertices(Ns, Nl) ->
+torus_vertices(Ns, Nl, Hs) ->
     Nl2 = Nl*2,
-    Delta= 2*pi() / Nl2,
-    PosAndRads= [{0.25*sin(I*Delta), 0.75 + 0.25*cos(I*Delta)}
-		 || I <- lists:seq(0, Nl2 - 1)],
-    Circles= [circle(Ns, Pos, Rad) || {Pos, Rad} <- PosAndRads],
+    Delta = 2*pi() / Nl2,
+    PosAndRads = [{(1.0-Hs)*sin(I*Delta), Hs + (1.0-Hs)*cos(I*Delta)}
+		  || I <- lists:seq(0, Nl2 - 1)],
+    Circles = [circle(Ns, Pos, Rad) || {Pos, Rad} <- PosAndRads],
     lists:flatten(Circles).
 
-torus(Ask, St) ->
-    ask(Ask, [{"Sections",16,0,unlimited},
-	      {"Slices",8,0,unlimited}],
-	fun([Ns,Nl]) ->
-		Vs = torus_vertices(Ns, Nl),
-		Fs = torus_faces(Ns, Nl),
-		build_shape("torus", Fs, Vs, St)
-	end).
-
-grid(Ask, St) ->
-    ask(Ask, [{"Rows/cols",10,2,unlimited}],
-	fun([Size]) ->
-		Vs = grid_vertices(Size),
-		Fs = grid_faces(Size),
-		build_shape("grid", Fs, Vs, St)
-	end).
+grid(Ask, St) when is_atom(Ask) ->
+    ask(grid, Ask, St, [{"Rows/cols",10,2,unlimited}]);
+grid([Size], St) ->
+    Vs = grid_vertices(Size),
+    Fs = grid_faces(Size),
+    build_shape("grid", Fs, Vs, St).
 
 grid_vertices(Size) ->
     {Low,High} = case Size rem 2 of
@@ -253,3 +248,6 @@ grid_faces(Size) ->
 grid_face(I, J, Rsz) ->
     [Rsz*J+I+1,   Rsz*J+I,
      Rsz*(J+1)+I, Rsz*(J+1)+I+1].
+
+ask(Shape, Bool, St, Qs) ->
+    wings_ask:ask(Bool, Qs, St, fun(Res) -> {shape,{Shape,Res}} end).

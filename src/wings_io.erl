@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.37 2002/02/04 08:34:30 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.38 2002/02/10 18:17:11 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -17,12 +17,13 @@
 	 hourglass/0,
 	 draw_ui/1,
 	 update/1,
+	 swap_buffers/0,
 	 event/1,button/2,
 	 info/1,message/1,clear_message/0,
 	 progress/1,progress_tick/0,
 	 clear_menu_sel/0,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
-	 text_at/2,text_at/3,menu_text/3,axis_text/4,space_at/2,
+	 text_at/2,text_at/3,text/1,menu_text/3,axis_text/4,space_at/2,
 	 draw_icon/5,
 	 draw_message/1,draw_completions/1]).
 -export([putback_event/1,get_event/0,
@@ -147,7 +148,6 @@ clear_menu_sel() ->
     put_state((get_state())#io{sel=undefined,message=undefined}).
 
 icon_restriction(Modes) ->
-
     put_state((get_state())#io{selmodes=Modes}).
 
 clear_icon_restriction() ->
@@ -165,11 +165,13 @@ draw_ui(St) ->
     display(fun(Io) -> update(Io, St) end, ?GL_BACK).
 
 update(St) ->
-    display(fun(Io) -> update(Io, St) end, ?GL_BACK),
-    gl:swapBuffers(),
-    arrow(),
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT).
+    display(fun(Io) -> update(Io, St) end, ?GL_BACK).
 
+swap_buffers() ->
+    gl:swapBuffers(),
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    arrow().
+    
 draw_message(F) ->
     #io{w=W,h=H} = get_state(),
     gl:pushMatrix(),
@@ -368,6 +370,9 @@ space_at(X, Y) ->
     gl:color3f(0.52, 0.52, 0.52),
     gl:recti(X, Y-?LINE_HEIGHT+3, X+?CHAR_WIDTH, Y+3),
     gl:color3f(0.0, 0.0, 0.0).
+
+text(S) ->
+    catch wings_text:draw(S).
 
 text_at(X, S) ->
     gl:rasterPos2i(X, 0),

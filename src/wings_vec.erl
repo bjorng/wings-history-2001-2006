@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.8 2002/02/03 22:43:45 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.9 2002/02/10 18:17:11 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -72,16 +72,18 @@ command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
 command(rename, St) ->
     name_menu("Rename or Delete Vector", do_rename, dummy, St);
 command({do_rename,{unnamed,Vec,_}}, St) ->
-    wings_util:prompt("New name (leave empty to delete)", "Unnamed",
-		      fun(Name) ->
-			      do_rename(unnamed, Name, Vec, St)
-		      end);
+    wings_ask:ask([{"New name (leave empty to delete)","Unnamed"}], St,
+		  fun([Name]) ->
+			  {vector,{do_rename,Vec,unnamed,Name}}
+		  end);
 command({do_rename,{Name0,Vec,_}}, St) ->
-    wings_util:prompt("New name (leave empty to delete)",
-		      atom_to_list(Name0),
-		      fun(Name) ->
-			      do_rename(Name0, Name, Vec, St)
-		      end).
+    wings_ask:ask([{"New name (leave empty to delete)",
+		    atom_to_list(Name0)}], St,
+		  fun([Name]) ->
+			  {vector,{do_rename,Vec,Name0,Name}}
+		  end);
+command({do_rename,Vec,OldName,NewName}, St) ->
+    do_rename(OldName, NewName, Vec, St).
 
 do_rename(Name, NewName0, Vec, #st{svec=Svec0}=St) ->
     Svec1 = keydelete(Name, 1, Svec0),

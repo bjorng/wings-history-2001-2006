@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.108 2002/02/07 21:16:45 bjorng Exp $
+%%     $Id: wings.erl,v 1.109 2002/02/10 18:17:11 bjorng Exp $
 %%
 
 -module(wings).
@@ -166,6 +166,7 @@ redraw(St0) ->
     St = wings_draw:render(St0),
     wings_io:info(info(St)),
     wings_io:update(St),
+    wings_io:swap_buffers(),
     St.
 
 clean_state(St) ->
@@ -273,7 +274,7 @@ do_command(Cmd, St0) ->
 	{push,_}=Push -> Push;
 	{init,_,_}=Init -> Init;
 	{seq,_,_}=Seq -> Seq;
-	aborted -> main_loop(St0);
+	keep -> keep;
 	quit ->
 	    sdl_util:free(get(wings_hitbuf)),
 	    pop
@@ -332,14 +333,12 @@ command({vector,What}, St) ->
 command({secondary_selection,aborted}, St) -> St;
 command({menu,Menu,X,Y}, St) ->
     menu(X, Y, Menu, St);
-command({shape,{Shape,Ask}}, St0) ->
-    case wings_shapes:command(Shape, Ask, St0) of
-	aborted -> St0;
-	St -> {save_state,model_changed(St)}
-    end;
 command({shape,Shape}, St0) ->
-    St = wings_shapes:command(Shape, false, St0),
-    {save_state,model_changed(St)};
+    case wings_shapes:command(Shape, St0) of
+    	St0 -> St0;
+	#st{}=St -> {save_state,model_changed(St)};
+	Other -> Other
+    end;
 command({help,What}, St) ->
     wings_help:What(St);
 
@@ -383,8 +382,7 @@ command({edit,disable_patches}, St) ->
     wings_start:disable_patches(),
     St;
 command({edit,{_,Pref}}, St) ->
-    wings_pref:command(Pref),
-    St;
+    wings_pref:command(Pref, St);
 
 %% Select menu.
 command({select,Command}, St) ->
@@ -439,8 +437,11 @@ command({face,intrude}, St) ->
     ?SLOW(wings_face_cmd:intrude(St));
 command({face,dissolve}, St) ->
     {save_state,model_changed(wings_face_cmd:dissolve(St))};
-command({face,{material,Mat}}=Cmd, St) ->
-    {save_state,model_changed(wings_material:command(Cmd, St))};
+command({face,{material,Mat}}=Cmd, St0) ->
+    case wings_material:command(Cmd, St0) of
+	#st{}=St -> {save_state,model_changed(St)};
+	Other -> Other
+    end;
 command({face,bridge}, St) ->
     {save_state,model_changed(wings_face_cmd:bridge(St))};
 command({face,smooth}, St) ->

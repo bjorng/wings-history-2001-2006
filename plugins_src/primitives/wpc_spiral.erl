@@ -18,39 +18,31 @@ menu({shape}, Menu0) ->
 	      {"Spring",spring,[hotbox]}];
 menu(_, Menu) -> Menu.
 
-command({shape,{spiral,Ask}}, St) -> make_spiral(Ask);
-command({shape,{spring,Ask}}, St) -> make_spring(Ask);
+command({shape,{spiral,Ask}}, St) -> make_spiral(Ask, St);
+command({shape,{spring,Ask}}, St) -> make_spring(Ask, St);
 command(_, _) -> next.
 
 %%% The rest are local functions.
 
-make_spiral(Ask) ->
-    %% Ask will be true or false. We just pass it on.
-    %% In the future, wpa:ask/3 might put up a dialog
-    %% (or call an interface plugin that does).
+make_spiral(Ask, St) when is_atom(Ask) ->
     wpa:ask(Ask, [{"Loops",2,0,100},
-		  {"Segments",16,0,100}],
-	    %% Each list element above specifies one question to ask.
-	    %% {Question,DefaultValue,Min,Max}
-	    %% To be done in Wings: Enforce Min and Max! Now they
-	    %% are ignored.
-	    fun([L,Ns]) ->
-		    Nl = 8,
-		    Vs = spiral_vertices(Ns, Nl, L),
-		    Fs = spiral_faces(Ns, Nl, L),
-		    {new_shape,"spiral",Fs,Vs}
-	    end).
+		  {"Segments",16,0,100},
+		  {"Sections",8,0,100}],
+	    St, fun(Res) -> {shape,{spiral,Res}} end);
+make_spiral([L,Ns,Nl], St) ->
+    Vs = spiral_vertices(Ns, Nl, L),
+    Fs = spiral_faces(Ns, Nl, L),
+    {new_shape,"spiral",Fs,Vs}.
  
-make_spring(Ask) ->
-    wpa:ask(Ask, [{"Loops",2,0,100}],
-	    %% As a user exercise, add more questions here.
-	    fun([L]) ->
-		    Ns = 16,
-		    Nl = 8,
-		    Vs = spiral_vertices2(Ns, Nl, L),
-		    Fs = spiral_faces(Ns, Nl, L),
-		    {new_shape,"spring",Fs,Vs}
-	    end).
+make_spring(Ask, St) when is_atom(Ask) ->
+    wpa:ask(Ask, [{"Loops",2,0,100},
+		  {"Segments",16,0,100},
+		  {"Sections",8,0,100}],
+	    St, fun(Res) -> {shape,{spring,Res}} end);
+make_spring([L,Ns,Nl], St) ->
+    Vs = spiral_vertices2(Ns, Nl, L),
+    Fs = spiral_faces(Ns, Nl, L),
+    {new_shape,"spring",Fs,Vs}.
     
 spiral_faces(Ns0, Nl, L) ->
     Nl2= Nl*2,

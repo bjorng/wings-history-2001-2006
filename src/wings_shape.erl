@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.16 2002/02/07 19:58:34 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.17 2002/02/10 18:17:11 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -109,8 +109,14 @@ command({Id,lock}, St) ->
     {save_state,lock_object(Id, St)};
 command({Id,restore}, St) ->
     {save_state,restore_object(Id, St)};
-command({Id,rename}, St) ->
-    {save_state,rename_object(Id, St)};
+command({Id,rename}, #st{shapes=Shs}=St) ->
+    #we{name=Name} = gb_trees:get(Id, Shs),
+    wings_ask:ask([{"New Name",Name}], St,
+		  fun([NewName]) -> {objects,{Id,rename,NewName}} end);
+command({Id,rename,Name}, #st{shapes=Shapes0}=St) ->
+    We = gb_trees:get(Id, Shapes0),
+    Shapes = gb_trees:update(Id, We#we{name=Name}, Shapes0),
+    {save_state,St#st{shapes=Shapes}};
 command({Id,hide_others}, St) ->
     {save_state,hide_others(Id, St)};
 command(restore_all, St) ->
@@ -119,15 +125,6 @@ command(hide_unselected, St) ->
     {save_state,hide_unselected(St)};
 command(lock_unselected, St) ->
     {save_state,lock_unselected(St)}.
-
-rename_object(Id, #st{shapes=Shapes0}=St) ->
-    #we{name=Name0} = We = gb_trees:get(Id, Shapes0),
-    case wings_getline:string("New name: ", Name0) of
-	aborted -> St;
-	Name when list(Name) ->
-	    Shapes = gb_trees:update(Id, We#we{name=Name}, Shapes0),
-	    St#st{shapes=Shapes}
-    end.
 
 hide_object(Id, St0) ->
     St = wings_sel:deselect_object(Id, St0),

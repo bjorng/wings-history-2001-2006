@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.14 2002/02/01 05:19:10 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.15 2002/02/10 18:17:11 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -243,7 +243,8 @@ maya_stop_camera(Camera) ->
 redraw(#st{}=St) ->
     wings:redraw(St);
 redraw(Redraw) when is_function(Redraw) ->
-    Redraw().
+    Redraw(),
+    wings_io:swap_buffers().
 
 get_st(#st{}=St) -> St;
 get_st(Redraw) when is_function(Redraw) ->

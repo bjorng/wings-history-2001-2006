@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.10 2002/02/07 11:45:29 bjorng Exp $
+%%     $Id: wpa.erl,v 1.11 2002/02/10 18:17:11 bjorng Exp $
 %%
 -module(wpa).
--export([ask/3,error/1,message/1,yes_no/1,
+-export([ask/3,ask/4,error/1,message/1,yes_no/1,
 	 bind_unicode/2,bind_virtual/3,
 	 import/3,export/3,export_selected/3,
 	 pref_get/2,pref_get/3,pref_set/3,pref_delete/2,
@@ -27,8 +27,11 @@
 -include("wings.hrl").
 -import(lists, [reverse/1]).
 
-ask(Ask, Qs, Fun) ->
-    wings_util:ask(Ask, Qs, Fun).
+ask(Qs, St, Fun) ->
+    wings_ask:ask(Qs, St, Fun).
+
+ask(Ask, Qs, St, Fun) ->
+    wings_ask:ask(Ask, Qs, St, Fun).
 
 %% Show String in a dialog box.
 error(String) ->

@@ -3,12 +3,12 @@
 #
 #     Makefile for building Wings 3D.
 #
-#  Copyright (c) 2001 Bjorn Gustavsson
+#  Copyright (c) 2001-2002 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.19 2002/01/25 09:04:36 bjorng Exp $
+#     $Id: Makefile,v 1.20 2002/02/10 18:17:11 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -30,6 +30,7 @@ MODULES= \
 	user_default \
 	wings \
 	wings_align \
+	wings_ask \
 	wings_body \
 	wings_camera \
 	wings_collapse \

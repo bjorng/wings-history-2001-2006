@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.22 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.23 2002/02/10 18:17:11 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -45,16 +45,15 @@ sub_menu(edit, St) ->
 sub_menu(select, St) ->
     {"Material",{material,material_list(St)}}.
 
-command({face,{material,new}}, St0) ->
-    case wings_getline:string("Material Name: ") of
-	aborted -> St0;
-	Name0 ->
-	    Name = list_to_atom(Name0),
-	    Mat = make_default({1.0,1.0,1.0}),
-	    St1 = add(Name, Mat, St0),
-	    St = edit(Name, St1),
-	    set_material(Name, St)
-    end;
+command({face,{material,new}}, St) ->
+    wings_ask:ask([{"Material Name",""}], St,
+		  fun([Name]) -> {face,{material,{new,Name}}} end);
+command({face,{material,{new,Name0}}}, St0) ->
+    Name = list_to_atom(Name0),
+    Mat = make_default({1.0,1.0,1.0}),
+    St1 = add(Name, Mat, St0),
+    St = edit(Name, St1),
+    set_material(Name, St);
 command({face,{material,Mat}}, St) ->
     set_material(Mat, St);
 command({select,{material,Mat}}, St) ->

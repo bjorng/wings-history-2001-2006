@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.53 2002/02/07 19:59:22 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.54 2002/02/10 18:17:11 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -172,6 +172,7 @@ do_drag(Drag) ->
 
 get_drag_event(Drag) ->
     redraw(Drag),
+    wings_io:swap_buffers(),
     get_drag_event_1(Drag).
 
 get_drag_event_1(Drag) ->
@@ -187,6 +188,7 @@ handle_drag_event(Event, Drag) ->
 
 handle_drag_event_1(redraw, Drag) ->
     redraw(Drag),
+    wings_io:swap_buffers(),
     get_drag_event_1(Drag);
 handle_drag_event_1(#mousemotion{x=X,y=Y}, Drag0) ->
     {Dx0,Dy0,Drag1} = mouse_range(X, Y, Drag0),
@@ -218,6 +220,8 @@ handle_drag_event_1(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED},
     pop;
 handle_drag_event_1(view_changed, Drag) ->
     get_drag_event(view_changed(Drag));
+handle_drag_event_1({action,{numeric_input,Move}}, Drag) ->
+    handle_drag_event_1({drag_arguments,Move}, Drag);
 handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
     Drag = case wings_hotkey:event(Event) of
 	       next -> Drag0;
@@ -234,21 +238,13 @@ handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
 
 numeric_input(Drag0) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
-    {Dx0,Dy0,Drag1} = mouse_range(X, Y, Drag0),
-    Move0 = constrain(Dx0, Dy0, Drag1),
-    wings_util:ask(true,
-		   make_query(Move0, Drag1),
-		   fun(aborted) -> keep;
-		      (Move1) ->
-			   Move = make_move(Move1, Drag1),
-			   wings_io:ungrab(),
-			   Drag = motion_update(Move, Drag1),
-			   cleanup(Drag),
-			   St = normalize(Drag),
-			   DragEnded = {drag_ended,St#st{args=Move}},
-			   wings_io:putback_event(DragEnded),
-			   pop
-		   end).
+    {Dx0,Dy0,Drag} = mouse_range(X, Y, Drag0),
+    Move0 = constrain(Dx0, Dy0, Drag),
+    Redraw = fun() -> redraw(Drag) end,
+    wings_ask:ask(make_query(Move0, Drag), Redraw,
+		  fun(Res) ->
+			  {numeric_input,make_move(Res, Drag)}
+		  end).
 
 make_query(Move, #drag{unit=Units}) ->
     make_query_1(Units, Move).
@@ -498,11 +494,7 @@ normalize(Id, #we{vs=Vtab0}, Shapes) ->
 %%% Redrawing while dragging.
 %%%
 
-redraw(St) ->
-    render(St),
-    wings_io:update(St).
-
-render(Drag) ->
+redraw(Drag) ->
     ?CHECK_ERROR(),
     gl:enable(?GL_DEPTH_TEST),
     wings_view:projection(),
@@ -514,7 +506,8 @@ render(Drag) ->
     draw_shapes(Drag),
     gl:callList(?DL_UTIL),
     wings_draw:axis_letters(),
-    gl:popAttrib().
+    gl:popAttrib(),
+    wings_io:update(Drag#drag.st).
 
 draw_shapes(#drag{sel={SelMode,_}}) ->
     Wire = wings_pref:get_value(wire_mode),

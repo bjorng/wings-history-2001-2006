@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.28 2002/01/27 15:52:32 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.29 2002/02/10 18:17:11 bjorng Exp $
 %%
 
 -module(wings_util).
--export([share/1,share/3,make_vector/1,
-	 message/1,yes_no/1,serious_yes_no/1,prompt/3,ask/3,
+-export([error/1,share/1,share/3,make_vector/1,
+	 message/1,yes_no/1,serious_yes_no/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
 	 delete_any/2,
 	 tc/1,crash_log/1,validate/1]).
@@ -23,6 +23,9 @@
 -include("wings.hrl").
 -import(lists, [foreach/2,map/2,foldl/3,reverse/1,member/2]).
 
+error(Message) when is_list(Message) ->
+    throw({command_error,Message}).
+    
 share(X, X, X) -> {X,X,X};
 share(X, X, Z) -> {X,X,Z};
 share(X, Y, Y) -> {X,Y,Y};
@@ -50,20 +53,6 @@ yes_no(Question) ->
 
 serious_yes_no(Question) ->
     wings_plugin:call_ui({serious_question,Question}).
-
-
-prompt(Prompt, Def, Fun) ->
-    ask(true, [{Prompt,Def}],
-	fun([Val]) -> Fun(Val) end).
-
-ask(false, Qs, Fun) ->
-    Ns = [element(2, Q) || Q <- Qs],
-    Fun(Ns);
-ask(true, Qs, Fun) ->
-    case wings_plugin:call_ui({ask,Qs}) of
-	aborted -> aborted;
-	Ns -> Fun(Ns)
-    end.
 
 stringify({{_,_,_},{_,_,_}}) ->
     "(vector)";
