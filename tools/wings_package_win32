@@ -2,11 +2,11 @@
 #
 # Script for creating a self-contained Wings package for Windows.
 #
-# $Id: wings_package_win32,v 1.10 2003/03/06 06:44:19 bjorng Exp $
+# $Id: wings_package_win32,v 1.11 2003/03/06 06:46:21 bjorng Exp $
 #
 
 # Configurable stuff.
-WINGS_PATH=c:/home/Bjorng~'/wings_releases
+WINGS_PATH=c:/home/Bjorng~1/wings_releases
 INSTALL=/usr/bin/install
 ERLANG_PATH=/cygdrive/c/progra~1/erl5.2.3.3
 DEST_ROOT=$WINGS_PATH/wings3d
