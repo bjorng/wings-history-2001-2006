@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.113 2002/11/29 06:32:17 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.114 2002/12/05 21:08:21 dgud Exp $
 %%
 
 -module(wings_drag).
@@ -224,7 +224,7 @@ do_drag(Drag0) ->
 
 help_message(#drag{unit=Unit}=Drag) ->
     Msg = "[L] Accept  [R] Cancel",
-    Zmsg = case member(dz, Unit) of
+    Zmsg = case length(Unit) > 2 of
 	       false -> [];
 	       true -> ["  Drag ",zmove_help()," Move along Z"]
 	   end,
@@ -248,7 +248,7 @@ zmove_help() ->
 	maya -> "[M]";
 	tds -> "[Ctrl]+[R]";
 	blender when Buttons == 2 -> "[Ctrl]+[R]";
-	blender -> "[Alt]+[M]"
+	blender -> "[Ctrl]+[R]"  %% Was "[Alt]+[M]" but that didn't work fixme bjorn
     end.
 
 initial_motion(#drag{x=X0,y=Y0,flags=Flags,unit=Unit}=Drag) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.22 2002/12/02 07:14:07 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.23 2002/12/05 21:08:21 dgud Exp $
 %%
 
 -module(wings_light).
@@ -56,7 +56,7 @@ menu(X, Y, St) ->
 	     {NotAmb,separator},
 	     {NotAmb,{"Position Highlight",position_fun(),
 		      "Position the aim point or location of light"}},
-	     {NotAmb,{"Color",color,"Interactively adjust hue, intensity, "
+	     {NotAmb,{"Color",color,"Interactively adjust hue, value, "
 		      "and saturation"}},
 	     {NotAmb,
 	      {"Attenuation",
@@ -167,12 +167,14 @@ color(St) ->
     Drag = wings_sel:fold(
 	     fun(_, #we{id=Id,light=L}=We, none) when ?IS_LIGHT(We) ->
 		     {R,G,B,A} = get_light_color(L),
-		     {H,S,I} = wings_color:rgb_to_hsi(R, G, B),
+		     {H,S,V} = wings_color:rgb_to_hsv(R, G, B),
 		     ColorFun = fun(C, D) -> color(C, D, A) end,
 		     Tvs = {general,[{Id,ColorFun}]},
 		     Units = [{angle,{0.0,359.9999}},
-			      {percent,{0.0,1.0}},{percent,{0.0,1.0}}],
-		     Flags = [{initial,[H,I,S]}],
+			      {percent,{0.0,1.0}},
+			      {percent,{0.0,1.0}}
+			     ],
+		     Flags = [{initial,[H,V,S]}],
 		     {Tvs,Units,Flags};
 		(_, We, _) when ?IS_LIGHT(We) ->
 		     wings_util:error("Select only one light.");
@@ -184,8 +186,8 @@ color(St) ->
 	    wings_drag:setup(Tvs, Units, Flags, St)
     end.
 
-color([H,I,S], #dlo{src_we=#we{light=L0}=We0}=D, A) ->
-    {R,G,B} = wings_color:hsi_to_rgb(H, S, I),
+color([H,V,S], #dlo{src_we=#we{light=L0}=We0}=D, A) ->
+    {R,G,B} = wings_color:hsv_to_rgb(H, S, V),
     Col = {R,G,B,A},
     L = update_color(L0, Col),
     We = We0#we{light=L},

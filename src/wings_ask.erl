@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.39 2002/12/05 14:32:44 dgud Exp $
+%%     $Id: wings_ask.erl,v 1.40 2002/12/05 21:08:21 dgud Exp $
 %%
 
 -module(wings_ask).
@@ -845,9 +845,9 @@ col_inside(Xm, Ym, #fi{x=X,y=Y})
        Y+3 =< Ym, Ym < Y+?CHAR_HEIGHT+2 -> true;
 col_inside(_, _, _) -> false.
 
-rgb_to_hsi(R,G,B) ->
-    {H,S,I} = wings_color:rgb_to_hsi(R,G,B),
-    {round(H),S,I}.
+rgb_to_hsv(R,G,B) ->
+    {H,S,V} = wings_color:rgb_to_hsv(R,G,B),
+    {round(H),S,V}.
 
 pick_color(#fi{key=Key}, Col, Common0) ->
     {R1,G1,B1,A1} =
@@ -855,7 +855,7 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 	    {R0,G0,B0} -> {R0,G0,B0,none};
 	    {R0,G0,B0,A0} -> {R0,G0,B0,A0}
 	end,
-    {H1,S1,I1} = rgb_to_hsi(R1,G1,B1),    
+    {H1,S1,V1} = rgb_to_hsv(R1,G1,B1),    
     RGBRange = [{range, {0.0,1.0}}],
     HRange   = [{range, {0, 360}}],
     SIRange  = [{range, {0.0,1.0}}],
@@ -876,7 +876,7 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 			 {"B",{slider,{text,B1,[{key,b}|RGBRange]}}},
 			 {"H",{slider,{text,H1,[{key,h}|HRange]}}},
 			 {"S",{slider,{text,S1,[{key,s}|SIRange]}}},
-			 {"I",{slider,{text,I1,[{key,i}|SIRange]}}}
+			 {"V",{slider,{text,V1,[{key,v}|SIRange]}}}
 			]}]}],
 	     fun([{r,R},{g,G},{b,B}| _]) ->
 		     Val = {R,G,B},
@@ -892,7 +892,7 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 			 {"A",{slider,{text,A1,[{key,a}|RGBRange]}}},
 			 {"H",{slider,{text,H1,[{key,h}|HRange]}}},
 			 {"S",{slider,{text,S1,[{key,s}|SIRange]}}},
-			 {"I",{slider,{text,I1,[{key,i}|SIRange]}}}
+			 {"V",{slider,{text,V1,[{key,v}|SIRange]}}}
 			]}]}],
 	     fun([{r,R},{g,G},{b,B},{a,A}| _]) ->
 		     Val =  {R,G,B,A},
@@ -924,7 +924,7 @@ custom_fun() ->
 %%% Slider.
 %%%
 
--define(SL_LENGTH, 120).
+-define(SL_LENGTH, 150).
 -define(SL_H, 10).
 -define(SL_BAR_H, (?LINE_HEIGHT-1)).
 
@@ -964,28 +964,66 @@ get_colRange(b, Common) ->
     R = gb_trees:get(r, Common),
     G = gb_trees:get(g, Common),
     [{R,G,0},{R,G,1}];
+get_colRange(s, Common) ->
+    H = gb_trees:get(h, Common),
+    V = gb_trees:get(v, Common),
+    S0 = wings_color:hsv_to_rgb(H,0.0,V),
+    S1 = wings_color:hsv_to_rgb(H,1.0,V),
+    [S0,S1];
+get_colRange(v, Common) ->
+    H = gb_trees:get(h, Common),
+    S = gb_trees:get(s, Common),
+    V0 = wings_color:hsv_to_rgb(H,S,0.0),
+    V1 = wings_color:hsv_to_rgb(H,S,1.0),
+    [V0,V1];
 get_colRange(_E, _Common) ->
     [?MENU_COLOR, ?MENU_COLOR].
-    
-slider_redraw(#fi{x=X,y=Y0,w=W},
-	      #sl{min=Min,range=Range,peer=Peer}, 
-	      Common) ->
+
+hue_color_slider(Hue,_,_,_,_,_,_) when Hue > (360-60) ->    
+    ok;
+hue_color_slider(Hue,S,V,X,W,Y,H) ->
+    X0 = (X+1)+W*Hue/360.0,
+    X1 = (X+1)+W*(Hue+60)/360.0,
+    gl:vertex2f(X0,Y+H),
+    gl:vertex2f(X0,Y+1),
+    gl:color3fv(wings_color:hsv_to_rgb(60+Hue,S,V)), 
+    gl:vertex2f(X1,Y+1),
+    gl:vertex2f(X1,Y+H),
+    hue_color_slider(Hue+60,S,V,X,W,Y,H).
+
+color_slider(h,X,W,Y,H,Common) ->
+    gl:shadeModel(?GL_SMOOTH),
+    gl:'begin'(?GL_QUADS),
+    S = gb_trees:get(s, Common),
+    V = gb_trees:get(v, Common),
+    gl:color3fv(wings_color:hsv_to_rgb(0,S,V)), 
+    hue_color_slider(0,S,V,X,W,Y,H),
+    gl:'end'();
+color_slider(Peer,X,W,Y,H,Common) ->
     [SCol,ECol] = get_colRange(Peer, Common),
-    Y = Y0+?LINE_HEIGHT div 2 + 2,
-    wings_io:sunken_rect(X, Y-(?SL_H div 2), W, ?SL_H, ?MENU_COLOR),
     gl:shadeModel(?GL_SMOOTH),
     gl:'begin'(?GL_QUADS),
     gl:color3fv(SCol), 
-    gl:vertex2f(X+1,Y+(?SL_H div 2)-1),
-    gl:vertex2f(X+1,Y-(?SL_H div 2)+1),
+    gl:vertex2f(X+1,Y+H),
+    gl:vertex2f(X+1,Y+1),
     gl:color3fv(ECol), 
-    gl:vertex2f(X+W,Y-(?SL_H div 2)+1),
-    gl:vertex2f(X+W,Y+(?SL_H div 2)-1),
-    gl:'end'(),
+    gl:vertex2f(X+1+W,Y+1),
+    gl:vertex2f(X+1+W,Y+H),
+    gl:'end'().
+
+slider_redraw(#fi{x=X,y=Y0,w=W},
+	      #sl{min=Min,range=Range,peer=Peer}, 
+	      Common) ->
+    Y = Y0+?LINE_HEIGHT div 2 + 2,
+    wings_io:sunken_rect(X, Y-(?SL_H div 2), W, ?SL_H, ?MENU_COLOR),
+    color_slider(Peer,X,W,Y-(?SL_H div 2),?SL_H,Common),
     Val = gb_trees:get(Peer, Common),
     Pos = trunc((Val-Min) / Range),
     wings_io:raised_rect(X+Pos, Y-(?SL_BAR_H div 2), 
 			 4, ?SL_BAR_H, ?MENU_COLOR).
+
+
+
 
 slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, Fi, Sl, Common) ->
     slider_move(Xb, Fi, Sl, Common);
@@ -1008,15 +1046,15 @@ update_color(RGB, Common0) when RGB == r; RGB == g; RGB == b ->
     R = gb_trees:get(r, Common0),
     G = gb_trees:get(g, Common0),
     B = gb_trees:get(b, Common0),
-    {H,S,I} = rgb_to_hsi(R,G,B),
+    {H,S,V} = rgb_to_hsv(R,G,B),
     Common1 = gb_trees:update(h, H, Common0),
     Common2 = gb_trees:update(s, S, Common1),
-    gb_trees:update(i, I, Common2);
-update_color(HSI, Common0) when HSI == h; HSI == s; HSI == i ->
+    gb_trees:update(v, V, Common2);
+update_color(HSV, Common0) when HSV == h; HSV == s; HSV == v ->
     H = gb_trees:get(h, Common0),
     S = gb_trees:get(s, Common0),
-    I = gb_trees:get(i, Common0),
-    {R,G,B} = wings_color:hsi_to_rgb(H,S,I),
+    V = gb_trees:get(v, Common0),
+    {R,G,B} = wings_color:hsv_to_rgb(H,S,V),
     Common1 = gb_trees:update(r, R, Common0),
     Common2 = gb_trees:update(g, G, Common1),
     gb_trees:update(b, B, Common2);
