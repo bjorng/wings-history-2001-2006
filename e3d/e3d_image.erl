@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.16 2003/12/31 10:46:37 bjorng Exp $
+%%     $Id: e3d_image.erl,v 1.17 2004/04/26 21:50:47 dgud Exp $
 %%
 
 -module(e3d_image).
@@ -176,7 +176,13 @@ height2normal(Image, Scale, GenMipMap) ->
 height2normal(Old = #e3d_image{width=W,bytes_pp=B,alignment=A,image=I,name=Name}, Scale) ->
     Extra = (A - (W*B rem A)) rem A, 
     RSz  = W*B + Extra,
-    <<Row1:RSz/binary,Row2:RSz/binary,Rest/binary>> = I,
+    {Row1,Row2,Rest} = 
+	case I of 
+	    <<R1:RSz/binary,R2:RSz/binary,Rt/binary>> ->
+		{R1,R2,Rt};
+	    <<R1:RSz/binary, _/binary>> ->
+		{R1,<<>>,<<>>}
+	end,
     New = bumps(Row1,Row2,Rest,RSz,B,Row1,Scale,[]),
     Old#e3d_image{bytes_pp=3,type=r8g8b8, image=New, alignment=1,
 		  filename=none, name=Name++"bump"}.
