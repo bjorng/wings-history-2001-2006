@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.44 2002/12/11 19:49:58 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.45 2002/12/19 20:41:42 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1168,7 +1168,11 @@ integer_range(Min, Max) ->
     end.
 
 float_range(Min, Max) ->
-    fun(Str) ->
+    fun(Str0) ->
+	    Str = case Str0 of
+		      [$.|_] -> [$0|Str0];
+		      _ -> Str0
+		  end,
 	    case catch list_to_float(Str) of
 		{'EXIT',_} -> float_to_list(Min);
 		Float when Float < Min -> float_to_list(Min);
