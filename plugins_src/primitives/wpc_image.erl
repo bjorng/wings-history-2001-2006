@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.7 2002/10/20 17:15:48 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.8 2002/11/13 13:24:05 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -35,22 +35,19 @@ insert_before_more([]) ->
     [image_menu()].
 
 image_menu() ->
-    {"Image",{image,[{"BMP",bmp},
-		     {"TIFF",tif},
-		     {"Targa",tga}]}}.
+    {"Image...",image}.
 
-command({shape,{image,Format}}, _St) -> make_image(Format);
+command({shape,image}, _St) -> make_image();
 command(_, _) -> next.
 
-make_image(Format) ->
-    Ps = props(Format),
+make_image() ->
+    Ps = [{extensions,wpa:image_formats()}],
     case wpa:import_filename(Ps) of
 	aborted -> keep;
 	Name ->
-	    Type = [{type,r8g8b8},{order,lower_left},{alignment,1}],
-	    case e3d_image:load(Name, Type) of
-		#e3d_image{width=W,height=H,image=Pixels} ->
-		    Image = {W,H,Pixels},
+	    Props = [{filename,Name},{type,r8g8b8},{alignment,1}],
+	    case wpa:image_read(Props) of
+		#e3d_image{}=Image ->
 		    make_image_1(Image);
 		{error,Error} ->
 		    E = io_lib:format("Failed to load \"~s\": ~s\n",
@@ -59,8 +56,10 @@ make_image(Format) ->
 	    end
     end.
 
-make_image_1({W0,H0,_}=Image0) ->
-    {W,H,_Pixels} = Image = pad_image(Image0),
+make_image_1(Image0) ->
+    Image1 = strip_any_alpha(Image0),
+    #e3d_image{width=W0,height=H0,image=Pixels,order=Order} = Image1,
+    {W,H,_} = Image = pad_image({W0,H0,Pixels}),
     case can_texture_be_loaded(Image) of
 	false ->
 	    wings_util:error("The image cannot be loaded as a texture "
@@ -71,7 +70,12 @@ make_image_1({W0,H0,_}=Image0) ->
 	    M = [image],
 	    Fs = [#e3d_face{vs=[0,3,2,1],tx=[1,0,3,2],mat=M},
 		  #e3d_face{vs=[1,2,3,0],tx=[2,3,0,1],mat=M}],
-	    Tx = [{0.0,0.0},{MaxU,0.0},{MaxU,MaxV},{0.0,MaxV}],
+	    Tx = case Order of
+		     upper_left ->
+			 [{0.0,MaxV},{MaxU,MaxV},{MaxU,0.0},{0.0,0.0}];
+		     lower_left ->
+			 [{0.0,0.0},{MaxU,0.0},{MaxU,MaxV},{0.0,MaxV}]
+		 end,
 	    {X,Y} = ratio(W0, H0),
 	    Vs = [{0.0,-Y,-X},{0.0,Y,-X},{0.0,Y,X},{0.0,-Y,X}],
 	    Mesh = #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=Tx},
@@ -85,16 +89,14 @@ ratio(D, D) -> {1.0,1.0};
 ratio(W, H) when W < H -> {1.0,H/W};
 ratio(W, H) -> {W/H,1.0}.
 
+strip_any_alpha(#e3d_image{type=r8g8b8}=Image) -> Image;
+strip_any_alpha(#e3d_image{type=r8g8b8a8}=Image) -> e3d_image:convert(Image, r8g8b8).
+    
 can_texture_be_loaded({W,H,Pixels}) ->
     gl:texImage2D(?GL_PROXY_TEXTURE_2D, 0, ?GL_RGB,
 		  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Pixels),
     W == gl:getTexLevelParameteriv(?GL_PROXY_TEXTURE_2D, 0,
 				   ?GL_TEXTURE_WIDTH).
-
-props(bmp) -> [{ext,".bmp"},{ext_desc,"BMP Bitmap"}];
-props(tif) -> [{ext,".tif"},{ext_desc,"Tiff Bitmap"}];
-props(tga) -> [{ext,".tga"},{ext_desc,"Targa File"}].
-
 pad_image({W0,H,Pixels0}=Image) ->
     case nearest_power_two(W0) of
 	W0 ->
