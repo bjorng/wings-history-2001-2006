@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.149 2004/11/21 10:19:35 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.150 2004/12/06 07:53:50 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -1067,7 +1067,7 @@ message_event(redraw) ->
 message_event({action,_}=Action) ->
     send(geom, Action);
 message_event(got_focus) ->
-    message(?STR(message_event,1,"This is the information line")),
+    message(?__(1,"This is the information line")),
     dirty();
 message_event(_) -> keep.
 
