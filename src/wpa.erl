@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.49 2004/06/27 11:55:10 bjorng Exp $
+%%     $Id: wpa.erl,v 1.50 2004/06/27 11:57:33 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -206,8 +206,8 @@ save_images(E3DFile, Directory, Filetype) ->
 %%  Type = import|export
 dialog_template(Mod, import) ->
     {vframe,
-     [{"Swap X and Y Axes",pref_get(Mod, swap_x_y, false),
-       [{key,swap_x_y}]},
+     [{"Swap Y and Z Axes",pref_get(Mod, swap_y_z, false),
+       [{key,swap_y_z}]},
       {label_column,
        [{"Import Scale",{text,pref_get(Mod, import_scale, 1.0),
 			 [{key,import_scale}]}},
@@ -219,8 +219,8 @@ dialog_template(Mod, export) ->
 		    {Key,Val} <- image_formats()],
     DefFileType = pref_get(Mod, default_filetype, ".bmp"),
     {vframe,
-     [{"Swap X and Y Axes",pref_get(Mod, swap_x_y, false),
-       [{key,swap_x_y}]},
+     [{"Swap X and Y Axes",pref_get(Mod, swap_y_z, false),
+       [{key,swap_y_z}]},
       {label_column,
        [{"(Import Scale)",{text,pref_get(Mod, import_scale, 1.0),
 			   [{key,import_scale}]}},
@@ -235,7 +235,7 @@ dialog_template(Mod, export) ->
 
 import_matrix(Attr) ->
     Scale = e3d_mat:scale(proplists:get_value(import_scale, Attr, 1.0)),
-    case proplists:get_bool(swap_x_y, Attr) of
+    case proplists:get_bool(swap_y_z, Attr) of
 	false -> Scale;
 	true ->
 	    Rot = e3d_mat:rotate(-90, {1.0,0.0,0.0}),
@@ -244,7 +244,7 @@ import_matrix(Attr) ->
 
 export_matrix(Attr) ->
     Scale = e3d_mat:scale(proplists:get_value(export_scale, Attr, 1.0)),
-    case proplists:get_bool(swap_x_y, Attr) of
+    case proplists:get_bool(swap_y_z, Attr) of
 	false -> Scale;
 	true ->
 	    Rot = e3d_mat:rotate(90, {1.0,0.0,0.0}),
