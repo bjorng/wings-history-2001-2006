@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.100 2003/10/24 12:36:10 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.101 2003/10/24 15:56:29 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -422,10 +422,10 @@ collect_result(_, _, _) -> [].
 redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fis0,store=Store} = S) ->
     wings_io:ortho_setup(),
     gl:translated(Ox, Oy, 0),
-    blend(fun(Color) ->
+    blend(fun(Col) ->
 		  wings_io:border(-?HMARGIN, -?VMARGIN,
 				  W+2*?HMARGIN-1, H+2*?VMARGIN-1,
-				  Color)
+				  Col)
 	  end),
     case draw_fields(1, Fis0, Focus, Store, keep) of
 	keep -> keep;
@@ -677,17 +677,17 @@ frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
 	Title ->
 	    Y = Y0 + ?CHAR_HEIGHT div 2 + 3,
 	    H = H0 - (Y-Y0) - 4,
-	    gl:'begin'(?GL_LINES),
-	    ColLow = color3_lowlight(),
-	    ColHigh = color3_highlight(),
-	    vline(X+W-2, Y, H, ColLow, ColHigh),
-	    hline(X, Y, W, ColLow, ColHigh),
-	    hline(X, Y+H-1, W-1, ColLow, ColHigh),
-	    vline(X, Y+1, H-2, ColLow, ColHigh),
-	    gl:'end'(),
+	    ColLow = color4_lowlight(),
+	    ColHigh = color4_highlight(),
 	    TextPos = X + 3*?CHAR_WIDTH,
-	    blend(fun(Color) ->
-			  wings_io:set_color(Color),
+	    blend(fun(Col) ->
+			  gl:'begin'(?GL_LINES),
+			  vline(X+W-2, Y, H, ColLow, ColHigh),
+			  hline(X, Y, W, ColLow, ColHigh),
+			  hline(X, Y+H-1, W-1, ColLow, ColHigh),
+			  vline(X, Y+1, H-2, ColLow, ColHigh),
+			  gl:'end'(),
+			  gl:color4fv(Col),
 			  gl:rectf(TextPos-?CHAR_WIDTH, Y-1,
 				   TextPos+(length(Title)+1)*?CHAR_WIDTH, Y+2)
 		  end),
@@ -699,20 +699,20 @@ frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
 hline(X0, Y0, W, ColLow, ColHigh) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
-    gl:color3fv(ColLow),
+    gl:color4fv(ColLow),
     gl:vertex2f(X, Y),
     gl:vertex2f(X+W, Y),
-    gl:color3fv(ColHigh),
+    gl:color4fv(ColHigh),
     gl:vertex2f(X, Y+1),
     gl:vertex2f(X+W, Y+1).
 
 vline(X0, Y0, H, ColLow, ColHigh) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
-    gl:color3fv(ColLow),
+    gl:color4fv(ColLow),
     gl:vertex2f(X, Y),
     gl:vertex2f(X, Y+H),
-    gl:color3fv(ColHigh),
+    gl:color4fv(ColHigh),
     gl:vertex2f(X+1, Y),
     gl:vertex2f(X+1, Y+H).
 
@@ -738,12 +738,18 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
     LeftX = X + 0.5,
     RightX = X + W + 0.5,
     UpperY = Y + 5.5,
-    gl:lineWidth(1),
-    gl:'begin'(?GL_LINES),
-    gl:color3fv(color3_disabled()),
-    gl:vertex2f(LeftX, UpperY),
-    gl:vertex2f(RightX, UpperY),
-    gl:'end'(),
+    {R,G,B} = color3_disabled(),
+    {_,_,_,A} = color4(),
+    FgColor = {R,G,B,A},
+    wings_io:blend(FgColor,
+		   fun(Col) ->
+			   gl:lineWidth(1),
+			   gl:'begin'(?GL_LINES),
+			   gl:color4fv(Col),
+			   gl:vertex2f(LeftX, UpperY),
+			   gl:vertex2f(RightX, UpperY),
+			   gl:'end'()
+		   end),
     gl:color3b(0, 0, 0),
     ?CHECK_ERROR(),
     keep.
@@ -1986,11 +1992,11 @@ color3_disabled() ->
     wings_pref:get_value(dialog_disabled).
 
 
-color3_highlight() ->
-    wings_color:mix(?BEVEL_HIGHLIGHT_MIX, {1,1,1}, color3()).
+color4_highlight() ->
+    wings_color:mix(?BEVEL_HIGHLIGHT_MIX, {1,1,1}, color4()).
 
-color3_lowlight() ->
-    wings_color:mix(?BEVEL_LOWLIGHT_MIX, {0,0,0}, color3()).
+color4_lowlight() ->
+    wings_color:mix(?BEVEL_LOWLIGHT_MIX, {0,0,0}, color4()).
 
 color3() ->    
     {R,G,B,_} = color4(),

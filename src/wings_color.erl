@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.17 2003/10/24 12:36:10 raimo_niskanen Exp $
+%%     $Id: wings_color.erl,v 1.18 2003/10/24 15:56:29 raimo_niskanen Exp $
 %%
 
 -module(wings_color).
@@ -193,7 +193,12 @@ choose_1(RGB0, Done) ->
 		   G = gb_trees:get(green, Sto),
 		   B = gb_trees:get(blue, Sto),
 		   Half = H div 2,
-		   wings_io:sunken_rect(X, Y, W, H, {R,G,B}, PaneColor),
+		   wings_io:blend(PaneColor,
+				  fun(Col) ->
+					  wings_io:sunken_rect(X, Y, W, H, 
+							       {R,G,B}, 
+							       Col)
+				  end),
 		   gl:color3f(R1, G1, B1),
 		   gl:rectf(X+0.5, Y+Half, X+W, Y+H),
 		   gl:color3b(0, 0, 0),

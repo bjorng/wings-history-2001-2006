@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.6 2003/10/24 12:36:10 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.7 2003/10/24 15:56:28 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -95,6 +95,7 @@ command_dialog(_St) ->
     wings_ask:dialog("Test Ask", Dialog, Fun).
 
 command_dialog_l() ->
+    PaneColor = wings_pref:get_value(dialog_color),
     {vframe,
      [{label,"Label"},
       {key_alt,{d,1},"Alt 3",3,[{hook,disable_hook(c)}]},
@@ -107,7 +108,11 @@ command_dialog_l() ->
 			    Color = case gb_trees:get(c, Store) of
 					true -> {1,1,0};
 					false -> {0,1,1} end,
-			    wings_io:sunken_rect(X, Y, W, H, Color)
+			    wings_io:blend(PaneColor,
+					   fun(Col) ->
+						   wings_io:sunken_rect(
+						     X, Y, W, H, Color, Col)
+					   end)
 		    end},
       {slider,[{range,{1,3}},{key,d},{hook,disable_hook(c)}]},
       {key_alt,{d,1},"Alt 2",2,[{hook,disable_hook(c)}]},
@@ -116,7 +121,12 @@ command_dialog_l() ->
 			    R = gb_trees:get(red, Store),
 			    G = gb_trees:get(green, Store),
 			    B = gb_trees:get(blue, Store),
-			    wings_io:sunken_rect(X, Y, W, H, {R,G,B})
+			    wings_io:blend(PaneColor,
+					   fun(Col) ->
+						   wings_io:sunken_rect(
+						     X, Y, W, H, {R,G,B}, 
+						     Col)
+					   end)
 		    end},
       {hframe,
        [{vframe,[{label,"R"},{label,"G"},{label,"B"},
