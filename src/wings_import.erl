@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.11 2003/05/11 19:08:44 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.12 2003/06/15 12:56:16 bjorng Exp $
 %%
 
 -module(wings_import).
--export([import/2,import_object/2,add_materials/3,rename_materials/2]).
+-export([import/2]).
 
 -include("e3d.hrl").
 -include("wings.hrl").
@@ -20,25 +20,22 @@
 
 %%-define(DUMP, 1).
 
-import(#e3d_file{objs=Objs,mat=Mat}, St0) ->
-    NumObjs = length(Objs),
-    Suffix = " of " ++ integer_to_list(NumObjs),
-    {UsedMat,St1} = translate_objects(Objs, gb_sets:empty(),
-				      1, Suffix, St0),
-    {St,NameMap} = add_materials(UsedMat, Mat, St1),
-    rename_materials(NameMap, St0, St).
+import(File0, St) ->
+    #e3d_file{objs=Objs} = distribute_materials(File0),
+    translate_objects(Objs, St).
 
-translate_objects([#e3d_object{name=Name}=Obj|Os], UsedMat0,
-		  I, Suffix, St0) ->
-    {St,UsedMat} = case import_object(Obj, UsedMat0) of
-		       error ->
-			   {St0,UsedMat0};
-		       {We0,Us0} ->
-			   We = import_attributes(We0, Obj),
-			   {store_object(Name, We, St0),Us0}
-		   end,
-    translate_objects(Os, UsedMat, I+1, Suffix, St);
-translate_objects([], UsedMat, _, _, St) -> {UsedMat,St}.
+translate_objects([#e3d_object{name=Name,mat=Mat}=Obj|Os], St0) ->
+    case import_object(Obj) of
+        error ->
+            translate_objects(Os, St0);
+        We0 ->
+            {St1,NameMap} = wings_material:add_materials(Mat, St0),
+            We1 = rename_materials(NameMap, We0),
+            We = import_attributes(We1, Obj),
+            St = store_object(Name, We, St1),
+            translate_objects(Os, St)
+    end;
+translate_objects([], St) -> St.
 
 import_attributes(We, #e3d_object{attr=Attr}) ->
     Visible = proplists:get_value(visible, Attr, true),
@@ -51,28 +48,15 @@ store_object(undefined, We, #st{onext=Oid}=St) ->
 store_object(Name, We, St) ->
     wings_shape:new(Name, We, St).
 
-rename_materials([], _, St) -> St;
-rename_materials(NameMap0, #st{onext=FirstId}, #st{shapes=Shs0}=St) ->
-    NameMap = gb_trees:from_orddict(sort(NameMap0)),
-    Shs = rename_mat(gb_trees:to_list(Shs0), NameMap, FirstId, []),
-    St#st{shapes=Shs}.
-
-rename_mat([{Id,_}=Obj|Objs], NameMap, FirstId, Acc) when Id < FirstId ->
-    rename_mat(Objs, NameMap, FirstId, [Obj|Acc]);
-rename_mat([{Id,We0}|Objs], NameMap, FirstId, Acc) ->
-    We = rename_materials(NameMap, We0),
-    rename_mat(Objs, NameMap, FirstId, [{Id,We}|Acc]);
-rename_mat([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
-
-import_object(#e3d_object{obj=Mesh0}, UsedMat0) ->
+import_object(#e3d_object{obj=Mesh0}) ->
     Mesh1 = e3d_mesh:clean_faces(Mesh0),
-    {Mesh,ObjType,UsedMat} = prepare_mesh(Mesh1, UsedMat0),
+    {Mesh,ObjType} = prepare_mesh(Mesh1),
     case catch wings_we:build(ObjType, Mesh) of
 	{'EXIT',_R} ->
 	    %% The mesh needs cleaning up. Unfortunately,
 	    %% that will change the vertex numbering.
-	    {import_1(e3d_mesh:partition(Mesh), ObjType, []),UsedMat};
-	We -> {We,UsedMat}
+	    import_1(e3d_mesh:partition(Mesh), ObjType, []);
+	We -> We
     end.
 
 import_1([Mesh|T], ObjType, Acc) ->
@@ -86,13 +70,11 @@ import_1([], _, [#we{mode=Mode}|_]=Wes) ->
     We = wings_we:merge(Wes),
     We#we{mode=Mode}.
 
-prepare_mesh(Mesh0, UsedMat0) ->
+prepare_mesh(Mesh0) ->
     Mesh1 = e3d_mesh:make_quads(Mesh0),
-    Mesh = e3d_mesh:transform(Mesh1),
-    #e3d_mesh{tx=Tx0,fs=Fs0} = Mesh,
-    UsedMat = used_mat(Fs0, UsedMat0),
+    #e3d_mesh{tx=Tx0} = Mesh = e3d_mesh:transform(Mesh1),
     ObjType = obj_type(Tx0),
-    {Mesh,ObjType,UsedMat}.
+    {Mesh,ObjType}.
 
 import_mesh(Mesh, ObjType) ->
     case catch wings_we:build(ObjType, Mesh) of
@@ -117,14 +99,6 @@ obj_type(#e3d_mesh{tx=Tx}) -> obj_type(Tx);
 obj_type([]) -> material;
 obj_type([_|_]) -> uv.
 
-used_mat([#e3d_face{mat=Mat}|Fs], UsedMat0) ->
-    UsedMat = add_used_mat(Mat, UsedMat0),
-    used_mat(Fs, UsedMat);
-used_mat([], UsedMat) -> UsedMat.
-
-add_used_mat([], UsedMat) -> UsedMat;
-add_used_mat([M|Ms], UsedMat) -> add_used_mat(Ms, gb_sets:add(M, UsedMat)).
-
 rip_apart(Mode, #e3d_mesh{fs=Fs}=Mesh) ->
     rip_apart(Fs, Mode, Mesh, []).
 
@@ -135,15 +109,6 @@ rip_apart([#e3d_face{vs=Vs,tx=Tx}=Face|T], Mode, Template, Acc) ->
     We = wings_we:build(Mode, Mesh),
     rip_apart(T, Mode, Template, [We|Acc]);
 rip_apart([], _, _, Wes) -> Wes.
-
-%% add_materials(UsedMat, Materials, St0) -> {St,NameMap}
-add_materials(UsedMat0, Mat0, St0) ->
-    UsedMat = sofs:from_external(gb_sets:to_list(UsedMat0), [name]),
-    Mat1 = sofs:relation(Mat0, [{name,data}]),
-    Mat2 = sofs:restriction(Mat1, UsedMat),
-    Mat3 = sofs:extension(Mat2, UsedMat, sofs:from_term([], data)),
-    Mat = sofs:to_external(Mat3),
-    wings_material:add_materials(Mat, St0).
 
 %% rename_materials(NameMap, We0) -> We
 rename_materials([], We) -> We;
@@ -159,6 +124,24 @@ rename_materials(NameMap, We) ->
 			   end
 		   end, [], MatTab0),
     wings_material:assign_materials(MatTab, We).
+
+%% If there are materials in the #e3d_file{} record, distribute
+%% them down to each object.
+distribute_materials(#e3d_file{mat=[]}=File) ->
+    File;
+distribute_materials(#e3d_file{objs=Objs0,mat=Mat0}=File) ->
+    Mat = sofs:relation(Mat0, [{name,data}]),
+    Objs = distribute_materials_1(Objs0, Mat),
+    File#e3d_file{objs=Objs}.
+
+distribute_materials_1([#e3d_object{obj=Mesh}=Obj|T], Mat) ->
+    Used0 = e3d_mesh:used_materials(Mesh),
+    Used = sofs:from_external(Used0, [name]),
+    ObjMat0 = sofs:restriction(Mat, Used),
+    ObjMat1 = sofs:extension(ObjMat0, Used, sofs:from_term([], data)),
+    ObjMat = sofs:to_external(ObjMat1),
+    [Obj#e3d_object{mat=ObjMat}|distribute_materials_1(T, Mat)];
+distribute_materials_1([], _) -> [].
 
 -ifndef(DUMP).
 dump(_) -> ok.
