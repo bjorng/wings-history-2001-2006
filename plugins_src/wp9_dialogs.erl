@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.11 2002/09/18 13:16:06 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.12 2002/11/13 13:21:30 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -30,6 +30,10 @@ ui({file,save,Prop}, _Next) ->
     save_file("Save: ", Prop);
 ui({file,export,Prop}, _Next) ->
     save_file("Export file: ", Prop);
+ui({image,formats,Formats}, _Next) ->
+    image_formats(Formats);
+ui({image,read,Prop}, _Next) ->
+    read_image(Prop);
 ui({failure,Message,_Prop}, _Next) ->
     wings_io:message(Message),
     aborted;
@@ -93,3 +97,16 @@ eq_extensions([L|T1], [C|T2], true) when $A =< C, C =< $Z, L-C =:= 32 ->
     eq_extensions(T1, T2);
 eq_extensions([_|_], [_|_], _IgnoreCase) -> false;
 eq_extensions([], [], _IgnoreCase) -> true.
+
+read_image(Prop) ->
+    Name = proplists:get_value(filename, Prop),
+    e3d_image:load(Name, Prop).
+
+image_formats(Fs0) ->
+    Fs1 = [{".bmp","BMP Bitmap File"},
+	   {".tif","Tiff Bitmap"},
+	   {".tga","Targa File"}|Fs0],
+    Fs2 = sofs:relation(Fs1),
+    Fs3 = sofs:relation_to_family(Fs2),
+    Fs = sofs:to_external(Fs3),
+    [{Ext,Desc} || {Ext,[Desc|_]} <- Fs].
