@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.90 2003/07/25 19:41:55 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.91 2003/08/01 07:33:59 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -606,6 +606,48 @@ face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
 face_1([], _, Nacc, Vs) ->
     N = e3d_vec:normal(Nacc),
     gl:normal3fv(N),
+    face_2(N, Vs).
+
+face_2(_, [A,B,C]) ->
+    case wings_pref:get_value(display_list_opt) of
+	true ->
+	    face_vtx(A),
+	    face_vtx(B),
+	    face_vtx(C);
+	false ->
+	    gl:'begin'(?GL_TRIANGLES),
+	    face_vtx(A),
+	    face_vtx(B),
+	    face_vtx(C),
+	    gl:'end'()
+    end;
+face_2(N, [[A0|_]=A,[B0|_]=B,[C0|_]=C,[D0|_]=D]=VsPos) ->
+    case consistent_normal(A0, B0, C0, N) andalso consistent_normal(A0, C0, D0, N) of
+	true ->
+	    case wings_pref:get_value(display_list_opt) of
+		false ->
+		    gl:'begin'(?GL_QUADS),
+		    face_vtx(A),
+		    face_vtx(B),
+		    face_vtx(C),
+		    face_vtx(D),
+		    gl:'end'();
+		true ->
+		    face_vtx(A),
+		    face_vtx(B),
+		    gl:edgeFlag(?GL_FALSE),
+		    face_vtx(C),
+		    face_vtx(A),
+		    gl:edgeFlag(?GL_TRUE),
+		    face_vtx(C),
+		    face_vtx(D)
+	    end;
+	false ->
+	    face_3(N, VsPos)
+    end;
+face_2(N, Vs) -> face_3(N, Vs).
+
+face_3(N, Vs) ->
     Tess = tess(),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
@@ -622,6 +664,13 @@ tess_face_vtxcol(Tess, [[Pos|{_,_,_}=Col]|T]) ->
 tess_face_vtxcol(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
+
+face_vtx([Pos|{U,V}]) ->
+    gl:texCoord2f(U, V),
+    gl:vertex3dv(Pos);
+face_vtx([Pos|{R,G,B}]) ->
+    gl:color3f(R, G, B),
+    gl:vertex3dv(Pos).
 
 %%
 %% Draw a face. Tesselate polygons (4 edges or more).
@@ -640,6 +689,48 @@ flat_face_1([V|Vs], Vtab, Acc) ->
 flat_face_1([], _, VsPos) ->
     N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
+    flat_face_2(N, VsPos).
+
+flat_face_2(_, [A,B,C]) ->
+    case wings_pref:get_value(display_list_opt) of
+	true ->
+	    gl:vertex3dv(A),
+	    gl:vertex3dv(B),
+	    gl:vertex3dv(C);
+	false ->
+	    gl:'begin'(?GL_TRIANGLES),
+	    gl:vertex3dv(A),
+	    gl:vertex3dv(B),
+	    gl:vertex3dv(C),
+	    gl:'end'()
+    end;
+flat_face_2(N, [A,B,C,D]=VsPos) ->
+    case consistent_normal(A, B, C, N) andalso consistent_normal(A, C, D, N) of
+	true ->
+	    case wings_pref:get_value(display_list_opt) of
+		false ->
+		    gl:'begin'(?GL_QUADS),
+		    gl:vertex3dv(A),
+		    gl:vertex3dv(B),
+		    gl:vertex3dv(C),
+		    gl:vertex3dv(D),
+		    gl:'end'();
+		true ->
+		    gl:vertex3dv(A),
+		    gl:vertex3dv(B),
+		    gl:edgeFlag(?GL_FALSE),
+		    gl:vertex3dv(C),
+		    gl:vertex3dv(A),
+		    gl:edgeFlag(?GL_TRUE),
+		    gl:vertex3dv(C),
+		    gl:vertex3dv(D)
+	    end;
+	false ->
+	    flat_face_3(N, VsPos)
+    end;
+flat_face_2(N, VsPos) -> flat_face_3(N, VsPos).
+
+flat_face_3(N, VsPos) ->
     Tess = tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
@@ -653,6 +744,18 @@ tess_flat_face(Tess, [P|T]) ->
 tess_flat_face(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
+
+consistent_normal({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32}, {X,Y,Z})
+  when is_float(V10), is_float(V11), is_float(V12),
+       is_float(V20), is_float(V21), is_float(V22),
+       is_float(V30), is_float(V31), is_float(V32) ->
+    D10 = V10-V20,
+    D11 = V11-V21,
+    D12 = V12-V22,
+    D20 = V20-V30,
+    D21 = V21-V31,
+    D22 = V22-V32,
+    X*(D11*D22-D12*D21) + Y*(D12*D20-D10*D22) + Z*(D10*D21-D11*D20) > 0.
 
 %% force_flat_color(OriginalDlist, Color) -> NewDlist.
 %%  Wrap a previous display list (that includes gl:color*() calls)
