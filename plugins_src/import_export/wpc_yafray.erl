@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.76 2004/04/20 08:22:51 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.77 2004/04/23 09:33:24 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -305,13 +305,11 @@ props(export_selected, SubDiv) ->
     [{title,"Export Selected"},{ext,".xml"},{ext_desc,"YafRay File"},
      {subdivisions,SubDiv}].
 
--record(camera_info, {aim,distance_to_aim,azimuth,elevation,tracking,fov}).
+-record(camera_info, {pos,dir,up,fov}).
 
 attr(St, Attr) ->
-    [Aim,Dist,Az,El,Track,Fov] =
-	wpa:camera_info([aim,distance_to_aim,azimuth,elevation,tracking,fov]),
-    CameraInfo = #camera_info{aim=Aim,distance_to_aim=Dist,azimuth=Az,
-			      elevation=El,tracking=Track,fov=Fov},
+    [{Pos,Dir,Up},Fov] = wpa:camera_info([pos_dir_up,fov]),
+    CameraInfo = #camera_info{pos=Pos,dir=Dir,up=Up,fov=Fov},
     [CameraInfo,{lights,wpa:lights(St)}|Attr].
 
 fun_export_2(Attr) ->
@@ -1811,57 +1809,25 @@ quadrangle_vertices([V1,V2,V3,V4], VsT) ->
 
 
 export_camera(F, Name, Attr) ->
-    #camera_info{aim=Aim,distance_to_aim=Distance,elevation=El,
-		 azimuth=Az,tracking={TrackX,TrackY},fov=Fov} =
+    #camera_info{pos=Pos,dir=Dir,up=Up,fov=Fov} = 
 	proplists:lookup(camera_info, Attr),
     Width = proplists:get_value(width, Attr),
     Height = proplists:get_value(height, Attr),
     Ro = math:pi()/180.0,
-    Dist = limit_dist(Distance),
     %% Fov is horizontal angle from left to right border.
     %% YafRay focal plane is 1 unit high.
     FocalDist = (0.5 / math:tan(limit_fov(Fov)*0.5*Ro)) * (Height / Width),
-    Dy = Dist * math:sin(El*Ro),
-    P = Dist * math:cos(El*Ro),
-    Dx = -(P * math:sin(Az*Ro)),
-    Dz = P * math:cos(Az*Ro),
-    Rev = {Dx,Dy,Dz},
-    L = e3d_vec:norm_cross(Rev, {0.0,1.0,0.0}),
-    LeftN = 
-	case e3d_vec:is_zero(L) of
-	    false ->
-		L;
-	    true ->
-		{-math:cos(Az*Ro),0.0,-math:sin(Az*Ro)}
-	end,
-    DownN = e3d_vec:norm_cross(Rev, LeftN),
-    Transl = e3d_vec:add(e3d_vec:mul(LeftN, TrackX), 
-			 e3d_vec:mul(DownN, TrackY)),
-    Pos = e3d_vec:sub(Rev, Aim), % Aim is the vector from aim point to origo
-    From = e3d_vec:add(Pos, Transl),
-    To = e3d_vec:sub(Transl, Aim), % Aim is the vector from aim point to origo
-    Up = e3d_vec:sub(From, DownN),
     println(F, "<camera name=\"~s\" "++
 	    "resx=\"~w\" resy=\"~w\" focal=\"~.10f\">",
 	    [Name,Width,Height,FocalDist]),
-    export_pos(F, from, From),
-    export_pos(F, to, To),
-    export_pos(F, up, Up),
+    export_pos(F, from, Pos),
+    export_pos(F, to, e3d_vec:add(Pos, Dir)),
+    export_pos(F, up, e3d_vec:add(Pos, Up)),
     println(F, "</camera>").
 
 limit_fov(Fov) when Fov < 1.0 -> 1.0;
 limit_fov(Fov) when Fov > 179.0 -> 179.0;
 limit_fov(Fov) -> Fov.
-
-limit_dist(Dist) when Dist > 0.0 ->
-    if Dist < 0.01 -> 0.01;
-       true -> Dist
-    end;
-limit_dist(Dist) when Dist < 0.0 ->
-    if Dist > -0.01 -> -0.01;
-       true -> Dist
-    end;
-limit_dist(_) -> 0.01.
 
 
 
@@ -1907,8 +1873,8 @@ export_background(F, Name, Ps) ->
 
 
 export_filter(F, Name, dof, Attr) ->
-    #camera_info{distance_to_aim=Dist} = proplists:lookup(camera_info, Attr),
-    Focus = limit_dist(Dist),
+    #camera_info{dir=Dir} = proplists:lookup(camera_info, Attr),
+    Focus = e3d_vec:len(Dir),
     NearBlur = proplists:get_value(near_blur, Attr),
     FarBlur = proplists:get_value(far_blur, Attr),
     Scale = proplists:get_value(dof_scale, Attr),

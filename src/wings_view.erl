@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.141 2004/04/22 09:13:16 raimo_niskanen Exp $
+%%     $Id: wings_view.erl,v 1.142 2004/04/23 09:33:36 raimo_niskanen Exp $
 %%
 
 -module(wings_view).
@@ -63,10 +63,7 @@ menu(#st{views=Views}=St) ->
       "Toggle between orthographic and perspective views",
       crossmark(orthogonal_view)},
      {"Saved Views: "++integer_to_list(queue:len(Views)),
-      {views,[{"Next",next,"Go to next saved view"},
-	      {"Prev",prev,"Go back to previous saved view"},
-	      {"Save",save,"Save this view"},
-	      {"Delete",delete,"Delete this saved view"}]}},
+      {views,views_submenu(Views)}},
      separator,
      {"Camera Settings...",camera_settings,"Set field of view, and near and far clipping planes"},
      separator,
@@ -132,6 +129,30 @@ wireframe_crossmark(#st{sel=Sel0}) ->
 	{_,_} -> [grey_crossmark]
     end.
 
+views_submenu(Views) ->
+    [{"Next",next,views_submenu_legend(Views, next)},
+     {"Current",current,views_submenu_legend(Views, current)},
+     {"Prev",prev,views_submenu_legend(Views, prev)},
+     {"Save",save,"Save this view as current"},
+     {"Delete",delete,views_submenu_legend(Views, delete)}].
+
+views_submenu_legend(Views0, Action) ->
+    case queue:is_empty(Views0) of
+	true -> "No saved views!";
+	false ->
+	    case Action of
+		next -> 
+		    view_legend(queue:head(Views0));
+		current -> 
+		    view_legend(queue:last(Views0));
+		prev -> 
+		    {{value,View},Views} = queue:out_r(Views0),
+		    view_legend(queue:last(queue:in_r(View, Views)));
+		delete ->
+		    "Delete current saved view"
+	    end
+    end.
+	    
 
 command(reset, St) ->
     reset(),
@@ -523,13 +544,14 @@ modelview(IncludeLights) ->
 %% Calculate the location of the viewer in 3D space.
 %% (The (0,0,0) point multiplied by the inverse model transformation matrix.)
 eye_point() ->
-    #view{origin=Origin,distance=Dist,azimuth=Az,
-	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
+    e3d_mat:mul_point(view_matrix(current()), {0.0,0.0,0.0}).
+
+view_matrix(#view{origin=Origin,distance=Dist,azimuth=Az,elevation=El,
+		 pan_x=PanX, pan_y=PanY}) ->
     M0 = e3d_mat:translate(e3d_vec:neg(Origin)),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
     M2 = e3d_mat:mul(M1, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
-    M = e3d_mat:mul(M2, e3d_mat:translate(-PanX, -PanY, Dist)),
-    e3d_mat:mul_point(M, {0.0,0.0,0.0}).
+    e3d_mat:mul(M2, e3d_mat:translate(-PanX, -PanY, Dist)).
 
 aim(#st{sel=[]}) ->
     View = current(),
@@ -565,29 +587,30 @@ frame_1([A,B]=BB) ->
     set_current(View#view{origin=e3d_vec:neg(C),
 			  distance=Dist,pan_x=0.0,pan_y=0.0}).
 
-views(next, #st{views=Views}=St) ->
-    case queue:out(Views) of
-	{{value,View},NewViews} ->
-	    set_current(View),
-	    St#st{views=queue:in(View, NewViews)};
+views(next, #st{views=Views0}=St) ->
+    case queue:out(Views0) of
 	{empty,_} ->
-	    wings_util:message("No saved view")
+	    wings_util:message("No saved views");
+	{{value,View},Views} ->
+	    set_current(View),
+	    St#st{views=queue:in(View, Views)}
     end;
-views(prev, #st{views=Views}=St) ->
+views(current, #st{views=Views}) ->
     case queue:is_empty(Views) of
 	true ->
-	    wings_util:message("No saved view");
+	    wings_util:message("No saved views");
 	false ->
-	    View = current(),
-	    case queue:last(Views) of
-		View ->
-		    NewViews = queue:in_r(View, queue:init(Views)),
-		    set_current(queue:last(NewViews)),
-		    St#st{views=NewViews};
-		_ ->
-		    set_current(queue:last(Views)),
-		    wings_wm:dirty()
-	    end
+	    set_current(queue:last(Views)),
+	    wings_wm:dirty()
+    end;
+views(prev, #st{views=Views0}=St) ->
+    case queue:out_r(Views0) of
+	{empty,_} ->
+	    wings_util:message("No saved views");
+	{{value,View},Views1} ->
+	    Views = queue:in_r(View, Views1),
+	    set_current(queue:last(Views)),
+	    St#st{views=Views}
     end;
 views(save, #st{views=Views}=St) ->
     View = current(),
@@ -597,7 +620,7 @@ views(save, #st{views=Views}=St) ->
 	false ->
 	    case queue:last(Views) of
 		View ->
-		    wings_util:message("This view is alreay saved here");
+		    wings_util:message("This view is alreay the current");
 		_ ->
 		    {save_state,St#st{views=queue:in(View, Views)}}
 	    end
@@ -605,14 +628,14 @@ views(save, #st{views=Views}=St) ->
 views(delete, #st{views=Views}=St) ->
     case queue:is_empty(Views) of
 	true ->
-	    wings_util:message("No saved view");
+	    wings_util:message("No saved views");
 	false ->
 	    View = current(),
 	    case queue:last(Views) of
 		View ->
 		    {save_state,St#st{views=queue:init(Views)}};
 		_ ->
-		    wings_util:message("You have to be at a saved view")
+		    wings_util:message("You have to be at the current view")
 	    end
     end.
 
@@ -779,4 +802,61 @@ camera_info([hither|As], #view{hither=Hither}=View) ->
 camera_info([yon|As], #view{yon=Yon}=View) ->
     %% Far clipping plane.
     [Yon|camera_info(As, View)];
+camera_info([pos_dir_up|As], View) ->
+    [camera_pos_dir_up(View)|camera_info(As, View)];
 camera_info([], _) -> [].
+
+camera_pos_dir_up(#view{distance=Dist}=View) ->
+    M = view_matrix(View),
+    Pos = e3d_mat:mul_point(M, {0.0,0.0,0.0}),
+    Aim = e3d_mat:mul_point(M, {0.0,0.0,-Dist}),
+    Above = e3d_mat:mul_point(M, {0.0,1.0,0.0}),
+    Dir = e3d_vec:sub(Aim, Pos),
+    Up = e3d_vec:sub(Above, Pos),
+    %% Pos is position of camera.
+    %% Dir is the vector from Pos to the Aim point.
+    %% Up points up from Pos and is normalized, so Pos+Up is a point 1.0
+    %% above the camera, with the cameras notion of above.
+    %% Up is also orthogonal to Dir, so Up x Dir = Left.
+    {Pos,Dir,Up}.
+
+view_legend(#view{distance=Dist,along_axis=Along}=View) ->
+    [{Pos,Dir,_}] = camera_info([pos_dir_up], View),
+    Legend = 
+	io_lib:format(
+	  "From ~s ~s distance ~.4g",
+	  [pos_legend(Pos),
+	   case Along of
+	       x -> "along +X";
+	       y -> "along +Y";
+	       z -> "along +Z";
+	       neg_x -> "along -X";
+	       neg_y -> "along -Y";
+	       neg_z -> "along -Z";
+	       none ->
+		   Aim = e3d_vec:add(Pos, Dir),
+		   AimLen = e3d_vec:len(Aim),
+		   if AimLen < Dist*0.000001 ->
+			   %% Close enough to Origin
+			   "against Origin";
+		      true ->
+			   "against "++pos_legend(e3d_vec:neg(Dir))
+		   end
+	   end,
+	   Dist]),
+    lists:flatten(Legend).
+
+pos_legend({X,Y,Z}) ->
+    %% Sort the coordinates as greatest absolute value first.
+    %% Remove the ones with absolute value lower then tan(45/2) times
+    %% the maximum. This should use the same style as N, NW, W type 
+    %% compass direction notation where each value has 
+    %% a precision of +-45/2 degrees.
+    %% Return e.g "+X+Y", "-Z+X" depending on the sign of the remaining
+    %% coordinates, largest first, as a deep charlist.
+    [{Max,_,_}|_] = L =
+	    lists:reverse(lists:sort(
+			    [{abs(X),$X,X},{abs(Y),$Y,Y},{abs(Z),$Z,Z}])),
+    [[if Val < 0 -> $-;
+	 true    -> $+ end,Char] 
+     || {Abs,Char,Val} <- L, Abs >= Max*0.4142135624]. % tan(22.5 degrees)
