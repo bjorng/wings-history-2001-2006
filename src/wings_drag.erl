@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.156 2003/08/16 17:50:35 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.157 2003/08/27 11:31:02 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -50,7 +50,7 @@
 setup(Tvs, Unit, St) ->
     setup(Tvs, Unit, [], St).
 
-setup(Tvs, Units, Flags, #st{selmode=Mode}=St) ->
+setup(Tvs, Units, Flags, St) ->
     wings_io:grab(),
     wings_wm:grab_focus(),
     Magnet = proplists:get_value(magnet, Flags, none),
@@ -59,20 +59,19 @@ setup(Tvs, Units, Flags, #st{selmode=Mode}=St) ->
     Offset = setup_offsets(Offset1, Units),
     Drag = #drag{unit=Units,flags=Flags,offset=Offset,
 		 falloff=falloff(Units),magnet=Magnet,st=St},
-    case Mode of
-	body ->
+    case Tvs of
+	{matrix,TvMatrix} ->
 	    Workmode = wings_wm:get_prop(workmode),
 	    wings_wm:set_prop(workmode, true),
 	    wings_draw:update_dlists(St),
-	    wings_wm:set_prop(workmode, Workmode);
-	_ ->
+	    wings_wm:set_prop(workmode, Workmode),
+	    insert_matrix(TvMatrix);
+	{general,General} ->
 	    wings_draw:invalidate_dlists(St),
-	    wings_draw:update_mirror()
-    end,
-    case Tvs of
-	{matrix,TvMatrix} -> insert_matrix(TvMatrix);
-	{general,General} -> break_apart_general(General);
-	_ -> break_apart(Tvs, St)
+	    wings_draw:update_mirror(),
+	    break_apart_general(General);
+	_ ->
+	    break_apart(Tvs, St)
     end,
     {drag,Drag}.
 
@@ -102,13 +101,12 @@ setup_offsets([], []) -> [].
 %% (not moved during drag) and dynamic (part of objects actually
 %% moved).
 %%
-break_apart(Tvs0, St) ->
-    S = sofs:relation(Tvs0, [{id,info}]),
-    F = sofs:relation_to_family(S),
-    Tvs = sofs:to_external(F),
+break_apart(Tvs, St) ->
+    wings_draw:invalidate_dlists(St),
+    wings_draw:update_mirror(),
     wings_draw_util:map(fun(D, Data) ->
 				break_apart(D, Data, St)
-			end, Tvs).
+			end, wings_util:rel2fam(Tvs)).
 
 break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList0}|Tvs], St) ->
     TvList = mirror_constrain(TvList0, We),
