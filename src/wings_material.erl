@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.25 2002/02/24 22:34:44 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.26 2002/03/05 07:11:55 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -220,7 +220,7 @@ edit(Name, #st{mat=Mtab0}=St) ->
 color(Face, {U,V}, #we{fs=Ftab}, #st{mat=Mtab}) ->
     #face{mat=Name} = gb_trees:get(Face, Ftab),
     case gb_trees:get(Name, Mtab) of
-	#mat{diffuse_map=Tx} -> color_1(U, V, Tx);
+	#mat{diffuse_map=Tx} when Tx =/= none -> color_1(U, V, Tx);
 	#mat{diffuse=Diff} -> wings_color:share(Diff)
     end;
 color(_Face, {_,_,_}=RGB, _We, _St) -> RGB.
