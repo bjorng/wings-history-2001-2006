@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.103 2003/08/27 06:47:39 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.104 2003/08/27 06:56:56 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -19,7 +19,7 @@
 	 plain_face/2,plain_face/3,uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_mat_faces/1,smooth_uv_faces/1,smooth_vcol_faces/1,
 	 unlit_face/2,unlit_face/3,
-	 force_flat_color/2,consistent_normal/4,good_triangulation/5]).
+	 force_flat_color/2,good_triangulation/5]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -638,7 +638,7 @@ vcol_face_1([], _, Nacc, Vs) ->
 
 %% good_triangulation(Normal, Point1, Point2, Point3, Point4) -> true|false
 %%  Return true if triangulation by connecting Point1 to Point3 is OK.
-%%  The normal Normal should be averaged normal for the quad.
+%%  The normal Normal should be the averaged normal for the quad.
 good_triangulation({Nx,Ny,Nz}, {Ax,Ay,Az}, {Bx,By,Bz}, {Cx,Cy,Cz}, {Dx,Dy,Dz})
   when is_float(Ax), is_float(Ay), is_float(Az) ->
     CAx = Cx-Ax, CAy = Cy-Ay, CAz = Cz-Az,
@@ -650,21 +650,6 @@ good_triangulation({Nx,Ny,Nz}, {Ax,Ay,Az}, {Bx,By,Bz}, {Cx,Cy,Cz}, {Dx,Dy,Dz})
 
 good_triangulation_1(D1, D2) when D1 > 0, D2 > 0 -> true;
 good_triangulation_1(_, _) -> false.
-
-%% consistent_normal(Point1, Point2, Point3, Normal) -> true|false
-%%  Return true if the normal for the triangle Point1-Point2-Point3
-%%  points in approximately the same direction as the normal Normal.
-consistent_normal({A0,A1,A2}, {B0,B1,B2}, {C0,C1,C2}, {X,Y,Z})
-  when is_float(A0), is_float(A1), is_float(A2),
-       is_float(B0), is_float(B1), is_float(B2),
-       is_float(C0), is_float(C1), is_float(C2) ->
-    D10 = A0-B0,
-    D11 = A1-B1,
-    D12 = A2-B2,
-    D20 = B0-C0,
-    D21 = B1-C1,
-    D22 = B2-C2,
-    X*(D11*D22-D12*D21) + Y*(D12*D20-D10*D22) + Z*(D10*D21-D11*D20) > 0.
 
 %% force_flat_color(OriginalDlist, Color) -> NewDlist.
 %%  Wrap a previous display list (that includes gl:color*() calls)

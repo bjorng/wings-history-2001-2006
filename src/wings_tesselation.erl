@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.3 2003/08/22 10:52:26 bjorng Exp $
+%%     $Id: wings_tesselation.erl,v 1.4 2003/08/27 06:56:56 bjorng Exp $
 %%
 
 -module(wings_tesselation).
@@ -91,14 +91,12 @@ triangulate_quad_1([], [Ai,Bi,Ci,Di], _, We, VsPos) ->
     [D,C,B,A] = VsPos,
     case e3d_vec:dist(A, C) < e3d_vec:dist(B, D) of
 	true ->
-	    case wings_draw_util:consistent_normal(C, B, A, N) andalso
-		wings_draw_util:consistent_normal(D, C, A, N) of
+	    case wings_draw_util:good_triangulation(N, D, C, B, A) of
 		false -> error;
 		true -> wings_vertex_cmd:connect([Ai,Ci], We)
 	    end;
 	false ->
-	    case wings_draw_util:consistent_normal(B, A, D, N) andalso
-		wings_draw_util:consistent_normal(B, D, C, N) of
+	    case wings_draw_util:good_triangulation(N, C, B, A, D) of
 		false -> error;
 		true -> wings_vertex_cmd:connect([Bi,Di], We)
 	    end
