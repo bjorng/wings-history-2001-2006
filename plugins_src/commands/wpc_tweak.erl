@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.65 2005/01/27 06:57:16 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.66 2005/01/28 06:24:41 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -317,11 +317,11 @@ do_tweak(#dlo{drag={matrix,Pos0,Matrix0,_},src_we=#we{id=Id}}=D0,
     Matrix = e3d_mat:mul(e3d_mat:translate(Move), Matrix0),
     D0#dlo{drag={matrix,Pos,Matrix,e3d_mat:expand(Matrix)}};
 do_tweak(#dlo{drag=#drag{vs=Vs,pos=Pos0,mag=Mag0,mm=MM}=Drag,
-	      src_we=We=#we{id=Id}}=D0,DX,DY,AlongNormal) ->
+	      src_we=#we{id=Id}}=D0, DX, DY, AlongNormal) ->
     Matrices = wings_u:get_matrices(Id, MM),
     {Xs,Ys,Zs} = obj_to_screen(Matrices, Pos0),
     TweakPos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
-    Pos = tweak_pos(AlongNormal, Vs, Pos0, TweakPos, We),
+    Pos = tweak_pos(AlongNormal, Vs, Pos0, TweakPos, D0),
     {Vtab,Mag} = magnet_tweak(Mag0, Pos),
     D = D0#dlo{sel=none,drag=Drag#drag{pos=Pos,mag=Mag}},
     wings_draw:update_dynamic(D, Vtab);
@@ -334,21 +334,44 @@ screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
     glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
 
 tweak_pos(false, _, _, Pos, _) -> Pos;
-tweak_pos(true, Vs, Pos0, TweakPos, We) ->
-    N = case Vs of 
-	    [V] ->				% Vertex mode	       
-		wings_vertex:normal(V, We);
-	    [V1,V2] ->				% Edge mode
-		N1 = wings_vertex:normal(V1, We),
-		N2 = wings_vertex:normal(V2, We),
-		e3d_vec:norm(e3d_vec:add(N1, N2));
-	    _ ->				%  Face mode
+tweak_pos(true, Vs, Pos0, TweakPos, #dlo{src_we=We}=D) ->
+    N = case Vs of
+	    [V] ->				%Vertex mode
+		vertex_normal(V, D);		%Unormalized
+	    [V1,V2] ->				%Edge mode
+		N1 = vertex_normal(V1, D),
+		N2 = vertex_normal(V2, D),
+		e3d_vec:add(N1, N2);		%Unormalized
+	    _ ->				%Face mode
 		VsPos = [wings_vertex:pos(V, We) || V <- Vs],
 		e3d_vec:normal(VsPos)
 	end,
     %% Return the point along the normal closest to TweakPos.
     T = e3d_vec:dot(N, e3d_vec:sub(TweakPos, Pos0)) / e3d_vec:dot(N, N),
     e3d_vec:add_prod(Pos0, N, T).
+
+%% vertex_normal(Vertex, DLO) -> UnormalizedNormal
+%%  Calculate the vertex normal. Will also work for vertices surrounded
+%%  by one or more hidden faces. 
+vertex_normal(V, D) ->
+    OrigWe = wings_draw:original_we(D),
+    FaceNs = [face_normal(F, D) || F <- wings_face:from_vs([V], OrigWe)],
+    e3d_vec:add(FaceNs).
+
+%% face_normal(Face, DLO) -> Normal
+%%  Calculate the face normal. Will also work for faces that
+%%  are hidden (including the virtual mirror face).
+face_normal(Face, #dlo{src_we=#we{vp=Vtab}}=D) ->
+    #we{vp=OrigVtab} = OrigWe = wings_draw:original_we(D),
+    Vs = wings_face:vertices_ccw(Face, OrigWe),
+    VsPos = [vertex_pos(V, Vtab, OrigVtab) || V <- Vs],
+    e3d_vec:normal(VsPos).
+
+vertex_pos(V, Vtab, OrigVtab) ->
+    case gb_trees:lookup(V, Vtab) of
+	none -> gb_trees:get(V, OrigVtab);
+	{value,Pos} -> Pos
+    end.
 
 help(#tweak{magnet=false}) ->
     Msg1 = wings_msg:button_format("Drag freely"),
