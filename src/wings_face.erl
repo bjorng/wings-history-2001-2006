@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.30 2003/04/17 11:31:39 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.31 2003/04/17 14:43:47 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -18,6 +18,7 @@
 	 other/2,vertices/2,
 	 to_vertices/2,
 	 normal/2,face_normal/2,good_normal/2,
+	 center/2,
 	 vinfo/2,vinfo/3,
 	 vertices_cw/2,vertices_cw/3,
 	 vertices_ccw/2,vertices_ccw/3,
@@ -189,6 +190,11 @@ good_normal(D1, [_Va|[Vb,Vc|_]=Vs], More) ->
 good_normal(D1, Vs, [Va,Vb|_]) ->
     good_normal(D1, Vs++[Va,Vb], []);
 good_normal(_, _, _) -> false.
+
+%% center(Face, We)
+%%  Return the center of the face.
+center(Face, We) ->
+    wings_vertex:center(vertices_ccw(Face, We), We).
 
 %% Vertex info for drawing.
 

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.43 2002/12/31 19:24:11 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.44 2003/04/17 14:43:48 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -82,8 +82,7 @@ inset([], _We, {Vs0,Min}) ->
     foldl(fun average_vectors/2, [], sofs:to_external(F)).
 
 inset_face(Face, #we{vp=Vtab}=We, Acc) ->
-    Vs0 = wings_face:surrounding_vertices(Face, We),
-    Center = wings_vertex:center(Vs0, We),
+    Center = wings_face:center(Face, We),
     wings_face:fold(
       fun(_, _, #edge{vs=Va,ve=Vb}, {A0,Min}) ->
 	      Pos = wings_vertex:pos(Va, Vtab),

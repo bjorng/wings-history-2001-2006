@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.109 2003/04/17 10:56:48 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.110 2003/04/17 14:43:46 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -265,8 +265,7 @@ update_mirror() ->
 
 update_mirror(#dlo{mirror=Face,src_we=We}=D, _) when is_integer(Face) ->
     N = wings_face:normal(Face, We),
-    Vs = wings_face:surrounding_vertices(Face, We),
-    Center = wings_vertex:center(Vs, We),
+    Center = wings_face:center(Face, We),
     RotBack = e3d_mat:rotate_to_z(N),
     Rot = e3d_mat:transpose(RotBack),
     Mat0 = e3d_mat:mul(e3d_mat:translate(Center), Rot),
@@ -637,7 +636,7 @@ make_normals_dlist_1(edge, Edges, #we{es=Etab,vp=Vtab}=We) ->
 	    end, Et);
 make_normals_dlist_1(face, Faces, We) ->
     foreach(fun(Face) ->
-		    Vs = wings_face:surrounding_vertices(Face, We),
+		    Vs = wings_face:vertices_ccw(Face, We),
 		    C = wings_vertex:center(Vs, We),
 		    gl:vertex3fv(C),
 		    N = wings_face:face_normal(Vs, We),

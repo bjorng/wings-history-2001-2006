@@ -3,12 +3,12 @@
 %%
 %%     Wings Plugin API.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.25 2002/12/28 22:08:05 bjorng Exp $
+%%     $Id: wpa.erl,v 1.26 2003/04/17 14:43:48 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,yes_no/1,
@@ -215,7 +215,7 @@ edge_loop_vertices(Edges, We) ->
 faces(#we{fs=Ftab}) -> gb_trees:keys(Ftab).
 
 face_vertices(Face, We) ->
-    wings_face:surrounding_vertices(Face, We).
+    wings_face:vertices_ccw(Face, We).
 
 face_outer_vertices(Faces, We) ->
     wings_vertex:outer_partition(Faces, We).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.76 2003/03/08 07:22:01 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.77 2003/04/17 14:43:47 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -419,8 +419,7 @@ mirror_face(Face, #we{fs=Ftab}=OrigWe, #we{next_id=Id}=We0) ->
 
 mirror_vs(Face, #we{vp=Vtab0}=We) ->
     Normal = wings_face:normal(Face, We),
-    Vs = wings_face:surrounding_vertices(Face, We),
-    Center = wings_vertex:center(Vs, We),
+    Center = wings_face:center(Face, We),
     Vtab1 = foldl(fun(Vtx, A) ->
 			  mirror_move_vs(Vtx, Normal, Center, A)
 		  end, [], gb_trees:to_list(Vtab0)),
@@ -723,8 +722,8 @@ bridge_null_uvs_1([], _, Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
 
 bridge(FaceA, FaceB, #we{vp=Vtab}=We) ->
-    VsA = wings_face:surrounding_vertices(FaceA, We),
-    VsB = wings_face:surrounding_vertices(FaceB, We),
+    VsA = wings_face:vertices_ccw(FaceA, We),
+    VsB = wings_face:vertices_ccw(FaceB, We),
     if
 	length(VsA) =/= length(VsB) ->
 	    bridge_error("Faces must have the same number of vertices.");
@@ -960,7 +959,7 @@ lift_from_edge_1(Dir, [{Face,Edge}|T], #we{es=Etab}=OrigWe, We0, Tv0) ->
 lift_from_edge_1(_Dir, [], _OrigWe, We, Tv) -> {We,Tv}.
 
 lift_from_edge_2(Dir, Face, Edge, Side, #we{id=Id,es=Etab}=We0, Tv) ->
-    FaceVs0 = ordsets:from_list(wings_face:surrounding_vertices(Face, We0)),
+    FaceVs0 = ordsets:from_list(wings_face:vertices_ccw(Face, We0)),
     #edge{vs=Va0,ve=Vb0} = gb_trees:get(Edge, Etab),
     {Va,Ea} = lift_edge_vs(Va0, FaceVs0, We0),
     {Vb,Eb} = lift_edge_vs(Vb0, FaceVs0, We0),
@@ -1158,7 +1157,7 @@ put_on({Mode,[{Id,Els}]}, #st{shapes=Shs}=St) ->
 		  end, St).
     
 put_on_1(Face, Axis, Target, We) ->
-    Vs = wings_face:surrounding_vertices(Face, We),
+    Vs = wings_face:vertices_ccw(Face, We),
     Center = wings_vertex:center(Vs, We),
     N = e3d_vec:neg(wings_face:face_normal(Vs, We)),
     RotAxis = e3d_mat:rotate_s_to_t(N, Axis),
@@ -1198,7 +1197,7 @@ clone_on_selection() ->
 clone_on({Mode,Sel}, #st{sel=[{Id,Faces}],shapes=Shs0}=St) ->
     We = gb_trees:get(Id, Shs0),
     [Face] = gb_sets:to_list(Faces),
-    Vs = wings_face:surrounding_vertices(Face, We),
+    Vs = wings_face:vertices_ccw(Face, We),
     Center = wings_vertex:center(Vs, We),
     Translate = e3d_mat:translate(e3d_vec:neg(Center)),
     N = e3d_vec:neg(wings_face:face_normal(Vs, We)),
@@ -1231,7 +1230,7 @@ clone_3(El, We, Tr, N, Clone, #st{selmode=Mode}=St) ->
 %%
 
 on_target(face, Face, We) ->
-    Vs = wings_face:surrounding_vertices(Face, We),
+    Vs = wings_face:vertices_ccw(Face, We),
     N = wings_face:face_normal(Vs, We),
     Center = wings_vertex:center(Vs, We),
     {N,Center};
