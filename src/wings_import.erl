@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.10 2003/05/09 06:12:03 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.11 2003/05/11 19:08:44 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -31,11 +31,19 @@ import(#e3d_file{objs=Objs,mat=Mat}, St0) ->
 translate_objects([#e3d_object{name=Name}=Obj|Os], UsedMat0,
 		  I, Suffix, St0) ->
     {St,UsedMat} = case import_object(Obj, UsedMat0) of
-		       error -> {St0,UsedMat0};
-		       {We,Us0} -> {store_object(Name, We, St0),Us0}
+		       error ->
+			   {St0,UsedMat0};
+		       {We0,Us0} ->
+			   We = import_attributes(We0, Obj),
+			   {store_object(Name, We, St0),Us0}
 		   end,
     translate_objects(Os, UsedMat, I+1, Suffix, St);
 translate_objects([], UsedMat, _, _, St) -> {UsedMat,St}.
+
+import_attributes(We, #e3d_object{attr=Attr}) ->
+    Visible = proplists:get_value(visible, Attr, true),
+    Locked = proplists:get_value(false, Attr, false),
+    wings_shape:permissions(We, Visible, Locked).
 
 store_object(undefined, We, #st{onext=Oid}=St) ->
     Name = "unnamed_object" ++ integer_to_list(Oid),

@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.62 2003/04/10 12:05:18 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.63 2003/05/11 19:08:44 bjorng Exp $
 %%
 
 -module(wings_shape).
 -export([new/3,insert/3,replace/3,window/1,window/4]).
--export([show_all/1,unlock_all/1]).
+-export([show_all/1,unlock_all/1,permissions/3]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -53,6 +53,17 @@ replace(Id, We0, #st{shapes=Shapes0}=St) ->
     We = We0#we{id=Id},
     Shapes = gb_trees:update(Id, We, Shapes0),
     St#st{shapes=Shapes}.
+
+permissions(We, Visible, Locked) ->
+    P0 = case Visible of
+	     true -> 0;
+	     false -> 2
+	 end,
+    P = case Locked of
+	    true -> P0 bor 1;
+	    false -> P0
+	end,
+    We#we{perm=P}.
 
 %%%
 %%% Object window.
