@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.13 2003/02/04 06:03:16 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.14 2003/02/06 05:12:32 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -302,7 +302,9 @@ fit_horizontal() ->
     {_,Ch} = wings_wm:win_size(Client),
     {{Left0,Y},{_,H}} = wings_wm:win_rect(),
     Win0 = wings_wm:windows(),
-    Win = [Wi || Wi <- Win0, have_vertical_overlap(Wi, Y, Ch+H)],
+    Win = [Wi || Wi <- Win0,
+		 have_vertical_overlap(Wi, Y, Ch+H),
+		 not is_helper_window(Wi)],
     {DeskLeft,_} = wings_wm:win_ul(desktop),
     Left = fit_hor_constrain_1(Win, Left0, DeskLeft),
     wings_wm:update_window(Client, [{dx,Left-Left0},{dw,Left0-Left}]),
@@ -332,12 +334,14 @@ fit_hor_constrain_2([], _, Rightmost) -> Rightmost.
 have_vertical_overlap(Name, Y, H) ->
     {{_,Oy},{_,Oh}} = wings_wm:win_rect(Name),
     (Oy =< Y andalso Y < Oy+Oh) orelse (Y =< Oy andalso Oy < Y+H).
-    
+
 fit_vertical() ->
     {{X,Y0},{W,_}} = wings_wm:win_rect(),
     {_,DeskY} = wings_wm:win_ul(desktop),
     Win0 = wings_wm:windows(),
-    Win = [Wi || Wi <- Win0, have_horizontal_overlap(Wi, X, W)],
+    Win = [Wi || Wi <- Win0,
+		 have_horizontal_overlap(Wi, X, W),
+		 not is_helper_window(Wi)],
     Y = fit_vert_constrain_1(Win, Y0, DeskY),
     {_,Client} = wings_wm:active_window(),
     wings_wm:update_window(Client, [{dy,Y-Y0},{dh,Y0-Y}]),
@@ -367,6 +371,11 @@ fit_vert_constrain_2([], _, BottomY) -> BottomY.
 have_horizontal_overlap(Name, X, W) ->
     {{Ox,_},{Ow,_}} = wings_wm:win_rect(Name),
     (Ox =< X andalso X < Ox+Ow) orelse (X =< Ox andalso Ox < X+W).
+
+is_helper_window({vscroller,_}) -> true;
+is_helper_window({resizer,_}) -> true;
+is_helper_window({closer,_}) -> true;
+is_helper_window(_Name) -> false.
 
 %%%
 %%% Resizer window.
