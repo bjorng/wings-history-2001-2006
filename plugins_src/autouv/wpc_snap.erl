@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_snap.erl,v 1.5 2004/03/23 05:36:40 bjorng Exp $
+%%     $Id: wpc_snap.erl,v 1.6 2004/03/23 07:08:11 bjorng Exp $
 
 -module(wpc_snap).
 
@@ -148,7 +148,8 @@ scale(Op, St) ->
 
 move(Op, St) ->
     #s{tx=Ix,ty=Iy} = get(?MODULE),
-    MoveFun = fun([X,Y], Dlo) -> 
+    MoveFun = fun({finish,_}, Dlo) -> Dlo;
+		 ([X,Y], Dlo) -> 
 		      State = get(?MODULE),
 		      case Op of 
 			  x ->    put(?MODULE, State#s{tx=-X});
