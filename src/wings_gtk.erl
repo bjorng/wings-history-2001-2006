@@ -11,6 +11,9 @@
 
 -include_lib("erlgtk/include/gdk.hrl").
 -include_lib("erlgtk/include/gtk.hrl").
+-include_lib("erlgtk/include/gdk_gl.hrl").
+-include_lib("erlgtk/include/gtk_gl_area.hrl").
+-include_lib("erlgtk/include/gl.hrl").
 
 -include("wings.hrl").
 
@@ -234,6 +237,22 @@ help_menu() ->
       [
        {"About", [{value,{help,about}}]}
       ]}.
+
+shape_menu() ->
+    [].
+
+vertex_menu() ->
+    [].
+
+edge_menu() ->
+    [].
+
+face_menu() ->
+    [].
+
+body_menu() ->
+    [].
+
 
 
 is_selection_mode(Mode) ->
@@ -647,9 +666,81 @@ handle_command({help,about}, St) ->
 handle_command(Cmd, St) ->
     {true, St}.
 
-	     
+
+gl_init(Widget,_) ->
+    %% OpenGL functions can be called only if make_current returns true 
+    case gtk_gl_area:make_current(?GTK_GL_AREA(Widget)) of
+	0 -> true;
+	_ ->
+	    Allocation = gtk:widget_get_allocation(Widget),
+	    W = Allocation#gtk_allocation.width,
+	    H = Allocation#gtk_allocation.height,
+	    St = get('_state'),
+	    gl:enable(?GL_DEPTH_TEST),
+	    gl:clearColor(0.6, 0.6, 0.5, 1.0),
+	    gl:clear(?GL_COLOR_BUFFER_BIT),
+	    gl:viewport(0, 0, W, H),
+	    gl:matrixMode(?GL_PROJECTION),
+	    gl:loadIdentity(),
+	    wings_view:perspective(St),	    
+	    gl:matrixMode(?GL_MODELVIEW),
+	    wings_draw:render(St),
+	    true
+	    %% gl:matrixMode(?GL_PROJECTION),
+	    %% gl:loadIdentity(),
+	    %% gl:ortho(0,100, 100,0, -1,1),
+	    %% gl:matrixMode(?GL_MODELVIEW),
+	    %% gl:loadIdentity(),
+    end.
+
+%% When widget is exposed it's contents are redrawn.
+gl_draw(Widget, Event, _) ->
+    %% Draw only last expose. 
+    if Event#gdk_event_expose.count > 0 ->
+	    true;
+       true ->
+	    %% OpenGL functions can be called only 
+	    %% if make_current returns true 
+	    case gtk_gl_area:make_current(?GTK_GL_AREA(Widget)) of
+		0 -> 
+		    true;
+		_ ->
+		    St = get('_state'),
+		    wings_draw:render(St),
+		    gtk_gl_area:swap_buffers(?GTK_GL_AREA(Widget)),
+		    true
+	    end
+    end.
+
+gl_reshape(Widget, Event, _) ->
+    %% OpenGL functions can be called only if make_current returns true
+    case gtk_gl_area:make_current(?GTK_GL_AREA(Widget)) of
+	0 -> ignore;
+	_ ->
+	    Allocation = gtk:widget_get_allocation(Widget),
+	    W = Allocation#gtk_allocation.width,
+	    H = Allocation#gtk_allocation.height,	    
+	    St = get('_state'),
+	    gl:enable(?GL_DEPTH_TEST),
+	    gl:clearColor(0.6, 0.6, 0.5, 1.0),
+	    gl:viewport(0, 0, W, H),
+	    gl:matrixMode(?GL_PROJECTION),
+	    gl:loadIdentity(),
+	    wings_view:perspective(St),	    
+	    gl:matrixMode(?GL_MODELVIEW)
+    end,
+    true.
+
     
 main() ->
+    case gdk_gl:'query'() of
+	0 ->
+	    io:format("OpenGL not supported\n", []),
+	    exit(normal);
+	_ ->
+	    ok
+    end,
+
     Window = gtk:window_new ('GTK_WINDOW_TOPLEVEL'),
 
     gtk:input_add(fun handle_input/2),
@@ -669,6 +760,8 @@ main() ->
 
     Material = wings_material:default(),
     Empty = gb_trees:empty(),
+    Zero = 0.0,
+
     St0 = #st { shapes = Empty,
 		hidden = Empty,
 		selmode= face,
@@ -683,6 +776,13 @@ main() ->
 		%%  hit_buf= sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)
 		hit_buf = 0  %% FIXME
 	       },
+    %% fake default view..
+    St1 = St0#st { origo={Zero,Zero,Zero},
+		   azimuth=-45.0,elevation=25.0,
+		   distance=?CAMERA_DIST,
+		   pan_x=Zero,pan_y=Zero},
+	    
+    put('_state', St1),
 
     {MBar,AccelGroup} = wings_menu(Material),
     gtk:box_pack_start(?GTK_BOX(Vbox), MBar, false, false, 0),
@@ -697,10 +797,30 @@ main() ->
     gtk:widget_show(TBar),
 
     %% Create the drawing area (will be gtkgl_area)
-    Drawing_area = gtk:drawing_area_new (),    
-    gtk:drawing_area_size (?GTK_DRAWING_AREA (Drawing_area), 
-			   800, 600),
-    gtk:box_pack_start (?GTK_BOX(Vbox), Drawing_area, true, true, 0),
+    GL_area = gtk_gl_area:new({?GDK_GL_RGBA,
+			      ?GDK_GL_RED_SIZE,  4,
+			      ?GDK_GL_GREEN_SIZE,4,
+			      ?GDK_GL_BLUE_SIZE, 4,
+			      ?GDK_GL_DOUBLEBUFFER,
+			      ?GDK_GL_NONE}),
+
+    gtk:widget_set_events(?GTK_WIDGET(GL_area),
+			  ?GDK_EXPOSURE_MASK bor
+			  ?GDK_BUTTON_PRESS_MASK),
+
+    gtk:signal_connect(?GTK_OBJECT(GL_area), 'expose_event',
+		       fun gl_draw/3, ?NULL),
+    
+    gtk:signal_connect(?GTK_OBJECT(GL_area), 'configure_event',
+		       fun gl_reshape/3, ?NULL),
+
+    %% Do initialization when widget has been realized. 
+    gtk:signal_connect(?GTK_OBJECT(GL_area), 'realize',
+		       fun gl_init/2, ?NULL),
+
+    gtk:widget_set_usize(?GTK_WIDGET(GL_area), 800,600),
+
+    gtk:box_pack_start (?GTK_BOX(Vbox), GL_area, true, true, 0),
     %% ?GTK_WIDGET_SET_FLAGS(Drawing_area, ?GTK_CAN_FOCUS),
     %% gtk:widget_grab_focus(Drawing_area),
 
@@ -713,13 +833,13 @@ main() ->
     gtk:widget_show(Sep),
 
     %%
-    gtk:widget_show (Drawing_area),
+    gtk:widget_show (GL_area),
 
     gtk:widget_show (Window),
 
     set_window_icon(Window, wings_xpms:wings_icon()),
 
-    gtk:main (St0).    
+    gtk:main (St1).    
 
     
     
