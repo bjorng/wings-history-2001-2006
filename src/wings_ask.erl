@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.104 2003/11/09 06:30:02 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.105 2003/11/09 08:27:26 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -805,33 +805,24 @@ cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED}, #fi{x=X,key=Key}, I, Store) ->
 cb_event(_Ev, _Fi, _I, _Store) -> keep.
 
 cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
+    wings_io:sunken_gradient(X, Y0+?CHAR_HEIGHT-9, 8, 8, 
+			     case DisEnable of
+				 disable -> color3();
+				 _ -> {0.82,0.82,0.82}
+			     end, color4(), Active),
     FgColor = case DisEnable of 
 		  disable -> color3_disabled(); 
 		  _-> color3_text()
 	      end,
-    wings_io:sunken_rect(X, Y0+?CHAR_HEIGHT-9, 8, 8, 
-			 case DisEnable of
-			     disable -> color3();
-			     _ -> {1,1,1}
-			 end, color4()),
-    Y = Y0+?CHAR_HEIGHT,
     gl:color3fv(FgColor),
+    Y = Y0+?CHAR_HEIGHT,
     case Val of
 	false -> ok;
 	true -> wings_io:text_at(X+1, Y, [crossmark])
     end,
-    gl:color3fv(FgColor),
-    wings_io:text_at(X+2*?CHAR_WIDTH, Y, Label),
-    if
-	Active == true ->
-	    wings_io:text_at(X+2*?CHAR_WIDTH, Y,
-			     duplicate(length(Label), $_));
-	true -> ok
-    end,
+    wings_io:text_at(X+round(1.8*?CB_SIZE), Y, Label),
     gl:color3b(0, 0, 0),
     DisEnable.
-
-
 
 
 
@@ -1003,8 +994,8 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
 			  wings_io:border(X, Y0+1, W-?CHAR_WIDTH+10, 
 					  H-3, Col, FgColor);
 		      _ ->
-			  wings_io:raised_rect(X, Y0+1, W-?CHAR_WIDTH+10, 
-					       H-3, Col, Col)
+			  wings_io:gradient_border(X, Y0+1, W-?CHAR_WIDTH+10, 
+						   H-3, Col, FgColor, Active)
 		  end
 	  end),
     Y = Y0+?CHAR_HEIGHT,
@@ -1012,11 +1003,6 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
     gl:color3fv(FgColor),
     wings_io:text_at(X+5, Y, ValStr),
     Xr = X + W-8,
-    case Active of
-	false -> wings_io:border(Xr-1, Y-9, 10, 10, color3(), FgColor);
-	true -> wings_io:sunken_rect(Xr-1, Y-9, 10, 10, color3(), color4())
-    end,
-    gl:color3fv(FgColor),
     Arrows = <<
 	      2#00010000,
 	      2#00111000,
@@ -1223,20 +1209,15 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnable) ->
 		  disable -> color3_disabled(); 
 		  _ -> color3_text()
 	      end,
-    case Active of
-	false -> ok;
-	true -> gl:lineWidth(2.0)
-    end,
     blend(fun(Col) ->
 		  case DisEnable of
 		      disable ->
 			  wings_io:border(X, Y0+2, W, H-4, Col, FgColor);
 		      _ ->
 			  wings_io:gradient_border(X, Y0+2, W, H-4,
-						   Col, FgColor)
+						   Col, FgColor, Active)
 		  end
 	  end),
-    gl:lineWidth(1.0),
     TextX = X + 2 + (W-wings_text:width(Label)) div 2,
     gl:color3fv(FgColor),
     wings_io:text_at(TextX, Y, Label),
@@ -1307,15 +1288,7 @@ col_draw(Active, #fi{x=X,y=Y0}, RGB, DisEnable) ->
 			    RGB, FgColor);
 	_ ->
 	    wings_io:sunken_rect(X, Y0+3, 3*?CHAR_WIDTH, ?CHAR_HEIGHT, 
-				 RGB, color4())
-    end,
-    Y = Y0+?CHAR_HEIGHT,
-    if
-	Active == true ->
-	    gl:color3fv(FgColor),
-	    wings_io:text_at(X, Y, "___"),
-	    keep;
-	true -> keep
+				 RGB, color4(), Active)
     end,
     gl:color3b(0, 0, 0),
     DisEnable.
@@ -1590,7 +1563,7 @@ draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
 	    _ ->
 		wings_io:sunken_gradient(X0, Y0+2,
 					 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
-					 {0.82,0.82,0.82}, color4()),
+					 {0.82,0.82,0.82}, color4(), false),
 		color3_text()
 	end,
     Y = Y0 + ?CHAR_HEIGHT,
@@ -1603,7 +1576,7 @@ draw_text_active(#fi{x=X0,y=Y0},
 		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password},
 		 DisEnable) ->
     wings_io:sunken_gradient(X0, Y0+2, (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
-			     {0.82,0.82,0.82}, color4()),
+			     {0.82,0.82,0.82}, color4(), true),
     Y = Y0 + ?CHAR_HEIGHT,
     X = X0 + (?CHAR_WIDTH div 2),
     Len = length(Bef),
@@ -1788,7 +1761,8 @@ increment(Ts0, Incr) ->
 %%%
 
 -define(SL_LENGTH, 150).
--define(SL_BAR_H, (?LINE_HEIGHT-3)).
+-define(SL_BAR_W, 10).
+-define(SL_BAR_H, 10).
 
 -record(sl,
 	{min,
@@ -1799,14 +1773,13 @@ increment(Ts0, Incr) ->
 
 slider(Flags) ->
     {Min,Max} = proplists:get_value(range, Flags),
-    {Color,H} = 
-	case proplists:get_value(color, Flags) of
-	    undefined -> {undefined,2};
-	    {T,_,_}=C when T==r;T==g;T==b;T==h;T==s;T==v -> {C,9}
-	end,
-    Sl = #sl{min=Min,range=Max-Min,color=Color,h=H},
+    Color = case proplists:get_value(color, Flags) of
+		undefined -> undefined;
+		{T,_,_}=C when T==r;T==g;T==b;T==h;T==s;T==v -> C
+	    end,
+    Sl = #sl{min=Min,range=Max-Min,color=Color,h=?SL_BAR_H},
     Fun = fun slider_event/4,
-    {Fun,false,Sl,?SL_LENGTH+4,?LINE_HEIGHT+2}.
+    {Fun,false,Sl,?SL_LENGTH+?SL_BAR_W,?LINE_HEIGHT+2}.
 
 slider_event(init, #fi{key=Key,flags=Flags}, I, Store) ->
     case proplists:get_value(value, Flags) of
@@ -1894,37 +1867,41 @@ slider_redraw_1(Active, #fi{x=X,y=Y0,w=W}, #sl{min=Min,range=Range,h=H}, C,
 		DisEnable) ->
     Y = Y0+?LINE_HEIGHT div 2 + 2,
     blend(fun(Col) ->
-		  wings_io:sunken_rect(X, Y-(H div 2), W, H, Col, Col)
+		  wings_io:gradient_border(X, Y-(H div 2), W, H,
+					   Col, {0,0,0}, Active)
 	  end),
-    Val = color_slider(C, X, W, Y-(H div 2), H),
-    Pos = round(?SL_LENGTH * (Val-Min) / Range),
+    Pos = color_slider(C, Min, Range, X, W, Y-(H div 2), H),
     XPos = X+Pos,
-    YPos = Y-(?SL_BAR_H div 2),
+    YPos = Y-(?SL_BAR_H div 2)+1,
     case DisEnable of
 	disable ->
 	    blend(fun(Col) ->
-			  wings_io:border(XPos, YPos, 4, ?SL_BAR_H, 
+			  wings_io:border(XPos, YPos, ?SL_BAR_W, ?SL_BAR_H-2,
 					  Col, color3_disabled())
 		  end);
 	_ ->
 	    Col = color4(),
-	    case Active of
-		false ->
-		    wings_io:raised_rect(XPos, YPos, 4, ?SL_BAR_H, Col, Col);
-		true ->
-		    wings_io:sunken_rect(XPos, YPos, 4, ?SL_BAR_H, Col, Col)
-	    end
+	    wings_io:raised_rect(XPos+1, YPos, ?SL_BAR_W-1, ?SL_BAR_H-2,
+				 Col, Col)
     end,
     gl:color3b(0, 0, 0),
     DisEnable.
 
-color_slider({h,{Hue,S,V}},X,W,Y,H) ->
+color_slider({h,{Hue,S,V}}, Min, Range, X, W, Y, H) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:'begin'(?GL_QUADS),
-    hue_color_slider(S,V,X,W,Y,H),
+    hue_color_slider(S, V, X, W, Y, H),
     gl:'end'(),
-    Hue;
-color_slider(C,X,W,Y,H) ->
+    slider_pos(Hue, Min, Range);
+color_slider(Val, Min, Range, X, W, Y, H) when is_number(Val) ->
+    Pos0 = slider_pos(Val, Min, Range),
+    Pos = Pos0 + ?SL_BAR_W div 2,
+    {R,G,B,A} = Col = color4(),
+    Darker = {R-0.15,G-0.15,B-0.15,A},
+    wings_io:gradient_rect(X+1, Y+1, Pos, H-1, Darker),
+    wings_io:gradient_rect(X+Pos, Y+1, W-Pos, H-1, Col),
+    Pos0;
+color_slider(C, Min, Range, X, W, Y, H) ->
     {Val,[SCol,ECol]} = get_col_range(C),
     gl:shadeModel(?GL_SMOOTH),
     gl:'begin'(?GL_QUADS),
@@ -1935,7 +1912,10 @@ color_slider(C,X,W,Y,H) ->
     gl:vertex2f(X+1+W,Y+1),
     gl:vertex2f(X+1+W,Y+H),
     gl:'end'(),
-    Val.
+    slider_pos(Val, Min, Range).
+
+slider_pos(Val, Min, Range) ->
+    round(?SL_LENGTH * (Val-Min) / Range).
 
 hue_color_slider(S, V, X, W, Y, H) ->
     wings_io:set_color(hsv_to_rgb(0, S, V)),
@@ -1966,10 +1946,7 @@ get_col_range({s, {S,H,V}}) ->
 get_col_range({v, {V,H,S}}) ->
     V0 = hsv_to_rgb(H,S,0.0),
     V1 = hsv_to_rgb(H,S,1.0),
-    {V,[V0,V1]};
-get_col_range(Val) when is_integer(Val); is_float(Val) ->
-    {Val,[color4(),color4()]}.
-
+    {V,[V0,V1]}.
 
 
 dialog_unzip(L) ->

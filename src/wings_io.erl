@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.119 2003/11/08 21:33:22 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.120 2003/11/09 08:27:26 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -17,10 +17,11 @@
 	 info/1,
 	 blend/2,
 	 border/5,border/6,
-	 gradient_border/6,
-	 sunken_rect/4,sunken_rect/5,sunken_rect/6,
-	 sunken_gradient/6,
+	 gradient_border/7,
+	 sunken_rect/4,sunken_rect/5,sunken_rect/6,sunken_rect/7,
+	 sunken_gradient/7,
 	 raised_rect/4,raised_rect/5,raised_rect/6,
+	 gradient_rect/5,
 	 text_at/2,text_at/3,text/1,menu_text/3,space_at/2,
 	 draw_icons/1,draw_icon/3,draw_char/1,
 	 set_color/1]).
@@ -29,8 +30,6 @@
 
 -export([reset_grab/0,grab/0,ungrab/2,is_grabbed/0,warp/2]).
 -export([ortho_setup/0,ortho_setup/1]).
-
--compile(inline).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -148,18 +147,31 @@ border(X0, Y0, Mw, Mh, FillColor, BorderColor)
     gl:'end'(),
     gl:color3b(0, 0, 0).
 
-gradient_border(X0, Y0, Mw, Mh, FillColor, BorderColor)
+gradient_border(X0, Y0, Mw, Mh, FillColor, BorderColor, Double)
   when is_integer(X0), is_integer(Y0), is_integer(Mw), is_integer(Mh) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
     gradient_rect(X0, Y0, Mw, Mh, FillColor),
     set_color(BorderColor),
+    border_only(X, Y, Mw, Mh, Double).
+
+border_only(X, Y, Mw, Mh, Double) ->
     gl:'begin'(?GL_LINE_LOOP),
     gl:vertex2f(X, Y+Mh),
     gl:vertex2f(X, Y),
     gl:vertex2f(X+Mw, Y),
     gl:vertex2f(X+Mw, Y+Mh),
     gl:'end'(),
+    case Double of
+	false -> ok;
+	true ->
+	    gl:'begin'(?GL_LINE_LOOP),
+	    gl:vertex2f(X-1, Y+Mh+1),
+	    gl:vertex2f(X-1, Y-1),
+	    gl:vertex2f(X+Mw+1, Y-1),
+	    gl:vertex2f(X+Mw+1, Y+Mh+1),
+	    gl:'end'()
+    end,
     gl:color3b(0, 0, 0).
 
 add_color({R,G,B}, N) -> {R+N,G+N,B+N};
@@ -178,38 +190,37 @@ raised_rect(X, Y, Mw, Mh, FillColor, PaneColor) ->
     sunken_rect(X+Mw, Y+Mh, -Mw, -Mh, FillColor, PaneColor).
 
 sunken_rect(X, Y, Mw, Mh) ->
-    sunken_rect(X, Y, Mw, Mh, ?PANE_COLOR, ?PANE_COLOR).
+    sunken_rect(X, Y, Mw, Mh, ?PANE_COLOR, ?PANE_COLOR, false).
 
 sunken_rect(X, Y, Mw, Mh, FillColor) ->
-    sunken_rect(X, Y, Mw, Mh, FillColor, ?PANE_COLOR).
+    sunken_rect(X, Y, Mw, Mh, FillColor, ?PANE_COLOR, false).
 
-sunken_rect(X0, Y0, Mw0, Mh0, FillColor, PaneColor) ->
+sunken_rect(X, Y, Mw, Mh, FillColor, PaneColor) ->
+    sunken_rect(X, Y, Mw, Mh, FillColor, PaneColor, false).
+
+sunken_rect(X0, Y0, Mw0, Mh0, FillColor, PaneColor, Active) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
     Mw = Mw0 + 0.5,
     Mh = Mh0 + 0.5,
     set_color(FillColor),
     gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
-    gl:'begin'(?GL_LINES),
-    set_color(wings_color:mix(?BEVEL_LOWLIGHT_MIX, {0,0,0}, PaneColor)),
-    gl:vertex2f(X, Y+Mh),
-    gl:vertex2f(X, Y),
-    gl:vertex2f(X, Y),
-    gl:vertex2f(X+Mw, Y),
-    set_color(wings_color:mix(?BEVEL_HIGHLIGHT_MIX, {1,1,1}, PaneColor)),
-    gl:vertex2f(X+Mw, Y),
-    gl:vertex2f(X+Mw, Y+Mh),
-    gl:vertex2f(X+Mw, Y+Mh),
-    gl:vertex2f(X, Y+Mh),
-    gl:'end'(),
-    gl:color3b(0, 0, 0).
+    sunken_border(X, Y, Mw, Mh, PaneColor, Active),
+     gl:color3b(0, 0, 0).
 
-sunken_gradient(X0, Y0, Mw0, Mh0, FillColor, PaneColor) ->
+sunken_gradient(X0, Y0, Mw0, Mh0, FillColor, PaneColor, Active) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
     Mw = Mw0 + 0.5,
     Mh = Mh0 + 0.5,
     gradient_rect(X0, Y0, Mw, Mh, FillColor),
+    sunken_border(X, Y, Mw, Mh, PaneColor, Active),
+    gl:color3b(0, 0, 0).
+
+sunken_border(X, Y, Mw, Mh, _, true) ->
+    gl:color3b(0, 0, 0),
+    border_only(X-1, Y, Mw, Mh, true);
+sunken_border(X, Y, Mw, Mh, PaneColor, false) ->
     gl:'begin'(?GL_LINES),
     set_color(wings_color:mix(?BEVEL_LOWLIGHT_MIX, {0,0,0}, PaneColor)),
     gl:vertex2f(X, Y+Mh),
@@ -221,8 +232,7 @@ sunken_gradient(X0, Y0, Mw0, Mh0, FillColor, PaneColor) ->
     gl:vertex2f(X+Mw, Y+Mh),
     gl:vertex2f(X+Mw, Y+Mh),
     gl:vertex2f(X, Y+Mh),
-    gl:'end'(),
-    gl:color3b(0, 0, 0).
+    gl:'end'().
 
 gradient_rect(X, Y, W, H, Color) ->
     gl:shadeModel(?GL_SMOOTH),
