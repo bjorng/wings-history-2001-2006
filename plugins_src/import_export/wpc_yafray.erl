@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.61 2004/02/10 13:21:10 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.62 2004/02/10 23:03:41 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -43,6 +43,7 @@
 
 %% Shader
 -define(DEF_CAUS, false).
+-define(DEF_TIR, false).
 -define(DEF_IOR, 1.0).
 -define(DEF_MIN_REFLE, 0.0).
 -define(DEF_USE_HARDNESS, false).
@@ -53,10 +54,12 @@
 -define(DEF_RECV_RAD,true).
 
 %% Render
--define(DEF_AA_PASSES, 1).
+-define(DEF_AA_PASSES, 0).
+-define(DEF_AA_MINSAMPLES, 1).
+-define(DEF_AA_PIXELWIDTH, 1.0).
+-define(DEF_AA_THRESHOLD, 0.125).
 -define(DEF_RAYDEPTH, 3).
 -define(DEF_BIAS, 0.1).
--define(DEF_AA_THRESHOLD, 0.1).
 -define(DEF_WIDTH, 100).
 -define(DEF_HEIGHT, 100).
 -define(DEF_DOF_FILTER, false).
@@ -71,6 +74,7 @@
 -define(DEF_ATTN_POWER, 10.0).
 -define(DEF_POINT_TYPE, pointlight).
 -define(DEF_CAST_SHADOWS, true).
+-define(DEF_USE_QMC, false).
 %% Spotlight
 -define(DEF_SPOT_TYPE, spotlight).
 -define(DEF_CONE_ANGLE, 45.0).
@@ -343,6 +347,7 @@ material_dialog(_Name, Mat) ->
     EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
     RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
     UseHardness = proplists:get_value(use_hardness, YafRay, ?DEF_USE_HARDNESS),
+    TIR = proplists:get_value(tir, YafRay, ?DEF_TIR),
     AutosmoothAngle = 
 	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
     Autosmooth = proplists:get_value(autosmooth, YafRay, 
@@ -375,7 +380,8 @@ material_dialog(_Name, Mat) ->
 	 {key,{?TAG,object_minimized}}]},
        {vframe,
 	[{hframe,[{label,"Index Of Refraction"},
-		  {text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]}]},
+		  {text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]},
+		  {"Total Internal Reflection",TIR,[{key,{?TAG,tir}}]}]},
 	 {hframe,[{label,"Minimum Reflection"},
 		  {slider,{text,MinRefle,[{range,{0.0,1.0}},{width,5},
 					  {key,{?TAG,min_refle}}]}}]},
@@ -443,7 +449,7 @@ def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
 material_result(_Name, Mat0, [{{?TAG,minimized},_}|_]=Res0) ->
-    {Ps1,Res1} = split_list(Res0, 17),
+    {Ps1,Res1} = split_list(Res0, 18),
     Ps2 = [{Key,Val} || {{?TAG,Key},Val} <- Ps1],
     {Ps,Res} = modulator_result(Ps2, Res1),
     Mat = [{?TAG,Ps}|keydelete(?TAG, 1, Mat0)],
@@ -691,7 +697,7 @@ light_dialog(_Name, point, Ps) ->
       [{vradio,[{"Pointlight",pointlight},{"Softlight",softlight}],
 	Type,[{key,{?TAG,type}},layout]},
        {"Cast Shadows",CastShadows,
-	[{key,{?TAG,cast_shadows}},{hook,light_hook({?TAG,type}, pointlight)}]},
+	[{key,{?TAG,cast_shadows}},light_hook({?TAG,type}, pointlight)]},
        {hframe,
 	[{vframe,[{label,"Bias"},
 		  {label,"Res"},
@@ -699,7 +705,7 @@ light_dialog(_Name, point, Ps) ->
 	 {vframe,[{text,Bias,[{range,0.0,1.0},{key,{?TAG,bias}}]},
 		  {text,Res,[{range,0,10000},{key,{?TAG,res}}]},
 		  {text,Radius,[{range,0,10000},{key,{?TAG,radius}}]}]}],
-	[{hook,light_hook({?TAG,type}, softlight)}]}]}];
+	[light_hook({?TAG,type}, softlight)]}]}];
 light_dialog(_Name, spot, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_SPOT_TYPE),
     CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
@@ -711,15 +717,18 @@ light_dialog(_Name, spot, Ps) ->
     Search = proplists:get_value(search, Ps, ?DEF_SEARCH),
     Mindepth = proplists:get_value(mindepth, Ps, ?DEF_MINDEPTH),
     Cluster = proplists:get_value(cluster, Ps, ?DEF_CLUSTER),
+    UseQMC = proplists:get_value(use_QMC, Ps, ?DEF_USE_QMC),
     [{hframe,
       [{hradio,[{"Spotlight",spotlight},
 		{"Photonlight",photonlight}],Type,[layout,{key,{?TAG,type}}]},
        {menu,[{"Diffuse",diffuse},{"Caustic",caustic}],Mode,
-	[{key,{?TAG,mode}},{hook,light_hook({?TAG,type}, photonlight)}]}]},
+	[{key,{?TAG,mode}},light_hook({?TAG,type}, photonlight)]},
+       {"Use QMC",UseQMC,[{key,{?TAG,use_QMC}},
+		       light_hook({?TAG,type}, photonlight)]}]},
      {hframe,
       [{"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]},
        {label,"Blend"},{text,Blend,[{range,0.0,100.0},{key,{?TAG,blend}}]}],
-      [{hook,light_hook({?TAG,type}, spotlight)}]},
+      [light_hook({?TAG,type}, spotlight)]},
      {hframe,[{vframe,[{label,"Photons"},
 		       {label,"Depth"},
 		       {label,"Fixedradius"}]},
@@ -737,7 +746,7 @@ light_dialog(_Name, spot, Ps) ->
 				       {key,{?TAG,mindepth}}]},
 		       {text,Cluster,[{range,0.0,1000000.0},
 				      {key,{?TAG,cluster}}]}]}],
-      [{hook,light_hook({?TAG,type}, photonlight)}]}];
+      [light_hook({?TAG,type}, photonlight)]}];
 light_dialog(_Name, infinite, Ps) ->
     Bg = proplists:get_value(background, Ps, ?DEF_BACKGROUND),
     BgColor = proplists:get_value(background_color, Ps, ?DEF_BACKGROUND_COLOR),
@@ -749,10 +758,10 @@ light_dialog(_Name, infinite, Ps) ->
 		{"Sunsky",sunsky},
 		{"None", undefined}],Bg,[layout,{key,{?TAG,background}}]},
        {hframe,[{label,"Color"},{color,BgColor,[{key,{?TAG,background_color}}]}],
-	[{hook,light_hook({?TAG,background}, constant)}]},
+	[light_hook({?TAG,background}, constant)]},
        {hframe,[{label,"Turbidity"},{text,Turbidity,[{range,0.0,100.0},
 						     {key,{?TAG,turbidity}}]}],
-	[{hook,light_hook({?TAG,background}, sunsky)}]}],
+	[light_hook({?TAG,background}, sunsky)]}],
       [{title,"Background"}]}];
 light_dialog(_Name, ambient, Ps) ->
     Bg = proplists:get_value(background, Ps, ?DEF_BACKGROUND),
@@ -774,13 +783,16 @@ light_dialog(_Name, ambient, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_AMBIENT_TYPE),
     Samples = proplists:get_value(samples, Ps, ?DEF_SAMPLES),
     Depth = proplists:get_value(depth, Ps, ?DEF_DEPTH),
-    [{hradio,[{"Hemilight",hemilight},
-	      {"Pathlight",pathlight}],Type,[layout,{key,{?TAG,type}}]},
+    UseQMC = proplists:get_value(use_QMC, Ps, ?DEF_USE_QMC),
+    [{hframe,
+      [{hradio,[{"Hemilight",hemilight},
+		{"Pathlight",pathlight}],Type,[layout,{key,{?TAG,type}}]},
+       {"Use QMC",UseQMC,[{key,{?TAG,use_QMC}}]}]},
      {hframe,[{label,"Samples"}, 
 	      {text,Samples,[{range,1,1000000},{key,{?TAG,samples}}]},
 	      {hframe,[{label,"Depth"},
 		       {text,Depth,[{range,1,100},{key,{?TAG,depth}}]}],
-	       [{hook,light_hook({?TAG,type}, pathlight)}]}]},
+	       [light_hook({?TAG,type}, pathlight)]}]},
      {vframe,
       [{hradio,[{"HDRI",'HDRI'},
 		{"Image",image},
@@ -789,34 +801,35 @@ light_dialog(_Name, ambient, Ps) ->
 		{button,{text,BgFnameHDRI,
 			 [{key,{?TAG,background_filename_HDRI}},
 			  {props,BrowsePropsHDRI}]}}],
-	[{hook,light_hook({?TAG,background}, ['HDRI'])}]},
+	[light_hook({?TAG,background}, ['HDRI'])]},
        {hframe,[{label,"Filename"},
 		{button,{text,BgFnameImage,
 			 [{key,{?TAG,background_filename_image}},
 			  {props,BrowsePropsImage}]}}],
-	[{hook,light_hook({?TAG,background}, [image])}]},
+	[light_hook({?TAG,background}, [image])]},
        {hframe,[{label,"Exposure Adjust"},
 		{text,BgExpAdj,[{key,{?TAG,background_exposure_adjust}},
 				{range,{-128,127}}]},
 		{menu,[{"Angular Map",probe},{"Spherical Map",spherical}],
 		 BgMapping,[{key,{?TAG,background_mapping}}]}],
-	[{hook,light_hook({?TAG,background}, 'HDRI')}]},
+	[light_hook({?TAG,background}, 'HDRI')]},
        {hframe,[{label,"Power"},
 		{text,BgPower,[{key,{?TAG,background_power}},
-				{range,{0.0,128.0}}]}],
-	[{hook,light_hook({?TAG,background}, image)}]}],
+			       {range,{0.0,128.0}}]}],
+	[light_hook({?TAG,background}, image)]}],
       [{title,"Background"}]}];
 light_dialog(_Name, _Type, _Ps) ->
 %%%    erlang:display({?MODULE,?LINE,{_Name,_Type,_Ps}}),
     [].
 
 light_hook(Key, Values) when list(Values) ->
-    fun (is_minimized, {_Var,I,Sto}) when is_integer(Key) ->
-	    not lists:member(gb_trees:get(I+Key, Sto), Values);
-	(is_minimized, {_Var,_I,Sto}) ->
-	    not lists:member(gb_trees:get(Key, Sto), Values);
-	(_, _) -> void 
-    end;
+    {hook,
+     fun (is_minimized, {_Var,I,Sto}) when is_integer(Key) ->
+	     not lists:member(gb_trees:get(I+Key, Sto), Values);
+	 (is_minimized, {_Var,_I,Sto}) ->
+	     not lists:member(gb_trees:get(Key, Sto), Values);
+	 (_, _) -> void 
+     end};
 light_hook(Key, Value) -> light_hook(Key, [Value]).
 
 
@@ -836,13 +849,13 @@ light_result([{{?TAG,type},softlight}|_]=Res) ->
 light_result([{{?TAG,type},spotlight}|_]=Ps) ->
     split_list(Ps, 10);
 light_result([{{?TAG,type},photonlight}|_]=Ps) ->
-    split_list(Ps, 10);
+    split_list(Ps, 11);
 light_result([_,{{?TAG,background},_}|_]=Ps) ->
     split_list(Ps, 4);
 light_result([{{?TAG,type},hemilight}|_]=Res) ->
-    split_list(Res, 9);
+    split_list(Res, 10);
 light_result([{{?TAG,type},pathlight}|_]=Res) ->
-    split_list(Res, 9);
+    split_list(Res, 10);
 light_result(Tail) ->
 %    erlang:display({?MODULE,?LINE,Tail}),
     {[],Tail}.
@@ -883,9 +896,11 @@ export_dialog(Operation) ->
     Gamma = get_pref(gamma, ?DEF_GAMMA),
     Exposure = get_pref(exposure, ?DEF_EXPOSURE),
     AA_passes = get_pref(aa_passes, ?DEF_AA_PASSES),
+    AA_minsamples = get_pref(aa_minsamples, ?DEF_AA_MINSAMPLES),
+    AA_pixelwidth = get_pref(aa_pixelwidth, ?DEF_AA_PIXELWIDTH),
+    AA_threshold = get_pref(aa_threshold, ?DEF_AA_THRESHOLD),
     Raydepth = get_pref(raydepth, ?DEF_RAYDEPTH),
     Bias = get_pref(bias, ?DEF_BIAS),
-    AA_threshold = get_pref(aa_threshold, ?DEF_AA_THRESHOLD),
     Width = get_pref(width, ?DEF_WIDTH),
     Height = get_pref(height, ?DEF_HEIGHT),
     BgColor = get_pref(background_color, ?DEF_BACKGROUND_COLOR),
@@ -900,24 +915,30 @@ export_dialog(Operation) ->
     AntinoiseMaxDelta = get_pref(antinoise_radius, ?DEF_ANTINOISE_MAX_DELTA),
     FogDensity = get_pref(fog_density, ?DEF_FOG_DENSITY),
     FogColor = get_pref(fog_color, ?DEF_FOG_COLOR),
+    AA_pixelwidthFlags = [{range,{1.0,2.0}},{key,aa_pixelwidth}],
     [{hframe,[{label,"Sub-division Steps"},
 	      {text,SubDiv,[{key,subdivisions},{range,0,4}]}],
       [{title,"Pre-rendering"}]},
      {hframe,
       [{vframe,[{label,"AA_passes"},
 		{label,"AA_threshold"},
+		{label,"Raydepth"},
 		{label,"Gamma"}]},
-       {vframe,[{text,AA_passes,[{range,{1,1000}},{key,aa_passes}]},
+       {vframe,[{text,AA_passes,[{range,{0,1000}},{key,aa_passes}]},
 		{text,AA_threshold,[{range,{0.0,100.0}},
 				    {key,aa_threshold}]},
+		{text,Raydepth,[{range,{1,1000}},{key,raydepth}]},
 		{text,Gamma,[{range,{0.0,10.0}},{key,gamma}]}]},
-       {vframe,[{label,"Raydepth"},
+       {vframe,[{label,"AA_minsamples"},
+		{label,"AA_pixelwidth"},
 		{label,"Bias"},
 		{label,"Exposure"}]},
-       {vframe,[{text,Raydepth,[{range,{1,1000}},{key,raydepth}]},
+       {vframe,[{text,AA_minsamples,[{range,{1,1000}},{key,aa_minsamples}]},
+		{text,AA_pixelwidth,AA_pixelwidthFlags},
 		{text,Bias,[{range,{0.0,1.0}},{key,bias}]},
 		{text,Exposure,[{range,{0.0,32.0}},{key,exposure}]}]},
-       {vframe,[{"Alpha Channel",SaveAlpha,[{key,save_alpha}]}]}],
+       {vframe,[{"Alpha Channel",SaveAlpha,[{key,save_alpha}]},
+		{slider,AA_pixelwidthFlags}]}],
       [{title,"Render"}]},
      {hframe,
       [{vframe,[{label,"Default Color"}]},
@@ -1254,10 +1275,12 @@ export_shader(F, Name, Mat, ExportDir) ->
 	false -> ok
     end,
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
+    TIR = proplists:get_value(tir, YafRay, ?DEF_TIR),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
-    println(F, "        <IOR value=\"~.10f\"/>~n"++
-	    "        <min_refle value=\"~.10f\"/>~n"++
-	    "    </attributes>", [IOR, MinRefle]),
+    println(F, "        <IOR value=\"~.10f\"/>~n"
+	    "        <tir value=\"~s\"/>~n"
+	    "        <min_refle value=\"~.10f\"/>~n"
+	    "    </attributes>", [IOR,format(TIR),MinRefle]),
     foldl(fun ({modulator,Ps}=M, N) when list(Ps) ->
 		  case export_modulator(F, [Name,$_,format(N)], 
 					Maps, M, Opacity) of
@@ -1625,6 +1648,7 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
 	    Search = proplists:get_value(search, YafRay, ?DEF_SEARCH),
 	    Mindepth = proplists:get_value(mindepth, YafRay, ?DEF_MINDEPTH),
 	    Cluster = proplists:get_value(cluster, YafRay, ?DEF_CLUSTER),
+	    UseQMC = proplists:get_value(use_QMC, YafRay, ?DEF_USE_QMC),
 	    case Mode of
 		diffuse ->
 		    println(F, "       mode=\"diffuse\"");
@@ -1633,9 +1657,9 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
 	    end,
 	    println(F, "       angle=\"~.3f\" photons=\"~w\" depth=\"\~w\"~n"++
 		    "       fixedradius=\"~.10f\" search=\"~w\"~n"++
-		    "       mindepth=\"~w\" cluster=\"~.10f\">",
+		    "       mindepth=\"~w\" cluster=\"~.10f\" use_QMC=\"~s\">",
 		    [ConeAngle,Photons,Depth,
-		     Fixedradius,Search,Mindepth,Cluster])
+		     Fixedradius,Search,Mindepth,Cluster,format(UseQMC)])
     end,
     export_pos(F, from, Position),
     export_pos(F, to, AimPoint),
@@ -1647,8 +1671,9 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
     Power = proplists:get_value(power, YafRay, ?DEF_POWER),
     Type = proplists:get_value(type, YafRay, ?DEF_AMBIENT_TYPE),
     Samples = proplists:get_value(samples, YafRay, ?DEF_SAMPLES),
-    println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\" ", 
-	    [Type,Name,Power]),
+    UseQMC = proplists:get_value(use_QMC, YafRay, ?DEF_USE_QMC),
+    println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\" use_QMC=\"~s\"", 
+	    [Type,Name,Power,format(UseQMC)]),
     case Type of
 	hemilight ->
 	    Ambient = proplists:get_value(ambient, OpenGL, 
@@ -1789,27 +1814,30 @@ export_filter(_F, Name, Type, _Attr) ->
 
 export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
     AA_passes = proplists:get_value(aa_passes, Attr),
+    AA_minsamples = proplists:get_value(aa_minsamples, Attr),
+    AA_pixelwidth = proplists:get_value(aa_pixelwidth, Attr),
+    AA_threshold = proplists:get_value(aa_threshold, Attr),
     Raydepth = proplists:get_value(raydepth, Attr),
     Bias = proplists:get_value(bias, Attr),
-    AA_threshold = proplists:get_value(aa_threshold, Attr),
     SaveAlpha = proplists:get_value(save_alpha, Attr),
     Gamma = proplists:get_value(gamma, Attr),
     Exposure = proplists:get_value(exposure, Attr),
     FogColor = proplists:get_value(fog_color, Attr),
     FogDensity = proplists:get_value(fog_density, Attr),
-    println(F, "<render camera_name=\"~s\" "++
-	    "AA_passes=\"~w\" raydepth=\"~w\"~n"++
-	    "        bias=\"~.10f\" AA_threshold=\"~.10f\">~n"++
-	    "    <background_name value=\"~s\"/>~n"++
-	    "    <outfile value=\"~s\"/>~n"++
-	    "    <indirect_samples value=\"0\"/>~n"++
-	    "    <indirect_power value=\"1.0\"/>~n"++
-	    "    <exposure value=\"~.10f\"/>~n"++
-	    "    <save_alpha value=\"~s\"/>~n"++
-	    "    <gamma value=\"~.10f\"/>~n"++
+    println(F, "<render camera_name=\"~s\" "
+	    "AA_passes=\"~w\" raydepth=\"~w\"~n"
+	    "        bias=\"~.10f\" AA_threshold=\"~.10f\""
+	    "AA_minsamples=\"~w\" AA_pixelwidth=\"~.10f\">~n"
+	    "    <background_name value=\"~s\"/>~n"
+	    "    <outfile value=\"~s\"/>~n"
+	    "    <indirect_samples value=\"0\"/>~n"
+	    "    <indirect_power value=\"1.0\"/>~n"
+	    "    <exposure value=\"~.10f\"/>~n"
+	    "    <save_alpha value=\"~s\"/>~n"
+	    "    <gamma value=\"~.10f\"/>~n"
 	    "    <fog_density value=\"~.10f\"/>",
 	    [CameraName,AA_passes,Raydepth,Bias,AA_threshold,
-	     BackgroundName,Outfile,Exposure,
+	     AA_minsamples,AA_pixelwidth,BackgroundName,Outfile,Exposure,
 	     format(SaveAlpha),Gamma,FogDensity]),
     export_rgb(F, fog_color, FogColor),
     println(F, "</render>").
