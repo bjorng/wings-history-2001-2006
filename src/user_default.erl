@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.8 2002/04/14 18:46:57 bjorng Exp $
+%%     $Id: user_default.erl,v 1.9 2002/10/15 14:19:25 bjorng Exp $
 %% 
 
 -module(user_default).
 
--export([help/0,wh/0,w/0,wcp/1,wcp/2,
-	 wm/0,wicons/0,wtar/0]).
+-export([help/0,wh/0,
+	 wx/0,wxu/1,wxu/3,wxunref/0,wxundef/0]).
 
 help() ->
     shell_default:help(),
@@ -23,49 +23,49 @@ help() ->
     ok.
 
 wh() ->
-    p("** Compiling and running Wings **\n"),
-    p("w()        -- make and run Wings\n"),
-    p("wm()       -- make Wings\n"),
-    p("wicons()   -- collect Wings icons (must be done once)\n"),
-    p("wcp(Mod)   -- compile plugin-in (in plugins_src, to plugins)\n"),
-    p("wcp(Mod, Kind) -- compile plugin-in (in plugins_src/Kind,\n"
-      "                  to plugins/Kind)\n"),
+    p("** Xref for Wings modules **\n"),
+    p("wx()       -- collect xref information\n"),
+    p("wxunref()  -- print unused functions\n"),
+    p("wxundef()  -- print calls to undefined functions\n"),
+    p("wxu(M)     -- print uses of module M\n"),
+    p("wxu(M, F, A) -- print uses of M:F/A\n"),
     ok.
 
 %%%
-%%% Compiling, running and so on.
+%%% Xref support.
 %%%
 
-w() ->
-    case make() of
-	up_to_date -> wings:start();
-	Other -> Other
-    end.
 
-wm() ->
-    make().
+wx() ->
+    WingsLib = code:lib_dir(wings),
+    WingsEbin = filename:join(WingsLib, "ebin"),
+    xref:start(s),
+    xref:set_default(s, [{verbose,false},{warnings,false},{builtins,true}]),
+    xref:set_library_path(s, code:get_path() -- [WingsEbin]),
+    {ok,Ms} = xref:add_directory(s, WingsEbin),
+    length(Ms).
 
-wicons() ->
-    make:all(opts()),
-    c:l(collect_bmp),
-    collect_bmp:start().
+wxu(Mod) when is_atom(Mod) ->
+    result(xref:q(s, make_query("domain(E || ~p) - ~p", [Mod,Mod])));
+wxu({M,_,_}=MFA) ->
+    result(xref:q(s, make_query("domain(E || ~p) - ~p", [MFA,M]))).
 
-wcp(Mod) when is_atom(Mod) ->
-    wcp(atom_to_list(Mod));
-wcp(Mod) ->
-    File = filename:join("plugins_src", Mod),
-    Outdir = "plugins",
-    c:c(File, [{outdir,Outdir},report]).
+wxu(M, F, A) ->
+    MFA = {M,F,A},
+    result(xref:q(s, make_query("domain(E || ~p) - ~p", [MFA,M]))).
 
-wcp(Mod, Kind) when is_atom(Mod), is_atom(Kind) ->
-    wcp(atom_to_list(Mod), atom_to_list(Kind));
-wcp(Mod, Kind) ->
-    File = filename:join(filename:join("plugins_src", Kind), Mod),
-    Outdir = filename:join("plugins",Kind),
-    c:c(File, [{outdir,Outdir},report|basic_opts()]).
+wxundef() ->
+    xref:analyze(s, undefined_function_calls).
 
-wtar() ->
-    tar().
+wxunref() ->
+    io:format("~p\n", [xref:analyze(s, exports_not_used)]).
+
+result({ok,List}) ->
+    io:format("~p\n", [List]);
+result(Other) -> Other.
+
+make_query(Format, Args) ->
+    lists:flatten(io_lib:format(Format, Args)).
 
 %%%
 %%% Internal functions.
@@ -73,54 +73,3 @@ wtar() ->
 
 p(String) ->
     io:put_chars(String).
-
-make() ->
-    R = make:all(opts()),
-    lists:foreach(fun(F) ->
-			  Mod = list_to_atom(filename:rootname(F)),
-			  c:l(Mod)
-		  end, filelib:wildcard("*.erl")),
-    R.
-
-basic_opts() ->
-%%    [{d,'DEBUG'},debug_info,report].
-    [debug_info,report,warn_unused_vars].
-
-opts() ->
-    Opts = basic_opts(),
-    Vsn = get_vsn(),
-    [{d,wings_version,Vsn}|Opts].
-
-get_vsn() ->
-    {ok,Bin} = file:read_file("vsn.mk"),
-    get_vsn(binary_to_list(Bin)).
-
-get_vsn([Bl|T]) when Bl < $\s ->
-    get_vsn(T);
-get_vsn("WINGS_VSN="++T) ->
-    get_vsn_1(T).
-
-get_vsn_1([C|T]) when C > $\s ->
-    [C|get_vsn_1(T)];
-get_vsn_1(_) -> [].
-
-tar() ->
-    Name = tar_file_name(),
-    Files = filelib:wildcard("*.{erl,hrl,icon,mk}") ++
-	filelib:wildcard("icons/*.bmp") ++
-	filelib:wildcard("plugins/default/*.erl") ++
-	filelib:wildcard("plugins/win32_file/*.{erl,c}") ++
-	filelib:wildcard("plugins_src/primitives/*.{erl,c}") ++
-	filelib:wildcard("plugins_src/commands/*.{erl,c}") ++
-	filelib:wildcard("plugins_src/import_export/*.{erl,c}"),
-    {Name,erl_tar:create(Name, Files, [compressed,verbose])}.
-
-tar_file_name() ->
-    {{Y,Mo,D},{H,Mi,_}} = erlang:localtime(),
-    Time = lists:flatten(io_lib:format("~p-~s-~s_~s-~s",
-				       [Y,two(Mo),two(D),two(H),two(Mi)])),
-    "wings_" ++ Time ++ ".tar.gz".
-
-two(I) when I < 100 ->
-    [_|Str] = integer_to_list(I+100),
-    Str.
