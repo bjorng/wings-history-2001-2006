@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.100 2005/01/09 09:30:38 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.101 2005/01/11 07:35:00 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -177,18 +177,32 @@ visible_vs_1([#edge{vs=Va,ve=Vb}|Es], Mirror, Acc) ->
     visible_vs_1(Es, Mirror, [Va,Vb|Acc]);
 visible_vs_1([], _, Acc) -> ordsets:from_list(Acc).
 
-visible_edges(#we{es=Etab}=We) ->
+visible_edges(#we{es=Etab,mirror=Face}=We) ->
     case any_hidden(We) of
 	false -> gb_trees:keys(Etab);
-	true -> visible_es_1(gb_trees:to_list(Etab), [])
+	true -> visible_es_1(gb_trees:to_list(Etab), Face, [])
     end.
 
-visible_es_1([{_,#edge{lf=Lf,rf=Rf}}|Es], Acc) when Lf < 0, Rf < 0 ->
-    visible_es_1(Es, Acc);
-visible_es_1([{E,_}|Es], Acc) ->
-    visible_es_1(Es, [E|Acc]);
-visible_es_1([], Acc) ->
-    ordsets:from_list(Acc).
+visible_es_1([{E,#edge{lf=Lf,rf=Rf}}|Es], Face, Acc) ->
+    if
+	Lf < 0 ->
+	    %% Left face hidden.
+	    if
+		Rf < 0; Rf =:= Face ->
+		    %% Both faces invisible (in some way).
+		    visible_es_1(Es, Face, Acc);
+		true ->
+		    %% Right face is visible.
+		    visible_es_1(Es, Face, [E|Acc])
+	    end;
+	Lf =:= Face, Rf < 0 ->
+	    %% Left face mirror, right face hidden.
+	    visible_es_1(Es, Face, Acc);
+	true ->
+	    %% At least one face visible.
+	    visible_es_1(Es, Face, [E|Acc])
+    end;
+visible_es_1([], _, Acc) -> ordsets:from_list(Acc).
 
 visible_edges(Es, We) ->
     case any_hidden(We) of
