@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.97 2002/01/28 17:31:43 bjorng Exp $
+%%     $Id: wings.erl,v 1.98 2002/01/28 21:53:47 bjorng Exp $
 %%
 
 -module(wings).
@@ -101,7 +101,8 @@ init_1(File) ->
 	      mat=wings_material:default(),
 	      saved=true,
 	      onext=0,
-	      repeatable=ignore
+	      repeatable=ignore,
+	      args=none
 	    },
     St1 = wings_undo:init(St0),
     wings_view:init(),
@@ -280,7 +281,7 @@ do_command_1(Cmd, St0) ->
 
 remember_command({C,_}=Cmd, St) when C =:= vertex; C =:= edge;
 				     C =:= face; C =:= body ->
-    St#st{repeatable=Cmd};
+    St#st{repeatable=Cmd,args=none};
 remember_command(Cmd, St) -> St.
 
 %% Test if the saved command can be safely repeated, and
@@ -348,6 +349,19 @@ command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     end,
     St;
 command({edit,repeat}, St) -> St;
+command({edit,repeat_drag}, #st{sel=[]}=St) -> St;
+command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,args=Args}=St) ->
+    case repeatable(Mode, Cmd0) of
+	no -> ok;
+	Cmd when tuple(Cmd) ->
+	    case Args of
+		none -> ok;
+		Other -> wings_io:putback_event({drag_arguments,Args})
+	    end,
+	    wings_io:putback_event({action,Cmd})
+    end,
+    St;
+command({edit,repeat_drag}, St) -> St;
 command({edit,{camera_mode,Mode}}, St) ->
     wings_camera:command(Mode),
     St;
@@ -512,7 +526,8 @@ menu(X, Y, edit, St) ->
 	    {"Redo",redo},
 	    {"Undo",undo},
 	    separator,
-	    {command_name(St),repeat},
+	    {command_name("Repeat", St),repeat},
+	    {command_name("Repeat Drag", St),repeat_drag},
 	    separator,
 	    wings_material:sub_menu(edit, St),
 	    separator,
@@ -921,18 +936,18 @@ translate_event(redraw_menu, St) -> ignore;
 translate_event(redraw, St) -> redraw;
 translate_event({action,Action}, St) -> Action.
 
-command_name(#st{repeatable=ignore}) ->
+command_name(Repeat, #st{repeatable=ignore}) ->
     "(Can't repeat)";
-command_name(#st{repeatable={_,Cmd}}=St) ->
+command_name(Repeat, #st{repeatable={_,Cmd}}=St) ->
     CmdStr = stringify(Cmd),
-    command_name(CmdStr, St).
+    command_name(Repeat, CmdStr, St).
 
-command_name(CmdStr, #st{sel=[]}) ->
+command_name(Repeat, CmdStr, #st{sel=[]}) ->
     lists:flatten(["(Can't repeat \"",CmdStr,"\")"]);
-command_name(CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
+command_name(Repeat, CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
     S = case repeatable(Mode, Cmd) of
 	    no -> ["(Can't repeat \"",CmdStr,"\")"];
-	    _ ->  ["Repeat \"",CmdStr,"\""]
+	    _ ->  [Repeat++" \"",CmdStr,"\""]
 	end,
     lists:flatten(S).
 

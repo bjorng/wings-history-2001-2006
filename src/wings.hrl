@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.42 2002/01/25 09:04:36 bjorng Exp $
+%%     $Id: wings.hrl,v 1.43 2002/01/28 21:53:47 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -95,6 +95,7 @@
 
 	 %% Previous commands.
 	 repeatable,				%Last repeatable command.
+	 args,					%Drag arguments for command.
 
 	 %% Undo information.
 	 top,					%Top of stack.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.49 2002/01/28 17:31:43 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.50 2002/01/28 21:53:47 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -404,9 +404,6 @@ export_file_prop(Prop, #st{file=File}) ->
     Ext = property_lists:get_value(ext, Prop),
     Def = filename:rootname(filename:basename(File), ?WINGS) ++ Ext,
     [{default_filename,Def}|Prop].
-
-file_prop(Ext, Desc) ->
-    [{ext,Ext},{ext_desc,Desc}].
 
 ensure_extension(Name, Ext) ->
     case eq_extensions(Ext, filename:extension(Name)) of

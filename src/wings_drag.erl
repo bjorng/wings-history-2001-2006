@@ -3,12 +3,12 @@
 %%
 %%     This module handles interactive commands.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.47 2002/01/13 15:26:58 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.48 2002/01/28 21:53:47 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -177,6 +177,9 @@ get_drag_event(Drag) ->
 get_drag_event_1(Drag) ->
     {replace,fun(Ev) -> handle_drag_event(Ev, Drag) end}.
 
+% handle_drag_event(#keyboard{keysym=#keysym{sym=9}}, Drag) ->
+%     numeric_input(Drag);
+%% XXX Not ready yet.
 handle_drag_event(Event, Drag) ->
     case wings_camera:event(Event, fun() -> redraw(Drag) end) of
 	next -> handle_drag_event_1(Event, Drag);
@@ -194,10 +197,18 @@ handle_drag_event_1(#mousemotion{x=X,y=Y}, Drag0) ->
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED},
 		    #drag{st=St0}=Drag0) ->
     wings_io:ungrab(),
-    Drag = ?SLOW(motion(X, Y, Drag0)),
+    {Drag,Move} = ?SLOW(motion(X, Y, Drag0)),
     cleanup(Drag),
     St = normalize(Drag),
-    DragEnded = {drag_ended,St},
+    DragEnded = {drag_ended,St#st{args=Move}},
+    wings_io:putback_event(DragEnded),
+    pop;
+handle_drag_event_1({drag_arguments,Move}, #drag{st=St0}=Drag0) ->
+    wings_io:ungrab(),
+    Drag = motion_update(Move, Drag0),
+    cleanup(Drag),
+    St = normalize(Drag),
+    DragEnded = {drag_ended,St#st{args=Move}},
     wings_io:putback_event(DragEnded),
     pop;
 handle_drag_event_1(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED},
@@ -222,18 +233,50 @@ handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
 	   end,
     get_drag_event(Drag).
 
+numeric_input(Drag0) ->
+    {_,X,Y} = sdl_mouse:getMouseState(),
+    {Dx0,Dy0,Drag1} = mouse_range(X, Y, Drag0),
+    Move0 = constrain(Dx0, Dy0, Drag1),
+    wings_util:ask(true,
+		   make_query(Move0, Drag1),
+		   fun(Vals) ->
+			   wings_io:ungrab(),
+			   Move = make_move(Vals),
+			   Drag = motion_update(Move, Drag1),
+			   cleanup(Drag),
+			   St = normalize(Drag),
+			   DragEnded = {drag_ended,St#st{args=Move}},
+			   wings_io:putback_event(DragEnded),
+			   pop
+		   end).
+
+make_move([Val]) -> Val;
+make_move(Vals) -> list_to_tuple(Vals).
+
+make_query({Dx,Dy,Dist}, Drag) ->
+    [{"Dx",Dx},{"Dy",Dy},{"Dist:",Dist}];
+make_query({Dx,Dy}, Drag) ->
+    [{"Dx",Dx},{"Dy",Dy}];
+make_query(P, #drag{unit=percent}) ->
+    [{"Percent/100",P}];
+make_query(A, #drag{unit=angle}) ->
+    [{"Angle",A}];
+make_query(Dx, Drag) ->
+    [{"Dx",Dx}].
+
 cleanup(#drag{matrices=none}) -> ok;
 cleanup(#drag{matrices=Mtxs}) ->
     foreach(fun({Id,Matrix}) ->
 		    gl:deleteLists(?DL_DYNAMIC+Id, 1)
 	    end, Mtxs).
 
-magnet_radius(Sign, #drag{falloff=Falloff0}=Drag) ->
+magnet_radius(Sign, #drag{falloff=Falloff0}=Drag0) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
     case Falloff0+Sign*?GROUND_GRID_SIZE/5 of
 	Falloff when Falloff > 0 ->
-	    motion(X, Y, Drag#drag{falloff=Falloff});
-	Other -> Drag
+	    {Drag,_} = motion(X, Y, Drag0#drag{falloff=Falloff}),
+	    Drag;
+	Other -> Drag0
     end.
 
 view_changed(#drag{constraint=view_dependent}=Drag0) ->
@@ -266,7 +309,7 @@ update_tvs_1([], NewWe, Acc) -> reverse(Acc).
 motion(X, Y, Drag0) ->
     {Dx0,Dy0,Drag} = mouse_range(X, Y, Drag0),
     Move = constrain(Dx0, Dy0, Drag),
-    motion_update(Move, Drag).
+    {motion_update(Move, Drag),Move}.
 
 mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs,ys=Ys}=Drag) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
