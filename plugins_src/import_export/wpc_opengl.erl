@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.23 2003/02/07 17:38:29 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.24 2003/02/14 18:30:52 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -80,10 +80,8 @@ set_pref(KeyVals) ->
 %%%
 
 -record(r,
-	{pass=1,
-	 acc_size=6,
-	 attr,
-	 next
+	{acc_size=6,
+	 attr
 	}).
 
 do_render(Ask, _St) when is_atom(Ask) ->
@@ -97,11 +95,23 @@ do_render(Attr0, St) ->
     case get_filename(Attr0, St) of
 	aborted -> keep;
 	Attr ->
+	    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+	    gl:drawBuffer(?GL_FRONT),
+	    gl:clearColor(0.5, 0.5, 0.5, 1),
+	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+	    wings_io:ortho_setup(),
+	    {_,H} = wings_wm:win_size(),
+	    wings_io:text_at(10, H-20, "Rendering..."),
+	    gl:drawBuffer(?GL_BACK),
+	    gl:popAttrib(),
+	    gl:flush(),
+
 	    render_dlist(St, Attr),
 	    Aa = proplists:get_value(aa, Attr),
 	    AccSize = translate_aa(Aa),
-	    Rr = #r{acc_size=AccSize,attr=Attr,next=fun render_redraw/1},
-	    {seq,push,get_render_event(Rr)}
+	    Rr = #r{acc_size=AccSize,attr=Attr},
+	    render_redraw(Rr),
+	    render_exit()
     end.
 
 translate_aa(draft) -> 1;
@@ -120,34 +130,13 @@ get_filename(Attr, St) ->
 	    end
     end.
 
-get_render_event(Rr) ->
-    {replace,fun(Ev) -> render_event(Ev, Rr) end}.
-
-render_event(redraw, #r{next=Next}=Rr) ->
-    get_render_event(Next(Rr));
-render_event(#mousemotion{}, _) -> keep;
-render_event(#mousebutton{button=3,state=?SDL_RELEASED}, _) ->
-    render_exit();
-render_event(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, _) ->
-    render_exit();
-render_event({resize,_,_}=Resize, _) ->
-    wings_io:putback_event(Resize),
-    render_exit();
-render_event(quit, _) ->
-    wings_io:putback_event(quit),
-    render_exit();
-render_event(time_to_quit, _) ->
-    render_exit();
-render_event(_, _) ->
-    keep.
-
 render_exit() ->
     gl:getError(),
     wings_draw_util:map(fun(D, []) ->
 				D#dlo{smooth=none,smoothed=none}
 			end, []),
-    wings_wm:dirty(),
-    pop.
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    wings_wm:dirty().
 
 render_dlist(St0, Attr) ->
     St = invisible_holes(St0),
@@ -194,53 +183,26 @@ sub_divide(N, We) -> sub_divide(N-1, wings_subdiv:smooth(We)).
 %%%
 
 render_redraw(#r{attr=Attr}=Rr) ->
+    render_one(Rr, true),
+    MaskImage = capture(1, ?GL_RED),
+    render_one(Rr, false),
+    ObjectImage = capture(3, ?GL_RGB),
+    Image = combine_images(ObjectImage, MaskImage),
     case proplists:get_value(output_type, Attr) of
 	preview ->
-	    render_image(Rr);
+	    Id = wings_image:new("Rendered", Image),
+	    wings_image:window(Id);
 	file ->
-	    render_to_file(Rr)
+	    RendFile = proplists:get_value(output_file, Attr),
+	    ok = e3d_image:save(Image, RendFile)
     end.
 
-render_to_file(Rr0) ->
-    render_one(Rr0, true,
-	       fun(Rr) ->
-		       MaskImage = capture(1, ?GL_RED),
-		       render_to_file_1(MaskImage, Rr)
-	       end).
-
-render_to_file_1(MaskImage, Rr0) ->
-    render_one(Rr0, false,
-	       fun(#r{attr=Attr}=R) ->
-		       ObjectImage = capture(3, ?GL_RGB),
-		       Image = combine_images(ObjectImage, MaskImage),
-		       RendFile = proplists:get_value(output_file, Attr),
-		       ok = e3d_image:save(Image, RendFile),
-		       wings_wm:send(wings_wm:active_window(), time_to_quit),
-		       R
-	       end).
-
-render_one(#r{attr=Attr0}=Rr0, RenderAlpha, Next) ->
+render_one(#r{attr=Attr0}=Rr0, RenderAlpha) ->
     Attr = [{render_alpha,RenderAlpha}|Attr0],
-    case render_image(Rr0#r{attr=Attr}) of
-	#r{pass=done}=Rr -> Next(Rr);
-	Rr -> render_one_1(Rr, Next)
-    end.
-	    
-render_one_1(#r{next=Render}=Rr, Next0) ->
-    Next = fun(R0) ->
-		   case Render(R0) of
-		       #r{pass=done}=R -> Next0(R);
-		       R -> render_one_1(R, Next0)
-		   end
-	   end,
-    Rr#r{next=Next}.
+    render_image(Rr0#r{attr=Attr}).
 
-render_image(#r{acc_size=AccSize}=Rr) ->
+render_image(#r{acc_size=AccSize,attr=Attr}=Rr) ->
     gl:clear(?GL_ACCUM_BUFFER_BIT),
-    J = jitter(AccSize),
-    jitter_draw(J, Rr#r{pass=1}).
-
-jitter_draw([{Jx,Jy}|J], #r{pass=Pass,acc_size=AccSize,attr=Attr}=Rr) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     case proplists:get_bool(render_alpha, Attr) of
  	false ->
@@ -250,35 +212,21 @@ jitter_draw([{Jx,Jy}|J], #r{pass=Pass,acc_size=AccSize,attr=Attr}=Rr) ->
  	    gl:clearColor(0, 0, 0, 1),
  	    gl:color3f(1, 1, 1)
     end,
+    J = jitter(AccSize),
+    jitter_draw(J, ?GL_LOAD, Rr),
+    gl:popAttrib().
+
+jitter_draw([{Jx,Jy}|J], Op, #r{acc_size=AccSize}=Rr) ->
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     gl:enable(?GL_DEPTH_TEST),
     gl:frontFace(?GL_CCW),
-    gl:readBuffer(?GL_BACK),
-    {X,Y,W,H} = wings_wm:viewport(),
-    gl:scissor(X, Y, W, H),
-    gl:enable(?GL_SCISSOR_TEST),
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-    gl:disable(?GL_SCISSOR_TEST),
+    {_,_,W,H} = wings_wm:viewport(),
     [Fov,Hither,Yon] = wpa:camera_info([fov,hither,yon]),
     accPerspective(Fov, W/H, Hither, Yon, Jx, Jy, 0, 0, 1),
     draw_all(Rr),
-    gl:popAttrib(),
-    if
-	Pass == 1 -> gl:accum(?GL_LOAD, 1/AccSize);
-	true ->     gl:accum(?GL_ACCUM, 1/AccSize)
-    end,
-    gl:accum(?GL_RETURN, AccSize/Pass),
-    if
-	Pass < AccSize ->
-	    wings_wm:message(io_lib:format("Pass ~p of ~p", [Pass,AccSize])),
-	    wings_wm:callback(fun() -> wings_wm:dirty() end),
-	    Rr#r{pass=Pass+1,next=fun(R) -> jitter_draw(J, R) end};
-	true ->
-	    Image = capture(3, ?GL_RGB),
-	    Id = wings_image:new("Rendered", Image),
-	    wings_image:window(Id),
-	    wings_wm:send(wings_wm:active_window(), time_to_quit),
-	    Rr#r{pass=done,next=fun(_) -> ok end}
-    end.
+    gl:accum(Op, 1/AccSize),
+    jitter_draw(J, ?GL_ACCUM, Rr);
+jitter_draw([], _, _) -> ok.
 
 draw_all(Rr) ->
     wings_view:model_transformations(true),
