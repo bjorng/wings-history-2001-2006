@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.91 2003/06/28 09:04:11 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.92 2003/08/02 05:09:02 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -156,8 +156,7 @@ command(prefs, _St) ->
     dialog("Preferences", Qs);
 command(compatibility, _St) ->
     Qs = [{vframe,
-	   [{"Optimize Display Lists",display_list_opt},
-	    {"Use Display Lists for Text",text_display_lists},
+	   [{"Use Display Lists for Text",text_display_lists},
 	    {"Show Dummy Axis Letter",dummy_axis_letter},
 	    {"Early Back Buffer Clear",early_buffer_clear}]}],
     dialog("Compatibility Settings", Qs);
@@ -238,8 +237,6 @@ smart_set_value(Key, Val, St) ->
 		background_color ->
 		    {R,G,B} = Val,
 		    gl:clearColor(R, G, B, 1.0);
-		display_list_opt ->
-		    wings_draw_util:init();
 		autosave_time ->
 		    wings_file:init_autosave();
 		proxy_shaded_edge_style ->
@@ -402,7 +399,6 @@ defaults() ->
      {hide_sel_in_camera_moves,false},
 
      %% Compatibility preferences.
-     {display_list_opt,true},
      {text_display_lists,true},
      {dummy_axis_letter,false},
      {early_buffer_clear,os:type() =/= {unix,darwin}},
@@ -479,6 +475,7 @@ not_bad(camera_yon, _) -> false;
 not_bad(right_click_sel_in_ss, _) -> false;
 not_bad(right_click_sel_in_geom, _) -> false;
 not_bad(wire_edge_color, _) -> false;
+not_bad(display_list_opt, _) -> false;
 
 %% Crashes have occurred.
 not_bad(last_axis, Val) -> is_wings_vector(Val);
