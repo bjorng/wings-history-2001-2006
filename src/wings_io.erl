@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.129 2004/02/29 17:56:36 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.130 2004/02/29 19:14:27 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -262,14 +262,6 @@ space_at(X, Y) ->
 
 text_at(X, S) ->
     text_at(X, 0, S).
-%     setup_scissor(fun() -> text_at_1(X, S) end).
-
-% text_at_1(X, S) ->
-%     gl:rasterPos2i(X, 0),
-%     case catch text(S, X, 0, []) of
-% 	{newline,More} -> text_at_1(X, More);
-% 	Other -> Other
-%     end.
 
 text_at(X, Y, S) ->
     setup_scissor(fun() -> unclipped_text(X, Y, S) end).
