@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.21 2002/10/22 13:05:43 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.22 2002/10/25 13:57:35 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -206,8 +206,8 @@ do_edit(We, St0) ->
 segment(Mode, St0) ->
     ?SLOW(wings_sel:fold(
 	fun(_Sel, We, A) ->
-	   {Charts, Bounds} = auv_segment:create(Mode, We),	
-   	   mark_segments(Charts, Bounds, We, A)
+	{Charts, Bounds} = auv_segment:create(Mode, We),	
+	mark_segments(Charts, Bounds, We, A)
 	end, St0, St0)).
 
 mark_segments(Charts, Bounds, We0, St) ->
@@ -301,7 +301,7 @@ init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
     We1 = gb_trees:get(Id, St0#st.shapes),
     ClustersWithoutIds = [L || {_,L} <- Clusters],
     {We2,ChangedByCut} = auv_segment:cut_model(Cuts, ClustersWithoutIds, We1),
-    ?DBG("Changed by cut ~p ~n", [ChangedByCut]),
+    ?DBG("Vertex map: ~p\n", [gb_trees:to_list(ChangedByCut)]),
     Areas = init_areas(Clusters, [], Type, We2),
 
     %% Place the cluster on the texturemap
@@ -329,7 +329,7 @@ init_areas([], A, _Type, _We) ->
    
 insert_uvcoords(#areas{orig_we=We0,we=WorkWe,as=UV,matname=MatName,vmap=Vmap}) ->
     UVpos = gen_uv_pos(gb_trees:values(UV), WorkWe, []),
-    We = insert_coords(UVpos, gb_trees:from_orddict(Vmap), We0),
+    We = insert_coords(UVpos, Vmap, We0),
     Ftab0 = [{Face,Rec#face{mat=MatName}} ||
  		{Face,Rec} <- gb_trees:to_list(We#we.fs)],
     Ftab = gb_trees:from_orddict(Ftab0),
@@ -349,7 +349,7 @@ gen_uv_pos([#a{fs=Fs,center={CX,CY},scale=Sc,vpos=Vs}|T], We, Acc) ->
 gen_uv_pos([], _, Acc) -> Acc.
 
 insert_coords([{V0,{Face,{S,T,_}}}|Rest], Vmap, #we{es=Etab0}=We) ->
-    V = gb_trees:get(V0, Vmap),
+    V = auv_segment:map_vertex(V0, Vmap),
     Etab = wings_vertex:fold(
 	     fun(Edge, _, Rec0, E0) ->
 		     case Rec0 of
