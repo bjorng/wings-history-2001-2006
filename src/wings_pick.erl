@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.86 2003/04/21 10:16:58 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.87 2003/05/07 21:09:41 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -460,14 +460,13 @@ raw_pick(X0, Y0, St) ->
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
     gl:initNames(),
-    
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
     {_,_,W,H} = wings_wm:viewport(),
     X = float(X0),
     Y = H-float(Y0),
-    S = 5.0,
-    glu:pickMatrix(X, Y, S, S, [0,0,W,H]),
+    S = 5,
+    glu:pickMatrix(X, Y, S, S, {0,0,W,H}),
     wings_view:perspective(),
     wings_view:model_transformations(),
     select_draw(St),
