@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.86 2004/06/02 12:48:34 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.87 2004/06/02 13:44:21 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -864,8 +864,6 @@ light_dialog(_Name, infinite, Ps) ->
     C_var = proplists:get_value(c_var, Ps, ?DEF_SUNSKY_VAR),
     D_var = proplists:get_value(d_var, Ps, ?DEF_SUNSKY_VAR),
     E_var = proplists:get_value(e_var, Ps, ?DEF_SUNSKY_VAR),
-    MinimizedHorizon = proplists:get_value(minimized_horizon, Ps, true),
-    MinimizedSun = proplists:get_value(minimized_sun, Ps, true),
     %%
     [{"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]},
      {vframe,
@@ -876,28 +874,26 @@ light_dialog(_Name, infinite, Ps) ->
 		{color,BgColor,[{key,{?TAG,background_color}}]}],
 	[light_hook({?TAG,background}, constant)]},
        {vframe,
-	[{hframe,[{label,"Turbidity"},
-		  {text,Turbidity,[{range,{0.0,100.0}},
-				   {key,{?TAG,turbidity}}]}]},
+	[{hframe,[]},
 	 {hframe,
-	  [{vframe,[{label,"a:Brightness"},
-		    {label,"b:Spread"}]},
-	   {vframe,[{text,A_var,[{range,{-100.0,100.0}},
+	  [{vframe,[{label,"Turbidity"},
+		    {label,"a: Horizon Brightness"},
+		    {label,"b: Horizon Spread"},
+		    {label,"c: Sun Brightness"},
+		    {label,"d: Sun Contraction"},
+		    {label,"e: Sun Backscatter"}]},
+	   {vframe,[{text,Turbidity,[{range,{0.0,100.0}},
+				     {key,{?TAG,turbidity}}]},
+		    {text,A_var,[{range,{-100.0,100.0}},
 				 {key,{?TAG,a_var}}]},
 		    {text,B_var,[{range,{-100.0,100.0}},
-				 {key,{?TAG,b_var}}]}]}],
-	  [{title,"Horizon"},{minimized,MinimizedHorizon}]},
-	 {hframe,
-	  [{vframe,[{label,"c:Brightness"},
-		    {label,"d:Contraction"},
-		    {label,"e:Backscatter"}]},
-	   {vframe,[{text,C_var,[{range,{-100.0,100.0}},
+				 {key,{?TAG,b_var}}]},
+		    {text,C_var,[{range,{-100.0,100.0}},
 				 {key,{?TAG,c_var}}]},
 		    {text,D_var,[{range,{-100.0,100.0}},
 				 {key,{?TAG,d_var}}]},
 		    {text,E_var,[{range,{-100.0,100.0}},
-				 {key,{?TAG,e_var}}]}]}],
-	  [{title,"Sun"},{minimized,MinimizedSun}]}],
+				 {key,{?TAG,e_var}}]}]}]}],
 	[light_hook({?TAG,background}, sunsky)]}],
       [{title,"Background"}]}];
 light_dialog(_Name, ambient, Ps) ->
@@ -1135,7 +1131,7 @@ light_result([{{?TAG,type},photonlight}|_]=Ps) ->
     split_list(Ps, 20);
 %% Infinite
 light_result([_,{{?TAG,background},_}|_]=Ps) ->
-    split_list(Ps, 11);
+    split_list(Ps, 9);
 %% Area
 light_result([_,{{?TAG,arealight_samples},_}|_]=Ps) ->
     split_list(Ps, 3);
