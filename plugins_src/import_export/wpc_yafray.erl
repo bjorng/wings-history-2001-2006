@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.10 2003/02/24 13:10:30 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.11 2003/02/27 12:58:10 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -40,7 +40,10 @@
 -define(DEF_SPOT_EXPONENT, 2.0).
 
 -record(modulator, {mode=off,
-		    size=1.0,
+		    size_x=1.0,
+		    size_y=1.0,
+		    size_z=1.0,
+		    opacity=1.0,
 		    diffuse=0.0,
 		    specular=0.0,
 		    ambient=0.0,
@@ -112,11 +115,9 @@ dialog({material_editor_setup,_Name,Mat}, Dialog) ->
 		 }|modulator_dialogs(Modulators)],
 		[{title,"YafRay Options"}]}];
 dialog({material_editor_result,_Name,Mat0}, [A,B|Res0]) ->
-    {Modulators,_Res} = modulator_result([]),
-%    {Modulators,Res} = modulator_result(Res0),
+    {Modulators,Res} = modulator_result(Res0),
     Mat = [{?TAG,[A,B,{modulators,Modulators}]}|keydelete(?TAG, 1, Mat0)],
-    {Mat,Res0};
-%    {Mat,Res};
+    {Mat,Res};
 dialog({light_editor_setup,_Name,Ps}, Dialog) ->
     YafRay = proplists:get_value(?TAG, Ps, []),
     Power = proplists:get_value(power, YafRay, 1.0),
@@ -134,77 +135,74 @@ dialog(_X, Dialog) ->
     Dialog.
 
 modulator_dialogs([]) ->
-    [];
-%    modulator_dialog(#modulator{}, new_modulator);
+    [{"Create a Modulator",false,[{key,create_modulator}]}];
 modulator_dialogs([Modulator|Modulators]) ->
-    modulator_dialog(Modulator, modulator)++
+    modulator_dialog(Modulator)++
 	modulator_dialogs(Modulators).
 
-modulator_dialog(#modulator{mode=Mode,
-			    size=Size,
-			    diffuse=Diffuse,
-			    specular=Specular,
-			    ambient=Ambient,
-			    shininess=Shininess,
+modulator_dialog(#modulator{mode=Mode,size_x=SizeX,size_y=SizeY,size_z=SizeZ,
+			    opacity=Opacity,diffuse=Diffuse,specular=Specular,
+			    ambient=Ambient,shininess=Shininess,
 			    type=Type,
 			    filename=Filename,
-			    color1=Color1,
-			    color2=Color2,
-			    depth=Depth},
-		 Key) ->
+			    color1=Color1,color2=Color2,depth=Depth}) ->
     [{vframe,
-      [{hframe,[{menu,case Key of 
-			  modulator -> [{"Delete",delete}];
-			  new_modulator -> []
-		      end++[{if Mode==off ->"Disabled";
-				true -> "Disable"
-			     end,off},{"Mix",mix},{"Mul",mul},{"Add",add}],
-		 Mode,[{key,Key}]},
-		{label,"Size"},
-		{text,Size,[{range,0.0,1000000.0}]}]},
-       {hframe,[{vframe,[{label,"Diffuse"},
+      [{menu,[{"Delete",delete},
+	      {if Mode==off ->"Disabled";
+		  true -> "Disable"
+	       end,off},
+	      {"Mix",mix},{"Mul",mul},{"Add",add}],
+	Mode},
+       {hframe,[{label,"SizeX"},
+		{text,SizeX,[{range,0.0,1000.0}]},
+		{label,"SizeY"},
+		{text,SizeY,[{range,0.0,1000.0}]},
+		{label,"SizeZ"},
+		{text,SizeZ,[{range,0.0,1000.0}]}]},
+       {hframe,[{vframe,[{label,"Opacity"},
+			 {label,"Diffuse "},
 			 {label,"Specular"},
 			 {label,"Ambient"},
 			 {label,"Shininess"}]},
-		{vframe,[{slider,{text,Diffuse,[{range,{0.0,1.0}}]}},
+		{vframe,[{slider,{text,Opacity,[{range,{0.0,1.0}}]}},
+			 {slider,{text,Diffuse,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Specular,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Ambient,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Shininess,[{range,{0.0,1.0}}]}}]}]},
-       {menu,[{"JPEG",jpeg},{"Clouds",clouds}],Type},
-       {hframe,[{label,"Filename"},{text,Filename}]},
-       {hframe,[{label,"Color 1"},{color,Color1},
-		{label,"Color 2"},{color,Color2},
-		{label,"Depth"},{text,Depth,[{range,{1,1000}}]}]}
+       {hframe,[{vradio,[{"JPEG",jpeg},{"Clouds",clouds}],type,Type},
+%		{menu,[{"JPEG",jpeg},{"Clouds",clouds}],Type},
+		{vframe,[{hframe,[{label,"Filename"},{text,Filename}]},
+			 {hframe,[{label,"Color 1"},{color,Color1},
+				  {label,"Color 2"},{color,Color2},
+				  {label,"Depth"},
+				  {text,Depth,[{range,{1,1000}}]}]}]}]}
       ],
-      [{title,case Key of 
-		  modulator -> "Modulator";
-		  new_modulator -> "New Modulator"
-	      end}]}].
+      [{title,"Modulator"}]}].
 
 modulator_result(Res) ->
     modulator_result(Res, []).
 
 modulator_result([], Ms) ->
+    %% Should not happen
     {reverse(Ms), []};
-modulator_result([{new_modulator,off}|Res0], Ms) ->
-    {_,Res} = modulator(off, Res0),
+modulator_result([{create_modulator,false}|Res], Ms) ->
     {reverse(Ms),Res};
-modulator_result([{new_modulator,Mode}|Res0], Ms) ->
-    {M,Res} = modulator(Mode, Res0),
-    {reverse(Ms, [M]), Res};
-modulator_result([{modulator,delete}|Res0], Ms) ->
+modulator_result([{create_modulator,true}|Res], Ms) ->
+    {reverse(Ms, [#modulator{}]),Res};
+modulator_result([delete|Res0], Ms) ->
     {_,Res} = modulator(delete, Res0),
     modulator_result(Res, Ms);
-modulator_result([{modulator,Mode}|Res0], Ms) ->
+modulator_result([Mode|Res0], Ms) ->
     {M,Res} = modulator(Mode, Res0),
     modulator_result(Res, [M|Ms]).
 
-modulator(Mode, [Size,Diffuse,Specular,Ambient,Shininess,
+modulator(Mode, [SizeX,SizeY,SizeZ,Opacity,Diffuse,Specular,Ambient,Shininess,
 		 Type,Filename,Color1,Color2,Depth|Res]) ->
-    {#modulator{mode=Mode,size=Size,
-		diffuse=Diffuse,specular=Specular,
+    {#modulator{mode=Mode,size_x=SizeX,size_y=SizeY,size_z=SizeZ,
+		opacity=Opacity,diffuse=Diffuse,specular=Specular,
 		ambient=Ambient,shininess=Shininess,
-		type=Type,filename=Filename,
+		type=Type,
+		filename=Filename,
 		color1=Color1,color2=Color2,depth=Depth},Res}.
 
 
@@ -251,8 +249,9 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	{error,_}=Error -> 
 	    Error;
 	{ok,F} ->
-	    CameraName = "WingsDefaultCamera",
-	    ConstBackgroundName = "WingsDefaultConstBackground",
+	    CameraName = "x_Camera",
+	    ConstBackgroundName = "x_ConstBackground",
+	    SunskyBackgroundName = "t_SunskyBackground",
 	    Basename = filename:basename(Filename),
 	    Outfile = filename:rootname(Basename)++".tga",
 	    %%
@@ -261,34 +260,23 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 		    "~n"++
 		    "<scene>", [Basename, Creator]),
 	    %%
-	    section(F, "Textures"),
-	    template(F, fun() -> 
-				 export_texture(F, jpeg, 
-						"WingsTemplateJpegTexture") 
-			 end),
-	    println(F),
-	    template(F, fun() -> 
-				 export_texture(F, clouds, 
-						"WingsTemplateCloudsTexture") 
-			 end),
-	    %%
 	    section(F, "Shaders"),
 	    foreach(fun ({Name, Mat}) -> 
-			    export_shader(F, Name, Mat),
+			    export_shader(F, "w_"++format(Name), Mat),
 			    println(F)
 		    end, 
 		    Mats),
 	    %%
 	    section(F, "Objects"),
-	    foreach(fun (#e3d_object{name=NameStr,obj=Mesh}) ->
-			    export_object(F, NameStr, Mesh, Attr),
+	    foreach(fun (#e3d_object{name=Name,obj=Mesh}) ->
+			    export_object(F, "w_"++format(Name), Mesh, Attr),
 			    println(F)
 		    end,
 		    Objs),
 	    %%
 	    section(F, "Lights"),
-	    foreach(fun (Light) -> 
-			    export_light(F, Light),
+	    foreach(fun ({Name, Ps}) -> 
+			    export_light(F, "w_"++format(Name), Ps),
 			    println(F)
 		    end,
 		    Lights),
@@ -296,7 +284,7 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    section(F, "Background, Camera, Filter and Render"),
 	    export_background_constant(F, ConstBackgroundName, Attr),
 	    println(F),
-	    export_background_sunsky(F, "WingsDefaultSunskyBackground"),
+	    export_background_sunsky(F, SunskyBackgroundName),
 	    println(F),
 	    export_camera(F, CameraName, Attr),
 	    println(F),
@@ -309,34 +297,33 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 
 
 
-template(F, Fun_0) ->
-    println(F, "<!-- Begin Template"),
-    Fun_0(),
-    println(F, "End Template -->").
+% template(F, Fun_0) ->
+%     println(F, "<!-- Begin Template"),
+%     Fun_0(),
+%     println(F, "End Template -->").
 
 section(F, Name) ->
     println(F, [io_lib:nl(),"<!-- Section ",Name," -->",io_lib:nl()]).
 
 
 
-export_texture(F, jpeg, Name) ->
-    println(F, "<texture type=\"jpeg\" name=\"~s\">~n"++
-	    "    <filename value=\"~s.jpg\"/>~n"++
-	    "</texture>", [Name,Name]);
-export_texture(F, clouds, Name) ->
-    println(F, "<texture type=\"clouds\" name=\"~s\">~n"++
-	    "    <depth value=\"2\"/>", [Name]),
-    export_rgb(F, color1, {0.0,0.0,0.0,1.0}),
-    export_rgb(F, color2, {1.0,1.0,1.0,1.0}),
-    println(F, "</texture>").
-
-
-
 export_shader(F, Name, Mat) ->
     OpenGL = proplists:get_value(opengl, Mat),
     YafRay = proplists:get_value(?TAG, Mat, []),
+    Modulators = proplists:get_value(modulators, YafRay, []),
+    foldl(fun (#modulator{mode=off}, N) ->
+		  N+1;
+	      (#modulator{type=jpeg,filename=FN}, N) ->
+		  export_texture_jpeg(F, [Name,$_|format(N)], FN),
+		  println(F),
+		  N+1;
+	      (#modulator{type=clouds,color1=C1,color2=C2,depth=D}, N) ->
+		  export_texture_clouds(F, [Name,$_|format(N)], C1, C2, D),
+		  println(F),
+		  N+1
+	  end, 1, Modulators),
     println(F, "<shader type=\"generic\" name=\"~s\">~n"++ 
-	    "    <attributes>", [format(Name)]),
+	    "    <attributes>", [Name]),
     {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
     Transparency = 1 - Opacity,
     export_rgb(F, color, 
@@ -354,19 +341,46 @@ export_shader(F, Name, Mat) ->
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
     println(F, "        <IOR value=\"~.10f\"/>~n"++
 	    "        <min_refle value=\"~.10f\"/>~n"++
-	    "    </attributes>~n", [IOR, MinRefle]),
-    template(F, fun() -> export_modulator(F, "WingsTemplateModulator") end),
+	    "    </attributes>", [IOR, MinRefle]),
+    foldl(fun (#modulator{mode=off}, N) ->
+		  N+1;
+	      (M, N) ->
+		  export_modulator(F, [Name,$_,format(N)], M),
+		  println(F),
+		  N+1
+	  end, 1, Modulators),
     println(F, "</shader>").
 
-export_modulator(F, Texname) ->
-    println(F, "        <modulator texname=\"~s\" mode=\"mix\"~n"++
-	    "                   sizex=\"1.0\" sizey=\"1.0\" sizez=\"1.0\">~n"++
-	    "            <color value=\"0.0\"/>~n"++
-	    "            <specular value=\"0.0\"/>~n"++
-	    "            <hard value=\"0.0\"/>~n"++
-	    "            <transmission value=\"0.0\"/>~n"++
-	    "            <reflection value=\"0.0\"/>~n"++
-	    "        </modulator>", [Texname]).
+export_texture_jpeg(F, Name, Filename) ->
+    println(F, "<texture type=\"jpeg\" name=\"~s\">~n"++
+	    "    <filename value=\"~s\"/>~n"++
+	    "</texture>", [Name,Filename]).
+
+export_texture_clouds(F, Name, Color1, Color2, Depth) ->
+    println(F, "<texture type=\"clouds\" name=\"~s\">~n"++
+	    "    <depth value=\"~w\"/>", [Name, Depth]),
+    export_rgb(F, color1, Color1),
+    export_rgb(F, color2, Color2),
+    println(F, "</texture>").
+
+export_modulator(F, Texname,
+		 #modulator{mode=Mode,size_x=SizeX,size_y=SizeY,size_z=SizeZ,
+			    opacity=Opacity,diffuse=Diffuse,specular=Specular,
+			    ambient=Ambient,shininess=Shininess}) ->
+    Color = Diffuse * Opacity,
+    HardValue = Shininess,
+    Transmission = Diffuse * (1.0 - Opacity),
+    Reflection = Ambient,
+    println(F, "        <modulator texname=\"~s\" mode=\"~s\"~n"++
+	    "         sizex=\"~.3f\" sizey=\"~.3f\" sizez=\"~.3f\">~n"++
+	    "            <color value=\"~.3f\"/>~n"++
+	    "            <specular value=\"~.3f\"/>~n"++
+	    "            <hard value=\"~.3f\"/>~n"++
+	    "            <transmission value=\"~.3f\"/>~n"++
+	    "            <reflection value=\"~.3f\"/>~n"++
+	    "        </modulator>", 
+	    [Texname,format(Mode),SizeX,SizeY,SizeZ,
+	     Color,Specular,HardValue,Transmission,Reflection]).
 
 
 
@@ -386,7 +400,7 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Attr) ->
 	    "shadow=\"on\" caus_IOR=\"1.0\"~n"++
 	    "        emit_rad=\"on\" recv_rad=\"on\">~n"++
 	    "    <attributes>",
-	    [NameStr, format(DefaultMaterial)]),
+	    [NameStr, "w_"++format(DefaultMaterial)]),
     export_rgb(F, caus_rcolor, {0.0,0.0,0.0,1.0}),
     export_rgb(F, caus_tcolor, {0.0,0.0,0.0,1.0}),
     println(F, "    </attributes>"),
@@ -429,7 +443,7 @@ export_faces(F, [#e3d_face{vs=[A,B,C],mat=[Mat|_]}|T], DefaultMaterial, TxT) ->
     Shader =
 	case Mat of
 	    DefaultMaterial -> "";
-	    _ -> [" shader_name=\"",format(Mat),"\""]
+	    _ -> [" shader_name=\"w_",format(Mat),"\""]
 	end,
     UV = case TxT of
 	     {} -> "";
@@ -448,7 +462,7 @@ export_faces(F, [#e3d_face{vs=[A,B,C],mat=[Mat|_]}|T], DefaultMaterial, TxT) ->
 
 
 
-export_light(F, {Name,Ps}) ->
+export_light(F, Name, Ps) ->
     OpenGL = proplists:get_value(opengl, Ps, []),
     YafRay = proplists:get_value(?TAG, Ps, []),
     Type = proplists:get_value(type, OpenGL, []),

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.103 2003/02/26 20:12:05 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.104 2003/02/27 12:58:06 raimo_niskanen Exp $
 
 -module(wpc_autouv).
 
@@ -989,7 +989,7 @@ edge_option_menu(#uvstate{option = Option}) ->
 
 quit_menu(Uvs) ->
     #uvstate{st=St,matname=MatN} = Uvs,
-    DefVar = {quit_mode,quit_uv_tex},
+%    DefVar = {quit_mode,quit_uv_tex},
     A1 = {"Save UV Coordinates and Texture",quit_uv_tex},
     A2 = {"Save Only UV Coordinates",quit_uv},
     A3 = {"Discard All Changes",cancel},
@@ -997,7 +997,9 @@ quit_menu(Uvs) ->
 	       true -> [A1,A2,A3];
 	       false -> [A1,A3]
 	   end,
-    Qs = [{vframe,{alt,Alts,DefVar}}],
+    Qs = [{vradio,Alts,quit_mode,quit_uv_tex}],
+
+%    Qs = [{vframe,{alt,Alts,DefVar}}],
     wings_ask:dialog("Exit Options",
 		     Qs, fun([Quit]) -> {auv,quit,Quit} end).
 
