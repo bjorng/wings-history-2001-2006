@@ -3,20 +3,20 @@
 %%
 %%     This module contains most of the low-level GUI for Wings.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.87 2003/01/17 21:10:43 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.88 2003/01/22 13:24:03 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,resize/0,
 	 arrow/0,hourglass/0,
 	 info/1,
-	 border/5,
-	 sunken_rect/5,raised_rect/4,raised_rect/5,
+	 blend/2,
+	 border/5,sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,text/1,menu_text/3,space_at/2,
 	 draw_icon/3,draw_icon/5,draw_icon/7,draw_char/1,
 	 set_color/1]).
@@ -101,6 +101,13 @@ info(Info) ->
     ortho_setup(),
     set_color(wings_pref:get_value(info_color)),
     text_at(4, ?CHAR_HEIGHT, Info).
+
+blend({_,_,_,1.0}=Color, Draw) -> Draw(Color);
+blend(Color, Draw) ->
+    gl:enable(?GL_BLEND),
+    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    Draw(Color),
+    gl:disable(?GL_BLEND).
     
 border(X0, Y0, Mw0, Mh0, FillColor) ->
     X = X0 + 0.5,

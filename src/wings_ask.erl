@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.60 2003/01/17 21:10:42 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.61 2003/01/22 13:24:03 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -27,6 +27,8 @@
 
 -define(INITIAL_LEVEL, ?Z_DIALOG).
 
+
+-compile(inline).
 -import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3]).
 
 -record(s,
@@ -376,9 +378,11 @@ collect_result(_, _, _, _, Res) -> reverse(Res).
 redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fi,priv=Priv,common=Common}) ->
     wings_io:ortho_setup(),
     gl:translated(Ox, Oy, 0),
-    wings_io:border(-?HMARGIN, -?VMARGIN,
-		    W+2*?HMARGIN-1, H+2*?VMARGIN-1,
-		    ?MENU_COLOR),
+    blend(fun(Color) ->
+		  wings_io:border(-?HMARGIN, -?VMARGIN,
+				  W+2*?HMARGIN-1, H+2*?VMARGIN-1,
+				  Color)
+	  end),
     draw_fields(1, Fi, Priv, Focus, Common).
 
 draw_fields(I, Fis, Priv, Focus, Common) when I =< size(Fis) ->
@@ -582,10 +586,12 @@ frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
 	    hline(X, Y+H-1, W-1),
 	    vline(X, Y+1, H-2),
 	    gl:'end'(),
-	    wings_io:set_color(?MENU_COLOR),
 	    TextPos = X + 3*?CHAR_WIDTH,
-	    gl:rectf(TextPos-?CHAR_WIDTH, Y-1,
-		     TextPos+(length(Title)+1)*?CHAR_WIDTH, Y+2),
+	    blend(fun(Color) ->
+			  wings_io:set_color(Color),
+			  gl:rectf(TextPos-?CHAR_WIDTH, Y-1,
+				   TextPos+(length(Title)+1)*?CHAR_WIDTH, Y+2)
+		  end),
 	    gl:color3f(0, 0, 0),
 	    wings_io:text_at(TextPos, Y0+?CHAR_HEIGHT, Title)
     end.
@@ -826,7 +832,9 @@ menu_width([{S,_}|T], W0) ->
 menu_width([], W) -> W.
 
 menu_draw(#fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
-    wings_io:raised_rect(X, Y0+1, W-?CHAR_WIDTH+10, H-3, ?MENU_COLOR),
+    blend(fun(Col) ->
+		  wings_io:raised_rect(X, Y0+1, W-?CHAR_WIDTH+10, H-3, Col)
+	  end),
     Y = Y0+?CHAR_HEIGHT,
     Val = [Desc || {Desc,K} <- Menu, K =:= Key],
     wings_io:text_at(X+5, Y, Val),
@@ -899,7 +907,9 @@ popup_event(_, _) -> keep.
 popup_redraw(#popup{sel=Sel,orig_sel=OrigSel,menu=Menu}) ->
     wings_io:ortho_setup(),
     {_,_,W,H} = wings_wm:viewport(),
-    wings_io:border(0, 0, W-1, H-1, ?MENU_COLOR),
+    blend(fun(Col) ->
+		  wings_io:border(0, 0, W-1, H-1, Col)
+	  end),
     gl:color3f(0, 0, 0),
     X = 3*?CHAR_WIDTH-1,
     Y = ?CHAR_HEIGHT+2,
@@ -948,7 +958,9 @@ button_fun() ->
 
 button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
     Y = Y0+?CHAR_HEIGHT+2,
-    wings_io:raised_rect(X, Y0+2, W, H-4, ?MENU_COLOR),
+    blend(fun(Col) ->
+		  wings_io:raised_rect(X, Y0+2, W, H-4, Col)
+	  end),
     TextX = X + (W-length(Label)*?CHAR_WIDTH) div 2,
     wings_io:text_at(TextX, Y, Label),
     if
@@ -1160,7 +1172,7 @@ get_colRange(v, Common) ->
     V1 = wings_color:hsv_to_rgb(H,S,1.0),
     [V0,V1];
 get_colRange(_E, _Common) ->
-    [?MENU_COLOR, ?MENU_COLOR].
+    [color(), color()].
 
 hue_color_slider(Hue,_,_,_,_,_,_) when Hue > (360-60) ->
     ok;
@@ -1179,17 +1191,17 @@ color_slider(h,X,W,Y,H,Common) ->
     gl:'begin'(?GL_QUADS),
     S = gb_trees:get(s, Common),
     V = gb_trees:get(v, Common),
-    gl:color3fv(wings_color:hsv_to_rgb(0,S,V)),
+    wings_io:set_color(wings_color:hsv_to_rgb(0, S, V)),
     hue_color_slider(0,S,V,X,W,Y,H),
     gl:'end'();
 color_slider(Peer,X,W,Y,H,Common) ->
     [SCol,ECol] = get_colRange(Peer, Common),
     gl:shadeModel(?GL_SMOOTH),
     gl:'begin'(?GL_QUADS),
-    gl:color3fv(SCol),
+    wings_io:set_color(SCol),
     gl:vertex2f(X+1,Y+H),
     gl:vertex2f(X+1,Y+1),
-    gl:color3fv(ECol),
+    wings_io:set_color(ECol),
     gl:vertex2f(X+1+W,Y+1),
     gl:vertex2f(X+1+W,Y+H),
     gl:'end'().
@@ -1198,12 +1210,16 @@ slider_redraw(#fi{x=X,y=Y0,w=W},
 	      #sl{min=Min,range=Range,peer=Peer,h=H},
 	      Common) ->
     Y = Y0+?LINE_HEIGHT div 2 + 2,
-    wings_io:sunken_rect(X, Y-(H div 2), W, H, ?MENU_COLOR),
+    blend(fun(Col) ->
+		  wings_io:sunken_rect(X, Y-(H div 2), W, H, Col)
+	  end),
     color_slider(Peer, X, W, Y-(H div 2), H, Common),
     Val = gb_trees:get(Peer, Common),
     Pos = trunc((Val-Min) / Range),
-    wings_io:raised_rect(X+Pos, Y-(?SL_BAR_H div 2),
-			 4, ?SL_BAR_H, ?MENU_COLOR).
+    blend(fun(Col) ->
+		  wings_io:raised_rect(X+Pos, Y-(?SL_BAR_H div 2),
+				       4, ?SL_BAR_H, Col)
+	  end).
 
 slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, Fi, Sl, Common) ->
     slider_move(Xb, Fi, Sl, Common);
@@ -1589,3 +1605,9 @@ dialog_unzip([{Lbl,F}|T], AccA, AccB) ->
     dialog_unzip(T, [{label,Lbl}|AccA], [F|AccB]);
 dialog_unzip([], AccA, AccB) ->
     {reverse(AccA),reverse(AccB)}.
+
+blend(Draw) ->
+    wings_io:blend(color(), Draw).
+
+color() ->
+    wings_pref:get_value(dialog_color).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.65 2003/01/20 07:36:55 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.66 2003/01/22 13:24:03 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -742,7 +742,7 @@ message_redraw(Msg, Right) ->
 	Right when length(Msg)+length(Right) < W div Cw - 5 ->
 	    L = length(Right),
 	    Pos = W-?CHAR_WIDTH*(L+5),
-	    wings_io:set_color(?MENU_COLOR),
+	    wings_io:set_color(wings_pref:get_value(menu_color)),
 	    gl:recti(Pos-?CHAR_WIDTH, -?LINE_HEIGHT+3,
 		     Pos+(L+1)*?CHAR_WIDTH, 3),
 	    gl:color3f(0, 0, 0),
@@ -813,7 +813,7 @@ draw_completions(F) ->
     gl:loadIdentity(),
     Margin = 10,
     gl:translatef(float(Margin), H / 6, 0),
-    wings_io:border(0, 0, W-2*Margin, 4*H div 6, ?MENU_COLOR),
+    wings_io:border(0, 0, W-2*Margin, 4*H div 6, wings_pref:get_value(menu_color)),
     gl:translatef(10.0, float(?LINE_HEIGHT), 0.0),
     Res = F(),
     gl:drawBuffer(?GL_BACK),
@@ -911,7 +911,7 @@ menubar_draw([{Desc,Name,_}|T], X, Sel) ->
 	Name =:= Sel ->
 	    {_,_,_,H} = viewport(),
 	    wings_io:border(X+2-?MENU_MARGIN, 0,
-			    W, H-2, ?MENU_COLOR);
+			    W, H-2, wings_pref:get_value(menu_color));
 	true -> ok
     end,
     gl:color3f(0, 0, 0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.76 2003/01/20 07:36:55 bjorng Exp $
+%%     $Id: wings.hrl,v 1.77 2003/01/22 13:24:03 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -44,7 +44,6 @@
 -define(UNDO_LEVELS, 32).
 -define(HIT_BUF_SIZE, (1024*1024)).
 
--define(MENU_COLOR, {0.75,0.75,0.75}).
 -define(PANE_COLOR, {0.52,0.52,0.52}).
 -define(BEVEL_HIGHLIGHT, {0.9,0.9,0.9}).
 -define(BEVEL_LOWLIGHT, {0.3,0.3,0.3}).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.78 2003/01/20 20:47:18 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.79 2003/01/22 13:24:03 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -154,7 +154,10 @@ menu_killer(#mousebutton{button=1,state=?SDL_PRESSED}) ->
 menu_killer(_) -> keep.
     
 menu_show(#mi{ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
-    wings_io:border(0, 0, Mw-1, Mh + 2*Margin+3, ?MENU_COLOR),
+    wings_io:blend(wings_pref:get_value(menu_color),
+		   fun(Color) ->
+			   wings_io:border(0, 0, Mw-1, Mh + 2*Margin+3, Color)
+		   end),
     menu_draw(3*?CHAR_WIDTH, Margin+?CHAR_HEIGHT,
 	      Shortcut, Mw, 1, Mi#mi.hs, Mi).
 
@@ -641,9 +644,12 @@ help_text_1([]=S, _) -> S.
 draw_right(X, Y, Ps) ->
     case have_option_box(Ps) of
 	true ->
-	    wings_io:sunken_rect(X, Y-3,
-				 ?CHAR_WIDTH, ?CHAR_WIDTH,
-				 ?MENU_COLOR);
+	    Draw = fun(Color) ->
+			   wings_io:sunken_rect(X, Y-3,
+						?CHAR_WIDTH, ?CHAR_WIDTH,
+						Color)
+		   end,
+	    wings_io:blend(wings_pref:get_value(menu_color), Draw);
 	false -> draw_right_1(X, Y, Ps)
     end.
 

@@ -3,12 +3,12 @@
 %%
 %%     Preference management.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.67 2003/01/05 09:44:18 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.68 2003/01/22 13:24:03 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -90,17 +90,28 @@ command(prefs, _St) ->
 	   [{label,"Color"},{color,grid_color},
 	    {"Force Axis-Aligned Grid",force_show_along_grid}],
 	   [{title,"Grid"}]},
-	  {vframe,
-	   [{hframe,
-	     [{"Vertices",vertex_hilite},
-	      {"Edges",edge_hilite},
-	      {"Faces",face_hilite},
-	      {"Objects",body_hilite}]},
-	    {hframe,
-	     [{label,"Unselected"},{color,unselected_hlite},
-	      {label,"Selected"},{color,selected_hlite}]},
-	    {"Smart Highlighting",smart_highlighting}],
-	   [{title,"Highlighting"}]},
+	  {hframe,[{vframe,
+		    [{hframe,
+		      [{"Vertices",vertex_hilite},
+		       {"Edges",edge_hilite},
+		       {"Faces",face_hilite},
+		       {"Objects",body_hilite}]},
+		     {hframe,
+		      [{label,"Unselected"},{color,unselected_hlite},
+		       {label,"Selected"},{color,selected_hlite}]},
+		     {"Smart Highlighting",smart_highlighting}],
+		    [{title,"Highlighting"}]},
+		   {hframe,[{vframe,[{label,"Menu Color"},{label,"Dialog Color"}]},
+			    {vframe,[{color,menu_color},{color,dialog_color}]}],
+
+
+
+% 		   {vframe,[{hframe,[{label,"Menu Color"},{color,menu_color}]},
+% 			    {hframe,[{label,"Dialog Color"},{color,dialog_color}]}],
+
+
+
+		    [{title,"UI Colors"}]}]},
 	  {hframe,
 	   [{vframe,
 	     [{label_column,
@@ -307,6 +318,9 @@ defaults() ->
      {active_vector_width,2.0},
      {active_vector_color,{0.0,0.0,0.65}},
      {smart_highlighting,false},
+
+     {menu_color,{0.75,0.75,0.75,1.0}},
+     {dialog_color,{0.75,0.75,0.75,1.0}},
 
      %% Compatibility preferences.
      {display_list_opt,true},
