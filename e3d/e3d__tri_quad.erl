@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.8 2003/08/17 12:42:56 bjorng Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.9 2003/09/11 10:42:18 dgud Exp $
 %%
 
 -module(e3d__tri_quad).
@@ -319,7 +319,7 @@ tryfinddiag(F, I, N, Hv, Vtab, Mode, Best, Bestdist) ->
     %% Second desperation pass (Mode == 2): allow crossing boundary poly
     V = element(I, F),
     {Best1,Bestdist1} =
-	case {mode, vless(Hv,V,Vtab)} of
+	case {Mode, vless(Hv,V,Vtab)} of
 	    {0, true} ->
 		{Best,Bestdist};
 	    _ ->
