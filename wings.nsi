@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings.nsi,v 1.5 2002/04/25 13:25:13 bjorng Exp $
+#     $Id: wings.nsi,v 1.6 2002/05/13 10:48:19 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -26,6 +26,40 @@ InstallDir "$PROGRAMFILES\wings3d"
 InstallDirRegKey HKLM "SOFTWARE\Wings 3D" ""
 DirShow show ; (make this hide to not let the user change it)
 DirText "Select the directory to install Wings 3D in:"
+
+; $9 = counter
+; $8 = DLL
+; $7 = ini
+Function .onInit
+  StrCpy $9 0
+  GetTempFileName $8
+  GetTempFileName $7
+  File /oname=$8 InstallOptions.dll
+  File /oname=$7 "otp.ini"
+FunctionEnd
+
+; cleanup on exit.
+Function .onInstSuccess
+Call Cleanup
+FunctionEnd
+
+Function .onInstFailed
+Call Cleanup
+FunctionEnd
+
+Function .onUserAbort
+Call Cleanup
+FunctionEnd
+
+Function Cleanup
+  Delete $8
+  Delete $7
+FunctionEnd
+
+Function RunDialog
+  Push $7
+  CallInstDLL $8 dialog
+FunctionEnd
 
 ;------------------------------------------------------------------------------
 ; GetErlangInstPath
@@ -120,15 +154,27 @@ get_start_menu_done:
 FunctionEnd
 
 Section "ThisNameIsIgnoredSoWhyBother?"
- Call GetErlangInstPath
-; Pop $0
-; MessageBox MB_OK "Erlang installed at: $0"
-; Call GetErlangOtpPath
- Pop $0
- StrCmp $0 "" 0 continue_1
+  Call GetErlangInstPath
+  Pop $0
+  StrCmp $0 "" 0 continue_1
 
-  MessageBox MB_OK|MB_ICONSTOP "Could not find Erlang/OTP."
-  Abort "Nothing done"
+  MessageBox MB_OK "Unable to automatically find install Erlang/OTP R8B."
+
+dialog:
+  call RunDialog
+  Pop $0
+  StrCmp $0 "cancel" "" nocancel
+    Call Cleanup
+    Quit
+
+  nocancel:
+
+  ReadINIStr $0 $7 "Field 2" State
+  IfFileExists $0\bin\werl.exe continue_1
+
+  MessageBox MB_OK "The chosen directory doesn't seem to contain an Erlang/OTP installation."
+
+  goto dialog
 
 continue_1:
   SetOutPath "$INSTDIR"
