@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.80 2002/11/30 08:58:17 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.81 2002/12/01 09:41:45 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,resize/0,
 	 icon_restriction/1,clear_icon_restriction/0,get_icon_restriction/0,
 	 arrow/0,hourglass/0,
-	 update/1,event/1,info/1,
+	 update/1,info/1,
 	 disable_progress/0,progress/1,progress_tick/0,
 	 border/5,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
@@ -152,8 +152,6 @@ maybe_show_mem_used() ->
 	    text_at(4, H-3, Mem);
 	false -> ok
     end.
-
-event(_) -> next.
 
 border(X0, Y0, Mw0, Mh0, FillColor) ->
     X = X0 + 0.5,
