@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.62 2003/01/13 17:26:47 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.63 2003/01/13 19:49:29 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -78,12 +78,17 @@ init() ->
     end,
     translation_change(),
     put(wm_windows, gb_trees:empty()),
-    new(desktop, {0,0,?Z_DESKTOP}, {0,0}, {push,fun(_) -> keep end}),
+    new(desktop, {0,0,?Z_DESKTOP}, {0,0}, {push,fun desktop_event/1}),
     new(message, {0,0,?Z_MESSAGE}, {0,0}, {push,fun message_event/1}),
     new(menubar, {0,0,?Z_MENUBAR}, {0,0}, init_menubar()),
     put(wm_main, geom),
     init_opengl(),
     resize_windows(W, H).
+
+desktop_event(#mousemotion{}) ->
+    message("", ""),
+    keep;
+desktop_event(_) -> keep.
 
 message(Message) ->
     wings_io:putback_event({wm,{message,get(wm_active),Message}}).
@@ -552,21 +557,25 @@ default_stack(Name) ->
 wm_event({message,Name,Msg}) ->
     case lookup_window_data(Name) of
 	none -> ok;
-	#win{stk=[#se{msg=Msg}|_]} -> ok;
-	#win{stk=[Top|Stk]}=Data0 ->
-	    Data = Data0#win{stk=[Top#se{msg=Msg}|Stk]},
+	#win{stk=[#se{msg=Msg}=Se|_]} ->
+	    check_message(Se);
+	#win{stk=[Top0|Stk]}=Data0 ->
+	    Top = Top0#se{msg=Msg},
+	    Data = Data0#win{stk=[Top|Stk]},
 	    put_window_data(Name, Data),
-	    wings_wm:dirty()
+	    check_message(Top)
     end;
 wm_event({message_right,Name,Right0}) ->
     Right = lists:flatten(Right0),
     case lookup_window_data(Name) of
 	none -> ok;
-	#win{stk=[#se{msg_right=Right}|_]} -> ok;
-	#win{stk=[Top|Stk]}=Data0 ->
-	    Data = Data0#win{stk=[Top#se{msg_right=Right}|Stk]},
+	#win{stk=[#se{msg_right=Right}=Se|_]} ->
+	    check_message(Se);
+	#win{stk=[Top0|Stk]}=Data0 ->
+	    Top = Top0#se{msg_right=Right},
+	    Data = Data0#win{stk=[Top|Stk]},
 	    put_window_data(Name, Data),
-	    wings_wm:dirty()
+	    check_message(Top)
     end;
 wm_event({menubar,Name,Menubar}) ->
     case lookup_window_data(Name) of
@@ -592,6 +601,12 @@ wm_event({callback,Cb}) ->
 wm_event(init_opengl) ->
     init_opengl().
 
+check_message(#se{msg=Msg,msg_right=MsgRight}) ->
+    case get_window_data(message) of
+	#win{stk=[#se{msg=Msg,msg_right=MsgRight}|_]} -> ok;
+	_ -> wings_wm:dirty()
+    end.
+    
 %%%
 %%% Finding the active window.
 %%%
@@ -709,10 +724,13 @@ message_event(redraw) ->
 			 (_) -> false
 		      end),
     case find_active(redraw) of
-	none -> message_redraw([], []);
-	Active ->
-	    #win{stk=[#se{msg=Msg,msg_right=Right}|_]} = get_window_data(Active),
-	    message_redraw(Msg, Right)
+ 	none -> message_redraw([], []);
+ 	Active ->
+ 	    #win{stk=[#se{msg=Msg,msg_right=Right}|_]} = get_window_data(Active),
+	    #win{stk=[Top|Stk]} = Data0 = get_window_data(message),
+	    Data = Data0#win{stk=[Top#se{msg=Msg,msg_right=Right}|Stk]},
+	    put_window_data(message, Data),
+ 	    message_redraw(Msg, Right)
     end;
 message_event({action,_}=Action) ->
     send(geom, Action);
@@ -751,8 +769,8 @@ draw_resizer(X, Y) ->
 
 message_setup() ->
     wings_io:ortho_setup(),
-    {W,H} = win_size(),
     wings_io:set_color(?PANE_COLOR),
+    {W,H} = win_size(),
     gl:recti(0, 0, W, H),
     gl:color3i(0, 0, 0),
     gl:translatef(10, H-5.5, 0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.2 2003/01/12 21:27:43 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.3 2003/01/13 19:49:31 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -128,6 +128,10 @@ ctrl_event(#mousemotion{state=?SDL_RELEASED},
 	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
     wings_wm:grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
+ctrl_event(#mousemotion{state=?SDL_RELEASED}, _) ->
+    {One,Two,Three} = wings_camera:button_names(),
+    wings_wm:message(["Drag ",One," Move  ",Two," Fit  ",Three," Show menu"]),
+    keep;
 ctrl_event(#mousebutton{}=Ev, _) ->
     case wings_menu:is_popup_event(Ev) of
 	{yes,X,Y,_} -> ctrl_menu(X, Y);
@@ -194,9 +198,13 @@ ctrl_constrain_move(Dx0, Dy0) ->
 ctrl_menu(X, Y) ->
     Menu = [{"Fit",
 	     {fit,
-	      [{"Both",both},
-	       {"Horizontal",horizontal},
-	       {"Vertical",vertical}]}}|ctrl_menu_toolbar()],
+	      [{"Both",both,
+		"Let window use all available space by expanding in all directions"},
+	       {"Horizontal",horizontal,
+		"Let window use all available space by expanding it horizontally"},
+	       {"Vertical",vertical,
+		"Let window use all available space by expanding it vertically"}
+	      ]}}|ctrl_menu_toolbar()],
     wings_menu:popup_menu(X, Y, titlebar, Menu).
 
 ctrl_menu_toolbar() ->
