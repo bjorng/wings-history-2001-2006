@@ -3,12 +3,12 @@
 %%
 %%     Starter of Wings 3D; might enable installed patches.
 %%
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_start.erl,v 1.4 2003/09/17 05:17:35 bjorng Exp $
+%%     $Id: wings_start.erl,v 1.5 2004/11/14 12:17:40 bjorng Exp $
 %%
 
 -module(wings_start).
@@ -48,7 +48,7 @@ get_patches() ->
 
 patch_name(Dir) ->
     case file:read_file(filename:join(Dir, "DESCRIPTION")) of
-	{ok,<<Str:20,_/binary>>} -> binary_to_list(Str);
+	{ok,<<Str:20/binary,_/binary>>} -> binary_to_list(Str);
 	{ok,Bin} -> binary_to_list(Bin);
 	_Other -> "Installed Patches"
     end.
