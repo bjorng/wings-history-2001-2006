@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.30 2001/12/10 18:39:58 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.31 2001/12/11 16:00:20 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -210,7 +210,9 @@ eye_point() ->
     M = e3d_mat:mul(M2, e3d_mat:translate(-PanX, -PanY, Dist)),
     e3d_mat:mul_point(M, {0.0,0.0,0.0}).
 
-aim(#st{sel=[]}=St) -> St;
+aim(#st{sel=[]}) ->
+    View = current(),
+    set_current(View#view{origo=e3d_vec:zero()});
 aim(St) ->
     Centers = wings_sel:centers(St),
     Origo0 = e3d_vec:average(Centers),
