@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.1 2001/11/06 10:22:36 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.2 2001/11/06 14:43:57 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -22,7 +22,7 @@
 init() ->
     ets:new(wings_state, [named_table]),
     ets:insert(wings_state, defaults()),
-    case locate("Preferences") of
+    case old_pref_file() of
 	none -> ok;
 	Pref ->
 	    case file:consult(Pref) of
@@ -38,7 +38,26 @@ finish() ->
     catch file:write_file(PrefFile, Str),
     ok.
 
+old_pref_file() ->
+    case os:type() of
+	{unix,_} ->
+	    Name = filename:join(os:getenv("HOME"), ".wings"),
+	    case filelib:is_file(Name) of
+		true -> Name;
+		false -> none
+	    end;
+	{win32,_} -> locate("Preferences")
+    end.
+
 new_pref_file() ->
+    case os:type() of
+	{unix,_} ->
+	    old_pref_file();
+	{win32,_} ->
+	    new_pref_file_win32()
+    end.
+
+new_pref_file_win32() ->
     case locate("Preferences") of
 	none ->
 	    case locate("vsn.mk") of
