@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.68 2005/02/20 05:34:30 bjorng Exp $
+%%     $Id: wpa.erl,v 1.69 2005/02/21 06:55:31 bjorng Exp $
 %%
 %% Note: To keep the call graph clean, wpa MUST NOT be called
 %%       from the wings core modules.
@@ -132,6 +132,7 @@ import_filename(Ps, Cont) ->
 %%  Recognized values for Property:
 %%       {subdivisions,Levels}
 %%       {tesselation,none|triangulation|quadrangulation}
+%%       {include_colors,Bool}
 %%       {include_uvs,Bool}
 %%       {include_hard_edges,Bool}
 
