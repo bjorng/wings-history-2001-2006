@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.67 2001/12/11 15:10:43 bjorng Exp $
+%%     $Id: wings.erl,v 1.68 2001/12/11 15:48:33 bjorng Exp $
 %%
 
 -module(wings).
@@ -781,12 +781,9 @@ scale() ->
 	       {"Radial Y (XZ)",radial_y},
 	       {"Radial Z (XY)",radial_z}}}}.
 
-set_select_mode(Mode, #st{drag=Drag}=St) when Drag =/= none ->
-    St;
-set_select_mode(deselect, St) ->
-    {save_state,model_changed(St#st{sel=[]})};
+set_select_mode(deselect, St) -> {save_state,St#st{sel=[]}};
 set_select_mode(Type, St) ->
-    {save_state,model_changed(wings_sel:convert_selection(Type, St))}.
+    {save_state,wings_sel:convert_selection(Type, St)}.
 
 info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
     Sh = gb_trees:get(Id, Shapes),

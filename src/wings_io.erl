@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.22 2001/12/11 15:10:44 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.23 2001/12/11 15:48:34 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -630,7 +630,6 @@ replace_top(Top, [_|Stk]) ->
 next_handler(Event, [_|[Next|_]=Stk]) ->
     handle_event(Next, Event, Stk).
 
-
 %%%
 %%% Cursors.
 %%%
@@ -647,7 +646,6 @@ build_cursor([C|T], Mask, Bits) ->
 build_cursor([], Mask0, Bits0) ->
     Bits = <<Bits0:1024>>,
     Mask = <<Mask0:1024>>,
-    io:format("~w ~w\n", [Bits,Mask]),
     sdl_mouse:createCursor(Bits, Mask, 32, 32, 0, 0).
 
 hourglass_data() ->

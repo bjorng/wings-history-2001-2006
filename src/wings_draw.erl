@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.36 2001/12/09 14:10:12 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.37 2001/12/11 15:48:34 bjorng Exp $
 %%
 
 -module(wings_draw).
--export([model_changed/1,render/1,ground_and_axes/0]).
+-export([model_changed/1,sel_changed/1,render/1,ground_and_axes/0]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -20,6 +20,9 @@
 -import(lists, [foreach/2,last/1,reverse/1]).
 
 model_changed(St) -> St#st{dl=none}.
+
+sel_changed(#st{dl=#dl{}=Dl}=St) -> St#st{dl=Dl#dl{old_sel=none,sel=none}};
+sel_changed(St) -> St.
 
 -define(DL_FACES, (?DL_DRAW_BASE)).
 -define(DL_EDGES, (?DL_DRAW_BASE+1)).
