@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.107 2003/03/01 13:32:51 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.108 2003/04/17 10:53:23 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -362,9 +362,11 @@ insert_vtx_data([V|Vs], Vtab, Acc) ->
     insert_vtx_data(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
 insert_vtx_data([], _, Acc) -> Acc.
 
-split_vs_dlist(DynVs0, {vertex,SelVs}, #we{vp=Vtab}) ->
-    DynVs = gb_sets:from_ordset(DynVs0),
-    UnselDyn = gb_sets:to_list(gb_sets:difference(DynVs, SelVs)),
+split_vs_dlist(DynVs0, {vertex,SelVs0}, #we{vp=Vtab}) ->
+    DynVs = sofs:from_external(DynVs0, [vertex]),
+    SelVs = sofs:from_external(gb_sets:to_list(SelVs0), [vertex]),
+    UnselDyn0 = sofs:difference(DynVs, SelVs),
+    UnselDyn = sofs:to_external(UnselDyn0),
     UnselDlist = gl:genLists(1),
     gl:newList(UnselDlist, ?GL_COMPILE),
     case wings_pref:get_value(vertex_size) of
@@ -373,12 +375,12 @@ split_vs_dlist(DynVs0, {vertex,SelVs}, #we{vp=Vtab}) ->
 	    gl:pointSize(PtSize),
 	    gl:color3f(0, 0, 0),
 	    gl:'begin'(?GL_POINTS),
-	    foreach(fun({V,Pos}) ->
-			    case gb_sets:is_member(V, DynVs) of
-				true -> ok;
-				false -> gl:vertex3fv(Pos)
-			    end
-		    end, gb_trees:to_list(Vtab)),
+	    List0 = sofs:from_external(gb_trees:to_list(Vtab), [{vertex,info}]),
+	    List1 = sofs:drestriction(List0, DynVs),
+	    List = sofs:to_external(List1),
+	    foreach(fun({_,Pos}) ->
+			    gl:vertex3fv(Pos)
+		    end, List),
 	    gl:'end'()
     end,
     gl:endList(),
