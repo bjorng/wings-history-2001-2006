@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.180 2004/06/14 11:47:15 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.181 2004/07/18 17:26:40 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -34,7 +34,7 @@
 
 
 
-%%-define(DEBUG_CATEGORIES, [tree,other]).
+%%-define(DEBUG_CATEGORIES, [temp]).
 -ifdef(DEBUG_CATEGORIES).
 -define(DEBUG, true).
 -endif.
@@ -259,8 +259,15 @@ ask_unzip([], Labels, Vals) ->
 %% {button,{text,Def,Flags}}                    -- Text field with a 
 %%                                                 Browse button
 %%    Flags = [Flag]
-%%    Flag = {props,DialogBoxProperties}|{dialog_type,DialogType}|RegularFlags
+%%    Flag = {props,DialogBoxProperties}|{dialog_type,DialogType}|
+%%           {drop_flags,DropFlags}|RegularFlags
 %%    DialogType = open_dialog|save_dialog
+%%    DropFlags = [{index,Index}|{key,Key}|{hook,Hook}]
+%%                %% Specifies field where any data dropped on the
+%%                %% button will be stored
+%%    Index = integer() relative field index to drop target
+%%    Key = drop target field key
+%%    Hook = drop target field hook
 %% 
 %% Regular fields (dialog tree leafs).
 %% Additional types:
@@ -275,6 +282,9 @@ ask_unzip([], Labels, Vals) ->
 %% panel					-- Blank filler, stretch 1
 %% {panel,RegularFlags}
 %% Does not return a value.
+%%
+%% {value,Value}				-- Invisible value holder
+%% {value,Value,RegularFalgs}
 %%
 %% {label,String}				-- Textual label
 %% Does not return a value.
@@ -1118,6 +1128,11 @@ mktree(panel, Sto, I) ->
 mktree({panel,Flags}, Sto, I) ->
     mktree_panel(Sto, I, Flags);
 %%
+mktree({value,Value}, Sto, I) ->
+    mktree_value(Value, Sto, I, []);
+mktree({value,Value,Flags}, Sto, I) ->
+    mktree_value(Value, Sto, I, Flags);
+%%
 mktree({eyepicker,Hook}, Sto, I) ->
     mktree_eyepicker(Sto, I, [{hook,Hook}]);
 %%
@@ -1145,20 +1160,15 @@ mktree({menu,Menu,Def}, Sto, I) ->
 mktree({menu,Menu,Def,Flags}, Sto, I) when is_list(Flags) ->
     mktree_menu(Menu, Def, Sto, I, Flags);
 %%
-mktree({button,{text,_,Flags}=Text}, Sto, I) ->
-    Ps = proplists:get_value(props, Flags),
-    ButtonFlags0 = case proplists:get_value(key, Flags, 0) of
-		       K when is_integer(K) -> [{key,K-1}|Flags];
-		       _ -> Flags
-		   end,
-    ButtonFlags1 = map(fun({key,K}) -> {text_key,K};
-			  (Other) -> Other
-		       end, ButtonFlags0),
-    TextKey = proplists:get_value(text_key, ButtonFlags1),
-    TextHook = proplists:get_value(hook, Flags, none),
-    ButtonFlags = [{hook,browse_hook_fun(Ps, TextKey, TextHook)}|ButtonFlags1],
-    Button = {button,"Browse",keep,ButtonFlags},
-    mktree({hframe,[Text,Button]}, Sto, I);
+mktree({button,{text,_Def,Flags}=TextField}, Sto, I) ->
+    mktree({hframe,[TextField,
+		    {button,"Browse",keep,
+		     [{hook,browse_hook_fun(-1, Flags)},
+		      {drop_flags,[{index,-1},
+				   {hook,drop_hook_fun(Flags)}
+				   |Flags]}
+		      |proplists:delete(key, Flags)]}]}, 
+	   Sto, I);
 mktree({button,Action}, Sto, I) when is_atom(Action) ->
     mktree_button(Action, Sto, I, []);
 mktree({button,Action,Flags}, Sto, I) when is_atom(Action), is_list(Flags) ->
@@ -2401,12 +2411,16 @@ button_event({key,_,_,$\s},
 	{store,Store} -> {Action,Store};
 	Result -> Result
     end;
-button_event({drop,{filename,Filename}}, [#fi{index=Index,flags=Flags}|_], Store) ->
-    case proplists:get_value(text_key, Flags, none) of
-	none ->
-	    keep;
-	TextKey ->
-	    {store,gb_trees:update(var(TextKey, Index), Filename, Store)}
+button_event({drop,DropData},[#fi{index=I,flags=Flags}|_], Store) ->
+    case proplists:lookup(drop_flags, Flags) of
+	none -> keep;
+	{drop_flags,DropFlags} ->
+	    DropHook = proplists:get_value(hook, DropFlags),
+	    DropKey = proplists:get_value(key, DropFlags, 0),
+	    {index,DropIndex} = proplists:lookup(index, DropFlags),
+	    DropVar = var(DropKey, DropIndex+I),
+	    hook(DropHook, update, 
+		 [DropVar,DropIndex+I,DropData,Store,DropFlags])
     end;
 button_event(_Ev, _Path, _Store) -> keep.
 
@@ -2431,11 +2445,27 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnabled) ->
     gl:color3b(0, 0, 0),
     keep.
 
-browse_hook_fun(Ps0, TextKey, TextHook) ->
-    fun(update, {_,I,_,Sto0}) ->
+drop_hook_fun(Flags) ->
+    Hook = proplists:get_value(hook, Flags),
+    fun (update, {Var,Index,{filename,Filename},Store}) ->
+	    hook(Hook, update, 
+		 [Var,Index,Filename,Store,Flags]);
+	(update, {_Var,_Index,_Val,_Store}) ->
+	    keep;
+	(_Op, _Args) when Hook =:= undefined ->
+	    void;
+	(Op, Args) ->
+	    Hook(Op, Args)
+    end.
+
+browse_hook_fun(Index, Flags) ->
+    Ps0 = proplists:get_value(props, Flags),
+    Hook = proplists:get_value(hook, Flags),
+    Key = proplists:get_value(key, Flags, 0),
+    fun(update, {_Var,I,_,Sto}) ->
 	    %% This ".junk" trick is to get Name and Dir right 
 	    %% even with empty filename.
-	    Name0 = gb_trees:get(var(TextKey, I), Sto0)++".junk",
+	    Name0 = gb_trees:get(var(Key, I+Index), Sto)++".junk",
 	    Dir = filename:dirname
 		    (filename:absname
 		     (Name0, wings_pref:get_value(current_directory))),
@@ -2445,7 +2475,7 @@ browse_hook_fun(Ps0, TextKey, TextHook) ->
 		    true -> Ps0;
 		    false -> [{directory,Dir}|Ps0]
 		end,
-	    Ps = 
+	    Ps =     
 		case proplists:is_defined(default_filename, Ps1) of
 		    true -> Ps1;
 		    false -> [{default_filename,Name}|Ps1]
@@ -2461,15 +2491,15 @@ browse_hook_fun(Ps0, TextKey, TextHook) ->
 	    %% This button always has the same disabled state
 	    %% as the associated text field.
 	    if
-		TextHook == none -> false;
-		true -> TextHook(is_disabled, {TextKey,I-1,Sto})
+		Hook == undefined -> false;
+		true -> Hook(is_disabled, {var(Key, I+Index),I+Index,Sto})
 	    end;
        (is_minimized, {_,I,Sto}) ->
 	    %% This button always has the same minimized state
 	    %% as the associated text field.
 	    if
-		TextHook == none -> false;
-		true -> TextHook(is_minimized, {TextKey,I-1,Sto})
+		Hook == undefined -> false;
+		true -> Hook(is_minimized, {var(Key, I+Index),I+Index,Sto})
 	    end;
        (_, _) -> void
     end.
@@ -2590,6 +2620,21 @@ mktree_panel(Sto, I, Flags) ->
 		     0, ?LINE_HEIGHT+2, I, Flags),
     mktree_priv(Fi, Sto, I, #panel{}).
 
+%%%
+%%% Value
+%%%
+
+-record(value, {}).
+
+mktree_value(Value, Sto, I, Flags) ->
+    Fi = #fi{key=Key} = 
+	mktree_leaf(fun value_event/3, disabled, undefined, 0, 0, I, Flags),
+    mktree_priv(Fi, gb_trees:enter(var(Key, I), Value, Sto), I, #value{}).
+
+value_event(value, [#fi{key=Key,index=I}|_], Store) ->
+    {value,gb_trees:get(var(Key, I), Store)};
+value_event(_ev, _Path, _Store) -> keep.
+    
 %%%
 %%% Eyepicker.
 %%%

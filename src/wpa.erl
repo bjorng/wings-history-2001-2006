@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.52 2004/07/04 06:29:09 bjorng Exp $
+%%     $Id: wpa.erl,v 1.53 2004/07/18 17:26:40 raimo_niskanen Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -26,7 +26,7 @@
 	 scene_pref_set/2,scene_pref_set_default/2,scene_pref_delete/2,
 	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,sel_strict_face_regions/2,
-	 drag/3,drag/4,
+	 drag/3,drag/4,drop/2,
 	 pick/3,
 	 vertices/1,vertex_pos/2,vertex_flatten/3,vertex_center/2,
 	 faces/1,face_vertices/2,face_outer_vertices/2,face_outer_edges/2,
@@ -410,7 +410,7 @@ pick(X, Y, St) ->
     wings_pick:do_pick(X, Y, St).
 
 %%%
-%%% Dragging support
+%%% Drag and drop support
 %%%
 
 drag(Tvs, Units, St) ->
@@ -418,6 +418,9 @@ drag(Tvs, Units, St) ->
 
 drag(Tvs, Units, Flags, St) ->
     wings_drag:setup(Tvs, Units, Flags, St).
+
+drop(WindowName, DropData) ->
+    wings_wm:send(WindowName, {drop,DropData}).
 
 %%%
 %%% Vertex functions.
