@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.86 2002/11/07 07:49:42 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.87 2002/11/17 16:22:13 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -176,7 +176,7 @@ read(St0) ->
     case new(St0) of
 	aborted -> St0;
 	St1 ->
-	    case wings_plugin:call_ui({file,open,wings_prop()}) of
+	    case wings_plugin:call_ui({file,open_dialog,wings_prop()}) of
 		aborted ->
 		    wings_material:init(St0),
 		    St0;
@@ -210,7 +210,7 @@ named_open(Name, St0) ->
     end.
 
 merge(St0) ->
-    case wings_plugin:call_ui({file,merge,wings_prop()}) of
+    case wings_plugin:call_ui({file,open_dialog,[{title,"Merge"}|wings_prop()]}) of
 	aborted -> St0;
 	Name ->
 	    File = use_autosave(Name),
@@ -241,11 +241,12 @@ save_1(#st{file=Name}=St) ->
 	    set_cwd(dirname(Name)),
 	    wings:caption(St#st{saved=true});
 	{error,Reason} ->
-	    wings_plugin:call_ui({failure,"Save failed: " ++ Reason})
+	    wings_util:error("Save failed: " ++ Reason),
+	    aborted
     end.
 
 save_as(St) ->
-    case output_file(save, wings_prop()) of
+    case output_file("Save", wings_prop()) of
 	false -> St;
 	aborted -> aborted;
 	Name ->
@@ -262,7 +263,7 @@ save_as(St) ->
 save_selected(#st{sel=[]}) ->
     wings_util:error("This command requires a selection.");
 save_selected(#st{shapes=Shs0,sel=Sel}=St0) ->
-    case output_file(save, wings_prop()) of
+    case output_file("Save", wings_prop()) of
 	aborted -> ok;
 	Name when is_list(Name) ->
 	    Shs = [Sh || {Id,_}=Sh <- gb_trees:to_list(Shs0),
@@ -398,16 +399,20 @@ revert(#st{file=File}=St0) ->
 %% Import.
 %%
 
-import_filename(Prop) ->
-    case wings_plugin:call_ui({file,import,Prop}) of
+get_import_filename(Ps0) ->
+    Ps = Ps0 ++ [{title,"Import"}],
+    wings_plugin:call_ui({file,open_dialog,Ps}).
+
+import_filename(Ps) ->
+    case get_import_filename(Ps) of
 	aborted -> aborted;
 	Name ->
 	    set_cwd(dirname(Name)),
 	    Name
     end.
 
-import(Prop, Importer, St0) ->
-    case wings_plugin:call_ui({file,import,Prop}) of
+import(Ps, Importer, St0) ->
+    case get_import_filename(Ps) of
 	aborted -> St0;
 	Name ->
 	    set_cwd(dirname(Name)),
@@ -422,8 +427,8 @@ import(Prop, Importer, St0) ->
     end.
 
 import_ndo(St0) ->
-    Prop = [{ext,".ndo"},{ext_desc,"Nendo File"}],
-    case wings_plugin:call_ui({file,import,Prop}) of
+    Ps = [{ext,".ndo"},{ext_desc,"Nendo File"}],
+    case get_import_filename(Ps) of
 	aborted -> St0;
 	Name ->
 	    case ?SLOW(wings_ff_ndo:import(Name, St0)) of
@@ -441,7 +446,7 @@ import_ndo(St0) ->
 %%
 
 export_filename(Prop, St) ->
-    case output_file(export, export_file_prop(Prop, St)) of
+    case output_file("Export", export_file_prop(Prop, St)) of
 	aborted -> aborted;
 	Name ->
 	    set_cwd(dirname(Name)),
@@ -454,7 +459,7 @@ export(Props0, Exporter, St) ->
 	none ->
 	    ?SLOW(do_export(Exporter, none, SubDivs, St));
 	Props ->
-	    case output_file(export, Props) of
+	    case output_file("Export", Props) of
 		aborted -> ok;
 		Name -> ?SLOW(do_export(Exporter, Name, SubDivs, St))
 	    end
@@ -462,7 +467,7 @@ export(Props0, Exporter, St) ->
 
 export_ndo(St) ->
     Prop = [{ext,".ndo"},{ext_desc,"Nendo File"}],
-    case output_file(export, export_file_prop(Prop, St)) of
+    case output_file("Export", export_file_prop(Prop, St)) of
 	aborted -> St;
 	Name -> wings_ff_ndo:export(Name, St)
     end.
@@ -470,7 +475,7 @@ export_ndo(St) ->
 export_xndo(St0) ->
     St = xndo_rewrite(St0),
     Prop = [{ext,".xndo"},{ext_desc,"ExtremeUV Nendo File"}],
-    case output_file(export, export_file_prop(Prop, St)) of
+    case output_file("Export", export_file_prop(Prop, St)) of
 	aborted -> St;
 	Name -> wings_ff_ndo:export(Name, St)
     end.
@@ -506,8 +511,8 @@ export_file_prop(Prop, #st{file=File}) ->
     Def = filename:rootname(filename:basename(File), ?WINGS) ++ Ext,
     [{default_filename,Def}|Prop].
 
-output_file(Tag, Prop) ->
-    case wings_plugin:call_ui({file,Tag,Prop}) of
+output_file(Title, Prop) ->
+    case wings_plugin:call_ui({file,save_dialog,[{title,Title}|Prop]}) of
 	aborted -> aborted;
 	Name ->
 	    set_cwd(dirname(Name)),

@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.47 2002/11/09 11:15:13 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.48 2002/11/17 16:22:13 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([error/1,share/1,share/3,make_vector/1,
 	 validate_mirror/1,rel2fam/1,
-	 message/1,message/2,yes_no/1,serious_yes_no/1,
+	 message/1,message/2,yes_no/1,
 	 get_matrices/2,mirror_matrix/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
 	 gb_trees_smallest_key/1,gb_trees_largest_key/1,
@@ -88,9 +88,6 @@ rel2fam(Rel) ->
 
 yes_no(Question) ->
     wings_plugin:call_ui({question,Question}).
-
-serious_yes_no(Question) ->
-    wings_plugin:call_ui({serious_question,Question}).
 
 stringify({Atom,Other}) when is_atom(Atom) ->
     cap(atom_to_list(Atom)) ++

@@ -11,7 +11,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: mac_wings_file_drv.c,v 1.10 2002/11/17 15:32:00 bjorng Exp $
+ *     $Id: mac_wings_file_drv.c,v 1.11 2002/11/17 16:22:11 bjorng Exp $
  */
 
 #include <stdio.h>
@@ -156,6 +156,7 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 	    filter += strlen(filter) + 1;
 	  }
 	  [oPanel setAllowsMultipleSelection:NO];
+	  [oPanel setTitle:title1];
 	  result = [oPanel runModalForDirectory:defdir1 file:nil types:fileTypes];
 	  if (result == NSOKButton) {
 	    NSString *aFile = [oPanel filename];
@@ -169,6 +170,7 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
 	  NSString* fileType = [NSString stringWithCString:filter];
 
 	  [sPanel setRequiredFileType:fileType];
+	  [sPanel setTitle:title1];
 	  result = [sPanel runModalForDirectory:defdir1 file:defname1];
 	  if (result == NSOKButton) {
 	    NSString *aFile = [sPanel filename];
