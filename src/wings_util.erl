@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.69 2003/04/23 17:49:05 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.70 2003/06/03 08:01:05 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -26,6 +26,7 @@
 	 nice_float/1,
 	 menu_restriction/2,
 	 unique_name/2,
+	 init_gl_extensions/0,is_gl_ext/1,
 	 geom_windows/0,
 	 tc/3,export_we/2,crash_log/2,validate/1,validate/3]).
 -export([check_error/2,dump_we/2]).
@@ -301,6 +302,18 @@ unique_name_2(Base, I, Names) ->
 	false -> Name
     end.
 
+%%%
+%%% OpenGL extensions.
+%%%
+init_gl_extensions() ->
+    ets:new(wings_gl_ext, [named_table,public,ordered_set]),
+    Exts0 = lists:sort(string:tokens(gl:getString(?GL_EXTENSIONS), " ")),
+    Exts = [{list_to_atom(E)} || E <- Exts0],
+    ets:insert(wings_gl_ext, Exts).
+
+is_gl_ext(Name) ->
+    ets:member(wings_gl_ext, Name).
+    
 %%
 %% Timing.
 %% 

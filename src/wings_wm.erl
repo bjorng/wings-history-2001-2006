@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.106 2003/05/27 17:20:30 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.107 2003/06/03 08:01:05 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -96,11 +96,11 @@ init() ->
     wings_pref:set_default(window_size, {780,570}),
     {W,H} = TopSize = wings_pref:get_value(window_size),
     put(wm_top_size, TopSize),
-    case get(wings_os_type) of
-	{unix,sunos} ->
-	    set_video_mode(W, H);			%Needed on Solaris/Sparc.
-	_ -> ok
-    end,
+
+    %% Make sure that this vide mode works. Otherwise crash early.
+    set_video_mode(W, H),
+    wings_util:init_gl_extensions(),
+
     translation_change(),
     put(wm_windows, gb_trees:empty()),
     new(desktop, {0,0,0}, {0,0}, {push,fun desktop_event/1}),
