@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.9 2003/09/14 18:27:04 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.10 2003/09/15 05:59:01 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -433,6 +433,7 @@ raw_pick(X0, Y0, #st{selmode=Mode,bb=#uvstate{geom={Vx,Vy,Vw,Vh}}}) ->
     draw(),
     case get_hits(HitBuf) of
 	none -> none;
+	[{Id,_}|_] when Mode == body -> {Mode,{Id,0}};
 	[Hit|_] -> {Mode,Hit}
     end.
 
