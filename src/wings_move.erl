@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.37 2002/05/16 07:11:28 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.38 2002/08/11 10:35:17 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -68,7 +68,7 @@ setup_we(face, Vec, Items, We) ->
 unit(Type) ->
     unit(Type, []).
 
-unit(free, T) -> [dx,dy|T];
+unit(free, T) -> [dx,dy,dz|T];
 unit(intrude, T) -> [{distance,{0.025,9.0E307}}|T];
 unit(_, T) -> [distance|T].
 
@@ -76,10 +76,9 @@ flags(free) -> [screen_relative];
 flags(_) -> [].
 
 move_away_fun(Tv) ->
-    fun([_Dx,R], Acc) -> move_away(R, Tv, Acc);
-       ([_Dx,_Dy,R], Acc) -> move_away(R, Tv, Acc);
-       (view_changed, _Acc) -> move_away_fun(Tv);
-       (new_falloff, _Falloff) -> move_away_fun(Tv)
+    fun(view_changed, _Acc) -> move_away_fun(Tv);
+       (new_falloff, _Falloff) -> move_away_fun(Tv);
+       (Ds, Acc) -> move_away(lists:last(Ds), Tv, Acc)
     end.
 
 move_away(R0, Tv, Acc) ->
@@ -297,11 +296,11 @@ smallest_angle([], _Na, Dot, N) -> {N,Dot}.
 %%
 
 translate_fun(free) ->
-    fun(Matrix0, [Dx,Dy]) ->
+    fun(Matrix0, [Dx,Dy,Dz]) ->
 	    #view{azimuth=Az,elevation=El} = wings_view:current(),
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
 	    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
-	    {Xt,Yt,Zt} = e3d_mat:mul_point(M1, {Dx,Dy,0.0}),
+	    {Xt,Yt,Zt} = e3d_mat:mul_point(M1, {Dx,Dy,Dz}),
 	    e3d_mat:translate(Xt, Yt, Zt)
     end;
 translate_fun({Xt0,Yt0,Zt0}) ->
@@ -355,11 +354,11 @@ magnet_move_fun(free, VsInf0, {_,R}=Magnet0) ->
 	    Magnet = {Type,R},
 	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
 	    magnet_move_fun(free, VsInf, Magnet);
-       ([Dx,Dy|_], Acc) ->
+       ([Dx,Dy,Dz|_], Acc) ->
 	    M = view_matrix(),
 	    foldl(
 	      fun({V,#vtx{pos={Px,Py,Pz}}=Vtx,_,Inf}, A) ->
-		      {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx*Inf,Dy*Inf,0.0}),
+		      {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx*Inf,Dy*Inf,Dz}),
 		      Pos = wings_util:share(Px+Xt, Py+Yt, Pz+Zt),
 		      [{V,Vtx#vtx{pos=Pos}}|A]
 	      end, Acc, VsInf0)
@@ -400,8 +399,8 @@ move_fun(VsPos, ViewMatrix) ->
 	    move_fun(VsPos, ViewMatrix);
        (view_changed, NewWe) ->
 	    move_fun(wings_util:update_vpos(VsPos, NewWe), view_matrix());
-       ([Dx,Dy|_], Acc) ->
-	    {Xt,Yt,Zt} = e3d_mat:mul_point(ViewMatrix, {Dx,Dy,0.0}),
+       ([Dx,Dy,Dz|_], Acc) ->
+	    {Xt,Yt,Zt} = e3d_mat:mul_point(ViewMatrix, {Dx,Dy,Dz}),
 	    foldl(fun({V,#vtx{pos={X,Y,Z}}=Rec}, A) -> 
 			  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
 			  [{V,Rec#vtx{pos=Pos}}|A]

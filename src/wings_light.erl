@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.5 2002/08/10 20:44:44 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.6 2002/08/11 10:35:17 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -82,6 +82,7 @@ color(St) ->
 
 color([H,I,S], #dlo{src_we=#we{light=L}=We0}=D, A) ->
     {R,G,B} = wings_color:hsi_to_rgb(H, S, I),
+    io:format("~p\n", [{R,G,B}]),
     Col = {R,G,B,A},
     We = We0#we{light=L#light{diffuse=Col}},
     update(D#dlo{work=none,src_we=We}).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.97 2002/08/10 20:44:44 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.98 2002/08/11 10:35:17 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -32,6 +32,7 @@
 	 zs=0,
 	 xt=0,                                  %Last warp length
 	 yt=0,
+	 mmb_count=0,
 	 unit,					%Unit that drag is done in.
 	 flags=[],				%Flags.
 	 falloff,				%Magnet falloff.
@@ -226,7 +227,7 @@ initial_motion(#drag{x=X0,y=Y0,flags=Flags,unit=Unit}=Drag) ->
     Ds = property_lists:get_value(initial, Flags, [0,0,0]),
     [X1,Y1,Z] = initial_motion_1(Unit, Ds),
     X = X0 + X1, Y = Y0 - Y1,
-    {#mousemotion{x=X,y=Y},Drag#drag{zs=Z}}.
+    {#mousemotion{x=X,y=Y,state=0},Drag#drag{zs=-Z}}.
 
 initial_motion_1([U|Us], [D|Ds]) ->
     P = case clean_unit(U) of
@@ -236,6 +237,7 @@ initial_motion_1([U|Us], [D|Ds]) ->
     [P|initial_motion_1(Us, Ds)];
 initial_motion_1([], [_|Ds]) ->
     [0.0|initial_motion_1([], Ds)];
+initial_motion_1([falloff], []) -> [];
 initial_motion_1([], []) -> [].
 
 drag_help(#drag{magnet=none,falloff=Falloff}) ->
@@ -255,6 +257,17 @@ get_drag_event_1(Drag) ->
 
 handle_drag_event(#keyboard{keysym=#keysym{sym=9}}, Drag) ->
     numeric_input(Drag);
+handle_drag_event(#mousebutton{button=2,state=?SDL_RELEASED},
+		  #drag{mmb_count=C}=Drag) when C > 0 ->
+    get_drag_event_1(Drag#drag{mmb_count=0});
+handle_drag_event(#mousebutton{button=3,state=?SDL_RELEASED}=Ev,
+		  #drag{mmb_count=C}=Drag) when C > 0 ->
+    case sdl_keyboard:getModState() of
+	Mod when Mod band ?CTRL_BITS =/= 0 ->
+	    get_drag_event_1(Drag#drag{mmb_count=0});
+	true ->
+	    handle_drag_event_0(Ev, Drag)
+    end;
 handle_drag_event(Event, Drag) ->
     case wings_camera:event(Event, fun() -> redraw(Drag) end) of
 	next -> handle_drag_event_0(Event, Drag);
@@ -278,12 +291,13 @@ handle_drag_event_0(Ev, Drag) -> handle_drag_event_1(Ev, Drag).
 handle_drag_event_1(redraw, Drag) ->
     redraw(Drag),
     get_drag_event_1(Drag);
-handle_drag_event_1(#mousemotion{x=X,y=Y}, Drag0) ->
-    {_,Drag} = motion(X, Y, Drag0),
+handle_drag_event_1(#mousemotion{}=Ev, Drag0) ->
+    {_,Drag} = motion(Ev, Drag0),
     get_drag_event(Drag);
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, Drag0) ->
     wings_io:ungrab(),
-    {Move,Drag} = ?SLOW(motion(X, Y, Drag0)),
+    Ev = #mousemotion{x=X,y=Y,state=0},
+    {Move,Drag} = ?SLOW(motion(Ev, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
     wings_io:putback_event(DragEnded),
@@ -325,7 +339,8 @@ invalidate_fun(#dlo{src_we=We}=D, _) -> D#dlo{src_we=We#we{es=none}}.
     
 numeric_input(Drag0) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
-    {Move0,Drag} = mouse_translate(X, Y, Drag0),
+    Ev = #mousemotion{x=X,y=Y,state=0},
+    {Move0,Drag} = mouse_translate(Ev, Drag0),
     wings_ask:ask(make_query(Move0, Drag),
 		  fun(Res) ->
 			  {numeric_input,make_move(Res, Drag)}
@@ -347,6 +362,7 @@ make_query_1([], []) -> [].
 qstr(distance) -> "Dx";
 qstr(dx) -> "Dx";
 qstr(dy) -> "Dy";
+qstr(dz) -> "Dz";
 qstr(falloff) -> "R";
 qstr(angle) -> "A";
 qstr(percent) -> "P";
@@ -396,36 +412,61 @@ update_tvs([F0|Fs], NewWe, Acc) ->
     update_tvs(Fs, NewWe, [F|Acc]);
 update_tvs([], _, Acc) -> reverse(Acc).
     
-motion(X, Y, Drag0) ->
-    {Move,Drag} = MoveDrag = mouse_translate(X, Y, Drag0),
+motion(Event, Drag0) ->
+    {Move,Drag} = MoveDrag = mouse_translate(Event, Drag0),
     motion_update(Move, Drag),
     MoveDrag.
 
-mouse_translate(X, Y, Drag0) ->
-    {Ds,Drag} = mouse_range(X, Y, Drag0),
-    Move = constrain(Ds, Drag),
+mouse_translate(Event0, Drag0) ->
+    CameraMode = wings_pref:get_value(camera_mode, blender),
+    Mod0 = sdl_keyboard:getModState(),
+    {Event,Mod} = mouse_pre_translate(CameraMode, Mod0, Event0),
+    {Ds,Drag} = mouse_range(Event, Drag0),
+    Move = constrain(Ds, Mod, Drag),
     {Move,Drag}.
 
-mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs0,ys=Ys0,zs=Zs0,xt=Xt0,yt=Yt0}=Drag) ->
+mouse_pre_translate(nendo, Mod, #mousemotion{state=Mask}=Ev) ->
+    if
+	Mask band ?SDL_BUTTON_RMASK =/= 0,
+	Mod band ?CTRL_BITS =/= 0 ->
+	    {Ev#mousemotion{state=?SDL_BUTTON_MMASK},Mod band (bnot ?CTRL_BITS)};
+	true -> {Ev,Mod}
+    end;
+mouse_pre_translate(blender, Mod, Ev) -> {Ev,Mod};
+mouse_pre_translate(_, Mod, Ev) -> {Ev,Mod}.
+
+mouse_range(#mousemotion{x=X0,y=Y0,state=Mask},
+	    #drag{x=OX,y=OY,xs=Xs0,ys=Ys0,zs=Zs0,
+		  xt=Xt0,yt=Yt0,mmb_count=Count0}=Drag) ->
     %%io:format("Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xs0,Ys0}]),
     XD0 = (X0 - OX),
     YD0 = (Y0 - OY),
     case {XD0,YD0} of
 	{0,0} ->
-	    {[Xs0/?MOUSE_DIVIDER,-Ys0/?MOUSE_DIVIDER,Zs0/?MOUSE_DIVIDER],
+	    {[Xs0/?MOUSE_DIVIDER,-Ys0/?MOUSE_DIVIDER,-Zs0/?MOUSE_DIVIDER],
 	     Drag#drag{xt=0,yt=0}};
 	_ ->
 	    XD = XD0 + Xt0,
 	    YD = YD0 + Yt0,
-	    Xs = Xs0 + XD,
-	    Ys = Ys0 + YD,
+	    if
+		Mask band ?SDL_BUTTON_MMASK =/= 0 ->
+		    Xs = Xs0,
+		    Ys = Ys0,
+		    Zs = Zs0 + YD,
+		    Count = Count0 + 1;
+		true ->
+		    Xs = Xs0 + XD,
+		    Ys = Ys0 + YD,
+		    Zs = Zs0,
+		    Count = Count0
+	    end,
 	    wings_io:warp(OX, OY),
-	    {[Xs/?MOUSE_DIVIDER,-Ys/?MOUSE_DIVIDER,Zs0/?MOUSE_DIVIDER],
-	     Drag#drag{xs=Xs,ys=Ys,xt=XD0,yt=YD0}}
+	    {[Xs/?MOUSE_DIVIDER,-Ys/?MOUSE_DIVIDER,-Zs/?MOUSE_DIVIDER],
+	     Drag#drag{xs=Xs,ys=Ys,zs=Zs,xt=XD0,yt=YD0,mmb_count=Count}}
     end.
 
-constrain(Ds0, #drag{unit=Unit}=Drag) ->
-    Ds = constrain_0(Unit, Ds0, sdl_keyboard:getModState(), []),
+constrain(Ds0, Mod, #drag{unit=Unit}=Drag) ->
+    Ds = constrain_0(Unit, Ds0, Mod, []),
     constrain_1(Unit, Ds, Drag).
 
 constrain_0([U0|Us], [D0|Ds], Mod, Acc) ->
@@ -438,7 +479,7 @@ constrain_0([U0|Us], [D0|Ds], Mod, Acc) ->
 constrain_0([_|_], [], _, Acc) -> reverse(Acc);
 constrain_0([], Ds, _, Acc) -> reverse(Acc, Ds).
 
-constrain_1([falloff], [_|_], #drag{falloff=Falloff}) ->
+constrain_1([falloff], _, #drag{falloff=Falloff}) ->
     [Falloff];
 constrain_1([U|Us], [D|Ds], Drag) ->
     [clamp(U, D)|constrain_1(Us, Ds, Drag)];
@@ -492,7 +533,8 @@ parameter_update(Key, Val, Drag0) ->
 				parameter_update_fun(D, Key, Val)
 			end, []),
     {_,X,Y} = sdl_mouse:getMouseState(),
-    {_,Drag} = motion(X, Y, Drag0),
+    Ev = #mousemotion{x=X,y=Y,state=0},
+    {_,Drag} = motion(Ev, Drag0),
     Drag.
 
 parameter_update_fun(#dlo{drag=#do{funs=Tv0}=Do}=D, Key, Val) ->
@@ -529,6 +571,8 @@ unit(dx, D) ->
     io_lib:format("DX: ~-10.2f", [D]);
 unit(dy, D) ->
     io_lib:format("DY: ~-10.2f", [D]);
+unit(dz, D) ->
+    io_lib:format("DZ: ~-10.2f", [D]);
 unit(percent, P) ->
     ["P: ",io_lib:format("~.2f%  ", [P*100.0])];
 unit(falloff, R) ->
