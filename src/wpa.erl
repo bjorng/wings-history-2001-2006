@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.33 2003/10/01 05:03:55 bjorng Exp $
+%%     $Id: wpa.erl,v 1.34 2003/12/29 09:57:15 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -95,12 +95,12 @@ import(Props, Importer, St) ->
 import_filename(Prop) ->
     wings_file:import_filename(Prop).
 
-%% The Continuation fun will be called like this
-%%
-%%     Continuation(aborted | {error,Message} | Filename)
-%%
-import_filename(Props, Continuation) ->
-    Continuation(wings_file:import_filename(Props)).
+%% import_filename([Prop], Continuation).
+%%   The Continuation fun will be called like this: Continuation(Filename).
+import_filename(Ps0, Cont) ->
+    Dir = wings_pref:get_value(current_directory),
+    Ps = Ps0 ++ [{title,"Import"},{directory,Dir}],
+    wings_plugin:call_ui({file,open_dialog,Ps,Cont}).
 
 export(Props, Exporter, St) ->
     wings_file:export(Props, Exporter, St),
