@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.179 2004/06/13 01:24:58 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.180 2004/06/14 11:47:15 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -2927,9 +2927,9 @@ integer_validator(Flags) ->
 	undefined -> {8,fun accept_all/1,fun all_chars/1};
 	{'-infinity',infinity} -> {8,fun accept_all/1,fun all_chars/1};
 	{Min,infinity} when is_integer(Min) ->
-	    {20,integer_range(Min, infinity),fun all_chars/1};
+	    {8,integer_range(Min, infinity),fun all_chars/1};
 	{'-infinity',Max} when is_integer(Max) ->
-	    {20,integer_range('-infinity', Max),fun all_chars/1};
+	    {8,integer_range('-infinity', Max),fun all_chars/1};
 	{Min,Max} when is_integer(Min), is_integer(Max), Min =< Max ->
 	    Digits = trunc(math:log(Max-Min+1)/math:log(10))+2,
 	    {Digits,integer_range(Min, Max),fun all_chars/1}
@@ -2940,9 +2940,9 @@ float_validator(Flags) ->
 	undefined -> {12,fun accept_all/1,fun all_chars/1};
 	{'-infinity',infinity} -> {12,fun accept_all/1,fun all_chars/1};
 	{Min,infinity} when is_float(Min) ->
-	    {20,float_range(Min, infinity),fun all_chars/1};
+	    {12,float_range(Min, infinity),fun all_chars/1};
 	{'-infinity',Max} when is_float(Max) ->
-	    {20,float_range('-infinity', Max),fun all_chars/1};
+	    {12,float_range('-infinity', Max),fun all_chars/1};
 	{Min,Max} when is_float(Min), is_float(Max), Min =< Max ->
 	    Digits = min(trunc(math:log(Max-Min+1)/math:log(10))+8, 20),
 	    {Digits,float_range(Min, Max),fun all_chars/1}
