@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.109 2004/11/13 04:39:26 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.110 2004/11/20 07:06:58 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -893,6 +893,13 @@ lift({Dir,vertex,VertexSel}, St) ->
 lift(Dir, St) ->
     wings:ask(lift_selection(Dir, St), St, fun lift/2).
 
+lift_setup_drag(Tvs, rotate, St) ->
+    wings_drag:setup(Tvs, [angle], St);
+lift_setup_drag(Tvs, free, St) ->
+    wings_drag:setup(Tvs, [dx,dy,dz], [screen_relative], St);
+lift_setup_drag(Tvs, _, St) ->
+    wings_drag:setup(Tvs, [distance], St).
+
 %%%
 %%% Lift from edge.
 %%%
@@ -905,12 +912,7 @@ lift_from_edge(Dir, EdgeSel, St0) ->
 	       (_, _, _) -> lift_sel_mismatch()
 	    end, {EdgeSel,[]}, St0),
     case Res of
-	{St,{[],Tvs}} when Dir == rotate ->
-	    wings_drag:setup(Tvs, [angle], St);
-	{St,{[],Tvs}} when Dir == free ->
-	    wings_drag:setup(Tvs, [dx,dy,falloff], [screen_relative], St);
-	{St,{[],Tvs}} ->
-	    wings_drag:setup(Tvs, [distance], St);
+	{St,{[],Tvs}} -> lift_setup_drag(Tvs, Dir, St);
 	{_,_} -> lift_sel_mismatch()
     end.
 
@@ -1001,12 +1003,7 @@ lift_from_vertex(Dir, VsSel, St0) ->
 	       (_, _, _) -> lift_vtx_sel_mismatch()
 	    end, {VsSel,[]}, St0),
     case Res of
-	{St,{[],Tvs}} when Dir == rotate ->
-	    wings_drag:setup(Tvs, [angle], St);
-	{St,{[],Tvs}} when Dir == free ->
-	    wings_drag:setup(Tvs, [dx,dy,falloff], [screen_relative], St);
-	{St,{[],Tvs}} ->
-	    wings_drag:setup(Tvs, [distance], St);
+	{St,{[],Tvs}} -> lift_setup_drag(Tvs, Dir, St);
 	{_,_} -> lift_vtx_sel_mismatch()
     end.
 
