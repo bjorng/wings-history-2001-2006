@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.40 2002/12/05 21:08:21 dgud Exp $
+%%     $Id: wings_ask.erl,v 1.41 2002/12/07 08:49:50 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -27,7 +27,7 @@
 
 -define(INITIAL_LEVEL, 100).
 
--import(lists, [reverse/1,reverse/2,duplicate/2]).
+-import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3]).
 
 -record(s,
 	{w,
@@ -855,10 +855,10 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 	    {R0,G0,B0} -> {R0,G0,B0,none};
 	    {R0,G0,B0,A0} -> {R0,G0,B0,A0}
 	end,
-    {H1,S1,V1} = rgb_to_hsv(R1,G1,B1),    
-    RGBRange = [{range, {0.0,1.0}}],
-    HRange   = [{range, {0, 360}}],
-    SIRange  = [{range, {0.0,1.0}}],
+    {H1,S1,V1} = rgb_to_hsv(R1, G1, B1),
+    RGBRange = [{range,{0.0,1.0}}],
+    HRange   = [{range,{0, 360}}],
+    SIRange  = [{range,{0.0,1.0}}],
     Draw = fun(X, Y, _W, _H, Common) ->
 		   Color = {gb_trees:get(r, Common),
 			    gb_trees:get(g, Common),
@@ -866,39 +866,44 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 		   wings_io:sunken_rect(X, Y, ?COL_PREVIEW_SZ,
 					?COL_PREVIEW_SZ-4, Color)
 	   end,
-    case A1 of 
-    	none ->
-	    {dialog,[{hframe,
-		      [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
-		       {label_column,
-			[{"R",{slider,{text,R1,[{key,r}|RGBRange]}}},
-			 {"G",{slider,{text,G1,[{key,g}|RGBRange]}}},
-			 {"B",{slider,{text,B1,[{key,b}|RGBRange]}}},
-			 {"H",{slider,{text,H1,[{key,h}|HRange]}}},
-			 {"S",{slider,{text,S1,[{key,s}|SIRange]}}},
-			 {"V",{slider,{text,V1,[{key,v}|SIRange]}}}
-			]}]}],
-	     fun([{r,R},{g,G},{b,B}| _]) ->
-		     Val = {R,G,B},
-		     {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
-	     end};
-     	_ ->
-	    {dialog,[{hframe,
-		      [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
-		       {label_column,
-			[{"R",{slider,{text,R1,[{key,r}|RGBRange]}}},
-			 {"G",{slider,{text,G1,[{key,g}|RGBRange]}}},
-			 {"B",{slider,{text,B1,[{key,b}|RGBRange]}}},
-			 {"A",{slider,{text,A1,[{key,a}|RGBRange]}}},
-			 {"H",{slider,{text,H1,[{key,h}|HRange]}}},
-			 {"S",{slider,{text,S1,[{key,s}|SIRange]}}},
-			 {"V",{slider,{text,V1,[{key,v}|SIRange]}}}
-			]}]}],
-	     fun([{r,R},{g,G},{b,B},{a,A}| _]) ->
-		     Val =  {R,G,B,A},
-		     {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
-	     end} 
-    end.
+    Aslider = case A1 of
+		  none -> [];
+		  _ ->
+		      [separator,
+		       {hframe,
+			[{hframe,[{label,"A"},{text,A1,[{key,a}|RGBRange]}]},
+			 {internal_slider,{text,A1,[{key,a}|RGBRange]}}]}]
+	      end,
+    {dialog,
+     [{hframe,
+       [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
+	{vframe,
+	 [{hframe,
+	   [{vframe,
+	     [{hframe,[{label,"R"},{text,R1,[{key,r}|RGBRange]}]},
+	      {hframe,[{label,"G"},{text,G1,[{key,g}|RGBRange]}]},
+	      {hframe,[{label,"B"},{text,B1,[{key,b}|RGBRange]}]}]},
+	    {vframe,
+	     [{internal_slider,{text,R1,[{key,r}|RGBRange]}},
+	      {internal_slider,{text,G1,[{key,g}|RGBRange]}},
+	      {internal_slider,{text,B1,[{key,b}|RGBRange]}}]}]},
+	  separator,
+	  {hframe,
+	   [{vframe,
+	     [{hframe,[{label,"H"},{text,H1,[{key,h}|HRange]}]},
+	      {hframe,[{label,"S"},{text,S1,[{key,s}|SIRange]}]},
+	      {hframe,[{label,"V"},{text,V1,[{key,v}|SIRange]}]}]},
+	    {vframe,
+	     [{internal_slider,{text,H1,[{key,h}|HRange]}},
+	      {internal_slider,{text,S1,[{key,s}|SIRange]}},
+	      {internal_slider,{text,V1,[{key,v}|SIRange]}}]}]}|Aslider]}]}],
+     fun([{r,R},{g,G},{b,B}|More]) ->
+	     Val = case keysearch(a, 1, More) of
+		       false -> {R,G,B};
+		       {value,{a,A}} -> {R,G,B,A}
+		   end,
+	     {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
+     end}.
 
 %%%
 %%% Custom field.
