@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.28 2002/03/21 06:43:32 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.29 2002/10/14 18:00:07 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -95,9 +95,9 @@ edges_to_vertices_1(Vec, Center, Magnet, Es, We, Acc) ->
 faces_to_vertices(Vec, center, none, Faces0, We, Acc) ->
     foldl(fun(Faces, A) ->
 		  faces_to_vertices_1(Vec, center, none, Faces, We, A)
-	  end, Acc, wings_sel:face_regions(Faces0, We));
+	  end, Acc, wings_sel:strict_face_regions(Faces0, We));
 faces_to_vertices(Vec, center, Magnet, Faces0, We, Acc) ->
-    case wings_sel:face_regions(Faces0, We) of
+    case wings_sel:strict_face_regions(Faces0, We) of
 	[Faces] ->
 	    faces_to_vertices_1(Vec, center, Magnet, Faces, We, Acc);
 	_Other ->
