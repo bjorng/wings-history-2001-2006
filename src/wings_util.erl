@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.86 2003/11/24 00:18:17 raimo_niskanen Exp $
+%%     $Id: wings_util.erl,v 1.87 2003/12/08 05:42:30 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -324,20 +324,25 @@ init_gl_extensions() ->
     Exts0 = lists:sort(string:tokens(gl:getString(?GL_EXTENSIONS), " ")),
     Exts = [{list_to_atom(E)} || E <- Exts0],
     ets:insert(wings_gl_ext, Exts),
-    [Major0, Minor0, Patch0|_] = string:tokens(gl:getString(?GL_VERSION), ". "),
-    Ver = case {catch list_to_integer(Major0),
-		catch list_to_integer(Minor0),
-		catch list_to_integer(Patch0)} of
-	      {{'EXIT',_}, _, _} ->
-		  {1,1,0};
-	      {_Major, {'EXIT',_}, _} ->
-		  {1,1,0};
-	      {Major, Minor, {'EXIT',_}} ->
-		  {Major,Minor,0}; 
-	      V ->
-		  V
+    Ver = case catch get_gl_version() of
+	      {_,_,_}=V -> V;
+	      _ -> {1,1,0}
 	  end,
-    ets:insert(wings_gl_ext, {version, Ver}).
+    ets:insert(wings_gl_ext, {version,Ver}).
+
+get_gl_version() ->
+    case string:tokens(gl:getString(?GL_VERSION), ". ") of
+	[Major0,Minor0] ->
+	    Patch = 0;
+	[Major0,Minor0,Patch0|_] ->
+	    case catch list_to_integer(Patch0) of
+		{'EXIT',_} -> Patch = 0;
+		Patch -> Patch
+	    end
+    end,
+    Major = list_to_integer(Major0),
+    Minor = list_to_integer(Minor0),
+    {Major,Minor,Patch}.
 
 is_gl_ext([]) -> true;
 is_gl_ext([Name|R]) ->

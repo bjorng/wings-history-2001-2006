@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.60 2003/12/06 08:34:36 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.61 2003/12/08 05:42:30 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -175,10 +175,12 @@ lights() ->
 
 opengl_info() ->
     gl:getError(),			%Clear any previous error.
+    [{_,VerTuple}] = ets:lookup(wings_gl_ext, version),
     Help = [
 	    "Vendor: " ++ gl:getString(?GL_VENDOR) ++ "\n" ++
 	    "Renderer: " ++ gl:getString(?GL_RENDERER) ++ "\n" ++
 	    "Version: " ++ gl:getString(?GL_VERSION),
+	    "Version tuple: " ++ lists:flatten(io_lib:format("~p\n", [VerTuple])),
 	    get_info([{"Red bits",?GL_RED_BITS},
 		      {"Green bits",?GL_GREEN_BITS},
 		      {"Blue bits",?GL_BLUE_BITS},
