@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.28 2003/09/12 12:40:42 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.29 2003/09/12 20:00:49 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -80,21 +80,21 @@ basic_scale_1([], _) -> [].
 %% Advanced menu Scale commands.
 
 adv_scale(#st{selmode=body}) ->
-    adv_scale_1([]);
-adv_scale(_) ->
-    adv_scale_1([magnet]).
+    adv_scale_1([], body);
+adv_scale(#st{selmode=Mode}) ->
+    adv_scale_1([magnet], Mode).
 
-adv_scale_1(Flags) ->
-    [{"Scale Uniform",{scale,fun uniform_scale/2},[],Flags},
+adv_scale_1(Flags, Mode) ->
+    [{"Scale Uniform",{scale,fun(B, Ns) -> uniform_scale(B, Ns, Mode) end},[],Flags},
      {"Scale Axis",{scale,fun(B, Ns) -> scale(B, Ns, []) end},[],Flags},
      {"Scale Radial",{scale,fun(B, Ns) -> scale(B, Ns, [radial]) end},[],Flags}].
 
-uniform_scale(help, _) ->
+uniform_scale(help, _, _) ->
      {"Scale uniformly from midpoint of selection",[],
       "Choose point to scale from"};
-uniform_scale(1, _Ns) -> {face,{scale,{uniform,center}}};
-uniform_scale(2, _Ns) -> ignore;
-uniform_scale(3, Ns) -> {vector,{pick,[point],[],Ns}}.
+uniform_scale(1, _Ns, Mode) -> {Mode,{scale,{uniform,center}}};
+uniform_scale(2, _Ns, _) -> ignore;
+uniform_scale(3, Ns, _) -> {vector,{pick,[point],[],Ns}}.
 
 scale(help, _, []) ->
     {"Scale along std. axis","Pick axis to scale along",
