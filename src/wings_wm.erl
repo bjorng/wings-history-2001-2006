@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.42 2002/12/30 16:59:07 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.43 2002/12/31 10:33:37 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -643,8 +643,6 @@ message_setup() ->
     wings_io:set_color(?PANE_COLOR),
     gl:recti(0, 0, W, H),
     wings_io:border(6, 0, W-20, H-2, ?PANE_COLOR),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
     gl:translatef(10, H-5, 0),
     {W,H}.
 
