@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.147 2002/07/12 07:40:53 bjorng Exp $
+%%     $Id: wings.erl,v 1.148 2002/07/20 10:32:58 bjorng Exp $
 %%
 
 -module(wings).
@@ -132,13 +132,13 @@ init(File, Root) ->
 	      repeatable=ignore,
 	      args=none
 	    },
-    St1 = wings_undo:init(St0),
+    St = wings_undo:init(St0),
     wings_view:init(),
     wings_file:init(),
     put(wings_hitbuf, sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)),
-    caption(St1),
-    St = open_file(File, St1),
+    caption(St),
     wings_wm:init(),
+    open_file(File),
     case catch wings_wm:top_window(main_loop(St)) of
 	{'EXIT',normal} ->
 	    wings_file:finish(),
@@ -150,16 +150,8 @@ init(File, Root) ->
 	    sdl:quit()
     end.
 
-open_file(none, St) -> St;
-open_file(Name, St0) ->
-    case ?SLOW(wings_ff_wings:import(Name, St0)) of
-	#st{}=St ->
-	    wings_pref:set_value(current_directory, filename:dirname(Name)),
-	    caption(St#st{saved=true,file=Name});
-	{error,Reason} ->
-	    wings_io:message("Read failed: " ++ Reason),
-	    St0
-    end.
+open_file(none) -> ok;
+open_file(Name) -> wings_io:putback_event({open_file,Name}).
 
 locate(Name) ->
     case filelib:is_file(Name) of
@@ -206,6 +198,14 @@ main_loop_noredraw(St) ->
 handle_event({crash,_}=Crash, St) ->
     LogName = wings_util:crash_log(Crash),
     get_crash_event(LogName, St);
+handle_event({open_file,Name}, St0) ->
+    case catch ?SLOW(wings_ff_wings:import(Name, St0)) of
+	#st{}=St ->
+	    wings_pref:set_value(current_directory, filename:dirname(Name)),
+	    main_loop(caption(St#st{saved=true,file=Name}));
+	{error,Reason} ->
+	    main_loop(St0)
+    end;
 handle_event(Event, St) ->
     case wings_io:event(Event) of
 	next -> handle_event_0(Event, St);
