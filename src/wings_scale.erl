@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.36 2002/03/21 06:43:32 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.37 2002/05/16 08:27:03 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -47,8 +47,14 @@ setup(Vec, Point, _Magnet, #st{selmode=body}=St) ->
     init_drag({matrix,Tvs}, none, St).
 
 init_drag(Tvs, Magnet, St) ->
-    wings_drag:setup(Tvs, [{percent,{-1.0,?HUGE}}|magnet_unit(Magnet)],
+    wings_drag:setup(Tvs, [scale_constraint()|magnet_unit(Magnet)],
 		     wings_magnet:flags(Magnet, []), St).
+
+scale_constraint() ->
+    case wings_pref:get_value(advanced_menus) of
+	false -> {percent,{-1.0,?HUGE}};
+	true -> percent
+    end.
 
 magnet_unit(none) -> [];
 magnet_unit(_) -> [falloff].
