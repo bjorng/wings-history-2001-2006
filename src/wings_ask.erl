@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.43 2002/12/09 14:17:45 dgud Exp $
+%%     $Id: wings_ask.erl,v 1.44 2002/12/11 19:49:58 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -858,9 +858,9 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 	    {R0,G0,B0,A0} -> {R0,G0,B0,A0}
 	end,
     {H1,S1,V1} = rgb_to_hsv(R1, G1, B1),
-    RGBRange = [{range,{0.0,1.0}}],
-    HRange   = [{range,{0, 360}}],
-    SIRange  = [{range,{0.0,1.0}}],
+    RGBRange = [{range,{0.0,1.0}},color],
+    HRange   = [{range,{0, 360}},color],
+    SIRange  = [{range,{0.0,1.0}},color],
     Draw = fun(X, Y, _W, _H, Common) ->
 		   Color = {gb_trees:get(r, Common),
 			    gb_trees:get(g, Common),
@@ -932,20 +932,24 @@ custom_fun() ->
 %%%
 
 -define(SL_LENGTH, 150).
--define(SL_H, 10).
--define(SL_BAR_H, (?LINE_HEIGHT-1)).
+-define(SL_BAR_H, (?LINE_HEIGHT-3)).
 
 -record(sl,
 	{min,
 	 range,
-	 peer
+	 peer,
+	 h					%Slider height.
 	}).
 
 slider(Field) ->
     Flags = element(size(Field), Field),
     {Min,Max} = proplists:get_value(range, Flags),
-    Key = proplists:get_value(key, Flags),    
-    Sl = #sl{min=Min,range=(Max-Min)/?SL_LENGTH,peer=Key},
+    Key = proplists:get_value(key, Flags),
+    H = case proplists:get_bool(color, Flags) of
+	    false -> 2;
+	    true -> 9
+	end,
+    Sl = #sl{min=Min,range=(Max-Min)/?SL_LENGTH,peer=Key,h=H},
     Fun = slider_fun(),
     {Fun,false,Sl,?SL_LENGTH+4,?LINE_HEIGHT+2}.
 
@@ -1019,18 +1023,15 @@ color_slider(Peer,X,W,Y,H,Common) ->
     gl:'end'().
 
 slider_redraw(#fi{x=X,y=Y0,w=W},
-	      #sl{min=Min,range=Range,peer=Peer}, 
+	      #sl{min=Min,range=Range,peer=Peer,h=H}, 
 	      Common) ->
     Y = Y0+?LINE_HEIGHT div 2 + 2,
-    wings_io:sunken_rect(X, Y-(?SL_H div 2), W, ?SL_H, ?MENU_COLOR),
-    color_slider(Peer,X,W,Y-(?SL_H div 2),?SL_H,Common),
+    wings_io:sunken_rect(X, Y-(H div 2), W, H, ?MENU_COLOR),
+    color_slider(Peer, X, W, Y-(H div 2), H, Common),
     Val = gb_trees:get(Peer, Common),
     Pos = trunc((Val-Min) / Range),
     wings_io:raised_rect(X+Pos, Y-(?SL_BAR_H div 2), 
 			 4, ?SL_BAR_H, ?MENU_COLOR).
-
-
-
 
 slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, Fi, Sl, Common) ->
     slider_move(Xb, Fi, Sl, Common);
