@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.63 2003/03/07 18:34:03 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.64 2003/03/08 17:36:14 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -133,9 +133,9 @@ mirror_matrix(#dlo{mirror=Matrix,src_we=#we{id=Id}}, Id) -> Matrix;
 mirror_matrix(_, Acc) -> Acc.
 
 mirror_flatten(_, #we{mirror=none}=We) -> We;
-mirror_flatten(OldWe, #we{mirror=Face,vp=Vtab0}=We) ->
-    PlaneNormal = wings_face:normal(Face, OldWe),
-    FaceVs = wings_face:to_vertices(gb_sets:singleton(Face), OldWe),
+mirror_flatten(#we{mirror=OldFace}=OldWe, #we{mirror=Face,vp=Vtab0}=We) ->
+    PlaneNormal = wings_face:normal(OldFace, OldWe),
+    FaceVs = wings_face:to_vertices(gb_sets:singleton(OldFace), OldWe),
     Origin = wings_vertex:center(FaceVs, OldWe),
     M0 = e3d_mat:translate(Origin),
     M = e3d_mat:mul(M0, e3d_mat:project_to_plane(PlaneNormal)),
