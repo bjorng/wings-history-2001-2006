@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.83 2003/03/12 06:27:09 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.84 2003/03/14 19:38:59 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -442,7 +442,7 @@ pick_event(#mousemotion{x=X,y=Y}, #pick{op=Op,st=St0}=Pick) ->
 	{_,_,_} -> keep
     end;
 pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{st=St}) ->
-    wings_wm:later({new_state_no_redraw,St}),
+    wings_wm:later({new_state,St}),
     pop;
 pick_event(_, _) -> keep.
 
