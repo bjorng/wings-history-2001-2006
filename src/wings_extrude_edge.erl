@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.22 2002/02/07 21:16:45 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.23 2002/02/14 17:47:58 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -365,13 +365,13 @@ new_vertex_pos(A, B, C, N, Vtab) ->
     VecA = e3d_vec:norm(e3d_vec:sub(APos, BPos)),
     VecB = e3d_vec:norm(e3d_vec:sub(CPos, BPos)),
     Vec = e3d_vec:norm(e3d_vec:add(VecA, VecB)),
-    case e3d_vec:len(Vec) of
-	Short when Short < 1.0E-6 ->
-	    %% A "winged vertex" - the edges have the same direction.
+    case e3d_vec:len(e3d_vec:cross(VecA, Vec)) of
+	Sin when Sin < 1.0E-3 ->
+	    %% The edges have the same direction.
+	    %% Simply move the vertices outwards at a right angle.
 	    e3d_vec:add(BPos, e3d_vec:mul(e3d_vec:cross(VecA, N),
 					  ?EXTRUDE_DIST));
-	Other ->
-	    Sin = e3d_vec:len(e3d_vec:cross(VecA, Vec)),
+	Sin ->
 	    e3d_vec:add(BPos, e3d_vec:mul(Vec, ?EXTRUDE_DIST/Sin))
     end.
 
