@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.55 2004/12/18 19:36:22 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.56 2004/12/29 09:58:22 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -691,7 +691,7 @@ material_edges(St) ->
 
 material_edges_fun(E, #we{es=Etab}=We) ->
     #edge{lf=Lf,rf=Rf} = gb_trees:get(E, Etab),
-    wings_material:get(Lf, We) =/= wings_material:get(Rf, We).
+    wings_facemat:face(Lf, We) =/= wings_facemat:face(Rf, We).
 
 %%
 %% Select all faces that have UV coordinates.

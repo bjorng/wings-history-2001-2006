@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.60 2004/12/23 16:12:51 bjorng Exp $
+%%     $Id: wpa.erl,v 1.61 2004/12/29 09:58:22 bjorng Exp $
 %%
 %% Note: To keep the call graph clean, wpa MUST NOT be called
 %%       from the wings core modules.
@@ -148,7 +148,7 @@ export_sel_set_holes(face, Faces0, #we{fs=Ftab}=We) ->
     Faces1 = gb_sets:to_list(Faces0),
     AllFaces = gb_trees:keys(Ftab),
     Faces = ordsets:subtract(AllFaces, Faces1),
-    wings_material:assign('_hole_', Faces, We).
+    wings_facemat:assign('_hole_', Faces, We).
 
 %% export_filename([Prop], Continuation).
 %%   The Continuation fun will be called like this: Continuation(Filename).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.13 2003/04/21 10:16:57 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.14 2004/12/29 09:58:21 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
@@ -28,7 +28,7 @@ faces(Faces, We) ->
     
 inner_extrude([Face|Faces], #we{next_id=AnEdge,fs=Ftab0,es=OrigEtab}=We0,
 	      EdgeAcc0) ->
-    Mat = wings_material:get(Face, We0),
+    Mat = wings_facemat:face(Face, We0),
     Ftab = gb_trees:update(Face, AnEdge, Ftab0),
     We1 = We0#we{fs=Ftab},
     Edges = inner_extrude_edges(Face, We0),
@@ -99,7 +99,7 @@ inner_extrude_1([{Edge,_}=CurEdge|Es], {PrevEdge,PrevRec}, Face,
     Vtab = gb_trees:insert(V, Pos, Vtab0),
 
     Ftab = gb_trees:insert(NewFace, NewFace, Ftab0),
-    We1 = wings_material:assign(Mat, [NewFace], We0),
+    We1 = wings_facemat:assign(Mat, [NewFace], We0),
     
     We = We1#we{fs=Ftab,es=Etab,vc=Vct,vp=Vtab},
     inner_extrude_1(Es, CurEdge, Face, Mat, Ids, OrigEtab, We, EdgeAcc);

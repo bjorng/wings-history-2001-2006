@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.49 2004/12/16 20:05:15 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.50 2004/12/29 09:58:22 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -492,8 +492,8 @@ force_connect(Vstart, Vend, Face, #we{es=Etab0,fs=Ftab0}=We0) ->
 
     Ftab1 = gb_trees:insert(NewFace, NewEdge, Ftab0),
     Ftab = gb_trees:update(Face, NewEdge, Ftab1),
-    Mat = wings_material:get(Face, We),
-    {wings_material:assign(Mat, [NewFace], We#we{es=Etab,fs=Ftab}),NewFace}.
+    Mat = wings_facemat:face(Face, We),
+    {wings_facemat:assign(Mat, [NewFace], We#we{es=Etab,fs=Ftab}),NewFace}.
 
 %% connect_1(Iter0, Vstart, NewEdge, NeRec0, Etab0) -> {Etab,NeRec,Iter}
 %%  Connect the edge immediately before Vstart.

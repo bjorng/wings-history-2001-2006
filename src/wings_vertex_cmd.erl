@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.49 2004/12/25 18:56:30 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.50 2004/12/29 09:58:22 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -219,14 +219,14 @@ bevel_vertex_1(V, Es, NumEdges, Adj, We0, Vec0) ->
     Mat = bevel_material(Es, We2),
     NewEdge = wings_we:id(1, Ids),
     Ftab = gb_trees:insert(InnerFace, NewEdge, Ftab0),
-    We = wings_material:assign(Mat, [InnerFace], We2),
+    We = wings_facemat:assign(Mat, [InnerFace], We2),
     {We#we{es=Etab,fs=Ftab,vc=Vct,vp=Vtab},Vec,InnerFace}.
 
 bevel_material(Es, We) ->
     bevel_material(Es, We, []).
 
 bevel_material([{_,Face,_}|Es], We, Acc) ->
-    Mat = wings_material:get(Face, We),
+    Mat = wings_facemat:face(Face, We),
     bevel_material(Es, We, [{Mat,Face}|Acc]);
 bevel_material([], _, A0) ->
     A1 = sofs:relation(A0, [{mat,face}]),

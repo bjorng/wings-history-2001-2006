@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.111 2004/12/26 08:11:12 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.112 2004/12/29 09:58:21 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -323,7 +323,7 @@ dissolve_edge_2(Edge, FaceRemove, FaceKeep,
 
     %% Remove the face. Patch the face entry for the remaining face.
     Ftab1 = gb_trees:delete(FaceRemove, Ftab0),
-    We1 = wings_material:delete_face(FaceRemove, We0),
+    We1 = wings_facemat:delete_face(FaceRemove, We0),
     Ftab = gb_trees:update(FaceKeep, LP, Ftab1),
 
     %% Return result.

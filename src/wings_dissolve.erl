@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dissolve.erl,v 1.5 2004/12/26 09:40:47 bjorng Exp $
+%%     $Id: wings_dissolve.erl,v 1.6 2004/12/29 09:58:21 bjorng Exp $
 %%
 
 -module(wings_dissolve).
@@ -55,8 +55,8 @@ optimistic_dissolve(Faces0, We0) ->
 simple_dissolve(Faces0, Loop, We0) ->
     Faces = to_gb_set(Faces0),
     OldFace = gb_sets:smallest(Faces),
-    Mat = wings_material:get(OldFace, We0),
-    We1 = wings_material:delete_faces(Faces, We0),
+    Mat = wings_facemat:face(OldFace, We0),
+    We1 = wings_facemat:delete_faces(Faces, We0),
     #we{es=Etab0,fs=Ftab0,he=Htab0} = We1,
     {Ftab1,Etab1,Htab} =
 	simple_del(Faces, Ftab0, Etab0, Htab0, We1),
@@ -65,7 +65,7 @@ simple_dissolve(Faces0, Loop, We0) ->
     Last = last(Loop),
     Etab = update_outer([Last|Loop], Loop, NewFace, Ftab, Etab1),
     We = We2#we{es=Etab,fs=Ftab,he=Htab},
-    wings_material:assign(Mat, [NewFace], We).
+    wings_facemat:assign(Mat, [NewFace], We).
 
 to_gb_set(List) when is_list(List) ->
     gb_sets:from_list(List);
@@ -124,8 +124,8 @@ simple_del_hard_1(Htab, undefined, Remove) ->
 
 complex_dissolve([Faces|T], We0) ->
     Face = gb_sets:smallest(Faces),
-    Mat = wings_material:get(Face, We0),
-    We1 = wings_material:delete_faces(Faces, We0),
+    Mat = wings_facemat:face(Face, We0),
+    We1 = wings_facemat:delete_faces(Faces, We0),
     Parts = outer_edge_partition(Faces, We1),
     We2 = do_dissolve(Faces, Parts, Mat, We0, We1),
     NewFaces = wings_we:new_items_as_ordset(face, We0, We2),
@@ -149,7 +149,7 @@ do_dissolve_1([EdgeList|Ess], Mat, #we{es=Etab0,fs=Ftab0}=We0) ->
     Last = last(EdgeList),
     Etab = update_outer([Last|EdgeList], EdgeList, Face, Ftab, Etab0),
     We2 = We1#we{es=Etab,fs=Ftab},
-    We = wings_material:assign(Mat, [Face], We2),
+    We = wings_facemat:assign(Mat, [Face], We2),
     do_dissolve_1(Ess, Mat, We);
 do_dissolve_1([], _Mat, We) -> We.
 

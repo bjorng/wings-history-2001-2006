@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.22 2004/12/27 16:40:27 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.23 2004/12/29 09:58:21 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -162,7 +162,7 @@ rename_materials(NameMap, We) ->
 			       {value,Mat} -> [{Face,Mat}|A]
 			   end
 		   end, [], MatTab0),
-    wings_material:assign_materials(MatTab, We).
+    wings_facemat:assign(MatTab, We).
 
 %% If there are materials in the #e3d_file{} record, distribute
 %% them down to each object.

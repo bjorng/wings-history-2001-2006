@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.330 2004/12/24 12:24:40 bjorng Exp $
+%%     $Id: wings.erl,v 1.331 2004/12/29 09:58:21 bjorng Exp $
 %%
 
 -module(wings).
@@ -906,7 +906,7 @@ measure(Base, #st{selmode=face,sel=[{Id,Fs}],shapes=Shs}) ->
 	    We = gb_trees:get(Id, Shs),
  	    [Face] = gb_sets:to_list(Fs),
 	    {X,Y,Z} = wings_face:center(Face, We),
-	    Mat = wings_material:get(Face, We),
+	    Mat = wings_facemat:face(Face, We),
 	    [Base|io_lib:format(?__(4,". Midpt ~s ~s ~s.\nMaterial ~s"),
 				[wings_util:nice_float(X),
 				 wings_util:nice_float(Y),

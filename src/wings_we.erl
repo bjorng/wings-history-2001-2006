@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.90 2004/12/27 16:40:27 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.91 2004/12/29 09:58:22 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -233,13 +233,13 @@ build_rest(Type, Es, Fs, Vs, HardEdges) ->
 assign_materials([L|_], We) when is_list(L) -> We;
 assign_materials(Fs, We) ->
     MatFace = mat_face(Fs),
-    wings_material:assign_materials(MatFace, We).
+    wings_facemat:assign(MatFace, We).
 
 mat_face(Fs) ->
     mat_face(Fs, 0, []).
 
 mat_face([T|Ts], Face, Acc) ->
-    mat_face(Ts, Face+1, [{element(1, T),Face}|Acc]);
+    mat_face(Ts, Face+1, [{Face,element(1, T)}|Acc]);
 mat_face([], _, Acc) -> Acc.
 
 number_vertices([P|Ps], V, Acc) ->

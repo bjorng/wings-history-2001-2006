@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.59 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.60 2004/12/29 09:58:21 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -126,7 +126,7 @@ import_edge([], Rec) -> Rec.
 
 import_face_mat([F|Fs], NameMap, Face, Acc) ->
     Mat = import_face_mat_1(F, NameMap, default),
-    import_face_mat(Fs, NameMap, Face+1, [{Mat,Face}|Acc]);
+    import_face_mat(Fs, NameMap, Face+1, [{Face,Mat}|Acc]);
 import_face_mat([], _, _, Acc) -> reverse(Acc).
 
 import_face_mat_1([{material,Name}|T], NameMap, _) ->
@@ -303,7 +303,7 @@ share_list_2([{Vtab0,Etab0}|Ts], [#we{id=Id,mat=FaceMat}=We0|Wes], Acc) ->
     Vtab = gb_trees:from_orddict(Vtab0),
     Etab = gb_trees:from_orddict(Etab0),
     We1 = wings_we:rebuild(We0#we{vp=Vtab,es=Etab,mat=default}),
-    We = wings_material:assign_materials(FaceMat, We1),
+    We = wings_facemat:assign(FaceMat, We1),
     share_list_2(Ts, Wes, [{Id,We}|Acc]);
 share_list_2([], [], Wes) -> sort(Wes).
 

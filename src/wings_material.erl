@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.125 2004/12/27 16:40:27 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.126 2004/12/29 09:58:21 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -16,8 +16,8 @@
 	 mat_faces/2,add_materials/2,add_materials/3,
 	 update_materials/2,
 	 update_image/4,used_images/1,
-	 get/2,get_all/1,delete_face/2,delete_faces/2,
-	 assign/3,replace_materials/2,assign_materials/2,
+	 get_all/1,
+	 replace_materials/2,
 	 used_materials/1,
 	 apply_material/2,is_transparent/2,
 	 merge/1]).
@@ -208,11 +208,12 @@ select_material(Mat, St) ->
 
 set_material(Mat, #st{selmode=face}=St) ->
     wings_sel:map(fun(Faces, We) ->
-			  assign(Mat, Faces, We#we{mode=material})
+			  wings_facemat:assign(Mat, Faces, We#we{mode=material})
 		  end, St);
 set_material(Mat, #st{selmode=body}=St) ->
     wings_sel:map(fun(_, #we{fs=Ftab}=We) ->
-			  assign(Mat, gb_trees:keys(Ftab), We#we{mode=material})
+			  wings_facemat:assign(Mat, gb_trees:keys(Ftab),
+					       We#we{mode=material})
 		  end, St);
 set_material(_, St) -> St.
 
@@ -637,7 +638,7 @@ preview_mat(Key, Colors, Alpha) ->
 %%% Return color in texture for the given UV coordinates.
 
 color(Face, UV, We, #st{mat=Mtab}) ->
-    Name = get(Face, We),
+    Name = wings_facemat:face(Face, We),
     Props = gb_trees:get(Name, Mtab),
     Maps = prop_get(maps, Props),
     case prop_get(diffuse, Maps, none) of
@@ -700,53 +701,8 @@ mat_join([], _, Acc) -> Acc.
 get_all(#we{mat=Mat,fs=Ftab}) ->
     force_list(Mat, Ftab).
 
-get(_, #we{mat=Atom}) when is_atom(Atom) -> Atom;
-get(Face, #we{mat=Tab}) ->
-    {value,{_,Mat}} = keysearch(Face, 1, Tab),
-    Mat.
-
-delete_face(_, #we{mat=AtomMat}=We) when is_atom(AtomMat) -> We;
-delete_face(Face, #we{mat=MatTab0}=We) ->
-    MatTab = orddict:erase(Face, MatTab0),
-    We#we{mat=MatTab}.
-
-delete_faces(_, #we{mat=AtomMat}=We) when is_atom(AtomMat) -> We;
-delete_faces(Faces0, #we{mat=MatTab0}=We) when is_list(Faces0) ->
-    Faces = sofs:from_external(Faces0, [face]),
-    MatTab1 = sofs:from_external(MatTab0, [{face,mat}]),
-    MatTab2 = sofs:drestriction(MatTab1, Faces),
-    MatTab = sofs:to_external(MatTab2),
-    We#we{mat=MatTab};
-delete_faces(Faces, We) ->
-    delete_faces(gb_sets:to_list(Faces), We).
-
 replace_materials(FaceMat, We) ->
     We#we{mat=sort(FaceMat)}.
-    
-assign_materials([{M,F}|_]=MatFace, We) when is_atom(M), is_integer(F) ->
-    foldl(fun({Mat,Faces}, W) ->
-		  assign(Mat, Faces, W)
-	  end, We, wings_util:rel2fam(MatFace));
-assign_materials([{F,M}|_]=MatFace0, We) when is_integer(F), is_atom(M) ->
-    MatFace1 = sofs:relation(MatFace0),
-    MatFace2 = sofs:converse(MatFace1),
-    MatFace = sofs:to_external(MatFace2),
-    assign_materials(MatFace, We);
-assign_materials([], We) -> We.
-
-assign(Mat, _, #we{mat=Mat}=We) -> We;
-assign(Mat, Faces, #we{mat=Tab0,fs=Ftab}=We) when is_list(Faces) ->
-    case length(Faces) =:= gb_trees:size(Ftab) of
-	true ->
-	    We#we{mat=Mat};
-	false ->
-	    Tab = force_list(Tab0, Ftab),
-	    NewTab = sort(make_tab(Mat, Faces)),
-	    MatTab = mat_merge(NewTab, Tab, []),
-	    We#we{mat=MatTab}
-    end;
-assign(Mat, Faces, We) ->
-    assign(Mat, gb_sets:to_list(Faces), We).
 
 force_list(L, _) when is_list(L) -> L;
 force_list(M, Ftab) when is_atom(M) ->
@@ -754,17 +710,6 @@ force_list(M, Ftab) when is_atom(M) ->
 
 make_tab(M, List) ->
     foldl(fun(F, A) -> [{F,M}|A] end, [], List).
-
-mat_merge([{Fn,_}|_]=Fns, [{Fo,_}=Fold|Fos], Acc) when Fo < Fn ->
-    mat_merge(Fns, Fos, [Fold|Acc]);
-mat_merge([{Fn,_}=Fnew|Fns], [{Fo,_}|_]=Fos, Acc) when Fo > Fn ->
-    mat_merge(Fns, Fos, [Fnew|Acc]);
-mat_merge([Fnew|Fns], [_|Fos], Acc) -> % Equality
-    mat_merge(Fns, Fos, [Fnew|Acc]);
-mat_merge([], Fos, Acc) ->
-    reverse(Acc, Fos);
-mat_merge(Fns, [], Acc) ->
-    reverse(Acc, Fns).
 
 merge([{M,_}|T]=L) ->
     case all_same(T, M) of

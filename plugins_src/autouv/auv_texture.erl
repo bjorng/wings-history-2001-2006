@@ -1,14 +1,15 @@
-%% File    : auv_texture.erl
-%% Author  : Dan Gudmundsson <dgud@erix.ericsson.se>
-%% Description : Renders and capture a texture
 %%
-%% Created : 24 Jan 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
-%%-------------------------------------------------------------------
+%%  auv_texture.erl --
+%%
+%%     Render and capture a texture.
+%%
 %%  Copyright (c) 2002-2004 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_texture.erl,v 1.8 2004/10/20 12:39:41 dgud Exp $
+%%
+%%     $Id: auv_texture.erl,v 1.9 2004/12/29 09:58:18 bjorng Exp $
+%%
 
 -module(auv_texture).
 -export([get_texture/1, get_texture/2, draw_options/0]).
@@ -219,7 +220,7 @@ draw_area(We,#opt{color=ColorMode,edges=EdgeMode}=Options, Materials) ->
 			gl:translatef(0,0,-0.5),
 			fun({Edge,Face}) ->
 				#edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-				gl:color4fv(wpc_autouv:get_material(Face,Materials,We)),
+				gl:color4fv(get_diffuse(Face, Materials, We)),
 				gl:vertex3fv(wings_vertex:pos(Va, Vtab)),
 				gl:vertex3fv(wings_vertex:pos(Vb, Vtab))
 			end;
@@ -259,10 +260,10 @@ draw_area(We,#opt{color=ColorMode,edges=EdgeMode}=Options, Materials) ->
     if
 	ColorMode == true ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-	    MatName = wings_material:get(hd(Fs), We),
+	    MatName = wings_facemat:face(hd(Fs), We),
 	    wings_material:apply_material(MatName, Materials),
 	    lists:foreach(fun(Face) ->
-				  gl:color4fv(wpc_autouv:get_material(Face, Materials, We)),
+				  gl:color4fv(get_diffuse(Face, Materials, We)),
 				  draw_faces([Face], We)
 			  end, Fs),
 	    case wpc_autouv:has_texture(MatName, Materials) of
@@ -298,6 +299,11 @@ draw_faces(Fs, We) ->
 
 fix(none) -> {1.0,1.0,1.0};
 fix(C) -> C.
+
+get_diffuse(Face, Materials, We) ->
+    MatName = wings_facemat:face(Face, We),
+    Mat = gb_trees:get(MatName, Materials),
+    proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
    
 %% XXX Wrong.
 face(Face, #we{mode=material,fs=Ftab}=We) ->

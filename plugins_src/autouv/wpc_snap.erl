@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_snap.erl,v 1.7 2004/12/18 19:36:02 bjorng Exp $
+%%     $Id: wpc_snap.erl,v 1.8 2004/12/29 09:58:18 bjorng Exp $
 
 -module(wpc_snap).
 
@@ -282,13 +282,13 @@ set_materials(Image,St0) ->
 			  continue
 		  end,
 		  Set = fun(Face,_,_,_,{We1,NMats0}) ->
-				FaceM = wings_material:get(Face,We0),
+				FaceM = wings_facemat:face(Face, We0),
 				case lists:keysearch(FaceM,1,element(1,NMats0)) of
 				    false ->
 					{MatName,NMats} = dup_mat(FaceM, NMats0,Image),
-					{wings_material:assign(MatName,[Face],We1),NMats};
+					{wings_facemat:assign(MatName,[Face],We1),NMats};
 				    {value, {_Old,MatName}}->
-					{wings_material:assign(MatName,[Face],We1),NMats0}
+					{wings_facemat:assign(MatName,[Face],We1),NMats0}
 				end
 			end,
 		  wings_face:fold_faces(Set, {We0,NewMats0}, Items, We0)

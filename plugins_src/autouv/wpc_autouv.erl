@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.285 2004/12/27 16:40:21 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.286 2004/12/29 09:58:18 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -27,7 +27,7 @@
 		member/2,foreach/2,keysearch/3]).
 
 %% Exports to auv_texture.
--export([get_material/3,has_texture/2]).
+-export([has_texture/2]).
 
 %% Exports to auv_seg_ui.
 -export([init_show_maps/3]).
@@ -295,7 +295,7 @@ update_uvs_3(V, Face, UV, Etab, We) ->
 
 insert_material(Cs, MatName, We) ->
     Faces = lists:append([wings_we:visible(W) || W <- gb_trees:values(Cs)]),
-    wings_material:assign(MatName, Faces, We).
+    wings_facemat:assign(MatName, Faces, We).
 
 
 %%%%% Material handling
@@ -309,11 +309,6 @@ has_texture(MatName, Materials) ->
 	    Maps = proplists:get_value(maps, Mat, []),
 	    none /= proplists:get_value(diffuse, Maps, none)
     end.
-
-get_material(Face, Materials, We) ->
-    MatName = wings_material:get(Face, We),
-    Mat = gb_trees:get(MatName, Materials),
-    proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
 add_material(#e3d_image{}=Tx, Name, none, St0) ->
     MatName0 = list_to_atom(Name++"_auv"),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.75 2004/12/19 14:03:00 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.76 2004/12/29 09:58:21 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -294,8 +294,8 @@ cleanup_rep_2(Face, V0, #we{es=Etab,fs=Ftab0}=We0) ->
 	   end, [], V0, We0),
     Ves = wings_face:fold(fun(V, E, _, A) -> [{V,E}|A] end, [], Face, hd(Es), We0),
     Ftab = gb_trees:delete(Face, Ftab0),
-    Mat = wings_material:get(Face, We0),
-    We1 = wings_material:delete_face(Face, We0),
+    Mat = wings_facemat:face(Face, We0),
+    We1 = wings_facemat:delete_face(Face, We0),
     cleanup_rep_3(Ves, V0, Face, Mat, Ftab, Etab, We1).
 
 cleanup_rep_3([], _, _, _, Ftab, Etab, We) ->
@@ -303,7 +303,7 @@ cleanup_rep_3([], _, _, _, Ftab, Etab, We) ->
 cleanup_rep_3(Ves0, V, Face, Mat, Ftab0, Etab0, We0) ->
     [{_,First}|_] = Ves0,
     {NewFace,We1} = wings_we:new_id(We0),
-    We = wings_material:assign(Mat, [NewFace], We1),
+    We = wings_facemat:assign(Mat, [NewFace], We1),
     Ftab = gb_trees:insert(NewFace, First, Ftab0),
     {Ves,Etab1} = cleanup_rep_4(Ves0, V, Face, NewFace, Etab0),
     [{_,Last}|NextVes] = Ves,
@@ -486,9 +486,6 @@ tighten(_, #we{vp=Vtab}=We, A) ->
 %%%
 %%% The Smooth command.
 %%%
-%%% The Catmull-Clark subdivision algorithm is used, with
-%%% Tony DeRose's extensions for creases.
-%%% 
 
 smooth(St) ->
     wings_sel:map(fun(_, We) ->
@@ -705,10 +702,10 @@ colors_to_materials_2([F|Fs], We, Acc, St0) ->
 	    colors_to_materials_2(Fs, We, Acc, St0);
 	Color ->
 	    {Name,St} = color_material(Color, St0),
-	    colors_to_materials_2(Fs, We, [{Name,F}|Acc], St)
+	    colors_to_materials_2(Fs, We, [{F,Name}|Acc], St)
     end;
 colors_to_materials_2([], We, FaceMat, St) ->
-    {wings_material:assign_materials(FaceMat, We),St}.
+    {wings_facemat:assign(FaceMat, We),St}.
 
 color_material({R,G,B}=Color, #st{mat=Mat0}=St0) ->
     Name0 = ?__(1,"color_")++ fmt_int(R) ++ "_" ++ fmt_int(G) ++
