@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.6 2001/11/08 14:01:09 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.7 2001/11/12 07:22:59 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -33,6 +33,7 @@ init() ->
     end.
 
 finish() ->
+    ets:delete(wings_state, neg_axes_intensity),
     PrefFile = new_pref_file(),
     List = ets:tab2list(wings_state),
     Str = [io_lib:format("~p. \n", [P]) || P <- List],
@@ -50,7 +51,15 @@ command(Key) ->
     Def = get_value(Key),
     wings_util:ask(true,
 		   [{Prompt,Def}],
-		   fun([Val]) -> set_value(Key, Val) end).
+		   fun([Val]) ->
+			   set_value(Key, Val),
+			   case Key of
+			       background_color ->
+				   {R,G,B} = Val,
+				   gl:clearColor(R, G, B, 1.0);
+			       Other -> ok
+			   end
+		   end).
 
 old_pref_file() ->
     case os:type() of
@@ -134,7 +143,12 @@ presets() ->
      {"Selection Color",selected_color,{0.65,0.0,0.0}},
      {"Hard Edge Color",hard_edge_color,{0.0,0.5,0.0}},
      separator,
-     {"Negative Axes Intensity",neg_axes_intensity,0.8},
+     {"+X Color",x_color,{1.0,0.0,0.0}},
+     {"+Y Color",y_color,{0.0,1.0,0.0}},
+     {"+Z Color",z_color,{0.0,0.0,1.0}},
+     {"-X Color",neg_x_color,{0.0,0.8,0.8}},
+     {"-Y Color",neg_y_color,{0.8,0.0,0.8}},
+     {"-Z Color",neg_z_color,{0.8,0.8,0.0}},
      separator,
      {"Vertex Size",vertex_size,4.0},
      {"Selected Vertex Size",selected_vertex_size,5.0},

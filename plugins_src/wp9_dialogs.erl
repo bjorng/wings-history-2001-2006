@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.3 2001/11/07 07:11:55 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.4 2001/11/12 07:22:59 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
 -export([menus/0,init/1]).
+-import(lists, [reverse/1]).
 
 menus() -> [].
 
@@ -48,7 +49,6 @@ ui({ask,Qs}, Next) ->
     ask(Qs);
 ui(What, Next) -> Next(What).
 
-
 ask([{Prompt,Default,Min,Max}|T]=T0) when is_integer(Default) ->
     case wings_getline:number(Prompt ++ ": ", Default) of
 	aborted -> aborted;
@@ -59,7 +59,7 @@ ask([{Prompt,Default,Min,Max}|T]=T0) when is_integer(Default) ->
 	    end
     end;
 ask([{Prompt,Def}|T]=T0) ->
-    Str0 = lists:flatten(io_lib:format("~p", [Def])),
+    Str0 = print_term(Def),
     case wings_getline:string(Prompt ++ ": ", Str0) of
 	aborted -> aborted;
 	Str ->
@@ -73,6 +73,27 @@ ask([{Prompt,Def}|T]=T0) ->
 	    end
     end;
 ask([]) -> [].
+
+print_term(Term) ->
+    lists:flatten(print_term_1(Term)).
+
+print_term_1(Tuple) when is_tuple(Tuple) ->
+    ["{",print_tuple(1, size(Tuple), Tuple),"}"];
+print_term_1(Float) when is_float(Float) ->
+    S0 = io_lib:format("~f", [Float]),
+    S = reverse(lists:flatten(S0)),
+    reverse(simplify_float(S));
+print_term_1(Term) ->
+    io_lib:format("~p", [Term]).
+
+print_tuple(I, I, T) ->
+    print_term_1(element(I, T));
+print_tuple(I, Sz, T) ->
+    [print_term_1(element(I, T)),$,|print_tuple(I+1, Sz, T)].
+
+simplify_float("0."++_=F) -> F;
+simplify_float("0"++F) -> simplify_float(F);
+simplify_float(F) -> F.
 
 make_term(Str) ->
     case erl_scan:string(Str) of

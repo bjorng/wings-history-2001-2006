@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.17 2001/11/09 07:08:01 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.18 2001/11/12 07:22:59 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -200,7 +200,7 @@ make_dlist(DlistId, Faces, DrawMembers, #st{shapes=Shapes0}=St) ->
     DlistId.
 
 make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], DrawMembers) ->
-    Draw = fun(F, Fs) -> DrawMembers =:= gb_sets:is_member(F, Fs) end,
+    Draw = fun(F, Fs0) -> DrawMembers =:= gb_sets:is_member(F, Fs0) end,
     mkdl_draw_faces(Shape, Faces, Draw),
     make_dlist_1(Shs, Fs, DrawMembers);
 make_dlist_1([{Id,Shape}|Shs], Fs, DrawMembers) ->
@@ -371,26 +371,26 @@ ground_and_axes(St) ->
     ?CHECK_ERROR(),
     case Axes of
 	true ->
-	    axis(1),
-	    axis(2),
-	    axis(3);
+	    axis(1, get_pref(x_color), get_pref(neg_x_color)),
+	    axis(2, get_pref(y_color), get_pref(neg_y_color)),
+	    axis(3, get_pref(z_color), get_pref(neg_z_color));
 	false -> ok
     end,
     ?CHECK_ERROR(),
     gl:popAttrib().
 
-axis(I) ->
+get_pref(Key) ->
+    wings_pref:get_value(Key).
+
+axis(I, Pos, Neg) ->
     A0 = {0.0,0.0,0.0},
     A = setelement(I, A0, 1000.0),
     B = setelement(I, A0, -1000.0),
-    C = setelement(I, A0, 1.0),
-    NI = wings_pref:get_value(neg_axes_intensity),
-    C2 = setelement(I, {NI,NI,NI}, 0.0),
     gl:'begin'(?GL_LINES),
-    gl:color3fv(C),
+    gl:color3fv(Pos),
     gl:vertex3fv(A0),
     gl:vertex3fv(A),
-    gl:color3fv(C2),
+    gl:color3fv(Neg),
     gl:vertex3fv(A0),
     gl:vertex3fv(B),
     gl:'end'().
