@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.290 2004/01/01 14:17:06 bjorng Exp $
+%%     $Id: wings.erl,v 1.291 2004/02/07 11:26:33 bjorng Exp $
 %%
 
 -module(wings).
@@ -122,6 +122,7 @@ init(File) ->
     wings_wm:init(),
     wings_file:init_autosave(),
     init_menubar(),
+    wings_pb:init(),
 
     Op = main_loop_noredraw(St),		%Replace crash handler
 						%with this handler.

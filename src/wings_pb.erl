@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.1 2004/02/06 14:44:04 dgud Exp $
+%%     $Id: wings_pb.erl,v 1.2 2004/02/07 11:26:33 bjorng Exp $
 %%
 
 -module(wings_pb).
@@ -89,27 +89,28 @@ t3() ->
     timer:sleep(5000), 
     wings_pb:stop().
 
-start(Msg) when list(Msg) ->
-    WSz = wings_wm:win_size(),
-    call({start, Msg, percent,WSz}).
-start(Msg, percent) when list(Msg) ->
-    WSz = wings_wm:win_size(),
-    call({start, Msg, percent,WSz});
-start(Msg, D = {time, _T}) when list(Msg) ->
-    WSz = wings_wm:win_size(),
-    call({start, Msg, D,WSz});
-start(Msg, D = {parts, _}) when list(Msg) ->
-    WSz = wings_wm:win_size(),
-    call({start, Msg, D, WSz}).
+start(Msg) when is_list(Msg) ->
+    start(Msg, percent).
+
+start(Msg, percent=D) when is_list(Msg) ->
+    start_1(Msg, D);
+start(Msg, {time,_T}=D) when is_list(Msg) ->
+    start_1(Msg, D);
+start(Msg, {parts,_}=D) when is_list(Msg) ->
+    start_1(Msg, D).
+
+start_1(Msg, Type) ->
+    WinInfo = wings_wm:viewport(message),
+    call({start,Msg,Type,WinInfo}).
 
 stop() ->
     call(stop).
 
 % Next part is completed or in percent mode change help-msg
-update(Msg) when list(Msg) -> 
+update(Msg) when is_list(Msg) -> 
     cast({update, Msg, undefined}).
 %% Time in percent or in completed part number
-update(Msg, Time) when list(Msg),  number(Time) -> 
+update(Msg, Time) when is_list(Msg),  is_number(Time) -> 
     cast({update, Msg, Time}).
 
 %% Helpers
@@ -145,9 +146,18 @@ reply(Pid, What) ->
 -define(REFRESH_T, 200).    % Nice enough animation 10 fps?
 -define(MAX_T, 20000).      % 20 sek is average completion time ?
 
--record(state, {refresh=infinity, activity=false, msg=[], 
-		pos=0.0, wpos, wpart=0, mparts, max=?MAX_T,
-		t0}).
+-record(state,
+	{refresh=infinity,
+	 activity=false,
+	 msg=[], 
+	 pos=0.0,
+	 wpos,
+	 wpart=0,
+	 mparts,
+	 max=?MAX_T,
+	 t0,
+	 stats=[]
+	}).
 
 %% Start progressbar process
 init() ->
@@ -157,17 +167,18 @@ init() ->
 
 loop(#state{refresh=After,activity=Active}=S0) ->
     receive 
-	{Pid, ?PB, {start, Msg, Data,{W,H}}} when Active == false ->
+	{Pid,?PB,{start,Msg,Data,{X,Y,W,H}}} when Active == false ->
 	    S = start_pb(Msg, Data),
-	    put(wm_viewport, {0,0,W,H}),
+	    put(wm_viewport, {X,Y,W-17,H}),
 	    wings_text:choose_font(),
 	    reply(Pid, ok),
 	    loop(draw_position(S));
-	{?PB, {update, Msg, Time}} ->
+	{?PB,{update,Msg,Time}} ->
 	    S1 = update(Msg, Time, S0),
 	    S = calc_position(S1),
 	    loop(draw_position(S));
-	{Pid, ?PB, stop} ->
+	{Pid,?PB,stop} ->
+	    print_stats(S0),
 	    draw_position(S0#state{pos=1.0}),
 	    reply(Pid, ok),
 	    loop(#state{});
@@ -186,10 +197,12 @@ start_pb(Msg, {time, Max}) ->
 start_pb(Msg, {parts, Max}) ->
     #state{refresh=?REFRESH_T, activity=parts, msg=Msg, mparts=Max, t0=erlang:now()}.
 
-update(Msg, Percent, S0=#state{activity=percent,t0=T0,max=Max0}) 
-  when Percent > 0.0, Percent < 1.0 ->
-    Max = estimated_endtime(Percent,T0,Max0),
-    S0#state{msg=Msg, wpos=Percent, max=Max};
+update(Msg, Percent, #state{activity=percent,t0=T0,max=Max0}=S0) 
+  when 0.0 < Percent, Percent < 1.0 ->
+    Now = now(),
+    S = update_stats(Now, Percent, S0),
+    Max = estimated_endtime(Now, Percent, T0, Max0),
+    S#state{msg=Msg, wpos=Percent, max=Max};
 update(Msg, Part, S0=#state{activity=parts,mparts=Mpart,t0=T0,max=Max0}) 
   when number(Part) ->
     Max = estimated_endtime(Part/Mpart,T0,Max0),
@@ -201,8 +214,11 @@ update(Msg, _, S0=#state{activity=parts,wpart=Old,mparts=Mpart,t0=T0,max=Max0}) 
 update(Msg, undefined, S0) ->
     S0#state{msg=Msg}.
 
-estimated_endtime(Percent,T0,OldMax) ->
-    Diff = (now_diff(erlang:now(), T0) div 1000),
+estimated_endtime(Percent, T0, OldMax) ->
+    estimated_endtime(now(), Percent, T0, OldMax).
+
+estimated_endtime(Now, Percent, T0, OldMax) ->
+    Diff = (now_diff(Now, T0) div 1000),
     EstimatedMax = Diff/Percent,
     if EstimatedMax > OldMax ->
 	    EstimatedMax;  % Grow Max fast 
@@ -210,8 +226,8 @@ estimated_endtime(Percent,T0,OldMax) ->
 	    OldMax - (OldMax-EstimatedMax)*0.75
     end.
 
-calc_position(S0 = #state{activity = percent, pos = Pos, max=Max, wpos=Wanted}) ->
-    DefSpeed = default_speed(Pos,Max),
+calc_position(#state{activity=percent,pos=Pos,max=Max,wpos=Wanted}=S0) ->
+    DefSpeed = default_speed(Pos, Max),
     if Wanted == undefined ->
 	    S0#state{pos = Pos+DefSpeed};
        Wanted > Pos -> 
@@ -237,6 +253,19 @@ calc_position(S0=#state{activity=parts,pos=Pos,max=Max,wpart=WP,mparts=MP}) ->
 	    NewPos = Speed+Pos,
 	    S0#state{pos = NewPos}
     end.
+
+update_stats(Now, Percent, #state{stats=Stats,t0=Time0}=S) ->
+    NowDiff = now_diff(Now, Time0),
+    S#state{stats=[{Percent,NowDiff}|Stats]}.
+    
+print_stats(#state{t0=Time0,stats=Stats0}) ->
+    Total = now_diff(now(), Time0),
+    Stats = lists:reverse(Stats0),
+    io:nl(),
+    lists:foreach(fun({Est,TimeDiff}) ->
+			  io:format("Est: ~p Real: ~p\n",
+				    [Est,TimeDiff/Total])
+		  end, Stats).
   
 %% Math 
 default_speed(Pos, Max) ->
@@ -249,22 +278,58 @@ default_speed(Pos, Max) ->
 now_diff({A2, B2, C2}, {A1, B1, C1}) ->
     ((A2-A1)*1000000 + B2-B1)*1000000 + C2-C1.
 
+
+
+
 %% Draw Progress Bar 
 
-draw_position(S = #state{activity=false}) -> S;
-draw_position(S = #state{msg=Msg, pos=Pos}) ->    
-    {W,_} = wings_wm:win_size(),
+draw_position(#state{activity=false}=S) -> S;
+draw_position(#state{msg=Msg,pos=Pos}=S) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    {X,Y,W,H} = get(wm_viewport),
+    gl:viewport(X, Y, W, H),
     gl:drawBuffer(?GL_FRONT),
-    wings_io:info(Msg),
-    gl:enable(?GL_BLEND),
-    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    gl:color4f(0.383,0.646,0.419, 0.61),    
-    gl:recti(4, 1, trunc((W-8)*Pos), 1*?LINE_HEIGHT-1),
-    gl:disable(?GL_BLEND),
+
+    wings_io:ortho_setup(),
+    wings_io:set_color(?PANE_COLOR),
+    gl:recti(0, 0, W, H),
+
+    BarLen = trunc((W-4)*Pos),
+    double_gradient(4, 2, BarLen, W, ?LINE_HEIGHT),
+    wings_io:set_color(wings_pref:get_value(info_color)),
+    wings_io:text_at(6, ?CHAR_HEIGHT, Msg),
+
     gl:finish(),
     gl:drawBuffer(?GL_BACK),
     gl:popAttrib(),
 
-    io:format("~p ~s: ~.3f ~w~n", [time(), Msg, Pos,S]),    
+    %%io:format("~p ~s: ~.3f ~w~n", [time(), Msg, Pos,S]),    
     S.
+
+double_gradient(X, Y, BarW, W, H) ->
+    gl:shadeModel(?GL_SMOOTH),
+    gl:'begin'(?GL_QUADS),
+
+    gl:color3f(1, 1, 1),
+    gl:vertex2f(X, Y),
+    gl:vertex2f(X+W, Y),
+    gl:vertex2f(X+W, Y+H),
+    gl:vertex2f(X, Y+H),
+
+    gl:color3f(0.5, 0.73, 1),
+    gl:vertex2f(X+BarW, Y+H div 2),
+    gl:vertex2f(X, Y+H div 2),
+
+    gl:color3f(0.66, 0.83, 1),
+    gl:vertex2f(X, Y),
+    gl:vertex2f(X+BarW, Y),
+
+    gl:color3f(0.62, 0.78, 1),
+    gl:vertex2f(X+BarW, Y+H),
+    gl:vertex2f(X, Y+H),
+
+    gl:color3f(0.5, 0.73, 1),
+    gl:vertex2f(X, Y+H div 2),
+    gl:vertex2f(X+BarW, Y+H div 2),
+    gl:'end'(),
+    gl:shadeModel(?GL_FLAT).
