@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.121 2004/12/16 15:42:05 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.122 2004/12/17 12:29:39 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -314,7 +314,6 @@ load_map(MapName, Dir) ->
 	    none
     end.
 
-load_map_1(none, _) -> none;
 load_map_1(File0, Dir) ->
     File = filename:absname(File0, Dir),
     Ps = [{filename,File},{order,lower_left},{alignment,1}],
