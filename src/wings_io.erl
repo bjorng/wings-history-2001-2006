@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.21 2001/12/10 18:39:58 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.22 2001/12/11 15:10:44 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,menubar/1,resize/2,display/1,
+	 slow/1,arrow/0,hourglass/0,
 	 draw_ui/1,
 	 update/1,button/2,
 	 info/1,message/1,clear_message/0,progress/2,
@@ -48,12 +49,35 @@
 	 icons=[],				%Position for Icons.
 	 tex=[],				%Textures.
 	 grab_count=0,				%Number of grabs.
+	 hourglass,				%Hourglass cursor.
+	 arrow,					%Arrow cursor.
 	 raw_icons				%Raw icon bundle.
 	}).
 
 init() ->
     Icons = read_icons(),
-    put_state(#io{eq=queue:new(),raw_icons=Icons}).
+    Arrow = build_cursor(arrow_data()),
+    Hourglass = build_cursor(hourglass_data()),
+    sdl_mouse:setCursor(Arrow),
+    put_state(#io{eq=queue:new(),raw_icons=Icons,
+		  arrow=Arrow,hourglass=Hourglass}).
+
+slow(F) ->
+    hourglass(),
+    R = (catch F()),
+    arrow(),
+    case R of
+	{'EXIT',Reason} -> exit(Reason);
+	Other -> Other
+    end.
+
+hourglass() ->
+    #io{hourglass=Hg} = get_state(),
+    sdl_mouse:setCursor(Hg).
+
+arrow() ->
+    #io{arrow=Arrow} = get_state(),
+    sdl_mouse:setCursor(Arrow).
 
 read_icons() ->
     Dir = filename:dirname(code:which(?MODULE)),
@@ -146,7 +170,7 @@ draw_completions(F) ->
     Res = F(),
     gl:popMatrix(),
     Res.
-    
+
 %% Internal.
 display(F, Buf) ->
     #io{w=W,h=H} = Io = get_state(),
@@ -173,7 +197,7 @@ maybe_show_mem_used(Info) ->
 	    {N,M} = if
 			Sz < 1024 ->
 			    {Sz,"bytes"};
-			Sz < 1024*1204 -> 
+			Sz < 1024*1204 ->
 			    {(Sz+512) div 1024,"Kb"};
 			true ->
 			    {(Sz+1024*512) div 1024 div 1024,"Mb"}
@@ -181,7 +205,7 @@ maybe_show_mem_used(Info) ->
 	    lists:concat(["[mem:",integer_to_list(N),M,"] ",Info]);
 	false -> Info
     end.
-	    
+
 draw_panes(#io{w=W,h=H,menubar=Bar,sel=Sel}=Io) ->
     raised_rect(-2, 0, W+2, ?LINE_HEIGHT+6),
     sunken_rect(6, H-2*?LINE_HEIGHT+5, W-10, 2*?LINE_HEIGHT-8),
@@ -232,7 +256,7 @@ icon_button(Name, Key, Val) ->
 	Val -> {Name,down};
 	_ -> {Name,up}
     end.
-	    
+
 button(X, Y) when Y > ?LINE_HEIGHT; X < ?MENU_MARGIN ->
     #io{h=H,icons=Icons} = get_state(),
     put_state((get_state())#io{sel=undefined}),
@@ -284,7 +308,7 @@ raised_rect(X, Y, Mw, Mh, FillColor) ->
 
 sunken_rect(X, Y, W, H) ->
     sunken_rect(X, Y, W, H, ?PANE_COLOR).
-   
+
 sunken_rect(X0, Y0, Mw0, Mh0, FillColor) ->
     X = X0 + 0.5,
     Y = Y0 + 0.5,
@@ -379,7 +403,7 @@ put_state(Io) ->
 
 draw_icon(X, Y, Icon) ->
     draw_icon(X, Y, ?ICON_WIDTH, ?ICON_HEIGHT, 64, 64, Icon).
-    
+
 draw_icon(X, Y, W, H, Icon) ->
     draw_icon(X, Y, W, H, W, H, Icon).
 
@@ -563,7 +587,7 @@ warp(X, Y) ->
 
 enter_event_loop(Init) ->
     handle_response(Init, system_dummy_event, []).
-    
+
 event_loop([Handler|_]=Stk) ->
     Event = get_event(),
     handle_event(Handler, Event, Stk);
@@ -605,3 +629,91 @@ replace_top(Top, [_|Stk]) ->
 
 next_handler(Event, [_|[Next|_]=Stk]) ->
     handle_event(Next, Event, Stk).
+
+
+%%%
+%%% Cursors.
+%%%
+
+build_cursor(Data) ->
+    build_cursor(Data, 0, 0).
+
+build_cursor([$\s|T], Mask, Bits) ->
+    build_cursor(T, Mask bsl 1, Bits bsl 1);
+build_cursor([$.|T], Mask, Bits) ->
+    build_cursor(T, (Mask bsl 1) bor 1, Bits bsl 1);
+build_cursor([C|T], Mask, Bits) ->
+    build_cursor(T, (Mask bsl 1) bor 1, (Bits bsl 1) bor 1);
+build_cursor([], Mask0, Bits0) ->
+    Bits = <<Bits0:1024>>,
+    Mask = <<Mask0:1024>>,
+    io:format("~w ~w\n", [Bits,Mask]),
+    sdl_mouse:createCursor(Bits, Mask, 32, 32, 0, 0).
+
+hourglass_data() ->
+        "  ............................	 "
+	" XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
+       	"X..............................X"
+       	" XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
+       	"   ..   X..............X   ..   "
+       	"   ..   X..............X   ..   "
+	"   ..   X..............X   ..   "
+	"   ..   X..............X   ..   "
+	"   ..    X............X    ..   "
+	"   ..    X............X    ..   "
+	"   ..    X............X    ..   "
+	"   ..     X..........X     ..   "
+	"   ..     X..........X     ..   "
+	"   ..     X..........X     ..   "
+	"   ..      X........X      ..   "
+	"   ..       X......X       ..   "
+	"   ..       X......X       ..   "
+	"   ..      X........X      ..   "
+       	"   ..     X..........X     ..   "
+	"   ..     X..........X     ..   "
+	"   ..     X..........X     ..   "
+	"   ..    X............X    ..   "
+	"   ..    X............X    ..   "
+	"   ..    X............X    ..   "
+	"   ..   X..............X   ..   "
+	"   ..   X..............X   ..   "
+	"   ..   X..............X   ..   "
+       	"   ..   X..............X   ..   "
+       	" XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
+       	"X..............................X"
+       	" XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "
+       	"  ............................	 ".
+       	
+arrow_data() ->
+    "X                               "
+	"XX                              "
+	"X.X                             "
+	"X..X                            "
+	"X...X                           "
+	"X....X                          "
+	"X.....X                         "
+	"X......X                        "
+	"X.......X                       "
+	"X........X                      "
+	"X.....XXXXX                     "
+	"X..X..X                         "
+	"X.X X..X                        "
+	"XX  X..X                        "
+	"X    X..X                       "
+	"     X..X                       "
+	"      X..X                      "
+	"      X..X                      "
+	"       XX                       "
+	"                                "
+	"                                "
+	"                                "
+	"                                "
+	"                                "
+	"                                "
+	"                                "
+	"                                "
+	"                                "
+	"                                "
+	"                                "
+	"                                "
+	"                                ".

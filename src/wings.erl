@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.66 2001/12/11 07:46:51 bjorng Exp $
+%%     $Id: wings.erl,v 1.67 2001/12/11 15:10:43 bjorng Exp $
 %%
 
 -module(wings).
@@ -222,7 +222,8 @@ execute_or_ignore(Cmd, St) -> return_to_top({Cmd,St}).
     
 do_command(Cmd, St0) ->
     St1 = remember_command(Cmd, St0),
-    case catch do_command_1(Cmd, St1) of
+    Res = (catch do_command_1(Cmd, St1)),
+    case Res of
 	{'EXIT',Reason} -> exit(Reason);
 	{command_error,Error} ->
 	    wings_util:message(Error),
@@ -258,7 +259,6 @@ remember_command({C,_}=Cmd, St) when C =:= vertex; C =:= edge;
 				     C =:= face; C =:= body ->
     St#st{repeatable=Cmd};
 remember_command(Cmd, St) -> St.
-
 
 %% Test if the saved command can be safely repeated, and
 %% rewrite it with the current selection mode if needed.
@@ -421,7 +421,7 @@ command({body,delete}, St) ->
 command({body,tighten}, St) ->
     wings_body:tighten(St);
 command({body,smooth}, St) ->
-    {save_state,model_changed(wings_body:smooth(St))};
+    ?SLOW({save_state,model_changed(wings_body:smooth(St))});
 command({body,combine}, St) ->
     {save_state,model_changed(wings_body:combine(St))};
 command({body,separate}, St) ->

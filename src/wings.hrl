@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.29 2001/12/07 13:40:07 bjorng Exp $
+%%     $Id: wings.hrl,v 1.30 2001/12/11 15:10:43 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -41,6 +41,8 @@
 -define(PANE_COLOR, {0.52,0.52,0.52}).
 -define(BEVEL_HIGHLIGHT, {0.9,0.9,0.9}).
 -define(BEVEL_LOWLIGHT, {0.3,0.3,0.3}).
+
+-define(SLOW(Cmd), wings_io:slow(fun() -> Cmd end)).
 
 -ifdef(DEBUG).
 -define(ASSERT(E), case E of

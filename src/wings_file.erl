@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.34 2001/12/11 07:46:51 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.35 2001/12/11 15:10:44 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -137,7 +137,7 @@ read(St0) ->
 		Name0 ->
 		    Name = ensure_extension(Name0, ".wings"),
 		    add_recent(Name),
-		    case wings_ff_wings:import(Name, St1) of
+		    case ?SLOW(wings_ff_wings:import(Name, St1)) of
 			#st{}=St ->
 			    wings_getline:set_cwd(dirname(Name)),
 			    wings:caption(St#st{saved=true,file=Name});
@@ -153,7 +153,7 @@ named_open(Name, St0) ->
 	aborted -> St0;
 	St1 ->
 	    add_recent(Name),
-	    case wings_ff_wings:import(Name, St1) of
+	    case ?SLOW(wings_ff_wings:import(Name, St1)) of
 		#st{}=St ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    wings:caption(St#st{saved=true,file=Name});
@@ -168,7 +168,7 @@ merge(St0) ->
 	aborted -> St0;
 	Name0 ->
 	    Name = ensure_extension(Name0, ".wings"),
-	    case wings_ff_wings:import(Name, St0) of
+	    case ?SLOW(wings_ff_wings:import(Name, St0)) of
 		{error,Reason} ->
 		    wings_io:message("Read failed: " ++ Reason),
 		    St0;
@@ -187,7 +187,7 @@ save_1(#st{saved=true}=St) -> St;
 save_1(#st{file=undefined}=St) ->
     save_as(St);
 save_1(#st{shapes=Shapes,file=Name}=St) ->
-    case wings_ff_wings:export(Name, St) of
+    case ?SLOW(wings_ff_wings:export(Name, St)) of
 	ok ->
 	    wings_getline:set_cwd(dirname(Name)),
 	    St#st{saved=true};
@@ -201,7 +201,7 @@ save_as(#st{shapes=Shapes}=St) ->
 	aborted -> aborted;
 	Name ->
 	    add_recent(Name),
-	    case wings_ff_wings:export(Name, St) of
+	    case ?SLOW(wings_ff_wings:export(Name, St)) of
 		ok ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    wings:caption(St#st{saved=true,file=Name});
@@ -242,7 +242,7 @@ number_files([], I, Rest) -> Rest.
 revert(#st{file=undefined}=St) -> St;
 revert(#st{file=File}=St0) ->
     St1 = St0#st{shapes=gb_trees:empty(),sel=[]},
-    case wings_ff_wings:import(File, St1) of
+    case ?SLOW(wings_ff_wings:import(File, St1)) of
 	#st{}=St -> St;
 	{error,_}=Error -> Error
     end.
@@ -261,7 +261,7 @@ import(Ext, Mod, St0) ->
 	aborted -> St0;
 	Name0 ->
 	    Name = ensure_extension(Name0, Ext),
-	    case do_import(Mod, Name, St0) of
+	    case ?SLOW(do_import(Mod, Name, St0)) of
 		#st{}=St ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    St;
@@ -278,7 +278,7 @@ import_ndo(St0) ->
 	aborted -> St0;
 	Name0 ->
 	    Name = ensure_extension(Name0, Ext),
-	    case wings_ff_ndo:import(Name, St0) of
+	    case ?SLOW(wings_ff_ndo:import(Name, St0)) of
 		#st{}=St ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    St;
@@ -302,7 +302,7 @@ export(Mod, Ext, St) ->
 	aborted -> St;
 	Name ->
 	    wings_getline:set_cwd(dirname(Name)),
-	    do_export(Mod, Name, St)
+	    ?SLOW(do_export(Mod, Name, St))
     end.
 
 export_ndo(St) ->
