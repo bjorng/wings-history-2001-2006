@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.16 2005/03/26 06:53:08 bjorng Exp $
+%%     $Id: wings_lang.erl,v 1.17 2005/03/26 07:30:08 bjorng Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -37,7 +37,8 @@ str({_,_,_}=Key, DefStr) ->
 	?DEF_LANG_ATOM -> DefStr;
 	_ ->
 	    try ets:lookup_element(?MODULE, Key, 2) of
-		Str -> binary_to_list(Str)
+		Str when is_binary(Str) -> binary_to_list(Str);
+		Str when is_list(Str) -> Str
 	    catch
 		error:_ -> DefStr
 	    end
