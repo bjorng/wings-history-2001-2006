@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.49 2004/03/25 15:49:51 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.50 2004/03/25 23:04:31 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
@@ -764,9 +764,22 @@ scene_lights_fun(#dlo{transparent=#we{light=L}=We}, Lnum) ->
     %% This happens when dragging a light in Body selection mode.
     %% (Not area light.)
     setup_light(Lnum, L, We, none);
-scene_lights_fun(#dlo{drag=Drag,src_we=We}, Lnum) ->
+scene_lights_fun(#dlo{drag=Drag,src_we=We0}=D, Lnum) ->
     %% Area lights handled here in all selection modes +
     %% other lights in vertex/edge/face modes.
+    We = if ?HAS_SHAPE(We0) -> 
+		 %% For an area light it looks better in vertex/edge/face
+		 %% modes to emulate with the static non-splitted shape
+		 %% during drag. It would be more correct if the area light
+		 %% updating would use the resulting #we{}, but it does not
+		 %% exist until the drag is done.
+		 wings_draw:original_we(D);
+	    true -> 
+		 %% Non-area lights drag the whole shape so they can use
+		 %% the dynamic part of the splitted shape 
+		 %% (which is the whole shape).
+		 We0
+	 end,
     M = case Drag of
 	    {matrix,_Tr,_M0,M1} -> M1;
  	    _ -> none
