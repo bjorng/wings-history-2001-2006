@@ -3,20 +3,25 @@
 %%
 %%     VRML export plugin.
 %%
-%%  Copyright (c) 2004 Sean Hinde, Danni Coy
+%%  Copyright (c) 2004 Sean Hinde, Danni Coy and Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.11 2004/07/04 06:28:18 bjorng Exp $
+%%     $Id: wpc_wrl.erl,v 1.12 2005/02/03 11:42:07 dgud Exp $
 %%
 
 -module(wpc_wrl).
 -author('Sean Hinde').
-%% Thanks KayosIII (Danni Aaron Coy) who wrote the UV coordinates export code
+
+%% Thanks KayosIII (Danni Aaron Coy) who wrote the export of UV coordinates 
+%%
+%% And I rewrote it to support normals and split_by_materials.
+%% /Dan
 
 -export([init/0, menu/2, command/2]).
 -import(lists, [foreach/2, foldl/3, map/2]).
+
 -include("e3d.hrl").
 -include("e3d_image.hrl").
 
@@ -53,139 +58,75 @@ export(File_name, Export0) ->
     {ok,F} = file:open(File_name, [write]),
     io:format(F, "#VRML V2.0 utf8\n", []),
     io:format(F, "#Exported from ~s\n",[Creator]),
-    foldl(fun(#e3d_object{name = Name, obj=Obj}, Used_mats0) ->
-		  io:format(F, "DEF ~s Transform {\n",[clean_id(Name)]),
-		  io:format(F, "  children [\n",[]),
-		  Used_mats = export_object(F, Obj, Mat, Used_mats0),
-		  io:put_chars(F, "  ]\n"),
-		  io:put_chars(F, "}\n\n"),
-		  Used_mats
-	  end, [], Objs),
+    try foldl(fun(#e3d_object{name = Name, obj=Obj}, Used_mats0) ->
+		      io:format(F, "DEF ~s Transform {\n",[clean_id(Name)]),
+		      io:format(F, "  children [\n",[]),
+		      ObjMesh = e3d_mesh:vertex_normals(Obj),
+		      Meshes = e3d_mesh:split_by_material(ObjMesh),
+		      Used_mats = all(fun(Mesh,UsedMats) -> 
+					      export_object(F, Mesh, Mat, UsedMats)
+				      end, F, Used_mats0, Meshes),
+		      io:put_chars(F, "\n  ]\n"),
+		      io:put_chars(F, "}\n\n"),
+		      Used_mats
+	      end, [], Objs)
+    catch _:Err -> 
+	    io:format("VRML Error: ~P in ~p~n", [Err,30, erlang:get_stacktrace()])
+    end,
     ok = file:close(F).
 
-sort_by_material(Fs) ->
-    %% A first adventure into sofs. They seem extremely powerful if
-    %% I could only make any sense of the documentation ;)
-
-    Rel = map(fun(#e3d_face{mat=[Mat0], vs=Vs1}) ->
-		      {Mat0, Vs1}
-	      end, Fs),
+export_object(F, #e3d_mesh{fs=Fs,ns=NTab,vs=VTab,tx=UVTab,vc=ColTab}, 
+	      Mat_defs, Used_mats0) ->
+    %% We can use the indicies, vertex table, and color table directly.
+    io:format(F, "    Shape {\n",[]),
+    [#e3d_face{mat=[Material|_]}|_] = Fs,
+    Used_mats = material(F, Material, Mat_defs, Used_mats0),
+    io:format(F, "      geometry IndexedFaceSet {\n",[]),
+    io:format(F, "        normalPerVertex TRUE\n",[]),
+    if ColTab == [] -> ignore;
+       true -> %% Use vertex colors
+	    io:format(F, "        colorPerVertex TRUE\n",[])
+    end,
     
-    % Make a set of all vertices involved in 
-    % any way with each material              e.g. of structure at each stage:
-    R = sofs:relation(Rel, [{mat, [vertex]}]),	%[{r,[1,2]},{g,[1,3]},{g,[3,4,5]}]
-    FR = sofs:relation_to_family(R),		%[{r,[[1,2]]},{g,[[1,3],[3,4,5]]}]
-    Mats = sofs:family_union(FR),		%[{r,[1,2]},{g,[1,3,4,5]}]
-
-    % Make a set of faces for each material
-    R2 = sofs:from_term(Rel, [{mat, face}]),
-    Faces = sofs:relation_to_family(R2),
-
-    Combined0 = sofs:join(Mats, 1, Faces, 1),
-    %% e.g. [{r,[1,2],[[1,2]]},{g,[1,3,4,5],[[1,3],[3,4,5]]}]
-    sofs:to_external(Combined0).
-
-export_object(F, #e3d_mesh{fs=Fs,vs=Vs0,vc=[],tx=[]}, Mat_defs, Used_mats0) ->
-    M2F = sort_by_material(Fs),
-    {_, Vs} = to_gb_tree(Vs0),
-    foldl_except_last(fun({Mat, Vtxs, Fces}, Used_mats_in) ->
-			      io:format(F, "    Shape {\n",[]),
-			      Used_mats1 = material(F, Mat, Mat_defs, Used_mats_in),
-			      coords(F, Vtxs, Vs),
-			      coord_index(F, Vtxs, Fces),
-			      Used_mats1
-		      end,
-		      fun(_, Used_mats_in) ->
-			      io:put_chars(F, "    ,\n"),
-			      Used_mats_in
-		      end, Used_mats0, M2F);
-export_object(F, #e3d_mesh{fs=Fs,vs=Vtab,vc=[],tx=UVtab}, Mat_defs, Used_mats0) ->
-    %% Output UV Coords. We can use the indicies, vertex table, and
-    %% UV table directly.
-    io:format(F, "    Shape {\n",[]),
-    [Name] = (hd(Fs))#e3d_face.mat,
-    Used_mats = material(F, Name, Mat_defs, Used_mats0),
-    %Used_mats = Used_mats0,
-    io:format(F, "      geometry IndexedFaceSet {\n",[]),
+    %% Helpers
+    W3 = fun({X,Y,Z}) ->  io:format(F, "          ~p ~p ~p", [X,Y,Z]) end,
+    W2 = fun({U,V}) ->    io:format(F, "          ~p ~p", [U,V]) end,
+    %% Write vertex coordinates
     io:format(F, "        coord Coordinate { point [\n",[]),
-    foreach_except_last(fun({X,Y,Z}) ->
-				io:format(F, "          ~p ~p ~p", [X,Y,Z])
-			end,
-			fun(_) -> io:put_chars(F, ",\n") end,
-			Vtab),
-    io:format(F, "]\n        }\n",[]),
-
+    all(W3,F,VTab),
+    io:format(F, " ] }\n",[]),
+    %% Write vertex indecies
     io:put_chars(F, "        coordIndex [\n"),
-    foreach_except_last(fun(#e3d_face{vs=Vs}) ->
-				io:put_chars(F, "          "),
-				print_face(F, Vs)
-			end,
-			fun(_) -> io:put_chars(F, ",\n") end,
-			Fs),
-    io:put_chars(F, "\n        ]\n"),
+    all(fun(#e3d_face{vs=Vs}) -> print_face(F, Vs) end,F,Fs),
+    io:put_chars(F, " ]\n"),
+    
+    %% Write Normal vectors
+    io:format(F, "        normal Normal { vector [\n",[]),
+    all(W3,F,NTab),
+    io:format(F, " ] }\n",[]),
+    %% Write per-vertex normal index
+    io:put_chars(F, "        normalIndex [\n"),
+    all(fun(#e3d_face{ns=Ns}) -> print_face(F, Ns) end,F,Fs),
+    io:put_chars(F, " ]\n"),
 
-    io:format(F, "        texCoord TextureCoordinate { point [\n",[]),
-    foreach_except_last(fun({U,V}) ->
-				io:format(F, "          ~p ~p", [U,V])
-			end,
-			fun(_) -> io:put_chars(F, ",\n") end,
-			UVtab),
-    io:format(F, "]\n        }\n",[]),
-
-    io:put_chars(F, "        texCoordIndex [\n"),
-    foreach_except_last(fun(#e3d_face{tx=Tx}) ->
-				io:put_chars(F, "          "),
-				print_face(F, Tx)
-			end,
-			fun(_) -> io:put_chars(F, ",\n") end,
-			Fs),
-    io:put_chars(F, "\n        ]\n"),
-
-    io:put_chars(F, "      }\n    }\n"),
-    Used_mats;
-export_object(F, #e3d_mesh{fs=Fs,vs=Vtab,vc=ColTab}, Mat_defs, Used_mats0) ->
-    %% Output vertex colors. We can use the indicies, vertex table, and
-    %% color table directly.
-    io:format(F, "    Shape {\n",[]),
-    Used_mats = material(F, default, Mat_defs, Used_mats0),
-    io:format(F, "      geometry IndexedFaceSet {\n",[]),
-    io:format(F, "        colorPerVertex TRUE\n",[]),
-
-    io:format(F, "        coord Coordinate { point [\n",[]),
-    foreach_except_last(fun({X,Y,Z}) ->
-				io:format(F, "          ~p ~p ~p", [X,Y,Z])
-			end,
-			fun(_) -> io:put_chars(F, ",\n") end,
-			Vtab),
-    io:format(F, "]\n        }\n",[]),
-
-    io:put_chars(F, "        coordIndex [\n"),
-    foreach_except_last(fun(#e3d_face{vs=Vs}) ->
-				io:put_chars(F, "          "),
-				print_face(F, Vs)
-			end,
-			fun(_) -> io:put_chars(F, ",\n") end,
-			Fs),
-    io:put_chars(F, "\n        ]\n"),
-
-    io:format(F, "        color Color { color [\n",[]),
-    foreach_except_last(fun({R,G,B}) ->
-				io:format(F, "          ~p ~p ~p", [R,G,B])
-			end,
-			fun(_) -> io:put_chars(F, ",\n") end,
-			ColTab),
-    io:format(F, "]\n        }\n",[]),
-
-    io:put_chars(F, "        colorIndex [\n"),
-    foreach_except_last(fun(#e3d_face{vc=Vc}) ->
-				io:put_chars(F, "          "),
-				print_face(F, Vc)
-			end,
-			fun(_) -> io:put_chars(F, ",\n") end,
-			Fs),
-    io:put_chars(F, "\n        ]\n"),
-
-    io:put_chars(F, "      }\n    }\n"),
+    if 
+       ColTab /= [] -> %% Use vertex colors
+	    io:format(F, "        color Color { color [\n",[]),
+	    all(W3,F,ColTab),
+	    io:format(F, " ] }\n",[]),   
+	    io:put_chars(F, "        colorIndex [\n"),
+	    all(fun(#e3d_face{vc=Vc}) -> print_face(F, Vc) end,F,Fs),
+	    io:put_chars(F, " ]\n");
+	UVTab /= [] -> %% Use UV-coords
+	    io:format(F, "        texCoord TextureCoordinate { point [\n",[]),
+	    all(W2,F,UVTab),
+	    io:format(F, " ] }\n",[]),   
+	    io:put_chars(F, "        texCoordIndex [\n"),
+	    all(fun(#e3d_face{tx=UV}) -> print_face(F, UV) end,F,Fs),
+	    io:put_chars(F, " ]\n")
+    end,
+    %% Close Shape and IndexedFaceSet
+    io:put_chars(F, "      }\n    }"),
     Used_mats.
 
 material(F, Name, Mat_defs, Used) ->
@@ -221,7 +162,7 @@ def_material(F, Name, Mat0) ->
 	{value, {maps,Maps}} -> 
 	    case lists:keysearch(diffuse, 1, Maps) of
 		{value, {diffuse,#e3d_image{filename=File}}} ->
-		    io:format(F, "     texture ImageTexture { url ~p }\n",
+		    io:format(F, "        texture ImageTexture { url ~p }\n",
 			      [File]);
 		_ ->
 		    ignore
@@ -235,55 +176,25 @@ use_material(F, Mat) ->
     io:format(F, "        material USE ~s\n",[clean_id(Mat)]),
     io:format(F, "      }\n", []).
 
-coords(F, Vtxs, Vs) ->
-    io:format(F, "      geometry IndexedFaceSet {\n",[]),
-    io:format(F, "        coord Coordinate { point [\n",[]),
-    foreach_except_last(fun(Vtx) ->
-				{X,Y,Z} = gb_trees:'get'(Vtx, Vs),
-				io:format(F, "          ~p ~p ~p", [X,Y,Z])
-			end,
-			fun(_) -> io:put_chars(F, ",\n") end, Vtxs),
-    io:format(F, "]\n        }\n",[]).
-
-coord_index(F, Vtxs, Faces) ->
-    io:put_chars(F, "        coordIndex [\n"),
-    {_,Mapping} =  foldl(fun(Vtx, {N, G}) ->
-				 {N+1, gb_trees:insert(Vtx, N, G)}
-			 end, {0, gb_trees:empty()}, Vtxs),
-    foreach_except_last(fun(Face) ->
-				io:put_chars(F, "          "),
-				print_face(F, Face, Mapping)
-			end,
-			fun(_) -> io:put_chars(F, ",\n") end, Faces),
-    io:put_chars(F, "\n        ]\n"),
-    io:put_chars(F, "      }\n    }\n").
-
 print_face(F, Vs) ->
+    io:put_chars(F, "          "),
     foreach(fun(V) -> io:format(F, "~p, ", [V]) end, Vs),
     io:put_chars(F, "-1").
 
-print_face(F, Face, Mapping) ->
-    foreach(fun(V) -> io:format(F, "~p, ", [gb_trees:'get'(V, Mapping)]) end, Face),
-    io:put_chars(F, "-1").
-
 % Useful helpers
-to_gb_tree(A) ->	       
-    foldl(fun(A1, {N, G}) ->
-		  {N+1, gb_trees:insert(N, A1, G)}
-	  end, {0, gb_trees:empty()}, A).
-
-foreach_except_last(F, F_each, [H,H1|T]) ->
-    F(H),
-    F_each(H),
-    foreach_except_last(F, F_each, [H1|T]);
-foreach_except_last(F, _, [H]) ->
+all(F, IO, [H,H1|T]) ->
+    F(H),    
+    io:put_chars(IO, ",\n"),
+    all(F, IO, [H1|T]);
+all(F, _, [H]) ->
     F(H),
     ok.
-   
-foldl_except_last(F, F_each, AccIn, [H,H1|T]) ->
-    Acc1 = F(H, AccIn),
-    foldl_except_last(F, F_each, F_each(H,Acc1), [H1|T]);
-foldl_except_last(F, _, AccIn, [H]) ->
+
+all(F, IO, AccIn, [H,H1|T]) ->
+    Acc = F(H, AccIn),
+    io:put_chars(IO, ",\n"),    
+    all(F,IO,Acc,[H1|T]);
+all(F, _, AccIn, [H]) ->
     F(H, AccIn).
 
 lookup(K, L) ->
