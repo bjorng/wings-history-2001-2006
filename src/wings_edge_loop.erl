@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.14 2003/02/10 13:37:37 dgud Exp $
+%%     $Id: wings_edge_loop.erl,v 1.15 2003/11/23 10:31:54 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
@@ -178,29 +178,30 @@ next_edge(From, V, Face, Edge, Etab) ->
 	#edge{ve=V,lf=Face,ltpr=From,rtsu=To} -> To
     end.
 
-add_mirror_edges(Edges, #we{mirror=none}) -> Edges;
-add_mirror_edges(Edges, #we{mirror=Face}=We) ->
-    MirrorEdges = gb_sets:from_ordset(wings_face:outer_edges([Face], We)),
+add_mirror_edges(Edges, We) ->
+    MirrorEdges = gb_sets:from_list(mirror_edges(We)),
     case gb_sets:is_empty(gb_sets:intersection(Edges, MirrorEdges)) of
 	true -> Edges;
 	false -> gb_sets:union(Edges, MirrorEdges)
     end.
+
+mirror_edges(#we{mirror=none}) -> [];
+mirror_edges(#we{mirror=Face}=We) ->
+    wings_face:fold(fun(_, E, _, A) -> [E|A] end, [], Face, We).
 
 select_link_decr(#st{selmode=edge}=St) ->
     Sel = wings_sel:fold(fun select_link_decr/3, [], St),
     wings_sel:set(Sel, St);
 select_link_decr(St) -> St.
 
-select_link_decr(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
+select_link_decr(Edges0, #we{id=Id,es=Etab}, Acc) ->
     EndPoints = init_expand(Edges0, Etab),
-    Edges1 = decrease_edge_link(EndPoints, Edges0),
-    Edges = add_mirror_edges(Edges1, We),
+    Edges = decrease_edge_link(EndPoints, Edges0),
     [{Id,Edges}|Acc].
 
-decrease_edge_link([{_V, Edge}| R], Edges) ->
-    decrease_edge_link(R, gb_sets:delete_any(Edge,Edges));
-decrease_edge_link([], Edges) ->
-    Edges.
+decrease_edge_link([{_V,Edge}|R], Edges) ->
+    decrease_edge_link(R, gb_sets:delete_any(Edge, Edges));
+decrease_edge_link([], Edges) -> Edges.
 
 select_link_incr(#st{selmode=edge}=St) ->
     Sel = wings_sel:fold(fun select_link_incr/3, [], St),
@@ -210,24 +211,45 @@ select_link_incr(St) -> St.
 select_link_incr(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
     EndPoints = init_expand(Edges0, Etab),
     Edges1 = expand_edge_link(EndPoints, We, Edges0),
-    Edges = add_mirror_edges(Edges1, We),
+    Edges = expand_mirror_link(Edges1, We),
     [{Id,Edges}|Acc].
 
 expand_edge_link([{V,OrigEdge}|R], We, Sel) ->
-    Eds0 = 
-	wings_vertex:fold(fun(E,_,_,Acc) -> [E|Acc] end,
-			  [], V, We),
+    Eds0 = wings_vertex:fold(fun(E,_,_,Acc) -> [E|Acc] end,
+			     [], V, We),
     case length(Eds0) rem 2 of	
 	0 -> 
 	    Eds = reorder(Eds0, OrigEdge, []),
 	    NewEd = lists:nth(length(Eds0) div 2, Eds),
 	    expand_edge_link(R, We, gb_sets:add(NewEd,Sel));
-	1 -> %% Bjorn doesn't want to expand this..
+	1 -> %% Bjorn doesn't want to expand this...
 	    expand_edge_link(R, We, Sel)
     end;
-expand_edge_link([], _, Sel) ->
-    Sel.
+expand_edge_link([], _, Sel) -> Sel.
 
+expand_mirror_link(Edges, We) ->
+    case mirror_edges(We) of
+	[] -> Edges;
+	MirrorEdges -> expand_mirror_link_1(MirrorEdges, Edges, We, [])
+    end.
+
+expand_mirror_link_1([E|Es], Edges, #we{es=Etab}=We, Acc0) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
+    Acc1 = expand_mirror_link_2(Va, E, Edges, We, Acc0),
+    Acc = expand_mirror_link_2(Vb, E, Edges, We, Acc1),
+    expand_mirror_link_1(Es, Edges, We, Acc);
+expand_mirror_link_1([], Edges, _, Acc) ->
+    gb_sets:union(Edges, gb_sets:from_list(Acc)).
+
+expand_mirror_link_2(V, Edge, Edges, We, Acc) ->
+    B = wings_vertex:until(fun(E, _, _, false) ->
+				   gb_sets:is_member(E, Edges)
+			   end, false, V, We),
+    case B of
+	false -> Acc;
+	true -> [Edge|Acc]
+    end.
+    
 reorder([Edge|R], Edge, Acc) ->
     Acc ++ lists:reverse(R);
 reorder([E|R], Edge, Acc) ->
