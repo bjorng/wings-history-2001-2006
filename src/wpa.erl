@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.50 2004/06/27 11:57:33 bjorng Exp $
+%%     $Id: wpa.erl,v 1.51 2004/06/30 14:03:56 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -106,7 +106,9 @@ import(Props, Importer, St0) ->
     import_filename(Props, Cont).
 
 do_import(Importer, Name, St0) ->
-    case Importer(Name) of
+    wings_pb:start("reading file"),
+    wings_pb:update(1.0),
+    case wings_pb:done(Importer(Name)) of
 	{ok,#e3d_file{}=E3DFile} ->
 	    wings_import:import(E3DFile, St0);
 	{error,Reason} ->
