@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.47 2002/08/06 06:45:20 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.48 2002/08/08 13:59:18 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -316,7 +316,6 @@ mat_preview(X, Y, _W, _H, Common) ->
     ViewPort = wings_wm:viewport(),
     {true,Ox,Oy,_} = glu:project(X, Y+?PREVIEW_SIZE, 0, MM, PM, ViewPort),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.5, 0.5, -2, 1}),
     gl:viewport(trunc(Ox), trunc(Oy), ?PREVIEW_SIZE, ?PREVIEW_SIZE),
     gl:matrixMode(?GL_PROJECTION),
     gl:pushMatrix(),
@@ -324,6 +323,8 @@ mat_preview(X, Y, _W, _H, Common) ->
     gl:matrixMode(?GL_MODELVIEW),
     gl:pushMatrix(),
     gl:loadIdentity(),
+    wings_light:camera_lights(),
+    wings_light:global_lights(),
     gl:shadeModel(?GL_SMOOTH),
     Alpha = gb_trees:get(opacity, Common),
     Amb = preview_mat(ambient, Common, Alpha),
