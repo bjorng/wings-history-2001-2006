@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.5 2001/09/03 11:01:39 bjorng Exp $
+%%     $Id: wings.erl,v 1.6 2001/09/04 12:11:29 bjorng Exp $
 %%
 
 -module(wings).
@@ -61,7 +61,7 @@ init_1() ->
 		      {"Edit",edit},
 		      {"View",view},
 		      {"Select",select},
-		      {"Align",align},
+		      {"Tools",tools},
 		      {"Objects",objects},
 		      {"Help",help}]),
     Empty = gb_trees:empty(),
@@ -292,10 +292,6 @@ command({edit,repeat}, #st{drag=undefined,camera=undefined,
     wings_io:putback_event({action,Cmd}),
     St;
 command({edit,repeat}, St) -> St;
-command({edit,copy_bb}, St) ->
-    wings_align:copy_bb(St);
-command({edit,paste_bb}, St) ->
-    {save_state,model_changed(wings_align:paste_bb(St))};
 
 %% Select menu
 command({select,edge_loop}, St) ->
@@ -478,12 +474,18 @@ command({influence_radius,Sign}, #st{inf_r=InfR0}=St) ->
 command({_,{magnet,{Type,Dir}}}, St) ->
     wings_magnet:setup(Type, Dir, St);
 
-%% Align menu.
+%% Tools menu.
 
-command({align,{align,Dir}}, St) ->
+command({tools,{align,Dir}}, St) ->
     {save_state,model_changed(wings_align:align(Dir, St))};
-command({align,{center,Dir}}, St) ->
+command({tools,{center,Dir}}, St) ->
     {save_state,model_changed(wings_align:center(Dir, St))};
+command({tools,save_bb}, St) ->
+    wings_align:copy_bb(St);
+command({tools,{scale_to_bb,Dir}}, St) ->
+    {save_state,model_changed(wings_align:scale_to_bb(Dir, St))};
+command({tools,{move_to_bb,Dir}}, St) ->
+    {save_state,model_changed(wings_align:move_to_bb(Dir, St))};
 
 %% Objects menu.
 
@@ -547,9 +549,6 @@ menu(X, Y, edit, St) ->
     Menu = {{"Undo/redo","Ctrl-Z",undo_toggle},
 	    {"Redo","Shift-Ctrl-Z",redo},
 	    {"Undo","Alt-Ctrl-Z",undo},
-	    separator,
-	    {"Copy Bounding Box","Alt-C",copy_bb},
-	    {"Paste Bounding Box","Alt-V",copy_bb},
 	    separator,
 	    {command_name(St),"d",repeat},
 	    separator,
@@ -622,8 +621,8 @@ menu(X, Y, select, St) ->
 	    {"Subtract with saved",subtract},
 	    {"Intersection with saved",intersection}},
     wings_menu:menu(X, Y, select, Menu);
-menu(X, Y, align, St) ->
-    Dirs = {{"XYZ",all},
+menu(X, Y, tools, St) ->
+    Dirs = {{"All",all},
 	    {"X",x},
 	    {"Y",y},
 	    {"Z",z},
@@ -631,8 +630,12 @@ menu(X, Y, align, St) ->
 	    {"Radial Y (XZ)",radial_y},
 	    {"Radial Z (XY)",radial_z}},
     Menu = {{"Align",{align,Dirs}},
-	    {"Center",{center,Dirs}}},
-    wings_menu:menu(X, Y, align, Menu);
+	    {"Center",{center,Dirs}},
+	    separator,
+	    {"Save Bounding Box",save_bb},
+	    {"Scale to Saved BB",{scale_to_bb,Dirs}},
+	    {"Move to Saved BB",{move_to_bb,all_xyz()}}},
+    wings_menu:menu(X, Y, tools, Menu);
 menu(X, Y, objects, #st{shapes=Shapes,hidden=Hidden}=St) ->
     All = sort(gb_trees:to_list(Shapes)++gb_trees:to_list(Hidden)),
     Menu0 = map(fun({Id,#shape{name=Name}}) ->
@@ -825,6 +828,12 @@ directions() ->
 
 xyz() ->
     {{"X",x},
+     {"Y",y},
+     {"Z",z}}.
+
+all_xyz() ->
+    {{"All",all},
+     {"X",x},
      {"Y",y},
      {"Z",z}}.
 

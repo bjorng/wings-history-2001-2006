@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.7 2001/09/03 11:01:39 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.8 2001/09/04 12:11:29 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -18,13 +18,13 @@
 	 new_wrap_range/3,id/2,bump_id/1,
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
-	 merge/2,renumber/1,renumber/2,renumber/3,
+	 merge/1,merge/2,renumber/1,renumber/2,renumber/3,
 	 transform_vs/2,
 	 separate/1,
 	 normals/1,
 	 new_items/3]).
 -include("wings.hrl").
--import(lists, [map/2,foreach/2,foldl/3,sort/1,last/1,reverse/1,merge/1]).
+-import(lists, [map/2,foreach/2,foldl/3,sort/1,keysort/2,last/1,reverse/1]).
 
 %%%
 %%% Build Winged-Edges.
@@ -229,7 +229,7 @@ bump_id({Id,BaseId,Inc,NumIds}) ->
     {Id+Inc,BaseId,Inc,NumIds}.
 
 new_id(We0) ->
-    #we{next_id=Id}= We = debug_bump(We0),
+    #we{next_id=Id} = We = debug_bump(We0),
     {Id,We#we{next_id=Id+1}}.
 
 new_ids(N, We0) ->
@@ -251,31 +251,55 @@ invert_normals(#we{es=Etab0}=We) ->
 invert_dir({N,#edge{vs=Vs,ve=Ve,ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu}=E}) ->
     {N,E#edge{vs=Ve,ve=Vs,ltpr=Ltsu,ltsu=Ltpr,rtpr=Rtsu,rtsu=Rtpr}}.
 
-%%%
+
 %%% Merge two winged-edge structures.
+merge(We0, We1) ->
+    merge([We0,We1]).
+
+%%% Merge a list of winged-edge structures.
+merge([]) -> [];
+merge([We]) -> We;
+merge(Wes0) ->
+    {Wes1,First,Next} = merge_renumber(Wes0),
+    We = merge_1(Wes1),
+    We#we{first_id=First,next_id=Next}.
+
+merge_1([We]) -> We;
+merge_1(Wes) ->
+    merge_1(Wes, [], [], [], []).
+
+merge_1([#we{vs=Vs,es=Es,fs=Fs,he=He}|Wes], Vt0, Et0, Ft0, Ht0) ->
+    Vt = [gb_trees:to_list(Vs)|Vt0],
+    Et = [gb_trees:to_list(Es)|Et0],
+    Ft = [gb_trees:to_list(Fs)|Ft0],
+    Ht = [gb_sets:to_list(He)|Ht0],
+    merge_1(Wes, Vt, Et, Ft, Ht);
+merge_1([], Vt0, Et0, Ft0, Ht0) ->
+    Vt = gb_trees:from_orddict(lists:merge(Vt0)),
+    Et = gb_trees:from_orddict(lists:merge(Et0)),
+    Ft = gb_trees:from_orddict(lists:merge(Ft0)),
+    Ht = gb_sets:from_ordset(lists:merge(Ht0)),
+    #we{vs=Vt,es=Et,fs=Ft,he=Ht}.
+			       
+merge_renumber(Wes0) ->
+    [We0|Wes1] = keysort(#we.first_id, Wes0),
+    {Wes,Next} = merge_renumber(Wes1, [We0], []),
+    {Wes,We0#we.first_id,Next}.
+
+merge_renumber([#we{first_id=Low}=We|Wes], [#we{next_id=Next}|_]=Done, NotDone)
+  when Low >= Next ->
+    merge_renumber(Wes, [We|Done], NotDone);
+merge_renumber([We|Wes], Done, NotDone) ->
+    merge_renumber(Wes, Done, [We|NotDone]);
+merge_renumber([], [#we{next_id=Next}|_]=Done, NotDone) ->
+    merge_renumber_rest(NotDone, Next, Done).
+
+merge_renumber_rest([We0|Wes], Next0, Acc) ->
+    #we{next_id=Next} = We = renumber(We0, Next0),
+    merge_renumber_rest(Wes, Next, [We|Acc]);
+merge_renumber_rest([], Next, Acc) -> {Acc,Next}.
+
 %%% Renumber a winged-edge structure.
-%%%
-
-merge(#we{next_id=Ah}=WeA, #we{first_id=Bl}=WeB) when Ah =< Bl ->
-    #we{vs=VtabA,es=EtabA,fs=FtabA,he=HtabA,first_id=First} = WeA,
-    #we{vs=VtabB,es=EtabB,fs=FtabB,he=HtabB,next_id=Next} = WeB,
-    #we{vs=merge_tab(VtabA, VtabB),
-	es=merge_tab(EtabA, EtabB),
-	fs=merge_tab(FtabA, FtabB),
-	he=gb_sets:union(HtabA, HtabB),
-	first_id=First,next_id=Next};
-merge(#we{first_id=Al}=WeA, #we{next_id=Bh}=WeB) when Bh =< Al ->
-    merge(WeB, WeA);
-merge(#we{next_id=Low}=WeA, #we{next_id=High}=WeB0) when Low =< High ->
-    WeB = renumber(WeB0, Low),
-    merge(WeA, WeB);
-merge(WeA, WeB) ->
-    merge(WeB, WeA).
-
-merge_tab(A, B) ->
-    gb_trees:from_orddict(lists:merge([gb_trees:to_list(A),
-				       gb_trees:to_list(B)])).
-
 renumber(#we{next_id=Id}=We) ->
     renumber(We, Id).
 

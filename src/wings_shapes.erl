@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.3 2001/09/03 11:01:39 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.4 2001/09/04 12:11:29 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -52,12 +52,13 @@ dodecahedron(St) ->
     Fs = [[0,1,9,16,5],[1,0,3,18,7],[1,7,11,10,9],[11,7,18,19,6],
 	  [8,17,16,9,10],[2,14,15,6,19],[2,13,12,4,14],[2,19,18,3,13],
 	  [3,0,5,12,13],[6,15,8,10,11],[4,17,8,15,14],[4,12,5,16,17]],
-    Vs = [{-Alpha,0,Beta},{Alpha,0,Beta},{-1,-1,-1},{-1,-1,1},
-	  {-1,1,-1},{-1,1,1},{1,-1,-1},{1,-1,1},{1,1,-1},
-	  {1,1,1},{Beta,Alpha,0},{Beta,-Alpha,0},{-Beta,Alpha,0},
-	  {-Beta,-Alpha,0},{-Alpha,0,-Beta},{Alpha,0,-Beta},
-	  {0,Beta,Alpha},{0,Beta,-Alpha},{0,-Beta,Alpha},
-	  {0,-Beta,-Alpha}],
+    Vs = [{-Alpha,0.0,Beta},{Alpha,0.0,Beta},{-1.0,-1.0,-1.0},{-1.0,-1.0,1.0},
+	  {-1.0,1.0,-1.0},{-1.0,1.0,1.0},{1.0,-1.0,-1.0},
+	  {1.0,-1.0,1.0},{1.0,1.0,-1.0},
+	  {1.0,1.0,1.0},{Beta,Alpha,0.0},{Beta,-Alpha,0.0},{-Beta,Alpha,0.0},
+	  {-Beta,-Alpha,0.0},{-Alpha,0.0,-Beta},{Alpha,0.0,-Beta},
+	  {0.0,Beta,Alpha},{0.0,Beta,-Alpha},{0.0,-Beta,Alpha},
+	  {0.0,-Beta,-Alpha}],
     build_shape("dodecahedron", Fs, Vs, St).
 
 icosahedron(St) ->
@@ -67,9 +68,9 @@ icosahedron(St) ->
 	  [10,3,8],[8,3,5],[3,2,5],[3,7,2],[3,10,7],[10,6,7],
 	  [6,11,7],[6,0,11],[6,1,0],[10,1,6],[11,0,9],
 	  [2,11,9],[5,2,9],[11,2,7]],
-    Vs = [{-X,0,Z},{X,0,Z},{-X,0,-Z},{X,0,-Z},{0,Z,X},
-	  {0,Z,-X},{0,-Z,X},{0,-Z,-X},{Z,X,0},{-Z,X,0},
-	  {Z,-X,0},{-Z,-X,0}],
+    Vs = [{-X,0.0,Z},{X,0.0,Z},{-X,0.0,-Z},{X,0.0,-Z},{0.0,Z,X},
+	  {0.0,Z,-X},{0.0,-Z,X},{0.0,-Z,-X},{Z,X,0.0},{-Z,X,0.0},
+	  {Z,-X,0.0},{-Z,-X,0.0}],
     build_shape("icosahedron", Fs, Vs, St).
 
 cube(St) ->

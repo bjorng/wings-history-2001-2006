@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_align.erl,v 1.2 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_align.erl,v 1.3 2001/09/04 12:11:29 bjorng Exp $
 %%
 
 -module(wings_align).
--export([align/2,center/2,copy_bb/1,paste_bb/1]).
+-export([align/2,center/2,copy_bb/1,
+	 scale_to_bb/2,move_to_bb/2]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,reverse/1]).
@@ -33,12 +34,21 @@ copy_bb(St) ->
     BB = wings_sel:bounding_box(St),
     St#st{bb=BB}.
 
-paste_bb(#st{bb=none}=St) -> St;
-paste_bb(#st{bb=Dest}=St) ->
+scale_to_bb(Dir, #st{bb=none}=St) -> St;
+scale_to_bb(Dir, #st{bb=Dest}=St) ->
     case wings_sel:bounding_box(St) of
 	none -> St;
 	Src ->
-	    Matrix = make_matrix(Src, Dest),
+	    Matrix = make_scale(Dir, Src, Dest),
+	    transform(Matrix, St)
+    end.
+
+move_to_bb(Dir, #st{bb=none}=St) -> St;
+move_to_bb(Dir, #st{bb=Dest}=St) ->
+    case wings_sel:bounding_box(St) of
+	none -> St;
+	Src ->
+	    Matrix = make_move(Dir, Src, Dest),
 	    transform(Matrix, St)
     end.
 
@@ -54,20 +64,24 @@ transform(Matrix, St) ->
 	      wings_we:transform_vs(Matrix, We0)
       end, St).
 
-make_matrix(Src, Dest) ->
+make_move(Dir, Src, Dest0) ->
     SrcMid = e3d_vec:average(Src),
-    DestMid = e3d_vec:average(Dest),
-    Tvec = e3d_vec:sub(DestMid, SrcMid),
-    Matrix0 = e3d_mat:translate(Tvec),
-    Matrix1 = make_scale(e3d_vec:sub(Src), e3d_vec:sub(Dest)),
-    e3d_mat:mul(Matrix0, Matrix1).
+    DestMid = e3d_vec:average(Dest0),
+    Tvec = filter_coord(Dir, e3d_vec:sub(DestMid, SrcMid)),
+    e3d_mat:translate(Tvec).
 
-make_scale({SrcX,SrcY,SrcZ}, {DestX,DestY,DestZ}) ->
+make_scale(Dir, Src0, Dest0) ->
+    Src = e3d_vec:sub(Src0),
+    Dest = e3d_vec:sub(Dest0),
+    {SrcX,SrcY,SrcZ} = filter_coord(Dir, Src),
+    {DestX,DestY,DestZ} = filter_coord(Dir, Dest),
     e3d_mat:scale(mksc1(DestX, SrcX),
 		  mksc1(DestY, SrcY),
 		  mksc1(DestZ, SrcZ)).
+
+mksc1(A, 0.0) -> 1.0;
 mksc1(A, B) ->
-    case catch A / B of
+    case catch A / B of				%catch if B is very small
 	{'EXIT',_} -> 1.0;
 	Q -> Q
     end.

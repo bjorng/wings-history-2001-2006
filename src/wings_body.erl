@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.5 2001/09/03 11:01:39 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.6 2001/09/04 12:11:29 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -158,22 +158,22 @@ combine(#st{sel=[]}=St) -> St;
 combine(#st{shapes=Shapes0,sel=[{Id,_}=Sel|T]}=St) ->
     case gb_trees:get(Id, Shapes0) of
 	#shape{sh=#we{}=We0}=Sh ->
-	    {We,Shapes1} = combine(T, Shapes0, We0),
+	    {We,Shapes1} = combine(T, Shapes0, [We0]),
 	    Shapes = gb_trees:update(Id, Sh#shape{sh=We}, Shapes1),
 	    St#st{shapes=Shapes,sel=[Sel]};
-	Other ->
-	    combine(St#st{sel=T})
+	Other -> combine(St#st{sel=T})
     end.
 
-combine([{Id,_}|T], Shapes0, We0) ->
+combine([{Id,_}|T], Shapes0, Acc) ->
     case gb_trees:get(Id, Shapes0) of
-	#shape{sh=#we{}=WeOther} ->
-	    We = wings_we:merge(We0, WeOther),
+	#shape{sh=#we{}=We} ->
 	    Shapes = gb_trees:delete(Id, Shapes0),
-	    combine(T, Shapes, We);
-	Other -> combine(T, Shapes0, We0)
+	    combine(T, Shapes, [We|Acc]);
+	Other -> combine(T, Shapes0, Acc)
     end;
-combine([], Shapes, We) -> {We,Shapes}.
+combine([], Shapes, Acc) ->
+    We = wings_we:merge(Acc),
+    {We,Shapes}.
 
 %%%
 %%% The Separate command.
