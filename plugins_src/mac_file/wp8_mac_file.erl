@@ -10,12 +10,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.3 2002/07/12 07:40:53 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.4 2002/07/22 16:08:03 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
 
--export([menus/0, init/1]).
+-export([init/1]).
 
 %% Operations supported by driver.
 -define(OP_QUESTION, 0).
@@ -23,8 +23,6 @@
 -define(OP_WRITE, 2).
 -define(OP_MESSAGE, 3).
 -define(OP_SERIOUS_QUESTION, 4).
-
-menus() -> [].
 
 init(Next) ->
     case os:type() of
