@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.156 2003/10/22 17:19:29 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.157 2003/10/25 13:27:09 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -296,14 +296,21 @@ update_fun_2(hard_edges, #dlo{hard=none,src_we=#we{he=Htab}=We}=D, _) ->
     gl:'end'(),
     gl:endList(),
     D#dlo{hard=List};
-update_fun_2(vertex_mode_edges, #dlo{work={call,_,Faces}}=D, _) ->
-    Dl = wings_draw_util:force_flat_color(Faces, wings_pref:get_value(edge_color)),
+update_fun_2(vertex_mode_edges, #dlo{work=Work}=D, _) ->
+    Dl = force_flat(Work, wings_pref:get_value(edge_color)),
     D#dlo{edges=Dl};
 update_fun_2(normals, D, _) ->
     make_normals_dlist(D);
 update_fun_2(proxy, D, St) ->
     wings_subdiv:update(D, St);
 update_fun_2(_, D, _) -> D.
+
+force_flat([], _) -> [];
+force_flat([H|T], Color) ->
+    [force_flat(H, Color)|force_flat(T, Color)];
+force_flat({call,_,Faces}, Color) ->
+    wings_draw_util:force_flat_color(Faces, Color);
+force_flat(_, _) -> none.
 
 %%%
 %%% Update the selection display list.
@@ -384,8 +391,8 @@ update_sel(#dlo{sel=none,src_sel={vertex,Vs}}=D) ->
     end;
 update_sel(#dlo{}=D) -> D.
 
-update_sel_all(#dlo{src_we=#we{mode=vertex},work={call,_,Faces}}=D) ->
-    Dl = wings_draw_util:force_flat_color(Faces, wings_pref:get_value(selected_color)),
+update_sel_all(#dlo{src_we=#we{mode=vertex},work=Work}=D) ->
+    Dl = force_flat(Work, wings_pref:get_value(selected_color)),
     D#dlo{sel=Dl};
 update_sel_all(#dlo{src_we=#we{fs=Ftab},work=none}=D) ->
     Tess = wings_draw_util:tess(),
@@ -499,7 +506,7 @@ update_dynamic(#dlo{work=[Work|_],vs=VsList0,
     update_dynamic_1(D#dlo{work=[Work,Dl],vs=VsList,src_we=We}).
 
 update_dynamic_1(#dlo{work=Faces,src_we=#we{mode=vertex}}=D) ->
-    Dl = wings_draw_util:force_flat_color(Faces, wings_pref:get_value(edge_color)),
+    Dl = force_flat(Faces, wings_pref:get_value(edge_color)),
     D#dlo{edges=Dl};
 update_dynamic_1(D) -> D.
 
