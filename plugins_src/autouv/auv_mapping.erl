@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.30 2002/12/26 09:47:06 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.31 2003/01/03 07:04:47 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -117,8 +117,6 @@ sum_crossp([_Last], Acc) ->
 
 project_and_triangulate([Face|Fs], We, I, Tris,Area) ->
     ?VALIDATE_MODEL(We),
-    io:format("face: ~p\n", [Face]),
-    io:format("~w\n", [wings_face:surrounding_vertices(Face, We)]),
     Normal = wings_face:normal(Face, We),
     Vs0 = wpa:face_vertices(Face, We),
     Vs2 = project2d(Vs0, Normal, We),
