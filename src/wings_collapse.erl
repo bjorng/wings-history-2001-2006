@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.12 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.13 2001/11/07 20:51:52 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -205,16 +205,10 @@ collapse_vertex_1(Vremove, #we{es=Es0,vs=Vs0,fs=Fs0,he=He0}=We0, Sel0)->
     %% (we're just looking at closest from removed vertex,
     %% which probably isn't good enough)
     #vtx{pos=Pt} = gb_trees:get(Vremove, Vs0),
-    Vclosest = get_closest(Pt, Vlist, Vs0), % get vertices sorted by closeness
-    Onsameplane = get_on_same_plane(Vclosest, Vlist, Vs0),
-    We = case Onsameplane of % check points outside that plane
-	     Vlist -> We0;% we're done (all points on same plane)
-	     _ ->	% yes, we need to connect them
-		 Pairs = make_pairs(Onsameplane),
-		 foldl(fun(Pair, We00) ->
-			       wings_vertex_cmd:connect(Pair, We00)
-		       end, We0, Pairs)
-	 end,
+    Pairs = make_pairs(Vlist),
+    We = foldl(fun(Pair, WeI) ->
+		       wings_vertex_cmd:connect(Pair, WeI)
+	       end, We0, Pairs),
     Sel = wings_vertex:fold(
 	    fun(Edge, Face, Rec, A) ->
 		    gb_sets:add(Face, A)
@@ -246,35 +240,6 @@ delete_degenerated(Face, #we{fs=Ftab,es=Etab}=We) ->
 	    end;
 	none -> We
     end.
-
-get_closest(Pt, Vlist, Vtab) ->
-    DistV = [{e3d_vec:dist(Pt, wings_vertex:pos(V, Vtab)),V} ||
-		V <- Vlist],
-    [V || {_,V} <- lists:sort(DistV)].
-
-get_on_same_plane([V1,V2,V3 | _], Vlist, Vtab) ->
-    Pt1 = wings_vertex:pos(V1, Vtab),
-    P12 = e3d_vec:sub(Pt1, wings_vertex:pos(V2, Vtab)),
-    P13 = e3d_vec:sub(Pt1, wings_vertex:pos(V3, Vtab)),
-    Normcross = e3d_vec:norm_cross(P12, P13),
-    foldl(fun(V, Planelist0) ->
-		  case V of
-		      V1 -> [V|Planelist0];
-		      V2 -> [V|Planelist0];
-		      V3 -> [V|Planelist0];
-		      _ ->
-			  P14 = e3d_vec:sub(Pt1, wings_vertex:pos(V, Vtab)),
-			  case same_or_neg_pt(Normcross,
-					      e3d_vec:norm_cross(P12, P14)) of
-			      true -> [V | Planelist0];
-			      false -> Planelist0
-			  end
-		  end
-	  end, [], Vlist).
-
-same_or_neg_pt(Pt1, Pt2) ->
-    (e3d_vec:dist(Pt1, Pt2) < 1.0E-5) or
-    (e3d_vec:dist(Pt1, e3d_vec:neg(Pt2)) < 1.0E-5).
 
 is_waist(Va, Vb, We) ->
     N = wings_vertex:fold(
