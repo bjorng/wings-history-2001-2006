@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.12 2003/11/14 14:16:33 dgud Exp $
+%%     $Id: e3d__tga.erl,v 1.13 2003/11/26 10:33:24 dgud Exp $
 %%
 
 -module(e3d__tga).
@@ -160,6 +160,7 @@ e3d_type(Bpp,Alpha) ->
 	2 when Alpha == 0 ->  b8g8r8;
 	2 when Alpha > 0 ->   b8g8r8a8;
 	3 -> b8g8r8;
+	4 when Alpha == 0 -> b8g8r8;
 	4 -> b8g8r8a8
     end.
 
@@ -167,6 +168,8 @@ e3d_type(Bpp,Alpha) ->
 to_8bitpp(Image, 8, _)  -> Image;
 to_8bitpp(Image, 24, _) -> Image;
 to_8bitpp(Image, 32, 8) -> Image;
+to_8bitpp(Image, 32, 0) -> 
+    to_8bitpp(size(Image), Image, 4,8,8,8,0,8,[]);
 to_8bitpp(Image, Bitpp, Alpha) ->
     ByPP = (Bitpp + 1) div 8,
     Type =
