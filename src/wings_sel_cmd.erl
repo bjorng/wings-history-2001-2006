@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.10 2002/02/11 20:07:07 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.11 2002/03/04 19:31:44 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -54,6 +54,7 @@ menu(X, Y, St) ->
 					  {"70%",70},
 					  {"80%",80},
 					  {"90%",90}]}},
+		       {"Short edges",short_edges,[option]},
 		       {"Id",id}]}},
 	    separator,
 	    {sel_all_str(St),all},
@@ -145,10 +146,12 @@ by_command({faces_with,N}, St) ->
 		  N =:= length(wings_face:surrounding_vertices(Face, We))
 	  end,
     {save_state,wings_sel:make(Sel, face, St)};
-by_command({material,Mat}=Cmd, St) ->
+by_command({material,_}=Cmd, St) ->
     wings_material:command({select,Cmd}, St);
 by_command({random,Percent}, St) ->
     {save_state,random(Percent, St)};
+by_command({short_edges,Ask}, St) ->
+    short_edges(Ask, St);
 by_command(id, St) ->
     by_id(St);
 by_command({id,Sel}, St) ->
@@ -262,7 +265,7 @@ combine_sel(Combine, [{Id,S0}|T]) ->
 	true -> combine_sel(Combine, T);
 	false -> [{Id,S}|combine_sel(Combine, T)]
     end;
-combine_sel(Combine, []) -> [].
+combine_sel(_Combine, []) -> [].
 
 coerce_ssel(#st{selmode=Mode,ssel={Smode,Ssel0}}=St) ->
     StTemp = St#st{selmode=Smode,sel=wings_sel:valid_sel(Ssel0, Smode, St)},
@@ -299,7 +302,6 @@ similar(#st{selmode=vertex,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
     Templates0 = [make_vertex_template(SelI, We) ||
 		     SelI <- gb_sets:to_list(Sel0)],
     Templates = ordsets:from_list(Templates0),
-    %%io:format("~w/~w\n", [length(Templates0),length(Templates)]),
     wings_sel:make(
       fun(V, W) ->
 	      match_templates(make_vertex_template(V, W), Templates)
@@ -331,7 +333,7 @@ match_templates(F, [Template|Ts]) ->
 	true -> true;
 	false -> match_templates(F, Ts)
     end;
-match_templates(F, []) -> false.
+match_templates(_, []) -> false.
 
 match_template({Len,Ad,As}, {Len,Bd,Bs}) ->
     case rel_compare(Ad, Bd, 1.0E-5) of
@@ -356,15 +358,14 @@ face_dots_and_sqlens_1([Va,Vb|_]=Vpos) ->
     D = e3d_vec:sub(Va, Vb),
     face_dots_and_sqlens_2(D, Vpos, Vpos, 0, 0).
 
-face_dots_and_sqlens_2(D1, [Va|[Vb,Vc|_]=Vs], More, Dot0, Sq0) ->
-    ?ASSERT(D1 == e3d_vec:sub(Va, Vb)),
+face_dots_and_sqlens_2(D1, [_|[Vb,Vc|_]=Vs], More, Dot0, Sq0) ->
     D2 = e3d_vec:sub(Vb, Vc),
     Dot = Dot0 + e3d_vec:dot(D1, D2),
     Sq = Sq0 + e3d_vec:dot(D1, D1),
     face_dots_and_sqlens_2(D2, Vs, More, Dot, Sq);
 face_dots_and_sqlens_2(D1, Vs, [Va,Vb|_], Dot, Sq) ->
     face_dots_and_sqlens_2(D1, Vs++[Va,Vb], [], Dot, Sq);
-face_dots_and_sqlens_2(D1, Other, More, Dot, Sq) -> {Dot,Sq}.
+face_dots_and_sqlens_2(_D1, _Other, _More, Dot, Sq) -> {Dot,Sq}.
 
 make_edge_template(Edge, #we{vs=Vtab,es=Etab}=We) ->
     #edge{vs=Va,ve=Vb,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} =
@@ -401,7 +402,7 @@ vertex_dots_and_sqlens([VecA|[VecB|_]=T], More, Dot0, Sq0) ->
     vertex_dots_and_sqlens(T, More, Dot, Sq);
 vertex_dots_and_sqlens(Vecs, [VecB|_], Dot, Sq) ->
     vertex_dots_and_sqlens(Vecs++[VecB], [], Dot, Sq);
-vertex_dots_and_sqlens(Other, More, Dot, Sq) -> {Dot,Sq}.
+vertex_dots_and_sqlens(_Other, _More, Dot, Sq) -> {Dot,Sq}.
 
 rel_compare(A, B, Tresh) when abs(A) < Tresh ->
     abs(B) < Tresh;
@@ -414,10 +415,31 @@ rel_compare(A, B, Tresh) ->
 %% Select Random.
 %%
 
-random(Percent, #st{selmode=body}=St) -> St;
+random(_Percent, #st{selmode=body}=St) -> St;
 random(Percent, #st{selmode=Mode}=St) ->
     P = Percent / 100,
     wings_sel:make(fun(_, _) -> random:uniform() < P end, Mode, St).
+
+%%
+%% Select by numerical item id.
+%%
+
+short_edges(Ask, St) when is_atom(Ask) ->
+    Qs = [{"Length tolerance",1.0E-3,[{range,{1.0E-5,10.0}}]}],
+    wings_ask:ask(Ask,
+		  {vframe, Qs, [{title,"Select Short Edges"}]}, St,
+		  fun(Res) -> {select,{by,{short_edges,Res}}} end);
+short_edges([Tolerance], St0) ->
+    St = wings_sel:make(fun(Edge, We) ->
+				short_edge(Tolerance, Edge, We)
+			end, edge, St0),
+    {save_state,St#st{selmode=edge}}.
+
+short_edge(Tolerance, Edge, #we{es=Etab,vs=Vtab}=We) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+    VaPos = wings_vertex:pos(Va, Vtab),
+    VbPos = wings_vertex:pos(Vb, Vtab),
+    abs(e3d_vec:dist(VaPos, VbPos)) < Tolerance.
 
 %%
 %% Select by numerical item id.
