@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.48 2002/11/27 06:20:36 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.49 2002/11/28 06:35:32 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -118,12 +118,6 @@ pick_finish() ->
     wings_draw_util:map(fun clear_orig_sel/2, []).
 
 clear_orig_sel(D, _) -> D#dlo{orig_sel=none,orig_mode=none}.
-
-restrict_menus() ->
-    Mb0 = wings_wm:get_menubar(geom),
-    Mb = [Item || {_,Name,_}=Item <- Mb0,
-		  (Name == view orelse Name == select)],
-    wings_wm:menubar(geom, Mb).
 
 %%%
 %%% Event handler for secondary selection mode.
