@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.135 2003/05/18 08:48:09 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.136 2003/05/20 05:09:47 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -289,7 +289,7 @@ get_drag_event(#drag{st=St}=Drag) ->
 get_drag_event_1(Drag) ->
     {replace,fun(Ev) -> handle_drag_event(Ev, Drag) end}.
 
-handle_drag_event(#keyboard{keysym=#keysym{sym=9}}, Drag) ->
+handle_drag_event(#keyboard{sym=9}, Drag) ->
     numeric_input(Drag);
 handle_drag_event(#mousebutton{button=2,state=?SDL_RELEASED},
 		  #drag{mmb_count=C}=Drag) when C > 2 ->
@@ -310,7 +310,7 @@ handle_drag_event(Event, Drag) ->
 
 handle_drag_event_0(#keyboard{}=Ev, #drag{magnet=none}=Drag) ->
     handle_drag_event_1(Ev, Drag);
-handle_drag_event_0(#keyboard{keysym=#keysym{unicode=C}}=Ev, Drag0) ->
+handle_drag_event_0(#keyboard{unicode=C}=Ev, Drag0) ->
     case wings_magnet:hotkey(C) of
 	none -> handle_drag_event_1(Ev, Drag0);
 	Type ->

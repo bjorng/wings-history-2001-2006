@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.81 2003/04/27 18:30:40 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.82 2003/05/20 05:09:47 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -179,7 +179,7 @@ event(redraw, S) ->
     keep;
 event({current_state,_}, _) ->
     keep;
-event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=Unicode}}, S) ->
+event(#keyboard{sym=Sym,mod=Mod,unicode=Unicode}, S) ->
     event_key({key,Sym,Mod,Unicode}, S);
 event(#mousebutton{button=1,x=X,y=Y}=Ev, S) ->
     mouse_event(X, Y, Ev, S);

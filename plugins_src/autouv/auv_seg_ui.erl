@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.1 2003/04/18 08:11:36 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.2 2003/05/20 05:09:46 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/2]).
@@ -185,13 +185,9 @@ seg_event_6(_Ev, _) ->
 %%    ?DBG("~w\n", [_Ev]),
     keep.
 
-translate_key(#keyboard{keysym=KeySym}) ->
-    translate_key_1(KeySym);
-translate_key(_Event) -> next.
-
-translate_key_1(#keysym{sym=27}) ->		%Escape
+translate_key(#keyboard{sym=27}) ->
     seg_cancel();
-translate_key_1(_) -> next.
+translate_key(_) -> next.
 
 filter_sel_command(#seg{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
     case member(Mode, Modes) of

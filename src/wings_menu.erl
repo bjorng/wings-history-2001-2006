@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.97 2003/03/21 13:16:23 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.98 2003/05/20 05:09:47 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -162,7 +162,7 @@ raise_menubar(Owner) ->
 
 menu_killer(#mousebutton{button=1,state=?SDL_PRESSED}, Owner) ->
     kill_menus(Owner);
-menu_killer(#keyboard{keysym=#keysym{sym=27}}, Owner) -> %Escape.
+menu_killer(#keyboard{sym=27}, Owner) -> %Escape.
     kill_menus(Owner);
 menu_killer(_, _) -> keep.
 
@@ -390,11 +390,11 @@ handle_key_1(insert, Mi) ->
     end;
 handle_key_1(_, _) -> keep.
 
-key(#keyboard{keysym=#keysym{sym=27}}) -> cancel;
-key(#keyboard{keysym=#keysym{sym=?SDLK_INSERT}}) -> insert;
-key(#keyboard{keysym=#keysym{unicode=$/}}) -> insert;
-key(#keyboard{keysym=#keysym{sym=?SDLK_DELETE}}) -> delete;
-key(#keyboard{keysym=#keysym{unicode=$\\}}) -> delete;
+key(#keyboard{sym=27}) -> cancel;
+key(#keyboard{sym=?SDLK_INSERT}) -> insert;
+key(#keyboard{unicode=$/}) -> insert;
+key(#keyboard{sym=?SDLK_DELETE}) -> delete;
+key(#keyboard{unicode=$\\}) -> delete;
 key(_) -> none.
 
 current_command(#mi{sel=none}) -> none;

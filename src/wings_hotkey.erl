@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.36 2003/03/09 18:07:53 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.37 2003/05/20 05:09:47 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -38,7 +38,7 @@ event(Event, #st{selmode=Mode}=St) ->
 	false -> event_1(Event, Mode)
     end.
 
-event_1(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, SelMode) ->
+event_1(#keyboard{sym=Sym,mod=Mod,unicode=C}, SelMode) ->
     Mods = modifiers(Mod),
     Key = case Mods of
 	      _ when Sym == ?SDLK_TAB -> {Sym,Mods};
@@ -67,12 +67,11 @@ lookup(Key, SelMode) ->
 %%% Binding and unbinding of keys.
 %%%
 
-bind_from_event(#keyboard{keysym=#keysym{sym=Sym}}, _Cmd)
-  when Sym >= ?SDLK_NUMLOCK ->
+bind_from_event(#keyboard{sym=Sym}, _Cmd) when Sym >= ?SDLK_NUMLOCK ->
     error;
-bind_from_event(#keyboard{keysym=#keysym{sym=?SDLK_TAB,mod=Mod}}, Cmd) ->
+bind_from_event(#keyboard{sym=?SDLK_TAB,mod=Mod}, Cmd) ->
     keyname(bind_virtual(?SDLK_TAB, modifiers(Mod), Cmd, user));
-bind_from_event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, Cmd) ->
+bind_from_event(#keyboard{sym=Sym,mod=Mod,unicode=C}, Cmd) ->
     Bkey = case modifiers(Mod) of
  	       [] when C =/= 0 ->
 		   bind_unicode(fix_bksp_and_del(Sym, C), Cmd, user);

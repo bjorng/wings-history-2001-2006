@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.113 2003/04/27 13:35:51 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.114 2003/05/20 05:09:46 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -757,13 +757,13 @@ handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY},
 						  prev={MX,MY}, undo=Uvs0}})
 	    end
     end;
-handle_event(#keyboard{state=?SDL_PRESSED,keysym=Sym}, 
+handle_event(#keyboard{state=?SDL_PRESSED,sym=Sym},
 	     #uvstate{st=St,id=Id}) ->
     case Sym of
-	#keysym{sym=?SDLK_SPACE} ->
+	?SDLK_SPACE ->
 	    wings_wm:send(geom, {new_state,wings_select_faces([],Id,St)}),
 	    keep;
-	_ ->  keep
+	_ -> keep
     end;
 handle_event({drop,_,DropData}, Uvs) ->
     handle_drop(DropData, Uvs);

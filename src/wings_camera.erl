@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.72 2003/05/04 08:21:15 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.73 2003/05/20 05:09:47 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -224,7 +224,7 @@ nendo(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_RELEASED}, Redraw) ->
 	    {seq,push,get_nendo_event(Camera, Redraw, true)};
 	_ -> next
     end;
-nendo(#keyboard{keysym=#keysym{sym=Sym}}, _Redraw) ->
+nendo(#keyboard{sym=Sym}, _Redraw) ->
     nendo_pan(Sym);
 nendo(_, _) -> next.
 
@@ -248,11 +248,11 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false) ->
 	    zoom(Dy)
     end,
     get_nendo_event(Camera, Redraw, false);
-nendo_event(#keyboard{keysym=#keysym{unicode=$q}}, Camera, Redraw, MR0) ->
+nendo_event(#keyboard{unicode=$q}, Camera, Redraw, MR0) ->
     MR = not MR0,
     nendo_message(MR),
     get_nendo_event(Camera, Redraw, MR);
-nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _) ->
+nendo_event(#keyboard{sym=Sym}=Event, _Camera, Redraw, _) ->
     case nendo_pan(Sym) of
 	keep -> keep;
 	next -> view_hotkey(Event, Redraw)
@@ -313,7 +313,7 @@ mirai(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_RELEASED}, Redraw) ->
 	    {seq,push,get_mirai_event(Camera, Redraw, true, View)};
 	_ -> next
     end;
-mirai(#keyboard{keysym=#keysym{sym=Sym}}, _Redraw) ->
+mirai(#keyboard{sym=Sym}, _Redraw) ->
     mirai_pan(Sym);
 mirai(_, _) -> next.
 
@@ -340,11 +340,11 @@ mirai_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false, View) -
 	    zoom(Dy)
     end,
     get_mirai_event(Camera, Redraw, false, View);
-mirai_event(#keyboard{keysym=#keysym{unicode=$q}}, Camera, Redraw, MR0, View) ->
+mirai_event(#keyboard{unicode=$q}, Camera, Redraw, MR0, View) ->
     MR = not MR0,
     mirai_message(MR),
     get_mirai_event(Camera, Redraw, MR, View);
-mirai_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _, _) ->
+mirai_event(#keyboard{sym=Sym}=Event, _Camera, Redraw, _, _) ->
     case mirai_pan(Sym) of
 	keep -> keep;
 	next -> view_hotkey(Event, Redraw)
@@ -436,7 +436,7 @@ maya(#mousebutton{x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
     end;
 maya(_, _) -> next.
 
-maya_event(#keyboard{keysym=#keysym{sym=Alt},state=?SDL_RELEASED},
+maya_event(#keyboard{sym=Alt,state=?SDL_RELEASED},
 	   Camera, _Redraw) when Alt == ?SDLK_LALT; Alt == ?SDLK_RALT ->
     maya_stop_camera(Camera);
 maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.16 2003/04/27 05:09:59 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.17 2003/05/20 05:09:47 bjorng Exp $
 %%
 
 -module(wings_getline).
@@ -180,7 +180,7 @@ get_event() ->
 	no_event ->
 	    erlang:yield(),
 	    get_event();
-	#keyboard{keysym=#keysym{sym=Sym,unicode=Unicode}} ->
+	#keyboard{sym=Sym,unicode=Unicode} ->
 	    {Sym,Unicode};
 	_Other ->
 	    erlang:yield(),
