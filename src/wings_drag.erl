@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.172 2004/03/23 19:29:44 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.173 2004/03/28 06:47:20 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -68,7 +68,6 @@ setup(Tvs, Units, Flags, St) ->
 	    insert_matrix(TvMatrix);
 	{general,General} ->
 	    wings_draw:invalidate_dlists(St),
-	    wings_draw:update_mirror(),
 	    break_apart_general(General);
 	_ ->
 	    break_apart(Tvs, St)
@@ -103,7 +102,6 @@ setup_offsets([], []) -> [].
 %%
 break_apart(Tvs, St) ->
     wings_draw:invalidate_dlists(St),
-    wings_draw:update_mirror(),
     wings_draw_util:map(fun(D, Data) ->
 				break_apart(D, Data, St)
 			end, wings_util:rel2fam(Tvs)).

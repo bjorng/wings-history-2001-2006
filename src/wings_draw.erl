@@ -8,15 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.179 2004/03/27 07:00:45 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.180 2004/03/28 06:47:26 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([refresh_dlists/1,
 	 invalidate_dlists/1,
 	 update_sel_dlist/0,
-	 changed_we/2,split/3,original_we/1,update_dynamic/2,join/1,
-	 update_mirror/0]).
+	 changed_we/2,split/3,original_we/1,update_dynamic/2,join/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -43,8 +42,7 @@
 refresh_dlists(St) ->
     invalidate_dlists(St),
     build_dlists(St),
-    update_sel_dlist(),
-    update_mirror().
+    update_sel_dlist().
 
 invalidate_dlists(#st{selmode=Mode,sel=Sel}=St) ->
     prepare_dlists(St),
@@ -52,8 +50,9 @@ invalidate_dlists(#st{selmode=Mode,sel=Sel}=St) ->
 	[] -> ok;
 	ChangedMat -> invalidate_by_mat(ChangedMat)
     end,
-    wings_draw_util:map(fun(D, Data) ->
-				sel_fun(D, Data, Mode)
+    wings_draw_util:map(fun(D0, Data) ->
+				D = update_mirror(D0),
+				invalidate_sel(D, Data, Mode)
 			end, Sel),
     update_needed(St).
 
@@ -116,12 +115,13 @@ invalidate_by_mat(#dlo{src_we=We}=D, Changed) ->
 	false -> D#dlo{work=none,edges=none,vs=none,smooth=none,proxy_faces=none}
     end.
 
-sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
+invalidate_sel(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D,
+	       [{Id,Items}|Sel], Mode) ->
     case SrcSel of
 	{Mode,Items} -> {D,Sel};
 	_ -> {D#dlo{sel=none,normals=none,src_sel={Mode,Items}},Sel}
     end;
-sel_fun(D, Sel, _) ->
+invalidate_sel(D, Sel, _) ->
     {D#dlo{sel=none,src_sel=none},Sel}.
 
 changed_we(#dlo{ns={_}=Ns}, D) ->
@@ -166,10 +166,28 @@ face_ns_data(N, [A,B,C,D]=Ps) ->
     end;
 face_ns_data(N, Ps) -> {N,Ps}.
 
+update_mirror(#dlo{mirror=none,src_we=#we{mirror=none}}=D) -> D;
+update_mirror(#dlo{mirror=none,src_we=#we{fs=Ftab,mirror=Face}=We}=D) ->
+    case gb_trees:is_defined(Face, Ftab) of
+	false ->
+	    D#dlo{mirror=none};
+	true ->
+	    VsPos = wings_face:vertex_positions(Face, We),
+	    N = e3d_vec:normal(VsPos),
+	    Center = e3d_vec:average(VsPos),
+	    RotBack = e3d_mat:rotate_to_z(N),
+	    Rot = e3d_mat:transpose(RotBack),
+	    Mat0 = e3d_mat:mul(e3d_mat:translate(Center), Rot),
+	    Mat1 = e3d_mat:mul(Mat0, e3d_mat:scale(1.0, 1.0, -1.0)),
+	    Mat2 = e3d_mat:mul(Mat1, RotBack),
+	    Mat = e3d_mat:mul(Mat2, e3d_mat:translate(e3d_vec:neg(Center))),
+	    D#dlo{mirror=Mat}
+    end;
+update_mirror(D) -> D.
 
 %% Find out which display lists are needed based on display modes.
 %% (Does not check whether they exist or not; that will be checked
-%% later.
+%% later.)
 
 update_needed(#st{selmode=vertex}=St) ->
     case wings_pref:get_value(vertex_size) of
@@ -497,30 +515,6 @@ update_sel_all(#dlo{src_we=#we{fs=Ftab}}=D) ->
     gl:endList(),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
     D#dlo{sel=List}.
-
-update_mirror() ->
-    wings_draw_util:map(fun update_mirror/2, []).
-
-update_mirror(#dlo{mirror=none,src_we=#we{mirror=none}}=D, _) -> D;
-update_mirror(#dlo{mirror=none,src_we=#we{fs=Ftab,mirror=Face}=We,ns=Ns0}=D, _) ->
-    case gb_trees:is_defined(Face, Ftab) of
-	false ->
-	    D#dlo{mirror=none};
-	true ->
-	    VsPos = wings_face:vertex_positions(Face, We),
-	    N = e3d_vec:normal(VsPos),
-	    FaceNsData = face_ns_data(N, VsPos),
-	    Ns = gb_trees:enter(Face, FaceNsData, Ns0),
-	    Center = wings_face:center(Face, We),
-	    RotBack = e3d_mat:rotate_to_z(N),
-	    Rot = e3d_mat:transpose(RotBack),
-	    Mat0 = e3d_mat:mul(e3d_mat:translate(Center), Rot),
-	    Mat1 = e3d_mat:mul(Mat0, e3d_mat:scale(1.0, 1.0, -1.0)),
-	    Mat2 = e3d_mat:mul(Mat1, RotBack),
-	    Mat = e3d_mat:mul(Mat2, e3d_mat:translate(e3d_vec:neg(Center))),
-	    D#dlo{mirror=Mat,ns=Ns}
-    end;
-update_mirror(D, _) -> D.
 
 %%%
 %%% Splitting of objects into two display lists.

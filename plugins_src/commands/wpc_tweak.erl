@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.48 2004/03/20 18:42:37 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.49 2004/03/28 06:47:15 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -253,7 +253,6 @@ end_drag(#tweak{st=St0}=T) ->
     St1 = wings_draw_util:map(fun end_drag/2, St0),
     St = wings_undo:save(St0, St1),
     wings_draw:refresh_dlists(St),
-    wings_draw:update_mirror(),
     help(T),
     update_tweak_handler(T#tweak{tmode=wait,st=St}).
 
