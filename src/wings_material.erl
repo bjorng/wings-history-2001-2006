@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.24 2002/02/22 11:20:58 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.25 2002/02/24 22:34:44 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -156,16 +156,16 @@ setup_fun(Mat) ->
 		    true ->
 			gl:enable(?GL_TEXTURE_2D),
 			gl:texEnvi(?GL_TEXTURE_ENV,
-				   ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+				   ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
 			gl:bindTexture(?GL_TEXTURE_2D, Dmap),
 			gl:texParameteri(?GL_TEXTURE_2D,
 					 ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
 			gl:texParameteri(?GL_TEXTURE_2D,
 					 ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
 			gl:texParameteri(?GL_TEXTURE_2D,
-					 ?GL_TEXTURE_WRAP_S, ?GL_CLAMP),
+					 ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
 			gl:texParameteri(?GL_TEXTURE_2D,
-					 ?GL_TEXTURE_WRAP_T, ?GL_CLAMP)
+					 ?GL_TEXTURE_WRAP_T, ?GL_REPEAT)
 		end,
 		gl:materialfv(?GL_FRONT, ?GL_AMBIENT, Amb),
 		gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
@@ -238,12 +238,12 @@ init_texture(#mat{diffuse_map={W,H,Bits}}=Mat, #st{next_tx=TxId}=St) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
-    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_CLAMP),
-    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_CLAMP),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
     gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
 		  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits),
     gl:popAttrib(),
