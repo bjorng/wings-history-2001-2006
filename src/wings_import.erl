@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.4 2002/07/28 12:36:47 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.5 2002/10/18 17:50:05 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -91,10 +91,8 @@ add_materials(UsedMat0, Mat0, St0) ->
     UsedMat = sofs:from_external(gb_sets:to_list(UsedMat0), [name]),
     Mat1 = sofs:relation(Mat0, [{name,data}]),
     Mat2 = sofs:restriction(Mat1, UsedMat),
-    NotDefined0 = sofs:difference(UsedMat, sofs:domain(Mat2)),
-    DummyData = sofs:from_term([], data),
-    NotDefined = sofs:constant_function(NotDefined0, DummyData),
-    Mat = sofs:to_external(sofs:union(Mat2, NotDefined)),
+    Mat3 = sofs:extension(Mat2, UsedMat, sofs:from_term([], data)),
+    Mat = sofs:to_external(Mat3),
     wings_material:add_materials(Mat, St0).
 
 %% rename_materials(NameMap, We0) -> We
