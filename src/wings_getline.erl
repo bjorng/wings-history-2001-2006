@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.8 2001/11/14 10:05:56 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.9 2001/11/15 10:58:39 bjorng Exp $
 %%
 
 -module(wings_getline).
@@ -130,10 +130,12 @@ init_text(String) ->
 
 read_loop(Ts0) ->
     case get_event() of
-	{_,27} ->				%Escape
-	    aborted;
+	{?SDLK_KP_ENTER,_} ->
+	    get_text(Ts0);
 	{_,$\r} ->
 	    get_text(Ts0);
+	{_,27} ->				%Escape
+	    aborted;
 	{Sym,Unicode} ->
 	    Ts = key(Sym, Unicode, Ts0),
 	    toggle_cursor(Ts0),
@@ -157,7 +159,7 @@ key(?SDLK_RIGHT, _, Ts) -> key(6, Ts);
 key(?SDLK_DELETE, _, Ts) -> key(4, Ts);
 key(?SDLK_KP_PERIOD, _, Ts) ->
     key($., Ts);
-key(C, _, Ts) when ?SDLK_KP0 =< C, C < ?SDLK_KP9 ->
+key(C, _, Ts) when ?SDLK_KP0 =< C, C =< ?SDLK_KP9 ->
     key(C-?SDLK_KP0+$0, Ts);
 key(Other, Unicode, Ts) ->
     key(Unicode, Ts).
