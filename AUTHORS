@@ -1,4 +1,4 @@
-$Id: AUTHORS,v 1.25 2004/11/10 05:06:59 bjorng Exp $
+$Id: AUTHORS,v 1.26 2004/11/10 05:10:17 bjorng Exp $
 
 Björn Gustavsson:
 	Has written the bulk of code.
@@ -88,6 +88,8 @@ Riccardo Venier (verme@insiberia.net):
 Paul M (elrond79)
 	Wrote intersect (vertex/edge) commands and force ortho view option when
 	camera is on one of the major axis.
+	Improved 3DS import so that all triangles are converted to polygons
+	(unless doing so would create holes or create isolated vertices).
 
 Auto-UV credits
 ===============
