@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.91 2003/06/02 06:06:43 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.92 2003/06/02 18:38:23 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -844,7 +844,7 @@ select_draw_opt(#we{fs=Ftab}=We) ->
     foreach(fun({Face,Edge}) ->
 		    gl:loadName(Face),
 		    gl:'begin'(?GL_TRIANGLES),
-		    draw_face(Face, Edge, We),
+		    wings_draw_util:flat_face(Face, Edge, We),
 		    gl:'end'()
 	    end, gb_trees:to_list(Ftab)),
     gl:popName().
@@ -853,30 +853,6 @@ select_draw_nonopt(#we{fs=Ftab}=We) ->
     gl:pushName(0),
     foreach(fun({Face,Edge}) ->
 		    gl:loadName(Face),
-		    draw_face(Face, Edge, We)
+		    wings_draw_util:flat_face(Face, Edge, We)
 	    end, gb_trees:to_list(Ftab)),
     gl:popName().
-
-%%
-%% Utilities.
-%%
-
-draw_face(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs0 = wings_face:vinfo(Face, Edge, We),
-    draw_face_1(Vs0, Vtab, [], []).
-
-draw_face_1([[V|_]|Vs], Vtab, Nacc, VsAcc) ->
-    Pos = gb_trees:get(V, Vtab),
-    draw_face_1(Vs, Vtab, [Pos|Nacc], [Pos|VsAcc]);
-draw_face_1([], _, Nacc, Vs) ->
-    N = e3d_vec:normal(reverse(Nacc)),
-    Tess = wings_draw_util:tess(),
-    {X,Y,Z} = N,
-    glu:tessNormal(Tess, X, Y, Z),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    foreach(fun(Pos) ->
-		    glu:tessVertex(Tess, Pos)
-	    end, Vs),
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess).
