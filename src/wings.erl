@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.19 2001/10/20 19:14:17 bjorng Exp $
+%%     $Id: wings.erl,v 1.20 2001/10/21 07:52:01 bjorng Exp $
 %%
 
 -module(wings).
@@ -230,7 +230,8 @@ do_command_1(Cmd, St) ->
 remember_command({C,_}=Cmd, St) when C =:= vertex; C =:= edge;
 				     C =:= face; C =:= body ->
     St#st{last_command=Cmd};
-remember_command(Cmd, St) -> St.
+remember_command(Cmd, #st{last_command=Last}=St) ->
+    St.
 
 command(ignore, St) ->
     St;
@@ -300,8 +301,26 @@ command({edit,{material,Mat}}, St) ->
     wings_material:edit(Mat, St);
 command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{drag=undefined,camera=undefined,
-			   selmode=Mode,last_command={Mode,_}=Cmd}=St) ->
-    wings_io:putback_event({action,Cmd}),
+			   selmode=Mode,last_command=Cmd0}=St) ->
+    %% Test if the saved command can be safely repeated, and
+    %% rewrite it with the current selection mode if needed.
+    Cmd = case Cmd0 of
+	      {Mode,_} -> Cmd0;
+	      {_,{move,normal}} when Mode == body -> unsafe;
+	      {_,{move,_}=C} -> {Mode,C};
+	      {_,{rotate,normal}} when Mode == body -> unsafe;
+	      {_,{rotate,_}=C} -> {Mode,C};
+	      {_,{scale,_}=C} -> {Mode,C};
+	      {_,{extrude,_}} when Mode == body -> unsafe;
+	      {_,{extrude,_}=C} -> {Mode,C};
+	      {_,bevel} when Mode == body -> unsafe;
+	      {_,bevel} -> {Mode,bevel};
+	      _ -> false
+	  end,
+    if
+	Cmd == unsafe -> ok;
+	true -> wings_io:putback_event({action,Cmd})
+    end,
     St;
 command({edit,repeat}, St) -> St;
 
