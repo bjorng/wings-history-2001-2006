@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.2 2001/12/10 18:39:57 bjorng Exp $
+%%     $Id: e3d__tif.erl,v 1.3 2002/01/09 13:08:04 dgud Exp $
 %%
 
 -module(e3d__tif).
@@ -117,6 +117,8 @@ getDirEntries(T, N, Bin) ->
 -define(BitsPerSample, 258).    %%%  
 -define(Compression, 259).      %%% 1 No Comp; 2 CCITT G3 1-D Modified Huffman RLE
                                 %%% 5 Extension ; 32773 PackBits
+-define(Predictor, 317).        %%% 1 No differencing (default)
+                                %%% 2 Horizontal differencing
 
 -define(PhotoMetricInt, 262).   %%% 0 WhiteisZero; 1 BlackIsZero ; 2 RGB
 
@@ -132,11 +134,12 @@ getDirEntries(T, N, Bin) ->
 %% Optional
 -define(Orientation, 274).      
 -define(PlanarConf, 284).       
--record(tif, {w, h, order = upper_left, bpp, bps, rps, so, sbc, comp}).
+-record(tif, {w, h, order = upper_left, bpp, bps, rps, so, sbc, 
+	      comp, pred}).
 
 load_image(Enc, IFDs, Orig) ->
-%%    io:format("IFD ~p ~nFileSize ~p ~n", [IFDs, size(Orig)]),
     Tif = get_info(IFDs, #tif{}, Orig, Enc),
+%%    io:format("IFD ~p ~nFileSize ~p ~n ~p", [IFDs, size(Orig), Tif]),
     RevStrips = get_strips(Tif#tif.so, Tif#tif.sbc, Orig, Enc, []),    
     case catch decompress(RevStrips, Tif#tif.comp, Tif, []) of
 	Image when binary(Image) ->    
@@ -209,8 +212,6 @@ save_image(Image, Compress, Offset1) ->
 get_info([], Tif, Orig,Enc) -> Tif;
 get_info([{?PhotoMetricInt, _, 1, {value, 2}}| R], Tif, Orig,Enc) ->  
     get_info(R, Tif, Orig,Enc);  %% Supports RGB only now
-get_info([{?Compression, _, 1, {value, Comp = 1}}|R], Tif, Orig,Enc) ->
-    get_info(R, Tif#tif{comp = Comp}, Orig,Enc);
 get_info([{?ImageWidth, _, 1, {value, W}}|R], Tif, Orig,Enc) ->
     get_info(R, Tif#tif{w = W}, Orig,Enc);
 get_info([{?ImageLength, _, 1, {value, H}}|R], Tif, Orig,Enc) ->
@@ -237,6 +238,9 @@ get_info([{?SamplesPerPixel, _, 1, {value, SPP}}|R], Tif, Orig,Enc) ->
     get_info(R, Tif#tif{bpp = lists:sum(Tif#tif.bps)}, Orig,Enc);	
 get_info([{?Compression, _, 1, {value, Comp}}|R], Tif, Orig,Enc) ->
     get_info(R, Tif#tif{comp = Comp}, Orig,Enc);
+get_info([{?Predictor, _, 1, {value, Pred}}|R], Tif, Orig,Enc) ->
+    get_info(R, Tif#tif{pred = Pred}, Orig,Enc);
+
 get_info([{?StripOffsets, Type = long, Count, Where}|R], Tif, Orig,Enc) ->
     Sofs = 
 	case Where of 
@@ -330,7 +334,16 @@ decompress([CompStrip|Rest], Comp = 5, Tif, Acc) -> %% LZW-Compression
 		       end
 	       end,
     Decomp = lzw_decomp(0, ReadCode, 0, 258, ?LZW_STARTBITLEN, []),
-    decompress(Rest, Comp, Tif, [list_to_binary(lists:reverse(Decomp))|Acc]);
+    Differented = 
+	case Tif#tif.pred of
+	    1 -> %% No differencing
+		Decomp;
+	    2 when Tif#tif.bpp == 32 -> %% Horizontal differencing
+		undo_differencing4(0, Tif#tif.w, lists:append(lists:reverse(Decomp)), 0,0,0,0, []);
+	    2 when Tif#tif.bpp == 24 -> %% Horizontal differencing
+		undo_differencing3(0, Tif#tif.w, lists:append(lists:reverse(Decomp)), 0,0,0, [])
+	end,
+    decompress(Rest, Comp, Tif, [list_to_binary(lists:reverse(Differented))|Acc]);
 decompress([CompStrip|Rest], Comp = 32773, Tif, Acc) ->  %% PackBits
     W = Tif#tif.w * (Tif#tif.bpp div 8),
     Bins = unpack_bits(0, W, 0, Tif#tif.h, %% * Tif#tif.rps * (Tif#tif.bpp div 8), 
@@ -341,6 +354,27 @@ decompress([], Comp, _, Acc) ->
 decompress(RevStrips, Comp, _, Acc) ->
     io:format("~p: Unsupported Compression ~p ~n", [?MODULE, Comp]),
     {error, {e3d__tif, unsupported_compression}}.
+
+undo_differencing4(W, W, Rest, _,_,_,_,Ack) ->
+    undo_differencing4(0,W, Rest, 0,0,0,0,Ack);
+undo_differencing4(C, W, [R,G,B,A|Rest], AR,AG,AB,AA, Ack) ->
+%%    io:format("undo ~p ~n", [[{R,G,B,A}, {AR,AG,AB,AA}]]),
+    RR = (R + AR) rem 256,    
+    RG = (G + AG) rem 256, 
+    RB = (B + AB) rem 256,
+    RA = (A + AA) rem 256,
+    undo_differencing4(C+1, W, Rest, RR,RG,RB,RA, [RA,RB,RG,RR|Ack]); 
+undo_differencing4(_, _, [], _,_,_,_, Ack) ->
+    Ack.
+undo_differencing3(W, W, Rest, _,_,_,Ack) ->
+    undo_differencing3(0,W, Rest, 0,0,0,Ack);
+undo_differencing3(C, W, [R,G,B|Rest], AR,AG,AB, Ack) ->
+    RR = (R + AR) rem 256,    
+    RG = (G + AG) rem 256, 
+    RB = (B + AB) rem 256,
+    undo_differencing3(C+1, W, Rest, RR,RG,RB, [RB,RG,RR|Ack]);
+undo_differencing3(_, _, [], _,_,_, Ack) ->
+    Ack.
 
 unpack_bits(0, W, H, H, _, Acc) ->
     list_to_binary(lists:reverse(Acc));    
@@ -385,7 +419,8 @@ lzw_decomp(S, Read, PrevCode, Count, BitLen, Acc) ->
 		    Str = ?get_lzw(NewCode),
 		    lzw_decomp(NS2, Read, NewCode, 258, 9, [Str|Acc]);
 	    	Else ->
-		    io:format("~n~p: Error ~p Args: ~p ~n", [?MODULE, Else, {NS, PrevCode, Count, BitLen}]),
+		    io:format("~n~p: Error ~p Args: ~p ~n", 
+			      [?MODULE, Else, {NS, PrevCode, Count, BitLen}]),
 		    erlang:fault({?MODULE, decoder, {badly_compressed_data}})
 	    end;
 	{NewCode, NS} when integer(NewCode) ->
@@ -399,11 +434,13 @@ lzw_decomp(S, Read, PrevCode, Count, BitLen, Acc) ->
 		    ?add_lzw(Count, ?get_lzw(PrevCode) ++ [H]),
 		    lzw_decomp(NS, Read, NewCode, Count +1, lzw_bl(Count, BitLen), [Str|Acc]);
 		Else ->
-		    io:format("~n~p: Error Case Clause ~p ~p Args ~p ~n", [?MODULE, Else, NewCode, {S, PrevCode, Count, BitLen}]),
+		    io:format("~n~p: Error Case Clause ~p ~p Args ~p ~n", 
+			      [?MODULE, Else, NewCode, {S, PrevCode, Count, BitLen}]),
 		    erlang:fault({?MODULE, decoder, {badly_compressed_data}})
 	    end;
 	Else ->
-	    io:format("~n~p: Error ~p Args: ~p ~n", [?MODULE, Else, {S, PrevCode, Count, BitLen}]),
+	    io:format("~n~p: Error ~p Args: ~p ~n", 
+		      [?MODULE, Else, {S, PrevCode, Count, BitLen}]),
 	    erlang:fault({?MODULE, decoder, {badly_compressed_data}})
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.6 2001/12/28 22:30:04 bjorng Exp $
+%%     $Id: e3d_image.erl,v 1.7 2002/01/09 13:08:04 dgud Exp $
 %%
 
 -module(e3d_image).
@@ -23,7 +23,8 @@
 
 
 %% internal exports
--export([noswap3/7, noswap4/7, swap3/7,swap4/7,swap3to4/7,swap4to3/7]).
+-export([noswap3/7, noswap4/7, noswap3to4/7, noswap4to3/7, 
+	 swap3/7,swap4/7,swap3to4/7,swap4to3/7]).
 
 %% Func: load(FileName[, Options])  
 %% Args: FileName = [Chars], Options = [Tagged Tuple]
@@ -99,7 +100,8 @@ convert(In = #e3d_image{type = FromType, image = Image,
     OrderConv = order_conv(FromOrder, ToOrder),
     
     New = ?MODULE:TypeConv(0, W, Image, OldPaddLength, NewPadd, OrderConv, [[]]),    
-    In#e3d_image{image = New, type = ToType, alignment = ToAlm, order = ToOrder}.
+    In#e3d_image{image = New, type = ToType, bytes_pp = bytes_pp(ToType), 
+		 alignment = ToAlm, order = ToOrder}.
 
 %% Func: bytes_pp(Type) 
 %% Rets: integer()
@@ -171,10 +173,18 @@ noswap3(C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) when C /= W 
     noswap3(C+1, W, R, OPL, NP, OC,[[?C3(B0,G0,R0)|Row]| Acc]);
 noswap3(C, W, Bin, OPL, NP, OC, Acc) ->
     swap(noswap3, C, W, Bin, OPL, NP, OC, Acc).
+noswap3to4(C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) when C /= W ->
+    noswap3to4(C+1, W, R, OPL, NP, OC,[[?C4(B0,G0,R0,255)|Row]| Acc]);
+noswap3to4(C, W, Bin, OPL, NP, OC, Acc) ->
+    swap(noswap3to4, C, W, Bin, OPL, NP, OC, Acc).
 noswap4(C, W, <<B0:8,G0:8,R0:8,A0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) when C /= W ->
     noswap4(C+1, W, R, OPL, NP, OC,[[?C4(B0,G0,R0,A0)|Row]| Acc]);
 noswap4(C, W, Bin, OPL, NP, OC, Acc) ->
     swap(noswap4, C, W, Bin, OPL, NP, OC, Acc).
+noswap4to3(C, W, <<B0:8,G0:8,R0:8,A0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) when C /= W ->
+    noswap4to3(C+1, W, R, OPL, NP, OC,[[?C3(B0,G0,R0)|Row]| Acc]);
+noswap4to3(C, W, Bin, OPL, NP, OC, Acc) ->
+    swap(noswap4to3, C, W, Bin, OPL, NP, OC, Acc).
 swap3(C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) when C /= W->
     swap3(C+1, W, R, OPL, NP, OC,[[?C3(R0,G0,B0)|Row]| Acc]);
 swap3(C, W, Bin, OPL, NP, OC, Acc) ->
@@ -203,6 +213,14 @@ type_conv(Type, Type) ->  %% No swap
 	3 -> noswap3;
 	4 -> noswap4
     end;
+type_conv(r8g8b8a8, r8g8b8) ->
+    noswap4to3;
+type_conv(b8g8r8a8, b8g8r8) ->
+    noswap4to3;
+type_conv(r8g8b8, r8g8b8a8) ->
+    noswap3to4;
+type_conv(b8g8r8, b8g8r8a8) ->
+    noswap3to4;
 type_conv(FromType, ToType) ->
     case {bytes_pp(FromType), bytes_pp(ToType)} of
 	{3,3} -> swap3;
