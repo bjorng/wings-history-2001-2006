@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.90 2004/04/17 07:04:47 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.91 2004/04/19 14:05:02 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -439,12 +439,12 @@ make_slide_tv(Slides) ->
 make_slide_fun(Vs, Slides) ->
     fun([Dx|_],Acc) ->
 	    foldl(fun(V,A) ->
-			  {Pos, Ndir, Pdir} = gb_trees:get(V, Slides),   
+			  {Pos,{Ndir,NL},{Pdir,PL}} = gb_trees:get(V, Slides),   
 			  ScaleDir = 
 			      if Dx > 0 ->
-				      e3d_vec:mul(e3d_vec:norm(Pdir), Dx);
+				      e3d_vec:mul(e3d_vec:norm(Pdir), Dx*PL);
 				 true ->
-				      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx)
+				      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx*NL)
 			      end,
 			  [{V,e3d_vec:add(Pos, ScaleDir)}|A]
 		  end, Acc, Vs);
@@ -519,11 +519,14 @@ slide_gather_info([Edge|Es],We=#we{es=Etab,vp=Vtab},Acc) ->
     V1pos = gb_trees:get(V1, Vtab),V2pos = gb_trees:get(V2, Vtab),
     A1pos = gb_trees:get(A1, Vtab),A2pos = gb_trees:get(A2, Vtab),
     B1pos = gb_trees:get(B1, Vtab),B2pos = gb_trees:get(B2, Vtab),
-    E1v1 = norm(sub(A1pos,V1pos)), E2v1 = norm(sub(B1pos,V1pos)),
-    E1v2 = norm(sub(A2pos,V2pos)), E2v2 = norm(sub(B2pos,V2pos)), 
-    E1 = norm(average(E1v1,E1v2)), E2 = norm(average(E2v1,E2v2)),
-    New = {V1, {V1pos, E1v1, E2v1},
-	   V2, {V2pos, E1v2, E2v2},
+    E1v1  = sub(A1pos,V1pos), E2v1 = sub(B1pos,V1pos),
+    E1v2  = sub(A2pos,V2pos), E2v2 = sub(B2pos,V2pos), 
+    NE1v1 = norm(E1v1), NE2v1 = norm(E2v1),
+    NE1v2 = norm(E1v2), NE2v2 = norm(E2v2),
+
+    E1 = norm(average(NE1v1,NE1v2)), E2 = norm(average(NE2v1,NE2v2)),
+    New = {V1, {V1pos,{NE1v1,len(E1v1)},{NE2v1,len(E2v1)}},
+	   V2, {V2pos,{NE1v2,len(E1v2)},{NE2v2,len(E2v2)}},
 	   E1, E2, N},
     slide_gather_info(Es, We, [{Edge,New}|Acc]);
 slide_gather_info([],_,Acc) ->
