@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.113 2005/01/31 12:53:41 dgud Exp $
+%%     $Id: wings_camera.erl,v 1.114 2005/01/31 14:34:11 dgud Exp $
 %%
 
 -module(wings_camera).
@@ -619,8 +619,8 @@ view_hotkey(Ev, Camera, #state{st=St}) ->
 	{view,Cmd} -> 
 	    wings_view:command(Cmd, St),
 	    keep;	
-	Other -> %% Hotkey pressed, Quit camera mode
-	    wings_wm:later({action, Other}),
+	_Other -> %% Hotkey pressed, Quit camera mode
+	    wings_wm:later(Ev),
 	    stop_camera(Camera)
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.191 2005/01/31 12:53:41 dgud Exp $
+%%     $Id: wings_drag.erl,v 1.192 2005/01/31 14:34:13 dgud Exp $
 %%
 
 -module(wings_drag).
@@ -447,8 +447,8 @@ handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
 	{select,more} ->
 	    Drag = magnet_radius(1, Drag0),
 	    get_drag_event(Drag);
-	Other ->
-	    wings_wm:later({action, Other}),
+	_Other ->
+	    wings_wm:later(Event),
 	    quit_drag(Drag0)
     end.
 
