@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.2 2004/07/06 21:29:34 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.3 2004/07/07 10:17:10 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -105,12 +105,17 @@ handle_connect_event1(init_opengl, #cs{st=St}) ->
 handle_connect_event1(quit=Ev, C) ->
     wings_wm:later(Ev),
     exit_connect(C);
+handle_connect_event1(got_focus, C = #cs{st=St}) ->
+    update_connect_handler(C#cs{st=St#st{selmode=edge,sel=[],sh=true}});
+handle_connect_event1({current_state,St}, #cs{st=St}) ->    
+    keep; %% Ignore my own changes.
 handle_connect_event1({current_state,St}=Ev, C) ->
     case topological_change(St) of
 	false ->
 	    update_connect_handler(C#cs{st=St});
 	true ->
 	    wings_wm:later(Ev),
+	    wings:unregister_postdraw_hook(geom,?MODULE),
 	    pop
     end;
 handle_connect_event1({new_state,St}=Ev, C) ->
@@ -120,6 +125,7 @@ handle_connect_event1({new_state,St}=Ev, C) ->
 	    update_connect_handler(C#cs{st=St});
 	true ->
 	    wings_wm:later(Ev),
+	    wings:unregister_postdraw_hook(geom,?MODULE),
 	    pop
     end;
 handle_connect_event1({action,Action}, #cs{st=St0}=C) ->
