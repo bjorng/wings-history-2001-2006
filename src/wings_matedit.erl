@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.2 2001/11/20 16:23:36 bjorng Exp $
+%%     $Id: wings_matedit.erl,v 1.3 2001/11/21 07:07:25 bjorng Exp $
 %%
 
 -module(wings_matedit).
@@ -287,7 +287,6 @@ color_picker_loop(S) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT, AmbM),
     gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, DiffM),
     gl:materialfv(?GL_FRONT, ?GL_SPECULAR, SpecM),
-    io:format("shininess = ~p\n", [(1.0-S#s.shininess)*128.0]),
     gl:materialfv(?GL_FRONT, ?GL_SHININESS, (1.0-S#s.shininess)*128.0),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_BLEND),
@@ -652,7 +651,6 @@ fixdeg(Hue) ->
 
 check_event(S) ->
     Event = wings_io:get_event(),
-    io:format("~p\n", [Event]),
     case Event of
 	quit ->
 	    quit;

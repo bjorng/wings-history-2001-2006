@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.9 2001/11/20 16:23:36 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.10 2001/11/21 07:07:25 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -156,76 +156,8 @@ to_external({Name,#mat{ambient=Amb,diffuse=Diff,specular=Spec,
 edit(Name, #st{mat=Mtab0}=St) ->
     Mat0 = gb_trees:get(Name, Mtab0),
     Mat = setup_fun(wings_matedit:edit(150, 200, Mat0)),
-    io:format("~w\n", [Mat]),
     Mtab = gb_trees:update(Name, Mat, Mtab0),
     St#st{mat=Mtab}.
-
-edit_1(Name, Mat) ->
-    wings_io:draw_completions(
-      fun() ->
-	      #mat{ambient=Amb,diffuse=Diff,specular=Spec,
-		   shininess=Shine,opacity=Opac,
-		   diffuse_map=Dmap,
-		   attr=Attr} = Mat,
-	      wings_io:text_at(0, 0, format("Material: ~p", [Name])),
-
-	      wings_io:text_at(0, 2*?LINE_HEIGHT, "Ambient:"),
-	      color_box(10, 2*?LINE_HEIGHT, Amb),
-
-	      wings_io:text_at(0, 3*?LINE_HEIGHT, "Diffuse:"),
-	      color_box(10, 3*?LINE_HEIGHT, Diff),
-
-	      wings_io:text_at(0, 4*?LINE_HEIGHT, "Specular:"),
-	      color_box(10, 4*?LINE_HEIGHT, Spec),
-	      
-	      wings_io:text_at(0, 5*?LINE_HEIGHT,
-			       format("Shininess: ~p%",
-				      [round(Shine*100)])),
-	      wings_io:text_at(0, 6*?LINE_HEIGHT,
-			       format("Opacity: ~p%", [round(Opac*100)])),
-	      wings_io:text_at(0, 7*?LINE_HEIGHT,
-			       format("Diffuse map: ~P", [Dmap,10])),
-	      attr(8*?LINE_HEIGHT, Attr),
-	      gl:flush(),
-	      key(),
-	      Mat
-      end).
-
-attr(Y, [{Tag,Value}|T]) when integer(Tag) ->
-    wings_io:text_at(0, Y, format("~p: ~p", [hex4(Tag),Value])),
-    attr(Y+?LINE_HEIGHT, T);
-attr(Y, [{Tag,Value}|T]) ->
-    wings_io:text_at(0, Y, format("~p: ~p", [Tag,Value])),
-    attr(Y+?LINE_HEIGHT, T);
-attr(Y, [Prop|T]) ->
-    wings_io:text_at(0, Y, format("~p", [Prop])),
-    attr(Y+?LINE_HEIGHT, T);
-attr(Y, []) -> ok.
-
-hex4(Num) ->
-    hex(4, Num, []).
-
-hex(0, Num, Acc) -> Acc;
-hex(N, Num, Acc) ->
-    hex(N-1, Num div 10, [hexd(Num rem 16)|Acc]).
-
-hexd(D) when 0 =< D, D =< 9 -> D+$0;
-hexd(D) when 10 =< D, D =< 16 -> D+$A-10.
-    
-format(F, L) ->
-    lists:flatten(io_lib:format(F, L)).
-
-key() ->	      
-    case wings_io:get_event() of
-	#keyboard{} -> ok;
-	Other -> key()
-    end.
-
-color_box(X0, Y, Color) ->
-    gl:color3fv(Color),
-    X = X0 * ?CHAR_WIDTH,
-    gl:recti(X, Y-?CHAR_HEIGHT+3, X+3*?CHAR_WIDTH, Y+3),
-    gl:color3i(0, 0, 0).
 
 %%% Texture support.
 
