@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.14 2003/06/19 08:21:28 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.15 2003/12/26 21:21:15 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
@@ -46,18 +46,31 @@ init(Next) ->
 	    Next
     end.
 
+fileop({file,open_dialog,Prop,Cont}, _Next) ->
+    Title = proplists:get_value(title, Prop, "Open"),
+    Dir = proplists:get_value(directory, Prop),
+    Res = file_dialog(?OP_READ, Dir, Prop, Title),
+    Cont(Res);
+fileop({file,save_dialog,Prop,Cont}, _Next) ->
+    Title = proplists:get_value(title, Prop, "Save"),
+    Dir = proplists:get_value(directory, Prop),
+    Res = file_dialog(?OP_WRITE, Dir, Prop, Title),
+    Cont(Res);
 fileop({file,open_dialog,Prop}, _Next) ->
     Title = proplists:get_value(title, Prop, "Open"),
-    file_dialog(?OP_READ, Prop, Title);
+    old_file_dialog(?OP_READ, Prop, Title);
 fileop({file,save_dialog,Prop}, _Next) ->
     Title = proplists:get_value(title, Prop, "Save"),
-    file_dialog(?OP_WRITE, Prop, Title);
+    old_file_dialog(?OP_WRITE, Prop, Title);
 fileop(What, Next) ->
     Next(What).
 
-file_dialog(Type, Prop, Title) ->
-    wait_for_modifiers_up(),
+old_file_dialog(Type, Prop, Title) ->
     Dir = wings_pref:get_value(current_directory),
+    file_dialog(Type, Dir, Prop, Title).
+
+file_dialog(Type, Dir, Prop, Title) ->
+    wait_for_modifiers_up(),
     DefName = proplists:get_value(default_filename, Prop, ""),
     Filters = file_filters(Prop),
     Data = [Dir,0,Title,0,DefName,0|Filters],
