@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.207 2004/03/17 05:41:14 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.208 2004/03/17 05:56:20 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -430,11 +430,11 @@ option_menu() ->
 
 get_event(#st{}=St) ->
     wings_draw:update_dlists(St),
-    wings_wm:current_state(St),
     wings_wm:dirty(),
     get_event_nodraw(St).
 
 get_event_nodraw(#st{}=St) ->
+    wings_wm:current_state(St),
     {replace,fun(Ev) -> handle_event(Ev, St) end}.
 
 handle_event(redraw, St) ->
@@ -445,12 +445,10 @@ handle_event(init_opengl, St) ->
     get_event(St);
 handle_event(resized, St) ->
     get_event(St);
-handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs,sh=Sh}},
-	     #st{bb=Uvs}=St0) ->
-    St1 = St0#st{selmode=Mode,sel=Sel,shapes=Shs},
-    GeomSt = wings_select_faces(Sel, St1),
-    St2 = St1#st{bb=Uvs#uvstate{st=GeomSt},sh=Sh},
-    St = update_selected_uvcoords(St2),
+handle_event({new_state,#st{bb=#uvstate{}=Uvs,sel=Sel}=St0}, _) ->
+    GeomSt = wings_select_faces(Sel, St0),
+    St1 = St0#st{bb=Uvs#uvstate{st=GeomSt}},
+    St = update_selected_uvcoords(St1),
     get_event(St);
 handle_event(Ev, St) ->
     case wings_camera:event(Ev, fun() -> redraw(St) end) of
@@ -618,10 +616,10 @@ filter_selection(#st{selmode=face}=St) ->
 filter_selection(#st{selmode=body}=St) -> St.
 
 update_selection(#st{selmode=Mode,sel=Sel}=St,
-		 #st{bb=#uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs} = AuvSt) ->
-    get_event_nodraw(AuvSt#st{bb = Uvs#uvstate{st=St}});
+		 #st{bb=#uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs}=AuvSt) ->
+    get_event_nodraw(AuvSt#st{bb=Uvs#uvstate{st=St}});
 update_selection(#st{selmode=Mode,sel=Sel}=St, #st{bb=#uvstate{id=Id}=Uvs}=AuvSt0) ->
-    AuvSt = AuvSt0#st{sel=[], bb=Uvs#uvstate{st=St}},
+    AuvSt = AuvSt0#st{sel=[],sh=true,bb=Uvs#uvstate{st=St}},
     case keysearch(Id, 1, Sel) of
 	false ->
 	    get_event(AuvSt);
@@ -634,16 +632,16 @@ update_selection_1(face, Faces, #st{shapes=Charts}=St) ->
 update_selection_1(_, _, St) ->
     get_event_nodraw(St).
 
-update_selection_2([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, St, Sel) ->
+update_selection_2([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, #st{selmode=body}=St, Sel) ->
     case ordsets:intersection(sort(Fs), Faces) of
 	[] -> update_selection_2(Cs, Faces, St, Sel);
 	_ -> update_selection_2(Cs, Faces, St, [{K,gb_sets:singleton(0)}|Sel])
     end;
+update_selection_2([_|Cs], Faces, St, Sel) ->
+    update_selection_2(Cs, Faces, St, Sel);
 update_selection_2([], _, St, Sel) ->
     get_event(St#st{sel=sort(Sel)}).
     
--define(OUT, 1.2/2). %% was 1/2 
-
 wings_select_faces([], #st{bb=#uvstate{st=GeomSt}}) ->
     wpa:sel_set(face, [], GeomSt);
 wings_select_faces(Sel, #st{bb=#uvstate{st=GeomSt,id=Id}}=St) ->
