@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.113 2003/08/06 11:02:41 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.114 2003/08/06 15:52:46 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -620,7 +620,8 @@ build_cursor(Data) ->
 build_cursor(Data0, HotX, HotY) ->
     case os:type() of
  	{unix,darwin} ->
- 	    build_cursor_1(Data0, {HotX div 2,HotY div 2}, 0, 0);
+	    %% Ignore given hot position - works better.
+ 	    build_cursor_1(Data0, {0,0}, 0, 0);
 	_ when length(Data0) =:= 256 ->
 	    Data = build_cursor_dup(Data0, 0, []),
 	    build_cursor_1(Data, {HotX div 2,HotY div 2}, 0, 0);
