@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.28 2001/12/08 20:47:20 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.29 2001/12/09 11:46:28 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -214,10 +214,14 @@ eye_point() ->
 aim(#st{sel=[]}=St) -> St;
 aim(St) ->
     Centers = wings_sel:centers(St),
-    Avg = e3d_vec:average(Centers),
-    Origo = e3d_vec:neg(Avg),
-    View = current(),
-    set_current(View#view{origo=Origo,pan_x=0.0,pan_y=0.0}).
+    Origo0 = e3d_vec:average(Centers),
+    Origo = e3d_vec:neg(Origo0),
+    #view{distance=Dist0} = View = current(),
+    Dist = case e3d_vec:dist(eye_point(), Origo0) of
+	       D when D < Dist0 -> D;
+ 	       Other -> Dist0
+ 	   end,
+    set_current(View#view{origo=Origo,distance=Dist,pan_x=0.0,pan_y=0.0}).
 
 along(x, St) ->
     along(-90.0, 0.0, St);
