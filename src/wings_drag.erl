@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.83 2002/05/15 12:07:51 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.84 2002/05/16 07:08:54 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -129,6 +129,7 @@ insert_vtx_data_1([V|Vs], Vtab, Acc) ->
     insert_vtx_data_1(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
 insert_vtx_data_1([], _Vtab, Acc) -> Acc.
 
+mirror_constrain([], _) -> [];
 mirror_constrain(VecVs, #we{mirror=none}) -> VecVs;
 mirror_constrain(VecVs0, #we{mirror=Face}=We) ->
     Vs = wings_face:surrounding_vertices(Face, We),
@@ -336,18 +337,15 @@ motion(X, Y, Drag0) ->
     {motion_update(Move, Drag),Move}.
 
 mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs0,ys=Ys0, xt=Xt0, yt=Yt0}=Drag) ->
-%%    io:format("Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xs0,Ys0}]),
+    %%io:format("Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xs0,Ys0}]),
     XD0 = (X0 - OX),
     YD0 = (Y0 - OY),
-    XD = XD0 + Xt0,
-    YD = YD0 + Yt0,
-
-    if (XD0 == 0), (YD0 == 0) ->
+    case {XD0,YD0} of
+	{0,0} ->
 	    {Xs0/?MOUSE_DIVIDER, -Ys0/?MOUSE_DIVIDER, Drag#drag{xt=0,yt=0}};
-       (XD > ?CAMMAX); (YD > ?CAMMAX) -> 
-	    wings_io:warp(OX, OY),
-	    {Xs0/?MOUSE_DIVIDER, -Ys0/?MOUSE_DIVIDER, Drag#drag{xt=XD0, yt=YD0}};
-       true ->
+	_ ->
+	    XD = XD0 + Xt0,
+	    YD = YD0 + Yt0,
 	    Xs = Xs0 + XD,
 	    Ys = Ys0 + YD,
 	    wings_io:warp(OX, OY),
