@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.131 2003/09/12 05:07:07 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.132 2003/10/18 18:43:46 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -231,15 +231,15 @@ virtual_mirror(create, #st{selmode=face}=St0) ->
     {save_state,St#st{sel=[]}};
 virtual_mirror(create, _) ->
     wings_util:error("Virtual mirror requires a face selection.");
-virtual_mirror(break, #st{shapes=Shs0}=St) ->
-    case break_mirror(Shs0) of
-	Shs0 -> St;
-	Shs -> {save_state,St#st{shapes=Shs}}
+virtual_mirror(break, St0) ->
+    case break_mirror(St0) of
+	St0 -> St0;
+	St -> {save_state,St}
     end;
-virtual_mirror(freeze, #st{shapes=Shs0}=St) ->
-    case freeze_mirror(Shs0) of
-	Shs0 -> St;
-	Shs -> {save_state,wings_sel:valid_sel(St#st{shapes=Shs})}
+virtual_mirror(freeze, St0) ->
+    case freeze_mirror(St0) of
+	St0 -> St0;
+	St -> {save_state,wings_sel:valid_sel(St)}
     end.
 
 wireframe_all(false, _) ->
@@ -283,18 +283,29 @@ virtual_mirror_fun(Faces, We) ->
 	    wings_util:error("Only a single face must be selected per object.")
     end.
 
-break_mirror(Shapes) ->
-    foldl(fun(#we{mirror=none}, Shs) -> Shs;
-	     (#we{id=Id}=We, Shs) ->
-		  gb_trees:update(Id, We#we{mirror=none}, Shs)
-	  end, Shapes, gb_trees:values(Shapes)).
+break_mirror(#st{shapes=Shs0}=St) ->
+    Shs = foldl(fun(#we{id=Id}=We, Shs) ->
+			gb_trees:update(Id, We#we{mirror=none}, Shs)
+		end, Shs0, sel_mirror_objects(St)),
+    St#st{shapes=Shs}.
 
-freeze_mirror(Shapes) ->
-    foldl(fun(#we{mirror=none}, Shs) -> Shs;
-	     (#we{id=Id,mirror=Face}=We0, Shs) ->
-		  We = wings_face_cmd:mirror_faces([Face], We0),
-		  gb_trees:update(Id, We#we{mirror=none}, Shs)
-	  end, Shapes, gb_trees:values(Shapes)).
+freeze_mirror(#st{shapes=Shs0}=St) ->
+    Shs = foldl(fun(#we{id=Id,mirror=Face}=We0, Shs) ->
+			We = wings_face_cmd:mirror_faces([Face], We0),
+			gb_trees:update(Id, We#we{mirror=none}, Shs)
+		end, Shs0, sel_mirror_objects(St)),
+    St#st{shapes=Shs}.
+
+sel_mirror_objects(#st{sel=[],shapes=Shs}) ->
+    foldl(fun(#we{mirror=none}, A) -> A;
+	     (#we{perm=P}, A) when ?IS_NOT_SELECTABLE(P) -> A;
+	     (We, A) -> [We|A]
+	  end, [], gb_trees:values(Shs));
+sel_mirror_objects(St) ->
+    wings_sel:fold(fun(_, #we{mirror=none}, A) -> A;
+		      (_, #we{perm=P}, A) when ?IS_NOT_SELECTABLE(P) -> A;
+		      (_, We, A) -> [We|A]
+		   end, [], St).
 
 %%%
 %%% The Auto Rotate command.
