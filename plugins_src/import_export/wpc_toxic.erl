@@ -3,12 +3,12 @@
 %%
 %%     Toxic Plugin User Interface and Exporter.
 %%
-%%  Copyright (c) 2004 Dan Gudmundsson Raimo Niskanen
+%%  Copyright (c) 2004 Dan Gudmundsson, Raimo Niskanen
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.14 2004/07/01 08:22:56 dgud Exp $
+%%     $Id: wpc_toxic.erl,v 1.15 2004/07/01 09:22:27 bjorng Exp $
 %%
 
 -module(wpc_toxic).
@@ -526,7 +526,7 @@ export_dialog(Operation) ->
 		], [{title, "Camera"}]},
        {vframe,
 	[{hradio,[{"Super Sampling",super},
-		  {"Whitted Addaptive",whitted}],
+		  {"Whitted Adaptive",whitted}],
 	  Sampling,[layout,{key,{?TAG,sampling}}]},
 	 {vframe,
 	  pixelsampling(pixel,[SStype, SSrandom,SSWidth,SSHeight]),
@@ -583,7 +583,7 @@ export_dialog(Operation) ->
 	       {text, RadSecDist, [{range, {0.0000001, 1000.0}},
 				   {key, {?TAG, {radsecondary, dist}}},
 				   enable_hook({?TAG,radsecondary})]}]}],
-	    [{title,"Enable InDirect Lighting"},
+	    [{title,"Enable Indirect Lighting"},
 	     {minimized,InDirectLightMin},
 	     {key,{?TAG,indirect_light_min}},
 	     enable_hook({?TAG,indirect_light})]}]},
@@ -1608,23 +1608,26 @@ help_button(Subject) ->
     {help,Title,TextFun}.
 
 help(title, export_dialog) ->
-    "Toxic Export Properties: ";
+    "Toxic Export Properties";
 help(text, export_dialog) ->
     [<<"Toxic: see http://toxicengine.sourceforge.net">>,
-     <<"Toxic export uses several files, YourScene.xml consists of "
+
+     <<"Toxic export uses several files: YourScene.xml consists of "
       "the shaders (e.g. materials) and objects (with references to the "
-      "actual meshes). Lights and the camera is also defined as scene objects. "
-      "Render settings are defined in YourScene.setting.xml, here are all the " 
-      "render specific information defined, i.e. most of the settings in this "
-      "dialog are defined here. The actual meshes is stored in YourScene.objects.obj "
-      "file, that means that you don't have to export the the meshes for every "
+      "actual meshes). Lights and the camera are also defined as scene objects. "
+      "Render settings are defined in YourScene.setting.xml "
+      "(i.e. most of the settings in this dialog). "
+      "The actual meshes are stored in YourScene.objects.obj "
+      "file; that means that you don't have to export the the meshes for every "
       "rendering, i.e. if you only change something in the materials or in this "
       "dialog you don't have to export the meshes again." >>,
+
      <<"Global Scale lets you specify a scale parameter from wings units to meters. "
       "This is necessary get correct lighting in your scene. So if one wings unit "
       "represents one centimeter on your model set Global Scale to 0.01, or if "
-      "one wings unit is two meters, set Global Scale to 2">>,
-     <<"Camera lets you choose between two different type of cameras."
+      "one wings unit is two meters, set Global Scale to 2.">>,
+
+     <<"Camera lets you choose between two different type of cameras.",
       "The pinhole camera is the simplest one. Since it has infinite "
       "depth of field, objects can't be out of focus and thus never appear blurred. "
       "The thin lens camera is slightly more complex (and much more plausible) "
@@ -1648,8 +1651,9 @@ help(text, export_dialog) ->
       "There are four types lighting methods: direct lighting, indirect lighting, "
       "specular reflections and caustics. These methods form the global " 
       "illumination (GI) and each method can be individually enabled or disabled. ">>,
-     <<"Output specifies the rendered image width, height and gamma">>,
-     <<"Rendering Job lets you specify additional command line arguments "
+     <<"Output specifies the rendered image width, height and gamma.">>,
+
+     <<"Rendering Job lets you specify additional command line arguments for "
       "toxic">>
     ];
 
