@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.135 2003/07/16 12:01:47 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.136 2003/08/02 05:09:41 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1115,7 +1115,7 @@ select_draw_1([], _) -> gl:popName().
 select_draw_2(faceg, Fs, We) ->
     draw_faces(Fs, We);
 select_draw_2(face, Fs, We) ->
-    select_draw_faces(Fs,We, wings_pref:get_value(display_list_opt)),
+    select_draw_faces(Fs, We),
     gl:edgeFlag(?GL_TRUE);
 select_draw_2(edge, Fs, #we{vp=Vtab}=We) ->
     DrawEdge = fun(_Face, _V, Edge, #edge{vs=Va,ve=Vb}, _) ->
@@ -1137,19 +1137,14 @@ select_draw_2(vertex, Fs, #we{vp=Vtab}=We) ->
 		end,
     wings_face:fold_faces(DrawPoint, [], Fs, We).
 
-select_draw_faces([], _We, _) ->    ok;
-select_draw_faces([H|R], We, false) ->
-    gl:pushName(H),
-    wings_draw_util:face(H, We),
-    gl:popName(),
-    select_draw_faces(R,We,false);
-select_draw_faces([H|R], We, true) ->
+select_draw_faces([], _We) -> ok;
+select_draw_faces([H|R], We) ->
     gl:pushName(H),
     gl:'begin'(?GL_TRIANGLES),
     wings_draw_util:face(H, We),
     gl:'end'(),
     gl:popName(),
-    select_draw_faces(R,We,true).
+    select_draw_faces(R, We).
 
 get_hits(N, Buf) ->
     get_hits_1(N, Buf, []).

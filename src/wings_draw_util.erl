@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.91 2003/08/01 07:33:59 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.92 2003/08/02 05:09:41 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -16,7 +16,7 @@
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,call_one_of/2,
 	 prepare/3,mat_faces/5,face/2,face/3,flat_face/2,flat_face/3,
-	 force_flat_color/2]).
+	 force_flat_color/2,consistent_normal/4]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -38,14 +38,8 @@ init() ->
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
     glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
     glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE),
-    case wings_pref:get_value(display_list_opt) of
-	false ->
-	    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
-	    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND);
-	true ->
-	    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
-	    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE)
-    end,
+    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
+    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE),
 
     Dl = case get_dl_data() of
 	     undefined -> [];
@@ -95,14 +89,9 @@ begin_end(Body) ->
     begin_end(?GL_TRIANGLES, Body).
 
 begin_end(Type, Body) ->
-    case wings_pref:get_value(display_list_opt) of
-	false ->
-	    Res = Body();
-	true ->
-	    gl:'begin'(Type),
-	    Res = Body(),
-	    gl:'end'()
-    end,
+    gl:'begin'(Type),
+    Res = Body(),
+    gl:'end'(),
     gl:edgeFlag(?GL_TRUE),
     Res.
 
@@ -609,41 +598,22 @@ face_1([], _, Nacc, Vs) ->
     face_2(N, Vs).
 
 face_2(_, [A,B,C]) ->
-    case wings_pref:get_value(display_list_opt) of
-	true ->
-	    face_vtx(A),
-	    face_vtx(B),
-	    face_vtx(C);
-	false ->
-	    gl:'begin'(?GL_TRIANGLES),
-	    face_vtx(A),
-	    face_vtx(B),
-	    face_vtx(C),
-	    gl:'end'()
-    end;
+    face_vtx(A),
+    face_vtx(B),
+    face_vtx(C);
 face_2(N, [[A0|_]=A,[B0|_]=B,[C0|_]=C,[D0|_]=D]=VsPos) ->
     case consistent_normal(A0, B0, C0, N) andalso consistent_normal(A0, C0, D0, N) of
-	true ->
-	    case wings_pref:get_value(display_list_opt) of
-		false ->
-		    gl:'begin'(?GL_QUADS),
-		    face_vtx(A),
-		    face_vtx(B),
-		    face_vtx(C),
-		    face_vtx(D),
-		    gl:'end'();
-		true ->
-		    face_vtx(A),
-		    face_vtx(B),
-		    gl:edgeFlag(?GL_FALSE),
-		    face_vtx(C),
-		    face_vtx(A),
-		    gl:edgeFlag(?GL_TRUE),
-		    face_vtx(C),
-		    face_vtx(D)
-	    end;
 	false ->
-	    face_3(N, VsPos)
+	    face_3(N, VsPos);
+	true ->
+	    face_vtx(A),
+	    face_vtx(B),
+	    gl:edgeFlag(?GL_FALSE),
+	    face_vtx(C),
+	    face_vtx(A),
+	    gl:edgeFlag(?GL_TRUE),
+	    face_vtx(C),
+	    face_vtx(D)
     end;
 face_2(N, Vs) -> face_3(N, Vs).
 
@@ -673,7 +643,7 @@ face_vtx([Pos|{R,G,B}]) ->
     gl:vertex3dv(Pos).
 
 %%
-%% Draw a face. Tesselate polygons (4 edges or more).
+%% Triangulate and draw a face.
 %%
 
 flat_face(Face, #we{fs=Ftab}=We) ->
@@ -692,41 +662,22 @@ flat_face_1([], _, VsPos) ->
     flat_face_2(N, VsPos).
 
 flat_face_2(_, [A,B,C]) ->
-    case wings_pref:get_value(display_list_opt) of
-	true ->
-	    gl:vertex3dv(A),
-	    gl:vertex3dv(B),
-	    gl:vertex3dv(C);
-	false ->
-	    gl:'begin'(?GL_TRIANGLES),
-	    gl:vertex3dv(A),
-	    gl:vertex3dv(B),
-	    gl:vertex3dv(C),
-	    gl:'end'()
-    end;
+    gl:vertex3dv(A),
+    gl:vertex3dv(B),
+    gl:vertex3dv(C);
 flat_face_2(N, [A,B,C,D]=VsPos) ->
     case consistent_normal(A, B, C, N) andalso consistent_normal(A, C, D, N) of
-	true ->
-	    case wings_pref:get_value(display_list_opt) of
-		false ->
-		    gl:'begin'(?GL_QUADS),
-		    gl:vertex3dv(A),
-		    gl:vertex3dv(B),
-		    gl:vertex3dv(C),
-		    gl:vertex3dv(D),
-		    gl:'end'();
-		true ->
-		    gl:vertex3dv(A),
-		    gl:vertex3dv(B),
-		    gl:edgeFlag(?GL_FALSE),
-		    gl:vertex3dv(C),
-		    gl:vertex3dv(A),
-		    gl:edgeFlag(?GL_TRUE),
-		    gl:vertex3dv(C),
-		    gl:vertex3dv(D)
-	    end;
 	false ->
-	    flat_face_3(N, VsPos)
+	    flat_face_3(N, VsPos);
+	true ->
+	    gl:vertex3dv(A),
+	    gl:vertex3dv(B),
+	    gl:edgeFlag(?GL_FALSE),
+	    gl:vertex3dv(C),
+	    gl:vertex3dv(A),
+	    gl:edgeFlag(?GL_TRUE),
+	    gl:vertex3dv(C),
+	    gl:vertex3dv(D)
     end;
 flat_face_2(N, VsPos) -> flat_face_3(N, VsPos).
 
