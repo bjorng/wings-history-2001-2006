@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.12 2003/08/16 17:50:34 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.13 2003/10/27 06:24:57 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -42,7 +42,10 @@ start(#we{id=Id}=We0, OrigWe, St0) ->
     {seq,push,get_seg_event(Ss)}.
 
 seg_init_message(Ss) ->
-    Msg = ["[L] Select  [R] Show menu  "|wings_camera:help()],
+    Msg1 = wings_util:button_format("Select"),
+    Msg2 = wings_camera:help(),
+    Msg3 = wings_util:button_format([], [], "Show menu"),
+    Msg = wings_util:join_msg([Msg1,Msg2,Msg3]),
     Ss#seg{msg=Msg}.
 
 get_seg_event(#seg{st=St}=Ss) ->
@@ -200,12 +203,14 @@ seg_command(cut_edges, #seg{st=St0}=Ss) ->
 seg_command(no_cut_edges, #seg{st=St0}=Ss) ->
     St = wings_edge:hardness(soft, St0),
     get_seg_event(Ss#seg{st=St});
-seg_command(select_hard_edges, _) ->
-    wings_wm:send(geom, {action,{select,{by,hard_edges}}}),
-    keep;
-seg_command({select,Mat}, _) ->
-    wings_wm:send(geom, {action,{material,{select,[atom_to_list(Mat)]}}}),
-    keep;
+seg_command(select_hard_edges, #seg{st=St0}=Ss) ->
+    case wings_sel_cmd:command({by,hard_edges}, St0) of
+	{save_state,St} -> get_seg_event(Ss#seg{st=St});
+	#st{}=St -> get_seg_event(Ss#seg{st=St})
+    end;
+seg_command({select,Mat}, #seg{st=St0}=Ss) ->
+    St = wings_material:command({select,[atom_to_list(Mat)]}, St0),
+    get_seg_event(Ss#seg{st=St});
 seg_command({segment,Type}, #seg{st=St0}=Ss) ->
     St = segment(Type, St0),
     get_seg_event(Ss#seg{st=St});
@@ -215,7 +220,6 @@ seg_command({debug,Cmd}, Ss) ->
 seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
     case gb_trees:is_defined(Cmd, Mat) of
 	false ->
-	    io:format("Cmd: ~w\n", [Cmd]),
 	    keep;
 	true ->
 	    St = wings_material:command({assign,atom_to_list(Cmd)}, St0),
