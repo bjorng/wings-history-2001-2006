@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.52 2002/02/07 11:49:08 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.53 2002/02/07 19:59:22 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -281,7 +281,7 @@ make_move_1([percent|Units], [V|Vals]) ->
 make_move_1([{U,{Min,Max}}=Unit|Units], [V|Vals]) ->
     make_move_1([U|Units], [constrain_range(Unit, V)|Vals]);
 make_move_1([U|Units], [V|Vals]) ->
-    [V|make_move_1(Units, Vals)];
+    [float(V)|make_move_1(Units, Vals)];
 make_move_1([], []) -> [].
 
 cleanup(#drag{matrices=none}) -> ok;
