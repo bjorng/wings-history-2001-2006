@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.73 2002/07/14 20:13:58 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.74 2002/07/17 16:31:42 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -138,10 +138,12 @@ quit(St) ->
 	aborted -> St
     end.
 
-new(#st{saved=true}=St) ->
+new(#st{saved=true}=St0) ->
     DefMat = wings_material:default(),
-    wings:caption(St#st{file=undefined,shapes=gb_trees:empty(),
-			mat=DefMat,sel=[]});
+    St = St0#st{file=undefined,shapes=gb_trees:empty(),
+		mat=DefMat,sel=[]},
+    wings:caption(St),
+    wings_material:init(St);
 new(St0) -> %% File is not saved or autosaved.
     wings:caption(St0#st{saved=false}), 
     case wings_util:yes_no("Do you want to save your changes?") of

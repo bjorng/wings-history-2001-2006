@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.39 2002/07/14 09:27:40 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.40 2002/07/17 16:31:42 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -25,11 +25,18 @@
 -import(lists, [map/2,foreach/2,sort/1,foldl/3,reverse/1,keyreplace/4]).
 
 init(#st{mat=MatTab}=St) ->
-    put(?MODULE, gb_trees:empty()),
-    foreach(fun({Name,Mat}) ->
-		    init_texture(Name, Mat)
-	    end, gb_trees:to_list(MatTab)),
-    St.
+    case get(?MODULE) of
+	undefined ->
+	    put(?MODULE, gb_trees:empty()),
+	    foreach(fun({Name,Mat}) ->
+			    init_texture(Name, Mat)
+		    end, gb_trees:to_list(MatTab)),
+	    St;
+	Txs ->
+	    foreach(fun(Tx) ->
+			    gl:deleteTextures(1, [Tx])
+		    end, gb_trees:values(Txs))
+    end.
 
 sub_menu(face, St) ->
     Mlist = material_list(St),
@@ -137,8 +144,7 @@ norm({R,G,B}) -> {R,G,B,1.0}.
     
 load_maps([{Key,Filename}|T]) when is_list(Filename) ->
     [{Key,load_map(Filename)}|load_maps(T)];
-load_maps([H|T]) ->
-    [H|load_maps(T)];
+load_maps([H|T]) -> [H|load_maps(T)];
 load_maps([]) -> [].
     
 load_map(MapName) ->
@@ -157,7 +163,8 @@ load_map_1(File0) ->
 	#e3d_image{width=W,height=H,image=Pixels} ->
 	    {W,H,Pixels};
 	{error,Error} when is_atom(error) ->
-	    io:format("Failed to load \"~s\": ~s\n", [File,file:format_error(Error)]),
+	    io:format("Failed to load \"~s\": ~s\n",
+		      [File,file:format_error(Error)]),
 	    none;
 	{error,Error} ->
 	    io:format("Failed to load \"~s\": ~p\n", [File,Error]),
