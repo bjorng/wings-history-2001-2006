@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.23 2002/05/08 12:43:28 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.24 2002/05/10 14:01:43 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -25,7 +25,7 @@
 	 outer_partition/2,reachable/2]).
 
 -include("wings.hrl").
--import(lists, [member/2,keymember/3,foldl/3,reverse/1,last/1]).
+-import(lists, [member/2,keymember/3,foldl/3,reverse/1,last/1,sort/1]).
 
 %%
 %% Convert the current selection to a vertex selection.
@@ -363,10 +363,9 @@ min_distance_pairs_1(Faces0, Vs0, We0) ->
 	false ->
 	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
 	    case nearest_pair(Face, Vs0, We0) of
-		none ->
+		no ->
 		    min_distance_pairs_1(Faces1, Vs0, We0);
-		{Va,Vb}=Pair ->
-		    {We,NewFace} = try_connect(Pair, Face, We0),
+		{{Va,Vb},{We,NewFace}} ->
 		    Faces = gb_sets:insert(NewFace, Faces0),
 		    Vs = ordsets:subtract(Vs0, ordsets:from_list([Va,Vb])),
 		    min_distance_pairs_1(Faces, Vs, We)
@@ -377,25 +376,25 @@ nearest_pair(Face, AllVs, #we{vs=Vtab}=We) ->
     Vs0 = ordsets:from_list(wings_face:surrounding_vertices(Face, We)),
     Vs = ordsets:intersection(Vs0, AllVs),
     VsPos = [{V,pos(V, Vtab)} || V <- Vs],
-    nearest_pair(VsPos, Face, We, {none,9.9e307}).
+    nearest_pair(VsPos, Face, We, []).
 
-nearest_pair([{V,Pos}|VsPos], Face, We, PairDist0) ->
-    PairDist = nearest_pair(VsPos, V, Pos, Face, We, PairDist0),
-    nearest_pair(VsPos, Face, We, PairDist);
-nearest_pair([], _, _, {Pair,_}) -> Pair.
+nearest_pair([{V,Pos}|VsPos], Face, We, Acc0) ->
+    Acc = nearest_pair_1(VsPos, V, Pos, Acc0),
+    nearest_pair(VsPos, Face, We, Acc);
+nearest_pair([], Face, We, Acc) ->
+    connect_pairs(sort(Acc), Face, We).
 
-nearest_pair([{Vb,PosB}|VsPos], Va, PosA, Face, We, {_,Dist}=PairDist0) ->
-    PairDist = case e3d_vec:dist(PosA, PosB) of
-		   D when D < Dist ->
-		       Pair = {Va,Vb},
-		       case try_connect(Pair, Face, We) of
-			   no -> PairDist0;
-			   {_,_} -> {Pair,D}
-		       end;
-		   _ -> PairDist0
-	       end,
-    nearest_pair(VsPos, Va, PosA, Face, We, PairDist);
-nearest_pair([], _, _, _, _, PairDist) -> PairDist.
+nearest_pair_1([{Vb,PosB}|VsPos], Va, PosA, Acc) ->
+    Dist = e3d_vec:dist(PosA, PosB),
+    nearest_pair_1(VsPos, Va, PosA, [{Dist,{Va,Vb}}|Acc]);
+nearest_pair_1([], _, _, Acc) -> Acc.
+
+connect_pairs([{_,Pair}|Pairs], Face, We0) ->
+    case try_connect(Pair, Face, We0) of
+	no -> connect_pairs(Pairs, Face, We0);
+	{_,_}=Res -> {Pair,Res}
+    end;
+connect_pairs([], _, _) -> no.
 
 try_connect({Va,Vb}, Face, We) ->
     Bad = until(fun(_, _, Rec, A) ->
