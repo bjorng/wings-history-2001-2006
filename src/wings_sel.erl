@@ -3,12 +3,12 @@
 %%
 %%     This module implements selection utilities.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.45 2003/08/16 17:50:35 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.46 2004/05/09 08:24:32 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -208,16 +208,16 @@ find_face_regions(Faces0, We, Acc) ->
 	false ->
 	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
 	    Ws = gb_sets:singleton(Face),
-	    {Reg,Faces} = collect_face_region(Ws, We, gb_sets:empty(), Faces1),
+	    {Reg,Faces} = collect_face_region(Ws, We, [], Faces1),
 	    find_face_regions(Faces, We, [Reg|Acc])
     end.
 
 collect_face_region(Ws0, We, Reg0, Faces0) ->
     case gb_sets:is_empty(Ws0) of
-	true -> {Reg0,Faces0};
+	true -> {gb_sets:from_list(Reg0),Faces0};
 	false ->
 	    {Face,Ws1} = gb_sets:take_smallest(Ws0),
-	    Reg = gb_sets:add(Face, Reg0),
+	    Reg = [Face|Reg0],
 	    {Ws,Faces} = collect_adj_sel(Face, We, Ws1, Faces0),
 	    collect_face_region(Ws, We, Reg, Faces)
     end.
@@ -251,16 +251,16 @@ find_strict_face_regions(Faces0, We, Acc) ->
 	false ->
 	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
 	    Ws = gb_sets:singleton(Face),
-	    {Reg,Faces} = collect_strict_face_region(Ws, We, gb_sets:empty(), Faces1),
+	    {Reg,Faces} = collect_strict_face_region(Ws, We, [], Faces1),
 	    find_strict_face_regions(Faces, We, [Reg|Acc])
     end.
 
 collect_strict_face_region(Ws0, We, Reg0, Faces0) ->
     case gb_sets:is_empty(Ws0) of
-	true -> {Reg0,Faces0};
+	true -> {gb_sets:from_list(Reg0),Faces0};
 	false ->
 	    {Face,Ws1} = gb_sets:take_smallest(Ws0),
-	    Reg = gb_sets:add(Face, Reg0),
+	    Reg = [Face|Reg0],
 	    {Ws,Faces} = collect_strict_adj_sel(Face, We, Ws1, Faces0),
 	    collect_strict_face_region(Ws, We, Reg, Faces)
     end.
@@ -293,17 +293,16 @@ find_edge_regions(Edges0, We, Acc) ->
 	false ->
 	    {Edge,Edges1} = gb_sets:take_smallest(Edges0),
 	    Ws = gb_sets:singleton(Edge),
-	    Reg0 = gb_sets:empty(),
-	    {Reg,Edges} = find_all_adj_edges(Ws, We, Reg0, Edges1),
+	    {Reg,Edges} = find_all_adj_edges(Ws, We, [], Edges1),
 	    find_edge_regions(Edges, We, [Reg|Acc])
     end.
 
 find_all_adj_edges(Ws0, #we{es=Etab}=We, Reg0, Edges0) ->
     case gb_sets:is_empty(Ws0) of
-	true -> {Reg0,Edges0};
+	true -> {gb_sets:from_list(Reg0),Edges0};
 	false ->
 	    {Edge,Ws1} = gb_sets:take_smallest(Ws0),
-	    Reg = gb_sets:add(Edge, Reg0),
+	    Reg = [Edge|Reg0],
 	    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
 	    Adj0 = add_adjacent_edges(Va, We, []),
 	    Adj1 = add_adjacent_edges(Vb, We, Adj0),
