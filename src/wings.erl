@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.137 2002/05/04 06:02:21 bjorng Exp $
+%%     $Id: wings.erl,v 1.138 2002/05/04 07:42:12 bjorng Exp $
 %%
 
 -module(wings).
@@ -173,8 +173,7 @@ main_loop_noredraw(St) ->
 
 handle_event({crash,_}=Crash, St) ->
     LogName = wings_util:crash_log(Crash),
-    wings_io:message("Internal error - log written to " ++ LogName),
-    main_loop(St);
+    get_crash_event(LogName, St);
 handle_event(Event, St) ->
     case wings_io:event(Event) of
 	next -> handle_event_0(Event, St);
@@ -657,6 +656,22 @@ command_name(Repeat, CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
 	    _ ->  [Repeat++" \"",CmdStr,"\""]
 	end,
     lists:flatten(S).
+
+get_crash_event(Log, St) ->
+    wings_wm:dirty(),
+    {replace,fun(Ev) -> crash_handler(Ev, Log, St) end}.
+
+crash_handler(redraw, Log, _St) ->
+    wings_io:ortho_setup(),
+    wings_io:text_at(10, 2*?LINE_HEIGHT,
+		     "Internal error - log written to " ++ Log),
+    wings_io:text_at(10, 4*?LINE_HEIGHT,
+		     "Click a mouse button to continue working"),
+    keep;
+crash_handler(#mousebutton{}, _Log, St) ->
+    main_loop(St);
+crash_handler(_, Log, St) ->
+    get_crash_event(Log, St).
 
 -ifdef(DEBUG).
 wings() -> "Wings 3D [debug]".
