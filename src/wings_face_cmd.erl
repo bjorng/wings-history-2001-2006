@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.55 2002/06/09 18:37:16 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.56 2002/06/19 09:39:39 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -42,6 +42,7 @@ menu(X, Y, St) ->
 	    {advanced,separator},
 	    {"Bump",bump,"Create bump of selected faces"},
 	    {advanced,{"Lift",{lift,lift_fun(St)}}},
+	    {advanced,{"Put On",{put_on,put_on_fun(St)}}},
 	    separator,
 	    {"Mirror",mirror,"Make mirror of object around selected faces"},
     	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
@@ -61,6 +62,15 @@ lift_fun(St) ->
 	    {vector,{pick_special,Funs}};
        (3, Ns) ->
 	    wings_menu_util:directions([normal,free,x,y,z], Ns);
+       (_, _) -> ignore
+    end.
+
+put_on_fun(St) ->
+    fun(help, _Ns) ->
+	    "Move an object, putting the selected face on another element";
+       (1, _Ns) ->
+	    Funs = put_on_selection(St),
+	    {vector,{pick_special,Funs}};
        (_, _) -> ignore
     end.
 
@@ -94,6 +104,8 @@ command(auto_smooth, St) ->
     wings_body:auto_smooth(St);
 command({lift,Lift}, St) ->
     lift(Lift, St);
+command({put_on,PutOn}, St) ->
+    {save_state,put_on(PutOn, St)};
 command(collapse, St) ->
     {save_state,wings_collapse:collapse(St)};
 command({move,Type}, St) ->
@@ -1037,6 +1049,61 @@ lift_face_vertex_pairs(Faces, Vs, We) ->
 	    end
     end.
 
+%%%
+%%% The Put On command.
+%%%
+
+put_on_selection(OrigSt) ->
+    {[face,edge,vertex],
+     fun(St) ->
+	     wings_io:message("Select element to align to."),
+	     St#st{selmode=face,sel=[]}
+     end,
+     fun(St) -> put_on_check_selection(St, OrigSt) end,
+     fun(_X, _Y, #st{selmode=Mode,sel=Sel}=St) ->
+	     case put_on_check_selection(St, OrigSt) of
+		 {_,[]} ->
+		     PutOn = fun(_, _) -> {face,{put_on,{Mode,Sel}}} end,
+		     {"Put On",PutOn};
+		 {_,Message} ->
+		     wings_io:message(Message),
+		     invalid_selection
+	     end
+     end}.
+
+put_on_check_selection(#st{sel=[{Id,_}]}, #st{sel=[{Id,_}]}) ->
+    {none,"Selection must not be in the same object."};
+put_on_check_selection(#st{sel=[{_,Elems}]}, _) ->
+    case gb_trees:size(Elems) of
+	1 -> {none,""};
+	_ -> {none,"Select only one element."}
+    end.
+
+put_on(To, St) ->
+    {Axis,Target} = put_on_target(To, St),
+    wings_sel:map(fun(Faces, We) ->
+			  [Face] = gb_sets:to_list(Faces),
+			  put_on_1(Face, Axis, Target, We)
+		  end, St).
+    
+put_on_1(Face, Axis, Target, We) ->
+    Vs = wings_face:surrounding_vertices(Face, We),
+    Center = wings_vertex:center(Vs, We),
+    N = e3d_vec:neg(wings_face:face_normal(Vs, We)),
+    RotAxis = e3d_mat:rotate_s_to_t(N, Axis),
+    M0 = e3d_mat:translate(Target),
+    M1 = e3d_mat:mul(M0, RotAxis),
+    M = e3d_mat:mul(M1, e3d_mat:translate(e3d_vec:neg(Center))),
+    wings_we:transform_vs(M, We).
+
+put_on_target({Mode,[{Id,Faces}]}, #st{shapes=Shs}=St) ->
+    Cs = wings_sel:centers(St#st{selmode=Mode,sel=[{Id,Faces}]}),
+    Center = e3d_vec:average(Cs),
+    [Face] = gb_sets:to_list(Faces),
+    We = gb_trees:get(Id, Shs),
+    N = wings_face:normal(Face, We),
+    {N,Center}.
+    
 %% outer_edge_partition(FaceSet, WingedEdge) -> [[Edge]].
 %%  Partition all outer edges. Outer edges are all edges
 %%  between one face in the set and one outside.
