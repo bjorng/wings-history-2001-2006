@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.53 2004/05/17 17:51:11 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.54 2004/06/03 05:30:08 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -508,7 +508,11 @@ update_2(spot, Selected, #we{light=#light{aim=Aim,spot_angle=Angle}}=We) ->
     glu:quadricNormals(Obj, ?GLU_SMOOTH),
     glu:sphere(Obj, 0.08, 25, 25),
     set_sel_color(Selected),
-    SpotDir = e3d_vec:norm_sub(Aim, Top),
+    SpotDir0 = e3d_vec:norm_sub(Aim, Top),
+    SpotDir = case e3d_vec:is_zero(SpotDir0) of
+		  false -> SpotDir0;
+		  true -> {0.0,1.0,0.0}
+	      end,
     Rad = Angle*math:pi()/180,
     R = math:sin(Rad),
     H = math:cos(Rad),
