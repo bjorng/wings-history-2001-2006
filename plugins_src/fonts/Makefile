@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.3 2004/04/07 05:27:46 bjorng Exp $
+#     $Id: Makefile,v 1.4 2004/04/07 17:53:28 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -30,7 +30,8 @@ endif
 MODULES= \
 	wpf_6x11 \
 	wpf_7x14 \
-	wpf_terminal8x12
+	wpf_terminal8x12 \
+	wpf_fixed6x12
 
 TARGET_FILES= $(MODULES:%=$(EBIN)/%.beam)
 
