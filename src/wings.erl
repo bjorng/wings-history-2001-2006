@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.30 2001/11/04 20:12:35 bjorng Exp $
+%%     $Id: wings.erl,v 1.31 2001/11/06 07:06:13 bjorng Exp $
 %%
 
 -module(wings).
@@ -80,6 +80,7 @@ init_1() ->
 	      onext=0,
 	      last_command=ignore,
 	      hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)},
+    ets:new(wings_state, [named_table]),
     St = wings_view:default_view(St0),
     resize(800, 600, St),
     caption(St),
@@ -428,9 +429,11 @@ command({view,flyaround}, St) ->
 	false -> wings_io:periodic_event(60, {view,rotate_left})
     end,
     St;
-command({view,rotate_left}, #st{azimuth=Az0}=St) ->
+command({view,rotate_left}, St) ->
+    #view{azimuth=Az0} = View = wings_view:current(),
     Az = Az0 + 1.0,
-    St#st{azimuth=Az};
+    wings_view:set_current(View#view{azimuth=Az}),
+    St;
 command({view,align_to_selection}, St) ->
     wings_view:align_to_selection(St);
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.14 2001/10/29 06:00:51 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.15 2001/11/06 07:06:13 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -30,7 +30,7 @@ model_changed(St) -> St#st{dl=none}.
 %% Renders all shapes, including selections.
 %%
 
-render(#st{shapes=Shapes,distance=Dist,azimuth=Az,elevation=El}=St0) ->
+render(#st{shapes=Shapes}=St0) ->
     ?CHECK_ERROR(),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     ?CHECK_ERROR(),

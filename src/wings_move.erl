@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.11 2001/11/04 16:40:31 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.12 2001/11/06 07:06:13 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -186,7 +186,8 @@ body_to_vertices(Sh, Vec) ->
     translate_fun(Vec).
 
 translate_fun(free) ->
-    fun(#shape{matrix=Matrix0}, Dx, Dy, #st{azimuth=Az,elevation=El}) ->
+    fun(#shape{matrix=Matrix0}, Dx, Dy, St) ->
+	    #view{azimuth=Az,elevation=El} = wings_view:current(),
 	    wings_io:message(lists:flatten(io_lib:format("X:~10p Y:~10p",
 							 [Dx,Dy]))),
 	    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
@@ -216,6 +217,7 @@ make_tvs(Vs, free) ->
     end;
 make_tvs(Vs, Vec) -> [{Vec,Vs}].
 
-free_translation(Dx, Dy, #st{azimuth=Az,elevation=El}) ->
+free_translation(Dx, Dy, St) ->
+    #view{azimuth=Az,elevation=El} = wings_view:current(),
     M = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
     e3d_mat:mul(M, e3d_mat:rotate(-El, {1.0,0.0,0.0})).

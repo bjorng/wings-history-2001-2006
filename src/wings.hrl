@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.13 2001/11/04 20:11:03 bjorng Exp $
+%%     $Id: wings.hrl,v 1.14 2001/11/06 07:06:13 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -91,15 +91,7 @@
 	 hit_buf,				%Hit buffer for hit testing.
 	 inf_r,					%Radius of influence (for magnet).
 	 last_command,				%Last command.
-	 bb=none,				%Saved bounding box.
-
-	 %% The current view.
-	 origo,
-	 distance,				% From origo
-	 azimuth,
-	 elevation,
-	 pan_x,					%Panning in X direction.
-	 pan_y					%Panning in Y direction
+	 bb=none				%Saved bounding box.
 	 }).
 
 %% Shape (or object) which can be implemented in different ways.
@@ -147,3 +139,13 @@
 	{edge,					%Incident edge
 	 pos					%Position ({X,Y,Z})
 	}).
+
+
+	 %% The current view.
+-record(view,
+	{origo,
+	 distance,				% From origo
+	 azimuth,
+	 elevation,
+	 pan_x,					%Panning in X direction.
+	 pan_y}).				%Panning in Y direction

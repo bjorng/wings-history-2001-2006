@@ -8,22 +8,32 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.10 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.11 2001/11/06 07:06:13 bjorng Exp $
 %%
 
 -module(wings_view).
--export([default_view/1,projection/1,perspective/1,
+-export([current/0,set_current/1,default_view/1,
+	 projection/1,perspective/1,
 	 model_transformations/1,aim/1,along/2,
 	 align_to_selection/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
+current() ->
+    [{_,View}] = ets:lookup(wings_state, view),
+    View.
+
+set_current(View) ->
+    true = ets:insert(wings_state, {view,View}),
+    View.
+
 default_view(St) ->
-    wings_drag:view_changed(St#st{origo={0.0,0.0,0.0},
-				  azimuth=-45.0,elevation=25.0,
-				  distance=?CAMERA_DIST,
-				  pan_x=0.0,pan_y=0.0}).
+    set_current(#view{origo={0.0,0.0,0.0},
+	      azimuth=-45.0,elevation=25.0,
+	      distance=?CAMERA_DIST,
+	      pan_x=0.0,pan_y=0.0}),
+    wings_drag:view_changed(St).
 
 projection(St) ->
     gl:matrixMode(?GL_PROJECTION),
@@ -41,8 +51,9 @@ perspective(#st{opts=#opt{ortho=true}}) ->
     Sz = 4.0,
     gl:ortho(-Sz*Aspect, Sz*Aspect, -Sz, Sz, 0.25, 1000.0).
 
-model_transformations(#st{origo=Origo,distance=Dist0,azimuth=Az,
-			  elevation=El,pan_x=PanX,pan_y=PanY}) ->
+model_transformations(St) ->
+    #view{origo=Origo,distance=Dist0,azimuth=Az,
+	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
@@ -59,21 +70,29 @@ aim(St) ->
     Centers = wings_sel:centers(St),
     Avg = e3d_vec:average(Centers),
     Origo = e3d_vec:neg(Avg),
-    wings_drag:view_changed(St#st{origo=Origo,pan_x=0.0,pan_y=0.0}).
+    View = current(),
+    set_current(View#view{origo=Origo,pan_x=0.0,pan_y=0.0}),
+    wings_drag:view_changed(St).
 
 along(x, St) ->
-    wings_drag:view_changed(St#st{azimuth=-90.0,elevation=0.0});
+    along(-90.0, 0.0, St);
 along(y, St) ->
-    wings_drag:view_changed(St#st{azimuth=0.0,elevation=90.0});
+    along(0.0, 90.0, St);
 along(z, St) ->
-    wings_drag:view_changed(St#st{azimuth=0.0,elevation=0.0});
+    along(0.0, 0.0, St);
 along(neg_x, St) ->
-    wings_drag:view_changed(St#st{azimuth=90.0,elevation=0.0});
+    along(90.0, 0.0, St);
 along(neg_y, St) ->
-    wings_drag:view_changed(St#st{azimuth=0.0,elevation=-90.0});
+    along(0.0, -90.0, St);
 along(neg_z, St) ->
-    wings_drag:view_changed(St#st{azimuth=180.0,elevation=0.0}).
+    along(180.0, 0.0, St).
 
+along(Az, El, St) ->
+    View = current(),
+    set_current(View#view{azimuth=Az,elevation=El}),
+    wings_drag:view_changed(St),
+    St.
+    
 align_to_selection(#st{selmode=vertex}=St) ->
     Ns = wings_sel:fold(
 	   fun(Id, V, We, Acc) ->
@@ -113,7 +132,9 @@ align_to_selection({Nx,Ny,Nz}=N, St) ->
 	     Ny < 0.0 -> -El2;
 	     true -> El2
 	 end,
-    St#st{azimuth=Az,elevation=El}.
+    View = current(),
+    set_current(View#view{azimuth=Az,elevation=El}),
+    St.
     
 arccos(X) when float(X) ->
     math:atan2(math:sqrt(1.0-X*X), X).

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.16 2001/11/04 16:47:45 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.17 2001/11/06 07:06:13 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -107,18 +107,21 @@ motion(X, Y, #st{camera=#camera{}=Camera0}=St0) ->
     St = St0#st{camera=Camera},
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?SHIFT_BITS =/= 0 ->
-	    #st{pan_x=PanX0,pan_y=PanY0} = St,
+	    #view{pan_x=PanX0,pan_y=PanY0} = View = wings_view:current(),
 	    PanX = PanX0 + Dx,
 	    PanY = PanY0 - Dy,
-	    St#st{pan_x=PanX,pan_y=PanY};
+	    wings_view:set_current(View#view{pan_x=PanX,pan_y=PanY}),
+	    St;
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
-	    #st{distance=Dist} = St,
-	    St#st{distance=Dist-Dy};
+	    #view{distance=Dist} = View = wings_view:current(),
+	    wings_view:set_current(View#view{distance=Dist-Dy}),
+	    St;
 	Other ->
-	    #st{azimuth=Az0,elevation=El0} = St,
+	    #view{azimuth=Az0,elevation=El0} = View = wings_view:current(),
 	    Az = Az0 + Dx,
 	    El = El0 + Dy,
-	    St#st{azimuth=Az,elevation=El}
+	    wings_view:set_current(View#view{azimuth=Az,elevation=El}),
+	    St
     end;
 motion(X, Y, #st{drag=undefined}=St) -> St;
 motion(X, Y, #st{drag=#drag{shapes=Shapes,tvs=Tvs}=Drag0}=St0) ->
@@ -196,8 +199,8 @@ warp_mouse(X, Y) ->
 
 constrain(Dx0, Dy0, #drag{constraint=Constraint}) ->
     {Dx,Dy} = case sdl_keyboard:getModState() of
-		  Mod when Mod band ?SHIFT_BITS =/= 0, ?CTRL_BITS =/= 0 ->
-		      {trunc(100*Dx0)/100,trunc(100*Dy0)/100};
+ 		  Mod when Mod band ?SHIFT_BITS =/= 0, ?CTRL_BITS =/= 0 ->
+ 		      {trunc(100*Dx0)/100,trunc(100*Dy0)/100};
 		  Mod when Mod band ?CTRL_BITS =/= 0 ->
 		      {trunc(10*Dx0)/10,trunc(10*Dy0)/10};
 		  Mod when Mod band ?SHIFT_BITS =/= 0 ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.10 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.11 2001/11/06 07:06:13 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -71,7 +71,7 @@ distance_fun(gaussian) ->
     end.
 
 magnet_move([{free,Vs}|Tvs], Dx, Dy, IR, St, OVtab, Vtab0) ->
-    #st{azimuth=Az,elevation=El} = St,
+    #view{azimuth=Az,elevation=El} = wings_view:current(),
     M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
     M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
     {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx,Dy,0.0}),
