@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.13 2001/11/08 16:24:33 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.14 2001/11/16 18:19:41 bjorng Exp $
 %%
 
 -module(wings_view).
 -export([menu/3,command/2,init/0,current/0,set_current/1,
-	 projection/0,perspective/0,
+	 reset/0,projection/0,perspective/0,
 	 model_transformations/1,aim/1,along/2,
 	 align_to_selection/1]).
 
@@ -52,7 +52,8 @@ menu(X, Y, St) ->
     wings_menu:menu(X, Y, view, Menu).
 
 command(reset, St) ->
-    default_view(St);
+    reset(),
+    St;
 command(smooth_preview, St) ->
     toggle_option(smooth_preview),
     model_changed(St);
@@ -61,9 +62,11 @@ command(orthogonal_view, St) ->
     projection(),
     St;
 command(aim, St) ->
-    wings_view:aim(St);
+    aim(St),
+    St;
 command({along,Axis}, St) ->
-    wings_view:along(Axis, St);
+    along(Axis, St),
+    St;
 command(flyaround, St) ->
     case wings_io:has_periodic_event() of
 	true -> wings_io:cancel_periodic_event();
@@ -100,13 +103,9 @@ init() ->
     wings_pref:set_value(wire_mode, false),
     wings_pref:set_value(smooth_preview, false),
     wings_pref:set_value(orthogonal_view, false),
-    reset_view().
+    reset().
 
-default_view(St) ->
-    reset_view(),
-    wings_drag:view_changed(St).
-
-reset_view() ->
+reset() ->
     set_current(#view{origo={0.0,0.0,0.0},
 		      azimuth=-45.0,elevation=25.0,
 		      distance=?CAMERA_DIST,
@@ -150,8 +149,7 @@ aim(St) ->
     Avg = e3d_vec:average(Centers),
     Origo = e3d_vec:neg(Avg),
     View = current(),
-    set_current(View#view{origo=Origo,pan_x=0.0,pan_y=0.0}),
-    wings_drag:view_changed(St).
+    set_current(View#view{origo=Origo,pan_x=0.0,pan_y=0.0}).
 
 along(x, St) ->
     along(-90.0, 0.0, St);
@@ -169,7 +167,6 @@ along(neg_z, St) ->
 along(Az, El, St) ->
     View = current(),
     set_current(View#view{azimuth=Az,elevation=El}),
-    wings_drag:view_changed(St),
     St.
     
 align_to_selection(#st{selmode=vertex}=St) ->

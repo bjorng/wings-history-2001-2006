@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.10 2001/11/16 12:20:28 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.11 2001/11/16 18:19:41 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -22,6 +22,7 @@
 -export([putback_event/1,get_event/0,flush_events/0,
 	 periodic_event/2,cancel_periodic_event/0,has_periodic_event/0,
 	 enter_event_loop/1]).
+-export([grab/0,ungrab/0]).
 -export([setup_for_drawing/0,cleanup_after_drawing/0]).
 
 -define(NEED_OPENGL, 1).
@@ -40,7 +41,8 @@
 	 info="",				%Information message.
 	 eq,					%Event queue.
 	 icons=[],				%Position for Icons.
-	 tex=[]					%Textures.
+	 tex=[],				%Textures.
+	 grab_count=0				%Number of grabs.
 	}).
 
 init() ->
@@ -488,6 +490,28 @@ cancel_periodic_event() ->
 
 has_periodic_event() ->
     whereis(wings_periodic) =/= undefined.
+
+%%%
+%%% Mouse grabbing.
+%%%
+
+grab() ->
+    #io{grab_count=Cnt} = Io = get_state(),
+    sdl_mouse:showCursor(false),
+    sdl_video:wm_grabInput(?SDL_GRAB_ON),
+    put_state(Io#io{grab_count=Cnt+1}).
+
+ungrab() ->
+    #io{grab_count=Cnt} = Io = get_state(),
+    put_state(Io#io{grab_count=Cnt-1}),
+    case Cnt-1 of
+	0 ->
+	    sdl_mouse:showCursor(true),
+	    sdl_video:wm_grabInput(?SDL_GRAB_OFF),
+	    no_grab;
+	_ ->
+	    still_grabbed
+    end.
 
 %%%
 %%% Event loop handling.

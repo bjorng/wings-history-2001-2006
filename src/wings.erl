@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.43 2001/11/16 12:20:28 bjorng Exp $
+%%     $Id: wings.erl,v 1.44 2001/11/16 18:19:40 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0,start_halt/0]).
--export([caption/1]).
+-export([caption/1,redraw/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -138,7 +138,6 @@ handle_top_event(Event, St0) ->
     case Event of
 	#st{}=St1 ->				%Undoable operation.
 	    ?ASSERT(St1#st.drag == undefined),
-	    ?ASSERT(St1#st.camera == undefined),
 	    St = wings_undo:save(St0, St1),
 	    top_level(St#st{saved=false});
 	{saved,St} ->
@@ -166,46 +165,35 @@ handle_top_event(Event, St0) ->
     end.
 
 clean_state(St0) ->
-    St = St0#st{camera=undefined,drag=undefined},
+    St = St0#st{drag=undefined},
     caption(wings_draw:model_changed(St)).
 
 main_loop(St0) ->
     ?VALIDATE_MODEL(St0),
-    St1 = wings_draw:render(St0),
-    wings_io:info(info(St1)),
-    wings_io:update(St1),
-    {replace,fun(Event) -> handle_event(Event, St1) end}.
+    St = redraw(St0),
+    {replace,fun(Event) -> handle_event(Event, St) end}.
 
-handle_event({reactivate_menu,Mi}, St) ->
-    wings_menu:reactivate(Mi);
-handle_event(Event, St1) ->
+handle_event(Event, St) ->
+    case wings_camera:event(Event, St) of
+	next -> handle_event_1(Event, St);
+	Other -> Other
+    end.
+
+handle_event_1({reactivate_menu,Mi}, St) -> wings_menu:reactivate(Mi);
+handle_event_1(drag_aborted=S, St) -> return_to_top(S);
+handle_event_1({drag_ended,St}, _) -> return_to_top(St);
+handle_event_1(Event, St1) ->
     case translate_event(Event, St1) of
 	ignore -> keep;
 	redraw -> main_loop(St1);
-	{mousemotion,X,Y} ->
-	    main_loop(wings_drag:motion(X, Y, St1));
 	{left_click,X,Y} ->
-	    case wings_drag:click(X, Y, St1) of
-		{select,#st{sel=Sel}=St2} ->
-		    case wings_pick:pick(St2, X, Y) of
-			#st{sel=Sel}=St -> main_loop(St);
-			St -> return_to_top(St)
-		    end;
-		{drag_ended,St} -> return_to_top(St)
+	    #st{sel=Sel} = St1,
+	    case wings_pick:pick(St1, X, Y) of
+		#st{sel=Sel}=St -> main_loop(St);
+		St -> return_to_top(St)
 	    end;
- 	{start_camera,X,Y} ->
- 	    main_loop(wings_drag:start_camera(X, Y, St1));
-	{stop_camera,X,Y} ->
-	    main_loop(wings_drag:stop_camera(St1));
- 	{right_click,X,Y} when St1#st.camera == undefined ->
- 	    case wings_drag:abort_drag(St1) of
- 		no_drag ->
-		    popup_menu(X, Y, St1);
- 		drag_aborted ->
-		    return_to_top(drag_aborted)
- 	    end;
-	{right_click,X,Y} ->
-	    main_loop(St1);
+ 	{right_click,X,Y} ->
+	    popup_menu(X, Y, St1);
  	{resize,W,H} ->
  	    resize(W, H, St1),
  	    main_loop(model_changed(St1));
@@ -216,8 +204,6 @@ handle_event(Event, St1) ->
 	Cmd -> do_command(Cmd, St1)
     end.
 
-execute_or_ignore(Cmd, #st{camera=Camera}=St) when Camera =/= undefined ->
-    main_loop(St);
 execute_or_ignore(Cmd, #st{drag=Drag}=St) when Drag =/= undefined ->
     main_loop(St);
 execute_or_ignore(Cmd, St) -> return_to_top({Cmd,St}).
@@ -226,7 +212,8 @@ do_command(Cmd, St0) ->
     St1 = remember_command(Cmd, St0),
     case do_command_1(Cmd, St1) of
 	quit -> return_to_top(quit);
-	#st{}=St -> main_loop(St);
+	#st{drag=undefined}=St -> main_loop(St);
+	#st{}=St -> wings_drag:do_drag(St);
 	{save_state,#st{}=St} -> return_to_top(St);
 	{saved,#st{}}=Res -> return_to_top(Res);
 	{new,#st{}}=Res -> return_to_top(Res);
@@ -238,6 +225,12 @@ do_command(Cmd, St0) ->
 return_to_top(Res) ->
     wings_io:putback_event(Res),
     pop.
+
+redraw(St0) ->
+    St = wings_draw:render(St0),
+    wings_io:info(info(St)),
+    wings_io:update(St),
+    St.
     
 do_command_1(Cmd, St) ->
     command(Cmd, St).
@@ -311,8 +304,7 @@ command({file,Command}, St) ->
 command({edit,{material,Mat}}, St) ->
     wings_material:edit(Mat, St);
 command({edit,repeat}, #st{sel=[]}=St) -> St;
-command({edit,repeat}, #st{drag=undefined,camera=undefined,
-			   selmode=Mode,repeatable=Cmd0}=St) ->
+command({edit,repeat}, #st{drag=undefined,selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> ok;
 	Cmd when tuple(Cmd) -> wings_io:putback_event({action,Cmd})
@@ -475,13 +467,6 @@ command({vertex,{deform,Deform}}, St) ->
     wings_deform:command(Deform, St);
 
 %% Magnetic commands.
-command({influence_radius,Sign}, #st{inf_r=InfR0}=St) ->
-    {_,X,Y} = sdl_mouse:getMouseState(),
-    case InfR0+Sign*?GROUND_GRID_SIZE/4 of
-	InfR when InfR > 0 ->
-	    wings_drag:motion(X, Y, St#st{inf_r=InfR});
-	Other -> St
-    end;
 command({_,{magnet,{Type,Dir}}}, St) ->
     wings_magnet:setup(Type, Dir, St);
 
@@ -823,10 +808,7 @@ create_shape(Ask, Shape, St0) ->
 	St -> {save_state,model_changed(St)}
     end.
 
-set_select_mode(Mode, #st{drag=Drag,camera=Camera}=St)
-  when Drag =/= undefined; Camera =/= undefined ->
-    St;
-set_select_mode(Mode, #st{camera=Camera}=St) when Camera =/= undefined ->
+set_select_mode(Mode, #st{drag=Drag}=St) when Drag =/= undefined ->
     St;
 set_select_mode(deselect, St) ->
     {save_state,model_changed(St#st{sel=[]})};
@@ -953,27 +935,13 @@ translate_event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, St) ->
     translate_key(Sym, Mod, C, St);
 translate_event(quit, St) -> {file,quit};
 translate_event(ignore, St) -> ignore;
-translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}=Mb, St) ->
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?ALT_BITS =/= 0 ->
-	    translate_event(Mb#mousebutton{button=2}, St);
-	_ ->
-	    ignore
-    end;
+translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St) ->
+    ignore;
 translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}=Mb, St) ->
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?ALT_BITS =/= 0 ->
-	    translate_event(Mb#mousebutton{button=2}, St);
-	_ ->
-	    case wings_io:button(X, Y) of
-		none -> {left_click,X,Y};
-		Other -> Other
-	    end
+    case wings_io:button(X, Y) of
+	none -> {left_click,X,Y};
+	Other -> Other
     end;
-translate_event(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, St) ->
-    {start_camera,X,Y};
-translate_event(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, St) ->
-    {stop_camera,X,Y};
 translate_event(#mousebutton{button=3,x=X,y=Y,state=?SDL_PRESSED}, St) ->
     ignore;
 translate_event(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}, St) ->
@@ -981,8 +949,7 @@ translate_event(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}, St) ->
 translate_event(#mousebutton{}, St) ->
     %% Some mouse drivers map the scroll wheel to button 4 and 5.
     ignore;
-translate_event(#mousemotion{x=X,y=Y}, St) ->
-    {mousemotion,X,Y};
+translate_event(#mousemotion{x=X,y=Y}, St) -> ignore;
 translate_event(#resize{w=W,h=H}, St) -> {resize,W,H};
 translate_event(#expose{}, St) -> redraw;
 translate_event(redraw_menu, St) -> ignore;

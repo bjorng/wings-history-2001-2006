@@ -9,12 +9,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.21 2001/11/16 12:20:28 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.22 2001/11/16 18:19:41 bjorng Exp $
 %%
 
 -module(wings_drag).
--export([start_camera/3,stop_camera/1,view_changed/1,
-	 init_drag/3,init_drag/4,message/2,abort_drag/1,click/3,motion/3]).
+-export([init_drag/3,init_drag/4,do_drag/1,message/2]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -37,47 +36,18 @@
 	 shapes					%Shapes before drag
 	 }).
 
--record(camera,
-	{x,y,					%Current mouse position.
-	 ox,oy,					%Original mouse position.
-	 xs=0,ys=0				%Current virtual position.
-	}).
-
-start_camera(X, Y, St) ->
-    sdl_mouse:showCursor(false),
-    sdl_video:wm_grabInput(?SDL_GRAB_ON),
-    St#st{camera=#camera{x=X,y=Y,ox=X,oy=Y}}.
-
-stop_camera(#st{camera=#camera{ox=OX,oy=OY}}=St0) ->
-    case St0#st{camera=undefined} of
-	#st{drag=#drag{}}=St ->
-	    sdl_mouse:warpMouse(OX, OY),
-	    view_changed(St);
-	St ->
-	    sdl_mouse:showCursor(true),
-	    sdl_video:wm_grabInput(?SDL_GRAB_OFF),
-	    St
-    end;
-stop_camera(St) -> St.
-
 init_drag(Tvs, Constraint, St) ->
     init_drag(Tvs, Constraint, none, St).
 
 init_drag(Tvs0, Constraint, Unit, #st{shapes=OldShapes}=St0) ->
     Tvs = combine(Tvs0),
     Faces = faces(Tvs, St0),
-    sdl_mouse:showCursor(false),
-    sdl_video:wm_grabInput(?SDL_GRAB_ON),
+    wings_io:grab(),
     {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = #drag{x=X,y=Y,tvs=Tvs,constraint=Constraint,unit=Unit,shapes=OldShapes},
+    Drag = #drag{x=X,y=Y,tvs=Tvs,constraint=Constraint,
+		 unit=Unit,shapes=OldShapes},
     St = St0#st{saved=false,drag=Drag,dl=#dl{drag_faces=Faces}},
     motion(X, Y, St).
-
-view_changed(#st{drag=#drag{constraint=view_dependent}=Drag0}=St) ->
-    {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = Drag0#drag{x=X,y=Y,xs=0,ys=0,shapes=St#st.shapes},
-    St#st{drag=Drag};
-view_changed(St) -> St.
 
 combine(Tvs) ->
     S = sofs:relation(Tvs),
@@ -92,43 +62,76 @@ combine(Tvs) ->
 		{Id,sofs:to_external(FU)}
 	end, sofs:to_external(F)).
 
-abort_drag(#st{drag=undefined}=St) -> no_drag;
-abort_drag(#st{drag=#drag{}}) ->
-    sdl_mouse:showCursor(true),
-    sdl_video:wm_grabInput(?SDL_GRAB_OFF),
-    drag_aborted.
+do_drag(St) ->
+    {seq,{push,dummy},get_drag_event(St)}.
 
-click(X, Y, #st{drag=undefined}=St) ->
-    {select,St};
-click(X, Y, #st{drag=#drag{}}=St0) ->
-    sdl_mouse:showCursor(true),
-    sdl_video:wm_grabInput(?SDL_GRAB_OFF),
+get_drag_event(St) ->
+    wings:redraw(St),
+    {replace,fun(Ev) -> handle_drag_event(Ev, St) end}.
+
+handle_drag_event(Event, St) ->
+    case wings_camera:event(Event, St) of
+	next -> handle_drag_event_1(Event, St);
+	Other -> Other
+    end.
+
+handle_drag_event_1(#mousemotion{x=X,y=Y}, #st{drag=Drag0}=St0) ->
+    #drag{shapes=Shapes,tvs=Tvs} = Drag0,
+    {Dx0,Dy0,Drag} = mouse_range(X, Y, Drag0),
+    {Dx,Dy} = constrain(Dx0, Dy0, Drag),
+    St1 = St0#st{shapes=Shapes,drag=Drag},
+    St = motion_update(Tvs, Dx, Dy, St1),
+    get_drag_event(St);
+handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, St0) ->
+    wings_io:ungrab(),
     St = motion(X, Y, St0),
-    {drag_ended,normalize(St#st{drag=undefined,dl=none})}.
+    DragEnded = {drag_ended,normalize(St#st{drag=undefined,dl=none})},
+    wings_io:putback_event(DragEnded),
+    pop;
+handle_drag_event_1(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}, St) ->
+    wings_io:ungrab(),
+    wings_io:putback_event(drag_aborted),
+    pop;
+handle_drag_event_1(view_changed, St) ->
+    get_drag_event(view_changed(St));
+handle_drag_event_1(Event, St0) ->
+    St = case wings_hotkey:event(Event) of
+	     next -> St0;
+	     {view,aim} ->
+		 wings_view:aim(St0),
+		 view_changed(St0),
+		 St0;
+	     {view,{along,Axis}} ->
+		 wings_view:along(Axis, St0),
+		 view_changed(St0),
+		 St0;
+	     {view,reset} ->
+		 wings_view:reset(),
+		 view_changed(St0),
+		 St0;
+	     {select,less} ->
+		 magnet_radius(-1, St0);
+	     {select,more} ->
+		 magnet_radius(1, St0);
+	     Other -> St0
+	 end,
+    get_drag_event(St).
 
-motion(X, Y, #st{camera=#camera{}=Camera0}=St0) ->
-    {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
-    St = St0#st{camera=Camera},
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?SHIFT_BITS =/= 0 ->
-	    #view{pan_x=PanX0,pan_y=PanY0} = View = wings_view:current(),
-	    PanX = PanX0 + Dx / 10,
-	    PanY = PanY0 - Dy / 10,
-	    wings_view:set_current(View#view{pan_x=PanX,pan_y=PanY}),
-	    St;
-	Mod when Mod band ?CTRL_BITS =/= 0 ->
-	    #view{distance=Dist} = View = wings_view:current(),
-	    wings_view:projection(),
-	    wings_view:set_current(View#view{distance=Dist-Dy/10}),
-	    St;
-	Other ->
-	    #view{azimuth=Az0,elevation=El0} = View = wings_view:current(),
-	    Az = Az0 + Dx,
-	    El = El0 + Dy,
-	    wings_view:set_current(View#view{azimuth=Az,elevation=El}),
-	    St
-    end;
-motion(X, Y, #st{drag=undefined}=St) -> St;
+
+magnet_radius(Sign, #st{inf_r=InfR0}=St) ->
+    {_,X,Y} = sdl_mouse:getMouseState(),
+    case InfR0+Sign*?GROUND_GRID_SIZE/4 of
+	InfR when InfR > 0 ->
+	    motion(X, Y, St#st{inf_r=InfR});
+	Other -> St
+    end.
+
+view_changed(#st{drag=#drag{constraint=view_dependent}=Drag0}=St) ->
+    {_,X,Y} = sdl_mouse:getMouseState(),
+    Drag = Drag0#drag{x=X,y=Y,xs=0,ys=0,shapes=St#st.shapes},
+    St#st{drag=Drag};
+view_changed(St) -> St.
+
 motion(X, Y, #st{drag=#drag{shapes=Shapes,tvs=Tvs}=Drag0}=St0) ->
     {Dx0,Dy0,Drag} = mouse_range(X, Y, Drag0),
     {Dx,Dy} = constrain(Dx0, Dy0, Drag),
@@ -161,33 +164,6 @@ mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs,ys=Ys}=Drag) ->
 warp(X, Y, XsInc, YsInc, #drag{xs=Xs,ys=Ys}=Drag) ->
     warp_mouse(X, Y),
     mouse_range(X, Y, Drag#drag{xs=Xs+XsInc,ys=Ys+YsInc}).
-
-camera_mouse_range(X0, Y0, #camera{x=OX,y=OY,xs=Xs,ys=Ys}=Camera) ->
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    if
-	X0 =:= W-1 ->
-	    NewX = W div 2,
-	    camera_warp(NewX, Y0, NewX, 0, Camera);
-	X0 =:= 0 ->
-	    NewX = W div 2,
-	    camera_warp(NewX, Y0, -NewX, 0, Camera);
-	Y0 =:= H-1 ->
-	    NewY = H div 2,
-	    camera_warp(X0, NewY, 0, NewY, Camera);
-	Y0 =:= 0 ->
-	    NewY = H div 2,
-	    camera_warp(X0, NewY, 0, -NewY, Camera);
-	true ->
-	    X = X0 + Xs,
-	    Y = Y0 + Ys,
-	    Dx = (X-OX) / 5,
-	    Dy = (Y-OY) / 5,
-	    {Dx,Dy,Camera#camera{x=X,y=Y}}
-    end.
-
-camera_warp(X, Y, XsInc, YsInc, #camera{xs=Xs,ys=Ys}=Camera) ->
-    warp_mouse(X, Y),
-    camera_mouse_range(X, Y, Camera#camera{xs=Xs+XsInc,ys=Ys+YsInc}).
 
 warp_mouse(X, Y) ->
     %% Strangely enough, on Solaris the warp doesn't seem to

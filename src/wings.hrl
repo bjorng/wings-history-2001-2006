@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.17 2001/11/08 14:01:09 bjorng Exp $
+%%     $Id: wings.hrl,v 1.18 2001/11/16 18:19:40 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -73,8 +73,6 @@
 	 drag,					%Current drag information or
 						% 'undefined' if no drag
 						% in progress.
-	 camera,				%Camera information or
-						% 'undefined'.
 	 dl=none,				%Cached display lists.
 	 file,					%Current filename.
 	 saved,					%True if model has been saved.
