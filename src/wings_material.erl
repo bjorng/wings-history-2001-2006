@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.67 2003/01/09 19:18:37 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.68 2003/01/13 15:48:27 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -213,7 +213,7 @@ apply_material(Name, Mtab) when is_atom(Name) ->
     gl:materialfv(?GL_FRONT_AND_BACK, ?GL_AMBIENT, prop_get(ambient, OpenGL)),
     gl:materialfv(?GL_FRONT_AND_BACK, ?GL_SPECULAR, prop_get(specular, OpenGL)),
     Shine = prop_get(shininess, OpenGL)*128,
-    gl:materialfv(?GL_FRONT_AND_BACK, ?GL_SHININESS, Shine),
+    gl:materialf(?GL_FRONT_AND_BACK, ?GL_SHININESS, Shine),
     gl:materialfv(?GL_FRONT_AND_BACK, ?GL_EMISSION, prop_get(emission, OpenGL)),
     Maps = prop_get(maps, Mat, []),
     case prop_get(diffuse, Maps, none) of
@@ -368,7 +368,7 @@ mat_preview(X, Y, _W, _H, Common) ->
     Diff = preview_mat(diffuse, Common, Alpha),
     Spec = preview_mat(specular, Common, Alpha),
     Shine = gb_trees:get(shininess, Common),
-    gl:materialfv(?GL_FRONT, ?GL_SHININESS, Shine*128.0),
+    gl:materialf(?GL_FRONT, ?GL_SHININESS, Shine*128.0),
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT, Amb),
     gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
     gl:materialfv(?GL_FRONT, ?GL_SPECULAR, Spec),
