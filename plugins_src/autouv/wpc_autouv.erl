@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.290 2005/03/03 18:41:18 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.291 2005/03/03 21:24:13 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -41,8 +41,7 @@ menu({body}, Menu) ->
 	    Menu;
 	false ->
 	    Menu ++ [separator,
-		     {"UV Mapping", ?MODULE,
-		      "Generate or edit UV mapping or texture"}
+		     auv_menu()
 		    ]
     end;
 menu({face}, Menu) ->
@@ -51,8 +50,7 @@ menu({face}, Menu) ->
 	    Menu;
 	false ->
 	    Menu ++ [separator,
-		     {"UV Mapping", ?MODULE,
-		      "Generate UV mapping or texture"}
+		     auv_menu()
 		    ]
     end;
 menu({window}, Menu) ->
@@ -62,10 +60,18 @@ menu({window}, Menu) ->
 menu(_Dbg, Menu) ->
     Menu.
 
-command({body,?MODULE}, St) ->
-    start_uvmap(segment, St);
-command({face,?MODULE}, St) ->
-    start_uvmap(segment, St);
+auv_menu() ->
+    {"UV Mapping", {?MODULE, fun auv_menu/2}}.
+auv_menu(help,_) ->
+    {"Generate UV mapping or texture",
+     "",
+     "Force to segmenting mode"};
+auv_menu(1,_) -> {?MODULE, segment};
+auv_menu(2,_) -> {?MODULE, segment};
+auv_menu(3,_) -> {?MODULE, force_seg}.
+
+command({?MODULE, Op}, St) ->
+    start_uvmap(Op, St);
 command({window,uv_editor_window}, St) ->
     window(St);
 command(_, _) -> next.
@@ -83,6 +89,7 @@ start_uvmap_1([{Id,_}|T], Action, St) ->
 	false -> start_uvmap_2(Action, Name, Id, St)
     end,
     start_uvmap_1(T, Action, St);
+start_uvmap_1([], edit, _) -> wings_u:error("Nothing selected");
 start_uvmap_1([], _, _) -> keep.
 
 start_uvmap_2(Action, Name, Id, #st{shapes=Shs}=St) ->
@@ -97,16 +104,25 @@ start_uvmap_2(Action, Name, Id, #st{shapes=Shs}=St) ->
 		       {toolbar,CreateToolbar}], Op),
     wings_wm:send(Name, {init,{Action,We}}).
 
-auv_event({init,Op}, St = #st{selmode = Mode}) ->
+auv_event({init,Op}, St = #st{selmode = Mode, sel=Sel0}) ->
     wings:init_opengl(St),
     case Op of
 	{edit,We} ->
 	    start_edit(We, St);
+	{segment,We} when Mode == face ->
+	    UVFs = gb_sets:from_ordset(wings_we:uv_mapped_faces(We)),
+	    {value, {_, FS}} = lists:keysearch(1, We#we.id, Sel0),
+	    case gb_sets:is_subset(FS,UVFs) of
+		false -> auv_seg_ui:start(We, We, St);
+		true -> start_edit(We, St)
+	    end;
 	{segment,We} ->
-	    case wings_we:uv_mapped_faces(We) of
-		[_|_Faces] when Mode == body -> start_edit(We, St);
-		_ -> auv_seg_ui:start(We, We, St)
-	    end
+	    case wings_we:uv_mapped_faces(We) of	    
+		[] -> auv_seg_ui:start(We, We, St);
+		_ -> start_edit(We, St)
+	    end;
+	{force_seg, We} ->
+	    auv_seg_ui:start(We, We, St)
     end;
 auv_event(redraw, _) ->
     wings_wm:clear_background(),
