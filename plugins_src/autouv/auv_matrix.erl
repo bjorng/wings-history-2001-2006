@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_matrix.erl,v 1.1 2002/10/09 14:04:26 dgud Exp $
+%%     $Id: auv_matrix.erl,v 1.2 2002/10/10 18:28:04 bjorng Exp $
 
 -module(auv_matrix).
 
@@ -217,23 +217,6 @@ cols(N, M, L)
 cols(N, M, L) ->
     erlang:fault(badarg, [N, M, L]).
 
-
-
-% cols_f(1, N, J, M, [], [], [], L) when J == M+1 ->
-%     lists:reverse(L);
-% cols_f(I, N, J, M, [], AA, Col, L) when I == N+1 ->
-%     cols_r(N, N, J+1, M, AA, [], [lists:reverse(Col) | L]);
-% cols_f(I, N, J, M, [{I,[{J,V}]} | A], AA, Col, L) when I =< N ->
-%     cols_f(I+1, N, J, M, A, AA, [{I,V} | Col], L);
-% cols_f(I, N, J, M, [{I,[{J,V} | Row]} | A], AA, Col, L) when I =< N ->
-%     cols_f(I+1, N, J, M, A, [{I,Row} | AA], [{I,V} | Col], L);
-% cols_f(I, N, J, M, [Row | A], AA, Col, L) when I =< N->
-%     cols_f(I+1, N, J, M, A, [Row | AA], Col, L).
-
-% cols_r(N, N, J, M, [], [], [], L) when J == M+1 ->
-    
-% cols_f() ->
-    
 %% Exported
 %%
 set_element({?TAG,N,M,A}, I, J, V)
@@ -306,28 +289,8 @@ set_row_int(I, Row, A, C) ->
 %%
 cat_cols({?TAG,N,Ma,_} = A, {?TAG,N,Mb,_} = B) ->
     cols(N,Ma+Mb,cols(A)++cols(B));
-% cat_cols({?TAG,N,Ma,A}, {?TAG,N,Mb,B}) ->
-%     {?TAG,N,Ma+Mb,
-%      cat_cols_int(Ma, A, B, [])};
 cat_cols(A, B) ->
     erlang:fault(badarg, [A, B]).
-
-% cat_cols_int(_, [], [], C) ->
-%     lists:reverse(C);
-% cat_cols_int(_, [], B, C) ->
-%     lists:reverse(C, B);
-% cat_cols_int(_, A, [], C) ->
-%     lists:reverse(C, A);
-% cat_cols_int(Ma, [{I,RowA} | A], [{I,RowB} | B], C) ->
-%     cat_cols_int(Ma, A, B,
-% 	       [{I,RowA ++ [{Ma+Jb,V} || {Jb,V} <- RowB]} 
-% 	       | C]);
-% cat_cols_int(Ma, [{Ia,_} = RA | A], [{Ib,_} | _] = B, C) when Ia < Ib ->
-%     cat_cols_int(Ma, A, B, [RA | C]);
-% cat_cols_int(Ma, A, [RB | B], C) ->
-%     cat_cols_int(Ma, A, B, [RB | C]).
-
-
 
 %% Exported
 %%
@@ -483,7 +446,7 @@ reduce_zap(I, [[{J,1} | RowA] = RA, [{J,Vb} | RowB] | A]) ->
 	[] ->
 	    reduce_zap(I, [RA | A]);
 	RB ->
-	    reduce_zap(I, [RA | lists:sort([RB | A])])
+	    reduce_zap(I, [RA | insert_one(RB, A, [])])
     end;
 reduce_zap(I, [[{_,1} | _] = RA | A]) ->
     %% rerow
@@ -491,41 +454,10 @@ reduce_zap(I, [[{_,1} | _] = RA | A]) ->
 reduce_zap(I, [[{J,Va} | RowA] | A]) ->
     reduce_zap(I, [[{J,1} | [{Ja,V/Va} || {Ja,V} <- RowA]] | A]).
 
-
-% reduce_zap(I, [], C, unzapped) ->
-%     reduce_rerow(I-1, C, []);
-% reduce_zap(_, [], C, zapped) ->
-%     reduce_zap(1, lists:sort(C), [], unzapped);
-% reduce_zap(I, [[{J,1} | RowA] = RA, [{J,Vb} | RowB] | A], C, Z) ->
-%     case sub_rows(RowB, Vb/Va, RowA, []) of
-% 	[] ->
-% 	    reduce_zap(I+1, [RA | A], C, Z);
-% 	RB ->
-% 	    reduce_zap(I+1, [RA | A], [RB | C], Z)
-%     end;
-% reduce_zap(I, [[{J,Va} | RowA] | A], C, Z) ->
-%     reduce_zap(I, [[{J,1} | [{Ja,V/Va} || {Ja,V} <- RowA]] | A, C, Z);
-% reduce_zap(I, [[{J,Va} | RowA], [{J,Vb} | RowB] | A], C, _) ->
-%     Ra = [{J,1} | [{Ja,V/Va} || {Ja,V} <- RowA]],
-%     case sub_rows(RowB, Vb/Va, RowA, []) of
-% 	[] ->
-% 	    reduce_zap(I+1, A, [Ra | C], zapped);
-% 	Rb ->
-% 	    reduce_zap(I+1, A, [Ra, Rb | C], zapped)
-%     end;
-% reduce_zap(I, [[{_,1} | _] = RowA | A], C, Zap) ->
-%     reduce_zap(I+1, A, [RowA | C], Zap);
-% reduce_zap(I, [[{J,Va} | RowA] | A], C, Zap) ->
-%     reduce_zap(I+1, A, 
-% 	       [[{J,1} | [{Ja,V/Va} || {Ja,V} <- RowA]]
-% 		| C],
-% 	       Zap).
-
-% reduce_rerow(_, [], C) ->
-%     C;
-% reduce_rerow(I, [Row | A], C) ->
-%     reduce_rerow(I-1, A, [{I,Row} | C]).
-
+insert_one(E, [H|T], Acc) when E > H ->
+    insert_one(E, T, [H|Acc]);
+insert_one(E, L, Acc) ->
+    lists:reverse(Acc, [E|L]).
 
 %% Exported
 %%
