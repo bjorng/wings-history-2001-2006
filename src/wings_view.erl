@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.97 2003/02/17 20:56:02 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.98 2003/02/19 10:08:37 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -88,7 +88,11 @@ menu(_) ->
      {"Auto Rotate",auto_rotate,"Spin the view"}].
 
 crossmark(Key) ->
-    case wings_pref:get_value(Key) of
+    Val = case wings_pref:get_value(Key) of
+	      undefined -> wings_wm:get_prop(geom, Key);
+	      Other -> Other
+	  end,
+    case Val of
 	false -> [];
 	true -> [crossmark]
     end.
