@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.39 2002/08/13 21:09:47 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.40 2002/08/14 19:08:55 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -374,13 +374,14 @@ pan(Dx, Dy) ->
     
 stop_camera(#camera{ox=OX,oy=OY}) ->
     wings_io:clear_message(),
-    wings_wm:dirty(),
     case wings_io:ungrab() of
 	still_grabbed ->
 	    sdl_mouse:warpMouse(OX, OY),
 	    wings_io:putback_event(view_changed),
 	    pop;
-	no_grab -> pop
+	no_grab ->
+	    wings_wm:dirty(),
+	    pop
     end.
 
 camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->

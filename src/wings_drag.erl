@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.101 2002/08/13 21:20:11 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.102 2002/08/14 19:08:55 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -267,10 +267,10 @@ get_drag_event_1(Drag) ->
 handle_drag_event(#keyboard{keysym=#keysym{sym=9}}, Drag) ->
     numeric_input(Drag);
 handle_drag_event(#mousebutton{button=2,state=?SDL_RELEASED},
-		  #drag{mmb_count=C}=Drag) when C > 0 ->
+		  #drag{mmb_count=C}=Drag) when C > 2 ->
     get_drag_event_1(Drag#drag{mmb_count=0});
 handle_drag_event(#mousebutton{button=3,state=?SDL_RELEASED}=Ev,
-		  #drag{mmb_count=C}=Drag) when C > 0 ->
+		  #drag{mmb_count=C}=Drag) when C > 2 ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
 	    get_drag_event_1(Drag#drag{mmb_count=0});
@@ -414,7 +414,7 @@ view_changed(#drag{flags=Flags}=Drag0) ->
 	true ->
 	    wings_draw_util:map(fun view_changed_fun/2, []),
 	    {_,X,Y} = sdl_mouse:getMouseState(),
-	    Drag0#drag{x=X,y=Y,xs=0,ys=0}
+	    Drag0#drag{x=X,y=Y,xs=0,ys=0,zs=0}
     end.
 
 view_changed_fun(#dlo{work={matrix,Mtx,_},drag={matrix,Tr,_}}=D, _) ->
@@ -469,7 +469,10 @@ mouse_range(#mousemotion{x=X0,y=Y0,state=Mask},
 		Mask band ?SDL_BUTTON_MMASK =/= 0 ->
 		    Xs = Xs0,
 		    Ys = Ys0,
-		    Zs = Zs0 + YD,
+		    Zs = case wings_pref:get_value(camera_mode, blender) of
+			     maya -> Zs0 - XD;	%Horizontal motion
+			     _ -> Zs0 + YD	%Vertical motion
+			 end,
 		    Count = Count0 + 1;
 		true ->
 		    Xs = Xs0 + XD,
