@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.45 2003/10/15 21:20:44 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.46 2003/10/18 07:34:17 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -326,7 +326,7 @@ render_redraw(#r{attr=Attr}=Rr) ->
 	    end,
     case proplists:get_value(output_type, Attr) of
 	preview ->
-	    Id = wings_image:new("Rendered", Image),
+	    Id = wings_image:new_temp("<<Rendered>>", Image),
 	    wings_image:window(Id);
 	file ->
 	    RendFile = proplists:get_value(output_file, Attr),
@@ -1011,7 +1011,7 @@ do_draw_bumped([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs], Txt, We, L) ->
     gl:vertex3fv(V3),
     do_draw_bumped(Fs, Txt, We, L).
 
-calcTS(V1,V2,V3,{S1,T1},{S2,T2},{S3,T3},N) ->
+calcTS(V1,V2,V3,{_S1,T1},{_S2,T2},{_S3,T3},N) ->
     Side1 = e3d_vec:sub(V1,V2),
     Side2 = e3d_vec:sub(V3,V2),
     DT1 = T1-T2,

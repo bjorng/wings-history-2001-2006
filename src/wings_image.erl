@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.28 2003/09/24 10:17:21 dgud Exp $
+%%     $Id: wings_image.erl,v 1.29 2003/10/18 07:34:17 bjorng Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
-	 from_file/1,new/2,create/1,rename/2,txid/1,info/1,images/0,
+	 from_file/1,new/2,new_temp/2,create/1,
+	 rename/2,txid/1,info/1,images/0,
 	 bumpid/1, normal_cubemapid/0,
 	 next_id/0,delete_older/1,delete_from/1,delete/1,
 	 update/2,update_filename/2,draw_preview/5,
@@ -44,7 +45,10 @@ from_file(Filename) ->
     end.
 
 new(Name, E3DImage) ->
-    req({new,E3DImage#e3d_image{name=Name}}).
+    req({new,E3DImage#e3d_image{name=Name},false}).
+
+new_temp(Name, E3DImage) ->
+    req({new,E3DImage#e3d_image{name=Name},true}).
 
 create(St) ->
     create_image(),
@@ -141,12 +145,22 @@ handle(init_opengl, #ist{images=Images}=S) ->
 	    end, gb_trees:to_list(Images)),
     init_background_tx(),
     S;
-handle({new,#e3d_image{name=Name0}=Im0}, #ist{next=Id,images=Images0}=S) ->
+handle({new,#e3d_image{name=Name0}=Im0,false}, #ist{next=Id,images=Images0}=S) ->
     Name = make_unique(Name0, Images0),
     Im = maybe_convert(Im0#e3d_image{name=Name}),
     Images = gb_trees:insert(Id, Im, Images0),
     make_texture(Id, Im),
     {Id,S#ist{next=Id+1,images=Images}};
+handle({new,#e3d_image{name=Name}=Im,true}, #ist{images=Images}=S0) ->
+    Prev = [Id || {Id,#e3d_image{name=N}} <- gb_trees:to_list(Images),
+		 N =:= Name],
+    case Prev of
+	[] ->
+	    handle({new,Im,false}, S0);
+	[Id] ->
+	    S = handle({delete,Id}, S0),
+	    handle({new,Im,false}, S)
+    end;
 handle({rename,Id,Name0}, #ist{images=Images0}=S) ->
     Name = make_unique(Name0, gb_trees:delete(Id, Images0)),
     Im0 = gb_trees:get(Id, Images0),
@@ -205,8 +219,7 @@ create_bump(Id, #ist{images=Images0}) ->
 	{value, E3D} -> 
 	    %% Scale ?? 4 is used in the only example I've seen.
 	    Bump = e3d_image:height2normal(E3D, 4),
-	    Tid  = make_texture({Id,bump}, Bump),
-	    Tid;
+	    make_texture({Id,bump}, Bump);
 	_ ->
 	    none
     end.
