@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.145 2004/04/28 08:04:22 raimo_niskanen Exp $
+%%     $Id: wings_view.erl,v 1.146 2004/05/03 10:33:59 raimo_niskanen Exp $
 %%
 
 -module(wings_view).
@@ -689,7 +689,7 @@ views({save,Ask}, #st{views=Views}) when is_atom(Ask) ->
     end;
 views(rename, #st{views=Views0}=St) ->
     case queue:out_r(Views0) of 
-	{emtpy,Views0} ->
+	{empty,Views0} ->
 	    wings_util:message("No saved views");
 	{{value,{View,Legend}},Views} ->
 	    wings_ask:dialog("Rename view",
