@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.14 2003/01/31 21:15:25 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.15 2003/02/24 14:01:09 dgud Exp $
 %%
 
 -module(wings_image).
@@ -178,10 +178,13 @@ make_texture(Id, Image) ->
     TxId = init_texture(Image),
     put(Id, TxId).
 
-init_texture(Image0) ->
-    Image = maybe_scale(Image0),
-    #e3d_image{width=W,height=H,bytes_pp=BytesPerPixel,image=Bits} = Image,
+init_texture(Image) ->
     [TxId] = gl:genTextures(1),
+    init_texture(Image, TxId).
+
+init_texture(Image0, TxId) ->
+    Image = maybe_scale(Image0),
+    #e3d_image{width=W,height=H,image=Bits} = Image,
     gl:pushAttrib(?GL_TEXTURE_BIT),
     gl:enable(?GL_TEXTURE_2D),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
@@ -190,7 +193,7 @@ init_texture(Image0) ->
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
     gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
     Format = texture_format(Image),
-    gl:texImage2D(?GL_TEXTURE_2D, 0, BytesPerPixel,
+    gl:texImage2D(?GL_TEXTURE_2D, 0, internal_format(Format),
 		  W, H, 0, Format, ?GL_UNSIGNED_BYTE, Bits),
     gl:popAttrib(),
     TxId.
@@ -221,6 +224,12 @@ texture_format(#e3d_image{type=b8g8r8}) -> ?GL_BGR;
 texture_format(#e3d_image{type=b8g8r8a8}) -> ?GL_BGRA;
 texture_format(#e3d_image{type=g8}) -> ?GL_LUMINANCE.
 
+%%  Hmmm we may want to used compressed alternatives if 
+%%  available (opengl 1.3) or compressed extension..
+internal_format(?GL_BGR) -> ?GL_RGB;
+internal_format(?GL_BGRA) -> ?GL_RGBA;
+internal_format(Else) -> Else.
+
 delete_older(Id, #ist{images=Images0}=S) ->
     Images1 = delete_older_1(gb_trees:to_list(Images0), Id),
     Images = gb_trees:from_orddict(Images1),
@@ -246,14 +255,21 @@ delete_from_1([{Id,_}|T], Limit, Acc) ->
 delete_from_1([], _, Acc) ->
     reverse(Acc).
 
-do_update(Id, #e3d_image{width=W,height=H,image=Bits}, #ist{images=Images0}=S) ->
-    #e3d_image{width=W,height=H} = Im0 = gb_trees:get(Id, Images0),
-    Im = Im0#e3d_image{image=Bits},
+do_update(Id, In = #e3d_image{width=W,height=H,type=Type}, 
+	  #ist{images=Images0}=S) ->
+    Im0 = #e3d_image{filename=File,name=Name} = gb_trees:get(Id, Images0),
+    Im   = In#e3d_image{filename=File, name=Name},
+    TxId = get(Id),    
     Images = gb_trees:update(Id, Im, Images0),
-    TxId = get(Id),
-    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-    gl:texSubImage2D(?GL_TEXTURE_2D, 0, 0, 0,
-		     W, H, texture_format(Im), ?GL_UNSIGNED_BYTE, Bits),
+    case {Im0#e3d_image.width, Im0#e3d_image.height, Im0#e3d_image.type} of
+	{W,H,Type} ->
+	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+	    gl:texSubImage2D(?GL_TEXTURE_2D, 0, 0, 0,
+			     W, H, texture_format(Im), 
+			     ?GL_UNSIGNED_BYTE, Im#e3d_image.image);
+	_ ->	    
+	    init_texture(Im, TxId)
+    end,
     S#ist{images=Images}.
 
 make_unique(Name, Images0) ->

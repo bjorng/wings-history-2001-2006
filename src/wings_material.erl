@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.82 2003/02/07 10:52:52 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.83 2003/02/24 14:01:10 dgud Exp $
 %%
 
 -module(wings_material).
@@ -249,6 +249,9 @@ load_maps([{Key,Filename}|T]) when is_list(Filename) ->
 load_maps([{Key,{W,H,Bits}}|T]) ->
     E3dImage = #e3d_image{type=r8g8b8,order=lower_left,
 			  width=W,height=H,image=Bits},
+    Id = wings_image:new(atom_to_list(Key), E3dImage),
+    [{Key,Id}|load_maps(T)];
+load_maps([{Key,E3dImage = #e3d_image{}}|T]) ->
     Id = wings_image:new(atom_to_list(Key), E3dImage),
     [{Key,Id}|load_maps(T)];
 load_maps([{_,none}|T]) ->

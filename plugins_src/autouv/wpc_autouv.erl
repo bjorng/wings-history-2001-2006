@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.100 2003/02/20 21:48:39 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.101 2003/02/24 14:00:53 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -657,7 +657,7 @@ get_material(Face, Materials, #we{fs=Ftab}) ->
     Mat = gb_trees:get(MatName, Materials),
     proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
-add_material(Tx,Name,none,St0) ->
+add_material(Tx = #e3d_image{},Name,none,St0) ->
     MatName0 = list_to_atom(Name++"_auv"),
     Mat = {MatName0,[{opengl,[]},{maps,[{diffuse,Tx}]}]},
     case wings_material:add_materials([Mat], St0) of
@@ -666,8 +666,7 @@ add_material(Tx,Name,none,St0) ->
 	{St,[{MatName0,MatName}]} ->
 	    {St,MatName}
     end;
-add_material({W,H,Bits}, _, MatName,St) ->
-    Im = #e3d_image{width=W,height=H,image=Bits},
+add_material(Im = #e3d_image{}, _, MatName,St) ->
     wings_material:update_image(MatName, diffuse, Im, St),
     {St,MatName}.
     
@@ -758,7 +757,7 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1.0, 1.0, 1.0),   %%Clear
     case TexBg of
-	true ->
+	true when MatN /= none ->
 	    wings_material:apply_material(MatN, Mats);
 	false ->
 	    ok
@@ -806,10 +805,11 @@ get_texture(#uvstate{option=#setng{texsz={TexW,TexH}},sel=Sel,areas=As}=Uvs0) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     case (TexW*TexH *3) == size(ImageBin) of
 	true ->
-	    {TexW,TexH,ImageBin};
+	    #e3d_image{image=ImageBin,width=TexW,height=TexH};
 	false ->
 	    BinSzs = [size(Bin) || Bin <- ImageBins],
-	    exit({texture_error,{TexW, TexH, size(ImageBin), W,Wd,H,Hd, BinSzs}})
+	    exit({texture_error,{TexW, TexH, size(ImageBin), 
+				 W,Wd,H,Hd, BinSzs}})
     end.
 		 
 get_texture(Wc, Wd, Hc, Hd, {W,H,Mem}=Info, Uvs0, ImageAcc)
@@ -1137,8 +1137,7 @@ handle_event({action,{auv,export}}, Uvs0) ->
 	aborted -> 
 	    get_event(Uvs0);	
 	FileName ->
-	    {TW,TH,TexBin} = ?SLOW(get_texture(Uvs0)),
-	    Image = #e3d_image{image=TexBin,width=TW,height=TH},
+	    Image = ?SLOW(get_texture(Uvs0)),
 	    case ?SLOW((catch e3d_image:save(Image, FileName))) of
 		ok -> 			   
 		    get_event(Uvs0#uvstate{last_file = FileName});
@@ -1337,15 +1336,16 @@ remap({Id, Chart0 = #ch{fs=Fs,we=We0,vmap=Vmap,size={W,H}}}, Type, #we{vp=Vs3d0}
 import_file(default, Uvs0) ->
     import_file(Uvs0#uvstate.last_file, Uvs0);
 import_file(Filename, Uvs0) ->
-    Ps = [{filename,Filename},{type,r8g8b8},{alignment,1},{order,lower_left}],
+    Ps = [{filename,Filename}, %% {type,r8g8b8},
+	  {alignment,1},{order,lower_left}],
     case wpa:image_read(Ps) of
 	{error,Error0} ->
 	    Error = Filename ++ ": " ++ file:format_error(Error0),
 	    wings_util:message("Import failed: " ++ Error);
-	#e3d_image{width = TW, height = TH, image = TexBin} ->
+	Im = #e3d_image{width = TW, height = TH} ->
 	    case (TW == TH) andalso is_power_of_two(TW) of
 		true ->
-		    add_texture_image(TW, TH, TexBin, Filename, Uvs0);
+		    add_texture_image(Im, Filename, Uvs0);
 		false ->
 		    wings_util:message("Import failed: Can only import square," 
 				       "power of 2 sized pictures", Uvs0#uvstate.st)	
@@ -1355,15 +1355,14 @@ import_file(Filename, Uvs0) ->
 set_texture_image(TexFun, #uvstate{option=Opt0}=Uvs) ->
     TexW = 512,
     TexH = 512,
-    Opt = Opt0#setng{texbg=true,color=false,edges=no_edges},
-    add_texture_image(TexW, TexH, TexFun(TexW, TexH), default, 
-		      Uvs#uvstate{option=Opt}).
+    Opt = Opt0#setng{texbg=true,color=false,edges=no_edges},    
+    Im = #e3d_image{width=TexW,height=TexH,image=TexFun(TexW, TexH)},
+    add_texture_image(Im, default, Uvs#uvstate{option=Opt}).
 
-add_texture_image(TW, TH, TexBin, FileName,
-		  #uvstate{st=St0,option=Opt,
-			   orig_we=OWe,matname=MatName0}=Uvs) ->
+add_texture_image(Im, FileName,#uvstate{st=St0,option=Opt,
+					orig_we=OWe,matname=MatName0}=Uvs) ->
     Name = OWe#we.name,
-    {St,MatName} = add_material({TW,TH,TexBin},Name,MatName0,St0),
+    {St,MatName} = add_material(Im,Name,MatName0,St0),
     wings_wm:send(geom, {new_state,St}),
     get_event(reset_dl(Uvs#uvstate{st=St,
 				   matname=MatName,
