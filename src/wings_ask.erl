@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.125 2003/11/19 18:10:48 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.126 2003/11/20 13:52:56 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -148,22 +148,40 @@ dialog(true, Title, Qs, Fun) -> dialog(Title, Qs, Fun).
 dialog(Title, Qs, Fun) ->
     do_dialog(Title, Qs, [make_ref()], Fun).
 
+-record(position, {position}).
+
 do_dialog(Title, Qs, Level, Fun) ->
     GrabWin = wings_wm:release_focus(),
     S0 = setup_ask(Qs, Fun),
     #s{w=W0,h=H0} = S0,
     W = W0 + 2*?HMARGIN,
     H = H0 + 2*?VMARGIN,
-    S = S0#s{ox=?HMARGIN,oy=?VMARGIN,level=Level,grab_win=GrabWin},
+    S = #s{fi=Fi,store=Store} = 
+	S0#s{ox=?HMARGIN,oy=?VMARGIN,level=Level,grab_win=GrabWin},
     Name = {dialog,hd(Level)},
     setup_blanket(Name, S),
     Op = {seq,push,get_event(S)},
-    {_,X,Y} = sdl_mouse:getMouseState(),
-    wings_wm:toplevel(Name, Title, {X,Y-?LINE_HEIGHT,highest}, {W,H},
-		      [{anchor,n}], Op),
+    {{X,Y},Anchor} 
+	= case find_field(fun([#fi{index=Index}|_]) ->
+				  field_type(Index, Store) =:= position
+			  end, Fi) of
+	      [] -> {mouse_pos(),n};
+	      [#fi{index=Index}|_] ->
+		  case gb_trees:get(-Index, Store) of
+		      #position{position=undefined} -> {mouse_pos(),n};
+		      #position{position=Pos} -> {Pos,nw}
+		  end
+	  end,
+    wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H}, 
+		      [{anchor,Anchor}], Op),
     wings_wm:set_prop(Name, drag_filter, fun(_) -> yes end),
     ?DEBUG_DISPLAY({W,H}),
     keep.
+
+mouse_pos() ->
+    {_,X,Y} = sdl_mouse:getMouseState(),
+    {X,Y-?LINE_HEIGHT}.
+    
 
 setup_ask(Qs, Fun) ->
     ?DEBUG_FORMAT("setup_ask~n  (~p,~n   ~p)~n", [Qs,Fun]),
@@ -443,7 +461,7 @@ field_event(Ev, S=#s{focus=_I,fi=TopFi=#fi{w=W0,h=H0},store=Store0},
 			{W0,H0} -> ok;
 			_ -> 
 			    Size = {W+2*?HMARGIN,H+2*?VMARGIN},
-			    wings_wm:resize(wings_wm:this(), Size)
+			    resize_maybe_move(Size)
 		    end,
 		    ?DEBUG_DISPLAY({W,H}),
 		    get_event(next_focus(0, S#s{w=W,h=H,
@@ -459,6 +477,21 @@ field_event(Ev, S=#s{focus=_I,fi=TopFi=#fi{w=W0,h=H0},store=Store0},
 	    Action(Res),
 	    delete(S)
     end.
+
+resize_maybe_move({W,H0}=Size) ->
+    This = wings_wm:this(),
+    {{X1,Y1},{_,H1}} = wings_wm:win_rect({controller,This}),
+    H = H0+H1,
+    {{X3,Y3},{W3,H3}} = wings_wm:win_rect(desktop),
+    X = if  W > W3 -> X3;
+	    X1+W > W3 -> W3-W;
+	    true -> X1 end,
+    Y = if  H > H3 -> Y3;
+	    Y1+H > H3 -> H3-H;
+	    true -> Y1 end,
+    wings_wm:move(This, {X,Y+H1}, Size).
+    
+		
 
 return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto}=S) ->
     Res = collect_result(Fi, Sto),
@@ -489,7 +522,7 @@ redraw(S=#s{w=W,h=H,ox=Ox,oy=Oy,focus=Index,fi=Fi0,store=Sto}) ->
 				  Col)
 	  end),
     case draw_fields(Fi0, Index, Sto) of
-	Fi0 -> keep;
+	keep -> keep;
 	Fi ->
 	    Focusable = focusable(Fi),
 	    ?DEBUG_DISPLAY({new_focusable,Focusable}),
@@ -576,39 +609,40 @@ collect_result_3(_Fields, _Sto, _Path, R, _I) -> R.
 %% Draw fields.
 %% Return new fields tree.
 
-draw_fields(Fi, Focus, Sto) -> draw_fields(Fi, Focus, Sto, []).
+draw_fields(Fi, Focus, Sto) -> draw_fields_1(Fi, Focus, Sto, []).
 
-draw_fields(Fi=#fi{handler=Handler,
-		   index=Index,
-		   extra=Container=#container{fields=Fields0,
-					      minimized=Minimized}},
-	    Focus, Sto, Path0) ->
+draw_fields_1(Fi=#fi{handler=Handler,
+		     index=Index,
+		     extra=Container=#container{fields=Fields0,
+						minimized=Minimized}},
+	      Focus, Sto, Path0) ->
     Path = [Fi|Path0],
     Handler({redraw,Index =:= Focus}, Path, Sto),
     if Minimized =/= true ->
-	    case draw_fields(Fields0, Focus, Sto, Path, 1, [], false) of
-		Fields0 -> Fi;
+	    case draw_fields_2(Fields0, Focus, Sto, Path, 1, [], false) of
+		keep -> keep;
 		Fields -> Fi#fi{extra=Container#container{fields=Fields}}
 	    end;
-       true -> Fi
+       true -> keep
     end;
-draw_fields(Fi=#fi{handler=Handler,index=Index,disabled=Disabled}, 
+draw_fields_1(Fi=#fi{handler=Handler,index=Index,disabled=Disabled}, 
 	    Focus, Sto, Path) ->
     case Handler({redraw,Index =:= Focus}, [Fi|Path], Sto) of
-	enable when Disabled == true -> Fi#fi{disabled=false};
-	disable when Disabled == false -> Fi#fi{disabled=true};
-	_ -> Fi
+	enable when Disabled =:= true -> Fi#fi{disabled=false};
+	disable when Disabled =:= false -> Fi#fi{disabled=true};
+	_ -> keep
     end.
 
-draw_fields(Fields, Focus, Sto, TopFi, I, R, Changed) when I =< size(Fields) ->
+draw_fields_2(Fields, Focus, Sto, TopFi, I, R, Changed)
+  when I =< size(Fields) ->
     Fi0 = element(I, Fields),
-    case draw_fields(Fi0, Focus, Sto, TopFi) of
-	Fi0 -> draw_fields(Fields, Focus, Sto, TopFi, I+1, [Fi0|R], Changed);
-	Fi -> draw_fields(Fields, Focus, Sto, TopFi, I+1, [Fi|R], true)
+    case draw_fields_1(Fi0, Focus, Sto, TopFi) of
+	keep -> draw_fields_2(Fields, Focus, Sto, TopFi, I+1, [Fi0|R], Changed);
+	Fi -> draw_fields_2(Fields, Focus, Sto, TopFi, I+1, [Fi|R], true)
     end;
-draw_fields(Fields, _Focus, _Sto, _TopFi, _I, _R, false) ->
-    Fields;
-draw_fields(_Fields, _Focus, _Sto, _TopFi, _I, R, true) ->
+draw_fields_2(_Fields, _Focus, _Sto, _TopFi, _I, _R, false) ->
+    keep;
+draw_fields_2(_Fields, _Focus, _Sto, _TopFi, _I, R, true) ->
     list_to_tuple(reverse(R)).
 
 %% Get field index from mouse position.
@@ -716,6 +750,8 @@ mktree(panel, Sto, I) ->
     mktree_fi(panel(), Sto, I, []);
 mktree({eyepicker,Hook}, Sto, I) ->
     mktree_fi(eyepicker(), Sto, I, [{hook,Hook}]);
+mktree({position,Position}, Sto, I) ->
+    mktree_fi(position(Position), Sto, I, []);
 mktree({label,Label}, Sto, I) ->
     mktree_fi(label(Label, []), Sto, I, []);
 mktree({label,Label,Flags}, Sto, I) ->
@@ -1824,6 +1860,17 @@ eyepicker() ->
     {fun (_Ev, _Path, _Store) -> keep end, true, #eyepicker{}, 0, 0}.
 
 %%%
+%%% Position
+%%%
+
+position(Position) ->
+    {fun position_event/3, false, #position{position=Position}, 0, 0}.
+
+position_event(value, _Path, _Store) ->
+    {value,wings_wm:win_ul({controller,wings_wm:this()})};
+position_event(_Ev, _Path, _Store) -> keep.
+
+%%%
 %%% Label.
 %%%
 
@@ -2533,7 +2580,7 @@ hook(Hook, is_disabled, [Var, I, Store]) ->
 	    end
     end;
 hook(Hook, update, [Var, I, Val, Store0]) ->
-    {Default,Store} = 
+    {Default,Store1} = 
 	case gb_trees:get(Var, Store0) of
 	    Val -> {keep,Store0};
 	    _ -> 
@@ -2543,10 +2590,9 @@ hook(Hook, update, [Var, I, Val, Store0]) ->
     case Hook of
 	undefined -> Default;
 	_ when is_function(Hook) ->
-	    case Hook(update, {Var,I,Val,Store}) of
+	    case Hook(update, {Var,I,Val,Store1}) of
 		void -> Default;
 		keep -> Default;
-		{store,Store} -> Default;
 		{store,_}=Result -> Result;
 		done -> case Default of 
 			    keep -> done;
