@@ -4,12 +4,12 @@
 %%     This module keeps tracks of the mapping from a face number
 %%     to its material name.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_facemat.erl,v 1.4 2004/12/29 14:26:44 bjorng Exp $
+%%     $Id: wings_facemat.erl,v 1.5 2005/01/21 07:03:14 bjorng Exp $
 %%
 %%
 %%
@@ -62,6 +62,7 @@ mat_faces(Ftab, #we{mat=MatTab}) ->
 
 %% assign([{Face,MaterialName}], We) -> We'
 %%  Assign materials.
+assign([], We)  -> We;
 assign([{F,M}|_]=FaceMs, We) when is_atom(M), is_integer(F) ->
     Tab = ordsets:from_list(FaceMs),
     assign_face_ms(Tab, We).
