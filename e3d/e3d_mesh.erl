@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.43 2004/10/09 05:52:17 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.44 2004/11/10 05:11:37 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -61,13 +61,29 @@ transform(#e3d_mesh{vs=Vs0,matrix=ObjMatrix}=Mesh, Matrix0) ->
 %%  triangles to a quad. Triangles with more than one hidden edge
 %%  will never be combined to avoid isolating vertices and/or
 %%  creating concave polygons.
-make_quads(#e3d_mesh{type=triangle,fs=Fs0}=Mesh) ->
+
+%% Altered - PM (11/8/2004)
+%% I've adapted this so it will merge triangles with more than one
+%% hidden edge, so you can end with polygons with > 4 verts. It will
+%% eliminate isolted verts, but cannot create polygons with holes.
+
+make_quads(#e3d_mesh{type=triangle,fs=Fs0}=Mesh0) ->
+%% Altered - end
+
     Ftab0 = number_faces(Fs0),
     Es = rhe_collect_edges(Ftab0),
     Ftab1 = gb_trees:from_orddict(Ftab0),
     Ftab = merge_faces(Es, Ftab1),
-    Fs = gb_trees:values(Ftab),
-    Mesh#e3d_mesh{type=polygon,fs=Fs};
+
+%% Altered - PM (11/8/2004)
+    Fs1 = gb_trees:values(Ftab),
+    Fs = filter(fun ({merged,_}) -> false;
+		    (_) -> true
+		end, Fs1),
+    Mesh = Mesh0#e3d_mesh{type=polygon,fs=Fs},
+    renumber(Mesh);
+%% Altered - end
+
 make_quads(Mesh) -> Mesh.
 
 %% merge_vertices(Mesh0) -> Mesh
@@ -209,7 +225,7 @@ slit_hard_edges(Mesh0=#e3d_mesh{vs=Vs0,vc=Vc0,tx=Tx0,ns=Ns0,fs=Fs0,he=He0},
 		    tx={size(TxT),[]},ns={size(NsT),[]}},
     VsGt = 
 	case proplists:get_bool(slit_end_vertices, Options) of
-	    false ->
+	    false ->%% Altered - PM (11/8/2004)
 		lists:foldl(
 		  fun({V1,V2}, Gt) when V1 < V2 -> 
 			  gb_trees_increment(V2, 1, 
@@ -221,7 +237,7 @@ slit_hard_edges(Mesh0=#e3d_mesh{vs=Vs0,vc=Vc0,tx=Tx0,ns=Ns0,fs=Fs0,he=He0},
 		lists:foldl(
 		  fun({V1,V2}, Gt) when V1 < V2 -> 
 			  gb_trees:enter(V2, 2, 
-					 gb_trees:enter(V1, 2, Gt)) end,
+					     gb_trees:enter(V1, 2, Gt)) end,
 		  gb_trees:empty(),
 		  He0)
 	end,
@@ -230,12 +246,16 @@ slit_hard_edges(Mesh0=#e3d_mesh{vs=Vs0,vc=Vc0,tx=Tx0,ns=Ns0,fs=Fs0,he=He0},
 		     gb_trees:insert(E, 0, Gt) end,
 	     gb_trees:empty(),
 	     He0),
-    #e3d_mesh{type=Type,vs=Vs1,vc=Vc1,tx=Tx1,ns=Ns1,fs=Fs1} =
-	slit_hard_f(Old, VsGt, HeGt, Fs0, New, []),
-    Mesh0#e3d_mesh{type=Type,vs=Vs0++Vs1,vc=Vc0++Vc1,
-		   tx=Tx0++Tx1,ns=Ns0++Ns1,fs=Fs1,he=[]}.
-
-
+    Mesh = 
+	case slit_hard_f(Old, VsGt, HeGt, Fs0, New, []) of
+	    #e3d_mesh{vs={_,[]}} -> Mesh0#e3d_mesh{he=[]};
+	    #e3d_mesh{type=Type,vs=Vs1,vc=Vc1,tx=Tx1,ns=Ns1,fs=Fs1} ->
+		Mesh0#e3d_mesh{type=Type,vs=Vs0++Vs1,vc=Vc0++Vc1,
+			      tx=Tx0++Tx1,ns=Ns0++Ns1,fs=Fs1,he=[]}
+	end,
+    %%io:format("After: "),
+    %%print_mesh(Mesh),
+    Mesh.
 
 %% Calculate area of faces. Return list of areas for each face.
 %% The areas are for one possible triangulation. This is only
@@ -256,27 +276,89 @@ face_areas(Fs, Vs) when is_list(Fs), is_list(Vs) ->
 
 merge_faces([{_Name,L}|Es], Ftab0) ->
     Ftab = case L of
-	       [{Fa,Va,Vb,invisible},{Fb,_,_,invisible}] ->
+%% Altered - PM (11/8/2004)
+%%	       [{Fa,Va,Vb,invisible},{Fb,_,_,invisible}] ->
+	       [{Fa,Va,Vb,invisible},{Fb,Vb,Va,invisible}] ->
+%% Altered - end
 		   merge_faces_1(Fa, Fb, Va, Vb, Ftab0);
 	       _Other -> Ftab0
 	   end,
     merge_faces(Es, Ftab);
 merge_faces([], Ftab) -> Ftab.
 
-merge_faces_1(Fa, Fb, Va, Vb, Ftab0) ->
-    case {gb_trees:lookup(Fa, Ftab0),gb_trees:lookup(Fb, Ftab0)} of
-	{{value,#e3d_face{vs=Vs1,tx=Tx1,mat=Mat}=Rec0},
-	 {value,#e3d_face{vs=Vs2,tx=Tx2,mat=Mat}}} ->
-	    case merge_faces_2(Va, Vb, Vs1, Vs2) of
-		error -> Ftab0;
-		Vs when is_list(Vs) ->
-		    Tx = merge_uvs(Vs, Vs1, Vs2, Tx1, Tx2),
-		    Rec = Rec0#e3d_face{vs=Vs,tx=Tx,vis=-1},
-		    Ftab = gb_trees:update(Fa, Rec, Ftab0),
-		    gb_trees:delete(Fb, Ftab)
+
+merge_faces_1(Fa0, Fb0, Va, Vb, Ftab0) ->
+
+%% Altered - PM (11/8/2004)
+    {Fa, FaInfo} = lookupMergedFace(Fa0, Ftab0),
+    {Fb, FbInfo} = lookupMergedFace(Fb0, Ftab0),
+
+%% Since we can now merge polys with more than one invisible edge,
+%% we have to watch out for situation where both edges are in the
+%% same face (ie, we will be isolating a vertice). The other possibility
+%% when Fa == Fb is that the polygon has a hole; but since the e3d_face
+%% record doesn't allow for holes, i'm leaving the mesh as is if that's
+%% the case.
+    if
+	Fa == Fb ->
+	    case FaInfo of
+		{value,#e3d_face{vs=Vs1,tx=Tx1}=Rec0} ->
+		    case eliminateIsolatedVert(Va, Vb, Vs1) of
+			notFound -> Ftab0;
+			Vs when is_list(Vs) ->
+			    Tx = merge_uvs(Vs, Vs1, Vs1, Tx1, Tx1),
+			    Rec = Rec0#e3d_face{vs=Vs, tx=Tx, vis=-1},
+			    gb_trees:update(Fa, Rec, Ftab0)
+		    end;
+		_ -> Ftab0
 	    end;
-	{_,_} -> Ftab0
+	true ->
+	    case {FaInfo,FbInfo} of
+%% Altered - end
+
+		{{value,#e3d_face{vs=Vs1,tx=Tx1,mat=Mat}=Rec0},
+		 {value,#e3d_face{vs=Vs2,tx=Tx2,mat=Mat}}} ->
+		    case merge_faces_2(Va, Vb, Vs1, Vs2) of
+			error -> Ftab0;
+			Vs when is_list(Vs) ->
+			    Tx = merge_uvs(Vs, Vs1, Vs2, Tx1, Tx2),
+			    Rec = Rec0#e3d_face{vs=Vs,tx=Tx,vis=-1},
+			    Ftab = gb_trees:update(Fa, Rec, Ftab0),
+
+%% Altered - PM (11/8/2004)
+%%		            gb_trees:delete(Fb, Ftab)
+			    gb_trees:update(Fb, {merged, Fa}, Ftab)
+%% Altered - end
+		    end;
+		{_,_} ->
+		    Ftab0
+%% Altered - PM (11/8/2004)	
+	    end
+%% Altered - end
     end.
+
+%% Altered - PM (11/8/2004)
+lookupMergedFace(FaceNum, FaceTable) ->
+    case gb_trees:lookup(FaceNum, FaceTable) of
+	{value, {merged, MergedFaceNum}} ->
+	    lookupMergedFace(MergedFaceNum, FaceTable);
+	FaceInfo -> {FaceNum, FaceInfo}
+    end.
+
+eliminateIsolatedVert(_,_,VList) when length(VList) < 3 ->
+    notFound;
+eliminateIsolatedVert(Va, Vb, VList) ->
+    eliminateIsolatedVert(Va, Vb, VList, length(VList)).
+
+eliminateIsolatedVert(_,_,_,0) -> notFound;
+eliminateIsolatedVert(Va, Vb, [Va,Vb,Va|VTail], _) ->
+    [Va|VTail];  
+eliminateIsolatedVert(Va, Vb, [Vb,Va,Vb|VTail], _) ->
+    [Vb|VTail];   
+eliminateIsolatedVert(Va,Vb,[V|VTail],Remaining) ->
+    eliminateIsolatedVert(Va,Vb,VTail ++ [V], Remaining -1).
+
+%% Altered - end
 
 merge_uvs(_, _, _, [], []) -> [];
 merge_uvs(Vs, Vs1, Vs2, Tx1, Tx2) ->
@@ -298,11 +380,22 @@ merge_faces_2(Va, Vb, VsA0, VsB0) ->
     merge_faces_3(Va, Vb, VsA, VsB).
 
 merge_faces_3(Va, Vb, [Va,Vb,Vx], [Vb,Va,Vy]) -> [Vx,Va,Vy,Vb];
-merge_faces_3(Va, Vb, [Va,Vb,Vx], [Va,Vb,Vy]) -> [Vx,Va,Vy,Vb];
+
+%% Altered - PM (11/8/2004)
+%% merge_faces_3(Va, Vb, [Va,Vb,Vx], [Va,Vb,Vy]) -> [Vx,Va,Vy,Vb];
+merge_faces_3(Va, Vb, [Vb,Va,Vx], [Va,Vb,Vy]) -> [Vx,Vb,Vy,Va];
+%% Altered - end
+
 merge_faces_3(Va, Vb, [Va,Vb|Vs1], [Vb,Va|Vs2]) ->
     [Vb|Vs1]++[Va|Vs2];
-merge_faces_3(Va, Vb, [Va,Vb|Vs1], [Va,Vb|Vs2]) ->
-    [Vb|Vs1]++[Va|Vs2];
+
+%% Altered - PM (11/8/2004)
+%% merge_faces_3(Va, Vb, [Va,Vb|Vs1], [Va,Vb|Vs2]) ->
+%%    [Vb|Vs1]++[Va|Vs2];
+merge_faces_3(Va, Vb, [Vb,Va|Vs1], [Va,Vb|Vs2]) ->
+    [Va|Vs1]++[Vb|Vs2];
+%% Altered - end
+
 merge_faces_3(_Va, _Vb, _Vs1, _Vs2) -> error.
 
 rot_face(Va, Vb, [Va,Vb|_]=Face) -> Face;
@@ -310,7 +403,13 @@ rot_face(Va, Vb, [Vb,Va|_]=Face) -> Face;
 rot_face(Va, Vb, [Va,Vx,Vb]) -> [Vb,Va,Vx];
 rot_face(Va, Vb, [Vb,Vx,Va]) -> [Va,Vb,Vx];
 rot_face(Va, Vb, [Vx,Va,Vb]) -> [Va,Vb,Vx];
-rot_face(Va, Vb, [Vx,Vb,Va]) -> [Va,Vb,Vx];
+
+%% Altered - PM (11/8/2004)
+%% rot_face(Va, Vb, [Vx,Vb,Va]) -> [Va,Vb,Vx];
+%% Possible typo??
+rot_face(Va, Vb, [Vx,Vb,Va]) -> [Vb,Va,Vx];
+%% Altered - end
+
 rot_face(Va, Vb, Vs) ->
     rot_face(Va, Vb, Vs, []).
 
@@ -329,11 +428,18 @@ rhe_collect_edges(Fs) ->
 
 rhe_collect_edges([{Face,#e3d_face{vs=Vs,vis=Vis0}}|Fs], Acc0) ->
     Vis1 = Vis0 band 7,
-    Vis = case (Vis1 band 1) + ((Vis1 bsr 1) band 1) + ((Vis1 bsr 2) band 1) of
-	      0 -> 7;
-	      1 -> 7;
-	      _ -> Vis1
-	  end,
+
+%% Altered - PM (11/8/2004)
+
+%%     Vis = case (Vis1 band 1) + ((Vis1 bsr 1) band 1) + ((Vis1 bsr 2) band 1) of
+%% 	      0 -> 7;
+%% 	      1 -> 7;
+%% 	      _ -> Vis1
+%% 	  end,
+%%
+    Vis = Vis1,
+%% Altered - end
+
     Pairs = pairs(Vs, Vis),
     Acc = rhe_edges(Pairs, Face, Acc0),
     rhe_collect_edges(Fs, Acc);
