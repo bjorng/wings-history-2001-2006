@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.44 2003/01/29 04:56:46 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.45 2003/01/29 05:29:31 bjorng Exp $
 
 -module(auv_segment).
 
@@ -676,30 +676,22 @@ map_vertex(V0, Vmap) ->
 %%% Cutting along hard edges.
 %%%
 
-cut_model(Charts, Cuts, We0) ->
-    Empty = sofs:empty_set(),
-    InUse0 = {Empty,Empty},
-    {Chs,_} = mapfoldl(fun(Keep, {W,InUse}) ->
-			       cut_one_chart(Keep, Cuts, W, InUse)
-		       end, {We0,InUse0}, Charts),
-    ?DBG("Map size: ~p\n", [gb_trees:size(Map)]),
-    Chs.
+cut_model(Charts, Cuts, We) ->
+    map(fun(Keep) -> cut_one_chart(Keep, Cuts, We) end, Charts).
 
-cut_one_chart(Keep0, Cuts, We0, InUse0) ->
-    Map0 = gb_trees:empty(),
+cut_one_chart(Keep0, Cuts, We0) ->
     Keep = gb_sets:from_list(Keep0),
     OuterEdges = wings_face:outer_edges(Keep, We0),
+    Map0 = gb_trees:empty(),
     {We1,Map1} = cut_shared_vertices(Keep, OuterEdges, We0, Map0),
-    {We2,Map2} = cut_edges(Keep0, Cuts, We1, Map1),
+    {We2,Map} = cut_edges(Keep0, Cuts, We1, Map1),
     AllFaces = wings_sel:get_all_items(face, We2),
     Del = gb_sets:difference(AllFaces, Keep),
-    We3 = case gb_sets:is_empty(Del) of
-	      true -> We2;
-	      false -> wpa:face_dissolve(Del, We2)
-	  end,
-    {We,Map,InUse} = cut_renumber(Keep, OuterEdges, We3, Map2, InUse0),
-    Next = lists:max([We0#we.next_id,We#we.next_id]),
-    {{Keep0,Map,We},{We0#we{next_id=Next},InUse}}.
+    We = case gb_sets:is_empty(Del) of
+	     true -> We2;
+	     false -> wpa:face_dissolve(Del, We2)
+	 end,
+    {Keep0,Map,We}.
 
 cut_shared_vertices(Faces, Es, #we{es=Etab}=We0, InvVmap0) ->
     VsEs0 = foldl(fun(E, A) ->
@@ -797,47 +789,6 @@ cut_cleanup(Faces, MaybeRemove, #we{es=Etab}=We) ->
 		      true -> wings_collapse:collapse_edge(E, W)
 		  end
 	  end, We, R).
-    
-cut_renumber(Faces, OuterEdges, #we{vc=Vtab,es=Etab,fs=Ftab,next_id=Next}=We0,
-	     Map0, {VInUse0,EInUse0}=InUse0) ->
-    Vs0 = sofs:set(outer_vertices(Faces, We0)),
-    Es0 = sofs:set(OuterEdges),
-    case sofs:is_disjoint(VInUse0, Vs0) andalso
-	sofs:is_disjoint(EInUse0, Es0) of
-	true ->
-	    VInUse = sofs:union(VInUse0, Vs0),
-	    EInUse = sofs:union(EInUse0, Es0),
-	    {We0,Map0,{VInUse,EInUse}};
-	false ->
-	    Vs = gb_sets:from_ordset(sofs:to_external(Vs0)),
-	    Vmap0 = cut_make_map(Vtab, Vs, Next),
-	    Map = foldl(fun({V,V}, A) -> A;
-			   ({Old,New}, A) -> add_new_vs_1(Old, New, A)
-			end, Map0, Vmap0),
-	    Vmap = gb_trees:from_orddict(Vmap0),
-	    Es = gb_sets:from_ordset(sofs:to_external(Es0)),
-	    Emap = gb_trees:from_orddict(cut_make_map(Etab, Es, Next)),
-	    Fmap = gb_trees:from_orddict(cut_make_map(Ftab, gb_sets:empty(), Next)),
-	    We = wings_we:map_renumber(We0, #we{vc=Vmap,es=Emap,fs=Fmap}),
-	    ?VALIDATE_MODEL(We),
-	    {We,Map,InUse0}
-    end.
-
-cut_make_map(GbTree, MustRenumber, Next) ->
-    cut_make_map(gb_trees:keys(GbTree), MustRenumber, Next, []).
-    
-cut_make_map([E|Es], MustRenumber, Id, Acc) ->
-    case gb_sets:is_member(E, MustRenumber) of
-	false ->
-	    cut_make_map(Es, MustRenumber, Id, [{E,E}|Acc]);
-	true ->
-	    cut_make_map(Es, MustRenumber, Id+1, [{E,Id}|Acc])
-    end;
-cut_make_map([], _, _, Acc) -> reverse(Acc).
-
-outer_vertices(Faces, We) ->
-    Es = wings_face:outer_edges(Faces, We),
-    wings_edge:to_vertices(Es, We).
 
 add_new_vs(OldV, NewVs, Map) ->
     foldl(fun(NewV, M) -> add_new_vs_1(OldV, NewV, M) end, Map, NewVs).

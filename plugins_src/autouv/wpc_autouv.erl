@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.83 2003/01/29 04:56:46 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.84 2003/01/29 05:29:31 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -475,17 +475,6 @@ assign_materials([], #we{id=Id}=We, _, _, #st{shapes=Shs0}=St) ->
           
 
 %%%%%%
-
-% replace_uvs(Map) when is_list(Map) ->
-%     lists:map(fun(Chart) -> replace_uv(Chart) end, Map);
-% replace_uvs(Map) ->
-%     replace_uvs(gb_trees:to_list(Map)).
-
-% replace_uv({Id,Ch = #ch{vpos=Vpos, we=We}}) ->
-%     Vtab = foldl(fun({V,Pos}, Vt) ->
-% 			 gb_trees:update(V, Pos, Vt)
-% 		 end, We#we.vp, Vpos),    
-%     {Id,Ch#ch{we=We#we{vp=Vtab}}}.
 
 find_boundary_edges([{Id,#ch{bf=Bf,we=We}=C}|Cs], Acc) ->
     Fs = gb_trees:keys(We#we.fs) -- Bf,
