@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.62 2002/12/08 20:48:36 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.63 2002/12/09 07:31:14 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1028,13 +1028,11 @@ handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY},
 	    end
     end;
 handle_event(#keyboard{state=?SDL_PRESSED,keysym=Sym}, 
-	     #uvstate{sel=Sel0,areas=As=#areas{we=We}}=Uvs0) ->
+	     #uvstate{st=St,areas=#areas{we=We}}=Uvs0) ->
     case Sym of
-	#keysym{sym = ?SDLK_SPACE} ->
-	    get_event(Uvs0#uvstate{sel = [],
-				   st = wings_select_faces([], We, Uvs0#uvstate.st),
-				   areas = add_areas(Sel0,As),
-				   dl = undefined});
+	#keysym{sym=?SDLK_SPACE} ->
+	    wings_wm:send(geom, {new_state,wings_select_faces([], We, St)}),
+	    keep;
 	#keysym{sym = ?SDLK_F5} ->
 	    import_file(default, Uvs0); 
 	_ ->  keep
@@ -1141,7 +1139,7 @@ handle_event({action,wings,{view, Cmd}}, Uvs0) ->
     get_event(Uvs0#uvstate{st=St});
 handle_event({current_state,St}, Uvs) ->
     case verify_state(St, Uvs) of
-	keep -> get_event_nodraw(Uvs#uvstate{st=St});
+	keep -> update_selection(St, Uvs);
 	Other -> Other
     end;
 handle_event(_Event, Uvs) ->
@@ -1222,6 +1220,19 @@ add_texture_image(TW, TH, TexBin, FileName,
 
 is_power_of_two(X) ->
     (X band -X ) == X.
+
+update_selection(#st{selmode=Mode,sel=Sel}=St,
+		 #uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs) ->
+    get_event_nodraw(Uvs#uvstate{st=St});
+update_selection(#st{sel=Sel}=St,
+		 #uvstate{areas=#areas{orig_we=#we{id=Id}}=As,sel=ChSel}=Uvs) ->
+    case keysearch(Id, 1, Sel) of
+	false ->
+	    get_event(Uvs#uvstate{st=St,sel=[],areas=add_areas(ChSel, As),
+				  dl=undefined});
+	{value,{Id,GbSet}} ->
+	    get_event_nodraw(Uvs#uvstate{st=St})
+    end.
 
 %%%%% Selection 
 draw_marquee({X, Y}, {Ox,Oy}) ->
