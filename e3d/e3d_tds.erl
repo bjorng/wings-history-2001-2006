@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.11 2002/05/03 10:19:55 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.12 2002/07/09 09:21:25 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -59,7 +59,7 @@ main(<<16#B000:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     <<_:Sz/binary,T/binary>> = T0,
     main(T, Acc);
 main(<<Chunk:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    dbg("Ignoring unknown chunk ~s, ~p bytes\n", [hex4(Chunk),Sz0]),
+    dbg("Ignoring unknown chunk ~s; ~p bytes\n", [hex4(Chunk),Sz0]),
     Sz = Sz0 - 6,
     <<_:Sz/binary,T/binary>> = T0,
     main(T, Acc);
@@ -73,9 +73,12 @@ editor(<<16#4000:16/little,Sz0:32/little,T0/binary>>,
     <<Obj0:Sz/binary,T/binary>> = T0,
     {Name,Obj1} = get_cstring(Obj0),
     dbg("Object block '~s'~n", [Name]),
-    Obj = block(Obj1),
-    Objs = [#e3d_object{name=Name,obj=Obj}|Objs0],
-    editor(T, Acc#e3d_file{objs=Objs});
+    case block(Obj1) of
+	no_mesh -> editor(T, Acc);
+	Obj ->
+	    Objs = [#e3d_object{name=Name,obj=Obj}|Objs0],
+	    editor(T, Acc#e3d_file{objs=Objs})
+    end;
 editor(<<16#3d3e:16/little,_Sz:32/little,Ver:32/little,T/binary>>, Acc) ->
     dbg("Mesh Version ~p ~n", [Ver]),
     editor(T, Acc);
@@ -103,6 +106,16 @@ block(<<16#4100:16/little,Sz0:32/little,T0/binary>>, no_mesh) ->
     TriMesh1 = trimesh(TriMesh0, #e3d_mesh{type=triangle}),
     TriMesh = clean_mesh(TriMesh1),
     block(T, TriMesh);
+block(<<16#4700:16/little,Sz0:32/little,T0/binary>>, Mesh) ->
+    dbg("Camera (ignoring) ~p bytes\n", [Sz0]),
+    Sz = Sz0 - 6,
+    <<_:Sz/binary,T/binary>> = T0,
+    block(T, Mesh);
+block(<<Chunk:16/little,Sz0:32/little,T0/binary>>, Mesh) ->
+    dbg("Ignoring unknown chunk ~s; ~p bytes\n", [hex4(Chunk),Sz0]),
+    Sz = Sz0 - 6,
+    <<_:Sz/binary,T/binary>> = T0,
+    block(T, Mesh);
 block(<<>>, Acc) -> Acc.
 
 trimesh(<<16#4110:16/little,Sz0:32/little,NumVs:16/little,T0/binary>>, Acc) ->
@@ -194,7 +207,7 @@ material(<<16#A052:16/little,Sz:32/little,T/binary>>, Acc) ->
     mat_chunk(opacity_falloff, Sz, T, Acc);
 material(<<16#A053:16/little,Sz:32/little,T/binary>>, Acc) ->
     mat_chunk(reflection_blur, Sz, T, Acc);
-material(<<16#A081:16/little,6:32/little,_:6/binary,T/binary>>,
+material(<<16#A081:16/little,6:32/little,T/binary>>,
 	 [{Name,Props}|Acc]) ->
     dbg("Twosided material\n", []),
     material(T, [{Name,[{twosided,true}|Props]}|Acc]);
@@ -339,8 +352,7 @@ hex4(Num) ->
     hex(4, Num, []).
 
 hex(0, _Num, Acc) -> Acc;
-hex(N, Num, Acc) ->
-    hex(N-1, Num div 10, [hexd(Num rem 16)|Acc]).
+hex(N, Num, Acc) -> hex(N-1, Num div 16, [hexd(Num rem 16)|Acc]).
 
 hexd(D) when 0 =< D, D =< 9 -> D+$0;
 hexd(D) when 10 =< D, D =< 16 -> D+$A-10.
