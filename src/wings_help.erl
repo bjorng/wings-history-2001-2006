@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.15 2002/06/26 14:59:58 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.16 2002/07/12 17:45:21 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -28,16 +28,16 @@ menu(X, Y, St) ->
 	    {"About",about}],
     wings_menu:menu(X, Y, help, Menu, St).
 
-command(two_button, St) ->
-    two_button(St);
-command(defining_hotkeys, St) ->
-    def_hotkeys(St);
-command(opengl_info, St) ->
-    opengl_info(St);
-command(about, St) ->
-    about(St).
+command(two_button, _St) ->
+    two_button();
+command(defining_hotkeys, _St) ->
+    def_hotkeys();
+command(opengl_info, _St) ->
+    opengl_info();
+command(about, _St) ->
+    about().
 
-two_button(St) ->
+two_button() ->
     Help = ["Using A Two-Button Mouse",
 	    "If you are using Wings in the default Wings/Blender "
 	    "camera mode, you can use [Alt]+" ++ [lmb] ++
@@ -53,9 +53,9 @@ two_button(St) ->
 	    "In the Advanced Menus (if enabled), "
 	    "you can use either [Alt]+" ++ [lmb] ++
 	    " or [Ctrl]+" ++ [rmb] ++ " instead of " ++ [lmb] ++ "."],
-    help_window(Help, St).
+    help_window(Help).
 
-def_hotkeys(St) ->
+def_hotkeys() ->
     Help = ["Assigning Hotkeys",
 	    "Any command that appears in a menu, can be assigned a "
 	    "keyboard short-cut (hotkey).",
@@ -65,9 +65,9 @@ def_hotkeys(St) ->
 	    "and then press the key you want to assign the command to.",
 	    "To delete a hotkey, similarily high-light the command in a "
 	    " menu, and press the [Del] or [\\] key."],
-    help_window(Help, St).
+    help_window(Help).
 
-opengl_info(St) ->
+opengl_info() ->
     Help = ["Basic OpenGL Info",
 	    "Vendor: " ++ gl:getString(?GL_VENDOR) ++ "\n" ++
 	    "Renderer: " ++ gl:getString(?GL_RENDERER) ++ "\n" ++
@@ -84,96 +84,55 @@ opengl_info(St) ->
 		       {"Accum. green size",?SDL_GL_ACCUM_GREEN_SIZE},
 		       {"Accum. blue size",?SDL_GL_ACCUM_BLUE_SIZE},
 		       {"Accum. alpha size",?SDL_GL_ACCUM_ALPHA_SIZE}])],
-    help_window(Help, St).
+    help_window(Help).
 
 deep_info([{Label,Attr}|T]) ->
     Label ++ ": " ++ integer_to_list(sdl_video:gl_getAttribute(Attr)) ++ "\n" ++
 	deep_info(T);
 deep_info([]) -> [].
 
-about(St) ->
-    Redraw = fun show_splash/2,
-    wait_for_click({Redraw,St}).
-
-wait_for_click(Redraw) ->
-    {seq,{push,dummy},get_click_event(Redraw)}.
-
-get_click_event(S) ->
-    wings_wm:dirty(),
-    {replace,fun(Ev) -> wait_click_handler(Ev, S) end}.
-		     
-wait_click_handler(redraw, {Redraw,St}) ->
-    redraw(St),
-    wings_io:ortho_setup(),
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    Redraw(W, H),
-    keep;
-wait_click_handler(#mousemotion{}, _) -> keep;
-wait_click_handler({resize,_,_}=Ev, _) ->
-    wings_io:putback_event(Ev),
-    pop;
-wait_click_handler(quit=Ev, _) ->
-    wings_io:putback_event(Ev),
-    pop;
-wait_click_handler(_, _) ->
-    wings_wm:dirty(),
-    pop.
-
-show_splash(W, H) ->
+about() ->
+    Op = {push,fun(Ev) ->
+		       handle_help_event(Ev, splash)
+	       end},
     Xs = 280,
     Ys = 170+40,
-    gl:translated((W-Xs) / 2, (H-Ys) / 2, 0.0),
-    wings_io:raised_rect(0, 0, Xs, Ys),
-    gl:color3f(0.0, 0.0, 0.0),
-    gl:recti(3, 3, Xs-3, Ys-3),
-    gl:color3f(1.0, 1.0, 1.0),
-    gl:recti(4, 4, Xs-4, Ys-4),
-    gl:color3f(1.0, 0.0, 1.0),
-    gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    wings_io:draw_icon(10, 10, 256, 128, wings),
-    wings_io:draw_icon(90, 140, 128, 64, powered),
-    gl:disable(?GL_TEXTURE_2D),
-    gl:color3f(0.0, 0.0, 0.0),
-    wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION).
+    {W,H} = wings_wm:top_size(),
+    X = trunc((W-Xs) / 2),
+    Y = trunc((H-Ys) / 2),
+    wings_wm:new(help, {X,Y,10}, {Xs,Ys+?LINE_HEIGHT}, Op),
+    wings_wm:set_active(help),
+    wings_wm:dirty(),
+    keep.
 
+help_window(Text) ->
+    create_help_window(Text, 0, []).
 
-help_window(Txt, St) ->
-    Redraw = fun(_, _) -> help_window(Txt) end,
-    wait_for_click({Redraw,St}).
-
-help_window(Txt) ->
-    help_window(Txt, 0, []).
-
-help_window([S|T], Rows, Acc) ->
+create_help_window([S|T], Rows, Acc) ->
     break_line(S, T, Rows, Acc);
-help_window([], Rows, Lines) ->
-    Ys = Rows*?LINE_HEIGHT,
+create_help_window([], Rows, Lines) ->
     Xs = 62*?CHAR_WIDTH,
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    gl:translated((W-Xs) / 2, (H-Ys) / 2, 0.0),
-    wings_io:raised_rect(0, 0, Xs, Ys),
-    gl:color3f(0.0, 0.0, 0.0),
-    gl:recti(3, 3, Xs-3, Ys-3),
-    gl:color3f(1.0, 1.0, 1.0),
-    gl:recti(4, 4, Xs-4, Ys-4),
-    gl:color3f(1.0, 0.0, 1.0),
-    gl:color3f(0.0, 0.0, 0.0),
-    gl:translated(4, 4+?LINE_HEIGHT, 0),
-    foldl(fun(L, Y) ->
-		  wings_io:text_at(5, Y, L),
-		  Y+?LINE_HEIGHT
-	  end, 0, reverse(Lines)).
+    Ys = Rows*?LINE_HEIGHT,
+    {W,H} = wings_wm:top_size(),
+    X = trunc((W-Xs) / 2),
+    Y = trunc((H-Ys) / 2),
+    DrawData = {reverse(Lines),Xs,Ys},
+    Op = {push,fun(Ev) ->
+		       handle_help_event(Ev, DrawData)
+	       end},
+    wings_wm:new(help, {X,Y,10}, {Xs,Ys+?LINE_HEIGHT}, Op),
+    wings_wm:set_active(help),
+    wings_wm:dirty(),
+    keep.
 
 break_line(S, T, Rows, Acc) ->
     case break_line_1(S) of
 	done ->
-	    help_window(T, Rows+1, [[]|Acc]);
+	    create_help_window(T, Rows+1, [[]|Acc]);
 	{Line,More} ->
 	    break_line(More, T, Rows+1, [Line|Acc])
     end.
 
-%%break_line_1([$\n|T]) -> break_line_1(T);
 break_line_1([$\s|T]) -> break_line_1(T);
 break_line_1([]) -> done;
 break_line_1(T) -> break_line_2(T, 0, [], []).
@@ -193,6 +152,60 @@ skip_blanks([$\n|T]) -> skip_blanks(T);
 skip_blanks([$\s|T]) -> skip_blanks(T);
 skip_blanks(T) -> T.
 
-redraw(St0) ->
-    St = wings_draw:render(St0),
-    wings_io:update(St).
+handle_help_event(redraw, DrawData) ->
+    redraw(DrawData),
+    keep;
+handle_help_event(#mousemotion{}, _) ->
+    keep;
+handle_help_event({resize,_,_}=Ev, _) ->
+    wings_io:putback_event(Ev),
+    delete;
+handle_help_event(quit=Ev, _) ->
+    wings_io:putback_event(Ev),
+    delete;
+handle_help_event(_, _) -> delete.
+
+redraw({Lines,Xs,Ys}) ->
+    ortho_setup(),
+    wings_io:raised_rect(0, 0, Xs, Ys),
+    gl:color3f(0.0, 0.0, 0.0),
+    gl:recti(3, 3, Xs-3, Ys-3),
+    gl:color3f(1.0, 1.0, 1.0),
+    gl:recti(4, 4, Xs-4, Ys-4),
+    gl:color3f(1.0, 0.0, 1.0),
+    gl:color3f(0.0, 0.0, 0.0),
+    gl:translated(4, 4+?LINE_HEIGHT, 0),
+    foldl(fun(L, Y) ->
+		  wings_io:text_at(5, Y, L),
+		  Y+?LINE_HEIGHT
+	  end, 0, Lines);
+redraw(splash) ->
+    ortho_setup(),
+    [_,_,Xs,Ys] = gl:getIntegerv(?GL_VIEWPORT),
+    wings_io:raised_rect(0, 0, Xs, Ys),
+    gl:color3f(0.0, 0.0, 0.0),
+    gl:recti(3, 3, Xs-3, Ys-3),
+    gl:color3f(1.0, 1.0, 1.0),
+    gl:recti(4, 4, Xs-4, Ys-4),
+    gl:color3f(1.0, 0.0, 1.0),
+    gl:enable(?GL_TEXTURE_2D),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+    wings_io:draw_icon(10, 10, 256, 128, wings),
+    wings_io:draw_icon(90, 140, 128, 64, powered),
+    gl:disable(?GL_TEXTURE_2D),
+    gl:color3f(0.0, 0.0, 0.0),
+    wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION).
+
+ortho_setup() ->
+    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    ?CHECK_ERROR(),
+    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+    gl:shadeModel(?GL_FLAT),
+    gl:disable(?GL_DEPTH_TEST),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:loadIdentity(),
+    glu:ortho2D(0.0, W, H, 0.0),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:loadIdentity(),
+    gl:color3f(0.0, 0.0, 0.0),
+    ?CHECK_ERROR().
