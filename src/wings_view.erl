@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.107 2003/03/03 06:30:48 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.108 2003/03/05 06:54:56 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -372,7 +372,7 @@ smoothed_preview(St) ->
     wings_wm:callback(fun() ->
 			      wings_util:menu_restriction(Active, [view])
 		      end),
-    {seq,push,get_smooth_event(Sm)}.
+    wings:install_restorer({seq,push,get_smooth_event(Sm)}).
 
 smooth_help(#sm{edge_style=EdgeStyle,cage=Cage}) ->
     Normal = wings_util:button_format([], [], "Normal Mode"),
@@ -465,6 +465,9 @@ smooth_event_1(init_opengl, #sm{st=St}) ->
 smooth_event_1(quit, Sm) ->
     wings_wm:later(quit),
     smooth_exit(Sm);
+smooth_event_1(close, Sm) ->
+    wings_wm:later(close),
+    smooth_exit(Sm);
 smooth_event_1({current_state,#st{shapes=Shs}=St}, #sm{st=#st{shapes=Shs}}=Sm) ->
     refresh_dlist(St),
     get_smooth_event(Sm#sm{st=St});
@@ -474,8 +477,7 @@ smooth_event_1({current_state,St}, Sm) ->
     get_smooth_event(Sm#sm{st=St});
 smooth_event_1(_, _) -> keep.
 
-smooth_exit(#sm{st=St}) ->
-    wings_wm:later({new_state,St}),
+smooth_exit(_) ->
     invalidate_smoothed(),
     wings_wm:dirty(),
     pop.
