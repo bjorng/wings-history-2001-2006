@@ -23,7 +23,7 @@ Vlad Dumitrescu: Bugfix for middle-mouse button emulation.
 Patrik Nyblom: User interface plugins for file dialogs. Makefiles for Windows.
 
 Anthony D'Agostino: Provided me with info on the NDO format.
-	Wrote the Torus Knot plug-in which is now distributed with Wings.
+	Wrote the Torus Knot, Torus, and Plane plug-ins
 
 Gregg Griffin: Designed icons and the new look of Wings.
 
@@ -42,6 +42,8 @@ Chris Osgood (WingsOne):
 Howard Trickey:
 	Wrote the new, much better triangulator (and a quadrilator)
 	in e3d_mesh.
+	Wrote the AI import, Triangulate & Quadrangulate, and Text
+	plug-ins.
 
 Anders Conradi: Wrote the Select|Edge Ring command (originally as a plug-in).
 
