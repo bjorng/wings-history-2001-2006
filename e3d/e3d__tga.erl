@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.3 2001/12/10 18:39:57 bjorng Exp $
+%%     $Id: e3d__tga.erl,v 1.4 2002/07/12 12:49:19 dgud Exp $
 %%
 
 -module(e3d__tga).
@@ -40,7 +40,6 @@ load_uncomp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,Image/bi
 		       3 -> b8g8r8;
 		       4 -> b8g8r8a8
 		   end,
-	    io:format("TGA Def ~p ~n", [Order]),
 	    Size = BytesPerPixel * W * H,
 	    <<RealImage:Size/binary, _/binary>> = Image,
 	    #e3d_image{width = W, height = H, type = Type, 
@@ -60,18 +59,18 @@ load_comp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,CImage/bin
 		       3 -> b8g8r8;
 		       4 -> b8g8r8a8
 		   end,	    
-	    Size = BytesPerPixel * W * H,
+	    Size = W * H,
 	    Image = load_comp(CImage, Size, BytesPerPixel, []),
 	    #e3d_image{width = W, height = H, type = Type, order = get_order(Order),
 		       bytes_pp = BytesPerPixel, image = Image}
     end.
 
-load_comp(_, 0, ByPP, Acc) ->
+load_comp(_, PL, ByPP, Acc) when PL =< 0 ->
     list_to_binary(lists:reverse(Acc));
 
 load_comp(<<0:1, Len:7, Image/binary>>, PLeft, ByPP, Acc) ->
     Bytes = (Len+1) * ByPP,
-    <<Pixels:ByPP/binary, RestImage/binary>> = Image,
+    <<Pixels:Bytes/binary, RestImage/binary>> = Image,
     load_comp(RestImage, PLeft-(Len+1), ByPP, [Pixels, Acc]);
 load_comp(<<1:1, Len:7, RestImage0/binary>>, PLeft, ByPP, Acc) ->
     <<Pixel:ByPP/binary, RestImage/binary>> = RestImage0,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.8 2002/02/26 10:54:38 bjorng Exp $
+%%     $Id: e3d__tif.erl,v 1.9 2002/07/12 12:49:19 dgud Exp $
 %%
 
 -module(e3d__tif).
@@ -16,7 +16,6 @@
 -include("e3d_image.hrl").
 
 -export([decompress/4]).
-
 
 load(FileName, Opts) ->
     case file:read_file(FileName) of
@@ -30,7 +29,7 @@ load(FileName, Opts) ->
 %		      [size(Orig), IFDOffset, IFDs]),
 	    Image = load_image(big, hd(IFDs), Orig);
 	{ok, Bin} ->
-	    {error, {unsupported_format, tga, FileName}};
+	    {error, {unsupported_format, tif, FileName}};
 	Error ->
 	    Error
     end.
@@ -137,7 +136,9 @@ getDirEntries(T, N, Bin) ->
 %% Optional
 -define(Orientation, 274).      
 -define(PlanarConf, 284).       
--record(tif, {w, h, order = upper_left, bpp, bps, rps, so, sbc, 
+
+-define(ExtraSamples, 338).
+-record(tif, {w, h, order = upper_left, bpp, bps, spp, rps, so, sbc, 
 	      comp, pred}).
 
 load_image(Enc, IFDs, Orig) ->
@@ -148,15 +149,25 @@ load_image(Enc, IFDs, Orig) ->
 %%    io:format("Tif size ~p ~p ~n", [Size, {Tif#tif.w, Tif#tif.h,Tif#tif.bpp div 8}]),
     case catch decompress(RevStrips, Tif#tif.comp, Tif, []) of
 	<<Image:Size/binary, _/binary>> ->    
-	    Type = if Tif#tif.bpp == 24 -> r8g8b8;
-		      Tif#tif.bpp == 32 -> r8g8b8a8
-		   end,
+	    {Type,Bypp,Image2} = 
+		if 
+		    Tif#tif.bpp == 24 -> {r8g8b8, 3, Image};
+		    Tif#tif.bpp == 32 -> {r8g8b8a8, 4, Image};
+		    true ->
+			{r8g8b8, 3, remove_extra_samples(3, (Tif#tif.bpp-24), Image, [])}
+		end,
 	    #e3d_image{width = Tif#tif.w, height = Tif#tif.h, alignment = 1, %% Correct ??
-		       image = Image, order = Tif#tif.order, 
-		       type = Type, bytes_pp = Tif#tif.bpp div 8};
+		       image = Image2, order = Tif#tif.order, 
+		       type = Type, bytes_pp = Bypp};
 	Else ->
 	    {error, {tif_decode, Else}}
     end.
+
+remove_extra_samples(RGBits, DiscardBits, <<>>, Acc) ->
+    list_to_binary(lists:reverse(Acc));
+remove_extra_samples(RGBits, DiscardBits, Image, Acc) ->
+    <<Keep:3/binary, _Del:DiscardBits, Rest/binary>> = Image,
+    remove_extra_samples(RGBits, DiscardBits, Rest, [Keep|Acc]).
 
 save_image(Image, Compress, Offset1) ->
     W = <<?ImageWidth:16, (type2type(long)):16, 1:32, (Image#e3d_image.width):32>> , 
@@ -226,21 +237,21 @@ get_info([{?BitsPerSample, Type = short, Count, {offset, Off}}|R], Tif, Orig,Enc
     <<_:Off/binary, BPS:Len/binary, _/binary>> = Orig,
     Bpp = 
 	case getdata(Enc, Type, Count, BPS) of
-	    Bps = [8,8,8] -> Bps;
-	    Bps = [8,8,8,8] -> Bps;
+	    Bps = [8,8,8|_] -> Bps;
 	    Err ->
 		io:format("~p: Unsupported BitsPerSample ~p ~n", [?MODULE, Err]),
 		erlang:fault({?MODULE, unsupported, bitsPerSample})
 	end,
     get_info(R, Tif#tif{bps = Bpp}, Orig,Enc);
 get_info([{?SamplesPerPixel, _, 1, {value, SPP}}|R], Tif, Orig,Enc) ->
-    case SPP of 
-	3 when length(Tif#tif.bps) == 3 -> % RGB 
-	    ok;
-	4 when length(Tif#tif.bps) == 4 -> % RGBA
-	    ok
-    end,
-    get_info(R, Tif#tif{bpp = lists:sum(Tif#tif.bps)}, Orig,Enc);	
+    SPP = length(Tif#tif.bps), %% Assert
+    get_info(R, Tif#tif{spp = SPP, bpp = lists:sum(Tif#tif.bps)}, Orig,Enc);	
+get_info([{?ExtraSamples, Type = short, Count, {offset, Off}}|R], Tif, Orig,Enc) ->
+    Len = typeSz(Type) * Count,
+    <<_:Off/binary, Data:Len/binary, _/binary>> = Orig,
+    What = getdata(Enc, short, Count, Data),
+%%    io:format("Tif Extra Samples ~p~n", [What]),
+    get_info(R, Tif, Orig, Enc);
 get_info([{?Compression, _, 1, {value, Comp}}|R], Tif, Orig,Enc) ->
 %%    io:format("Compression ~p ~n", [Comp]),
     get_info(R, Tif#tif{comp = Comp}, Orig,Enc);
