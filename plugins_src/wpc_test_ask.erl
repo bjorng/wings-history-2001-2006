@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.17 2003/11/28 15:35:03 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.18 2003/11/28 18:29:04 bjorng Exp $
 %%
 
 -module(wpc_test_ask).
@@ -142,12 +142,12 @@ large_result(St) ->
     end.
 
 overlay_dialog(St) -> 
-    do_overlay_dialog(St, tabs, 1, false, true, false, undefined).
+    do_overlay_dialog(St, buttons, 1, false, true, false, undefined).
 
 do_overlay_dialog(St, Style, Active, MinimizedL, MinimizedC, MinimizedR, Pos) ->
     Dialog =
 	[{hframe,[{label,"Style  "},
-		  {hradio,[{"Tabs",tabs},{"Menu",menu}],Style,
+		  {hradio,[{"Buttons",buttons},{"Tabs",tabs},{"Menu",menu}],Style,
 		  [{hook,fun (update, {Var,_I,Val,Sto}) ->
 				 erlang:display({?MODULE,?LINE,
 						 [update,{Var,_I,Val,sto}]}),
