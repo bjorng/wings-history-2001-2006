@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.11 2004/10/16 07:20:17 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.12 2004/10/16 08:18:24 bjorng Exp $
 %%
 
 {wings,
@@ -617,21 +617,17 @@
     {17,"Quando vengono usati i menu avanzati e' fortemente raccomandato di leggere sulla barra di informazioni."},
     {18,"Menu avanzati"}]},
   {def_commands,
-   [{1,"Nel menu "},
+   [{1,"Nel menu"},
     {2,"Modifica"},
     {3,"Preferenze"},
-    {4," si puo' attivare \"Comandi predefiniti\"."},
+    {4,"si puo' attivare \"Comandi predefiniti\"."},
     {5,"Due comandi predefiniti possono essere definiti. Per salvare il comando precedente eseguito basta scegliere una tra le seguenti combinazioni:"},
-    {6,"  [Maiusc]+[Ctrl]+L:"},
-    {7,"  [Maiusc]+[Ctrl]+M:"},
     {8,"Per usare un comando definito in questo modo, invece basta usare:"},
-    {9,"  [Ctrl]+L:"},
-    {10,"  [Ctrl]+M:"},
-    {11,"Nota: quando si usa le modalita' "},
+    {11,"Nota: quando si usa le modalita'"},
     {12,"3ds max"},
-    {13," o "},
+    {13,"o"},
     {14,"Blender"},
-    {15," il secondo comando predefinito non puo' essere usato."},
+    {15,"il secondo comando predefinito non puo' essere usato."},
     {16,"Assegnare comandi predefiniti"}]},
   {def_hotkeys,
    [{1,"Ad ogni comando che appare in un menu puo' essere assegnata una scorciatoia da tastiera."},

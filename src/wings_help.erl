@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.73 2004/10/08 06:02:29 dgud Exp $
+%%     $Id: wings_help.erl,v 1.74 2004/10/16 08:18:24 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -125,21 +125,26 @@ international() ->
     help_window(?STR(international,4,"French And German Keyboards"), Help).
 
 def_commands() ->
-    Help = [?STR(def_commands,1,"In the ")
-		++cmd([?STR(def_commands,2,"Edit"),
-		       ?STR(def_commands,3,"Preferences")
-		      ])++?STR(def_commands,4," dialog, you can turn on \"Default Commands\"."),
-	    ?STR(def_commands,5,"Two default commands can be defined. To save the previous command that was executed, use one of:"),
-	    ?STR(def_commands,6,"  [Shift]+[Ctrl]+L:"),
-	    ?STR(def_commands,7,"  [Shift]+[Ctrl]+M:"),
+    Ctrl = wings_s:key(ctrl)++ "+",
+    ShiftCtrl = wings_s:key(shift)++ "+" ++ Ctrl,
+    Help = [?STR(def_commands,1,"In the")++" "
+	    ++cmd([?STR(def_commands,2,"Edit"),
+		   ?STR(def_commands,3,"Preferences")
+		  ])++" "++
+	    ?STR(def_commands,4,"dialog, you can turn on \"Default Commands\"."),
+	    ?STR(def_commands,5,"Two default commands can be defined."
+		 " To save the previous command that was executed, use one of:"),
+	    "  " ++ ShiftCtrl ++ wings_s:lmb(),
+	    "  " ++ ShiftCtrl ++ wings_s:mmb(),
 	    ?STR(def_commands,8,"To use a command that has been defined this way, use one of:"),
-	    ?STR(def_commands,9,"  [Ctrl]+L:"),
-	    ?STR(def_commands,10,"  [Ctrl]+M:"),
-	    ?STR(def_commands,11,"Note: When using the ")
-		++[{ul,?STR(def_commands,12,"3ds max")}]
-		++?STR(def_commands,13," or ")
-		++[{ul,?STR(def_commands,14,"Blender")}]
-		++?STR(def_commands,15," camera modes, the second default command cannot be used.")],
+	    "  " ++ Ctrl ++ wings_s:lmb(),
+	    "  " ++ Ctrl ++ wings_s:mmb(),
+	    ?STR(def_commands,11,"Note: When using the") ++ " " ++
+	    [{ul,?STR(def_commands,12,"3ds max")}] ++ " " ++
+	    ?STR(def_commands,13,"or") ++ " " ++
+	    [{ul,?STR(def_commands,14,"Blender")}] ++ " " ++
+	    ?STR(def_commands,15,
+		 "camera modes, the second default command cannot be used.")],
     help_window(?STR(def_commands,16,"Assigning Default Commands"), Help).
 
 performance_tips() ->
