@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.65 2004/12/25 07:54:00 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.66 2004/12/25 08:54:01 bjorng Exp $
 
 -module(auv_segment).
 
@@ -914,64 +914,57 @@ uv_info_1([], _, Acc) -> Acc.
 
 uv_to_charts(Faces0, Dict, We) ->
     Faces = gb_sets:from_list(Faces0),
-    Cuts = gb_sets:from_list(wings_face:inner_edges(Faces0, We)),
-    uv_to_charts_1(Faces, We, Dict, Cuts, []).
+    Coll = collect_chart_fun(Dict),
+    Cs = uv_to_charts_1(Faces, We, Coll, []),
+    Cuts = chart_cuts(Cs, We, Dict, []),
+    {Cs,Cuts}.
 
-uv_to_charts_1(Faces0, We, D, Cuts0, Charts) ->
-    case gb_trees:is_empty(Faces0) of
-	true ->
- 	    Cuts = remove_boundary_edges(Cuts0, Charts, We),
- 	    {Charts,Cuts};
+uv_to_charts_1(Faces0, We, Coll, Acc) ->
+    case gb_sets:is_empty(Faces0) of
+	true -> Acc;
 	false ->
 	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
-	    Ws = gb_sets:singleton(Face),
-	    Empty = gb_sets:empty(),
-	    {Chart,Cuts,Faces} = collect_chart(Ws, We, D, Empty, Cuts0, Faces1),
-	    uv_to_charts_1(Faces, We, D, Cuts, [gb_sets:to_list(Chart)|Charts])
+	    Ws = [Face],
+	    {Reg,Faces} = collect_chart(Ws, We, Coll, [], Faces1),
+	    uv_to_charts_1(Faces, We, Coll, [Reg|Acc])
     end.
 
-collect_chart(Ws0, We, D, Charts0, Cuts0, Faces0) ->
-    case gb_sets:is_empty(Ws0) of
-	true ->
-	    {Charts0,Cuts0,Faces0};
-	false ->
-	    {Face,Ws1} = gb_sets:take_smallest(Ws0),
-	    Charts = gb_sets:add(Face, Charts0),
-	    Cuts = remove_non_cutting(Face, D, We, Charts, Cuts0),
-	    {Ws,Faces} = collect_adj_faces(Face, We, D, Ws1, Faces0),
-	    collect_chart(Ws, We, D, Charts, Cuts, Faces)
+collect_chart([_|_]=Ws0, We, Coll, Reg0, Faces0) ->
+    Reg = Ws0++Reg0,
+    {Ws,Faces} = wings_face:fold_faces(Coll, {[],Faces0}, Ws0, We),
+    collect_chart(Ws, We, Coll, Reg, Faces);
+collect_chart([], _, _, Reg, Faces) ->
+    {sort(Reg),Faces}.
+
+collect_chart_fun(Dict) ->
+    fun(Face, _, _, Rec, {Ws,Faces}=A) ->
+	    Of = case Rec of
+		     #edge{lf=Face,rf=Of0} -> Of0;
+		     #edge{rf=Face,lf=Of0} -> Of0
+		 end,
+	    case gb_sets:is_member(Of, Faces) andalso
+		not is_cutting_edge(Rec, Dict) of
+		true -> {[Of|Ws],gb_sets:delete(Of, Faces)};
+		false -> A
+	    end
     end.
 
-collect_adj_faces(Face, We, D, Ws, Faces0) ->
-    wings_face:fold(
-      fun(_, _, Rec, {W0,F0}=A) ->
-	      Of = wings_face:other(Face, Rec),
-	      case gb_sets:is_member(Of, F0) andalso
-		  not is_cutting_edge(Rec, D) of
-		  false -> A;
-		  true -> {gb_sets:insert(Of, W0),gb_sets:delete(Of, F0)}
-	      end
-      end, {Ws,Faces0}, Face, We).
+chart_cuts([C|Cs], #we{es=Etab}=We, D, Acc0) ->
+    Inner = wings_face:inner_edges(C, We),
+    Acc = chart_cuts_1(Inner, Etab, D, Acc0),
+    chart_cuts(Cs, We, D, Acc);
+chart_cuts([], _, _, Acc) -> gb_sets:from_list(Acc).
 
-remove_non_cutting(Face, D, We, Charts, Cuts0) ->
-    wings_face:fold(
-      fun(_, E, Rec, Cuts) ->
-	      Of = wings_face:other(Face, Rec),
-	      case gb_sets:is_member(Of, Charts) andalso
-		  not is_cutting_edge(Rec, D) of
-		  false -> Cuts;
-		  true -> gb_sets:delete_any(E, Cuts)
-	      end
-      end, Cuts0, Face, We).
+chart_cuts_1([E|Es], Etab, D, Acc) ->
+    case is_cutting_edge(gb_trees:get(E, Etab), D) of
+	false -> chart_cuts_1(Es, Etab, D, Acc);
+	true -> chart_cuts_1(Es, Etab, D, [E|Acc])
+    end;
+chart_cuts_1([], _, _, Acc) -> Acc.
 
 is_cutting_edge(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, D) ->
     gb_trees:get([Lf|Va], D) =/= gb_trees:get([Rf|Va], D) orelse
 	gb_trees:get([Lf|Vb], D) =/= gb_trees:get([Rf|Vb], D).
-
-remove_boundary_edges(Cuts, Charts, We) ->
-    AllInner0 = lists:append([wings_face:inner_edges(C, We) || C <- Charts]),
-    AllInner = gb_sets:from_list(AllInner0),
-    gb_sets:intersection(Cuts, AllInner).
 
 %%%
 %%% Finalize a chart for use in AutoUV.
