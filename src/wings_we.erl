@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.61 2003/08/16 17:50:35 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.62 2003/08/18 06:21:56 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -81,12 +81,12 @@ translate_mat([Mat]) -> Mat;
 translate_mat([_|_]=List) -> List.
 
 build(Type, Fs0, Vs, HardEdges) ->
-    {Good0,Bad0} = build_edges(Fs0, Type),
+    {Good0,Bad0} = build_edges(Fs0),
     {Es0,Fs} = if
 		   Bad0 =:= [] -> {Good0,Fs0};
 		   true ->
 		       Fs1 = fill_holes(Bad0, Fs0),
-		       {Good,Bad} = build_edges(Fs1, Type),
+		       {Good,Bad} = build_edges(Fs1),
 		       [] = Bad,
 		       {Good,Fs1}
 	       end,
@@ -119,23 +119,23 @@ number_vertices([P|Ps], V, Acc) ->
 number_vertices([], _, Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
     
-build_edges(Fs, Type) ->
-    build_edges(Fs, Type, 0, []).
+build_edges(Fs) ->
+    build_edges(Fs, 0, []).
 
-build_edges([{_Material,Vs,Tx}|Fs], Type, Face, Eacc0) ->
-    build_edges_1(Vs, Tx, Fs, Type, Face, Eacc0);
-build_edges([{_Material,Vs}|Fs], Type, Face, Eacc0) ->
-    build_edges_1(Vs, tx_filler(Type, Vs), Fs, Type, Face, Eacc0);
-build_edges([Vs|Fs], Type, Face, Eacc0) ->
-    build_edges_1(Vs, tx_filler(Type, Vs), Fs, Type, Face, Eacc0);
-build_edges([], _Type, _Face, Eacc) ->
+build_edges([{_Material,Vs,Tx}|Fs], Face, Eacc0) ->
+    build_edges_1(Vs, Tx, Fs, Face, Eacc0);
+build_edges([{_Material,Vs}|Fs], Face, Eacc0) ->
+    build_edges_1(Vs, tx_filler(Vs), Fs, Face, Eacc0);
+build_edges([Vs|Fs], Face, Eacc0) ->
+    build_edges_1(Vs, tx_filler(Vs), Fs, Face, Eacc0);
+build_edges([], _Face, Eacc) ->
     combine_half_edges(wings_util:rel2fam(Eacc)).
 
-build_edges_1(Vs, UVs, Fs, Type, Face, Acc0) ->
+build_edges_1(Vs, UVs, Fs, Face, Acc0) ->
     Vuvs = zip(Vs, UVs),
     Pairs = pairs(Vuvs),
     Acc = build_face_edges(Pairs, Face, Acc0),
-    build_edges(Fs, Type, Face+1, Acc).
+    build_edges(Fs, Face+1, Acc).
 
 build_face_edges([{Pred,_}|[{E0,{_UVa,UVb}},{Succ,_}|_]=Es], Face, Acc0) ->
     Acc = case E0 of
@@ -167,10 +167,8 @@ zip([], []) -> [].
 edge_name({Vs,Ve}=Name) when Vs < Ve -> Name;
 edge_name({Vs,Ve}) -> {Ve,Vs}.
 
-tx_filler(uv, Vs) ->
-    tx_filler(Vs, {0.0,0.0}, []);
-tx_filler(_Type, Vs) ->
-    tx_filler(Vs, wings_color:default(), []).
+tx_filler(Vs) ->
+    tx_filler(Vs, none, []).
 
 tx_filler([_|Vs], Col, Acc) ->
     tx_filler(Vs, Col, [Col|Acc]);

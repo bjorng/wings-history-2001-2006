@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.11 2003/08/16 17:50:35 bjorng Exp $
+%%     $Id: wings_color.erl,v 1.12 2003/08/18 06:21:55 bjorng Exp $
 %%
 
 -module(wings_color).
--export([init/0,default/0,share/1,store/1,average/1,mix/3,white/0,
+-export([init/0,share/1,store/1,average/1,mix/3,white/0,
 	 rgb_to_hsv/3,hsv_to_rgb/3]).
 
 -include("wings.hrl").
@@ -28,11 +28,7 @@ init() ->
     foreach(fun(C0) ->
 		    C = wings_util:share(C0),
 		    put(C, C)
-	    end, Standard),
-    put(wings_default_color, get(White)).
-
-default() ->
-    get(wings_default_color).
+	    end, Standard).
 
 share({Same,Same}) -> {Same,Same};
 share({_,_}=UV) -> UV;
@@ -58,31 +54,32 @@ mix(Wa, {Ua,Va}, {Ub,Vb}) when is_float(Wa) ->
 mix(Wa, {Ra,Ga,Ba}, {Rb,Gb,Bb}) when is_float(Wa) ->
     Wb = 1.0 - Wa,
     share({Wa*Ra+Wb*Rb,Wa*Ga+Wb*Gb,Wa*Ba+Wb*Bb});
-mix(_, {_,_,_}, {_,_}) -> default();
-mix(_, {_,_}, {_,_,_}) -> default().
+mix(_, _, _) -> none.
 
 white() ->
     get(?WHITE).
 
+average([none|_]) -> none;
 average([H|T]=L) ->
     case classify(T, H) of
 	same -> H;
 	colors -> share(e3d_vec:average(L));
 	uvs -> average_uvs(T, H);
-	mixed -> default()
+	none -> none
     end.
 
 classify([], _) -> same;
+classify([none|_], _) -> none;
 classify([H|T], H) -> classify(T, H);
 classify(List, {_,_}) -> classify_uvs(List);
 classify(List, {_,_,_}) -> classify_colors(List).
 
 classify_uvs([{_,_}|T]) -> classify_uvs(T);
-classify_uvs([_|_]) -> mixed;
+classify_uvs([_|_]) -> none;
 classify_uvs([]) -> uvs.
 
 classify_colors([{_,_,_}|T]) -> classify_colors(T);
-classify_colors([_|_]) -> mixed;
+classify_colors([_|_]) -> none;
 classify_colors([]) -> colors.
 
 average_uvs(T, {V10,V11}) ->

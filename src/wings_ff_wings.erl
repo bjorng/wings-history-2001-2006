@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.44 2003/08/05 05:55:32 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.45 2003/08/18 06:21:55 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -303,7 +303,8 @@ share_floats_2([], Shared) -> Shared.
 share_floats_3({A,B}, [A,B|_]=Shared) -> Shared;
 share_floats_3({A,B,C}, [A,B,C|_]=Shared) -> Shared;
 share_floats_3({A,B}, Shared) -> [A,B|Shared];
-share_floats_3({A,B,C}, Shared) -> [A,B,C|Shared].
+share_floats_3({A,B,C}, Shared) -> [A,B,C|Shared];
+share_floats_3(none, Shared) -> Shared.
 
 share_floats_4([F|Fs], Acc) ->
     share_floats_4(Fs, [{F,F}|Acc]);
@@ -343,7 +344,8 @@ share_tuple({A0,B0,C0}=Tuple0, Floats, Shared) ->
 	    Tuple = {A,B,C},
 	    {Tuple,gb_trees:insert(Tuple, Tuple, Shared)};
 	{value,Tuple} -> {Tuple,Shared}
-    end.
+    end;
+share_tuple(none, _, Shared) -> {none,Shared}.
 
 %%%
 %%% Import of old materials format (up to and including wings-0.94.02).

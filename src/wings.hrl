@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.90 2003/07/25 09:39:24 bjorng Exp $
+%%     $Id: wings.hrl,v 1.91 2003/08/18 06:21:55 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -167,8 +167,8 @@
 -record(edge,
 	{vs,					%Start vertex for edge
 	 ve,					%End vertex for edge
-	 a=wings_color:default(),		%Color or UV coordinate.
-	 b=wings_color:default(),		%Color or UV coordinate.
+	 a=none,			        %Color or UV coordinate.
+	 b=none,			        %Color or UV coordinate.
 	 lf,					%Left face
 	 rf,					%Right face
 	 ltpr,					%Left traversal predecessor

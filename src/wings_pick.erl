@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.112 2003/08/16 17:50:35 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.113 2003/08/18 06:21:56 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -770,9 +770,6 @@ draw_2(#we{fs=Ftab}=We) ->
 		    face(Face, Edge, We)
 	    end, gb_trees:to_list(Ftab)),
     gl:popName().
-
-face(Face, #we{es=Etab}=We) ->
-    face(Face, gb_trees:get(Face, Etab), We).
 
 face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs = wings_face:vertices_cw(Face, Edge, We),

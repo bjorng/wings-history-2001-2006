@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.139 2003/08/04 19:34:34 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.140 2003/08/18 06:21:55 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -502,6 +502,10 @@ draw_vtx_faces({Same,Diff}, We) ->
 	   end,
     wings_draw_util:begin_end(Draw).
 
+draw_vtx_faces_1([{none,Faces}|Fs], We) ->
+    gl:color3f(1.0, 1.0, 1.0),
+    draw_vtx_faces_2(Faces, We),
+    draw_vtx_faces_1(Fs, We);
 draw_vtx_faces_1([{Col,Faces}|Fs], We) ->
     gl:color3fv(Col),
     draw_vtx_faces_2(Faces, We),
@@ -589,6 +593,10 @@ smooth_faces({color,{Same,Diff},#st{mat=Mtab}}) ->
     gl:endList(),
     {[ListOp,none],false}.
 
+draw_smooth_vtx_faces_1([{none,Faces}|MatFaces]) ->
+    gl:color3f(1.0, 1.0, 1.0),
+    wings_draw_util:smooth_mat_faces(Faces),
+    draw_smooth_vtx_faces_1(MatFaces);
 draw_smooth_vtx_faces_1([{Col,Faces}|MatFaces]) ->
     gl:color3fv(Col),
     wings_draw_util:smooth_mat_faces(Faces),
