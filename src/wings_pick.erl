@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.138 2004/05/26 17:21:17 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.139 2004/07/06 21:30:54 dgud Exp $
 %%
 
 -module(wings_pick).
--export([event/2,event/3,hilite_event/3]).
+-export([event/2,event/3,hilite_event/3, hilite_event/4]).
 -export([do_pick/3]).
 
 -define(NEED_OPENGL, 1).
@@ -41,6 +41,8 @@
 -record(hl,
 	{st,					%Saved state.
 	 redraw,				%Redraw function.
+	 always_dirty = false,                  %Always redraw on mousemotion?
+	 filter,                                %Filter fun, allow hl? true/false
 	 prev=none				%Previous hit ({Id,Item}).
 	}).
 
@@ -56,14 +58,18 @@ event(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_PRESSED}, St, _) ->
     pick(X, Y, Mod, St);
 event(_, _, _) -> next.
 
-hilite_event(#mousemotion{}=Mm, #st{selmode=Mode}=St, Redraw) ->
+hilite_event(Mm, St, Redraw) ->
+    hilite_event(Mm, St, Redraw, []).
+hilite_event(#mousemotion{}=Mm, #st{selmode=Mode}=St, Redraw, Options) ->
     case hilite_enabled(Mode) of
 	false -> next;
 	true ->
-	    {seq,push,
-	     handle_hilite_event(Mm, #hl{st=St,redraw=Redraw})}
+	    HL = #hl{st=St,redraw=Redraw,
+		     always_dirty=proplists:get_value(always_dirty,Options,false),
+		     filter=proplists:get_value(filter,Options,true)},
+	    {seq,push,handle_hilite_event(Mm, HL)}
     end;
-hilite_event(_, _, _) -> next.
+hilite_event(_, _, _,_) -> next.
 
 hilite_enabled(vertex) -> wings_pref:get_value(vertex_hilite);
 hilite_enabled(edge) -> wings_pref:get_value(edge_hilite);
@@ -105,8 +111,12 @@ handle_hilite_event(redraw, #hl{redraw=#st{}=St}) ->
 handle_hilite_event(redraw, #hl{redraw=Redraw}) ->
     Redraw(),
     keep;
-handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
+handle_hilite_event(#mousemotion{x=X,y=Y}, HL) ->
+    #hl{prev=PrevHit,always_dirty=Dirty,st=St,filter=Accept}=HL,
     case raw_pick(X, Y, St) of
+	PrevHit when Dirty ->
+	    wings_wm:dirty(),
+	    get_hilite_event(HL);
 	PrevHit ->
 	    get_hilite_event(HL);
 	none ->
@@ -115,16 +125,28 @@ handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
 	    wings_draw:refresh_dlists(St),
 	    get_hilite_event(HL#hl{prev=none});
 	Hit ->
-	    wings_wm:dirty(),
-	    insert_hilite_dl(Hit, St),
-	    wings_draw:refresh_dlists(St),
-	    get_hilite_event(HL#hl{prev=Hit})
+	    case accept_hl(Accept, Hit) of
+		true ->
+		    wings_wm:dirty(),
+		    insert_hilite_dl(Hit, St),
+		    wings_draw:refresh_dlists(St),
+		    get_hilite_event(HL#hl{prev=Hit});
+		false ->
+		    wings_wm:dirty(),
+		    insert_hilite_dl(none, St),
+		    wings_draw:refresh_dlists(St),
+		    get_hilite_event(HL#hl{prev=none})
+	    end
     end;
 handle_hilite_event(init_opengl, #hl{st=St}) ->
     wings:init_opengl(St);
 handle_hilite_event(_, _) ->
     insert_hilite_dl(none, none),
     next.
+
+accept_hl(Fun, Hit) when is_function(Fun) ->
+    Fun(Hit);
+accept_hl(_,_) -> true.
 
 insert_hilite_dl(Hit, St) ->
     wings_dl:map(fun(D, _) ->
