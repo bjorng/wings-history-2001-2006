@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.179 2002/12/26 09:47:07 bjorng Exp $
+%%     $Id: wings.erl,v 1.180 2002/12/28 10:21:51 bjorng Exp $
 %%
 
 -module(wings).
@@ -106,7 +106,9 @@ init(File, Root) ->
 				 ?SDL_DEFAULT_REPEAT_INTERVAL),
 
     wings_pref:init(),
+    wings_text:init(),
     wings_plugin:init(),
+    wings_text:choose_font(),
     wings_color:init(),
     wings_io:init(),
 
@@ -392,6 +394,8 @@ command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,args=Args}=St) ->
 command({edit,repeat_drag}, St) -> St;
 command({edit,camera_mode}, St) ->
     wings_camera:command(camera_mode, St);
+command({edit,font}, St) ->
+    wings_text:command(font, St);
 command({edit,purge_undo}, St) ->
     wings_undo:purge(St);
 command({edit,enable_patches}, St) ->
@@ -495,6 +499,7 @@ edit_menu(St) ->
      separator,
      wings_material:sub_menu(edit, St),
      separator|wings_camera:sub_menu(St)++wings_pref:menu(St)++
+     wings_text:sub_menu(St)++
      [separator,
       {"Purge Undo History",purge_undo}|patches()]].
 

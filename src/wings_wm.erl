@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.37 2002/12/27 08:38:59 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.38 2002/12/28 10:21:52 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -29,6 +29,9 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 -import(lists, [map/2,last/1,sort/1,keysort/2,reverse/1,foreach/2,member/2]).
+
+-define(BUTTON_WIDTH, 44).
+-define(BUTTON_HEIGHT, 32).
 
 -record(win,
 	{z,					%Z order.
@@ -70,13 +73,10 @@ init() ->
     translation_change(),
     put(wm_windows, gb_trees:empty()),
     new(top, {0,0,0}, {W,H}, {push,fun(_) -> keep end}),
-    MsgH = 2*?LINE_HEIGHT-8,
-    new(message, {0,0,99}, {W,MsgH},
-	{seq,push,{replace,fun message_event/1}}),
-    ButtonH = 2*?LINE_HEIGHT+3,
+    new(message, {0,0,99}, {0,0}, {seq,push,{replace,fun message_event/1}}),
+    ButtonH = ?BUTTON_HEIGHT+4,
     new(buttons, {0,0,99}, {W,ButtonH}, init_button()),
-    MenuH = ?LINE_HEIGHT+7,
-    new(menubar, {0,0,200}, {W,MenuH}, init_menubar()),
+    new(menubar, {0,0,200}, {0,0}, init_menubar()),
     put(wm_main, geom).
 
 message(Message) ->
@@ -277,15 +277,17 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
     Win = send_event(Win1, Event),
     put_window_data(top, Win),
 
-    #win{h=MenubarH} = MenubarData0 = get_window_data(menubar),
-    MenubarData1 = MenubarData0#win{x=0,y=0,w=W},
+    MenubarData0 = get_window_data(menubar),
+    MenubarH = ?CHAR_HEIGHT+5,
+    MenubarData1 = MenubarData0#win{x=0,y=0,w=W,h=MenubarH},
     put_window_data(menubar, MenubarData1),
     MenubarData = send_event(MenubarData1, Event#resize{w=W}),
     put_window_data(menubar, MenubarData),
 
-    #win{h=MsgH} = MsgData0 = get_window_data(message),
+    MsgData0 = get_window_data(message),
+    MsgH = ?CHAR_HEIGHT+6,
     MsgY = H-MsgH,
-    MsgData1 = MsgData0#win{x=0,y=MsgY,w=W},
+    MsgData1 = MsgData0#win{x=0,y=MsgY,w=W,h=MsgH},
     put_window_data(message, MsgData1),
     MsgData = send_event(MsgData1, Event#resize{w=W}),
     put_window_data(message, MsgData),
@@ -596,9 +598,10 @@ message_redraw(Msg, Right) ->
 	Msg == [] -> ok;
 	true -> wings_io:text_at(0, Msg)
     end,
+    Cw = wings_text:width(),
     case Right of
 	[] -> ok;
-	Right when length(Msg)+length(Right) < W div ?CHAR_WIDTH - 5 ->
+	Right when length(Msg)+length(Right) < W div Cw - 5 ->
 	    L = length(Right),
 	    Pos = W-?CHAR_WIDTH*(L+5),
 	    wings_io:set_color(?MENU_COLOR),
@@ -623,10 +626,10 @@ message_setup() ->
     {_,_,W,H} = viewport(),
     wings_io:set_color(?PANE_COLOR),
     gl:recti(0, 0, W, H),
-    wings_io:border(6, 0, W-20, H-3, ?PANE_COLOR),
+    wings_io:border(6, 0, W-20, H-2, ?PANE_COLOR),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    gl:translatef(10, H-8, 0),
+    gl:translatef(10, H-5, 0),
     {W,H}.
 
 %% Dirty hack to draw in the front buffer.
@@ -691,9 +694,6 @@ draw_completions(F) ->
 	 all_buttons,
 	 restr=none
 	}).
-
--define(BUTTON_WIDTH, 44).
--define(BUTTON_HEIGHT, 32).
 
 init_button() ->
     {seq,push,get_button_event(#but{mode=face})}.
@@ -893,7 +893,8 @@ menubar_event(_, _) -> keep.
 
 menu_open(X, Name, Fun, #mb{win=Win,st=St}=Mb) ->
     Menu = Fun(St),
-    wings_menu:menu(X, ?LINE_HEIGHT+5, Win, Name, Menu),
+    {_,_,_,H} = viewport(),
+    wings_menu:menu(X, H-1, Win, Name, Menu),
     get_menu_event(Mb#mb{sel=Name}).
 
 menubar_redraw(Mb) ->
@@ -920,12 +921,14 @@ menubar_redraw_1(Menubar, #mb{sel=Sel}) ->
 menubar_draw([{Desc,Name,_}|T], X, Sel) ->
     W = ?CHAR_WIDTH*(?MENU_ITEM_SPACING+length(Desc)),
     if
-	Name =:= Sel -> wings_io:border(X+1-?MENU_MARGIN, 3, W,
-					?LINE_HEIGHT, ?PANE_COLOR);
+	Name =:= Sel ->
+	    {_,_,_,H} = viewport(),
+	    wings_io:border(X+2-?MENU_MARGIN, 0,
+			    W, H-2, ?MENU_COLOR);
 	true -> ok
     end,
     gl:color3f(0, 0, 0),
-    wings_io:text_at(X, ?LINE_HEIGHT-1, Desc),
+    wings_io:text_at(X, ?CHAR_HEIGHT, Desc),
     menubar_draw(T, X+W, Sel);
 menubar_draw([], _, _) -> keep.
 

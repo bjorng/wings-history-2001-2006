@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.45 2002/12/19 20:41:42 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.46 2002/12/28 10:21:51 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -614,15 +614,20 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
 %%%
 %%% Checkboxes.
 %%%
+-define(CB_SIZE, 8).
 
 -record(cb,
 	{label,
+	 labelw,				%Width of label in pixels.
+	 spacew,				%Width of a space character.
 	 state}).
 
 checkbox(Label, Def) ->
-    Cb = #cb{label=Label,state=Def},
+    LabelWidth = wings_text:width(Label),
+    SpaceWidth = wings_text:width(" "),
+    Cb = #cb{label=Label,state=Def,labelw=LabelWidth,spacew=SpaceWidth},
     Fun = checkbox_fun(),
-    {Fun,false,Cb,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
+    {Fun,false,Cb,LabelWidth+SpaceWidth+?CB_SIZE,?LINE_HEIGHT+2}.
 
 checkbox_fun() ->
     fun({redraw,Active}, Fi, Cb, _) ->
@@ -634,7 +639,7 @@ checkbox_fun() ->
     end.
 
 cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
-    wings_io:sunken_rect(X, Y0+6, ?CHAR_WIDTH+1, ?CHAR_WIDTH+1, {1,1,1}),
+    wings_io:sunken_rect(X, Y0+?CHAR_HEIGHT-9, 8, 8, {1,1,1}),
     Y = Y0+?CHAR_HEIGHT,
     case State of
 	false -> ok;
@@ -652,9 +657,9 @@ cb_event({key,_,_,$\s}, _, #cb{state=State}=Cb) ->
     Cb#cb{state=not State};
 cb_event(#mousebutton{x=Xb,state=?SDL_RELEASED},
 	 #fi{x=X},
-	 #cb{label=Label,state=State}=Cb) ->
+	 #cb{state=State,labelw=LblW,spacew=SpaceW}=Cb) ->
     if
-	Xb-X < (4+length(Label))*?CHAR_WIDTH ->
+	Xb-X < LblW+4*SpaceW ->
 	    Cb#cb{state=not State};
 	true -> Cb
     end;
@@ -667,12 +672,17 @@ cb_event(_Ev, _Fi, Cb) -> Cb.
 -record(rb,
 	{var,
 	 val,
-	 label}).
+	 label,
+	 labelw,			    %Width of label in pixels.
+	 spacew				  %Width of a space character.
+	}).
 
 radiobutton({Var,Def}, Label, Val) ->
-    Rb = #rb{var=Var,val=Val,label=Label},
+    LabelWidth = wings_text:width(Label),
+    SpaceWidth = wings_text:width(" "),
+    Rb = #rb{var=Var,val=Val,label=Label,labelw=LabelWidth,spacew=SpaceWidth},
     Fun = radiobutton_fun(Def),
-    {Fun,false,Rb,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
+    {Fun,false,Rb,LabelWidth+2*SpaceWidth,?LINE_HEIGHT+2}.
 
 radiobutton_fun(Def) ->
     fun({event,init}, _Fi, #rb{var=Var,val=Val}=Rb, Common) ->
@@ -738,9 +748,9 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,var=Var,val=Val}, Common) ->
 rb_event({key,_,_,$\s}, _, Rb, Common) ->
     rb_set(Rb, Common);
 rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED},
-	 #fi{x=X}, #rb{label=Label}=Rb, Common) ->
+	 #fi{x=X}, #rb{labelw=LblW,spacew=SpaceW}=Rb, Common) ->
     if
-	Xb-X < (4+length(Label))*?CHAR_WIDTH ->
+	Xb-X < LblW+4*SpaceW ->
 	    rb_set(Rb, Common);
 	true -> Rb
     end;
@@ -761,7 +771,7 @@ rb_set(#rb{var=Var,val=Val}=Rb, Common0) ->
 button(Label, Action) ->
     But = #but{label=Label,action=Action},
     Fun = button_fun(),
-    {Fun,false,But,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT+6}.
+    {Fun,false,But,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT+2+2}.
 
 button_label(ok) -> "OK";
 button_label(Act) ->
@@ -776,8 +786,8 @@ button_fun() ->
     end.
 
 button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
-    Y = Y0+?CHAR_HEIGHT,
-    wings_io:raised_rect(X, Y-H+9, W, H-5, ?MENU_COLOR),
+    Y = Y0+?CHAR_HEIGHT+2,
+    wings_io:raised_rect(X, Y0+2, W, H-4, ?MENU_COLOR),
     TextX = X + (W-length(Label)*?CHAR_WIDTH) div 2,
     wings_io:text_at(TextX, Y, Label),
     if
@@ -842,10 +852,9 @@ col_event({drop,{color,RGB}}, #fi{key=Key}, Col, Common) ->
     {Col#col{val=RGB},gb_trees:update(Key, RGB, Common)};
 col_event(_Ev, _Fi, Col, Common) -> {Col,Common}.
 
-col_inside(Xm, Ym, #fi{x=X,y=Y})
-  when X =< Xm, Xm < X+3*?CHAR_WIDTH,
-       Y+3 =< Ym, Ym < Y+?CHAR_HEIGHT+2 -> true;
-col_inside(_, _, _) -> false.
+col_inside(Xm, Ym, #fi{x=X,y=Y}) ->
+    X =< Xm andalso Xm < X+3*?CHAR_WIDTH andalso
+	Y+3 =< Ym andalso Ym < Y+?CHAR_HEIGHT+2.
 
 rgb_to_hsv(R,G,B) ->
     {H,S,V} = wings_color:rgb_to_hsv(R,G,B),

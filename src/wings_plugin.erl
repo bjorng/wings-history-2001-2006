@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.18 2002/11/23 20:34:33 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.19 2002/12/28 10:21:52 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2,call_ui/1]).
@@ -33,6 +33,7 @@
 %%% The types are defined as following:
 %%%
 %%% c   Command extension plugin-in.
+%%% f   Font.
 %%% 8   External user-interface plugin.
 %%% 9   Default user-interface plugin.
 %%%
@@ -96,6 +97,9 @@ init_plugins([{user_interface,M}|T]) ->
 	Other ->
 	    io:format("~w:init/1 bad return value: ~P\n", [M,Other,20])
     end,
+    init_plugins(T);
+init_plugins([{font,M}|T]) ->
+    wings_text:font_module(M),
     init_plugins(T);
 init_plugins([{_Type,M}|T]) ->
     case catch M:init() of
@@ -172,6 +176,7 @@ to_modules([[_,_,Type0|_]=Beam|T]) ->
 to_modules([]) -> [].
 
 convert_type($c) -> command;
+convert_type($f) -> font;
 convert_type($8) -> user_interface;
 convert_type($9) -> user_interface;
 convert_type(_) -> undefined.
