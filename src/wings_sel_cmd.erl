@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.6 2002/01/22 09:56:40 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.7 2002/01/25 09:04:38 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -19,20 +19,20 @@
 -import(lists, [foldl/3,reverse/1,reverse/2,sort/1,keydelete/3]).
 
 menu(X, Y, St) ->
-    Menu = {{"Deselect","Space",deselect},
+    Menu = {{"Deselect",deselect},
 	    separator,
-	    {"More","+",more},
-	    {"Less","-",less},
-	    {"Region","L",select_region},
-	    {"Edge Loop","l",edge_loop},
-	    {"Edge Ring","R",edge_ring},
-	    {"Previous Edge Loop","F3",prev_edge_loop},
-	    {"Next Edge Loop","F4",next_edge_loop},
-	    {"Similar","i",similar},
+	    {"More",more},
+	    {"Less",less},
+	    {"Region",select_region},
+	    {"Edge Loop",edge_loop},
+	    {"Edge Ring",edge_ring},
+	    {"Previous Edge Loop",prev_edge_loop},
+	    {"Next Edge Loop",next_edge_loop},
+	    {"Similar",similar},
 	    separator,
-	    {"Adjacent",{adjacent,{{"Vertices","v",vertex},
-				   {"Edges","e",edge},
-				   {"Faces","f",face}}}},
+	    {"Adjacent",{adjacent,{{"Vertices",vertex},
+				   {"Edges",edge},
+				   {"Faces",face}}}},
 	    {"By",{by,{{"Hard edges",hard_edges},
 		       {"Vertices with",{vertices_with,
 					 {{"2 edges",2},
@@ -43,7 +43,7 @@ menu(X, Y, St) ->
 				      {{"2 edges",2},
 				       {"3 edges",3},
 				       {"4 edges",4},
-				       {"5 or more","F5",5}}}},
+				       {"5 or more",5}}}},
 		       wings_material:sub_menu(select, St),
 		       {"Random",{random,{{"10%",10},
 					  {"20%",20},
@@ -56,9 +56,9 @@ menu(X, Y, St) ->
 					  {"90%",90}}}},
 		       {"Id",id}}}},
 	    separator,
-	    {sel_all_str(St),"Ctrl-A",all},
+	    {sel_all_str(St),all},
 	    separator,
-	    {"Inverse","Ctrl-Shift-I",inverse},
+	    {"Inverse",inverse},
 	    separator,
 	    {"Store selection",save},
 	    {"Recall selection",load},

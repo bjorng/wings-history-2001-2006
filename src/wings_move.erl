@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Move command.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.22 2002/01/10 09:22:48 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.23 2002/01/25 09:04:36 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -23,7 +23,7 @@ setup(Type, #st{selmode=body,sel=Sel}=St) ->
     Ids = [{Id,Fun} || {Id,_} <- Sel],
     wings_drag:init_drag({matrix,Ids}, constraint(Type), distance, St);
 setup(Type, #st{selmode=Mode}=St) ->
-    Vec = wings_util:make_vector(Type),
+    Vec = vector(Type),
     Tvs = wings_sel:fold(fun(Items, We, Acc) ->
 				 setup_1(Mode, We, Items, Vec, Acc)
 			 end, [], St),
@@ -43,7 +43,10 @@ setup_we(face, Vec, Items, We) ->
 constraint(free) -> view_dependent;
 constraint(intrude) -> {0.025,1.0E200};
 constraint(Other) -> none.
-    
+
+vector({_,{_,_,_}=Vec}) -> Vec;
+vector(Other) -> wings_util:make_vector(Other).
+
 %%
 %% Conversion of vertice selections to vertices. :-)
 %% Not entirely pointless, as we'll need to add vectors for

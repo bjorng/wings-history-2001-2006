@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.38 2002/01/11 16:36:44 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.39 2002/01/25 09:04:38 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -29,29 +29,29 @@ menu(X, Y, St) ->
     Menu = {{"Ground plane",show_groundplane,crossmark(show_groundplane)},
 	    {"Axes",show_axes,crossmark(show_axes)},
 	    separator,
-	    {"Wireframe","w",wire_mode,crossmark(wire_mode)},
-	    {"Smooth Preview","Tab",smooth_preview,crossmark(smooth_preview)},
+	    {"Wireframe",wire_mode,crossmark(wire_mode)},
+	    {"Smooth Preview",smooth_preview,crossmark(smooth_preview)},
 	    separator,
 	    {"Show Saved BB",show_bb,crossmark(show_bb)},
 	    {"Show Edges",show_edges,crossmark(show_edges)},
 	    {"Show Normals",show_normals,crossmark(show_normals)},
 	    separator,
-	    {"Reset View","r",reset},
-	    {"Aim","a",aim},
-	    {"Ortographic View","o",orthogonal_view,
+	    {"Reset View",reset},
+	    {"Aim",aim},
+	    {"Ortographic View",orthogonal_view,
 	     crossmark(orthogonal_view)},
 	    {one_of(L == 1, "Two lights", "One light"),toggle_lights},
 	    separator,
-	    {"View Along",{along,{{"+X","x",x},
-				  {"+Y","y",y},
-				  {"+Z","z",z},
-				  {"-X","X",neg_x},
-				  {"-Y","Y",neg_y},
-				  {"-Z","Z",neg_z}}}},
+	    {"View Along",{along,{{"+X",x},
+				  {"+Y",y},
+				  {"+Z",z},
+				  {"-X",neg_x},
+				  {"-Y",neg_y},
+				  {"-Z",neg_z}}}},
 	    separator,
 	    {"Align to Selection",align_to_selection},
 	    separator,
-	    {"Auto Rotate","u",auto_rotate}},
+	    {"Auto Rotate",auto_rotate}},
     wings_menu:menu(X, Y, view, Menu, St).
 
 crossmark(Key) ->

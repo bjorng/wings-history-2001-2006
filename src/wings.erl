@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.92 2002/01/22 11:21:54 bjorng Exp $
+%%     $Id: wings.erl,v 1.93 2002/01/25 09:04:36 bjorng Exp $
 %%
 
 -module(wings).
@@ -205,22 +205,28 @@ handle_event_1(Event, St) ->
 	Other -> Other
     end.
 
-handle_event_2(drag_aborted, St) ->
+handle_event_2(Event, St) ->
+    case wings_menu:is_popup_event(Event) of
+	no -> handle_event_3(Event, St);
+	{yes,X,Y} -> popup_menu(X, Y, St)
+    end.
+	    
+handle_event_3(drag_aborted, St) ->
     wings_io:clear_message(),
     main_loop(model_changed(St));
-handle_event_2({drag_ended,St}, St0) ->
+handle_event_3({drag_ended,St}, St0) ->
     wings_io:clear_message(),
     save_state(St0, St);
-handle_event_2({new_selection,St}, St0) ->
+handle_event_3({new_selection,St}, St0) ->
     save_state(St0, St);
-handle_event_2(Event, St0) ->
+handle_event_3(Event, St0) ->
     case translate_event(Event, St0) of
+	#mousebutton{} -> keep;
+	#mousemotion{} -> keep;
 	ignore -> keep;
 	redraw ->
 	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
 	    main_loop(St0);
- 	{right_click,X,Y} ->
-	    popup_menu(X, Y, St0);
  	{resize,W,H} ->
  	    St = resize(W, H, St0),
  	    main_loop(model_changed(St));
@@ -303,6 +309,9 @@ repeatable(Mode, Cmd) ->
 	_ -> no
     end.
 
+command({pick,{vector,Ns}}, St) ->
+    wings_vec:pick(vector, Ns, St);
+command({secondary_selection,aborted}, St) -> St;
 command({_,{[_|_]}=Plugin}, St0) ->
     case wings_plugin:command(Plugin, St0) of
 	St0 -> St0;
@@ -493,11 +502,11 @@ popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
 menu(X, Y, file, St) ->
     wings_file:menu(X, Y, St);
 menu(X, Y, edit, St) ->
-    Menu0 = [{"Undo/redo","Ctrl-Z",undo_toggle},
-	     {"Redo","Shift-Ctrl-Z",redo},
-	     {"Undo","Alt-Ctrl-Z",undo},
+    Menu0 = [{"Undo/redo",undo_toggle},
+	     {"Redo",redo},
+	     {"Undo",undo},
 	     separator,
-	     {command_name(St),"d",repeat},
+	     {command_name(St),repeat},
 	     separator,
 	     wings_material:sub_menu(edit, St),
 	     separator,
@@ -538,47 +547,44 @@ vertex_menu(X, Y, St) ->
 		{"X",x},
 		{"Y",y},
 		{"Z",z}},
+    Dir = directions(St),
     Menu = {{"Vertex operations",ignore},
 	    separator,
-	    {"Move",{move,directions()}},
+	    {"Move",{move,Dir}},
 	    {"Rotate",{rotate,XYZ_free}},
 	    scale(),
 	    separator,
-	    {"Extrude",{extrude,directions()}},
+	    {"Extrude",{extrude,Dir}},
 	    separator,
 	    {"Flatten",{flatten,XYZ}},
 	    separator,
-	    {"Connect","C",connect},
+	    {"Connect",connect},
 	    {"Tighten",tighten},
 	    {"Bevel",bevel},
-	    {"Collapse","Bksp",collapse},
+	    {"Collapse",collapse},
 	    separator,
 	    wings_magnet:sub_menu(St),
 	    {"Deform",wings_deform:sub_menu(St)}},
     wings_menu:popup_menu(X, Y, vertex, Menu, St).
 
 edge_menu(X, Y, St) ->
+    Dir = directions(St),
     Menu = {{"Edge operations",ignore},
 	    separator,
-	    {"Move",{move,directions()}},
-	    {"Rotate",{rotate,
-		       {{"Normal",normal},
-			{"Free",free},
-			{"X",x},
-			{"Y",y},
-			{"Z",z}}}},
+	    {"Move",{move,Dir}},
+	    {"Rotate",{rotate,Dir}},
 	    scale(),
 	    separator,
-	    {"Extrude",{extrude,directions()}},
+	    {"Extrude",{extrude,Dir}},
 	    separator,
 	    {"Cut",{cut,{{"2",2},
 			 {"3",3},
 			 {"4",4},
 			 {"5",5}}}},
-	    {"Connect","C",connect},
+	    {"Connect",connect},
 	    {"Bevel",bevel},
 	    separator,
-	    {"Dissolve","Bksp",dissolve},
+	    {"Dissolve",dissolve},
 	    {"Collapse",collapse},
 	    separator,
 	    {"Hardness",{hardness,{{"Soft",soft},
@@ -588,20 +594,16 @@ edge_menu(X, Y, St) ->
         wings_menu:popup_menu(X, Y, edge, Menu, St).
  
 face_menu(X, Y, St) ->
+    Dir = directions(St),
     Menu = {{"Face operations",ignore},
 	    separator,
-	    {"Move",{move,directions()}},
-	    {"Rotate",{rotate,
-		       {{"Normal",normal},
-			{"Free",free},
-			{"X",x},
-			{"Y",y},
-			{"Z",z}}}},
+	    {"Move",{move,Dir}},
+	    {"Rotate",{rotate,Dir}},
 	    scale(),
 	    separator,
-	    {"Extrude",{extrude,directions()}},
-	    {"Extrude Region",{extrude_region,directions()}},
-	    {"Extract Region",{extract_region,directions()}},
+	    {"Extrude",{extrude,Dir}},
+	    {"Extrude Region",{extrude_region,Dir}},
+	    {"Extract Region",{extract_region,Dir}},
 	    separator,
 	    {"Flatten",{flatten,
 			{{"Normal",normal},
@@ -616,18 +618,16 @@ face_menu(X, Y, St) ->
 	    {"Bridge",bridge},
 	    separator,
 	    {"Mirror",mirror},
-    	    {"Dissolve","Bksp",dissolve},
+    	    {"Dissolve",dissolve},
 	    {"Collapse", collapse},
 	    separator,
 	    {"Smooth",smooth},
 	    separator,
 	    wings_material:sub_menu(face, St)},
     wings_menu:popup_menu(X, Y, face, Menu, St).
+
 body_menu(X, Y, St) ->
-    Dir = {{"Free",free},
-	   {"X",x},
-	   {"Y",y},
-	   {"Z",z}},
+    Dir = directions(St),
     XYZ = xyz(),
     Menu = {{"Object operations",ignore},
 	    separator,
@@ -645,18 +645,63 @@ body_menu(X, Y, St) ->
 	    {"Separate",separate},
 	    separator,
 	    {"Cleanup",cleanup},
-	    {"Auto-Smooth","S",auto_smooth},
+	    {"Auto-Smooth",auto_smooth},
 	    separator,
 	    {"Duplicate",{duplicate,Dir}},
-	    {"Delete","Bksp",delete}},
+	    {"Delete",delete}},
     wings_menu:popup_menu(X, Y, body, Menu, St).
 
-directions() ->
-    {{"Normal",normal},
-     {"Free",free},
-     {"X",x},
-     {"Y",y},
-     {"Z",z}}.
+directions(#st{selmode=Mode}) ->
+    fun(B, Ns) ->
+	    dirs(B, Mode, Ns)
+    end.
+
+dirs(1, Mode, Ns) -> dirs_1(Mode, Ns);
+dirs(2, Mode, Ns) -> dirs_1(Mode, Ns);
+dirs(3, Mode, Ns) -> {action,{pick,{vector,Ns}}};
+dirs(submenu, Mode, Ns) -> dirs_1(Mode, Ns);
+dirs(help, Mode, Ns) -> "";
+dirs(adv_help, Mode, Ns) ->
+    adv_help(Ns).
+
+adv_help([move|_]) ->
+    "[L] move in standard directions  [R] pick vector to move along";
+adv_help(_) -> "".
+
+dirs_1(Mode, Ns) ->
+    Dirs = [{"Free",help(free, Ns)},
+	    {"X",x,help(x, Ns)},
+	    {"Y",y,help(y, Ns)},
+	    {"Z",z,help(z, Ns)}],
+    case Mode of
+	body -> Dirs;
+	Other -> [{"Normal",normal,help(normal, Ns)}|Dirs]
+    end;
+dirs_1(Mode, Names) -> "".
+
+help(normal, [move|_]) -> "Move each element along its normal.";
+help(normal, [extrude|_]) ->
+    "Extrude each element; move each element along its normal.";
+help(normal, [extrude_region|_]) ->
+    "Extrude faces as region; move faces along the region's normal.";
+help(free, [move|_]) -> "Move freely in all directions";
+help(free, [extrude|_]) ->
+    "Extrude elements; move freely in all directions";
+help(free, [extrude_region|_]) ->
+    "Extrude faces as region; move freely in all directions";
+help(x, Ns) -> help_axis("X", Ns);
+help(y, Ns) -> help_axis("Y", Ns);
+help(z, Ns) -> help_axis("Z", Ns);
+help(_, _) -> "".
+
+help_axis(Axis, [move|_]) ->    
+    "Move elements along the " ++ Axis ++ " axis.";
+help_axis(Axis, [extrude|_]) ->
+    "Extrude elements; move along the " ++ Axis ++ " axis.";
+help_axis(Axis, [extrude_region|_]) ->
+    "Extrude faces as region; move faces along the "
+	++ Axis ++ " axis.";
+help_axis(_, _) -> "".
 
 xyz() ->
     {{"X",x},
@@ -792,16 +837,11 @@ translate_event(#keyboard{}=Event, St) ->
     translate_key(Event, St);
 translate_event(quit, St) -> {file,quit};
 translate_event(ignore, St) -> ignore;
-translate_event(#mousebutton{button=3,x=X,y=Y,state=?SDL_PRESSED}, St) ->
-    {right_click,X,Y};
 translate_event(#mousebutton{}, St) -> ignore;
 translate_event(#mousemotion{x=X,y=Y}, St) -> ignore;
 translate_event(#resize{w=W,h=H}, St) -> {resize,W,H};
 translate_event(#expose{}, St) -> redraw;
 translate_event(redraw_menu, St) -> ignore;
-translate_event({menu_action,Action}, St) ->
-    wings_io:putback_event({action,Action}),
-    redraw;
 translate_event(redraw, St) -> redraw;
 translate_event({action,Action}, St) -> Action.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.22 2002/01/22 11:21:55 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.23 2002/01/25 09:04:36 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -210,26 +210,32 @@ presets() ->
      {"Auto-rotate angle",auto_rotate_angle,1.0},
      {"Auto-rotate delay (ms)",auto_rotate_delay,60},
      separator,
-     {"Auto-save interval (minutes) [0 is off]",autosave_time,2}
+     {"Auto-save interval (minutes) [0 is off]",autosave_time,2},
+     separator,
+     {"Vector Display Size",active_vector_size,1.0},
+     {"Vector Display Width",active_vector_width,2.0},
+     {"Vector Display Color",active_vector_color,{0.0,0.0,0.65}},
+     separator,
+     {"Advanced Menus",advanced_menus,false}
     ].
 
 default_keybindings() ->
-    [{{bindkey, $a, [ctrl]},          {select,all}},
-     {{bindkey, $i, [ctrl,shift]},    {select,inverse}},
-     {{bindkey, $l, [ctrl]},          {file,merge}},
-     {{bindkey, $n, [ctrl]},          {file,new}},
-     {{bindkey, $o, [ctrl]},          {file,open}},
-     {{bindkey, $q, [ctrl]},          {file,quit}},
-     {{bindkey, $s, [ctrl,shift]},    {file,save_as}},
-     {{bindkey, $s, [ctrl]},          {file,save}},
-     {{bindkey, $z, [alt,ctrl]},      {edit,undo}},
-     {{bindkey, $z, [ctrl,shift]},    {edit,redo}},
-     {{bindkey, $z, [ctrl]},          {edit,undo_toggle}},
-     {{bindkey, ?SDLK_KP_PLUS, []},   {select,more}},
-     {{bindkey, ?SDLK_KP_MINUS, []},  {select,less}},
-     {{bindkey, ?SDLK_F3, []},        {select,prev_edge_loop}},
-     {{bindkey, ?SDLK_F4, []},        {select,next_edge_loop}},
-     {{bindkey, ?SDLK_F5, []},        {select,{by,{faces_with,5}}}},
+    [{{bindkey,{$a,[ctrl]}},          {select,all}},
+     {{bindkey,{$i,[ctrl,shift]}},     {select,inverse}},
+     {{bindkey,{$l,[ctrl]}},           {file,merge}},
+     {{bindkey,{$n,[ctrl]}},           {file,new}},
+     {{bindkey,{$o,[ctrl]}},           {file,open}},
+     {{bindkey,{$q,[ctrl]}},           {file,quit}},
+     {{bindkey,{$s,[ctrl,shift]}},     {file,save_as}},
+     {{bindkey,{$s,[ctrl]}},           {file,save}},
+     {{bindkey,{$z,[alt,ctrl]}},       {edit,undo}},
+     {{bindkey,{$z,[ctrl,shift]}},     {edit,redo}},
+     {{bindkey,{$z,[ctrl]}},           {edit,undo_toggle}},
+     {{bindkey,{?SDLK_KP_PLUS,[]}},   {select,more}},
+     {{bindkey,{?SDLK_KP_MINUS,[]}},  {select,less}},
+     {{bindkey,{?SDLK_F3,[]}},        {select,prev_edge_loop}},
+     {{bindkey,{?SDLK_F4,[]}},        {select,next_edge_loop}},
+     {{bindkey,{?SDLK_F5,[]}},        {select,{by,{faces_with,5}}}},
      {{bindkey, $\t},                 {view,smooth_preview}},
      {{bindkey, $\s},                 {select,deselect}},
      {{bindkey, $a},                  {view,aim}},

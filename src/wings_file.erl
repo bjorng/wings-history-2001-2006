@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.46 2002/01/22 11:21:55 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.47 2002/01/25 09:04:36 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -44,12 +44,12 @@ menu(X, Y, St) ->
 		  {"3D Studio (.3ds)",tds},
 		  {"Wavefront (.obj)",obj},
 		  {"RenderMan (.rib)",rib}},
-    Menu = [{"New","Ctrl-N",new},
-	    {"Open","Ctrl-O",open},
-	    {"Merge","Ctrl-L",merge},
+    Menu = [{"New",new},
+	    {"Open",open},
+	    {"Merge",merge},
 	    separator,
-	    {"Save","Ctrl-S",save},
-	    {"Save As","Shift-Ctrl-S",save_as},
+	    {"Save",save},
+	    {"Save As",save_as},
 	    separator,
 	    {"Revert",revert},
 	    separator,
@@ -59,7 +59,7 @@ menu(X, Y, St) ->
 			{"Wavefront (.obj)",obj}}}},
 	    {"Export",{export,ExpFormats}},
 	    {"Export Selected",{export_selected,ExpFormats}},
-	    separator|recent_files([{"Exit","Ctrl-Q",quit}])],
+	    separator|recent_files([{"Exit",quit}])],
     wings_menu:menu(X, Y, file, list_to_tuple(Menu), St).
 
 command(new, St0) ->

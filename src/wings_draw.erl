@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.51 2002/01/22 11:21:54 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.52 2002/01/25 09:04:36 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -56,6 +56,7 @@ render(St) ->
     update_display_lists(St),
     make_sel_dlist(Smooth, St),
     make_normals_dlist(St),
+    make_vec_dlist(St),
     wings_view:projection(),
     wings_view:model_transformations(),
     ground_and_axes(),
@@ -65,6 +66,7 @@ render(St) ->
 	false -> draw_plain_shapes(St)
     end,
     draw_normals(),
+    gl:callList(?DL_UTIL),
     axis_letters(),
     gl:popAttrib(),
     ?CHECK_ERROR(),
@@ -640,3 +642,42 @@ show_saved_bb(#st{bb=[{X1,Y1,Z1},{X2,Y2,Z2}]}) ->
 	    gl:'end'(),
 	    gl:disable(?GL_LINE_STIPPLE)
     end.
+
+
+%%%
+%%% Show active vector.
+%%%
+
+make_vec_dlist(#st{vec=none}) ->
+    gl:newList(?DL_UTIL, ?GL_COMPILE),
+    gl:endList();
+make_vec_dlist(#st{vec={{Center,Vec},_}}) ->
+    gl:newList(?DL_UTIL, ?GL_COMPILE),
+    draw_vec(Center, Vec),
+    gl:endList().
+
+draw_vec(Center, Vec0) ->
+    Vec = e3d_vec:mul(Vec0, wings_pref:get_value(active_vector_size)),
+    End = e3d_vec:add(Center,Vec),
+    HeadVec = e3d_vec:mul(Vec, -0.2),
+    HeadPt = e3d_vec:add(End, HeadVec),
+    PosHead0 = e3d_vec:cross(HeadVec, {0.25,0.25,0.25}),
+    PosHead1 = e3d_vec:cross(HeadVec, {-0.25,-0.25,-0.25}),
+
+    Width = wings_pref:get_value(active_vector_width),
+    gl:color3fv(wings_pref:get_value(active_vector_color)),
+    gl:pointSize(Width*4),
+
+    gl:'begin'(?GL_POINTS),
+    gl:vertex3fv(Center),
+    gl:'end'(),
+
+    gl:lineWidth(Width),
+    gl:'begin'(?GL_LINES),
+    gl:vertex3fv(Center),
+    gl:vertex3fv(End),
+    gl:vertex3fv(End),
+    gl:vertex3fv(e3d_vec:sub(HeadPt,PosHead0)),
+    gl:vertex3fv(End),
+    gl:vertex3fv(e3d_vec:sub(HeadPt,PosHead1)),
+    gl:'end'().

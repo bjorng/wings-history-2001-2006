@@ -4,12 +4,12 @@
 %%     This module contains an fixed-width font. It will not
 %%     be needed when Wings is migrated to GTK.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.3 2002/01/05 23:54:53 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.4 2002/01/25 09:04:38 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -80,6 +80,16 @@ char(axisy) ->
 char(axisz) ->
     B = <<16#7f,16#60,16#70,16#38,16#1c,16#0e,16#07,16#03,16#7f>>,
     gl:bitmap(8, 9, -1.0, 0.0, 8.0, 0.0, B);
+
+char(submenu) ->
+    B = <<
+       	 2#00000000,
+       	 2#00010000,
+       	 2#00111000,
+       	 2#00010000,
+       	 2#00000000
+      	 >>,
+    gl:bitmap(7, 5, -1.0, -1.0, 10.0, 0.0, B);
 
 char(32) ->
  B = <<>>,

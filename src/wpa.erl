@@ -3,12 +3,12 @@
 %%
 %%     Wings Plugin API.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.4 2002/01/22 19:47:11 bjorng Exp $
+%%     $Id: wpa.erl,v 1.5 2002/01/25 09:04:38 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,error/1,message/1,yes_no/1,
@@ -114,7 +114,7 @@ face_vertices(Face, We) ->
     wings_face:surrounding_vertices(Face, We).
 
 face_outer_vertices(Faces, We) ->
-    outer_vertex_partition(Faces, We).
+    wings_vertex:outer_partition(Faces, We).
 
 face_outer_edges(Faces, We) ->
     wings_face_cmd:outer_edge_partition(Faces, We).
@@ -123,61 +123,3 @@ face_outer_edges(Faces, We) ->
 
 obj_name(#we{name=Name}) -> Name.
 obj_id(#we{id=Id}) -> Id.
-
-%%%
-%%% Utilities.
-%%%
-
-outer_vertex_partition(Faces, We) when is_list(Faces) ->
-    collect_outer_edges(Faces, gb_sets:from_list(Faces), We, []);
-outer_vertex_partition(Faces, We) ->
-    collect_outer_edges(gb_sets:to_list(Faces), Faces, We, []).
-
-collect_outer_edges([Face|Fs], Faces, We, Acc0) ->
-    Acc = wings_face:fold(
-	    fun(_, E, Erec, A) ->
-		    outer_edge(E, Erec, Face, Faces, A)
-	    end, Acc0, Face, We),
-    collect_outer_edges(Fs, Faces, We, Acc);
-collect_outer_edges([], Faces, We, Acc) ->
-    R = sofs:relation(Acc),
-    F = sofs:relation_to_family(R),
-    partition_edges(gb_trees:from_orddict(sofs:to_external(F)), []).
-
-outer_edge(Edge, Erec, Face, Faces, Acc) ->
-    {V,OtherV,OtherFace} =
-	case Erec of
-	    #edge{vs=Vs,ve=Ve,lf=Face,rf=Other0,ltpr=Next0} ->
-		{Vs,Ve,Other0};
-	    #edge{vs=Vs,ve=Ve,rf=Face,lf=Other0,rtpr=Next0} ->
-		{Ve,Vs,Other0}
-	end,
-    case gb_sets:is_member(OtherFace, Faces) of
-	true -> Acc;
-	false -> [{V,{Edge,V,OtherV,Face}}|Acc]
-    end.
-
-partition_edges(Es0, Acc) ->
-    case gb_sets:is_empty(Es0) of
-	true -> Acc;
-	false ->
-	    {Key,Val,Es1} = gb_trees:take_smallest(Es0),
-	    {Part,Es} = partition_edges(Key, unknown, Val, Es1, []),
-	    partition_edges(Es, [Part|Acc])
-    end.
-
-partition_edges(Va, _, [{Edge,Va,Vb,Face}], Es0, Acc0) ->
-    Acc = [Va|Acc0],
-    case gb_trees:lookup(Vb, Es0) of
-	none -> {Acc,Es0};
-	{value,Val} ->
-	    Es = gb_trees:delete(Vb, Es0),
-	    partition_edges(Vb, Face, Val, Es, Acc)
-    end;
-partition_edges(Va, unknown, [{_,Va,_,Face}|_]=Edges, Es, Acc) ->
-    partition_edges(Va, Face, Edges, Es, Acc);
-partition_edges(Va, Face, Edges0, Es0, Acc) ->
-    [Val] = [E || {_,_,_,AFace}=E <- Edges0, AFace =:= Face],
-    Edges = [E || {_,_,_,AFace}=E <- Edges0, AFace =/= Face],
-    Es = gb_trees:insert(Va, Edges, Es0),
-    partition_edges(Va, Face, [Val], Es, Acc).

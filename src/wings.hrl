@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.41 2002/01/22 11:18:46 bjorng Exp $
+%%     $Id: wings.hrl,v 1.42 2002/01/25 09:04:36 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -63,6 +63,7 @@
 -define(CHECK_ERROR(), ok).
 -endif.
 
+-define(DL_UTIL, 98).
 -define(DL_PICK, 99).
 -define(DL_DRAW_BASE, 100).
 
@@ -100,6 +101,10 @@
 	 bottom,				%Bottom of stack.
 	 next_is_undo,				%State of undo/redo toggle.
 	 undone,				%States that were undone.
+
+	 %% Vectors.
+	 vec=none,				%Currently visible vector.
+	 svec=[],				%Saved vectors (MRU).
 
 	 %% Extension field.
 	 wo					%For patches.
