@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_undo.erl,v 1.11 2004/01/01 14:17:21 bjorng Exp $
+%%     $Id: wings_undo.erl,v 1.12 2004/03/30 15:56:03 bjorng Exp $
 %%
 
 -module(wings_undo).
@@ -120,15 +120,18 @@ pop(#st{top=[],bottom=[_|_]=Bottom}=St) ->
     pop(St#st{top=reverse(Bottom),bottom=[]});
 pop(_) -> empty.
 
-discard_old_states(#st{top=Top,bottom=Bot}=St)
-  when length(Top) + length(Bot) > ?UNDO_LEVELS ->
-    discard_old_state(St);
-discard_old_states(St) -> St.
-    
-discard_old_state(#st{bottom=[_|Bottom]}=St) ->
-    St#st{bottom=Bottom};
-discard_old_state(#st{bottom=[],top=[_|_]=Top}=St) ->
-    discard_old_state(St#st{bottom=reverse(Top),top=[]}).
+discard_old_states(#st{top=Top,bottom=Bot}=St) ->
+    case 1 + length(Top) + length(Bot) -
+	wings_pref:get_value(num_undo_levels) of
+	N when N > 0 -> discard_old_states_1(N, St);
+	_ -> St
+    end.
+
+discard_old_states_1(0, St) -> St;
+discard_old_states_1(N, #st{bottom=[_|Bottom]}=St) ->
+    discard_old_states_1(N-1, St#st{bottom=Bottom});
+discard_old_states_1(N, #st{bottom=[],top=[_|_]=Top}=St) ->
+    discard_old_states_1(N, St#st{bottom=reverse(Top),top=[]}).
 
 uncompress([#we{id=Id,next_id=Next}=We0|Wes], Acc) ->
     We = wings_we:rebuild(We0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.116 2004/03/19 07:54:19 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.117 2004/03/30 15:56:02 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -239,6 +239,8 @@ misc_prefs() ->
      [{hframe,[{"Save automatically every",autosave},
 	       {text,autosave_time,[{hook,AutoFun},{range,{1,1440}}]},
 	       {label,"minutes"}]},
+      {hframe,[{label,"Undo levels"},
+	       {text,num_undo_levels,[{range,{10,128}}]}]},
       {vframe,
 	 [{label_column,
 	   [{"Angle",auto_rotate_angle},
@@ -659,7 +661,10 @@ defaults() ->
      {title_active_color,{0.41,0.55,0.41,1.0}},
      {title_passive_color,{0.325,0.4,0.325,1.0}},
      {title_text_color,{1.0,1.0,1.0}},
-     {no_progress_bar,false}
+     {no_progress_bar,false},
+
+     %% Undos.
+     {num_undo_levels,32}
     ].
 
 clean(List) ->
