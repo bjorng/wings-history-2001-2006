@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.222 2003/02/27 19:22:45 bjorng Exp $
+%%     $Id: wings.erl,v 1.223 2003/02/28 07:10:59 bjorng Exp $
 %%
 
 -module(wings).
@@ -839,6 +839,7 @@ get_crash_event(Log, St) ->
     {replace,fun(Ev) -> crash_handler(Ev, Log, St) end}.
 
 crash_handler(redraw, Log, _St) ->
+    wings_wm:clear_background(),
     wings_io:ortho_setup(),
     wings_io:text_at(10, 2*?LINE_HEIGHT,
 		     "Internal error - log written to " ++ Log),
@@ -847,7 +848,8 @@ crash_handler(redraw, Log, _St) ->
     wings_wm:message("[L] Continue working", ""),
     keep;
 crash_handler(#mousebutton{}, _, St) ->
-    init_menubar(),
+    wings_wm:message(""),
+    wings_wm:menubar(wings_wm:active_window(), get(wings_menu_template)),
     main_loop(St);
 crash_handler(_, Log, St) ->
     get_crash_event(Log, St).
