@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.29 2003/12/28 15:25:28 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.30 2003/12/30 10:14:23 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -18,9 +18,6 @@
 init(Next) ->
     fun(What) -> ui(What, Next) end.
 
-ui({file,open_dialog,Prop}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Open"),
-    open_file(Title ++ ": ", Prop);
 ui({file,open_dialog,Prop,Cont}, _Next) ->
     Title = proplists:get_value(title, Prop, "Open"),
     open_dialog(Title, Prop, Cont);
@@ -32,13 +29,6 @@ ui({image,formats,Formats}, _Next) ->
 ui({image,read,Prop}, _Next) ->
     read_image(Prop);
 ui(What, Next) -> Next(What).
-
-open_file(Prompt, Prop) ->
-    Exts = file_filters_old(Prop),
-    case wings_getline:filename(Prompt, Exts) of
-	aborted -> aborted;
-	Name -> ensure_extension(Name, Exts)
-    end.
 
 save_file(Prompt, Prop) ->
     Exts = file_filters_old(Prop),
@@ -141,17 +131,59 @@ do_dialog(Types, Title, Cont, Ps) ->
 	      [{text,Filename,[{key,filename}]},
 	       {menu,Types,DefType,[{key,filetype},{hook,fun menu_hook/2}]}]},
 	     {vframe,[{button,Title,
+		       %% We will always exit the dialog through this
+		       %% callback. The hook for this button will make
+		       %% sure we don't get until we have a valid filename.
 		       fun(Res) ->
-			       Dir = proplists:get_value(directory, Res),
-			       Name = proplists:get_value(filename, Res),
-			       NewName = filename:join(Dir, Name),
-			       Cont(NewName)
+			       ok_action(Cont, Res)
 		       end,[ok,{hook,fun ok_hook/2}]},
 		      {button,"Cancel",cancel,[cancel]}]}]}]},
     Ask = fun(Res) ->
 		  do_dialog(Types, Title, Cont, Res)
 	  end,
     {dialog,Qs,Ask}.
+
+ok_action(Cont, Res) ->
+    Dir = proplists:get_value(directory, Res),
+    Name = proplists:get_value(filename, Res),
+    NewName = filename:join(Dir, Name),
+    Cont(NewName).
+
+ok_hook(is_disabled, {_Var,_I,Store}) ->
+    %% The button will be disabled unless there is a filename
+    %% in the filename field OR a directory is selected in
+    %% file_list table.
+
+    gb_trees:get(filename, Store) == [] andalso
+	begin
+	    case gb_trees:get(file_list, Store) of
+		{[Sel],Els} ->
+		    case lists:nth(Sel+1, Els) of
+			{{{dir,_},_}} -> false;
+			_ -> true
+		    end;
+		_ -> true
+	    end
+	end;
+ok_hook(update, {_Var,_I,_Val,Store}) ->
+    %% The button was pressed. If a directory is selected
+    %% in the file_list table, we'll update the current
+    %% directory and force a restart of the dialog.
+    %%    Otherwise, we'll return void, to use the default
+    %% action (i.e., finish the dialog box).
+
+    case gb_trees:get(file_list, Store) of
+	{[Sel],Els} ->
+	    case lists:nth(Sel+1, Els) of
+		{{{dir,Dir0},_}} ->
+		    Base = gb_trees:get(directory, Store),
+		    Dir = filename:join(Base, Dir0),
+		    {done,gb_trees:update(directory, Dir, Store)};
+		_ -> void
+	    end;
+	_ -> void
+    end;
+ok_hook(_, _) -> void.
 
 dir_menu(Dir0, Acc) ->
     Entry = {Dir0,Dir0},
@@ -173,10 +205,6 @@ up_button(update, {Var,_I,Val,Sto0}) ->
     {done,Sto};
 up_button(_, _) -> void.
 
-ok_hook(is_disabled, {_Var,_I,Store}) ->
-    gb_trees:get(filename, Store) == [];
-ok_hook(_, _) -> void.
-
 file_filters(Prop) ->
     Exts = case proplists:get_value(extensions, Prop, none) of
 	       none ->
@@ -197,7 +225,7 @@ file_list(Dir, Wc) ->
     {Folders,Files} = file_list_filter(Files0, Dir, Wc),
     All0 = sort(Folders) ++ sort(Files),
     All = [{F} || F <- All0],
-    {table,[{"Filename"}|All],[{hook,fun choose_file/2}]}.
+    {table,[{"Filename"}|All],[{key,file_list},{hook,fun choose_file/2}]}.
 
 file_list_filter(Files0, Dir, Wc) ->
     {Folders,Files} = file_list_folders(Files0, Dir, [], []),
@@ -224,12 +252,9 @@ choose_file(update, {_Var,_I,{[],_},_Sto}) ->
     void;
 choose_file(update, {Var,_I,{[Sel],Els}=Val,Sto0}) ->
     case lists:nth(Sel+1, Els) of
-	{{{dir,File},_}} ->
-	    Sto1 = gb_trees:update(Var, Val, Sto0),
-	    Dir0 = gb_trees:get(directory, Sto1),
-	    Dir = filename:join(Dir0, File),
-	    Sto = gb_trees:update(filename, "", Sto1),
-	    {done,gb_trees:update(directory, Dir, Sto)};
+	{{{dir,_File},_}} ->
+	    Sto = gb_trees:update(Var, Val, Sto0),
+	    {store,Sto};
 	{{File,_}} ->
 	    Sto1 = gb_trees:update(Var, Val, Sto0),
 	    {store,gb_trees:update(filename, File, Sto1)}
