@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.54 2004/04/25 05:49:18 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.55 2004/04/30 04:50:15 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -63,16 +63,22 @@ command({tools,tweak}, St0) ->
     Active = wings_wm:this(),
     wings_wm:callback(fun() -> wings_util:menu_restriction(Active, [view]) end),
     case wpa:pref_get(?MODULE, sel_mode) of
-	{Mode,Sh,Mag,MagType} -> ok;
+	{Mode,Sh0,Mag,MagType} ->
+	    MagR = 1.0;
+	{Mode,Sh0,Mag,MagType,MagR} ->
+	    ok;
 	_ ->
 	    Mode = vertex,
-	    Sh = true,
+	    Sh0 = true,
 	    Mag = false,
-	    MagType = dome
+	    MagType = dome,
+	    MagR = 1.0
     end,
+    Sh = Sh0 andalso wings_pref:get_value(smart_highlighting),
     St = wings_undo:init(St0#st{selmode=Mode,sel=[],sh=Sh}),
     wings_draw:refresh_dlists(St),
-    T = #tweak{magnet=Mag,mag_type=MagType,tmode=wait,orig_st=St0,st=St},
+    T = #tweak{magnet=Mag,mag_type=MagType,mag_r=MagR,
+	       tmode=wait,orig_st=St0,st=St},
     help(T),
     {seq,push,update_tweak_handler(T)};
 command(_, _) -> next.
@@ -201,9 +207,9 @@ exit_tweak(#tweak{orig_st=St,st=#st{shapes=Shs}}=T) ->
     wings_wm:later({new_state,St#st{shapes=Shs}}),
     pop.
 
-remember_mode(#tweak{magnet=Mag,mag_type=MagType,
+remember_mode(#tweak{magnet=Mag,mag_type=MagType,mag_r=MagR,
 		     st=#st{selmode=Mode,sh=Sh}}) ->
-    wpa:pref_set(?MODULE, sel_mode, {Mode,Sh,Mag,MagType}).
+    wpa:pref_set(?MODULE, sel_mode, {Mode,Sh,Mag,MagType,MagR}).
 
 refresh_dlists(wireframe_selected, _) -> ok;
 refresh_dlists(shade_selected, _) -> ok;
