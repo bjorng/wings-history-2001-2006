@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.24 2003/12/21 19:37:06 bjorng Exp $
+%%     $Id: wpc_test_ask.erl,v 1.25 2003/12/26 21:11:45 bjorng Exp $
 %%
 
 -module(wpc_test_ask).
@@ -53,6 +53,7 @@ menu({tools}, Menu) ->
 				       {"Overlay Dialog",overlay},
 				       {"Dynamic Dialog",dynamic},
 				       separator,
+				       {"Filename Dialog",filename},
 				       {"Open Dialog",open_dialog}]}}];
 	_ -> Menu
     end;
@@ -66,6 +67,8 @@ command({tools,{?MODULE,overlay}}, St) ->
     maybe_dialog(fun overlay_dialog/1, St);
 command({tools,{?MODULE,dynamic}}, St) ->
     maybe_dialog(fun dynamic_dialog/1, St);
+command({tools,{?MODULE,filename}}, St) ->
+    maybe_dialog(fun filename_dialog/1, St);
 command({tools,{?MODULE,open_dialog}}, St) ->
     maybe_dialog(fun open_dialog/1, St);
 command(_, _St) ->
@@ -102,6 +105,22 @@ dialog(_X, Dialog) ->
     Dialog.
 
 
+filename_dialog(_) ->
+    Filename = code:which(?MODULE),
+    {dialog,Qs,Ask} = do_filename_dialog(Filename),
+    wings_ask:dialog("", Qs, Ask).
+
+do_filename_dialog(Filename) ->
+    Ps = [{dialog_type,open},{ext,".beam"},{ext_desc,"Beam File"}],
+    Qs = [{hframe,
+	   [{label,"Filename"},
+	    {button,{text,Filename,[{props,Ps}]}}]}],
+    Ask = fun(Res) ->
+		  io:format("~p\n", [Res]),
+		  ignore
+	  end,
+    {dialog,Qs,Ask}.
+
 open_dialog(_) ->
     F = fun(Res) ->
 		io:format("~p\n", [Res]),
@@ -110,6 +129,7 @@ open_dialog(_) ->
     Dir = wings_pref:get_value(current_directory),
     Ps = [{directory,Dir},{ext,".wings"},{ext_desc,"Wings File"}],
     wings_plugin:call_ui({file,open_dialog,Ps,F}).
+
 
 minimal_dialog(_St) ->
     Fun = fun(Res) -> 
