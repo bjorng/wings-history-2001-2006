@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.3 2004/02/07 13:41:00 bjorng Exp $
+%%     $Id: wings_pb.erl,v 1.4 2004/02/07 18:39:14 bjorng Exp $
 %%
 
 -module(wings_pb).
@@ -139,8 +139,8 @@ loop(#state{refresh=After,activity=Active}=S0) ->
 	    S = calc_position(S1),
 	    loop(draw_position(S));
 	{Pid,?PB,done} ->
-	    print_stats(S0),
 	    S = update("done", 1.0, S0#state{next_pos=1.0,pos=1.0}),
+	    print_stats(S),
 	    draw_position(S),
 	    reply(Pid, ok),
 	    loop(#state{});
@@ -152,29 +152,27 @@ loop(#state{refresh=After,activity=Active}=S0) ->
 	    loop(draw_position(S))
     end.
 
-update(Msg, Percent, #state{next_pos=OldNext,
-			    msg=[_|Msg0],activity=percent}=S0) ->
-    Now = now(),
-    S = update_stats(Now, Percent, S0),
-    S#state{msg=[Msg|Msg0],pos=OldNext,next_pos=Percent}.
+update(Msg, Percent, #state{next_pos=OldNext,msg=[_|Msg0],
+			    stats=Stats0,t0=Time0}=S) ->
+    NowDiff = now_diff(now(), Time0),
+    Stats = [Percent,NowDiff|Stats0],
+    S#state{msg=[Msg|Msg0],pos=OldNext,next_pos=Percent,stats=Stats}.
 
 calc_position(#state{pos=Pos0,next_pos=NextPos}=S) when Pos0 < NextPos ->
     Pos = Pos0 + (NextPos - Pos0) / 3,
     S#state{pos=Pos}.
 
-update_stats(Now, Percent, #state{stats=Stats,t0=Time0}=S) ->
-    NowDiff = now_diff(Now, Time0),
-    S#state{stats=[{Percent,NowDiff}|Stats]}.
-    
-print_stats(#state{t0=Time0,stats=Stats0}) ->
+print_stats(#state{t0=Time0,stats=[_|Stats0]}) ->
     Total = now_diff(now(), Time0),
-    Stats = lists:reverse(Stats0),
+    [_|Stats] = lists:reverse(Stats0),
     io:nl(),
-    lists:foreach(fun({Est,TimeDiff}) ->
-			  io:format("Est: ~p Real: ~p\n",
-				    [Est,TimeDiff/Total])
-		  end, Stats).
-  
+    print_stats_1(Stats, Total).
+
+print_stats_1([Est,TimeDiff|T], Total) ->
+    io:format("Est: ~f Real: ~f\n",
+	      [Est,TimeDiff/Total]),
+    print_stats_1(T, Total);
+print_stats_1([], _) -> ok.
 
 now_diff({A2, B2, C2}, {A1, B1, C1}) ->
     ((A2-A1)*1000000 + B2-B1)*1000000 + C2-C1.

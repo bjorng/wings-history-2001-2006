@@ -3,12 +3,12 @@
 %%
 %%     This module contain the functions for reading and writing .wings files.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.47 2004/01/04 16:58:01 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.48 2004/02/07 18:39:13 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -22,9 +22,15 @@
 
 %% Load a wings file.
 
-import(Name, St0) ->
+import(Name, St) ->
+    wings_pb:start("opening wings file"),
+    wings_pb:update(0.07, "reading file"),
+    wings_pb:done(import_1(Name, St)).
+
+import_1(Name, St0) ->
     case file:read_file(Name) of
 	{ok,<<?WINGS_HEADER,Sz:32,Data/binary>>} when size(Data) =:= Sz ->
+	    wings_pb:update(0.08, "converting binary"),
 	    case catch binary_to_term(Data) of
 		{wings,0,_Shapes} ->
                     {error,"Pre-0.80 Wings format no longer supported."};
@@ -36,7 +42,7 @@ import(Name, St0) ->
 		{wings,_,_} ->
 		    {error,"unknown wings format"};
 		Other ->
-		    io:format("~p\n", [Other]),
+		    io:format("~P\n", [Other,20]),
                     {error,"corrupt Wings file"}
 	    end;
 	{ok,_Bin} ->
@@ -46,6 +52,7 @@ import(Name, St0) ->
     end.
 
 import_vsn2(Shapes, Materials0, Props, St0) ->
+    wings_pb:update(0.10, "images and materials"),
     Images = import_images(Props),
     Materials1 = translate_materials(Materials0),
     Materials = translate_map_images(Materials1, Images),
@@ -53,6 +60,7 @@ import_vsn2(Shapes, Materials0, Props, St0) ->
     NameMap1 = gb_trees:from_orddict(sort(NameMap0)),
     NameMap = optimize_name_map(Materials, NameMap1, []),
     St = import_props(Props, St1),
+    wings_pb:update(1.0, "objects"),
     import_objects(Shapes, NameMap, St).
 
 optimize_name_map([{Name,_}|Ms], NameMap, Acc) ->
@@ -392,11 +400,15 @@ trans({Key,{R,G,B}}, Opac) -> {Key,{R,G,B,Opac}}.
 %%%
 
 export(Name, St0) ->
+    wings_pb:start("saving"),
+    wings_pb:update(0.01, "lights"),
     Lights = wings_light:export(St0),
     #st{shapes=Shs0} = St = remove_lights(St0),
     Sel0 = collect_sel(St),
+    wings_pb:update(0.65, "renumbering"),
     {Shs1,Sel} = renumber(gb_trees:to_list(Shs0), Sel0, 0, [], []),
     Shs = foldl(fun shape/2, [], Shs1),
+    wings_pb:update(0.98, "objects"),
     Materials = wings_material:used_materials(St),
     Props0 = export_props(Sel),
     Props1 = case Lights of
@@ -408,7 +420,10 @@ export(Name, St0) ->
 		Images -> [{images,Images}|Props1]
 	    end,
     Wings = {wings,2,{Shs,Materials,Props}},
-    write_file(Name, term_to_binary(Wings, [compressed])).
+    wings_pb:update(0.99, "compressing"),
+    Bin = term_to_binary(Wings, [compressed]),
+    wings_pb:update(1.0, "writing file"),
+    wings_pb:done(write_file(Name, Bin)).
 
 remove_lights(#st{sel=Sel0,shapes=Shs0}=St) ->
     Shs1 = foldl(fun(We, A) when ?IS_LIGHT(We) -> A;
