@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.117 2003/05/09 06:12:03 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.118 2003/05/18 14:08:45 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -477,10 +477,9 @@ import_image() ->
 	Name ->
 	    case wings_image:from_file(Name) of
 		{error,Error} ->
-		    E = io_lib:format("Failed to load \"~s\": ~s\n",
-				      [Name,file:format_error(Error)]),
-		    wings_util:error(E);
-		Im when is_integer(Im) -> ok
+		    wings_util:error("Failed to load \"~s\": ~s\n",
+                                     [Name,file:format_error(Error)]);
+                Im when is_integer(Im) -> ok
 	    end
     end.
 
