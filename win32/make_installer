@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Windows.
 #
-# $Id: make_installer,v 1.1 2003/09/22 05:43:16 bjorng Exp $
+# $Id: make_installer,v 1.2 2003/09/22 18:53:47 bjorng Exp $
 #
 OS=`uname -o`
 if [ X$OS != XCygwin ]; then
@@ -102,7 +102,7 @@ cd "$DEST_ROOT"
 erl -noshell -pa `cygpath -m /tmp` -run strip strip
 
 # Run NSIS
-cd "$DEST_ROOT";
+cd "$DEST_ROOT"
 "$NSIS" /DWINGS_VERSION=$WINGS_VSN wings.nsi
 
 cd $WINGS_DIR
