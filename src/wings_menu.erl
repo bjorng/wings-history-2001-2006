@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.120 2003/10/30 09:08:35 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.121 2003/11/01 08:37:13 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -36,7 +36,6 @@
 	 menu,					%Original menu term
 	 timer=make_ref(),			%Active submenu timer.
 	 level=?INITIAL_LEVEL,			%Menu level.
-	 st,					%State record.
 	 adv,					%Advanced menus (true|false).
 	 ignore_rel=true,			%Ignore button release if
 						% just openened.
@@ -927,11 +926,25 @@ get_hotkey(Cmd, Mi) ->
 handle_key_event(redraw, _Cmd, Mi) ->
     redraw(Mi),
     keep;
-handle_key_event(Ev, Cmd, Mi0) ->
-    case wings_hotkey:bind_from_event(Ev, Cmd) of
-	error -> keep;
-	Keyname when is_list(Keyname) ->
-	    Mi = set_hotkey(Keyname, Mi0),
-	    wings_io:putback_event(Mi),
-	    pop
-    end.
+handle_key_event(#keyboard{sym=Sym}, _, _) when Sym >= ?SDLK_NUMLOCK ->
+    keep;
+handle_key_event(#keyboard{}=Ev, Cmd, Mi) ->
+    case wings_hotkey:event(Ev, Cmd) of
+	next ->
+	    case wings_hotkey:event(Ev, Cmd) of
+		next -> do_bind(Ev, Cmd, Mi);
+		OtherCmd ->
+		    io:format("~p\n", [OtherCmd])
+	    end;
+	OtherCmd ->
+	    io:format("~p\n", [OtherCmd])
+    end,
+    pop;
+handle_key_event(Ev, _, _) ->
+    io:format("~p\n", [Ev]),
+    keep.
+
+do_bind(Ev, Cmd, Mi0) ->
+    Keyname = wings_hotkey:bind_from_event(Ev, Cmd),
+    Mi = set_hotkey(Keyname, Mi0),
+    wings_wm:later(Mi).

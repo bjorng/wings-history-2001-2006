@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.44 2003/10/30 14:29:00 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.45 2003/11/01 08:37:13 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -29,38 +29,27 @@
 %%% Hotkey lookup and translation.
 %%%
 
-event(Event) ->
-    event_1(Event, none).
+event(Ev) ->
+    event_1(Ev, none).
 
-event(Event, #st{sel=[]}) ->
-    event_1(Event, none);
-event(Event, #st{selmode=Mode}=St) ->
+event(Ev, #st{sel=[]}) ->
+    event_1(Ev, none);
+event(Ev, #st{selmode=Mode}=St) ->
     case wings_light:is_any_light_selected(St) of
-	true -> event_1(Event, light);
-	false -> event_1(Event, Mode)
-    end.
+	true -> event_1(Ev, light);
+	false -> event_1(Ev, Mode)
+    end;
+event(Ev, Cmd) -> event_1(Ev, Cmd).
 
-event_1(#keyboard{sym=Sym,mod=Mod,unicode=C}, SelMode) ->
-    Mods = modifiers(Mod),
-    Key = case Mods of
-	      _ when Sym == ?SDLK_TAB -> {Sym,Mods};
- 	      [] when C =/= 0 -> fix_bksp_and_del(Sym, C);
-	      [shift] when C =/= 0 -> C;
-	      _Other -> {Sym,Mods}
-	  end,
-    case lookup(Key, SelMode) of
-	next -> lookup(Key, none);
+event_1(#keyboard{}=Ev, SelMode) ->
+    case lookup(Ev, SelMode) of
+	next -> lookup(Ev, none);
 	Action -> Action
     end;
 event_1(_, _) -> next.
 
-lookup(Key, none) ->
-    case ets:lookup(?KL, {bindkey,Key}) of
-	[{_,Action,_}] -> Action;
-	[] -> next
-    end;
-lookup(Key, SelMode) ->
-    case ets:lookup(?KL, {bindkey,SelMode,Key}) of
+lookup(Ev, Cmd) ->
+    case ets:lookup(?KL, bindkey(Ev, Cmd)) of
 	[{_,Action,_}] -> Action;
 	[] -> next
     end.
@@ -69,21 +58,13 @@ lookup(Key, SelMode) ->
 %%% Binding and unbinding of keys.
 %%%
 
-bind_from_event(#keyboard{sym=Sym}, _Cmd) when Sym >= ?SDLK_NUMLOCK ->
-    error;
-bind_from_event(#keyboard{sym=?SDLK_TAB,mod=Mod}, Cmd) ->
-    keyname(bind_virtual(?SDLK_TAB, modifiers(Mod), Cmd, user));
-bind_from_event(#keyboard{sym=Sym,mod=Mod,unicode=C}, Cmd) ->
-    Bkey = case modifiers(Mod) of
- 	       [] when C =/= 0 ->
-		   bind_unicode(fix_bksp_and_del(Sym, C), Cmd, user);
-	       [shift] when C =/= 0 ->
-		   bind_unicode(C, Cmd, user);
-	       Mods ->
-		   bind_virtual(Sym, Mods, Cmd, user)
-	   end,
-    keyname(Bkey);
-bind_from_event(_, _) -> error.
+bind_from_event(Ev, Cmd) ->
+    case bindkey(Ev, Cmd) of
+	error -> error;
+	Bkey ->
+	    ets:insert(?KL, {Bkey,Cmd,user}),
+	    keyname(Bkey)
+    end.
 
 delete_by_command(Cmd) ->
     case sort(ets:match_object(?KL, {'_',Cmd,'_'})) of
@@ -106,11 +87,25 @@ bind_virtual(Key, Mods, Cmd, Source) ->
     ets:insert(?KL, {Bkey,Cmd,Source}),
     Bkey.
 
-bkey(Key, {Mode,_}) when Mode == shapes; Mode == vertex; Mode == edge;
-			 Mode == face; Mode == body ->
-    {bindkey,Mode,Key};
-bkey(Key, _Cmd) ->
-    {bindkey,Key}.
+bindkey(#keyboard{sym=?SDLK_TAB=C,mod=Mod}, Cmd) ->
+    bkey({C,sort(Mod)}, Cmd);
+bindkey(#keyboard{sym=Sym,mod=Mod,unicode=C}, Cmd) ->
+    case modifiers(Mod) of
+	[] when C =/= 0 ->
+	    bkey(fix_bksp_and_del(Sym, C), Cmd);
+	[shift] when C =/= 0 ->
+	    bkey(C, Cmd);
+	Mods ->
+	    bkey({Sym,sort(Mods)}, Cmd)
+    end.
+
+bkey(Key, {Mode,_}) ->
+    bkey(Key, Mode);
+bkey(Key, Mode) ->
+    case suitable_mode(Mode) of
+	true -> {bindkey,Mode,Key};
+	false -> {bindkey,Key}
+    end.
     
 matching(Names) ->
     M0 = matching_global(Names) ++ matching_mode(Names),
@@ -140,7 +135,7 @@ mkeyname({user,K}) -> {1,keyname(K)};
 mkeyname({default,K}) -> {2,keyname(K)};
 mkeyname({plugin,K}) -> {3,keyname(K)}.
 
-suitable_mode(shapes) -> true;
+suitable_mode(light) -> true;
 suitable_mode(vertex) -> true;
 suitable_mode(edge) -> true;
 suitable_mode(face) -> true;
