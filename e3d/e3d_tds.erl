@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.28 2003/03/16 09:05:04 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.29 2003/03/16 20:36:36 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -74,7 +74,7 @@ editor(<<16#4000:16/little,Sz0:32/little,T0/binary>>,
     Sz = Sz0 - 6,
     <<Obj0:Sz/binary,T/binary>> = T0,
     {Name,Obj1} = get_cstring(Obj0),
-    dbg("Object block '~s'~n", [Name]),
+    dbg("\nObject block: ~s\n", [Name]),
     case block(Obj1) of
 	no_mesh -> editor(T, Acc);
 	Obj ->
@@ -89,7 +89,6 @@ editor(<<16#0100:16/little,_Sz:32/little,Scale:32/?FLOAT,T/binary>>,
     dbg("Object Scale ~p ~n", [Scale]),
     editor(T, Acc);
 editor(<<16#AFFF:16/little,Sz0:32/little,T0/binary>>, #e3d_file{mat=M}=Acc) ->
-    dbg("Material block ~p ~n", [Sz0]),
     Sz = Sz0 - 6,
     <<Mat0:Sz/binary,T/binary>> = T0,
     Mat = material(Mat0, M),
@@ -156,10 +155,10 @@ trimesh(<<16#4160:16/little,_Sz:32/little,T0/binary>>, Acc) ->
     %%trimesh(T, Acc#e3d_mesh{matrix=Id});
     %% Ignore local coordinate system.
     trimesh(T, Acc);
-trimesh(<<Chunk:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    dbg("Ignoring chunk ~s, size ~p\n", [hex4(Chunk),Sz0]),
+trimesh(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Sz = Sz0 - 6,
-    <<_:Sz/binary,T/binary>> = T0,
+    <<Chunk:Sz/binary,T/binary>> = T0,
+    dbg("Unknown mesh chunk: ~s: ~P\n", [hex4(Tag),Chunk,20]),
     trimesh(T, Acc);
 trimesh(<<>>, Acc) -> Acc.
 
@@ -186,7 +185,7 @@ material(<<16#A000:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     <<Name0:Sz/binary,T/binary>> = T0,
     {Name1,<<>>} = get_cstring(Name0),
     Name = list_to_atom(Name1),
-    dbg("Material: ~p\n", [Name]),
+    dbg("\nMaterial: ~p\n", [Name]),
     material(T, [{Name,[]}|Acc]);
 material(<<16#A010:16/little,Sz:32/little,T/binary>>, Acc) ->
     mat_chunk(ambient, Sz, T, Acc);
@@ -214,6 +213,20 @@ material(<<16#A081:16/little,6:32/little,T/binary>>,
     material(T, [{Name,[{twosided,true}|Props]}|Acc]);
 material(<<16#A084:16/little,Sz:32/little,T/binary>>, Acc) ->
     mat_chunk(emissive, Sz, T, Acc);
+material(<<16#A087:16/little,10:32/little,Wiresize:32/?FLOAT,T/binary>>, Acc) ->
+    dbg("Wire size: ~p\n", [Wiresize]),
+    material(T, Acc);
+material(<<16#A100:16/little,8:32/little,Shading:16/little,T/binary>>, Acc) ->
+     Str = case Shading of
+	       0 -> "Wire";
+	       1 -> "Flat";
+	       2 -> "Gouraud";
+	       3 -> "Phong";
+	       4 -> "Metal";
+	       _ -> "Unknown"
+	   end,
+    dbg("Material shading: ~s\n", [Str]),
+    material(T, Acc);
 material(<<16#A200:16/little,T/binary>>, Acc) ->
     read_map(T, diffuse, Acc);
 material(<<16#A210:16/little,T/binary>>, Acc) ->
@@ -221,9 +234,9 @@ material(<<16#A210:16/little,T/binary>>, Acc) ->
 material(<<16#A230:16/little,T/binary>>, Acc) ->
     read_map(T, bump, Acc);
 material(<<Tag:16/little,Sz0:32/little,T0/binary>>, [{Name,Props}|Acc]) ->
-    dbg("Unknown material tag ~s\n", [hex4(Tag)]),
     Sz = Sz0 - 6,
     <<Chunk:Sz/binary,T/binary>> = T0,
+    dbg("Unknown material tag: ~s: ~P\n", [hex4(Tag),Chunk,20]),
     material(T, [{Name,[{Tag,Chunk}|Props]}|Acc]);
 material(<<>>, Acc) -> Acc.
 
@@ -246,9 +259,9 @@ read_map_chunks(<<16#A351:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     dbg("Params: ~p\n", [Params]),
     read_map_chunks(T, Acc);
 read_map_chunks(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    dbg("Unknown map sub-chunk: ~s\n", [hex4(Tag)]),
     Sz = Sz0 - 6,
-    <<_:Sz/binary,T/binary>> = T0,
+    <<_Chunk:Sz/binary,T/binary>> = T0,
+    dbg("Unknown map sub-chunk: ~s: ~P\n", [hex4(Tag),_Chunk,20]),
     read_map_chunks(T, Acc);
 read_map_chunks(<<>>, Acc) -> Acc.
 
@@ -287,7 +300,7 @@ mat_chunk(Type, Sz0, Bin, [{Name,Props}|Acc]) ->
     Sz = Sz0 - 6,
     <<Chunk:Sz/binary,T/binary>> = Bin,
     Value = general(Chunk),
-    dbg("Material ~p, property ~p = ~p\n", [Name,Type,Value]),
+    dbg("property ~p = ~p\n", [Type,Value]),
     material(T, [{Name,[{Type,Value}|Props]}|Acc]).
 
 general(<<16#0010:16/little,_Sz:32/little, 
@@ -302,8 +315,11 @@ general(<<16#0030:16/little,_Sz:32/little,Percent:16/little>>) ->
     Percent/100.
 
 general_rest(<<>>) -> ok;
-general_rest(Bin) ->
-    io:format("general chunk tail not empty: ~p\n", [Bin]).
+general_rest(<<Tag:16/little,Sz0:32/little,T0/binary>>) ->
+    Sz = Sz0 - 6,
+    <<Chunk:Sz/binary,T/binary>> = T0,
+    dbg("Unknown general tag: ~s: ~P\n", [hex4(Tag),Chunk,20]),
+    general_rest(T).
     
 %%%
 %%% Utilities.
@@ -574,7 +590,8 @@ make_material_1(Base, {Name,Mat}) ->
     Maps = proplists:get_value(maps, Mat),
     MatChunks = make_material_2(OpenGL, []),
     TxChunks = make_texture_materials(Maps, Base, []),
-    make_chunk(16#AFFF, [NameChunk,MatChunks|TxChunks]).
+    MatShading = make_chunk(16#A100, <<3:16/little>>), %Phong shading.
+    make_chunk(16#AFFF, [NameChunk,MatChunks,MatShading|TxChunks]).
 
 make_material_2([{diffuse,{_,_,_,Opac0}=Color}|T], Acc) ->
     Chunk = make_chunk(16#A020, make_rgb(Color)),
@@ -608,11 +625,11 @@ export_map(ChunkId, #e3d_image{name=Name}=Image, Root) ->
     ParamChunk = make_chunk(16#A351, [0,1]),
     make_chunk(ChunkId, [FnameChunk,ParamChunk]).
 
-make_rgb({R0,G0,B0,_}) when float(R0), float(G0), float(B0) ->
-    make_chunk(16#0010, <<R0:32/?FLOAT,G0:32/?FLOAT,
- 			 B0:32/?FLOAT>>);
-make_rgb({R,G,B,_}) when integer(R), integer(G), integer(B) ->
-    make_chunk(16#0011, <<R:8/little,G:8/little,B:8/little>>).
+make_rgb({R0,G0,B0,_}) when is_float(R0), is_float(G0), is_float(B0) ->
+    [make_chunk(16#0011, <<(trunc(255*R0)):8,(trunc(255*G0)):8,
+			  (trunc(255*B0)):8>>),
+     make_chunk(16#0012, <<(trunc(255*R0)):8,(trunc(255*G0)):8,
+			  (trunc(255*B0)):8>>)].
 
 make_percent(0) ->
     make_percent(0.0);
