@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_ogla_drv.c,v 1.2 2004/04/20 17:49:13 bjorng Exp $
+ *     $Id: wings_ogla_drv.c,v 1.3 2004/04/20 18:14:22 bjorng Exp $
  */
 
 #include <stdio.h>
@@ -247,14 +247,4 @@ triangulate(char* buff, int count, char** res)
 
   free(tess_coords);
   return 0;
-}
-
-static void
-send_response(char** res, char* s, int len)
-{
-   ErlDrvBinary* bin;
-
-   bin = driver_alloc_binary(len); 
-   memcpy(bin->orig_bytes, s, len);
-   *res = (char *) bin;
 }

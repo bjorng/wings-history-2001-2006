@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_ogla.erl,v 1.2 2004/04/20 17:49:13 bjorng Exp $
+%%     $Id: wpc_ogla.erl,v 1.3 2004/04/20 18:14:28 bjorng Exp $
 %%
 
 -module(wpc_ogla).
@@ -17,7 +17,6 @@
 
 -define(FL32, :32/native-float).
 
--include("/Users/bjorng/wings/e3d/e3d.hrl").
 -import(lists, [reverse/1]).
 
 init() ->
