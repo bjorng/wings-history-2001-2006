@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.6 2004/02/08 15:29:35 bjorng Exp $
+%%     $Id: wings_pb.erl,v 1.7 2004/02/10 17:26:08 dgud Exp $
 %%
 
 -module(wings_pb).
@@ -16,7 +16,7 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
--export([start/1,update/1,update/2,
+-export([start/1,update/1,update/2,paus/0,
 	 done/0,done/1,done_stat/0,done_stat/1]).
 
 -export([init/0,loop/1]).
@@ -32,6 +32,9 @@ update(Percent) when is_float(Percent) ->
 
 update(Percent, Msg) when is_list(Msg), is_float(Percent) -> 
     cast({update,Msg,Percent}).
+
+paus() ->
+    call(paus).
 
 done() ->
     call(done).
@@ -107,12 +110,15 @@ loop(#state{refresh=After,level=Level}=S0) ->
 	{?PB,{update,Msg,Time}} when Level =:= 1 ->
 	    S1 = update(Msg, Time, S0),
 	    S = calc_position(S1),
-	    loop(draw_position(S));
+	    loop(draw_position(S#state{refresh=?REFRESH_T}));
 	{Pid,?PB,done} when Level =:= 1 ->
 	    S = update("done", 1.0, S0#state{next_pos=1.0,pos=1.0}),
 	    draw_position(S),
 	    reply(Pid, fun() -> print_stats(S) end),
 	    loop(#state{});
+	{Pid,?PB,paus} ->
+	    reply(Pid, ok),
+	    loop(S0#state{refresh=infinity});
 	{?PB,{start,_Msg,_Data,_}} ->
 	    S = S0#state{level=Level+1},
 	    loop(S);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.60 2003/12/30 14:39:39 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.61 2004/02/10 17:26:10 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -172,13 +172,16 @@ do_render(Attr, St) ->
     RenderShadow = proplists:get_value(render_shadow, Attr, false),
     RenderBumps	 = proplists:get_value(render_bumps, Attr, false),
 
+    wings_pb:start("Preparing meshes"),
     {Data,{NOL, Amb,Lights}} = create_dls(St, Attr, RenderShadow, RenderBumps),
-
+    
     Rr = #r{acc_size=AccSize,attr=Attr,
 	    data=Data,mat=St#st.mat,
 	    no_l=NOL,amb=Amb,lights=Lights,
 	    mask = RenderAlpha, shadow=RenderShadow},
+    wings_pb:paus(),
     render_redraw(Rr),
+    wings_pb:done_stat(),
     render_exit(Rr).
 
 translate_aa(draft) -> 1;
@@ -211,25 +214,35 @@ render_exit(#r{lights=Lights, data=D}) ->
 prepare_mesh(#we{perm=P}, _, _, _,Wes, _) when ?IS_NOT_VISIBLE(P) ->
     Wes;
 prepare_mesh(We0=#we{light=none},SubDiv,RenderAlpha,RenderBumps,Wes, St) ->    
+    Shapes = gb_trees:size(St#st.shapes),
+    Done = length(Wes),
+    Step = 0.8/Shapes, 
+    Start = Done * Step,
+    
     We = case SubDiv of
 	     0 ->
 		 %% If no sub-divisions requested, it is safe to
 		 %% first triangulate and then freeze any mirror.
+		 wings_pb:update(0.8*Step+Start, "Triangulating"),
 		 We1 = wpa:triangulate(We0),
 		 wpa:vm_freeze(We1);
 	     _ ->
 		 %% Otherwise, we must do it in this order
 		 %% (slower if there is a virtual mirror).
+		 wings_pb:update(0.9*Step+Start, "Subdividing and triangulating"),
 		 We1 = wpa:vm_freeze(We0),
 		 We2 = sub_divide(SubDiv, We1),
 		 wpa:triangulate(We2)
 	 end,
+    wings_pb:paus(),
     Fast = dlist_mask(RenderAlpha, We),
+    wings_pb:update(Step+Start, "Generate mesh data"),
     FN0	     = [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(We#we.fs)],
     FVN	     = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
     MatFs0   = wings_material:mat_faces(FVN, We), %% sorted by mat..
     MatFs    = patch_tangent_space(MatFs0, We, []),
     PAble = programmable(),
+    wings_pb:paus(),
     Rtype = if
 		RenderBumps and PAble -> 
 		    load_shaders(),
@@ -248,15 +261,18 @@ create_dls(St0, Attr, Shadows, Bumps) ->
     RenderAlpha = proplists:get_bool(render_alpha, Attr),
     Ds = foldl(fun(We, Wes) ->
 		       prepare_mesh(We, SubDiv, RenderAlpha, Bumps, Wes, St)
-	       end, [], gb_trees:values(St#st.shapes)),
+	       end, [], gb_trees:values(St#st.shapes)),    
     Ls = if
 	     Shadows or Bumps -> %% Needs per-light data..
 		 Ls0  = wpa:lights(St),
 		 Mats = St#st.mat,
+		 wings_pb:update(0.90, "Generating per light shadows and bump data"),
+		 wings_pb:paus(),
 		 create_light_data(Ls0, Ds, 0, Mats, Bumps, Shadows, none, []);
 	     true ->
 		 {0,none,[]}
 	 end,
+    wings_pb:update(0.98, "Rendering"),
     ?CHECK_ERROR(),
     {Ds, Ls}.
 
