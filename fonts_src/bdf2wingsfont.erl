@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: bdf2wingsfont.erl,v 1.1 2005/04/04 13:59:25 bjorng Exp $
+%%     $Id: bdf2wingsfont.erl,v 1.2 2005/04/06 18:31:43 bjorng Exp $
 %%
 
 -module(bdf2wingsfont).
@@ -41,7 +41,6 @@ read_font(F) ->
     case read_line(F) of
 	["STARTFONT","2.1"] ->
 	    Ps = read_props(F),
-	    io:format("~p\n", [Ps]),
 	    G = read_font_glyphs(F),
 	    to_unicode(G, Ps);
 	Other ->
@@ -206,11 +205,18 @@ skip_whitespace([C|Cs]) when C =< $\s ->
     skip_whitespace(Cs);
 skip_whitespace(Cs) -> Cs.
 
+%%%
+%%% Writing the font.
+%%%
+
 write_font(G, Out) ->
-    Term = write_font_1(G, 0, [], []),
+    {Gl,Bit} = write_font_1(G, 0, [], []),
+    Key = list_to_atom(filename:rootname(filename:basename(Out))),
+    Desc = atom_to_list(Key),
+    Font = {Key,Desc,6,11,Gl,Bit},
+    Term = {wings_font,?wings_version,Font},
     Bin = term_to_binary(Term, [compressed]),
-    file:write_file(Out, Bin),
-    ok.
+    file:write_file(Out, Bin).
 
 write_font_1([#glyph{code=C,bbx=BBx,dwidth=Dwidth,bitmap=B}|Gs],
 	     Offset, GlAcc, BiAcc) ->
@@ -219,6 +225,4 @@ write_font_1([#glyph{code=C,bbx=BBx,dwidth=Dwidth,bitmap=B}|Gs],
     G = {C,W,H,-Xorig,-Yorig,Xmove,Offset},
     write_font_1(Gs, Offset+size(B), [G|GlAcc], [B|BiAcc]);
 write_font_1([], _, GlAcc, BiAcc) ->
-    Desc = "Small (6x11)",
-    Font = {Desc,6,11,reverse(GlAcc),list_to_binary(reverse(BiAcc))},
-    {wings_font,?wings_version,Font}.
+    {reverse(GlAcc),list_to_binary(reverse(BiAcc))}.

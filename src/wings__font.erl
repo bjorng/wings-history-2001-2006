@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__font.erl,v 1.1 2005/04/04 14:02:42 bjorng Exp $
+%%     $Id: wings__font.erl,v 1.2 2005/04/06 18:32:22 bjorng Exp $
 %%
 
--module(wings__font, [Desc,Width,Height,GlyphTab,Bitmaps]).
+-module(wings__font, [Key,Desc,Width,Height,GlyphTab,Bitmaps]).
 -export([key/0,desc/0,width/0,width_fun/0,height/0,draw/1,char/1,bold/1]).
 
 draw([C|T]) ->
@@ -24,7 +24,7 @@ bold([C|T]) ->
     bold(T);
 bold([]) -> ok.
 
-key() -> 'new_6x11'.
+key() -> Key.
 desc() -> Desc.
 
 width_fun() -> fun cw/1.
