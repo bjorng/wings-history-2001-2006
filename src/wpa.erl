@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.11 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wpa.erl,v 1.12 2002/02/23 18:42:42 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,error/1,message/1,yes_no/1,
@@ -18,6 +18,7 @@
 	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,
 	 drag/3,drag/4,
+	 pick/3,
 	 vertices/1,vertex_pos/2,vertex_flatten/3,vertex_center/2,
 	 faces/1,face_vertices/2,face_outer_vertices/2,face_outer_edges/2,
 	 edge_loop_vertices/2,
@@ -128,6 +129,13 @@ sel_edge_regions(Edges, We) ->
 
 sel_face_regions(Faces, We) ->
     wings_sel:face_regions(Faces, We).
+
+%%%
+%%% Picking.
+%%%
+
+pick(X, Y, St) ->
+    wings_pick:do_pick(X, Y, St).
 
 %%%
 %%% Dragging support
