@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.24 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.25 2002/04/13 07:21:34 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -33,12 +33,13 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Connect",connect,
 	     "Create a new edge to connect selected vertices"},
-	    {"Tighten",tighten},
+	    {"Tighten",tighten,"Move selected vertices towards average "
+	     "midpoint"},
 	    {"Bevel",bevel,"Create faces of selected vertices"},
 	    {"Collapse",collapse,"Delete selected vertices"},
 	    {"Dissolve",dissolve,"Delete selected vertices"},
 	    separator,
-	    {"Deform",wings_deform:sub_menu(St)}|wings_vec:menu(St)],
+	    {"Deform",wings_deform:sub_menu(St)}],
     wings_menu:popup_menu(X, Y, vertex, Menu, St).
 
 %% Vertex menu.
@@ -303,11 +304,13 @@ tighten(Vs, We, Acc) ->
     tighten(gb_sets:to_list(Vs), We, Acc).
 
 tighten_vec(V, #we{vs=Vtab}=We) ->
-    Nbs = wings_vertex:fold(
-	    fun(_, _, Rec, A) ->
-		    [wings_vertex:other(V, Rec)|A]
-	    end, [], V, We),
-    Center = wings_vertex:center(Nbs, Vtab),
+    Cs = wings_vertex:fold(
+	   fun(_, Face, _, A) ->
+		   FaceVs = wings_face:to_vertices([Face], We),
+		   C = wings_vertex:center(FaceVs, We),
+		   [C|A]
+	   end, [], V, We),
+    Center = e3d_vec:average(Cs),
     e3d_vec:sub(Center, wings_vertex:pos(V, Vtab)).
     
 %%%
