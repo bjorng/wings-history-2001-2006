@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.46 2002/05/28 08:31:51 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.47 2002/06/19 09:37:43 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -660,9 +660,12 @@ strip_prefix(L, _Prefix) -> L.
 %%%
 
 loop_cut(#st{onext=NextId}=St0) ->
-    {Sel0,St1} = wings_sel:fold(fun loop_cut/3, {[],St0}, St0),
-    St2 = wings_sel:set(face, Sel0, St1),
-    #st{sel=Sel1} = St = wings_face_cmd:dissolve(St2),
+    St1 = wings_sel:map(fun(_, #we{mirror=none}=We) -> We;
+			   (_, We) ->We#we{mirror=none}
+			end, St0),
+    {Sel0,St2} = wings_sel:fold(fun loop_cut/3, {[],St1}, St1),
+    St3 = wings_sel:set(face, Sel0, St2),
+    #st{sel=Sel1} = St = wings_face_cmd:dissolve(St3),
     Sel = [S || {Id,_}=S <- Sel1, Id >= NextId],
     wings_body:convert_selection(wings_sel:set(body, Sel, St)).
 
@@ -686,11 +689,16 @@ loop_cut_1(Edges, #we{id=Id,es=Etab,name=Name}=We0,
 	true ->
 	    Error = "Edge loop doesn't divide \"" ++ Name ++
 		"\" into two (or more) parts.",
-	    throw({command_error,Error});
+	    wings_util:error(Error);
 	false ->
 	    WeCopy = wings_we:get_sub_object(AnEdge, We0),
 	    St = wings_shape:insert(WeCopy, "cut", St0),
-	    Sel = [{Id,LeftFaces},{NewId,RightFaces}|Sel0],
+	    Sel = case gb_sets:size(LeftFaces) < gb_sets:size(RightFaces) of
+		      true ->
+			  [{Id,LeftFaces},{NewId,RightFaces}|Sel0];
+		      false ->
+			  [{Id,RightFaces},{NewId,LeftFaces}|Sel0]
+		  end,
 	    {Sel,St}
     end.
 
