@@ -2,11 +2,12 @@
 #
 # Script for checking out the Wings source from CVS.
 #
-# $Id: wings_src_rel,v 1.3 2003/09/11 08:46:25 bjorng Exp $
+# $Id: wings_src_rel,v 1.4 2004/04/30 06:28:25 bjorng Exp $
 #
 use strict;
-#my $CVSROOT = ':pserver:anonymous@cvs.wings.sourceforge.net:/cvsroot/wings';
-my $CVSROOT = 'bjorng@cvs.wings.sourceforge.net:/cvsroot/wings';
+#my $CVSROOT = ':pserver:anonymous@cvs.sf.net:/cvsroot/wings';
+my $CVSROOT = 'bjorng@cvs.sf.net:/cvsroot/wings';
+
 my $cmd;
 my $ver;
 
@@ -69,5 +70,6 @@ unlink $tar;
 rename("wings", $name);
 mkdir "$name/ebin";
 mkdir "$name/patches";
-system("tar cf $tar $name");
-system("bzip2 $tar");
+system "tar cf $tar $name";
+unlink "$tar.bz2";
+system "bzip2 $tar";
