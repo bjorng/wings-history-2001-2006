@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.83 2002/12/08 17:41:03 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.84 2002/12/11 13:28:30 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -237,7 +237,8 @@ auto_rotate(St) ->
     auto_rotate_help(),
     Delay = wings_pref:get_value(auto_rotate_delay),
     Tim = #tim{delay=Delay,st=St},
-    {seq,{push,dummy},set_auto_rotate_timer(Tim)}.
+    wings_wm:callback(fun() -> wings_util:menu_restriction(geom, []) end),
+    {seq,push,set_auto_rotate_timer(Tim)}.
     
 auto_rotate_event(Event, #tim{timer=Timer,st=St}=Tim) ->
     case wings_camera:event(Event, St) of
@@ -274,7 +275,9 @@ auto_rotate_event_1(_Event, #tim{timer=Timer}) ->
     wings_io:cancel_timer(Timer),
     pop.
 
-auto_rotate_redraw(#tim{st=St}) ->
+auto_rotate_redraw(#tim{st=Redraw}) when is_function(Redraw) ->
+    Redraw();
+auto_rotate_redraw(#tim{st=#st{}=St}) ->
     wings_draw:render(St).
 
 auto_rotate_help() ->
@@ -307,7 +310,8 @@ smoothed_preview(St) ->
     smooth_help(Sm),
     smooth_dlist(St),
     wings_wm:dirty(),
-    {seq,{push,dummy},get_smooth_event(Sm)}.
+    wings_wm:callback(fun() -> wings_util:menu_restriction(geom, [view]) end),
+    {seq,push,get_smooth_event(Sm)}.
 
 smooth_help(#sm{edges=Edges,cage=Cage}) ->
     Help = ["[L] Normal Mode ",wings_camera:help(),
@@ -335,7 +339,7 @@ smooth_event(Ev, Sm) ->
 smooth_event_1(redraw, Sm) ->
     smooth_help(Sm),
     smooth_redraw(Sm),
-    get_smooth_event(Sm);
+    keep;
 smooth_event_1(#mousemotion{}, _) -> keep;
 smooth_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
 smooth_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, _) ->
@@ -350,28 +354,35 @@ smooth_event_1(#keyboard{keysym=#keysym{unicode=$w}}, #sm{cage=Cage0}=Sm) ->
     Cage = not Cage0,
     wings_pref:set_value(smoothed_preview_cage, Cage),
     get_smooth_event(Sm#sm{cage=Cage});
-smooth_event_1(#keyboard{}=Kb, #sm{st=St}) ->
+smooth_event_1(#keyboard{}=Kb, _) ->
     case wings_hotkey:event(Kb) of
-	{view,workmode} ->
+	next -> keep;
+	Action -> wings_wm:send(geom, {action,Action})
+    end;
+smooth_event_1({action,{view,View}}, #sm{st=St}=Sm) ->
+    case View of
+	workmode ->
 	    smooth_exit();
-	{view,smoothed_preview} ->
+	smoothed_preview ->
 	    smooth_exit();
-	{view,{along,_Axis}=Cmd} ->
+	{along,_Axis}=Cmd ->
 	    command(Cmd, St),
 	    wings_wm:dirty(),
 	    keep;
-	{view,reset} ->
+	reset ->
 	    reset(),
 	    wings_wm:dirty(),
 	    keep;
-	{view,orthogonal_view} ->
+	orthogonal_view ->
 	    toggle_option(orthogonal_view),
 	    wings_wm:dirty(),
 	    keep;
-	{view,toggle_lights} ->
+	toggle_lights ->
 	    toggle_lights(),
 	    wings_wm:dirty(),
 	    keep;
+	auto_rotate ->
+	    auto_rotate(fun() -> smooth_redraw(Sm) end);
 	_ ->
 	    keep
     end;
