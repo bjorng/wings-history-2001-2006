@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.61 2003/05/06 03:42:49 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.62 2003/05/29 18:56:04 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -420,13 +420,15 @@ draw_orig_sel_1(vertex, DlistSel) ->
     gl:disable(?GL_BLEND),
     gl:depthMask(?GL_TRUE);
 draw_orig_sel_1(edge, DlistSel) ->
-    gl:enable(?GL_LINE_STIPPLE),
-    gl:lineStipple(2, 16#AAAA),
-    gl:lineWidth(wings_pref:get_value(selected_edge_width)),
+    gl:lineWidth(wings_pref:get_value(selected_edge_width)*2),
     gl:depthMask(?GL_FALSE),
+    gl:enable(?GL_BLEND),
+    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    {R0,G0,B0} = wings_pref:get_value(selected_color),
+    gl:color4f(R0, G0, B0, 0.5),
     call(DlistSel),
-    gl:depthMask(?GL_TRUE),
-    gl:disable(?GL_LINE_STIPPLE);
+    gl:disable(?GL_BLEND),
+    gl:depthMask(?GL_TRUE);
 draw_orig_sel_1(_, DlistSel) ->
     gl:enable(?GL_POLYGON_STIPPLE),
     gl:depthMask(?GL_FALSE),
