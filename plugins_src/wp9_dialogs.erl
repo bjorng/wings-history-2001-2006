@@ -3,12 +3,12 @@
 %%
 %%     Standard plugin for dialogs.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.5 2001/12/11 07:46:51 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.6 2002/01/23 07:39:52 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -55,6 +55,15 @@ ask([{Prompt,Default,Min,Max}|T]=T0) when is_integer(Default) ->
     case wings_getline:number(Prompt ++ ": ", Default) of
 	aborted -> aborted;
 	N ->
+	    case ask(T) of
+		aborted -> ask(T0);
+		Ns -> [N|Ns]
+	    end
+    end;
+ask([{Prompt,Def}|T]=T0) when is_list(Def) ->
+    case wings_getline:string(Prompt ++ ": ", Def) of
+	aborted -> aborted;
+	N when is_list(N) ->
 	    case ask(T) of
 		aborted -> ask(T0);
 		Ns -> [N|Ns]
