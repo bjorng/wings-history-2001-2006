@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.152 2004/06/17 09:57:59 raimo_niskanen Exp $
+%%     $Id: wings_view.erl,v 1.153 2004/07/01 09:11:13 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -1297,7 +1297,7 @@ help_button(Subject) ->
 help(title, camera_settings_fov) ->
     "Camera Settings: Field of View";
 help(text, camera_settings_fov) ->
-    [<<"Sets the vertical field of view, i.e the "
+    [<<"Sets the vertical field of view, i.e. the "
       "angle from lower to upper border seen from the camera. ">>,
      <<"The Lens controls sets the field of view "
       "according to other perhaps more well-known entities, "
