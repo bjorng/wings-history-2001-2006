@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.107 2002/02/04 15:19:59 bjorng Exp $
+%%     $Id: wings.erl,v 1.108 2002/02/07 21:16:45 bjorng Exp $
 %%
 
 -module(wings).
@@ -800,6 +800,10 @@ dir_help_1([extrude_region|_], [normal|_]) ->
     "Extrude faces as region, then move faces along the region's normal";
 dir_help_1([extrude_region|_], [free|Text]) ->
     "Extrude faces as region, then move faces " ++ Text;
+dir_help_1([extract_region|_], [normal|_]) ->
+    "Extract faces, then move faces along the region's normal";
+dir_help_1([extract_region|_], [free|Text]) ->
+    "Extract faces, then move faces " ++ Text;
 dir_help_1([flatten|_], [normal|Text]) ->
     "Flatten elements to normal plane";
 dir_help_1([lift|_], [normal|_]) ->
@@ -814,6 +818,8 @@ dir_help_1([extrude|_], Text) ->
     "Extrude elements, then move along " ++ Text;
 dir_help_1([extrude_region|_], Text) ->
     "Extrude faces as region, then move along " ++ Text;
+dir_help_1([extract_region|_], Text) ->
+    "Extract faces, then move along " ++ Text;
 dir_help_1([rotate|_], Text) ->
     "Rotate around " ++ Text;
 dir_help_1([scale|_], [around|Text]) ->

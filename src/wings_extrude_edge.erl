@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.21 2002/02/07 11:49:08 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.22 2002/02/07 21:16:45 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -41,7 +41,7 @@ bump(Faces, #we{id=Id}=We0, Acc) ->
 
 bevel(St0) ->
     {St,{Tvs,Sel,Limit}} =
-	wings_sel:mapfold(fun bevel_edges/3, {[],[],1.0E300}, St0),
+	wings_sel:mapfold(fun bevel_edges/3, {[],[],1.0E307}, St0),
     wings_drag:setup(Tvs, [{distance,{0.0,Limit}}],
 		    wings_sel:set(face, Sel, St)).
 
@@ -203,31 +203,47 @@ extrude_edges(Edges, Faces, #we{next_id=Wid,es=Etab}=We0) ->
     Vs0 = digraph:vertices(G),
     Vs1 = sofs:relation(Vs0),
     Vs = sofs:to_external(sofs:domain(Vs1)),
-    We2 = foldl(fun(V, A) ->
-			new_vertices(V, G, Edges, Faces, A)
+    We1 = foldl(fun(V, A) ->
+			new_vertex(V, G, Edges, Faces, Wid, A)
 		end, We0, Vs),
-    We = connect(G, Wid, We2),
+    We = connect(G, Wid, We1),
     digraph:delete(G),
     {We,Vs}.
 
-new_vertices(V, G, Edges, Faces, We0) ->
+new_vertex(V, G, Edges, Faces, Wid, We0) ->
     Center = wings_vertex:pos(V, We0),
     wings_vertex:fold(
-      fun(Edge, Face, _, #we{es=Etab}=W0=A) ->
+      fun(Edge, Face, Rec, #we{es=Etab}=W0) ->
 	      case gb_sets:is_member(Edge, Edges) orelse
 		  gb_sets:is_member(Face, Faces) of
-		  true -> A;
+		  true -> W0;
 		  false ->
-		      {W1,NewV} = wings_edge:cut(Edge, 2, W0),
-		      NewE = NewV,
-		      Rec = get_edge_rec(V, NewV, Edge, NewE, W1),
-		      digraph_edge(G, Rec),
-		      case gb_trees:is_empty(Faces) of
-			  true -> move_vertex(NewV, Center, W1);
-			  false -> W1
-		      end
+		      OtherV = wings_vertex:other(V, Rec),
+		      MeetsNew = OtherV >= Wid,
+		      do_new_vertex(V, MeetsNew, G, Edge, Faces, Center, W0)
 	      end
       end, We0, V, We0).
+
+do_new_vertex(V, MeetsNew, G, Edge, Faces, Center, #we{es=Etab}=We0) ->
+    {We,NewE=NewV} = wings_edge:cut(Edge, 2, We0),
+    Rec = get_edge_rec(V, NewV, Edge, NewE, We),
+    digraph_edge(G, Rec),
+    case {gb_trees:is_empty(Faces),MeetsNew} of
+	{true,_} ->
+	    %% Extrude-edge case.
+	    move_vertex(NewV, Center, We);
+	{false,false} ->
+	    %% Bump case.
+	    We;
+	{false,true} ->
+	    %% Bump case, meeting another new vertex.
+	    OtherV = wings_vertex:other(V, gb_trees:get(Edge, Etab)),
+	    Pos = wings_vertex:pos(OtherV, We),
+	    Vtab0 = We#we.vs,
+	    Vtx = gb_trees:get(NewV, Vtab0),
+	    Vtab = gb_trees:update(NewV, Vtx#vtx{pos=Pos}, Vtab0),
+	    We#we{vs=Vtab}
+    end.
 
 move_vertex(V, Center, #we{vs=Vtab0}=We) ->
     #vtx{pos=Pos0} = Rec = gb_trees:get(V, Vtab0),
