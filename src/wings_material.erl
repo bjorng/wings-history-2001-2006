@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.110 2003/12/03 00:44:33 raimo_niskanen Exp $
+%%     $Id: wings_material.erl,v 1.111 2003/12/03 05:06:01 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -521,17 +521,17 @@ plugin_results(Name, Mat0, Res0) ->
 	    wings_util:error("Plugin(s) left garbage")
     end.
 
-update_maps(Mat, [{{texture_mode,Name},Mode}| More]) ->
-    Maps0 = prop_get(maps, Mat),
-    case lists:keysearch(Name, 2, Maps0) of
-	{value, {Mode,Name}} ->
-	    update_maps(Mat, More);
-	{value, _Old} ->
-	    Maps = keyreplace(Name,2, Maps0, {Mode,Name}),
-	    update_maps(keyreplace(maps, 1, Mat, {maps,Maps}), More)
-    end;
-update_maps(Mat, More) ->
-    {Mat, More}.
+update_maps(Mat0, More0) ->
+    Maps0 = sort(prop_get(maps, Mat0)),
+    {Maps,More} = update_maps_1(More0, Maps0, []),
+    Mat = [{maps,Maps}|keydelete(maps, 1, Mat0)],
+    {Mat,More}.
+
+update_maps_1([false|More], [M|Maps], Acc) ->
+    update_maps_1(More, Maps, [M|Acc]);
+update_maps_1([true|More], [_|Maps], Acc) ->
+    update_maps_1(More, Maps, Acc);
+update_maps_1(More, [], Acc) -> {Acc,More}.
 
 show_maps(Mat) ->
     case prop_get(maps, Mat) of
@@ -546,20 +546,10 @@ show_map({Type,Image}) ->
 	case wings_image:info(Image) of
 	    none ->
 		[{label,flatten(io_lib:format("~p: <image deleted>", [Type]))}];
-	    #e3d_image{name=Name,width=W,height=H,bytes_pp=PP} 
-	    when Type == diffuse; Type == bump ->
-		Label = flatten(io_lib:format("~p [~px~px~p]",
-					      [Name,W,H,PP*8])),
-		[{label, Label}, 
-		 {menu,[{"Diffuse", diffuse}, {"Bump", bump}],Type,
-		  [{key,{texture_mode,Image}},
-		   {hook,fun (update, {Var,_I,Val,Sto}) ->
-				{done,gb_trees:update(Var, Val, Sto)};
-			     (_, _) -> void end}]}];
 	    #e3d_image{name=Name,width=W,height=H,bytes_pp=PP} ->
 		Label = flatten(io_lib:format("~p: ~p [~px~px~p]",
 					      [Type,Name,W,H,PP*8])),
-		[{label, Label}]
+		[{label, Label},{button,"Delete",done}]
 	end,
     {hframe, Texture}.
 
