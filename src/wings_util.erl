@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.46 2002/10/17 12:20:44 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.47 2002/11/09 11:15:13 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -408,7 +408,7 @@ check_error(Mod, Line) ->
 	end,
     case S of
 	no_error -> ok;
-	Other ->
+	_Other ->
 	    io:format("~p, line ~p: ~s\n", [Mod,Line,S]),
 	    erlang:fault(gl_error)
     end.
