@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.39 2002/03/08 13:24:09 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.40 2002/03/09 22:14:32 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -19,7 +19,7 @@
 	 update/1,
 	 swap_buffers/0,
 	 event/1,button/2,
-	 info/1,message/1,clear_message/0,
+	 info/1,message/1,message_right/1,clear_message/0,
 	 progress/1,progress_tick/0,
 	 clear_menu_sel/0,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
@@ -48,6 +48,7 @@
 	 menubar,				%Menu bar at top.
 	 sel,					%Selected item in menubar.
 	 message,				%Message to show (or undefined).
+	 right,					%Message to the right.
 	 info="",				%Information message.
 	 eq,					%Event queue.
 	 icons=[],				%Position for Icons.
@@ -95,12 +96,12 @@ read_icons() ->
 resize(W, H) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     #io{raw_icons=RawIcons} = Io = get_state(),
-    Icons = place_icons(W, H),
+    Icons = place_icons(W),
     Tex = load_textures(RawIcons),
     put_state(Io#io{w=W,h=H,tex=Tex,icons=Icons}),
     wings_pref:set_value(window_size, {W,H}).
 
-place_icons(W, H) ->
+place_icons(W) ->
     Mid = W div 2,
     Lmarg = 5,
     Rmarg = 20,
@@ -116,7 +117,7 @@ menubar(Menubar) ->
     put_state(Io#io{menubar=Menubar}).
 
 progress(Message) ->
-    display(fun(W, H) ->
+    display(fun(_W, _H) ->
 		    draw_message(fun() -> text_at(0, Message) end)
 	    end),
     Io = get_state(),
@@ -146,9 +147,13 @@ message(Message) ->
     Io = get_state(),
     put_state(Io#io{message=Message}).
 
+message_right(Right) ->
+    Io = get_state(),
+    put_state(Io#io{right=Right}).
+
 clear_message() ->
     Io = get_state(),
-    put_state(Io#io{message=undefined}).
+    put_state(Io#io{message=undefined,right=undefined}).
 
 clear_menu_sel() ->
     put_state((get_state())#io{sel=undefined,message=undefined}).
@@ -179,7 +184,7 @@ swap_buffers() ->
     arrow().
     
 draw_message(F) ->
-    #io{w=W,h=H} = get_state(),
+    #io{h=H} = get_state(),
     gl:pushMatrix(),
     gl:loadIdentity(),
     gl:translatef(10.0, H-12.0, 0.0),
@@ -208,14 +213,23 @@ display(F, Buf) ->
     cleanup_after_drawing(),
     ok.
 
-update(#io{message=Msg,info=Info}=Io0, St) ->
+update(#io{message=Msg,right=Right,info=Info,w=W}=Io0, St) ->
     draw_icons(Io0, St),
     draw_panes(Io0),
     Text = case Msg of
 	       undefined -> maybe_show_mem_used(Info);
-	       Other -> Msg
+	       _Other -> Msg
 	   end,
-    draw_message(fun() -> text_at(0, Text) end),
+    draw_message(
+      fun() ->
+	      text_at(0, Text),
+	      if
+		  Right == undefined -> ok;
+		  length(Msg)+length(Right) < W div ?CHAR_WIDTH-3 ->
+		      text_at(W-?CHAR_WIDTH*(length(Right)+3), Right);
+		  true -> ok
+	      end
+      end),
     Io0.
 
 maybe_show_mem_used(Info) ->
@@ -234,7 +248,7 @@ maybe_show_mem_used(Info) ->
 	false -> Info
     end.
 
-draw_panes(#io{w=W,h=H,menubar=Bar,sel=Sel}=Io) ->
+draw_panes(#io{w=W,h=H,menubar=Bar,sel=Sel}) ->
     raised_rect(-2, 0, W+2, ?LINE_HEIGHT+6),
     sunken_rect(6, H-2*?LINE_HEIGHT+5, W-10, 2*?LINE_HEIGHT-8),
     draw_bar(0, Bar, Sel).
@@ -251,7 +265,7 @@ draw_bar(X, [{Name,Item}|T], Sel) ->
     end,
     text_at(?MENU_MARGIN+X, ?LINE_HEIGHT-1, Name),
     draw_bar(X+W, T, Sel);
-draw_bar(X, [], Sel) -> ok.
+draw_bar(_X, [], _Sel) -> ok.
 
 draw_icons(#io{w=W,h=H,icons=Icons0,selmodes=Modes}, St) ->
     raised_rect(-2, H-4*?LINE_HEIGHT-3, W+2, 4*?LINE_HEIGHT+3),
@@ -268,20 +282,20 @@ draw_icons(#io{w=W,h=H,icons=Icons0,selmodes=Modes}, St) ->
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:disable(?GL_TEXTURE_2D).
 
-icon_button(groundplane=Name, St) ->
+icon_button(groundplane=Name, _St) ->
     icon_button(Name, show_groundplane, true);
-icon_button(axes=Name, St) ->
+icon_button(axes=Name, _St) ->
     icon_button(Name, show_axes, true);
-icon_button(wire=Name, St) ->
+icon_button(wire=Name, _St) ->
     icon_button(Name, wire_mode, true);
-icon_button(flatshade=Name, St) ->
+icon_button(flatshade=Name, _St) ->
     icon_button(Name, smooth_preview, false);
-icon_button(smooth=Name, St) ->
+icon_button(smooth=Name, _St) ->
     icon_button(Name, smooth_preview, true);
-icon_button(perspective=Name, St) ->
+icon_button(perspective=Name, _St) ->
     icon_button(Name, orthogonal_view, true);
 icon_button(Name, #st{selmode=Name}) -> {Name,down};
-icon_button(Name, St) -> {Name,up}.
+icon_button(Name, _St) -> {Name,up}.
 
 icon_button(Name, Key, Val) ->
     case wings_pref:get_value(Key) of
@@ -289,7 +303,7 @@ icon_button(Name, Key, Val) ->
 	_ -> {Name,up}
     end.
 
-event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}=Mb) ->
+event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}) ->
     case button(X, Y) of
 	none -> next;
 	ignore -> keep;
@@ -297,7 +311,7 @@ event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}=Mb) ->
 	    putback_event({action,Other}),
 	    keep
     end;
-event(Other) -> next.
+event(_) -> next.
 
 button(X, Y) when Y > ?LINE_HEIGHT; X < ?MENU_MARGIN ->
     #io{h=H,icons=Icons} = get_state(),
@@ -306,9 +320,9 @@ button(X, Y) when Y > ?LINE_HEIGHT; X < ?MENU_MARGIN ->
 	Low when Low =< Y, Y < Low + 32 ->
 	    icon_row_hit(X, Icons),
 	    ignore;
-	Other -> none
+	_Other -> none
     end;
-button(X0, Y) ->
+button(X0, _Y) ->
     X = X0 - ?MENU_MARGIN,
     #io{menubar=Bar} = get_state(),
     button_1(X, 0, Bar).
@@ -322,11 +336,11 @@ button_1(RelX, X, [{Name,Item}|T]) ->
 	    Iw = W+?MENU_ITEM_SPACING*?CHAR_WIDTH,
 	    button_1(RelX-Iw, X+Iw, T)
     end;
-button_1(XRel, X, []) ->
+button_1(_, _, []) ->
     put_state((get_state())#io{sel=undefined}),
     none.
 
-icon_row_hit(X, [{Pos,Name}|Is]) when Pos =< X, X < Pos+?ICON_WIDTH ->
+icon_row_hit(X, [{Pos,Name}|_]) when Pos =< X, X < Pos+?ICON_WIDTH ->
     Action = case Name of
 		 groundplane -> {view,show_groundplane};
 		 axes -> {view,show_axes};
@@ -340,7 +354,7 @@ icon_row_hit(X, [{Pos,Name}|Is]) when Pos =< X, X < Pos+?ICON_WIDTH ->
     none;
 icon_row_hit(X, [_|Is]) ->
     icon_row_hit(X, Is);
-icon_row_hit(X, []) -> none.
+icon_row_hit(_X, []) -> none.
     
 raised_rect(X, Y, Mw, Mh) ->
     raised_rect(X, Y, Mw, Mh, ?PANE_COLOR).
@@ -401,7 +415,7 @@ menu_text([$&,C|T], Y) ->
 menu_text([C|T], Y) ->
     wings_text:char(C),
     menu_text(T, Y);
-menu_text([], Y) -> ok.
+menu_text([], _Y) -> ok.
 
 axis_text(X, Y, C, Color) ->
     #io{w=W,h=H} = get_state(),
@@ -423,13 +437,13 @@ axis_text(X, Y, C, Color) ->
     gl:matrixMode(?GL_MODELVIEW).
 
 min(A, B) when A < B -> A;
-min(A, B) -> B.
+min(_, B) -> B.
 
 max(A, B) when A > B -> A;
-max(A, B) -> B.
+max(_, B) -> B.
 
 setup_for_drawing() ->
-    #io{w=W,h=H} = Io = get_state(),
+    #io{w=W,h=H} = get_state(),
     gl:drawBuffer(?GL_FRONT),
     setup_for_drawing(W, H).
 
@@ -452,7 +466,7 @@ cleanup_after_drawing() ->
     gl:drawBuffer(?GL_BACK).
 
 ortho_setup() ->
-    #io{w=W,h=H} = Io = get_state(),
+    #io{w=W,h=H} = get_state(),
     ?CHECK_ERROR(),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     gl:shadeModel(?GL_FLAT),
@@ -514,13 +528,13 @@ create_textures([{Name,{W,H,Icon}}|T], Id) ->
     gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
 		  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Icon),
     [{Name,Id}|create_textures(T, Id+1)];
-create_textures([], Id) -> [].
+create_textures([], _Id) -> [].
 
 create_buttons(Icons0) ->
     flatmap(fun({Name,{64,64,Icon}}) ->
 		    [{{Name,down},create_button(fun active/5, Icon)},
 		     {{Name,up},create_button(fun inactive/5, Icon)}];
-	       ({Name,Icon}=T) -> [T]
+	       ({_Name,_Icon}=T) -> [T]
 	    end, Icons0).
 
 create_button(Tr, Icon) ->
@@ -528,7 +542,7 @@ create_button(Tr, Icon) ->
 
 create_button(Tr, T, 64, Y, Acc) ->
     create_button(Tr, T, 0, Y+1, Acc);
-create_button(Tr, <<>>, X, Y, Acc) ->
+create_button(_Tr, <<>>, _X, _Y, Acc) ->
     {64,64,list_to_binary(reverse(Acc))};
 create_button(Tr, <<R:8,G:8,B:8,T/binary>>, X, Y, Acc) ->
     create_button(Tr, T, X+1, Y, [Tr(X, Y, R, G, B)|Acc]).
@@ -539,7 +553,7 @@ active(X, Y, R, G, B) ->
 	true -> [R,G,B]
     end.
 
-inactive(X, Y, R, G, B) -> [R,G,B].
+inactive(_X, _Y, R, G, B) -> [R,G,B].
 
 %%%
 %%% Input.
@@ -569,7 +583,7 @@ get_sdl_event(#io{eq=Eq0}=Io) ->
 read_events(Eq0) ->
     case sdl_events:peepEvents(16, ?SDL_GETEVENT, ?SDL_ALLEVENTS) of
 	{0,[]} -> read_out(Eq0);
-	{N,Evs} -> read_events(enter_events(Evs, Eq0))
+	{_,Evs} -> read_events(enter_events(Evs, Eq0))
     end.
 
 enter_events(Evs, Eq0) ->
@@ -598,7 +612,7 @@ read_out(Motion, Eq0) ->
 	    read_out(Event, Eq);
 	{{value,no_event},Eq} ->
 	    {redraw,Eq};
-	Other -> {Motion,Eq0}
+	_Other -> {Motion,Eq0}
     end.
 
 %%%
@@ -641,7 +655,7 @@ do_grab(0) ->
 	    sdl_events:peepEvents(1, ?SDL_GETEVENT, ?SDL_ALLEVENTS),
 	    sdl_video:wm_grabInput(?SDL_GRAB_ON)
     end;
-do_grab(N) -> ok.
+do_grab(_N) -> ok.
 
 ungrab() ->
     %%io:format("UNGRAB mouse~n", []),
@@ -731,7 +745,7 @@ build_cursor([$\s|T], Mask, Bits) ->
     build_cursor(T, Mask bsl 1, Bits bsl 1);
 build_cursor([$.|T], Mask, Bits) ->
     build_cursor(T, (Mask bsl 1) bor 1, Bits bsl 1);
-build_cursor([C|T], Mask, Bits) ->
+build_cursor([_|T], Mask, Bits) ->
     build_cursor(T, (Mask bsl 1) bor 1, (Bits bsl 1) bor 1);
 build_cursor([], Mask0, Bits0) ->
     Bits = <<Bits0:1024>>,

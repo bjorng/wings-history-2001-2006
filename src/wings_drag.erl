@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.60 2002/03/09 19:23:05 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.61 2002/03/09 22:14:32 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -173,6 +173,8 @@ insert_vtx_data_1([], _Vtab, Acc) -> Acc.
 %%%
 
 do_drag(Drag) ->
+    Help = "[Tab] Numeric entry  [Shift],[Ctrl] Constrain",
+    wings_io:message_right(Help),
     {seq,{push,dummy},get_drag_event_1(Drag)}.
 
 get_drag_event(Drag) ->
