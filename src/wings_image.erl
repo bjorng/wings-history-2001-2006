@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.44 2004/12/16 20:05:11 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.45 2004/12/18 10:24:06 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -19,6 +19,7 @@
 	 next_id/0,delete_older/1,delete_from/1,delete/1,
 	 update/2,update_filename/2,draw_preview/5,
 	 window/1]).
+-export([image_formats/0,image_read/1,image_write/1]).
 
 -export([loop/1]).
 -define(NEED_OPENGL, 1).
@@ -35,12 +36,29 @@ init_opengl() ->
     req(init_opengl).
 
 %%%
+%%% Interface against plug-ins.
+%%%
+image_formats() ->
+    wings_plugin:call_ui({image,formats,[]}).
+
+image_read(Ps) ->
+    wings_plugin:call_ui({image,read,Ps}).
+
+image_write(Ps) ->
+    case catch wings_plugin:call_ui({image,write,Ps}) of
+	{'EXIT',Reason} ->
+	    {error,{none,?MODULE,{crash,Reason}}};
+	Result -> Result
+    end.
+
+
+%%%
 %%% Client API.
 %%%
 
 from_file(Filename) ->
     Props = [{filename,Filename},{alignment,1}],
-    case wpa:image_read(Props) of
+    case image_read(Props) of
 	#e3d_image{}=Image ->
 	    Name = filename:rootname(filename:basename(Filename)),
 	    req({new,Image#e3d_image{filename=Filename,name=Name},false});

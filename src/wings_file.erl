@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.154 2004/12/14 06:48:14 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.155 2004/12/18 10:24:06 bjorng Exp $
 %%
 
 -module(wings_file).
 -export([init/0,init_autosave/0,menu/1,command/2]).
+-export([import_filename/2,export_filename/2,export_filename/3]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -23,6 +24,61 @@
 -import(filename, [dirname/1]).
 
 -define(WINGS, ".wings").
+
+%% export_filename([Prop], St, Continuation).
+%%   The St will only be used to setup the default filename.
+%%   The Continuation fun will be called like this: Continuation(Filename).
+export_filename(Prop, #st{file=undefined}, Cont) ->
+    export_filename(Prop, Cont);
+export_filename(Prop0, #st{file=File}, Cont) ->
+    Prop = case proplists:get_value(ext, Prop0) of
+	       undefined -> Prop0;
+	       Ext ->
+		   Def = filename:rootname(filename:basename(File), ".wings") ++ Ext,
+		   [{default_filename,Def}|Prop0]
+	   end,
+    export_filename(Prop, Cont).
+
+%% import_filename([Prop], Continuation).
+%%   The Continuation fun will be called like this: Continuation(Filename).
+import_filename(Ps0, Cont) ->
+    This = wings_wm:this(),
+    Dir = wings_pref:get_value(current_directory),
+    Ps = Ps0 ++ [{title,?__(2,"Import")},{directory,Dir}],
+    Fun = fun(Name) ->
+		  case catch Cont(Name) of
+		      {command_error,Error} ->
+			  wings_util:message(Error);
+		      #st{}=St ->
+			  wings_wm:send(This, {new_state,St});
+		      Tuple when is_tuple(Tuple) ->
+			  wings_wm:send(This, {action,Tuple});
+		      ignore -> keep;
+		      keep -> keep
+		  end
+	  end,
+    wings_plugin:call_ui({file,open_dialog,Ps,Fun}).
+
+%% export_filename([Prop], Continuation).
+%%   The Continuation fun will be called like this: Continuation(Filename).
+export_filename(Prop0, Cont) ->
+    This = wings_wm:this(),
+    Dir = wings_pref:get_value(current_directory),
+    Prop = Prop0 ++ [{directory,Dir}],
+    Fun = fun(Name) ->
+		  case catch Cont(Name) of
+		      {command_error,Error} ->
+			  wings_util:message(Error);
+		      #st{}=St ->
+			  wings_wm:send(This, {new_state,St});
+		      Tuple when is_tuple(Tuple) ->
+			  wings_wm:send(This, {action,Tuple});
+		      ignore -> keep;
+		      keep -> keep;
+		      ok -> keep
+		  end
+	  end,
+	wings_plugin:call_ui({file,save_dialog,Prop++[{title,?__(1,"Export")}],Fun}).
 
 init() ->
     case wings_pref:get_value(current_directory) of
@@ -194,7 +250,7 @@ confirmed_open_dialog() ->
     Dir = wings_pref:get_value(current_directory),
     Ps = [{directory,Dir},
 	  {title,?__(1,"Open")}|wings_prop()],
-    wpa:import_filename(Ps, Cont).
+    import_filename(Ps, Cont).
 
 confirmed_open(Name, St0) ->
     Fun = fun(File) ->
@@ -232,7 +288,7 @@ merge() ->
     Cont = fun(Filename) -> {file,{merge,Filename}} end,
     Dir = wings_pref:get_value(current_directory),
     Ps = [{title,?__(1,"Merge")},{directory,Dir}|wings_prop()],
-    wpa:import_filename(Ps, Cont).
+    import_filename(Ps, Cont).
 
 merge(Name, St0) ->
     Fun = fun(File) ->
@@ -264,7 +320,7 @@ save_as(Next, St) ->
 		   {file,{save_as,{Name,Next}}}
 	   end,
     Ps = [{title,?__(1,"Save")}|wings_prop()],
-    wpa:export_filename(Ps, St, Cont).
+    export_filename(Ps, St, Cont).
 
 save_now(Next, #st{file=Name}=St) ->
     Backup = backup_filename(Name),
@@ -288,7 +344,7 @@ save_selected(#st{sel=[]}) ->
 save_selected(St) ->
     Ps = [{title,?__(2,"Save Selected")}|wings_prop()],
     Cont = fun(Name) -> {file,{save_selected,Name}} end,
-    wpa:export_filename(Ps, St, Cont).
+    export_filename(Ps, St, Cont).
 
 save_selected(Name, #st{shapes=Shs0,sel=Sel}=St0) ->
     Shs = [Sh || {Id,_}=Sh <- gb_trees:to_list(Shs0),
@@ -493,7 +549,7 @@ revert(#st{file=File}=St0) ->
 import_ndo() ->
     Ps = [{ext,".ndo"},{ext_desc,"Nendo File"}],
     Cont = fun(Name) -> {file,{import,{ndo,Name}}} end,
-    wpa:import_filename(Ps, Cont).
+    import_filename(Ps, Cont).
 
 import_ndo(Name, St0) ->
     case ?SLOW(wings_ff_ndo:import(Name, St0)) of
@@ -505,9 +561,9 @@ import_ndo(Name, St0) ->
     end.
 
 import_image() ->
-    Ps = [{extensions,wpa:image_formats()}],
+    Ps = [{extensions,wings_image:image_formats()}],
     Cont = fun(Name) -> {file,{import_image,Name}} end,
-    wpa:import_filename(Ps, Cont).
+    import_filename(Ps, Cont).
 
 import_image(Name) ->
     case wings_image:from_file(Name) of
@@ -525,7 +581,7 @@ import_image(Name) ->
 export_ndo(Cmd, Title, St) ->
     Ps = [{title,Title},{ext,".ndo"},{ext_desc,"Nendo File"}],
     Cont = fun(Name) -> {file,{Cmd,{ndo,Name}}} end,
-    wpa:export_filename(Ps, St, Cont).
+    export_filename(Ps, St, Cont).
 
 do_export_ndo(Name, St) ->
     case wings_ff_ndo:export(Name, St) of
@@ -545,7 +601,7 @@ install_plugin() ->
 	       {".tgz",?__(4,"Compressed Tar File")},
 	       {".beam",?__(5,"Beam File")}]}],
     Cont = fun(Name) -> {file,{install_plugin,Name}} end,
-    wpa:import_filename(Props, Cont).
+    import_filename(Props, Cont).
 
 %%%    
 %%% Utilities.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.55 2004/12/16 20:05:12 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.56 2004/12/18 10:24:06 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -347,7 +347,7 @@ make_external(Id) ->
     Save = fun(Name) ->
 		   Image = wings_image:info(Id),
 		   Ps = [{image,Image},{filename,Name}],
-		   case wpa:image_write(Ps) of
+		   case wings_image:image_write(Ps) of
 		       ok ->
 			   wings_image:update_filename(Id, Name),
 			   keep;
@@ -357,15 +357,15 @@ make_external(Id) ->
 		   end
 	   end,
     #e3d_image{name=ImageName} = wings_image:info(Id),
-    Ps = [{extensions,wpa:image_formats()},
+    Ps = [{extensions,wings_image:image_formats()},
 	  {title,?__(1,"Make External")},
 	  {default_filename,ImageName}],
-    wpa:export_filename(Ps, Save).
+    wings_file:export_filename(Ps, Save).
 
 refresh_image(Id) ->
     #e3d_image{filename=Filename} = wings_image:info(Id),
     Props = [{filename,Filename},{alignment,1}],
-    case wpa:image_read(Props) of
+    case wings_image:image_read(Props) of
 	#e3d_image{}=Image ->
 	    wings_image:update(Id, Image),
 	    keep;
@@ -383,7 +383,7 @@ export_image(Id) ->
     Save = fun(Name) ->
 		   Image = wings_image:info(Id),
 		   Ps = [{image,Image},{filename,Name}],
-		   case wpa:image_write(Ps) of
+		   case wings_image:image_write(Ps) of
 		       ok -> keep;
 		       {_,Error0} ->
 			   Error = Name ++ ": " ++ file:format_error(Error0),
@@ -391,8 +391,9 @@ export_image(Id) ->
 		   end
 	   end,
     #e3d_image{name=ImageName} = wings_image:info(Id),
-    Ps = [{extensions,wpa:image_formats()},{default_filename,ImageName}],
-    wpa:export_filename(Ps, Save).
+    Ps = [{extensions,wings_image:image_formats()},
+	  {default_filename,ImageName}],
+    wings_file:export_filename(Ps, Save).
 
 %%%
 %%% Drag and drop.

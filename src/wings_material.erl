@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.122 2004/12/17 12:29:39 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.123 2004/12/18 10:24:06 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -317,7 +317,7 @@ load_map(MapName, Dir) ->
 load_map_1(File0, Dir) ->
     File = filename:absname(File0, Dir),
     Ps = [{filename,File},{order,lower_left},{alignment,1}],
-    case wpa:image_read(Ps) of
+    case wings_image:image_read(Ps) of
 	#e3d_image{}=Im ->
 	    Name = filename:rootname(filename:basename(File)),
 	    wings_image:new(Name, Im#e3d_image{filename=File});

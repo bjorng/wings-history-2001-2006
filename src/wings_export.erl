@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.7 2004/12/04 09:42:22 bjorng Exp $
+%%     $Id: wings_export.erl,v 1.8 2004/12/18 10:24:06 bjorng Exp $
 %%
 
 -module(wings_export).
@@ -193,7 +193,7 @@ save_images_3([{Type,#e3d_image{filename=none,name=Name}=Im0}|T],
     Filename = filename:absname(Name ++ Filetype, Dir),
     Im = Im0#e3d_image{filename=Filename},
     Ps = [{filename,Filename},{image,Im}],
-    wpa:image_write(Ps),
+    wings_image:image_write(Ps),
     save_images_3(T, Dir, Filetype, [{Type,Im}|Acc]);
 save_images_3([H|T], Dir, Filetype, Acc) ->
     save_images_3(T, Dir, Filetype, [H|Acc]);

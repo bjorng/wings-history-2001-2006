@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.24 2004/12/16 20:05:06 bjorng Exp $
+%%     $Id: user_default.erl,v 1.25 2004/12/18 10:24:06 bjorng Exp $
 %% 
 
 -module(user_default).
@@ -76,13 +76,12 @@ wxe() ->
     length(Ms).
 
 wxu(Mod) when is_atom(Mod) ->
-    result(xref:q(s, make_query("domain(E || ~p) - ~p", [Mod,Mod])));
+    wxq(make_query("domain(strict(ME || ~p))", [Mod]));
 wxu({M,_,_}=MFA) ->
-    result(xref:q(s, make_query("domain(E || ~p) - ~p", [MFA,M]))).
+    wxq(make_query("domain(E || ~p) - ~p", [MFA,M])).
 
 wxu(M, F, A) ->
-    MFA = {M,F,A},
-    wxq(make_query("domain(E || ~p) - ~p", [MFA,M])).
+    wxu({M,F,A}).
 
 wxc(Mod) when is_atom(Mod) ->
     wxq(make_query("range(strict(ME|~p))*Wings", [Mod])).
