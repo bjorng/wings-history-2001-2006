@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.65 2004/02/26 21:06:25 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.66 2004/02/29 17:56:36 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -70,7 +70,7 @@ getting_started() ->
 
 	    "To use mice with only one or two buttons, "
 	    "you must inform Wings how many buttons your mouse has "
-	    "in the Edit|Preferences dialog box.",
+	    "in the "++cmd(["Edit","Preferences"])++" dialog.",
 
 	    "Generally, L (left mouse button) is used for selecting and "
 	    "accepting, M (middle mouse button) for operating the camera, "
@@ -82,20 +82,24 @@ getting_started() ->
 one_or_two() ->
     Help = ["To use mice with only one or two buttons, "
 	    "you must inform Wings how many buttons your mouse has "
-	    "in the Edit|Preferences dialog box.",
+	    "in the "++cmd(["Edit","Preferences"])++" dialog.",
 
-	    "Note that only the Nendo and Blender modes can be "
-	    "used with a two-button mouse. Only the Nendo mode can "
-	    "be used with an one-button mouse."],
+	    "Note that only the "++[{ul,"Nendo"}]++" and "++
+	    [{ul,"Blender"}]++" modes can be "
+	    "used with a two-button mouse. "
+	    "Only the "++[{ul,"Nendo"}]++" mode can be used with "
+	    "an one-button mouse."
+	   ],
     help_window("Using a mouse with One or Two buttons", Help).
 
 advanced_menus() ->
-    Help = ["In the Edit|Preferences dialog box, there is a check box "
+    Help = ["In the "++cmd(["Edit","Preferences"])++" dialog, there is a check box "
 	    "for \"Advanced Menus\".",
 
 	    "Activating advanced menus provide the following additional features:",
 
-	    "New commands: Face|Put On and Face|Lift",
+	    "New commands: "++cmd(["Face","Put On"])++" and "++
+	    cmd(["Face","Lift"]),
 
 	    "Vector based operations: The means to specify an axis (or vector) "
 	    "and to be able to re-locate it so it passes though a new point.",
@@ -136,7 +140,7 @@ international() ->
     help_window("French And German Keyboards", Help).
 
 def_commands() ->
-    Help = ["In the Edit|Preferences dialog box, you can turn on "
+    Help = ["In the "++cmd(["Edit","Preferences"])++" dialog, you can turn on "
 	    "\"Default Commands\".",
 
 	    "Two default commands can be defined. To save the "
@@ -147,7 +151,8 @@ def_commands() ->
 	    "use one of:",
 	    "  [Ctrl]+L:",
 	    "  [Ctrl]+M:",
-	    "Note: When using the 3ds max or Blender camera modes, the second "
+	    "Note: When using the "++[{ul,"3ds max"}]++" or "++
+	    [{ul,"Blender"}]++" camera modes, the second "
 	    "default command cannot be used."],
     help_window("Assigning Default Commands", Help).
 
@@ -172,7 +177,7 @@ lights() ->
 	    "2. Select a light by L-clicking on it. When any light is "
 	    "selected, a special Light menu will pop up when you R-click.",
 	    "3. To tell Wings to actually use the lights you have created, "
-	    "use the View|Scene Lights command."],
+	    "use the "++cmd(["View","Scene Lights"])++" command."],
     help_window("Light Basics", Help).
 
 opengl_info() ->
@@ -348,6 +353,11 @@ update_scroller(#ts{first=First,th=Th}) ->
     Name = wings_wm:this(),
     wings_wm:set_knob(Name, First*?LINE_HEIGHT/Th, H/Th).
 
+cmd([M|[_|_]=Ms]) ->
+    [{bold,M},$| | cmd(Ms)];
+cmd([M]) -> [{bold,M}].
+
+
 %%%
 %%% Help|About (splash screen).
 %%%
@@ -382,16 +392,6 @@ handle_splash_event(redraw) ->
     gl:color3f(1, 1, 1),
     gl:recti(4, 4, Xs-4, Ys-4),
     draw_splash(splash_contents()),
-%     gl:color3f(1, 0, 1),
-%     wings_io:draw_icons(fun() -> wings_io:draw_icon(40, 10, wings) end),
-%     gl:color3b(0, 0, 0),
-
-%     wings_io:text_at(85, 155, "Wings 3D " ++ ?WINGS_VERSION),
-    
-%     wings_io:text_at(10, 180, "Copyright " ++ [169] ++ " 2001-2004 "
-% 		     "Bj" ++ [246] ++ "rn Gustavsson & others"),
-%     wings_io:text_at(10, 210, "JPEG library: Copyright " ++ [169] ++
-% 		     " 1991-1998 Thomas G. Lane."),
     keep;
 handle_splash_event(#mousemotion{}) -> keep;
 handle_splash_event(got_focus) -> message();

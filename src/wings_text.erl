@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.20 2003/11/28 18:09:32 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.21 2004/02/29 17:56:36 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -84,6 +84,8 @@ break_line_2([$\n|T], _N, _Limit, Acc, _Break) ->
 break_line_2([$\s|T0], N, Limit, Acc, _Break) ->
     T = skip_blanks(T0),
     break_line_2(T, N+1, Limit, [$\s|Acc], {Acc,T});
+break_line_2([{_,Str}=C|T], N, Limit, Acc, Break) ->
+    break_line_2(T, N+length(Str), Limit, [C|Acc], Break);
 break_line_2([C|T], N, Limit, Acc, Break) ->
     break_line_2(T, N+1, Limit, [C|Acc], Break);
 break_line_2([], _, _Limit, Acc, _Break) -> {reverse(Acc),[]}.

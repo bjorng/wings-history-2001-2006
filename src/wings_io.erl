@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.128 2003/11/23 07:37:40 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.129 2004/02/29 17:56:36 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -261,41 +261,65 @@ space_at(X, Y) ->
     gl:color3b(0, 0, 0).
 
 text_at(X, S) ->
-    setup_scissor(fun() -> text_at_1(X, S) end).
+    text_at(X, 0, S).
+%     setup_scissor(fun() -> text_at_1(X, S) end).
 
-text_at_1(X, S) ->
-    gl:rasterPos2i(X, 0),
-    case catch text(S, []) of
-	{newline,More} -> text_at(X, More);
-	Other -> Other
-    end.
+% text_at_1(X, S) ->
+%     gl:rasterPos2i(X, 0),
+%     case catch text(S, X, 0, []) of
+% 	{newline,More} -> text_at_1(X, More);
+% 	Other -> Other
+%     end.
 
 text_at(X, Y, S) ->
     setup_scissor(fun() -> unclipped_text(X, Y, S) end).
 
 unclipped_text(X, Y, S) ->
     gl:rasterPos2i(X, Y),
-    case catch text(S, []) of
-	{newline,More} -> text_at(X, Y+?LINE_HEIGHT, More);
+    case catch text(S, X, Y, []) of
+	{newline,More} -> unclipped_text(X, Y+?LINE_HEIGHT, More);
 	Other -> Other
     end.
 
-text([$\n|Cs], []) ->
+text([$\n|Cs], _, _, []) ->
     throw({newline,Cs});
-text([$\n|Cs], Acc) ->
+text([$\n|Cs], _, _,Acc) ->
     draw_reverse(Acc),
     throw({newline,Cs});
-text([C|Cs], Acc) when is_integer(C) ->
-    text(Cs, [C|Acc]);
-text([Atom|Cs], Acc) when is_atom(Atom) ->
+text([{bold,Str}|Cs], X0, Y, Acc) ->
+    X1 = X0 + wings_text:width(Acc),
+    draw_reverse(Acc),
+    gl:rasterPos2i(X1, Y),
+    draw_text(Str),
+    gl:rasterPos2i(X1+1, Y),
+    X = X1 +  + wings_text:width(Str) + 1,
+    draw_text(Str),
+    text(Cs, X, Y, []);
+text([{ul,Str}|Cs], X0, Y, Acc) ->
+    X1 = X0 + wings_text:width(Acc),
+    draw_reverse(Acc),
+    draw_text(Str),
+    W = wings_text:width(Str),
+    X = X1 + W,
+    LineY = Y+2,
+    gl:'begin'(?GL_LINES),
+    gl:vertex2i(X1, LineY),
+    gl:vertex2i(X+1, LineY),
+    gl:'end'(),
+    gl:rasterPos2i(X, Y),
+    text(Cs, X, Y, []);
+text([C|Cs], X, Y, Acc) when is_integer(C) ->
+    text(Cs, X, Y, [C|Acc]);
+text([Atom|Cs], X0, Y, Acc) when is_atom(Atom) ->
+    X = X0 + wings_text:width([Atom|Acc]),
     draw_reverse(Acc),
     wings_text:char(Atom),
-    text(Cs, []);
-text([L|Cs], Acc) when is_list(L) ->
+    text(Cs, X, Y, []);
+text([L|Cs], X0, Y, Acc) when is_list(L) ->
+    X = X0 + wings_text:width(Acc),
     draw_reverse(Acc),
-    text(L, []),
-    text(Cs, []);
-text([], Acc) -> draw_reverse(Acc).
+    text(L++Cs, X, Y, []);
+text([], _, _, Acc) -> draw_reverse(Acc).
 
 setup_scissor(DrawText) ->
     case wings_util:is_gl_restriction(broken_scissor) of
@@ -313,6 +337,9 @@ setup_scissor(DrawText) ->
 draw_reverse([]) -> ok;
 draw_reverse(S0) ->
     S = reverse(S0),
+    draw_text(S).
+
+draw_text(S) ->
     case wings_pref:get_value(text_display_lists, false) of
 	true -> gl:callLists(length(S), ?GL_UNSIGNED_BYTE, S);
 	false -> wings_text:draw(S)
