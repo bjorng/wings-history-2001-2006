@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.252 2004/05/23 15:33:05 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.253 2004/05/24 11:23:31 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -41,11 +41,23 @@ menu({body}, Menu) ->
 		      "Generate or edit UV mapping or texture"}
 		    ]
     end;
+menu({face}, Menu) ->
+    case wpc_snap:active() of
+	true ->
+	    Menu;
+	false ->
+	    Menu ++ [separator,
+		     {"UV Mapping", ?MODULE,
+		      "Generate UV mapping or texture"}
+		    ]
+    end;
 
 menu(_Dbg, Menu) ->
     Menu.
 
 command({body,?MODULE}, St) ->
+    start_uvmap(segment, St);
+command({face,?MODULE}, St) ->
     start_uvmap(segment, St);
 command(_, _) -> next.
 
@@ -76,15 +88,15 @@ start_uvmap_2(Action, Name, Id, #st{shapes=Shs}=St) ->
 		       {toolbar,CreateToolbar}], Op),
     wings_wm:send(Name, {init,{Action,We}}).
 
-auv_event({init,Op}, St) ->
+auv_event({init,Op}, St = #st{selmode = Mode}) ->
     wings:init_opengl(St),
     case Op of
 	{edit,We} ->
 	    start_edit(We, St);
 	{segment,We} ->
 	    case wings_we:uv_mapped_faces(We) of
-		[] -> auv_seg_ui:start(We, We, St);
-		_Faces -> start_edit(We, St)
+		[_|_Faces] when Mode == body -> start_edit(We, St);
+		_ -> auv_seg_ui:start(We, We, St)
 	    end
     end;
 auv_event({init_show_maps,Id,Map}, #st{shapes=Shs}=St) ->

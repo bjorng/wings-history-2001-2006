@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.21 2004/05/16 18:28:20 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.22 2004/05/24 11:23:31 dgud Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -38,7 +38,8 @@ start(#we{id=Id}=We0, OrigWe, St0) ->
     wings_wm:menubar(This, Menu),
     We = We0#we{mode=material},
     St1 = seg_create_materials(St0),
-    St = St1#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
+    St2 = seg_hide_other(Id,St1#st{shapes=gb_trees:from_orddict([{Id,We}])}),
+    St = St2#st{sel=[],selmode=face},
     Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=OrigWe}),
     {seq,push,get_seg_event(Ss)}.
 
@@ -265,6 +266,16 @@ seg_create_materials(St0) ->
     M = [{Name,auv_util:make_mat(Diff)} || {Name,Diff} <- M0],
     {St,[]} = wings_material:add_materials(M, St0),
     St.
+
+seg_hide_other(Id, St0 = #st{selmode=face, sel=Sel, shapes=Sh}) ->
+    {value, {Id, Faces}} =  lists:keysearch(Id, 1, Sel),
+    We0 = gb_trees:get(Id, Sh),
+    Other = wings_sel:inverse_items(face, Faces, We0),
+%    We = wings_we:hide_faces(Other, We0),
+    We = We0,
+    St = St0#st{sel=[{Id,Other}],shapes = gb_trees:from_orddict([{Id,We}])},
+    wings_material:command({assign,atom_to_list(?HOLE)}, St);
+seg_hide_other(_, St) -> St.    
 
 seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     wings_pb:start("preparing mapping"),
