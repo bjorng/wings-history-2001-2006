@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.51 2004/03/19 07:43:00 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.52 2004/04/13 16:50:40 bjorng Exp $
 %%
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
@@ -146,7 +146,7 @@ edges_to_vertices(Es, We, normal) ->
 			   gb_trees:get(Edge, Etab),
 		       VaPos = gb_trees:get(Va, Vtab),
 		       VbPos = gb_trees:get(Vb, Vtab),
-		       EdgeDir = e3d_vec:norm(e3d_vec:sub(VbPos, VaPos)),
+		       EdgeDir = e3d_vec:norm_sub(VbPos, VaPos),
  		       NL = wings_face:normal(FaceL, We),
  		       NR = wings_face:normal(FaceR, We),
 		       Normal = e3d_vec:norm(e3d_vec:add(NL, NR)),
@@ -176,13 +176,12 @@ average_normals([{Na,Orig,Da}|[{Nb,_,Db}|_]=T]) ->
     B = -e3d_vec:dot(Da, Db),
     C = e3d_vec:dot(Db, Db),
     D = e3d_vec:dot(Da, Diff),
-    Det = A*C-B*B,
+    Det = A*C-B*D,
     if
 	Det*Det >= 1.0E-9*abs(A*B) ->
 	    E = -e3d_vec:dot(Db, Diff),
 	    S = (B*E-C*D)/Det,
-	    NewPos = e3d_vec:add_prod(Oa, Da, S),
-	    e3d_vec:sub(NewPos, Orig);
+	    e3d_vec:add_prod(Na, Da, S);
 	true ->					%Parallel edges
 	    average_normals(T)
     end.
