@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.65 2003/04/23 17:49:06 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.66 2003/05/20 17:30:26 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -237,13 +237,10 @@ filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
 	false -> keep
     end.
 
-handle_key(#keyboard{keysym=KeySym}, Ss, St) ->
-    handle_key_1(KeySym, Ss, St).
-
-handle_key_1(#keysym{sym=$1}, _, St) ->	%1
+handle_key(#keyboard{sym=$1}, _, St) ->	%1
     wings_io:putback_event({new_state,St}),
     keep;
-handle_key_1(#keysym{sym=$2}, #ss{check=Check}=Ss, St) -> %2
+handle_key(#keyboard{sym=$2}, #ss{check=Check}=Ss, St) -> %2
     case Check(St) of
 	{Vec,Msg} -> 
 	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
@@ -252,11 +249,11 @@ handle_key_1(#keysym{sym=$2}, #ss{check=Check}=Ss, St) -> %2
 	[{Vec,Msg}] ->
 	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec})
     end;
-handle_key_1(#keysym{sym=27}, _, _) ->		%Escape
+handle_key(#keyboard{sym=27}, _, _) ->		%Escape
     pick_finish(),
     wings_wm:dirty(),
     pop;
-handle_key_1(_, _, _) -> next.
+handle_key(_, _, _) -> next.
 
 exit_menu(X, Y, Mod, #ss{exit=Exit}=Ss, St) ->
     RmbMod = wings_camera:free_rmb_modifier(),

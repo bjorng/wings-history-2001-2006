@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.31 2003/04/24 17:29:45 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.32 2003/05/20 17:30:26 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -506,7 +506,7 @@ update_2(spot, Selected, #we{light=#light{aim=Aim,spot_angle=Angle}}=We) ->
     H = math:cos(Rad),
     {Dx,Dy,Dz} = e3d_vec:mul(SpotDir, H),
     gl:translatef(Dx, Dy, Dz),
-    Rot = e3d_mat:expand(e3d_mat:rotate_s_to_t({0.0,0.0,1.0}, e3d_vec:neg(SpotDir))),
+    Rot = e3d_mat:rotate_s_to_t({0.0,0.0,1.0}, e3d_vec:neg(SpotDir)),
     gl:multMatrixd(Rot),
     glu:quadricDrawStyle(Obj, ?GLU_LINE),
     glu:cylinder(Obj, R, 0.08, H, 12, 1),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.88 2003/05/18 13:55:02 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.89 2003/05/20 17:30:26 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -560,8 +560,7 @@ filter_hits_1([{Id}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
     filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit);
 filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
     Mtx = if 
-	      Id < 0 ->
-		  e3d_mat:compress(wings_util:mirror_matrix(-Id));
+	      Id < 0 -> wings_util:mirror_matrix(-Id);
 	      true -> identity
 	  end,
     We = gb_trees:get(abs(Id), Shs),

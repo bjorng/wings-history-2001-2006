@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.113 2003/05/07 06:52:37 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.114 2003/05/20 17:30:24 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -267,7 +267,7 @@ update_mirror(#dlo{mirror=Face,src_we=We}=D, _) when is_integer(Face) ->
     Mat1 = e3d_mat:mul(Mat0, e3d_mat:scale(1.0, 1.0, -1.0)),
     Mat2 = e3d_mat:mul(Mat1, RotBack),
     Mat = e3d_mat:mul(Mat2, e3d_mat:translate(e3d_vec:neg(Center))),
-    D#dlo{mirror=e3d_mat:expand(Mat)};
+    D#dlo{mirror=Mat};
 update_mirror(D, _) -> D.
 
 %%%

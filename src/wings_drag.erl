@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.136 2003/05/20 05:09:47 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.137 2003/05/20 17:30:23 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -225,7 +225,7 @@ insert_matrix(Tvs) ->
 insert_matrix_fun(#dlo{work=Work,sel=Sel,src_sel=SrcSel,
 		       src_we=#we{id=Id}=We,mirror=M,smoothed=Sm},
 		  [{Id,Tr}|Tvs], Matrix) ->
-    {#dlo{work=Work,sel=Sel,drag={matrix,Tr,Matrix,e3d_mat:expand(Matrix)},
+    {#dlo{work=Work,sel=Sel,drag={matrix,Tr,Matrix,Matrix},
 	  src_we=We,src_sel=SrcSel,mirror=M,smoothed=Sm},Tvs};
 insert_matrix_fun(D, Tvs, _) -> {D,Tvs}.
 
@@ -446,9 +446,9 @@ view_changed(#drag{flags=Flags}=Drag0) ->
 
 view_changed_fun(#dlo{drag={matrix,Tr,_,_},transparent=#we{}=We}=D, _) ->
     Id = e3d_mat:identity(),
-    {D#dlo{src_we=We,drag={matrix,Tr,Id,e3d_mat:expand(Id)}},[]};
+    {D#dlo{src_we=We,drag={matrix,Tr,Id,Id}},[]};
 view_changed_fun(#dlo{drag={matrix,Tr,_,Mtx}}=D, _) ->
-    {D#dlo{drag={matrix,Tr,e3d_mat:compress(Mtx),Mtx}},[]};
+    {D#dlo{drag={matrix,Tr,Mtx,Mtx}},[]};
 view_changed_fun(#dlo{drag=#do{funs=Tv0}=Do,src_we=We}=D, _) ->
     Tv = update_tvs(Tv0, We, []),
     {D#dlo{drag=Do#do{funs=Tv}},[]};
@@ -579,7 +579,7 @@ motion_update_fun(#dlo{src_we=We,drag={matrix,Tr,Mtx0,_}}=D, Move) when ?IS_LIGH
     Mtx = Tr(Mtx0, Move),
     wings_light:update_matrix(D, Mtx);
 motion_update_fun(#dlo{drag={matrix,Trans,Matrix0,_}}=D, Move) ->
-    Matrix = e3d_mat:expand(Trans(Matrix0, Move)),
+    Matrix = Trans(Matrix0, Move),
     D#dlo{drag={matrix,Trans,Matrix0,Matrix}};
 motion_update_fun(#dlo{drag={general,Fun}}=D, Move) ->
     Fun(Move, D);

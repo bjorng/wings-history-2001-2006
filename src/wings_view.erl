@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.118 2003/05/16 17:49:34 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.119 2003/05/20 17:30:27 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -427,9 +427,9 @@ smooth_event_1(#mousemotion{}, _) -> keep;
 smooth_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
 smooth_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Sm) ->
     smooth_exit(Sm);
-smooth_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, Sm) ->
+smooth_event_1(#keyboard{sym=?SDLK_ESCAPE}, Sm) ->
     smooth_exit(Sm);
-smooth_event_1(#keyboard{keysym=#keysym{unicode=$e}}, #sm{edge_style=Estyle0}=Sm) ->
+smooth_event_1(#keyboard{unicode=$e}, #sm{edge_style=Estyle0}=Sm) ->
     wings_wm:dirty(),
     Estyle = case Estyle0 of
 		 none -> plain;
@@ -438,7 +438,7 @@ smooth_event_1(#keyboard{keysym=#keysym{unicode=$e}}, #sm{edge_style=Estyle0}=Sm
 	     end,
     wings_pref:set_value(smoothed_preview_edges, Estyle),
     get_smooth_event(Sm#sm{edge_style=Estyle});
-smooth_event_1(#keyboard{keysym=#keysym{unicode=$w}}, #sm{cage=Cage0}=Sm) ->
+smooth_event_1(#keyboard{unicode=$w}, #sm{cage=Cage0}=Sm) ->
     wings_wm:dirty(),
     Cage = not Cage0,
     wings_pref:set_value(smoothed_preview_cage, Cage),
@@ -698,7 +698,7 @@ subd_event_1(#mousemotion{}, _) -> keep;
 subd_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
 subd_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Sm) ->
     subd_exit(Sm);
-subd_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, Sm) ->
+subd_event_1(#keyboard{sym=?SDLK_ESCAPE}, Sm) ->
     subd_exit(Sm);
 subd_event_1(#keyboard{}=Kb, _) ->
     case wings_hotkey:event(Kb) of
