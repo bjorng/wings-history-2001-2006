@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.95 2003/02/18 16:06:10 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.96 2003/02/19 15:21:50 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -689,10 +689,11 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
-    gl:disable(?GL_DEPTH_TEST),    
 
     {_,_,W,H} = wings_wm:viewport(),
     wings_io:ortho_setup(),
+    gl:depthFunc(?GL_ALWAYS),    
+
     gl:color3f(1, 1, 1),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:recti(0, H, W, 0),
@@ -725,8 +726,8 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:texCoord2f(1,1),    gl:vertex3f(1,1,-0.9),
     gl:texCoord2f(0,1),    gl:vertex3f(0,1,-0.9),
     gl:'end'(), 
+    gl:depthFunc(?GL_LESS),
     gl:disable(?GL_TEXTURE_2D),
-    gl:enable(?GL_DEPTH_TEST),
     gl:shadeModel(?GL_SMOOTH).
 
 reset_view() ->    
