@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.195 2003/01/11 09:42:45 bjorng Exp $
+%%     $Id: wings.erl,v 1.196 2003/01/12 19:55:46 bjorng Exp $
 %%
 
 -module(wings).
@@ -807,7 +807,7 @@ init_button() ->
 get_button_event(But) ->
     {replace,fun(Ev) -> button_event(Ev, But) end}.
 
-button_event({client_resized,_}, But) ->
+button_event({window_updated,_}, But) ->
     get_button_event(button_resized(But));
 button_event(redraw, #but{buttons=undefined}=But0) ->
     But = button_resized(But0),
@@ -844,11 +844,16 @@ button_event(_, _) -> keep.
 
 button_resized(#but{restr=Restr}=But) ->
     {toolbar,Client} = Self = wings_wm:active_window(),
-    {W,_} = wings_wm:win_size(Client),
-    wings_wm:update_window(Self, [{w,W}]),
-    AllButtons = buttons_place(W),
-    Buttons = button_restrict(AllButtons, Restr),
-    But#but{buttons=Buttons,all_buttons=AllButtons}.
+    case wings_wm:is_hidden(Self) of
+	true -> But;
+	false ->
+	    {{X,Y},{W,_}} = wings_wm:win_rect(Client),
+	    {_,H} = wings_wm:win_size(),
+	    wings_wm:update_window(Self, [{x,X},{y,Y-H},{w,W}]),
+	    AllButtons = buttons_place(W),
+	    Buttons = button_restrict(AllButtons, Restr),
+	    But#but{buttons=Buttons,all_buttons=AllButtons}
+    end.
 
 button_redraw(#but{mode=Mode,buttons=Buttons,sh=Sh0}) ->
     Sh = button_sh_filter(Mode, Sh0),

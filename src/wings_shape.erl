@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.42 2003/01/10 20:52:10 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.43 2003/01/12 19:55:46 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -192,11 +192,11 @@ update_state_1(#st{sel=Sel,shapes=Shs}=St, Ost) ->
 
 update_scroller(#ost{n=0}) ->
     Name = wings_wm:active_window(),
-    wings_win_scroller:set_knob(Name, 0.0, 1.0);
+    wings_wm:set_knob(Name, 0.0, 1.0);
 update_scroller(#ost{first=First,n=N}=Ost) ->
     Name = wings_wm:active_window(),
     Lines = lines(Ost),
-    wings_win_scroller:set_knob(Name, First/N, Lines/N).
+    wings_wm:set_knob(Name, First/N, Lines/N).
     
 has_sel_really_changed([{Id,_}|SelA], [{Id,_}|SelB]) ->
     has_sel_really_changed(SelA, SelB);

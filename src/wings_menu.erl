@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.75 2003/01/11 20:02:12 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.76 2003/01/12 19:55:46 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -134,7 +134,7 @@ delete_from(Level) ->
     end.
 
 setup_menu_killer() ->
-    case wings_wm:exists(menu_killer) of
+    case wings_wm:is_window(menu_killer) of
 	true -> ok;
 	false ->
 	    Op = {push,fun menu_killer/1},
@@ -435,7 +435,7 @@ set_submenu_timer(#mi{sel=Sel}=Mi, OldMi, X0, Y0) ->
 
 delete_all(Mi) ->
     clear_timer(Mi),
-    case wings_wm:exists(menu_killer) of
+    case wings_wm:is_window(menu_killer) of
 	true ->
 	    wings_wm:send(menu_killer,
 			  #mousebutton{button=1,x=0,y=0,state=?SDL_PRESSED});

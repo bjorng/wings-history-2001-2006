@@ -8,25 +8,27 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.59 2003/01/12 10:30:09 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.60 2003/01/12 19:55:46 bjorng Exp $
 %%
 
 -module(wings_wm).
+-export([toplevel/5,toplevel/6,set_knob/3]).
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,reinit_opengl/0,
-	 new/4,delete/1,toplevel/5,toplevel/6,
-	 hide/1,show/1,is_hidden/1,
+	 new/4,delete/1,
+	 link/2,hide/1,show/1,is_hidden/1,
 	 message/1,message/2,message_right/1,send/2,send_after_redraw/2,
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
-	 active_window/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,exists/1,
+	 active_window/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,
 	 update_window/2,
 	 callback/1,current_state/1,
 	 grab_focus/0,grab_focus/1,release_focus/0,has_focus/1,focus_window/0,
 	 top_size/0,viewport/0,viewport/1,
-	 win_size/0,win_ul/0,win_rect/0,win_size/1,win_ul/1,win_rect/1,
+	 win_size/0,win_ul/0,win_rect/0,
+	 win_size/1,win_ul/1,win_ur/1,win_z/1,win_rect/1,
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
 	 translation_change/0,me_modifiers/0,set_me_modifiers/1,
-	 draw_message/1,draw_completions/1]).
+	 draw_message/1,draw_completions/1,draw_resizer/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -40,7 +42,8 @@
 	 x,y,					%Position.
 	 w,h,					%Size.
 	 name,					%Name of window.
-	 stk					%Event handler stack.
+	 stk,					%Event handler stack.
+	 links=[]			  %Windows linked to this one.
 	}).
 
 -record(se,					%Stack entry record.
@@ -153,6 +156,15 @@ delete_windows(Name, W0) ->
     W = gb_trees:delete_any({resizer,Name}, W2),
     gb_trees:delete_any({vscroller,Name}, W).
 
+link(From, To) ->
+    #win{links=Links} = Win = get_window_data(From),
+    case member(To, Links) of
+	false ->
+	    put_window_data(From, Win#win{links=[To|Links]});
+	true ->
+	    ok
+    end.
+
 hide(Name) ->
     case get_window_data(Name) of
 	#win{z=Z} when Z < 0 -> ok;
@@ -180,41 +192,29 @@ active_window() ->
 windows() ->	    
     gb_trees:keys(get(wm_windows)).
 
-exists(Name) ->
-    gb_trees:is_defined(Name, get(wm_windows)).
-
 is_window(Name) ->
     gb_trees:is_defined(Name, get(wm_windows)).
 
 offset(Name, Xoffs, Yoffs) ->
-    #win{x=X,y=Y} = Win = get_window_data(Name),
-    put_window_data(Name, Win#win{x=X+Xoffs,y=Y+Yoffs}).
+    update_window(Name, [{dx,Xoffs},{dy,Yoffs}]).
 
-move(Name, {X,Y,Z}) ->
-    dirty(),
-    Win = get_window_data(Name),
-    put_window_data(Name, Win#win{x=X,y=Y,z=Z}).
+move(Name, Pos) ->
+    update_window(Name, [{pos,Pos}]).
 
-move(Name, {X,Y,Z}, {W,H}) ->
-    dirty(),
-    Win = get_window_data(Name),
-    put_window_data(Name, Win#win{x=X,y=Y,z=Z,w=W,h=H}).
-
-update_windows(Names, Updates) ->
-    update_windows_1(Names, Updates, get(wm_windows)).
-
-update_windows_1([N|Ns], Updates, Windows0) ->
-    Win0 = gb_trees:get(N, Windows0),
-    Win = update_window_1(Updates, Win0),
-    Windows = gb_trees:update(N, Win, Windows0),
-    update_windows_1(Ns, Updates, Windows);
-update_windows_1([], _, Windows) ->
-    put(wm_windows, Windows),
-    dirty().
+move(Name, Pos, {W,H}) ->
+    update_window(Name, [{pos,Pos},{w,W},{h,H}]).
 
 update_window(Name, Updates) ->
-    send(Name, resized),
     put_window_data(Name, update_window_1(Updates, get_window_data(Name))),
+    post_update([Name]).
+
+post_update([N|Ns]) ->
+    send(N, resized),
+    #win{links=Links} = get_window_data(N),
+    Msg = {window_updated,N},
+    foreach(fun(L) -> wings_wm:send(L, Msg) end, Links),
+    post_update(Ns);
+post_update([]) ->
     dirty().
 
 update_window_1([{dx,Dx}|T], #win{x=X}=Win) ->
@@ -225,6 +225,10 @@ update_window_1([{dw,Dw}|T], #win{w=W}=Win) ->
     update_window_1(T, Win#win{w=W+Dw});
 update_window_1([{dh,Dh}|T], #win{h=H}=Win) ->
     update_window_1(T, Win#win{h=H+Dh});
+update_window_1([{pos,{X,Y}}|T], Win) ->
+    update_window_1(T, Win#win{x=X,y=Y});
+update_window_1([{pos,{X,Y,Z}}|T], Win) ->
+    update_window_1(T, Win#win{x=X,y=Y,z=Z});
 update_window_1([{x,X}|T], Win) ->
     update_window_1(T, Win#win{x=X});
 update_window_1([{y,Y}|T], Win) ->
@@ -252,7 +256,7 @@ grab_focus() ->
     grab_focus(get(wm_active)).
 	   
 grab_focus(Name) -> 
-    case exists(Name) of
+    case is_window(Name) of
 	true -> put(wm_focus, Name);
 	false -> erase(wm_focus)
     end.
@@ -301,6 +305,14 @@ win_size(Name) ->
 win_ul(Name) ->
     #win{x=X,y=Y} = get_window_data(Name),
     {X,Y}.
+
+win_ur(Name) ->
+    #win{x=X,y=Y,w=W} = get_window_data(Name),
+    {X+W,Y}.
+
+win_z(Name) ->
+    #win{z=Z} = get_window_data(Name),
+    Z.
 
 win_rect(Name) ->
     #win{x=X,y=Y,w=W,h=H} = get_window_data(Name),
@@ -910,262 +922,7 @@ toplevel(Name, Title, Pos, Size, Op) ->
     toplevel(Name, Title, Pos, Size, [], Op).
     
 toplevel(Name, Title, Pos, Size, Flags, Op) ->
-    new(Name, Pos, Size, Op),
-    new_controller(Name, Title, Flags).
+    wings_wm_toplevel:toplevel(Name, Title, Pos, Size, Flags, Op).
 
--record(ctrl,
-	{title,					%Title of window.
-	 children,		                %Windows being controlled.
-	 state=idle,				%idle|moving
-	 local,
-	 prev_focus				%Previous focus holder.
-	}).
-
-new_controller(Client, Title, Flags) ->
-    TitleBarH = ?LINE_HEIGHT+3,
-    #win{x=X,y=Y,z=Z,w=W0} = Win = get_window_data(Client),
-    Controller = {controller,Client},
-    Controlled0 = ctrl_create_windows(reverse(sort(Flags)), Client, Win),
-    Controlled = [Client,Controller|Controlled0],
-    W = case is_window({vscroller,Client}) of
-	    false -> W0;
-	    true -> W0 + wings_win_scroller:width()
-	end,
-    Size = {W,TitleBarH},
-    Cs = #ctrl{title=Title,children=Controlled},
-    new(Controller, {X,Y-TitleBarH,Z-0.5}, Size,
-	{seq,push,get_ctrl_event(Cs)}),
-    ctrl_anchor(Controlled, Flags, Size, TitleBarH),
-    keep.
-
-ctrl_create_windows([vscroller|Flags], Client, #win{x=X,y=Y,z=Z,w=W}=Win) ->
-    Name = wings_win_scroller:vscroller(Client, {X+W,Y,Z+0.1}),
-    [Name|ctrl_create_windows(Flags, Client, Win)];
-ctrl_create_windows([{toolbar,Create}|Flags], Client, #win{x=X,y=Y,z=Z,w=W}=Win) ->
-    Toolbar = {toolbar,Client},
-    Create(Toolbar, {X,Y,Z+0.1}, W),
-    {_,H} = win_size(Toolbar),
-    update_window(Client, [{dy,H},{dh,-H}]),
-    [Toolbar|ctrl_create_windows(Flags, Client, Win)];
-ctrl_create_windows([resizable|Flags], Client, Win) ->
-    Name = ctrl_new_resizer(Client),
-    [Name|ctrl_create_windows(Flags, Client, Win)];
-ctrl_create_windows([_|Flags], Client, Win) ->
-    ctrl_create_windows(Flags, Client, Win);
-ctrl_create_windows([], _, _) -> [].
-
-ctrl_anchor(Controlled, Flags, Size, TitleBarH) ->
-    case keysearch(anchor, 1, Flags) of
-	false -> ok;
-	{value,{anchor,Anchor}} ->
-	    ctrl_anchor_1(Anchor, Controlled, Size, TitleBarH)
-    end.
-
-ctrl_anchor_1(nw, Controlled, _, Th) ->
-    update_windows(Controlled, [{dy,Th}]);
-ctrl_anchor_1(ne, Controlled, {W,_}, Th) ->
-    update_windows(Controlled, [{dx,-W},{dy,Th}]);
-ctrl_anchor_1(sw, [Client|_]=Controlled, _, Th) ->
-    {_,_,_,H} = viewport(Client),
-    update_windows(Controlled, [{dy,Th-H}]).
-
-get_ctrl_event(Cs) ->
-    {replace,fun(Ev) -> ctrl_event(Ev, Cs) end}.
-		     
-ctrl_event(redraw, Cs) ->
-    ctrl_redraw(Cs);
-ctrl_event(#mousebutton{button=1,state=?SDL_PRESSED},
-	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
-    grab_focus(Focus),
-    get_ctrl_event(Cs#ctrl{state=idle});
-ctrl_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Cs) ->
-    Focus = focus_window(),
-    grab_focus(get(wm_active)),
-    get_ctrl_event(Cs#ctrl{local={X,Y},state=moving,prev_focus=Focus});
-ctrl_event(#mousebutton{button=1,state=?SDL_RELEASED}, #ctrl{prev_focus=Focus}=Cs) ->
-    grab_focus(Focus),
-    get_ctrl_event(Cs#ctrl{state=idle});
-ctrl_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
-	   #ctrl{state=moving,children=Children,local={LocX,LocY}}) ->
-    {X1,Y1} = local2global(X0, Y0),
-    X = X1 - LocX,
-    Y = Y1 - LocY,
-    {OldX,OldY} = win_ul(),
-    Dx0 = X-OldX,
-    Dy0 = Y-OldY,
-    {Dx,Dy} = ctrl_constrain_move(Dx0, Dy0),
-    update_windows(Children, [{dx,Dx},{dy,Dy}]),
-    keep;
-ctrl_event(#mousemotion{state=?SDL_RELEASED},
-	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
-    grab_focus(Focus),
-    get_ctrl_event(Cs#ctrl{state=idle});
-ctrl_event(#mousebutton{}=Ev, _) ->
-    case wings_menu:is_popup_event(Ev) of
-	{yes,X,Y,_} -> ctrl_menu(X, Y);
-	no -> ok
-    end,
-    keep;
-ctrl_event({client_resized,Client}, _) ->
-    {_,_,W,_} = viewport(Client),
-    Self = {controller,Client},
-    case is_window({vscroller,Client}) of
-	false -> update_window(Self, [{w,W}]);
-	true -> update_window(Self, [{w,W+wings_win_scroller:width()}])
-    end,
-    keep;
-ctrl_event({action,{titlebar,Action}}, Cs) ->
-    ctrl_command(Action, Cs);
-ctrl_event(_, _) -> keep.
-
-ctrl_redraw(#ctrl{title=Title}) ->
-    TitleBarH = ?LINE_HEIGHT+3,
-    wings_io:ortho_setup(),
-    {_,_,W,_} = viewport(),
-    Color = {0.3,0.4,0.3},
-    wings_io:border(0, 0, W-0.5, TitleBarH, Color),
-    gl:color3f(1, 1, 1),
-    wings_io:text_at(10, TitleBarH-5, Title),
-    keep.
-
-ctrl_constrain_move(Dx0, Dy0) ->
-    {{DeskX,DeskY},{DeskW,DeskH}} = win_rect(desktop),
-    {{X0,Y0},{W,_}} = win_rect(),
-    Dx = case X0+Dx0-DeskX of
-	     X when X < 0 ->
-		 DeskX-X0;
-	     X when DeskX+DeskW < X+W ->
-		 DeskX+DeskW-X0-W;
-	     _ ->
-		 Dx0
-	 end,
-    {_,Client} = get(wm_active),
-    {{_,Cy},{_,Ch}} = win_rect(Client),
-    Dy = if 
-	     Y0+Dy0 < DeskY ->
-		 DeskY-Y0;
-	     Cy+Ch+Dy0 >= DeskY+DeskH ->
-		 DeskY+DeskH-Cy-Ch;
-	     true ->
-		 Dy0
-	 end,
-    {Dx,Dy}.
-
-ctrl_menu(X, Y) ->
-    Menu = ctrl_menu_toolbar(),
-    wings_menu:popup_menu(X, Y, titlebar, Menu).
-
-ctrl_menu_toolbar() ->
-    {_,Client} = active_window(),
-    Toolbar = {toolbar,Client},
-    case is_window(Toolbar) of
-	false -> [];
-	true ->
-	    case is_hidden(Toolbar) of
-		false ->
-		    [{"Hide Toolbar",hide_toolbar}];
-		true ->
-		    [{"Show Toolbar",show_toolbar}]
-	    end
-    end.
-
-ctrl_command(hide_toolbar, _) ->
-    dirty(),
-    {_,Client} = active_window(),
-    Toolbar = {toolbar,Client},
-    hide(Toolbar),
-    {_,H} = win_size(Toolbar),
-    update_window(Client, [{dy,-H},{dh,H}]),
-    keep;
-ctrl_command(show_toolbar, _) ->
-    dirty(),
-    {_,Client} = active_window(),
-    Toolbar = {toolbar,Client},
-    show({toolbar,Client}),
-    {_,H} = win_size(Toolbar),
-    update_window(Client, [{dy,H},{dh,-H}]),
-    keep.
-
-%%%
-%%% Resizer window.
-%%%
-
--record(rsz,
-	{state=idle,				%idle|moving
-	 local,
-	 prev_focus				%Previous focus holder.
-	}).
-
-ctrl_new_resizer(Client) ->
-    Name = {resizer,Client},
-    Rst = #rsz{},
-    Pos = resize_pos(Client),
-    wings_wm:new(Name, Pos, {12,12},
-		 {seq,push,get_resize_event(Rst)}),
-    Name.
-
-get_resize_event(Rst) ->
-    {replace,fun(Ev) -> resize_event(Ev, Rst) end}.
-
-resize_event(redraw, _) ->
-    wings_io:ortho_setup(),
-    draw_resizer(0, 0),
-    keep;
-resize_event(#mousebutton{button=1,state=?SDL_PRESSED},
-	     #rsz{state=moving,prev_focus=Focus}=Rst) ->
-    grab_focus(Focus),
-    get_resize_event(Rst#rsz{state=idle});
-resize_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
-    Focus = focus_window(),
-    grab_focus(get(wm_active)),
-    get_resize_event(Rst#rsz{local={X,Y},state=moving,prev_focus=Focus});
-resize_event(#mousebutton{button=1,state=?SDL_RELEASED}, #rsz{prev_focus=Focus}=Rst) ->
-    grab_focus(Focus),
-    get_resize_event(Rst#rsz{state=idle});
-resize_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
-	     #rsz{state=moving,local={LocX,LocY}}) ->
-    {X1,Y1} = local2global(X0, Y0),
-    X = X1 - LocX,
-    Y = Y1 - LocY,
-    {OldX,OldY} = win_ul(),
-    Dx0 = X-OldX,
-    Dy0 = Y-OldY,
-    {Dx,Dy} = resize_constrain(Dx0, Dy0),
-    {resizer,Client} = Self = get(wm_active),
-    update_window(Client, [{dw,Dx},{dh,Dy}]),
-    NewPos = resize_pos(Client),
-    move(Self, NewPos),
-    ResizeMsg = {client_resized,Client},
-    send({controller,Client}, ResizeMsg),
-    send({toolbar,Client}, ResizeMsg),
-    send({vscroller,Client}, ResizeMsg),
-    keep;
-resize_event(#mousemotion{state=?SDL_RELEASED},
-	   #rsz{state=moving,prev_focus=Focus}=Rst) ->
-    grab_focus(Focus),
-    get_resize_event(Rst#rsz{state=idle});
-resize_event(_, _) -> keep.
-
-resize_pos(Client) ->
-    #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Client),
-    case is_window({vscroller,Client}) of
-	false ->  {X+W-13,Y+H-13,Z+0.5};
-	true -> {X+W,Y+H-13,Z+0.5}
-    end.
-
-resize_constrain(Dx0, Dy0) ->
-    {{DeskX,DeskY},{DeskW,DeskH}} = win_rect(desktop),
-    {{X,Y},{W,H}} = win_rect(),
-    Dx = if
-	     DeskX+DeskW =< X+W+Dx0 ->
-		 DeskX+DeskW-X-W;
-	     true ->
-		 Dx0
-	 end,
-    Dy = if 
-	     DeskY+DeskH =< Y+H+Dy0 ->
-		 DeskY+DeskH-Y-H;
-	     true ->
-		 Dy0
-	 end,
-    {Dx,Dy}.
+set_knob(Name, Pos, Proportion) ->
+    wings_wm_toplevel:set_knob(Name, Pos, Proportion).
