@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.44 2003/10/22 15:41:55 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.45 2003/11/10 14:44:03 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -338,7 +338,7 @@ material_dialog(_Name, Mat) ->
 	   {slider,{text,AutosmoothAngle,[{range,{0.0,180.0}},
 					  {key,autosmooth_angle}]}}]}]}
        |modulator_dialogs(Modulators, Maps)],
-      [{title,"YafRay Options"}]}].
+      [{title,"YafRay Options"},{minimized,true}]}].
 
 def_modulators([]) ->
     [];
@@ -449,7 +449,7 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 				  [{label,"Depth"},
 				   {text,Depth,[{range,{1,1000}}]}]},
 				 {"Hard Noise",Hard}]}]}]}]}]}]}],
-      [{title,"Modulator"}]}];
+      [{title,"Modulator"},{minimized,true}]}];
 modulator_dialog(_Modulator, _Maps, _) ->
     []. % Discard old modulators that anyone may have
 

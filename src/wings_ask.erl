@@ -8,12 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.107 2003/11/09 11:19:47 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.108 2003/11/10 14:44:03 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
 -export([ask/3,ask/4,dialog/3,dialog/4,
 	 hsv_to_rgb/1,hsv_to_rgb/3,rgb_to_hsv/1,rgb_to_hsv/3]).
+
+%% Debug exports
+-export([binsearch/2]).
 
 -import(wings_util, [min/2,max/2]).
 
@@ -32,12 +35,18 @@
 
 %-define(DEBUG, true).
 -ifdef(DEBUG).
--define(DEBUG_DISPLAY(X), (erlang:display({?MODULE,?LINE,X}))).
--define(DEBUG_FORMAT(Fmt,Args),
+-define(DEBUG_DISPLAY(X), 
+	begin io:format("~p~n", [{?MODULE,?LINE,(X)}]), true end).
+-define(DEBUG_FORMAT(Fmt,Args), 
 	(io:format(?MODULE_STRING":"++integer_to_list(?LINE)++" "++Fmt, Args))).
+-define(DMPTREE(Fi), begin io:format("~p~n", [{?MODULE,?LINE}]), 
+			   dmptree(Fi), 
+			   io:format("~p~n", [{?MODULE,?LINE}]), 
+			   ok end).
 -else.
 -define(DEBUG_DISPLAY(_X), true).
 -define(DEBUG_FORMAT(_Fmt,_Args), ok).
+-define(DMPTREE(Fi), ok).
 -endif.
 
 -record(s,
@@ -46,8 +55,11 @@
 	 ox,
 	 oy,
 	 call,
-	 focus,
+	 focus,					%Field index
+	 focusable,				%Tuple of field indexes
+	 mouse_focus=false,			%Mouse hit the field
 	 fi,					%Static data for all fields.
+	 n,					%Number of fields.
 	 coords,				%Coordinates for hit testing.
 	 store,					%Data for all fields.
 	 level,					%Levels of nesting.
@@ -55,17 +67,34 @@
 	 grab_win				%Previous grabbed focus window.
 	}).
 
-%% Static data for each field.
+%% Static data for every field.
 -record(fi,
 	{handler,				%Handler fun.
-	 key,					%Field key.
+	 key=0,					%Field key.
+	 index,					%Field index
 	 inert=true,				%Inert field.
 	 disabled=false,			%Disabled field, temporary inert
 	 hook,					%Field hook fun/2
-	 flags,					%Flags field.
+	 flags=[],				%Flags field.
 	 x,y,					%Upper left position.
 	 w,h,					%Width, height.
-	 ipadx=0,ipady=0			%Internal padding.
+	 extra					%Container or leaf data
+	}).
+
+%% Extra static data for container fields
+
+-record(container,
+	{type,					%vframe|hframe
+	 x,y,					%Container pos
+	 w,h,					%Container size
+	 fields=[],				%Contained fields
+	 minimized				%true|false|_
+	}).
+
+%% Extra static data for leaf fields
+
+-record(leaf,
+	{w,h					%Natural (min) size
 	}).
 
 ask(Title, Qs, Fun) ->
@@ -120,11 +149,10 @@ dialog(Title, Qs, Fun) ->
 do_dialog(Title, Qs, Level, Fun) ->
     GrabWin = wings_wm:release_focus(),
     S0 = setup_ask(Qs, Fun),
-    S1 = next_focus(S0, 1),
-    #s{w=W0,h=H0} = S1,
+    #s{w=W0,h=H0} = S0,
     W = W0 + 2*?HMARGIN,
     H = H0 + 2*?VMARGIN,
-    S = S1#s{ox=?HMARGIN,oy=?VMARGIN,level=Level,grab_win=GrabWin},
+    S = S0#s{ox=?HMARGIN,oy=?VMARGIN,level=Level,grab_win=GrabWin},
     Name = {dialog,hd(Level)},
     setup_blanket(Name),
     Op = {seq,push,get_event(S)},
@@ -132,40 +160,21 @@ do_dialog(Title, Qs, Level, Fun) ->
     wings_wm:toplevel(Name, Title, {X,Y-?LINE_HEIGHT,highest}, {W,H},
 		      [{anchor,n}], Op),
     wings_wm:set_prop(Name, drag_filter, fun(_) -> yes end),
+    ?DEBUG_DISPLAY({W,H}),
     keep.
 
 setup_ask(Qs, Fun) ->
     ?DEBUG_FORMAT("setup_ask~n  (~p,~n   ~p)~n", [Qs,Fun]),
-    Qs1 = normalize(Qs),
-%%%    ?DEBUG_FORMAT("normalize() ->~n  ~p~n", [Qs1]),
-    Qs2 = propagate_sizes(Qs1),
-%%%    ?DEBUG_FORMAT(":propagate_sizes() ->~n  ~p~n", [Qs2]),
-    {Fis,Store} = flatten_fields(Qs2, gb_trees:empty()),
-    ?DEBUG_FORMAT("flatten_fields() ->~n  {~p,~n   ~p}~n", [Fis,Store]),
-    FisT = list_to_tuple(Fis),
-    {#fi{w=W,h=H},_} = Qs2,
+    {Fi0,Sto,N} = mktree(Qs, gb_trees:empty()),
+%    ?DEBUG_FORMAT("Sto = ~p~nN = ~p~nFi0 = ~p~n", [Sto,N,Fi0]),
+    Fi = #fi{w=W,h=H} = layout(Fi0, Sto),
+    ?DMPTREE(Fi),
+    Focusable = focusable(Fi),
     Owner = wings_wm:this(),
-    S = #s{w=W,h=H,call=Fun,fi=FisT,focus=size(FisT),owner=Owner,store=Store},
-    init_fields(S).
-
-
-init_fields(S) ->
-    init_fields(1, S).
-
-init_fields(I, #s{fi=Fis,store=Store}=S) ->
-    Store1 = init_fields(I, Fis, Store),
-    S#s{store=Store1}.
-
-init_fields(I, Fis, Store0) when I =< size(Fis) ->
-    #fi{handler=Handler} = Fi = element(I, Fis),
-%    ?DEBUG_DISPLAY([init,Fi,I]),
-    case Handler(init, Fi, I, Store0) of
-	{store,Store} ->
-	    init_fields(I+1, Fis, Store);
-	keep ->
-	    init_fields(I+1, Fis, Store0)
-    end;
-init_fields(_, _, Store) -> Store.
+    S = #s{w=W,h=H,call=Fun,focus=N,focusable=Focusable,
+	   fi=Fi,n=N,owner=Owner,store=init_fields(Fi, Sto)},
+    ?DEBUG_DISPLAY({W,H}),
+    next_focus(1, S).
 
 
 setup_blanket(Dialog) ->
@@ -190,8 +199,9 @@ get_event(S) ->
      fun(Ev) ->
 	     case catch event(Ev, S) of
 		 {'EXIT',Reason} ->
-		     io:format("Dialog ~p~nCrashed for event ~p~n"
-			       "With reason ~p", [S,Ev,Reason]),
+		     %% dmptree(S#s.fi),
+		     io:format("Dialog crashed for event ~p~n"
+			       "With reason ~p~n", [Ev,Reason]),
 		     delete(S);
 		 Result -> Result
 	     end
@@ -219,11 +229,11 @@ event(Ev, S) -> field_event(Ev, S).
 event_key({key,?SDLK_ESCAPE,_,_}, S) ->
     escape_pressed(S);
 event_key({key,?SDLK_TAB,Mod,_}, S) when ?IS_SHIFTED(Mod) ->
-    get_event(next_focus(S, -1));
+    get_event(next_focus(-1, S));
 event_key({key,?SDLK_TAB,_,_}, S) ->
-    get_event(next_focus(S, 1));
+    get_event(next_focus(+1, S));
 event_key({key,_,_,$\t}, S) ->
-    get_event(next_focus(S, 1));
+    get_event(next_focus(+1, S));
 event_key({key,?SDLK_KP_ENTER,_,_}, S) ->
     enter_pressed({key,$\r,$\r,$\r}, S);
 event_key({key,_,_,$\r}=Ev, S) ->
@@ -234,38 +244,50 @@ event_key({key,_,_,$!}=Ev, S) ->
 event_key(Ev, S) ->
     field_event(Ev, S).
 
-enter_pressed(Ev, #s{focus=I,store=Store}=S) ->
-    case field_type(I, Store) of
+enter_pressed(Ev, #s{focus=Index,store=Store}=S) ->
+    case field_type(Index, Store) of
 	but -> field_event(Ev, S);
 	_ -> return_result(S)
     end.
 
-escape_pressed(#s{fi=Fi,store=Store}=S) ->
-    escape_pressed_1(1, Fi, Store, S).
 
-escape_pressed_1(I, Fi, Store, S) when I =< size(Fi) ->
-    case field_type(I, Store) of
+escape_pressed(S0=#s{fi=Fi,store=Sto}) -> 
+    case escape_pressed(Fi, Sto) of
+	undefined -> keep;
+	Index -> 
+	    S = set_focus(Index, S0),
+	    case field_event({key,$\s,$\s,$\s}, S) of
+		keep -> get_event(S);
+		Other -> Other
+	    end
+    end.
+
+escape_pressed(#fi{extra=#container{fields=Fields}}, Sto) ->
+    escape_pressed(1, Fields, Sto);
+escape_pressed(#fi{index=Index,flags=Flags}, Sto) ->
+    case field_type(Index, Sto) of
 	but ->
-	    case member(cancel, field_flags(I, Fi)) of
-		false ->
-		    escape_pressed_1(I+1, Fi, Store, S);
-		true ->
-		    field_event({key,$\s,$\s,$\s}, S#s{focus=I})
+	    case member(cancel, Flags) of
+		false -> undefined;
+		true -> Index
 	    end;
-	_ ->
-	    escape_pressed_1(I+1, Fi, Store, S)
+	_ -> undefined
+    end.
+
+escape_pressed(I, Fields, Sto) when I =< size(Fields) ->
+    case escape_pressed(element(I, Fields), Sto) of
+	undefined -> escape_pressed(I+1, Fields, Sto);
+	Index -> Index
     end;
-escape_pressed_1(_, _, _, _) -> keep.
+escape_pressed(_I, _Fields, _Sto) ->
+    undefined.
+
 
 field_type(I, Store) ->
     case gb_trees:lookup(-I, Store) of
 	{value,F} -> element(1, F);
 	none -> undefined
     end.
-
-field_flags(I, Fi) ->
-    #fi{flags=Flags} = element(I, Fi),
-    Flags.
 
 delete(#s{level=[_],grab_win=GrabWin}=S) ->
     delete_blanket(S),
@@ -275,113 +297,134 @@ delete(S) ->
     delete_blanket(S),
     delete.
 
-mouse_event(X0, Y0, #mousemotion{}=Ev, #s{focus=I,ox=Ox,oy=Oy}=S) ->
+mouse_event(X0, Y0, #mousemotion{}=Ev, 
+	    #s{focus=Index,mouse_focus=true,ox=Ox,oy=Oy}=S) ->
     X = X0-Ox,
     Y = Y0-Oy,
-    field_event(Ev#mousemotion{x=X,y=Y}, I, S);
-mouse_event(X0, Y0, #mousebutton{state=State}=Ev,
-	    #s{focus=I0,ox=Ox,oy=Oy,fi=Fis}=S0) ->
+    field_event(Ev#mousemotion{x=X,y=Y}, Index, S);
+mouse_event(_X0, _Y0, #mousemotion{}, #s{}) -> 
+    keep;
+mouse_event(X0, Y0, #mousebutton{state=State}=Ev, 
+	    #s{focus=Index,mouse_focus=MouseFocus,ox=Ox,oy=Oy,fi=Fi}=S0) ->
     X = X0-Ox,
     Y = Y0-Oy,
     case State of
 	?SDL_RELEASED ->
-	    field_event(Ev#mousebutton{x=X,y=Y}, I0, S0);
+	    case MouseFocus of
+		true ->field_event(Ev#mousebutton{x=X,y=Y}, Index, S0);
+		false -> keep
+	    end;
 	?SDL_PRESSED ->
-	    case mouse_to_field(1, Fis, X, Y) of
-		none -> keep;
-		I ->
-		    S = set_focus(I, S0),
-		    field_event(Ev#mousebutton{x=X,y=Y}, S)
+	    case mouse_to_field(Fi, X, Y) of
+		none -> get_event(S0#s{mouse_focus=false});
+		Ix ->
+		    S1 = set_focus(Ix, S0),
+		    S = S1#s{mouse_focus=true},
+		    case field_event(Ev#mousebutton{x=X,y=Y}, S) of
+			keep -> get_event(S);
+			Other -> Other
+		    end
 	    end
     end.
 
-drop_event(X, Y, DropData, #s{ox=Ox,oy=Oy,fi=Fis}=S0) ->
-    case mouse_to_field(1, Fis, X-Ox, Y-Oy) of
+drop_event(X, Y, DropData, #s{ox=Ox,oy=Oy,fi=Fi}=S0) ->
+    case mouse_to_field(Fi, X-Ox, Y-Oy) of
 	none -> keep;
 	I ->
 	    S = set_focus(I, S0),
-	    field_event({drop,DropData}, S)
+	    case field_event({drop,DropData}, S) of
+		keep -> get_event(S);
+		Other -> Other
+	    end
     end.
 
-mouse_to_field(I, Fis, _X, _Y) when I > size(Fis) -> none;
-mouse_to_field(I, Fis, X, Y) ->
-    case element(I, Fis) of
-	#fi{inert=false,x=Lx,y=Uy,w=W,h=H,disabled=false}
-	when Lx =< X, X < Lx+W,
-	     Uy =< Y, Y < Uy+H -> I;
-	_Other -> mouse_to_field(I+1, Fis, X, Y)
-    end.
 
-next_focus(#s{focus=I}=S, Dir) ->
-    next_focus_1(I, Dir, S).
-
-next_focus_1(I0, Dir, #s{fi=Fis}=S) ->
-    I = case I0+Dir of
-	    I1 when 0 < I1, I1 =< size(Fis) -> I1;
-	    0 -> size(Fis);
-	    _ -> 1
+next_focus(Dir, S=#s{focus=Index,focusable=Focusable}) ->
+    J = case binsearch(fun (I) when I < Index -> -1;
+			   (I) when Index < I -> +1;
+			   (_) -> 0 end, 
+		       Focusable) of
+	    {I,_} when 0 < Dir -> I;
+	    {_,I} -> I;
+	    I -> I
 	end,
-    case element(I, Fis) of
-	#fi{inert=true} -> next_focus_1(I, Dir, S);
-	#fi{disabled=true} -> next_focus_1(I, Dir, S);
-	_ -> set_focus(I, S)
+    N = size(Focusable),
+    case (J+Dir) rem N of
+	K when K =< 0 -> set_focus(element(N+K, Focusable), S);
+	K -> set_focus(element(K, Focusable), S)
     end.
 
-set_focus(I, #s{focus=OldFocus,fi=Fis,store=Store0}=S) ->
-    ?DEBUG_DISPLAY({set_focus,[OldFocus,I]}),
-    #fi{handler=OldHandler} = OldFi = element(OldFocus, Fis),
-    Store2 = case OldHandler({focus,false}, OldFi, OldFocus, Store0) of
+set_focus(Index, #s{focus=OldIndex,focusable=_Focusable,
+		    fi=Fi,store=Store0}=S) ->
+    ?DEBUG_DISPLAY({set_focus,[OldIndex,Index,_Focusable]}),
+    Old = get_fi(OldIndex, Fi),
+    #fi{handler=OldHandler} = Old,
+    Store2 = case OldHandler({focus,false}, Old, OldIndex, Store0) of
 		 {store,Store1} -> Store1;
 		 _ -> Store0
 	     end,
-    #fi{handler=Handler} = Fi = element(I, Fis),
-    Store = case Handler({focus,true}, Fi, I, Store2) of
+    New = get_fi(Index, Fi),
+    #fi{handler=Handler} = New,
+    Store = case Handler({focus,true}, New, Index, Store2) of
 		{store,Store3} -> Store3;
 		_ -> Store2
 	    end,
-    S#s{focus=I,store=Store}.
-
-
+    S#s{focus=Index,store=Store}.
 
 field_event(Ev, #s{focus=I}=S) ->
     field_event(Ev, I, S).
 
-field_event(#mousemotion{x=X,y=Y,state=Bst}, _, #s{fi=Fis})
+field_event(_Ev=#mousemotion{x=X,y=Y,state=Bst}, _, #s{fi=TopFi})
   when Bst band ?SDL_BUTTON_LMASK == 0 ->
-    case mouse_to_field(1, Fis, X, Y) of
+    case mouse_to_field(TopFi, X, Y) of
 	none ->
 	    wings_wm:allow_drag(false);
 	I ->
-	    #fi{flags=Flags} = element(I, Fis),
+	    ?DEBUG_DISPLAY({field_event,[I,_Ev]}),
+	    #fi{flags=Flags} = get_fi(I, TopFi),
 	    wings_wm:allow_drag(member(drag, Flags))
     end,
     keep;
-field_event(Ev, I, #s{fi=Fis,store=Store}=S) ->
-    #fi{handler=Handler} = Fi = element(I, Fis),
+field_event(Ev, I, #s{fi=TopFi=#fi{w=W0,h=H0},store=Store0}=S) ->
     ?DEBUG_DISPLAY({field_handler,[I,Ev]}),
-    Result = Handler(Ev, Fi, I, Store),
-    ?DEBUG_DISPLAY({field_handler,Result}),
+    #fi{handler=Handler} = Fi0 = get_fi(I, TopFi),
+    Result = Handler(Ev, Fi0, I, Store0),
+%    ?DEBUG_DISPLAY({field_handler,Result}),
     case Result of
-	ok ->
-	    return_result(S);
-	cancel ->
-	    delete(S);
-	keep ->
-	    get_event(S);
-	{recursive,Return} ->
-	    Return;
-	{drag,{_,_}=WH,DropData} ->
-	    wings_wm:drag(Ev, WH, DropData);
-	{store,Store1} ->
-	    get_event(S#s{store=Store1});
+	ok -> return_result(S);
+	cancel -> delete(S);
+	keep -> keep;
+	{recursive,Return} -> Return;
+	{drag,{_,_}=WH,DropData} -> wings_wm:drag(Ev, WH, DropData);
+	{store,Store0} -> keep;
+	{store,Store} -> get_event(S#s{store=Store});
+	{layout,Store0} -> keep;
+	{layout,Store} ->
+	    case layout(TopFi, Store) of
+		TopFi -> get_event(next_focus(0, S#s{store=Store}));
+		Fi = #fi{w=W,h=H} ->
+		    ?DMPTREE(Fi),
+		    Focusable = focusable(Fi),
+		    ?DEBUG_DISPLAY({new_focusable,Focusable}),
+		    case {W,H} of
+			{W0,H0} -> ok;
+			_ -> 
+			    Size = {W+2*?VMARGIN,H+2*?HMARGIN},
+			    wings_wm:resize(wings_wm:this(), Size)
+		    end,
+		    ?DEBUG_DISPLAY({W,H}),
+		    get_event(next_focus(0, S#s{w=W,h=H,
+						focusable=Focusable,
+						fi=Fi,store=Store}))
+	    end;
 	Action when is_function(Action) ->
-	    Res = collect_result(S),
+	    Res = collect_result(TopFi, Store0),
 	    Action(Res),
 	    delete(S)
     end.
 
-return_result(#s{call=EndFun,owner=Owner}=S) ->
-    Res = collect_result(S),
+return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto}=S) ->
+    Res = collect_result(Fi, Sto),
     ?DEBUG_DISPLAY({return_result,Res}),
     case EndFun(Res) of
 	{command_error,Message} ->
@@ -399,27 +442,8 @@ return_result(#s{call=EndFun,owner=Owner}=S) ->
 	    delete(S)
     end.
 
-collect_result(#s{fi=Fis,store=Store}) ->
-    collect_result(1, Fis, Store).
-
-collect_result(I, Fis, Store) when I =< size(Fis) ->
-    case element(I, Fis) of
-	#fi{inert=true} ->
-	    collect_result(I+1, Fis, Store);
-	#fi{handler=Handler,key=Key}=Fi ->
-	    case Handler(value, Fi, I, Store) of
-		none ->
-		    collect_result(I+1, Fis, Store);
-		{value,Res} ->
-		    [case Key of
-			 0 -> Res;
-			 _ -> {Key,Res}
-		     end|collect_result(I+1, Fis, Store)]
-	    end
-    end;
-collect_result(_, _, _) -> [].
-
-redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fis0,store=Store} = S) ->
+redraw(S=#s{w=W,h=H,ox=Ox,oy=Oy,focus=Index,fi=Fi0,store=Sto}) ->
+    ?DEBUG_DISPLAY(redraw),
     wings_io:ortho_setup(),
     gl:translated(Ox, Oy, 0),
     blend(fun(Col) ->
@@ -427,238 +451,480 @@ redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fis0,store=Store} = S) ->
 				  W+2*?HMARGIN-1, H+2*?VMARGIN-1,
 				  Col)
 	  end),
-    case draw_fields(1, Fis0, Focus, Store, keep) of
-	keep -> keep;
-	Fis ->
-	    case element(Focus, Fis) of
-		#fi{disabled=true} -> get_event(next_focus(S#s{fi=Fis}, 1));
-		_ -> get_event(S#s{fi=Fis})
-	    end
+    case draw_fields(Fi0, Index, Sto) of
+	Fi0 -> keep;
+	Fi ->
+	    Focusable = focusable(Fi),
+	    ?DEBUG_DISPLAY({new_focusable,Focusable}),
+	    get_event(next_focus(0, S#s{focusable=Focusable,fi=Fi}))
     end.
 
-draw_fields(I, Fis, Focus, Store, Keep) when I =< size(Fis) ->
-    #fi{handler=Handler,disabled=Disabled} = Fi = element(I, Fis),
-    case Handler({redraw,I =:= Focus}, Fi, I, Store) of
-	enable when Disabled == true ->
-	    draw_fields(I+1, setelement(I, Fis, Fi#fi{disabled=false}),
-			Focus, Store, change);
-	disable when Disabled == false ->
-	    draw_fields(I+1, setelement(I, Fis, Fi#fi{disabled=true}),
-			Focus, Store, change);
-	_ ->
-	    draw_fields(I+1, Fis, Focus, Store, Keep)
+%% Binary search a tuple. Cmp should return integer() > 0 | 0 | 0 < integer().
+%% Return {I,I+1} | {I-1,I} if not found, or I if found,
+%% where integer(I), 1 =< I, I =< Size,
+%% where Size = size(Tuple).
+
+binsearch(Cmp, Tuple) when function(Cmp), tuple(Tuple), size(Tuple) > 0 ->
+    binsearch(Cmp, Tuple, 1, size(Tuple)).
+
+binsearch(Cmp, Tuple, L, U) when L =< U ->
+    I = (L + U) div 2,
+    C = Cmp(element(I, Tuple)),
+    case I of
+	%% L == U
+	U when C < 0 -> {U,U+1};
+	U when 0 < C -> {U-1,U};
+	%% L == U-1
+	L when C < 0 -> binsearch(Cmp, Tuple, U, U);
+	L when 0 < C -> {L-1,L};
+	%% L < I < U
+	_ when 0 < C -> binsearch(Cmp, Tuple, L, I-1);
+	_ when C < 0 -> binsearch(Cmp, Tuple, I+1, U);
+	_ -> I
+    end.
+    
+%%%
+%%% Dialog tree functions
+%%%
+
+%% Collect results from all fields
+%%
+
+collect_result(Fi=#fi{}, Sto) ->
+    reverse(collect_result(Fi, Sto, [])).
+
+collect_result(#fi{extra=#container{fields=Fields}}, Sto, R) ->
+    collect_result(1, Fields, Sto, R);
+collect_result(#fi{inert=true}, _Sto, R) -> R;
+collect_result(Fi=#fi{index=Index,handler=Handler,key=Key}, Sto, R) ->
+    case Handler(value, Fi, Index, Sto) of
+	none -> R;
+	{value,Res} when integer(Key) -> [Res|R];
+	{value,Res} -> [{Key,Res}|R]
+    end.
+
+collect_result(I, Fields, Sto, R) when I =< size(Fields) ->
+    collect_result(I+1, Fields, Sto, 
+		   collect_result(element(I, Fields), Sto, R));
+collect_result(_I, _Fields, _Sto, R) -> R.
+
+%% Draw fields
+%%
+
+draw_fields(Fi=#fi{handler=Handler,
+		   index=Index,
+		   extra=Container=#container{fields=Fields0,
+					      minimized=Minimized}},
+	    Focus, Sto) ->
+    Handler({redraw,Index =:= Focus}, Fi, Index, Sto),
+    if Minimized =/= true ->
+	    case draw_fields(Fields0, Focus, Sto, 1, [], false) of
+		Fields0 -> Fi;
+		Fields -> Fi#fi{extra=Container#container{fields=Fields}}
+	    end;
+       true -> Fi
     end;
-draw_fields(_, _, _, _, keep) -> keep;
-draw_fields(_, Fis, _, _, change) -> Fis.
+draw_fields(Fi=#fi{handler=Handler,index=Index,disabled=Disabled}, 
+	    Focus, Sto) ->
+    case Handler({redraw,Index =:= Focus}, Fi, Index, Sto) of
+	enable when Disabled == true -> Fi#fi{disabled=false};
+	disable when Disabled == false -> Fi#fi{disabled=true};
+	_ -> Fi
+    end.
 
-%%%
-%%% Conversion of queries to internal format and dimension calculation.
-%%%
+draw_fields(Fields, Focus, Sto, I, R, Changed) when I =< size(Fields) ->
+    Fi0 = element(I, Fields),
+    case draw_fields(Fi0, Focus, Sto) of
+	Fi0 -> draw_fields(Fields, Focus, Sto, I+1, [Fi0|R], Changed);
+	Fi -> draw_fields(Fields, Focus, Sto, I+1, [Fi|R], true)
+    end;
+draw_fields(Fields, _Focus, _Sto, _I, _R, false) -> Fields;
+draw_fields(_Fields, _Focus, _Sto, _I, R, true) -> list_to_tuple(reverse(R)).
 
-normalize(Qs) when is_list(Qs) ->
-    normalize({hframe,[{vframe,Qs},
-		       {vframe,[{button,ok},
-				{button,cancel}]}]});
-normalize(Qs) ->
-    normalize(Qs, #fi{x=0,y=0}).
+%% Get field index from mouse position
+%%
 
-normalize({label_column,Qs0}, Fi) ->
+mouse_to_field(#fi{extra=#container{x=X0,y=Y0,w=W,h=H,
+				    type=Type,fields=Fields,
+				    minimized=Minimized}}, X, Y)
+  when Minimized =/= true, X0 =< X, X < X0+W, Y0 =< Y, Y < Y0+H ->
+    mouse_to_field(Fields, X, Y, Type);
+mouse_to_field(#fi{index=Index,inert=false,disabled=false,
+		   x=X0,y=Y0,w=W,h=H}, X, Y)
+  when X0 =< X, X < X0+W, Y0 =< Y, Y < Y0+H ->
+    Index;
+mouse_to_field(#fi{}, _X, _Y) ->
+    none.
+
+mouse_to_field(Fields, Xm, Ym, vframe) ->
+    Cmp = fun (#fi{y=Y,h=H}) when Y+H =< Ym -> -1;
+	      (#fi{y=Y}) when Ym < Y -> 1;
+	      (#fi{}) -> 0 end,
+    Index = case binsearch(Cmp, Fields) of
+%		{0,1} -> 1;
+		{I,_} -> I;
+		I -> I
+	    end,
+    mouse_to_field(element(Index, Fields), Xm, Ym);
+mouse_to_field(Fields, Xm, Ym, hframe) ->
+    Cmp = fun (#fi{x=X,w=W}) when X+W =< Xm -> -1;
+	      (#fi{x=X}) when Xm < X -> 1;
+	      (#fi{}) -> 0 end,
+    Index = case binsearch(Cmp, Fields) of
+%		{0,1} -> 1;
+		{I,_} -> I;
+		I -> I
+	    end,
+    mouse_to_field(element(Index, Fields), Xm, Ym).
+    
+% mouse_to_field(Fields, X, Y, Type, I) when I =< size(Fields) ->
+%     Fi = #fi{x=X0,y=Y0,w=W,h=H} = element(I, Fields),
+%     case mouse_to_field(Fi, X, Y) of
+% 	none when Type == vframe, Y >= Y0+H ->
+% 	    mouse_to_field(I+1, Fields, X, Y, Type);
+% 	none when Type == hframe, X >= X0+W ->
+% 	    mouse_to_field(I+1, Fields, X, Y, Type);
+% 	Index -> Index
+%     end.
+
+%% Get field from field index
+%%
+
+get_fi(Index, Fi=#fi{index=Index}) ->
+    Fi;
+get_fi(Index, #fi{extra=#container{fields=Fields}}) ->
+    Cmp = fun (#fi{index=I}) when I < Index -> -1;
+	      (#fi{index=I}) when Index < I -> 1;
+	      (_) -> 0 end,
+    case binsearch(Cmp, Fields) of
+	{0,1} -> undefined;
+	{I,_} -> get_fi(Index, element(I, Fields));
+	I -> element(I, Fields)
+    end;
+get_fi(_Index, #fi{extra=#leaf{}}) ->
+    undefined.
+
+% get_fi(Index, Fields, I) when I+1 =< size(Fields) ->
+%     Fi1 = #fi{index=Ix1} = element(I, Fields),
+%     #fi{index=Ix2} = element(I+1, Fields),
+%     if Ix1 =< Index, Index < Ix2 -> get_fi(Index, Fi1);
+%        Ix2 =< Index -> get_fi(Index, Fields, I+1);
+%        true -> undefined
+%     end;
+% get_fi(Index, Fields, I) when I =< size(Fields) ->
+%     case get_fi(Index, element(I, Fields)) of
+% 	undefined -> get_fi(Index, Fields, I+1);
+% 	Fi -> Fi
+%     end;
+% get_fi(_Index, _Fields, _I) ->
+%     undefined.
+
+
+
+%%
+%% Conversion of dialog query into internal tree format
+%%
+
+mktree(Qs0, Sto0) when is_list(Qs0) ->
+    Qs = {hframe,[{vframe,Qs0},
+		  {vframe,[{button,ok},
+			   {button,cancel}]}]},
+    {Fis,Sto,I} = mktree(Qs, Sto0, 1),
+    {Fis,Sto,I-1};
+mktree(Qs, Sto0) ->
+    {Fis,Sto,I} = mktree(Qs, Sto0, 1),
+    {Fis,Sto,I-1}.
+
+mktree({label_column,Qs0}, Sto, I) ->
     {Labels,Fields} = dialog_unzip(Qs0),
     Qs = {hframe,
 	  [{vframe,Labels},
 	   {vframe,Fields}]},
-    normalize(Qs, Fi);
-normalize({vradio,Qs,Var,Def}, Fi) ->
-    normalize(radio(vframe, Qs, Var, Def, []), Fi);
-normalize({vradio,Qs,Var,Def,Flags}, Fi) ->
-    normalize(radio(vframe, Qs, Var, Def, Flags), Fi);
-normalize({hradio,Qs,Var,Def}, Fi) ->
-    normalize(radio(hframe, Qs, Var, Def, []), Fi);
-normalize({hradio,Qs,Var,Def,Flags}, Fi) ->
-    normalize(radio(hframe, Qs, Var, Def, Flags), Fi);
-normalize({vframe,Qs}, Fi) ->
-    vframe(Qs, Fi, []);
-normalize({vframe,Qs,Flags}, Fi) ->
-    vframe(Qs, Fi, Flags);
-normalize({hframe,Qs}, Fi) ->
-    hframe(Qs, Fi, []);
-normalize({hframe,Qs,Flags}, Fi) ->
-    hframe(Qs, Fi, Flags);
-normalize({label,Label}, Fi) ->
-    normalize_field(label(Label, []), [], Fi);
-normalize({label,Label,Flags}, Fi) ->
-    normalize_field(label(Label, Flags), Flags, Fi);
-normalize({color,Def}, Fi) ->
-    normalize_field(color(Def), [drag], Fi);
-normalize({color,Def,Flags}, Fi) ->
-    normalize_field(color(Def), [drag|Flags], Fi);
-normalize({alt,{Var,Def},Prompt,Val}, Fi) ->
-    normalize_field(radiobutton(Var, Def, Prompt, Val), [], Fi);
-normalize({alt,{Var,Def},Prompt,Val,Flags}, Fi) ->
-    normalize_field(radiobutton(Var, Def, Prompt, Val), Flags, Fi);
-normalize({key_alt,{Var,Def},Prompt,Val}, Fi) ->
-    normalize_field(radiobutton(Var, Def, Prompt, Val), [{key,Var}], Fi);
-normalize({key_alt,{Var,Def},Prompt,Val,Flags}, Fi) ->
-    normalize_field(radiobutton(Var, Def, Prompt, Val), [{key,Var}|Flags], Fi);
-normalize({menu,Menu,{Var,Def}}, Fi) ->
-    normalize_field(menu(Var, Def, Menu), [{key,Var}], Fi);
-normalize({menu,Menu,VarDef}, Fi) ->
-    normalize({menu,Menu,VarDef,[]}, Fi);
-normalize({menu,Menu,{Var,Def},Flags}, Fi) ->
-    normalize_field(menu(Var, Def, Menu), [{key,Var}|Flags], Fi);
-normalize({menu,Menu,Def,Flags}, Fi) ->
-    normalize_field(menu(0, Def, Menu), Flags, Fi);
-normalize({button,Action}, Fi) when is_atom(Action) ->
+    mktree(Qs, Sto, I);
+mktree({vradio,Qs,Var,Def}, Sto, I) ->
+    mktree(radio(vframe, Qs, Var, Def, []), Sto, I);
+mktree({vradio,Qs,Var,Def,Flags}, Sto, I) ->
+    mktree(radio(vframe, Qs, Var, Def, Flags), Sto, I);
+mktree({hradio,Qs,Var,Def}, Sto, I) ->
+    mktree(radio(hframe, Qs, Var, Def, []), Sto, I);
+mktree({hradio,Qs,Var,Def,Flags}, Sto, I) ->
+    mktree(radio(hframe, Qs, Var,Def, Flags), Sto, I);
+mktree({vframe,Qs}, Sto, I) ->
+    mktree_container(Qs, Sto, I, [], vframe);
+mktree({vframe,Qs,Flags}, Sto, I) ->
+    mktree_container(Qs, Sto, I, Flags, vframe);
+mktree({hframe,Qs}, Sto, I) ->
+    mktree_container(Qs, Sto, I, [], hframe);
+mktree({hframe,Qs,Flags}, Sto, I) ->
+    mktree_container(Qs, Sto, I, Flags, hframe);
+mktree({label,Label}, Sto, I) ->
+    mktree_fi(label(Label, []), Sto, I, []);
+mktree({label,Label,Flags}, Sto, I) ->
+    mktree_fi(label(Label, Flags), Sto, I, Flags);
+mktree({color,Def}, Sto, I) ->
+    mktree_fi(color(Def), Sto, I, [drag]);
+mktree({color,Def,Flags}, Sto, I) ->
+    mktree_fi(color(Def), Sto, I, [drag|Flags]);
+mktree({alt,{Var,Def},Prompt,Val}, Sto, I) ->
+    mktree_fi(radiobutton(Var, Def, Prompt, Val), Sto, I, []);
+mktree({alt,Var,Def,Prompt,Val}, Sto, I) ->
+    mktree_fi(radiobutton(Var, Def, Prompt, Val), Sto, I, []);
+mktree({alt,Var,Def,Prompt,Val,Flags}, Sto, I) ->
+    mktree_fi(radiobutton(Var, Def, Prompt, Val), Sto, I, Flags);
+mktree({key_alt,{Key,Def},Prompt,Val}, Sto, I) ->
+    mktree_fi(radiobutton(Key, Def, Prompt, Val), Sto, I, [{key,Key}]);
+mktree({key_alt,Key,Def,Prompt,Val}, Sto, I) ->
+    mktree_fi(radiobutton(Key, Def, Prompt, Val), Sto, I, [{key,Key}]);
+mktree({key_alt,Key,Def,Prompt,Val,Flags}, Sto, I) ->
+    mktree_fi(radiobutton(Key, Def, Prompt, Val), Sto, I, [{key,Key}|Flags]);
+mktree({menu,Menu,{Var,Def}}, Sto, I) ->
+    mktree_fi(menu(Menu, Var, Def), Sto, I, [{key,Var}]);
+mktree({menu,Menu,Def}, Sto, I) ->
+    mktree_fi(menu(Menu, 0, Def), Sto, I, []);
+mktree({menu,Menu,{Var,Def}, Flags}, Sto, I) ->
+    mktree_fi(menu(Menu, Var, Def), Sto, I, [{key,Var}|Flags]);
+mktree({menu,Menu,Def,Flags}, Sto, I) when list(Flags) ->
+    mktree_fi(menu(Menu, 0, Def), Sto, I, Flags);
+mktree({menu,Menu,Var,Def}, Sto, I) ->
+    mktree_fi(menu(Menu, Var, Def), Sto, I, []);
+mktree({menu,Menu,Var,Def,Flags}, Sto, I) ->
+    mktree_fi(menu(Menu, Var, Def), Sto, I, Flags);
+mktree({button,Action}, Sto, I) ->
     Label = button_label(Action),
     Flags = case Action of
 		cancel -> [cancel];
 		_ -> []
 	    end,
-    normalize_field(button(Label, Action), Flags, Fi);
-normalize({button,Label,Action}, Fi) ->
-    normalize_field(button(Label, Action), [], Fi);
-normalize({button,Label,Action,Flags}, Fi) ->
-    normalize_field(button(Label, Action), Flags, Fi);
-normalize({custom,W,H,Custom}, Fi) ->
-    normalize_field(custom(W, H, Custom), [], Fi);
-normalize({custom,W,H,Custom,Flags}, Fi) ->
-    normalize_field(custom(W, H, Custom), Flags, Fi);
-normalize({slider,{text,_,Flags}=Field}, Fi) ->
-    normalize({hframe,[Field,{slider,Flags}]}, Fi);
-normalize({slider,Flags}, Fi) when is_list(Flags) ->
-    normalize_field(slider(Flags), Flags, Fi);
-normalize(separator, Fi) ->
-    normalize_field(separator(), [], Fi);
-normalize({text,Def}, Fi) ->
-    normalize_field(text_field(Def, []), [], Fi);
-normalize({text,Def,Flags}, Fi) ->
-    normalize_field(text_field(Def, Flags), Flags, Fi);
-normalize({Prompt,Def}, Fi) when Def == false; Def == true ->
-    normalize_field(checkbox(Prompt, Def), [], Fi);
-normalize({Prompt,Def,Flags}, Fi) when Def == false; Def == true ->
-    normalize_field(checkbox(Prompt, Def), Flags, Fi).
+    mktree_fi(button(Label, Action), Sto, I, Flags);
+mktree({button,Label,Action}, Sto, I) ->
+    mktree_fi(button(Label, Action), Sto, I, []);
+mktree({button,Label,Action,Flags}, Sto, I) ->
+    mktree_fi(button(Label, Action), Sto, I, Flags);
+mktree({custom,W,H,Custom}, Sto, I) ->
+    mktree_fi(custom(W, H, Custom), Sto, I, []);
+mktree({custom,W,H,Custom,Flags}, Sto, I) ->
+    mktree_fi(custom(W, H, Custom), Sto, I, Flags);
+mktree({slider,Flags}, Sto, I) when is_list(Flags) ->
+    mktree_fi(slider(Flags), Sto, I, Flags);
+mktree({slider,{text,_,Flags}=Field}, Sto, I) ->
+    SliderFlags = case proplists:get_value(key, Flags, 0) of
+		      K when integer(K) -> [{key,K-1}|Flags];
+		      _ -> Flags
+		  end,
+    mktree({hframe,[Field,{slider,SliderFlags}]}, Sto, I);
+mktree(separator, Sto, I) ->
+    mktree_fi(separator(), Sto, I, []);
+mktree({text,Def}, Sto, I) ->
+    mktree_fi(text(Def, []), Sto, I, []);
+mktree({text,Def,Flags}, Sto, I) ->
+    mktree_fi(text(Def, Flags), Sto, I, Flags);
+mktree({Prompt,Def}, Sto, I) when Def==false; Def == true ->
+    mktree_fi(checkbox(Prompt, Def), Sto, I, []);
+mktree({Prompt,Def,Flags}, Sto, I) when Def==false; Def == true ->
+    mktree_fi(checkbox(Prompt, Def), Sto, I, Flags).
 
 radio(FrameType, Qs0, Var, Def, Flags) ->
-    AltTag = case proplists:get_bool(key, Flags) of
-		 false -> alt;
-		 true -> key_alt
+    AltTag = case proplists:get_value(key, Flags, 0) of
+		 0 -> alt;
+		 _ -> key_alt
 	     end,
-    VarDef = {Var,Def},
-    Qs = [{AltTag,VarDef,Prompt,Val} || {Prompt,Val} <- Qs0],
+    Qs = [{AltTag,Var,Def,Prompt,Val} || {Prompt,Val} <- Qs0],
     {FrameType,Qs,Flags}.
 
--record(vframe, {fields=[]}).
+mktree_fi({Handler,Inert,Priv,W,H}, Sto, I, Flags) ->
+    {#fi{handler=Handler,inert=Inert,
+	 key=proplists:get_value(key, Flags, 0),
+	 index=I,
+	 hook=proplists:get_value(hook, Flags),
+	 flags=Flags,
+	 extra=#leaf{w=W,h=H}},
+     gb_trees:insert(-I, Priv, Sto),
+     I+1}.
+	     
+mktree_container(Qs, Sto0, I0, Flags, Type) ->
+    {Fields,Sto1,I} = mktree_container(Qs, Sto0, I0+1, []),
+    Minimized = proplists:get_value(minimized, Flags),
+    Key = proplists:get_value(key, Flags, 0),
+    Sto = gb_trees:insert(key(Key, I0), Minimized, Sto1),
+    {#fi{handler=fun frame_event/4,
+	 key=Key,
+	 inert=true,
+	 index=I0,
+	 hook=proplists:get_value(hook, Flags),
+	 flags=Flags,
+	 extra=#container{type=Type,fields=Fields}},
+     Sto,
+     I}.
 
-vframe(Qs, #fi{x=X,y=Y0}=Fi0, Flags) ->
-    {Dx,Dy} = case have_border(Flags) of
-		  true -> {10,?LINE_HEIGHT};
-		  false -> {0,0}
-	      end,
-    {Fields,Y,W0} = vframe_1(Qs, Fi0#fi{x=X+Dx,y=Y0+Dy}, 0, []),
-    W1 = frame_fit_title(W0, Flags),
-    H0 = Y-Y0,
-    {Ipadx,Ipady} = case have_border(Flags) of
-			true -> {2*10,10};
-			false -> {0,0}
-		    end,
-    W = W1 + Ipadx,
-    H = H0 + Ipady,
-    Fun = fun frame_event/4,
-    Fi = Fi0#fi{handler=Fun,inert=true,flags=Flags,
-		w=W,h=H,ipadx=Ipadx,ipady=Ipady},
-    {Fi,{vframe,Fields}}.
+mktree_container([], Sto, I, R) ->
+    {list_to_tuple(reverse(R)),Sto,I};
+mktree_container([Q|Qs], Sto0, I0, R) ->
+    {Fi,Sto,I} = mktree(Q, Sto0, I0),
+    mktree_container(Qs, Sto, I, [Fi|R]).
 
-vframe_1([Q|Qs], #fi{y=Y}=Fi0, W0, Acc) ->
-    {#fi{w=W,h=H}=Fi,Priv} = normalize(Q, Fi0),
-    vframe_1(Qs, Fi#fi{y=Y+H}, max(W0, W), [{Fi,Priv}|Acc]);
-vframe_1([], #fi{y=Y}, W, Fields) ->
-    {reverse(Fields),Y,W}.
+-ifdef(DEBUG).
+%%
+%% Dump a dialog tree on stdout
+%%
 
--record(hframe, {fields=[]}).
-
-hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
-    {Dx0,Dy0} = case have_border(Flags) of
-		    true -> {10,?LINE_HEIGHT};
-		    false -> {0,0}
-		end,
-    {Fields,X,H0} = hframe_1(Qs, Fi#fi{x=X0+Dx0,y=Y+Dy0}, 0, []),
-    W0 = frame_fit_title(X-X0-Dx0, Flags),
-    {Ipadx,Ipady} = case have_border(Flags) of
-			true -> {2*10,?LINE_HEIGHT+10};
-			false -> {0,0}
-		    end,
-    W = W0 + Ipadx,
-    H = H0 + Ipady,
-    Fun = fun frame_event/4,
-    {Fi#fi{handler=Fun,inert=true,flags=Flags,
-	   w=W,h=H,ipadx=Ipadx,ipady=Ipady},
-     {hframe,Fields}}.
-
-hframe_1([Q|Qs], #fi{x=X}=Fi0, H0, Acc) ->
-    {#fi{w=W,h=H}=Fi,Priv} = normalize(Q, Fi0),
-    hframe_1(Qs, Fi#fi{x=X+W+?HFRAME_SPACING},
-	     max(H0, H), [{Fi,Priv}|Acc]);
-hframe_1([], #fi{x=X}, H, Fields0) ->
-    {reverse(Fields0),X-?HFRAME_SPACING,H}.
-
-frame_fit_title(W, Flags) ->
-    case proplists:get_value(title, Flags) of
-	undefined -> W;
-	Title -> max(3*?CHAR_WIDTH+wings_text:width(Title), W)
+dmptree(Fi) -> 
+    io:format("-begin(dmptree/1).~n"),
+    case catch dmptree(Fi, "") of
+	ok -> 
+	    io:format("-end(dmptree/1).~n");
+	Other ->
+	    io:format("-end(dmptree/1, ~p).~n", [Other])
     end.
+    
+dmptree(#fi{key=Key,index=Index,inert=Inert,disabled=Disabled,flags=Flags,
+	       x=X,y=Y,w=W,h=H,extra=Extra}, Fill) ->
+    io:format("~s#fi{key=~p,index=~p,flags=~p,x=~p,y=~p,w=~p,h=~p,~n"
+	      "~s    inert=~p,disabled=~p",
+	      [Fill,Key,Index,Flags,X,Y,W,H,Fill,Inert,Disabled]),
+    dmptree_1(Extra, Fill).
 
-normalize_field({Handler,Inert,Priv,W,H}, Flags, Fi) ->
-    {Fi#fi{handler=Handler,inert=Inert,flags=Flags,w=W,h=H},Priv}.
+dmptree(Fields, Fill, I) when I =< size(Fields) ->
+    dmptree(element(I, Fields), Fill),
+    dmptree(Fields, Fill, I+1);
+dmptree(_Fields, _Fill, _I) -> ok.
 
-%%%
-%%% Propagate changed sizes to all fields.
-%%%
+dmptree_1(#container{type=Type,x=X,y=Y,w=W,h=H,
+		   fields=Fields,minimized=Minimized}, Fill) ->
+    io:format("}.~n~s  #container{type=~p,minimized=~p,x=~p,y=~p,w=~p,h=~p}~n",
+	      [Fill,Type,Minimized,X,Y,W,H]),
+    dmptree(Fields, "  "++Fill, 1);
+dmptree_1(#leaf{w=W,h=H}, _Fill) -> 
+    io:format("#leaf{w=~p,h=~p}}.~n", [W,H]).
 
-propagate_sizes({Fi,{vframe,Fields}}) ->
-    vframe_propagate(Fields, Fi, []);
-propagate_sizes({Fi,{hframe,Fields}}) ->
-    hframe_propagate(Fields, Fi, []);
-propagate_sizes(Other) -> Other.
+-endif.
 
-vframe_propagate([{Fi,Priv}|Fis], #fi{w=SzW,ipadx=Ipadx}=Sz, Acc) ->
-    {#fi{w=W},_} = New = propagate_sizes({Fi#fi{w=SzW-Ipadx},Priv}),
-    vframe_propagate(Fis, Sz#fi{w=max(W+Ipadx, SzW)}, [New|Acc]);
-vframe_propagate([], Sz, Acc) -> {Sz,{vframe,reverse(Acc)}}.
+%%
+%% Layout the dialog, i.e calculate positions and sizes for all fields.
+%% Container frames take their size from their children, sum in one
+%% direction and max in other, depending on vframe/hframe.
+%%
+%% Note! The #container.fields field is a reversed list after this pass.
 
-hframe_propagate([{Fi,Priv}|Fis], Sz, Acc) ->
-    #fi{w=SzW,h=H,ipady=Ipady} = Sz,
-    New = propagate_sizes({Fi#fi{h=H-Ipady},Priv}),
-    hframe_propagate(Fis, Sz#fi{w=SzW}, [New|Acc]);
-hframe_propagate([], Fi, Acc) -> {Fi,{hframe,reverse(Acc)}}.
+layout(Fi, Sto) -> layout_propagate(layout(Fi, Sto, 0, 0)).
 
-%%%
-%%% Calculate flattened fields array, set keys and store fields data.
-%%%
+layout(Fi=#fi{extra=#leaf{w=W,h=H}}, _Sto, X, Y) ->
+    Fi#fi{x=X,y=Y,w=W,h=H};
+layout(Fi=#fi{key=Key,index=Index,flags=Flags,
+	      extra=Container=#container{type=Type,fields=Fields0}}, 
+       Sto, X0, Y0) ->
+    Minimized = gb_trees:get(key(Key, Index), Sto),
+    Title = proplists:get_value(title, Flags),
+    {X1,Y1} = 
+	case {Title,Minimized} of
+	    {undefined,undefined} -> {X0,Y0};
+	    _ -> {X0+10,Y0+?LINE_HEIGHT}
+	end,
+    {Fields,X2,Y2} = layout_container(Type, Fields0, Sto, X1, Y1),
+    Wi =
+	case {Title,Minimized} of
+	    {undefined,undefined} -> X2-X1;
+%	    {_,true} -> 3*?CHAR_WIDTH+wings_text:width(Title);
+	    _ -> max(3*?CHAR_WIDTH+wings_text:width(Title),X2-X1)
+	end,
+    Hi = Y2-Y1,
+    {Wo,Ho} =
+	case {Title,Minimized} of
+	    {undefined,undefined} -> {X1-X0+Wi,Y1-Y0+Hi};
+	    {_,true} -> {X1-X0+Wi+10,Y1-Y0};
+	    _ -> {X1-X0+Wi+10,Y1-Y0+Hi+10}
+	end,
+    Inert = (Minimized == undefined),
+    Fi#fi{x=X0,y=Y0,w=Wo,h=Ho,inert=Inert,
+	  extra=Container#container{x=X1,y=Y1,w=Wi,h=Hi,
+				    fields=Fields,
+				    minimized=Minimized}}.
 
-flatten_fields(FiPriv, Store0) ->
-    {Store,_,Fis} = flatten_fields([FiPriv], Store0, 1, []),
-    {lists:reverse(Fis),Store}.
+layout_container(vframe, Fields, Sto, X, Y) -> 
+    layout_vframe(1, Fields, Sto, X, Y, 0, []);
+layout_container(hframe, Fields, Sto, X, Y) -> 
+    layout_hframe(1, Fields, Sto, X, Y, 0, []).
 
-flatten_fields([], Store, I, Fis) ->
-    {Store,I,Fis};
-flatten_fields([{#fi{flags=Flags}=Fi0,Priv}|FiPrivs], Store0, I0, Fis0) ->
-    Fi = Fi0#fi{key=proplists:get_value(key, Flags, 0),
-		hook=proplists:get_value(hook, Flags)},
-    case Priv of
-	#vframe{} ->
-	    {Store,I,Fis} =
-		flatten_fields(Priv#vframe.fields, Store0, I0+1, [Fi|Fis0]),
-	    flatten_fields(FiPrivs, Store, I, Fis);
-	#hframe{} ->
-	    {Store,I,Fis} =
-		flatten_fields(Priv#hframe.fields, Store0, I0+1, [Fi|Fis0]),
-	    flatten_fields(FiPrivs, Store, I, Fis);
-	undefined ->
-	    flatten_fields(FiPrivs, Store0, I0+1, Fis0);
+layout_vframe(I, Fields, Sto, X0, Y0, W0, R) when I =< size(Fields) ->
+    Fi = #fi{x=X0,y=Y0,w=W,h=H} = layout(element(I, Fields), Sto, X0, Y0),
+    layout_vframe(I+1, Fields, Sto, X0, Y0+H, max(W, W0), [Fi|R]);
+layout_vframe(_I, _Fields, _Sto, X, Y, W, R) ->
+    {R,X+W,Y}.
+
+layout_hframe(I, Fields, Sto, X0, Y0, H0, R) when I =< size(Fields) ->
+    Fi = #fi{x=X0,y=Y0,w=W,h=H} = layout(element(I, Fields), Sto, X0, Y0),
+    layout_hframe(I+1, Fields, Sto, X0+W+?HFRAME_SPACING, Y0, max(H, H0), 
+		  [Fi|R]);
+layout_hframe(_I, _Fields, _Sto, X, Y, H, R) ->
+    {R,X-?HFRAME_SPACING,Y+H}.
+
+
+%% Propagate the resulting size of container frames to its children.
+%%
+%% Convert the #container.fields field back to tuple.
+
+layout_propagate(Fi=#fi{extra=Container=#container{
+				type=vframe,w=W,fields=Fields}}) ->
+    Fi#fi{extra=Container#container{
+		  fields=layout_propagate_vframe(Fields, W, [])}};
+layout_propagate(Fi=#fi{extra=Container=#container{
+				type=hframe,h=H,fields=Fields}}) ->
+    Fi#fi{extra=Container#container{
+		  fields=layout_propagate_hframe(Fields, H, [])}};
+layout_propagate(Fi=#fi{}) ->
+    Fi.
+
+layout_propagate_vframe([Fi|Fis], W, R) ->
+    layout_propagate_vframe(Fis, W, [layout_propagate(Fi#fi{w=W})|R]);
+layout_propagate_vframe([], _W, R) ->
+    list_to_tuple(R).
+
+layout_propagate_hframe([Fi|Fis], H, R) ->
+    layout_propagate_hframe(Fis, H, [layout_propagate(Fi#fi{h=H})|R]);
+layout_propagate_hframe([], _H, R) ->
+    list_to_tuple(R).
+
+%%
+%% Create a tuple of the focusable field indexes
+%%
+
+focusable(Fi) -> list_to_tuple(reverse(focusable(Fi, []))).
+
+focusable(#fi{index=Index,inert=false,disabled=false,
+	      extra=Container}, R0) ->
+    R = [Index|R0],
+    case Container of
+	#container{fields=Fields,minimized=Minimized} when Minimized =/= true ->
+	    focusable(1, Fields, R);
 	_ ->
-	    Store = gb_trees:insert(-I0, Priv, Store0),
-	    flatten_fields(FiPrivs, Store, I0+1, [Fi|Fis0])
+	    R
+    end;
+focusable(#fi{extra=#container{fields=Fields,minimized=Minimized}}, R)
+  when Minimized =/= true ->
+    focusable(1, Fields, R);
+focusable(_Fi=#fi{}, R) ->
+    R.
+
+focusable(I, Fields, R) when I =< size(Fields) ->
+    focusable(I+1, Fields, focusable(element(I, Fields), R));
+focusable(_I, _Fields, R) -> R.
+
+%%
+%% Traverse the tree and init all fields
+%%
+
+init_fields(#fi{extra=#container{fields=Fields}}, Sto) ->
+    init_fields(Fields, Sto, 1);
+init_fields(Fi=#fi{index=Index,handler=Handler}, Sto0) ->
+    case Handler(init, Fi, Index, Sto0) of
+	{store,Sto} -> Sto;
+	keep -> Sto0
     end.
+
+init_fields(Fields, Sto, I) when I =< size(Fields) ->
+    init_fields(Fields, init_fields(element(I, Fields), Sto), I+1);
+init_fields(_Fields, Sto, _I) -> Sto.
+
+    
 
 
 
@@ -666,33 +932,104 @@ flatten_fields([{#fi{flags=Flags}=Fi0,Priv}|FiPrivs], Store0, I0, Fis0) ->
 %% Hframe and Vframe
 %%
 
-frame_event({redraw,_Active}, Fi, _, _) ->
-    frame_redraw(Fi);
+frame_event({redraw,Active}, Fi=#fi{key=Key,hook=Hook,
+				    extra=#container{minimized=Minimized}},
+	    I, Store) ->
+    DisEnable = hook(Hook, is_disabled, [key(Key, I), I, Store]),
+    frame_redraw(Active, Fi, DisEnable, Minimized);
+frame_event(#mousebutton{x=Xb,y=Yb,button=1,state=?SDL_RELEASED}, 
+	    Fi=#fi{x=X0,y=Y0,w=W0}, I, Store) ->
+    X = X0+W0-10,
+    Y = Y0+3,
+    case inside(Xb, Yb, X, Y, 10, ?CHAR_HEIGHT) of
+	true -> frame_event({key,$\s,0,$\s}, Fi, I, Store);
+	false -> keep
+    end;
+frame_event({key,_,_,$\s}, #fi{key=Key,
+			       extra=#container{minimized=Minimized}}, 
+	    I, Store) ->
+    K = key(Key, I),
+    case Minimized of
+	undefined -> keep;
+	true -> {layout,gb_trees:update(K, false, Store)};
+	false -> {layout,gb_trees:update(K, true, Store)}
+    end;
 frame_event(_, _, _, _) -> keep.
 
-frame_redraw(#fi{flags=[]}) -> ok;
-frame_redraw(#fi{x=X,y=Y0,w=W,h=H0,flags=Flags}) ->
-    case proplists:get_value(title, Flags) of
-	undefined -> keep;
-	Title ->
+frame_redraw(Active, #fi{x=X0,y=Y0,w=W0,h=H0,flags=Flags}, 
+	     DisEnable, Minimized) ->
+    Title = proplists:get_value(title, Flags),
+    case {Title,Minimized} of
+	{undefined,undefined} -> keep;
+	_ ->
 	    Y = Y0 + ?CHAR_HEIGHT div 2 + 3,
 	    H = H0 - (Y-Y0) - 4,
 	    ColLow = color4_lowlight(),
 	    ColHigh = color4_highlight(),
-	    TextPos = X + 3*?CHAR_WIDTH,
+	    TextPos = X0 + 10 + 2*?CHAR_WIDTH,
 	    blend(fun(Col) ->
 			  gl:'begin'(?GL_LINES),
-			  vline(X+W-2, Y, H, ColLow, ColHigh),
-			  hline(X, Y, W, ColLow, ColHigh),
-			  hline(X, Y+H-1, W-1, ColLow, ColHigh),
-			  vline(X, Y+1, H-2, ColLow, ColHigh),
+			  hline(X0, Y, W0, ColLow, ColHigh),
+			  if  Minimized =/= true ->
+				  hline(X0, Y+H-1, W0-1, ColLow, ColHigh),
+				  vline(X0+W0-2, Y, H, ColLow, ColHigh),
+				  vline(X0, Y+1, H-2, ColLow, ColHigh);
+			      true -> ok
+			  end,
 			  gl:'end'(),
-			  gl:color4fv(Col),
-			  gl:rectf(TextPos-?CHAR_WIDTH, Y-1,
-				   TextPos+(length(Title)+1)*?CHAR_WIDTH, Y+2)
+			  if  Title =/= undefined ->
+				  gl:color4fv(Col),
+				  gl:rectf(TextPos-?CHAR_WIDTH, 
+					   Y-1,
+					   (TextPos+
+					    (length(Title)+1)*?CHAR_WIDTH), 
+					   Y+2);
+			      true -> ok
+			  end
 		  end),
-	    gl:color3fv(color3_text()),
-	    wings_io:text_at(TextPos, Y0+?CHAR_HEIGHT, Title),
+%	    Col = color3(),
+	    ColFg = color3_text(),
+	    if  Title =/= undefined ->
+		    gl:color3fv(ColFg),
+		    wings_io:text_at(TextPos, Y0+?CHAR_HEIGHT, Title);
+		true -> ok
+	    end,
+	    if  Minimized =/= undefined ->
+		    %% Draw button
+		    blend(fun(Col) ->
+				  case DisEnable of
+				      disable ->
+					  wings_io:border(
+					    X0+W0-10, Y0+3, 
+					    10, ?CHAR_HEIGHT,
+					    Col, ColFg);
+				      _ ->
+					  wings_io:gradient_border(
+					    X0+W0-10, Y0+3, 
+					    10, ?CHAR_HEIGHT,
+					    Col, ColFg, Active)
+				  end
+			  end),
+% 		    case {Active,DisEnable} of
+% 			{false,_} ->
+% 			    gl:color3fv(Col),
+% 			    gl:rectf(X0+W0-10, Y0+3, X0+W0, Y0+3+?CHAR_HEIGHT);
+% 			{true,disable} ->
+% 			    wings_io:raised_rect(X0+W0-10, Y0+3, 
+% 						 10, ?CHAR_HEIGHT, Col, Col);
+% 			{true,_} ->
+% 			    wings_io:sunken_rect(X0+W0-10, Y0+3, 
+% 						 10, ?CHAR_HEIGHT, Col, Col)
+% 		    end,
+		    %% Draw +/- symbol
+		    gl:color3fv(ColFg),
+		    gl:rectf(X0+W0-8, Y, X0+W0-1, Y+2),
+		    case Minimized of
+			true -> gl:rectf(X0+W0-6, Y-2, X0+W0-3, Y+4);
+			false -> ok
+		    end;
+		true -> ok
+	    end,
 	    keep
     end.
 
@@ -715,9 +1052,6 @@ vline(X0, Y0, H, ColLow, ColHigh) ->
     gl:color4fv(ColHigh),
     gl:vertex2f(X+1, Y),
     gl:vertex2f(X+1, Y+H).
-
-have_border(Flags) ->
-    proplists:is_defined(title, Flags).
 
 
 
@@ -780,26 +1114,26 @@ checkbox(Label, Val) ->
 
 cb_event(init, #fi{key=Key}, I, Store) ->
     #cb{val=Val} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(ck(Key, I), Val, Store)};
+    {store,gb_trees:enter(key(Key, I), Val, Store)};
 cb_event(value, #fi{key=Key}, I, Store) ->
-    {value,gb_trees:get(ck(Key, I), Store)};
+    {value,gb_trees:get(key(Key, I), Store)};
 cb_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
-    Ck = ck(Key, I),
     Cb = gb_trees:get(-I, Store),
-    Val = gb_trees:get(Ck, Store),
-    DisEnable = hook(Hook, is_disabled, [Ck, I, Store]),
+    K = key(Key, I),
+    Val = gb_trees:get(K, Store),
+    DisEnable = hook(Hook, is_disabled, [K, I, Store]),
     cb_draw(Active, Fi, Cb, Val, DisEnable);
 cb_event({key,_,_,$\s}, #fi{key=Key}, I, Store) ->
-    Ck = ck(Key, I),
-    Val = gb_trees:get(Ck, Store),
-    {store,gb_trees:update(Ck, not Val, Store)};
+    K = key(Key, I),
+    Val = gb_trees:get(K, Store),
+    {store,gb_trees:update(K, not Val, Store)};
 cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED}, #fi{x=X,key=Key}, I, Store) ->
     #cb{labelw=LblW,spacew=SpaceW} = gb_trees:get(-I, Store),
     if
 	Xb-X < LblW+4*SpaceW ->
-	    Ck = ck(Key, I),
-	    Val = gb_trees:get(Ck, Store),
-	    {store,gb_trees:update(Ck, not Val, Store)};
+	    K = key(Key, I),
+	    Val = gb_trees:get(K, Store),
+	    {store,gb_trees:update(K, not Val, Store)};
 	true -> keep
     end;
 cb_event(_Ev, _Fi, _I, _Store) -> keep.
@@ -831,7 +1165,7 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
 %%%
 
 -record(rb,
-	{var,
+	{var,					%Variable key.
 	 def,					%Default value.
 	 val,
 	 label,
@@ -839,7 +1173,7 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
 	 spacew				  %Width of a space character.
 	}).
 
-radiobutton(Var, Def, Label, Val) when not is_integer(Var) ->
+radiobutton(Var, Def, Label, Val) ->
     LabelWidth = wings_text:width(Label),
     SpaceWidth = wings_text:width(" "),
     Rb = #rb{var=Var,def=Def,val=Val,label=Label,
@@ -850,25 +1184,26 @@ radiobutton(Var, Def, Label, Val) when not is_integer(Var) ->
 rb_event(init, _Fi, I, Store) ->
     #rb{var=Var,def=Def,val=Val} = gb_trees:get(-I, Store),
     case Val of
-	Def -> {store,gb_trees:enter(Var, Val, Store)};
+	Def -> {store,gb_trees:enter(key(Var, I), Val, Store)};
 	_ -> keep
     end;
-rb_event({redraw,Active}, #fi{hook=Hook}=Fi, I, Store) ->
-    #rb{var=Var} = Rb = gb_trees:get(-I, Store),
-    DisEnable = hook(Hook, is_disabled, [Var, I, Store]),
-    rb_draw(Active, Fi, Rb, gb_trees:get(Var, Store), DisEnable);
+rb_event({redraw,Active}, Fi=#fi{hook=Hook}, I, Store) ->
+    Rb = #rb{var=Var} = gb_trees:get(-I, Store),
+    Key = key(Var, I),
+    DisEnable = hook(Hook, is_disabled, [Key, I, Store]),
+    rb_draw(Active, Fi, Rb, gb_trees:get(Key, Store), DisEnable);
 rb_event(value, _Fi, I, Store) ->
     #rb{var=Var,val=Val} = gb_trees:get(-I, Store),
-    case gb_trees:get(Var, Store) of
+    case gb_trees:get(key(Var, I), Store) of
 	Val -> {value,Val};
 	_ -> none
     end;
-rb_event({key,_,_,$\s}, _Fi, I, Store) ->
-    rb_set(gb_trees:get(-I, Store), Store);
-rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, #fi{x=X}, I, Store) ->
+rb_event({key,_,_,$\s}, Fi, I, Store) ->
+    rb_set(Fi, gb_trees:get(-I, Store), I, Store);
+rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, Fi=#fi{x=X}, I, Store) ->
     #rb{labelw=LblW,spacew=SpaceW} = Rb = gb_trees:get(-I, Store),
     if
-	Xb-X < LblW+4*SpaceW -> rb_set(Rb, Store);
+	Xb-X < LblW+4*SpaceW -> rb_set(Fi, Rb, I, Store);
 	true -> keep
     end;
 rb_event(_Ev, _Fi, _I, _Store) -> keep.
@@ -937,8 +1272,8 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
     gl:color3b(0, 0, 0),
     DisEnable.
 
-rb_set(#rb{var=Var,val=Val}, Store) ->
-    {store,gb_trees:update(Var, Val, Store)}.
+rb_set(#fi{key=Key}, #rb{val=Val}, I, Store) ->
+    {store,gb_trees:update(key(Key, I), Val, Store)}.
 
 
 %%%
@@ -951,39 +1286,39 @@ rb_set(#rb{var=Var,val=Val}, Store) ->
 	 menu
 	}).
 
-menu(Var, Def, Menu) ->
+menu(Menu, Var, Def) ->
     W = menu_width(Menu, 0) + 2*wings_text:width(" ") + 10,
     M = #menu{var=Var,def=Def,menu=Menu},
     Fun = fun menu_event/4,
     {Fun,false,M,W,?LINE_HEIGHT+4}.
 
-menu_event({redraw,Active}, #fi{hook=Hook}=Fi, I, Store) ->
-    #menu{var=Var} = M = gb_trees:get(-I, Store),
-    Ck = ck(Var, I),
-    DisEnable = hook(Hook, is_disabled, [Ck, I, Store]),
-    menu_draw(Active, Fi, M, gb_trees:get(Ck, Store), DisEnable);
+menu_event({redraw,Active}, Fi=#fi{hook=Hook}, I, Store) ->
+    M = #menu{var=Var} = gb_trees:get(-I, Store),
+    Key = key(Var, I),
+    DisEnable = hook(Hook, is_disabled, [Key, I, Store]),
+    menu_draw(Active, Fi, M, gb_trees:get(Key, Store), DisEnable);
 menu_event(init, _Fi, I, Store) ->
     #menu{var=Var,def=Def} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(ck(Var, I), Def, Store)};
+    {store,gb_trees:enter(key(Var, I), Def, Store)};
 menu_event(value, _Fi, I, Store) ->
     #menu{var=Var} = gb_trees:get(-I, Store),
-    {value,gb_trees:get(ck(Var, I), Store)};
-menu_event({key,_,_,$\s}, #fi{hook=Hook}=Fi, I, Store) ->
-    #menu{var=Var} = M = gb_trees:get(-I, Store),
-    Ck = ck(Var, I),
-    Val = gb_trees:get(Ck, Store),
-    Disabled = hook(Hook, menu_disabled, [Ck, I, Store]),
+    {value,gb_trees:get(key(Var, I), Store)};
+menu_event({key,_,_,$\s}, Fi=#fi{hook=Hook}, I, Store) ->
+    M = #menu{var=Var} = gb_trees:get(-I, Store),
+    Key = key(Var, I),
+    Val = gb_trees:get(Key, Store),
+    Disabled = hook(Hook, menu_disabled, [Key, I, Store]),
     menu_popup(Fi, M, Val, Disabled);
-menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, #fi{hook=Hook}=Fi,
-	   I, Store) ->
-    #menu{var=Var} = M = gb_trees:get(-I, Store),
-    Ck = ck(Var, I),
-    Val = gb_trees:get(Ck, Store),
-    Disabled = hook(Hook, menu_disabled, [Ck, I, Store]),
+menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, 
+	   Fi=#fi{hook=Hook}, I, Store) ->
+    M = #menu{var=Var} = gb_trees:get(-I, Store),
+    Key = key(Var, I),
+    Val = gb_trees:get(Key, Store),
+    Disabled = hook(Hook, menu_disabled, [Key, I, Store]),
     menu_popup(Fi, M, Val, Disabled);
 menu_event({popup_result,Val}, _Fi, I, Store) ->
     #menu{var=Var} = gb_trees:get(-I, Store),
-    {store,gb_trees:update(ck(Var, I), Val, Store)};
+    {store,gb_trees:update(key(Var, I), Val, Store)};
 menu_event(_, _, _, _) -> keep.
 
 menu_width([{S,_}|T], W0) ->
@@ -1199,7 +1534,7 @@ button_label(S) when is_list(S) -> S;
 button_label(Act) -> wings_util:cap(atom_to_list(Act)).
 
 button_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
-    DisEnable = hook(Hook, is_disabled, [ck(Key, I), I, Store]),
+    DisEnable = hook(Hook, is_disabled, [key(Key, I), I, Store]),
     button_draw(Active, Fi, gb_trees:get(-I, Store), DisEnable);
 button_event(value, _, _, _) ->
     none;
@@ -1251,32 +1586,34 @@ color(RGB) ->
     {Fun,false,Col,3*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
 col_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
-    Var = ck(Key, I),
-    DisEnable = hook(Hook, is_disabled, [Var, I, Store]),
-    col_draw(Active, Fi, gb_trees:get(Var, Store), DisEnable);
+    K = key(Key, I),
+    DisEnable = hook(Hook, is_disabled, [K, I, Store]),
+    col_draw(Active, Fi, gb_trees:get(K, Store), DisEnable);
 col_event(init, #fi{key=Key}, I, Store) ->
     #col{val=RGB} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(ck(Key, I), RGB, Store)};
+    {store,gb_trees:enter(key(Key, I), RGB, Store)};
 col_event(value, #fi{key=Key}, I, Store) ->
-    {value,gb_trees:get(ck(Key, I), Store)};
-col_event({key,_,_,$\s}, Fi, I, Store) ->
-    pick_color(Fi, I, Store);
+    {value,gb_trees:get(key(Key, I), Store)};
+col_event({key,_,_,$\s}, #fi{key=Key}, I, Store) ->
+    pick_color(key(Key, I), Store);
 col_event(#mousemotion{x=Xm,y=Ym}, #fi{key=Key}=Fi, I, Store) ->
     case col_inside(Xm, Ym, Fi) of
 	true -> keep;
-	false ->
-	    RGB = gb_trees:get(ck(Key, I), Store),
+	false -> 
+	    RGB = gb_trees:get(key(Key, I), Store),
 	    {drag,{3*?CHAR_WIDTH,?CHAR_HEIGHT},{color,RGB}}
     end;
-col_event(#mousebutton{x=Xm,y=Ym,state=?SDL_RELEASED}, Fi, I, Store) ->
+col_event(#mousebutton{x=Xm,y=Ym,state=?SDL_RELEASED}, 
+	  Fi=#fi{key=Key}, I, Store) ->
     case col_inside(Xm, Ym, Fi) of
-	true -> pick_color(Fi, I, Store);
+	true -> pick_color(key(Key, I), Store);
 	false -> keep
     end;
 col_event({drop,{color,RGB1}}, #fi{key=Key}, I, Store) ->
-    RGB0 = gb_trees:get(ck(Key, I), Store),
+    K = key(Key, I),
+    RGB0 = gb_trees:get(K, Store),
     RGB = replace_rgb(RGB0, RGB1),
-    {store,gb_trees:update(ck(Key, I), RGB, Store)};
+    {store,gb_trees:update(K, RGB, Store)};
 col_event(_Ev, _Fi, _I, _Store) -> keep.
 
 %% replace_rgb(OldRGBA, NewRGBA) -> RGBA
@@ -1304,11 +1641,10 @@ col_draw(Active, #fi{x=X,y=Y0}, RGB, DisEnable) ->
     DisEnable.
 
 col_inside(Xm, Ym, #fi{x=X,y=Y}) ->
-    X =< Xm andalso Xm < X+3*?CHAR_WIDTH andalso
-	Y+3 =< Ym andalso Ym < Y+?CHAR_HEIGHT+2.
+    inside(Xm, Ym, X, Y, 3*?CHAR_WIDTH, ?CHAR_HEIGHT+2).
 
-pick_color(#fi{key=Key}, I, Store) ->
-    RGB0 = gb_trees:get(ck(Key, I), Store),
+pick_color(Key, Store) ->
+    RGB0 = gb_trees:get(Key, Store),
     wings_color:choose(RGB0, fun(RGB) -> {drop,{color,RGB}} end).
 
 
@@ -1393,7 +1729,7 @@ label_draw([], _, _) -> keep.
 	 val
 	}).
 
-text_field(Val, Flags) ->
+text(Val, Flags) ->
     IsInteger = is_integer(Val),
     ValStr = text_val_to_str(Val),
     {Max,Validator,Charset,Range} = validator(Val, Flags),
@@ -1524,24 +1860,25 @@ string_to_float(Str0) ->
     end.
 
 gen_text_handler({redraw,true}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
-    DisEnable = hook(Hook, is_disabled, [ck(Key, I), I, Store]),
+    DisEnable = hook(Hook, is_disabled, [key(Key, I), I, Store]),
     draw_text_active(Fi, gb_trees:get(-I, Store), DisEnable);
 gen_text_handler({redraw,false}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
-    Var = ck(Key, I),
-    DisEnable = hook(Hook, is_disabled, [Var, I, Store]),
-    Val = gb_trees:get(Var, Store),
+    K = key(Key, I),
+    DisEnable = hook(Hook, is_disabled, [K, I, Store]),
+    Val = gb_trees:get(K, Store),
     draw_text_inactive(Fi, gb_trees:get(-I, Store), Val, DisEnable);
 gen_text_handler(value, #fi{key=Key}, I, Store) ->
-    {value,gb_trees:get(ck(Key, I), Store)};
+    {value,gb_trees:get(key(Key, I), Store)};
 gen_text_handler(init, #fi{key=Key}, I, Store) ->
     #text{last_val=Val} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(ck(Key, I), Val, Store)};
+    {store,gb_trees:enter(key(Key, I), Val, Store)};
 gen_text_handler(Ev, #fi{key=Key}=Fi, I, Store0) ->
     #text{last_val=Val0} = Ts0 = gb_trees:get(-I, Store0),
-    Ts1 = case gb_trees:get(ck(Key, I), Store0) of
+    K = key(Key, I),
+    Ts1 = case gb_trees:get(K, Store0) of
 	      Val0 -> Ts0;
 	      Val1 ->
-		  ?DEBUG_DISPLAY([Key,I,Val1]),
+		  ?DEBUG_DISPLAY([K,I,Val1]),
 		  ValStr = text_val_to_str(Val1),
 		  Ts0#text{bef=[],aft=ValStr}
 	  end,
@@ -1549,7 +1886,7 @@ gen_text_handler(Ev, #fi{key=Key}=Fi, I, Store0) ->
     {Ts,Store} = case text_get_val(Ts2) of
 		     Val0 -> {Ts2,Store0};
 		     Val  -> {Ts2#text{last_val=Val},
-			      gb_trees:update(ck(Key, I), Val, Store0)}
+			      gb_trees:update(K, Val, Store0)}
 		 end,
     {store,gb_trees:update(-I, Ts, Store)}.
 
@@ -1617,7 +1954,7 @@ draw_text_active(#fi{x=X0,y=Y0},
     DisEnable.
 
 stars(N) when integer(N) ->
-    lists:duplicate(N, $*);
+    duplicate(N, $*);
 stars(Str) ->
     stars(length(Str)).
 
@@ -1796,19 +2133,20 @@ slider_event(init, #fi{key=Key,flags=Flags}, I, Store) ->
 	undefined ->
 	    keep;
 	Val ->
-	    {store,gb_trees:enter(sk(Key, I), Val, Store)}
+	    {store,gb_trees:enter(key(Key, I), Val, Store)}
     end;
 slider_event({redraw,Active}, #fi{key=Key,hook=Hook}=Fi, I, Store) ->
     Sl = gb_trees:get(-I, Store),
-    Val = gb_trees:get(sk(Key, I), Store),
-    DisEnable = hook(Hook, is_disabled, [Sl, I, Store]),
+    K = key(Key, I),
+    Val = gb_trees:get(K, Store),
+    DisEnable = hook(Hook, is_disabled, [K, I, Store]),
     slider_redraw(Active, Fi, Sl, Val, Store, DisEnable);
 slider_event(value, #fi{flags=Flags,key=Key}, I, Store) ->
     case proplists:get_value(value, Flags) of
 	undefined ->
 	    none;
 	_ ->
-	    {value,gb_trees:get(sk(Key, I), Store)}
+	    {value,gb_trees:get(key(Key, I), Store)}
     end;
 slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, Fi, I, Store) ->
     slider_event_move(Xb, Fi, I, Store);
@@ -1842,7 +2180,7 @@ slider_event(_, _, _, _) -> keep.
 
 slider_move(D0, #fi{key=Key,hook=Hook}, I, Store) ->
     #sl{min=Min,range=Range} = gb_trees:get(-I, Store),
-    Val0 = gb_trees:get(sk(Key, I), Store),
+    Val0 = gb_trees:get(key(Key, I), Store),
     D = if
 	     is_integer(Min), D0 > 0 -> max(round(D0*0.01*Range), 1);
 	     is_integer(Min), D0 < 0 -> min(round(D0*0.01*Range), -1);
@@ -1862,9 +2200,9 @@ slider_event_move(Xb, #fi{x=X,key=Key,hook=Hook}, I, Store) ->
     slider_update(Hook, Val, Key, I, Store).
 
 slider_update(Hook, Val, Key, I, Store) ->
-    Sk = sk(Key, I),
-    ?DEBUG_DISPLAY([Val,Sk]),
-    hook(Hook, update, [Sk, I, Val, Store]).
+    K = key(Key, I),
+    ?DEBUG_DISPLAY([Val,K]),
+    hook(Hook, update, [K, I, Val, Store]).
 
 slider_redraw(Active, Fi, #sl{color={T,K1,K2}}=Sl, Val, Store, DisEnable) ->
     V1 = gb_trees:get(K1, Store),
@@ -1959,6 +2297,17 @@ get_col_range({v, {V,H,S}}) ->
     {V,[V0,V1]}.
 
 
+%% Common data storage key. Integer key uses relative field index as
+%% storage key, non-integer uses itself.
+key(0, I) when integer(I) -> I;
+key(Key, I) when integer(Key), integer(I) -> I+Key;
+key(Key, I) when integer(I) -> Key.
+
+
+inside(Xm, Ym, X, Y, W, H) ->
+    X =< Xm andalso Xm < X+W andalso Y =< Ym andalso Ym < Y+H.
+
+
 dialog_unzip(L) ->
     dialog_unzip(L, [], []).
 dialog_unzip([{Lbl,F}|T], AccA, AccB) ->
@@ -2004,18 +2353,6 @@ hsv_to_rgb({H,S,V}) ->
 hsv_to_rgb(H, S, V) ->
     wings_color:hsv_to_rgb(H, S, V).
 
-%% Common data storage key
-ck(0, I) when is_integer(I), I > 0 ->
-    I;
-ck(Key, I) when not is_integer(Key), is_integer(I) ->
-    Key.
-
-%% Slider data storage key
-sk(0, I) when is_integer(I), I > 0 ->
-    I-1;
-sk(Key, I) when not is_integer(Key), is_integer(I) ->
-    Key.
-
 hook(Hook, is_disabled, [Var, I, Store]) ->
     case Hook of
 	undefined -> keep;
@@ -2026,14 +2363,20 @@ hook(Hook, is_disabled, [Var, I, Store]) ->
 		false -> enable
 	    end
     end;
-hook(Hook, update, [Var, I, Val, Store]) ->
+hook(Hook, update, [Var, I, Val, Store0]) ->
+    {Default,Store} = 
+	case gb_trees:get(Var, Store0) of
+	    Val -> {keep,Store0};
+	    _ -> 
+		S = gb_trees:update(Var, Val, Store0),
+		{{store,S},S}
+	end,
     case Hook of
-	undefined ->
-	    {store,gb_trees:update(Var, Val, Store)};
+	undefined -> Default;
 	_ when is_function(Hook) ->
-	    case Hook(update, {Var,I,Val,gb_trees:update(Var, Val, Store)}) of
-		void -> keep;
-		keep -> keep;
+	    case Hook(update, {Var,I,Val,Store}) of
+		void -> Default;
+		keep -> Default;
 		{store,_}=Result -> Result
 	    end
     end;

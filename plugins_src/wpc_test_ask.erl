@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.7 2003/10/24 15:56:28 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.8 2003/11/10 14:44:03 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -43,20 +43,28 @@ init() ->
 
 menu({tools}, Menu) ->
     case enabled() of
-	true -> Menu++[separator,{"Test Ask",?MODULE}];
+	true -> 
+	    Menu++
+		[separator,
+		 {"Test Ask",{?MODULE,[{"Minimal Dialog",minimal},
+				       {"Large Dialog",large}]}}];
 	_ -> Menu
     end;
 menu(_, Menu) -> Menu.
 
-command({tools,?MODULE}, St) ->
-    case enabled() of
-	true -> command_dialog(St);
-	_ -> next
-    end;
+command({tools,{?MODULE,minimal}}, St) ->
+    maybe_dialog(fun minimal_dialog/1, St);
+command({tools,{?MODULE,large}}, St) ->
+    maybe_dialog(fun large_dialog/1, St);
 command(_, _St) ->
     next.
 
-
+maybe_dialog(Dialog, St) ->
+    case enabled() of
+	true -> Dialog(St);
+	_ -> next
+    end.
+	    
 
 dialog({material_editor_setup,_Name,_Mat}, Dialog) ->
     case enabled() of true -> Dialog++[{"Test Ask",true}];
@@ -84,26 +92,38 @@ dialog(_X, Dialog) ->
 
 
 
-command_dialog(_St) ->
+minimal_dialog(_St) ->
+    Fun = fun(Res) -> 
+		  erlang:display({?MODULE,?LINE,Res}),
+		  ignore
+	  end,
+    Dialog =
+	[{hframe,[{label,"Label"},{"Checkbox",false,[{key,a}]}],
+	 [{title,"Hframe"}]}],
+    wings_ask:dialog("Test Ask Minimal", Dialog, Fun).
+
+
+
+large_dialog(_St) ->
     Fun = fun(Res) -> 
 		  erlang:display({?MODULE,?LINE,Res}),
 		  ignore
 	  end,
     Dialog =
 	[{hframe,
-	  [command_dialog_l(),command_dialog_r()]}],
-    wings_ask:dialog("Test Ask", Dialog, Fun).
+	  [large_dialog_l(),large_dialog_r()]}],
+    wings_ask:dialog("Test Ask Large", Dialog, Fun).
 
-command_dialog_l() ->
+large_dialog_l() ->
     PaneColor = wings_pref:get_value(dialog_color),
     {vframe,
      [{label,"Label"},
-      {key_alt,{d,1},"Alt 3",3,[{hook,disable_hook(c)}]},
+      {key_alt,d,1,"Alt 3",3,[{hook,disable_hook(c)}]},
       separator,
       {"Checkbox",false},
       {"Checkbox key",false,[{key,c},{hook,disable_hook(-1)}]},
       separator,
-      {key_alt,{d,1},"Alt 1",1,[{hook,disable_hook(c)}]},
+      {key_alt,d,1,"Alt 1",1,[{hook,disable_hook(c)}]},
       {custom,40,10,fun (X, Y, W, H, Store) ->
 			    Color = case gb_trees:get(c, Store) of
 					true -> {1,1,0};
@@ -115,7 +135,7 @@ command_dialog_l() ->
 					   end)
 		    end},
       {slider,[{range,{1,3}},{key,d},{hook,disable_hook(c)}]},
-      {key_alt,{d,1},"Alt 2",2,[{hook,disable_hook(c)}]},
+      {key_alt,d,1,"Alt 2",2,[{hook,disable_hook(c)}]},
       separator,
       {custom,40,10,fun (X, Y, W, H, Store) ->
 			    R = gb_trees:get(red, Store),
@@ -156,20 +176,21 @@ command_dialog_l() ->
 		   {value,0.5},{range,{0.0,1.0}},
 		   {hook,
 		    color_update(v, {hue,sat}, {red,green,blue})}]}
-	 ]}]}]}.
+	 ]}],[{title,"A Hframe"},{minimized,false}]}],
+     [{title,"Left Vframe"},{minimized,false}]}.
 
-command_dialog_r() ->
+large_dialog_r() ->
     {vframe,
      [{text,123,[{hook,disable_hook(c)}]},
       {slider,{text,0.5,[{range,{0.0,1.0}}]}},
       {color,{1.0,0.0,0.0},[{hook,disable_hook(c)}]},
       {color,{0.0,1.0,0.0,1.0}},
-      {menu,[{"Alt 1",1},{"Alt 2",2},{"Alt 3",3}],{d,3},
+      {menu,[{"Alt 1",1},{"Alt 2",2},{"Alt 3",3}],d,3,
        [{key,menu},{hook,disable_hook(c)}]},
       {color,{0.0,0.0,1.0}},
       {hframe,[{text,1.23},
 	       {button,"Ok",ok,[{hook,disable_hook(c)}]}]},
-      {menu,[{"A",a},{"B",b},{"C",c}], {m, a},
+      {menu,[{"A",a},{"B",b},{"C",c}],m,a,
        [{hook,fun (menu_disabled, {_Var,_I,Sto}) ->
 		      case gb_trees:get(c, Sto) of
 			  true -> [];
@@ -177,7 +198,7 @@ command_dialog_r() ->
 		      end;
 		  (_, _) -> void
 	      end}]}
-     ]}.
+     ],[{title,"Right vframe"},{minimized,false}]}.
 
 
 

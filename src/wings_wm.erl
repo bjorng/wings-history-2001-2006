@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.127 2003/11/08 16:02:55 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.128 2003/11/10 14:44:03 raimo_niskanen Exp $
 %%
 
 -module(wings_wm).
@@ -18,7 +18,7 @@
 	 link/2,hide/1,show/1,is_hidden/1,
 	 later/1,send/2,send_after_redraw/2,
 	 set_timer/2,cancel_timer/1,
-	 this/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,
+	 this/0,offset/3,move/2,move/3,resize/2,pos/1,windows/0,is_window/1,
 	 window_below/2,
 	 update_window/2,clear_background/0,
 	 callback/1,current_state/1,get_current_state/0,notify/1,
@@ -285,6 +285,9 @@ move(Name, Pos) ->
 
 move(Name, Pos, {W,H}) ->
     update_window(Name, [{pos,Pos},{w,W},{h,H}]).
+
+resize(Name, {W,H}) ->
+    update_window(Name, [{w,W},{h,H}]).
 
 update_window(Name, Updates) ->
     #win{z=Z0} = Data0 = get_window_data(Name),
