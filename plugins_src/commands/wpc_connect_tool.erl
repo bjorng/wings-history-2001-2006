@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.12 2005/01/24 16:17:11 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.13 2005/01/25 14:29:44 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -29,6 +29,7 @@
 	     st,    %% Working St
 	     cpos,  %% Cursor Position
 	     mode=normal, %% or slide
+	     backup,%% State to go back when something is wrong
 	     ost}). %% Original St
 
 %% Vertex info
@@ -95,12 +96,15 @@ handle_connect_event1(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED},
 	    #we{es=Es} = gb_trees:get(Shape, Sh),
 	    [Edge] = gb_sets:to_list(Edge0),
 	    #edge{vs=V1,ve=V2} = gb_trees:get(Edge, Es),
-	    C = do_connect(X,Y,MM,St,C0),
-	    wings:unregister_postdraw_hook(geom,?MODULE),
-	    wings_draw:refresh_dlists(C#cs.st),
-	    {drag, Drag} = slide(C,V1,V2),
-	    wings_wm:later({slide_setup,Drag}),
-	    update_connect_handler(C#cs{mode=slide});
+	    case cut_edge(X,Y,MM,St,C0) of
+		C0 -> 
+		    keep;
+		C ->
+		    wings_draw:refresh_dlists(C#cs.st),
+		    {drag, Drag} = slide(C,V1,V2),
+		    wings_wm:later({slide_setup,Drag}),
+		    update_connect_handler(C#cs{mode=slide,backup=C0})
+	    end;
 	_Other ->
 	    keep
     end;
@@ -143,12 +147,20 @@ handle_connect_event1({slide_setup,Drag},_C) ->
 handle_connect_event1({new_state,St0=#st{shapes=Sh}},C0=#cs{mode=slide,we=Shape,v=[V|VR]}) ->
     #we{vp=Vtab} = gb_trees:get(Shape, Sh),
     Pos = gb_trees:get(V#vi.id, Vtab),
-    St1 = St0#st{sel=[],temp_sel=none, sh=true},
-    St = wings_undo:save(St0, St1),
-    C = C0#cs{mode=normal,v=[V#vi{pos=Pos}|VR],st=St},
-    update_hook(C),
-    wings_draw:refresh_dlists(C#cs.st),
-    update_connect_handler(C);
+    St1 = St0#st{sel=[],temp_sel=none, sh=true},    
+    C1 = C0#cs{mode=normal,v=[V#vi{pos=Pos}|VR],st=St1},
+    case connect_edge(C1) of
+	C1 when VR /= [] -> 
+	    C = C0#cs.backup,
+	    update_hook(C),
+	    wings_draw:refresh_dlists(C#cs.st),
+	    update_connect_handler(C);
+	C ->
+	    St = wings_undo:save(St0, C#cs.st),
+	    update_hook(C),
+	    wings_draw:refresh_dlists(St),
+	    update_connect_handler(C#cs{st=St})
+    end;
 handle_connect_event1({new_state,St}=Ev, C) ->
     case topological_change(St) of
 	false ->
@@ -242,7 +254,6 @@ redraw(#cs{st=St}) ->
     keep.
 
 %%filter_hl(Hit,Cstate) -> true|false
-
 filter_hl(_, _) -> true.  %% Debug connection
 %% filter_hl(_, #cs{v=[]}) -> true;
 %% filter_hl({_,_,{Sh,_}},#cs{we=Prev}) when Sh /= Prev ->
@@ -266,8 +277,7 @@ do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
     We0 = gb_trees:get(Shape, Sh),
     Pos = gb_trees:get(Id1, We0#we.vp),
     St1 = St0#st{sel=[],temp_sel=none, sh=true},
-    Fs0 = vertex_fs(Id1, We0),
-    Fs  = ordsets:from_list(Fs0),
+    Fs = vertex_fs(Id1, We0),
     VI = #vi{id=Id1,mm=MM,pos=Pos},
     case VL of
 	[] ->
@@ -276,25 +286,36 @@ do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
 	    C0#cs{v=[],we=undefined,last=undefined,st=St1};
 	[#vi{id=Id2}|_] when Prev == Shape ->
 	    Ok = vertex_fs(Id2,We0),
-	    case ordsets:intersection(Fs,Ok) of
-		[Face] ->
-		    We = wings_vertex:connect(Face,[Id1,Id2],We0),
-		    St2 = St1#st{shapes=gb_trees:update(Shape,We, Sh)},
-		    St = wings_undo:save(St0, St2),
-		    C0#cs{v=[VI],we=Shape,last=Id1,st=St};
-		_ ->
-		    case connect_link(Id2,Ok,Id1,Fs,MM,We0) of
-			We = #we{} ->
-			    St2 = St1#st{shapes=gb_trees:update(Shape,We, Sh)},
-			    St = wings_undo:save(St0, St2),
-			    C0#cs{v=[VI],we=Shape,last=Id1,st=St};
-			_ ->
-			    C0
-		    end
+	    try 
+		We=#we{}=connect_link(Id1,Fs,Id2,Ok,MM,We0),
+		St2 = St1#st{shapes=gb_trees:update(Shape,We, Sh)},
+		St = wings_undo:save(St0, St2),
+		C0#cs{v=[VI],we=Shape,last=Id1,st=St}
+	    catch _:_What -> 
+% 		    io:format("~p catched ~p ~p~n", 
+% 			      [?LINE,_What,erlang:get_stacktrace()]),
+		    C0
 	    end
     end;
-do_connect(X,Y,MM,St0=#st{selmode=edge,sel=[{Shape,Sel0}],shapes=Sh},
-	   C0=#cs{v=VL,we=Prev}) ->
+do_connect(_,_,_,_,C) -> 
+    C.
+
+connect_edge(C0=#cs{v=[_]}) -> C0;
+connect_edge(C0=#cs{v=[VI=#vi{id=Id1,mm=MM},#vi{id=Id2}],we=Shape,st=St0}) ->
+    We0 = gb_trees:get(Shape, St0#st.shapes),
+    Fs = vertex_fs(Id1,We0),
+    Ok = vertex_fs(Id2,We0),
+    try 
+	We=#we{}= connect_link(Id1,Fs,Id2,Ok,MM,We0),
+	St = St0#st{shapes=gb_trees:update(Shape,We,St0#st.shapes)},
+	C0#cs{v=[VI],we=Shape,last=Id1,st=St}
+    catch _E:_What -> 
+%%	    io:format("~p ignored ~p ~p~n", [?LINE,_What,erlang:get_stacktrace()]),
+	    C0
+    end.
+
+cut_edge(X,Y,MM,St0=#st{selmode=edge,sel=[{Shape,Sel0}],shapes=Sh},
+	 C0=#cs{v=VL,we=Prev}) ->
     [Edge] = gb_sets:to_list(Sel0),
     We0 = gb_trees:get(Shape, Sh),
     if 
@@ -302,72 +323,68 @@ do_connect(X,Y,MM,St0=#st{selmode=edge,sel=[{Shape,Sel0}],shapes=Sh},
 	    C0;	    %% Wrong We, Ignore
 	true ->
 	    St1 = St0#st{sel=[],temp_sel=none,sh=true},
-	    {Pos,Fs} = calc_edgepos(X,Y,Edge,MM,We0,VL),
+	    {Pos,_Fs} = calc_edgepos(X,Y,Edge,MM,We0,VL),
 	    {We1,Id1} = wings_edge:fast_cut(Edge, Pos, We0),
 	    VI = #vi{id=Id1,mm=MM,pos=Pos},
-	    case VL of
-		[] ->
-		    St = St1#st{shapes=gb_trees:update(Shape,We1,Sh)},
-		    C0#cs{v=[VI],we=Shape,last=Id1,st=St};
-		[#vi{id=Id2}|_] ->
-		    Ok = vertex_fs(Id2,We1),
-		    case ordsets:intersection(Fs,Ok) of
-			[Face] ->
-			    We = wings_vertex:connect(Face,[Id1,Id2],We1),
-			    St = St1#st{shapes=gb_trees:update(Shape,We,Sh)},
-			    C0#cs{v=[VI],we=Shape,last=Id1,st=St};
-			_ ->
-			    case connect_link(Id2,Ok,Id1,Fs,MM,We1) of
-				We = #we{} ->				    
-				    io:format("~p ~p~n", [?LINE,wings_we_util:validate(We)]),
-				    St2 = St1#st{shapes=gb_trees:update(Shape,We, Sh)},
-				    St = wings_undo:save(St0, St2),
-				    C0#cs{v=[VI],we=Shape,last=Id1,st=St};
-				_ ->
-				    C0
-			    end
-		    end
-	    end
+	    St = St1#st{shapes=gb_trees:update(Shape,We1,Sh)},
+	    C0#cs{v=[VI|VL],we=Shape,last=Id1,st=St}
     end.
-
+	       
 vertex_fs(Id, We) ->
     Fs = wings_vertex:fold(fun(_,Face,_,Acc) -> [Face|Acc] end, [], Id, We),
     ordsets:from_list(Fs).
 
 connect_link(IdStart,FacesStart,IdEnd,FacesEnd,MM,We0) ->
-    CutLine = get_line(IdStart,IdEnd,MM,We0),
-    Find = fun(_, _, _, #edge{vs=V}, Acc) when V == IdStart -> Acc;
-	      (_, _, _, #edge{ve=V}, Acc) when V == IdStart -> Acc;
-	      (Face, _V, Edge, #edge{vs=Vs,ve=Ve}, Acc) -> 
-		   Edge2D = get_line(Vs,Ve,MM,We0),
-		   case line_intersect2d(CutLine,Edge2D) of
-		       {false,_} -> Acc;
-		       {true, Pos2D} ->			   
-			   [{Edge,Face,pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We0)}|Acc];
-		       Else -> 
-			   io:format("~p: unhandled ~p~n", [?LINE, Else]),
-			   Acc
-		   end
-	   end,
-    Cuts = wings_face:fold_faces(Find,[],FacesStart,We0),
-%%    io:format("~p: Result ~p ~n", [?LINE,Cuts]),
-    case Cuts of
-	[{Edge,_Face,Pos}] ->
-	    {We1,Id1} = wings_edge:fast_cut(Edge, Pos, We0),
+    case ordsets:intersection(FacesStart,FacesEnd) of
+	[LastFace] -> %% Done
+	    wings_vertex:connect(LastFace,[IdStart,IdEnd],We0);
+	_ ->
+	    CutLine = get_line(IdStart,IdEnd,MM,We0),
+	    Find = fun(_, _, _, #edge{vs=V}, Acc) when V == IdStart -> Acc;
+		      (_, _, _, #edge{ve=V}, Acc) when V == IdStart -> Acc;
+		      (Face, _V, Edge, #edge{vs=Vs,ve=Ve}, Acc) -> 
+			   Edge2D = get_line(Vs,Ve,MM,We0),
+			   case line_intersect2d(CutLine,Edge2D) of
+			       {false,_} -> Acc;
+			       {true, Pos2D} ->
+				   [{edge,Edge,Face, 
+				     pos2Dto3D(Pos2D,Edge2D,Vs,Ve,We0)}|Acc];
+			       {{point, 3},_Pos2d} -> 
+				   [{vertex,Vs,Face}|Acc];
+			       {{point, 4},_Pos2d} -> 
+				   [{vertex,Ve,Face}|Acc];
+			       _Else -> 
+				   Acc
+			   end
+		   end,
+	    Cuts = wings_face:fold_faces(Find,[],FacesStart,We0),
+	    {We1,Id1} = case select_way(lists:usort(Cuts),We0,MM) of
+			    {vertex,Id,_Face} ->
+				{We0, Id};
+			    {edge,Edge,_Face,Pos} ->
+				wings_edge:fast_cut(Edge, Pos, We0)
+			end,
 	    Ok = vertex_fs(Id1,We1),
 	    [First] = ordsets:intersection(Ok,FacesStart),
 	    We = wings_vertex:connect(First,[Id1,IdStart],We1),
-	    case ordsets:intersection(Ok,FacesEnd) of
-		[LastFace] -> %% Done
-		    WeLast = wings_vertex:connect(LastFace,[Id1,IdEnd],We),
-		    WeLast;
-		_ ->
-		    connect_link(Id1,Ok,IdEnd,FacesEnd,MM,We)
-	    end;
-	_What -> 
-	    io:format("~p: Got several possibilities ~p ~n", [?LINE,_What]),
-	    exit(nyi)
+	    connect_link(Id1,Ok,IdEnd,FacesEnd,MM,We)
     end.
+
+select_way([Cut],_,_) -> Cut;
+select_way(Cuts,We = #we{id=Id},MM) -> 
+    {MVM,_PM,_} = wings_u:get_matrices(Id, MM),
+    Check = fun(Cut) ->
+		    Face = element(3,Cut), %% Ouch ugly
+		    Normal0 = wings_face:normal(Face,We),
+		    {_,_,Z} = e3d_mat:mul_vector(list_to_tuple(MVM),Normal0),
+		    Z > 0.0
+	    end,
+    case lists:filter(Check, Cuts) of
+	[] -> hd(Cuts);
+	[Cut] -> Cut;
+	[Cut|_] -> Cut
+    end.
+
 
 pos2Dto3D({IX,IY}, {V1Sp,V2Sp}, V1,V2,#we{vp=Vs}) ->
     Pos1 = gb_trees:get(V1, Vs),
@@ -419,8 +436,7 @@ calc_edgepos(X,Y0,Edge,MM,#we{id=Id,es=Es,vp=Vs},VL) ->
     Pos = e3d_vec:add(Pos1, Vec),
     {Pos, ordsets:from_list([F1,F2])}.
 
-
-
+-define(EPS, 0.000001).
 
 line_intersect2d({V1,V2},{V3,V4}) ->
     line_intersect2d(V1,V2,V3,V4).
@@ -428,7 +444,7 @@ line_intersect2d({X1,Y1,_},{X2,Y2,_},{X3,Y3,_},{X4,Y4,_}) ->
     line_intersect2d({X1,Y1},{X2,Y2},{X3,Y3},{X4,Y4});
 line_intersect2d({X1,Y1},{X2,Y2},{X3,Y3},{X4,Y4}) ->
     Div = ((Y4-Y3)*(X2-X1)-(X4-X3)*(Y2-Y1)),
-    if Div == 0.0 -> {{false, 0},paralell};
+    if Div == 0.0 -> {false,paralell};
        true ->
 	    Ua = ((X4-X3)*(Y1-Y3)-(Y4-Y3)*(X1-X3)) / Div,
 	    Ub = ((X2-X1)*(Y1-Y3)-(Y2-Y1)*(X1-X3)) / Div,
@@ -436,18 +452,18 @@ line_intersect2d({X1,Y1},{X2,Y2},{X3,Y3},{X4,Y4}) ->
 	    Y = Y1 + Ua*(Y2-Y1),
 	    
 	    if 
-		(Ua < 0.0); (Ua > 1.0);
-		(Ub < 0.0); (Ub > 1.0)  ->
+		(Ua < -?EPS); (Ua > 1.0+?EPS);
+		(Ub < -?EPS); (Ub > 1.0+?EPS)  ->
 		    {false, {X,Y}};
-		(Ua > 0.0), (Ua < 1.0) ->
-		    if (Ub > 0.0), (Ub < 1.0) -> {true, {X,Y}};
-		       Ub == 0.0 -> {{point,3},{X,Y}};
-		       Ub == 1.0 -> {{point,4},{X,Y}}
+		(Ua > -?EPS), (Ua < 1.0+?EPS) ->
+		    if (Ub > ?EPS), (Ub < 1.0-?EPS) -> {true, {X,Y}};
+		       Ub > -?EPS, Ub < ?EPS -> {{point,3},{X,Y}};
+		       true -> {{point,4},{X,Y}}
 		    end;
 		true ->
 		    if 
-			Ua == 0.0 -> {{point,1},{X,Y}};
-			Ua == 1.0 -> {{point,2},{X,Y}}
+			Ua > -?EPS, Ua < ?EPS -> {{point,1},{X,Y}};
+			true -> {{point,2},{X,Y}}
 		    end
 	    end
     end.
@@ -496,12 +512,22 @@ update_hook(C) ->
     Hook = fun(_St) -> draw_connect(C) end,
     wings:register_postdraw_hook(geom,?MODULE,Hook).
 
+draw_connect(#cs{v=[#vi{pos=Pos0,mm=MM},#vi{pos=Pos1}],we=Id}) ->
+    Matrices = wings_u:get_matrices(Id, MM),
+    Pos01 = setelement(3, obj_to_screen(Matrices, Pos0), 0.0),
+    Matrices = wings_u:get_matrices(Id, MM),
+    Pos11 = setelement(3, obj_to_screen(Matrices, Pos1), 0.0),
+    gldraw_connect(Pos01,Pos11);
 draw_connect(#cs{v=[#vi{pos=Pos0,mm=MM}],we=Id}) ->
-    {W,H} = wings_wm:win_size(),
+    {_W,H} = wings_wm:win_size(),
     {_,X,Y0} = wings_wm:local_mouse_state(),
     Y = H-Y0,
     Matrices = wings_u:get_matrices(Id, MM),
     Pos = setelement(3, obj_to_screen(Matrices, Pos0), 0.0),
+    gldraw_connect(Pos, {X,Y,0.0}).
+
+gldraw_connect(Pos0, Pos1) ->
+    {W,H} = wings_wm:win_size(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:disable(?GL_LIGHTING),
     gl:disable(?GL_DEPTH_TEST),    
@@ -513,16 +539,16 @@ draw_connect(#cs{v=[#vi{pos=Pos0,mm=MM}],we=Id}) ->
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
     gl:'begin'(?GL_LINES),
-    gl:vertex3fv(Pos),
-    gl:vertex3f(X, Y, 0),
+    gl:vertex3fv(Pos0),
+    gl:vertex3fv(Pos1),
     gl:'end'(),
     gl:popAttrib().
 
-slide(#cs{st=St=#st{shapes=Sh},we=Shape,v=[#vi{id=Id1,mm=MM}|_]},S,E) ->
+slide(C=#cs{st=St=#st{shapes=Sh},we=Shape,v=[#vi{id=Id1,mm=MM}|_]},S,E) ->
     #we{vp=Vtab} = gb_trees:get(Shape, Sh),
     Start0 = gb_trees:get(S, Vtab),
     End0   = gb_trees:get(E, Vtab),
-    Curr  = gb_trees:get(Id1, Vtab),
+    Curr   = gb_trees:get(Id1, Vtab),
     Matrices = wings_u:get_matrices(Shape, MM),
     P0 = {P0x,P0y,_} = obj_to_screen(Matrices, Start0),
     P1 = {P1x,P1y,_} = obj_to_screen(Matrices, End0),
@@ -535,21 +561,22 @@ slide(#cs{st=St=#st{shapes=Sh},we=Shape,v=[#vi{id=Id1,mm=MM}|_]},S,E) ->
 	    P0y < P1y ->  {Start0,End0};
 	    true ->       {End0,Start0}
 	end,
-    {Tvs,Sel,Init} = slide_make_tvs(Id1,Curr,Start,End,Shape),
+    {Tvs,Sel,Init} = slide_make_tvs(Id1,Curr,Start,End,Shape,C),
     Units = [{percent,{0.0,1.0}}],
     Flags = [{initial,[Init]}],
     wings_drag:setup(Tvs, Units, Flags, wings_sel:set(vertex, Sel, St)).
 
-slide_make_tvs(V,Curr,Start,End,Id) ->
+slide_make_tvs(V,Curr,Start,End,Id,C) ->
     Dir = e3d_vec:sub(End, Start),
     TotDist = e3d_vec:len(Dir),
     Dist = e3d_vec:dist(Start,Curr),
     CursorPos  = Dist/TotDist,
     
-    Fun = fun(I,Acc) -> sliding(I, Acc, V, Start, Dir) end,
+    Fun = fun(I,Acc) -> sliding(I, Acc, V, Start, Dir, C) end,
     Sel = [{Id,gb_sets:singleton(V)}],
     {[{Id,{[V],Fun}}],Sel,CursorPos}.
 
-sliding([Dx|_],Acc,V,Start,Dir) ->
+sliding([Dx|_],Acc,V,Start,Dir,C= #cs{v=[Vi|Vr]}) ->
     Pos = e3d_vec:add_prod(Start, Dir, Dx),
+    update_hook(C#cs{v=[Vi#vi{pos=Pos}|Vr]}),
     [{V,Pos}|Acc].
