@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.38 2001/11/09 07:05:47 bjorng Exp $
+%%     $Id: wings.erl,v 1.39 2001/11/10 10:27:50 bjorng Exp $
 %%
 
 -module(wings).
@@ -538,7 +538,7 @@ menu(X, Y, edit, St) ->
 	    separator,
 	    {command_name(St),"d",repeat},
 	    separator,
-	    {"Material",{material,materials(St)}},
+	    {"View Material [ALPHA]",{material,materials(St)}},
 	    separator,
 	    {"Preferences",{preferences,wings_pref:sub_menu(X, Y, St)}}},
     wings_menu:menu(X, Y, edit, Menu);
@@ -551,8 +551,8 @@ menu(X, Y, select, St) ->
 	    {"Less","-",less},
 	    {"Region","L",select_region},
 	    {"Edge Loop","l",edge_loop},
-	    {"Previous Edge Loop","F3",prev_edge_loop},
-	    {"Next Edge Loop","F4",next_edge_loop},
+	    {"Previous Edge Loop [ALPHA]","F3",prev_edge_loop},
+	    {"Next Edge Loop [ALPHA]","F4",next_edge_loop},
 	    {"Similar","i",similar},
 	    separator,
 	    {"Adjacent vertices","v",vertex},
