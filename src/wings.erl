@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.259 2003/07/12 21:03:48 bjorng Exp $
+%%     $Id: wings.erl,v 1.260 2003/07/25 09:01:45 bjorng Exp $
 %%
 
 -module(wings).
@@ -266,8 +266,8 @@ unregister_postdraw_hook(Window,Id) ->
 save_state(St0, St1) ->
     St2 = wings_undo:save(St0, St1),
     St = case St2 of
-	     #st{saved=false} -> St2#st{vec=none};
-	     _Other -> caption(St2#st{saved=false,vec=none})
+	     #st{saved=false} -> St2;
+	     _Other -> caption(St2#st{saved=false})
 	 end,
     main_loop(clear_temp_sel(St)).
 
@@ -374,7 +374,7 @@ handle_event_3(close, _) ->
     delete;
 handle_event_3(redraw, St) ->
     redraw(St),
-    main_loop_noredraw(St#st{vec=none});
+    main_loop_noredraw(St);
 handle_event_3(quit, St) ->
     case wings_wm:this() of
 	geom -> do_command({file,quit}, St);
