@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.16 2005/01/15 14:08:39 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.17 2005/01/16 05:32:50 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
--export([faces/2,region/2]).
+-export([faces/2,regions/2]).
 
 -include("wings.hrl").
 -import(lists, [foldl/3,foreach/2,last/1,reverse/1,reverse/2,sort/1,merge/1]).
@@ -118,7 +118,16 @@ get_vtx_color(Edge, V, Etab) ->
 %%% Extrude entire regions (does NOT work for single faces).
 %%%
 
-region(Faces, #we{es=Etab}=We0) ->
+regions(Rs, We) ->
+    regions_1(Rs, [], We).
+
+regions_1([Faces|Rs], CollapseEs0, We0) ->
+    {We,CollapseEs} = region(Faces, CollapseEs0, We0),
+    regions_1(Rs, CollapseEs, We);
+regions_1([], CollapseEs, We) ->
+    wings_collapse:collapse_edges(CollapseEs, We).
+
+region(Faces, CollapseEs, #we{es=Etab}=We0) ->
     ?ASSERT(gb_sets:size(Faces) > 1),
     Edges0 = wings_face:outer_edges(Faces, We0),
     G = digraph:new(),
@@ -129,12 +138,12 @@ region(Faces, #we{es=Etab}=We0) ->
     Vs1 = sofs:relation(Vs0),
     Vs = sofs:to_external(sofs:domain(Vs1)),
     Edges = gb_sets:from_list(Edges0),
-    We1 = foldl(fun(V, A) ->
-			new_vertices(V, G, Edges, Faces, A)
-		end, We0, Vs),
-    We = connect(G, We1),
+    We = foldl(fun(V, A) ->
+		       new_vertices(V, G, Edges, Faces, A)
+	       end, We0, Vs),
+    WeEdges = connect(G, CollapseEs, We),
     digraph:delete(G),
-    We.
+    WeEdges.
 
 new_vertices(V, G, Edges, Faces, We0) ->
     Pos = wings_vertex:pos(V, We0),
@@ -180,14 +189,13 @@ digraph_insert(G, Va0, Vb0, Face) ->
     digraph:add_vertex(G, Vb),
     digraph:add_edge(G, Va, Vb).
 
-connect(G, We0) ->
+connect(G, CollapseEs, We0) ->
     Cs = get_edge_chains(G),
-    {We,Edges} = foldl(fun(C, {W,A}) ->
-			       connect(C, W, A)
-		       end, {We0,[]}, Cs),
-    wings_collapse:collapse_edges(Edges, We).
+    foldl(fun(C, {W,A}) ->
+		  connect_1(C, W, A)
+	  end, {We0,CollapseEs}, Cs).
 
-connect(C, We0, Acc) ->
+connect_1(C, We0, Acc) ->
     case C of
 	[Va,_,Vb] ->
 	    Face = get_face(Va, Vb, We0),

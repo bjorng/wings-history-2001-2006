@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.127 2005/01/13 06:34:58 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.128 2005/01/16 05:32:50 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -184,15 +184,10 @@ extrude_region_1([Faces0|Rs0]=Rs, We0, Acc) ->
 	    extrude_region_1(Rs0, We0, [Face|Acc]);
 	_Other ->
 	    We = wings_extrude_face:faces(Acc, We0),
-	    extrude_region_2(Rs, We)
+	    wings_extrude_face:regions(Rs, We)
     end;
 extrude_region_1([], We, Faces) ->
     wings_extrude_face:faces(Faces, We).
-
-extrude_region_2([Faces|Rs], We0) ->
-    We = wings_extrude_face:region(Faces, We0),
-    extrude_region_2(Rs, We);
-extrude_region_2([], We) -> We.
 
 extrude_region_vmirror(_, #we{mirror=none}=We) -> We;
 extrude_region_vmirror(OldWe, #we{mirror=Face0}=We0) ->
