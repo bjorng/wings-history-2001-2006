@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_undo.erl,v 1.9 2003/03/13 20:13:36 bjorng Exp $
+%%     $Id: wings_undo.erl,v 1.10 2003/06/06 16:20:09 bjorng Exp $
 %%
 
 -module(wings_undo).
 -export([init/1,save/2,undo_toggle/1,undo/1,redo/1]).
--import(lists, [reverse/1]).
 
 -include("wings.hrl").
+
+-import(lists, [reverse/1,reverse/2]).
 
 %% The essential part of the state record.
 -record(est,
@@ -60,13 +61,15 @@ push(St, OldState) ->
 
 push_1(#st{top=[],bottom=[_|_]=Bottom}=St, #est{}=Est) ->
     push_1(St#st{top=reverse(Bottom),bottom=[]}, Est);
-push_1(#st{top=[],bottom=[]}=St, #est{}=Est) ->
+push_1(#st{top=[],bottom=[]}=St, #est{}=Est0) ->
+    Est = compress(#est{shapes=[]}, Est0),
     St#st{top=[Est]};
-push_1(#st{top=[PrevEst|PrevTop]=Top}=St, #est{}=Est) ->
+push_1(#st{top=[PrevEst|PrevTop]=Top}=St, #est{sel=Sel}=Est0) ->
+    Est = compress(PrevEst, Est0),
     case compare_states(PrevEst, Est) of
-	new -> St#st{top=[Est|Top]};
+	new ->
+	    St#st{top=[Est|Top]};
 	new_sel ->
-	    #est{sel=Sel} = Est,
 	    St#st{top=[PrevEst#est{sel=Sel}|PrevTop]}
     end.
 
@@ -88,8 +91,26 @@ compare_states(Old, New) ->
 	true -> new
     end.
 
+compress(#est{shapes=OldShapes}, #est{shapes=NewShapes}=Est) ->
+    Shapes = compress_1(OldShapes, gb_trees:values(NewShapes), []),
+    Est#est{shapes=Shapes}.
+
+compress_1([#we{id=OldId}|OldWes], [#we{id=NewId}|_]=NewWes, Acc) when OldId < NewId ->
+    compress_1(OldWes, NewWes, Acc);
+compress_1([#we{id=OldId}|OldWes], [#we{id=NewId}=NewWe|NewWes], Acc) when OldId > NewId ->
+    We = NewWe#we{fs=undefined,vc=undefined},
+    compress_1(OldWes, NewWes, [We|Acc]);
+compress_1([#we{}=OldWe|OldWes], [#we{}=NewWe|NewWes], Acc) ->
+    case NewWe#we{fs=undefined,vc=undefined} of
+	OldWe -> compress_1(OldWes, NewWes, [OldWe|Acc]);
+	We -> compress_1(OldWes, NewWes, [We|Acc])
+    end;
+compress_1(_, NewWes, Acc) ->
+    reverse(Acc, NewWes).
+
 pop(#st{top=[Est|Top]}=St0) ->
-    #est{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext,mat=Mat} = Est,
+    #est{shapes=Sh0,selmode=Mode,sel=Sel,onext=Onext,mat=Mat} = Est,
+    Sh = uncompress(Sh0, []),
     St = St0#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext,mat=Mat},
     St#st{top=Top};
 pop(#st{top=[],bottom=[_|_]=Bottom}=St) ->
@@ -105,3 +126,8 @@ discard_old_state(#st{bottom=[_|Bottom]}=St) ->
     St#st{bottom=Bottom};
 discard_old_state(#st{bottom=[],top=[_|_]=Top}=St) ->
     discard_old_state(St#st{bottom=reverse(Top),top=[]}).
+
+uncompress([#we{id=Id,next_id=Next}=We0|Wes], Acc) ->
+    We = wings_we:rebuild(We0),
+    uncompress(Wes, [{Id,We#we{next_id=Next}}|Acc]);
+uncompress([], Acc) -> gb_trees:from_orddict(reverse(Acc)).
