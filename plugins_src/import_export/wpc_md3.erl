@@ -14,6 +14,8 @@
 
 -import(lists, [map/2, reverse/1]).
 
+-compile(export_all).
+
 -define(MAX_QPATH,         64).
 -define(MD3_MAX_FRAMES,    1024).
 -define(MD3_MAX_TAGS,      16).
@@ -162,9 +164,7 @@ import_fun(Attr) ->
     fun(Filename) ->
 	    case import_md3(Filename) of
 		{ok,E3dFile0} ->
-		    io:format("imported\n"),
 		    E3dFile = import_transform(E3dFile0, Attr),
-		    io:format("transformed\n"),
 		    {ok,E3dFile};
 		{error,Error} ->
 		    {error,Error}
@@ -240,7 +240,10 @@ import_md3(File) ->
 	".md3" ->
 	    case rd_md3_file(File) of
 		{ok,MD3} ->
-		    convert_md3(MD3);
+		    Mat0 = e3d_mat:rotate(-90.0, {1.0,0.0,0.0}),
+		    Objs = map(fun(S) -> convert_surface(S,[],Mat0) end,
+			       MD3#md3.surfaces),
+		    {ok, #e3d_file { objs = Objs, creator = MD3#md3.name }};
 		Error ->
 		    Error
 	    end;
@@ -264,9 +267,9 @@ import_md3(File) ->
 import_player(Dir) ->
     import_player(Dir,default,"default").
     
-import_player(Dir,Number,Skin) ->
-    N = if Number == default -> "";
-	   true -> "_" ++ integer_to_list(Number)
+import_player(Dir,Level,Skin) ->
+    N = if Level == default -> "";
+	   true -> "_" ++ integer_to_list(Level)
 	end,
     {ok,Head}      = rd_md3_file(filename:join(Dir, "head"++N++".md3")),
     {ok,Upper}     = rd_md3_file(filename:join(Dir, "upper"++N++".md3")),
@@ -274,16 +277,125 @@ import_player(Dir,Number,Skin) ->
     {ok,HeadSkin}  = rd_skin_file(filename:join(Dir, "head_"++Skin++".skin")),
     {ok,UpperSkin} = rd_skin_file(filename:join(Dir, "upper_"++Skin++".skin")),
     {ok,LowerSkin} = rd_skin_file(filename:join(Dir, "lower_"++Skin++".skin")),
-    ObjsHead  = map(fun convert_surface/1, Head#md3.surfaces),
-    ObjsUpper = map(fun convert_surface/1, Upper#md3.surfaces),
-    ObjsLower = map(fun convert_surface/1, Lower#md3.surfaces),
-    Textures = make_materials([HeadSkin, UpperSkin, LowerSkin],Dir,[]),
-    io:format("textures = ~p\n", [Textures]),
-    Mat = map(fun({M,F}) -> {M, [{maps,[{M,F}]}]} end, Textures),
-    {ok, #e3d_file { objs = ObjsHead ++ ObjsUpper ++ ObjsLower,
-		     mat = Mat,
-		     creator = "Wings3D" }}.
+
+    {Mapping,Textures} = make_material(HeadSkin++UpperSkin++LowerSkin,
+				       Dir,[],[]),
+
+    %% Mat0 = e3d_mat:identity(),
+    Mat0 = e3d_mat:rotate(-90.0, {1.0,0.0,0.0}),
+
+    ObjsLower = map(fun(S) -> convert_surface(S,Mapping,Mat0) end,
+		    Lower#md3.surfaces), 
+    TorsoM = tagmatrix("tag_torso", Lower#md3.tags),
+    Mat1 = e3d_mat:mul(Mat0, tmatrix(TorsoM)),
+
+    ObjsUpper = map(fun(S)-> convert_surface(S,Mapping,Mat1) end,
+		    Upper#md3.surfaces),
+
+    HeadM = tagmatrix("tag_head", Upper#md3.tags),
+    Mat2 = e3d_mat:mul(Mat1, tmatrix(HeadM)),
     
+    ObjsHead = map(fun(S) -> convert_surface(S,Mapping,Mat2) end,
+		   Head#md3.surfaces),
+
+    Material = map(fun({M,F}) -> {M, [{maps,[{diffuse,F}]}]} end, Textures),
+
+    io:format("material = ~p\n", [Material]),
+
+    {ok, #e3d_file { objs = ObjsHead ++ ObjsUpper ++ ObjsLower,
+		     mat = Material,
+		     creator = "Wings3D" }}.
+
+tagjoin(Tag, TagList1, TagList2) ->
+    M1 = tagmatrix(Tag, TagList1),
+    io:format("~s matrix1: ~p\n", [Tag,M1]),
+    M2 = tagmatrix(Tag, TagList2),
+    io:format("~s matrix2: ~p\n", [Tag,M2]),
+    M = e3d_mat:mul(M1,M2),
+    io:format("~s matrix: ~p\n", [Tag,M]),
+    M.
+
+
+quat({M00,M10,M20,  M01,M11,M21,  M02,M12,M22}) ->
+    if M00 + M11 + M22 > 0 ->
+	    S0 = math:sqrt(M00 + M11 + M22 + 1.0),
+	    S = 0.5 / S0,
+	    { (M12 - M21)*S, (M20 - M02)*S, (M01 - M10)*S, S0*0.5 };
+       M11 > M00, M22 > M11; M22 > M00 ->
+	    %% I=2, J=0, K=1
+	    S = math:sqrt((M22 - (M00 + M11)) + 1),
+	    { (M20 - M02)*S, (M21 - M12)*S, S*0.5,(M01 - M10)*S };
+       M11 > M00 ->
+	    %% I=1, J=2, K=0
+	    S = math:sqrt((M11 - (M22 + M00)) + 1),
+	    { (M10 - M01)*S, S*0.5, (M12 - M21)*S,(M20 - M02)*S };
+       true ->
+	    %% I=0, J=1, K=2
+	    S = math:sqrt((M00 - (M11 + M22)) + 1),
+	    { S*0.5, (M01 - M10)*S, (M02 - M20)*S, (M12 - M21)*S }
+    end.
+
+
+slerp({Fx,Fy,Fz,Fw}, {Tx,Ty,Tz,Tw}, T) ->
+    CoSom = Fx*Tx + Fy*Ty + Fz*Tz + Fw*Tw,
+    Sign = if CoSom < 0.0 -> -1; true -> 1 end,
+    if abs(CoSom) < 0.9 ->
+	    Omega = math:acos(Sign*CoSom),
+	    SinOm = math:sin(Omega),
+	    S0 = math:sin((1-T)*Omega) / SinOm,
+	    S1 = math:sin(T*Omega) / SinOm,
+	    { S0*Fx + S1*Tx, S0*Fy + S1*Ty, S0*Fz + S1*Tz, S0*Fw + S1*Tw};
+       true ->
+	    S0 = 1 - T,
+	    S1 = T,
+	    { S0*Fx + S1*Tx, S0*Fy + S1*Ty, S0*Fz + S1*Tz, S0*Fw + S1*Tw}
+    end.
+	    
+
+qmatrix({Qx,Qy,Qz,Qw}) ->	    
+    X2 = Qx + Qx,
+    Y2 = Qy + Qy,
+    Z2 = Qz + Qz,
+    
+    XX = Qx * X2, 
+    XY = Qx * Y2, 
+    XZ = Qx * Z2,
+
+    YY = Qy * Y2, 
+    YZ = Qy * Z2,
+    ZZ = Qz * Z2,
+    
+    WX = Qw * X2,
+    WY = Qw * Y2,
+    WZ = Qw * Z2,
+    
+    M00 = 1.0 - (YY+ZZ), M01 = XY - WZ,      M02 = XZ + WY,
+    M10 = XY+WZ,         M11 = 1.0-(XX+ZZ),  M12 = YZ - WX,
+    M20 = XZ - WY,       M21 = YZ + WX,      M22 = 1.0 - (XX+YY),
+
+    {M00,M10,M20,  M01,M11,M21,  M02,M12,M22}.
+    
+
+tmatrix({M00,M10,M20,M01,M11,M21,M02,M12,M22,Tx,Ty,Tz}) ->
+    Quat = quat({M00,M10,M20,M01,M11,M21,M02,M12,M22}),
+    {Q00,Q10,Q20,Q01,Q11,Q21,Q02,Q12,Q22} = qmatrix(Quat),
+    {Q00,Q10,Q20,Q01,Q11,Q21,Q02,Q12,Q22,Tx,Ty,Tz}.
+    
+    
+tagmatrix(Tag, TagList) ->
+    case lists:keysearch(Tag, #md3_tag.name, TagList) of
+	{value, TH} ->
+	    tag2matrix(TH);
+	false ->
+	    e3d_mat:identity()
+    end.
+
+tag2matrix(Tag) ->
+    {Tx,Ty,Tz} = Tag#md3_tag.origin,
+    { {A,B,C}, {D,E,F}, {G,H,I} } = Tag#md3_tag.axis,
+    %% {A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}.
+    {A,D,G, B,E,H, C,F,I, Tx,Ty,Tz}.
+
 %%
 %% Skin reader
 %% return a list of
@@ -293,7 +405,9 @@ import_player(Dir,Number,Skin) ->
 rd_skin_file(File) ->
     case file:read_file(File) of
 	{ok,Bin} ->
-	    {ok,rd_skin(string:tokens(binary_to_list(Bin),"\r\n,"))};
+	    Skin = rd_skin(string:tokens(binary_to_list(Bin),"\r\n,")),
+	    io:format("rd_skin: ~s = ~p\n", [File, Skin]),
+	    {ok,Skin};
 	Error  ->
 	    Error
     end.
@@ -305,56 +419,62 @@ rd_skin([Surf,Tex | Ls]) ->
 rd_skin([]) ->
     [].
 
-make_materials([Skin|Rest],Dir,Mat) ->
-    make_materials(Rest,Dir,make_material(Skin,Dir,Mat));
-make_materials([],_,Mat) -> Mat.
-
-make_material([{texture,Name,File}|Ts],Dir,Mat) ->
-    Nm = list_to_atom(Name),
-    case lists:keysearch(Nm, 1, Mat) of
+make_material([{texture,Name,File}|Rest],Dir,Ts,Mat) ->
+    BaseName = filename:basename(File),
+    TxName = list_to_atom(filename:rootname(BaseName)),
+    TxFile = filename:join(Dir,BaseName),
+    case lists:keysearch(TxName, 2, Ts) of
 	false ->
-	    %% FIXME
-	    BaseName = filename:basename(File),
-	    make_material(Ts, Dir, [{Nm,filename:join(Dir,BaseName)}| Mat]);
-	_ ->
-	    make_material(Ts,Dir, Mat)
+	    make_material(Rest,Dir,[{Name,TxName}|Ts],[{TxName,TxFile}|Mat]);
+	{value,_} ->
+	    make_material(Rest,Dir,[{Name,TxName}|Ts], Mat)
     end;
-make_material([_|Ts], Dir, Mat) ->
-    make_material(Ts, Dir, Mat);
-make_material([], _, Mat) ->
-    Mat.
+make_material([_|Rest], Dir, Ts, Mat) ->
+    make_material(Rest, Dir, Ts, Mat);
+make_material([], _, Ts, Mat) ->
+    {Ts,Mat}.
     
-
-
-convert_md3(MD3) ->
-    Objs = map(fun convert_surface/1, MD3#md3.surfaces),
-    {ok, #e3d_file { objs = Objs, creator = MD3#md3.name }}.
-
 %% surface => obj
+convert_surface(S, Map) ->
+    convert_surface(S, Map, e3d_mat:identity()).
+
 convert_surface(#md3_surface { name = Nm,
 			       vs   = Vs,
 			       ns   = Ns,
 			       ts   = Ts,
-			       st   = St }) ->
-    Mat = list_to_atom(Nm),
-    Fs = map(fun(Ws) ->
+			       st   = St }, Map, Matrix) ->
+    Uv = map(fun({S,T}) -> {S, 1.0-T} end, St ),
+		    
+    Mat = case lists:keysearch(Nm, 1, Map) of
+	      false ->
+		  io:format("mapped: ~s => none\n", [Nm]),
+		  [];
+	      {value,{_,Tx}} ->
+		  io:format("mapped: ~s => ~s\n", [Nm,Tx]),
+		  [Tx]
+	  end,
+    Fs = map(fun(Ws0) ->
+		     Ws = reverse(Ws0),
 		     #e3d_face { vs  = Ws,
 				 tx  = Ws,
-				 ns  = Ws
-				 %% mat = [Mat] 
+				 ns  = Ws,
+				 mat = Mat
 				}
 	     end, Ts),
     Obj = #e3d_mesh { vs = Vs,
-		      tx = St,
+		      tx = Uv,
 		      ns = Ns,
 		      fs = Fs },
-    #e3d_object { name = Nm, obj = Obj }.
+    Obj1 = e3d_mesh:transform(Obj, Matrix),
+    
+    #e3d_object { name = Nm, obj = Obj1 }.
 
 
 
 rd_md3_file(File) ->
     case file:read_file(File) of
 	{ok,Bin} ->
+	    io:format("rd_md3: ~s\n", [File]),
 	    rd_md3(Bin,Bin);
 	Error -> Error
     end.
@@ -372,6 +492,7 @@ rd_md3(<<?MD3_MAGIC,
       ?S32(Ofs_Tags),
       ?S32(Ofs_Surfaces),
       ?S32(Ofs_Eof), _/binary>>, Data) ->
+    io:format("rd_md3: ~s\n", [cname(Name)]),
     Frames = rd_frames(Data, Ofs_Frames,Num_Frames),
     Tags = rd_tags(Data, Ofs_Tags, Num_Tags),
     Surfaces = rd_surfaces(Data, Ofs_Surfaces, Num_Surfaces),
@@ -437,6 +558,7 @@ rd_tags(Data, Offs, I, Xs) when I > 0 ->
     Tag = #md3_tag { name = cname(Name),
 		     origin = {Ox,Oy,Oz},
 		     axis = { {Ax,Ay,Az}, {Bx,By,Bz}, {Cx,Cy,Cz}} },
+    io:format("tag = ~p\n", [Tag]),
     rd_tags(Data, Offs+?SIZEOF_TAG, I-1, [Tag|Xs]);
 rd_tags(_Data, _Offs, 0, Xs) -> reverse(Xs).
 
@@ -447,15 +569,15 @@ rd_vertices(Data, Offset, Num) ->
 
 rd_vertices(Data, Offs, I, Vs,Ns) when I > 0 ->
     <<_:Offs/binary,
-     ?S16(X), ?S16(Y), ?S16(Z), ?S16(N),
+     ?S16(X), ?S16(Y), ?S16(Z), Lat0:8, Lng0:8,
      _/binary>> = Data,
-    Lat = (N band 255)/255 * 2*math:pi(),
-    Lng = ((N bsr 8) band 255)/255 * 2*math:pi(),
+    Lat = Lat0/255.0 * 2*math:pi(),
+    Lng = Lng0/255.0 * 2*math:pi(),
     Xn = math:cos(Lat)*math:sin(Lng),
     Yn = math:sin(Lat)*math:sin(Lng),
     Zn = math:cos(Lng),
     rd_vertices(Data, Offs+8, I-1, 
-		[{X/64, Y/64, Z/64}|Vs],
+		[{X/64.0, Y/64.0, Z/64.0}|Vs],
 		[{Xn,Yn,Zn}|Ns]);
 rd_vertices(_Data, _Offs, 0, Vs, Ns) ->
     {reverse(Vs), reverse(Ns)}.
@@ -498,9 +620,7 @@ rd_st(Data, Offset, Num) ->
     rd_st(Data, Offset, Num, []).
 
 rd_st(Data, Offs, I, Xs) when I > 0 ->
-    <<_:Offs/binary,
-     ?F32(S),?F32(T),
-     _/binary>> = Data,
+    <<_:Offs/binary, ?F32(S),?F32(T), _/binary>> = Data,
     rd_st(Data, Offs+8, I-1, [{S,T}|Xs]);
 rd_st(_Data, _Offs, 0, Xs) -> reverse(Xs).
 
@@ -528,6 +648,7 @@ rd_surfaces(Data, Offs, I, Xs) when I>0 ->
     {Vertices,Normals} = rd_vertices(Data, Offs+Ofs_Verts, Num_Verts),
     Triangles = rd_triangles(Data, Offs+Ofs_Triangles, Num_Triangles),
     St = rd_st(Data, Offs+Ofs_St, Num_Verts),
+    io:format("surface: ~s\n", [cname(Name)]),
     Surface = #md3_surface { ident = ?MD3_MAGIC,
 			     name = cname(Name),
 			     flags = Flags,
