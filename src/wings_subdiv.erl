@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.73 2004/04/08 06:04:39 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.74 2004/04/12 09:04:49 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -616,12 +616,9 @@ mat_faces_1([{Mat,Faces}|T], We, Mtab) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
     case wings_material:apply_material(Mat, Mtab) of
 	false ->
-	    Tess = wings_draw_util:tess(),
-	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
 	    gl:'begin'(?GL_QUADS),
 	    draw_mat_faces(Faces, We),
-	    gl:'end'(),
-	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA);
+	    gl:'end'();
 	true ->
 	    gl:'begin'(?GL_QUADS),
 	    draw_uv_faces(Faces, We),

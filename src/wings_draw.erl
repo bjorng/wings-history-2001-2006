@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.183 2004/04/06 04:28:01 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.184 2004/04/12 09:04:49 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -494,15 +494,12 @@ update_sel_all(#dlo{src_we=#we{fs=Ftab}}=D) ->
     update_face_sel(gb_trees:keys(Ftab), D).
 
 update_face_sel(Fs, D) ->
-    Tess = wings_draw_util:tess(),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     gl:'begin'(?GL_TRIANGLES),
     update_face_sel_1(Fs, D),
     gl:'end'(),
     gl:endList(),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
     D#dlo{sel=List}.
 
 update_face_sel_1(Fs, #dlo{ns=none,src_we=We}) ->
@@ -793,10 +790,7 @@ draw_faces({color,Colors,#st{mat=Mtab}}, D) ->
 
 draw_vtx_faces({Same,Diff}, D) ->
     gl:'begin'(?GL_TRIANGLES),
-    Tess = wings_draw_util:tess(),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
     draw_vtx_faces_1(Same, D),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
     draw_vtx_faces_3(Diff, D),
     gl:'end'().
 
@@ -834,12 +828,9 @@ mat_faces_1([{Mat,Faces}|T], We, Mtab) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
     case wings_material:apply_material(Mat, Mtab) of
 	false ->
-	    Tess = wings_draw_util:tess(),
-	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
 	    gl:'begin'(?GL_TRIANGLES),
 	    draw_mat_faces(Faces, We),
-	    gl:'end'(),
-	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA);
+	    gl:'end'();
 	true ->
 	    gl:'begin'(?GL_TRIANGLES),
 	    draw_uv_faces(Faces, We),

@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.128 2004/04/06 03:50:14 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.129 2004/04/12 09:04:49 bjorng Exp $
 %%
 
 -module(wings_draw_util).
--export([init/0,delete_dlists/0,tess/0,begin_end/1,begin_end/2,
+-export([init/0,delete_dlists/0,
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,
 	 prepare/3,
@@ -33,19 +33,6 @@
 	 }).
 
 init() ->
-    case get(wings_tesselator) of
-	undefined -> ok;
-	OldTess -> glu:deleteTess(OldTess)
-    end,
-    Tess = glu:newTess(),
-    put(wings_tesselator, Tess),
-
-    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
-    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_NOP),
-    glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE),
-
     Dl = case get_dl_data() of
 	     undefined -> [];
 	     #du{dl=Dl0,used=Used} ->
@@ -86,15 +73,6 @@ clear_old_dl([#dlo{src_we=We,proxy_data=Pd0,ns=Ns}|T]) ->
     Pd = wings_subdiv:clean(Pd0),
     [#dlo{src_we=We,mirror=none,proxy_data=Pd,ns=Ns}|clear_old_dl(T)];
 clear_old_dl([]) -> [].
-
-tess() ->
-    get(wings_tesselator).
-
-begin_end(Body) ->
-    wings__du:begin_end(?GL_TRIANGLES, Body).
-
-begin_end(Type, Body) ->
-    wings__du:begin_end(Type, Body).
 
 get_dl_data() ->
     case wings_wm:lookup_prop(display_lists) of
