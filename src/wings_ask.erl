@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.161 2004/01/12 18:11:54 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.162 2004/01/16 00:22:44 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -2231,7 +2231,10 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnabled) ->
 browse_hook_fun(Ps0, TextKey, TextHook) ->
     fun(update, {_,I,_,Sto0}) ->
 	    Name0 = gb_trees:get(var(TextKey, I), Sto0),
-	    Dir = filename:dirname(filename:absname(Name0)),
+	    Dir = filename:dirname
+		    (filename:absname
+		     (Name0++".junk", 
+		      wings_pref:get_value(current_directory))),
 	    Ps = [{directory,Dir}|Ps0],
 	    Parent = wings_wm:this(),
 	    F = fun(Name) ->

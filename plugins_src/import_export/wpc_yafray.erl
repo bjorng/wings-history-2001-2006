@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.53 2004/01/12 23:48:12 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.54 2004/01/16 00:22:44 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -110,7 +110,7 @@
 -define(DEF_MOD_SHININESS, 0.0).
 -define(DEF_MOD_NORMAL, 0.0).
 -define(DEF_MOD_TYPE, image).
--define(DEF_MOD_FILENAME, ".jpg").
+-define(DEF_MOD_FILENAME, "").
 -define(DEF_MOD_COLOR1, {0.0,0.0,0.0}).
 -define(DEF_MOD_COLOR2, {1.0,1.0,1.0}).
 -define(DEF_MOD_DEPTH, 2).
@@ -404,6 +404,10 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
     Shininess = proplists:get_value(shininess, Ps, ?DEF_MOD_SHININESS),
     Normal = proplists:get_value(normal, Ps, ?DEF_MOD_NORMAL),
     Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
+    BrowseProps = [{dialog_type,open_dialog},
+		   {extensions,[{".jpg","JPEG compressed image"},
+				{".tga","Targa bitmap"}]}],
+%    erlang:display({?MODULE,?LINE,[Filename,AbsnameX,BrowseProps]}),
     Color1 = proplists:get_value(color1, Ps, ?DEF_MOD_COLOR1),
     Color2 = proplists:get_value(color2, Ps, ?DEF_MOD_COLOR2),
     Depth = proplists:get_value(depth, Ps, ?DEF_MOD_DEPTH),
@@ -452,7 +456,8 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 		   [mod_enable_hook(M, [marble,wood,clouds])]},
 		  {label,"Turbulence",[mod_enable_hook(M, [marble,wood])]},
 		  {label,"Ringscale X",[mod_enable_hook(M, [wood])]}]},
-	 {vframe,[{text,Filename,[mod_enable_hook(M, [image])]},
+	 {vframe,[{button,{text,Filename,[mod_enable_hook(M, [image]),
+					  {props,BrowseProps}]}},
 		  {hframe,
 		   [{vframe,[{color,Color1,
 			      [mod_enable_hook(M, [marble,wood,clouds])]},
@@ -678,8 +683,15 @@ light_dialog(_Name, infinite, Ps) ->
       [{title,"Background"}]}];
 light_dialog(_Name, ambient, Ps) ->
     Bg = proplists:get_value(background, Ps, ?DEF_BACKGROUND),
-    BgFname = proplists:get_value(background_filename, Ps, 
-				  ?DEF_BACKGROUND_FILENAME),
+    BgFnameImage = proplists:get_value(background_filename_image, Ps, 
+				       ?DEF_BACKGROUND_FILENAME),
+    BrowsePropsImage = [{dialog_type,open_dialog},
+			{extensions,[{".jpg","JPEG compressed image"},
+				     {".tga","Targa bitmap"}]}],
+    BgFnameHDRI = proplists:get_value(background_filename_HDRI, Ps, 
+				      ?DEF_BACKGROUND_FILENAME),
+    BrowsePropsHDRI = [{dialog_type,open_dialog},
+		       {extensions,[{".hdr","High Dynamic Range Image"}]}],
     BgExpAdj = proplists:get_value(background_exposure_adjust, Ps, 
 				   ?DEF_BACKGROUND_EXPOSURE_ADJUST),
     BgPower = proplists:get_value(background_power, Ps, 
@@ -699,8 +711,15 @@ light_dialog(_Name, ambient, Ps) ->
 		{"Image",image},
 		{"None", undefined}],Bg,[layout,{key,{?TAG,background}}]},
        {hframe,[{label,"Filename"},
-		{text,BgFname,[{key,{?TAG,background_filename}}]}],
-	[{hook,light_hook({?TAG,background}, ['HDRI',image])}]},
+		{button,{text,BgFnameHDRI,
+			 [{key,{?TAG,background_filename_HDRI}},
+			  {props,BrowsePropsHDRI}]}}],
+	[{hook,light_hook({?TAG,background}, ['HDRI'])}]},
+       {hframe,[{label,"Filename"},
+		{button,{text,BgFnameImage,
+			 [{key,{?TAG,background_filename_image}},
+			  {props,BrowsePropsImage}]}}],
+	[{hook,light_hook({?TAG,background}, [image])}]},
        {hframe,[{label,"Exposure Adjust"},
 		{text,BgExpAdj,[{key,{?TAG,background_exposure_adjust}},
 				{range,{-128,127}}]}],
@@ -744,9 +763,9 @@ light_result([{{?TAG,type},photonlight}|_]=Ps) ->
 light_result([_,{{?TAG,background},_}|_]=Ps) ->
     split_list(Ps, 4);
 light_result([{{?TAG,type},hemilight}|_]=Res) ->
-    split_list(Res, 7);
+    split_list(Res, 8);
 light_result([{{?TAG,type},pathlight}|_]=Res) ->
-    split_list(Res, 7);
+    split_list(Res, 8);
 light_result(Tail) ->
 %    erlang:display({?MODULE,?LINE,Tail}),
     {[],Tail}.
@@ -756,13 +775,20 @@ light_result(Tail) ->
 pref_edit(St) ->
     Dialogs = get_pref(dialogs, ?DEF_DIALOGS),
     Renderer = get_pref(renderer, ?DEF_RENDERER),
+    BrowseProps = [{dialog_type,open_dialog},
+		   case os:type() of
+		       {win32,_} -> 
+			   {extensions,[{".exe","Windows Executable"}]};
+		       _-> {extensions,[]}
+		   end],
     Dialog =
 	[{vframe,[{menu,[{"Disabled Dialogs",disabled},
 			 {"Automatic Dialogs",auto},
 			 {"Enabled Dialogs",enabled}],
 		   Dialogs,[{key,dialogs}]},
 		  {label,"Rendering Command:"},
-		  {text,Renderer,[{key,renderer},{width,60}]}]}],
+		  {button,{text,Renderer,
+			   [{key,renderer},{props,BrowseProps}]}}]}],
     wpa:dialog("YafRay Options", Dialog, 
 	       fun (Attr) -> pref_result(Attr,St) end).
 
@@ -1548,14 +1574,14 @@ export_background(F, Name, Ps) ->
 		    [Turbidity,format(AddSun)]),
 	    export_pos(F, from, Position);
 	'HDRI' ->
-	    BgFname = proplists:get_value(background_filename, YafRay, 
+	    BgFname = proplists:get_value(background_filename_HDRI, YafRay, 
 					  ?DEF_BACKGROUND_FILENAME),
 	    BgExpAdj = proplists:get_value(background_exposure_adjust, YafRay, 
 					   ?DEF_BACKGROUND_EXPOSURE_ADJUST),
 	    println(F, " exposure_adjust=\"~w\">", [BgExpAdj]),
 	    println(F, "    <filename value=\"~s\" />", [BgFname]);
 	image ->
-	    BgFname = proplists:get_value(background_filename, YafRay, 
+	    BgFname = proplists:get_value(background_filename_image, YafRay,
 					  ?DEF_BACKGROUND_FILENAME),
 	    BgPower = proplists:get_value(background_power, YafRay, 
 					   ?DEF_BACKGROUND_POWER),
