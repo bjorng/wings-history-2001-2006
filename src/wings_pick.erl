@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.100 2003/07/03 14:44:34 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.101 2003/07/25 12:14:12 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -757,23 +757,20 @@ draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
 
 select_draw_1(#we{perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
     case wings_pref:get_value(display_list_opt) of
- 	false -> select_draw_nonopt(We);
-	true ->  select_draw_opt(We)
+	false ->
+	    select_draw_2(We);
+	true ->
+	    Tess = wings_draw_util:tess(),
+	    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
+	    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
+	    select_draw_2(We),
+	    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
+	    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE)
     end,
     gl:edgeFlag(?GL_TRUE);
 select_draw_1(_) -> ok.
     
-select_draw_opt(#we{fs=Ftab}=We) ->
-    gl:pushName(0),
-    foreach(fun({Face,Edge}) ->
-		    gl:loadName(Face),
-		    gl:'begin'(?GL_TRIANGLES),
-		    wings_draw_util:flat_face(Face, Edge, We),
-		    gl:'end'()
-	    end, gb_trees:to_list(Ftab)),
-    gl:popName().
-
-select_draw_nonopt(#we{fs=Ftab}=We) ->
+select_draw_2(#we{fs=Ftab}=We) ->
     gl:pushName(0),
     foreach(fun({Face,Edge}) ->
 		    gl:loadName(Face),
