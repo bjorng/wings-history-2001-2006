@@ -1,14 +1,14 @@
 %%
 %%  wings_draw.erl --
 %%
-%%     This module draws objects using OpenGL and handles picking.
+%%     This module draws objects using OpenGL.
 %%
 %%  Copyright (c) 2001 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.27 2001/11/27 20:58:59 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.28 2001/11/28 13:00:12 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -33,8 +33,7 @@ init() ->
     glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
     glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
     glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
-    glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_SIMPLE_COMBINE),
-    glu:tessCallback(Tess, ?GLU_TESS_ERROR, ?ESDL_TESSCB_ERROR_PRINT).
+    glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE).
 
 tess() ->
     get(wings_gnu_tess).
