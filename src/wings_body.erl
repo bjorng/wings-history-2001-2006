@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.72 2004/11/13 04:39:25 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.73 2004/12/16 14:17:36 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -20,42 +20,46 @@
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
-    FlipStr = ?STR(menu,5,"Flip the object around") ++ " ",
+    FlipStr = ?__(5,"Flip the object around") ++ " ",
 
-    Menu = [{basic,{?STR(menu,1,"Object operations"),ignore}},
+    Menu = [{basic,{?__(1,"Object operations"),ignore}},
 	    {basic,separator},
-	    {?STR(menu,2,"Move"),{move,Dir}},
+	    {?__(2,"Move"),{move,Dir}},
 	    wings_menu_util:rotate(St),
 	    wings_menu_util:scale(St),
 	    separator,
-	    {?STR(menu,3,"Flip"),
+	    {?__(3,"Flip"),
 	     {flip,[{wings_s:dir(x),x,FlipStr ++ wings_s:dir_axis(x)},
 		    {wings_s:dir(y),y,FlipStr ++ wings_s:dir_axis(y)},
 		    {wings_s:dir(z),z,FlipStr ++ wings_s:dir_axis(z)}]}},
 	    separator,
-	    {?STR(menu,10,"Invert"),invert,
-	     ?STR(menu,11,"Flip all normals, turning the object inside out")},
+	    {?__(10,"Invert"),invert,
+	     ?__(11,"Flip all normals, turning the object inside out")},
 	    separator,
-	    {?STR(menu,12,"Tighten"),tighten,
-	     ?STR(menu,13,"Move vertices towards average midpoint")},
-	    {?STR(menu,14,"Smooth"),smooth,
-	     ?STR(menu,15,"Subdivide all faces to give the object a smoother apperance")},
-	    {?STR(menu,16,"Combine"),combine,
-	     ?STR(menu,17,"Combine multiple objects into a single object")},
-	    {?STR(menu,18,"Separate"),separate,
-	     ?STR(menu,19,"Separate a combined objects into its components")},
+	    {?__(12,"Tighten"),tighten,
+	     ?__(13,"Move vertices towards average midpoint")},
+	    {?__(14,"Smooth"),smooth,
+	     ?__(15,"Subdivide all faces to give the object a smoother apperance")},
+	    {?__(16,"Combine"),combine,
+	     ?__(17,"Combine multiple objects into a single object")},
+	    {?__(18,"Separate"),separate,
+	     ?__(19,"Separate a combined objects into its components")},
 	    separator,
-	    {?STR(menu,20,"Weld"),weld,?STR(menu,21,"Merge pair of faces that are nearly coincident"),
+	    {?__(20,"Weld"),weld,
+	     ?__(21,"Merge pair of faces that are nearly coincident"),
 	     [option]},
 	    separator,
-	    {?STR(menu,22,"Cleanup"),cleanup,?STR(menu,23,"Remove various defects"),[option]},
-	    {?STR(menu,24,"Auto-Smooth"),auto_smooth,
-	     ?STR(menu,25,"Set edges hard or soft depending on the angle between faces"),
+	    {?__(22,"Cleanup"),cleanup,
+	     ?__(23,"Remove various defects"),
+	     [option]},
+	    {?__(24,"Auto-Smooth"),auto_smooth,
+	     ?__(25,"Set edges hard or soft depending on the angle between faces"),
 	     [option]},
 	    separator,
-	    {?STR(menu,26,"Duplicate"),{duplicate,Dir}},
-	    {?STR(menu,27,"Delete"),delete,?STR(menu,28,"Delete the selected objects")},
-	    {?STR(menu,29,"Rename..."),rename,?STR(menu,30,"Rename selected objects")}|mode_dependent(St)],
+	    {?__(26,"Duplicate"),{duplicate,Dir}},
+	    {?__(27,"Delete"),delete,?__(28,"Delete the selected objects")},
+	    {?__(29,"Rename..."),rename,
+	     ?__(30,"Rename selected objects")}|mode_dependent(St)],
     wings_menu:popup_menu(X, Y, body, Menu).
 
 mode_dependent(St) ->
@@ -84,34 +88,34 @@ mode_dependent(St) ->
     end.
 
 vertex_color_item(object) ->
-    [{?STR(vertex_color_item,1,"Vertex Color"),vertex_color,
-      ?STR(vertex_color_item,2,"Apply vertex colors to selected objects "
+    [{?__(1,"Vertex Color"),vertex_color,
+      ?__(2,"Apply vertex colors to selected objects "
 	   "(first changing mode to vertex color mode if needed)")}];
 vertex_color_item(_) -> [].
     
 mat_col_conv(vertex, object, T) ->
-    [{?STR(mat_col_conv,1,"Colors to Materials"),colors_to_materials,
-      ?STR(mat_col_conv,2,"Convert vertex colors to materials")}|T];
+    [{?__(1,"Colors to Materials"),colors_to_materials,
+      ?__(2,"Convert vertex colors to materials")}|T];
 mat_col_conv(material, object, T) ->
-    [{?STR(mat_col_conv,3,"Materials to Colors"),materials_to_colors,
-      ?STR(mat_col_conv,4,"Convert materials to vertex colors")}|T];
+    [{?__(3,"Materials to Colors"),materials_to_colors,
+      ?__(4,"Convert materials to vertex colors")}|T];
 mat_col_conv(_, _, T) -> T.
 
 arealight_conv(arealight, T) ->
-    [{?STR(arealight_conv,1,"Area Light to Object"),from_arealight,
-      ?STR(arealight_conv,2,"Convert selected area lights to objects")}|T];
+    [{?__(1,"Area Light to Object"),from_arealight,
+      ?__(2,"Convert selected area lights to objects")}|T];
 arealight_conv(object, T) ->
-    [{?STR(arealight_conv,3,"Object To Area Light"),to_arealight,
-      ?STR(arealight_conv,4,"Convert selected objects to area lights")}|T];
+    [{?__(3,"Object To Area Light"),to_arealight,
+      ?__(4,"Convert selected objects to area lights")}|T];
 arealight_conv(mixed, T) -> T.
 
 mode_conv(material, object, T) ->
-    [{?STR(mode_conv,1,"Vertex Color Mode"),vertex_color_mode,
-      ?STR(mode_conv,2,"Change object mode to vertex color mode "
+    [{?__(1,"Vertex Color Mode"),vertex_color_mode,
+      ?__(2,"Change object mode to vertex color mode "
 	   "(materials will be kept, but not shown)")}|T];
 mode_conv(vertex, object, T) ->
-    [{?STR(mode_conv,3,"Material Mode"),material_mode,
-      ?STR(mode_conv,4,"Change object mode to material mode "
+    [{?__(3,"Material Mode"),material_mode,
+      ?__(4,"Change object mode to material mode "
 	   "(vertex colors will be kept, but not shown)")}|T];
 mode_conv(_, _, T) -> T.
 
@@ -193,11 +197,14 @@ convert_selection(#st{sel=Sel0}=St) ->
 %%%
 
 cleanup(Ask, _) when is_atom(Ask) ->
-    Qs = [{?STR(cleanup,1,"Short Edges"),true,[{key,short_edges}]},
+    Qs = [{?__(1,"Short Edges"),true,[{key,short_edges}]},
 	  {hframe,
-	   [{label,?STR(cleanup,2,"Length Tolerance")},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]},
-	  {?STR(cleanup,3,"Isolated Vertices"),true,[{key,isolated_vs}]}],
-	   wings_ask:dialog(Ask, ?STR(cleanup,4,"Cleanup"),
+	   [{label,?__(2,"Length Tolerance")},
+	    {text,1.0E-3,[{range,{1.0E-5,10.0}}]}]},
+	  {?__(3,"Isolated Vertices"),true,
+	   [{key,isolated_vs}]}],
+    wings_ask:dialog(Ask,
+		     ?__(4,"Cleanup"),
 		     [{vframe,Qs}],
 		     fun(Res) -> {body,{cleanup,Res}} end);
 cleanup(Opts, St0) ->
@@ -225,10 +232,11 @@ clean_isolated_vertices(We) ->
     case wings_vertex:isolated(We) of
 	[] -> We;
 	[_]=Isolated ->
-	    io:put_chars(?STR(clean_isolated_vertices,1,"Removed 1 isolated vertex\n")),
+	    io:put_chars(?__(1,"Removed 1 isolated vertex\n")),
 	    wings_vertex:dissolve_isolated(Isolated, We);
 	Isolated ->
-	    io:format(?STR(clean_isolated_vertices,2,"Removed ~p isolated vertices\n"), [length(Isolated)]),
+	    io:format(?__(2,"Removed ~p isolated vertices\n"),
+		      [length(Isolated)]),
 	    wings_vertex:dissolve_isolated(Isolated, We)
     end.
 		  
@@ -260,7 +268,7 @@ cleanup_rep_1([F|Fs], We0) ->
 	none ->
 	    cleanup_rep_1(Fs, We0);
 	V ->
-	    io:format(?STR(cleanup_rep_1,1,"Repeated vertex ~p in face ~p\n"), [V,F]),
+	    io:format(?__(1,"Repeated vertex ~p in face ~p\n"), [V,F]),
 	    We = cleanup_rep_2(F, V, We0),
 	    NewFaces = gb_sets:to_list(wings_we:new_items(face, We0, We)),
 	    cleanup_rep_1(NewFaces++Fs, We)
@@ -347,7 +355,7 @@ cleanup_waists_1([V|Vs], [{V,AllEs}|VsEs], #we{es=Etab0,vp=Vtab0,vc=Vct0}=We0) -
 	    Vtab = gb_trees:insert(NewV, gb_trees:get(V, Vtab0), Vtab0),
 	    Vct = gb_trees:insert(NewV, AnEdge, Vct0),
 	    We = We1#we{es=Etab,vp=Vtab,vc=Vct},
-	    io:format(?STR(cleanup_waists_1,1,"Removed waist vertex: ~p\n"), [V]),
+	    io:format(?__(1,"Removed waist vertex: ~p\n"), [V]),
 
 	    %% Re-process the newly added vertex. (Some of the
 	    %% edges may not be reachable from the incident of
@@ -375,8 +383,8 @@ cleanup_2edged_faces(#we{fs=Ftab}=We) ->
 delete_2edged_faces_1([Face|Faces], We0) ->
     case wings_face:delete_if_bad(Face, We0) of
 	bad_edge ->
-	    wings_util:error(?STR(delete_2edged_faces_1,1,"Face") ++ integer_to_list(Face) ++
-			     ?STR(delete_2edged_faces_1,2,"has only one edge"));
+	    wings_util:error(?__(1,"Face") ++ integer_to_list(Face) ++
+			     ?__(2,"has only one edge"));
 	We -> delete_2edged_faces_1(Faces, We)
     end;
 delete_2edged_faces_1([], We) -> We.
@@ -502,8 +510,9 @@ unify_modes([#we{mode=Mode}|Wes]) ->
 unify_modes([#we{mode=Mode}|Wes], Mode) ->
     unify_modes(Wes, Mode);
 unify_modes([_|_], _) ->
-    wings_util:error(?STR(unify_modes,1,"Objects with vertex colors cannot be combined " 
-			  "with objects with materials."));
+    wings_util:error(?__(1,
+			 "Objects with vertex colors cannot be combined " 
+			 "with objects with materials."));
 unify_modes([], Mode) -> Mode.
 		    
 %%%
@@ -531,8 +540,8 @@ auto_smooth(St) ->
     do_auto_smooth(60, St).
 
 auto_smooth(Ask, _) when is_atom(Ask) ->
-    wings_ask:ask(Ask,?STR(auto_smooth,1,"Auto Smooth Parameters"),
-		  [{?STR(auto_smooth,2,"Crease Angle"),60,[{range,{0,180}}]}],
+    wings_ask:ask(Ask,?__(1,"Auto Smooth Parameters"),
+		  [{?__(2,"Crease Angle"),60,[{range,{0,180}}]}],
 		  fun(Res) -> {body,{auto_smooth,Res}} end);
 auto_smooth([Angle], St) ->
     {save_state,do_auto_smooth(Angle, St)}.
@@ -579,10 +588,10 @@ rename(Objects, #st{shapes=Shs}=St) ->
 
 rename_1(Wes, St) ->
     Qs = rename_qs(Wes),
-	wings_ask:dialog(?STR(rename_1,1,"Rename"), Qs,
-		     fun(NewNames) ->
-			     rename_1(NewNames, Wes, St)
-		     end).
+	wings_ask:dialog(?__(1,"Rename"), Qs,
+			 fun(NewNames) ->
+				 rename_1(NewNames, Wes, St)
+			 end).
 
 rename_1(Names, Wes, #st{shapes=Shs}=St) ->
     rename_2(Names, Wes, Shs, St).
@@ -654,8 +663,8 @@ from_arealight_1([We|Wes], Shs, St)
 %%% Set Mode.
 %%%
 
-set_mode(vertex_color, St) -> set_mode(vertex, St);
-set_mode(Mode, St) -> wings_sel:map(fun(_, We) -> We#we{mode=Mode} end, St).
+set_mode(Mode, St) ->
+    wings_sel:map(fun(_, We) -> We#we{mode=Mode} end, St).
 
 %%%
 %%% Convert materials to vertex colors.
@@ -694,7 +703,8 @@ colors_to_materials_2([], We, FaceMat, St) ->
     {wings_material:assign_materials(FaceMat, We),St}.
 
 color_material({R,G,B}=Color, #st{mat=Mat0}=St0) ->
-    Name0 = ?STR(color_material,1,"color_")++ fmt_int(R) ++ "_" ++ fmt_int(G) ++ "_" ++ fmt_int(B),
+    Name0 = ?__(1,"color_")++ fmt_int(R) ++ "_" ++ fmt_int(G) ++
+	"_" ++ fmt_int(B),
     Name = list_to_atom(Name0),
     case gb_trees:is_defined(Name, Mat0) of
 	true -> {Name,St0};
@@ -719,8 +729,9 @@ fmt_int(N, L) -> fmt_int(N+1, [$0|L]).
 
 weld(Ask, _) when is_atom(Ask) ->
     Qs = [{hframe,
-	   [{label,?STR(weld,1,"Distance Tolerance")},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]}],
-	     wings_ask:dialog(Ask, ?STR(weld,2,"Weld"), Qs,
+	   [{label,?__(1,"Distance Tolerance")},
+	    {text,1.0E-3,[{range,{1.0E-5,10.0}}]}]}],
+    wings_ask:dialog(Ask, ?__(2,"Weld"), Qs,
 		     fun(Res) -> {body,{weld,Res}} end);
 weld([Tolerance], St0) ->
     St1 = combine(St0),
@@ -740,7 +751,7 @@ weld_1(Tol, #we{id=Id,fs=Fs0}=We0, Acc) ->
     Part = sofs:to_external(Part1),
     case weld_2(Part, Tol, We0) of
 	We0 ->
-	    wings_util:error(?STR(weld_1,1,"Found no faces to weld."));
+	    wings_util:error(?__(1,"Found no faces to weld."));
 	We ->
 	    {We,[{Id,weld_selection(lists:append(Part), We0, We)}|Acc]}
     end.
