@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.22 2003/02/05 15:55:14 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.23 2003/02/06 20:22:06 bjorng Exp $
 %%
 
 -module(wings_outliner).
--export([window/1]).
+-export([window/1,window/3]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -41,17 +41,19 @@ window(St) ->
 	    wings_wm:delete(outliner);
 	false ->
 	    {{_,DeskY},{DeskW,DeskH}} = wings_wm:win_rect(desktop),
-	    W = 25*?CHAR_WIDTH,
-	    Ost = #ost{first=0,lh=18,active=-1},
-	    Current = {current_state,St},
-	    Op = {seq,push,event(Current, Ost)},
-	    Pos = {DeskW-5,DeskY+55,highest},
+	    W = 28*?CHAR_WIDTH,
+	    Pos = {DeskW-5,DeskY+55},
 	    Size = {W,DeskH div 2},
-	    wings_wm:toplevel(outliner, "Outliner", Pos, Size,
-			      [resizable,closable,vscroller,{anchor,ne}], Op),
-	    wings_wm:send(outliner, Current),
+	    window(Pos, Size, St),
 	    keep
     end.
+
+window(Pos, Size, St) ->
+    Ost = #ost{first=0,lh=18,active=-1},
+    Current = {current_state,St},
+    Op = {seq,push,event(Current, Ost)},
+    wings_wm:toplevel(outliner, "Outliner", Pos, Size,
+		      [resizable,closable,vscroller,{anchor,ne}], Op).
 
 get_event(Ost) ->
     {replace,fun(Ev) -> event(Ev, Ost) end}.

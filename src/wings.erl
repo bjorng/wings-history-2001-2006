@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.205 2003/02/01 09:12:53 bjorng Exp $
+%%     $Id: wings.erl,v 1.206 2003/02/06 20:22:06 bjorng Exp $
 %%
 
 -module(wings).
@@ -145,6 +145,7 @@ init(File, Root) ->
 		      Op),
     open_file(File),
 
+    restore_windows(St),
     case catch wings_wm:enter_event_loop() of
 	{'EXIT',normal} ->
 	    wings_file:finish(),
@@ -301,7 +302,9 @@ do_command(Cmd, Args, St0) ->
 	{init,_,_}=Init -> Init;
 	{seq,_,_}=Seq -> Seq;
 	keep -> keep;
-	quit -> exit(normal)
+	quit ->
+	    save_windows(),
+	    exit(normal)
     end.
 
 do_command_1(Cmd, St0) ->
@@ -788,10 +791,49 @@ wings() -> "Wings 3D [debug]".
 wings() -> "Wings 3D".
 -endif.
 
+%%%
+%%% Saving and restoring of window layouts.
+%%%
+save_windows() ->
+    {Pos,Size} = wings_wm:win_rect(),
+    ToolbarHidden = wings_wm:is_hidden({toolbar,geom}),
+    Geom = {geom,Pos,Size,ToolbarHidden},
+    Wins = [Geom|save_windows_1([outliner,object])],
+    wings_pref:set_value(saved_windows, Wins).
 
-%%
-%% The toolbar window with buttons.
-%%
+save_windows_1([N|Ns]) ->
+    case wings_wm:is_window(N) of
+	false -> save_windows_1(Ns);
+	true ->
+	    Pos = wings_wm:win_ur({controller,N}),
+	    Size = wings_wm:win_size(N),
+	    [{N,Pos,Size}|save_windows_1(Ns)]
+    end;
+save_windows_1([]) -> [].
+
+restore_windows(St) ->
+    restore_windows_1(wings_pref:get_value(saved_windows, []), St).
+
+restore_windows_1([{geom,{_,_}=Pos,{_,_}=Size,ToolbarHidden}|Ws], St) ->
+    wings_wm:move(geom, Pos, Size),
+    if
+	ToolbarHidden -> wings_wm:hide({toolbar,geom});
+	true -> ok
+    end,
+    restore_windows_1(Ws, St);
+restore_windows_1([{object,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
+    wings_shape:window(Pos, Size, St),
+    restore_windows_1(Ws, St);
+restore_windows_1([{outliner,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
+    wings_outliner:window(Pos, Size, St),
+    restore_windows_1(Ws, St);
+restore_windows_1([_|Ws], St) ->
+    restore_windows_1(Ws, St);
+restore_windows_1([], _) -> ok.
+
+%%%
+%%% The toolbar window with buttons.
+%%%
 
 -define(BUTTON_WIDTH, 44).
 -define(BUTTON_HEIGHT, 32).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.72 2003/01/30 09:53:56 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.73 2003/02/06 20:22:08 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -154,6 +154,8 @@ clean() ->
 callback(Cb) ->
     wings_io:putback_event({wm,{callback,Cb}}).
     
+new(Name, {X,Y}, Size, Op) ->
+    new(Name, {X,Y,highest}, Size, Op);
 new(Name, {X,Y,Z0}, {W,H}, Op) when is_integer(X), is_integer(Y),
 				   is_integer(W), is_integer(H) ->
     Z = new_resolve_z(Z0),
