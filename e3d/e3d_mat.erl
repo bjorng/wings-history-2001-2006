@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.12 2002/03/11 20:22:52 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.13 2002/03/31 10:23:29 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -28,7 +28,7 @@ identity() ->
 compress({A,B,C,0.0,D,E,F,0.0,G,H,I,0.0,Tx,Ty,Tz,1.0}) ->
     {A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}.
 
-expand({A,B,C,_,D,E,F,_,G,H,I,_,Tx,Ty,Tz,_}=Mat) -> Mat;
+expand({_A,_B,_C,_,_D,_E,_F,_,_G,_H,_I,_,_Tx,_Ty,_Tz,_}=Mat) -> Mat;
 expand({A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}) ->
     {A,B,C,0.0,D,E,F,0.0,G,H,I,0.0,Tx,Ty,Tz,1.0}.
 
@@ -46,44 +46,38 @@ scale({X,Y,Z}) -> scale(X, Y, Z).
 
 scale(Sx, Sy, Sz) ->
     Zero = 0.0,
-    One = 1.0,
     {Sx,Zero,Zero,
      Zero,Sy,Zero,
      Zero,Zero,Sz,
      Zero,Zero,Zero}.
 
-rotate(A0, {X,Y,Z}=Vec) when is_float(X), is_float(Y), is_float(Z) ->
+rotate(A0, {X,Y,Z}) when is_float(X), is_float(Y), is_float(Z) ->
     A = A0*3.1416/180,
     CosA = math:cos(A),
     SinA = math:sin(A),
-    S = [0,-Z,Y,
-	 Z,0,-X,
-	 -Y,X,0],
-    Uut = [X*X,X*Y,X*Z,
+    SSinA = {0.0,-Z*SinA,Y*SinA,
+	     Z*SinA,0.0,-X*SinA,
+	     -Y*SinA,X*SinA,0.0},
+    Uut = {X*X,X*Y,X*Z,
 	   Y*X,Y*Y,Y*Z,
-	   Z*X,Z*Y,Z*Z],
-    I = [1,0,0,
-	 0,1,0,
-	 0,0,1],
-    M0 = rot_add(Uut, rot_mul(rot_sub(I, Uut), CosA)),
-    M = rot_add(M0, rot_mul(S, SinA)),
-    [M1,M2,M3,
-     M4,M5,M6,
-     M7,M8,M9] = M,
-    {M1,M4,M7,
-     M2,M5,M8,
-     M3,M6,M9,
+	   Z*X,Z*Y,Z*Z},
+    rot_add(Uut, rot_ineg_mul(Uut, CosA), SSinA).
+
+rot_add({A1,A2,A3,A4,A5,A6,A7,A8,A9},
+	{B1,B2,B3,B4,B5,B6,B7,B8,B9},
+	{C1,C2,C3,C4,C5,C6,C7,C8,C9})
+  when is_float(A1), is_float(A2), is_float(A3),
+       is_float(A4), is_float(A5), is_float(A6),
+       is_float(A7), is_float(A8), is_float(A9) ->
+    {A1+B1+C1,A4+B4+C4,A7+B7+C7,
+     A2+B2+C2,A5+B5+C5,A8+B8+C8,
+     A3+B3+C3,A6+B6+C6,A9+B9+C9,
      0.0,0.0,0.0}.
 
-rot_add([H1|T1], [H2|T2]) -> [H1+H2|rot_add(T1, T2)];
-rot_add([], []) -> [].
- 
-rot_sub([H1|T1], [H2|T2]) -> [H1-H2|rot_sub(T1, T2)];
-rot_sub([], []) -> [].
-
-rot_mul([H|T], C) -> [H*C|rot_mul(T, C)];
-rot_mul([], C) -> [].
-
+rot_ineg_mul({M1,M2,M3,M4,M5,M6,M7,M8,M9}, S) when is_float(S) ->
+    {S*(1.0-M1),-S*M2,-S*M3,
+     -S*M4,S*(1.0-M5),-S*M6,
+     -S*M7,-S*M8,S*(1.0-M9)}.
 
 rotate_to_z(Vec) ->
     {Vx,Vy,Vz} = V =
