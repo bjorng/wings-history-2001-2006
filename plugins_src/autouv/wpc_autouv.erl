@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.23 2002/10/25 19:24:41 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.24 2002/10/25 19:38:21 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -101,12 +101,15 @@ start_uvmap(_) ->
 start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0) ->
     Modes = [vertex,edge,face],
     wings_io:icon_restriction(Modes),
-    We = gb_trees:get(Id, Shs),
+    We0 = gb_trees:get(Id, Shs),
+    We = We0#we{mode=material},
     St = St0#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
     {seq,{push,dummy},get_seg_event(#seg{selmodes=Modes,st=St})}.
 
 get_seg_event(Ss) ->
-    wings_io:message("Segment the model"),
+    Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
+    wings_io:message(Message),
+    wings_io:message_right("Segmenting"),
     wings_wm:dirty(),
     {replace,fun(Ev) -> seg_event(Ev, Ss) end}.
 
