@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.87 2003/03/07 05:42:41 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.88 2003/03/07 05:43:13 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -582,7 +582,7 @@ clear_background() ->
     %% occupied by the window. We actually lose time on my iMac.
     %% But given a slow OpenGL implementation, it is a win.
     case any_window_below(Name) of
-	true -> ?TC(clear_background_1(Name));
+	true -> clear_background_1(Name);
 	false -> ok
     end.
 
