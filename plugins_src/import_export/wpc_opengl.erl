@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.63 2004/02/11 05:29:53 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.64 2004/03/14 12:43:50 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -933,6 +933,17 @@ setup_light(#light{type=spot,aim=Aim,pos=Pos={X,Y,Z},attr=L}) ->
 	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,2,Sx,Sy,Sz,1.0);
 	false -> skip
     end,
+    setup_light_attr(L);
+setup_light(#light{type=area,aim=Aim,pos=Pos={X,Y,Z},attr=L}) ->
+    Dir = {Sx,Sy,Sz} = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
+    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {X,Y,Z,1}),
+    gl:lightfv(?GL_LIGHT0, ?GL_SPOT_DIRECTION, Dir),
+    case programmable() of 
+	true ->
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,1,X,Y,Z,1.0),
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,2,Sx,Sy,Sz,1.0);
+	false -> skip
+    end,
     setup_light_attr(L).
 
 setup_light_attr([]) ->
@@ -957,6 +968,8 @@ setup_light_attr([{linear_attenuation,Att}|As]) ->
     setup_light_attr(As);
 setup_light_attr([{quadratic_attenuation,Att}|As]) ->
     gl:lightf(?GL_LIGHT0, ?GL_QUADRATIC_ATTENUATION, Att),
+    setup_light_attr(As);
+setup_light_attr([_|As]) ->
     setup_light_attr(As).
 
 %% Bump helpers
