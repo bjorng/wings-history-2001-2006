@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.45 2002/10/06 16:58:23 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.46 2002/10/13 19:11:42 bjorng Exp $
 %%
 
 -module(wings_camera).
--export([sub_menu/1,command/2,help/0,event/2,free_rmb_modifier/0]).
+-export([init/0,sub_menu/1,command/2,help/0,event/2]).
+-export([desc/1,free_rmb_modifier/0]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -30,20 +31,35 @@
 	 xt=0,yt=0				%Last warp length.
 	}).
 
+init() ->
+    wings_pref:set_default(camera_mode, mirai),
+    wings_pref:set_default(camera_fov, 45.0),
+    wings_pref:set_default(camera_hither, 0.25),
+    wings_pref:set_default(camera_yon, 1000.0),
+    wings_pref:set_default(num_buttons, 3),
+    case {wings_pref:get_value(num_buttons),wings_pref:get_value(camera_mode)} of
+	{3,_} -> ok;
+	{_,nendo} -> ok;
+	{_,blender} -> ok;
+	{_,_} -> wings_pref:set_value(camera_mode, nendo)
+    end.
+    
 sub_menu(_St) ->
-    {"Camera Mode",camera_mode}.
+    [{"Camera Mode",camera_mode}].
 
 command(camera_mode, _St) ->
-    DefVar = {mode,wings_pref:get_value(camera_mode, blender)},
+    DefVar = {mode,wings_pref:get_value(camera_mode)},
+    DefButtons = {num_buttons,wings_pref:get_value(num_buttons)},
     ZoomFlag0 = wings_pref:get_value(wheel_zooms, true),
     ZoomFactor0 = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR),
     Fov0 = wings_pref:get_value(camera_fov),
     Hither0 = wings_pref:get_value(camera_hither),
     Yon0 = wings_pref:get_value(camera_yon),
-    Qs = [{vframe,[{alt,DefVar,"Wings/Blender",blender},
-		   {alt,DefVar,"Nendo",nendo},
-		   {alt,DefVar,"3ds max",tds},
-		   {alt,DefVar,"Maya",maya}],
+    Qs = [{hframe,[{alt,DefButtons,"One",1},
+		   {alt,DefButtons,"Two",2},
+		   {alt,DefButtons,"Three",3}],
+	   [{title,"Mouse Buttons"}]},
+	  {vframe,camera_modes(DefVar),
 	   [{title,"Camera Mode"}]},
 	  {vframe,
 	   [{"Wheel zooms",ZoomFlag0},
@@ -59,8 +75,10 @@ command(camera_mode, _St) ->
 				     [{range,100.0,9.9e307}]}}]}],
 	   [{title,"Camera Parameters"}]}],
     wings_ask:dialog(Qs,
-		     fun([Mode,ZoomFlag,ZoomFactor,Fov,Hither,Yon]) ->
+		     fun([Buttons,Mode,ZoomFlag,ZoomFactor,Fov,Hither,Yon]) ->
+			     validate(Buttons, Mode),
 			     wings_pref:set_value(camera_mode, Mode),
+			     wings_pref:set_value(num_buttons, Buttons),
 			     wings_pref:set_value(wheel_zooms, ZoomFlag),
 			     wings_pref:set_value(wheel_zoom_factor, ZoomFactor),
 			     wings_pref:set_value(camera_fov, Fov),
@@ -69,14 +87,47 @@ command(camera_mode, _St) ->
 			     View0 = wings_view:current(),
 			     View = View0#view{fov=Fov,hither=Hither,yon=Yon},
 			     wings_view:set_current(View),
+			     wings_wm:translation_change(),
 			     ignore
 		     end).
 
+validate(3, _) -> ok;
+validate(2, nendo) -> ok;
+validate(2, blender) -> ok;
+validate(2, Mode) -> again(Mode, 3);
+validate(1, nendo) -> ok;
+validate(1, blender) -> again(blender, 2);
+validate(1, Mode) -> again(Mode, 3).
+
+again(Mode, Buttons) ->
+    wings_util:error("The " ++ desc(Mode) ++ " camera mode requires at least " ++
+		     integer_to_list(Buttons) ++ " buttons.").
+      
+camera_modes(DefVar) ->
+    Modes = [mirai,nendo,maya,tds,blender],
+    [{alt,DefVar,desc(Mode),Mode} || Mode <- Modes].
+
+desc(blender) -> "Blender";
+desc(nendo) -> "Nendo";
+desc(mirai) -> "Mirai";
+desc(tds) -> "3ds max";
+desc(maya) -> "Maya".
+
 help() ->
-    case wings_pref:get_value(camera_mode, blender) of
+    case wings_pref:get_value(camera_mode) of
 	blender ->
-	    "[M] Tumble  [Shift]+[M] Track  [Ctrl]+[M] Dolly";
+	    case wings_pref:get_value(num_buttons) of
+		3 -> "[L] Tumble  [Shift]+[M] Track  [Ctrl]+[M] Dolly";
+		_ -> "[Alt]+[L] Tumble  [Alt]+[Shift]+[M] Track  "
+			 "[Alt]+[Ctrl]+[M] Dolly"
+	    end;
 	nendo ->
+	    case wings_pref:get_value(num_buttons) of
+		1 -> "[Alt]+[L]";
+		2 -> "[Ctrl]+[R]";
+		3 -> "[M]"
+	    end ++ " Start camera";
+	mirai ->
 	    "[M] Start camera";
 	tds ->
 	    "[Alt]+[M] Tumble  [M] Track  [Ctrl]+[Alt]+[M] Dolly";
@@ -85,7 +136,7 @@ help() ->
     end.
 
 free_rmb_modifier() ->
-    case wings_pref:get_value(camera_mode, blender) of
+    case wings_pref:get_value(camera_mode) of
 	maya -> ?CTRL_BITS;
 	_ -> ?ALT_BITS
     end.
@@ -99,31 +150,24 @@ event(#mousebutton{button=5,state=?SDL_RELEASED}, _Redraw) ->
 event(#mousebutton{button=B}, _Redraw) when B==4; B==5 ->
     keep;
 event(Ev, Redraw) ->
-    case wings_pref:get_value(camera_mode, blender) of
+    case wings_pref:get_value(camera_mode) of
 	blender -> blender(Ev, Redraw);
 	nendo -> nendo(Ev, Redraw);
+	mirai -> mirai(Ev, Redraw);
 	tds -> tds(Ev, Redraw);
 	maya -> maya(Ev, Redraw)
     end.
 
 %%%
-%%% Default Wings/Blender style camera.
+%%% Blender style camera.
 %%%
 
-blender(#mousebutton{button=1,state=?SDL_PRESSED}=Mb, Redraw) ->
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?ALT_BITS =/= 0 ->
-	    blender_1(Mb#mousebutton{button=2},
-		      Mod band (bnot ?ALT_BITS), Redraw);
-	_Mod -> next
-    end;
 blender(#mousebutton{button=2,state=?SDL_PRESSED}=Event, Redraw) ->
-    blender_1(Event, sdl_keyboard:getModState(), Redraw);
+    blender_1(Event, wings_wm:me_modifiers(), Redraw);
 blender(_, _) -> next.
 
 blender_1(#mousebutton{x=X,y=Y}, Mod, Redraw) ->
-    case Mod band ?ALT_BITS =/= 0 andalso
-	not wings_pref:get_value(one_button_mouse) of
+    case Mod band ?ALT_BITS =/= 0 of
 	true -> next;
 	false ->
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
@@ -133,13 +177,11 @@ blender_1(#mousebutton{x=X,y=Y}, Mod, Redraw) ->
 	    {seq,{push,dummy},get_blender_event(Camera, Redraw)}
     end.
 
-blender_event(#mousebutton{button=1,state=?SDL_RELEASED}=Mb, Camera, Redraw) ->
-    blender_event(Mb#mousebutton{button=2}, Camera, Redraw);
 blender_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, _Redraw) ->
     stop_camera(Camera);
 blender_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
-    case sdl_keyboard:getModState() of
+    case wings_wm:me_modifiers() of
 	Mod when Mod band ?SHIFT_BITS =/= 0 ->
 	    pan(Dx/10, Dy/10);
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
@@ -159,41 +201,19 @@ get_blender_event(Camera, Redraw) ->
 %%% Nendo style camera.
 %%%
 
-nendo(#mousebutton{button=3,state=?SDL_PRESSED}, _Redraw) ->
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?CTRL_BITS =/= 0 ->
-	    %% Make sure that no menu pop ups.
-	    keep;
-	_Mod -> next
-    end;
-nendo(#mousebutton{button=3,state=?SDL_RELEASED}=Mb, Redraw) ->
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?CTRL_BITS =/= 0 ->
-	    nendo(Mb#mousebutton{button=2}, Redraw);
-	_Mod -> next
-    end;
 nendo(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
     wings_io:clear_message(),
     nendo_message(true),
-    View = wings_view:current(),
-    {seq,{push,dummy},get_nendo_event(Camera, Redraw, true, View)};
+    {seq,{push,dummy},get_nendo_event(Camera, Redraw, true)};
 nendo(#keyboard{keysym=#keysym{sym=Sym}}, _Redraw) ->
     nendo_pan(Sym);
 nendo(_, _) -> next.
 
-nendo_event(#mousebutton{button=1,state=?SDL_RELEASED}, Camera, _, _, _) ->
+nendo_event(#mousebutton{button=1,state=?SDL_RELEASED}, Camera, _, _) ->
     stop_camera(Camera);
-nendo_event(#mousebutton{button=3,state=?SDL_RELEASED}, Camera, Rd, MR, View) ->
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?CTRL_BITS =/= 0 ->
-	    get_nendo_event(Camera, Rd, MR, View);
-	_Mod ->
-	    wings_view:set_current(View),
-	    stop_camera(Camera)
-    end;
-nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, true, View) ->
+nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, true) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case Buttons band 6 of
 	0 ->					%None of MMB/RMB pressed.
@@ -201,8 +221,8 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, true, View) ->
 	_Other ->				%MMB and/or RMB pressed.
 	    zoom(Dy)
     end,
-    get_nendo_event(Camera, Redraw, true, View);
-nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false, View) ->
+    get_nendo_event(Camera, Redraw, true);
+nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case Buttons band 6 of
 	0 ->					%None of MMB/RMB pressed.
@@ -210,12 +230,12 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false, View) -
 	_Other ->				%MMB and/or RMB pressed.
 	    zoom(Dy)
     end,
-    get_nendo_event(Camera, Redraw, false, View);
-nendo_event(#keyboard{keysym=#keysym{unicode=$q}}, Camera, Redraw, MR0, View) ->
+    get_nendo_event(Camera, Redraw, false);
+nendo_event(#keyboard{keysym=#keysym{unicode=$q}}, Camera, Redraw, MR0) ->
     MR = not MR0,
     nendo_message(MR),
-    get_nendo_event(Camera, Redraw, MR, View);
-nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _, _) ->
+    get_nendo_event(Camera, Redraw, MR);
+nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _) ->
     case nendo_pan(Sym) of
 	keep -> keep;
 	next ->
@@ -226,7 +246,7 @@ nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _, _) ->
 	    end
     end,
     keep;
-nendo_event(Event, Camera, Redraw, _, _) ->
+nendo_event(Event, Camera, Redraw, _) ->
     generic_event(Event, Camera, Redraw).
     
 nendo_pan(?SDLK_LEFT) ->
@@ -244,16 +264,109 @@ nendo_pan(Dx, Dy) ->
     wings_wm:dirty(),
     keep.
     
-get_nendo_event(Camera, Redraw, MouseRotates, View) ->
+get_nendo_event(Camera, Redraw, MouseRotates) ->
     wings_wm:dirty(),
-    {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw, MouseRotates, View) end}.
+    {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw, MouseRotates) end}.
 
 nendo_message(true) ->
-    Help = ["[L] Accept  [R] Abort  Move mouse to tumble  "
-	    "Drag [M] to dolly  [Q] Mouse move will track"],
+    Mbutton = nendo_mbutton(),
+    Help = ["[L] Accept  Move mouse to tumble  "
+	    "Drag ",Mbutton," to dolly  [Q] Mouse move will track"],
     wings_io:message(Help);
 nendo_message(false) ->
-    Help = ["[L] Accept  [R] Abort  Move mouse to track  "
+    Mbutton = nendo_mbutton(),
+    Help = ["[L] Accept  Move mouse to track  "
+	    "Drag ",Mbutton," Dolly  [Q] Mouse move will rotate"],
+    wings_io:message(Help).
+
+nendo_mbutton() ->
+    case wings_pref:get_value(num_buttons) of
+	1 -> "[Alt]+[L]";
+	2 -> "[R]";
+	3 -> "[M]"
+    end.
+
+%%%
+%%% Mirai style camera.
+%%%
+
+mirai(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
+    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+    wings_io:grab(),
+    wings_io:clear_message(),
+    mirai_message(true),
+    View = wings_view:current(),
+    {seq,{push,dummy},get_mirai_event(Camera, Redraw, true, View)};
+mirai(#keyboard{keysym=#keysym{sym=Sym}}, _Redraw) ->
+    mirai_pan(Sym);
+mirai(_, _) -> next.
+
+mirai_event(#mousebutton{button=1,state=?SDL_RELEASED}, Camera, _, _, _) ->
+    stop_camera(Camera);
+mirai_event(#mousebutton{button=3,state=?SDL_RELEASED}, Camera, _, _, View) ->
+    wings_view:set_current(View),
+    stop_camera(Camera);
+mirai_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, true, View) ->
+    {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
+    case Buttons band 2 of
+	0 ->					%MMB not pressed.
+	    rotate(-Dx, -Dy);
+	_Other ->				%MMB pressed.
+	    zoom(Dy)
+    end,
+    get_mirai_event(Camera, Redraw, true, View);
+mirai_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false, View) ->
+    {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
+    case Buttons band 4 of
+	0 ->					%MMB pressed.
+	    pan(-Dx/10, -Dy/10);
+	_Other ->				%MMB pressed.
+	    zoom(Dy)
+    end,
+    get_mirai_event(Camera, Redraw, false, View);
+mirai_event(#keyboard{keysym=#keysym{unicode=$q}}, Camera, Redraw, MR0, View) ->
+    MR = not MR0,
+    mirai_message(MR),
+    get_mirai_event(Camera, Redraw, MR, View);
+mirai_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _, _) ->
+    case mirai_pan(Sym) of
+	keep -> keep;
+	next ->
+	    case wings_hotkey:event(Event) of
+		{view,smooth_preview} -> ok;
+		{view,Cmd} -> wings_view:command(Cmd, get_st(Redraw));
+		_Other -> ok
+	    end
+    end,
+    keep;
+mirai_event(Event, Camera, Redraw, _, _) ->
+    generic_event(Event, Camera, Redraw).
+    
+mirai_pan(?SDLK_LEFT) ->
+    mirai_pan(0.1, 0.0);
+mirai_pan(?SDLK_RIGHT) ->
+    mirai_pan(-0.1, 0.0);
+mirai_pan(?SDLK_UP) ->
+    mirai_pan(0.0, 0.1);
+mirai_pan(?SDLK_DOWN) ->
+    mirai_pan(0.0, -0.1);
+mirai_pan(_) -> next.
+
+mirai_pan(Dx, Dy) ->
+    pan(Dx, Dy),
+    wings_wm:dirty(),
+    keep.
+    
+get_mirai_event(Camera, Redraw, MouseRotates, View) ->
+    wings_wm:dirty(),
+    {replace,fun(Ev) -> mirai_event(Ev, Camera, Redraw, MouseRotates, View) end}.
+
+mirai_message(true) ->
+    Help = ["[L] Accept  [R] Cancel  Move mouse to tumble  "
+	    "Drag [M] to dolly  [Q] Mouse move will track"],
+    wings_io:message(Help);
+mirai_message(false) ->
+    Help = ["[L] Accept  [R] Cancel  Move mouse to track  "
 	    "Drag [M] Dolly  [Q] Mouse move will rotate"],
     wings_io:message(Help).
 
@@ -275,7 +388,7 @@ tds_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, _Redraw) ->
     stop_camera(Camera);
 tds_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
-    case sdl_keyboard:getModState() of
+    case wings_wm:me_modifiers() of
 	Mod when Mod band ?CTRL_BITS =/= 0, Mod band ?ALT_BITS =/= 0 ->
 	    zoom(Dy);
 	Mod when Mod band ?ALT_BITS =/= 0 ->
@@ -296,7 +409,7 @@ get_tds_event(Camera, Redraw) ->
 %%%
 
 maya(#mousebutton{x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
-    case sdl_keyboard:getModState() of
+    case wings_wm:me_modifiers() of
 	Mod when Mod band ?ALT_BITS =/= 0 ->
 	    sdl_events:eventState(?SDL_KEYUP, ?SDL_ENABLE),
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},

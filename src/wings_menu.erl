@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.59 2002/10/02 15:10:35 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.60 2002/10/13 19:11:42 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -54,9 +54,9 @@
 is_popup_event(#mousebutton{button=3,x=X,y=Y,state=State}) ->
     case wings_pref:get_value(advanced_menus) of
 	true when State =:= ?SDL_RELEASED ->
-	    {yes,X,Y,sdl_keyboard:getModState()};
+	    {yes,X,Y,wings_wm:me_modifiers()};
 	false when State =:= ?SDL_PRESSED  ->
-	    {yes,X,Y,sdl_keyboard:getModState()};
+	    {yes,X,Y,wings_wm:me_modifiers()};
 	_Other -> no
     end;
 is_popup_event(_Event) -> no.
@@ -236,10 +236,13 @@ handle_menu_event(Event, Mi0) ->
 
 button_pressed(#mousebutton{state=?SDL_RELEASED}, #mi{ignore_rel=true}=Mi) ->
     get_menu_event(Mi#mi{ignore_rel=false});
-button_pressed(#mousebutton{button=B0,x=X,y=Y,state=?SDL_RELEASED}=Event,
-	       #mi{adv=Adv}=Mi) when (B0 =< 3) ->
+button_pressed(#mousebutton{button=B,x=X,y=Y,state=?SDL_RELEASED}=Event,
+	       #mi{adv=false}=Mi) when (B =< 3) ->
     wings_wm:dirty(),
-    B = virtual_button(Adv, B0),
+    button_pressed(Event, 1, X, Y, Mi);
+button_pressed(#mousebutton{button=B,x=X,y=Y,state=?SDL_RELEASED}=Event, Mi)
+  when (B =< 3) ->
+    wings_wm:dirty(),
     button_pressed(Event, B, X, Y, Mi);
 button_pressed(_, _) -> keep.
 
@@ -327,19 +330,6 @@ is_ascii_clean(_) -> false.
 is_tuple_ascii_clean(I, N, T) when I =< N ->
     is_ascii_clean(element(I, T)) andalso is_tuple_ascii_clean(I+1, N, T);
 is_tuple_ascii_clean(_, _, _) -> true.
-
-virtual_button(false, _) -> 1;
-virtual_button(true, 1) ->
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?ALT_BITS =/= 0 -> 2;
-	_Mod -> 1
-    end;
-virtual_button(true, 2) -> 2;
-virtual_button(true, 3) ->
-    case sdl_keyboard:getModState() of
-	Mod when Mod band ?CTRL_BITS =/= 0 -> 2;
-	_Mod -> 3
-    end.
     
 set_hotkey(Val, #mi{sel=Sel,menu=Menu0}=Mi) ->
     case element(Sel, Menu0) of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.25 2002/09/22 09:37:26 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.26 2002/10/13 19:11:42 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -21,15 +21,12 @@
 
 menu(X, Y, _) ->
     Menu = [{"Getting Started",getting_started},
+	    {"Using a Mouse with One or Two Buttons",one_or_two},
+	    {"French And German Keyboards",international},
 	    separator,
-	    {"Accessing the Third Dimension",third_dimension},
 	    {"Light Basics",lights},
 	    {"Assigning Hotkeys",defining_hotkeys},
 	    {"Advanced Menus",advanced_menus},
-	    separator,
-	    {"One-Button Mouse (Mac)",one_button},
-	    {"Two-Button Mouse",two_button},
-	    {"French And German Keyboards",international},
 	    separator,
 	    {"OpenGL Info",opengl_info},
 	    separator,
@@ -38,12 +35,8 @@ menu(X, Y, _) ->
 
 command(getting_started, _St) ->
     getting_started();
-command(third_dimension, _St) ->
-    third_dimension();
-command(one_button, _St) ->
-    one_button();
-command(two_button, _St) ->
-    two_button();
+command(one_or_two, _St) ->
+    one_or_two();
 command(international, _St) ->
     international();
 command(defining_hotkeys, _St) ->
@@ -68,7 +61,7 @@ getting_started() ->
 	    "button (or the scroll wheel), and [R] means the right mouse "
 	    "button.",
 
-	    "See \"One-Button Mouse\" or \"Two-Button Mouse\" "
+	    "See \"Using a Mouse with One or Two Buttons\" "
 	    "if your mouse doesn't have three buttons.",
 
 	    "Generally, [L] (left mouse button) is used for selecting and "
@@ -76,6 +69,13 @@ getting_started() ->
 	    "and the [R] (right mouse button) to access the context-sensitive "
 	    "pop-up menus."
 	   ],
+    help_window(Help).
+
+one_or_two() ->
+    Help = ["Using a mouse with One or Two buttons",
+	    "To use mice with only one or two buttons, "
+	    "you must inform Wings how many buttons your mouse have "
+	    "in the Edit|Camera Mode dialog box."],
     help_window(Help).
 
 advanced_menus() ->
@@ -87,57 +87,6 @@ advanced_menus() ->
 	    "different things depending on which mouse-button you invoke "
 	    "them with. For instance, [R] clicking on the Move command "
 	    "allow you to specify a direction vector to move along."],
-    help_window(Help).
-
-third_dimension() ->
-    Help = ["Accessing the Third Dimension",
-	    "Some commands, such as Move|Free, "
-	    "allow movements in three dimensions.",
-
-	    "To move along the first and second dimensions, simply move "
-	    "the mouse left/right and up/down.",
-
-	    "To move along the third dimension, move up/down and hold "
-	    "down:",
-	    
-	    "[Alt]+[M] or [Ctrl]+[R] if you use the default "
-	    "Wings/Blender camera mode.",
-
-	    "[M] or [Ctrl]+[R] if you use the Nendo camera mode.",
-
-	    "[Ctrl]+[R] if you use the 3ds max camera mode.",
-
-	    "[M] if you use the Maya camera mode."],
-    help_window(Help).
-
-one_button() ->
-    Help = ["Using A One-Button Mouse (Mac)",
-	    "To use the default Wings/Blender camera mode with an one-button "
-	    "mouse, you must first enable \"One-button mouse\" in the "
-	    "Edit|Compatibility dialog box. Note that you cannot access the "
-	    "third dimension in the Wings/Blender mode.",
-
-	    "To emulate the middle mouse button, hold the [Alt/Option] key.",
-
-	    "To emulate the right mouse button, hold the [Command] key."],
-    help_window(Help).
-
-two_button() ->
-    Help = ["Using A Two-Button Mouse",
-	    "If you are using Wings in the default Wings/Blender "
-	    "camera mode, you can use [Alt]+[L] "
-	    "instead of [M].",
-
-	    "If you are using Wings in Nendo "
-	    "camera mode, you can use [Ctrl]+[R] "
-	    "instead of [M].",
-
-	    "The 3ds max and Maya camera modes require a three-button "
-	    "mouse.",
-
-	    "In the Advanced Menus (if enabled), "
-	    "you can use either [Alt]+[L] "
-	    "or [Ctrl]+[R] instead of [L]."],
     help_window(Help).
 
 international() ->

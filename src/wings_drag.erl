@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.107 2002/10/06 07:32:24 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.108 2002/10/13 19:11:42 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -37,6 +37,7 @@
 	 flags=[],				%Flags.
 	 falloff,				%Magnet falloff.
 	 magnet,				%Magnet: true|false.
+	 info="",				%Information line.
 	 st					%Saved st record.
 	}).
 
@@ -218,9 +219,39 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 %%%
 
 do_drag(Drag0) ->
-    wings_io:message_right(drag_help(Drag0)),
+    help_message(Drag0),
     {Event,Drag} = initial_motion(Drag0),
     {seq,{push,dummy},handle_drag_event_1(Event, Drag)}.
+
+help_message(#drag{unit=Unit}=Drag) ->
+    Msg = "[L] Accept  [R] Cancel",
+    Zmsg = case member(dz, Unit) of
+	       false -> [];
+	       true -> ["  Drag ",zmove_help()," Move along Z"]
+	   end,
+    wings_io:message([Msg,Zmsg,"  "|wings_camera:help()]),
+    wings_io:message_right(help_message_right(Drag)).
+
+help_message_right(#drag{magnet=none,falloff=Falloff}) ->
+    Help = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
+    case Falloff of
+	none -> Help;
+	_ -> ["[+] or [-] Tweak R  "|Help]
+    end;
+help_message_right(#drag{magnet=Type}) -> wings_magnet:drag_help(Type).
+
+zmove_help() ->
+    Buttons = wings_pref:get_value(num_buttons),
+    case wings_pref:get_value(camera_mode) of
+	nendo when Buttons == 1 -> "[Alt]+[L]";
+	nendo when Buttons == 2 -> "[Ctrl]+[R]";
+	nendo -> "[M]";
+	mirai -> "[M]";
+	maya -> "[M]";
+	tds -> "[Ctrl]+[R]";
+	blender when Buttons == 2 -> "[Ctrl]+[R]";
+	blender -> "[Alt]+[M]"
+    end.
 
 initial_motion(#drag{x=X0,y=Y0,flags=Flags,unit=Unit}=Drag) ->
     Ds0 = proplists:get_value(initial, Flags, []),
@@ -246,14 +277,6 @@ pad_initials(Ds) ->
 	L when L >= 3 -> Ds;
 	L -> Ds ++ lists:duplicate(3-L, 0)
     end.
-	     
-drag_help(#drag{magnet=none,falloff=Falloff}) ->
-    Help = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
-    case Falloff of
-	none -> Help;
-	_ -> ["[+] or [-] Tweak R  "|Help]
-    end;
-drag_help(#drag{magnet=Type}) -> wings_magnet:drag_help(Type).
 
 get_drag_event(Drag) ->
     wings_wm:dirty(),
@@ -271,7 +294,7 @@ handle_drag_event(#mousebutton{button=3,state=?SDL_RELEASED}=Ev,
 		  #drag{mmb_count=C}=Drag) when C > 2 ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
-	    get_drag_event_1(Drag#drag{mmb_count=0});
+           get_drag_event_1(Drag#drag{mmb_count=0});
 	_ ->
 	    handle_drag_event_0(Ev, Drag)
     end;
@@ -287,8 +310,7 @@ handle_drag_event_0(#keyboard{keysym=#keysym{unicode=C}}=Ev, Drag0) ->
     case wings_magnet:hotkey(C) of
 	none -> handle_drag_event_1(Ev, Drag0);
 	Type ->
-	    Help = wings_magnet:drag_help(Type),
-	    wings_io:message_right(Help),
+	    wings_io:message_right(wings_magnet:drag_help(Type)),
 	    Val = {Type,Drag0#drag.falloff},
 	    Drag = parameter_update(new_type, Val, Drag0#drag{magnet=Type}),
 	    get_drag_event(Drag)
@@ -309,10 +331,10 @@ handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, Drag0) -
     DragEnded = {new_state,St#st{args=Move}},
     wings_io:putback_event(DragEnded),
     pop;
-handle_drag_event_1({drag_arguments,Move}, Drag) ->
+handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     wings_io:ungrab(),
     clear_sel_dlists(),
-    ?SLOW(motion_update(Move, Drag)),
+    Drag = ?SLOW(motion_update(Move, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
     wings_io:putback_event(DragEnded),
@@ -347,6 +369,7 @@ invalidate_fun(#dlo{src_we=We}=D, _) -> D#dlo{src_we=We#we{es=none}}.
 numeric_input(Drag0) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
     Ev = #mousemotion{x=X,y=Y,state=0},
+    wings_wm:set_me_modifiers(0),
     {Move0,Drag} = mouse_translate(Ev, Drag0),
     wings_ask:dialog(make_query(Move0, Drag),
 		     fun(Res) ->
@@ -406,7 +429,7 @@ magnet_radius(Sign, #drag{falloff=Falloff0}=Drag0) ->
     end.
 
 view_changed(#drag{flags=Flags}=Drag0) ->
-    wings_io:message_right(drag_help(Drag0)),
+    help_message(Drag0),
     case member(screen_relative, Flags) of
 	false -> Drag0;
 	true ->
@@ -429,16 +452,15 @@ update_tvs([F0|Fs], NewWe, Acc) ->
     F = F0(view_changed, NewWe),
     update_tvs(Fs, NewWe, [F|Acc]);
 update_tvs([], _, Acc) -> reverse(Acc).
-    
+
 motion(Event, Drag0) ->
-    {Move,Drag} = MoveDrag = mouse_translate(Event, Drag0),
-    motion_update(Move, Drag),
-    MoveDrag.
+    {Move,Drag1} = mouse_translate(Event, Drag0),
+    Drag = motion_update(Move, Drag1),
+    {Move,Drag}.
 
 mouse_translate(Event0, Drag0) ->
-    CameraMode = wings_pref:get_value(camera_mode, blender),
-    Mod0 = sdl_keyboard:getModState(),
-    {Event,Mod} = mouse_pre_translate(CameraMode, Mod0, Event0),
+    Mode = wings_pref:get_value(camera_mode),
+    {Event,Mod} = mouse_pre_translate(Mode, wings_wm:me_modifiers(), Event0),
     {Ds,Drag} = mouse_range(Event, Drag0),
     Move = constrain(Ds, Mod, Drag),
     {Move,Drag}.
@@ -470,7 +492,7 @@ mouse_range(#mousemotion{x=X0,y=Y0,state=Mask},
 		Mask band ?SDL_BUTTON_MMASK =/= 0 ->
 		    Xs = Xs0,
 		    Ys = Ys0,
-		    Zs = case wings_pref:get_value(camera_mode, blender) of
+		    Zs = case wings_pref:get_value(camera_mode) of
 			     maya -> Zs0 - XD;	%Horizontal motion
 			     _ -> Zs0 + YD	%Vertical motion
 			 end,
@@ -539,8 +561,8 @@ constraint_factor(_, Mod) ->
 %%% Update selection for new mouse position.
 %%%
 
-motion_update(Move, Drag) ->
-    progress(Move, Drag),
+motion_update(Move, Drag0) ->
+    Drag = progress(Move, Drag0),
     wings_draw_util:map(fun(D, _) ->
 				   motion_update_fun(D, Move)
 			   end, []),
@@ -580,10 +602,10 @@ translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
 		  [{V,Vtx#vtx{pos=Pos}}|A]
 	  end, Acc, VsPos).
 
-progress(Move, #drag{unit=Units}) ->
+progress(Move, #drag{unit=Units}=Drag) ->
     Msg0 = progress_units(Units, Move),
     Msg = reverse(trim(reverse(lists:flatten(Msg0)))),
-    wings_io:message(Msg).
+    Drag#drag{info=Msg}.
 
 progress_units([Unit|Units], [N|Ns]) ->
     [unit(clean_unit(Unit), N)|progress_units(Units, Ns)];
@@ -662,10 +684,11 @@ norm_update([], Old, Acc) ->
 %%% Redrawing while dragging.
 %%%
 
-redraw(#drag{st=St}) ->
+redraw(#drag{info=Info,st=St}) ->
     clear_sel_dlists(),
     wings_draw:update_sel_dlist(),
     wings_draw_util:render(St),
+    wings_io:info(Info),
     wings_io:update(St).
 
 clear_sel_dlists() ->

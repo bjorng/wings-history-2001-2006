@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.57 2002/09/28 19:12:34 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.58 2002/10/13 19:11:42 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -132,8 +132,7 @@ command(prefs, _St) ->
     dialog(Qs);
 command(compatibility, _St) ->
     Qs = [{vframe,
-	   [{"One-button mouse",one_button_mouse},
-	    {"Optimize display lists",display_list_opt},
+	   [{"Optimize display lists",display_list_opt},
 	    {"Use display lists for text",text_display_lists},
 	    {"Show dummy axis letter",dummy_axis_letter},
 	    {"Early back buffer clear",early_buffer_clear}],
@@ -191,6 +190,9 @@ make_query({Str,Key}) when is_list(Str) ->
 	Def ->
 	    {Str,{text,Def,[{key,Key}]}}
     end;
+make_query({alt,Key,Label,Val}) ->
+    Def = get_value(Key),
+    {key_alt,{Key,Def},Label,Val};
 make_query(Tuple) when is_tuple(Tuple) ->
     list_to_tuple([make_query(El) || El <- tuple_to_list(Tuple)]);
 make_query(Other) -> Other.
@@ -301,7 +303,6 @@ defaults() ->
      {smart_highlighting,false},
 
      %% Compatibility preferences.
-     {one_button_mouse,false},
      {display_list_opt,true},
      {text_display_lists,true},
      {dummy_axis_letter,false},
@@ -338,6 +339,7 @@ not_bad(smooth_preview, _) -> false;
 not_bad(wire_mode, _) -> false;
 not_bad(none, _) -> false;
 not_bad(use_front_buffer, _) -> false;
+not_bad(one_button_mouse, _) -> false;
 
 %% Crashes have occurred.
 not_bad(last_axis, Val) -> is_wings_vector(Val);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.160 2002/10/06 18:56:36 bjorng Exp $
+%%     $Id: wings.erl,v 1.161 2002/10/13 19:11:42 bjorng Exp $
 %%
 
 -module(wings).
@@ -84,6 +84,7 @@ root_dir() ->
 
 init(File, Root) ->
     register(wings, self()),
+    os:putenv("SDL_HAS3BUTTONMOUSE", "true"),
     put(wings_os_type, os:type()),
     put(wings_root_dir, Root),
     sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER bor
@@ -116,6 +117,7 @@ init(File, Root) ->
 		      {"Objects",objects},
 		      {"Help",help}]),
 
+    wings_camera:init(),
     wings_vec:init(),
 
     Empty = gb_trees:empty(),
@@ -142,7 +144,8 @@ init(File, Root) ->
 	    wings_pref:finish(),
 	    sdl_util:free(get(wings_hitbuf)),
 	    sdl:quit();
-	{'EXIT',_} ->
+	{'EXIT',Reason} ->
+	    io:format("~P\n", [Reason,20]),
 	    sdl_util:free(get(wings_hitbuf)),
 	    sdl:quit()
     end.
@@ -265,8 +268,7 @@ do_command(Cmd, St0) ->
     Res = (catch do_command_1(Cmd, St1)),
     case Res of
 	{'EXIT',Reason} -> exit(Reason);
-	{command_error,Error} ->
-	    wings_util:message(Error, St1);
+	{command_error,Error} -> wings_util:message(Error);
 	#st{}=St -> main_loop(St);
 	{drag,Drag} -> wings_drag:do_drag(Drag);
 	{save_state,#st{}=St} -> save_state(St1, St);
@@ -480,8 +482,7 @@ menu(X, Y, edit, St) ->
 	    {command_name("Repeat Drag", St),repeat_drag},
 	    separator,
 	    wings_material:sub_menu(edit, St),
-	    separator,
-	    wings_camera:sub_menu(St)|wings_pref:menu(St)++
+	    separator|wings_camera:sub_menu(St)++wings_pref:menu(St)++
 	    [separator,
 	     {"Purge Undo History",purge_undo}|patches()]],
     wings_menu:menu(X, Y, edit, Menu);

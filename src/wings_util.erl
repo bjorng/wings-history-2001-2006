@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.43 2002/10/02 15:10:36 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.44 2002/10/13 19:11:42 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([error/1,share/1,share/3,make_vector/1,
 	 validate_mirror/1,rel2fam/1,
-	 message/2,yes_no/1,serious_yes_no/1,
+	 message/1,message/2,yes_no/1,serious_yes_no/1,
 	 get_matrices/2,mirror_matrix/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
 	 delete_any/2,nice_float/1,
@@ -56,6 +56,9 @@ validate_mirror(#we{fs=Ftab,mirror=Face}=We) ->
     end.
 
 message(Message, _) ->
+    message(Message).
+
+message(Message) ->
     wings_plugin:call_ui({message,Message}),
     keep.
 

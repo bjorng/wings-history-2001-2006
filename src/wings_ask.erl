@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.32 2002/10/09 05:56:57 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.33 2002/10/13 19:11:42 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -347,6 +347,9 @@ return_result(_, _, _, #s{call=EndFun}=S, Res) ->
     case catch EndFun(reverse(Res)) of
 	{'EXIT',Reason} ->
 	    exit(Reason);
+	{command_error,Message} ->
+	    wings_util:message(Message),
+	    get_event(S);
 	ignore ->
 	    delete(S);
 	#st{}=St ->

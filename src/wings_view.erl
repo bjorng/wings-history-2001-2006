@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.78 2002/09/20 07:40:21 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.79 2002/10/13 19:11:42 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -527,10 +527,6 @@ init() ->
     wings_pref:set_default(show_colors, true),
     wings_pref:set_default(show_materials, true),
     wings_pref:set_default(show_textures, true),
-
-    wings_pref:set_default(camera_fov, 45.0),
-    wings_pref:set_default(camera_hither, 0.25),
-    wings_pref:set_default(camera_yon, 1000.0),
 
     wings_pref:set_default(scene_lights, false),
 
