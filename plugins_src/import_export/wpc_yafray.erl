@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.72 2004/03/30 09:43:56 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.73 2004/04/04 09:15:27 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -312,7 +312,7 @@ attr(St, Attr) ->
 	wpa:camera_info([aim,distance_to_aim,azimuth,elevation,tracking,fov]),
     CameraInfo = #camera_info{aim=Aim,distance_to_aim=Dist,azimuth=Az,
 			      elevation=El,tracking=Track,fov=Fov},
-    [CameraInfo,{lights,wpa:lights(St)},{parent,wings_wm:this()}|Attr].
+    [CameraInfo,{lights,wpa:lights(St)}|Attr].
 
 fun_export_2(Attr) ->
     fun (Filename, Contents) ->
@@ -1051,7 +1051,6 @@ bhook(Type, Tag) ->
 export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     ExportTS = erlang:now(),
     Render = proplists:get_value(?TAG_RENDER, Attr, false),
-    Parent = proplists:get_value(parent, Attr),
     ExportDir = filename:dirname(Filename),
     {ExportFile,RenderFile} =
 	case Render of
@@ -1153,14 +1152,12 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    file:delete(ExportFile),
 	    no_renderer;
 	_ ->
-%%%	    Parent = self(),
 	    spawn_link(
 	      fun () -> 
 		      set_var(export_ts, ExportTS),
 		      set_var(render_ts, RenderTS),
 		      file:delete(RenderFile),
-		      render(Renderer, Options, ExportFile, 
-			     Parent, LoadImage) 
+		      render(Renderer, Options, ExportFile, LoadImage) 
 	      end),
 	    set_var(rendering, RenderFile),
 	    ok
@@ -1180,7 +1177,7 @@ warn_multiple_backgrounds(BgLights) ->
 
 
 
-render(Renderer, Options, Filename, Parent, LoadImage) ->
+render(Renderer, Options, Filename, LoadImage) ->
     process_flag(trap_exit, true),
     Dirname = filename:dirname(Filename),
     Basename = filename:basename(Filename),
@@ -1191,12 +1188,12 @@ render(Renderer, Options, Filename, Parent, LoadImage) ->
     case catch open_port({spawn,Cmd}, PortOpts) of
 	Port when port(Port) ->
 	    Result = render_job(Port),
-	    render_done(Filename, Parent, Result, LoadImage);
+	    render_done(Filename, Result, LoadImage);
 	{'EXIT',Reason} ->
-	    render_done(Filename, Parent, {error,Reason}, LoadImage)
+	    render_done(Filename, {error,Reason}, LoadImage)
     end.
 
-render_done(Filename, Parent, ExitStatus, LoadImage) ->
+render_done(Filename, ExitStatus, LoadImage) ->
     io:format("~nRendering Job returned: ~p~n", [ExitStatus]),
     ExportTS = get_var(export_ts),
     RenderTS = get_var(render_ts),
@@ -1221,8 +1218,7 @@ render_done(Filename, Parent, ExitStatus, LoadImage) ->
 	    {ok,false} -> ok;
 	    _          -> Status
 	end,
-    Command = {file,{?TAG_RENDER,Result}},
-    wings_wm:psend(Parent, {action,Command}),
+    wpa:send_command({file,{?TAG_RENDER,Result}}),
     ok.
 
 render_job(Port) ->

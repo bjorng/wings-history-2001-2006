@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.44 2004/01/04 16:08:21 bjorng Exp $
+%%     $Id: wpa.erl,v 1.45 2004/04/04 09:15:26 raimo_niskanen Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -19,6 +19,7 @@
 	 export_filename/2,export_filename/3,
 	 save_images/3,
 	 dialog_template/2,
+	 send_command/1,
 	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,
 	 pref_set_default/3,pref_delete/2,
 	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
@@ -218,6 +219,14 @@ dialog_template(Mod, export) ->
       {vframe,
        [{menu,FileTypes,DefFileType,[{key,default_filetype}]}],
        [{title,"Default texture file type"}]} ]}.
+
+
+%% Send a command to the plugin parent window (geometry window) 
+%% from any erlang process. The command is sent to the non-deletable
+%% original geometry window because the others does not surely exist.
+%%
+send_command(Command) ->
+    wings_wm:psend(geom, {action,Command}).
 
 %%%
 %%% Preferences.
