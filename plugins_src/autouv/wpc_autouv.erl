@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.219 2004/04/14 04:04:59 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.220 2004/04/16 13:20:13 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -386,7 +386,16 @@ command_menu(body, X, Y) ->
 	    {"Tighten",tighten,
 	     "Move UV coordinates towards average midpoint"},
 	    separator,
-	    {"Delete",delete,"Remove UV-coordinates for the selected charts"}
+	    {"Delete",delete,"Remove UV-coordinates for the selected charts"},
+	    separator,
+	    {"ReMap UV", {remap, [{"Project Normal", project, 
+				   "Project UVs from chart normal"},
+				  {"Unfold", lsqcm, "Unfold the chart"},
+				  separator,
+				  {"Stretch optimization", stretch_opt, 
+				   "Optimize the chart stretch"}
+				 ]}, 
+	     "Re-calculate new uv's with choosen algorithmen"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(face, X, Y) ->
@@ -473,6 +482,11 @@ handle_event_1({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
     {GeomSt,MatName} = add_material(Tx, undefined, MatName0, GeomSt0),
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}});
+handle_event_1({action, {auv, {remap, Method}}}, St0) ->
+    St1 = wpa:sel_map(fun(_, We) -> remap(Method, We, St0) end, St0),
+    St  = update_selected_uvcoords(St1),
+    get_event(St);
+
 %% Others
 handle_event_1({action,{auv,quit}}, _St) ->
     restore_wings_window(),
@@ -779,6 +793,46 @@ flip(Flip, We) ->
     T1 = e3d_mat:mul(Flip, T0),
     T = e3d_mat:mul(e3d_mat:translate(Center), T1),
     wings_we:transform_vs(T, We).
+
+remap(stretch_opt,We,St) ->
+    Vs3d = orig_pos(We,St),
+    ?SLOW(auv_mapping:stretch_opt(We, Vs3d));
+
+remap(Type, #we{name=#ch{fs=Fs,size={W,H}}=Ch}=We0,St) ->
+    %% Get 3d positions (even for mapped vs)
+    Vs3d = orig_pos(We0,St),
+    Vs0 = auv_mapping:map_chart(Type, Fs, We0#we{vp=Vs3d}),
+    We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs0))},    
+    {{Dx,Dy}, Vs1} = auv_placement:center_rotate(Fs, We1),
+    Center = wings_vertex:center(We0),
+    io:format("remap info ~p~n", [[Dx,Dy, W,H]]),
+    Scale = if Dx > Dy -> W / Dx;
+ 	       true -> H / Dy
+	    end,
+    Smat = e3d_mat:scale(Scale),
+    Cmat = e3d_mat:translate(Center),
+    Fix  = e3d_mat:mul(Cmat,Smat),
+    Vs = foldl(fun({VId, Pos}, Acc) -> 
+		       [{VId,e3d_mat:mul_point(Fix, Pos)}|Acc] 
+	       end, [], Vs1),
+    We0#we{vp=gb_trees:from_orddict(sort(Vs)),
+	   name=Ch#ch{size={Dx*Scale, Dy*Scale}}}.
+
+%% gb_tree of every vertex orig 3d position, (including the new cut ones)
+orig_pos(We = #we{name=#ch{vmap=Vmap}},St) ->
+    #st{bb=#uvstate{id=Id,st=#st{shapes=Sh}}} = St,
+    #we{vp=Vs3d0} = gb_trees:get(Id, Sh),
+    Vs3d = map(fun({V0,_Pos}) ->
+		       case gb_trees:lookup(V0, Vmap) of
+			   none -> 
+			       {V0, gb_trees:get(V0, Vs3d0)};
+			   {value,V} ->
+			       {V0, gb_trees:get(V, Vs3d0)}
+		       end 
+	       end, gb_trees:to_list(We#we.vp)),
+    gb_trees:from_orddict(Vs3d).
+    
+
 
 %%%
 %%% Verify that the model in the geometry window hasn't changed its topology.
