@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.39 2003/03/13 20:20:04 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.40 2003/04/16 05:33:05 bjorng Exp $
 %%
 
 -module(wings_vertex).
 -export([convert_selection/1,select_more/1,select_less/1,
+	 from_edges/2,from_faces/2,
 	 fold/4,other/2,other_pos/3,
 	 until/4,until/5,
 	 center/1,center/2,
@@ -39,27 +40,25 @@ convert_selection(#st{selmode=body}=St) ->
 convert_selection(#st{selmode=face}=St) ->
     wings_sel:convert_shape(
       fun(Fs, We) ->
-	      from_faces(gb_sets:to_list(Fs), We, [])
+	      gb_sets:from_ordset(from_faces(Fs, We))
       end, vertex, St);
 convert_selection(#st{selmode=edge}=St) ->
     wings_sel:convert_shape(
-      fun(Es, #we{es=Etab}) ->
-	      from_edges(gb_sets:to_list(Es), Etab, [])
+      fun(Es, We) ->
+	      gb_sets:from_ordset(from_edges(Es, We))
       end, vertex, St);
 convert_selection(#st{selmode=vertex}=St) ->
     select_more(St).
 
-from_faces([Face|Fs], We, Acc0) ->
-    Acc = wings_face:fold(fun(V, _, _, Sel) ->
-				  [V|Sel]
-			  end, Acc0, Face, We),
-    from_faces(Fs, We, Acc);
-from_faces([], _, Acc) -> gb_sets:from_list(Acc).
+%% from_faces(FaceGbSet, We) -> VertexList
+%%  Convert a set of faces to a list of vertices.
+from_faces(Fs, We) ->
+    wings_face:to_vertices(Fs, We).
 
-from_edges([E|Es], Etab, Acc) ->
-    #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
-    from_edges(Es, Etab, [Va,Vb|Acc]);
-from_edges([], _, Acc) -> gb_sets:from_list(Acc).
+%% to_vertices(EdgeGbSet, We) -> VertexGbSet
+%%  Convert a set of edges to a set of vertices.
+from_edges(Es, We) ->
+    wings_edge:to_vertices(Es, We).
 
 %%% Select more or less.
 
@@ -94,7 +93,7 @@ select_less(St) ->
       end, vertex, St).
 
 %%
-%% fold over all edges/faces surrounding a vertex.
+%% Fold over all edges/faces surrounding a vertex.
 %%
 
 fold(F, Acc, V, #we{vc=Vct}=We) ->
