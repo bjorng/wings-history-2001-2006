@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.3 2002/01/05 21:22:48 bjorng Exp $
+%%     $Id: user_default.erl,v 1.4 2002/01/22 19:43:31 bjorng Exp $
 %%
 
 -module(user_default).
 
--export([help/0,wh/0,w/0,
+-export([help/0,wh/0,w/0,wcp/1,
 	 wua/2,wur/2,wul/0,wud/1,
 	 wm/0,wicons/0,wtar/0]).
 
@@ -28,6 +28,7 @@ wh() ->
     p("w()        -- make and run Wings\n"),
     p("wm()       -- make Wings\n"),
     p("wicons()   -- collect Wings icons (must be done once)\n"),
+    p("wcp(Mod)   -- compile plugin-in (in plugins_src, to plugins)\n"),
     p("** User defined expressions for Magnet **\n"),
     p("wul()      -- list user-defined expressions\n"),
     p("wua(Str, Fun) -- add user-defined expression\n"),
@@ -70,6 +71,11 @@ wicons() ->
     make:all(opts()),
     c:l(collect_bmp),
     collect_bmp:start().
+
+wcp(Mod) when is_atom(Mod) ->
+    File = filename:join("plugins_src", atom_to_list(Mod)),
+    Outdir = "plugins",
+    c:c(File, [{outdir,Outdir},report]).
 
 wtar() ->
     tar().
