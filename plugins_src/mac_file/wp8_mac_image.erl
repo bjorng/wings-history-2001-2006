@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_image.erl,v 1.2 2003/02/24 21:22:30 bjorng Exp $
+%%     $Id: wp8_mac_image.erl,v 1.3 2003/03/15 08:08:33 bjorng Exp $
 %%
 
 -module(wp8_mac_image).
@@ -102,7 +102,4 @@ is_format_supported(Name) ->
 image_formats(Fs) ->
     [{".png","PNG File"},
      {".gif","Compuserve GIF"},
-     {".jpg","JPEG File"},
-     {".bmp","BMP Bitmap File"},
-     {".tif","Tiff Bitmap"},
-     {".tga","Targa File"}|Fs].
+     {".jpg","JPEG File"}|Fs].
