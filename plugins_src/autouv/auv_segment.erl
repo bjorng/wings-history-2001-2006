@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.17 2002/10/23 13:05:36 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.18 2002/10/23 14:22:27 dgud Exp $
 
 -module(auv_segment).
 
@@ -617,7 +617,12 @@ cut_model_1(Cuts, WMs0, Bvs) ->
     wings_util:validate(We),
     InvVmap0 = sofs:union_of_family(WMs1),
     InvVmap1 = sofs:converse(InvVmap0),
-    Imap1 = sofs:family(Imap0, [{atom,[atom]}]),
+    Imap0a = [sofs:to_external(sofs:family_to_relation(sofs:family([F]))) ||
+		 F <- Imap0],
+    Imap0b = lists:concat(Imap0a),
+    Imap0c = sofs:relation(Imap0b),
+    Imap1 = sofs:relation_to_family(Imap0c),
+    %%Imap1 = sofs:family(Imap0, [{atom,[atom]}]),
     Imap2 = sofs:converse(sofs:family_to_relation(Imap1)),
     Imap  = sofs:composite(Imap2, InvVmap1),
     InvVmap2 = sofs:union(InvVmap1, Imap),
@@ -650,11 +655,11 @@ cut_edges(Edges, Bvs, #we{next_id=Wid,es=Etab}=We0) ->
 		  end, gb_sets:to_list(Edges)),
     Vs0 = digraph:vertices(G),
     {Vs,Ends} = exclude_ends(lists:sort(Vs0), undefined, 0, [], [], Bvs),
-    {We1,Vmap} =
+    {We1,Vmap0} =
 	foldl(fun(V, A) ->
 		      new_vertex(V, G, Edges, A)
 	      end, {We0,[]}, Vs),
-    We = connect(G, Wid, We1, Ends),
+    {We,Vmap} = connect(G, Wid, Ends, We1, Vmap0),
     digraph:delete(G),
     {We,Vmap}.
 
@@ -695,6 +700,7 @@ new_vertex(V, G, Edges, {We0,F0}=Acc) ->
 			       do_new_vertex(V, G, Edge, Center, W0)
 		       end, We0, Es),
 	    NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
+	    io:format("V,NewVs: ~w\n", [{V,NewVs}]),
 	    {We,[{V,NewVs}|F0]}
     end.
 
@@ -735,31 +741,32 @@ digraph_insert(G, Va0, Vb0, Face) ->
     digraph:add_vertex(G, Vb),
     digraph:add_edge(G, Va, Vb).
 
-connect(G, Wid, We, Ends) ->
+connect(G, Wid, Ends, We, Vmap) ->
     Cs0 = digraph_utils:components(G),
     Cs = remove_winged_vs(Cs0),
-    connect(G, Cs, Wid, We, Ends, []).
+    connect(G, Cs, Wid, Ends, We, Vmap, []).
 
-connect(G, [C|Cs], Wid, We0, Ends, Closed) ->
+connect(G, [C|Cs], Wid, Ends, We0, Vmap0, Closed) ->
     case [VF || {V,_}=VF <- C, V >= Wid] of
 	[] ->
 	    [{_,Face}|_] = C,
-	    connect(G, Cs, Wid, We0, Ends, [Face|Closed]);
+	    connect(G, Cs, Wid, Ends, We0, Vmap0, [Face|Closed]);
 	[Va0] -> %% End case
 	    [Vb0] = lists:filter(fun({V,_}) -> lists:member(V,Ends) end, C),
 	    [{Va,Face}|Path0] = digraph_get_path(G, Va0, Vb0),
 	    Path = [V || {V,_} <- Path0],
-	    We = connect_inner(Va, Path, Face, We0),
- 	    connect(G, Cs, Wid, We, Ends, Closed);
+	    {We,Vmap} = connect_inner(Va, Path, Face, We0, Vmap0),
+ 	    connect(G, Cs, Wid, Ends, We, Vmap, Closed);
 	[Va0,Vb0] ->
 	    [{Va,Face}|Path0] = digraph_get_path(G, Va0, Vb0),
 	    Path = [V || {V,_} <- Path0],
-	    We = connect_inner(Va, Path, Face, We0),
- 	    connect(G, Cs, Wid, We, Ends, Closed)
+	    {We,Vmap} = connect_inner(Va, Path, Face, We0, Vmap0),
+ 	    connect(G, Cs, Wid, Ends, We, Vmap, Closed)
     end;
-connect(_, [], _Wid, We0, _Ends, Closed) ->
+connect(_, [], _Wid, _Ends, We0, Vmap, Closed) ->
+    ?DBG("~w\n", [Closed]),
     We = wings_extrude_face:faces(Closed, We0),
-    move_vertices(Closed, We).
+    {move_vertices(Closed, We),Vmap}.
 
 digraph_get_path(G, Va, Vb) ->
     case digraph:get_path(G, Va, Vb) of
@@ -767,9 +774,11 @@ digraph_get_path(G, Va, Vb) ->
 	Path -> Path
     end.
 
-connect_inner({new,V}, [V|[B,C,_|_]=Next], Face, We0) ->
+connect_inner({new,V}, [V|[B,C,_|_]=Next], Face, We0, Vmap0) ->
+    erlang:fault({nyi,?LINE}),
     {We1,Current} = connect_one_inner(V, V, B, C, Face, We0),
-    #we{vs=Vtab} = We2 = connect_inner(Current, Next, Face, We1),
+    Vmap1 = [{B,[Current]}|Vmap0],
+    {#we{vs=Vtab}=We2,Vmap} = connect_inner(Current, Next, Face, We1, Vmap1),
     Edge = wings_vertex:fold(
 	     fun(E, _, R, A) ->
 		     case wings_vertex:other(V, R) of
@@ -778,28 +787,36 @@ connect_inner({new,V}, [V|[B,C,_|_]=Next], Face, We0) ->
 		     end
 	     end, none, V, We2),
     Pos = wings_vertex:pos(V, Vtab),
-    {We,_} = wings_edge:fast_cut(Edge, Pos, We2),
-    We;
-connect_inner({new,_}, [A|[_B,C]], Face, We0) ->
+    {We,NewV} = wings_edge:fast_cut(Edge, Pos, We2),
+    ?DBG("~p\n", [NewV]),
+    {We,Vmap};
+connect_inner({new,_}, [A|[_B,C]], Face, We0, Vmap0) ->
+    erlang:fault({nyi,?LINE}),
     {We1,Edge} = wings_vertex:force_connect(C, A, Face, We0),
     #we{vs=Vtab} = We1,
     Pos = wings_vertex:pos(A, Vtab),
-    {We,_} = wings_edge:fast_cut(Edge, Pos, We1),
-    We;
-connect_inner(C, [_B|[A,{new,_}]], Face, We0) ->
+    {We,NewV} = wings_edge:fast_cut(Edge, Pos, We1),
+    ?DBG("~p\n", [NewV]),
+    {We,Vmap0};
+connect_inner(C, [_B|[A,{new,_}]], Face, We0, Vmap0) ->
+    erlang:fault({nyi,?LINE}),
     {We1,Edge} = wings_vertex:force_connect(A, C, Face, We0),
     #we{vs=Vtab} = We1,
     Pos = wings_vertex:pos(A, Vtab),
-    {We,_} = wings_edge:fast_cut(Edge, Pos, We1),
-    We;
-connect_inner(Current0, [A|[B,C,_|_]=Next], Face, We0) ->
+    {We,NewV} = wings_edge:fast_cut(Edge, Pos, We1),
+    ?DBG("~p\n", [NewV]),
+    {We,Vmap0};
+connect_inner(Current0, [A|[B,C,_|_]=Next], Face, We0, Vmap0) ->
     {We,Current} = connect_one_inner(Current0, A, B, C, Face, We0),
-    connect_inner(Current, Next, Face, We);
-connect_inner(Current, [_|[_,_]=Next], Face, We) ->
-    connect_inner(Current, Next, Face, We);
-connect_inner(Current, [_,Last], Face, We0) ->
-    {We,_} = wings_vertex:force_connect(Last, Current, Face, We0),
-    We.
+    Vmap = [{B,[Current]}|Vmap0],
+    ?DBG("~w\n", [{B,Current}]),
+    connect_inner(Current, Next, Face, We, Vmap);
+connect_inner(Current, [_|[_,_]=Next], Face, We, Vmap) ->
+    connect_inner(Current, Next, Face, We, Vmap);
+connect_inner(Current, [_,Last], Face, We0, Vmap) ->
+    {We,XXX} = wings_vertex:force_connect(Last, Current, Face, We0),
+    ?DBG("~w\n", [XXX]),
+    {We,Vmap}.
 
 connect_one_inner(Current, _A, B, _C, Face, We0) ->
     {We1,Edge} = wings_vertex:force_connect(B, Current, Face, We0),

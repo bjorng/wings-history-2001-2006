@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.6 2002/10/23 13:05:36 dgud Exp $
+%%     $Id: auv_placement.erl,v 1.7 2002/10/23 14:22:27 dgud Exp $
 
 
 -module(auv_placement).
@@ -291,7 +291,6 @@ dist(V1,V2,Vs) ->
 
 %% Returns a list of loops 
 sort_edges(Eds) ->
-    ?DBG("To sort ~p ~n", [lists:sort(Eds)]),
     EdsT = lists:foldl(fun({V1,V2,Edge,Dist}, Tree) ->
 			       gb_trees:insert(V1,{V2,Edge,Dist}, Tree)
 		       end, gb_trees:empty(), Eds),    
