@@ -3,17 +3,23 @@
 %%
 %%     Functions for reading and writing TGA files.
 %%
-%%  Copyright (c) 2001 Dan Gudmundsson
+%%  Copyright (c) 2001-2002 Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.4 2002/07/12 12:49:19 dgud Exp $
+%%     $Id: e3d__tga.erl,v 1.5 2002/08/03 06:49:41 bjorng Exp $
 %%
 
 -module(e3d__tga).
 -export([load/2,save/3]).
+-export([format_error/1]).
 -include("e3d_image.hrl").
+
+format_error(unsupported_format) ->
+    "Unsupported format or bad TGA file";
+format_error(bad_image_specifiction) ->
+    "Bad image specification".
 
 load(FileName, Opts) ->
     case file:read_file(FileName) of
@@ -24,7 +30,7 @@ load(FileName, Opts) ->
 	{ok, <<0,0,10,0,0,0,0,0,0,0,0,0, Image/binary>>} ->
 	    load_comp(Image);
 	{ok, Bin} ->
-	    {error, {unsupported_format, tga, FileName}};
+	    {error, {none,?MODULE,unsupported_format}};
 	Error ->
 	    Error
     end.
@@ -34,7 +40,7 @@ load_uncomp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,Image/bi
     SpecOK = (W > 0) and (H > 0) and ((BitsPP == 32) or (BitsPP == 24)),
     if 
 	SpecOK == false ->
-	    {error, {bad_image_specifiction}};
+	    {error, {none,?MODULE,bad_image_specifiction}};
 	true ->
 	    Type = case BytesPerPixel of
 		       3 -> b8g8r8;
@@ -53,7 +59,7 @@ load_comp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,CImage/bin
     SpecOK = (W > 0) and (H > 0) and ((BitsPP == 32) or (BitsPP == 24)),
     if 
 	SpecOK == false ->
-	    {error, {bad_image_specifiction}};
+	    {error, {none,?MODULE,bad_image_specifiction}};
 	true ->
 	    Type = case BytesPerPixel of
 		       3 -> b8g8r8;
