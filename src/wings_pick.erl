@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.109 2003/08/04 19:34:34 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.110 2003/08/13 04:41:44 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -435,7 +435,7 @@ raw_pick(X0, Y0, St) ->
     wings_view:projection(),
     wings_view:modelview(),
     gl:enable(?GL_CULL_FACE),
-    select_draw(St),
+    select_draw(),
     gl:disable(?GL_CULL_FACE),
     case get_hits(HitBuf) of
 	none -> none;
@@ -658,7 +658,7 @@ pick_all(DrawFaces, X, Y0, W, H, St) ->
     case DrawFaces of
 	true ->
 	    gl:enable(?GL_CULL_FACE),
-	    select_draw(St),
+	    select_draw(),
 	    gl:disable(?GL_CULL_FACE);
 	false -> marquee_draw(St)
     end,
@@ -685,7 +685,7 @@ marquee_draw(#st{selmode=vertex}) ->
 			   end, gb_trees:to_list(Vtab))
 	   end,
     marquee_draw_1(Draw);
-marquee_draw(St) -> select_draw(St).
+marquee_draw(_) -> select_draw().
 
 marquee_draw_1(Draw) ->
     wings_draw_util:fold(fun(D, _) -> marquee_draw_fun(D, Draw) end, []).
@@ -716,7 +716,7 @@ marquee_draw_fun(#dlo{mirror=Mirror,src_we=#we{id=Id}=We}, Draw) ->
 %% Draw for the purpose of picking the items that the user clicked on.
 %%
 
-select_draw(_) ->
+select_draw() ->
     wings_draw_util:map(fun select_draw_fun/2, []).
 
 select_draw_fun(#dlo{work=Work,src_we=#we{id=Id,perm=Perm}=We}=D, _)
