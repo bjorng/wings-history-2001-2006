@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.42 2002/08/25 15:06:51 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.43 2002/09/09 07:52:00 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -177,14 +177,18 @@ nendo(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
     wings_io:grab(),
     wings_io:clear_message(),
     nendo_message(true),
-    {seq,{push,dummy},get_nendo_event(Camera, Redraw, true)};
+    View = wings_view:current(),
+    {seq,{push,dummy},get_nendo_event(Camera, Redraw, true, View)};
 nendo(#keyboard{keysym=#keysym{sym=Sym}}, _Redraw) ->
     nendo_pan(Sym);
 nendo(_, _) -> next.
 
-nendo_event(#mousebutton{button=1,state=?SDL_RELEASED}, Camera, _, _) ->
+nendo_event(#mousebutton{button=1,state=?SDL_RELEASED}, Camera, _, _, _) ->
     stop_camera(Camera);
-nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, true) ->
+nendo_event(#mousebutton{button=3,state=?SDL_RELEASED}, Camera, _, _, View) ->
+    wings_view:set_current(View),
+    stop_camera(Camera);
+nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, true, View) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case Buttons band 6 of
 	0 ->					%None of MMB/RMB pressed.
@@ -192,8 +196,8 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, true) ->
 	_Other ->				%MMB and/or RMB pressed.
 	    zoom(Dy)
     end,
-    get_nendo_event(Camera, Redraw, true);
-nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false) ->
+    get_nendo_event(Camera, Redraw, true, View);
+nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false, View) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case Buttons band 6 of
 	0 ->					%None of MMB/RMB pressed.
@@ -201,12 +205,12 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false) ->
 	_Other ->				%MMB and/or RMB pressed.
 	    zoom(Dy)
     end,
-    get_nendo_event(Camera, Redraw, false);
-nendo_event(#keyboard{keysym=#keysym{unicode=$q}}, Camera, Redraw, MR0) ->
+    get_nendo_event(Camera, Redraw, false, View);
+nendo_event(#keyboard{keysym=#keysym{unicode=$q}}, Camera, Redraw, MR0, View) ->
     MR = not MR0,
     nendo_message(MR),
-    get_nendo_event(Camera, Redraw, MR);
-nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _) ->
+    get_nendo_event(Camera, Redraw, MR, View);
+nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _, _) ->
     case nendo_pan(Sym) of
 	keep -> keep;
 	next ->
@@ -217,7 +221,7 @@ nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw, _) ->
 	    end
     end,
     keep;
-nendo_event(Event, Camera, Redraw, _) ->
+nendo_event(Event, Camera, Redraw, _, View) ->
     generic_event(Event, Camera, Redraw).
     
 nendo_pan(?SDLK_LEFT) ->
@@ -235,16 +239,16 @@ nendo_pan(Dx, Dy) ->
     wings_wm:dirty(),
     keep.
     
-get_nendo_event(Camera, Redraw, MouseRotates) ->
+get_nendo_event(Camera, Redraw, MouseRotates, View) ->
     wings_wm:dirty(),
-    {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw, MouseRotates) end}.
+    {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw, MouseRotates, View) end}.
 
 nendo_message(true) ->
-    Help = ["[L] Exit camera mode  Move mouse to tumble  "
+    Help = ["[L] Accept  [R] Abort  Move mouse to tumble  "
 	    "Drag [M] to dolly  [Q] Mouse move will track"],
     wings_io:message(Help);
 nendo_message(false) ->
-    Help = ["[L] Exit camera mode  Move mouse to track  "
+    Help = ["[L] Accept  [R] Abort  Move mouse to track  "
 	    "Drag [M] Dolly  [Q] Mouse move will rotate"],
     wings_io:message(Help).
 
