@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.287 2004/12/31 10:08:27 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.288 2005/01/31 12:53:27 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -450,7 +450,7 @@ handle_event({new_state,St}, _) ->
 handle_event(revert_state, St) ->
     get_event(St);
 handle_event(Ev, St) ->
-    case wings_camera:event(Ev, fun() -> redraw(St) end) of
+    case wings_camera:event(Ev, St, fun() -> redraw(St) end) of
 	next ->
 	    FreeLmbMod = wings_msg:free_lmb_modifier(),
 	    handle_event_1(Ev, St, FreeLmbMod);

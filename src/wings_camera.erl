@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.112 2004/12/16 20:05:09 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.113 2005/01/31 12:53:41 dgud Exp $
 %%
 
 -module(wings_camera).
--export([init/0,prefs/0,help/0,event/2]).
+-export([init/0,prefs/0,help/0,event/2,event/3]).
 
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
@@ -30,6 +30,8 @@
 	 ox,oy,					%Original mouse position.
 	 xt=0,yt=0				%Last warp length.
 	}).
+
+-record(state, {st, func}).
 
 init() ->
     wings_pref:set_default(camera_mode, mirai),
@@ -134,21 +136,23 @@ help() ->
     end.
 
 %% Event handler.
+event(Ev, St=#st{}) -> 
+    event(Ev,St,none).
 
-event(#mousebutton{button=4,state=?SDL_RELEASED}, _Redraw) ->
+event(#mousebutton{button=4,state=?SDL_RELEASED}, _, _Redraw) ->
     zoom_step(-1);
-event(#mousebutton{button=5,state=?SDL_RELEASED}, _Redraw) ->
+event(#mousebutton{button=5,state=?SDL_RELEASED}, _, _Redraw) ->
     zoom_step(1);
-event(#mousebutton{button=B}, _Redraw) when B==4; B==5 ->
+event(#mousebutton{button=B}, _, _Redraw) when B==4; B==5 ->
     keep;
-event(Ev, Redraw) ->
+event(Ev, St, Redraw) ->
     case wings_pref:get_value(camera_mode) of
-	blender -> blender(Ev, Redraw);
-	nendo -> nendo(Ev, Redraw);
-	mirai -> mirai(Ev, Redraw);
-	tds -> tds(Ev, Redraw);
-	maya -> maya(Ev, Redraw);
-	mb -> mb(Ev, Redraw)
+	blender -> blender(Ev, #state{st=St, func=Redraw});
+	nendo -> nendo(Ev, #state{st=St, func=Redraw});
+	mirai -> mirai(Ev, #state{st=St, func=Redraw});
+	tds -> tds(Ev, #state{st=St, func=Redraw});
+	maya -> maya(Ev, #state{st=St, func=Redraw});
+	mb -> mb(Ev, #state{st=St, func=Redraw})
     end.
 
 %%%
@@ -232,12 +236,11 @@ nendo_event(#keyboard{unicode=$q}, Camera, Redraw, MR0) ->
     MR = MR0 xor allow_rotation(),
     nendo_message(MR),
     get_nendo_event(Camera, Redraw, MR);
-nendo_event(#keyboard{sym=Sym}=Event, _Camera, Redraw, _) ->
+nendo_event(#keyboard{sym=Sym}=Event, Camera, Redraw, _) ->
     case nendo_pan(Sym) of
 	keep -> keep;
-	next -> view_hotkey(Event, Redraw)
-    end,
-    keep;
+	next -> view_hotkey(Event, Camera, Redraw)
+    end;
 nendo_event(Event, Camera, Redraw, _) ->
     generic_event(Event, Camera, Redraw).
     
@@ -322,12 +325,11 @@ mirai_event(#keyboard{unicode=$q}, Camera, Redraw, MR0, View) ->
     MR = MR0 xor allow_rotation(),
     mirai_message(MR),
     get_mirai_event(Camera, Redraw, MR, View);
-mirai_event(#keyboard{sym=Sym}=Event, _Camera, Redraw, _, _) ->
+mirai_event(#keyboard{sym=Sym}=Event, Camera, Redraw, _, _) ->
     case mirai_pan(Sym) of
 	keep -> keep;
-	next -> view_hotkey(Event, Redraw)
-    end,
-    keep;
+	next -> view_hotkey(Event, Camera, Redraw)
+    end;
 mirai_event(Event, Camera, Redraw, _, _) ->
     generic_event(Event, Camera, Redraw).
     
@@ -526,10 +528,10 @@ mb_help() ->
 %%% Common utilities.
 %%%		     
 
-generic_event(redraw, _Camera, #st{}=St) ->
+generic_event(redraw, _Camera, #state{st=St, func=none}) ->
     wings:redraw(St),
     keep;
-generic_event(redraw, _Camera, Redraw) when is_function(Redraw) ->
+generic_event(redraw, _Camera, #state{func=Redraw}) when is_function(Redraw) ->
     Redraw(),
     keep;
 generic_event(#mousebutton{button=4,state=?SDL_RELEASED}, _Camera, _Redraw) ->
@@ -537,10 +539,6 @@ generic_event(#mousebutton{button=4,state=?SDL_RELEASED}, _Camera, _Redraw) ->
 generic_event(#mousebutton{button=5,state=?SDL_RELEASED}, _Camera, _Redraw) ->
     zoom_step(1);
 generic_event(_, _, _) -> keep.
-
-get_st(#st{}=St) -> St;
-get_st(Redraw) when is_function(Redraw) ->
-    #st{shapes=gb_trees:empty()}.
 
 rotate(Dx, Dy) ->
     case allow_rotation() of
@@ -613,12 +611,17 @@ camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
 	    {XD/?CAMDIV, YD/?CAMDIV, Camera#camera{xt=XD0, yt=YD0}}
     end.
 
-view_hotkey(Ev, Redraw) ->
-    case wings_hotkey:event(Ev) of
-	{view,smooth_preview} -> ok;
-	{view,smoothed_preview} -> ok;
-	{view,Cmd} -> wings_view:command(Cmd, get_st(Redraw));
-	_ -> ok
+view_hotkey(Ev, Camera, #state{st=St}) ->
+    case wings_hotkey:event(Ev,St) of
+	next -> keep;
+	{view,smooth_preview} -> keep;
+	{view,smoothed_preview} -> keep;
+	{view,Cmd} -> 
+	    wings_view:command(Cmd, St),
+	    keep;	
+	Other -> %% Hotkey pressed, Quit camera mode
+	    wings_wm:later({action, Other}),
+	    stop_camera(Camera)
     end.
 
 message(Message) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.45 2004/12/18 10:24:06 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.46 2005/01/31 12:53:42 dgud Exp $
 %%
 
 -module(wings_image).
@@ -544,7 +544,7 @@ event(got_focus, _) ->
 event({action,{viewer,Cmd}}, Id) ->
     command(Cmd, Id);
 event(Ev, Id) ->
-    case wings_camera:event(Ev, fun() -> redraw(Id) end) of
+    case wings_camera:event(Ev, #st{shapes=gb_trees:empty()},fun() -> redraw(Id) end) of
 	next -> event_1(Ev, Id);
 	Other -> Other
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.190 2005/01/26 13:19:55 dgud Exp $
+%%     $Id: wings_drag.erl,v 1.191 2005/01/31 12:53:41 dgud Exp $
 %%
 
 -module(wings_drag).
@@ -373,8 +373,8 @@ handle_drag_event(#mousebutton{button=3,state=?SDL_RELEASED,mod=Mod}=Ev,
 	true ->
 	    handle_drag_event_0(Ev, Drag)
     end;
-handle_drag_event(Event, Drag) ->
-    case wings_camera:event(Event, fun() -> redraw(Drag) end) of
+handle_drag_event(Event, Drag = #drag{st=St}) ->
+    case wings_camera:event(Event, St, fun() -> redraw(Drag) end) of
 	next -> handle_drag_event_0(Event, Drag);
 	Other ->
 	    %% Clear any potential marker for an edge about to be
