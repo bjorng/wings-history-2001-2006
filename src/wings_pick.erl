@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.63 2002/10/15 06:24:14 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.64 2002/10/20 12:38:43 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -218,7 +218,7 @@ marquee_event(redraw, #marquee{cx=Cx,cy=Cy,st=St}=M) ->
     wings:redraw(St),
     draw_marquee(Cx, Cy, M),
     keep;
-marquee_event(#resize{w=W,h=H}, #marquee{st=St}=M) ->
+marquee_event(#resize{w=W,h=H}, #marquee{st=St}) ->
     wings:resize(W, H, St),
     keep;
 marquee_event(#mousemotion{x=X,y=Y}, #marquee{cx=Cx,cy=Cy}=M) ->
