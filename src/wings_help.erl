@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Help menu.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.61 2003/12/08 05:42:30 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.62 2004/01/18 10:23:26 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -349,8 +349,17 @@ update_scroller(#ts{first=First,th=Th}) ->
 %%%
 
 about() ->
-    Xs = 280,
-    Ys = 176,
+%% \		    /
+%%  \		   /		    	         __    	__
+%%   \		  /    .	    	   	/  \   |  \
+%%    \	   /\	 /     	   __  	 __    __  	  _/   |   |
+%%     \  /  \ 	/      |  |  | 	|  |  |__      	   \   |   |
+%%	\/    \/       |  |  | 	|__|   __|	\__/   |__/
+%%		       	     	 __|
+%    Xs = 280+60,
+%    Ys = 176+50,
+    {Xs0,Ys} = splash_size(),
+    Xs = Xs0+20,
     {W,H} = wings_wm:top_size(),
     X = trunc((W-Xs) / 2),
     Y = trunc((H-Ys) / 2),
@@ -368,11 +377,17 @@ handle_splash_event(redraw) ->
     gl:recti(3, 3, Xs-3, Ys-3),
     gl:color3f(1, 1, 1),
     gl:recti(4, 4, Xs-4, Ys-4),
-    gl:color3f(1, 0, 1),
-    wings_io:draw_icons(fun() -> wings_io:draw_icon(10, 10, wings) end),
-    gl:color3b(0, 0, 0),
-    wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION),
-    wings_io:text_at(10, 180, "http://www.wings3d.com"),
+    draw_splash(splash_contents()),
+%     gl:color3f(1, 0, 1),
+%     wings_io:draw_icons(fun() -> wings_io:draw_icon(40, 10, wings) end),
+%     gl:color3b(0, 0, 0),
+
+%     wings_io:text_at(85, 155, "Wings 3D " ++ ?WINGS_VERSION),
+    
+%     wings_io:text_at(10, 180, "Copyright " ++ [169] ++ " 2001-2004 "
+% 		     "Bj" ++ [246] ++ "rn Gustavsson & others"),
+%     wings_io:text_at(10, 210, "JPEG library: Copyright " ++ [169] ++
+% 		     " 1991-1998 Thomas G. Lane."),
     keep;
 handle_splash_event(#mousemotion{}) -> keep;
 handle_splash_event(got_focus) -> message();
@@ -382,3 +397,53 @@ handle_splash_event(_) -> delete.
 message() ->
     wings_util:button_message("Close help window"),
     keep.
+
+splash_size() ->
+    splash_size(splash_contents()).
+
+splash_size(L) ->
+    splash_size_1(L, 0, 0).
+
+splash_size_1([{icon,_,W,H}|T], W0, H0) ->
+    splash_size_1(T, wings_util:max(W, W0), H0+H);
+splash_size_1([{text,Text}|T], W0, H0) ->
+    Tw = wings_text:width(Text),
+    splash_size_1(T, wings_util:max(W0, Tw), H0+wings_text:height()+5);
+splash_size_1([{spacer,W,H}|T], W0, H0) ->
+    splash_size_1(T, wings_util:max(W0, W), H0+H);
+splash_size_1([], W, H) -> {W,H}.
+
+draw_splash(L) ->
+    draw_splash_1(L, 0).
+
+draw_splash_1([{icon,Name,Iw,Ih}|T], Y) ->
+    gl:color3f(1, 0, 1),
+    {W,_} = wings_wm:win_size(),
+    X = (W - Iw) div 2,
+    wings_io:draw_icons(fun() -> wings_io:draw_icon(X, Y, Name) end),
+    draw_splash_1(T, Y+Ih);
+draw_splash_1([{text,Text}|T], Y) ->
+    io:format("~p\n", [Text]),
+    gl:color3b(0, 0, 0),
+    Th = wings_text:height(),
+    {W,_} = wings_wm:win_size(),
+    Tw = wings_text:width(Text),
+    X = (W - Tw) div 2,
+    wings_io:text_at(X, Y+Th, Text),
+    draw_splash_1(T, Y+Th+5);
+draw_splash_1([{spacer,_,H}|T], Y) ->
+    draw_splash_1(T, Y+H);
+draw_splash_1([_|T], Y) ->
+    draw_splash_1(T, Y);
+draw_splash_1([], _) -> ok.
+    
+splash_contents() ->
+    [{spacer,0,14},
+     {icon,wings,256,128},
+     {text,"Wings 3D " ++ ?WINGS_VERSION},
+     {spacer,0,10},
+     {text,"Copyright " ++ [169] ++ " 2001-2004 "
+      "Bj" ++ [246] ++ "rn Gustavsson & Others"},
+     {spacer,0,5},
+     {text,"JPEG library: Copyright " ++ [169] ++
+      " 1991-1998 Thomas G. Lane."}].
