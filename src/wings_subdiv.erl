@@ -8,12 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.30 2003/04/22 04:22:50 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.31 2003/05/30 07:41:40 bjorng Exp $
 %%
 
 -module(wings_subdiv).
 -export([smooth/1,smooth/5]).
+-export([setup/1,update/2,draw/1]).
+
+-define(NEED_OPENGL, 1).
 -include("wings.hrl").
+
 -import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,merge/1]).
 
 %%% The Catmull-Clark subdivision algorithm is used, with
@@ -298,3 +302,47 @@ edge_get(Edge, {Id,Etab,_}) when Edge < Id ->
     gb_trees:get(Edge, Etab);
 edge_get(Edge, {_,_,Etab}) ->
     gb_trees:get(Edge, Etab).
+
+%%%
+%%% The Smooth Proxy implmentation.
+%%%
+
+-record(sp,
+	{
+	 }).
+
+setup(#st{sel=OrigSel}=St) ->
+    wings_draw_util:map(fun(D, Sel) -> setup_1(D, Sel) end, OrigSel),
+    {save_state,wings_sel:reset(St)}.
+
+setup_1(#dlo{src_we=#we{id=Id}}=D, [{Id,_}|Sel]) ->
+    Wire0 = wings_wm:get_prop(wings_wm:this(), wireframed_objects),
+    Wire = gb_sets:insert(Id, Wire0),
+    wings_wm:set_prop(wings_wm:this(), wireframed_objects, Wire),
+    {D#dlo{proxy_data=#sp{}},Sel};
+setup_1(D, Sel) -> {D,Sel}.
+
+update(#dlo{src_we=We0}=D, St) ->
+    #we{fs=Ftab} = We = wings_subdiv:smooth(We0),
+    Faces = gl:genLists(1),
+    gl:newList(Faces, ?GL_COMPILE),
+    wings_draw:draw_faces(gb_trees:to_list(Ftab), We, St),
+    gl:endList(),
+    D#dlo{smooth_proxy=Faces,proxy_data=[Faces,#sp{}]}.
+
+draw(#dlo{smooth_proxy=Dl}) when is_integer(Dl) ->
+    draw_1(Dl);
+draw(#dlo{proxy_data=[Dl|_]}) when is_integer(Dl) ->
+    draw_1(Dl);
+draw(_) -> ok.
+
+draw_1(Dl) ->
+    gl:shadeModel(?GL_SMOOTH),
+    gl:enable(?GL_LIGHTING),
+    gl:enable(?GL_POLYGON_OFFSET_FILL),
+    gl:polygonOffset(2.0, 2.0),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    wings_draw_util:call(Dl),
+    gl:disable(?GL_POLYGON_OFFSET_FILL),
+    gl:disable(?GL_LIGHTING),
+    gl:shadeModel(?GL_FLAT).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.82 2003/05/06 03:42:29 bjorng Exp $
+%%     $Id: wings.hrl,v 1.83 2003/05/30 07:41:32 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -69,13 +69,13 @@
 -record(dlo,
 	{work=none,				%Workmode faces.
 	 smooth=none,				%Smooth-shaded faces.
-	 smoothed=none,				%Smoothed preview.
 	 vs=none,				%Unselected vertices.
 	 hard=none,				%Hard edges.
 	 sel=none,				%Selected items.
 	 orig_sel=none,				%Original selection.
 	 normals=none,				%Normals.
 	 pick=none,				%For picking.
+	 smooth_proxy=none,			%Smooth proxy.
 
 	 %% Miscellanous.
 	 hilite=none,				%Hilite display list.
@@ -87,7 +87,8 @@
 	 orig_mode=none,			%Original selection mode.
 	 split=none,				%Split data.
 	 drag=none,				%For dragging.
-	 transparent=false			%Object includes transparancy.
+	 transparent=false,			%Object includes transparancy.
+	 proxy_data=none			%Data for smooth proxy.
 	}).
 
 %% Main state record containing all objects and other important state.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.114 2003/05/20 17:30:24 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.115 2003/05/30 07:41:38 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -64,12 +64,12 @@ prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, [We|Wes]) ->
     {D#dlo{src_we=We,split=Split#split{orig_we=We}},Wes};
 prepare_fun(#dlo{src_we=We}=D, [We|Wes]) ->
     {D#dlo{src_we=We},Wes};
-prepare_fun(#dlo{src_we=#we{id=Id}}, [#we{id=Id,perm=Perm}=We|Wes]) ->
+prepare_fun(#dlo{src_we=#we{id=Id},proxy_data=Proxy}, [#we{id=Id,perm=Perm}=We|Wes]) ->
     if 
 	?IS_VISIBLE(Perm) ->
-	    {#dlo{src_we=We,mirror=check_mirror(We)},Wes};
+	    {#dlo{src_we=We,mirror=check_mirror(We),proxy_data=Proxy},Wes};
 	true ->
-	    {#dlo{src_we=empty_we(We)},Wes}
+	    {#dlo{src_we=empty_we(We),proxy_data=Proxy},Wes}
     end;
 prepare_fun(#dlo{}, Wes) ->
     {deleted,Wes}.
@@ -78,14 +78,14 @@ invalidate_by_mat(Changed0) ->
     Changed = gb_sets:from_list(Changed0),
     wings_draw_util:map(fun(D, _) -> invalidate_by_mat(D, Changed) end, []).
 
-invalidate_by_mat(#dlo{work=none,vs=none,smooth=none,smoothed=none}=D, _) ->
+invalidate_by_mat(#dlo{work=none,vs=none,smooth=none,smooth_proxy=none}=D, _) ->
     %% Nothing to do.
     D;
 invalidate_by_mat(#dlo{src_we=We}=D, Changed) ->
     Used = wings_material:used_materials_we(We),
     case gb_sets:is_empty(gb_sets:intersection(Used, Changed)) of
 	true -> D;
-	false -> D#dlo{work=none,vs=none,smooth=none,smoothed=none}
+	false -> D#dlo{work=none,vs=none,smooth=none,smooth_proxy=none}
     end.
 
 empty_we(We) ->
@@ -130,8 +130,10 @@ update_fun(#dlo{vs=none,src_we=#we{vp=Vtab}}=D, #st{selmode=vertex}=St) ->
     end,
     gl:endList(),
     update_fun(D#dlo{vs=UnselDlist}, St);
+update_fun(#dlo{smooth_proxy=none,proxy_data=none}=D, St) ->
+    update_fun_2(D, St);
 update_fun(D, St) ->
-    update_fun_2(D, St).
+    wings_subdiv:update(D, St).
 
 update_fun_2(#dlo{smooth=none,src_we=We}=D, St) ->
     case any_smooth_window() of
@@ -286,7 +288,7 @@ split(#dlo{src_we=#we{es=Etab}}=D, #split{v2f=none}=Split, Vs, St) ->
     V2F = sofs:relation(V2F0, [{vertex,face}]),
     F2V = sofs:converse(V2F),
     split(D, Split#split{v2f=V2F,f2v=F2V}, Vs, St);
-split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,smoothed=Sm}=D,
+split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd}=D,
       #split{v2f=V2F,f2v=F2V,dyn_faces=Faces0}=Split0, Vs0, St) ->
     Vs = sofs:set(Vs0, [vertex]),
     Faces1 = sofs:image(V2F, Vs),
@@ -315,7 +317,7 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,smoothed=Sm}=D,
 			 dyn_faces=Faces,dyn_ftab=FtabDyn,
 			 orig_we=We,st=St},
     #dlo{work=[List],mirror=M,vs=VsDlist,
-	 src_sel=Sel,src_we=WeDyn,split=Split,smoothed=Sm}.
+	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd}.
 
 original_we(#dlo{split=#split{orig_we=We}}) -> We;
 original_we(#dlo{src_we=We}) -> We.

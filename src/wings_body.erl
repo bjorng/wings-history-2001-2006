@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.56 2003/04/24 05:46:22 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.57 2003/05/30 07:41:36 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -50,6 +50,8 @@ menu(X, Y, St) ->
 	    {"Auto-Smooth",auto_smooth,
 	     "Set edges hard or soft depending on the angle between faces",
 	     [option]},
+	    {"Smooth Proxy",smooth_proxy,
+	     "Setup a smoothed proxy"},
 	    separator,
 	    {"Duplicate",{duplicate,Dir}},
 	    {"Delete",delete,"Delete the selected objects"},
@@ -89,6 +91,8 @@ command(tighten, St) ->
     tighten(St);
 command(smooth, St) ->
     ?SLOW({save_state,smooth(St)});
+command(smooth_proxy, St) ->
+    wings_subdiv:setup(St);
 command(combine, St) ->
     {save_state,combine(St)};
 command(separate, St) ->

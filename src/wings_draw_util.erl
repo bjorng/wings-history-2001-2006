@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.63 2003/05/29 19:22:45 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.64 2003/05/30 07:41:39 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -164,11 +164,13 @@ update_last(Data, Seen, Acc) ->
     Data.
 
 update_seen(D, Seen) ->
-    #dlo{work=F,smooth=Sm1,smoothed=Sm2,hard=Hard,vs=Vs,
-	 sel=Sel,orig_sel=OrigSel,normals=Ns,pick=Pick,hilite=Hilite} = D,
-    Lists = [F,Sm1,Sm2,Hard,Vs,Sel,OrigSel,Ns,Pick,Hilite],
-    update_seen_1(Lists, Seen).
+    update_seen_0(size(D), D, Seen).
 
+update_seen_0(0, _, Seen) -> Seen;
+update_seen_0(I, D, Seen0) ->
+    Seen = update_seen_1(element(I, D), Seen0),
+    update_seen_0(I-1, D, Seen).
+    
 update_seen_1([H|T], Seen) ->
     update_seen_1(T, update_seen_1(H, Seen));
 update_seen_1([], Seen) -> Seen;
@@ -176,7 +178,8 @@ update_seen_1(none, Seen) -> Seen;
 update_seen_1({matrix,_,Dl}, Seen) ->
     update_seen_1(Dl, Seen);
 update_seen_1(Dl, Seen) when is_integer(Dl) ->
-    [Dl|Seen].
+    [Dl|Seen];
+update_seen_1(_, Seen) -> Seen.
 
 %%
 %% Fold over dlo list.
@@ -309,6 +312,7 @@ render_plain(#dlo{work=Faces,src_we=We}=D, SelMode) ->
 
     gl:disable(?GL_POLYGON_OFFSET_LINE),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
+
     draw_hilite(D),
     case Wire of
 	true ->
@@ -320,6 +324,9 @@ render_plain(#dlo{work=Faces,src_we=We}=D, SelMode) ->
 	    draw_orig_sel(D),
 	    draw_sel(D)
     end,
+
+    wings_subdiv:draw(D),
+
     draw_vertices(D, SelMode),
     draw_hard_edges(D),
     draw_normals(D).

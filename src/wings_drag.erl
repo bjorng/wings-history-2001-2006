@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.138 2003/05/27 17:20:28 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.139 2003/05/30 07:41:37 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -223,10 +223,10 @@ insert_matrix(Tvs) ->
 			end, sort(Tvs)).
 
 insert_matrix_fun(#dlo{work=Work,sel=Sel,src_sel=SrcSel,
-		       src_we=#we{id=Id}=We,mirror=M,smoothed=Sm},
+		       src_we=#we{id=Id}=We,mirror=M,proxy_data=Pd},
 		  [{Id,Tr}|Tvs], Matrix) ->
     {#dlo{work=Work,sel=Sel,drag={matrix,Tr,Matrix,Matrix},
-	  src_we=We,src_sel=SrcSel,mirror=M,smoothed=Sm},Tvs};
+	  src_we=We,src_sel=SrcSel,mirror=M,proxy_data=Pd},Tvs};
 insert_matrix_fun(D, Tvs, _) -> {D,Tvs}.
 
 break_apart_general(Tvs) ->
