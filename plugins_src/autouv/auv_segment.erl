@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.18 2002/10/23 14:22:27 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.19 2002/10/24 14:31:31 dgud Exp $
 
 -module(auv_segment).
 
@@ -20,12 +20,15 @@
 
 -import(lists, [reverse/1,map/2,mapfoldl/3,sort/1,foldl/3]).
 
-%% Returns segments=[Charts=[Faces]] and Bounds=[Edges]
+%% Returns segments=[Charts={Id,[Faces]}] and Bounds=gb_sets([Edges])
 create(Mode, We0) ->
     case Mode of 
 	feature ->
-	    {_Distances,Charts0,Cuts0} = segment_by_feature(We0),
+	    {_Distances,Charts0,Cuts0,_Feats} = segment_by_feature(We0),
 	    {Charts0, Cuts0};
+%	    DbgCh = sofs:to_external(sofs:relation_to_family(sofs:relation(_Distances))),
+%	    DbgCu = gb_sets:from_list(_Feats),
+%	    {DbgCh, DbgCu};
 	autouvmap ->
 	    Charts0 = segment_by_direction(We0),
 	    {Charts0, gb_sets:empty()};
@@ -95,14 +98,16 @@ degrees() ->
     lists:foreach(Test, lists:seq(0,360,15)).
 
 segment_by_feature(We0) ->
-    {Features,VEG,EWs} = find_features(We0),
-    build_charts(Features, VEG, EWs, We0).
+    {Features,VEG,EWs} = ?TC(find_features(We0)),
+%%    ?DBG("Features ~p ~n", [lists:sort(Features)]),
+    {Distances, Charts1, Bounds1} = ?TC(build_charts(Features, VEG, EWs, We0)),
+    {Distances, Charts1, Bounds1,Features}.
     
 find_features(We0) ->
     {Sorted, N, _FNormals} = sort_edges_by_weight(We0),
     %% split list normals may diff with +-60 deg and 20% of the edges
     {Best, _Rest} = pick_features(Sorted, 0, ?MAX_DIRECTION, N, []),
-    %%    ?DBG("Best ~p ~n", [Best]),
+%    ?DBG("Best ~p ~p ~n", [Best, _Rest]),
     EVGraph = build_vertex_graph(Sorted, We0, gb_trees:empty()),
     EWs    = gb_trees:from_orddict(lists:sort(Sorted)),
 
@@ -164,7 +169,7 @@ expand_features([First = {Edge, _}|Rest], Fd = #fd{}, We) ->
 	    expand_features(Rest, Fd, We);
 	false ->
 	    {Feature, Fd1} = expand_feature_curve(First, Fd, We),
-%	    ?DBG("Expand ~p ~p ~p~n", [First,length(Feature), Feature]),
+%%	    ?DBG("Expand ~p ~p ~p~n", [First,length(Feature), Feature]),
 	    if 
 		length(Feature) < ?MIN_FEATURE_LENGTH ->     
 		    expand_features(Rest, Fd, We);
@@ -181,7 +186,7 @@ expand_features([], Fd, _We) ->
 expand_feature_curve({Edge, _Sharpness}, Fd0, We) ->
     #edge{vs = Vs, ve = Ve} = gb_trees:get(Edge, We#we.es),    
     Dir1 = get_vector(Vs,Ve,We),
-    {Edges1,_} = get_edges(Vs, Edge, Dir1, We, Fd0),
+    {Edges1,_}   = get_edges(Vs, Edge, Dir1, We, Fd0),
     {Feat0, Fd2} = depth_traverse_tree([Edges1],0,0,Dir1,Fd0,We,[Edge]), 
     Dir2 = get_vector(Ve,Vs,We),
     {Edges2,_} = get_edges(Ve, Edge, Dir2, We, Fd2),
@@ -191,7 +196,7 @@ depth_traverse_tree(Tree=[[{Val,_,_}|_]|_],Sharp,Depth,_Dir1,Fd0, We, Feat)
   when Sharp + Val > ?MIN_SHARPNESS ->
     %% Found suiteable edge -> add to feat
     [[{Val0,{Edge,#edge{vs=VaN,ve=VbN}},V0}|_]|Found] = lists:reverse(Tree),
-%    ?DBG("Found suiteable edge ~p ~p ~p ~n", [Edge,Sharp,Depth]),
+%%    ?DBG("Found suiteable edge ~p ~p ~p ~n", [Edge,Sharp,Depth]),
     Fd1 = ?fdmarkused(Edge, Fd0),
     case Found of 
 	[] -> %% Oops first level hit, restart (special case)
@@ -223,7 +228,7 @@ depth_traverse_tree([[]], _Sharp, _Depth, _Dir,Fd0,_We, Feat) ->
     {Feat, Fd0};
 depth_traverse_tree(Tree=[[{Val,Leaf,Vertex}|_]|_],Sharp,Depth,Dir,Fd0,We,Feat) ->
     %% No success yet -> search deeper
-%    ?DBG("No success yet -> search deeper ~p (~p) ~p ~n",[Sharp+Val, ?MIN_SHARPNESS, Depth]),
+%%    ?DBG("No success yet -> search deeper ~p (~p) ~p ~n",[Sharp+Val, ?MIN_SHARPNESS, Depth]),
     Next = case Leaf of 
 	       {Id, #edge{vs = Vertex, ve = NextV}} ->
 		   NextV;
@@ -232,23 +237,24 @@ depth_traverse_tree(Tree=[[{Val,Leaf,Vertex}|_]|_],Sharp,Depth,Dir,Fd0,We,Feat) 
 	   end,
     case get_edges(Next, Id, Dir, We, Fd0) of
 	{[],Poss} -> %% Fixing last edge in edgeloop
-	    {NewSharp,NewTree} = patch_tree(Poss, Sharp+Val, Tree, Feat),
-	    depth_traverse_tree(NewTree,NewSharp,Depth+1,Dir,Fd0,We,Feat);
+	    {NewSharp,NewTree, NewFeat} = patch_tree(Poss, Sharp+Val, Tree, Feat),
+	    depth_traverse_tree(NewTree,NewSharp,Depth+1,Dir,Fd0,We,NewFeat);
         {Edges,_} ->
 	    depth_traverse_tree([Edges|Tree],Sharp+Val,Depth+1,Dir,Fd0,We,Feat)
     end.
 
-patch_tree([F={Val,{Edge,_ER},_Vs}|_],Sharp,Tree,Feat) ->
+patch_tree([{Val,{Edge,_ER},_Vs}|_],Sharp,Tree,Feat) ->
     case lists:member(Edge, Feat) of
 	true when (Val + Sharp) > ?MIN_SHARPNESS ->
 %	    ?DBG("Patched OK ~p ~n",[Edge]),
-	    {Val + Sharp, [[F]|lists:map(fun([Element|_]) -> [Element] end, Tree)]};
+	    NewFeats = lists:map(fun([{_,{Element,_},_}|_]) -> Element end, Tree),
+	    {Val + Sharp, [[]], NewFeats ++ Feat};
 	_Mem ->
 %	    ?DBG("patch miss ~p ~p ~p ~p ~n",[Edge, _Mem, Val, Sharp]),
-	    {Sharp, [[]|Tree]}
+	    {Sharp, [[]|Tree], Feat}
     end;
-patch_tree([],Sharp,Tree,_) ->
-    {Sharp, [[]|Tree]}.
+patch_tree([],Sharp,Tree, Feat) ->
+    {Sharp, [[]|Tree], Feat}.
 
 get_edges(V, Current, CurrVect, We, Fd) ->
     Surr = ?fdgetsurrneigh({Current,V}, Fd),
@@ -307,6 +313,7 @@ find_extremities(#we{vs= Vs}) ->
 build_charts(Features0, VEG, EWs, We0) ->
     FaceGraph = build_face_graph(gb_trees:keys(We0#we.fs), We0, gb_trees:empty()), 
     Distances = [{Max, _}|_] = calc_distance(Features0, FaceGraph, We0),
+%    ?DBG("Dists ~p ~n", [Distances]),
     {DistTree,LocalMaxs} = find_local_max(Distances, Features0, FaceGraph, We0),
     ?DBG("local max ~p ~p ~n", [length(LocalMaxs), LocalMaxs]),
     {Charts0,Bounds0} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We0),
@@ -364,9 +371,8 @@ expand_charts(Heap0, Charts0, ChartBds0, Max, Dt, VEG,EWs, We) ->
 		    expand_charts(Heap2, Charts1, ChartBds1, Max, Dt, VEG,EWs, We);
 		{value, Chart0} ->  %% Fopp and Face is in same chart
 		    ChartBds1 = case is_extremity(Edge, ChartBds0, VEG,We) of
-				    true -> %% delete_any missed
-					Temp = gb_sets:singleton(Edge),
-					gb_sets:difference(ChartBds0, Temp);
+				    true -> 
+					gb_sets:delete_any(Edge,ChartBds0);
 				    false -> ChartBds0
 				end,
 		    expand_charts(Heap1, Charts0, ChartBds1, Max, Dt, VEG,EWs, We);
