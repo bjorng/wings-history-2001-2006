@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.15 2003/02/24 14:01:09 dgud Exp $
+%%     $Id: wings_image.erl,v 1.16 2003/02/24 21:23:49 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -320,6 +320,7 @@ event(redraw, Id) ->
 event(_, _) -> keep.
 
 redraw(Id) ->
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     #e3d_image{width=Iw,height=Ih} = Im = info(Id),
     Aspect = Iw/Ih,
     {W0,H0} = wings_wm:win_size(),
@@ -337,9 +338,12 @@ redraw(Id) ->
 	    end,
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+    gl:disable(?GL_DEPTH_TEST),
+    gl:enable(?GL_BLEND),
+    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     draw_image(X, Y, W, H, txid(Id), Im),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
-    gl:disable(?GL_TEXTURE_2D).
+    gl:popAttrib().
 
 draw_image(X, Y, W, H, TxId, #e3d_image{order=Order}) ->
     case Order of
