@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.157 2003/12/30 02:35:27 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.158 2003/12/30 14:36:01 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -236,7 +236,7 @@ ask_unzip([], Labels, Vals) ->
 %% {button,{text,Def,Flags}}                    -- Text field with a Browse button
 %%    Flags = [Flag]
 %%    Flag = {props,DialogBoxProperties}|{dialog_type,DialogType}|RegularFlags
-%%    DialogType = open|save
+%%    DialogType = open_dialog|save_dialog
 %% 
 %% Regular fields (dialog tree leafs).
 %% Additional types:
@@ -1017,7 +1017,8 @@ mktree({button,{text,_,Flags}=Text}, Sto, I) ->
 			  (Other) -> Other
 		       end, ButtonFlags0),
     TextKey = proplists:get_value(text_key, ButtonFlags1),
-    ButtonFlags = [{hook,browse_hook_fun(Ps, TextKey)}|ButtonFlags1],
+    TextHook = proplists:get_value(hook, Flags, none),
+    ButtonFlags = [{hook,browse_hook_fun(Ps, TextKey, TextHook)}|ButtonFlags1],
     Button = {button,"Browse",keep,ButtonFlags},
     mktree({hframe,[Text,Button]}, Sto, I);
 mktree({button,Action}, Sto, I) when is_atom(Action) ->
@@ -2224,7 +2225,7 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnabled) ->
     gl:color3b(0, 0, 0),
     keep.
 
-browse_hook_fun(Ps0, TextKey) ->
+browse_hook_fun(Ps0, TextKey, TextHook) ->
     fun(update, {_,I,_,Sto0}) ->
 	    Name0 = gb_trees:get(var(TextKey, I), Sto0),
 	    Dir = filename:dirname(filename:absname(Name0)),
@@ -2234,8 +2235,16 @@ browse_hook_fun(Ps0, TextKey) ->
 		   (Name) ->
 			wings_wm:send(Parent, {drop,{filename,Name}})
 		end,
-	    wings_plugin:call_ui({file,open_dialog,Ps,F}),
+	    DlgType = proplists:get_value(dialog_type, Ps),
+	    wings_plugin:call_ui({file,DlgType,Ps,F}),
 	    keep;
+       (is_disabled, {_,I,Sto}) ->
+	    %% This button always has the same disabled state
+	    %% as the associated text field.
+	    if
+		TextHook == none -> false;
+		true -> TextHook(is_disabled, {TextKey,I-1,Sto})
+	    end;
        (_, _) -> void
     end.
 
