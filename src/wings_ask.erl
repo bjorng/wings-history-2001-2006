@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.16 2002/04/11 16:12:04 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.17 2002/04/12 06:53:36 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -748,6 +748,7 @@ button_event(_Ev, _Fi, But) -> But.
 %%%
 %%% Color box.
 %%%
+-define(COL_PREVIEW_SZ, 60).
 
 -record(col,
 	{val}).
@@ -797,13 +798,15 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 		   Color = {gb_trees:get(r, Common)/255,
 			    gb_trees:get(g, Common)/255,
 			    gb_trees:get(b, Common)/255},
-		   wings_io:sunken_rect(X, Y, 50, 50-4, Color)
+		   wings_io:sunken_rect(X, Y, ?COL_PREVIEW_SZ,
+					?COL_PREVIEW_SZ-4, Color)
 	   end,
-    {dialog,[{custom,50,50,Draw},
-	     {label_column,
-	      [{"R",{slider,{text,trunc(R0*255),[{key,r}|Range]}}},
-	       {"G",{slider,{text,trunc(G0*255),[{key,g}|Range]}}},
-	       {"B",{slider,{text,trunc(B0*255),[{key,b}|Range]}}}]}],
+    {dialog,[{hframe,
+	      [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
+	       {label_column,
+		[{"R",{slider,{text,trunc(R0*255),[{key,r}|Range]}}},
+		 {"G",{slider,{text,trunc(G0*255),[{key,g}|Range]}}},
+		 {"B",{slider,{text,trunc(B0*255),[{key,b}|Range]}}}]}]}],
      fun([{r,R},{g,G},{b,B}]) ->
 	     Val = {R/255,G/255,B/255},
 	     {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
