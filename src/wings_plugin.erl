@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.26 2003/09/09 06:09:47 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.27 2003/09/09 17:17:24 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,dialog_result/2,command/2,call_ui/1]).
@@ -191,7 +191,8 @@ list_dir([Dir|Dirs0], Pas, Beams0) ->
     end;
 list_dir([], Pas, Beams) -> {Pas,Beams}.
 
-list_dir_1([[$~|_]|Ns], Dir0, Dirs, Beams) ->
+list_dir_1(["~"++_|Ns], Dir0, Dirs, Beams) ->
+    %% We skip any file or directory starting with a "~".
     list_dir_1(Ns, Dir0, Dirs, Beams);
 list_dir_1([[$w,$p,_,$_|_]=N|Ns], Dir0, Dirs, Beams) ->
     case filename:extension(N) of
@@ -248,12 +249,10 @@ object_name(Prefix, #st{onext=Oid}) ->
 %%%
 
 install(Name) ->
-    Type = case install_file_type(Name) of
-	       beam -> beam;
-	       tar -> tar
-	   end,
-    io:format("~p: ~p\n", [Type,Name]),
-    ok.
+    case install_file_type(Name) of
+	beam -> install_beam(Name);
+	tar -> install_tar(Name)
+    end.
 
 install_file_type(Name) ->
     case filename:extension(Name) of
@@ -270,7 +269,48 @@ install_file_type(Name) ->
 	    end
     end.
 
-		    
-	    
+install_beam(Name) ->
+    case is_plugin(Name) of
+	true ->
+	    PluginDir = plugin_dir(),
+	    DestBase = filename:rootname(filename:basename(Name), ".gz"),
+	    Dest = filename:join(PluginDir, DestBase),
+	    case file:copy(Name, Dest) of
+		{ok,_} -> ok;
+		{error,Reason} ->
+		    wings_util:error("Install of \"~s\" failed: ~p",
+				     [filename:basename(Name),file:format_error(Reason)])
+	    end;
+	false ->
+	    wings_util:error("File \"~s\" is not a Wings plug-in module",
+			     [filename:basename(Name)])
+    end.
 
-	    
+install_tar(Name) ->
+    {ok,Files} = erl_tar:table(Name, [compressed]),
+    install_verify_files(Files, Name),
+    erl_tar:extract(Name, [compressed,{cwd,plugin_dir()}]).
+
+install_verify_files(["/"++_|_], Name) ->
+    wings_util:error("File \"~s\" contains a file with an absolute path",
+		     [filename:basename(Name)]);
+install_verify_files([F|Fs], Name) ->
+    case is_plugin(F) of
+	false -> install_verify_files(Fs, Name);
+	true -> ok
+    end;
+install_verify_files([], Name) ->
+    wings_util:error("File \"~s\" does not contain any Wings plug-in modules",
+		     [filename:basename(Name)]).
+
+is_plugin(Name) ->
+    case filename:basename(Name) of
+	"wpc_"++_ -> true;
+	_ -> false
+    end.
+
+plugin_dir() ->
+    case try_dir(wings:root_dir(), "plugins") of
+	none -> wings_util:error("No \"plugins\" directory found");
+	PluginDir -> PluginDir
+    end.
