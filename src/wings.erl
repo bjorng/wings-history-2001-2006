@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.255 2003/07/02 18:45:12 bjorng Exp $
+%%     $Id: wings.erl,v 1.256 2003/07/08 07:05:32 bjorng Exp $
 %%
 
 -module(wings).
@@ -16,9 +16,9 @@
 -export([root_dir/0,caption/1,redraw/1,redraw/2,init_opengl/1,command/2]).
 -export([mode_restriction/1,clear_mode_restriction/0,get_mode_restriction/0]).
 -export([install_restorer/1]).
+-export([create_toolbar/3]).
 
 -export([register_postdraw_hook/3,unregister_postdraw_hook/2]).
-
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -153,7 +153,7 @@ init(File, Root) ->
     Op = main_loop_noredraw(St),		%Replace crash handler
 						%with this handler.
     
-    Props = wings_view:initial_properties(),
+    Props = initial_properties(),
     {{X,Y},{W,H}} = wings_wm:win_rect(desktop),
     wings_wm:toplevel(geom, "Geometry", {X,Y,highest}, {W,H-80},
 		      [resizable,{anchor,nw},{toolbar,fun create_toolbar/3},
@@ -1101,8 +1101,7 @@ restore_windows_1([{geom,{_,_}=Pos0,{_,_}=Size,Ps0}|Ws], St) ->
 restore_windows_1([{{geom,_}=Name,Pos0,Size,Ps0}|Ws], St) ->
     Ps = geom_props(Ps0),
     ToolbarHidden = proplists:get_bool(toolbar_hidden, Ps),
-    new_viewer(Name, {0,0}, Size, wings_view:initial_properties(), 
-	       ToolbarHidden, St),
+    new_viewer(Name, {0,0}, Size, initial_properties(), ToolbarHidden, St),
     Pos = geom_pos(Pos0),
     wings_wm:move(Name, Pos, Size),
     set_geom_props(Ps, Name),
@@ -1158,6 +1157,9 @@ set_geom_props([_|T], Name) ->
     set_geom_props(T, Name);
 set_geom_props([], _) -> ok.
 
+initial_properties() ->
+    [{display_lists,geom_display_lists}|wings_view:initial_properties()].
+
 %%%
 %%% The toolbar window with buttons.
 %%%
@@ -1188,7 +1190,8 @@ clear_mode_restriction() ->
 
 get_mode_restriction() ->
     Name = wings_wm:this(),
-    case wings_wm:lookup_prop({toolbar,Name}, mode_restriction) of
+    Toolbar = {toolbar,Name},
+    case wings_wm:lookup_prop(Toolbar, mode_restriction) of
 	none -> [edge,vertex,face,body];
 	{value,Other} -> Other
     end.

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.120 2003/06/20 09:19:56 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.121 2003/07/08 07:05:31 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -78,63 +78,85 @@ command({_, {auv_snap,auv_cancel_snap}}, St) ->
 command({body,?MODULE}, St) ->
     ?DBG("Start shapes ~p~n",[gb_trees:keys(St#st.shapes)]), 
     start_uvmap(St);
-command({body,{?MODULE,ask_material,Fun}}, _St) ->
-    Fun();
-command({body,?MODULE,discard_uvs,We,St2}, St) ->
-    auv_seg_ui:start(St, {discard,We,St2});
-command({body,{?MODULE,do_edit,{We,MatName,Faces}}}, St) ->
-    do_edit(MatName, Faces, We, St);
-command({body,{?MODULE,show_map,Info}}, St) ->
-    ?DBG("Start shapes ~p~n",[gb_trees:keys(St#st.shapes)]), 
-    {MappedCharts,OrigWe} = Info,
-    init_show_maps(MappedCharts, OrigWe, St);
 command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, St0) ->
     #uvstate{areas=Current,sel=Sel,matname=MatName0,orig_we=OrWe} = Uvs,
     Charts = add_areas(Sel, Current),
-    {St1,MatName} =
+    {St,MatName} =
 	case QuitOp of
 	    quit_uv_tex ->
 		Tx = ?SLOW(get_texture(Uvs)),
 		add_material(Tx, OrWe#we.name, MatName0, St0);
 	    quit_uv -> {St0,MatName0}
 	end,
-    St = ?SLOW(insert_uvcoords(Charts, OrWe#we.id, MatName, St1)),
-    St;
+    ?SLOW(insert_uvcoords(Charts, OrWe#we.id, MatName, St));
 command(_, _) -> next.
 
-start_uvmap(#st{sel=[{Id,_}],shapes=Shs}=St) ->
-    case gb_trees:get(Id, Shs) of
-	#we{mode=uv}=We -> start_edit(Id, We, St);
-	_ -> auv_seg_ui:start(St, new)
+start_uvmap(#st{sel=Sel}=St) ->
+    start_uvmap_1(Sel, St).
+
+start_uvmap_1([{Id,_}|T], St) ->
+    Name = {autouv,Id},
+    case wings_wm:is_window(Name) of
+	true -> wings_wm:raise(Name);
+	false -> create_autouv_window(Id, St)
+    end,
+    start_uvmap_1(T, St);
+start_uvmap_1([], _) -> keep.
+
+create_autouv_window(Id, #st{shapes=Shs}=St) ->
+    #we{name=ObjName} = We = gb_trees:get(Id, Shs),
+    Op = {push,fun(Ev) -> auv_event(Ev, St) end},
+    Name = {autouv,Id},
+    Title = "AutoUV: " ++ ObjName,
+    {{X,Y,W,H},_Geom} = init_drawarea(),
+    Props = [{display_lists,Name}|wings_view:initial_properties()],
+    wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H},
+		      [resizable,closable,menubar,{properties,Props},
+		       {toolbar,fun(N, P, Wi) -> wings:create_toolbar(N, P, Wi) end}], Op),
+    wings_wm:send(Name, {init_uvmapping,We}),
+    keep.
+
+auv_event({init_uvmapping,#we{mode=Mode}=We}, St) ->
+    wings:init_opengl(St),
+    case Mode of
+	uv -> start_edit(We, St);
+	_ -> auv_seg_ui:start(We, St)
     end;
-start_uvmap(_) ->
-    wpa:error("Select only one object.").
+auv_event({discard_uvs,Id,#st{shapes=Shs}=St}, _) ->
+    We = gb_trees:get(Id, Shs),
+    auv_seg_ui:start(We, St);
+auv_event({uv_edit,{MatName,Faces,We}}, St) ->
+    do_edit(MatName, Faces, We, St);
+auv_event({init_show_maps,Id,Map}, #st{shapes=Shs}=St) ->
+    We = gb_trees:get(Id, Shs),
+    init_show_maps(Map, We, St);
+auv_event({callback,Cb}, _) ->
+    Cb();
+auv_event(redraw, _) ->
+    wings_wm:clear_background(),
+    keep;
+auv_event(_Ev, _) -> keep.
 
 %%%
 %%% Edit interface.
 %%%
 
-start_edit(_Id, We, St0) ->
+start_edit(We, St0) ->
     DefVar = {answer,edit},
     Qs = [{vframe,[{alt,DefVar,"Edit existing UV mapping",edit},
 		   {alt,DefVar,"Discard existing UV mapping and start over",discard}],
 	   [{title,"Model is already UV-mapped"}]}],
-    Geom = wings_wm:this(),
-    Ask = fun([Reply]) ->
-		  case Reply of
-		      edit ->
-			  start_edit_1(We, St0);
-		      discard ->
-			  St = discard_uvmap(We, St0),
-			  wings_wm:send(Geom, {new_state,St}),
-			  Act = {action,{body,?MODULE,discard_uvs,We,St0}},
-			  wings_wm:send(Geom, Act),
-			  ignore
-		  end
+    This = wings_wm:this(),
+    Ask = fun([edit]) ->
+		  start_edit_1(This, We, St0);
+	     ([discard]) ->
+		  St = discard_uvmap(We, St0),
+		  wings_wm:send(This, {discard_uvs,We#we.id,St}),
+		  ignore
 	  end,
-    wings_ask:dialog("Model is Already UV Mapped", Qs,Ask).
+    wings_ask:dialog("Model Is Already UV-Mapped", Qs, Ask).
 
-start_edit_1(#we{name=ObjName,fs=Ftab}=We, St) ->
+start_edit_1(Win, #we{name=ObjName,fs=Ftab}=We, St) ->
     MatNames0 = wings_material:get_all(We),
     MatNames1 = sofs:from_external(MatNames0, [{face,material}]),
     MatNames2 = sofs:converse(MatNames1),
@@ -145,17 +167,16 @@ start_edit_1(#we{name=ObjName,fs=Ftab}=We, St) ->
 	[] ->
 	    Faces = gb_trees:keys(Ftab),
 	    MatName = list_to_atom(ObjName ++ "_auv"),
-	    gen_edit_event(MatName, Faces, We);
+	    gen_edit_event(Win, MatName, Faces, We);
 	[{MatName,Faces}] ->
-	    gen_edit_event(MatName, Faces, We);
+	    gen_edit_event(Win, MatName, Faces, We);
 	[{First,_}|_]=Ms ->
-	    Ask = fun() -> start_edit_cb(First, Ms, We) end,
-	    Act = {action,{body,{?MODULE,ask_material,Ask}}},
-	    wings_wm:send(geom, Act),
+	    Ask = fun() -> start_edit_cb(Win, First, Ms, We) end,
+	    wings_wm:send(Win, {callback,Ask}),
 	    ignore
     end.
 
-start_edit_cb(First, Ms, We) ->
+start_edit_cb(Win, First, Ms, We) ->
     DefVar = {answer,First},
     Qs = [{vframe,
 	   [{alt,DefVar,"Material "++atom_to_list(M),M} || {M,_} <- Ms]}],
@@ -163,68 +184,54 @@ start_edit_cb(First, Ms, We) ->
 		     Qs,
 		     fun([Mat]) ->
 			     {value,{_,Faces}} = keysearch(Mat, 1, Ms),
-			     gen_edit_event(Mat, Faces, We)
+			     gen_edit_event(Win, Mat, Faces, We)
 		     end).
 
-gen_edit_event(MatName, Faces, We) ->
-    Act = {action,{body,{?MODULE,do_edit,{We,MatName,Faces}}}},
-    wings_wm:send(geom, Act),
-    ignore.
+gen_edit_event(Win, MatName, Faces, We) ->
+    wings_wm:send(Win, {uv_edit,{MatName,Faces,We}}),
+    keep.
 
 discard_uvmap(#we{fs=Ftab}=We0, St) ->
     Faces = gb_trees:keys(Ftab),
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
-    We = We0#we{mode=material}, %% wings_we:uv_to_color(We0, St),  %%% XXXX
+    We = We0#we{mode=material},
     auv_util:mark_segments(Charts, Cuts, We, St).
 
 do_edit(MatName0, Faces, We, St) ->
     {Edges,Areas,MatName} = init_edit(MatName0, Faces, We),
-    {{X,Y,W,H},Geom} = init_drawarea(),
     TexSz = get_texture_size(MatName, St),
-    Id = We#we.id,
+    Options = #setng{color=false,texbg=true,texsz=TexSz},
+    create_uv_state(Edges, Areas, MatName, Options, We, St).
+
+%%%%%%
+
+init_show_maps(Map0, #we{es=Etab}=We, St) ->
+    Map1  = auv_placement:place_areas(Map0),
+    Map2  = find_boundary_edges(Map1, []),
+    Map   = gb_trees:from_orddict(Map2),
+    Edges = gb_trees:keys(Etab),
+    create_uv_state(Edges, Map, none, #setng{}, We, St).
+
+create_uv_state(Edges, Map, MatName, Options, #we{id=Id}=We, St) ->
+    {_,Geom} = init_drawarea(),
     Uvs = #uvstate{st=wings_select_faces([], Id, St),
-		   id=Id,
 		   origst=St,
-		   areas=Areas,
-		   geom=Geom, 
+		   id=Id,
+		   areas=Map,
+		   geom=Geom,
 		   orig_we=We,
 		   edges=Edges,
 		   matname=MatName,
-		   option=#setng{color=false,texbg=true,texsz=TexSz}},
-    Op = {seq,push,get_event(Uvs)},
-    wings_wm:toplevel(autouv, "AutoUV", {X,Y,highest}, {W,H}, [resizable], Op),
-    wings_wm:callback(fun() -> wings_util:menu_restriction(autouv, []) end),
-    wings_wm:set_prop(autouv, drag_filter, fun drag_filter/1),
-    keep.
-
-%%%%%%
+		   option=Options},
+    Name = wings_wm:this(),
+    wings_wm:set_prop(Name, drag_filter, fun drag_filter/1),
+    get_event(Uvs).
 
 find_boundary_edges([{Id,#ch{fs=Fs,we=We}=C}|Cs], Acc) ->
     Be = auv_util:outer_edges(Fs, We),
     find_boundary_edges(Cs, [{Id,C#ch{be=Be}}|Acc]);
 find_boundary_edges([], Acc) -> sort(Acc).
-
-init_show_maps(Map0, OrigWe, St0) ->
-    Map1  = auv_placement:place_areas(Map0),
-    Map3  = find_boundary_edges(Map1, []),
-    Map   = gb_trees:from_orddict(Map3),
-    Edges = gb_trees:keys(OrigWe#we.es),
-    {{X,Y,W,H},Geom} = init_drawarea(),
-    Id=OrigWe#we.id,
-    Uvs = #uvstate{st=wings_select_faces([], Id, St0),
-		   origst=St0,
-		   id=Id,
-		   areas=Map,
-		   geom=Geom,
-		   orig_we=OrigWe,
-		   edges=Edges,
-		   matname=none},
-    Op = {seq,push,get_event(Uvs)},
-    wings_wm:toplevel(autouv, "AutoUV", {X,Y,highest}, {W,H}, [resizable], Op),
-    wings_wm:callback(fun() -> wings_util:menu_restriction(autouv, []) end),
-    wings_wm:set_prop(autouv, drag_filter, fun drag_filter/1),
-    keep.
    
 insert_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
     We0 = gb_trees:get(Id, Shs0),
@@ -420,7 +427,6 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
 
-
     glu:ortho2D(Left, Right, Bottom, Top),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
@@ -428,9 +434,9 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
 
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:pushMatrix(),
-    gl:translatef(0.0,0.0,-0.99),
+    gl:translatef(0, 0, -0.99),
     gl:rectf(Left, Bottom, Right, Top),
-    gl:translatef(0.0,0.0,+0.01),
+    gl:translatef(0, 0, 0.01),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     gl:color3b(0, 0, 0),
     gl:'begin'(?GL_LINE_LOOP),
@@ -820,6 +826,9 @@ handle_event({action, {auv, edge_options}}, Uvs) ->
     edge_option_menu(Uvs);
 handle_event({action,{auv,quit}}, Uvs) ->
     quit_menu(Uvs);
+handle_event(close, Uvs) ->
+    restore_wings_window(Uvs),
+    delete;
 handle_event({action,{auv,quit,cancel}}, Uvs) ->
     restore_wings_window(Uvs),
     delete;
@@ -876,11 +885,11 @@ handle_event({action, {auv, NewOp}},Uvs0=#uvstate{sel = Sel0}) ->
 handle_event({callback, Fun}, _) when function(Fun) ->
     Fun();
 handle_event(init_opengl, Uvs0) ->
-    {_,_,W,H} = wings_wm:viewport(autouv),
+    {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
     Geom = wingeom(W,H),
     get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
 handle_event(resized, Uvs0) ->
-    {_,_,W,H} = wings_wm:viewport(autouv),
+    {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
     Geom = wingeom(W,H),
     get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
 
@@ -1292,7 +1301,7 @@ broken_event(Ev, _) ->
 	no -> keep;
 	{yes,X,Y,_} ->
 	    Menu = [{"Cancel",cancel,"Cancel UV mapping"}],
-	    wings_menu:popup_menu(X, Y, autouv, Menu)
+	    wings_menu:popup_menu(X, Y, wings_wm:this(), Menu)
     end.
 
 %%%

@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.87 2003/07/05 18:52:01 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.88 2003/07/08 07:05:32 bjorng Exp $
 %%
 
 -module(wings_draw_util).
--export([init/0,tess/0,begin_end/1,begin_end/2,
+-export([init/0,delete_dlists/0,tess/0,begin_end/1,begin_end/2,
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,call_one_of/2,
 	 prepare/3,mat_faces/5,face/2,face/3,flat_face/2,flat_face/3,
@@ -52,7 +52,7 @@ init() ->
 	    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE)
     end,
 
-    Dl = case get(?MODULE) of
+    Dl = case get_dl_data() of
 	     undefined -> [];
 	     #du{dl=Dl0,used=Used} ->
 		 ?CHECK_ERROR(),
@@ -60,7 +60,7 @@ init() ->
 		 gl:getError(),			%Clear error.
 		 clear_old_dl(Dl0)
 	 end,
-    put(?MODULE, #du{dl=Dl}),
+    put_dl_data(#du{dl=Dl}),
     P = <<16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
@@ -80,6 +80,15 @@ init() ->
     gl:polygonStipple(P),
     
     erase_vector().
+
+delete_dlists() ->
+    case erase(wings_wm:get_prop(display_lists)) of
+	#du{used=Used} ->
+	    foreach(fun(DL) -> gl:deleteLists(DL, 1) end, Used),
+	    gl:getError();			%Clear error.
+	_ ->
+	    ok
+    end.
 
 clear_old_dl([#dlo{src_we=We,proxy_data=Pd0}|T]) ->
     Pd = wings_subdiv:clean(Pd0),
@@ -104,6 +113,12 @@ begin_end(Type, Body) ->
     gl:edgeFlag(?GL_TRUE),
     Res.
 
+get_dl_data() ->
+    get(wings_wm:get_prop(display_lists)).
+
+put_dl_data(Data) ->
+    put(wings_wm:get_prop(display_lists), Data).
+
 %%
 %% Get a list of all materials that were changed since the last time
 %% the display lists were updated. (The list does not include materials
@@ -111,10 +126,10 @@ begin_end(Type, Body) ->
 %%
 
 changed_materials(#st{mat=NewMat}) ->
-    case get(?MODULE) of
+    case get_dl_data() of
 	#du{mat=NewMat} -> [];
 	#du{mat=OldMat}=Du ->
-	    put(?MODULE, Du#du{mat=NewMat}),
+	    put_dl_data(Du#du{mat=NewMat}),
 	    changed_materials_1(gb_trees:to_list(OldMat), NewMat, [])
     end.
 
@@ -131,7 +146,7 @@ changed_materials_1([], _, Acc) -> Acc.
 %%
 
 update(Fun, Data) ->
-    #du{dl=Dlists} = get(?MODULE),
+    #du{dl=Dlists} = get_dl_data(),
     update_1(Fun, Dlists, Data, [], []).
 
 update_1(Fun, [D0|Dlists], Data0, Seen0, Acc) ->
@@ -161,7 +176,7 @@ update_1(Fun, [], Data0, Seen0, Acc) ->
 %%
 
 map(Fun, Data) ->
-    #du{dl=Dlists} = get(?MODULE),
+    #du{dl=Dlists} = get_dl_data(),
     map_1(Fun, Dlists, Data, [], []).
 
 map_1(Fun, [D0|Dlists], Data0, Seen0, Acc) ->
@@ -177,9 +192,9 @@ map_1(_Fun, [], Data, Seen, Acc) ->
     update_last(Data, Seen, Acc).
 
 update_last(Data, Seen, Acc) ->
-    #du{used=Used0} = Du = get(?MODULE),
+    #du{used=Used0} = Du = get_dl_data(),
     Used = ordsets:from_list(Seen),
-    put(?MODULE, Du#du{used=Used,dl=reverse(Acc)}),
+    put_dl_data(Du#du{used=Used,dl=reverse(Acc)}),
     NotUsed = ordsets:subtract(Used0, Used),
     foreach(fun(DL) -> gl:deleteLists(DL, 1) end, NotUsed),
     Data.
@@ -209,7 +224,7 @@ update_seen_1(_, Seen) -> Seen.
 %%
 
 fold(Fun, Acc) ->
-    #du{dl=Dlists} = get(?MODULE),
+    #du{dl=Dlists} = get_dl_data(),
     foldl(Fun, Acc, Dlists).
 
 %%
@@ -227,7 +242,7 @@ render(#st{selmode=Mode}=St) ->
     wings_view:load_matrices(true),
     ground_and_axes(),
     show_saved_bb(St),
-    #du{dl=Dl} = get(?MODULE),
+    #du{dl=Dl} = get_dl_data(),
     Work = wings_wm:get_prop(workmode),
     render_scene(Dl, Mode, Work, false),
     render_scene(Dl, Mode, Work, true),

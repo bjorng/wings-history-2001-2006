@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.2 2003/05/20 05:09:46 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.3 2003/07/08 07:05:31 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/2]).
@@ -23,33 +23,26 @@
 %%%
 
 -record(seg, {st,				%Current St.
-	      origst,				%Current St.
 	      selmodes,				%Legal selection modes.
 	      we,				%Original We.
 	      msg				%Message.
 	     }).
 
-start(#st{sel=[{Id,_}],shapes=Shs}=St0, Mode) ->
+start(#we{id=Id}=We0, St0) ->
     Modes = [vertex,edge,face],
     wings:mode_restriction(Modes),
-    We0 = gb_trees:get(Id, Shs),
     We = We0#we{mode=material},
     check_for_defects(We),
-    {OrigWe,OrigSt}
-	= case Mode of 
-	      {discard,WeX,StO} ->  
-		  {WeX,StO};
-	      _ -> 
-		  {We,St0}
-	  end,
-    St2 = seg_create_materials(St0),
-    St = St2#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
-    Ss = seg_init_message(#seg{selmodes=Modes,origst=OrigSt,st=St,we=OrigWe}),
-    Active = wings_wm:this(),
-    wings_wm:callback(fun() ->
-			      wings_util:menu_restriction(Active, [view,select,window])
-		      end),
+    St1 = seg_create_materials(St0),
+    St = St1#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
+    Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=We}),
     {seq,push,get_seg_event(Ss)}.
+    
+%     Active = wings_wm:this(),
+%     wings_wm:callback(fun() ->
+% 			      wings_util:menu_restriction(Active, [view,select,window])
+% 		      end),
+    
 
 seg_init_message(Ss) ->
     Msg = ["[L] Select  [R] Show menu  "|wings_camera:help()],
@@ -57,14 +50,21 @@ seg_init_message(Ss) ->
 
 get_seg_event(#seg{st=St}=Ss) ->
     wings_draw:update_dlists(St),
-    wings_wm:current_state(St),
     wings_wm:dirty(),
+    get_seg_event_noredraw(Ss).
+
+get_seg_event_noredraw(Ss) ->
     {replace,fun(Ev) -> seg_event(Ev, Ss) end}.
 
+seg_event(init_opengl, #seg{st=St}=Ss) ->
+    wings:init_opengl(St),
+    get_seg_event(Ss);
 seg_event(redraw, #seg{st=St,msg=Msg}) ->
     wings_wm:message(Msg, "Segmenting"),
     wings:redraw(St),
     keep;
+seg_event(close, _) ->
+    seg_cancel();
 seg_event(Ev, #seg{st=St}=Ss) ->
     case wings_camera:event(Ev, St) of
 	next -> seg_event_2(Ev, Ss);
@@ -84,12 +84,11 @@ seg_event_3(Ev, #seg{st=#st{selmode=Mode}}=Ss) ->
 	    Mappers = mappers(), 
 	    Menu = [{"Continue",{continue, Mappers}},
 		    separator,
-		    {"Segment by",{segment,
-				   [{"Projection",autouvmap},
-				    {"Feature Detection",feature}]}}|
-		    seg_mode_menu(Mode, Ss,
-				  seg_debug([separator,
-					     {"Cancel",cancel}]))],
+		    {"Segment by",
+		     {segment,
+		      [{"Projection",autouvmap},
+		       {"Feature Detection",feature}]}}|
+		    seg_mode_menu(Mode, Ss, seg_debug([]))],
 	    wings_menu:popup_menu(X, Y, auv_segmentation, Menu)
     end.
 
@@ -197,8 +196,6 @@ filter_sel_command(#seg{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
 
 seg_command({continue,Method}, Ss) ->
     seg_map_charts(Method, Ss);
-seg_command(cancel, _) ->
-    seg_cancel();
 seg_command(cut_edges, #seg{st=St0}=Ss) ->
     St = wings_edge:hardness(hard, St0),
     get_seg_event(Ss#seg{st=St});
@@ -250,8 +247,8 @@ seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
     end.
 
 seg_cancel() ->
-    wings_wm:dirty(),
-    pop.
+    wings_draw_util:delete_dlists(),
+    delete.
 
 seg_create_materials(St0) ->
     M0 = auv_util:seg_materials(),
@@ -272,19 +269,16 @@ seg_map_charts_1(Cs, Type, I, N, Acc, Ss) when I =< N ->
     wings_wm:later({callback,MapChart}),
     Msg = io_lib:format("Mapping chart ~w of ~w", [I,N]),
     get_seg_event(Ss#seg{msg=Msg});
-seg_map_charts_1(_, _, _, _, MappedCharts, #seg{origst=St0,we=OrigWe}) ->
-    Info = {MappedCharts,OrigWe},
-    wings_wm:send(geom, {new_state,St0}),
-    wings_wm:send(geom, {action,{body,{wpc_autouv,show_map,Info}}}),
+seg_map_charts_1(_, _, _, _, MappedCharts, #seg{we=#we{id=Id}}) ->
+    wings_wm:later({init_show_maps,Id,MappedCharts}),
     pop.
 
 seg_map_chart([{Fs,Vmap,We0}|Cs], Type, I, N, Acc0, Ss) ->
-%%    io:format("map_chart ~p ~p ~p~n", [I, Fs, MergedWe]),
     case auv_mapping:map_chart(Type, Fs, We0) of
 	{error,Message} ->
 	    seg_error(Message, Ss);
 	Vs ->
-	    We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
+	    We = We0#we{vp=gb_trees:from_orddict(sort(Vs)),mat=default},
 	    Acc = [#ch{we=We,fs=Fs,vmap=Vmap}|Acc0],
 	    seg_map_charts_1(Cs, Type, I+1, N, Acc, Ss)
     end.

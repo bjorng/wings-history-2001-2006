@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.67 2003/07/03 14:44:35 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.68 2003/07/08 07:05:32 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -114,8 +114,10 @@ window({_,Client}=Name, Pos, Size, St) ->
     Ost = #ost{first=0,lh=18,active=-1},
     Current = {current_state,St},
     Op = {seq,push,event(Current, Ost)},
+    Props = [{display_lists,geom_display_lists}],
     wings_wm:toplevel(Name, Title, Pos, Size,
-		      [resizable,closable,vscroller,{anchor,ne}], Op).
+		      [resizable,closable,vscroller,
+		       {anchor,ne},{properties,Props}], Op).
 
 get_event(Ost) ->
     {replace,fun(Ev) -> event(Ev, Ost) end}.
