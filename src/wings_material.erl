@@ -8,25 +8,26 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.18 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.19 2001/12/28 11:35:52 bjorng Exp $
 %%
 
 -module(wings_material).
--export([sub_menu/2,command/2,default/0,add_materials/2,used_materials/1,
-	 apply_material/2]).
+-export([init/1,sub_menu/2,command/2,default/0,add_materials/2,
+	 used_materials/1,apply_material/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
+-include("e3d_image.hrl").
 
--import(lists, [map/2,sort/1,foldl/3,reverse/1]).
+-import(lists, [map/2,mapfoldl/3,sort/1,foldl/3,reverse/1]).
 
 %% Material record.
 -record(mat,
 	{ambient={0.0,0.0,0.0},			%Ambient color
 	 diffuse={0.0,0.0,0.0},			%Diffuse color
 	 specular={0.0,0.0,0.0},		%Specular color
-	 shininess=0.0,				%Sinininess (0..1)
+	 shininess=0.0,				%Shinininess (0..1)
 	 opacity=1.0,				%Opacity (0..1)
 	 twosided=false,			%Twosided material.
 	 diffuse_map=none,			%Diffuse map.
@@ -63,6 +64,15 @@ command({select,{material,Mat}}, St) ->
 		   end, face, St);
 command({edit,{material,Mat}}, St) ->
     edit(Mat, St).
+
+init(#st{mat=Mat0}=St0) ->
+    St1 = St0#st{next_tx=100},
+    {Mat,St} = mapfoldl(fun({N,M0}, S0) ->
+				{M1,S} = init_texture(M0, S0),
+				M = setup_fun(M1),
+				{{N,M},S}
+			end, St1, gb_trees:to_list(Mat0)),
+    St#st{mat=gb_trees:from_orddict(Mat)}.
 
 materials(St) ->
     list_to_tuple(material_list(St)).
@@ -124,7 +134,9 @@ translate_mat([{diffuse_map,{W,H,Bits}=Tx}|T], Mat) when binary(Bits) ->
     translate_mat(T, Mat#mat{diffuse_map=Tx});
 translate_mat([{diffuse_map,Name}|T], Mat) ->
     case catch loadTexture(Name) of
-	{'EXIT',R} -> translate_mat(T, Mat);
+	{'EXIT',R} ->
+	    io:format("~P\n", [R,20]),
+	    translate_mat(T, Mat);
 	{W,H,Bits}=Tx -> translate_mat(T, Mat#mat{diffuse_map=Tx})
     end;
 translate_mat([Other|T], #mat{attr=Attr}=Mat) ->
@@ -144,7 +156,7 @@ setup_fun(Mat) ->
     F = fun() ->
 		if
 		    Dmap =:= none ->
-			gl:enable(?GL_TEXTURE_2D);
+			gl:disable(?GL_TEXTURE_2D);
 		    true ->
 			gl:enable(?GL_TEXTURE_2D),
 			gl:texEnvi(?GL_TEXTURE_ENV,
@@ -210,8 +222,8 @@ edit(Name, #st{mat=Mtab0}=St) ->
 
 %%% Texture support.
 
-init_texture(#mat{diffuse_map={W,H,Bits},diffuse_map_dl=none}=Mat,
-	     #st{next_tx=TxId}=St) ->
+init_texture(#mat{diffuse_map={W,H,Bits}}=Mat, #st{next_tx=TxId}=St) ->
+    io:format("~w\n", [TxId]),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     gl:enable(?GL_TEXTURE_2D),
@@ -225,22 +237,12 @@ init_texture(#mat{diffuse_map={W,H,Bits},diffuse_map_dl=none}=Mat,
 		  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits),
     gl:popAttrib(),
     {Mat#mat{diffuse_map_dl=TxId},St#st{next_tx=TxId+1}};
-init_texture(Mat, St) -> {Mat,St}.
+init_texture(Mat, St) ->
+    {Mat,St}.
 
 loadTexture(none) -> exit(no_texture);
 loadTexture(File) ->
     io:format("Loading ~s\n", [File]),
-    {ok,Bin0} = file:read_file(File),
-    <<$B:8,$M:8,_:8/binary,Offset:32/little,Bin/binary>> = Bin0,
-    <<_:32/little,W:32/little,H:32/little,
-     _:16,BitCount:16/little,Compression:16/little,_/binary>> = Bin,
-    BitCount = 24,
-    Compression = 0,
-    PixelsLen = H*W*3,
-    <<_:Offset/binary,Pixels0:PixelsLen/binary,_/binary>> = Bin0,
-    Pixels = shuffle_colors(Pixels0, []),
+    Image = e3d_image:load(File, [{type,r8g8b8},{order,lower_left}]),
+    #e3d_image{width=W,height=H,image=Pixels} = Image,
     {W,H,Pixels}.
-
-shuffle_colors(<<B:8,G:8,R:8,T/binary>>, Acc) ->
-    shuffle_colors(T, [[R,G,B]|Acc]);
-shuffle_colors(<<>>, Acc) -> list_to_binary(reverse(Acc)).

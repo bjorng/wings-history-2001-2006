@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.20 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.21 2001/12/28 11:35:52 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -72,55 +72,76 @@ build_rest(Es, Fs, Vs, HardEdges) ->
 build_edges(Fs) ->
     build_edges(Fs, 0, []).
 
+build_edges([{Material,Vs,Tx}|Fs], Face, Eacc0) ->
+    build_edges_1(Vs, Tx, Fs, Face, Eacc0);
 build_edges([{Material,Vs}|Fs], Face, Eacc0) ->
-    build_edges_1(Vs, Fs, Face, Eacc0);
+    build_edges_1(Vs, tx_filler(Vs), Fs, Face, Eacc0);
 build_edges([Vs|Fs], Face, Eacc0) ->
-    build_edges_1(Vs, Fs, Face, Eacc0);
+    build_edges_1(Vs, tx_filler(Vs), Fs, Face, Eacc0);
 build_edges([], Face, Eacc) ->
     R = sofs:relation(Eacc, [{name,{side,data}}]),
     F = sofs:relation_to_family(R),
     combine_half_edges(sofs:to_external(F)).
 
-build_edges_1(Vs, Fs, Face, Acc0) ->
-    Pairs = pairs(Vs),
+build_edges_1(Vs, UVs, Fs, Face, Acc0) ->
+    Vuvs = zip(Vs, UVs),
+    Pairs = pairs(Vuvs),
     Acc = build_face_edges(Pairs, Face, Acc0),
     build_edges(Fs, Face+1, Acc).
 
-build_face_edges([Pred|[E0,Succ|_]=Es], Face, Acc0) ->
+build_face_edges([{Pred,_}|[{E0,{UVa,UVb}},{Succ,_}|_]=Es], Face, Acc0) ->
     Acc = case E0 of
 	      {Vs,Ve}=Name when Vs < Ve ->
-		  enter_half_edge(right, Name, Face, Pred, Succ, Acc0);
+		  enter_half_edge(right, Name, Face, Pred, Succ, UVb, Acc0);
 	      {Vs,Ve} when Ve < Vs ->
 		  Name = {Ve,Vs},
-		  enter_half_edge(left, Name, Face, Pred, Succ, Acc0);
+		  enter_half_edge(left, Name, Face, Pred, Succ, UVb, Acc0);
 	      Equal=Name ->
-		  enter_half_edge(same, Name, Face, Pred, Succ, Acc0)
+		  enter_half_edge(same, Name, Face, Pred, Succ, UVb, Acc0)
 	  end,
     build_face_edges(Es, Face, Acc);
 build_face_edges([_,_], Face, Acc) -> Acc.
 
-enter_half_edge(Side, Name, Face, Pred, Succ, Tab0) ->
-    Rec = {Face,edge_name(Pred),edge_name(Succ)},
+enter_half_edge(Side, Name, Face, Pred, Succ, UV,Tab0) ->
+    Rec = {Face,UV,edge_name(Pred),edge_name(Succ)},
     [{Name,{Side,Rec}}|Tab0].
 
-pairs([V,V,X]) ->
-    pairs([V,X]);
-pairs([V,X,V]) ->
-    pairs([V,X]);
-pairs([X,V,V]) ->
-    pairs([V,X]);
-pairs([V1,V2]) ->
-    [{V2,V1},{V1,V2},{V2,V1},{V1,V2}];
+% pairs([V,V,X]) ->
+%     pairs([V,X]);
+% pairs([V,X,V]) ->
+%     pairs([V,X]);
+% pairs([X,V,V]) ->
+%     pairs([V,X]);
+% pairs([V1,V2]) ->
+%     [{V2,V1},{V1,V2},{V2,V1},{V1,V2}];
+% pairs(Vs) ->
+%     pairs(Vs, Vs, []).
+    
+% pairs([V1|[V2|_]=Vs], First, Acc) ->
+%     pairs(Vs, First, [{V2,V1}|Acc]);
+% pairs([V], [V1,V2,V3|_], Acc) ->
+%     [{V3,V2},{V2,V1},{V1,V}|Acc].
+
 pairs(Vs) ->
     pairs(Vs, Vs, []).
     
-pairs([V1|[V2|_]=Vs], First, Acc) ->
-    pairs(Vs, First, [{V2,V1}|Acc]);
-pairs([V], [V1,V2,V3|_], Acc) ->
-    [{V3,V2},{V2,V1},{V1,V}|Acc].
-	    
+pairs([{V1,T1}|[{V2,T2}|_]=Vs], First, Acc) ->
+    pairs(Vs, First, [{{V2,V1},{T2,T1}}|Acc]);
+pairs([{V,T}], [{V1,T1},{V2,T2},{V3,T3}|_], Acc) ->
+    [{{V3,V2},{T3,T2}},{{V2,V1},{T2,T1}},{{V1,V},{T1,T}}|Acc].
+
+zip([V|Vs], [UV|UVs]) ->
+    [{V,UV}|zip(Vs, UVs)];
+zip([], []) -> [].
+
 edge_name({Vs,Ve}=Name) when Vs < Ve -> Name;
 edge_name({Vs,Ve}) -> {Ve,Vs}.
+
+tx_filler(Vs) ->
+    tx_filler(Vs, wings_color:default(), []).
+tx_filler([_|Vs], Col, Acc) ->
+    tx_filler(Vs, Col, [Col|Acc]);
+tx_filler([], Col, Acc) -> Acc.
 
 combine_half_edges(HalfEdges) ->
     combine_half_edges(HalfEdges, [], []).
@@ -166,9 +187,9 @@ build_tables(Edges) ->
 
 build_tables([H|T], Emap, Vtab0, Etab0, Ftab0) ->
     {{Vs,Ve},{Edge,{Ldata,Rdata}}} = H,
-    {Lf,Lpred,Lsucc} = Ldata,
-    {Rf,Rpred,Rsucc} = Rdata,
-    Erec = #edge{vs=Vs,ve=Ve,lf=Lf,rf=Rf,
+    {Lf,LUV,Lpred,Lsucc} = Ldata,
+    {Rf,RUV,Rpred,Rsucc} = Rdata,
+    Erec = #edge{vs=Vs,ve=Ve,lf=Lf,rf=Rf,a=LUV,b=RUV,
 		 ltpr=edge_num(Lf, Lpred, Emap),
 		 ltsu=edge_num(Lf, Lsucc, Emap),
 		 rtpr=edge_num(Rf, Rpred, Emap),
@@ -184,7 +205,7 @@ build_tables([], Etree, Vtab, Etab0, Ftab) ->
 make_edge_map(Es) ->
     make_edge_map(Es, []).
 
-make_edge_map([{Name,{Edge,{{Lf,_,_},{Rf,_,_}}}}|Es], Acc) ->
+make_edge_map([{Name,{Edge,{{Lf,_,_,_},{Rf,_,_,_}}}}|Es], Acc) ->
     make_edge_map(Es, [{{Lf,Name},Edge},{{Rf,Name},Edge}|Acc]);
 make_edge_map([], Acc) -> gb_trees:from_orddict(sort(Acc)).
 
@@ -196,7 +217,7 @@ fill_in_vertices(Ps, Vtab0) ->
     Vtab2 = sofs:relation_to_family(Vtab1),
     Vtab = sofs:to_external(Vtab2),
     fill_in_vertice_pos_1(Vtab, Ps, []).
-    
+
 fill_in_vertice_pos_1([{V,[Edge|_]}|Vs], [Pos|Ps], Vtab0) ->
     Vtab = [{V,#vtx{edge=Edge,pos=Pos}}|Vtab0],
     fill_in_vertice_pos_1(Vs, Ps, Vtab);
@@ -209,6 +230,8 @@ build_faces(Ftab0, Fs) ->
     Ftab = sofs:to_external(Ftab2),
     build_faces(Ftab, Fs, []).
 
+build_faces([{Face,[Edge|_]}|Fs0], [{Material,Vs,Tx}|Fs1], Acc) ->
+    build_faces(Fs0, Fs1, [{Face,#face{edge=Edge,mat=Material}}|Acc]);
 build_faces([{Face,[Edge|_]}|Fs0], [{Material,Vs}|Fs1], Acc) ->
     build_faces(Fs0, Fs1, [{Face,#face{edge=Edge,mat=Material}}|Acc]);
 build_faces([{Face,[Edge|_]}|Fs0], [_|Fs1], Acc) ->
@@ -560,19 +583,6 @@ soft_vtx_normal(V, FaceNormals, We) ->
 	   end, [], V, We),
     e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns)).
 
-n_face(Face, Mat, G, FaceNormals, VtxNormals, #we{mode=material,vs=Vtab}=We) ->
-    Vs = wings_face:fold(
-	   fun (V, _, #edge{a=Info}, Acc) ->
-		   case gb_trees:lookup(V, VtxNormals) of
-		       {value,{Pos,Normal}} ->
-			   [{Pos,{Info,Normal}}|Acc];
-		       none ->
-			   #vtx{pos=Pos} = gb_trees:get(V, Vtab),
-			   Normal = hard_vtx_normal(G, V, Face, FaceNormals),
- 			   [{Pos,{Info,Normal}}|Acc]
-		   end
-	   end, [], Face, We),
-    {Mat,Vs};
 n_face(Face, Mat, G, FaceNormals, VtxNormals, #we{vs=Vtab}=We) ->
     Vs = wings_face:fold_vinfo(
 	   fun (V, VInfo, Acc) ->

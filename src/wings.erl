@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.75 2001/12/27 09:10:07 bjorng Exp $
+%%     $Id: wings.erl,v 1.76 2001/12/28 11:35:52 bjorng Exp $
 %%
 
 -module(wings).
@@ -76,23 +76,23 @@ init_1() ->
 		      {"Help",help}]),
     Empty = gb_trees:empty(),
     St0 = #st{shapes=Empty,
-	     selmode=face,
-	     sel=[],
-	     ssel={face,[]},
-	     mat=wings_material:default(),
-	     saved=true,
-	     onext=0,
-	     repeatable=ignore,
-	     hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)
+	      selmode=face,
+	      sel=[],
+	      ssel={face,[]},
+	      mat=wings_material:default(),
+	      saved=true,
+	      onext=0,
+	      repeatable=ignore,
+	      hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)
 	    },
-    St = wings_undo:init(St0),
+    St1 = wings_undo:init(St0),
     wings_view:init(),
     wings_file:init(),
 
     %% On Solaris/Sparc, we must initialize twice the first time to
     %% get the requested size. Should be harmless on other platforms.
-    caption(St),
-    resize(780, 580),
+    caption(St1),
+    St = resize(780, 580, St1),
     wings_io:enter_event_loop(main_loop(St)),
     wings_file:finish(),
     wings_pref:finish(),
@@ -113,7 +113,7 @@ locate(Name) ->
 	    end
     end.
 
-resize(W, H) ->
+resize(W, H, St) ->
     sdl_video:setVideoMode(W, H, ?COLOR_BITS, ?SDL_OPENGL bor ?SDL_RESIZABLE),
     wings_view:init_light(),
     gl:enable(?GL_DEPTH_TEST),
@@ -124,7 +124,8 @@ resize(W, H) ->
     gl:loadIdentity(),
     wings_view:perspective(),
     gl:matrixMode(?GL_MODELVIEW),
-    wings_io:resize(W, H).
+    wings_io:resize(W, H),
+    wings_material:init(St).
 
 redraw(St0) ->
     St = wings_draw:render(St0),
@@ -177,8 +178,8 @@ handle_event_1(Event, St0) ->
  	{right_click,X,Y} ->
 	    popup_menu(X, Y, St0);
  	{resize,W,H} ->
- 	    resize(W, H),
- 	    main_loop(model_changed(St0));
+ 	    St = resize(W, H, St0),
+ 	    main_loop(model_changed(St));
  	{edit,undo_toggle} ->
 	    St = wings_undo:undo_toggle(St0),
 	    main_loop(clean_state(St));

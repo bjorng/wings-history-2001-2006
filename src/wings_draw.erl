@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.39 2001/12/26 14:46:25 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.40 2001/12/28 11:35:52 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -192,7 +192,6 @@ do_make_sel_dlist_1(Smooth, #st{sel=Sel}=St) ->
     DL = get_dlist(),
     put_dlist(DL#dl{old_sel=Sel,sel=DlistSel}).
     
-
 draw_faces(We, true, #st{mat=Mtab}) ->
     draw_smooth_faces(Mtab, We);
 draw_faces(We, false, St) ->
@@ -236,7 +235,11 @@ draw_smooth_2([[_,_,_,_,_|_]=Vs|Fs]) ->
     draw_smooth_2(Fs);
 draw_smooth_2([Vs|Fs]) ->
     gl:'begin'(?GL_POLYGON),
-    foreach(fun({P,{Diff,N}}) ->
+    foreach(fun({P,{{U,V},N}}) ->
+		    gl:texCoord2f(U, V),
+ 		    gl:normal3fv(N),
+ 		    gl:vertex3fv(P);
+	       ({P,{Diff,N}}) ->
  		    gl:normal3fv(N),
  		    gl:vertex3fv(P)
  	    end, Vs),
