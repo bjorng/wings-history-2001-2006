@@ -8,12 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.3 2004/05/14 05:25:40 bjorng Exp $
+%%     $Id: wings_palette.erl,v 1.4 2004/05/17 19:06:50 dgud Exp $
 %%
 -module(wings_palette).
 
 -export([window/1,window/3]).
-
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -99,13 +98,18 @@ event(got_focus, _) ->
     wings_wm:dirty();
 event({current_state,St}, Pst) ->
     get_event(Pst#pst{st=St});
-event(Ev = #mousemotion{state=Bst,x=X,y=Y}, #pst{sel=Sel,cols=Cols})
+event(Ev = #mousemotion{state=Bst,x=X,y=Y}, Pst = #pst{sel=Sel,cols=Cols})
   when Sel /= none, Bst band ?SDL_BUTTON_LMASK =/= 0 ->    
     case select(X,Y) of
  	Sel -> keep;
  	_ ->
- 	    drag_and_drop(Ev, lists:nth(Sel+1, Cols)),
- 	    keep
+	    case lists:nth(Sel+1, Cols) of
+		none -> 
+		    get_event(Pst#pst{sel=none});
+		_ ->
+		    drag_and_drop(Ev, lists:nth(Sel+1, Cols)),
+		    keep	    
+	    end
     end;
 event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, #pst{}=Pst) ->
     get_event(Pst#pst{sel=select(X,Y)});
@@ -133,8 +137,8 @@ event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, #pst{sel=Sel,cols=Cols
 		 end,
 	    wings_wm:send(geom, {new_state,St}),
 	    get_event(Pst#pst{sel=none});
-	Sel -> 
-	    get_event(Pst#pst{sel=none});
+	Sel when Color == none -> 
+	    command({edit,Sel}, Pst);
 	_DropSpot ->
 	    get_event(Pst#pst{sel=none})
     end;
@@ -174,17 +178,56 @@ event({drop,{X,Y},{material,Name}}, #pst{cols=Cols0,st=St}=Pst) ->
 event(_Ev, _Pst) ->
     keep.
 
-do_menu(Id,X,Y,_Pst) ->
+do_menu(Id,X,Y,#pst{cols=Cols}) ->    
     Menu = [{"Edit",{'VALUE',{edit,Id}}, "Edit color"}],
-    wings_menu:popup_menu(X, Y, palette, Menu).
+    Smooth = case lists:nth(Id+1, Cols) of
+		 none ->
+		     [{"Smooth Colors",{'VALUE',{smooth,Id}}, 
+		       "Interpolate Empty Colors"}];
+		 _ -> []
+	     end,
+    wings_menu:popup_menu(X,Y,palette,Menu ++ Smooth).
 
+command({smooth,Id}, Pst = #pst{cols=Cols0}) ->
+    {Bef0,After0} = lists:split(Id, Cols0),
+    {BC, Bef1} = del_empty(reverse(Bef0)),
+    {AC, Aft1} = del_empty(After0),
+    case interpolate(Bef1,Aft1,AC+BC) of
+	no_start -> 
+	    wings_util:message("No start color found."),
+	    keep;
+	no_end -> 
+	    wings_util:message("No end color found."),
+	    keep;
+	IntCols ->
+	    Cols = reverse(Bef1) ++ IntCols ++ Aft1,
+	    get_event(Pst#pst{sel=none,cols=Cols})
+    end;
 command({edit,Id}, #pst{cols=Cols0}) ->
     {Bef,[Prev|Rest]} = lists:split(Id, Cols0),
-    wings_color:choose(color(Prev), fun(Color) ->
-					    Cols = Bef ++ [Color|Rest],				    
-					    wings_wm:send(palette, {new_color,Cols}),
-					    ignore
-				    end).
+    Send = fun(Color) ->
+		   Cols = Bef ++ [Color|Rest],				    
+		   wings_wm:send(palette, {new_color,Cols}),
+		   ignore
+	   end,
+    wings_color:choose(color(Prev), Send).
+
+del_empty(L) ->
+    del_empty(L,0).
+del_empty([none|L],N) ->
+    del_empty(L,N+1);
+del_empty(L,N) -> {N,L}.
+
+interpolate([{R1,G1,B1}|_],[Start={R2,G2,B2}|_], N) ->
+    R = (R2-R1)/(N+1),    B = (B2-B1)/(N+1),    G = (G2-G1)/(N+1),
+    interpolate(N,R,G,B,Start,[]);
+interpolate([],_,_) -> no_start;
+interpolate(_,[],_) -> no_end.
+
+interpolate(0,_R,_G,_B,_,Acc) -> Acc;
+interpolate(N,R,G,B,{PR,PG,PB},Acc) -> 
+    Col = {PR-R,PG-G,PB-B},
+    interpolate(N-1,R,G,B,Col,[Col|Acc]).
 
 drag_and_drop(Ev, What) ->
     DropData = {color, color(What)},
