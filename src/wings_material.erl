@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.56 2002/11/08 07:08:15 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.57 2002/11/08 21:12:41 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -400,7 +400,8 @@ init_texture(Name, Mat) ->
     Maps = prop_get(maps, Mat, []),
     case prop_get(diffuse, Maps, none) of
 	none -> ok;
-	{W,H,Bits} ->
+	{_,_,_}=Image ->
+	    {W,H,Bits} = maybe_scale(Image),
 	    TxDict0 = get(?MODULE),
 	    case gb_trees:lookup(Name, TxDict0) of
 		{value,TxId} ->
@@ -428,6 +429,37 @@ init_texture(Name, Mat) ->
 	    end
     end.
 
+maybe_scale({W0,H0,Bits0}=Image) ->
+    case {nearest_power_two(W0),nearest_power_two(H0)} of
+	{W0,H0} -> Image;
+	{W,H} ->
+	    In = sdl_util:malloc(W0*H0*3, ?GL_UNSIGNED_BYTE),
+	    sdl_util:write(In, Bits0),
+	    Out = sdl_util:malloc(W*H*3, ?GL_UNSIGNED_BYTE),
+	    gluScaleImage(?GL_RGB, W0, H0, ?GL_UNSIGNED_BYTE,
+			   In, W, H, ?GL_UNSIGNED_BYTE, Out),
+	    sdl_util:free(In),
+	    Bits = sdl_util:readBin(Out, W*H*3),
+	    sdl_util:free(Out),
+	    {W,H,Bits}
+    end.
+
+gluScaleImage(Format, Widthin, Heightin, Typein, #sdlmem{ptr=Datain}, Widthout, 
+	      Heightout, Typeout, #sdlmem{ptr=Dataout}) ->
+    <<Bin:32>> = sdl:call(<<908:16,Format:32/unsigned, Widthin:32/signed,
+			   Heightin:32/signed, Typein:32/unsigned, 
+			   Datain:32/unsigned, 
+			   Widthout:32/signed, Heightout:32/signed, 
+			   Typeout:32/unsigned, 
+			   Dataout:32/unsigned>>),
+    Bin.
+
+nearest_power_two(N) when (N band -N) =:= N -> N;
+nearest_power_two(N) -> nearest_power_two(N, 1).
+
+nearest_power_two(N, B) when B > N -> B bsr 1;
+nearest_power_two(N, B) -> nearest_power_two(N, B bsl 1).
+    
 get_tx_id(Name) ->
     TxDict = get(?MODULE),
     gb_trees:get(Name, TxDict).
