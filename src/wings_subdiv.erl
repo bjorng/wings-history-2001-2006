@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Smooth command for objects and faces.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.13 2002/01/05 21:37:52 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.14 2002/04/12 06:52:40 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -25,8 +25,7 @@ smooth(#we{vs=Vtab,es=Etab,fs=Ftab,he=Htab}=We) ->
     Es = gb_trees:keys(Etab),
     smooth(Faces, Faces, Vs, Es, Htab, We).
 
-smooth(AllFs, Fs, Vs, Es, Htab,
-       #we{es=Etab,fs=Ftab0,vs=Vtab0,next_id=Id}=We0) ->
+smooth(AllFs, Fs, Vs, Es, Htab, #we{next_id=Id}=We0) ->
     wings_io:progress_tick(),
     FacePos0 = face_centers(AllFs, We0),
     FacePos = gb_trees:from_orddict(reverse(FacePos0)),
@@ -42,7 +41,7 @@ smooth(AllFs, Fs, Vs, Es, Htab,
     wings_io:progress_tick(),
     We#we{vs=Vtab}.
 
-face_centers(Faces, #we{fs=Ftab}=We) ->
+face_centers(Faces, We) ->
     face_centers(Faces, We, []).
 
 face_centers([Face|Fs], We, Acc) ->
@@ -62,14 +61,14 @@ face_centers([Face|Fs], We, Acc) ->
 	    Col = wings_color:average(Cols),
 	    face_centers(Fs, We, [{Face,{Center,Col,length(Vs)}}|Acc])
     end;
-face_centers([], We, Acc) -> Acc.
+face_centers([], _We, Acc) -> Acc.
 
 smooth_move_orig([V|Vs], FacePos, Htab, We, Vtab0) ->
     Vtab = smooth_move_orig_1(V, FacePos, Htab, We, Vtab0),
     smooth_move_orig(Vs, FacePos, Htab, We, Vtab);
-smooth_move_orig([], FacePos, Htab, We, Vtab) -> Vtab.
+smooth_move_orig([], _FacePos, _Htab, _We, Vtab) -> Vtab.
 
-smooth_move_orig_1(V, FacePosTab, Htab, #we{es=Etab,vs=OVtab}=We, Vtab) ->
+smooth_move_orig_1(V, FacePosTab, Htab, #we{vs=OVtab}=We, Vtab) ->
     {Ps0,Hard} =
 	wings_vertex:fold(
 	  fun (Edge, Face, Erec, {Ps0,Hard0}) ->
@@ -100,13 +99,13 @@ smooth_move_orig_1(V, FacePosTab, Htab, #we{es=Etab,vs=OVtab}=We, Vtab) ->
 	    Pos1 = e3d_vec:mul(Pos0, 1/8),
 	    Pos = wings_util:share(Pos1),
 	    gb_trees:update(V, Vrec#vtx{pos=Pos}, Vtab);
-	ThreeOrMore -> Vtab
+	_ThreeOrMore -> Vtab
     end.
 
 smooth_face(Face, Id, FacePos, #we{es=Etab0,fs=Ftab0,vs=Vtab0}=We0) ->
     {Center,Color,NumIds} = gb_trees:get(Face, FacePos),
     {NewV,We1} = wings_we:new_id(We0),
-    {Ids,We} = wings_we:new_wrap_range(NumIds, 2, We0),
+    {Ids,We} = wings_we:new_wrap_range(NumIds, 2, We1),
     #face{mat=Mat} = gb_trees:get(Face, Ftab0),
     {Etab,Ftab1,_} = wings_face:fold(
 		       fun(_, E, Rec, A) ->
@@ -184,4 +183,4 @@ cut_edges_1([{Edge,#edge{vs=Va,ve=Vb,a=A,b=B,lf=Lf,rf=Rf}}|Es],
 	    {We,_} = wings_edge:fast_cut(Edge, Pos, Col, We0),
 	    cut_edges_1(Es, FacePos, Htab, We)
     end;
-cut_edges_1([], FacePos, Htab, We) -> We.
+cut_edges_1([], _FacePos, _Htab, We) -> We.
