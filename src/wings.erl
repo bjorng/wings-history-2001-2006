@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.37 2001/11/08 14:01:09 bjorng Exp $
+%%     $Id: wings.erl,v 1.38 2001/11/09 07:05:47 bjorng Exp $
 %%
 
 -module(wings).
@@ -1016,16 +1016,14 @@ translate_key($\b, Mod, C, #st{selmode=vertex}) -> {vertex,collapse};
 translate_key($\b, Mod, C, #st{selmode=edge}) -> {edge,dissolve};
 translate_key($\b, Mod, C, #st{selmode=face}) -> {face,dissolve};
 translate_key($\b, Mod, C, #st{selmode=body}) -> {body,delete};
-translate_key(Sym, Mod, C, #st{drag=Drag}=St)
+translate_key(Sym, Mod, C, St)
   when Mod band ?INTERESTING_BITS == 0 ->
-    case {Sym,Drag} of
-	{?SDLK_KP_PLUS,undefined} -> {select,more};
-	{?SDLK_KP_MINUS,undefined} -> {select,less};
-	{?SDLK_KP_PLUS,_} -> {influence_radius,1};
-	{?SDLK_KP_MINUS,_} -> {influence_radius,-1};
-	{?SDLK_F3,_} -> {select,prev_edge_loop};
-	{?SDLK_F4,_} -> {select,next_edge_loop};
-	{_,_} -> translate_key(C, St)
+    case Sym of
+	?SDLK_KP_PLUS -> plus(St);
+	?SDLK_KP_MINUS -> minus(St);
+	?SDLK_F3 -> {select,prev_edge_loop};
+	?SDLK_F4 -> {select,next_edge_loop};
+	_ -> translate_key(C, St)
     end;
 translate_key(_, _, _, St) -> ignore.
 
@@ -1062,11 +1060,17 @@ translate_key($8, St) -> {edge,{cut,8}};
 translate_key($9, St) -> {edge,{cut,9}};
 translate_key($0, St) -> {edge,{cut,10}};
 translate_key(?SDLK_TAB, St)  -> {view,smooth_preview};
-translate_key(?SDLK_PLUS, St)  -> {select,more};
-translate_key($=, St)  -> {select,more};
-translate_key(?SDLK_MINUS, St)  -> {select,less};
+translate_key($+, St)  -> plus(St);
+translate_key($=, St)  -> plus(St);
+translate_key($-, St)  -> minus(St);
 translate_key(_, _) -> ignore.
 
+plus(#st{drag=undefined}=St) -> {select,more};
+plus(St) -> {influence_radius,1}.
+
+minus(#st{drag=undefined}=St) -> {select,less};
+minus(St) -> {influence_radius,-1}.
+    
 command_name(#st{repeatable=ignore}) ->
     "(Can't repeat)";
 command_name(#st{repeatable={_,Cmd}}=St) ->
