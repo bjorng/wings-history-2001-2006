@@ -9,13 +9,13 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.76 2005/01/29 18:25:13 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.77 2005/03/23 16:12:03 dgud Exp $
 
 -module(auv_segment).
 
 -export([create/2,segment_by_material/1,cut_model/3,
 	 normalize_charts/3,map_vertex/2,map_edge/2,
-	 fv_to_uv_map/1,uv_to_charts/3]).
+	 fv_to_uv_map/2,uv_to_charts/3]).
 
 -ifdef(DEBUG).
 -export([degrees/0, find_features/3, build_seeds/2]). %% Debugging
@@ -918,9 +918,14 @@ collect_fun(Cuts) ->
 %%% Build a map [F|V] => UV.
 %%%
 
-fv_to_uv_map(#we{fs=Ftab}=We) ->
+fv_to_uv_map(object,#we{fs=Ftab}=We) ->
     FsEs = gb_trees:to_list(Ftab),
-    fvuvmap_1(FsEs, We, [], []).
+    fvuvmap_1(FsEs, We, [], []);
+fv_to_uv_map(Faces0,#we{fs=Ftab}=We) ->
+    AllFsEs = sofs:relation(gb_trees:to_list(Ftab)),
+    Fs = sofs:set(gb_sets:to_list(Faces0)),
+    FsEs = sofs:restriction(AllFsEs,Fs),
+    fvuvmap_1(sofs:to_external(FsEs), We, [], []).
 
 fvuvmap_1([{F,E}|FsEs], We, FaceAcc, Acc) ->
     case uv_info(F, E, We) of

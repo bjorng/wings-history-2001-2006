@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.302 2005/03/22 05:50:48 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.303 2005/03/23 16:12:04 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -30,7 +30,7 @@
 -export([has_texture/2]).
 
 %% Exports to auv_seg_ui.
--export([init_show_maps/3]).
+-export([init_show_maps/4]).
 
 init() ->
     true.
@@ -114,27 +114,23 @@ start_uvmap_2(Action, Name, Id, #st{shapes=Shs}=St) ->
 		       {toolbar,CreateToolbar}], Op),
     wings_wm:send(Name, {init,{Action,We}}).
 
-auv_event({init,Op}, St = #st{selmode=Mode,sel=Sel0,shapes=Shs}) ->
+auv_event({init,Op}, St = #st{selmode=Mode,sel=Sel0}) ->
     wings:init_opengl(St),
     case Op of
 	{edit,We} ->
-	    start_edit(We, St);
+	    start_edit(object, We, St);
 	{segment,We = #we{id=Id}} when Mode == face ->
 	    UVFs = gb_sets:from_ordset(wings_we:uv_mapped_faces(We)),
 	    {value, {_, Fs}} = lists:keysearch(Id, 1, Sel0),
 	    case gb_sets:is_subset(Fs,UVFs) of
 		false -> auv_seg_ui:start(We, We, St);
 		true -> 
-		    %% Hmm this didn't work..
-		    Other = wings_sel:inverse_items(face, Fs, We),
-		    NewWe = wings_we:hide_faces(Other, We),
-		    NewSt = wings_sel:clear(St#st{shapes=gb_trees:update(Id, We,Shs)}),
-		    start_edit(NewWe, NewSt)
+		    start_edit(Fs, We, St)
 	    end;
 	{segment,We} ->
 	    case wings_we:uv_mapped_faces(We) of	    
 		[] -> auv_seg_ui:start(We, We, St);
-		_ -> start_edit(We, St)
+		_ -> start_edit(object, We, St)
 	    end;
 	{force_seg, We} ->
 	    auv_seg_ui:start(We, We, St)
@@ -151,7 +147,7 @@ auv_event(_Ev, _) -> keep.
 %%% Start the UV editor.
 %%%
 
-start_edit(We, St) ->
+start_edit(Mode, We, St) ->
     MatNames0 = wings_facemat:all(We),
     MatNames1 = sofs:from_external(MatNames0, [{face,material}]),
     MatNames2 = sofs:converse(MatNames1),
@@ -160,32 +156,33 @@ start_edit(We, St) ->
     MatNames = [Mat || {Name,_}=Mat <- MatNames4, has_texture(Name, St)],
     case MatNames of
 	[{MatName,_}] ->
-	    do_edit(MatName, We, St);
+	    do_edit(MatName, Mode, We, St);
 	_ ->
-	    do_edit(none, We, St)
+	    do_edit(none, Mode, We, St)
     end.
 
-do_edit(MatName, #we{id=Id}=We, #st{shapes=Shs0}=GeomSt) ->
+do_edit(MatName, Mode, #we{id=Id}=We, #st{shapes=Shs0}=GeomSt) ->
     Shs = gb_trees:update(Id, We#we{fs=undefined,es=gb_trees:empty()}, Shs0),
     FakeGeomSt = GeomSt#st{sel=[],shapes=Shs},
-    AuvSt = create_uv_state(gb_trees:empty(), MatName, We, FakeGeomSt),
+    AuvSt = create_uv_state(gb_trees:empty(), MatName, Mode, We, FakeGeomSt),
     new_geom_state(GeomSt, AuvSt).
 
-init_show_maps(Charts0, We, GeomSt0) ->
+init_show_maps(Charts0, Fs, We, GeomSt0) ->
     Charts1 = auv_placement:place_areas(Charts0),
     Charts = gb_trees:from_orddict(keysort(1, Charts1)),
     Tx = checkerboard(128, 128),
     {GeomSt1,MatName} = add_material(Tx, We#we.name, none, GeomSt0),
     GeomSt = insert_initial_uvcoords(Charts, We#we.id, MatName, GeomSt1),
     wings_wm:send(geom, {new_state,GeomSt}),
-    AuvSt = create_uv_state(Charts, MatName, We, GeomSt),
+    AuvSt = create_uv_state(Charts, MatName, Fs, We, GeomSt),
     get_event(AuvSt).
 
-create_uv_state(Charts, MatName, We, GeomSt) ->
+create_uv_state(Charts, MatName, Fs, We, GeomSt) ->
     wings:mode_restriction([vertex,edge,face,body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     Uvs = #uvstate{st=wpa:sel_set(face, [], GeomSt),
 		   id=We#we.id,
+		   mode=Fs,
 		   matname=MatName},
     St = GeomSt#st{selmode=body,sel=[],shapes=Charts,bb=Uvs},
     Name = wings_wm:this(),
@@ -926,8 +923,8 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
 	{{value,We},_} -> {rebuild_charts(We, AuvSt, []),true}
     end.
 
-rebuild_charts(We, St = #st{bb=UVS=#uvstate{st=Old}}, ExtraCuts) ->
-    {Faces,FvUvMap} = auv_segment:fv_to_uv_map(We),
+rebuild_charts(We, St = #st{bb=UVS=#uvstate{st=Old,mode=Mode}}, ExtraCuts) ->
+    {Faces,FvUvMap} = auv_segment:fv_to_uv_map(Mode,We),
     {Charts0,Cuts0} = auv_segment:uv_to_charts(Faces, FvUvMap, We),
     {Charts1,Cuts} =
 	case ExtraCuts of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.32 2005/01/09 09:30:36 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.33 2005/03/23 16:12:02 dgud Exp $
 %%
 
 -module(auv_seg_ui).
@@ -28,6 +28,7 @@
 	      selmodes,				%Legal selection modes.
 	      we,				%Original We.
 	      orig_st,				%Original St.
+	      fs,                                %Original Selected faces or object
 	      msg				%Message.
 	     }).
 
@@ -41,9 +42,9 @@ start(#we{id=Id}=We0, OrigWe, St0) ->
     wings_wm:menubar(This, Menu),
     We = We0#we{mode=material},
     St1 = seg_create_materials(St0),
-    St2 = seg_hide_other(Id, St1#st{shapes=gb_trees:from_orddict([{Id,We}])}),
+    {Fs,St2} = seg_hide_other(Id, St1#st{shapes=gb_trees:from_orddict([{Id,We}])}),
     St = St2#st{sel=[],selmode=face},
-    Ss = seg_init_message(#seg{selmodes=Modes,st=St,orig_st=St0,we=OrigWe}),
+    Ss = seg_init_message(#seg{selmodes=Modes,st=St,orig_st=St0,we=OrigWe,fs=Fs}),
 
     %% Don't push here - instead replace the default crash handler
     %% which is the only item on the stack.
@@ -280,8 +281,8 @@ seg_hide_other(Id, #st{selmode=face,sel=[{Id,Faces}],shapes=Shs}=St) ->
     We0 = gb_trees:get(Id, Shs),
     Other = wings_sel:inverse_items(face, Faces, We0),
     We = wings_we:hide_faces(Other, We0),
-    wings_sel:clear(St#st{shapes=gb_trees:update(Id, We, Shs)});
-seg_hide_other(_, St) -> St.    
+    {Faces,wings_sel:clear(St#st{shapes=gb_trees:update(Id, We, Shs)})};
+seg_hide_other(_, St) -> {object,St}.    
 
 seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     wings_pb:start("preparing mapping"),
@@ -316,7 +317,7 @@ seg_map_charts_1([We0|Cs], Type, Id, N, Acc,
 	    We = We1#we{vp=gb_trees:from_orddict(sort(Vs))},
 	    seg_map_charts_1(Cs, Type, Id+1, N, [We|Acc], Ss)
     end;
-seg_map_charts_1([], _, _, _, Charts0, #seg{orig_st=GeomSt,we=#we{id=Id}}) ->
+seg_map_charts_1([], _, _, _, Charts0, #seg{orig_st=GeomSt,fs=Fs,we=#we{id=Id}}) ->
     wings_pb:done(),
 
     %% Empty display list structure.
@@ -326,7 +327,7 @@ seg_map_charts_1([], _, _, _, Charts0, #seg{orig_st=GeomSt,we=#we{id=Id}}) ->
 
     Charts = reverse(Charts0),
     We = gb_trees:get(Id, GeomSt#st.shapes),
-    wpc_autouv:init_show_maps(Charts, We, GeomSt).
+    wpc_autouv:init_show_maps(Charts, Fs, We, GeomSt).
 
 segment(Mode, #st{shapes=Shs}=St) ->
     [We] = gb_trees:values(Shs),
