@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.35 2003/04/23 11:17:08 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.36 2003/04/23 12:39:43 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -186,7 +186,7 @@ image_menu(Id, Im) ->
 
 %% Currently disabled.
 image_menu_1(Id, #e3d_image{filename=none}) ->
-    [{"Make External",menu_cmd(make_external, Id)}|common_image_menu(Id)];
+    [{"Make External...",menu_cmd(make_external, Id)}|common_image_menu(Id)];
 image_menu_1(Id, _) ->
     [{"Refresh",menu_cmd(refresh_image, Id)},
      {"Make Internal",menu_cmd(make_internal, Id)}|common_image_menu(Id)].
@@ -237,8 +237,8 @@ command({make_internal,Id}, _) ->
     make_internal(Id);
 command({make_external,Id}, _) ->
     make_external(Id);
-command({export_image,Id}, Ost) ->
-    export_image(Id, Ost);
+command({export_image,Id}, _) ->
+    export_image(Id);
 command(Cmd, _) ->
     io:format("NYI: ~p\n", [Cmd]),
     keep.
@@ -281,18 +281,41 @@ rename_image(Id) ->
 		  end).
 
 make_external(Id) ->
-    keep.
+    Ps = [{extensions,wpa:image_formats()}],
+    case wpa:export_filename(Ps, #st{file=undefined}) of
+	aborted -> keep;
+	FileName ->
+	    Image = wings_image:info(Id),
+	    case ?SLOW((catch e3d_image:save(Image, FileName))) of
+		ok ->
+		    wings_image:update_filename(Id, FileName),
+		    keep;
+		{_, Error0} ->
+		    Error = FileName ++ ": " ++ file:format_error(Error0),
+		    wings_util:message("Export failed: " ++ Error)
+	    end
+    end.
 
-refresh_image(_) ->
-    keep.
+refresh_image(Id) ->
+    #e3d_image{filename=Filename} = wings_image:info(Id),
+    Props = [{filename,Filename},{alignment,1}],
+    case wpa:image_read(Props) of
+	#e3d_image{}=Image ->
+	    wings_image:update(Id, Image),
+	    keep;
+	{error,R} ->
+	    Msg = e3d_image:format_error(R),
+	    wings_util:message("Failed to refresh \"" ++ Filename ++
+			       "\": " ++ Msg)
+    end.
 
 make_internal(Id) ->
     wings_image:update_filename(Id, none),
     keep.
 
-export_image(Id, #ost{st=St}) ->
+export_image(Id) ->
     Ps = [{extensions,wpa:image_formats()}],
-    case wpa:export_filename(Ps, St) of
+    case wpa:export_filename(Ps, #st{file=undefined}) of
 	aborted -> keep;
 	FileName ->
 	    Image = wings_image:info(Id),
