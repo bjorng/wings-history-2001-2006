@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.39 2003/01/26 15:44:37 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.40 2003/02/01 09:12:54 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -51,7 +51,6 @@ menu(St) ->
 				{"3 Edges",3},
 				{"4 Edges",4},
 				{"5 or More",5}]}},
-		wings_material:sub_menu(select, St),
 		{"Random",{random,[{"10%",10},
 				   {"20%",20},
 				   {"30%",30},

@@ -8,14 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.77 2003/01/31 18:03:04 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.78 2003/02/01 09:12:54 bjorng Exp $
 %%
 
 -module(wings_material).
--export([new/1,sub_menu/2,command/2,
-	 color/4,default/0,add_materials/2,update_image/4,
-	 used_materials/1,apply_material/2,
-	 is_transparent/2]).
+-export([command/2,new/1,color/4,default/0,add_materials/2,update_image/4,
+	 used_materials/1,apply_material/2,is_transparent/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -34,10 +32,7 @@ new(_) ->
 			  ignore
 		  end).
 
-sub_menu(select, St) ->
-    {"Material",{material,material_list(St)}}.
-
-command({material,{new,Name0}}, #st{mat=Mtab}=St) ->
+command({new,Name0}, #st{mat=Mtab}=St) ->
     Name1 = list_to_atom(Name0),
     case gb_trees:is_defined(Name1, Mtab) of
 	true ->
@@ -47,27 +42,89 @@ command({material,{new,Name0}}, #st{mat=Mtab}=St) ->
 	false ->
 	    new_material(Name1, St)
     end;
-command({material,{edit,Mat}}, St) ->
-    edit(Mat, St);
-command({material,{assign,Mat}}, St) ->
-    set_material(Mat, St);
-command({select,{material,Mat}}, St) ->
-    wings_sel:make(fun(Face, #we{fs=Ftab}) ->
-			   #face{mat=M} = gb_trees:get(Face, Ftab),
-			   M =:= Mat
-		   end, face, St).
+command({edit,Mat}, St) ->
+    edit(list_to_atom(Mat), St);
+command({assign,Mat}, St) ->
+    set_material(list_to_atom(Mat), St);
+command({select,[Mat]}, St) ->
+    select_material(list_to_atom(Mat), St);
+command({duplicate,MatList}, St) ->
+    duplicate_material(MatList, St);
+command({delete,MatList}, St) ->
+    delete_material(MatList, St);
+command({rename,MatList0}, St) ->
+    case MatList0 -- ["default","_hole_"] of
+	[] -> St;
+	MatList -> rename(MatList, St)
+    end.
 
 new_material(Name, St0) ->
     Mat = make_default({1.0,1.0,1.0}, 1.0),
     St = add(Name, Mat, St0),
     edit(Name, St).
 
-material_list(#st{mat=Mat0}) ->
-    map(fun({Id,Mp}) ->
-		OpenGL = prop_get(opengl, Mp),
-		Color = prop_get(diffuse, OpenGL),
-		{atom_to_list(Id),Id,[],[{color,Color}]}
-	end, gb_trees:to_list(Mat0)).
+duplicate_material([M0|Ms], #st{mat=Mat}=St0) ->
+    M1 = list_to_atom(M0),
+    MatPs = gb_trees:get(M1, Mat),
+    M = new_name(M0, Mat),
+    St = add(M, MatPs, St0),
+    duplicate_material(Ms, St);
+duplicate_material([], St) -> St.
+
+delete_material(["default"|Ms], St) ->
+    delete_material(Ms, St);
+delete_material(["_hole_"|Ms], St) ->
+    delete_material(Ms, St);
+delete_material([M0|Ms], #st{mat=Mat0}=St0) ->
+    M = list_to_atom(M0),
+    Mat = gb_trees:delete(M, Mat0),
+    St = reassign_material(M, default, St0),
+    delete_material(Ms, St#st{mat=Mat});
+delete_material([], St) ->
+    {save_state,St}.
+
+rename(Mats, St) ->
+    Qs = rename_qs(Mats),
+    wings_ask:dialog("Rename", Qs,
+		     fun(NewNames) ->
+			     rename_1(NewNames, St, [])
+		     end).
+
+rename_1([{Old,New}|Ms], #st{mat=Mat0}=St, Acc) ->
+    MatPs = gb_trees:get(Old, Mat0),
+    Mat = gb_trees:delete(Old, Mat0),
+    rename_1(Ms, St#st{mat=Mat}, [{Old,list_to_atom(New),MatPs}|Acc]);
+rename_1([], St, Acc) -> rename_2(Acc, St).
+
+rename_2([{Old,New0,MatPs}|Ms], St0) ->
+    case add(New0, MatPs, St0) of
+	{St1,New} -> ok;
+	#st{}=St1 -> New = New0
+    end,
+    St = reassign_material(Old, New, St1),
+    rename_2(Ms, St);
+rename_2([], St) -> St.
+
+rename_qs(Ms) ->
+    OldNames = [{label,M} || M <- Ms],
+    TextFields = [{text,M,[{key,list_to_atom(M)}]} || M <- Ms],
+    [{hframe,
+      [{vframe,OldNames},
+       {vframe,TextFields}]}].
+
+reassign_material(Old, New, #st{sel=OldSel}=St0) ->
+    case select_material(Old, St0) of
+	#st{sel=[]} -> St0;
+	St1 ->
+	    St = set_material(New, St1),
+	    St#st{sel=OldSel}
+    end.
+
+select_material(Mat, St) ->
+    wings_sel:make(fun(Face, #we{fs=Ftab}) ->
+			   #face{mat=M} = gb_trees:get(Face, Ftab),
+			   M =:= Mat
+		   end, face, St).
 
 set_material(Mat, #st{selmode=face}=St) ->
     wings_sel:map(fun(Faces, We) ->
@@ -187,16 +244,14 @@ add(Name, Mat0, #st{mat=MatTab}=St) ->
 	    St#st{mat=gb_trees:insert(Name, Mat, MatTab)};
 	{value,Mat} -> St;
 	{value,_} ->
-	    NewName = new_name(atom_to_list(Name), MatTab, 0),
+	    NewName = new_name(atom_to_list(Name), MatTab),
 	    {add(NewName, Mat, St),NewName}
     end.
 
-new_name(Name0, Tab, I) ->
-    Name = list_to_atom(Name0 ++ "_" ++ integer_to_list(I)),
-    case gb_trees:is_defined(Name, Tab) of
-	false -> Name;
-	true -> new_name(Name0, Tab, I+1)
-    end.
+new_name(Name0, Tab) ->
+    Names = [atom_to_list(N) || N <- gb_trees:keys(Tab)],
+    Name = wings_util:unique_name(Name0, Names),
+    list_to_atom(Name).
 
 apply_material(Name, Mtab) when is_atom(Name) ->
     Mat = gb_trees:get(Name, Mtab),

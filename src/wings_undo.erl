@@ -3,12 +3,12 @@
 %%
 %%     This module handles the undo stack.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_undo.erl,v 1.7 2002/11/17 16:22:13 bjorng Exp $
+%%     $Id: wings_undo.erl,v 1.8 2003/02/01 09:12:54 bjorng Exp $
 %%
 
 -module(wings_undo).
@@ -22,7 +22,8 @@
 	{shapes,
 	 selmode,
 	 sel,
-	 onext
+	 onext,
+	 mat
 	}).
 
 init(St) ->
@@ -44,8 +45,8 @@ undo(#st{undone=Undone}=St0) ->
 
 redo(#st{undone=[StOld|Undone]}=St0) ->
     St1 = push(St0, St0),
-    #st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext} = StOld,
-    St = St1#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext},
+    #st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext,mat=Mat} = StOld,
+    St = St1#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext,mat=Mat},
     St#st{undone=Undone,next_is_undo=true};
 redo(St) -> St.
 
@@ -75,15 +76,16 @@ push_1(#st{top=[PrevEst|PrevTop]=Top}=St, #est{}=Est) ->
 	    St#st{top=[PrevEst#est{sel=Sel}|PrevTop]}
     end.
 
-save_essential(#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext}) ->
-    #est{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext}.
+save_essential(#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext,mat=Mat}) ->
+    #est{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext,mat=Mat}.
     
 compare_states(Old, New) ->
-    #est{shapes=Osh,selmode=Omode,sel=Osel,onext=Oonext} = Old,
-    #est{shapes=Nsh,selmode=Nmode,sel=Nsel,onext=Nonext} = New,
+    #est{shapes=Osh,selmode=Omode,sel=Osel,onext=Oonext,mat=Omat} = Old,
+    #est{shapes=Nsh,selmode=Nmode,sel=Nsel,onext=Nonext,mat=Nmat} = New,
     if
 	Omode =/= Nmode -> new;
 	Oonext =/= Nonext -> new;
+	Omat =/= Nmat -> new;
 	Osel =/= Nsel ->
 	    if
 		Osh =:= Nsh -> new_sel;
@@ -93,8 +95,8 @@ compare_states(Old, New) ->
     end.
 
 pop(#st{top=[Est|Top]}=St0) ->
-    #est{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext} = Est,
-    St = St0#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext},
+    #est{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext,mat=Mat} = Est,
+    St = St0#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext,mat=Mat},
     St#st{top=Top};
 pop(#st{top=[],bottom=[_|_]=Bottom}=St) ->
     pop(St#st{top=reverse(Bottom),bottom=[]});

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.19 2003/01/31 21:15:25 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.20 2003/02/01 09:12:54 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -122,7 +122,17 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
 		   [{"Edit Material...",menu_cmd(edit_material, Name),
 		    "Edit material properties"},
 		    {"Assign to Selection",menu_cmd(assign_material, Name),
-		     "Assign the material to the selected faces or bodies"}];
+		     "Assign the material to the selected faces or bodies"},
+		    separator,
+		    {"Select",menu_cmd(select_material, Name),
+		     "Select all faces that have this material"},
+		    separator,
+		    {"Duplicate",menu_cmd(duplicate_material, Name),
+		     "Duplicate this material"},
+		    {"Delete",menu_cmd(delete_material, Name),
+		     "Delete this material"},
+		    {"Rename",menu_cmd(rename_material, Name),
+		     "Rename this material"}];
 	       {object,Id,_} ->
 		   [{"Duplicate",menu_cmd(duplicate_object, Id),
 		     "Duplicate this object"},
@@ -167,12 +177,18 @@ common_image_menu(Id) ->
 menu_cmd(Cmd, Id) ->
     {'VALUE',{Cmd,Id}}.
 
-command({edit_material,Name0}, _Ost) ->
-    Name = list_to_atom(Name0),
+command({edit_material,Name}, _Ost) ->
     wings_wm:send(geom, {action,{material,{edit,Name}}});
-command({assign_material,Name0}, _Ost) ->
-    Name = list_to_atom(Name0),
+command({assign_material,Name}, _Ost) ->
     wings_wm:send(geom, {action,{material,{assign,Name}}});
+command({select_material,Name}, _Ost) ->
+    wings_wm:send(geom, {action,{material,{select,[Name]}}});
+command({duplicate_material,Name}, _Ost) ->
+    wings_wm:send(geom, {action,{material,{duplicate,[Name]}}});
+command({delete_material,Name}, _Ost) ->
+    wings_wm:send(geom, {action,{material,{delete,[Name]}}});
+command({rename_material,Name}, _Ost) ->
+    wings_wm:send(geom, {action,{material,{rename,[Name]}}});
 command({duplicate_object,Id}, _) ->
     wings_wm:send(geom, {action,{body,{duplicate_object,[Id]}}});
 command({delete_object,Id}, _) ->
@@ -240,7 +256,7 @@ update_state(St, #ost{first=OldFirst}=Ost0) ->
 update_state_1(St, Ost) ->
     update_state_2(St, Ost).
 
-update_state_2(#st{mat=Mat,shapes=Shs0}=St, #ost{os=Objs0}=Ost) ->
+update_state_2(#st{mat=Mat,shapes=Shs0}=St, #ost{os=Objs0,active=Act0}=Ost) ->
     Objs = [{object,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
 				?IS_NOT_LIGHT(We)] ++
 	[{light,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
@@ -250,7 +266,12 @@ update_state_2(#st{mat=Mat,shapes=Shs0}=St, #ost{os=Objs0}=Ost) ->
 	Objs0 -> ok;
 	_ -> wings_wm:dirty()
     end,
-    Ost#ost{st=St,os=Objs,n=length(Objs)}.
+    N = length(Objs),
+    Act = if
+	      Act0 >= N -> N-1;
+	      true -> Act0
+	  end,
+    Ost#ost{st=St,os=Objs,n=N,active=Act}.
 
 update_images() ->
     Ims = foldl(fun({Id,Im}, A) ->
