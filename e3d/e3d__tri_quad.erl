@@ -8,24 +8,63 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.3 2002/01/21 20:38:15 bjorng Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.4 2002/02/02 07:11:08 bjorng Exp $
 %%
 
 -module(e3d__tri_quad).
--export([triangulate_face/2,triangulate_face_with_holes/3,
-	 quadrangulate_face/2,quadrangulate_face_with_holes/3,
+-export([triangulate/1,triangulate_face/2,triangulate_face_with_holes/3,
+	 quadrangulate/1,quadrangulate_face/2,quadrangulate_face_with_holes/3,
 	 test_tri/1,test_quad/1]).
 
 -include("e3d.hrl").
 
 -import(lists, [reverse/1,map/2,seq/2,sort/2,foldl/3,
-		sublist/3,delete/2,nth/2]).
+		sublist/3,delete/2,nth/2,seq/2]).
 
 -define(ANGFAC, 1.0).
 -define(DEGFAC, 10.0).
 -define(GTHRESH, 75).
 -define(TOL, 0.0000001).
 
+% Triangulate an entire mesh.
+triangulate(#e3d_mesh{type=triangle}=Mesh) -> Mesh;
+triangulate(#e3d_mesh{type=polygon,fs=Fs0,vs=Vs}=Mesh) ->
+    case triangulate(Fs0, list_to_tuple(Vs), []) of
+	error -> error;
+	Fs -> Mesh#e3d_mesh{type=triangle,fs=Fs}
+    end.
+
+triangulate([#e3d_face{vs=[_,_,_]}=FaceRec|Ps], Vtab, Acc) ->
+    triangulate(Ps, Vtab, [FaceRec|Acc]);
+triangulate([#e3d_face{vs=Vs0}=FaceRec0|Ps], Vtab, Acc0) ->
+    Vs = seq(0, length(Vs0)-1),
+    TempVtab = [element(V+1, Vtab) || V <- Vs0],
+    FaceRec = FaceRec0#e3d_face{vs=Vs},
+    Tris = triangulate_face(FaceRec, TempVtab),
+    Acc = renumber_result(Tris, list_to_tuple(Vs0), Acc0),
+    triangulate(Ps, Vtab, Acc);
+triangulate([], Vtab, Acc) -> reverse(Acc).
+
+renumber_result([#e3d_face{vs=[Va,Vb,Vc]}=Rec|Tris], OrigNum, Acc) ->
+    Vs = [element(Va+1, OrigNum),
+	  element(Vb+1, OrigNum),
+	  element(Vc+1, OrigNum)],
+    renumber_result(Tris, OrigNum, [Rec#e3d_face{vs=Vs}|Acc]);
+renumber_result([], _, Acc) -> Acc.
+
+% Quadrangulate an entire mesh. (Not optimized yet; slow on large meshes.)
+quadrangulate(#e3d_mesh{type=quad}=Mesh) -> Mesh;
+quadrangulate(#e3d_mesh{fs=Fs0,vs=Vs}=Mesh) ->
+    case quadrangulate_1(Fs0, Vs, []) of
+	error -> error;
+	Fs -> Mesh#e3d_mesh{type=quad,fs=Fs}
+    end.
+
+quadrangulate_1([#e3d_face{vs=Vs}=FaceRec|Ps], Vtab, Acc) ->
+    Faces = quadrangulate_face(FaceRec, Vtab),
+    quadrangulate_1(Ps, Vtab, Faces++Acc);
+quadrangulate_1([], Vtab, Acc) -> reverse(Acc).
+    
 % Vcoords is list of vertex coordinates.
 % Returns list of (Triangular) faces to replace Face.
 triangulate_face(#e3d_face{vs=Vs,mat=Mat}=Face, Vcoords) ->

@@ -3,12 +3,12 @@
 %%
 %%     Utility functions for E3D meshes, such as cleanup and triangulation.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.14 2002/01/22 19:40:48 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.15 2002/02/02 07:11:08 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -143,17 +143,8 @@ rhe_edges([], Face, Acc) -> Acc.
 %%% Mesh triangulation.
 %%%
 
-triangulate(#e3d_mesh{type=triangle}=Mesh) -> Mesh;
-triangulate(#e3d_mesh{type=polygon,fs=Fs0,vs=Vs}=Mesh) ->
-    case triangulate(Fs0, Vs, []) of
-	error -> error;
-	Fs -> Mesh#e3d_mesh{type=triangle,fs=Fs}
-    end.
-
-triangulate([#e3d_face{vs=Vs}=FaceRec|Ps], Vtab, Acc) ->
-    Tris = triangulate_face(FaceRec, Vtab),
-    triangulate(Ps, Vtab, Tris++Acc);
-triangulate([], Vtab, Acc) -> reverse(Acc).
+triangulate(#e3d_mesh{}=Mesh) ->
+    e3d__tri_quad:triangulate(Mesh).
 
 triangulate_face(Face, Vcoords) ->
     e3d__tri_quad:triangulate_face(Face, Vcoords).
@@ -162,21 +153,11 @@ triangulate_face_with_holes(Face, Holes, Vcoords) ->
     e3d__tri_quad:triangulate_face_with_holes(Face, Holes, Vcoords).
 
 %%%
-%%% Mesh quadrilation.
+%%% Mesh quadrangulation.
 %%%
 
-quadrangulate(#e3d_mesh{type=triangle}=Mesh) -> Mesh;
-quadrangulate(#e3d_mesh{type=quad}=Mesh) -> Mesh;
-quadrangulate(#e3d_mesh{type=polygon,fs=Fs0,vs=Vs}=Mesh) ->
-    case quadrangulate(Fs0, Vs, []) of
-	error -> error;
-	Fs -> Mesh#e3d_mesh{type=quad,fs=Fs}
-    end.
-
-quadrangulate([#e3d_face{vs=Vs}=FaceRec|Ps], Vtab, Acc) ->
-    Tris = quadrangulate_face(FaceRec, Vtab),
-    quadrangulate(Ps, Vtab, Tris++Acc);
-quadrangulate([], Vtab, Acc) -> reverse(Acc).
+quadrangulate(#e3d_mesh{}=Mesh) ->
+    e3d__tri_quad:quadrangulate(Mesh).
 
 quadrangulate_face(Face, Vcoords) ->
     e3d__tri_quad:quadrangulate_face(Face, Vcoords).
