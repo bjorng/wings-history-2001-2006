@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.109 2002/10/20 10:10:29 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.110 2002/11/16 16:33:43 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -382,14 +382,14 @@ make_query(Move, #drag{unit=Units}) ->
 make_query_1([U0|Units], [V|Vals]) ->
     case clean_unit(U0) of
 	percent ->
-	    [{hframe,[{label,"P"},{text,V*100.0,qrange(U0)}|
-		      make_query_1(Units, Vals)]}];
+	    [{hframe,[{text,V*100.0,qrange(U0)},{label,"%"}]}|
+	     make_query_1(Units, Vals)];
 	angle ->
 	    [{hframe,[{label,"A"},{text,V,qrange(U0)},{label,[?DEGREE]}]}|
 	     make_query_1(Units, Vals)];
 	U ->
-	    [{hframe,[{label,qstr(U)},{text,V,qrange(U0)}|
-		      make_query_1(Units, Vals)]}]
+	    [{hframe,[{label,qstr(U)},{text,V,qrange(U0)}]}|
+	     make_query_1(Units, Vals)]
     end;
 make_query_1([], []) -> [].
 
@@ -400,7 +400,6 @@ qstr(dz) -> "Dz";
 qstr(falloff) -> "R";
 qstr(angle) -> "A";
 qstr(number) -> "N";
-qstr(percent) -> "P";
 qstr(Atom) -> atom_to_list(Atom).
 
 qrange({_,{_,_}=Range}) -> [{range,Range}];
