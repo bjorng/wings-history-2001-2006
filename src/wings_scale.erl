@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.45 2003/07/23 17:38:39 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.46 2003/07/28 19:35:16 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -48,11 +48,14 @@ setup(Vec, Point, _Magnet, #st{selmode=body}=St) ->
 	    fun(_, #we{id=Id}=We, Acc) ->
 		    [{Id,body_to_vertices(Vec, Point, We)}|Acc]
 	    end, [], St),
-    init_drag({matrix,Tvs}, none, St).
+    init_drag({matrix,Tvs}, none, [rescale_normals], St).
 
 init_drag(Tvs, Magnet, St) ->
+    init_drag(Tvs, Magnet, [], St).
+
+init_drag(Tvs, Magnet, Flags, St) ->
     wings_drag:setup(Tvs, [scale_constraint()|magnet_unit(Magnet)],
-		     wings_magnet:flags(Magnet, [{initial,[1.0]}]), St).
+		     wings_magnet:flags(Magnet, [{initial,[1.0]}|Flags]), St).
 
 scale_constraint() ->
     case wings_pref:get_value(advanced_menus) of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.151 2003/07/28 17:39:39 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.152 2003/07/28 19:35:15 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -246,7 +246,11 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 %%% Handling of drag events.
 %%%
 
-do_drag(Drag, none) ->
+do_drag(#drag{flags=Flags}=Drag, none) ->
+    case proplists:get_bool(rescale_normals, Flags) of
+	false -> ok;
+	true -> gl:enable(gl_rescale_normal())
+    end,
     case wings_pref:get_value(hide_sel_while_dragging) of
 	true -> clear_sel_dlists();
 	false -> ok
@@ -273,6 +277,12 @@ do_drag(Drag0, _) ->
     ungrab(Drag0#drag{x=GX,y=GY}),
     wings_wm:later(revert_state),
     keep.
+
+gl_rescale_normal() ->
+    case wings_util:is_gl_ext('GL_EXT_rescale_normal') of
+	true -> ?GL_RESCALE_NORMAL;
+	false -> ?GL_NORMALIZE
+    end.
 
 help_message(#drag{unit=Unit}=Drag) ->
     Msg = "[L] Accept  [R] Cancel",
@@ -687,6 +697,7 @@ normalize(#drag{magnet=Type}=Drag) ->
     normalize_1(Drag).
 
 normalize_1(#drag{st=#st{shapes=Shs0}=St}) ->
+    gl:disable(gl_rescale_normal()),
     Shs = wings_draw_util:map(fun normalize_fun/2, Shs0),
     St#st{shapes=Shs}.
 
