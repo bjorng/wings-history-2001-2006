@@ -3,12 +3,13 @@
 #
 #     Install script for NSIS installer.
 #
-#  Copyright (c) 2002 Bjorn Gustavsson
+#  Copyright (c) 2002-2003 Bjorn Gustavsson
+#		      2003 Patrik Nyblom
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings3.nsi,v 1.1 2003/08/29 18:05:53 bufflig Exp $
+#     $Id: wings3.nsi,v 1.2 2003/09/06 09:05:38 bjorng Exp $
 #
 
 	!define MUI_PRODUCT "Wings 3D"
@@ -39,8 +40,8 @@
   
 ;--------------------------------
 ;Modern UI Configuration
-	!define MUI_ICON "wings.ico"
-	!define MUI_UNICON "wings.ico"
+        !define MUI_ICON "${NSISDIR}\Contrib\Icons\normal-install.ico"
+        !define MUI_UNICON "${NSISDIR}\Contrib\Icons\normal-uninstall.ico"
 	!define MUI_WELCOMEPAGE
   	!define MUI_COMPONENTSPAGE
   	!define MUI_DIRECTORYPAGE
@@ -84,7 +85,7 @@ SectionIn 1 2 3 RO
 skip_silent_mode:
  
   	SetOutPath "$INSTDIR"
-  	File /r AUTHORS license.terms vsn.mk Wings3D.exe
+  	File /r AUTHORS license.terms Wings3D.exe
   	SetOutPath "$INSTDIR\plugins"
   	File /r plugins\*.*
   	SetOutPath "$INSTDIR\ebin"
@@ -96,14 +97,6 @@ skip_silent_mode:
   	SetOutPath "$INSTDIR"
 
   	WriteRegStr HKLM "SOFTWARE\Wings 3D\${WINGS_VERSION}" "" $INSTDIR
-
-; Delete obsolete registry keys and values.
-;  	DeleteRegKey HKLM "SOFTWARE\Ericsson\Erlang\Wings3D"
-;  	DeleteRegValue HKLM "SOFTWARE\Wings 3D" "WerlPath"
-;  	ClearErrors
-
-; Delete obsolete files.
-;  	Delete "$INSTDIR\plugins\commands\wpc_triquad_cmd.beam"
 
 ; Install Erlang/OTP.
   	ExecWait "Wings3D.exe --install"
@@ -239,7 +232,6 @@ SubSectionEnd
 
 Section Uninstall
   Delete "$INSTDIR\AUTHORS"
-  Delete "$INSTDIR\vsn.mk"
   Delete "$INSTDIR\license.terms"
   Delete "$INSTDIR\Wings3D.exe"
   SetShellVarContext All
