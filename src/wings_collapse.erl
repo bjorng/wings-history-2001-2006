@@ -5,20 +5,24 @@
 %%     (for vertices, edges, and faces).
 %%
 %%  Copyright (c) 2001 Jakob Cederlund
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.43 2004/12/27 16:40:27 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.44 2005/01/15 14:08:06 bjorng Exp $
 %%
 
 -module(wings_collapse).
--export([collapse/1,collapse_vertices/2,collapse_edge/2,collapse_edge/3,
-	 fast_collapse_edge/2]).
+-export([collapse/1,collapse_edge/2,collapse_edge/3,
+	 collapse_edges/2,fast_collapse_edge/2,collapse_vertices/2]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
+
+%%%
+%%% API.
+%%%
 
 collapse(#st{selmode=face}=St0) ->
     {St,Sel} = wings_sel:mapfold(fun collapse_faces/3, [], St0),
@@ -32,6 +36,39 @@ collapse(#st{selmode=vertex}=St0) ->
 	#st{sel=[]}=St -> St#st{selmode=vertex};
 	St -> St
     end.
+
+collapse_edges([E|Es], We0) ->
+    We = collapse_edge(E, We0),
+    collapse_edges(Es, We);
+collapse_edges([], We) -> We.
+
+collapse_edge(Edge, #we{es=Etab}=We)->
+    case gb_trees:lookup(Edge, Etab) of
+	{value,#edge{vs=Vkeep}=Rec} -> 
+	    collapse_edge_1(Edge, Vkeep, Rec, We);
+	none -> We
+    end.
+
+collapse_edge(Edge, Vkeep, #we{es=Etab}=We)->
+    case gb_trees:lookup(Edge, Etab) of
+	{value,Rec} -> 
+	    collapse_edge_1(Edge, Vkeep, Rec, We);
+	none -> We
+    end.
+
+fast_collapse_edge(Edge, #we{es=Etab}=We)->
+    #edge{vs=Vkeep,ve=Vremove} = Rec = gb_trees:get(Edge, Etab),
+    internal_collapse_edge(Edge, Vkeep, Vremove, Rec, We).
+
+%% collapse_vertices(Vs, We) -> We'
+%%  Remove vertices, replacing them with faces.
+collapse_vertices(Vs, We0) ->
+    {We,_} = do_collapse_vertices(Vs, We0),
+    We.
+
+%%%
+%%% Internal functions.
+%%%
 
 collapse_faces(Faces, #we{id=Id}=We0, SelAcc)->
     We1 = foldl(fun collapse_face/2, We0, gb_sets:to_list(Faces)),
@@ -141,24 +178,6 @@ collapse_edges(Edges0, #we{id=Id,es=Etab}=We0, SelAcc)->
 		end, gb_sets:empty(), Edges),
     {We,[{Id,Sel}|SelAcc]}.
 
-fast_collapse_edge(Edge, #we{es=Etab}=We)->
-    #edge{vs=Vkeep,ve=Vremove} = Rec = gb_trees:get(Edge, Etab),
-    internal_collapse_edge(Edge, Vkeep, Vremove, Rec, We).
-
-collapse_edge(Edge, #we{es=Etab}=We)->
-    case gb_trees:lookup(Edge, Etab) of
-	{value,#edge{vs=Vkeep}=Rec} -> 
-	    collapse_edge_1(Edge, Vkeep, Rec, We);
-	none -> We
-    end.
-
-collapse_edge(Edge, Vkeep, #we{es=Etab}=We)->
-    case gb_trees:lookup(Edge, Etab) of
-	{value,Rec} -> 
-	    collapse_edge_1(Edge, Vkeep, Rec, We);
-	none -> We
-    end.
-
 collapse_edge_1(Edge, Vkeep, Rec, We0) ->
     Faces = case Rec of
 		#edge{vs=Vkeep,ve=Vremove,lf=Lf,rf=Rf} -> [Lf,Rf];
@@ -218,12 +237,6 @@ collapse_vertices_cmd(Vs, #we{id=Id}=We0, SelAcc) ->
     {We,Sel} = do_collapse_vertices(gb_sets:to_list(Vs), We0),
     check_consistency(We),
     {We,[{Id,Sel}|SelAcc]}.
-
-%% collapse_vertices(Vs, We) -> We'
-%%  Remove vertices, replacing them with faces.
-collapse_vertices(Vs, We0) ->
-    {We,_} = do_collapse_vertices(Vs, We0),
-    We.
 
 do_collapse_vertices(Vs, We) ->
     do_collapse_vertices(Vs, We, gb_sets:empty(), [], []).
