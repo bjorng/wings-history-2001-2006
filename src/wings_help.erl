@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.35 2002/12/30 22:55:09 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.36 2003/01/05 09:44:18 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -26,8 +26,9 @@ menu(_) ->
      separator,
      {"Light Basics",lights},
      {"Assigning Hotkeys",defining_hotkeys},
-     {"Default Commands",default_commands},
+     separator,
      {"Advanced Menus",advanced_menus},
+     {"Default Commands",default_commands},
      separator,
      {"OpenGL Info",opengl_info},
      separator,
@@ -82,7 +83,7 @@ one_or_two() ->
 
 advanced_menus() ->
     Help = ["Advanced Menus",
-	    "In the Edit|Preferences dialog box, there is a check box "
+	    "In the Edit|Advanced Preferences dialog box, there is a check box "
 	    "for \"Advanced Menus\".",
 
 	    "With Advanced Menus turned on, many menu commands do "
@@ -106,6 +107,9 @@ international() ->
 
 def_commands() ->
     Help = ["Assigning Default Commands",
+	    "In the Edit|Advanced Preferences dialog box, you can turn on "
+	    "\"Default Commands\".",
+
 	    "Two default commands can be defined. To save the "
 	    "previous command that was executed, use one of:",
 	    "  [Shift]+[Ctrl]+[L]",

@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.71 2002/12/28 10:21:51 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.72 2003/01/05 09:44:18 bjorng Exp $
 %%
 
 -module(wings_menu).
--export([is_popup_event/1,menu/5,popup_menu/4,build_command/2]).
+-export([is_popup_event/1,is_popup_event/3,menu/5,popup_menu/4,build_command/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -62,6 +62,25 @@ is_popup_event(#mousebutton{button=3,x=X0,y=Y0,state=State}) ->
 	_Other -> no
     end;
 is_popup_event(_Event) -> no.
+
+is_popup_event(Ev0, PrefKey, St0) ->
+    case is_popup_event(Ev0) of
+	no -> no;
+	{yes,Xglobal,Yglobal,_}=Res ->
+	    {Xlocal,Ylocal} = wings_wm:global2local(Xglobal, Yglobal),
+	    case wings_pref:get_value(PrefKey) of
+		false -> Res;
+		true ->
+		    case wings_pick:do_pick(Xlocal, Ylocal, St0) of
+			{add,_,St} ->
+			    Ev = wings_wm:local2global(Ev0),
+			    wings_io:putback_event(Ev),
+			    wings_io:putback_event({new_state,St}),
+			    keep;
+			_Other -> Res
+		    end
+	    end
+    end.
 
 menu(X, Y, Owner, Name, Menu) ->
     menu_setup(plain, X, Y, Name, Menu,

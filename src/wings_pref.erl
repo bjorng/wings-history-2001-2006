@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.66 2003/01/04 23:22:41 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.67 2003/01/05 09:44:18 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -143,6 +143,8 @@ command(advanced, _St) ->
     Qs = [{vframe,
 	   [{"Advanced Menus",advanced_menus},
 	    {"Default Commands",default_commands},
+	    {"Right Click Selects in Scene Window",
+	     right_click_sel_in_geom},
 	    {"Right Click Selects in Secondary Selection Mode",
 	     right_click_sel_in_ss}
 	   ]}],
@@ -315,7 +317,8 @@ defaults() ->
      %% Advanced features.
      {advanced_menus,false},
      {default_commands,false},
-     {right_click_sel_in_ss,false}
+     {right_click_sel_in_ss,false},
+     {right_click_sel_in_geom,false}
     ].
 
 clean(List) ->

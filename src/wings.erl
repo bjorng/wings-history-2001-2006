@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.187 2003/01/04 23:22:40 bjorng Exp $
+%%     $Id: wings.erl,v 1.188 2003/01/05 09:44:18 bjorng Exp $
 %%
 
 -module(wings).
@@ -238,9 +238,10 @@ handle_event_1(Ev, St) ->
     end.
 
 handle_event_2(Event, St) ->
-    case wings_menu:is_popup_event(Event) of
+    case wings_menu:is_popup_event(Event, right_click_sel_in_geom, St) of
 	no -> handle_event_3(Event, St);
-	{yes,X,Y,_} -> popup_menu(X, Y, St)
+	{yes,X,Y,_} -> popup_menu(X, Y, St);
+	Other -> Other
     end.
 	    
 handle_event_3(#keyboard{}=Event, St) ->
@@ -499,10 +500,9 @@ edit_menu(St) ->
      {command_name("Repeat Drag", St),repeat_drag},
      separator,
      wings_material:sub_menu(edit, St),
-     separator|wings_camera:sub_menu(St)++wings_pref:menu(St)++
-     wings_text:sub_menu(St)++
-     [separator,
-      {"Purge Undo History",purge_undo}|patches()]].
+     separator|wings_camera:sub_menu(St)++wings_text:sub_menu(St)++
+     [separator|wings_pref:menu(St)++
+      [separator,{"Purge Undo History",purge_undo}|patches()]]].
 
 tools_menu(_) ->
     Dirs = [{"All",all},
