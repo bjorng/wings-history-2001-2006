@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.129 2002/04/13 07:23:21 bjorng Exp $
+%%     $Id: wings.erl,v 1.130 2002/04/16 09:40:18 bjorng Exp $
 %%
 
 -module(wings).
@@ -433,17 +433,7 @@ command({tools,{move_to_bb,Dir}}, St) ->
 %% Objects menu.
 
 command({objects,Obj}, St) ->
-    wings_shape:command(Obj, St);
-
-%% Common commands.
-command({_,collapse}, St) ->
-    {save_state,model_changed(wings_collapse:collapse(St))};
-command({_,{move,Type}}, St) ->
-    wings_move:setup(Type, St);
-command({_,{rotate,Type}}, St) ->
-    wings_rotate:setup(Type, St);
-command({_,{scale,Type}}, St) ->
-    wings_scale:setup(Type, St).
+    wings_shape:command(Obj, St).
 
 popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
     case {Sel,Mode} of

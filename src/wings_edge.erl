@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.40 2002/04/13 07:23:21 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.41 2002/04/16 09:40:18 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -91,6 +91,8 @@ command(connect, St) ->
     {save_state,model_changed(connect(St))};
 command(dissolve, St) ->
     {save_state,model_changed(dissolve(St))};
+command(collapse, St) ->
+    {save_state,model_changed(wings_collapse:collapse(St))};
 command({hardness,Type}, St) ->
     {save_state,model_changed(hardness(Type, St))};
 command(loop_cut, St) ->
