@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.38 2004/04/12 09:02:57 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.39 2004/06/27 11:58:56 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -39,14 +39,13 @@ clean_faces(Mesh) ->
 %% transform(Mesh0) -> Mesh
 %%  Transform all vertices in the mesh by the matrix in the e3d_mesh
 %%  record.
-%%
-
-transform(#e3d_mesh{matrix=none}=Mesh) -> Mesh;
-transform(#e3d_mesh{matrix=Matrix}=Mesh) -> transform(Mesh, Matrix).
+transform(#e3d_mesh{matrix=Matrix}=Mesh) ->
+    transform(Mesh#e3d_mesh{matrix=identity}, Matrix).
     
 %% transform(Mesh0, Matrix) -> Mesh
 %%  Transform all vertices in the mesh by the matrix.
-transform(#e3d_mesh{vs=Vs0}=Mesh, Matrix) ->
+transform(#e3d_mesh{vs=Vs0,matrix=ObjMatrix}=Mesh, Matrix0) ->
+    Matrix = e3d_mat:mul(Matrix0, ObjMatrix),
     case e3d_mat:is_identity(Matrix) of
 	true -> Mesh;
 	false ->
@@ -54,7 +53,7 @@ transform(#e3d_mesh{vs=Vs0}=Mesh, Matrix) ->
 				[e3d_mat:mul_point(Matrix, P)|A]
 			end, [], Vs0),
 	    Vs = reverse(Vs1),
-	    Mesh#e3d_mesh{vs=Vs}
+	    Mesh#e3d_mesh{vs=Vs,matrix=identity}
     end.
 
 %% make_quads(Mesh0) -> Mesh

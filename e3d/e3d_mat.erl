@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.28 2004/06/09 19:08:13 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.29 2004/06/27 11:58:56 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -28,15 +28,19 @@ identity() ->
      Zero,Zero,One,
      Zero,Zero,Zero}.
 
+is_identity(identity) -> true;
 is_identity({1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0}) -> true;
 is_identity({1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,
 	     0.0,0.0,0.0,0.1}) -> true;
 is_identity({_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_}) -> false;
 is_identity({_,_,_,_,_,_,_,_,_,_,_,_}) -> false.
 
+compress(identity=I) -> I;
 compress({A,B,C,0.0,D,E,F,0.0,G,H,I,0.0,Tx,Ty,Tz,1.0}) ->
     {A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}.
 
+expand(identity) ->
+    {1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0};
 expand({_A,_B,_C,_,_D,_E,_F,_,_G,_H,_I,_,_Tx,_Ty,_Tz,_}=Mat) -> Mat;
 expand({A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}) ->
     {A,B,C,0.0,D,E,F,0.0,G,H,I,0.0,Tx,Ty,Tz,1.0}.
@@ -182,12 +186,15 @@ rotate_s_to_t_1({Vx,Vy,Vz}, E) when is_float(Vx), is_float(Vy), is_float(Vz) ->
      HVxz+Vy,HVyz-Vx,E+HVz*Vz,
      0.0,0.0,0.0}.
 
+transpose(identity=I) -> I;
 transpose({M1,M2,M3,M4,M5,M6,M7,M8,M9,0.0=Z,0.0,0.0}) ->
     {M1,M4,M7,
      M2,M5,M8,
      M3,M6,M9,
      Z,Z,Z}.
 
+mul(M, identity) -> M;
+mul(identity, M) -> M;
 mul({1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,B_tx,B_ty,B_tz},
     {A_a,A_b,A_c,A_d,A_e,A_f,A_g,A_h,A_i,A_tx,A_ty,A_tz})
   when is_float(A_tx), is_float(A_ty), is_float(A_tz),
@@ -254,6 +261,7 @@ mul({A,B,C,Q0,D,E,F,Q1,G,H,I,Q2,Tx,Ty,Tz,Q3}, {X,Y,Z,W})
      X*C + Y*F + Z*I + W*Tz,
      X*Q0 + Y*Q1 + Z*Q2 + W*Q3}.
 
+mul_point(identity, P) -> P;
 mul_point({A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}, {X,Y,Z})
   when is_float(A), is_float(B), is_float(C), is_float(D), is_float(E),
        is_float(F), is_float(G), is_float(H), is_float(I), 
@@ -269,6 +277,7 @@ mul_point({A,B,C,0.0,D,E,F,0.0,G,H,I,0.0,Tx,Ty,Tz,1.0}, {X,Y,Z})
 	  X*B + Y*E + Z*H + Ty,
 	  X*C + Y*F + Z*I + Tz).
 
+mul_vector(identity, Vec) -> Vec;
 mul_vector({A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}, {X,Y,Z})
   when is_float(A), is_float(B), is_float(C), is_float(D), is_float(E),
        is_float(F), is_float(G), is_float(H), is_float(I), 

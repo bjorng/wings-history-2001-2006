@@ -3,12 +3,12 @@
 %%
 %%     Record definition for generic in-memory 3D file format.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d.hrl,v 1.7 2003/06/15 11:30:13 bjorng Exp $
+%%     $Id: e3d.hrl,v 1.8 2004/06/27 11:58:56 bjorng Exp $
 %%
 
 -record(e3d_file,
@@ -32,7 +32,7 @@
 	 ns=[],					%Normal table (list).
  	 fs=[],					%Face table (list of e3d_face).
 	 he=[],					%List of chains of hard edges.
-	 matrix=none				%Local coordinate system.
+	 matrix=identity			%Local coordinate system.
  	}).
 
 -record(e3d_face,

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.40 2004/06/24 16:23:09 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.41 2004/06/27 11:58:56 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -349,26 +349,21 @@ fix_transform_1(#e3d_object{name=Name,obj=Mesh}=Obj) ->
 
 get_transform(Name) ->
     case ets:lookup(?MODULE, Name) of
-	[] ->
-	    none;
+	[] -> identity;
 	[{Name,ParentId}] ->
 	    case get_name_and_matrix(ParentId) of
-		none -> none;
+		identity -> identity;
 		{Parent,Matrix} ->
-		    case get_transform(Parent) of
-			none -> Matrix;
-			OtherMatrix ->
-			    e3d_mat:mul(OtherMatrix, Matrix)
-		    end
+		    e3d_mat:mul(get_transform(Parent), Matrix)
 	    end
     end.
 
 get_name_and_matrix(Id) ->
     case ets:lookup(?MODULE, Id) of
-	[] -> none;
+	[] -> identity;
 	[{Id,Name}] ->
 	    case ets:lookup(?MODULE, {local_matrix,Name}) of
-		[] -> none;
+		[] -> identity;
 		[{_,Matrix}] -> {Name,Matrix}
 	    end
     end.
