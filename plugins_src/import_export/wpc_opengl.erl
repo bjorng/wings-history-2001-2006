@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.50 2003/11/17 20:26:57 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.51 2003/11/20 23:21:36 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -26,7 +26,7 @@
 
 %% UNTIL ESDL catches up..
 -ifndef(GL_DEPTH_CLAMP_NV).
--define(GL_DEPTH_CLAMP_NV,      16#864F).
+-define(GL_DEPTH_CLAMP_NV,	16#864F).
 -endif.
 
 -define(STENCIL_INIT, 128).
@@ -36,16 +36,16 @@
 	 attr,
 	 mat,
 	 data,
-	 no_l   = 0,     
-	 amb    = none,
+	 no_l	= 0,	 
+	 amb	= none,
 	 lights = [],
 	 mask,
-	 bump,  % true | false
+	 bump,	% true | false
 	 shadow % true | false
 	}).
 
--record(d, {l,       % smooth display list
-	    f,       % fast display list
+-record(d, {l,	     % smooth display list
+	    f,	     % fast display list
 	    matfs,   % [{mat,[{Face, [VInfo|Normal]}]}]
 	    hasBump, % true | false
 	    we}).
@@ -60,7 +60,7 @@ is_transp({_,Tr}) -> Tr.
 		aim, 
 		attr, 
 		dl = [], % Display lists
-		sv = []  % List of display lists of shadow volumes
+		sv = []	 % List of display lists of shadow volumes
 	       }).
 
 init() ->
@@ -82,14 +82,14 @@ dialog_qs(render) ->
     Shadow = get_pref(render_shadow, false),
     BumpMap  = get_pref(render_bumps, false),
 
-    BumpP = wings_util:is_gl_ext({1,3}, bump_exts()), 
+    BumpP = wings_util:is_gl_ext({1,3}, bump_exts()) or programmable(),
     StencilP = hd(gl:getIntegerv(?GL_STENCIL_BITS)) >= 8,
-    
+
     [{menu,[{"Render to Image Window",preview},
 	    {"Render to File",file}],
       DefOutput,[{key,output_type}]},
      aa_frame(),
-     
+
      {hframe,
       [{label,"Sub-division Steps"},{text,SubDiv,[{key,subdivisions},
 						  {range,1,4}]}]},
@@ -159,12 +159,12 @@ do_render(Attr0, St) ->
 
 	    Aa = proplists:get_value(aa, Attr),
 	    AccSize = translate_aa(Aa),
-	    RenderAlpha  = proplists:get_bool(render_alpha, Attr),
+	    RenderAlpha	 = proplists:get_bool(render_alpha, Attr),
 	    RenderShadow = proplists:get_value(render_shadow, Attr, false),
-	    RenderBumps  = proplists:get_value(render_bumps, Attr, false),
+	    RenderBumps	 = proplists:get_value(render_bumps, Attr, false),
 
 	    {Data,{NOL, Amb,Lights}} = create_dls(St, Attr, RenderShadow, RenderBumps),
-	    
+
 	    Rr = #r{acc_size=AccSize,attr=Attr,
 		    data=Data,mat=St#st.mat,
 		    no_l=NOL,amb=Amb,lights=Lights,
@@ -202,12 +202,18 @@ render_exit(#r{lights=Lights, data=D}) ->
 		    foreach(fun(DL) -> del_list(DL) end,L1++L2)
 	    end, Lights),
     foreach(fun(#d{l=DL}) -> del_list(DL) end, D),
+    case get(gl_shaders) of
+	{Vp, Fp} -> 
+	    gl:deleteProgramsARB(2, [Vp,Fp]);
+	_ ->
+	    ignore
+    end,
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     wings_wm:dirty().
 
-prepare_mesh(#we{perm=P}, _, _, Wes, _) when ?IS_NOT_VISIBLE(P) ->
+prepare_mesh(#we{perm=P}, _, _, _,Wes, _) when ?IS_NOT_VISIBLE(P) ->
     Wes;
-prepare_mesh(We0=#we{light=none}, SubDiv, RenderAlpha, Wes, St) ->    
+prepare_mesh(We0=#we{light=none},SubDiv,RenderAlpha,RenderBumps,Wes, St) ->    
     We = case SubDiv of
 	     0 ->
 		 %% If no sub-divisions requested, it is safe to
@@ -222,31 +228,35 @@ prepare_mesh(We0=#we{light=none}, SubDiv, RenderAlpha, Wes, St) ->
 		 wpa:triangulate(We2)
 	 end,
     Fast = dlist_mask(RenderAlpha, We),
-    FN0      = [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(We#we.fs)],
-    FVN      = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
+    FN0	     = [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(We#we.fs)],
+    FVN	     = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
     MatFs0   = wings_material:mat_faces(FVN, We), %% sorted by mat..
     MatFs    = patch_tangent_space(MatFs0, We, []),
-    HasBumps = lists:any(fun({Mat, _}) -> 
-				 get_bump(gb_trees:get(Mat,St#st.mat)) /= false 
-			 end, MatFs),
-    DL = draw_faces(MatFs, We, St#st.mat, skip),
-    [#d{l=DL,f=Fast,hasBump=HasBumps,matfs=MatFs,we=We}|Wes];
-prepare_mesh(#we{}, _, _, Wes, _) -> %% Skip Lights
+    PAble = programmable(),
+    UseLight = if 
+		   RenderBumps and PAble -> 
+		       load_shaders(),
+		       pable;
+		   true -> 
+		       skip
+	       end,
+    DL = draw_faces(MatFs, We, St#st.mat, UseLight),
+    [#d{l=DL,f=Fast,hasBump=RenderBumps,matfs=MatFs,we=We}|Wes];
+prepare_mesh(#we{}, _, _, _,Wes, _) -> %% Skip Lights
     Wes.
 
-create_dls(St0, Attr, Shadows, Bumps0) ->
+create_dls(St0, Attr, Shadows, Bumps) ->
     St = invisible_holes(St0),
     SubDiv = proplists:get_value(subdivisions, Attr),
     RenderAlpha = proplists:get_bool(render_alpha, Attr),
     Ds = foldl(fun(We, Wes) ->
-		       prepare_mesh(We, SubDiv, RenderAlpha, Wes, St)
+		       prepare_mesh(We, SubDiv, RenderAlpha, Bumps, Wes, St)
 	       end, [], gb_trees:values(St#st.shapes)),
-    Bump = Bumps0 andalso has_bumps(St#st.mat),    
     Ls = if
-	     Shadows or Bump -> %% Needs per-light data..
+	     Shadows or Bumps -> %% Needs per-light data..
 		 Ls0  = wpa:lights(St),
 		 Mats = St#st.mat,
-		 create_light_data(Ls0, Ds, 0, Mats, Bump, Shadows, none, []);
+		 create_light_data(Ls0, Ds, 0, Mats, Bumps, Shadows, none, []);
 	     true ->
 		 {0,none,[]}
 	 end,
@@ -264,7 +274,7 @@ create_light_data([{_Name,L0}|Ls], Ds, C, Mat, Bumps, Shadow, Amb, Acc) ->
 	ambient when Amb == none -> 
 	    AmbC = proplists:get_value(ambient, L),
 	    create_light_data(Ls, Ds, C+1, Mat, Bumps, Shadow, AmbC, Acc);
-	ambient  -> %% Several ambient ?? 
+	ambient	 -> %% Several ambient ?? 
 	    create_light_data(Ls, Ds, C, Mat, Bumps, Shadow, Amb, Acc);
 	_ ->
 	    Li = create_light(L,#light{}, []),
@@ -290,7 +300,7 @@ create_light_data([{_Name,L0}|Ls], Ds, C, Mat, Bumps, Shadow, Amb, Acc) ->
 create_light([{type,Type}|R], L, Acc) -> create_light(R,L#light{type=Type},Acc);
 create_light([{position, Pos}|R], L, Acc)  -> create_light(R,L#light{pos=Pos},Acc);
 create_light([{aim_point, Aim}|R], L, Acc)  -> create_light(R,L#light{aim=Aim},Acc);
-create_light([Attr|R], L, Acc)        -> create_light(R,L,[Attr|Acc]);
+create_light([Attr|R], L, Acc)	      -> create_light(R,L,[Attr|Acc]);
 create_light([], L, Acc) ->  L#light{attr=Acc}.
 
 dlist_mask(false, _) -> none;
@@ -400,7 +410,7 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,mat=Mat,shadow=Shadows,no_l=PerLigth}
 	    end;
 	true ->
 	    ignore
-    end,	    
+    end,     
     ?CHECK_ERROR(),
     %% Carmack's reversed shadow algorithm
     gl:clearStencil(?STENCIL_INIT),
@@ -425,7 +435,7 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,mat=Mat,shadow=Shadows,no_l=PerLigth}
     setup_amb(Amb),
     gl:enable(?GL_LIGHTING),
     gl:disable(?GL_CULL_FACE),
-    foreach(fun(#d{l=DL}) ->         
+    foreach(fun(#d{l=DL}) ->	     
 		    gl:callList(get_opaque(DL)) end, Wes),
     disable_lights(),
     gl:disable(?GL_LIGHTING),
@@ -485,10 +495,11 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:depthFunc(?GL_EQUAL),
     setup_light(L),
     gl:enable(?GL_LIGHTING),
+    enable_shaders(L#light.pos),
     foreach(fun(DL) -> 
 		    case is_transp(DL) of
 			true -> 
-			    gl:disable(?GL_CULL_FACE),    
+			    gl:disable(?GL_CULL_FACE),	  
 			    gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE);
 			false ->
 			    gl:enable(?GL_CULL_FACE),
@@ -507,8 +518,9 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
 	    end, DLs),
     gl:blendFunc(?GL_ONE, ?GL_ONE),
     gl:disable(?GL_LIGHTING),
+    disable_shaders(),
     disable_lights(),
-%    debug_shad(Shadow),
+						%    debug_shad(Shadow),
     true.
 
 
@@ -521,12 +533,12 @@ debug_shad(Lists) ->
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_SRC_ALPHA),
     gl:color4f(0.0,0.0,1.0,0.5),
     gl:shadeModel(?GL_FLAT),
-    %%    gl:disable(?GL_BLEND),
+    %%	  gl:disable(?GL_BLEND),
     gl:depthFunc(?GL_GEQUAL),
 
     %% Toggle DEPTH TEST to see shadows
-%%    gl:disable(?GL_DEPTH_TEST),  
-    %%    gl:disable(?GL_STENCIL_TEST),
+    %%    gl:disable(?GL_DEPTH_TEST),  
+    %%	  gl:disable(?GL_STENCIL_TEST),
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_FRONT),
     foreach(fun(DL) -> gl:callList(DL) end, Lists),
@@ -606,17 +618,17 @@ render_redraw_1(#d{l=DL}, RenderTrans) ->
 		    gl:disable(?GL_BLEND),
 		    gl:depthMask(?GL_TRUE)
 	    end,
-	    
+
 	    %% Backsides of opaque objects should be drawn
 	    %% if the object has any transparency.
 	    case is_transp(DL) andalso not RenderTrans of
 		true -> gl:disable(?GL_CULL_FACE);
 		false -> gl:enable(?GL_CULL_FACE)
 	    end,
-	    
+
 	    case RenderTrans of
 		false -> wings_draw_util:call(get_opaque(DL));
-		true ->  wings_draw_util:call(get_transp(DL))
+		true ->	 wings_draw_util:call(get_transp(DL))
 	    end,
 	    gl:depthMask(?GL_TRUE),
 	    ?CHECK_ERROR()
@@ -711,7 +723,8 @@ combine_images(#e3d_image{image=Pixels0}=Image, #e3d_image{image=Mask}) ->
     Pixels = combine_img_1(Pixels0, Mask, []),
     Image#e3d_image{type=b8g8r8a8,bytes_pp=4,image=Pixels}.
 
-combine_img_1(<<RGB:768/binary,P/binary>>, <<A:256/binary,M/binary>>, 
+combine_img_1(<<RGB:768/binary,P/binary>>, 
+	      <<A:256/binary,M/binary>>, 
 	      Acc) ->
     Chunk = combine_img_2(binary_to_list(RGB), binary_to_list(A), []),
     combine_img_1(P, M, [Chunk|Acc]);
@@ -758,7 +771,6 @@ frontfacing([[_|N1]|RN],[L1|RL]) ->
 	    true
     end.
 
-
 %% Returns {FacesFacingLigth,FacesAwayFromLigth,CW_VsLoops}
 partition_model(We, Matfs, LPos, DirOrPos) ->
     Partition=
@@ -782,12 +794,12 @@ partition_model(We, Matfs, LPos, DirOrPos) ->
 					     end, EL, Face, We),
 			{[Face|FF],BF,Es}
 		end
-      end,
+	end,
     Cluster = fun({_Mat,List}, A0) ->
 		      foldl(Partition, A0, List)
 	      end,
     {FF,BF,EL} = foldl(Cluster, {[],[],[]}, Matfs),
-    Eds   = outer_edges_1(lists:sort(EL), []),   
+    Eds	  = outer_edges_1(lists:sort(EL), []),	 
     Loops = case wings_edge_loop:edge_loop_vertices(Eds,We) of
 		none -> [];
 		Ls -> 
@@ -914,15 +926,6 @@ setup_light_attr([{quadratic_attenuation,Att}|As]) ->
 
 %% Bump helpers
 
-has_bumps(Mats0) ->
-    Mats = gb_trees:to_list(Mats0),
-    lists:any(fun({_Name,Def}) ->
-		      false /= get_bump(Def)
-	      end, Mats).
-get_bump(Mat) ->
-    Maps = proplists:get_value(maps, Mat, false),
-    proplists:get_value(bump, Maps, false).
-
 bump_exts() ->
     ['GL_ARB_texture_cube_map',
      'GL_ARB_multitexture',
@@ -930,17 +933,27 @@ bump_exts() ->
      'GL_ARB_texture_env_dot3',
      'GL_EXT_texture3D'].
 
+programmable() ->
+%     wings_util:is_gl_ext(['GL_ARB_vertex_program', 
+% 			  'GL_ARB_fragment_program']).
+    false.
+
 %% Bump drawings 
 create_bumped(#d{l=DL}, false, _,_) -> DL;  % No Bumps use default DL
-create_bumped(#d{l=DL,we=We}, _,_,_)        % Vertex mode can't have bumps.
+create_bumped(#d{l=DL,we=We}, _,_,_)	    % Vertex mode can't have bumps.
   when We#we.mode == vertex -> DL;
-create_bumped(#d{matfs=MatFs,we=We},true,Mtab,#light{pos=LPos, type=Type}) -> 
-    LType = case Type of 
-		infinite -> dir;
-		_ -> pos
-	    end,
-    draw_faces(MatFs, We, Mtab, {LType,mult_inverse_model_transform(LPos)}).
-	
+create_bumped(#d{matfs=MatFs,we=We,l=DL},true,Mtab,#light{pos=LPos, type=Type}) -> 
+    case programmable() of
+	true -> %% Using the vertex/pixel program path, calc everything in programs
+	    DL;
+	false ->
+	    LType = case Type of 
+			infinite -> dir;
+			_ -> pos
+		    end,
+	    draw_faces(MatFs, We, Mtab, {LType,mult_inverse_model_transform(LPos)})
+    end.
+
 mult_inverse_model_transform(Pos) ->
     #view{origin=Origin,distance=Dist,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = wings_view:current(),
@@ -988,29 +1001,25 @@ do_draw_smooth(_, Faces, #we{mode = vertex}=We,_,Mtab) ->
     gl:'begin'(?GL_TRIANGLES),
     draw_vtx_color(Faces, We),
     gl:'end'(),
-    gl:disable(?GL_COLOR_MATERIAL),
-    [];
+    gl:disable(?GL_COLOR_MATERIAL);
 
 do_draw_smooth(MatN, Faces, We, L, Mtab) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
     Mat = gb_trees:get(MatN, Mtab),
-    Bump = get_bump(Mat) /= false andalso L /= skip,
-    case Bump of
-	false ->
+    case L of
+	skip ->
 	    IsTxMat = wings_material:apply_material(MatN, Mtab),
 	    gl:'begin'(?GL_TRIANGLES),
 	    do_draw_faces(Faces, IsTxMat, We),
 	    gl:'end'(),
-	    gl:popAttrib(),
-	    false;
-	true -> 
-	    IsTxMat = apply_bumped_mat(Mat),
+	    gl:popAttrib();
+	_ -> 
+	    apply_bumped_mat(Mat, L),
 	    gl:'begin'(?GL_TRIANGLES),
-	    do_draw_bumped(Faces, IsTxMat, We, L),
+	    do_draw_bumped(Faces, true, We, L),
 	    gl:'end'(),
 	    disable_bumps(),
-	    gl:popAttrib(),
-	    true
+	    gl:popAttrib()
     end.
 
 draw_vtx_color([], _) -> ok;
@@ -1019,55 +1028,77 @@ draw_vtx_color([{Face,[[Col1|N1],[Col2|N2],[Col3|N3]|_BUG]}|Faces], We) ->
     gl:normal3fv(N1),
     glcolor3fv(Col1),
     gl:vertex3fv(V1),
-    
+
     gl:normal3fv(N2),
     glcolor3fv(Col2),
     gl:vertex3fv(V2),
-    
+
     gl:normal3fv(N3),
     glcolor3fv(Col3),
     gl:vertex3fv(V3),
     draw_vtx_color(Faces,We).
 
 do_draw_faces([],_,_) -> ok;
+%%% Unprogrammable cards..
 do_draw_faces([{Face, [[UV1|TBN1],[UV2|TBN2],[UV3|TBN3]|_BUG]}|Fs],Tex, We) ->
     [V1,V2,V3|_] = wings_face:vertex_positions(Face, We),
     gl:normal3fv(element(3, TBN1)),
     texCoord(UV1, Tex),
     gl:vertex3fv(V1),
-    
+
     gl:normal3fv(element(3, TBN2)),
     texCoord(UV2,Tex),
     gl:vertex3fv(V2),
-    
+
     gl:normal3fv(element(3, TBN3)),
     texCoord(UV3,Tex),
     gl:vertex3fv(V3),
     do_draw_faces(Fs, Tex, We).
-    
+
 do_draw_bumped([], _,_,_) -> ok;
+do_draw_bumped([{Face, [[UV1|TBN1],[UV2|TBN2],[UV3|TBN3]|_BUG]}|Fs], 
+	       Txt, We, pable) ->
+    [V1,V2,V3|_] = wings_face:vertex_positions(Face, We),
+    gl:normal3fv(element(3, TBN1)),
+    gl:multiTexCoord3fv(?GL_TEXTURE0, element(1,TBN1)),
+    texCoord(UV1, true, ?GL_TEXTURE1),
+    %%	  io:format("V=~p.~p~n",[V1,[UV1|N1]]),
+    gl:vertex3fv(V1),
+
+    gl:normal3fv(element(3, TBN2)),
+    gl:multiTexCoord3fv(?GL_TEXTURE0, element(1,TBN2)),
+    texCoord(UV2, true, ?GL_TEXTURE1),
+    %%	  io:format("V=~p.~p~n",[V2,[UV2|N2]]),
+    gl:vertex3fv(V2),
+
+    gl:normal3fv(element(3, TBN3)),
+    gl:multiTexCoord3fv(?GL_TEXTURE0, element(1,TBN3)),
+    texCoord(UV3, true, ?GL_TEXTURE1),
+    %%	  io:format("V=~p.~p~n",[V3,[UV3|N3]]),
+    gl:vertex3fv(V3),
+    do_draw_bumped(Fs, Txt, We, pable);
 do_draw_bumped([{Face, [[UV1|TBN1],[UV2|TBN2],[UV3|TBN3]|_BUG]}|Fs], 
 	       Txt, We, L) ->
     [V1,V2,V3|_] = wings_face:vertex_positions(Face, We),
     gl:normal3fv(element(3, TBN1)),
     texCoord(UV1, true, ?GL_TEXTURE1),
-%    io:format("V=~p.~p~n",[V1,[UV1|N1]]),
+						%    io:format("V=~p.~p~n",[V1,[UV1|N1]]),
     bumpCoord(TBN1, V1, L),
-    texCoord(UV1, Txt,  ?GL_TEXTURE3),
+    texCoord(UV1, Txt,	?GL_TEXTURE3),
     gl:vertex3fv(V1),
 
     gl:normal3fv(element(3, TBN2)),
     texCoord(UV2, true, ?GL_TEXTURE1),
-%    io:format("V=~p.~p~n",[V2,[UV2|N2]]),
+						%    io:format("V=~p.~p~n",[V2,[UV2|N2]]),
     bumpCoord(TBN2, V2, L),
-    texCoord(UV2, Txt,  ?GL_TEXTURE3),
+    texCoord(UV2, Txt,	?GL_TEXTURE3),
     gl:vertex3fv(V2),
 
     gl:normal3fv(element(3, TBN3)),
     texCoord(UV3, true, ?GL_TEXTURE1),
-%    io:format("V=~p.~p~n",[V3,[UV3|N3]]),
+						%    io:format("V=~p.~p~n",[V3,[UV3|N3]]),
     bumpCoord(TBN3, V3, L),
-    texCoord(UV3, Txt,  ?GL_TEXTURE3),
+    texCoord(UV3, Txt,	?GL_TEXTURE3),
     gl:vertex3fv(V3),
     do_draw_bumped(Fs, Txt, We, L).
 
@@ -1088,38 +1119,39 @@ texCoord(_, true, Unit) ->
 texCoord(_, false, _) ->
     ok.
 
-default_uv(UV = {_,_}) -> UV;    
+default_uv(UV = {_,_}) -> UV;	 
 default_uv(none) -> {0.0,0.0}.
 
 calcTS(V1,V2,V3,UV1,UV2,UV3,N) ->
-    {_S1,T1} = default_uv(UV1),
-    {_S2,T2} = default_uv(UV2),
-    {_S3,T3} = default_uv(UV3),
+    {S1,T1} = default_uv(UV1),
+    {S2,T2} = default_uv(UV2),
+    {S3,T3} = default_uv(UV3),
     Side1 = e3d_vec:sub(V1,V2),
     Side2 = e3d_vec:sub(V3,V2),
     DT1 = T1-T2,
     DT2 = T3-T2,
     Stan1 = 
-	if (DT1 == {0.0,0.0}) or (DT2 == {0.0,0.0}) -> 
+	if (DT1 == 0.0) and (DT2 == 0.0) -> 
 		%% if no uv-coords..
 		e3d_vec:norm(e3d_vec:sub(Side1,Side2));
 	   true ->
 		e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DT2),
 					 e3d_vec:mul(Side2,DT1)))
+	end,	   
+    DS1 = S1-S2,
+    DS2 = S3-S2,
+    Ttan1 = 
+	if 
+	    (DS1 == 0.0) and (DS2 == 0.0) -> 
+		e3d_vec:norm(e3d_vec:cross(Stan1,N));
+	    true ->
+		e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DS2),
+					 e3d_vec:mul(Side2,DS1)))
 	end,
-
-%    DS1 = S1-S2,
-%    DS2 = S3-S2,
-%    Ttan1 = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DS2),
-%				    e3d_vec:mul(Side2,DS1))),
-
-    Ttan2 = e3d_vec:norm(e3d_vec:cross(Stan1,N)),
-%    CN = e3d_vec:cross(Stan,Ttan),
-    Stan2 = e3d_vec:norm(e3d_vec:cross(Ttan2,N)),
-%     Stan = Stan1, Ttan = Tan1,
-%     Stan = Stan1, Ttan = Tan2,
-%     Stan = Stan2, Ttan = Tan1,
-    Stan = Stan2, Ttan = Ttan2,
+    %% OK we the 2 tangents but cross them again with normal
+    %% so they are orthogonal
+    Stan  = e3d_vec:norm(e3d_vec:cross(Ttan1,N)),
+    Ttan  = e3d_vec:norm(e3d_vec:cross(Stan,N)),
     Check = e3d_vec:dot(e3d_vec:cross(Stan,Ttan),N),
     if 
 	Check < 0.0 ->
@@ -1141,10 +1173,10 @@ bumpCoord({Vx,Vy,Vn}, Vpos, {Type,InvLight0}) ->
     X = e3d_vec:dot(Vx,InvLight),
     Y = e3d_vec:dot(Vy,InvLight),
     Z = e3d_vec:dot(Vn,InvLight),
-    gl:multiTexCoord3f(?GL_TEXTURE0, X,Y,Z).    
+    gl:multiTexCoord3f(?GL_TEXTURE0, X,Y,Z).	
 
 
-apply_bumped_mat(Mat) ->
+apply_bumped_mat(Mat, Programmable) ->
     OpenGL = proplists:get_value(opengl, Mat),
     gl:materialfv(?GL_FRONT_AND_BACK, ?GL_DIFFUSE, 
 		  proplists:get_value(diffuse, OpenGL)), 
@@ -1155,10 +1187,35 @@ apply_bumped_mat(Mat) ->
     Shine = proplists:get_value(shininess, OpenGL)*128,
     gl:materialf(?GL_FRONT_AND_BACK, ?GL_SHININESS, Shine),
     gl:materialfv(?GL_FRONT_AND_BACK, ?GL_EMISSION, 
-		  proplists:get_value(emission, OpenGL)),
+		  proplists:get_value(emission, OpenGL)),    
+    [{diffuse, DefDiff},{bump,DefBump},{gloss,DefGloss}] = 
+	wings_image:default(all),
     Maps = proplists:get_value(maps, Mat),
-    Bump = wings_image:bumpid(proplists:get_value(bump, Maps, none)),
+    Diffuse = case proplists:get_value(diffuse, Maps, none) of
+		  none -> DefDiff;
+		  Diff0 -> wings_image:txid(Diff0)
+	      end,
+    Bump    = case proplists:get_value(bump, Maps, none) of
+		  none -> DefBump;
+		  Bump0 -> wings_image:bumpid(Bump0)
+	      end,
+    Gloss   = case proplists:get_value(gloss, Maps, none) of
+		  none -> DefGloss;
+		  Gloss0 -> wings_image:txid(Gloss0)
+	      end,
+    activate_textures(Diffuse,Bump,Gloss,Programmable).
 
+activate_textures(Diffuse,Bump,Gloss,pable) ->
+    gl:activeTexture(?GL_TEXTURE0),
+    gl:enable(?GL_TEXTURE_2D),	   
+    gl:bindTexture(?GL_TEXTURE_2D,Diffuse),
+    gl:activeTexture(?GL_TEXTURE1),
+    gl:enable(?GL_TEXTURE_2D),	   
+    gl:bindTexture(?GL_TEXTURE_2D,Bump),
+    gl:activeTexture(?GL_TEXTURE2),
+    gl:enable(?GL_TEXTURE_2D),	   
+    gl:bindTexture(?GL_TEXTURE_2D,Gloss);
+activate_textures(Diffuse,Bump,_,_) ->  % Non programable hardware
     %% Start by creating bump data
     CubeMap = wings_image:normal_cubemapid(),
     gl:activeTexture(?GL_TEXTURE0),
@@ -1167,49 +1224,42 @@ apply_bumped_mat(Mat) ->
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_COMBINE),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_COMBINE_RGB, ?GL_REPLACE),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE0_RGB, ?GL_TEXTURE),
-    
+
     gl:activeTexture(?GL_TEXTURE1),
-    gl:enable(?GL_TEXTURE_2D),	    
+    gl:enable(?GL_TEXTURE_2D),	   
     gl:bindTexture(?GL_TEXTURE_2D,Bump),
-    
+
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_COMBINE),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_COMBINE_RGB,  ?GL_DOT3_RGB),
-    
+
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE0_RGB,  ?GL_PREVIOUS),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE1_RGB,  ?GL_TEXTURE),
-    
+
     %% Modulate with material (diffuse)
     gl:activeTexture(?GL_TEXTURE2),
     gl:enable(?GL_TEXTURE_2D),
     gl:bindTexture(?GL_TEXTURE_2D, Bump), %% Needs some texture here
-    
+
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_COMBINE),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_COMBINE_RGB,      ?GL_MODULATE),    
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_COMBINE_RGB,      ?GL_MODULATE),	
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE0_RGB,      ?GL_PRIMARY_COLOR),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE1_RGB,      ?GL_PREVIOUS),
-    
-    %% Modulate with optional texture
-    case proplists:get_value(diffuse, Maps, none) of
-	none ->
-	    false;
-	Diffuse ->
-	    Diff = wings_image:txid(Diffuse),
-	    gl:activeTexture(?GL_TEXTURE3),
-	    gl:enable(?GL_TEXTURE_2D),
-	    gl:bindTexture(?GL_TEXTURE_2D, Diff), %% Needs to a texture here
-	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_COMBINE),
-	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_COMBINE_RGB,  ?GL_MODULATE),    
-	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE0_RGB,  ?GL_TEXTURE),
-	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE1_RGB,  ?GL_PREVIOUS),
-	    true
-    end.
-    
-% norm_rgb(V1, V2, V3) when is_float(V1), is_float(V2), is_float(V3) ->
-%     D = math:sqrt(V1*V1+V2*V2+V3*V3),
-%     case catch {0.5+V1/D*0.5,0.5+V2/D*0.5,0.5+V3/D*0.5} of
-% 	{'EXIT',_} -> {0.0,0.0,0.0};
-% 	R -> R
-%     end.
+
+    %% Modulate with diffuse texture
+    gl:activeTexture(?GL_TEXTURE3),
+    gl:enable(?GL_TEXTURE_2D),
+    gl:bindTexture(?GL_TEXTURE_2D, Diffuse), 
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_COMBINE),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_COMBINE_RGB,  ?GL_MODULATE),    
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE0_RGB,  ?GL_TEXTURE),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE1_RGB,  ?GL_PREVIOUS).    
+
+%% norm_rgb(V1, V2, V3) when is_float(V1), is_float(V2), is_float(V3) ->
+%%     D = math:sqrt(V1*V1+V2*V2+V3*V3),
+%%     case catch {0.5+V1/D*0.5,0.5+V2/D*0.5,0.5+V3/D*0.5} of
+%% {'EXIT',_} -> {0.0,0.0,0.0};
+%% R -> R
+%%     end.
 
 disable_bumps() ->
     gl:activeTexture(?GL_TEXTURE0),
@@ -1220,4 +1270,134 @@ disable_bumps() ->
     gl:disable(?GL_TEXTURE_2D),
     gl:activeTexture(?GL_TEXTURE3),
     gl:disable(?GL_TEXTURE_2D).
+
+enable_shaders({Lx,Ly,Lz}) ->
+    case programmable() of
+	true ->
+	    {Vp,Fp} = get(gl_shaders),
+	    {Cx,Cy,Cz} = mult_inverse_model_transform({0.0,0.0,0.0}),
+	    gl:enable(?GL_FRAGMENT_PROGRAM_ARB),
+	    gl:bindProgramARB(?GL_FRAGMENT_PROGRAM_ARB,Fp),
+	    gl:enable(?GL_VERTEX_PROGRAM_ARB),
+	    gl:bindProgramARB(?GL_VERTEX_PROGRAM_ARB,Vp),
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,0,Lx,Ly,Lz,0),
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,1,Cx,Cy,Cz,0);
+	false ->
+	    ok
+    end.
+
+disable_shaders() ->
+    case programmable() of
+	true ->
+	    gl:disable(?GL_VERTEX_PROGRAM_ARB),
+	    gl:disable(?GL_FRAGMENT_PROGRAM_ARB),
+	    ok;
+	false ->
+	    ok
+    end.
+
+load_shaders() ->
+    VP = load_program(?GL_VERTEX_PROGRAM_ARB,list_to_binary(vertex_prog())),
+    FP = load_program(?GL_FRAGMENT_PROGRAM_ARB,list_to_binary(fragment_prog())),
+    Shaders = {VP,FP},
+    put(gl_shaders, Shaders),
+    Shaders.
+
+load_program(Target, Prog) ->
+    [PId] = gl:genProgramsARB(1),
+    gl:bindProgramARB(Target,PId),
+    gl:programStringARB(Target,?GL_PROGRAM_FORMAT_ASCII_ARB,size(Prog),Prog),
+    Err = gl:getString(?GL_PROGRAM_ERROR_STRING_ARB),
+    case Err of
+	[] -> PId;
+	_ -> 
+	    io:format("Error when loading program: ~s~n",Err),
+	    exit(prog_error)
+    end.   
+
+vertex_prog() ->
+    "!!ARBvp1.0
+
+PARAM mvp[4] = { state.matrix.mvp };
+PARAM transform[4] = { state.matrix.modelview.inverse };
+
+PARAM light = program.env[0];
+PARAM camera = program.env[1];
+
+ATTRIB xyz = vertex.position;
+ATTRIB normal = vertex.normal;
+ATTRIB tangent = vertex.texcoord[0];
+ATTRIB st = vertex.texcoord[1];
+
+TEMP dir, transform_light, transform_camera, binormal;
+
+XPD binormal, tangent, normal;
+
+DP4 result.position.x, mvp[0], xyz;
+DP4 result.position.y, mvp[1], xyz;
+DP4 result.position.z, mvp[2], xyz;
+DP4 result.position.w, mvp[3], xyz;
+
+DP4 transform_light.x, transform[0], light;
+DP4 transform_light.y, transform[1], light;
+DP4 transform_light.z, transform[2], light;
+DP4 transform_light.w, transform[3], light;
+
+DP4 transform_camera.x, transform[0], camera;
+DP4 transform_camera.y, transform[1], camera;
+DP4 transform_camera.z, transform[2], camera;
+DP4 transform_camera.w, transform[3], camera;
+
+SUB dir, transform_light, xyz;
+DP3 dir.w, dir, dir;
+RSQ dir.w, dir.w;
+MUL dir.xyz, dir, dir.w;
+
+DP3 result.texcoord[1].x, tangent, dir;
+DP3 result.texcoord[1].y, binormal, dir;
+DP3 result.texcoord[1].z, normal, dir;
+
+SUB dir, transform_light, xyz;
+ADD dir, transform_camera, dir;
+DP3 dir.w, dir, dir;
+RSQ dir.w, dir.w;
+MUL dir.xyz, dir, dir.w;
+
+DP3 result.texcoord[2].x, tangent, dir;
+DP3 result.texcoord[2].y, binormal, dir;
+DP3 result.texcoord[2].z, normal, dir;
+
+MOV result.texcoord[0], st;
+
+END
+".
+
+fragment_prog() ->
+    "!!ARBfp1.0
+
+PARAM param = { 2.0, -1.0, 32.0, 0.0 };
+
+TEMP base, dot3, gloss, diffuse, specular;
+
+TEX base,  fragment.texcoord[0], texture[0], 2D;
+TEX dot3,  fragment.texcoord[0], texture[1], 2D;
+TEX gloss, fragment.texcoord[0], texture[2], 2D;
+
+MAD dot3, dot3, param.x, param.y;
+DP3 dot3.w, dot3, dot3;
+RSQ dot3.w, dot3.w;
+MUL dot3.xyz, dot3, dot3.w;
+
+DP3_SAT diffuse, fragment.texcoord[1], dot3;
+
+DP3_SAT specular, fragment.texcoord[2], dot3;
+
+POW specular, specular.x, param.z;
+
+MUL specular, specular, gloss;
+
+MAD result.color, base, diffuse, specular;
+
+END
+".
 
