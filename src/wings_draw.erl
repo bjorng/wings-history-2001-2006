@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.157 2003/10/25 13:27:09 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.158 2003/10/26 06:04:58 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -394,21 +394,9 @@ update_sel(#dlo{}=D) -> D.
 update_sel_all(#dlo{src_we=#we{mode=vertex},work=Work}=D) ->
     Dl = force_flat(Work, wings_pref:get_value(selected_color)),
     D#dlo{sel=Dl};
-update_sel_all(#dlo{src_we=#we{fs=Ftab},work=none}=D) ->
-    Tess = wings_draw_util:tess(),
-    List = gl:genLists(1),
-    gl:newList(List, ?GL_COMPILE),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-    wings_draw_util:begin_end(
-      fun() ->
-	      foreach(fun(Face) ->
-			      wings_draw_util:unlit_face(Face, D)
-		      end, gb_trees:keys(Ftab))
-      end),
-    gl:endList(),
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-    D#dlo{sel=List};
-update_sel_all(#dlo{work=Faces}=D) ->
+update_sel_all(#dlo{work=Faces}=D) when Faces =/= none ->
+    D#dlo{sel=Faces};
+update_sel_all(#dlo{smooth=Faces}=D) when Faces =/= none ->
     D#dlo{sel=Faces}.
 
 update_mirror() ->
