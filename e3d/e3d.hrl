@@ -3,12 +3,12 @@
 %%
 %%     Record definition for generic in-memory 3D file format.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d.hrl,v 1.6 2002/06/09 18:39:43 bjorng Exp $
+%%     $Id: e3d.hrl,v 1.7 2003/06/15 11:30:13 bjorng Exp $
 %%
 
 -record(e3d_file,
@@ -20,6 +20,7 @@
 	{name,					%Name of object (string),
 						% or 'undefined' if no name.
 	 obj,					%Object implementation.
+	 mat=[],				%Materials for this object.
 	 attr=[]}).				%List of attributes.
 
 %% Polygon mesh.
