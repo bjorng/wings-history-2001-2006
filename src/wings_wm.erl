@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.82 2003/02/26 16:42:34 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.83 2003/02/27 09:56:38 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -587,14 +587,8 @@ clear_background_1(Name) ->
     gl:loadIdentity(),
     gl:color3fv(wings_pref:get_value(background_color)),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    Z = -1,
-    gl:'begin'(?GL_POLYGON),
-    gl:vertex3f(0, H, Z),
-    gl:vertex3f(0, 0, Z),
-    gl:vertex3f(W, 0, Z),
-    gl:vertex3f(W, H, Z),
-    gl:vertex3f(0, 0, Z),
-    gl:'end'(),
+    gl:translatef(0, 0, -1),
+    gl:rectf(0, 0, W, H),
     gl:popAttrib().
 
 any_window_below(Name) ->
