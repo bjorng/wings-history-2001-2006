@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.10 2003/09/22 05:43:13 bjorng Exp $
+#     $Id: Makefile,v 1.11 2003/10/13 06:17:04 bjorng Exp $
 #
 
 all:
@@ -44,3 +44,10 @@ macosx: all
 	(cd plugins_src/mac_file; $(MAKE))
 	(cd macosx; pbxbuild)
 	sh tools/mac_make_dmg
+
+#
+# Build installer for Unix.
+#
+unix: all
+	unix/make_installer
+

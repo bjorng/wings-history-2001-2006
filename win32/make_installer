@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Windows.
 #
-# $Id: make_installer,v 1.3 2003/09/22 18:58:05 bjorng Exp $
+# $Id: make_installer,v 1.4 2003/10/13 06:17:06 bjorng Exp $
 #
 OS=`uname -o`
 if [ X$OS != XCygwin ]; then
@@ -93,7 +93,7 @@ rm -rf "$dest/ebin/sdl_audio.beam" "$dest/ebin/sdl_joystick.beam"
 #
 # Remove files from OTP not needed.
 #
-tools/wings_reduce_otp "$dest"
+$WINGS_DIR/tools/wings_reduce_otp "$DEST_ROOT"
 
 # Strip debug information from all beam files.
 cd "$latest_wings"

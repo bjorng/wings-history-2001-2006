@@ -1,0 +1,95 @@
+#!/bin/sh
+#
+# Script for creating a self-contained Wings package for Unix systems.
+#
+# $Id: make_installer,v 1.1 2003/10/13 06:17:06 bjorng Exp $
+#
+
+# Configurable stuff.
+INSTALL=/usr/bin/install
+if [ -z "$ESDL_PATH" ]; then
+    echo "The environment variable ESDL_PATH must be set to " \
+	 "the top of the ESDL installation." >&2
+    exit 1
+fi
+ESDL_NAME=`basename $ESDL_PATH`
+
+ERLANG_PATH=`echo 'io:format("~s~n",[code:root_dir()]),halt().' | erl | awk 'NR==2 {print $2}'`
+# End of configurable stuff.
+
+# Copy the Wings application.
+
+WINGS_DIR="`pwd`"
+WINGS_APP=`basename "$WINGS_DIR"`
+WINGS_VSN=`echo "$WINGS_APP" | sed -e 's/.*wings-//'`
+OS_NAME=`uname -s | perl -pe 'tr/[A-Z]/[a-z]/'`
+DEST_ROOT="wings-$WINGS_VSN-$OS_NAME"
+
+dest="$DEST_ROOT"
+
+$INSTALL -d "$dest"
+$INSTALL -c -m 644 README AUTHORS license.terms vsn.mk "$dest"
+
+dest="$DEST_ROOT/lib/$WINGS_APP"
+
+$INSTALL -d "$dest" "$dest/ebin" "$dest/patches"
+$INSTALL -c -m 644 ebin/* "$dest/ebin"
+
+$INSTALL -d "$dest/plugins/default" "$dest/plugins/fonts" \
+ "$dest/plugins/import_export" "$dest/plugins/commands" \
+ "$dest/plugins/primitives" "$dest/plugins/autouv"
+$INSTALL -c -m 644 plugins/default/wp9_dialogs.beam "$dest/plugins/default"
+$INSTALL -c -m 644 plugins/fonts/* "$dest/plugins/fonts"
+$INSTALL -c -m 644 plugins/import_export/* "$dest/plugins/import_export"
+$INSTALL -c -m 644 plugins/commands/* "$dest/plugins/commands"
+$INSTALL -c -m 644 plugins/primitives/* "$dest/plugins/primitives"
+$INSTALL -c -m 644 plugins/autouv/* "$dest/plugins/autouv"
+
+# Copy the relevant parts of Erlang/OTP.
+
+src="$ERLANG_PATH"
+dest="$DEST_ROOT"
+erts_src=`echo "$src"/erts-*`
+stdlib=`basename "$src"/lib/stdlib-*`
+kernel=`basename "$src"/lib/kernel-*`
+
+$INSTALL -d "$dest/bin" "$dest/lib/$stdlib/ebin" "$dest/lib/$kernel/ebin"
+$INSTALL -c -m 644 "$src"/lib/kernel-*/ebin/* "$dest/lib/$kernel/ebin"
+$INSTALL -c -m 644 "$src"/lib/stdlib-*/ebin/* "$dest/lib/$stdlib/ebin"
+
+$INSTALL -c "$erts_src/bin/erlexec" "$dest/bin/erlexec"
+$INSTALL -c "$erts_src/bin/beam" "$dest/bin/beam"
+strip --strip-debug "$dest/bin/erlexec"
+strip --strip-debug "$dest/bin/beam"
+$INSTALL -c -m 644 "$src/bin/start.boot" "$dest/bin"
+
+# Copy the relevant parts of ESDL.
+dest="$DEST_ROOT/lib/$ESDL_NAME"
+$INSTALL -d "$dest/ebin" "$dest/priv"
+$INSTALL -c -m 644  "$ESDL_PATH"/ebin/* "$dest/ebin"
+$INSTALL -c -m 644  "$ESDL_PATH"/priv/sdl_driver.so "$dest/priv"
+rm -rf "$dest/ebin/sdl_audio.beam" "$dest/ebin/sdl_joystick.beam"
+strip --strip-debug --strip-unneeded "$dest/priv/sdl_driver.so"
+
+#
+# Remove files from OTP not needed.
+#
+$WINGS_DIR/tools/wings_reduce_otp "$DEST_ROOT"
+
+# Strip debug information from all beam files.
+cd "$latest_wings"
+erlc -o/tmp tools/strip.erl
+cd "$DEST_ROOT"
+erl -noshell -pa /tmp -run strip strip
+
+# Package the installer.
+cd $WINGS_DIR
+INSTALLER="$DEST_ROOT/install_wings"
+sed -e "s;%WINGS_VSN%;$WINGS_VSN;" $WINGS_DIR/unix/install_wings.src > $INSTALLER
+chmod +x $INSTALLER
+
+dest=$DEST_ROOT
+makeself.sh $dest $dest.run Wings3D ./install_wings "$WINGS_VSN"
+if [ -f $dest.run ]; then
+    cp $dest.run ..
+fi
