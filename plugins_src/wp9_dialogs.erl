@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.24 2003/12/23 17:46:34 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.25 2003/12/27 07:54:07 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -135,8 +135,8 @@ do_dialog(Types, Title, Cont, Ps) ->
 	   panel,
 	   {hframe,
 	    [{vframe,
-	      [{label,"File name:"},
-	       {label,"File format:"}]},
+	      [{label,"File name"},
+	       {label,"File format"}]},
 	     {vframe,
 	      [{text,Filename,[{key,filename}]},
 	       {menu,Types,DefType,[{key,filetype},{hook,fun menu_hook/2}]}]},
@@ -146,7 +146,7 @@ do_dialog(Types, Title, Cont, Ps) ->
 			       Name = proplists:get_value(filename, Res),
 			       NewName = filename:join(Dir, Name),
 			       Cont(NewName)
-		       end,[ok]},
+		       end,[ok,{hook,fun ok_hook/2}]},
 		      {button,"Cancel",fun(_) -> Cont(aborted) end,[cancel]}]}]}]},
     Ask = fun(Res) ->
 		  do_dialog(Types, Title, Cont, Res)
@@ -160,19 +160,6 @@ dir_menu(Dir0, Acc) ->
 	Dir -> dir_menu(Dir, [Entry|Acc])
     end.
 
-choose_file(update, {Var,_I,File,Sto0}) ->
-    Sto = gb_trees:update(Var, File, Sto0),
-    Dir0 = gb_trees:get(directory, Sto),
-    Full = filename:join(Dir0, File),
-    case filelib:is_dir(Full) of
-	true ->
-	    Dir = filename:join(Dir0, File),
-	    {done,gb_trees:update(directory, Dir, Sto)};
-	false ->
-	    {store,gb_trees:update(filename, File, Sto)}
-    end;
-choose_file(_, _) -> void.
-
 menu_hook(update, {Var,_I,Val,Sto}) ->
     {done,gb_trees:update(Var, Val, Sto)};
 menu_hook(_, _) -> void.
@@ -181,9 +168,14 @@ up_button(update, {Var,_I,Val,Sto0}) ->
     Dir0 = gb_trees:get(directory, Sto0),
     Dir = filename:dirname(Dir0),
     Sto1 = gb_trees:update(directory, Dir, Sto0),
-    Sto = gb_trees:update(Var, Val, Sto1),
+    Sto2 = gb_trees:update(filename, "", Sto1),
+    Sto = gb_trees:update(Var, Val, Sto2),
     {done,Sto};
 up_button(_, _) -> void.
+
+ok_hook(is_disabled, {_Var,_I,Store}) ->
+    gb_trees:get(filename, Store) == [];
+ok_hook(_, _) -> void.
 
 file_filters(Prop) ->
     Exts = case proplists:get_value(extensions, Prop, none) of
@@ -217,5 +209,16 @@ file_list_filter(Files, Dir, Wc) ->
     [F || F <- Files,
 	  lists:suffix(Ext, F) orelse filelib:is_dir(filename:join(Dir, F))].
 
-	  
-    
+choose_file(update, {Var,_I,File,Sto0}) ->
+    Sto1 = gb_trees:update(Var, File, Sto0),
+    Dir0 = gb_trees:get(directory, Sto1),
+    Full = filename:join(Dir0, File),
+    case filelib:is_dir(Full) of
+	true ->
+	    Dir = filename:join(Dir0, File),
+	    Sto = gb_trees:update(filename, "", Sto1),
+	    {done,gb_trees:update(directory, Dir, Sto)};
+	false ->
+	    {store,gb_trees:update(filename, File, Sto0)}
+    end;
+choose_file(_, _) -> void.
