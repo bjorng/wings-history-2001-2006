@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.86 2003/02/03 05:09:47 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.87 2003/02/03 17:58:12 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -559,6 +559,7 @@ is_submenu(_I, #mi{adv=true}) -> false;
 is_submenu(I, #mi{menu=Menu}) when is_integer(I) ->
     case element(I, Menu) of
 	separator -> false;
+	{_Text,{'VALUE',_},_Hotkey,_Help,_Ps} -> false;
 	{_Text,{_,_},_Hotkey,_Help,_Ps} -> true;
 	_Other -> false
     end;
@@ -646,7 +647,7 @@ is_magnet_active({_,_,_,_,Ps}, Mi) ->
 	    hit_right(X, Mi)
     end.
     
-plain_help({Text,{_,_},_,_,_}, #mi{adv=false}) ->
+plain_help({Text,{Sub,_},_,_,_}, #mi{adv=false}) when Sub =/= 'VALUE' ->
     %% No specific help text for submenus in basic mode.
     Help = [Text|" submenu"],
     wings_wm:message(Help, "");
