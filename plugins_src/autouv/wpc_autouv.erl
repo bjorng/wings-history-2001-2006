@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.57 2002/11/27 06:20:36 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.58 2002/11/30 09:07:30 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1160,8 +1160,7 @@ handle_event({action, {auv, NewOp}},Uvs0=#uvstate{sel = Sel0}) ->
     end;
 handle_event({callback, Fun}, _) when function(Fun) ->
     Fun();
-handle_event({resize, NX,NY},Uvs0) ->
-    wings_io:resize(NX, NY),
+handle_event({resize,_,_},Uvs0) ->
     wings_draw_util:init(),
     St1 = wings_material:init(Uvs0#uvstate.st),	    
     Geom = init_drawarea(),
