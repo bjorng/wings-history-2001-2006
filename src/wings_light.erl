@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.29 2003/01/20 12:50:55 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.30 2003/02/28 17:14:15 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -584,9 +584,10 @@ import_fun({Name,Ps}, St) ->
     QuadAtt = proplists:get_value(quadratic_attenuation, OpenGL, 0.0),
     Angle = proplists:get_value(cone_angle, OpenGL, 30.0),
     SpotExp = proplists:get_value(spot_exponent, OpenGL, 0.0),
+    Prop = lists:keydelete(opengl, 1, Ps),
     L = #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
 	       aim=Aim,lin_att=LinAtt,quad_att=QuadAtt,
-	       spot_angle=Angle,spot_exp=SpotExp},
+	       spot_angle=Angle,spot_exp=SpotExp,prop=Prop},
     Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
     Vs = lists:duplicate(8, Pos),
     We0 = wings_we:build(Fs, Vs),
