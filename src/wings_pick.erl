@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.41 2002/05/05 07:45:17 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.42 2002/05/06 07:21:00 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -20,7 +20,7 @@
 -include("wings.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1,reverse/2,
-		sort/1,foldl/3,map/2,min/1,keysearch/3]).
+		sort/1,foldl/3,map/2,min/1,keysearch/3,member/2]).
 
 %% For ordinary picking.
 -record(pick,
@@ -490,11 +490,12 @@ convert_hit(auto, X, Y, Id, Face, We) ->
     Lim0 = math:sqrt(Xd*Xd+Yd*Yd) / 4,
     Lim1 = min([math:sqrt(L) || {_,L,_} <- Es]) / 4,
     Lim = min([20.0,Lim0,Lim1]),
-    if
-	Vdist < Lim -> {vertex,{Id,V}};
-	Edist < Lim -> {edge,{Id,Edge}};
-	true -> {face,{Id,Face}}
-    end;
+    Hilite = if
+		 Vdist < Lim -> {vertex,{Id,V}};
+		 Edist < Lim -> {edge,{Id,Edge}};
+		 true -> {face,{Id,Face}}
+	     end,
+    check_restriction(Hilite, Id, V, Edge, Face);
 convert_hit(Mode, X, Y, Id, Face, We) ->
     wings_view:projection(),
     wings_view:model_transformations(),
@@ -551,6 +552,38 @@ project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
 				 ProjMatrix, ViewPort),
     {Xs,Ys}.
 
+check_restriction({Mode,_}=Hilite, Id, V, Edge, Face) ->
+    case wings_io:get_icon_restriction() of
+	all -> Hilite;
+	Modes ->
+	    case member(Mode, Modes) of
+		true -> Hilite;
+		false -> restrict_hilite(Mode, Modes, Id, V, Edge, Face)
+	    end
+    end.
+
+restrict_hilite(vertex, Modes, Id, _V, Edge, Face) ->
+    case member(edge, Modes) of
+	true -> {edge,{Id,Edge}};
+	false ->
+	    true = member(face, Modes),
+	    {face,{Id,Face}}
+    end;
+restrict_hilite(edge, Modes, Id, V, _Edge, Face) ->
+    case member(vertex, Modes) of
+	true -> {vertex,{Id,V}};
+	false ->
+	    true = member(face, Modes),
+	    {face,{Id,Face}}
+    end;
+restrict_hilite(face, Modes, Id, V, Edge, _Face) ->
+    case member(edge, Modes) of
+	true -> {edge,{Id,Edge}};
+	false ->
+	    true = member(vertex, Modes),
+	    {vertex,{Id,V}}
+    end.
+	    
 %%
 %% Pick all in the given rectangle (with center at X,Y).
 %%

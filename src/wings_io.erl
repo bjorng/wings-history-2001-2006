@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.46 2002/05/04 05:58:19 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.47 2002/05/06 07:21:00 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,menubar/1,resize/2,display/1,
-	 icon_restriction/1,clear_icon_restriction/0,
+	 icon_restriction/1,clear_icon_restriction/0,get_icon_restriction/0,
 	 arrow/0,hourglass/0,
 	 draw_ui/1,
 	 update/1,
@@ -171,6 +171,10 @@ icon_restriction(Modes) ->
 
 clear_icon_restriction() ->
     put_state((get_state())#io{selmodes=all}).
+
+get_icon_restriction() ->
+    #io{selmodes=Modes} = get_state(),
+    Modes.
 
 display(F) ->
     #io{w=W,h=H} = Io = get_state(),
