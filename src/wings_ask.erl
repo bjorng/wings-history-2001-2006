@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.88 2003/08/02 05:27:13 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.89 2003/08/04 05:44:53 bjorng Exp $
 %%
 
 -module(wings_ask).
 -export([ask/3,ask/4,dialog/3,dialog/4]).
 
--compile(inline).
+-import(wings_util, [min/2,max/2]).
+
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
@@ -692,17 +693,24 @@ checkbox(Label, Def) ->
     LabelWidth = wings_text:width(Label),
     SpaceWidth = wings_text:width(" "),
     Cb = #cb{label=Label,state=Def,labelw=LabelWidth,spacew=SpaceWidth},
-    Fun = checkbox_fun(),
+    Fun = fun(Ev, Fi, C, _) -> cb_event(Ev, Fi, C) end,
     {Fun,false,Cb,LabelWidth+SpaceWidth+?CB_SIZE,?LINE_HEIGHT+2}.
 
-checkbox_fun() ->
-    fun({redraw,Active}, Fi, Cb, _) ->
-	    cb_draw(Active, Fi, Cb);
-       (value, _Fi, #cb{state=State}, _) ->
-	    State;
-       (Ev, Fi, Cb, _) ->
-	    cb_event(Ev, Fi, Cb)
-    end.
+cb_event(value, _, #cb{state=Val}) ->
+    Val;
+cb_event({redraw,Active}, Fi, Cb) ->
+    cb_draw(Active, Fi, Cb);
+cb_event({key,_,_,$\s}, _, #cb{state=State}=Cb) ->
+    Cb#cb{state=not State};
+cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED},
+	 #fi{x=X},
+	 #cb{state=State,labelw=LblW,spacew=SpaceW}=Cb) ->
+    if
+	Xb-X < LblW+4*SpaceW ->
+	    Cb#cb{state=not State};
+	true -> Cb
+    end;
+cb_event(_Ev, _Fi, Cb) -> Cb.
 
 cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
     wings_io:sunken_rect(X, Y0+?CHAR_HEIGHT-9, 8, 8, {1,1,1}),
@@ -719,24 +727,13 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
 	true -> ok
     end.
 
-cb_event({key,_,_,$\s}, _, #cb{state=State}=Cb) ->
-    Cb#cb{state=not State};
-cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED},
-	 #fi{x=X},
-	 #cb{state=State,labelw=LblW,spacew=SpaceW}=Cb) ->
-    if
-	Xb-X < LblW+4*SpaceW ->
-	    Cb#cb{state=not State};
-	true -> Cb
-    end;
-cb_event(_Ev, _Fi, Cb) -> Cb.
-
 %%%
 %%% Radio buttons.
 %%%
 
 -record(rb,
 	{var,
+	 def,					%Default value.
 	 val,
 	 label,
 	 labelw,			    %Width of label in pixels.
@@ -746,26 +743,32 @@ cb_event(_Ev, _Fi, Cb) -> Cb.
 radiobutton({Var,Def}, Label, Val) ->
     LabelWidth = wings_text:width(Label),
     SpaceWidth = wings_text:width(" "),
-    Rb = #rb{var=Var,val=Val,label=Label,labelw=LabelWidth,spacew=SpaceWidth},
-    Fun = radiobutton_fun(Def),
+    Rb = #rb{var=Var,def=Def,val=Val,label=Label,labelw=LabelWidth,spacew=SpaceWidth},
+    Fun = fun rb_event/4,
     {Fun,false,Rb,LabelWidth+2*SpaceWidth,?LINE_HEIGHT+2}.
 
-radiobutton_fun(Def) ->
-    fun(init, _Fi, #rb{var=Var,val=Val}=Rb, Common) ->
-	    case Val of
-		Def -> {Rb,gb_trees:insert(Var, Val, Common)};
-		_ -> Rb
-	    end;
-       ({redraw,Active}, Fi, Rb, Common) ->
- 	    rb_draw(Active, Fi, Rb, Common);
-       (value, _Fi, #rb{var=Var,val=Val}, Common) ->
-	    case gb_trees:get(Var, Common) of
-		Val -> Val;
-		_ -> none
-	    end;
-       (Ev, Fi, Rb, Common) ->
- 	    rb_event(Ev, Fi, Rb, Common)
-    end.
+rb_event(init, _Fi, #rb{var=Var,def=Def,val=Val}=Rb, Common) ->
+    case Val of
+	Def -> {Rb,gb_trees:insert(Var, Val, Common)};
+	_ -> Rb
+    end;
+rb_event({redraw,Active}, Fi, Rb, Common) ->
+    rb_draw(Active, Fi, Rb, Common);
+rb_event(value, _Fi, #rb{var=Var,val=Val}, Common) ->
+    case gb_trees:get(Var, Common) of
+	Val -> Val;
+	_ -> none
+    end;
+rb_event({key,_,_,$\s}, _, Rb, Common) ->
+    rb_set(Rb, Common);
+rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED},
+	 #fi{x=X}, #rb{labelw=LblW,spacew=SpaceW}=Rb, Common) ->
+    if
+	Xb-X < LblW+4*SpaceW ->
+	    rb_set(Rb, Common);
+	true -> Rb
+    end;
+rb_event(_Ev, _Fi, Rb, _Common) -> Rb.
 
 rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,var=Var,val=Val}, Common) ->
     Y = Y0+?CHAR_HEIGHT,
@@ -811,17 +814,6 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,var=Var,val=Val}, Common) ->
 	true -> ok
     end.
 
-rb_event({key,_,_,$\s}, _, Rb, Common) ->
-    rb_set(Rb, Common);
-rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED},
-	 #fi{x=X}, #rb{labelw=LblW,spacew=SpaceW}=Rb, Common) ->
-    if
-	Xb-X < LblW+4*SpaceW ->
-	    rb_set(Rb, Common);
-	true -> Rb
-    end;
-rb_event(_Ev, _Fi, Rb, _Common) -> Rb.
-
 rb_set(#rb{var=Var,val=Val}=Rb, Common0) ->
     Common = gb_trees:update(Var, Val, Common0),
     {Rb,Common}.
@@ -839,19 +831,21 @@ rb_set(#rb{var=Var,val=Val}=Rb, Common0) ->
 menu(Var, Key, Alt) ->
     W = menu_width(Alt, 0) + 2*wings_text:width(" ") + 10,
     M = #menu{var=Var,key=Key,menu=Alt},
-    Fun = menu_fun(),
+    Fun = fun(Ev, Fi, State, _) -> menu_event(Ev, Fi, State) end,
     {Fun,false,M,W,?LINE_HEIGHT+4}.
 
-menu_fun() ->
-    fun({redraw,_Active}, Fi, M, _) ->
-	    menu_draw(Fi, M);
-       (value, _, #menu{var=none,key=Key}, _) ->
-	    Key;
-       (value, _, #menu{var=Var,key=Key}, _) ->
-	    {Var,Key};
-       (Ev, Fi, M, _) ->
-	    menu_event(Ev, Fi, M)
-    end.
+menu_event({redraw,_Active}, Fi, M) ->
+    menu_draw(Fi, M);
+menu_event(value, _, #menu{var=none,key=Key}) ->
+    Key;
+menu_event(value, _, #menu{var=Var,key=Key}) ->
+    {Var,Key};
+menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, Fi, M) ->
+    menu_popup(Fi, M),
+    M;
+menu_event({popup_result,Key}, _, M) ->
+    M#menu{key=Key};
+menu_event(_, _, M) -> M.
 
 menu_width([{S,_}|T], W0) ->
     case wings_text:width(S) of
@@ -882,13 +876,6 @@ menu_draw(#fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
     gl:rasterPos2f(Xr+0.5, Y+0.5),
     gl:bitmap(7, 7, 0, -1, 7, 0, Arrows),
     M.
-
-menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, Fi, M) ->
-    menu_popup(Fi, M),
-    M;
-menu_event({popup_result,Key}, _, M) ->
-    M#menu{key=Key};
-menu_event(_, _, M) -> M.
 
 -record(popup,
 	{parent,				%Parent window name.
@@ -972,19 +959,24 @@ button(Label, Action) ->
     W = lists:max([wings_text:width([$\s,$\s|Label]),
 		   wings_text:width(" cancel ")]),
     But = #but{label=Label,action=Action},
-    Fun = button_fun(),
+    Fun = fun(Ev, Fi, State, _) -> button_event(Ev, Fi, State) end,
     {Fun,false,But,W,?LINE_HEIGHT+2+2}.
 
 button_label(ok) -> "OK";
 button_label(S) when is_list(S) -> S;
 button_label(Act) -> wings_util:cap(atom_to_list(Act)).
 
-button_fun() ->
-    fun({redraw,Active}, Fi, But, _) ->
-	    button_draw(Active, Fi, But);
-       (value, _, _, _) -> none;
-       (Ev, Fi, But, _) -> button_event(Ev, Fi, But)
-    end.
+button_event({redraw,Active}, Fi, But) ->
+    button_draw(Active, Fi, But);
+button_event(value, _, _) ->
+    none;
+button_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED}, #fi{x=Bx,y=By,w=W,h=H},
+	     #but{action=Action}) when Bx =< X, X =< Bx+W, By =< Y, Y =< By+H ->
+    Action;
+button_event({key,_,_,Key}, _, #but{action=Action}) when Key =:= $\r; Key =:= $\s ->
+    Action;
+button_event(_Ev, _Fi, But) ->
+    But.
 
 button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
     Y = Y0+?CHAR_HEIGHT+2,
@@ -1000,15 +992,6 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
 	true -> ok
     end.
 
-button_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED}, #fi{x=Bx,y=By,w=W,h=H},
-	     #but{action=Action}) when Bx =< X, X =< Bx+W, By =< Y, Y =< By+H ->
-    Action;
-button_event({key,_,_,Key}, _, #but{action=Action})
-  when Key =:= $\r; Key =:= $\s ->
-    Action;
-button_event(_Ev, _Fi, But) ->
-    But.
-
 %%%
 %%% Color box.
 %%%
@@ -1019,11 +1002,8 @@ button_event(_Ev, _Fi, But) ->
 
 color(Def) ->
     Col = #col{val=Def},
-    Fun = color_fun(),
+    Fun = fun col_event/4,
     {Fun,false,Col,3*?CHAR_WIDTH,?LINE_HEIGHT+2}.
-
-color_fun() ->
-    fun col_event/4.
 
 col_event({redraw,Active}, Fi, Col, Common) ->
     col_draw(Active, Fi, Col, Common);
@@ -1667,12 +1647,6 @@ increment(Ts0, Incr) ->
 	    Ts = Ts0#text{bef=reverse(Str),aft=[],sel=-length(Str)},
 	    validate_string(Ts)
     end.
-
-max(A, B) when A > B -> A;
-max(_A, B) -> B.
-
-min(A, B) when A < B -> A;
-min(_A, B) -> B.
 
 dialog_unzip(L) ->
     dialog_unzip(L, [], []).
