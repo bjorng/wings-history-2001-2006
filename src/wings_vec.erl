@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.108 2004/10/08 06:02:31 dgud Exp $
+%%     $Id: wings_vec.erl,v 1.109 2004/10/15 15:40:30 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -335,7 +335,8 @@ handle_key(_, _, _) -> next.
 exit_menu(X, Y, Mod, #ss{f=Exit,vec=Vec}=Ss, St) ->
     case Exit(exit, {Mod,Vec,St}) of
 	error ->
-	    Menu = [{?STR(exit_menu,1,"Cancel"),abort,?STR(exit_menu,2,"Cancel current command")}],
+	    Menu = [{wings_s:cancel(),abort,
+		     ?STR(exit_menu,2,"Cancel current command")}],
 	    wings_menu:popup_menu(X, Y, secondary_selection, Menu);
 	keep ->
 	    keep;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.108 2004/10/15 15:11:40 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.109 2004/10/15 15:40:30 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -396,18 +396,22 @@ get_nendo_event(Camera, Redraw, MouseRotates) ->
     {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw, MouseRotates) end}.
 
 nendo_message(true) ->
-    Help = join_msg([button_format(?STR(message,1,"Accept"), ?STR(message,2,"Drag to Dolly")),
-		      ?STR(message,3,"Move mouse to tumble"),
-		     [?STR(message,4,"[Q]"),?CSEP,?STR(message,5,"Move mouse to track")]]),
+    Help = join_msg([button_format(wings_s:accept(),
+				   ?STR(message,2,"Drag to Dolly")),
+		     ?STR(message,3,"Move mouse to tumble"),
+		     [?STR(message,4,"[Q]"),?CSEP,
+		      ?STR(message,5,"Move mouse to track")]]),
     message(Help);
 nendo_message(false) ->
     QText = case allow_rotation() of
 		false -> [];
-		true -> [?STR(message,4,"[Q]"),?CSEP,?STR(message,3,"Move mouse to tumble")]
+		true -> [?STR(message,4,"[Q]"),?CSEP,
+			 ?STR(message,3,"Move mouse to tumble")]
 	    end,
-    Help = join_msg([button_format(?STR(message,1,"Accept"), ?STR(message,2,"Drag to Dolly")),
+    Help = join_msg([button_format(wings_s:accept(),
+				   ?STR(message,2,"Drag to Dolly")),
 	 	     ?STR(message,7,"Restore view")|QText]),
-		     message(Help).
+    message(Help).
 
 %%%
 %%% Mirai style camera.
@@ -482,18 +486,19 @@ get_mirai_event(Camera, Redraw, MouseRotates, View) ->
     {replace,fun(Ev) -> mirai_event(Ev, Camera, Redraw, MouseRotates, View) end}.
 
 mirai_message(true) ->
-    Help = join_msg([button_format(?STR(message,1,"Accept"),
+    Help = join_msg([button_format(wings_s:accept(),
 				   ?STR(message,2,"Drag to Dolly"),
 				   ?STR(message,6,"Cancel/restore view")),
 		     ?STR(message,3,"Move mouse to tumble"),
-		     [?STR(message,4,"[Q]"),?CSEP,?STR(message,5,"Move mouse to track")]]),
+		     [?STR(message,4,"[Q]"),?CSEP,
+		      ?STR(message,5,"Move mouse to track")]]),
     message(Help);
 mirai_message(false) ->
     QText = case allow_rotation() of
 		false -> [];
 		true -> [?STR(message,4,"[Q]"),?CSEP,?STR(message,3,"Move mouse to tumble")]
 	    end,
-    Help = join_msg([button_format(?STR(message,1,"Accept"),
+    Help = join_msg([button_format(wings_s:accept(),
 				   ?STR(message,2,"Drag to Dolly"),
 				   ?STR(message,6,"Cancel/restore view")),
 		     ?STR(message,5,"Move mouse to track")|QText]),

@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_s.erl,v 1.3 2004/10/15 09:31:57 dgud Exp $
+%%     $Id: wings_s.erl,v 1.4 2004/10/15 15:40:30 bjorng Exp $
 %%
 
 -module(wings_s).
--export([yes/0,no/0,cancel/0,
+-export([yes/0,no/0,cancel/0,accept/0,
 	 lmb/0,mmb/0,rmb/0,
 	 modkey/1,shift/0,ctrl/0,alt/0,command/0,
 	 key/1,
@@ -23,7 +23,8 @@
 yes() -> ?STR(yes,1,"Yes").
 no() -> ?STR(no,1,"No").
 cancel() -> ?STR(cancel,1,"Cancel").
-
+accept() -> ?STR(accept,1,"Accept").
+    
 %% Mouse buttons.
 lmb() -> ?STR(mouse_b,l,"L").
 mmb() -> ?STR(mouse_b,m,"M").

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.55 2004/10/08 06:02:29 dgud Exp $
+%%     $Id: wings_light.erl,v 1.56 2004/10/15 15:40:30 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -312,7 +312,7 @@ edit_ambient_dialog(Name, Prop0,
     Qs1 = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
     Qs = {hframe,[{vframe,Qs1},
 		  {vframe,[{button,?STR(edit_ambient_dialog,3,"OK"),done,[ok,{key,light_editor_ok}]},
-			   {button,?STR(edit_ambient_dialog,4,"Cancel"),cancel,[cancel]}]}]},
+			   {button,wings_s:cancel(),cancel,[cancel]}]}]},
     Fun = fun([Amb|Res]) ->
 		  case plugin_results(Name, Prop0, Res) of
 		      {ok,Prop} ->
@@ -340,7 +340,7 @@ edit_dialog(Name, Prop0, #we{id=Id,light=L0}=We0, Shs, St) ->
     Qs1 = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
     Qs = {hframe,[{vframe,Qs1},
 		  {vframe,[{button,?STR(edit_dialog,5,"OK"),done,[ok,{key,light_editor_ok}]},
-			   {button,?STR(edit_dialog,6,"Cancel"),cancel,[cancel]}]}]},
+			   {button,wings_s:cancel(),cancel,[cancel]}]}]},
     Fun = fun([Diff,Amb,Spec|More0]) ->
 		  L1 = L0#light{diffuse=Diff,ambient=Amb,specular=Spec},
 		  {L,More} = edit_specific(More0, L1),

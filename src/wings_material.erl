@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.118 2004/10/12 18:02:12 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.119 2004/10/15 15:40:30 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -509,7 +509,7 @@ edit_dialog(Name, Assign, St=#st{mat=Mtab0}, Mat0) ->
     Qs2 = wings_plugin:dialog({material_editor_setup,Name,Mat0}, Qs1),
     Qs = {hframe,[{vframe,Qs2},
 		  {vframe,[{button,?STR(edit_dialog,7,"OK"),done,[ok,{key,material_editor_ok}]},
-			   {button,?STR(edit_dialog,8,"Cancel"),cancel,[cancel]}]}]},
+			   {button,wings_s:cancel(),cancel,[cancel]}]}]},
     Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
 	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}|More0]) ->
 		  OpenGL = [ask_prop_put(diffuse, Diff, Opacity),

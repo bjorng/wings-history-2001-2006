@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.184 2004/10/08 06:02:28 dgud Exp $
+%%     $Id: wings_drag.erl,v 1.185 2004/10/15 15:40:30 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -321,9 +321,9 @@ gl_rescale_normal() ->
     end.
 
 help_message(#drag{unit=Unit,mode_fun=ModeFun,mode_data=ModeData}) ->
-    Accept = wings_util:button_format(?STR(help_message,1,"Accept")),
+    Accept = wings_util:button_format(wings_s:accept()),
     ZMsg = zmove_help(Unit),
-    Cancel = wings_util:button_format([], [],?STR(help_message,2,"Cancel")),    
+    Cancel = wings_util:button_format([], [],wings_s:cancel()),
     Msg = wings_camera:join_msg([Accept,ZMsg,Cancel]),
     MsgRight = ModeFun(help, ModeData),
     wings_wm:message(Msg, MsgRight).

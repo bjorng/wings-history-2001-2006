@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.1 2004/10/15 14:41:50 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.2 2004/10/15 15:40:30 bjorng Exp $
 %%
 
 {wings,
@@ -193,7 +193,7 @@
   {cleanup_rep_1,
    [{1,"Repeterad punkt ~p på yta ~p\n"}]},
   {cleanup_waists_1,
-   [{1,"Tog bort midje punkt: ~p\n"}]},
+   [{1,"Tog bort midjepunkt: ~p\n"}]},
   {color_material,
    [{1,"color_"}]},
   {delete_2edged_faces_1,
@@ -275,8 +275,7 @@
     {5,"Not: "},
     {6,"-kameraläget kräver minst tre musknappar"}]},
   {message,
-   [{1,"Godkänn"},
-    {2,"Rör musen för att zooma"},
+   [{2,"Rör musen för att zooma"},
     {3,"Rör musen för att rotera"},
     {4,"[Q]"},
     {5,"Move mouse to track"},
@@ -358,9 +357,6 @@
     {7,"Effect on "}]}]}.
 {wings_drag,
  [
-  {help_message,
-   [{1,"Accept"},
-    {2,"Cancel"}]},
   {make_query_1,
    [{2,"A"}]},
   {numeric_input,
@@ -904,15 +900,13 @@
   {edit_ambient_dialog,
    [{1,"Ambient"},
     {2,"Color"},
-    {3,"OK"},
-    {4,"Cancel"}]},
+    {3,"OK"}]},
   {edit_dialog,
    [{1,"Diffuse"},
     {2,"Ambient"},
     {3,"Specular"},
     {4,"Colors"},
-    {5,"OK"},
-    {6,"Cancel"}]},
+    {5,"OK"}]},
   {export_camera_lights,
    [{1,"Ambient"},
     {2,"Infinite"},
@@ -1000,8 +994,7 @@
     {4,"Emission"},
     {5,"Shininess"},
     {6,"Opacity"},
-    {7,"OK"},
-    {8,"Cancel"}]},
+    {7,"OK"}]},
   {load_map_1,
    [{1,"Failed to load"}]},
   {material_fun,
@@ -1389,6 +1382,8 @@
    [{1,"Magnet Rotate on multiple face regions requires an explicit rotate origin."}]}]}.
 {wings_s,
  [
+  {accept,
+   [{1,"Godkänn"}]},
   {cancel,
    [{1,"Avbryt"}]},
   {dir,
@@ -1686,8 +1681,7 @@
    [{1,"Execute"},
     {2,"Continue"}]},
   {exit_menu,
-   [{1,"Cancel"},
-    {2,"Cancel current command"}]},
+   [{2,"Cancel current command"}]},
   {get_vec,
    [{1,"Edge saved as axis"},
     {2,"Save edge normal"},
