@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.25 2002/11/07 22:18:26 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.26 2002/11/08 14:13:59 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -27,7 +27,7 @@
 %%  Jonathan Richard Shewchuk, March 7, 1994
 
 %% All credits about the LSQCM implementation goes to Raimo, who
-%% implemented the lot.
+%% implemented the lot. 
 
 -module(auv_mapping).
 
@@ -190,36 +190,36 @@ find_pinned(Faces, We) ->
 			     Dist = e3d_vec:dist(Pos, Center),
 			     {Dist, Id, Pos}
 		     end, BorderEdges),
-    [{_,V1,_V1Pos}|_] = lists:reverse(lists:sort(AllC)),
-
-%%    [{_V1pos,V1}|_] = lists:sort(Vs),
-    BE1 = reorder_edge_loop(V1, BorderEdges, []),
+    [{_,V0,_V1Pos}|_] = lists:reverse(lists:sort(AllC)),
+    BE1 = reorder_edge_loop(V0, BorderEdges, []),
     HalfCC = Circumference/2, %% - Circumference/100,
-%%    ?DBG("CC ~p Half ~p ~p~n", [Circumference, HalfCC,BorderEdges]),
-    {V2,Dx,Dy} = find_furthest_away(BE1,0.0,0.0,0.0,HalfCC,We#we.vs),
+    {V1, V2} = find_pinned(BE1, BE1, 0.0, HalfCC, HalfCC, undefined), 
     {{V1,{0.0,0.0}},{V2,{1.0,1.0}}}.
     
-find_furthest_away([{V1,V2,_,New}|_], DX0,DY0, Dist, Max,Vs) 
-  when float(Dist), float(Max), Dist + New >= Max ->
-%%    ?DBG("Quit dist ~p ~p ~n",[{V1,V2},Dist + New]),
-    if (Max-Dist) < ((Dist+New) - Max) ->
-	    {V2, math:sqrt(DX0),math:sqrt(DY0)};
-       true -> 
-	    V1p = (gb_trees:get(V1,Vs))#vtx.pos,
-	    V2p = (gb_trees:get(V2,Vs))#vtx.pos,
-	    {Dx,Dy,Dz} = e3d_vec:sub(V2p, V1p),    
-	    {V1, math:sqrt(DX0+Dx*Dx+Dz*Dz),math:sqrt(DY0+Dy*Dy)}
+find_pinned(Curr=[{C1,_,_,Clen}|CR],Start=[{_,S2,_,Slen}|SR],Len,HCC,Best,BVs) ->    
+    Dlen = HCC-(Clen+Len),
+    ADlen = abs(Dlen),
+%    ?DBG("Testing ~p ~p ~p ~p ~p~n", [{S2,C1},Dlen,{Len+Clen,HCC}, Best, BVs]),    
+    if 
+	Dlen >= 0.0 ->
+	    if ADlen < Best ->
+		    find_pinned(CR,Start,Clen+Len,HCC,ADlen,{S2,C1});
+	       true ->
+		    find_pinned(CR,Start,Clen+Len,HCC,Best,BVs)
+	    end;
+	Dlen < 0.0 ->
+	    if ADlen < Best ->
+		    find_pinned(Curr,SR,Len-Slen,HCC, ADlen,{S2,C1});
+	       true ->
+		    find_pinned(Curr,SR,Len-Slen,HCC,Best,BVs)
+	    end
     end;
-find_furthest_away([{V1,V2,_,Delta}|Rest], DX0,DY0,Dist, Max,Vs) 
-  when float(DX0),float(DY0),float(Delta), float(Dist) ->
-%%    ?DBG("Dist ~p ~p ~n",[{V1,V2}, Dist+Delta]),
-    V1p = (gb_trees:get(V1,Vs))#vtx.pos,
-    V2p = (gb_trees:get(V2,Vs))#vtx.pos,
-    {Dx,Dy,Dz} = e3d_vec:sub(V2p, V1p),    
-    find_furthest_away(Rest,DX0+Dx*Dx+Dz*Dz,DY0+Dy*Dy,Delta+Dist,Max,Vs).
+find_pinned([], _, _, _, _Best, Bvs) ->
+%    ?DBG("Found ~p ~p~n", [_Best, Bvs]),
+    Bvs.
 
-reorder_edge_loop(V1, [{V1,_,_,_}|Ordered], Acc) ->
-    Ordered ++ lists:reverse([V1|Acc]);
+reorder_edge_loop(V1, [Rec={V1,_,_,_}|Ordered], Acc) ->
+    Ordered ++ lists:reverse([Rec|Acc]);
 reorder_edge_loop(V1, [H|Tail], Acc) ->
     reorder_edge_loop(V1, Tail, [H|Acc]).
 
