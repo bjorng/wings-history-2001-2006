@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.27 2001/12/07 08:40:06 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.28 2001/12/08 20:47:20 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -242,6 +242,15 @@ align_to_selection(#st{selmode=vertex}=St) ->
     Ns = wings_sel:fold(
 	   fun(Id, V, We, Acc) ->
 		   [wings_vertex:normal(V, We)|Acc]
+	   end, [], St),
+    N = e3d_vec:norm(e3d_vec:add(Ns)),
+    align_to_selection(N, St);
+align_to_selection(#st{selmode=edge}=St) ->
+    Ns = wings_sel:fold(
+	   fun(Id, Edge, #we{es=Etab}=We, Acc) ->
+		   #edge{lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
+		   [wings_face:normal(Lf, We),
+		    wings_face:normal(Rf, We)|Acc]
 	   end, [], St),
     N = e3d_vec:norm(e3d_vec:add(Ns)),
     align_to_selection(N, St);
