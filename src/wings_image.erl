@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.30 2003/10/21 12:02:26 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.31 2003/10/28 05:16:33 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -309,8 +309,10 @@ texture_format(#e3d_image{type=g8}) -> ?GL_LUMINANCE;
 texture_format(#e3d_image{type=a8}) -> ?GL_ALPHA.
 
 internal_format(Type) ->
-    Compress = wings_util:is_gl_ext({1,3}, 'GL_ARB_texture_compression'),
-    internal_format(Type, Compress).
+    %% Compression lowers the quality, especially when bump/normal maps
+    %% are compressed. Disabled for now.
+%     Compress = wings_util:is_gl_ext({1,3}, 'GL_ARB_texture_compression'),
+    internal_format(Type, false).
 
 internal_format(?GL_BGR, false) -> ?GL_RGB;
 internal_format(?GL_BGRA, false) -> ?GL_RGBA;
