@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.266 2004/08/18 13:43:09 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.267 2004/08/19 09:02:43 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -450,6 +450,13 @@ handle_event(Ev, St) ->
 	Other -> Other
     end.
 
+%% Short cut for move selected
+handle_event_1(#mousebutton{state=?SDL_PRESSED,
+			    button=?SDL_BUTTON_LEFT,
+			    mod=Mod},
+	       St = #st{sel = Sel}) 
+  when Sel /= [], (Mod band ?ALT_BITS) =/= 0 ->
+    handle_command(move,St);
 handle_event_1(Ev, St) ->
     case wings_pick:event(Ev, St) of
 	next -> handle_event_2(Ev, St);
@@ -464,7 +471,9 @@ handle_event_2(Ev, St) ->
 
 handle_event_3({current_state,geom_display_lists,GeomSt}, AuvSt) ->
     new_geom_state(GeomSt, AuvSt);
-handle_event_3(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0},
+handle_event_3(#mousebutton{state=?SDL_RELEASED,
+			    button=?SDL_BUTTON_RIGHT,
+			    x=X0,y=Y0},
 	       #st{selmode=Mode0,sel=Sel}) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     Mode = case Sel of 
@@ -542,7 +551,8 @@ handle_event_3(got_focus, _) ->
     Msg1 = wings_util:button_format("Select"),
     Msg2 = wings_camera:help(),
     Msg3 = wings_util:button_format([], [], "Show menu"),
-    Message = wings_util:join_msg([Msg1,Msg2,Msg3]),
+    Msg4 = "[Alt]+L: Move selected",
+    Message = wings_util:join_msg([Msg1,Msg2,Msg3,Msg4]),
     wings_wm:message(Message),
     wings_wm:dirty();
 handle_event_3(_Event, _) ->
