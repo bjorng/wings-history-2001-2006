@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.51 2002/11/12 15:27:46 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.52 2002/11/14 15:03:06 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1073,45 +1073,36 @@ handle_event(Ev = #keyboard{state = ?SDL_PRESSED, keysym = Sym},
 %	    keep
     end;
 
-handle_event({action, {auv, export}}, Uvs0) ->
-    case wings_plugin:call_ui({file,export,tga_prop()}) of
+handle_event({action,{auv,export}}, Uvs0) ->
+    Ps = tga_prop(),
+    case wpa:export_filename(Ps, #st{}) of
 	aborted -> 
 	    get_event(Uvs0);	
-	FileName0 ->
+	FileName ->
 	    {TW,TH,TexBin} = ?SLOW(get_texture(Uvs0)),
-	    Image = #e3d_image{image = TexBin, width = TW, height = TH},
-	    FileName1 = ensure_ext(FileName0,".tga"),
-	    case ?SLOW((catch e3d_image:save(Image, FileName1))) of
+	    Image = #e3d_image{image=TexBin,width=TW,height=TH},
+	    case ?SLOW((catch e3d_image:save(Image, FileName))) of
 		ok -> 			   
-		    get_event(Uvs0#uvstate{last_file = FileName1});	
+		    get_event(Uvs0#uvstate{last_file = FileName});
 		{_, Error0} ->
-		    Error = FileName1 ++ ": " ++ file:format_error(Error0),
-		    wings_util:message("Export failed: " ++ Error, Uvs0#uvstate.st)
+		    Error = FileName ++ ": " ++ file:format_error(Error0),
+		    wings_util:message("Export failed: " ++ Error)
 	    end
     end;
-handle_event({action, {auv, import}}, Uvs0) ->
-    case wings_plugin:call_ui({file,import,tga_prop()}) of
+handle_event({action,{auv,import}}, Uvs0) ->
+    Ps = [{extensions,wpa:image_formats()}],
+    case wpa:import_filename(Ps) of
 	aborted -> 
 	    get_event(Uvs0);
-	FileName0 ->
-	    FileName1 = ensure_ext(FileName0,".tga"),
-	    ?SLOW(import_file(FileName1, Uvs0))
-		end;
-handle_event({action, {auv, checkerboard}}, #uvstate{option=Opt0}=Uvs) ->
+	FileName ->
+	    ?SLOW(import_file(FileName, Uvs0))
+    end;
+handle_event({action,{auv,checkerboard}}, #uvstate{option=Opt0}=Uvs) ->
     Sz = 512,
     Bin = checkerboard(Sz),
     Opt = Opt0#setng{texbg=true,color=false,edges=no_edges},
     add_texture_image(Sz, Sz, Bin, default, Uvs#uvstate{option=Opt});
-handle_event({action, {auv, import}}, Uvs0) ->
-    case wings_plugin:call_ui({file,import,tga_prop()}) of
-	aborted -> 
-	    get_event(Uvs0);
-	FileName0 ->
-	    FileName1 = ensure_ext(FileName0,".tga"),
-	    ?SLOW(import_file(FileName1, Uvs0))
-		end;
-
-handle_event({action, {auv, apply_texture}},
+handle_event({action,{auv,apply_texture}},
 	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{we=We}}) ->
     Tx = ?SLOW(get_texture(Uvs0)),
     Areas1 = add_areas(Sel0,As),
@@ -1239,17 +1230,16 @@ handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
 
 import_file(default, Uvs0) ->
     import_file(Uvs0#uvstate.last_file, Uvs0);
-import_file(FileName1, Uvs0) ->
-    Type = [{type, r8g8b8}, {alignment, 1}, {order, lower_left}],
-    case catch e3d_image:load(FileName1, Type) of
-	{_, Error0} ->
-	    Error = FileName1 ++ ": " ++ format_error(Error0),
-	    %%	 Error = lists:flatten(io_lib:format("~p", [Error0])),
-	    wings_util:message("Import failed: " ++ Error, Uvs0#uvstate.st);
+import_file(Filename, Uvs0) ->
+    Ps = [{filename,Filename},{type,r8g8b8},{alignment,1},{order,lower_left}],
+    case wpa:image_read(Ps) of
+	{error,Error0} ->
+	    Error = Filename ++ ": " ++ file:format_error(Error0),
+	    wings_util:message("Import failed: " ++ Error);
 	#e3d_image{width = TW, height = TH, image = TexBin} ->
 	    case (TW == TH) andalso is_power_of_two(TW) of
 		true ->
-		    add_texture_image(TW, TH, TexBin, FileName1, Uvs0);
+		    add_texture_image(TW, TH, TexBin, Filename, Uvs0);
 		false ->
 		    wings_util:message("Import failed: Can only import square," 
 				       "power of 2 sized pictures", Uvs0#uvstate.st)	
@@ -1266,30 +1256,6 @@ add_texture_image(TW, TH, TexBin, FileName, #uvstate{option=Opt}=Uvs0) ->
 
 is_power_of_two(X) ->
     (X band -X ) == X.
-
-format_error(Err) when atom(Err) ->
-    case atom_to_list(Err) of
-	Str = ['e'|_] ->
-	    Str ++ " " ++ file:format_error(Err);
-	_ -> 
-	    lists:flatten(io_lib:format("~p", [Err]))
-    end;
-format_error(Err) ->
-    lists:flatten(io_lib:format("~p", [Err])).
-
-%%%%% Filename stuff
-lowercase([H|R]) when H >= $A, H =< $Z ->
-    [H + $a - $A | lowercase(R)];
-lowercase([H|R]) ->
-    [H | lowercase(R)];
-lowercase([]) ->
-    [].
-ensure_ext(FileName,Ext) ->
-    case lowercase(filename:extension(FileName)) of
-	Ext -> FileName;
-	[] -> FileName ++ Ext;
-	Else -> Else
-    end.
 
 %%%%% Selection 
 draw_marquee({X, Y}, {Ox,Oy}) ->
