@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.7 2002/05/05 07:47:33 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.8 2002/07/11 18:18:04 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -27,17 +27,12 @@ ui({file,open,Prop}, Next) ->
     Ext = property_lists:get_value(ext, Prop, ".wings"),
     wings_getline:filename("Open file: ", Ext);
 ui({file,save,Prop}, Next) ->
-    Ext = property_lists:get_value(ext, Prop, ".wings"),
-    wings_getline:filename("Save: ", Ext);
+    save_file("Save: ", Prop);
 ui({file,import,Prop}, Next) ->
     Ext = property_lists:get_value(ext, Prop),
     wings_getline:filename("Import file: ", Ext);
 ui({file,export,Prop}, Next) ->
-    Ext = property_lists:get_value(ext, Prop),
-    wings_getline:filename("Export file: ", Ext);
-ui({file,overwrite,Prop}, Next) ->
-    File = property_lists:get_value(existing_file, Prop),
-    wings_getline:yes_no("File \"" ++ File ++ "\" exists; overwrite?");
+    save_file("Export file: ", Prop);
 ui({failure,Message,Prop}, Next) ->
     wings_io:message(Message),
     aborted;
@@ -57,3 +52,41 @@ message(Message) ->
 	  [{title,"Wings Error"}]},
     wings_ask:dialog(Qs, St, fun(Res) -> ignore end).
 
+save_file(Prompt, Prop) ->
+    Ext = property_lists:get_value(ext, Prop, ".wings"),
+    case wings_getline:filename("Save: ", Ext) of
+	aborted -> aborted;
+	Name0 ->
+	    Name = ensure_extension(Name0, Ext),
+	    case filelib:is_file(Name) of
+		false ->
+		    Name;
+		true ->
+		    case wings_getline:yes_no("File \"" ++ Name ++ "\" exists; overwrite?") of
+			no -> aborted;
+			yes -> Name;
+			aborted -> aborted
+		    end
+	    end
+    end.
+
+ensure_extension(Name, Ext) ->
+    case eq_extensions(Ext, filename:extension(Name)) of
+	true -> Name;
+	false -> Name ++ Ext
+    end.
+eq_extensions(Ext, Actual) when length(Ext) =/= length(Actual) ->
+    false;
+eq_extensions(Ext, Actual) ->
+    IgnoreCase = case os:type() of
+		     {win32,_} -> true;
+		     _ -> false
+		 end,
+    eq_extensions(Ext, Actual, IgnoreCase).
+
+eq_extensions([C|T1], [C|T2], _IgnoreCase) ->
+    eq_extensions(T1, T2);
+eq_extensions([L|T1], [C|T2], true) when $A =< C, C =< $Z, L-C =:= 32 ->
+    eq_extensions(T1, T2);
+eq_extensions([_|_], [_|_], _IgnoreCase) -> false;
+eq_extensions([], [], _IgnoreCase) -> true.

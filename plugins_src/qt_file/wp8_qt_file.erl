@@ -46,9 +46,6 @@ init(Next) ->
 	    Next
     end.
 
-fileop({file,overwrite,Prop},_Next) ->
-    yes; %Fixed in dialog instead
-
 fileop({question,Question}, _Next) ->
     list_to_atom(erlang:port_control(wp8_file_port, ?OP_QUESTION,
 				     ["Wings 3D",0,Question,0]));

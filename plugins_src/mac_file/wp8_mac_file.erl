@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.1 2002/03/30 15:37:56 seanhinde Exp $
+%%     $Id: wp8_mac_file.erl,v 1.2 2002/07/11 18:18:05 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
@@ -47,9 +47,6 @@ init(Next) ->
 	_ ->
 	    Next
     end.
-
-fileop({file,overwrite,Prop},_Next) ->
-    yes; %Fixed in dialog instead
 
 fileop({question,Question}, _Next) ->
     list_to_atom(erlang:port_control(wp8_file_port, ?OP_QUESTION,

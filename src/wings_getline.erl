@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.10 2002/03/08 13:24:09 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.11 2002/07/11 18:18:05 bjorng Exp $
 %%
 
 -module(wings_getline).
--export([filename/2,string/1,string/2,yes_no/1,number/2,set_cwd/1]).
+-export([filename/2,string/1,string/2,yes_no/1,set_cwd/1]).
 
 -import(lists, [reverse/1,reverse/2,prefix/2,nthtail/2]).
 
@@ -26,37 +26,12 @@
 	 bef,
 	 aft,
 	 max,
-	 ext,
-	 number=false
+	 ext
 	}).
 
 filename(Prompt, Ext) ->
     Ts = init_text(cwd()),
     readline(Prompt, Ts#text{ext=Ext}).
-
-number(Prompt, Default) ->
-    Ts0 = init_text(integer_to_list(Default)),
-    Ts = Ts0#text{number=true},
-    case readline(Prompt, Ts) of
-	aborted -> aborted;
-	Str ->
-	    case catch list_to_integer(Str) of
-		{'EXIT',_} ->
-		    please_enter_a_number(),
-		    number(Prompt, Default);
-		N -> N
-	    end
-    end.
-
-please_enter_a_number() ->
-    wings_io:display(
-      fun(_, _) ->
-	      wings_io:draw_message(
-		fun() ->
-			wings_io:text_at(0, "Please enter a number.")
-		end)
-      end),
-    receive after 1000 -> ok end.
 
 string(Prompt) ->
     Ts = init_text(""),
@@ -73,7 +48,7 @@ yes_no(Prompt0) ->
 	"yes" -> yes;
 	"no" -> no;
 	aborted -> aborted;
-	Other ->
+	_ ->
 	    please_answer_yes_or_no(),
 	    yes_no(Prompt0)
     end.
@@ -105,13 +80,13 @@ slashify(Cwd0) ->
     Cwd = filename:join([Cwd0]),
     case lists:last(Cwd) of
 	$/ -> Cwd;
-	Other -> Cwd ++ "/"
+	_Other -> Cwd ++ "/"
     end.
 	    
 readline(Prompt, Ts) ->
     wings_io:display(fun(W, H) -> readline(W, H, Prompt, Ts) end).
 			     
-readline(W, H, Prompt, #text{x=X0,y=Y,bef=Bef,ext=Ext}=Ts0) ->
+readline(_, _, Prompt, #text{bef=Bef}=Ts0) ->
     wings_io:draw_message(
       fun() ->
 	      wings_io:text_at(0, Prompt),
@@ -123,7 +98,7 @@ readline(W, H, Prompt, #text{x=X0,y=Y,bef=Bef,ext=Ext}=Ts0) ->
       end).
 
 init_text(String) ->
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    [_,_,_,H] = gl:getIntegerv(?GL_VIEWPORT),
     X = 0,
     Y = H-?LINE_HEIGHT,
     #text{max=40,bef=lists:reverse(String),aft=[],x=X,y=Y}.
@@ -148,10 +123,6 @@ read_loop(Ts0) ->
 get_text(#text{bef=Bef,aft=Aft}) ->
     reverse(Bef, Aft).
 
-key(?SDLK_KP_PLUS, _, #text{number=true}=Ts) ->
-    increment(Ts, 1);
-key(?SDLK_KP_MINUS, _, #text{number=true}=Ts) ->
-    increment(Ts, -1);
 key(?SDLK_HOME, _, Ts) -> key(1, Ts);
 key(?SDLK_END, _, Ts) -> key(5, Ts);
 key(?SDLK_LEFT, _, Ts) -> key(2, Ts);
@@ -162,15 +133,9 @@ key(?SDLK_KP_PERIOD, _, Ts) ->
     key($., Ts);
 key(C, _, Ts) when ?SDLK_KP0 =< C, C =< ?SDLK_KP9 ->
     key(C-?SDLK_KP0+$0, Ts);
-key(Other, Unicode, Ts) ->
+key(_, Unicode, Ts) ->
     key(Unicode, Ts).
 
-key($+, #text{number=true}=Ts) ->
-    increment(Ts, 1);
-key($=, #text{number=true}=Ts) ->		%Same key as plus on American keybd.
-    increment(Ts, 1);
-key($-, #text{number=true}=Ts) ->
-    increment(Ts, -1);
 key($\b, #text{bef=[_|Bef]}=Ts) ->
     Ts#text{bef=Bef};
 key($\t, Ts) ->
@@ -189,25 +154,14 @@ key(4, #text{aft=[_|Aft]}=Ts) ->		%Ctrl-D
     Ts#text{aft=Aft};
 key(C, #text{bef=Bef0}=Ts0) when $\s =< C, C < 256 ->
     Ts0#text{bef=[C|Bef0]};
-key(C, Ts) ->
-    %%erlang:display({C,Ts}),
-    Ts.
+key(_, Ts) -> Ts.
 
-increment(Ts, Incr) ->
-    Str0 = get_text(Ts),
-    case catch list_to_integer(Str0) of
-	{'EXIT',_} -> Ts;
-	N ->
-	    Str = integer_to_list(N+Incr),
-	    Ts#text{bef=reverse(Str),aft=[]}
-    end.
-	    
 complete(#text{ext=undefined}=Ts) -> Ts;
 complete(#text{ext=Ext,bef=Bef0,aft=[]}=Ts) ->
     Wc = reverse(Bef0, "*"),
     Alts0 = filelib:wildcard(Wc),
     Alts = transform_names(Alts0, Ext, []),
-    case match(reverse(Bef0), Alts, Ts) of
+    case match(reverse(Bef0), Alts) of
 	no -> Ts;
 	{yes,Chars} ->
 	    Ts#text{bef=reverse(Chars, Bef0)}
@@ -220,10 +174,10 @@ transform_names([N|Ns], Ext, Acc) ->
 	false ->
 	    case filename:extension(N) of
 		Ext -> transform_names(Ns, Ext, [N|Acc]);
-		Other -> transform_names(Ns, Ext, Acc)
+		_ -> transform_names(Ns, Ext, Acc)
 	    end
     end;
-transform_names([], Ext, Acc) -> Acc.
+transform_names([], _, Acc) -> Acc.
 
 update(#text{bef=BefC,aft=AftC,x=X,y=Y}, #text{bef=BefP,aft=AftP}) ->
     update(reverse(BefC, AftC), reverse(BefP, AftP), X, Y).
@@ -234,12 +188,12 @@ update([C|Curr], [_|Prev], X, Y) ->
     wings_io:space_at(X, 0),
     wings_io:text_at(X, [C]),
     update(Curr, Prev, X+?CHAR_WIDTH, Y);
-update([_|_]=Curr, [], X, Y) ->
+update([_|_]=Curr, [], X, _) ->
     wings_io:text_at(X, Curr);
 update([], [_|Prev], X, Y) ->
     wings_io:space_at(X, Y),
     update([], Prev, X+?CHAR_WIDTH, Y);
-update([], [], X, Y) -> ok.
+update([], [], _, _) -> ok.
     
 toggle_cursor(#text{bef=Bef,x=X0,y=Y}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
@@ -258,21 +212,21 @@ get_event() ->
 	    get_event();
 	#keyboard{keysym=#keysym{sym=Sym,unicode=Unicode}} ->
 	    {Sym,Unicode};
-	Other ->
+	_Other ->
 	    erlang:yield(),
 	    get_event()
     end.
 
-match(Prefix, Alts, Ts) ->
+match(Prefix, Alts) ->
     Matches = match1(Prefix, Alts, []),
     case longest_common_head(Matches) of
 	{partial, []} ->
-	    print_matches(Matches, Ts),
+	    print_matches(Matches),
 	    no;
 	{partial, Str} ->
 	    case nthtail(length(Prefix), Str) of
 		[] ->
-		    print_matches(Matches, Ts),
+		    print_matches(Matches),
 		    {yes, []};
 		Remain ->
 		    {yes, Remain}
@@ -283,11 +237,11 @@ match(Prefix, Alts, Ts) ->
     end.
 
 %% Print the list of names L in multiple columns.
-print_matches(L, Ts) ->
-    col_print(lists:sort(L), Ts).
+print_matches(L) ->
+    col_print(lists:sort(L)).
 
-col_print([], Ts) -> ok;
-col_print(L, #text{}=Ts)  ->
+col_print([]) -> ok;
+col_print(L)  ->
     wings_io:draw_completions(
       fun() ->
 	      wings_io:text_at(0, "Completions: "),
@@ -299,7 +253,7 @@ col_print(Any, Width, Len, X, Y) when Width + Len > 79 ->
 col_print([H|T], Width, Len, X, Y) ->
     wings_io:text_at(X+Len*?CHAR_WIDTH, Y, filename:basename(H)),
     col_print(T, Width, Len+Width, X, Y);
-col_print([], _, _, X, Y) -> ok.
+col_print([], _, _, _, _) -> ok.
 
 field_width([H|T]) -> field_width(T, length(filename:basename(H))).
 
@@ -340,11 +294,11 @@ longest_common_head(LL, L) ->
 	    {partial, reverse(L)}
     end.
 
-same_head([[H|T]|T1]) -> same_head(H, T1).
+same_head([[H|_]|T1]) -> same_head(H, T1).
 
 same_head(H, [[H|_]|T]) -> same_head(H, T);
-same_head(H, [])        -> true;
-same_head(H, _)         -> false.
+same_head(_, [])        -> true;
+same_head(_, _)         -> false.
 
 all_tails(LL) -> all_tails(LL, []).
 
