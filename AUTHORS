@@ -1,0 +1,12 @@
+Original Author:
+
+Björn Gustavsson
+
+Open source contributors:
+
+Jakob Cederlund
+	Implemented the Tube, Cone, Sphere, and Torus objects.
+	Brain-storming and discussion partner.
+	Implemented the Collapse commands. Original idea and
+        implementation of the Intrude and Select Similar.
+
