@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.53 2002/07/21 07:13:23 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.54 2002/07/29 05:52:04 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -127,7 +127,7 @@ command(prefs, _St) ->
 	     [{label_column,
 	       [{"Auto-save interval (min)",autosave_time}]},
 	      {"Advanced Menus",advanced_menus},
-	      {"Show Memory Used",show_memory_used}
+	      {"Show Debugging Info",show_memory_used}
 	     ],
 	     [{title,"Miscellanous"}]}]}],
     dialog(Qs);
