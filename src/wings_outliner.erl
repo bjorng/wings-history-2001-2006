@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.10 2003/01/22 21:34:40 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.11 2003/01/23 20:14:30 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -126,9 +126,13 @@ do_menu(Act, X, Y, #ost{first=First,os=Objs}) ->
 	   end,
     wings_menu:popup_menu(X, Y, outliner, Menu).
 
-image_menu(Id, #e3d_image{filename=none}) ->
+image_menu(Id, Im) ->
+    [{"Show",menu_cmd(show_image, Id),
+      "Show the image in a window"}|image_menu_1(Id, Im)].
+
+image_menu_1(Id, #e3d_image{filename=none}) ->
     [{"Make External",menu_cmd(make_external, Id)}|common_image_menu(Id)];
-image_menu(Id, _) ->
+image_menu_1(Id, _) ->
     [{"Revert",menu_cmd(revert_image, Id)},
      {"Make Internal",menu_cmd(make_internal, Id)}|common_image_menu(Id)].
 
@@ -154,6 +158,9 @@ command({delete_object,Id}, Ost) ->
     delete_object(Id, Ost);
 command({edit_light,Id}, _) ->
     wings_wm:send(geom, {action,{light,{edit,Id}}}),
+    keep;
+command({show_image,Id}, _) ->
+    wings_image:window(Id),
     keep;
 command({revert_image,Id}, Ost) ->
     revert_image(Id, Ost);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.66 2003/01/22 13:24:03 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.67 2003/01/23 20:14:30 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -33,7 +33,7 @@
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
--import(lists, [map/2,last/1,sort/1,keysort/2,keysearch/3,
+-import(lists, [map/2,foldl/3,last/1,sort/1,keysort/2,keysearch/3,
 		reverse/1,foreach/2,member/2]).
 -compile(inline).
 
@@ -156,10 +156,16 @@ delete(Name) ->
     keep.
 
 delete_windows(Name, W0) ->
-    W1 = gb_trees:delete_any(Name, W0),
-    W2 = gb_trees:delete_any({controller,Name}, W1),
-    W = gb_trees:delete_any({resizer,Name}, W2),
-    gb_trees:delete_any({vscroller,Name}, W).
+    case gb_trees:lookup(Name, W0) of
+	none -> W0;
+	{value,#win{links=Links}} ->
+	    Active = active_window(),
+	    W = gb_trees:delete_any(Name, W0),
+	    foldl(fun(L, A) when L =/= Active ->
+			  gb_trees:delete_any(L, A);
+		     (_, A) -> A
+		  end, W, Links)
+    end.
 
 link(From, To) ->
     #win{links=Links} = Win = get_window_data(From),

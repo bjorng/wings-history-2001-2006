@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.4 2003/01/22 06:50:47 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.5 2003/01/23 20:14:29 bjorng Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
 	 new/2,txid/1,info/1,images/0,
 	 next_id/0,delete_older/1,delete_from/1,
-	 update/2]).
+	 update/2,
+	 window/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -200,3 +201,76 @@ make_unique(Name, Images0) ->
     Images = [N || #e3d_image{name=N} <- gb_trees:values(Images0)],
     wings_util:unique_name(Name, Images).
 
+%%%
+%%% Window for image.
+%%%
+
+window(Id) ->
+    Name = {image,Id},
+    case wings_wm:is_window(Name) of
+	true ->
+	    wings_wm:delete(Name);
+	false ->
+	    {Size,Title} = window_params(Id),
+	    Pos = {10,50,?Z_OUTLINER+1},
+	    Op = {seq,push,window_fun(Id)},
+	    wings_wm:toplevel(Name, Title, Pos, Size,
+			      [resizable,closable], Op)
+    end.
+
+window_params(Id) ->
+    #e3d_image{width=W0,height=H0,name=Name} = info(Id),
+    Title = "Image #"++integer_to_list(Id)++
+	": "++Name,
+    {DeskW,DeskH} = wings_wm:win_size(desktop),
+    W = if
+	    W0+50 < DeskW -> W0;
+	    true -> DeskW - 50
+	end,
+    H = if
+	    H0+70 < DeskH -> H0;
+	    ture -> DeskH - 70
+	end,
+    {{W,H},Title}.
+
+window_fun(Id) ->
+    fun(Ev) ->
+	    event(Ev, Id)
+    end.
+
+event(redraw, Id) ->
+    redraw(Id),
+    keep;
+event(_, _) -> keep.
+
+redraw(Id) ->
+    #e3d_image{width=Iw,height=Ih} = info(Id),
+    Aspect = Iw/Ih,
+    {W0,H0} = wings_wm:win_size(),
+    wings_io:ortho_setup(),
+    wings_io:border(0, 0, W0-0.5, H0-1, ?PANE_COLOR),
+    X = 1,
+    Y = 1,
+    W1 = W0-2,
+    H1 = H0-2,
+    W2 = round(Aspect*H1),
+    H2 = round(W1/Aspect),
+    {W,H} = if
+		W2 =< W1 -> {W2,H1};
+		true -> {W1,H2}
+	    end,
+    gl:enable(?GL_TEXTURE_2D),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+    gl:bindTexture(?GL_TEXTURE_2D, txid(Id)),
+    gl:'begin'(?GL_QUADS),
+    gl:texCoord2i(0, 1),
+    gl:vertex2i(X, Y),
+    gl:texCoord2i(0, 0),
+    gl:vertex2i(X, Y+H),
+    gl:texCoord2i(1, 0),
+    gl:vertex2i(X+W, Y+H),
+    gl:texCoord2i(1, 1),
+    gl:vertex2i(X+W, Y),
+    gl:'end'(),
+    gl:bindTexture(?GL_TEXTURE_2D, 0),
+    gl:disable(?GL_TEXTURE_2D).
