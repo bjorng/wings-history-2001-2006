@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.58 2003/01/11 20:02:12 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.59 2003/01/12 10:30:09 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -227,6 +227,10 @@ update_window_1([{dh,Dh}|T], #win{h=H}=Win) ->
     update_window_1(T, Win#win{h=H+Dh});
 update_window_1([{x,X}|T], Win) ->
     update_window_1(T, Win#win{x=X});
+update_window_1([{y,Y}|T], Win) ->
+    update_window_1(T, Win#win{y=Y});
+update_window_1([{z,Z}|T], Win) ->
+    update_window_1(T, Win#win{z=Z});
 update_window_1([{w,W}|T], Win) ->
     update_window_1(T, Win#win{w=W});
 update_window_1([{h,H}|T], Win) ->
@@ -447,7 +451,7 @@ send_event(Win, {expose}) ->
 send_event(#win{z=Z}=Win, redraw) when Z < 0 ->
     Win;
 send_event(#win{name=Name,x=X,y=Y0,w=W,h=H,stk=[Se|_]=Stk0}, Ev0) ->
-    put(wm_active, Name),
+    OldActive = put(wm_active, Name),
     Ev = translate_event(Ev0, X, Y0),
     {_,TopH} = get(wm_top_size),
     Y = TopH-(Y0+H),
@@ -457,8 +461,11 @@ send_event(#win{name=Name,x=X,y=Y0,w=W,h=H,stk=[Se|_]=Stk0}, Ev0) ->
 	_ -> gl:viewport(X, Y, W, H)
     end,
     Stk = handle_event(Se, Ev, Stk0),
+    case OldActive of
+	undefined -> erase(wm_active);
+	_ -> put(wm_active, OldActive)
+    end,
     Win = get_window_data(Name),
-    erase(wm_active),
     Win#win{stk=Stk}.
 
 translate_event(#mousemotion{state=Mask0,x=X,y=Y}=M, Ox, Oy) ->
@@ -1150,7 +1157,7 @@ resize_constrain(Dx0, Dy0) ->
     {{DeskX,DeskY},{DeskW,DeskH}} = win_rect(desktop),
     {{X,Y},{W,H}} = win_rect(),
     Dx = if
-	     DeskX+DeskW =< X+H+Dx0 ->
+	     DeskX+DeskW =< X+W+Dx0 ->
 		 DeskX+DeskW-X-W;
 	     true ->
 		 Dx0
