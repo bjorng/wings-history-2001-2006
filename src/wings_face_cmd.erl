@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.18 2001/12/13 15:59:57 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.19 2001/12/13 19:40:50 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -193,23 +193,25 @@ dissolve(Id, Faces0, We0, Acc) ->
 			gb_sets:from_list(Sel0)),
     {We,[{Id,Sel}|Acc]}.
 
-dissolve_1([Faces|Rs], WeOrig, We0, Sel) ->
+dissolve_1([Faces|Rs], WeOrig, #we{fs=Ftab}=We0, Sel) ->
     case gb_trees:size(Faces) of
 	1 ->
 	    [Face] = gb_sets:to_list(Faces),
 	    dissolve_1(Rs, WeOrig, We0, [Face|Sel]);
 	Other ->
+	    {Face,_} = gb_sets:take_smallest(Faces),
+	    #face{mat=Mat} = gb_trees:get(Face, Ftab),
  	    Parts = outer_edge_partition(Faces, We0),
- 	    We = do_dissolve(Faces, Parts, WeOrig, We0),
+ 	    We = do_dissolve(Faces, Parts, Mat, WeOrig, We0),
 	    dissolve_1(Rs, WeOrig, We, Sel)
     end;
 dissolve_1([], WeOrig, We, Sel) -> {We,Sel}.
 
-do_dissolve(Faces, Ess, WeOrig, We0) ->
+do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
     We1 = do_dissolve_faces(Faces, We0),
     Inner = wings_face:inner_edges(Faces, WeOrig),
     {DelVs0,We2} = delete_inner(Inner, We1),
-    {KeepVs,We} = do_dissolve_1(Ess, WeOrig, gb_sets:empty(), We2),
+    {KeepVs,We} = do_dissolve_1(Ess, Mat, WeOrig, gb_sets:empty(), We2),
     #we{es=Etab,vs=Vtab0,he=Htab0} = We,
     DelVs = gb_sets:difference(DelVs0, KeepVs),
     Vtab1 = gb_sets:fold(fun(V, A) -> gb_trees:delete(V, A) end, Vtab0, DelVs),
@@ -217,15 +219,16 @@ do_dissolve(Faces, Ess, WeOrig, We0) ->
     Htab = gb_sets:difference(Htab0, gb_sets:from_list(Inner)),
     We#we{vs=Vtab,he=Htab}.
 
-do_dissolve_1([EdgeList|Ess], WeOrig, KeepVs0, #we{es=Etab0,fs=Ftab0}=We0) ->
+do_dissolve_1([EdgeList|Ess], Mat, WeOrig,
+	      KeepVs0, #we{es=Etab0,fs=Ftab0}=We0) ->
     {Face,We} = wings_we:new_id(We0),
-    FaceRec = #face{edge=hd(EdgeList),mat=hole},
+    FaceRec = #face{edge=hd(EdgeList),mat=Mat},
     Ftab = gb_trees:insert(Face, FaceRec, Ftab0),
     Last = last(EdgeList),
     {KeepVs,Etab} = update_outer([Last|EdgeList], EdgeList, Face, WeOrig,
 				 Ftab, KeepVs0, Etab0),
-    do_dissolve_1(Ess, WeOrig, KeepVs, We#we{es=Etab,fs=Ftab});
-do_dissolve_1([], WeOrig, KeepVs, We) -> {KeepVs,We}.
+    do_dissolve_1(Ess, Mat, WeOrig, KeepVs, We#we{es=Etab,fs=Ftab});
+do_dissolve_1([], Mat, WeOrig, KeepVs, We) -> {KeepVs,We}.
 
 do_dissolve_faces(Faces, #we{fs=Ftab0}=We) ->
     Ftab = gb_sets:fold(fun(Face, Ft) ->
