@@ -3,12 +3,12 @@
 %%
 %%     Image reading and writing for Mac OS X.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_image.erl,v 1.1 2002/11/14 12:18:43 bjorng Exp $
+%%     $Id: wp8_mac_image.erl,v 1.2 2003/02/24 21:22:30 bjorng Exp $
 %%
 
 -module(wp8_mac_image).
@@ -87,8 +87,9 @@ read_image_2(<<W:32/native,H:32/native,SamplesPerPixel0:32/native,BytesPerRow:32
 	     2 -> 4;
 	     3 -> 4
 	 end,
-    Image = #e3d_image{type=Type,width=W,height=H,order=upper_left,
-		       alignment=Al,image=Bits},
+    Image = #e3d_image{type=Type,bytes_pp=SamplesPerPixel,
+		       alignment=Al,order=upper_left,
+		       width=W,height=H,image=Bits},
     NeededType = proplists:get_value(type, Prop, Type),
     NeededAlignment = proplists:get_value(alignment, Prop, 1),
     NeededOrder = proplists:get_value(order, Prop, upper_left),
