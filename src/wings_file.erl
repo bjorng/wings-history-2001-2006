@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.102 2003/01/31 21:15:23 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.103 2003/02/15 09:16:50 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -301,19 +301,18 @@ save_incr(#st{file=Name0}=St) ->
     save_1(St#st{file=Name}).
 
 increment_name(Name0) ->
-    Name = filename:rootname(Name0),
-    incr(reverse(Name)).
-
-incr(Name0) -> 
-    case find_digits(Name0)  of
-	{[],Base} ->
-	    Base ++ "_01.wings";
-	{Digits0,Base} ->
-	    Number = list_to_integer(Digits0) + 1,
-	    Digits = integer_to_list(Number),
-	    Base ++ lists:duplicate(length(Digits0)-length(Digits), $0) ++
-		Digits ++ ".wings"
-    end.
+    Name1 = reverse(filename:rootname(Name0)),
+    Name = case find_digits(Name1)  of
+	       {[],Base} ->
+		   Base ++ "_01.wings";
+	       {Digits0,Base} ->
+		   Number = list_to_integer(Digits0) + 1,
+		   Digits = integer_to_list(Number),
+		   Base ++ lists:duplicate(length(Digits0)-length(Digits), $0) ++
+		       Digits ++ ".wings"
+	   end,
+    update_recent(Name0, Name),
+    Name.
 
 find_digits(List) -> 
     find_digits1(List, []).
@@ -415,6 +414,14 @@ add_recent(Name) ->
 	    wings_pref:set_value(recent_files, Recent);
 	_Other -> ok
     end.
+
+update_recent(Old, New) ->
+    OldFile = {filename:basename(Old),Old},
+    NewFile = {filename:basename(New),New},
+    Recent0 = wings_pref:get_value(recent_files, []),
+    Recent1 = Recent0 -- [OldFile,NewFile],
+    Recent = add_recent(NewFile, Recent1),
+    wings_pref:set_value(recent_files, Recent).
 
 add_recent(File, [A,B,C,D,E|_]) -> [File,A,B,C,D,E];
 add_recent(File, Recent) -> [File|Recent].
