@@ -3,12 +3,12 @@
 %%
 %%     This module implements dissolve of faces.
 %%
-%%  Copyright (c) 2004 Bjorn Gustavsson
+%%  Copyright (c) 2004-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dissolve.erl,v 1.7 2005/01/10 17:17:06 bjorng Exp $
+%%     $Id: wings_dissolve.erl,v 1.8 2005/01/20 07:52:23 bjorng Exp $
 %%
 
 -module(wings_dissolve).
@@ -25,8 +25,10 @@ dissolve(Faces, We) ->
     end.
 
 dissolve_1(Faces, We0) ->
-    We1 = optimistic_dissolve(Faces, We0),
-    We = wings_we:vertex_gc(We1#we{vc=undefined}),
+    We1 = optimistic_dissolve(Faces, We0#we{vc=undefined}),
+    NewFaces = wings_we:new_items_as_ordset(face, We0, We1),
+    We2 = wings_face:delete_bad_faces(NewFaces, We1),
+    We = wings_we:rebuild(We2),
     case wings_we:is_consistent(We) of
 	true ->
 	    We;
@@ -127,11 +129,7 @@ complex_dissolve([Faces|T], We0) ->
     Mat = wings_facemat:face(Face, We0),
     We1 = wings_facemat:delete_faces(Faces, We0),
     Parts = outer_edge_partition(Faces, We1),
-    We2 = do_dissolve(Faces, Parts, Mat, We0, We1),
-    NewFaces = wings_we:new_items_as_ordset(face, We0, We2),
-    We = foldl(fun(_, bad_edge) -> bad_edge;
-		  (F, W) -> wings_face:delete_if_bad(F, W)
-	       end, We2, NewFaces),
+    We = do_dissolve(Faces, Parts, Mat, We0, We1),
     complex_dissolve(T, We);
 complex_dissolve([], We) -> We.
 

@@ -10,11 +10,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.106 2005/01/16 04:30:21 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.107 2005/01/20 07:52:24 bjorng Exp $
 %%
 
 -module(wings_we).
--export([build/2,rebuild/1,vertex_gc/1,
+-export([build/2,rebuild/1,
 	 new_wrap_range/3,id/2,bump_id/1,
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
@@ -38,21 +38,89 @@
 -import(lists, [map/2,foreach/2,foldl/3,sort/1,keysort/2,
 		last/1,reverse/1,duplicate/2,seq/2,filter/2,zip/2]).
 
-rebuild(#we{vc=undefined,fs=undefined,es=Etab0}=We) ->
+%%%
+%%% API.
+%%%
+
+build(Mode, #e3d_mesh{fs=Fs0,vs=Vs,tx=Tx,he=He}) when is_atom(Mode) ->
+    Fs = translate_faces(Fs0, list_to_tuple(Tx), []),
+    build(Mode, Fs, Vs, He);
+build(Fs, Vs) ->
+    build(material, Fs, Vs, []).
+
+%% rebuild(We) -> We'
+%%  Rebuild any missing 'vc' and 'fs' tables. If there are
+%%  fewer elements in the 'vc' table than in the 'vp' table,
+%%  remove redundant entries in the 'vp' table. Updated id
+%%  bounds.
+rebuild(#we{vc=undefined,fs=undefined,es=Etab0}=We0) ->
     Etab = gb_trees:to_list(Etab0),
-    Vct = rebuild_vct(Etab),
     Ftab = rebuild_ftab(Etab),
-    rebuild(We#we{vc=Vct,fs=Ftab});
+    VctList = rebuild_vct(Etab),
+    We = We0#we{vc=gb_trees:from_orddict(VctList),fs=Ftab},
+    rebuild_1(VctList, We);
 rebuild(#we{vc=undefined,es=Etab}=We) ->
-    Vct = rebuild_vct(gb_trees:to_list(Etab)),
-    rebuild(We#we{vc=Vct});
+    VctList = rebuild_vct(gb_trees:to_list(Etab), []),
+    rebuild_1(VctList, We#we{vc=gb_trees:from_orddict(VctList)});
 rebuild(#we{fs=undefined,es=Etab}=We) ->
     Ftab = rebuild_ftab(gb_trees:to_list(Etab)),
     rebuild(We#we{fs=Ftab});
 rebuild(We) -> update_id_bounds(We).
 
+%%% Utilities for allocating IDs.
+
+new_wrap_range(Items, Inc, #we{next_id=Id}=We) ->
+    NumIds = Items*Inc,
+    {{0,Id,Inc,NumIds},We#we{next_id=Id+NumIds}}.
+
+id(N, {Current,BaseId,_Inc,NumIds}) ->
+    BaseId + ((Current+N) rem NumIds).
+
+bump_id({Id,BaseId,Inc,NumIds}) ->
+    {Id+Inc,BaseId,Inc,NumIds}.
+
+new_id(#we{next_id=Id}=We) ->
+    {Id,We#we{next_id=Id+1}}.
+
+new_ids(N, #we{next_id=Id}=We) ->
+    {Id,We#we{next_id=Id+N}}.
+
+
+%%% Hiding/showing faces.
+
+hide_faces(Fs, We) when is_list(Fs) ->
+    hide_faces_1(gb_sets:from_list(Fs), We);
+hide_faces(Fs, We) ->
+    hide_faces_1(Fs, We).
+
+num_hidden(#we{fs=Ftab}=We) ->
+    case any_hidden(We) of
+	false -> 0;
+	true -> num_hidden_1(gb_trees:keys(Ftab), 0)
+    end.
+
+any_hidden(#we{fs=Ftab}) ->
+    not gb_trees:is_empty(Ftab) andalso
+	wings_util:gb_trees_smallest_key(Ftab) < 0.
+
+all_hidden(#we{fs=Ftab}) ->
+    not gb_trees:is_empty(Ftab) andalso
+	wings_util:gb_trees_largest_key(Ftab) < 0.
+
+%%%
+%%% Local functions.
+%%%
+
+rebuild_1(VctList, #we{vc=Vct,vp=Vtab0}=We) ->
+    case {gb_trees:size(Vct),gb_trees:size(Vtab0)} of
+	{Same,Same} -> rebuild(We);
+	{Sz1,Sz2} when Sz1 < Sz2 ->
+	    Vtab = vertex_gc_1(VctList, gb_trees:to_list(Vtab0), []),
+	    rebuild(We#we{vp=Vtab})
+    end.
+
 rebuild_vct(Es) ->
-    gb_trees:from_orddict(rebuild_vct(Es, [])).
+    rebuild_vct(Es, []).
 
 rebuild_vct([{Edge,#edge{vs=Va,ve=Vb}}|Es], Acc0) ->
     Acc = rebuild_maybe_add(Va, Vb, Edge, Acc0),
@@ -80,16 +148,6 @@ rebuild_maybe_add(Ka, Kb, E, [{Kb,_}|_]=Acc) ->
 rebuild_maybe_add(Ka, Kb, E, Acc) ->
     [{Ka,E},{Kb,E}|Acc].
 
-%% vertex_gc(We) -> We'
-%%  Remove vertices in the 'vc' and 'vp' tables that are no
-%%  longer referenced by any edge in the edge table.
-vertex_gc(#we{es=Etab,vp=Vtab0}=We) ->
-    Es = gb_trees:to_list(Etab),
-    Vct0 = rebuild_vct(Es, []),
-    Vtab = vertex_gc_1(Vct0, gb_trees:to_list(Vtab0), []),
-    Vct = gb_trees:from_orddict(Vct0),
-    We#we{vc=Vct,vp=Vtab}.
-
 vertex_gc_1([{V,_}|Vct], [{V,_}=Vtx|Vpos], Acc) ->
     vertex_gc_1(Vct, Vpos, [Vtx|Acc]);
 vertex_gc_1([_|_]=Vct, [_|Vpos], Acc) ->
@@ -98,13 +156,8 @@ vertex_gc_1([], _, Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
 
 %%%
-%%% Hide the faces given in the list.
+%%% Handling of hidden faces.
 %%%
-
-hide_faces(Fs, We) when is_list(Fs) ->
-    hide_faces_1(gb_sets:from_list(Fs), We);
-hide_faces(Fs, We) ->
-    hide_faces_1(Fs, We).
 
 hide_faces_1(Fs, #we{es=Etab0}=We0) ->
     Map = fun(_, #edge{lf=Lf0,rf=Rf0}=R0) ->
@@ -125,23 +178,10 @@ hide_map_face(F, Fs) ->
 	true -> -F-1
     end.
 
-num_hidden(#we{fs=Ftab}=We) ->
-    case any_hidden(We) of
-	false -> 0;
-	true -> num_hidden_1(gb_trees:keys(Ftab), 0)
-    end.
-
 num_hidden_1([F|Fs], N) when F < 0 ->
     num_hidden_1(Fs, N+1);
 num_hidden_1(_, N) -> N.
 	    
-any_hidden(#we{fs=Ftab}) ->
-    not gb_trees:is_empty(Ftab) andalso
-	wings_util:gb_trees_smallest_key(Ftab) < 0.
-
-all_hidden(#we{fs=Ftab}) ->
-    not gb_trees:is_empty(Ftab) andalso
-	wings_util:gb_trees_largest_key(Ftab) < 0.
 
 visible(#we{mirror=none,fs=Ftab}) ->
     visible_2(gb_trees:keys(Ftab));
@@ -284,12 +324,6 @@ mirror_flatten(#we{mirror=OldFace}=OldWe, #we{mirror=Face,vp=Vtab0}=We) ->
 %%%
 %%% Build Winged-Edges.
 %%%
-
-build(Mode, #e3d_mesh{fs=Fs0,vs=Vs,tx=Tx,he=He}) when is_atom(Mode) ->
-    Fs = translate_faces(Fs0, list_to_tuple(Tx), []),
-    build(Mode, Fs, Vs, He);
-build(Fs, Vs) ->
-    build(material, Fs, Vs, []).
 
 translate_faces([#e3d_face{vs=Vs,tx=Tx0,mat=Mat0}|Fs], Txs, Acc) ->
     Mat = translate_mat(Mat0),
@@ -494,24 +528,6 @@ make_digraph([{{Vb,Va},[{left,_Data}]}|Es], G) ->
     digraph:add_edge(G, Va, Vb),
     make_digraph(Es, G);
 make_digraph([], _G) -> ok.
-
-%%% Utilities for allocating IDs.
-
-new_wrap_range(Items, Inc, #we{next_id=Id}=We) ->
-    NumIds = Items*Inc,
-    {{0,Id,Inc,NumIds},We#we{next_id=Id+NumIds}}.
-
-id(N, {Current,BaseId,_Inc,NumIds}) ->
-    BaseId + ((Current+N) rem NumIds).
-
-bump_id({Id,BaseId,Inc,NumIds}) ->
-    {Id+Inc,BaseId,Inc,NumIds}.
-
-new_id(#we{next_id=Id}=We) ->
-    {Id,We#we{next_id=Id+1}}.
-
-new_ids(N, #we{next_id=Id}=We) ->
-    {Id,We#we{next_id=Id+N}}.
 
 %%% Invert all normals.
 

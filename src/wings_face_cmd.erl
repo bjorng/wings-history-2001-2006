@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.128 2005/01/16 05:32:50 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.129 2005/01/20 07:52:24 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -351,7 +351,7 @@ mirror_weld(0, _IterA0, FaceA, _IterB0, FaceB, _WeOrig, #we{fs=Ftab0}=We0) ->
     Ftab1 = gb_trees:delete(FaceA, Ftab0),
     Ftab = gb_trees:delete(FaceB, Ftab1),
     We = wings_facemat:delete_faces([FaceA,FaceB], We0#we{fs=Ftab}),
-    wings_we:vertex_gc(We);
+    wings_we:rebuild(We#we{vc=undefined});
 mirror_weld(N, IterA0, FaceA, IterB0, FaceB, WeOrig, We0) ->
     %% We will remove FaceA and FaceB, as well as all edges and vertices
     %% surrounding FaceB.

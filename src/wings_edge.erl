@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.117 2005/01/15 20:24:35 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.118 2005/01/20 07:52:24 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -167,13 +167,14 @@ dissolve_edge(Edge, We) ->
     dissolve_edges([Edge], We).
 
 dissolve_edges(Edges0, We0) when is_list(Edges0) ->
-    #we{es=Etab} = We = foldl(fun internal_dissolve_edge/2, We0, Edges0),
+    #we{es=Etab} = We1 = foldl(fun internal_dissolve_edge/2, We0, Edges0),
     case [E || E <- Edges0, gb_trees:is_defined(E, Etab)] of
 	Edges0 ->
 	    %% No edge was deleted in the last pass. We are done.
-	    wings_we:validate_mirror(wings_we:vertex_gc(We));
+	    We = wings_we:rebuild(We0#we{vc=undefined}),
+	    wings_we:validate_mirror(We);
 	Edges ->
-	    dissolve_edges(Edges, We)
+	    dissolve_edges(Edges, We1)
     end;
 dissolve_edges(Edges, We) ->
     dissolve_edges(gb_sets:to_list(Edges), We).
@@ -287,7 +288,7 @@ dissolve_isolated_vs_2([], We, []) ->
     %% Nothing was done in the last pass. We don't need to do a vertex GC.
     We;
 dissolve_isolated_vs_2([], We0, Vs) ->
-    We = wings_we:vertex_gc(We0),
+    We = wings_we:rebuild(We0#we{vc=undefined}),
 
     %% Now do another pass over the vertices still in our list.
     %% Reason:
