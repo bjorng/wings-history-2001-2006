@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.13 2003/01/27 13:57:49 dgud Exp $
+%%     $Id: auv.hrl,v 1.14 2003/01/29 04:56:46 bjorng Exp $
 
 %% Chart record (one for each chart).
 -record(ch,
@@ -17,9 +17,10 @@
 	 scale = 1.0,
 	 rotate = 0.0,
 	 size,
-	 be,				%Boundary edges.
-	 bf = [],                       % Backface created from cut.
-	 we                             % We per chart
+	 be,					%Boundary edges.
+	 bf = [],			        %Backface created from cut.
+	 we,					%We per chart
+	 vmap					%Map back to original vertex numbers
 	}).
 
 -record(setng, {texsz = {512, 512},   %% Texture size
@@ -29,27 +30,27 @@
 		edge_color = false,   %% Use vertex/face color on edges
 		edge_width = 2.0      %% Edge Thickness (overdraw help)
 	       }).
+
 -record(uvstate,
-	{ op,               %% Current op i.e. move rotate, scale..
-	  mode = faceg,     %% faceg, face, edge, vertex
-	  size = [0,0],     %% Max Size currently (unscaled)
-	  option = #setng{},%% Settings
-	  geom,             %% Window geom
-	  last_file = "",   %% Export/Imported texture filename
-	  dl,               %% Display list for non selected areas
+	{op,               %% Current op i.e. move rotate, scale..
+	 mode = faceg,     %% faceg, face, edge, vertex
+	 size = [0,0],     %% Max Size currently (unscaled)
+	 option = #setng{},%% Settings
+	 geom,             %% Window geom
+	 last_file = "",   %% Export/Imported texture filename
+	 dl,               %% Display list for non selected areas
 %% Data
-	  sel = [],         %% Selected areas
-	  areas,            %% The charts 
+	 sel = [],         %% Selected areas
+	 areas,            %% The charts 
 %%
-	  id,               %% We Id of orig_we.
-	  matname,
-	  orig_we,	    % Original We.
-	  edges,	    % Edge numbers.
-	  vmap,	            % Map for going back to original vertex numbers.
+	 id,               %% We Id of orig_we.
+	 matname,
+	 orig_we,	    % Original We.
+	 edges,		    % Edge numbers.
 %%
-	  st,               %% My maybe modified st
-	  origst            %% Orignal st
-	 }).             
+	 st,               %% My maybe modified st
+	 origst            %% Orignal st
+	}).             
 
 -ifdef(DEBUG).
 -define(DBG(S,A), io:format("~p:~p " ++ S, [?MODULE,?LINE|A])).

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.82 2003/01/28 08:27:23 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.83 2003/01/29 04:56:46 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -48,10 +48,10 @@ command({body,?MODULE}, St) ->
 command({body,{?MODULE,do_edit,{We,MatName,Faces}}}, St) ->
     do_edit(MatName, Faces, We, St);
 command({body,{?MODULE,show_map,Info}}, St) ->
-    {MappedCharts,Vmap,OrigWe} = Info,
-    init_show_maps(MappedCharts, Vmap, OrigWe, St);
+    {MappedCharts,OrigWe} = Info,
+    init_show_maps(MappedCharts, OrigWe, St);
 command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, St0) ->
-    #uvstate{areas=Current,sel=Sel,vmap=Vmap,matname=MatName0,orig_we=OrWe} = Uvs,
+    #uvstate{areas=Current,sel=Sel,matname=MatName0,orig_we=OrWe} = Uvs,
     Charts = add_areas(Sel, Current),
     {St1,MatName} =
 	case QuitOp of
@@ -60,7 +60,7 @@ command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, St0) ->
 		add_material(Tx, OrWe#we.name, MatName0, St0);
 	    quit_uv -> {St0,MatName0}
 	end,
-    St = ?SLOW(insert_uvcoords(Charts,OrWe#we.id,MatName,Vmap,St1)),
+    St = ?SLOW(insert_uvcoords(Charts, OrWe#we.id, MatName, St1)),
     reset_view(),
     St;
 command(_, _) -> next.
@@ -309,21 +309,21 @@ seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     [{_,#we{he=Cuts0}=We0}] = gb_trees:to_list(Shs),
     Charts0 = auv_segment:segment_by_material(We0),
     {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
-    {Charts,Vmap} = auv_segment:cut_model(Charts1, Cuts, OrigWe),
+    Charts = auv_segment:cut_model(Charts1, Cuts, OrigWe),
     N = length(Charts),
-    seg_map_charts_1(Charts, Method, {OrigWe,Vmap}, 1, N, [], Ss).
+    seg_map_charts_1(Charts, Method, OrigWe, 1, N, [], Ss).
 
 seg_map_charts_1(Cs, Type, Extra, I, N, Acc, Ss) when I =< N ->
     MapChart = fun() -> seg_map_chart(Cs, Type, Extra, I, N, Acc, Ss) end,
     wings_io:putback_event({callback,MapChart}),
     Msg = io_lib:format("Mapping chart ~w of ~w", [I,N]),
     get_seg_event(Ss#seg{msg=Msg});
-seg_map_charts_1(_, _, {OrigWe,Vmap}, _, _, MappedCharts, _) ->
-    Info = {MappedCharts,Vmap,OrigWe},
+seg_map_charts_1(_, _, OrigWe, _, _, MappedCharts, _) ->
+    Info = {MappedCharts,OrigWe},
     wings_io:putback_event({action,{body,{?MODULE,show_map,Info}}}),
     pop.
 
-seg_map_chart([{Fs,We0}|Cs], Type, Extra, I, N, Acc0, Ss) ->
+seg_map_chart([{Fs,Vmap,We0}|Cs], Type, Extra, I, N, Acc0, Ss) ->
 %%    io:format("map_chart ~p ~p ~p~n", [I, Fs, MergedWe]),
     case auv_mapping:map_chart(Type, Fs, We0) of
 	{error,Message} ->
@@ -338,7 +338,7 @@ seg_map_chart([{Fs,We0}|Cs], Type, Extra, I, N, Acc0, Ss) ->
 %		       {length(Fs),length(VsK)}]),
 	    BackFace = gb_trees:keys(Fp) -- Fs,
 	    We  = We0#we{vp = gb_trees:from_orddict(sort(Vs))},
-	    Acc = [#ch{we=We, bf=BackFace}|Acc0],
+	    Acc = [#ch{we=We,bf=BackFace,vmap=Vmap}|Acc0],
 	    seg_map_charts_1(Cs, Type, Extra, I+1, N, Acc, Ss)
     end.
 
@@ -423,7 +423,7 @@ discard_uvmap(#we{fs=Ftab}=We0, St) ->
     mark_segments(Charts, Cuts, We, St).
 
 do_edit(MatName0, Faces, We, St) ->
-    {Edges,Areas,Vmap,MatName} = init_edit(MatName0, Faces, We),
+    {Edges,Areas,MatName} = init_edit(MatName0, Faces, We),
     {{X,Y,W,H},Geom} = init_drawarea(),
     TexSz = get_texture_size(MatName, St),
     Id = We#we.id,
@@ -434,7 +434,6 @@ do_edit(MatName0, Faces, We, St) ->
 		   geom=Geom, 
 		   orig_we=We,
 		   edges=Edges,
-		   vmap=Vmap,
 		   matname=MatName,
 		   option=#setng{color=false,texbg=true,texsz=TexSz}},
     Op = {seq,push,get_event(Uvs)},
@@ -494,7 +493,7 @@ find_boundary_edges([{Id,#ch{bf=Bf,we=We}=C}|Cs], Acc) ->
     find_boundary_edges(Cs, [{Id,C#ch{be=Be}}|Acc]);
 find_boundary_edges([], Acc) -> sort(Acc).
 
-init_show_maps(Map0, Vmap, OrigWe, St0) ->
+init_show_maps(Map0, OrigWe, St0) ->
     Map1 = auv_placement:place_areas(Map0),
     Map3 = find_boundary_edges(Map1, []),
     Map  = gb_trees:from_orddict(Map3),
@@ -508,25 +507,59 @@ init_show_maps(Map0, Vmap, OrigWe, St0) ->
 		   geom=Geom,
 		   orig_we=OrigWe,
 		   edges=Edges,
-		   vmap=Vmap,
 		   matname=none},
     Op = {seq,push,get_event(Uvs)},
     wings_wm:toplevel(autouv, "AutoUV", {X,Y,highest}, {W,H}, [resizable], Op),
     wings_wm:callback(fun() -> wings_util:menu_restriction(autouv, []) end),
     keep.
    
-insert_uvcoords(Charts,Id,MatName,Vmap,#st{shapes=Shs0}=St) ->
+insert_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
     We0 = gb_trees:get(Id, Shs0),
-    We = insert_uvcoords_1(We0, Charts,MatName,Vmap),
+    We = insert_uvcoords_1(We0, Charts, MatName),
     Shs = gb_trees:update(Id, We, Shs0),
     St#st{shapes=Shs}.
 
-insert_uvcoords_1(We0, Cs0,MatName,Vmap) ->
+insert_uvcoords_1(We0, Cs0, MatName) ->
     Cs = gb_trees:values(Cs0),
     UVpos = gen_uv_pos(Cs, []),
-    We1 = insert_coords(UVpos, Vmap, We0),
+    We1 = insert_coords(UVpos, We0),
     We = insert_material(Cs, MatName, We1),
     We#we{mode=uv}.
+
+gen_uv_pos([#ch{bf=Bf,center={CX,CY},scale=Sc,we=We,vmap=Vmap}|T], Acc) ->
+    Vpos0 = auv_util:moveAndScale(gb_trees:to_list(We#we.vp), CX, CY, Sc, []),
+    Fs = gb_trees:keys(We#we.fs) -- Bf,
+    VFace0 = wings_face:fold_faces(
+	       fun(Face, V, _, _, A) ->
+		       [{V,Face}|A]
+	       end, [], Fs, We),
+    VFace = sofs:relation(VFace0, [{vertex,face}]),
+    Vpos = sofs:relation(Vpos0, [{vertex,uvinfo}]),
+    Comb0 = sofs:relative_product({VFace,Vpos}),
+    Comb1 = sofs:to_external(Comb0),
+    Comb = foldl(fun({V0,Data}, A) ->
+			 V = auv_segment:map_vertex(V0, Vmap),
+			 [{V,Data}|A]
+		 end, Acc, Comb1),
+    gen_uv_pos(T, Comb);
+gen_uv_pos([], Acc) -> Acc.
+
+insert_coords([{V,{Face,{S,T,_}}}|Rest], #we{es=Etab0}=We) ->
+    Etab = wings_vertex:fold(
+	     fun(Edge, _, Rec0, E0) ->
+		     case Rec0 of
+			 #edge{vs=V,lf=Face} ->
+			     Rec = gb_trees:get(Edge, E0),
+			     gb_trees:update(Edge, Rec#edge{a={S,T}}, E0);
+			 #edge{ve=V,rf=Face} ->
+			     Rec = gb_trees:get(Edge, E0),
+			     gb_trees:update(Edge, Rec#edge{b={S,T}}, E0);
+			 _ ->
+			     E0
+		     end
+	     end, Etab0, V, We),
+    insert_coords(Rest, We#we{es=Etab});
+insert_coords([], We) -> We.
 
 insert_material(Cs, MatName, #we{fs=Ftab0}=We) ->
     Faces = lists:append([gb_trees:keys(ChFt) -- Bf || 
@@ -541,38 +574,6 @@ insert_material(Cs, MatName, #we{fs=Ftab0}=We) ->
 		 end, Ftab0, Faces),
     We#we{fs=Ftab}.
 
-gen_uv_pos([#ch{bf=Bf,center={CX,CY},scale=Sc,we=We}|T], Acc) ->
-    Vpos0 = auv_util:moveAndScale(gb_trees:to_list(We#we.vp), CX, CY, Sc, []),
-    Fs = gb_trees:keys(We#we.fs) -- Bf,
-    VFace0 = wings_face:fold_faces(
-	       fun(Face, V, _, _, A) ->
-		       [{V,Face}|A]
-	       end, [], Fs, We),
-    VFace = sofs:relation(VFace0, [{vertex,face}]),
-    Vpos = sofs:relation(Vpos0, [{vertex,uvinfo}]),
-    Comb0 = sofs:relative_product({VFace,Vpos}),
-    Comb = sofs:to_external(Comb0),
-    gen_uv_pos(T, Comb++Acc);
-gen_uv_pos([], Acc) -> Acc.
-
-insert_coords([{V0,{Face,{S,T,_}}}|Rest], Vmap, #we{es=Etab0}=We) ->
-    V = auv_segment:map_vertex(V0, Vmap),
-    Etab = wings_vertex:fold(
-	     fun(Edge, _, Rec0, E0) ->
-		     case Rec0 of
-			 #edge{vs=V,lf=Face} ->
-			     Rec = gb_trees:get(Edge, E0),
-			     gb_trees:update(Edge, Rec#edge{a={S,T}}, E0);
-			 #edge{ve=V,rf=Face} ->
-			     Rec = gb_trees:get(Edge, E0),
-			     gb_trees:update(Edge, Rec#edge{b={S,T}}, E0);
-			 _ ->
-			     E0
-		     end
-	     end, Etab0, V, We),
-    insert_coords(Rest, Vmap, We#we{es=Etab});
-insert_coords([], _, We) -> We.
-
 init_edit(MatName, Faces, We0) ->
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
@@ -581,7 +582,7 @@ init_edit(MatName, Faces, We0) ->
     Map3 = find_boundary_edges(Map1, []),
     Map  = gb_trees:from_orddict(Map3),
     Edges= gb_trees:keys(We0#we.es),
-    {Edges,Map,Vmap,MatName}.
+    {Edges,Map,MatName}.
 
 build_map([{Fs,We0}|T], Vmap, FvUvMap, No, Acc) ->
     %% XXX Because auv_segment:cut_model/3 distorts the UV coordinates
@@ -1120,13 +1121,13 @@ handle_event({action,{auv,{import,all_white}}}, Uvs) ->
 handle_event({action,{auv,{import,all_black}}}, Uvs) ->
     set_texture_image(fun all_black/2, Uvs);
 handle_event({action,{auv,apply_texture}},
-	     #uvstate{st=St0,sel=Sel0,areas=As0,vmap=Vmap,
+	     #uvstate{st=St0,sel=Sel0,areas=As0,
 		      orig_we=OWe,matname=MatName0}=Uvs) ->
     Tx = ?SLOW(get_texture(Uvs)),
     As = add_areas(Sel0, As0),
     #we{name = Name, id=Id} = OWe,
     {St1,MatName} = add_material(Tx,Name,MatName0,St0),
-    St = insert_uvcoords(As,Id,MatName,Vmap,St1),
+    St = insert_uvcoords(As, Id, MatName, St1),
     wings_wm:send(geom, {new_state,St}),
     get_event(Uvs#uvstate{st=St,matname=MatName});
 handle_event({action, {auv, edge_options}}, Uvs) ->

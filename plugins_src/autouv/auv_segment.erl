@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.43 2003/01/27 13:57:49 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.44 2003/01/29 04:56:46 bjorng Exp $
 
 -module(auv_segment).
 
@@ -677,16 +677,16 @@ map_vertex(V0, Vmap) ->
 %%%
 
 cut_model(Charts, Cuts, We0) ->
-    Map0 = gb_trees:empty(),
     Empty = sofs:empty_set(),
     InUse0 = {Empty,Empty},
-    {Chs,{Map,_,_}} = mapfoldl(fun(Keep, {M,W,InUse}) ->
-				       cut_one_chart(Keep, Cuts, W, M, InUse)
-			       end, {Map0,We0,InUse0}, Charts),
+    {Chs,_} = mapfoldl(fun(Keep, {W,InUse}) ->
+			       cut_one_chart(Keep, Cuts, W, InUse)
+		       end, {We0,InUse0}, Charts),
     ?DBG("Map size: ~p\n", [gb_trees:size(Map)]),
-    {Chs,Map}.
+    Chs.
 
-cut_one_chart(Keep0, Cuts, We0, Map0, InUse0) ->
+cut_one_chart(Keep0, Cuts, We0, InUse0) ->
+    Map0 = gb_trees:empty(),
     Keep = gb_sets:from_list(Keep0),
     OuterEdges = wings_face:outer_edges(Keep, We0),
     {We1,Map1} = cut_shared_vertices(Keep, OuterEdges, We0, Map0),
@@ -699,7 +699,7 @@ cut_one_chart(Keep0, Cuts, We0, Map0, InUse0) ->
 	  end,
     {We,Map,InUse} = cut_renumber(Keep, OuterEdges, We3, Map2, InUse0),
     Next = lists:max([We0#we.next_id,We#we.next_id]),
-    {{Keep0,We},{Map,We0#we{next_id=Next},InUse}}.
+    {{Keep0,Map,We},{We0#we{next_id=Next},InUse}}.
 
 cut_shared_vertices(Faces, Es, #we{es=Etab}=We0, InvVmap0) ->
     VsEs0 = foldl(fun(E, A) ->
