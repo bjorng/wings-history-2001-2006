@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.39 2003/04/21 10:16:57 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.40 2003/04/23 13:06:18 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -185,28 +185,41 @@ import_images(Props) ->
     end.
 	    
 import_images_1([{Id0,Im}|T], Map) ->
-    Name = proplists:get_value(name, Im, "unnamed image"),
-    W = proplists:get_value(width, Im, 0),
-    H = proplists:get_value(height, Im, 0),
-    PP = proplists:get_value(samples_per_pixel, Im, 0),
-    Pixels = proplists:get_value(pixels, Im),
-    if
-	W*H*PP =:= size(Pixels) -> ok;
-	true -> wings_util:error("Bad image: ~p\n", [Name])
-    end,
-    MaskSize = proplists:get_value(mask_size, Im),
-    Type = case PP of
-	       1 when MaskSize =:= 1 -> a8;
-	       1 -> g8;
-	       2 -> g8a8;
-	       3 -> r8g8b8;
-	       4 -> r8g8b8a8
-	   end,
-    E3D = #e3d_image{width=W,height=H,type=Type,order=lower_left,
-		     alignment=1,bytes_pp=PP,image=Pixels},
+    #e3d_image{name=Name} = E3D = import_image(Im),
     Id = wings_image:new(Name, E3D),
     import_images_1(T, gb_trees:insert(Id0, Id, Map));
 import_images_1([], Map) -> Map.
+
+import_image(Im) ->
+    Name = proplists:get_value(name, Im, "unnamed image"),
+    case proplists:get_value(filename, Im) of
+	undefined ->
+	    W = proplists:get_value(width, Im, 0),
+	    H = proplists:get_value(height, Im, 0),
+	    PP = proplists:get_value(samples_per_pixel, Im, 0),
+	    Pixels = proplists:get_value(pixels, Im),
+	    if
+		W*H*PP =:= size(Pixels) -> ok;
+		true -> wings_util:error("Bad image: ~p\n", [Name])
+	    end,
+	    MaskSize = proplists:get_value(mask_size, Im),
+	    Type = case PP of
+		       1 when MaskSize =:= 1 -> a8;
+		       1 -> g8;
+		       2 -> g8a8;
+		       3 -> r8g8b8;
+		       4 -> r8g8b8a8
+		   end,
+	    #e3d_image{name=Name,width=W,height=H,type=Type,order=lower_left,
+		       alignment=1,bytes_pp=PP,image=Pixels};
+	Filename ->
+	    case e3d_image:load(Filename) of
+		#e3d_image{}=E3D ->
+		    E3D#e3d_image{name=Name,filename=Filename};
+		{error,_} ->
+		    #e3d_image{name=Name,width=1,height=1,image= <<0,0,0>>}
+	    end
+    end.
 
 translate_map_images(Mats, ImMap) ->
     [translate_map_images_1(M, ImMap) || M <- Mats].
@@ -476,7 +489,7 @@ export_images_1([{Id,Im}|T]) ->
     [{Id,export_image(Im)}|export_images_1(T)];
 export_images_1([]) -> [].
 
-export_image(#e3d_image{type=Type0,order=Order}=Im0) ->
+export_image(#e3d_image{filename=none,type=Type0,order=Order}=Im0) ->
     Im = case {export_img_type(Type0),Order} of
 	     {Type0=Type,lower_left} -> Im0;
 	     {Type,_} -> e3d_image:convert(Im0, Type, 1, lower_left)
@@ -484,7 +497,14 @@ export_image(#e3d_image{type=Type0,order=Order}=Im0) ->
     #e3d_image{width=W,height=H,bytes_pp=PP,image=Pixels,name=Name} = Im,
     MaskSize = mask_size(Type),
     [{name,Name},{width,W},{height,H},{samples_per_pixel,PP},
-     {mask_size,MaskSize},{pixels,Pixels}].
+     {mask_size,MaskSize},{pixels,Pixels}];
+export_image(#e3d_image{name=Name,filename=Filename}=Im) ->
+    case filelib:is_file(Filename) of
+	false ->
+	    export_image(Im#e3d_image{filename=none});
+	true ->
+	    [{name,Name},{filename,Filename}]
+    end.
 
 export_img_type(b8g8r8) -> r8g8b8;
 export_img_type(b8g8r8a8) -> r8g8b8a8;
