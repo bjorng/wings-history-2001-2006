@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.20 2002/11/28 17:49:49 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.21 2002/11/29 14:58:56 dgud Exp $
 %%
 
 -module(wings_light).
@@ -609,8 +609,8 @@ setup_lights(CoordType) ->
 	true -> scene_lights(CoordType)
     end.
 
-modeling_lights(global, _NoL) -> ok;
-modeling_lights(camera, NoL) ->
+modeling_lights(global, _Type) -> ok;
+modeling_lights(camera, Type) ->
     gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0.1,0.1,0.1,1.0}),
     gl:enable(?GL_LIGHT0),
     gl:disable(?GL_LIGHT2),
@@ -619,7 +619,7 @@ modeling_lights(camera, NoL) ->
     gl:disable(?GL_LIGHT5),
     gl:disable(?GL_LIGHT6),
     gl:disable(?GL_LIGHT7),
-    case NoL of
+    case Type of
 	1 ->
 	    gl:disable(?GL_LIGHT1),
 	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {0.5,0.5,0.5,1}),
@@ -630,7 +630,14 @@ modeling_lights(camera, NoL) ->
 	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {1,1,1,1}),
 	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.71,0.71,0.0,0.0}),
 	    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {0.5,0.5,0.5,1}),
-	    gl:lightfv(?GL_LIGHT1, ?GL_POSITION, {-0.71,-0.71,0.0})
+	    gl:lightfv(?GL_LIGHT1, ?GL_POSITION, {-0.71,-0.71,0.0,0});
+	mat_preview ->
+	    D = 0.8,
+	    S = 0.7,
+	    gl:disable(?GL_LIGHT1),
+	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {D,D,D,1}),
+ 	    gl:lightfv(?GL_LIGHT0, ?GL_SPECULAR, {S,S,S,1}),
+	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {1,1,2,0})
     end.
 
 scene_lights(camera) -> ok;

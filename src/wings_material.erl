@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.60 2002/11/26 20:08:34 dgud Exp $
+%%     $Id: wings_material.erl,v 1.61 2002/11/29 14:58:57 dgud Exp $
 %%
 
 -module(wings_material).
@@ -347,11 +347,12 @@ mat_preview(X, Y, _W, _H, Common) ->
     gl:matrixMode(?GL_PROJECTION),
     gl:pushMatrix(),
     gl:loadIdentity(),
+    glu:perspective(60.0, 1, 0.01, 256.0),
     gl:matrixMode(?GL_MODELVIEW),
     gl:pushMatrix(),
     gl:loadIdentity(),
-    wings_light:modeling_lights(camera,2),
-%%    wings_light:global_lights(),
+    gl:translatef(0.0, 0.0, -2.0),
+    wings_light:modeling_lights(camera,mat_preview),
     gl:shadeModel(?GL_SMOOTH),
     Alpha = gb_trees:get(opacity, Common),
     Amb = preview_mat(ambient, Common, Alpha),
@@ -365,11 +366,12 @@ mat_preview(X, Y, _W, _H, Common) ->
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_BLEND),
-    gl:enable(?GL_DEPTH_TEST),
+    gl:enable(?GL_CULL_FACE),
+%    gl:enable(?GL_DEPTH_TEST),
     Obj = glu:newQuadric(),
     glu:quadricDrawStyle(Obj, ?GLU_FILL),
     glu:quadricNormals(Obj, ?GLU_SMOOTH),
-    glu:sphere(Obj, 0.8, 50, 50),
+    glu:sphere(Obj, 0.9, 50, 50),
     glu:deleteQuadric(Obj),
     gl:disable(?GL_LIGHTING),
     gl:disable(?GL_BLEND),
