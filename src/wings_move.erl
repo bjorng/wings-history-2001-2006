@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.19 2001/12/23 17:48:06 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.20 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -24,21 +24,16 @@ setup(Type, #st{selmode=body,sel=Sel}=St) ->
     wings_drag:init_drag({matrix,Ids}, constraint(Type), distance, St);
 setup(Type, #st{selmode=Mode}=St) ->
     Vec = wings_util:make_vector(Type),
-    Tvs0 = wings_sel:fold_shape(fun(Sh, Items, Acc) ->
-					setup_1(Mode, Sh, Items, Vec, Acc)
-				end, [], St),
-    Tvs = case Mode of
-	      body -> {matrix,Tvs0};
-	      Other -> Tvs0
-	  end,
+    Tvs = wings_sel:fold(fun(Items, We, Acc) ->
+				 setup_1(Mode, We, Items, Vec, Acc)
+			 end, [], St),
     wings_drag:init_drag(Tvs, constraint(Type), distance, St).
 
-setup_1(Mode, #shape{id=Id,sh=We}=Sh, Items, Vec, Acc) ->
+setup_1(Mode, #we{id=Id}=We, Items, Vec, Acc) ->
     Tv = case Mode of
 	     vertex -> vertices_to_vertices(gb_sets:to_list(Items), We, Vec);
 	     edge -> edges_to_vertices(Items, We, Vec);
-	     face -> faces_to_vertices(Items, We, Vec);
-	     body -> body_to_vertices(Sh, Vec)
+	     face -> faces_to_vertices(Items, We, Vec)
 	 end,
     [{Id,Tv}|Acc].
 
@@ -196,9 +191,6 @@ add_sort_key({X,Y,Z}=N) ->
 %%
 %% Conversion of body selections (entire objects) to vertices.
 %%
-
-body_to_vertices(Sh, Vec) ->
-    translate_fun(Vec).
 
 translate_fun(free) ->
     fun(Matrix0, {Dx,Dy}) ->

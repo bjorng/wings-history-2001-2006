@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.17 2001/12/23 17:48:06 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.18 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -36,13 +36,13 @@ user_defined(Dirs) ->
 
 command({Type,Dir}, #st{selmode=vertex}=St) ->
     Vec = wings_util:make_vector(Dir),
-    Tvs = wings_sel:fold_shape(fun(Sh, Items, Acc) ->
-				       setup_1(Sh, Items, Vec, Type, Acc)
-			       end, [], St),
+    Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
+				 setup_1(Vs, We, Vec, Type, Acc)
+			 end, [], St),
     wings_drag:init_drag(Tvs, {magnet,constraint(Dir)}, St#st{inf_r=1.0}).
 
-setup_1(#shape{id=Id,sh=We}=Sh, Items, Vec, Type, Acc) ->
-    Tv = vertices_to_vertices(gb_sets:to_list(Items), We, Type, Vec),
+setup_1(Vs, #we{id=Id}=We, Vec, Type, Acc) ->
+    Tv = vertices_to_vertices(gb_sets:to_list(Vs), We, Type, Vec),
     [{Id,Tv}|Acc].
 
 constraint(free) -> view_dependent;

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.13 2001/11/07 20:51:52 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.14 2001/12/26 14:46:25 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -21,18 +21,17 @@
 collapse(St0) ->
     case St0#st.selmode of
 	face ->
-	    {St,Sel} = wings_sel:mapfold_shape(fun collapse_faces/4, [], St0),
+	    {St,Sel} = wings_sel:mapfold(fun collapse_faces/3, [], St0),
 	    St#st{selmode=vertex,sel=Sel};
 	edge ->
-	    {St,Sel} = wings_sel:mapfold_shape(fun collapse_edges/4, [], St0),
+	    {St,Sel} = wings_sel:mapfold(fun collapse_edges/3, [], St0),
 	    wings_sel:valid_sel(St#st{selmode=vertex,sel=Sel});
 	vertex ->
-	    {St,Sel} = wings_sel:mapfold_shape(fun collapse_vertices/4,
-					       [], St0),
+	    {St,Sel} = wings_sel:mapfold(fun collapse_vertices/3, [], St0),
 	    wings_sel:valid_sel(St#st{selmode=face,sel=Sel})
     end.
 
-collapse_faces(Id, Faces, We0, SelAcc)->
+collapse_faces(Faces, #we{id=Id}=We0, SelAcc)->
     We = foldl(fun collapse_face/2, We0, gb_sets:to_list(Faces)),
     Sel = wings_we:new_items(vertex, We0, We),
     {We,[{Id,Sel}|SelAcc]}.
@@ -115,7 +114,7 @@ delete_edges(V, Edge, Face, {Etab0,Vtab0,Ftab0,Htab0}) ->
     Htab = wings_edge:hardness(Edge, soft, Htab0),
     {Etab,Vtab,Ftab,Htab}.
 	    
-collapse_edges(Id, Edges0, #we{es=Etab}=We0, SelAcc)->
+collapse_edges(Edges0, #we{id=Id,es=Etab}=We0, SelAcc)->
     Edges = gb_sets:to_list(Edges0),
     We = foldl(fun collapse_edge/2, We0, Edges),
     Sel = foldl(fun(Edge, A) ->
@@ -177,7 +176,7 @@ collapse_edge_1(Edge, Rec, #we{es=Etab0,he=Htab0,fs=Ftab0,vs=Vtab0}=We0)->
 %%
 %% The Collapse command on vertices.
 %%
-collapse_vertices(Id, Vs, We0, SelAcc) ->
+collapse_vertices(Vs, #we{id=Id}=We0, SelAcc) ->
     {We,Sel} = gb_sets:fold(fun(V, {W,S}) ->
 				    do_collapse_vertex(V, W, S)
 			    end, {We0,gb_sets:empty()}, Vs),

@@ -1,14 +1,14 @@
 %%
 %%  wings_io.erl --
 %%
-%%     This module contains most of the GUI for Wings.
+%%     This module contains most of the low-level GUI for Wings.
 %%
 %%  Copyright (c) 2001 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.25 2001/12/12 13:02:43 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.26 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -587,53 +587,55 @@ warp(X, Y) ->
     end.
 
 %%%
-%%% Event loop handling.
+%%% Event loop.
 %%%
 
-enter_event_loop(Init) ->
-    handle_response(Init, system_dummy_event, []).
+enter_event_loop(Op) ->
+    Stk = handle_response(Op, dummy_event, [crash_handler()]),
+    event_loop(Stk).
 
-event_loop([Handler|_]=Stk) ->
-    Event = get_event(),
-    handle_event(Handler, Event, Stk);
-event_loop([]) -> ok.
-
-handle_event(_, {system_init_event,Handler}, Stk) ->
-    Res = Handler(),
-    handle_response(Res, system_dummy_event, Stk);
+event_loop([Handler|_]=Stk0) ->
+    Event = wings_io:get_event(),
+    case handle_event(Handler, Event, Stk0) of
+	[] -> ok;
+	Stk -> event_loop(Stk)
+    end.
+    
 handle_event(Handler, Event, Stk) ->
-    %%io:format("~p: ~p\n", [Event,Stk]),
     case catch Handler(Event) of
 	{'EXIT',Reason} ->
 	    CrashHandler = last(Stk),
-	    CrashHandler({crash,Reason});
+	    handle_response(CrashHandler({crash,Reason}),
+			    Event, [crash_handler()]);
 	Res ->
 	    handle_response(Res, Event, Stk)
     end.
 
-handle_response(Res, Event, Stk) ->
+handle_response(Res, Event, Stk0) ->
     case Res of
-	keep -> event_loop(Stk);
-	next -> next_handler(Event, Stk);
-	pop -> pop(Stk);
+	keep -> Stk0;
+	next -> next_handler(Event, Stk0);
+	pop -> pop(Stk0);
+	{push,Top} -> [Top|Stk0];
 	{seq,First,Then} ->
-	    handle_response({init,fun() -> Then end,First},
-			    Event, Stk);
-	{init,More,NewRes} ->
-	    putback_event({system_init_event,More}),
-	    handle_response(NewRes, Event, Stk);
-	{replace,Top} -> replace_top(Top, Stk);
-	{push,Top} -> event_loop([Top|Stk])
+	    Stk = handle_response(First, Event, Stk0),
+	    handle_response(Then, Event, Stk);
+	{replace,Top} when is_function(Top) -> replace_top(Top, Stk0);
+	Top when is_function(Top) -> replace_top(Top, Stk0)
     end.
 
-pop([_|Stk]) ->
-    event_loop(Stk).
+pop([_|Stk]) -> Stk.
 
-replace_top(Top, [_|Stk]) ->
-    event_loop([Top|Stk]).
+replace_top(Top, [_|Stk]) -> [Top|Stk].
 
 next_handler(Event, [_|[Next|_]=Stk]) ->
     handle_event(Next, Event, Stk).
+
+crash_handler() ->
+    fun(Crash) ->
+	    io:format("Crashed: ~p\n", [Crash]),
+	    exit(too_bad)
+    end.
 
 %%%
 %%% Cursors.

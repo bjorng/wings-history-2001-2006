@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.19 2001/12/10 18:39:58 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.20 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -279,10 +279,10 @@ merge(We0, We1) ->
 %%% Merge a list of winged-edge structures.
 merge([]) -> [];
 merge([We]) -> We;
-merge(Wes0) ->
+merge([#we{id=Id,name=Name}|_]=Wes0) ->
     {Wes1,First,Next} = merge_renumber(Wes0),
     We = merge_1(Wes1),
-    We#we{first_id=First,next_id=Next}.
+    We#we{id=Id,name=Name,first_id=First,next_id=Next}.
 
 merge_1([We]) -> We;
 merge_1(Wes) ->
@@ -327,7 +327,7 @@ renumber(We0, Id) ->
     {We,_} = renumber(We0, Id, []),
     We.
 
-renumber(#we{vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}, Id, RootSet0) ->
+renumber(#we{vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We0, Id, RootSet0) ->
     Etab1 = gb_trees:to_list(Etab0),
     {Emap,IdE} = make_map(Etab1, Id),
 
@@ -357,7 +357,7 @@ renumber(#we{vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}, Id, RootSet0) ->
 
     RootSet = map_rootset(RootSet0, Emap, Vmap, Fmap),
     NextId = last(sort([IdV,IdE,IdF])),
-    We = #we{vs=Vtab,es=Etab,fs=Ftab,he=Htab,first_id=Id,next_id=NextId},
+    We = We0#we{vs=Vtab,es=Etab,fs=Ftab,he=Htab,first_id=Id,next_id=NextId},
     {We,RootSet}.
 
 map_rootset([{vertex,Vs}|T], Emap, Vmap, Fmap) when list(Vs) ->
@@ -471,7 +471,7 @@ copy_dependents(Iter0, We, Vtab0, Ftab0, Htab0, Min0, Max0) ->
     #we{vs=OldVtab,fs=OldFtab,he=OldHtab} = We,
     case gb_trees:next(Iter0) of
 	none ->
-	    #we{vs=Vtab0,fs=Ftab0,he=Htab0,first_id=Min0,next_id=Max0+1};
+	    We#we{vs=Vtab0,fs=Ftab0,he=Htab0,first_id=Min0,next_id=Max0+1};
 	{Edge,Rec,Iter} ->
 	    #edge{vs=Vs,ve=Ve,lf=Lf,rf=Rf} = Rec,
 	    VsRec = gb_trees:get(Vs, OldVtab),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.19 2001/12/23 17:48:06 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.20 2001/12/26 14:46:25 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -56,10 +56,10 @@ command({twisty_twist,Axis}, St) -> twisty_twist(Axis, St).
 %%
 
 crumple(St) ->
-    Tvs = wings_sel:fold_shape(fun crumple/3, [], St),
+    Tvs = wings_sel:fold(fun crumple/3, [], St),
     wings_drag:init_drag(Tvs, {0.0,10.0}, St).
 
-crumple(#shape{id=Id,sh=We}, Vs0, Acc) ->
+crumple(Vs0, #we{id=Id}=We, Acc) ->
     {Sa,Sb,Sc} = now(),
     Vs = gb_sets:to_list(Vs0),
     VsPos = wings_util:add_vpos(Vs, We),
@@ -98,10 +98,10 @@ rnd(Sc) when float(Sc) ->
 %%
 
 inflate(St) ->
-    Tvs = wings_sel:fold_shape(fun inflate/3, [], St),
+    Tvs = wings_sel:fold(fun inflate/3, [], St),
     wings_drag:init_drag(Tvs, none, percent, St).
 
-inflate(#shape{id=Id,sh=#we{vs=Vtab}=We}, Vs0, Acc) ->
+inflate(Vs0, #we{id=Id,vs=Vtab}=We, Acc) ->
     Vs = gb_sets:to_list(Vs0),
     Center = wings_vertex:center(Vs, We),
     Radius = foldl(
@@ -127,12 +127,12 @@ inflate(#shape{id=Id,sh=#we{vs=Vtab}=We}, Vs0, Acc) ->
 %%
 
 taper(Primary, Effect, St) ->
-    Tvs = wings_sel:fold_shape(fun(Sh, Vs, Acc) ->
-				       taper_2(Sh, Vs, Primary, Effect, Acc)
-			       end, [], St),
+    Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
+				 taper_2(Vs, We, Primary, Effect, Acc)
+			 end, [], St),
     wings_drag:init_drag(Tvs, {-1.0,?HUGE}, St).
 
-taper_2(#shape{id=Id,sh=We}, Vs, Primary, Effect, Acc) ->
+taper_2(Vs, #we{id=Id}=We, Primary, Effect, Acc) ->
     [MinR,MaxR] = wings_vertex:bounding_box(Vs, We),
     Key = key(Primary),
     Min = element(Key, MinR),
@@ -197,12 +197,12 @@ mix(A, F) ->
 %%%
 
 twist(Axis, St) ->
-    Tvs = wings_sel:fold_shape(fun(Sh, Vs, Acc) ->
-				       twist(Sh, Vs, Axis, Acc)
-			       end, [], St),
+    Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
+				 twist(Vs, We, Axis, Acc)
+			 end, [], St),
     wings_drag:init_drag(Tvs, none, angle, St).
 
-twist(#shape{id=Id,sh=We}, Vs0, Axis, Acc) ->
+twist(Vs0, #we{id=Id}=We, Axis, Acc) ->
     Key = key(Axis),
     [MinR,MaxR] = wings_vertex:bounding_box(Vs0, We),
     Min = element(Key, MinR),
@@ -249,12 +249,12 @@ twist_fun(z, {Cx,Cy,_}) ->
 %%%
 
 twisty_twist(Axis, St) ->
-    Tvs = wings_sel:fold_shape(fun(Sh, Vs, Acc) ->
-				       twisty_twist(Sh, Vs, Axis, Acc)
-			       end, [], St),
+    Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
+				 twisty_twist(Vs, We, Axis, Acc)
+			 end, [], St),
     wings_drag:init_drag(Tvs, none, angle, St).
 
-twisty_twist(#shape{id=Id,sh=We}, Vs0, Axis, Acc) ->
+twisty_twist(Vs0, #we{id=Id}=We, Axis, Acc) ->
     Tf = twisty_twist_fun(Axis),
     Key = key(Axis),
     [MinR,MaxR] = wings_vertex:bounding_box(Vs0, We),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.5 2001/12/23 11:32:46 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.6 2001/12/26 14:46:25 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -149,21 +149,10 @@ flat_face(Face, Edge, #we{vs=Vtab}=We) ->
 	    gl:'end'()
     end.
 
-tess_flat_face_vtxcol(Tess, [{Pos,Col}|T], Normal) ->
-    glu:tessVertex(Tess, Pos, [{material,?GL_FRONT,?GL_AMBIENT_AND_DIFFUSE,Col}|Normal]),
-    tess_flat_face_vtxcol(Tess, T, Normal);
-tess_flat_face_vtxcol(Tess, [], Normal) -> ok.
-
 tess_flat_face(Tess, [V|T], N, Vtab) ->
     glu:tessVertex(Tess, pos(V, Vtab), N),
     tess_flat_face(Tess, T, N, Vtab);
 tess_flat_face(Tess, [], N, Vtab) -> ok.
-
-flat_face_vtxcol_1([{Pos,Col}|T]) ->
-    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, Col),
-    gl:vertex3fv(Pos),
-    flat_face_vtxcol_1(T);
-flat_face_vtxcol_1([]) -> ok.
 
 flat_face_1([Pos|T], Vtab) ->
     gl:vertex3fv(pos(Pos, Vtab)),

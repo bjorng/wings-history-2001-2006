@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.13 2001/11/25 18:21:10 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.14 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -58,10 +58,10 @@ import_objects([Sh0|Shs], Mode, Oid, {ShAcc,SelAcc0}) ->
     {object,Name,{winged,Fs,Vs0,He},Props} = Sh0,
     Vs = decode_vs(Vs0),
     Es = wings_we:build_edges_only(Fs),
-    We = wings_we:build_rest(Es, Fs, Vs, He),
-    Sh = #shape{id=Oid,name=Name,sh=We},
+    We0 = wings_we:build_rest(Es, Fs, Vs, He),
+    We = We0#we{id=Oid,name=Name},
     SelAcc = import_sel(Mode, Oid, Props, Es, SelAcc0),
-    import_objects(Shs, Mode, Oid+1, {[{Oid,Sh}|ShAcc],SelAcc});
+    import_objects(Shs, Mode, Oid+1, {[{Oid,We}|ShAcc],SelAcc});
 import_objects([], Mode, Oid, {ShAcc,SelAcc}) -> {ShAcc,SelAcc,Oid}.
 
 decode_vs(Bin) ->
@@ -128,7 +128,7 @@ write_file(Name, Bin) ->
 	{error,Reason} -> {error,file:format_error(Reason)}
     end.
 
-shape(#shape{name=Name,sh=We0}, Mode, Sel0, Acc) ->
+shape(#we{name=Name}=We0, Mode, Sel0, Acc) ->
     Sel1 = gb_sets:to_list(Sel0),
     {We,[{Mode,Sel}]} = wings_we:renumber(We0, 0, [{Mode,Sel1}]),
     #we{vs=Vs0,es=Etab,he=Htab} = We,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.20 2001/12/16 21:30:08 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.21 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -32,22 +32,21 @@ inset(St) ->
     wings_scale:inset(extrude_faces(St)).
 
 extrude_faces(St) ->
-    wings_sel:map_shape(
-      fun(Faces, We) ->
-	      wings_extrude_face:faces(Faces, We)
-      end, St).
+    wings_sel:map(fun(Faces, We) ->
+			  wings_extrude_face:faces(Faces, We)
+		  end, St).
 
 %%% Extrude the selected regions.
 
 extrude_region(Type, St0) ->
-    {St1,Sel0} = wings_sel:mapfold_shape(fun extrude_region/4, [], St0),
+    {St1,Sel0} = wings_sel:mapfold(fun extrude_region/3, [], St0),
     St = St1#st{sel=reverse(Sel0)},
     wings_move:setup(Type, St).
 
-extrude_region(Id, Faces0, We0, Acc) ->
+extrude_region(Faces0, #we{id=Id}=We0, Acc) ->
     %% We KNOW that a gb_set with fewer elements sorts before
     %% a gb_set with more elements.
-    Rs = sort(wings_sel:find_face_regions(Faces0, We0)),
+    Rs = sort(wings_sel:face_regions(Faces0, We0)),
     {We,Sel} = extrude_region_1(Rs, We0, []),
     {We,[{Id,Sel}|Acc]}.
 
@@ -76,14 +75,14 @@ extrude_region_2([], We, Sel) ->
 %%%
 
 bevel_faces(St0) ->
-    {St,OrigVs} = wings_sel:mapfold_shape(fun bevel_faces/4, [], St0),
+    {St,OrigVs} = wings_sel:mapfold(fun bevel_faces/3, [], St0),
     wings_scale:bevel_face(sort(OrigVs), St).
 
-bevel_faces(Id, Faces, We, Acc) ->
-    Rs = wings_sel:find_face_regions(Faces, We),
-    bevel_faces_1(Rs, Id, We, Acc).
+bevel_faces(Faces, We, Acc) ->
+    Rs = wings_sel:face_regions(Faces, We),
+    bevel_faces_1(Rs, We, Acc).
 
-bevel_faces_1([Faces|T], Id, We0, Acc) ->
+bevel_faces_1([Faces|T], #we{id=Id}=We0, Acc) ->
     DisEdges = wings_face:inner_edges(Faces, We0),
     OrigVs = wings_face:to_vertices(Faces, We0),
     MoveEdges = bevel_move_edges(Faces, We0),
@@ -92,8 +91,8 @@ bevel_faces_1([Faces|T], Id, We0, Acc) ->
     We2 = dissolve_edges(DisEdges, We1),
     We3 = bevel_connect(OrigVs, NewVs, We2),
     We = dissolve_more_edges(OrigVs, NewVs, We3),
-    bevel_faces_1(T, Id, We, [{Id,MoveEdges}|Acc]);
-bevel_faces_1([], Id, We, Acc) -> {We,Acc}.
+    bevel_faces_1(T, We, [{Id,MoveEdges}|Acc]);
+bevel_faces_1([], We, Acc) -> {We,Acc}.
 
 bevel_connect(Vs, NewVs, We) ->
     foldl(fun(V, A) -> bevel_connect_1(V, NewVs, A) end, We, Vs).
@@ -159,9 +158,9 @@ bevel_move_edges(Faces, We) ->
 %%%
 
 extract_region(Type, #st{onext=Id0,shapes=Shapes0}=St0) ->
-    St1 = wings_sel:fold_shape(
-	    fun(Sh, Faces, #st{sel=Sel0,onext=Oid}=S0) ->
-		    S = wings_shape:insert(Sh, "extract", S0),
+    St1 = wings_sel:fold(
+	    fun(Faces, We, #st{sel=Sel0,onext=Oid}=S0) ->
+		    S = wings_shape:insert(We, "extract", S0),
 		    Sel = [{Oid,Faces}|Sel0],
 		    S#st{sel=Sel}
 	    end, St0#st{sel=[]}, St0),
@@ -173,9 +172,9 @@ extract_region(Type, #st{onext=Id0,shapes=Shapes0}=St0) ->
     wings_move:setup(Type, St).
 
 extract_inverse(St) ->
-    Sel = wings_sel:fold_shape(
-	    fun(#shape{id=Id,sh=We}, Items, A) ->
-		    Diff = wings_sel:inverse_items(face, Items, We),
+    Sel = wings_sel:fold(
+	    fun(Faces, #we{id=Id}=We, A) ->
+		    Diff = wings_sel:inverse_items(face, Faces, We),
 		    case gb_sets:is_empty(Diff) of
 			true -> A;
 			false -> [{Id,Diff}|A]
@@ -188,11 +187,11 @@ extract_inverse(St) ->
 %%%
 
 dissolve(St0) ->
-    {St,Sel} = wings_sel:mapfold_shape(fun dissolve/4, [], St0),
+    {St,Sel} = wings_sel:mapfold(fun dissolve/3, [], St0),
     St#st{sel=reverse(Sel)}.
 
-dissolve(Id, Faces0, We0, Acc) ->
-    Rs = wings_sel:find_face_regions(Faces0, We0),
+dissolve(Faces0, #we{id=Id}=We0, Acc) ->
+    Rs = wings_sel:face_regions(Faces0, We0),
     {We,Sel0} = dissolve_1(Rs, We0, We0, []),
     Sel = gb_sets:union(wings_we:new_items(face, We0, We),
 			gb_sets:from_list(Sel0)),
@@ -300,10 +299,10 @@ find_edge(V, Etab, We) ->
 
 intrude(St0) ->
     St1 = dissolve(St0),
-    {St,Sel} = wings_sel:mapfold_shape(fun intrude/4, [], St1),
+    {St,Sel} = wings_sel:mapfold(fun intrude/3, [], St1),
     wings_move:setup(intrude, St#st{sel=Sel}).
 
-intrude(Id, Faces0, #we{es=Etab,fs=Ftab,next_id=Wid}=We0, SelAcc) ->
+intrude(Faces0, #we{id=Id,es=Etab,fs=Ftab,next_id=Wid}=We0, SelAcc) ->
     Faces = gb_sets:to_list(Faces0),
     RootSet0 = foldl(
 		 fun(F, A) ->
@@ -331,26 +330,20 @@ intrude_bridge([], [], We) -> We.
 %%%
 
 mirror(St0) ->
-    mirror(St0, 2.0).
-
-mirror(St0, Mirrorout) ->
-    St = wings_sel:map_shape(
-	   fun(Faces, We) ->
-		   mirror_faces(Faces, We, Mirrorout)
-	   end, St0),
+    St = wings_sel:map(fun mirror_faces/2, St0),
     St#st{sel=[]}.
 
-mirror_faces(Faces, We0, Mirrorout) ->
+mirror_faces(Faces, We0) ->
     gb_sets:fold(fun(Face, WeAcc) ->
-			 mirror_face(Face, We0, WeAcc, Mirrorout)
+			 mirror_face(Face, We0, WeAcc)
 		 end, We0, Faces).
 
-mirror_face(Face, #we{fs=Ftab}=OrigWe, #we{next_id=Id}=We0, Mirrorout) ->
+mirror_face(Face, #we{fs=Ftab}=OrigWe, #we{next_id=Id}=We0) ->
     #face{edge=AnEdge} = gb_trees:get(Face, Ftab),
     RootSet0 = [{face,Face},{edge,AnEdge}],
     {WeNew0,RootSet} = wings_we:renumber(OrigWe, Id, RootSet0),
     [{face,FaceNew},{edge,ANewEdge}] = RootSet,
-    WeNew = mirror_vs(FaceNew, WeNew0, Mirrorout),
+    WeNew = mirror_vs(FaceNew, WeNew0),
     We = wings_we:merge(We0, WeNew),
 
     %% Now weld the old face with new (mirrored) face.
@@ -361,7 +354,8 @@ mirror_face(Face, #we{fs=Ftab}=OrigWe, #we{next_id=Id}=We0, Mirrorout) ->
     N = wings_face:vertices(Face, We),
     mirror_weld(N, IterA, Face, IterB, FaceNew, We, We).
 
-mirror_vs(Face, #we{vs=Vtab0}=We0, Mirrorout) ->
+mirror_vs(Face, #we{vs=Vtab0}=We0) ->
+    Mirrorout = 2.0,
     Normal = wings_face:normal(Face, We0),
     Vs = wings_face:surrounding_vertices(Face, We0),
     Center = wings_vertex:center(Vs, We0),
@@ -480,9 +474,9 @@ replace_vertex(Old, New, We, Etab0) ->
 
 flatten(Plane0, St) ->
     Plane = wings_util:make_vector(Plane0),
-    wings_sel:map_shape(
+    wings_sel:map(
       fun(Faces, We) ->
-	      Rs = wings_sel:find_face_regions(Faces, We),
+	      Rs = wings_sel:face_regions(Faces, We),
 	      foldl(fun(Fs, W) -> flatten(Fs, Plane, W) end, We, Rs)
       end, St).
 
@@ -517,12 +511,12 @@ flatten_move(V, PlaneNormal, Center, Dist, Tab0) ->
 %%%
 
 smooth(St0) ->
-    {St,Sel} = wings_sel:mapfold_shape(fun smooth/4, [], St0),
+    {St,Sel} = wings_sel:mapfold(fun smooth/3, [], St0),
     St#st{sel=Sel}.
 
-smooth(Id, Faces0, We0, Acc) ->
-    wings_io:progress("Smoothing"),
-    Rs = wings_sel:find_face_regions(Faces0, We0),
+smooth(Faces0, #we{id=Id,name=Name}=We0, Acc) ->
+    wings_io:progress("Smoothing \"" ++ Name ++ "\""),
+    Rs = wings_sel:face_regions(Faces0, We0),
     We1 = smooth_regions(Rs, We0),
     NewFaces = wings_we:new_items(face, We0, We1),
     NewVs = wings_we:new_items(vertex, We0, We1),
@@ -587,13 +581,12 @@ smooth_connect_2(IterCw0, IterCcw0, V, Face, We0) ->
 bridge(#st{shapes=Shapes0,sel=[{IdA,FacesA},{IdB,FacesB}]}=St0) ->
     case {gb_sets:to_list(FacesA),gb_sets:to_list(FacesB)} of
 	{[FA],[FB0]} ->
-	    #shape{sh=#we{next_id=Id}=WeA}=ShA0 = gb_trees:get(IdA, Shapes0),
-	    #shape{sh=#we{}=WeB0} = gb_trees:get(IdB, Shapes0),
+	    #we{next_id=Id}=WeA = gb_trees:get(IdA, Shapes0),
+	    #we{}=WeB0 = gb_trees:get(IdB, Shapes0),
 	    {WeB,[{face,FB}]} = wings_we:renumber(WeB0, Id, [{face,FB0}]),
 	    We = wings_we:merge(WeA, WeB),
-	    ShA = ShA0#shape{sh=We},
 	    Shapes1 = gb_trees:delete(IdB, Shapes0),
-	    Shapes = gb_trees:update(IdA, ShA, Shapes1),
+	    Shapes = gb_trees:update(IdA, We, Shapes1),
 	    Sel = [{IdA,gb_sets:from_list([FA,FB])}],
 	    St = St0#st{shapes=Shapes,sel=Sel},
 	    bridge(St);
@@ -603,9 +596,9 @@ bridge(#st{shapes=Shapes0,sel=[{IdA,FacesA},{IdB,FacesB}]}=St0) ->
 bridge(#st{shapes=Shapes0,sel=[{Id,Faces}]}=St) ->
     case gb_sets:to_list(Faces) of
 	[FA,FB] ->
-	    #shape{sh=#we{}=We0}=Sh = gb_trees:get(Id, Shapes0),
+	    We0 = gb_trees:get(Id, Shapes0),
 	    We = bridge(FA, FB, We0),
-	    Shapes = gb_trees:update(Id, Sh#shape{sh=We}, Shapes0),
+	    Shapes = gb_trees:update(Id, We, Shapes0),
 	    St#st{shapes=Shapes,sel=[]};
 	Other ->
 	    bridge_error()

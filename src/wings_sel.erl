@@ -10,19 +10,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.19 2001/12/16 21:30:08 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.20 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_sel).
 
 %% Utilities.
 -export([convert/3,convert_shape/3,convert_selection/2,
-	 fold/3,fold_shape/3,fold_region/3,
-	 map/2,map_shape/2,
-	 mapfold/3,mapfold_shape/3,
+	 fold/3,map/2,mapfold/3,
 	 foreach/2,make/3,valid_sel/1,
 	 centers/1,bounding_box/1,
-	 find_face_regions/2,validate_items/3,inverse_items/3,
+	 face_regions/2,edge_regions/2,validate_items/3,inverse_items/3,
 	 random/2]).
 
 %% Selection commands.
@@ -32,7 +30,7 @@
 	 inverse/1,similar/1]).
 
 -include("wings.hrl").
--import(lists, [foldl/3,reverse/1,sort/1]).
+-import(lists, [foldl/3,reverse/1,reverse/2,sort/1]).
 
 %%%
 %%% Convert selection.
@@ -53,19 +51,17 @@ conv_sel(body, St) -> wings_body:convert_selection(St).
 %%%
 
 convert_shape(F, NewType, St) ->
-    Sel = fold_shape(
-	    fun(#shape{id=Id,sh=We}=Sh, Items0, Acc) ->
-		    Items = F(Items0, We),
-		    case gb_sets:is_empty(Items) of
-			true -> Acc;
-			false -> [{Id,Items}|Acc]
-		    end
-	    end, [], St),
+    Sel = fold(fun(Items0, #we{id=Id}=We, Acc) ->
+		       Items = F(Items0, We),
+		       case gb_sets:is_empty(Items) of
+			   true -> Acc;
+			   false -> [{Id,Items}|Acc]
+		       end
+	       end, [], St),
     St#st{selmode=NewType,sel=reverse(Sel)}.
 
 convert(F, NewType, St) ->
-    Sel = fold_shape(
-	    fun(#shape{id=Id,sh=We}=Sh, Items0, Acc) ->
+    Sel = fold(fun(Items0, #we{id=Id}=We, Acc) ->
 		    Items = convert_items(F, Items0, We),
 		    case gb_sets:is_empty(Items) of
 			true -> Acc;
@@ -86,148 +82,51 @@ convert_items(F, Acc0, Iter0, We) ->
     end.
 
 %%%
-%%% fold functions.
+%%% Map over the selection, modifying the selected objects.
 %%%
 
-fold(F, Acc, #st{selmode=body,sel=Sel,shapes=Shapes}=St) ->
-    fold_body(F, Acc, Shapes, Sel);
-fold(F, Acc, #st{sel=Sel,shapes=Shapes}=St) ->
-    fold_outer_nonbody(F, Acc, Shapes, Sel).
-
-fold_body(F, Acc, Shapes, [{Id,Items}|T]) ->
-    Sh = gb_trees:get(Id, Shapes),
-    fold_body(F, F(Sh, Acc), Shapes, T);
-fold_body(F, Acc, Shapes, []) -> Acc.
-
-fold_outer_nonbody(F, Acc0, Shapes, [{Id,Items}|T]) ->
-    #shape{sh=We} = gb_trees:get(Id, Shapes),
-    Iter = gb_sets:iterator(Items),
-    Acc = fold_inner_nonbody(F, Acc0, Iter, Id, We),
-    fold_outer_nonbody(F, Acc, Shapes, T);
-fold_outer_nonbody(F, Acc, Shapes, []) -> Acc.
-
-fold_inner_nonbody(F, Acc, Iter0, Id, We) ->
-    case gb_sets:next(Iter0) of
-	none -> Acc;
-	{Item,Iter} ->
-	    fold_inner_nonbody(F, F(Id, Item, We, Acc), Iter, Id, We)
-    end.
-
-fold_shape(F, Acc, #st{sel=Sel,shapes=Shapes}=St) ->
-    fold_shape(F, Acc, Sel, Shapes).
-
-fold_shape(F, Acc, [{Id,Items}|T], Shapes) ->
-    Sh = gb_trees:get(Id, Shapes),
-    fold_shape(F, F(Sh, Items, Acc), T, Shapes);
-fold_shape(F, Acc, [], Shapes) -> Acc.
-
-fold_region(F, Acc, #st{selmode=edge,shapes=Shapes,sel=Sel}=St) ->
-    fold_region_nonbody(fun find_edge_regions/2, F, Acc, Shapes, Sel);
-fold_region(F, Acc, #st{selmode=face,shapes=Shapes,sel=Sel}=St) ->
-    fold_region_nonbody(fun find_face_regions/2, F, Acc, Shapes, Sel);
-fold_region(F, Acc, St) ->
-    erlang:fault(badarg, [F,Acc,St]).
-
-fold_region_nonbody(RegFind, F, Acc0, Shapes, [{Id,Items}|T]) ->
-    #shape{sh=#we{}=We} = gb_trees:get(Id, Shapes),
-    Rs = RegFind(Items, We),
-    Acc = foldl(fun(R, A) -> F(Id, R, We, A) end, Acc0, Rs),
-    fold_region_nonbody(RegFind, F, Acc, Shapes, T);
-fold_region_nonbody(RegFind, F, Acc, Shapes, []) -> Acc.
-
-%%%
-%%% map functions.
-%%%
-
-map(F, #st{selmode=body,shapes=Shapes0,sel=Sel}=St) ->
-    Shapes = map_body(F, Sel, Shapes0),
-    St#st{shapes=Shapes};
 map(F, #st{shapes=Shapes0,sel=Sel}=St) ->
-    Shapes = map_outer_nonbody(F, Sel, Shapes0),
+    Shapes = map_1(F, Sel, gb_trees:to_list(Shapes0), []),
     St#st{shapes=Shapes}.
 
-map_body(F, [{Id,_}|T], Shapes) ->
-    Sh0 = gb_trees:get(Id, Shapes),
-    Sh = F(Sh0),
-    map_body(F, T, gb_trees:update(Id, Sh, Shapes));
-map_body(F, [], Shapes) -> Shapes.
-
-map_outer_nonbody(F, [{Id,Items}|T], Shapes0) ->
-    #shape{sh=#we{}=We0} = Sh = gb_trees:get(Id, Shapes0),
-    We = map_inner_nonbody(F, gb_sets:iterator(Items), We0),
-    Shapes = gb_trees:update(Id, Sh#shape{sh=We}, Shapes0),
-    map_outer_nonbody(F, T, Shapes);
-map_outer_nonbody(F, [], Shapes) -> Shapes.
-
-map_inner_nonbody(F, Iter0, We0) ->
-    case gb_sets:next(Iter0) of
-	none -> We0;
-	{Item,Iter} ->
-	    We = F(Item, We0),
-	    map_inner_nonbody(F, Iter, We)
-    end.
-
-map_shape(F, #st{selmode=body}=St) -> erlang:fault(badarg, [F,St]);
-map_shape(F, #st{shapes=Shapes0,sel=Sel}=St) ->
-    Shapes = map_shape_nonbody(F, Sel, Shapes0),
-    St#st{shapes=Shapes}.
-
-map_shape_nonbody(F, [{Id,Items}|T], Shapes0) ->
-    #shape{sh=#we{}=We0} = Sh = gb_trees:get(Id, Shapes0),
-    #we{es=Etab} = We = F(Items, We0),
-    Shapes = case gb_trees:is_empty(Etab) of
-		 true -> gb_trees:delete(Id, Shapes0);
-		 false -> gb_trees:update(Id, Sh#shape{sh=We}, Shapes0)
-	     end,
-    map_shape_nonbody(F, T, Shapes);
-map_shape_nonbody(F, [], Shapes) -> Shapes.
+map_1(F, [{Id,Items}|Sel], [{Id,We0}|Shs], Acc) ->
+    ?ASSERT(We0#we.id =:= Id),
+    We = F(Items, We0),
+    map_1(F, Sel, Shs, [{Id,We}|Acc]);
+map_1(F, [_|_]=Sel, [Pair|Shs], Acc) ->
+    map_1(F, Sel, Shs, [Pair|Acc]);
+map_1(F, [], Shs, Acc) ->
+    gb_trees:from_orddict(reverse(Acc, Shs)).
 
 %%%
-%%% mapfold functions.
+%%% Fold over the selection.
 %%%
 
-mapfold(F, Acc0, #st{selmode=body,sel=Sel,shapes=Shapes0}=St) ->
-    {Shapes,Acc} = mapfold_body_sel(F, Acc0, Sel, Shapes0),
-    {St#st{shapes=Shapes},Acc};
-mapfold(F, Acc0, #st{sel=Sel,shapes=Shapes0}=St) ->
-    {Shapes,Acc} = mapfold_outer_nonbody(F, Acc0, Sel, Shapes0),
+fold(F, Acc, #st{sel=Sel,shapes=Shapes}=St) ->
+    fold_1(F, Acc, Shapes, Sel).
+
+fold_1(F, Acc0, Shapes, [{Id,Items}|T]) ->
+    We = gb_trees:get(Id, Shapes),
+    ?ASSERT(We#we.id =:= Id),
+    fold_1(F, F(Items, We, Acc0), Shapes, T);
+fold_1(F, Acc, Shapes, []) -> Acc.
+
+%%%
+%%% Map and fold over the selection.
+%%%
+
+mapfold(F, Acc0, #st{shapes=Shapes0,sel=Sel}=St) ->
+    {Shapes,Acc} = mapfold_1(F, Acc0, Sel, gb_trees:to_list(Shapes0), []),
     {St#st{shapes=Shapes},Acc}.
 
-mapfold_outer_nonbody(F, Acc0, [{Id,Items}|T], Shapes0) ->
-    #shape{sh=We0} = Sh0 = gb_trees:get(Id, Shapes0),
-    {We,Acc} = mapfold_inner_nonbody(F, Acc0, gb_sets:iterator(Items), We0),
-    Sh = Sh0#shape{sh=We},
-    Shapes = gb_trees:update(Id, Sh, Shapes0),
-    mapfold_outer_nonbody(F, Acc, T, Shapes);
-mapfold_outer_nonbody(F, Acc, [], Shapes) -> {Shapes,Acc}.
-
-mapfold_inner_nonbody(F, Acc0, Iter0, We0) ->
-    case gb_sets:next(Iter0) of
-	none -> {We0,Acc0};
-	{Item,Iter} ->
-	    {We,Acc} = F(Item, We0, Acc0),
-	    mapfold_inner_nonbody(F, Acc, Iter, We)
-    end.
-
-mapfold_body_sel(F, Acc0, [{Id,Items}|T], Shapes0) ->
-    Sh0 = gb_trees:get(Id, Shapes0),
-    {Sh,Acc} = F(Sh0, Acc0),
-    Shapes = gb_trees:update(Id, Sh, Shapes0),
-    mapfold_body_sel(F, Acc, T, Shapes);
-mapfold_body_sel(F, Acc, [], Shapes) -> {Shapes,Acc}.
-
-mapfold_shape(F, Acc0, #st{selmode=body}) ->
-    erlang:fault(badarg);
-mapfold_shape(F, Acc0, #st{shapes=Shapes0,sel=Sel}=St) ->
-    {Shapes,Acc} = mapfold_shape(F, Acc0, Sel, Shapes0),
-    {St#st{shapes=Shapes},Acc}.
-
-mapfold_shape(F, Acc0, [{Id,Items}|T], Shapes0) ->
-    #shape{sh=#we{}=We0} = Sh = gb_trees:get(Id, Shapes0),
-    {We,Acc} = F(Id, Items, We0, Acc0),
-    Shapes = gb_trees:update(Id, Sh#shape{sh=We}, Shapes0),
-    mapfold_shape(F, Acc, T, Shapes);
-mapfold_shape(F, Acc, [], Shapes) -> {Shapes,Acc}.
+mapfold_1(F, Acc0, [{Id,Items}|Sel], [{Id,We0}|Shs], ShsAcc) ->
+    ?ASSERT(We0#we.id =:= Id),
+    {We,Acc} = F(Items, We0, Acc0),
+    mapfold_1(F, Acc, Sel, Shs, [{Id,We}|ShsAcc]);
+mapfold_1(F, Acc, [_|_]=Sel, [Pair|Shs], ShsAcc) ->
+    mapfold_1(F, Acc, Sel, Shs, [Pair|ShsAcc]);
+mapfold_1(F, Acc, [], Shs, ShsAcc) ->
+    {gb_trees:from_orddict(reverse(ShsAcc, Shs)),Acc}.
 
 %%%
 %%% foreach functions (for drawing)
@@ -257,7 +156,7 @@ make(Filter, Mode, #st{shapes=Shapes}=St) ->
     Sel = make_1(Sel0, Filter, Mode),
     St#st{selmode=Mode,sel=Sel}.
 
-make_1([#shape{id=Id,sh=#we{vs=Vtab,es=Etab,fs=Ftab}=We}|Shs], Filter, Mode) ->
+make_1([#we{id=Id,vs=Vtab,es=Etab,fs=Ftab}=We|Shs], Filter, Mode) ->
     Tab = case Mode of
 	      vertex -> Vtab;
 	      edge -> Etab;
@@ -270,26 +169,25 @@ make_1([#shape{id=Id,sh=#we{vs=Vtab,es=Etab,fs=Ftab}=We}|Shs], Filter, Mode) ->
     end;
 make_1([], Filter, Mode) -> [].
 
-
 %%%
 %%% Calculate the centers for all selected objects.
 %%%
 
 centers(#st{selmode=Mode}=St) ->
-    reverse(wings_sel:fold_shape(
-	      fun(#shape{sh=We}, Items, A) ->
-		      [e3d_vec:average(bounding_box(Mode, Items, We, none))|A]
-	      end, [], St)).
+    reverse(
+      fold(
+	fun(Items, We, A) ->
+		[e3d_vec:average(bounding_box(Mode, Items, We, none))|A]
+	end, [], St)).
 
 %%%
 %%% Calculate the bounding-box for the selection.
 %%%
 
 bounding_box(#st{selmode=Mode}=St) ->
-    wings_sel:fold_shape(
-      fun(#shape{sh=We}, Items, A) ->
-	      bounding_box(Mode, Items, We, A)
-      end, none, St).
+    fold(fun(Items, We, A) ->
+		 bounding_box(Mode, Items, We, A)
+	 end, none, St).
 
 bounding_box(vertex, Vs, We, BB) ->
     wings_vertex:bounding_box(Vs, We, BB);
@@ -305,7 +203,7 @@ bounding_box(body, Items, #we{vs=Vtab}=We, BB) ->
 %%% faces. We use a standard working-set algorithm.
 %%%
 
-find_face_regions(Faces, #we{es=Etab,fs=Ftab}) ->
+face_regions(Faces, #we{es=Etab,fs=Ftab}) ->
     find_face_regions(Faces, Ftab, Etab, []).
 
 find_face_regions(Faces0, Ftab, Etab, Acc) ->
@@ -352,7 +250,7 @@ find_adj(Face, Edge, LastEdge, Etab, Acc, _) ->
     find_adj(Face, Next, LastEdge, Etab, gb_sets:add(Other, Acc), done).
 
 
-find_edge_regions(Edges, We) ->
+edge_regions(Edges, We) ->
     find_edge_regions(Edges, We, []).
 
 find_edge_regions(Edges0, We, Acc) ->
@@ -398,8 +296,6 @@ valid_sel(Sel0, Mode, #st{shapes=Shapes}) ->
 		end, [], Sel0),
     reverse(Sel).
 
-validate_items(Items, Mode, #shape{sh=We}) ->
-    validate_items(Items, Mode, We);
 validate_items(Vs, vertex, #we{vs=Vtab}) ->
     tab_set_intersection(Vs, Vtab);
 validate_items(Es, edge, #we{es=Etab}) ->
@@ -429,7 +325,7 @@ select_all(#st{selmode=Mode,sel=Sel0}=St) ->
     St#st{sel=Sel}.
 
 get_all_items(Mode, Id, #st{shapes=Shapes}) ->
-    #shape{sh=We} = gb_trees:get(Id, Shapes),
+    We = gb_trees:get(Id, Shapes),
     Items = case Mode of
 		vertex -> gb_trees:keys(We#we.vs);
 		edge -> gb_trees:keys(We#we.es);
@@ -541,14 +437,13 @@ inverse(#st{selmode=body,sel=Sel0,shapes=Shapes}=St) ->
     Sel = ordsets:subtract(All, Sel0),
     St#st{sel=Sel};
 inverse(#st{selmode=Mode}=St) ->
-    Sel = fold_shape(
-	    fun(#shape{id=Id,sh=We}, Items, A) ->
-		    Diff = inverse_items(Mode, Items, We),
-		    case gb_sets:is_empty(Diff) of
-			true -> [{Id,Items}|A];	%Can't inverse.
-			false -> [{Id,Diff}|A]
-		    end
-	    end, [], St),
+    Sel = fold(fun(Items, #we{id=Id}=We, A) ->
+		       Diff = inverse_items(Mode, Items, We),
+		       case gb_sets:is_empty(Diff) of
+			   true -> [{Id,Items}|A];	%Can't inverse.
+			   false -> [{Id,Diff}|A]
+		       end
+	       end, [], St),
     St#st{sel=reverse(Sel)}.
 
 inverse_items(vertex, Items, #we{vs=Tab}) ->
@@ -568,7 +463,7 @@ inverse_items_1(Items, Tab) ->
 %%%
 
 similar(#st{selmode=vertex,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
-    #shape{sh=We} = gb_trees:get(Id, Shapes),
+    We = gb_trees:get(Id, Shapes),
     Templates0 = [make_vertex_template(SelI, We) ||
 		     SelI <- gb_sets:to_list(Sel0)],
     Templates = ordsets:from_list(Templates0),
@@ -577,7 +472,7 @@ similar(#st{selmode=vertex,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
 		 match_templates(make_vertex_template(V, W), Templates)
 	 end, vertex, St);
 similar(#st{selmode=edge,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
-    #shape{sh=We} = gb_trees:get(Id, Shapes),
+    We = gb_trees:get(Id, Shapes),
     Templates0 = [make_edge_template(SelI, We) ||
 		    SelI <- gb_sets:to_list(Sel0)],
     Templates = ordsets:from_list(Templates0),
@@ -586,7 +481,7 @@ similar(#st{selmode=edge,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
 		 match_templates(make_edge_template(Edge, W), Templates)
 	 end, edge, St);
 similar(#st{selmode=face,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
-    #shape{sh=We} = gb_trees:get(Id, Shapes),
+    We = gb_trees:get(Id, Shapes),
     Templates0 = [make_face_template(SelI, We) ||
 		     SelI <- gb_sets:to_list(Sel0)],
     Templates = ordsets:from_list(Templates0),

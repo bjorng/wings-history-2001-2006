@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.18 2001/12/23 17:48:06 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.19 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -20,27 +20,27 @@
 -define(HUGE, 1.0E200).
 
 setup(Type, #st{selmode=vertex}=St) ->
-    Tvs = wings_sel:fold_shape(
-	    fun(#shape{id=Id,sh=We}, Vs, Acc) ->
+    Tvs = wings_sel:fold(
+	    fun(Vs, #we{id=Id}=We, Acc) ->
 		    [{Id,scale_vertices(Type, gb_sets:to_list(Vs), We)}|Acc]
 	    end, [], St),
     init_drag(Tvs, St);
 setup(Type, #st{selmode=edge}=St) ->
-    Tvs = wings_sel:fold_region(
-	    fun(Id, Edges, We, Acc) ->
+    Tvs = wings_sel:fold(
+	    fun(Edges, #we{id=Id}=We, Acc) ->
 		    [{Id,edges_to_vertices(Edges, We, Type)}|Acc]
 	    end, [], St),
     init_drag(Tvs, St);
 setup(Type, #st{selmode=face}=St) ->
-    Tvs = wings_sel:fold_region(
-	    fun(Id, Faces, We, Acc) ->
+    Tvs = wings_sel:fold(
+	    fun(Faces, #we{id=Id}=We, Acc) ->
 		    [{Id,faces_to_vertices(Faces, We, Type)}|Acc]
 	    end, [], St),
     init_drag(Tvs, St);
 setup(Type, #st{selmode=body}=St) ->
     Tvs = wings_sel:fold(
-	    fun(#shape{id=Id}=Sh, Acc) ->
-		    [{Id,body_to_vertices(Sh, Type)}|Acc]
+	    fun(_, #we{id=Id}=We, Acc) ->
+		    [{Id,body_to_vertices(We, Type)}|Acc]
 	    end, [], St),
     init_drag({matrix,Tvs}, St).
 
@@ -48,19 +48,19 @@ init_drag(Tvs, St) ->
     wings_drag:init_drag(Tvs, {-1.0,?HUGE}, percent, St).
 
 bevel_face(MoveEdges, St) ->
-    Tvs0 = wings_sel:fold_shape(
-	     fun(#shape{id=Id,sh=We}, Faces, Acc) ->
+    Tvs0 = wings_sel:fold(
+	     fun(Faces, #we{id=Id}=We, Acc) ->
 		     [{Id,inset(Faces, We)}|Acc]
 	     end, [], St),
-    Tvs = wings_sel:fold_shape(
-	    fun(#shape{id=Id,sh=We}, Mes, Acc) ->
+    Tvs = wings_sel:fold(
+	    fun(Mes, #we{id=Id}=We, Acc) ->
 		    [{Id,bevel_move(Mes, We)}|Acc]
 	    end, Tvs0, St#st{sel=MoveEdges}),
     wings_drag:init_drag(Tvs, {0,1}, percent, St).
 
 inset(St) ->
-    Tvs = wings_sel:fold_shape(
-	    fun(#shape{id=Id,sh=We}, Faces, Acc) ->
+    Tvs = wings_sel:fold(
+	    fun(Faces, #we{id=Id}=We, Acc) ->
 		    [{Id,inset(Faces, We)}|Acc]
 	    end, [], St),
     wings_drag:init_drag(Tvs, {-?HUGE,1}, percent, St).
@@ -131,24 +131,27 @@ bevel_move_1(Face, Es, #we{es=Etab}=We, Acc) ->
 %% Conversion of edge selections to vertices.
 %%
 
-edges_to_vertices(Es, #we{es=Etab}=We, Type) ->
-    scale_vertices(Type, wings_edge:to_vertices(Es, We), We).
+edges_to_vertices(Es0, #we{es=Etab}=We, Type) ->
+    foldl(fun(Es, A) ->
+		  Vs = wings_edge:to_vertices(Es, We),
+		  scale_vertices(Type, Vs, We, A)
+	  end, [], wings_sel:edge_regions(Es0, We)).
 
 %%
 %% Conversion of face selections to vertices.
 %%
 
-faces_to_vertices(Faces, We, Type) ->
-    scale_vertices(Type, wings_face:to_vertices(Faces, We), We).
+faces_to_vertices(Faces0, We, Type) ->
+    foldl(fun(Faces, A) ->
+		  Vs = wings_face:to_vertices(Faces, We),
+		  scale_vertices(Type, Vs, We, A)
+	  end, [], wings_sel:face_regions(Faces0, We)).
 
 %%
 %% Conversion of body selection to vertices.
 %%
 
-body_to_vertices(Sh, Type) ->
-    scale_fun(Sh, Type).
-
-scale_fun(#shape{sh=We}, Type) ->
+body_to_vertices(We, Type) ->
     Center = e3d_vec:average(wings_vertex:bounding_box(We)),
     {Xt0,Yt0,Zt0} = filter_vec(Type, {1.0,1.0,1.0}),
     fun(Matrix0, Dx) when float(Dx) ->
@@ -165,14 +168,17 @@ scale_fun(#shape{sh=We}, Type) ->
 %%% Utilities.
 %%%
 
-scale_vertices(Type, Vs0, #we{vs=Vtab}=We) ->
+scale_vertices(Type, Vs, We) ->
+    scale_vertices(Type, Vs, We, []).
+
+scale_vertices(Type, Vs0, #we{vs=Vtab}=We, Acc0) ->
     Vs = [{V,wings_vertex:pos(V, Vtab)} || V <- Vs0],
     Center = e3d_vec:average(wings_vertex:bounding_box(Vs0, We)),
     foldl(fun({V,Pos}, Acc) ->
 		  Vec0 = e3d_vec:sub(Pos, Center),
 		  Vec = filter_vec(Type, Vec0),
 		  [{Vec,[V]}|Acc]
-	  end, [], Vs).
+	  end, Acc0, Vs).
 
 filter_vec(uniform, Vec) -> Vec;
 filter_vec(x, {X,_,_}) -> {X,0,0};

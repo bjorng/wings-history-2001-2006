@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.32 2001/12/12 15:12:47 bjorng Exp $
+%%     $Id: wings.hrl,v 1.33 2001/12/26 14:46:25 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -82,10 +82,6 @@
 	 ssel,					%Saved selection.
 	 mat,					%Defined materials (GbTree).
 	 next_tx=100,				%Next OpenGL texture ID.
-	 drag=none,				%Current drag information or
-						% 'none' if no drag
-						% in progress.
-	 dl=none,				%Cached display lists.
 	 file,					%Current filename.
 	 saved,					%True if model has been saved.
 	 onext,					%Next object id to use.
@@ -104,18 +100,12 @@
 	 undone					%States that were undone.
 	 }).
 
-%% Shape (or object) which can be implemented in different ways.
--record(shape,
-	{id,					%Shape id
-	 name,					%Shape name
-	 sh					%The shape itself:
-						% An 'we' record
-	}).
-
 %% The Winged-Edge data structure.
 %% See http://www.cs.mtu.edu/~shene/COURSES/cs3621/NOTES/model/winged-e.html
 -record(we,
-	{es,					%gb_tree containing edges
+	{id,					%Shape id.
+	 name,					%Name.
+	 es,					%gb_tree containing edges
 	 vs,					%gb_tree containing vertices
 	 fs,					%gb_tree containing faces
 	 he,					%gb_sets containing hard edges

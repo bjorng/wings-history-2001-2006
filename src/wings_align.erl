@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_align.erl,v 1.11 2001/10/26 12:40:52 bjorng Exp $
+%%     $Id: wings_align.erl,v 1.12 2001/12/26 14:46:25 bjorng Exp $
 %%
 
 -module(wings_align).
@@ -63,17 +63,10 @@ move_to_bb(Dir, #st{bb=Dest}=St) ->
 	    transform(Matrix, St)
     end.
 
-transform(Matrix, #st{selmode=body}=St) ->
-    wings_sel:map(
-      fun(#shape{sh=We0}=Sh) ->
-	      We = wings_we:transform_vs(Matrix, We0),
-	      Sh#shape{sh=We}
-      end, St);
 transform(Matrix, St) ->
-    wings_sel:map_shape(
-      fun(Items, We0) ->
-	      wings_we:transform_vs(Matrix, We0)
-      end, St).
+    wings_sel:map(fun(Items, We0) ->
+			  wings_we:transform_vs(Matrix, We0)
+		  end, St).
 
 make_move(Dir, Src, Dest0) ->
     SrcMid = e3d_vec:average(Src),
@@ -126,21 +119,9 @@ max_scale([_|Ss], Max) ->
     max_scale(Ss, Max);
 max_scale([], Max) -> Max.
 
-move_to(Center, Cs, Axis, #st{selmode=body}=St0) ->
-    {St,_} = wings_sel:mapfold(
-	       fun(#shape{sh=#we{vs=Vtab0}=We}=Sh, [MyCenter|Centers]) ->
-		       Offset0 = e3d_vec:sub(Center, MyCenter),
-		       case filter_coord(Axis, Offset0) of
-			   {0.0,0.0,0.0} -> {Sh,Centers};
-			   Offset ->
-			       Vtab = offset(Offset, Vtab0),
-			       {Sh#shape{sh=We#we{vs=Vtab}},Centers}
-		       end
-	       end, Cs, St0),
-    St;
 move_to(Center, Cs, Axis, St0) ->
-    {St,_} = wings_sel:mapfold_shape(
-	       fun(Id, Vs, #we{vs=Vtab0}=We, [MyCenter|Centers]) ->
+    {St,_} = wings_sel:mapfold(
+	       fun(_, #we{vs=Vtab0}=We, [MyCenter|Centers]) ->
 		       Offset0 = e3d_vec:sub(Center, MyCenter),
 		       case filter_coord(Axis, Offset0) of
 			   {0.0,0.0,0.0} -> {We,Centers};

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.36 2001/12/12 10:21:41 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.37 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -448,7 +448,7 @@ do_export(Mod, Name, St) ->
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
     Mod:export(Name, Contents).
 
-do_export(#shape{name=Name,sh=#we{}=We}, Acc) ->
+do_export(#we{name=Name}=We, Acc) ->
     Mesh = make_mesh(We),
     [#e3d_object{name=Name,obj=Mesh}|Acc].
 

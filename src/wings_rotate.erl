@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.17 2001/12/23 17:48:06 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.18 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -19,29 +19,29 @@
 
 setup(Type, #st{selmode=vertex}=St) ->
     Vec = wings_util:make_vector(Type),
-    Tvs = wings_sel:fold_shape(
-	    fun(#shape{id=Id,sh=We}, Vs, Acc) ->
+    Tvs = wings_sel:fold(
+	    fun(Vs, #we{id=Id}=We, Acc) ->
 		    [{Id,vertices_to_vertices(Vs, We, Vec)}|Acc]
 	    end, [], St),
     init_drag(Tvs, Vec, St);
 setup(Type, #st{selmode=edge}=St) ->
     Vec = wings_util:make_vector(Type),
-    Tvs = wings_sel:fold_region(
-	    fun(Id, Edges, We, Acc) ->
-		    [{Id,edges_to_vertices(Edges, We, Vec)}|Acc]
+    Tvs = wings_sel:fold(
+	    fun(Edges, We, Acc) ->
+		    edges_to_vertices(Edges, We, Vec, Acc)
 	    end, [], St),
     init_drag(Tvs, Vec, St);
 setup(Type, #st{selmode=face}=St) ->
     Vec = wings_util:make_vector(Type),
-    Tvs = wings_sel:fold_region(
-	    fun(Id, Faces, We, Acc) ->
-		    [{Id,faces_to_vertices(Faces, We, Vec)}|Acc]
+    Tvs = wings_sel:fold(
+	    fun(Faces, We, Acc) ->
+		    faces_to_vertices(Faces, We, Vec, Acc)
 	    end, [], St),
     init_drag(Tvs, Vec, St);
 setup(Type, #st{selmode=body}=St) ->
     Vec = wings_util:make_vector(Type),
     Tvs = wings_sel:fold(
-	    fun(#shape{id=Id,sh=#we{}=We}=Sh, Acc) ->
+	    fun(_, #we{id=Id}=We, Acc) ->
 		    [{Id,body_to_vertices(We, Vec)}|Acc]
 	    end, [], St),
     init_drag({matrix,Tvs}, Vec, St).
@@ -65,6 +65,11 @@ vertices_to_vertices(Vs, We, Vec) ->
 %% Conversion of edge selections to vertices.
 %%
 
+edges_to_vertices(Edges0, #we{id=Id}=We, Vec, Acc) ->
+    foldl(fun(Edges, A) ->
+		  [{Id,edges_to_vertices(Edges, We, Vec)}|A]
+	  end, Acc, wings_sel:edge_regions(Edges0, We)).
+
 edges_to_vertices(Es, #we{es=Etab}=We, normal) ->
     Ns = foldl(fun(Edge, Acc) ->
 		       #edge{lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
@@ -80,6 +85,11 @@ edges_to_vertices(Es, #we{es=Etab}=We, Vec) ->
 %%
 %% Conversion of face selections to vertices.
 %%
+
+faces_to_vertices(Faces0, #we{id=Id}=We, Vec, Acc) ->
+    foldl(fun(Faces, A) ->
+		  [{Id,faces_to_vertices(Faces, We, Vec)}|A]
+	  end, Acc, wings_sel:face_regions(Faces0, We)).
 
 faces_to_vertices(Faces, We, normal) ->
     #we{fs=Ftab,es=Etab,vs=Vtab} = We,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.11 2001/12/10 07:28:16 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.12 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -192,7 +192,7 @@ export(Name, #st{shapes=Shapes0}=St) ->
     Shapes = reverse(Shapes2),
     write_file(Name, Shapes).
 
-shape(#shape{name=Name,sh=We0}, Acc) ->
+shape(#we{name=Name}=We0, Acc) ->
     NameChunk = [<<(length(Name)):16>>|Name],
     Vis = 1,
     Sense = 1,

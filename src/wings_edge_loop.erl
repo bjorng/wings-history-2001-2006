@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.3 2001/11/11 20:15:51 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.4 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
@@ -33,7 +33,7 @@ select_prev(#st{selmode=edge,sel=[_]}=St) ->
 select_prev(St) -> St.
 
 find_loop(#st{sel=[{Id,Edges}=PrevSel],shapes=Shapes}=St, Dir0) ->
-    #shape{sh=We} = gb_trees:get(Id, Shapes),
+    We = gb_trees:get(Id, Shapes),
     #we{es=Etab} = We,
     G = digraph:new(),
     build_digraph(G, gb_sets:to_list(Edges), Edges, Etab),
@@ -121,11 +121,11 @@ add_edge(G, E, Va, Vb) ->
 %%%
 
 select_loop(#st{selmode=edge}=St) ->
-    Sel = wings_sel:fold_shape(fun select_loop/3, [], St),
+    Sel = wings_sel:fold(fun select_loop/3, [], St),
     St#st{sel=reverse(Sel)};
 select_loop(St) -> St.
 
-select_loop(#shape{id=Id,sh=#we{es=Etab}=We}, Edges0, Acc) ->
+select_loop(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
     Edges = select_loop_1(Edges0, Etab, gb_sets:empty()),
     [{Id,Edges}|Acc].
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.73 2001/12/23 11:30:45 bjorng Exp $
+%%     $Id: wings.erl,v 1.74 2001/12/26 14:46:25 bjorng Exp $
 %%
 
 -module(wings).
@@ -19,12 +19,11 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
+-define(COLOR_BITS, 16).
 -define(INTERESTING_BITS, (?CTRL_BITS bor ?ALT_BITS)).
 -import(lists, [foreach/2,map/2,filter/2,foldl/3,sort/1,
 		keymember/3,reverse/1]).
 -import(wings_draw, [model_changed/1]).
-
--define(COLOR_BITS, 16).
 
 start() ->
     spawn(fun init/0).
@@ -40,7 +39,7 @@ init() ->
     case
 	catch
 	init_1() of
-	{'EXIT',Reason} -> io:format("Crasched: ~P\n", [Reason,30]);
+	{'EXIT',Reason} -> io:format("Crashed: ~P\n", [Reason,30]);
 	ok -> ok
     end.
 
@@ -76,7 +75,7 @@ init_1() ->
 		      {"Objects",objects},
 		      {"Help",help}]),
     Empty = gb_trees:empty(),
-    St = #st{shapes=Empty,
+    St0 = #st{shapes=Empty,
 	     selmode=face,
 	     sel=[],
 	     ssel={face,[]},
@@ -86,18 +85,15 @@ init_1() ->
 	     repeatable=ignore,
 	     hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)
 	    },
+    St = wings_undo:init(St0),
     wings_view:init(),
     wings_file:init(),
 
     %% On Solaris/Sparc, we must initialize twice the first time to
     %% get the requested size. Should be harmless on other platforms.
-    W = 800,
-    H = 600,
-    sdl_video:setVideoMode(W, H, ?COLOR_BITS, ?SDL_OPENGL bor ?SDL_RESIZABLE),
-    resize(W, H, St),
-
     caption(St),
-    enter_top_level(wings_undo:init(St)),
+    resize(780, 580),
+    wings_io:enter_event_loop(main_loop(St)),
     wings_file:finish(),
     wings_pref:finish(),
     sdl:quit(),
@@ -117,7 +113,7 @@ locate(Name) ->
 	    end
     end.
 
-resize(W, H, St) ->
+resize(W, H) ->
     sdl_video:setVideoMode(W, H, ?COLOR_BITS, ?SDL_OPENGL bor ?SDL_RESIZABLE),
     wings_view:init_light(),
     gl:enable(?GL_DEPTH_TEST),
@@ -130,69 +126,46 @@ resize(W, H, St) ->
     gl:matrixMode(?GL_MODELVIEW),
     wings_io:resize(W, H).
 
-enter_top_level(St) ->
-    Init = {init,fun() -> top_level_1(St) end,{push,dummy}},
-    wings_io:enter_event_loop(Init).
+redraw(St0) ->
+    St = wings_draw:render(St0),
+    wings_io:info(info(St)),
+    wings_io:update(St),
+    St.
 
-top_level(St) ->
-    wings_io:clear_message(),
-    top_level_1(St).
-
-top_level_1(St) ->
-    {init,
-     fun() ->
-	     {init,fun() -> main_loop(St) end,{push,dummy}}
-     end,
-     {replace,fun(Event) -> handle_top_event(Event, St) end}}.
-
-handle_top_event(Event, St0) ->
-    case Event of
-	#st{}=St1 ->				%Undoable operation.
-	    ?ASSERT(St1#st.drag == none),
-	    St = wings_undo:save(St0, St1),
-	    top_level(St#st{saved=false});
-	{saved,St} ->
-	    top_level(wings_undo:save(St0, St));
-	{new,St} ->
-	    top_level(wings_undo:init(St));
-	drag_aborted ->
-	    top_level(clean_state(St0));
-	{undo,St1} -> 
-	    St = wings_undo:undo(St1),
-	    top_level(clean_state(St));
-	{redo,St1} -> 
-	    St = wings_undo:redo(St1),
-	    top_level(clean_state(St));
-	{undo_toggle,St1} -> 
-	    St = wings_undo:undo_toggle(St1),
-	    top_level(clean_state(St));
-	quit ->
-	    sdl_util:free(St0#st.hit_buf),
-	    pop;
-	{crash,Crash} ->
-	    LogName = wings_util:crasch_log(Crash),
-	    wings_io:message("Internal error - log written to " ++ LogName),
-	    enter_top_level(St0)
-    end.
-
-clean_state(St0) ->
-    St = St0#st{drag=none},
+clean_state(St) ->
     caption(wings_draw:model_changed(St)).
 
-main_loop(St0) ->
-    ?VALIDATE_MODEL(St0),
-    St = redraw(St0),
-    {replace,fun(Event) -> handle_event(Event, St) end}.
+save_state(St0, St1) ->
+    St = wings_undo:save(St0, St1),
+    main_loop(St#st{saved=false}).
 
+main_loop(St) ->
+    ?VALIDATE_MODEL(St),
+    redraw(St),
+    wings_io:clear_message(),
+    main_loop_noredraw(St).
+
+main_loop_noredraw(St) ->
+    fun(Event) -> handle_event(Event, St) end.
+
+handle_event({crash,_}=Crash, St) ->
+    LogName = wings_util:crash_log(Crash),
+    wings_io:message("Internal error - log written to " ++ LogName),
+    main_loop(St);
 handle_event(Event, St) ->
     case wings_camera:event(Event, fun() -> redraw(St) end) of
 	next -> handle_event_1(Event, St);
 	Other -> Other
     end.
 
-handle_event_1(drag_aborted=S, _) -> return_to_top(S);
-handle_event_1({drag_ended,St}, _) -> return_to_top(St);
-handle_event_1({new_selection,St}, _) -> return_to_top(St);
+handle_event_1(drag_aborted, St) ->
+    wings_io:clear_message(),
+    main_loop(model_changed(St));
+handle_event_1({drag_ended,St}, St0) ->
+    wings_io:clear_message(),
+    save_state(St0, St);
+handle_event_1({new_selection,St}, St0) ->
+    save_state(St0, St);
 handle_event_1(Event, St0) ->
     case translate_event(Event, St0) of
 	ignore -> keep;
@@ -204,18 +177,19 @@ handle_event_1(Event, St0) ->
  	{right_click,X,Y} ->
 	    popup_menu(X, Y, St0);
  	{resize,W,H} ->
- 	    resize(W, H, St0),
+ 	    resize(W, H),
  	    main_loop(model_changed(St0));
- 	{edit,undo_toggle} -> execute_or_ignore(undo_toggle, St0);
- 	{edit,undo} -> execute_or_ignore(undo, St0);
- 	{edit,redo} -> execute_or_ignore(redo, St0);
-	{crash,_}=Crash -> next;
+ 	{edit,undo_toggle} ->
+	    St = wings_undo:undo_toggle(St0),
+	    main_loop(clean_state(St));
+ 	{edit,undo} ->
+	    St = wings_undo:undo(St0),
+	    main_loop(clean_state(St));
+ 	{edit,redo} ->
+	    St = wings_undo:redo(St0),
+	    main_loop(clean_state(St));
 	Cmd -> do_command(Cmd, St0)
     end.
-
-execute_or_ignore(Cmd, #st{drag=Drag}=St) when Drag =/= none ->
-    main_loop(St);
-execute_or_ignore(Cmd, St) -> return_to_top({Cmd,St}).
     
 do_command(Cmd, St0) ->
     St1 = remember_command(Cmd, St0),
@@ -225,30 +199,23 @@ do_command(Cmd, St0) ->
 	{command_error,Error} ->
 	    wings_util:message(Error),
 	    main_loop(St0);
-	#st{drag=none}=St -> main_loop(St);
-	#st{}=StDrag ->
-	    St = model_changed(St1#st{drag=none}),
+	#st{}=St -> main_loop(St);
+	{drag,Drag} ->
+	    St = model_changed(St0),
 	    {seq,{replace,fun(Event) -> handle_event(Event, St) end},
-	     wings_drag:do_drag(StDrag)};
-	{save_state,#st{}=St} -> return_to_top(St);
-	{saved,#st{}}=Res -> return_to_top(Res);
-	{new,#st{}}=Res -> return_to_top(Res);
+	     wings_drag:do_drag(Drag)};
+	{save_state,#st{}=St} -> save_state(St1, St);
+	{saved,St}=Res ->
+	    main_loop(wings_undo:save(St1, St));
+	{new,St}=Res -> main_loop(clean_state(wings_undo:init(St)));
 	{push,_}=Push -> Push;
 	{init,_,_}=Init -> Init;
 	{seq,_,_}=Seq -> Seq;
-	quit -> return_to_top(quit)
+	quit ->
+	    sdl_util:free(St0#st.hit_buf),
+	    pop
     end.
 
-return_to_top(Res) ->
-    wings_io:putback_event(Res),
-    pop.
-
-redraw(St0) ->
-    St = wings_draw:render(St0),
-    wings_io:info(info(St)),
-    wings_io:update(St),
-    St.
-    
 do_command_1(Cmd, St) ->
     command(Cmd, St).
 
@@ -294,13 +261,15 @@ repeatable(Mode, Cmd) ->
 command({_,{[_|_]}=Plugin}, St0) ->
     case wings_plugin:command(Plugin, St0) of
 	St0 -> St0;
-	#st{drag=none}=St -> {save_state,model_changed(St)};
+	{drag,Drag} -> Drag;
+	#st{}=St -> {save_state,model_changed(St)};
 	St -> St
     end;
 command({_,[_|_]=Plugin}, St0) ->
     case wings_plugin:command(Plugin, St0) of
 	St0 -> St0;
-	#st{drag=none}=St -> {save_state,model_changed(St)};
+	{drag,Drag} -> Drag;
+	#st{}=St -> {save_state,model_changed(St)};
 	St -> St
     end;
 command({menu,Menu,X,Y}, St) ->
@@ -324,7 +293,6 @@ command({edit,{material,Mat}}=Cmd, St) ->
     wings_material:command(Cmd, St);
 command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
-    ?ASSERT(St#st.drag == none),
     case repeatable(Mode, Cmd0) of
 	no -> ok;
 	Cmd when tuple(Cmd) -> wings_io:putback_event({action,Cmd})
@@ -412,7 +380,7 @@ command({view,Command}, St) ->
 command({body,invert}, St) ->
     {save_state,model_changed(wings_body:invert_normals(St))};
 command({body,{duplicate,Dir}}, St) ->
-    model_changed(wings_body:duplicate(Dir, St));
+    wings_body:duplicate(Dir, St);
 command({body,delete}, St) ->
     {save_state,model_changed(wings_body:delete(St))};
 command({body,tighten}, St) ->
@@ -509,6 +477,12 @@ command({tools,{move_to_bb,Dir}}, St) ->
 
 command({objects,Id}, St) when integer(Id) ->
     {save_state,rename_object(Id, St)};
+
+%% Window menu.
+
+command({window,object_browser}, St) ->
+    wings_obj_browser:toggle(St),
+    St;
 
 %% Common commands.
 command({_,collapse}, St) ->
@@ -616,10 +590,9 @@ menu(X, Y, tools, St) ->
 	    {"Move to Saved BB",{move_to_bb,all_xyz()}}},
     wings_menu:menu(X, Y, tools, Menu, St);
 menu(X, Y, objects, #st{shapes=Shapes}=St) ->
-    All = gb_trees:to_list(Shapes),
-    Menu0 = map(fun({Id,#shape{name=Name}}) ->
-		       {"Rename "++Name,Id}
-	       end, All),
+    Menu0 = map(fun({Id,#we{name=Name}}) ->
+			{"Rename "++Name,Id}
+		end, gb_trees:to_list(Shapes)),
     Menu = list_to_tuple(Menu0),
     wings_menu:menu(X, Y, objects, Menu, St);
 menu(X, Y, help, St) ->
@@ -804,7 +777,7 @@ info(#st{shapes=Shapes,selmode=edge,sel=[{Id,Sel}]}) ->
 	0 -> "";
 	1 ->
 	    [Edge] = gb_sets:to_list(Sel),
-	    #shape{sh=#we{es=Etab}} = gb_trees:get(Id, Shapes),
+	    #we{es=Etab} = gb_trees:get(Id, Shapes),
 	    #edge{a=A,b=B} = gb_trees:get(Edge, Etab),
 	    flat_format("Edge: ~p", [Edge]);
 	N when N < 5 ->
@@ -841,7 +814,7 @@ item_list([Item|Items], Sep, Desc) ->
     item_list(Items, ", ", Desc++Sep++integer_to_list(Item));
 item_list([], Sep, Desc) -> Desc.
 
-shape_info(#shape{name=Name,sh=#we{fs=Ftab,es=Etab,vs=Vtab}}) ->
+shape_info(#we{name=Name,fs=Ftab,es=Etab,vs=Vtab}) ->
     Faces = gb_trees:size(Ftab),
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),
@@ -852,7 +825,7 @@ shape_info(Objs, Shs) ->
     shape_info(Objs, Shs, 0, 0, 0, 0).
 
 shape_info([{Id,_}|Objs], Shs, On, Vn, En, Fn) ->
-    #shape{sh=#we{fs=Ftab,es=Etab,vs=Vtab}} = gb_trees:get(Id, Shs),
+    #we{fs=Ftab,es=Etab,vs=Vtab} = gb_trees:get(Id, Shs),
     Faces = gb_trees:size(Ftab),
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),
@@ -874,11 +847,11 @@ caption(#st{file=Name}=St) ->
     St.
 
 rename_object(Id, #st{shapes=Shapes0}=St) ->
-    #shape{name=Name0} = Sh = gb_trees:get(Id, Shapes0),
+    #we{name=Name0} = We = gb_trees:get(Id, Shapes0),
     case wings_getline:string("New name: ", Name0) of
 	aborted -> St;
 	Name when list(Name) ->
-	    Shapes = gb_trees:update(Id, Sh#shape{name=Name}, Shapes0),
+	    Shapes = gb_trees:update(Id, We#we{name=Name}, Shapes0),
 	    St#st{shapes=Shapes}
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.32 2001/12/12 11:28:14 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.33 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -21,7 +21,7 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
--import(lists, [foreach/2]).
+-import(lists, [foreach/2,foldl/3]).
 -import(wings_draw, [model_changed/1]).
 
 menu(X, Y, St) ->
@@ -244,29 +244,39 @@ along(Az, El, St) ->
 
 align_to_selection(#st{sel=[]}=St) -> St;
 align_to_selection(#st{selmode=vertex}=St) ->
-    Ns = wings_sel:fold(
-	   fun(Id, V, We, Acc) ->
-		   [wings_vertex:normal(V, We)|Acc]
-	   end, [], St),
-    N = e3d_vec:norm(e3d_vec:add(Ns)),
+    N = average_normals(
+	  fun(Vs, We, Acc) ->
+		  foldl(fun(V, A) ->
+				[wings_vertex:normal(V, We)|Acc]
+			end, Acc, Vs)
+	  end, St),
     align_to_selection(N, St);
 align_to_selection(#st{selmode=edge}=St) ->
-    Ns = wings_sel:fold(
-	   fun(Id, Edge, #we{es=Etab}=We, Acc) ->
-		   #edge{lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
-		   [wings_face:normal(Lf, We),
-		    wings_face:normal(Rf, We)|Acc]
-	   end, [], St),
-    N = e3d_vec:norm(e3d_vec:add(Ns)),
+    N = average_normals(
+	  fun(Edges, #we{es=Etab}=We, Acc) ->
+		  foldl(fun(Edge, A) ->
+				#edge{lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
+				[wings_face:normal(Lf, We),
+				 wings_face:normal(Rf, We)|A]
+			end, Acc, Edges)
+	  end, St),
     align_to_selection(N, St);
 align_to_selection(#st{selmode=face}=St) ->
-    Ns = wings_sel:fold(
-	   fun(Id, Face, We, Acc) ->
-		   [wings_face:normal(Face, We)|Acc]
-	   end, [], St),
-    N = e3d_vec:norm(e3d_vec:add(Ns)),
+    N = average_normals(
+	  fun(Faces, We, Acc) ->
+		  foldl(fun(Face, A) ->
+				[wings_face:normal(Face, We)|Acc]
+			end, Acc, Faces)
+	  end, St),
     align_to_selection(N, St);
 align_to_selection(St) -> St.
+
+average_normals(CalcNormals, St) ->
+    Ns = wings_sel:fold(
+	   fun(Items, We, Acc) ->
+		   CalcNormals(gb_sets:to_list(Items), We, Acc)
+	   end, [], St),
+    e3d_vec:norm(e3d_vec:add(Ns)).
 
 align_to_selection({Nx,Ny,Nz}=N, St) ->
     Z = {0.0,0.0,1.0},

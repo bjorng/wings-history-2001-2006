@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.19 2001/12/23 11:32:46 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.20 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -17,7 +17,7 @@
 	 upper/1,add_vpos/2,update_vpos/2,
 	 fold_shape/3,fold_face/3,fold_vertex/3,fold_edge/3,
 	 average_normals/1,
-	 tc/1,crasch_log/1,validate/1]).
+	 tc/1,crash_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
 
 -define(NEED_OPENGL, 1).
@@ -95,8 +95,6 @@ fold_shape_1(F, Acc, Iter0) ->
     end.
 
 fold_face(F, Acc, #we{fs=Ftab}) ->
-    fold_face_1(F, Acc, gb_trees:iterator(Ftab));
-fold_face(F, Acc, #shape{sh=#we{fs=Ftab}}) ->
     fold_face_1(F, Acc, gb_trees:iterator(Ftab)).
 
 fold_face_1(F, Acc, Iter0) ->
@@ -107,8 +105,6 @@ fold_face_1(F, Acc, Iter0) ->
     end.
 
 fold_vertex(F, Acc, #we{vs=Vtab}) ->
-    fold_vertex_1(F, Acc, gb_trees:iterator(Vtab));
-fold_vertex(F, Acc, #shape{sh=#we{vs=Vtab}}=Sh) ->
     fold_vertex_1(F, Acc, gb_trees:iterator(Vtab));
 fold_vertex(F, Acc, Vtab) ->
     fold_vertex_1(F, Acc, gb_trees:iterator(Vtab)).
@@ -121,8 +117,6 @@ fold_vertex_1(F, Acc, Iter0) ->
     end.
 
 fold_edge(F, Acc, #we{es=Etab}) ->
-    fold_edge_1(F, Acc, gb_trees:iterator(Etab));
-fold_edge(F, Acc, #shape{sh=#we{es=Etab}}=Sh) ->
     fold_edge_1(F, Acc, gb_trees:iterator(Etab)).
 
 fold_edge_1(F, Acc, Iter0) ->
@@ -183,12 +177,12 @@ show_vertex(F, Vertex, #vtx{edge=Edge,pos=Pos}) ->
     io:format(F, "~p: edge=~p pos=~p\n", [Vertex,Edge,Pos]).
 
 %%%
-%%% Crasch log writing.
+%%% Crash log writing.
 %%%
 
-crasch_log(BackTrace) ->
+crash_log(BackTrace) ->
     LogFileDir = log_file_dir(),
-    LogName = filename:absname("wings_crasch.dump", LogFileDir),
+    LogName = filename:absname("wings_crash.dump", LogFileDir),
     F = open_log_file(LogName),
     io:format(F, "Crashed in:\n~p\n\n", [BackTrace]),
     analyse(F, BackTrace),
@@ -233,9 +227,6 @@ try_arg(F, #st{shapes=Shapes}, N) ->
 		    io:format(F, "Shape ~p\n", [Id]),
 		    dump_shape(F, Sh)
 	    end, gb_trees:to_list(Shapes));
-try_arg(F, #shape{}=Sh, N) ->
-    arg(F, N),
-    dump_shape(F, Sh);
 try_arg(F, #we{}=We, N) ->
     arg(F, N),
     dump_we(F, We);
@@ -258,7 +249,7 @@ try_arg(F, A, N) -> ok.
 arg(F, N) ->
     io:format(F, "Argument #~p:\n", [N]).
 
-dump_shape(F, #shape{sh=#we{}=We}) ->
+dump_shape(F, #we{}=We) ->
     dump_we(F, We).
 
 dump_we(F, #we{es=Etab,vs=Vtab,fs=Ftab}) ->
@@ -293,7 +284,7 @@ validate(X) ->
     X.
 
 validate_1(#st{shapes=Shapes}) ->
-    foreach(fun ({_,#shape{sh=#we{}=We}}) ->
+    foreach(fun ({_,#we{}=We}) ->
 		    validate_we(We);
 		({_,_}) -> ok end,
 	    gb_trees:to_list(Shapes));

@@ -8,21 +8,32 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.38 2001/12/12 10:21:41 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.39 2001/12/26 14:46:25 bjorng Exp $
 %%
 
 -module(wings_draw).
--export([model_changed/1,sel_changed/1,render/1,ground_and_axes/0]).
+-export([model_changed/1,sel_changed/1,
+	 get_dlist/0,put_dlist/1,render/1,ground_and_axes/0]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1]).
 
-model_changed(St) -> St#st{dl=none}.
+model_changed(St) ->
+    erase(wings_dlist),
+    St.
 
-sel_changed(#st{dl=#dl{}=Dl}=St) -> St#st{dl=Dl#dl{old_sel=none,sel=none}};
-sel_changed(St) -> St.
+get_dlist() ->
+    get(wings_dlist).
+
+put_dlist(DL) ->
+    put(wings_dlist, DL).
+
+sel_changed(St) ->
+    Dl = get(wings_dlist),
+    put(wings_dlist, Dl#dl{old_sel=none,sel=none}),
+    St.
 
 -define(DL_FACES, (?DL_DRAW_BASE)).
 -define(DL_EDGES, (?DL_DRAW_BASE+1)).
@@ -32,15 +43,15 @@ sel_changed(St) -> St.
 %% Renders all shapes, including selections.
 %%
 
-render(#st{shapes=Shapes}=St0) ->
+render(St) ->
     ?CHECK_ERROR(),
     gl:enable(?GL_DEPTH_TEST),
     ?CHECK_ERROR(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     ?CHECK_ERROR(),
     Smooth = wings_pref:get_value(smooth_preview),
-    St1 = update_display_lists(St0),
-    St = make_sel_dlist(Smooth, St1),
+    update_display_lists(St),
+    make_sel_dlist(Smooth, St),
     wings_view:projection(),
     wings_view:model_transformations(),
     ground_and_axes(),
@@ -52,7 +63,7 @@ render(#st{shapes=Shapes}=St0) ->
     ?CHECK_ERROR(),
     St.
 
-draw_smooth_shapes(#st{dl=DL}=St) ->
+draw_smooth_shapes(St) ->
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_BACK),
     gl:shadeModel(?GL_SMOOTH),
@@ -120,38 +131,46 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
 sel_color() ->
     gl:color3fv(wings_pref:get_value(selected_color)).
 
-draw_sel(#st{selmode=edge,dl=#dl{sel=DlistSel}}) ->
+draw_sel(#st{selmode=edge}) ->
+    #dl{sel=DlistSel} = get_dlist(),
     gl:lineWidth(wings_pref:get_value(selected_edge_width)),
     gl:callList(DlistSel);
-draw_sel(#st{selmode=vertex,dl=#dl{sel=DlistSel}}) ->
+draw_sel(#st{selmode=vertex}) ->
+    #dl{sel=DlistSel} = get_dlist(),
     gl:callList(DlistSel);
-draw_sel(#st{dl=#dl{sel=DlistSel}}) ->
+draw_sel(St) ->
+    #dl{sel=DlistSel} = get_dlist(),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(1.0, 1.0),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:callList(DlistSel).
     
-draw_faces(#st{dl=#dl{faces=DlistFaces}}) ->
+draw_faces(#st{}) ->
+    #dl{faces=DlistFaces} = get_dlist(),
     gl:callList(DlistFaces).
 
-update_display_lists(#st{shapes=Shapes,dl=none}=St) ->
-    Smooth = wings_pref:get_value(smooth_preview),
-    gl:newList(?DL_FACES, ?GL_COMPILE),
-    foreach(fun(Sh) ->
-		    shape(Sh, Smooth, St)
-	    end, gb_trees:values(Shapes)),
-    gl:endList(),
-    Dl = #dl{faces=?DL_FACES},
-    St#st{dl=Dl};
-update_display_lists(St) -> St.
+update_display_lists(#st{shapes=Shapes}=St) ->
+    case get_dlist() of
+	undefined ->
+	    Smooth = wings_pref:get_value(smooth_preview),
+	    gl:newList(?DL_FACES, ?GL_COMPILE),
+	    foreach(fun(We) ->
+			    draw_faces(We, Smooth, St)
+		    end, gb_trees:values(Shapes)),
+	    gl:endList(),
+	    put_dlist(#dl{faces=?DL_FACES});
+	DL -> ok
+    end.
 
-make_sel_dlist(Smooth, #st{dl=#dl{sel=none}}=St) ->
-    do_make_sel_dlist(Smooth, St);
-make_sel_dlist(_, #st{sel=Sel,dl=#dl{old_sel=Sel}}=St) -> St;
-make_sel_dlist(Smooth, #st{dl=DL}=St) -> do_make_sel_dlist(Smooth, St);
-make_sel_dlist(Smooth, St) -> St.
+make_sel_dlist(Smooth, St) ->
+    case {get_dlist(),St} of
+	{#dl{sel=none},_} -> do_make_sel_dlist(Smooth, St);
+	{#dl{old_sel=Sel},#st{sel=Sel}} -> St;
+	{_,_} -> do_make_sel_dlist(Smooth, St)
+    end.
 
-do_make_sel_dlist(false, #st{selmode=body,sel=Sel,shapes=Shs,dl=DL}=St) ->
+do_make_sel_dlist(false, #st{selmode=body,sel=Sel,shapes=Shs}=St) ->
+    DL = get_dlist(),
     DlistSel = ?DL_SEL,
     gl:newList(DlistSel, ?GL_COMPILE),
     case {gb_trees:size(Shs),length(Sel)} of
@@ -162,18 +181,17 @@ do_make_sel_dlist(false, #st{selmode=body,sel=Sel,shapes=Shs,dl=DL}=St) ->
 	    draw_selection(false, St)
     end,
     gl:endList(),
-    St#st{dl=DL#dl{old_sel=Sel,sel=DlistSel}};
+    put_dlist(DL#dl{old_sel=Sel,sel=DlistSel});
 do_make_sel_dlist(Smooth, St) -> do_make_sel_dlist_1(Smooth, St).
 
-do_make_sel_dlist_1(Smooth, #st{sel=Sel,dl=DL}=St) ->
+do_make_sel_dlist_1(Smooth, #st{sel=Sel}=St) ->
     DlistSel = ?DL_SEL,
     gl:newList(DlistSel, ?GL_COMPILE),
     draw_selection(Smooth, St),
     gl:endList(),
-    St#st{dl=DL#dl{old_sel=Sel,sel=DlistSel}}.
-
-shape(#shape{sh=Data}, Smooth, St) ->
-    draw_faces(Data, Smooth, St).
+    DL = get_dlist(),
+    put_dlist(DL#dl{old_sel=Sel,sel=DlistSel}).
+    
 
 draw_faces(We, true, #st{mat=Mtab}) ->
     draw_smooth_faces(Mtab, We);
@@ -254,7 +272,7 @@ draw_smooth_vcolor([]) -> ok.
 draw_hard_edges(#st{shapes=Shapes}) ->
     gl:color3fv(wings_pref:get_value(hard_edge_color)),
     foreach(
-      fun(#shape{sh=#we{he=Htab}=We}) ->
+      fun(#we{he=Htab}=We) ->
 	      case gb_sets:is_empty(Htab) of
 		  true -> ok;
 		  false -> draw_hard_edges_1(We)
@@ -279,20 +297,20 @@ draw_hard_edges_1(#we{es=Etab,he=Htab,vs=Vtab}) ->
 draw_selection(Smooth, #st{selmode=body}=St) ->
     sel_color(),
     wings_sel:foreach(
-      fun(_, #shape{sh=Data}) ->
-	      draw_faces(Data, false, St)
+      fun(_, We) ->
+	      draw_faces(We, false, St)
       end, St);
 draw_selection(Smooth, #st{selmode=face}=St) ->
     sel_color(),
     wings_sel:foreach(
-      fun(Face, #shape{sh=#we{fs=Ftab}=We}) ->
+      fun(Face, #we{fs=Ftab}=We) ->
 	      wings_draw_util:sel_face(Face, We)
       end, St);
 draw_selection(Smooth, #st{selmode=edge}=St) ->
     sel_color(),
     gl:'begin'(?GL_LINES),
     wings_sel:foreach(
-      fun(Edge, #shape{sh=#we{es=Etab,vs=Vtab}}=Sh) ->
+      fun(Edge, #we{es=Etab,vs=Vtab}) ->
 	      #edge{vs=Vstart,ve=Vend} = gb_trees:get(Edge, Etab),
 	      gl:vertex3fv(lookup_pos(Vstart, Vtab)),
 	      gl:vertex3fv(lookup_pos(Vend, Vtab))
@@ -304,10 +322,10 @@ draw_selection(Smooth, #st{selmode=vertex}=St) ->
 draw_vtx_sel(Smooth, #st{shapes=Shapes,sel=Sel}) ->
     draw_vtx_sel(gb_trees:to_list(Shapes), Sel, Smooth).
 
-draw_vtx_sel([{Id1,#shape{sh=#we{vs=Vtab}}}|Shs], [{Id2,_}|_]=Sel, true)
+draw_vtx_sel([{Id1,#we{vs=Vtab}}|Shs], [{Id2,_}|_]=Sel, true)
   when Id1 < Id2 ->
     draw_vtx_sel(Shs, Sel, true);
-draw_vtx_sel([{Id1,#shape{sh=#we{vs=Vtab}}}|Shs], [{Id2,_}|_]=Sel, false)
+draw_vtx_sel([{Id1,#we{vs=Vtab}}|Shs], [{Id2,_}|_]=Sel, false)
   when Id1 < Id2 ->
     draw_unsel_vtx(fun() ->
 			   foreach(fun(#vtx{pos=Pos}) ->
@@ -315,15 +333,15 @@ draw_vtx_sel([{Id1,#shape{sh=#we{vs=Vtab}}}|Shs], [{Id2,_}|_]=Sel, false)
 				   gb_trees:values(Vtab))
 		   end),
     draw_vtx_sel(Shs, Sel, false);
-draw_vtx_sel([{_,#shape{sh=#we{vs=Vtab}}}|Shs], [], true) -> ok;
-draw_vtx_sel([{_,#shape{sh=#we{vs=Vtab}}}|Shs], [], false) ->
+draw_vtx_sel([{_,#we{vs=Vtab}}|Shs], [], true) -> ok;
+draw_vtx_sel([{_,#we{vs=Vtab}}|Shs], [], false) ->
     draw_unsel_vtx(fun() ->
 			   foreach(fun(#vtx{pos=Pos}) ->
 					   gl:vertex3fv(Pos) end,
 				   gb_trees:values(Vtab))
 		   end),
     draw_vtx_sel(Shs, [], false);
-draw_vtx_sel([{Id,#shape{sh=#we{vs=Vtab0}}}|Shs], [{Id,Vs}|Sel], Smooth) ->
+draw_vtx_sel([{Id,#we{vs=Vtab0}}|Shs], [{Id,Vs}|Sel], Smooth) ->
     Vtab = sofs:from_external(gb_trees:to_list(Vtab0), [{vertex,data}]),
     R = sofs:from_external(gb_sets:to_list(Vs), [vertex]),
     SelVs = sofs:restriction(Vtab, R),

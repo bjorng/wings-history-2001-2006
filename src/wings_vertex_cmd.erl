@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.12 2001/11/16 12:20:28 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.13 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
 -export([flatten/2,extrude/2,bevel/1,connect/1,connect/2,
-	 tighten/1,tighten/4]).
+	 tighten/1,tighten/3]).
 
 -include("wings.hrl").
 
@@ -28,7 +28,7 @@
 
 flatten(Plane0, St) ->
     Plane = plane_normal(Plane0),
-    wings_sel:map_shape(
+    wings_sel:map(
       fun(Vs, We) ->
 	      case gb_sets:size(Vs) of
 		  Sz when Sz < 2 -> We;
@@ -61,7 +61,7 @@ flatten_move(V, PlaneNormal, Center, Tab0) ->
 %%%
 
 extrude(Type, St0) ->
-    St = wings_sel:map_shape(fun extrude_vertices/2, St0),
+    St = wings_sel:map(fun extrude_vertices/2, St0),
     wings_move:setup(Type, St).
 
 extrude_vertices(Vs0, We0) ->
@@ -102,8 +102,8 @@ ex_connect([Va,Face], [Vb|_], We0) ->
 
 bevel(#st{sel=Vsel}=St0) ->
     {St,{Tvs0,FaceSel0}} =
-	wings_sel:mapfold_shape(
-	  fun(Id, Vs, We0, {Tvs,Fa}) ->
+	wings_sel:mapfold(
+	  fun(Vs, #we{id=Id}=We0, {Tvs,Fa}) ->
 		  Iter = gb_sets:iterator(Vs),
 		  {We,Tv,Fs0} = bevel_vertices(Iter, Vs, We0, We0, [], []),
 		  Fs = gb_sets:from_list(Fs0),
@@ -237,7 +237,7 @@ adjacent(V, Vs, We) ->
 %%%
 
 connect(St) ->
-    wings_sel:map_shape(fun connect/2, St).
+    wings_sel:map(fun connect/2, St).
 
 connect(Vs, #we{}=We) ->
     FaceVs = wings_vertex:per_face(Vs, We),
@@ -250,18 +250,18 @@ connect(Vs, #we{}=We) ->
 %%%
 
 tighten(St0) ->
-    {St,Tvs} = wings_sel:mapfold_shape(fun tighten/4, [], St0),
+    {St,Tvs} = wings_sel:mapfold(fun tighten/3, [], St0),
     wings_drag:init_drag(Tvs, none, St).
 
-tighten(Id, Vs, #we{vs=Vtab}=We, Acc) when list(Vs) ->
+tighten(Vs, #we{id=Id,vs=Vtab}=We, Acc) when is_list(Vs) ->
     Tv = foldl(
 	   fun(V, A) ->
 		   Vec = tighten_vec(V, Vs, We),
 		   [{Vec,[V]}|A]
 	   end, [], Vs),
     {We,[{Id,Tv}|Acc]};
-tighten(Id, Vs, We, Acc) ->
-    tighten(Id, gb_sets:to_list(Vs), We, Acc).
+tighten(Vs, We, Acc) ->
+    tighten(gb_sets:to_list(Vs), We, Acc).
 
 tighten_vec(V, Vs, #we{vs=Vtab}=We) ->
     Nbs = wings_vertex:fold(

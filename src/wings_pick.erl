@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.21 2001/12/23 11:28:36 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.22 2001/12/26 14:46:26 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -119,7 +119,7 @@ marque_filter(Hits, #st{selmode=Mode,shapes=Shs}) ->
     marque_filter_1(Hits, Shs, Mode, EyePoint, []).
 
 marque_filter_1([{Id,Face}|Hits], Shs, Mode, EyePoint, Acc) ->
-    #shape{sh=We} = gb_trees:get(Id, Shs),
+    We = gb_trees:get(Id, Shs),
     Vs = [V|_] = wings_face:surrounding_vertices(Face, We),
     N = wings_face:face_normal(Vs, We),
     D = e3d_vec:dot(wings_vertex:pos(V, We), N),
@@ -133,7 +133,7 @@ marque_filter_1([], St, Mode, EyePoint, Acc) -> Acc.
 
 marque_convert([{Id,Faces}|Hits], RectData,
 	       #st{selmode=Mode,shapes=Shs}=St, Acc) ->
-    #shape{sh=We} = gb_trees:get(Id, Shs),
+    We = gb_trees:get(Id, Shs),
     case marque_convert_1(Faces, Mode, RectData, We) of
 	[] ->
 	    marque_convert(Hits, RectData, St, Acc);
@@ -316,7 +316,7 @@ filter_hits(Hits, X, Y, #st{selmode=Mode,shapes=Shs}) ->
     filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, none).
 
 filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
-    #shape{sh=We} = gb_trees:get(Id, Shs),
+    We = gb_trees:get(Id, Shs),
     Vs = [V|_] = wings_face:surrounding_vertices(Face, We),
     N = wings_face:face_normal(Vs, We),
     D = e3d_vec:dot(wings_vertex:pos(V, We), N),
@@ -472,18 +472,22 @@ marque_draw(St) ->
 %% Draw for the purpose of picking the items that the user clicked on.
 %%
 
-select_draw(St0) ->
-    #st{dl=#dl{pick=Dlist}=DL} = St = select_draw_0(St0),
+select_draw(St) ->
+    Dlist = select_draw_0(St),
     gl:callList(Dlist),
     St.
 
-select_draw_0(#st{dl=#dl{pick=none}=DL}=St) ->
-    Dlist = ?DL_PICK,
-    gl:newList(Dlist, ?GL_COMPILE),
-    select_draw_1(St),
-    gl:endList(),
-    St#st{dl=DL#dl{pick=Dlist}};
-select_draw_0(St) -> St.
+select_draw_0(St) ->
+    case wings_draw:get_dlist() of
+	#dl{pick=none}=DL ->
+	    Dlist = ?DL_PICK,
+	    gl:newList(Dlist, ?GL_COMPILE),
+	    select_draw_1(St),
+	    gl:endList(),
+	    wings_draw:put_dlist(DL#dl{pick=Dlist}),
+	    Dlist;
+	#dl{pick=Dlist} -> Dlist
+    end.
 
 select_draw_1(St) ->
     foreach_we(fun(We) ->
@@ -511,7 +515,7 @@ foreach_we(F, #st{shapes=Shapes}) ->
 foreach_we_1(F, Iter0) ->
     case gb_trees:next(Iter0) of
 	none -> ok;
-	{Id,#shape{sh=#we{}=We},Iter} ->
+	{Id,We,Iter} ->
 	    gl:pushName(Id),
 	    F(We),
 	    gl:popName(),

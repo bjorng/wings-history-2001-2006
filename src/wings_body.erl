@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.15 2001/12/12 13:02:43 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.16 2001/12/26 14:46:25 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -32,13 +32,11 @@ convert_selection(#st{sel=Sel0}=St) ->
 %%%
 
 cleanup(St) ->
-    wings_sel:map(fun cleanup_1/1, St).
+    wings_sel:map(fun cleanup_1/2, St).
 
-cleanup_1(#shape{sh=#we{}=We0}=Sh) ->
-    We1 = clean_winged_vertices(We0),
-    We = clean_short_edges(We1),
-    Sh#shape{sh=We};
-cleanup_1(Other) -> Other.
+cleanup_1(_, We0) ->
+    We = clean_winged_vertices(We0),
+    clean_short_edges(We).
 
 clean_winged_vertices(We) ->
     wings_util:fold_vertex(
@@ -70,12 +68,8 @@ clean_short_edges(#we{es=Etab,vs=Vtab}=We) ->
 %%% The Invert command.
 %%%
 
-invert_normals(St0) ->
-    wings_sel:map(fun invert_normals_1/1, St0).
-
-invert_normals_1(#shape{sh=#we{}=We0}=Sh0) ->
-    We = wings_we:invert_normals(We0),
-    Sh0#shape{sh=We}.
+invert_normals(St) ->
+    wings_sel:map(fun(_, We) -> wings_we:invert_normals(We) end, St).
 
 %%%
 %%% The Duplicate command.
@@ -83,8 +77,8 @@ invert_normals_1(#shape{sh=#we{}=We0}=Sh0) ->
 
 duplicate(Dir, #st{onext=Oid0}=St0) ->
     Copy = "copy",
-    St = wings_sel:fold(fun(Sh0, St) ->
-				wings_shape:insert(Sh0, Copy, St)
+    St = wings_sel:fold(fun(_, We, St) ->
+				wings_shape:insert(We, Copy, St)
 			end, St0, St0),
     %% Select the duplicate items, not the original items.
     Zero = gb_sets:singleton(0),
@@ -96,7 +90,7 @@ duplicate(Dir, #st{onext=Oid0}=St0) ->
 %%%
 
 delete(#st{shapes=Shapes0}=St) ->
-    Shapes = wings_sel:fold(fun(#shape{id=Id}, Shs) ->
+    Shapes = wings_sel:fold(fun(_, #we{id=Id}, Shs) ->
 				    gb_trees:delete(Id, Shs)
 			    end, Shapes0, St),
     St#st{shapes=Shapes,sel=[]}.
@@ -107,16 +101,15 @@ delete(#st{shapes=Shapes0}=St) ->
 
 flip(Plane0, St) ->
     Plane = flip_scale(Plane0),
-    wings_sel:map(fun(Sh) -> flip_body(Plane, Sh) end, St).
+    wings_sel:map(fun(_, We) -> flip_body(Plane, We) end, St).
 
-flip_body(Plane, #shape{sh=#we{}=We0}=Sh) ->
+flip_body(Plane, We0) ->
     {Cx,Cy,Cz} = e3d_vec:average(wings_vertex:bounding_box(We0)),
     M0 = e3d_mat:translate(Cx, Cy, Cz),
     M1 = e3d_mat:mul(M0, Plane),
     M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
-    We1 = wings_we:transform_vs(M, We0),
-    We = wings_we:invert_normals(We1),
-    Sh#shape{sh=We}.
+    We = wings_we:transform_vs(M, We0),
+    wings_we:invert_normals(We).
 
 flip_scale(x) -> e3d_mat:scale(-1.0, 1.0, 1.0);
 flip_scale(y) -> e3d_mat:scale(1.0, -1.0, 1.0);
@@ -127,13 +120,12 @@ flip_scale(z) -> e3d_mat:scale(1.0, 1.0, -1.0).
 %%%
 
 tighten(St0) ->
-    {St,Tvs} = wings_sel:mapfold(fun tighten/2, [], St0),
+    {St,Tvs} = wings_sel:mapfold(fun tighten/3, [], St0),
     wings_drag:init_drag(Tvs, none, St).
 
-tighten(#shape{id=Id,sh=#we{vs=Vtab}=We0}=Sh, A) ->
+tighten(_, #we{vs=Vtab}=We0, A) ->
     Vs = gb_trees:keys(Vtab),
-    {We,Tvs} = wings_vertex_cmd:tighten(Id, Vs, We0, A),
-    {Sh#shape{sh=We},Tvs}.
+    wings_vertex_cmd:tighten(Vs, We0, A).
     
 %%%
 %%% The Smooth command.
@@ -144,11 +136,9 @@ tighten(#shape{id=Id,sh=#we{vs=Vtab}=We0}=Sh, A) ->
 
 smooth(St) ->
     wings_sel:map(
-      fun(#shape{sh=#we{fs=Ftab,he=Htab}=We0,name=Name}=Sh0) ->
+      fun(_, #we{name=Name,fs=Ftab,he=Htab}=We) ->
 	      wings_io:progress("Smoothing \"" ++ Name ++ "\""),
-	      We = wings_subdiv:smooth(We0),
-	      Sh = Sh0#shape{sh=We};
-	 (Sh) -> Sh
+	      wings_subdiv:smooth(We)
       end, St).
 
 %%%
@@ -157,21 +147,15 @@ smooth(St) ->
 
 combine(#st{sel=[]}=St) -> St;
 combine(#st{shapes=Shapes0,sel=[{Id,_}=Sel|T]}=St) ->
-    case gb_trees:get(Id, Shapes0) of
-	#shape{sh=#we{}=We0}=Sh ->
-	    {We,Shapes1} = combine(T, Shapes0, [We0]),
-	    Shapes = gb_trees:update(Id, Sh#shape{sh=We}, Shapes1),
-	    St#st{shapes=Shapes,sel=[Sel]};
-	Other -> combine(St#st{sel=T})
-    end.
+    We0 = gb_trees:get(Id, Shapes0),
+    {We,Shapes1} = combine(T, Shapes0, [We0]),
+    Shapes = gb_trees:update(Id, We#we{id=Id}, Shapes1),
+    St#st{shapes=Shapes,sel=[Sel]}.
 
 combine([{Id,_}|T], Shapes0, Acc) ->
-    case gb_trees:get(Id, Shapes0) of
-	#shape{sh=#we{}=We} ->
-	    Shapes = gb_trees:delete(Id, Shapes0),
-	    combine(T, Shapes, [We|Acc]);
-	Other -> combine(T, Shapes0, Acc)
-    end;
+    We = gb_trees:get(Id, Shapes0),
+    Shapes = gb_trees:delete(Id, Shapes0),
+    combine(T, Shapes, [We|Acc]);
 combine([], Shapes, Acc) ->
     We = wings_we:merge(Acc),
     {We,Shapes}.
@@ -183,16 +167,14 @@ combine([], Shapes, Acc) ->
 separate(St) ->
     Sep = "sep",
     wings_sel:fold(
-      fun(#shape{sh=#we{}=We0}=Sh0, St0) ->
+      fun(_, #we{id=Id}=We0, St0) ->
 	      case wings_we:separate(We0) of
 		  [_] -> St0;
 		  [We|Wes] ->
 		      St1 = foldl(fun(W, A) ->
-					  Sh = Sh0#shape{sh=W},
-					  wings_shape:insert(Sh, Sep, A)
+					  wings_shape:insert(W, Sep, A)
 				  end, St0, Wes),
-		      Sh = Sh0#shape{sh=We},
-		      wings_shape:update(Sh, St1)
+		      wings_shape:replace(Id, We, St1)
 	      end
       end, St, St).
 
@@ -200,17 +182,10 @@ separate(St) ->
 %%% The Auto-Smooth command.
 %%%
 
-auto_smooth(#st{selmode=body}=St) ->
-    wings_sel:map(
-      fun(#shape{sh=#we{}=We0}=Sh0) ->
-	      We = auto_smooth_1(We0),
-	      Sh = Sh0#shape{sh=We};
-	 (Sh) -> Sh
-      end, St);
 auto_smooth(St) ->
-    wings_sel:map_shape(fun(_, We) -> auto_smooth_1(We) end, St).
+    wings_sel:map(fun auto_smooth_1/2, St).
 
-auto_smooth_1(#we{he=Htab0}=We) ->
+auto_smooth_1(_, #we{he=Htab0}=We) ->
     Htab = wings_util:fold_edge(fun(E, R, A) ->
 					auto_smooth(E, R, A, We)
 				end, Htab0, We),

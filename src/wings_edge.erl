@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.25 2001/12/12 10:21:41 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.26 2001/12/26 14:46:25 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -108,8 +108,8 @@ to_vertices([], Etab, Acc) -> ordsets:from_list(Acc).
 %%%
 
 cut(N, #st{selmode=edge}=St0) when N > 1 ->
-    {St,Sel} = wings_sel:mapfold_shape(
-		 fun(Id, Edges, We0, Acc) ->
+    {St,Sel} = wings_sel:mapfold(
+		 fun(Edges, #we{id=Id}=We0, Acc) ->
 			 We = cut_edges(Edges, N, We0),
 			 S = wings_we:new_items(vertex, We0, We),
 			 {We,[{Id,S}|Acc]}
@@ -233,10 +233,10 @@ fast_cut(Edge, Pos0, Col0, We0) ->
 %%%
 
 connect(St0) ->
-    {St,Sel} = wings_sel:mapfold_shape(fun connect/4, [], St0),
+    {St,Sel} = wings_sel:mapfold(fun connect/3, [], St0),
     St#st{sel=Sel}.
 
-connect(Id, Es, We0, Acc) ->
+connect(Es, #we{id=Id}=We0, Acc) ->
     {We1,Vs} = cut_edges(Es, We0),
     We2 = wings_vertex_cmd:connect(Vs, We1),
     Sel = wings_we:new_items(edge, We1, We2),
@@ -262,10 +262,10 @@ remove_winged_vs(Vs, We) ->
 %%%
 
 dissolve(St0) ->
-    St = wings_sel:map_shape(fun dissolve_edges/2, St0),
+    St = wings_sel:map(fun dissolve_edges/2, St0),
     St#st{sel=[]}.
 
-dissolve_edges(Edges0, We0) when list(Edges0) ->
+dissolve_edges(Edges0, We0) when is_list(Edges0) ->
     #we{es=Etab} = We = foldl(fun dissolve_edge/2, We0, Edges0),
     case [E || E <- Edges0, gb_trees:is_defined(E, Etab)] of
 	Edges0 -> We;
@@ -443,22 +443,26 @@ stabile_neighbor(#edge{ltpr=Ea,ltsu=Eb,rtpr=Ec,rtsu=Ed}, Del) ->
     Edge.
 
 %%%
-%%% The Hardness command
+%%% The Hardness command.
 %%%
 
-hardness(Hardness, St) ->
-    wings_sel:map(fun(Edge, #we{he=Htab0}=We) ->
-			  Htab = hardness(Edge, Hardness, Htab0),
+hardness(soft, St) ->
+    wings_sel:map(fun(Edges, #we{he=Htab0}=We) ->
+			  Htab = gb_sets:difference(Htab0, Edges),
+			  We#we{he=Htab}
+		  end, St);
+hardness(hard, St) ->
+    wings_sel:map(fun(Edges, #we{he=Htab0}=We) ->
+			  Htab = gb_sets:union(Htab0, Edges),
 			  We#we{he=Htab}
 		  end, St).
 
-hardness(Edge, Hardness, Htab) ->
-    case {Hardness,gb_sets:is_member(Edge, Htab)} of
-	{soft,false} -> Htab;
-	{hard,true} -> Htab;
-	{soft,true} -> gb_sets:delete(Edge, Htab);
-	{hard,false} -> gb_sets:insert(Edge, Htab)
-    end.
+hardness(Edge, soft, Htab) ->
+    case gb_sets:is_member(Edge, Htab) of
+	true -> gb_sets:delete(Edge, Htab);
+	false -> Htab
+    end;
+hardness(Edge, hard, Htab) -> gb_sets:add(Edge, Htab).
 
 %%%
 %%% Select one side of an edge loop.
@@ -466,11 +470,11 @@ hardness(Edge, Hardness, Htab) ->
 
 select_region(St0) ->
     St = wings_edge_loop:select_loop(St0),
-    Sel0 = wings_sel:fold_shape(fun select_region/3, [], St),
+    Sel0 = wings_sel:fold(fun select_region/3, [], St),
     Sel = sort(Sel0),
     St#st{selmode=face,sel=Sel}.
 
-select_region(#shape{id=Id,sh=We0}=Sh, Edges, Sel) ->
+select_region(Edges, #we{id=Id}=We0, Sel) ->
     #we{es=Etab,fs=Ftab} = We0,
     {AnEdge,_} = gb_sets:take_smallest(Edges),
     #edge{lf=Lf,rf=Rf} = gb_trees:get(AnEdge, Etab),
@@ -487,23 +491,23 @@ select_region(#shape{id=Id,sh=We0}=Sh, Edges, Sel) ->
 %%%
 
 loop_cut(#st{onext=NextId}=St0) ->
-    {Sel0,St1} = wings_sel:fold_shape(fun loop_cut/3, {[],St0}, St0),
+    {Sel0,St1} = wings_sel:fold(fun loop_cut/3, {[],St0}, St0),
     Sel1 = sort(Sel0),
     St2 = St1#st{selmode=face,sel=Sel1},
     #st{sel=Sel2} = St = wings_face_cmd:dissolve(St2),
     Sel = [S || {Id,_}=S <- Sel2, Id >= NextId],
     wings_body:convert_selection(St#st{selmode=body,sel=Sel}).
 
-loop_cut(#shape{id=Id,name=Name,sh=We}=Sh, Edges, Acc) ->
+loop_cut(Edges, #we{id=Id,name=Name}=We, Acc) ->
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
 	none ->
 	    Error = "Selected edges in \"" ++
 		Name ++ "\" does not form one or more loops.",
 	    throw({command_error,Error});
-	Other -> loop_cut_1(Sh, Edges, Acc)
+	Other -> loop_cut_1(Edges, We, Acc)
     end.
 
-loop_cut_1(#shape{id=Id,name=Name,sh=We0}=Sh0, Edges, {Sel0,#st{onext=NewId}=St0}=Acc) ->
+loop_cut_1(Edges, #we{id=Id,name=Name}=We0, {Sel0,#st{onext=NewId}=St0}=Acc) ->
     #we{es=Etab,fs=Ftab} = We0,
     {AnEdge,_} = gb_sets:take_smallest(Edges),
     #edge{lf=Lf,rf=Rf} = gb_trees:get(AnEdge, Etab),
@@ -517,8 +521,7 @@ loop_cut_1(#shape{id=Id,name=Name,sh=We0}=Sh0, Edges, {Sel0,#st{onext=NewId}=St0
 	    throw({command_error,Error});
 	false ->
 	    WeCopy = wings_we:get_sub_object(AnEdge, We0),
-	    Sh = Sh0#shape{sh=WeCopy},
-	    St = wings_shape:insert(Sh, "cut", St0),
+	    St = wings_shape:insert(WeCopy, "cut", St0),
 	    Sel = [{Id,LeftFaces},{NewId,RightFaces}|Sel0],
 	    {Sel,St}
     end.
