@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.41 2003/07/05 20:35:52 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.42 2003/07/28 17:38:48 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -32,6 +32,8 @@
 event(Event) ->
     event_1(Event, none).
 
+event(Event, #st{sel=[]}) ->
+    event_1(Event, none);
 event(Event, #st{selmode=Mode}=St) ->
     case wings_light:is_any_light_selected(St) of
 	true -> event_1(Event, light);
