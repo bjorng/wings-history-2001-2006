@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.216 2003/02/23 07:29:31 bjorng Exp $
+%%     $Id: wings.erl,v 1.217 2003/02/24 05:02:16 bjorng Exp $
 %%
 
 -module(wings).
@@ -171,13 +171,13 @@ init(File, Root) ->
     end.
 
 new_viewer(St) ->
-    N = free_viewer_num(2),
     {Pos,{W,H}} = wings_wm:win_rect(desktop),
     Size = {W div 2-40,H div 2-40},
-    new_viewer(N, Pos, Size, false, St).
+    new_viewer(Pos, Size, false, St).
 
-new_viewer(N, {X,Y}, Size, ToolbarHidden, St) ->
+new_viewer({X,Y}, Size, ToolbarHidden, St) ->
     Op = main_loop_noredraw(St),
+    N = free_viewer_num(2),
     Title = "Geometry #" ++ integer_to_list(N),
     Props = wings_view:initial_properties(),
     Name = {geom,N},
@@ -190,7 +190,7 @@ new_viewer(N, {X,Y}, Size, ToolbarHidden, St) ->
 	ToolbarHidden -> wings_wm:hide({toolbar,Name});
 	true -> ok
     end,
-    keep.
+    Name.
 
 free_viewer_num(N) ->
     case wings_wm:is_window({geom,N}) of
@@ -470,7 +470,8 @@ command({view,Command}, St) ->
 
 %% Window menu.
 command({window,geom_viewer}, St) ->
-    new_viewer(St);
+    new_viewer(St),
+    keep;
 command({window,outliner}, St) ->
     wings_outliner:window(St);
 command({window,object}, St) ->
@@ -849,10 +850,8 @@ wings() -> "Wings 3D".
 %%%
 
 save_windows() ->
-    {Pos,Size} = wings_wm:win_rect(),
-    ToolbarHidden = wings_wm:is_hidden({toolbar,geom}),
-    Geom = {geom,Pos,Size,ToolbarHidden},
-    Wins = [Geom|save_windows_1([outliner,object])] ++ save_geom_windows(2),
+    Wins = save_windows_1([outliner,object]) ++
+	save_geom_windows(wings_util:geom_windows()),
     wings_pref:set_value(saved_windows, Wins).
 
 save_windows_1([N|Ns]) ->
@@ -865,19 +864,16 @@ save_windows_1([N|Ns]) ->
     end;
 save_windows_1([]) -> [].
 
-save_geom_windows(N) ->
-    Name = {geom,N},
-    case wings_wm:is_window(Name) of
-	false -> [];
-	true ->
-	    {Pos,Size} = wings_wm:win_rect(Name),
-	    ToolbarHidden = wings_wm:is_hidden({toolbar,Name}),
-	    Geom = {Name,Pos,Size,ToolbarHidden},
-	    [Geom|save_geom_windows(N+1)]
-    end.
+save_geom_windows([Name|T]) ->
+    {Pos,Size} = wings_wm:win_rect(Name),
+    ToolbarHidden = wings_wm:is_hidden({toolbar,Name}),
+    Geom = {Name,Pos,Size,ToolbarHidden},
+    [Geom|save_geom_windows(T)];
+save_geom_windows([]) -> [].
 
 restore_windows(St) ->
-    restore_windows_1(wings_pref:get_value(saved_windows, []), St).
+    Windows = sort(wings_pref:get_value(saved_windows, [])),
+    restore_windows_1(Windows, St).
 
 restore_windows_1([{geom,{_,_}=Pos0,{_,_}=Size,ToolbarHidden}|Ws], St) ->
     if
@@ -887,8 +883,8 @@ restore_windows_1([{geom,{_,_}=Pos0,{_,_}=Size,ToolbarHidden}|Ws], St) ->
     Pos = geom_pos(Pos0),
     wings_wm:move(geom, Pos, Size),
     restore_windows_1(Ws, St);
-restore_windows_1([{{geom,N}=Name,Pos,Size,ToolbarHidden}|Ws], St) ->
-    new_viewer(N, {0,0}, Size, ToolbarHidden, St),
+restore_windows_1([{{geom,_},Pos,Size,ToolbarHidden}|Ws], St) ->
+    Name = new_viewer({0,0}, Size, ToolbarHidden, St),
     wings_wm:move(Name, Pos, Size),
     restore_windows_1(Ws, St);
 restore_windows_1([{object,{_,_}=Pos,{_,_}=Size}|Ws], St) ->

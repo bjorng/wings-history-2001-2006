@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.104 2003/02/23 20:21:39 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.105 2003/02/24 05:02:16 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -173,21 +173,14 @@ update_fun_4(D) ->
     end.
 
 any_smooth_window() ->
-    case wings_wm:get_prop(geom, workmode) of
-	false -> true;
-	true -> any_smooth_window_1(2)
-    end.
+    any_smooth_window_1(wings_util:geom_windows()).
 
-any_smooth_window_1(N) ->
-    Name = {geom,N},
-    case wings_wm:is_window(Name) of
-	false -> false;
-	true ->
-	    case wings_wm:get_prop(Name, workmode) of
-		true -> any_smooth_window_1(N+1);
-		false -> true
-	    end
-    end.
+any_smooth_window_1([Name|T]) ->
+    case wings_wm:get_prop(Name, workmode) of
+	true -> any_smooth_window_1(T);
+	false -> true
+    end;
+any_smooth_window_1([]) -> false.
 
 update_sel_dlist() ->
     wings_draw_util:map(fun(D, _) ->

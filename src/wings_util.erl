@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.61 2003/02/13 19:48:10 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.62 2003/02/24 05:02:16 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -24,6 +24,7 @@
 	 nice_float/1,
 	 menu_restriction/2,
 	 unique_name/2,
+	 geom_windows/0,
 	 tc/3,export_we/2,crash_log/2,validate/1,validate/3]).
 -export([check_error/2,dump_we/2]).
 
@@ -213,6 +214,17 @@ menu_restriction(Win, Allowed) ->
 	    Mb = [Item || {_,Name,_}=Item <- Mb0, member(Name, Allowed)],
 	    wings_wm:menubar(Win, Mb)
     end.
+
+geom_windows() ->
+    geom_windows_1(wings_wm:windows()).
+
+geom_windows_1([geom|T]) ->
+    [geom|geom_windows_1(T)];
+geom_windows_1([{geom,_}=Name|T]) ->
+    [Name|geom_windows_1(T)];
+geom_windows_1([_|T]) ->
+    geom_windows_1(T);
+geom_windows_1([]) -> [].
 
 %%
 %% Create a unique name by appending digits.
