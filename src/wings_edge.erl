@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.94 2004/04/20 07:52:37 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.95 2004/04/20 14:13:17 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -513,8 +513,9 @@ slide_setup_edges([], Up,Dw,N,_,Slides) ->
     {Slides,Up,Dw,N}.
 
 slide_add_edges([{LUp,LDw,LN,Es}|Parts],GUp0,GDw0,GN0,Acc0) ->
-%    io:format("UDN ~p ~p ~p~n", [len(LUp), len(LDw), len(LN)]),
-    case (len(LUp) >= len(LN)) or (len(LUp) >= len(LN)) or (length(Es) < 4) of
+%%    io:format("UDN ~p ~p ~p ~p~n", [len(LUp), len(LDw), len(LN), length(Es)]),
+    case (len(LUp) >= 1) or (len(LDw) >= 1)
+	or (len(LN) =< 1) or (length(Es) < 4) of
 	true -> %% Make sure up is up..
 	    Vec1   = norm(LUp),
 	    Vec2   = norm(LDw),
