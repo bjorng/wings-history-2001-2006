@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.44 2003/01/17 21:10:47 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.45 2003/01/18 10:24:51 bjorng Exp $
 %%
 
 -module(wings_shape).
 -export([new/3,insert/3,replace/3,window/1]).
 
 -define(NEED_ESDL, 1).
+-define(NEED_OPENGL, 1).
 -include("wings.hrl").
 -import(lists, [map/2,reverse/1,reverse/2,keymember/3,keysearch/3,sort/1]).
 -compile(inline).
@@ -64,7 +65,6 @@ replace(Id, We0, #st{shapes=Shapes0}=St) ->
 	 active,				%Number of active object.
 	 lh,					%Line height.
 	 op,					%Latest operation.
-	 eye,					%Eye bitmap data.
 	 lock					%Lock bitmap data.
 	}).
 
@@ -75,7 +75,7 @@ window(St) ->
 	false ->
 	    {{_,DeskY},{DeskW,DeskH}} = wings_wm:win_rect(desktop),
 	    W = 25*?CHAR_WIDTH,
-	    Ost = #ost{first=0,eye=eye_bitmap(),lock=lock_bitmap(),lh=18,active=-1},
+	    Ost = #ost{first=0,lock=lock_bitmap(),lh=18,active=-1},
 	    Current = {current_state,St},
 	    Op = {seq,push,event(Current, Ost)},
 	    Pos = {DeskW-5,DeskY+55,?Z_OBJECTS},
@@ -230,24 +230,24 @@ clamp(F, #ost{n=N}=Ost) ->
 	true -> F
     end.
     
-active_object(Y0, #ost{lh=Lh,first=First,os=Objs}) ->
+active_object(Y0, #ost{lh=Lh,first=First,n=N}) ->
     case Y0 - top_of_first_object() of
 	Y when Y < 0 -> -1;
 	Y1 ->
 	    case Y1 div Lh of
-		Y when First+Y < length(Objs) -> Y;
+		Y when First+Y < N -> Y;
 		_ -> -1
 	    end
     end.
 
 active_field(X) ->
+    EyePos = eye_pos(),
     LockPos = lock_pos(),
-    NamePos = name_pos(),
-    R = right_pos(),
+    SelPos = sel_pos(),
     if
+	X < EyePos -> name;
 	X < LockPos -> visibility;
-	X < NamePos -> lock;
-	X < R -> name;
+	X < SelPos -> lock;
 	true -> selection
     end.
 
@@ -402,27 +402,31 @@ draw_objects(#ost{os=Objs0,first=First,lh=Lh,active=Active,n=N0}=Ost) ->
 
 draw_objects_1(0, _, _, _, _, _) -> ok;
 draw_objects_1(N, [#we{id=Id,name=Name,perm=Perm}|Wes],
-	       #ost{sel=Sel,lh=Lh,eye=Eye,lock=Lock}=Ost, R, Active, Y) ->
+	       #ost{sel=Sel,lh=Lh,lock=Lock}=Ost, R, Active, Y) ->
+    EyePos = eye_pos(),
     LockPos = lock_pos(),
-    wings_io:sunken_rect(3.5, Y-11, 12, 13, ?PANE_COLOR),
-    wings_io:sunken_rect(LockPos-2, Y-11, 12, 13, ?PANE_COLOR),
-    wings_io:sunken_rect(R, Y-9, 9, 11, ?PANE_COLOR),
+    SelPos = sel_pos(),
+    wings_io:sunken_rect(SelPos, Y-9, 9, 11, ?PANE_COLOR),
+    gl:enable(?GL_TEXTURE_2D),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     if
 	?IS_VISIBLE(Perm) ->
-	    gl:rasterPos2f(4.5, Y),
-	    wings_io:draw_char(Eye);
-	true -> ok
+	    wings_io:draw_icon(EyePos, Y-14, 16, 16, small_eye);
+	true ->
+	    wings_io:draw_icon(EyePos, Y-14, 16, 16, small_closed_eye)
     end,
+    gl:bindTexture(?GL_TEXTURE_2D, 0),
+    gl:disable(?GL_TEXTURE_2D),
     if
 	?IS_SELECTABLE(Perm); ?IS_NOT_VISIBLE(Perm) ->
 	    ok;
 	true ->
-    	    gl:rasterPos2f(LockPos, Y),
-	    wings_io:draw_char(Lock)
+	    gl:rasterPos2f(LockPos, Y),
+ 	    wings_io:draw_char(Lock)
     end,
     case keymember(Id, 1, Sel) of
 	false -> ok;
-	true -> wings_io:text_at(R+2, Y, [crossmark])
+	true -> wings_io:text_at(SelPos, Y, [crossmark])
     end,
     if
 	Active == 0 ->
@@ -434,19 +438,6 @@ draw_objects_1(N, [#we{id=Id,name=Name,perm=Perm}|Wes],
     wings_io:text_at(name_pos(), Y, Name),
     gl:color3f(0, 0, 0),
     draw_objects_1(N-1, Wes, Ost, R, Active-1, Y+Lh).
-
-eye_bitmap() ->
-    {11,10,0.0,1.0,13.0,0.0,
-     <<2#0001111000000000:16,
-      2#0110000110000000:16,
-      2#0001111001000000:16,
-      2#0011111100100000:16,
-      2#0010011100100000:16,
-      2#1010111101000000:16,
-      2#0111111110000000:16,
-      2#0001111100000000:16,
-      2#1110000011100000:16,
-      2#0001111100000000:16>>}.
 
 lock_bitmap() ->
     {11,9,0.0,0.0,13.0,0.0,
@@ -463,15 +454,21 @@ lock_bitmap() ->
 top_of_first_object() ->
     0.
 
-right_pos() ->
-    {W,_} = wings_wm:win_size(),
-    W-13.
+name_pos() ->
+    18.
+
+eye_pos() ->
+    right_pos().
 
 lock_pos() ->
-    19.5.
+    right_pos()+16.
 
-name_pos() ->
-    37.
+sel_pos() ->
+    right_pos()+32.
+
+right_pos() ->
+    {W,_} = wings_wm:win_size(),
+    W-3*16.
 
 lines(#ost{lh=Lh}) ->
     {_,_,_,H} = wings_wm:viewport(),
