@@ -38,7 +38,7 @@ INCLUDES = -I. -I$(ERL_TOP)\usr\include
 # Libraries (static)
 #
 
-ERL_DLL_LIB = -I$(ERL_TOP)\usr\lib\erl_dll.lib
+ERL_DLL_LIB = $(ERL_TOP)\usr\lib\erl_dll.lib
 
 # Compiler options
 # 
