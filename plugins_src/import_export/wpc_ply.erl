@@ -3,7 +3,7 @@
 %%
 %%     Ply format (by Stanford university) import/export.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson, Dan Gudmundsson
+%%  Copyright (c) 2003-2004 Bjorn Gustavsson, Dan Gudmundsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -106,22 +106,7 @@ import_fun(Attr) ->
 %    end.
 
 dialog(import) ->
-    [{label_column,
-      [{"Import scale",{text,get_pref(import_scale, 1.0),[{key,import_scale}]}},
-       {"(Export scale)",{text,get_pref(export_scale, 1.0),[{key,export_scale}]}}]}];
-dialog(export) ->
-    [{"One group per material",get_pref(group_per_material, true),
-      [{key,group_per_material}]},
-     {"Vue d'Esprit workaround",get_pref(dot_slash_mtllib, false),
-      [{key,dot_slash_mtllib}]},
-     {label_column,
-	[{"(Import scale)",{text,get_pref(import_scale, 1.0),[{key,import_scale}]}},
-	 {"Export scale",{text,get_pref(export_scale, 1.0),[{key,export_scale}]}},
-	 {"Sub-division Steps",{text,get_pref(subdivisions, 0),
-				[{key,subdivisions},{range,0,4}]}} ]} ].
-
-get_pref(Key, Def) ->
-    wpa:pref_get(?MODULE, Key, Def).
+    [wpa:dialog_template(?MODULE, import)].
 
 set_pref(KeyVals) ->
     wpa:pref_set(?MODULE, KeyVals).
@@ -133,7 +118,6 @@ set_pref(KeyVals) ->
 import_transform(Contents, Attr) ->
     Mat = e3d_mat:scale(proplists:get_value(import_scale, Attr, 1.0)),
     e3d_file:transform(Contents, Mat).
-
 
 import(Name) ->
     case read_open(Name) of
