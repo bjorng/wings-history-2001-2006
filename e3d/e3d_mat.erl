@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.14 2002/06/14 13:02:16 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.15 2002/06/17 07:58:31 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -26,6 +26,9 @@ identity() ->
      Zero,Zero,Zero}.
 
 is_identity({1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0}) -> true;
+is_identity({1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,
+	     0.0,0.0,0.0,0.1}) -> true;
+is_identity({_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_}) -> false;
 is_identity({_,_,_,_,_,_,_,_,_,_,_,_}) -> false.
 
 compress({A,B,C,0.0,D,E,F,0.0,G,H,I,0.0,Tx,Ty,Tz,1.0}) ->
