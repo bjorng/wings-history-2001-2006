@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.65 2005/03/12 10:23:25 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.66 2005/03/30 22:46:36 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -41,7 +41,7 @@
 
 -export([lsq/2, lsq/3, find_pinned/2]). % Debug entry points
 -export([stretch_opt/2, area2d2/3,area3d/3]).
--export([map_chart/3, project2d/3]).
+-export([map_chart/3]).
 
 %% Internal exports.
 -export([model_l2/5]).
@@ -52,21 +52,7 @@
 
 -import(lists, [foldl/3,reverse/1]).
 
-%%% From camera would look something like this!! 
-%%% It actually worked once :-) 
-%project -> %% Only one Area
-%    Clustered = gb_trees:keys(Ftab0),
-%    _CI = [_Aim, Azi, Elev, _Track] = 
-%	wpa:camera_info([aim,azimuth, elevation, tracking]),
-%    N0 = {0.0, 0.0, 1.0},
-%    AziRot = e3d_mat:rotate(Azi, {0.0,1.0,0.0}),
-%		N1 = e3d_mat:mul_vector(AziRot, N0),
-%    ElevRot = e3d_mat:rotate(Elev, {1.0,0.0,0.0}),
-%    N2 = e3d_mat:mul_vector(ElevRot, N1),
-%    %%		?DBG("Projected by ~p using camera ~p ~n", [N2, _CI]),
-%    [create_area(Clustered, N2, We0)];
-
-map_chart(Type, We, Pinned) ->
+map_chart(Type, We, Options) ->
     Faces = wings_we:visible(We),
     case wpa:face_outer_edges(Faces, We) of
 	[] ->
@@ -75,45 +61,92 @@ map_chart(Type, We, Pinned) ->
 	     "or cut it along some edges.)"};
 	[[_,_]] ->
 	    {error,"A cut in a closed surface must consist of at least two edges."};
-	_ when is_list(Pinned), length(Pinned) < 2 ->
+	_ when Type == lsqcm, is_list(Options), length(Options) < 2 ->
 	    {error,"At least 2 vertices (per chart) must be selected"};
 	[_] ->
-	    map_chart_1(Type, Faces, Pinned, We);
+	    map_chart_1(Type, Faces, Options, We);
 	[_,_|_] ->
-	    map_chart_1(Type, Faces, Pinned, We)
-	    %% For the moment at least, allow holes.
-            %%{error,"A chart is not allowed to have holes."}
+	    map_chart_1(Type, Faces, Options, We)
     end.
 
-map_chart_1(Type, Chart, Pinned, We) ->
-    case catch map_chart_2(Type, Chart, Pinned, We) of
-	{'EXIT',{badarith,_}} when Type == project ->
-	    {error,"Numeric problem. (Probably impossible to calculate chart normal.)"};
-	{'EXIT',{badarith,_}} ->
-	    {error,"Numeric problem."};
-	{'EXIT',Reason} ->
+map_chart_1(Type, Chart, Options, We) ->
+    try map_chart_2(Type, Chart, Options, We)
+    catch error:{badarith,_} ->
+	    {error,"Numeric problem, probably a bad face with an empty area."};
+	throw:What ->
+	    {error,lists:flatten(What)};
+	_:Reason ->
 	    Msg = io_lib:format("Internal error: ~P", [Reason,10]),
-	    {error,lists:flatten(Msg)};
-	Other -> Other
+	    {error,lists:flatten(Msg)}
     end.
 
-map_chart_2(project, C, _, We) -> projectFromChartNormal(C, We);
+map_chart_2(project, C, _, We) ->    projectFromChartNormal(C, We);
+map_chart_2(camera, C, Dir, We) ->   projectFromCamera(C, Dir, We);
+map_chart_2(sphere, C, _, We) ->     spheremap(C, We);
 map_chart_2(lsqcm, C, Pinned, We) -> lsqcm(C, Pinned, We).
 
-projectFromChartNormal(Chart, We) ->
-    CalcNormal = fun(Face, Sum) ->
-			 Normal = wings_face:normal(Face, We),
-			 Vs0 = wpa:face_vertices(Face, We),
-			 Area = calc_area(Vs0,Normal, We),
-			 %%         ?DBG("Area was ~p ~n", [Area]),
-			 e3d_vec:add(Sum, e3d_vec:mul(Normal, Area))
-		 end,
-    N0 = foldl(CalcNormal, e3d_vec:zero(), Chart),
-    Normal = e3d_vec:norm(N0),
-    Vs0 = wings_face:to_vertices(Chart, We),
-    project2d(Vs0, Normal, We).
+spheremap(Chart,We) ->
+    Vs = projectFromChartNormal(Chart,We),
+    Proj = 
+	fun({V,{X0,Y0,Z0}}) ->
+		X = clamp_near_zero(X0),
+		Y = clamp_near_zero(Y0),
+		Z = clamp_near_zero(Z0),
+		{S,T} = {angle(Z,X),angle(abs(Z),Y)},
+		io:format("V=~p {~.2f,~.2f,~.2f} => {~.2f,~.2f}~n",
+			  [V,X,Y,Z,S,T]),
+		{V,{S,T,0.0}}
+	end,
+    lists:map(Proj, Vs).
 
-project2d(Vs, Normal, We) ->
+angle(X,Y) ->
+    PI = math:pi(),
+    math:atan2(Y,X)/PI.
+	    
+clamp_near_zero(Z) when Z < 1.0e-8, Z > -1.0e-8 -> 0.0;
+clamp_near_zero(Z) -> Z.     
+    
+projectFromChartNormal(Chart, We) ->
+    Normal = chart_normal(Chart,We),
+    Vs0 = wings_face:to_vertices(Chart, We),
+    rotate_to_z(Vs0, Normal, We).
+
+projectFromCamera(Chart,{matrices,{MM,PM,VP}},We) ->
+    Vs = wings_face:to_vertices(Chart, We),
+    Proj = fun(V) ->
+		   {X,Y,Z} = wings_vertex:pos(V, We),
+		   {S,T, _} = glu:project(X,Y,Z,MM,PM,VP),
+		   {V,{S,T,0.0}}
+	   end,
+    lists:map(Proj, Vs).
+
+chart_normal([],_We) -> throw("Can not calculate normal for chart.");
+chart_normal(Fs,We) ->
+    CalcNormal = 
+	fun(Face, Sum) ->
+		Normal = wings_face:normal(Face, We),
+		Vs0 = wpa:face_vertices(Face, We),
+		Area = calc_area(Vs0,Normal, We),
+		e3d_vec:add(Sum, e3d_vec:mul(Normal, Area))
+	end,
+    N0 = foldl(CalcNormal, e3d_vec:zero(), Fs),
+    case e3d_vec:norm(N0) of
+	{0.0,0.0,0.0} -> %% Bad normal :-)
+	    NewFs = decrease_chart(Fs,We),
+	    chart_normal(NewFs, We);
+	N -> N
+    end.
+	    
+decrease_chart(Fs0,We) ->
+    BE = auv_util:outer_edges(Fs0,We,false),
+    Fs1 = gb_sets:from_list(Fs0),
+    Del = fun({_E,Face},FSin) ->
+		  gb_sets:del_element(Face,FSin)
+	  end,
+    Fs = foldl(Del, Fs1, BE),
+    gb_sets:to_list(Fs).
+    
+rotate_to_z(Vs, Normal, We) ->
     Rot = e3d_mat:rotate_s_to_t(Normal,{0.0,0.0,1.0}),
     [{V,e3d_mat:mul_point(Rot, wings_vertex:pos(V, We))} || V <- Vs].
 
@@ -134,7 +167,7 @@ sum_crossp([_Last], Acc) ->
 project_faces([Face|Fs], We, I, Tris,Area) ->
     Normal = wings_face:normal(Face, We),
     Vs0 = wpa:face_vertices(Face, We),
-    Vs2 = project2d(Vs0, Normal, We),
+    Vs2 = rotate_to_z(Vs0, Normal, We),
     NewArea = calc_area(Vs0, Normal, We) + Area,
     case length(Vs2) of 
 	3 ->

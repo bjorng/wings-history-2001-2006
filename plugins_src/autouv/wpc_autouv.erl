@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.305 2005/03/24 14:49:50 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.306 2005/03/30 22:46:36 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -412,9 +412,11 @@ command_menu(body, X, Y) ->
 	    {"ReMap UV", {remap, [{"Stretch optimization", stretch_opt, 
 				   "Optimize the chart stretch"},
 				  separator,
+				  {"Unfold", lsqcm, "Unfold the chart"},
 				  {"Project Normal", project, 
 				   "Project UVs from chart normal"},
-				  {"Unfold", lsqcm, "Unfold the chart"}
+				  {"Spherical", sphere, 
+				   "Spherical mapping"}
 				 ]}, 
 	     "Calculate new UVs with chosen algorithm"}
 	   ] ++ option_menu(),
@@ -776,12 +778,21 @@ handle_command(stitch, St0 = #st{selmode=edge}) ->
     St = rebuild_charts(gb_trees:get(Id,Geom#st.shapes), AuvSt, []),
     get_event(St);
 handle_command(cut_edges, St0 = #st{selmode=edge,bb=#uvstate{id=Id,st=Geom}}) ->
-    Es = wpa:sel_fold(fun(Es,#we{name=#ch{emap=Emap}},A) ->
-			      [auv_segment:map_edge(E,Emap)
-			       || E<-gb_sets:to_list(Es)] ++ A
+    Es = wpa:sel_fold(fun(Es,We=#we{name=#ch{emap=Emap},es=Etab},A) ->
+			      Vis = gb_sets:from_list(wings_we:visible(We)),
+			      A ++ [auv_segment:map_edge(E,Emap)
+				    || E <-gb_sets:to_list(Es),
+				       begin 
+					   #edge{lf=LF,rf=RF} = gb_trees:get(E,Etab),
+					   gb_sets:is_member(LF,Vis) and 
+					       gb_sets:is_member(RF,Vis)
+				       end]
 		      end, [], St0),
     %% Do something here, i.e. restart uvmapper.
-    St = rebuild_charts(gb_trees:get(Id,Geom#st.shapes), St0, Es),
+    St1 = rebuild_charts(gb_trees:get(Id,Geom#st.shapes), St0, Es),
+    %% Displace charts some distance
+    St2 = displace_cuts(Es, St1),
+    St  = update_selected_uvcoords(St2),
     get_event(St);
 
 %%    get_event(St);
@@ -933,6 +944,98 @@ average_pos([{V1,V2}|R], Vpos1,Vpos2) ->
     average_pos(R, Vp1,Vp2);
 average_pos([],Vpos1,Vpos2) -> {Vpos1,Vpos2}.
 
+displace_cuts(SelEs,St=#st{shapes=Sh,bb=#uvstate{id=WeId,st=#st{shapes=GSh}}})->
+    Elinks = wings_edge_loop:partition_edges(SelEs,gb_trees:get(WeId,GSh)),
+    AuvEdsGroups = [edge_sel_to_edge(gb_trees:to_list(Sh),Es,[]) || Es <- Elinks],
+    %% AuvEdsGroups = [[{id,auv_eds},..], [{id,auv_eds},..]]
+    MapEds = fun({Id,Es},A) ->
+		     #we{name=#ch{emap=Emap}} = gb_trees:get(Id,Sh),
+		     [{auv_segment:map_edge(E,Emap),{Id,E}}
+		      || E<-gb_sets:to_list(Es)] ++ A
+	     end,
+    MapAndClusterEds =
+	fun(AuvEds) ->
+		Mapped = foldl(MapEds, [], AuvEds),
+		sofs:to_external(sofs:relation_to_family(sofs:relation(Mapped)))
+	end,
+    Remapped = [MapAndClusterEds(EdgeGroup) || EdgeGroup <- AuvEdsGroups],
+    %% Remapped = [[{GeomEdge, [{AuvWeId,AuvEdge1},{AuvWeId2,AuvEdge2}]},..]
+    Displaced = foldl(fun displace_cuts1/2, Sh, Remapped),
+    %% Update selection to all new edges
+    Sel0 = lists:append([WeEds || {_,WeEds} <- lists:append(Remapped)]),
+    Sel1 = sofs:to_external(sofs:relation_to_family(
+			      sofs:relation(Sel0))),
+    Sel = [{Id,gb_sets:from_ordset(Eds)} || {Id,Eds} <- Sel1],
+    St#st{sel=Sel,shapes=Displaced}.
+
+displace_cuts1(Eds, Sh0) -> 
+    Sh1 = displace_edges(Eds,Sh0),
+    displace_charts(Eds,gb_sets:empty(),Sh1).
+
+displace_edges([{_,[{Id,Edge1},{Id,Edge2}]}|Eds], Sh) ->
+    We = #we{name=#ch{vmap=Vmap},es=Etab,vp=Vpos0} = gb_trees:get(Id,Sh),
+    #edge{vs=Vs1,ve=Ve1} = gb_trees:get(Edge1,Etab),
+    #edge{vs=Vs2,ve=Ve2} = gb_trees:get(Edge2,Etab),
+    %% Get the vertices
+    Vs1map = auv_segment:map_vertex(Vs1, Vmap),
+    Same = case auv_segment:map_vertex(Vs2, Vmap) of
+	       Vs1map -> [{Vs1,Vs2},{Ve1,Ve2}];
+	       _ -> [{Vs1,Ve2},{Ve1,Vs2}]
+	   end,   
+    Vs = [{V1,V2} || {V1,V2} <- Same,
+		     V1 /= V2,
+		     gb_trees:get(V1,Vpos0) == gb_trees:get(V2,Vpos0)],
+    case Vs of
+	[] ->  %% Already displaced
+	    displace_edges(Eds,Sh);
+	_ ->
+	    %% What Direction should we displace the verts?
+	    [Move1,Move2] = displace_dirs(0.005,Edge1,We),
+	    %% Make the move
+	    Vpos = foldl(fun({V1,V2},VpIn) ->
+				 Pos1 = e3d_vec:add(Move1,gb_trees:get(V1,Vpos0)),
+				 Vpos1 = gb_trees:update(V1,Pos1,VpIn),
+				 Pos2 = e3d_vec:add(Move2,gb_trees:get(V2,Vpos0)),
+				 gb_trees:update(V2,Pos2,Vpos1)
+			 end, Vpos0, Vs),	    
+	    displace_edges(Eds,gb_trees:update(Id, We#we{vp=Vpos},Sh))
+    end;
+displace_edges([_Skip|Eds], Sh) ->
+    displace_edges(Eds,Sh);
+displace_edges([],Sh) -> Sh.
+
+displace_charts([],_,Sh) -> Sh;
+displace_charts([{_,[{Id,_},{Id,_}]}|Eds],Moved,Sh) ->
+    displace_charts(Eds,Moved,Sh);
+displace_charts([{_,[{Id1,_},{Id2,_}]}|Eds], Moved, Sh) ->
+    case gb_sets:is_member(Id1,Moved) or gb_sets:is_member(Id2,Moved) of
+	true -> displace_charts(Eds,Moved,Sh);
+	false ->
+	    We0 = #we{vp=Vpos0} = gb_trees:get(Id1,Sh),
+	    C1 = wings_vertex:center(We0),
+	    C2 = wings_vertex:center(gb_trees:get(Id2,Sh)),
+	    Move = e3d_vec:mul(e3d_vec:norm(e3d_vec:sub(C1,C2)),0.01),
+	    Vpos= [{V,e3d_vec:add(Pos,Move)} || 
+		      {V,Pos} <- gb_trees:to_list(Vpos0)],
+	    We = We0#we{vp=gb_trees:from_orddict(Vpos)},
+	    displace_charts(Eds,gb_sets:add(Id1,Moved),
+			    gb_trees:update(Id1,We,Sh))
+    end.
+
+displace_dirs(Dist,Edge1,We = #we{es=Etab,vp=Vpos}) ->
+    #edge{vs=Vs1,ve=Ve1,lf=LF,rf=RF} = gb_trees:get(Edge1,Etab),
+    Vp1 = gb_trees:get(Vs1,Vpos),
+    Vp2 = gb_trees:get(Ve1,Vpos),
+    {Dx,Dy,_} = e3d_vec:norm(e3d_vec:sub(Vp1,Vp2)),
+    Dir = {Dy,-Dx,0.0},
+    EdgeFace1 = if LF < 0 -> RF; true -> LF end,
+    FaceCenter = wings_face:center(EdgeFace1, We),
+    FaceDir = e3d_vec:sub(e3d_vec:average(Vp1,Vp2),FaceCenter),
+    Moves = [e3d_vec:mul(Dir,-Dist),e3d_vec:mul(Dir,Dist)],
+    case e3d_vec:dot(FaceDir,Dir) > 0.0 of
+	true -> Moves;
+	false -> reverse(Moves)
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 drag_filter({image,_,_}) ->
@@ -1471,3 +1574,4 @@ geom2auv_edges(Es, #we{name=#ch{emap=Emap0}}) ->
 		      {value,Hits} -> Hits ++ Acc
 		  end
 	  end, [], Es).
+    

@@ -3,12 +3,12 @@
 %%
 %%     Segmentation UI for AutoUV.
 %%
-%%  Copyright (c) 2002-2005 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.34 2005/03/24 14:49:50 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.35 2005/03/30 22:46:36 dgud Exp $
 %%
 
 -module(auv_seg_ui).
@@ -125,7 +125,10 @@ seg_event_3(Ev, #seg{st=#st{selmode=Mode}}=Ss) ->
 seg_debug(Tail) -> Tail.
 mappers() ->
     [{"Unfolding",lsqcm},				  
-     {"Projection",project}].
+     {"Projection Normal",project},
+     {"Projection Camera",camera},
+     {"Sphere Map",sphere}
+    ].
 -else.
 seg_debug(Tail) ->
     [separator,
@@ -321,7 +324,7 @@ seg_map_charts_1([We0|Cs], Type, Id, N, Acc,
 		 #seg{we=#we{id=OrigId},st=St0}=Ss) ->
     wings_pb:update(Id/N, lists:flatten(io_lib:format("chart ~w/~w", [Id,N]))),
     We1 = We0#we{id=Id},
-    case auv_mapping:map_chart(Type, We1, none) of
+    case auv_mapping:map_chart(Type, We1, camera_dir(Type)) of
 	{error,Message} ->
 	    wings_pb:done(),
 	    wings_u:message(Message),
@@ -348,3 +351,8 @@ segment(Mode, #st{shapes=Shs}=St) ->
     [We] = gb_trees:values(Shs),
     {Charts,Cuts} = auv_segment:create(Mode, We),
     auv_util:mark_segments(Charts, Cuts, We, St).
+
+camera_dir(camera) ->
+    Matrices = wings_u:get_matrices(0, original),
+    {matrices, Matrices};
+camera_dir(_) -> none.
