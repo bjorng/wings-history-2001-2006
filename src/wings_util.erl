@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.84 2003/10/24 12:36:10 raimo_niskanen Exp $
+%%     $Id: wings_util.erl,v 1.85 2003/11/12 21:40:12 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -84,7 +84,10 @@ make_vector(y) -> {0.0,1.0,0.0};
 make_vector(z) -> {0.0,0.0,1.0};
 make_vector(free) -> free;
 make_vector(normal) -> normal;
-make_vector(intrude) -> normal.
+make_vector(intrude) -> normal;
+make_vector(Axis) when Axis == last_axis; Axis == default_axis ->
+    {_,Vec} = wings_pref:get_value(Axis),
+    Vec.
 
 validate_mirror(#we{mirror=none}=We) -> We;
 validate_mirror(#we{fs=Ftab,mirror=Face}=We) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.282 2003/11/08 16:02:55 bjorng Exp $
+%%     $Id: wings.erl,v 1.283 2003/11/12 21:40:12 bjorng Exp $
 %%
 
 -module(wings).
@@ -661,16 +661,17 @@ init_menubar() ->
     put(wings_menu_template, Menus).
 
 edit_menu(St) ->
-    [{"Undo/Redo",undo_toggle},
-     {"Redo",redo},
-     {"Undo",undo},
+    [{"Undo/Redo",undo_toggle,"Undo or redo the last command"},
+     {"Redo",redo,"Redo the last command that was undone"},
+     {"Undo",undo,"Undo the last command"},
      separator,
      {command_name("Repeat", St),repeat},
      {command_name("Repeat Args", St),repeat_args},
      {command_name("Repeat Drag", St),repeat_drag},
      separator|wings_camera:sub_menu(St)++wings_text:sub_menu(St)++
      [separator|wings_pref:menu(St)++
-      [separator,{"Purge Undo History",purge_undo}|patches()]]].
+      [separator,{"Purge Undo History",purge_undo,
+		  "Delete the undo history to reclaim memory"}|patches()]]].
 
 tools_menu(_) ->
     Dirs = [{"All",all},
@@ -688,7 +689,9 @@ tools_menu(_) ->
      {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
      {"Move to Saved BB",{move_to_bb,wings_menu_util:all_xyz()}},
      separator,
-     {"Set Default Axis",set_default_axis},
+     {"Set Default Axis",set_default_axis,
+      "Store a default axis that can later be used in many commands "
+      "(such as Move)"},
      separator,
      {"Virtual Mirror",
       {virtual_mirror,

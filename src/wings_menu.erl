@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.122 2003/11/01 09:37:18 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.123 2003/11/12 21:40:12 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -448,7 +448,9 @@ current_command_1(#mi{sel=Sel,menu=Menu,ns=Names,owner=Owner})
 		true -> {Cmd,have_option_box(Ps)};
 		false -> none
 	    end;
-	_Other -> none
+	_Other ->
+	    io:format("~p\n", [_Other]),
+	    none
     end;
 current_command_1(_) -> none.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.35 2003/10/29 15:03:21 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.36 2003/11/12 21:40:12 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -20,29 +20,40 @@
 setup({'ASK',Ask}, St) ->
     wings:ask(Ask, St, fun setup/2);
 setup({Vec,Center,Magnet}, St) ->
-    setup(wings_util:make_vector(Vec), Center, Magnet, St);
+    setup_1(Vec, Center, Magnet, St);
 setup({Vec,Center}, St) ->
-    setup(wings_util:make_vector(Vec), Center, none, St).
+    setup_1(Vec, Center, none, St).
 
-setup(Vec, Center, Magnet, #st{selmode=vertex}=St) ->
+setup_1(Axis, center, Magnet, St)
+  when Axis == last_axis; Axis == default_axis ->
+    {Point,Vec} = wings_pref:get_value(Axis),
+    setup_2(Vec, Point, Magnet, St);
+setup_1(Axis, Point, Magnet, St)
+  when Axis == last_axis; Axis == default_axis ->
+    {_,Vec} = wings_pref:get_value(Axis),
+    setup_2(Vec, Point, Magnet, St);
+setup_1(Vec, Center, Magnet, St) ->
+    setup_2(wings_util:make_vector(Vec), Center, Magnet, St).
+
+setup_2(Vec, Center, Magnet, #st{selmode=vertex}=St) ->
     Tvs = wings_sel:fold(
 	    fun(Vs, We, Acc) ->
 		    rotate(Vec, Center, Magnet, gb_sets:to_list(Vs), We, Acc)
 	    end, [], St),
     init_drag(Tvs, Vec, Magnet, St);
-setup(Vec, Center, Magnet, #st{selmode=edge}=St) ->
+setup_2(Vec, Center, Magnet, #st{selmode=edge}=St) ->
     Tvs = wings_sel:fold(
 	    fun(Edges, We, Acc) ->
 		    edges_to_vertices(Vec, Center, Magnet, Edges, We, Acc)
 	    end, [], St),
     init_drag(Tvs, Vec, Magnet, St);
-setup(Vec, Center, Magnet, #st{selmode=face}=St) ->
+setup_2(Vec, Center, Magnet, #st{selmode=face}=St) ->
     Tvs = wings_sel:fold(
 	    fun(Faces, We, Acc) ->
 		    faces_to_vertices(Vec, Center, Magnet, Faces, We, Acc)
 	    end, [], St),
     init_drag(Tvs, Vec, Magnet, St);
-setup(Vec, Center, _Magnet, #st{selmode=body}=St) ->
+setup_2(Vec, Center, _Magnet, #st{selmode=body}=St) ->
     Tvs = wings_sel:fold(
 	    fun(_, #we{id=Id}=We, Acc) ->
 		    [{Id,body_rotate(Vec, Center, We)}|Acc]

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.47 2003/10/29 15:03:21 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.48 2003/11/12 21:40:12 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -30,27 +30,55 @@ setup({Point,Magnet}, St) when element(1, Magnet) == magnet ->
 setup({Vec,Point}, St) ->
     setup(Vec, Point, none, St).
 
-setup(Vec, Point, Magnet, #st{selmode=vertex}=St) ->
+setup(Axis, Point, Magnet, St) ->
+    case special_axis(Axis) of
+	no ->
+	    setup_2(Axis, Point, Magnet, St);
+	AxisVal ->
+	    setup_1(AxisVal, Point, Magnet, St)
+    end.
+
+setup_1({radial,{Point,Dir}}, center, Magnet, St) ->
+    setup_2({radial,Dir}, Point, Magnet, St);
+setup_1({radial,{_,Dir}}, Point, Magnet, St) ->
+    setup_2({radial,Dir}, Point, Magnet, St);
+setup_1({Point,Dir}, center, Magnet, St) ->
+    setup_2(Dir, Point, Magnet, St);
+setup_1({_,Dir}, Point, Magnet, St) ->
+    setup_2(Dir, Point, Magnet, St).
+
+setup_2(Vec, Point, Magnet, #st{selmode=vertex}=St) ->
     Tvs = scale_vertices(Vec, Point, Magnet, St),
     init_drag(Tvs, Magnet, St);
-setup(Vec, Point, Magnet, #st{selmode=edge}=St) ->
+setup_2(Vec, Point, Magnet, #st{selmode=edge}=St) ->
     Tvs = wings_sel:fold(
 	    fun(Edges, We, Acc) ->
 		    edges_to_vertices(Vec, Point, Magnet, Edges, We, Acc)
 	    end, [], St),
     init_drag(Tvs, Magnet, St);
-setup(Vec, Point, Magnet, #st{selmode=face}=St) ->
+setup_2(Vec, Point, Magnet, #st{selmode=face}=St) ->
     Tvs = wings_sel:fold(
 	    fun(Faces, We, Acc) ->
 		    faces_to_vertices(Vec, Point, Magnet, Faces, We, Acc)
 	    end, [], St),
     init_drag(Tvs, Magnet, St);
-setup(Vec, Point, _Magnet, #st{selmode=body}=St) ->
+setup_2(Vec, Point, _Magnet, #st{selmode=body}=St) ->
     Tvs = wings_sel:fold(
 	    fun(_, #we{id=Id}=We, Acc) ->
 		    [{Id,body_to_vertices(Vec, Point, We)}|Acc]
 	    end, [], St),
     init_drag({matrix,Tvs}, none, [rescale_normals], St).
+
+special_axis(last_axis=A) ->
+    wings_pref:get_value(A);
+special_axis(default_axis=A) ->
+    wings_pref:get_value(A);
+special_axis({radial,A}) ->
+    case special_axis(A) of
+	no -> no;
+	Val -> {radial,Val}
+    end;
+special_axis(_) -> no.
 
 init_drag(Tvs, Magnet, St) ->
     init_drag(Tvs, Magnet, [], St).

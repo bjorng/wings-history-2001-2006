@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.36 2003/11/08 19:12:31 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.37 2003/11/12 21:40:12 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -113,8 +113,8 @@ scale(1, Ns, Flags, _MagFlags) ->
      scale_fun(y, Ns, Flags),
      scale_fun(z, Ns, Flags),
      {advanced,separator},
-     scale_axis_fun(last_axis, Ns, Flags),
-     scale_axis_fun(default_axis, Ns, Flags)];
+     scale_fun(last_axis, Ns, Flags),
+     scale_fun(default_axis, Ns, Flags)];
 scale(2, Ns, Flags, MagFlags) ->
     wings_menu:build_command({'ASK',{[axis,point],Flags,MagFlags}}, Ns);
 scale(3, Ns, Flags, MagFlags) ->
@@ -128,18 +128,6 @@ scale_fun(Dir, Names, _Flags) ->
     Help0 = dir_help(Dir, Names),
     Help = {Help0,[],"Pick point to scale from"},
     {DirString,F,Help,magnet_props(Dir, Names)}.
-
-scale_axis_fun(Axis0, Names, Flags) ->
-    {Point,Vec0} = wings_pref:get_value(Axis0),
-    {Vec,Axis} = case Flags of
-		     [] -> {Vec0,Axis0};
-		     [radial] -> {{radial,Vec0},{radial,Axis0}}
-		 end,
-    DirString = stringify_dir(Axis),
-    F = magnet_scale_rot_fun(Vec, Point),
-    Help0 = dir_help(Axis, Names),
-    Help = {Help0,[],"Pick point to scale to"},
-    {advanced,{DirString,F,Help,magnet_props(Axis, Names)}}.
 
 stringify_dir({radial,Axis}) -> "Radial " ++ wings_util:stringify(Axis);
 stringify_dir(Dir) -> wings_util:stringify(Dir).
@@ -159,22 +147,9 @@ rotate(help, _) ->
      "Pick axis and ref point",
      "Pick axis to rotate around"};
 rotate(1, [rotate,Mode]=Ns) when Mode == vertex; Mode == body ->
-    [rotate_fun_1(free, Ns),
-     rotate_fun_1(x, Ns),
-     rotate_fun_1(y, Ns),
-     rotate_fun_1(z, Ns),
-     {advanced,separator},
-     rotate_axis_fun(last_axis, Ns),
-     rotate_axis_fun(default_axis, Ns)];
+    rotate_common(Ns);
 rotate(1, Ns) ->
-    [rotate_fun_1(normal, Ns),
-     rotate_fun_1(free, Ns),
-     rotate_fun_1(x, Ns),
-     rotate_fun_1(y, Ns),
-     rotate_fun_1(z, Ns),
-     {advanced,separator},
-     rotate_axis_fun(last_axis, Ns),
-     rotate_axis_fun(default_axis, Ns)];
+    [rotate_fun(normal, Ns)|rotate_common(Ns)];
 rotate(2, Ns) ->
     MagFlags = magnet_props(any, Ns),
     wings_menu:build_command({'ASK',{[axis,point],[],MagFlags}}, Ns);
@@ -182,21 +157,22 @@ rotate(3, Ns) ->
     MagFlags = magnet_props(any, Ns),
     wings_menu:build_command({'ASK',{[axis_point],[],MagFlags}}, Ns).
 
-rotate_fun_1(Dir, Names) ->
+rotate_common(Ns) ->
+    [rotate_fun(free, Ns),
+     rotate_fun(x, Ns),
+     rotate_fun(y, Ns),
+     rotate_fun(z, Ns),
+     {advanced,separator},
+     rotate_fun(last_axis, Ns),
+     rotate_fun(default_axis, Ns)].
+
+rotate_fun(Dir, Names) ->
     DirString = wings_util:stringify(Dir),
     F = magnet_scale_rot_fun(Dir, center),
     Help0 = dir_help(Dir, Names),
     Help = {Help0,[],"Pick point for axis to pass through"},
     Ps = magnet_props(Dir, Names),
     {DirString,F,Help,Ps}.
-
-rotate_axis_fun(Axis, Names) ->
-    {Point,Vec} = wings_pref:get_value(Axis),
-    DirString = stringify_dir(Axis),
-    F = magnet_scale_rot_fun(Vec, Point),
-    Help0 = dir_help(Axis, Names),
-    Help = {Help0,[],"Pick point for axis to pass through"},
-    {advanced,{DirString,F,Help,magnet_props(Axis, Names)}}.
 
 magnet_scale_rot_fun(Vec, Point) ->
     fun(1, Ns) ->
@@ -222,29 +198,22 @@ flatten(help, _) ->
      "Pick plane"};
 flatten(1, [flatten,vertex]) ->
     %% Vertex mode flatten.
-    [flatten_fun(x),
-     flatten_fun(y),
-     flatten_fun(z),
-     {advanced,separator},
-     {advanced,flatten_axis_fun(last_axis)},
-     {advanced,flatten_axis_fun(default_axis)}];
+    flatten_common();
 flatten(1, _) ->
     %% Face mode flatten.
-    [flatten_fun(normal),
-     flatten_fun(x),
-     flatten_fun(y),
-     flatten_fun(z),
-     {advanced,separator},
-     {advanced,flatten_axis_fun(last_axis)},
-     {advanced,flatten_axis_fun(default_axis)}];
+    [flatten_fun(normal)|flatten_common()];
 flatten(2, Ns) ->
     wings_menu:build_command({'ASK',{[axis,point],[],[]}}, Ns);
 flatten(3, Ns) ->
     wings_menu:build_command({'ASK',{[axis],[],[]}}, Ns).
 
-flatten_axis_fun(Axis) ->
-    {_,Vec} = wings_pref:get_value(Axis),
-    flatten_fun_1(Vec, Axis, wings_util:stringify(Axis)).
+flatten_common() ->
+    [flatten_fun(x),
+     flatten_fun(y),
+     flatten_fun(z),
+     {advanced,separator},
+     {advanced,flatten_fun(last_axis)},
+     {advanced,flatten_fun(default_axis)}].
 
 flatten_fun(Vec) ->
     flatten_fun_1(Vec, Vec, wings_util:stringify(Vec)).
@@ -269,21 +238,14 @@ directions([D|Dirs], Ns) ->
     [direction(D, Ns)|directions(Dirs, Ns)];
 directions([], Ns) ->
     [{advanced,separator},
-     {advanced,move_axis_fun(last_axis, Ns)},
-     {advanced,move_axis_fun(default_axis, Ns)}].
+     {advanced,direction(last_axis, Ns)},
+     {advanced,direction(default_axis, Ns)}].
 
 direction(Dir, Ns) ->
     Str = wings_util:stringify(Dir),
     Help = dir_help(Dir, Ns),
     Ps = magnet_props(Dir, Ns),
     {Str,Dir,Help,Ps}.
-
-move_axis_fun(Axis, Ns) ->
-    {_,Vec} = wings_pref:get_value(Axis),
-    Help = dir_help(Axis, Ns),
-    Str = wings_util:stringify(Axis),
-    Ps =  magnet_props(Axis, Ns),
-    {Str,{'VALUE',Vec},Help,Ps}.
 
 magnet_props(normal, [rotate|_]) -> [];
 magnet_props(_, [_,body]) -> [];
