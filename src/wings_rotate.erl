@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.34 2003/07/22 11:04:55 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.35 2003/10/29 15:03:21 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -17,6 +17,8 @@
 
 -import(lists, [foldl/3]).
 
+setup({'ASK',Ask}, St) ->
+    wings:ask(Ask, St, fun setup/2);
 setup({Vec,Center,Magnet}, St) ->
     setup(wings_util:make_vector(Vec), Center, Magnet, St);
 setup({Vec,Center}, St) ->

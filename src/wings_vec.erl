@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.91 2003/10/29 06:14:47 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.92 2003/10/29 15:03:21 bjorng Exp $
 %%
 
 -module(wings_vec).
 
--export([init/0,command/2]).
+-export([init/0,do_ask/3]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -26,8 +26,9 @@
 	     is_axis=false,			%True if axis.
 	     info="",				%Info message.
 	     vec=none,				%Current vector.
-	     names,				%Names.
-	     cmdstr				%Command string in message window.
+	     names=none,			%Names.
+	     cb,				%Callback
+	     mag=false				%Magnet possible or not.
 	    }).
 
 %% Keep the display for the current vector.
@@ -44,16 +45,22 @@ init() ->
     wings_pref:set_default(magnet_distance_route, shortest),
     wings_pref:set_default(magnet_radius, 1.0).
 
-command({pick,PickList0,Acc,Names}, St) ->
-    PickList = add_help_text(PickList0),
-    wings_wm:later({pick_init,{pick,PickList,Acc}}),
-    CmdStr = command_name(Names) ++ ":",
-    Ss = #ss{names=Names,cmdstr=CmdStr,f=fun(_, _) -> keep end},
+%% Call wings:pick/3; DO NOT call this function directly.
+do_ask({[_|_]=Modes,Fun}, St, Cb) when is_function(Fun) ->
+    wings_wm:later(pick_init_special),
+    Ss = #ss{selmodes=Modes,cb=Cb,f=Fun},
     {seq,push,get_event(Ss, St)};
-command({pick_special,{Modes,Fun}}, St0) ->
-    pick_init(St0),
-    St = wings_sel:reset(mode_restriction(Modes, St0)),
-    Ss = #ss{selmodes=Modes,f=Fun},
+do_ask({PickList,Done}, St, Cb) ->
+    do_ask_1(PickList, Done, [], St, Cb);
+do_ask({PickList,Done,Flags}, St, Cb) ->
+    do_ask_1(PickList, Done, Flags, St, Cb).
+
+do_ask_1(PickList0, Done, Flags, St, Cb) ->
+    PickList = add_help_text(PickList0),
+    wings_wm:later({pick_init,{pick,PickList,Done}}),
+    Mag = member(magnet, Flags),
+    Modes = [vertex,edge,face],
+    Ss = #ss{cb=Cb,mag=Mag,selmodes=Modes,f=fun(_, _) -> keep end},
     {seq,push,get_event(Ss, St)}.
 
 add_help_text([{Atom,_Desc}=Pair|T]) when is_atom(Atom) ->
@@ -70,27 +77,21 @@ add_help_text([Type|T]) ->
     [Val|add_help_text(T)];
 add_help_text([]) -> [].
 
-magnet_possible([move|_], Pl) -> magnet_possible_1(Pl);
-magnet_possible([rotate|_], Pl) -> magnet_possible_1(Pl);
-magnet_possible([scale|_], Pl) -> magnet_possible_1(Pl);
-magnet_possible(_, _) -> no.
-
-magnet_possible_1([]) -> inactive;
-magnet_possible_1(Pl) ->
+magnet_possible_now(_, #ss{mag=false}) -> no;
+magnet_possible_now([], _) -> inactive;
+magnet_possible_now(Pl, _) ->
     case last(Pl) of
 	{magnet,_} -> active;
 	_ -> inactive
     end.
 
-common_message(Msg, [], Cmd, MagnetPossible) ->
-    Message = wings_util:join_msg([Cmd,
-				   wings_util:button_format(Msg, [], "Execute "),
-				   common_magnet_message(MagnetPossible)]),
+common_message(Msg, [], MagnetPossible) ->
+    Message = wings_util:join_msg(wings_util:button_format(Msg, [], "Execute "),
+				  common_magnet_message(MagnetPossible)),
     wings_wm:message(Message, "");
-common_message(Msg, [_|_], Cmd, MagnetPossible) ->
-    Message = wings_util:join_msg([Cmd,
-				   wings_util:button_format(Msg, [], "Continue"),
-				   common_magnet_message(MagnetPossible)]),
+common_message(Msg, [_|_], MagnetPossible) ->
+    Message = wings_util:join_msg(wings_util:button_format(Msg, [], "Continue"),
+				  common_magnet_message(MagnetPossible)),
     wings_wm:message(Message, "").
 
 common_magnet_message(no) -> [];
@@ -99,10 +100,9 @@ common_magnet_message(inactive) ->
 common_magnet_message(active) ->
     ["  "|wings_util:magnet_string()].
 
-magnet_message(Msg, Cmd) ->
-    Message = wings_util:join_msg([Cmd,
-				   wings_util:button_format(Msg, [], "Execute "),
-				   wings_util:rmb_format("Magnet options")]),
+magnet_message(Msg) ->
+    Message = wings_util:join_msg(wings_util:button_format(Msg, [], "Execute "),
+				  wings_util:rmb_format("Magnet options")),
     wings_wm:message(Message, "").
 
 mode_restriction(Modes, #st{selmode=Mode}=St) ->
@@ -213,13 +213,27 @@ handle_event_4({action,{secondary_selection,abort}}, _, _) ->
     wings_wm:later(revert_state),
     pick_finish(),
     pop;
-handle_event_4({pick_init,Pick}, Ss0, St0) ->
+handle_event_4(pick_init_special, #ss{selmodes=Modes}=Ss, St0) ->
     pick_init(St0),
-    Modes = [vertex,edge,face],
+    St = wings_sel:reset(mode_restriction(Modes, St0)),
+    get_event(Ss, St);
+handle_event_4({pick_init,Pick}, #ss{selmodes=Modes}=Ss0, St0) ->
+    pick_init(St0),
     St = mode_restriction(Modes, St0),
     wings_wm:later({action,Pick}),
     Ss = Ss0#ss{selmodes=Modes, f=fun(_, _) -> keep end},
     get_event(Ss, St);
+handle_event_4({action,{pick,[],[Res]}}, #ss{names=none,cb=Cb}, _) ->
+    pick_finish(),
+    wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
+    wings:clear_mode_restriction(),
+    pop;
+handle_event_4({action,{pick,[],Res0}}, #ss{names=none,cb=Cb}, _) ->
+    pick_finish(),
+    Res = list_to_tuple(reverse(Res0)),
+    wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
+    wings:clear_mode_restriction(),
+    pop;
 handle_event_4({action,{pick,[],[Res]}}, #ss{names=Ns}, _) ->
     Cmd = wings_menu:build_command(Res, Ns),
     pick_finish(),
@@ -230,9 +244,8 @@ handle_event_4({action,{pick,[],Res}}, #ss{names=Ns}, _) ->
     pick_finish(),
     wings_io:putback_event({action,Cmd}),
     pop;
-handle_event_4({action,{pick,[{Type,Desc}|More],Acc}},
-	       #ss{names=Names,cmdstr=CmdStr}=Ss, St0) ->
-    MagnetPossible = magnet_possible(Names, More),
+handle_event_4({action,{pick,[{Type,Desc}|More],Acc}}, Ss, St0) ->
+    MagnetPossible = magnet_possible_now(More, Ss),
     Check = case Type of
 		magnet -> fun check_point/1;
 		point -> fun check_point/1;
@@ -246,7 +259,7 @@ handle_event_4({action,{pick,[{Type,Desc}|More],Acc}},
 		     (exit, {Mod,Vec,_}) ->
 			  exit_magnet(Vec, Mod, Acc);
 		     (message, _) ->
-			  magnet_message(Desc, CmdStr)
+			  magnet_message(Desc)
 		  end;
 	      _ ->
 		  fun(check, S) ->
@@ -255,7 +268,7 @@ handle_event_4({action,{pick,[{Type,Desc}|More],Acc}},
 			  common_exit(Type, Vec, Mod, More, Acc,
 				      MagnetPossible, S);
 		     (message, _) ->
-			  common_message(Desc, More, CmdStr, MagnetPossible)
+			  common_message(Desc, More, MagnetPossible)
 		  end
 	  end,
     IsAxis = (Type =/= point andalso Type =/= magnet),
@@ -363,9 +376,6 @@ add_magnet(More) ->
 
 add_to_acc(Vec, [radial]) -> [{radial,Vec}];
 add_to_acc(Vec, Acc) -> [Vec|Acc].
-
-command_name([N|Ns]) ->
-    wings_util:stringify(wings_menu:build_command(N, Ns)).
 
 %%%
 %%% Vector functions.

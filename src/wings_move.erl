@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.46 2003/06/14 07:53:07 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.47 2003/10/29 15:03:21 bjorng Exp $
 %%
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
@@ -16,6 +16,8 @@
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,sort/1]).
 
+setup({'ASK',Ask}, St) ->
+    wings:ask(Ask, St, fun setup/2);
 setup({Vec,Magnet}, St) ->
     setup(Vec, Magnet, St);
 setup(Vec, St) ->

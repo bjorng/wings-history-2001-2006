@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.46 2003/07/28 19:35:16 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.47 2003/10/29 15:03:21 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -19,6 +19,8 @@
 -import(lists, [map/2,foldr/3,foldl/3]).
 -define(HUGE, 1.0E307).
 
+setup({'ASK',Ask}, St) ->
+    wings:ask(Ask, St, fun setup/2);
 setup({X,Y,Z}=Point, St) when is_float(X), is_float(Y), is_float(Z) ->
     setup(uniform, Point, none, St);
 setup({Vec,Point,Magnet}, St) ->

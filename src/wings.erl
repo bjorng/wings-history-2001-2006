@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.275 2003/10/28 05:54:27 bjorng Exp $
+%%     $Id: wings.erl,v 1.276 2003/10/29 15:03:20 bjorng Exp $
 %%
 
 -module(wings).
@@ -16,6 +16,7 @@
 -export([caption/1,redraw/1,redraw/2,init_opengl/1,command/2]).
 -export([mode_restriction/1,clear_mode_restriction/0,get_mode_restriction/0]).
 -export([create_toolbar/3]).
+-export([ask/3]).
 
 -export([register_postdraw_hook/3,unregister_postdraw_hook/2]).
 
@@ -234,6 +235,11 @@ save_state(St0, St1) ->
 	 end,
     main_loop(clear_temp_sel(St)).
 
+ask(Ask, St, Cb) ->
+    {replace,
+     fun(Ev) -> handle_event(Ev, St) end,
+     fun() -> wings_vec:do_ask(Ask, St, Cb) end}.
+
 main_loop(St) ->
     ?VALIDATE_MODEL(St),
     clear_mode_restriction(),
@@ -304,10 +310,10 @@ handle_event_2(#mousebutton{x=X,y=Y}=Ev0, #st{sel=Sel}=St0) ->
     end;
 handle_event_2(Ev, St) -> handle_event_3(Ev, St).
 	    
-handle_event_3(#keyboard{}=Ev, St) ->
-    case wings_hotkey:event(Ev, St) of
- 	next -> keep;
-	Cmd -> do_hotkey(Cmd, St)
+handle_event_3(#keyboard{}=Ev, St0) ->
+    case do_hotkey(Ev, St0) of
+	next -> keep;
+	{Cmd,St} -> do_command(Cmd, St)
     end;
 handle_event_3({action,Callback}, _) when is_function(Callback) ->
     Callback();
@@ -315,6 +321,8 @@ handle_event_3({action,Cmd}, St) ->
     do_command(Cmd, St);
 handle_event_3({action,Cmd,Args}, St) ->
     do_command(Cmd, Args, St);
+handle_event_3({command,Command}, St) when is_function(Command) ->
+    command_response(Command(St), none, St);
 handle_event_3(#mousebutton{}, _St) -> keep;
 handle_event_3(#mousemotion{}, _St) -> keep;
 handle_event_3(init_opengl, St) ->
@@ -367,25 +375,34 @@ handle_event_3({drop,Pos,DropData}, St) ->
     handle_drop(DropData, Pos, St);
 handle_event_3(ignore, _St) -> keep.
 
-do_hotkey(Cmd, #st{sel=[]}=St0) ->
+do_hotkey(Ev, #st{sel=[]}=St0) ->
     case wings_pref:get_value(use_temp_sel) of
 	false ->
-	    do_command(Cmd, St0);
+	    do_hotkey_1(Ev, St0);
 	true ->
 	    {_,X,Y} = wings_wm:local_mouse_state(),
 	    case wings_pick:do_pick(X, Y, St0) of
 		{add,_,St} ->
-		    case highlight_sel_style(Cmd) of
-			none -> do_command(Cmd, St0);
-			temporary -> do_command(Cmd, set_temp_sel(St0, St));
-			permanent -> do_command(Cmd, St)
+		    case wings_hotkey:event(Ev, St) of
+			next -> next;
+			Cmd ->
+			    case highlight_sel_style(Cmd) of
+				none -> {Cmd,St0};
+				temporary -> {Cmd,set_temp_sel(St0, St)};
+				permanent -> {Cmd,St}
+			    end
 		    end;
-		_Other -> do_command(Cmd, St0)
+		_Other -> do_hotkey_1(Ev, St0)
 	    end
     end;
-do_hotkey(Cmd, St) -> do_command(Cmd, St).
+do_hotkey(Ev, St) -> do_hotkey_1(Ev, St).
 
-highlight_sel_style({vector,_}) -> temporary;
+do_hotkey_1(Ev, St) ->
+    case wings_hotkey:event(Ev, St) of
+ 	next -> next;
+	Cmd -> {Cmd,St}
+    end.
+
 highlight_sel_style({vertex,_}) -> temporary;
 highlight_sel_style({edge,_}) -> temporary;
 highlight_sel_style({face,_}) -> temporary;
@@ -406,26 +423,40 @@ do_command(Cmd, St) ->
     do_command(Cmd, none, St).
     
 do_command(Cmd, Args, St0) ->
-    St1 = remember_command(Cmd, St0),
-    case catch do_command_1(Cmd, St1) of
-	{'EXIT',Reason} -> exit(Reason);
-	{command_error,Error} -> wings_util:message(Error);
-	#st{}=St -> main_loop(clear_temp_sel(St));
-	{keep_temp_sel,St} -> main_loop(St);
-	{drag,Drag} -> wings_drag:do_drag(Drag, Args);
-	{save_state,#st{}=St} ->
-	    save_state(St1, St);
-	{saved,St} ->
-	    main_loop(wings_undo:save(St1, St));
-	{new,St} -> main_loop(caption(wings_undo:init(St)));
-	{push,_}=Push -> Push;
-	{init,_,_}=Init -> Init;
-	{seq,_,_}=Seq -> Seq;
-	keep -> keep;
-	quit ->
-	    save_windows(),
-	    exit(normal)
-    end.
+    St = remember_command(Cmd, St0),
+    {replace,
+     fun(Ev) -> handle_event(Ev, St) end,
+     fun() -> command_response(catch do_command_1(Cmd, St), Args, St) end}.
+
+command_response({'EXIT',Reason}, _, _) ->
+    exit(Reason);
+command_response({command_error,Error}, _, _) ->
+    wings_util:message(Error);
+command_response(#st{}=St, _, _) ->
+    main_loop(clear_temp_sel(St));
+command_response({keep_temp_sel,St}, _, _) ->
+    main_loop(St);
+command_response({drag,Drag}, Args, _) ->
+    wings_drag:do_drag(Drag, Args);
+command_response({save_state,#st{}=St}, _, St0) ->
+    save_state(St0, St);
+command_response({saved,St}, _, St0) ->
+    main_loop(wings_undo:save(St0, St));
+command_response({new,St}, _, _) ->
+    main_loop(caption(wings_undo:init(St)));
+command_response({push,_}=Push, _, _) ->
+    Push;
+command_response({init,_,_}=Init, _, _) ->
+    Init;
+command_response({seq,_,_}=Seq, _, _) ->
+    Seq;
+command_response({replace,_,_}=Replace, _, _) ->
+    Replace;
+command_response(keep, _, _) ->
+    keep;
+command_response(quit, _, _) ->
+    save_windows(),
+    exit(normal).
 
 do_command_1(Cmd, St0) ->
     case wings_plugin:command(Cmd, St0) of
@@ -475,8 +506,6 @@ repeatable(Mode, Cmd) ->
     end.
 
 %% Vector and secondary-selection commands.
-command({vector,What}, St) ->
-    {seq,main_loop_noredraw(St),wings_vec:command(What, St)};
 command({shape,Shape}, St0) ->
     case wings_shapes:command(Shape, St0) of
     	St0 -> St0;
@@ -583,11 +612,11 @@ command({material,Cmd}, St) ->
 %% Tools menu.
 
 command({tools,set_default_axis}, St) ->
-    Cmd = {pick,[axis,point],[],[set_default_axis,tools]},
-    wings_vec:command(Cmd, St);
-command({tools,{set_default_axis,{Axis,Point}}}, St) ->
-    wings_pref:set_value(default_axis, {Point,Axis}),
-    St;
+    wings:ask({[axis,point],[]}, St,
+	      fun({Axis,Point}, _) ->
+		      wings_pref:set_value(default_axis, {Point,Axis}),
+		      keep
+	      end);
 command({tools,{align,Dir}}, St) ->
     {save_state,wings_align:align(Dir, St)};
 command({tools,{center,Dir}}, St) ->

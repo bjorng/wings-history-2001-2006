@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.123 2003/10/11 09:29:31 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.124 2003/10/29 15:03:22 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -798,7 +798,11 @@ handle_response(Res, Event, Stk0) ->
 	{seq,First,Then} ->
 	    Stk = handle_response(First, Event, Stk0),
 	    handle_response(Then, Event, Stk);
-	{replace,Top} when is_function(Top) -> replace_handler(Top, Stk0);
+	{replace,Top} when is_function(Top) ->
+	    replace_handler(Top, Stk0);
+	{replace,Top,Continue} when is_function(Top) ->
+	    Stk = replace_handler(Top, Stk0),
+	    handle_response(Continue(), Event, Stk);
 	{pop_handler,_}=PopH -> replace_handler(PopH, Stk0);
 	Top when is_function(Top) -> replace_handler(Top, Stk0)
     end.

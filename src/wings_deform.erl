@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.35 2003/07/20 21:33:08 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.36 2003/10/29 15:03:20 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -17,17 +17,16 @@
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1]).
 -define(PI, 3.1416).
--compile(inline).
 
 sub_menu(_St) ->
     InflateHelp = {"Inflate elements",[],"Pick center and radius"},
     {deform,[{"Crumple",{crumple,crumple_dirs()},
 	      "Randomly move vertices"},
 	     {"Inflate",inflate_fun(),InflateHelp,[]},
-	     {"Taper",{taper,
-		       [taper_item(x),
-			taper_item(y),
-			taper_item(z)]}},
+% 	     {"Taper",{taper,
+% 		       [taper_item(x),
+% 			taper_item(y),
+% 			taper_item(z)]}},
 	     {"Twist",{twist,dirs(twist)}},
 	     {"Torque",{torque,dirs(torque)}}]}.
 
@@ -79,10 +78,8 @@ taper_item(Axis) ->
 			expand_effects(Effects, []);
 		   (3, Ns) ->
 			[Effect|_] = Effects,
-			{vector,
-			 {pick,
-			  [{point,"Pick taper origin"}],
-			  [Effect],Ns}}
+			Ask = {'ASK',[{point,"Pick taper origin"}],[Effect]},
+			wings_menu:build_command(Ask, Ns)
 		end,
 	    {AxisStr,{Axis,F},[]}
     end.
@@ -102,21 +99,19 @@ effect_fun(Effect) ->
     fun(1, Ns) -> wings_menu:build_command(Effect, Ns);
        (2, _Ns) -> ignore;
        (3, Ns) ->
-	    {vector,
-	     {pick,[{point,"Pick taper origin"}],
-	      [Effect],Ns}}
+	    Ask = {'ASK',[{point,"Pick taper origin"}],[Effect]},
+	    wings_menu:build_command(Ask, Ns)
     end.
     
 inflate_fun() ->
-    fun(help, _) -> {"Inflate elements",[],"Pick center and radius"};
+    fun(help, _) ->
+	    PickHelp = "Pick center and radius",
+	    {"Inflate elements",PickHelp,PickHelp};
        (1, _Ns) -> {vertex,{deform,inflate}};
-       (2, _Ns) -> ignore;
-       (3, Ns) ->
-	    {vector,
-	     {pick,
-	      [{point,"Pick center point"},
-	       {point,"Pick point to define radius"}],
-	      [],[inflate|Ns]}}
+       (_, Ns) ->
+	    Ask = {'ASK',{[{point,"Pick center point"},
+			   {point,"Pick point to define radius"}],[]}},
+	    wings_menu:build_command(Ask, [inflate|Ns])
     end.
 
 command({crumple,Dir}, St) -> crumple(Dir, St);
@@ -213,6 +208,8 @@ inflate(Vs0, #we{vp=Vtab}=We, Acc) ->
 	       end, 0.0, Vs),
     inflate(Center, Radius, Vs, We, Acc).
 
+inflate({'ASK',Ask}, St) ->
+    wings:ask(Ask, St, fun inflate/2);
 inflate({Center,Outer}, St) ->
     Radius = e3d_vec:dist(Center, Outer),
     Tvs = wings_sel:fold(fun(Vs, We, _) ->

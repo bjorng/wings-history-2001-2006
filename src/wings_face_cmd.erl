@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.95 2003/10/19 18:43:25 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.96 2003/10/29 15:03:20 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -65,9 +65,9 @@ lift_fun(St) ->
     fun(help, _Ns) ->
 	    {"Lift, rotating face around edge or vertex",[],
 	     "Lift in std. directions"};
-       (1, _Ns) ->
+       (1, Ns) ->
 	    Funs = lift_selection(rotate, St),
-	    {vector,{pick_special,Funs}};
+	    wings_menu:build_command({'ASK',Funs}, Ns);
        (3, Ns) ->
 	    wings_menu_util:directions([normal,free,x,y,z], Ns);
        (_, _) -> ignore
@@ -98,7 +98,7 @@ command({extract_region,Type}, St) ->
 command(bump, St) ->
     ?SLOW(wings_extrude_edge:bump(St));
 command({flatten,Plane}, St) ->
-    {save_state,flatten(Plane, St)};
+    flatten(Plane, St);
 command(bevel, St) ->
     ?SLOW(wings_extrude_edge:bevel_faces(St));
 command(inset, St) ->
@@ -536,10 +536,12 @@ replace_vertex(Old, New, We, Etab0) ->
 %%% The Flatten command.
 %%%
 
+flatten({'ASK',Ask}, St) ->
+    wings:ask(Ask, St, fun flatten/2);
 flatten({Plane,Point}, St) ->
-    flatten(Plane, Point, St);
+    {save_state,flatten(Plane, Point, St)};
 flatten(Plane, St) ->
-    flatten(Plane, average, St).
+    {save_state,flatten(Plane, average, St)}.
 
 flatten(Plane0, average, St) ->
     Plane = wings_util:make_vector(Plane0),
@@ -894,14 +896,14 @@ lift_check_selection(#st{selmode=vertex,sel=VsSel}, OrigSt) ->
 	_ -> {none,"Face and vertex selections don't match."}
     end.
 
+lift({'ASK',Ask}, St) ->
+    wings:ask(Ask, St, fun lift/2);
 lift({Dir,edge,EdgeSel}, St) ->
     lift_from_edge(Dir, EdgeSel, St);
 lift({Dir,vertex,VertexSel}, St) ->
     lift_from_vertex(Dir, VertexSel, St);
 lift(Dir, St) ->
-    Funs = lift_selection(Dir, St),
-    wings_io:putback_event({action,{vector,{pick_special,Funs}}}),
-    St.
+    wings:ask(lift_selection(Dir, St), St, fun lift/2).
 
 %%%
 %%% Lift from edge.
@@ -1097,9 +1099,7 @@ lift_face_vertex_pairs(Faces, Vs, We) ->
 put_on(#st{sel=[{_,Faces}]}=St) ->
     case gb_trees:size(Faces) of
 	1 ->
-	    Funs = put_on_selection(St),
-	    wings_io:putback_event({action,{vector,{pick_special,Funs}}}),
-	    keep;
+	    wings:ask(put_on_selection(St), St, fun put_on/2);
 	_ ->
 	    wings_util:error("There must only be one face selected.")
     end;
@@ -1156,12 +1156,10 @@ put_on_1(Face, Axis, Target, We) ->
 %%% The "Clone On" command (RMB click on Put On).
 %%%
 
-clone_on(#st{sel=[{_,Faces}]}) ->
+clone_on(#st{sel=[{_,Faces}]}=St) ->
     case gb_trees:size(Faces) of
 	1 ->
-	    Funs = clone_on_selection(),
-	    wings_io:putback_event({action,{vector,{pick_special,Funs}}}),
-	    keep;
+	    wings:ask(clone_on_selection(), St, fun clone_on/2);
 	_ ->
 	    wings_util:error("There must only be one face selected.")
     end;

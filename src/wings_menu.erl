@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.118 2003/10/11 09:29:31 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.119 2003/10/29 15:03:20 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -18,7 +18,6 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 -import(lists, [foldl/3,reverse/1,keysearch/3,foreach/2]).
--compile(inline).
 
 -define(SUB_MENU_TIME, 150).
 -define(SEPARATOR_HEIGHT, (wings_text:height()-4)).
@@ -361,7 +360,7 @@ call_action(Act, Button, Ns, Ps, Mi) ->
 do_action(Act0, Ns, Ps, Mi) ->
     Act = case is_magnet_active(Ps, Mi) of
 	      false -> build_command(Act0, Ns);
-	      true -> {vector,{pick,[magnet],[Act0],Ns}}
+	      true -> build_command({'ASK',{[magnet],[Act0]}}, Ns)
 	  end,
     send_action(Act, Mi).
 
@@ -382,9 +381,8 @@ handle_key_1(delete, Mi0) ->
     %% Delete hotkey bound to this entry.
     case current_command(Mi0) of
 	none -> keep;
-	{Cmd0,OptionBox} ->
+	Cmd ->
 	    wings_wm:dirty(),
-	    Cmd = add_option(OptionBox, Cmd0, false),
 	    NextKey = wings_hotkey:delete_by_command(Cmd),
 	    Mi = set_hotkey(NextKey, Mi0),
 	    get_menu_event(Mi)
@@ -406,8 +404,16 @@ key(#keyboard{sym=?SDLK_DELETE}) -> delete;
 key(#keyboard{unicode=$\\}) -> delete;
 key(_) -> none.
 
-current_command(#mi{sel=none}) -> none;
-current_command(#mi{sel=Sel,menu=Menu,ns=Names,owner=Owner})
+current_command(Mi) ->
+    case current_command_1(Mi) of
+	none -> none;
+	{Cmd0,OptionBox} ->
+	    Cmd = add_option(OptionBox, Cmd0, false),
+	    simplify_command(Cmd)
+    end.
+
+current_command_1(#mi{sel=none}) -> none;
+current_command_1(#mi{sel=Sel,menu=Menu,ns=Names,owner=Owner})
   when Owner == geom; element(1, Owner) == geom ->
     case element(Sel, Menu) of
 	{_,Name,_,_,Ps} when is_atom(Name); is_integer(Name) ->
@@ -420,13 +426,13 @@ current_command(#mi{sel=Sel,menu=Menu,ns=Names,owner=Owner})
 	    end;
 	{_,{Name,Fun},_,_,Ps} when is_function(Fun) ->
 	    Cmd = Fun(1, [Name|Names]),
-	    case is_ascii_clean(Cmd) of
+	    case is_tuple(Cmd) andalso is_ascii_clean(Cmd) of
 		true -> {Cmd,have_option_box(Ps)};
 		false -> none
 	    end;
 	_Other -> none
     end;
-current_command(_) -> none.
+current_command_1(_) -> none.
 
 %% Test if a term can be represented in a text file and read back.
 is_ascii_clean([H|T]) ->
@@ -441,6 +447,24 @@ is_ascii_clean(_) -> false.
 is_tuple_ascii_clean(I, N, T) when I =< N ->
     is_ascii_clean(element(I, T)) andalso is_tuple_ascii_clean(I+1, N, T);
 is_tuple_ascii_clean(_, _, _) -> true.
+
+add_option(false, Cmd, _) -> Cmd;
+add_option(true, Cmd, Val) ->
+    add_option_1(Cmd, Val).
+
+add_option_1({Desc,Tuple}, Val) when is_tuple(Tuple) ->
+    {Desc,add_option_1(Tuple, Val)};
+add_option_1({Desc,Leave}, Val) ->
+    {Desc,{Leave,Val}}.
+
+simplify_command({'ASK',{[],[Res],_}}) ->
+    Res;
+simplify_command({'ASK',{[],Res,_}}) ->
+    list_to_tuple(reverse(Res));
+simplify_command(Cmd0) when is_tuple(Cmd0) ->
+    Cmd = [simplify_command(El) || El <- tuple_to_list(Cmd0)],
+    list_to_tuple(Cmd);
+simplify_command(Term) -> Term.
 
 set_hotkey(Val, #mi{sel=Sel,menu=Menu0}=Mi) ->
     case element(Sel, Menu0) of
@@ -476,25 +500,16 @@ update_flags(Mod, Mi) ->
 	    Mi
     end.
 
-insert_magnet_flags(Action, #mi{flags=[]}) ->
-    Action;
-insert_magnet_flags({vector,{pick,Pl,Acc,Cmd}}, #mi{flags=Flags}) ->
-    insert_magnet_flags_1(Cmd, Pl, Acc, Flags);
-insert_magnet_flags(Action, _) -> Action.
+insert_magnet_flags(Action, #mi{flags=[magnet]}) ->
+    insert_magnet_flags_0(Action);
+insert_magnet_flags(Action,_) -> Action.
 
-insert_magnet_flags_1([move|_]=Cmd, Pl, Acc, Flags) ->
-    insert_magnet_flags_2(Cmd, Pl, Acc, Flags);
-insert_magnet_flags_1([rotate|_]=Cmd, Pl, Acc, Flags) ->
-    insert_magnet_flags_2(Cmd, Pl, Acc, Flags);
-insert_magnet_flags_1([scale|_]=Cmd, Pl, Acc, Flags) ->
-    insert_magnet_flags_2(Cmd, Pl, Acc, Flags);
-insert_magnet_flags_1(Cmd, Pl, Acc, _) ->
-    {vector,{pick,Pl,Acc,Cmd}}.
-
-insert_magnet_flags_2(Cmd, Pl, Acc, [magnet]) ->
-    {vector,{pick,Pl++[magnet],Acc,Cmd}};
-insert_magnet_flags_2(Cmd, Pl, Acc, _) ->
-    {vector,{pick,Pl,Acc,Cmd}}.
+insert_magnet_flags_0({'ASK',{PickList,Done,Flags}}) ->
+    {'ASK',{PickList++[magnet],Done,Flags}};
+insert_magnet_flags_0(Tuple0) when is_tuple(Tuple0) ->
+    Tuple = [insert_magnet_flags_0(El) || El <- tuple_to_list(Tuple0)],
+    list_to_tuple(Tuple);
+insert_magnet_flags_0(Term) -> Term.
 
 submenu(I, Name, Menu0, #mi{w=W,hs=Hs,level=Level}=Mi0) ->
     %% Only in basic menu mode.
@@ -893,8 +908,7 @@ get_hotkey(Cmd, Mi) ->
 handle_key_event(redraw, _Cmd, Mi) ->
     redraw(Mi),
     keep;
-handle_key_event(Ev, {Cmd0,OptionBox}, Mi0) ->
-    Cmd = add_option(OptionBox, Cmd0, false),
+handle_key_event(Ev, Cmd, Mi0) ->
     case wings_hotkey:bind_from_event(Ev, Cmd) of
 	error -> keep;
 	Keyname when is_list(Keyname) ->
@@ -902,12 +916,3 @@ handle_key_event(Ev, {Cmd0,OptionBox}, Mi0) ->
 	    wings_io:putback_event(Mi),
 	    pop
     end.
-
-add_option(false, Cmd, _) -> Cmd;
-add_option(true, Cmd, Val) ->
-    add_option_1(Cmd, Val).
-
-add_option_1({Desc,Tuple}, Val) when is_tuple(Tuple) ->
-    {Desc,add_option_1(Tuple, Val)};
-add_option_1({Desc,Leave}, Val) ->
-    {Desc,{Leave,Val}}.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.100 2003/10/24 12:36:10 raimo_niskanen Exp $
+%%     $Id: wings_pref.erl,v 1.101 2003/10/29 15:03:21 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -19,7 +19,7 @@
 
 -define(NEED_ESDL, 1).    %% Some keybindings
 -include("wings.hrl").
--import(lists, [foreach/2,keysearch/3,map/2,reverse/1,sort/1]).
+-import(lists, [foreach/2,keysearch/3,map/2,reverse/1,sort/1,last/1]).
 
 -define(MAC_PREFS, "Library/Preferences/Wings 3D Preferences.txt").
 -define(WIN32_OLD_PREFS, "Preferences").
@@ -584,6 +584,11 @@ clean([{Key,Val}=Pair|T], Acc) ->
 	    io:format("Removed pref: ~p\n", [Pair]),
 	    clean(T, Acc)
     end;
+clean([{{bindkey,Key},{vector,{pick,[],Res0,Ns}},Type}|T], Acc) ->
+    Res = list_to_tuple(reverse(Res0)),
+    Mode = last(Ns),
+    Bk = {{bindkey,Mode,Key},wings_menu:build_command(Res, Ns),Type},
+    clean(T, [Bk|Acc]);
 clean([{{bindkey,_}=Bk,{view,{virtual_mirror,Cmd}},user}|T], Acc) ->
     clean(T, [{Bk,{tools,{virtual_mirror,Cmd}},user}|Acc]);
 clean([{{bindkey,_},Cmd,user}=Bk|T], Acc) ->
