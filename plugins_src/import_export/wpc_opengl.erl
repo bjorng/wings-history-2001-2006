@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.24 2003/02/14 18:30:52 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.25 2003/03/06 20:18:11 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -141,14 +141,18 @@ render_exit() ->
 render_dlist(St0, Attr) ->
     St = invisible_holes(St0),
     SubDiv = proplists:get_value(subdivisions, Attr),
+    RenderAlpha = proplists:get_bool(render_alpha, Attr),
     wings_draw_util:map(fun(D, []) ->
-				render_dlist(D, St, SubDiv)
+				render_dlist(D, St, SubDiv, RenderAlpha)
 			end, []).
 
-render_dlist(#dlo{src_we=We0}=D, St, SubDiv) ->
+render_dlist(#dlo{src_we=We0}=D, St, SubDiv, RenderAlpha) ->
     We = sub_divide(SubDiv, We0),
     {List,Tr} = wings_draw:smooth_dlist(We, St),
-    Mask = dlist_mask(We),
+    Mask = case RenderAlpha of
+	       true -> dlist_mask(We);
+	       false -> none
+	   end,
     {D#dlo{smooth=List,transparent=Tr,smoothed=Mask},[]}.
 
 dlist_mask(#we{fs=Ftab}=We) ->
@@ -183,11 +187,15 @@ sub_divide(N, We) -> sub_divide(N-1, wings_subdiv:smooth(We)).
 %%%
 
 render_redraw(#r{attr=Attr}=Rr) ->
-    render_one(Rr, true),
-    MaskImage = capture(1, ?GL_RED),
     render_one(Rr, false),
     ObjectImage = capture(3, ?GL_RGB),
-    Image = combine_images(ObjectImage, MaskImage),
+    Image = case proplists:get_bool(render_alpha, Attr) of
+		true ->
+		    render_one(Rr, true),
+		    MaskImage = capture(1, ?GL_RED),
+		    combine_images(ObjectImage, MaskImage);
+		false -> ObjectImage
+	    end,
     case proplists:get_value(output_type, Attr) of
 	preview ->
 	    Id = wings_image:new("Rendered", Image),
