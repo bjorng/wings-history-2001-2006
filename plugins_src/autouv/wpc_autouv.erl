@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.29 2002/10/27 08:08:01 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.30 2002/10/27 09:36:15 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -95,8 +95,12 @@ start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0) ->
     We = We0#we{mode=material},
     St1 = seg_create_materials(St0),
     St = St1#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
+    Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=We0}),
+    {seq,{push,dummy},get_seg_event(Ss)}.
+
+seg_init_message(Ss) ->
     Msg = ["[L] Select  [R] Show menu  "|wings_camera:help()],
-    {seq,{push,dummy},get_seg_event(#seg{selmodes=Modes,st=St,we=We0,msg=Msg})}.
+    Ss#seg{msg=Msg}.
 
 get_seg_event(Ss) ->
     wings_wm:dirty(),
@@ -146,11 +150,16 @@ seg_mode_menu(vertex, _, Tail) -> Tail;
 seg_mode_menu(edge, _, Tail) ->
     [separator,
      {"Mark Edges for Cut",cut_edges},
-     {"Unmark Edges",no_cut_edges}|Tail];
+     {"Unmark Edges",no_cut_edges},
+     separator,
+     {"Select Marked Edges",select_hard_edges}|Tail];
 seg_mode_menu(face, _, Tail) ->
-    Menu = map(fun({Name,_}) -> {atom_to_list(Name),Name};
-		  (Other) -> Other
-	       end, seg_materials()) ++ Tail,
+    Menu0 = map(fun({Name,_}) -> {atom_to_list(Name),Name};
+		   (Other) -> Other
+		end, seg_materials()),
+    Menu = Menu0 ++
+	[separator,
+	 {"Select",{select,Menu0}}|Tail],
     [separator|Menu].
 
 seg_event_4(Ev, Ss) ->
@@ -182,10 +191,11 @@ seg_event_6({action,{auv_segmentation,Cmd}}, Ss) ->
     seg_command(Cmd, Ss);
 seg_event_6({callback, Fun}, _) when function(Fun) ->
     Fun();
-seg_event_6(#mousemotion{}, _) ->
-    keep;
-seg_event_6(#mousebutton{}, _) ->
-    keep;
+seg_event_6({message,Message}, _) ->
+    wings_util:message(Message);
+seg_event_6(#mousemotion{}, _) -> keep;
+seg_event_6(#mousebutton{}, _) -> keep;
+seg_event_6(#keyboard{}, _) -> keep;
 seg_event_6(Ev, _) ->
     io:format("~w\n", [Ev]),
     keep.
@@ -214,6 +224,12 @@ seg_command(cut_edges, #seg{st=St0}=Ss) ->
 seg_command(no_cut_edges, #seg{st=St0}=Ss) ->
     St = wings_edge:hardness(soft, St0),
     get_seg_event(Ss#seg{st=St});
+seg_command(select_hard_edges, _) ->
+    wings_io:putback_event({action,{select,{by,hard_edges}}}),
+    keep;
+seg_command({select,Mat}, _) ->
+    wings_io:putback_event({action,{select,{by,{material,Mat}}}}),
+    keep;
 seg_command({segment,Type}, #seg{st=St0}=Ss) ->
     St = segment(Type, St0),
     get_seg_event(Ss#seg{st=St});
@@ -272,9 +288,19 @@ seg_map_charts_1(_, _, We, {OrigWe,Vmap}, _, _, MappedCharts, _) ->
     wings_io:putback_event({action,{body,{?MODULE,show_map,Info}}}),
     pop.
 
-seg_map_chart([C|Cs], Type, We, Extra, I, N, Acc, Ss) ->
-    Vs = auv_mapping:map_chart(Type, C, We),
-    seg_map_charts_1(Cs, Type, We, Extra, I+1, N, [#a{fs=C,vpos=Vs}|Acc], Ss).
+seg_map_chart([C|Cs], Type, We, Extra, I, N, Acc0, Ss) ->
+    case auv_mapping:map_chart(Type, C, We) of
+	{error,Message} ->
+	    seg_error(Message, Ss);
+	Vs ->
+	    Acc = [#a{fs=C,vpos=Vs}|Acc0],
+	    seg_map_charts_1(Cs, Type, We, Extra, I+1, N, Acc, Ss)
+    end.
+
+
+seg_error(Message, Ss) ->
+    wings_io:putback_event({message,Message}),
+    get_seg_event(seg_init_message(Ss)).
 
 make_mat(Diff) ->
     [{opengl,[{diffuse,Diff},

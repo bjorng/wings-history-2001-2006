@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.20 2002/10/27 08:08:01 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.21 2002/10/27 09:36:14 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -66,8 +66,14 @@ tc(Module, Line, Fun) ->
 %    %%		?DBG("Projected by ~p using camera ~p ~n", [N2, _CI]),
 %    [create_area(Clustered, N2, We0)];
 
-map_chart(project, C, We) -> projectFromChartNormal(C, We);
-map_chart(lsqcm, C, We) -> lsqcm(C, We).
+map_chart(Type, Chart, We) ->
+    case wpa:face_outer_edges(Chart, We) of
+	[] -> {error,"A closed surface cannot be mapped."};
+	_ -> map_chart_1(Type, Chart, We)
+    end.
+
+map_chart_1(project, C, We) -> projectFromChartNormal(C, We);
+map_chart_1(lsqcm, C, We) -> lsqcm(C, We).
 
 projectFromChartNormal(Chart, We) ->
     CalcNormal = fun(Face, Sum) ->
