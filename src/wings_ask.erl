@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.168 2004/02/10 23:21:35 dgud Exp $
+%%     $Id: wings_ask.erl,v 1.169 2004/02/11 14:36:15 dgud Exp $
 %%
 
 -module(wings_ask).
@@ -3126,8 +3126,8 @@ key(?SDLK_HOME, Mod, _, Ts) -> key(1, Mod, Ts);
 key(?SDLK_END, Mod, _, Ts) -> key(5, Mod, Ts);
 key(?SDLK_LEFT, Mod, _, Ts) -> key(2, Mod, Ts);
 key(?SDLK_RIGHT, Mod, _, Ts) -> key(6, Mod, Ts);
-key(?SDLK_UP, Mod, _, Ts) -> key(12, Mod, Ts);
-key(?SDLK_DOWN, Mod, _, Ts) -> key(13, Mod, Ts);
+key(?SDLK_UP, Mod, _, Ts) -> key(16, Mod, Ts);
+key(?SDLK_DOWN, Mod, _, Ts) -> key(14, Mod, Ts);
 key(?SDLK_DELETE, Mod, _, Ts) -> key(4, Mod, Ts);
 key(?SDLK_BACKSPACE, Mod, _, Ts) -> key(?SDLK_BACKSPACE, Mod, Ts);
 key(?SDLK_KP_PERIOD, Mod, _, Ts) ->
@@ -3177,10 +3177,10 @@ key(4, _, #text{sel=0,aft=[_|Aft]}=Ts) ->	%Ctrl-D
     Ts#text{aft=Aft};
 key(4, _, Ts) ->				%Ctrl-D
     del_sel(Ts);
-key(12, _, #text{}=Ts) ->			%Ctrl-P
+key(16, _, #text{}=Ts) ->			%Ctrl-P
     Txt = read_prev_hist(type(Ts#text.last_val), get_text(Ts)),
     Ts#text{sel=0, bef=[], aft=Txt};
-key(13, _, #text{}=Ts) ->			%Ctrl-N
+key(14, _, #text{}=Ts) ->			%Ctrl-N
     Txt = read_next_hist(type(Ts#text.last_val), get_text(Ts)),
     Ts#text{sel=0, bef=[], aft=Txt};
 
