@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.17 2001/10/17 07:48:25 bjorng Exp $
+%%     $Id: wings.erl,v 1.18 2001/10/19 19:35:14 bjorng Exp $
 %%
 
 -module(wings).
@@ -817,7 +817,7 @@ body_menu(X, Y, St) ->
 	    {"Separate",separate},
 	    separator,
 	    {"Cleanup",cleanup},
-	    {"Auto-Smooth",auto_smooth},
+	    {"Auto-Smooth","S",auto_smooth},
 	    separator,
 	    {"Duplicate",{duplicate,Dir}},
 	    {"Delete","Bksp",delete}},
@@ -1106,6 +1106,7 @@ translate_key($l, St) -> {select,edge_loop};
 translate_key($o, St) -> {view,toggle_ortho};
 translate_key($p, St) -> {view,info};
 translate_key($r, St) -> {view,reset};
+translate_key($s, St) -> {body,auto_smooth};
 translate_key($u, St) -> {view,flyaround};
 translate_key($v, St) -> {select,vertex};
 translate_key($w, St) -> {view,toggle_wireframe};

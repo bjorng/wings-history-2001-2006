@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.13 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.14 2001/10/19 19:35:14 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -199,13 +199,15 @@ separate(St) ->
 %%% The Auto-Smooth command.
 %%%
 
-auto_smooth(St) ->
+auto_smooth(#st{selmode=body}=St) ->
     wings_sel:map(
       fun(#shape{sh=#we{}=We0}=Sh0) ->
 	      We = auto_smooth_1(We0),
 	      Sh = Sh0#shape{sh=We};
 	 (Sh) -> Sh
-      end, St).
+      end, St);
+auto_smooth(St) ->
+    wings_sel:map_shape(fun(_, We) -> auto_smooth_1(We) end, St).
 
 auto_smooth_1(#we{he=Htab0}=We) ->
     Htab = wings_util:fold_edge(fun(E, R, A) ->
