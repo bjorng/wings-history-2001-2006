@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.6 2002/10/20 08:59:39 bjorng Exp $
+%%     $Id: auv.hrl,v 1.7 2002/11/02 08:03:44 bjorng Exp $
 
 -record(a,
 	{center = {0,0},
@@ -32,7 +32,7 @@
 -record(setng, {texsz = {512, 512},   %% Texture size
 		texbg = false,        %% Texture background
 		color = true,         %% Texture drawing options
-		edges = border_edges, %% Draw edges ??
+		edges = all_edges,    %% Draw edges ??
 		edge_color = false,   %% Use vertex/face color on edges
 		edge_width = 2.0      %% Edge Thickness  overdraw help..
 	       }).
