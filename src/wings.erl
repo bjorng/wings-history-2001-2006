@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.270 2003/10/22 17:23:02 bjorng Exp $
+%%     $Id: wings.erl,v 1.271 2003/10/25 15:22:34 bjorng Exp $
 %%
 
 -module(wings).
@@ -305,10 +305,10 @@ handle_event_2(#mousebutton{x=X,y=Y}=Ev0, #st{sel=Sel}=St0) ->
     end;
 handle_event_2(Ev, St) -> handle_event_3(Ev, St).
 	    
-handle_event_3(#keyboard{}=Ev, St0) ->
-    case do_hotkey(Ev, St0) of
-	next -> keep;
-	{Cmd,St} -> do_command(Cmd, St)
+handle_event_3(#keyboard{}=Ev, St) ->
+    case wings_hotkey:event(Ev, St) of
+ 	next -> keep;
+	Cmd -> do_hotkey(Cmd, St)
     end;
 handle_event_3({action,Callback}, _) when is_function(Callback) ->
     Callback();
@@ -368,33 +368,23 @@ handle_event_3({drop,Pos,DropData}, St) ->
     handle_drop(DropData, Pos, St);
 handle_event_3(ignore, _St) -> keep.
 
-do_hotkey(Ev, #st{sel=[]}=St0) ->
+do_hotkey(Cmd, #st{sel=[]}=St0) ->
     case wings_pref:get_value(use_temp_sel) of
 	false ->
-	    do_hotkey_1(Ev, St0);
+	    do_command(Cmd, St0);
 	true ->
 	    {_,X,Y} = wings_wm:local_mouse_state(),
 	    case wings_pick:do_pick(X, Y, St0) of
 		{add,_,St} ->
-		    case wings_hotkey:event(Ev, St) of
-			next -> next;
-			Cmd ->
-			    case highlight_sel_style(Cmd) of
-				none -> {Cmd,St0};
-				temporary -> {Cmd,set_temp_sel(St0, St)};
-				permanent -> {Cmd,St}
-			    end
+		    case highlight_sel_style(Cmd) of
+			none -> do_command(Cmd, St0);
+			temporary -> do_command(Cmd, set_temp_sel(St0, St));
+			permanent -> do_command(Cmd, St)
 		    end;
-		_Other -> do_hotkey_1(Ev, St0)
+		_Other -> do_command(Cmd, St0)
 	    end
     end;
-do_hotkey(Ev, St) -> do_hotkey_1(Ev, St).
-
-do_hotkey_1(Ev, St) ->
-    case wings_hotkey:event(Ev, St) of
- 	next -> next;
-	Cmd -> {Cmd,St}
-    end.
+do_hotkey(Cmd, St) -> do_command(Cmd, St).
 
 highlight_sel_style({vertex,_}) -> temporary;
 highlight_sel_style({edge,_}) -> temporary;
