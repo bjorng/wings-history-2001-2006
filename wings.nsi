@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings.nsi,v 1.4 2002/04/17 09:12:39 bjorng Exp $
+#     $Id: wings.nsi,v 1.5 2002/04/25 13:25:13 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -27,21 +27,72 @@ InstallDirRegKey HKLM "SOFTWARE\Wings 3D" ""
 DirShow show ; (make this hide to not let the user change it)
 DirText "Select the directory to install Wings 3D in:"
 
-Function GetErlangOtpPath
+;------------------------------------------------------------------------------
+; GetErlangInstPath
+; 
+; takes no parameters
+; returns with the Erlang/OTP install directory on the stack (it will be
+; an empty string if Erlang/OTP is not detected).
+;
+; modifies no other variables
+;
+; Usage:
+;   Call GetErlangInstPath
+;   Pop $0
+;   MessageBox MB_OK "Erlang installed at: $0"
+
+Function GetErlangInstPath
   Push $0
   Push $1
-  StrCpy $1 0
-  outer_loop:
-    EnumRegKey $0 HKLM "Software\Ericsson\Erlang" $1
-    StrCmp $0 "" get_out
-    StrCmp $0 "5.1" 0 again
-    ReadRegStr $0 HKLM "Software\Ericsson\Erlang\$0" "bindir"
-    Goto get_out
-   again:
-    IntOp $1 $1 + 1
-  Goto outer_loop
+  Push $2
+  ReadRegStr $0 HKLM \
+     "Software\Microsoft\Windows\CurrentVersion\Uninstall\Erlang OTP R8B" \ 
+     "UninstallString"
+  StrCmp $0 "" fin
 
-  get_out:
+    StrCpy $1 $0 1 0 ; get firstchar
+    StrCmp $1 '"' "" find_space
+      ; if first char is ", let's remove "'s first.
+      StrCpy $0 $0 "" 1
+      StrCpy $1 0
+      rqloop:
+        StrCpy $2 $0 1 $1
+        StrCmp $2 '"' rqdone
+        StrCmp $2 "" rqdone
+        IntOp $1 $1 + 1
+        Goto rqloop
+      rqdone:
+      StrCpy $0 $0 $1
+      goto getparent
+
+    find_space:
+      StrCpy $1 0
+      fsloop:
+        StrCpy $2 $0 1 $1
+        StrCmp $2 ' ' fsdone
+        StrCmp $2 "" fsdone
+        IntOp $1 $1 + 1
+        Goto fsloop
+      fsdone:
+      StrCpy $0 $0 $1
+
+    getparent:
+    ; the uninstall string goes to an EXE, let's get the directory.
+    StrCpy $1 -1
+    gploop:
+      StrCpy $2 $0 1 $1
+      StrCmp $2 "" gpexit
+      StrCmp $2 "\" gpexit
+      IntOp $1 $1 - 1
+      Goto gploop
+    gpexit:
+    StrCpy $0 $0 $1
+
+    StrCmp $0 "" fin
+    IfFileExists $0\bin\werl.exe fin
+      StrCpy $0 ""
+  fin:
+  Pop $2
   Pop $1
   Exch $0
 FunctionEnd
@@ -69,7 +120,10 @@ get_start_menu_done:
 FunctionEnd
 
 Section "ThisNameIsIgnoredSoWhyBother?"
- Call GetErlangOtpPath
+ Call GetErlangInstPath
+; Pop $0
+; MessageBox MB_OK "Erlang installed at: $0"
+; Call GetErlangOtpPath
  Pop $0
  StrCmp $0 "" 0 continue_1
 
@@ -117,7 +171,7 @@ continue_1:
 
   CreateDirectory "$3\Wings 3D"
   GetFullPathName /short $1 $INSTDIR
-  CreateShortCut "$3\Wings 3D\Wings 3D.lnk" "$0\werl.exe" \
+  CreateShortCut "$3\Wings 3D\Wings 3D.lnk" "$0\bin\werl.exe" \
     "-pa $1\ebin -run wings_start start_halt"  "$INSTDIR\ebin\wings.icon" \
     0 SW_SHOWMINIMIZED
 
@@ -137,7 +191,7 @@ continue_1:
 
   ; Write batch file to start Wings
   FileOpen $4 "$INSTDIR\wings_start.bat" w
-  FileWrite $4 '@start /min $0\werl.exe -pa $1\ebin -run wings_start start_halt %1'
+  FileWrite $4 '@start /min $0\bin\werl.exe -pa $1\ebin -run wings_start start_halt %1'
   FileClose $4
   
 SectionEnd ; end of default section
