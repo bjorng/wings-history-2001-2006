@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.32 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.33 2005/01/13 06:09:13 bjorng Exp $
 %%
 
 {wings,
@@ -302,6 +302,11 @@
     {5,"Scegliere il centro dell'azione"},
     {6,"Scegliere l' origine della rastrematura"},
     {7,"Effetto su "}]}]}.
+{wings_dissolve,
+ [
+  {dissolve_1,
+   [{1,"Se dissolvessi, la struttura risulterebbe inconsistente."}]}
+ ]}.
 {wings_drag,
  [
   {help_message,
@@ -324,6 +329,11 @@
    [{1,"Trascina per muovere sull' asse Z"},
     {2,"Trascina per variare il terzo parametro"}]}]}.
 {wings_edge,
+ [
+  {dissolve_edge_2,
+   [{1,"Dissolvere causerebbe la formazione di una faccia malposta."}]}
+ ]}.
+{wings_edge_cmd,
  [{cut_entry,
    [{1,"Taglia in "},
     {2," spigoli di uguale lunghezza"}]},
@@ -333,8 +343,6 @@
     {3,"Taglia"}]},
   {cut_pick_error,
    [{1,"Ad una posizione arbitraria puo' essere tagliato solo uno spigolo."}]},
-  {dissolve_edge_2,
-   [{1,"Dissolvere causerebbe la formazione di una faccia malposta."}]},
   {loop_cut,
    [{1,"Gli spigoli selezionati non dividono ~p in due o piu' parti."}]},
   {menu,
@@ -388,8 +396,6 @@
    [{1,"Deve essere selezionata solo una faccia."}]},
   {clone_on_selection,
    [{1,"Scegliere gli elementi sui quali porre i cloni"}]},
-  {dissolve,
-   [{1,"Se dissolvessi, la struttura risulterebbe inconsistente."}]},
   {lift_check_selection,
    [{1,"Le selezioni faccia-spigolo non corrispondono."},
     {2,"Le selezioni faccia-vertice non corrispondono."}]},

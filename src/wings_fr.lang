@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_fr.lang,v 1.5 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_fr.lang,v 1.6 2005/01/13 06:06:27 bjorng Exp $
 %%
 
 {wings,
@@ -313,6 +313,13 @@
     {5,"Ramasser l'axe vers le centre"},
     {6,"Ramasser et effiler vers l'origine"},
     {7,"Effet ouvert "}]}]}.
+{wings_dissolve,
+ [
+  {dissolve_1,
+   [
+    {1,"Supprimer risquerait de creer un objet mal structure."}
+   ]}
+  ]}.
 {wings_drag,
  [
   {help_message,
@@ -336,6 +343,12 @@
     {2,"Glisser et ajuster un tierce parametre"}]}]}.
 {wings_edge,
  [
+  {dissolve_edge_2,
+   [{1,"Supprimer risque de creer une facette erronee."}]}
+ ]
+}.
+{wings_edge_cmd,
+ [
   {cut_entry,
    [{1,"Couper une "},
     {2," arete a une longueur egale"}]},
@@ -345,8 +358,6 @@
     {3,"Couper"}]},
   {cut_pick_error,
    [{1,"Seulement une seule arete peut etre coupee a une position arbitraire."}]},
-  {dissolve_edge_2,
-   [{1,"Supprimer risque de creer une facette erronee."}]},
   {loop_cut,
    [{1,"La courbe d'arete ne se divise pas ~p  en deux (ou plusieurs) parties."}]},
   {menu,
@@ -402,8 +413,6 @@
    [{1,"Il doit y avoir exclusivement une seule facette de selectionnee."}]},
   {clone_on_selection,
    [{1,"Selectionner les elements vers lesquels creer un clone"}]},
-  {dissolve,
-   [{1,"Supprimer risquerait de creer un objet mal structure."}]},
   {lift_check_selection,
    [{1,"Facette et point ne peuvent etre selectionne ensemble."},
     {2,"Facette et point ne peuvent etre selectionne ensemble."}]},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.49 2004/12/18 19:36:22 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.50 2005/01/13 06:02:34 bjorng Exp $
 %%
 
 {wings,
@@ -318,6 +318,13 @@
     {5,"Välj centeraxel"},
     {6,"Välj avsmalningsstart"},
     {7,"Verkan på "}]}]}.
+{wings_dissolve,
+ [
+  {dissolve_1,
+   [
+    {1,"Kan inte lösa upp - objektet skulle få en felaktig struktur."}
+   ]}
+ ]}.
 {wings_drag,
  [
   {help_message,
@@ -341,6 +348,12 @@
     {2,"Dra för att justera den tredje parametern"}]}]}.
 {wings_edge,
  [
+  {dissolve_edge_2,
+   [{1,"Borttagande skulle skapa en felaktig yta."}]}
+ ]
+}.
+{wings_edge_cmd,
+ [
   {cut_entry,
    [{1,"Splittra i "},
     {2,"  kanter av lika längd"}]},
@@ -350,8 +363,6 @@
     {3,"Splittra"}]},
   {cut_pick_error,
    [{1,"Bara en kant kan bli splittrad på vald position."}]},
-  {dissolve_edge_2,
-   [{1,"Borttagande skulle skapa en felaktig yta."}]},
   {loop_cut,
    [{1,"Kantslingan delar inte upp ~p i två objekt"}]},
   {menu,
@@ -414,8 +425,6 @@
    [{1,"Markera bara en yta."}]},
   {clone_on_selection,
    [{1,"Välj elementen som klonerna ska ställas på."}]},
-  {dissolve,
-   [{1,"Kan inte lösa upp - objektet skulle få en felaktig struktur."}]},
   {lift_check_selection,
    [{1,"Yt- och kantmarkeringar passar inte ihop."},
     {2,"Yt- och punktmarkeringar passar inte ihop."}]},
