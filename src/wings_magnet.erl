@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.19 2001/12/28 11:34:03 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.20 2002/01/10 09:22:48 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -39,7 +39,7 @@ command({Type,Dir}, #st{selmode=vertex}=St) ->
     Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
 				 setup_1(Vs, We, Vec, Type, Acc)
 			 end, [], St),
-    wings_drag:init_drag(Tvs, {magnet,constraint(Dir)}, St#st{inf_r=1.0}).
+    wings_drag:init_drag(Tvs, {radius,constraint(Dir)}, St#st{inf_r=1.0}).
 
 setup_1(Vs, #we{id=Id}=We, Vec, Type, Acc) ->
     Tv = vertices_to_vertices(gb_sets:to_list(Vs), We, Type, Vec),

@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.44 2002/01/02 12:26:28 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.45 2002/01/10 09:22:48 bjorng Exp $
 %%
 
 -module(wings_drag).
--export([init_drag/3,init_drag/4,do_drag/1,message/2]).
+-export([init_drag/3,init_drag/4,do_drag/1,message/2,translate/4]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -316,9 +316,9 @@ constrain(Dx0, Dy0, #drag{unit=Unit,constraint=Constraint}=Drag) ->
 	      end,
     constrain_1(Constraint, Dx, Dy, Drag).
 
-constrain_1({magnet,view_dependent}, Dx, Dy, #drag{falloff=Falloff}=Drag) ->
+constrain_1({radius,view_dependent}, Dx, Dy, #drag{falloff=Falloff}=Drag) ->
     {Dx,Dy,Falloff};
-constrain_1({magnet,none}, Dx, Dy, #drag{falloff=Falloff}=Drag) ->
+constrain_1({radius,none}, Dx, Dy, #drag{falloff=Falloff}=Drag) ->
     {Dx,Falloff};
 constrain_1(none, Dx, Dy, Drag) -> Dx;
 constrain_1(view_dependent, Dx, Dy, Drag) -> {Dx,Dy};

@@ -8,15 +8,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.29 2002/01/07 08:38:54 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.30 2002/01/10 09:22:48 bjorng Exp $
 %%
 
 -module(wings_edge).
--export([convert_selection/1,select_more/1,select_less/1,
-	 adjacent_edges/2,
+-export([convert_selection/1,
+	 select_more/1,select_more/2,
+	 select_less/1,adjacent_edges/2,
 	 to_vertices/2,select_region/1,
-	 cut/2,cut/3,fast_cut/3,fast_cut/4,connect/1,dissolve/1,
-	 dissolve_edges/2,dissolve_edge/2,patch_edge/4,patch_edge/5,
+	 cut/2,cut/3,fast_cut/3,fast_cut/4,connect/1,connect/2,
+	 dissolve/1,dissolve_edges/2,dissolve_edge/2,
+	 patch_edge/4,patch_edge/5,
 	 hardness/2,hardness/3,loop_cut/1]).
 
 -include("wings.hrl").
@@ -61,11 +63,11 @@ convert_selection(#st{selmode=vertex}=St) ->
 %%% Select more or less.
 
 select_more(St) ->
-    wings_sel:convert_shape(
-      fun(Edges, We) ->
-	      Vs = to_vertices(Edges, We),
-	      adjacent_edges(Vs, We, Edges)
-      end, edge, St).
+    wings_sel:convert_shape(fun select_more/2, edge, St).
+
+select_more(Edges, We) ->
+    Vs = to_vertices(Edges, We),
+    adjacent_edges(Vs, We, Edges).
 
 select_less(St) ->
     wings_sel:convert_shape(
@@ -241,6 +243,10 @@ fast_cut(Edge, Pos0, Col0, We0) ->
 connect(St0) ->
     {St,Sel} = wings_sel:mapfold(fun connect/3, [], St0),
     St#st{sel=Sel}.
+
+connect(Es, We0) ->
+    {We,_} = connect(Es, We0, []),
+    We.
 
 connect(Es, #we{id=Id}=We0, Acc) ->
     {We1,Vs} = cut_edges(Es, We0),

@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.21 2001/12/27 09:10:07 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.22 2002/01/10 09:22:48 bjorng Exp $
 %%
 
 -module(wings_move).
--export([setup/2]).
+-export([setup/2,setup_we/4]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,sort/1]).
@@ -30,12 +30,15 @@ setup(Type, #st{selmode=Mode}=St) ->
     wings_drag:init_drag(Tvs, constraint(Type), distance, St).
 
 setup_1(Mode, #we{id=Id}=We, Items, Vec, Acc) ->
-    Tv = case Mode of
-	     vertex -> vertices_to_vertices(gb_sets:to_list(Items), We, Vec);
-	     edge -> edges_to_vertices(Items, We, Vec);
-	     face -> faces_to_vertices(Items, We, Vec)
-	 end,
+    Tv = setup_we(Mode, Vec, Items, We),
     [{Id,Tv}|Acc].
+
+setup_we(vertex, Vec, Items, We) ->
+    vertices_to_vertices(gb_sets:to_list(Items), We, Vec);
+setup_we(edge, Vec, Items, We) ->
+    edges_to_vertices(Items, We, Vec);
+setup_we(face, Vec, Items, We) ->
+    faces_to_vertices(Items, We, Vec).
 
 constraint(free) -> view_dependent;
 constraint(intrude) -> {0.025,1.0E200};

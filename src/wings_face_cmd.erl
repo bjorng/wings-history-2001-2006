@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.23 2002/01/02 21:03:33 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.24 2002/01/10 09:22:48 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
 -export([bevel_faces/1,extrude/2,extrude_region/2,extract_region/2,
 	 inset/1,dissolve/1,smooth/1,bridge/1,
-	 intrude/1,mirror/1,flatten/2]).
+	 intrude/1,mirror/1,flatten/2,bump/1]).
 -export([outer_edge_partition/2]).
 
 -include("wings.hrl").
@@ -71,6 +71,67 @@ extrude_region_2([Faces|Rs], We0, Sel0) ->
 extrude_region_2([], We, Sel) ->
     {We,gb_sets:union(Sel)}.
 
+%%%
+%%% The Bump command.
+%%%
+
+bump(St0) ->
+    {St,Tvs} = wings_sel:mapfold(fun bump/3, [], St0),
+    wings_drag:init_drag(Tvs, {radius,none}, distance, St#st{inf_r=1.0}).
+
+bump(Faces, #we{id=Id}=We0, Acc) ->
+    Es0 = wings_face:fold_faces(
+	    fun(_, _, Edge, _, A) ->
+		    [Edge|A]
+	    end, [], Faces, We0),
+    Es1 = gb_sets:from_list(Es0),
+    Es2 = wings_edge:select_more(Es1, We0),
+    Es = gb_sets:difference(Es2, Es1),
+    We = wings_edge:connect(Es, We0),
+    NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
+    Tv0 = wings_move:setup_we(face, normal, Faces, We),
+    Tv = [{Vec,wings_util:add_vpos(Vs0, We)} || {Vec,Vs0} <- Tv0],
+    Affected0 = lists:append([Vs0 || {Vec,Vs0} <- Tv0]),
+    MoveSel = {Affected0,bump_fun(Tv)},
+    Vecs = bump_vectors(NewVs, gb_sets:from_list(Affected0), We, []),
+    Affected = [V || {V,Vec,Pos} <- Vecs],
+    MoveAway = {Affected,bump_away_fun(Vecs)},
+    {We,[{Id,MoveSel},{Id,MoveAway}|Acc]}.
+
+bump_fun(Tv) ->
+    fun({Dx,R}, Acc) ->
+	    wings_drag:message([Dx], distance),
+	    foldl(fun({Vec,VsPos}, A) ->
+			  wings_drag:translate(Vec, Dx, VsPos, A)
+		  end, Acc, Tv)
+    end.
+
+bump_away_fun(Tv) ->
+    fun({Dx,R0}, Acc) ->
+	    R = R0-1.0,
+	    foldl(fun({V,Vec,#vtx{pos={X,Y,Z}}=Rec}, A) -> 
+			  {Xt,Yt,Zt} = e3d_vec:mul(Vec, R),
+			  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
+			  [{V,Rec#vtx{pos=Pos}}|A]
+		  end, Acc, Tv)
+    end.
+    
+bump_vectors([V|Vs], VsSet, #we{vs=Vtab}=We, Acc0) ->
+    Acc = wings_vertex:fold(
+	    fun(_, _, Rec, A) ->
+		    OtherV = wings_vertex:other(V, Rec),
+		    case gb_sets:is_member(OtherV, VsSet) of
+			false -> A;
+			true ->
+			    Pa = wings_vertex:pos(OtherV, Vtab),
+			    #vtx{pos=Pb} = Pos = gb_trees:get(V, Vtab),
+			    Vec = e3d_vec:sub(Pb, Pa),
+			    [{V,Vec,Pos}|A]
+		    end
+	    end, Acc0, V, We),
+    bump_vectors(Vs, VsSet, We, Acc);
+bump_vectors([], VsSet, We, Acc) -> Acc.
+	    
 %%%
 %%% The Bevel command.
 %%%
