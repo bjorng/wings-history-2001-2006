@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.18 2002/01/06 14:47:09 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.19 2002/02/06 17:01:09 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -25,7 +25,7 @@
 convert_selection(#st{sel=Sel0}=St) ->
     Zero = gb_sets:singleton(0),
     Sel = [{Id,Zero} || {Id,_} <- Sel0],
-    St#st{selmode=body,sel=Sel}.
+    wings_sel:set(body, Sel, St).
 
 %%%
 %%% The Cleanup command.
@@ -82,7 +82,7 @@ duplicate(Dir, #st{onext=Oid0}=St0) ->
     %% Select the duplicate items, not the original items.
     Zero = gb_sets:singleton(0),
     Sel = [{Id,Zero} || Id <- seq(Oid0, St#st.onext-1)],
-    wings_move:setup(Dir, St#st{sel=Sel}).
+    wings_move:setup(Dir, wings_sel:set(Sel, St)).
 
 %%%
 %%% The Delete command.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.18 2002/02/03 22:44:21 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.19 2002/02/06 17:01:09 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -101,7 +101,7 @@ ex_connect([Va,Face], [Vb|_], We0) ->
 %%%
 
 bevel(#st{sel=Vsel}=St0) ->
-    {St,{Tvs0,FaceSel0}} =
+    {St,{Tvs0,FaceSel}} =
 	wings_sel:mapfold(
 	  fun(Vs, #we{id=Id}=We0, {Tvs,Fa}) ->
 		  Iter = gb_sets:iterator(Vs),
@@ -109,9 +109,8 @@ bevel(#st{sel=Vsel}=St0) ->
 		  Fs = gb_sets:from_list(Fs0),
 		  {We,{[{Id,Tv}|Tvs],[{Id,Fs}|Fa]}}
 	  end, {[],[]}, St0),
-    FaceSel = sort(FaceSel0),
     {Min,Tvs} = bevel_normalize(Tvs0, Vsel),
-    wings_drag:init_drag(Tvs, {0.0,Min}, St#st{selmode=face,sel=FaceSel}).
+    wings_drag:init_drag(Tvs, {0.0,Min}, wings_sel:set(face, FaceSel, St)).
 
 bevel_vertices(Iter0, Vs, WeOrig, We0, Acc0, Facc) ->
     case gb_sets:next(Iter0) of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.33 2002/02/03 22:44:21 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.34 2002/02/06 17:01:09 bjorng Exp $
 %f%
 
 -module(wings_face_cmd).
@@ -41,9 +41,8 @@ extrude_faces(St) ->
 %%% Extrude the selected regions.
 
 extrude_region(Type, St0) ->
-    {St1,Sel0} = wings_sel:mapfold(fun extrude_region/3, [], St0),
-    St = St1#st{sel=reverse(Sel0)},
-    wings_move:setup(Type, St).
+    {St,Sel} = wings_sel:mapfold(fun extrude_region/3, [], St0),
+    wings_move:setup(Type, wings_sel:set(Sel, St)).
 
 extrude_region(Faces0, #we{id=Id}=We0, Acc) ->
     %% We KNOW that a gb_set with fewer elements sorts before
@@ -83,11 +82,11 @@ extract_region(Type, #st{onext=Id0,shapes=Shapes0}=St0) ->
 		    Sel = [{Oid,Faces}|Sel0],
 		    S#st{sel=Sel}
 	    end, St0#st{sel=[]}, St0),
-    Sel = reverse(St1#st.sel),
-    St2 = St1#st{sel=Sel},
+    Sel = St1#st.sel,
+    St2 = wings_sel:set(Sel, St1),
     St3 = extract_inverse(St2),
     St4 = dissolve(St3),
-    St = St4#st{sel=Sel},
+    St = wings_sel:set(Sel, St4),
     wings_move:setup(Type, St).
 
 extract_inverse(St) ->
@@ -99,7 +98,7 @@ extract_inverse(St) ->
 			false -> [{Id,Diff}|A]
 		    end
 	    end, [], St),
-    St#st{sel=reverse(Sel)}.
+    wings_sel:set(Sel, St).
     
 %%%
 %%% The Dissolve command.
@@ -107,7 +106,7 @@ extract_inverse(St) ->
 
 dissolve(St0) ->
     {St,Sel} = wings_sel:mapfold(fun dissolve/3, [], St0),
-    St#st{sel=reverse(Sel)}.
+    wings_sel:set(Sel, St).
 
 dissolve(Faces, #we{id=Id}=We0, Acc) ->
     We = dissolve_1(Faces, We0, We0),
@@ -215,7 +214,7 @@ find_edge(V, Etab, We) ->
 intrude(St0) ->
     St1 = dissolve(St0),
     {St,Sel} = wings_sel:mapfold(fun intrude/3, [], St1),
-    wings_move:setup(intrude, St#st{sel=reverse(Sel)}).
+    wings_move:setup(intrude, wings_sel:set(Sel, St)).
 
 intrude(Faces0, #we{id=Id,es=Etab,fs=Ftab,next_id=Wid}=We0, SelAcc) ->
     Faces = gb_sets:to_list(Faces0),
@@ -246,7 +245,7 @@ intrude_bridge([], [], We) -> We.
 
 mirror(St0) ->
     St = wings_sel:map(fun mirror_faces/2, St0),
-    St#st{sel=[]}.
+    wings_sel:clear(St).
 
 mirror_faces(Faces, We0) ->
     OrigWe = wings_we:invert_normals(We0),
@@ -438,7 +437,7 @@ flatten_move_vector(Plane) ->
 
 smooth(St0) ->
     {St,Sel} = wings_sel:mapfold(fun smooth/3, [], St0),
-    St#st{sel=Sel}.
+    wings_sel:set(Sel, St).
 
 smooth(Faces0, #we{id=Id,name=Name}=We0, Acc) ->
     wings_io:progress("Smoothing \"" ++ Name ++ "\""),
@@ -514,7 +513,8 @@ bridge(#st{shapes=Shapes0,sel=[{IdA,FacesA},{IdB,FacesB}]}=St0) ->
 	    Shapes1 = gb_trees:delete(IdB, Shapes0),
 	    Shapes = gb_trees:update(IdA, We, Shapes1),
 	    Sel = [{IdA,gb_sets:from_list([FA,FB])}],
-	    St = St0#st{shapes=Shapes,sel=Sel},
+	    St1 = wings_sel:set(Sel, St0),
+	    St = St0#st{shapes=Shapes},
 	    bridge(St);
 	Other ->
 	    bridge_error()

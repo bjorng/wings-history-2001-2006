@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.32 2002/01/22 09:56:40 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.33 2002/02/06 17:01:09 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -144,7 +144,7 @@ cut(N, #st{selmode=edge}=St0) when N > 1 ->
 			 S = wings_we:new_items(vertex, We0, We),
 			 {We,[{Id,S}|Acc]}
 		 end, [], St0),
-    St#st{selmode=vertex,sel=reverse(Sel)};
+    wings_sel:set(vertex, Sel, St);
 cut(N, St) -> St.
 
 cut_edges(Edges, N, We0) ->
@@ -264,7 +264,7 @@ fast_cut(Edge, Pos0, Col0, We0) ->
 
 connect(St0) ->
     {St,Sel} = wings_sel:mapfold(fun connect/3, [], St0),
-    St#st{sel=Sel}.
+    wings_sel:set(Sel, St).
 
 connect(Es, We0) ->
     {We,_} = connect(Es, We0, []),
@@ -297,7 +297,7 @@ remove_winged_vs(Vs, We) ->
 
 dissolve(St0) ->
     St = wings_sel:map(fun dissolve_edges/2, St0),
-    St#st{sel=[]}.
+    wings_sel:clear(St).
 
 dissolve_edges(Edges0, We0) when is_list(Edges0) ->
     #we{es=Etab} = We = foldl(fun dissolve_edge/2, We0, Edges0),
@@ -503,9 +503,8 @@ hardness(Edge, hard, Htab) -> gb_sets:add(Edge, Htab).
 %%%
 
 select_region(St) ->
-    Sel0 = wings_sel:fold(fun select_region/3, [], St),
-    Sel = sort(Sel0),
-    St#st{selmode=face,sel=Sel}.
+    Sel = wings_sel:fold(fun select_region/3, [], St),
+    wings_sel:set(face, Sel, St).
 
 select_region(Edges, #we{id=Id}=We, Acc) ->
     Part = wings_edge_loop:partition_edges(Edges, We),
@@ -542,11 +541,10 @@ strip_prefix(L, Prefix) -> L.
 
 loop_cut(#st{onext=NextId}=St0) ->
     {Sel0,St1} = wings_sel:fold(fun loop_cut/3, {[],St0}, St0),
-    Sel1 = sort(Sel0),
-    St2 = St1#st{selmode=face,sel=Sel1},
-    #st{sel=Sel2} = St = wings_face_cmd:dissolve(St2),
-    Sel = [S || {Id,_}=S <- Sel2, Id >= NextId],
-    wings_body:convert_selection(St#st{selmode=body,sel=Sel}).
+    St2 = wings_sel:set(face, Sel0, St1),
+    #st{sel=Sel1} = St = wings_face_cmd:dissolve(St2),
+    Sel = [S || {Id,_}=S <- Sel1, Id >= NextId],
+    wings_body:convert_selection(wings_sel:set(body, Sel, St)).
 
 loop_cut(Edges, #we{id=Id,name=Name}=We, Acc) ->
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
@@ -609,7 +607,7 @@ collect_maybe_add(Work, Face, Edges, We, Res) ->
 
 select_edge_ring(#st{selmode=edge}=St) ->
     Sel = wings_sel:fold(fun build_selection/3, [], St),
-    St#st{sel=Sel};
+    wings_sel:set(Sel, St);
 select_edge_ring(St) -> St.
 
 build_selection(Edges, #we{id=Id} = We, ObjAcc) ->

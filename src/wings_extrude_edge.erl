@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.19 2002/02/03 22:39:35 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.20 2002/02/06 17:01:09 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -40,10 +40,9 @@ bump(Faces, #we{id=Id}=We0, Acc) ->
 %%
 
 bevel(St0) ->
-    {St,{Tvs,Sel0,Limit}} =
+    {St,{Tvs,Sel,Limit}} =
 	wings_sel:mapfold(fun bevel_edges/3, {[],[],1.0E300}, St0),
-    Sel = reverse(Sel0),
-    wings_drag:init_drag(Tvs, {0.0,Limit}, St#st{selmode=face,sel=Sel}).
+    wings_drag:init_drag(Tvs, {0.0,Limit}, wings_sel:set(face, Sel, St)).
 
 bevel_edges(Edges, #we{id=Id,es=Etab,next_id=Next}=We0, {Tvs,Ss,Limit0}) ->
     {We1,OrigVs} = extrude_edges(Edges, We0),

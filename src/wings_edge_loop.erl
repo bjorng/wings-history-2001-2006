@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.7 2002/01/07 08:38:54 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.8 2002/02/06 17:01:09 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
@@ -122,7 +122,7 @@ add_edge(G, E, Va, Vb) ->
 
 select_loop(#st{selmode=edge}=St) ->
     Sel = wings_sel:fold(fun select_loop/3, [], St),
-    St#st{sel=reverse(Sel)};
+    wings_sel:set(Sel, St);
 select_loop(St) -> St.
 
 select_loop(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
