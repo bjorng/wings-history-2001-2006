@@ -166,6 +166,13 @@
 		};
 		29B97317FDCFA39411CA2CEA = {
 			children = (
+				4CB15CFF0489F65500A8000A,
+				4CB15D000489F65500A8000A,
+				4CB15D010489F65500A8000A,
+				4CB15D020489F65500A8000A,
+				4CB15D030489F65500A8000A,
+				4CB15D040489F65500A8000A,
+				4CB15D050489F65500A8000A,
 				F5EEDC2902282D6701000102,
 				29B97318FDCFA39411CA2CEA,
 				089C165CFE840E0CC02AAC07,
@@ -259,11 +266,75 @@
 				<string>wings</string>
 			</array>
 			<key>CFBundleTypeIconFile</key>
-			<string>wings3d.icns</string>
+			<string>wings.icns</string>
 			<key>CFBundleTypeName</key>
 			<string>Wings 3D File</string>
 			<key>CFBundleTypeRole</key>
-			<string>None</string>
+			<string>Editor</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>ndo</string>
+			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>ndo.icns</string>
+			<key>CFBundleTypeName</key>
+			<string>Nendo File</string>
+			<key>CFBundleTypeRole</key>
+			<string></string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>3ds</string>
+			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>3ds.icns</string>
+			<key>CFBundleTypeName</key>
+			<string>3D Studio File</string>
+			<key>CFBundleTypeRole</key>
+			<string></string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>mdl</string>
+			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>mdl.icns</string>
+			<key>CFBundleTypeName</key>
+			<string>Hash Animation Master File</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>obj</string>
+			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>obj.icns</string>
+			<key>CFBundleTypeName</key>
+			<string>Wavefront File</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>mtl</string>
+			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>mtl.icns</string>
+			<key>CFBundleTypeName</key>
+			<string>Wavefront Material File</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeExtensions</key>
+			<array>
+				<string>wrl</string>
+			</array>
+			<key>CFBundleTypeIconFile</key>
+			<string>wrl.icns</string>
+			<key>CFBundleTypeName</key>
+			<string>VMRL 2.0 File</string>
 		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
@@ -300,6 +371,13 @@
 				080E96DCFE201CFB7F000001,
 				089C165EFE840E0CC02AAC07,
 				F5EEDC2A02282D6701000102,
+				4CB15D060489F65500A8000A,
+				4CB15D070489F65500A8000A,
+				4CB15D080489F65500A8000A,
+				4CB15D090489F65500A8000A,
+				4CB15D0A0489F65500A8000A,
+				4CB15D0B0489F65500A8000A,
+				4CB15D0C0489F65500A8000A,
 			);
 			isa = PBXResourcesBuildPhase;
 			runOnlyForDeploymentPostprocessing = 0;
@@ -363,6 +441,93 @@
 //4A2
 //4A3
 //4A4
+//4C0
+//4C1
+//4C2
+//4C3
+//4C4
+		4CB15CFF0489F65500A8000A = {
+			isa = PBXFileReference;
+			path = 3ds.icns;
+			refType = 4;
+		};
+		4CB15D000489F65500A8000A = {
+			isa = PBXFileReference;
+			path = wings.icns;
+			refType = 4;
+		};
+		4CB15D010489F65500A8000A = {
+			isa = PBXFileReference;
+			path = mtl.icns;
+			refType = 4;
+		};
+		4CB15D020489F65500A8000A = {
+			isa = PBXFileReference;
+			path = obj.icns;
+			refType = 4;
+		};
+		4CB15D030489F65500A8000A = {
+			isa = PBXFileReference;
+			path = wrl.icns;
+			refType = 4;
+		};
+		4CB15D040489F65500A8000A = {
+			isa = PBXFileReference;
+			path = ndo.icns;
+			refType = 4;
+		};
+		4CB15D050489F65500A8000A = {
+			isa = PBXFileReference;
+			path = mdl.icns;
+			refType = 4;
+		};
+		4CB15D060489F65500A8000A = {
+			fileRef = 4CB15CFF0489F65500A8000A;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		4CB15D070489F65500A8000A = {
+			fileRef = 4CB15D000489F65500A8000A;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		4CB15D080489F65500A8000A = {
+			fileRef = 4CB15D010489F65500A8000A;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		4CB15D090489F65500A8000A = {
+			fileRef = 4CB15D020489F65500A8000A;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		4CB15D0A0489F65500A8000A = {
+			fileRef = 4CB15D030489F65500A8000A;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		4CB15D0B0489F65500A8000A = {
+			fileRef = 4CB15D040489F65500A8000A;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+		4CB15D0C0489F65500A8000A = {
+			fileRef = 4CB15D050489F65500A8000A;
+			isa = PBXBuildFile;
+			settings = {
+			};
+		};
+//4C0
+//4C1
+//4C2
+//4C3
+//4C4
 //F50
 //F51
 //F52
