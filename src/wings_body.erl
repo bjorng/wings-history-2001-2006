@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.50 2003/01/26 23:14:19 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.51 2003/02/16 14:06:11 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -53,8 +53,8 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Duplicate",{duplicate,Dir}},
 	    {"Delete",delete,"Delete the selected objects"},
-	    separator,
 	    {"Rename...",rename,"Rename selected objects"},
+	    separator,
 	    {"Mode",{mode,
 		     [{"Vertex Color",vertex_color,
 		       "Vertex colors will be shown"},
@@ -62,7 +62,9 @@ menu(X, Y, St) ->
 		       "Materials will be shown"}]},
 	     "Change object mode to vertex colors or material"},
 	    {"Strip Texture",strip_texture,
-	     "Remove a texture, converting it to vertex colors"}],
+	     "Remove a texture, converting it to vertex colors"},
+	    {"Colors to Materials",colors_to_materials,
+	     "Convert vertex colors to materials"}],
     wings_menu:popup_menu(X, Y, body, Menu).
 
 command({move,Type}, St) ->
@@ -109,6 +111,8 @@ command({rename,Ids}, St) ->
     rename(Ids, St);
 command(strip_texture, St) ->
     {save_state,strip_texture(St)};
+command(colors_to_materials, St) ->
+    {save_state,colors_to_materials(St)};
 command({mode,Mode}, St) ->
     {save_state,set_mode(Mode, St)};
 command({weld,Ask}, St) ->
@@ -424,6 +428,50 @@ strip_texture(St) ->
     wings_sel:map(fun(_, We) ->
 			  wings_we:uv_to_color(We, St)
 		  end, St).
+
+%%%
+%%% Convert vertex colors to materials.
+%%%
+
+colors_to_materials(St0) ->
+    {St,#st{mat=Mat}} =
+	wings_sel:mapfold(fun(_, We, S) ->
+				  colors_to_materials_1(We, S)
+			  end, St0, St0),
+    St#st{mat=Mat}.
+
+colors_to_materials_1(#we{mode=vertex,fs=Ftab}=We0, St) ->
+    colors_to_materials_2(gb_trees:keys(Ftab), We0#we{mode=material}, St);
+colors_to_materials_1(We, St) -> {We,St}.
+
+colors_to_materials_2([F|Fs], #we{fs=Ftab0}=We, St0) ->
+    Colors = [C || [_|C] <- wings_face:vinfo(F, We)],
+    Color = e3d_vec:average(Colors),
+    {Name,St} = color_material(Color, St0),
+    FaceInfo = gb_trees:get(F, Ftab0),
+    Ftab = gb_trees:update(F, FaceInfo#face{mat=Name}, Ftab0),
+    colors_to_materials_2(Fs, We#we{fs=Ftab}, St);
+colors_to_materials_2([], We, St) -> {We,St}.
+
+color_material({R,G,B}=Color, #st{mat=Mat0}=St0) ->
+    Name0 = "color_" ++ fmt_int(R) ++ "_" ++ fmt_int(G) ++ "_" ++ fmt_int(B),
+    Name = list_to_atom(Name0),
+    case gb_trees:is_defined(Name, Mat0) of
+	true -> {Name,St0};
+	false ->
+	    Mat = [{opengl,[{diffuse,Color}]}],
+	    case wings_material:add_materials([{Name,Mat}], St0) of
+		{St,[]} -> {Name,St};
+		{St,[{Name,New}]} -> {New,St}
+	    end
+    end.
+
+fmt_int(I) ->
+    L = integer_to_list(trunc(256*I)),
+    fmt_int(length(L), L).
+
+fmt_int(3, L) -> L;
+fmt_int(N, L) -> fmt_int(N+1, [$0|L]).
 
 %%%
 %%% The Weld command.
