@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.14 2002/08/25 11:06:35 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.15 2002/08/30 07:24:01 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -20,7 +20,7 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
--import(lists, [reverse/1,foldl/3]).
+-import(lists, [reverse/1,foldl/3,member/2]).
 
 -define(DEF_X, 0).
 -define(DEF_Y, 2).
@@ -46,36 +46,58 @@ light_types() ->
      {"Ambient",ambient,"Create an ambient light source"}].
 
 menu(X, Y, St) ->
+    SpotOnly = {iff,[spot]},
+    NotAmb = {iff,[spot,infinite,point]},
+    One = one_light,
     Dir = wings_menu_util:directions(St#st{selmode=body}),
-    Menu = [{"Light operations",ignore},
-	    separator,
-	    {"Move",{move_light,Dir}},
-	    separator,
-	    {"Position Highlight",position_fun(),
-	     "Position the aim point or location of light"},
-	    {"Color",color,"Interactively adjust hue, intensity, "
-	     "and saturation"},
-	    {"Attenuation",
-	     {attenuation,
-	      [{"Linear",linear,
-		"Interactively adjust how much light weakens as it travels "
-		"away from its source (linear factor)"},
-	       {"Quadratic",quadratic,
-		"Interactively adjust how much light weakens as it travels "
-		"away from its source (quadratic factor)"}]}},
-	    separator,
-	    {"Spot Angle",spot_angle,
-	     "Interactivly adjust the angle of the spotlight cone"},
-	    {"Spot Falloff",spot_falloff,
-	     "Interactivly adjust how much light weakens farther away "
-	     "from the center of the spotlight cone"},
-	    separator,
-	    {"Edit Properties",edit,"Edit light properties"},
-	    separator,
-	    {"Duplicate",{duplicate,Dir},
-	     "Duplicate and move selected lights"},
-	    {"Delete",delete,"Delete seleced lights"}],
+    Menu0 = [{"Light operations",ignore},
+	     separator,
+	     {"Move",{move_light,Dir}},
+	     {NotAmb,separator},
+	     {NotAmb,{"Position Highlight",position_fun(),
+		      "Position the aim point or location of light"}},
+	     {NotAmb,{"Color",color,"Interactively adjust hue, intensity, "
+		      "and saturation"}},
+	     {NotAmb,
+	      {"Attenuation",
+	       {attenuation,
+		[{"Linear",linear,
+		  "Interactively adjust how much light weakens as it travels "
+		  "away from its source (linear factor)"},
+		 {"Quadratic",quadratic,
+		  "Interactively adjust how much light weakens as it travels "
+		  "away from its source (quadratic factor)"}]}}},
+	     {SpotOnly,separator},
+	     {SpotOnly,{"Spot Angle",spot_angle,
+			"Interactivly adjust the angle of the spotlight cone"}},
+	     {SpotOnly,{"Spot Falloff",spot_falloff,
+			"Interactivly adjust how much light weakens farther away "
+			"from the center of the spotlight cone"}},
+	     {One,separator},
+	     {One,{"Edit Properties",edit,"Edit light properties"}},
+	     separator,
+	     {"Duplicate",{duplicate,Dir},
+	      "Duplicate and move selected lights"},
+	     {"Delete",delete,"Delete seleced lights"}],
+    Menu = filter_menu(Menu0, St),
     wings_menu:popup_menu(X, Y, light, Menu).
+
+filter_menu(Menu0, St) ->
+    T = wings_sel:fold(
+	  fun(_, #we{light=#light{type=Type}}, none) -> Type;
+	     (_, #we{light=#light{}}, _) -> multiple_lights;
+	     (_, _, A) -> A
+	  end, none, St),
+    Menu = foldl(fun({one_light,_}, A) when T == multiple_lights -> A;
+		    ({one_light,Entry}, A) -> [Entry|A];
+		    ({{iff,Types},Entry}, A) when is_list(Types) ->
+			 case member(T, Types) of
+			     true -> [Entry|A];
+			     false -> A
+			 end;
+		    (Entry, A) -> [Entry|A]
+		 end, [], Menu0),
+    reverse(Menu).
 
 command({move_light,Type}, St) ->
     wings_move:setup(Type, St);
