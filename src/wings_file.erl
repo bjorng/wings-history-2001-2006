@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.98 2003/01/22 19:50:09 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.99 2003/01/28 07:14:33 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -546,11 +546,18 @@ number_materials([], _, Acc) ->
 %%% Utilities.
 
 export_file_prop(none, _) -> none;
-export_file_prop(Prop, #st{file=undefined}) -> Prop;
+export_file_prop(Prop, #st{file=undefined}) ->
+    case proplists:get_value(ext, Prop) of
+	undefined -> none;
+	_ -> Prop
+    end;
 export_file_prop(Prop, #st{file=File}) ->
-    Ext = proplists:get_value(ext, Prop),
-    Def = filename:rootname(filename:basename(File), ?WINGS) ++ Ext,
-    [{default_filename,Def}|Prop].
+    case proplists:get_value(ext, Prop) of
+	undefined -> none;
+	Ext ->
+	    Def = filename:rootname(filename:basename(File), ?WINGS) ++ Ext,
+	    [{default_filename,Def}|Prop]
+    end.
 
 output_file(Title, Prop) ->
     case wings_plugin:call_ui({file,save_dialog,[{title,Title}|Prop]}) of
