@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.85 2004/03/22 20:13:18 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.86 2004/04/06 22:11:33 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -44,6 +44,7 @@ menu(X, Y, St) ->
 	    {"Move",{move,Dir},[],[magnet]},
 	    wings_menu_util:rotate(St),
 	    wings_menu_util:scale(St),
+%	    {"Slide", slide, "Slide edges along axis"},
 	    separator,
 	    {"Extrude",{extrude,Dir}},
 	    separator,
@@ -100,6 +101,8 @@ command(bevel, St) ->
     ?SLOW(wings_extrude_edge:bevel(St));
 command({extrude,Type}, St) ->
     ?SLOW(wings_extrude_edge:extrude(Type, St));
+command(slide, St) ->
+    slide(St);
 command(cut_pick, St) ->
     cut_pick(St);
 command({cut,Num}, St) ->
@@ -406,6 +409,85 @@ cut_pick_marker([I], D, Edge, We0, Start, Dir, Char) ->
 cut_pick_marker({finish,[I]}, D0, Edge, We, Start, Dir, Char) ->
     D = cut_pick_marker([I], D0, Edge, We, Start, Dir, Char),
     D#dlo{vs=none,hilite=none}.
+
+%%%
+%%% The Slide command.
+%%%
+
+slide(St) ->
+    Tvs = wings_sel:fold(
+	    fun(EsSet, #we{id=Id} = We, Acc) ->
+		    Es = gb_sets:to_list(EsSet),
+		    Slides = slide_add_edges(Es, We, gb_trees:empty()),
+		    [{Id, make_slide_tv(Slides)}| Acc]
+	    end, [], St),
+    Units = [distance], %% [{percent,{0.0,1.0}}],
+    Flags = [{initial,[0]}],
+    wings_drag:setup(Tvs, Units, Flags, St).
+
+make_slide_tv(Slides) ->
+    Vs = gb_trees:keys(Slides),
+    {Vs, make_slide_fun(Vs, Slides)}.
+
+make_slide_fun(Vs, Slides) ->
+    fun([Dx|_],Acc) ->
+	    foldl(fun(V,A) ->
+			  {Pos, Ndir, Pdir} = gb_trees:get(V, Slides),			  
+			  Dir = if Dx > 0 ->
+					e3d_vec:average(Pdir);
+				   true ->
+					e3d_vec:average(Ndir)
+				end,
+			  [{V,e3d_vec:add(Pos, e3d_vec:mul(Dir,abs(Dx)))}|A]
+		  end, Acc, Vs);
+       (_,_) ->
+	    make_slide_fun(Vs,Slides)
+    end.
+
+slide_add_edges([Edge|Es], #we{es=Etab,vp=Vtab}=We, Acc0) ->
+    #edge{vs=V1,ve=V2,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = 
+	gb_trees:get(Edge, Etab),
+
+    io:format("vs=~p,ve=~p,ltpr=~p,ltsu=~p,trpr=~p,rtsu=~p~n",
+	      [V1,V2,LP,LS,RP,RS]),
+%     #edge{vs=LPVa,ve=LPVb} = gb_trees:get(LP, Etab),
+%     #edge{vs=LSVa,ve=LSVb} = gb_trees:get(LS, Etab),
+%     #edge{vs=RPVa,ve=RPVb} = gb_trees:get(RP, Etab),
+%     #edge{vs=RSVa,ve=RSVb} = gb_trees:get(RS, Etab),
+    
+%     io:format("LPVa=~p LSVa=~p RPVa=~p RSVa=~p ~n" 
+% 	      "LPVb=~p LSVb=~p RPVb=~p RSVb=~p ~n", 
+% 	      [LPVa,LSVa,RPVa,RSVa,LPVb,LSVb,RPVb,RSVb]),
+
+    S1 = other(V1,gb_trees:get(RP, Etab)),
+    E1 = other(V1,gb_trees:get(LS, Etab)),
+    S2 = other(V2,gb_trees:get(RS, Etab)),
+    E2 = other(V2,gb_trees:get(LP, Etab)),
+
+    io:format("s1=~p,v1=~p,e1=~p~n"
+	      "s2=~p,v2=~p,e2=~p~n",
+	      [S1,V1,E1,S2,V2,E2]),
+    Acc1 = add_slide_vertex(V1, S1, E1, Vtab, Acc0),
+    Acc  = add_slide_vertex(V2, S2, E2, Vtab, Acc1),    
+    slide_add_edges(Es, We, Acc);
+slide_add_edges([], _, Acc) -> Acc.
+
+other(Vertex, #edge{vs=Vertex,ve=Other}) -> Other;
+other(Vertex, #edge{vs=Other,ve=Vertex}) -> Other.
+
+add_slide_vertex(V, S, E, Vtab, Acc) ->
+    Vpos = gb_trees:get(V, Vtab),
+    Spos = gb_trees:get(S, Vtab),
+    Epos = gb_trees:get(E, Vtab),
+    Ndir = e3d_vec:sub(Spos,Vpos),
+    Pdir = e3d_vec:sub(Epos,Vpos),
+    case gb_trees:lookup(V,Acc) of
+	none ->
+	    gb_trees:insert(V, {Vpos, [Ndir],[Pdir]},Acc);
+	{value, {_, Ndir0,Pdir0}} ->
+	    New = {Vpos, [Ndir|Ndir0],[Pdir|Pdir0]},
+	    gb_trees:update(V, New, Acc)
+    end.
 
 %%%
 %%% The Connect command.
