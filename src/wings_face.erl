@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.49 2004/12/31 10:09:40 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.50 2005/01/15 14:44:06 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -33,14 +33,16 @@
 	 next_cw/1,next_ccw/1,
 	 iter2etab/1,
 	 patch_face/3,patch_face/4,
-	 delete_if_bad/2,
+	 delete_bad_faces/2,delete_if_bad/2,
 	 are_neighbors/3]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
 
-from_edges(Es, #we{es=Etab}) ->
-    from_edges_1(gb_sets:to_list(Es), Etab, []).
+from_edges(Es, #we{es=Etab}) when is_list(Es) ->
+    from_edges_1(Es, Etab, []);
+from_edges(Es, We) ->
+    from_edges(gb_sets:to_list(Es), We).
     
 from_edges_1([E|Es], Etab, Acc) ->
     #edge{lf=Lf,rf=Rf} = gb_trees:get(E, Etab),
@@ -447,6 +449,28 @@ next_ccw({face_iterator,Edge,Face,Etab}) ->
 	#edge{vs=V,rf=Face,rtpr=NextEdge}=Rec ->
 	    {V,Edge,Rec,{face_iterator,NextEdge,Face,Etab}}
     end.
+
+delete_bad_faces(Fs, #we{fs=Ftab,es=Etab}=We) when is_list(Fs) ->
+    Es = bad_edges(Fs, Ftab, Etab, []),
+    wings_edge:dissolve_edges(Es, We);
+delete_bad_faces(Fs, We) ->
+    delete_bad_faces(gb_sets:to_list(Fs), We).
+
+bad_edges([F|Fs], Ftab, Etab, Acc) ->
+    case gb_trees:lookup(F, Ftab) of
+	{value,Edge} ->
+	    case gb_trees:get(Edge, Etab) of
+		#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same} ->
+		    bad_edge;
+		#edge{ltpr=Same,ltsu=Same} ->
+		    bad_edges(Fs, Ftab, Etab, [Edge|Acc]);
+		#edge{rtpr=Same,rtsu=Same} ->
+		    bad_edges(Fs, Ftab, Etab, [Edge|Acc]);
+		_ -> bad_edges(Fs, Ftab, Etab, Acc)
+	    end;
+	none -> bad_edges(Fs, Ftab, Etab, Acc)
+    end;
+bad_edges([], _, _, Acc) -> Acc.
 
 %% Delete the face if it only has two edges.
 
