@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.40 2003/07/11 18:28:14 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.41 2003/07/11 20:42:56 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -90,9 +90,21 @@ map_chart(Type, Chart, We) ->
 	    {error,"A chart is not allowed to have holes."}
     end.
 
-map_chart_1(project, C, We) -> projectFromChartNormal(C, We);
-map_chart_1(lsqcm, C, We) -> lsqcm(C, We);
-map_chart_1(lsqcm2, C, We) -> lsqcm2(C, We).
+map_chart_1(Type, Chart, We) ->
+    case catch map_chart_2(Type, Chart, We) of
+	{'EXIT',{badarith,_}} when Type == project ->
+	    {error,"Numeric problem. (Probably impossible to calculate chart normal.)"};
+	{'EXIT',{badarith,_}} ->
+	    {error,"Numeric problem."};
+	{'EXIT',Reason} ->
+	    Msg = io_lib:format("Internal error: ~P", [Reason,10]),
+	    {error,lists:flatten(Msg)};
+	Other -> Other
+    end.
+
+map_chart_2(project, C, We) -> projectFromChartNormal(C, We);
+map_chart_2(lsqcm, C, We) -> lsqcm(C, We);
+map_chart_2(lsqcm2, C, We) -> lsqcm2(C, We).
 
 
 projectFromChartNormal(Chart, We) ->
@@ -940,8 +952,8 @@ stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs,Bv,Acc)
 				  Bv, gb_sets:add(V,Acc));
 		false ->
 		    Vs0 = lists:usort(lists:append([gb_trees:get(F,F2Vs)|| F<-Fs])),
-		    Upd0 = lists:foldl(fun(V,New) ->
-					       [{V,gb_trees:get(V,V2Fs)}|New]
+		    Upd0 = lists:foldl(fun(Vtx, New) ->
+					       [{Vtx,gb_trees:get(Vtx, V2Fs)}|New]
 				       end, [], Vs0),
 		    Upd = stretch_per_vertex(model_l2,Upd0,F2S2,F2Vs,Ovs,
 					     Bv,V2S0),
