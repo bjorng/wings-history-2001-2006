@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.33 2001/12/02 15:46:41 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.34 2001/12/03 14:26:26 dgud Exp $
 %%
 
 -module(wings_draw).
@@ -245,8 +245,7 @@ draw_smooth_vcolor([{_,[_,_,_,_,_|_]=Vs}|T]) ->
     foreach(fun({P,{{R,G,B}=Diff,N}}) ->
 		    glu:tessVertex(Tess, P,
 				   [{normal,N},
-				    {color,Diff},
-				    {material,?GL_FRONT,?GL_AMBIENT_AND_DIFFUSE,Diff}])
+				    {color,Diff}])
 	    end, Vs),
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess),
@@ -256,7 +255,6 @@ draw_smooth_vcolor([{_,Vs}|T]) ->
     foreach(fun({P,{{R,G,B}=Diff,N}}) ->
  		    gl:normal3fv(N),
 		    gl:color3f(R, G, B),
-		    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, Diff),
  		    gl:vertex3fv(P)
  	    end, Vs),
     gl:'end'(),
