@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.13 2004/04/20 12:23:45 bjorng Exp $
+%%     $Id: wings_pb.erl,v 1.14 2004/05/06 14:14:17 bjorng Exp $
 %%
 
 -module(wings_pb).
@@ -86,6 +86,8 @@ reply(Pid, What) ->
 	 pos=0.0,
 	 next_pos=0.0,
 	 t0,
+	 offset,
+	 scale,
 	 stats=[]
 	}).
 
@@ -105,7 +107,7 @@ init() ->
 	    end
     end.
 
-loop(#state{refresh=After,level=Level}=S0) ->
+loop(#state{refresh=After,level=Level,msg=Msg0}=S0) ->
     receive
 	{?PB,terminate} ->
 	    exit(normal);
@@ -130,14 +132,19 @@ loop(#state{refresh=After,level=Level}=S0) ->
 	    S = draw_position(calc_position(S0)),
 	    reply(Pid, ok),
 	    loop(S#state{refresh=infinity});
-	{?PB,{start,_Msg,_Data,_}} ->
-	    S = S0#state{level=Level+1},
+	{?PB,{start,Msg,_Data,_}} ->
+	    #state{next_pos=Next,pos=Pos} = S0,
+	    Scale = Next-Pos,
+	    S = S0#state{level=Level+1,msg=[Msg|Msg0],
+			 scale=Scale,offset=Pos},
 	    loop(S);
-	{?PB,{update,_,_}} ->
-	    loop(S0);
+	{?PB,{update,Msg,Time}} ->
+	    S1 = update(Msg, S0#state.offset+Time*S0#state.scale, S0),
+	    S = calc_position(S1),
+	    loop(S);
 	{Pid,?PB,done} ->
 	    reply(Pid, ok),
-	    loop(S0#state{level=Level-1});
+	    loop(S0#state{level=Level-1,msg=tl(Msg0)});
 	Msg ->
 	    io:format("~p: got unexpected msg ~p~n", [?MODULE, Msg]),
 	    loop(S0)

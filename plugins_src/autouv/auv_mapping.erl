@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.55 2004/05/05 21:15:52 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.56 2004/05/06 14:14:16 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -926,7 +926,7 @@ stretch_setup(Fs, We0, OVs) ->
 stretch_iter(S2V0={[{_,First}|_],_},I,MaxI,F2S20,Uvs0,State) 
   when First > ?MIN_STRETCH, I < MaxI ->
     if
-	I rem 5 =:= 3 ->
+	I rem 4 =:= 0 ->
 	    wings_pb:update(I/MaxI, "iteration "++integer_to_list(I));
 	true ->
 	    ok
