@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.26 2003/04/17 14:13:22 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.27 2003/04/19 08:01:18 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1023,11 +1023,11 @@ export_light(F, Name, point, OpenGL, YafRay) ->
     undefined;
 export_light(F, Name, infinite, OpenGL, YafRay) ->
     Bg = proplists:get_value(background, YafRay, ?DEF_BACKGROUND),
-    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
-    case Power of
-	0.0 ->
-	    ok;
+    case Bg of 
+	sunsky ->
+	    Bg;
 	_ ->
+	    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
 	    CastShadows = 
 		proplists:get_value(cast_shadows, YafRay, ?DEF_CAST_SHADOWS),
 	    Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
@@ -1037,9 +1037,9 @@ export_light(F, Name, infinite, OpenGL, YafRay) ->
 		    [Name, Power,format(CastShadows)]),
 	    export_pos(F, from, Position),
 	    export_rgb(F, color, Diffuse),
-	    println(F, "</light>")
-    end,
-    Bg;
+	    println(F, "</light>"),
+	    Bg
+    end;
 export_light(F, Name, spot, OpenGL, YafRay) ->
     Power = proplists:get_value(power, YafRay, ?DEF_ATTN_POWER),
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
