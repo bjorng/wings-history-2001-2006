@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.54 2004/05/11 06:08:16 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.55 2005/03/20 19:08:34 dgud Exp $
 %%
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
@@ -309,7 +309,7 @@ smallest_angle([], _Na, Dot, N) -> {N,Dot}.
 %% Conversion of body selections (entire objects) to vertices.
 %%
 
-translate_fun(free) ->
+translate_fun(Free) when Free == free; Free == free_2d ->
     fun(Matrix0, [Dx,Dy,Dz]) ->
 	    #view{azimuth=Az,elevation=El} = wings_view:current(),
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
