@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.63 2003/05/11 19:08:44 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.64 2003/07/02 06:30:52 bjorng Exp $
 %%
 
 -module(wings_shape).
 -export([new/3,insert/3,replace/3,window/1,window/4]).
+-export([all_selectable/1]).
 -export([show_all/1,unlock_all/1,permissions/3]).
 
 -define(NEED_ESDL, 1).
@@ -64,6 +65,17 @@ permissions(We, Visible, Locked) ->
 	    false -> P0
 	end,
     We#we{perm=P}.
+
+%% all_selectable(St) -> GbSet
+%%  Return a GbSet containing IDs for all selectable objects (i.e. not locked).
+all_selectable(#st{shapes=Shs}) ->
+    all_selectable_1(gb_trees:to_list(Shs), []).
+
+all_selectable_1([{Id,#we{perm=P}}|T], Acc) when ?IS_SELECTABLE(P) ->
+    all_selectable_1(T, [Id|Acc]);
+all_selectable_1([_|T], Acc) ->
+    all_selectable_1(T, Acc);
+all_selectable_1([], Acc) -> gb_sets:from_ordset(reverse(Acc)).
 
 %%%
 %%% Object window.
@@ -404,12 +416,13 @@ toggle_wire(#we{id=Id}, _) ->
     wings_wm:set_prop(Client, wireframed_objects, W),
     wings_wm:dirty().
 
-toggle_wire_all(#we{id=Id}, #ost{st=#st{shapes=Shs}}) ->
+toggle_wire_all(#we{id=Id}, #ost{st=St}) ->
+    All = all_selectable(St),
     {_,Client} = wings_wm:this(),
     W0 = wings_wm:get_prop(Client, wireframed_objects),
     W1 = case gb_sets:is_empty(gb_sets:delete_any(Id, W0)) of
-	     true -> gb_sets:from_ordset(gb_trees:keys(Shs));
-	     false -> gb_sets:empty()
+	     true -> All;
+	     false -> gb_sets:difference(W0, All)
 	 end,
     W = case gb_sets:is_member(Id, W0) of
 	    false -> gb_sets:delete_any(Id, W1);

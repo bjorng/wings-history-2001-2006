@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.127 2003/06/28 09:03:18 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.128 2003/07/02 06:30:52 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -132,22 +132,22 @@ command(workmode, St) ->
     ?SLOW(toggle_option(workmode)),
     St;
 command(toggle_wireframe, #st{sel=[]}=St) ->
-    mode_change_all(toggle, St),
+    wireframe_all(toggle, St),
     St;
 command(toggle_wireframe, St) ->
-    mode_change_sel(toggle, St),
+    wireframe_sel(toggle, St),
     St;
 command(wireframe, #st{sel=[]}=St) ->
-    mode_change_all(true, St),
+    wireframe_all(true, St),
     St;
 command(wireframe, St) ->
-    mode_change_sel(true, St),
+    wireframe_sel(true, St),
     St;
 command(shade, #st{sel=[]}=St) ->
-    mode_change_all(false, St),
+    wireframe_all(false, St),
     St;
 command(shade, St) ->
-    mode_change_sel(false, St),
+    wireframe_sel(false, St),
     St;
 command(smooth_proxy, St) ->
     wings_subdiv:setup(St),
@@ -242,28 +242,28 @@ virtual_mirror(freeze, #st{shapes=Shs0}=St) ->
 	Shs -> {save_state,wings_sel:valid_sel(St#st{shapes=Shs})}
     end.
 
-mode_change_all(false, _) ->
+wireframe_all(false, _) ->
     wings_wm:set_prop(wireframed_objects, gb_sets:empty());
-mode_change_all(true, #st{shapes=Shs}) ->
-    All = gb_sets:from_ordset(gb_trees:keys(Shs)),
+wireframe_all(true, St) ->
+    All = wings_shape:all_selectable(St),
     wings_wm:set_prop(wireframed_objects, All);
-mode_change_all(toggle, #st{shapes=Shs}) ->
+wireframe_all(toggle, St) ->
+    All = wings_shape:all_selectable(St),
     Prev = wings_wm:get_prop(wireframed_objects),
-    All = gb_sets:from_ordset(gb_trees:keys(Shs)),
     New = gb_sets:difference(All, Prev),
     wings_wm:set_prop(wireframed_objects, New).
 
-mode_change_sel(false, St) ->
+wireframe_sel(false, St) ->
     Prev = wings_wm:get_prop(wireframed_objects),
     Sel = sel_to_set(St),
     New = gb_sets:difference(Prev, Sel),
     wings_wm:set_prop(wireframed_objects, New);
-mode_change_sel(true, St) ->
+wireframe_sel(true, St) ->
     Prev = wings_wm:get_prop(wireframed_objects),
     Sel = sel_to_set(St),
     New = gb_sets:union(Prev, Sel),
     wings_wm:set_prop(wireframed_objects, New);
-mode_change_sel(toggle, St) ->
+wireframe_sel(toggle, St) ->
     W0 = wings_wm:get_prop(wireframed_objects),
     Sel = sel_to_set(St),
     W1 = gb_sets:difference(W0, Sel),
