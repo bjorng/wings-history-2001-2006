@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.75 2003/01/10 07:17:44 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.76 2003/01/10 17:16:17 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -424,7 +424,7 @@ do_edit(MatName, Faces, We, St) ->
 		   geom=Geom, 
 		   option=#setng{color=false,texbg=true,texsz=TexSz}},
     Op = {seq,push,get_event(Uvs)},
-    wings_wm:new(autouv, {X,Y,2}, {W,H}, Op),
+    wings_wm:toplevel(autouv, "AutoUV", {X,Y,?Z_GEOM+10}, {W,H}, [resizable], Op),
     wings_wm:callback(fun() -> wings_util:menu_restriction(autouv, []) end),
     keep.
 
@@ -494,7 +494,7 @@ init_show_maps(Map0, We0, Vmap, OrigWe, St0) ->
 		   areas=Charts,
 		   geom=Geom},
     Op = {seq,push,get_event(Uvs)},
-    wings_wm:new(autouv, {X,Y,2}, {W,H}, Op),
+    wings_wm:toplevel(autouv, "AutoUV", {X,Y,?Z_GEOM+10}, {W,H}, [resizable], Op),
     wings_wm:callback(fun() -> wings_util:menu_restriction(autouv, []) end),
     keep.
    
@@ -629,7 +629,6 @@ init_drawarea() ->
     {W0,TopH} = wings_wm:top_size(),
     W = (W0 - 0) div 2,
     Border = 15,
-    wings_wm:move(geom, {X,TopH-Y-H,1}, {W,H}),
     {{X+W,TopH-Y-H,W,H},
      if 
 	 W > H ->
@@ -1157,11 +1156,9 @@ handle_event({action, {auv, NewOp}},Uvs0=#uvstate{sel = Sel0}) ->
     end;
 handle_event({callback, Fun}, _) when function(Fun) ->
     Fun();
-handle_event({resize,_,_},Uvs0) ->
-    wings_draw_util:init(),
+handle_event(init_opengl,Uvs0) ->
     St = wings_material:init(Uvs0#uvstate.st),	    
-    {{X,Y,W,H},Geom} = init_drawarea(),
-    wings_wm:move(autouv, {X,Y,2}, {W,H}),
+    {_,Geom} = init_drawarea(),
     get_event(reset_dl(Uvs0#uvstate{geom=Geom,st=St}));
 handle_event({action,_, {view,smoothed_preview}}, _Uvs0) ->
     keep; %% Bugbug didn't work crashes inside wings update_dlists
@@ -1667,10 +1664,7 @@ set_viewport({X,Y,W,H}=Viewport) ->
     gl:viewport(X, Y, W, H).
 
 restore_wings_window(Uvs) ->
-    reset_dl(Uvs),
-    {_,Y,_,H} = wings_wm:viewport(geom),
-    {W,TopH} = wings_wm:top_size(),
-    wings_wm:move(geom, {0,TopH-Y-H,1}, {W,H}).
+    reset_dl(Uvs).
 
 %% Generate a checkerboard image of 4x4 squares 
 %% with given side length in pixels.
