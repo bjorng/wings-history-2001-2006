@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.95 2004/03/08 11:10:40 raimo_niskanen Exp $
+%%     $Id: wings.hrl,v 1.96 2004/03/20 20:17:38 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -97,7 +97,12 @@
 	 split=none,				%Split data.
 	 drag=none,				%For dragging.
 	 transparent=false,			%Object includes transparancy.
-	 proxy_data=none			%Data for smooth proxy.
+	 proxy_data=none,			%Data for smooth proxy.
+
+	 %% List of display lists known to be needed only based
+	 %% on display modes, not whether the lists themselves exist.
+	 %% Example: [work,edges]
+	 needed=[]
 	}).
 
 %% Main state record containing all objects and other important state.

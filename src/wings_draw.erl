@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.169 2004/03/20 18:42:38 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.170 2004/03/20 20:17:39 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -41,7 +41,8 @@
 
 refresh_dlists(St) ->
     invalidate_dlists(St),
-    update_dlists(St),
+    update_needed(St),
+    build_dlists(St),
     update_sel_dlist(),
     update_mirror().
 
@@ -172,79 +173,63 @@ face_ns_data(N, [A,B,C,D]=Ps) ->
     end;
 face_ns_data(N, Ps) -> {N,Ps}.
 
-%%%
-%%% Create all display lists that are currently needed.
-%%% The work is done in two passes:
-%%%
-%%% 1. Find out which display lists are needed based on display modes.
-%%%    (Does not check whether they exist or not.)
-%%%
-%%% 2. Create missing display lists.
-%%%
 
-%%
-%% Pass 1 starts here. (Find out needed display lists.)
-%%
+%% Find out which display lists are needed based on display modes.
+%% (Does not check whether they exist or not; that will be checked
+%% later.
 
-update_dlists(#st{selmode=vertex}=St) ->
+update_needed(#st{selmode=vertex}=St) ->
     case wings_pref:get_value(vertex_size) of
 	0.0 ->
-	    update_dlists_1([], St);
+	    update_needed_1([], St);
 	PointSize->
-	    update_dlists_1([{vertex,PointSize}], St)
+	    update_needed_1([{vertex,PointSize}], St)
     end;
-update_dlists(St) ->
-    update_dlists_1([], St).
+update_needed(St) -> update_needed_1([], St).
 
-update_dlists_1(Need, St) ->
+update_needed_1(Need, St) ->
     case wings_pref:get_value(show_normals) of
-	false -> update_dlists_2(Need, St);
-	true -> update_dlists_2([normals|Need], St)
+	false -> update_needed_2(Need, St);
+	true -> update_needed_2([normals|Need], St)
     end.
 
-update_dlists_2(Need0, St) ->
-    Geom = wins_of_same_class(),
-    Need1 = foldl(fun(W, A) ->
-			  case wings_wm:get_prop(W, workmode) of
-			      false -> [smooth|A];
-			      true -> [work|A]
-			  end
-		  end, Need0, Geom),
-    Need2 = foldl(fun(W, A) ->
-			  %% We always need the work list if there
-			  %% are any wireframed objects.
-			  Wire = wings_wm:get_prop(W, wireframed_objects),
-			  case gb_sets:is_empty(Wire) of
-			      false -> [work|A];
-			      true -> A
-			  end
-		  end, Need1, Geom),
-    Need = ordsets:from_list(Need2),
-    update_dlists_3(Need, St).
+update_needed_2(CommonNeed, St) ->
+    Wins = wins_of_same_class(),
+    wings_draw_util:map(fun(D, _) ->
+				update_needed_fun(D, CommonNeed, Wins, St)
+			end, []).
 
-update_dlists_3(CommonNeed, St) ->
-    Need0 = wings_draw_util:fold(fun(D, A) ->
-					 need_fun(D, CommonNeed, St, A)
-				 end, []),
-    Need = reverse(Need0),
-    wings_draw_util:map(fun(D, N) ->
-				update_fun(D, N, St)
-			end, Need).
-
-need_fun(#dlo{src_we=#we{perm=Perm}=We}, _, _, Acc) 
+update_needed_fun(#dlo{src_we=#we{perm=Perm}=We}=D, _, _, _)
   when ?IS_LIGHT(We), ?IS_VISIBLE(Perm) ->
-    [[light]|Acc];
-need_fun(#dlo{src_we=#we{he=Htab},proxy_data=Pd}, Need0, _St, Acc) ->
-    Need1 = case gb_sets:is_empty(Htab) orelse not wings_pref:get_value(show_edges) of
+    D#dlo{needed=[light]};
+update_needed_fun(#dlo{src_we=#we{id=Id,he=Htab},proxy_data=Pd}=D,
+		   Need0, Wins, _) ->
+    Need1 = case gb_sets:is_empty(Htab) orelse
+		not wings_pref:get_value(show_edges) of
 		false -> [hard_edges|Need0];
 		true -> Need0
 	    end,
-    Need2 = if
-		Pd =:= none -> Need1;
-		true -> [proxy|Need1]
-	    end,
-    Need = Need2 ++ [edges],
-    [Need|Acc].
+    Need = if
+	       Pd =:= none -> Need1;
+	       true -> [proxy|Need1]
+	   end,
+    D#dlo{needed=more_need(Wins, Id, Need)}.
+
+more_need([W|Ws], Id, Acc0) ->
+    Wire = wings_wm:get_prop(W, wireframed_objects),
+    IsWireframe = gb_sets:is_member(Id, Wire),
+    Acc = case {wings_wm:get_prop(W, workmode),IsWireframe} of
+	      {false,true} ->
+		  [edges,smooth|Acc0];
+	      {false,false} ->
+		  [smooth|Acc0];
+	      {true,true} ->
+		  [edges|Acc0];
+	      {true,false} ->
+		  [edges,work|Acc0]
+	  end,
+    more_need(Ws, Id, Acc);
+more_need([], _, Acc) -> ordsets:from_list(Acc).
 
 wins_of_same_class() ->
     case wings_wm:get_prop(display_lists) of
@@ -253,19 +238,20 @@ wins_of_same_class() ->
     end.
 
 %%
-%% Pass 2 starts here.
+%% Rebuild all missing display lists, based on what is
+%% actually needed in D#dlo.needed.
 %%
 
-update_fun(D0, [P|Ps], St) ->
-    D = update_fun_1(D0, P, St),
-    {D,Ps};
-update_fun(D, [], _) -> D.
+build_dlists(St) ->
+    wings_draw_util:map(fun(#dlo{needed=Needed}=D, S0) ->
+				S = update_materials(D, S0),
+				update_fun(D, Needed, S)
+			end, St).
 
-update_fun_1(D0, [H|T], St0) ->
-    St = update_materials(D0, St0),
+update_fun(D0, [H|T], St) ->
     D = update_fun_2(H, D0, St),
-    update_fun_1(D, T, St);
-update_fun_1(D, [], _) -> D.
+    update_fun(D, T, St);
+update_fun(D, [], _) -> D.
 
 update_materials(D, St) ->
     We = original_we(D),
@@ -453,13 +439,29 @@ update_sel(#dlo{sel=none,src_sel={vertex,Vs}}=D) ->
     end;
 update_sel(#dlo{}=D) -> D.
 
+%% Select all faces.
 update_sel_all(#dlo{src_we=#we{mode=vertex},work=Work}=D) ->
     Dl = force_flat(Work, wings_pref:get_value(selected_color)),
     D#dlo{sel=Dl};
 update_sel_all(#dlo{work=Faces}=D) when Faces =/= none ->
     D#dlo{sel=Faces};
 update_sel_all(#dlo{smooth=Faces}=D) when Faces =/= none ->
-    D#dlo{sel=Faces}.
+    D#dlo{sel=Faces};
+update_sel_all(#dlo{src_we=#we{fs=Ftab}}=D) ->
+    %% No suitable display list to re-use. Build selection from scratch.
+    Tess = wings_draw_util:tess(),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    wings_draw_util:begin_end(
+      fun() ->
+	      foreach(fun(Face) ->
+			      wings_draw_util:unlit_face(Face, D)
+		      end, gb_trees:keys(Ftab))
+      end),
+    gl:endList(),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
+    D#dlo{sel=List}.
 
 update_mirror() ->
     wings_draw_util:map(fun update_mirror/2, []).
