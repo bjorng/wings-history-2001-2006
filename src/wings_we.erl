@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.104 2005/01/15 10:01:35 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.105 2005/01/15 17:08:23 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -70,15 +70,15 @@ rebuild_ftab_1([], FtoE) ->
     gb_trees:from_orddict(build_incident_tab(FtoE)).
 
 rebuild_maybe_add(Ka, Kb, E, [_,{Ka,_}|_]=Acc) ->
-    rebuild_maybe_add_1(Kb, E, Acc);
+    [{Kb,E}|Acc];
+rebuild_maybe_add(Ka, Kb, E, [_,{Kb,_}|_]=Acc) ->
+    [{Ka,E}|Acc];
 rebuild_maybe_add(Ka, Kb, E, [{Ka,_}|_]=Acc) ->
-    rebuild_maybe_add_1(Kb, E, Acc);
+    [{Kb,E}|Acc];
+rebuild_maybe_add(Ka, Kb, E, [{Kb,_}|_]=Acc) ->
+    [{Ka,E}|Acc];
 rebuild_maybe_add(Ka, Kb, E, Acc) ->
-    [{Ka,E}|rebuild_maybe_add_1(Kb, E, Acc)].
-
-rebuild_maybe_add_1(K, _, [_,{K,_}|_]=Acc) -> Acc;
-rebuild_maybe_add_1(K, _, [{K,_}|_]=Acc) -> Acc;
-rebuild_maybe_add_1(K, E, Acc) -> [{K,E}|Acc].
+    [{Ka,E},{Kb,E}|Acc].
 
 %% vertex_gc(We) -> We'
 %%  Remove vertices in the 'vc' and 'vp' tables that are no
