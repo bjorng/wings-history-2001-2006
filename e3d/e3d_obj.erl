@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.42 2005/02/17 06:06:03 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.43 2005/02/20 05:20:18 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -382,13 +382,9 @@ export(File, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Flags) ->
 
 export_object(F, #e3d_object{name=Name,obj=Mesh0}, Flags,
 	      Vbase, UVbase, Nbase) ->
-    Mesh1 = case proplists:get_bool(include_normals, Flags) of
-		false -> Mesh0;
-		true -> e3d_mesh:vertex_normals(Mesh0)
-	    end,
-    Mesh = case proplists:get_bool(include_uvs, Flags) of
-	       false -> remove_uvs(Mesh1);
-	       true -> Mesh1
+    Mesh = case proplists:get_bool(include_normals, Flags) of
+	       false -> Mesh0;
+	       true -> e3d_mesh:vertex_normals(Mesh0)
 	   end,
     #e3d_mesh{fs=Fs0,vs=Vs,tx=Tx,ns=Ns} = Mesh,
     mesh_info(F, Mesh),
@@ -411,11 +407,6 @@ export_object(F, #e3d_object{name=Name,obj=Mesh0}, Flags,
 		    face_mat(F, Name, Face, Flags, Vbase, UVbase, Nbase)
 	    end, Fs),
     {Vbase+length(Vs),UVbase+length(Tx),Nbase+length(Ns)}.
-
-remove_uvs(#e3d_mesh{fs=Fs0}=Mesh) ->
-    Fs1 = foldl(fun(F, A) -> [F#e3d_face{tx=[]}|A] end, [], Fs0),
-    Fs = reverse(Fs1),
-    Mesh#e3d_mesh{fs=Fs,tx=[]}.
 
 fmtf(F) when abs(F) < 0.1; abs(F) >= 10000 ->
     lists:flatten(io_lib:format("~.8e", [F]));

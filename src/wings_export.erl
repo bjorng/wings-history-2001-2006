@@ -3,26 +3,26 @@
 %%
 %%     This module handles export to other file formats.
 %%
-%%  Copyright (c) 2004 Bjorn Gustavsson
+%%  Copyright (c) 2004-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.11 2005/02/08 13:16:13 dgud Exp $
+%%     $Id: wings_export.erl,v 1.12 2005/02/20 05:20:19 bjorng Exp $
 %%
 
 -module(wings_export).
--export([export/5,save_images/3,make_mesh/3]).
+-export([export/4,save_images/3,make_mesh/2]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
 -include("e3d_image.hrl").
 -import(lists, [foldl/3,keydelete/3,reverse/1]).
 
-export(Exporter, Name, SubDivs, Tesselate, #st{shapes=Shs}=St0) ->
+export(Exporter, Name, Ps, #st{shapes=Shs}=St0) ->
     St = wings_view:freeze_mirror(St0),
     Objs = foldl(fun(W, A) ->
-			 export_1(W, SubDivs, Tesselate, A)
+			 export_1(W, Ps, A)
 		 end, [], gb_trees:values(Shs)),
     wings_pb:start(?__(1,"exporting")),
     wings_pb:update(0.01,?__(2,"preparing")),
@@ -56,30 +56,30 @@ save_images(#e3d_file{mat=Mat0}=E3DFile, Dir, Filetype) ->
 %%% Local functions.
 %%%
 
-export_1(#we{perm=Perm}, _, _, Acc) when ?IS_NOT_VISIBLE(Perm) -> Acc;
-export_1(#we{name=Name}=We, SubDivs, Tess, Acc) when not ?IS_ANY_LIGHT(We) ->
-    Mesh = make_mesh(We, SubDivs, Tess),
+export_1(#we{perm=Perm}, _, Acc) when ?IS_NOT_VISIBLE(Perm) -> Acc;
+export_1(#we{name=Name}=We, Ps, Acc) when not ?IS_ANY_LIGHT(We) ->
+    Mesh = make_mesh(We, Ps),
     [#e3d_object{name=Name,obj=Mesh}|Acc];
-export_1(_, _, _,Acc) -> Acc.
+export_1(_, _, Acc) -> Acc.
 
-make_mesh(#we{mirror=none}=We, Subdivs, Tess) ->
-    make_mesh_1(We, Subdivs, Tess);
-make_mesh(#we{mirror=Face}=We0, Subdivs, Tess) ->
+make_mesh(#we{mirror=none}=We, Ps) ->
+    make_mesh_1(We, Ps);
+make_mesh(#we{mirror=Face}=We0, Ps) ->
     %% Freeze the virtual mirror.
     We = wings_face_cmd:mirror_faces([Face], We0),
-    make_mesh_1(We, Subdivs, Tess).
+    make_mesh_1(We, Ps).
 
-make_mesh_1(We0, SubDivs, Tess) ->
+make_mesh_1(We0, Ps) ->
+    SubDivs = proplists:get_value(subdivisions, Ps, 0),
+    Tess = proplists:get_value(tesselation, Ps, none),
     We1 = sub_divide(SubDivs, We0),
     We2 = tesselate(Tess, We1),
     #we{vp=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We2, 0),
     Vs = gb_trees:values(Vs0),
-    {ColTab0,UvTab0} = make_tables(We),
-    ColTab1 = gb_trees:from_orddict(ColTab0),
-    UvTab1 = gb_trees:from_orddict(UvTab0),
+    {ColTab0,UvTab0} = make_tables(Ps, We),
     Fs0 = foldl(fun({_,'_hole_'}, A) -> A;
 		   ({Face,Mat}, A) ->
-			case make_face(Face, Mat, ColTab1, UvTab1, We) of
+			case make_face(Face, Mat, ColTab0, UvTab0, We) of
 			    #e3d_face{vs=[_,_]} -> A;
 			    E3DFace -> [E3DFace|A]
 			end
@@ -104,7 +104,14 @@ tesselate(triangulate,We) ->
 tesselate(quadrangulate,We) ->
     wings_tesselation:quadrangulate(We).
 
-make_face(Face, Mat, _ColTab, UvTab, #we{mode=material}=We) ->
+make_face(Face, Mat, _ColTab, [], #we{mode=material}=We) ->
+    Vs = wings_face:fold_vinfo(
+	   fun(V, _, Acc) ->
+		   [V|Acc]
+	   end, [], Face, We),
+    #e3d_face{vs=Vs,mat=make_face_mat(Mat)};
+make_face(Face, Mat, _ColTab, [_|_]=UvTab0, #we{mode=material}=We) ->
+    UvTab = gb_trees:from_orddict(UvTab0),
     {Vs,UVs0} = wings_face:fold_vinfo(
 		  fun(V, {_,_}=UV, {VAcc,UVAcc}) ->
 			  {[V|VAcc],[gb_trees:get(UV, UvTab)|UVAcc]};
@@ -116,7 +123,14 @@ make_face(Face, Mat, _ColTab, UvTab, #we{mode=material}=We) ->
 	      true -> []
 	  end,
     #e3d_face{vs=Vs,tx=UVs,mat=make_face_mat(Mat)};
-make_face(Face, Mat, ColTab, _UvTab, #we{mode=vertex}=We) ->
+make_face(Face, Mat, [], _UvTab, #we{mode=vertex}=We) ->
+    Vs = wings_face:fold_vinfo(
+	   fun(V, _, Acc) ->
+		   [V|Acc]
+	   end, [], Face, We),
+    #e3d_face{vs=Vs,mat=make_face_mat(Mat)};
+make_face(Face, Mat, [_|_]=ColTab0, _UvTab, #we{mode=vertex}=We) ->
+    ColTab = gb_trees:from_orddict(ColTab0),
     {Vs,Cols} = wings_face:fold_vinfo(
 		  fun(V, {_,_,_}=Col, {VAcc,ColAcc}) ->
 			  {[V|VAcc],[gb_trees:get(Col, ColTab)|ColAcc]};
@@ -126,10 +140,18 @@ make_face(Face, Mat, ColTab, _UvTab, #we{mode=vertex}=We) ->
 		  end, {[],[]}, Face, We),
     #e3d_face{vs=Vs,vc=Cols,mat=make_face_mat(Mat)}.
 
-make_tables(#we{mode=vertex}=We) ->
-    {make_table(3, [wings_color:white()], We),[]};
-make_tables(#we{mode=material}=We) ->
-    {[],make_table(2, [], We)}.
+make_tables(Ps, #we{mode=vertex}=We) ->
+    {case proplists:get_value(include_colors, Ps, true) of
+	 false -> [];
+	 true -> make_table(3, [wings_color:white()], We)
+     end,
+     []};
+make_tables(Ps, #we{mode=material}=We) ->
+    {[],
+     case proplists:get_value(include_uvs, Ps, true) of
+	 false -> [];
+	 true -> make_table(2, [], We)
+     end}.
 
 make_table(Sz, Def, #we{es=Etab}) ->
     Cuvs0 = foldl(fun(#edge{a=A,b=B}, Acc) ->

@@ -3,12 +3,12 @@
 %%
 %%     Implementation of lights.
 %%
-%%  Copyright (c) 2002-2004 Bjorn Gustavsson
+%%  Copyright (c) 2002-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.62 2005/02/08 13:16:13 dgud Exp $
+%%     $Id: wings_light.erl,v 1.63 2005/02/20 05:20:19 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -612,7 +612,7 @@ get_light_1(#we{light=L}=We) ->
 		 true -> OpenGL0
 	     end,
     OpenGL = case Type of
-		 area -> [{mesh,wings_export:make_mesh(We, 0, none)}|OpenGL1];
+		 area -> [{mesh,wings_export:make_mesh(We, [])}|OpenGL1];
 		 _ -> OpenGL1
 	     end,
     [{opengl,OpenGL}|Prop].
