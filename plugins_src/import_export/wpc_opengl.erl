@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.40 2003/08/27 21:23:10 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.41 2003/09/24 22:52:14 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -43,17 +43,20 @@
 	 shadow
 	}).
 
--record(d, {s,  % smooth display list
+-record(d, {l,  % smooth display list
 	    f,  % fast display list
-	    tr, % transparent bool
-	    trl, % transp list
 	    we}).
+
+get_opaque({[Smooth,_TrL],_Tr}) -> Smooth.
+get_transp({[_,TrL],_}) -> TrL.
+is_transp({_,Tr}) -> Tr.
 
 %% Light record
 -record(light, {type, 
 		pos, 
 		aim, 
 		attr, 
+		dl = [], % Display lists
 		sv = []  % List of display lists of shadow volumes
 	       }).
 
@@ -185,11 +188,13 @@ render_exit(#r{lights=Lights, data=D}) ->
     foreach(fun(#light{sv=L}) ->
 		    foreach(fun(DL) -> gl:deleteLists(DL,1) end,L)
 	    end, Lights),
-    foreach(fun(#d{s=S,f=F,trl=Tr}) ->
-		    foreach(fun(DL) when integer(DL) -> 
-				    gl:deleteLists(DL,1);
+    foreach(fun(#d{l=DL,we= #we{id=Id}}) ->
+		    erase({?MODULE,Id,has_bumps}),
+		    erase({?MODULE,Id,matFs}),
+		    foreach(fun(L) when integer(L) -> 
+				    gl:deleteLists(L,1);
 			    (_) -> ok
-			    end,[S,F,Tr])
+			    end,[get_opaque(DL),get_transp(DL)])
 	    end, D),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     wings_wm:dirty().
@@ -206,7 +211,9 @@ update_st(St0, Attr, Shadows) ->
     Ls = case Shadows of
 	     true -> 
 		 Ls0 = wpa:lights(St),
-		 create_light_data(Ls0, Ds, 0, none, []);
+		 Mats = St#st.mat,
+		 MaybeBumps = maybe_bumps(St#st.mat),
+		 create_light_data(Ls0, Ds, 0, {MaybeBumps,Mats}, none, []);
 	     false ->
 		 {0,none,[]}
 	 end,
@@ -230,36 +237,43 @@ update_st(We0=#we{light=none}, SubDiv, RenderAlpha, Wes, St) ->
 		 wpa:triangulate(We2)
 	 end,
     Fast = dlist_mask(RenderAlpha, We),
-    {[Smooth,TrL],Tr} = wings_draw:smooth_dlist(We, St),
-    [#d{s=Smooth,f=Fast,we=We,tr=Tr,trl=TrL}|Wes];
+    DL = wings_draw:smooth_dlist(We, St),
+    [#d{l=DL,f=Fast,we=We}|Wes];
 update_st(#we{}, _, _, Wes, _) -> %% Skip Lights
     Wes.
 
-create_light_data([], _Ds, C, Amb, Acc) ->
+create_light_data([], _Ds, C, _Bumps, Amb, Acc) ->
     {C,Amb,Acc};
-create_light_data([{_Name,L0}|Ls], Ds, C, Amb, Acc) ->
+create_light_data([{_Name,L0}|Ls], Ds, C, Bumps, Amb, Acc) ->
     L = proplists:get_value(opengl, L0),
     Vis = proplists:get_value(visible, L0),
     case proplists:get_value(type, L) of
-	_ when Vis == false ->
-	    create_light_data(Ls, Ds, C, Amb, Acc);
+	_ when Vis == false -> %% Disabled
+	    create_light_data(Ls, Ds, C, Bumps, Amb, Acc);
 	ambient when Amb == none -> 
 	    AmbC = proplists:get_value(ambient, L),
-	    create_light_data(Ls, Ds, C+1, AmbC, Acc);
+	    create_light_data(Ls, Ds, C+1, Bumps, AmbC, Acc);
 	ambient  -> %% Several ambient ?? 
-	    create_light_data(Ls, Ds, C, Amb, Acc);
+	    create_light_data(Ls, Ds, C, Bumps, Amb, Acc);
 	_ ->
 	    Li = create_light(L,#light{}, []),
-	    SVs = lists:foldl(fun(D = #d{tr=false},SL) ->
-				      List = gl:genLists(1),
-				      gl:newList(List, ?GL_COMPILE),    
-				      create_shadow_volume(Li, D),
-				      gl:endList(),
-				      [List|SL];
-				 %% Transperant objects don't cast shadows
-				 (_,SL) -> SL
-			      end, [], Ds),
-	    create_light_data(Ls, Ds, C+1, Amb, [Li#light{sv = SVs}|Acc])
+	    {DLs,SVs} = 
+		lists:foldl(
+		  fun(D = #d{l=DL},{DLs,SLs}) ->
+			  case is_transp(DL) of
+			      true -> 
+				  %% Transperant objects don't cast shadows
+				  {[create_bumped(D,Bumps,Li)|DLs], SLs};
+			      false -> 
+				  List = gl:genLists(1),
+				  gl:newList(List, ?GL_COMPILE),    
+				  create_shadow_volume(Li, D),
+				  gl:endList(),
+				  {[create_bumped(D,Bumps,Li)|DLs],[List|SLs]}
+			  end
+		  end, {[],[]}, Ds),
+	    create_light_data(Ls, Ds, C+1, Bumps, Amb, 
+			      [Li#light{dl = DLs,sv = SVs}|Acc])
     end.
 
 create_light([{type,Type}|R], L, Acc) -> create_light(R,L#light{type=Type},Acc);
@@ -377,8 +391,8 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,no_l=NoL,mat=Mat,shadow=true},false) 
     setup_amb(Amb,NoL),
     gl:enable(?GL_LIGHTING),
     gl:disable(?GL_CULL_FACE),
-    foreach(fun(#d{s=DL}) ->         
-		    gl:callList(DL) end, Wes),
+    foreach(fun(#d{l=DL}) ->         
+		    gl:callList(get_opaque(DL)) end, Wes),
     disable_lights(),
     gl:disable(?GL_LIGHTING),
     gl:disable(?GL_BLEND),
@@ -392,7 +406,7 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,no_l=NoL,mat=Mat,shadow=true},false) 
     %% No more depth writes...
     gl:depthMask(?GL_FALSE),
     gl:enable(?GL_STENCIL_TEST),
-    foldl(fun(L,Clear) -> draw_with_shadows(Clear, NoL, L, Wes, Mat) end, 
+    foldl(fun(L,Clear) -> draw_with_shadows(Clear, NoL, L, Mat) end, 
 	  {false, 1}, Ligths),
     gl:disable(?GL_STENCIL_TEST),
     gl:depthMask(?GL_TRUE),
@@ -408,7 +422,7 @@ draw_all(RR, RMask) ->
     foreach(fun(Data) -> render_redraw(Data, RMask, true) end, 
 	    RR#r.data).
 
-draw_with_shadows({true,N}, NoL, L, Wes, _Mats) ->
+draw_with_shadows({true,N}, NoL, L, _Mats) ->
     %% New light, clear and update stencil
     gl:clear(?GL_STENCIL_BUFFER_BIT),
     case wings_util:is_gl_ext('GL_ARB_imaging') of
@@ -420,8 +434,8 @@ draw_with_shadows({true,N}, NoL, L, Wes, _Mats) ->
 	    gl:blendFunc(?GL_ONE, ?GL_ONE)
     end,
     gl:enable(?GL_BLEND), %% blend all other lights
-    draw_with_shadows({false,N}, NoL, L, Wes, _Mats);
-draw_with_shadows({false,LNo}, NoL, L=#light{sv=Shadow}, Wes, _Mats) ->
+    draw_with_shadows({false,N}, NoL, L, _Mats);
+draw_with_shadows({false,LNo}, NoL, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:colorMask(?GL_FALSE,?GL_FALSE,?GL_FALSE,?GL_FALSE),
 
     gl:stencilFunc(?GL_ALWAYS, ?STENCIL_INIT, 16#FFFFFFFF),
@@ -440,8 +454,8 @@ draw_with_shadows({false,LNo}, NoL, L=#light{sv=Shadow}, Wes, _Mats) ->
     gl:depthFunc(?GL_EQUAL),
     setup_light(L,NoL),
     gl:enable(?GL_LIGHTING),
-    foreach(fun(#d{s=DL,tr=Trans}) -> 
-		    case Trans of
+    foreach(fun(DL) -> 
+		    case is_transp(DL) of
 			true -> 
 			    gl:disable(?GL_CULL_FACE),    
 			    gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE);
@@ -449,14 +463,18 @@ draw_with_shadows({false,LNo}, NoL, L=#light{sv=Shadow}, Wes, _Mats) ->
 			    gl:enable(?GL_CULL_FACE),
 			    gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_FALSE)
 		    end,
-		    gl:callList(DL) 
-	    end, Wes),
+		    gl:callList(get_opaque(DL)) 
+	    end, DLs),
     gl:enable(?GL_CULL_FACE),
     gl:depthFunc(?GL_LESS),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE),
-    foreach(fun(#d{trl=DL, tr=true}) -> gl:callList(DL); (_) -> ok end, Wes),
+    foreach(fun(DL) -> case is_transp(DL) of 
+			   true -> gl:callList(DL); 
+			   false -> ok 
+		       end
+	    end, DLs),
     gl:disable(?GL_LIGHTING),
     disable_lights(),
 %    debug_shad(Shadow),
@@ -527,44 +545,48 @@ render_redraw(D, RMask, RenderTrans) ->
 	true -> render_mask(D)
     end.
 
-render_redraw_1(#d{tr=false}, true) -> ok;
-render_redraw_1(#d{s=Dlist,tr=Trans,trl=TRL}, RenderTrans) ->
-    ?CHECK_ERROR(),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    gl:shadeModel(?GL_SMOOTH),
-    gl:enable(?GL_LIGHTING),
-    gl:enable(?GL_POLYGON_OFFSET_FILL),
-    gl:enable(?GL_CULL_FACE),
-
-    case Trans of
-	false -> gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_FALSE);
-	true -> gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE)
-    end,
-
-    case RenderTrans of
+render_redraw_1(#d{l=DL}, RenderTrans) ->
+    case not is_transp(DL) andalso RenderTrans of
 	true ->
-	    %% Transparent materials should not update the depth buffer.
-	    gl:enable(?GL_BLEND),
-	    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-	    gl:depthMask(?GL_FALSE);
+	    ok;
 	false ->
-	    gl:disable(?GL_BLEND),
-	    gl:depthMask(?GL_TRUE)
-    end,
+	    ?CHECK_ERROR(),
+	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+	    gl:shadeModel(?GL_SMOOTH),
+	    gl:enable(?GL_LIGHTING),
+	    gl:enable(?GL_POLYGON_OFFSET_FILL),
+	    gl:enable(?GL_CULL_FACE),
 
-    %% Backsides of opaque objects should be drawn
-    %% if the object has any transparency.
-    case Trans andalso not RenderTrans of
-	true -> gl:disable(?GL_CULL_FACE);
-	false -> gl:enable(?GL_CULL_FACE)
-    end,
+	    case is_transp(DL) of
+		false -> gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_FALSE);
+		true -> gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE)
+	    end,
 
-    case RenderTrans of
-	false -> wings_draw_util:call(Dlist);
-	true ->  wings_draw_util:call(TRL)
-    end,
-    gl:depthMask(?GL_TRUE),
-    ?CHECK_ERROR().
+	    case RenderTrans of
+		true ->
+		    %% Transparent materials should not update the depth buffer.
+		    gl:enable(?GL_BLEND),
+		    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+		    gl:depthMask(?GL_FALSE);
+		false ->
+		    gl:disable(?GL_BLEND),
+		    gl:depthMask(?GL_TRUE)
+	    end,
+	    
+	    %% Backsides of opaque objects should be drawn
+	    %% if the object has any transparency.
+	    case is_transp(DL) andalso not RenderTrans of
+		true -> gl:disable(?GL_CULL_FACE);
+		false -> gl:enable(?GL_CULL_FACE)
+	    end,
+	    
+	    case RenderTrans of
+		false -> wings_draw_util:call(get_opaque(DL));
+		true ->  wings_draw_util:call(get_transp(DL))
+	    end,
+	    gl:depthMask(?GL_TRUE),
+	    ?CHECK_ERROR()
+    end.
 
 render_mask(#d{f=Dlist}) ->
     ?CHECK_ERROR(),
@@ -842,4 +864,279 @@ setup_light_attr([{linear_attenuation,Att}|As], S) ->
 setup_light_attr([{quadratic_attenuation,Att}|As], S) ->
     gl:lightf(?GL_LIGHT0, ?GL_QUADRATIC_ATTENUATION, Att),
     setup_light_attr(As, S).
+
+%% Bump helpers
+
+maybe_bumps(Mats0) ->
+    Mats = gb_trees:to_list(Mats0),
+    lists:any(fun({_Name,Def}) ->
+		      false /= get_bump(Def)
+	      end, Mats).
+get_bump(Mat) ->
+    Maps = proplists:get_value(maps, Mat, false),
+    proplists:get_value(bump, Maps, false).
+
+req_exts() ->
+    ['GL_ARB_texture_cube_map',
+     'GL_ARB_multitexture',
+     'GL_ARB_texture_env_combine',
+     'GL_ARB_texture_env_dot3',
+     'GL_EXT_texture3D'].
+
+%% Bump drawings 
+create_bumped(#d{l=DL}, {false,_},_) -> DL; % No materials have bumps
+create_bumped(#d{l=DL,we=We}, _,_)          % Vertex mode can't have bumps.
+  when We#we.mode == vertex -> DL;
+create_bumped(#d{l=DL,we= We = #we{id=Id,fs=Ftab}},{true,Mtab},#light{pos=LPos}) -> 
+    ExtOk = wings_util:is_gl_ext({1,3}, req_exts()),				 
+    case get({?MODULE,Id,has_bumps}) of
+	_ when ExtOk == false ->
+	    DL;
+	undefined ->  
+	    %% We only need to do this once per we !!
+	    FN0   = [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(Ftab)],
+	    FVN   = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
+	    MatFs = wings_material:mat_faces(FVN, We),
+	    HasBumps = lists:any(fun({Mat, _}) -> 
+					 get_bump(gb_trees:get(Mat,Mtab)) /= false 
+				 end, MatFs),
+	    put({?MODULE,Id,has_bumps},HasBumps),
+	    case HasBumps of
+		true ->
+		    put({?MODULE,Id,matFs}, MatFs),
+		    draw_faces(MatFs, We, Mtab, mult_inverse_model_transform(LPos));
+		false ->
+		    DL
+	    end;
+	true ->
+	    MatFs = get({?MODULE,Id,matFs}),
+	    draw_faces(MatFs, We, Mtab, mult_inverse_model_transform(LPos));
+	false ->
+	    DL
+    end.
+	
+mult_inverse_model_transform(Pos) ->
+    #view{origin=Origin,distance=Dist,azimuth=Az,
+	  elevation=El,pan_x=PanX,pan_y=PanY} = wings_view:current(),
+    M0 = e3d_mat:translate(e3d_vec:neg(Origin)),
+    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
+    M2 = e3d_mat:mul(M1, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
+    M = e3d_mat:mul(M2, e3d_mat:translate(-PanX, -PanY, Dist)),
+    e3d_mat:mul_point(M, Pos).
+
+draw_faces(MFlist, We, Mtab, L) ->    
+    io:format("Light ~p ~n",[L]),
+    ListOp = gl:genLists(1),
+    gl:newList(ListOp, ?GL_COMPILE),
+    Trans = draw_smooth_opaque(MFlist, Mtab, We, L, []),
+    gl:endList(),
+    if
+	Trans =:= [] ->
+	    {[ListOp,none],false};
+	true ->
+	    ListTr = gl:genLists(1),
+	    gl:newList(ListTr, ?GL_COMPILE),
+	    draw_smooth_tr(MFlist, Mtab, We, L),
+	    gl:endList(),
+	    {[ListOp,ListTr],true}
+    end.
+
+draw_smooth_opaque([{M,Faces}=MatFaces|T], Mtab, We, L, Acc) ->
+    case wings_material:is_transparent(M, Mtab) of
+	true ->
+	    draw_smooth_opaque(T, Mtab, We, L, [MatFaces|Acc]);
+	false ->
+	    do_draw_smooth(M, Faces, We, L, Mtab),
+	    draw_smooth_opaque(T, Mtab, We, L, Acc)
+    end;
+draw_smooth_opaque([], _, _, _, Acc) -> Acc.
+
+draw_smooth_tr([{M,Faces}|T], Mtab, We, L) ->
+    do_draw_smooth(M, Faces, We, L, Mtab),
+    draw_smooth_tr(T, Mtab, We, L);
+draw_smooth_tr([], _, _, _) -> ok.
+
+do_draw_smooth(MatN, Faces, We, L, Mtab) ->
+    gl:pushAttrib(?GL_TEXTURE_BIT),
+    Mat = gb_trees:get(MatN, Mtab),
+    case get_bump(Mat) of
+	false ->
+	    IsTxMat = wings_material:apply_material(MatN, Mtab),
+	    gl:'begin'(?GL_TRIANGLES),
+	    do_draw_faces(Faces, IsTxMat, We),
+	    gl:'end'(),
+	    gl:popAttrib(),
+	    false;
+	_Bump -> 
+	    IsTxMat = apply_bumped_mat(Mat),
+	    gl:'begin'(?GL_TRIANGLES),
+	    do_draw_bumped(Faces, IsTxMat, We, L),
+	    gl:'end'(),
+	    disable_bumps(),
+	    gl:popAttrib(),
+	    true
+    end.
+
+texCoord(UV = {_,_}, true) ->
+    gl:texCoord2fv(UV);
+texCoord(_, true) ->
+    gl:texCoord2fv({0.0,0.0});
+texCoord(_, false) -> ok.
+texCoord(UV = {_,_}, true, Unit) ->
+    gl:multiTexCoord2fv(Unit, UV);
+texCoord(_, true, Unit) ->
+    gl:multiTexCoord2fv(Unit, {0.0,0.0});
+texCoord(_, false, _) ->
+    ok.
+
+do_draw_faces([],_,_) -> ok;
+do_draw_faces([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs],Tex, We) ->
+    [V1,V2,V3] = wings_face:vertex_positions(Face, We),
+    gl:normal3fv(N1),
+    texCoord(UV1, Tex),
+    gl:vertex3fv(V1),
+    
+    gl:normal3fv(N2),
+    texCoord(UV2,Tex),
+    gl:vertex3fv(V2),
+    
+    gl:normal3fv(N3),
+    texCoord(UV3,Tex),
+    gl:vertex3fv(V3),
+    do_draw_faces(Fs, Tex, We).
+    
+do_draw_bumped([], _,_,_) -> ok;
+do_draw_bumped([{Face, [[UV1|N1],[UV2|N2],[UV3|N3]]}|Fs], Txt, We, L) ->
+    [V1,V2,V3] = wings_face:vertex_positions(Face, We),
+    {S,T} = calcTS(V1,V2,V3,UV1,UV2,UV3,N1),
+    gl:normal3fv(N1),
+    texCoord(UV1, true, ?GL_TEXTURE1),
+    bumpCoord(S,T,N1,L),
+    texCoord(UV1, Txt,  ?GL_TEXTURE3),
+    gl:vertex3fv(V1),
+
+    gl:normal3fv(N2),
+    texCoord(UV2, true, ?GL_TEXTURE1),
+    bumpCoord(S,T,N2,L),
+    texCoord(UV2, Txt,  ?GL_TEXTURE3),
+    gl:vertex3fv(V2),
+
+    gl:normal3fv(N3),
+    texCoord(UV3, true, ?GL_TEXTURE1),
+    bumpCoord(S,T,N3,L),
+    texCoord(UV3, Txt,  ?GL_TEXTURE3),
+    gl:vertex3fv(V3),
+    do_draw_bumped(Fs, Txt, We, L).
+
+bumpCoord(Vx,_, Vn, InvLight) ->
+    %% Calc orthonormal space per vertex.
+    Vy = e3d_vec:norm(e3d_vec:cross(Vx,Vn)),
+    %% {Vx,Vy,Vn}
+    
+    %% Norm RGB could (should) be done with a normal-cube map
+    X = e3d_vec:dot(Vx,InvLight),
+    Y = e3d_vec:dot(Vy,InvLight),
+    Z = e3d_vec:dot(Vn,InvLight),
+%    io:format("~p~n~p~n~p~n~n", [{Vx,Vy,Vn}, {X,Y,Z}, norm_rgb(X,Y,Z)]),
+    gl:multiTexCoord3fv(?GL_TEXTURE0, norm_rgb(X,Y,Z)).
+%    gl:color3fv(norm_rgb(X,Y,Z)).
+
+
+apply_bumped_mat(Mat) ->
+    OpenGL = proplists:get_value(opengl, Mat),
+    gl:materialfv(?GL_FRONT_AND_BACK, ?GL_DIFFUSE, 
+		  proplists:get_value(diffuse, OpenGL)), 
+    gl:materialfv(?GL_FRONT_AND_BACK, ?GL_AMBIENT, 
+		  proplists:get_value(ambient, OpenGL)),
+    gl:materialfv(?GL_FRONT_AND_BACK, ?GL_SPECULAR, 
+		  proplists:get_value(specular, OpenGL)),
+    Shine = proplists:get_value(shininess, OpenGL)*128,
+    gl:materialf(?GL_FRONT_AND_BACK, ?GL_SHININESS, Shine),
+    gl:materialfv(?GL_FRONT_AND_BACK, ?GL_EMISSION, 
+		  proplists:get_value(emission, OpenGL)),
+    Maps = proplists:get_value(maps, Mat),
+    Bump = wings_image:bumpid(proplists:get_value(bump, Maps, none)),
+    
+    %% Start by creating bump data
+    CubeMap = wings_image:normal_cubemapid(),
+    gl:activeTexture(?GL_TEXTURE0),
+    gl:enable(?GL_TEXTURE_CUBE_MAP),
+    gl:bindTexture(?GL_TEXTURE_CUBE_MAP,CubeMap),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_COMBINE),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_COMBINE_RGB, ?GL_REPLACE),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE0_RGB, ?GL_TEXTURE),
+    
+    gl:activeTexture(?GL_TEXTURE1),
+    gl:enable(?GL_TEXTURE_2D),	    
+    gl:bindTexture(?GL_TEXTURE_2D,Bump),
+    
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_COMBINE),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_COMBINE_RGB,  ?GL_DOT3_RGB),
+    
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE0_RGB,  ?GL_PREVIOUS),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE1_RGB,  ?GL_TEXTURE),
+    
+    %% Modulate with material (diffuse)
+    gl:activeTexture(?GL_TEXTURE2),
+    gl:enable(?GL_TEXTURE_2D),
+    gl:bindTexture(?GL_TEXTURE_2D, Bump), %% Needs some texture here
+    
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_COMBINE),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_COMBINE_RGB,      ?GL_MODULATE),    
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE0_RGB,      ?GL_PRIMARY_COLOR),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE1_RGB,      ?GL_PREVIOUS),
+    
+    %% Modulate with optional texture
+    case proplists:get_value(diffuse, Maps, none) of
+	none ->
+	    false;
+	Diffuse ->
+	    Diff = wings_image:txid(Diffuse),
+	    gl:activeTexture(?GL_TEXTURE3),
+	    gl:enable(?GL_TEXTURE_2D),
+	    gl:bindTexture(?GL_TEXTURE_2D, Diff), %% Needs to a texture here
+	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_COMBINE),
+	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_COMBINE_RGB,  ?GL_MODULATE),    
+	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE0_RGB,  ?GL_TEXTURE),
+	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_SOURCE1_RGB,  ?GL_PREVIOUS),
+	    true
+    end.
+
+    
+% Calculate the the tangent space for polygon
+calcTS(V1,V2,V3,{S1,T1},{S2,T2},{S3,T3},N1) ->
+    Side1 = e3d_vec:sub(V1,V2),
+    Side2 = e3d_vec:sub(V3,V2),
+    DT1 = T1-T2,
+    DT2 = T3-T2,
+    Stan = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DT2),
+				    e3d_vec:mul(Side2,DT1))),
+    DS1 = S1-S2,
+    DS2 = S3-S1,
+    Ttan = e3d_vec:norm(e3d_vec:sub(e3d_vec:mul(Side1,DS2),
+				    e3d_vec:mul(Side2,DS1))),
+    Check = e3d_vec:dot(e3d_vec:cross(Stan,Ttan),N1),
+    if 
+	Check < 0.0 ->
+	    {e3d_vec:mul(Stan,-1.0),e3d_vec:mul(Ttan,-1.0)};
+	true ->
+	    {Stan,Ttan}
+    end.
+
+norm_rgb(V1, V2, V3) when is_float(V1), is_float(V2), is_float(V3) ->
+    D = math:sqrt(V1*V1+V2*V2+V3*V3),
+    case catch {0.5+V1/D*0.5,0.5+V2/D*0.5,0.5+V3/D*0.5} of
+	{'EXIT',_} -> {0.0,0.0,0.0};
+	R -> R
+    end.
+
+disable_bumps() ->
+    gl:activeTexture(?GL_TEXTURE0),
+    gl:disable(?GL_TEXTURE_CUBE_MAP),
+    gl:activeTexture(?GL_TEXTURE1),
+    gl:disable(?GL_TEXTURE_2D),
+    gl:activeTexture(?GL_TEXTURE2),
+    gl:disable(?GL_TEXTURE_2D),
+    gl:activeTexture(?GL_TEXTURE3),
+    gl:disable(?GL_TEXTURE_2D).
 
