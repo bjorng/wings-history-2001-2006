@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.97 2003/01/21 20:16:15 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.98 2003/01/22 19:50:09 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -16,8 +16,9 @@
 	 export/3,export_filename/2,
 	 import/3,import_filename/1]).
 
--include("e3d.hrl").
 -include("wings.hrl").
+-include("e3d.hrl").
+-include("e3d_image.hrl").
 -include_lib("kernel/include/file.hrl").
 
 -import(lists, [sort/1,reverse/1,flatten/1,foldl/3,keymember/3,keydelete/3]).
@@ -637,7 +638,8 @@ do_export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
 		 end, [], gb_trees:values(Shs)),
     Creator = "Wings 3D " ++ ?WINGS_VERSION,
     Mat0 = wings_material:used_materials(St),
-    Mat = keydelete('_hole_', 1, Mat0),
+    Mat1 = keydelete('_hole_', 1, Mat0),
+    Mat = mat_images(Mat1),
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
     case Exporter(Name, Contents) of
 	ok -> ok;
@@ -734,3 +736,23 @@ hard_edges([], _Etab, Acc) -> Acc.
 
 hard(A, B) when A < B -> {A,B};
 hard(A, B) -> {B,A}.
+
+mat_images(Mats) ->
+    mat_images(Mats, []).
+
+mat_images([{Name,Mat0}|T], Acc) ->
+    Mat = mat_images_1(Mat0, []),
+    mat_images(T, [{Name,Mat}|Acc]);
+mat_images([], Acc) -> Acc.
+
+mat_images_1([{maps,Maps0}|T], Acc) ->
+    Maps = mat_images_2(Maps0, []),
+    mat_images_1(T, [{maps,Maps}|Acc]);
+mat_images_1([H|T], Acc) ->
+    mat_images_1(T, [H|Acc]);
+mat_images_1([], Acc) -> Acc.
+
+mat_images_2([{Type,Id}|T], Acc) ->
+    Im = wings_image:info(Id),
+    mat_images_2(T, [{Type,Im}|Acc]);
+mat_images_2([], Acc) -> Acc.
