@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile.win32,v 1.5 2002/11/02 14:08:11 bjorng Exp $
+#     $Id: Makefile.win32,v 1.6 2002/12/28 11:01:32 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -40,6 +40,9 @@ subdirs:
 	cd win32_file
 	$(MAKE)
 	cd ..
+	cd fonts
+	$(MAKE) -f Makefile.win32
+	cd ..
 	cd import_export
 	$(MAKE) -f Makefile.win32
 	cd ..
@@ -57,6 +60,9 @@ clean: $(REMOVE_FILES) subdirs_clean
 
 subdirs_clean:
 	cd win32_file
+	$(MAKE) clean
+	cd .. 
+	cd fonts
 	$(MAKE) clean
 	cd .. 
 	cd import_export
