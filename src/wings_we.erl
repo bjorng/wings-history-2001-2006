@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.64 2003/08/31 11:00:26 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.65 2003/09/03 16:57:46 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -707,11 +707,9 @@ two_faced([{FaceA,Na},{FaceB,Nb}], We) ->
      {FaceB,two_faced_1(FaceB, Nb, We)}].
 
 two_faced_1(Face, Normal, We) ->
-    Vs = wings_face:fold_vinfo(
-	   fun (_, VInfo, Acc) ->
-		   [[VInfo|Normal]|Acc]
-	   end, [], Face, We),
-    {Normal,Vs}.
+    wings_face:fold_vinfo(fun (_, VInfo, Acc) ->
+				  [[VInfo|Normal]|Acc]
+			  end, [], Face, We).
 
 vertex_normals(#we{vp=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
     He0 = gb_sets:to_list(Htab),
