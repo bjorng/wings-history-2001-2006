@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.16 2002/01/18 18:51:24 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.17 2002/01/30 18:41:13 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -26,7 +26,7 @@ collapse(#st{selmode=edge}=St0) ->
     wings_sel:valid_sel(St#st{selmode=vertex,sel=reverse(Sel)});
 collapse(#st{selmode=vertex}=St0) ->
     {St,Sel} = wings_sel:mapfold(fun collapse_vertices/3, [], St0),
-    wings_sel:valid_sel(St#st{selmode=face,sel=Sel}).
+    wings_sel:valid_sel(St#st{selmode=face,sel=reverse(Sel)}).
 
 collapse_faces(Faces, #we{id=Id}=We0, SelAcc)->
     We = foldl(fun collapse_face/2, We0, gb_sets:to_list(Faces)),
