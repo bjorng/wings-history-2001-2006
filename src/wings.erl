@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.46 2001/11/17 13:16:11 bjorng Exp $
+%%     $Id: wings.erl,v 1.47 2001/11/17 18:25:11 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0,start_halt/0]).
--export([caption/1,redraw/1]).
+-export([caption/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -109,6 +109,10 @@ locate(Name) ->
 
 resize(W, H, St) ->
     sdl_video:setVideoMode(W, H, 16, ?SDL_OPENGL bor ?SDL_RESIZABLE),
+    gl:enable(?GL_LIGHT0),
+    gl:enable(?GL_LIGHT1),
+    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {0.75,0.75,0.75}),
+    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {0.25,0.25,0.25}),
     gl:enable(?GL_DEPTH_TEST),
     {R,G,B} = wings_pref:get_value(background_color),
     gl:clearColor(R, G, B, 1.0),
@@ -137,7 +141,7 @@ top_level_1(St) ->
 handle_top_event(Event, St0) ->
     case Event of
 	#st{}=St1 ->				%Undoable operation.
-	    ?ASSERT(St1#st.drag == undefined),
+	    ?ASSERT(St1#st.drag == none),
 	    St = wings_undo:save(St0, St1),
 	    top_level(St#st{saved=false});
 	{saved,St} ->
@@ -165,7 +169,7 @@ handle_top_event(Event, St0) ->
     end.
 
 clean_state(St0) ->
-    St = St0#st{drag=undefined},
+    St = St0#st{drag=none},
     caption(wings_draw:model_changed(St)).
 
 main_loop(St0) ->
@@ -174,7 +178,7 @@ main_loop(St0) ->
     {replace,fun(Event) -> handle_event(Event, St) end}.
 
 handle_event(Event, St) ->
-    case wings_camera:event(Event, St) of
+    case wings_camera:event(Event, fun() -> redraw(St) end) of
 	next -> handle_event_1(Event, St);
 	Other -> Other
     end.
@@ -204,17 +208,16 @@ handle_event_1(Event, St1) ->
 	Cmd -> do_command(Cmd, St1)
     end.
 
-execute_or_ignore(Cmd, #st{drag=Drag}=St) when Drag =/= undefined ->
+execute_or_ignore(Cmd, #st{drag=Drag}=St) when Drag =/= none ->
     main_loop(St);
 execute_or_ignore(Cmd, St) -> return_to_top({Cmd,St}).
     
 do_command(Cmd, St0) ->
     St1 = remember_command(Cmd, St0),
     case do_command_1(Cmd, St1) of
-	quit -> return_to_top(quit);
-	#st{drag=undefined}=St -> main_loop(St);
+	#st{drag=none}=St -> main_loop(St);
 	#st{}=StDrag ->
-	    St = model_changed(St1#st{drag=undefined}),
+	    St = model_changed(St1#st{drag=none}),
 	    {seq,{replace,fun(Event) -> handle_event(Event, St) end},
 	     wings_drag:do_drag(StDrag)};
 	{save_state,#st{}=St} -> return_to_top(St);
@@ -222,7 +225,8 @@ do_command(Cmd, St0) ->
 	{new,#st{}}=Res -> return_to_top(Res);
 	{push,_}=Push -> Push;
 	{init,_,_}=Init -> Init;
-	{seq,_,_}=Seq -> Seq
+	{seq,_,_}=Seq -> Seq;
+	quit -> return_to_top(quit)
     end.
 
 return_to_top(Res) ->
@@ -307,7 +311,8 @@ command({file,Command}, St) ->
 command({edit,{material,Mat}}, St) ->
     wings_material:edit(Mat, St);
 command({edit,repeat}, #st{sel=[]}=St) -> St;
-command({edit,repeat}, #st{drag=undefined,selmode=Mode,repeatable=Cmd0}=St) ->
+command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
+    ?ASSERT(St#st.drag == none),
     case repeatable(Mode, Cmd0) of
 	no -> ok;
 	Cmd when tuple(Cmd) -> wings_io:putback_event({action,Cmd})
@@ -815,7 +820,7 @@ create_shape(Ask, Shape, St0) ->
 	St -> {save_state,model_changed(St)}
     end.
 
-set_select_mode(Mode, #st{drag=Drag}=St) when Drag =/= undefined ->
+set_select_mode(Mode, #st{drag=Drag}=St) when Drag =/= none ->
     St;
 set_select_mode(deselect, St) ->
     {save_state,model_changed(St#st{sel=[]})};

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.2 2001/11/17 07:02:37 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.3 2001/11/17 18:25:11 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -53,35 +53,35 @@ command(Mode) ->
 
 %% Event handler.
 
-event(Ev, St) ->
+event(Ev, Redraw) ->
     case wings_pref:get_value(camera_mode, blender) of
-	blender -> blender(Ev, St);
-	nendo -> nendo(Ev, St);
-	tds -> tds(Ev, St);
-	maya -> maya(Ev, St)
+	blender -> blender(Ev, Redraw);
+	nendo -> nendo(Ev, Redraw);
+	tds -> tds(Ev, Redraw);
+	maya -> maya(Ev, Redraw)
     end.
 
 %%%
 %%% Default Wings/Blender style camera.
 %%%
 
-blender(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}=Mb, St) ->
+blender(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}=Mb, Redraw) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?ALT_BITS =/= 0 ->
-	    blender(Mb#mousebutton{button=2}, St);
+	    blender(Mb#mousebutton{button=2}, Redraw);
 	Mod -> next
     end;
-blender(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, St) ->
+blender(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
-    {seq,{push,dummy},get_blender_event(Camera, St)};
+    {seq,{push,dummy},get_blender_event(Camera, Redraw)};
 blender(_, _) -> next.
 
-blender_event(#mousebutton{button=1,state=?SDL_RELEASED}=Mb, Camera, St) ->
-    blender_event(Mb#mousebutton{button=2}, Camera, St);
-blender_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, St) ->
+blender_event(#mousebutton{button=1,state=?SDL_RELEASED}=Mb, Camera, Redraw) ->
+    blender_event(Mb#mousebutton{button=2}, Camera, Redraw);
+blender_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, Redraw) ->
     stop_camera(Camera);
-blender_event(#mousemotion{x=X,y=Y}, Camera0, St0) ->
+blender_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?SHIFT_BITS =/= 0 ->
@@ -91,34 +91,34 @@ blender_event(#mousemotion{x=X,y=Y}, Camera0, St0) ->
 	Other ->
 	    rotate(Dx, Dy)
     end,
-    St = wings:redraw(St0),
-    get_blender_event(Camera, St);
-blender_event(Other, Camera, St) -> keep.
+    Redraw(),
+    get_blender_event(Camera, Redraw);
+blender_event(Other, Camera, Redraw) -> keep.
 
-get_blender_event(Camera, St) ->
-    {replace,fun(Ev) -> blender_event(Ev, Camera, St) end}.
+get_blender_event(Camera, Redraw) ->
+    {replace,fun(Ev) -> blender_event(Ev, Camera, Redraw) end}.
 
 %%%
 %%% Nendo style camera.
 %%%
 
-nendo(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}=Mb, St) ->
+nendo(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}=Mb, Redraw) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
-	    nendo(Mb#mousebutton{button=2}, St);
+	    nendo(Mb#mousebutton{button=2}, Redraw);
 	Mod -> next
     end;
-nendo(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, St) ->
+nendo(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
-    {seq,{push,dummy},get_nendo_event(Camera, St)};
-nendo(#keyboard{keysym=#keysym{sym=Sym}}, St) ->
-    nendo_pan(Sym, St);
+    {seq,{push,dummy},get_nendo_event(Camera, Redraw)};
+nendo(#keyboard{keysym=#keysym{sym=Sym}}, Redraw) ->
+    nendo_pan(Sym, Redraw);
 nendo(_, _) -> next.
 
-nendo_event(#mousebutton{button=1,state=?SDL_RELEASED}, Camera, St) ->
+nendo_event(#mousebutton{button=1,state=?SDL_RELEASED}, Camera, Redraw) ->
     stop_camera(Camera);
-nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, St0) ->
+nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case Buttons band 6 of
 	0 ->					%None of MMB/RMB pressed.
@@ -126,68 +126,64 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, St0) ->
 	Other ->				%MMB and/or RMB pressed.
 	    zoom(Dy/10)
     end,
-    St = wings:redraw(St0),
-    get_nendo_event(Camera, St);
-nendo_event(Event, Camera, St) ->
+    Redraw(),
+    get_nendo_event(Camera, Redraw);
+nendo_event(Event, Camera, Redraw) ->
     case wings_hotkey:event(Event) of
-	{view,aim} ->
-	    wings_view:aim(St),
-	    St = wings:redraw(St),
-	    get_nendo_event(Camera, St);
 	{view,{along,Axis}} ->
-	    wings_view:along(Axis, St),
-	    St = wings:redraw(St),
-	    get_nendo_event(Camera, St);
+	    wings_view:along(Axis, dummy),
+	    Redraw(),
+	    get_nendo_event(Camera, Redraw);
 	{view,reset} ->
 	    wings_view:reset(),
-	    St = wings:redraw(St),
-	    get_nendo_event(Camera, St);
+	    Redraw(),
+	    get_nendo_event(Camera, Redraw);
 	{view,orthogonal_view} ->
-	    wings_view:command(orthogonal_view, St),
-	    St = wings:redraw(St),
-	    get_nendo_event(Camera, St);
+	    wings_view:command(orthogonal_view, Redraw),
+	    Redraw(),
+	    get_nendo_event(Camera, Redraw);
 	next ->
 	    case Event of
 		#keyboard{keysym=#keysym{sym=Sym}} ->
-		    nendo_pan(Sym, St);
+		    nendo_pan(Sym, Redraw);
 		Other -> keep
 	    end;
 	Other -> keep
     end.
     
-nendo_pan(?SDLK_LEFT, St) ->
-    nendo_pan(0.1, 0.0, St);
-nendo_pan(?SDLK_RIGHT, St) ->
-    nendo_pan(-0.1, 0.0, St);
-nendo_pan(?SDLK_UP, St) ->
-    nendo_pan(0.0, 0.1, St);
-nendo_pan(?SDLK_DOWN, St) ->
-    nendo_pan(0.0, -0.1, St);
+nendo_pan(?SDLK_LEFT, Redraw) ->
+    nendo_pan(0.1, 0.0, Redraw);
+nendo_pan(?SDLK_RIGHT, Redraw) ->
+    nendo_pan(-0.1, 0.0, Redraw);
+nendo_pan(?SDLK_UP, Redraw) ->
+    nendo_pan(0.0, 0.1, Redraw);
+nendo_pan(?SDLK_DOWN, Redraw) ->
+    nendo_pan(0.0, -0.1, Redraw);
 nendo_pan(_, _) -> next.
 
-nendo_pan(Dx, Dy, St) ->
+nendo_pan(Dx, Dy, Redraw) ->
     pan(Dx, Dy),
-    St = wings:redraw(St),
+    Redraw(),
     keep.
     
-get_nendo_event(Camera, St) ->
-    {replace,fun(Ev) -> nendo_event(Ev, Camera, St) end}.
+get_nendo_event(Camera, Redraw) ->
+    {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw) end}.
 
 %%%
 %%% 3ds max style camera.
 %%%
 
-tds(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, St) ->
+tds(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
-    {seq,{push,dummy},get_tds_event(Camera, St)};
+    {seq,{push,dummy},get_tds_event(Camera, Redraw)};
 tds(_, _) -> next.
 
-tds_event(#mousebutton{button=1,state=?SDL_RELEASED}=Mb, Camera, St) ->
-    tds_event(Mb#mousebutton{button=2}, Camera, St);
-tds_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, St) ->
+tds_event(#mousebutton{button=1,state=?SDL_RELEASED}=Mb, Camera, Redraw) ->
+    tds_event(Mb#mousebutton{button=2}, Camera, Redraw);
+tds_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, Redraw) ->
     stop_camera(Camera);
-tds_event(#mousemotion{x=X,y=Y}, Camera0, St0) ->
+tds_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?CTRL_BITS =/= 0, Mod band ?ALT_BITS =/= 0 ->
@@ -197,33 +193,33 @@ tds_event(#mousemotion{x=X,y=Y}, Camera0, St0) ->
 	Other ->
 	    pan(Dx/10, Dy/10)
     end,
-    St = wings:redraw(St0),
-    get_tds_event(Camera, St);
-tds_event(Other, Camera, St) -> keep.
+    Redraw(),
+    get_tds_event(Camera, Redraw);
+tds_event(Other, Camera, Redraw) -> keep.
 
-get_tds_event(Camera, St) ->
-    {replace,fun(Ev) -> tds_event(Ev, Camera, St) end}.
+get_tds_event(Camera, Redraw) ->
+    {replace,fun(Ev) -> tds_event(Ev, Camera, Redraw) end}.
 
 %%%
 %%% Maya style camera.
 %%%
 
-maya(#mousebutton{button=B,x=X,y=Y,state=?SDL_PRESSED}, St)
+maya(#mousebutton{button=B,x=X,y=Y,state=?SDL_PRESSED}, Redraw)
   when B == 1; B == 2  ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?ALT_BITS =/= 0 ->
 	    sdl_events:eventState(?SDL_KEYUP, ?SDL_ENABLE),
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
 	    wings_io:grab(),
-	    {seq,{push,dummy},get_maya_event(Camera, St)};
+	    {seq,{push,dummy},get_maya_event(Camera, Redraw)};
 	Mod -> next
     end;
 maya(_, _) -> next.
 
 maya_event(#keyboard{keysym=#keysym{sym=?SDLK_LALT},state=?SDL_RELEASED},
-	   Camera, St) ->
+	   Camera, Redraw) ->
     maya_stop_camera(Camera);
-maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, St0) ->
+maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?ALT_BITS == 0 ->	%Just in case.
@@ -239,12 +235,12 @@ maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, St0) ->
 		true -> ok
 	    end
     end,
-    St = wings:redraw(St0),
-    get_maya_event(Camera, St);
-maya_event(Other, Camera, St) -> keep.
+    Redraw(),
+    get_maya_event(Camera, Redraw);
+maya_event(Other, Camera, Redraw) -> keep.
 
-get_maya_event(Camera, St) ->
-    {replace,fun(Ev) -> maya_event(Ev, Camera, St) end}.
+get_maya_event(Camera, Redraw) ->
+    {replace,fun(Ev) -> maya_event(Ev, Camera, Redraw) end}.
 
 maya_stop_camera(Camera) ->
     sdl_events:eventState(?SDL_KEYUP, ?SDL_IGNORE),

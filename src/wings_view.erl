@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.14 2001/11/16 18:19:41 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.15 2001/11/17 18:25:11 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -132,9 +132,11 @@ perspective() ->
 model_transformations(St) ->
     #view{origo=Origo,distance=Dist0,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
+    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    gl:lightfv(?GL_LIGHT1, ?GL_POSITION, {-10000.0,-10000.0,-10000.0,1.0}),
+    gl:lightfv(?GL_LIGHT1, ?GL_POSITION, {10000.0,10000.0,10000.0,1.0}),
     Dist = Dist0 * math:sqrt((W*H) / (640*480)),
     gl:translatef(PanX, PanY, 0.0),
     gl:translatef(0.0, 0.0, -Dist),

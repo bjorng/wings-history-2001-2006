@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.15 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.16 2001/11/17 18:25:11 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -443,7 +443,6 @@ validate_items(Items, body, Shape) -> Items.
 %%% Selection commands.
 %%%
 
-select_all(#st{drag=Drag}=St) when Drag =/= undefined -> St;
 select_all(#st{selmode=body,shapes=Shapes}=St) ->
     Items = gb_sets:singleton(0),
     Sel = [{Id,Items} || Id <- gb_trees:keys(Shapes)],

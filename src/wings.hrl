@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.19 2001/11/17 13:16:11 bjorng Exp $
+%%     $Id: wings.hrl,v 1.20 2001/11/17 18:25:11 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -51,9 +51,13 @@
 -define(CHECK_ERROR(), ok).
 -endif.
 
+-define(DL_PICK, 99).
+-define(DL_DRAW_BASE, 100).
+
 %% Display lists.
 -record(dl,
-	{we=none,				%Winged edge objects.
+	{faces=none,				%Faces.
+	 edges=none,				%Edges.
 	 pick=none,				%For picking.
 	 pick_mode,				%Mode pick list was created in.
 	 old_sel,				%Actual selection.
@@ -71,8 +75,8 @@
 	 ssel,					%Saved selection.
 	 mat,					%Defined materials (GbTree).
 	 next_tx=100,				%Next OpenGL texture ID.
-	 drag,					%Current drag information or
-						% 'undefined' if no drag
+	 drag=none,				%Current drag information or
+						% 'none' if no drag
 						% in progress.
 	 dl=none,				%Cached display lists.
 	 file,					%Current filename.

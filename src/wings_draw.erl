@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.20 2001/11/17 13:16:11 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.21 2001/11/17 18:25:11 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -21,6 +21,10 @@
 
 model_changed(St) -> St#st{dl=none}.
 
+-define(DL_FACES, (?DL_DRAW_BASE)).
+-define(DL_EDGES, (?DL_DRAW_BASE+1)).
+-define(DL_SEL, (?DL_DRAW_BASE+2)).
+
 %%
 %% Renders all shapes, including selections.
 %%
@@ -29,14 +33,14 @@ render(#st{shapes=Shapes}=St0) ->
     ?CHECK_ERROR(),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     gl:enable(?GL_DEPTH_TEST),
-    wings_view:projection(),
     ?CHECK_ERROR(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     ?CHECK_ERROR(),
-    wings_view:model_transformations(St0),
-    ground_and_axes(),
     St1 = update_display_lists(St0),
     St = make_sel_dlist(St1),
+    wings_view:projection(),
+    wings_view:model_transformations(St0),
+    ground_and_axes(),
     draw_shapes(St),
     gl:popAttrib(),
     ?CHECK_ERROR(),
@@ -47,15 +51,13 @@ draw_shapes(St) ->
 	true -> draw_smooth_shapes(St);
 	false -> draw_plain_shapes(St)
     end.
-	    
+
 draw_smooth_shapes(#st{dl=DL}=St) ->
-    #dl{we=DlistWe} = DL,
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_BACK),
     gl:shadeModel(?GL_SMOOTH),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:enable(?GL_LIGHTING),
-    gl:enable(?GL_LIGHT0),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     ?CHECK_ERROR(),
     gl:enable(?GL_BLEND),
@@ -63,7 +65,7 @@ draw_smooth_shapes(#st{dl=DL}=St) ->
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     ?CHECK_ERROR(),
     gl:polygonOffset(2.0, 2.0),
-    draw_we(St),
+    draw_faces(St),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
@@ -71,11 +73,11 @@ draw_smooth_shapes(#st{dl=DL}=St) ->
     draw_sel(St).
 
 draw_plain_shapes(#st{selmode=SelMode}=St) ->
-    Wire = wings_pref:get_value(wire_mode),
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_BACK),
 
     %% Draw faces for winged-edge-objects.
+    Wire = wings_pref:get_value(wire_mode),
     case Wire of
 	true -> ok;
 	false ->
@@ -84,7 +86,11 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:enable(?GL_POLYGON_OFFSET_FILL),
 	    gl:polygonOffset(2.0, 2.0),
-	    draw_we(St)
+	    gl:shadeModel(?GL_SMOOTH),
+	    gl:enable(?GL_LIGHTING),
+	    draw_faces(St),
+	    gl:disable(?GL_LIGHTING),
+	    gl:shadeModel(?GL_FLAT)
     end,
 
     %% Draw edges.
@@ -99,8 +105,7 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     gl:enable(?GL_POLYGON_OFFSET_LINE),
     gl:polygonOffset(1.0, 1.0),
-    %%gl:disable(?GL_CULL_FACE),
-    draw_we(St),
+    draw_faces(St),
 
     %% If vertex selection mode, draw vertices.
     case SelMode of
@@ -109,7 +114,7 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
 	    gl:pointSize(wings_pref:get_value(vertex_size)),
 	    gl:enable(?GL_POLYGON_OFFSET_POINT),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_POINT),
-	    draw_we(St);
+	    draw_faces(St);
 	NotVertex -> ok
     end,
 
@@ -117,10 +122,7 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
     gl:disable(?GL_POLYGON_OFFSET_POINT),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
 
-    %% Selection.
     draw_sel(St),
-
-    %% Draw hard edges.
     draw_hard_edges(St).
 
 sel_color() ->
@@ -145,19 +147,44 @@ draw_sel(#st{dl=#dl{sel=DlistSel}}) ->
 	_ -> ok
     end.
     
-draw_we(#st{dl=#dl{we=DlistWe}}) ->
-    gl:callList(DlistWe).
+draw_faces(#st{dl=#dl{faces=DlistFaces}}) ->
+    gl:callList(DlistFaces).
+
+draw_edges(#st{dl=#dl{edges=DlistEdges}}) ->
+    gl:callList(DlistEdges).
 
 update_display_lists(#st{shapes=Shapes,dl=none}=St) ->
     Smooth = wings_pref:get_value(smooth_preview),
-    DlistWe = 98,
-    gl:newList(DlistWe, ?GL_COMPILE),
+    gl:newList(?DL_FACES, ?GL_COMPILE),
     foreach(fun(Sh) ->
 		    shape(Sh, Smooth, St)
 	    end, gb_trees:values(Shapes)),
     gl:endList(),
-    St#st{dl=#dl{we=DlistWe}};
+    Dl = #dl{faces=?DL_FACES},
+    case Smooth of
+	true -> St#st{dl=Dl};
+	false -> make_edge_dlist(Dl, St)
+    end;
 update_display_lists(St) -> St.
+
+make_edge_dlist(Dl, #st{shapes=Shapes}=St) ->
+    gl:newList(?DL_EDGES, ?GL_COMPILE),
+    foreach(fun(Sh) ->
+		    edges(Sh)
+	    end, gb_trees:values(Shapes)),
+    gl:endList(),
+    St#st{dl=Dl#dl{edges=?DL_EDGES}}.
+
+edges(#shape{sh=#we{es=Etab,vs=Vtab,he=Htab}}) ->
+    gl:'begin'(?GL_LINES),
+    draw_edges(gb_trees:values(Etab), Vtab),
+    gl:'end'().
+
+draw_edges([#edge{vs=Va,ve=Vb}|Es], Vtab) ->
+    gl:vertex3fv(lookup_pos(Va, Vtab)),
+    gl:vertex3fv(lookup_pos(Vb, Vtab)),
+    draw_edges(Es, Vtab);
+draw_edges([], Vtab) -> ok.
 
 make_sel_dlist(#st{sel=[],dl=DL}=St) ->
     St#st{dl=DL#dl{sel=none}};
@@ -170,7 +197,7 @@ make_sel_dlist(#st{dl=DL}=St) ->
 make_sel_dlist(St) -> St.
 
 do_make_sel_dlist(#st{sel=Sel,dl=DL}=St) ->
-    DlistSel = 95,
+    DlistSel = ?DL_SEL,
     gl:newList(DlistSel, ?GL_COMPILE),
     draw_selection(St),
     gl:endList(),
@@ -237,7 +264,7 @@ draw_smooth_2([]) -> ok.
 draw_face(Face, Edge, #we{es=Etab,vs=Vtab}=We) ->
     Normal = wings_face:normal(Face, We),
     gl:'begin'(?GL_POLYGON),
-%%    gl:normal3fv(Normal),
+    gl:normal3fv(Normal),
     draw_face_1(Face, Edge, Edge, Etab, Vtab, not_done),
     gl:'end'().
 
@@ -273,7 +300,7 @@ draw_hard_edges_1(#we{es=Etab,he=Htab,vs=Vtab}) ->
 
 %%
 %% Draw the currently selected items.
-%% 
+%%
 
 draw_selection(#st{selmode=body}=St) ->
     wings_sel:foreach(

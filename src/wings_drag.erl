@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.23 2001/11/17 13:16:11 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.24 2001/11/17 18:25:11 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -22,6 +22,10 @@
 -define(CTRL_BITS, (?KMOD_LCTRL bor ?KMOD_RCTRL)).
 -define(ALT_BITS, (?KMOD_LALT bor ?KMOD_RALT)).
 -define(SHIFT_BITS, (?KMOD_LSHIFT bor ?KMOD_RSHIFT)).
+
+-define(DL_STATIC_FACES, (?DL_DRAW_BASE)).
+-define(DL_DYNAMIC_FACES, (?DL_DRAW_BASE+1)).
+-define(DL_SEL, (?DL_DRAW_BASE+2)).
 
 -import(lists, [foreach/2,map/2,foldl/3,sort/1,reverse/1]).
 
@@ -87,7 +91,7 @@ get_drag_event(St) ->
     {replace,fun(Ev) -> handle_drag_event(Ev, St) end}.
 
 handle_drag_event(Event, St) ->
-    case wings_camera:event(Event, St) of
+    case wings_camera:event(Event, fun() -> redraw(St) end) of
 	next -> handle_drag_event_1(Event, St);
 	Other -> Other
     end.
@@ -102,7 +106,7 @@ handle_drag_event_1(#mousemotion{x=X,y=Y}, #st{drag=Drag0}=St0) ->
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, St0) ->
     wings_io:ungrab(),
     St = motion(X, Y, St0),
-    DragEnded = {drag_ended,normalize(St#st{drag=undefined,dl=none})},
+    DragEnded = {drag_ended,normalize(St#st{drag=none,dl=none})},
     wings_io:putback_event(DragEnded),
     pop;
 handle_drag_event_1(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}, St) ->
@@ -463,22 +467,13 @@ draw_we(#st{dl=#adl{we=DlistWe,dragging=WeDrag,matrix=Matrix}}) ->
 	    gl:popMatrix()
     end.
 
-update_display_lists(#st{shapes=Shapes,dl=none}=St) ->
-    DlistWe = 98,
-    gl:newList(DlistWe, ?GL_COMPILE),
-    foreach(fun(Sh) ->
-		    shape(Sh, St)
-	    end, gb_trees:values(Shapes)),
-    gl:endList(),
-    St#st{dl=#adl{we=DlistWe}};
-update_display_lists(#st{dl=#adl{drag_faces=none}}=St) -> St;
 update_display_lists(#st{dl=#adl{we=none,drag_faces=Faces}=DL}=St) ->
     %% Collect the static display list - faces that will not be moved.
-    DlistId = make_dlist(98, Faces, false, St),
+    DlistId = make_dlist(?DL_STATIC_FACES, Faces, false, St),
     update_display_lists(St#st{dl=DL#adl{we=DlistId}});
 update_display_lists(#st{dl=#adl{dragging=none,drag_faces=Faces}=DL}=St) ->
     %% Collect the dynamic display list - everything that will be moved.
-    DlistId = make_dlist(97, Faces, true, St),
+    DlistId = make_dlist(?DL_DYNAMIC_FACES, Faces, true, St),
     update_display_lists(St#st{dl=DL#adl{dragging=DlistId}});
 update_display_lists(St) -> St.
 
@@ -493,7 +488,7 @@ make_sel_dlist(#st{dl=DL}=St) ->
 make_sel_dlist(St) -> St.
 
 do_make_sel_dlist(#st{sel=Sel,dl=DL}=St) ->
-    DlistSel = 95,
+    DlistSel = ?DL_SEL,
     gl:newList(DlistSel, ?GL_COMPILE),
     draw_selection(St),
     gl:endList(),
@@ -524,9 +519,6 @@ mkdl_draw_faces(#shape{sh=#we{}=We}, Faces, Draw) ->
 	      end
       end, [], We);
 mkdl_draw_faces(_, _, _) -> ok.
-
-shape(#shape{sh=Data}, St) ->
-    draw_faces(Data, St).
 
 draw_faces(#we{}=We, St) ->
     wings_util:fold_face(

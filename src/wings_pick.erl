@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.3 2001/11/07 07:09:59 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.4 2001/11/17 18:25:11 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -107,7 +107,7 @@ select_draw_0(St) ->
     make_dlist(St).
 
 make_dlist(#st{selmode=Mode,dl=DL}=St) ->
-    Dlist = 100,
+    Dlist = ?DL_PICK,
     gl:newList(Dlist, ?GL_COMPILE),
     gl:pushAttrib(?GL_LINE_BIT),
     select_draw_1(St),
