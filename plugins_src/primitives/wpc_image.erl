@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.11 2003/01/31 21:10:48 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.12 2003/02/25 06:09:33 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -94,7 +94,9 @@ ratio(W, H) when W < H -> {1.0,H/W};
 ratio(W, H) -> {W/H,1.0}.
 
 strip_any_alpha(#e3d_image{type=r8g8b8}=Image) -> Image;
-strip_any_alpha(#e3d_image{type=r8g8b8a8}=Image) -> e3d_image:convert(Image, r8g8b8).
+strip_any_alpha(#e3d_image{type=b8g8r8}=Image) -> Image;
+strip_any_alpha(#e3d_image{type=r8g8b8a8}=Image) -> e3d_image:convert(Image, r8g8b8);
+strip_any_alpha(#e3d_image{type=b8g8r8a8}=Image) -> e3d_image:convert(Image, r8g8b8).
     
 can_texture_be_loaded(#e3d_image{width=W,height=H,image=Pixels}) ->
     gl:texImage2D(?GL_PROXY_TEXTURE_2D, 0, ?GL_RGB,
