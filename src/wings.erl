@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.200 2003/01/20 07:36:55 bjorng Exp $
+%%     $Id: wings.erl,v 1.201 2003/01/24 11:09:52 bjorng Exp $
 %%
 
 -module(wings).
@@ -196,8 +196,6 @@ main_loop(St) ->
     ?VALIDATE_MODEL(St),
     clear_mode_restriction(),
     wings_wm:dirty(),
-    Message = ["[L] Select  [R] Show menu  "|wings_camera:help()],
-    wings_wm:message(Message),
     main_loop_noredraw(St).
 
 main_loop_noredraw(St) ->
@@ -275,6 +273,12 @@ handle_event_3(quit, St) ->
 handle_event_3({new_state,St}, St0) ->
     wings_wm:dirty(),
     save_state(St0, St);
+handle_event_3(got_focus, _) ->
+    {One,_,Three} = wings_camera:button_names(),
+    Message = [One," Select  ",Three," Show menu  "|wings_camera:help()],
+    wings_wm:message(Message),
+    wings_wm:dirty();
+handle_event_3(lost_focus, _) -> keep;
 handle_event_3(ignore, _St) -> keep.
 
 do_command(Cmd, St) ->    
@@ -822,6 +826,9 @@ init_button() ->
 get_button_event(But) ->
     {replace,fun(Ev) -> button_event(Ev, But) end}.
 
+button_event(got_focus, _) ->
+    wings_wm:dirty(),
+    keep;
 button_event({window_updated,_}, But) ->
     get_button_event(button_resized(But));
 button_event(redraw, #but{buttons=undefined}=But0) ->

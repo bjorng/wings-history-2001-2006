@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.39 2003/01/14 19:48:36 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.40 2003/01/24 11:09:52 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -196,7 +196,7 @@ help_window(Text) ->
 create_help_window([S|T], Rows, Acc) ->
     break_line(S, T, Rows, Acc);
 create_help_window([], Rows, Lines) ->
-    Xs = 62*?CHAR_WIDTH,
+    Xs = 64*?CHAR_WIDTH,
     Ys = Rows*?LINE_HEIGHT,
     {W,H} = wings_wm:top_size(),
     X = trunc((W-Xs) / 2),
@@ -205,7 +205,7 @@ create_help_window([], Rows, Lines) ->
     Op = {push,fun(Ev) ->
 		       handle_help_event(Ev, DrawData)
 	       end},
-    wings_wm:new(help, {X,Y,?Z_HELP}, {Xs,Ys+?LINE_HEIGHT}, Op),
+    wings_wm:new(help, {X,Y,?Z_HELP}, {Xs+?CHAR_WIDTH,Ys+?LINE_HEIGHT}, Op),
     wings_wm:grab_focus(help),
     wings_wm:dirty(),
     keep.
@@ -241,8 +241,9 @@ handle_help_event(redraw, DrawData) ->
     wings_wm:message("[L] Close help window"),
     redraw(DrawData),
     keep;
-handle_help_event(#mousemotion{}, _) ->
-    keep;
+handle_help_event(#mousemotion{}, _) -> keep;
+handle_help_event(got_focus, _) -> keep;
+handle_help_event(lost_focus, _) -> keep;
 handle_help_event(quit=Ev, _) ->
     wings_io:putback_event(Ev),
     delete;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.67 2003/01/23 20:14:30 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.68 2003/01/24 11:09:52 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -58,7 +58,9 @@
 %%%
 %%% wm_active		Currently active window (handling current event).
 %%% wm_main		Last active window that has a menu.
-%%% wm_focus		Window name of focus window or undefined.
+%%% wm_focus		Actual focus window (implicitly or grabbed).
+%%% wm_prev_focus	Actual focus window (implicitly or grabbed).
+%%% wm_focus_grab	Window name of forced focus window or 'undefined'.
 %%% wm_windows		All windows.
 %%% wm_dirty		Exists if redraw is needed.
 %%% wm_top_size         Size of top window.
@@ -85,8 +87,8 @@ init() ->
     init_opengl(),
     resize_windows(W, H).
 
-desktop_event(#mousemotion{}) ->
-    message("", ""),
+desktop_event(got_focus) ->
+    dirty(),
     keep;
 desktop_event(_) -> keep.
 
@@ -129,7 +131,8 @@ current_state(St) ->
     end.
 
 dirty() ->
-    put(wm_dirty, dirty).
+    put(wm_dirty, dirty),
+    keep.
 
 clean() ->
     erase(wm_dirty).
@@ -139,21 +142,23 @@ callback(Cb) ->
     
 new(Name, {X,Y,Z}, {W,H}, Op) when is_integer(X), is_integer(Y),
 				   is_integer(W), is_integer(H) ->
-    dirty(),
     Stk = handle_response(Op, dummy_event, default_stack(Name)),
     Win = #win{x=X,y=Y,z=Z,w=W,h=H,name=Name,stk=Stk},
     put(wm_windows, gb_trees:insert(Name, Win, get(wm_windows))),
-    keep.
+    dirty().
 
 delete(Name) ->
-    case get(wm_focus) of
-	Name -> erase(wm_focus);
-	_ -> ok
-    end,
-    dirty(),
     Windows = delete_windows(Name, get(wm_windows)),
     put(wm_windows, Windows),
-    keep.
+    case get(wm_focus_grab) of
+	Name -> erase(wm_focus_grab);
+	_ -> ok
+    end,
+    case get(wm_focus) of
+	Name -> update_focus(find_active(none));
+	_ -> ok
+    end,
+    dirty().
 
 delete_windows(Name, W0) ->
     case gb_trees:lookup(Name, W0) of
@@ -268,18 +273,18 @@ grab_focus() ->
 	   
 grab_focus(Name) -> 
     case is_window(Name) of
-	true -> put(wm_focus, Name);
-	false -> erase(wm_focus)
+	true -> put(wm_focus_grab, Name);
+	false -> erase(wm_focus_grab)
     end.
 
 release_focus() -> 
-    erase(wm_focus).
+    erase(wm_focus_grab).
 
 has_focus(Name) ->
-    get(wm_focus) =:= Name.
+    get(wm_focus_grab) =:= Name.
 
 focus_window() ->
-    get(wm_focus).
+    get(wm_focus_grab).
 
 top_size() ->
     get(wm_top_size).
@@ -391,8 +396,25 @@ dispatch_event({wm,WmEvent}) ->
     wm_event(WmEvent);
 dispatch_event(Event) ->
     case find_active(Event) of
-	none -> ok;
-	Active -> do_dispatch(Active, Event)
+	none ->
+	    update_focus(none);
+	Active ->
+	    update_focus(Active),
+	    do_dispatch(Active, Event)
+    end.
+
+update_focus(none) ->
+    case erase(wm_focus) of
+	undefined -> ok;
+	OldActive -> do_dispatch(OldActive, lost_focus)
+    end;
+update_focus(Active) ->
+    case put(wm_focus, Active) of
+	undefined -> do_dispatch(Active, got_focus);
+	Active -> ok;
+	OldActive ->
+	    do_dispatch(OldActive, lost_focus),
+	    do_dispatch(Active, got_focus)
     end.
 
 resize_windows(W, H) ->    
@@ -589,7 +611,7 @@ wm_event({menubar,Name,Menubar}) ->
 	#win{stk=[Top|Stk]}=Data0 ->
 	    Data = Data0#win{stk=[Top#se{menubar=Menubar}|Stk]},
 	    put_window_data(Name, Data),
-	    wings_wm:dirty()
+	    dirty()
     end;
 wm_event({send_to,Name,Ev}) ->
     case gb_trees:is_defined(Name, get(wm_windows)) of
@@ -627,13 +649,13 @@ find_active_1([#win{x=Wx,y=Wy,w=W,h=H,name=Name}|T], X, Y) ->
 find_active_1(_, _, _) -> find_active_2(none).
 
 find_active_2({controller,Client}=Name) ->
-    case get(wm_focus) of
+    case get(wm_focus_grab) of
  	undefined -> Name;
 	Client -> Name;
  	Focus -> Focus
     end;
 find_active_2(Name) ->
-    case get(wm_focus) of
+    case get(wm_focus_grab) of
  	undefined -> Name;
  	Focus -> Focus
     end.
@@ -722,18 +744,17 @@ message_event(redraw) ->
 			 ({wm,{message_right,_,_}}) -> true;
 			 (_) -> false
 		      end),
-    case find_active(redraw) of
- 	none ->
-	    Msg = Right = [];
- 	Active ->
- 	    #win{stk=[#se{msg=Msg,msg_right=Right}|_]} = get_window_data(Active)
-    end,
-    #win{stk=[Top|Stk]} = Data0 = get_window_data(message),
-    Data = Data0#win{stk=[Top#se{msg=Msg,msg_right=Right}|Stk]},
-    put_window_data(message, Data),
-    message_redraw(Msg, Right);
+    case get(wm_focus) of
+	undefined -> keep;
+	Active ->
+	    #win{stk=[#se{msg=Msg,msg_right=Right}|_]} = get_window_data(Active),
+	    message_redraw(Msg, Right)
+    end;
 message_event({action,_}=Action) ->
     send(geom, Action);
+message_event(got_focus) ->
+    message("This is the information bar"),
+    dirty();
 message_event(_) -> keep.
 
 message_redraw(Msg, Right) ->
@@ -858,6 +879,8 @@ get_menu_event(Mb) ->
 
 menubar_event(redraw, Mb) ->
     menubar_redraw(Mb);
+menubar_event(got_focus, _) ->
+    dirty();
 menubar_event(quit, _) ->
     send(geom, quit);
 menubar_event({action,_}=Action, _) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.6 2003/01/22 21:34:40 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.7 2003/01/24 11:09:53 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -102,6 +102,10 @@ get_ctrl_event(Cs) ->
 		     
 ctrl_event(redraw, Cs) ->
     ctrl_redraw(Cs);
+ctrl_event(got_focus, _) ->
+    {One,Two,Three} = wings_camera:button_names(),
+    wings_wm:message(["Drag ",One," Move  ",Two," Fit  ",Three," Show menu"]),
+    wings_wm:dirty();
 ctrl_event(#mousebutton{button=1,state=?SDL_PRESSED},
 	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
     wings_wm:grab_focus(Focus),
@@ -132,10 +136,6 @@ ctrl_event(#mousemotion{state=?SDL_RELEASED},
 	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
     wings_wm:grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
-ctrl_event(#mousemotion{}, _) ->
-    {One,Two,Three} = wings_camera:button_names(),
-    wings_wm:message(["Drag ",One," Move  ",Two," Fit  ",Three," Show menu"]),
-    keep;
 ctrl_event(#mousebutton{}=Ev, _) ->
     case wings_menu:is_popup_event(Ev) of
 	{yes,X,Y,_} -> ctrl_menu(X, Y);
@@ -212,7 +212,7 @@ ctrl_menu(X, Y) ->
 	       {"Vertical",vertical,
 		"Let window use all available space by expanding it vertically"}
 	      ]}},
-	    {"Size",size,"Set size numerically"}|ctrl_menu_toolbar()],
+	    {"Size",size,"Set window size numerically"}|ctrl_menu_toolbar()],
     wings_menu:popup_menu(X, Y, titlebar, Menu).
 
 ctrl_menu_toolbar() ->
@@ -223,28 +223,26 @@ ctrl_menu_toolbar() ->
 	true ->
 	    case wings_wm:is_hidden(Toolbar) of
 		false ->
-		    [{"Hide Toolbar",hide_toolbar}];
+		    [{"Hide Toolbar",hide_toolbar,"Hide the toolbar"}];
 		true ->
-		    [{"Show Toolbar",show_toolbar}]
+		    [{"Show Toolbar",show_toolbar,"Show the toolbar"}]
 	    end
     end.
 
 ctrl_command(hide_toolbar, _) ->
-    wings_wm:dirty(),
     {_,Client} = wings_wm:active_window(),
     Toolbar = {toolbar,Client},
     wings_wm:hide(Toolbar),
     {_,H} = wings_wm:win_size(Toolbar),
     wings_wm:update_window(Client, [{dy,-H},{dh,H}]),
-    keep;
+    wings_wm:dirty();
 ctrl_command(show_toolbar, _) ->
-    wings_wm:dirty(),
     {_,Client} = wings_wm:active_window(),
     Toolbar = {toolbar,Client},
     wings_wm:show({toolbar,Client}),
     {_,H} = wings_wm:win_size(Toolbar),
     wings_wm:update_window(Client, [{dy,H},{dh,-H}]),
-    keep;
+    wings_wm:dirty();
 ctrl_command({fit,Fit}, _) ->
     ctrl_fit(Fit),
     keep;
@@ -360,11 +358,14 @@ ctrl_new_resizer(Client) ->
 get_resize_event(Rst) ->
     {replace,fun(Ev) -> resize_event(Ev, Rst) end}.
 
+
 resize_event(redraw, _) ->
     wings_io:ortho_setup(),
     wings_wm:draw_resizer(0, 0),
-    wings_util:button_message("Resize", "Resize, keeping current aspect ratio"),
     keep;
+resize_event(got_focus, _) ->
+    wings_util:button_message("Resize", "Resize, keeping current aspect ratio"),
+    wings_wm:dirty();
 resize_event(#mousebutton{button=1,state=?SDL_PRESSED},
 	     #rsz{state=moving,prev_focus=Focus}=Rst) ->
     wings_wm:grab_focus(Focus),
@@ -466,6 +467,9 @@ get_event(Ss) ->
 
 event(redraw, Ss) ->
     redraw(Ss);
+event(got_focus, _) ->
+    wings_wm:message(""),
+    wings_wm:dirty();
 event({set_knob,Pos0,Prop0}, #ss{knob_pos=OldPos,knob_prop=OldProp}=Ss) ->
     case {max(0.0, min(1.0, Pos0)),max(0.0, min(1.0, Prop0))} of
 	{OldPos,OldProp} -> keep;
@@ -552,6 +556,9 @@ close_event(redraw) ->
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:disable(?GL_TEXTURE_2D),
     keep;
+close_event(got_focus) ->
+    wings_wm:message("Close this window"),
+    wings_wm:dirty();
 close_event(#mousebutton{button=1,state=?SDL_RELEASED}) ->
     {_,Client} = wings_wm:active_window(),
     wings_wm:delete(Client),
