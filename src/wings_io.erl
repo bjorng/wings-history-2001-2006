@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.13 2001/11/25 13:47:14 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.14 2001/11/29 20:58:34 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -485,11 +485,12 @@ set_timer(Time, Event) ->
     erlang:start_timer(Time, self(), {event,Event}).
 
 cancel_timer(Ref) ->
-    erlang:cancel_timer(Ref),
+    Left = erlang:cancel_timer(Ref),
     receive
 	{timeout,Ref,_} -> ok
     after 0 -> ok
-    end.
+    end,
+    Left.
 
 %%%
 %%% Mouse grabbing.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.12 2001/11/25 13:47:14 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.13 2001/11/29 20:58:34 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -32,6 +32,7 @@
 	 new=true,				%If just opened, ignore
 						%button release.
 	 timer=make_ref(),			%Active submenu timer.
+	 return_timer=none,			%Timer for returning to parent.
 	 prev=[],				%Previous menu.
 	 redraw,				%Redraw parent fun.
 	 st,					%State record.
@@ -75,7 +76,7 @@ menu_setup(Type, X0, Y0, Name, Menu, Mi) ->
 		  plain -> {X0,Y0};
 		  popup -> {X0-TotalW div 2,Y0 - Margin div 2}
 	      end,
-    {X,Y} = move_if_outside(X1, Y1, TotalW, Mh+2*Margin),
+    {X,Y} = move_if_outside(X1, Y1, TotalW, Mh+2*Margin, Mi),
     Mi#mi{xleft=X,ytop=Y,ymarg=Margin,
 	  shortcut=MwL+2,w=TotalW-10,h=Mh,
 	  sel=none,name=Name,menu=Menu}.
@@ -134,6 +135,11 @@ handle_menu_event(Event, #mi{name=Name,new=New}=Mi0) ->
 		    wings_io:putback_event({menu_action,{Name,Other}}),
 		    pop
 	    end;
+	{go_back,NewEvent} ->
+ 	    wings_io:cleanup_after_drawing(),
+ 	    wings_io:putback_event(NewEvent),
+ 	    wings_io:putback_event(redraw),
+ 	    pop;
 	{menu_action,Action} ->
 	    wings_io:putback_event({menu_action,{Name,Action}}),
 	    pop;
@@ -163,24 +169,38 @@ button_outside(#mousebutton{x=X,y=Y}=Event, #mi{prev=PrevMenu}=Mi) ->
     end.
 
 motion_outside(#mousemotion{x=X,y=Y}=Event, #mi{prev=[]}=Mi) -> none;
-motion_outside(#mousemotion{x=X,y=Y}=Event, #mi{prev=PrevMenu}=Mi) ->
-    #mi{sel=PrevSel} = PrevMenu,
-    case selected_item(X, Y, PrevMenu) of
-	outside -> motion_outside(Event, PrevMenu);
+motion_outside(#mousemotion{x=X,y=Y}=Event, #mi{prev=PrevMenu0}=Mi) ->
+    #mi{sel=PrevSel} = PrevMenu0,
+    case selected_item(X, Y, PrevMenu0) of
+	outside -> motion_outside(Event, PrevMenu0);
 	none -> none;
-	PrevSel -> none;
-	Other ->
-	    wings_io:cleanup_after_drawing(),
-	    wings_io:putback_event(Event),
-	    wings_io:putback_event(redraw),
-	    pop
+	PrevSel -> keep;
+	OtherSel ->
+	    #mi{return_timer=Timer0} = Mi,
+	    PrevMenu = PrevMenu0#mi{sel=OtherSel},
+	    case Timer0 of
+		none ->
+		    Tim = wings_io:set_timer(350, {go_back,Event}),
+		    Timer = {OtherSel,Tim},
+		    get_menu_event(Mi#mi{prev=PrevMenu,return_timer=Timer});
+		{_,Tim0} ->
+		    wings_io:cancel_timer(Tim0),
+		    wings_io:putback_event({go_back,Event}),
+		    get_menu_event(Mi#mi{prev=PrevMenu,return_timer=none})
+	    end
     end.
 
 clear_timer(#mi{timer=Timer}) ->
     wings_io:cancel_timer(Timer).
 
-set_submenu_timer(#mi{sel=Sel}=Mi, #mi{sel=Sel}, X, Y) -> Mi;
-set_submenu_timer(#mi{sel=Sel}=Mi, OldMi, X, Y) ->
+set_submenu_timer(#mi{return_timer=none}=Mi, OldMi, X, Y) ->
+    set_submenu_timer_1(Mi, OldMi, X, Y);
+set_submenu_timer(#mi{return_timer={_,Timer}}=Mi, OldMi, X, Y) ->
+    wings_io:cancel_timer(Timer),
+    set_submenu_timer_1(Mi, OldMi, X, Y).
+
+set_submenu_timer_1(#mi{sel=Sel}=Mi, #mi{sel=Sel}, X, Y) -> Mi;
+set_submenu_timer_1(#mi{sel=Sel}=Mi, OldMi, X, Y) ->
     clear_timer(OldMi),
     case is_submenu(Sel, Mi) of
 	false -> Mi;
@@ -197,6 +217,12 @@ redraw(#mi{redraw=Redraw,st=St,num_redraws=NumRedraws}=Mi) ->
 	true -> ok
     end,
     wings_io:ortho_setup(),
+    #mi{prev=PrevMenu} = Mi,
+    case PrevMenu of
+	[] -> ok;
+	#mi{return_timer=none} -> ok;
+	#mi{} -> menu_show(PrevMenu)
+    end,
     menu_show(Mi),
     gl:swapBuffers(),
     Mi#mi{num_redraws=NumRedraws+1}.
@@ -348,13 +374,14 @@ draw_separator(X, Y, Mw) ->
     ?CHECK_ERROR().
 
 
-move_if_outside(X, Y, Mw, Mh) ->
+move_if_outside(X, Y, Mw, Mh, Mi) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     if
 	X+Mw > W ->
-	    move_if_outside(W-Mw, Y, Mw, Mh);
+	    NewX = left_of_parent(Mw, W, Mi),
+	    move_if_outside(NewX, Y, Mw, Mh, Mi);
 	Y+Mh > H ->
-	    move_if_outside(X, H-Mh, Mw, Mh);
+	    move_if_outside(X, H-Mh, Mw, Mh, Mi);
 	true ->
 	    move_if_outside_x(X, Y)
     end.
@@ -363,3 +390,6 @@ move_if_outside_x(X, Y) when X < 0 ->
     {0,Y};
 move_if_outside_x(X, Y) ->
     {X,Y}.
+
+left_of_parent(Mw, W, #mi{prev=[]}) -> W-Mw;
+left_of_parent(Mw, _, #mi{prev=#mi{xleft=X}}) -> X-Mw+10.
