@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.294 2004/02/28 08:41:19 bjorng Exp $
+%%     $Id: wings.erl,v 1.295 2004/03/17 07:05:46 bjorng Exp $
 %%
 
 -module(wings).
@@ -205,24 +205,27 @@ redraw(Info, St) ->
     end.
 
 call_post_hook(St) ->
-    This = wings_wm:this(),
-    case get({post_hook, This}) of
-	undefined -> 
-	    ok;
-	{_Id, Fun} ->
-	    Fun(St)
+    case wings_wm:lookup_prop(postdraw_hook) of
+	none -> ok;
+	{value,{_Id,Fun}} -> Fun(St)
     end.
 
 register_postdraw_hook(Window, Id, Fun) ->
-    put({post_hook, Window}, {Id, Fun}).
+    case wings_wm:lookup_prop(Window, postdraw_hook) of
+	none ->
+	    wings_wm:set_prop(Window, postdraw_hook, {Id,Fun});
+	{value,{Id,_}} ->
+	    wings_wm:set_prop(Window, postdraw_hook, {Id,Fun});
+	{value,{OtherId,_}} ->
+	    erlang:fault({in_use_by,OtherId}, [Window,Id,Fun])
+    end.
 
-unregister_postdraw_hook(Window,Id) ->
-    case get({post_hook, Window}) of
-	undefined -> %% Cancel was called from other win
-	    ok;
-	{Id, _} ->
-	    erase({post_hook,Window});
-	_ -> ok
+unregister_postdraw_hook(Window, Id) ->
+    case wings_wm:lookup_prop(Window, postdraw_hook) of
+	{value,{Id,_}} ->
+	    wings_wm:erase_prop(Window, postdraw_hook);
+	_ ->
+	    ok
     end.
 
 save_state(St0, St1) ->
