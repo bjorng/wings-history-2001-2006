@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.141 2003/12/12 15:27:14 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.142 2003/12/23 01:38:25 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -201,12 +201,12 @@ ask_unzip([], Labels, Vals) ->
 %% {hframe,Fields[,Flags]}			-- Horizontal frame
 %% {vframe,Fields[,Flags]}			-- Vertical frame
 %%     Flags = [Flag]
-%%     Flag = {title,String}|{minimized,Boolean}|{key,Key}|{hook,Hook}
+%%     Flag = {title,String}|{minimized,Boolean}|{key,Key}|{hook,Hook}|layout
 %% Only frames with both 'title' and 'minimized' flags return a value.
 %%
 %% {oframe,Fields[,Flags]}			-- Overlay frame
 %%     Flags = [Flag]
-%%     Flag = {title,String}|{style,Style}|{key,Key}|{hook,Hook}
+%%     Flag = {title,String}|{style,Style}|{key,Key}|{hook,Hook}|layout
 %%     Style = menu|buttons  -- menu is default
 %%
 %%
@@ -1220,20 +1220,18 @@ layout(Fi=#fi{key=Key,index=Index,flags=Flags,hook=Hook,
 	      extra=Container=#container{type=Type,fields=Fields0}}, 
        Sto, X0, Y0) when Type =:= hframe; Type =:= vframe ->
     Var = var(Key, Index),
-    Minimized = 
-	case gb_trees:get(Var, Sto) of
-	    undefined -> undefined;
-	    Minimized0 -> 
-		case hook(Hook, is_minimized, [Var,Index,Sto]) of
+    Minimized0 = gb_trees:get(Var, Sto),
+    Minimized = case hook(Hook, is_minimized, [Var,Index,Sto]) of
 		    keep -> Minimized0;
 		    Minimized1 -> Minimized1
-		end
-	end,
+		end,
     Title = proplists:get_value(title, Flags),
     {X1,Y1} = if Title =:= undefined -> {X0,Y0};
 		 true -> {X0+10,Y0+?LINE_HEIGHT} end,
     {Fields,X2,Y2} = layout_container(Type, Fields0, Sto, X1, Y1),
-    Wi = if Title =:= undefined -> X2-X1;
+    Wi = if Title =:= undefined -> 
+		 if Minimized =:= true -> 0;
+		    true -> X2-X1 end;
 	    true -> max(3*?CHAR_WIDTH+wings_text:width(Title), X2-X1) end,
     Hi = Y2-Y1,
     Wo = 2*(X1-X0)+Wi,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.39 2003/10/30 07:23:07 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.40 2003/12/23 01:38:25 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
@@ -290,24 +290,40 @@ edit(#st{sel=[{Id,_}]}=St) ->
 edit(_) -> wings_util:error("Select only one light.").
 
 edit(Id, #st{shapes=Shs}=St) ->
-    We = gb_trees:get(Id, Shs),
-    edit_1(We, Shs, St).
-    
-edit_1(#we{id=Id,light=#light{type=ambient,ambient=Amb0}=L0}=We0, Shs, St) ->
+    We = #we{light=#light{type=Type}} = gb_trees:get(Id, Shs),
+    {Name,Prop} = get_light(We),
+    case Type of
+	ambient ->
+	    {dialog,Qs,Fun} = edit_ambient_dialog(Name, Prop, We, Shs, St),
+	    wings_ask:dialog("Ambient Light Properties", Qs, Fun);
+	_ ->
+	    {dialog,Qs,Fun} = edit_dialog(Name, Prop, We, Shs, St),
+	    wings_ask:dialog("Light Properties", Qs, Fun)
+    end.
+
+edit_ambient_dialog(Name, Prop0, 
+		    We0=#we{id=Id,light=#light{ambient=Amb0}=L0}, Shs, St) ->
     Qs0 = [{hframe,
 	    [{vframe,[{label,"Ambient"}]},
 	     {vframe,[{color,Amb0}]}],
 	    [{title,"Color"}]}|qs_specific(L0)],
-    {Name,Prop0} = get_light(We0),
-    Qs = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
-    wings_ask:dialog("Ambient Light Properties", Qs,
-		     fun([Amb|Res]) ->
-			     Prop = plugin_results(Name, Prop0, Res),
-			     L = L0#light{ambient=Amb,prop=Prop},
-			     We = We0#we{light=L},
-			     St#st{shapes=gb_trees:update(Id, We, Shs)}
-		     end);
-edit_1(#we{id=Id,light=L0}=We0, Shs, St) ->
+    Qs1 = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
+    Qs = {hframe,[{vframe,Qs1},
+		  {vframe,[{button,"OK",done,[ok,{key,light_editor_ok}]},
+			   {button,cancel,[cancel]}]}]},
+    Fun = fun([Amb|Res]) ->
+		  case plugin_results(Name, Prop0, Res) of
+		      {ok,Prop} ->
+			  L = L0#light{ambient=Amb,prop=Prop},
+			  We = We0#we{light=L},
+			  St#st{shapes=gb_trees:update(Id, We, Shs)};
+		      {again,Prop} -> edit_ambient_dialog(Name, Prop,
+							  We0, Shs, St)
+		  end
+	  end,
+    {dialog,Qs,Fun}.
+
+edit_dialog(Name, Prop0, #we{id=Id,light=L0}=We0, Shs, St) ->
     #light{diffuse=Diff0,ambient=Amb0,specular=Spec0} = L0,
     Qs0 = [{hframe,
 	    [{vframe,
@@ -319,21 +335,28 @@ edit_1(#we{id=Id,light=L0}=We0, Shs, St) ->
 	       {color,Amb0},
 	       {color,Spec0}]}],
 	    [{title,"Colors"}]}|qs_specific(L0)],
-    {Name,Prop0} = get_light(We0),
-    Qs = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
-    wings_ask:dialog("Light Properties", Qs,
-		     fun([Diff,Amb,Spec|More0]) ->
-			     L1 = L0#light{diffuse=Diff,ambient=Amb,specular=Spec},
-			     {L,More} = edit_specific(More0, L1),
-			     Prop = plugin_results(Name, Prop0, More),
-			     We = We0#we{light=L#light{prop=Prop}},
-			     St#st{shapes=gb_trees:update(Id, We, Shs)}
-		     end).
+    Qs1 = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
+    Qs = {hframe,[{vframe,Qs1},
+		  {vframe,[{button,"OK",done,[ok,{key,light_editor_ok}]},
+			   {button,cancel,[cancel]}]}]},
+    Fun = fun([Diff,Amb,Spec|More0]) ->
+		  L1 = L0#light{diffuse=Diff,ambient=Amb,specular=Spec},
+		  {L,More} = edit_specific(More0, L1),
+		  case plugin_results(Name, Prop0, More) of
+		      {ok,Prop} ->
+			  We = We0#we{light=L#light{prop=Prop}},
+			  St#st{shapes=gb_trees:update(Id, We, Shs)};
+		      {again,Prop} -> edit_dialog(Name, Prop, We0, Shs, St)
+		  end
+	  end,
+    {dialog,Qs,Fun}.
 
 plugin_results(Name, Prop0, Res0) ->
     case wings_plugin:dialog_result({light_editor_result,Name,Prop0}, Res0) of
-	{Prop,[]} ->
-	    keydelete(opengl, 1, Prop);
+	{Prop,[{light_editor_ok,true}]} ->
+	    {ok,keydelete(opengl, 1, Prop)};
+	{Prop,[{light_editor_ok,false}]} ->
+	    {again,Prop};
 	{_,Res} ->
 	    io:format("Light editor plugin(s) left garbage:~n    ~P~n", 
 		      [Res,20]),

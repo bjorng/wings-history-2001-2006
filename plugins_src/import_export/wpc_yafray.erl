@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.49 2003/12/03 00:44:33 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.50 2003/12/23 01:38:24 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -516,35 +516,36 @@ light_dialog(Name, Ps) ->
 		   spot -> ?DEF_ATTN_POWER;
 		   _ -> ?DEF_POWER
 	       end,
+    Minimized = proplists:get_value(minimized, YafRay, true),
     Power = proplists:get_value(power, YafRay, DefPower),
     [{vframe,
       [{hframe,[{vframe, [{label,"Power"}]},
 		{vframe,[{text,Power,
 			  [{range,{0.0,10000.0}},{key,{?TAG,power}}]}]}]}|
        light_dialog(Name, Type,YafRay)],
-      [{title,"YafRay Options"}]}].
+      [{title,"YafRay Options"},{key,{?TAG,minimized}},{minimized,Minimized}]}].
 
 light_dialog(_Name, point, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_POINT_TYPE),
-    TypeDef = {{?TAG,type},Type},
     CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
     Bias = proplists:get_value(bias, Ps, ?DEF_BIAS),
     Res = proplists:get_value(res, Ps, ?DEF_RES),
     Radius = proplists:get_value(radius, Ps, ?DEF_RADIUS),
     [{hframe,
-      [{key_alt,TypeDef,"Pointlight",pointlight},
-       {"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]}]},
-     {hframe,
-      [{key_alt,TypeDef,"Softlight",softlight},
-       {vframe,[{label,"Bias"},
-		{label,"Res"},
-		{label,"Radius"}]},
-       {vframe,[{text,Bias,[{range,0.0,1.0},{key,{?TAG,bias}}]},
-		{text,Res,[{range,0,10000},{key,{?TAG,res}}]},
-		{text,Radius,[{range,0,10000},{key,{?TAG,radius}}]}]}]}];
+      [{vradio,[{"Pointlight",pointlight},{"Softlight",softlight}],
+	Type,[{key,{?TAG,type}},layout]},
+       {"Cast Shadows",CastShadows,
+	[{key,{?TAG,cast_shadows}},{hook,light_hook({?TAG,type}, pointlight)}]},
+       {hframe,
+	[{vframe,[{label,"Bias"},
+		  {label,"Res"},
+		  {label,"Radius"}]},
+	 {vframe,[{text,Bias,[{range,0.0,1.0},{key,{?TAG,bias}}]},
+		  {text,Res,[{range,0,10000},{key,{?TAG,res}}]},
+		  {text,Radius,[{range,0,10000},{key,{?TAG,radius}}]}]}],
+	[{hook,light_hook({?TAG,type}, softlight)}]}]}];
 light_dialog(_Name, spot, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_SPOT_TYPE),
-    TypeDef = {{?TAG,type},Type},
     CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
     Blend = proplists:get_value(blend, Ps, ?DEF_BLEND),
     Mode = proplists:get_value(mode, Ps, ?DEF_MODE),
@@ -555,78 +556,89 @@ light_dialog(_Name, spot, Ps) ->
     Mindepth = proplists:get_value(mindepth, Ps, ?DEF_MINDEPTH),
     Cluster = proplists:get_value(cluster, Ps, ?DEF_CLUSTER),
     [{hframe,
-      [{key_alt,TypeDef,"Spotlight",spotlight},
-       {"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]},
-       {label,"Blend"},{text,Blend,[{range,0.0,100.0},{key,{?TAG,blend}}]}]},
+      [{hradio,[{"Spotlight",spotlight},
+		{"Photonlight",photonlight}],Type,[layout,{key,{?TAG,type}}]},
+       {menu,[{"Diffuse",diffuse},{"Caustic",caustic}],Mode,
+	[{key,{?TAG,mode}},{hook,light_hook({?TAG,type}, photonlight)}]}]},
      {hframe,
-      [{key_alt,TypeDef,"Photonlight",photonlight},
-       {vframe,
-	[{menu,[{"Diffuse",diffuse},{"Caustic",caustic}],Mode,
-	  [{key,{?TAG,mode}}]},
-	 {hframe,[{vframe,[{label,"Photons"},
-			   {label,"Depth"},
-			   {label,"Fixedradius"}]},
-		  {vframe,[{text,Photons,[{range,0,1000000},
-					  {key,{?TAG,photons}}]},
-			   {text,Depth,[{range,1,100},{key,{?TAG,depth}}]},
-			   {text,Fixedradius,[{range,1.0,1000000.0},
-					      {key,{?TAG,fixedradius}}]}]},
-		  {vframe,[{label,"Search"},
-			   {label,"Mindepth"},
-			   {label,"Cluster"}]},
-		  {vframe,[{text,Search,[{range,0,1000000},
-					 {key,{?TAG,search}}]},
-			   {text,Mindepth,[{range,0,1000000},
-					   {key,{?TAG,mindepth}}]},
-			   {text,Cluster,[{range,0.0,1000000.0},
-					  {key,{?TAG,cluster}}]}]}]}]}]}];
+      [{"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]},
+       {label,"Blend"},{text,Blend,[{range,0.0,100.0},{key,{?TAG,blend}}]}],
+      [{hook,light_hook({?TAG,type}, spotlight)}]},
+     {hframe,[{vframe,[{label,"Photons"},
+		       {label,"Depth"},
+		       {label,"Fixedradius"}]},
+	      {vframe,[{text,Photons,[{range,0,1000000},
+				      {key,{?TAG,photons}}]},
+		       {text,Depth,[{range,1,100},{key,{?TAG,depth}}]},
+		       {text,Fixedradius,[{range,1.0,1000000.0},
+					  {key,{?TAG,fixedradius}}]}]},
+	      {vframe,[{label,"Search"},
+		       {label,"Mindepth"},
+		       {label,"Cluster"}]},
+	      {vframe,[{text,Search,[{range,0,1000000},
+				     {key,{?TAG,search}}]},
+		       {text,Mindepth,[{range,0,1000000},
+				       {key,{?TAG,mindepth}}]},
+		       {text,Cluster,[{range,0.0,1000000.0},
+				      {key,{?TAG,cluster}}]}]}],
+      [{hook,light_hook({?TAG,type}, photonlight)}]}];
 light_dialog(_Name, infinite, Ps) ->
     Bg = proplists:get_value(background, Ps, ?DEF_BACKGROUND),
-    BgDef = {{?TAG,background},Bg},
     BgColor = proplists:get_value(background_color, Ps, ?DEF_BACKGROUND_COLOR),
     CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
     Turbidity = proplists:get_value(turbidity, Ps, ?DEF_TURBIDITY),
     [{"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]},
-     {hframe,
-      [{vframe,[{key_alt,BgDef,"Constant",constant},
-		{key_alt,BgDef,"Sunsky",sunsky},
-		{key_alt,BgDef,"None", undefined}]},
-       {vframe,[{label,"Color"},
-		{label,"Turbidity"}]},
-       {vframe,[{color,BgColor,[{key,{?TAG,background_color}}]},
-		{hframe,
-		 [{text,Turbidity,[{range,0.0,100.0},
-				   {key,{?TAG,turbidity}}]}]}]}],
+     {vframe,
+      [{hradio,[{"Constant",constant},
+		{"Sunsky",sunsky},
+		{"None", undefined}],Bg,[layout,{key,{?TAG,background}}]},
+       {hframe,[{label,"Color"},{color,BgColor,[{key,{?TAG,background_color}}]}],
+	[{hook,light_hook({?TAG,background}, constant)}]},
+       {hframe,[{label,"Turbidity"},{text,Turbidity,[{range,0.0,100.0},
+						     {key,{?TAG,turbidity}}]}],
+	[{hook,light_hook({?TAG,background}, sunsky)}]}],
       [{title,"Background"}]}];
 light_dialog(_Name, ambient, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_AMBIENT_TYPE),
-    TypeDef = {{?TAG,type},Type},
     Samples = proplists:get_value(samples, Ps, ?DEF_SAMPLES),
     Depth = proplists:get_value(depth, Ps, ?DEF_DEPTH),
-    [{hframe,[{key_alt,TypeDef,"Hemilight",hemilight},
-	      {key_alt,TypeDef,"Pathlight",pathlight},
-	      {label,"Depth"},
-	      {text,Depth,[{range,1,100},{key,{?TAG,depth}}]}]},
+    [{hradio,[{"Hemilight",hemilight},
+	      {"Pathlight",pathlight}],Type,[layout,{key,{?TAG,type}}]},
      {hframe,[{label,"Samples"}, 
-	      {text,Samples,[{range,1,1000000},{key,{?TAG,samples}}]}]}];
+	      {text,Samples,[{range,1,1000000},{key,{?TAG,samples}}]},
+	      {hframe,[{label,"Depth"},
+		       {text,Depth,[{range,1,100},{key,{?TAG,depth}}]}],
+	       [{hook,light_hook({?TAG,type}, pathlight)}]}]}];
 light_dialog(_Name, _Type, _Ps) ->
-%    erlang:display({?MODULE,?LINE,{_Name,_Type,_Ps}}),
+%%%    erlang:display({?MODULE,?LINE,{_Name,_Type,_Ps}}),
     [].
 
-light_result(_Name, Ps0, [{{?TAG,power},Power}|Res0]) ->
+light_hook(Key, Values) when list(Values) ->
+    fun (is_minimized, {_Var,I,Sto}) when is_integer(Key) ->
+	    not lists:member(gb_trees:get(I+Key, Sto), Values);
+	(is_minimized, {_Var,_I,Sto}) ->
+	    not lists:member(gb_trees:get(Key, Sto), Values);
+	(_, _) -> void 
+    end;
+light_hook(Key, Value) -> light_hook(Key, [Value]).
+
+
+light_result(_Name, Ps0, 
+	     [{{?TAG,minimized},Minimized},{{?TAG,power},Power}|Res0]) ->
     {LightPs0,Res1} = light_result(Res0),
     LightPs = [{Key,Val} || {{?TAG,Key},Val} <- LightPs0],
-    Ps = [{?TAG,[{power,Power}|LightPs]}|keydelete(?TAG, 1, Ps0)],
+    Ps = [{?TAG,[{minimized,Minimized},{power,Power}|LightPs]}
+	  |keydelete(?TAG, 1, Ps0)],
 %    erlang:display({?MODULE,?LINE,[Ps,Res1]}),
     {Ps,Res1}.
 
 light_result([{{?TAG,type},pointlight}|_]=Res) ->
     split_list(Res, 5);
-light_result([_,{{?TAG,type},softlight}|_]=Res) ->
+light_result([{{?TAG,type},softlight}|_]=Res) ->
     split_list(Res, 5);
 light_result([{{?TAG,type},spotlight}|_]=Ps) ->
     split_list(Ps, 10);
-light_result([_,_,{{?TAG,type},photonlight}|_]=Ps) ->
+light_result([{{?TAG,type},photonlight}|_]=Ps) ->
     split_list(Ps, 10);
 light_result([_,{{?TAG,background},_}|_]=Ps) ->
     split_list(Ps, 4);
@@ -1295,9 +1307,10 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
 		proplists:get_value(cast_shadows, YafRay, ?DEF_CAST_SHADOWS),
 	    SpotExponent = 
 		proplists:get_value(spot_exponent, OpenGL, ?DEF_SPOT_EXPONENT),
+	    Blend = proplists:get_value(blend, YafRay, ?DEF_BLEND),
 	    println(F, "       cast_shadows=\"~s\" size=\"~.3f\"~n"++
-		    "       beam_falloff=\"~.10f\">", 
-		    [format(CastShadows), ConeAngle, SpotExponent]);
+		    "       beam_falloff=\"~.10f\" blend=\"~.3f\">", 
+		    [format(CastShadows), ConeAngle, SpotExponent, Blend]);
 	photonlight ->
 	    Mode = proplists:get_value(mode, YafRay, ?DEF_MODE),
 	    Photons = proplists:get_value(photons, YafRay, ?DEF_PHOTONS),
