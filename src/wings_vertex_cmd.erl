@@ -8,11 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.44 2003/11/09 13:50:44 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.45 2004/05/13 13:46:38 dgud Exp $
 %%
 
 -module(wings_vertex_cmd).
 -export([menu/3,command/2,tighten/3,connect/2,bevel_vertex/2]).
+
+-export([set_color/2]).
 
 -include("wings.hrl").
 -import(lists, [member/2,keymember/3,foldl/3,mapfoldl/3,

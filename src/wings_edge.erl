@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.100 2004/04/26 19:34:10 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.101 2004/05/13 13:46:38 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -27,6 +27,7 @@
 	 hardness/2,hardness/3,
 	 adjacent_edges/2,
 	 to_vertices/2,from_faces/2,extend_sel/2,
+	 set_color/2,
 	 patch_edge/4,patch_edge/5]).
 
 -export([dissolve_isolated_vs/2]).

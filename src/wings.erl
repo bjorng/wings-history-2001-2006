@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.303 2004/05/11 08:19:10 bjorng Exp $
+%%     $Id: wings.erl,v 1.304 2004/05/13 13:46:38 dgud Exp $
 %%
 
 -module(wings).
@@ -586,6 +586,8 @@ command({window,outliner}, St) ->
     wings_outliner:window(St);
 command({window,object}, St) ->
     wings_shape:window(St);
+command({window,palette}, St) ->
+    wings_palette:window(St);
 command({window,console}, _St) ->
     wings_console:window(),
     keep;
@@ -739,9 +741,9 @@ window_menu(_) ->
       "Open the outliner window (showing materials and objects)"},
      {Name,object,
       "Open a Geometry Graph window (showing objects)"},
+     {"Palette", palette, "Open the color palette window"},
      separator,
-     {"New Geometry Window",geom_viewer,
-      "Open a new Geometry window"},
+     {"New Geometry Window",geom_viewer, "Open a new Geometry window"},
      {"Console",console,"Open a console window for information messages"},
      separator,
      {"UV Editor Window",uv_editor_window,
