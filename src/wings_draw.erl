@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.66 2002/03/18 08:41:14 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.67 2002/03/19 09:21:26 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -784,11 +784,6 @@ draw_vec(Center, Vec0) ->
     Width = wings_pref:get_value(active_vector_width),
     gl:color3fv(wings_pref:get_value(active_vector_color)),
     gl:pointSize(Width*3.5),
-
-%     gl:'begin'(?GL_POINTS),
-%     gl:vertex3fv(Center),
-%     gl:'end'(),
-
     gl:lineWidth(Width),
     gl:'begin'(?GL_LINES),
     gl:vertex3fv(Center),

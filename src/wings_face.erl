@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.16 2002/01/07 22:47:53 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.17 2002/03/19 09:21:26 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -120,7 +120,7 @@ to_vertices(Faces, We) ->
 to_vertices([Face|Faces], We, Acc0) ->
     Acc = fold(fun(V, _, _, A) -> [V|A] end, Acc0, Face, We),
     to_vertices(Faces, We, Acc);
-to_vertices([], We, Acc) -> ordsets:from_list(Acc).
+to_vertices([], _, Acc) -> ordsets:from_list(Acc).
 
 %% vertices(Face, We) -> NumberOfVertices
 %%  Calculate number of vertices building up a face.
@@ -133,33 +133,20 @@ normal(Face, #we{vs=Vtab}=We) ->
     Vpos = fold(fun(V, _, _, A) ->
 			[wings_vertex:pos(V, Vtab)|A]
 		end, [], Face, We),
-    face_normal_1(Vpos).
+    e3d_vec:normal(Vpos).
 
 %% Return the normal for a face, with the face given explicitly
 %% as its vertices.
 
+face_normal(Vs, #we{vs=Vtab}) ->
+    face_normal(Vs, Vtab, []);
 face_normal(Vs, Vtab) ->
-    Vpos = [wings_vertex:pos(P, Vtab) || P <- Vs],
-    face_normal_1(Vpos).
+    face_normal(Vs, Vtab, []).
 
-face_normal_1([Va,Vb|_]=Vpos) ->
-    D = e3d_vec:sub(Va, Vb),
-    Nsum = face_normal_2(D, Vpos, Vpos, []),
-    case e3d_vec:len(Nsum) of
-	Zero when abs(Zero) < 1.0e-5 ->
-	    e3d_vec:zero();
-	Len ->
-	    e3d_vec:divide(Nsum, Len)
-    end.
-
-face_normal_2(D1, [Va|[Vb,Vc|_]=Vs], More, Acc) ->
-    ?ASSERT(D1 == e3d_vec:sub(Va, Vb)),
-    D2 = e3d_vec:sub(Vb, Vc),
-    Cross = e3d_vec:cross(D1, D2),
-    face_normal_2(D2, Vs, More, [Cross|Acc]);
-face_normal_2(D1, Vs, [Va,Vb|_], Acc) ->
-    face_normal_2(D1, Vs++[Va,Vb], [], Acc);
-face_normal_2(D1, Other, More, Acc) -> e3d_vec:add(Acc).
+face_normal([V|Vs], Vtab, Acc) ->
+    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+    face_normal(Vs, Vtab, [Pos|Acc]);
+face_normal([], _Vtab, Acc) -> e3d_vec:normal(reverse(Acc)).
 
 %% Tests if the face has a good normal.
 good_normal(Face, #we{vs=Vtab}=We) ->
@@ -170,26 +157,26 @@ good_normal(Face, #we{vs=Vtab}=We) ->
     D = e3d_vec:sub(Va, Vb),
     good_normal(D, Vpos, Vpos).
 
-good_normal(D1, [Va|[Vb,Vc|_]=Vs], More) ->
+good_normal(D1, [_Va|[Vb,Vc|_]=Vs], More) ->
     ?ASSERT(D1 == e3d_vec:sub(Va, Vb)),
     D2 = e3d_vec:sub(Vb, Vc),
     Cross = e3d_vec:cross(D1, D2),
     case e3d_vec:len(Cross) of
 	Zero when abs(Zero) < 1.0e-5 ->
 	    good_normal(D2, Vs, More);
-	Len -> true
+	_Len -> true
     end;
 good_normal(D1, Vs, [Va,Vb|_]) ->
     good_normal(D1, Vs++[Va,Vb], []);
-good_normal(D1, Other, More) -> false.
+good_normal(_, _, _) -> false.
 
 %% Returns all the information you need to draw a face.
 
-draw_info(Face, Edge, #we{vs=Vtab,es=Etab}=We) ->
+draw_info(Face, Edge, #we{vs=Vtab,es=Etab}) ->
     info_traverse(Face, Edge, Edge, Etab, Vtab, []).
 
-info_traverse(Face, LastEdge, LastEdge, Etab, Vtab, Acc) when Acc =/= [] ->
-    Acc;
+info_traverse(_Face, LastEdge, LastEdge, _Etab, _Vtab, Acc)
+  when Acc =/= [] -> Acc;
 info_traverse(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
     case gb_trees:get(Edge, Etab) of
 	#edge{vs=V,a=Col,lf=Face,ltsu=NextEdge} ->
@@ -200,24 +187,12 @@ info_traverse(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
 			  [{wings_vertex:pos(V, Vtab),Col}|Acc])
     end.
 
-draw_normal([{Va,_},{Vb,_}|_]=Vpos) ->
-    D = e3d_vec:sub(Va, Vb),
-    Nsum = draw_normal_1(D, Vpos, Vpos, []),
-    case e3d_vec:len(Nsum) of
-	Zero when abs(Zero) < 1.0e-5 ->
-	    e3d_vec:zero();
-	Len ->
-	    e3d_vec:divide(Nsum, Len)
-    end.
+draw_normal(Vpos) ->
+    draw_normal(Vpos, []).
 
-draw_normal_1(D1, [{Va,_}|[{Vb,_},{Vc,_}|_]=Vs], More, Acc) ->
-    ?ASSERT(D1 == e3d_vec:sub(Va, Vb)),
-    D2 = e3d_vec:sub(Vb, Vc),
-    Cross = e3d_vec:cross(D1, D2),
-    draw_normal_1(D2, Vs, More, [Cross|Acc]);
-draw_normal_1(D1, Vs, [Va,Vb|_], Acc) ->
-    draw_normal_1(D1, Vs++[Va,Vb], [], Acc);
-draw_normal_1(D1, Other, More, Acc) -> e3d_vec:add(Acc).
+draw_normal([{Pos,_}|Vs], Acc) ->
+    draw_normal(Vs, [Pos|Acc]);
+draw_normal([], Acc) -> e3d_vec:normal(reverse(Acc)).
 
 %% Return the vertices surrounding a face.
 
@@ -228,7 +203,7 @@ surrounding_vertices(Face, #we{es=Etab,fs=Ftab}) ->
 surrounding_vertices(Face, Edge, #we{es=Etab}) ->
     face_traverse(Face, Edge, Edge, Etab, []).
 
-face_traverse(Face, LastEdge, LastEdge, Es, Acc) when Acc =/= [] -> Acc;
+face_traverse(_Face, LastEdge, LastEdge, _Es, Acc) when Acc =/= [] -> Acc;
 face_traverse(Face, Edge, LastEdge, Es, Acc) ->
     case gb_trees:get(Edge, Es) of
 	#edge{ve=V,lf=Face,ltsu=NextEdge} ->
@@ -270,7 +245,7 @@ inner_edges(Faces, We) ->
     
 inner_edges_1([E,E|T], In) ->
     inner_edges_1(T, [E|In]);
-inner_edges_1([E|T], In) ->
+inner_edges_1([_|T], In) ->
     inner_edges_1(T, In);
 inner_edges_1([], In) -> reverse(In).
 
@@ -292,7 +267,7 @@ fold(F, Acc, Face, #we{es=Etab,fs=Ftab}) ->
     #face{edge=Edge} = gb_trees:get(Face, Ftab),
     fold(F, Acc, Face, Edge, Edge, Etab, not_done).
 
-fold(F, Acc, Face, LastEdge, LastEdge, Etab, done)-> Acc;
+fold(_F, Acc, _Face, LastEdge, LastEdge, _Etab, done)-> Acc;
 fold(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
     Acc = case gb_trees:get(Edge, Etab) of
 	      #edge{ve=V,lf=Face,ltsu=NextEdge}=E ->
@@ -308,12 +283,12 @@ fold_vinfo(F, Acc, Face, #we{es=Etab,fs=Ftab}) ->
 
 %% Fold over all edges surrounding a face.
 
-fold_vinfo(F, Acc, Face, LastEdge, LastEdge, Etab, done)-> Acc;
+fold_vinfo(_F, Acc, _Face, LastEdge, LastEdge, _Etab, done)-> Acc;
 fold_vinfo(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
     Acc = case gb_trees:get(Edge, Etab) of
-	      #edge{vs=V,a=VInfo,lf=Face,ltsu=NextEdge}=E ->
+	      #edge{vs=V,a=VInfo,lf=Face,ltsu=NextEdge} ->
 		  F(V, VInfo, Acc0);
-	      #edge{ve=V,b=VInfo,rf=Face,rtsu=NextEdge}=E ->
+	      #edge{ve=V,b=VInfo,rf=Face,rtsu=NextEdge} ->
 		  F(V, VInfo, Acc0)
     end,
     fold_vinfo(F, Acc, Face, NextEdge, LastEdge, Etab, done).
@@ -325,7 +300,7 @@ fold_faces(F, Acc0, [Face|Faces], We) ->
 		       F(Face, V, Edge, Rec, A)
 	       end, Acc0, Face, We),
     fold_faces(F, Acc, Faces, We);
-fold_faces(F, Acc, [], We) -> Acc;
+fold_faces(_F, Acc, [], _We) -> Acc;
 fold_faces(F, Acc, Faces, We) ->
     fold_faces(F, Acc, gb_sets:to_list(Faces), We).
 
@@ -385,5 +360,5 @@ patch_face(Face, Edge, NewEdge, Ftab) ->
     case gb_trees:get(Face, Ftab) of
 	#face{edge=Edge}=Rec ->
 	    gb_trees:update(Face, Rec#face{edge=NewEdge}, Ftab);
-	Other -> Ftab
+	_Other -> Ftab
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.64 2002/03/18 11:01:22 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.65 2002/03/19 09:21:26 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -605,7 +605,6 @@ draw_sel(_Mode) ->
     
 draw_we() ->
     gl:callList(?DL_STATIC_FACES),
-    gl:disable(?GL_LIGHTING),
     gl:callList(?DL_DYNAMIC_FACES).
 
 %% Collect the static display list - faces that will not be moved.
