@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile.win32,v 1.1 2001/10/31 23:34:19 bufflig Exp $
+#     $Id: Makefile.win32,v 1.2 2001/11/26 23:39:57 bufflig Exp $
 #
 
 MFLAGS = -f Makefile.win32
@@ -22,4 +22,14 @@ all:
 	$(MAKE) $(MFLAGS)
 	cd ..\icons
 	$(MAKE) $(MFLAGS)
+	cd ..
+clean:
+	cd src 
+	$(MAKE) $(MFLAGS) clean 
+	cd ..\e3d 
+	$(MAKE) $(MFLAGS) clean
+	cd ..\plugins_src 
+	$(MAKE) $(MFLAGS) clean
+	cd ..\icons
+	$(MAKE) $(MFLAGS) clean
 	cd ..
