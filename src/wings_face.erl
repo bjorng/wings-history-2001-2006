@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.17 2002/03/19 09:21:26 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.18 2002/04/17 07:19:36 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -158,7 +158,7 @@ good_normal(Face, #we{vs=Vtab}=We) ->
     good_normal(D, Vpos, Vpos).
 
 good_normal(D1, [_Va|[Vb,Vc|_]=Vs], More) ->
-    ?ASSERT(D1 == e3d_vec:sub(Va, Vb)),
+    ?ASSERT(D1 == e3d_vec:sub(_Va, Vb)),
     D2 = e3d_vec:sub(Vb, Vc),
     Cross = e3d_vec:cross(D1, D2),
     case e3d_vec:len(Cross) of
