@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.22 2004/10/08 06:02:28 dgud Exp $
+%%     $Id: wings_color.erl,v 1.23 2005/01/23 09:34:56 bjorng Exp $
 %%
 
 -module(wings_color).
@@ -126,26 +126,32 @@ average_uvs_1([], A0, A1, L0) ->
     {A0/L,A1/L}.
 
 rgb_to_hsv(R, G, B) ->
+    case internal_rgb_to_hsv(R, G, B) of
+	{undefined,S,V} -> {0.0,S,V};
+	HSV -> HSV
+    end.
+
+rgb_to_hsv(R, G, B, OldHue) ->
+    case internal_rgb_to_hsv(R, G, B) of
+	{undefined,S,V} -> {OldHue,S,V};
+	HSV -> HSV
+    end.
+
+internal_rgb_to_hsv(R, G, B) ->
     Max = lists:max([R,G,B]),
     Min = lists:min([R,G,B]),
-    V = Max,   
-    if Max == Min, V > 0.5 -> %% Hue is unknown/undefined 
-	    {60.0, 0.0, V};   %% Set it to yellow which is the lightest 
-       Max == Min ->          %% Hue is unknown/undefined 
-	    {300.0, 0.0, V};  %% Set it to magenta which is the darkest
-       Min == B ->
-	    Sat = (Max-Min)/Max,
-	    Hue = 120.0*(G-Min)/(R+G-2.0*Min),
-	    {Hue,Sat,V};
-       Min == R ->
-	    Sat = (Max-Min)/Max,
-	    Hue = 120.0*(1.0+(B-Min)/(B+G-2.0*Min)),
-	    {Hue,Sat,V};
-       Min == G ->
-	    Sat = (Max-Min)/Max,
-	    Hue = 120.0*(2.0+(R-Min)/(B+R-2.0*Min)),
-	    {Hue,Sat,V}
-    end.
+    V = Max,
+    {Hue,Sat} = try
+		    {if
+			 Min == B -> (G-Min)/(R+G-2.0*Min);
+			 Min == R -> (1.0+(B-Min)/(B+G-2.0*Min));
+			 Min == G -> (2.0+(R-Min)/(B+R-2.0*Min))
+		     end*120,(Max-Min)/Max}
+		catch
+		    error:badarith ->
+			{undefined,0.0}
+		end,
+    {Hue,Sat,V}.
 
 hsv_to_rgb(H, S, V) ->
     Min = V*(1-S),
@@ -280,7 +286,8 @@ color_update(T, {K1,K2}, {Ka,Kb,Kc}) ->
     fun (update, {Var,_I,Val,Store0}) ->
 	    V1 = gb_trees:get(K1, Store0),
 	    V2 = gb_trees:get(K2, Store0),
-	    {Va,Vb,Vc} = color_update(T, Val, V1, V2),
+	    Hue = gb_trees:get(hue, Store0),
+	    {Va,Vb,Vc} = color_update(T, Val, V1, V2, Hue),
 	    Store1 = gb_trees:update(Var, Val, Store0),
 	    Store2 = gb_trees:update(Ka, Va, Store1),
 	    Store3 = gb_trees:update(Kb, Vb, Store2),
@@ -302,15 +309,15 @@ eyepicker_update(update, {Var,_I,{R,G,B}=Col,Sto0}) ->
     {store,Sto};
 eyepicker_update(_, _) -> void.
 
-color_update(r, R, G, B) ->
-    rgb_to_hsv(R, G, B);
-color_update(g, G, R, B) ->
-    rgb_to_hsv(R, G, B);
-color_update(b, B, R, G) ->
-    rgb_to_hsv(R, G, B);
-color_update(h, H, S, V) ->
+color_update(r, R, G, B, OldHue) ->
+    rgb_to_hsv(R, G, B, OldHue);
+color_update(g, G, R, B, OldHue) ->
+    rgb_to_hsv(R, G, B, OldHue);
+color_update(b, B, R, G, OldHue) ->
+    rgb_to_hsv(R, G, B, OldHue);
+color_update(h, H, S, V, _) ->
     hsv_to_rgb(H, S, V);
-color_update(s, S, H, V) ->
+color_update(s, S, H, V, _) ->
     hsv_to_rgb(H, S, V);
-color_update(v, V, H, S) ->
+color_update(v, V, H, S, _) ->
     hsv_to_rgb(H, S, V).
