@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.21 2003/02/01 17:09:52 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.22 2003/02/05 15:55:14 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -352,7 +352,7 @@ draw_objects_1(N, [O|Objs], #ost{lh=Lh}=Ost, R, Active, Y) ->
 	{material,Name,Color,TextColor} ->
 	    wings_io:border(2, Y-10, 12, 12, Color),
 	    gl:color3fv(TextColor),
-	    gl:rasterPos2f(7, Y),
+	    gl:rasterPos2f(6, Y),
 	    wings_io:draw_char(m_bitmap()),
 	    gl:color3f(0, 0, 0);
 	{image,_,#e3d_image{name=Name}} -> ok;
@@ -404,8 +404,15 @@ draw_icons_1(N, [O|Objs], #ost{lh=Lh}=Ost, Y) ->
     draw_icons_1(N-1, Objs, Ost, Y+Lh).
 
 m_bitmap() ->
-    {5,7,0,0,6,0,
-     <<16#88,16#88,16#88,16#a8,16#d8,16#88,16#88>>}.
+    {7,8,0,0,8,0,
+     <<2#10000010,
+       2#10000010,
+       2#10000010,
+       2#10010010,
+       2#10111010,
+       2#10101010,
+       2#11000110,
+       2#10000010>>}.
 
 top_of_first_object() ->
     0.
