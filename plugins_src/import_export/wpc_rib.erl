@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.3 2002/04/14 18:38:59 bjorng Exp $
+%%     $Id: wpc_rib.erl,v 1.4 2002/04/17 17:45:35 bjorng Exp $
 %%
 
 -module(wpc_rib).
@@ -503,14 +503,14 @@ separate_faces([H|T], VAcc0, NAcc0, UVAcc0) ->
     {VAcc,NAcc,UVAcc} = separate_face(H, VAcc0, NAcc0, UVAcc0),
     separate_faces(T, VAcc, NAcc, UVAcc);
 separate_faces([], VAcc, NAcc, UVAcc) ->
-    {VAcc,NAcc,UVAcc}.
+    {reverse(VAcc),reverse(NAcc),reverse(UVAcc)}.
 
 separate_face([{V,N,UV}|T], VAcc, NAcc, UVAcc) ->
     separate_face(T, [V|VAcc], [N|NAcc], [UV|UVAcc]);
 separate_face([{V,N}|T], VAcc, NAcc, UVAcc) ->
     separate_face(T, [V|VAcc], [N|NAcc], UVAcc);
 separate_face([], VAcc, NAcc, UVAcc) ->
-    {reverse(VAcc),reverse(NAcc),reverse(UVAcc)}.
+    {VAcc,NAcc,UVAcc}.
 
 create_loops([]) -> [];
 create_loops(L) -> create_loops(L, []).
