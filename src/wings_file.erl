@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.65 2002/06/14 12:59:22 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.66 2002/06/15 06:31:41 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -377,7 +377,7 @@ revert(#st{file=File}=St0) ->
 
 import(Prop, Importer, St0) ->
     case wings_plugin:call_ui({file,import,Prop}) of
-	aborted -> aborted;
+	aborted -> St0;
 	Name ->
 	    case ?SLOW(do_import(Importer, Name, St0)) of
 		#st{}=St ->

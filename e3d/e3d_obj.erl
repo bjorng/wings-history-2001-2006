@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.21 2002/06/14 13:02:16 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.22 2002/06/15 06:31:40 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -25,11 +25,10 @@
 	 vt=[],					%Texture vertices.
 	 vn=[],					%Vertice normals.
 	 f=[],					%Faces.
+	 g=[],					%Groups.
 	 mat=[],				%Current material.
 	 matdef=[],				%Material definitions.
-	 name,					%Object name.
 	 dir,					%Directory of .obj file.
-	 ignore_groups=false,			%Ignore groups if "o" seen.
 	 seen=gb_sets:empty()}).		%Unknown type seen.
 
 import(Name) ->
@@ -51,15 +50,48 @@ import_1(Fd, Dir) ->
     end.
 
 import_2(Fd, Dir) ->
-    Ost = read(fun parse/2, Fd, #ost{dir=Dir}),
-    #ost{name=Name,v=Vtab0,vt=TxTab0,f=Ftab0,matdef=Mat} = Ost,
+    Ost0 = read(fun parse/2, Fd, #ost{dir=Dir}),
+    Ost = remember_eof(Ost0),
+    #ost{v=Vtab0,vt=TxTab0,f=Ftab0,g=Gs0,matdef=Mat} = Ost,
     Vtab = reverse(Vtab0),
     TxTab = reverse(TxTab0),
     Ftab = make_ftab(Ftab0, []),
-    Mesh = #e3d_mesh{type=polygon,vs=Vtab,fs=Ftab,tx=TxTab},
-    Obj = #e3d_object{name=Name,obj=Mesh},
-    #e3d_file{objs=[Obj],mat=Mat}.
+    Gs1 = reverse(Gs0),
+    Gs2 = separate(Gs1, []),
+    Gs = simplify(Gs2, 0),
+    Template = #e3d_mesh{type=polygon,vs=Vtab,tx=TxTab},
+    Objs = make_objects(Gs, Ftab, Template),
+    #e3d_file{objs=Objs,mat=Mat}.
 
+separate([{eof,N}], []) -> [{undefined,0,N}];
+separate([{eof,_}], Acc) -> reverse(Acc);
+separate([{group,[Name|_],N}|T], Acc) ->
+    separate(T, [{Name,N,get_face_num(T)}|Acc]);
+separate([{name,Name,Start}|T0], Acc) ->
+    {T,End} = skip_upto_name(T0),
+    separate(T, [{Name,Start,End}|Acc]).
+
+get_face_num([{eof,N}|_]) -> N;
+get_face_num([{group,_,N}|_]) -> N.
+
+skip_upto_name([{eof,N}]=T) -> {T,N};
+skip_upto_name([{name,_,N}|_]=T) -> {T,N};
+skip_upto_name([_|T]) -> skip_upto_name(T).
+
+simplify([{Name,S,E}|T], S) ->
+    [{Name,E-S}|simplify(T, E)];
+simplify([], _) -> [].
+
+make_objects([{Name,N}|T], Fs0, Template) ->
+    {Ftab,Fs} = split(Fs0, N, []),
+    Mesh = e3d_mesh:renumber(Template#e3d_mesh{fs=Ftab}),
+    Obj = #e3d_object{name=Name,obj=Mesh},
+    [Obj|make_objects(T, Fs, Template)];
+make_objects([], [], _) -> [].
+
+split(Fs, 0, Acc) -> {reverse(Acc),Fs};
+split([F|Fs], N, Acc) -> split(Fs, N-1, [F|Acc]).
+    
 make_ftab([{Mat,Vs0}|Fs], Acc) ->
     Vs = [V || {V,_,_} <- Vs0],
     Tx = case [Vt || {_,Vt,_} <- Vs0] of
@@ -129,22 +161,12 @@ parse(["vn",X0,Y0,Z0|_], #ost{vn=Vn}=Ost) ->
 parse(["f"|Vlist0], #ost{f=Ftab,mat=Mat}=Ost) ->
     Vlist = collect_vs(Vlist0, Ost),
     Ost#ost{f=[{Mat,Vlist}|Ftab]};
-parse(["g"], Ost) ->
-    Ost;
-parse(["g"|_Names], #ost{ignore_groups=true}=Ost) ->
-    Ost;
-parse(["g"|Names], #ost{name=OldName}=Ost) ->
-    case {Names,OldName} of
-	{[Name|_],Name} -> Ost;
-	{[Name|_],_} -> Ost#ost{name=Name}
-    end;
-parse(["o"], Ost) ->
-    Ost;
-parse(["o"|Names], #ost{name=OldName}=Ost) ->
-    case {Names,OldName} of
-	{[Name|_],undefined} -> Ost#ost{ignore_groups=true,name=Name};
-	{_,_} -> Ost
-    end;
+parse(["g"], Ost) ->Ost;
+parse(["g"|Names], Ost) ->
+    remember_group(Names, Ost);
+parse(["o"], Ost) -> Ost;
+parse(["o",Name|_], Ost) ->
+    remember_name(Name, Ost);
 parse(["usemtl"|[Mat|_]], Ost) ->
     Ost#ost{mat=[list_to_atom(Mat)]};
 parse(["mtllib",FileName], #ost{dir=Dir}=Ost) ->
@@ -159,6 +181,16 @@ parse([Tag|_]=Other, #ost{seen=Seen}=Ost) ->
 	    Ost#ost{seen=gb_sets:insert(Tag, Seen)}
     end.
 
+remember_eof(#ost{f=Ftab,g=Gs}=Ost) ->
+    Ost#ost{g=[{eof,length(Ftab)}|Gs]}.
+
+remember_group(Names, #ost{g=[{group,Names,_}|_]}=Ost) -> Ost;
+remember_group(Names, #ost{f=Ftab,g=Gs}=Ost) ->
+    Ost#ost{g=[{group,Names,length(Ftab)}|Gs]}.
+
+remember_name(Name, #ost{f=Ftab,g=Gs}=Ost) ->
+    Ost#ost{g=[{name,Name,length(Ftab)}|Gs]}.
+    
 collect_vs([V|Vs], Ost) ->
     [collect_vtxref(V, Ost)|collect_vs(Vs, Ost)];
 collect_vs([], _Ost) -> [].
@@ -249,9 +281,21 @@ mtl_text_to_tuple(L) ->
 
 str2float(S) ->
     case catch list_to_float(S) of
-	{'EXIT',_} -> float(list_to_integer(S));
+	{'EXIT',_} -> str2float_1(S, []);
 	F -> F
     end.
+
+str2float_1([H|T], Acc) when H == $e; H == $E ->
+    foreach(fun($-) -> ok;
+	       ($+) -> ok;
+	       (D) when $0 =< D, D =< $9 -> ok
+	    end, Acc),
+    NumStr = reverse(Acc, ".0e") ++ T,
+    list_to_float(NumStr);
+str2float_1([H|T], Acc) ->
+    str2float_1(T, [H|Acc]);
+str2float_1([], Acc) ->
+    float(list_to_integer(reverse(Acc))).
 
 space_concat([Str|[_|_]=T]) ->
     Str ++ [$\s|space_concat(T)];
