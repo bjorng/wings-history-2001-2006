@@ -1,0 +1,16 @@
+#
+# It is assumed that the following environment variables have been set:
+# Run vcvars32.bat before attempting to make and have erlang in your path
+#
+
+LINK = link
+MLFLAGS= -nologo /subsystem:windows /machine:I386 /nodefaultlib 
+
+CFLAGS = -nologo -G5 -Ox -O2 -Ob2
+
+Wings3D.exe: wings3d.c wings3d.res
+	cl $(CFLAGS) -FeWings3D.exe wings3d.c wings3d.res \
+          kernel32.lib user32.lib advapi32.lib
+
+wings3d.res: wings3d.rc
+	rc -Fo$@ wings3d.rc
