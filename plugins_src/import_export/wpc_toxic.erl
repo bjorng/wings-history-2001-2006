@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.3 2004/06/10 21:16:59 dgud Exp $
+%%     $Id: wpc_toxic.erl,v 1.4 2004/06/11 10:07:53 raimo_niskanen Exp $
 %%
 
 -module(wpc_toxic).
@@ -332,7 +332,7 @@ light_dialog(_Name, Ps) ->
 	      [{title,"Toxic Options"},{key,{?TAG,minimized}},{minimized,Minimized}]}]
     end.
 
-light_hook(Key, Values) when list(Values) ->
+max_hook(Key, Values) when list(Values) ->
     {hook,
      fun (is_minimized, {_Var,I,Sto}) when is_integer(Key) ->
 	     not lists:member(gb_trees:get(I+Key, Sto), Values);
@@ -341,7 +341,7 @@ light_hook(Key, Values) when list(Values) ->
 	     not lists:member(gb_trees:get(Key, Sto), Values);
 	 (_, _) -> void
      end};
-light_hook(Key, Value) -> light_hook(Key, [Value]).
+max_hook(Key, Value) -> max_hook(Key, [Value]).
 
 enable_hook(Key) ->
     {hook,
@@ -489,9 +489,9 @@ export_dialog(Operation) ->
 			   {text, Fstop, [{key, {?TAG,fstop}}]},
 			   {label, "Focal length"},
 			   {text, Focallen, [{key, {?TAG,focallen}}]}
-			  ], [light_hook({?TAG,camera},[thinlens])]},
+			  ], [max_hook({?TAG,camera},[thinlens])]},
 		 {vframe, [{hframe, [{"AutoFocus", AutoFocus,
-				      [{key, {?TAG,autofocus}}]},
+				      [{key, {?TAG,autofocus}},layout]},
 				     {hframe, [{label, "X"},
 					       {text,AutoPosX,
 						[{key,{?TAG,autoposx}},
@@ -500,12 +500,12 @@ export_dialog(Operation) ->
 					       {text,AutoPosY,
 						[{key,{?TAG,autoposy}},
 						 {range,{-0.5,0.5}}]}],
-				      [light_hook({?TAG, autofocus},[true])]},
+				      [max_hook({?TAG, autofocus},[true])]},
 				     {hframe, [{label, "Focal Distance"},
 					       {text, FocalDist, 
 						[{key, {?TAG,focaldist}}]}],
-				      [light_hook({?TAG, autofocus},[false])]}]
-			   }],[light_hook({?TAG,camera},[thinlens])]}
+				      [max_hook({?TAG, autofocus},[false])]}]
+			   }],[max_hook({?TAG,camera},[thinlens])]}
 		], [{title, "Camera"}]},
        {vframe,
 	[{hradio,[{"Super Sampling",super},
@@ -513,13 +513,13 @@ export_dialog(Operation) ->
 	  Sampling,[layout,{key,{?TAG,sampling}}]},
 	 {vframe,
 	  pixelsampling(pixel,[SStype, SSrandom,SSWidth,SSHeight]),
-	  [light_hook({?TAG, sampling},[super])]},
+	  [max_hook({?TAG, sampling},[super])]},
 	 {hframe,
 	  [{vframe, [{label, "Contrast Threshold"},
 		     {label, "Max Depth"}]},
 	   {vframe, [{text, WAContrast, [{key, {?TAG,wacontrast}}]},
 		     {text, WAMax, [{range, {0, 500}}, {key, {?TAG, wamax}}]}]}],
-	  [light_hook({?TAG, sampling},[whitted])]}],
+	  [max_hook({?TAG, sampling},[whitted])]}],
 	[{title,"Pixel Sampling"}]},
        {vframe,
 	[{hframe,
@@ -527,7 +527,8 @@ export_dialog(Operation) ->
 	   {vframe,
 	    pixelsampling(direct_light,[DLtype, DLrandom, DLWidth,DLHeight]),
 	    [{title,"Enable Direct Lighting"},
-	     {minimized,DirectLightMin},{key,{?TAG,direct_light_min}}]}]},
+	     {minimized,DirectLightMin},{key,{?TAG,direct_light_min}},
+	     enable_hook({?TAG,direct_light})]}]},
 	 {hframe,
 	  [{"", InDirectLight, [{key, {?TAG,indirect_light}}]},
 	   {vframe,
@@ -565,7 +566,8 @@ export_dialog(Operation) ->
 						%       [{key, {?TAG, radsecondary}}]}],
 	    [{title,"Enable InDirect Lighting"},
 	     {minimized,InDirectLightMin},
-	     {key,{?TAG,indirect_light_min}}]}]},
+	     {key,{?TAG,indirect_light_min}},
+	     enable_hook({?TAG,indirect_light})]}]},
 	 {hframe,
 	  [{"", SpecularRefl, [{key, {?TAG,specular_refl}}]},
 	   {hframe,
@@ -573,7 +575,8 @@ export_dialog(Operation) ->
 	     {text, SpecDepth, [{range, {0, 1000000}},
 				{key, {?TAG, specdepth}}]}],
 	    [{title,"Enable Specular Reflections"},
-	     {minimized,SpecularReflMin},{key,{?TAG,specular_refl_min}}]}]},
+	     {minimized,SpecularReflMin},{key,{?TAG,specular_refl_min}},
+	     enable_hook({?TAG,specular_refl})]}]},
 	 {hframe,
 	  [{"", Caustics, [{key, {?TAG,caustics}}]},
 	   {hframe,
@@ -586,7 +589,8 @@ export_dialog(Operation) ->
 	     {label, "Max Distance"},
 	     {text, CAUMaxDist, [{key, {?TAG, caumaxDist}}]}],
 	    [{title,"Enable Caustics"},
-	     {minimized,CausticsMin},{key,{?TAG,caustics_min}}]}]}],
+	     {minimized,CausticsMin},{key,{?TAG,caustics_min}},
+	     enable_hook({?TAG,caustics})]}]}],
 	[{title,"Render"}]},
        {hframe,
 	[{vframe,[{label,"Width"}]},
@@ -618,13 +622,13 @@ pixelsampling(PType, [Sample, Random, Width,Height]) ->
 		[{label, "Samples"},
 		 {text, Random, [{range,{1,128}},
 				 {key,{?TAG,{PType,samples}}}]}],
-		[light_hook({?TAG,{PType,sstype}},[random])]},
+		[max_hook({?TAG,{PType,sstype}},[random])]},
 	       {hframe,
 		[{label, "Width"},
 		 {text, Width, [{range,{1,128}},{key,{?TAG,{PType,sswidth}}}]},
 		 {label, "Height"},
 		 {text, Height,[{range,{1,128}},{key,{?TAG,{PType,ssheight}}}]}
-		],[light_hook({?TAG,{PType,sstype}},[regular, stratified])]}
+		],[max_hook({?TAG,{PType,sstype}},[regular, stratified])]}
 	      ]}].
 
 %% Boolean hook
