@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.31 2004/01/11 17:37:42 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.32 2004/01/11 17:58:23 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -21,13 +21,16 @@
 -import(lists, [map/2,foldl/3,mapfoldl/3,reverse/1,reverse/2,
 		sort/1,keysort/2,usort/1,keydelete/3,keyreplace/4]).
 
+%% R9C required is required if debugging is turned on,
+%% sinced the debug printouts use the new hex formatting characters.
+
+%% -define(DEBUG, 1).
+
 %% Inline dbg/2 so that the call will disappear completely if
 %% DEBUG is turned off.
 -compile({inline,[{dbg,2}]}).
 
 -define(FLOAT, float-little).
-
-%%-define(DEBUG, 1).
 
 -ifdef(DEBUG).
 dbg(Format, List) -> io:format(Format, List).
@@ -74,8 +77,8 @@ main(<<16#B000:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Sz = Sz0 - 6,
     <<_:Sz/binary,T/binary>> = T0,
     main(T, Acc);
-main(<<Chunk:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    dbg("Ignoring unknown chunk ~s; ~p bytes\n", [hex4(Chunk),Sz0]),
+main(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
+    dbg("Ignoring unknown chunk ~.16#; ~p bytes\n", [Tag,Sz0]),
     Sz = Sz0 - 6,
     <<_:Sz/binary,T/binary>> = T0,
     main(T, Acc);
@@ -127,8 +130,8 @@ block(<<16#4700:16/little,Sz0:32/little,T0/binary>>, Mesh) ->
     Sz = Sz0 - 6,
     <<_:Sz/binary,T/binary>> = T0,
     block(T, Mesh);
-block(<<Chunk:16/little,Sz0:32/little,T0/binary>>, Mesh) ->
-    dbg("Ignoring unknown chunk ~s; ~p bytes\n", [hex4(Chunk),Sz0]),
+block(<<Tag:16/little,Sz0:32/little,T0/binary>>, Mesh) ->
+    dbg("Ignoring unknown chunk ~.16#; ~p bytes\n", [Tag,Sz0]),
     Sz = Sz0 - 6,
     <<_:Sz/binary,T/binary>> = T0,
     block(T, Mesh);
@@ -172,7 +175,7 @@ trimesh(<<16#4160:16/little,_Sz:32/little,T0/binary>>, Acc) ->
 trimesh(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Sz = Sz0 - 6,
     <<Chunk:Sz/binary,T/binary>> = T0,
-    dbg("Unknown mesh chunk: ~s: ~P\n", [hex4(Tag),Chunk,20]),
+    dbg("Unknown mesh chunk: ~.16#: ~P\n", [Tag,Chunk,20]),
     trimesh(T, Acc);
 trimesh(<<>>, Acc) -> Acc.
 
@@ -250,7 +253,7 @@ material(<<16#A230:16/little,T/binary>>, Acc) ->
 material(<<Tag:16/little,Sz0:32/little,T0/binary>>, [{Name,Props}|Acc]) ->
     Sz = Sz0 - 6,
     <<Chunk:Sz/binary,T/binary>> = T0,
-    dbg("Unknown material tag: ~s: ~P\n", [hex4(Tag),Chunk,20]),
+    dbg("Unknown material tag: ~.16#: ~P\n", [Tag,Chunk,20]),
     material(T, [{Name,[{Tag,Chunk}|Props]}|Acc]);
 material(<<>>, Acc) -> Acc.
 
@@ -275,7 +278,7 @@ read_map_chunks(<<16#A351:16/little,Sz0:32/little,T0/binary>>, Acc) ->
 read_map_chunks(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Sz = Sz0 - 6,
     <<_Chunk:Sz/binary,T/binary>> = T0,
-    dbg("Unknown map sub-chunk: ~s: ~P\n", [hex4(Tag),_Chunk,20]),
+    dbg("Unknown map sub-chunk: ~.16E: ~P\n", [Tag,_Chunk,20]),
     read_map_chunks(T, Acc);
 read_map_chunks(<<>>, Acc) -> Acc.
 
@@ -332,9 +335,9 @@ general_rest(<<>>) -> ok;
 general_rest(<<Tag:16/little,Sz0:32/little,T0/binary>>) ->
     Sz = Sz0 - 6,
     <<Chunk:Sz/binary,T/binary>> = T0,
-    dbg("Unknown general tag: ~s: ~P\n", [hex4(Tag),Chunk,20]),
+    dbg("Unknown general tag: ~.16#: ~P\n", [Tag,Chunk,20]),
     general_rest(T).
-    
+
 %%%
 %%% Utilities.
 %%%
@@ -411,15 +414,6 @@ hard_edges([], _, Acc) ->
 
 edge(A, B, SG) when A < B -> {{A,B},SG};
 edge(A, B, SG) -> {{B,A},SG}.
-
-hex4(Num) ->
-    hex(4, Num, []).
-
-hex(0, _Num, Acc) -> Acc;
-hex(N, Num, Acc) -> hex(N-1, Num div 16, [hexd(Num rem 16)|Acc]).
-
-hexd(D) when 0 =< D, D =< 9 -> D+$0;
-hexd(D) when 10 =< D, D =< 16 -> D+$A-10.
 
 add_uv_to_faces(#e3d_mesh{tx=[]}=Mesh) -> Mesh;
 add_uv_to_faces(#e3d_mesh{fs=Fs0}=Mesh) ->
