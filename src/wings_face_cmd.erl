@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.63 2002/10/17 18:57:31 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.64 2002/11/09 11:13:48 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -235,10 +235,10 @@ do_dissolve(Faces, Ess, Mat, WeOrig, We0) ->
     We1 = do_dissolve_faces(Faces, We0),
     Inner = wings_face:inner_edges(Faces, WeOrig),
     {DelVs0,We2} = delete_inner(Inner, We1),
-    {KeepVs,We} = do_dissolve_1(Ess, Mat, WeOrig, gb_sets:empty(), We2),
+    {KeepVs,We} = do_dissolve_1(Ess, Mat, WeOrig, [], We2),
     #we{es=Etab,vs=Vtab0,he=Htab0} = We,
-    DelVs = gb_sets:difference(DelVs0, KeepVs),
-    Vtab1 = gb_sets:fold(fun(V, A) -> gb_trees:delete(V, A) end, Vtab0, DelVs),
+    DelVs = ordsets:subtract(DelVs0, KeepVs),
+    Vtab1 = foldl(fun(V, A) -> gb_trees:delete(V, A) end, Vtab0, DelVs),
     Vtab = update_vtab(KeepVs, Etab, WeOrig, Vtab1),
     Htab = gb_sets:difference(Htab0, gb_sets:from_list(Inner)),
     We#we{vs=Vtab,he=Htab}.
@@ -255,19 +255,20 @@ do_dissolve_1([EdgeList|Ess], Mat, WeOrig,
 do_dissolve_1([], _Mat, _WeOrig, KeepVs, We) -> {KeepVs,We}.
 
 do_dissolve_faces(Faces, #we{fs=Ftab0}=We) ->
-    Ftab = gb_sets:fold(fun(Face, Ft) ->
-				gb_trees:delete(Face, Ft)
-			end, Ftab0, Faces),
+    Ftab = foldl(fun(Face, Ft) ->
+			 gb_trees:delete(Face, Ft)
+		 end, Ftab0, gb_sets:to_list(Faces)),
     We#we{fs=Ftab}.
 
 delete_inner(Inner, #we{es=Etab0}=We) ->
-    {Vs,Etab} = foldl(
-		  fun(Edge, {Vs0,Et0}) ->
+    {Vs0,Etab} = foldl(
+		  fun(Edge, {Vacc0,Et0}) ->
 			  #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Et0),
-			  Vs = gb_sets:add(Va, gb_sets:add(Vb, Vs0)),
+			  Vacc = [Va,Vb|Vacc0],
 			  Et = gb_trees:delete(Edge, Et0),
-			  {Vs,Et}
-		  end, {gb_sets:empty(),Etab0}, Inner),
+			  {Vacc,Et}
+		  end, {[],Etab0}, Inner),
+    Vs = ordsets:from_list(Vs0),
     {Vs,We#we{es=Etab}}.
 
 update_outer([Pred|[Edge|Succ]=T], More, Face, WeOrig, Ftab, KeepVs0, Etab0) ->
@@ -282,17 +283,17 @@ update_outer([Pred|[Edge|Succ]=T], More, Face, WeOrig, Ftab, KeepVs0, Etab0) ->
 		  RS = succ(Succ, More),
 		  R0#edge{rf=Face,rtpr=Pred,rtsu=RS}
 	  end,
-    KeepVs = gb_sets:add(Va, gb_sets:add(Vb, KeepVs0)),
     Etab = gb_trees:update(Edge, Rec, Etab0),
+    KeepVs = [Va,Vb|KeepVs0],
     update_outer(T, More, Face, WeOrig, Ftab, KeepVs, Etab);
 update_outer([_], _More, _Face, _WeOrig, _Ftab, KeepVs, Etab) ->
-    {KeepVs,Etab}.
+    {ordsets:from_list(KeepVs),Etab}.
 
 succ([Succ|_], _More) -> Succ;
 succ([], [Succ|_]) -> Succ.
 
 update_vtab(Vs, Etab, We, Vtab) ->
-    gb_sets:fold(
+    foldl(
       fun(V, Vt0) ->
 	      #vtx{edge=AnEdge} = Vtx0 = gb_trees:get(V, Vt0),
 	      case gb_trees:is_defined(AnEdge, Etab) of
