@@ -3,12 +3,12 @@
 %%
 %%     Standard plugin for dialogs.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.38 2004/01/17 01:50:03 raimo_niskanen Exp $
+%%     $Id: wp9_dialogs.erl,v 1.39 2004/02/05 06:47:38 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -204,7 +204,10 @@ check_filename(Store, DlgType) ->
     end.
 
 dir_menu(Dir0, Acc) ->
-    Entry = {Dir0,Dir0},
+    Entry = case Dir0 of
+		"/" -> {Dir0,Dir0};
+		_ -> {filename:basename(Dir0),Dir0}
+	    end,
     case filename:dirname(Dir0) of
 	Dir0 -> reverse(Acc, [Entry]);
 	Dir -> dir_menu(Dir, [Entry|Acc])
