@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.120 2002/03/18 06:15:00 bjorng Exp $
+%%     $Id: wings.erl,v 1.121 2002/03/19 09:19:30 bjorng Exp $
 %%
 
 -module(wings).
@@ -335,7 +335,7 @@ command({shape,Shape}, St0) ->
 	Other -> Other
     end;
 command({help,What}, St) ->
-    wings_help:What(St);
+    wings_help:command(What, St);
 
 %% File menu.
 command({file,Command}, St) ->
@@ -503,8 +503,7 @@ menu(X, Y, tools, St) ->
 menu(X, Y, objects, St) ->
     wings_shape:menu(X, Y, St);
 menu(X, Y, help, St) ->
-    Menu = [{"About",about}],
-    wings_menu:menu(X, Y, help, Menu, St).
+    wings_help:menu(X, Y, St).
 
 edge_menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
