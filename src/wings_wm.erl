@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.142 2004/04/17 19:02:07 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.143 2004/05/23 14:37:50 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -745,7 +745,7 @@ handle_response(Res, Event, Stk0) ->
 	{'EXIT',Reason} ->
 	    [#se{h=CrashHandler}] = pop_all_but_one(Stk0),
 	    handle_response(CrashHandler({crash,Reason}), Event,
-			    default_stack(unknown_window));
+			    default_stack(this()));
 	keep -> Stk0;
 	next -> next_handler(Event, Stk0);
 	pop -> pop(Stk0);

@@ -4,19 +4,19 @@
 %%     This module contains help routines for faces, such as fold functions
 %%     face iterators.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.44 2004/05/02 09:49:38 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.45 2004/05/23 14:37:50 bjorng Exp $
 %%
 
 -module(wings_face).
 -export([convert_selection/1,select_more/1,select_less/1,
 	 from_edges/2,from_vs/2,
 	 other/2,vertices/2,
-	 to_vertices/2,
+	 to_edges/2,to_vertices/2,
 	 normal/2,normal/3,
 	 face_normal_cw/2,face_normal_ccw/2,
 	 good_normal/2,
@@ -134,17 +134,17 @@ vtx_bordering(V, FaceSet, We) ->
 other(Face, #edge{lf=Face,rf=Other}) -> Other;
 other(Face, #edge{rf=Face,lf=Other}) -> Other.
 
-%% to_vertices(FaceGbSet, We) -> VertexList
-%%  Convert a set of faces to a list of vertices.
-to_vertices(Faces, We) when is_list(Faces) ->
-    to_vertices(Faces, We, []);
-to_vertices(Faces, We) ->
-    to_vertices(gb_sets:to_list(Faces), We, []).
+%% to_edges(Faces, We) -> [Edge]
+%%  Convert a set or list of faces to a list of edges.
+to_edges(Fs, We) ->
+    Es = fold_faces(fun(_, _, E, _, A) -> [E|A] end, [], Fs, We),
+    ordsets:from_list(Es).
 
-to_vertices([Face|Faces], We, Acc0) ->
-    Acc = fold(fun(V, _, _, A) -> [V|A] end, Acc0, Face, We),
-    to_vertices(Faces, We, Acc);
-to_vertices([], _, Acc) -> ordsets:from_list(Acc).
+%% to_vertices(Faces, We) -> [Vertex]
+%%  Convert a set or list of faces to a list of vertices.
+to_vertices(Fs, We) ->
+    Vs = fold_faces(fun(_, V, _, _, A) -> [V|A] end, [], Fs, We),
+    ordsets:from_list(Vs).
 
 %% vertices(Face, We) -> NumberOfVertices
 %%  Calculate the number of vertices in a face.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.101 2004/05/13 13:46:38 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.102 2004/05/23 14:37:50 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -228,11 +228,7 @@ to_vertices([], _Etab, Acc) -> ordsets:from_list(Acc).
 %% from_faces(FaceSet, We) -> EdgeSet
 %%  Convert faces to edges.
 from_faces(Faces, We) ->
-    Edges = wings_face:fold_faces(
-	      fun(_, _, Edge, _, A) ->
-		      [Edge|A]
-	      end, [], Faces, We),
-    gb_sets:from_list(Edges).
+    gb_sets:from_ordset(wings_face:to_edges(Faces, We)).
 
 %% from_faces(Edges, We) -> EdgeSet
 %%  Extend Edges with all neighboring edges.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.136 2004/05/17 17:51:11 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.137 2004/05/23 14:37:50 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -312,10 +312,7 @@ marquee_convert_1(Faces0, face, Rect, #we{vp=Vtab}=We) ->
     Faces = sofs:difference(Faces1, Kill),
     sofs:to_external(Faces);
 marquee_convert_1(Faces, vertex, Rect, #we{vp=Vtab}=We) ->
-    Vs0 = wings_face:fold_faces(fun(_, V, _, _, A) ->
-					[V|A]
-				end, [], Faces, We),
-    Vs = ordsets:from_list(Vs0),
+    Vs = wings_face:to_vertices(Faces, We),
     [V || V <- Vs, is_inside_rect(gb_trees:get(V, Vtab), Rect)];
 marquee_convert_1(Faces, edge, Rect, #we{vp=Vtab}=We) ->
     Es0 = wings_face:fold_faces(fun(_, _, E, Rec, A) ->
