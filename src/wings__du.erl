@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__du.erl,v 1.14 2004/04/12 18:34:39 bjorng Exp $
+%%     $Id: wings__du.erl,v 1.15 2004/04/13 04:05:18 bjorng Exp $
 %%
 
 -module(wings__du).
@@ -32,9 +32,9 @@ plain_face([A,B,C,D]) ->
     gl:vertex3fv(A),
     gl:vertex3fv(B),
     gl:vertex3fv(C),
-    gl:vertex3fv(A),
     gl:vertex3fv(C),
-    gl:vertex3fv(D).
+    gl:vertex3fv(D),
+    gl:vertex3fv(A).
 
 %% plain_face([{VertexA,VertexB,VertexC}], [Position]) -> ok
 %%  Draw a face with neither UV coordinates nor vertex colors.
@@ -67,14 +67,19 @@ uv_face([A,B,C,D], [UVa,UVb,UVc,UVd]) ->
 %%  Draw a face with UV coordinates. For vertices without
 %%  UV coordinates, (0, 0) will be used.
 uv_face(Fs, VsPos, UVs) ->
-    uv_face_1(Fs, list_to_tuple(VsPos), list_to_tuple(UVs)).
+    uv_face_1(Fs, none, list_to_tuple(VsPos), list_to_tuple(UVs)).
 
-uv_face_1([{A,B,C}|Fs], Vtab, UVtab) ->
-    uv_face_vtx(element(A, Vtab), element(A, UVtab)),
+uv_face_1([{A,B,C}|Fs], Prev, Vtab, UVtab) ->
+    if
+	A =:= Prev ->
+	    gl:vertex3fv(element(A, Vtab));
+	true ->
+	    uv_face_vtx(element(A, Vtab), element(A, UVtab))
+    end,
     uv_face_vtx(element(B, Vtab), element(B, UVtab)),
     uv_face_vtx(element(C, Vtab), element(C, UVtab)),
-    uv_face_1(Fs, Vtab, UVtab);
-uv_face_1([], _, _) -> ok.
+    uv_face_1(Fs, C, Vtab, UVtab);
+uv_face_1([], _, _, _) -> ok.
 
 uv_face_vtx(Pos, {U,V}) ->
     gl:texCoord2f(U, V),
@@ -102,14 +107,19 @@ vcol_face([A,B,C,D], [Ca,Cb,Cc,Cd]) ->
 %%  Draw a face with vertex colors. For vertices without
 %%  vertex colors, (1.0, 1.0, 1.0) will be used.
 vcol_face(Fs, VsPos, Cols) ->
-    vcol_face_1(Fs, list_to_tuple(Cols), list_to_tuple(VsPos)).
+    vcol_face_1(Fs, none, list_to_tuple(Cols), list_to_tuple(VsPos)).
 
-vcol_face_1([{A,B,C}|Fs], Ctab, Vtab) ->
-    vcol_face_vtx(element(A, Vtab), element(A, Ctab)),
+vcol_face_1([{A,B,C}|Fs], Prev, Ctab, Vtab) ->
+    if
+	A =:= Prev ->
+	    gl:vertex3fv(element(A, Vtab));
+	true ->
+	    vcol_face_vtx(element(A, Vtab), element(A, Ctab))
+    end,
     vcol_face_vtx(element(B, Vtab), element(B, Ctab)),
     vcol_face_vtx(element(C, Vtab), element(C, Ctab)),
-    vcol_face_1(Fs, Ctab, Vtab);
-vcol_face_1([], _, _) -> ok.
+    vcol_face_1(Fs, C, Ctab, Vtab);
+vcol_face_1([], _, _, _) -> ok.
 
 vcol_face_vtx(Pos, {R,G,B}) ->
     gl:color3f(R, G, B),
@@ -140,14 +150,19 @@ smooth_plain_face([A,B,C,D], [Na,Nb,Nc,Nd]) ->
 %%                   [Position], [[_|VertexNormal]]) -> ok
 %%  Draw a smooth face with neither UV coordinates nor vertex colors.
 smooth_plain_face(Fs, VsPos, Ns) ->
-    smooth_plain_face_1(Fs, list_to_tuple(VsPos), list_to_tuple(Ns)).
+    smooth_plain_face_1(Fs, none, list_to_tuple(VsPos), list_to_tuple(Ns)).
 
-smooth_plain_face_1([{A,B,C}|Fs], Vtab, Ntab) ->
-    smooth_plain_face_vtx(element(A, Vtab), element(A, Ntab)),
+smooth_plain_face_1([{A,B,C}|Fs], Prev, Vtab, Ntab) ->
+    if
+	A =:= Prev ->
+	    gl:vertex3fv(element(A, Vtab));
+	true ->
+	    smooth_plain_face_vtx(element(A, Vtab), element(A, Ntab))
+    end,
     smooth_plain_face_vtx(element(B, Vtab), element(B, Ntab)),
     smooth_plain_face_vtx(element(C, Vtab), element(C, Ntab)),
-    smooth_plain_face_1(Fs, Vtab, Ntab);
-smooth_plain_face_1([], _, _) -> ok.
+    smooth_plain_face_1(Fs, C, Vtab, Ntab);
+smooth_plain_face_1([], _, _, _) -> ok.
 
 smooth_plain_face_vtx(P, [_|N]) ->
     gl:normal3fv(N),
@@ -173,16 +188,19 @@ smooth_uv_face([A,B,C,D], [Ai,Bi,Ci,Di]) ->
 %%  Draw a smoth face with UV coordinates. For vertices without
 %%  UV coordinates, (0, 0) will be used.
 smooth_uv_face(Fs, VsPos, UVs) ->
-    smooth_uv_face_1(Fs, list_to_tuple(VsPos), list_to_tuple(UVs)).
+    smooth_uv_face_1(Fs, none, list_to_tuple(VsPos), list_to_tuple(UVs)).
 
-smooth_uv_face_1([{A,B,C}|Fs], Vtab, UVtab) ->
-    smooth_uv_face_vtx(element(A, Vtab), element(A, UVtab)),
+smooth_uv_face_1([{A,B,C}|Fs], Prev, Vtab, UVtab) ->
+    if
+	A =:= Prev ->
+	    gl:vertex3fv(element(A, Vtab));
+	true ->
+	    smooth_uv_face_vtx(element(A, Vtab), element(A, UVtab))
+    end,
     smooth_uv_face_vtx(element(B, Vtab), element(B, UVtab)),
     smooth_uv_face_vtx(element(C, Vtab), element(C, UVtab)),
-    smooth_uv_face_1(Fs, Vtab, UVtab);
-smooth_uv_face_1([_|Fs], Vtab, UVtab) ->
-    smooth_uv_face_1(Fs, Vtab, UVtab);
-smooth_uv_face_1([], _, _) -> ok.
+    smooth_uv_face_1(Fs, C, Vtab, UVtab);
+smooth_uv_face_1([], _, _, _) -> ok.
 
 smooth_uv_face_vtx(P, [{U,V}|N]) ->
     gl:texCoord2f(U, V),
@@ -213,16 +231,19 @@ smooth_vcol_face([A,B,C,D], [Ai,Bi,Ci,Di]) ->
 %%  Draw a smooth face with vertex colors. For vertices without
 %%  vertex colors, (1.0, 1.0, 1.0) will be used.
 smooth_vcol_face(Fs, VsPos, Cols) ->
-    smooth_vcol_face_1(Fs, list_to_tuple(VsPos), list_to_tuple(Cols)).
+    smooth_vcol_face_1(Fs, none, list_to_tuple(VsPos), list_to_tuple(Cols)).
 
-smooth_vcol_face_1([{A,B,C}|Fs], Vtab, Ctab) ->
-    smooth_vcol_face_vtx(element(A, Vtab), element(A, Ctab)),
+smooth_vcol_face_1([{A,B,C}|Fs], Prev, Vtab, Ctab) ->
+    if
+	A =:= Prev ->
+	    gl:vertex3fv(element(A, Vtab));
+	true ->
+	    smooth_vcol_face_vtx(element(A, Vtab), element(A, Ctab))
+    end,
     smooth_vcol_face_vtx(element(B, Vtab), element(B, Ctab)),
     smooth_vcol_face_vtx(element(C, Vtab), element(C, Ctab)),
-    smooth_vcol_face_1(Fs, Vtab, Ctab);
-smooth_vcol_face_1([_|Fs], Vtab, Ctab) ->
-    smooth_vcol_face_1(Fs, Vtab, Ctab);
-smooth_vcol_face_1([], _, _) -> ok.
+    smooth_vcol_face_1(Fs, C, Vtab, Ctab);
+smooth_vcol_face_1([], _, _, _) -> ok.
 
 smooth_vcol_face_vtx(P, [{R,G,B}|N]) ->
     gl:color3f(R, G, B),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.185 2004/04/12 18:34:39 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.186 2004/04/13 04:05:18 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -158,6 +158,11 @@ update_normals_2([{Face,Edge}|Fs], Ns, We, Acc) ->
     update_normals_2(Fs, Ns, We, [{Face,face_ns_data(Ps)}|Acc]);
 update_normals_2([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
+%% face_ns_data([Position]) ->
+%%    [Normal|[Position]] |                        Tri or quad
+%%    {Normal,[{VtxA,VtxB,VtxC}],[Position]}       Tesselated polygon
+%%  Given the positions for a face, calculate the normal,
+%%  and tesselate the face if necessary.
 face_ns_data([_,_,_]=Ps) ->
     [e3d_vec:normal(Ps)|Ps];
 face_ns_data([A,B,C,D]=Ps) ->
@@ -170,8 +175,19 @@ face_ns_data(Ps) ->
     Vs = seq(0, length(Ps)-1),
     N = e3d_vec:normal(Ps),
     Fs0 = e3d_mesh:triangulate_face(#e3d_face{vs=Vs}, N, Ps),
-    Fs = [{A+1,B+1,C+1} || #e3d_face{vs=[A,B,C]} <- Fs0],
+    Fs1 = [{A+1,B+1,C+1} || #e3d_face{vs=[A,B,C]} <- Fs0],
+    Fs = face_ns_data_1(Fs1, []),
     {N,Fs,Ps}.
+
+%% "Chain" vertices if possible so that the last vertex in
+%% one triangle occurs as the first in the next triangle.
+face_ns_data_1([{A,S,C}|Fs], [{_,_,S}|_]=Acc) ->
+    face_ns_data_1(Fs, [{S,C,A}|Acc]);
+face_ns_data_1([{A,B,S}|Fs], [{_,_,S}|_]=Acc) ->
+    face_ns_data_1(Fs, [{S,A,B}|Acc]);
+face_ns_data_1([F|Fs], Acc) ->
+    face_ns_data_1(Fs, [F|Acc]);
+face_ns_data_1([], Acc) -> Acc.
 
 update_mirror(#dlo{mirror=none,src_we=#we{mirror=none}}=D) -> D;
 update_mirror(#dlo{mirror=none,src_we=#we{fs=Ftab,mirror=Face}=We}=D) ->
