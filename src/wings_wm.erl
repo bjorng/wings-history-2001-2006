@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.49 2003/01/06 19:51:34 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.50 2003/01/06 20:37:44 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -803,6 +803,8 @@ button_event({mode_restriction,Restr}, #but{all_buttons=AllButtons}=But) ->
     Buttons = button_restrict(AllButtons, Restr),
     dirty(),
     get_button_event(But#but{buttons=Buttons,restr=Restr});
+button_event(#keyboard{}=Ev, _) ->
+    send(geom, Ev);
 button_event(_, _) -> keep.
 
 button_redraw(#but{mode=Mode,buttons=Buttons}) ->
@@ -1194,5 +1196,3 @@ resize_event(_, _) -> keep.
 resize_pos(Client) ->
     #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Client),
     {X+W,Y+H-13,Z+0.5}.
-    
-    
