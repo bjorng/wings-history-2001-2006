@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.16 2004/10/20 12:38:13 dgud Exp $
+%%     $Id: wings_pb.erl,v 1.17 2004/12/14 20:29:39 bjorng Exp $
 %%
 
 -module(wings_pb).
@@ -59,17 +59,21 @@ cancel() ->
 %% Helpers
 
 call(What) ->
-    case catch ?PB ! {self(),?PB,What} of
-	{'EXIT',_} -> ok;
-	_ ->
+    try ?PB ! {self(),?PB,What} of
+	_Any ->
 	    receive
 		{?PB,Res} -> Res
 	    end
+    catch
+	error:badarg -> ok
     end.
 
 cast(What) ->
-    catch ?PB ! {?PB,What},
-    ok.
+    try ?PB ! {?PB,What} of
+	_Any -> ok
+    catch
+	error:badarg -> ok
+    end.
 
 reply(Pid, What) ->
     Pid ! {?PB,What},
@@ -124,7 +128,7 @@ loop(#state{refresh=After,level=Level,msg=Msg0}=S0) ->
 	    S = calc_position(S1),
 	    loop(draw_position(S#state{refresh=?REFRESH_T}));
 	{Pid,?PB,done} when Level =:= 1 ->
-	    S = update(?STR(loop,1,"done"), 1.0, S0#state{next_pos=1.0,pos=1.0}),
+	    S = update(?__(1,"done"), 1.0, S0#state{next_pos=1.0,pos=1.0}),
 	    draw_position(S),
 	    reply(Pid, fun() -> print_stats(S) end),
 	    loop(#state{});
