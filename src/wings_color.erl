@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.15 2003/10/20 16:29:43 bjorng Exp $
+%%     $Id: wings_color.erl,v 1.16 2003/10/21 16:55:52 bjorng Exp $
 %%
 
 -module(wings_color).
@@ -160,7 +160,8 @@ convert_hsv(H,V,Min) ->
 %%% Local functions for color choser.
 %%%
 
--define(COL_PREVIEW_SZ, 60).
+-define(COL_PREVIEW_WIDTH, 60).
+-define(COL_PREVIEW_HEIGHT, 100).
 
 choose_1(RGB0, Done) ->
     {R1,G1,B1,A1} =
@@ -172,11 +173,16 @@ choose_1(RGB0, Done) ->
     HRange   = {0.0,360.0},
     SIRange  = {0.0,1.0},
     {H1,S1,V1} = rgb_to_hsv(R1, G1, B1),
-    Draw = fun(X, Y, W, H, Sto) ->
+    Draw = fun(X, Y, W, _, Sto) ->
+		   H = ?COL_PREVIEW_HEIGHT,
 		   R = gb_trees:get(red, Sto),
 		   G = gb_trees:get(green, Sto),
 		   B = gb_trees:get(blue, Sto),
+		   Half = H div 2,
 		   wings_io:sunken_rect(X, Y, W, H, {R,G,B}),
+		   gl:color3f(R1, G1, B1),
+		   gl:rectf(X+0.5, Y+Half, X+W, Y+H),
+		   gl:color3b(0, 0, 0),
 		   keep
 	   end,
     Aslider = case A1 of
@@ -188,7 +194,7 @@ choose_1(RGB0, Done) ->
 				 {text,A1,[{key,alpha},{range,RGBRange}]}}]}]
 	      end,
     Qs = [{hframe,
-	   [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
+	   [{custom,?COL_PREVIEW_WIDTH,?COL_PREVIEW_HEIGHT,Draw},
 	    {vframe,
 	     [{hframe,
 	       [{vframe,
