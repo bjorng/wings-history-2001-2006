@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.51 2002/05/15 07:15:04 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.52 2002/05/16 10:32:10 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -158,7 +158,8 @@ extrude_region_2([], We, Sel) ->
 extract_region(Type, St0) ->
     St1 = wings_sel:fold(
 	    fun(Faces, We0, #st{sel=Sel0,onext=Oid}=S0) ->
-		    We = wings_we:uv_to_color(We0, St0),
+		    We1 = wings_we:uv_to_color(We0, St0),
+		    We = We1#we{mirror=none},
 		    S = wings_shape:insert(We, "extract", S0),
 		    Sel = [{Oid,Faces}|Sel0],
 		    S#st{sel=Sel}
@@ -311,8 +312,12 @@ intrude(Faces0, #we{id=Id,es=Etab,fs=Ftab,next_id=Wid}=We0, SelAcc) ->
     Sel0 = wings_we:new_items(face, We0, We3),
     BridgeFaces = [F || {face,F} <- RootSet0 ++ RootSet],
     Sel = gb_sets:difference(Sel0, gb_sets:from_list(BridgeFaces)),
-    We = intrude_bridge(RootSet0, RootSet, We3),
+    We4 = intrude_bridge(RootSet0, RootSet, We3),
+    We = restore_mirror(We4, We0),
     {We#we{mode=We0#we.mode},[{Id,Sel}|SelAcc]}.
+
+restore_mirror(We, #we{mirror=none}) -> We;
+restore_mirror(We, #we{mirror=Face}) -> We#we{mirror=Face}.
 
 intrude_bridge([{face,FaceA},{vertex,Va}|FsA],
 	       [{face,FaceB},{vertex,Vb}|FsB], We0) ->
