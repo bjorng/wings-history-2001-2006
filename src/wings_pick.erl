@@ -3,12 +3,12 @@
 %%
 %%     This module handles picking using OpenGL.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.33 2002/02/12 10:38:40 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.34 2002/02/12 14:02:42 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -176,7 +176,7 @@ marque_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
 		 St2 = marque_update_sel(Op, Hits, St0),
 		 wings_io:putback_event({new_selection,St2}),
 		 St2
-	 end,
+	     end,
     wings:redraw(St),
     pop;
 marque_event(Event, Pick) -> keep.
@@ -526,19 +526,16 @@ pick_all(DrawFaces, X0, Y0, W, H, #st{shapes=Shapes,selmode=Mode}=St0) ->
     glu:pickMatrix(X, Y, W, H, ViewPort),
     wings_view:perspective(),
     wings_view:model_transformations(),
-    St = case DrawFaces of
-	     true ->
-		 select_draw(St0);
-	     false ->
-		 marque_draw(St0),
-		 St0
-	 end,
+    case DrawFaces of
+	true -> select_draw(St0);
+	false -> marque_draw(St0)
+    end,
     gl:flush(),
     case gl:renderMode(?GL_RENDER) of
-	0 -> {none,St};
+	0 -> {none,St0};
 	NumHits ->
  	    HitData = sdl_util:readBin(HitBuf, 5*NumHits),
- 	    {get_hits(NumHits, HitData, []),St}
+ 	    {get_hits(NumHits, HitData, []),St0}
     end.
 
 marque_draw(#st{selmode=edge}=St) ->
@@ -567,16 +564,7 @@ marque_draw(#st{selmode=vertex}=St) ->
 			       end, gb_trees:to_list(Vtab)),
 		       gl:popName()
 	       end, St);
-marque_draw(St) ->
-    foreach_we(fun(#we{perm=Perm}) when ?IS_NOT_SELECTABLE(Perm) -> ok;
-		  (#we{fs=Ftab}=We) ->
-		       gl:pushName(0),
-		       foreach(fun({Face,#face{edge=Edge}}) ->
-				       gl:loadName(Face),
-				       draw_face(Face, Edge, We)
-			       end, gb_trees:to_list(Ftab)),
-		       gl:popName()
-	       end, St).
+marque_draw(St) -> select_draw(St).
 
 %%
 %% Draw for the purpose of picking the items that the user clicked on.
@@ -584,8 +572,7 @@ marque_draw(St) ->
 
 select_draw(St) ->
     Dlist = select_draw_0(St),
-    gl:callList(Dlist),
-    St.
+    gl:callList(Dlist).
 
 select_draw_0(St) ->
     case wings_draw:get_dlist() of
@@ -624,7 +611,7 @@ foreach_we(F, #st{shapes=Shapes}) ->
 
 foreach_we_1(F, Iter0) ->
     case gb_trees:next(Iter0) of
-	none -> ok;
+	none -> gl:edgeFlag(?GL_TRUE);
 	{Id,We,Iter} ->
 	    gl:pushName(Id),
 	    F(We),
@@ -645,6 +632,4 @@ draw_face(Face, Edge, We) ->
 	    end, Vs),
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess),
-    gl:'end'(),
-    gl:edgeFlag(?GL_TRUE).
-
+    gl:'end'().
