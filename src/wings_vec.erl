@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.76 2003/07/23 17:38:39 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.77 2003/07/25 06:52:18 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -158,7 +158,13 @@ pick_finish() ->
     wings_wm:dirty(),
     wings_draw_util:map(fun clear_orig_sel/2, []).
 
-clear_orig_sel(D, _) -> D#dlo{orig_sel=none,orig_mode=none}.
+clear_orig_sel(D, _) -> D#dlo{sel=none,orig_sel=none,orig_mode=none}.
+
+clear_sel() ->
+    wings_wm:dirty(),
+    wings_draw_util:map(fun clear_sel/2, []).
+
+clear_sel(D, _) -> D#dlo{sel=none}.
 
 %%%
 %%% Event handler for secondary selection mode.
@@ -290,7 +296,7 @@ exit_menu(X, Y, Mod, #ss{f=Exit}=Ss, St) ->
 	Action ->
 	    set_last_axis(Ss, St),
 	    wings_wm:later({action,Action}),
-	    wings_wm:dirty(),
+	    clear_sel(),
 	    pop
     end.
 
