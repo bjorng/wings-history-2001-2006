@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.8 2002/07/29 20:20:28 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.9 2002/08/04 17:32:54 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -209,7 +209,7 @@ render_image(#r{attr=Attr}=Rr) ->
 	    gl:color3f(1, 1, 1)
     end,
     gl:enable(?GL_DEPTH_TEST),
-    gl:cullFace(?GL_BACK),
+    gl:frontFace(?GL_CCW),
     gl:readBuffer(?GL_BACK),
     jitter_draw(Rr),
     gl:drawBuffer(?GL_BACK),
@@ -258,14 +258,14 @@ draw_all(Rr) ->
 render_redraw(#dlo{mirror=none}=D, Rr, Flag) ->
     render_redraw_1(D, Rr, Flag);
 render_redraw(#dlo{mirror=Matrix}=D, Rr, Flag) ->
-    gl:cullFace(?GL_BACK),
+    gl:frontFace(?GL_CCW),
     render_redraw_1(D, Rr, Flag),
-    gl:cullFace(?GL_FRONT),
+    gl:frontFace(?GL_CW),
     gl:pushMatrix(),
     gl:multMatrixf(Matrix),
     render_redraw_1(D, Rr, Flag),
     gl:popMatrix(),
-    gl:cullFace(?GL_BACK);
+    gl:frontFace(?GL_CCW);
 render_redraw(_, _, _) -> ok.
 
 render_redraw_1(Dl, #r{attr=Attr}, RenderTrans) ->

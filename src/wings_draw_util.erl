@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.37 2002/08/01 19:25:03 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.38 2002/08/04 17:32:54 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -195,7 +195,7 @@ render_scene(Dls, Mode, Work, RenderTrans) ->
     render_scene_1(Dls, Mode, Work, RenderTrans).
     
 render_scene_1([D|Dls], Mode, Work, RenderTrans) ->
-    gl:cullFace(?GL_BACK),
+    gl:frontFace(?GL_CCW),
     render_object(D, Mode, Work, RenderTrans),
     render_scene_1(Dls, Mode, Work, RenderTrans);
 render_scene_1([], _, _, _) -> ok.
@@ -204,7 +204,7 @@ render_object(#dlo{mirror=none}=D, Mode, Work, RenderTrans) ->
     render_object_1(D, Mode, Work, RenderTrans);
 render_object(#dlo{mirror=Matrix}=D, Mode, Work, RenderTrans) ->
     render_object_1(D, Mode, Work, RenderTrans),
-    gl:cullFace(?GL_FRONT),
+    gl:frontFace(?GL_CW),
     gl:pushMatrix(),
     gl:multMatrixf(Matrix),
     render_object_1(D, Mode, Work, RenderTrans),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.73 2002/08/02 08:44:10 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.74 2002/08/04 17:32:54 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -401,7 +401,7 @@ smooth_dlist(D, _) -> {D,[]}.
 smooth_redraw(#sm{st=St}=Sm) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:enable(?GL_DEPTH_TEST),
-    gl:cullFace(?GL_BACK),
+    gl:frontFace(?GL_CCW),
     wings_view:projection(),
     wings_view:model_transformations(),
     wings_draw_util:fold(fun(D, _) -> smooth_redraw(D, Sm, false) end, []),
@@ -412,14 +412,14 @@ smooth_redraw(#sm{st=St}=Sm) ->
 smooth_redraw(#dlo{mirror=none}=D, Sm, Flag) ->
     smooth_redraw_1(D, Sm, Flag);
 smooth_redraw(#dlo{mirror=Matrix}=D, Sm, Flag) ->
-    gl:cullFace(?GL_BACK),
+    gl:frontFace(?GL_CCW),
     smooth_redraw_1(D, Sm, Flag),
-    gl:cullFace(?GL_FRONT),
+    gl:frontFace(?GL_CW),
     gl:pushMatrix(),
     gl:multMatrixf(Matrix),
     smooth_redraw_1(D, Sm, Flag),
     gl:popMatrix(),
-    gl:cullFace(?GL_BACK);
+    gl:frontFace(?GL_CCW);
 smooth_redraw(_, _, _) -> ok.
 
 smooth_redraw_1(#dlo{smoothed=[Dlist,Es],transparent=Trans}=D, Sm, RenderTrans) ->
