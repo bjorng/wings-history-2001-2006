@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.12 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.13 2002/05/05 07:43:46 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -25,15 +25,15 @@ import(Name, St) ->
             {error,"Nendo 1.0 files not supported"};
 	{ok,<<?NDO_HEADER11,Data/binary>>} ->
             import_1(Data, St);
-	{ok,Bin} ->
+	{ok,_Bin} ->
 	    {error,"not a Nendo file"};
 	{error,Reason} ->
 	    {error,file:format_error(Reason)}
     end.
 
-import_1(<<_:8,NumObjs:16,_:8,Objs/binary>>, St0) ->
+import_1(<<_:8,NumObjs:16,_:8,Objs/binary>>, St) ->
     io:format("~w object(s)\n", [NumObjs]),
-    St = read_objects(NumObjs, Objs, St0).
+    read_objects(NumObjs, Objs, St).
 
 read_objects(0, _, St) -> St;
 read_objects(N, <<>>, St) ->
@@ -68,11 +68,16 @@ read_object_1(<<L:16,T0/binary>>) ->
 	{Name,T1} ->
 	    io:format("~w: ~s\n", [L,Name]),
 	    <<Vis:8,Sensivity:8,_:8,_:8,_:72/binary,T2/binary>> = T1,
+	    Perm = case {Vis,Sensivity} of
+		       {1,1} -> 0;
+		       {1,0} -> 1;
+		       {_,_} -> []
+		   end,
 	    {Etab,Htab,T3} = read_edges(T2),
 	    {Ftab,T4} = read_faces(T3),
 	    {Vtab,T5} = read_vertices(T4),
 	    T = skip_rest(T5),
-	    We0 = #we{mode=vertex,es=Etab,vs=Vtab,fs=Ftab,he=Htab},
+	    We0 = #we{mode=vertex,es=Etab,vs=Vtab,fs=Ftab,he=Htab,perm=Perm},
 	    We1 = set_next_id(We0),
 	    We = clean_bad_edges(We1),
 	    {Name,We,T}
@@ -83,29 +88,29 @@ get_name(L, Bin) ->
     <<Name0:L/binary,T/binary>> = Bin,
     Name = binary_to_list(Name0),
     foldl(fun(C, Val) when $\s =< C, C < 127 -> Val;
-	     (C, _) -> bad
+	     (_C, _) -> bad
 	  end, {Name,T}, Name).
 
 skip_rest(<<Sz0:16,T0/binary>>) ->
     Sz = 2*Sz0,
-    <<Skip:Sz/binary,T/binary>> = T0,
+    <<_Skip:Sz/binary,T/binary>> = T0,
     %%io:format("  skipping ~w: ~w\n", [Szip,Sk]),
     skip_rest_1(T).
 
-skip_rest_1(<<Sz0:16,T0/binary>>=Bin) ->
+skip_rest_1(<<Sz0:16,T0/binary>>) ->
     Sz = 2*Sz0,
-    <<Skip:Sz/binary,T/binary>> = T0,
+    <<_Skip:Sz/binary,T/binary>> = T0,
 %%    io:format("  skipping ~w: ~w\n", [Sz,Skip]),
 %%    show_first(T),
     skip_rest_2(T).
 
 skip_rest_2(<<0:8,T/binary>>) -> T;
-skip_rest_2(<<2:8,Sz1:16,Sz2:16,T/binary>>=Bin) ->
+skip_rest_2(<<2:8,Sz1:16,Sz2:16,T/binary>>) ->
     Sz = Sz1 * Sz2,
     skip_texture(Sz, T).
 
 skip_texture(0, T) -> T;
-skip_texture(N, <<Pixels:8,RGB:24,T/binary>>) when N > 0 ->
+skip_texture(N, <<Pixels:8,_RGB:24,T/binary>>) when N > 0 ->
     skip_texture(N-Pixels, T).
 
 read_edges(<<NumEdges:16,T/binary>>) ->
@@ -175,7 +180,7 @@ clean_bad_edges([Edge|T], #we{es=Etab}=We0) ->
 		 wings_edge:dissolve_edge(Edge, We0);
 	     {value,#edge{rtpr=Same,rtsu=Same}} ->
 		 wings_edge:dissolve_edge(Edge, We0);
-	     {value,Other} -> We0
+	     {value,_Other} -> We0
 	 end,
     clean_bad_edges(T, We);
 clean_bad_edges([], We) -> We.
@@ -184,7 +189,7 @@ clean_bad_edges([], We) -> We.
 %% Export.
 %%
 
-export(Name, #st{shapes=Shapes0}=St) ->
+export(Name, #st{shapes=Shapes0}) ->
     Shapes1 = gb_trees:values(Shapes0),
     Shapes2 = foldl(fun(Sh, A) ->
 			shape(Sh, A)
@@ -192,10 +197,16 @@ export(Name, #st{shapes=Shapes0}=St) ->
     Shapes = reverse(Shapes2),
     write_file(Name, Shapes).
 
-shape(#we{name=Name}=We0, Acc) ->
+shape(#we{name=Name,perm=Perm}=We0, Acc) ->
     NameChunk = [<<(length(Name)):16>>|Name],
-    Vis = 1,
-    Sense = 1,
+    Vis = if
+	      ?IS_VISIBLE(Perm) -> 1;
+	      true -> 0
+	  end,
+    Sense = if
+		?IS_SELECTABLE(Perm) -> 1;
+		true -> 0
+	    end,
     Shaded = 1,
     EnableColors = 1,
     Header = <<Vis:8,Sense:8,Shaded:8,EnableColors:8,0:72/unit:8>>,
@@ -217,7 +228,7 @@ write_edges([{Edge,Erec0}|Es], Htab, Acc) ->
     Erec = [<<Vb:16,Va:16,Lf:16,Rf:16,Ltsu:16,Rtsu:16,Rtpr:16,Ltpr:16,
 	     Hardness:8>>,convert_color(BCol)|convert_color(ACol)],
     write_edges(Es, Htab, [Erec|Acc]);
-write_edges([], Htab, Acc) ->
+write_edges([], _Htab, Acc) ->
     list_to_binary([<<(length(Acc)):16>>|reverse(Acc)]).
 
 write_faces([#face{edge=Edge}|Fs], Acc) ->
@@ -243,7 +254,7 @@ write_file(Name, Objects) ->
 %%% Common utilities.
 %%%
 
-convert_color(<<R:8,G:8,B:8,A:8>>) ->
+convert_color(<<R:8,G:8,B:8,_A:8>>) ->
     wings_color:store({R/255,G/255,B/255});
 convert_color({R,G,B}) ->
     [trunc(R*255),trunc(G*255),trunc(B*255),255].
