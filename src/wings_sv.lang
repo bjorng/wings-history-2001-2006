@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.17 2004/10/20 05:56:00 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.18 2004/10/20 06:00:25 bjorng Exp $
 %%
 
 {wings,
@@ -44,15 +44,15 @@
   {handle_drop_1,
    [{1,"Inget valt"},
     {2,"Avsluta operationen"},
-    {3,"Sätt material på valda ytor"},
+    {3,"Sätt material på markerade ytor"},
     {4,"Sätt material \""},
-    {5,"\" enbart på valda ytor"},
+    {5,"\" enbart på markerade ytor"},
     {6,"Sätt material på alla ytor"},
     {7,"Sätt material \""},
-    {8,"\" på alla ytor i objekt som är valda"},
+    {8,"\" på alla ytor i objekt som är markerade"},
     {9,"Sätt material på alla ytor"},
     {10,"Sätt material \""},
-    {11,"\" på alla ytor i objekt som är valda"}]},
+    {11,"\" på alla ytor i objekt som är markerade"}]},
   {handle_event_3,
    [{1,"Markera"},
     {2,"Visa meny"}]},
@@ -1773,13 +1773,13 @@
 {wpa,
  [
   {dialog_template,
-   [{1,"Swap Y and Z Axes"},
-    {2,"Skala Import"},
-    {3,"(Skala Export)"},
-    {4,"(Skala Import)"},
-    {5,"Skala Export"},
-    {6,"Utjämnings nivåer"},
-    {7,"Fil typ för texturer "}]},
+   [{1,"Skifta Y- och Z-axlar"},
+    {2,"Skalning för import"},
+    {3,"(Skalning för export)"},
+    {4,"(Skalning för import)"},
+    {5,"Skalning för export"},
+    {6,"Utjämningsnivåer"},
+    {7,"Filtyp för texturer "}]},
   {export_filename,
    [{1,"Exportera"}]},
   {export_selected,
@@ -1787,7 +1787,7 @@
   {format_error,
    [{1,"Internt fel: ~P\n"}]},
   {import,
-   [{1,"Importeringen fallerade: "}]},
+   [{1,"Importeringen misslyckades: "}]},
   {import_filename,
    [{1,"Läser fil"},
     {2,"Importer"}]}]}.
