@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.303 2005/03/23 16:12:04 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.304 2005/03/23 21:16:11 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -95,13 +95,47 @@ start_uvmap(Action, #st{sel=Sel}=St) ->
 
 start_uvmap_1([{Id,_}|T], Action, St) ->
     Name = {autouv,Id},
-    case wings_wm:is_window(Name) of
-	true -> wings_wm:raise(Name);
-	false -> start_uvmap_2(Action, Name, Id, St)
+    WindowExists = wings_wm:is_window(Name),
+    case segment_or_edit(Action,Id,St) of
+	{edit,Fs} when WindowExists ->
+	    wings_wm:send(Name, {add_faces,Fs,St}),
+	    wings_wm:raise(Name);
+	Op = {seg_ui,Fs} when WindowExists ->
+	    TempWin = {autouv,{Id,seq_ui}},
+	    case wings_wm:is_window(TempWin) of
+		true -> 
+		    wings_wm:send(TempWin, {add_faces,Fs,St}),
+		    wings_wm:raise(TempWin);
+		false ->
+		    start_uvmap_2(Op,TempWin,Id,St)
+	    end;
+	Op ->
+	    start_uvmap_2(Op, Name, Id, St)
     end,
     start_uvmap_1(T, Action, St);
 start_uvmap_1([], _, _) -> keep.
 
+segment_or_edit(edit, _Id, _St) -> edit;
+segment_or_edit(segment,Id,#st{selmode=face,sel=Sel,shapes=Shs}) ->
+    We = gb_trees:get(Id, Shs),
+    UVFs = gb_sets:from_ordset(wings_we:uv_mapped_faces(We)),
+    {value,{_,Fs}} = lists:keysearch(Id, 1, Sel),
+    case gb_sets:is_subset(Fs,UVFs) of
+	false -> {seg_ui, Fs};
+	true ->  {edit, Fs}
+    end;
+segment_or_edit(segment,Id,#st{shapes=Shs}) ->
+    We = gb_trees:get(Id, Shs),
+    case wings_we:uv_mapped_faces(We) of	    
+	[] -> {seg_ui,object};
+	_ ->  {edit,object}
+    end;
+segment_or_edit(force_seg,Id,#st{selmode=face,sel=Sel}) -> 
+    {value,{_,Fs}} = lists:keysearch(Id, 1, Sel),
+    {seg_ui,Fs};
+segment_or_edit(force_seg,_Id,_) ->
+    {seg_ui,object}.
+	    
 start_uvmap_2(Action, Name, Id, #st{shapes=Shs}=St) ->
     #we{name=ObjName} = We = gb_trees:get(Id, Shs),
     Op = {replace,fun(Ev) -> auv_event(Ev, St) end},
@@ -114,26 +148,11 @@ start_uvmap_2(Action, Name, Id, #st{shapes=Shs}=St) ->
 		       {toolbar,CreateToolbar}], Op),
     wings_wm:send(Name, {init,{Action,We}}).
 
-auv_event({init,Op}, St = #st{selmode=Mode,sel=Sel0}) ->
+auv_event({init,Op}, St) ->
     wings:init_opengl(St),
     case Op of
-	{edit,We} ->
-	    start_edit(object, We, St);
-	{segment,We = #we{id=Id}} when Mode == face ->
-	    UVFs = gb_sets:from_ordset(wings_we:uv_mapped_faces(We)),
-	    {value, {_, Fs}} = lists:keysearch(Id, 1, Sel0),
-	    case gb_sets:is_subset(Fs,UVFs) of
-		false -> auv_seg_ui:start(We, We, St);
-		true -> 
-		    start_edit(Fs, We, St)
-	    end;
-	{segment,We} ->
-	    case wings_we:uv_mapped_faces(We) of	    
-		[] -> auv_seg_ui:start(We, We, St);
-		_ -> start_edit(object, We, St)
-	    end;
-	{force_seg, We} ->
-	    auv_seg_ui:start(We, We, St)
+	{{edit,What},We} -> start_edit(What, We, St);
+	{{seg_ui,_},We} ->  auv_seg_ui:start(We, We, St)
     end;
 auv_event(redraw, _) ->
     wings_wm:clear_background(),
@@ -167,15 +186,22 @@ do_edit(MatName, Mode, #we{id=Id}=We, #st{shapes=Shs0}=GeomSt) ->
     AuvSt = create_uv_state(gb_trees:empty(), MatName, Mode, We, FakeGeomSt),
     new_geom_state(GeomSt, AuvSt).
 
-init_show_maps(Charts0, Fs, We, GeomSt0) ->
+init_show_maps(Charts0, Fs, We = #we{name=WeName,id=Id}, GeomSt0) ->
     Charts1 = auv_placement:place_areas(Charts0),
     Charts = gb_trees:from_orddict(keysort(1, Charts1)),
     Tx = checkerboard(128, 128),
-    {GeomSt1,MatName} = add_material(Tx, We#we.name, none, GeomSt0),
-    GeomSt = insert_initial_uvcoords(Charts, We#we.id, MatName, GeomSt1),
-    wings_wm:send(geom, {new_state,GeomSt}),
-    AuvSt = create_uv_state(Charts, MatName, Fs, We, GeomSt),
-    get_event(AuvSt).
+    {GeomSt1,MatName} = add_material(Tx, WeName, none, GeomSt0),
+    GeomSt = insert_initial_uvcoords(Charts, Id, MatName, GeomSt1),
+    case wings_wm:this() of
+	{autouv, Id} -> 
+	    wings_wm:send(geom, {new_state,GeomSt}),
+	    AuvSt = create_uv_state(Charts, MatName, Fs, We, GeomSt),
+	    get_event(AuvSt);
+	{autouv,{Id,seq_ui}} ->
+	    wings_wm:send({autouv,Id}, {add_faces,Fs,GeomSt}),
+	    cleanup_before_exit(),
+	    delete
+    end.
 
 create_uv_state(Charts, MatName, Fs, We, GeomSt) ->
     wings:mode_restriction([vertex,edge,face,body]),
@@ -500,6 +526,15 @@ handle_event({do_tweak, Type, St =#st{sh=Sh,selmode=Mode}}, _) ->
     end;
 handle_event({cancel_tweak,Ev}, St) ->
     handle_event_1(Ev,St,wings_msg:free_lmb_modifier());
+handle_event({add_faces,Fs,GeomSt}, St0) ->
+    AuvSt0 = add_faces(Fs,St0),
+    case update_geom_state(GeomSt, AuvSt0) of
+	{AuvSt,true} ->
+	    wings_wm:send(geom, {new_state,GeomSt}),
+	    new_state(AuvSt);
+	{AuvSt,false} ->
+	    get_event(AuvSt)
+    end;
 handle_event(Ev, St) ->
     case wings_camera:event(Ev, St, fun() -> redraw(St) end) of
 	next ->
@@ -771,6 +806,27 @@ fake_sel_1(St0) ->
 	    end
     end.
 
+add_faces(NewFs,St0=#st{bb=ASt=#uvstate{id=Id,mode=Mode,st=GeomSt=#st{shapes=Shs0}}}) ->
+    case {NewFs,Mode} of
+	{_,object} -> St0;
+	{object,_} -> %% Force a chart rebuild, we are switching object mode
+	    We = gb_trees:get(Id,Shs0),
+	    Shs = gb_trees:update(Id, We#we{fs=undefined,es=gb_trees:empty()}, Shs0),
+	    Fake = GeomSt#st{sel=[],shapes=Shs},
+	    St0#st{bb=ASt#uvstate{mode=object,st=Fake}};
+	{NewFs,Fs0} ->
+	    Fs = gb_sets:union(NewFs,Fs0),
+	    case gb_sets:intersection(NewFs,Fs0) of
+		NewFs -> 
+		    St0#st{bb=ASt#uvstate{mode=Fs}};
+		_ ->  %% Some new faces should shown, force a chart rebuild
+		    We = gb_trees:get(Id,Shs0),
+		    Shs = gb_trees:update(Id, We#we{fs=undefined,es=gb_trees:empty()}, Shs0),
+		    Fake = GeomSt#st{sel=[],shapes=Shs},
+		    St0#st{bb=ASt#uvstate{st=Fake,mode=Fs}}
+	    end
+    end.
+
 drag({drag,Drag}) ->
     wings:mode_restriction([vertex,edge,face,body]),
     wings_wm:set_prop(show_info_text, true),
@@ -902,17 +958,21 @@ is_power_of_two(X) ->
 %%% Update charts from new state of Geometry window.
 %%%
 
-new_geom_state(#st{mat=Mat,shapes=Shs}=GeomSt, AuvSt0) ->
-    case new_geom_state_1(Shs, AuvSt0#st{mat=Mat}) of
+new_geom_state(GeomSt, AuvSt0) ->
+    case update_geom_state(GeomSt, AuvSt0) of
+	{AuvSt,true} -> get_event(AuvSt);
+	{AuvSt,false} -> get_event_nodraw(AuvSt);
 	delete ->
 	    cleanup_before_exit(),
-	    delete;
+	    delete
+    end.
+
+update_geom_state(#st{mat=Mat,shapes=Shs}=GeomSt, AuvSt0) ->
+    case new_geom_state_1(Shs, AuvSt0#st{mat=Mat}) of
 	{AuvSt1,ForceRefresh0} ->
 	    {AuvSt,ForceRefresh1} = update_selection(GeomSt, AuvSt1),
-	    case ForceRefresh0 orelse ForceRefresh1 of
-		false -> get_event_nodraw(AuvSt);
-		true -> get_event(AuvSt)
-	    end
+	    {AuvSt,ForceRefresh0 or ForceRefresh1};
+	Other -> Other  %% delete
     end.
 
 new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
