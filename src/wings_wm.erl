@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.99 2003/04/27 08:38:10 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.100 2003/04/27 08:59:46 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -908,7 +908,7 @@ drag_event(#mousebutton{button=B,state=?SDL_RELEASED},
 drag_event(_, _) -> keep.
 
 drag_filter(#drag{over=none}) ->
-    message("");
+    stop_cursor();
 drag_filter(#drag{over=Win,data=DropData}) ->
     case lookup_prop(Win, drag_filter) of
 	{value,Fun} when is_function(Fun) ->
@@ -916,10 +916,14 @@ drag_filter(#drag{over=Win,data=DropData}) ->
 		{ok,Message} ->
 		    message(Message),
 		    put(wm_cursor, arrow);
-		no -> ok
+		no -> stop_cursor()
 	    end;
-	none -> ok
+	none -> stop_cursor()
     end.
+
+stop_cursor() ->
+    put(wm_cursor, stop),
+    message("").
 
 %%%
 %%% Utility functions.
