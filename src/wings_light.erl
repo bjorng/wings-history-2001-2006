@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.38 2003/10/01 05:03:55 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.39 2003/10/30 07:23:07 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -55,7 +55,8 @@ menu(X, Y, St) ->
 	     {basic,separator},
 	     {"Move",{move_light,Dir}},
 	     {NotAmb,separator},
-	     {NotAmb,{"Position Highlight",position_fun(),
+	     {NotAmb,{"Position Highlight",
+		      {'VALUE',{position_highlight,{'ASK',{[point],[]}}}},
 		      "Position the aim point or location of light"}},
 	     {NotAmb,{"Color",color,"Interactively adjust hue, value, "
 		      "and saturation"}},
@@ -104,8 +105,8 @@ command({move_light,Type}, St) ->
     wings_move:setup(Type, St);
 command(color, St) ->
     color(St);
-command({position_highlight,{Mode,Sel}}, St) ->
-    position_highlight(Mode, Sel, St);
+command({position_highlight,Data}, St) ->
+    position_highlight(Data, St);
 command({attenuation,Type}, St) ->
     attenuation(Type, St);
 command(spot_angle, St) ->
@@ -203,39 +204,9 @@ get_light_color(#light{diffuse=Diff}) -> Diff.
 update_color(#light{type=ambient}=L, Col) -> L#light{ambient=Col};
 update_color(L, Col) -> L#light{diffuse=Col}.
 
-position_fun() ->
-    fun(help, _) -> "";
-       (_, _) -> {vector,{pick_special,position_sel()}}
-    end.
-
-position_sel() ->
-    {[vertex,edge,face],
-     fun(check, St) ->
-	     position_check_selection(St);
-	(exit, {_,_,#st{selmode=Mode,sel=Sel}=St}) ->
-	     case position_check_selection(St) of
-		 {none,""} ->
-		     {light,{position_highlight,{Mode,Sel}}};
-		 {_,_} ->
-		     error
-	     end;
-	(message, _) ->
-	     Left = "Choose position for highlight",
-	     Message = ["Position Highlight: ",
-			wings_util:button_format(Left, [],  "Execute")],
-	     wings_wm:message(Message, "")
-     end}.
-
-position_check_selection(#st{sel=[{_,Elems}]}) ->
-    case gb_trees:size(Elems) of
-	1 -> {none,""};
-	_ -> {none,"Select only one element."}
-    end;
-position_check_selection(_) ->
-    {none,"Select only one element."}.
-
-position_highlight(Mode, Sel, St) ->
-    Center = e3d_vec:average(wings_sel:bounding_box(St#st{selmode=Mode,sel=Sel})),
+position_highlight({'ASK',Ask}, St) ->
+    wings:ask(Ask, St, fun position_highlight/2);
+position_highlight(Center, St) ->
     {save_state,
      wings_sel:map(fun(_, We) when ?IS_LIGHT(We) ->
 			   position_highlight_1(Center, We);
