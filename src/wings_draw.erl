@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.188 2004/04/19 07:54:48 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.189 2004/04/19 12:34:25 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -522,18 +522,20 @@ split_1(D, Vs, St) ->
 split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
 	     proxy_data=Pd,ns=Ns0,needed=Needed}=D, Vs0, St) ->
     %% Efficiency note: Looping over the face table is slower than
-    %% looping over the edge table, but sofs:relation/2 will be
+    %% looping over the edge table, but sorting will be
     %% considerable faster, because an edge table loop will construct
     %% a list that is twice as long (with duplicates).
-    F2V0 = wings_face:fold_faces(fun(F, V, _, _, A) ->
-					 [{F,V}|A]
-				 end, [], gb_trees:keys(Ftab0), We),
-    F2V = sofs:relation(reverse(F2V0), [{face,vertex}]),
+
+    Ftab1 = gb_trees:to_list(Ftab0),
+    Ftab = sofs:from_external(Ftab1, [{face,data}]),
+
+    F2V0 = f2v(Ftab1, We, []),
+    F2V = sofs:from_external(F2V0, [{face,vertex}]),
     V2F = sofs:converse(F2V),
     Vs = sofs:set(Vs0, [vertex]),
+
     Faces0 = sofs:image(V2F, Vs),
     AllVs = sofs:image(F2V, Faces0),
-    Ftab = sofs:from_external(gb_trees:to_list(Ftab0), [{face,data}]),
     {Work,FtabDyn} = split_faces(D, Ftab, Faces0, St),
 
     StaticEdgeDl = make_static_edges(Faces0, Ftab, D),
@@ -552,6 +554,16 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
 	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd,
 	 needed=Needed}.
 
+f2v([{F,E}|Fs], We, Acc) ->
+    f2v(Fs, We, f2v_1(sort(wings_face:vertices_ccw(F, E, We)), F, Acc));
+f2v([], _, Acc) -> reverse(Acc).
+
+f2v_1([Va,Vb,Vc|Vs], F, Acc) ->
+    f2v_1(Vs, F, [{F,Vc},{F,Vb},{F,Va}|Acc]);
+f2v_1([V|Vs], F, Acc) ->
+    f2v_1(Vs, F, [{F,V}|Acc]);
+f2v_1([], _, Acc) -> Acc.
+
 split_faces(#dlo{needed=Need}=D, Ftab, Faces, St) ->
     case member(work, Need) orelse member(smooth, Need) of
 	false ->
@@ -566,6 +578,7 @@ split_faces(#dlo{needed=Need}=D, Ftab, Faces, St) ->
 	    StaticFtab = sofs:to_external(StaticFtab0),
 	    {[draw_faces(StaticFtab, D, St)],FtabDyn}
     end.
+
 
 make_static_edges(DynFaces, DynFtab, D) ->
     Ftab0 = sofs:difference(sofs:domain(DynFtab), DynFaces),
