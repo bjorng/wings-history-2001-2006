@@ -4,11 +4,11 @@
 %%
 %% Created : 24 Jan 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%-------------------------------------------------------------------
-%%  Copyright (c) 2002-2003 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.178 2004/01/23 15:04:57 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.179 2004/01/25 13:34:27 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -62,7 +62,6 @@ menu({Type}, Menu) when Type == vertex; Type == shape ->
 	    snap_menu() ++ Menu    
     end;
 menu(_Dbg, Menu) ->
-    io:format("Menu ~p~n", [_Dbg]),
     Menu.
 
 snap_menu() ->
@@ -997,9 +996,13 @@ broken_event({current_state,geom_display_lists,St}, Uvs) ->
 	    wings_wm:dirty(),
 	    pop
     end;
-broken_event({action,{autouv,cancel}}, Uvs) ->
+broken_event(close, Uvs) ->
     restore_wings_window(Uvs),
     delete;
+broken_event(#keyboard{}=Ev, _Uvs) ->
+    %% To accept Undo.
+    wings_wm:send(geom, Ev),
+    keep;
 broken_event(Ev, _) ->
     case wings_menu:is_popup_event(Ev) of
 	no -> keep;
