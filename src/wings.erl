@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.252 2003/06/27 05:07:12 bjorng Exp $
+%%     $Id: wings.erl,v 1.253 2003/06/28 09:41:59 bjorng Exp $
 %%
 
 -module(wings).
@@ -414,9 +414,10 @@ do_hotkey(Ev, #st{sel=[]}=St0) ->
 		    case wings_hotkey:event(Ev, St) of
 			next -> next;
 			Cmd ->
-			    case temp_sel_allowed(Cmd) of
-				false -> {Cmd,St0};
-				true -> {Cmd,set_temp_sel(St0, St)}
+			    case highlight_sel_style(Cmd) of
+				none -> {Cmd,St0};
+				temporary -> {Cmd,set_temp_sel(St0, St)};
+				permanent -> {Cmd,St}
 			    end
 		    end;
 		_Other -> do_hotkey_1(Ev, St0)
@@ -430,13 +431,14 @@ do_hotkey_1(Ev, St) ->
 	Cmd -> {Cmd,St}
     end.
 
-temp_sel_allowed({vertex,_}) -> true;
-temp_sel_allowed({edge,_}) -> true;
-temp_sel_allowed({face,_}) -> true;
-temp_sel_allowed({body,_}) -> true;
-temp_sel_allowed({edit,repeat}) -> true;
-temp_sel_allowed({edit,repeat_drag}) -> true;
-temp_sel_allowed(_) -> false.
+highlight_sel_style({vertex,_}) -> temporary;
+highlight_sel_style({edge,_}) -> temporary;
+highlight_sel_style({face,_}) -> temporary;
+highlight_sel_style({body,_}) -> temporary;
+highlight_sel_style({edit,repeat}) -> temporary;
+highlight_sel_style({edit,repeat_drag}) -> temporary;
+highlight_sel_style({select,_}) -> permanent;
+highlight_sel_style(_) -> none.
 
 do_command(Cmd, St) ->    
     do_command(Cmd, none, St).
