@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.269 2003/10/21 19:47:29 bjorng Exp $
+%%     $Id: wings.erl,v 1.270 2003/10/22 17:23:02 bjorng Exp $
 %%
 
 -module(wings).
@@ -518,7 +518,6 @@ command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> keep;
 	Cmd when is_tuple(Cmd) ->
-	    io:format("~p\n", [Cmd]),
 	    wings_wm:later({action,Cmd}),
 	    {keep_temp_sel,St}
     end;
