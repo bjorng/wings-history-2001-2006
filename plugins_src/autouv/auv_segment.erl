@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.7 2002/10/15 19:12:17 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.8 2002/10/15 20:19:44 bjorng Exp $
 
 -module(auv_segment).
 
@@ -543,12 +543,12 @@ segment_by_direction(#we{fs=Ftab}=We) ->
 seg_dir({X,Y,Z}) ->
     Max = lists:max([abs(X),abs(Y),abs(Z)]),
     if
-	X =:= Max -> {1.0, 0.0, 0.0};
-	Y =:= Max -> {0.0, 1.0, 0.0};
-	Z =:= Max -> {0.0, 0.0, 1.0};
-	-X =:= Max -> {-1.0, 0.0, 0.0};
-	-Y =:= Max -> {0.0, -1.0, 0.0};
-	-Z =:= Max -> {0.0, 0.0, -1.0}
+	X =:= Max -> x;
+	Y =:= Max -> y;
+	Z =:= Max -> z;
+	-X =:= Max -> '-x';
+	-Y =:= Max -> '-y';
+	-Z =:= Max -> '-z'
     end.
 
 %% By Color 
