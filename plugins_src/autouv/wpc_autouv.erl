@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.259 2004/06/02 04:57:55 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.260 2004/06/19 06:35:19 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -322,15 +322,8 @@ add_material(Im = #e3d_image{}, _, MatName,St) ->
 %%%% Menus.
 
 command_menu(body, X, Y) ->
-    Rotate = [{"Free", free, "Rotate freely"},
-	      {"90"++[?DEGREE]++" CW",-90,
-	       "Rotate selection 90 degrees clockwise"},
-	      {"90"++[?DEGREE]++" CCW",90,
-	       "Rotate selection 90 degrees counter-clockwise"},
-	      {"180"++[?DEGREE],180,"Rotate selection 180 degrees"},
-	      separator,
-	      {"Flip Horizontal",flip_horizontal,"Flip selection horizontally"},
-	      {"Flip Vertical",flip_vertical,"Flip selection vertically"}],
+    Rotate = rotate_directions(),
+
     Scale =  [{"Uniform",    scale_uniform, "Scale in both directions"},
 	      {"Horizontal", scale_x, "Scale horizontally (X dir)"},
 	      {"Vertical",   scale_y, "Scale vertically (Y dir)"}],
@@ -340,6 +333,11 @@ command_menu(body, X, Y) ->
 	    {"Move", move, "Move selected charts"},
 	    {"Scale", {scale, Scale}, "Scale selected charts"},
 	    {"Rotate", {rotate, Rotate}, "Rotate selected charts"},
+	    separator,
+	    {"Flip",{flip,
+		     [{"Horizontal",horizontal,"Flip selection horizontally"},
+		      {"Vertical",vertical,"Flip selection vertically"}]},
+	     "Flip selected charts"},
 	    separator,
 	    {"Tighten",tighten,
 	     "Move UV coordinates towards average midpoint"},
@@ -404,10 +402,7 @@ rotate_directions() ->
       "Rotate selection 90 degrees clockwise"},
      {"90"++[?DEGREE]++" CCW",90,
       "Rotate selection 90 degrees counter-clockwise"},
-     {"180"++[?DEGREE],180,"Rotate selection 180 degrees"},
-     separator,
-     {"Flip Horizontal",flip_horizontal,"Flip selection horizontally"},
-     {"Flip Vertical",flip_vertical,"Flip selection vertically"}].
+     {"180"++[?DEGREE],180,"Rotate selection 180 degrees"}].
 
 option_menu() ->
     [separator,
@@ -536,11 +531,11 @@ handle_command({scale,scale_y}, St) ->
     drag(wings_scale:setup({y,center}, St));
 handle_command({rotate,free}, St) ->
     drag(wings_rotate:setup({free,center}, St));
-handle_command({rotate,flip_horizontal}, St0) ->
+handle_command({flip,horizontal}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> flip_horizontal(We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
-handle_command({rotate,flip_vertical}, St0) ->
+handle_command({flip,vertical}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> flip_vertical(We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
@@ -903,13 +898,13 @@ flip_horizontal(We) ->
 flip_vertical(We) ->
     flip(e3d_mat:scale(1.0, -1.0, 1.0), We).
 
-flip(Flip, We) ->
-    Center = wings_vertex:center(We),
+flip(Flip, We0) ->
+    Center = wings_vertex:center(We0),
     T0 = e3d_mat:translate(e3d_vec:neg(Center)),
     T1 = e3d_mat:mul(Flip, T0),
     T = e3d_mat:mul(e3d_mat:translate(Center), T1),
-    wings_we:transform_vs(T, We).
-
+    We = wings_we:transform_vs(T, We0),
+    wings_we:invert_normals(We).
 
 remap(Method, #st{sel=Sel}=St0) ->
     wings_pb:start("remapping"),
