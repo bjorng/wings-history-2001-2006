@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_file.erl,v 1.9 2002/09/18 13:16:07 bjorng Exp $
+%%     $Id: wp8_file.erl,v 1.10 2002/11/14 08:49:58 bjorng Exp $
 %%
 
 -module(wp8_file).
@@ -77,13 +77,12 @@ fileop(What, Next) ->
     Next(What).
 
 file_dialog(Type, Prop, Title) ->
-    Ext = proplists:get_value(ext, Prop, ".wings"),
-    ExtDesc = proplists:get_value(ext_desc, Prop, "Default type"),
     Dir = wings_pref:get_value(current_directory),
     DefName = proplists:get_value(default_filename, Prop, ""),
     {ok,Cwd} = file:get_cwd(),
     file:set_cwd(Dir),
-    Data = [Dir,0,Ext,0,ExtDesc,0,Title,0,DefName,0],
+    Filters = file_filters(Prop),
+    Data = [Dir,0,Title,0,DefName,0|Filters],
     case erlang:port_control(wp8_file_port, Type, Data) of
 	[] ->
 	    file:set_cwd(Cwd),
@@ -92,3 +91,30 @@ file_dialog(Type, Prop, Title) ->
 	    file:set_cwd(Cwd),
 	    filename:absname(Else) % Happens to turn windows slashes...
     end.
+
+file_filters(Prop) ->
+    Exts = case proplists:get_value(extensions, Prop, none) of
+	       none ->
+		   Ext = proplists:get_value(ext, Prop, ".wings"),
+		   ExtDesc = proplists:get_value(ext_desc, Prop,
+						 "Wings File"),
+		   [{Ext,ExtDesc}];
+	       Other -> Other
+	   end,
+    [file_add_all(Exts),file_filters_1(Exts++[{".*","All Files"}], [])].
+
+file_filters_1([{Ext,Desc}|T], Acc0) ->
+    Wildcard = "*" ++ Ext,
+    Acc = [Acc0,Desc," (",Wildcard,")",0,Wildcard,0],
+    file_filters_1(T, Acc);
+file_filters_1([], Acc) -> [Acc,0].
+    
+file_add_all([_]=Exts) -> Exts;
+file_add_all(Exts) ->
+    All0 = ["*"++E || {E,_} <- Exts],
+    All = file_add_semicolons(All0),
+    ["All Formats (",All,")",0,All,0].
+
+file_add_semicolons([E1|[E2|_]=T]) ->
+    [E1,";"|file_add_semicolons(T)];
+file_add_semicolons(Other) -> Other.

@@ -9,7 +9,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_file_drv.c,v 1.5 2001/12/11 07:46:51 bjorng Exp $
+ *     $Id: wings_file_drv.c,v 1.6 2002/11/14 08:49:58 bjorng Exp $
  */
 
 #include <windows.h>
@@ -131,7 +131,6 @@ static int wings_file_control(ErlDrvData handle, unsigned int command,
 {
     OPENFILENAME ofn;
     char *rbuff;
-    char filterbuff[1024];
     char *ptr;
     char *defdir;
     char *filter;
@@ -167,22 +166,13 @@ static int wings_file_control(ErlDrvData handle, unsigned int command,
     case 1: /* Open (or import) file */
     case 2: /* Save (or export) file */
         defdir = buff; /* Default directory */
-	filter = defdir + strlen(defdir) + 1; /* Filter expression (.wings) */
-	filter_desc = filter + strlen(filter) + 1;      /* Desc. of filter */
-	title = filter_desc + strlen(filter_desc) + 1;  /* Title of dialog */
+	title = defdir + strlen(defdir) + 1;  /* Title of dialog */
 	defname = title + strlen(title) + 1; /* Default name for file */
-	sprintf(filterbuff,"%s (*%s)",filter_desc,filter);
-	ptr = filterbuff + strlen(filterbuff) +1;
-	sprintf(ptr,"*%s",filter);
-	ptr += strlen(ptr)+1;
-	strcpy(ptr, "All files (*.*)");
-	ptr += strlen(ptr)+1;
-	strcpy(ptr,"*.*");
-	ptr[strlen(ptr)+1]='\0';
+	filter = defname + strlen(defname) + 1; /* Filter expression (.wings) */
 	rbuff=driver_alloc(_MAX_PATH+1);
 	strcpy(rbuff, defname);
 	fill_ofn(&ofn);
-	ofn.lpstrFilter = filterbuff; 
+	ofn.lpstrFilter = filter;
         ofn.lpstrFile = rbuff; 
 	ofn.nMaxFile = _MAX_PATH+1; 
 	ofn.lpstrInitialDir = strlen(defdir) ? defdir : NULL; 
