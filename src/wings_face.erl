@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.34 2003/04/23 17:49:03 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.35 2003/04/24 05:46:22 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -29,6 +29,7 @@
 	 next_cw/1,next_ccw/1,
 	 iter2etab/1,
 	 patch_face/3,patch_face/4,
+	 delete_if_bad/2,
 	 are_neighbors/3]).
 
 -include("wings.hrl").
@@ -386,6 +387,23 @@ next_ccw({face_iterator,Edge,Face,Etab}) ->
 	    {V,Edge,Rec,{face_iterator,NextEdge,Face,Etab}};
 	#edge{vs=V,rf=Face,rtpr=NextEdge}=Rec ->
 	    {V,Edge,Rec,{face_iterator,NextEdge,Face,Etab}}
+    end.
+
+%% Delete the face if it only has two edges.
+
+delete_if_bad(Face, #we{fs=Ftab,es=Etab}=We) ->
+    case gb_trees:lookup(Face, Ftab) of
+	{value,Edge} ->
+	    case gb_trees:get(Edge, Etab) of
+		#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same} ->
+		    bad_edge;
+		#edge{ltpr=Same,ltsu=Same} ->
+		    wings_edge:dissolve_edge(Edge, We);
+		#edge{rtpr=Same,rtsu=Same} ->
+		    wings_edge:dissolve_edge(Edge, We);
+		_ -> We
+	    end;
+	none -> We
     end.
 
 patch_face(Face, NewEdge, Ftab) ->

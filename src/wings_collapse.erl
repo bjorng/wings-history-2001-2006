@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.31 2003/04/23 17:49:00 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.32 2003/04/24 05:46:22 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -80,12 +80,12 @@ collapse_face_1(Face, We0) ->
 	    Vs = gb_trees:insert(NewV, Pos, Vs1),
 	    We2 = We1#we{vc=Vct,vp=Vs,es=Es2,fs=Fs2,he=He1},
 	    We = wings_vertex:fold(
-		   fun(_, F, _, W) ->
-			   delete_degenerated(F, W)
+		   fun(_, _, _, bad_edge) -> bad_edge;
+		      (_, F, _, W) -> wings_face:delete_if_bad(F, W)
 		   end, We2, NewV, We2),
 
 	    %% If no edges left, return the original object.
-	    case gb_trees:is_empty(We#we.es) of
+	    case We == bad_edge orelse gb_trees:is_empty(We#we.es) of
 		true -> We0;
 		false -> We
 	    end
@@ -194,7 +194,7 @@ collapse_edge_1(Edge, Vkeep, Rec,
 
 	    We1 = We0#we{vc=Vct,vp=Vtab,he=Htab,fs=Ftab,es=Etab},
 	    We = foldl(fun(_Face, bad_edge) -> bad_edge;
-			  (Face, W) -> delete_degenerated(Face, W)
+			  (Face, W) -> wings_face:delete_if_bad(Face, W)
 		       end, We1, [LF,RF]),
 	    case We of
 		bad_edge -> We0;
@@ -298,24 +298,6 @@ check_vertices_1([V,V|_]) ->
 check_vertices_1([_|Vs]) ->
     check_vertices(Vs);
 check_vertices_1([]) -> ok.
-
-%% Delete a degenerate face (a face consisting of only two edges).
-delete_degenerated(Face, #we{fs=Ftab,es=Etab}=We) ->
-    %% Note: The face could have been deleted by a previous
-    %% wings_edge:dissolve_edge/2.
-    case gb_trees:lookup(Face, Ftab) of
-	{value,Edge} ->
-	    case gb_trees:get(Edge, Etab) of
-		#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same} ->
-		    bad_edge;
-		#edge{ltpr=Same,ltsu=Same} ->
-		    wings_edge:dissolve_edge(Edge, We);
-		#edge{rtpr=Same,rtsu=Same} ->
-		    wings_edge:dissolve_edge(Edge, We);
-		_Other -> We
-	    end;
-	none -> We
-    end.
 
 is_waist(Va, Vb, We) ->
     N = wings_vertex:fold(

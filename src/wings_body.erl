@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.55 2003/04/21 10:16:56 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.56 2003/04/24 05:46:22 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -308,21 +308,13 @@ patch_vtx_refs([], _, _, Etab) -> Etab.
 cleanup_2edged_faces(#we{fs=Ftab}=We) ->
     delete_2edged_faces_1(gb_trees:keys(Ftab), We).
 
-delete_2edged_faces_1([Face|Faces], #we{fs=Ftab,es=Etab}=We0) ->
-    %% Note: The face could have been deleted by a previous
-    %% wings_edge:dissolve_edge/2.
-    We = case gb_trees:lookup(Face, Ftab) of
-	     {value,Edge} ->
-		 case gb_trees:get(Edge, Etab) of
-		     #edge{ltpr=Same,ltsu=Same} ->
-			 wings_edge:dissolve_edge(Edge, We0);
-		     #edge{rtpr=Same,rtsu=Same} ->
-			 wings_edge:dissolve_edge(Edge, We0);
-		     _ -> We0
-		 end;
-	     none -> We0
-	 end,
-    delete_2edged_faces_1(Faces, We);
+delete_2edged_faces_1([Face|Faces], We0) ->
+    case wings_face:delete_if_bad(Face, We0) of
+	bad_edge ->
+	    wings_util:error("Face " ++ integer_to_list(Face) ++
+			     " has only one edge.");
+	We -> delete_2edged_faces_1(Faces, We)
+    end;
 delete_2edged_faces_1([], We) -> We.
 
 %%%
