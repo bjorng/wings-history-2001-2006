@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.15 2002/06/17 07:58:31 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.16 2002/06/19 09:35:13 bjorng Exp $
 %%
 
 -module(e3d_mat).
 
 -export([identity/0,is_identity/1,compress/1,expand/1,
-	 translate/1,translate/3,scale/1,scale/3,rotate/2,rotate_to_z/1,
+	 translate/1,translate/3,scale/1,scale/3,
+	 rotate/2,rotate_to_z/1,rotate_s_to_t/2,
 	 transpose/1,mul/2,mul_point/2,mul_vector/2]).
 
 identity() ->
@@ -100,6 +101,35 @@ rotate_to_z(Vec) ->
     {Ux,Vx,Wx,
      Uy,Vy,Wy,
      Uz,Vz,Wz,
+     0.0,0.0,0.0}.
+
+rotate_s_to_t(S, T) ->
+    V = e3d_vec:cross(S, T),
+    case e3d_vec:dot(S, T) of
+	E when E > 0.999 ->
+	    identity();
+	E when E < -0.999 ->
+	    rotate_180(S);
+	E ->
+	    rotate_so_to_t_1(V, E)
+    end.
+
+rotate_180(S) ->
+    X = {1.0,0.0,0.0},
+    V = case e3d_vec:dot(S, X) of
+	    Dot when abs(Dot) > 0.999 ->
+		Y = {0.0,1.0,0.0},
+		e3d_vec:cross(Y, S);
+	    _ ->
+		e3d_vec:cross(X, S)
+	end,
+    rotate(180, V).
+
+rotate_so_to_t_1({Vx,Vy,Vz}=V, E) when is_float(Vx), is_float(Vy), is_float(Vz) ->
+    H = (1.0 - E)/e3d_vec:dot(V, V),
+    {E+H*Vx*Vx,H*Vx*Vy+Vz,H*Vx*Vz-Vy,
+     H*Vx*Vy-Vz,E+H*Vy*Vy,H*Vy*Vz+Vx,
+     H*Vx*Vz+Vy,H*Vy*Vz-Vx,E+H*Vz*Vz,
      0.0,0.0,0.0}.
 
 transpose({M1,M2,M3,M4,M5,M6,M7,M8,M9,0.0=Z,0.0,0.0}) ->
