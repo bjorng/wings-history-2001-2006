@@ -10,7 +10,6 @@ ERLANG_PATH=/cygdrive/c/progra~1/erl5.1.2
 DEST_ROOT=$WINGS_PATH/wings3d
 ESDL_PATH=/cygdrive/c/mydocu~1/esdl
 NSIS=c:/progra~1/nsis/makensis-bz2
-WINGS_VSN=0.97
 # End of configureable stuff.
 
 temp=`pwd`
@@ -23,6 +22,8 @@ for file in $WINGS_PATH/wings-*; do
     fi
 done
 
+WINGS_VSN=`echo "$latest_wings" | sed -e 's/.*wings-//'`
+
 (cd $latest_wings; nmake -f Makefile.win32)
 
 dest=$DEST_ROOT
@@ -31,7 +32,7 @@ $INSTALL -d $dest $dest/ebin $dest/patches
 
 cd $latest_wings
 
-$INSTALL -c -m 644 README AUTHORS license.terms $dest
+$INSTALL -c -m 644 README AUTHORS license.terms vsn.mk $dest
 $INSTALL -c -m 644 wings2.nsi $dest
 $INSTALL -c -m 644 ebin/* $dest/ebin
 
