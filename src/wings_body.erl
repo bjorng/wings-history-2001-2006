@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.62 2003/08/03 19:26:40 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.63 2003/09/25 15:11:13 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -162,12 +162,7 @@ cleanup_1([], We) -> We.
 
 clean_isolated_vertices(We) ->
     Isolated = wings_vertex:isolated(We),
-    foldl(fun(V, W0) ->
-		  case wings_vertex:dissolve(V, W0) of
-		      error -> W0;
-		      W -> W
-		  end
-	  end, We, Isolated).
+    wings_vertex:dissolve_isolated(Isolated, We).
 		  
 clean_short_edges(Tolerance, #we{es=Etab,vp=Vtab}=We) ->
     Short = foldl(

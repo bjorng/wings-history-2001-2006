@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.72 2003/09/25 13:48:46 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.73 2003/09/25 15:11:13 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -21,15 +21,15 @@
 	 select_more/1,select_less/1,
 	 from_vs/2,
 	 select_region/1,
-	 select_edge_ring/1,select_edge_ring_incr/1, select_edge_ring_decr/1,
- 	 cut/3,fast_cut/3,cut_edges/2,
+	 select_edge_ring/1,select_edge_ring_incr/1,select_edge_ring_decr/1,
+ 	 cut/3,fast_cut/3,
  	 dissolve_edges/2,dissolve_edge/2,
  	 hardness/2,hardness/3,
 	 adjacent_edges/2,
 	 to_vertices/2,from_faces/2,extend_sel/2,
 	 patch_edge/4,patch_edge/5]).
 
--export([dissolve_vertex/2]).
+-export([dissolve_isolated_vs/2]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -409,7 +409,7 @@ connect(Es, #we{id=Id}=We0, Acc) ->
     {We1,Vs} = cut_edges(Es, We0),
     We2 = wings_vertex_cmd:connect(Vs, We1),
     Sel = wings_we:new_items(edge, We1, We2),
-    We = remove_winged_vs(Vs, We2),
+    We = dissolve_isolated_vs(Vs, We2),
     {We,[{Id,Sel}|Acc]}.
 
 cut_edges(Es, We) ->
@@ -417,15 +417,6 @@ cut_edges(Es, We) ->
 			 {W,V} = cut(Edge, 2, W0),
 			 {W,[V|Vs0]}
 		 end, {We,[]}, Es).
-
-remove_winged_vs(Vs, We0) ->
-    We = foldl(fun(V, W0) ->
-		       case internal_dissolve_vertex(V, W0) of
-			   error -> W0;
-			   W -> W
-		       end
-	       end, We0, Vs),
-    wings_we:vertex_gc(We).
 
 %%%
 %%% The Dissolve command.
@@ -528,15 +519,19 @@ dissolve_edge_2(Edge, FaceRemove, FaceKeep,
 	false -> wings_util:error("Dissolving would create a badly formed face.")
     end.
 
-%% dissolve(Vertex, We) -> We|error
-%%  Remove a "winged vertex" - a vertex with exactly two edges.
-dissolve_vertex(V, We0) ->
-    case internal_dissolve_vertex(V, We0) of
-	error -> error;
-	We -> wings_we:vertex_gc(We)
-    end.
+%% dissolve_isolated_vs([Vertex], We) -> We'
+%%  Remove all isolated vertices ("winged vertices", or vertices
+%%  having exactly two edges).
+dissolve_isolated_vs(Vs, We0) ->
+    We = foldl(fun(V, W0) ->
+		       case dissolve_vertex(V, W0) of
+			   error -> W0;
+			   W -> W
+		       end
+	       end, We0, Vs),
+    wings_we:vertex_gc(We).
 
-internal_dissolve_vertex(V, #we{es=Etab,vc=Vct}=We0) ->
+dissolve_vertex(V, #we{es=Etab,vc=Vct}=We0) ->
     Edge = gb_trees:get(V, Vct),
     case gb_trees:lookup(Edge, Etab) of
 	{value,#edge{vs=V,ltsu=AnEdge,rtpr=AnEdge}=Rec} ->

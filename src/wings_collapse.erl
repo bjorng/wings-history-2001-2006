@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.32 2003/04/24 05:46:22 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.33 2003/09/25 15:11:13 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -170,7 +170,7 @@ collapse_edge_1(Edge, Vkeep, Rec,
 	    Vct1 = gb_trees:update(Vkeep, RP, Vct0),
 	    Vtab1 = gb_trees:update(Vkeep, Pos, Vtab0),
 	    
-	    %% Patch all predecessors and successor of
+	    %% Patch all predecessors and successors of
 	    %% the edge we will remove.
 	    Etab1 = wings_edge:patch_edge(LP, LS, LF, Edge, Etab0),
 	    Etab2 = wings_edge:patch_edge(LS, LP, LF, Edge, Etab1),
@@ -218,15 +218,10 @@ collapse_vertex(V, We0) ->
     {We,_} = do_collapse_vertex(V, We0, gb_sets:empty()),
     We.
 
-do_collapse_vertex(V, #we{vp=Vtab}=We0, Sel0) ->
+do_collapse_vertex(V, #we{vp=Vtab}=We, Sel) ->
     case gb_trees:is_defined(V, Vtab) of
-	false -> {We0,Sel0};
-	true ->
-	    %% Handle winged vertices (i.e. vertices with two edges) specially.
-	    case wings_vertex:dissolve(V, We0) of
-		error -> collapse_vertex_1(V, We0, Sel0);
-		We -> {We,Sel0}
-	    end
+	false -> {We,Sel};
+	true -> collapse_vertex_1(V, We, Sel)
     end.
 	    
 collapse_vertex_1(Vremove, We0, Sel0)->
@@ -235,22 +230,27 @@ collapse_vertex_1(Vremove, We0, Sel0)->
 		     OtherV = wings_vertex:other(Vremove, Rec),
 		     [{OtherV,E}|Acc0]
 	     end, [], Vremove, We0),
-    Vlist = reverse([V || {V,_} <- VsEs]),
-    check_vertices(Vlist),
+    case VsEs of
+	[_,_] ->
+	    {wings_vertex:dissolve(Vremove, We0),Sel0};
+	_ ->
+	    Vlist = reverse([V || {V,_} <- VsEs]),
+	    check_vertices(Vlist),
 
-    %% Connect vertices.
-    Pairs = make_pairs(Vlist),
-    We1 = foldl(fun(Pair, W) ->
-			collapse_connect(Pair, W)
-		end, We0, Pairs),
+	    %% Connect vertices.
+	    Pairs = make_pairs(Vlist),
+	    We1 = foldl(fun(Pair, W) ->
+				collapse_connect(Pair, W)
+			end, We0, Pairs),
 
-    %% Remove all original edges.
-    Edges = [E || {_,E} <- VsEs],
-    We = wings_edge:dissolve_edges(Edges, We1),
+	    %% Remove all original edges.
+	    Edges = [E || {_,E} <- VsEs],
+	    We = wings_edge:dissolve_edges(Edges, We1),
 
-    Faces = collapse_vtx_faces(Vlist, We, []),
-    Sel = collapse_vtx_sel(Faces, ordsets:from_list(Vlist), We, Sel0),
-    {We,Sel}.
+	    Faces = collapse_vtx_faces(Vlist, We, []),
+	    Sel = collapse_vtx_sel(Faces, ordsets:from_list(Vlist), We, Sel0),
+	    {We,Sel}
+    end.
 
 collapse_connect(Pair, #we{mirror=MirrorFace}=We) ->
     FaceVs = wings_vertex:per_face(Pair, We),

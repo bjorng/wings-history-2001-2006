@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.44 2003/08/08 12:02:25 dgud Exp $
+%%     $Id: wings_vertex.erl,v 1.45 2003/09/25 15:11:13 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -20,7 +20,7 @@
 	 bounding_box/1,bounding_box/2,bounding_box/3,
 	 normal/2,per_face/2,
 	 flatten/3,flatten/4,
-	 dissolve/2,
+	 dissolve_isolated/2,dissolve/2,
 	 connect/3,force_connect/4,
 	 patch_vertex/3,pos/2,
 	 outer_partition/2,reachable/2,
@@ -279,10 +279,16 @@ flatten_move(V, Matrix, Tab0) ->
     Pos = e3d_mat:mul_point(Matrix, Pos0),
     gb_trees:update(V, Pos, Tab0).
 
+%% dissolve_isolated_vs([Vertex], We) -> We'
+%%  Remove all isolated vertices ("winged vertices", or vertices
+%%  having exactly two edges).
+dissolve_isolated(Vs, We) ->
+    wings_edge:dissolve_isolated_vs(Vs, We).
+
 %% dissolve(Vertex, We) -> We|error
 %%  Remove a "winged vertex" - a vertex with exactly two edges.
 dissolve(V, We) ->
-    wings_edge:dissolve_vertex(V, We).
+    wings_edge:dissolve_isolated_vs([V], We).
 
 %% Connect vertices (which must share a face).
 
