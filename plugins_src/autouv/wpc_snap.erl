@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_snap.erl,v 1.2 2004/03/17 07:06:04 bjorng Exp $
+%%     $Id: wpc_snap.erl,v 1.3 2004/03/22 20:13:04 bjorng Exp $
 
 -module(wpc_snap).
 
@@ -125,7 +125,8 @@ find_images_1([], _Def, _Key) -> [].
     
 scale(Op, St) ->
     #s{sx=Ix,sy=Iy} = get(?MODULE),
-    ScaleFun = fun([X,Y], Dlo) -> 
+    ScaleFun = fun({finish,_}, Dlo) -> Dlo;
+		  ([X,Y], Dlo) -> 
 		       State = #s{sx=SX,sy=SY} = get(?MODULE),
 		       case Op of 
 			   x ->    put(?MODULE, State#s{sx=X});

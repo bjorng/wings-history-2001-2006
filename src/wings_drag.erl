@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.170 2004/03/22 05:49:23 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.171 2004/03/22 20:13:18 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -267,7 +267,7 @@ do_drag(#drag{unit=Units}=Drag0, Move) when length(Units) =:= length(Move) ->
     ungrab(Drag1),
     Drag2 = possible_falloff_update(Move, Drag1),
     Drag = ?SLOW(motion_update(Move, Drag2)),
-    St = normalize(Drag),
+    St = normalize(Move, Drag),
     DragEnded = {new_state,St#st{drag_args=Move}},
     wings_wm:later(DragEnded),
     keep;
@@ -371,7 +371,7 @@ handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_RELEASED}, 
     ungrab(Drag0),
     Ev = #mousemotion{x=X,y=Y,state=0,mod=Mod},
     {Move,Drag} = ?SLOW(motion(Ev, Drag0)),
-    St = normalize(Drag),
+    St = normalize(Move, Drag),
     DragEnded = {new_state,St#st{drag_args=Move}},
     wings_wm:later(DragEnded),
     pop;
@@ -379,7 +379,7 @@ handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     ungrab(Drag0),
     Drag1 = possible_falloff_update(Move, Drag0),
     Drag = ?SLOW(motion_update(Move, Drag1)),
-    St = normalize(Drag),
+    St = normalize(Move, Drag),
     DragEnded = {new_state,St#st{drag_args=Move}},
     wings_wm:later(DragEnded),
     pop;
@@ -699,30 +699,35 @@ trim([[_|_]=H|T]) ->
     end;
 trim(S) -> S.
     
-normalize(#drag{magnet=none}=Drag) ->
-    normalize_1(Drag);
-normalize(#drag{magnet=Type}=Drag) ->
+normalize(Move, #drag{magnet=none}=Drag) ->
+    normalize_1(Move, Drag);
+normalize(Move, #drag{magnet=Type}=Drag) ->
     wings_pref:set_value(magnet_type, Type),
-    normalize_1(Drag).
+    normalize_1(Move, Drag).
 
-normalize_1(#drag{st=#st{shapes=Shs0}=St}) ->
+normalize_1(Move, #drag{st=#st{shapes=Shs0}=St}) ->
     gl:disable(gl_rescale_normal()),
-    Shs = wings_draw_util:map(fun normalize_fun/2, Shs0),
+    Shs = wings_draw_util:map(fun(D, Sh) ->
+				      normalize_fun(D, Move, Sh)
+			      end, Shs0),
     St#st{shapes=Shs}.
 
-normalize_fun(#dlo{drag=none}=D, Shs) -> {D,Shs};
-normalize_fun(#dlo{drag={matrix,_,_,_},transparent=#we{id=Id}=We}=D, Shs0) when ?IS_LIGHT(We) ->
+normalize_fun(#dlo{drag=none}=D, _Move, Shs) -> {D,Shs};
+normalize_fun(#dlo{drag={matrix,_,_,_},transparent=#we{id=Id}=We}=D,
+	      _Move, Shs0) when ?IS_LIGHT(We) ->
     Shs = gb_trees:update(Id, We, Shs0),
     {D#dlo{work=none,drag=none,src_we=We,transparent=false},Shs};
-normalize_fun(#dlo{drag={matrix,_,_,Matrix}, src_we=#we{id=Id}=We0}=D0, Shs0) ->
+normalize_fun(#dlo{drag={matrix,_,_,Matrix},src_we=#we{id=Id}=We0}=D0,
+	      _Move, Shs0) ->
     We = wings_we:transform_vs(Matrix, We0),
     Shs = gb_trees:update(Id, We, Shs0),
     D = D0#dlo{work=none,edges=none,sel=none,drag=none,src_we=We,mirror=none},
     {wings_draw:changed_we(D, D),Shs};
-normalize_fun(#dlo{drag={general,_},src_we=#we{id=Id}=We}=D0, Shs) ->
-    D = D0#dlo{drag=none,sel=none},
+normalize_fun(#dlo{drag={general,Fun},src_we=#we{id=Id}=We}=D0, Move, Shs) ->
+    D1 = Fun({finish,Move}, D0),
+    D = D1#dlo{drag=none,sel=none},
     {wings_draw:changed_we(D, D),gb_trees:update(Id, We, Shs)};
-normalize_fun(#dlo{src_we=#we{id=Id}}=D0, Shs) ->
+normalize_fun(#dlo{src_we=#we{id=Id}}=D0, _Move, Shs) ->
     #dlo{src_we=We} = D = wings_draw:join(D0),
     {D,gb_trees:update(Id, We, Shs)}.
 

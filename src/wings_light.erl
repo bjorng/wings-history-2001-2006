@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.47 2004/03/21 18:57:08 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.48 2004/03/22 20:13:18 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -173,7 +173,9 @@ color(St) ->
 	     fun(_, #we{id=Id,light=L}=We, none) when ?IS_LIGHT(We) ->
 		     {R,G,B,A} = get_light_color(L),
 		     {H,S,V} = wings_color:rgb_to_hsv(R, G, B),
-		     ColorFun = fun(C, D) -> color(C, D, A) end,
+		     ColorFun = fun({finish,C}, D) -> color(C, D, A);
+				   (C, D) -> color(C, D, A)
+				end,
 		     Tvs = {general,[{Id,ColorFun}]},
 		     Units = [{angle,{0.0,359.9999}},
 			      {percent,{0.0,1.0}},
@@ -277,11 +279,14 @@ selected_light(St) ->
 		   end, none, St).
 
 adjust_fun(AdjFun) ->
-    fun(Ds, #dlo{src_we=#we{light=L0}=We0}=D) ->
-	    L = AdjFun(Ds, L0),
-	    We = We0#we{light=L},
-	    update(D#dlo{work=none,src_we=We})
+    fun({finish,Ds}, D) -> adjust_fun_1(AdjFun, Ds, D);
+       (Ds, D) -> adjust_fun_1(AdjFun, Ds, D)
     end.
+
+adjust_fun_1(AdjFun, Ds, #dlo{src_we=#we{light=L0}=We0}=D) ->
+    L = AdjFun(Ds, L0),
+    We = We0#we{light=L},
+    update(D#dlo{work=none,src_we=We}).
 
 %%
 %% The Edit Properties command.
