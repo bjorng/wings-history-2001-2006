@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.126 2005/01/11 08:16:45 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.127 2005/01/13 06:34:58 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -546,42 +546,54 @@ smooth_connect(Vs, Faces0, #we{mirror=Mirror}=We0) ->
     FaceVs1 = sofs:from_external(FaceVs0, [{face,[vertex]}]),
     FaceVs2 = sofs:drestriction(FaceVs1, Faces),
     FaceVs = sofs:to_external(FaceVs2),
-    smooth_connect_0(FaceVs, We0).
+    {We,Hide} = smooth_connect_0(FaceVs, [], We0),
+    wings_we:hide_faces(Hide, We).
 
-smooth_connect_0([{Face,Vs}|Fvs], We0) ->
+smooth_connect_0([{Face,Vs}|Fvs], Hide0, We0) ->
     case wings_facemat:face(Face, We0) of
 	'_hole_' ->
-	    smooth_connect_0(Fvs, We0);
+	    smooth_connect_0(Fvs, Hide0, We0);
 	_ ->
-	    We = smooth_connect_1(Face, Vs, We0),
-	    smooth_connect_0(Fvs, We)
+	    {We,Hide} = smooth_connect_1(Face, Vs, Hide0, We0),
+	    smooth_connect_0(Fvs, Hide, We)
     end;
-smooth_connect_0([], We) -> We.
+smooth_connect_0([], Hide, We) -> {We,Hide}.
 
-smooth_connect_1(Face, [V], We) ->
+smooth_connect_1(Face, [V], Hide, We) ->
     Iter0 = wings_face:iterator(Face, We),
     IterCw = wings_face:skip_to_cw(V, Iter0),
     IterCcw = wings_face:skip_to_ccw(V, Iter0),
-    smooth_connect_2(IterCw, IterCcw, V, Face, We);
-smooth_connect_1(Face, Vs, We) ->
-    wings_vertex:connect(Face, Vs, We).
-
-smooth_connect_2(IterCw0, IterCcw0, V, Face, We0) ->
+    smooth_connect_2(IterCw, IterCcw, V, Face, Hide, We);
+smooth_connect_1(Face, Vs, Hide, We0) ->
+    We = wings_vertex:connect(Face, Vs, We0),
+    if
+	Face < 0 ->
+	    {We,wings_we:new_items_as_ordset(face, We0, We)++Hide};
+	true ->
+	    {We,Hide}
+    end.
+ 
+smooth_connect_2(IterCw0, IterCcw0, V, Face, Hide, We0) ->
     case {wings_face:next_cw(IterCw0),wings_face:next_ccw(IterCcw0)} of
 	{{_,Edge,_,_},{_,Edge,_,_}} ->
-	    {We1,NewV} = wings_edge:cut(Edge, 2, We0),
-	    {We,_} = wings_vertex:force_connect(V, NewV, Face, We1),
-	    We;
+	    {We,NewV} = wings_edge:cut(Edge, 2, We0),
+	    smooth_connect_3(V, NewV, Face, Hide, We);
 	{{Va,_,_,IterCw},{Vb,_,Rec,IterCcw}} ->
 	    case wings_vertex:other(Vb, Rec) of
 		Va when Va =/= V ->
-		    {We,_} = wings_vertex:force_connect(V, Va, Face, We0),
-		    We;
+		    smooth_connect_3(V, Va, Face, Hide, We0);
 		_Other ->
-		    smooth_connect_2(IterCw, IterCcw, V, Face, We0)
+		    smooth_connect_2(IterCw, IterCcw, V, Face, Hide, We0)
 	    end
     end.
 
+smooth_connect_3(Va, Vb, Face, Hide, We0) ->
+    {We,NewFace} = wings_vertex:force_connect(Va, Vb, Face, We0),
+    if
+	Face < 0 -> {We,[NewFace|Hide]};
+	true -> {We,Hide}
+    end.
+    
 %%%
 %%% The Bridge command.
 %%%
