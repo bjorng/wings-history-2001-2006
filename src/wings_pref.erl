@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.127 2004/10/15 14:49:27 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.128 2004/10/15 15:02:54 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -270,7 +270,11 @@ ui_prefs() ->
      ]}.
 
 language_name("en") -> "English";
+language_name("de") -> "Deutsch";
+language_name("es") -> "Español";
+language_name("fr") -> "Français";
 language_name("it") -> "Italiano";
+language_name("pt") -> "Português";
 language_name("sv") -> "Svenska";
 language_name(Other) -> Other.
 
