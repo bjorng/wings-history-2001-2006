@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.4 2002/10/30 09:14:19 bjorng Exp $
+#     $Id: Makefile,v 1.5 2002/11/08 17:23:14 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -54,6 +54,8 @@ common: $(TARGET_FILES)
 clean:
 	rm -f $(TARGET_FILES)
 	rm -f core
+
+$(TARGET_FILES): auv.hrl
 
 $(EBIN)/%.beam: $(ESRC)/%.erl
 	$(ERLC) $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -o$(EBIN) $<
