@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.45 2004/12/06 07:57:59 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.46 2004/12/16 08:05:59 bjorng Exp $
 %%
 
 {wings,
@@ -365,7 +365,7 @@
     {5,"Dra ut"},
     {6,"Koppla ihop"},
     {7,"Skapa en ny kant genom att koppla ihop medelpunkten av markerade kanter"},
-    {8,"Hyvla"},
+    {8,"Avfasning"},
     {9,"Runda av markerade kanter"},
     {10,"Ta bort"},
     {11,"Ta bort markerade kanter"},
@@ -397,9 +397,14 @@
 {wings_extrude_edge,
  [
   {bevel_faces,
-   [{1,"Objektet är för litet för att hyvlas."}]},
-  {connect,
-   [{1,"Kan inte dra ut/hyvla; försök att Städa."}]}]}.
+   [{1,"Objektet är för litet för att fasas av."}]},
+  {extrude_problem,
+   [
+    {1,"Kan inte dra ut/göra avfasning; "
+     "två eller fler hörn är troligen för nära varandra.\n"
+     "Försök använda kommandot Städa."}
+   ]}
+]}.
 {wings_face_cmd,
  [
   {bridge,
@@ -571,10 +576,18 @@
     {22,"Importera en bildfil"},
     {23,"Rendera"},
     {24,"Installera insticksmodul"},
-    {25,"Avsluta"}]},
+    {25,"Avsluta"},
+    {26,"Generera ett nytt filnamn och spara"},
+    {27,"Installera en insticksmodul"},
+    {28,"Avsluta Wings 3D"}
+   ]},
   {merge,
    [{1,"Infoga"},
     {2,"Filläsning misslyckades: "}]},
+  {recent_files,
+   [
+    {1,"Öppna den här filen som nyligen har använts"}
+   ]},
   {save_as,
    [{1,"Spara som"}]},
   {save_now,
@@ -1713,12 +1726,12 @@
     {5,"SKapa en kant genom att koppla ihop markerade punkter"},
     {6,"Krympa"},
     {7,"Flytta markerade punkter mot medelpunkten"},
-    {8,"Hyvla"},
+    {8,"Avfasning"},
     {9,"Skapa ytor av markerade punkter"},
     {10,"Ta bort"},
     {11,"Ta bort markerade punkter (ta bort markering)"},
     {12,"Slå ihop"},
-    {13,"Ta bort markering punkter (skapa en markerad yta)"},
+    {13,"Ta bort markerade punkter (skapa en markerad yta)"},
     {14,"Deformera"},
     {15,"Punktfärg"},
     {16,"Sätt punktfärg på markerade punkter"}]}]}.
