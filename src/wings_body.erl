@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.39 2002/10/18 18:26:20 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.40 2002/11/10 10:48:49 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -109,9 +109,7 @@ cleanup(Ask, _) when is_atom(Ask) ->
     Qs = [{"Short edges",true,[{key,short_edges}]},
 	  {hframe,
 	   [{label,"Length tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]},
-	  {"Isolated Vertices",true,[{key,isolated_vs}]},
-	  {hframe,
-	   [{label,"Maximum Angle"},{text,1.0,[{range,{1.0E-5,180.0}}]}]}],
+	  {"Isolated Vertices",true,[{key,isolated_vs}]}],
     wings_ask:dialog(Ask,
 		     [{vframe, Qs, [{title,"Remove"}]}],
 		     fun(Res) -> {body,{cleanup,Res}} end);
@@ -125,37 +123,21 @@ cleanup_1([{short_edges,Flag},Tolerance|Opts], We0) ->
 	     false -> We0
 	 end,
     cleanup_1(Opts, We);
-cleanup_1([{isolated_vs,true},Angle|Opts], We) ->
-    Cos = cos_degrees(Angle),
-    cleanup_1(Opts, clean_isolated_vertices(Cos, We));
+cleanup_1([{isolated_vs,true}|Opts], We) ->
+    cleanup_1(Opts, clean_isolated_vertices(We));
 cleanup_1([_|Opts], We) ->
     cleanup_1(Opts, We);
 cleanup_1([], We) -> We.
 
-clean_isolated_vertices(Cos, #we{vs=Vtab}=We) ->
-    foldl(fun({V,#vtx{pos=Pos}}, W) ->
-		  clean_isolated(Cos, V, Pos, W)
-	  end, We, gb_trees:to_list(Vtab)).
-
-clean_isolated(Cos, V, Pos, We) ->
-    Es = wings_vertex:fold(
-	   fun(_, _, Rec, A) ->
-		   OtherPos = wings_vertex:other_pos(V, Rec, We),
-		   [e3d_vec:norm(e3d_vec:sub(Pos, OtherPos))|A]
-	   end, [], V, We),
-    case Es of
-	[E1,E2] ->
-	    case abs(e3d_vec:dot(E1, E2)) of
-		Dot when Dot > Cos ->
-		    case wings_vertex:dissolve(V, We) of
-			error -> We;
-			Other -> Other
-		    end;
-		_ -> We
-	    end;
-	_ -> We
-    end.
-
+clean_isolated_vertices(We) ->
+    Isolated = gb_sets:to_list(wings_vertex:isolated(We)),
+    foldl(fun(V, W0) ->
+		  case wings_vertex:dissolve(V, W0) of
+		      error -> W0;
+		      W -> W
+		  end
+	  end, We, Isolated).
+		  
 clean_short_edges(Tolerance, #we{es=Etab,vs=Vtab}=We) ->
     Short = foldl(
 	      fun({Edge,#edge{vs=Va,ve=Vb}}, A) ->
