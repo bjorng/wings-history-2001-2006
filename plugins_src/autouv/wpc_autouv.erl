@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.220 2004/04/16 13:20:13 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.221 2004/04/23 04:02:53 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -140,7 +140,7 @@ init_show_maps(Map0, We, St) ->
 
 create_uv_state(Charts0, MatName0, We, GeomSt0) ->
     Charts = restrict_ftab(Charts0),
-    wings:mode_restriction([face,body]),
+    wings:mode_restriction([body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {GeomSt1,MatName} = 
 	case has_texture(MatName0, GeomSt0) of
@@ -520,8 +520,8 @@ new_state(#st{bb=#uvstate{}=Uvs}=St0) ->
     GeomSt = update_geom_selection(St0),
     St1 = St0#st{bb=Uvs#uvstate{st=GeomSt}},
     St = update_selected_uvcoords(St1),
-    get_event(St).
-    %%get_event(St#st{selmode=body,sh=false}).
+    %%get_event(St).
+    get_event(St#st{selmode=body,sh=false}).
 
 handle_command(move, St) ->
     drag(wings_move:setup(free_2d, St));
@@ -766,11 +766,11 @@ update_geom_sel_vtx(Vs, #we{name=#ch{vmap=Vmap}}, A) ->
     [auv_segment:map_vertex(V, Vmap) || V <- gb_sets:to_list(Vs)] ++ A.
 
 reset_sel(St0) ->
-    wings_sel:reset(St0).
-%     case wings_sel:reset(St0) of
-% 	#st{selmode=body,sh=false}=St -> St;
-% 	St -> St#st{selmode=body,sh=false}
-%     end.
+    %%wings_sel:reset(St0).
+    case wings_sel:reset(St0) of
+	#st{selmode=body,sh=false}=St -> St;
+	St -> St#st{selmode=body,sh=false}
+    end.
 
 %%%% GUI Operations
 
