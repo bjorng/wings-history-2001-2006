@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.27 2001/11/20 12:49:22 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.28 2001/11/23 08:00:13 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -297,8 +297,8 @@ message(L, Unit) when atom(Unit) ->
 
 message_0([_]=L, none) ->
     message_1("~-10.2f", L);
-message_0([U]=L, percent) ->
-    message_1("~p%", [round(100*U)]);
+message_0([U], percent) ->
+    message_1("P:~10.2f%", [U*100.0]);
 message_0([_]=L, distance) ->
     message_1("D:~-10.2f", L);
 message_0([_]=L, angle) ->
