@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.44 2002/04/22 06:59:05 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.45 2002/04/25 15:14:36 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -92,13 +92,16 @@ read_icons() ->
 	    Bin
     end.
 
-resize(W, H) ->
+resize(W0, H0) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     #io{raw_icons=RawIcons} = Io = get_state(),
-    Icons = place_icons(W),
+    Icons = place_icons(W0),
     Tex = load_textures(RawIcons),
-    put_state(Io#io{w=W,h=H,tex=Tex,icons=Icons}),
-    wings_pref:set_value(window_size, {W,H}).
+    put_state(Io#io{w=W0,h=H0,tex=Tex,icons=Icons}),
+    case sdl_video:wm_isMaximized() of
+	false -> wings_pref:set_value(window_size, {W0,H0});
+	true ->  wings_pref:set_value(window_size, {W0-8,H0-10})
+    end.
 
 place_icons(W) ->
     Mid = W div 2,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.132 2002/04/25 08:58:04 bjorng Exp $
+%%     $Id: wings.erl,v 1.133 2002/04/25 15:14:36 bjorng Exp $
 %%
 
 -module(wings).
@@ -109,12 +109,11 @@ init_1(File) ->
     put(wings_hitbuf, sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)),
 
     caption(St1),
-    W = 780,
-    H = 570,
-    wings_pref:set_default(window_size, {W,H}),
+    wings_pref:set_default(window_size, {780,570}),
 
     %% On Solaris/Sparc, we must resize twice the first time to
     %% get the requested size. Should be harmless on other platforms.
+    {W,H} = wings_pref:get_value(window_size),
     set_video_mode(W, H),
     St2 = resize(W, H, St1),
     St = open_file(File, St2),
