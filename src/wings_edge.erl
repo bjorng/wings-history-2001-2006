@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.71 2003/09/25 12:54:43 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.72 2003/09/25 13:48:46 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -530,8 +530,11 @@ dissolve_edge_2(Edge, FaceRemove, FaceKeep,
 
 %% dissolve(Vertex, We) -> We|error
 %%  Remove a "winged vertex" - a vertex with exactly two edges.
-dissolve_vertex(V, We) ->
-    wings_we:vertex_gc(internal_dissolve_vertex(V, We)).
+dissolve_vertex(V, We0) ->
+    case internal_dissolve_vertex(V, We0) of
+	error -> error;
+	We -> wings_we:vertex_gc(We)
+    end.
 
 internal_dissolve_vertex(V, #we{es=Etab,vc=Vct}=We0) ->
     Edge = gb_trees:get(V, Vct),
