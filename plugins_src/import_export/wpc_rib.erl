@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.5 2002/04/23 05:37:34 bjorng Exp $
+%%     $Id: wpc_rib.erl,v 1.6 2002/04/28 07:50:52 bjorng Exp $
 
 -module(wpc_rib).
 -include_lib("e3d.hrl").
@@ -16,7 +16,8 @@
 
 -export([init/0,menu/2,command/2]).
 
--import(lists, [foldl/3,map/2,foreach/2,reverse/1,seq/2,flat_length/1,append/2]).
+-import(lists, [foldl/3,map/2,foreach/2,reverse/1,seq/2,
+		flat_length/1,append/1,append/2]).
 
 init() ->
     true.
@@ -31,8 +32,8 @@ menu({file,render}, Menu0) ->
 		_Path -> Menu0 ++ [{"Render to BMRT 2.6",rendrib,[option]}]
 	    end,
     Menu2 = case os:find_executable("air") of
-	       false -> Menu1;
-	       _Path2 -> Menu1 ++ [{"Render to Air",air,[option]}]
+		false -> Menu1;
+		_Path2 -> Menu1 ++ [{"Render to Air",air,[option]}]
 	   end,
     Menu3 = case os:find_executable("entropy") of
 		false -> Menu2;
@@ -66,20 +67,13 @@ render_props() ->
 
 dialog_qs(export)->
     MeshVar = {mesh_type,get_pref(mesh_type, poly)},
-    SaveVar = {save_by,get_pref(save_by, one_file)},
     [{vframe,
       [{key_alt,MeshVar,"Polygon Mesh (older renderer)",poly},
        {key_alt,MeshVar,"Subdivision Mesh (smoother)",subdiv}],
       [{title,"Mesh Type"}]},
-     {vframe,
-      [{key_alt,SaveVar,"One file",one_file},
-       {key_alt,SaveVar,"One file per object",by_object},
-       {key_alt,SaveVar,"One file per object and material",
-	by_material}],
-      [{title,"Save By"}]},
      {"Triangulate Faces (needed for BMRT)",get_pref(triangulate, true),
       [{key,triangulate}]},
-     {"Expand Faces (older renderer)",get_pref(expand_faces, true),
+     {"Expand Faces (BMRT)",get_pref(expand_faces, true),
       [{key,expand_faces}]},
      {"Export UV Coordinates",get_pref(export_uv, true),[{key,export_uv}]}|
      common_dialog()].
@@ -162,23 +156,16 @@ do_render(Attr0, Engine, St) ->
 
 add_attr(rendrib, Attr) ->
     case property_lists:get_value(mesh_type, Attr) of
-	poly -> TriFs = true, ExpandFs = true;
-	_ ->	TriFs = false, ExpandFs = false
+	poly ->
+	    TriFs = true, ExpandFs = true;
+	_ ->
+	    TriFs = false, ExpandFs = false
     end,
-    [{save_by, one_file},{triangulate, TriFs},{expand_faces, ExpandFs}|Attr];
+    [{triangulate,TriFs},{expand_faces,ExpandFs}|Attr];
 add_attr(air, Attr) ->
-    case property_lists:get_value(mesh_type, Attr) of
-	poly -> TriFs = false, ExpandFs = false;
-	_ ->	TriFs = false, ExpandFs = false
-    end,
-    [{save_by, one_file},{triangulate, TriFs},{expand_faces, ExpandFs}|Attr];
+    [{triangulate,false},{expand_faces,false}|Attr];
 add_attr(entropy, Attr) ->
-    case property_lists:get_value(mesh_type, Attr) of
-	poly -> TriFs = false, ExpandFs = false;
-	_ ->	TriFs = false, ExpandFs = false
-    end,
-    [{save_by, one_file},{triangulate, TriFs},{expand_faces, ExpandFs}|Attr].
-
+    [{triangulate,false},{expand_faces,false}|Attr].
 
 render_fun(Attr) ->
     fun(Filename, Contents) ->
@@ -262,7 +249,7 @@ export_1(Name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Attr) ->
     io:put_chars(F, "WorldBegin\n"),
     export_lights(F, Attr),
     io:put_chars(F, "Identity\n"),
-    TmpImgs = export_materials(Mat, Base, Attr),
+    TmpImgs = export_materials_one(Mat, Base, Attr),
     foreach(fun(Obj) -> export_object(F, Obj, Mat, Base, Attr) end, Objs),
     io:put_chars(F, "WorldEnd\n"),
     ok = file:close(F),
@@ -272,72 +259,41 @@ export_1(Name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Attr) ->
     end.
 
 export_object(F, #e3d_object{name=Name,obj=Mesh0}, Mat, Base, Attr) ->
-    Mesh = case property_lists:get_bool(triangulate, Attr) of
-	       true -> e3d_mesh:triangulate(Mesh0);
-	       false -> Mesh0
-	   end,
-
-    {Fs0,Ns0} = e3d_mesh:vertex_normals(Mesh),
-    Ns = list_to_tuple(Ns0),
-    Fs1 = sofs:to_external(sofs:relation_to_family(sofs:relation(Fs0))),
-    Fs = lists:append([Fs || {_Mat,Fs} <- Fs1]),
-    {FsV,FsN,FsUV}= separate_faces(Fs),
-    Ns = list_to_tuple(Ns0),
-    #e3d_mesh{vs=Vs0,he=He,tx=Tx0} = Mesh,
-    Vs = list_to_tuple(Vs0),
-    Tx = list_to_tuple(Tx0),
+    Mesh1 = case property_lists:get_bool(triangulate, Attr) of
+		true -> e3d_mesh:triangulate(Mesh0);
+		false -> Mesh0
+	    end,
+    Mesh = e3d_mesh:vertex_normals(Mesh1),
 
     io:format(F, "# Object: ~s\n", [Name]),
-    MeshType = property_lists:get_value(mesh_type, Attr),
-    case property_lists:get_value(save_by, Attr) of
-	one_file ->
-	    io:put_chars(F, "AttributeBegin\n"),
-	    [{[MatName],_}|_] = Fs1,
-	    write_shader(F, MatName, Mat, Base, Attr),
-	    export_mesh(F, Fs, FsV, Attr),
-	    export_attr(F, FsV, FsN, FsUV, Vs, Ns, Tx, He, Attr),
-	    io:put_chars(F, "AttributeEnd\n");
-	by_object ->
-	    ObjName = case MeshType of
-			  subdiv -> Name ++ "_SubDivSurf.rib";
-			  poly -> Name ++ "_PointsPoly.rib"
-		      end,
-	    io:format(F, "ReadArchive \"~s\"\n", [ObjName]),
-	    [{[MatName],_}|_] = Fs1,
-	    MatFile = Base ++ "_" ++ atom_to_list(MatName) ++ "_WingsMat.rib",
-	    {ok,ObjFile} = file:open(ObjName, [write]),
-	    io:put_chars(ObjFile, "AttributeBegin\n"),
-	    io:format(ObjFile, "ReadArchive \"~s\"\n", [MatFile]),
-	    export_mesh(ObjFile, Fs, FsV, Attr),
-	    export_attr(ObjFile, FsV, FsN, FsUV, Vs, Ns, Tx, He, Attr),
-	    io:put_chars(ObjFile, "AttributeEnd\n"),
-	    ok = file:close(ObjFile);
-	by_material ->
-	    AttsName = Name ++ "_Atts.rib",
-	    ObjName = case MeshType of
-			  subdiv -> Name ++ "_SubDivSurf.rib";
-			  poly -> Name ++ "_PointsPoly.rib"
-		      end,
-	    io:format(F, "ReadArchive \"~s\"\n", [ObjName]),
-	    {ok,ObjFile} = file:open(ObjName, [write]),
-	    foreach(fun({[MatName],FsList}) ->
-			    io:put_chars(ObjFile, "AttributeBegin\n"),
-			    MatFile = Base ++ "_" ++
-				atom_to_list(MatName) ++ "_WingsMat.rib",
-			    io:format(ObjFile,
-				      "ReadArchive \"~s\"\n", [MatFile]),
-			    export_mesh(ObjFile, FsList, FsV, Attr),
-			    io:format(ObjFile, "ReadArchive ~p\n", [AttsName]),
-			    io:put_chars(ObjFile, "AttributeEnd\n")
-		    end, Fs1),
-	    ok = file:close(ObjFile),
-	    {ok,AttrFile} = file:open(AttsName, [write]),
-	    export_attr(AttrFile, FsV, FsN, FsUV, Vs, Ns, Tx, He, Attr),
-	    ok = file:close(AttrFile)
-    end.
+    io:put_chars(F, "AttributeBegin\n"),
+    #e3d_mesh{fs=Fs0} = Mesh,
+    Fs1 = [{M,FaceRec} || #e3d_face{mat=M}=FaceRec <- Fs0],
+    Fs = sofs:to_external(sofs:relation_to_family(sofs:relation(Fs1))),
+    export_all(F, Fs, Mesh, Base, Mat, Attr),
+    io:put_chars(F, "AttributeEnd\n").
 
-export_mesh(F, Fs, FsV0, Attr) ->
-    case property_lists:get_value(mesh_type, Attr) of
+export_all(F, [{[MatName],Faces}|T], OrigMesh, Base, Mat, Attr) ->
+    write_shader(F, MatName, Mat, Base, Attr),
+    Mesh = OrigMesh#e3d_mesh{fs=Faces},
+    MeshType = property_lists:get_value(mesh_type, Attr),
+    export_mesh(F, MeshType, Mesh, Attr),
+    export_all(F, T, OrigMesh, Base, Mat, Attr);
+export_all(_F, [], _, _, _, _) -> ok.
+
+
+export_mesh(F, _, Mesh, Attr) ->
+    #e3d_mesh{fs=Fs,vs=Vs0,ns=Ns0,tx=Tx0,he=He} = e3d_mesh:renumber(Mesh),
+    {FsV,FsN,FsUV} = separate_faces(Fs),
+    Vs = list_to_tuple(Vs0),
+    Ns = list_to_tuple(Ns0),
+    Tx = list_to_tuple(Tx0),
+    export_mesh(F, Fs, FsV, FsN, FsUV, Vs, Ns, Tx, He, Attr).
+    
+export_mesh(F, Fs, FsV, FsN, FsUV, Vs, Ns, Tx, He0, Attr) ->
+    MeshType = property_lists:get_value(mesh_type, Attr),
+    ExpandFaces = property_lists:get_bool(expand_faces, Attr),
+    case MeshType of
     	subdiv ->
 	    io:put_chars(F, "SubdivisionMesh \"catmull-clark\"\n");
     	poly ->
@@ -345,24 +301,26 @@ export_mesh(F, Fs, FsV0, Attr) ->
     end,
 
     io:put_chars(F, "[ "),
-    foreach(fun(Face) ->
-		    io:format(F, " ~p", [length(Face)])
+    foreach(fun(#e3d_face{vs=FaceVs}) ->
+		    io:format(F, " ~p", [length(FaceVs)])
 	    end, Fs),
     io:put_chars(F, "]\n"),
 
     io:put_chars(F, "[ "),
-    FsV = case property_lists:get_bool(expand_faces, Attr) of
-	      true -> seq(0, flat_length(Fs)-1);
-	      false -> FsV0
-	  end,
+    FsVI = case ExpandFaces of
+	       true ->
+		   NumVs0 = [length(FaceVs) || #e3d_face{vs=FaceVs} <- Fs],
+		   NumVs = lists:sum(NumVs0),
+		   seq(0, NumVs-1);
+	       false -> FsV
+	   end,
     foreach(fun(V) ->
 		    io:format(F, "~p ", [V])
-	    end, FsV),
-    io:put_chars(F, "]\n").
+	    end, FsVI),
+    io:put_chars(F, "]\n"),
 
-export_attr(F, FsV, FsN, FsUV, Vs, Ns, Tx, He0, Attr) ->
     %% Attributes (i.e. creases)
-    case property_lists:get_value(mesh_type, Attr) of
+    case MeshType of
 	subdiv ->
 	    He = create_loops(He0),
 	    io:put_chars(F, "[\"interpolateboundary\""),
@@ -383,7 +341,6 @@ export_attr(F, FsV, FsN, FsUV, Vs, Ns, Tx, He0, Attr) ->
 
     %% Vertex coords
     io:put_chars(F, "\"P\"\n[\n"),
-    ExpandFaces = property_lists:get_bool(expand_faces, Attr),
     case ExpandFaces  of
 	true ->
 	    foreach(fun(V) ->
@@ -414,7 +371,7 @@ export_attr(F, FsV, FsN, FsUV, Vs, Ns, Tx, He0, Attr) ->
 	false -> ok
     end,
 
-    %%UV coordinates
+    %% UV coordinates
     case property_lists:get_bool(export_uv, Attr) andalso FsUV =/= [] of
 	true ->
 	    case ExpandFaces of
@@ -443,15 +400,6 @@ export_camera(F) ->
     io:format(F, "Rotate ~p ~p ~p ~p\n", [Az,0,1,0]),
     io:format(F, "Translate ~p ~p ~p\n", [OX,OY,OZ]).
 
-export_materials(Mat, Base, Attr) ->
-    case property_lists:get_value(save_by, Attr) of
-	one_file ->
-	    Acc = export_materials_one(Mat, Base, Attr);
-	_->
-	    Acc = export_materials_many(Mat, Base, Attr)
-    end,
-    Acc.
-
 export_materials_one(Mats, Base, Attr) ->
     export_materials_one(Mats, Base, Attr, []).
 
@@ -477,38 +425,12 @@ export_materials_one([{Name,Mat}|T], Base, Attr, Acc) ->
     end;
 export_materials_one([], _Base, _Attr, Acc) -> Acc.
 
-export_materials_many(Mats, Base, Attr) ->
-    export_materials_many(Mats, Base, Attr, []).
-export_materials_many([{Name,Mat}|T], Base, Attr, Acc) ->
-    MatName = Base ++ "_" ++ atom_to_list(Name) ++ "_WingsMat.rib",
-    {ok,MatFile} = file:open(MatName, [write]),
-    export_material(MatFile, Name, Mat, Base, Attr),
-    ok = file:close(MatFile),
-    case property_lists:get_value(diffuse_map, Mat, none) of
-	none -> export_materials_many(T,Base, Attr, Acc);
-	{W,H,DiffMap} ->
-	    case property_lists:get_value(tmp_render, Attr) of
-		none ->
-		    MapFile = Base ++ "_" ++ atom_to_list(Name) ++
-			"_diffmap.tif",
-		    Image = #e3d_image{image=DiffMap, width=W,height=H},
-		    ok = e3d_image:save(Image, MapFile),
-		    export_materials_many(T,Base, Attr, Acc);
-		_ ->
-		    MapFile = "wpc_tif_temp_" ++ atom_to_list(Name) ++ os:getpid() ++ ".tif",
-		    Image = #e3d_image{image=DiffMap,width=W,height=H},
-		    ok = e3d_image:save(Image, MapFile),
-		    export_materials_many(T,Base, Attr, [MapFile|Acc])
-	    end
-    end;
-export_materials_many([], _Base, _Attr, Acc) -> Acc.
-
 write_shader(F, Name, [{Name,Mat}|_], Base, Attr) ->
     export_material(F, Name, Mat, Base, Attr);
 write_shader(F, Name, [_|T], Base, Attr) ->
     write_shader(F, Name, T, Base, Attr).
 
-export_material(F,Name,Mat,Base,Attr) ->
+export_material(F, Name, Mat, Base, Attr) ->
     [{_,{Ar,Ag,Ab}},{_,{Dr,Dg,Db}},{_,{Sr,Sg,Sb}},
      {_,Shine},{_,Opacity}|_]=Mat,
     io:format(F, "Color ~p ~p ~p\n", [Dr,Dg,Db]),
@@ -547,57 +469,57 @@ export_lights(F, Attr) ->
     io:format(F,
 	      "# Lights!
 TransformBegin
-	      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 -7.65848 6.78137 6.28592 1]
-	      Declare \"shadows\" \"string\"
+      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 -7.65848 6.78137 6.28592 1]
+      Declare \"shadows\" \"string\"
       Attribute \"light\" \"shadows\" [\"off\"]
       AttributeBegin
-	      Declare \"intensity\" \"float\"
+      Declare \"intensity\" \"float\"
       Declare \"lightcolor\" \"color\"
       AreaLightSource \"arealight\" 1 \"intensity\" [~p] \"lightcolor\" [1 1 1]
       Interior \"arealight\" \"intensity\" [~p] \"lightcolor\" [1 1 1]
       AttributeBegin
-	      TransformBegin
-	      Sphere 1 -1 1 360
-	      TransformEnd
-	      AttributeEnd
-	      AttributeEnd
-	      Illuminate 1 1
-	      TransformEnd
-	      TransformBegin
-	      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 11.844 6.78137 3.38473 1]
-	      Declare \"shadows\" \"string\"
+      TransformBegin
+      Sphere 1 -1 1 360
+      TransformEnd
+      AttributeEnd
+      AttributeEnd
+      Illuminate 1 1
+      TransformEnd
+      TransformBegin
+      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 11.844 6.78137 3.38473 1]
+      Declare \"shadows\" \"string\"
       Attribute \"light\" \"shadows\" [\"off\"]
       AttributeBegin
-	      Declare \"intensity\" \"float\"
+      Declare \"intensity\" \"float\"
       Declare \"lightcolor\" \"color\"
       AreaLightSource \"arealight\" 2 \"intensity\" [~p] \"lightcolor\" [1 1 1]
       Interior \"arealight\" \"intensity\" [~p] \"lightcolor\" [1 1 1]
       AttributeBegin
-	      TransformBegin
-	      Sphere 1 -1 1 360
-	      TransformEnd
-	      AttributeEnd
-	      AttributeEnd
-	      Illuminate 2 1
-	      TransformEnd
-	      TransformBegin
-	      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 -4.75729 6.78137 -12.0883 1]
-	      Declare \"shadows\" \"string\"
+      TransformBegin
+      Sphere 1 -1 1 360
+      TransformEnd
+      AttributeEnd
+      AttributeEnd
+      Illuminate 2 1
+      TransformEnd
+      TransformBegin
+      ConcatTransform [1 0 0 0 0 1 0 0 0 0 1 0 -4.75729 6.78137 -12.0883 1]
+      Declare \"shadows\" \"string\"
       Attribute \"light\" \"shadows\" [\"off\"]
       AttributeBegin
-	      Declare \"intensity\" \"float\"
+      Declare \"intensity\" \"float\"
       Declare \"lightcolor\" \"color\"
       AreaLightSource \"arealight\" 3 \"intensity\" [~p] \"lightcolor\" [1 1 1]
       Interior \"arealight\" \"intensity\" [~p] \"lightcolor\" [1 1 1]
       AttributeBegin
-	      TransformBegin
-	      Sphere 1 -1 1 360
-	      TransformEnd
-	      AttributeEnd
-	      AttributeEnd
-	      Illuminate 3 1
-	      TransformEnd\n",
-	      [Light1,Light1,Light2,Light2,Light3,Light3]).
+      TransformBegin
+      Sphere 1 -1 1 360
+      TransformEnd
+      AttributeEnd
+      AttributeEnd
+      Illuminate 3 1
+      TransformEnd\n",
+      [Light1,Light1,Light2,Light2,Light3,Light3]).
 
 %%%
 %%% Utilities.
@@ -605,19 +527,10 @@ TransformBegin
 
 separate_faces(L) -> separate_faces(L, [], [], []).
 
-separate_faces([H|T], VAcc0, NAcc0, UVAcc0) ->
-    {VAcc,NAcc,UVAcc} = separate_face(H, VAcc0, NAcc0, UVAcc0),
-    separate_faces(T, VAcc, NAcc, UVAcc);
+separate_faces([#e3d_face{vs=Vs,tx=Tx,ns=Ns}|T], VAcc, NAcc, UVAcc) ->
+    separate_faces(T, [Vs|VAcc], [Ns|NAcc], [Tx|UVAcc]);
 separate_faces([], VAcc, NAcc, UVAcc) ->
-    {reverse(VAcc),reverse(NAcc),reverse(UVAcc)}.
-
-separate_face([{V,N,UV}|T], VAcc, NAcc, UVAcc) ->
-    separate_face(T, [V|VAcc], [N|NAcc], [UV|UVAcc]);
-separate_face([{V,N}|T], VAcc, NAcc, UVAcc) ->
-    separate_face(T, [V|VAcc], [N|NAcc], UVAcc);
-separate_face([], VAcc, NAcc, UVAcc) ->
-    {VAcc,NAcc,UVAcc}.
-
+    {append(reverse(VAcc)),append(reverse(NAcc)),append(reverse(UVAcc))}.
 
 create_loops([]) -> [];
 create_loops(L) -> create_loops(L, []).
