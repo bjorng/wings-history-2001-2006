@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.107 2005/01/20 07:52:24 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.108 2005/01/30 11:34:56 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -25,7 +25,7 @@
 	 transform_vs/2,
 	 separate/1,
 	 normals/2,
-	 new_items/3,new_items_as_ordset/3,new_items_as_gbset/3,
+	 new_items_as_ordset/3,new_items_as_gbset/3,
 	 is_consistent/1,is_face_consistent/2,
 	 hide_faces/2,show_faces/1,num_hidden/1,
 	 any_hidden/1,all_hidden/1,
@@ -85,6 +85,21 @@ new_id(#we{next_id=Id}=We) ->
 new_ids(N, #we{next_id=Id}=We) ->
     {Id,We#we{next_id=Id+N}}.
 
+%%% Returns sets of newly created items.
+
+%% new_items_as_ordset(vertex|edge|face, OldWe, NewWe) -> NewItemsSet.
+%% new_items_as_gbset(vertex|edge|face, OldWe, NewWe) -> NewItemsSet.
+%%  Return all items in NewWe that are not in OldWe.
+
+new_items_as_gbset(Type, OldWe, NewWe) ->
+    gb_sets:from_ordset(new_items_as_ordset(Type, OldWe, NewWe)).
+
+new_items_as_ordset(vertex, #we{next_id=Wid}, #we{next_id=NewWid,vp=Tab}) ->
+    new_items_as_ordset_1(Tab, Wid, NewWid);
+new_items_as_ordset(edge, #we{next_id=Wid}, #we{next_id=NewWid,es=Tab}) ->
+    new_items_as_ordset_1(Tab, Wid, NewWid);
+new_items_as_ordset(face, #we{next_id=Wid}, #we{next_id=NewWid,fs=Tab}) ->
+    new_items_as_ordset_1(Tab, Wid, NewWid).
 
 %%% Hiding/showing faces.
 
@@ -1025,26 +1040,6 @@ soft_vertex_normals(Vtab, FaceNormals, We) ->
 		 end, [], Vtab),
     gb_trees:from_orddict(reverse(Soft)).
 
-%%%
-%%% Returns sets of newly created items.
-%%%
-
-%% new_items_as_ordset(vertex|edge|face, OldWe, NewWe) -> NewItemsSet.
-%% new_items_as_gbset(vertex|edge|face, OldWe, NewWe) -> NewItemsSet.
-%%  Return all items in NewWe that are not in OldWe.
-
-new_items(Type, OldWe, NewWe) ->
-    new_items_as_gbset(Type, OldWe, NewWe).
-
-new_items_as_gbset(Type, OldWe, NewWe) ->
-    gb_sets:from_ordset(new_items_as_ordset(Type, OldWe, NewWe)).
-
-new_items_as_ordset(vertex, #we{next_id=Wid}, #we{next_id=NewWid,vp=Tab}) ->
-    new_items_as_ordset_1(Tab, Wid, NewWid);
-new_items_as_ordset(edge, #we{next_id=Wid}, #we{next_id=NewWid,es=Tab}) ->
-    new_items_as_ordset_1(Tab, Wid, NewWid);
-new_items_as_ordset(face, #we{next_id=Wid}, #we{next_id=NewWid,fs=Tab}) ->
-    new_items_as_ordset_1(Tab, Wid, NewWid).
 
 new_items_as_ordset_1(Tab, Wid, NewWid) when NewWid-Wid < 32 ->
     new_items_as_ordset_2(Wid, NewWid, Tab, []);
