@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.52 2004/10/08 06:02:30 dgud Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.53 2004/10/25 14:50:09 dgud Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -40,9 +40,9 @@ menu(St) ->
 	 edge_ring,?STR(menu,13,"Expand edge selection to ring")},
 	separator,
 	{?STR(menu,14,"Previous Edge Loop"),
-	 prev_edge_loop,?STR(menu,15,"Select the next edge loop")},
+	 prev_edge_loop,?STR(menu,15,"Select the previous edge loop")},
 	{?STR(menu,16,"Next Edge Loop"),
-	 next_edge_loop,?STR(menu,17,"Select the previous edge loop")},
+	 next_edge_loop,?STR(menu,17,"Select the next edge loop")},
 	separator,
 	{?STR(menu,18,"Grow Edge Loop"),edge_link_incr,
 	 ?STR(menu,19,"Grow edge selection by one edge in loop directions")},
