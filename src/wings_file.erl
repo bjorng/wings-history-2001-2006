@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.41 2001/12/29 20:32:28 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.42 2001/12/30 09:00:56 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -34,6 +34,10 @@ finish() ->
     end.
 
 menu(X, Y, St) ->
+    ExpFormats = {{"Nendo (.ndo)",ndo},
+		  {"3D Studio (.3ds)",tds},
+		  {"Wavefront (.obj)",obj},
+		  {"RenderMan (.rib)",rib}},
     Menu = [{"New","Ctrl-N",new},
 	    {"Open","Ctrl-O",open},
 	    {"Merge","Ctrl-L",merge},
@@ -47,11 +51,8 @@ menu(X, Y, St) ->
 		       {{"Nendo (.ndo)",ndo},
 			{"3D Studio (.3ds)",tds},
 			{"Wavefront (.obj)",obj}}}},
-	    {"Export",{export,
-		       {{"Nendo (.ndo)",ndo},
-			{"3D Studio (.3ds)",tds},
-			{"Wavefront (.obj)",obj},
-			{"RenderMan (.rib)",rib}}}},
+	    {"Export",{export,ExpFormats}},
+	    {"Export Selected",{export_selected,ExpFormats}},
 	    separator|recent_files([{"Exit","Ctrl-Q",quit}])],
     wings_menu:menu(X, Y, file, list_to_tuple(Menu), St).
 
@@ -94,6 +95,13 @@ command({import,Type}, St0) ->
     end;
 command({export,Type}, St) ->
     export(Type, St),
+    St;
+command({export_selected,Type}, St) ->
+    Shs0 = wings_sel:fold(fun(_, #we{id=Id}=We, A) ->
+				  [{Id,We}|A]
+			  end, [], St),
+    Shs = gb_trees:from_orddict(reverse(Shs0)),
+    export(Type, St#st{shapes=Shs}),
     St;
 command(quit, St) ->
     quit(St);
