@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.102 2003/07/25 12:24:08 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.103 2003/07/26 09:49:06 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -729,7 +729,7 @@ select_draw_fun(#dlo{work=Work,src_we=#we{id=Id,perm=Perm}=We}=D, _)
 select_draw_fun(#dlo{pick=none,src_we=We}=D, _) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    select_draw_1(We),
+    ?TC(select_draw_1(We)),
     gl:endList(),
     draw_dlist(D#dlo{pick=List});
 select_draw_fun(D, _) -> draw_dlist(D).
@@ -755,6 +755,7 @@ draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
 select_draw_1(#we{perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
     Tess = wings_draw_util:tess(),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
+    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_NONE),
     case wings_pref:get_value(display_list_opt) of
 	false ->
 	    select_draw_2(We);
@@ -766,6 +767,7 @@ select_draw_1(#we{perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
 	    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE)
     end,
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
+    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
     gl:edgeFlag(?GL_TRUE);
 select_draw_1(_) -> ok.
     
