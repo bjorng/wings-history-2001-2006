@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.10 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.11 2001/11/11 08:31:28 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -117,8 +117,8 @@ bevel_vertices(Iter0, Vs, WeOrig, We0, Acc0, Facc) ->
     case gb_sets:next(Iter0) of
 	none -> {We0,Acc0,Facc};
 	{V,Iter} ->
-	    AdjFlag = adjacent(V, Vs, WeOrig),
-	    case bevel_vertex(V, AdjFlag, We0, Acc0) of
+	    Adj = adjacent(V, Vs, WeOrig),
+	    case bevel_vertex(V, Adj, We0, Acc0) of
 		winged_vertex ->
 		    bevel_vertices(Iter, Vs, WeOrig, We0, Acc0, Facc);
 		{We,Acc,Face} ->
@@ -126,17 +126,17 @@ bevel_vertices(Iter0, Vs, WeOrig, We0, Acc0, Facc) ->
 	    end
     end.
 
-bevel_vertex(V, AdjFlag, We, Vec0) ->
+bevel_vertex(V, Adj, We, Vec0) ->
     Es = wings_vertex:fold(
 	   fun(Edge, Face, Rec, Acc) ->
 		   [{Edge,Face,Rec}|Acc]
 	   end, [], V, We),
     case length(Es) of
 	2 -> winged_vertex;
-	NumEdges -> bevel_vertex_1(V, Es, NumEdges, AdjFlag, We, Vec0)
+	NumEdges -> bevel_vertex_1(V, Es, NumEdges, Adj, We, Vec0)
     end.
 
-bevel_vertex_1(V, Es, NumEdges, AdjFlag, We0, Vec0) ->
+bevel_vertex_1(V, Es, NumEdges, Adj, We0, Vec0) ->
     {InnerFace,We1} = wings_we:new_id(We0),
     {Ids,We} = wings_we:new_wrap_range(NumEdges, 2, We1),
     #we{es=Etab0,vs=Vtab0,fs=Ftab0}= We,
@@ -144,13 +144,13 @@ bevel_vertex_1(V, Es, NumEdges, AdjFlag, We0, Vec0) ->
     {_,Etab,Vec} = foldl(
 		     fun(E, {Ids0,Etab1,Vs0}) ->
 			     {Etab,Vec} = bevel(V, E, InnerFace, Ids0,
-						AdjFlag, Vtab0, Etab1),
+						Adj, Vtab0, Etab1),
 			     {wings_we:bump_id(Ids0),Etab,[Vec|Vs0]}
 		     end, {Ids,Etab0,Vec0}, Es),
     Ftab = gb_trees:insert(InnerFace, #face{edge=wings_we:id(1, Ids)}, Ftab0),
     {We#we{es=Etab,fs=Ftab,vs=Vtab},Vec,InnerFace}.
 
-bevel(V, {Edge,Face,Rec0}, InnerFace, Ids, AdjFlag, Vtab, Etab0) ->
+bevel(V, {Edge,Face,Rec0}, InnerFace, Ids, Adj, Vtab, Etab0) ->
     Vprev = wings_we:id(0, Ids),
     Eprev = wings_we:id(1, Ids),
     Va = wings_we:id(2, Ids),
@@ -158,36 +158,41 @@ bevel(V, {Edge,Face,Rec0}, InnerFace, Ids, AdjFlag, Vtab, Etab0) ->
     Vb = wings_we:id(4, Ids),
     Enext = wings_we:id(5, Ids),
     Vpos = wings_vertex:pos(V, Vtab),
-    {Rec,Curr,Vec0} =
+    {Rec,Curr,Vec} =
 	case Rec0 of
 	    #edge{vs=V,ve=Vother,rf=Face} ->
 		{Rec0#edge{vs=Va,rtpr=Ecurr,ltsu=Eprev},
 		 Rec0#edge{vs=Vb,ve=Va,lf=InnerFace,
 			   rtsu=Edge,ltpr=Eprev,ltsu=Enext},
-		 e3d_vec:sub(wings_vertex:pos(Vother, Vtab), Vpos)};
+		 bevel_vec(Adj, Vother, Vpos, Vtab)};
 	    #edge{vs=V,ve=Vother} ->
 		{Rec0#edge{vs=Va,rtpr=Ecurr,ltsu=Enext},
 		 Rec0#edge{vs=Vprev,ve=Va,lf=InnerFace,
 			   rtsu=Edge,ltpr=Enext,ltsu=Eprev},
-		 e3d_vec:sub(wings_vertex:pos(Vother, Vtab), Vpos)};
+		 bevel_vec(Adj, Vother, Vpos, Vtab)};
 	    #edge{ve=V,vs=Vother,lf=Face} ->
 		{Rec0#edge{ve=Va,ltpr=Ecurr,rtsu=Eprev},
 		 Rec0#edge{vs=Va,ve=Vb,rf=InnerFace,
 			   ltsu=Edge,rtpr=Eprev,rtsu=Enext},
-		 e3d_vec:sub(wings_vertex:pos(Vother, Vtab), Vpos)};
+		 bevel_vec(Adj, Vother, Vpos, Vtab)};
 	    #edge{ve=V,vs=Vother} ->
 		{Rec0#edge{ve=Va,ltpr=Ecurr,rtsu=Enext},
 		 Rec0#edge{vs=Va,ve=Vprev,rf=InnerFace,
 			   ltsu=Edge,rtpr=Enext,rtsu=Eprev},
-		 e3d_vec:sub(wings_vertex:pos(Vother, Vtab), Vpos)}
+		 bevel_vec(Adj, Vother, Vpos, Vtab)}
 
 	end,
     Etab = gb_trees:update(Edge, Rec, Etab0),
-    Vec = case AdjFlag of
-	      true -> e3d_vec:divide(Vec0, 2.0);
-	      false -> Vec0
-	  end,
     {gb_trees:insert(Ecurr, Curr, Etab),{Vec,Va}}.
+
+bevel_vec(Adj, Vother, Vpos, Vtab) ->
+    Opos = wings_vertex:pos(Vother, Vtab),
+    case member(Vother, Adj) of
+	true ->
+	    e3d_vec:sub(e3d_vec:average([Opos,Vpos]), Vpos);
+	false ->
+	    e3d_vec:sub(Opos, Vpos)
+    end.
 
 bevel_vertices_1(V, Ids, N, Vtab0) ->
     Vtx = gb_trees:get(V, Vtab0),
@@ -219,10 +224,13 @@ bevel_normalize_1(VecVs, Min0) ->
 
 adjacent(V, Vs, We) ->
     wings_vertex:fold(
-      fun(_, _, _, true) -> true;
-	 (_, _, Rec, false) ->
-	      gb_sets:is_member(wings_vertex:other(V, Rec), Vs)
-      end, false, V, We).
+      fun(_, _, Rec, A) ->
+	      OtherV = wings_vertex:other(V, Rec),
+	      case gb_sets:is_member(OtherV, Vs) of
+		  true -> [OtherV|A];
+		  false -> A
+	      end
+      end, [], V, We).
     
 %%%
 %%% The Connect command.
