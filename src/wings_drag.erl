@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.88 2002/05/18 07:09:32 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.89 2002/05/19 05:39:22 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -269,6 +269,7 @@ handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED},
     pop;
 handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     wings_io:ungrab(),
+    clear_sel_dlists(),
     Drag = ?SLOW(motion_update(Move, Drag0)),
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
@@ -559,10 +560,13 @@ norm_update([], Old, Acc) ->
 %%%
 
 redraw(#drag{st=St}) ->
-    wings_draw_util:map(fun clear_sel_dlists/2, []),
+    clear_sel_dlists(),
     wings_draw:update_sel_dlist(),
     wings_draw_util:render(St),
     wings_io:update(St).
+
+clear_sel_dlists() ->
+    wings_draw_util:map(fun clear_sel_dlists/2, []).
 
 clear_sel_dlists(#dlo{drag=none}=D, _) -> D;
 clear_sel_dlists(#dlo{drag={matrix,_,_}}=D, _) -> D;
