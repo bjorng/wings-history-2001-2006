@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.41 2003/01/26 14:01:03 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.42 2003/01/27 18:09:50 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -185,7 +185,7 @@ about() ->
     {W,H} = wings_wm:top_size(),
     X = trunc((W-Xs) / 2),
     Y = trunc((H-Ys) / 2),
-    wings_wm:new(help, {X,Y,?Z_HELP}, {Xs,Ys+?LINE_HEIGHT}, Op),
+    wings_wm:new(help, {X,Y,highest}, {Xs,Ys+?LINE_HEIGHT}, Op),
     wings_wm:grab_focus(help),
     wings_wm:dirty(),
     keep.
@@ -205,7 +205,7 @@ create_help_window([], Rows, Lines) ->
     Op = {push,fun(Ev) ->
 		       handle_help_event(Ev, DrawData)
 	       end},
-    wings_wm:new(help, {X,Y,?Z_HELP}, {Xs+?CHAR_WIDTH,Ys+?LINE_HEIGHT}, Op),
+    wings_wm:new(help, {X,Y,highest}, {Xs+?CHAR_WIDTH,Ys+?LINE_HEIGHT}, Op),
     wings_wm:grab_focus(help),
     wings_wm:dirty(),
     keep.
@@ -265,7 +265,7 @@ redraw({Lines,Xs,Ys}) ->
 	  end, 0, Lines);
 redraw(splash) ->
     wings_io:ortho_setup(),
-    {_,_,Xs,Ys} = wings_wm:viewport(),
+    {Xs,Ys} = wings_wm:win_size(),
     wings_io:raised_rect(0, 0, Xs, Ys),
     gl:color3f(0.0, 0.0, 0.0),
     gl:recti(3, 3, Xs-3, Ys-3),
@@ -279,4 +279,3 @@ redraw(splash) ->
     gl:color3f(0.0, 0.0, 0.0),
     wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION),
     wings_io:text_at(10, 180, "http://www.wings3d.com").
-

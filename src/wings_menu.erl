@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.83 2003/01/27 06:53:01 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.84 2003/01/27 18:09:50 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -22,7 +22,7 @@
 
 -define(SUB_MENU_TIME, 150).
 -define(SEPARATOR_HEIGHT, (wings_text:height()-4)).
--define(INITIAL_LEVEL, (?Z_MENU+1)).
+-define(INITIAL_LEVEL, 1).
 
 %% Menu information kept for a popup menu.
 -record(mi,
@@ -120,14 +120,13 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi0) ->
     Op = {seq,push,get_menu_event(Mi)},
     WinName = {menu,Level},
     wings_wm:delete({menu,Level}),
-    wings_wm:new(WinName, {X,Y,Level}, {W,Mh+10}, Op),
-    delete_from(Level+1),
-    keep.
+    wings_wm:new(WinName, {X,Y,highest}, {W,Mh+10}, Op),
+    delete_from(Level+1).
 
 delete_from(Level) ->
     Name = {menu,Level},
     case wings_wm:is_window(Name) of
-	false -> ok;
+	false -> keep;
 	true ->
 	    wings_wm:delete(Name),
 	    delete_from(Level+1)
@@ -140,7 +139,7 @@ setup_menu_killer() ->
 	    Op = {push,fun menu_killer/1},
 	    {TopW,TopH} = wings_wm:top_size(),
 	    {_,BarH} = wings_wm:win_size(menubar),
-	    wings_wm:new(menu_killer, {0,BarH,?INITIAL_LEVEL-1},
+	    wings_wm:new(menu_killer, {0,BarH,highest},
 			 {TopW,TopH-BarH}, Op)
     end.
 
@@ -266,11 +265,11 @@ handle_menu_event(redraw, Mi) ->
     keep;
 handle_menu_event(lost_focus, Mi) ->
     {_,X,Y} = wings_wm:local_mouse_state(),
-    {W,H} = wings_wm:win_size(),
+    {_,H} = wings_wm:win_size(),
     if
-	X < 0; X >= W -> keep;
 	Y < 0 -> mousemotion(X, 0, Mi);
-	true -> mousemotion(X, H-2, Mi)
+	Y >= H -> mousemotion(X, H-2, Mi);
+	true -> keep
     end;
 handle_menu_event(#keyboard{keysym=KeySym}, Mi) ->
     handle_key(KeySym, Mi);
@@ -283,8 +282,7 @@ handle_menu_event(#mi{}=Mi, _) ->				%Key bound/unbound.
     wings_wm:dirty(),
     get_menu_event(Mi);
 handle_menu_event(clear_submenu, #mi{level=Level}) ->
-    wings_wm:delete({menu,Level+1}),
-    keep;
+    delete_from(Level+1);
 handle_menu_event(quit, Mi) ->
     wings_wm:send(menubar, clear_menu_selection),
     wings_io:putback_event(quit),
@@ -385,7 +383,7 @@ current_command(#mi{sel=Sel,menu=Menu,ns=Names}) ->
 	_Other -> none
     end.
 
-%% Test if a term can be represtend in a text file and read back.
+%% Test if a term can be represented in a text file and read back.
 is_ascii_clean([H|T]) ->
     is_ascii_clean(H) andalso is_ascii_clean(T);
 is_ascii_clean([]) -> true;
@@ -515,7 +513,7 @@ hit_right(X, #mi{w=W}) ->
     X >= W-3*?CHAR_WIDTH.
     
 selected_item(Y, #mi{adv=Adv,ymarg=Margin,h=H,menu=Menu}=Mi) ->
-    %% The tests are simplified because we now that the mouse cursor
+    %% The tests are simplified because we know that the mouse cursor
     %% must be over the menu window.
     if
 	Margin =< Y, Y < H+Margin ->
@@ -775,10 +773,9 @@ have_magnet(Ps) ->
 get_hotkey(Cmd, Mi) ->
     wings_wm:dirty(),
     wings_wm:message("Press key to bind command to."),
-    {seq,{push,dummy},
-     {replace,fun(Ev) ->
-		      handle_key_event(Ev, Cmd, Mi)
-	      end}}.
+    {push,fun(Ev) ->
+		  handle_key_event(Ev, Cmd, Mi)
+	  end}.
 
 handle_key_event(redraw, _Cmd, Mi) ->
     redraw(Mi),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.6 2003/01/25 07:12:54 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.7 2003/01/27 18:09:50 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -221,7 +221,7 @@ window(Id) ->
 	    wings_wm:delete(Name);
 	false ->
 	    {Size,Title} = window_params(Id),
-	    Pos = {10,50,?Z_OUTLINER+1},
+	    Pos = {10,50,highest},
 	    Op = {seq,push,window_fun(Id)},
 	    wings_wm:toplevel(Name, Title, Pos, Size,
 			      [resizable,closable], Op)
@@ -238,7 +238,7 @@ window_params(Id) ->
 	end,
     H = if
 	    H0+70 < DeskH -> H0;
-	    ture -> DeskH - 70
+	    true -> DeskH - 70
 	end,
     {{W,H},Title}.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.62 2003/01/22 19:03:54 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.63 2003/01/27 18:09:50 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -25,7 +25,7 @@
 
 -define(IS_SHIFTED(Mod), ((Mod) band ?SHIFT_BITS =/= 0)).
 
--define(INITIAL_LEVEL, ?Z_DIALOG).
+-define(INITIAL_LEVEL, 0).
 
 
 -compile(inline).
@@ -95,7 +95,7 @@ do_dialog(Title, Qs, Level, Fun) ->
     S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level},
     Op = {seq,push,get_event(S)},
     Name = {dialog,Level},
-    wings_wm:toplevel(Name, Title, {trunc(X),trunc(Y),Level}, {W,H}, Op),
+    wings_wm:toplevel(Name, Title, {trunc(X),trunc(Y),highest}, {W,H}, Op),
     wings_wm:grab_focus(Name),
     wings_wm:dirty(),
     keep.
@@ -884,7 +884,7 @@ menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{key=Key,menu=Menu0}) ->
     Op = {seq,push,get_popup_event(Ps)},
     X = X1-2*?CHAR_WIDTH,
     Y = Y1-2-(Sel-1)*?LINE_HEIGHT,
-    wings_wm:new(menu_popup, {X,Y,?Z_DIALOG+500}, {W+2*?CHAR_WIDTH,Mh+10}, Op),
+    wings_wm:new(menu_popup, {X,Y,highest}, {W+2*?CHAR_WIDTH,Mh+10}, Op),
     wings_wm:grab_focus(menu_popup).
 
 popup_find_index([{_,Key}|_], Key, I) -> I;

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.11 2003/01/25 17:31:26 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.12 2003/01/27 18:09:51 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -49,7 +49,7 @@ new_controller(Client, Title, Flags) ->
 	end,
     Size = {W,TitleBarH},
     Cs = #ctrl{title=Title},
-    wings_wm:new(Controller, {X,Y-TitleBarH,Z-0.5}, Size,
+    wings_wm:new(Controller, {X,Y-TitleBarH,Z}, Size,
 		 {seq,push,get_ctrl_event(Cs)}),
     wings_wm:link(Client, Controller),
     ctrl_anchor(Client, Flags, Size, TitleBarH),
@@ -58,14 +58,14 @@ new_controller(Client, Title, Flags) ->
 ctrl_create_windows([vscroller|Flags], Client) ->
     {X,Y} = wings_wm:win_ur(Client),
     Z = wings_wm:win_z(Client),
-    Name = vscroller(Client, {X,Y,Z+0.1}),
+    Name = vscroller(Client, {X,Y,Z}),
     wings_wm:link(Client, Name),
     ctrl_create_windows(Flags, Client);
 ctrl_create_windows([{toolbar,Create}|Flags], Client) ->
     {{X,Y},{W,_}} = wings_wm:win_rect(Client),
     Z = wings_wm:win_z(Client),
     Toolbar = {toolbar,Client},
-    Create(Toolbar, {X,Y,Z+0.1}, W),
+    Create(Toolbar, {X,Y,Z}, W),
     {_,H} = wings_wm:win_size(Toolbar),
     wings_wm:update_window(Client, [{dy,H},{dh,-H}]),
     wings_wm:link(Client, Toolbar),
@@ -109,8 +109,10 @@ ctrl_event(#mousebutton{button=1,state=?SDL_PRESSED},
     wings_wm:grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Cs) ->
+    {_,Client} = Self = wings_wm:active_window(),
+    wings_wm:raise(Client),
     Focus = wings_wm:grabbed_focus_window(),
-    wings_wm:grab_focus(wings_wm:active_window()),
+    wings_wm:grab_focus(Self),
     get_ctrl_event(Cs#ctrl{local={X,Y},state=moving,prev_focus=Focus});
 ctrl_event(#mousebutton{button=1,state=?SDL_RELEASED}, #ctrl{prev_focus=Focus}=Cs) ->
     wings_wm:grab_focus(Focus),
@@ -122,8 +124,11 @@ ctrl_event(#mousebutton{button=2,state=?SDL_RELEASED}, Cs) ->
 	    ctrl_command({fit,both}, Cs),
 	    keep
     end;
-ctrl_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
-	   #ctrl{state=moving,local={LocX,LocY}}) ->
+ctrl_event(#mousemotion{state=0},
+	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
+    wings_wm:grab_focus(Focus),
+    get_ctrl_event(Cs#ctrl{state=idle});
+ctrl_event(#mousemotion{x=X0,y=Y0}, #ctrl{state=moving,local={LocX,LocY}}) ->
     {X1,Y1} = wings_wm:local2global(X0, Y0),
     X = X1 - LocX,
     Y = Y1 - LocY,
@@ -134,10 +139,6 @@ ctrl_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
     {controller,Client} = wings_wm:active_window(),
     wings_wm:update_window(Client, [{dx,Dx},{dy,Dy}]),
     keep;
-ctrl_event(#mousemotion{state=?SDL_RELEASED},
-	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
-    wings_wm:grab_focus(Focus),
-    get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(#mousebutton{}=Ev, _) ->
     case is_resizeable() of
 	false -> ok;
@@ -393,8 +394,10 @@ resize_event(#mousebutton{button=1,state=?SDL_PRESSED},
     wings_wm:grab_focus(Focus),
     get_resize_event(Rst#rsz{state=idle});
 resize_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
+    {_,Client} = Self = wings_wm:active_window(),
+    wings_wm:raise(Client),
     Focus = wings_wm:grabbed_focus_window(),
-    wings_wm:grab_focus(get(wm_active)),
+    wings_wm:grab_focus(Self),
     get_resize_event(Rst#rsz{local={X,Y},state=moving,aspect=none,prev_focus=Focus});
 resize_event(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
     {_,Client} = wings_wm:active_window(),
@@ -430,8 +433,8 @@ resize_pos(Client) ->
     {{X,Y},{W,H}} = wings_wm:win_rect(Client),
     Z = wings_wm:win_z(Client),
     case wings_wm:is_window({vscroller,Client}) of
-	false ->  {X+W-13,Y+H-13,Z+0.5};
-	true -> {X+W,Y+H-13,Z+0.5}
+	false ->  {X+W-13,Y+H-13,Z+1};
+	true -> {X+W,Y+H-13,Z+1}
     end.
 
 resize_constrain(Client, Dx0, Dy0, Aspect) ->
@@ -597,8 +600,8 @@ closer_pos(Client) ->
     Y = Y0 - TitleH + (TitleH-14) div 2 + 1,
     Z = wings_wm:win_z(Client),
     case wings_wm:is_window({vscroller,Client}) of
-	false ->  {X0+W-16,Y,Z+0.6};
-	true -> {X0+W+13-16,Y,Z+0.6}
+	false ->  {X0+W-16,Y,Z+1};
+	true -> {X0+W+13-16,Y,Z+1}
     end.
 
 %%%

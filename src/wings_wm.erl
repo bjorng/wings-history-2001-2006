@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.69 2003/01/25 14:05:56 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.70 2003/01/27 18:09:51 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([toplevel/5,toplevel/6,set_knob/3]).
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,reinit_opengl/0,
-	 new/4,delete/1,
+	 new/4,delete/1,raise/1,
 	 link/2,hide/1,show/1,is_hidden/1,
 	 message/1,message/2,message_right/1,send/2,send_after_redraw/2,
 	 menubar/1,menubar/2,get_menubar/1,
@@ -36,6 +36,9 @@
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,last/1,sort/1,keysort/2,keysearch/3,
 		reverse/1,foreach/2,member/2]).
+
+-define(Z_LOWEST_DYNAMIC, 10).
+
 -compile(inline).
 
 -record(win,
@@ -80,9 +83,10 @@ init() ->
     end,
     translation_change(),
     put(wm_windows, gb_trees:empty()),
-    new(desktop, {0,0,?Z_DESKTOP}, {0,0}, {push,fun desktop_event/1}),
-    new(message, {0,0,?Z_MESSAGE}, {0,0}, {push,fun message_event/1}),
-    new(menubar, {0,0,?Z_MENUBAR}, {0,0}, init_menubar()),
+    new(desktop, {0,0,0}, {0,0}, {push,fun desktop_event/1}),
+    new(message, {0,0,?Z_LOWEST_DYNAMIC-1}, {0,0},
+	{push,fun message_event/1}),
+    new(menubar, {0,0,?Z_LOWEST_DYNAMIC-1}, {0,0}, init_menubar()),
     put(wm_main, geom),
     init_opengl(),
     resize_windows(W, H).
@@ -140,12 +144,20 @@ clean() ->
 callback(Cb) ->
     wings_io:putback_event({wm,{callback,Cb}}).
     
-new(Name, {X,Y,Z}, {W,H}, Op) when is_integer(X), is_integer(Y),
+new(Name, {X,Y,Z0}, {W,H}, Op) when is_integer(X), is_integer(Y),
 				   is_integer(W), is_integer(H) ->
+    Z = new_resolve_z(Z0),
     Stk = handle_response(Op, dummy_event, default_stack(Name)),
     Win = #win{x=X,y=Y,z=Z,w=W,h=H,name=Name,stk=Stk},
     put(wm_windows, gb_trees:insert(Name, Win, get(wm_windows))),
     dirty().
+
+new_resolve_z(highest) ->
+    case highest_z() + 1 of
+	Z when Z < ?Z_LOWEST_DYNAMIC -> ?Z_LOWEST_DYNAMIC;
+	Z -> Z
+    end;
+new_resolve_z(Z) when is_integer(Z), Z >= 0-> Z.
 
 delete(Name) ->
     Windows = delete_windows(Name, get(wm_windows)),
@@ -159,6 +171,25 @@ delete(Name) ->
 	_ -> ok
     end,
     dirty().
+
+raise(Name) ->
+    case get_window_data(Name) of
+	#win{z=Z} when Z < ?Z_LOWEST_DYNAMIC -> ok;
+	#win{z=Z0} ->
+	    case highest_z() of
+		Z when Z > Z0 -> update_window(Name, [{z,Z+1}]);
+		_ -> ok
+	    end
+    end.
+
+highest_z() ->
+    highest_z_1(gb_trees:values(get(wm_windows)), 0).
+
+highest_z_1([#win{z=Z}|T], Max) when Z < Max ->
+    highest_z_1(T, Max);
+highest_z_1([#win{z=Max}|T], _) ->
+    highest_z_1(T, Max);
+highest_z_1([], Max) -> Max.
 
 delete_windows(Name, W0) ->
     case gb_trees:lookup(Name, W0) of
@@ -221,17 +252,24 @@ move(Name, Pos, {W,H}) ->
     update_window(Name, [{pos,Pos},{w,W},{h,H}]).
 
 update_window(Name, Updates) ->
-    put_window_data(Name, update_window_1(Updates, get_window_data(Name))),
-    post_update([Name]).
-
-post_update([N|Ns]) ->
-    send(N, resized),
-    #win{links=Links} = get_window_data(N),
-    Msg = {window_updated,N},
+    #win{z=Z0} = Data0 = get_window_data(Name),
+    Data = update_window_1(Updates, Data0),
+    put_window_data(Name, Data),
+    send(Name, resized),
+    #win{links=Links} = get_window_data(Name),
+    Msg = {window_updated,Name},
     foreach(fun(L) -> wings_wm:send(L, Msg) end, Links),
-    post_update(Ns);
-post_update([]) ->
+    case Data of
+	#win{z=Z0} -> ok;
+	#win{z=Z} -> update_linked_z(Links, Z-Z0)
+    end,
     dirty().
+
+update_linked_z([N|Ns], Dz) ->
+    #win{z=Z} = Data = get_window_data(N),
+    put_window_data(N, Data#win{z=Z+Dz}),
+    update_linked_z(Ns, Dz);
+update_linked_z([], _) -> ok.
 
 update_window_1([{dx,Dx}|T], #win{x=X}=Win) ->
     update_window_1(T, Win#win{x=X+Dx});
