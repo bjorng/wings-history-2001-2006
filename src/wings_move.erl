@@ -8,10 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.42 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.43 2003/01/03 06:59:15 bjorng Exp $
 %%
 -module(wings_move).
--export([setup/2,setup_we/4,plus_minus/3]).
+-export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,sort/1]).
