@@ -3,12 +3,12 @@
 %%
 %%     This module implements the commands in the selection menu.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.37 2003/01/12 08:43:36 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.38 2003/01/19 06:08:59 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -28,10 +28,11 @@ menu(St) ->
      {"More",more,more_help(St)},
      {"Less",less,less_help(St)},
      {"Region",select_region},
-     {"Edge Loop",edge_loop},
-     {"Edge Ring",edge_ring},
-     {"Previous Edge Loop",prev_edge_loop},
-     {"Next Edge Loop",next_edge_loop},
+     {"Edge Loop",edge_loop,"Expand edge selection to loop; "
+      "convert face selection to selected border edges"},
+     {"Edge Ring",edge_ring,"Expand edge selection to ring"},
+     {"Previous Edge Loop",prev_edge_loop,"Select the next edge loop"},
+     {"Next Edge Loop",next_edge_loop,"Select the previous edge loop"},
      {"Similar",similar,similar_help(St)},
      separator,
      {"Adjacent",{adjacent,[{"Vertices",vertex},
@@ -68,9 +69,9 @@ menu(St) ->
      separator,
      {"Inverse",inverse},
      separator,
-     {"Hide Selected",hide_selected},
-     {"Hide Unselected",hide_unselected},
-     {"Lock Unselected",lock_unselected},
+     {"Hide Selected",hide_selected,"Hide all (partly or wholly) selected objects"},
+     {"Hide Unselected",hide_unselected,"Hide objects that have no selection"},
+     {"Lock Unselected",lock_unselected,"Lock objects that have no selection"},
      separator,
      {"New Group...",new_group,"Create a new selection group"}|groups_menu(St)].
 
