@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__bmp.erl,v 1.1 2001/10/18 16:06:18 bjorng Exp $
+%%     $Id: e3d__bmp.erl,v 1.2 2001/10/19 19:46:29 bjorng Exp $
 %%
 
 -module(e3d__bmp).
 -author('dgud@erix.ericsson.se').
 
 -compile(export_all).
+
 -include("e3d_image.hrl").
 
 -define(BITMAPFILEHEADER,  
@@ -59,7 +60,7 @@ load(FileName, Opts) ->
     end.
 
 save(Image0, FileName, Opts) ->
-    Image = e3d_image:convert(Image0, b8g8r8, 4),
+    Image = e3d_image:convert(Image0, b8g8r8, 4, lower_left),
     FileSz = ?BITMAPFILEHEADERSZ + ?BITMAPINFOHEADERSZ + size(Image#e3d_image.image),
     Offset = ?BITMAPFILEHEADERSZ + ?BITMAPINFOHEADERSZ,
     BiHeaderSz = ?BITMAPINFOHEADERSZ,
