@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.24 2004/05/08 15:12:41 bjorng Exp $
+%%     $Id: auv_placement.erl,v 1.25 2005/03/10 10:52:55 dgud Exp $
 
 -module(auv_placement).
 
@@ -34,8 +34,7 @@ place_areas(Areas0) ->
     {Positions0, Max} = fill(Sizes0, [0,0]),
 %    ?DBG("~p~n",[Positions0]),
     Scale  = 1 / max(Max),
-    move_and_scale_charts(Areas1, lists:sort(Positions0), Scale, []);
-place_areas([]) -> [].
+    move_and_scale_charts(Areas1, lists:sort(Positions0), Scale, []).
 
 center_rotate(Fs, We) ->
     VL = rotate_area(Fs, We),
@@ -135,16 +134,12 @@ rotate_area(Fs, #we{vp=VTab}=We) ->
     LV2P = gb_trees:get(LV2, VTab),
     Angle = math:atan2(element(2,LV2P)-element(2,LV1P),
 		       element(1,LV2P)-element(1,LV1P)),
-%    ?DBG("Angle ~p ~p P1 ~p P2 ~p~n", 
-%	[Angle, _Dist, {LV1, LV1P}, {LV2,LV2P}]),
-    if true ->
-	    Rot = e3d_mat:rotate(-(Angle*180/math:pi()), {0.0,0.0,1.0}),
-	    Res = [{Id,e3d_mat:mul_point(Rot, Vtx)} || {Id,Vtx} <- Vs],
-%	    ?DBG("Rot angle ~p ~p~n", [Angle*180/math:pi(), Res]),
-	    Res;
-       true ->
-	    Vs
-    end.
+%%    ?DBG("Angle ~p ~p P1 ~p P2 ~p~n", 
+%%	[Angle, _Dist, {LV1, LV1P}, {LV2,LV2P}]),
+    Rot = e3d_mat:rotate(-(Angle*180/math:pi()), {0.0,0.0,1.0}),
+    Res = [{Id,e3d_mat:mul_point(Rot, Vtx)} || {Id,Vtx} <- Vs],
+    %%	    ?DBG("Rot angle ~p ~p~n", [Angle*180/math:pi(), Res]),
+    Res.
 			          
 %% Group edgeloops and return a list sorted by total dist.
 %% [{TotDist, [{V1,V2,Edge,Dist},...]}, ...]

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.63 2005/01/08 19:35:37 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.64 2005/03/10 10:52:55 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -45,19 +45,6 @@
 
 %% Internal exports.
 -export([model_l2/5]).
-
--ifdef(lsq_standalone).
--define(DBG(Fmt,Args), io:format(?MODULE_STRING++":~p: "++(Fmt), 
-				       [?LINE | (Args)])).
--define(TC(Cmd), tc(?MODULE, ?LINE, fun () -> Cmd end)).
-tc(Module, Line, Fun) ->
-    {A1,A2,A3} = erlang:now(),
-    Result = Fun(),
-    {B1,B2,B3} = erlang:now(),
-    Time = ((B1-A1)*1000000 + (B2-A2))*1000000 + B3-A3,
-    io:format("~p:~p: ~.3f ms:~n", [Module, Line, Time/1000]),
-    Result.
--else.
 
 -include("wings.hrl").
 -include("auv.hrl").
@@ -144,47 +131,28 @@ sum_crossp([V1,V2|Vs], Acc) ->
 sum_crossp([_Last], Acc) ->
     Acc.
 
-project_and_triangulate([Face|Fs], We, I, Tris,Area) ->
+project_faces([Face|Fs], We, I, Tris,Area) ->
     Normal = wings_face:normal(Face, We),
     Vs0 = wpa:face_vertices(Face, We),
     Vs2 = project2d(Vs0, Normal, We),
     NewArea = calc_area(Vs0, Normal, We) + Area,
     case length(Vs2) of 
-	N when N > 3 ->
-	    {Ids,Cds,All} = setup_tri_vs(Vs2,0,[],[],[]),
-	    NewFs = e3d_mesh:triangulate_face(#e3d_face{vs=Ids}, Cds),
-	    VT = gb_trees:from_orddict(All),
-	    {Add, I1} = get_verts(NewFs, I, VT, []),
-	    project_and_triangulate(Fs,We,I1,Add ++ Tris,NewArea);
 	3 ->
 	    Vs3 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,_}} <- Vs2],
-	    project_and_triangulate(Fs,We,I,[{Face, Vs3}|Tris],NewArea);
-	Else ->
-	    io:format("Error: Can't triangulate face ~p with ~p vertices~n",
-		      [Face, Else]),
-	    project_and_triangulate(Fs,We,I,Tris,Area)
+	    project_faces(Fs,We,I,[{Face, Vs3}|Tris],NewArea);
+	_ ->
+	    io:format("Error: Face isn't triangulated ~p with ~p vertices~n",
+		      [Face, Vs0]),
+	    erlang:error({triangulation_bug, [Face, Vs2]})
     end;
-project_and_triangulate([],_,_,Tris,Area) -> 
+project_faces([],_,_,Tris,Area) -> 
     {Tris,Area}.
-
-setup_tri_vs([{Old,Coord}|Vs],Id,Ids,Cds,All) ->
-    setup_tri_vs(Vs,Id+1,[Id|Ids],[Coord|Cds],[{Id,{Old,Coord}}|All]);
-setup_tri_vs([],_,Ids,Cds,All) ->
-    {lists:reverse(Ids),lists:reverse(Cds),lists:reverse(All)}.
-
-get_verts([#e3d_face{vs = Vs}|Fs],I,Coords,Acc) ->
-    Get = fun(Id) ->
-		  {RealId,{X,Y,_}} = gb_trees:get(Id, Coords),
-		  {RealId,{X,Y}}
-	  end,
-    VsC = lists:map(Get, Vs),
-    get_verts(Fs,I-1,Coords,[{I, VsC}|Acc]);
-get_verts([],I,_,Acc) ->
-    {Acc, I}.
 
 lsqcm(Fs, Pinned0, We) ->
     ?DBG("Project and tri ~n", []),
-    {Vs1,Area} = project_and_triangulate(Fs,We,-1,[],0.0),
+    TriWe = wings_tesselation:triangulate(Fs, We),
+    TriFs = Fs ++ wings_we:new_items_as_ordset(face, We, TriWe),
+    {Vs1,Area} = project_faces(TriFs,TriWe,-1,[],0.0),
     Pinned = case Pinned0 of
 		 none -> 
 		     {V1, V2} = find_pinned(Fs, We),
@@ -193,10 +161,6 @@ lsqcm(Fs, Pinned0, We) ->
 		     Pinned0
 	     end,
     ?DBG("LSQ ~p~n", [Pinned]),
-%    Idstr = lists:flatten(io_lib:format("~p", [Id])),
-%    {ok, Fd} = file:open("raimo_" ++ Idstr, [write]),
-%    io:format(Fd, "{~w, ~w}.~n", [Vs1,[V1,V2]]),
-%    file:close(Fd),
     case ?TC(lsq(Vs1, Pinned)) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
@@ -206,7 +170,7 @@ lsqcm(Fs, Pinned0, We) ->
 	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,{Ut,Vt,0.0}} end,
 	    Vs3 = lists:sort(lists:map(Patch, Vs2)),
 	    TempVs = gb_trees:from_orddict(Vs3),
-	    MappedArea = calc_2dface_area(Fs, We#we{vp=TempVs}, 0.0),
+	    MappedArea = calc_2dface_area(TriFs, TriWe#we{vp=TempVs}, 0.0),
 	    Scale = Area/MappedArea,
 	    scaleVs(Vs3,math:sqrt(Scale),[])
     end.
@@ -223,23 +187,6 @@ calc_2dface_area([Face|Rest],We,Area) ->
     calc_2dface_area(Rest,We,NewArea);
 calc_2dface_area([],_,Area) ->
     Area.
-
-% -ifdef(DEBUG).
-% create_border_fs([F,S|R], Orig, C, N, Acc) ->
-%     New = {N,create_border_2d_face(S,F,C)},
-%     create_border_fs([S|R], Orig, C, N+1, [New|Acc]);
-% create_border_fs([F], [S|_], C, N, Acc) ->
-%     New = {N,create_border_2d_face(S,F,C)},
-%     [New|Acc].
-
-% create_border_2d_face({I0, P0}, {I1,P1}, {I2,P2}) ->
-%     Normal = e3d_vec:normal(P0,P1,P2),
-%     Rot = e3d_mat:rotate_s_to_t(Normal,{0.0,0.0,1.0}),
-%     {P0X,P0Y,_} = e3d_mat:mul_point(Rot,P0),
-%     {P1X,P1Y,_} = e3d_mat:mul_point(Rot,P1),
-%     {P2X,P2Y,_} = e3d_mat:mul_point(Rot,P2),
-%     [{I0,{P0X,P0Y}},{I1,{P1X,P1Y}},{I2,{P2X,P2Y}}].
-% -endif.
 
 find_border_edges(Faces, We) ->
     case auv_placement:group_edge_loops(Faces, We) of
@@ -291,8 +238,6 @@ reorder_edge_loop(V1, [Rec={V1,_,_,_}|Ordered], Acc) ->
     Ordered ++ lists:reverse([Rec|Acc]);
 reorder_edge_loop(V1, [H|Tail], Acc) ->
     reorder_edge_loop(V1, Tail, [H|Acc]).
-
--endif. % -ifdef(lsq_standalone). -else.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -604,16 +549,6 @@ lsq_triangles(L, Dict, M) ->
 %%
 lsq_result(X, Lquv, Rdict) ->
     {MM,1} = auv_matrix:dim(X),
-%     {_,UlistVlistR} =
-% 	lists:foldl(
-% 	  fun ({J,UV}, {J,R}) ->
-% 		  {J+1, [UV | R]};
-% 	      ({J2,_}, {J1,R}) ->
-% 		  {J2+1, lists:duplicate(J2-J1, 0.0) ++ R};
-% 	      (Other, State) ->
-% 		  throw({error, {?FILE, ?LINE, [Other, State, X]}})
-% 	  end, {1, []}, auv_matrix:vector(X)),
-%     {Ulist, Vlist} = ?TC(split(lists:reverse(UlistVlistR), MM div 2)),
     {Ulist, Vlist} = split(auv_matrix:vector(X), MM div 2),
     {[],UVlistR} = 
 	foldl(
@@ -732,7 +667,7 @@ area3d(V1, V2, V3) ->
 	  }).
 
 -define(MIN_STRETCH, 1.01).
--define(MAX_ITER, 50).
+-define(MAX_ITER, 100).
 -define(MAX_LEVELS, 6).
 -define(VERTEX_STEP, 0.001).
 
@@ -766,7 +701,7 @@ stretch_setup(Fs, We0, OVs) ->
 			[Vs,Ve|Acc]
 		end, [], Be),
     Bv = gb_sets:from_list(Bv0),
-    Tris0 = triangulate(Fs,-1,We0,[]),
+    Tris0 = triangulate(Fs,We0),
     {S,F2A,F2OV} = calc_scale(Tris0, OVs, 0.0, 0.0, [], []),
     Tris = [{Face,[{Id1,{S1*S,T1*S}},{Id2,{S2*S,T2*S}},{Id3,{S3*S,T3*S}}]} ||
 	       {Face,[{Id1,{S1,T1}},{Id2,{S2,T2}},{Id3,{S3,T3}}]} <- Tris0],
@@ -984,10 +919,6 @@ ss({_,T1},{_,T2},{_,T3},{Q1x,Q1y,Q1z},{Q2x,Q2y,Q2z},{Q3x,Q3y,Q3z},A)
        is_float(Q1x),is_float(Q1y),is_float(Q1z),
        is_float(Q2x),is_float(Q2y),is_float(Q2z),
        is_float(Q3x),is_float(Q3y),is_float(Q3z) ->
-%     M1 = e3d_vec:mul(Q1, T2-T3),
-%     M2 = e3d_vec:mul(Q2, T3-T1),
-%     M3 = e3d_vec:mul(Q3, T1-T2),
-%     e3d_vec:divide(e3d_vec:add([M1,M2,M3]),A).
     T23 = T2-T3,    T31 = T3-T1,    T12 = T1-T2,
     {(Q1x*T23+Q2x*T31+Q3x*T12)/A,
      (Q1y*T23+Q2y*T31+Q3y*T12)/A,
@@ -998,27 +929,26 @@ st({S1,_},{S2,_},{S3,_},{Q1x,Q1y,Q1z},{Q2x,Q2y,Q2z},{Q3x,Q3y,Q3z},A)
        is_float(Q1x),is_float(Q1y),is_float(Q1z),
        is_float(Q2x),is_float(Q2y),is_float(Q2z),
        is_float(Q3x),is_float(Q3y),is_float(Q3z) ->
-%     M1 = e3d_vec:mul(Q1, S3-S2),
-%     M2 = e3d_vec:mul(Q2, S1-S3),
-%     M3 = e3d_vec:mul(Q3, S2-S1),
-%     e3d_vec:divide(e3d_vec:add([M1,M2,M3]),A).
     S32 = S3-S2,    S13 = S1-S3,    S21 = S2-S1,
     {(Q1x*S32+Q2x*S13+Q3x*S21)/A,
      (Q1y*S32+Q2y*S13+Q3y*S21)/A,
      (Q1z*S32+Q2z*S13+Q3z*S21)/A}.
 
-triangulate([Face|Fs], I, We,Tris) ->
+triangulate(Fs,We) ->
+    TriWe = wings_tesselation:triangulate(Fs, We),
+    TriFs = Fs ++ wings_we:new_items_as_ordset(face, We, TriWe),
+    get_face_vspos(TriFs,TriWe, []).
+
+get_face_vspos([Face|Fs], We, Tris) ->
     Vs0 = wpa:face_vertices(Face, We),
     Vs1 = [{V,wings_vertex:pos(V,We)} || V <- Vs0],
-    if length(Vs0) > 3 ->
-	    {Ids,Cds,All} = setup_tri_vs(Vs1,0,[],[],[]),
-	    NewFs = e3d_mesh:triangulate_face(#e3d_face{vs=Ids}, Cds),
-	    VT = gb_trees:from_orddict(All),
-	    {Add, I1} = get_verts(NewFs, I, VT, []),
-	    triangulate(Fs,I1,We,Add ++ Tris);
-       true ->
+    if length(Vs0) == 3 ->
 	    Vs2 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,_}} <- Vs1],
-	    triangulate(Fs,I,We,[{Face, Vs2}|Tris])
+	    get_face_vspos(Fs,We,[{Face, Vs2}|Tris]);
+       true ->
+	    io:format("Error: Face isn't triangulated ~p with ~p vertices~n",
+		      [Face, Vs1]),
+	    erlang:error({triangulation_bug, [Face, Vs1]})    
     end;
-triangulate([], _, _, Tris) ->
+get_face_vspos([], _, Tris) ->
     Tris.

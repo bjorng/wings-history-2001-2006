@@ -3,12 +3,12 @@
 %%
 %%     A semi-simple semi-automatic UV-mapping semi-plugin.
 %%
-%%  Copyright (c) 2002-2004 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2002-2005 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.294 2005/03/09 20:00:04 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.295 2005/03/10 10:52:55 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -355,13 +355,9 @@ command_menu(body, X, Y) ->
 	       {"Center X", center_x, "Move to horizontal center"},
 	       {"Center Y", center_y, "Move to vertical center"},
 	       {"Bottom", bottom, "Move to bottom border"},
-	       {"Bottom Left", bottom_l,  "Move to lower left corner"},
-	       {"Bottom Right", bottom_r, "Move to lower rigth corner"},
 	       {"Top", top, "Move to top border"},
-	       {"Top Left", top_l,  "Move to upper left corner"},
-	       {"Top Right", top_r, "Move to upper rigth corner"},
 	       {"Left", left, "Move to left border"},
-	       {"Rigth", rigth, "Move to rigth border"}
+	       {"Right", right, "Move to right border"}
 	      ]}, "Move charts to position"},
 	    {"Flip",{flip,
 		     [{"Horizontal",horizontal,"Flip selection horizontally"},
@@ -1132,13 +1128,9 @@ move_to(Dir,We) ->
 	      center_x -> e3d_vec:sub({0.5,CCY,CCZ}, ChartCenter);
 	      center_y -> e3d_vec:sub({CCX,0.5,CCZ}, ChartCenter);
 	      bottom ->   {0.0,-Y1,0.0};
-	      bottom_l -> {-X1,-Y1,0.0};
-	      bottom_r -> {1.0-X2,-Y1,0.0};
 	      top ->      {0.0,1.0-Y2,0.0};   
-	      top_l ->    {-X1,1.0-Y2,0.0};   
-	      top_r ->    {1.0-X2,1.0-Y2,0.0};
 	      left ->     {-X1,0.0,0.0};
-	      rigth ->    {1.0-X2,0.0,0.0}
+	      right ->    {1.0-X2,0.0,0.0}
 	  end,
     T = e3d_mat:translate(Translate),
     wings_we:transform_vs(T, We).
