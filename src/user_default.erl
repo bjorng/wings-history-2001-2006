@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.20 2004/12/16 11:00:43 bjorng Exp $
+%%     $Id: user_default.erl,v 1.21 2004/12/16 11:55:39 bjorng Exp $
 %% 
 
 -module(user_default).
 
 -export([help/0,wh/0,
-	 wx/0,wxe/0,wxu/1,wxu/3,wxunref/0,wxundef/0,wcs/0,
+	 wx/0,wxe/0,wxu/1,wxu/3,wxunref/0,wxundef/0,wxcs/0,wxq/1,
 	 wldiff/1,
 	 lm/0,mm/0]).
 
@@ -37,7 +37,8 @@ wh() ->
     p("wxundef()  -- print calls to undefined functions\n"),
     p("wxu(M)     -- print uses of module M\n"),
     p("wxu(M, F, A) -- print uses of M:F/A\n"),
-    p("wcs()      -- print strong components\n"),
+    p("wxcs()     -- print strong components\n"),
+    p("wxq(Query) -- execute an XREF query\n"),
     p("** Language support **\n"),
     p("wldiff(Lang) -- diff language files against English templates\n"),
     ok.
@@ -54,10 +55,14 @@ wx() ->
     xref:set_library_path(s, code:get_path() -- [WingsEbin]),
     {ok,Ms} = xref:add_directory(s, WingsEbin),
     Dirs = get_plugin_dirs(),
-    foldl(fun(D, N) -> 
-		  {ok,PMs} = xref:add_directory(s, D),
-		  N+length(PMs)
-	  end, length(Ms), Dirs).
+    N = foldl(fun(D, N) -> 
+		      {ok,PMs} = xref:add_directory(s, D),
+		      N+length(PMs)
+	      end, length(Ms), Dirs),
+    xref:q(s, "Wings := \"wings.*\":Mod + \"wp.*\":Mod + \"auv_.*\":Mod "),
+    io:put_chars(" Variable Wings = <all modules in Wings>\n"),
+    io:put_chars(" Modules loaded: "),
+    N.
 
 wxe() ->
     Dir = filename:dirname(code:which(gl)),
@@ -73,8 +78,11 @@ wxu(M, F, A) ->
     MFA = {M,F,A},
     result(xref:q(s, make_query("domain(E || ~p) - ~p", [MFA,M]))).
 
-wcs() ->
+wxcs() ->
     print_components(xref:q(s, make_query("components ME", []))).
+
+wxq(Q) ->
+    result(xref:q(s, Q)).
 
 print_components({ok,Cs}) ->
     foreach(fun(C) -> io:format("~p\n", [C]) end, Cs);
@@ -134,7 +142,9 @@ result({ok,List}) ->
 result(Other) -> Other.
 
 make_query(Format, Args) ->
-    lists:flatten(io_lib:format(Format, Args)).
+    R = lists:flatten(io_lib:format(Format, Args)),
+    io:format("~p\n", [R]),
+    R.
 
 %%%
 %%% Language support.
