@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Unix systems.
 #
-# $Id: make_installer,v 1.2 2003/10/13 18:40:32 bjorng Exp $
+# $Id: make_installer,v 1.3 2004/01/18 18:48:30 bjorng Exp $
 #
 
 # Configurable stuff.
@@ -37,13 +37,14 @@ $INSTALL -c -m 644 ebin/* "$dest/ebin"
 
 $INSTALL -d "$dest/plugins/default" "$dest/plugins/fonts" \
  "$dest/plugins/import_export" "$dest/plugins/commands" \
- "$dest/plugins/primitives" "$dest/plugins/autouv"
+ "$dest/plugins/primitives" "$dest/plugins/autouv" "$dest/plugins/jpeg"
 $INSTALL -c -m 644 plugins/default/wp9_dialogs.beam "$dest/plugins/default"
 $INSTALL -c -m 644 plugins/fonts/* "$dest/plugins/fonts"
 $INSTALL -c -m 644 plugins/import_export/* "$dest/plugins/import_export"
 $INSTALL -c -m 644 plugins/commands/* "$dest/plugins/commands"
 $INSTALL -c -m 644 plugins/primitives/* "$dest/plugins/primitives"
 $INSTALL -c -m 644 plugins/autouv/* "$dest/plugins/autouv"
+$INSTALL -c -m 644 plugins/jpeg/* "$dest/plugins/jpeg"
 
 # Copy the relevant parts of Erlang/OTP.
 
