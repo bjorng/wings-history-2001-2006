@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.110 2003/08/13 04:41:44 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.111 2003/08/13 08:26:37 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -435,7 +435,7 @@ raw_pick(X0, Y0, St) ->
     wings_view:projection(),
     wings_view:modelview(),
     gl:enable(?GL_CULL_FACE),
-    select_draw(),
+    draw(),
     gl:disable(?GL_CULL_FACE),
     case get_hits(HitBuf) of
 	none -> none;
@@ -658,7 +658,7 @@ pick_all(DrawFaces, X, Y0, W, H, St) ->
     case DrawFaces of
 	true ->
 	    gl:enable(?GL_CULL_FACE),
-	    select_draw(),
+	    draw(),
 	    gl:disable(?GL_CULL_FACE);
 	false -> marquee_draw(St)
     end,
@@ -685,7 +685,7 @@ marquee_draw(#st{selmode=vertex}) ->
 			   end, gb_trees:to_list(Vtab))
 	   end,
     marquee_draw_1(Draw);
-marquee_draw(_) -> select_draw().
+marquee_draw(_) -> draw().
 
 marquee_draw_1(Draw) ->
     wings_draw_util:fold(fun(D, _) -> marquee_draw_fun(D, Draw) end, []).
@@ -716,10 +716,10 @@ marquee_draw_fun(#dlo{mirror=Mirror,src_we=#we{id=Id}=We}, Draw) ->
 %% Draw for the purpose of picking the items that the user clicked on.
 %%
 
-select_draw() ->
-    wings_draw_util:map(fun select_draw_fun/2, []).
+draw() ->
+    wings_draw_util:map(fun draw_fun/2, []).
 
-select_draw_fun(#dlo{work=Work,src_we=#we{id=Id,perm=Perm}=We}=D, _)
+draw_fun(#dlo{work=Work,src_we=#we{id=Id,perm=Perm}=We}=D, _)
   when ?IS_LIGHT(We), ?IS_SELECTABLE(Perm) ->
     gl:pushName(Id),
     gl:pushName(1),
@@ -727,13 +727,13 @@ select_draw_fun(#dlo{work=Work,src_we=#we{id=Id,perm=Perm}=We}=D, _)
     gl:popName(),
     gl:popName(),
     D;
-select_draw_fun(#dlo{pick=none,src_we=We}=D, _) ->
+draw_fun(#dlo{pick=none,src_we=We}=D, _) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    select_draw_1(We),
+    draw_1(We),
     gl:endList(),
     draw_dlist(D#dlo{pick=List});
-select_draw_fun(D, _) -> draw_dlist(D).
+draw_fun(D, _) -> draw_dlist(D).
 
 draw_dlist(#dlo{mirror=none,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:pushName(Id),
@@ -753,18 +753,18 @@ draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:frontFace(?GL_CCW),
     D.
 
-select_draw_1(#we{perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
+draw_1(#we{perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
     Tess = wings_draw_util:tess(),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
     glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_NONE),
     glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
     glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
-    select_draw_2(We),
+    draw_2(We),
     wings_draw_util:init_cb(Tess),
     gl:edgeFlag(?GL_TRUE);
-select_draw_1(_) -> ok.
+draw_1(_) -> ok.
     
-select_draw_2(#we{fs=Ftab}=We) ->
+draw_2(#we{fs=Ftab}=We) ->
     gl:pushName(0),
     foreach(fun({Face,Edge}) ->
 		    gl:loadName(Face),
@@ -783,7 +783,6 @@ face_1([V|Vs], Vtab, Acc) ->
     face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
 face_1([], _, VsPos) ->
     N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
     face_2(N, VsPos).
 
 face_2(_, [A,B,C]) ->
