@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.26 2002/08/25 09:36:52 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.27 2002/11/20 17:06:57 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -234,8 +234,8 @@ collapse_vertex_1(Vremove, We0, Sel0)->
     %% Connect vertices.
     Pairs = make_pairs(Vlist),
     We1 = foldl(fun(Pair, W) ->
-		       wings_vertex_cmd:connect(Pair, W)
-	       end, We0, Pairs),
+			collapse_connect(Pair, W)
+		end, We0, Pairs),
 
     %% Remove all original edges.
     Edges = [E || {_,E} <- VsEs],
@@ -244,6 +244,21 @@ collapse_vertex_1(Vremove, We0, Sel0)->
     Faces = collapse_vtx_faces(Vlist, We, []),
     Sel = collapse_vtx_sel(Faces, ordsets:from_list(Vlist), We, Sel0),
     {We,Sel}.
+
+collapse_connect(Pair, #we{mirror=MirrorFace}=We) ->
+    FaceVs = wings_vertex:per_face(Pair, We),
+    foldl(fun({Face,_}, Acc) when Face =:= MirrorFace -> Acc;
+	     ({Face,Vs}, Acc) -> collapse_connect_1(Face, Vs, Acc)
+	  end, We, FaceVs).
+
+collapse_connect_1(Face, [Va,Vb], We0) ->
+    case wings_vertex:edge_through(Va, Vb, Face, We0) of
+	none ->
+	    {We,_} = wings_vertex:force_connect(Va, Vb, Face, We0),
+	    We;
+	_ -> We0
+    end;
+collapse_connect_1(_, _, We) -> We.
 
 collapse_vtx_faces([V|Vs], We, Acc0) ->
     Acc = wings_vertex:fold(
