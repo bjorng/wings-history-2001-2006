@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.40 2003/01/09 19:57:40 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.41 2003/01/10 19:27:13 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -73,14 +73,13 @@ window(St) ->
 	true ->
 	    wings_wm:delete(object);
 	false ->
-	    {_,GeomY,GeomW,GeomH} = wings_wm:viewport(),
-	    {_,TopH} = wings_wm:top_size(),
+	    {{_,DeskY},{DeskW,DeskH}} = wings_wm:win_rect(desktop),
 	    W = 25*?CHAR_WIDTH,
 	    Ost = #ost{first=0,eye=eye_bitmap(),lock=lock_bitmap(),lh=18,active=-1},
 	    Current = {current_state,St},
 	    Op = {seq,push,event(Current, Ost)},
-	    Pos = {GeomW-5,TopH-(GeomY+GeomH)+5,?Z_OBJECTS},
-	    Size = {W,TopH div 2},
+	    Pos = {DeskW-5,DeskY+5,?Z_OBJECTS},
+	    Size = {W,DeskH div 2},
 	    wings_wm:toplevel(object, "Objects", Pos, Size,
 			      [resizable,vscroller,{anchor,ne}], Op),
 	    wings_wm:send(object, Current),
@@ -95,7 +94,7 @@ event(resized, Ost) ->
     keep;
 event(redraw, Ost) ->
     wings_io:ortho_setup(),
-    {_,_,W,H} = wings_wm:viewport(),
+    {W,H} = wings_wm:win_size(),
     wings_io:border(0, 0, W-0.5, H-1, ?PANE_COLOR),
     draw_objects(Ost),
     keep;
@@ -468,7 +467,7 @@ top_of_first_object() ->
     0.
 
 right_pos() ->
-    {_,_,W,_} = wings_wm:viewport(),
+    {W,_} = wings_wm:win_size(),
     W-13.
 
 lock_pos() ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.192 2003/01/10 07:17:45 bjorng Exp $
+%%     $Id: wings.erl,v 1.193 2003/01/10 19:27:13 bjorng Exp $
 %%
 
 -module(wings).
@@ -136,9 +136,8 @@ init(File, Root) ->
     init_menubar(),
     Op = main_loop_noredraw(St),		%Replace crash handler
 						%with this handler.
-    {X,Y,W,H} = wings_wm:viewport(desktop),
-    {_,TopH} = wings_wm:top_size(),
-    wings_wm:toplevel(geom, "Geometry", {X,TopH-(Y+H),?Z_GEOM}, {W,H-20},
+    {{X,Y},{W,H}} = wings_wm:win_rect(desktop),
+    wings_wm:toplevel(geom, "Geometry", {X,Y,?Z_GEOM}, {W,H-20},
 		      [resizable,{anchor,nw}], Op),
     open_file(File),
 
