@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.65 2004/03/08 09:23:23 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.66 2004/03/08 11:10:37 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -717,6 +717,7 @@ light_dialog(Name, Ps) ->
     DefPower = case Type of
 		   point -> ?DEF_ATTN_POWER;
 		   spot -> ?DEF_ATTN_POWER;
+		   area -> ?DEF_ATTN_POWER;
 		   _ -> ?DEF_POWER
 	       end,
     Minimized = proplists:get_value(minimized, YafRay, true),
@@ -859,6 +860,21 @@ light_dialog(_Name, ambient, Ps) ->
 			       {range,{0.0,128.0}}]}],
 	[light_hook({?TAG,background}, image)]}],
       [{title,"Background"}]}];
+light_dialog(_Name, area, Ps) ->
+    ArealightSamples = proplists:get_value(arealight_samples, Ps, 
+					   ?DEF_AREALIGHT_SAMPLES),
+    ArealightPsamples = proplists:get_value(arealight_psamples, Ps, 
+					    ?DEF_AREALIGHT_PSAMPLES),
+    Dummy = proplists:get_value(dummy, Ps, ?DEF_DUMMY),
+    [{"Global Photonlight Dummy",Dummy,[{key,{?TAG,dummy}}]},
+     {hframe,[{label,"Samples"},
+	      {text,ArealightSamples,[{range,{1,1000000}},
+				      {key,{?TAG,arealight_samples}},
+				      bhook(disabled, {?TAG,dummy})]},
+	      {label,"Penumbra Samples"},
+	      {text,ArealightPsamples,[{range,{1,1000000}},
+				       {key,{?TAG,arealight_psamples}},
+				       bhook(disabled, {?TAG,dummy})]}]}];
 light_dialog(_Name, _Type, _Ps) ->
 %%%    erlang:display({?MODULE,?LINE,{_Name,_Type,_Ps}}),
     [].
@@ -891,8 +907,10 @@ light_result([{{?TAG,type},spotlight}|_]=Ps) ->
     split_list(Ps, 11);
 light_result([{{?TAG,type},photonlight}|_]=Ps) ->
     split_list(Ps, 11);
-light_result([_,{{?TAG,background},_}|_]=Ps) ->
+light_result([_,{{?TAG,background},_}|_]=Ps) -> % infinite
     split_list(Ps, 4);
+light_result([_,{{?TAG,arealight_samples},_}|_]=Ps) -> % area
+    split_list(Ps, 3);
 light_result([{{?TAG,type},hemilight}|_]=Ps) ->
     split_list(Ps, 10);
 light_result([{{?TAG,type},pathlight}|_]=Ps) ->
@@ -1740,7 +1758,7 @@ export_light(F, Name, Ps) ->
 export_light(F, Name, point, OpenGL, YafRay) ->
     Power = proplists:get_value(power, YafRay, ?DEF_ATTN_POWER),
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
-    Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
+    Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
     Type = proplists:get_value(type, YafRay, ?DEF_POINT_TYPE),
     println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\" ", 
 	    [Type,Name,Power]),
@@ -1784,7 +1802,7 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     AimPoint = proplists:get_value(aim_point, OpenGL, {0.0,0.0,1.0}),
     ConeAngle = proplists:get_value(cone_angle, OpenGL, ?DEF_CONE_ANGLE),
-    Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
+    Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
     Type = proplists:get_value(type, YafRay, ?DEF_SPOT_TYPE),
     println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\" ", 
 	    [Type,Name,Power]),
@@ -1845,6 +1863,43 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
     end,
     println(F, "</light>"),
     Bg;
+export_light(F, Name, area, OpenGL, YafRay) ->
+    Color = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
+    #e3d_mesh{vs=Vs,fs=Fs} = proplists:get_value(mesh, OpenGL, #e3d_mesh{}),
+    VsT = list_to_tuple(Vs),
+    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
+    ArealightSamples = proplists:get_value(arealight_samples, YafRay, 
+					   ?DEF_AREALIGHT_SAMPLES),
+    ArealightPsamples = proplists:get_value(arealight_psamples, YafRay, 
+					    ?DEF_AREALIGHT_PSAMPLES),
+    Dummy = proplists:get_value(dummy, YafRay, ?DEF_DUMMY),
+    foldl(
+      fun(Face, I) ->
+	      foldl(
+		fun(#e3d_face{vs=V}, J) ->
+			[A,B,C,D] = fix_quad(V, VsT),
+			NameJ = Name++"_"++integer_to_list(J),
+			println(F, "<light type=\"arealight\" "
+				"name=\"~s\" power=\"~.3f\"~n"
+				"       samples=\"~w\" psamples=\"~w\" "
+				"dummy=\"~s\">", 
+				[NameJ,Power,
+				 ArealightSamples,ArealightPsamples,
+				 format(Dummy)]),
+			export_rgb(F, color, Color),
+			export_pos(F, a, A),
+			export_pos(F, b, B),
+			export_pos(F, c, C),
+			export_pos(F, d, D),
+			println(F, "</light>"),
+			J+1
+		end,
+		I,
+		e3d_mesh:quadrangulate_face(Face, Vs))
+      end,
+      1,
+      Fs),
+    undefined;
 export_light(_F, Name, Type, _OpenGL, _YafRay) ->
     io:format("WARNING: Ignoring unknown light \"~s\" type: ~p~n", 
 	      [Name, format(Type)]),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.50 2004/01/17 09:41:52 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.51 2004/03/08 11:10:41 raimo_niskanen Exp $
 %%
 
 -module(wings_outliner).
@@ -420,9 +420,9 @@ update_state_1(St, Ost) ->
 
 update_state_2(#st{mat=Mat,shapes=Shs0}=St, #ost{os=Objs0,active=Act0}=Ost) ->
     Objs = [{object,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
-				?IS_NOT_LIGHT(We)] ++
+				not ?IS_ANY_LIGHT(We)] ++
 	[{light,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
-			    ?IS_LIGHT(We)] ++
+			    ?IS_ANY_LIGHT(We)] ++
 	[make_mat(M) || M <- gb_trees:to_list(Mat)] ++ update_images(),
     case Objs of
 	Objs0 -> ok;

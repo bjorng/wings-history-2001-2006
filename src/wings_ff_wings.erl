@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.48 2004/02/07 18:39:13 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.49 2004/03/08 11:10:41 raimo_niskanen Exp $
 %%
 
 -module(wings_ff_wings).
@@ -426,7 +426,7 @@ export(Name, St0) ->
     wings_pb:done(write_file(Name, Bin)).
 
 remove_lights(#st{sel=Sel0,shapes=Shs0}=St) ->
-    Shs1 = foldl(fun(We, A) when ?IS_LIGHT(We) -> A;
+    Shs1 = foldl(fun(We, A) when ?IS_ANY_LIGHT(We) -> A;
 		    (#we{id=Id}=We, A) -> [{Id,We}|A]
 		 end, [], gb_trees:values(Shs0)),
     Shs = gb_trees:from_orddict(reverse(Shs1)),

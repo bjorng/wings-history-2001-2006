@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.69 2003/07/27 13:40:21 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.70 2004/03/08 11:10:41 raimo_niskanen Exp $
 %%
 
 -module(wings_shape).
@@ -520,11 +520,11 @@ draw_icons_1(#dlo{src_we=#we{id=Id}},
 	    wings_io:draw_icon(EyePos, IconY, small_closed_eye)
     end,
     case keymember(Id, 1, Sel) of
-	false when ?IS_LIGHT(We) ->
+	false when ?IS_ANY_LIGHT(We) ->
 	    wings_io:draw_icon(SelPos, IconY, small_light);
 	false ->
 	    wings_io:draw_icon(SelPos, IconY, small_object);
-	true when ?IS_LIGHT(We) ->
+	true when ?IS_ANY_LIGHT(We) ->
 	    wings_io:draw_icon(SelPos, IconY, small_sel_light);
 	true ->
 	    wings_io:draw_icon(SelPos, IconY, small_sel)

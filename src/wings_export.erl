@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.4 2004/03/05 03:56:11 bjorng Exp $
+%%     $Id: wings_export.erl,v 1.5 2004/03/08 11:10:41 raimo_niskanen Exp $
 %%
 
 -module(wings_export).
--export([export/4,save_images/3]).
+-export([export/4,save_images/3,make_mesh/2]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -51,7 +51,7 @@ save_images(#e3d_file{mat=Mat0}=E3DFile, Dir, Filetype) ->
 %%%
 
 export_1(#we{perm=Perm}, _, Acc) when ?IS_NOT_VISIBLE(Perm) -> Acc;
-export_1(#we{name=Name,light=none}=We, SubDivs, Acc) ->
+export_1(#we{name=Name}=We, SubDivs, Acc) when not ?IS_ANY_LIGHT(We) ->
     Mesh = make_mesh(We, SubDivs),
     [#e3d_object{name=Name,obj=Mesh}|Acc];
 export_1(_, _, Acc) -> Acc.

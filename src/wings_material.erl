@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.112 2003/12/10 15:02:23 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.113 2004/03/08 11:10:41 raimo_niskanen Exp $
 %%
 
 -module(wings_material).
 -export([material_menu/1,command/2,new/1,color/4,default/0,
-	 mat_faces/2,add_materials/2,update_image/4,used_images/1,
+	 mat_faces/2,add_materials/2,update_materials/2,
+	 update_image/4,used_images/1,
 	 get/2,get_all/1,delete_face/2,delete_faces/2,cleanup/1,
 	 assign/3,replace_materials/2,assign_materials/2,
 	 used_materials/1,used_materials_we/1,
@@ -266,6 +267,13 @@ add_defaults_1(P) ->
      {emission,norm(prop_get(emission, P, {0.0,0.0,0.0,0.0}))},
      {shininess,prop_get(shininess, P, 1.0)}].
 
+update_materials([{Name,Mat0}|Ms], St) ->
+    Mat1 = add_defaults(Mat0),
+    Maps = load_maps(prop_get(maps, Mat1, [])),
+    Mat = keyreplace(maps, 1, Mat1, {maps,Maps}),
+    update_materials(Ms, update(Name, Mat, St));
+update_materials([], St) -> St.
+
 norm({_,_,_,_}=Color) -> Color;
 norm({R,G,B}) -> {R,G,B,1.0}.
     
@@ -326,6 +334,10 @@ add(Name, Mat0, #st{mat=MatTab}=St) ->
 	    NewName = new_name(atom_to_list(Name), MatTab),
 	    {add(NewName, Mat, St),NewName}
     end.
+
+update(Name, Mat0, #st{mat=MatTab}=St) ->
+    Mat = sort([{K,sort(L)} || {K,L} <- Mat0]),
+    St#st{mat=gb_trees:update(Name, Mat, MatTab)}.
 
 new_name(Name0, Tab) ->
     Names = [atom_to_list(N) || N <- gb_trees:keys(Tab)],

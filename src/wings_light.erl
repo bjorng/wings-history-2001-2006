@@ -8,23 +8,25 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.41 2004/01/12 18:40:39 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.42 2004/03/08 11:10:41 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
 -export([light_types/0,menu/3,command/2,is_any_light_selected/1,info/1,
 	 create/2,update_dynamic/2,update_matrix/2,update/1,render/1,
 	 modeling_lights/2,global_lights/0,camera_lights/0,
-	 export/1,export_camera_lights/0,import/2]).
+	 export/1,export_camera_lights/0,import/2,shape_materials/2]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
+-include("e3d.hrl").
 
--import(lists, [reverse/1,foldl/3,member/2,keydelete/3]).
+-import(lists, [reverse/1,foldl/3,member/2,keydelete/3,sort/1]).
 
--define(DEF_X, 0).
--define(DEF_Y, 2).
--define(DEF_Z, 0).
+-define(DEF_X, 0.0).
+-define(DEF_Y, 3.0).
+-define(DEF_Z, 0.0).
+-define(DEF_POS, {?DEF_X,?DEF_Y,?DEF_Z}).
 
 %% Light record in We.
 -record(light,
@@ -44,11 +46,12 @@ light_types() ->
     [{"Infinite",infinite,"Create a far-away, directional light (like the sun)"},
      {"Point",point,"Create a light that radiates light in every direction"},
      {"Spot",spot,"Create a spotlight"},
-     {"Ambient",ambient,"Create an ambient light source"}].
+     {"Ambient",ambient,"Create an ambient light source"},
+     {"Area",area,"Create an area that radiates light"}].
 
 menu(X, Y, St) ->
     SpotOnly = {iff,[spot]},
-    NotAmb = {iff,[spot,infinite,point]},
+    NotAmb = {iff,[spot,infinite,point,area]},
     One = one_light,
     Dir = wings_menu_util:directions(St#st{selmode=body}),
     Menu0 = [{basic,{"Light operations",ignore}},
@@ -126,8 +129,8 @@ is_any_light_selected(#st{sel=Sel,shapes=Shs}) ->
     is_any_light_selected(Sel, Shs).
 is_any_light_selected([{Id,_}|Sel], Shs) ->
     case gb_trees:get(Id, Shs) of
-	#we{light=none} -> is_any_light_selected(Sel, Shs);
-	#we{} -> true
+	#we{}=We when ?IS_LIGHT(We) -> true;
+	#we{} -> is_any_light_selected(Sel, Shs)
     end;
 is_any_light_selected([], _) -> false.
 
@@ -369,6 +372,7 @@ qs_specific(#light{type=spot,spot_angle=Angle,spot_exp=SpotExp}=L) ->
 	     [{title,"Spot Parameters"}]}],
     qs_att(L, Spot);
 qs_specific(#light{type=point}=L) -> qs_att(L, []);
+qs_specific(#light{type=area}=L) -> qs_att(L, []);
 qs_specific(_) -> [].
 
 qs_att(#light{lin_att=Lin,quad_att=Quad}, Tail) ->
@@ -381,6 +385,8 @@ qs_att(#light{lin_att=Lin,quad_att=Quad}, Tail) ->
 edit_specific([LinAtt,QuadAtt,Angle,SpotExp|More], #light{type=spot}=L) ->
     {L#light{spot_angle=Angle,spot_exp=SpotExp,lin_att=LinAtt,quad_att=QuadAtt},More};
 edit_specific([LinAtt,QuadAtt|More], #light{type=point}=L) ->
+    {L#light{lin_att=LinAtt,quad_att=QuadAtt},More};
+edit_specific([LinAtt,QuadAtt|More], #light{type=area}=L) ->
     {L#light{lin_att=LinAtt,quad_att=QuadAtt},More};
 edit_specific(More, L) -> {L,More}.
 
@@ -421,7 +427,7 @@ create(Type, #st{onext=Oid}=St) ->
 %%% Updating, drawing and rendering lights.
 %%%
 update_dynamic(#dlo{work=[Work|_],src_we=We0}=D, Vtab0) ->
-    Vtab = gb_trees:from_orddict(lists:sort(Vtab0)),
+    Vtab = gb_trees:from_orddict(sort(Vtab0)),
     We = We0#we{vp=Vtab},
     List = update_1(We, D),
     D#dlo{work=[Work,List],src_we=We}.
@@ -446,7 +452,7 @@ update_1(#we{light=#light{type=Type}}=We, #dlo{src_sel=SrcSel}) ->
     update_2(Type, Selected, We),
     gl:endList(),
     List.
-    
+
 update_2(infinite, Selected, #we{light=#light{aim=Aim}}=We) ->
     gl:lineWidth(1),
     set_light_col(We),
@@ -531,7 +537,7 @@ render(#dlo{work=Light}) ->
 %%%
 
 export(#st{shapes=Shs}) ->
-    L = foldl(fun(We, A) when ?IS_LIGHT(We) ->
+    L = foldl(fun(We, A) when ?IS_ANY_LIGHT(We) ->
 		      [get_light(We)|A];
 		 (_, A) -> A
 	      end, [], gb_trees:values(Shs)),
@@ -579,11 +585,15 @@ get_light_1(#we{light=L}=We) ->
 		  _ ->
 		      Common
 	     end,
-    OpenGL = if
-		 Type == point; Type == spot ->
+    OpenGL1 = if
+		 Type == point; Type == spot; Type == area ->
 		     [{linear_attenuation,LinAtt},
 		      {quadratic_attenuation,QuadAtt}|OpenGL0];
 		 true -> OpenGL0
+	     end,
+    OpenGL = case Type of
+		 area -> [{mesh,wings_export:make_mesh(We, 0)}|OpenGL1];
+		 _ -> OpenGL1
 	     end,
     [{opengl,OpenGL}|Prop].
 
@@ -602,7 +612,7 @@ import(Lights, St) ->
 import_fun({Name,Ps}, St) ->
     OpenGL = proplists:get_value(opengl, Ps, []),
     Type = proplists:get_value(type, OpenGL, point),
-    Pos = proplists:get_value(position, OpenGL, {0.0,3.0,0.0}),
+    Pos = proplists:get_value(position, OpenGL, ?DEF_POS),
     Diff = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
     Amb = import_ambient(Type, OpenGL),
     Spec = proplists:get_value(specular, OpenGL, {1.0,1.0,1.0,1.0}),
@@ -611,20 +621,39 @@ import_fun({Name,Ps}, St) ->
     QuadAtt = proplists:get_value(quadratic_attenuation, OpenGL, 0.0),
     Angle = proplists:get_value(cone_angle, OpenGL, 30.0),
     SpotExp = proplists:get_value(spot_exponent, OpenGL, 0.0),
-    Prop = lists:keydelete(opengl, 1, Ps),
-    L = #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
-	       aim=Aim,lin_att=LinAtt,quad_att=QuadAtt,
-	       spot_angle=Angle,spot_exp=SpotExp,prop=Prop},
-    Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
-    Vs = lists:duplicate(8, Pos),
-    We0 = wings_we:build(Fs, Vs),
-    We = We0#we{light=L},
-    wings_shape:new(Name, We, St).
+    Prop = proplists:delete(opengl, Ps),
+    Light = #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
+		   aim=Aim,lin_att=LinAtt,quad_att=QuadAtt,
+		   spot_angle=Angle,spot_exp=SpotExp,prop=Prop},
+    wings_shape:new(Name, import_we(Light, OpenGL, Pos), St).
 
 import_ambient(ambient, OpenGL) ->
     proplists:get_value(ambient, OpenGL, {0.1,0.1,0.1,1.0});
 import_ambient(_, OpenGL) ->
     proplists:get_value(ambient, OpenGL, {0.0,0.0,0.0,1.0}).
+
+import_we(#light{type=area}=Light, OpenGL, {X,Y,Z}) ->
+    Mesh = 
+	case proplists:lookup(mesh, OpenGL) of
+	    none ->
+		#e3d_mesh{type=polygon,
+			  fs=[#e3d_face{vs=[0,1,2,3],
+					mat=[default]},
+			      #e3d_face{vs=[3,2,1,0],
+					mat=['_hole_']}],
+			  vs=[{X+1.0,Y,Z+1.0},{X-1.0,Y,Z+1.0},
+			      {X-1.0,Y,Z-1.0},{X+1.0,Y,Z-1.0}]};
+	    {mesh,M} -> e3d_mesh:transform(e3d_mesh:clean_faces(M))
+	end,
+    We = wings_import:import_mesh(Mesh, material),
+    We#we{light=Light,has_shape=true};
+import_we(#light{}=Light, _OpenGL, Pos) ->
+    Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
+    Vs = lists:duplicate(8, Pos),
+    We = wings_we:build(Fs, Vs),
+    We#we{light=Light,has_shape=false}.
+
+
 
 %%%
 %%% Setting up lights.
@@ -724,32 +753,34 @@ disable_from(Lnum) ->
     disable_from(Lnum+1).
 
 scene_lights_fun(_, Lnum) when Lnum > ?GL_LIGHT7 -> Lnum;
-scene_lights_fun(#dlo{src_we=#we{light=none}}, Lnum) -> Lnum;
-scene_lights_fun(#dlo{transparent=#we{}=We}, Lnum) ->
+scene_lights_fun(#dlo{src_we=#we{perm=Perm}}, Lnum) 
+  when ?IS_NOT_VISIBLE(Perm) -> Lnum;
+scene_lights_fun(#dlo{src_we=We}, Lnum) when not ?IS_ANY_LIGHT(We)-> Lnum;
+scene_lights_fun(#dlo{transparent=#we{light=L}=We}, Lnum) ->
     %% This happens when dragging in Body selection mode.
-    scene_lights_fun_1(We, Lnum);
-scene_lights_fun(#dlo{src_we=We}, Lnum) when ?IS_LIGHT(We) ->
-    scene_lights_fun_1(We, Lnum).
+    setup_light(Lnum, L, We);
+scene_lights_fun(#dlo{src_we=#we{light=L}=We}, Lnum) when ?IS_ANY_LIGHT(We) ->
+    setup_light(Lnum, L, We).
 
-scene_lights_fun_1(#we{light=#light{type=ambient,ambient=Amb}}, Lnum) ->
+setup_light(Lnum, #light{type=ambient,ambient=Amb}, _We) ->
     gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, Amb),
     Lnum;
-scene_lights_fun_1(#we{light=L}=We, Lnum) ->
-    setup_light(Lnum, L, We),
-    gl:enable(Lnum),
-    Lnum+1.
-    
 setup_light(Lnum, #light{type=infinite,aim=Aim}=L, We) ->
     {X,Y,Z} = e3d_vec:norm(e3d_vec:sub(light_pos(We), Aim)),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,0}),
-    setup_color(Lnum, L);
+    setup_color(Lnum, L),
+    gl:enable(Lnum),
+    Lnum+1;
 setup_light(Lnum, #light{type=point}=L, We) ->
     {X,Y,Z} = light_pos(We),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 180.0),
     setup_color(Lnum, L),
-    setup_attenuation(Lnum, L);
-setup_light(Lnum, #light{type=spot,aim=Aim,spot_angle=Angle,spot_exp=Exp}=L, We) ->
+    setup_attenuation(Lnum, L),
+    gl:enable(Lnum),
+    Lnum+1;
+setup_light(Lnum, #light{type=spot,aim=Aim,spot_angle=Angle,spot_exp=Exp}=L, 
+	    We) ->
     Pos = {X,Y,Z} = light_pos(We),
     Dir = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
@@ -757,7 +788,23 @@ setup_light(Lnum, #light{type=spot,aim=Aim,spot_angle=Angle,spot_exp=Exp}=L, We)
     gl:lightf(Lnum, ?GL_SPOT_EXPONENT, Exp),
     gl:lightfv(Lnum, ?GL_SPOT_DIRECTION, Dir),
     setup_color(Lnum, L),
-    setup_attenuation(Lnum, L).
+    setup_attenuation(Lnum, L),
+    gl:enable(Lnum),
+    Lnum+1;
+setup_light(Lnum, #light{type=area}=L, We) ->
+    setup_arealights(Lnum, L, arealight_posdirs(We)).
+
+setup_arealights(Lnum, #light{type=area}=L, [{{X,Y,Z},Dir}|PosDirs]) ->
+    gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
+    gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 90.0),
+    gl:lightf(Lnum, ?GL_SPOT_EXPONENT, 1.0),
+    gl:lightfv(Lnum, ?GL_SPOT_DIRECTION, Dir),
+    setup_color(Lnum, L),
+    setup_attenuation(Lnum, L),
+    gl:enable(Lnum),
+    setup_arealights(Lnum+1, L, PosDirs);
+setup_arealights(Lnum, #light{type=area}, []) ->
+    Lnum.
 
 setup_color(Lnum, #light{diffuse=Diff,ambient=Amb,specular=Spec}) ->
     gl:lightfv(Lnum, ?GL_DIFFUSE, Diff),
@@ -768,10 +815,47 @@ setup_attenuation(Lnum, #light{lin_att=Lin,quad_att=Quad}) ->
     gl:lightf(Lnum, ?GL_LINEAR_ATTENUATION, Lin),
     gl:lightf(Lnum, ?GL_QUADRATIC_ATTENUATION, Quad).
 
+light_pos(#we{light=#light{type=area}}=We) ->
+    case arealight_posdirs(We) of
+	[] -> ?DEF_POS;
+	[{Pos,_}|_] -> Pos
+    end;
 light_pos(#we{vp=Vtab}) ->
     gb_trees:get(1, Vtab).
+
+arealight_posdirs(#we{fs=Fs,light=#light{type=area}}=We) ->
+    arealight_posdirs_1(gb_trees:keys(Fs), We).
+
+arealight_posdirs_1([F|Fs], We) ->
+    case wings_material:get(F, We) of
+	'_hole_' -> arealight_posdirs_1(Fs, We);
+	_ -> 
+	    Center = wings_face:center(F, We),
+	    Normal = case wings_face:good_normal(F, We) of
+			 true -> 
+			     wings_face:normal(F, We);
+			 false ->
+			     %% Just to have a fallback
+			     e3d_vec:norm(e3d_vec:sub({0.0,0.0,0.0}, ?DEF_POS))
+		     end,
+	    [{Center,Normal}|arealight_posdirs_1(Fs, We)]
+    end;
+arealight_posdirs_1([], _We) -> [].
+	    
 
 move_light(Pos, #we{vp=Vtab0}=We) ->
     Vtab1 = [{V,Pos} || V <- gb_trees:keys(Vtab0)],
     Vtab = gb_trees:from_orddict(Vtab1),
     We#we{vp=Vtab}.
+
+shape_materials(#light{diffuse=Color}, St) ->
+    Black = {0.0,0.0,0.0,1.0},
+    Default = 
+	sort([{opengl,sort([{diffuse,Black},{ambient,Black},{specular,Black},
+			    {emission,Color},{shininess,0.0}])},
+	      {maps,[]}]),
+    Hole = 
+	 sort([{opengl,sort([{diffuse,Black},{ambient,Black},{specular,Black},
+			     {emission,Black},{shininess,0.0}])},
+	       {maps,[]}]),
+    wings_material:update_materials([{default,Default},{'_hole_',Hole}], St).

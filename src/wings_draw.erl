@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.165 2004/03/04 16:30:58 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.166 2004/03/08 11:10:41 raimo_niskanen Exp $
 %%
 
 -module(wings_draw).
@@ -115,8 +115,7 @@ invalidate_by_mat(#dlo{src_we=We}=D, Changed) ->
 
 empty_we(We) ->
     Et = gb_trees:empty(),
-    We#we{es=Et,fs=Et,vc=Et,vp=Et,he=gb_sets:empty(),mat=default,
-	  mirror=none,light=none}.
+    We#we{es=Et,fs=Et,vc=Et,vp=Et,he=gb_sets:empty()}.
 
 sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
     case SrcSel of
@@ -230,7 +229,8 @@ do_update_dlists_3(CommonNeed, St) ->
 				update_fun(D, N, St)
 			end, Need).
 
-need_fun(#dlo{src_we=We}, _, _, Acc) when ?IS_LIGHT(We) ->
+need_fun(#dlo{src_we=#we{perm=Perm}=We}, _, _, Acc) 
+  when ?IS_LIGHT(We), ?IS_VISIBLE(Perm) ->
     [[light]|Acc];
 need_fun(#dlo{src_we=#we{he=Htab},proxy_data=Pd}, Need0, _St, Acc) ->
     Need1 = case gb_sets:is_empty(Htab) orelse not wings_pref:get_value(show_edges) of
@@ -259,6 +259,10 @@ update_fun(D0, [P|Ps], St) ->
     {D,Ps};
 update_fun(D, [], _) -> D.
 
+update_fun_1(#dlo{src_we=#we{light=Light}=We}=D0, [H|T], St) 
+  when ?IS_ANY_LIGHT(We), ?HAS_SHAPE(We) ->
+    D = update_fun_2(H, D0, wings_light:shape_materials(Light, St)),
+    update_fun_1(D, T, St);
 update_fun_1(D0, [H|T], St) ->
     D = update_fun_2(H, D0, St),
     update_fun_1(D, T, St);

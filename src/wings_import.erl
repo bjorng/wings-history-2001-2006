@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.15 2003/11/03 22:56:58 dgud Exp $
+%%     $Id: wings_import.erl,v 1.16 2004/03/08 11:10:41 raimo_niskanen Exp $
 %%
 
 -module(wings_import).
--export([import/2]).
+-export([import/2,import_mesh/2]).
 
 -include("e3d.hrl").
 -include("wings.hrl").
@@ -51,6 +51,9 @@ store_object(Name, We, St) ->
 import_object(#e3d_object{obj=Mesh0}) ->
     Mesh1 = e3d_mesh:clean_faces(Mesh0),
     {Mesh,ObjType} = prepare_mesh(Mesh1),
+    import_mesh(Mesh, ObjType).
+
+import_mesh(Mesh, ObjType) ->
     case catch wings_we:build(ObjType, Mesh) of
 	{'EXIT',_R} ->
 	    %% The mesh needs cleaning up. Unfortunately,
@@ -60,7 +63,7 @@ import_object(#e3d_object{obj=Mesh0}) ->
     end.
 
 import_1([Mesh|T], ObjType, Acc) ->
-    case import_mesh(Mesh, ObjType) of
+    case import_mesh_1(Mesh, ObjType) of
 	error -> import_1(T, ObjType, Acc);
 	[_|_]=Wes -> import_1(T, ObjType, Wes++Acc);
 	We -> import_1(T, ObjType, [We|Acc])
@@ -75,7 +78,7 @@ prepare_mesh(Mesh0) ->
     Mesh = e3d_mesh:transform(Mesh1),
     {Mesh,material}.
 
-import_mesh(Mesh, ObjType) ->
+import_mesh_1(Mesh, ObjType) ->
     case catch wings_we:build(ObjType, Mesh) of
 	{'EXIT',_R} ->
 	    build_1(ObjType, Mesh);
