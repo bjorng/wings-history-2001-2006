@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.144 2003/06/09 18:20:18 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.145 2003/06/19 09:31:45 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -281,7 +281,10 @@ zmove_help() ->
 
 get_drag_event(#drag{st=St}=Drag) ->
     clear_sel_dlists(),
-    wings_draw:update_sel_dlist(),
+    case wings_pref:get_value(hide_sel_while_dragging) of
+	true -> ok;
+	false -> wings_draw:update_sel_dlist()
+    end,
     wings_wm:current_state(St),
     wings_wm:dirty(),
     get_drag_event_1(Drag).

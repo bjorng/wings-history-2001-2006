@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.86 2003/06/12 11:40:49 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.87 2003/06/19 09:31:45 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -117,10 +117,12 @@ command(prefs, _St) ->
 	      {"Smart Highlighting",smart_highlighting}],
 	     [{title,"Highlighting"}]},
 	    {vframe,
-	     [{menu,[{"Solid",solid},
-		     {"Stippled",stippled}],
-	       selection_style}],
-	     [{title,"Face Selection Style"}]}]},
+	     [{menu,[{"Solid Face Selections",solid},
+		     {"Stippled Face Selections",stippled}],
+	       selection_style},
+	      {"Hide Selection While Dragging",hide_sel_while_dragging}
+	     ],
+	     [{title,"Selection Options"}]}]},
 	  {hframe,
 	   [{vframe,
 	     [{label_column,
@@ -399,6 +401,7 @@ defaults() ->
      {smart_highlighting,false},
 
      {selection_style,solid},
+     {hide_sel_while_dragging,false},
 
      %% Compatibility preferences.
      {display_list_opt,true},
