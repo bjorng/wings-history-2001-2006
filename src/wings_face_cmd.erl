@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.105 2004/05/09 07:02:46 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.106 2004/05/09 14:29:53 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -1239,37 +1239,28 @@ set_color_1([], _, We) -> We.
 %%  between one face in the set and one outside.
 
 outer_edge_partition(Faces, We) when is_list(Faces) ->
-    collect_outer_edges(Faces, gb_sets:from_list(Faces), We, []);
+    collect_outer_edges(Faces, gb_sets:from_list(Faces), We);
 outer_edge_partition(Faces, We) ->
-    collect_outer_edges(gb_sets:to_list(Faces), Faces, We, []).
+    collect_outer_edges(gb_sets:to_list(Faces), Faces, We).
 
-collect_outer_edges([Face|Fs], Faces, We, Acc0) ->
-    Acc = wings_face:fold(
-	    fun(_, E, Erec, A) ->
-		    outer_edge(E, Erec, Face, Faces, A)
-	    end, Acc0, Face, We),
-    collect_outer_edges(Fs, Faces, We, Acc);
-collect_outer_edges([], Faces, We, Acc) ->
-    R = sofs:relation(Acc),
-    F0 = sofs:relation_to_family(R),
-    F = gb_trees:from_orddict(sofs:to_external(F0)),
+collect_outer_edges(Fs, Faces, We) ->
+    F0 = wings_face:fold_faces(
+	   fun(Face, _, Edge, #edge{vs=V,ve=OtherV,lf=Face,rf=Other}, Acc) ->
+		   case gb_sets:is_member(Other, Faces) of
+		       false -> [{V,{Edge,V,OtherV}}|Acc];
+		       true -> Acc
+		   end;
+	      (Face, _, Edge, #edge{vs=OtherV,ve=V,rf=Face,lf=Other}, Acc) ->
+		   case gb_sets:is_member(Other, Faces) of
+		       false -> [{V,{Edge,V,OtherV}}|Acc];
+		       true -> Acc
+		   end
+	   end, [], Fs, We),
+    F = gb_trees:from_orddict(wings_util:rel2fam(F0)),
     partition_edges(F, Faces, We, []).
 
-outer_edge(Edge, Erec, Face, Faces, Acc) ->
-    {V,OtherV,OtherFace} =
-	case Erec of
-	    #edge{vs=Vs,ve=Ve,lf=Face,rf=Other0} ->
-		{Vs,Ve,Other0};
-	    #edge{vs=Vs,ve=Ve,rf=Face,lf=Other0} ->
-		{Ve,Vs,Other0}
-	end,
-    case gb_sets:is_member(OtherFace, Faces) of
-	true -> Acc;
-	false -> [{V,{Edge,V,OtherV}}|Acc]
-    end.
-
 partition_edges(Es0, Faces, We, Acc) ->
-    case gb_sets:is_empty(Es0) of
+    case gb_trees:is_empty(Es0) of
 	true -> Acc;
 	false ->
 	    {Key,Val,Es1} = gb_trees:take_smallest(Es0),
