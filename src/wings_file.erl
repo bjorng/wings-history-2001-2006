@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.57 2002/04/08 08:08:32 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.58 2002/04/14 18:46:57 bjorng Exp $
 %%
 
 -module(wings_file).
--export([init/0,finish/0,menu/3,command/2,export/3,import/3]).
+-export([init/0,finish/0,menu/3,command/2,
+	 export/3,export_filename/2,import/3]).
 
 -include("e3d.hrl").
 -include("wings.hrl").
@@ -53,6 +54,8 @@ menu(X, Y, St) ->
 	    {"Import",{import,[{"Nendo (.ndo)",ndo}]}},
 	    {"Export",{export,ExpFormats}},
 	    {"Export Selected",{export_selected,ExpFormats}},
+	    separator,
+	    {"Render",{render,[]}},
 	    separator|recent_files([{"Exit",quit}])],
     wings_menu:menu(X, Y, file, Menu, St).
 
@@ -391,12 +394,25 @@ import_ndo(St0) ->
 %% Export.
 %%
 
-export(Prop, Exporter, St) ->
+export_filename(Prop, St) ->
     case output_file(export, export_file_prop(Prop, St)) of
 	aborted -> ok;
 	Name ->
 	    wings_getline:set_cwd(dirname(Name)),
-	    ?SLOW(do_export(Exporter, Name, St))
+	    Name
+    end.
+
+export(Props0, Exporter, St) ->
+    case export_file_prop(Props0, St) of
+	none ->
+	    ?SLOW(do_export(Exporter, none, St));
+	Props ->
+	    case output_file(export, Props) of
+		aborted -> ok;
+		Name ->
+		    wings_getline:set_cwd(dirname(Name)),
+		    ?SLOW(do_export(Exporter, Name, St))
+	    end
     end.
 
 export_ndo(St) ->
@@ -410,6 +426,7 @@ export_ndo(St) ->
 
 %%% Utilities.
 
+export_file_prop(none, _) -> none;
 export_file_prop(Prop, #st{file=undefined}) -> Prop;
 export_file_prop(Prop, #st{file=File}) ->
     Ext = property_lists:get_value(ext, Prop),

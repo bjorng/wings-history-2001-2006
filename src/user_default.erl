@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.7 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: user_default.erl,v 1.8 2002/04/14 18:46:57 bjorng Exp $
 %% 
 
 -module(user_default).
@@ -62,7 +62,7 @@ wcp(Mod, Kind) when is_atom(Mod), is_atom(Kind) ->
 wcp(Mod, Kind) ->
     File = filename:join(filename:join("plugins_src", Kind), Mod),
     Outdir = filename:join("plugins",Kind),
-    c:c(File, [{outdir,Outdir},report]).
+    c:c(File, [{outdir,Outdir},report|basic_opts()]).
 
 wtar() ->
     tar().

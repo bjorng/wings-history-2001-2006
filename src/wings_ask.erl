@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.17 2002/04/12 06:53:36 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.18 2002/04/14 18:46:57 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -367,6 +367,8 @@ normalize({color,Def,Flags}, Fi) ->
     normalize_field(color(Def), Flags, Fi);
 normalize({alt,VarDef,Prompt,Val}, Fi) ->
     normalize_field(radiobutton(VarDef, Prompt, Val), [], Fi);
+normalize({key_alt,{Key,_}=VarDef,Prompt,Val}, Fi) ->
+    normalize_field(radiobutton(VarDef, Prompt, Val), [{key,Key}], Fi);
 normalize({button,Action}, Fi) ->
     Label = button_label(Action),
     normalize_field(button(Label, Action), [], Fi);

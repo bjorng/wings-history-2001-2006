@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.18 2002/03/02 21:28:15 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.19 2002/04/14 18:46:57 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -29,12 +29,12 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Cube",cube},
 	    separator,
-	    {"Cylinder",cylinder,[],[hotbox]},
-	    {"Cone",cone,[],[hotbox]},
-	    {"Sphere",sphere,[],[hotbox]},
-	    {"Torus",torus,[],[hotbox]},
+	    {"Cylinder",cylinder,[],[option]},
+	    {"Cone",cone,[],[option]},
+	    {"Sphere",sphere,[],[option]},
+	    {"Torus",torus,[],[option]},
 	    separator,
-	    {"Grid",grid,[],[hotbox]}],
+	    {"Grid",grid,[],[option]}],
     wings_menu:popup_menu(X, Y, shape, Menu, St).
 
 command(tetrahedron, St) -> tetrahedron(St);
