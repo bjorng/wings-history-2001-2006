@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.7 2002/07/28 12:31:19 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.8 2002/07/29 20:20:28 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -281,6 +281,11 @@ render_redraw_2(#dlo{smooth=Dlist,transparent=Trans}, RenderTrans) ->
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:enable(?GL_CULL_FACE),
+
+    case Trans of
+	false -> gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_FALSE);
+	true -> gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE)
+    end,
 
     case RenderTrans of
 	true ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.34 2002/07/28 17:11:23 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.35 2002/07/29 20:20:28 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -172,7 +172,8 @@ fold(Fun, Acc) ->
 render(#st{selmode=Mode}=St) ->
     gl:pushAttrib(?GL_CURRENT_BIT bor ?GL_ENABLE_BIT bor
 		  ?GL_TEXTURE_BIT bor ?GL_POLYGON_BIT bor
-		  ?GL_LINE_BIT bor ?GL_COLOR_BUFFER_BIT),
+		  ?GL_LINE_BIT bor ?GL_COLOR_BUFFER_BIT bor
+		  ?GL_LIGHTING_BIT),
     gl:enable(?GL_DEPTH_TEST),
     gl:enable(?GL_CULL_FACE),
     wings_view:projection(),
@@ -278,12 +279,18 @@ render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
     draw_hard_edges(D),
     draw_normals(D).
 
-render_smooth(#dlo{work=Work,smooth=Smooth}=D, RenderTrans) ->
+render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans}=D, RenderTrans) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(2.0, 2.0),
+
+    case Trans of
+	false -> gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_FALSE);
+	true -> gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE)
+    end,
+
     case RenderTrans of
 	true ->
 	    gl:enable(?GL_BLEND),
@@ -293,12 +300,14 @@ render_smooth(#dlo{work=Work,smooth=Smooth}=D, RenderTrans) ->
 	    gl:disable(?GL_BLEND),
 	    gl:depthMask(?GL_TRUE)
     end,
+
     case {Smooth,RenderTrans} of
 	{none,false} -> call(Work);
 	{[Op,_],false} -> call(Op);
 	{[_,Tr],true} -> call(Tr);
 	{_,_} -> ok
     end,
+
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:depthMask(?GL_TRUE),
     draw_edges(D).

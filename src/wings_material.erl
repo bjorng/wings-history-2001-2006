@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.44 2002/07/28 17:39:09 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.45 2002/07/29 20:20:28 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -194,12 +194,12 @@ new_name(Name0, Tab, I) ->
 apply_material(Name, Mtab) when is_atom(Name) ->
     Mat = gb_trees:get(Name, Mtab),
     OpenGL = prop_get(opengl, Mat),
-    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, prop_get(diffuse, OpenGL)), 
-    gl:materialfv(?GL_FRONT, ?GL_AMBIENT, prop_get(ambient, OpenGL)),
-    gl:materialfv(?GL_FRONT, ?GL_SPECULAR, prop_get(specular, OpenGL)),
+    gl:materialfv(?GL_FRONT_AND_BACK, ?GL_DIFFUSE, prop_get(diffuse, OpenGL)), 
+    gl:materialfv(?GL_FRONT_AND_BACK, ?GL_AMBIENT, prop_get(ambient, OpenGL)),
+    gl:materialfv(?GL_FRONT_AND_BACK, ?GL_SPECULAR, prop_get(specular, OpenGL)),
     Shine = prop_get(shininess, OpenGL)*128,
-    gl:materialfv(?GL_FRONT, ?GL_SHININESS, Shine),
-    gl:materialfv(?GL_FRONT, ?GL_EMISSION, prop_get(emission, OpenGL)),
+    gl:materialfv(?GL_FRONT_AND_BACK, ?GL_SHININESS, Shine),
+    gl:materialfv(?GL_FRONT_AND_BACK, ?GL_EMISSION, prop_get(emission, OpenGL)),
     Maps = prop_get(maps, Mat, []),
     case prop_get(diffuse, Maps, none) of
 	none -> gl:disable(?GL_TEXTURE_2D);
