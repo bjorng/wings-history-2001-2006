@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.70 2002/11/23 09:04:10 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.71 2002/11/23 09:05:52 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -177,14 +177,11 @@ get_icon_restriction() ->
 update(St) ->
     #io{w=W,h=H} = Io = get_state(),
     setup_for_drawing(W, H),
-    update_1(Io, St),
-    cleanup_after_drawing(),
-    ok.
-
-update_1(#io{h=H}=Io, St) ->
     draw_icons(Io, St),
     draw_panes(Io),
-    maybe_show_mem_used(H).
+    maybe_show_mem_used(H),
+    cleanup_after_drawing(),
+    ok.
 
 maybe_show_mem_used(H) ->
     case wings_pref:get_value(show_memory_used) of
