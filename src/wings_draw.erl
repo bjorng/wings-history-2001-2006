@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.158 2003/10/26 06:04:58 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.159 2003/10/27 17:04:49 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -202,7 +202,7 @@ do_update_dlists_1(Need, St) ->
     end.
 
 do_update_dlists_2(Need0, St) ->
-    Geom = wings_util:geom_windows(),
+    Geom = wins_of_same_class(),
     Need1 = foldl(fun(W, A) ->
 			  case wings_wm:get_prop(W, workmode) of
 			      false -> [smooth|A];
@@ -246,6 +246,12 @@ need_fun(#dlo{src_we=#we{he=Htab,mode=Mode},proxy_data=Pd}, Need0, _St, Acc) ->
 	       true -> Need2
 	   end,
     [Need|Acc].
+
+wins_of_same_class() ->
+    case wings_wm:get_prop(display_lists) of
+	geom_display_lists -> wings_util:geom_windows();
+	_ -> [wings_wm:this()]
+    end.
 
 %%
 %% Pass 2 starts here.
