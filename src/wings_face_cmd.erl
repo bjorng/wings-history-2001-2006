@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.25 2002/01/12 16:29:29 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.26 2002/01/13 11:11:11 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
--export([bevel_faces/1,extrude/2,extrude_region/2,extract_region/2,
+-export([extrude/2,extrude_region/2,extract_region/2,
 	 inset/1,dissolve/1,smooth/1,bridge/1,
 	 intrude/1,mirror/1,flatten/2,bump/1]).
 -export([outer_edge_partition/2]).
@@ -128,126 +128,6 @@ bump_vectors([V|Vs], VsSet, #we{vs=Vtab}=We, Acc0) ->
     bump_vectors(Vs, VsSet, We, Acc);
 bump_vectors([], VsSet, We, Acc) -> Acc.
 	    
-%%%
-%%% The Bevel command.
-%%%
-
-bevel_faces(St0) ->
-    {St,OrigVs} = wings_sel:mapfold(fun bevel_faces/3, [], St0),
-    wings_scale:bevel_face(sort(OrigVs), St).
-
-bevel_faces(Faces, We, Acc) ->
-    Rs = wings_sel:face_regions(Faces, We),
-    bevel_faces_1(Rs, We, Acc).
-
-bevel_faces_1([Faces|T], #we{id=Id}=We0, Acc) ->
-    DisEdges = wings_face:inner_edges(Faces, We0),
-    OrigVs = wings_face:to_vertices(Faces, We0),
-    MoveEdges = bevel_move_edges(Faces, We0),
-    We1 = wings_extrude_face:faces(Faces, We0),
-    NewVs = wings_we:new_items(vertex, We0, We1),
-    We2 = dissolve_edges(DisEdges, We1),
-    We3 = bevel_connect(OrigVs, NewVs, We2),
-    We = dissolve_more_edges(OrigVs, NewVs, We3),
-    bevel_faces_1(T, We, [{Id,MoveEdges}|Acc]);
-bevel_faces_1([], We, Acc) -> {We,Acc}.
-
-%% XXX Experimental start of a better version. To be completed when
-%% there is more time.
-% bevel_faces_1([Faces|T], #we{id=Id}=We0, Acc) ->
-%     OrigEdges = wings_edge:from_faces(Faces, We0),
-%     DisEdges = wings_face:inner_edges(Faces, We0),
-%     OrigVs = wings_face:to_vertices(Faces, We0),
-%     io:format("~w\n", [OrigVs]),
-%     %%MoveEdges = bevel_move_edges(Faces, We0),
-%     MoveEdges = [],
-%     We1 = wings_extrude_face:faces(Faces, We0),
-%     NewVs0 = wings_we:new_items(vertex, We0, We1),
-%     We2 = dissolve_edges(DisEdges, We1),
-%     {We3,NewVs1} = cut_edges(OrigVs, OrigEdges, We0, We2),
-%     NewVs = gb_sets:union(NewVs0, gb_sets:from_list(NewVs1)),
-%     We4 = bevel_connect(OrigVs, NewVs, We3),
-%     We = We4,
-%     %%We = dissolve_more_edges(OrigVs, NewVs, We4),
-%     bevel_faces_1(T, We, [{Id,MoveEdges}|Acc]);
-% bevel_faces_1([], We, Acc) -> {We,Acc}.
-
-% cut_edges(Vs, OrigEdges, #we{es=OldEtab}, We) ->
-%     foldl(fun(V, A) ->
-% 		  cut_edges_1(V, OrigEdges, OldEtab, A)
-% 	  end, {We,[]}, Vs).
-
-% cut_edges_1(V, OrigEdges, OldEtab, {We,_}=Acc) ->
-%     wings_vertex:fold(
-%       fun(Edge, _, Rec, {W0,VsAcc}=A) ->
-% 	      case gb_trees:is_defined(Edge, OldEtab) andalso
-% 		  not gb_sets:is_member(Edge, OrigEdges) of
-% 		  false -> A;
-% 		  true ->
-% 		      {W,NewV} = wings_edge:fast_cut(Edge, default, W0),
-% 		      {W,[NewV|VsAcc]}
-% 	      end
-%       end, Acc, V, We).
-
-bevel_connect(Vs, NewVs, We) ->
-    foldl(fun(V, A) -> bevel_connect_1(V, NewVs, A) end, We, Vs).
-
-bevel_connect_1(V, NewVs, We) ->
-    Vs = wings_vertex:fold(
-	  fun(Edge, _, Rec, A) ->
-		  OtherV = wings_vertex:other(V, Rec),
-		  case gb_sets:is_member(OtherV, NewVs) of
-		      false -> A;
-		      true ->
-			  wings_vertex:fold(
-			    fun(_, Face, _, A1) ->
-				    [{Face,OtherV}|A1]
-			    end, A, OtherV, We)
-		  end
-	  end, [], V, We),
-    R = sofs:relation(Vs),
-    Family = sofs:relation_to_family(R),
-    foldl(fun ({Face,[_]}, A) -> A;
-	      ({Face,[Vstart,Vend]}, A0) ->
-		  {A,_} = wings_vertex:force_connect(Vstart, Vend, Face, A0),
-		  A
-	  end, We, sofs:to_external(Family)).
-
-dissolve_edges(Edges, We0) ->
-    foldl(fun(E, W) -> wings_edge:dissolve_edge(E, W) end, We0, Edges).
-
-dissolve_more_edges(Vs, NewVs, We) ->
-    foldl(fun(V, A) -> dissolve_more_edges_1(V, NewVs, A) end, We, Vs).
-
-dissolve_more_edges_1(V, NewVs, We) ->
-    Dis = wings_vertex:fold(
-	    fun (Edge, Face, #edge{lf=Lf,rf=Rf}=Rec, A) ->
-		    OtherV = wings_vertex:other(V, Rec),
-		    case gb_sets:is_member(OtherV, NewVs) of
-			false -> A;
-			true -> [{Lf,Edge},{Rf,Edge}|A]
-		    end
-	    end, [], V, We),
-    R = sofs:relation(Dis),
-    F0 = sofs:relation_to_family(R),
-    F = sofs:family_specification(fun(L) ->
-					   sofs:no_elements(L) =:= 2
-				   end, F0),
-    Fs = sofs:to_external(sofs:domain(F)),
-    Inner = wings_face:inner_edges(Fs, We),
-    dissolve_edges(Inner, We).
-
-bevel_move_edges(Faces, We) ->
-    R0 = wings_face:fold_faces(
-	   fun(F, _, E, _, A) ->
-		   [{F,E}|A]
-	   end, [], Faces, We),
-    R = sofs:relation(R0),
-    P = sofs:partition(2, R),
-    M = sofs:specification(fun(L) -> sofs:no_elements(L) =:= 1 end, P),
-    U = sofs:union(M),
-    sofs:to_external(sofs:relation_to_family(U)).
-
 %%%
 %%% The Extract Region command.
 %%%

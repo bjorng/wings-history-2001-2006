@@ -8,14 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.24 2002/01/10 13:53:24 dgud Exp $
+%%     $Id: wings_util.erl,v 1.25 2002/01/13 11:11:11 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([share/1,share/3,make_vector/1,
 	 message/1,yes_no/1,serious_yes_no/1,ask/3,
 	 cap/1,upper/1,add_vpos/2,update_vpos/2,
-	 average_normals/1,
 	 delete_any/2,
 	 tc/1,crash_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
@@ -89,33 +88,11 @@ update_vpos(Vs, Vtab) ->
 		  [{V,gb_trees:get(V, Vtab)}|A]
 	  end, [], reverse(Vs)).
 
-average_normals(Vs) ->
-    R = sofs:relation(Vs),
-    F = sofs:relation_to_family(R),
-    foldl(fun average_normals/2, [], sofs:to_external(F)).
-
-average_normals({V,Normals}, Acc) ->
-    Normal = average_normals_1(Normals),
-    [{Normal,[V]}|Acc].
-
 delete_any(K, S) ->
     case gb_sets:is_member(K, S) of
 	true -> gb_sets:delete(K, S);
 	false -> S
     end.
-
-%% average_normals(Normals) -> Normal
-%%  Average normals taking the angle between them into account.
-%%  XXX Not the proper way.
-average_normals_1([N|Ns]) ->
-    average_normals_2(Ns, N).
-
-average_normals_2([N0|Ns], Sum0) ->
-    Sum1 = e3d_vec:add(N0, e3d_vec:norm(Sum0)),
-    Dot = e3d_vec:dot(N0, Sum1),
-    Sum = e3d_vec:add(e3d_vec:divide(N0, Dot), Sum0),
-    average_normals_2(Ns, Sum);
-average_normals_2([], Sum) -> Sum.
 
 %%
 %% Timing.

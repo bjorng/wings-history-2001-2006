@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.84 2002/01/10 09:22:48 bjorng Exp $
+%%     $Id: wings.erl,v 1.85 2002/01/13 11:11:11 bjorng Exp $
 %%
 
 -module(wings).
@@ -359,15 +359,15 @@ command({face,{extrude_region,Type}}, St) ->
 command({face,{extract_region,Type}}, St) ->
     wings_face_cmd:extract_region(Type, St);
 command({face,bump}, St) ->
-    wings_face_cmd:bump(St);
+    ?SLOW(wings_face_cmd:bump(St));
 command({face,{flatten,Plane}}, St) ->
     {save_state,model_changed(wings_face_cmd:flatten(Plane, St))};
 command({face,bevel}, St) ->
-    wings_face_cmd:bevel_faces(St);
+    ?SLOW(wings_extrude_edge:bevel_faces(St));
 command({face,inset}, St) ->
-    wings_face_cmd:inset(St);
+    ?SLOW(wings_face_cmd:inset(St));
 command({face,mirror}, St) ->
-    {save_state,model_changed(wings_face_cmd:mirror(St))};
+    ?SLOW({save_state,model_changed(wings_face_cmd:mirror(St))});
 command({face,intrude}, St) ->
     ?SLOW(wings_face_cmd:intrude(St));
 command({face,dissolve}, St) ->
@@ -381,9 +381,9 @@ command({face,smooth}, St) ->
     
 %% Edge commands.
 command({edge,bevel}, St) ->
-    wings_extrude_edge:bevel(St);
+    ?SLOW(wings_extrude_edge:bevel(St));
 command({edge,{extrude,Type}}, St) ->
-    wings_extrude_edge:extrude(Type, St);
+    ?SLOW(wings_extrude_edge:extrude(Type, St));
 command({edge,{cut,Num}}, St) ->
     {save_state,model_changed(wings_edge:cut(Num, St))};
 command({edge,connect}, St) ->
@@ -393,7 +393,7 @@ command({edge,dissolve}, St) ->
 command({edge,{hardness,Type}}, St) ->
     {save_state,model_changed(wings_edge:hardness(Type, St))};
 command({edge,loop_cut}, St) ->
-    {save_state,model_changed(wings_edge:loop_cut(St))};
+    ?SLOW({save_state,model_changed(wings_edge:loop_cut(St))});
 
 %% Vertex menu.
 command({vertex,{flatten,Plane}}, St) ->
@@ -403,15 +403,15 @@ command({vertex,connect}, St) ->
 command({vertex,tighten}, St) ->
     wings_vertex_cmd:tighten(St);
 command({vertex,bevel}, St) ->
-    wings_vertex_cmd:bevel(St);
+    ?SLOW(wings_vertex_cmd:bevel(St));
 command({vertex,{extrude,Type}}, St) ->
-    wings_vertex_cmd:extrude(Type, St);
+    ?SLOW(wings_vertex_cmd:extrude(Type, St));
 command({vertex,{deform,Deform}}, St0) ->
-    wings_deform:command(Deform, St0);
+    ?SLOW(wings_deform:command(Deform, St0));
 
 %% Magnetic commands.
 command({vertex,{magnet,Magnet}}, St) ->
-    wings_magnet:command(Magnet, St);
+    ?SLOW(wings_magnet:command(Magnet, St));
 
 %% Tools menu.
 

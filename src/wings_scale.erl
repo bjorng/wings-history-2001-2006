@@ -9,11 +9,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.19 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.20 2002/01/13 11:11:11 bjorng Exp $
 %%
 
 -module(wings_scale).
--export([setup/2,bevel_face/2,inset/1]).
+-export([setup/2,inset/1]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3]).
@@ -46,17 +46,6 @@ setup(Type, #st{selmode=body}=St) ->
 
 init_drag(Tvs, St) ->
     wings_drag:init_drag(Tvs, {-1.0,?HUGE}, percent, St).
-
-bevel_face(MoveEdges, St) ->
-    Tvs0 = wings_sel:fold(
-	     fun(Faces, #we{id=Id}=We, Acc) ->
-		     [{Id,inset(Faces, We)}|Acc]
-	     end, [], St),
-    Tvs = wings_sel:fold(
-	    fun(Mes, #we{id=Id}=We, Acc) ->
-		    [{Id,bevel_move(Mes, We)}|Acc]
-	    end, Tvs0, St#st{sel=MoveEdges}),
-    wings_drag:init_drag(Tvs, {0,1}, percent, St).
 
 inset(St) ->
     Tvs = wings_sel:fold(
@@ -112,20 +101,6 @@ average_vectors({V,[VecA,VecB]=Vecs}, Acc) ->
   	e3d_vec:len(VecA) / e3d_vec:len(VecB),
     Vec = e3d_vec:divide(e3d_vec:add(VecA, VecB), (1+Dot)),
     [{Vec,[V]}|Acc].
-
-bevel_move(MoveEdges, We) ->
-    Vs = foldl(fun({Face,Es}, A) ->
-		       bevel_move_1(Face, Es, We, A)
-	       end, [], MoveEdges),
-    wings_util:average_normals(Vs).
-
-bevel_move_1(Face, Es, #we{es=Etab}=We, Acc) ->
-    Normal0 = wings_face:normal(Face, We),
-    Normal = e3d_vec:neg(Normal0),
-    foldl(fun(Edge, A) ->
-		  #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-		  [{Va,Normal},{Vb,Normal}|A]
-	  end, Acc, Es).
 
 %%
 %% Conversion of edge selections to vertices.

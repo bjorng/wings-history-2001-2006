@@ -8,14 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.13 2002/01/12 10:31:51 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.14 2002/01/13 11:11:11 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
--export([bevel/1,extrude/2]).
+-export([bevel/1,bevel_faces/1,extrude/2]).
+
+-export([extrude_edges/2]).
 
 -include("wings.hrl").
--import(lists, [foldl/3,keydelete/3,member/2,
+-import(lists, [foldl/3,keydelete/3,member/2,sort/1,
 		reverse/1,reverse/2,last/1,foreach/2]).
 
 -define(EXTRUDE_DIST, 0.2).
@@ -25,15 +27,16 @@
 %%
 
 bevel(St0) ->
-    {St,{Tvs,Sel0}} = wings_sel:mapfold(fun bevel_edges/3, {[],[]}, St0),
+    {St,{Tvs,Sel0,Limit}} =
+	wings_sel:mapfold(fun bevel_edges/3, {[],[],1.0E300}, St0),
     Sel = reverse(Sel0),
-    wings_drag:init_drag(Tvs, {0.0,1.0E200}, St#st{selmode=face,sel=Sel}).
+    wings_drag:init_drag(Tvs, {0.0,Limit}, St#st{selmode=face,sel=Sel}).
 
-bevel_edges(Edges, #we{id=Id,es=Etab,next_id=Next}=We0, {Tvs,Ss}) ->
+bevel_edges(Edges, #we{id=Id,es=Etab,next_id=Next}=We0, {Tvs,Ss,Limit0}) ->
     {We1,OrigVs} = extrude_edges(Edges, We0),
     OrigFaces = bevel_orig_faces(Edges, We1),
     We2 = wings_edge:dissolve_edges(Edges, We1),
-    Tv = bevel_tv(OrigVs, We2),
+    Tv0 = bevel_tv(OrigVs, We2),
     #we{fs=Ftab,vs=Vtab0} = We3 =
 	foldl(fun(V, W0) ->
 		      wings_collapse:collapse_vertex(V, W0)
@@ -42,7 +45,34 @@ bevel_edges(Edges, #we{id=Id,es=Etab,next_id=Next}=We0, {Tvs,Ss}) ->
     We = We3#we{vs=Vtab},
     FaceSel0 = [Face || Face <- OrigFaces, gb_trees:is_defined(Face, Ftab)],
     FaceSel = gb_sets:from_ordset(FaceSel0),
-    {We,{[{Id,Tv}|Tvs],[{Id,FaceSel}|Ss]}}.
+    {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
+    {We,{[{Id,Tv}|Tvs],[{Id,FaceSel}|Ss],Limit}}.
+
+%%
+%% The Bevel command (for faces).
+%%
+
+bevel_faces(St0) ->
+    {St,{Tvs,C}} = wings_sel:mapfold(fun bevel_faces/3, {[],1.0E300}, St0),
+    wings_drag:init_drag(Tvs, {0.0,C}, St).
+
+bevel_faces(Faces, #we{id=Id,es=Etab,next_id=Next}=We0, {Tvs,Limit0}) ->
+    Edges = wings_edge:from_faces(Faces, We0),
+    {We1,OrigVs} = wings_extrude_edge:extrude_edges(Edges, We0),
+    We2 = wings_edge:dissolve_edges(Edges, We1),
+    Tv0 = bevel_tv(OrigVs, We2),
+    #we{fs=Ftab,vs=Vtab0} = We3 =
+	foldl(fun(V, W0) ->
+		      wings_collapse:collapse_vertex(V, W0)
+	      end, We2, OrigVs),
+    Vtab = bevel_reset_pos(OrigVs, We2, Vtab0),
+    We = We3#we{vs=Vtab},
+    {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
+    {We,{[{Id,Tv}|Tvs],Limit}}.
+
+%%
+%% Common bevel utilities.
+%%
 
 bevel_tv(Vs, We) ->
     foldl(fun(V, A) -> bevel_tv_1(V, We, A) end, [], Vs).
@@ -53,7 +83,7 @@ bevel_tv_1(V, We, Acc) ->
       fun(Face, Edge, Rec, Tv0) ->
 	      OtherV = wings_vertex:other(V, Rec),
 	      Pos = wings_vertex:pos(OtherV, We),
-	      Vec = e3d_vec:divide(e3d_vec:sub(Pos, Center), ?EXTRUDE_DIST),
+	      Vec = e3d_vec:norm(e3d_vec:sub(Pos, Center)),
 	      [{Vec,[OtherV]}|Tv0]
       end, Acc, V, We).
 
@@ -75,6 +105,59 @@ bevel_orig_faces(Edges, #we{es=Etab}=We0) ->
 			  [Lf,Rf|A]
 		  end, [], gb_sets:to_list(Edges)),
     ordsets:from_list(Faces).
+
+bevel_limit(Tv0, We, Limit0) ->
+    {Tv,L0} = foldl(fun({Vec,[V]}, A) ->
+			    bevel_limit_1(V, Vec, We, A)
+		    end, {[],[]}, Tv0),
+    L1 = sofs:relation(L0, [{edge,data}]),
+    L2 = sofs:relation_to_family(L1),
+    L3 = sofs:range(L2),
+    L = sofs:to_external(L3),
+    Limit = bevel_min_limit(L, Limit0),
+    {Tv,Limit}.
+
+bevel_limit_1(V, Vec, #we{vs=Vtab}=We, Acc) ->
+    Pos = wings_vertex:pos(V, Vtab),
+    L = wings_vertex:fold(
+	  fun(_, _, Rec, A) ->
+		  OtherV = wings_vertex:other(V, Rec),
+		  OtherPos = wings_vertex:pos(OtherV, Vtab),
+		  Evec = e3d_vec:norm(e3d_vec:sub(OtherPos, Pos)),
+		  Dot = e3d_vec:dot(Vec, Evec),
+		  [{Dot,OtherV,OtherPos}|A]
+	  end, [], V, We),
+    bevel_limit_2(reverse(sort(L)), V, Pos, Vec, We, Acc).
+
+bevel_limit_2([{Dot,Va,Vpos}|_], V, Pos, Vec, We, {A,Lacc}) when Dot > 0.998 ->
+    Lim = e3d_vec:len(e3d_vec:sub(Pos, Vpos)),
+    Ea = edge_name(V, Va),
+    {[{Vec,[V]}|A],[{Ea,{Va,Lim}}|Lacc]};
+bevel_limit_2([{DotA,Va,Apos},{DotB,Vb,Bpos}|_], V, Pos, Vec0, We, {A,Lacc})
+  when DotA+DotB > 0.998 ->
+    Vec = e3d_vec:mul(Vec0, 1/DotA),
+    LimA = e3d_vec:len(e3d_vec:sub(Pos, Apos)),
+    LimB = e3d_vec:len(e3d_vec:sub(Pos, Bpos)),
+    Ea = edge_name(V, Va),
+    Eb = edge_name(V, Vb),
+    {[{Vec,[V]}|A],[{Ea,{Va,LimA}},{Eb,{Vb,LimB}}|Lacc]};
+bevel_limit_2(Other, V, Pos, Vec, We, {A,Lacc}) ->
+    %% Ignore - degenerated case.
+    {[{Vec,[V]}|A],Lacc}.
+
+edge_name(Va, Vb) when Va < Vb -> {Va,Vb};
+edge_name(Va, Vb) -> {Vb,Va}.
+
+bevel_min_limit([[{_,L}]|T], Min) when L > Min ->
+    bevel_min_limit(T, Min);
+bevel_min_limit([Ls|T], Min) ->
+    N = length(Ls),
+    Sum = foldl(fun({_,L}, S) -> S+L end, 0, Ls),
+    case Sum/N/N of
+	M when M < Min -> bevel_min_limit(T, M);
+	M -> bevel_min_limit(T, Min)
+    end;
+bevel_min_limit([], Min) -> Min.
 
 %%
 %% The Extrude command (for edges).
