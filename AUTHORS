@@ -15,6 +15,7 @@ Dan Gudmundsson:
 	Wrote the ESDL package that made it possible.
 	Ideas and inspiration.
 	Wrote the e3d_image modules.
+	Wrote the material editor.
 
 Vlad Dumitrescu: Bugfix for middle-mouse button emulation.
 
