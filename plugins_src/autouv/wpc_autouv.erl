@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.170 2003/12/02 12:11:18 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.171 2003/12/02 13:39:37 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -568,25 +568,6 @@ merge_texture(ImageBins,Wd,Hd,W,H,Acc) ->
 
 %%%%%%% Events handling and window redrawing 
    
-get_event(Uvs) ->
-    wings_wm:dirty(),
-    get_event_nodraw(Uvs).
-
-get_event_nodraw(Uvs) ->
-    {replace,fun(Ev) -> handle_event(Ev, Uvs) end}.
-
-redraw(#st{bb=Uvs}=St) ->
-    update_dlists(St),
-    redraw(Uvs);
-redraw(#uvstate{areas=Shs,origst=#st{mat=Mat}}=Uvs0) ->
-    St = #st{selmode=body,shapes=Shs,mat=Mat},
-    update_dlists(St),
-    wings_util:button_message("Select", [], "Show menu"),
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    setup_view(Uvs0),
-    Uvs = draw_texture(Uvs0),
-    gl:popAttrib(),
-    Uvs.
 
 command_menu(body, X,Y, _Uvs) ->
     Rotate = [{"Free", free, "Rotate freely"},
@@ -681,38 +662,63 @@ quit_menu(Uvs) ->
 
 %%% Event handling
 
-handle_event(redraw, Uvs0) ->
-    %%    ?DBG("redraw event\n"),
-    Uvs = redraw(Uvs0),
-    get_event_nodraw(Uvs);
-handle_event(init_opengl, Uvs0) ->
+get_event(#uvstate{mode=Mode,sel=Sel,areas=Shs,origst=OrigSt}=Uvs) ->
+    St = OrigSt#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs},
+    get_event(St);
+get_event(#st{}=St) ->
+    wings_wm:dirty(),
+    get_event_nodraw(St).
+
+get_event_nodraw(#uvstate{mode=Mode,sel=Sel,areas=Shs,origst=OrigSt}=Uvs) ->
+    St = OrigSt#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs},
+    get_event(St);
+get_event_nodraw(#st{}=St) ->
+    {replace,fun(Ev) -> handle_event(Ev, St) end}.
+
+redraw(#st{sel=Sel,shapes=Shs,bb=Uvs0}=St) ->
+    update_dlists(St#st{selmode=body}),
+    Uvs1 = Uvs0#uvstate{sel=Sel,areas=Shs},
+    wings_util:button_message("Select", [], "Show menu"),
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    setup_view(Uvs1),
+    Uvs = draw_texture(Uvs1),
+    gl:popAttrib(),
+    St#st{bb=Uvs}.
+
+handle_event(redraw, St0) ->
+    St = redraw(St0),
+    get_event_nodraw(St);
+handle_event(init_opengl, St) ->
+    wings:init_opengl(St),
     {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
     Geom = wingeom(W, H),
-    get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
-handle_event(resized, Uvs0) ->
+    get_event(reset_dl(update_geom(St, Geom)));
+handle_event(resized, St) ->
     {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
     Geom = wingeom(W,H),
-    get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
-handle_event({current_state,geom_display_lists,St}, Uvs) ->
+    get_event(reset_dl(update_geom(St, Geom)));
+handle_event(Ev, St) ->
+    case auv_pick:event(Ev, St) of
+	next -> handle_event_0(Ev, St);
+	Other -> Other
+    end.
+
+handle_event_0(Ev, #st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs}) ->
+    handle_event_1(Ev, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs}).
+    
+handle_event_1({current_state,geom_display_lists,St}, Uvs) ->
     case verify_state(St, Uvs) of
 	keep -> update_selection(St, Uvs);
 	Other -> Other
     end;
-handle_event({new_uv_state,Uvs}, _) ->
+handle_event_1({new_uv_state,Uvs}, _) ->
     wings_wm:dirty(),
     get_event(reset_dl(Uvs));
-handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, Uvs0) ->
+handle_event_1({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, Uvs0) ->
     Uvs = Uvs0#uvstate{mode=Mode,sel=Sel,areas=Shs},
     GeomSt = wings_select_faces(Uvs),
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(reset_dl(Uvs#uvstate{st=GeomSt}));
-handle_event(Ev, #uvstate{areas=Shs,sel=Sel,mode=Mode,origst=#st{mat=Mat}}=Uvs) ->
-    St = #st{selmode=Mode,shapes=Shs,sel=Sel,mat=Mat,bb=Uvs},
-    case auv_pick:event(Ev, St) of
-	next -> handle_event_1(Ev, Uvs);
-	Other -> Other
-    end.
-
 handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0}, 
 	       #uvstate{mode=Mode}=Uvs) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
@@ -762,6 +768,9 @@ handle_event_1(_Event, Uvs) ->
     ?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(Uvs).
 
+update_geom(#st{bb=Uvs}=St, Geom) ->
+    St#st{bb=Uvs#uvstate{geom=Geom}}.
+
 % handle_command(rescale_all, Uvs0) ->
 %     Uvs = clear_selection(Uvs0),
 %     RscAreas = rescale_all(all_charts(Uvs)),
@@ -794,9 +803,10 @@ get_cmd_event(Op, X, Y, Uvs) ->
 get_cmd_event_noredraw(Op, X, Y, Uvs) ->
     {replace,fun(Ev) -> cmd_event(Ev, Op, X, Y, Uvs) end}.
 
-cmd_event(redraw, Op, X, Y, Uvs0) ->
-    Uvs = redraw(Uvs0),
-    get_cmd_event_noredraw(Op, X, Y, Uvs);
+cmd_event(redraw, Op, X, Y, #uvstate{mode=Mode,sel=Sel,areas=Shs,origst=OrigSt}=Uvs0) ->
+    St0 = OrigSt#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs0},
+    #st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs} = redraw(St0),
+    get_cmd_event_noredraw(Op, X, Y, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs});
 cmd_event(#mousemotion{x=MX0,y=MY0}, Op, X0, Y0, Uvs0) ->
     #uvstate{geom={X0Y0,MW0,X0Y0,MH0}}=Uvs0,
     {_,_,W,H} = wings_wm:viewport(),
@@ -1070,11 +1080,14 @@ face(Face, #we{mode=material}=We) ->
 face(Face, #we{mode=vertex}=We) ->
     wings_draw_util:vcol_face(Face, We).
 
-reset_dl(Uvs = #uvstate{dl = undefined}) ->
-    Uvs;
-reset_dl(Uvs = #uvstate{dl = DL}) ->
+reset_dl(#st{bb=#uvstate{dl=undefined}}=St) -> St;
+reset_dl(#st{bb=#uvstate{dl=DL}=Uvs}=St) ->
     gl:deleteLists(DL, 1),
-    Uvs#uvstate{dl = undefined}.
+    St#st{bb=Uvs#uvstate{dl=undefined}};
+reset_dl(#uvstate{dl=undefined}=Uvs) -> Uvs;
+reset_dl(#uvstate{dl=DL}=Uvs) ->
+    gl:deleteLists(DL, 1),
+    Uvs#uvstate{dl=undefined}.
 
 set_viewport({X,Y,W,H}=Viewport) ->
     put(wm_viewport, Viewport),
