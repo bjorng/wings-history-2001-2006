@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.54 2002/11/07 07:49:43 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.55 2002/11/07 20:12:04 bjorng Exp $
 %%
 
 -module(wings_material).
 -export([init/1,sub_menu/2,command/2,
 	 color/4,default/0,add_materials/2,
+	 replace_map/4,
 	 used_materials/1,apply_material/2,
 	 is_transparent/2]).
 
@@ -106,6 +107,15 @@ make_default({R,G,B}, Opacity) ->
 		    {emission,{0.0,0.0,0.0,0.0}},{shininess,1.0}]},
 	   {maps,[]}],
     sort([{K,sort(L)} || {K,L} <- Mat]).
+
+replace_map(MatName, MapType, Map, #st{mat=Mtab0}=St) ->
+    Mat0 = gb_trees:get(MatName, Mtab0),
+    Maps0 = prop_get(maps, Mat0, []),
+    Maps = keyreplace(MapType, 1, Maps0, {MapType,Map}),
+    Mat = keyreplace(maps, 1, Mat0, {maps,Maps}),
+    Mtab = gb_trees:update(MatName, Mat, Mtab0),
+    init_texture(MatName, Mtab),
+    St#st{mat=Mtab}.
 
 add_materials(Ms, St) ->
     add_materials(Ms, St, []).
@@ -391,24 +401,31 @@ init_texture(Name, Mat) ->
     case prop_get(diffuse, Maps, none) of
 	none -> ok;
 	{W,H,Bits} ->
-	    [TxId] = gl:genTextures(1),
-	    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-	    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-	    gl:enable(?GL_TEXTURE_2D),
-	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
-	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER,
-			     ?GL_LINEAR),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER,
-			     ?GL_LINEAR),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
-	    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
-			  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits),
-	    gl:popAttrib(),
 	    TxDict0 = get(?MODULE),
-	    TxDict = gb_trees:insert(Name, TxId, TxDict0),
-	    put(?MODULE, TxDict)
+	    case gb_trees:lookup(Name, TxDict0) of
+		{value,TxId} ->
+		    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+		    gl:texSubImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB, 0, 0,
+				     W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits);
+		none ->
+		    [TxId] = gl:genTextures(1),
+		    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+		    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+		    gl:enable(?GL_TEXTURE_2D),
+		    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
+		    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+		    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER,
+				     ?GL_LINEAR),
+		    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER,
+				     ?GL_LINEAR),
+		    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
+		    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
+		    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
+				  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits),
+		    gl:popAttrib(),
+		    TxDict = gb_trees:insert(Name, TxId, TxDict0),
+		    put(?MODULE, TxDict)
+	    end
     end.
 
 get_tx_id(Name) ->
