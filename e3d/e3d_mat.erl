@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.27 2004/06/09 18:48:30 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.28 2004/06/09 19:08:13 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -62,7 +62,7 @@ scale(Sx, Sy, Sz) ->
      Zero,Zero,Zero}.
 
 rotate(A0, {X,Y,Z}) when is_float(X), is_float(Y), is_float(Z) ->
-    A = A0*(3.14159/180),
+    A = A0*(math:pi()/180),
     CosA = math:cos(A),
     SinA = math:sin(A),
     XSinA = X*SinA,
