@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.118 2003/06/02 19:40:56 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.119 2003/06/02 23:11:45 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -38,18 +38,11 @@ add_areas(New, Areas) ->
     NewAs.
 
 menu({tools}, Menu) ->
-    case auv_snap:active() of
-	true ->
-	    Menu ++ [separator,
-		     {"Complete Snap Image", auv_complete_snap, 
-		      "Snap images to select faces"}, 
-		     {"Cancel snap Image", auv_cancel_snap, 
-		      "Cancel Snap Image command"}];
-	false ->
-	    Menu ++ [separator,
-		     {"Select Snap Image", auv_snap_image, 
-		      "Snap image (texture) on the model"}]
-    end;
+    Menu ++ [separator,
+	     {"Snap Image", {auv_snap, [{"Start Snap Mode", auv_snap_image, 
+					 "Snap image to selected faces"}, 
+					{"Quit Snap Mode", auv_cancel_snap, 
+					 "Quit Snap Image Mode"}]}}];
 menu({body}, Menu) ->
     case auv_snap:active() of
 	true ->
@@ -60,18 +53,25 @@ menu({body}, Menu) ->
 		      "Generate or edit UV mapping or texture"}
 		    ]
     end;
+
+menu({face}, Menu) ->
+    case auv_snap:active() of
+	false ->
+	    Menu;
+	true ->
+	    Menu ++ [separator,{"Snap Image", auv_complete_snap,
+				"Put Image on select faces"}
+		    ]
+    end;
+
 menu(_, Menu) -> Menu.
 
 %% SNAP
-command({tools, auv_complete_snap}, St) ->
-    case St#st.selmode of	
-	face -> auv_snap:complete(St);
-	_ -> 
-	    wpa:error("Select faces before pressing complete")
-    end;
-command({tools, auv_snap_image}, St) ->
+command({face, auv_complete_snap}, St) ->
+    auv_snap:complete(St);
+command({tools, {auv_snap, auv_snap_image}}, St) ->
     auv_snap:select_image(St);
-command({_, auv_cancel_snap}, St) ->
+command({_, {auv_snap,auv_cancel_snap}}, St) ->
     auv_snap:cancel(St);
 %%SNAP
 
