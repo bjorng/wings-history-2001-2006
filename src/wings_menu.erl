@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.103 2003/07/03 14:44:34 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.104 2003/07/20 13:36:54 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -159,7 +159,7 @@ kill_menus(Owner) ->
 	       (_) -> ok
 	    end, wings_wm:windows()),
     delete.
-    
+
 menu_show(#mi{ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
     wings_io:blend(wings_pref:get_value(menu_color),
 		   fun(Color) ->
@@ -223,7 +223,7 @@ reduce_name({Key,{_,_}=Tuple}) when is_atom(Key) ->
     reduce_name(Tuple);
 reduce_name({Key,Val}) when is_atom(Key) -> Val;
 reduce_name(Name) -> Name.
-    
+
 menu_dims(Menu) ->
     menu_dims(Menu, size(Menu), 0, 0, 0, []).
 
@@ -407,7 +407,7 @@ is_ascii_clean(_) -> false.
 is_tuple_ascii_clean(I, N, T) when I =< N ->
     is_ascii_clean(element(I, T)) andalso is_tuple_ascii_clean(I+1, N, T);
 is_tuple_ascii_clean(_, _, _) -> true.
-    
+
 set_hotkey(Val, #mi{sel=Sel,menu=Menu0}=Mi) ->
     case element(Sel, Menu0) of
 	{A,B,_,D,E} ->
@@ -519,7 +519,7 @@ check_option_box(Act, X, Ps, Mi) ->
 
 hit_right(X, #mi{w=W}) ->
     X >= W-3*?CHAR_WIDTH.
-    
+
 selected_item(Y, #mi{adv=Adv,ymarg=Margin,h=H,menu=Menu}=Mi) ->
     %% The tests are simplified because we know that the mouse cursor
     %% must be over the menu window.
@@ -564,7 +564,7 @@ selected_item_1(Y0, I, [H|Hs], #mi{sel=OldSel,menu=Menu}=Mi) ->
 	    end;
 	Y -> selected_item_1(Y, I+1, Hs, Mi)
     end.
-	    
+
 is_submenu(_I, #mi{adv=true}) -> false;
 is_submenu(I, #mi{menu=Menu}) when is_integer(I) ->
     case element(I, Menu) of
@@ -586,27 +586,67 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
     case Elem of
 	separator -> draw_separator(X, Y, Mw);
 	{_,ignore,_,_,Ps} ->
-	    item_colors(Y, Ps, I, Mi),
-	    wings_io:menu_text(X, Y, Text);
+	    menu_draw_1(Y, Ps, I, Mi,
+			fun() -> wings_io:menu_text(X, Y, Text) end,
+			fun() -> ok end);
 	{_,{'VALUE',_},Hotkey,_Help,Ps} ->
 	    %% Not a sub-menu.
-	    item_colors(Y, Ps, I, Mi),
-	    draw_menu_text(X, Y, Text, Ps),
-	    draw_hotkey(X, Y, Shortcut, Hotkey),
-	    draw_right(X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3, Ps);
+	    menu_draw_1(Y, Ps, I, Mi,
+			fun() ->
+				draw_menu_text(X, Y, Text, Ps),
+				draw_hotkey(X, Y, Shortcut, Hotkey)
+			end,
+			fun() ->
+				draw_right(X+Mw-5*?CHAR_WIDTH,
+					   Y-?CHAR_HEIGHT div 3, Ps)
+			end);
 	{_,{_,_}=Item,Hotkey,_Help,Ps} ->
-	    item_colors(Y, Ps, I, Mi),
-	    wings_io:menu_text(X, Y, Text),
-	    draw_hotkey(X, Y, Shortcut, Hotkey),
+	    menu_draw_1(Y, Ps, I, Mi,
+			fun() -> wings_io:menu_text(X, Y, Text),
+				 draw_hotkey(X, Y, Shortcut, Hotkey)
+			end,
+			fun() -> ok end),
 	    draw_submenu(Adv, Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
 	{_,_,Hotkey,_Help,Ps} ->
-	    item_colors(Y, Ps, I, Mi),
-	    draw_menu_text(X, Y, Text, Ps),
-	    draw_hotkey(X, Y, Shortcut, Hotkey),
-	    draw_right(X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3, Ps)
+	    menu_draw_1(Y, Ps, I, Mi,
+			fun() ->
+				draw_menu_text(X, Y, Text, Ps),
+				draw_hotkey(X, Y, Shortcut, Hotkey)
+			end,
+			fun() ->
+				draw_right(X+Mw-5*?CHAR_WIDTH,
+					   Y-?CHAR_HEIGHT div 3, Ps)
+			end)
     end,
     ?CHECK_ERROR(),
     menu_draw(X, Y+H, Shortcut, Mw, I+1, Hs, Mi).
+
+
+menu_draw_1(Y, Ps, Sel, #mi{sel=Sel,sel_side=Side,w=W},
+	    DrawLeft, DrawRight) ->
+    %% Draw blue background for highlighted item.
+    wings_io:set_color(wings_pref:get_value(menu_hilite)),
+    Right = W - (2*?CHAR_WIDTH*right_width(Ps)) - ?CHAR_WIDTH,
+    case Side of
+	right ->
+	    gl:recti(Right, Y-?CHAR_HEIGHT, Right+3*?CHAR_WIDTH-2, Y+3),
+	    wings_io:set_color(wings_pref:get_value(menu_text));
+	left ->
+	    gl:recti(?CHAR_WIDTH, Y-?CHAR_HEIGHT, Right, Y+3),
+	    wings_io:set_color(wings_pref:get_value(menu_hilited_text))
+    end,
+    DrawLeft(),
+    case Side of
+	left ->
+	    wings_io:set_color(wings_pref:get_value(menu_text));
+	right ->
+	    wings_io:set_color(wings_pref:get_value(menu_hilited_text))
+    end,
+    DrawRight();
+menu_draw_1(_, _, _, _, DrawLeft, DrawRight) ->
+    wings_io:set_color(wings_pref:get_value(menu_text)),
+    DrawLeft(),
+    DrawRight().
 
 menu_text({Text,{_,Fun},_,_,_}, true) when is_function(Fun) -> [$.,Text,$.];
 menu_text({Text,Fun,_,_,_}, true) when is_function(Fun) -> [$.,Text,$.];
@@ -616,7 +656,7 @@ menu_text(separator, _) -> [].
 draw_hotkey(_, _, _, []) -> ok;
 draw_hotkey(X, Y, Pos, Hotkey) ->
     wings_io:text_at(X+Pos*?CHAR_WIDTH, Y, Hotkey).
-    
+
 draw_menu_text(X, Y, Text, Props) ->
     case proplists:is_defined(crossmark, Props) of
 	true ->
@@ -632,21 +672,6 @@ draw_menu_text(X, Y, Text, Props) ->
 	    end,
 	    wings_io:menu_text(X, Y, Text)
     end.
-
-item_colors(Y, Ps, Sel, #mi{sel=Sel,sel_side=Side,w=W}) ->
-    %% Draw blue background for highlighted item.
-    wings_io:set_color(wings_pref:get_value(menu_hilite)),
-    Right = W - (2*?CHAR_WIDTH*right_width(Ps)) - ?CHAR_WIDTH,
-    case Side of
-	right ->
-	    gl:recti(Right, Y-?CHAR_HEIGHT, Right+3*?CHAR_WIDTH-2, Y+3),
-	    wings_io:set_color(wings_pref:get_value(menu_text));
-	left ->
-	    gl:recti(?CHAR_WIDTH, Y-?CHAR_HEIGHT, Right, Y+3),
-	    wings_io:set_color(wings_pref:get_value(menu_hilited_text))
-    end;
-item_colors(_, _, _, _) ->
-    wings_io:set_color(wings_pref:get_value(menu_text)).
 
 help_text(#mi{sel=none}) ->
     wings_wm:message("");
@@ -664,7 +689,7 @@ is_magnet_active({_,_,_,_,Ps}, Mi) ->
 	    {_,X,_} = wings_wm:local_mouse_state(),
 	    hit_right(X, Mi)
     end.
-    
+
 plain_help({Text,{Sub,_},_,_,_}, #mi{adv=false}) when Sub =/= 'VALUE' ->
     %% No specific help text for submenus in basic mode.
     Help = [Text|" submenu"],
@@ -698,13 +723,7 @@ help_text_1([]=S, _) -> S.
 
 draw_right(X, Y, Ps) ->
     case have_option_box(Ps) of
-	true ->
-	    Draw = fun(Color) ->
-			   wings_io:sunken_rect(X, Y-3,
-						?CHAR_WIDTH, ?CHAR_WIDTH,
-						Color)
-		   end,
-	    wings_io:blend(wings_pref:get_value(menu_color), Draw);
+	true -> wings_io:text_at(X, Y, [option_box]);
 	false -> draw_right_1(X, Y, Ps)
     end.
 

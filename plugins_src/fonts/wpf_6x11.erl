@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_6x11.erl,v 1.3 2003/01/28 19:34:18 bjorng Exp $
+%%     $Id: wpf_6x11.erl,v 1.4 2003/07/20 13:36:56 bjorng Exp $
 %%
 
 -module(wpf_6x11).
@@ -26,6 +26,17 @@ height() -> 11.
 draw([C|T]) -> char(C), draw(T);
 draw([]) -> ok.
 
+char(option_box) ->
+    gl:bitmap(6, 8, 3, 3, 6, 0,
+	      <<2#11111100,
+	        2#10000100,
+	        2#10000100,
+	        2#10000100,
+	        2#10000100,
+	        2#10000100,
+	        2#11111100,
+	        2#11111100>>);
+		       
 char(command) ->
     B = <<
        	 2#01000100,

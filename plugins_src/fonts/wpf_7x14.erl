@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_7x14.erl,v 1.4 2003/01/28 19:34:19 bjorng Exp $
+%%     $Id: wpf_7x14.erl,v 1.5 2003/07/20 13:36:56 bjorng Exp $
 %%
 
 -module(wpf_7x14).
@@ -25,6 +25,19 @@ height() -> 14.
     
 draw([C|T]) -> char(C), draw(T);
 draw([]) -> ok.
+
+char(option_box) ->
+    gl:bitmap(6, 10, 4, 2, 7, 0,
+	      <<2#11111100,
+	        2#10000100,
+	        2#10000100,
+	        2#10000100,
+	        2#10000100,
+	        2#10000100,
+	        2#10000100,
+	        2#10000100,
+	        2#11111100,
+	        2#11111100>>);
 
 char(command) ->
     B = <<
