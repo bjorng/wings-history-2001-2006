@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.16 2002/04/20 07:59:12 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.17 2002/04/21 06:39:46 bjorng Exp $
 %%
 
 -module(wings_subdiv).
 -export([smooth/1,smooth/6]).
 -include("wings.hrl").
--import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1]).
+-import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,merge/1]).
 
 %%% The Catmull-Clark subdivision algorithm is used, with
 %%% Tony DeRose's extensions for creases.
@@ -113,28 +113,32 @@ smooth_faces(Faces0, Id, FacePos, #we{fs=Ftab0}=We) ->
 		Faces1 = sofs:restriction(Ftab2, FaceSet),
 		{sofs:to_external(Faces1),sofs:to_external(Ftab)}
 	end,
-    smooth_faces(Faces, Id, FacePos, FaceAcc, We).
+    smooth_faces(Faces, Id, FacePos, [], FaceAcc, We).
     
-smooth_faces([{Face,#face{mat=Mat}}|Faces], Id, FacePos, Ftab0, We0) ->
-    {We,Ftab} = smooth_face(Face, Mat, Id, FacePos, Ftab0, We0),
-    smooth_faces(Faces, Id, FacePos, Ftab, We);
-smooth_faces([], _, _, Ftab, We) ->
-    We#we{fs=gb_trees:from_orddict(sort(Ftab))}.
+smooth_faces([{Face,#face{mat=Mat}}|Faces], Id, FacePos, Es0, Ftab0, We0) ->
+    {We,Ftab,Es} = smooth_face(Face, Mat, Id, FacePos, Es0, Ftab0, We0),
+    smooth_faces(Faces, Id, FacePos, Es, Ftab, We);
+smooth_faces([], _, _, Es, Ftab, #we{es=Etab0}=We) ->
+    Etab1 = gb_trees:to_list(Etab0) ++ reverse(Es),
+    Etab = gb_trees:from_orddict(Etab1),
+    We#we{es=Etab,fs=gb_trees:from_orddict(sort(Ftab))}.
 
-smooth_face(Face, Mat, Id, FacePos, Ftab0, #we{es=Etab0}=We0) ->
+smooth_face(Face, Mat, Id, FacePos, EsAcc0, Ftab0, #we{es=Etab0}=We0) ->
     {NewV,We1} = wings_we:new_id(We0),
     {Center,Color,NumIds} = gb_trees:get(Face, FacePos),
     {Ids,We} = wings_we:new_wrap_range(NumIds, 2, We1),
-    {Etab,Ftab,_} = wings_face:fold(
-		      fun(_, E, Rec, A) ->
-			      smooth_edge(Face, E, Rec, NewV,
-					  Color, Id, Mat, A)
-		      end, {Etab0,Ftab0,Ids}, Face, We),
+    {Etab,EsAcc,Ftab,_} =
+	wings_face:fold(
+	  fun(_, E, Rec, A) ->
+		  smooth_edge(Face, E, Rec, NewV,
+			      Color, Id, Mat, A)
+	  end, {Etab0,EsAcc0,Ftab0,Ids}, Face, We),
     AnEdge = wings_we:id(0, Ids),
     Vtab = gb_trees:insert(NewV, #vtx{pos=Center,edge=AnEdge}, We#we.vs),
-    {We#we{es=Etab,vs=Vtab},Ftab}.
+    {We#we{es=Etab,vs=Vtab},Ftab,EsAcc}.
 
-smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat, {Etab0,Ftab0,Ids0}) ->
+smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat,
+	    {Etab0,Es0,Ftab0,Ids0}) ->
     LeftEdge = wings_we:id(0, Ids0),
     RFace = wings_we:id(1, Ids0),
     NewEdge = wings_we:id(2, Ids0),
@@ -145,7 +149,7 @@ smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat, {Etab0,Ftab0,Ids0}) ->
 	    Ids = Ids0,
 	    Ftab = [{RFace,#face{edge=NewEdge,mat=Mat}}|Ftab0],
 	    Rec = Rec0#edge{rf=RFace,rtsu=NewEdge},
-	    NewErec0 = get_edge(NewEdge, Etab0),
+	    NewErec0 = get_edge(NewEdge, Es0),
 	    NewErec = NewErec0#edge{vs=Vtx,a=OldCol,ve=NewV,b=Color,
 				    rf=RFace,lf=LFace,
 				    rtpr=Edge,rtsu=LeftEdge};
@@ -153,7 +157,7 @@ smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat, {Etab0,Ftab0,Ids0}) ->
 	    Ids = Ids0,
 	    Ftab = [{RFace,#face{edge=NewEdge,mat=Mat}}|Ftab0],
 	    Rec = Rec0#edge{lf=RFace,ltsu=NewEdge},
-	    NewErec0 = get_edge(NewEdge, Etab0),
+	    NewErec0 = get_edge(NewEdge, Es0),
 	    NewErec = NewErec0#edge{vs=Vtx,a=OldCol,ve=NewV,b=Color,
 				    rf=RFace,lf=LFace,
 				    rtpr=Edge,rtsu=LeftEdge};
@@ -161,24 +165,32 @@ smooth_edge(Face, Edge, Rec0, NewV, Color, Id, Mat, {Etab0,Ftab0,Ids0}) ->
 	    Ids = wings_we:bump_id(Ids0),
 	    Ftab = Ftab0,
 	    Rec = Rec0#edge{rf=LFace,rtpr=NewEdge},
-	    NewErec0 = get_edge(NewEdge, Etab0),
+	    NewErec0 = get_edge(NewEdge, Es0),
  	    NewErec = NewErec0#edge{ltpr=RightEdge,ltsu=Edge};
  	#edge{ve=Vtx,lf=Face} when Vtx >= Id ->
 	    Ids = wings_we:bump_id(Ids0),
 	    Ftab = Ftab0,
 	    Rec = Rec0#edge{lf=LFace,ltpr=NewEdge},
-	    NewErec0 = get_edge(NewEdge, Etab0),
+	    NewErec0 = get_edge(NewEdge, Es0),
  	    NewErec = NewErec0#edge{ltpr=RightEdge,ltsu=Edge}
     end,
-    Etab1 = gb_trees:update(Edge, Rec, Etab0),
-    Etab = gb_trees:enter(NewEdge, NewErec, Etab1),
-    {Etab,Ftab,Ids}.
+    Etab = gb_trees:update(Edge, Rec, Etab0),
+    Es = store(NewEdge, NewErec, Es0),
+    {Etab,Es,Ftab,Ids}.
 
-get_edge(Edge, Etab) ->
-    case gb_trees:lookup(Edge, Etab) of
-	{value,Erec} -> Erec;
-	none -> #edge{}
-    end.
+get_edge(Key, [{K,_Value}|_]) when Key > K -> #edge{};
+get_edge(Key, [{K,_Value}|D]) when Key < K -> get_edge(Key, D);
+get_edge(_Key, [{_K,Value}|_]) -> Value;	%Key == K
+get_edge(_Key, []) -> #edge{}.
+
+%% Store in reverse order.
+store(Key, New, [{K,_Old}=E|Dict]) when Key > K ->
+    [{Key,New},E|Dict];
+store(Key, New, [{K,_Old}=E|Dict]) when Key < K ->
+    [E|store(Key, New, Dict)];
+store(Key, New, [{_K,_Old}|Dict]) ->		%Key == K
+    [{Key,New}|Dict];
+store(Key, New, []) -> [{Key,New}].
 
 cut_edges(Es, FacePos, Htab, #we{es=Etab}=We) ->
     cut_edges_1(Es, FacePos, Htab, Etab, We).
@@ -199,4 +211,3 @@ cut_edges_1([Edge|Es], FacePos, Htab, Etab, #we{vs=Vtab}=We0) ->
 	    cut_edges_1(Es, FacePos, Htab, Etab, We)
     end;
 cut_edges_1([], _FacePos, _Htab, _Etab, We) -> We.
-
