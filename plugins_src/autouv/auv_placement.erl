@@ -9,8 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.11 2002/11/08 15:13:03 dgud Exp $
-
+%%     $Id: auv_placement.erl,v 1.12 2002/11/08 17:37:17 bjorng Exp $
 
 -module(auv_placement).
 
@@ -26,12 +25,12 @@ place_areas(Areas0,We) ->
     Rotate = fun(A, {C, BBs}) ->
 		     VL = rotate_area(A#ch.fs,A#ch.vpos,We),
 		     {{_,Xmin},{_,Xmax},{_,Ymin},{_,Ymax}} = 
-			 wpc_autouv:maxmin(VL),
+			 auv_util:maxmin(VL),
 		     Dx = Xmax - Xmin,
 		     Dy = Ymax - Ymin,
 		     CX = Xmin + Dx / 2,
 		     CY = Ymin + Dy / 2,
-		     Vs3 = wpc_autouv:moveAndScale(VL, -CX, -CY, 1, []),
+		     Vs3 = auv_util:moveAndScale(VL, -CX, -CY, 1, []),
 		     NewA = A#ch{vpos=Vs3, size={Dx,Dy}},
 		     {NewA, {C+1, [{Dx,Dy,C}|BBs]}}
 	     end,
@@ -217,7 +216,7 @@ rotate_area(Fs, Vs0, We) ->
 %% Group edgeloops and return a list sorted by total dist.
 %% [{TotDist, [{V1,V2,Edge,Dist},...]}, ...]
 group_edge_loops(Fs, We) ->
-    case wpc_autouv:outer_edges(Fs, We, false) of
+    case auv_util:outer_edges(Fs, We, false) of
 	[] -> [];
 	Eds1 ->
 	    Map = fun({Edge,Face}) ->
@@ -244,7 +243,6 @@ group_edge_loops(Fs, We) ->
 make_convex([This, Next|Rest], Acc, Vs) ->
     case calc_dir(This,Next,Vs) >= ?ALMOSTPI of
 	true ->
-
 	    New = {element(1,This), element(2,Next), 
 		   [element(3,This),element(3,Next)],
 		   dist(element(1,This),element(2,Next),Vs)}, 

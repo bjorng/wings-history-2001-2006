@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.47 2002/11/08 10:45:25 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.48 2002/11/08 17:37:17 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -19,9 +19,7 @@
 -include("e3d_image.hrl").
 -include("auv.hrl").
  
--export([init/0,menu/2,command/2,outer_edges/2,outer_edges/3]).
--export([maxmin/1]).
--export([moveAndScale/5]).
+-export([init/0,menu/2,command/2]).
 
 -import(lists, [sort/1, map/2, foldl/3, reverse/1, 
 		append/1,delete/2, usort/1, max/1, min/1,
@@ -263,8 +261,8 @@ seg_command({debug,select_pinned}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
     [{Id,SetOfFaces}] = St#st.sel,
     case {St#st.selmode == face, gb_sets:to_list(SetOfFaces)} of
 	{true,Fs} when Fs /= [] ->
-	    {{V1,UV1},{V2,UV2}} = auv_mapping:find_pinned(Fs, We),
-	    ?DBG("Pinned ~p ~n", [{{V1,UV1},{V2,UV2}}]),
+	    {{V1,_UV1},{V2,_UV2}} = auv_mapping:find_pinned(Fs, We),
+	    ?DBG("Pinned ~p ~n", [{{V1,_UV1},{V2,_UV2}}]),
 	    Sel = [{Id,gb_sets:from_list([V1,V2])}],
 	    get_seg_event(Ss#seg{st=St#st{selmode=vertex,sel=Sel}});
 	_ -> 
@@ -484,7 +482,7 @@ replace_uv(#ch{vpos=Vpos}, #we{vs=Vtab0}=We) ->
     We#we{vs=Vtab}.
 
 find_boundary_edges([{Id,#ch{fs=Fs}=C}|Cs], We, Acc) ->
-    Be = outer_edges(Fs, We),
+    Be = auv_util:outer_edges(Fs, We),
     find_boundary_edges(Cs, We, [{Id,C#ch{be=Be}}|Acc]);
 find_boundary_edges([], _, Acc) -> sort(Acc).
 
@@ -513,7 +511,7 @@ insert_uvcoords(#areas{orig_we=We0,we=WorkWe,as=UV,matname=MatName,vmap=Vmap}) -
     We#we{mode=uv,fs=Ftab}.
 
 gen_uv_pos([#ch{fs=Fs,center={CX,CY},scale=Sc,vpos=Vs}|T], We, Acc) ->
-    Vpos0 = moveAndScale(Vs, CX, CY, Sc, []),
+    Vpos0 = auv_util:moveAndScale(Vs, CX, CY, Sc, []),
     VFace0 = wings_face:fold_faces(
 	       fun(Face, V, _, _, A) ->
 		       [{V,Face}|A]
@@ -566,7 +564,7 @@ build_map([Fs|T], Vmap, FvUvMap, We, Acc) ->
     UVs1 = lists:usort(UVs0),
     %% Assertion.
     true = sofs:is_a_function(sofs:relation(UVs1, [{atom,atom}])),
-    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(UVs0),
+    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = auv_util:maxmin(UVs0),
     CX = BX0 + (BX1-BX0) / 2,
     CY = BY0 + (BY1-BY0) / 2,
     UVs = [{V,{X-CX,Y-CY,0.0}} || {V,{X,Y}} <- UVs1],
@@ -611,60 +609,6 @@ add_material(create_mat, none, St0, #areas{matname=MatName}=Areas) ->
 add_material(edit, Tx, St0, #areas{matname=MatName}=As) ->
     St = wings_material:replace_map(MatName, diffuse, Tx, St0),
     {St,As}.
-
-moveAndScale([{Id, {X0, Y0,_}}|R], XD, YD, Scale, Acc) ->
-    moveAndScale(R, XD,YD, Scale, 
-		 [{Id, {X0*Scale+XD,Y0*Scale+YD,0.0}}|Acc]);
-moveAndScale([],_,_,_,Acc) ->
-    Acc.
-
-maxmin([{Id, {X,Y,_}}|Rest]) ->
-    maxmin(Rest, {Id, X},{Id, X},{Id, Y},{Id, Y});
-maxmin([{Id, {X,Y}}|Rest]) ->
-    maxmin(Rest, {Id, X},{Id, X},{Id, Y},{Id, Y}).
-
-maxmin([],Xmin,Xmax,Ymin,Ymax) ->
-    {Xmin,Xmax,Ymin,Ymax};
-maxmin([{Id, {X,Y,_}}|Rest], 
-       XMin={_IdX0,X0}, XMax={_IdX1,X1}, 
-       YMin={_IdY0,Y0}, YMax={_IdY1,Y1}) ->
-    if 	X > X1 ->
-	    if Y > Y1 -> maxmin(Rest, XMin, {Id,X}, YMin, {Id,Y});
-	       Y < Y0 -> maxmin(Rest, XMin, {Id,X}, {Id,Y}, YMax);
-	       true ->   maxmin(Rest, XMin, {Id,X}, YMin, YMax)
-	    end;
-	X < X0 ->
-	    if Y > Y1 -> maxmin(Rest,{Id,X}, XMax, YMin, {Id,Y});
-	       Y < Y0 -> maxmin(Rest,{Id,X}, XMax, {Id,Y}, YMax);
-	       true ->   maxmin(Rest,{Id,X}, XMax, YMin, YMax)
-	    end;
-	Y > Y1 ->
-	    maxmin(Rest,XMin, XMax, YMin, {Id,Y});
-	Y < Y0 ->
-	    maxmin(Rest,XMin, XMax, {Id,Y}, YMax);
-	true ->
-	    maxmin(Rest,XMin, XMax, YMin, YMax)
-    end;
-maxmin([{Id, {X,Y}}|Rest], 
-       XMin={_IdX0,X0}, XMax={_IdX1,X1}, 
-       YMin={_IdY0,Y0}, YMax={_IdY1,Y1}) ->
-    if 	X > X1 ->
-	    if Y > Y1 -> maxmin(Rest, XMin, {Id,X}, YMin, {Id,Y});
-	       Y < Y0 -> maxmin(Rest, XMin, {Id,X}, {Id,Y}, YMax);
-	       true ->   maxmin(Rest, XMin, {Id,X}, YMin, YMax)
-	    end;
-	X < X0 ->
-	    if Y > Y1 -> maxmin(Rest,{Id,X}, XMax, YMin, {Id,Y});
-	       Y < Y0 -> maxmin(Rest,{Id,X}, XMax, {Id,Y}, YMax);
-	       true ->   maxmin(Rest,{Id,X}, XMax, YMin, YMax)
-	    end;
-	Y > Y1 ->
-	    maxmin(Rest,XMin, XMax, YMin, {Id,Y});
-	Y < Y0 ->
-	    maxmin(Rest,XMin, XMax, {Id,Y}, YMax);
-	true ->
-	    maxmin(Rest,XMin, XMax, YMin, YMax)
-    end.
 
 %%% Opengl drawing routines
 
@@ -1542,35 +1486,10 @@ rescale_all(Areas0) ->
 finish_rotate({Id,Area = #ch{rotate = R, vpos = Vs0, scale = S}}) ->
     Rot = e3d_mat:rotate(float(trunc(R)), {0.0,0.0,1.0}),
     Vs1 = [{IdV, e3d_mat:mul_point(Rot, Vec)} || {IdV, Vec} <- Vs0],
-    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(Vs1),
+    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = auv_util:maxmin(Vs1),
     {Id,Area#ch{rotate=0.0, vpos = Vs1, size={(BX1-BX0)*S, (BY1-BY0)*S}}}.
 
 %%%% Draw routines
-outer_edges(Faces0, We) ->
-    outer_edges(Faces0, We, true).
-outer_edges(Faces0, We, VisibleOnly) ->    
-    %% I use normals here to detect direction of face and remove 
-    %% faces with wrong direction.
-    Faces1 = case VisibleOnly of 
-		 true ->
-		     foldl(fun(Face, Acc)-> 
-				   Zval = e3d_vec:dot(wings_face:normal(Face, We), 
-						      {0.0,0.0,1.0}),
-				   case Zval >= 0.0 of
-				       true -> [Face|Acc];
-				       _ -> Acc
-				   end
-			   end, [], Faces0);
-		 false ->
-		     Faces0
-	     end,
-    S = wings_face:fold_faces(fun(Face, _, E, _, A) -> [{E,Face}|A] end, [], Faces1, We),
-    outer_edges_1(sort(S), []).
-outer_edges_1([{E,_},{E,_}|T], Out) ->
-    outer_edges_1(T, Out);
-outer_edges_1([E|T], Out) ->
-    outer_edges_1(T, [E|Out]);
-outer_edges_1([], Out) -> reverse(Out).
 
 draw_area(#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R,be=Tbe}, 
 	  We, Options = #setng{color = ColorMode, edges = EdgeMode}, Materials) -> 
