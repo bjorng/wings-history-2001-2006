@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.318 2004/10/16 07:20:17 bjorng Exp $
+%%     $Id: wings.erl,v 1.319 2004/10/17 05:57:29 bjorng Exp $
 %%
 
 -module(wings).
@@ -677,11 +677,15 @@ init_menubar() ->
     put(wings_menu_template, Menus).
 
 edit_menu(St) ->
-    UndoInfo = lists:flatten([?STR(edit_menu,1,"Delete undo history to reclaim memory ("),
-			      undo_info(St),?STR(edit_menu,2,")")]),
-     [{?STR(edit_menu,3,"Undo/Redo"),undo_toggle,?STR(edit_menu,4,"Undo or redo the last command")},
-      {?STR(edit_menu,5,"Redo"),redo,?STR(edit_menu,6,"Redo the last command that was undone")},
-      {?STR(edit_menu,7,"Undo"),undo,?STR(edit_menu,8,"Undo the last command")},
+    UndoInfo = lists:flatten([?STR(edit_menu,1,
+				   "Delete undo history to reclaim memory"),
+			      " (",undo_info(St),")"]),
+    [{?STR(edit_menu,3,"Undo/Redo"),undo_toggle,
+      ?STR(edit_menu,4,"Undo or redo the last command")},
+     {?STR(edit_menu,5,"Redo"),redo,
+      ?STR(edit_menu,6,"Redo the last command that was undone")},
+     {?STR(edit_menu,7,"Undo"),undo,
+      ?STR(edit_menu,8,"Undo the last command")},
      separator,
      {command_name(?STR(edit_menu,9,"Repeat"), St),repeat},
      {command_name(?STR(edit_menu,10,"Repeat Args"), St),repeat_args},

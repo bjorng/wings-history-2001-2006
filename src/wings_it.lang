@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.13 2004/10/16 12:22:04 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.14 2004/10/17 05:57:29 bjorng Exp $
 %%
 
 {wings,
@@ -25,8 +25,7 @@
    [{1,"Ha voglia di definire"},
     {2,"come un comando predefinito"}]},
   {edit_menu,
-   [{1,"Cancellare gli stati di annullamento ragguagliando memoria ("},
-    {2,")"},
+   [{1,"Cancellare gli stati di annullamento ragguagliando memoria"},
     {3,"Annulla/Ripeti"},
     {4,"Annulla o ripete l' ultimo comando"},
     {5,"Ripeti"},
