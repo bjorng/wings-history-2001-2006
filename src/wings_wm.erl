@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.57 2003/01/10 20:52:12 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.58 2003/01/11 20:02:12 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,reinit_opengl/0,
 	 new/4,delete/1,toplevel/5,toplevel/6,
+	 hide/1,show/1,is_hidden/1,
 	 message/1,message/2,message_right/1,send/2,send_after_redraw/2,
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
@@ -151,6 +152,24 @@ delete_windows(Name, W0) ->
     W2 = gb_trees:delete_any({controller,Name}, W1),
     W = gb_trees:delete_any({resizer,Name}, W2),
     gb_trees:delete_any({vscroller,Name}, W).
+
+hide(Name) ->
+    case get_window_data(Name) of
+	#win{z=Z} when Z < 0 -> ok;
+	#win{z=Z}=Win -> put_window_data(Name, Win#win{z=-Z})
+    end.
+
+show(Name) ->
+    case get_window_data(Name) of
+	#win{z=Z} when Z > 0 -> ok;
+	#win{z=Z}=Win -> put_window_data(Name, Win#win{z=-Z})
+    end.
+
+is_hidden(Name) ->
+    case get_window_data(Name) of
+	#win{z=Z} when Z < 0 -> true;
+	_ -> false
+    end.
 
 active_window() ->
     case get(wm_active) of
@@ -424,6 +443,8 @@ init_opengl() ->
 
 send_event(Win, {expose}) ->
     dirty(),
+    Win;
+send_event(#win{z=Z}=Win, redraw) when Z < 0 ->
     Win;
 send_event(#win{name=Name,x=X,y=Y0,w=W,h=H,stk=[Se|_]=Stk0}, Ev0) ->
     put(wm_active, Name),
@@ -972,6 +993,12 @@ ctrl_event(#mousemotion{state=?SDL_RELEASED},
 	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
     grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
+ctrl_event(#mousebutton{}=Ev, _) ->
+    case wings_menu:is_popup_event(Ev) of
+	{yes,X,Y,_} -> ctrl_menu(X, Y);
+	no -> ok
+    end,
+    keep;
 ctrl_event({client_resized,Client}, _) ->
     {_,_,W,_} = viewport(Client),
     Self = {controller,Client},
@@ -980,6 +1007,8 @@ ctrl_event({client_resized,Client}, _) ->
 	true -> update_window(Self, [{w,W+wings_win_scroller:width()}])
     end,
     keep;
+ctrl_event({action,{titlebar,Action}}, Cs) ->
+    ctrl_command(Action, Cs);
 ctrl_event(_, _) -> keep.
 
 ctrl_redraw(#ctrl{title=Title}) ->
@@ -1014,7 +1043,42 @@ ctrl_constrain_move(Dx0, Dy0) ->
 		 Dy0
 	 end,
     {Dx,Dy}.
-    
+
+ctrl_menu(X, Y) ->
+    Menu = ctrl_menu_toolbar(),
+    wings_menu:popup_menu(X, Y, titlebar, Menu).
+
+ctrl_menu_toolbar() ->
+    {_,Client} = active_window(),
+    Toolbar = {toolbar,Client},
+    case is_window(Toolbar) of
+	false -> [];
+	true ->
+	    case is_hidden(Toolbar) of
+		false ->
+		    [{"Hide Toolbar",hide_toolbar}];
+		true ->
+		    [{"Show Toolbar",show_toolbar}]
+	    end
+    end.
+
+ctrl_command(hide_toolbar, _) ->
+    dirty(),
+    {_,Client} = active_window(),
+    Toolbar = {toolbar,Client},
+    hide(Toolbar),
+    {_,H} = win_size(Toolbar),
+    update_window(Client, [{dy,-H},{dh,H}]),
+    keep;
+ctrl_command(show_toolbar, _) ->
+    dirty(),
+    {_,Client} = active_window(),
+    Toolbar = {toolbar,Client},
+    show({toolbar,Client}),
+    {_,H} = win_size(Toolbar),
+    update_window(Client, [{dy,H},{dh,-H}]),
+    keep.
+
 %%%
 %%% Resizer window.
 %%%

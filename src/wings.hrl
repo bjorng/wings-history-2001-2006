@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.73 2003/01/10 10:26:33 bjorng Exp $
+%%     $Id: wings.hrl,v 1.74 2003/01/11 20:02:12 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -200,8 +200,8 @@
 -define(Z_BUTTONS, 1).
 -define(Z_GEOM, 100).
 -define(Z_OBJECTS, 101).
--define(Z_MENU, 200).
--define(Z_MENUBAR, 300).
+-define(Z_MENUBAR, 200).
+-define(Z_MENU, 300).
 -define(Z_DIALOG, 1000).
 -define(Z_HELP, 2000).
 

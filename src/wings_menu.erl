@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.74 2003/01/09 19:57:40 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.75 2003/01/11 20:02:12 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -138,8 +138,10 @@ setup_menu_killer() ->
 	true -> ok;
 	false ->
 	    Op = {push,fun menu_killer/1},
-	    wings_wm:new(menu_killer, {0,0,?INITIAL_LEVEL-1},
-			 wings_wm:top_size(), Op)
+	    {TopW,TopH} = wings_wm:top_size(),
+	    {_,BarH} = wings_wm:win_size(menubar),
+	    wings_wm:new(menu_killer, {0,BarH,?INITIAL_LEVEL-1},
+			 {TopW,TopH-BarH}, Op)
     end.
 
 menu_killer(#mousebutton{button=1,state=?SDL_PRESSED}) ->
