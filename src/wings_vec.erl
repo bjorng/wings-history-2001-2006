@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.42 2002/11/16 08:06:42 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.43 2002/11/22 10:08:51 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -37,12 +37,10 @@ init() ->
     wings_pref:set_default(magnet_radius, 1.0).
 
 command({pick,[],[Res],Ns}, St) ->
-    pick_init(St),
     Cmd = wings_menu:build_command(Res, Ns),
     wings_io:putback_event({action,Cmd}),
     St;
 command({pick,[],Res,Ns}, St) ->
-    pick_init(St),
     Cmd = wings_menu:build_command(list_to_tuple(reverse(Res)), Ns),
     wings_io:putback_event({action,Cmd}),
     St;
