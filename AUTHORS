@@ -50,6 +50,7 @@ Anders Conradi: Wrote the Select|Edge Ring command (originally as a plug-in).
 
 Sean Hinde (Earlyriser):
 	Wrote the VMRL exporter.
+	Packaged Wings an a Mac application.
 
 Danni Coy (KayosIII):
 	Significantly enhanced the Renderman exporter. Added the Render
