@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.86 2004/04/06 22:11:33 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.87 2004/04/07 21:52:34 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -22,9 +22,9 @@
 	 from_vs/2,
 	 select_region/1,
 	 select_edge_ring/1,select_edge_ring_incr/1,select_edge_ring_decr/1,
- 	 cut/3,fast_cut/3,
- 	 dissolve_edges/2,dissolve_edge/2,
- 	 hardness/2,hardness/3,
+	 cut/3,fast_cut/3,
+	 dissolve_edges/2,dissolve_edge/2,
+	 hardness/2,hardness/3,
 	 adjacent_edges/2,
 	 to_vertices/2,from_faces/2,extend_sel/2,
 	 patch_edge/4,patch_edge/5]).
@@ -44,7 +44,7 @@ menu(X, Y, St) ->
 	    {"Move",{move,Dir},[],[magnet]},
 	    wings_menu_util:rotate(St),
 	    wings_menu_util:scale(St),
-%	    {"Slide", slide, "Slide edges along axis"},
+	    {"Slide", slide, "Slide edges along neighbor edges"},
 	    separator,
 	    {"Extrude",{extrude,Dir}},
 	    separator,
@@ -369,12 +369,12 @@ cut_pick_make_tvs(Edge, #we{id=Id,es=Etab,vp=Vtab,next_id=NewV}=We) ->
     Dir = e3d_vec:sub(End, Start),
     Char = {7,7,3,3,7,0,
 	    <<2#01111100,
-	      2#10000010,
-	      2#10000010,
-	      2#10000010,
-	      2#10000010,
-	      2#10000010,
-	      2#01111100>>},
+	     2#10000010,
+	     2#10000010,
+	     2#10000010,
+	     2#10000010,
+	     2#10000010,
+	     2#01111100>>},
     Fun = fun(I, D) -> cut_pick_marker(I, D, Edge, We, Start, Dir, Char) end,
     Sel = [{Id,gb_sets:singleton(NewV)}],
     {{general,[{Id,Fun}]},Sel}.
@@ -415,12 +415,13 @@ cut_pick_marker({finish,[I]}, D0, Edge, We, Start, Dir, Char) ->
 %%%
 
 slide(St) ->
-    Tvs = wings_sel:fold(
-	    fun(EsSet, #we{id=Id} = We, Acc) ->
-		    Es = gb_sets:to_list(EsSet),
-		    Slides = slide_add_edges(Es, We, gb_trees:empty()),
-		    [{Id, make_slide_tv(Slides)}| Acc]
-	    end, [], St),
+    {Tvs,_,_} = 
+	wings_sel:fold(
+	  fun(EsSet, #we{id=Id} = We, {Acc,Up0,Dw0}) ->
+		  Es = gb_sets:to_list(EsSet),
+		  {Slides,Up,Dw} = slide_add_edges(Es, Up0, Dw0,We,gb_trees:empty()),
+		  {[{Id, make_slide_tv(Slides)}| Acc], Up,Dw}
+	  end, {[], {0.0,0.0,0.0}, {0.0,0.0,0.0}}, St),
     Units = [distance], %% [{percent,{0.0,1.0}}],
     Flags = [{initial,[0]}],
     wings_drag:setup(Tvs, Units, Flags, St).
@@ -432,60 +433,87 @@ make_slide_tv(Slides) ->
 make_slide_fun(Vs, Slides) ->
     fun([Dx|_],Acc) ->
 	    foldl(fun(V,A) ->
-			  {Pos, Ndir, Pdir} = gb_trees:get(V, Slides),			  
-			  Dir = if Dx > 0 ->
-					e3d_vec:average(Pdir);
-				   true ->
-					e3d_vec:average(Ndir)
-				end,
-			  [{V,e3d_vec:add(Pos, e3d_vec:mul(Dir,abs(Dx)))}|A]
+			  {Pos, Ndir, Pdir} = gb_trees:get(V, Slides),   
+			  ScaleDir = 
+			      if Dx > 0 ->
+				      e3d_vec:mul(e3d_vec:norm(Pdir), Dx);
+				 true ->
+				      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx)
+			      end,
+			  [{V,e3d_vec:add(Pos, ScaleDir)}|A]
 		  end, Acc, Vs);
        (_,_) ->
 	    make_slide_fun(Vs,Slides)
     end.
 
-slide_add_edges([Edge|Es], #we{es=Etab,vp=Vtab}=We, Acc0) ->
+slide_add_edges([Edge|Es], Up0, Dw0, #we{es=Etab,vp=Vtab}=We, Acc0) ->
     #edge{vs=V1,ve=V2,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = 
 	gb_trees:get(Edge, Etab),
-
-    io:format("vs=~p,ve=~p,ltpr=~p,ltsu=~p,trpr=~p,rtsu=~p~n",
-	      [V1,V2,LP,LS,RP,RS]),
-%     #edge{vs=LPVa,ve=LPVb} = gb_trees:get(LP, Etab),
-%     #edge{vs=LSVa,ve=LSVb} = gb_trees:get(LS, Etab),
-%     #edge{vs=RPVa,ve=RPVb} = gb_trees:get(RP, Etab),
-%     #edge{vs=RSVa,ve=RSVb} = gb_trees:get(RS, Etab),
     
-%     io:format("LPVa=~p LSVa=~p RPVa=~p RSVa=~p ~n" 
-% 	      "LPVb=~p LSVb=~p RPVb=~p RSVb=~p ~n", 
-% 	      [LPVa,LSVa,RPVa,RSVa,LPVb,LSVb,RPVb,RSVb]),
-
     S1 = other(V1,gb_trees:get(RP, Etab)),
     E1 = other(V1,gb_trees:get(LS, Etab)),
     S2 = other(V2,gb_trees:get(RS, Etab)),
     E2 = other(V2,gb_trees:get(LP, Etab)),
 
-    io:format("s1=~p,v1=~p,e1=~p~n"
-	      "s2=~p,v2=~p,e2=~p~n",
-	      [S1,V1,E1,S2,V2,E2]),
-    Acc1 = add_slide_vertex(V1, S1, E1, Vtab, Acc0),
-    Acc  = add_slide_vertex(V2, S2, E2, Vtab, Acc1),    
-    slide_add_edges(Es, We, Acc);
-slide_add_edges([], _, Acc) -> Acc.
+    {Up,Down,V1dir,V2dir} = slide_dir(V1,S1,E1,V2,S2,E2,Up0,Dw0,Vtab),
+    Acc1 = add_slide_vertex(V1,V1dir, Acc0),
+    Acc  = add_slide_vertex(V2,V2dir, Acc1),
+    slide_add_edges(Es,Up,Down,We,Acc);
+slide_add_edges([],Up,Down,_,Acc) -> {Acc,Up,Down}.
 
 other(Vertex, #edge{vs=Vertex,ve=Other}) -> Other;
 other(Vertex, #edge{vs=Other,ve=Vertex}) -> Other.
 
-add_slide_vertex(V, S, E, Vtab, Acc) ->
-    Vpos = gb_trees:get(V, Vtab),
-    Spos = gb_trees:get(S, Vtab),
-    Epos = gb_trees:get(E, Vtab),
-    Ndir = e3d_vec:sub(Spos,Vpos),
-    Pdir = e3d_vec:sub(Epos,Vpos),
+slide_dir(V1,S1,E1,V2,S2,E2,Up0,Down0,Vtab) ->
+    Up    = e3d_vec:norm(Up0),
+    Down  = e3d_vec:norm(Down0), 
+
+    V1pos  = gb_trees:get(V1, Vtab),  V2pos = gb_trees:get(V2, Vtab),
+    E1pos  = gb_trees:get(E1, Vtab),  E2pos = gb_trees:get(E2, Vtab),
+    S1pos  = gb_trees:get(S1, Vtab),  S2pos = gb_trees:get(S2, Vtab), 
+    
+    E1v1   = e3d_vec:sub(S1pos,V1pos),E2v1 = e3d_vec:sub(E1pos,V1pos),
+    E1v2   = e3d_vec:sub(S2pos,V2pos),E2v2 = e3d_vec:sub(E2pos,V2pos), 
+
+    D1 = e3d_vec:norm(e3d_vec:average(E1v1,E1v2)),
+    D2 = e3d_vec:norm(e3d_vec:average(E2v1,E2v2)),
+    
+    E1dotUp = e3d_vec:dot(D1,Up),
+    E2dotUp = e3d_vec:dot(D2,Up),
+
+    E1dotDown = e3d_vec:dot(D1,Down),
+    E2dotDown = e3d_vec:dot(D2,Down),
+%     io:format("\n\nUp ~p\nD1 ~p\nDw ~p\nD2 ~p\n", [Up,D1, Down,D2]),
+%     io:format(" ~p >  ~p or  ~p > ~p \n", 
+%	      [E1dotUp,E2dotUp,E2dotDown,E1dotDown]),
+    %% Works even better
+    case (E1dotUp > E2dotUp) of
+	true ->
+	    case (E2dotDown > E1dotDown) or (E1dotUp > E1dotDown) of
+		true ->
+		    {e3d_vec:add(Up0,D1),e3d_vec:add(Down0,D2),
+		     {V1pos, E1v1, E2v1},{V2pos, E1v2, E2v2}};
+		false ->
+		    {e3d_vec:add(Up0,D2),e3d_vec:add(Down0,D1),
+		     {V1pos, E2v1, E1v1},{V2pos, E2v2, E1v2}}
+	    end;
+	false ->
+	    case (E1dotDown > E2dotDown) or (E2dotUp > E2dotDown) of
+		true ->
+		    {e3d_vec:add(Up0,D2),e3d_vec:add(Down0,D1),
+		     {V1pos, E2v1, E1v1},{V2pos, E2v2, E1v2}};
+		false ->
+		    {e3d_vec:add(Up0,D1),e3d_vec:add(Down0,D2),
+		     {V1pos, E1v1, E2v1},{V2pos, E1v2, E2v2}}
+	    end
+    end.
+
+add_slide_vertex(V,{Vpos, Ndir,Pdir},Acc) ->
     case gb_trees:lookup(V,Acc) of
 	none ->
-	    gb_trees:insert(V, {Vpos, [Ndir],[Pdir]},Acc);
+	    gb_trees:insert(V, {Vpos, Ndir,Pdir},Acc);
 	{value, {_, Ndir0,Pdir0}} ->
-	    New = {Vpos, [Ndir|Ndir0],[Pdir|Pdir0]},
+	    New = {Vpos, e3d_vec:add(Ndir,Ndir0),e3d_vec:add(Pdir,Pdir0)},
 	    gb_trees:update(V, New, Acc)
     end.
 
@@ -851,7 +879,7 @@ select_region_1([], _Edges, _We, Acc) ->
     Part = sofs:to_external(sofs:partition(SetFun, Fam)),
 
     %% We finally have one partition for each sub-object.
-    
+
     Sel0 = [select_region_2(P) || P <- Part],
     Sel = lists:merge(Sel0),
     gb_sets:from_ordset(Sel).
