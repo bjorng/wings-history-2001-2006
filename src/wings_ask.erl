@@ -3,12 +3,13 @@
 %%
 %%     Dialog boxes.
 %%
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson
+%%	          2003-2004 Raimo Niskanen
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.146 2003/12/25 12:24:04 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.147 2003/12/25 12:34:47 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -2365,14 +2366,15 @@ label_draw([], _, _) -> keep.
 	{bef,					%Reversed list of characters before cursor.
 	 aft,					%List of characters after cursor.
 	 first=0,			        %First character shown.
-	 sel=0,
+	 sel=0,					%Number of characters selected
+						%(< 0: leftwards, > 0: righwards)
 	 cpos=0,				%Caret pos (pixels).
-	 max,					%Max numbers of characters.
-	 integer=false,
+	 integer=false,				%Integer or not.
 	 charset,				%Character set validator.
 	 last_val,
 	 validator,
-         password=false
+         password=false,
+	 margin					%Left margin in pixels.
 	}).
 
 mktree_text(Val, Sto, I, Flags) ->
@@ -2384,10 +2386,12 @@ mktree_text(Val, Sto, I, Flags) ->
 	      M when is_integer(M), M >= 1 -> M
 	  end,
     Password = proplists:get_bool(password, Flags),
-    W = (1+Max)*wings_text:width(),
-    Ts = #text{last_val=Val,bef=[],aft=ValStr,max=Max,
+    Cw = wings_text:width(),
+    W = (1+Max)*Cw,
+    Ts = #text{last_val=Val,bef=[],aft=ValStr,
 	       integer=IsInteger,charset=Charset,
-               validator=Validator,password=Password},
+               validator=Validator,password=Password,
+	       margin=Cw div 2},
     Fun = fun gen_text_handler/3,
     Fi = #fi{key=Key} = 
 	mktree_leaf(Fun, enabled, undefined,
@@ -2551,9 +2555,10 @@ draw_text(Fi, Text, Val, DisEnabled, false) ->
 draw_text(Fi, Text, _Val, DisEnabled, true) ->
     draw_text_active(Fi, Text, DisEnabled).
 
-draw_text_inactive(#fi{x=X0,y=Y0,w=Width}, #text{max=Max,password=Password},
+draw_text_inactive(#fi{x=X0,y=Y0,w=Width},
+		   #text{first=First,password=Password,margin=Margin},
 		   Val, DisEnabled) ->
-    Str0 = string:substr(text_val_to_str(Val), 1, Max),
+    Str0 = lists:nthtail(First, text_val_to_str(Val)),
     Str = case Password of
 	      true -> stars(Str0);
 	      false -> Str0
@@ -2575,22 +2580,22 @@ draw_text_inactive(#fi{x=X0,y=Y0,w=Width}, #text{max=Max,password=Password},
 		color3_disabled()
 	end,
     Y = Y0 + ?CHAR_HEIGHT,
-    X = X0 + (?CHAR_WIDTH div 2),
+    X = X0 + Margin,
     gl:color3fv(FgColor),
-    wings_io:text_at(X, Y, Str),
+    text_draw_fitting(Str, X, Y, Width),
     keep.
 
 draw_text_active(#fi{x=X0,y=Y0,w=Width},
 		 #text{sel=Sel,first=First,cpos=CaretPos0,
-		       bef=Bef0,aft=Aft0,password=Password}=Text,
+		       bef=Bef0,aft=Aft0,password=Password,
+		       margin=Margin}=Text,
 		 DisEnabled) ->
     Ch = wings_text:height(),
-    Cw = wings_text:width(),
 
     wings_io:sunken_gradient(X0, Y0+2, Width, Ch+1,
 			     color3_high(), color4(), true),
     Y = Y0 + Ch,
-    X = X0 + (Cw div 2),
+    X = X0 + Margin,
     {Bef1,Aft} = stars(Password, Bef0, Aft0),
     CaretPos = X + CaretPos0,
 
@@ -2678,9 +2683,9 @@ text_event(#mousemotion{x=X}, Fi, #text{aft=Aft0}=Ts) ->
     Ts#text{sel=length(Aft0)-length(Aft)};
 text_event(_Ev, _Fi, Ts) -> Ts.
 
-text_pos(Mx0, #fi{x=X}, #text{cpos=CaretPos}=Ts0) ->
+text_pos(Mx0, #fi{x=X}, #text{cpos=CaretPos,margin=Margin}=Ts0) ->
     Ts = Ts0#text{sel=0},
-    case Mx0 - X - ?CHAR_WIDTH div 2 of
+    case Mx0 - X - Margin of
 	Mx when Mx < CaretPos ->
 	    text_pos_left(Mx, Ts);
 	Mx ->
