@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.70 2002/12/28 22:10:27 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.71 2003/01/08 16:31:58 raimo_niskanen Exp $
 
 -module(wpc_autouv).
 
@@ -881,6 +881,10 @@ option_menu() ->
      {"Export", export, "Export texture"},
      {"Import", import, "Import texture"},
      {"Checkerboard", checkerboard, "Generate checkerboard texture"},
+     {"Vertical Bars", vertical_bars, "Generate vertical bars texture"},
+     {"Horizontal Bars", horizontal_bars, "Generate horizontal bars texture"},
+     {"White", all_white, "Generate white texture"},
+     {"Black", all_black, "Generate black texture"},
      separator,
      {"Apply Texture", apply_texture, "Attach the current texture to the model"},
      separator,
@@ -1065,11 +1069,21 @@ handle_event({action,{auv,import}}, Uvs0) ->
 	FileName ->
 	    ?SLOW(import_file(FileName, Uvs0))
     end;
-handle_event({action,{auv,checkerboard}}, #uvstate{option=Opt0}=Uvs) ->
-    Sz = 512,
-    Bin = checkerboard(Sz),
-    Opt = Opt0#setng{texbg=true,color=false,edges=no_edges},
-    add_texture_image(Sz, Sz, Bin, default, Uvs#uvstate{option=Opt});
+% handle_event({action,{auv,checkerboard}}, #uvstate{option=Opt0}=Uvs) ->
+%     Sz = 512,
+%     Bin = checkerboard(Sz),
+%     Opt = Opt0#setng{texbg=true,color=false,edges=no_edges},
+%     add_texture_image(Sz, Sz, Bin, default, Uvs#uvstate{option=Opt});
+handle_event({action,{auv,checkerboard}}, Uvs) ->
+    set_texture_image(fun checkerboard/2, Uvs);
+handle_event({action,{auv,vertical_bars}}, Uvs) ->
+    set_texture_image(fun vertical_bars/2, Uvs);
+handle_event({action,{auv,horizontal_bars}}, Uvs) ->
+    set_texture_image(fun horizontal_bars/2, Uvs);
+handle_event({action,{auv,all_white}}, Uvs) ->
+    set_texture_image(fun all_white/2, Uvs);
+handle_event({action,{auv,all_black}}, Uvs) ->
+    set_texture_image(fun all_black/2, Uvs);
 handle_event({action,{auv,apply_texture}},
 	     #uvstate{st=St0,sel=Sel0,areas=As0}=Uvs) ->
     Tx = ?SLOW(get_texture(Uvs)),
@@ -1214,6 +1228,13 @@ import_file(Filename, Uvs0) ->
 				       "power of 2 sized pictures", Uvs0#uvstate.st)	
 	    end
     end.
+
+set_texture_image(TexFun, #uvstate{option=Opt0}=Uvs) ->
+    TexW = 512,
+    TexH = 512,
+    Opt = Opt0#setng{texbg=true,color=false,edges=no_edges},
+    add_texture_image(TexW, TexH, TexFun(TexW, TexH), default, 
+		      Uvs#uvstate{option=Opt}).
 
 add_texture_image(TW, TH, TexBin, FileName,
 		  #uvstate{st=St0,option=Opt,areas=As0}=Uvs) ->
@@ -1640,21 +1661,60 @@ restore_wings_window(Uvs) ->
     {W,TopH} = wings_wm:top_size(),
     wings_wm:move(geom, {0,TopH-Y-H,1}, {W,H}).
 
-%% Generate a checkerboard image.
-checkerboard(Sz) ->
+%% Generate a checkerboard image of 4x4 squares 
+%% with given side length in pixels.
+checkerboard(Width, Height) ->
     White = [255,255,255],
     Black = [0,0,0],
-    FourWhite = check_repeat(4, White),
-    FourBlack = check_repeat(4, Black),
-    R1 = check_repeat(Sz div 8, [FourBlack|FourWhite]),
-    R2 = check_repeat(Sz div 8, [FourWhite|FourBlack]),
-    R8 = [check_repeat(4, R1)|check_repeat(4, R2)],
-    list_to_binary(check_repeat(Sz div 8, R8)).
+    FourWhite = pattern_repeat(4, White),
+    FourBlack = pattern_repeat(4, Black),
+    R1 = pattern_repeat(Width div 8, [FourBlack|FourWhite]),
+    R2 = pattern_repeat(Width div 8, [FourWhite|FourBlack]),
+    R8 = [pattern_repeat(4, [R1])|pattern_repeat(4, [R2])],
+    list_to_binary(pattern_repeat(Height div 8, R8)).
 
-check_repeat(0, _) -> [];
-check_repeat(1, D) -> [D];
-check_repeat(N, D) ->
-    B = check_repeat(N div 2, D),
+%% Generate a vertical bars image of 4 pixels width 
+%% with given side length in pixels.
+vertical_bars(Width, Height) ->
+    W = [255,255,255],
+    B = [0,0,0],
+    W4 = pattern_repeat(4, W),
+    B4 = pattern_repeat(4, B),
+    R = pattern_repeat(Width div 8, [B4|W4]),
+    R8 = pattern_repeat(8, [R]),
+    list_to_binary(pattern_repeat(Height div 8, [R8])).
+
+%% Generate a horizontal bars image of 4 pixels width 
+%% with given side length in pixels.
+horizontal_bars(Width, Height) ->
+    W = [255,255,255],
+    B = [0,0,0],
+    W8 = pattern_repeat(8, W),
+    B8 = pattern_repeat(8, B),
+    WR4 = pattern_repeat(4*(Width div 8), [W8]),
+    BR4 = pattern_repeat(4*(Width div 8), [B8]),
+    list_to_binary(pattern_repeat(Height div 8, [BR4|WR4])).
+
+%% Generate an all white image
+%% with given side length in pixels.
+all_white(Width, Height) ->
+    solid(Width, Height, [255,255,255]).
+
+%% Generate an all white image
+%% with given side length in pixels.
+all_black(Width, Height) ->
+    solid(Width, Height, [0,0,0]).
+
+solid(Width, Height, Point) ->
+    P8 = pattern_repeat(8, Point),
+    R = pattern_repeat(Width div 8, P8),
+    R8 = pattern_repeat(8, R),
+    list_to_binary(pattern_repeat(Height div 8, R8)).
+
+pattern_repeat(0, _) -> [];
+pattern_repeat(1, D) -> [D];
+pattern_repeat(N, D) ->
+    B = pattern_repeat(N div 2, D),
     case N rem 2 of
 	0 -> [B|B];
 	1 -> [D,B|B]
