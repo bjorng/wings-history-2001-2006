@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.11 2004/11/15 04:10:32 bjorng Exp $
+%%     $Id: wings_palette.erl,v 1.12 2004/11/17 15:28:17 bjorng Exp $
 %%
 -module(wings_palette).
 
@@ -46,7 +46,7 @@ window(St) ->
 	    keep
     end.
 
-window(Pos, Size = {W,_}, St) ->
+window(Pos, {W,_}=Size, St) ->
     Cols = get_all_colors(St),
     {ColsW,ColsH} = calc_size(Cols,W),
     Pst = #pst{st=St, cols=add_empty(Cols,ColsW,ColsH), w=ColsW, h=ColsH},
@@ -138,11 +138,9 @@ event(got_focus, _) ->
     MR = wings_util:button_format([],
 				  ?STR(event,2,"Edit color"),
 				  ?STR(event,3,"Show menu")),
-    %% XXX: Using Ctrl here will not work on a Mac with a one-button
-    %% mouse. We should probably use Command instead?
-    Ctrl = wings_s:key(ctrl),
-    CL = Ctrl ++ "+" ++
-	wings_util:button_format(?STR(event,4,"Clear color")),
+    Mods = wings_camera:free_modifier(),
+    ModName = wings_camera:mod_name(Mods),
+    CL = [ModName,$+,wings_util:button_format(?STR(event,4,"Clear color"))],
     Msg = wings_util:join_msg([L,CL,MR]),
     wings_wm:message(Msg),
     wings_wm:dirty();
@@ -155,7 +153,7 @@ event({current_state,St = #st{pal=StPal}}, Pst=#pst{w=W,h=H}) ->
 	    get_event(Pst#pst{st=St, cols=add_empty(StPal,W,H)})
     end;
 
-event(Ev = #mousemotion{state=Bst,x=X,y=Y, mod=Mod}, Pst = #pst{sel=Sel,cols=Cols})
+event(#mousemotion{state=Bst,x=X,y=Y,mod=Mod}=Ev, #pst{sel=Sel,cols=Cols}=Pst)
   when Bst band ?SDL_BUTTON_LMASK =/= 0 ->
     Delete = Mod band ?CTRL_BITS =/= 0,
     case select(X,Y,Pst) of
@@ -176,16 +174,17 @@ event(Ev = #mousemotion{state=Bst,x=X,y=Y, mod=Mod}, Pst = #pst{sel=Sel,cols=Col
 	    end
     end;
 
-event(#mousebutton{button=Butt,x=X,y=Y,mod=Mod,state=?SDL_PRESSED}, #pst{cols=Cols0}=Pst) 
+event(#mousebutton{button=Butt,x=X,y=Y,mod=Mod,state=?SDL_PRESSED},
+      #pst{cols=Cols0}=Pst) 
   when Butt =:= 1; Butt =:= 2 ->
-    case Mod band ?CTRL_BITS =/= 0 of
+    case Mod band wings_camera:free_modifier() =/= 0 of
 	false ->
 	    get_event(Pst#pst{sel=select(X,Y,Pst)});
 	true when Butt =:= 1 ->
 	    case select(X,Y,Pst) of
 		none -> keep;
 		Id ->
-		    {Bef,[_Prev|Rest]} = lists:split(Id, Cols0),		    
+		    {Bef,[_Prev|Rest]} = lists:split(Id, Cols0),
 		    get_event(update(Bef++[none|Rest],Pst#pst{sel=none}))
 	    end;
 	true ->

@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.110 2004/10/16 12:22:02 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.111 2004/11/17 15:28:17 bjorng Exp $
 %%
 
 -module(wings_camera).
 -export([init/0,prefs/0,help/0,event/2]).
 -export([button_format/1,button_format/2,button_format/3,
-	 free_rmb_modifier/0,rmb_format/1,mod_name/1,
+	 free_modifier/0,free_lmb_modifier/0,free_rmb_modifier/0,
+	 rmb_format/1,mod_name/1,
 	 mod_format/3,join_msg/1,join_msg/2]).
 
 -define(NEED_ESDL, 1).
@@ -236,12 +237,12 @@ rmb_name(1) -> [wings_s:key(ctrl),$+,lmb_name()];
 rmb_name(_) -> [wings_s:rmb()|":"].
 
 rmb_format(Message) ->
-    RmbMod = mod_name(free_rmb_modifier()),
-    [wings_s:key(RmbMod),$+,rmb_name(),?CSEP|Message].
+    ModName = mod_name(free_rmb_modifier()),
+    [ModName,$+,rmb_name(),?CSEP|Message].
 
-mod_name(?ALT_BITS) -> wings_s:alt();
-mod_name(?CTRL_BITS) -> wings_s:ctrl();
-mod_name(?META_BITS) -> wings_s:command().
+mod_name(?ALT_BITS) -> wings_s:key(alt);
+mod_name(?CTRL_BITS) -> wings_s:key(ctrl);
+mod_name(?META_BITS) -> wings_s:key(command).
 
 join_msg([M0,M1|T]) ->
     join_msg(join_msg(M0, M1), join_msg(T));
@@ -251,6 +252,24 @@ join_msg([]) -> [].
 join_msg([], Msg) -> Msg;
 join_msg(Msg, []) -> Msg;
 join_msg(Msg1, Msg2) -> [Msg1,?SEP,Msg2].
+
+free_modifier() ->
+    case wings_pref:get_value(num_buttons) of
+	1 -> ?META_BITS;
+	_ -> ?CTRL_BITS
+    end.
+
+free_lmb_modifier() ->
+    case wings_pref:get_value(camera_mode) of
+	maya -> ?CTRL_BITS;
+	blender -> ?CTRL_BITS;
+	nendo ->
+	    case wings_pref:get_value(num_buttons) of
+		1 -> ?META_BITS;
+		_ -> ?ALT_BITS
+	    end;
+	_ -> ?ALT_BITS
+    end.
 
 free_rmb_modifier() ->
     case wings_pref:get_value(camera_mode) of

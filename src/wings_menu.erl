@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.128 2004/11/13 08:49:57 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.129 2004/11/17 15:28:17 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -858,7 +858,7 @@ magnet_help(Msg0, Ps, #mi{flags=Flags}) ->
 		false ->
 		    ModRmb = wings_camera:free_rmb_modifier(),
 		    ModName = wings_camera:mod_name(ModRmb),
-		    MagMsg = ["[",ModName,"]+" ++ 
+		    MagMsg = [ModName,$+,
 			      ?STR(magnet_help,2,"Click for Magnet")],
 		    Msg = wings_util:join_msg(Msg0, MagMsg),
 		    wings_wm:message(Msg);

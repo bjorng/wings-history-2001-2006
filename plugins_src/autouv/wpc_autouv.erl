@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.271 2004/10/20 11:21:47 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.272 2004/11/17 15:28:16 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -446,18 +446,21 @@ handle_event(revert_state, St) ->
     get_event(St);
 handle_event(Ev, St) ->
     case wings_camera:event(Ev, fun() -> redraw(St) end) of
-	next -> handle_event_1(Ev, St);
-	Other -> Other
+	next ->
+	    FreeLmbMod = wings_camera:free_lmb_modifier(),
+	    handle_event_1(Ev, St, FreeLmbMod);
+	Other -> 
+	    Other
     end.
 
 %% Short cut for move selected
 handle_event_1(#mousebutton{state=?SDL_PRESSED,
 			    button=?SDL_BUTTON_LEFT,
 			    mod=Mod},
-	       St = #st{sel = Sel}) 
-  when Sel /= [], (Mod band ?ALT_BITS) =/= 0 ->
-    handle_command(move,St);
-handle_event_1(Ev, St) ->
+	       #st{sel=Sel}=St, FreeLmbMod) 
+  when Sel =/= [], (Mod band FreeLmbMod) =/= 0 ->
+    handle_command(move, St);
+handle_event_1(Ev, St, _) ->
     case wings_pick:event(Ev, St) of
 	next -> handle_event_2(Ev, St);
 	Other -> Other
@@ -551,7 +554,9 @@ handle_event_3(got_focus, _) ->
     Msg1 = wings_util:button_format("Select"),
     Msg2 = wings_camera:help(),
     Msg3 = wings_util:button_format([], [], "Show menu"),
-    Msg4 = "[Alt]+L: Move selected",
+    FreeMod = wings_camera:free_lmb_modifier(),
+    ModName = wings_camera:mod_name(FreeMod),
+    Msg4 = [ModName,$+,wings_util:button_format("Move selected")],
     Message = wings_util:join_msg([Msg1,Msg2,Msg3,Msg4]),
     wings_wm:message(Message),
     wings_wm:dirty();
