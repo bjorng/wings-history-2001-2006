@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.108 2002/10/13 19:11:42 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.109 2002/10/20 10:10:29 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -229,7 +229,7 @@ help_message(#drag{unit=Unit}=Drag) ->
 	       false -> [];
 	       true -> ["  Drag ",zmove_help()," Move along Z"]
 	   end,
-    wings_io:message([Msg,Zmsg,"  "|wings_camera:help()]),
+    wings_io:message([Msg,Zmsg]),
     wings_io:message_right(help_message_right(Drag)).
 
 help_message_right(#drag{magnet=none,falloff=Falloff}) ->
