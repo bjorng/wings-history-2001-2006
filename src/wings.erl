@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.23 2001/10/23 17:11:46 bjorng Exp $
+%%     $Id: wings.erl,v 1.24 2001/10/24 08:51:39 bjorng Exp $
 %%
 
 -module(wings).
@@ -248,13 +248,10 @@ command({_,[_|_]=Plugin}, St0) ->
 command({menu,Menu,X,Y}, St) ->
     menu(X, Y, Menu, St),
     St;
-command({shape,{Shape}}, St0) ->
-    case wings_shapes:Shape(true, St0) of
-	aborted -> St0;
-	St -> {save_state,model_changed(St)}
-    end;
+command({shape,{Shape}}, St) ->
+    create_shape(true, Shape, St);
 command({shape,Shape}, St) ->
-    {save_state,model_changed(wings_shapes:Shape(false, St))};
+    create_shape(false, Shape, St);
 command({help,What}, St) ->
     wings_help:What(St);
 
@@ -906,6 +903,12 @@ scale() ->
 model_changed(St) ->
     wings_draw:model_changed(St).
 
+create_shape(Ask, Shape, St0) ->
+    case wings_shapes:Shape(Ask, St0) of
+	aborted -> St0;
+	St -> {save_state,model_changed(St)}
+    end.
+
 save(St0) ->
     case wings_file:save(St0) of
 	aborted -> St0;
@@ -915,7 +918,7 @@ save(St0) ->
 
 quit(#st{saved=true}) -> quit;
 quit(St) ->
-    case wings_getline:yes_no("Do you want to save before quitting?") of
+    case wings_plugin:call_ui({quit,ask_save_changes}) of
 	no -> quit;
 	yes ->
 	    case save(St) of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.13 2001/10/17 07:48:25 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.14 2001/10/24 08:51:39 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -46,21 +46,10 @@ ask(false, Qs, Fun) ->
     Ns = [Def || {_,Def,_,_} <- Qs],
     Fun(Ns);
 ask(true, Qs, Fun) ->
-    case ask(Qs) of
+    case wings_plugin:call_ui({ask,Qs}) of
 	aborted -> aborted;
 	Ns -> Fun(Ns)
     end.
-
-ask([{Prompt,Default,Min,Max}|T]=T0) ->
-    case wings_getline:number(Prompt ++ ": ", Default) of
-	aborted -> aborted;
-	N ->
-	    case ask(T) of
-		aborted -> ask(T0);
-		Ns -> [N|Ns]
-	    end
-    end;
-ask([]) -> [].
 
 %%%
 %%% `fold' functions.

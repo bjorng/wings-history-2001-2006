@@ -1,20 +1,20 @@
 %%
 %%  wings_plugin.erl --
 %%
-%%     Exeperimental support of plugins.
+%%     Experimental support of plugins.
 %%
 %%  Copyright (c) 2001 Jakob Cederlund, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.2 2001/10/20 19:14:17 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.3 2001/10/24 08:51:39 bjorng Exp $
 %%
 -module(wings_plugin).
--export([init/0,menu/2,command/2]).
+-export([init/0,menu/2,command/2,call_ui/1]).
 
 -include("wings.hrl").
--import(lists, [append/1,flatmap/2,foreach/2]).
+-import(lists, [append/1,flatmap/2,foreach/2,sort/1,reverse/1]).
 
 %%%
 %%% Currently, there can be a single directory for plugins, but
@@ -33,6 +33,8 @@
 %%%
 %%% 0   Object creation plugin.
 %%% 1   Import/export plugin (NYI).
+%%% 8   External interface plugin.
+%%% 9   Default interface plugin.
 %%% u   General plugin. Not recommended for other than experimental
 %%%     use.
 %%%
@@ -47,13 +49,38 @@ init() ->
 init(Dir) ->
     {Pas,Beams} = list_dir(Dir),
     foreach(fun(Pa) -> code:add_patha(Pa) end, Pas),
-    Mods = [to_module(Beam) || Beam <- Beams],
-    foreach(fun({Type,Mod}) -> c:l(Mod) end, Mods),
+    TypeMods = [to_module(Beam) || Beam <- Beams],
+    foreach(fun({Type,Mod}) -> c:l(Mod) end, TypeMods),
+    UiMods = reverse(sort([Mod || {user_interface,Mod} <- TypeMods])),
+    init_ui_plugins(UiMods),
     Menus0 = [rearrange(N, T, Type, M, C) ||
-		 {Type,M} <- Mods, {N,{T,C}} <- M:menus()],
+		 {Type,M} <- TypeMods, {N,{T,C}} <- M:menus()],
     Menus1 = sofs:relation(Menus0),
     Menus = sofs:relation_to_family(Menus1),
     sofs:to_external(Menus).
+
+init_ui_plugins(Ms) ->
+    Def = fun(Missing) ->
+		  Msg = io_lib:format("Reinstall Wings. "
+				      "Missing plugin for ~p.",
+				      [Missing]),
+		  wings_io:message(lists:flatten(Msg)),
+		  aborted
+	  end,
+    init_ui_plugins(Ms, Def).
+
+init_ui_plugins([M|Ms], Ui0) ->
+    case catch M:init(Ui0) of
+	Ui when is_function(Ui) ->
+	    init_ui_plugins(Ms, Ui);
+	Other ->
+	    io:format("~w:init/1 bad return value: ~p\n", [M,Other])
+    end;
+init_ui_plugins([], Ui) -> put(wings_ui, Ui).
+
+call_ui(What) ->
+    Ui = get(wings_ui),
+    Ui(What).
 
 try_dirs() ->
     Dir0 = filename:dirname(code:which(?MODULE)),
@@ -110,6 +137,8 @@ to_module([_,_,T|_]=Beam) ->
 
 convert_type($0) -> creator;
 convert_type($1) -> import_export;
+convert_type($8) -> user_interface;
+convert_type($9) -> user_interface;
 convert_type($u) -> unsupported.
 
 menu(Name, Menu) ->

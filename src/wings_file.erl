@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.18 2001/10/23 17:11:47 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.19 2001/10/24 08:51:39 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -22,8 +22,9 @@
 -import(filename, [dirname/1]).
 
 new(#st{saved=false}=St0) ->
-    case wings_getline:yes_no("Do you want to save changes to your model?") of
-	no -> new(St0#st{saved=true});
+    case wings_plugin:call_ui({file,ask_save_changes}) of
+	no ->
+	    new(St0#st{saved=true});
 	yes ->
 	    case save(St0) of
 		aborted -> aborted;
@@ -38,7 +39,7 @@ read(St0) ->
     case new(St0) of
 	aborted -> St0;
 	St1 ->
-	    case wings_getline:filename("Read file: ", ".wings") of
+	    case wings_plugin:call_ui({file,{open,".wings"}}) of
 		aborted -> St0;
 		Name0 ->
 		    Name = ensure_extension(Name0, ".wings"),
@@ -54,7 +55,7 @@ read(St0) ->
     end.
 
 merge(St0) ->
-    case wings_getline:filename("Merge file: ", ".wings") of
+    case wings_plugin:call_ui({file,merge}) of
 	aborted -> St0;
 	Name0 ->
 	    Name = ensure_extension(Name0, ".wings"),
@@ -75,12 +76,11 @@ save(#st{shapes=Shapes,file=Name}=St) ->
 	    wings_getline:set_cwd(dirname(Name)),
 	    St#st{saved=true};
 	{error,Reason} ->
-	    wings_io:message("Save failed: " ++ Reason),
-	    aborted
+	    wings_plugin:call_ui({failure,"Save failed: " ++ Reason})
     end.
 
 save_as(#st{shapes=Shapes}=St) ->
-    case output_file("Save: ", ".wings") of
+    case output_file(save, ".wings") of
 	false -> St;
 	aborted -> aborted;
 	Name ->
@@ -114,7 +114,7 @@ import(tds, St) -> import(".3ds", e3d_tds, St);
 import(obj, St) -> import(".obj", e3d_obj, St).
 
 import(Ext, Mod, St0) ->
-    case wings_getline:filename("Import file: ", Ext) of
+    case wings_plugin:call_ui({file,{import,Ext}}) of
 	aborted -> St0;
 	Name0 ->
 	    Name = ensure_extension(Name0, Ext),
@@ -137,7 +137,7 @@ export(rib, St) -> export(e3d_rib, ".rib", St);
 export(obj, St) -> export(e3d_obj, ".obj", St).
 
 export(Mod, Ext, St) ->
-    case output_file("Export file: ", Ext) of
+    case output_file(export, Ext) of
 	aborted -> St;
 	Name ->
 	    wings_getline:set_cwd(dirname(Name)),
@@ -150,18 +150,17 @@ ensure_extension(Name, Ext) ->
 	Other -> Name ++ Ext
     end.
 
-output_file(Prompt, Ext) ->
-    case wings_getline:filename(Prompt, Ext) of
+output_file(Tag, Ext) ->
+    case wings_plugin:call_ui({file,{Tag,Ext}}) of
 	aborted -> aborted;
 	Name0 ->
 	    Name = ensure_extension(Name0, Ext),
 	    case filelib:is_file(Name) of
 		true ->
 		    Base = filename:basename(Name),
-		    case wings_getline:yes_no("File \"" ++ Base ++
-					      "\" exists; overwrite? ") of
+		    case wings_plugin:call_ui({file,{overwrite,Base}}) of
 			yes -> Name;
-			no -> aborted
+			Other -> aborted
 		    end;
 		false -> Name
 	    end
