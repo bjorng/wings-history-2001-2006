@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.79 2003/07/26 13:01:32 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.80 2003/08/06 05:06:26 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -99,6 +99,7 @@ add_help_text([{Atom,_Desc}=Pair|T], Names) when is_atom(Atom) ->
 add_help_text([Type|T], Names) ->
     Val = {Type,
 	   case Type of
+	       axis_point -> "Pick axis (and point)";
 	       axis -> "Pick axis";
 	       point -> "Pick point";
 	       magnet -> "Pick outer boundary point for magnet influence";
