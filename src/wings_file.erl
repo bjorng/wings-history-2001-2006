@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.141 2003/12/29 16:01:11 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.142 2003/12/30 07:29:35 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -67,12 +67,11 @@ menu(_) ->
      separator|recent_files([{"Exit",quit}])].
 
 command(new, St) ->
-    Next = fun(S) -> {new,(clean_images(S))#st{saved=true}} end,
-    new(Next, St);
-command({save_new,Next}, St) ->
-    save_new(Next, St);
-command({confirmed_new,Next}, St) ->
-    confirmed_new(Next, St);
+    new(St);
+command(save_new, St) ->
+    save_new(St);
+command(confirmed_new, St) ->
+    confirmed_new(St);
 command(open, St) ->
     open(St);
 command(confirmed_open_dialog, _) ->
@@ -109,14 +108,14 @@ command(revert, St0) ->
 	    St0;
 	#st{}=St -> {save_state,St}
     end;
-command({import,ndo}, St) ->
-    import_ndo(St);
-command(import_image, St) ->
-    import_image(),
-    St;
-command({import_image,Name}, St) ->
-    import_image(Name),
-    St;
+command({import,ndo}, _St) ->
+    import_ndo();
+command({import,{ndo,Filename}}, St) ->
+    import_ndo(Filename, St);
+command(import_image, _St) ->
+    import_image();
+command({import_image,Name}, _) ->
+    import_image(Name);
 command({export,ndo}, St) ->
     export_ndo(St),
     St;
@@ -127,9 +126,10 @@ command({export_selected,ndo}, St) ->
     Shs = gb_trees:from_orddict(reverse(Shs0)),
     export_ndo(St#st{shapes=Shs}),
     St;
-command(install_plugin, St) ->
-    install_plugin(),
-    St;
+command(install_plugin, _St) ->
+    install_plugin();
+command({install_plugin,Filename}, _St) ->
+    wings_plugin:install(Filename);
 command(quit, St) ->
     quit(St);
 command(confirmed_quit, _) ->
@@ -150,27 +150,27 @@ quit(_) ->
 			     fun() -> {file,save_quit} end,
 			     fun() -> {file,confirmed_quit} end).
 
-new(Next, #st{saved=true}=St0) ->
+new(#st{saved=true}=St0) ->
     St1 = clean_st(St0#st{file=undefined}),
-    St = wings_undo:init(St1),
+    St = clean_images(wings_undo:init(St1)),
     wings:caption(St),
-    Next(St);
-new(Next, St0) -> %% File is not saved or autosaved.
+    {new,St#st{saved=true}};
+new(St0) ->			     %File is not saved or autosaved.
     wings:caption(St0#st{saved=false}), 
     wings_util:yes_no_cancel("Do you want to save your changes?",
-			     fun() -> {file,{save_new,Next}} end,
-			     fun() -> {file,{confirmed_new,Next}} end).
+			     fun() -> {file,save_new} end,
+			     fun() -> {file,confirmed_new} end).
 
-save_new(Next, St0) ->
+save_new(St0) ->
     case save_1(St0) of
 	aborted -> St0;
-	#st{}=St -> new(Next, St)
+	#st{}=St -> new(St)
     end.
 
-confirmed_new(Next, #st{file=File}=St) ->
+confirmed_new(#st{file=File}=St) ->
     %% Remove autosaved file; user has explicitly said so.
     catch file:delete(autosave_filename(File)),
-    new(Next, St#st{saved=true}).
+    new(St#st{saved=true}).
 
 open(#st{saved=true}) ->
     confirmed_open_dialog();
@@ -184,13 +184,12 @@ open(St) ->
 confirmed_open_dialog() ->
     %% All confirmation questions asked. The former contents has either
     %% been saved, or the user has accepted that it will be discarded.
-    This = wings_wm:this(),
-    Fun = fun(Filename) ->
-		  wings_wm:send(This, {action,{file,{confirmed_open,Filename}}})
-	  end,
+    %% Go ahead and ask for the filename.
+
+    Cont = fun(Filename) -> {file,{confirmed_open,Filename}} end,
     Dir = wings_pref:get_value(current_directory),
-    Ps = [{directory,Dir}|wings_prop()],
-    wings_plugin:call_ui({file,open_dialog,Ps,Fun}).
+    Ps = [{directory,Dir},{title,"Open"}|wings_prop()],
+    wpa:import_filename(Ps, Cont).
 
 confirmed_open(Name, St0) ->
     Fun = fun(File) ->
@@ -212,32 +211,20 @@ confirmed_open(Name, St0) ->
 	  end,
     use_autosave(Name, Fun).
 
+named_open(Name, #st{saved=true}=St) ->
+    confirmed_open(Name, St);
 named_open(Name, St) ->
-    new(fun(S) -> do_named_open(Name, S) end, St).
-
-do_named_open(Name, St0) ->
-    add_recent(Name),
-    Fun = fun(File) ->
-		  case ?SLOW(wings_ff_wings:import(File, St0)) of
-		      #st{}=St1 ->
-			  St = clean_images(St1),
-			  set_cwd(dirname(Name)),
-			  wings:caption(St#st{saved=true,file=Name});
-		      {error,Reason} ->
-			  clean_new_images(St0),
-			  wings_util:error("Read failed: " ++ Reason)
-		  end
-	  end,
-    use_autosave(Name, Fun).
+    wings:caption(St#st{saved=false}),		%Clear any autosave flag.
+    Confirmed = {file,{confirmed_open,Name}},
+    wings_util:yes_no_cancel("Do you want to save your changes?",
+			     fun() -> {file,{save,Confirmed}} end,
+			     fun() -> Confirmed end).
 
 merge() ->
-    This = wings_wm:this(),
-    Fun = fun(Filename) ->
-		  wings_wm:send(This, {action,{file,{merge,Filename}}})
-	  end,
+    Cont = fun(Filename) -> {file,{merge,Filename}} end,
     Dir = wings_pref:get_value(current_directory),
     Ps = [{title,"Merge"},{directory,Dir}|wings_prop()],
-    wings_plugin:call_ui({file,open_dialog,Ps,Fun}).
+    wpa:import_filename(Ps, Cont).
 
 merge(Name, St0) ->
     Fun = fun(File) ->
@@ -508,35 +495,32 @@ revert(#st{file=File}=St0) ->
 %% Import.
 %%
 
-import_ndo(St0) ->
+import_ndo() ->
     Ps = [{ext,".ndo"},{ext_desc,"Nendo File"}],
-    case wpa:import_filename(Ps) of
-	aborted -> St0;
-	Name ->
-	    case ?SLOW(wings_ff_ndo:import(Name, St0)) of
-		#st{}=St ->
-		    {save_state,St};
-	    	{error,Reason} ->
-		    wings_util:error("Import failed: " ++ Reason),
-		    St0
-	    end
+    Cont = fun(Name) -> {file,{import,{ndo,Name}}} end,
+    wpa:import_filename(Ps, Cont).
+
+import_ndo(Name, St0) ->
+    case ?SLOW(wings_ff_ndo:import(Name, St0)) of
+	#st{}=St ->
+	    {save_state,St};
+	{error,Reason} ->
+	    wings_util:error("Import failed: " ++ Reason),
+	    St0
     end.
 
 import_image() ->
-    This = wings_wm:this(),
     Ps = [{extensions,wpa:image_formats()}],
-    Cont = fun(Name) ->
-		   ImportFun = {file,{import_image,Name}},
-		   wings_wm:send(This, {action,ImportFun})
-	   end,
+    Cont = fun(Name) -> {file,{import_image,Name}} end,
     wpa:import_filename(Ps, Cont).
 
 import_image(Name) ->
     case wings_image:from_file(Name) of
+	Im when is_integer(Im) ->
+	    keep;
 	{error,Error} ->
 	    wings_util:error("Failed to load \"~s\": ~s\n",
-			     [Name,file:format_error(Error)]);
-	Im when is_integer(Im) -> keep
+			     [Name,file:format_error(Error)])
     end.
 
 %%
@@ -575,14 +559,14 @@ export_ndo(St) ->
 %%%
 
 install_plugin() ->
-    Props = [{extensions,[{".gz","GZip Compressed File"},
-			  {".tar","Tar File"},
-			  {".tgz","Compressed Tar File"},
-			  {".beam","Beam File"}]}],
-    case wings_plugin:call_ui({file,open_dialog,Props}) of
-	aborted -> ok;
-	Name -> wings_plugin:install(Name)
-    end.
+    Props = [{title,"Install Plug-In"},
+	     {extensions,
+	      [{".gz","GZip Compressed File"},
+	       {".tar","Tar File"},
+	       {".tgz","Compressed Tar File"},
+	       {".beam","Beam File"}]}],
+    Cont = fun(Name) -> {file,{install_plugin,Name}} end,
+    wpa:import_filename(Props, Cont).
 
 %%%    
 %%% Utilities.
