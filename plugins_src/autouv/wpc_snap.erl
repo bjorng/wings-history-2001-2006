@@ -1,15 +1,15 @@
 %%%-------------------------------------------------------------------
 %%% File    : wpc_snap.erl
 %%% Author  :  <dgud@erix.ericsson.se>
-%%% Description : Snapp texture (image) to model
+%%% Description : Snap texture (image) to model
 %%%
 %%% Created : 28 May 2003 by Dan Gudmundsson
 %%-------------------------------------------------------------------
-%%  Copyright (c) 2002-2003 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_snap.erl,v 1.1 2004/02/11 11:33:16 dgud Exp $
+%%     $Id: wpc_snap.erl,v 1.2 2004/03/17 07:06:04 bjorng Exp $
 
 -module(wpc_snap).
 
@@ -28,35 +28,31 @@ init() ->
     true.
 
 menu({tools}, Menu) ->
-    Menu ++ [separator,
-	     {"Snap Image", {auv_snap, [{"Start Snap Mode", auv_snap_image, 
-					 "Snap image to selected faces"}, 
-					{"Quit Snap Mode", auv_cancel_snap, 
-					 "Quit Snap Image Mode"}]}}];
-menu({body}, Menu) ->
-    case active() of
-	true ->
-	    snap_menu() ++ Menu;
-	false ->
-	    Menu
-    end;
+    Menu ++
+	[separator,
+	 case active() of
+	     false ->
+		 {"Snap Image",snap_image_mode,
+		  "Start snap mode for \"snapping\" UV coordinates onto an image"};
+	     true ->
+		 {"Exit Snap Mode",exit_snap_mode,
+		  "Exit the snap mode"}
+	 end];
 menu({face}, Menu) ->
     case active() of
 	false ->
 	    Menu;
 	true ->
-	    [{"Snap Image", auv_complete_snap, "Put Image on select faces"}|
+	    [{"Snap Image",snap_image,"Put Image on selected faces"}|
 	     snap_menu()] ++ Menu    
     end;
-menu({Type}, Menu) when Type == vertex; Type == shape -> 
+menu({Type}, Menu) when Type == vertex; Type == edge;
+			Type == body; Type == shape ->
     case active() of
-	false ->
-	    Menu;
-	true ->	    
-	    snap_menu() ++ Menu    
+	false -> Menu;
+	true -> snap_menu() ++ Menu    
     end;
-menu(_Dbg, Menu) ->
-    Menu.
+menu(_, Menu) -> Menu.
 
 snap_menu() ->
     ScaleMenu = [{"Horizontal", x, "Scale SnapImage horizontally"},
@@ -69,36 +65,33 @@ snap_menu() ->
 
     [{"Scale Snap Image", {auv_snap_scale, ScaleMenu}, "Scale SnapImage"},
      {"Move Snap Image",  {auv_snap_move,  MoveMenu}, "Move SnapImage"},
+     {"Exit Snap Mode",exit_snap_mode,"Exit the snap mode"},
      separator].
 
-command({face, auv_complete_snap}, St) ->
-    complete(St);
-command({_, {auv_snap_scale,Op}}, St) ->
+command({face,snap_image}, St) ->
+    snap(St);
+command({_,{auv_snap_scale,Op}}, St) ->
     scale(Op,St);
-command({_, {auv_snap_move,Op}}, St) ->
+command({_,{auv_snap_move,Op}}, St) ->
     move(Op,St);
-command({tools, {auv_snap, auv_snap_image}}, St) ->
+command({tools,snap_image_mode}, St) ->
     select_image(St);
-command({_, {auv_snap,auv_cancel_snap}}, St) ->
+command({_,exit_snap_mode}, St) ->
     cancel(St);
 command(_, _) -> next.
 
 active() ->
-    case get(?MODULE) of
-	undefined -> false;
-	_Else -> true
-    end.
+    get(?MODULE) =/= undefined.
 
 cancel(St) ->
     wings:unregister_postdraw_hook(geom, ?MODULE),
     erase(?MODULE),
     St.
 
-complete(St0) ->
+snap(St0) ->
     #s{reply=Image,name=Name} = get(?MODULE),
-    St1 = set_materials({Image,Name}, St0),
-    Res = insert_uvs(St1),
-    Res.
+    St = set_materials({Image,Name}, St0),
+    insert_uvs(St).
 
 select_image(_St) ->
     Images = find_images(),
@@ -202,10 +195,14 @@ draw_image(Image,_St) ->
     Xrange = (X*Size)/2,
     Yrange = (Y*Size)/2,
 
-    gl:texCoord2f(Tx/2+(Center-Sx*Xrange),Ty/2+(Center-Sy*Yrange)),    gl:vertex2f(Xs,Ys),
-    gl:texCoord2f(Tx/2+(Center+Sx*Xrange),Ty/2+(Center-Sy*Yrange)),    gl:vertex2f(Xe,Ys),
-    gl:texCoord2f(Tx/2+(Center+Sx*Xrange),Ty/2+(Center+Sy*Yrange)),    gl:vertex2f(Xe,Ye),
-    gl:texCoord2f(Tx/2+(Center-Sx*Xrange),Ty/2+(Center+Sy*Yrange)),    gl:vertex2f(Xs,Ye),
+    gl:texCoord2f(Tx/2+(Center-Sx*Xrange),Ty/2+(Center-Sy*Yrange)),
+    gl:vertex2f(Xs,Ys),
+    gl:texCoord2f(Tx/2+(Center+Sx*Xrange),Ty/2+(Center-Sy*Yrange)),
+    gl:vertex2f(Xe,Ys),
+    gl:texCoord2f(Tx/2+(Center+Sx*Xrange),Ty/2+(Center+Sy*Yrange)),
+    gl:vertex2f(Xe,Ye),
+    gl:texCoord2f(Tx/2+(Center-Sx*Xrange),Ty/2+(Center+Sy*Yrange)),
+    gl:vertex2f(Xs,Ye),
 
     gl:'end'(),
     gl:popAttrib().
