@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.122 2004/03/08 22:27:19 raimo_niskanen Exp $
+%%     $Id: wings_draw_util.erl,v 1.123 2004/03/11 06:12:53 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -1002,7 +1002,6 @@ groundplane_2(X, Last, Sz, Axes) ->
     gl:vertex2f(Sz, X),
     groundplane_2(X+?GROUND_GRID_SIZE, Last, Sz, Axes).
 
-show_saved_bb(#st{bb=none}) -> ok;
 show_saved_bb(#st{bb=[{X1,Y1,Z1},{X2,Y2,Z2}]}) ->
     case wings_pref:get_value(show_bb) of
 	false -> ok;
@@ -1031,4 +1030,5 @@ show_saved_bb(#st{bb=[{X1,Y1,Z1},{X2,Y2,Z2}]}) ->
 	    gl:vertex3f(X2, Y1, Z2),
 	    gl:'end'(),
 	    gl:disable(?GL_LINE_STIPPLE)
-    end.
+    end;
+show_saved_bb(_) -> ok.

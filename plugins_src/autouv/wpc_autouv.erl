@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.196 2004/03/11 06:05:16 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.197 2004/03/11 06:12:47 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -224,7 +224,7 @@ create_uv_state(Charts0, MatName0, We, GeomSt0) ->
     wings_wm:set_prop(show_axes, false),
     wings_wm:set_prop(show_groundplane, false),
     wings_wm:set_prop(wireframed_objects,
-		      lists:seq(1, gb_trees:size(Charts))),
+		      gb_sets:from_list(lists:seq(1, gb_trees:size(Charts)))),
     wings_wm:set_prop(allow_rotation, false),
 
     wings_wm:later(got_focus),
@@ -436,8 +436,8 @@ get_event(#st{}=St) ->
 get_event_nodraw(#st{}=St) ->
     {replace,fun(Ev) -> handle_event(Ev, St) end}.
 
-handle_event(redraw, St0) ->
-    St = redraw(St0),
+handle_event(redraw, St) ->
+    redraw(St),
     get_event_nodraw(St);
 handle_event(init_opengl, St) ->
     wings:init_opengl(St),
@@ -557,8 +557,8 @@ get_cmd_event(Op, X, Y, #st{}=St) ->
 get_cmd_event_noredraw(Op, X, Y, #st{}=St) ->
     {replace,fun(Ev) -> cmd_event(Ev, Op, X, Y, St) end}.
 
-cmd_event(redraw, Op, X, Y, St0) ->
-    St = redraw(St0),
+cmd_event(redraw, Op, X, Y, St) ->
+    redraw(St),
     get_cmd_event_noredraw(Op, X, Y, St);
 
 cmd_event(#mousemotion{x=MX0,y=MY0}, Op, X0, Y0, St0) ->
@@ -765,7 +765,7 @@ broken_event(Ev, _) ->
 %%% Draw routines.
 %%%
 
-redraw(#st{mat=Mats,bb=Uvs}=St) ->
+redraw(#st{mat=Mats,bb=Uvs}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
 
     %% Draw background of AutoUV window.
@@ -813,8 +813,7 @@ redraw(#st{mat=Mats,bb=Uvs}=St) ->
     wings_draw_util:fold(fun(D, _) ->
 				 draw_one_chart(D)
 			 end, []),
-    gl:popAttrib(),
-    St.
+    gl:popAttrib().
 
 init_drawarea() ->
     {{X,TopY},{W0,TopH}} = wings_wm:win_rect(desktop),
