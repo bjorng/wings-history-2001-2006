@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.3 2003/01/13 19:49:31 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.4 2003/01/18 09:05:39 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -250,12 +250,13 @@ ctrl_fit(vertical) ->
     fit_vertical().
 
 fit_horizontal() ->
+    {_,Client} = wings_wm:active_window(),
+    {_,Ch} = wings_wm:win_size(Client),
     {{Left0,Y},{_,H}} = wings_wm:win_rect(),
     Win0 = wings_wm:windows(),
-    Win = [Wi || Wi <- Win0, have_vertical_overlap(Wi, Y, H)],
+    Win = [Wi || Wi <- Win0, have_vertical_overlap(Wi, Y, Ch+H)],
     {DeskLeft,_} = wings_wm:win_ul(desktop),
     Left = fit_hor_constrain_1(Win, Left0, DeskLeft),
-    {_,Client} = wings_wm:active_window(),
     wings_wm:update_window(Client, [{dx,Left-Left0},{dw,Left0-Left}]),
     {Right0,_} = wings_wm:win_ur(wings_wm:active_window()),
     {DeskRight,_} = wings_wm:win_ur(desktop),
