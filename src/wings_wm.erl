@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.129 2003/11/12 17:41:27 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.130 2003/11/20 20:52:17 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -1043,27 +1043,35 @@ message_redraw(Msg, Right) ->
 	Msg == [] -> ok;
 	true -> wings_io:text_at(0, Msg)
     end,
+    OsType = get(wings_os_type),
+    RMarg0 = case OsType of
+		 {unix,darwin} -> 27;
+		 _ -> 0
+	    end,
     case Right of
 	[] -> ok;
 	_ ->
 	    Cw = wings_text:width(),
 	    MsgW = wings_text:width(Msg),
 	    RightW = wings_text:width(Right),
+	    RMarg = RMarg0 + 2*Cw,
 	    if 
-		MsgW+RightW < W - 5*Cw ->
-		    Pos = W - RightW - 5*Cw,
+		MsgW+RightW < W - RMarg ->
+		    Pos = W - RightW - RMarg,
 		    wings_io:set_color(wings_pref:get_value(menu_color)),
-		    gl:recti(Pos-?CHAR_WIDTH, -?LINE_HEIGHT+3,
-			     Pos+RightW, 3),
+		    gl:recti(Pos-Cw, 1-wings_text:height(),
+			     Pos+RightW+Cw, 3),
 		    gl:color3b(0, 0, 0),
 		    wings_io:text_at(Pos, Right);
 		true -> ok
 	    end;
 	_ -> ok
     end,
-    case os:type() of
+    case OsType of
 	{unix,darwin} ->
-	    wings_io:draw_icons(fun() -> wings_io:draw_icon(W-25, -8, resize) end);
+	    wings_io:draw_icons(fun() ->
+					wings_io:draw_icon(W-25, -8, resize)
+				end);
 	_ -> ok
     end,
     keep.
