@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.99 2003/01/28 07:14:33 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.100 2003/01/29 21:37:42 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -67,6 +67,8 @@ menu(_) ->
      {"Export",{export,ExpFormats}},
      {"Export Selected",{export_selected,ExpFormats}},
      separator,
+     {"Import Image...",import_image},
+     separator,
      {"Render",{render,[]}},
      separator|recent_files([{"Exit",quit}])].
 
@@ -117,6 +119,9 @@ command({import,ndo}, St0) ->
 	    {save_state,St};
 	St -> {save_state,St}
     end;
+command(import_image, St) ->
+    import_image(),
+    St;
 command({export,ndo}, St) ->
     export_ndo(St),
     St;
@@ -479,6 +484,20 @@ import_ndo(St0) ->
 	    	{error,Reason} ->
 		    wings_util:error("Import failed: " ++ Reason),
 		    St0
+	    end
+    end.
+
+import_image() ->
+    Ps = [{extensions,wpa:image_formats()}],
+    case wpa:import_filename(Ps) of
+	aborted -> keep;
+	Name ->
+	    case wings_image:from_file(Name) of
+		{error,Error} ->
+		    E = io_lib:format("Failed to load \"~s\": ~s\n",
+				      [Name,file:format_error(Error)]),
+		    wings_util:error(E);
+		Im when is_integer(Im) -> ok
 	    end
     end.
 
