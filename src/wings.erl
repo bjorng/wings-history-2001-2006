@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.61 2001/11/29 10:14:56 bjorng Exp $
+%%     $Id: wings.erl,v 1.62 2001/12/07 10:44:22 bjorng Exp $
 %%
 
 -module(wings).
@@ -25,6 +25,8 @@
 -define(INTERESTING_BITS, (?CTRL_BITS bor ?ALT_BITS)).
 -import(lists, [foreach/2,map/2,filter/2,foldl/3,sort/1,
 		keymember/3,reverse/1]).
+
+-define(COLOR_BITS, 16).
 
 start() ->
     spawn_link(fun init/0).
@@ -88,7 +90,14 @@ init_1() ->
 	    },
     wings_view:init(),
     wings_file:init(),
-    resize(800, 600, St),
+
+    %% On Solaris/Sparc, we must initialize twice the first time to
+    %% get the requested size. Should be harmless on other platforms.
+    W = 800,
+    H = 600,
+    sdl_video:setVideoMode(W, H, ?COLOR_BITS, ?SDL_OPENGL bor ?SDL_RESIZABLE),
+    resize(W, H, St),
+
     caption(St),
     enter_top_level(wings_undo:init(St)),
     wings_file:finish(),
@@ -111,7 +120,7 @@ locate(Name) ->
     end.
 
 resize(W, H, St) ->
-    sdl_video:setVideoMode(W, H, 16, ?SDL_OPENGL bor ?SDL_RESIZABLE),
+    sdl_video:setVideoMode(W, H, ?COLOR_BITS, ?SDL_OPENGL bor ?SDL_RESIZABLE),
     wings_view:init_light(),
     gl:enable(?GL_DEPTH_TEST),
     {R,G,B} = wings_pref:get_value(background_color),
