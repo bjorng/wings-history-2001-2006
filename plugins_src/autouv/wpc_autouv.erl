@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.199 2004/03/12 05:42:53 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.200 2004/03/12 19:37:27 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -245,8 +245,7 @@ restrict_ftab_1(#we{id=Id,name=#ch{fs=Fs0},fs=Ftab0}=We) ->
 
 insert_initial_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
     We0 = gb_trees:get(Id, Shs0),
-    UVpos = gen_uv_pos(gb_trees:values(Charts)),
-    We1 = insert_coords(UVpos, We0),
+    We1 = update_uvs(gb_trees:values(Charts), We0),
     We2 = insert_material(Charts, MatName, We1),
     We = We2#we{mode=material},    
     Shs = gb_trees:update(Id, We, Shs0),
@@ -256,59 +255,52 @@ update_selected_uvcoords(#st{bb=Uvs}=St) ->
     Charts = wpa:sel_fold(fun(_, We, Acc) -> [We|Acc] end, [], St),
     #uvstate{st=#st{shapes=Shs0}=GeomSt0,id=Id} = Uvs,
     We0 = gb_trees:get(Id, Shs0),
-    UVpos = gen_uv_pos(Charts),
-    We = insert_coords(UVpos, We0),    
+    We = update_uvs(Charts, We0),    
     Shs = gb_trees:update(Id, We, Shs0),
     GeomSt = GeomSt0#st{shapes=Shs},
     wings_wm:send(geom, {new_state,GeomSt}),
     St#st{bb=Uvs#uvstate{st=GeomSt}}.
 
-gen_uv_pos(Cs) ->
-    gen_uv_pos_1(Cs, []).
+%% update_uvs(Charts, We0) -> We
+%%  Update the UV coordinates for the original model.
+update_uvs(Cs, #we{es=Etab0}=We) ->
+    update_uvs_1(Cs, We, Etab0).
 
-gen_uv_pos_1([#we{vp=Vpos0,name=#ch{fs=Fs,vmap=Vmap}}=We|T], Acc) ->
-    Vpos1 = gb_trees:to_list(Vpos0),
+update_uvs_1([#we{vp=Vpos0,name=#ch{fs=Fs,vmap=Vmap}}=ChartWe|Cs], We, Etab0) ->
     VFace0 = wings_face:fold_faces(
 	       fun(Face, V, _, _, A) ->
 		       [{V,Face}|A]
-	       end, [], Fs, We),
-    VFace = sofs:relation(VFace0, [{vertex,face}]),
-    Vpos = sofs:relation(Vpos1, [{vertex,uvinfo}]),
-    Comb0 = sofs:relative_product({VFace,Vpos}),
-    Comb1 = sofs:to_external(Comb0),
-    Comb = foldl(fun({V0,Data}, A) ->
-			 V = auv_segment:map_vertex(V0, Vmap),
-			 [{V,Data}|A]
-		 end, Acc, Comb1),
-    gen_uv_pos_1(T, Comb);
-gen_uv_pos_1([], Acc) -> Acc.
+	       end, [], Fs, ChartWe),
+    VFace1 = sofs:relation(VFace0),
+    VFace2 = sofs:relation_to_family(VFace1),
+    VFace = sofs:to_external(VFace2),
+    Vpos = gb_trees:to_list(Vpos0),
+    Etab = update_uvs_2(Vpos, VFace, Vmap, We, Etab0),
+    update_uvs_1(Cs, We, Etab);
+update_uvs_1([], We, Etab) ->  We#we{es=Etab}.
 
-insert_coords([{V,{Face,{S,T,_}}}|Rest], #we{es=Etab0}=We) ->
-    Etab = wings_vertex:fold(
-	     fun(Edge, _, Rec0, E0) ->
-		     case Rec0 of
-			 #edge{vs=V,lf=Face} ->
-			     Rec = gb_trees:get(Edge, E0),
-			     gb_trees:update(Edge, Rec#edge{a={S,T}}, E0);
-			 #edge{ve=V,rf=Face} ->
-			     Rec = gb_trees:get(Edge, E0),
-			     gb_trees:update(Edge, Rec#edge{b={S,T}}, E0);
-			 _ ->
-			     E0
-		     end
-	     end, Etab0, V, We),
-    insert_coords(Rest, We#we{es=Etab});
-insert_coords([], #we{es=Etab0}=We0) -> 
-    %% Ensure that we leave no vertex colors.
-    Etab = map(fun({Id,E=#edge{a={_,_,_},b={_,_,_}}}) -> 
-		       {Id,E#edge{a=none,b=none}};
-		  ({Id,E=#edge{a={_,_,_}}}) -> 
-		       {Id,E#edge{a=none}};
-		  ({Id,E=#edge{b={_,_,_}}}) -> 
-		       {Id,E#edge{b=none}};
-		  (Rec) -> Rec
-	       end, gb_trees:to_list(Etab0)),
-    We0#we{es=gb_trees:from_orddict(Etab)}.
+update_uvs_2([{V0,{X,Y,_}}|Vs], [{V0,Fs}|VFs], Vmap, We, Etab0) ->
+    UV = {X,Y},
+    V = auv_segment:map_vertex(V0, Vmap),
+    Etab = foldl(fun(Face, A) ->
+			 update_uvs_3(V, Face, UV, A, We)
+		 end, Etab0, Fs),
+    update_uvs_2(Vs, VFs, Vmap, We, Etab);
+update_uvs_2([], [], _, _, Etab) -> Etab.
+
+update_uvs_3(V, Face, UV, Etab, We) ->
+    wings_vertex:fold(
+      fun(Edge, _, Rec0, Et) ->
+	      case Rec0 of
+		  #edge{vs=V,lf=Face,a=A} when A =/= UV ->
+		      Rec = gb_trees:get(Edge, Et),
+		      gb_trees:update(Edge, Rec#edge{a=UV}, Et);
+		  #edge{ve=V,rf=Face,b=B} when B =/= UV ->
+		      Rec = gb_trees:get(Edge, Et),
+		      gb_trees:update(Edge, Rec#edge{b=UV}, Et);
+		  _ -> Et
+	      end
+      end, Etab, V, We).
 
 insert_material(Cs, MatName, We) ->
     Faces = lists:append([Fs || #we{name=#ch{fs=Fs}} <- gb_trees:values(Cs)]),
