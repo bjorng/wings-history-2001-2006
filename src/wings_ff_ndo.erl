@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.4 2001/11/07 20:53:37 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.5 2001/11/09 07:01:24 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -118,6 +118,7 @@ read_edges(N, N, T, Eacc, Hacc) ->
 read_edges(Edge, N, <<EdgeRec0:25/binary,T/binary>>, Eacc, Hacc0) ->
     <<Vb:16,Va:16,Lf:16,Rf:16,Ltsu:16,Rtsu:16,Rtpr:16,Ltpr:16,
      Hardness:8,Colors:8/binary>> = EdgeRec0,
+%%    print_colors(Edge, Colors),
     EdgeRec = {Edge,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,
 			  ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu}},
     Hacc = if
@@ -125,6 +126,12 @@ read_edges(Edge, N, <<EdgeRec0:25/binary,T/binary>>, Eacc, Hacc0) ->
 	       true -> [Edge|Hacc0]
 	   end,
     read_edges(Edge+1, N, T, [EdgeRec|Eacc], Hacc).
+
+% print_colors(Edge, <<R1:8,G1:8,B1:8,A1:8,R2:8,G2:8,B2:8,A2:8>>) ->
+%     RGB1 = {R1,B1,G1,A1},
+%     RGB2 = {R2,B2,G2,A2},
+%     io:format("~w: ~w ~w\n", [Edge,RGB1,RGB2]),
+%     ok.
 
 read_faces(<<NumFaces:16,T/binary>>) ->
     io:format(" faces ~w\n", [NumFaces]),
