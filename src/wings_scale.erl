@@ -4,12 +4,12 @@
 %%     This module implements the Scale command plus
 %%     the interactive part of the Bevel (face) and Inset commands.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.20 2002/01/13 11:11:11 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.21 2002/01/27 11:46:35 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -146,10 +146,15 @@ body_to_vertices(We, Type) ->
 scale_vertices(Type, Vs, We) ->
     scale_vertices(Type, Vs, We, []).
 
-scale_vertices(Type, Vs0, #we{vs=Vtab}=We, Acc0) ->
-    Vs = [{V,wings_vertex:pos(V, Vtab)} || V <- Vs0],
-    Center = e3d_vec:average(wings_vertex:bounding_box(Vs0, We)),
-    foldl(fun({V,Pos}, Acc) ->
+scale_vertices({Type,{Center,Vec}}, Vs, We, Acc) ->
+    scale_vertices(Type, Center, Vs, We, Acc);
+scale_vertices(Type, Vs, We, Acc) ->
+    Center = e3d_vec:average(wings_vertex:bounding_box(Vs, We)),
+    scale_vertices(Type, Center, Vs, We, Acc).
+
+scale_vertices(Type, Center, Vs, #we{vs=Vtab}=We, Acc0) ->
+    foldl(fun(V, Acc) ->
+		  Pos = wings_vertex:pos(V, Vtab),
 		  Vec0 = e3d_vec:sub(Pos, Center),
 		  Vec = filter_vec(Type, Vec0),
 		  [{Vec,[V]}|Acc]
