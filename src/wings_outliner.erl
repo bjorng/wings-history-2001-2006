@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.47 2003/12/30 15:52:56 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.48 2003/12/30 21:16:04 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -340,7 +340,7 @@ make_external(Id) ->
     Save = fun(Name) ->
 		   Image = wings_image:info(Id),
 		   Ps = [{image,Image},{filename,Name}],
-		   case catch wpa:image_write(Ps) of
+		   case wpa:image_write(Ps) of
 		       ok ->
 			   wings_image:update_filename(Id, Name),
 			   keep;
@@ -374,7 +374,7 @@ export_image(Id) ->
     Save = fun(Name) ->
 		   Image = wings_image:info(Id),
 		   Ps = [{image,Image},{filename,Name}],
-		   case catch wpa:image_write(Ps) of
+		   case wpa:image_write(Ps) of
 		       ok -> keep;
 		       {_,Error0} ->
 			   Error = Name ++ ": " ++ file:format_error(Error0),
