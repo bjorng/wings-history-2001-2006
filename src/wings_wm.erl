@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.38 2002/12/28 10:21:52 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.39 2002/12/28 19:16:46 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,new/4,delete/1,
+	 new_controller/2,
 	 message/1,message/2,message_right/1,send/2,
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
@@ -137,7 +138,9 @@ delete(Name) ->
 	_ -> ok
     end,
     dirty(),
-    put(wm_windows, gb_trees:delete_any(Name, get(wm_windows))),
+    Windows = gb_trees:delete_any({controller,Name},
+				  gb_trees:delete_any(Name, get(wm_windows))),
+    put(wm_windows, Windows),
     keep.
 
 active_window() ->
@@ -478,25 +481,27 @@ wm_event({callback,Cb}) ->
 %%%
 
 find_active(Ev) ->
-    case get(wm_focus) of
-	undefined -> find_active_1(Ev);
-	Focus -> Focus
-    end.
-
-find_active_1(Ev) ->
     case Ev of
 	#mousebutton{x=X,y=Y} -> ok;
 	#mousemotion{x=X,y=Y} -> ok;
 	_ -> {_,X,Y} = sdl_mouse:getMouseState()
     end,
-    find_active_2(reverse(sort(gb_trees:values(get(wm_windows)))), X, Y).
+    find_active_1(reverse(sort(gb_trees:values(get(wm_windows)))), X, Y).
 
-find_active_2([#win{x=Wx,y=Wy,w=W,h=H,name=Name}|T], X, Y) ->
+find_active_1([#win{x=Wx,y=Wy,w=W,h=H,name=Name}|T], X, Y) ->
     case {X-Wx,Y-Wy} of
-	{Rx,Ry} when 0 =< Rx, Rx < W,0 =< Ry, Ry < H -> Name;
-	_ -> find_active_2(T, X, Y)
+	{Rx,Ry} when 0 =< Rx, Rx < W,0 =< Ry, Ry < H ->
+	    find_active_2(Name);
+	_ -> find_active_1(T, X, Y)
     end;
-find_active_2(_, _, _) -> none.
+find_active_1(_, _, _) -> find_active_2(none).
+
+find_active_2({controller,_}=Name) -> Name;
+find_active_2(Name) ->
+    case get(wm_focus) of
+ 	undefined -> Name;
+ 	Focus -> Focus
+    end.
 
 %%%
 %%% Utility functions.
@@ -947,3 +952,57 @@ menubar_hit_1([{Desc,Name,Fun}|T], Mb, RelX, X) ->
 	    menubar_hit_1(T, Mb, RelX-Iw, X+Iw)
     end;
 menubar_hit_1([], _, _, _) -> none.
+
+%%%
+%%% Window controller: a window that allows another window to be moved interactively.
+%%%
+
+-record(ctrl,
+	{title,					%Title of window.
+	 client,		     %Name of window being controlled.
+	 state=idle,				%idle|moving
+	 local,
+	 prev
+	}).
+
+new_controller(Client, Title) ->
+    TitleBarH = ?LINE_HEIGHT+2,
+    #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Client),
+    Cs = #ctrl{title=Title,client=Client},
+    new({controller,Client}, {X,Y-TitleBarH,Z-0.5}, {W,H+TitleBarH},
+	{seq,push,get_ctrl_event(Cs)}).
+
+get_ctrl_event(Cs) ->
+    {replace,fun(Ev) -> ctrl_event(Ev, Cs) end}.
+		     
+ctrl_event(redraw, Cs) ->
+    ctrl_redraw(Cs);
+ctrl_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Cs) ->
+    grab_focus(get(wm_active)),
+    get_ctrl_event(Cs#ctrl{prev={X,Y},local={X,Y},state=moving});
+ctrl_event(#mousebutton{button=1,state=?SDL_RELEASED}, Cs) ->
+    release_focus(),
+    get_ctrl_event(Cs#ctrl{state=idle});
+ctrl_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
+	   #ctrl{state=moving,client=Client,local={LocX,LocY}}=Cs) ->
+    {X1,Y1} = local2global(X0, Y0),
+    X = X1 - LocX,
+    Y = Y1 - LocY,
+    Self = {controller,Client},
+    SelfData = get_window_data(Self),
+    put_window_data(Self, SelfData#win{x=X,y=Y}),
+    ClientData = get_window_data(Client),
+    put_window_data(Client, ClientData#win{x=X,y=Y+?LINE_HEIGHT+2}),
+    wings_wm:dirty(),
+    get_ctrl_event(Cs#ctrl{prev={X,Y}});
+ctrl_event(_, _) -> keep.
+
+ctrl_redraw(#ctrl{title=Title}) ->
+    TitleBarH = ?LINE_HEIGHT+2,
+    wings_io:ortho_setup(),
+    {_,_,W,_} = viewport(),
+    Color = {0.3,0.4,0.3},
+    wings_io:border(0, 0, W-1, TitleBarH, Color),
+    gl:color3f(0, 0, 0),
+    wings_io:text_at(10, TitleBarH-3, Title),
+    keep.
