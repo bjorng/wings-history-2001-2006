@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_u.erl,v 1.2 2005/01/02 11:13:29 bjorng Exp $
+%%     $Id: wings_u.erl,v 1.3 2005/03/26 07:26:58 bjorng Exp $
 %%
 
 -module(wings_u).
 -export([error/1,error/2,message/1,get_matrices/2,
 	 geom_windows/0,menu_restriction/2,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
-	 export_we/2,win_crash/1,crash_log/2,
+	 export_we/2,win_crash/1,crash_log/2,crash_log/3,
 	 caption/1]).
 
 -define(NEED_OPENGL, 1).
@@ -93,9 +93,11 @@ win_crash(Reason) ->
     LogName = crash_log(wings_wm:this(), Reason),
     wings_wm:send(geom, {crash_in_other_window,LogName}).
 
-
 crash_log(WinName, Reason) ->
     StackTrace = erlang:get_stacktrace(),
+    crash_log(WinName, Reason, StackTrace).
+
+crash_log(WinName, Reason, StackTrace) ->
     wings_pb:cancel(),
     LogFileDir = log_file_dir(),
     LogName = filename:absname("wings_crash.dump", LogFileDir),
