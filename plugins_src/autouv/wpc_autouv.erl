@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.73 2003/01/09 15:25:56 raimo_niskanen Exp $
+%%     $Id: wpc_autouv.erl,v 1.74 2003/01/09 15:38:25 raimo_niskanen Exp $
 
 -module(wpc_autouv).
 
@@ -955,6 +955,12 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT},
     get_event(Op#op.undo);
 handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
 			  x=MX,y=MY}, 
+	     #uvstate{op=#op{name=fmove,add={X,Y}}} = Uvs0) 
+  when X /= MX; Y /= MY ->
+    % fmove, not nowhere
+    get_event(Uvs0#uvstate{op=undefined});
+handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
+			  x=MX,y=MY}, 
 	     #uvstate{geom=ViewP,
 		      mode=Mode,
 		      op=Op,
@@ -962,39 +968,30 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
 		      areas=#areas{we=We,as=Curr0}=As} = Uvs0)
   when Op == undefined; 
        record(Op, op), Op#op.name == fmove ->
-    case Op of
-	#op{name=fmove,add={X,Y}} when X /= MX; Y /= MY -> % fmove, not nowhere
-	    get_event(Uvs0#uvstate{op=undefined});
-	_ -> % deselection
-	    {_,_,_,OH} = wings_wm:viewport(),
-	    SX = MX,
-	    SY = OH-MY,
-	    case select(Mode, SX, SY, add_as(Sel0,Curr0), We, ViewP) of
-		none when Op == undefined ->
-		    keep;
-		none -> 
-		    get_event(Uvs0#uvstate{op = undefined});
-		Hits ->
-		    {Sel1, Curr1} = 
-			case (sdl_keyboard:getModState() band ?KMOD_CTRL) /= 0 
-			    of
-			    true -> 
-				update_selection(Hits -- Sel0, Sel0, Curr0);
-			    false ->
-				update_selection([hd(Hits)], Sel0, Curr0)
-			end,
-		    WingsSt = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
-		    wings_wm:send(geom, {new_state,WingsSt}),
-		    get_event(reset_dl(Uvs0#uvstate{sel = Sel1,
-						    st=WingsSt,
-						    areas=As#areas{as=Curr1},
-						    op = undefined}))
-	    end
+    % Deselection
+    {_,_,_,OH} = wings_wm:viewport(),
+    SX = MX,
+    SY = OH-MY,
+    case select(Mode, SX, SY, add_as(Sel0,Curr0), We, ViewP) of
+	none when Op == undefined ->
+	    keep;
+	none -> 
+	    get_event(Uvs0#uvstate{op = undefined});
+	Hits ->
+	    {Sel1, Curr1} = 
+		case (sdl_keyboard:getModState() band ?KMOD_CTRL) /= 0 of
+		    true -> 
+			update_selection(Hits -- Sel0, Sel0, Curr0);
+		    false ->
+			update_selection([hd(Hits)], Sel0, Curr0)
+		end,
+	    WingsSt = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
+	    wings_wm:send(geom, {new_state,WingsSt}),
+	    get_event(reset_dl(Uvs0#uvstate{sel = Sel1,
+					    st=WingsSt,
+					    areas=As#areas{as=Curr1},
+					    op = undefined}))
     end;
-% handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
-% 			  x=MX,y=MY}, 
-% 	     #uvstate{op=#op{name=fmove,add={MX,MY}}} = Uvs0) ->
-%     get_event(Uvs0#uvstate{op=undefined});
 handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
 	     #uvstate{geom=ViewP,
 		      mode = Mode,
