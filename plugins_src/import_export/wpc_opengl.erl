@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.46 2003/10/18 07:34:17 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.47 2003/10/23 21:32:59 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -40,11 +40,14 @@
 	 amb    = none,
 	 lights = [],
 	 mask,
-	 shadow
+	 bump,  % true | false
+	 shadow % true | false
 	}).
 
--record(d, {l,  % smooth display list
-	    f,  % fast display list
+-record(d, {l,       % smooth display list
+	    f,       % fast display list
+	    matfs,   % [{mat,[{Face, [VInfo|Normal]}]}]
+	    hasBump, % true | false
 	    we}).
 
 get_opaque({[Smooth,_TrL],_Tr}) -> Smooth.
@@ -77,13 +80,23 @@ dialog_qs(render) ->
     Back = get_pref(background_color, {0.4,0.4,0.4}),
     Alpha = get_pref(render_alpha, false),
     Shadow = get_pref(render_shadow, false),
+    BumpMap  = get_pref(render_bumps, false),
+
+    Bump = case wings_util:is_gl_ext({1,3}, bump_exts()) of 
+	       true -> 
+		   [{"Render Self-Shadows (Bump maps)", BumpMap, [{key,render_bumps}]}];
+	       false ->
+		   []
+	   end,
+
     Stencil = 
 	case hd(gl:getIntegerv(?GL_STENCIL_BITS)) >= 8 of
 	    true -> 
-		[{"Render Shadows",Shadow,[{key,render_shadow}]}];
+		[{"Render Shadows",Shadow,[{key,render_shadow}]}|Bump];
 	    false ->
-		[]
-	end,    
+		Bump
+	end,
+		     
     [{menu,[{"Render to Image Window",preview},
 	    {"Render to File",file}],
       DefOutput,[{key,output_type}]},
@@ -155,14 +168,16 @@ do_render(Attr0, St) ->
 
 	    Aa = proplists:get_value(aa, Attr),
 	    AccSize = translate_aa(Aa),
-	    RenderAlpha = proplists:get_bool(render_alpha, Attr),
+	    RenderAlpha  = proplists:get_bool(render_alpha, Attr),
 	    RenderShadow = proplists:get_value(render_shadow, Attr, false),
-	    {Data,{NOL, Amb,Lights}} = ?TC(update_st(St, Attr, RenderShadow)),
+	    RenderBumps  = proplists:get_value(render_bumps, Attr, false),
+
+	    {Data,{NOL, Amb,Lights}} = ?TC(create_dls(St, Attr, RenderShadow, RenderBumps)),
 	    
 	    Rr = #r{acc_size=AccSize,attr=Attr,
 		    data=Data,mat=St#st.mat,
 		    no_l=NOL,amb=Amb,lights=Lights,
-		    mask = RenderAlpha,shadow = RenderShadow},
+		    mask = RenderAlpha, shadow=RenderShadow},
 	    render_redraw(Rr),
 	    render_exit(Rr)
     end.
@@ -199,30 +214,9 @@ render_exit(#r{lights=Lights, data=D}) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     wings_wm:dirty().
 
-update_st(St0, Attr, Shadows) ->
-    St = invisible_holes(St0),
-    SubDiv = proplists:get_value(subdivisions, Attr),
-    RenderAlpha = proplists:get_bool(render_alpha, Attr),
-    Ds = foldl(fun(We, Wes) ->
-		       update_st(We, SubDiv, RenderAlpha, Wes, St)
-	       end, 
-	       [], gb_trees:values(St#st.shapes)),
-
-    Ls = case Shadows of
-	     true -> 
-		 Ls0 = wpa:lights(St),
-		 Mats = St#st.mat,
-		 MaybeBumps = maybe_bumps(St#st.mat),
-		 create_light_data(Ls0, Ds, 0, {MaybeBumps,Mats}, none, []);
-	     false ->
-		 {0,none,[]}
-	 end,
-    ?CHECK_ERROR(),
-    {Ds, Ls}.
-
-update_st(#we{perm=P}, _, _, Wes, _) when ?IS_NOT_VISIBLE(P) ->
+prepare_mesh(#we{perm=P}, _, _, Wes, _) when ?IS_NOT_VISIBLE(P) ->
     Wes;
-update_st(We0=#we{light=none}, SubDiv, RenderAlpha, Wes, St) ->    
+prepare_mesh(We0=#we{light=none}, SubDiv, RenderAlpha, Wes, St) ->    
     We = case SubDiv of
 	     0 ->
 		 %% If no sub-divisions requested, it is safe to
@@ -237,42 +231,67 @@ update_st(We0=#we{light=none}, SubDiv, RenderAlpha, Wes, St) ->
 		 wpa:triangulate(We2)
 	 end,
     Fast = dlist_mask(RenderAlpha, We),
-    DL = wings_draw:smooth_dlist(We, St),
-    [#d{l=DL,f=Fast,we=We}|Wes];
-update_st(#we{}, _, _, Wes, _) -> %% Skip Lights
+    FN0      = [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(We#we.fs)],
+    FVN      = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
+    MatFs    = wings_material:mat_faces(FVN, We), %% sorted by mat..
+    HasBumps = lists:any(fun({Mat, _}) -> 
+				 get_bump(gb_trees:get(Mat,St#st.mat)) /= false 
+			 end, MatFs),
+    DL = draw_faces(MatFs, We, St#st.mat, skip),
+    [#d{l=DL,f=Fast,hasBump=HasBumps,matfs=MatFs,we=We}|Wes];
+prepare_mesh(#we{}, _, _, Wes, _) -> %% Skip Lights
     Wes.
 
-create_light_data([], _Ds, C, _Bumps, Amb, Acc) ->
+create_dls(St0, Attr, Shadows, Bumps0) ->
+    St = invisible_holes(St0),
+    SubDiv = proplists:get_value(subdivisions, Attr),
+    RenderAlpha = proplists:get_bool(render_alpha, Attr),
+    Ds = foldl(fun(We, Wes) ->
+		       prepare_mesh(We, SubDiv, RenderAlpha, Wes, St)
+	       end, [], gb_trees:values(St#st.shapes)),
+    Bump = Bumps0 andalso has_bumps(St#st.mat),    
+    Ls = if
+	     Shadows or Bump -> %% Needs per-light data..
+		 Ls0  = wpa:lights(St),
+		 Mats = St#st.mat,
+		 create_light_data(Ls0, Ds, 0, Mats, Bump, Shadows, none, []);
+	     true ->
+		 {0,none,[]}
+	 end,
+    ?CHECK_ERROR(),
+    {Ds, Ls}.
+
+create_light_data([], _Ds, C, _Mat, _Bumps, _Shadow, Amb, Acc) ->
     {C,Amb,Acc};
-create_light_data([{_Name,L0}|Ls], Ds, C, Bumps, Amb, Acc) ->
+create_light_data([{_Name,L0}|Ls], Ds, C, Mat, Bumps, Shadow, Amb, Acc) ->
     L = proplists:get_value(opengl, L0),
     Vis = proplists:get_value(visible, L0),
     case proplists:get_value(type, L) of
 	_ when Vis == false -> %% Disabled
-	    create_light_data(Ls, Ds, C, Bumps, Amb, Acc);
+	    create_light_data(Ls, Ds, C, Mat, Bumps, Shadow, Amb, Acc);
 	ambient when Amb == none -> 
 	    AmbC = proplists:get_value(ambient, L),
-	    create_light_data(Ls, Ds, C+1, Bumps, AmbC, Acc);
+	    create_light_data(Ls, Ds, C+1, Mat, Bumps, Shadow, AmbC, Acc);
 	ambient  -> %% Several ambient ?? 
-	    create_light_data(Ls, Ds, C, Bumps, Amb, Acc);
+	    create_light_data(Ls, Ds, C, Mat, Bumps, Shadow, Amb, Acc);
 	_ ->
 	    Li = create_light(L,#light{}, []),
 	    {DLs,SVs} = 
 		lists:foldl(
 		  fun(D = #d{l=DL},{DLs,SLs}) ->
-			  case is_transp(DL) of
+			  case is_transp(DL) orelse (not Shadow) of
 			      true -> 
 				  %% Transperant objects don't cast shadows
-				  {[create_bumped(D,Bumps,Li)|DLs], SLs};
+				  {[create_bumped(D,Bumps,Mat,Li)|DLs], SLs};
 			      false -> 
 				  List = gl:genLists(1),
 				  gl:newList(List, ?GL_COMPILE),    
 				  create_shadow_volume(Li, D),
 				  gl:endList(),
-				  {[create_bumped(D,Bumps,Li)|DLs],[List|SLs]}
+				  {[create_bumped(D,Bumps,Mat,Li)|DLs],[List|SLs]}
 			  end
 		  end, {[],[]}, Ds),
-	    create_light_data(Ls, Ds, C+1, Bumps, Amb, 
+	    create_light_data(Ls, Ds, C+1, Mat, Bumps, Shadow, Amb, 
 			      [Li#light{dl = DLs,sv = SVs}|Acc])
     end.
 
@@ -361,12 +380,18 @@ jitter_draw([{Jx,Jy}|J], Op, #r{acc_size=AccSize}=Rr, RendMask) ->
     jitter_draw(J, ?GL_ACCUM, Rr, RendMask);
 jitter_draw([], _, _,_) -> ok.
 
-draw_all(#r{data=Wes,lights=Ligths,amb=Amb,mat=Mat,shadow=true},false) ->
+draw_all(#r{data=Wes,lights=Ligths,amb=Amb,mat=Mat,shadow=Shadows,no_l=PerLigth},false) 
+  when PerLigth > 0 ->
     wings_view:modelview(false),
-    case wings_util:is_gl_ext('GL_NV_depth_clamp') of
-	true -> gl:enable(?GL_DEPTH_CLAMP_NV);
-	false -> setup_projection_matrix()
-    end,
+    if 
+	Shadows == true -> 
+	    case wings_util:is_gl_ext('GL_NV_depth_clamp') of
+		true -> gl:enable(?GL_DEPTH_CLAMP_NV);
+		false -> setup_projection_matrix()
+	    end;
+	true ->
+	    ignore
+    end,	    
     ?CHECK_ERROR(),
     %% Carmack's reversed shadow algorithm
     gl:clearStencil(?STENCIL_INIT),
@@ -401,10 +426,16 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,mat=Mat,shadow=true},false) ->
 
     %% No more depth writes...
     gl:depthMask(?GL_FALSE),
-    gl:enable(?GL_STENCIL_TEST),
+    case Shadows of
+	true ->
+	    gl:enable(?GL_STENCIL_TEST);
+	false ->
+	    ignore
+    end,
     foldl(fun(L,Clear) -> draw_with_shadows(Clear, L, Mat) end, 
 	  false, Ligths),
     gl:disable(?GL_STENCIL_TEST),
+
     gl:depthMask(?GL_TRUE),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     gl:disable(?GL_BLEND),
@@ -495,23 +526,26 @@ debug_shad(Lists) ->
 -endif.
 
 create_shadow_volume(#light{type=infinite,aim=Aim,pos=LPos}, 
-		     #d{we= We = #we{fs=FTab}}) ->
+		     #d{we=We,matfs=Matfs}) ->
     LightDir = e3d_vec:norm(e3d_vec:sub(Aim, LPos)),
-    {FF,_BF,Loops} = partition_model(We, LightDir, dir),
+    {FF,_BF,Loops} = partition_model(We, Matfs, LightDir, dir),
     %% Draw shadow walls.
     foreach(fun(Vs) -> build_shadow_edge_ext_infinite(Vs,LightDir,We) end, Loops),    
     %% Draw Top Cap
+    #we{fs=FTab} = We,
     wings_draw_util:begin_end(
       fun() -> foreach(fun(Face) -> 
 			       Edge = gb_trees:get(Face, FTab),
 			       wings_draw_util:unlit_face(Face, Edge, We)
 		       end, FF) 
       end);
-create_shadow_volume(#light{pos=LPos},#d{we= We = #we{fs=FTab}}) ->
-    {FF,BF,Loops} = partition_model(We, LPos, pos),
+create_shadow_volume(#light{pos=LPos},#d{we=We,matfs=Matfs}) ->
+
+    {FF,BF,Loops} = partition_model(We, Matfs, LPos, pos),
     %% Draw walls
     foreach(fun(Vs) -> build_shadow_edge_ext(Vs,LPos,We) end, Loops),
     %% Draw Top Cap
+    #we{fs=FTab} = We,
     wings_draw_util:begin_end(
       fun() -> foreach(fun(Face) -> 
 			       Edge = gb_trees:get(Face, FTab),
@@ -694,31 +728,41 @@ setup_projection_matrix() ->
     gl:loadMatrixd(Infinite),
     gl:matrixMode(?GL_MODELVIEW).
 
+%% All vertices must be backfacing for the face to be backfaced.
+frontfacing([],[]) ->  false;
+frontfacing([N1|RN],[L1|RL]) ->
+    case e3d_vec:dot(N1, L1) >= 0 of
+	true -> % Backfacing
+	    frontfacing(RN,RL);
+	false ->
+	    true
+    end.
+
 %% Returns {FacesFacingLigth,FacesAwayFromLigth,CW_VsLoops}
-partition_model(We=#we{fs=FTab,vp=Vtab}, LPos, DirOrPos) ->
-    Sort = 
-	fun(Face, {FF,BF,EL}) ->
-		{Vs,Es} = 
-		    wings_face:fold(fun(V,Edge,_E,{Vs,Es}) ->
-					    {[gb_trees:get(V, Vtab)|Vs],
-					     [{Edge,Face}|Es]}
-				    end,{[],EL},Face,We),
-		LDir = case DirOrPos of
-			   dir ->
-			       LPos;
-			   _ ->
-			       Aver = e3d_vec:average(Vs),
-			       e3d_vec:sub(Aver,LPos)
-		       end,
-		Normal = e3d_vec:normal(Vs),
-		case e3d_vec:dot(Normal, LDir) >= 0 of
-		    true -> %% BackFacing
-			{FF,[Face|BF],EL};
-		    false -> %% FrontFacing
-			{[Face|FF],BF,Es}
-		end
-	end,
-    {FF,BF,EL} = foldl(Sort, {[],[],[]}, gb_trees:keys(FTab)),
+partition_model(We, Matfs, LPos, DirOrPos) ->
+    Sort = fun({_Mat,List}, A0) ->
+		   G=fun({Face, [[_|N1],[_|N2],[_|N3]]}, {FF,BF,EL}) ->
+			     IsFF = case DirOrPos of
+				      dir ->
+					  frontfacing([N1,N2,N3],[LPos,LPos,LPos]);
+				      _ ->
+					  VPs = wings_face:vertex_positions(Face,We),
+					  LDs = [e3d_vec:norm(e3d_vec:sub(VP,LPos))|| VP <- VPs],
+					  frontfacing([N1,N2,N3],LDs)
+				  end,
+			     case IsFF of
+				 false -> %% BackFacing
+				     {FF,[Face|BF],EL};
+				 true -> %% FrontFacing
+				     Es = wings_face:fold(fun(_V,Edge,_E,Es) ->
+								  [{Edge,Face}|Es]
+							  end, EL, Face, We),
+				     {[Face|FF],BF,Es}
+			     end
+		     end,
+		   foldl(G, A0, List)
+	   end,    
+    {FF,BF,EL} = foldl(Sort, {[],[],[]}, Matfs),
     Eds   = outer_edges_1(lists:sort(EL), []),   
     Loops = case wings_edge_loop:edge_loop_vertices(Eds,We) of
 		none -> [];
@@ -846,7 +890,7 @@ setup_light_attr([{quadratic_attenuation,Att}|As]) ->
 
 %% Bump helpers
 
-maybe_bumps(Mats0) ->
+has_bumps(Mats0) ->
     Mats = gb_trees:to_list(Mats0),
     lists:any(fun({_Name,Def}) ->
 		      false /= get_bump(Def)
@@ -855,7 +899,7 @@ get_bump(Mat) ->
     Maps = proplists:get_value(maps, Mat, false),
     proplists:get_value(bump, Maps, false).
 
-req_exts() ->
+bump_exts() ->
     ['GL_ARB_texture_cube_map',
      'GL_ARB_multitexture',
      'GL_ARB_texture_env_combine',
@@ -863,36 +907,11 @@ req_exts() ->
      'GL_EXT_texture3D'].
 
 %% Bump drawings 
-create_bumped(#d{l=DL}, {false,_},_) -> DL; % No materials have bumps
-create_bumped(#d{l=DL,we=We}, _,_)          % Vertex mode can't have bumps.
+create_bumped(#d{l=DL}, false, _,_) -> DL;  % No Bumps use default DL
+create_bumped(#d{l=DL,we=We}, _,_,_)        % Vertex mode can't have bumps.
   when We#we.mode == vertex -> DL;
-create_bumped(#d{l=DL,we= We = #we{id=Id,fs=Ftab}},{true,Mtab},#light{pos=LPos}) -> 
-    ExtOk = wings_util:is_gl_ext({1,3}, req_exts()),				 
-    case get({?MODULE,Id,has_bumps}) of
-	_ when ExtOk == false ->
-	    DL;
-	undefined ->  
-	    %% We only need to do this once per we !!
-	    FN0   = [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(Ftab)],
-	    FVN   = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
-	    MatFs = wings_material:mat_faces(FVN, We),
-	    HasBumps = lists:any(fun({Mat, _}) -> 
-					 get_bump(gb_trees:get(Mat,Mtab)) /= false 
-				 end, MatFs),
-	    put({?MODULE,Id,has_bumps},HasBumps),
-	    case HasBumps of
-		true ->
-		    put({?MODULE,Id,matFs}, MatFs),
-		    draw_faces(MatFs, We, Mtab, mult_inverse_model_transform(LPos));
-		false ->
-		    DL
-	    end;
-	true ->
-	    MatFs = get({?MODULE,Id,matFs}),
-	    draw_faces(MatFs, We, Mtab, mult_inverse_model_transform(LPos));
-	false ->
-	    DL
-    end.
+create_bumped(#d{matfs=MatFs,we=We},true,Mtab,#light{pos=LPos}) -> 
+    draw_faces(MatFs, We, Mtab, mult_inverse_model_transform(LPos)).
 	
 mult_inverse_model_transform(Pos) ->
     #view{origin=Origin,distance=Dist,azimuth=Az,
@@ -937,7 +956,8 @@ draw_smooth_tr([], _, _, _) -> ok.
 do_draw_smooth(MatN, Faces, We, L, Mtab) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
     Mat = gb_trees:get(MatN, Mtab),
-    case get_bump(Mat) of
+    Bump = get_bump(Mat) /= false andalso L /= skip,
+    case Bump of
 	false ->
 	    IsTxMat = wings_material:apply_material(MatN, Mtab),
 	    gl:'begin'(?GL_TRIANGLES),
@@ -945,7 +965,7 @@ do_draw_smooth(MatN, Faces, We, L, Mtab) ->
 	    gl:'end'(),
 	    gl:popAttrib(),
 	    false;
-	_Bump -> 
+	true -> 
 	    IsTxMat = apply_bumped_mat(Mat),
 	    gl:'begin'(?GL_TRIANGLES),
 	    do_draw_bumped(Faces, IsTxMat, We, L),
@@ -1066,7 +1086,7 @@ apply_bumped_mat(Mat) ->
 		  proplists:get_value(emission, OpenGL)),
     Maps = proplists:get_value(maps, Mat),
     Bump = wings_image:bumpid(proplists:get_value(bump, Maps, none)),
-    
+
     %% Start by creating bump data
     CubeMap = wings_image:normal_cubemapid(),
     gl:activeTexture(?GL_TEXTURE0),
