@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.21 2001/10/21 16:04:31 bjorng Exp $
+%%     $Id: wings.erl,v 1.22 2001/10/21 20:31:06 bjorng Exp $
 %%
 
 -module(wings).
@@ -179,7 +179,7 @@ main_loop(St0) ->
 	{left_click,X,Y} ->
 	    case wings_drag:click(X, Y, St1) of
 		{select,#st{sel=Sel}=St2} ->
-		    case wings_draw:select(St2, X, Y) of
+		    case wings_pick:pick(St2, X, Y) of
 			#st{sel=Sel}=St -> main_loop(St);
 			St -> St
 		    end;

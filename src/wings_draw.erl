@@ -8,21 +8,21 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.12 2001/10/20 19:14:17 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.13 2001/10/21 20:31:06 bjorng Exp $
 %%
 
 -module(wings_draw).
--export([model_changed/1,render/1,select/3]).
+-export([model_changed/1,render/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1]).
 
--define(EDGE_MODE_LINEWIDTH, 4.0).
+-define(EDGE_MODE_LINEWIDTH, 2.0).
 -define(NORMAL_LINEWIDTH, 0.1).
--define(VERTEX_MODE_POINTSIZE, 10.0).
--define(SEL_COLOR, {0.5,0.0,0.0}).
+-define(VERTEX_MODE_POINTSIZE, 5.0).
+-define(SEL_COLOR, {0.65,0.0,0.0}).
 
 model_changed(St) -> St#st{dl=none}.
 
@@ -341,161 +341,9 @@ draw_selection(#st{selmode=vertex}=St) ->
     gl:'end'(),
     St.
 
-%%
-%% Draw for the purpose of picking the items that the user clicked on.
-%%
-
-select_draw(#st{dl=#dl{pick=Dlist0}=DL}=St) ->
-    wings_view:model_transformations(St),
-    case Dlist0 of
-	none ->
-	    Dlist = 100,
-	    gl:newList(Dlist, ?GL_COMPILE),
-	    gl:pushAttrib(?GL_LINE_BIT),
-	    select_draw_1(St),
-	    gl:popAttrib(),
-	    gl:endList(),
-	    gl:callList(Dlist),
-	    St#st{dl=DL#dl{pick=Dlist}};
-	Dlist ->
-	    gl:callList(Dlist),
-	    St
-    end.
-
-select_draw_1(#st{selmode=body}=St) ->
-    wings_util:foreach_shape(
-      fun(Id, #shape{sh=Data}=Sh) ->
-	      gl:pushName(Id),
-	      gl:pushName(0),
-	      draw_faces(Data, false, St),
-	      gl:popName(),
-	      gl:popName()
-      end, St);
-select_draw_1(#st{selmode=face}=St) ->
-    foreach_we(fun(We) ->
-		       gl:pushName(0),
-		       wings_util:fold_face(
-			 fun(Face, #face{edge=Edge}, _) ->
-				 gl:loadName(Face),
-				 draw_face(Face, Edge, We)
-			 end, [], We),
-		       gl:popName()
-	       end, St);
-select_draw_1(#st{selmode=edge}=St) ->
-    gl:lineWidth(2*?EDGE_MODE_LINEWIDTH),
-    foreach_we(
-      fun(#we{vs=Vtab}=We) ->
-	      gl:pushName(0),
-	      wings_util:foreach_edge(
-		fun(Edge, #edge{vs=Vstart,ve=Vend}, _Sh) ->
-			gl:loadName(Edge),
-			gl:'begin'(?GL_LINES),
-			gl:vertex3fv(lookup_pos(Vstart, Vtab)),
-			gl:vertex3fv(lookup_pos(Vend, Vtab)),
-			gl:'end'()
-		end, We),
-	      gl:popName()
-      end, St);
-select_draw_1(#st{selmode=vertex}=St) ->
-    gl:pointSize(2*?VERTEX_MODE_POINTSIZE),
-    foreach_we(fun(#we{}=We) ->
-		       gl:pushName(0),
-		       wings_util:fold_vertex(
-			 fun(V, #vtx{pos=Pos}, _) ->
-				 gl:loadName(V),
-				 gl:'begin'(?GL_POINTS),
-				 gl:vertex3fv(Pos),
-				 gl:'end'()
-			 end, [], We),
-		       gl:popName()
-	       end, St).
-
 lookup_pos(Key, Tree) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tree),
     Pos.
-
-foreach_we(F, #st{shapes=Shapes}) ->
-    Iter = gb_trees:iterator(Shapes),
-    foreach_we_1(F, Iter).
-
-foreach_we_1(F, Iter0) ->
-    case gb_trees:next(Iter0) of
-	none -> ok;
-	{Id,#shape{sh=#we{}=We},Iter} ->
-	    gl:pushName(Id),
-	    F(We),
-	    gl:popName(),
-	    foreach_we_1(F, Iter);
-	{Id,_,Iter} ->
-	    foreach_we_1(F, Iter)
-    end.
-
-%%
-%% Selections.
-%%
-
-select(#st{hit_buf=HitBuf,shapes=Shapes}=St0, X, Y) ->
-    gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
-    gl:renderMode(?GL_SELECT),
-    gl:initNames(),
-    
-    gl:matrixMode(?GL_PROJECTION),
-    gl:pushMatrix(),
-    gl:loadIdentity(),
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    glu:pickMatrix(float(X), H-float(Y), 8.0, 8.0, [0,0,W,H]),
-    wings_view:perspective(St0),
-    St = select_draw(St0),
-
-    gl:matrixMode(?GL_PROJECTION),
-    gl:popMatrix(),
-    gl:flush(),
-    case gl:renderMode(?GL_RENDER) of
-	0 -> St;
-	Hits ->
-	    HitData = sdl_util:readBin(HitBuf, ?HIT_BUF_SIZE),
-	    Hit = process_hits(Hits, HitData, none, 1.0e200),
-	    update_selection(Hit, St)
-    end.
-
-update_selection([Id,Item], #st{sel=Sel0}=St) ->
-    Sel = update_selection(Id, Item, Sel0),
-    St#st{sel=Sel}.
-
-update_selection(Id, Item, [{I,_}=H|T]) when Id > I ->
-    [H|update_selection(Id, Item, T)];
-update_selection(Id, Item, [{I,_}|_]=T) when Id < I ->
-    [{Id,gb_sets:singleton(Item)}|T];
-update_selection(Id, Item, [{I,Items0}|T]) ->	%Id == I
-    ?ASSERT(Id == I),
-    case gb_sets:is_member(Item, Items0) of
-	true ->
-	    Items = gb_sets:delete(Item, Items0),
-	    case gb_sets:is_empty(Items) of
-		true -> T;
-		false -> [{Id,Items}|T]
-	    end;
-	false ->
-	    Items = gb_sets:insert(Item, Items0),
-	    [{Id,Items}|T]
-    end;
-update_selection(Id, Item, []) ->
-    [{Id,gb_sets:singleton(Item)}].
-
-process_hits(0, _, Name, ZMin) -> Name;
-process_hits(Hits, <<NumNames:32,Z0:32,_:32,Tail0/binary>>, OldName, OldZMin) ->
-    <<Names:NumNames/binary-unit:32,Tail/binary>> = Tail0,
-    case Z0/16#7FFFFFFF of
-	ZMin when ZMin < OldZMin ->
-	    Name = get_name(NumNames, Names, []),
-	    process_hits(Hits-1, Tail, Name, ZMin);
-	ZMin ->
-	    process_hits(Hits-1, Tail, OldName, OldZMin)
-    end.
-
-get_name(0, Tail, Acc) -> reverse(Acc);
-get_name(N, <<Name:32,Names/binary>>, Acc) ->
-    get_name(N-1, Names, [Name|Acc]).
 
 %%
 %% Miscellanous.
