@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.14 2004/10/17 05:57:29 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.15 2004/10/17 06:37:43 bjorng Exp $
 %%
 
 {wings,
@@ -574,12 +574,6 @@
   {merge,
    [{1,"Integra"},
     {2,"Non riesco a leggere: "}]},
-  {named_open,
-   [{1,"Vorresti salvare i cambiamenti?"}]},
-  {new,
-   [{1,"Vorresti salvare i cambiamenti?"}]},
-  {open,
-   [{1,"Vorresti salvare i cambiamenti?"}]},
   {save_as,
    [{1,"Salva"}]},
   {save_now,
@@ -587,6 +581,8 @@
   {save_selected,
    [{1,"Questo comando necessita di una selezione."},
     {2,"Salva selezione"}]},
+  {str_save_changes,
+   [{1,"Vorresti salvare i cambiamenti?"}]},
   {use_autosave_1,
    [{1,"Esiste un documento autosalvato piu' recente di quello salvato; vorresti invece aprire il documento autosalvato?"}]}]}.
 {wings_help,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.150 2004/10/08 06:02:29 dgud Exp $
+%%     $Id: wings_file.erl,v 1.151 2004/10/17 06:37:43 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -163,7 +163,7 @@ new(#st{saved=true}=St0) ->
     {new,St#st{saved=true}};
 new(St0) ->			     %File is not saved or autosaved.
     wings:caption(St0#st{saved=false}), 
-    wings_util:yes_no_cancel(?STR(new,1,"Do you want to save your changes?"),
+    wings_util:yes_no_cancel(str_save_changes(),
 			     fun() -> {file,{save,{file,new}}} end,
 			     fun() -> {file,confirmed_new} end).
 
@@ -172,7 +172,7 @@ open(#st{saved=true}) ->
 open(St) ->
     wings:caption(St#st{saved=false}),		%Clear any autosave flag.
     Confirmed = {file,confirmed_open_dialog},
-    wings_util:yes_no_cancel(?STR(open,1,"Do you want to save your changes?"),
+    wings_util:yes_no_cancel(str_save_changes(),
 			     fun() -> {file,{save,Confirmed}} end,
 			     fun() -> Confirmed end).
 
@@ -211,9 +211,12 @@ named_open(Name, #st{saved=true}=St) ->
 named_open(Name, St) ->
     wings:caption(St#st{saved=false}),		%Clear any autosave flag.
     Confirmed = {file,{confirmed_open,Name}},
-    wings_util:yes_no_cancel(?STR(named_open,1,"Do you want to save your changes?"),
+    wings_util:yes_no_cancel(str_save_changes(),
 			     fun() -> {file,{save,Confirmed}} end,
 			     fun() -> Confirmed end).
+
+str_save_changes() ->
+    ?STR(str_save_changes,1,"Do you want to save your changes?").
 
 merge() ->
     Cont = fun(Filename) -> {file,{merge,Filename}} end,
