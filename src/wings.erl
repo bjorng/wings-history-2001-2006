@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.153 2002/08/08 07:58:05 bjorng Exp $
+%%     $Id: wings.erl,v 1.154 2002/08/13 16:30:56 bjorng Exp $
 %%
 
 -module(wings).
@@ -157,7 +157,7 @@ locate(Name) ->
 	    Path = filename:join(Root, Name),
 	    case filelib:is_file(Path) of
 		true -> Path;
-		false -> filename:join([Root,"src",Name])
+		false -> filename:join([Root,"ebin",Name])
 	    end
     end.
 
