@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.18 2002/02/27 21:48:44 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.19 2002/03/08 13:24:09 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -35,7 +35,7 @@ event(Event, #st{selmode=Mode}) ->
 event_1(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, SelMode) ->
     Mods = modifiers(Mod),
     Key = case Mods of
-	      [] when C =/= 0 -> C;
+ 	      [] when C =/= 0 -> fix_bksp_and_del(Sym, C);
 	      [shift] when C =/= 0 -> C;
 	      Other -> {Sym,Mods}
 	  end,
@@ -65,9 +65,12 @@ bind_from_event(#keyboard{keysym=#keysym{sym=Sym}}, Cmd)
     error;
 bind_from_event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, Cmd) ->
     Bkey = case modifiers(Mod) of
-	       [] when C =/= 0 -> bind_unicode(C, Cmd, user);
-	       [shift] when C =/= 0 -> bind_unicode(C, Cmd, user);
-	       Mods -> bind_virtual(Sym, Mods, Cmd, user)
+ 	       [] when C =/= 0 ->
+		   bind_unicode(fix_bksp_and_del(Sym, C), Cmd, user);
+	       [shift] when C =/= 0 ->
+		   bind_unicode(C, Cmd, user);
+	       Mods ->
+		   bind_virtual(Sym, Mods, Cmd, user)
 	   end,
     keyname(Bkey);
 bind_from_event(_, Cmd) -> error.
@@ -117,6 +120,11 @@ matching_mode(Other) -> [].
 %%%
 %%% Local functions.
 %%%
+
+%% For the benefit of Mac OS X, but does no harm on other platforms.
+fix_bksp_and_del(?SDLK_DELETE, C) -> ?SDLK_DELETE;
+fix_bksp_and_del(?SDLK_BACKSPACE, C) -> ?SDLK_BACKSPACE;
+fix_bksp_and_del(_, C) -> C.
 
 modifiers(Mod) ->
     modifiers(Mod, []).

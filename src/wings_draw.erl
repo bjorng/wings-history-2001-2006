@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.60 2002/02/24 22:36:52 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.61 2002/03/08 13:24:09 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -639,7 +639,7 @@ groundplane_1(Axes) ->
     #view{along_axis=Along} = wings_view:current(),
     gl:color3fv(wings_pref:get_value(grid_color)),
     ?CHECK_ERROR(),
-    gl:lineWidth(0.1),
+    gl:lineWidth(?NORMAL_LINEWIDTH),
     gl:'begin'(?GL_LINES),
     Sz = ?GROUND_GRID_SIZE * 10,
     groundplane(Along, -Sz, Sz, Sz, Axes),

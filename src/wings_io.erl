@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.38 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.39 2002/03/08 13:24:09 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -64,18 +64,24 @@ init() ->
     Icons = read_icons(),
     Arrow = build_cursor(arrow_data()),
     Hourglass = build_cursor(hourglass_data()),
-    sdl_mouse:setCursor(Arrow),
+    set_cursor(Arrow),
     put_state(#io{eq=queue:new(),raw_icons=Icons,
 		  arrow=Arrow,hourglass=Hourglass}).
 
 hourglass() ->
     #io{hourglass=Hg} = get_state(),
-    sdl_mouse:setCursor(Hg).
+    set_cursor(Hg).
 
 arrow() ->
     #io{arrow=Arrow} = get_state(),
-    sdl_mouse:setCursor(Arrow).
+    set_cursor(Arrow).
 
+set_cursor(Cursor) ->
+    case os:type() of
+	{unix,darwin} -> ok;
+	_ -> sdl_mouse:setCursor(Cursor)
+    end.
+	    
 read_icons() ->
     IconFile = filename:join([wings:root_dir(),"ebin","wings_icon.bundle"]),
     case file:read_file(IconFile) of
