@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.19 2002/10/19 21:39:31 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.20 2002/10/20 08:59:39 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -29,16 +29,20 @@
 init() ->
     true.
 
-add_areas(New, Areas) ->
-    As = Areas#areas.as,
-    NewAs = ?add_as(New, As),
-    Areas#areas{as = NewAs}.
+add_as(AsAA, TreeAA) ->
+    foldl(fun({[K|_],Area}, TreeBB) ->
+		  gb_trees:insert(K, Area, TreeBB) 
+	  end, TreeAA, AsAA).
+
+add_areas(New, #areas{as=As}=Areas) ->
+    NewAs = add_as(New, As),
+    Areas#areas{as=NewAs}.
 
 menu({body}, Menu0) ->
     case get(auv_state) of
 	undefined ->
 	    Menu0 ++ [separator,
-		      {"UV mapping", ?MODULE,
+		      {"UV Mapping", ?MODULE,
 		       "Generate or edit UV mapping or texture"}];
 	_UvState ->
 	    parameterization_menu(Menu0)
@@ -87,10 +91,10 @@ command({_, uvmap_cancel}, _St0) ->
     S1;
 command({_State, continue_param}, _St) ->
     DefVar = {seg_type,lsqcm},
-    Qs = [{vframe,[{alt,DefVar,"Projection",project},
-		   {alt,DefVar,"Parametrization", lsqcm}
+    Qs = [{vframe,[{alt,DefVar,"Unfolding", lsqcm},
+		   {alt,DefVar,"Projection",project}
 		  ],
-	   [{title,"UV-mapping Type"}]}],
+	   [{title,"Method"}]}],
     wings_ask:dialog(Qs,
 		     fun([Mode]) ->
 			     {uvmap, {parametrization, Mode}}
@@ -105,7 +109,7 @@ command({uvmap, {parametrization, Mode}}, St0) ->
     
 command({body,{uvmap_done,QuitOp,
 	       Uvs = #uvstate{st=St0,areas=Current,sel=Sel}}}, _) ->
-    Areas1 = add_areas(Sel,Current),
+    Areas1 = add_areas(Sel, Current),
     St2 = case QuitOp of
 	      quit_uv_tex ->
 		  Tx = ?SLOW(get_texture(Uvs)),
@@ -192,12 +196,11 @@ do_edit(We, St0) ->
     Areas = #areas{matname=MatName} = init_edit(We, St0),
     Geom = init_drawarea(),
     TexSz = get_texture_size(MatName, St0#st.mat),
-    Uvs = #uvstate{command = edit, 
-		   st = wings_select_faces([],Areas#areas.we,St0),
-		   origst = St0,
-		   areas = Areas, geom = Geom, 
-		   option = #setng{color = false, texbg = true, 
-				   texsz = TexSz}},
+    Uvs = #uvstate{st=wings_select_faces([], Areas#areas.we, St0),
+		   origst=St0,
+		   areas=Areas,
+		   geom=Geom, 
+		   option=#setng{color=false,texbg=true,texsz=TexSz}},
     {seq,{push,dummy}, get_event(Uvs)}.
 
 segment(Mode, St0) ->
@@ -285,11 +288,10 @@ init_uvmap(St0, Old, Type) ->
 	end, {[], Old}, St0)),
     Geom = init_drawarea(),
     [Areas] = AllAreas,
-    Uvs = #uvstate{command = create_mat, 
-		   st=wings_select_faces([],Areas#areas.we,St1),
-		   origst = Old,
-		   areas = Areas, 
-		   geom = Geom},
+    Uvs = #uvstate{st=wings_select_faces([], Areas#areas.we, St1),
+		   origst=Old,
+		   areas=Areas, 
+		   geom=Geom},
     {seq,{push,dummy}, get_event(Uvs)}.
 
 init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
@@ -379,7 +381,7 @@ init_edit(#we{fs=Ftab0}=We0, St0) ->
     ?DBG("Edit UV ~p \n", [MatName]),
     Empty = gb_sets:empty(),
     {We,ChangedByCut} = auv_segment:cut_model(Empty, Clusters, We0),
-    Map1 = number(build_map(Clusters, We, [])),
+    Map1 = number(build_map(Clusters, We, []), 1),
     Map = gb_trees:from_orddict(Map1),
     #areas{we=We,orig_we=We0,as=Map,vmap=ChangedByCut,matname=MatName}.
 
@@ -388,6 +390,8 @@ build_map([Fs|T], We, Acc) ->
 			 draw_info(F, We) ++ A
 		 end, [], Fs),
     UVs1 = lists:usort(UVs0),
+    %% XXX We don't handle charts that must be cut yet. (Assertion)
+    true = sofs:is_a_function(sofs:relation(UVs1, [{atom,atom}])),
     {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(UVs0),
     CX = BX0 + (BX1-BX0) / 2,
     CY = BY0 + (BY1-BY0) / 2,
@@ -396,10 +400,8 @@ build_map([Fs|T], We, Acc) ->
     build_map(T, We, [Chart|Acc]);
 build_map([], _, Acc) -> Acc.
 
-number(L) ->
-    number(L, 0).
 number([H|T], N) ->
-    [{N,H}|number(T, N)];
+    [{N,H}|number(T, N+1)];
 number([], _) -> [].
 
 %%%%% Material handling
@@ -916,7 +918,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x = MX, y 
        MX > X0, MX < X0 + W, (OH - MY) > Y0, (OH - MY) < Y0 + H ->
     SX = (MX-X0),
     SY = ((OH-MY)-Y0),
-    case select(Mode, SX, SY, ?add_as(Sel0,Curr0), We, ViewP) of
+    case select(Mode, SX, SY, add_as(Sel0,Curr0), We, ViewP) of
 	none when Op == undefined ->
 	    keep;
 	none -> 
@@ -975,7 +977,7 @@ handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY},
 			     sel = Sel0,
 			     areas = #areas{we=We,as=Curr0}}) 
   when Op == undefined, MX > X0, MX < X0 + W, (OH - MY) > Y0, (OH - MY) < Y0 + H ->
-    case select(Mode, MX-X0, ((OH-MY)-Y0), ?add_as(Sel0,Curr0), We, ViewP) of
+    case select(Mode, MX-X0, ((OH-MY)-Y0), add_as(Sel0, Curr0), We, ViewP) of
 	none -> 
 	    get_event(Uvs0#uvstate{op=#op{name=boxsel, add={MX,MY}, 
 					  prev={MX+1,MY+1},undo=Uvs0}});
@@ -1036,7 +1038,7 @@ handle_event(#keyboard{state = ?SDL_PRESSED, keysym = Sym},
 	#keysym{sym = $v} ->
 	    get_event(Uvs0#uvstate{mode = vertex});		
 	#keysym{sym = $p} ->
-	    [?DBG("DBG ~p\n", [P]) || P <- ?add_as(Sel0,Curr0)],
+	    [?DBG("DBG ~p\n", [P]) || P <- add_as(Sel0,Curr0)],
 	    keep;
 	_Key ->
 	    %%      ?DBG("Missed Key ~p ~p~n", [_Key, ?SDLK_SPACE]),
@@ -1067,10 +1069,11 @@ handle_event({action, {auv, import}}, Uvs0) ->
 	    FileName1 = ensure_ext(FileName0,".tga"),
 	    ?SLOW(import_file(FileName1, Uvs0))
 		end;
-handle_event({action, {auv, checkerboard}}, Uvs) ->
+handle_event({action, {auv, checkerboard}}, #uvstate{option=Opt0}=Uvs) ->
     Sz = 512,
     Bin = checkerboard(Sz),
-    add_texture_image(Sz, Sz, Bin, default, Uvs);
+    Opt = Opt0#setng{texbg=true,color=false,edges=no_edges},
+    add_texture_image(Sz, Sz, Bin, default, Uvs#uvstate{option=Opt});
 handle_event({action, {auv, import}}, Uvs0) ->
     case wings_plugin:call_ui({file,import,tga_prop()}) of
 	aborted -> 
@@ -1114,7 +1117,7 @@ handle_event({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
     get_event(Uvs1);
 handle_event({action, {auv, rescale_all}},
 	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{as=Curr0}})->
-    RscAreas = rescale_all(?add_as(Sel0,Curr0)),
+    RscAreas = rescale_all(add_as(Sel0,Curr0)),
     get_event(Uvs0#uvstate{sel = [],
 			   areas = As#areas{as=RscAreas},
 			   dl = undefined});
@@ -1288,6 +1291,7 @@ select(Mode, X,Y, Objects, We, ViewP = {_UVX,_UVY,UVW,UVH,XYS,XM,YM}) ->
 	Possible ->
 	    select(Mode, X,Y, 3,3, gb_trees:from_orddict(Possible), We, ViewP)
     end.
+
 select(Mode, X,Y, W, H, Objects0, We, {_UVX,_UVY,UVW,UVH,XYS,XM,YM}) ->
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
@@ -1407,9 +1411,11 @@ find_selectable(X,Y, [_H|R], Acc) ->
 find_selectable(_X,_Y, [], Acc) ->
     reverse(Acc).
 
-wings_select_faces(As, We, St) ->
+wings_select_faces([], _, St) ->
+    wpa:sel_set(face, [], St);
+wings_select_faces(As, #we{id=Id}, St) ->
     Faces = [A#a.fs || {_,A} <- As],
-    wpa:sel_set(face, [{We#we.id, gb_sets:from_list(lists:append(Faces))}], St).
+    wpa:sel_set(face, [{Id,gb_sets:from_list(lists:append(Faces))}], St).
 
 %%%% GUI Operations
 

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.5 2002/10/19 21:39:31 bjorng Exp $
+%%     $Id: auv.hrl,v 1.6 2002/10/20 08:59:39 bjorng Exp $
 
 -record(a,
 	{center = {0,0},
@@ -29,11 +29,6 @@
 	 vmap	       %Map for going back to original vertex numbers.
 	}).
 
--define(add_as(AsAA,TreeAA), 
-	lists:foldl(fun({K,Area}, TreeBB) -> 
-			    gb_trees:insert(hd(K),Area,TreeBB) 
-		    end,TreeAA,AsAA)).
-
 -record(setng, {texsz = {512, 512},   %% Texture size
 		texbg = false,        %% Texture background
 		color = true,         %% Texture drawing options
@@ -43,10 +38,9 @@
 	       }).
 -record(uvstate,
 	{ op,               %% Current op i.e. move rotate, scale..
-	  command,          %% Edit or create
 	  mode = faceg,     %% faceg, face, edge, vertex
 	  size = [0,0],     %% Max Size currently (unscaled)
-	  option = #setng{},%% Settting
+	  option = #setng{},%% Settings
 	  geom,             %% Window geom
 	  last_file = "",   %% Export/Imported texture filename
 	  dl,               %% Display list for non selected areas
