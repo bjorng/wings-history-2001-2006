@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.53 2003/09/26 18:42:04 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.54 2003/10/02 19:36:00 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -171,7 +171,7 @@ bevel_min_limit([{_Edge,[{O1,D1},{O2,D2}]}|Tail], We, Min0) ->
     D1CrossD2 = e3d_vec:cross(D1, D2),
     LenD1CrossD2 = e3d_vec:len(D1CrossD2),
     case LenD1CrossD2*LenD1CrossD2 of
-	Z when abs(Z) < 0.000001 ->
+	Z when Z < (0.01*?DEFAULT_EXTRUDE_DIST*?DEFAULT_EXTRUDE_DIST) ->
 	    %% There is no intersection between the lines.
 	    case e3d_vec:len(O2MinusO1) of
 		Odist when Odist < 0.000001 ->
