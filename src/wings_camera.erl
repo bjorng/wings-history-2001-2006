@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.74 2003/05/26 06:05:42 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.75 2003/06/19 16:15:11 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -546,6 +546,12 @@ stop_camera(#camera{ox=Ox,oy=Oy}) ->
 	    wings_wm:release_focus(),
 	    wings_wm:dirty()
     end,
+    case wings_pref:get_value(hide_sel_in_camera_moves) of
+	false ->
+	    ok;
+	true ->
+	    wings_draw_util:map(fun show_sel_fun/2, [])
+    end,
     pop.
 
 camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
@@ -582,4 +588,16 @@ message(Message) ->
     
 grab() ->
     wings_io:grab(),
-    wings_wm:grab_focus().
+    wings_wm:grab_focus(),
+    case wings_pref:get_value(hide_sel_in_camera_moves) of
+	false ->
+	    ok;
+	true ->
+	    wings_draw_util:map(fun hide_sel_fun/2, [])
+    end.
+
+hide_sel_fun(#dlo{sel=Sel}=D, _) ->
+    D#dlo{sel={call,none,Sel}}.
+
+show_sel_fun(#dlo{sel={call,none,Sel}}=D, _) ->
+    D#dlo{sel=Sel}.

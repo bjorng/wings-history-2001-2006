@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.87 2003/06/19 09:31:45 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.88 2003/06/19 16:15:11 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -120,7 +120,8 @@ command(prefs, _St) ->
 	     [{menu,[{"Solid Face Selections",solid},
 		     {"Stippled Face Selections",stippled}],
 	       selection_style},
-	      {"Hide Selection While Dragging",hide_sel_while_dragging}
+	      {"Hide Selection While Dragging",hide_sel_while_dragging},
+	      {"Hide Selection While Moving Camera",hide_sel_in_camera_moves}
 	     ],
 	     [{title,"Selection Options"}]}]},
 	  {hframe,
@@ -402,6 +403,7 @@ defaults() ->
 
      {selection_style,solid},
      {hide_sel_while_dragging,false},
+     {hide_sel_in_camera_moves,false},
 
      %% Compatibility preferences.
      {display_list_opt,true},
