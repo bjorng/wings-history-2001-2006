@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.69 2003/03/04 08:52:11 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.70 2003/03/06 18:54:04 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -43,7 +43,8 @@
 	 coords,				%Coordinates for hit testing.
 	 common=gb_trees:empty(),		%Data common for all fields.
 	 level=?INITIAL_LEVEL,
-	 owner=Owner				%Where to send result.
+	 owner=Owner,				%Where to send result.
+	 grab_win				%Previous grabbed focus window.
 	}).
 
 %% Static data for each field.
@@ -107,13 +108,14 @@ dialog(Title, Qs, Fun) ->
     do_dialog(Title, Qs, ?INITIAL_LEVEL, Fun).
 
 do_dialog(Title, Qs, Level, Fun) ->
+    GrabWin = wings_wm:release_focus(),
     S0 = setup_ask(Qs, Fun),
     S1 = init_origin(S0),
     S2 = next_focus(S1, 1),
     #s{ox=X,oy=Y,w=W0,h=H0} = S2,
     W = W0 + 2*?HMARGIN,
     H = H0 + 2*?VMARGIN,
-    S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level},
+    S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level,grab_win=GrabWin},
     Name = {dialog,Level},
     setup_blanket(Name),
     Op = {seq,push,get_event(S)},
@@ -228,8 +230,9 @@ event_key({key,_,_,$\r}, S) ->
 event_key(Ev, S) ->
     field_event(Ev, S).
 
-delete(#s{level=?INITIAL_LEVEL}) ->
+delete(#s{level=?INITIAL_LEVEL,grab_win=GrabWin}) ->
     remove_blanket(),
+    wings_wm:grab_focus(GrabWin),
     delete;
 delete(_) -> delete.
 
