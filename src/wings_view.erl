@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.113 2003/03/10 18:44:53 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.114 2003/03/21 13:16:30 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -28,7 +28,7 @@
 
 -import(lists, [foreach/2,foldl/3]).
 
-menu(_) ->
+menu(St) ->
     L = wings_pref:get_value(number_of_lights),
     [{"Ground Plane",show_groundplane,"Show the ground plane",
       crossmark(show_groundplane)},
@@ -42,9 +42,9 @@ menu(_) ->
       "(same for all objects if nothing is selected)"},
      {"Shade",shade,"Display selected objects as shaded "
       "(same for all objects if nothing is selected)"},
-     {"Toggle Wireframed/Shaded",toggle_wireframe,
+     {"Toggle Wireframe",toggle_wireframe,
       "Toggle display mode for selected objects "
-      "(same for all objects if nothing is selected)"},
+      "(same for all objects if nothing is selected)",wireframe_crossmark(St)},
      separator,
      {"Show Saved BB",show_bb,"Display any saved bounding box",crossmark(show_bb)},
      {"Show Edges",show_edges,"Show edges in workmode",crossmark(show_edges)},
@@ -103,6 +103,25 @@ crossmark(Key) ->
     case Val of
 	false -> [];
 	true -> [crossmark]
+    end.
+
+wireframe_crossmark(#st{sel=[],shapes=Shs}) ->
+    {menubar,Client} = wings_wm:this(),
+    Wire = wings_wm:get_prop(Client, wireframed_objects),
+    case {gb_sets:size(Wire),gb_trees:size(Shs)} of
+	{0,_} -> [];
+	{Same,Same} -> [crossmark];
+	{_,_} -> [grey_crossmark]
+    end;
+wireframe_crossmark(#st{sel=Sel0}) ->
+    {menubar,Client} = wings_wm:this(),
+    Wire0 = wings_wm:get_prop(Client, wireframed_objects),
+    Sel = gb_sets:from_list([Id || {Id,_} <- Sel0]),
+    Wire = gb_sets:intersection(Sel, Wire0),
+    case {gb_sets:size(Wire),gb_sets:size(Sel)} of
+	{0,_} -> [];
+	{Same,Same} -> [crossmark];
+	{_,_} -> [grey_crossmark]
     end.
 	     
 command(reset, St) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.96 2003/03/12 08:30:54 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.97 2003/03/21 13:16:23 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -641,10 +641,18 @@ draw_hotkey(X, Y, Pos, Hotkey) ->
     
 draw_menu_text(X, Y, Text, Props) ->
     case proplists:is_defined(crossmark, Props) of
-	false ->
-	    wings_io:menu_text(X, Y, Text);
 	true ->
-	    wings_io:menu_text(X-2*?CHAR_WIDTH, Y, [crossmark,$\s|Text])
+	    wings_io:menu_text(X-2*?CHAR_WIDTH, Y, [crossmark,$\s|Text]);
+	false ->
+	    case proplists:is_defined(grey_crossmark, Props) of
+		false -> ok;
+		true ->
+		    gl:pushAttrib(?GL_CURRENT_BIT),
+		    gl:color3f(0.25, 0.25, 0.25),
+		    wings_io:menu_text(X-2*?CHAR_WIDTH, Y, [crossmark]),
+		    gl:popAttrib()
+	    end,
+	    wings_io:menu_text(X, Y, Text)
     end.
 
 item_colors(Y, Ps, Sel, #mi{sel=Sel,sel_side=Side,w=W}) ->
