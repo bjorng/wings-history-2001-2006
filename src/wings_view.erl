@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.89 2003/01/19 06:40:01 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.90 2003/01/21 09:52:52 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -607,16 +607,14 @@ model_transformations() ->
     model_transformations(false).
 
 model_transformations(IncludeLights) ->
-    #view{origin=Origin,distance=Dist0,azimuth=Az,
+    #view{origin=Origin,distance=Dist,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
-    {W,H} = wings_wm:win_size(),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
     if
 	IncludeLights -> wings_light:camera_lights();
 	true -> ok
     end,
-    Dist = Dist0 * math:sqrt((W*H) / (640*480)),
     gl:translatef(PanX, PanY, -Dist),
     gl:rotatef(El, 1.0, 0.0, 0.0),
     gl:rotatef(Az, 0.0, 1.0, 0.0),
