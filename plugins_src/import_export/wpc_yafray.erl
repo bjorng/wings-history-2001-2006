@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.74 2004/04/15 20:35:52 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.75 2004/04/16 12:42:21 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1184,8 +1184,8 @@ render(Renderer, Options, Filename, LoadImage) ->
     Basename = filename:basename(Filename),
     %% Filename is auto-generated so Basename should not need quoting
     Cmd = uquote(Renderer)++" "++Options++" "++Basename,
-%%%     PortOpts = [{cd,Dirname},eof,exit_status,stderr_to_stdout],
-    PortOpts = [{line,1},{cd,Dirname},eof,exit_status,stderr_to_stdout],
+    PortOpts = [{cd,Dirname},eof,exit_status,stderr_to_stdout],
+%%%     PortOpts = [{line,1},{cd,Dirname},eof,exit_status,stderr_to_stdout],
     io:format("Rendering Job started ~p:~n>~s~n", [self(),Cmd]),
     case catch open_port({spawn,Cmd}, PortOpts) of
 	Port when port(Port) ->
