@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.158 2003/12/30 14:36:01 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.159 2004/01/01 15:17:35 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -2231,8 +2231,7 @@ browse_hook_fun(Ps0, TextKey, TextHook) ->
 	    Dir = filename:dirname(filename:absname(Name0)),
 	    Ps = [{directory,Dir}|Ps0],
 	    Parent = wings_wm:this(),
-	    F = fun(aborted) -> ignore;
-		   (Name) ->
+	    F = fun(Name) ->
 			wings_wm:send(Parent, {drop,{filename,Name}})
 		end,
 	    DlgType = proplists:get_value(dialog_type, Ps),
