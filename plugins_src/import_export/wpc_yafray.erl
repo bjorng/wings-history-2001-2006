@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.41 2003/09/01 21:46:20 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.42 2003/09/26 15:02:55 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -373,7 +373,7 @@ modulator_dialogs([Modulator|Modulators], Maps, M) ->
 
 modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 %    erlang:display({?MODULE,?LINE,[Ps,M,Maps]}),
-    Mode = proplists:get_value(mode, Ps, ?DEF_MOD_MODE),
+    {Mode,Type} = mod_mode_type(Ps, Maps),
     SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
     SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
     SizeZ = proplists:get_value(size_z, Ps, ?DEF_MOD_SIZE_Z),
@@ -382,11 +382,6 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
     Ambient = proplists:get_value(ambient, Ps, ?DEF_MOD_AMBIENT),
     Shininess = proplists:get_value(shininess, Ps, ?DEF_MOD_SHININESS),
     Normal = proplists:get_value(normal, Ps, ?DEF_MOD_NORMAL),
-    Type = 
-	case proplists:get_value(type, Ps, ?DEF_MOD_TYPE) of
-	    jpeg -> image;
-	    T -> T
-	end,
     Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
     Color1 = proplists:get_value(color1, Ps, ?DEF_MOD_COLOR1),
     Color2 = proplists:get_value(color2, Ps, ?DEF_MOD_COLOR2),
@@ -400,15 +395,12 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
     TaggedType = {TypeTag,Type},
     MapsFrame = 
 	case Maps of
-	    [] ->
-		[];
-	    _ ->
-		[{hframe,
-		  lists:map(fun ({Map,_}) ->
-				    {key_alt,TaggedType,atom_to_list(Map),
-				     {map,Map}}
-			    end, Maps)}]
+	    [] -> [];
+	    _ ->  [{hframe,[{key_alt,TaggedType,atom_to_list(Map),{map,Map}} ||
+			       {Map,_} <- Maps]}]
 	end,
+    erlang:display({?MODULE,?LINE,Maps}),
+    erlang:display({?MODULE,?LINE,MapsFrame}),
     [{vframe,
       [{menu,[{"Delete",delete},
 	      {if Mode==off ->"Disabled";
@@ -462,6 +454,20 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
       [{title,"Modulator"}]}];
 modulator_dialog(_Modulator, _Maps, _) ->
     []. % Discard old modulators that anyone may have
+
+mod_mode_type(Ps, Maps) ->
+    case proplists:get_value(type, Ps) of
+	undefined -> def_mod_mode_type(Ps, ?DEF_MOD_TYPE);
+	{map,Map}=Type ->
+	    case lists:keymember(Map, 1, Maps) of
+		true ->  def_mod_mode_type(Ps, Type);
+		false -> {off,?DEF_MOD_TYPE}
+	    end;
+	Type -> def_mod_mode_type(Ps, Type)
+    end.
+
+def_mod_mode_type(Ps, Type) ->
+    {proplists:get_value(mode, Ps, ?DEF_MOD_MODE),Type}.
 
 modulator_result(Res) ->
     modulator_result(Res, 1, []).
@@ -974,12 +980,10 @@ export_shader(F, Name, Mat, ExportDir) ->
     YafRay = proplists:get_value(?TAG, Mat, []),
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     foldl(fun ({modulator,Ps}=M, N) when list(Ps) ->
-		  case proplists:get_value(mode, Ps) of
-		      off ->
-			  N+1;
-		      _ ->
-			  export_texture(F, [Name,$_,format(N)], 
-					 Maps, ExportDir, M),
+		  case export_texture(F, [Name,$_,format(N)], 
+				      Maps, ExportDir, M) of
+		      off -> N+1;
+		      ok ->
 			  println(F),
 			  N+1
 		  end;
@@ -1020,14 +1024,16 @@ export_shader(F, Name, Mat, ExportDir) ->
     println(F, "</shader>").
 
 export_texture(F, Name, Maps, ExportDir, {modulator,Ps}) when list(Ps) ->
-    case proplists:get_value(type, Ps, ?DEF_MOD_TYPE) of
-	image ->
+    case mod_mode_type(Ps, Maps) of
+	{off,_} ->
+	    off;
+	{_,image} ->
 	    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
 	    export_texture(F, Name, image, Filename);
-	jpeg -> %% Old tag
+	{_,jpeg} -> %% Old tag
 	    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
 	    export_texture(F, Name, image, Filename);
-	{map,Map} ->
+	{_,{map,Map}} ->
 	    case proplists:get_value(Map, Maps, undefined) of
 		undefined ->
 		    exit({unknown_texture_map,{?MODULE,?LINE,[Name,Map]}});
@@ -1037,7 +1043,7 @@ export_texture(F, Name, Maps, ExportDir, {modulator,Ps}) when list(Ps) ->
 					filename:join(ExportDir, MapFile)),
 		    export_texture(F, Name, image, MapFile)
 	    end;
-	Type ->
+	{_,Type} ->
 	    export_texture(F, Name, Type, Ps)
     end.
 
