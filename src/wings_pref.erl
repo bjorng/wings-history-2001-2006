@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.94 2003/09/06 06:58:20 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.95 2003/09/06 08:34:21 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -30,8 +30,9 @@ init() ->
     wings_hotkey:set_default(),
     case old_pref_file() of
 	none -> ok;
-	Pref ->
-	    case file:consult(Pref) of
+	PrefFile ->
+            io:format("Reading preferences from: ~s\n", [PrefFile]),
+	    case file:consult(PrefFile) of
 		{ok,List0} ->
 		    List = clean(List0),
 		    catch ets:insert(wings_state, List);
@@ -310,7 +311,77 @@ win32_pref() ->
 
 win32_pref_1() ->
     %% Try to locate a preference file in an old installation of Wings.
-    none.
+    {ok,R} = win32reg:open([read]),
+    Res = win32_pref_2(R),
+    ok = win32reg:close(R),
+    Res.
+
+win32_pref_2(R) ->
+    case win32_9816_or_higher(R) of
+        none -> win32_pref_pre9816(R);
+        File -> File
+    end.
+
+
+win32_9816_or_higher(R) ->
+    %% Search for a preference file in a Wings installation in 0.98.16 or higher.
+    case win32reg:change_key(R, "\\hklm\\SOFTWARE\\Wings 3D") of
+        ok ->
+            case win32reg:sub_keys(R) of
+                {ok,SubKeys0} ->
+                    SubKeys = reverse(sort(SubKeys0)),
+                    {ok,Curr} = win32reg:current_key(R),
+                    win32_9816_or_higher_1(R, SubKeys, Curr);
+                {error,Error} ->
+                    io:format("Can't read sub keys for 'Wings 3D': ~p\n", [Error]),
+                    none
+            end;
+        {error,Error} ->
+            io:format("No 'Wings 3D' key (this is STRANGE): ~p\n", [Error]),
+            none
+    end.
+
+win32_9816_or_higher_1(R, [K|Keys], Curr) ->
+    ok = win32reg:change_key(R, K),
+    Val = reg_get_default(R),
+    ok = win32reg:change_key(R, Curr),
+    case try_location(Val, ?WIN32_PREFS) of
+        none -> win32_9816_or_higher_1(R, Keys, Curr);
+        File -> File
+    end;
+win32_9816_or_higher_1(_, [], _) -> none.
+
+win32_pref_pre9816(R) ->
+    %% Search for a preference file in a Wings installation older than 0.98.16.
+    case win32reg:change_key(R, "\\hklm\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wings 3D") of
+        ok ->
+            case win32reg:value(R, "UninstallString") of
+                {ok,Str0} ->
+                    Str = strip_quotes(Str0),
+                    try_location(filename:dirname(Str), ?WIN32_PREFS);
+                {error,_} -> none
+            end;
+        {error,_} -> none
+    end.
+
+reg_get_default(R) ->
+    %% There seems to be a bug in win32reg:value/2 preventing us from retrieving
+    %% the default value. Workaround follows.
+    case win32reg:values(R) of
+        {ok,Values} ->
+            case keysearch(default, 1, Values) of
+                {value,{default,Val}} -> Val;
+                false -> ""
+            end;
+        {error,_} -> ""
+    end.
+    
+strip_quotes([$"|T0]) ->
+    case reverse(T0) of
+        [$"|T] -> reverse(T);
+        _ -> T0
+    end;
+strip_quotes(S) -> S.
 
 try_location(Dir, File) ->
     Name = filename:join(Dir, File),
