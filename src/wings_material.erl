@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.101 2003/08/03 14:44:39 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.102 2003/08/03 15:28:35 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -343,30 +343,37 @@ apply_material(Name, Mtab) when is_atom(Name) ->
 
 apply_texture(none) -> no_texture();
 apply_texture(Image) ->
-    case wings_image:txid(Image) of
-	none ->
-	    %% Image was deleted.
-	    no_texture();
-	TxId ->
-	    gl:enable(?GL_TEXTURE_2D),
-	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
-	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
-	    case wings_image:info(Image) of
-		#e3d_image{bytes_pp=4} ->
-		    gl:enable(?GL_ALPHA_TEST),
-		    gl:alphaFunc(?GL_GREATER, 0.5);
-		#e3d_image{type=a8} ->
-		    gl:enable(?GL_ALPHA_TEST),
-		    gl:alphaFunc(?GL_GREATER, 0.5);
-		_ -> 
-		    gl:disable(?GL_ALPHA_TEST)
-	    end,
-	    true
+    case wings_pref:get_value(show_textures) of
+	false -> no_texture();
+	true ->
+	    case wings_image:txid(Image) of
+		none ->
+		    %% Image was deleted.
+		    no_texture();
+		TxId ->
+		    apply_texture_1(Image, TxId)
+	    end
     end.
+
+apply_texture_1(Image, TxId) ->
+    gl:enable(?GL_TEXTURE_2D),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
+    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
+    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
+    case wings_image:info(Image) of
+	#e3d_image{bytes_pp=4} ->
+	    gl:enable(?GL_ALPHA_TEST),
+	    gl:alphaFunc(?GL_GREATER, 0.5);
+	#e3d_image{type=a8} ->
+	    gl:enable(?GL_ALPHA_TEST),
+	    gl:alphaFunc(?GL_GREATER, 0.5);
+	_ -> 
+	    gl:disable(?GL_ALPHA_TEST)
+    end,
+    true.
 
 no_texture() ->
     gl:disable(?GL_TEXTURE_2D),
@@ -598,9 +605,15 @@ prop_get(Key, Props, Def) ->
 %% mat_faces([{Face,Info}], We) -> [{Mat,[{Face,Info}]}]
 %%  Group face tab into groups based on material.
 %%  Used for displaying objects.
-mat_faces(Ftab, #we{mat=AtomMat}) when is_atom(AtomMat) ->
+mat_faces(Ftab, We) ->
+    case wings_pref:get_value(show_materials) of
+	false -> [{default,Ftab}];
+	true -> mat_faces_1(Ftab, We)
+    end.
+
+mat_faces_1(Ftab, #we{mat=AtomMat}) when is_atom(AtomMat) ->
     [{AtomMat,Ftab}];
-mat_faces(Ftab0, #we{mat=MatTab}) ->
+mat_faces_1(Ftab0, #we{mat=MatTab}) ->
     Ftab = mat_join(Ftab0, MatTab, []),
     wings_util:rel2fam(Ftab).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.137 2003/08/03 14:44:39 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.138 2003/08/03 15:28:35 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -469,16 +469,10 @@ split_vs_dlist(_, _, _) -> {none,none}.
 draw_faces(Ftab, We, St) ->
     draw_faces(wings_draw_util:prepare(Ftab, We, St), We).
 
-draw_faces({uv,MatFaces,St}, We) ->
-    Dl = gl:genLists(1),
-    gl:newList(Dl, ?GL_COMPILE),
-    wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St),
-    gl:endList(),
-    Dl;
 draw_faces({material,MatFaces,St}, We) ->
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
-    wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St),
+    mat_faces(MatFaces, We, St),
     gl:endList(),
     Dl;
 draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
@@ -525,6 +519,41 @@ draw_vtx_faces_3([F|Fs], We) ->
 draw_vtx_faces_3([], _) -> ok.
 
 %%%
+%%% Set material and draw faces.
+%%%
+
+mat_faces(List, We, #st{mat=Mtab}) ->
+    mat_faces_1(List, We, Mtab);
+mat_faces(List, We, Mtab) ->
+    mat_faces_1(List, We, Mtab).
+    
+mat_faces_1([{Mat,Faces}|T], We, Mtab) ->
+    gl:pushAttrib(?GL_TEXTURE_BIT),
+    case wings_material:apply_material(Mat, Mtab) of
+	false ->
+	    Tess = wings_draw_util:tess(),
+	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
+	    wings_draw_util:begin_end(fun() -> draw_mat_faces(Faces, We) end),
+	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA);
+	true ->
+	    wings_draw_util:begin_end(fun() -> draw_uv_faces(Faces, We) end)
+    end,
+    gl:edgeFlag(?GL_TRUE),
+    gl:popAttrib(),
+    mat_faces_1(T, We, Mtab);
+mat_faces_1([], _, _) -> ok.
+
+draw_mat_faces([{Face,Edge}|Fs], We) ->
+    wings_draw_util:flat_face(Face, Edge, We),
+    draw_mat_faces(Fs, We);
+draw_mat_faces([], _) -> ok.
+
+draw_uv_faces([{Face,Edge}|Fs], We) ->
+    wings_draw_util:uv_face(Face, Edge, We),
+    draw_uv_faces(Fs, We);
+draw_uv_faces([], _) -> ok.
+
+%%%
 %%% Smooth drawing.
 %%%
 
@@ -544,9 +573,7 @@ smooth_faces(Ftab, We, St) ->
     smooth_faces(wings_draw_util:prepare(Ftab, We, St)).
 
 smooth_faces({material,MatFaces,St}) ->
-    draw_smooth_faces(fun draw_smooth_mat_faces/1, MatFaces, St);
-smooth_faces({uv,MatFaces,St}) ->
-    draw_smooth_faces(fun draw_smooth_faces/1, MatFaces, St);
+    draw_smooth_faces(fun draw_smooth_mat_faces/2, MatFaces, St);
 smooth_faces({color,{Same,Diff},#st{mat=Mtab}}) ->
     ListOp = gl:genLists(1),
     gl:newList(ListOp, ?GL_COMPILE),
@@ -555,7 +582,7 @@ smooth_faces({color,{Same,Diff},#st{mat=Mtab}}) ->
     gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
     Draw = fun() ->
 		   draw_smooth_vtx_faces_1(Same),
-		   draw_smooth_faces(Diff)
+		   vcol_faces(Diff)
 	   end,
     wings_draw_util:begin_end(Draw),
     gl:disable(?GL_COLOR_MATERIAL),
@@ -601,12 +628,17 @@ draw_smooth_tr([], _, _) -> ok.
 
 do_draw_smooth(DrawFaces, Mat, Faces, Mtab) ->
     gl:pushAttrib(?GL_TEXTURE_BIT),
-    wings_material:apply_material(Mat, Mtab),
+    IsTxMaterial = wings_material:apply_material(Mat, Mtab),
     wings_draw_util:begin_end(
       fun() ->
-	      DrawFaces(Faces)
+	      DrawFaces(IsTxMaterial, Faces)
       end),
     gl:popAttrib().
+
+draw_smooth_mat_faces(false, Fs) ->
+    draw_smooth_mat_faces(Fs);
+draw_smooth_mat_faces(true, Fs) ->
+    uv_faces(Fs).
 
 draw_smooth_mat_faces([{_,{_,[A,B,C]}}|Fs]) ->
     mat_face_vtx(A),
@@ -654,12 +686,14 @@ mat_face_vtx({P,_,N}) ->
     gl:normal3fv(N),
     gl:vertex3dv(P).
 
-draw_smooth_faces([{_,{_,[A,B,C]}}|Fs]) ->
-    face_vtx(A),
-    face_vtx(B),
-    face_vtx(C),
-    draw_smooth_faces(Fs);
-draw_smooth_faces([{_,{N,[A,B,C,D]=Vs}}|Fs]) ->
+%%% Draw faces with UV coordinates.
+
+uv_faces([{_,{_,[A,B,C]}}|Fs]) ->
+    uv_face_vtx(A),
+    uv_face_vtx(B),
+    uv_face_vtx(C),
+    uv_faces(Fs);
+uv_faces([{_,{N,[A,B,C,D]=Vs}}|Fs]) ->
     Ap = element(1, A),
     Bp = element(1, B),
     Cp = element(1, C),
@@ -667,46 +701,102 @@ draw_smooth_faces([{_,{N,[A,B,C,D]=Vs}}|Fs]) ->
     case wings_draw_util:consistent_normal(Ap, Bp, Cp, N) andalso
 	wings_draw_util:consistent_normal(Ap, Cp, Dp, N) of
 	true ->
-	    face_vtx(A),
-	    face_vtx(B),
-	    face_vtx(C),
-	    face_vtx(A),
-	    face_vtx(C),
-	    face_vtx(D),
-	    draw_smooth_faces(Fs);
+	    uv_face_vtx(A),
+	    uv_face_vtx(B),
+	    uv_face_vtx(C),
+	    uv_face_vtx(A),
+	    uv_face_vtx(C),
+	    uv_face_vtx(D),
+	    uv_faces(Fs);
 	false ->
-	    draw_smooth_faces_1(N, Vs, Fs)
+	    uv_faces_1(N, Vs, Fs)
     end;
-draw_smooth_faces([{_,{N,Vs}}|Fs]) ->
-    draw_smooth_faces_1(N, Vs, Fs);
-draw_smooth_faces([]) -> ok.
+uv_faces([{_,{N,Vs}}|Fs]) ->
+    uv_faces_1(N, Vs, Fs);
+uv_faces([]) -> ok.
+
+uv_face_vtx({P,{U,V},N}) ->
+    gl:texCoord2f(U, V),
+    gl:normal3fv(N),
+    gl:vertex3dv(P);
+uv_face_vtx({P,_,N}) ->
+    gl:texCoord2i(0, 0),
+    gl:normal3fv(N),
+    gl:vertex3dv(P).
 	    
-draw_smooth_faces_1({X,Y,Z}, Vs, Fs) ->
+uv_faces_1({X,Y,Z}, Vs, Fs) ->
     Tess = wings_draw_util:tess(),
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    draw_smooth_face(Vs, Tess),
+    uv_face(Vs, Tess),
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess),
-    draw_smooth_faces(Fs).
+    uv_faces(Fs).
 
-face_vtx({P,{U,V},N}) ->
-    gl:texCoord2f(U, V),
-    gl:normal3fv(N),
-    gl:vertex3dv(P);
-face_vtx({P,{R,G,B},N}) ->
+uv_face([{P,{_,_}=UV,N}|Vs], Tess) ->
+    glu:tessVertex(Tess, P, [{normal,N},{texcoord2,UV}]),
+    uv_face(Vs, Tess);
+uv_face([{P,_,N}|Vs], Tess) ->
+    glu:tessVertex(Tess, P, [{normal,N},{texcoord2,{0.0,0.0}}]),
+    uv_face(Vs, Tess);
+uv_face([], _) -> ok.
+
+%%% Draw faces with vertex colors coordinates.
+
+vcol_faces([{_,{_,[A,B,C]}}|Fs]) ->
+    vcol_face_vtx(A),
+    vcol_face_vtx(B),
+    vcol_face_vtx(C),
+    vcol_faces(Fs);
+vcol_faces([{_,{N,[A,B,C,D]=Vs}}|Fs]) ->
+    Ap = element(1, A),
+    Bp = element(1, B),
+    Cp = element(1, C),
+    Dp = element(1, D),
+    case wings_draw_util:consistent_normal(Ap, Bp, Cp, N) andalso
+	wings_draw_util:consistent_normal(Ap, Cp, Dp, N) of
+	true ->
+	    vcol_face_vtx(A),
+	    vcol_face_vtx(B),
+	    vcol_face_vtx(C),
+	    vcol_face_vtx(A),
+	    vcol_face_vtx(C),
+	    vcol_face_vtx(D),
+	    vcol_faces(Fs);
+	false ->
+	    vcol_faces_1(N, Vs, Fs)
+    end;
+vcol_faces([{_,{N,Vs}}|Fs]) ->
+    vcol_faces_1(N, Vs, Fs);
+vcol_faces([]) -> ok.
+
+vcol_face_vtx({P,{R,G,B},N}) ->
     gl:color3f(R, G, B),
     gl:normal3fv(N),
+    gl:vertex3dv(P);
+vcol_face_vtx({P,_,N}) ->
+    gl:color3f(1, 1, 1),
+    gl:normal3fv(N),
     gl:vertex3dv(P).
-    
-draw_smooth_face([{P,{_,_}=UV,N}|Vs], Tess) ->
-    glu:tessVertex(Tess, P, [{normal,N},{texcoord2,UV}]),
-    draw_smooth_face(Vs, Tess);
-draw_smooth_face([{P,{_,_,_}=Color,N}|Vs], Tess) ->
+	    
+vcol_faces_1({X,Y,Z}, Vs, Fs) ->
+    Tess = wings_draw_util:tess(),
+    glu:tessNormal(Tess, X, Y, Z),
+    glu:tessBeginPolygon(Tess),
+    glu:tessBeginContour(Tess),
+    vcol_face(Vs, Tess),
+    glu:tessEndContour(Tess),
+    glu:tessEndPolygon(Tess),
+    vcol_faces(Fs).
+
+vcol_face([{P,{_,_,_}=Color,N}|Vs], Tess) ->
     glu:tessVertex(Tess, P, [{color,Color},{normal,N}]),
-    draw_smooth_face(Vs, Tess);
-draw_smooth_face([], _) -> ok.
+    vcol_face(Vs, Tess);
+vcol_face([{P,_,N}|Vs], Tess) ->
+    glu:tessVertex(Tess, P, [{color,{1.0,1.0,1.0}},{normal,N}]),
+    vcol_face(Vs, Tess);
+vcol_face([], _) -> ok.
 
 %%
 %% Draw normals for the selected elements.

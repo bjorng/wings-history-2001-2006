@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.57 2003/08/03 14:44:39 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.58 2003/08/03 15:28:35 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -541,12 +541,6 @@ inc_smooth(#we{vp=Vp,next_id=Next}=We0, #sp{we=OldWe}) ->
 %%% a sub-divided surface only can contain quads.
 %%%
 
-draw_faces({uv,MatFaces,St}, We) ->
-    Faces = gl:genLists(1),
-    gl:newList(Faces, ?GL_COMPILE),
-    mat_faces(MatFaces, We, St),
-    gl:endList(),
-    {Faces,none};
 draw_faces({material,MatFaces,St}, We) ->
     Faces = gl:genLists(1),
     gl:newList(Faces, ?GL_COMPILE),

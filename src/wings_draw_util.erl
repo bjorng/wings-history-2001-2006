@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.94 2003/08/03 14:44:39 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.95 2003/08/03 15:28:35 bjorng Exp $
 %%
 
 -module(wings_draw_util).
 -export([init/0,delete_dlists/0,tess/0,begin_end/1,begin_end/2,
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,call_one_of/2,
-	 prepare/3,mat_faces/4,
+	 prepare/3,
 	 face/2,flat_face/2,flat_face/3,
 	 uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 force_flat_color/2,consistent_normal/4]).
@@ -489,20 +489,6 @@ draw_normals(#dlo{normals=Ns}) ->
 %%% Set material and draw faces.
 %%%
 
-prepare(Ftab, #we{mode=uv}=We, St) ->
-    case wings_pref:get_value(show_textures) of
-	true ->
-	    MatFaces = wings_material:mat_faces(Ftab, We),
-	    {uv,MatFaces,St};
-	false ->
-	    {material,[{default,Ftab}],St}
-    end;
-prepare(Ftab, #we{mode=material}=We, St) ->
-    MatFaces = case wings_pref:get_value(show_materials) of
-		   true -> wings_material:mat_faces(Ftab, We);
-		   false -> [{default,Ftab}]
-	       end,
-    {material,MatFaces,St};
 prepare(Ftab, #we{mode=vertex}=We, St) ->
     MatFaces = [{default,Ftab}],
     case wings_pref:get_value(show_colors) of
@@ -510,7 +496,10 @@ prepare(Ftab, #we{mode=vertex}=We, St) ->
 	    {material,MatFaces,St};
 	true ->
 	    {color,vtx_color_split(Ftab, We),St}
-    end.
+    end;
+prepare(Ftab, We, St) ->
+    MatFaces = wings_material:mat_faces(Ftab, We),
+    {material,MatFaces,St}.
 
 vtx_color_split([{_,Edge}|_]=Ftab0, #we{es=Etab}) when is_integer(Edge) ->
     Ftab1 = sofs:from_external(Ftab0, [{face,edge}]),
@@ -561,45 +550,6 @@ vtx_smooth_face_color_1([{_,Col,_}|T], Col) ->
     vtx_smooth_face_color_1(T, Col);
 vtx_smooth_face_color_1([_|_], _) -> different;
 vtx_smooth_face_color_1([], Col) -> Col.
-
-%%%
-%%% Set material and draw faces.
-%%%
-
-mat_faces(List, Mode, We, #st{mat=Mtab}) ->
-    mat_faces_1(List, Mode, We, Mtab);
-mat_faces(List, Mode, We, Mtab) ->
-    mat_faces_1(List, Mode, We, Mtab).
-    
-mat_faces_1([{Mat,Faces}|T], Mode, We, Mtab) ->
-    gl:pushAttrib(?GL_TEXTURE_BIT),
-    case wings_material:apply_material(Mat, Mtab) of
-	false ->
-	    Tess = tess(),
-	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-	    gl:'begin'(Mode),
-	    draw_mat_faces(Faces, We),
-	    gl:'end'(),
-	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA);
-	true ->
-	    gl:'begin'(Mode),
-	    draw_uv_faces(Faces, We),
-	    gl:'end'()
-    end,
-    gl:edgeFlag(?GL_TRUE),
-    gl:popAttrib(),
-    mat_faces_1(T, Mode, We, Mtab);
-mat_faces_1([], _, _, _) -> ok.
-
-draw_mat_faces([{Face,Edge}|Fs], We) ->
-    flat_face(Face, Edge, We),
-    draw_mat_faces(Fs, We);
-draw_mat_faces([], _) -> ok.
-
-draw_uv_faces([{Face,Edge}|Fs], We) ->
-    uv_face(Face, Edge, We),
-    draw_uv_faces(Fs, We);
-draw_uv_faces([], _) -> ok.
 
 %%
 %% Tesselate and draw face. Include vertex colors or UV coordinates.
