@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.38 2002/11/09 11:14:31 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.39 2002/11/12 15:27:44 dgud Exp $
 
 -module(auv_segment).
 
@@ -66,8 +66,68 @@ degrees(Deg) ->
 segment_by_feature(We, SharpEdgeDeg, MinFeatureLen) ->
     {Features,VEG,EWs} = ?TC(find_features(We, SharpEdgeDeg, MinFeatureLen)),
     {LocalMaxs,Extra} = ?TC(build_seeds(Features, We)),
-    {Distances,Charts,Bounds} = ?TC(build_charts(LocalMaxs, Extra, VEG, EWs, We)),
-    {Distances,Charts,Bounds,Features}.
+    {Distances,Charts0,Cuts} = ?TC(build_charts(LocalMaxs, Extra, VEG, EWs, We)),    
+    Charts = ?TC(solve_map_problem(Charts0, We)),
+    {Distances,Charts,Cuts,Features}.
+
+
+solve_map_problem(Charts0, _We) when length(Charts0) =< 9 ->
+    Charts0;
+
+solve_map_problem(Charts0, We) ->
+    Charts = auv_util:number(Charts0),
+    FamC2F = sofs:family(Charts),
+    RelC2F = sofs:family_to_relation(FamC2F),
+    FaceChart0 = sofs:to_external(sofs:converse(RelC2F)),
+    Face2Chart  = gb_trees:from_orddict(lists:sort(FaceChart0)),
+    EdgesInCharts = 
+	lists:foldl(fun({Id, Faces}, Acc) -> 
+			    [{Id, wings_face:outer_edges(Faces, We)} | Acc]
+		    end, [], Charts),
+    Neighbours0 = neighbour_charts(EdgesInCharts, Face2Chart, We#we.es, []),
+    Map = color_map(Neighbours0, gb_trees:empty(), gb_sets:empty(), 0),
+    MapC2Col = sofs:relation(Map),
+    T0 = sofs:range(sofs:relative_product({MapC2Col, FamC2F})),
+    T1 = sofs:range(sofs:family_union(sofs:relation_to_family(T0))),
+    T2 = sofs:to_external(T1),
+    ?DBG("Map painting solved from ~p to ~p colors~n", [length(Charts0), length(T2)]), 
+    T2.
+    
+
+color_map([{_, Id, NBeds}|Rest], Map0, Cols, NextCol) ->
+    NBcols = lists:foldl(fun(Neigh, Acc) ->
+				 case gb_trees:lookup(Neigh, Map0) of
+				     none -> Acc;
+				     {value, Col} ->
+					 gb_sets:add(Col, Acc)
+				 end
+			 end, gb_sets:empty(), NBeds),
+    Avail = gb_sets:difference(Cols, NBcols),
+    case gb_sets:is_empty(Avail) of
+	true ->
+	    color_map(Rest, gb_trees:insert(Id, NextCol, Map0), 
+		      gb_sets:insert(NextCol,Cols), NextCol +1);
+	false ->
+	    {First,_} = gb_sets:take_smallest(Avail),
+	    color_map(Rest, gb_trees:insert(Id, First, Map0), Cols, NextCol)
+    end;
+color_map([], Map, _, _) ->
+    gb_trees:to_list(Map).
+
+neighbour_charts([{Id, Edges}|Rest], Face2Chart, Etab, Acc) ->
+    Neighb0 = foldl(fun(Edge, Acc0) ->
+			   #edge{lf=LF, rf=RF} =  gb_trees:get(Edge, Etab),
+			   case gb_trees:get(RF, Face2Chart) of
+			       Id ->
+				   [gb_trees:get(LF, Face2Chart)|Acc0];
+			       Chart ->
+				   [Chart|Acc0]
+			   end
+		    end, [], Edges),
+    Neighb = lists:usort(Neighb0),
+    neighbour_charts(Rest, Face2Chart, Etab, [{length(Neighb), Id, Neighb}|Acc]);
+neighbour_charts([], _, _, Acc) ->
+    reverse(sort(Acc)).
 
 %%%   SharpEdge should be degrees value is: (180 +/- SharpEdge) 
 %%%   MinFeatureLen is the number of edges a feature must contain

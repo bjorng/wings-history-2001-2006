@@ -9,13 +9,15 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_util.erl,v 1.1 2002/11/08 17:37:17 bjorng Exp $
+%%     $Id: auv_util.erl,v 1.2 2002/11/12 15:27:45 dgud Exp $
 
 -module(auv_util).
 
 -export([maxmin/1]).
 -export([moveAndScale/5]).
 -export([outer_edges/2,outer_edges/3]).
+-export([number/1,number/2]).
+
 
 -include("wings.hrl").
 -include("auv.hrl").
@@ -101,3 +103,9 @@ outer_edges_1([{E,_},{E,_}|T], Out) ->
 outer_edges_1([E|T], Out) ->
     outer_edges_1(T, [E|Out]);
 outer_edges_1([], Out) -> reverse(Out).
+
+number(L) ->
+    ?MODULE:number(L,0).
+number([H|T], N) ->
+    [{N,H}|number(T, N+1)];
+number([], _) -> [].

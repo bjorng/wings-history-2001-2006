@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.50 2002/11/10 12:45:49 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.51 2002/11/12 15:27:46 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -342,6 +342,7 @@ seg_error(Message, Ss) ->
 make_mat(Diff) ->
     [{opengl,[{diffuse,Diff},
 	      {ambient,Diff},
+%%	      {emission,Diff},
 	      {specular,{0.0,0.0,0.0}}]}].
 
 check_for_defects(We) ->
@@ -457,6 +458,7 @@ assign_materials([Faces|T], #we{fs=Ftab0}=We0, Template, I0, #st{mat=Mat0}=St0) 
 assign_materials([], #we{id=Id}=We, _, _, #st{shapes=Shs0}=St) ->
     Shs = gb_trees:update(Id, We, Shs0),
     St#st{shapes=Shs}.
+          
 
 %%%%%%
 
@@ -545,7 +547,7 @@ init_edit(MatName, Faces, We0) ->
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
     {We1,Vmap} = auv_segment:cut_model(Charts, Cuts, We0),
-    Map1 = number(build_map(Charts, Vmap, FvUvMap, We1, []), 1),
+    Map1 = auv_util:number(build_map(Charts, Vmap, FvUvMap, We1, []), 1),
     We = replace_uvs(Map1, We1),
     Map2 = find_boundary_edges(Map1, We, []),
     Map = gb_trees:from_orddict(Map2),
@@ -571,10 +573,6 @@ build_map([Fs|T], Vmap, FvUvMap, We, Acc) ->
     Chart = #ch{fs=Fs,vpos=UVs,center={CX,CY},size={BX1-BX0,BY1-BY0}},
     build_map(T, Vmap, FvUvMap, We, [Chart|Acc]);
 build_map([], _, _, _, Acc) -> Acc.
-
-number([H|T], N) ->
-    [{N,H}|number(T, N+1)];
-number([], _) -> [].
 
 %%%%% Material handling
 
