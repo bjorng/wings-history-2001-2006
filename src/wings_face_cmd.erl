@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.58 2002/06/26 09:16:47 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.59 2002/06/26 15:02:51 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -42,9 +42,10 @@ menu(X, Y, St) ->
 	    {advanced,separator},
 	    {"Bump",bump,"Create bump of selected faces"},
 	    {advanced,{"Lift",{lift,lift_fun(St)}}},
-	    {advanced,{"Put On",put_on,
-		       "Move and rotate object, aligning the selected face "
-		       "to an element on another object."}},
+	    {advanced,{"Put On",put_on_fun(),
+		       {"Move and rotate object, aligning "
+			"the selected face to another element",[],
+			"Clone object on to one or more elements"},[]}},
 	    separator,
 	    {"Mirror",mirror,"Make mirror of object around selected faces"},
     	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
@@ -64,6 +65,14 @@ lift_fun(St) ->
 	    {vector,{pick_special,Funs}};
        (3, Ns) ->
 	    wings_menu_util:directions([normal,free,x,y,z], Ns);
+       (_, _) -> ignore
+    end.
+
+put_on_fun() ->
+    fun(1, _Ns) ->
+	    {face,put_on};
+       (3, _Ns) ->
+	    {face,clone_on};
        (_, _) -> ignore
     end.
 
@@ -101,6 +110,10 @@ command(put_on, St) ->
     put_on(St);
 command({put_on,PutOn}, St) ->
     {save_state,put_on(PutOn, St)};
+command(clone_on, St) ->
+    clone_on(St);
+command({clone_on,PutOn}, St) ->
+    {save_state,clone_on(PutOn, St)};
 command(collapse, St) ->
     {save_state,wings_collapse:collapse(St)};
 command({move,Type}, St) ->
@@ -1048,20 +1061,19 @@ lift_face_vertex_pairs(Faces, Vs, We) ->
 %%% The Put On command.
 %%%
 
-put_on(St) ->
-    Funs = put_on_selection(St),
-    wings_io:putback_event({action,{vector,{pick_special,Funs}}}),
-    keep.
+put_on(#st{sel=[{_,Faces}]}=St) ->
+    case gb_trees:size(Faces) of
+	1 ->
+	    Funs = put_on_selection(St),
+	    wings_io:putback_event({action,{vector,{pick_special,Funs}}}),
+	    keep;
+	_ ->
+	    wings_util:error("There must only be one face selected.")
+    end;
+put_on(_) ->
+    wings_util:error("There must only be one face selected.").
 
 put_on_selection(OrigSt) ->
-    wings_sel:fold(
-      fun(Els, _, _) ->
-	      case gb_trees:size(Els) of
-		  1 -> ok;
-		  _ ->
-		      wings_util:error("Select only one face per object.")
-	      end
-      end, [], OrigSt),
     {[face,edge,vertex],
      fun(St) ->
 	     wings_io:message("Select element to align to."),
@@ -1089,8 +1101,10 @@ put_on_check_selection(#st{sel=[{_,Elems}]}, _) ->
 put_on_check_selection(_, _) ->
     {none,"Select only one element."}.
 
-put_on(To, St) ->
-    {Axis,Target} = put_on_target(To, St),
+put_on({Mode,[{Id,Els}]}, #st{shapes=Shs}=St) ->
+    We0 = gb_trees:get(Id, Shs),
+    [El] = gb_sets:to_list(Els),
+    {Axis,Target} = on_target(Mode, El, We0),
     wings_sel:map(fun(Faces, We) ->
 			  [Face] = gb_sets:to_list(Faces),
 			  put_on_1(Face, Axis, Target, We)
@@ -1106,26 +1120,84 @@ put_on_1(Face, Axis, Target, We) ->
     M = e3d_mat:mul(M1, e3d_mat:translate(e3d_vec:neg(Center))),
     wings_we:transform_vs(M, We).
 
-put_on_target({Mode,[{Id,Elems}]}, #st{shapes=Shs}) ->
-    [Elem] = gb_sets:to_list(Elems),
-    #we{es=Etab} = We = gb_trees:get(Id, Shs),
-    case Mode of
-	face ->
-	    Vs = wings_face:surrounding_vertices(Elem, We),
-	    N = wings_face:face_normal(Vs, We),
-	    Center = wings_vertex:center(Vs, We),
-	    {N,Center};
-	edge ->
-	    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = gb_trees:get(Elem, Etab),
-	    N = e3d_vec:norm(e3d_vec:add([wings_face:normal(Lf, We),
-					  wings_face:normal(Rf, We)])),
-	    Center = wings_vertex:center([Va,Vb], We),
-	    {N,Center};
-	vertex ->
-	    N = wings_vertex:normal(Elem, We),
-	    Center = wings_vertex:pos(Elem, We),
-	    {N,Center}
-    end.
+%%%
+%%% The "Clone On" command (RMB click on Put On).
+%%%
+
+clone_on(#st{sel=[{_,Faces}]}) ->
+    case gb_trees:size(Faces) of
+	1 ->
+	    Funs = clone_on_selection(),
+	    wings_io:putback_event({action,{vector,{pick_special,Funs}}}),
+	    keep;
+	_ ->
+	    wings_util:error("There must only be one face selected.")
+    end;
+clone_on(_) ->
+    wings_util:error("There must only be one face selected.").
+
+clone_on_selection() ->
+    {[face,edge,vertex],
+     fun(St) ->
+	     wings_io:message("Select element to align to."),
+	     St#st{selmode=face,sel=[]}
+     end,
+     fun(_) -> {none,""} end,
+     fun(_X, _Y, #st{selmode=Mode,sel=Sel}) ->
+	     PutOn = fun(_, _) -> {face,{clone_on,{Mode,Sel}}} end,
+	     {"Put On",PutOn}
+     end}.
+
+clone_on({Mode,Sel}, #st{sel=[{Id,Faces}],shapes=Shs0}=St) ->
+    We = gb_trees:get(Id, Shs0),
+    [Face] = gb_sets:to_list(Faces),
+    Vs = wings_face:surrounding_vertices(Face, We),
+    Center = wings_vertex:center(Vs, We),
+    Translate = e3d_mat:translate(e3d_vec:neg(Center)),
+    N = e3d_vec:neg(wings_face:face_normal(Vs, We)),
+    #st{shapes=Shs,onext=Onext} =
+	clone_on_1(Translate, N, We, St#st{selmode=Mode,sel=Sel}),
+    St#st{shapes=Shs,onext=Onext}.
+    
+clone_on_1(Tr, N, Clone, St) ->
+    wings_sel:fold(
+      fun(Els, We, S) ->
+	      clone_2(gb_sets:to_list(Els), We, Tr, N, Clone, S)
+      end, St, St).
+
+clone_2([E|Els], We, Tr, N, Clone, St0) ->
+    St = clone_3(E, We, Tr, N, Clone, St0),
+    clone_2(Els, We, Tr, N, Clone, St);
+clone_2([], _, _, _, _, St) -> St.
+
+clone_3(El, We, Tr, N, Clone, #st{selmode=Mode}=St) ->
+    {Axis,Target} = on_target(Mode, El, We),
+    RotAxis = e3d_mat:rotate_s_to_t(N, Axis),
+    M0 = e3d_mat:translate(Target),
+    M1 = e3d_mat:mul(M0, RotAxis),
+    M = e3d_mat:mul(M1, Tr),
+    NewWe = wings_we:transform_vs(M, Clone),
+    wings_shape:insert(NewWe, "_clone", St).
+
+%%
+%% Common help function.
+%%
+
+on_target(face, Face, We) ->
+    Vs = wings_face:surrounding_vertices(Face, We),
+    N = wings_face:face_normal(Vs, We),
+    Center = wings_vertex:center(Vs, We),
+    {N,Center};
+on_target(edge, Edge, #we{es=Etab}=We) ->
+    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
+    N = e3d_vec:norm(e3d_vec:add([wings_face:normal(Lf, We),
+				  wings_face:normal(Rf, We)])),
+    Center = wings_vertex:center([Va,Vb], We),
+    {N,Center};
+on_target(vertex, V, We) ->
+    N = wings_vertex:normal(V, We),
+    Center = wings_vertex:pos(V, We),
+    {N,Center}.
     
 %% outer_edge_partition(FaceSet, WingedEdge) -> [[Edge]].
 %%  Partition all outer edges. Outer edges are all edges
