@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.94 2003/10/20 15:24:06 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.95 2003/10/20 16:29:42 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -370,8 +370,6 @@ field_event(Ev, I, #s{fi=Fis,store=Store}=S) ->
 	    get_event(S);
 	{recursive,Return} ->
 	    Return;
-	{dialog,Title,Qs,Fun} ->
-	    recursive_dialog(Title, Qs, Fun, S);
 	{drag,{_,_}=WH,DropData} ->
 	    wings_wm:drag(Ev, WH, DropData);
 	{store,Store1} ->
@@ -381,10 +379,6 @@ field_event(Ev, I, #s{fi=Fis,store=Store}=S) ->
 	    Action(Res),
 	    delete(S)
     end.
-
-recursive_dialog(Title, Qs, Fun, #s{level=Level}=S) ->
-    do_dialog(Title, Qs, [make_ref()|Level], Fun),
-    get_event(S).
 
 return_result(#s{call=EndFun,owner=Owner}=S) ->
     Res = collect_result(S),
@@ -1221,119 +1215,8 @@ col_inside(Xm, Ym, #fi{x=X,y=Y}) ->
 
 pick_color(#fi{key=Key}, I, Store) ->
     RGB0 = gb_trees:get(ck(Key, I), Store),
-    {R1,G1,B1,A1} =
-	case RGB0 of
-	    {R0,G0,B0}    -> {R0,G0,B0,none};
-	    {R0,G0,B0,A0} -> {R0,G0,B0,A0}
-	end,
-    RGBRange = {0.0,1.0},
-    HRange   = {0,360},
-    SIRange  = {0.0,1.0},
-    {H1,S1,V1} = rgb_to_hsv(R1, G1, B1),
-    Draw = fun(X, Y, W, H, Sto) ->
-		   R = gb_trees:get(red, Sto),
-		   G = gb_trees:get(green, Sto),
-		   B = gb_trees:get(blue, Sto),
-		   wings_io:sunken_rect(X, Y, W, H, {R,G,B}),
-		   keep
-	   end,
-    Aslider = case A1 of
-		  none -> [];
-		  _ ->
-		      [separator,
-		       {hframe,[{label,"A"},
-				{slider,
-				 {text,A1,[{key,alpha},{range,RGBRange}]}}]}]
-	      end,
-    {dialog,
-     "Pick Color",
-     [{hframe,
-       [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
-	{vframe,
-	 [{hframe,
-	   [{vframe,
-	     [{hframe,
-	       [{label,"R"},
-		{text,R1,color_text_flags(r, {red,green,blue},
-					  {hue,sat,val}, RGBRange)}]},
-	      {hframe,
-	       [{label,"G"},
-		{text,G1,color_text_flags(g, {green,red,blue},
-					  {hue,sat,val}, RGBRange)}]},
-	      {hframe,
-	       [{label,"B"},
-		{text,B1,color_text_flags(b, {blue,red,green},
-					  {hue,sat,val}, RGBRange)}]}]},
-	    {vframe,
-	     [{slider,color_slider_flags(r, {red,green,blue},
-					 {hue,sat,val}, RGBRange)},
-	      {slider,color_slider_flags(g, {green,red,blue},
-					 {hue,sat,val}, RGBRange)},
-	      {slider,color_slider_flags(b, {blue,red,green},
-					 {hue,sat,val}, RGBRange)}]}]},
-	  separator,
-	  {hframe,
-	   [{vframe,
-	     [{hframe,
-	       [{label,"H"},
-		{text,H1,color_text_flags(h, {hue,sat,val},
-					  {red,green,blue}, HRange)}]},
-	      {hframe,
-	       [{label,"S"},
-		{text,S1,color_text_flags(s, {sat,hue,val},
-					  {red,green,blue}, SIRange)}]},
-	      {hframe,
-	       [{label,"V"},
-		{text,V1,color_text_flags(v, {val,hue,sat},
-					  {red,green,blue}, SIRange)}]}]},
-	    {vframe,
-	     [{slider,color_slider_flags(h, {hue,sat,val},
-					 {red,green,blue}, HRange)},
-	      {slider,color_slider_flags(s, {sat,hue,val},
-					 {red,green,blue}, SIRange)},
-	      {slider,color_slider_flags(v, {val,hue,sat},
-					 {red,green,blue}, SIRange)}]}]}
-	  |Aslider]}]}],
-     fun([{red,R},{green,G},{blue,B}|More]) ->
-	     RGB = case keysearch(alpha, 1, More) of
-		       false -> {R,G,B};
-		       {value,{alpha,A}} -> {R,G,B,A}
-		   end,
-	     ?DEBUG_DISPLAY(RGB),
-	     {drop,{color,RGB}}
-     end}.
+    wings_color:choose(RGB0, fun(RGB) -> {drop,{color,RGB}} end).
 
-color_slider_flags(T, {_K1,K2,K3}=K123, Kabc, Range) ->
-    [{color,{T,K2,K3}}|color_text_flags(T, K123, Kabc, Range)].
-
-color_text_flags(T, {K1,K2,K3}, Kabc, Range) ->
-    [{key,K1},{range,Range},{hook,color_update(T, {K2,K3}, Kabc)}].
-
-color_update(T, {K1,K2}, {Ka,Kb,Kc}) ->
-    fun (update, {_Key,_I,Val,Store0}) ->
-	    V1 = gb_trees:get(K1, Store0),
-	    V2 = gb_trees:get(K2, Store0),
-	    {Va,Vb,Vc} = color_update(T, Val, V1, V2),
-	    Store1 = gb_trees:update(Ka, Va, Store0),
-	    Store2 = gb_trees:update(Kb, Vb, Store1),
-	    Store = gb_trees:update(Kc, Vc, Store2),
-	    {store,Store};
-	(_, _) ->
-	    void
-    end.
-
-color_update(r, R, G, B) ->
-    rgb_to_hsv(R, G, B);
-color_update(g, G, R, B) ->
-    rgb_to_hsv(R, G, B);
-color_update(b, B, R, G) ->
-    rgb_to_hsv(R, G, B);
-color_update(h, H, S, V) ->
-    hsv_to_rgb(H, S, V);
-color_update(s, S, H, V) ->
-    hsv_to_rgb(H, S, V);
-color_update(v, V, H, S) ->
-    hsv_to_rgb(H, S, V).
 
 
 %%%
