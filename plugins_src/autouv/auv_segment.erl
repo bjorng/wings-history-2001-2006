@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.28 2002/10/27 10:12:33 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.29 2002/10/27 13:20:24 bjorng Exp $
 
 -module(auv_segment).
 
@@ -31,45 +31,11 @@ create(Mode, We0) ->
 	    {Charts0, gb_sets:empty()}
     end.
 
-%% Removes all boundary edges, i.e. only keeps edges that cut 
-%% a cluster. 
-cleanup_bounds(Bounds, Charts, We) when is_list(Charts) ->    
-    case gb_sets:is_empty(Bounds) of
-	true ->
-	    Bounds;
-	false ->
-	    Tree = build_face_group(Charts, gb_trees:empty()),
-	    cleanup_bounds(gb_sets:to_list(Bounds), Tree, We#we.es, [])
-    end;
-cleanup_bounds(Bounds, Charts, We) ->    
-    cleanup_bounds(gb_sets:to_list(Bounds), Charts, We#we.es, []).
-
-cleanup_bounds([Edge|R], Tree, Es, Acc) ->
-    #edge{lf=LF,rf=RF} = gb_trees:get(Edge, Es),
-    case catch (gb_trees:get(LF, Tree) == gb_trees:get(RF,Tree)) of
-	true ->
-	    cleanup_bounds(R,Tree,Es,[Edge|Acc]);
-	false ->
-	    cleanup_bounds(R,Tree,Es,Acc);
-	_Else ->
-	    ?DBG("~p ~p ~p ~p", [Edge, LF, RF, Tree])	 
-    end;
-cleanup_bounds([],_,_,Acc) ->
-    gb_sets:from_list(Acc).
-
-build_face_group([{Chart, [H|R]}|Rest], Tree) ->
-    New = gb_trees:insert(H, Chart, Tree),
-    build_face_group([{Chart, R}|Rest], New);
-build_face_group([_|R],Tree) ->
-    build_face_group(R,Tree);
-build_face_group([], Tree) ->
-    Tree.
-
 %%%%%% Feature detection Algorithm %%%%%%%%%%%%
-%% Algorithms based on the paper, now probably totally ruined by me..
+%% Algorithms based on the paper, now probably totally ruined by me...
 %% 'Least Square Conformal Maps for Automatic Texture Generation Atlas'
-%% by Bruno Levy, Sylvain Petitjean, Nicolas Ray, Jerome Mailot
-%% Presented on Siggraph 2002
+%% by Bruno Levy, Sylvain Petitjean, Nicolas Ray, Jerome Mailot.
+%% Presented on Siggraph 2002.
 
 -define(MIN_FEATURE_LENGTH, 12).
 -define(MAX_STRING_LENGTH, 5).
@@ -307,29 +273,17 @@ build_seeds(Features0, #we{fs=Ftab}=We) ->
     {DistTree,LocalMaxs} = find_local_max(Distances, Features0, FaceGraph, We),
     {LocalMaxs,{DistTree,Max,Distances}}.
 
-build_charts(LocalMaxs, {DistTree,Max,Distances}, VEG, EWs, We0) ->
-    {Charts0,Bounds0} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We0),
+build_charts(LocalMaxs, {DistTree,Max,Distances}, VEG, EWs, We) ->
+    {Charts0,Bounds0} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We),
     Charts1 = sofs:from_external(gb_trees:to_list(Charts0), [{atom,atom}]),
     Charts2 = sofs:converse(Charts1),
     Charts3 = sofs:relation_to_family(Charts2),
     Charts = sofs:to_external(sofs:range(Charts3)),
-    Bounds = cleanup_bounds(Bounds0, Charts0, We0),
-    {Distances, Charts, Bounds}.
+    AllInner0 = lists:concat([wings_face:inner_edges(C, We) || C <- Charts]),
+    AllInner = gb_sets:from_list(AllInner0),
+    Bounds = gb_sets:intersection(Bounds0, AllInner),
+    {Distances,Charts,Bounds}.
 
-% build_charts(Features0, VEG, EWs, We0) ->
-%     FaceGraph = build_face_graph(gb_trees:keys(We0#we.fs), We0, gb_trees:empty()), 
-%     Distances = [{Max, _}|_] = calc_distance(Features0, FaceGraph, We0),
-% %    ?DBG("Dists ~p ~n", [Distances]),
-%     {DistTree,LocalMaxs} = find_local_max(Distances, Features0, FaceGraph, We0),
-%     ?DBG("local max ~p ~p ~n", [length(LocalMaxs), LocalMaxs]),
-%     {Charts0,Bounds0} = expand_charts(LocalMaxs, Max + 1, DistTree, VEG,EWs, We0),
-%     Charts1 = sofs:from_external(gb_trees:to_list(Charts0), [{atom,atom}]),
-%     Charts2 = sofs:converse(Charts1),
-%     Charts3 = sofs:relation_to_family(Charts2),
-%     Charts = sofs:to_external(sofs:range(Charts3)),
-%     Bounds = cleanup_bounds(Bounds0, Charts0, We0),
-%     {Distances, Charts, Bounds}.
-    
 add_face_edges_to_heap(Face, FaceDist, ChartBds, Heap, EWs, We) ->
     Find = fun(_V, Edge, #edge{lf=LF,rf=RF}, Heap0) ->		   
 		   case gb_sets:is_member(Edge, ChartBds) of
