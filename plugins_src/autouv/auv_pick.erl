@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.2 2003/08/13 09:56:40 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.3 2003/08/15 09:48:44 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -140,11 +140,8 @@ draw_1(We) ->
     gl:edgeFlag(?GL_TRUE).
     
 draw_2(#we{name=Ch}=We) ->
-    #ch{fs=Fs,center={CX,CY},scale=Scale,rotate=Rot} = Ch,
+    #ch{fs=Fs} = Ch,
     gl:pushMatrix(),
-    gl:translatef(CX, CY, 0),
-    gl:scalef(Scale, Scale, 1),
-    gl:rotatef(Rot, 0, 0, 1),
     gl:pushName(0),
     foreach(fun(Face) ->
 		    gl:loadName(Face),

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.148 2003/08/13 16:48:58 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.149 2003/08/15 09:48:44 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -255,14 +255,14 @@ insert_uvcoords_1(We0, Cs0, MatName) ->
     We = insert_material(Cs, MatName, We1),
     We#we{mode=material}.
 
-gen_uv_pos([#we{name=#ch{fs=Fs,center={CX,CY},scale=Sc,vmap=Vmap}}=We|T], Acc) ->
-    Vpos0 = auv_util:moveAndScale(gb_trees:to_list(We#we.vp), CX, CY, Sc, []),
+gen_uv_pos([#we{vp=Vpos0,name=#ch{fs=Fs,vmap=Vmap}}=We|T], Acc) ->
+    Vpos1 = gb_trees:to_list(Vpos0),
     VFace0 = wings_face:fold_faces(
 	       fun(Face, V, _, _, A) ->
 		       [{V,Face}|A]
 	       end, [], Fs, We),
     VFace = sofs:relation(VFace0, [{vertex,face}]),
-    Vpos = sofs:relation(Vpos0, [{vertex,uvinfo}]),
+    Vpos = sofs:relation(Vpos1, [{vertex,uvinfo}]),
     Comb0 = sofs:relative_product({VFace,Vpos}),
     Comb1 = sofs:to_external(Comb0),
     Comb = foldl(fun({V0,Data}, A) ->
@@ -307,8 +307,8 @@ init_edit(MatName, Faces, We0) ->
     {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
     Charts = auv_segment:cut_model(Charts1, Cuts, We0),
     Map1 = build_map(Charts, FvUvMap, 1, []),
-    Map3 = find_boundary_edges(Map1, []),
-    Map  = gb_trees:from_orddict(Map3),
+    Map2 = find_boundary_edges(Map1, []),
+    Map  = gb_trees:from_orddict(Map2),
     Edges= gb_trees:keys(We0#we.es),
     {Edges,Map,MatName}.
 
@@ -322,14 +322,11 @@ build_map([{Fs,Vmap,We0}|T], FvUvMap, No, Acc) ->
 		     UV = gb_trees:get({F,OrigV}, FvUvMap),
 		     [{V,UV}|A]
 	     end, [], Fs, We0),
-    UVs1 = lists:usort(UVs0),
+    UVs1 = ordsets:from_list(UVs0),
     %% Assertion.
     true = sofs:is_a_function(sofs:relation(UVs1, [{atom,atom}])),
-    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = auv_util:maxmin(UVs0),
-    CX = BX0 + (BX1-BX0) / 2,
-    CY = BY0 + (BY1-BY0) / 2,
-    UVs = [{V,{X-CX,Y-CY,0.0}} || {V,{X,Y}} <- UVs1],
-    Chart = #ch{fs=Fs,center={CX,CY},size={BX1-BX0,BY1-BY0},vmap=Vmap},
+    UVs = [{V,{X,Y,0.0}} || {V,{X,Y}} <- UVs1],
+    Chart = #ch{fs=Fs,size=undefined,vmap=Vmap},
     We = We0#we{name=Chart,id=No,vp=gb_trees:from_orddict(UVs)},
     build_map(T, FvUvMap, No+1, [{No,We}|Acc]);
 build_map([], _, _, Acc) -> Acc.
@@ -610,10 +607,10 @@ command_menu(body, X,Y, _Uvs) ->
     Menu = [{"Face Group operations", ignore},
 	    separator,
 	    {"Move", move, "Move selected faces"},
-	    {"Scale", scale, "Uniform Scale of selected faces"},
-	    {"Rotate", {rotate, Rotate}, "Rotate selected faces"},
-	    separator,
-	    {"Rescale All", rescale_all, "Pack the space in lower-left before rescaling"}
+%%	    {"Scale", scale, "Uniformly scale selected faces"},
+	    {"Rotate", {rotate, Rotate}, "Rotate selected faces"}
+% 	    separator,
+% 	    {"Rescale All", rescale_all, "Pack the space in lower-left before rescaling"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 
@@ -738,24 +735,11 @@ handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=
 handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT}, 
 	     #uvstate{op=Op}) ->	   
     get_event(Op#op.undo);
-handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
-			  x=MX,y=MY}, 
-	     #uvstate{op=#op{name=fmove,add={X,Y}}} = Uvs0) 
-  when X /= MX; Y /= MY ->
-    % fmove, not nowhere
-    get_event(Uvs0#uvstate{op=undefined});
 handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT},
 	       #uvstate{op=undefined}) ->
     keep;
-handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT},
-	       #uvstate{op=Op,sel=Sel0}=Uvs0) ->
-    case Op#op.name of
-	rotate ->
-	    Sel = [finish_rotate(A)|| A <- Sel0],
-	    get_event(Uvs0#uvstate{op=undefined,sel=Sel});
-	_ ->
-	    get_event(Uvs0#uvstate{op=undefined})
-    end;
+handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT}, Uvs) ->
+    get_event(Uvs#uvstate{op=undefined});
 handle_event_1(#keyboard{state=?SDL_PRESSED,sym=Sym},
 	       #uvstate{st=St,orig_we=#we{id=Id}}) ->
     case Sym of
@@ -807,23 +791,23 @@ handle_event_1(_Event, Uvs) ->
     ?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(Uvs).
 
-handle_command(rescale_all, Uvs0) ->
-    Uvs = clear_selection(Uvs0),
-    RscAreas = rescale_all(all_charts(Uvs)),
-    get_event(reset_dl(Uvs0#uvstate{areas=RscAreas}));
+% handle_command(rescale_all, Uvs0) ->
+%     Uvs = clear_selection(Uvs0),
+%     RscAreas = rescale_all(all_charts(Uvs)),
+%     get_event(reset_dl(Uvs0#uvstate{areas=RscAreas}));
 handle_command({rotate,free}, Uvs) ->
     handle_command(rotate, Uvs);
 handle_command({rotate,Deg}, #uvstate{mode=Mode,sel=Sel0}=Uvs0) ->
     Uvs = case Deg of
 	      rot_y_180 ->
-		  Sel1 = [transpose_x(Mode, A) || A <- Sel0],
-		  Uvs0#uvstate{sel = Sel1};
+		  Sel = [transpose_x(Mode, A) || A <- Sel0],
+		  Uvs0#uvstate{sel=Sel};
 	      rot_x_180 ->
-		  Sel1 = [transpose_y(Mode, A) || A <- Sel0],
-		  Uvs0#uvstate{sel = Sel1};
+		  Sel = [transpose_y(Mode, A) || A <- Sel0],
+		  Uvs0#uvstate{sel=Sel};
 	      Deg ->
-		  Sel1 = [finish_rotate(C, Deg) || C <- Sel0],
-		  Uvs0#uvstate{op = undefined, sel = Sel1}
+		  Sel = [rotate_chart(C, Deg) || C <- Sel0],
+		  Uvs0#uvstate{op=undefined,sel=Sel}
 	  end,
     get_event(Uvs);
 handle_command(_, #uvstate{sel=[]}) ->
@@ -832,7 +816,7 @@ handle_command(NewOp, Uvs) ->
     get_event(Uvs#uvstate{op=#op{name=NewOp,undo=Uvs}}).
 
 handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
-    #uvstate{geom={X0Y0,MW0,X0Y0,MH0},mode=Mode,op=Op,sel=Sel0}=Uvs0,
+    #uvstate{geom={X0Y0,MW0,X0Y0,MH0},op=Op,sel=Sel0}=Uvs0,
     {_,_,W,H} = wings_wm:viewport(),
     {DX,DY} = case Op#op.prev of 
 		  undefined -> {DX0,DY0}; 
@@ -845,16 +829,10 @@ handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
     NewOp = Op#op{prev={MX0,MY0}},
     case Op#op.name of
 	move ->
-	    Sel1 = [move_area(Mode, A,MW,MH)|| A <- Sel0],
-	    get_event(Uvs0#uvstate{sel = Sel1, op=NewOp});
-	fmove ->
-	    Sel1 = [move_area(Mode, A,MW,MH)|| A <- Sel0],
-	    get_event(Uvs0#uvstate{sel = Sel1, op=NewOp});
-	scale ->
-	    Sel1 = [scale_area(Mode, A, MW) || A <- Sel0],
-	    get_event(Uvs0#uvstate{sel = Sel1, op=NewOp});
+	    Sel = [move_chart(A, 4*MW, 4*MH) || A <- Sel0],
+	    get_event(Uvs0#uvstate{sel=Sel,op=NewOp});
 	rotate ->
-	    Sel1 = [rotate_area(Mode, A, MW)|| A <- Sel0],
+	    Sel1 = [rotate_chart(A, MW*180)|| A <- Sel0],
 	    get_event(Uvs0#uvstate{sel = Sel1, op=NewOp});
 	_ ->
 	    keep
@@ -925,17 +903,16 @@ wings_select_faces(As, Id, St) ->
 
 %%%% GUI Operations
 
-move_area(body, {Id,#we{name=#ch{center={X0,Y0}}=Ch}=We}, DX, DY) ->
-%    ?DBG("Move ~p ~p ~p~n", [{X0,Y0}, S, {DX, DY}]),
-%%    A#ch{center = {X0+DX/S, Y0+DY/S}}.
-    {Id,We#we{name=Ch#ch{center={X0+DX,Y0+DY}}}}.
+move_chart({Id,We}, Dx, Dy) ->
+    Translate = e3d_mat:translate(Dx, Dy, 0.0),
+    {Id,wings_we:transform_vs(Translate, We)}.
 
-scale_area(body,{Id,#we{name=#ch{scale=S,size={W,H}}=Ch}=We}, Ns) ->
-    {Id,We#we{name=Ch#ch{scale=S+Ns,size={W/S*(S+Ns),H/S*(S+Ns)}}}}.
-
-rotate_area(body, {Id,#we{name=#ch{rotate=R0}=Ch}=We}, Ns) ->
-    R = R0 + Ns*180,
-    {Id,We#we{name=Ch#ch{rotate=R}}}.
+rotate_chart({Id,We}, Angle) ->
+    Center = wings_vertex:center(We),
+    Rot0 = e3d_mat:translate(e3d_vec:neg(Center)),
+    Rot1 = e3d_mat:mul(e3d_mat:rotate(float(trunc(Angle)), {0.0,0.0,1.0}), Rot0),
+    Rot = e3d_mat:mul(e3d_mat:translate(Center), Rot1),
+    {Id,wings_we:transform_vs(Rot, We)}.
 
 transpose_x(body, {Id,#we{vp=Vpos0}=We}) ->
     Vpos = [{V,{-X,Y,Z}} || {V,{X,Y,Z}} <- gb_trees:to_list(Vpos0)],
@@ -945,36 +922,25 @@ transpose_y(body, {Id,#we{vp=Vpos0}=We}) ->
     Vpos = [{Nr, {X,-Y,Z}} || {Nr, {X,Y,Z}} <- gb_trees:to_list(Vpos0)],
     {Id,We#we{vp=gb_trees:from_orddict(Vpos)}}.
 
-rescale_all(Charts0) ->
-    Charts = gb_trees:values(Charts0),
-    Find = fun(#we{name=#ch{center={CX,CY},size={W,H}}}, [MX,MY]) ->
-		   TX = CX + W/2,
-		   TY = CY + H/2,
-		   NewMX = if TX > MX -> TX; true -> MX end,
-		   NewMY = if TY > MY -> TY; true -> MY end,
-		   [NewMX, NewMY]
-	   end,
-    Max = max(foldl(Find, [0,0], Charts)),
-    Ns = 1.0 / Max,
-    rescale_all_1(Charts, Ns, []).
+% rescale_all(Charts0) ->
+%     Charts = gb_trees:values(Charts0),
+%     Find = fun(#we{name=#ch{center={CX,CY},size={W,H}}}, [MX,MY]) ->
+% 		   TX = CX + W/2,
+% 		   TY = CY + H/2,
+% 		   NewMX = if TX > MX -> TX; true -> MX end,
+% 		   NewMY = if TY > MY -> TY; true -> MY end,
+% 		   [NewMX, NewMY]
+% 	   end,
+%     Max = max(foldl(Find, [0,0], Charts)),
+%     Ns = 1.0 / Max,
+%     rescale_all_1(Charts, Ns, []).
 
-rescale_all_1([#we{id=Id,name=#ch{center={CX0,CY0},size={W0,H0},scale=S0}=Ch}=We0|T],
-	      Ns, Acc) ->
-    We = We0#we{name=Ch#ch{center={CX0*Ns,CY0*Ns},size={W0*Ns,H0*Ns},scale=S0*Ns}},
-    rescale_all_1(T, Ns, [{Id,We}|Acc]);
-rescale_all_1([], _, Acc) ->
-    gb_trees:from_orddict(reverse(Acc)).
-
-finish_rotate({_,#we{name=#ch{rotate=R}}}=C) ->
-    finish_rotate(C, R).
-
-finish_rotate({Id,#we{vp=Vpos,name=#ch{scale=S}=Chart}=We}, R) ->
-    Rot = e3d_mat:rotate(float(trunc(R)), {0.0,0.0,1.0}),
-    Vs = [{IdV, e3d_mat:mul_point(Rot, Vec)} || 
-	     {IdV, Vec} <- gb_trees:to_list(Vpos)],
-    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = auv_util:maxmin(Vs),
-    {Id,We#we{vp=gb_trees:from_orddict(Vs),
-	      name=Chart#ch{rotate=0.0,size={(BX1-BX0)*S, (BY1-BY0)*S}}}}.
+% rescale_all_1([#we{id=Id,name=#ch{center={CX0,CY0},size={W0,H0},scale=S0}=Ch}=We0|T],
+% 	      Ns, Acc) ->
+%     We = We0#we{name=Ch#ch{center={CX0*Ns,CY0*Ns},size={W0*Ns,H0*Ns},scale=S0*Ns}},
+%     rescale_all_1(T, Ns, [{Id,We}|Acc]);
+% rescale_all_1([], _, Acc) ->
+%     gb_trees:from_orddict(reverse(Acc)).
 
 %%%
 %%% Verify that the model in the geometry window hasn't changed its topology.
@@ -1033,12 +999,9 @@ broken_event(Ev, _) ->
 %%%
 %%% Draw routines.
 %%%
-draw_area(#we{name=#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R},he=Tbe}=We,
+draw_area(#we{name=#ch{fs=Fs},he=Tbe}=We,
 	  #setng{color = ColorMode, edges = EdgeMode}=Options, Materials) -> 
     gl:pushMatrix(),
-    gl:translatef(CX, CY, 0),
-    gl:scalef(Scale, Scale, 1),
-    gl:rotatef(trunc(R), 0, 0, 1),
     gl:lineWidth(Options#setng.edge_width),
     %% Draw Materials and Vertex Colors
     if

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.18 2003/07/16 04:18:01 bjorng Exp $
+%%     $Id: auv_placement.erl,v 1.19 2003/08/15 09:48:44 bjorng Exp $
 
 -module(auv_placement).
 
@@ -33,13 +33,11 @@ place_areas(Areas0) ->
     {Positions0, Max} = fill(Sizes0, [0,0]),
 %    ?DBG("~p~n",[Positions0]),
     Scale  = 1 / max(Max),
-    move_and_scale_areas(Areas1, lists:sort(Positions0),
-			 Scale, []).
+    move_and_scale_charts(Areas1, lists:sort(Positions0), Scale, []).
 
 center_rotate(Fs, We) ->
     VL = rotate_area(Fs, We),
-    {{_,Xmin},{_,Xmax},{_,Ymin},{_,Ymax}} = 
-	auv_util:maxmin(VL),
+    {{_,Xmin},{_,Xmax},{_,Ymin},{_,Ymax}} = auv_util:maxmin(VL),
     Dx = Xmax - Xmin,
     Dy = Ymax - Ymin,
     CX = Xmin + Dx / 2,
@@ -118,10 +116,12 @@ fill_area([], _,_, _,_, Unused,Res) ->
     {reverse(Unused), Res}.
 
 %%%%%%%%%%%%%%%%
-move_and_scale_areas([#we{name=#ch{size={Sx,Sy}}=Ch0}=We|RA], [{C,{Cx,Cy}}|RP], S, Acc) ->
-    Ch = Ch0#ch{center={Cx*S,Cy*S},size={Sx*S,Sy*S},scale=S},
-    move_and_scale_areas(RA, RP, S, [{C,We#we{name=Ch}}|Acc]);
-move_and_scale_areas([], [], _, Acc) -> Acc.
+move_and_scale_charts([We0|RA], [{C,{Cx,Cy}}|RP], S, Acc) ->
+    Transform0 = e3d_mat:scale(S, S, 0.0),
+    Transform = e3d_mat:mul(e3d_mat:translate(S*Cx, S*Cy, 0.0), Transform0),
+    We = wings_we:transform_vs(Transform, We0),
+    move_and_scale_charts(RA, RP, S, [{C,We}|Acc]);
+move_and_scale_charts([], [], _, Acc) -> Acc.
 
 rotate_area(Fs, #we{vp=VTab}=We) ->
     Vs = gb_trees:to_list(VTab),

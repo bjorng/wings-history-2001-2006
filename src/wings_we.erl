@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.59 2003/08/14 13:28:14 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.60 2003/08/15 09:48:44 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -621,11 +621,17 @@ uv_mapped_faces_1([], _, Acc) -> reverse(Acc).
 %%% Transform all vertices according to the matrix.
 %%%
 
-transform_vs(Matrix, #we{vp=Vtab0}=We) ->
-    Vtab1 = foldl(fun({V,Pos0}, A) ->
-			  Pos = e3d_mat:mul_point(Matrix, Pos0),
-			  [{V,Pos}|A]
-		  end, [], gb_trees:to_list(Vtab0)),
+transform_vs({1.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,1.0,Tx,Ty,Tz}, We) ->
+    Translate = fun({V,{X,Y,Z}}, A) -> [{V,{X+Tx,Y+Ty,Z+Tz}}|A] end,
+    transform_vs_1(Translate, We);
+transform_vs(Matrix, We) ->
+    Transform = fun({V,Pos}, A) ->
+			[{V,e3d_mat:mul_point(Matrix, Pos)}|A]
+		end,
+    transform_vs_1(Transform, We).
+
+transform_vs_1(Transform, #we{vp=Vtab0}=We) ->
+    Vtab1 = foldl(Transform, [], gb_trees:to_list(Vtab0)),
     Vtab = gb_trees:from_orddict(reverse(Vtab1)),
     We#we{vp=Vtab}.
 
