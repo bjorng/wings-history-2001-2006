@@ -3,12 +3,12 @@
 %%
 %%     This module contains the Align and Center commands.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_align.erl,v 1.16 2002/12/26 09:47:07 bjorng Exp $
+%%     $Id: wings_align.erl,v 1.17 2003/05/08 07:00:56 bjorng Exp $
 %%
 
 -module(wings_align).
@@ -20,13 +20,13 @@
 
 align(_Axis, #st{sel=[]}=St) -> St;
 align(Axis, St) ->
-    Cs = wings_sel:centers(St),
+    Cs = wings_sel:bounding_boxes(St),
     Center = e3d_vec:average(Cs),
     move_to(Center, Cs, Axis, St).
 
 center(_Axis, #st{sel=[]}=St) -> St;
 center(Axis, St) ->
-    Cs0 = wings_sel:centers(St),
+    Cs0 = wings_sel:bounding_boxes(St),
     CommonCenter = e3d_vec:average(Cs0),
     Cs = lists:duplicate(length(Cs0), CommonCenter),
     Center = e3d_vec:zero(),

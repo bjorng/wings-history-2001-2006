@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.42 2003/01/11 09:42:45 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.43 2003/05/08 07:00:56 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -17,7 +17,7 @@
 	 convert_shape/3,convert_selection/2,
 	 map/2,fold/3,mapfold/3,
 	 foreach/2,make/3,valid_sel/1,valid_sel/3,
-	 centers/1,bounding_box/1,
+	 center/1,bounding_box/1,bounding_boxes/1,
 	 face_regions/2,strict_face_regions/2,edge_regions/2,validate_items/3,
 	 select_object/2,deselect_object/2,
 	 get_all_items/2,get_all_items/3,
@@ -173,15 +173,15 @@ make_1([#we{id=Id,vp=Vtab,es=Etab,fs=Ftab}=We|Shs], Filter, Mode) ->
 make_1([], _Filter, _Mode) -> [].
 
 %%%
-%%% Calculate the centers for all selected objects.
+%%% Calculate the center for all selected objects.
 %%%
 
-centers(#st{selmode=Mode}=St) ->
-    reverse(
-      fold(
-	fun(Items, We, A) ->
-		[e3d_vec:average(bounding_box(Mode, Items, We, none))|A]
-	end, [], St)).
+center(#st{selmode=Mode}=St) ->
+    Centers = fold(fun(Items, We, A) ->
+			   Vs = to_vertices(Mode, Items, We),
+			   [wings_vertex:center(Vs, We)|A]
+		   end, [], St),
+    e3d_vec:average(Centers).
 
 %%%
 %%% Calculate the bounding-box for the selection.
@@ -189,17 +189,22 @@ centers(#st{selmode=Mode}=St) ->
 
 bounding_box(#st{selmode=Mode}=St) ->
     fold(fun(Items, We, A) ->
-		 bounding_box(Mode, Items, We, A)
+		 Vs = to_vertices(Mode, Items, We),
+		 wings_vertex:bounding_box(Vs, We, A)
 	 end, none, St).
 
-bounding_box(vertex, Vs, We, BB) ->
-    wings_vertex:bounding_box(Vs, We, BB);
-bounding_box(face, Faces, We, BB) ->
-    wings_vertex:bounding_box(wings_face:to_vertices(Faces, We), We, BB);
-bounding_box(edge, Edges, We, BB) ->
-    wings_vertex:bounding_box(wings_edge:to_vertices(Edges, We), We, BB);
-bounding_box(body, _Items, We, BB) ->
-    wings_vertex:bounding_box(We, BB).
+%%%
+%%% Calculate the bounding boxes for all selected objects.
+%%%
+
+bounding_boxes(#st{selmode=Mode}=St) ->
+    reverse(
+      fold(
+	fun(Items, We, A) ->
+		Vs = to_vertices(Mode, Items, We),
+		[e3d_vec:average(wings_vertex:bounding_box(Vs, We))|A]
+	end, [], St)).
+
 
 %%%
 %%% Divide the face selection into regions where each face shares at least
@@ -382,3 +387,11 @@ get_all_items(body, _) ->
 subtract_mirror_face(Faces, #we{mirror=none}) -> Faces;
 subtract_mirror_face(Faces, #we{mirror=Face}) ->
     gb_sets:delete_any(Face, Faces).
+
+to_vertices(vertex, Vs, _) -> Vs;
+to_vertices(face, Faces, We) ->
+    wings_face:to_vertices(Faces, We);
+to_vertices(edge, Edges, We) ->
+    wings_edge:to_vertices(Edges, We);
+to_vertices(body, _, #we{vp=Vtab}) ->
+    gb_trees:keys(Vtab).

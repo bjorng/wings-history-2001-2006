@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.116 2003/05/04 07:51:24 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.117 2003/05/08 07:00:56 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -948,8 +948,7 @@ aim(#st{sel=[]}) ->
     View = current(),
     set_current(View#view{origin=e3d_vec:zero()});
 aim(St) ->
-    Centers = wings_sel:centers(St),
-    Origin0 = e3d_vec:average(Centers),
+    Origin0 = wings_sel:center(St),
     Origin = e3d_vec:neg(Origin0),
     #view{distance=Dist0} = View = current(),
     Dist = case e3d_vec:dist(eye_point(), Origin0) of
@@ -965,8 +964,7 @@ frame(#st{sel=[],shapes=Shs}) ->
 	       end,
 	       none, gb_trees:values(Shs)),
     frame_1(BB);
-frame(St) ->
-    frame_1(wings_sel:bounding_box(St)).
+frame(St) -> frame_1(wings_sel:bounding_box(St)).
 
 frame_1(none) -> ok;
 frame_1(BB) ->
