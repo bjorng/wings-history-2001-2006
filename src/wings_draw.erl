@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.172 2004/03/21 07:26:53 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.173 2004/03/23 19:29:44 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([refresh_dlists/1,
-	 invalidate_dlists/1,invalidate_dlists/2,
+	 invalidate_dlists/1,
 	 update_sel_dlist/0,
 	 changed_we/2,split/3,original_we/1,update_dynamic/2,join/1,
 	 update_mirror/0,smooth_dlist/2]).
@@ -44,47 +44,45 @@
 
 refresh_dlists(St) ->
     invalidate_dlists(St),
-    update_needed(St),
     build_dlists(St),
     update_sel_dlist(),
     update_mirror().
 
-invalidate_dlists(St) ->
-    invalidate_dlists(true, St).
-
-invalidate_dlists(Update, #st{selmode=Mode,sel=Sel}=St) ->
-    prepare_dlists(Update, St),
+invalidate_dlists(#st{selmode=Mode,sel=Sel}=St) ->
+    prepare_dlists(St),
     case wings_draw_util:changed_materials(St) of
 	[] -> ok;
 	ChangedMat -> invalidate_by_mat(ChangedMat)
     end,
     wings_draw_util:map(fun(D, Data) ->
 				sel_fun(D, Data, Mode)
-			end, Sel).
+			end, Sel),
+    update_needed(St).
 
-prepare_dlists(Update, #st{shapes=Shs}) ->
+prepare_dlists(#st{shapes=Shs}) ->
     wings_draw_util:update(fun(D, A) ->
-				   prepare_fun(D, Update, A)
+				   prepare_fun(D, A)
 			   end, gb_trees:values(Shs)).
 
-prepare_fun(eol, Update, [#we{perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
-    prepare_fun(eol, Update, Wes);
-prepare_fun(eol, Update, [We|Wes]) ->
-    {new_we(#dlo{src_we=We}, Update),Wes};
-prepare_fun(eol, _, []) ->
+prepare_fun(eol, [#we{perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
+    prepare_fun(eol, Wes);
+prepare_fun(eol, [We|Wes]) ->
+    D = #dlo{src_we=We},
+    {changed_we(D, D),Wes};
+prepare_fun(eol, []) ->
     eol;
-prepare_fun(#dlo{}, _Update, [#we{perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
+prepare_fun(#dlo{}, [#we{perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
     {deleted,Wes};
-prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, _, [We|Wes]) ->
+prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, [We|Wes]) ->
     {D#dlo{src_we=We,split=Split#split{orig_we=We}},Wes};
-prepare_fun(#dlo{src_we=We}=D, _, [We|Wes]) ->
+prepare_fun(#dlo{src_we=We}=D, [We|Wes]) ->
     {D#dlo{src_we=We},Wes};
-prepare_fun(#dlo{src_we=#we{id=Id}}=D, Update, [#we{id=Id}=We1|Wes]) ->
-    prepare_fun_1(D, Update, We1, Wes);
-prepare_fun(#dlo{}, _, Wes) ->
+prepare_fun(#dlo{src_we=#we{id=Id}}=D, [#we{id=Id}=We1|Wes]) ->
+    prepare_fun_1(D, We1, Wes);
+prepare_fun(#dlo{}, Wes) ->
     {deleted,Wes}.
 
-prepare_fun_1(#dlo{src_we=#we{perm=Perm0}=We0}=D, Update, #we{perm=Perm1}=We, Wes) ->
+prepare_fun_1(#dlo{src_we=#we{perm=Perm0}=We0}=D, #we{perm=Perm1}=We, Wes) ->
     case only_permissions_changed(We0, We) of
 	true ->
 	    %% More efficient, and prevents an object from disappearing
@@ -92,13 +90,13 @@ prepare_fun_1(#dlo{src_we=#we{perm=Perm0}=We0}=D, Update, #we{perm=Perm1}=We, We
 	    case {Perm0,Perm1} of
 		{0,1} -> {D#dlo{src_we=We,pick=none},Wes};
 		{1,0} -> {D#dlo{src_we=We,pick=none},Wes};
-		_ -> prepare_fun_2(D, Update, We, Wes)
+		_ -> prepare_fun_2(D, We, Wes)
 	    end;
-	false -> prepare_fun_2(D, Update, We, Wes)
+	false -> prepare_fun_2(D, We, Wes)
     end.
 
-prepare_fun_2(#dlo{proxy_data=Proxy}=D, Update, We, Wes) ->
-    {changed_we(D, Update, #dlo{src_we=We,mirror=none,proxy_data=Proxy}),Wes}.
+prepare_fun_2(#dlo{proxy_data=Proxy}=D, We, Wes) ->
+    {changed_we(D, #dlo{src_we=We,mirror=none,proxy_data=Proxy}),Wes}.
 
 only_permissions_changed(#we{perm=P}, #we{perm=P}) -> false;
 only_permissions_changed(We0, We1) -> We0#we{perm=0} =:= We1#we{perm=0}.
@@ -125,42 +123,37 @@ sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
 sel_fun(D, Sel, _) ->
     {D#dlo{sel=none,src_sel=none},Sel}.
 
-new_we(D, false) -> D;
-new_we(#dlo{src_we=We}=D, true) ->
-    Ns = changed_we_1(none, We),
-    D#dlo{ns=Ns}.
-    
-changed_we(D0, D1) ->
-    changed_we(D0, true, D1).
+changed_we(#dlo{ns=Ns}, D) ->
+    D#dlo{ns={Ns}}.
 
-changed_we(#dlo{ns=Ns0}, true, #dlo{src_we=We}=D) ->
-    Ns = changed_we_1(Ns0, We),
+update_normals(#dlo{ns={Ns0},src_we=#we{fs=Ftab}=We}=D) ->
+    Ns = update_normals_1(Ns0, gb_trees:to_list(Ftab), We),
     D#dlo{ns=Ns};
-changed_we(#dlo{ns=Ns}, false, D) -> D#dlo{ns=Ns}.
+update_normals(D) -> D.
 
-changed_we_1(none, #we{fs=Ftab}=We) ->
-    changed_we_2(gb_trees:to_list(Ftab), [], We, []);
-changed_we_1(Ns, #we{fs=Ftab}=We) ->
-    changed_we_2(gb_trees:to_list(Ftab), gb_trees:to_list(Ns), We, []).
+update_normals_1(none, Ftab, We) ->
+    update_normals_2(Ftab, [], We, []);
+update_normals_1(Ns, Ftab, We) ->
+    update_normals_2(Ftab, gb_trees:to_list(Ns), We, []).
 
-changed_we_2([{Face,Edge}|Fs], [{Face,Data}=Pair|Ns], We, Acc) ->
+update_normals_2([{Face,Edge}|Fs], [{Face,Data}=Pair|Ns], We, Acc) ->
     Ps = wings_face:vertex_positions(Face, Edge, We),
     case Data of
 	[_|Ps] ->
-	    changed_we_2(Fs, Ns, We, [Pair|Acc]);
+	    update_normals_2(Fs, Ns, We, [Pair|Acc]);
 	{_,Ps} ->
-	    changed_we_2(Fs, Ns, We, [Pair|Acc]);
+	    update_normals_2(Fs, Ns, We, [Pair|Acc]);
 	_ ->
 	    N = e3d_vec:normal(Ps),
-	    changed_we_2(Fs, Ns, We, [{Face,face_ns_data(N, Ps)}|Acc])
+	    update_normals_2(Fs, Ns, We, [{Face,face_ns_data(N, Ps)}|Acc])
     end;
-changed_we_2([{Fa,_}|_]=Fs, [{Fb,_}|Ns], We, Acc) when Fa > Fb ->
-    changed_we_2(Fs, Ns, We, Acc);
-changed_we_2([{Face,Edge}|Fs], Ns, We, Acc) ->
+update_normals_2([{Fa,_}|_]=Fs, [{Fb,_}|Ns], We, Acc) when Fa > Fb ->
+    update_normals_2(Fs, Ns, We, Acc);
+update_normals_2([{Face,Edge}|Fs], Ns, We, Acc) ->
     Ps = wings_face:vertex_positions(Face, Edge, We),
     N = e3d_vec:normal(Ps),
-    changed_we_2(Fs, Ns, We, [{Face,face_ns_data(N, Ps)}|Acc]);
-changed_we_2([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
+    update_normals_2(Fs, Ns, We, [{Face,face_ns_data(N, Ps)}|Acc]);
+update_normals_2([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
 face_ns_data(N, [_,_,_]=Ps) -> [N|Ps];
 face_ns_data(N, [A,B,C,D]=Ps) ->
@@ -251,7 +244,8 @@ wins_of_same_class() ->
 %%
 
 build_dlists(St) ->
-    wings_draw_util:map(fun(#dlo{needed=Needed}=D, S0) ->
+    wings_draw_util:map(fun(#dlo{needed=Needed}=D0, S0) ->
+				D = update_normals(D0),
 				S = update_materials(D, S0),
 				update_fun(D, Needed, S)
 			end, St).
@@ -530,9 +524,14 @@ update_mirror(D, _) -> D.
 %%% Splitting of objects into two display lists.
 %%%
 
-split(#dlo{split=#split{orig_we=#we{}=We,orig_ns=Ns}=Split}=D, Vs, St) ->
+split(#dlo{ns={Ns}}=D, Vs, St) ->
+    %% Normals marked for update - can be ignored here.
+    split_1(D#dlo{ns=Ns}, Vs, St);
+split(D, Vs, St) -> split_1(D, Vs, St).
+
+split_1(#dlo{split=#split{orig_we=#we{}=We,orig_ns=Ns}=Split}=D, Vs, St) ->
     split(D#dlo{src_we=We,ns=Ns}, Split, Vs, update_materials(D, St));
-split(D, Vs, St) ->
+split_1(D, Vs, St) ->
     split(D, #split{dyn_faces=sofs:set([], [face])}, Vs, 
 	  update_materials(D, St)).
 
@@ -594,7 +593,8 @@ update_dynamic(#dlo{work=[Work|_],vs=VsList0,
     Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
     We = We0#we{vp=Vtab},
     D1 = D0#dlo{src_we=We},
-    D = changed_we(D0, D1),
+    D2 = changed_we(D0, D1),
+    D = update_normals(D2),
     Dl = draw_faces(DynPlan, D),
     VsList = update_dynamic_vs(VsList0, DynVs, We),
     update_dynamic_1(D#dlo{work=[Work,Dl],vs=VsList,src_we=We}).
