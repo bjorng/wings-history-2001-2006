@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.119 2003/11/14 13:42:55 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.120 2003/11/16 08:29:42 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -248,9 +248,6 @@ event_key({key,?SDLK_KP_ENTER,_,_}, S) ->
     enter_pressed({key,$\r,$\r,$\r}, S);
 event_key({key,_,_,$\r}=Ev, S) ->
     enter_pressed(Ev, S);
-event_key({key,_,_,$!}=Ev, S) ->
-    ?DEBUG_DISPLAY([Ev,S]),
-    field_event(Ev, S);
 event_key(Ev, S) ->
     field_event(Ev, S).
 
@@ -372,7 +369,12 @@ field_event(Ev=#mousemotion{x=X,y=Y,state=Bst}, S=#s{fi=Fi})
 		_ -> wings_wm:message("")
 	    end
     end, keep;
-field_event(Ev, S=#s{focus=I,mouse_focus=true,fi=Fi}) -> 
+field_event({key,_,_,_}=Ev, S=#s{focus=I,fi=Fi}) ->
+    %% Key events should always be sent, even if there
+    %% is no mouse focus. Otherwise you can't TAB to
+    %% text fields.
+    field_event(Ev, S, get_fi(I, Fi));
+field_event(Ev, S=#s{focus=I,mouse_focus=true,fi=Fi}) ->
     field_event(Ev, S, get_fi(I, Fi));
 field_event(_Ev, _S) -> keep.
 
