@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.11 2001/11/13 13:57:41 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.12 2001/11/18 19:24:50 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -98,6 +98,18 @@ body_to_vertices(#we{vs=Vtab}=We, Vec) ->
 
 %% Setup rotation.
 
+rotate(Vs, We, free) when list(Vs) ->
+    Center = wings_vertex:center(Vs, We),
+    fun(Sh, Dx, Dy, St) ->
+	    Vec = view_vector(),
+	    {tvs,[{{rot,Center,Vec},Vs}]}
+    end;
 rotate(Vs, We, Vec) when list(Vs) ->
     Center = wings_vertex:center(Vs, We),
     [{{rot,Center,Vec},Vs}].
+
+view_vector() ->
+    #view{azimuth=Az,elevation=El} = wings_view:current(),
+    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
+    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
+    e3d_mat:mul_vector(M, {0.0,0.0,1.0}).

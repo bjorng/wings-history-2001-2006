@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.47 2001/11/17 18:25:11 bjorng Exp $
+%%     $Id: wings.erl,v 1.48 2001/11/18 19:24:50 bjorng Exp $
 %%
 
 -module(wings).
@@ -661,10 +661,14 @@ shape_menu(X, Y, St0) ->
 
 vertex_menu(X, Y, St) ->
     XYZ = xyz(),
+    XYZ_free = {{"Free",free},
+		{"X",x},
+		{"Y",y},
+		{"Z",z}},
     Menu = {{"Vertex operations",ignore},
 	    separator,
 	    {"Move",{move,directions()}},
-	    {"Rotate",{rotate,XYZ}},
+	    {"Rotate",{rotate,XYZ_free}},
 	    scale(),
 	    separator,
 	    {"Extrude",{extrude,directions()}},
@@ -687,6 +691,7 @@ edge_menu(X, Y, St) ->
 	    {"Move",{move,directions()}},
 	    {"Rotate",{rotate,
 		       {{"Normal",normal},
+			{"Free",free},
 			{"X",x},
 			{"Y",y},
 			{"Z",z}}}},
@@ -716,6 +721,7 @@ face_menu(X, Y, St) ->
 	    {"Move",{move,directions()}},
 	    {"Rotate",{rotate,
 		       {{"Normal",normal},
+			{"Free",free},
 			{"X",x},
 			{"Y",y},
 			{"Z",z}}}},
@@ -753,7 +759,7 @@ body_menu(X, Y, St) ->
     Menu = {{"Object operations",ignore},
 	    separator,
 	    {"Move",{move,Dir}},
-	    {"Rotate",{rotate,XYZ}},
+	    {"Rotate",{rotate,Dir}},
 	    scale(),
 	    separator,
 	    {"Flip",{flip,XYZ}},
