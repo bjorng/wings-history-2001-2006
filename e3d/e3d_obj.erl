@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.43 2005/02/20 05:20:18 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.44 2005/03/04 09:03:57 dgud Exp $
 %%
 
 -module(e3d_obj).
@@ -274,6 +274,8 @@ mtl_parse(["Kd"|RGB], Mtl) ->
     mtl_add({diffuse,mtl_text_to_tuple(RGB)}, Mtl);
 mtl_parse(["Ks"|RGB], Mtl) ->
     mtl_add({specular,mtl_text_to_tuple(RGB)}, Mtl);
+mtl_parse(["Ke"|RGB], Mtl) ->
+    mtl_add({emission,mtl_text_to_tuple(RGB)}, Mtl);
 mtl_parse(["map_Kd"|Filename0], Mtl) ->
     Filename = space_concat(Filename0),
     map_add({diffuse,Filename}, Mtl);
@@ -478,6 +480,7 @@ material(F, Root, {Name,Mat}) ->
     mat_color(F, "Kd", diffuse, OpenGL),
     mat_color(F, "Ka", ambient, OpenGL),
     mat_color(F, "Ks", specular, OpenGL),
+    mat_color(F, "Ke", emission, OpenGL),
     Maps = proplists:get_value(maps, Mat),
     export_maps(F, Maps, Root),
     eol(F).
@@ -491,6 +494,9 @@ export_maps(F, [{diffuse,Map}|T], Base) ->
     export_maps(F, T, Base);
 export_maps(F, [{ambient,Map}|T], Base) ->
     export_map(F, "Ka", Map, Base),
+    export_maps(F, T, Base);
+export_maps(F, [{emission,Map}|T], Base) ->
+    export_map(F, "Ke", Map, Base),
     export_maps(F, T, Base);
 export_maps(F, [{bump,Map}|T], Base) ->
     export_map(F, "Bump", Map, Base),
