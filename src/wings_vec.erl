@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.57 2003/01/05 09:44:18 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.58 2003/01/09 19:18:37 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -208,9 +208,8 @@ handle_event_4({action,Cmd}, Ss, St) ->
 handle_event_4(quit, _Ss, _St) ->
     wings_io:putback_event(quit),
     pop;
-handle_event_4(#resize{w=W,h=H}, Ss, St0) ->
-    St = wings:resize(W, H, St0),
-    get_event(Ss, St);
+handle_event_4(init_opengl, _, St) ->
+    wings:init_opengl(St);
 handle_event_4(_Event, Ss, St) ->
     get_event(Ss, St).
 

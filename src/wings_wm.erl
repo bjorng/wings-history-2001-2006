@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.50 2003/01/06 20:37:44 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.51 2003/01/09 19:18:37 bjorng Exp $
 %%
 
 -module(wings_wm).
--export([init/0,enter_event_loop/0,dirty/0,clean/0,new/4,delete/1,
-	 toplevel/5,toplevel/6,
+-export([init/0,enter_event_loop/0,dirty/0,clean/0,reinit_opengl/0,
+	 new/4,delete/1,toplevel/5,toplevel/6,
 	 message/1,message/2,message_right/1,send/2,send_after_redraw/2,
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
@@ -316,19 +316,11 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
 	end,
     wings_pref:set_value(window_size, {SaveW,SaveH}),
     put(wm_top_size, {W,H}),
-
     Win0 = get_window_data(top),
-    Win1 = Win0#win{w=W,h=H},
-    put_window_data(top, Win1),
-    set_video_mode(W, H),
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-    wings_io:resize(),
-
-    {R,G,B} = wings_pref:get_value(background_color),
-    gl:clearColor(R, G, B, 1.0),
-    Win = send_event(Win1, Event),
+    Win = Win0#win{w=W,h=H},
     put_window_data(top, Win),
+
+    init_opengl(W, H),
 
     MenubarData0 = get_window_data(menubar),
     MenubarH = ?CHAR_HEIGHT+6,
@@ -353,9 +345,7 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
     put_window_data(buttons, ButtonData),
 
     GeomData0 = get_window_data(geom),
-    GeomData1 = GeomData0#win{x=0,y=MenubarH,w=W,h=H-MsgH-ButtonH-MenubarH},
-    put_window_data(geom, GeomData1),
-    GeomData = send_event(GeomData1, Event#resize{h=MsgY}),
+    GeomData = GeomData0#win{x=0,y=MenubarH,w=W,h=H-MsgH-ButtonH-MenubarH},
     put_window_data(geom, GeomData),
 
     case is_window(autouv) of
@@ -413,6 +403,21 @@ maybe_clear(early, true) ->
 maybe_clear(late, false) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT);
 maybe_clear(_, _) -> ok.
+
+reinit_opengl() ->
+    wings_io:putback_event({wm,init_opengl}).
+
+init_opengl(W, H) ->
+    set_video_mode(W, H),
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+    wings_io:resize(),
+    {R,G,B} = wings_pref:get_value(background_color),
+    gl:clearColor(R, G, B, 1.0),
+    dirty(),
+    foreach(fun(Name) ->
+		    do_dispatch(Name, init_opengl)
+	    end, gb_trees:keys(get(wm_windows))).
 
 send_event(Win, {expose}) ->
     dirty(),
@@ -506,7 +511,6 @@ wm_event({message,Name,Msg}) ->
 	    put_window_data(Name, Data),
 	    wings_wm:dirty()
     end;
-
 wm_event({message_right,Name,Right0}) ->
     Right = lists:flatten(Right0),
     case lookup_window_data(Name) of
@@ -537,7 +541,10 @@ wm_event({send_after_redraw,Name,Ev}) ->
 	true -> do_dispatch(Name, Ev)
     end;
 wm_event({callback,Cb}) ->
-    Cb().
+    Cb();
+wm_event(init_opengl) ->
+    {W,H} = get(wm_top_size),
+    init_opengl(W, H).
 
 %%%
 %%% Finding the active window.

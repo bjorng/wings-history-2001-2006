@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.74 2003/01/04 20:03:42 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.75 2003/01/09 19:18:37 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -114,9 +114,8 @@ handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
 	    insert_hilite_fun(Hit, DrawFun),
 	    get_hilite_event(HL#hl{prev=Hit})
     end;
-handle_hilite_event(#resize{w=W,h=H}, #hl{st=St}) ->
-    wings:resize(W, H, St),
-    keep;
+handle_hilite_event(init_opengl, #hl{st=St}) ->
+    wings:init_opengl(St);
 handle_hilite_event(_, _) ->
     insert_hilite_fun(none, none),
     next.
@@ -210,9 +209,8 @@ marquee_event(redraw, #marquee{cx=Cx,cy=Cy,st=St}=M) ->
     wings_io:ortho_setup(),
     draw_marquee(Cx, Cy, M),
     keep;
-marquee_event(#resize{w=W,h=H}, #marquee{st=St}) ->
-    wings:resize(W, H, St),
-    keep;
+marquee_event(init_opengl, #marquee{st=St}) ->
+    wings:init_opengl(St);
 marquee_event(#mousemotion{x=X,y=Y}, #marquee{cx=Cx,cy=Cy}=M) ->
     draw_marquee(Cx, Cy, M),
     draw_marquee(X, Y, M),

@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.189 2003/01/06 20:33:43 bjorng Exp $
+%%     $Id: wings.erl,v 1.190 2003/01/09 19:18:37 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0,start/1,start_halt/1,start_halt/2]).
--export([root_dir/0,caption/1,redraw/1,resize/3,command/2]).
+-export([root_dir/0,caption/1,redraw/1,init_opengl/1,command/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -167,9 +167,10 @@ locate(Name) ->
 	    end
     end.
 
-resize(W, H, St) ->
+init_opengl(St) ->
     wings_draw_util:init(),
-    wings_material:init(St).
+    wings_material:init(St),
+    keep.
 
 redraw(St0) ->
     St = wings_draw:render(St0),
@@ -255,9 +256,8 @@ handle_event_3({action,Cmd,Args}, St) ->
     do_command(Cmd, Args, St);
 handle_event_3(#mousebutton{}, _St) -> keep;
 handle_event_3(#mousemotion{}, _St) -> keep;
-handle_event_3(#resize{w=W,h=H}, St0) ->
-    St = resize(W, H, St0),
-    main_loop(St);
+handle_event_3(init_opengl, St) ->
+    init_opengl(St);
 handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(redraw, St) ->
@@ -340,14 +340,6 @@ repeatable(Mode, Cmd) ->
 	%% Other commands only work in the saved mode.
 	_ -> no
     end.
-
-%% Wings reset.
-command({wings,reset}, St0) ->
-    {W,H} = wings_pref:get_value(window_size),
-    St = resize(W, H, St0),
-    wings_io:reset_grab(),
-    wings_view:command(reset, St),
-    St;
 
 %% Vector and secondary-selection commands.
 command({vector,What}, St) ->

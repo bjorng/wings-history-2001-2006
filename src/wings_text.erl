@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.17 2002/12/29 10:33:50 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.18 2003/01/09 19:18:37 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -58,8 +58,7 @@ command(font, _St) ->
     wings_ask:dialog("Choose Font", Qs,
 		     fun([Font]) ->
 			     wings_pref:set_value(system_font, Font),
-			     {W,H} = wings_pref:get_value(window_size),
-			     wings_io:putback_event(#resize{w=W,h=H}),
+			     wings_wm:reinit_opengl(),
 			     put(?MODULE, Font),
 			     ignore
 		     end).
