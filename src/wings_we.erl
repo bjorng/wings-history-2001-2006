@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.32 2002/06/19 09:36:52 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.33 2002/06/24 18:49:57 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -483,7 +483,7 @@ get_sub_object(Edge, #we{es=Etab0}=We) ->
     NewWe#we{es=NewEtab,mirror=none}.
 
 separate(We) ->
-    separate(We, []).
+    separate(We#we{mirror=none}, []).
 
 separate(#we{es=Etab0}=We, Acc) ->
     case gb_trees:is_empty(Etab0) of
