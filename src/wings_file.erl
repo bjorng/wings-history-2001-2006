@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.77 2002/08/08 07:58:06 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.78 2002/08/19 17:29:49 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -373,10 +373,13 @@ number_files([], _I, Rest) -> Rest.
 
 revert(#st{file=undefined}=St) -> St;
 revert(#st{file=File}=St0) ->
-    St1 = St0#st{shapes=gb_trees:empty(),sel=[]},
+    DefMat = wings_material:default(),
+    St1 = wings_material:init(St0#st{shapes=gb_trees:empty(),sel=[],mat=DefMat}),
     case ?SLOW(wings_ff_wings:import(File, St1)) of
 	#st{}=St -> St;
-	{error,_}=Error -> Error
+	{error,_}=Error ->
+	    wings_material:init(St0),
+	    Error
     end.
 
 %%
