@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.59 2003/01/24 10:01:20 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.60 2003/02/02 16:24:36 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -326,6 +326,7 @@ get_vtx_color(Edge, Face, Etab) ->
 %%%
 
 cut_pick(St0) ->
+    cut_pick_check_sel(St0),
     St = cut(2, St0),
     Tvs = wings_sel:fold(
 	    fun(Vs, #we{id=Id}=We, Acc) ->
@@ -339,6 +340,14 @@ cut_pick_1([V|Vs], #we{vc=Vct,vp=Vtab,es=Etab}=We, Acc) ->
     Pb = wings_vertex:other_pos(V, gb_trees:get(Edge, Etab), Vtab),
     cut_pick_1(Vs, We, [{e3d_vec:sub(Pa, Pb),[V]}|Acc]);
 cut_pick_1([], _, Acc) -> Acc.
+
+cut_pick_check_sel(#st{sel=[{_,Es}]}) ->
+    case gb_sets:size(Es) of
+	1 -> ok;
+	_ -> cut_pick_check_sel(error)
+    end;
+cut_pick_check_sel(_) ->
+    wings_util:error("Cut and slide can only work on one edge at the time.").
 
 %%%
 %%% The Connect command.
