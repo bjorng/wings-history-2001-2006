@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.232 2004/05/08 15:12:44 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.233 2004/05/08 17:46:39 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -916,8 +916,8 @@ geom2auv_vs_1([V|Vs], VsSet, Vmap, Acc) ->
     end;
 geom2auv_vs_1([], _, _, Acc) -> sort(Acc).
 
-auv2geom_edges(Es, We) ->
-    Es.
+auv2geom_edges(Es, #we{name=#ch{me=Me}}) ->
+    Es -- Me.
 
 geom2auv_edges(Es, We) ->
     Es.

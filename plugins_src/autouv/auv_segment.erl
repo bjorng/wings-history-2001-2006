@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.54 2004/05/08 15:41:50 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.55 2004/05/08 17:46:39 bjorng Exp $
 
 -module(auv_segment).
 
@@ -693,7 +693,8 @@ cut_one_chart(Keep0, Cuts, We0) ->
     Map0 = gb_trees:empty(),
     {We1,Map1} = cut_shared_vertices(Keep, OuterEdges, We0, Map0),
     {We2,Vmap} = cut_edges(Keep0, Cuts, We1, Map1),
-    We = We2#we{name=#ch{vmap=Vmap}},
+    Me = gb_sets:to_list(wings_we:new_items(edge, We1, We2)),
+    We = We2#we{name=#ch{vmap=Vmap,me=Me}},
     {Keep0,We}.
 
 cut_shared_vertices(Faces, Es, #we{es=Etab}=We0, InvVmap0) ->
