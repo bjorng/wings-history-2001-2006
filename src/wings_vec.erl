@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.97 2003/10/30 12:40:29 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.98 2003/10/30 14:29:01 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -54,12 +54,8 @@ do_ask({Do,Done,Flags}, St, Cb) ->
 do_ask({Do,Done,Flags,Modes}, St, Cb) ->
     do_ask_1(Modes, Do, Done, Flags, St, Cb).
 
-do_ask_1(_, [], [Res], _, _, Cb) ->
-    wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
-    keep;
-do_ask_1(_, [], Res0, _, _, Cb) ->
-    Res = list_to_tuple(reverse(Res0)),
-    wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
+do_ask_1(_, [], Res, _, _, Cb) ->
+    wings_wm:later(build_result(Res, Cb)),
     keep;
 do_ask_1(Modes, Do0, Done, Flags, #st{selmode=Mode}=St, Cb) ->
     Do = add_help_text(Do0),
@@ -230,16 +226,10 @@ pick_next(Do, Done, #ss{is_axis=true,vec={{_,_,_},{_,_,_}}=Vec}=Ss, St) ->
     pick_next_1(Do, Done, Ss, St);
 pick_next(Do, Done, Ss, St) -> pick_next_1(Do, Done, Ss, St).
 
-pick_next_1([], [Res], #ss{cb=Cb}, _) ->
+pick_next_1([], Res, #ss{cb=Cb}, _) ->
     pick_finish(),
-    wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
     wings:clear_mode_restriction(),
-    pop;
-pick_next_1([], Res0, #ss{cb=Cb}, _) ->
-    pick_finish(),
-    Res = list_to_tuple(reverse(Res0)),
-    wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
-    wings:clear_mode_restriction(),
+    wings_wm:later(build_result(Res, Cb)),
     pop;
 pick_next_1([{Fun0,Desc}|More], _Done, Ss, St) when is_function(Fun0) ->
     Fun = fun(message, _) -> common_message(Desc, More, no);
@@ -357,6 +347,14 @@ add_magnet(More) ->
 
 add_to_acc(Vec, [radial]) -> [{radial,Vec}];
 add_to_acc(Vec, Acc) -> [Vec|Acc].
+
+build_result([Res], Cb) ->
+    build_result_1(Res, Cb);
+build_result(Res, Cb) ->
+    build_result_1(list_to_tuple(reverse(Res)), Cb).
+
+build_result_1(Res, Cb) ->
+    {command,fun(St) -> Cb(Res, St#st{ask_args=Res}) end}.
 
 %%%
 %%% Vector functions.

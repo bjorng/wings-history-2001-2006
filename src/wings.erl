@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.276 2003/10/29 15:03:20 bjorng Exp $
+%%     $Id: wings.erl,v 1.277 2003/10/30 14:29:00 bjorng Exp $
 %%
 
 -module(wings).
@@ -114,7 +114,8 @@ init(File) ->
 	      saved=true,
 	      onext=1,
 	      repeatable=ignore,
-	      args=none,
+	      ask_args=none,
+	      drag_args=none,
 	      def={ignore,ignore}
 	     },
     St1 = wings_sel:reset(St0),
@@ -319,8 +320,6 @@ handle_event_3({action,Callback}, _) when is_function(Callback) ->
     Callback();
 handle_event_3({action,Cmd}, St) ->
     do_command(Cmd, St);
-handle_event_3({action,Cmd,Args}, St) ->
-    do_command(Cmd, Args, St);
 handle_event_3({command,Command}, St) when is_function(Command) ->
     command_response(Command(St), none, St);
 handle_event_3(#mousebutton{}, _St) -> keep;
@@ -419,14 +418,14 @@ highlight_sel_style({view,align_to_selection}) -> temporary;
 highlight_sel_style({view,aim}) -> temporary;
 highlight_sel_style(_) -> none.
 
-do_command(Cmd, St) ->    
-    do_command(Cmd, none, St).
-    
-do_command(Cmd, Args, St0) ->
+do_command(Cmd, St0) ->
     St = remember_command(Cmd, St0),
     {replace,
      fun(Ev) -> handle_event(Ev, St) end,
-     fun() -> command_response(catch do_command_1(Cmd, St), Args, St) end}.
+     fun() -> raw_command(Cmd, none, St) end}.
+
+raw_command(Cmd, Args, St) ->
+    command_response(catch do_command_1(Cmd, St), Args, St).
 
 command_response({'EXIT',Reason}, _, _) ->
     exit(Reason);
@@ -434,8 +433,6 @@ command_response({command_error,Error}, _, _) ->
     wings_util:message(Error);
 command_response(#st{}=St, _, _) ->
     main_loop(clear_temp_sel(St));
-command_response({keep_temp_sel,St}, _, _) ->
-    main_loop(St);
 command_response({drag,Drag}, Args, _) ->
     wings_drag:do_drag(Drag, Args);
 command_response({save_state,#st{}=St}, _, St0) ->
@@ -468,7 +465,7 @@ do_command_1(Cmd, St0) ->
 
 remember_command({C,_}=Cmd, St) when C =:= vertex; C =:= edge;
 				     C =:= face; C =:= body ->
-    St#st{repeatable=Cmd,args=none};
+    St#st{repeatable=Cmd,ask_args=none,drag_args=none};
 remember_command(_Cmd, St) -> St.
 
 %% Test if the saved command can be safely repeated, and
@@ -534,18 +531,27 @@ command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> keep;
-	Cmd when is_tuple(Cmd) ->
-	    wings_wm:later({action,Cmd}),
-	    {keep_temp_sel,St}
+	Cmd when is_tuple(Cmd) -> raw_command(Cmd, none, St)
     end;
 command({edit,repeat}, St) -> St;
-command({edit,repeat_drag}, #st{sel=[]}=St) -> St;
-command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,args=Args}=St) ->
+command({edit,repeat_args}, #st{sel=[]}=St) -> St;
+command({edit,repeat_args}, #st{selmode=Mode,repeatable=Cmd0,
+				ask_args=AskArgs}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> keep;
-	Cmd when is_tuple(Cmd) ->
-	    wings_wm:later({action,Cmd,Args}),
-	    {keep_temp_sel,St}
+	Cmd1 when is_tuple(Cmd1) ->
+	    Cmd = replace_ask(Cmd1, AskArgs),
+	    raw_command(Cmd, none, St)
+    end;
+command({edit,repeat_args}, St) -> St;
+command({edit,repeat_drag}, #st{sel=[]}=St) -> St;
+command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,
+				ask_args=AskArgs,drag_args=DragArgs}=St) ->
+    case repeatable(Mode, Cmd0) of
+	no -> keep;
+	Cmd1 when is_tuple(Cmd1) ->
+	    Cmd = replace_ask(Cmd1, AskArgs),
+	    raw_command(Cmd, DragArgs, St)
     end;
 command({edit,repeat_drag}, St) -> St;
 command({edit,camera_mode}, St) ->
@@ -662,6 +668,7 @@ edit_menu(St) ->
      {"Undo",undo},
      separator,
      {command_name("Repeat", St),repeat},
+     {command_name("Repeat Args", St),repeat_args},
      {command_name("Repeat Drag", St),repeat_drag},
      separator|wings_camera:sub_menu(St)++wings_text:sub_menu(St)++
      [separator|wings_pref:menu(St)++
@@ -909,6 +916,13 @@ command_name(Repeat, CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
 	    _ ->  [Repeat++" \"",CmdStr,"\""]
 	end,
     lists:flatten(S).
+
+replace_ask(Term, none) -> Term;
+replace_ask({'ASK',_}, AskArgs) -> AskArgs;
+replace_ask(Tuple0, AskArgs) when is_tuple(Tuple0) ->
+    Tuple = [replace_ask(El, AskArgs) || El <- tuple_to_list(Tuple0)],
+    list_to_tuple(Tuple);
+replace_ask(Term, _) -> Term.
 
 define_command(?SDL_RELEASED, N, #st{repeatable=Cmd,def=DefCmd0}) ->
     This = wings_wm:this(),

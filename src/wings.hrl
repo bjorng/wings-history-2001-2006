@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.93 2003/10/24 12:36:10 raimo_niskanen Exp $
+%%     $Id: wings.hrl,v 1.94 2003/10/30 14:29:00 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -119,8 +119,9 @@
 	 edge_loop=none,			%Previous edge loop.
 
 	 %% Previous commands.
-	 repeatable,				%Last repeatable command.
-	 args,					%Drag arguments for command.
+	 repeatable,			        %Last repeatable command.
+	 ask_args,				%Ask arguments.
+	 drag_args,			        %Drag arguments for command.
 	 def,					%Default operations.
 
 	 %% Undo information.

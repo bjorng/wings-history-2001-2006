@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.163 2003/10/12 07:42:21 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.164 2003/10/30 14:29:00 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -269,7 +269,7 @@ do_drag(#drag{unit=Units}=Drag0, Move) when length(Units) =:= length(Move) ->
     Drag2 = possible_falloff_update(Move, Drag1),
     Drag = ?SLOW(motion_update(Move, Drag2)),
     St = normalize(Drag),
-    DragEnded = {new_state,St#st{args=Move}},
+    DragEnded = {new_state,St#st{drag_args=Move}},
     wings_wm:later(DragEnded),
     keep;
 do_drag(Drag0, _) ->
@@ -373,7 +373,7 @@ handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_RELEASED}, 
     Ev = #mousemotion{x=X,y=Y,state=0,mod=Mod},
     {Move,Drag} = ?SLOW(motion(Ev, Drag0)),
     St = normalize(Drag),
-    DragEnded = {new_state,St#st{args=Move}},
+    DragEnded = {new_state,St#st{drag_args=Move}},
     wings_wm:later(DragEnded),
     pop;
 handle_drag_event_1({drag_arguments,Move}, Drag0) ->
@@ -381,7 +381,7 @@ handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     Drag1 = possible_falloff_update(Move, Drag0),
     Drag = ?SLOW(motion_update(Move, Drag1)),
     St = normalize(Drag),
-    DragEnded = {new_state,St#st{args=Move}},
+    DragEnded = {new_state,St#st{drag_args=Move}},
     wings_wm:later(DragEnded),
     pop;
 handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Drag) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.89 2003/10/24 12:36:10 raimo_niskanen Exp $
+%%     $Id: wings_camera.erl,v 1.90 2003/10/30 14:29:00 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -57,7 +57,7 @@ command(camera_mode, _St) ->
     PanSpeed0 = wings_pref:get_value(pan_speed),
     View0 = wings_wm:get_prop(Active, current_view),
     #view{fov=Fov0,hither=Hither0,yon=Yon0} = View0,
-    Qs = [{vframe,[mouse_buttons(2)],[{title,"Mouse Buttons"}]},
+    Qs = [{vframe,[mouse_buttons()],[{title,"Mouse Buttons"}]},
 	  {vframe,[camera_modes(-2)],[{title,"Camera Mode"}]},
 	  {vframe,
 	   [{hframe,[{slider,{text,PanSpeed0,[{range,{1,50}}]}}]}],
@@ -95,7 +95,7 @@ command(camera_mode, _St) ->
 			     ignore
 		     end).
 
-mouse_buttons(DI) ->
+mouse_buttons() ->
     {menu,[{"One",1},{"Two",2},{"Three",3}],
      wings_pref:get_value(num_buttons),
      [{hook,fun (menu_disabled, {_Var,I,Sto}) ->
