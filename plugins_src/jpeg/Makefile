@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.1 2004/01/06 11:28:20 bjorng Exp $
+#     $Id: Makefile,v 1.2 2004/01/18 11:25:51 bjorng Exp $
 #
 LIBDIR = ../../plugins/jpeg
 
@@ -20,7 +20,13 @@ LIBS = -shared -ljpeg
 ERLC = erlc
 ERLC_FLAGS = -o $(LIBDIR) -I ../../e3d -I ../../src -I $(ESDL_PATH)/include -pa $(ESDL_PATH)
 
-DRV = $(LIBDIR)/wings_jpeg_image_drv.dll
+ifeq ($(OS_FLAG),mingw)
+SO_EXT = dll
+else
+SO_EXT = so
+endif
+
+DRV = $(LIBDIR)/wings_jpeg_image_drv.$(SO_EXT)
 
 all: $(BEAM) $(DRV)
 
@@ -28,6 +34,7 @@ $(LIBDIR)/%.beam: %.erl
 	install -d $(LIBDIR)
 	$(ERLC) $(ERLC_FLAGS) $<
 
+ifeq ($(OS_FLAG),mingw)
 $(LIBDIR)/wings_jpeg_image_drv.dll: wings_jpeg_image_drv.c \
   erl_driver.h erl_win_dyn_driver.h
 	install -d $(LIBDIR)
@@ -39,3 +46,12 @@ erl_driver.h: $(ERL_INC)/erl_driver.h
 
 erl_win_dyn_driver.h: $(ERL_INC)/erl_win_dyn_driver.h
 	sed 's,##Params, Params,g' "$(ERL_INC)/erl_win_dyn_driver.h" > erl_win_dyn_driver.h
+else
+
+$(LIBDIR)/wings_jpeg_image_drv.so: wings_jpeg_image_drv.c
+	install -d $(LIBDIR)
+	gcc -o $(LIBDIR)/wings_jpeg_image_drv.so -I$(ERL_INC) \
+  wings_jpeg_image_drv.c $(LIBS)
+
+endif
+

@@ -11,7 +11,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_jpeg_image.erl,v 1.1 2004/01/06 11:28:20 bjorng Exp $
+%%     $Id: wp8_jpeg_image.erl,v 1.2 2004/01/18 11:25:51 bjorng Exp $
 %%
 
 -module(wp8_jpeg_image).
@@ -25,21 +25,17 @@
 -define(OP_IMAGE_WRITE, 1).
 
 init(Next) ->
-    case os:type() of
-	{win32,_} ->
-	    Dir = filename:dirname(code:which(?MODULE)),
-	    case erl_ddll:load_driver(Dir, "wings_jpeg_image_drv") of
-		ok ->
-		    case open_port({spawn,wings_jpeg_image_drv},[]) of
-			Port when is_port(Port) ->
-			    register(?MODULE, Port),
-			    fun(What) ->
-				    fileop(What,Next)
-			    end;
-			Other ->
-			    Next
+    Dir = filename:dirname(code:which(?MODULE)),
+    case erl_ddll:load_driver(Dir, "wings_jpeg_image_drv") of
+	ok ->
+	    case open_port({spawn,wings_jpeg_image_drv},[]) of
+		Port when is_port(Port) ->
+		    register(?MODULE, Port),
+		    fun(What) ->
+			    fileop(What,Next)
 		    end;
-		_ -> Next
+		Other ->
+		    Next
 	    end;
 	_ -> Next
     end.
