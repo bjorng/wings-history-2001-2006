@@ -10,14 +10,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.26 2002/10/24 06:03:39 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.27 2002/12/15 18:19:41 bjorng Exp $
 %%
 
 -module(wings_shapes).
 -export([menu/3,command/2]).
 -include("wings.hrl").
 
--import(lists, [foreach/2,foldl/3,sort/1,last/1,seq/2,seq/3]).
+-import(lists, [map/2,foreach/2,foldl/3,sort/1,last/1,seq/2,seq/3]).
 -import(math, [sqrt/1,cos/1,sin/1,pi/0]).
 
 menu(X, Y, _) ->
@@ -207,27 +207,32 @@ sphere([Ns,Nl], St) ->
     
 torus(Ask, _St) when is_atom(Ask) ->
     ask(torus, Ask, [{"Sections",16,[{range,{3,128}}]},
-		     {"Slices",8,[{range,{1,128}}]}]);
-torus([Ns,Nl], St) ->
-    Vs = torus_vertices(Ns, Nl, 0.75),
+		     {"Slices/2",4,[{range,{1,128}}]},
+		     {"Major Radius",math:sqrt(2)},
+		     {"Minor Radius",0.25}]);
+torus([Ns,Nl,Major,Minor], St) ->
+    Vs = torus_vertices(Ns, Nl, Major, Minor),
     Fs = torus_faces(Ns, Nl),
     build_shape("torus", Fs, Vs, St).
 
 torus_faces(Ns, Nl) ->
-    Nl2= Nl*2,
-    Slices= [ [ [(I+1) rem Ns + J*Ns, I + J*Ns,
-		 I+ ((J+1) rem Nl2) *Ns, (I+1) rem Ns + ((J+1) rem Nl2)*Ns]
-		|| I <- lists:seq(0, Ns - 1)]
-	      || J <- lists:seq(0, Nl2 - 1)],
+    Nl2 = Nl*2,
+    Slices = [ [ [(I+1) rem Ns + J*Ns, I + J*Ns,
+		  I+ ((J+1) rem Nl2) *Ns, (I+1) rem Ns + ((J+1) rem Nl2)*Ns]
+		 || I <- lists:seq(0, Ns - 1)]
+	       || J <- lists:seq(0, Nl2 - 1)],
     lists:append(Slices).
 
-torus_vertices(Ns, Nl, Hs) ->
-    Nl2 = Nl*2,
-    Delta = 2*pi() / Nl2,
-    PosAndRads = [{(1.0-Hs)*sin(I*Delta), Hs + (1.0-Hs)*cos(I*Delta)}
-		  || I <- lists:seq(0, Nl2 - 1)],
-    Circles = [circle(Ns, Pos, Rad) || {Pos, Rad} <- PosAndRads],
-    lists:flatten(Circles).
+torus_vertices(Ns, Nl0, Hs, Minor) ->
+    Nl = 2*Nl0,
+    Delta = 2*pi() / Nl,
+    Circles = map(fun(I) ->
+			  A = I*Delta,
+			  Pos = Minor*sin(A),
+			  Rad = Hs + Minor*cos(A),
+			  circle(Ns, Pos, Rad)
+		  end, lists:seq(0, Nl - 1)),
+    lists:append(Circles).
 
 grid(Ask, _) when is_atom(Ask) ->
     ask(grid, Ask, [{"Rows/cols",10,[{range,{1,128}}]}]);
