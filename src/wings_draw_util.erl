@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.23 2002/05/13 06:58:40 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.24 2002/05/15 07:14:01 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -314,7 +314,7 @@ draw_hilite(#dlo{hilite=none}) -> ok;
 draw_hilite(#dlo{hilite=Hilite}) -> Hilite().
 
 draw_orig_sel(#dlo{orig_sel=none}) -> ok;
-draw_orig_sel(#dlo{orig_sel=Dlist,orig_mode=Mode}) when is_integer(Dlist) ->
+draw_orig_sel(#dlo{orig_sel=Dlist,orig_mode=Mode}) ->
     sel_color(),
     draw_orig_sel_1(Mode, Dlist).
 
