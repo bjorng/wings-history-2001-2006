@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.140 2004/04/20 08:22:52 raimo_niskanen Exp $
+%%     $Id: wings_view.erl,v 1.141 2004/04/22 09:13:16 raimo_niskanen Exp $
 %%
 
 -module(wings_view).
@@ -18,7 +18,7 @@
 	 current/0,set_current/1,
 	 load_matrices/1,projection/0,
 	 modelview/0,modelview/1,
-	 eye_point/0]).
+	 eye_point/0,export_views/1,import_views/2,camera_info/2]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -26,7 +26,7 @@
 
 -import(lists, [foreach/2,foldl/3]).
 
-menu(St) ->
+menu(#st{views=Views}=St) ->
     L = wings_pref:get_value(number_of_lights),
     [{"Ground Plane",show_groundplane,"Show the ground plane",
       crossmark(show_groundplane)},
@@ -62,11 +62,11 @@ menu(St) ->
      {"Orthographic View",orthogonal_view,
       "Toggle between orthographic and perspective views",
       crossmark(orthogonal_view)},
-     {"View Ring ("++integer_to_list(queue:len(St#st.views))++")",
-      {view_ring,[{"Next",next},
-		  {"Prev",prev},
-		  {"Save",save},
-		  {"Delete",delete}]}},
+     {"Saved Views: "++integer_to_list(queue:len(Views)),
+      {views,[{"Next",next,"Go to next saved view"},
+	      {"Prev",prev,"Go back to previous saved view"},
+	      {"Save",save,"Save this view"},
+	      {"Delete",delete,"Delete this saved view"}]}},
      separator,
      {"Camera Settings...",camera_settings,"Set field of view, and near and far clipping planes"},
      separator,
@@ -131,7 +131,8 @@ wireframe_crossmark(#st{sel=Sel0}) ->
 	{Same,Same} -> [crossmark];
 	{_,_} -> [grey_crossmark]
     end.
-	     
+
+
 command(reset, St) ->
     reset(),
     St;
@@ -213,8 +214,8 @@ command(aim, St) ->
 command(frame, St) ->
     frame(St),
     St;
-command({view_ring,ViewRing}, St) ->
-    view_ring(ViewRing, St);
+command({views,ViewRing}, St) ->
+    views(ViewRing, St);
 command({along,Axis}, St) ->
     along(Axis),
     St;
@@ -564,7 +565,7 @@ frame_1([A,B]=BB) ->
     set_current(View#view{origin=e3d_vec:neg(C),
 			  distance=Dist,pan_x=0.0,pan_y=0.0}).
 
-view_ring(next, #st{views=Views}=St) ->
+views(next, #st{views=Views}=St) ->
     case queue:out(Views) of
 	{{value,View},NewViews} ->
 	    set_current(View),
@@ -572,7 +573,7 @@ view_ring(next, #st{views=Views}=St) ->
 	{empty,_} ->
 	    wings_util:message("No saved view")
     end;
-view_ring(prev, #st{views=Views}=St) ->
+views(prev, #st{views=Views}=St) ->
     case queue:is_empty(Views) of
 	true ->
 	    wings_util:message("No saved view");
@@ -588,7 +589,7 @@ view_ring(prev, #st{views=Views}=St) ->
 		    wings_wm:dirty()
 	    end
     end;
-view_ring(save, #st{views=Views}=St) ->
+views(save, #st{views=Views}=St) ->
     View = current(),
     case queue:is_empty(Views) of
 	true ->
@@ -596,12 +597,12 @@ view_ring(save, #st{views=Views}=St) ->
 	false ->
 	    case queue:last(Views) of
 		View ->
-		    wings_util:message("Already saved this view");
+		    wings_util:message("This view is alreay saved here");
 		_ ->
-		    St#st{views=queue:in(View, Views)}
+		    {save_state,St#st{views=queue:in(View, Views)}}
 	    end
     end;
-view_ring(delete, #st{views=Views}=St) ->
+views(delete, #st{views=Views}=St) ->
     case queue:is_empty(Views) of
 	true ->
 	    wings_util:message("No saved view");
@@ -609,9 +610,9 @@ view_ring(delete, #st{views=Views}=St) ->
 	    View = current(),
 	    case queue:last(Views) of
 		View ->
-		    St#st{views=queue:init(Views)};
+		    {save_state,St#st{views=queue:init(Views)}};
 		_ ->
-		    wings_util:message("Not at this view")
+		    wings_util:message("You have to be at a saved view")
 	    end
     end.
 
@@ -632,6 +633,14 @@ along(neg_z) -> along(z, 180.0, 0.0).
 along(Along, Az, El) ->
     View = current(),
     set_current(View#view{azimuth=Az,elevation=El,along_axis=Along}).
+
+along(-90.0, 0.0) -> x;
+along(0.0,  90.0) -> y;
+along(0.0,   0.0) -> z;
+along(90.0,  0.0) -> neg_x;
+along(0.0,  -0.0) -> neg_y;
+along(180.0, 0.0) -> neg_z;
+along(_Az,   _El) -> none.
 
 align_to_selection(#st{sel=[]}=St) -> St;
 align_to_selection(#st{selmode=vertex}=St) ->
@@ -697,7 +706,77 @@ align_to_selection({Nx,Ny,Nz}, St) ->
     St.
 
 to_degrees(A) when is_float(A) ->
-    A*180.0/3.1416.
+    A*180.0/3.1415926536.
 
 one_of(true, S, _) -> S;
 one_of(false,_, S) -> S.
+
+%%%
+%%% Export and import of views.
+%%%
+
+export_views(St) ->
+    export_views_1(queue:to_list(St#st.views)).
+
+export_views_1([View|Views]) ->
+    Tags = [aim,distance_to_aim,azimuth,elevation,tracking,fov,hither,yon],
+    [{view,zip(Tags, camera_info(Tags, View))}|export_views_1(Views)];
+export_views_1([]) -> [].
+
+import_views(Views, St) ->
+    St#st{views=queue:from_list(import_views_1(Views))}.
+
+import_views_1([{view,As}|Views]) ->
+    [import_view(As)|import_views_1(Views)];
+import_views_1([]) -> [].
+
+zip([H1|T1], [H2|T2]) ->
+    [{H1,H2}|zip(T1, T2)];
+zip([], []) -> [].
+
+import_view(As) ->
+    import_view(As, #view{}).
+
+import_view([{aim,Aim}|As], View) ->
+    import_view(As, View#view{origin=Aim});
+import_view([{distance_to_aim,Dist}|As], View) ->
+    import_view(As, View#view{distance=Dist});
+import_view([{azimuth,Az}|As], View) ->
+    import_view(As, View#view{azimuth=Az});
+import_view([{elevation,El}|As], View) ->
+    import_view(As, View#view{elevation=El});
+import_view([{tracking,{X,Y}}|As], View) ->
+    import_view(As, View#view{pan_x=X,pan_y=Y});
+import_view([{fov,Fov}|As], View) ->
+    import_view(As, View#view{fov=Fov});
+import_view([{hither,Hither}|As], View) ->
+    import_view(As, View#view{hither=Hither});
+import_view([{yon,Yon}|As], View) ->
+    import_view(As, View#view{yon=Yon});
+import_view([], #view{azimuth=Az,elevation=El}=View) -> 
+    View#view{along_axis=along(Az, El)}.
+
+%%%
+%%% Camera info.
+%%%
+
+camera_info([aim|As], #view{origin=Aim}=View) ->
+    [Aim|camera_info(As, View)];
+camera_info([distance_to_aim|As], #view{distance=Dist}=View) ->
+    [Dist|camera_info(As, View)];
+camera_info([azimuth|As], #view{azimuth=Az}=View) ->
+    [Az|camera_info(As, View)];
+camera_info([elevation|As], #view{elevation=El}=View) ->
+    [El|camera_info(As, View)];
+camera_info([tracking|As], #view{pan_x=X,pan_y=Y}=View) ->
+    [{X,Y}|camera_info(As, View)];
+camera_info([fov|As], #view{fov=Fov}=View) ->
+    %% Field of view.
+    [Fov|camera_info(As, View)];
+camera_info([hither|As], #view{hither=Hither}=View) ->
+    %% Near clipping plane.
+    [Hither|camera_info(As, View)];
+camera_info([yon|As], #view{yon=Yon}=View) ->
+    %% Far clipping plane.
+    [Yon|camera_info(As, View)];
+camera_info([], _) -> [].

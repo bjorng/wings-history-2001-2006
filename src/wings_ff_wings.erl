@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.49 2004/03/08 11:10:41 raimo_niskanen Exp $
+%%     $Id: wings_ff_wings.erl,v 1.50 2004/04/22 09:13:16 raimo_niskanen Exp $
 %%
 
 -module(wings_ff_wings).
@@ -59,7 +59,7 @@ import_vsn2(Shapes, Materials0, Props, St0) ->
     {St1,NameMap0} = wings_material:add_materials(Materials, St0),
     NameMap1 = gb_trees:from_orddict(sort(NameMap0)),
     NameMap = optimize_name_map(Materials, NameMap1, []),
-    St = import_props(Props, St1),
+    St = import_props(Props, St1#st{views=queue:new()}),
     wings_pb:update(1.0, "objects"),
     import_objects(Shapes, NameMap, St).
 
@@ -183,6 +183,9 @@ import_props([{{selection_group,Name},{Mode,Sel0}}|Ps], St0) ->
     import_props(Ps, St);
 import_props([{lights,Lights}|Ps], St0) ->
     St = wings_light:import(Lights, St0),
+    import_props(Ps, St);
+import_props([{views,Views}|Ps], St0) ->
+    St = wings_view:import_views(Views, St0),
     import_props(Ps, St);
 import_props([_|Ps], St) ->
     import_props(Ps, St);
@@ -415,9 +418,13 @@ export(Name, St0) ->
 		 [] -> Props0;
 		 [_|_] -> [{lights,Lights}|Props0]
 	     end,
-    Props = case export_images() of
+    Props2 = case export_images() of
 		[] -> Props1;
 		Images -> [{images,Images}|Props1]
+	    end,
+    Props = case wings_view:export_views(St) of
+		[] -> Props2;
+		Views -> [{views,Views}|Props2]
 	    end,
     Wings = {wings,2,{Shs,Materials,Props}},
     wings_pb:update(0.99, "compressing"),

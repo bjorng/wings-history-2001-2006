@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_console.erl,v 1.3 2004/04/17 19:02:06 bjorng Exp $
+%%     $Id: wings_console.erl,v 1.4 2004/04/22 09:13:16 raimo_niskanen Exp $
 %%
 
 -module(wings_console).
@@ -173,11 +173,7 @@ do_window(Name) ->
     wings_wm:delete(Name),
     {X1,_,W1,H1} = wings_wm:viewport(desktop),
     Font = wings_pref:get_value(console_font),
-    CwLh = wings_io:use_font(Font,
-			     fun() ->
-				     {wings_text:width(),
-				      wings_text:height()}
-			     end),
+    CwLh = wings_io:use_font(Font, fun() -> {?CHAR_WIDTH,?LINE_HEIGHT} end),
     {Cw,Lh} = CwLh,
     Sw = wings_wm:vscroller_width(),
     Th = wings_wm:title_height(),
@@ -190,11 +186,7 @@ do_window(Name) ->
 
 do_window(Name, Pos, Size) ->
     Font = wings_pref:get_value(console_font),
-    CwLh = wings_io:use_font(Font,
-			     fun() ->
-				     {wings_text:width(),
-				      wings_text:height()}
-			     end),
+    CwLh = wings_io:use_font(Font, fun() -> {?CHAR_WIDTH,?LINE_HEIGHT} end),
     do_window(Name, Font, CwLh, Pos, Size).
 
 do_window(Name, Font, {Cw,Lh}, {X,Y}, {W,H}=Size) -> % {X,Y} is upper right
