@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.37 2003/05/31 12:42:27 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.38 2003/05/31 15:29:22 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -288,9 +288,15 @@ smooth_move_orig_1(V, S, MoveFun, We) ->
     case length(Hard) of
 	NumHard when NumHard < 2 ->
 	    Ps = e3d_vec:add(Ps0),
-	    N = length(Ps0) / 2,
-	    Pos = e3d_vec:add(e3d_vec:mul(Ps, 1.0/(N*N)),
-			      e3d_vec:mul(S, (N-2.0)/N)),
+	    {A,B} = case length(Ps0) of
+			2*3 -> {1/9,1/3};
+			2*4 -> {1/16,2/4};
+			2*5 -> {1/25,3/5};
+			N0 -> 
+			    N = N0 bsr 1,
+			    {1.0/(N*N),(N-2.0)/N}
+		    end,
+	    Pos = e3d_vec:add(e3d_vec:mul(Ps, A), e3d_vec:mul(S, B)),
 	    wings_util:share(Pos);
 	NumHard when NumHard =:= 2 ->
 	    Pos0 = e3d_vec:add([e3d_vec:mul(S, 6.0)|Hard]),
@@ -300,18 +306,29 @@ smooth_move_orig_1(V, S, MoveFun, We) ->
     end.
 
 smooth_move_orig_fun(Vtab, FacePos, Htab) ->
-    fun(Edge, Face, Erec, {V,Ps0,Hard0}) ->
-	    OPos = wings_vertex:other_pos(V, Erec, Vtab),
-	    FPos = case gb_trees:lookup(Face, FacePos) of
-		       none -> none;
-		       {value,{Fp,_,_}} -> Fp
-		   end,
-	    Ps = [FPos,OPos|Ps0],
-	    Es = case gb_sets:is_member(Edge, Htab) of
-		     true -> [OPos|Hard0];
-		     false -> Hard0
-		 end,
-	    {V,Ps,Es}
+    case gb_sets:is_empty(Htab) of
+	true ->
+	    %% No hard eges imply that all faces can be found
+	    %% in the FacePos table. Therefore gb_trees:get/2 is safe.
+	    fun(_Edge, Face, Erec, {V,Ps,_}) ->
+		    OPos = wings_vertex:other_pos(V, Erec, Vtab),
+		    {FPos,_,_} = gb_trees:get(Face, FacePos),
+		    {V,[OPos,FPos|Ps],[]}
+	    end;
+	false ->
+	    fun(Edge, Face, Erec, {V,Ps0,Hard0}) ->
+		    OPos = wings_vertex:other_pos(V, Erec, Vtab),
+		    FPos = case gb_trees:lookup(Face, FacePos) of
+			       none -> none;
+			       {value,{Fp,_,_}} -> Fp
+			   end,
+		    Es = case gb_sets:is_member(Edge, Htab) of
+			     true -> [OPos|Hard0];
+			     false -> Hard0
+			 end,
+		    Ps = [FPos,OPos|Ps0],
+		    {V,Ps,Es}
+	    end
     end.
 
 %% Update the position for the vertex that was created in the middle
