@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.13 2002/01/15 07:20:01 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.14 2002/01/22 19:40:48 bjorng Exp $
 %%
 
 -module(e3d_mesh).
--export([clean/1,triangulate/1,quadrilate/1,
+-export([clean/1,triangulate/1,quadrangulate/1,
 	 make_quads/1,vertex_normals/1]).
 -export([triangulate_face/2,triangulate_face_with_holes/3]).
--export([quadrilate_face/2,quadrilate_face_with_holes/3]).
+-export([quadrangulate_face/2,quadrangulate_face_with_holes/3]).
 
 -include("e3d.hrl").
 -import(lists, [foreach/2,sort/1,reverse/1,reverse/2,seq/2,
@@ -165,25 +165,24 @@ triangulate_face_with_holes(Face, Holes, Vcoords) ->
 %%% Mesh quadrilation.
 %%%
 
-quadrilate(#e3d_mesh{type=triangle}=Mesh) -> Mesh;
-quadrilate(#e3d_mesh{type=quad}=Mesh) -> Mesh;
-quadrilate(#e3d_mesh{type=polygon,fs=Fs0,vs=Vs}=Mesh) ->
-    io:format("Quadrilating mesh\n"),
-    case quadrilate(Fs0, Vs, []) of
+quadrangulate(#e3d_mesh{type=triangle}=Mesh) -> Mesh;
+quadrangulate(#e3d_mesh{type=quad}=Mesh) -> Mesh;
+quadrangulate(#e3d_mesh{type=polygon,fs=Fs0,vs=Vs}=Mesh) ->
+    case quadrangulate(Fs0, Vs, []) of
 	error -> error;
 	Fs -> Mesh#e3d_mesh{type=quad,fs=Fs}
     end.
 
-quadrilate([#e3d_face{vs=Vs}=FaceRec|Ps], Vtab, Acc) ->
-    Tris = quadrilate_face(FaceRec, Vtab),
-    quadrilate(Ps, Vtab, Tris++Acc);
-quadrilate([], Vtab, Acc) -> reverse(Acc).
+quadrangulate([#e3d_face{vs=Vs}=FaceRec|Ps], Vtab, Acc) ->
+    Tris = quadrangulate_face(FaceRec, Vtab),
+    quadrangulate(Ps, Vtab, Tris++Acc);
+quadrangulate([], Vtab, Acc) -> reverse(Acc).
 
-quadrilate_face(Face, Vcoords) ->
-    e3d__tri_quad:quadrilate_face(Face, Vcoords).
+quadrangulate_face(Face, Vcoords) ->
+    e3d__tri_quad:quadrangulate_face(Face, Vcoords).
 
-quadrilate_face_with_holes(Face, Holes, Vcoords) ->
-    e3d__tri_quad:quadrilate_face_with_holes(Face, Holes, Vcoords).
+quadrangulate_face_with_holes(Face, Holes, Vcoords) ->
+    e3d__tri_quad:quadrangulate_face_with_holes(Face, Holes, Vcoords).
 
 %%%
 %%% Calculate normals for each vertex in a mesh.
