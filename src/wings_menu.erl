@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.119 2003/10/29 15:03:20 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.120 2003/10/30 09:08:35 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -207,25 +207,44 @@ adv_filter(_, []) -> [].
 
 norm_add_hotkey(_, separator, _, _) -> separator;
 norm_add_hotkey(_, Elem, [], _) -> Elem;
+norm_add_hotkey({_,[_|_]}, Elem, _, _) -> Elem;
+norm_add_hotkey({Key,Fun}, Elem, Hotkeys, Props) when is_function(Fun) ->
+    case Fun(1, []) of
+	[_|_] -> Elem;				%Submenu.
+	Name0 ->
+	    Name = {Key,reduce_ask(Name0)},
+	    norm_add_hotkey(Name, Elem, Hotkeys, Props)
+    end;
 norm_add_hotkey(Fun, Elem, Hotkeys, Props) when is_function(Fun) ->
     Name = reduce_name(Fun(1, [])),
     norm_add_hotkey(Name, Elem, Hotkeys, Props);
+norm_add_hotkey({'ASK',_}=Ask, Elem, Hotkeys, Props) ->
+    norm_add_hotkey(reduce_ask(Ask), Elem, Hotkeys, Props);
 norm_add_hotkey(Name, Elem, Hotkeys, Props) ->
     Key = match_hotkey(Name, Hotkeys, have_option_box(Props)),
     setelement(3, Elem, Key).
 
 match_hotkey(Name, [{Name,Key}|_], false) -> Key;
-match_hotkey(Name, [{{Name,Bool},Key}|_], true) when Bool == true;
-						     Bool == false ->
-    Key;
+match_hotkey(Name, [{{Name,false},Key}|_], true) -> Key;
+match_hotkey(Name, [{{Name,true},Key}|_], true) -> Key;
 match_hotkey(Name, [_|T], OptionBox) ->
     match_hotkey(Name, T, OptionBox);
 match_hotkey(_, [], _) -> [].
 
+reduce_name({'ASK',_}=Ask) -> Ask;
 reduce_name({Key,{_,_}=Tuple}) when is_atom(Key) ->
     reduce_name(Tuple);
 reduce_name({Key,Val}) when is_atom(Key) -> Val;
 reduce_name(Name) -> Name.
+
+reduce_ask({'ASK',Ask}) -> reduce_ask_1(Ask);
+reduce_ask(Term) -> Term.
+    
+reduce_ask_1({A,B,_}) -> reduce_ask_1({A,B});
+reduce_ask_1({[],[Res]}) -> Res;
+reduce_ask_1({[],Res}) ->
+    list_to_tuple(reverse(Res));
+reduce_ask_1(_) -> none.
 
 menu_dims(Menu) ->
     menu_dims(Menu, size(Menu), 0, 0, 0, []).
@@ -242,10 +261,10 @@ menu_dims(Menu, I, MaxA0, MaxB0, MaxC0, Hacc) ->
 			{MaxA0+W,0,0,?LINE_HEIGHT}
 		end;
 	    {S,{_,_},Hotkey,_,_} ->
-		{wings_text:width(S),wings_text:width(Hotkey),
+		{wings_text:width([$.,$.|S]),wings_text:width(Hotkey),
 		 wings_text:width(),?LINE_HEIGHT};
 	    {S,_,Hotkey,_,Ps} ->
-		{wings_text:width(S),wings_text:width(Hotkey),
+		{wings_text:width([$.,$.|S]),wings_text:width(Hotkey),
 		 right_width(Ps),?LINE_HEIGHT};
 	    separator -> {0,0,0,?SEPARATOR_HEIGHT}
 	end,
