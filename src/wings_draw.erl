@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.45 2002/01/04 19:48:16 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.46 2002/01/06 14:47:09 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -200,12 +200,11 @@ do_make_sel_dlist_1(Smooth, #st{sel=Sel}=St) ->
     
 draw_faces(We, true, #st{mat=Mtab}) ->
     draw_smooth_faces(Mtab, We);
-draw_faces(We, false, St) ->
+draw_faces(#we{fs=Ftab}=We, false, St) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
-    wings_util:fold_face(
-      fun(Face, #face{edge=Edge}, _) ->
-	      wings_draw_util:face(Face, Edge, We)
-      end, [], We).
+    foreach(fun({Face,#face{edge=Edge}}) ->
+		    wings_draw_util:face(Face, Edge, We)
+	    end, gb_trees:to_list(Ftab)).
 
 draw_smooth_faces(Mtab, #we{mode=vertex}=We) ->
     Faces = wings_we:normals(We),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.43 2002/01/02 12:25:21 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.44 2002/01/06 14:47:09 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -478,8 +478,8 @@ store_object(Name, We, St) ->
 %%% Generic export code.
 %%%
 
-do_export(Mod, Name, St) ->
-    Objs = wings_util:fold_shape(fun do_export/2, [], St),
+do_export(Mod, Name, #st{shapes=Shs}=St) ->
+    Objs = foldl(fun do_export/2, [], gb_trees:values(Shs)),
     Creator = "Wings 3D " ++ ?WINGS_VERSION,
     Mat = wings_material:used_materials(St),
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
@@ -490,12 +490,11 @@ do_export(#we{name=Name}=We, Acc) ->
     [#e3d_object{name=Name,obj=Mesh}|Acc].
 
 make_mesh(We0) ->
-    #we{vs=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We0, 0),
+    #we{fs=Ftab,vs=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We0, 0),
     Vs = [P || #vtx{pos=P} <- gb_trees:values(Vs0)],
-    Fs0 = wings_util:fold_face(
-	    fun(Face, #face{mat=Mat}, A) ->
-		    [make_face(Face, Mat, We)|A]
-	    end, [], We),
+    Fs0 = foldl(fun({Face,#face{mat=Mat}}, A) ->
+			[make_face(Face, Mat, We)|A]
+		end, [], gb_trees:to_list(Ftab)),
     Fs1 = reverse(Fs0),
     {Fs,UVTab} = make_uv(Fs1),
     He = hard_edges(gb_sets:to_list(He0), Etab, []),

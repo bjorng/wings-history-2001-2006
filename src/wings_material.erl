@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.20 2001/12/28 22:36:58 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.21 2002/01/06 14:47:09 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -186,11 +186,10 @@ apply_material([Mat|_], Mtab) ->
 
 %%% Returns the materials used.
 
-used_materials(#st{mat=Mat0}=St) ->
-    Used0 = wings_util:fold_shape(
-	      fun(#we{fs=Ftab}, A) ->
-		      used_materials_1(Ftab, A)
-	      end, gb_sets:empty(), St),
+used_materials(#st{shapes=Shs,mat=Mat0}=St) ->
+    Used0 = foldl(fun(#we{fs=Ftab}, A) ->
+			  used_materials_1(Ftab, A)
+		  end, gb_sets:empty(), gb_trees:values(Shs)),
     Used1 = sofs:from_external(gb_sets:to_list(Used0), [name]),
     Mat = sofs:relation(gb_trees:to_list(Mat0), [{name,data}]),
     Used = sofs:restriction(Mat, Used1),

@@ -8,14 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.21 2001/12/31 13:55:19 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.22 2002/01/06 14:47:09 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([share/1,share/3,make_vector/1,
 	 message/1,yes_no/1,serious_yes_no/1,ask/3,
 	 cap/1,upper/1,add_vpos/2,update_vpos/2,
-	 fold_shape/3,fold_face/3,fold_vertex/3,fold_edge/3,
 	 average_normals/1,
 	 tc/1,crash_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
@@ -88,53 +87,6 @@ update_vpos(Vs, Vtab) ->
     foldl(fun({V,_}, A) ->
 		  [{V,gb_trees:get(V, Vtab)}|A]
 	  end, [], reverse(Vs)).
-
-%%%
-%%% `fold' functions.
-%%%
-
-fold_shape(F, Acc, #st{shapes=Shapes}) ->
-    Iter = gb_trees:iterator(Shapes),
-    fold_shape_1(F, Acc, Iter).
-
-fold_shape_1(F, Acc, Iter0) ->
-    case gb_trees:next(Iter0) of
-	none -> Acc;
-	{Id,Shape,Iter} ->
-	    fold_shape_1(F, F(Shape, Acc), Iter)
-    end.
-
-fold_face(F, Acc, #we{fs=Ftab}) ->
-    fold_face_1(F, Acc, gb_trees:iterator(Ftab)).
-
-fold_face_1(F, Acc, Iter0) ->
-    case gb_trees:next(Iter0) of
-	none -> Acc;
-	{Num,Face,Iter} ->
-	    fold_face_1(F, F(Num, Face, Acc), Iter)
-    end.
-
-fold_vertex(F, Acc, #we{vs=Vtab}) ->
-    fold_vertex_1(F, Acc, gb_trees:iterator(Vtab));
-fold_vertex(F, Acc, Vtab) ->
-    fold_vertex_1(F, Acc, gb_trees:iterator(Vtab)).
-
-fold_vertex_1(F, Acc, Iter0) ->
-    case gb_trees:next(Iter0) of
-	none -> Acc;
-	{Num,Vertex,Iter} ->
-	    fold_vertex_1(F, F(Num, Vertex, Acc), Iter)
-    end.
-
-fold_edge(F, Acc, #we{es=Etab}) ->
-    fold_edge_1(F, Acc, gb_trees:iterator(Etab)).
-
-fold_edge_1(F, Acc, Iter0) ->
-    case gb_trees:next(Iter0) of
-	none -> Acc;
-	{Edge,Rec,Iter} ->
-	    fold_edge_1(F, F(Edge, Rec, Acc), Iter)
-    end.
 
 average_normals(Vs) ->
     R = sofs:relation(Vs),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.17 2002/01/01 11:28:00 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.18 2002/01/06 14:47:09 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -38,14 +38,13 @@ cleanup_1(_, We0) ->
     We = clean_winged_vertices(We0),
     clean_short_edges(We).
 
-clean_winged_vertices(We) ->
-    wings_util:fold_vertex(
-      fun(V, _, W) ->
-	      case wings_vertex:dissolve(V, W) of
-		  error -> W;
-		  Other -> Other
-	      end
-      end, We, We).
+clean_winged_vertices(#we{vs=Vtab}=We) ->
+    foldl(fun(V, W) ->
+		  case wings_vertex:dissolve(V, W) of
+		      error -> W;
+		      Other -> Other
+		  end
+	  end, We, gb_trees:keys(Vtab)).
 
 clean_short_edges(#we{es=Etab,vs=Vtab}=We) ->
     Short = foldl(
@@ -198,10 +197,10 @@ separate(St) ->
 auto_smooth(St) ->
     wings_sel:map(fun auto_smooth_1/2, St).
 
-auto_smooth_1(_, #we{he=Htab0}=We) ->
-    Htab = wings_util:fold_edge(fun(E, R, A) ->
-					auto_smooth(E, R, A, We)
-				end, Htab0, We),
+auto_smooth_1(_, #we{es=Etab,he=Htab0}=We) ->
+    Htab = foldl(fun({E,R}, A) ->
+			 auto_smooth(E, R, A, We)
+		 end, Htab0, gb_trees:to_list(Etab)),
     We#we{he=Htab}.
 
 auto_smooth(Edge, #edge{lf=Lf,rf=Rf}, H0, We) ->

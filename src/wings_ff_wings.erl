@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.16 2002/01/01 11:28:35 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.17 2002/01/06 14:47:09 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -133,14 +133,13 @@ write_file(Name, Bin) ->
 shape(#we{mode=ObjMode,name=Name}=We0, Mode, Sel0, Acc) ->
     Sel1 = gb_sets:to_list(Sel0),
     {We,[{Mode,Sel}]} = wings_we:renumber(We0, 0, [{Mode,Sel1}]),
-    #we{vs=Vs0,es=Etab,he=Htab} = We,
+    #we{fs=Ftab,vs=Vs0,es=Etab,he=Htab} = We,
     Vs1 = gb_trees:values(Vs0),
     Vs2 = [<<X/float,Y/float,Z/float>> || #vtx{pos={X,Y,Z}} <- Vs1],
     Vs = list_to_binary(Vs2),
-    Fs1 = wings_util:fold_face(
-	    fun(Face, #face{mat=Mat}, A) ->
-		    [{Mat,wings_face:surrounding_vertices(Face, We)}|A]
-	    end, [], We),
+    Fs1 = foldl(fun({Face,#face{mat=Mat}}, A) ->
+			[{Mat,wings_face:surrounding_vertices(Face, We)}|A]
+		end, [], gb_trees:to_list(Ftab)),
     Fs = reverse(Fs1),
     He = sort(edges2vertices(gb_sets:to_list(Htab), Etab)),
     Prop = export_sel(Mode, Sel, Etab),

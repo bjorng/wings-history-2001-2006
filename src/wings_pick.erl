@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.26 2002/01/05 21:37:01 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.27 2002/01/06 14:47:09 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -532,40 +532,37 @@ pick_all(DrawFaces, X0, Y0, W, H, #st{shapes=Shapes,selmode=Mode}=St0) ->
 marque_draw(#st{selmode=edge}=St) ->
     foreach_we(
       fun(#we{perm=Perm}) when ?IS_NOT_SELECTABLE(Perm) -> ok;
-	 (#we{vs=Vtab}=We) ->
+	 (#we{es=Etab,vs=Vtab}) ->
 	      gl:pushName(0),
-	      wings_util:fold_edge(
-		fun(Edge, #edge{vs=Va,ve=Vb}, _) ->
-			gl:loadName(Edge),
-			gl:'begin'(?GL_LINES),
-			gl:vertex3fv(pos(Va, Vtab)),
-			gl:vertex3fv(pos(Vb, Vtab)),
-			gl:'end'()
-		end, [], We),
+	      foreach(fun({Edge,#edge{vs=Va,ve=Vb}}) ->
+			      gl:loadName(Edge),
+			      gl:'begin'(?GL_LINES),
+			      gl:vertex3fv(pos(Va, Vtab)),
+			      gl:vertex3fv(pos(Vb, Vtab)),
+			      gl:'end'()
+		      end, gb_trees:to_list(Etab)),
 	      gl:popName()
       end, St);
 marque_draw(#st{selmode=vertex}=St) ->
     foreach_we(fun(#we{perm=Perm}) when ?IS_NOT_SELECTABLE(Perm) -> ok;
-		  (We) ->
+		  (#we{vs=Vtab}) ->
 		       gl:pushName(0),
-		       wings_util:fold_vertex(
-			 fun(V, #vtx{pos=Pos}, _) ->
-				 gl:loadName(V),
-				 gl:'begin'(?GL_POINTS),
-				 gl:vertex3fv(Pos),
-				 gl:'end'()
-			 end, [], We),
+		       foreach(fun({V,#vtx{pos=Pos}}) ->
+				       gl:loadName(V),
+				       gl:'begin'(?GL_POINTS),
+				       gl:vertex3fv(Pos),
+				       gl:'end'()
+			       end, gb_trees:to_list(Vtab)),
 		       gl:popName()
 	       end, St);
 marque_draw(St) ->
     foreach_we(fun(#we{perm=Perm}) when ?IS_NOT_SELECTABLE(Perm) -> ok;
-		  (We) ->
+		  (#we{fs=Ftab}=We) ->
 		       gl:pushName(0),
-		       wings_util:fold_face(
-			 fun(Face, #face{edge=Edge}, _) ->
-				 gl:loadName(Face),
-				 draw_face(Face, Edge, We)
-			 end, [], We),
+		       foreach(fun({Face,#face{edge=Edge}}) ->
+				       gl:loadName(Face),
+				       draw_face(Face, Edge, We)
+			       end, gb_trees:to_list(Ftab)),
 		       gl:popName()
 	       end, St).
 
@@ -591,13 +588,12 @@ select_draw_0(St) ->
     end.
 
 select_draw_1(St) ->
-    foreach_we(fun(#we{perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
+    foreach_we(fun(#we{fs=Ftab,perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
 		       gl:pushName(0),
-		       wings_util:fold_face(
-			 fun(Face, #face{edge=Edge}, _) ->
-				 gl:loadName(Face),
-				 draw_face(Face, Edge, We)
-			 end, [], We),
+		       foreach(fun({Face,#face{edge=Edge}}) ->
+				       gl:loadName(Face),
+				       draw_face(Face, Edge, We)
+			       end, gb_trees:to_list(Ftab)),
 		       gl:popName();
 		  (#we{}) -> ok
 	       end, St).
