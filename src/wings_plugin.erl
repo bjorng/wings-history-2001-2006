@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.27 2003/09/09 17:17:24 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.28 2003/09/11 20:14:06 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,dialog_result/2,command/2,call_ui/1]).
@@ -41,11 +41,12 @@
 %%%
 
 init() ->
+    ets:new(wings_seen_plugins, [named_table,public,ordered_set]),
     put(wings_plugins, []),
     put(wings_ui, def_ui_plugin()),
     case try_dir(wings:root_dir(), "plugins") of
 	none -> ok;
-	PluginDir -> init(PluginDir)
+	PluginDir -> init_dir(PluginDir)
     end.
 
 call_ui(What) ->
@@ -123,44 +124,40 @@ command([], _Cmd, _St) -> next.
 %%% Local functions.
 %%%
 
-init(Dir) ->
-    {Pas,Beams} = list_dir(Dir),
-    foreach(fun(Pa) -> code:add_patha(Pa) end, Pas),
-    TypeMods0 = to_modules(Beams),
-    TypeMods = reverse(sort(load_modules(TypeMods0))),
-    Plugins = init_plugins(TypeMods),
-    put(wings_plugins, reverse(Plugins)).
+init_dir(Dir) ->
+    TypeMods = reverse(sort(list_dir(Dir))),
+    init_plugins(TypeMods).
 
-init_plugins([{user_interface,M}|T]) ->
+init_plugins([{Type,M}|T]) ->
+    case ets:member(wings_seen_plugins, M) of
+	false ->
+	    init_plugin(Type, M),
+	    ets:insert(wings_seen_plugins, {M});
+	true -> ok
+    end,
+    init_plugins(T);
+init_plugins([]) -> ok.
+
+init_plugin(user_interface, M) ->
     Ui0 = get(wings_ui),
     case catch M:init(Ui0) of
 	Ui when is_function(Ui) ->
 	    put(wings_ui, Ui);
 	Other ->
 	    io:format("~w:init/1 bad return value: ~P\n", [M,Other,20])
-    end,
-    init_plugins(T);
-init_plugins([{font,M}|T]) ->
-    wings_text:font_module(M),
-    init_plugins(T);
-init_plugins([{_Type,M}|T]) ->
-    case catch M:init() of
-	true -> [M|init_plugins(T)];
-	false -> init_plugins(T);
-	Other ->
-	    io:format("~w:init/0 bad return value: ~P\n", [M,Other,20]),
-	    init_plugins(T)
     end;
-init_plugins([]) -> [].
+init_plugin(font, M) ->
+    wings_text:font_module(M);
+init_plugin(_, M) ->
+    case catch M:init() of
+	true ->
+	    put(wings_plugins, [M|get(wings_plugins)]);
+	false ->
+	    ok;
+	Other ->
+	    io:format("~w:init/0 bad return value: ~P\n", [M,Other,20])
+    end.
     
-load_modules(TypeMods) ->
-    foldl(fun({_,Mod}=TypeMod, A) ->
-		  case c:l(Mod) of
-		      {module,Mod} -> [TypeMod|A];
-		      _Error -> A
-		  end
-	  end, [], TypeMods).
-
 def_ui_plugin() ->
     fun(Missing) ->
 	    Msg = io_lib:format("Reinstall Wings. "
@@ -178,26 +175,38 @@ try_dir(Base, Dir0) ->
     end.
 
 list_dir(Dir) ->
-    list_dir([Dir], [], []).
+    list_dir([Dir], []).
 
-list_dir([Dir|Dirs0], Pas, Beams0) ->
+list_dir([Dir|Dirs0], Beams0) ->
     case file:list_dir(Dir) of
 	{ok,List} ->
 	    case list_dir_1(List, Dir, Dirs0, Beams0) of
-		{Dirs,Beams0} -> list_dir(Dirs, Pas, Beams0);
-		{Dirs,Beams} -> list_dir(Dirs, [Dir|Pas], Beams)
+		{Dirs,Beams0} ->
+		    %% No new beam files found in this directory.
+		    list_dir(Dirs, Beams0);
+		{Dirs,Beams} ->
+		    %% Beam files found here -- include directory in code path.
+		    code:add_patha(Dir),
+		    list_dir(Dirs, Beams)
 	    end;
-	{error,_} -> list_dir(Dirs0, Pas, Beams0)
+	{error,_} -> list_dir(Dirs0, Beams0)
     end;
-list_dir([], Pas, Beams) -> {Pas,Beams}.
+list_dir([], Beams) -> Beams.
 
-list_dir_1(["~"++_|Ns], Dir0, Dirs, Beams) ->
+list_dir_1(["~"++_|Ns], Dir, Dirs, Beams) ->
     %% We skip any file or directory starting with a "~".
-    list_dir_1(Ns, Dir0, Dirs, Beams);
-list_dir_1([[$w,$p,_,$_|_]=N|Ns], Dir0, Dirs, Beams) ->
+    list_dir_1(Ns, Dir, Dirs, Beams);
+list_dir_1([[$w,$p,Type0,$_|_]=N|Ns], Dir, Dirs, Beams) ->
     case filename:extension(N) of
-	".beam" -> list_dir_1(Ns, Dir0, Dirs, [N|Beams]);
-	_ -> list_dir_1(Ns, Dir0, Dirs, Beams)
+	".beam" ->
+	    case convert_type(Type0) of
+		undefined ->
+		    list_dir_1(Ns, Dir, Dirs, Beams);
+		Type ->
+		    Mod = list_to_atom(filename:rootname(N)),
+		    list_dir_1(Ns, Dir, Dirs, [{Type,Mod}|Beams])
+	    end;
+	_ -> list_dir_1(Ns, Dir, Dirs, Beams)
     end;
 list_dir_1([N|Ns], Dir0, Dirs, Beams) ->
     case try_dir(Dir0, N) of
@@ -206,16 +215,6 @@ list_dir_1([N|Ns], Dir0, Dirs, Beams) ->
     end;
 list_dir_1([], _Dir, Dirs, Beams) -> {Dirs,Beams}.
     
-to_modules([[_,_,Type0|_]=Beam|T]) ->
-    case convert_type(Type0) of
-	undefined ->
-	    to_modules(T);
-	Type ->
-	    Mod = list_to_atom(filename:rootname(Beam)),
-	    [{Type,Mod}|to_modules(T)]
-    end;
-to_modules([]) -> [].
-
 convert_type($c) -> command;
 convert_type($f) -> font;
 convert_type($8) -> user_interface;
@@ -252,7 +251,8 @@ install(Name) ->
     case install_file_type(Name) of
 	beam -> install_beam(Name);
 	tar -> install_tar(Name)
-    end.
+    end,
+    init_dir(plugin_dir()).
 
 install_file_type(Name) ->
     case filename:extension(Name) of
