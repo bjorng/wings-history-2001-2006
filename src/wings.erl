@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.185 2003/01/03 07:46:51 bjorng Exp $
+%%     $Id: wings.erl,v 1.186 2003/01/04 16:33:53 bjorng Exp $
 %%
 
 -module(wings).
@@ -371,7 +371,8 @@ command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> ok;
-	Cmd when tuple(Cmd) -> wings_io:putback_event({action,Cmd})
+	Cmd when tuple(Cmd) ->
+	    wings_wm:send(geom, {action,Cmd})
     end,
     St;
 command({edit,repeat}, St) -> St;
@@ -382,9 +383,10 @@ command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,args=Args}=St) ->
 	Cmd when tuple(Cmd) ->
 	    case Args of
 		none -> ok;
-		_Other -> wings_io:putback_event({drag_arguments,Args})
+		_Other ->
+		    wings_wm:send(geom, {drag_arguments,Args})
 	    end,
-	    wings_io:putback_event({action,Cmd})
+	    wings_wm:send(geom, {action,Cmd})
     end,
     St;
 command({edit,repeat_drag}, St) -> St;
@@ -734,7 +736,7 @@ use_command(?SDL_RELEASED, N, #st{selmode=Mode,def=DefCmd}) ->
     case repeatable(Mode, element(N, DefCmd)) of
 	no -> keep;
 	Cmd when tuple(Cmd) ->
-	    wings_io:putback_event({action,Cmd}),
+	    wings_wm:send(geom, {action,Cmd}),
 	    keep
     end;
 use_command(_, _, _) -> keep.
