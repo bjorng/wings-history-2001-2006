@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.25 2002/03/04 19:32:58 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.26 2002/03/08 13:20:59 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -63,6 +63,8 @@ command({auto_smooth,Ask}, St) ->
     auto_smooth(Ask, St);
 command({flip,Plane}, St) ->
     {save_state,model_changed(flip(Plane, St))};
+command(cleanup, St) ->
+    cleanup(false, St);
 command({cleanup,Ask}, St) ->
     cleanup(Ask, St);
 command(collapse, St) ->
