@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.90 2003/01/21 09:52:52 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.91 2003/01/23 05:56:41 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -321,13 +321,17 @@ get_event(Tim) ->
 
 -record(sm,
 	{st,					%State
-	 edges=true,				%Show edges: true|false
+	 edge_style=none,		        %Edge style: none|cool|plain
 	 cage=true}).				%Show cage: true|false
 
 smoothed_preview(St) ->
-    Edges = wings_pref:get_value(smoothed_preview_edges),
+    EdgeStyle = case wings_pref:get_value(smoothed_preview_edges) of
+		    false -> none;
+		    true -> plain;
+		    Other -> Other
+		end,
     Cage = wings_pref:get_value(smoothed_preview_cage),
-    Sm = #sm{st=St,edges=Edges,cage=Cage},
+    Sm = #sm{st=St,edge_style=EdgeStyle,cage=Cage},
     smooth_help(Sm),
     smooth_dlist(St),
     wings_wm:dirty(),
@@ -336,7 +340,7 @@ smoothed_preview(St) ->
 		      end),
     {seq,push,get_smooth_event(Sm)}.
 
-smooth_help(#sm{edges=Edges,cage=Cage}) ->
+smooth_help(#sm{edge_style=EdgeStyle,cage=Cage}) ->
     Help = ["[L] Normal Mode ",wings_camera:help(),
 	    "  [W] ",
 	    case Cage of
@@ -344,9 +348,10 @@ smooth_help(#sm{edges=Edges,cage=Cage}) ->
 		true -> "Hide cage"
 	    end,
 	    "  [E] ",
-	    case Edges of
-		false -> "Show edges";
-		true -> "Hide edges"
+	    case EdgeStyle of
+		none -> "Show all edges";
+		plain -> "Show some edges";
+		cool -> "Hide edges"
 	    end],
     wings_wm:message(Help).
     
@@ -367,11 +372,15 @@ smooth_event_1(#mousemotion{}, _) -> keep;
 smooth_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
 smooth_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, _) ->
     smooth_exit();
-smooth_event_1(#keyboard{keysym=#keysym{unicode=$e}}, #sm{edges=Edges0}=Sm) ->
+smooth_event_1(#keyboard{keysym=#keysym{unicode=$e}}, #sm{edge_style=Estyle0}=Sm) ->
     wings_wm:dirty(),
-    Edges = not Edges0,
-    wings_pref:set_value(smoothed_preview_edges, Edges),
-    get_smooth_event(Sm#sm{edges=Edges});
+    Estyle = case Estyle0 of
+		 none -> plain;
+		 plain -> cool;
+		 cool -> none
+	     end,
+    wings_pref:set_value(smoothed_preview_edges, Estyle),
+    get_smooth_event(Sm#sm{edge_style=Estyle});
 smooth_event_1(#keyboard{keysym=#keysym{unicode=$w}}, #sm{cage=Cage0}=Sm) ->
     wings_wm:dirty(),
     Cage = not Cage0,
@@ -434,7 +443,9 @@ smooth_dlist(#dlo{src_we=#we{light=L}}=D, _) when L =/= none -> {D,[]};
 smooth_dlist(#dlo{smoothed=none,src_we=We0}=D, St) ->
     #we{es=Etab,vp=Vtab} = We = wings_subdiv:smooth(We0),
     {List,Tr} = wings_draw:smooth_dlist(We, St),
-    Edges = gl:genLists(1),
+
+    Edges = gl:genLists(2),
+    CoolEdges = Edges+1,
     gl:newList(Edges, ?GL_COMPILE),
     gl:'begin'(?GL_LINES),
     foreach(fun(#edge{vs=Va,ve=Vb}) ->
@@ -443,8 +454,23 @@ smooth_dlist(#dlo{smoothed=none,src_we=We0}=D, St) ->
 	    end, gb_trees:values(Etab)),
     gl:'end'(),
     gl:endList(),
-    {D#dlo{smoothed=[List,Edges],transparent=Tr},[]};
+
+    gl:newList(CoolEdges, ?GL_COMPILE),
+    gl:'begin'(?GL_LINES),
+    foreach(fun(Edge) ->
+		    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+		    gl:vertex3fv(gb_trees:get(Va, Vtab)),
+		    gl:vertex3fv(gb_trees:get(Vb, Vtab))
+	    end, smooth_cool_edges(We0, We)),
+    gl:'end'(),
+    gl:endList(),
+    
+    {D#dlo{smoothed=[List,Edges,CoolEdges],transparent=Tr},[]};
 smooth_dlist(D, _) -> {D,[]}.
+
+smooth_cool_edges(#we{vp=Vtab}, We) ->
+    Vs = gb_trees:keys(Vtab),
+    wings_edge:from_vs(Vs, We).
 
 smooth_redraw(Sm) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
@@ -476,7 +502,7 @@ smooth_redraw(_, _, _) -> ok.
 
 smooth_redraw_1(#dlo{src_we=#we{light=L}}, _Sm, _RenderTrans) when L =/= none ->
     ok;
-smooth_redraw_1(#dlo{smoothed=[Dlist,Es],transparent=Trans}=D, Sm, RenderTrans) ->
+smooth_redraw_1(#dlo{smoothed=[Dlist,Es,Cool],transparent=Trans}=D, Sm, RenderTrans) ->
     ?CHECK_ERROR(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:shadeModel(?GL_SMOOTH),
@@ -515,7 +541,7 @@ smooth_redraw_1(#dlo{smoothed=[Dlist,Es],transparent=Trans}=D, Sm, RenderTrans) 
     ?CHECK_ERROR(),
     gl:depthMask(?GL_TRUE),
     smooth_cage(D, Sm),
-    smooth_edges(Es, RenderTrans, Sm).
+    smooth_edges(Es, Cool, RenderTrans, Sm).
 
 smooth_cage(_, #sm{cage=false}) -> ok;
 smooth_cage(#dlo{work=Work}, #sm{cage=true}) ->
@@ -527,13 +553,18 @@ smooth_cage(#dlo{work=Work}, #sm{cage=true}) ->
     gl:color3f(0, 0, 1),
     wings_draw_util:call(Work).
 
-smooth_edges(_, true, _) -> ok;
-smooth_edges(_, false, #sm{edges=false}) -> ok;
-smooth_edges(Dlist, false, #sm{edges=true}) ->
+smooth_edges(_, _, true, _) -> ok;
+smooth_edges(_, _, false, #sm{edge_style=none}) -> ok;
+smooth_edges(Plain, _Cool, false, #sm{edge_style=plain}) ->
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:color3f(1, 1, 1),
-    wings_draw_util:call(Dlist).
+    wings_draw_util:call(Plain);
+smooth_edges(_Plain, Cool, false, #sm{edge_style=cool}) ->
+    gl:disable(?GL_LIGHTING),
+    gl:shadeModel(?GL_FLAT),
+    gl:color3f(1, 1, 1),
+    wings_draw_util:call(Cool).
 
 %%%
 %%% Other stuff.

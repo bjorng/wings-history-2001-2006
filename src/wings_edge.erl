@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.57 2003/01/22 07:06:45 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.58 2003/01/23 05:56:41 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -19,6 +19,7 @@
 %% Utilities.
 -export([convert_selection/1,
 	 select_more/1,select_more/2,
+	 from_vs/2,
 	 select_region/1,select_edge_ring/1,
  	 cut/3,fast_cut/3,
  	 dissolve_edges/2,dissolve_edge/2,
@@ -134,13 +135,15 @@ convert_selection(#st{selmode=edge}=St) ->
 convert_selection(#st{selmode=vertex}=St) ->
     wings_sel:convert_shape(fun(Vs, We) -> from_vs(Vs, We) end, edge, St).
 
+from_vs(Vs, We) when is_list(Vs) ->
+    from_vs(Vs, We, []);
 from_vs(Vs, We) ->
-    from_vs(gb_sets:to_list(Vs), We, []).
+    gb_sets:from_list(from_vs(gb_sets:to_list(Vs), We, [])).
 
 from_vs([V|Vs], We, Acc0) ->
     Acc = wings_vertex:fold(fun(E, _, _, A) -> [E|A] end, Acc0, V, We),
     from_vs(Vs, We, Acc);
-from_vs([], _, Acc) -> gb_sets:from_list(Acc).
+from_vs([], _, Acc) -> Acc.
 
 %%% Select more or less.
 
