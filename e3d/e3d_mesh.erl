@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.42 2004/10/07 08:32:01 dgud Exp $
+%%     $Id: e3d_mesh.erl,v 1.43 2004/10/09 05:52:17 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -24,7 +24,7 @@
 
 -include("e3d.hrl").
 -import(lists, [foreach/2,sort/1,reverse/1,reverse/2,seq/2,
-		foldl/3,filter/2,mapfoldl/3,mapfoldr/3,last/1]).
+		foldl/3,filter/2,mapfoldl/3,mapfoldr/3,last/1,zip/2]).
 
 %% orient_normals(Mesh0) -> Mesh
 %%  Orient the face normals consistently.
@@ -830,10 +830,6 @@ number_faces(Fs) ->
 number_faces([F|Fs], Face, Acc) ->
     number_faces(Fs, Face+1, [{Face,F}|Acc]);
 number_faces([], _Face, Acc) -> reverse(Acc).
-
-zip([V|Vs], [UV|UVs]) ->
-    [{V,UV}|zip(Vs, UVs)];
-zip([], []) -> [].
 
 gb_trees_increment(Key, Inc, Gt) ->
     case gb_trees:lookup(Key, Gt) of
