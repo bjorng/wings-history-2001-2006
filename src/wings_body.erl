@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.51 2003/02/16 14:06:11 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.52 2003/03/17 20:41:28 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -139,7 +139,10 @@ cleanup(Ask, _) when is_atom(Ask) ->
 		     [{vframe,Qs}],
 		     fun(Res) -> {body,{cleanup,Res}} end);
 cleanup(Opts, St0) ->
-    St = wings_sel:map(fun(_, We) -> cleanup_1(Opts, We) end, St0),
+    St = wings_sel:map(fun(_, We0) ->
+			       We = cleanup_waists(We0),
+			       cleanup_1(Opts, We)
+		       end, St0),
     {save_state,St}.
 
 cleanup_1([{short_edges,Flag},Tolerance|Opts], We0) ->
@@ -179,6 +182,49 @@ clean_short_edges(Tolerance, #we{es=Etab,vp=Vtab}=We) ->
 		      false -> W
 		  end
 	  end, We, Short).
+
+%%
+%% A waist is a vertex shared by edges all of which cannot be
+%% reached from the incident edge of the vertex.
+%%
+cleanup_waists(#we{es=Etab,vp=Vtab}=We) ->
+    VsEs0 = foldl(fun({E,#edge{vs=Va,ve=Vb}}, A) ->
+			  [{Va,E},{Vb,E}|A]
+		  end, [], gb_trees:to_list(Etab)),
+    VsEs = wings_util:rel2fam(VsEs0),
+    cleanup_waists_1(gb_trees:keys(Vtab), VsEs, We).
+
+cleanup_waists_1([V|Vs], [{V,AllEs}|VsEs], #we{es=Etab0,vp=Vtab0,vc=Vct0}=We0) ->
+    Es0 = wings_vertex:fold(fun(E, _, _, A) -> [E|A] end, [], V, We0),
+    case ordsets:subtract(AllEs, ordsets:from_list(Es0)) of
+	[] ->					%Good.
+	    cleanup_waists_1(Vs, VsEs, We0);
+	[AnEdge|_]=Es ->
+	    %% Some edges cannot be reached from the incident edge.
+	    %% Repair by duplicating the original vertex.
+	    {NewV,We1} = wings_we:new_id(We0),
+	    Etab = patch_vtx_refs(Es, V, NewV, Etab0),
+	    Vtab = gb_trees:insert(NewV, gb_trees:get(V, Vtab0), Vtab0),
+	    Vct = gb_trees:insert(NewV, AnEdge, Vct0),
+	    We = We1#we{es=Etab,vp=Vtab,vc=Vct},
+	    io:format("Removed waist vertex: ~p\n", [V]),
+
+	    %% Re-process the newly added vertex. (Some of the
+	    %% edges may not be reachable from the incident of
+	    %% the new vertex.)
+	    cleanup_waists_1([NewV|Vs], [{NewV,Es}|VsEs], We)
+    end;
+cleanup_waists_1([], [], We) -> We.
+
+patch_vtx_refs([E|Es], OldV, NewV, Etab0) ->
+    Etab = case gb_trees:get(E, Etab0) of
+	       #edge{vs=OldV}=Rec ->
+		   gb_trees:update(E, Rec#edge{vs=NewV}, Etab0);
+	       #edge{ve=OldV}=Rec ->
+		   gb_trees:update(E, Rec#edge{ve=NewV}, Etab0)
+	   end,
+    patch_vtx_refs(Es, OldV, NewV, Etab);
+patch_vtx_refs([], _, _, Etab) -> Etab.
 
 %%%
 %%% The Invert command.
