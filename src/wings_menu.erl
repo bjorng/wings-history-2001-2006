@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.80 2003/01/25 09:05:24 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.81 2003/01/26 19:18:42 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -299,7 +299,7 @@ button_pressed(_, _) -> keep.
 button_pressed(Button, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
     clear_timer(Mi0),
     Mi = update_highlight(X, Y, Mi0),
-    case selected_item(X, Y, Mi) of
+    case selected_item(Y, Mi) of
 	none -> get_menu_event(Mi);
 	Item when integer(Item) ->
 	    case element(Item, Menu) of
@@ -456,7 +456,7 @@ redraw(Mi) ->
     Mi.
 
 update_highlight(X, Y, #mi{menu=Menu,sel=OldSel,sel_side=OldSide,w=W}=Mi0) ->
-    case selected_item(X, Y, Mi0) of
+    case selected_item(Y, Mi0) of
 	OldSel when is_integer(OldSel) ->
 	    Ps = element(5, element(OldSel, Menu)),
 	    RightWidth = right_width(Ps),
@@ -499,26 +499,49 @@ check_option_box(Act, X, Ps, Mi) ->
 hit_right(X, #mi{w=W}) ->
     X >= W-3*?CHAR_WIDTH.
     
-selected_item(X0, Y0, #mi{ymarg=Margin,w=W,h=H}=Mi) ->
+selected_item(Y, #mi{adv=Adv,ymarg=Margin,h=H,menu=Menu}=Mi) ->
+    %% The tests are simplified because we now that the mouse cursor
+    %% must be over the menu window.
     if
-	0 =< X0, X0 < W,
-	Margin =< Y0, Y0 < H+Margin ->
-	    selected_item_1(Y0-Margin, Mi);
-	0 =< X0, X0 < W, -2 =< Y0, Y0 < H+2*Margin -> none;
-	true -> none
+	Margin =< Y, Y < H+Margin ->
+	    %% Clearly inside the menu area.
+	    selected_item_1(Y-Margin, Mi);
+	Y < Margin ->
+	    %% Above upper margin. If advanced menus, it is safe
+	    %% to count that as if the mouse is over the first row.
+	    %% (The menu doesn't popup until the RMB has been released,
+	    %% unlike the basic menus.)
+	    if
+		Adv -> selected_item_1(0, Mi);
+		true -> none
+	    end;
+	true ->
+	    %% Below the lower margin. Pretend that the cursor is over the
+	    %% last row (we assume that it cannot be inactive text
+	    %% or a separator).
+	    size(Menu)
     end.
 
-selected_item_1(Y, #mi{hs=Hs,menu=Menu}) ->
-    selected_item_1(Y, 1, Hs, Menu).
-selected_item_1(Y0, I, [H|Hs], Menu) ->
+selected_item_1(Y, #mi{hs=Hs}=Mi) ->
+    selected_item_1(Y, 1, Hs, Mi).
+
+selected_item_1(Y0, I, [H|Hs], #mi{sel=OldSel,menu=Menu}=Mi) ->
     case Y0 - H of
 	Y when Y =< 0 ->
 	    case element(I, Menu) of
-		separator -> none;
-		{_Text,ignore,_,_,_} -> none;
+		separator ->
+		    if
+			OldSel =:= I-1; OldSel =:= I+1 -> OldSel;
+			true -> none
+		    end;
+		{_Text,ignore,_,_,_} ->
+		    if
+			I-1 =< OldSel, OldSel =< I+2-> OldSel;
+			true -> none
+		    end;
 		_Other -> I
 	    end;
-	Y -> selected_item_1(Y, I+1, Hs, Menu)
+	Y -> selected_item_1(Y, I+1, Hs, Mi)
     end.
 	    
 is_submenu(_I, #mi{adv=true}) -> false;
