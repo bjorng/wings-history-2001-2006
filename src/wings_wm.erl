@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.40 2002/12/29 20:16:01 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.41 2002/12/29 20:29:14 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -984,6 +984,10 @@ get_ctrl_event(Cs) ->
 		     
 ctrl_event(redraw, Cs) ->
     ctrl_redraw(Cs);
+ctrl_event(#mousebutton{button=1,state=?SDL_PRESSED},
+	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
+    grab_focus(Focus),
+    get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Cs) ->
     Focus = focus_window(),
     grab_focus(get(wm_active)),
@@ -1003,6 +1007,10 @@ ctrl_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
     put_window_data(Client, ClientData#win{x=X,y=Y+?LINE_HEIGHT+2}),
     wings_wm:dirty(),
     get_ctrl_event(Cs#ctrl{prev={X,Y}});
+ctrl_event(#mousemotion{state=?SDL_RELEASED},
+	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
+    grab_focus(Focus),
+    get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(_, _) -> keep.
 
 ctrl_redraw(#ctrl{title=Title}) ->
