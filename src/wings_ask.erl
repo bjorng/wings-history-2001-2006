@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.89 2003/08/04 05:44:53 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.90 2003/08/06 09:06:27 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1035,7 +1035,7 @@ col_event(_Ev, _Fi, Col, Common) -> {Col,Common}.
 replace_rgb({_,_,_}, {_,_,_}=RGB) -> RGB;
 replace_rgb({_,_,_}, {R,G,B,_}) -> {R,G,B};
 replace_rgb({_,_,_,_}, {_,_,_,_}=RGB) -> RGB;
-replace_rgb({_,_,_,A}, {R,G,B,_}) -> wings_color:share({R,G,B,A}).
+replace_rgb({_,_,_,A}, {R,G,B}) -> {R,G,B,A}.
 
 col_draw(Active, #fi{key=Key,x=X,y=Y0}, _, Common) ->
     Color = gb_trees:get(Key, Common),
