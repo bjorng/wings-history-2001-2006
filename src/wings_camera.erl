@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.83 2003/10/11 13:40:58 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.84 2003/10/12 06:10:22 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -128,7 +128,7 @@ help() ->
     end.
 
 format([{Mod,But,Msg}|T]) ->
-    [mod_format(Mod, But, Msg),?SEP|format(T)];
+    join_msg(mod_format(Mod, But, Msg), format(T));
 format([]) -> [].
 
 mod_format(Mod, 1, Msg) ->
