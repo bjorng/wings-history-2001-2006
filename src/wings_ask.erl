@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.22 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.23 2002/07/14 14:56:01 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -89,7 +89,7 @@ do_dialog(Qs, Level, Fun) ->
     S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level},
     Op = {seq,{push,dummy},get_event(S)},
     Name = {dialog,Level},
-    wings_wm:new(Name, {trunc(X),trunc(Y),10}, {W,H}, Op),
+    wings_wm:new(Name, {trunc(X),trunc(Y),100+Level}, {W,H}, Op),
     wings_wm:set_active(Name),
     wings_wm:dirty(),
     keep.
