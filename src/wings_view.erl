@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.59 2002/05/16 07:10:51 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.60 2002/05/16 10:32:38 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -312,16 +312,19 @@ smooth_event_1(#mousemotion{}, _) -> keep;
 smooth_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
 smooth_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, _) ->
     smooth_exit();
-smooth_event_1(#keyboard{}=Kb, #sm{st=St}=Sm) ->
+smooth_event_1(#keyboard{}=Kb, #sm{wire=Wire,st=St}=Sm) ->
     case wings_hotkey:event(Kb) of
 	{view,workmode} ->
 	    smooth_exit();
 	{view,smoothed_preview} ->
 	    smooth_exit();
- 	{view,wireframe_selected} ->
+ 	{view,toggle_wireframe} ->
+ 	    wings_wm:dirty(),
+	    get_smooth_event(Sm#sm{wire=not Wire});
+ 	{view,wireframe} ->
  	    wings_wm:dirty(),
 	    get_smooth_event(Sm#sm{wire=true});
- 	{view,shade_selected} ->
+ 	{view,shade} ->
  	    wings_wm:dirty(),
 	    get_smooth_event(Sm#sm{wire=false});
 	{view,{along,_Axis}=Cmd} ->
@@ -531,6 +534,7 @@ frame(#st{sel=[],shapes=Shs}) ->
 frame(St) ->
     frame_1(wings_sel:bounding_box(St)).
 
+frame_1(none) -> ok;
 frame_1(BB) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     C = e3d_vec:average(BB),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.80 2002/05/15 11:42:38 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.81 2002/05/16 10:32:38 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -363,8 +363,13 @@ draw_plain_faces([], _We) -> ok.
 %%% Smooth drawing.
 %%%
 
-smooth_faces(We, #st{mat=Mtab}) ->
+smooth_faces(#we{mirror=none}=We, #st{mat=Mtab}) ->
     Flist = wings_we:normals(We),
+    smooth_faces(Flist, We, Mtab);
+smooth_faces(#we{he=Htab0,mirror=Face}=We, #st{mat=Mtab}) ->
+    Edges = wings_face:outer_edges([Face], We),
+    Htab = gb_sets:union(Htab0, gb_sets:from_list(Edges)),
+    Flist = wings_we:normals(We#we{he=Htab}),
     smooth_faces(Flist, We, Mtab).
 
 smooth_faces(Faces, #we{mode=vertex}, _Mtab) ->
