@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.327 2004/12/16 20:05:07 bjorng Exp $
+%%     $Id: wings.erl,v 1.328 2004/12/18 10:36:33 bjorng Exp $
 %%
 
 -module(wings).
@@ -593,9 +593,6 @@ command({window,palette}, St) ->
 command({window,console}, _St) ->
     wings_console:window(),
     keep;
-command({window,uv_editor_window}, St) ->
-    wpc_autouv:window(St),
-    keep;
 
 %% Body menu.
 command({body,Cmd}, St) ->
@@ -750,10 +747,7 @@ window_menu(_) ->
      {?__(6,"Palette"), palette,?__(7,"Open the color palette window")},
      separator,
      {?__(8,"New Geometry Window"),geom_viewer, ?__(9,"Open a new Geometry window")},
-     {?__(10,"Console"),console,?__(11,"Open a console window for information messages")},
-     separator,
-     {?__(12,"UV Editor Window"),uv_editor_window,
-      ?__(13,"Open a UV Editor window for each selected object")}].
+     {?__(10,"Console"),console,?__(11,"Open a console window for information messages")}].
 
 patches() ->
     case wings_start:get_patches() of
@@ -1110,9 +1104,9 @@ handle_drop_1({material,Name}, X, Y, #st{selmode=face}) ->
     wings_menu:popup_menu(X, Y, drop, Menu);
 handle_drop_1({material,Name}, X, Y, _) ->
     Menu = [{ ?__(9,"Assign material to all faces"),
-	     menu_cmd(assign_to_body, Name),
+	      menu_cmd(assign_to_body, Name),
 	      ?__(10,"Assign material \"")++Name++
-	     ?__(11,"\" to all faces in objects having a selection")}],
+	      ?__(11,"\" to all faces in objects having a selection")}],
     wings_menu:popup_menu(X, Y, drop, Menu).
     
 menu_cmd(Cmd, Id) ->

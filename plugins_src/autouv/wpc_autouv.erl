@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.275 2004/12/16 20:04:47 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.276 2004/12/18 10:36:20 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -20,7 +20,7 @@
 -include("e3d_image.hrl").
 -include("auv.hrl").
  
--export([init/0,menu/2,command/2,redraw/1,window/1]).
+-export([init/0,menu/2,command/2,redraw/1]).
 
 -import(lists, [sort/1,keysort/2,map/2,foldl/3,reverse/1,
 		append/1,delete/2,usort/1,max/1,min/1,
@@ -55,7 +55,10 @@ menu({face}, Menu) ->
 		      "Generate UV mapping or texture"}
 		    ]
     end;
-
+menu({window}, Menu) ->
+    Menu ++ [separator,
+	     {"UV Editor Window",uv_editor_window,
+	     "Open a UV Editor window for each selected object"}];
 menu(_Dbg, Menu) ->
     Menu.
 
@@ -63,6 +66,8 @@ command({body,?MODULE}, St) ->
     start_uvmap(segment, St);
 command({face,?MODULE}, St) ->
     start_uvmap(segment, St);
+command({window,uv_editor_window}, St) ->
+    window(St);
 command(_, _) -> next.
 
 window(St) ->
