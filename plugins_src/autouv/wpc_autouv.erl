@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.272 2004/11/17 15:28:16 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.273 2004/11/21 07:52:27 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -556,9 +556,15 @@ handle_event_3(got_focus, _) ->
     Msg3 = wings_util:button_format([], [], "Show menu"),
     FreeMod = wings_camera:free_lmb_modifier(),
     ModName = wings_camera:mod_name(FreeMod),
-    Msg4 = [ModName,$+,wings_util:button_format("Move selected")],
+    Move0 = "Move selected",
+    Move = if
+	       (FreeMod band ?CTRL_BITS) =/= 0 ->
+		   [Move0," (release ",ModName," after clicking L)"];
+	       true -> Move0
+	   end,
+    Msg4 = [ModName,$+,wings_util:button_format(Move)],
     Message = wings_util:join_msg([Msg1,Msg2,Msg3,Msg4]),
-    wings_wm:message(Message),
+    wings_wm:message(Message, ""),
     wings_wm:dirty();
 handle_event_3(_Event, _) ->
     keep.
