@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.32 2003/11/04 13:00:19 dgud Exp $
+%%     $Id: e3d_mesh.erl,v 1.33 2003/11/21 10:47:46 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -303,13 +303,9 @@ vn_lookup(V, Face, VtxNormals) ->
     end.
 	    
 face_normals(Ftab, Vtab) ->
-    {Ns,_} = mapfoldl(fun(#e3d_face{vs=[A0,B0,C0|_]}, Face) ->
-			      A = element(A0+1, Vtab),
-			      B = element(B0+1, Vtab),
-			      C = element(C0+1, Vtab),
-			      {{Face,e3d_vec:normal(A, B, C)},Face+1};
-			 (_, Face) ->
-			      {{Face,e3d_vec:zero()},Face+1}
+    {Ns,_} = mapfoldl(fun(#e3d_face{vs=Vs0}, Face) ->
+			      Vs = [element(V+1, Vtab) || V <- Vs0],
+			      {{Face,e3d_vec:normal(Vs)},Face+1}
 		      end, 0, Ftab),
     gb_trees:from_orddict(Ns).
 
