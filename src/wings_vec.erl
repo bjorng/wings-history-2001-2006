@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.92 2003/10/29 15:03:21 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.93 2003/10/30 07:27:45 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -26,7 +26,6 @@
 	     is_axis=false,			%True if axis.
 	     info="",				%Info message.
 	     vec=none,				%Current vector.
-	     names=none,			%Names.
 	     cb,				%Callback
 	     mag=false				%Magnet possible or not.
 	    }).
@@ -223,26 +222,16 @@ handle_event_4({pick_init,Pick}, #ss{selmodes=Modes}=Ss0, St0) ->
     wings_wm:later({action,Pick}),
     Ss = Ss0#ss{selmodes=Modes, f=fun(_, _) -> keep end},
     get_event(Ss, St);
-handle_event_4({action,{pick,[],[Res]}}, #ss{names=none,cb=Cb}, _) ->
+handle_event_4({action,{pick,[],[Res]}}, #ss{cb=Cb}, _) ->
     pick_finish(),
     wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
     wings:clear_mode_restriction(),
     pop;
-handle_event_4({action,{pick,[],Res0}}, #ss{names=none,cb=Cb}, _) ->
+handle_event_4({action,{pick,[],Res0}}, #ss{cb=Cb}, _) ->
     pick_finish(),
     Res = list_to_tuple(reverse(Res0)),
     wings_io:putback_event({command,fun(St) -> Cb(Res, St) end}),
     wings:clear_mode_restriction(),
-    pop;
-handle_event_4({action,{pick,[],[Res]}}, #ss{names=Ns}, _) ->
-    Cmd = wings_menu:build_command(Res, Ns),
-    pick_finish(),
-    wings_io:putback_event({action,Cmd}),
-    pop;
-handle_event_4({action,{pick,[],Res}}, #ss{names=Ns}, _) ->
-    Cmd = wings_menu:build_command(list_to_tuple(reverse(Res)), Ns),
-    pick_finish(),
-    wings_io:putback_event({action,Cmd}),
     pop;
 handle_event_4({action,{pick,[{Type,Desc}|More],Acc}}, Ss, St0) ->
     MagnetPossible = magnet_possible_now(More, Ss),
