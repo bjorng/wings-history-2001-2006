@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.228 2003/03/05 06:58:25 bjorng Exp $
+%%     $Id: wings.erl,v 1.229 2003/03/07 05:16:06 bjorng Exp $
 %%
 
 -module(wings).
@@ -232,7 +232,10 @@ redraw(St) ->
 redraw(Info, St) ->
     wings_wm:clear_background(),
     wings_draw_util:render(St),
-    wings_io:info(Info).
+    case Info =/= [] andalso wings_wm:get_prop(show_info_text) of
+	true -> wings_io:info(Info);
+	false -> ok
+    end.
 
 clean_state(St) ->
     caption(St).
@@ -635,12 +638,18 @@ patches() ->
     end.
 
 info(#st{sel=[]}) -> [];
-info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
+info(St) ->
+    case wings_wm:get_prop(show_info_text) of
+	false -> [];
+	true -> info_1(St)
+    end.
+	    
+info_1(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
     Sh = gb_trees:get(Id, Shapes),
     shape_info(Sh);
-info(#st{shapes=Shapes,selmode=body,sel=Sel}) ->
+info_1(#st{shapes=Shapes,selmode=body,sel=Sel}) ->
     shape_info(Sel, Shapes);
-info(#st{selmode=vertex,sel=[{_Id,Sel}]}=St) ->
+info_1(#st{selmode=vertex,sel=[{_Id,Sel}]}=St) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
@@ -652,7 +661,7 @@ info(#st{selmode=vertex,sel=[{_Id,Sel}]}=St) ->
 	N ->
 	    io_lib:format("~p vertices selected", [N])
     end;
-info(#st{selmode=edge,sel=[{_,Sel}]}=St) ->
+info_1(#st{selmode=edge,sel=[{_,Sel}]}=St) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
@@ -664,7 +673,7 @@ info(#st{selmode=edge,sel=[{_,Sel}]}=St) ->
 	N ->
 	    io_lib:format("~p edges selected", [N])
     end;
-info(#st{selmode=face,sel=[{_,Sel}]}=St) ->
+info_1(#st{selmode=face,sel=[{_,Sel}]}=St) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
@@ -676,7 +685,7 @@ info(#st{selmode=face,sel=[{_,Sel}]}=St) ->
 	N ->
 	    io_lib:format("~p faces selected", [N])
     end;
-info(#st{selmode=Mode,sel=Sel}=St) ->
+info_1(#st{selmode=Mode,sel=Sel}=St) ->
     On = length(Sel),
     N = foldl(fun({_,S}, A) -> A+gb_sets:size(S) end, 0, Sel),
     Str = case Mode of
@@ -912,6 +921,8 @@ save_geom_props([{show_groundplane,_}=P|T], Acc) ->
 save_geom_props([{current_view,View}|T], Acc) ->
     #view{fov=Fov,hither=Hither,yon=Yon} = View,
     save_geom_props(T, [{fov,Fov},{clipping_planes,Hither,Yon}|Acc]);
+save_geom_props([{show_info_text,_}=P|T], Acc) ->
+    save_geom_props(T, [P|Acc]);
 save_geom_props([_|T], Acc) ->
     save_geom_props(T, Acc);
 save_geom_props([], Acc) -> Acc.
@@ -978,6 +989,9 @@ set_geom_props([{show_axes,B}|T], Name) ->
     set_geom_props(T, Name);
 set_geom_props([{show_groundplane,B}|T], Name) ->
     wings_wm:set_prop(Name, show_groundplane, B),
+    set_geom_props(T, Name);
+set_geom_props([{show_info_text,B}|T], Name) ->
+    wings_wm:set_prop(Name, show_info_text, B),
     set_geom_props(T, Name);
 set_geom_props([{fov,Fov}|T], Name) ->
     View = wings_wm:get_prop(Name, current_view),

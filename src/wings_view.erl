@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.110 2003/03/06 06:17:01 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.111 2003/03/07 05:16:07 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -78,6 +78,9 @@ menu(_) ->
      {"Show Textures",show_textures,
       "Show the texture on objects in \"uv\" mode",
       crossmark(show_textures)},
+     {"Show Info Text",show_info_text,
+      "Show an informational text at the top of this Geometry window",
+      crossmark(show_info_text)},
      separator,
      {"View Along",{along,[{"+X",x},
 			   {"+Y",y},
@@ -854,7 +857,8 @@ initial_properties() ->
      {show_axes,true},
      {show_groundplane,true},
      {wireframed_objects,gb_sets:empty()},
-     {current_view,default_view()}].
+     {current_view,default_view()},
+     {show_info_text,true}].
 
 reset() ->
     reset(current()).
