@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.63 2002/11/23 20:34:32 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.64 2002/11/24 09:28:28 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -593,16 +593,16 @@ is_magnet_active({_,_,_,_,Ps}, Mi) ->
 plain_help({Text,{_,_},_,_,_}, #mi{adv=false}) ->
     %% No specific help text for submenus in basic mode.
     Help = [Text|" submenu"],
-    wings_wm:message(Help);
+    wings_wm:message(Help, "");
 plain_help({_,{Name,Fun},_,_,_}, #mi{ns=Ns,adv=Adv}) when is_function(Fun) ->
     %% "Submenu" in advanced mode.
     Help0 = Fun(help, [Name|Ns]),
     Help = help_text_1(Help0, Adv),
-    wings_wm:message(Help);
+    wings_wm:message(Help, "");
 plain_help({_,_,_,Help0,_}, #mi{adv=Adv}) ->
     %% Plain entry - not submenu.
     Help = help_text_1(Help0, Adv),
-    wings_wm:message(Help);
+    wings_wm:message(Help, "");
 plain_help(separator, _) -> ok.
 
 help_text_1([_|_]=S, false) -> S;
