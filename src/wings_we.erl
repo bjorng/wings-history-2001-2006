@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.98 2004/12/31 11:37:58 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.99 2004/12/31 15:39:34 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -161,18 +161,21 @@ visible_1(Fs) -> Fs.
 visible_2([F|Fs]) when F < 0 -> visible_2(Fs);
 visible_2(Fs) -> Fs.
 
-visible_vs(#we{vc=Vct,es=Etab}=We) ->
+visible_vs(#we{mirror=Face,vc=Vct,es=Etab}=We) ->
     case any_hidden(We) of
 	false -> gb_trees:keys(Vct);
-	true -> visible_vs_1(gb_trees:values(Etab), [])
+	true -> visible_vs_1(gb_trees:values(Etab), Face, [])
     end.
 
-visible_vs_1([#edge{lf=Lf,rf=Rf}|Es], Acc) when Lf < 0, Rf < 0 ->
-    visible_vs_1(Es, Acc);
-visible_vs_1([#edge{vs=Va,ve=Vb}|Es], Acc) ->
-    visible_vs_1(Es, [Va,Vb|Acc]);
-visible_vs_1([], Acc) ->
-    ordsets:from_list(Acc).
+visible_vs_1([#edge{lf=Mirror,rf=Rf}|Es], Mirror, Acc) when Rf < 0 ->
+    visible_vs_1(Es, Mirror, Acc);
+visible_vs_1([#edge{rf=Mirror,lf=Lf}|Es], Mirror, Acc) when Lf < 0 ->
+    visible_vs_1(Es, Mirror, Acc);
+visible_vs_1([#edge{lf=Lf,rf=Rf}|Es], Mirror, Acc) when Lf < 0, Rf < 0 ->
+    visible_vs_1(Es, Mirror, Acc);
+visible_vs_1([#edge{vs=Va,ve=Vb}|Es], Mirror, Acc) ->
+    visible_vs_1(Es, Mirror, [Va,Vb|Acc]);
+visible_vs_1([], _, Acc) -> ordsets:from_list(Acc).
 
 visible_edges(#we{es=Etab}=We) ->
     case any_hidden(We) of
