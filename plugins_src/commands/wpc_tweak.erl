@@ -4,12 +4,12 @@
 %%     Tweak mode plugin.
 %%
 %%  Copyright (c) 2001-2002 Howard Trickey,
-%%                2002-2004 Bjorn Gustavsson.
+%%                2002-2005 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.62 2005/01/26 21:53:27 dgud Exp $
+%%     $Id: wpc_tweak.erl,v 1.63 2005/01/27 05:55:39 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -365,13 +365,13 @@ help(#tweak{magnet=false}) ->
     Msg3 = wings_msg:button_format([], [], "Exit tweak mode"),
     FreeMod = wings_msg:free_lmb_modifier(),
     ModName = wings_msg:mod_name(FreeMod),
-    Msg4 = [ModName,$+,wings_msg:button_format("Along Normal")],
+    Msg4 = [ModName,$+,wings_msg:button_format("Along normal")],
     Msg = wings_msg:join([Msg1,Msg4,Msg2,Msg3]),
     wings_wm:message(Msg, "[1] Magnet On");
 help(#tweak{magnet=true,mag_type=Type}) ->
     FreeMod = wings_msg:free_lmb_modifier(),
     ModName = wings_msg:mod_name(FreeMod),
-    Norm = [ModName,$+,wings_msg:button_format("Along Normal")],
+    Norm = [ModName,$+,wings_msg:button_format("Along normal")],
     Drag = wings_msg:join(["Drag", Norm]),
     Msg = wings_msg:button_format(Drag, [], "Exit"),
     Types = help_1(Type, [{2,dome},{3,straight},{4,spike}]),
