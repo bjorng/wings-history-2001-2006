@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.3 2001/11/17 18:25:11 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.4 2001/11/19 05:46:31 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -159,7 +159,7 @@ nendo_pan(?SDLK_UP, Redraw) ->
     nendo_pan(0.0, 0.1, Redraw);
 nendo_pan(?SDLK_DOWN, Redraw) ->
     nendo_pan(0.0, -0.1, Redraw);
-nendo_pan(_, _) -> next.
+nendo_pan(_, _) -> keep.
 
 nendo_pan(Dx, Dy, Redraw) ->
     pan(Dx, Dy),
