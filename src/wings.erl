@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.55 2001/11/25 13:47:14 bjorng Exp $
+%%     $Id: wings.erl,v 1.56 2001/11/25 15:48:10 bjorng Exp $
 %%
 
 -module(wings).
@@ -304,8 +304,8 @@ command({file,Command}, St) ->
     wings_file:command(Command, St);
 
 %% Edit menu.
-command({edit,{material,Mat}}, St) ->
-    wings_material:edit(Mat, St);
+command({edit,{material,Mat}}=Cmd, St) ->
+    wings_material:command(Cmd, St);
 command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     ?ASSERT(St#st.drag == none),
@@ -335,8 +335,8 @@ command({select,more}, St) ->
     wings_sel:select_more(St);
 command({select,less}, St) ->
     wings_sel:select_less(St);
-command({select,{material,Material}}, St) ->
-    wings_face_cmd:select_material(Material, St);
+command({select,{material,Mat}}=Cmd, St) ->
+    wings_material:command(Cmd, St);
 command({select,all}, St) ->
     {save_state,wings_sel:select_all(St)};
 command({select,{all,Mode}}, St) ->
@@ -431,8 +431,8 @@ command({face,intrude}, St) ->
     wings_face_cmd:intrude(St);
 command({face,dissolve}, St) ->
     {save_state,model_changed(wings_face_cmd:dissolve(St))};
-command({face,{set_material,Mat}}, St) ->
-    {save_state,model_changed(wings_face_cmd:set_material(Mat, St))};
+command({face,{material,Mat}}=Cmd, St) ->
+    {save_state,model_changed(wings_material:command(Cmd, St))};
 command({face,bridge}, St0) ->
     case wings_face_cmd:bridge(St0) of
 	{error,Message} ->
@@ -539,7 +539,7 @@ menu(X, Y, edit, St) ->
 	    separator,
 	    {command_name(St),"d",repeat},
 	    separator,
-	    {"Material [ALPHA]",{material,materials(St)}},
+	    wings_material:sub_menu(edit, St),
 	    separator,
 	    wings_camera:sub_menu(St),
 	    {"Preferences",{preferences,wings_pref:sub_menu(St)}}},
@@ -577,7 +577,7 @@ menu(X, Y, select, St) ->
 			    {"3 edges",3},
 			    {"4 edges",4},
 			    {"5 or more edges","F5",5}}}},
-	    {"Material",{material,materials(St)}},
+	    wings_material:sub_menu(select, St),
 	    {"Random",{random,{{"10%",10},
 			       {"20%",20},
 			       {"30%",30},
@@ -744,7 +744,7 @@ face_menu(X, Y, St) ->
 	    separator,
 	    {"Smooth",smooth},
 	    separator,
-	    {"Set Material",{set_material,materials(St)}}},
+	    wings_material:sub_menu(face, St)},
     wings_menu:popup_menu(X, Y, face, Menu, St).
 body_menu(X, Y, St) ->
     Dir = {{"Free",free},
@@ -773,17 +773,6 @@ body_menu(X, Y, St) ->
 	    {"Duplicate",{duplicate,Dir}},
 	    {"Delete","Bksp",delete}},
     wings_menu:popup_menu(X, Y, body, Menu, St).
-
-materials(#st{mat=Mat0}) ->
-    L0 = map(fun(Id) ->
-		     Name = case atom_to_list(Id) of
-				[H|T] when $a =< H, H =< $z ->
-				    [H-$\s|T];
-				Name0 -> Name0
-			    end,
-		     {Name,Id}
-	     end, gb_trees:keys(Mat0)),
-    list_to_tuple(L0).
 
 directions() ->
     {{"Normal",normal},

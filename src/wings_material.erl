@@ -8,17 +8,18 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.12 2001/11/21 13:57:03 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.13 2001/11/25 15:48:11 bjorng Exp $
 %%
 
 -module(wings_material).
--export([default/0,add_materials/2,used_materials/1,apply_material/2,edit/2]).
+-export([sub_menu/2,command/2,default/0,add_materials/2,used_materials/1,
+	 apply_material/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [sort/1,foldl/3,reverse/1]).
+-import(lists, [map/2,sort/1,foldl/3,reverse/1]).
 
 %% Material record.
 -record(mat,
@@ -34,14 +35,59 @@
 	 setup					%Fun for OpenGL drawing
 	 }).
 
+sub_menu(face, St) ->
+    Mlist = material_list(St),
+    Materials = list_to_tuple([{"New",new},separator|Mlist]),
+    {"Set Material",{material,Materials}};
+sub_menu(edit, St) ->
+    {"Material [ALPHA]",{material,materials(St)}};
+sub_menu(select, St) ->
+    {"Material",{material,materials(St)}}.
+
+command({face,{material,new}}, St0) ->
+    case wings_getline:string("Material Name: ") of
+	aborted -> St0;
+	Name0 ->
+	    Name = list_to_atom(Name0),
+	    Mat = make_default({1.0,1.0,1.0}),
+	    St1 = add(Name, Mat, St0),
+	    St = edit(Name, St1),
+	    set_material(Name, St)
+    end;
+command({face,{material,Mat}}, St) ->
+    set_material(Mat, St);
+command({select,{material,Mat}}, St) ->
+    wings_sel:make(fun(Face, #we{fs=Ftab}) ->
+			   #face{mat=M} = gb_trees:get(Face, Ftab),
+			   M =:= Mat
+		   end, face, St);
+command({edit,{material,Mat}}, St) ->
+    edit(Mat, St).
+
+materials(St) ->
+    list_to_tuple(material_list(St)).
+
+material_list(#st{mat=Mat0}) ->
+    map(fun(Id) ->
+		Name = case atom_to_list(Id) of
+			   [H|T] when $a =< H, H =< $z ->
+			       [H-$\s|T];
+			   Name0 -> Name0
+		       end,
+		{Name,Id}
+	end, gb_trees:keys(Mat0)).
+
+set_material(Mat, St) ->
+    wings_sel:map(
+      fun(Face, #we{fs=Ftab0}=We) ->
+	      Rec = gb_trees:get(Face, Ftab0),
+	      Ftab = gb_trees:update(Face, Rec#face{mat=Mat}, Ftab0),
+	      We#we{mode=material,fs=Ftab}
+      end, St).
+
 default() ->
     M0 = [{default,wings_util:share(1.0, 1.0, 1.0)},
-	  {hole,wings_util:share(0.5, 0.5, 0.0)},
-	  {black,wings_util:share(0.0, 0.0, 0.0)},
-	  {red,wings_util:share(1.0, 0.0, 0.0)},
-	  {green,wings_util:share(0.0, 1.0, 0.0)},
-	  {blue,wings_util:share(0.0, 0.0, 1.0)},
-	  {white,wings_util:share(1.0, 1.0, 1.0)}],
+	  {hole,wings_util:share(0.5, 0.5, 0.0)}],
     M = [{Key,make_default(Color)} || {Key,Color} <- M0],
     gb_trees:from_orddict(sort(M)).
 

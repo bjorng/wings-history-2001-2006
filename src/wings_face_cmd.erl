@@ -8,12 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.15 2001/11/21 07:15:59 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.16 2001/11/25 15:48:11 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
--export([select_material/2,set_material/2,bevel_faces/1,
-	 extrude/2,extrude_region/2,extract_region/2,
+-export([bevel_faces/1,extrude/2,extrude_region/2,extract_region/2,
 	 inset/1,dissolve/1,smooth/1,bridge/1,
 	 intrude/1,mirror/1,flatten/2]).
 
@@ -21,28 +20,6 @@
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keysort/2,
 		keymember/3,keysearch/3,keydelete/3,
 		member/2,seq/2,last/1]).
-
-%%%
-%%% Select Material.
-%%%
-
-select_material(Mat, St) ->
-    wings_sel:make(fun(Face, #we{fs=Ftab}) ->
-			   #face{mat=M} = gb_trees:get(Face, Ftab),
-			   M =:= Mat
-		   end, face, St).
-
-%%%
-%%% The Material command.
-%%%
-
-set_material(Mat, St) ->
-    wings_sel:map(
-      fun(Face, #we{fs=Ftab0}=We) ->
-	      Rec = gb_trees:get(Face, Ftab0),
-	      Ftab = gb_trees:update(Face, Rec#face{mat=Mat}, Ftab0),
-	      We#we{mode=material,fs=Ftab}
-      end, St).
 
 %%%
 %%% Extrude, Extrude Region, and Inset commands.

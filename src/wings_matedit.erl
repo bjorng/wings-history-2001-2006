@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.7 2001/11/21 13:57:03 bjorng Exp $
+%%     $Id: wings_matedit.erl,v 1.8 2001/11/25 15:48:11 bjorng Exp $
 %%
 
 -module(wings_matedit).
@@ -42,7 +42,7 @@
 	   }). %% Windows stuff
 -record(c, {name, x, y, rgb = {1,1,1}, cx = 0, cy = 0, lscale = 1.0}).
 
--define(COLORCIRCLE_RADIE, 50).	 
+-define(COLORCIRCLE_RADIUS, 50).	 
 -define(COLORCIRCLE_STEP, 5).
 -define(COLORSELECT_HALFSZ, 2).
 -define(LSCALEX, 10).
@@ -81,14 +81,14 @@ edit(PC) when record(PC, mat) ->
     gl:loadIdentity(),
 
     NS = S#s{ambient = Amb#c{name = "Ambient", 
-			     x = ?BORDER_W+?COLORCIRCLE_RADIE, 
-			     y = S#s.h-?BORDER_H-?COLORCIRCLE_RADIE},
+			     x = ?BORDER_W+?COLORCIRCLE_RADIUS, 
+			     y = S#s.h-?BORDER_H-?COLORCIRCLE_RADIUS},
 	     diffuse = Diff#c{name = "Diffuse",
-			      x = 4 * ?BORDER_W + 3 * ?COLORCIRCLE_RADIE, 
-			      y = S#s.h-?BORDER_H-?COLORCIRCLE_RADIE},
+			      x = 4 * ?BORDER_W + 3 * ?COLORCIRCLE_RADIUS, 
+			      y = S#s.h-?BORDER_H-?COLORCIRCLE_RADIUS},
 	     specular = Spec#c{name = "Specular",
-			       x = 7 * ?BORDER_W + 5 * ?COLORCIRCLE_RADIE, 
-			       y = S#s.h-?BORDER_H-?COLORCIRCLE_RADIE},
+			       x = 7 * ?BORDER_W + 5 * ?COLORCIRCLE_RADIUS, 
+			       y = S#s.h-?BORDER_H-?COLORCIRCLE_RADIUS},
 	     transp = PC#mat.opacity,
 	     shininess = PC#mat.shininess,
 	     prev = PC
@@ -161,25 +161,25 @@ color_picker_loop(S) ->
     {AR,AG,AB} = Amb#c.rgb,
     {DR,DG,DB} = Diff#c.rgb,
     {SR,SG,SB} = Spec#c.rgb,
-    CFXStop = ?COLORCIRCLE_RADIE + ?BORDER_W + ?LSCALEHALFW,    
-    CFXLen = ?COLORCIRCLE_RADIE + CFXStop,
-    CFY1 = Amb#c.y - ?COLORCIRCLE_RADIE - ?BORDER_W,
+    CFXStop = ?COLORCIRCLE_RADIUS + ?BORDER_W + ?LSCALEHALFW,    
+    CFXLen = ?COLORCIRCLE_RADIUS + CFXStop,
+    CFY1 = Amb#c.y - ?COLORCIRCLE_RADIUS - ?BORDER_W,
     CFY2 = CFY1 - ?ButtonSzY,
-    CFCX = (CFXStop - ?COLORCIRCLE_RADIE) / 2,
+    CFCX = (CFXStop - ?COLORCIRCLE_RADIUS) / 2,
     CFCY = CFY2 + ?ButtonSzY / 2,
 
     gl:color3f(AR*Amb#c.lscale, AG*Amb#c.lscale, AB*Amb#c.lscale),
-    draw_filled_box(Amb#c.x - ?COLORCIRCLE_RADIE, Amb#c.x + CFXStop, CFY1, CFY2),
+    draw_filled_box(Amb#c.x - ?COLORCIRCLE_RADIUS, Amb#c.x + CFXStop, CFY1, CFY2),
     draw_centered_box(Amb#c.x + CFCX, CFCY, CFXLen, ?ButtonSzY, box),    
     gl:color3f(DR*Diff#c.lscale, DG*Diff#c.lscale, DB*Diff#c.lscale),
-    draw_filled_box(Diff#c.x - ?COLORCIRCLE_RADIE, Diff#c.x + CFXStop, CFY1, CFY2),
+    draw_filled_box(Diff#c.x - ?COLORCIRCLE_RADIUS, Diff#c.x + CFXStop, CFY1, CFY2),
     draw_centered_box(Diff#c.x + CFCX, CFCY, CFXLen, ?ButtonSzY, box),
     gl:color3f(SR*Spec#c.lscale, SG*Spec#c.lscale, SB*Spec#c.lscale),
-    draw_filled_box(Spec#c.x - ?COLORCIRCLE_RADIE, Spec#c.x + CFXStop, CFY1, CFY2),
+    draw_filled_box(Spec#c.x - ?COLORCIRCLE_RADIUS, Spec#c.x + CFXStop, CFY1, CFY2),
     draw_centered_box(Spec#c.x + CFCX, CFCY, CFXLen, ?ButtonSzY, box),
 
-    %% Transperancy and Shininess
-    TandSXLen = (Spec#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX - 2 * ?BORDER_W) div 2, 
+    %% Transparancy and Shininess
+    TandSXLen = (Spec#c.x + ?COLORCIRCLE_RADIUS + ?LSCALEX - 2 * ?BORDER_W) div 2, 
     TandSY    = ?BORDER_H div 2 + ?LSCALEX,
     TandSTextY = TandSY + ?BORDER_H div 2 - 3,
 
@@ -188,8 +188,8 @@ color_picker_loop(S) ->
     MaxX = STextX + TandSXLen + ?BORDER_W,
     MaxY = CFY2,
     gl:color3f(0,0,0),
-    wings_io:text_at(TTextX, TandSTextY, "Transperancy:"),
-    wings_io:text_at(STextX, TandSTextY, "Shininess: "),
+    wings_io:text_at(TTextX, TandSTextY, "Transparancy:"),
+    wings_io:text_at(STextX, TandSTextY, "Shininess:"),
 
     gl:color3f(1,1,1),
     gl:rasterPos2i(?BORDER_W, TandSY- ?LSCALEX + 1),
@@ -241,7 +241,7 @@ color_picker_loop(S) ->
     gl:color3f(0,0,0),
     center_text(CancelX0, CancelY0, "Cancel"),
     gl:color3f(0,0,0),
-    wings_io:text_at(MaxX + 5, Amb#c.y + ?COLORCIRCLE_RADIE + 4, "Material"),
+    wings_io:text_at(MaxX + 5, Amb#c.y + ?COLORCIRCLE_RADIUS + 4, "Material"),
     MVX1 = MaxX + 1,
     MVY1 = S#s.h - ?BORDER_H - 1,
     MVX2 = S#s.w - ?BORDER_W - 1,
@@ -289,8 +289,8 @@ color_picker_loop(S) ->
 	    quit ->
 		exit(normal); 
 	    {select, {X0, Y0}} when %% Color Selection
-		  Y0 >= Amb#c.y - ?COLORCIRCLE_RADIE,
-		  Y0 =< Amb#c.y + ?COLORCIRCLE_RADIE -> 		
+		  Y0 >= Amb#c.y - ?COLORCIRCLE_RADIUS,
+		  Y0 =< Amb#c.y + ?COLORCIRCLE_RADIUS -> 		
 		Selected = select_color(X0, Y0, S),
 		update_selected(X0, Y0, S#s{mouse = Selected, key = Selected});
 	    {select, {X0, Y0}} when  %% Shininess or Transparency 
@@ -318,32 +318,32 @@ update_selected(X0, Y0, S) ->
 	    S;
 	ambient ->
 	    Color = S#s.ambient,
-	    {X,Y} = scale_pos(X0,Y0,Color#c.x,Color#c.y,?COLORCIRCLE_RADIE, 1),
+	    {X,Y} = scale_pos(X0,Y0,Color#c.x,Color#c.y,?COLORCIRCLE_RADIUS, 1),
 	    NewColor = do_update_color(Color, X, Y),
 	    S#s{ambient = NewColor};
 	{ambient, darkness} ->
 	    Color = S#s.ambient,
-	    X = scale_pos(Y0, Color#c.y - ?COLORCIRCLE_RADIE, 2*?COLORCIRCLE_RADIE, 1),
+	    X = scale_pos(Y0, Color#c.y - ?COLORCIRCLE_RADIUS, 2*?COLORCIRCLE_RADIUS, 1),
 	    NewColor = do_update_color_darkness(Color, X),
 	    S#s{ambient = NewColor};
 	diffuse ->
 	    Color = S#s.diffuse,	   
-	    {X,Y} = scale_pos(X0,Y0,Color#c.x,Color#c.y,?COLORCIRCLE_RADIE, 1),
+	    {X,Y} = scale_pos(X0,Y0,Color#c.x,Color#c.y,?COLORCIRCLE_RADIUS, 1),
 	    NewColor = do_update_color(Color, X, Y),
 	    S#s{diffuse = NewColor};
 	{diffuse, darkness} ->
 	    Color = S#s.diffuse,
-	    X = scale_pos(Y0, Color#c.y - ?COLORCIRCLE_RADIE, 2*?COLORCIRCLE_RADIE, 1),
+	    X = scale_pos(Y0, Color#c.y - ?COLORCIRCLE_RADIUS, 2*?COLORCIRCLE_RADIUS, 1),
 	    NewColor = do_update_color_darkness(Color, X),
 	    S#s{diffuse = NewColor};
 	specular ->
 	    Color = S#s.specular,	   
-	    {X,Y} = scale_pos(X0,Y0,Color#c.x,Color#c.y,?COLORCIRCLE_RADIE, 1),
+	    {X,Y} = scale_pos(X0,Y0,Color#c.x,Color#c.y,?COLORCIRCLE_RADIUS, 1),
 	    NewColor = do_update_color(Color, X, Y),
 	    S#s{specular = NewColor};
 	{specular, darkness} ->
 	    Color = S#s.specular,
-	    X = scale_pos(Y0, Color#c.y - ?COLORCIRCLE_RADIE, 2*?COLORCIRCLE_RADIE, 1),
+	    X = scale_pos(Y0, Color#c.y - ?COLORCIRCLE_RADIUS, 2*?COLORCIRCLE_RADIUS, 1),
 	    NewColor = do_update_color_darkness(Color, X),
 	    S#s{specular = NewColor};
 	{transp, Xs, Size} ->
@@ -364,28 +364,28 @@ select_color(X0, Y0, S) ->
     
     if 
 	%% Ambient color selection 
-	X0 >= Amb#c.x - ?COLORCIRCLE_RADIE,
-	X0 =< Amb#c.x + ?COLORCIRCLE_RADIE ->	
-	    check_circle(X0,Y0,Amb#c.x,Amb#c.y, ?COLORCIRCLE_RADIE, ambient);
+	X0 >= Amb#c.x - ?COLORCIRCLE_RADIUS,
+	X0 =< Amb#c.x + ?COLORCIRCLE_RADIUS ->	
+	    check_circle(X0,Y0,Amb#c.x,Amb#c.y, ?COLORCIRCLE_RADIUS, ambient);
 	%% Ambient darkness selection
-	X0 >= Amb#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX - ?LSCALEHALFW,
-	X0 =< Amb#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX + ?LSCALEHALFW ->
+	X0 >= Amb#c.x + ?COLORCIRCLE_RADIUS + ?LSCALEX - ?LSCALEHALFW,
+	X0 =< Amb#c.x + ?COLORCIRCLE_RADIUS + ?LSCALEX + ?LSCALEHALFW ->
 	    {ambient, darkness};
 	%% Diffuse color selection
-	X0 >= Diff#c.x - ?COLORCIRCLE_RADIE,
-	X0 =< Diff#c.x + ?COLORCIRCLE_RADIE ->
-	    check_circle(X0,Y0,Diff#c.x,Diff#c.y,?COLORCIRCLE_RADIE, diffuse);
+	X0 >= Diff#c.x - ?COLORCIRCLE_RADIUS,
+	X0 =< Diff#c.x + ?COLORCIRCLE_RADIUS ->
+	    check_circle(X0,Y0,Diff#c.x,Diff#c.y,?COLORCIRCLE_RADIUS, diffuse);
 	%% Diffuse darkness selection
-	X0 >= Diff#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX - ?LSCALEHALFW,
-	X0 =< Diff#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX + ?LSCALEHALFW ->
+	X0 >= Diff#c.x + ?COLORCIRCLE_RADIUS + ?LSCALEX - ?LSCALEHALFW,
+	X0 =< Diff#c.x + ?COLORCIRCLE_RADIUS + ?LSCALEX + ?LSCALEHALFW ->
 	    {diffuse, darkness};
 	%% Specular color selection
-	X0 >= Spec#c.x - ?COLORCIRCLE_RADIE,
-	X0 =< Spec#c.x + ?COLORCIRCLE_RADIE ->
-	    check_circle(X0,Y0,Spec#c.x,Spec#c.y,?COLORCIRCLE_RADIE, specular);
+	X0 >= Spec#c.x - ?COLORCIRCLE_RADIUS,
+	X0 =< Spec#c.x + ?COLORCIRCLE_RADIUS ->
+	    check_circle(X0,Y0,Spec#c.x,Spec#c.y,?COLORCIRCLE_RADIUS, specular);
 	%% Specular darkness selection
-	X0 >= Spec#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX - ?LSCALEHALFW,
-	X0 =< Spec#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX + ?LSCALEHALFW ->
+	X0 >= Spec#c.x + ?COLORCIRCLE_RADIUS + ?LSCALEX - ?LSCALEHALFW,
+	X0 =< Spec#c.x + ?COLORCIRCLE_RADIUS + ?LSCALEX + ?LSCALEHALFW ->
 	    {specular, darkness};
 	true ->
 	    undefined
@@ -538,12 +538,12 @@ draw_color(CType) ->
     gl:pushMatrix(),
     %% Draw color circle
     gl:translatef(CType#c.x, CType#c.y, 0.0),
-    draw_color_selection(?COLORCIRCLE_RADIE),	 
+    draw_color_selection(?COLORCIRCLE_RADIUS),	 
     gl:pushMatrix(),
 
     %% Draw Selected color Indicator
-    CSX = CType#c.cx * ?COLORCIRCLE_RADIE,
-    CSY = CType#c.cy * ?COLORCIRCLE_RADIE, 
+    CSX = CType#c.cx * ?COLORCIRCLE_RADIUS,
+    CSY = CType#c.cy * ?COLORCIRCLE_RADIUS, 
     gl:color3f(0,0,0),
     gl:translatef(CSX, CSY, 0),
 
@@ -556,19 +556,19 @@ draw_color(CType) ->
     gl:popMatrix(),
 
     %% Draw Light Scale selector
-    gl:translatef(?COLORCIRCLE_RADIE + ?LSCALEX, +?COLORCIRCLE_RADIE, 0),
+    gl:translatef(?COLORCIRCLE_RADIUS + ?LSCALEX, +?COLORCIRCLE_RADIUS, 0),
     gl:color3fv(CType#c.rgb),
     gl:glBegin(?GL_QUADS),
     gl:vertex2i(-?LSCALEHALFW, 0),
     gl:vertex2i(?LSCALEHALFW,  0),
     gl:color3f(0,0,0),
-    gl:vertex2i(?LSCALEHALFW,  -?COLORCIRCLE_RADIE*2),
-    gl:vertex2i(-?LSCALEHALFW, -?COLORCIRCLE_RADIE*2),	    
+    gl:vertex2i(?LSCALEHALFW,  -?COLORCIRCLE_RADIUS*2),
+    gl:vertex2i(-?LSCALEHALFW, -?COLORCIRCLE_RADIUS*2),	    
     gl:glEnd(),
     %% Draw Selected LightScale Indicator
-    gl:translatef(0, -2*?COLORCIRCLE_RADIE, 0),
+    gl:translatef(0, -2*?COLORCIRCLE_RADIUS, 0),
     gl:glBegin(?GL_LINE_LOOP),
-    LscalePosY = CType#c.lscale * ?COLORCIRCLE_RADIE*2,
+    LscalePosY = CType#c.lscale * ?COLORCIRCLE_RADIUS*2,
     LscalePosYU = LscalePosY + 2,
     LscalePosYD = LscalePosY - 2,
     LscaleXL = -?LSCALEHALFW-3,
@@ -581,8 +581,8 @@ draw_color(CType) ->
     gl:glEnd(),
     gl:popMatrix(),
     gl:color3f(0,0,0),
-    wings_io:text_at(CType#c.x - ?COLORCIRCLE_RADIE div 2, 
-     CType#c.y + ?COLORCIRCLE_RADIE + 4, 
+    wings_io:text_at(CType#c.x - ?COLORCIRCLE_RADIUS div 2, 
+     CType#c.y + ?COLORCIRCLE_RADIUS + 4, 
      CType#c.name).
 
 draw_color_selection(Radie) ->
