@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.35 2002/04/08 08:03:57 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.36 2002/04/13 07:23:21 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -51,8 +51,8 @@ flags({magnet,Type,_,_}, Flags) -> [{magnet,Type}|Flags].
 
 dialog(St, Fun) ->
     R0 = wings_pref:get_value(magnet_radius),
-    wings_ask:ask(
-      [{"Influence Radius",R0}|common_dialog()],
+    wings_ask:dialog(
+      [{label,"Influence Radius"},{text,R0}|common_dialog()],
       St, 
       fun([R,Route,Type]) ->
 	      wings_pref:set_value(magnet_distance_route, Route),
@@ -61,7 +61,7 @@ dialog(St, Fun) ->
       end).
 
 dialog(Point, St, Fun) ->
-    wings_ask:ask(
+    wings_ask:dialog(
       common_dialog(),
       St, 
       fun([Route,Type]) ->

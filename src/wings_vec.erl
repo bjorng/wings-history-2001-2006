@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.30 2002/04/11 16:12:04 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.31 2002/04/13 07:23:21 bjorng Exp $
 %%
 
 -module(wings_vec).
 
--export([init/0,menu/1,command/2]).
+-export([init/0,command/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -34,8 +34,6 @@ init() ->
     wings_pref:set_default(magnet_type, dome),
     wings_pref:set_default(magnet_distance_route, shortest),
     wings_pref:set_default(magnet_radius, 1.0).
-
-menu(_St) -> [].
 
 command({pick,[],[Res],Ns}, St) ->
     pick_init(St),

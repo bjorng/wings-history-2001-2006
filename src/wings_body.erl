@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.30 2002/04/11 08:20:39 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.31 2002/04/13 07:23:21 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -20,27 +20,37 @@
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
-    XYZ = wings_menu_util:xyz(),
     Menu = [{"Object operations",ignore},
 	    separator,
 	    {"Move",{move,Dir}},
 	    wings_menu_util:rotate(),
 	    wings_menu_util:scale(),
 	    separator,
-	    {"Flip",{flip,XYZ}},
+	    {"Flip",
+	     {flip,[{"X",x,"Flip the object around the X axis"},
+		    {"Y",y,"Flip the object around the Y axis"},
+		    {"Z",z,"Flip the object around the Z axis"}]}},
 	    separator,
-	    {"Invert",invert},
+	    {"Invert",invert,
+	     "Flip all normals, turning the object inside out"},
 	    separator,
-	    {"Tighten",tighten},
-	    {"Smooth",smooth},
-	    {"Combine",combine},
-	    {"Separate",separate},
+	    {"Tighten",tighten,
+	     "Move vertices towards average midpoint"},
+	    {"Smooth",smooth,
+	     "Subdivide all faces to give the object a smoother apperance"},
+	    {"Combine",combine,
+	     "Combine multiple objects into a single object"},
+	    {"Separate",separate,
+	     "Separate a combined objects into its components"},
 	    separator,
-	    {"Cleanup",cleanup,[option]},
-	    {"Auto-Smooth",auto_smooth,[option]},
+	    {"Cleanup",cleanup,"Remove various defects",[option]},
+	    {"Auto-Smooth",auto_smooth,
+	     "Set edges hard or soft dependning on the angle between faces",
+	     [option]},
 	    separator,
-	    {"Duplicate",{duplicate,Dir}},
-	    {"Delete",delete}|wings_vec:menu(St)],
+	    {"Duplicate",{duplicate,Dir},
+	     "Duplicate and move selected object"},
+	    {"Delete",delete,"Delete the selected objects"}],
     wings_menu:popup_menu(X, Y, body, Menu, St).
 
 command(invert, St) ->
