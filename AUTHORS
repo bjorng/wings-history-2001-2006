@@ -58,7 +58,13 @@ Danni Coy (KayosIII):
 	command.
 
 Patrick de Klein (TheChalker):
-	Designed the Wings icon that is used on Windows version of Wings.
+	Designed the Wings icon that is used on the Windows version of Wings.
+
+Clarence Vidalies (clacos):
+	Implemented the File|Save Incrementally command.
+
+Mark Luffel:
+	Implemented named selections groups.
 
 Auto-UV credits
 ===============
