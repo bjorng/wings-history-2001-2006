@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.31 2003/12/30 10:45:02 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.32 2003/12/30 14:37:19 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -22,7 +22,7 @@ ui({file,open_dialog,Prop,Cont}, _Next) ->
     Title = proplists:get_value(title, Prop, "Open"),
     open_dialog(Title, Prop, Cont);
 ui({file,save_dialog,Prop,Cont}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Open"),
+    Title = proplists:get_value(title, Prop, "Save"),
     save_dialog(Title, Prop, Cont);
 ui({file,save_dialog,Prop}, _Next) ->
     Title = proplists:get_value(title, Prop, "Save"),
@@ -190,6 +190,14 @@ check_filename(Store, DlgType) ->
 		    done;
 		true ->
 		    {store,gb_trees:update(filename, Name1, Store)}
+	    end;
+	save ->
+	    case filelib:is_file(Name) of
+		false ->
+		    {store,gb_trees:update(filename, Name1, Store)};
+		true ->
+		    wings_util:message(Name ++ " exists"),
+		    done
 	    end
     end.
 
