@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.34 2003/05/30 20:10:01 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.35 2003/05/31 07:12:07 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -32,15 +32,19 @@ smooth(Fs, Htab, #we{vp=Vtab,es=Etab}=We) ->
     Es = gb_trees:keys(Etab),
     smooth(Fs, Vs, Es, Htab, We).
 
-smooth(Fs, Vs, Es, Htab, #we{next_id=Id}=We0) ->
+smooth(Fs, Vs, Es, Htab, #we{es=Etab,vp=Vp,next_id=Id}=We0) ->
     FacePos0 = face_centers(Fs, We0),
     FacePos = gb_trees:from_orddict(FacePos0),
+
+    %% First do all topological changes to the edge table.
     We1 = cut_edges(Es, FacePos, Htab, We0#we{vc=undefined}),
-    {We2,NewVs} = smooth_faces(Fs, FacePos0, Id, We1),
-    #we{vp=Vtab2} = We2,
-    Vtab3 = smooth_move_orig(Vs, FacePos, Htab, We0, Vtab2),
-    Vtab = gb_trees:from_orddict(gb_trees:to_list(Vtab3) ++ NewVs),
-    wings_util:validate_mirror(wings_we:rebuild(We2#we{vp=Vtab})).
+    We = smooth_faces(Fs, FacePos0, Id, We1),
+
+    %% Now calculate all vertex positions.
+    {UpdatedVs,Mid} = update_vpos(gb_trees:to_list(Etab), FacePos, Htab, Vp, Id),
+    NewVs = smooth_new_vs(FacePos0, Mid),
+    Vtab = smooth_move_orig(Vs, FacePos, Htab, We0, UpdatedVs ++ NewVs),
+    wings_util:validate_mirror(wings_we:rebuild(We#we{vp=Vtab})).
 
 smooth_faces_htab(#we{mirror=none,fs=Ftab,he=Htab}) ->
     Faces = gb_trees:keys(Ftab),
@@ -50,6 +54,10 @@ smooth_faces_htab(#we{mirror=Face,fs=Ftab,he=Htab}=We) ->
     He0 = wings_face:outer_edges([Face], We),
     He = gb_sets:union(gb_sets:from_list(He0), Htab),
     {Faces,He}.
+
+%%%
+%%% Calculation of face centers.
+%%%
 
 face_centers(Faces, We) ->
     face_centers(Faces, We, []).
@@ -73,54 +81,89 @@ face_centers([Face|Fs], We, Acc) ->
     end;
 face_centers([], _We, Acc) -> reverse(Acc).
 
-smooth_move_orig([V|Vs], FacePos, Htab, We, Vtab0) ->
-    Vtab = smooth_move_orig_1(V, FacePos, Htab, We, Vtab0),
-    smooth_move_orig(Vs, FacePos, Htab, We, Vtab);
-smooth_move_orig([], _FacePos, _Htab, _We, Vtab) -> Vtab.
+%%%
+%%% Updating of the topology (edge and hard edge tables).
+%%%
 
-smooth_move_orig_1(V, FacePosTab, Htab, #we{vp=OVtab}=We, Vtab) ->
-    {Ps0,Hard} =
-	wings_vertex:fold(
-	  fun (Edge, Face, Erec, {Ps0,Hard0}) ->
-		  OPos = wings_vertex:other_pos(V, Erec, OVtab),
-		  FPos = case gb_trees:lookup(Face, FacePosTab) of
-			     none -> none;
-			     {value,{Fp,_,_}} -> Fp
-			 end,
-		  Ps = [FPos,OPos|Ps0],
-		  Es = case gb_sets:is_member(Edge, Htab) of
-			   true -> [OPos|Hard0];
-			   false -> Hard0
-		       end,
-		  {Ps,Es}
-	  end, {[],[]}, V, We),
+cut_edges(Es, FacePos, Hard, #we{es=Etab0,he=Htab0,next_id=Id0}=We) ->
+    Etab1 = {Id0,Etab0,gb_trees:empty()},
+    {Id,{_,Etab2,Etab3},Htab} =
+	cut_edges_1(Es, FacePos, Hard, Id0, Etab1, Htab0),
+    Etab = gb_trees:from_orddict(gb_trees:to_list(Etab2) ++
+				 gb_trees:to_list(Etab3)),
+    We#we{es=Etab,he=Htab,next_id=Id}.
 
-    S = gb_trees:get(V, Vtab),
-    case length(Hard) of
-	NumHard when NumHard < 2 ->
-	    Ps = e3d_vec:add(Ps0),
-	    N = length(Ps0) bsr 1,
-	    Pos0 = e3d_vec:add(e3d_vec:mul(Ps, 1/(N*N)),
-			       e3d_vec:mul(S, (N-2.0)/N)),
-	    Pos = wings_util:share(Pos0),
-	    gb_trees:update(V, Pos, Vtab);
-	NumHard when NumHard =:= 2 ->
-	    Pos0 = e3d_vec:add([e3d_vec:mul(S, 6.0)|Hard]),
-	    Pos1 = e3d_vec:mul(Pos0, 1/8),
-	    Pos = wings_util:share(Pos1),
-	    gb_trees:update(V, Pos, Vtab);
-	_ThreeOrMore -> Vtab
+cut_edges_1([Edge|Es], FacePos, Hard, NewEdge, Etab0, Htab0) ->
+    Rec = edge_get(Edge, Etab0),
+    Etab = fast_cut(Edge, Rec, NewEdge, Etab0),
+    case gb_sets:is_member(Edge, Hard) of
+	true ->
+	    Htab = case gb_sets:is_member(Edge, Htab0) of
+		       true -> gb_sets:insert(NewEdge, Htab0);
+		       false -> Htab0
+		   end,
+	    cut_edges_1(Es, FacePos, Hard, NewEdge+1, Etab, Htab);
+	false ->
+	    cut_edges_1(Es, FacePos, Hard, NewEdge+1, Etab, Htab0)
+    end;
+cut_edges_1([], _FacePos, _Hard, Id, Etab, Htab) ->
+    {Id,Etab,Htab}.
+
+fast_cut(Edge, Template, NewV=NewEdge, Etab0) ->
+    #edge{a=ACol,b=BCol,lf=Lf,rf=Rf,
+	  ltpr=EdgeA,rtsu=EdgeB,rtpr=NextBCol} = Template,
+    AColOther = get_vtx_color(EdgeA, Lf, Etab0),
+    NewColA = wings_color:mix(0.5, ACol, AColOther),
+    BColOther = get_vtx_color(NextBCol, Rf, Etab0),
+    NewColB = wings_color:mix(0.5, BCol, BColOther),
+
+    {Id,EtabA0,EtabB0} = Etab0,
+    NewEdgeRec = Template#edge{vs=NewV,a=NewColA,ltsu=Edge,rtpr=Edge},
+    EtabB = gb_trees:insert(NewEdge, NewEdgeRec, EtabB0),
+    EdgeRec = Template#edge{ve=NewV,b=NewColB,rtsu=NewEdge,ltpr=NewEdge},
+    EtabA = gb_trees:update(Edge, EdgeRec, EtabA0),
+    Etab = patch_edge(EdgeA, NewEdge, Edge, {Id,EtabA,EtabB}),
+    patch_edge(EdgeB, NewEdge, Edge, Etab).
+
+get_vtx_color(Edge, Face, Etab) ->
+    case edge_get(Edge, Etab) of
+	#edge{lf=Face,a=Col} -> Col;
+	#edge{rf=Face,b=Col} -> Col
     end.
 
-smooth_faces(Fs, FacePos, Id, #we{next_id=NextId}=We0) ->
-    We1 = smooth_materials(Fs, FacePos, We0),
-    NewVs = smooth_new_vs(FacePos, NextId, []),
-    We = smooth_faces_1(FacePos, Id, [], We1),
-    {We,NewVs}.
+patch_edge(Edge, ToEdge, OrigEdge, {Id,EtabA,EtabB}) when Edge < Id ->
+    New = case gb_trees:get(Edge, EtabA) of
+	      #edge{ltsu=OrigEdge}=R ->
+		  R#edge{ltsu=ToEdge};
+	      #edge{ltpr=OrigEdge}=R ->
+		  R#edge{ltpr=ToEdge};
+	      #edge{rtsu=OrigEdge}=R ->
+		  R#edge{rtsu=ToEdge};
+	      #edge{rtpr=OrigEdge}=R ->
+		  R#edge{rtpr=ToEdge}
+	  end,
+    {Id,gb_trees:update(Edge, New, EtabA),EtabB};
+patch_edge(Edge, ToEdge, OrigEdge, {Id,EtabA,EtabB}) ->
+    New = case gb_trees:get(Edge, EtabB) of
+	      #edge{ltsu=OrigEdge}=R ->
+		  R#edge{ltsu=ToEdge};
+	      #edge{ltpr=OrigEdge}=R ->
+		  R#edge{ltpr=ToEdge};
+	      #edge{rtsu=OrigEdge}=R ->
+		  R#edge{rtsu=ToEdge};
+	      #edge{rtpr=OrigEdge}=R ->
+		  R#edge{rtpr=ToEdge}
+	  end,
+    {Id,EtabA,gb_trees:update(Edge, New, EtabB)}.
 
-smooth_new_vs([{_,{Center,_,NumIds}}|Fs], V, Acc) ->
-    smooth_new_vs(Fs, V+NumIds, [{V,Center}|Acc]);
-smooth_new_vs([], _, Acc) -> reverse(Acc).
+edge_get(Edge, {Id,Etab,_}) when Edge < Id ->
+    gb_trees:get(Edge, Etab);
+edge_get(Edge, {_,_,Etab}) ->
+    gb_trees:get(Edge, Etab).
+
+smooth_faces(Fs, FacePos, Id, We0) ->
+    We = smooth_materials(Fs, FacePos, We0),
+    smooth_faces_1(FacePos, Id, [], We).
 
 smooth_faces_1([{Face,{_,Color,NumIds}}|Fs], Id, EsAcc0, #we{es=Etab0}=We0) ->
     {Ids,We} = wings_we:new_wrap_range(NumIds, 1, We0),
@@ -214,32 +257,60 @@ smooth_materials_3(Mat, NextFace, Face, Acc) ->
     smooth_materials_3(Mat, NextFace, Face+1, [{Face,Mat}|Acc]).
 
 %%%
-%%% Cut edges.
+%%% Moving of vertices.
 %%%
 
-cut_edges(Es, FacePos, Hard, #we{es=Etab0,vp=Vtab0,
-				 he=Htab0,next_id=Id0}=We) ->
-    Etab1 = {Id0,Etab0,gb_trees:empty()},
-    {Id,Vtab,{_,Etab2,Etab3},Htab} =
-	cut_edges_1(Es, FacePos, Hard, Id0, Etab1, Vtab0, Htab0, []),
-    Etab = gb_trees:from_orddict(gb_trees:to_list(Etab2) ++
-				 gb_trees:to_list(Etab3)),
-    We#we{vp=Vtab,es=Etab,he=Htab,next_id=Id}.
+smooth_move_orig(Vs, FacePos, Htab, We, VtabTail) ->
+    RevVtab = smooth_move_orig_0(Vs, FacePos, Htab, We, []),
+    gb_trees:from_orddict(reverse(RevVtab, VtabTail)).
 
-cut_edges_1([Edge|Es], FacePos, Hard, 
-	    NewEdge, Etab0, Vtab, Htab0, VsAcc0) ->
-    Rec = edge_get(Edge, Etab0),
-    Etab = fast_cut(Edge, Rec, NewEdge, Etab0),
+smooth_move_orig_0([V|Vs], FacePos, Htab, We, Acc) ->
+    Pos = smooth_move_orig_1(V, FacePos, Htab, We),
+    smooth_move_orig_0(Vs, FacePos, Htab, We, [{V,Pos}|Acc]);
+smooth_move_orig_0([], _FacePos, _Htab, _We, Acc) -> Acc.
+
+smooth_move_orig_1(V, FacePosTab, Htab, #we{vp=Vtab}=We) ->
+    {Ps0,Hard} =
+	wings_vertex:fold(
+	  fun (Edge, Face, Erec, {Ps0,Hard0}) ->
+		  OPos = wings_vertex:other_pos(V, Erec, Vtab),
+		  FPos = case gb_trees:lookup(Face, FacePosTab) of
+			     none -> none;
+			     {value,{Fp,_,_}} -> Fp
+			 end,
+		  Ps = [FPos,OPos|Ps0],
+		  Es = case gb_sets:is_member(Edge, Htab) of
+			   true -> [OPos|Hard0];
+			   false -> Hard0
+		       end,
+		  {Ps,Es}
+	  end, {[],[]}, V, We),
+
+    S = gb_trees:get(V, Vtab),
+    case length(Hard) of
+	NumHard when NumHard < 2 ->
+	    Ps = e3d_vec:add(Ps0),
+	    N = length(Ps0) bsr 1,
+	    Pos = e3d_vec:add(e3d_vec:mul(Ps, 1/(N*N)),
+			      e3d_vec:mul(S, (N-2.0)/N)),
+	    wings_util:share(Pos);
+	NumHard when NumHard =:= 2 ->
+	    Pos0 = e3d_vec:add([e3d_vec:mul(S, 6.0)|Hard]),
+	    Pos = e3d_vec:mul(Pos0, 1/8),
+	    wings_util:share(Pos);
+	_ThreeOrMore -> S
+    end.
+
+update_vpos(Es, FacePos, Hard, Vtab, V) ->
+    update_vpos(Es, FacePos, Hard, Vtab, V, []).
+
+update_vpos([{Edge,Rec}|Es], FacePos, Hard, Vtab, V, Acc0) ->
     case gb_sets:is_member(Edge, Hard) of
 	true ->
-	    Htab = case gb_sets:is_member(Edge, Htab0) of
-		       true -> gb_sets:insert(NewEdge, Htab0);
-		       false -> Htab0
-		   end,
 	    #edge{vs=Va,ve=Vb} = Rec,
 	    Pos = e3d_vec:average(gb_trees:get(Va, Vtab), gb_trees:get(Vb, Vtab)),
-	    VsAcc = [{NewEdge,Pos}|VsAcc0],
-	    cut_edges_1(Es, FacePos, Hard, NewEdge+1, Etab, Vtab, Htab, VsAcc);
+	    Acc = [{V,Pos}|Acc0],
+	    update_vpos(Es, FacePos, Hard, Vtab, V+1, Acc);
 	false ->
 	    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = Rec,
 	    {LfPos,_,_} = gb_trees:get(Lf, FacePos),
@@ -248,65 +319,18 @@ cut_edges_1([Edge|Es], FacePos, Hard,
 				   gb_trees:get(Vb, Vtab),
 				   LfPos, RfPos),
 	    Pos = wings_util:share(Pos0),
-	    VsAcc = [{NewEdge,Pos}|VsAcc0],
-	    cut_edges_1(Es, FacePos, Hard, NewEdge+1, Etab, Vtab, Htab0, VsAcc)
+	    Acc = [{V,Pos}|Acc0],
+	    update_vpos(Es, FacePos, Hard, Vtab, V+1, Acc)
     end;
-cut_edges_1([], _FacePos, _Hard, Id, Etab, Vtab0, Htab, VsAcc) ->
-    Vtab = gb_trees:from_orddict(gb_trees:to_list(Vtab0) ++
-				 reverse(VsAcc)),
-    {Id,Vtab,Etab,Htab}.
+update_vpos([], _FacePos, _Hard, _Vtab, V, Acc) ->
+    {reverse(Acc),V}.
 
-fast_cut(Edge, Template, NewV=NewEdge, Etab0) ->
-    #edge{a=ACol,b=BCol,lf=Lf,rf=Rf,
-	  ltpr=EdgeA,rtsu=EdgeB,rtpr=NextBCol} = Template,
-    AColOther = get_vtx_color(EdgeA, Lf, Etab0),
-    NewColA = wings_color:mix(0.5, ACol, AColOther),
-    BColOther = get_vtx_color(NextBCol, Rf, Etab0),
-    NewColB = wings_color:mix(0.5, BCol, BColOther),
-
-    {Id,EtabA0,EtabB0} = Etab0,
-    NewEdgeRec = Template#edge{vs=NewV,a=NewColA,ltsu=Edge,rtpr=Edge},
-    EtabB = gb_trees:insert(NewEdge, NewEdgeRec, EtabB0),
-    EdgeRec = Template#edge{ve=NewV,b=NewColB,rtsu=NewEdge,ltpr=NewEdge},
-    EtabA = gb_trees:update(Edge, EdgeRec, EtabA0),
-    Etab = patch_edge(EdgeA, NewEdge, Edge, {Id,EtabA,EtabB}),
-    patch_edge(EdgeB, NewEdge, Edge, Etab).
-
-get_vtx_color(Edge, Face, Etab) ->
-    case edge_get(Edge, Etab) of
-	#edge{lf=Face,a=Col} -> Col;
-	#edge{rf=Face,b=Col} -> Col
-    end.
-
-patch_edge(Edge, ToEdge, OrigEdge, {Id,EtabA,EtabB}) when Edge < Id ->
-    New = case gb_trees:get(Edge, EtabA) of
-	      #edge{ltsu=OrigEdge}=R ->
-		  R#edge{ltsu=ToEdge};
-	      #edge{ltpr=OrigEdge}=R ->
-		  R#edge{ltpr=ToEdge};
-	      #edge{rtsu=OrigEdge}=R ->
-		  R#edge{rtsu=ToEdge};
-	      #edge{rtpr=OrigEdge}=R ->
-		  R#edge{rtpr=ToEdge}
-	  end,
-    {Id,gb_trees:update(Edge, New, EtabA),EtabB};
-patch_edge(Edge, ToEdge, OrigEdge, {Id,EtabA,EtabB}) ->
-    New = case gb_trees:get(Edge, EtabB) of
-	      #edge{ltsu=OrigEdge}=R ->
-		  R#edge{ltsu=ToEdge};
-	      #edge{ltpr=OrigEdge}=R ->
-		  R#edge{ltpr=ToEdge};
-	      #edge{rtsu=OrigEdge}=R ->
-		  R#edge{rtsu=ToEdge};
-	      #edge{rtpr=OrigEdge}=R ->
-		  R#edge{rtpr=ToEdge}
-	  end,
-    {Id,EtabA,gb_trees:update(Edge, New, EtabB)}.
-
-edge_get(Edge, {Id,Etab,_}) when Edge < Id ->
-    gb_trees:get(Edge, Etab);
-edge_get(Edge, {_,_,Etab}) ->
-    gb_trees:get(Edge, Etab).
+smooth_new_vs(FacePos, V) ->
+    smooth_new_vs(FacePos, V, []).
+    
+smooth_new_vs([{_,{Center,_,NumIds}}|Fs], V, Acc) ->
+    smooth_new_vs(Fs, V+NumIds, [{V,Center}|Acc]);
+smooth_new_vs([], _, Acc) -> reverse(Acc).
 
 %%%
 %%% The Smooth Proxy implementation.
@@ -371,30 +395,7 @@ inc_smooth(#we{es=Etab,vp=Vp,next_id=Next}=We0, #sp{we=OldWe}) ->
     {Faces,Htab} = smooth_faces_htab(We0),
     FacePos0 = face_centers(Faces, We0),
     FacePos = gb_trees:from_orddict(FacePos0),
-    {UpdatedVs,Mid} = update_vpos(gb_trees:to_list(Etab), FacePos, Htab,
-				  Vp, Next, []),
-    NewVs = smooth_new_vs(FacePos0, Mid, []),
-    Vtab1 = gb_trees:from_orddict(gb_trees:to_list(Vp) ++ UpdatedVs ++ NewVs),
-    Vtab = smooth_move_orig(gb_trees:keys(Vp), FacePos, Htab, We0, Vtab1),
+    {UpdatedVs,Mid} = update_vpos(gb_trees:to_list(Etab), FacePos, Htab, Vp, Next),
+    NewVs = smooth_new_vs(FacePos0, Mid),
+    Vtab = smooth_move_orig(gb_trees:keys(Vp), FacePos, Htab, We0, UpdatedVs ++ NewVs),
     OldWe#we{vp=Vtab}.
-
-update_vpos([{Edge,Rec}|Es], FacePos, Hard, Vtab, V, Acc0) ->
-    case gb_sets:is_member(Edge, Hard) of
-	true ->
-	    #edge{vs=Va,ve=Vb} = Rec,
-	    Pos = e3d_vec:average(gb_trees:get(Va, Vtab), gb_trees:get(Vb, Vtab)),
-	    Acc = [{V,Pos}|Acc0],
-	    update_vpos(Es, FacePos, Hard, Vtab, V+1, Acc);
-	false ->
-	    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = Rec,
-	    {LfPos,_,_} = gb_trees:get(Lf, FacePos),
-	    {RfPos,_,_} = gb_trees:get(Rf, FacePos),
-	    Pos0 = e3d_vec:average(gb_trees:get(Va, Vtab),
-				   gb_trees:get(Vb, Vtab),
-				   LfPos, RfPos),
-	    Pos = wings_util:share(Pos0),
-	    Acc = [{V,Pos}|Acc0],
-	    update_vpos(Es, FacePos, Hard, Vtab, V+1, Acc)
-    end;
-update_vpos([], _FacePos, _Hard, _Vtab, V, Acc) ->
-    {reverse(Acc),V}.
