@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.215 2004/04/04 05:19:20 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.216 2004/04/04 06:55:31 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -689,6 +689,10 @@ update_selection_1(face, Mode, Elems, Charts) ->
 update_selection_1(body, Mode, Elems, Charts) ->
     update_body_sel(Mode, Elems, Charts).
 
+%% update_face_sel(SelModeInGeom, Elems, Charts) -> Selection
+%%  Convert the selection from the geoemetry window to
+%%  a face selection in the AutoUV window.
+
 update_face_sel(face, Faces, Charts) ->
     face_sel_to_face(Charts, Faces, []);
 update_face_sel(body, _, Charts) ->
@@ -697,14 +701,6 @@ update_face_sel(Mode, _, _) ->
     io:format("~p: ~p\n", [?LINE,Mode]),
     none.
 
-update_body_sel(face, Elems, Charts) ->
-    face_sel_to_body(Charts, Elems, []);
-update_body_sel(Mode, _, _) ->
-    io:format("~p: ~p\n", [?LINE,Mode]),
-    none.
-
-%% Convert a face selection in the geometry window to
-%% a face selection in the AutoUV window.
 face_sel_to_face([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, Sel) ->
     case ordsets:intersection(sort(Fs), Faces) of
  	[] ->
@@ -715,16 +711,24 @@ face_sel_to_face([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, Sel) ->
     end;
 face_sel_to_face([], _, Sel) -> Sel.
 
-%% Convert a body selection in the geometry window to
-%% a face selection in the AutoUV window.
 body_sel_to_face([{K,#we{fs=Ftab}}|Cs], Sel) ->
     FaceSel = gb_sets:from_ordset(gb_trees:keys(Ftab)),
     body_sel_to_face(Cs, [{K,FaceSel}|Sel]);
 body_sel_to_face([], Sel) -> Sel.
 
 
-%% Convert a face selection in the geometry window to
-%% a body selection in the AutoUV window.
+%% update_body_sel(SelModeInGeom, Elems, Charts) -> Selection
+%%  Convert the selection from the geoemetry window to
+%%  a body selection in the AutoUV window.
+
+update_body_sel(face, Elems, Charts) ->
+    face_sel_to_body(Charts, Elems, []);
+update_body_sel(body, _, Charts) ->
+    body_sel_to_body(Charts, []);
+update_body_sel(Mode, _, _) ->
+    io:format("~p: ~p\n", [?LINE,Mode]),
+    none.
+
 face_sel_to_body([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, Sel) ->
     case ordsets:intersection(sort(Fs), Faces) of
  	[] ->
@@ -734,6 +738,10 @@ face_sel_to_body([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, Sel) ->
 	    face_sel_to_body(Cs, Faces, [{K,Zero}|Sel])
     end;
 face_sel_to_body([], _, Sel) -> Sel.
+
+body_sel_to_body([{K,_}|Cs], Sel) ->
+    body_sel_to_body(Cs, [{K,gb_sets:singleton(0)}|Sel]);
+body_sel_to_body([], Sel) -> Sel.
     
 %% update_geom_selection(AuvSt)
 %%  Given the selection in the AutoUV window, update the selection
