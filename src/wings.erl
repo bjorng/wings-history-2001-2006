@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.325 2004/11/21 10:19:34 bjorng Exp $
+%%     $Id: wings.erl,v 1.326 2004/11/22 19:13:11 bjorng Exp $
 %%
 
 -module(wings).
@@ -322,7 +322,7 @@ handle_event_3({action,Cmd}, St) ->
     do_command(Cmd, St);
 handle_event_3({vec_command,Command,St}, _) when is_function(Command) ->
     %% Use to execute command with vector arguments (see wings_vec.erl).
-    command_response(catch Command(), none, St);
+    command_response(Command(), none, St);
 handle_event_3(#mousebutton{}, _St) -> keep;
 handle_event_3(#mousemotion{}, _St) -> keep;
 handle_event_3(init_opengl, St) ->
