@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.121 2004/03/08 11:10:41 raimo_niskanen Exp $
+%%     $Id: wings_draw_util.erl,v 1.122 2004/03/08 22:27:19 raimo_niskanen Exp $
 %%
 
 -module(wings_draw_util).
@@ -267,7 +267,7 @@ render_object(#dlo{mirror=Matrix}=D, Mode, Work, RenderTrans) ->
 
 render_object_1(#dlo{src_we=We}=D, _, _, false) when ?IS_LIGHT(We) ->
     wings_light:render(D);
-render_object_1(#dlo{src_we=We}=D, _, _, true) when ?IS_LIGHT(We) ->
+render_object_1(#dlo{src_we=We}, _, _, true) when ?IS_LIGHT(We) ->
     ok;
 render_object_1(D, Mode, true, _) ->
     render_plain(D, Mode);
