@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.54 2002/07/28 13:03:35 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.55 2002/08/02 20:14:40 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -666,7 +666,9 @@ move_if_outside_x(X, Y) ->
     {X,Y}.
 
 left_of_parent(Mw, W, #mi{level=?INITIAL_LEVEL}) -> W-Mw;
-left_of_parent(Mw, _, _) -> -Mw+10.
+left_of_parent(Mw, _, #mi{level=Level}) ->
+    {X,_,_,_} = wings_wm:viewport({menu,Level-1}),
+    X-Mw+10.
 
 have_option_box(Ps) ->
     property_lists:is_defined(option, Ps).

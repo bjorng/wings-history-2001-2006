@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.11 2002/08/01 19:25:04 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.12 2002/08/02 20:14:40 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,top_window/1,dirty/0,new/4,delete/1,
-	 offset/3,pos/1,set_active/1,top_size/0,wsize/0,viewport/0,
+	 offset/3,pos/1,set_active/1,
+	 top_size/0,viewport/0,viewport/1,
 	 local2global/2,global2local/2,local_mouse_state/0,
 	 is_window_active/1,window_under/2]).
 
@@ -92,9 +93,11 @@ top_size() ->
 viewport() ->
     get(wm_viewport).
 
-wsize() ->
-    {_,_,W,H} = get(wm_viewport),
-    {W,H}.
+viewport(Name) ->
+    #win{x=X,y=Y0,w=W,h=H} = get_window_data(Name),
+    {_,TopH} = get(wm_top_size),
+    Y = TopH-(Y0+H),
+    {X,Y,W,H}.
 
 local2global(X, Y) ->
     {_,TopH} = get(wm_top_size),
