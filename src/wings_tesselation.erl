@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.2 2003/08/22 09:43:21 bjorng Exp $
+%%     $Id: wings_tesselation.erl,v 1.3 2003/08/22 10:52:26 bjorng Exp $
 %%
 
 -module(wings_tesselation).
@@ -64,25 +64,59 @@ do_faces(Action, Faces, #we{id=Id}=We0, Acc) ->
 tess_faces([], We, _Q) -> We;
 tess_faces([F|T], We, Q) -> tess_faces(T, doface(F, We, Q), Q).
 
-doface(Face, #we{vp=Vtab}=We, Q) ->
+doface(Face, We, Q) ->
     Vs = wings_face:vertices_ccw(Face, We),
     case length(Vs) of
+	4 when not Q -> triangulate_quad(Vs, We);
 	Len when not Q, Len =< 3 -> We;
 	Len when Q, Len =< 4 -> We;
-	Len ->
-	    FaceVs = lists:seq(0, Len-1),
-	    Vcoords = [gb_trees:get(V, Vtab) || V <- Vs],
-	    E3dface = #e3d_face{vs=FaceVs},
-	    T3dfaces = case Q of
-			   true -> e3d_mesh:quadrangulate_face(E3dface, Vcoords);
-			   false -> e3d_mesh:triangulate_face(E3dface, Vcoords)
-		       end,
-	    VsTuple = list_to_tuple(Vs),
-	    Tfaces = [renumber(FVs, VsTuple) || #e3d_face{vs=FVs} <- T3dfaces],
-	    Bord = bedges(Vs),
-	    Diags = diags(Tfaces, Bord),
-	    connect_diags(Diags, We)
+	Len -> doface_1(Len, Vs, We, Q)
     end.
+
+%% triangulate_quad([VertexIndex], We) -> We'
+%%  Quickly triangulates a quad by connecting along the shortest diagonal,
+%%  and then checking that normals for the triangles are consistent with
+%%  the normal for the quad. Falls back to the general triangulator if
+%%  normals are inconsistent (= concave or otherwise strange quad).
+triangulate_quad(Vs, #we{vp=Vtab}=We0) ->
+    case triangulate_quad_1(Vs, Vs, Vtab, We0, []) of
+	error -> doface_1(4, Vs, We0, false);
+	We -> We
+    end.
+
+triangulate_quad_1([V|Vs], Vs0, Vtab, We, Acc) ->
+    triangulate_quad_1(Vs, Vs0, Vtab, We, [gb_trees:get(V, Vtab)|Acc]);
+triangulate_quad_1([], [Ai,Bi,Ci,Di], _, We, VsPos) ->
+    N = e3d_vec:normal(VsPos),
+    [D,C,B,A] = VsPos,
+    case e3d_vec:dist(A, C) < e3d_vec:dist(B, D) of
+	true ->
+	    case wings_draw_util:consistent_normal(C, B, A, N) andalso
+		wings_draw_util:consistent_normal(D, C, A, N) of
+		false -> error;
+		true -> wings_vertex_cmd:connect([Ai,Ci], We)
+	    end;
+	false ->
+	    case wings_draw_util:consistent_normal(B, A, D, N) andalso
+		wings_draw_util:consistent_normal(B, D, C, N) of
+		false -> error;
+		true -> wings_vertex_cmd:connect([Bi,Di], We)
+	    end
+    end.
+
+doface_1(Len, Vs, #we{vp=Vtab}=We, Q) ->
+    FaceVs = lists:seq(0, Len-1),
+    Vcoords = [gb_trees:get(V, Vtab) || V <- Vs],
+    E3dface = #e3d_face{vs=FaceVs},
+    T3dfaces = case Q of
+		   true -> e3d_mesh:quadrangulate_face(E3dface, Vcoords);
+		   false -> e3d_mesh:triangulate_face(E3dface, Vcoords)
+	       end,
+    VsTuple = list_to_tuple(Vs),
+    Tfaces = [renumber(FVs, VsTuple) || #e3d_face{vs=FVs} <- T3dfaces],
+    Bord = bedges(Vs),
+    Diags = diags(Tfaces, Bord),
+    connect_diags(Diags, We).
 
 renumber(L, Vtab) ->
     renumber(L, Vtab, []).
