@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.35 2003/02/13 23:46:37 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.36 2003/02/14 09:13:49 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -39,7 +39,7 @@
 -module(auv_mapping).
 
 -export([lsq/2, lsq/3, find_pinned/2]). % Debug entry points
--export([stretch_opt/2, area2d/3,area3d/3]).
+-export([stretch_opt/2, area2d2/3,area3d/3]).
 
 -compile(export_all).
 
@@ -851,13 +851,16 @@ stretch_opt(Ch=#ch{fs=Fs,we=We0}, OVs) ->
     io:format("Stretch ~n", []),
     {_,R1,R2} = now(),
     random:seed(R2,R1,128731),
-    Tris = triangulate(Fs,-1,We0,[]),
+    Tris0 = triangulate(Fs,-1,We0,[]),
+    S = calc_scale(Tris0, OVs, 0.0, 0.0),
+    Tris = [{Face,[{Id1,{S1*S,T1*S}},{Id2,{S2*S,T2*S}},{Id3,{S3*S,T3*S}}]} ||
+	       {Face,[{Id1,{S1,T1}},{Id2,{S2,T2}},{Id3,{S3,T3}}]} <- Tris0],
     %% {FaceToStretchMean, FaceToStretchWorst,FaceToVerts,VertToFaces,VertToUvs}
     {F2S2,F2S8,F2Vs,V2Fs,Uvs} = init_stretch(Tris, OVs, [], [], [], [], []),
-    ?DBG("F2S2 ~w~n",[gb_trees:to_list(F2S2)]),
-    ?DBG("F2S8 ~w~n",[gb_trees:to_list(F2S8)]),
-    ?DBG("F2Vs ~w~n",[gb_trees:to_list(F2Vs)]),
-    ?DBG("UVs ~w~n", [gb_trees:to_list(Uvs)]),
+%     ?DBG("F2S2 ~w~n",[gb_trees:to_list(F2S2)]),
+%     ?DBG("F2S8 ~w~n",[gb_trees:to_list(F2S8)]),
+%     ?DBG("F2Vs ~w~n",[gb_trees:to_list(F2Vs)]),
+%     ?DBG("UVs ~w~n", [gb_trees:to_list(Uvs)]),
     Worst = model_l8(gb_trees:keys(F2S8), F2S8, 0.0),
     Mean  = model_l2(gb_trees:keys(F2S2), F2S2, F2Vs, OVs,0.0, 0.0),
     io:format("Stretch sum (worst) ~p ~n", [Worst]),
@@ -868,7 +871,7 @@ stretch_opt(Ch=#ch{fs=Fs,we=We0}, OVs) ->
     SUvs0 = stretch_iter(S2V,1,MaxI,MinS,F2S2,F2Vs,V2Fs,Uvs,OVs),    
     SUvs1 = gb_trees:to_list(SUvs0),
     ?DBG("SUvs ~p ~n", [SUvs1]),
-    Suvs = [{Id,{S,T,0.0}} || {Id,{S,T}} <- SUvs1],
+    Suvs = [{Id,{S0/S,T0/S,0.0}} || {Id,{S0,T0}} <- SUvs1],
     Ch#ch{we=We0#we{vp=gb_trees:from_orddict(Suvs)}}.
 
 stretch_iter(S2V0=[{First,_}|_],I,MaxI,MinS,F2S20,F2Vs,V2Fs,Uvs0,Ovs) 
@@ -953,6 +956,16 @@ init_stretch([],_,F2S2,F2S8,F2Vs,V2Fs0,Uvs) ->
       gb_trees:from_orddict(V2Fs),
       gb_trees:from_orddict(lists:usort(Uvs))}.
 
+calc_scale([{_,[{Id1,P1},{Id2,P2},{Id3,P3}]}|R], Ovs, A2D, A3D) ->
+    A2 = abs(area2d2(P1,P2,P3)/2),
+    Q1 = gb_trees:get(Id1,Ovs),
+    Q2 = gb_trees:get(Id2,Ovs),
+    Q3 = gb_trees:get(Id3,Ovs),    
+    A3 = area3d(Q1,Q2,Q3),
+    calc_scale(R,Ovs,A2+A2D,A3+A3D);
+calc_scale([],_Ovs,A2D,A3D) ->
+    A3D/A2D.
+
 model_l8([Face|R], F2S8, Worst) ->
     FVal = gb_trees:get(Face,F2S8),
     New  = if FVal > Worst -> 
@@ -1016,9 +1029,9 @@ ss(P1={_,T1},P2={_,T2},P3={_,T3},Q1,Q2,Q3)
     M1 = e3d_vec:mul(Q1, T2-T3),
     M2 = e3d_vec:mul(Q2, T3-T1),
     M3 = e3d_vec:mul(Q3, T1-T2),
-    ?DBG("~p ~p~n", [[M1,M2,M3],e3d_vec:add([M1,M2,M3])]),
+%%    ?DBG("~p ~p~n", [[M1,M2,M3],e3d_vec:add([M1,M2,M3])]),
     A2 = area2d2(P1,P2,P3),
-    e3d_vec:divide(e3d_vec:add([M1,M2,M3]),A).
+    e3d_vec:divide(e3d_vec:add([M1,M2,M3]),A2).
     
 st(P1={S1,_},P2={S2,_},P3={S3,_},Q1,Q2,Q3) 
   when is_float(S1),is_float(S2),is_float(S3) ->
