@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.22 2002/10/20 09:46:00 bjorng Exp $
+%%     $Id: wpa.erl,v 1.23 2002/11/13 13:22:56 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/2,ask/3,ask/4,dialog/2,dialog/3,dialog/4,error/1,yes_no/1,
@@ -25,7 +25,8 @@
 	 face_dissolve/2,
 	 edge_loop_vertices/2,
 	 obj_name/1,obj_id/1,
-	 camera_info/1,lights/1
+	 camera_info/1,lights/1,
+	 image_formats/0,image_read/1
 	]).
 
 -include("wings.hrl").
@@ -277,3 +278,12 @@ camera_info([], _) -> [].
 lights(St) ->
     wings_light:export(St).
 
+%%%
+%%% Images.
+%%%
+
+image_formats() ->
+    wings_plugin:call_ui({image,formats,[]}).
+
+image_read(Ps) ->
+    wings_plugin:call_ui({image,read,Ps}).
