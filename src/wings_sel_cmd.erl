@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.36 2003/01/11 09:42:45 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.37 2003/01/12 08:43:36 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -145,6 +145,8 @@ similar_help(#st{selmode=edge}) ->
     "Select edges similar to the already selected edges";
 similar_help(#st{selmode=face}) ->
     "Select faces similar to the already selected faces";
+similar_help(#st{selmode=body}) ->
+    "Select objects with the same number of edges, faces, and vertices";
 similar_help(_) -> [].
     
 command(edge_loop, #st{selmode=face}=St) ->
@@ -475,8 +477,23 @@ similar(#st{selmode=face,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
       fun(Face, WeI) ->
 	      match_templates(make_face_template(Face, WeI), Templates)
       end, face, St);
-similar(St) -> St.
+similar(#st{selmode=body}=St) ->
+    Template0 = wings_sel:fold(fun(_, #we{vp=Vtab,es=Etab,fs=Ftab}, Acc) ->
+				       [{gb_trees:size(Vtab),
+					 gb_trees:size(Etab),
+					 gb_trees:size(Ftab)}|Acc]
+			       end, [], St),
+    Template = ordsets:from_list(Template0),
+    wings_sel:make(fun(_, We) -> match_body(Template, We) end, body, St).
 
+match_body(Template, #we{vp=Vtab,es=Etab,fs=Ftab}) ->
+    Sizes = {gb_trees:size(Vtab),gb_trees:size(Etab),gb_trees:size(Ftab)},
+    match_body_1(Template, Sizes).
+
+match_body_1([Sizes|_], Sizes) -> true;
+match_body_1([_|T], Sizes) -> match_body_1(T, Sizes);
+match_body_1([], _) -> false.
+    
 match_templates(F, [Template|Ts]) ->
     case match_template(F, Template) of
 	true -> true;
