@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.233 2003/03/12 10:04:19 bjorng Exp $
+%%     $Id: wings.erl,v 1.234 2003/03/12 14:18:51 bjorng Exp $
 %%
 
 -module(wings).
@@ -237,15 +237,11 @@ redraw(Info, St) ->
 	false -> ok
     end.
 
-clean_state(St) ->
-    caption(St).
-
 save_state(St0, St1) ->
-    St = wings_undo:save(St0, St1#st{vec=none}),
-    wings_wm:current_state(St),
+    St = wings_undo:save(St0, St1),
     case St of
-	#st{saved=false} -> main_loop(St);
-	_Other -> main_loop(caption(St#st{saved=false}))
+	#st{saved=false} -> main_loop(St#st{vec=none});
+	_Other -> main_loop(caption(St#st{saved=false,vec=none}))
     end.
 
 install_restorer(Next) ->
@@ -379,7 +375,7 @@ do_command(Cmd, Args, St0) ->
 	    save_state(St1, St);
 	{saved,St}=Res ->
 	    main_loop(wings_undo:save(St1, St));
-	{new,St}=Res -> main_loop(clean_state(wings_undo:init(St)));
+	{new,St}=Res -> main_loop(caption(wings_undo:init(St)));
 	{push,_}=Push -> Push;
 	{init,_,_}=Init -> Init;
 	{seq,_,_}=Seq -> Seq;
@@ -455,11 +451,11 @@ command({file,Command}, St) ->
 
 %% Edit menu.
 command({edit,undo_toggle}, St) ->
-    clean_state(wings_undo:undo_toggle(St));
+    caption(wings_undo:undo_toggle(St));
 command({edit,undo}, St) ->
-    clean_state(wings_undo:undo(St));
+    caption(wings_undo:undo(St));
 command({edit,redo}, St) ->
-    clean_state(wings_undo:redo(St));
+    caption(wings_undo:redo(St));
 command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
