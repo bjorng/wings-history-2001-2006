@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.117 2004/10/08 06:02:30 dgud Exp $
+%%     $Id: wings_material.erl,v 1.118 2004/10/12 18:02:12 bjorng Exp $
 %%
 
 -module(wings_material).
 -export([material_menu/1,command/2,new/1,color/4,default/0,
-	 mat_faces/2,add_materials/2,update_materials/2,
+	 mat_faces/2,add_materials/2,add_materials/3,
+	 update_materials/2,
 	 update_image/4,used_images/1,
 	 get/2,get_all/1,delete_face/2,delete_faces/2,cleanup/1,
 	 assign/3,replace_materials/2,assign_materials/2,
@@ -66,7 +67,8 @@ new(_) ->
 
 new_1(Act) ->
     wings_ask:ask(?STR(new_1,1,"New Material"),
-		  [{?STR(new_1,2,"Material Name"),?STR(new_1,3,"New Material")}],
+		  [{?STR(new_1,2,"Material Name"),
+		    ?STR(new_1,3,"New Material")}],
 		  fun([Name]) ->
 			  Action = {action,{material,{Act,Name}}},
 			  wings_wm:send_after_redraw(geom, Action),
@@ -234,19 +236,23 @@ update_image(MatName, MapType, Image, #st{mat=Mtab}) ->
     wings_image:update(ImageId, Image).
 
 add_materials(Ms, St) ->
-    add_materials(Ms, St, []).
+    Dir = wings_pref:get_value(current_directory),
+    add_materials_1(Ms, Dir, St, []).
 
-add_materials([{Name,Mat0}|Ms], St0, NewNames) ->
+add_materials(Ms, Dir, St) ->
+    add_materials_1(Ms, Dir, St, []).
+
+add_materials_1([{Name,Mat0}|Ms], Dir, St0, NewNames) ->
     Mat1 = add_defaults(Mat0),
-    Maps = load_maps(prop_get(maps, Mat1, [])),
+    Maps = load_maps(prop_get(maps, Mat1, []), Dir),
     Mat = keyreplace(maps, 1, Mat1, {maps,Maps}),
     case add(Name, Mat, St0) of
 	#st{}=St ->
-	    add_materials(Ms, St, NewNames);
+	    add_materials_1(Ms, Dir, St, NewNames);
 	{#st{}=St,NewName} ->
-	    add_materials(Ms, St, [{Name,NewName}|NewNames])
+	    add_materials_1(Ms, Dir, St, [{Name,NewName}|NewNames])
     end;
-add_materials([], St, NewNames) -> {St,NewNames}.
+add_materials_1([], _, St, NewNames) -> {St,NewNames}.
 
 add_defaults([]) ->
     add_defaults([{opengl,[]},{maps,[]}]);
@@ -269,7 +275,8 @@ add_defaults_1(P) ->
 
 update_materials([{Name,Mat0}|Ms], St) ->
     Mat1 = add_defaults(Mat0),
-    Maps = load_maps(prop_get(maps, Mat1, [])),
+    Dir = wings_pref:get_value(current_directory),
+    Maps = load_maps(prop_get(maps, Mat1, []), Dir),
     Mat = keyreplace(maps, 1, Mat1, {maps,Maps}),
     update_materials(Ms, update(Name, Mat, St));
 update_materials([], St) -> St.
@@ -277,37 +284,39 @@ update_materials([], St) -> St.
 norm({_,_,_,_}=Color) -> Color;
 norm({R,G,B}) -> {R,G,B,1.0}.
     
-load_maps([{Key,Filename}|T]) when is_list(Filename) ->
-    case load_map(Filename) of
-	none -> load_maps(T);
-	Map -> [{Key,Map}|load_maps(T)]
+load_maps([{Key,Filename}|T], Dir) when is_list(Filename) ->
+    case load_map(Filename, Dir) of
+	none -> load_maps(T, Dir);
+	Map -> [{Key,Map}|load_maps(T, Dir)]
     end;
-load_maps([{Key,{W,H,Bits}}|T]) ->
+load_maps([{Key,{W,H,Bits}}|T], Dir) ->
     E3dImage = #e3d_image{type=r8g8b8,order=lower_left,
 			  width=W,height=H,image=Bits},
     Id = wings_image:new(atom_to_list(Key), E3dImage),
-    [{Key,Id}|load_maps(T)];
-load_maps([{Key,#e3d_image{}=E3dImage}|T]) ->
+    [{Key,Id}|load_maps(T, Dir)];
+load_maps([{Key,#e3d_image{}=E3dImage}|T], Dir) ->
     Id = wings_image:new(atom_to_list(Key), E3dImage),
-    [{Key,Id}|load_maps(T)];
-load_maps([{_,none}|T]) ->
-    load_maps(T);
-load_maps([{_,Id}=Map|T]) when is_integer(Id) ->
-    [Map|load_maps(T)];
-load_maps([]) -> [].
+    [{Key,Id}|load_maps(T, Dir)];
+load_maps([{_,none}|T], Dir) ->
+    load_maps(T, Dir);
+load_maps([{_,Id}=Map|T], Dir) when is_integer(Id) ->
+    [Map|load_maps(T, Dir)];
+load_maps([], _) -> [].
     
-load_map(MapName) ->
-    case catch load_map_1(MapName) of
+load_map(MapName, Dir) ->
+    try load_map_1(MapName, Dir) of
 	none -> none;
-	{'EXIT',R} ->
-	    io:format("~P\n", [R,20]),
-	    none;
 	Im when is_integer(Im) -> Im
+    catch
+	error:R ->
+	    io:format("~p\n", [R]),
+	    io:format("~P\n", [erlang:get_stacktrace(),20]),
+	    none
     end.
 
-load_map_1(none) -> none;
-load_map_1(File0) ->
-    File = filename:absname(File0, wings_pref:get_value(current_directory)),
+load_map_1(none, _) -> none;
+load_map_1(File0, Dir) ->
+    File = filename:absname(File0, Dir),
     Ps = [{filename,File},{order,lower_left},{alignment,1}],
     case wpa:image_read(Ps) of
 	#e3d_image{}=Im ->
