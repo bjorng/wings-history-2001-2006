@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.15 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.16 2002/05/05 07:46:13 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2,call_ui/1]).
@@ -52,7 +52,7 @@ call_ui(What) ->
 menu(Name, Menu) ->
     menu_1(get(wings_plugins), Name, Menu).
 
-menu_1([{Type,M}|Ps], Name, Menu0) ->
+menu_1([M|Ps], Name, Menu0) ->
     case catch M:menu(Name, Menu0) of
 	Menu when is_list(Menu) ->
 	    menu_1(Ps, Name, Menu);
@@ -60,12 +60,12 @@ menu_1([{Type,M}|Ps], Name, Menu0) ->
 	    io:format("~w:menu/2: bad return value: ~P\n", [M,Other,20]),
 	    menu_1(Ps, Name, Menu0)
     end;
-menu_1([], Name, Menu) -> Menu.
+menu_1([], _Name, Menu) -> Menu.
 
 command(Cmd, St) ->
     command(get(wings_plugins), Cmd, St).
 
-command([{Type,M}|Ps], Cmd, St) ->
+command([M|Ps], Cmd, St) ->
     case catch M:command(Cmd, St) of
 	next -> command(Ps, Cmd, St);
 	Other ->
@@ -74,7 +74,7 @@ command([{Type,M}|Ps], Cmd, St) ->
 		Res -> Res
 	    end
     end;
-command([], Cmd, St) -> next.
+command([], _Cmd, _St) -> next.
 
 %%%
 %%% Local functions.
@@ -97,9 +97,9 @@ init_plugins([{user_interface,M}|T]) ->
 	    io:format("~w:init/1 bad return value: ~P\n", [M,Other,20])
     end,
     init_plugins(T);
-init_plugins([{Type,M}=TypeMod|T]) ->
+init_plugins([{_Type,M}|T]) ->
     case catch M:init() of
-	true -> [TypeMod|init_plugins(T)];
+	true -> [M|init_plugins(T)];
 	false -> init_plugins(T);
 	Other ->
 	    io:format("~w:init/0 bad return value: ~P\n", [M,Other,20]),
@@ -111,7 +111,7 @@ load_modules(TypeMods) ->
     foldl(fun({_,Mod}=TypeMod, A) ->
 		  case c:l(Mod) of
 		      {module,Mod} -> [TypeMod|A];
-		      Error -> A
+		      _Error -> A
 		  end
 	  end, [], TypeMods).
 
@@ -148,7 +148,7 @@ list_dir([], Pas, Beams) -> {Pas,Beams}.
 
 list_dir_1([[$~|_]|Ns], Dir0, Dirs, Beams) ->
     list_dir_1(Ns, Dir0, Dirs, Beams);
-list_dir_1([[$w,$p,T,$_|_]=N|Ns], Dir0, Dirs, Beams) ->
+list_dir_1([[$w,$p,_,$_|_]=N|Ns], Dir0, Dirs, Beams) ->
     case filename:extension(N) of
 	".beam" -> list_dir_1(Ns, Dir0, Dirs, [N|Beams]);
 	_ -> list_dir_1(Ns, Dir0, Dirs, Beams)
@@ -159,7 +159,7 @@ list_dir_1([N|Ns], Dir0, Dirs, Beams) ->
 	true -> list_dir_1(Ns, Dir0, [Dir|Dirs], Beams);
 	false -> list_dir_1(Ns, Dir0, Dirs, Beams)
     end;
-list_dir_1([], Dir, Dirs, Beams) -> {Dirs,Beams}.
+list_dir_1([], _Dir, Dirs, Beams) -> {Dirs,Beams}.
     
 to_modules([[_,_,Type0|_]=Beam|T]) ->
     case convert_type(Type0) of
@@ -176,20 +176,20 @@ convert_type($8) -> user_interface;
 convert_type($9) -> user_interface;
 convert_type(_) -> undefined.
 
-check_result(M, {command_error,_}=Error, St) -> throw(Error);
-check_result(M, {new_shape,Prefix,#e3d_object{}=Obj,Mat}, St0) ->
+check_result(_M, {command_error,_}=Error, _St) -> throw(Error);
+check_result(_M, {new_shape,Prefix,#e3d_object{}=Obj,Mat}, St0) ->
     {We,UsedMat} = import_object(Obj),
     St = add_materials(UsedMat, Mat, St0),
     new_shape(Prefix, We, St);
-check_result(M, {new_shape,Prefix,Fs,Vs}, St) ->
+check_result(_M, {new_shape,Prefix,Fs,Vs}, St) ->
     We = wings_we:build(Fs, Vs),
     new_shape(Prefix, We, St);
-check_result(M, aborted, St) -> aborted;
-check_result(M, {drag,_}=Drag, _) -> Drag;
-check_result(M, #st{}=St, _) -> St;
-check_result(M, {push,_}=Push, _) -> Push;
-check_result(M, {seq,_,_}=Seq, _) -> Seq;
-check_result(M, keep, _) -> keep;
+check_result(_M, aborted, _St) -> aborted;
+check_result(_M, {drag,_}=Drag, _) -> Drag;
+check_result(_M, #st{}=St, _) -> St;
+check_result(_M, {push,_}=Push, _) -> Push;
+check_result(_M, {seq,_,_}=Seq, _) -> Seq;
+check_result(_M, keep, _) -> keep;
 check_result(M, Other, St) ->
     io:format("~w:command/3: bad return value: ~P\n", [M,Other,20]),
     St.
@@ -201,7 +201,7 @@ new_shape(Prefix, We, #st{onext=Oid}=St) ->
 import_object(Obj) ->
     import_object(Obj, gb_sets:empty()).
 
-import_object(#e3d_object{name=Name,obj=Obj}, UsedMat0) ->
+import_object(#e3d_object{obj=Obj}, UsedMat0) ->
     #e3d_mesh{matrix=Matrix,vs=Vs0,tx=Tx0,fs=Fs0,he=He} = Obj,
     Vs = scale(Vs0, Matrix),
     ObjType = obj_type(Tx0),
@@ -220,7 +220,7 @@ import_faces([#e3d_face{vs=Vs,tx=Tx0,mat=Mat0}|Fs], Txs, Acc, UsedMat0) ->
 		       {Mat,Vs,Tx}
 	       end,
     import_faces(Fs, Txs, [FaceData|Acc], UsedMat);
-import_faces([], Txs, Acc, UsedMat) -> {reverse(Acc),UsedMat}.
+import_faces([], _Txs, Acc, UsedMat) -> {reverse(Acc),UsedMat}.
 
 scale(Vs, none) -> Vs;
 scale(Vs, Matrix) -> [e3d_mat:mul_point(Matrix, P) || P <- Vs].
