@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.4 2002/01/02 12:19:38 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.5 2002/01/20 11:12:23 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -52,7 +52,8 @@ menu(X, Y, St) ->
 					  {"60%",60},
 					  {"70%",70},
 					  {"80%",80},
-					  {"90%",90}}}}}}},
+					  {"90%",90}}}},
+		       {"Id",id}}}},
 	    separator,
 	    {sel_all_str(St),"Ctrl-A",all},
 	    separator,
@@ -144,7 +145,9 @@ by_command({faces_with,N}, St) ->
 by_command({material,Mat}=Cmd, St) ->
     wings_material:command({select,Cmd}, St);
 by_command({random,Percent}, St) ->
-    {save_state,random(Percent, St)}.
+    {save_state,random(Percent, St)};
+by_command(id, St) ->
+    {save_state,by_id(St)}.
 
 %%%
 %%% Selection commands.
@@ -410,3 +413,52 @@ random(Percent, #st{selmode=body}=St) -> St;
 random(Percent, #st{selmode=Mode}=St) ->
     P = Percent / 100,
     wings_sel:make(fun(_, _) -> random:uniform() < P end, Mode, St).
+
+%%
+%% Select by numerical item id.
+%%
+
+by_id(#st{selmode=body}=St) ->
+    ask([{"Object Id",0,0,unlimited}],
+	fun([Id]) ->
+		valid_sel("", [{Id,gb_sets:singleton(0)}], St)
+	end);
+by_id(#st{selmode=vertex}=St) ->
+    item_by_id("Vertex Id", St);
+by_id(#st{selmode=edge}=St) ->
+    item_by_id("Edge Id", St);
+by_id(#st{selmode=face}=St) ->
+    item_by_id("Face Id", St).
+
+
+item_by_id(Prompt, #st{sel=[{Id,_}]}=St) ->
+    ask([{Prompt,0,0,unlimited}],
+	fun([Item]) ->
+		valid_sel(Prompt, [{Id,gb_sets:singleton(Item)}], St)
+	end);
+item_by_id(Prompt, St) ->
+    ask([{"Object Id",0,0,unlimited},
+	 {Prompt,0,0,unlimited}],
+	fun([Id,Item]) ->
+		valid_sel(Prompt, [{Id,gb_sets:singleton(Item)}], St)
+	end).
+    
+valid_sel(Prompt, Sel, #st{shapes=Shs,selmode=Mode}=St) ->
+    case wings_sel:valid_sel(Sel, Mode, St) of
+	[] ->
+	    [{Id,Item0}] = Sel,
+	    [Item] = gb_sets:to_list(Item0),
+	    case gb_trees:is_defined(Id, Shs) of
+		false ->
+		    throw({command_error,"The Object Id "++
+			   integer_to_list(Id)++" is invalid."});
+		true ->
+		    throw({command_error,"The "++Prompt++" "++
+			   integer_to_list(Item)++" is invalid."})
+	    end;
+	Sel ->
+	    St#st{sel=Sel}
+    end.
+    
+ask(Qs, Fun) ->
+    wings_util:ask(true, Qs, Fun).
