@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.38 2004/06/23 19:31:24 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.39 2004/06/24 07:00:41 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -24,7 +24,7 @@
 %% R9C required is required if debugging is turned on,
 %% sinced the debug printouts use the new hex formatting characters.
 
--define(DEBUG, 1).
+%%-define(DEBUG, 1).
 
 %% Inline dbg/2 so that the call will disappear completely if
 %% DEBUG is turned off.
@@ -87,6 +87,9 @@ main(16#B000, Keyframer, Acc) ->
 main(Tag, Chunk, Acc) ->
     dbg("~.16#: ~P\n", [Tag,Chunk,15]),
     Acc.
+
+%% editor(Bin, E3DFile) -> E3DFile
+%%  Collect objects and materials from the sub-chunks of 'editor'.
 
 editor(Bin, Acc) ->
     fold_chunks(fun editor/3, Acc, Bin).
@@ -209,72 +212,67 @@ face_desc(16#4150, Smooth, {Faces,_}) ->
     dbg("Smoothing groups for ~p faces\n", [size(Smooth) div 4]),
     {Faces,get_smooth_groups(Smooth)}.
 
-material(<<16#A000:16/little,Sz0:32/little,T0/binary>>, Acc) ->
-    Sz = Sz0 - 6,
-    <<Name0:Sz/binary,T/binary>> = T0,
+%% material(Bin, [Material]) -> [Material]
+%%  Collect all materials.
+
+material(Bin, Acc) ->
+    fold_chunks(fun material/3, Acc, Bin).
+
+material(16#A000, Name0, Acc) ->
     {Name1,<<>>} = get_cstring(Name0),
     Name = list_to_atom(Name1),
     dbg("\nMaterial: ~p\n", [Name]),
-    material(T, [{Name,[]}|Acc]);
-material(<<16#A010:16/little,Sz:32/little,T/binary>>, Acc) ->
-    mat_chunk(ambient, Sz, T, Acc);
-material(<<16#A020:16/little,Sz:32/little,T/binary>>, Acc) ->
-    mat_chunk(diffuse, Sz, T, Acc);
-material(<<16#A030:16/little,Sz:32/little,T/binary>>, Acc) ->
-    mat_chunk(specular, Sz, T, Acc);
-material(<<16#A040:16/little,Sz:32/little,T/binary>>, Acc) ->
-    mat_chunk(shininess, Sz, T, Acc);
-material(<<16#A041:16/little,Sz:32/little,T/binary>>, Acc) ->
-    mat_chunk(shininess_level, Sz, T, Acc);
-material(<<16#A050:16/little,Sz0:32/little,T0/binary>>, [{Name,Props}|Acc]) ->
-    dbg("Material ~p, property opacity\n", [Name]),
-    Sz = Sz0 - 6,
-    <<Chunk0:Sz/binary,T/binary>> = T0,
-    Chunk = general(Chunk0),
-    material(T, [{Name,[{opacity,1-Chunk}|Props]}|Acc]);
-material(<<16#A052:16/little,Sz:32/little,T/binary>>, Acc) ->
-    mat_chunk(opacity_falloff, Sz, T, Acc);
-material(<<16#A053:16/little,Sz:32/little,T/binary>>, Acc) ->
-    mat_chunk(reflection_blur, Sz, T, Acc);
-material(<<16#A081:16/little,6:32/little,T/binary>>,
-	 [{Name,Props}|Acc]) ->
+    [{Name,[]}|Acc];
+material(16#A010, Chunk, Acc) ->
+    mat_chunk(ambient, Chunk, Acc);
+material(16#A020, Chunk, Acc) ->
+    mat_chunk(diffuse, Chunk, Acc);
+material(16#A030, Chunk, Acc) ->
+    mat_chunk(specular, Chunk, Acc);
+material(16#A040, Chunk, Acc) ->
+    mat_chunk(shininess, Chunk, Acc);
+material(16#A041, Chunk, Acc) ->
+    mat_chunk(shininess_level, Chunk, Acc);
+material(16#A050, Chunk, [{Name,Props}|Acc]) ->
+    Tr = general(Chunk),
+    [{Name,[{opacity,1-Tr}|Props]}|Acc];
+material(16#A052, Chunk, Acc) ->
+    mat_chunk(opacity_falloff, Chunk, Acc);
+material(16#A053, Chunk, Acc) ->
+    mat_chunk(reflection_blur, Chunk, Acc);
+material(16#A081, _, [{Name,Props}|Acc]) ->
     dbg("Twosided material\n", []),
-    material(T, [{Name,[{twosided,true}|Props]}|Acc]);
-material(<<16#A084:16/little,Sz:32/little,T/binary>>, Acc) ->
-    mat_chunk(emissive, Sz, T, Acc);
-material(<<16#A087:16/little,10:32/little,Wiresize:32/?FLOAT,T/binary>>, Acc) ->
+    [{Name,[{twosided,true}|Props]}|Acc];
+material(16#A084, Chunk, Acc) ->
+    mat_chunk(emissive, Chunk, Acc);
+material(16#A087, <<Wiresize:32/?FLOAT>>, Acc) ->
     dbg("Wire size: ~p\n", [Wiresize]),
-    material(T, Acc);
-material(<<16#A100:16/little,8:32/little,Shading:16/little,T/binary>>, Acc) ->
-     Str = case Shading of
-	       0 -> "Wire";
-	       1 -> "Flat";
-	       2 -> "Gouraud";
-	       3 -> "Phong";
-	       4 -> "Metal";
-	       _ -> "Unknown"
-	   end,
-    dbg("Material shading: ~s\n", [Str]),
-    material(T, Acc);
-material(<<16#A200:16/little,T/binary>>, Acc) ->
-    read_map(T, diffuse, Acc);
-material(<<16#A210:16/little,T/binary>>, Acc) ->
-    read_map(T, opacity, Acc);
-material(<<16#A230:16/little,T/binary>>, Acc) ->
-    read_map(T, bump, Acc);
-material(<<Tag:16/little,Sz0:32/little,T0/binary>>, [{Name,Props}|Acc]) ->
-    Sz = Sz0 - 6,
-    <<Chunk:Sz/binary,T/binary>> = T0,
-    dbg("Unknown material tag: ~.16#: ~P\n", [Tag,Chunk,20]),
-    material(T, [{Name,[{Tag,Chunk}|Props]}|Acc]);
-material(<<>>, Acc) -> Acc.
+    Acc;
+material(16#A100, <<Shading:16/little>>, Acc) ->
+    Str = case Shading of
+	      0 -> "Wire";
+	      1 -> "Flat";
+	      2 -> "Gouraud";
+	      3 -> "Phong";
+	      4 -> "Metal";
+	      _ -> "Unknown"
+	  end,
+    dbg("Shading: ~s\n", [Str]),
+    Acc;
+material(16#A200, Chunk, Acc) ->
+    read_map(diffuse, Chunk, Acc);
+material(16#A210, Chunk, Acc) ->
+    read_map(opacity, Chunk, Acc);
+material(16#A230, Chunk, Acc) ->
+    read_map(bump, Chunk, Acc);
+material(Tag, Chunk, [{Name,Props}|Acc]) ->
+    dbg("~.16#: ~P\n", [Tag,Chunk,20]),
+    [{Name,[{Tag,Chunk}|Props]}|Acc].
 
-read_map(<<Sz0:32/little,T0/binary>>, Type, [{Name,Props}|Acc]) ->
+read_map(Type, Chunk, [{Name,Props}|Acc]) ->
     dbg("Map: ~p\n", [Type]),
-    Sz = Sz0 - 6,
-    <<Chunk:Sz/binary,T/binary>> = T0,
     Map = read_map_chunks(Chunk, none),
-    material(T, [{Name,[{map,Type,Map}|Props]}|Acc]).
+    [{Name,[{map,Type,Map}|Props]}|Acc].
 
 read_map_chunks(<<16#A300:16/little,Sz0:32/little,T0/binary>>, _Acc) ->
     Sz = Sz0 - 6 - 1,
@@ -325,12 +323,10 @@ reformat_mat([], _Opac, Ogl, Maps, Tds) ->
 reformat_color({Key,{R,G,B}}, Opac) ->
     {Key,{R,G,B,Opac}}.
     
-mat_chunk(Type, Sz0, Bin, [{Name,Props}|Acc]) ->
-    Sz = Sz0 - 6,
-    <<Chunk:Sz/binary,T/binary>> = Bin,
+mat_chunk(Type, Chunk, [{Name,Props}|Acc]) ->
     Value = general(Chunk),
     dbg("property ~p = ~p\n", [Type,Value]),
-    material(T, [{Name,[{Type,Value}|Props]}|Acc]).
+    [{Name,[{Type,Value}|Props]}|Acc].
 
 general(<<16#0010:16/little,_Sz:32/little, 
 	 R:32/?FLOAT,G:32/?FLOAT,B:32/?FLOAT,
