@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.41 2002/07/17 16:59:58 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.42 2002/07/18 09:18:33 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -161,12 +161,9 @@ load_map_1(File0) ->
     case e3d_image:load(File, [{type,r8g8b8},{order,lower_left}]) of
 	#e3d_image{width=W,height=H,image=Pixels} ->
 	    {W,H,Pixels};
-	{error,Error} when is_atom(error) ->
+	{error,Error} ->
 	    io:format("Failed to load \"~s\": ~s\n",
 		      [File,file:format_error(Error)]),
-	    none;
-	{error,Error} ->
-	    io:format("Failed to load \"~s\": ~p\n", [File,Error]),
 	    none
     end.
     
