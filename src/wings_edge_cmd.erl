@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_cmd.erl,v 1.5 2005/01/29 18:25:14 bjorng Exp $
+%%     $Id: wings_edge_cmd.erl,v 1.6 2005/01/30 11:34:02 bjorng Exp $
 %%
 
 -module(wings_edge_cmd).
@@ -139,7 +139,7 @@ connect(Es0, #we{id=Id}=We0, Acc) ->
     Es = remove_nonconnectable(Es1, Es0, We0, []),
     {Vs,We1} = cut_edges(Es, We0),
     We2 = wings_vertex_cmd:connect(Vs, We1),
-    Sel = wings_we:new_items(edge, We1, We2),
+    Sel = wings_we:new_items_as_gbset(edge, We1, We2),
     We = wings_edge:dissolve_isolated_vs(Vs, We2),
     {We,[{Id,Sel}|Acc]}.
 
@@ -201,7 +201,7 @@ cut(N, #st{selmode=edge}=St0) when N > 1 ->
     {St,Sel} = wings_sel:mapfold(
 		 fun(Edges, #we{id=Id}=We0, Acc) ->
 			 We = cut_edges(Edges, N, We0),
-			 S = wings_we:new_items(vertex, We0, We),
+			 S = wings_we:new_items_as_gbset(vertex, We0, We),
 			 {We,[{Id,S}|Acc]}
 		 end, [], St0),
     wings_sel:set(vertex, Sel, St);

@@ -3,12 +3,12 @@
 %%
 %%     Tesselation/subdivision commands.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_tesselation.erl,v 1.7 2004/10/08 06:02:31 dgud Exp $
+%%     $Id: wings_tesselation.erl,v 1.8 2005/01/30 11:34:30 bjorng Exp $
 %%
 
 -module(wings_tesselation).
@@ -58,7 +58,7 @@ quadrangulate(Faces, We) ->
 
 do_faces(Action, Faces, #we{id=Id}=We0, Acc) ->
     We = Action(Faces, We0),
-    Sel = gb_sets:union(wings_we:new_items(face, We0, We), Faces),
+    Sel = gb_sets:union(wings_we:new_items_as_gbset(face, We0, We), Faces),
     {We,[{Id,Sel}|Acc]}.
 
 tess_faces([], We, _Q) -> We;
