@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.101 2003/02/23 10:36:46 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.102 2003/02/23 20:21:39 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -397,10 +397,10 @@ smooth_event_1(got_focus, Sm) ->
     wings_wm:dirty();
 smooth_event_1(#mousemotion{}, _) -> keep;
 smooth_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
-smooth_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, _) ->
-    smooth_exit();
-smooth_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, _) ->
-    smooth_exit();
+smooth_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Sm) ->
+    smooth_exit(Sm);
+smooth_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, Sm) ->
+    smooth_exit(Sm);
 smooth_event_1(#keyboard{keysym=#keysym{unicode=$e}}, #sm{edge_style=Estyle0}=Sm) ->
     wings_wm:dirty(),
     Estyle = case Estyle0 of
@@ -423,9 +423,9 @@ smooth_event_1(#keyboard{}=Kb, _) ->
 smooth_event_1({action,{view,View}}, #sm{st=St}=Sm) ->
     case View of
 	workmode ->
-	    smooth_exit();
+	    smooth_exit(Sm);
 	smoothed_preview ->
-	    smooth_exit();
+	    smooth_exit(Sm);
 	{along,_Axis}=Cmd ->
 	    command(Cmd, St),
 	    wings_wm:dirty(),
@@ -450,28 +450,35 @@ smooth_event_1({action,{view,View}}, #sm{st=St}=Sm) ->
 smooth_event_1(init_opengl, #sm{st=St}) ->
     wings:init_opengl(St),
     pop;
-smooth_event_1(resized, _) ->
-    keep;
-smooth_event_1(quit, _) ->
+smooth_event_1(quit, Sm) ->
     wings_wm:later(quit),
-    smooth_exit();
-smooth_event_1({current_state,_}=Ev, _) ->
-    wings_wm:later(Ev),
-    smooth_exit();
+    smooth_exit(Sm);
+smooth_event_1({current_state,#st{shapes=Shs}=St}, #sm{st=#st{shapes=Shs}}=Sm) ->
+    get_smooth_event(Sm#sm{st=St});
+smooth_event_1({current_state,St}, Sm) ->
+    smooth_dlist(St),
+    wings_wm:dirty(),
+    get_smooth_event(Sm#sm{st=St});
 smooth_event_1(_, _) -> keep.
 
-smooth_exit() ->
+smooth_exit(#sm{st=St}) ->
+    wings_wm:later({new_state,St}),
     wings_wm:dirty(),
     pop.
 
 smooth_dlist(St) ->
-    wings_draw_util:update(fun(D, []) ->
-				   smooth_dlist(D, St)
-			   end, []).
+    wings_draw_util:map(fun(D, []) ->
+				smooth_dlist(D, St)
+			end, []).
 
-smooth_dlist(eol, _) -> eol;
 smooth_dlist(#dlo{src_we=#we{light=L}}=D, _) when L =/= none -> {D,[]};
-smooth_dlist(#dlo{smoothed=none,src_we=We0}=D, St) ->
+smooth_dlist(#dlo{drag=none,src_we=We}=D, St) ->
+    smooth_dlist_1(D, We, St);
+smooth_dlist(#dlo{smoothed=none}=D, St) ->
+    smooth_dlist_1(D, wings_draw:original_we(D), St);
+smooth_dlist(D, _) -> D.
+
+smooth_dlist_1(D, We0, St) ->
     #we{es=Etab,vp=Vtab} = We = wings_subdiv:smooth(We0),
     {List,Tr} = wings_draw:smooth_dlist(We, St),
 
@@ -496,8 +503,7 @@ smooth_dlist(#dlo{smoothed=none,src_we=We0}=D, St) ->
     gl:'end'(),
     gl:endList(),
     
-    {D#dlo{smoothed=[List,Edges,CoolEdges],transparent=Tr},[]};
-smooth_dlist(D, _) -> {D,[]}.
+    D#dlo{smoothed=[List,Edges,CoolEdges],transparent=Tr}.
 
 smooth_cool_edges(#we{vp=Vtab}, We) ->
     Vs = gb_trees:keys(Vtab),

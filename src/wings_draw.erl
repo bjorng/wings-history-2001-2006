@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.103 2003/02/23 10:36:46 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.104 2003/02/23 20:21:39 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -299,7 +299,7 @@ split(#dlo{src_we=#we{es=Etab}}=D, #split{v2f=none}=Split, Vs, St) ->
     V2F = sofs:relation(V2F0, [{vertex,face}]),
     F2V = sofs:converse(V2F),
     split(D, Split#split{v2f=V2F,f2v=F2V}, Vs, St);
-split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We}=D,
+split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,smoothed=Sm}=D,
       #split{v2f=V2F,f2v=F2V,dyn_faces=Faces0}=Split0, Vs0, St) ->
     Vs = sofs:set(Vs0, [vertex]),
     Faces1 = sofs:image(V2F, Vs),
@@ -328,7 +328,7 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We}=D,
 			 dyn_faces=Faces,dyn_ftab=FtabDyn,
 			 orig_we=We,st=St},
     #dlo{work=[List],mirror=M,vs=VsDlist,
-	 src_sel=Sel,src_we=WeDyn,split=Split}.
+	 src_sel=Sel,src_we=WeDyn,split=Split,smoothed=Sm}.
 
 original_we(#dlo{split=#split{orig_we=We}}) -> We.
 
