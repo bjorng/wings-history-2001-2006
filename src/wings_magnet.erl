@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.47 2004/04/18 06:13:15 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.48 2004/04/20 06:12:29 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -92,11 +92,11 @@ drag_help(Type) ->
 	help_1(Type, [{1,bell},{2,dome},{3,straight},{4,spike}]).
 
 help_1(Type, [{Digit,Type}|T]) ->
-    "[" ++ [$0+Digit] ++ "] <<" ++
-	wings_util:cap(atom_to_list(Type)) ++ ">> " ++ help_1(Type, T);
+    "[" ++ [$0+Digit] ++ "] " ++
+	[{bold,wings_util:cap(atom_to_list(Type))}] ++ "  " ++ help_1(Type, T);
 help_1(Type, [{Digit,ThisType}|T]) ->
     "[" ++ [$0+Digit] ++ "] " ++
-	wings_util:cap(atom_to_list(ThisType)) ++ " " ++ help_1(Type, T);
+	wings_util:cap(atom_to_list(ThisType)) ++ "  " ++ help_1(Type, T);
 help_1(_, []) -> [].
 
 hotkey($1) -> bell;
