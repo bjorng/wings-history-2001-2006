@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.213 2004/04/02 16:40:10 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.214 2004/04/03 17:35:24 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -542,8 +542,8 @@ handle_event_1(_Event, St) ->
     ?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(St).
 
-new_state(#st{bb=#uvstate{}=Uvs,sel=Sel}=St0) ->
-    GeomSt = wings_select_faces(Sel, St0),
+new_state(#st{bb=#uvstate{}=Uvs}=St0) ->
+    GeomSt = update_geom_selection(St0),
     St1 = St0#st{bb=Uvs#uvstate{st=GeomSt}},
     St = update_selected_uvcoords(St1),
     get_event(St).
@@ -650,6 +650,9 @@ filter_selection(#st{selmode=face}=St) ->
     wpa:sel_set(face, Sel, St);
 filter_selection(#st{selmode=body}=St) -> St.
 
+%% update_selection(GemoSt, AuvSt0) -> AuvSt
+%%  Update the selection in the AutoUV window given a selection
+%%  from a geometry window.
 update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #st{bb=#uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs}=AuvSt) ->
     get_event_nodraw(AuvSt#st{bb=Uvs#uvstate{st=St}});
@@ -677,15 +680,44 @@ update_selection_2([_|Cs], Faces, St, Sel) ->
     update_selection_2(Cs, Faces, St, Sel);
 update_selection_2([], _, St, Sel) ->
     get_event(St#st{sel=sort(Sel)}).
-    
-wings_select_faces([], #st{bb=#uvstate{st=GeomSt}}) ->
+
+%% update_geom_selection(AuvSt)
+%%  Given the selection in the AutoUV window, update the selection
+%%  in the geometry window.
+
+update_geom_selection(#st{sel=[],bb=#uvstate{st=GeomSt}}) ->
     wpa:sel_set(face, [], GeomSt);
-wings_select_faces(Sel, #st{bb=#uvstate{st=GeomSt,id=Id}}=St) ->
+update_geom_selection(#st{selmode=body,sel=Sel,
+			  bb=#uvstate{st=GeomSt,id=Id}}=St) ->
     Fs0 = wpa:sel_fold(fun(_, #we{name=#ch{fs=Fs}}, A) ->
 			       Fs++A
 		       end, [], St#st{sel=Sel}),
     Fs = gb_sets:from_list(Fs0),
-    wpa:sel_set(face, [{Id,Fs}], GeomSt).
+    wpa:sel_set(face, [{Id,Fs}], GeomSt);
+update_geom_selection(#st{selmode=face,sel=Sel,
+			  bb=#uvstate{st=GeomSt,id=Id}}=St) ->
+    Fs0 = wpa:sel_fold(fun(Fs, _, A) ->
+			       [Fs|A]
+		       end, [], St#st{sel=Sel}),
+    Fs = gb_sets:union(Fs0),
+    wpa:sel_set(face, [{Id,Fs}], GeomSt);
+update_geom_selection(#st{selmode=edge,sel=Sel,
+			  bb=#uvstate{st=GeomSt,id=Id}}=St) ->
+    Fs0 = wpa:sel_fold(fun(_, #we{name=#ch{fs=Fs}}, A) ->
+			       Fs++A
+		       end, [], St#st{sel=Sel}),
+    Fs = gb_sets:from_list(Fs0),
+    wpa:sel_set(face, [{Id,Fs}], GeomSt);
+update_geom_selection(#st{selmode=vertex,sel=Sel,
+			  bb=#uvstate{st=GeomSt,id=Id}}=St) ->
+    Fs0 = wpa:sel_fold(fun(Vs, We, A) ->
+			       update_geom_sel_vtx(Vs, We, A)
+		       end, [], St#st{sel=Sel}),
+    Fs = gb_sets:from_list(Fs0),
+    wpa:sel_set(vertex, [{Id,Fs}], GeomSt).
+
+update_geom_sel_vtx(Vs, #we{name=#ch{vmap=Vmap}}, A) ->
+    [auv_segment:map_vertex(V, Vmap) || V <- gb_sets:to_list(Vs)] ++ A.
 
 reset_sel(St0) ->
     wings_sel:reset(St0).
