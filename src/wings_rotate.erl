@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.13 2001/11/25 13:44:45 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.14 2001/11/26 08:37:45 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -109,8 +109,8 @@ rotate_fun(We, free) ->
 rotate_fun(We, Vec) ->
     {Cx,Cy,Cz} = wings_vertex:center(We),
     fun(Matrix0, Dx, Dy, St) when float(Dx) ->
-	    wings_drag:message([Dx], angle),
 	    A = 15*Dx,
+	    wings_drag:message([A], angle),
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:translate(Cx, Cy, Cz)),
 	    M = e3d_mat:mul(M0, e3d_mat:rotate(A, Vec)),
 	    e3d_mat:mul(M, e3d_mat:translate(-Cx, -Cy, -Cz))

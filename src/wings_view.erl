@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.22 2001/11/25 13:47:14 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.23 2001/11/26 08:37:45 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -161,7 +161,7 @@ eye_point() ->
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     Dist = Dist0 * math:sqrt((W*H) / (640*480)),
-    M0 = e3d_mat:translate(Origo),
+    M0 = e3d_mat:translate(e3d_vec:neg(Origo)),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
     M2 = e3d_mat:mul(M1, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
     M = e3d_mat:mul(M2, e3d_mat:translate(-PanX, -PanY, Dist)),
