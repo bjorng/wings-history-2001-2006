@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.161 2004/11/17 11:06:45 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.162 2004/12/04 09:43:41 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -18,7 +18,8 @@
 	 current/0,set_current/1,
 	 load_matrices/1,projection/0,
 	 modelview/0,modelview/1,
-	 eye_point/0,export_views/1,import_views/2,camera_info/2]).
+	 eye_point/0,export_views/1,import_views/2,camera_info/2,
+	 freeze_mirror/1]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
