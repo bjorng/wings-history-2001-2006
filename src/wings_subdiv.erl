@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.31 2003/05/30 07:41:40 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.32 2003/05/30 08:36:10 bjorng Exp $
 %%
 
 -module(wings_subdiv).
 -export([smooth/1,smooth/5]).
--export([setup/1,update/2,draw/1]).
+-export([setup/1,update/2,draw/1,clean/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -317,7 +317,7 @@ setup(#st{sel=OrigSel}=St) ->
 
 setup_1(#dlo{src_we=#we{id=Id}}=D, [{Id,_}|Sel]) ->
     Wire0 = wings_wm:get_prop(wings_wm:this(), wireframed_objects),
-    Wire = gb_sets:insert(Id, Wire0),
+    Wire = gb_sets:add(Id, Wire0),
     wings_wm:set_prop(wings_wm:this(), wireframed_objects, Wire),
     {D#dlo{proxy_data=#sp{}},Sel};
 setup_1(D, Sel) -> {D,Sel}.
@@ -346,3 +346,6 @@ draw_1(Dl) ->
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT).
+
+clean([_,#sp{}=Pd]) -> Pd;
+clean(Other) -> Other.

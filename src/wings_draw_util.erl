@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.64 2003/05/30 07:41:39 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.65 2003/05/30 08:36:10 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -29,17 +29,18 @@
 	 }).
 
 init() ->
-    case get(?MODULE) of
-	undefined -> ok;
-	#du{tess=OldTess,used=Used,vec=Vec} ->
-	    ?CHECK_ERROR(),
-	    glu:deleteTess(OldTess),
-	    foreach(fun(DL) -> gl:deleteLists(DL, 1) end, Used),
-	    catch gl:deleteLists(Vec, 1),
-	    gl:getError()			%Clear error.
-    end,
+    Dl = case get(?MODULE) of
+	     undefined -> [];
+	     #du{dl=Dl0,tess=OldTess,used=Used,vec=Vec} ->
+		 ?CHECK_ERROR(),
+		 glu:deleteTess(OldTess),
+		 foreach(fun(DL) -> gl:deleteLists(DL, 1) end, Used),
+		 catch gl:deleteLists(Vec, 1),
+		 gl:getError(),			%Clear error.
+		 clear_old_dl(Dl0)
+	 end,
     Tess = glu:newTess(),
-    put(?MODULE, #du{tess=Tess,vec=gl:genLists(1)}),
+    put(?MODULE, #du{dl=Dl,tess=Tess,vec=gl:genLists(1)}),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
     glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
     glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE),
@@ -66,6 +67,11 @@ init() ->
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55>>,
     gl:polygonStipple(P).
+
+clear_old_dl([#dlo{src_we=We,proxy_data=Pd0}|T]) ->
+    Pd = wings_subdiv:clean(Pd0),
+    [#dlo{src_we=We,proxy_data=Pd}|clear_old_dl(T)];
+clear_old_dl([]) -> [].
 
 tess() ->
     #du{tess=Tess} = get(?MODULE),
