@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.114 2004/03/20 17:54:50 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.115 2004/05/31 06:18:13 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -752,16 +752,17 @@ assign_materials([{F,M}|_]=MatFace0, We) when is_integer(F), is_atom(M) ->
     assign_materials(MatFace, We);
 assign_materials([], We) -> We.
 
-assign(Mat, _, #we{mat=Mat}=We) -> We;
+assign(Mat, _, #we{mat=Mat}=We) ->
+    We#we{mode=material};
 assign(Mat, Faces, #we{mat=Tab0,fs=Ftab}=We) when is_list(Faces) ->
     case length(Faces) =:= gb_trees:size(Ftab) of
 	true ->
-	    We#we{mat=Mat};
+	    We#we{mode=material,mat=Mat};
 	false ->
 	    Tab = force_list(Tab0, Ftab),
 	    NewTab = sort(make_tab(Mat, Faces)),
 	    MatTab = mat_merge(NewTab, Tab, []),
-	    We#we{mat=MatTab}
+	    We#we{mode=material,mat=MatTab}
     end;
 assign(Mat, Faces, We) ->
     assign(Mat, gb_sets:to_list(Faces), We).
