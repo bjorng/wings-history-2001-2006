@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.126 2003/07/10 09:31:32 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.127 2003/07/11 10:26:28 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -106,9 +106,10 @@ create_autouv_window(Id, #st{shapes=Shs}=St) ->
     Title = "AutoUV: " ++ ObjName,
     {{X,Y,W,H},_Geom} = init_drawarea(),
     Props = [{display_lists,Name}|wings_view:initial_properties()],
+    CreateToolbar = fun(N, P, Wi) -> wings:create_toolbar(N, P, Wi) end,
     wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H},
 		      [resizable,closable,menubar,{properties,Props},
-		       {toolbar,fun(N, P, Wi) -> wings:create_toolbar(N, P, Wi) end}], Op),
+		       {toolbar,CreateToolbar}], Op),
     wings_wm:send(Name, {init_uvmapping,We}).
 
 auv_event({init_uvmapping,#we{mode=Mode}=We}, St) ->
@@ -889,12 +890,10 @@ handle_event(resized, Uvs0) ->
     Geom = wingeom(W,H),
     get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
 
-handle_event({action,_, {view,smoothed_preview}}, _Uvs0) ->
-    keep; %% Bugbug didn't work crashes inside wings update_dlists
 handle_event({action,wings,{view, Cmd}}, Uvs0) ->
     St = wings_view:command(Cmd, Uvs0#uvstate.st),
     get_event(Uvs0#uvstate{st=St});
-handle_event({current_state,St}, Uvs) ->
+handle_event({current_state,geom_display_lists,St}, Uvs) ->
     case verify_state(St, Uvs) of
 	keep -> update_selection(St, Uvs);
 	Other -> Other
@@ -1268,7 +1267,7 @@ broken_event(redraw, #uvstate{orig_we=#we{name=Name}}) ->
 		     "Either quit AutoUV and start over, or Undo your changes."),
     wings_wm:message("[R] Show menu"),
     keep;
-broken_event({current_state,St}, Uvs) ->
+broken_event({current_state,geom_display_lists,St}, Uvs) ->
     case same_topology(St, Uvs) of
 	false -> keep;
 	true ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.34 2003/07/03 14:44:35 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.35 2003/07/11 10:26:28 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -39,6 +39,11 @@ toplevel(Name, Title, Pos, Size, Flags, Op) ->
 
 new_controller(Client, Title, Flags) ->
     Z = wings_wm:win_z(Client),
+    case keysearch(properties, 1, Flags) of
+	false -> ok;
+	{value,{properties,Props}} ->
+	    foreach(fun({K,V}) -> wings_wm:set_prop(Client, K, V) end, Props)
+    end,
     Controller = {controller,Client},
     ctrl_create_windows(reverse(sort(Flags)), Client),
     Cs = #ctrl{title=Title},
@@ -68,9 +73,6 @@ ctrl_create_windows([resizable|Flags], Client) ->
 ctrl_create_windows([closable|Flags], Client) ->
     Name = new_closer(Client),
     wings_wm:link(Client, Name),
-    ctrl_create_windows(Flags, Client);
-ctrl_create_windows([{properties,Props}|Flags], Client) ->
-    foreach(fun({K,V}) -> wings_wm:set_prop(Client, K, V) end, Props),
     ctrl_create_windows(Flags, Client);
 ctrl_create_windows([menubar|Flags], Client) ->
     Name = create_menubar(Client),
@@ -682,6 +684,7 @@ create_menubar(Client) ->
     Z = wings_wm:win_z(Client),
     wings_wm:new(Name, {1,1,Z}, {1,?MENU_HEIGHT},
 		 {seq,push,get_menu_event(#mb{sel=none})}),
+    wings_wm:set_prop(Name, display_lists, wings_wm:get_prop(Client, display_lists)),
     Name.
 
 get_menu_event(Mb) ->

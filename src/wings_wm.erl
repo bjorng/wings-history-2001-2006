@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.117 2003/07/07 06:41:24 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.118 2003/07/11 10:26:28 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -171,10 +171,17 @@ current_state(St) ->
     case put(wm_current_state, St) of
 	St -> ok;
 	_ ->
+	    {value,DispLists} = lookup_prop(this(), display_lists),
 	    NewState = {current_state,St},
-	    foreach(fun(desktop) -> ok;
-		       (Name) -> send(Name, NewState)
-		    end, gb_trees:keys(get(wm_windows)))
+	    foreach(fun(#win{props=Props,name=Name}) ->
+			    case gb_trees:lookup(display_lists, Props) of
+				none -> ok;
+				{value,DispLists} ->
+				    send(Name, NewState);
+				{value,_} ->
+				    send(Name, {current_state,DispLists,St})
+			    end
+		    end, gb_trees:values(get(wm_windows)))
     end.
 
 get_current_state() ->

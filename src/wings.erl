@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.256 2003/07/08 07:05:32 bjorng Exp $
+%%     $Id: wings.erl,v 1.257 2003/07/11 10:26:28 bjorng Exp $
 %%
 
 -module(wings).
@@ -164,7 +164,6 @@ init(File, Root) ->
 
     open_file(File),
     restore_windows(St),
-    wings_wm:current_state(St),
     case catch wings_wm:enter_event_loop() of
 	{'EXIT',normal} ->
 	    wings_pref:finish(),
@@ -359,6 +358,7 @@ handle_event_3({action,Cmd,Args}, St) ->
 handle_event_3(#mousebutton{}, _St) -> keep;
 handle_event_3(#mousemotion{}, _St) -> keep;
 handle_event_3(init_opengl, St) ->
+    wings_wm:current_state(St),
     init_opengl(St),
     wings_draw:update_dlists(St),
     keep;
@@ -383,6 +383,8 @@ handle_event_3({temporary_selection,St}, St0) ->
     main_loop(set_temp_sel(St0, St));
 handle_event_3({current_state,St}, _) ->
     main_loop_noredraw(St);
+handle_event_3({current_state,_,_}, _) ->
+    keep;
 handle_event_3(revert_state, St) ->
     main_loop(clear_temp_sel(St));
 handle_event_3(need_save, St) ->
@@ -1196,9 +1198,10 @@ get_mode_restriction() ->
 	{value,Other} -> Other
     end.
 
-create_toolbar(Name, Pos, W) ->
+create_toolbar({toolbar,Client}=Name, Pos, W) ->
     ButtonH = ?BUTTON_HEIGHT+6,
-    wings_wm:new(Name, Pos, {W,ButtonH}, init_button()).
+    wings_wm:new(Name, Pos, {W,ButtonH}, init_button()),
+    wings_wm:set_prop(Name, display_lists, wings_wm:get_prop(Client, display_lists)).
 
 init_button() ->
     {seq,push,get_button_event(#but{mode=face})}.

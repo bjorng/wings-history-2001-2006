@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.41 2003/07/03 14:44:34 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.42 2003/07/11 10:26:28 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -54,8 +54,10 @@ window(Pos, Size, St) ->
     Ost = #ost{first=0,lh=18,active=-1},
     Current = {current_state,St},
     Op = {seq,push,event(Current, Ost)},
+    Props = [{display_lists,geom_display_lists}],
     wings_wm:toplevel(outliner, "Outliner", Pos, Size,
-		      [resizable,closable,vscroller,{anchor,ne}], Op).
+		      [resizable,closable,vscroller,{anchor,ne},
+		       {properties,Props}], Op).
 
 get_event(Ost) ->
     {replace,fun(Ev) -> event(Ev, Ost) end}.

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.4 2003/07/08 18:42:54 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.5 2003/07/11 10:26:28 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -49,6 +49,7 @@ seg_init_message(Ss) ->
     Ss#seg{msg=Msg}.
 
 get_seg_event(#seg{st=St}=Ss) ->
+    wings_wm:current_state(St),
     wings_draw:update_dlists(St),
     wings_wm:dirty(),
     get_seg_event_noredraw(Ss).
