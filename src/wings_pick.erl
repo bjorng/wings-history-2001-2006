@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.10 2001/11/23 17:25:48 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.11 2001/11/24 10:46:02 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -269,6 +269,7 @@ project(Objx, Objy, ObjZ, ModelMatrix0, ProjMatrix0, [Vx,Vy,Vw,Vh]) ->
 %% Pick all in the given rectangle (with center at X,Y).
 %%
 
+pick_all(X, Y, W, H, St) when W < 1.0; H < 1.0 -> none;
 pick_all(X0, Y0, W, H, St) ->
     #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode} = St,
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
