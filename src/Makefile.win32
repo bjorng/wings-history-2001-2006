@@ -3,12 +3,12 @@
 #
 #     Makefile for building Wings 3D.
 #
-#  Copyright (c) 2001 Bjorn Gustavsson
+#  Copyright (c) 2001-2002 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile.win32,v 1.14 2002/02/10 18:17:11 bjorng Exp $
+#     $Id: Makefile.win32,v 1.15 2002/03/03 17:02:53 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -51,6 +51,7 @@ TARGET_FILES = \
 	$(EBIN)\wings_material.beam \
 	$(EBIN)\wings_matedit.beam \
 	$(EBIN)\wings_menu.beam \
+	$(EBIN)\wings_menu_util.beam \
 	$(EBIN)\wings_move.beam \
 	$(EBIN)\wings_pick.beam \
 	$(EBIN)\wings_plugin.beam \
