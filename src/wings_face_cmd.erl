@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.42 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.43 2002/03/17 16:57:24 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -316,7 +316,7 @@ intrude(Faces0, #we{id=Id,es=Etab,fs=Ftab,next_id=Wid}=We0, SelAcc) ->
     BridgeFaces = [F || {face,F} <- RootSet0 ++ RootSet],
     Sel = gb_sets:difference(Sel0, gb_sets:from_list(BridgeFaces)),
     We = intrude_bridge(RootSet0, RootSet, We3),
-    {We,[{Id,Sel}|SelAcc]}.
+    {We#we{mode=We0#we.mode},[{Id,Sel}|SelAcc]}.
 
 intrude_bridge([{face,FaceA},{vertex,Va}|FsA],
 	       [{face,FaceB},{vertex,Vb}|FsB], We0) ->
