@@ -3,19 +3,19 @@
 %%
 %%     Utility functions for E3D meshes, such as cleanup and triangulation.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.46 2004/12/16 18:49:50 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.47 2005/02/03 07:26:21 bjorng Exp $
 %%
 
 -module(e3d_mesh).
 -export([clean_faces/1,orient_normals/1,transform/1,transform/2,
 	 merge_vertices/1,triangulate/1,quadrangulate/1,
 	 make_quads/1,vertex_normals/1,renumber/1,partition/1,
-	 used_materials/1]).
+	 split_by_material/1,used_materials/1]).
 -export([triangulate_face/2,triangulate_face/3,
 	 triangulate_face_with_holes/3]).
 -export([quadrangulate_face/2,quadrangulate_face_with_holes/3]).
@@ -155,9 +155,10 @@ vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
     Mesh#e3d_mesh{fs=Faces,ns=Normals}.
 
 %% renumber(Mesh0) -> Mesh
-%%  Removes vertices and UV coordinates that are not referenced
-%%  from any faces and renumbers vertices and UV coordinates to
-%%  remove the gaps.
+%%  Removes vertices and vertex attributes such as  UV coordinates and
+%%  vertex normals that are not referenced from any faces and renumbers
+%%  vertices and attributes to remove the gaps.
+%%  XXX Bug: Vertex colors are not handled here.
 renumber(#e3d_mesh{tx=Tx,vs=Vtab,ns=Ns}=Mesh) ->
     {UsedVs,UsedUv,UsedNs} = rn_used_vs(Mesh),
     if
@@ -180,6 +181,18 @@ partition(#e3d_mesh{fs=Faces0,he=He0}=Template) ->
 			[Mesh|A]
 		end, [], sort(FacePart)),
     reverse(Res).
+
+%% split_by_material(Mesh0) -> [Mesh]
+%%  Split a mesh into separate meshes where all faces in each
+%%  mesh have the same material.
+split_by_material(#e3d_mesh{fs=Fs}=Mesh) ->
+    R0 = foldl(fun(#e3d_face{mat=Mat}=Face, A) ->
+		       [{Mat,Face}|A]
+	       end, [], Fs),
+    R = sofs:relation(R0, [{mat,face}]),
+    F = sofs:relation_to_family(R),
+    Ps = sofs:to_external(sofs:range(F)),
+    [renumber(Mesh#e3d_mesh{fs=P}) || P <- Ps].
 
 %% used_materials(Mesh) -> [MaterialName]
 %%  Returns a sorted list of all materials used in the given mesh.
