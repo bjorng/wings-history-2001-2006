@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.33 2002/11/15 17:01:54 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.34 2002/11/20 17:08:30 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -403,7 +403,7 @@ digraph_get_path(G, Va, Vb) ->
     end.
 
 connect_inner({new,Va}, [Va,Vb,{new,Vb}], N, Face, We0) ->
-    EdgeThrough = edge_through(Va, Vb, We0),
+    {EdgeThrough,_,_} = wings_vertex:edge_through(Va, Vb, We0),
     {We1,TempE} = wings_edge:fast_cut(EdgeThrough, default, We0),
     {We2,Edge} = wings_vertex:force_connect(Vb, Va, Face, We1),
     #we{vs=Vtab} = We2,
@@ -459,14 +459,6 @@ connect_inner(Current, [_|[_,_]=Next], N, Face, We) ->
 connect_inner(Current, [_,Last], _, Face, We0) ->
     {We,_} = wings_vertex:force_connect(Last, Current, Face, We0),
     We.
-
-edge_through(Va, Vb, We) ->
-    wings_vertex:until(fun(E, _, Rec, A) ->
-			       case wings_vertex:other(Va, Rec) of
-				   Vb -> E;
-				   _ -> A
-			       end
-		       end, none, Va, We).
 
 connect_one_inner(Current, A, B, C, N, Face, We0) ->
     {We1,Edge} = wings_vertex:force_connect(B, Current, Face, We0),
