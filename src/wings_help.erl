@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.62 2004/01/18 10:23:26 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.63 2004/01/18 10:46:19 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -423,7 +423,6 @@ draw_splash_1([{icon,Name,Iw,Ih}|T], Y) ->
     wings_io:draw_icons(fun() -> wings_io:draw_icon(X, Y, Name) end),
     draw_splash_1(T, Y+Ih);
 draw_splash_1([{text,Text}|T], Y) ->
-    io:format("~p\n", [Text]),
     gl:color3b(0, 0, 0),
     Th = wings_text:height(),
     {W,_} = wings_wm:win_size(),
@@ -440,10 +439,18 @@ draw_splash_1([], _) -> ok.
 splash_contents() ->
     [{spacer,0,14},
      {icon,wings,256,128},
-     {text,"Wings 3D " ++ ?WINGS_VERSION},
+     {text,?WINGS_VERSION},
+     {spacer,0,10},
+     {text,"Wings 3D is a subdivision modeler inspired"},
+     {text,"by Nendo and Mirai from IZWare."},
+     {spacer,0,10},
+     {text,"Wings 3D comes with absolutely no warranty,"},
+     {text,"but is completely free for any kind of use"},
+     {text,"(including commercial)."},
      {spacer,0,10},
      {text,"Copyright " ++ [169] ++ " 2001-2004 "
       "Bj" ++ [246] ++ "rn Gustavsson & Others"},
      {spacer,0,5},
      {text,"JPEG library: Copyright " ++ [169] ++
-      " 1991-1998 Thomas G. Lane."}].
+      " 1991-1998 Thomas G. Lane"}
+    ].
