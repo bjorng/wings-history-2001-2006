@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.4 2002/10/17 19:03:28 bjorng Exp $
+%%     $Id: auv.hrl,v 1.5 2002/10/19 21:39:31 bjorng Exp $
 
 -record(a,
 	{center = {0,0},
@@ -53,7 +53,6 @@
 	  %% Data
 	  sel = [],         %% Selected areas
 	  areas,            %% The areas
-	  rest_objects,     %% The remaing objects 
 	  st,               %% My maybe modified st
 	  origst            %% Orignal st
 	 }).             

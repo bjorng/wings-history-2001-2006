@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.18 2002/10/19 11:20:44 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.19 2002/10/19 21:39:31 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -116,21 +116,10 @@ command({body,{uvmap_done,QuitOp,
 	  end,
     We = ?SLOW(insert_uvcoords(Areas1)),
     Shapes1 = gb_trees:update(We#we.id, We, St2#st.shapes),
-    St3 = St2#st{shapes = Shapes1},
-    case Uvs#uvstate.rest_objects of
-	[] ->
-	    %% Last done, reset to original
-	    reset_view(),
-	    erase(auv_state),
-	    St3;
-	[Next|Objects] ->
-	    WSel = [{(Next#areas.we)#we.id, gb_sets:singleton(0)}],
-	    NewUvs = Uvs#uvstate{areas = Next, rest_objects = Objects, 
-				 sel = [], 
-				 st = wpa:sel_set(body, WSel, St3), 
-				 dl = undefined},
-	    {seq,{push,dummy}, get_event(NewUvs)}
-    end;
+    St = St2#st{shapes = Shapes1},
+    reset_view(),
+    erase(auv_state),
+    St;
 
 command({face,chart_names}, St) ->
     Mats = wings_sel:fold(
@@ -207,7 +196,6 @@ do_edit(We, St0) ->
 		   st = wings_select_faces([],Areas#areas.we,St0),
 		   origst = St0,
 		   areas = Areas, geom = Geom, 
-		   rest_objects = [],
 		   option = #setng{color = false, texbg = true, 
 				   texsz = TexSz}},
     {seq,{push,dummy}, get_event(Uvs)}.
@@ -296,12 +284,12 @@ init_uvmap(St0, Old, Type) ->
 	init_uvmap2(We, A, Type)
 	end, {[], Old}, St0)),
     Geom = init_drawarea(),
-    [Areas|Remain] = AllAreas,
+    [Areas] = AllAreas,
     Uvs = #uvstate{command = create_mat, 
 		   st=wings_select_faces([],Areas#areas.we,St1),
 		   origst = Old,
 		   areas = Areas, 
-		   rest_objects = Remain, geom = Geom},
+		   geom = Geom},
     {seq,{push,dummy}, get_event(Uvs)}.
 
 init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
@@ -315,7 +303,8 @@ init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
     Areas = init_areas(Clusters, [], Type, We2),
 
     %% Place the cluster on the texturemap
-    Map = auv_placement:place_areas(Areas,We2),
+    Map = auv_placement:place_areas(Areas, We2),
+
     %%    ?DBG("AUV Maps ~p\n", [Map]),
     As0 = #areas{we = We2, orig_we = We1, as = Map,
 		 vmap = ChangedByCut,
@@ -375,7 +364,7 @@ insert_coords([{V0,{Face,{S,T,_}}}|Rest], Vmap, #we{es=Etab0}=We) ->
     insert_coords(Rest, Vmap, We#we{es=Etab});
 insert_coords([], _, We) -> We.
 
-init_edit(#we{fs=Ftab0}=We, St0) ->
+init_edit(#we{fs=Ftab0}=We0, St0) ->
     MatNames0 = foldl(fun({Face,#face{mat=Mat}}, A) ->
 			      [{Mat,Face}|A]
 		      end, [], gb_trees:to_list(Ftab0)),
@@ -386,21 +375,32 @@ init_edit(#we{fs=Ftab0}=We, St0) ->
     Ftab1 = sofs:relation(gb_trees:to_list(Ftab0)),
     Ftab2 = sofs:restriction(Ftab1, sofs:set(Faces)),
     Ftab = gb_trees:from_orddict(sofs:to_external(Ftab2)),
-    Clusters = get_groups(Ftab, We, []),
-    Create = fun({FS, UVs},Count) ->
-		     {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(UVs),
-		     CX = BX0 + (BX1-BX0) / 2,
-		     CY = BY0 + (BY1-BY0) / 2,
-		     %%       ?DBG("Edit Data ~p ~p ~p\n", [BB, {CX,CY}, UVs]),
-		     Center = fun({Id, {X,Y}}) -> {Id,{X - CX, Y - CY, 0.0}} end,
-		     UVs1 = map(Center, UVs),
-		     {{Count, #a{fs = FS, vpos = UVs1, center = {CX,CY},
-				 size = {(BX1-BX0), (BY1 -BY0)}}}, Count+1}
-	     end,
-    {Map0,_Count} = lists:mapfoldl(Create, 1, Clusters),
+    Clusters = get_groups(Ftab, We0, []),
     ?DBG("Edit UV ~p \n", [MatName]),
-    Map = gb_trees:from_orddict(Map0),
-    #areas{we=We, as=Map, matname=MatName}.
+    Empty = gb_sets:empty(),
+    {We,ChangedByCut} = auv_segment:cut_model(Empty, Clusters, We0),
+    Map1 = number(build_map(Clusters, We, [])),
+    Map = gb_trees:from_orddict(Map1),
+    #areas{we=We,orig_we=We0,as=Map,vmap=ChangedByCut,matname=MatName}.
+
+build_map([Fs|T], We, Acc) ->
+    UVs0 = foldl(fun(F, A) ->
+			 draw_info(F, We) ++ A
+		 end, [], Fs),
+    UVs1 = lists:usort(UVs0),
+    {{_,BX0},{_,BX1},{_,BY0},{_,BY1}} = maxmin(UVs0),
+    CX = BX0 + (BX1-BX0) / 2,
+    CY = BY0 + (BY1-BY0) / 2,
+    UVs = [{V,{X-CX,Y-CY,0.0}} || {V,{X,Y}} <- UVs1],
+    Chart = #a{fs=Fs,vpos=UVs,center={CX,CY},size={BX1-BX0,BY1-BY0}},
+    build_map(T, We, [Chart|Acc]);
+build_map([], _, Acc) -> Acc.
+
+number(L) ->
+    number(L, 0).
+number([H|T], N) ->
+    [{N,H}|number(T, N)];
+number([], _) -> [].
 
 %%%%% Material handling
 
@@ -413,7 +413,7 @@ has_texture(MatName, Materials) ->
 
 get_texture_size(MatName, Materials) ->
     Mat = gb_trees:get(MatName, Materials),
-    Maps = proplists:get_value(maps,Mat,[]),
+    Maps = proplists:get_value(maps, Mat, []),
     case proplists:get_value(diffuse, Maps, none) of
 	none -> {512, 512};
 	{W,H,_} -> {W,H}
@@ -475,44 +475,44 @@ get_groups(Ftab0, We, Acc) ->
     case gb_trees:is_empty(Ftab0) of
 	true -> Acc;
 	false ->
-	    {F1, _FRec, Ftab1} = gb_trees:take_smallest(Ftab0),
-	    {Faces, UVs, Ftab2} = get_group([F1], Ftab1, We, [], []),
-	    get_groups(Ftab2, We, [{Faces, UVs}|Acc])
+	    {Face,_,Ftab1} = gb_trees:take_smallest(Ftab0),
+	    {Faces,Ftab} = get_group([Face], Ftab1, We, []),
+	    get_groups(Ftab, We, [Faces|Acc])
     end.
 
-get_group([Face|Rest], Ftab1, We = #we{es = Es}, AF, AUV) ->    
+get_group([Face|Rest], Ftab1, We = #we{es = Es}, AF) ->
     Get = fun(W,_E,ER,Acc) -> get_group2(W,ER,Acc,Es) end,
-    {Fs, UVs, Ftab2} = wings_face:fold(Get, {[], AUV, Ftab1}, Face, We),
-    get_group(Rest ++ Fs, Ftab2, We, Fs ++ [Face|AF], UVs);
-get_group([], Ftab, _We, AF, AUV) ->
-    {lists:usort(AF), lists:usort(AUV), Ftab}.
+    {Fs,Ftab2} = wings_face:fold(Get, {[],Ftab1}, Face, We),
+    get_group(Rest ++ Fs, Ftab2, We, Fs ++ [Face|AF]);
+get_group([], Ftab, _We, AF) ->
+    {lists:usort(AF),Ftab}.
 
-get_group2(VO, #edge{lf=F2,vs=VO,ve=V,b=F1Uv,ltpr=Eid2}, {Fs,Vs,Ftab0}, Etab) ->
-    case gb_trees:is_defined(F2, Ftab0) of
+get_group2(VO, #edge{lf=Face,vs=VO,ve=V,b=F1Uv,ltpr=Eid2}, {Fs,Ftab}, Etab) ->
+    case gb_trees:is_defined(Face, Ftab) of
 	false ->
-	    {Fs, [{V, F1Uv}|Vs], Ftab0};
+	    {Fs,Ftab};
 	true ->
 	    case gb_trees:get(Eid2, Etab) of
-		#edge{rf=F2,ve=V,b=F1Uv} ->
-		    {[F2|Fs], [{V, F1Uv}|Vs], gb_trees:delete(F2, Ftab0)};
-		#edge{lf=F2,vs=V,a=F1Uv} ->
-		    {[F2|Fs], [{V, F1Uv}|Vs], gb_trees:delete(F2, Ftab0)};
+		#edge{rf=Face,ve=V,b=F1Uv} ->
+		    {[Face|Fs], gb_trees:delete(Face, Ftab)};
+		#edge{lf=Face,vs=V,a=F1Uv} ->
+		    {[Face|Fs],gb_trees:delete(Face, Ftab)};
 		_Edge ->
-		    {Fs, [{V, F1Uv}|Vs], Ftab0}
+		    {Fs, Ftab}
 	    end
     end;
-get_group2(VO, #edge{rf=F2,vs=V,ve=VO,a=F1Uv,rtpr=Eid2}, {Fs,Vs,Ftab0},Etab) ->
-    case gb_trees:is_defined(F2, Ftab0) of
+get_group2(VO, #edge{rf=Face,vs=V,ve=VO,a=F1Uv,rtpr=Eid2}, {Fs,Ftab},Etab) ->
+    case gb_trees:is_defined(Face, Ftab) of
 	false ->
-	    {Fs, [{V, F1Uv}|Vs], Ftab0};
+	    {Fs,Ftab};
 	true ->
 	    case gb_trees:get(Eid2, Etab) of
-		#edge{rf=F2,ve=V,b=F1Uv} ->
-		    {[F2|Fs], [{V, F1Uv}|Vs], gb_trees:delete(F2, Ftab0)};
-		#edge{lf=F2,vs=V,a=F1Uv} ->
-		    {[F2|Fs], [{V, F1Uv}|Vs], gb_trees:delete(F2, Ftab0)};
+		#edge{rf=Face,ve=V,b=F1Uv} ->
+		    {[Face|Fs],gb_trees:delete(Face, Ftab)};
+		#edge{lf=Face,vs=V,a=F1Uv} ->
+		    {[Face|Fs],gb_trees:delete(Face, Ftab)};
 		_Edge ->
-		    {Fs, [{V, F1Uv}|Vs], Ftab0}
+		    {Fs,Ftab}
 	    end
     end.
 
@@ -1160,7 +1160,7 @@ handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
 	     mode = Mode, op = Op, sel = Sel0} = Uvs0,
     {DX,DY} = case Op#op.prev of 
 		  undefined -> {DX0,DY0}; 
-		  {MX1,MY1}->  %% Don't trust relativ mouse event
+		  {MX1,MY1}->  %% Don't trust relative mouse event
 		      {MX0-MX1, MY0-MY1}
 	      end,
     MW =  (MW0-X0Y0) * DX/W,
@@ -1651,4 +1651,19 @@ check_repeat(N, D) ->
     case N rem 2 of
 	0 -> [B|B];
 	1 -> [D,B|B]
+    end.
+
+%% XXX Probably better moved into Wings core.
+draw_info(Face, #we{es=Etab,fs=Ftab}) ->
+    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    info_traverse(Face, Edge, Edge, Etab, []).
+
+info_traverse(_Face, LastEdge, LastEdge, _Etab, Acc) when Acc =/= [] -> Acc;
+info_traverse(Face, Edge, LastEdge, Etab, Acc) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{vs=V,a=Col,lf=Face,ltsu=NextEdge} ->
+	    info_traverse(Face, NextEdge, LastEdge, Etab, [{V,Col}|Acc]);
+	#edge{ve=V,b=Col,rf=Face,rtsu=NextEdge} ->
+	    info_traverse(Face, NextEdge, LastEdge, Etab,
+			  [{V,Col}|Acc])
     end.
