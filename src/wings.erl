@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.71 2001/12/13 12:01:40 bjorng Exp $
+%%     $Id: wings.erl,v 1.72 2001/12/13 15:59:57 bjorng Exp $
 %%
 
 -module(wings).
@@ -27,13 +27,13 @@
 -define(COLOR_BITS, 16).
 
 start() ->
-    spawn_link(fun init/0).
+    spawn(fun init/0).
 
 start_halt() ->
-    spawn_link(fun() ->
-		       init(),
-		       halt()
-	       end).
+    spawn(fun() ->
+		  init(),
+		  halt()
+	  end).
 
 init() ->
     register(wings, self()),

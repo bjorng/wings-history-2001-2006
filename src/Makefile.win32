@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile.win32,v 1.9 2001/11/28 20:49:36 bjorng Exp $
+#     $Id: Makefile.win32,v 1.10 2001/12/13 15:59:57 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -22,6 +22,7 @@ ERLC=erlc
 ESDL_PATH=..\..\esdl
 
 TARGET_FILES = \
+	$(EBIN)\user_default.beam \
 	$(EBIN)\wings.beam \
 	$(EBIN)\wings_align.beam \
 	$(EBIN)\wings_body.beam \

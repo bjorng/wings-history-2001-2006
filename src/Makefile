@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.15 2001/11/28 20:49:36 bjorng Exp $
+#     $Id: Makefile,v 1.16 2001/12/13 15:59:57 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -27,6 +27,7 @@ TYPE_FLAGS=
 endif
 
 MODULES= \
+	user_default \
 	wings \
 	wings_align \
 	wings_body \

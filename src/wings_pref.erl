@@ -8,19 +8,20 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.11 2001/12/10 18:39:58 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.12 2001/12/13 15:59:57 bjorng Exp $
 %%
 
 -module(wings_pref).
 -export([init/0,finish/0,
 	 sub_menu/1,command/1,
-	 get_value/1,get_value/2,set_value/2,set_default/2]).
+	 get_value/1,get_value/2,set_value/2,set_default/2,
+	 delete_value/1,browse/1]).
 
 -include("wings.hrl").
 -import(lists, [foreach/2,keysearch/3,map/2]).
 
 init() ->
-    ets:new(wings_state, [named_table]),
+    ets:new(wings_state, [named_table,public,ordered_set]),
     ets:insert(wings_state, defaults()),
     case old_pref_file() of
 	none -> ok;
@@ -116,6 +117,13 @@ set_default(Key, Value) ->
 	    ets:insert(wings_state, {Key,Value}),
 	    ok
     end.
+
+delete_value(Key) ->
+    ets:delete(wings_state, Key),
+    ok.
+
+browse(Prefix) ->
+    ets:select(wings_state, [{{{Prefix,'$1'},'$2'},[],[{{'$1','$2'}}]}]).
 
 locate(File) ->
     Dir = filename:dirname(code:which(?MODULE)),

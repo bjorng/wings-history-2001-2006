@@ -8,11 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.13 2001/12/13 12:01:40 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.14 2001/12/13 15:59:57 bjorng Exp $
 %%
 
 -module(wings_magnet).
 -export([sub_menu/1,command/2]).
+
+%% Shell interface.
+-export([add_user_expr/2,list_user_exprs/0,delete_user_expr/1]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3]).
@@ -20,20 +23,16 @@
 sub_menu(St) ->
     Dirs = directions(),
     M = [{"Gaussian",{gaussian,Dirs}},
-	 {"Linear",{linear,Dirs}},
-	 separator|user_defined(Dirs)],
+	 {"Linear",{linear,Dirs}}|user_defined(Dirs)],
     {"Magnet",{magnet,list_to_tuple(M)}}.
 
 user_defined(Dirs) ->
-    New = {"New",new},
-    case wings_pref:get_value(magnet_user_exprs, []) of
-	[] -> [New];
-	L -> [{Name,{Key,Dirs}} || {Name,Key,_} <- L] ++ [separator,New]
+    case wings_pref:browse(magnet_uexpr) of
+	[] -> [];
+	Uexprs ->
+	    [separator|[{Name,{Key,Dirs}} || {Key,{Name,_}} <- Uexprs]]
     end.
 
-command(new, St) ->
-    new(),
-    St;
 command({Type,Dir}, #st{selmode=vertex}=St) ->
     Vec = wings_util:make_vector(Dir),
     Tvs = wings_sel:fold_shape(fun(Sh, Items, Acc) ->
@@ -55,35 +54,47 @@ directions() ->
      {"Y",y},
      {"Z",z}}.
 
-new() ->
-    case wings_getline:string("Name: ") of
-	aborted -> aborted;
-	Name ->
-	    Funs = wings_pref:get_value(magnet_user_exprs, []),
-	    Key = list_to_atom("user" ++ integer_to_list(length(Funs))),
-	    Def = "Dist=D/R, math:exp(-(Dist*Dist)/2)",
-	    case wings_getline:string("Expr: ", Def) of
-		aborted -> aborted;
-		Str -> new(Name, Key, Funs, Str)
-	    end
-    end.
-		    
-new(Name, Key, Funs0, Str) ->
-    Args = [make_var('D'),make_var('R')],
-    Body0 = parse_str(Str),
-    Body = [{'fun',1,{clauses,[{clause,1,Args,[],Body0}]}}],
-    F = make_function(Key, [], Body),
-    Funs = [{Name,Key,F}|Funs0],
-    FunList = [Fun || {_,_,Fun} <- Funs],
-    Module = make_module(wings__magnet, FunList),
-    compile(Module),
-    wings_pref:set_value(magnet_user_exprs, Funs).
+add_user_expr(Name, Body) ->
+    Uexprs = wings_pref:browse(magnet_uexpr),
+    Key = list_to_atom("user" ++ integer_to_list(length(Uexprs))),
+    code:delete(wings__magnet),
+    code:purge(wings__magnet),
+    code:delete(wings__magnet),
+    code:purge(wings__magnet),
+    wings_pref:set_value({magnet_uexpr,Key}, {Name,Body}),
+    ok.
+
+list_user_exprs() ->
+    list_user_exprs(wings_pref:browse(magnet_uexpr), 1).
+
+list_user_exprs([{_,{Name,Body}}|Us], I) ->
+    Arity = func_arity(Body),
+    Func = {function,1,'fun',Arity,Body},
+    io:format("~w) ~s\n", [I,erl_pp:function(Func)]),
+    list_user_exprs(Us, I+1);
+list_user_exprs([], I) -> ok.
+
+func_arity([{clause,_,Args,_,_}|_]) ->
+    length(Args).
+
+delete_user_expr(N) ->
+    delete_user_expr(wings_pref:browse(magnet_uexpr), 1, N).
+
+delete_user_expr([{Key,{Name,Body}}|Us], I, I) ->
+    wings_pref:delete_value({magnet_uexpr,Key});
+delete_user_expr([{Key,{Name,Body}}|Us], I, N) ->
+    delete_user_expr(Us, I+1, N);
+delete_user_expr([], _, _) -> not_found.
 
 load_user_module() ->
-    Funs = wings_pref:get_value(magnet_user_exprs, []),
-    FunList = [Fun || {_,_,Fun} <- Funs],
-    Module = make_module(wings__magnet, FunList),
+    Uexprs = wings_pref:browse(magnet_uexpr),
+    Funs = [wrap_body(Func, Body) || {Func,{_,Body}} <- Uexprs],
+    Module = make_module(wings__magnet, Funs),
     compile(Module).
+
+wrap_body(Name, Body0) ->
+    Body = [{'fun',1,{clauses,Body0}}],
+    make_function(Name, [], Body).
 
 %%
 %% Conversion of vertice selections to vertices. :-)
@@ -184,22 +195,9 @@ compile(Module) ->
 		   "Compilation error: See Erlang shell window."})
     end.
 
-parse_str(Str) ->
-    case erl_scan:string(Str) of
-	{ok,Tokens,_} ->
-	    case erl_parse:parse_exprs(Tokens ++ [{dot, 1}]) of
-		{ok,Term} -> Term;
-		{error,{_,_,Reason}} -> throw({command_error,Reason})
-	    end;
-	{error, {_,_,Reason}, _} -> throw({command_error,Reason})
-    end.
-
 make_module(Name, Funcs) ->
     [{attribute,1,module,Name},
      {attribute,0,compile,export_all}|Funcs ++ [{eof,0}]].
 
 make_function(Name, Args, Body) ->
     {function,1,Name,length(Args),[{clause,1,Args,[],Body}]}.
-
-make_var(Var) ->
-    {var,1,Var}.

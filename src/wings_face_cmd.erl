@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.17 2001/12/11 07:46:51 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.18 2001/12/13 15:59:57 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -512,6 +512,7 @@ smooth(St0) ->
     St#st{sel=Sel}.
 
 smooth(Id, Faces0, We0, Acc) ->
+    wings_io:progress("Smoothing"),
     Rs = wings_sel:find_face_regions(Faces0, We0),
     We1 = smooth_regions(Rs, We0),
     NewFaces = wings_we:new_items(face, We0, We1),
