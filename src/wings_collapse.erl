@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.44 2005/01/15 14:08:06 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.45 2005/01/15 14:44:35 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -37,10 +37,13 @@ collapse(#st{selmode=vertex}=St0) ->
 	St -> St
     end.
 
-collapse_edges([E|Es], We0) ->
-    We = collapse_edge(E, We0),
-    collapse_edges(Es, We);
-collapse_edges([], We) -> We.
+collapse_edges(Es, We0) ->
+    We1 = collapse_edges_1(Es, We0),
+    Faces = wings_face:from_edges(Es, We0),
+    case wings_face:delete_bad_faces(Faces, We1) of
+	bad_edge -> We0;
+	We -> We
+    end.
 
 collapse_edge(Edge, #we{es=Etab}=We)->
     case gb_trees:lookup(Edge, Etab) of
@@ -67,7 +70,7 @@ collapse_vertices(Vs, We0) ->
     We.
 
 %%%
-%%% Internal functions.
+%%% Internal functions (for collapsing faces).
 %%%
 
 collapse_faces(Faces, #we{id=Id}=We0, SelAcc)->
@@ -167,6 +170,15 @@ delete_edges(V, Edge, Face, {Etab0,Vct0,Vtab0,Ftab0,Htab0}) ->
 	   end,
     Htab = wings_edge:hardness(Edge, soft, Htab0),
     {Etab,Vct,Vtab,Ftab,Htab}.
+
+%%%
+%%% Internal functions (edge collapsing).
+%%%
+
+collapse_edges_1([E|Es], We0) ->
+    We = fast_collapse_edge(E, We0),
+    collapse_edges_1(Es, We);
+collapse_edges_1([], We) -> We.
 	    
 collapse_edges(Edges0, #we{id=Id,es=Etab}=We0, SelAcc)->
     Edges = gb_sets:to_list(Edges0),
@@ -384,5 +396,3 @@ check_consistency(We) ->
 	    Msg = ?STR(check_consistency,1,"Collapsing would cause an inconsistent object structure."),
 	    wings_u:error(Msg)
     end.
-
-	    
