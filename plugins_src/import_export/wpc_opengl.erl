@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.53 2003/11/25 21:15:11 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.54 2003/11/26 14:33:13 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -232,7 +232,15 @@ prepare_mesh(We0=#we{light=none},SubDiv,RenderAlpha,RenderBumps,Wes, St) ->
     FVN	     = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
     MatFs0   = wings_material:mat_faces(FVN, We), %% sorted by mat..
     MatFs    = patch_tangent_space(MatFs0, We, []),
-    DL = draw_faces(MatFs, We, St#st.mat, skip),
+    PAble = programmable(),
+    Rtype = if
+		RenderBumps and PAble -> 
+		    load_shaders(),
+		    pable;
+		true -> 
+		    skip
+	    end,
+    DL = draw_faces(MatFs, We, St#st.mat, Rtype),
     [#d{l=DL,f=Fast,hasBump=RenderBumps,matfs=MatFs,we=We}|Wes];
 prepare_mesh(#we{}, _, _, _,Wes, _) -> %% Skip Lights
     Wes.
@@ -246,14 +254,6 @@ create_dls(St0, Attr, Shadows, Bumps) ->
 	       end, [], gb_trees:values(St#st.shapes)),
     Ls = if
 	     Shadows or Bumps -> %% Needs per-light data..
-		 PAble = programmable(),
-		 if
-		     Bumps and PAble -> 
-			 load_shaders(),
-			 pable;
-		     true -> 
-			 skip
-		 end,
 		 Ls0  = wpa:lights(St),
 		 Mats = St#st.mat,
 		 create_light_data(Ls0, Ds, 0, Mats, Bumps, Shadows, none, []);
@@ -435,6 +435,8 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,mat=Mat,shadow=Shadows,no_l=PerLigth}
     setup_amb(Amb),
     gl:enable(?GL_LIGHTING),
     gl:disable(?GL_CULL_FACE),
+    bind_ambient_shaders(),
+    enable_shaders(),
     foreach(fun(#d{l=DL}) ->	gl:callList(get_opaque(DL)) end, Wes),
     disable_lights(),
     gl:disable(?GL_LIGHTING),
@@ -450,6 +452,7 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,mat=Mat,shadow=Shadows,no_l=PerLigth}
 	false ->
 	    ignore
     end,
+    bind_light_shaders(),
     foldl(fun(L,Clear) -> draw_with_shadows(Clear, L, Mat) end, 
 	  false, Ligths),
     gl:disable(?GL_STENCIL_TEST),
@@ -494,6 +497,14 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:depthFunc(?GL_EQUAL),
     setup_light(L),
     gl:enable(?GL_LIGHTING),
+    case programmable() of
+	true ->
+	    {Lx,Ly,Lz} = L#light.pos,
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,0,Lx,Ly,Lz,0.0),
+	    enable_shaders();
+	false ->
+	    skip
+    end,
     foreach(fun(DL) -> 
 		    case is_transp(DL) of
 			true -> 
@@ -516,6 +527,7 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
 	    end, DLs),
     gl:blendFunc(?GL_ONE, ?GL_ONE),
     gl:disable(?GL_LIGHTING),
+    disable_shaders(),
     disable_lights(),
     %%    debug_shad(Shadow),
     true.
@@ -886,6 +898,9 @@ setup_amb(Amb) ->
 setup_light(#light{type=infinite,aim=Aim,pos=Pos,attr=L}) ->
     {X,Y,Z} = e3d_vec:norm(e3d_vec:sub(Pos,Aim)),
     gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {X,Y,Z,0}),
+    gl:lightf(?GL_LIGHT0, ?GL_LINEAR_ATTENUATION, 0.0),
+    gl:lightf(?GL_LIGHT0, ?GL_QUADRATIC_ATTENUATION, 0.0),
+    gl:lightf(?GL_LIGHT0, ?GL_SPOT_CUTOFF, 180.0),
     setup_light_attr(L);
 setup_light(#light{type=point,pos={X,Y,Z},attr=L}) ->
     gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {X,Y,Z,1}),
@@ -939,12 +954,16 @@ programmable() ->
 create_bumped(#d{l=DL}, false, _,_) -> DL;  % No Bumps use default DL
 create_bumped(#d{l=DL,we=We}, _,_,_)	    % Vertex mode can't have bumps.
   when We#we.mode == vertex -> DL;
-create_bumped(#d{matfs=MatFs,we=We},true,Mtab,#light{pos=LPos, type=Type}) -> 
-    LType = case Type of 
-		infinite -> dir;
-		_ -> pos
-	    end,
-    draw_faces(MatFs, We, Mtab, {LType,LPos}).
+create_bumped(#d{matfs=MatFs,l=DL,we=We},true,Mtab,#light{pos=LPos, type=Type}) -> 
+    case programmable() of
+	true -> DL;
+	false -> 
+	    LType = case Type of 
+			infinite -> dir;
+			_ -> pos
+		    end,
+	    draw_faces(MatFs, We, Mtab, {LType,LPos})
+    end.
 
 mult_inverse_model_transform(Pos) ->
     #view{origin=Origin,distance=Dist,azimuth=Az,
@@ -987,12 +1006,14 @@ draw_smooth_tr([{M,Faces}|T], Mtab, We, L) ->
 draw_smooth_tr([], _, _, _) -> ok.
 
 do_draw_smooth(_, Faces, #we{mode = vertex}=We,_,Mtab) ->
+    disable_shaders(),
     wings_material:apply_material(default, Mtab),
     gl:enable(?GL_COLOR_MATERIAL),
     gl:colorMaterial(?GL_FRONT_AND_BACK, ?GL_AMBIENT_AND_DIFFUSE),
     gl:'begin'(?GL_TRIANGLES),
     draw_vtx_color(Faces, We),
     gl:'end'(),
+    enable_shaders(),
     gl:disable(?GL_COLOR_MATERIAL);
 
 do_draw_smooth(MatN, Faces, We, L, Mtab) ->
@@ -1005,17 +1026,11 @@ do_draw_smooth(MatN, Faces, We, L, Mtab) ->
 	    do_draw_faces(Faces, IsTxMat, We),
 	    gl:'end'(),
 	    gl:popAttrib();
-	_ ->
-	    enable_shaders(L),
-	    Pable = case programmable() of
-			true -> pable;
-			false -> L
-		    end,
+	Pable ->
 	    apply_bumped_mat(Mat, Pable),
 	    gl:'begin'(?GL_TRIANGLES),
 	    do_draw_bumped(Faces, true, We, Pable),
 	    gl:'end'(),
-	    disable_shaders(),
 	    disable_bumps(),
 	    gl:popAttrib()
     end.
@@ -1080,21 +1095,21 @@ do_draw_bumped([{Face, [[UV1|TBN1],[UV2|TBN2],[UV3|TBN3]|_BUG]}|Fs],
     [V1,V2,V3|_] = wings_face:vertex_positions(Face, We),
     gl:normal3fv(element(3, TBN1)),
     texCoord(UV1, true, ?GL_TEXTURE1),
-						%    io:format("V=~p.~p~n",[V1,[UV1|N1]]),
+    %%    io:format("V=~p.~p~n",[V1,[UV1|N1]]),
     bumpCoord(TBN1, V1, L),
     texCoord(UV1, Txt,	?GL_TEXTURE3),
     gl:vertex3fv(V1),
 
     gl:normal3fv(element(3, TBN2)),
     texCoord(UV2, true, ?GL_TEXTURE1),
-						%    io:format("V=~p.~p~n",[V2,[UV2|N2]]),
+    %%    io:format("V=~p.~p~n",[V2,[UV2|N2]]),
     bumpCoord(TBN2, V2, L),
     texCoord(UV2, Txt,	?GL_TEXTURE3),
     gl:vertex3fv(V2),
 
     gl:normal3fv(element(3, TBN3)),
     texCoord(UV3, true, ?GL_TEXTURE1),
-						%    io:format("V=~p.~p~n",[V3,[UV3|N3]]),
+    %%    io:format("V=~p.~p~n",[V3,[UV3|N3]]),
     bumpCoord(TBN3, V3, L),
     texCoord(UV3, Txt,	?GL_TEXTURE3),
     gl:vertex3fv(V3),
@@ -1272,25 +1287,37 @@ disable_bumps() ->
     gl:activeTexture(?GL_TEXTURE3),
     gl:disable(?GL_TEXTURE_2D).
 
-enable_shaders({_Type, {Lx,Ly,Lz}}) ->
+bind_light_shaders() ->    
     case get(gl_shaders) of
-	{Vp,Fp} ->	    
+	{Vp,Fp,_Amb} ->	    
+	    gl:bindProgramARB(?GL_FRAGMENT_PROGRAM_ARB,Fp),
+	    gl:bindProgramARB(?GL_VERTEX_PROGRAM_ARB,Vp);
+	_ -> skip
+    end.
+bind_ambient_shaders() ->    
+    case get(gl_shaders) of
+	{_Vp,_Fp,Amb} ->	    
+	    gl:bindProgramARB(?GL_FRAGMENT_PROGRAM_ARB,Amb);
+	_ -> 
+	    skip
+    end.
+
+enable_shaders() ->
+    case get(gl_shaders) of
+	{_Vp,_Fp,_Amb} ->
 	    {_InvMV,{Cx,Cy,Cz}} = mult_inverse_model_transform({0.0,0.0,0.0}),
 	    gl:enable(?GL_FRAGMENT_PROGRAM_ARB),
-	    gl:bindProgramARB(?GL_FRAGMENT_PROGRAM_ARB,Fp),
 	    gl:enable(?GL_VERTEX_PROGRAM_ARB),
-	    gl:bindProgramARB(?GL_VERTEX_PROGRAM_ARB,Vp),
 %% 	    io:format("L[~.2f,~.2f,~.2f] C[~.2f,~.2f,~.2f]~n",
 %% 		      [Lx,Ly,Lz,Cx,Cy,Cz]),
-	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,0,Lx,Ly,Lz,0.0),
-	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,1,Cx,Cy,Cz,0);	
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,1,Cx,Cy,Cz,0);
 	_ ->
 	    ok
-    end. 
+    end.
 
 disable_shaders() ->
     case get(gl_shaders) of
-	{_Vp,_Fp} ->
+	{_Vp,_Fp,_Amb} ->
 	    gl:disable(?GL_VERTEX_PROGRAM_ARB),
 	    gl:disable(?GL_FRAGMENT_PROGRAM_ARB),
 	    ok;
@@ -1301,7 +1328,8 @@ disable_shaders() ->
 load_shaders() ->
     VP = load_program(?GL_VERTEX_PROGRAM_ARB,vertex_prog()),
     FP = load_program(?GL_FRAGMENT_PROGRAM_ARB,fragment_prog()),
-    Shaders = {VP,FP},
+    Amb = load_program(?GL_FRAGMENT_PROGRAM_ARB,ambient_prog()),
+    Shaders = {VP,FP,Amb},
     put(gl_shaders, Shaders),
     Shaders.
 
@@ -1432,3 +1460,15 @@ END
 ">>.
 
 
+ambient_prog() ->
+    <<"!!ARBfp1.0
+
+PARAM matamb  = state.material.ambient;
+PARAM lamb = state.lightmodel.ambient;
+TEMP color,tex;
+MUL color, matamb, lamb;
+TEX tex, fragment.texcoord[0], texture[0], 2D;
+MUL result.color, color, tex;
+
+END
+">>.
