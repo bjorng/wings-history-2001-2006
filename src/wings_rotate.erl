@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.25 2002/03/18 06:15:00 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.26 2002/03/18 10:49:13 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -60,10 +60,12 @@ magnet_unit(_) -> [falloff].
 %% Conversion of edge selections to vertices.
 %%
 
-edges_to_vertices(Vec, Center, Magnet, Edges0, We, Acc) ->
+edges_to_vertices(Vec, center, Magnet, Edges0, We, Acc) ->
     foldl(fun(Edges, A) ->
-		  edges_to_vertices_1(Vec, Center, Magnet, Edges, We, A)
-	  end, Acc, wings_sel:edge_regions(Edges0, We)).
+		  edges_to_vertices_1(Vec, center, Magnet, Edges, We, A)
+	  end, Acc, wings_sel:edge_regions(Edges0, We));
+edges_to_vertices(Vec, Center, Magnet, Edges, We, Acc) ->
+    edges_to_vertices_1(Vec, Center, Magnet, Edges, We, Acc).
 
 edges_to_vertices_1(normal, Center, Magnet, Es, #we{es=Etab}=We, Acc) ->
     Ns = foldl(fun(Edge, A) ->
@@ -74,17 +76,25 @@ edges_to_vertices_1(normal, Center, Magnet, Es, #we{es=Etab}=We, Acc) ->
     Vec = e3d_vec:norm(e3d_vec:add(Ns)),
     edges_to_vertices_1(Vec, Center, Magnet, Es, We, Acc);
 edges_to_vertices_1(Vec, Center, Magnet, Es, We, Acc) ->
-    Vs = wings_edge:to_vertices(Es, We),
-    rotate(Vec, Center, Magnet, Vs, We, Acc).
+    if
+	Magnet == none; Acc == [] ->
+	    Vs = wings_edge:to_vertices(Es, We),
+	    rotate(Vec, Center, Magnet, Vs, We, Acc);
+	true ->
+	    wings_util:error("Magnet Rotate on multiple edge regions requires "
+			     "an explicit rotate origin.")
+    end.
  
 %%
 %% Conversion of face selections to vertices.
 %%
 
-faces_to_vertices(Vec, Center, Magnet, Faces0, We, Acc) ->
+faces_to_vertices(Vec, center, Magnet, Faces0, We, Acc) ->
     foldl(fun(Faces, A) ->
-		  faces_to_vertices_1(Vec, Center, Magnet, Faces, We, A)
-	  end, Acc, wings_sel:face_regions(Faces0, We)).
+		  faces_to_vertices_1(Vec, center, Magnet, Faces, We, A)
+	  end, Acc, wings_sel:face_regions(Faces0, We));
+faces_to_vertices(Vec, Center, Magnet, Faces, We, Acc) ->
+    faces_to_vertices_1(Vec, Center, Magnet, Faces, We, Acc).
 
 faces_to_vertices_1(normal, Center, Magnet, Faces, We, Acc) ->
     Ns = foldl(fun(Face, N0) ->
@@ -94,7 +104,13 @@ faces_to_vertices_1(normal, Center, Magnet, Faces, We, Acc) ->
     Vs = wings_face:to_vertices(Faces, We),
     rotate(Vec, Center, Magnet, Vs, We, Acc);
 faces_to_vertices_1(Vec, Center, Magnet, Faces, We, Acc) ->
-    rotate(Vec, Center, Magnet, wings_face:to_vertices(Faces, We), We, Acc).
+    if
+	Magnet == none; Acc == [] ->
+	    rotate(Vec, Center, Magnet, wings_face:to_vertices(Faces, We), We, Acc);
+	true ->
+	    wings_util:error("Magnet Rotate on multiple face regions requires "
+			     "an explicit rotate origin.")
+    end.
 
 %%
 %% Conversion of body selections (entire objects) to vertices.
