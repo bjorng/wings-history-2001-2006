@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.42 2003/10/01 08:59:09 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.43 2003/10/01 20:58:58 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -395,7 +395,6 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,mat=Mat,shadow=true},false) ->
 		    gl:callList(get_opaque(DL)) end, Wes),
     disable_lights(),
     gl:disable(?GL_LIGHTING),
-    gl:disable(?GL_BLEND),
     %% Additive blend in the other lights
     gl:blendFunc(?GL_ONE, ?GL_ONE),
     gl:enable(?GL_BLEND), 
@@ -455,7 +454,6 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
 	    end, DLs),
     gl:enable(?GL_CULL_FACE),
     gl:depthFunc(?GL_LESS),
-    gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE),
     foreach(fun(DL) -> case is_transp(DL) of 
@@ -463,6 +461,7 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
 			   false -> ok 
 		       end
 	    end, DLs),
+    gl:blendFunc(?GL_ONE, ?GL_ONE),
     gl:disable(?GL_LIGHTING),
     disable_lights(),
 %    debug_shad(Shadow),
