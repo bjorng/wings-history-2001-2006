@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.93 2004/12/30 05:27:14 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.94 2004/12/30 05:37:36 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -28,7 +28,7 @@
 	 new_items/3,new_items_as_ordset/3,new_items_as_gbset/3,
 	 is_consistent/1,is_face_consistent/2,
 	 hide_faces/2,show_faces/1,num_hidden/1,
-	 any_hidden/1,visible/1,visible/2,
+	 any_hidden/1,all_hidden/1,visible/1,visible/2,
 	 validate_mirror/1,mirror_flatten/2]).
 
 -include("wings.hrl").
@@ -136,6 +136,10 @@ num_hidden_1(_, N) -> N.
 any_hidden(#we{fs=Ftab}) ->
     not gb_trees:is_empty(Ftab) andalso
 	wings_util:gb_trees_smallest_key(Ftab) < 0.
+
+all_hidden(#we{fs=Ftab}) ->
+    not gb_trees:is_empty(Ftab) andalso
+	wings_util:gb_trees_largest_key(Ftab) < 0.
 
 visible(#we{fs=Ftab}) ->
     visible_2(gb_trees:keys(Ftab)).

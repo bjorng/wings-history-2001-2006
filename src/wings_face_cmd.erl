@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.123 2004/12/29 09:58:21 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.124 2004/12/30 05:37:36 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -1117,11 +1117,15 @@ clone_3(El, We, Tr, N, Clone, #st{selmode=Mode}=St) ->
     wings_shape:insert(NewWe, clone, St).
 
 hide_faces(St0) ->
-    St = wings_sel:map(fun(Faces, We) ->
-			       wings_we:hide_faces(Faces, We)
-		       end, St0),
+    St = wings_sel:map(fun hide_faces_fun/2, St0),
     wings_sel:clear(St).
 
+hide_faces_fun(Fs, We0) ->
+    We = wings_we:hide_faces(Fs, We0),
+    case wings_we:all_hidden(We) of
+	true -> We0#we{perm=[]};		%Hide entire object.
+	false -> We
+    end.
 
 %%
 %% Common help function.
