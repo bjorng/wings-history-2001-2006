@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.36 2002/11/23 20:34:31 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.37 2002/11/24 08:41:45 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1155,10 +1155,15 @@ draw_text_1(X, Y, [C|T], N) ->
     wings_io:text_at(X, Y, [C]),
     draw_text_1(X+?CHAR_WIDTH, Y, T, N-1).
 
-validate_string(#text{validator=Validator}=Ts) ->
+validate_string(#text{validator=Validator,sel=Sel0}=Ts) ->
     case Validator(get_text(Ts)) of
 	ok -> Ts;
-	Str when is_list(Str) -> Ts#text{bef=[],aft=Str,sel=0}
+	Str when is_list(Str) ->
+	    Sel = case Sel0 of
+		      0 -> Sel0;
+		      _ -> length(Str)
+		  end,
+	    Ts#text{bef=[],aft=Str,sel=Sel}
     end.
 
 get_text(#text{bef=Bef,aft=Aft}) ->
@@ -1273,13 +1278,14 @@ del_sel(#text{sel=Sel,aft=Aft}=Ts) when Sel > 0 ->
     Ts#text{sel=0,aft=lists:nthtail(Sel, Aft)};
 del_sel(Ts) -> Ts.
 
-increment(Ts, Incr) ->
-    Str0 = get_text(Ts),
+increment(Ts0, Incr) ->
+    Str0 = get_text(Ts0),
     case catch list_to_integer(Str0) of
-	{'EXIT',_} -> Ts;
+	{'EXIT',_} -> Ts0;
 	N ->
 	    Str = integer_to_list(N+Incr),
-	    Ts#text{bef=reverse(Str),aft=[]}
+	    Ts = Ts0#text{bef=reverse(Str),aft=[],sel=-length(Str)},
+	    validate_string(Ts)
     end.
 
 max(A, B) when A > B -> A;
