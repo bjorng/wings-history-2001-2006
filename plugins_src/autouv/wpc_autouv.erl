@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.296 2005/03/10 22:15:51 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.297 2005/03/15 00:08:21 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -100,17 +100,22 @@ start_uvmap_2(Action, Name, Id, #st{shapes=Shs}=St) ->
 		       {toolbar,CreateToolbar}], Op),
     wings_wm:send(Name, {init,{Action,We}}).
 
-auv_event({init,Op}, St = #st{selmode = Mode, sel=Sel0}) ->
+auv_event({init,Op}, St = #st{selmode=Mode,sel=Sel0,shapes=Shs}) ->
     wings:init_opengl(St),
     case Op of
 	{edit,We} ->
 	    start_edit(We, St);
-	{segment,We} when Mode == face ->
+	{segment,We = #we{id=Id}} when Mode == face ->
 	    UVFs = gb_sets:from_ordset(wings_we:uv_mapped_faces(We)),
-	    {value, {_, FS}} = lists:keysearch(1, We#we.id, Sel0),
-	    case gb_sets:is_subset(FS,UVFs) of
+	    {value, {_, Fs}} = lists:keysearch(Id, 1, Sel0),
+	    case gb_sets:is_subset(Fs,UVFs) of
 		false -> auv_seg_ui:start(We, We, St);
-		true -> start_edit(We, St)
+		true -> 
+		    %% Hmm this didn't work..
+		    Other = wings_sel:inverse_items(face, Fs, We),
+		    NewWe = wings_we:hide_faces(Other, We),
+		    NewSt = wings_sel:clear(St#st{shapes=gb_trees:update(Id, We,Shs)}),
+		    start_edit(NewWe, NewSt)
 	    end;
 	{segment,We} ->
 	    case wings_we:uv_mapped_faces(We) of	    
@@ -343,7 +348,7 @@ command_menu(body, X, Y) ->
 	    {"Move", move, "Move selected charts"},
 	    {"Scale", {scale, scale_directions()++ stretch_directions()}, 
 	     "Scale selected charts"},
-	    {"Rotate", {rotate, rotate_directions()},"Rotate selected charts"},
+	    {"Rotate", rotate, "Rotate selected charts"},
 	    separator,
 	    {"Move to", 
 	     {move_to, 
@@ -377,25 +382,23 @@ command_menu(body, X, Y) ->
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(face, X, Y) ->
     Scale = scale_directions(),
-    Rotate = rotate_directions(),
     Menu = [{basic,{"Face operations",ignore}},
 	    {"Move",move,"Move selected faces",[magnet]},
 	    {"Scale",{scale,Scale},"Scale selected faces"},
-	    {"Rotate",{rotate,Rotate},"Rotate selected faces"}
+	    {"Rotate",rotate,"Rotate selected faces"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(edge, X, Y) ->
     Scale = scale_directions(),
-    Rotate = rotate_directions(),
     Align = 	    
-	[{"Chart to X", align_x, "Rotate chart so selected axis is parallel to X-axis"},
-	 {"Chart to Y", align_y, "Rotate chart so selected axis is parallel to Y-axis"},
-	 {"Chart to XY", align_xy, "Rotate chart so selected axis is parallel to XY-axis"}],
+	[{"Free",free,"Rotate selection freely"},
+	 {"Chart to X", align_x, "Rotate chart align selected edge to X-axis"},
+	 {"Chart to Y", align_y, "Rotate chart align selected edge to Y-axis"}],
     Menu = [{basic,{"Edge operations",ignore}},
 	    {basic,separator},
 	    {"Move",move,"Move selected edges",[magnet]},
 	    {"Scale",{scale,Scale},"Scale selected edges"},
-	    {"Rotate",{rotate,Rotate++Align},"Rotate commands"},
+	    {"Rotate",{rotate,Align},"Rotate commands"},
 	    separator,
 	    {"Stitch", stitch, "Stitch edges/charts"},
 	    {"Cut", cut_edges, "Cut selected edges"}
@@ -405,9 +408,10 @@ command_menu(vertex, X, Y) ->
     Scale = scale_directions(),
     Rotate = rotate_directions(),
     Align = 	    
-	[{"Chart to X", align_x, "Rotate chart so selected axis is parallel to X-axis"},
-	 {"Chart to Y", align_y, "Rotate chart so selected axis is parallel to Y-axis"},
-	 {"Chart to XY", align_xy, "Rotate chart so selected axis is parallel to XY-axis"}],
+	[{"Chart to X", align_x, 
+	  "Rotate chart to align (imaginary) edge joining selected verts to X-axis"},
+	 {"Chart to Y", align_y, 
+	  "Rotate chart to align (imaginary) edge joining selected verts to Y-axis"}],
 
     Menu = [{basic,{"Vertex operations",ignore}},
 	    {basic,separator},
@@ -477,11 +481,16 @@ handle_event(init_opengl, St) ->
 handle_event(resized, St) ->
     get_event(St);
 handle_event({new_state,St}, _) ->
-    new_state(St);
+    new_state(clear_temp_sel(St));
 handle_event(revert_state, St) ->
     get_event(St);
-handle_event({do_tweak, St}, _) ->
-    handle_command(move,St);
+handle_event({do_tweak, Type, St =#st{sh=Sh,selmode=Mode}}, _) ->
+    case Type of 
+	temp_selection ->
+	    handle_command(move,St#st{temp_sel={Mode,Sh}});
+	_ -> 
+	    handle_command(move,St)
+    end;
 handle_event({cancel_tweak,Ev}, St) ->
     handle_event_1(Ev,St,wings_msg:free_lmb_modifier());
 handle_event(Ev, St) ->
@@ -613,7 +622,6 @@ handle_event_3({action,Ev}, St) ->
 	    wings_view:command(Cmd,St),
 	    get_event(St);
 	_ ->
-	    io:format("MissEvent ~p~n", [Ev]),
 	    keep
     end;
 handle_event_3(got_focus, _) ->
@@ -624,27 +632,34 @@ handle_event_3(got_focus, _) ->
     wings_wm:message(Message, ""),
     wings_wm:dirty();
 handle_event_3(_Event, _) ->
+%%    io:format("MissEvent ~p~n", [_Event]),
     keep.
+
+clear_temp_sel(#st{temp_sel=none}=St) -> St;
+clear_temp_sel(#st{temp_sel={Mode,Sh}}=St) ->
+    St#st{temp_sel=none,selmode=Mode,sh=Sh,sel=[]}.
 
 -record(tweak, {type, st, pos, ev}).
 
 start_tweak(Type, Ev = #mousebutton{x=X,y=Y}, St0) ->
-%%    io:format("Activate tweak if motion ~p ~n", [Type]),
     T = #tweak{type=Type,st=St0,pos={X,Y}, ev=Ev},
     {seq,push,get_tweak_event(T)}.
 
 get_tweak_event(T) ->
     {replace,fun(Ev) -> tweak_event(Ev, T) end}.
-tweak_event(#mousemotion{x=X,y=Y}, #tweak{pos={Sx,Sy}, st=St}) ->
+tweak_event(#mousemotion{x=X,y=Y}, #tweak{pos={Sx,Sy},type=Type,st=St}) ->
     case (abs(X-Sx) > 2) orelse (abs(Y-Sy) > 2) of
 	true -> 
-	    wings_wm:later({do_tweak,St}),
+	    if Type == temp_selection ->
+		    wings_wm:later(clear_selection);
+	       true -> ignore
+	    end,
+	    wings_wm:later({do_tweak,Type,St}),
 	    pop;
 	false ->
 	    keep
     end;
 tweak_event(Other, #tweak{ev=Ev}) ->
-%%    io:format("quitting in tweak ~W~n",[Other, 6]),
     wings_wm:later(Other),
     wings_wm:later({cancel_tweak,Ev}),
     pop.
@@ -669,6 +684,8 @@ handle_command({scale,Dir}, St0) -> %% Maximize chart
     St1 = wpa:sel_map(fun(_, We) -> stretch(Dir,We) end, St0),
     St = update_selected_uvcoords(St1),
     get_event(St);
+handle_command(rotate, St) ->
+    drag(wings_rotate:setup({free,center}, St));
 handle_command({rotate,free}, St) ->
     drag(wings_rotate:setup({free,center}, St));
 handle_command({move_to,Dir}, St0) ->
@@ -864,7 +881,6 @@ handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #st{bb=Uvs0}=St) ->
 	    get_event(St#st{bb=Uvs})
     end;
 handle_drop(_DropData, _) ->
-    %%io:format("~P\n", [_DropData,40]),
     keep.
 
 is_power_of_two(X) ->
