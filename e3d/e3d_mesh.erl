@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.25 2002/11/05 18:47:37 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.26 2002/12/02 15:15:47 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -137,13 +137,13 @@ renumber(#e3d_mesh{tx=Tx,vs=Vtab,ns=Ns}=Mesh) ->
 
 %% partition(Mesh0) -> [Mesh]
 %%  Partitions a mesh in disjoint sub-meshes.
-partition(#e3d_mesh{fs=Faces0}=Template) ->
+partition(#e3d_mesh{fs=Faces0,he=He0}=Template) ->
     Faces1 = number_faces(Faces0),
     Faces = sofs:relation(Faces1, [{face,data}]),
-    FacePart = partition_1(Faces),
-    Res = foldl(fun(Fs0, A) ->
-			Fs = strip_index(sofs:to_external(Fs0)),
-			Mesh = renumber(Template#e3d_mesh{fs=Fs}),
+    FacePart = partition_1(Faces, He0),
+    Res = foldl(fun({Fs0,He}, A) ->
+			Fs = strip_index(Fs0),
+			Mesh = renumber(Template#e3d_mesh{fs=Fs,he=He}),
 			[Mesh|A]
 		end, [], sort(FacePart)),
     reverse(Res).
@@ -435,7 +435,7 @@ rn_make_map([], _, []) -> gb_trees:empty().
 %%% Help functions for partition/1.
 %%%
 
-partition_1(Faces) ->
+partition_1(Faces, He0) ->
     E2F = par_pairs(sofs:to_external(Faces), []),
     R = sofs:relation(E2F, [{edge,face}]),
     F0 = sofs:relation_to_family(R),
@@ -445,9 +445,16 @@ partition_1(Faces) ->
     G = sofs:family_to_digraph(F),
     Cs = digraph_utils:strong_components(G),
     digraph:delete(G),
+    F2E = sofs:converse(R),
+    He = sofs:set(He0, [edge]),
     foldl(fun(C, A) ->
 		  Part = sofs:set(C, [face]),
-		  [sofs:restriction(Faces, Part)|A]
+		  FacePart0 = sofs:restriction(Faces, Part),
+		  FacePart = sofs:to_external(FacePart0),
+		  Es0 = sofs:image(F2E, Part),
+		  Es1 = sofs:intersection(He, Es0),
+		  Es = sofs:to_external(Es1),
+		  [{FacePart,Es}|A]
 	  end, [], Cs).
 
 par_pairs([{Face,#e3d_face{vs=Vs}}|Fs], Acc) ->
@@ -459,8 +466,8 @@ par_pairs_1([V1|[V2|_]=Vs], More, Face, Acc) ->
 par_pairs_1([V1], [V2|_], Face, Acc) ->
     [{par_edge_name(V1, V2),Face}|Acc].
 
-par_edge_name(Va, Vb) when Va < Vb -> [Va|Vb];
-par_edge_name(Va, Vb) -> [Vb|Va].
+par_edge_name(Va, Vb) when Va < Vb -> {Va,Vb};
+par_edge_name(Va, Vb) -> {Vb,Va}.
 
 strip_index(Fs) ->
     strip_index(Fs, []).
