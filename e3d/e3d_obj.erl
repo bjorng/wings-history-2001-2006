@@ -1,14 +1,14 @@
 %%
 %%  e3d_obj.erl --
 %%
-%%     Functions for reading and writing Wawefront ASCII files (.obj).
+%%     Functions for reading and writing Wavefront ASCII files (.obj).
 %%
 %%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.34 2003/03/16 08:35:26 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.35 2003/03/21 10:15:45 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -54,13 +54,14 @@ import_1(Fd, Dir) ->
 import_2(Fd, Dir) ->
     Ost0 = read(fun parse/2, Fd, #ost{dir=Dir}),
     Ost = remember_eof(Ost0),
-    #ost{v=Vtab0,vt=TxTab0,f=Ftab0,g=Gs0,matdef=Mat} = Ost,
+    #ost{v=Vtab0,vt=TxTab0,f=Ftab0,g=Gs0,vn=VnTab0,matdef=Mat} = Ost,
     Vtab = reverse(Vtab0),
     TxTab = reverse(TxTab0),
+    VnTab = reverse(VnTab0),
     Ftab = make_ftab(Ftab0, []),
     Gs1 = reverse(Gs0),
     Gs = separate(Gs1, []),
-    Template = #e3d_mesh{type=polygon,vs=Vtab,tx=TxTab},
+    Template = #e3d_mesh{type=polygon,vs=Vtab,tx=TxTab,ns=VnTab},
     Objs = make_objects(Gs, Ftab, Template),
     #e3d_file{objs=Objs,mat=Mat}.
 
@@ -98,9 +99,13 @@ make_ftab([{Mat,Vs0}|Fs], Acc) ->
     Vs = [V || {V,_,_} <- Vs0],
     Tx = case [Vt || {_,Vt,_} <- Vs0] of
 	     [none|_] -> [];
-	     Other -> Other
+	     Tx0 -> Tx0
 	 end,
-    make_ftab(Fs, [#e3d_face{mat=Mat,vs=Vs,tx=Tx}|Acc]);
+    Ns = case [Vn || {_,_,Vn} <- Vs0] of
+	     [none|_] -> [];
+	     Ns0 -> Ns0
+	 end,
+    make_ftab(Fs, [#e3d_face{mat=Mat,vs=Vs,tx=Tx,ns=Ns}|Acc]);
 make_ftab([], Acc) -> Acc.
 
 read(Parse, Fd0, Acc) ->
@@ -273,6 +278,8 @@ mtl_parse(["Ka"|RGB], Mtl) ->
     mtl_add({ambient,mtl_text_to_tuple(RGB)}, Mtl);
 mtl_parse(["Kd"|RGB], Mtl) ->
     mtl_add({diffuse,mtl_text_to_tuple(RGB)}, Mtl);
+mtl_parse(["Ks"|RGB], Mtl) ->
+    mtl_add({specular,mtl_text_to_tuple(RGB)}, Mtl);
 mtl_parse(["map_Kd"|Filename0], Mtl) ->
     Filename = space_concat(Filename0),
     map_add({diffuse,Filename}, Mtl);
