@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.66 2003/02/25 13:33:25 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.67 2003/02/27 11:26:22 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -77,6 +77,25 @@ ask_unzip([{Label,Def,Flags}|T], AccA, AccB) ->
     ask_unzip(T, [{label,Label}|AccA], [{text,Def,Flags}|AccB]);
 ask_unzip([], Labels, Vals) ->
     {reverse(Labels),reverse(Vals)}.
+
+%%
+%% Syntax of Qs.
+%% 
+%% {hframe,Qs [,Flags]}				-- Horizontal frame
+%% {vframe,Qs [,Flags]}				-- Vertival frame
+%%     Flags = [Flag]
+%%     Flag = {title,Title,String}
+%% 
+%% {label,LabelString}				-- Textual label
+%% 
+%% {vradio,Alts,VarName,DefaultValue,Flags}	-- Radio buttons vertically
+%% {hradio,Alts,VarName,DefaultValue,Flags}     -- Radio buttons horizontally
+%%     Alts = [{PromptString,Value}]
+%%     VarName = atom()
+%%     Flags = [Flag]
+%%     Flag = key|{title,TitleString}
+%% (Example: see wpc_am.erl.)
+%%
 
 dialog(false, _Title, Qs, Fun) ->
     S = setup_ask(Qs, Fun),
@@ -409,6 +428,14 @@ normalize({label_column,Qs0}, Fi) ->
 	  [{vframe,Labels},
 	   {vframe,Fields}]},
     normalize(Qs, Fi);
+normalize({vradio,Qs,Var,Def}, Fi) ->
+    normalize(radio(vframe, Qs, Var, Def, []), Fi);
+normalize({vradio,Qs,Var,Def,Flags}, Fi) ->
+    normalize(radio(vframe, Qs, Var, Def, Flags), Fi);
+normalize({hradio,Qs,Var,Def}, Fi) ->
+    normalize(radio(hframe, Qs, Var, Def, []), Fi);
+normalize({hradio,Qs,Var,Def,Flags}, Fi) ->
+    normalize(radio(hframe, Qs, Var, Def, Flags), Fi);
 normalize({vframe,Qs}, Fi) ->
     vframe(Qs, Fi, []);
 normalize({vframe,Qs,Flags}, Fi) ->
@@ -457,27 +484,16 @@ normalize({Prompt,Def}, Fi) when Def == false; Def == true ->
 normalize({Prompt,Def,Flags}, Fi) when Def == false; Def == true ->
     normalize_field(checkbox(Prompt, Def), Flags, Fi).
 
-expand_qs(Tuple) when is_tuple(Tuple) ->
-    case element(1, Tuple) of
-	Tag when Tag == alt; Tag == key_alt ->
-	    expand_qs_1(Tuple);
-	Other ->
-	    Other
-    end;
-expand_qs(Other) -> Other.
+radio(FrameType, Qs0, Var, Def, Flags) ->
+    AltTag = case proplists:get_bool(key, Flags) of
+		 false -> alt;
+		 true -> key_alt
+	     end,
+    VarDef = {Var,Def},
+    Qs = [{AltTag,VarDef,Prompt,Val} || {Prompt,Val} <- Qs0],
+    {FrameType,Qs,Flags}.
 
-expand_qs_1({Tag,[{_,_}|_]=L,Var}) when is_atom(Var) ->
-    expand_qs_2(L, Tag, {Var,wings_pref:get_value(Var)});
-expand_qs_1({Tag,[{_,_}|_]=L,{_,_}=VarDef}) ->
-    expand_qs_2(L, Tag, VarDef);
-expand_qs_1({Tag,[{_,_}|_]=L,Var,Def}) ->
-    expand_qs_2(L, Tag, {Var,Def}).
-
-expand_qs_2(L, Tag, VarDef) ->
-    [{Tag,VarDef,S,K} || {S,K} <- L].
-
-vframe(Qs0, #fi{x=X,y=Y0}=Fi0, Flags) ->
-    Qs = expand_qs(Qs0),
+vframe(Qs, #fi{x=X,y=Y0}=Fi0, Flags) ->
     {Dx,Dy} = case have_border(Flags) of
 		  true -> {10,?LINE_HEIGHT};
 		  false -> {0,0}
@@ -501,8 +517,7 @@ vframe_1([Q|Qs], #fi{y=Y}=Fi0, W0, Acc) ->
 vframe_1([], #fi{y=Y}, W, Fields) ->
     {reverse(Fields),Y,W}.
 
-hframe(Qs0, #fi{x=X0,y=Y}=Fi, Flags) ->
-    Qs = expand_qs(Qs0),
+hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
     {Dx0,Dy0} = case have_border(Flags) of
 		    true -> {10,?LINE_HEIGHT};
 		    false -> {0,0}
