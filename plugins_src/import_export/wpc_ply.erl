@@ -22,8 +22,6 @@
 
 -import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,foreach/2,
 		map/2,foldl/3]).
--compile(inline).
--compile({inline_size,24}).
 
 init() ->
     true.
