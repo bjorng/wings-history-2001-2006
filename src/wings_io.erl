@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.59 2002/08/01 19:25:04 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.60 2002/08/03 09:13:45 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -397,7 +397,9 @@ icon_row_hit(X, [{Pos,Name}|_]) when Pos =< X, X < Pos+?ICON_WIDTH ->
     none;
 icon_row_hit(X, [_|Is]) ->
     icon_row_hit(X, Is);
-icon_row_hit(_X, []) -> none.
+icon_row_hit(_X, []) ->
+    putback_event({action,{select,deselect}}),
+    none.
 
 border(X, Y, Mw, Mh) ->
     border(X, Y, Mw, Mh, ?PANE_COLOR).
