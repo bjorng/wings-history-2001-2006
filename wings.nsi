@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings.nsi,v 1.6 2002/05/13 10:48:19 bjorng Exp $
+#     $Id: wings.nsi,v 1.7 2002/06/03 11:13:10 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -217,9 +217,18 @@ continue_1:
 
   CreateDirectory "$3\Wings 3D"
   GetFullPathName /short $1 $INSTDIR
+  ClearErrors
   CreateShortCut "$3\Wings 3D\Wings 3D.lnk" "$0\bin\werl.exe" \
     "-pa $1\ebin -run wings_start start_halt"  "$INSTDIR\ebin\wings.icon" \
     0 SW_SHOWMINIMIZED
+  IfErrors "" shortcut_created
+
+  CreateDirectory "$STARTMENU\Programs\Wings 3D"
+  CreateShortCut "$STARTMENU\Programs\Wings 3D\Wings 3D.lnk" "$0\bin\werl.exe" \
+    "-pa $1\ebin -run wings_start start_halt"  "$INSTDIR\ebin\wings.icon" \
+    0 SW_SHOWMINIMIZED
+
+shortcut_created:
 
   ; Delete any installed patches. Create empty patches directory.
   Delete "$INSTDIR\patches\*.*"
@@ -257,7 +266,6 @@ Section Uninstall
   RMDir /r "$INSTDIR\ebin"
   RMDir /r "$INSTDIR\priv"
 
-
   Delete "$INSTDIR\uninst.exe"
 
   Call un.GetStartMenu
@@ -266,6 +274,10 @@ Section Uninstall
 Delete "$0\Wings 3D\Wings 3D.lnk"
 Delete "$0\Wings 3D\Wings 3D Uninstall.lnk"
 RMDir "$0\Wings 3D"
+
+Delete "$STARTMENU\Programs\Wings 3D\Wings 3D.lnk"
+RMDir "$STARTMENU\Programs\Wings 3D"
+
 DeleteRegKey HKLM "SOFTWARE\Wings 3D"
 DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D"
 Delete "$INSTDIR\wings_start.bat"
