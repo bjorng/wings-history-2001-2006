@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.96 2002/08/10 17:14:10 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.97 2002/08/10 20:44:44 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -29,6 +29,7 @@
 	 y,					
 	 xs=0,                                  %Summary of mouse movements
 	 ys=0,
+	 zs=0,
 	 xt=0,                                  %Last warp length
 	 yt=0,
 	 unit,					%Unit that drag is done in.
@@ -216,20 +217,26 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 %%% Handling of drag events.
 %%%
 
-do_drag(Drag) ->
-    wings_io:message_right(drag_help(Drag)),
-    Event = initial_motion(Drag),
+do_drag(Drag0) ->
+    wings_io:message_right(drag_help(Drag0)),
+    {Event,Drag} = initial_motion(Drag0),
     {seq,{push,dummy},handle_drag_event_1(Event, Drag)}.
 
-initial_motion(#drag{x=X,y=Y,flags=Flags,unit=[Unit|_]}) ->
-    [Dx,Dy|_] = property_lists:get_value(initial, Flags, [0,0,0]),
-    case clean_unit(Unit) of
-	angle ->
-	    #mousemotion{x=X+round(Dx*?MOUSE_DIVIDER/15),
-			 y=Y+round(Dy*?MOUSE_DIVIDER/15)};
-	_ ->
-	    #mousemotion{x=X+round(Dx*?MOUSE_DIVIDER),y=Y+round(Dy*?MOUSE_DIVIDER)}
-    end.
+initial_motion(#drag{x=X0,y=Y0,flags=Flags,unit=Unit}=Drag) ->
+    Ds = property_lists:get_value(initial, Flags, [0,0,0]),
+    [X1,Y1,Z] = initial_motion_1(Unit, Ds),
+    X = X0 + X1, Y = Y0 - Y1,
+    {#mousemotion{x=X,y=Y},Drag#drag{zs=Z}}.
+
+initial_motion_1([U|Us], [D|Ds]) ->
+    P = case clean_unit(U) of
+	    angle -> round(D*?MOUSE_DIVIDER/15);
+	    _ -> round(D*?MOUSE_DIVIDER)
+	end,
+    [P|initial_motion_1(Us, Ds)];
+initial_motion_1([], [_|Ds]) ->
+    [0.0|initial_motion_1([], Ds)];
+initial_motion_1([], []) -> [].
 
 drag_help(#drag{magnet=none,falloff=Falloff}) ->
     Help = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
@@ -399,21 +406,22 @@ mouse_translate(X, Y, Drag0) ->
     Move = constrain(Ds, Drag),
     {Move,Drag}.
 
-mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs0,ys=Ys0,xt=Xt0,yt=Yt0}=Drag) ->
+mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs0,ys=Ys0,zs=Zs0,xt=Xt0,yt=Yt0}=Drag) ->
     %%io:format("Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xs0,Ys0}]),
     XD0 = (X0 - OX),
     YD0 = (Y0 - OY),
     case {XD0,YD0} of
 	{0,0} ->
-	    {[Xs0/?MOUSE_DIVIDER,-Ys0/?MOUSE_DIVIDER,0.0],Drag#drag{xt=0,yt=0}};
+	    {[Xs0/?MOUSE_DIVIDER,-Ys0/?MOUSE_DIVIDER,Zs0/?MOUSE_DIVIDER],
+	     Drag#drag{xt=0,yt=0}};
 	_ ->
 	    XD = XD0 + Xt0,
 	    YD = YD0 + Yt0,
 	    Xs = Xs0 + XD,
 	    Ys = Ys0 + YD,
 	    wings_io:warp(OX, OY),
-	    {[Xs/?MOUSE_DIVIDER,-Ys/?MOUSE_DIVIDER,0.0],
-	     Drag#drag{xs=Xs,ys=Ys,xt=XD0, yt=YD0}}
+	    {[Xs/?MOUSE_DIVIDER,-Ys/?MOUSE_DIVIDER,Zs0/?MOUSE_DIVIDER],
+	     Drag#drag{xs=Xs,ys=Ys,xt=XD0,yt=YD0}}
     end.
 
 constrain(Ds0, #drag{unit=Unit}=Drag) ->

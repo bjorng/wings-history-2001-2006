@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.27 2002/08/09 06:12:58 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.28 2002/08/10 20:44:44 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -855,6 +855,7 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 		   wings_io:sunken_rect(X, Y, ?COL_PREVIEW_SZ,
 					?COL_PREVIEW_SZ-4, Color)
 	   end,
+    
     {dialog,[{hframe,
 	      [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
 	       {label_column,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.4 2002/08/10 17:14:10 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.5 2002/08/10 20:44:44 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -39,8 +39,8 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Move",{move,Dir}},
 	    separator,
+	    {"Color",color},
 	    {"Position Highlight",position_fun()},
-	    separator,
 	    {"Spot Angle",spot_angle},
 	    separator,
 	    {"Edit Properties",edit}],
@@ -48,6 +48,8 @@ menu(X, Y, St) ->
 
 command({move,Type}, St) ->
     wings_move:setup(Type, St);
+command(color, St) ->
+    color(St);
 command({position_highlight,{Mode,Sel}}, St) ->
     position_highlight(Mode, Sel, St);
 command(spot_angle, St) ->
@@ -56,6 +58,33 @@ command(edit, St) ->
     edit(St);
 command(color, St) ->
     St.
+
+color(St) ->
+    Drag = wings_sel:fold(
+	     fun(_, #we{id=Id,light=L}=We, none) when ?IS_LIGHT(We) ->
+		     #light{diffuse={R,G,B,A}} = L,
+		     {H,S,I} = wings_color:rgb_to_hsi(R, G, B),
+		     ColorFun = fun(C, D) -> color(C, D, A) end,
+		     Tvs = {general,[{Id,ColorFun}]},
+		     Units = [{angle,{0.0,359.9999}},
+			      {percent,{0.0,1.0}},{percent,{0.0,1.0}}],
+		     Flags = [{initial,[H,I,S]}],
+		     {Tvs,Units,Flags};
+		(_, We, _) when ?IS_LIGHT(We) ->
+		     wings_util:error("Select only one light.");
+		(_, _, A) -> A
+	     end, none, St),
+    case Drag of
+	none -> St;
+	{Tvs,Units,Flags} ->
+	    wings_drag:setup(Tvs, Units, Flags, St)
+    end.
+
+color([H,I,S], #dlo{src_we=#we{light=L}=We0}=D, A) ->
+    {R,G,B} = wings_color:hsi_to_rgb(H, S, I),
+    Col = {R,G,B,A},
+    We = We0#we{light=L#light{diffuse=Col}},
+    update(D#dlo{work=none,src_we=We}).
 
 position_fun() ->
     fun(help, _) -> "";
