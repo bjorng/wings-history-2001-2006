@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_texture.erl,v 1.7 2004/05/12 19:56:59 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.8 2004/10/20 12:39:41 dgud Exp $
 
 -module(auv_texture).
 -export([get_texture/1, get_texture/2, draw_options/0]).
@@ -34,7 +34,7 @@
 
 draw_options() ->
     [MaxTxs0|_] = gl:getIntegerv(?GL_MAX_TEXTURE_SIZE),
-    MaxTxs = min([4096,MaxTxs0]),
+    MaxTxs = max([min([4096,MaxTxs0]),256]),
     Option = list_to_prefs(get_pref(draw_prefs, pref_to_list(#opt{}))),
     
     Qs = [{vradio,[{"Draw All Edges",    all_edges},
