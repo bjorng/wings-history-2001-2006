@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.44 2002/12/26 09:47:10 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.45 2002/12/30 13:30:52 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -368,15 +368,13 @@ merge_1([], Vct0, Vpt0, Et0, Ft0, Ht0) ->
     {Vct,Vpt,Et,Ft,Ht}.
 			       
 merge_renumber(Wes0) ->
-    Wes1 = foldl(fun(W, A) -> [update_id_bounds(W)|A] end, [], Wes0),
-    [We0|Wes2] = keysort(#we.first_id, Wes1),
-    Wes = merge_renumber(Wes2, [We0], []),
-    Wes.
+    [{_,We}|Wes] = merge_bounds(Wes0, []),
+    merge_renumber(Wes, [We], []).
 
-merge_renumber([#we{first_id=Low}=We|Wes], [#we{next_id=Next}|_]=Done, NotDone)
+merge_renumber([{Low,We}|Wes], [#we{next_id=Next}|_]=Done, NotDone)
   when Low >= Next ->
     merge_renumber(Wes, [We|Done], NotDone);
-merge_renumber([We|Wes], Done, NotDone) ->
+merge_renumber([{_,We}|Wes], Done, NotDone) ->
     merge_renumber(Wes, Done, [We|NotDone]);
 merge_renumber([], [#we{next_id=Next}|_]=Done, NotDone) ->
     merge_renumber_rest(NotDone, Next, Done).
@@ -385,6 +383,14 @@ merge_renumber_rest([We0|Wes], Next0, Acc) ->
     #we{next_id=Next} = We = renumber(We0, Next0),
     merge_renumber_rest(Wes, Next, [We|Acc]);
 merge_renumber_rest([], _, Acc) -> Acc.
+
+merge_bounds([#we{vp=Vtab,fs=Ftab,es=Etab}=We0|Wes], Acc) ->
+    First = lists:min([wings_util:gb_trees_smallest_key(Vtab),
+		       wings_util:gb_trees_smallest_key(Etab),
+		       wings_util:gb_trees_smallest_key(Ftab)]),
+    We = update_id_bounds(We0),
+    merge_bounds(Wes, [{First,We}|Acc]);
+merge_bounds([], Acc) -> sort(Acc).
 
 %%% Renumber a winged-edge structure.
 renumber(#we{next_id=Id}=We) ->
@@ -519,16 +525,12 @@ renum_hard_edge(Edge0, Emap, New) ->
 
 update_id_bounds(#we{vp=Vtab,es=Etab,fs=Ftab}=We) ->
     case gb_trees:is_empty(Etab) of
-	true ->
-	    We#we{first_id=0,next_id=0};
+	true -> We#we{next_id=0};
 	false ->
-	    FirstId = lists:min([wings_util:gb_trees_smallest_key(Vtab),
-				 wings_util:gb_trees_smallest_key(Etab),
-				 wings_util:gb_trees_smallest_key(Ftab)]),
 	    LastId = lists:max([wings_util:gb_trees_largest_key(Vtab),
 				wings_util:gb_trees_largest_key(Etab),
 				wings_util:gb_trees_largest_key(Ftab)]),
-	    We#we{first_id=FirstId,next_id=LastId+1}
+	    We#we{next_id=LastId+1}
     end.
 
 %%%

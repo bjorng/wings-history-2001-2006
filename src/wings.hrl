@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.70 2002/12/28 10:21:51 bjorng Exp $
+%%     $Id: wings.hrl,v 1.71 2002/12/30 13:30:52 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -141,9 +141,10 @@
 	 vc,					%Connection info (=incident edge)
 						% for vertices.
 	 vp,					%Vertex positions.
-	 first_id,				%First ID used
 	 next_id,				%Next free ID for vertices,
-						% edges, and faces
+						% edges, and faces.
+						% (Needed because we never re-use
+						%  IDs.)
 	 mode,					%'vertex'/'material'/'uv'
 	 mirror=none,				%Mirror: none|Face
 	 light=none				%Light data: none|Light

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.53 2002/12/26 09:47:09 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.54 2002/12/30 13:30:52 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -282,11 +282,11 @@ dump_shape(F, #we{}=We) ->
     dump_we(F, We).
 
 dump_we(F, #we{name=Name,id=Id,mode=Mode,es=Etab,fs=Ftab,
-	       first_id=First,next_id=Next}) ->
+	       next_id=Next}) ->
     io:put_chars(F, "\n"),
     io:format(F, "OBJECT ~p: ~p\n", [Id,Name]),
     io:format(F, "=======================\n", []),
-    io:format(F, "   mode=~p first_id=~p next_id=~p\n", [Mode,First,Next]),
+    io:format(F, "   mode=~p next_id=~p\n", [Mode,Next]),
     dump_faces(F, gb_trees:to_list(Ftab)),
     dump_edges(F, gb_trees:to_list(Etab)).
     
