@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.24 2002/05/15 07:14:01 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.25 2002/05/26 20:11:26 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -249,8 +249,8 @@ render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     draw_hilite(D),
     draw_orig_sel(D),
-    draw_vertices(D, SelMode),
     draw_sel(D),
+    draw_vertices(D, SelMode),
     draw_hard_edges(D),
     draw_normals(D).
 
