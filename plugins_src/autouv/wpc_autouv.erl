@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.66 2002/12/11 10:47:31 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.67 2002/12/11 13:49:55 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -742,7 +742,7 @@ get_texture(#uvstate{option=#setng{texsz={TexW,TexH}},sel=Sel,areas=As}=Uvs0) ->
     {H,Hd} = calc_texsize(H0, TexH),
     set_viewport({0,0,W,H}),
     Mem = sdl_util:malloc(W*H*3, ?GL_BYTE),
-    Uvs = Uvs0#uvstate{sel=[],areas=add_areas(Sel, As),dl=undefined},
+    Uvs = reset_dl(Uvs0#uvstate{sel=[],areas=add_areas(Sel, As)}),
     ImageBins = get_texture(0, Wd, 0, Hd, {W,H,Mem}, Uvs, []),
     ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
     sdl_util:free(Mem),
@@ -970,10 +970,10 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 		end,
 	    WingsSt = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
 	    wings_wm:send(geom, {new_state,WingsSt}),
-	    get_event(Uvs0#uvstate{sel = Sel1,
-				   st=WingsSt,
-				   areas = As#areas{as=Curr1},
-				   dl = undefined, op = undefined})
+	    get_event(reset_dl(Uvs0#uvstate{sel = Sel1,
+					    st=WingsSt,
+					    areas=As#areas{as=Curr1},
+					    op = undefined}))
     end;
 handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
 	     #uvstate{geom=ViewP,
@@ -999,10 +999,10 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 		    {Sel1,Curr1} = update_selection(Hits, Sel0, Curr0),
 		    WingsSt = wings_select_faces(Sel1, We0, Uvs0#uvstate.st),
 		    wings_wm:send(geom, {new_state,WingsSt}),
-		    get_event(Uvs0#uvstate{sel=Sel1,
-					   st=WingsSt,
-					   areas=As#areas{as=Curr1},
-					   dl=undefined,op=undefined})
+		    Uvs = Uvs0#uvstate{sel=Sel1,
+				       st=WingsSt,
+				       areas=As#areas{as=Curr1}},
+		    get_event(reset_dl(Uvs))
 	    end;
 	rotate ->
 	    Sel = [finish_rotate(A)|| A <- Sel0],
@@ -1083,11 +1083,11 @@ handle_event({action, {auv, edge_options}}, Uvs) ->
     edge_option_menu(Uvs);
 handle_event({action,{auv,quit}}, Uvs) ->
     quit_menu(Uvs);
-handle_event({action,{auv,quit,cancel}}, _) ->
-    restore_wings_window(),
+handle_event({action,{auv,quit,cancel}}, Uvs) ->
+    restore_wings_window(Uvs),
     delete;
 handle_event({action, {auv,quit,QuitOp}}, Uvs) ->
-    restore_wings_window(),
+    restore_wings_window(Uvs),
     wings_wm:send(geom, {action,{body,{?MODULE,uvmap_done,QuitOp,Uvs}}}),
     delete;
 handle_event({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
@@ -1098,15 +1098,14 @@ handle_event({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
 			       edge_width = BEW,
 			       color = Color, 
 			       texbg = TexBG,
-			       texsz = {TexSz,TexSz}},
-			dl = undefined},
-    get_event(Uvs1);
+			       texsz = {TexSz,TexSz}}
+		       },
+    get_event(reset_dl(Uvs1));
 handle_event({action, {auv, rescale_all}},
 	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{as=Curr0}})->
     RscAreas = rescale_all(add_as(Sel0,Curr0)),
-    get_event(Uvs0#uvstate{sel = [],
-			   areas=As#areas{as=RscAreas},
-			   dl = undefined});
+    get_event(reset_dl(Uvs0#uvstate{sel = [],
+				    areas=As#areas{as=RscAreas}}));
 handle_event({action, {auv, {rotate, free}}}, Uvs) ->
     handle_event({action, {auv, rotate}}, Uvs);
 handle_event({action, {auv, {rotate, Deg}}},
@@ -1139,7 +1138,7 @@ handle_event({resize,_,_},Uvs0) ->
     St = wings_material:init(Uvs0#uvstate.st),	    
     {{X,Y,W,H},Geom} = init_drawarea(),
     wings_wm:move(autouv, {X,Y,2}, {W,H}),
-    get_event(Uvs0#uvstate{geom=Geom,st=St,dl=undefined});
+    get_event(reset_dl(Uvs0#uvstate{geom=Geom,st=St}));
 handle_event({action,_, {view,smoothed_preview}}, _Uvs0) ->
     keep; %% Bugbug didn't work crashes inside wings update_dlists
 handle_event({action,wings,{view, Cmd}}, Uvs0) ->
@@ -1221,10 +1220,9 @@ add_texture_image(TW, TH, TexBin, FileName,
 		  #uvstate{st=St0,option=Opt,areas=As0}=Uvs) ->
     {St,As} = add_material({TW,TH,TexBin}, St0, As0),
     wings_wm:send(geom, {new_state,St}),
-    get_event(Uvs#uvstate{st=St,areas=As,
-			  option=Opt#setng{texbg=true},
-			  last_file=FileName,
-			  dl=undefined}).
+    get_event(reset_dl(Uvs#uvstate{st=St,areas=As,
+				   option=Opt#setng{texbg=true},
+				   last_file=FileName})).
 
 is_power_of_two(X) ->
     (X band -X ) == X.
@@ -1236,8 +1234,8 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #uvstate{areas=#areas{orig_we=#we{id=Id}}=As,sel=ChSel}=Uvs) ->
     case keysearch(Id, 1, Sel) of
 	false ->
-	    get_event(Uvs#uvstate{st=St,sel=[],areas=add_areas(ChSel, As),
-				  dl=undefined});
+	    get_event(reset_dl(Uvs#uvstate{st=St,sel=[],
+					   areas=add_areas(ChSel, As)}));
 	{value,{Id,Elems}} ->
 	    update_selection_1(Mode, gb_sets:to_list(Elems), Uvs#uvstate{st=St})
     end.
@@ -1255,8 +1253,8 @@ update_selection_2([{K,#ch{fs=Fs}=C}|Cs], Faces, Uvs, NonSel, Sel) ->
     end;
 update_selection_2([], _, #uvstate{areas=As0}=Uvs0, NonSel, Sel) ->
     As = As0#areas{as=gb_trees:from_orddict(sort(NonSel))},
-    Uvs = Uvs0#uvstate{sel=sort(Sel),areas=As,dl=undefined},
-    get_event(Uvs).
+    Uvs = Uvs0#uvstate{sel=sort(Sel),areas=As},
+    get_event(reset_dl(Uvs)).
 
 %%%%% Selection 
 draw_marquee({X, Y}, {Ox,Oy}) ->
@@ -1498,8 +1496,8 @@ broken_event({current_state,St}, Uvs) ->
 	    wings_wm:dirty(),
 	    pop
     end;
-broken_event({action,{autouv,cancel}}, _) ->
-    restore_wings_window(),
+broken_event({action,{autouv,cancel}}, Uvs) ->
+    restore_wings_window(Uvs),
     delete;
 broken_event(Ev, _) ->
     case wings_menu:is_popup_event(Ev) of
@@ -1625,11 +1623,18 @@ tess_face_vtxcol(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
 
+reset_dl(Uvs = #uvstate{dl = undefined}) ->
+    Uvs;
+reset_dl(Uvs = #uvstate{dl = DL}) ->
+    gl:deleteLists(DL, 1),
+    Uvs#uvstate{dl = undefined}.
+
 set_viewport({X,Y,W,H}=Viewport) ->
     put(wm_viewport, Viewport),
     gl:viewport(X, Y, W, H).
 
-restore_wings_window() ->
+restore_wings_window(Uvs) ->
+    reset_dl(Uvs),
     {_,Y,_,H} = wings_wm:viewport(geom),
     {W,TopH} = wings_wm:top_size(),
     wings_wm:move(geom, {0,TopH-Y-H,1}, {W,H}).
