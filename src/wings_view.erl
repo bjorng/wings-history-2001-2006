@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.45 2002/03/09 07:46:32 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.46 2002/03/11 11:02:27 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -121,7 +121,7 @@ command(Key, St) ->
     St.
 
 auto_rotate_event(Event, Timer, St) ->
-    case wings_camera:event(Event, fun() -> wings:redraw(St) end) of
+    case wings_camera:event(Event, St) of
 	next -> auto_rotate_event_1(Event, Timer, St);
 	Other ->
 	    {seq,fun(Ev) ->
