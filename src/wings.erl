@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.260 2003/07/25 09:01:45 bjorng Exp $
+%%     $Id: wings.erl,v 1.261 2003/08/14 16:49:32 bjorng Exp $
 %%
 
 -module(wings).
@@ -448,6 +448,7 @@ highlight_sel_style({select,face}) -> none;
 highlight_sel_style({select,body}) -> none;
 highlight_sel_style({select,{adjacent,_}}) -> none;
 highlight_sel_style({select,_}) -> permanent;
+highlight_sel_style({view,align_to_selection}) -> temporary;
 highlight_sel_style(_) -> none.
 
 do_command(Cmd, St) ->    
@@ -459,7 +460,7 @@ do_command(Cmd, Args, St0) ->
     case Res of
 	{'EXIT',Reason} -> exit(Reason);
 	{command_error,Error} -> wings_util:message(Error);
-	#st{}=St -> main_loop(St);
+	#st{}=St -> main_loop(clear_temp_sel(St));
 	{drag,Drag} -> wings_drag:do_drag(Drag, Args);
 	{save_state,#st{}=St} ->
 	    save_state(St1, St);
