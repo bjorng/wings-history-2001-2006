@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.34 2004/02/10 13:21:03 raimo_niskanen Exp $
+%%     $Id: e3d_mesh.erl,v 1.35 2004/03/16 23:19:34 raimo_niskanen Exp $
 %%
 
 -module(e3d_mesh).
@@ -19,6 +19,7 @@
 -export([triangulate_face/2,triangulate_face_with_holes/3]).
 -export([quadrangulate_face/2,quadrangulate_face_with_holes/3]).
 -export([slit_hard_edges/1,slit_hard_edges/2]).
+-export([face_areas/1,face_areas/2]).
 
 -include("e3d.hrl").
 -import(lists, [foreach/2,sort/1,reverse/1,reverse/2,seq/2,
@@ -177,7 +178,7 @@ used_materials(#e3d_mesh{fs=Fs0}) ->
 %% Vertices belonging to a hard edge are simply duplicated.
 %% The first time a hard edge is encountered, the face
 %% gets to keep the vertices, but subsequent times for the same
-%% hard edge - the faces gets new duplicate position vertices instead.
+%% hard edge - the faces get new duplicate position vertices instead.
 %%
 %% Without the option 'slit_end_vertices', end vertices of 
 %% hard edge chains are not duplicated, since edges that go to the 
@@ -236,6 +237,14 @@ slit_hard_edges(Mesh0=#e3d_mesh{vs=Vs0,vc=Vc0,tx=Tx0,ns=Ns0,fs=Fs0,he=He0},
     %%io:format("After: "),
     %%print_mesh(Mesh),
     Mesh.
+
+%% Calculate area of faces. Return list of areas for each face.
+%% The areas are for one possible triangulation. This is only
+%% important if the faces are not flat.
+
+face_areas(#e3d_mesh{vs=Vs,fs=Fs}) -> face_areas(gb_trees:keys(Fs), Vs).
+
+face_areas(Fs, Vs) when list(Fs) -> face_areas_1(Fs, Vs, list_to_tuple(Vs)).
 
 %%%
 %%% End of exported functions. Local functions follow.
@@ -786,6 +795,22 @@ slit_hard_x_dup(_Old=#e3d_mesh{vs=VsT},
 mk_edge(V1, V2) when V1 > V2 -> {V2,V1};
 mk_edge(V1, V2) -> {V1,V2}.
 
+%%%
+%%% Help function for face_areas/1,2.
+
+face_areas_1([#e3d_face{vs=[V1,V2,V3]}|T], Vs, VsT) ->
+    P1 = element(V1+1, VsT),
+    P2 = element(V2+1, VsT),
+    P3 = element(V3+1, VsT),
+    V21 = e3d_vec:sub(P1, P2),
+    V23 = e3d_vec:sub(P3, P2),
+    A = e3d_vec:len(e3d_vec:cross(V21, V23)) / 2, 
+    [A | face_areas_1(T, Vs, VsT)];
+face_areas_1([#e3d_face{}=F|T], Vs, VsT) ->
+    Fs = triangulate_face(F, Vs),
+    [foldl(fun (A, Acc) -> A + Acc end, 0, face_areas_1(Fs, Vs, VsT))
+     |face_areas_1(T, Vs, VsT)].
+		  
 %%%
 %%% Common help functions.
 %%%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.44 2004/03/09 22:51:09 raimo_niskanen Exp $
+%%     $Id: wings_light.erl,v 1.45 2004/03/16 23:19:34 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
@@ -755,17 +755,20 @@ disable_from(Lnum) ->
 scene_lights_fun(_, Lnum) when Lnum > ?GL_LIGHT7 -> Lnum;
 scene_lights_fun(#dlo{src_we=#we{perm=Perm}}, Lnum) 
   when ?IS_NOT_VISIBLE(Perm) -> Lnum;
-scene_lights_fun(#dlo{src_we=We}, Lnum) when not ?IS_ANY_LIGHT(We)-> Lnum;
+scene_lights_fun(#dlo{src_we=We}, Lnum) 
+  when not ?IS_ANY_LIGHT(We)-> Lnum;
 scene_lights_fun(#dlo{transparent=#we{light=L}=We}, Lnum) ->
     %% This happens when dragging in Body selection mode.
     setup_light(Lnum, L, We, none);
-scene_lights_fun(#dlo{src_we=#we{light=L}=We,drag=Drag}, Lnum)
-  when ?IS_ANY_LIGHT(We) ->
+%%scene_lights_fun(#dlo{src_we=#we{light=L}=We,drag=Drag}, Lnum)
+%%  when ?IS_ANY_LIGHT(We) ->
+scene_lights_fun(#dlo{drag=Drag}=D, Lnum) ->
+    We = wings_draw:original_we(D),
     M = case Drag of
 	    {matrix,_Tr,_M0,M1} -> M1;
 	    _ -> none
 	end,
-    setup_light(Lnum, L, We, M).
+    setup_light(Lnum, We#we.light, We, M).
 
 setup_light(Lnum, #light{type=ambient,ambient=Amb}, _We, _M) ->
     gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, Amb),
@@ -797,9 +800,22 @@ setup_light(Lnum, #light{type=spot,aim=Aim,spot_angle=Angle,spot_exp=Exp}=L,
     gl:enable(Lnum),
     Lnum+1;
 setup_light(Lnum, #light{type=area}=L, We, M) ->
-    setup_arealights(Lnum, L, arealight_posdirs(We), M).
+    Apde = arealight_posdirexp(We),
+    setup_arealight(Lnum, L, Apde, M).
 
-setup_arealights(Lnum, #light{type=area}=L, [{Pos0,Dir0}|PosDirs], M) ->
+setup_arealight(Lnum, #light{type=area}=L, {Pos0,{0.0,0.0,0.0},_}, M) ->
+    {X,Y,Z} = 
+	case M of
+	    none -> Pos0;
+	    _ -> mul_point(M, Pos0)
+	end,
+    gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
+    gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 180.0),
+    setup_color(Lnum, L),
+    setup_attenuation(Lnum, L),
+    gl:enable(Lnum),
+    Lnum+1;
+setup_arealight(Lnum, #light{type=area}=L, {Pos0,Dir0,Exp}, M) ->
     {{X,Y,Z},Dir} = 
 	case M of
 	    none -> {Pos0,Dir0};
@@ -810,14 +826,12 @@ setup_arealights(Lnum, #light{type=area}=L, [{Pos0,Dir0}|PosDirs], M) ->
 	end,
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 90.0),
-    gl:lightf(Lnum, ?GL_SPOT_EXPONENT, 1.0),
+    gl:lightf(Lnum, ?GL_SPOT_EXPONENT, Exp),
     gl:lightfv(Lnum, ?GL_SPOT_DIRECTION, Dir),
     setup_color(Lnum, L),
     setup_attenuation(Lnum, L),
     gl:enable(Lnum),
-    setup_arealights(Lnum+1, L, PosDirs, M);
-setup_arealights(Lnum, #light{type=area}, [], _M) ->
-    Lnum.
+    Lnum+1.
 
 setup_color(Lnum, #light{diffuse=Diff,ambient=Amb,specular=Spec}) ->
     gl:lightfv(Lnum, ?GL_DIFFUSE, Diff),
@@ -829,32 +843,48 @@ setup_attenuation(Lnum, #light{lin_att=Lin,quad_att=Quad}) ->
     gl:lightf(Lnum, ?GL_QUADRATIC_ATTENUATION, Quad).
 
 light_pos(#we{light=#light{type=area}}=We) ->
-    case arealight_posdirs(We) of
-	[] -> ?DEF_POS;
-	[{Pos,_}|_] -> Pos
-    end;
+    {Pos,_,_} = arealight_posdirexp(We),
+    Pos;
 light_pos(#we{vp=Vtab}) ->
     gb_trees:get(1, Vtab).
 
-arealight_posdirs(#we{fs=Fs,light=#light{type=area}}=We) ->
-    arealight_posdirs_1(gb_trees:keys(Fs), We).
-
-arealight_posdirs_1([F|Fs], We) ->
-    case wings_material:get(F, We) of
-	'_hole_' -> arealight_posdirs_1(Fs, We);
-	_ -> 
-	    Center = wings_face:center(F, We),
-	    Normal = case wings_face:good_normal(F, We) of
-			 true -> 
-			     wings_face:normal(F, We);
-			 false ->
-			     %% Just to have a fallback
-			     e3d_vec:norm(e3d_vec:sub({0.0,0.0,0.0}, ?DEF_POS))
-		     end,
-	    [{Center,Normal}|arealight_posdirs_1(Fs, We)]
-    end;
-arealight_posdirs_1([], _We) -> [].
-	    
+arealight_posdirexp(#we{light=#light{type=area}}=We) ->
+    FaceMats = wings_material:get_all(We),
+    ANCs = 
+	[begin 
+	     Area = wings_face:area(Face, We),
+	     {Area,
+	      e3d_vec:mul(wings_face:normal(Face, We), Area),
+	      e3d_vec:mul(wings_face:center(Face, We), Area)}
+	 end || {Face,Mat} <- FaceMats, 
+		(Mat =/= '_hole_') andalso wings_face:good_normal(Face, We)],
+    Area = foldl(fun ({A,_,_}, Acc) -> A+Acc end, 0.0, ANCs),
+    Normal = 
+	e3d_vec:divide(foldl(fun ({_,N,_}, Acc) -> e3d_vec:add(N, Acc) end, 
+			     {0.0,0.0,0.0}, ANCs),
+		       Area),
+    Center = 
+	e3d_vec:divide(foldl(fun ({_,_,C}, Acc) -> e3d_vec:add(C, Acc) end, 
+			     {0.0,0.0,0.0}, ANCs),
+		       Area),
+    NormalLen = e3d_vec:len(Normal),
+    Norm = e3d_vec:norm(Normal),
+    if NormalLen >= 0.9 -> 
+	    %% 90 percent of all light in one direction; spotlight with falloff
+	    {Center,Norm,1.0};
+       true ->
+	    Rear = foldl(fun ({_,N,_}, Acc) ->
+				 A = e3d_vec:dot(Norm, N),
+				 if A < 0.0 -> Acc-A; true -> Acc end
+			 end, 0.0, ANCs) / Area,
+	    if Rear > 0.1 ->
+		    %% At least 10 percent rear light; pointlight
+		    {Center,{0.0,0.0,0.0},0.0};
+	       true ->
+		    %% Front and side light, but no rear; hemispherical spot
+		    {Center,Norm,0.0}
+	    end
+    end.
 
 move_light(Pos, #we{vp=Vtab0}=We) ->
     Vtab1 = [{V,Pos} || V <- gb_trees:keys(Vtab0)],

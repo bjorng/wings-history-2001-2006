@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.167 2004/03/08 13:26:22 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.168 2004/03/16 23:19:34 raimo_niskanen Exp $
 %%
 
 -module(wings_draw).
@@ -259,14 +259,18 @@ update_fun(D0, [P|Ps], St) ->
     {D,Ps};
 update_fun(D, [], _) -> D.
 
-update_fun_1(#dlo{src_we=#we{light=Light}=We}=D0, [H|T], St) 
-  when ?IS_ANY_LIGHT(We), ?HAS_SHAPE(We) ->
-    D = update_fun_2(H, D0, wings_light:shape_materials(Light, St)),
-    update_fun_1(D, T, St);
-update_fun_1(D0, [H|T], St) ->
+update_fun_1(D0, [H|T], St0) ->
+    St = update_materials(D0, St0),
     D = update_fun_2(H, D0, St),
     update_fun_1(D, T, St);
 update_fun_1(D, [], _) -> D.
+
+update_materials(D, St) ->
+    We = original_we(D),
+    if ?IS_ANY_LIGHT(We), ?HAS_SHAPE(We) ->
+	    wings_light:shape_materials(We#we.light, St);
+       true -> St
+    end.
 
 update_fun_2(light, D, _) ->
     wings_light:update(D);
@@ -484,9 +488,10 @@ update_mirror(D, _) -> D.
 %%%
 
 split(#dlo{split=#split{orig_we=#we{}=We,orig_ns=Ns}=Split}=D, Vs, St) ->
-    split(D#dlo{src_we=We,ns=Ns}, Split, Vs, St);
+    split(D#dlo{src_we=We,ns=Ns}, Split, Vs, update_materials(D, St));
 split(D, Vs, St) ->
-    split(D, #split{dyn_faces=sofs:set([], [face])}, Vs, St).
+    split(D, #split{dyn_faces=sofs:set([], [face])}, Vs, 
+	  update_materials(D, St)).
 
 split(#dlo{src_we=#we{fs=Ftab}=We}=D, #split{v2f=none}=Split, Vs, St) ->
     %% Efficiency note: Looping over the face table is slower than
