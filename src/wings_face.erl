@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.32 2003/04/21 10:16:57 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.33 2003/04/21 17:26:44 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -214,7 +214,6 @@ vinfo(Edge, Etab, Face, LastEdge, Acc) ->
 	    vinfo(NextEdge, Etab, Face, LastEdge, [[V|Col]|Acc])
     end.
 
-
 %% Return the vertices surrounding a face.
 
 surrounding_vertices(Face, We) ->
@@ -225,34 +224,34 @@ surrounding_vertices(Face, Edge, We) ->
 
 vertices_cw(Face, #we{es=Etab,fs=Ftab}) ->
     Edge = gb_trees:get(Face, Ftab),
-    vertices_cw_1(Face, Edge, Edge, Etab, []).
+    vertices_cw_1(Edge, Etab, Face, Edge, []).
 
 vertices_cw(Face, Edge, #we{es=Etab}) ->
-    vertices_cw_1(Face, Edge, Edge, Etab, []).
+    vertices_cw_1(Edge, Etab, Face, Edge, []).
 
-vertices_cw_1(_, LastEdge, LastEdge, _, Acc) when Acc =/= [] -> Acc;
-vertices_cw_1(Face, Edge, LastEdge, Etab, Acc) ->
+vertices_cw_1(LastEdge, _, _, LastEdge, Acc) when Acc =/= [] -> Acc;
+vertices_cw_1(Edge, Etab, Face, LastEdge, Acc) ->
     case gb_trees:get(Edge, Etab) of
 	#edge{ve=V,lf=Face,ltpr=NextEdge} ->
-	    vertices_cw_1(Face, NextEdge, LastEdge, Etab, [V|Acc]);
+	    vertices_cw_1(NextEdge, Etab, Face, LastEdge, [V|Acc]);
 	#edge{vs=V,rf=Face,rtpr=NextEdge} ->
-	    vertices_cw_1(Face, NextEdge, LastEdge, Etab, [V|Acc])
+	    vertices_cw_1(NextEdge, Etab, Face, LastEdge, [V|Acc])
     end.
 
 vertices_ccw(Face, #we{es=Etab,fs=Ftab}) ->
     Edge = gb_trees:get(Face, Ftab),
-    vertices_ccw_1(Face, Edge, Edge, Etab, []).
+    vertices_ccw_1(Edge, Etab, Face, Edge, []).
 
 vertices_ccw(Face, Edge, #we{es=Etab}) ->
-    vertices_ccw_1(Face, Edge, Edge, Etab, []).
+    vertices_ccw_1(Edge, Etab, Face, Edge, []).
 
-vertices_ccw_1(_, LastEdge, LastEdge, _, Acc) when Acc =/= [] -> Acc;
-vertices_ccw_1(Face, Edge, LastEdge, Etab, Acc) ->
+vertices_ccw_1(LastEdge, _, _, LastEdge, Acc) when Acc =/= [] -> Acc;
+vertices_ccw_1(Edge, Etab, Face, LastEdge, Acc) ->
     case gb_trees:get(Edge, Etab) of
 	#edge{ve=V,lf=Face,ltsu=NextEdge} ->
-	    vertices_ccw_1(Face, NextEdge, LastEdge, Etab, [V|Acc]);
+	    vertices_ccw_1(NextEdge, Etab, Face, LastEdge, [V|Acc]);
 	#edge{vs=V,rf=Face,rtsu=NextEdge} ->
-	    vertices_ccw_1(Face, NextEdge, LastEdge, Etab, [V|Acc])
+	    vertices_ccw_1(NextEdge, Etab, Face, LastEdge, [V|Acc])
     end.
 
 %% extend_border(FacesGbSet, We) -> FacesGbSet'
@@ -309,28 +308,29 @@ outer_edges_1([], Out) -> reverse(Out).
 
 fold(F, Acc, Face, #we{es=Etab,fs=Ftab}) ->
     Edge = gb_trees:get(Face, Ftab),
-    fold(F, Acc, Face, Edge, Edge, Etab, not_done).
+    fold(Edge, Etab, F, Acc, Face, Edge, not_done).
 
 fold(F, Acc, Face, Edge, #we{es=Etab}) ->
-    fold(F, Acc, Face, Edge, Edge, Etab, not_done).
+    fold(Edge, Etab, F, Acc, Face, Edge, not_done).
 
-fold(_, Acc, _, LastEdge, LastEdge, _, done) -> Acc;
-fold(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
-    Acc = case gb_trees:get(Edge, Etab) of
-	      #edge{ve=V,lf=Face,ltsu=NextEdge}=E ->
-		  F(V, Edge, E, Acc0);
-	      #edge{vs=V,rf=Face,rtsu=NextEdge}=E ->
-		  F(V, Edge, E, Acc0)
-	  end,
-    fold(F, Acc, Face, NextEdge, LastEdge, Etab, done).
+fold(LastEdge, _, _, Acc, _, LastEdge, done) -> Acc;
+fold(Edge, Etab, F, Acc0, Face, LastEdge, _) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{ve=V,lf=Face,ltsu=NextEdge}=E ->
+	    Acc = F(V, Edge, E, Acc0),
+	    fold(NextEdge, Etab, F, Acc, Face, LastEdge, done);
+	#edge{vs=V,rf=Face,rtsu=NextEdge}=E ->
+	    Acc = F(V, Edge, E, Acc0),
+	    fold(NextEdge, Etab, F, Acc, Face, LastEdge, done)
+    end.
+
+%% Fold over all edges surrounding a face.
 
 fold_vinfo(F, Acc, Face, #we{es=Etab,fs=Ftab}) ->
     Edge = gb_trees:get(Face, Ftab),
     fold_vinfo(F, Acc, Face, Edge, Edge, Etab, not_done).
 
-%% Fold over all edges surrounding a face.
-
-fold_vinfo(_F, Acc, _Face, LastEdge, LastEdge, _Etab, done)-> Acc;
+fold_vinfo(_F, Acc, _Face, LastEdge, LastEdge, _Etab, done) -> Acc;
 fold_vinfo(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
     Acc = case gb_trees:get(Edge, Etab) of
 	      #edge{vs=V,a=VInfo,lf=Face,ltsu=NextEdge} ->
@@ -340,7 +340,7 @@ fold_vinfo(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
 	  end,
     fold_vinfo(F, Acc, Face, NextEdge, LastEdge, Etab, done).
 
-%% fold over a set of faces.
+%% Fold over a set of faces.
 
 fold_faces(F, Acc0, [Face|Faces], We) ->
     Acc = fold(fun(V, Edge, Rec, A) ->
