@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.83 2002/10/02 15:10:34 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.84 2002/10/05 15:47:28 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -177,7 +177,9 @@ read(St0) ->
 	aborted -> St0;
 	St1 ->
 	    case wings_plugin:call_ui({file,open,wings_prop()}) of
-		aborted -> St0;
+		aborted ->
+		    wings_material:init(St0),
+		    St0;
 		Name ->
 		    set_cwd(dirname(Name)),
 		    File = use_autosave(Name),
