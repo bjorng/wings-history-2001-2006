@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.115 2004/12/19 14:03:01 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.116 2004/12/21 19:53:41 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -1255,26 +1255,53 @@ set_color_1([], _, We) -> We.
 %%    It is assumed that FaceSet consists of one region returned by
 %%  wings_sel:face_regions/2.
 
-outer_edge_partition(Faces, We) when is_list(Faces) ->
-    collect_outer_edges(Faces, gb_sets:from_list(Faces), We);
 outer_edge_partition(Faces, We) ->
-    collect_outer_edges(gb_sets:to_list(Faces), Faces, We).
-
-collect_outer_edges(Fs, Faces, We) ->
-    F0 = wings_face:fold_faces(
-	   fun(Face, _, Edge, #edge{vs=V,ve=OtherV,lf=Face,rf=Other}, Acc) ->
-		   case gb_sets:is_member(Other, Faces) of
-		       false -> [{V,{Edge,V,OtherV}}|Acc];
-		       true -> Acc
-		   end;
-	      (Face, _, Edge, #edge{vs=OtherV,ve=V,rf=Face,lf=Other}, Acc) ->
-		   case gb_sets:is_member(Other, Faces) of
-		       false -> [{V,{Edge,V,OtherV}}|Acc];
-		       true -> Acc
-		   end
-	   end, [], Fs, We),
+    F0 = collect_outer_edges(Faces, We),
     F = gb_trees:from_orddict(wings_util:rel2fam(F0)),
     partition_edges(F, []).
+
+collect_outer_edges(Faces, We) when is_list(Faces) ->
+    collect_outer_edges_1(Faces, gb_sets:from_list(Faces), We);
+collect_outer_edges(Faces, We) ->
+    collect_outer_edges_1(gb_sets:to_list(Faces), Faces, We).
+
+collect_outer_edges_1(Fs0, Faces0, #we{fs=Ftab}=We) ->
+    case {gb_sets:size(Ftab),gb_sets:size(Faces0)} of
+	{AllSz,FaceSz} when AllSz < 2*FaceSz ->
+	    Fs = ordsets:subtract(gb_trees:keys(Ftab), Fs0),
+	    Faces = gb_sets:from_ordset(Fs),
+	    Coll = collect_outer_edges_a(Faces),
+	    wings_face:fold_faces(Coll, [], Fs, We);
+	{_,_} ->
+	    Coll = collect_outer_edges_b(Faces0),
+	    wings_face:fold_faces(Coll, [], Fs0, We)
+    end.
+
+collect_outer_edges_a(Faces) ->
+    fun(Face, _, Edge, #edge{ve=V,vs=OtherV,lf=Face,rf=Other}, Acc) ->
+	    case gb_sets:is_member(Other, Faces) of
+		false -> [{V,{Edge,V,OtherV}}|Acc];
+		true -> Acc
+	    end;
+       (Face, _, Edge, #edge{ve=OtherV,vs=V,rf=Face,lf=Other}, Acc) ->
+	    case gb_sets:is_member(Other, Faces) of
+		false -> [{V,{Edge,V,OtherV}}|Acc];
+		true -> Acc
+	    end
+    end.
+
+collect_outer_edges_b(Faces) ->
+    fun(Face, _, Edge, #edge{vs=V,ve=OtherV,lf=Face,rf=Other}, Acc) ->
+	    case gb_sets:is_member(Other, Faces) of
+		false -> [{V,{Edge,V,OtherV}}|Acc];
+		true -> Acc
+	    end;
+       (Face, _, Edge, #edge{vs=OtherV,ve=V,rf=Face,lf=Other}, Acc) ->
+	    case gb_sets:is_member(Other, Faces) of
+		false -> [{V,{Edge,V,OtherV}}|Acc];
+		true -> Acc
+	    end
+    end.
 
 partition_edges(Es0, Acc) ->
     case gb_trees:is_empty(Es0) of
