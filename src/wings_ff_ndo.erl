@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.15 2002/10/29 06:29:00 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.16 2002/12/12 08:23:39 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -189,11 +189,11 @@ clean_bad_edges([], We) -> We.
 %% Export.
 %%
 
-export(Name, #st{shapes=Shapes0}) ->
+export(Name, #st{shapes=Shapes0}=St) ->
     Shapes1 = gb_trees:values(Shapes0),
     foreach(fun check_size/1, Shapes1),
     Shapes2 = foldl(fun(Sh, A) ->
-			shape(Sh, A)
+			    shape(Sh, St, A)
 		end, [], Shapes1),
     Shapes = reverse(Shapes2),
     write_file(Name, Shapes).
@@ -206,7 +206,7 @@ check_size(#we{name=Name,es=Etab}) ->
 	_ -> ok
     end.
 	    
-shape(#we{name=Name,perm=Perm}=We0, Acc) ->
+shape(#we{name=Name,perm=Perm}=We0, St, Acc) ->
     NameChunk = [<<(length(Name)):16>>|Name],
     Vis = if
 	      ?IS_VISIBLE(Perm) -> 1;
@@ -219,7 +219,8 @@ shape(#we{name=Name,perm=Perm}=We0, Acc) ->
     Shaded = 1,
     EnableColors = 1,
     Header = <<Vis:8,Sense:8,Shaded:8,EnableColors:8,0:72/unit:8>>,
-    We = wings_we:renumber(We0, 0),
+    We1 = wings_we:uv_to_color(We0, St),
+    We = wings_we:renumber(We1, 0),
     #we{vs=Vs,es=Etab,fs=Ftab,he=Htab} = We,
     EdgeChunk = write_edges(gb_trees:to_list(Etab), Htab, []),
     FaceChunk = write_faces(gb_trees:values(Ftab), []),
