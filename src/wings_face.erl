@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.10 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.11 2001/11/21 07:15:59 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -18,7 +18,7 @@
 	 normal/2,face_normal/2,good_normal/2,
 	 to_vertices/2,surrounding_vertices/2,
 	 inner_edges/2,outer_edges/2,
-	 fold/4,fold_faces/4,
+	 fold/4,fold_vinfo/4,fold_faces/4,
 	 bordering_faces/2,
 	 iterator/2,skip_to_edge/2,skip_to_cw/2,skip_to_ccw/2,
 	 next_cw/1,next_ccw/1,
@@ -226,6 +226,22 @@ fold(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
 		  F(V, Edge, E, Acc0)
     end,
     fold(F, Acc, Face, NextEdge, LastEdge, Etab, done).
+
+fold_vinfo(F, Acc, Face, #we{es=Etab,fs=Ftab}) ->
+    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    fold_vinfo(F, Acc, Face, Edge, Edge, Etab, not_done).
+
+%% Fold over all edges surrounding a face.
+
+fold_vinfo(F, Acc, Face, LastEdge, LastEdge, Etab, done)-> Acc;
+fold_vinfo(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
+    Acc = case gb_trees:get(Edge, Etab) of
+	      #edge{vs=V,a=VInfo,lf=Face,ltsu=NextEdge}=E ->
+		  F(V, VInfo, Acc0);
+	      #edge{ve=V,b=VInfo,rf=Face,rtsu=NextEdge}=E ->
+		  F(V, VInfo, Acc0)
+    end,
+    fold_vinfo(F, Acc, Face, NextEdge, LastEdge, Etab, done).
 
 %% fold over a set of faces.
 

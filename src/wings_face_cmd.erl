@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.14 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.15 2001/11/21 07:15:59 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -41,7 +41,7 @@ set_material(Mat, St) ->
       fun(Face, #we{fs=Ftab0}=We) ->
 	      Rec = gb_trees:get(Face, Ftab0),
 	      Ftab = gb_trees:update(Face, Rec#face{mat=Mat}, Ftab0),
-	      We#we{fs=Ftab}
+	      We#we{mode=material,fs=Ftab}
       end, St).
 
 %%%

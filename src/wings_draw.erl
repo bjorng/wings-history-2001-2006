@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.22 2001/11/20 12:49:22 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.23 2001/11/21 07:15:59 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -59,30 +59,31 @@ draw_smooth_shapes(#st{dl=DL}=St) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
-    ?CHECK_ERROR(),
     gl:enable(?GL_BLEND),
-    ?CHECK_ERROR(),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    ?CHECK_ERROR(),
     gl:polygonOffset(2.0, 2.0),
     draw_faces(St),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_CULL_FACE),
+    ?CHECK_ERROR(),
     draw_sel(St).
 
 draw_plain_shapes(#st{selmode=SelMode}=St) ->
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_BACK),
 
+    gl:enable(?GL_LIGHT0),
+    gl:enable(?GL_LIGHT1),
+
     %% Draw faces for winged-edge-objects.
     Wire = wings_pref:get_value(wire_mode),
     case Wire of
 	true -> ok;
 	false ->
-	    FaceColor = wings_pref:get_value(face_color),
-	    gl:color3fv(FaceColor),
+% 	    FaceColor = wings_pref:get_value(face_color),
+% 	    gl:color3fv(FaceColor),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:enable(?GL_POLYGON_OFFSET_FILL),
 	    gl:polygonOffset(2.0, 2.0),
@@ -214,13 +215,20 @@ draw_faces(#we{}=We, false, St) ->
 	      draw_face(Face, Edge, We)
       end, [], We).
 
-draw_smooth_faces(Mtab, We) ->
+draw_smooth_faces(Mtab, #we{mode=material}=We) ->
     Faces0 = wings_we:normals(We),
     Faces1 = sofs:relation(Faces0),
     Faces2 = sofs:relation_to_family(Faces1),
     Faces = sofs:to_external(Faces2),
-    draw_smooth_1(Faces, Mtab).
-
+    draw_smooth_1(Faces, Mtab);
+draw_smooth_faces(Mtab, We) ->
+    Faces = wings_we:normals(We),
+    gl:enable(?GL_COLOR_MATERIAL),
+    gl:colorMaterial(?GL_FRONT, ?GL_DIFFUSE),
+    draw_smooth_vcolor(Faces),
+    gl:disable(?GL_COLOR_MATERIAL),
+    ok.
+    
 draw_smooth_1([{Mat,Faces}|T], Mtab) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     wings_material:apply_material(Mat, Mtab),
@@ -229,37 +237,28 @@ draw_smooth_1([{Mat,Faces}|T], Mtab) ->
     draw_smooth_1(T, Mtab);
 draw_smooth_1([], Mtab) -> ok.
 
-draw_smooth_2([[{P1,N1},{P2,N2},{P3,N3}]|Fs]) ->
-    gl:'begin'(?GL_POLYGON),
-    gl:normal3fv(N1),
-    gl:vertex3fv(P1),
-    gl:normal3fv(N2),
-    gl:vertex3fv(P2),
-    gl:normal3fv(N3),
-    gl:vertex3fv(P3),
-    gl:'end'(),
-    draw_smooth_2(Fs);
-draw_smooth_2([[{P1,N1},{P2,N2},{P3,N3},{P4,N4}]|Fs]) ->
-    gl:'begin'(?GL_POLYGON),
-    gl:normal3fv(N1),
-    gl:vertex3fv(P1),
-    gl:normal3fv(N2),
-    gl:vertex3fv(P2),
-    gl:normal3fv(N3),
-    gl:vertex3fv(P3),
-    gl:normal3fv(N4),
-    gl:vertex3fv(P4),
-    gl:'end'(),
-    draw_smooth_2(Fs);
 draw_smooth_2([Vs|Fs]) ->
     gl:'begin'(?GL_POLYGON),
-    foreach(fun({P,N}) ->
+    foreach(fun({P,{Diff,N}}) ->
  		    gl:normal3fv(N),
  		    gl:vertex3fv(P)
  	    end, Vs),
     gl:'end'(),
     draw_smooth_2(Fs);
 draw_smooth_2([]) -> ok.
+
+%% Smooth drawing for vertex colors.
+draw_smooth_vcolor([{_,Vs}|T]) ->
+    gl:'begin'(?GL_POLYGON),
+    foreach(fun({P,{{R,G,B}=Diff,N}}) ->
+ 		    gl:normal3fv(N),
+		    gl:color3f(R, G, B),
+		    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
+ 		    gl:vertex3fv(P)
+ 	    end, Vs),
+    gl:'end'(),
+    draw_smooth_vcolor(T);
+draw_smooth_vcolor([]) -> ok.
 
 draw_face(Face, Edge, #we{es=Etab,vs=Vtab}=We) ->
     Normal = wings_face:normal(Face, We),

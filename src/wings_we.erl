@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.17 2001/11/11 20:15:51 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.18 2001/11/21 07:15:59 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -560,16 +560,29 @@ soft_vtx_normal(V, FaceNormals, We) ->
 	   end, [], V, We),
     e3d_vec:mul(e3d_vec:add(Ns), 1/length(Ns)).
 
-n_face(Face, Mat, G, FaceNormals, VtxNormals, #we{vs=Vtab}=We) ->
+n_face(Face, Mat, G, FaceNormals, VtxNormals, #we{mode=material,vs=Vtab}=We) ->
     Vs = wings_face:fold(
-	   fun (V, _, _, Acc) ->
+	   fun (V, _, #edge{a=Info}, Acc) ->
 		   case gb_trees:lookup(V, VtxNormals) of
-		       {value,PosNormal} ->
-			   [PosNormal|Acc];
+		       {value,{Pos,Normal}} ->
+			   [{Pos,{Info,Normal}}|Acc];
 		       none ->
 			   #vtx{pos=Pos} = gb_trees:get(V, Vtab),
 			   Normal = hard_vtx_normal(G, V, Face, FaceNormals),
- 			   [{Pos,Normal}|Acc]
+ 			   [{Pos,{Info,Normal}}|Acc]
+		   end
+	   end, [], Face, We),
+    {Mat,Vs};
+n_face(Face, Mat, G, FaceNormals, VtxNormals, #we{vs=Vtab}=We) ->
+    Vs = wings_face:fold_vinfo(
+	   fun (V, VInfo, Acc) ->
+		   case gb_trees:lookup(V, VtxNormals) of
+		       {value,{Pos,Normal}} ->
+			   [{Pos,{VInfo,Normal}}|Acc];
+		       none ->
+			   #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+			   Normal = hard_vtx_normal(G, V, Face, FaceNormals),
+ 			   [{Pos,{VInfo,Normal}}|Acc]
 		   end
 	   end, [], Face, We),
     {Mat,Vs}.
