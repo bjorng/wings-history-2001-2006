@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.63 2005/02/08 13:16:13 dgud Exp $
+%%     $Id: wpa.erl,v 1.64 2005/02/11 07:16:45 dgud Exp $
 %%
 %% Note: To keep the call graph clean, wpa MUST NOT be called
 %%       from the wings core modules.
@@ -127,7 +127,7 @@ import_filename(Ps, Cont) ->
     wings_file:import_filename(Ps, Cont).
 
 export(none, Exporter, St) ->
-    wings_export:export(Exporter, none, 0, St);
+    wings_export:export(Exporter, none, 0, none, St);
 export(Ps, Exporter, St) ->
     SubDivs = proplists:get_value(subdivisions, Ps, 0),
     Tesselate = proplists:get_value(tesselation, Ps, none),
