@@ -9,11 +9,11 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.8 2002/10/15 20:19:44 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.9 2002/10/16 19:45:18 bjorng Exp $
 
 -module(auv_segment).
 
--export([create/2, segment_by_material/1, cleanup_bounds/3]).
+-export([create/2, segment_by_material/1, cleanup_bounds/3, cut_model/3]).
 -export([degrees/0]). %% Debug
 -include("wings.hrl").
 -include("auv.hrl").
@@ -570,3 +570,249 @@ segment_by_cluster(Rel0, We) ->
 	  end,
     {_,Charts0} = lists:foldl(Mod, {0,[]}, Neigh),
     Charts0.
+
+%%%
+%%% Cutting along hard edges.
+%%%
+
+cut_model(Cuts, _, We) ->
+    cut_edges(Cuts, We).
+
+cut_edges(Cuts, We0) ->
+    {We,_,NewVs,_Forbidden} = extrude_edges(Cuts,We0),
+    NewEs = wings_we:new_items(edge, We0, We),
+    {We,{gb_sets:to_list(NewVs),gb_sets:to_list(NewEs)}}.
+
+-define(EXTRUDE_DIST, 0.2).
+
+extrude_edges(Edges, We) ->
+    extrude_edges(Edges, gb_sets:empty(), We).
+
+extrude_edges(Edges, Faces, #we{next_id=Wid,es=Etab}=We0) ->
+    G = digraph:new(),
+    lists:foreach(fun(Edge) ->
+			  digraph_edge(G, Faces, gb_trees:get(Edge, Etab))
+		  end, gb_sets:to_list(Edges)),
+    Vs0 = digraph:vertices(G),
+    Vs1 = sofs:relation(Vs0),
+    Vs = sofs:to_external(sofs:domain(Vs1)),
+    {We1,Forbidden} =
+	foldl(fun(V, A) ->
+		      new_vertex(V, G, Edges, Faces, Wid, A)
+	      end, {We0,[]}, Vs),
+    NewVs = wings_we:new_items(vertex, We0, We1),
+    We = connect(G, Wid, We1),
+    digraph:delete(G),
+    {We,Vs,NewVs,gb_sets:from_list(Forbidden)}.
+
+new_vertex(V, G, Edges, Faces, Wid, {We0,F0}=Acc) ->
+    case wings_vertex:fold(fun(E, F, R, A) -> [{E,F,R}|A] end, [], V, We0) of
+	[_,_]=Es ->
+	    case filter_edges(Es, Edges, Faces) of
+		[] -> Acc;
+		[{Edge,_,#edge{lf=Lf,rf=Rf}}] ->
+		    New = {new,V},
+		    digraph_insert(G, New, V, Lf),
+		    digraph_insert(G, V, New, Lf),
+		    digraph_insert(G, V, New, Rf),
+		    digraph_insert(G, New, V, Rf),
+		    {We0,[Edge|F0]}
+	    end;
+	Es0 ->
+	    Es = filter_edges(Es0, Edges, Faces),
+	    Center = wings_vertex:pos(V, We0),
+	    We = foldl(fun({Edge,_,Rec}, W0) ->
+			       OtherV = wings_vertex:other(V, Rec),
+			       MeetsNew = OtherV >= Wid,
+			       do_new_vertex(V, MeetsNew, G, Edge, Faces, Center, W0)
+		       end, We0, Es),
+	    {We,F0}
+    end.
+
+filter_edges(Es, EdgeSet, FaceSet) ->
+    foldl(fun({Edge,Face,_}=E, A) ->
+		  case gb_sets:is_member(Edge, EdgeSet) orelse
+		      gb_sets:is_member(Face, FaceSet) of
+		      true -> A;
+		      false -> [E|A]
+		  end
+	  end, [], Es).
+
+do_new_vertex(V, MeetsNew, G, Edge, Faces, Center, #we{es=Etab}=We0) ->
+    {We,NewE=NewV} = wings_edge:cut(Edge, 2, We0),
+    Rec = get_edge_rec(V, NewV, Edge, NewE, We),
+    digraph_edge(G, Rec),
+    case {gb_trees:is_empty(Faces),MeetsNew} of
+	{true,_} ->
+	    %% Extrude-edge case.
+	    move_vertex(NewV, Center, We);
+	{false,false} ->
+	    %% Bump case.
+	    We;
+	{false,true} ->
+	    %% Bump case, meeting another new vertex.
+	    OtherV = wings_vertex:other(V, gb_trees:get(Edge, Etab)),
+	    Pos = wings_vertex:pos(OtherV, We),
+	    Vtab0 = We#we.vs,
+	    Vtx = gb_trees:get(NewV, Vtab0),
+	    Vtab = gb_trees:update(NewV, Vtx#vtx{pos=Pos}, Vtab0),
+	    We#we{vs=Vtab}
+    end.
+move_vertex(V, Center, #we{vs=Vtab0}=We) ->
+    #vtx{pos=Pos0} = Rec = gb_trees:get(V, Vtab0),
+    Dir = e3d_vec:sub(Pos0, Center),
+    case e3d_vec:len(Dir) of
+	D when D < ?EXTRUDE_DIST ->
+	    We;
+	_ ->
+	    Pos = e3d_vec:add(Center,
+			      e3d_vec:mul(e3d_vec:norm(Dir),
+					  ?EXTRUDE_DIST)),
+	    Vtab = gb_trees:update(V, Rec#vtx{pos=Pos}, Vtab0),
+	    We#we{vs=Vtab}
+    end.
+
+get_edge_rec(Va, Vb, EdgeA, EdgeB, #we{es=Etab}) ->
+    case gb_trees:get(EdgeA, Etab) of
+	#edge{vs=Va,ve=Vb}=Rec -> Rec;
+	#edge{vs=Vb,ve=Va}=Rec -> Rec;
+	_Other -> gb_trees:get(EdgeB, Etab)
+    end.
+
+digraph_edge(G, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
+    digraph_insert(G, Va, Vb, Lf),
+    digraph_insert(G, Vb, Va, Rf).
+
+digraph_edge(G, Faces, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
+    case gb_sets:is_member(Lf, Faces) of
+	false -> digraph_insert(G, Va, Vb, Lf);
+	true -> ok
+    end,
+    case gb_sets:is_member(Rf, Faces) of
+	false -> digraph_insert(G, Vb, Va, Rf);
+	true -> ok
+    end.
+
+digraph_insert(G, Va0, Vb0, Face) ->
+    Va = {Va0,Face},
+    Vb = {Vb0,Face},
+    digraph:add_vertex(G, Va),
+    digraph:add_vertex(G, Vb),
+    digraph:add_edge(G, Va, Vb).
+
+connect(G, Wid, We) ->
+    Cs0 = digraph_utils:components(G),
+    Cs = remove_winged_vs(Cs0),
+    connect(G, Cs, Wid, We, []).
+
+connect(G, [C|Cs], Wid, We0, Closed) ->
+    case [VF || {V,_}=VF <- C, V >= Wid] of
+	[] ->
+	    [{_,Face}|_] = C,
+	    connect(G, Cs, Wid, We0, [Face|Closed]);
+	[Va0,Vb0] ->
+	    [{Va,Face}|Path0] = digraph_get_path(G, Va0, Vb0),
+	    Path = [V || {V,_} <- Path0],
+	    N = wings_face:normal(Face, We0),
+	    We = connect_inner(Va, Path, N, Face, We0),
+ 	    connect(G, Cs, Wid, We, Closed)
+    end;
+connect(_, [], _Wid, We0, Closed) ->
+    We = wings_extrude_face:faces(Closed, We0),
+    move_vertices(Closed, We).
+
+digraph_get_path(G, Va, Vb) ->
+    case digraph:get_path(G, Va, Vb) of
+	false -> digraph:get_path(G, Vb, Va);
+	Path -> Path
+    end.
+
+connect_inner({new,V}, [V|[B,C,_|_]=Next], N, Face, We0) ->
+    {We1,Current} = connect_one_inner(V, V, B, C, N, Face, We0),
+    #we{vs=Vtab} = We2 = connect_inner(Current, Next, N, Face, We1),
+    Edge = wings_vertex:fold(
+	     fun(E, _, R, A) ->
+		     case wings_vertex:other(V, R) of
+			 Current -> E;
+			 _ -> A
+		     end
+	     end, none, V, We2),
+    VPos = wings_vertex:pos(V, Vtab),
+    BPos = wings_vertex:pos(B, Vtab),
+    Vec = e3d_vec:sub(VPos, BPos),
+    Pos = e3d_vec:add(VPos, e3d_vec:mul(e3d_vec:cross(Vec, N), ?EXTRUDE_DIST)),
+    {We,_} = wings_edge:fast_cut(Edge, Pos, We2),
+    We;
+connect_inner({new,_}, [A|[B,C]], _, Face, We0) ->
+    {We1,Edge} = wings_vertex:force_connect(C, A, Face, We0),
+    #we{vs=Vtab} = We1,
+    APos = wings_vertex:pos(A, Vtab),
+    BPos = wings_vertex:pos(B, Vtab),
+    CPos = wings_vertex:pos(C, Vtab),
+    Pos = e3d_vec:add(APos, e3d_vec:sub(CPos, BPos)),
+    {We,_} = wings_edge:fast_cut(Edge, Pos, We1),
+    We;
+connect_inner(C, [B|[A,{new,_}]], N, Face, We0) ->
+    {We1,Edge} = wings_vertex:force_connect(A, C, Face, We0),
+    #we{vs=Vtab} = We1,
+    APos = wings_vertex:pos(A, Vtab),
+    BPos = wings_vertex:pos(B, Vtab),
+    Vec = e3d_vec:sub(BPos, APos),
+    Pos = e3d_vec:add(APos, e3d_vec:mul(e3d_vec:cross(Vec, N), ?EXTRUDE_DIST)),
+    {We,_} = wings_edge:fast_cut(Edge, Pos, We1),
+    We;
+connect_inner(Current0, [A|[B,C,_|_]=Next], N, Face, We0) ->
+    {We,Current} = connect_one_inner(Current0, A, B, C, N, Face, We0),
+    connect_inner(Current, Next, N, Face, We);
+connect_inner(Current, [_|[_,_]=Next], N, Face, We) ->
+    connect_inner(Current, Next, N, Face, We);
+connect_inner(Current, [_,Last], _, Face, We0) ->
+    {We,_} = wings_vertex:force_connect(Last, Current, Face, We0),
+    We.
+
+connect_one_inner(Current, A, B, C, N, Face, We0) ->
+    {We1,Edge} = wings_vertex:force_connect(B, Current, Face, We0),
+    #we{vs=Vtab} = We1,
+    Pos = new_vertex_pos(A, B, C, N, Vtab),
+    wings_edge:fast_cut(Edge, Pos, We1).
+
+move_vertices([Face|Fs], #we{vs=Vtab0}=We0) ->
+    N = wings_face:normal(Face, We0),
+    Vs = wings_face:surrounding_vertices(Face, We0),
+    Vtab = move_vertices(Vs, Vs, N, Vtab0, Vtab0),
+    We = We0#we{vs=Vtab},
+    move_vertices(Fs, We);
+move_vertices([], We) -> We.
+
+move_vertices([Va|[Vb,Vc|_]=Vs], First, N, OldVtab, Vtab0) ->
+    Pos = new_vertex_pos(Va, Vb, Vc, N, OldVtab),
+    Vrec0 = gb_trees:get(Vb, Vtab0),
+    Vrec = Vrec0#vtx{pos=wings_util:share(Pos)},
+    Vtab = gb_trees:update(Vb, Vrec, Vtab0),
+    move_vertices(Vs, First, N, OldVtab, Vtab);
+move_vertices([Va,Vb], [Vc,Vd|_], N, OldVtab, Vtab) ->
+    move_vertices([Va,Vb,Vc,Vd], [], N, OldVtab, Vtab);
+move_vertices([_,_], [], _, _, Vtab) -> Vtab.
+
+new_vertex_pos(A, B, C, N, Vtab) ->
+    APos = wings_vertex:pos(A, Vtab),
+    BPos = wings_vertex:pos(B, Vtab),
+    CPos = wings_vertex:pos(C, Vtab),
+    VecA = e3d_vec:norm(e3d_vec:sub(APos, BPos)),
+    VecB = e3d_vec:norm(e3d_vec:sub(CPos, BPos)),
+    Vec = e3d_vec:norm(e3d_vec:add(VecA, VecB)),
+    case e3d_vec:len(e3d_vec:cross(VecA, Vec)) of
+	Sin when Sin < 1.0E-3 ->
+	    %% The edges have the same direction.
+	    %% Simply move the vertices outwards at a right angle.
+	    e3d_vec:add(BPos, e3d_vec:mul(e3d_vec:cross(VecA, N),
+					  ?EXTRUDE_DIST));
+	Sin ->
+	    e3d_vec:add(BPos, e3d_vec:mul(Vec, ?EXTRUDE_DIST/Sin))
+    end.
+
+remove_winged_vs(Cs0) ->
+    Cs = sofs:from_term(Cs0, [[{vertex,face}]]),
+    P = sofs:partition(fun(C) -> sofs:domain(C) end, Cs),
+    G = sofs:specification(fun(L) -> sofs:no_elements(L) =:= 1 end, P),
+    sofs:to_external(sofs:union(G)).
