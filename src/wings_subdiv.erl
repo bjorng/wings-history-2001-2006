@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.32 2003/05/30 08:36:10 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.33 2003/05/30 11:52:16 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -322,13 +322,15 @@ setup_1(#dlo{src_we=#we{id=Id}}=D, [{Id,_}|Sel]) ->
     {D#dlo{proxy_data=#sp{}},Sel};
 setup_1(D, Sel) -> {D,Sel}.
 
-update(#dlo{src_we=We0}=D, St) ->
+update(#dlo{proxy_data=none}=D, _) -> D;
+update(#dlo{smooth_proxy=none,src_we=We0}=D, St) ->
     #we{fs=Ftab} = We = wings_subdiv:smooth(We0),
     Faces = gl:genLists(1),
     gl:newList(Faces, ?GL_COMPILE),
     wings_draw:draw_faces(gb_trees:to_list(Ftab), We, St),
     gl:endList(),
-    D#dlo{smooth_proxy=Faces,proxy_data=[Faces,#sp{}]}.
+    D#dlo{smooth_proxy=Faces,proxy_data=[Faces,#sp{}]};
+update(D, _) -> D.
 
 draw(#dlo{smooth_proxy=Dl}) when is_integer(Dl) ->
     draw_1(Dl);

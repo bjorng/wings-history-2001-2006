@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.115 2003/05/30 07:41:38 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.116 2003/05/30 11:52:16 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -130,10 +130,9 @@ update_fun(#dlo{vs=none,src_we=#we{vp=Vtab}}=D, #st{selmode=vertex}=St) ->
     end,
     gl:endList(),
     update_fun(D#dlo{vs=UnselDlist}, St);
-update_fun(#dlo{smooth_proxy=none,proxy_data=none}=D, St) ->
-    update_fun_2(D, St);
-update_fun(D, St) ->
-    wings_subdiv:update(D, St).
+update_fun(D0, St) ->
+    D = wings_subdiv:update(D0, St),
+    update_fun_2(D, St).
 
 update_fun_2(#dlo{smooth=none,src_we=We}=D, St) ->
     case any_smooth_window() of
