@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.60 2003/08/31 07:21:15 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.61 2003/09/23 03:34:18 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -575,6 +575,10 @@ draw_vtx_faces({Same,Diff}, We) ->
 	   end,
     wings_draw_util:begin_end(?GL_QUADS, Draw).
 
+draw_vtx_faces_1([{none,Faces}|Fs], We) ->
+    gl:color3f(1.0, 1.0, 1.0),
+    draw_vtx_faces_2(Faces, We),
+    draw_vtx_faces_1(Fs, We);
 draw_vtx_faces_1([{Col,Faces}|Fs], We) ->
     gl:color3fv(Col),
     draw_vtx_faces_2(Faces, We),
