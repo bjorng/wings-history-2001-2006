@@ -1,16 +1,16 @@
-%%%-------------------------------------------------------------------
-%%% File    : auv_matrix.erl
-%%% Author  : Raimo Niskanen
-%%% Description : Provides Matrix ops for sparse populated matrixes
-%%%
-%%% Created :  4 Oct 2002 by Raimo Niskanen
-%%%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2002, Raimo Niskanen
+%%
+%%  auv_matrix.erl --
+%%
+%%     Provides matrix ops for sparsely populated matrixes.
+%%
+%%  Copyright (c) 2001-2002 Raimo Niskanen,
+%%                2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_matrix.erl,v 1.13 2004/02/18 11:52:55 raimo_niskanen Exp $
+%%     $Id: auv_matrix.erl,v 1.14 2004/12/28 11:24:31 bjorng Exp $
+%%
 
 -module(auv_matrix).
 
@@ -20,7 +20,6 @@
 -export([cat_cols/2, cat_rows/2]).
 -export([diag/1, row_norm/1]).
 -export([trans/1, mult/2, mult_trans/2]).
--export([square_right/1]).
 -export([add/2, sub/2]).
 -export([reduce/1, backsubst/1]).
 
@@ -33,6 +32,7 @@
 -compile(inline).
 -compile({inline_size, 100}).
 
+-import(lists, [reverse/1]).
 
 %% Exported
 %%
@@ -43,7 +43,7 @@ dim({?TAG,N,_}) ->
 dim(V) when number(V) ->
     {1,1};
 dim(A) ->
-    erlang:fault(badarg, [A]).
+    erlang:error(badarg, [A]).
 
 
 
@@ -56,18 +56,17 @@ vector(V) when number(V) ->
 vector(L) when list(L) ->
     case vector_from_list(0, L, []) of
 	{[], 0} ->
-	    erlang:fault(badarg, [L]);
+	    erlang:error(badarg, [L]);
 	{A, N} when list(A) ->
 	    fix({?TAG,N,A});
 	Fault ->
-	    erlang:fault(Fault, [L])
+	    erlang:error(Fault, [L])
     end;
 vector(L) ->
-    erlang:fault(badarg, [L]).
+    erlang:error(badarg, [L]).
 
-vector_to_list_r([], C) ->
-    C;
-vector_to_list_r([V | A], C) when float(V) ->
+vector_to_list_r([], C) -> C;
+vector_to_list_r([V | A], C) when is_float(V) ->
     vector_to_list_r(A, [V | C]);
 vector_to_list_r([1 | A], C) ->
     vector_to_list_r(A, [0.0 | C]);
@@ -86,17 +85,15 @@ vector_from_list(_, _, _) ->
 
 %% Exported
 %%
-vector(N, D)
-  when integer(N), list(D),
-       1 =< N ->
+vector(N, D) when integer(N), list(D), 1 =< N ->
     case vector_from_tuplist(1, N, lists:sort(D), []) of
 	L when list(L) ->
 	    fix({?TAG,N,L});
 	Fault ->
-	    erlang:fault(Fault, [N, D])
+	    erlang:error(Fault, [N, D])
     end;
 vector(N, D) ->
-    erlang:fault(badarg, [N, D]).
+    erlang:error(badarg, [N, D]).
 
 vector_from_tuplist(I, N, [], C) when I =< N ->
     vector_from_tuplist(N+1, N, [], push_v(N+1-I, C));
@@ -123,7 +120,7 @@ rows({?TAG,_,_} = A) ->
 rows(V) when number(V) ->
     [V];
 rows(A) ->
-    erlang:fault(badarg, [A]).
+    erlang:error(badarg, [A]).
 
 rows_to_list(_, [], C) ->
     lists:reverse(C);
@@ -139,10 +136,10 @@ rows(M, L) when integer(M), list(L), M >= 1 ->
 	{A, N} when list(A) ->
 	    fix({?TAG,N,M,A});
 	Fault ->
-	    erlang:fault(Fault, [M, L])
+	    erlang:error(Fault, [M, L])
     end;
 rows(M, L) ->
-    erlang:fault(badarg, [M, L]).
+    erlang:error(badarg, [M, L]).
 
 
 
@@ -155,7 +152,7 @@ cols({?TAG,_,_} = A) ->
 cols(V) when number(V) ->
     [V];
 cols(A) ->
-    erlang:fault(badarg, A).
+    erlang:error(badarg, A).
 
 
 
@@ -167,10 +164,10 @@ cols(N, L)
 	{A, M} when list(A) ->
 	    trans({?TAG,M,N,A});
 	Fault ->
-	    erlang:fault(Fault, [N, L])
+	    erlang:error(Fault, [N, L])
     end;
 cols(N, L) ->
-    erlang:fault(badarg, [N, L]).
+    erlang:error(badarg, [N, L]).
 
 
 
@@ -185,7 +182,7 @@ cat_cols({?TAG,N,_} = A, {?TAG,N,_,_} = B) ->
 cat_cols({?TAG,N,_} = A, {?TAG,N,_} = B) ->
     cols(N, cols(A)++cols(B));
 cat_cols(A, B) ->
-    erlang:fault(badarg, [A, B]).
+    erlang:error(badarg, [A, B]).
 
 
 
@@ -200,7 +197,7 @@ cat_rows({?TAG,_,1} = A, {?TAG,_} = B) ->
 cat_rows({?TAG,_} = A, {?TAG,_} = B) ->
     rows(1, rows(A)++rows(B));
 cat_rows(A, B) ->
-    erlang:fault(badarg, [A, B]).
+    erlang:error(badarg, [A, B]).
 
 
 
@@ -222,10 +219,10 @@ diag(L) when list(L) ->
 	A when list(A) ->
 	    fix({?TAG,N,N,A});
 	Fault ->
-	    erlang:fault(Fault, [L])
+	    erlang:error(Fault, [L])
     end;
 diag(A) ->
-    erlang:fault(badarg, [A]).
+    erlang:error(badarg, [A]).
 
 diag_rows(_, [], C) ->
     lists:reverse(C);
@@ -265,7 +262,7 @@ row_norm({?TAG,_,_,A}) ->
 row_norm({?TAG,_,A}) ->
     row_norm_col(A, []);
 row_norm(A) ->
-    erlang:fault(badarg, [A]).
+    erlang:error(badarg, [A]).
 
 row_norm_int([], C) ->
     lists:reverse(C);
@@ -297,7 +294,7 @@ trans({?TAG,N,A}) ->
 trans(A) when number(A) ->
     float(A);
 trans(A) ->
-    erlang:fault(badarg, [A]).
+    erlang:error(badarg, [A]).
 
 trans_cols_forw(J, M, _, C_r) when J == M+1 ->
     lists:reverse(C_r);
@@ -332,59 +329,36 @@ mult({?TAG,_,K,_} = A, {?TAG,K,_,_} = B) ->
 mult({?TAG,1,M,[A]}, {?TAG,M,B}) ->
     vec_mult(A, B);
 mult({?TAG,N,M,A}, {?TAG,M,B}) ->
-    fix({?TAG,N,mult_vec(B, A)});
+    %% Waste of time to call fix/1 here.
+    {?TAG,N,mult_vec(B, A)};
 mult(A, B) when number(A), A == 1 ->
     fix(B);
 mult(A, {?TAG,N,1,[B]}) when number(A) ->
-    fix({?TAG,N,1,[vec_mult(float(A), B)]});
+    {?TAG,N,1,[vec_mult_const(float(A), B, [])]};
 mult(A, {?TAG,N,M,B}) when number(A) ->
-    fix({?TAG,N,M,mult_const(float(A), B, [])});
+    {?TAG,N,M,mult_const(float(A), B, [])};
 mult(A, {?TAG,N,B}) when number(A) ->
-    fix({?TAG,N,vec_mult(float(A), B)});
+    %% Waste of time to call fix/1 here.
+    {?TAG,N,vec_mult_const(float(A), B, [])};
 mult(A, B) when number(B), B == 1 ->
     fix(A);
 mult({?TAG,N,1,[A]}, B) when number(B) ->
-    fix({?TAG,N,1,[vec_mult(float(B), A)]});
+    {?TAG,N,1,[vec_mult_const(float(B), A, [])]};
 mult({?TAG,N,M,A}, B) when number(B) ->
-    fix({?TAG,N,M,mult_const(float(B), A, [])});
+    {?TAG,N,M,mult_const(float(B), A, [])};
 mult({?TAG,N,A}, B) when number(B) ->
-    fix({?TAG,N,vec_mult(float(B), A)});
+    {?TAG,N,vec_mult_const(float(B), A, [])};
 mult(A, B) when number(A), number(B) ->
     float(A*B);
 mult(A, B) ->
-    erlang:fault(badarg, [A, B]).
+    erlang:error(badarg, [A, B]).
 
 mult_vec(VecA, B) ->
-    mult_vec(list_to_tuple(lists:reverse(vector_to_list_r(VecA, []))), B, []).
+    mult_vec_1(list_to_tuple(reverse(vector_to_list_r(VecA, []))), B, 0.0, []).
 
-mult_vec(_, [], C) ->
-    lists:reverse(C);
-mult_vec(VecA, [VecB | B], C) ->
-    mult_vec(VecA, B, [vec_mult(VecA, VecB) | C]).
-
-
-
-%% Exported
-%%
-square_right({?TAG,N,_,A}) ->
-    {?TAG,N,N,sq_r(0, A, [])};
-square_right(A) ->
-    erlang:fault(badarg, [A]).
-
-sq_r(_, [], C) ->
-    lists:reverse(C);
-sq_r(I, [RowA | A], C) ->
-    sq_r(I, A, C, 
-	 RowA,
-%%%	 list_to_tuple(lists:reverse(vector_to_list_r(RowA, []))), 
-	 A, [vec_sq(RowA, 0.0) | if I == 0 -> []; true -> [I] end]).
-
-sq_r(I, A0, C, _, [], RowC) ->
-    sq_r(I+1, A0, [lists:reverse(RowC) | C]);
-sq_r(I, A0, C, Row, [RowA | A], RowC) ->
-    sq_r(I, A0, C, Row, A, [vec_mult(Row, RowA) | RowC]).
-
-
+mult_vec_1(_, [], _, C) -> reverse(C);
+mult_vec_1(VecA, [VecB | B], Z, C) ->
+    mult_vec_1(VecA, B, Z, [vec_mult_tuple(VecA, 1, VecB, Z) | C]).
 
 %% Exported
 %%
@@ -407,7 +381,7 @@ mult_trans(A, B) when number(B) ->
 mult_trans(A, B) when number(A) ->
     trans(mult(A, B));
 mult_trans(A, B) ->
-    erlang:fault(badarg, [A, B]).
+    erlang:error(badarg, [A, B]).
 
 mult_row([], _, C) ->
     lists:reverse(C);
@@ -417,7 +391,7 @@ mult_row([RowA | A], B, C) ->
 mult_const(_, [], C) ->
     lists:reverse(C);
 mult_const(F, [Row | A], C) ->
-    mult_const(F, A, [vec_mult(F, Row) | C]).
+    mult_const(F, A, [vec_mult_const(F, Row, []) | C]).
 
 
 
@@ -444,7 +418,7 @@ add(Va, B) when number(Va) ->
     add(B, Va);
 %%
 add(A, B) ->
-    erlang:fault(badarg, [A, B]).
+    erlang:error(badarg, [A, B]).
 
 add_row([], [], C) ->
     lists:reverse(C);
@@ -470,7 +444,7 @@ reduce({?TAG,N,M,A}) ->
 	    {?TAG,N,M,B}
     end;
 reduce(A) ->
-    erlang:fault(badarg, [A]).
+    erlang:error(badarg, [A]).
 
 reduce_sort([], C) ->
     reduce_row(lists:sort(C), []);
@@ -508,10 +482,10 @@ reduce_zap(_, A, C) ->
 
 %% Exported
 %%
-backsubst({?TAG, N, M, A} = AA) when M == N+1 ->
+backsubst({?TAG,N,M,A} = AA) when M == N+1 ->
     case catch backsubst_rev(0, A, []) of
-	A_tri when list(A_tri) ->
-	    case backsubst_const(A_tri, [], []) of
+	A_tri when is_list(A_tri) ->
+	    case catch backsubst_const(A_tri, [], []) of
 		X when list(X) ->
 		    {?TAG,N,X};
 		{error, Reason} ->
@@ -521,7 +495,7 @@ backsubst({?TAG, N, M, A} = AA) when M == N+1 ->
 		{'EXIT', Reason} ->
 		    exit(Reason);
 		Fault ->
-		    erlang:fault(Fault, [AA])
+		    erlang:error(Fault, [AA])
 	    end;
 	{error, Reason} ->
 	    Reason;
@@ -530,10 +504,10 @@ backsubst({?TAG, N, M, A} = AA) when M == N+1 ->
 	{'EXIT', Reason} ->
 	    exit(Reason);
 	Fault ->
-	    erlang:fault(Fault, [AA])
+	    erlang:error(Fault, [AA])
     end;
 backsubst(A) ->
-    erlang:fault(badarg, [A]).
+    erlang:error(badarg, [A]).
 
 backsubst_rev(_, [], C) ->
     lists:reverse(C);
@@ -665,44 +639,34 @@ vec_add(Za, A, F, Zb, B, Zc, C) ->
 	    vec_add(0, A, F, 0, B, Zc+Za, C)
     end.
 
-vec_mult(F, B) when float(F) ->
-    vec_mult_const(F, B, []);
-vec_mult(T, B) when tuple(T) ->
-    vec_mult_tuple(T, 1, B, 0.0);
-vec_mult(A, B) ->
-    vec_mult(A, B, 0.0).
-
-vec_mult_const(F, [V | B], C)
-  when float(F), float(V) ->
-    vec_mult_const(F, B, [F*V | C]);
+vec_mult_const(F, [V | B], C) when is_float(F), is_float(V) ->
+    vec_mult_const(F, B, [V*F | C]);
 vec_mult_const(F, [Z | B], C) ->
     vec_mult_const(F, B, [Z | C]);
 vec_mult_const(_, [], C) ->
     lists:reverse(C).
 
-vec_mult_tuple(T, I, [Zb | B], S) when integer(Zb) ->
+vec_mult_tuple(T, I, [Zb | B], S) when is_integer(Zb) ->
     vec_mult_tuple(T, I+Zb, B, S);
-vec_mult_tuple(T, I, [Vb | B], S) when float(Vb), float(S) ->
+vec_mult_tuple(T, I, [Vb | B], S) when is_float(Vb), is_float(S) ->
     case element(I, T) of
 	Va when float(Va) ->
 	    vec_mult_tuple(T, I+1, B, Va*Vb + S)
     end;
-vec_mult_tuple(_, _, [], S) ->
-    S.
+vec_mult_tuple(_, _, [], S) -> S.
 
-vec_mult([Za | A], B, S) when integer(Za) ->
-    vec_mult_pop(Za, A, B, S);
-vec_mult(A, [Zb | B], S) when integer(Zb) ->
-    vec_mult_pop(Zb, B, A, S);
-vec_mult([Va | A], [Vb | B], S) when float(Va), float(Vb), float(S) ->
+vec_mult(A, B) ->
+    vec_mult(A, B, 0.0).
+
+vec_mult([Va | A], [Vb | B], S) when is_float(Va), is_float(Vb) ->
     vec_mult(A, B, Va*Vb + S);
-vec_mult([], _, S) ->
-    S;
-vec_mult(_, [], S) ->
-    S.
+vec_mult([Za|A], [_|_]=B, S) when is_integer(Za) ->
+    vec_mult_pop(Za, A, B, S);
+vec_mult([_|_]=A, [Zb | B], S) -> %% when is_integer(Zb)
+    vec_mult_pop(Zb, B, A, S);
+vec_mult(_, _, S) -> S.
 
-vec_mult_pop(_, [], _, S) ->
-    S;
+vec_mult_pop(_, [], _, S) -> S;
 vec_mult_pop(0, A, B, S) ->
     vec_mult(A, B, S);
 vec_mult_pop(Za, A, [Vb | B], S) when float(Vb) ->

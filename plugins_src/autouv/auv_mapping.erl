@@ -3,12 +3,13 @@
 %%
 %%     The UV parametrisation algorithms.
 %%
-%%  Copyright (c) 2002-2004 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Dan Gudmundsson, Raimo Niskanen,
+%%                     Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.61 2004/11/21 10:13:05 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.62 2004/12/28 11:24:31 bjorng Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -26,7 +27,7 @@
 %% by
 %%  Jonathan Richard Shewchuk, March 7, 1994
 %%
-%% The Column Norm Preconditioning was stumbeled upon, just briefly
+%% The Column Norm Preconditioning was stumbled upon, just briefly
 %% mentioned, in the paper:
 %%      Incomplete Factorization Preconditioning
 %%        for Linear Least Squares Problems
@@ -197,7 +198,7 @@ lsqcm(Fs, Pinned0, We) ->
 %    {ok, Fd} = file:open("raimo_" ++ Idstr, [write]),
 %    io:format(Fd, "{~w, ~w}.~n", [Vs1,[V1,V2]]),
 %    file:close(Fd),
-    case lsq(Vs1, Pinned) of
+    case ?TC(lsq(Vs1, Pinned)) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
 	    exit({txmap_error, What});
@@ -304,30 +305,25 @@ lsq(Name, Method) when atom(Method) ->
     lsq(L, Lpuv, Method).
 
 
-lsq(L, Lpuv, Method) when list(L), list(Lpuv), atom(Method) ->
-    Method_1 =
-	case Method of 
-	    env ->
-		case os:getenv("WINGS_AUTOUV_SOLVER") of
-		    "ge" -> ge;
-		    "cg" -> cg;
-		    "cg_jacobian" -> cg_jacobian;
-		    "cg_colnorm" -> cg_colnorm;
-		    _ -> cg_colnorm
-		end;
-	    M ->
-		M
-	end,
-    case catch lsq_int(L, Lpuv, Method_1) of
-	{'EXIT', Reason} ->
-	    exit(Reason);
-	badarg ->
-	    erlang:fault(badarg, [L, Lpuv]);
-	Result ->
-	    Result
+lsq(L, Lpuv, Method0) when is_list(L), is_list(Lpuv), is_atom(Method0) ->
+    Method = case Method0 of 
+		 env ->
+		     case os:getenv("WINGS_AUTOUV_SOLVER") of
+			 "ge" -> ge;
+			 "cg" -> cg;
+			 "cg_jacobian" -> cg_jacobian;
+			 "cg_colnorm" -> cg_colnorm;
+			 _ -> cg_colnorm
+		     end;
+		 M -> M
+	     end,
+    try lsq_int(L, Lpuv, Method)
+    catch
+	error:badarg ->
+	    erlang:error(badarg, [L,Lpuv,Method])
     end;
 lsq(L, Lpuv, Method) ->
-    erlang:fault(badarg, [L, Lpuv, Method]).
+    erlang:error(badarg, [L, Lpuv, Method]).
 
 lsq_int(L, Lpuv, Method) ->
     %% Create a dictionary and a reverse dictionary for all points
@@ -366,14 +362,13 @@ lsq_int(L, Lpuv, Method) ->
     %% Compose the matrix and vector to solve
     %% for a Least SQares solution.
     {Af,B} = build_matrixes(N,Mfp1c,Mfp2c,Mfp2nc,LuLv),
-    ?DBG("Solving matrixes~n", []),
+    ?DBG("Solving matrices~n", []),
     X = case Method of
-	    ge ->
-		minimize(Af,B);
+	    ge -> minimize_ge(Af, B);
 	    _ ->
 		X0 = auv_matrix:vector(lists:duplicate(M-Np, Usum/Np)++
 				       lists:duplicate(M-Np, Vsum/Np)),
-		{_,X1} = minimize_cg(Af, X0, B, Method),
+		{_,X1} = minimize_cg(Af, X0, B),
 		X1
 	end,
 %%    ?DBG("X=~p~n", [X]),
@@ -381,7 +376,6 @@ lsq_int(L, Lpuv, Method) ->
     %% and insert the pinned points. Re-translate the
     %% original point identities.
     lsq_result(X, Lquv, Rdict).
-
 
 
 build_basic(M,L1,L2) ->
@@ -437,13 +431,13 @@ keyseq(N, [X | L], R) ->
 %%              t   _       t _
 %% by solving A   A x  =  A   b
 %%
-%% using Gaussian Elimination and Back Substitution.
+%% using Gaussian Elimination and back substitution.
 %%
-minimize(A,B) ->
+minimize_ge(A, B) ->
     AA = mk_solve_matrix(A, B),
     AAA = auv_matrix:reduce(AA),
 %%    ?DBG("Reduced: ~p~n", [AAA]),
-    X   = auv_matrix:backsubst(AAA),
+    X = auv_matrix:backsubst(AAA),
     ?DBG("Solved~n",[]),
     X.    
 
@@ -462,7 +456,7 @@ mk_solve_matrix(Af,B) ->
 %% using the Preconditioned Coujugate Gradient method with x0 as 
 %% iteration start vector.
 %%
-minimize_cg(A, X0, B, Method) ->
+minimize_cg(A, X0, B) ->
     ?DBG("minimize_cg - dim A=~p X0=~p B=~p~n",
 	 [auv_matrix:dim(A), auv_matrix:dim(X0), auv_matrix:dim(B)]),
     {N,M} = auv_matrix:dim(A),
@@ -472,59 +466,29 @@ minimize_cg(A, X0, B, Method) ->
     Epsilon = 1.0e-3,
     At = auv_matrix:trans(A),
     AtB = auv_matrix:mult(At, B),
-    M_inv = 
-	case Method of
-	    cg_jacobian ->
-		%% This preconditioning is not worth the effort.
-		%% The time for convergence decreases, but that gain
-		%% is lost on the AtA multiplication.
-		AtA_u = auv_matrix:square_right(At),
-		Diag = auv_matrix:diag(AtA_u),
-		case catch [1/V || V <- Diag] of
-		    {'EXIT', {badarith, _}} ->
-			fun (R_new) ->
-				auv_matrix:mult(1, R_new)
-			end;
-		    {'EXIT', Reason} ->
-			exit(Reason);
-		    Diag_inv ->
-			M_i = auv_matrix:diag(Diag_inv),
-			fun (R_new) ->
-				auv_matrix:mult(M_i, R_new)
-			end
-		end;
-	    cg_colnorm ->
-		%% A very cheap preconditioning. The column norm
-		%% takes no time to calculate compared to 
-		%% AtA above. The iteration time impact is also 
-		%% very low since it is a matrix multiplication
-		%% with a diagonal (i.e very sparse) matrix.
-		%% The preconditioning effect (on the required
-		%% number of iterations) is modest, but 
-		%% cost effective.
-		Diag = auv_matrix:row_norm(At),
-		case catch [1/V || V <- Diag] of
-		    {'EXIT', {badarith, _}} ->
-			fun (R_new) ->
-				auv_matrix:mult(1, R_new)
-			end;
-		    {'EXIT', Reason} ->
-			exit(Reason);
-		    Diag_inv ->
-			M_i = auv_matrix:diag(Diag_inv),
-			fun (R_new) ->
-				auv_matrix:mult(M_i, R_new)
-			end
-		end;
-	    _ ->
-		%% No (identity) preconditioning
-		fun (R_new) ->
-			auv_matrix:mult(1, R_new)
-		end
-	end,
-    ?DBG("Preconditioning with ~p~n", [Method]),
-    R = auv_matrix:sub(AtB, 
-		       auv_matrix:mult(At, auv_matrix:mult(A, X0))),
+
+    %% A very cheap preconditioning. The column norm
+    %% takes no time to calculate compared to 
+    %% AtA above. The iteration time impact is also 
+    %% very low since it is a matrix multiplication
+    %% with a diagonal (i.e. very sparse) matrix.
+    %% The preconditioning effect (on the required
+    %% number of iterations) is modest, but 
+    %% cost effective.
+    Diag = auv_matrix:row_norm(At),
+    M_inv = try [1/V || V <- Diag] of
+		Diag_inv ->
+		    M_i = auv_matrix:diag(Diag_inv),
+		    fun (R_new) ->
+			    auv_matrix:mult(M_i, R_new)
+		    end
+	    catch
+		error:badarith ->
+		    fun (R_new) ->
+			    auv_matrix:mult(1, R_new)
+		    end
+	    end,
+    R = auv_matrix:sub(AtB, auv_matrix:mult(At, auv_matrix:mult(A, X0))),
     D = M_inv(R),
     Delta = auv_matrix:mult(auv_matrix:trans(R), D),
     Delta_max = Epsilon*Epsilon*Delta,
