@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.10 2002/08/14 20:47:00 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.11 2002/08/19 06:27:37 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -70,7 +70,9 @@ menu(X, Y, St) ->
 	     "Interactivly adjust how much light weakens farther away "
 	     "from the center of the spotlight cone"},
 	    separator,
-	    {"Edit Properties",edit,"Edit light properties"}],
+	    {"Edit Properties",edit,"Edit light properties"},
+	    separator,
+	    {"Delete",delete}],
     wings_menu:popup_menu(X, Y, light, Menu).
 
 command({move,Type}, St) ->
@@ -87,6 +89,8 @@ command(spot_falloff, St) ->
     spot_falloff(St);
 command(edit, St) ->
     edit(St);
+command(delete, St) ->
+    {save_state,delete(St)};
 command(color, St) ->
     St.
     
@@ -307,6 +311,16 @@ edit_specific([Angle,LinAtt,QuadAtt], #light{type=spot}=L) ->
 edit_specific([LinAtt,QuadAtt], #light{type=point}=L) ->
     L#light{lin_att=LinAtt,quad_att=QuadAtt};
 edit_specific(_, L) -> L.
+
+%%%
+%%% The Delete command.
+%%%
+
+delete(#st{shapes=Shs0}=St) ->
+    Shs = wings_sel:fold(fun(_, #we{id=Id}, Shs) ->
+				 gb_trees:delete(Id, Shs)
+			 end, Shs0, St),
+    St#st{shapes=Shs,sel=[]}.
     
 %%%
 %%% Creating lights.

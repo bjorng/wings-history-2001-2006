@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.28 2002/08/13 17:38:35 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.29 2002/08/19 06:27:37 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -29,8 +29,11 @@
 event(Event) ->
     event_1(Event, none).
 
-event(Event, #st{selmode=Mode}) ->
-    event_1(Event, Mode).
+event(Event, #st{selmode=Mode}=St) ->
+    case wings_light:is_any_light_selected(St) of
+	true -> event_1(Event, light);
+	false -> event_1(Event, Mode)
+    end.
 
 event_1(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, SelMode) ->
     Mods = modifiers(Mod),
@@ -289,6 +292,10 @@ default_keybindings() ->
      {edge,{?SDLK_KP_PERIOD,[]},  {edge,dissolve}},
      {face,{?SDLK_KP_PERIOD,[]},  {face,dissolve}},
      {body,{?SDLK_KP_PERIOD,[]},  {body,delete}},
+
+     {light,$\b,	{light,delete}},
+     {light,{?SDLK_DELETE,[]},	{light,delete}},
+     {light,{?SDLK_KP_PERIOD,[]},  {light,delete}},
 
      {face,$s,		{face,smooth}},
      {body,$s,		{body,smooth}}
