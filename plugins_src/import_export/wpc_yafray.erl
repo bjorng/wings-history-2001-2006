@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.30 2003/04/23 20:27:14 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.31 2003/04/24 13:59:42 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -34,14 +34,12 @@
 -define(DEF_RENDERER, "yafray").
 -define(DEF_OPTIONS, "").
 -define(DEF_LOAD_IMAGE, true).
+-define(DEF_SUBDIVISIONS, 0).
 
 %% Shader
 -define(DEF_IOR, 1.0).
 -define(DEF_MIN_REFLE, 0.0).
--define(DEF_AUTOSMOOTH_ANGLE, 0.0).
--define(DEF_SHADOW,true).
--define(DEF_EMIT_RAD,true).
--define(DEF_RECV_RAD,true).
+-define(DEF_AUTOSMOOTH_ANGLE, 60.0).
 
 %% Render
 -define(DEF_AA_PASSES, 1).
@@ -217,7 +215,8 @@ command_file(render, Attr, St) when is_list(Attr) ->
     set_pref(Attr),
     case get_var(rendering) of
 	false ->
-	    wpa:export(props(tga), 
+	    SubDiv = get_pref(subdivisions, ?DEF_SUBDIVISIONS),
+	    wpa:export(props(tga, SubDiv),
 		       fun_export_2(attr(St, [{?TAG_RENDER,true}|Attr])), St);
        _RenderFile ->
 	    wpa:error("Already rendering.")
@@ -244,15 +243,16 @@ command_file(?TAG_RENDER, {Pid,Result,Ack}, _St) ->
     end;
 command_file(Op, Attr, St) when is_list(Attr) ->
     set_pref(Attr),
-    wpa:Op(props(?TAG), fun_export_2(attr(St, Attr)), St);
+    SubDiv = get_pref(subdivisions, ?DEF_SUBDIVISIONS),
+    wpa:Op(props(?TAG, SubDiv), fun_export_2(attr(St, Attr)), St);
 command_file(Op, Ask, _St) when is_atom(Ask) ->
     wpa:dialog(Ask, "YafRay Export Options", export_dialog(export),
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
 
-props(tga) ->
-    [{ext,".tga"},{ext_desc,"Targa File"}];
-props(?TAG) ->
-    [{ext,".xml"},{ext_desc,"YafRay File"}].
+props(tga, SubDiv) ->
+    [{ext,".tga"},{ext_desc,"Targa File"},{subdivisions,SubDiv}];
+props(?TAG, SubDiv) ->
+    [{ext,".xml"},{ext_desc,"YafRay File"},{subdivisions,SubDiv}].
 
 attr(St, Attr) ->
     [{lights,wpa:lights(St)}|Attr].
@@ -291,29 +291,26 @@ material_dialog(_Name, Mat) ->
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
     AutosmoothAngle = 
 	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
-    Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
-    EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
-    RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
     Modulators = proplists:get_value(modulators, YafRay, []),
     [{vframe,
       [{hframe,
-	[{vframe, 
-	  [{label,"Index Of Reflection"},
-	   {label,"Minimum Reflection"},
-	   {label,"Autosmooth Angle"}]},
-	 {vframe,
-	  [{hframe,[{text,IOR,[{range,{0.0,100.0}},{key,ior}]},
-		    {"Shadow",Shadow,[{key,shadow}]},
-		    {"Emit Rad",EmitRad,[{key,emit_rad}]},
-		    {"Recv Rad",RecvRad,[{key,recv_rad}]}]},
-	   {slider,{text,MinRefle,[{range,{0.0,1.0}},{key,min_refle}]}},
-	   {slider,{text,AutosmoothAngle,[{range,{0.0,180.0}},
-					  {key,autosmooth_angle}]}}]}]}
-       |modulator_dialogs(Modulators, 1, Maps)],
+	[{vframe, [{label,"Index Of Refraction"},
+		   {label,"Minimum Reflection"},
+		   {label,"Autosmooth Angle"}]},
+	 {vframe, [{text,IOR,
+		    [{range,{0.0,100.0}},
+		     {key,ior}]},
+		   {slider,{text,MinRefle,
+			    [{range,{0.0,1.0}},
+			     {key,min_refle}]}},
+		   {slider,{text,AutosmoothAngle,
+			    [{range,{0.0,180.0}},
+			     {key,autosmooth_angle}]}}]}
+	]}|modulator_dialogs(Modulators, 1, Maps)],
       [{title,"YafRay Options"}]}].
 
 material_result(_Name, Mat0, [{ior,_}|_]=Res) ->
-    {Ps,Res0} = split_list(Res, 6),
+    {Ps,Res0} = split_list(Res, 3),
     {Modulators,Res1} = modulator_result(Res0),
     Mat1 = [{?TAG,[{modulators,Modulators}|Ps]}|keydelete(?TAG, 1, Mat0)],
     {Mat1,Res1};
@@ -570,6 +567,7 @@ pref_result(Attr, St) ->
 
 
 export_dialog(Operation) ->
+    SubDiv = get_pref(subdivisions, ?DEF_SUBDIVISIONS),
     AA_passes = get_pref(aa_passes, ?DEF_AA_PASSES),
     Raydepth = get_pref(raydepth, ?DEF_RAYDEPTH),
     Bias = get_pref(bias, ?DEF_BIAS),
@@ -586,7 +584,10 @@ export_dialog(Operation) ->
     AntinoiseFilter = get_pref(antinoise_filter, ?DEF_ANTINOISE_FILTER),
     AntinoiseRadius = get_pref(antinoise_radius, ?DEF_ANTINOISE_RADIUS),
     AntinoiseMaxDelta = get_pref(antinoise_radius, ?DEF_ANTINOISE_MAX_DELTA),
-    [{hframe,
+    [{hframe,[{label,"Sub-division Steps"},
+	      {text,SubDiv,[{key,subdivisions},{range,0,4}]}],
+      [{title,"Pre-rendering"}]},
+     {hframe,
       [{vframe,[{label,"AA_passes"},
 		{label,"AA_threshold"}]},
        {vframe,[{text,AA_passes,[{range,{1,1000}},{key,aa_passes}]},
@@ -989,16 +990,13 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Mats) ->
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     AutosmoothAngle = 
 	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
-    Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
-    EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
-    RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
     {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
     Transparency = 1 - Opacity,
-    println(F, "<object name=\"~s\" shader_name=\"~s\" shadow=\"~s\"~n"++
-	    "        caus_IOR=\"~.10f\" emit_rad=\"~s\" recv_rad=\"~s\">~n"++
+    println(F, "<object name=\"~s\" shader_name=\"~s\" "++
+	    "shadow=\"on\" caus_IOR=\"~.10f\"~n"++
+	    "        emit_rad=\"on\" recv_rad=\"on\">~n"++
 	    "    <attributes>",
-	    [NameStr,"w_"++format(DefaultMaterial),format(Shadow),
-	     IOR,format(EmitRad),format(RecvRad)]),
+	    [NameStr,"w_"++format(DefaultMaterial),IOR]),
     export_rgb(F, caus_rcolor, proplists:get_value(ambient, OpenGL)),
 %    export_rgb(F, caus_rcolor, 
 %	       {Dr*Opacity,Dg*Opacity,Db*Opacity,1.0}),
@@ -1118,7 +1116,7 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
     AimPoint = proplists:get_value(aim_point, OpenGL, {0.0,0.0,1.0}),
     ConeAngle = proplists:get_value(cone_angle, OpenGL, ?DEF_CONE_ANGLE),
     Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
-    Type = proplists:get_value(type, YafRay, ?DEF_POINT_TYPE),
+    Type = proplists:get_value(type, YafRay, ?DEF_SPOT_TYPE),
     println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\" ", 
 	    [Type,Name,Power]),
     case Type of
