@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.44 2002/10/13 19:11:42 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.45 2002/10/16 08:21:40 dgud Exp $
 %%
 
 -module(wings_util).
@@ -18,7 +18,7 @@
 	 get_matrices/2,mirror_matrix/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
 	 delete_any/2,nice_float/1,
-	 tc/1,export_we/2,crash_log/1,validate/1]).
+	 tc/3,export_we/2,crash_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
 
 -define(NEED_OPENGL, 1).
@@ -155,11 +155,11 @@ simplify_float_1(F) -> F.
 %% Timing.
 %% 
 
-tc(Fun) ->
+tc(Fun,Mod,Line) ->
     case timer:tc(erlang, apply, [Fun,[]]) of
 	{_,{'EXIT',Reason}} -> exit(Reason);
 	{T,R} ->
-	    io:format("Time: ~p\n", [T]),
+	    io:format("~p:~p: Time: ~p\n", [Mod, Line, T]),
 	    R
     end.
 
