@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.116 2004/12/21 19:53:41 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.117 2004/12/22 07:24:52 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -248,23 +248,23 @@ extract_inverse(St) ->
 %%%
 
 dissolve(St0) ->
-    {St,Sel} = wings_sel:mapfold(fun dissolve/3, [], St0),
+    {St,Sel} = wings_sel:mapfold(fun dissolve_sel/3, [], St0),
     wings_sel:set(Sel, St).
 
+dissolve_sel(Faces, #we{id=Id}=We0, Acc) ->
+    We = dissolve(Faces, We0),
+    Sel = wings_we:new_items(face, We0, We),
+    {We,[{Id,Sel}|Acc]}.
+		  
 dissolve(Faces, We0) ->
-    {We,_} = dissolve(Faces, We0, []),
-    We.
-
-dissolve(Faces, #we{id=Id}=We0, Acc) ->
     We = dissolve_1(Faces, We0),
     case wings_we:is_consistent(We) of
 	true ->
-	    Sel = wings_we:new_items(face, We0, We),
-	    {We,[{Id,Sel}|Acc]};
+	    We;
 	false ->
 	    wings_u:error(?__(1,"Dissolving would cause an inconsistent object structure."))
     end.
-		  
+
 dissolve_1(Faces, We) ->
     case gb_sets:is_empty(Faces) of
 	true -> We;
