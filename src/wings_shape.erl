@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.27 2003/01/01 19:23:56 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.28 2003/01/01 21:07:09 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -18,6 +18,7 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 -import(lists, [map/2,reverse/1,reverse/2,keymember/3,keysearch/3,sort/1]).
+-compile(inline).
 
 new(Name, We0, #st{shapes=Shapes0,onext=Oid}=St) ->
     We = We0#we{name=Name,id=Oid},
@@ -218,12 +219,12 @@ update_sel(_, #st{sel=Sel}) -> Sel.
 %%%
 %%% Object window.
 %%%
-
 -record(ost,
 	{st,					%Current St.
 	 first,					%First object to show.
 	 sel,					%Current selection.
 	 os,					%All objects.
+	 active,				%Number of active object.
 	 lh,					%Line height.
 	 eye,					%Eye bitmap data.
 	 lock					%Lock bitmap data.
@@ -235,8 +236,8 @@ window(St) ->
 	    wings_wm:delete(object);
 	false ->
 	    {_,GeomY,GeomW,GeomH} = wings_wm:viewport(),
-	    W = 20*?CHAR_WIDTH,
-	    Ost = #ost{first=0,eye=eye_bitmap(),lock=lock_bitmap(),lh=18},
+	    W = 24*?CHAR_WIDTH,
+	    Ost = #ost{first=0,eye=eye_bitmap(),lock=lock_bitmap(),lh=18,active=-1},
 	    Op = {seq,push,event({current_state,St}, Ost)},
 	    wings_wm:new(object, {GeomW-W,GeomY,20}, {W,GeomH-50}, Op),
 	    wings_wm:new_controller(object, "Objects"),
@@ -258,6 +259,15 @@ event({current_state,#st{sel=Sel,shapes=Shs}=St},
 event({current_state,#st{sel=Sel,shapes=Shs}=St}, Ost) ->
     wings_wm:dirty(),
     get_event(Ost#ost{st=St,sel=Sel,os=gb_trees:values(Shs)});
+event(#mousemotion{y=Y}, #ost{active=Act0}=Ost) ->
+    case active_object(Y, Ost) of
+	Act0 -> keep;
+	Act ->
+	    wings_wm:dirty(),
+	    get_event(Ost#ost{active=Act})
+    end;
+event(#mousebutton{x=X,y=Y,button=1,state=?SDL_PRESSED}, Ost) ->
+    do_action(X, Y, Ost);
 event(#mousebutton{button=4,state=?SDL_RELEASED}, Ost) ->
     zoom_step(-1, Ost);
 event(#mousebutton{button=5,state=?SDL_RELEASED}, Ost) ->
@@ -278,21 +288,90 @@ zoom_step(Dir, #ost{first=First0,os=Objs}=Ost) ->
 	    get_event(Ost#ost{first=First})
     end.
 
-draw_objects(#ost{os=Objs0,first=First,lh=Lh}=Ost) ->
+active_object(Y0, #ost{lh=Lh}) ->
+    case Y0 - top_of_first_object() of
+	Y when Y < 0 -> -1;
+	Y -> Y div Lh
+    end.
+
+do_action(X, Y, #ost{first=First}=Ost) ->
+    case active_object(Y, Ost) of
+	-1 -> keep;
+	Obj -> do_action_1(X, Obj+First, Ost)
+    end.
+
+do_action_1(X, Obj, #ost{os=Objs}=Ost) ->
+    if
+	Obj < length(Objs) ->
+	    We = lists:nth(Obj+1, Objs),
+	    do_action_2(X, We, Ost);
+	true -> keep
+    end.
+
+do_action_2(X, We, Ost) ->
+    LockPos = lock_pos(),
+    NamePos = name_pos(),
+    R = right_pos(),
+    if
+	X < LockPos -> toggle_visibility(We, Ost);
+	X < NamePos -> toggle_lock(We, Ost);
+	X > R -> toggle_sel(We, Ost);
+	true -> keep
+    end.
+
+toggle_visibility(#we{id=Id,perm=Perm}, #ost{st=St0}) ->
+    case wings_wm:me_modifiers() of
+	Mod when Mod band ?ALT_BITS =/= 0 ->
+	    St = restore_all(St0),
+	    wings_wm:send(geom, {new_state,St});
+	_ ->
+	    St = if
+		     ?IS_VISIBLE(Perm) -> hide_object(Id, St0);
+		     true -> restore_object(Id, St0)
+		 end,
+	    wings_wm:send(geom, {new_state,St}),
+	    keep
+    end.
+
+toggle_lock(#we{id=Id,perm=Perm}, #ost{st=St0}) ->
+    case wings_wm:me_modifiers() of
+	Mod when Mod band ?ALT_BITS =/= 0 ->
+	    io:format("All"),
+	    keep;
+	_ ->
+	    if
+		?IS_NOT_VISIBLE(Perm) ->
+		    keep;
+		?IS_SELECTABLE(Perm) ->
+		    wings_wm:send(geom, {new_state,lock_object(Id, St0)});
+		true ->
+		    wings_wm:send(geom, {new_state,restore_object(Id, St0)})
+	    end
+    end.
+
+toggle_sel(#we{id=Id}, #ost{st=St0,sel=Sel}) ->
+    St = case keymember(Id, 1, Sel) of
+	     false -> wings_sel:select_object(Id, St0);
+	     true -> wings_sel:deselect_object(Id, St0)
+	 end,
+    wings_wm:send(geom, {new_state,St}),
+    keep.
+
+draw_objects(#ost{os=Objs0,first=First,lh=Lh,active=Active}=Ost) ->
     Objs = lists:nthtail(First, Objs0),
-    Y = Lh-2,
-    wings_io:text_at(5, Y, "V"),
-    wings_io:text_at(20, Y, "L"),
-    wings_io:text_at(37, Y, "Name"),
-    {_,_,W,_} = wings_wm:viewport(),
-    R = W-13,
-    wings_io:text_at(R, Y, "S"),
-    draw_objects_1(Objs, Ost, R, 2*Lh-2).
+    Y = ?CHAR_HEIGHT,
+    wings_io:text_at(5+3, Y, "V"),
+    wings_io:text_at(lock_pos()+3, Y, "L"),
+    wings_io:text_at(name_pos(), Y, "Name"),
+    R = right_pos(),
+    wings_io:text_at(R+3, Y, "S"),
+    draw_objects_1(Objs, Ost, R, Active, Y+2+Lh-2).
 
 draw_objects_1([#we{id=Id,name=Name,perm=Perm}|Wes],
-	       #ost{sel=Sel,lh=Lh,eye=Eye,lock=Lock}=Ost, R, Y) ->
+	       #ost{sel=Sel,lh=Lh,eye=Eye,lock=Lock}=Ost, R, Active, Y) ->
+    LockPos = lock_pos(),
     wings_io:sunken_rect(3, Y-11, 12, 13, ?PANE_COLOR),
-    wings_io:sunken_rect(18, Y-11, 12, 13, ?PANE_COLOR),
+    wings_io:sunken_rect(LockPos-2, Y-11, 12, 13, ?PANE_COLOR),
     wings_io:sunken_rect(R, Y-9, 9, 11, ?PANE_COLOR),
     if
 	?IS_VISIBLE(Perm) ->
@@ -301,18 +380,27 @@ draw_objects_1([#we{id=Id,name=Name,perm=Perm}|Wes],
 	true -> ok
     end,
     if
-	?IS_SELECTABLE(Perm) -> ok;
+	?IS_SELECTABLE(Perm); ?IS_NOT_VISIBLE(Perm) ->
+	    ok;
 	true ->
-    	    gl:rasterPos2i(20, Y),
+    	    gl:rasterPos2i(LockPos, Y),
 	    draw_char(Lock)
     end,
     case keymember(Id, 1, Sel) of
 	false -> ok;
 	true -> wings_io:text_at(R+2, Y, [crossmark])
     end,
-    wings_io:text_at(37, Y, Name),
-    draw_objects_1(Wes, Ost, R, Y+Lh);
-draw_objects_1([], _, _, _) -> ok.
+    if
+	Active == 0 ->
+	    gl:color3f(0, 0, 0.5),
+	    gl:recti(name_pos()-2, Y-?CHAR_HEIGHT, R-2, Y+4),
+	    gl:color3f(1, 1, 1);
+	true -> ok
+    end,
+    wings_io:text_at(name_pos(), Y, Name),
+    gl:color3f(0, 0, 0),
+    draw_objects_1(Wes, Ost, R, Active-1, Y+Lh);
+draw_objects_1([], _, _, _, _) -> ok.
 
 draw_char({A,B,C,D,E,F,Bitmap}) ->
     gl:bitmap(A, B, C, D, E, F, Bitmap).
@@ -341,3 +429,17 @@ lock_bitmap() ->
        2#0011000110000000:16,
        2#0001101100000000:16,
        2#0000111000000000:16>>}.
+
+
+top_of_first_object() ->
+    ?LINE_HEIGHT.
+
+right_pos() ->
+    {_,_,W,_} = wings_wm:viewport(),
+    W-13.
+
+lock_pos() ->
+    20.
+
+name_pos() ->
+    37.
