@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.261 2003/08/14 16:49:32 bjorng Exp $
+%%     $Id: wings.erl,v 1.262 2003/08/15 19:22:47 bjorng Exp $
 %%
 
 -module(wings).
@@ -449,6 +449,7 @@ highlight_sel_style({select,body}) -> none;
 highlight_sel_style({select,{adjacent,_}}) -> none;
 highlight_sel_style({select,_}) -> permanent;
 highlight_sel_style({view,align_to_selection}) -> temporary;
+highlight_sel_style({view,aim}) -> temporary;
 highlight_sel_style(_) -> none.
 
 do_command(Cmd, St) ->    
