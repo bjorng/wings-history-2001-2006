@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.205 2004/03/16 06:58:14 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.206 2004/03/16 18:00:35 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -233,16 +233,17 @@ create_uv_state(Charts0, MatName0, We, GeomSt0) ->
     get_event(St).
 
 restrict_ftab(Charts0) ->
-    Charts = [restrict_ftab_1(Ch) || Ch <- gb_trees:values(Charts0)],
+    Empty = gb_sets:empty(),
+    Charts = [restrict_ftab_1(Ch, Empty) || Ch <- gb_trees:values(Charts0)],
     gb_trees:from_orddict(Charts).
 
-restrict_ftab_1(#we{id=Id,name=#ch{fs=Fs0},fs=Ftab0}=We) ->
+restrict_ftab_1(#we{id=Id,name=#ch{fs=Fs0},fs=Ftab0}=We, Empty) ->
     Ftab1 = sofs:from_external(gb_trees:to_list(Ftab0), [{face,edge}]),
     Fs = sofs:set(Fs0, [face]),
     Ftab2 = sofs:restriction(Ftab1, Fs),
     Ftab3 = sofs:to_external(Ftab2),
     Ftab = gb_trees:from_orddict(Ftab3),
-    {Id,We#we{fs=Ftab}}.
+    {Id,We#we{fs=Ftab,he=Empty}}.
 
 insert_initial_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
     We0 = gb_trees:get(Id, Shs0),
