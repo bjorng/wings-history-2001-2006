@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.235 2004/05/10 06:12:34 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.236 2004/05/10 12:21:54 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -452,10 +452,10 @@ handle_event_1({action,{auv,{remap,Method}}}, St0) ->
 
 %% Others
 handle_event_1({action,{auv,quit}}, _St) ->
-    restore_wings_window(),
+    cleanup_before_exit(),
     delete;
 handle_event_1(close, _St) ->
-    restore_wings_window(),
+    cleanup_before_exit(),
     delete;
 handle_event_1({callback,Fun}, _) when is_function(Fun) ->
     Fun();
@@ -571,11 +571,17 @@ is_power_of_two(X) ->
 %%%
 
 new_geom_state(#st{shapes=Shs}=GeomSt, AuvSt0) ->
-    AuvSt = new_geom_state_1(Shs, AuvSt0),
-    update_selection(GeomSt, AuvSt).
+    case new_geom_state_1(Shs, AuvSt0) of
+	delete ->
+	    cleanup_before_exit(),
+	    delete;
+	AuvSt ->
+	    update_selection(GeomSt, AuvSt)
+    end.
 
 new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
     case {gb_trees:lookup(Id, Shs),gb_trees:lookup(Id, Orig)} of
+	{none,_} -> delete;
 	{{value,We},{value,We}} -> AuvSt;
 	{{value,#we{es=Etab}},{value,#we{es=Etab}}} -> AuvSt;
 	{{value,#we{es=Etab1}=We},{value,#we{es=Etab2}}} ->
@@ -862,7 +868,7 @@ init_drawarea() ->
     W = W0 div 2,
     {X+W,TopY+75,W,TopH-100}.
     
-restore_wings_window() ->
+cleanup_before_exit() ->
     wings:unregister_postdraw_hook(wings_wm:this(), ?MODULE),
     wings_draw_util:delete_dlists().
 
