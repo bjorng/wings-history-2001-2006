@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings3d.c,v 1.4 2003/09/11 15:17:16 bjorng Exp $
+ *     $Id: wings3d.c,v 1.5 2003/09/15 15:50:21 bjorng Exp $
  *
  */
 
@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 static void install(void);
+static void print_path(FILE* fp, char* path);
 
 int
 WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR szCmdLine, int sw)
@@ -84,22 +85,36 @@ install(void)
 {
   FILE* fp = fopen("bin/erl.ini", "w");
   char dir[MAX_PATH];
-  char* s;
 
   getcwd(dir, MAX_PATH);
-  for (s = dir; *s; s++) {
-    if (*s == '\\') {
-      *s = '/';
-    }
-  }
   if (fp == NULL) {
     MessageBox(NULL, "Failed to install Erlang/OTP components", NULL, MB_OK);
     exit(1);
   }
   fprintf(fp, "[erlang]\n");
-  fprintf(fp, "Bindir=%s/bin\n", dir);
+  fprintf(fp, "Bindir=");
+  print_path(fp, dir);
+  fprintf(fp, "\\\\bin\n");
   fprintf(fp, "Progname=erl\n");
-  fprintf(fp, "Rootdir=%s\n", dir);
+  fprintf(fp, "Rootdir=");
+  print_path(fp, dir);
+  putc('\n', fp);
   fclose(fp);
   exit(0);
+}
+
+static void
+print_path(FILE* fp, char* path)
+{
+  int c;
+
+  while ((c = *path) != 0) {
+    if (c != '\\') {
+      putc(c, fp);
+    } else {
+      putc('\\', fp);
+      putc('\\', fp);
+    }
+    path++;
+  }
 }
