@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.139 2003/12/09 14:40:39 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.140 2003/12/10 15:53:02 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -163,6 +163,7 @@ ask_unzip([], Labels, Vals) ->
 %%         unknown arguments, like this:
 %%         fun (is_disabled, {Var,I,Store}) -> Bool;
 %%                 %% Only called for regular fields.
+%%                 %% WARNING! This hook is subject to change soon.
 %%             (update, {Var,I,Val,Store}) ->
 %%                 keep|{store,NewStore}|done|{done,NewStore}|{layout,NewStore};
 %%                 %% Should make sure Val gets stored in NewStore.
@@ -327,7 +328,7 @@ setup_dialog(Qs, Fun) ->
     H = H0 + 2*?VMARGIN,
     next_focus(1, #s{ox=?HMARGIN,oy=?VMARGIN,w=W,h=H,
 		     call=Fun,focus=N,focusable=Focusable,
-		     fi=Fi,n=N,store=init_fields(Fi, Sto)}).
+		     fi=Fi,n=N,store=Sto}).
 
 setup_blanket(Dialog, Fi, Sto) ->
     EyePicker = case find_eyepicker(Fi, Sto) of
@@ -913,48 +914,48 @@ mktree({oframe,Qs,Def,Flags}, Sto, I) ->
     mktree_oframe(Qs, Def, Sto, I, Flags);
 %%
 mktree(panel, Sto, I) ->
-    mktree_fi(panel(), Sto, I, []);
+    mktree_panel(Sto, I, []);
 %%
 mktree({eyepicker,Hook}, Sto, I) ->
-    mktree_fi(eyepicker(), Sto, I, [{hook,Hook}]);
+    mktree_eyepicker(Sto, I, [{hook,Hook}]);
 %%
 mktree({label,Label}, Sto, I) ->
-    mktree_fi(label(Label, []), Sto, I, []);
+    mktree_label(Label, Sto, I, []);
 mktree({label,Label,Flags}, Sto, I) ->
-    mktree_fi(label(Label, Flags), Sto, I, Flags);
+    mktree_label(Label, Sto, I, Flags);
 %%
 mktree({color,Def}, Sto, I) ->
-    mktree_fi(color(Def), Sto, I, [drag]);
+    mktree_color(Def, Sto, I, [drag]);
 mktree({color,Def,Flags}, Sto, I) ->
-    mktree_fi(color(Def), Sto, I, [drag|Flags]);
+    mktree_color(Def, Sto, I, [drag|Flags]);
 %%
 mktree({alt,Def,Prompt,Val}, Sto, I) ->
-    mktree_fi(radiobutton(Def, Prompt, Val), Sto, I, []);
+    mktree_radiobutton(Def, Prompt, Val, Sto, I, []);
 mktree({alt,Def,Prompt,Val,Flags}, Sto, I) ->
-    mktree_fi(radiobutton(Def, Prompt, Val), Sto, I, Flags);
+    mktree_radiobutton(Def, Prompt, Val, Sto, I, Flags);
 mktree({key_alt,{Key,Def},Prompt,Val}, Sto, I) ->
-    mktree_fi(radiobutton(Def, Prompt, Val), Sto, I, [{key,Key}]);
+    mktree_radiobutton(Def, Prompt, Val, Sto, I, [{key,Key}]);
 mktree({key_alt,{Key,Def},Prompt,Val,Flags}, Sto, I) ->
-    mktree_fi(radiobutton(Def, Prompt, Val), Sto, I, [{key,Key}|Flags]);
+    mktree_radiobutton(Def, Prompt, Val, Sto, I, [{key,Key}|Flags]);
 %%
 mktree({menu,Menu,Def}, Sto, I) ->
-    mktree_fi(menu(Menu, Def), Sto, I, []);
+    mktree_menu(Menu, Def, Sto, I, []);
 mktree({menu,Menu,Def,Flags}, Sto, I) when is_list(Flags) ->
-    mktree_fi(menu(Menu, Def), Sto, I, Flags);
+    mktree_menu(Menu, Def, Sto, I, Flags);
 %%
 mktree({button,Action}, Sto, I) when is_atom(Action) ->
-    mktree_fi(button(Action), Sto, I, []);
+    mktree_button(Action, Sto, I, []);
 mktree({button,Action,Flags}, Sto, I) when is_atom(Action), is_list(Flags) ->
-    mktree_fi(button(Action), Sto, I, Flags);
+    mktree_button(Action, Sto, I, Flags);
 mktree({button,Label,Action}, Sto, I) ->
-    mktree_fi(button(Label, Action), Sto, I, []);
+    mktree_button(Label, Action, Sto, I, []);
 mktree({button,Label,Action,Flags}, Sto, I) ->
-    mktree_fi(button(Label, Action), Sto, I, Flags);
+    mktree_button(Label, Action, Sto, I, Flags);
 %%
 mktree({custom,W,H,Custom}, Sto, I) ->
-    mktree_fi(custom(W, H, Custom), Sto, I, []);
+    mktree_custom(W, H, Custom, Sto, I, []);
 mktree({custom,W,H,Custom,Flags}, Sto, I) ->
-    mktree_fi(custom(W, H, Custom), Sto, I, Flags);
+    mktree_custom(W, H, Custom, Sto, I, Flags);
 %%
 mktree({slider,{text,_,Flags}=Field}, Sto, I) ->
     SliderFlags = case proplists:get_value(key, Flags, 0) of
@@ -970,20 +971,20 @@ mktree({slider,{color,_,Flags}=Field}, Sto, I) ->
     SliderFlags = [{range,{0.001,1.0}},{color,true}|SliderFlags0],
     mktree({hframe,[{slider,SliderFlags},Field]}, Sto, I);
 mktree({slider,Flags}, Sto, I) when is_list(Flags) ->
-    mktree_fi(slider(Flags), Sto, I, Flags);
+    mktree_slider(Sto, I, Flags);
 %%
 mktree(separator, Sto, I) ->
-    mktree_fi(separator(), Sto, I, []);
+    mktree_separator(Sto, I, []);
 %%
 mktree({text,Def}, Sto, I) ->
-    mktree_fi(text(Def, []), Sto, I, []);
+    mktree_text(Def, Sto, I, []);
 mktree({text,Def,Flags}, Sto, I) ->
-    mktree_fi(text(Def, Flags), Sto, I, Flags);
+    mktree_text(Def, Sto, I, Flags);
 %%
 mktree({Prompt,Def}, Sto, I) when Def==false; Def == true ->
-    mktree_fi(checkbox(Prompt, Def), Sto, I, []);
+    mktree_checkbox(Prompt, Def, Sto, I, []);
 mktree({Prompt,Def,Flags}, Sto, I) when Def==false; Def == true ->
-    mktree_fi(checkbox(Prompt, Def), Sto, I, Flags).
+    mktree_checkbox(Prompt, Def, Sto, I, Flags).
 
 radio(FrameType, Qs0, Def, Flags) ->
     Qs = 
@@ -999,15 +1000,15 @@ radio_alt(I, [{Prompt,Val}|T], Def, Flags) ->
     [{key_alt,{I,Def},Prompt,Val,Flags}|radio_alt(I-1, T, Def, Flags)];
 radio_alt(_I, [], _Def, _Flags) -> [].
 
-mktree_fi({Handler,Inert,Priv,W,H}, Sto, I, Flags) ->
-    {#fi{handler=Handler,inert=Inert,
-	 key=proplists:get_value(key, Flags, 0),
-	 index=I,
-	 hook=proplists:get_value(hook, Flags),
-	 flags=Flags,
-	 extra=#leaf{w=W,h=H}},
-     gb_trees:insert(-I, Priv, Sto),
-     I+1}.
+mktree_leaf(Handler, Inert, W, H, I, Flags) ->
+    #fi{handler=Handler,inert=Inert,
+	key=proplists:get_value(key, Flags, 0),
+	index=I,
+	hook=proplists:get_value(hook, Flags),
+	flags=Flags,
+	extra=#leaf{w=W,h=H}}.
+
+mktree_priv(Fi, Sto, I, Priv) -> {Fi, gb_trees:insert(-I, Priv, Sto), I+1}.
 
 mktree_container(Qs, Sto0, I0, Flags, Type) ->
     {Fields,Sto1,I} = mktree_container_1(Qs, Sto0, I0+1, []),
@@ -1015,7 +1016,7 @@ mktree_container(Qs, Sto0, I0, Flags, Type) ->
     Minimized = proplists:get_value(minimized, Flags),
     Inert = (Title =:= undefined orelse Minimized =:= undefined),
     Key = proplists:get_value(key, Flags, 0),
-    Sto2 = gb_trees:insert(var(Key, I0), Minimized, Sto1),
+    Sto2 = gb_trees:enter(var(Key, I0), Minimized, Sto1),
     Sto = gb_trees:insert(-I0, Type, Sto2),
     {#fi{handler=fun frame_event/3,
 	 key=Key,
@@ -1060,7 +1061,7 @@ mktree_oframe(Qs, Def, Sto0, I0, Flags) when integer(Def), Def >= 1 ->
 			   end, 10+2*Cw, Titles),
 			 ?LINE_HEIGHT+10}
 		end,
-	    Sto2 = gb_trees:insert(var(Key, I0), Def, Sto1),
+	    Sto2 = gb_trees:enter(var(Key, I0), Def, Sto1),
 	    Sto = gb_trees:insert(-I0, #oframe{style=Style,
 					       w=W,h=H,
 					       titles=list_to_tuple(Titles)}, 
@@ -1281,25 +1282,6 @@ minimize_siblings(I, Fields, Index, Sto0) when I =< size(Fields) ->
 	#fi{} -> minimize_siblings(I+1, Fields, Index, Sto0)
     end;
 minimize_siblings(_I, _Fields, _Index, Sto) -> Sto.
-
-%%
-%% Traverse the tree and init all fields
-%%
-
-init_fields(Fi, Sto) -> init_fields(Fi, Sto, []).
-
-init_fields(Fi=#fi{extra=#container{fields=Fields}}, Sto, Path) ->
-    init_fields(Fields, Sto, [Fi|Path], 1);
-init_fields(Fi=#fi{handler=Handler}, Sto0, Path) ->
-    case Handler(init, [Fi|Path], Sto0) of
-	{store,Sto} -> Sto;
-	keep -> Sto0
-    end.
-
-init_fields(Fields, Sto, Path, I) when I =< size(Fields) ->
-    init_fields(Fields, init_fields(element(I, Fields), Sto, Path), 
-		Path, I+1);
-init_fields(_Fields, Sto, _Path, _I) -> Sto.
 
 
 
@@ -1620,9 +1602,11 @@ oframe_step(Step, [#fi{key=Key,index=I,hook=Hook,
 %%% Separator.
 %%%
 
-separator() ->
-    Fun = fun separator_event/3,
-    {Fun,true,{separator},4*?CHAR_WIDTH,10}.
+-record(separator, {}).
+
+mktree_separator(Sto, I, Flags) ->
+    Fi = mktree_leaf(fun separator_event/3, true, 4*?CHAR_WIDTH, 10, I, Flags),
+    mktree_priv(Fi, Sto, I, #separator{}).
 
 separator_event({redraw,_Active}, [Fi|_], _Sto) -> separator_draw(Fi);
 separator_event(_Ev, _Path, _Sto) -> keep.
@@ -1663,16 +1647,16 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
 	 val
 	}).
 
-checkbox(Label, Val) ->
+mktree_checkbox(Label, Val, Sto, I, Flags) ->
     LabelWidth = wings_text:width(Label),
     SpaceWidth = wings_text:width(" "),
+    Fi = #fi{key=Key} =
+	mktree_leaf(fun cb_event/3, false, 
+		    LabelWidth+SpaceWidth+?CB_SIZE, ?LINE_HEIGHT+2,
+		    I, Flags),
     Cb = #cb{label=Label,val=Val,labelw=LabelWidth,spacew=SpaceWidth},
-    Fun = fun cb_event/3,
-    {Fun,false,Cb,LabelWidth+SpaceWidth+?CB_SIZE,?LINE_HEIGHT+2}.
+    mktree_priv(Fi, gb_trees:enter(var(Key, I), Val, Sto), I, Cb).
 
-cb_event(init, [#fi{key=Key,index=I}|_], Store) ->
-    #cb{val=Val} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(var(Key, I), Val, Store)};
 cb_event(value, [#fi{key=Key,index=I}|_], Store) ->
     {value,gb_trees:get(var(Key, I), Store)};
 cb_event({redraw,Active}, [Fi=#fi{key=Key,index=I,hook=Hook}|_], Store) ->
@@ -1722,27 +1706,24 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
 %%%
 
 -record(rb,
-	{def,					%Default value.
-	 val,
+	{val,
 	 label,
 	 labelw,			    %Width of label in pixels.
 	 spacew				  %Width of a space character.
 	}).
 
-radiobutton(Def, Label, Val) ->
+mktree_radiobutton(Def, Label, Val, Sto0, I, Flags) ->
     LabelWidth = wings_text:width(Label),
     SpaceWidth = wings_text:width(" "),
-    Rb = #rb{def=Def,val=Val,label=Label,
+    Rb = #rb{val=Val,label=Label,
 	     labelw=LabelWidth,spacew=SpaceWidth},
-    Fun = fun rb_event/3,
-    {Fun,false,Rb,LabelWidth+2*SpaceWidth,?LINE_HEIGHT+2}.
+    Fi = #fi{key=Key} = 
+	mktree_leaf(fun rb_event/3, false, 
+		    LabelWidth+2*SpaceWidth, ?LINE_HEIGHT+2, I, Flags),
+    Sto = if Val =:= Def -> gb_trees:enter(var(Key, I), Val, Sto0);
+	     true -> Sto0 end,
+    mktree_priv(Fi, Sto, I, Rb).
 
-rb_event(init, [#fi{key=Key,index=I}|_], Store) ->
-    #rb{def=Def,val=Val} = gb_trees:get(-I, Store),
-    case Val of
-	Def -> {store,gb_trees:enter(var(Key, I), Val, Store)};
-	_ -> keep
-    end;
 rb_event({redraw,Active}, [Fi=#fi{hook=Hook,key=Key,index=I}|_], Store) ->
     Rb = gb_trees:get(-I, Store),
     Var = var(Key, I),
@@ -1844,20 +1825,18 @@ rb_set(#fi{key=Key,index=I,hook=Hook}, #rb{val=Val}, Store) ->
 %%% Menu
 %%%
 
--record(menu,
-	{def,
-	 menu
-	}).
+-record(menu, {menu}).
 
-menu(Menu0, Def) ->
+mktree_menu(Menu0, Def, Sto, I, Flags) ->
     Menu = [case X of
 		{D,V} -> {D,V,[]};
 		{_,_,F}=DVF when is_list(F) -> DVF 
 	    end || X <- Menu0],
     W = menu_width(Menu, 0) + 2*wings_text:width(" ") + 10,
-    M = #menu{def=Def,menu=Menu},
     Fun = fun menu_event/3,
-    {Fun,false,M,W,?LINE_HEIGHT+4}.
+    Fi = #fi{key=Key} = mktree_leaf(Fun, false, W, ?LINE_HEIGHT+4, I, Flags),
+    M = #menu{menu=Menu},
+    mktree_priv(Fi, gb_trees:enter(var(Key, I), Def, Sto), I, M).
 
 menu_event({redraw,Active}, 
 	   [#fi{hook=Hook,key=Key,index=I,x=X,y=Y,w=W,h=H}|_], Store) ->
@@ -1867,9 +1846,6 @@ menu_event({redraw,Active},
     DisEnable = hook(Hook, is_disabled, [Var, I, Store]),
     ValStr = [Desc || {Desc,V,_} <- Menu, V =:= Val],
     menu_draw(Active, X, Y, W, H, ValStr, DisEnable);
-menu_event(init, [#fi{key=Key,index=I}|_], Store) ->
-    #menu{def=Def} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(var(Key, I), Def, Store)};
 menu_event(value, [#fi{key=Key,index=I}|_], Store) ->
     {value,gb_trees:get(var(Key, I), Store)};
 menu_event({key,_,_,$\s}, 
@@ -2101,14 +2077,18 @@ popup_redraw_1(_, _, _, _, _, _) -> keep.
 	{label,					%Textual label.
 	 action}).
 
-button(Action) -> button(button_label(Action), Action).
+mktree_button(Action, Sto, I, Flags) -> 
+    mktree_button(button_label(Action), Action, Sto, I, Flags).
 
-button(Label, Action) ->
+mktree_button(Label, Action, Sto, I, Flags) ->
     W = lists:max([wings_text:width([$\s,$\s|Label]),
 		   wings_text:width(" cancel ")]),
-    But = #but{label=Label,action=Action},
     Fun = fun button_event/3,
-    {Fun,false,But,W,?LINE_HEIGHT+2+2}.
+    Fi = #fi{key=Key} = mktree_leaf(Fun, false, W, ?LINE_HEIGHT+2+2, I, Flags),
+    %% Trick to not have to change store for 'ok' or 'cancel'
+    Val = (Action =:= ok) orelse (Action =:= cancel),
+    But = #but{label=Label,action=Action},
+    mktree_priv(Fi, gb_trees:enter(var(Key, I), Val, Sto), I, But).
 
 button_label(ok) -> "OK";
 button_label(S) when is_list(S) -> S;
@@ -2117,11 +2097,6 @@ button_label(Act) -> wings_util:cap(atom_to_list(Act)).
 button_event({redraw,Active}, [Fi=#fi{key=Key,hook=Hook,index=I}|_], Store) ->
     DisEnable = hook(Hook, is_disabled, [var(Key, I), I, Store]),
     button_draw(Active, Fi, gb_trees:get(-I, Store), DisEnable);
-button_event(init, [#fi{key=Key,index=I}|_], Store) ->
-    #but{action=Action} = gb_trees:get(-I, Store),
-    %% Trick to not have to change store for 'ok' or 'cancel'
-    Val = (Action =:= ok) orelse (Action =:= cancel),
-    {store,gb_trees:insert(var(Key, I), Val, Store)};
 button_event(value, [#fi{key=Key,index=I}|_], Store) ->
     case gb_trees:get(-I, Store) of
 	#but{action=done} -> {value,gb_trees:get(var(Key, I), Store)};
@@ -2171,21 +2146,18 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}, DisEnable) ->
 
 -define(COL_PREVIEW_SZ, 60).
 
--record(col,
-	{val}).
+-record(col, {}).
 
-color(RGB) ->
-    Col = #col{val=RGB},
-    Fun = fun col_event/3,
-    {Fun,false,Col,3*?CHAR_WIDTH,?LINE_HEIGHT+2}.
+mktree_color(RGB, Sto, I, Flags) ->
+    #fi{key=Key} = Fi = 
+	mktree_leaf(fun col_event/3, false, 
+		    3*?CHAR_WIDTH,?LINE_HEIGHT+2, I, Flags),
+    mktree_priv(Fi, gb_trees:enter(var(Key, I), RGB, Sto), I, #col{}).
 
 col_event({redraw,Active}, [Fi=#fi{key=Key,hook=Hook,index=I}|_], Store) ->
     K = var(Key, I),
     DisEnable = hook(Hook, is_disabled, [K, I, Store]),
     col_draw(Active, Fi, gb_trees:get(K, Store), DisEnable);
-col_event(init, [#fi{key=Key,index=I}|_], Store) ->
-    #col{val=RGB} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(var(Key, I), RGB, Store)};
 col_event(value, [#fi{key=Key,index=I}|_], Store) ->
     {value,gb_trees:get(var(Key, I), Store)};
 col_event({key,_,_,$\s}, [#fi{key=Key,index=I}|_], Store) ->
@@ -2247,14 +2219,11 @@ pick_color(Key, Store) ->
 %%% Custom
 %%%
 
--record(custom,
-	{handler, val}
-       ).
+-record(custom, {handler}).
 
-custom(W, H, Handler) ->
-    Custom = #custom{handler=Handler},
-    Fun = fun custom_event/3,
-    {Fun,true,Custom,W,H}.
+mktree_custom(W, H, Handler, Sto, I, Flags) ->
+    Fi = mktree_leaf(fun custom_event/3, true, W, H, I, Flags),
+    mktree_priv(Fi, Sto, I, #custom{handler=Handler}).
 
 custom_event({redraw,_Active}, [#fi{x=X,y=Y,w=W,h=H,index=I}|_], Store) ->
     #custom{handler=Handler} = gb_trees:get(-I, Store),
@@ -2269,7 +2238,10 @@ custom_event(_Ev, _Path, _Store) -> keep.
 
 -record(panel, {}).
 
-panel() -> {fun (_Ev, _Path, _Store) -> keep end, true, #panel{}, 0, 0}.
+mktree_panel(Sto, I, Flags) ->
+    Fi = mktree_leaf(fun (_Ev, _Path, _Store) -> keep end, true, 
+		     0, 0, I, Flags),
+    mktree_priv(Fi, Sto, I, #panel{}).
 
 %%%
 %%% Eyepicker.
@@ -2277,15 +2249,15 @@ panel() -> {fun (_Ev, _Path, _Store) -> keep end, true, #panel{}, 0, 0}.
 
 -record(eyepicker, {}).
 
-eyepicker() ->
-    {fun eyepicker_event/3, true, #eyepicker{}, 0, 0}.
 
-eyepicker_event(init, [#fi{key=Key,index=I}|_], Store) ->
+
+mktree_eyepicker(Sto0, I, Flags) ->
+    Fi = #fi{key=Key} = 
+	mktree_leaf(fun eyepicker_event/3, true, 0, 0, I, Flags),
     Var = var(Key, I),
-    case gb_trees:is_defined(Var, Store) of
-	true -> keep;
-	false -> {store,gb_trees:insert(Var, undefined, Store)}
-    end;
+    Sto = gb_trees_ensure(Var, undefined, Sto0),
+    mktree_priv(Fi, Sto, I, #eyepicker{}).
+
 eyepicker_event({picked_color,Col}, 
 		[#fi{key=Key,index=I,hook=Hook}|_], 
 		Store)  ->
@@ -2300,13 +2272,14 @@ eyepicker_event(_Ev, _Path, _Store) -> keep.
 	{lines					%The lines.
 	}).
 
-label(Text, Flags) ->
+mktree_label(Text, Sto, I, Flags) ->
     Limit = proplists:get_value(break, Flags, infinite),
     {_,Lines} = wings_text:break_lines([Text], Limit),
     Lbl = #label{lines=Lines},
     Fun = fun label_event/3,
     {W,H} = label_dimensions(Lines, 0, 2),
-    {Fun,true,Lbl,W,H}.
+    Fi = mktree_leaf(Fun, true, W, H, I, Flags),
+    mktree_priv(Fi, Sto, I, Lbl).
 
 label_dimensions([L|Lines], W0, H) ->
     case wings_text:width(L) of
@@ -2349,7 +2322,7 @@ label_draw([], _, _) -> keep.
          password=false
 	}).
 
-text(Val, Flags) ->
+mktree_text(Val, Sto, I, Flags) ->
     IsInteger = is_integer(Val),
     ValStr = text_val_to_str(Val),
     {Max0,Validator,Charset} = validator(Val, Flags),
@@ -2362,7 +2335,9 @@ text(Val, Flags) ->
 	       integer=IsInteger,charset=Charset,
                validator=Validator,password=Password},
     Fun = fun gen_text_handler/3,
-    {Fun,false,Ts,(1+Max)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
+    Fi = #fi{key=Key} = 
+	mktree_leaf(Fun, false,(1+Max)*?CHAR_WIDTH, ?LINE_HEIGHT+2, I, Flags),
+    mktree_priv(Fi, gb_trees:enter(var(Key, I), Val, Sto), I, Ts).
 
 text_val_to_str(Val) when is_float(Val) ->
     wings_util:nice_float(Val);
@@ -2486,9 +2461,6 @@ gen_text_handler({redraw,false},
     draw_text_inactive(Fi, gb_trees:get(-I, Store), Val, DisEnable);
 gen_text_handler(value, [#fi{key=Key,index=I}|_], Store) ->
     {value,gb_trees:get(var(Key, I), Store)};
-gen_text_handler(init, [#fi{key=Key,index=I}|_], Store) ->
-    #text{last_val=Val} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(var(Key, I), Val, Store)};
 gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook}|_], Store) ->
     #text{last_val=Val0} = Ts0 = gb_trees:get(-I, Store),
     K = var(Key, I),
@@ -2737,24 +2709,23 @@ increment(Ts0, Incr) ->
 	 h
 	}).
 
-slider(Flags) ->
+mktree_slider(Sto0, I, Flags) ->
     {Min,Max} = proplists:get_value(range, Flags),
     Color = case proplists:get_value(color, Flags) of
 		undefined -> undefined;
 		true -> true;
 		{T,_,_}=C when T==r;T==g;T==b;T==h;T==s;T==v -> C
 	    end,
+    Fi = #fi{key=Key} = 
+	mktree_leaf(fun slider_event/3, false, 
+		    ?SL_LENGTH+?SL_BAR_W, ?LINE_HEIGHT+2, I, Flags),
+    Sto = case proplists:get_value(value, Flags) of
+	      undefined -> Sto0;
+	      Val -> gb_trees:enter(var(Key, I), Val, Sto0)
+	  end,
     Sl = #sl{min=Min,range=Max-Min,color=Color,h=?SL_BAR_H},
-    Fun = fun slider_event/3,
-    {Fun,false,Sl,?SL_LENGTH+?SL_BAR_W,?LINE_HEIGHT+2}.
+    mktree_priv(Fi, Sto, I, Sl).
 
-slider_event(init, [#fi{key=Key,flags=Flags,index=I}|_], Store) ->
-    case proplists:get_value(value, Flags) of
-	undefined ->
-	    keep;
-	Val ->
-	    {store,gb_trees:enter(var(Key, I), Val, Store)}
-    end;
 slider_event({redraw,Active}, [Fi=#fi{key=Key,hook=Hook,index=I}|_], Store) ->
     Sl = gb_trees:get(-I, Store),
     K = var(Key, I),
@@ -2957,6 +2928,13 @@ get_col_range({v, {V,H,S}}) ->
 var(0, I) when integer(I) -> I;
 var(Key, I) when integer(Key), integer(I) -> I+Key;
 var(Key, I) when integer(I) -> Key.
+
+
+gb_trees_ensure(X, V, T) ->
+    case gb_trees:is_defined(X, T) of
+	true -> T;
+	false -> gb_trees:insert(X, V, T)
+    end.
 
 
 inside(Xm, Ym, X, Y, W, H) ->
