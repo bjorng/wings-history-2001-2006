@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.119 2004/01/25 17:55:47 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.120 2004/03/05 08:02:43 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -521,12 +521,24 @@ vtx_color_split_1([{Face,Edge}|Fs], We, SameAcc, DiffAcc) ->
 vtx_color_split_1([], _, SameAcc, DiffAcc) ->
     {wings_util:rel2fam(SameAcc),DiffAcc}.
 
-vtx_color_split_2([C,C|Cols]) -> vtx_color_split_3(Cols, C);
-vtx_color_split_2(_) -> different.
+vtx_color_split_2(Cols0) ->
+    case no_colors(Cols0) of
+	true ->
+	    wings_color:white();
+	false ->
+	    case Cols0 of
+		[C,C|Cols] -> vtx_color_split_3(Cols, C);
+		_ -> different
+	    end
+    end.
 
 vtx_color_split_3([C|Cols], C) -> vtx_color_split_3(Cols, C);
 vtx_color_split_3([_|_], _) -> different;
 vtx_color_split_3([], C) -> C.
+
+no_colors([{_,_,_}|_]) -> false;
+no_colors([_|Cols]) -> no_colors(Cols);
+no_colors([]) -> true.
 
 vtx_smooth_color_split(Ftab) ->
     vtx_smooth_color_split_1(Ftab, [], []).
@@ -539,13 +551,27 @@ vtx_smooth_color_split_1([{_,Vs}=Face|Fs], SameAcc, DiffAcc) ->
 vtx_smooth_color_split_1([], SameAcc, DiffAcc) ->
     {wings_util:rel2fam(SameAcc),DiffAcc}.
 
-vtx_smooth_face_color([[Col|_]|T]) ->
-    vtx_smooth_face_color_1(T, Col).
+vtx_smooth_face_color(Vs) ->
+    case smooth_no_colors(Vs) of
+	true ->
+	    wings_color:white();
+	false ->
+	    case Vs of
+		[[Col|_],[Col|_]|T] ->
+		    vtx_smooth_face_color_1(T, Col);
+		_ ->
+		    different
+	    end
+    end.
 
 vtx_smooth_face_color_1([[Col|_]|T], Col) ->
     vtx_smooth_face_color_1(T, Col);
 vtx_smooth_face_color_1([_|_], _) -> different;
 vtx_smooth_face_color_1([], Col) -> Col.
+
+smooth_no_colors([[{_,_,_}|_]|_]) -> false;
+smooth_no_colors([_|Cols]) -> smooth_no_colors(Cols);
+smooth_no_colors([]) -> true.
 
 %%
 %% Triangulate and draw a face.
