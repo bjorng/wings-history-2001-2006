@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.70 2003/11/03 22:56:58 dgud Exp $
+%%     $Id: wings_we.erl,v 1.71 2004/02/07 13:41:01 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -661,22 +661,26 @@ transform_vs_1(Transform, #we{vp=Vtab0}=We) ->
 %%%
 
 normals(FaceNormals, #we{he=He}=We) ->
-    case FaceNormals of
-	[_,_] ->
-	    two_faced(FaceNormals, We);
-	_ ->
-	    case gb_sets:is_empty(He) of
-		true -> all_soft(FaceNormals, We);
-		false -> mixed_edges(FaceNormals, We)
-	    end
-    end.
+    wings_pb:start("calculating soft normals"),
+    Res = case FaceNormals of
+	      [_,_] ->
+		  two_faced(FaceNormals, We);
+	      _ ->
+		  case gb_sets:is_empty(He) of
+		      true -> all_soft(FaceNormals, We);
+		      false -> mixed_edges(FaceNormals, We)
+		  end
+	  end,
+    wings_pb:done(Res).
 
 all_soft(FaceNormals, #we{vp=Vtab}=We) ->
+    wings_pb:update(0.10, "preparing"),
     VtxNormals = soft_vertex_normals(gb_trees:to_list(Vtab), FaceNormals, We),
     FoldFun = fun(V, VInfo, A) ->
 		      Normal = gb_trees:get(V, VtxNormals),
 		      [[VInfo|Normal]|A]
 	      end,
+    wings_pb:update(0.6, "collecting"),
     all_soft_1(FoldFun, FaceNormals, We, []).
 
 all_soft_1(FoldFun, [{Face,_}|FNs], We, Acc) ->

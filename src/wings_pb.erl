@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.2 2004/02/07 11:26:33 bjorng Exp $
+%%     $Id: wings_pb.erl,v 1.3 2004/02/07 13:41:00 bjorng Exp $
 %%
 
 -module(wings_pb).
@@ -17,9 +17,8 @@
 %%%-define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--export([start/1, start/2, stop/0, update/1, update/2,
-	 init/0, loop/1]).
--compile(export_all). %% DBG
+-export([start/1,done/0,done/1,update/1,update/2,
+	 init/0,loop/1]).
 
 -define(PB, progress_bar).
 
@@ -58,60 +57,24 @@
 %% pb:update("Second Phase", 43343), ...
 %% pb:stop()
 
-ti() ->
-    put(wm_viewport, {0,0,935,488}),
-    wings_pb:init().
-    
-t1() ->
-    io:format("Test 1~n"),
-    wings_pb:start("X"), 
-    timer:sleep(1000), 
-    wings_pb:update("ASD", 0.5), 
-    timer:sleep(2000), 
-    wings_pb:stop().
-t2() ->
-    io:format("Test 2~n"),
-    wings_pb:start("X"), 
-    timer:sleep(1000), 
-    wings_pb:update("FAST", 0.5), 
-    timer:sleep(3000), 
-    wings_pb:update("SLOW", 0.55), 
-    timer:sleep(5000), 
-    wings_pb:stop().
-
-t3() ->
-    io:format("Test 3~n"),
-    wings_pb:start("1", {parts, 3}), 
-    timer:sleep(1000), 
-    wings_pb:update("2"), 
-    timer:sleep(5000), 
-    wings_pb:update("3"), 
-    timer:sleep(5000), 
-    wings_pb:stop().
-
 start(Msg) when is_list(Msg) ->
-    start(Msg, percent).
-
-start(Msg, percent=D) when is_list(Msg) ->
-    start_1(Msg, D);
-start(Msg, {time,_T}=D) when is_list(Msg) ->
-    start_1(Msg, D);
-start(Msg, {parts,_}=D) when is_list(Msg) ->
-    start_1(Msg, D).
-
-start_1(Msg, Type) ->
     WinInfo = wings_wm:viewport(message),
-    call({start,Msg,Type,WinInfo}).
+    call({start,Msg,percent,WinInfo}).
 
-stop() ->
-    call(stop).
+done() ->
+    call(done).
+
+done(Ret) ->
+    done(),
+    Ret.
 
 % Next part is completed or in percent mode change help-msg
 update(Msg) when is_list(Msg) -> 
     cast({update, Msg, undefined}).
+
 %% Time in percent or in completed part number
-update(Msg, Time) when is_list(Msg),  is_number(Time) -> 
-    cast({update, Msg, Time}).
+update(Percent, Msg) when is_list(Msg),  is_number(Percent) -> 
+    cast({update,Msg,Percent}).
 
 %% Helpers
 
@@ -151,10 +114,7 @@ reply(Pid, What) ->
 	 activity=false,
 	 msg=[], 
 	 pos=0.0,
-	 wpos,
-	 wpart=0,
-	 mparts,
-	 max=?MAX_T,
+	 next_pos=0.0,
 	 t0,
 	 stats=[]
 	}).
@@ -166,9 +126,10 @@ init() ->
     ok.
 
 loop(#state{refresh=After,activity=Active}=S0) ->
-    receive 
-	{Pid,?PB,{start,Msg,Data,{X,Y,W,H}}} when Active == false ->
-	    S = start_pb(Msg, Data),
+    receive
+	{Pid,?PB,{start,Msg,_Data,{X,Y,W,H}}} when Active == false ->
+	    S = #state{refresh=?REFRESH_T,activity=percent,
+		       msg=["",Msg],t0=now()},
 	    put(wm_viewport, {X,Y,W-17,H}),
 	    wings_text:choose_font(),
 	    reply(Pid, ok),
@@ -177,9 +138,10 @@ loop(#state{refresh=After,activity=Active}=S0) ->
 	    S1 = update(Msg, Time, S0),
 	    S = calc_position(S1),
 	    loop(draw_position(S));
-	{Pid,?PB,stop} ->
+	{Pid,?PB,done} ->
 	    print_stats(S0),
-	    draw_position(S0#state{pos=1.0}),
+	    S = update("done", 1.0, S0#state{next_pos=1.0,pos=1.0}),
+	    draw_position(S),
 	    reply(Pid, ok),
 	    loop(#state{});
 	Msg ->
@@ -190,69 +152,15 @@ loop(#state{refresh=After,activity=Active}=S0) ->
 	    loop(draw_position(S))
     end.
 
-start_pb(Msg, percent) ->
-    #state{refresh=?REFRESH_T, activity=percent, msg=Msg, t0=erlang:now()};
-start_pb(Msg, {time, Max}) ->
-    #state{refresh=?REFRESH_T, activity=percent, msg=Msg, max=Max, t0=erlang:now()};
-start_pb(Msg, {parts, Max}) ->
-    #state{refresh=?REFRESH_T, activity=parts, msg=Msg, mparts=Max, t0=erlang:now()}.
-
-update(Msg, Percent, #state{activity=percent,t0=T0,max=Max0}=S0) 
-  when 0.0 < Percent, Percent < 1.0 ->
+update(Msg, Percent, #state{next_pos=OldNext,
+			    msg=[_|Msg0],activity=percent}=S0) ->
     Now = now(),
     S = update_stats(Now, Percent, S0),
-    Max = estimated_endtime(Now, Percent, T0, Max0),
-    S#state{msg=Msg, wpos=Percent, max=Max};
-update(Msg, Part, S0=#state{activity=parts,mparts=Mpart,t0=T0,max=Max0}) 
-  when number(Part) ->
-    Max = estimated_endtime(Part/Mpart,T0,Max0),
-    S0#state{msg=Msg, wpart=Part, max=Max};
-update(Msg, _, S0=#state{activity=parts,wpart=Old,mparts=Mpart,t0=T0,max=Max0}) ->
-    Part = Old+1,
-    Max = estimated_endtime(Part/Mpart,T0,Max0),
-    S0#state{msg=Msg, wpart=Part, max=Max};
-update(Msg, undefined, S0) ->
-    S0#state{msg=Msg}.
+    S#state{msg=[Msg|Msg0],pos=OldNext,next_pos=Percent}.
 
-estimated_endtime(Percent, T0, OldMax) ->
-    estimated_endtime(now(), Percent, T0, OldMax).
-
-estimated_endtime(Now, Percent, T0, OldMax) ->
-    Diff = (now_diff(Now, T0) div 1000),
-    EstimatedMax = Diff/Percent,
-    if EstimatedMax > OldMax ->
-	    EstimatedMax;  % Grow Max fast 
-       true ->             % Shrink slower
-	    OldMax - (OldMax-EstimatedMax)*0.75
-    end.
-
-calc_position(#state{activity=percent,pos=Pos,max=Max,wpos=Wanted}=S0) ->
-    DefSpeed = default_speed(Pos, Max),
-    if Wanted == undefined ->
-	    S0#state{pos = Pos+DefSpeed};
-       Wanted > Pos -> 
-	    Speed = ((Wanted-Pos)/Wanted)/(1000/?REFRESH_T) + DefSpeed,
-	    NewPos = Speed+Pos,
-	    if NewPos > Wanted ->
-		    S0#state{pos = NewPos, wpos=undefined};
-	       true ->
-		    S0#state{pos = NewPos}
-	    end;
-       true ->
-	    Speed = Wanted/Pos*DefSpeed,
-	    S0#state{pos = Pos+Speed}
-    end;
-calc_position(S0=#state{activity=parts,pos=Pos,max=Max,wpart=WP,mparts=MP}) ->
-    Wanted = WP/MP,
-    if Wanted =< Pos ->
-	    DefSpeed = default_speed(MP*(Pos-Wanted),Max/MP),
-	    S0#state{pos = DefSpeed+Pos};
-       Wanted > Pos ->
-	    DefSpeed = default_speed(Pos,Max),
-	    Speed  = ((Wanted-Pos)/Wanted)/(1000/?REFRESH_T)+DefSpeed,
-	    NewPos = Speed+Pos,
-	    S0#state{pos = NewPos}
-    end.
+calc_position(#state{pos=Pos0,next_pos=NextPos}=S) when Pos0 < NextPos ->
+    Pos = Pos0 + (NextPos - Pos0) / 3,
+    S#state{pos=Pos}.
 
 update_stats(Now, Percent, #state{stats=Stats,t0=Time0}=S) ->
     NowDiff = now_diff(Now, Time0),
@@ -267,19 +175,9 @@ print_stats(#state{t0=Time0,stats=Stats0}) ->
 				    [Est,TimeDiff/Total])
 		  end, Stats).
   
-%% Math 
-default_speed(Pos, Max) ->
-    if (Pos == 0.0) or (Max == 0.0) ->
-	    0.01;
-       true -> 
-	    (?REFRESH_T/Max) * (1-Pos*Pos) 
-    end.
 
 now_diff({A2, B2, C2}, {A1, B1, C1}) ->
     ((A2-A1)*1000000 + B2-B1)*1000000 + C2-C1.
-
-
-
 
 %% Draw Progress Bar 
 
@@ -297,7 +195,7 @@ draw_position(#state{msg=Msg,pos=Pos}=S) ->
     BarLen = trunc((W-4)*Pos),
     double_gradient(4, 2, BarLen, W, ?LINE_HEIGHT),
     wings_io:set_color(wings_pref:get_value(info_color)),
-    wings_io:text_at(6, ?CHAR_HEIGHT, Msg),
+    wings_io:text_at(6, ?CHAR_HEIGHT, build_msg(Msg)),
 
     gl:finish(),
     gl:drawBuffer(?GL_BACK),
@@ -333,3 +231,8 @@ double_gradient(X, Y, BarW, W, H) ->
     gl:vertex2f(X+BarW, Y+H div 2),
     gl:'end'(),
     gl:shadeModel(?GL_FLAT).
+
+build_msg([M]) -> M;
+build_msg([H|T]) -> build_msg(T) ++ ": " ++ H.
+
+    

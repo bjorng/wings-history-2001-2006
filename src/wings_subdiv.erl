@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.66 2004/02/07 11:26:33 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.67 2004/02/07 13:41:01 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -34,26 +34,27 @@ smooth(Fs, Htab, #we{vp=Vtab,es=Etab}=We) ->
     smooth(Fs, Vs, Es, Htab, We).
 
 smooth(Fs, Vs, Es, Htab, #we{vp=Vp,next_id=Id}=We0) ->
-    wings_pb:start("Smoothing: calculating face centers"),
+    wings_pb:start("smoothing"),
+    wings_pb:update(0.05, "calculating face centers"),
     FacePos0 = face_centers(Fs, We0),
-    wings_pb:update("Smoothing: cutting edges", 0.05),
 
     %% First do all topological changes to the edge table.
+    wings_pb:update(0.20, "cutting edges"),
     We1 = cut_edges(Es, Htab, We0#we{vc=undefined}),
-    wings_pb:update("Smoothing: updating materials", 0.20),
+    wings_pb:update(0.25, "updating materials"),
     We2 = smooth_materials(Fs, FacePos0, We1),
-    wings_pb:update("Smoothing: creating new faces", 0.25),
+    wings_pb:update(0.47, "creating new faces"),
     We = smooth_faces(FacePos0, Id, We2),
-    wings_pb:update("Smoothing: moving vertices", 0.47),
+    wings_pb:update(0.60, "moving vertices"),
 
     %% Now calculate all vertex positions.
     FacePos = gb_trees:from_orddict(FacePos0),
     {UpdatedVs,Mid} = update_edge_vs(Es, We0, FacePos, Htab, Vp, Id),
     NewVs = smooth_new_vs(FacePos0, Mid),
     Vtab = smooth_move_orig(Vs, FacePos, Htab, We0, UpdatedVs ++ NewVs),
-    wings_pb:update("Smoothing: finishing", 0.6),
+    wings_pb:update(1.0, "finishing"),
     Res = wings_util:validate_mirror(wings_we:rebuild(We#we{vp=Vtab})),
-    wings_pb:stop(),
+    wings_pb:done(),
     Res.
 
 smooth_faces_htab(#we{mirror=none,fs=Ftab,he=Htab}) ->
