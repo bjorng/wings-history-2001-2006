@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.25 2002/06/04 20:22:52 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.26 2002/08/25 09:36:52 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -231,15 +231,16 @@ collapse_vertex_1(Vremove, We0, Sel0)->
     Vlist = reverse([V || {V,_} <- VsEs]),
     check_vertices(Vlist),
 
-    %% Remove all original edges.
-    Edges = [E || {_,E} <- VsEs],
-    We1 = wings_edge:dissolve_edges(Edges, We0),
-    
     %% Connect vertices.
     Pairs = make_pairs(Vlist),
-    We = foldl(fun(Pair, W) ->
+    We1 = foldl(fun(Pair, W) ->
 		       wings_vertex_cmd:connect(Pair, W)
-	       end, We1, Pairs),
+	       end, We0, Pairs),
+
+    %% Remove all original edges.
+    Edges = [E || {_,E} <- VsEs],
+    We = wings_edge:dissolve_edges(Edges, We1),
+
     Faces = collapse_vtx_faces(Vlist, We, []),
     Sel = collapse_vtx_sel(Faces, ordsets:from_list(Vlist), We, Sel0),
     {We,Sel}.
