@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.35 2002/12/26 09:47:09 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.36 2002/12/26 22:37:18 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -268,20 +268,22 @@ flatten(Vs, PlaneNormal, We) ->
     flatten(gb_sets:to_list(Vs), PlaneNormal, We).
 
 flatten(Vs, PlaneNormal, Center, #we{vp=Vtab0}=We) when is_list(Vs) ->
-    Vtab = foldl(
-	     fun(V, Tab0) ->
-		     flatten_move(V, PlaneNormal, Center, We, Tab0)
-	     end, Vtab0, Vs),
+    Flatten = flatten_matrix(Center, PlaneNormal),
+    Vtab = foldl(fun(V, Tab0) ->
+			 flatten_move(V, Flatten, We, Tab0)
+		 end, Vtab0, Vs),
     We#we{vp=Vtab};
 flatten(Vs, PlaneNormal, Center, We) ->
     flatten(gb_sets:to_list(Vs), PlaneNormal, Center, We).
 
-flatten_move(V, PlaneNormal, Center, We, Tab0) ->
+flatten_matrix(Origin, PlaneNormal) ->
+    M0 = e3d_mat:translate(Origin),
+    M = e3d_mat:mul(M0, e3d_mat:project_to_plane(PlaneNormal)),
+    e3d_mat:mul(M, e3d_mat:translate(e3d_vec:neg(Origin))).
+
+flatten_move(V, Matrix, We, Tab0) ->
     Pos0 = gb_trees:get(V, Tab0),
-    ToCenter = e3d_vec:sub(Center, Pos0),
-    Dot = e3d_vec:dot(ToCenter, PlaneNormal),
-    ToPlane = e3d_vec:mul(PlaneNormal, Dot),
-    Pos1 = e3d_vec:add(Pos0, ToPlane),
+    Pos1 = e3d_mat:mul_point(Matrix, Pos0),
     Pos = mirror_constrain(V, Pos1, We),
     gb_trees:update(V, Pos, Tab0).
 
