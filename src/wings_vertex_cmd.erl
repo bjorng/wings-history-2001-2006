@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.35 2002/12/26 09:47:09 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.36 2003/01/02 21:58:12 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -32,14 +32,31 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Connect",connect,
 	     "Create a new edge by connecting selected vertices"},
-	    {"Tighten",tighten,"Move selected vertices towards average "
-	     "midpoint"},
+	    {"Tighten",tighten_fun([tighten,vertex]),
+	     "Move selected vertices towards average "
+	     "midpoint",[magnet]},
 	    {"Bevel",bevel,"Create faces of selected vertices"},
 	    {"Collapse",collapse,"Delete selected vertices"},
 	    {"Dissolve",dissolve,"Delete selected vertices"},
 	    separator,
 	    {"Deform",wings_deform:sub_menu(St)}],
     wings_menu:popup_menu(X, Y, vertex, Menu).
+
+tighten_fun(Ns) ->
+    fun(1, _) -> {vertex,tighten};
+       (2, _) -> ignore;
+       (3, _) -> ignore;
+       ({magnet,1}, _) -> {vector,{pick,[magnet],[],Ns}};
+       ({magnet,2}, _) -> {vector,{pick,[magnet_options],[],Ns}};
+       ({magnet,3}, _) ->
+	    Magnet = magnet_data(),
+	    wings_menu:build_command(Magnet, Ns)
+    end.
+
+magnet_data() ->
+    {magnet,wings_pref:get_value(magnet_type),
+     wings_pref:get_value(magnet_distance_route),
+     wings_pref:get_value(magnet_radius)}.
 
 %% Vertex menu.
 command({flatten,Plane}, St) ->
@@ -48,6 +65,8 @@ command(connect, St) ->
     {save_state,connect(St)};
 command(tighten, St) ->
     tighten(St);
+command({tighten,Magnet}, St) ->
+    tighten(Magnet, St);
 command(bevel, St) ->
     ?SLOW(bevel(St));
 command({extrude,Type}, St) ->
@@ -337,6 +356,39 @@ tighten_vec(V, #we{vp=Vtab}=We) ->
 	   end, [], V, We),
     Center = e3d_vec:average(Cs),
     e3d_vec:sub(Center, gb_trees:get(V, Vtab)).
+
+%%%
+%%% The magnetic version of Tighten.
+%%%
+
+tighten(Magnet, St) ->
+    Tvs = wings_sel:fold(fun(Vs, We, Acc) ->
+				 tighten(Vs, We, Magnet, Acc)
+			 end, [], St),
+    Flags = wings_magnet:flags(Magnet, []),
+    wings_drag:setup(Tvs, [percent,falloff], Flags, St).
+
+tighten(Vs, We, Magnet, Acc) when is_list(Vs) ->
+    Tv = foldl(
+	   fun(V, A) ->
+		   Vec = tighten_vec(V, We),
+		   [{Vec,[V]}|A]
+	   end, [], Vs),
+    magnet_move(Tv, Magnet, We, Acc);
+tighten(Vs, We, Magnet, Acc) -> 
+    tighten(gb_sets:to_list(Vs), We, Magnet, Acc).
+
+magnet_move(Tv, Magnet0, #we{id=Id}=We, Acc) ->
+    Vs = lists:append([Vs || {_,Vs} <- Tv]),
+    {VsInf,Magnet,Affected} = wings_magnet:setup(Magnet0, Vs, We),
+    Vec = magnet_tighten_vec(Affected, We, []),
+    [{Id,{Affected,wings_move:magnet_move_fun(Vec, VsInf, Magnet)}}|Acc].
+
+magnet_tighten_vec([V|Vs], We, Acc) ->
+    Vec = tighten_vec(V, We),
+    magnet_tighten_vec(Vs, We, [{V,Vec}|Acc]);
+magnet_tighten_vec([], _, Acc) ->
+    gb_trees:from_orddict(sort(Acc)).
     
 %%%
 %%% The Dissolve command. Like Collapse, but stays in vertex mode
