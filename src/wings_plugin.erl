@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.12 2002/02/01 22:38:40 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.13 2002/02/04 15:19:59 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2,call_ui/1]).
@@ -186,6 +186,8 @@ check_result(M, {new_shape,Prefix,Fs,Vs}, St) ->
 check_result(M, aborted, St) -> aborted;
 check_result(M, {drag,_}=Drag, _) -> Drag;
 check_result(M, #st{}=St, _) -> St;
+check_result(M, {push,_}=Push, _) -> Push;
+check_result(M, {seq,_,_}=Seq, _) -> Seq;
 check_result(M, Other, St) ->
     io:format("~w:command/3: bad return value: ~P\n", [M,Other,20]),
     St.

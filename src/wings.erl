@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.106 2002/02/04 14:02:39 dgud Exp $
+%%     $Id: wings.erl,v 1.107 2002/02/04 15:19:59 bjorng Exp $
 %%
 
 -module(wings).
@@ -284,8 +284,7 @@ do_command_1(Cmd, St0) ->
 	next -> command(Cmd, St0);
 	St0 -> St0;
 	#st{}=St -> {save_state,model_changed(St)};
-	{drag,_}=Drag -> Drag;
-	aborted -> St0
+	Other -> Other
     end.
 
 remember_command({C,_}=Cmd, St) when C =:= vertex; C =:= edge;
