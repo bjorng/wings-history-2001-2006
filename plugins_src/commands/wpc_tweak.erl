@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.64 2005/01/27 06:18:17 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.65 2005/01/27 06:57:16 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -321,7 +321,7 @@ do_tweak(#dlo{drag=#drag{vs=Vs,pos=Pos0,mag=Mag0,mm=MM}=Drag,
     Matrices = wings_u:get_matrices(Id, MM),
     {Xs,Ys,Zs} = obj_to_screen(Matrices, Pos0),
     TweakPos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
-    Pos = tweak_pos(AlongNormal, Vs, DX, DY, Pos0, TweakPos, We),
+    Pos = tweak_pos(AlongNormal, Vs, Pos0, TweakPos, We),
     {Vtab,Mag} = magnet_tweak(Mag0, Pos),
     D = D0#dlo{sel=none,drag=Drag#drag{pos=Pos,mag=Mag}},
     wings_draw:update_dynamic(D, Vtab);
@@ -333,30 +333,22 @@ obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
 screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
     glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
 
-tweak_pos(false, _, _, _, _, Pos, _) -> Pos;
-tweak_pos(true, Vs, DX, DY, Pos0, TweakPos, We) ->
-    Dist = dir(DX, DY)*e3d_vec:dist(Pos0, TweakPos),
-    case Vs of 
-	[V] ->				  % Vertex mode	       
-	    Normal = wings_vertex:normal(V, We),
-	    e3d_vec:add(Pos0,e3d_vec:mul(Normal, Dist));
-	[V1,V2] ->				% Edge mode
-	    N1 = wings_vertex:normal(V1, We),
-	    N2 = wings_vertex:normal(V2, We),
-	    Normal = e3d_vec:norm(e3d_vec:add(N1, N2)),
-	    e3d_vec:add(Pos0, e3d_vec:mul(Normal, Dist));
-	_ ->					%  Face mode
-	    VsPos = [wings_vertex:pos(V, We) || V <- Vs],
-	    Normal = e3d_vec:normal(VsPos),
-	    e3d_vec:add(Pos0, e3d_vec:mul(Normal, Dist))
-    end.
-
-dir(X,Y) ->
-    if 
-	X =:= 0.0,Y =:= 0.0 -> 0.0;
-	abs(X) > abs(Y) -> X/abs(X);
-	true -> -Y/abs(Y)
-    end.
+tweak_pos(false, _, _, Pos, _) -> Pos;
+tweak_pos(true, Vs, Pos0, TweakPos, We) ->
+    N = case Vs of 
+	    [V] ->				% Vertex mode	       
+		wings_vertex:normal(V, We);
+	    [V1,V2] ->				% Edge mode
+		N1 = wings_vertex:normal(V1, We),
+		N2 = wings_vertex:normal(V2, We),
+		e3d_vec:norm(e3d_vec:add(N1, N2));
+	    _ ->				%  Face mode
+		VsPos = [wings_vertex:pos(V, We) || V <- Vs],
+		e3d_vec:normal(VsPos)
+	end,
+    %% Return the point along the normal closest to TweakPos.
+    T = e3d_vec:dot(N, e3d_vec:sub(TweakPos, Pos0)) / e3d_vec:dot(N, N),
+    e3d_vec:add_prod(Pos0, N, T).
 
 help(#tweak{magnet=false}) ->
     Msg1 = wings_msg:button_format("Drag freely"),
