@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.22 2003/12/12 15:27:14 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.23 2003/12/21 19:12:23 bjorng Exp $
 %%
 
 -module(wpc_test_ask).
@@ -51,7 +51,9 @@ menu({tools}, Menu) ->
 		 {"Test Ask",{?MODULE,[{"Minimal Dialog",minimal},
 				       {"Large Dialog",large},
 				       {"Overlay Dialog",overlay},
-				       {"Dynamic Dialog",dynamic}]}}];
+				       {"Dynamic Dialog",dynamic},
+				       separator,
+				       {"Open Dialog",open_dialog}]}}];
 	_ -> Menu
     end;
 menu(_, Menu) -> Menu.
@@ -64,6 +66,8 @@ command({tools,{?MODULE,overlay}}, St) ->
     maybe_dialog(fun overlay_dialog/1, St);
 command({tools,{?MODULE,dynamic}}, St) ->
     maybe_dialog(fun dynamic_dialog/1, St);
+command({tools,{?MODULE,open_dialog}}, St) ->
+    maybe_dialog(fun open_dialog/1, St);
 command(_, _St) ->
     next.
 
@@ -72,7 +76,6 @@ maybe_dialog(Dialog, St) ->
 	true -> Dialog(St);
 	_ -> next
     end.
-	    
 
 dialog({material_editor_setup,_Name,_Mat}, Dialog) ->
     case enabled() of true -> Dialog++[{"Test Ask",true}];
@@ -99,6 +102,13 @@ dialog(_X, Dialog) ->
     Dialog.
 
 
+open_dialog(_) ->
+    F = fun(Res) ->
+		io:format("~p\n", [Res]),
+		ignore
+	end,
+    Ps = [{ext,".wings"},{ext_desc,"Wings File"}],
+    wings_plugin:call_ui({file,open_dialog,Ps,F}).
 
 minimal_dialog(_St) ->
     Fun = fun(Res) -> 
