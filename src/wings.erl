@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.188 2003/01/05 09:44:18 bjorng Exp $
+%%     $Id: wings.erl,v 1.189 2003/01/06 20:33:43 bjorng Exp $
 %%
 
 -module(wings).
@@ -251,6 +251,8 @@ handle_event_3(#keyboard{}=Event, St) ->
     end;
 handle_event_3({action,Cmd}, St) ->
     do_command(Cmd, St);
+handle_event_3({action,Cmd,Args}, St) ->
+    do_command(Cmd, Args, St);
 handle_event_3(#mousebutton{}, _St) -> keep;
 handle_event_3(#mousemotion{}, _St) -> keep;
 handle_event_3(#resize{w=W,h=H}, St0) ->
@@ -258,8 +260,6 @@ handle_event_3(#resize{w=W,h=H}, St0) ->
     main_loop(St);
 handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
-handle_event_3({drag_arguments,_}, _St) ->	%Repeat Drag that failed.
-    keep;
 handle_event_3(redraw, St) ->
     wings_draw:render(St),
     wings_io:info(info(St)),
@@ -271,15 +271,18 @@ handle_event_3({new_state,St}, St0) ->
     wings_wm:dirty(),
     save_state(St0, St);
 handle_event_3(ignore, _St) -> keep.
+
+do_command(Cmd, St) ->    
+    do_command(Cmd, none, St).
     
-do_command(Cmd, St0) ->
+do_command(Cmd, Args, St0) ->
     St1 = remember_command(Cmd, St0),
     Res = (catch do_command_1(Cmd, St1)),
     case Res of
 	{'EXIT',Reason} -> exit(Reason);
 	{command_error,Error} -> wings_util:message(Error);
 	#st{}=St -> main_loop(St);
-	{drag,Drag} -> wings_drag:do_drag(Drag);
+	{drag,Drag} -> wings_drag:do_drag(Drag, Args);
 	{save_state,#st{}=St} -> save_state(St1, St);
 	{saved,St}=Res ->
 	    main_loop(wings_undo:save(St1, St));
@@ -386,12 +389,7 @@ command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,args=Args}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> ok;
 	Cmd when tuple(Cmd) ->
-	    case Args of
-		none -> ok;
-		_Other ->
-		    wings_wm:send(geom, {drag_arguments,Args})
-	    end,
-	    wings_wm:send(geom, {action,Cmd})
+	    wings_wm:send(geom, {action,Cmd,Args})
     end,
     St;
 command({edit,repeat_drag}, St) -> St;
