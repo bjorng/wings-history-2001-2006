@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.11 2002/03/08 13:22:36 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.12 2002/03/31 10:26:18 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -36,6 +36,7 @@
 	 fi,					%Static data for all fields.
 	 priv,					%States for all fields.
 	 coords,				%Coordinates for hit testing.
+	 common=[],				%Data common for all fields.
 	 redraw
 	}).
 
@@ -69,8 +70,22 @@ setup_ask(Qs0, Redraw, Fun) ->
     Fis = list_to_tuple(Fis0),
     Priv = list_to_tuple(Priv0),
     {#fi{w=W,h=H},_} = Qs,
-    #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis),redraw=Redraw}.
-		   
+    S = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis),redraw=Redraw},
+    init_fields(1, size(Priv), S).
+
+init_fields(I, N, #s{fi=Fis,priv=Priv0,common=Common0}=S) when I =< N ->
+    #fi{handler=Handler} = Fi = element(I, Fis),
+    Fst0 = element(I, Priv0),
+    case Handler({event,init}, Fi, Fst0, Common0) of
+	{Fst,Common} when is_tuple(Fst), is_list(Common) ->
+	    Priv = setelement(I, Priv0, Fst),
+	    init_fields(I+1, N, S#s{priv=Priv,common=Common});
+	Fst when is_tuple(Fst) ->
+	    Priv = setelement(I, Priv0, Fst),
+	    init_fields(I+1, N, S#s{priv=Priv})
+    end;
+init_fields(_, _, S) -> S.
+
 init_origin(#s{w=Xs,h=Ys}=S) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     Tx = case (W-Xs)/2 of
@@ -102,8 +117,7 @@ event(#resize{}=Ev, _S) ->
 event({action,{update,I,Fst}}, #s{priv=Priv0}=S) ->
     Priv = setelement(I, Priv0, Fst),
     get_event(S#s{priv=Priv});
-event(Ev, S) ->
-    field_event(Ev, S).
+event(Ev, S) -> field_event(Ev, S).
 
 event_key({key,?SDLK_ESCAPE,_,_}, _S) ->
     wings_io:putback_event(redraw),
@@ -161,29 +175,37 @@ next_focus_1(I0, Dir, #s{fi=Fis}=S) ->
 	_ -> set_focus(I, S)
     end.
 
-set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0}=S) ->
+set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0,common=Common}=S) ->
     #fi{handler=OldHandler} = OldFi = element(OldFocus, Fis),
     OldFst0 = element(OldFocus, Priv0),
-    OldFst = OldHandler({event,{focus,false}}, OldFi, OldFst0),
+    OldFst = OldHandler({event,{focus,false}}, OldFi, OldFst0, Common),
     Priv1 = setelement(OldFocus, Priv0, OldFst),
 
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv1),
-    Fst = Handler({event,{focus,true}}, Fi, Fst0),
+    Fst = Handler({event,{focus,true}}, Fi, Fst0, Common),
     Priv = setelement(I, Priv1, Fst),
-    
+
     S#s{focus=I,priv=Priv}.
-    
+
 field_event(Ev, #s{focus=I}=S) ->
     field_event(Ev, I, S).
 
-field_event(Ev, I, #s{fi=Fis,priv=Priv0}=S) ->
+field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv0),
-    case Handler({event,Ev}, Fi, Fst0) of
+    case Handler({event,Ev}, Fi, Fst0, Common0) of
+	ok ->
+	    return_result(S);
+	cancel ->
+	    wings_io:putback_event(redraw),
+	    pop;
 	{ask,Qs,Fun} ->
 	    recursive_ask(I, Qs, Fun, S);
-	Fst ->
+	{Fst,Common} when is_tuple(Fst), is_list(Common) ->
+	    Priv = setelement(I, Priv0, Fst),
+	    get_event(S#s{priv=Priv,common=Common});
+	Fst when is_tuple(Fst) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    get_event(S#s{priv=Priv})
     end.
@@ -198,18 +220,20 @@ recursive_ask(I, Qs, Fun, S0) ->
 return_result(#s{fi=Fis,priv=Priv}=S) ->
     return_result(1, Fis, Priv, S, []).
 
-return_result(I, Fis, Priv, S, Acc) when I =< size(Fis) ->
+return_result(I, Fis, Priv, #s{common=Common}=S, Acc) when I =< size(Fis) ->
     case element(I, Fis) of
 	#fi{inert=true} ->
 	    return_result(I+1, Fis, Priv, S, Acc);
 	#fi{handler=Handler,flags=Flags}=Fi ->
 	    Fst = element(I, Priv),
-	    case catch Handler(value, Fi, Fst) of
+	    case catch Handler(value, Fi, Fst, Common) of
 		{'EXIT',Reason} ->
 		    exit(Reason);
 		{command_error,Error} ->
 		    wings_util:message(Error),
 		    get_event(S#s{focus=I});
+		none ->
+		    return_result(I+1, Fis, Priv, S, Acc);
 		Res0 ->
 		    Res = case property_lists:get_value(key, Flags) of
 			      undefined -> Res0;
@@ -232,8 +256,9 @@ return_result(_, _, _, #s{call=EndFun}=S, Res) ->
 	    wings_io:putback_event({action,Action}),
 	    pop
     end.
-    
-redraw(#s{w=W,h=H,ox=Ox,oy=Oy,redraw=Redraw,focus=Focus,fi=Fi,priv=Priv}) ->
+
+redraw(#s{w=W,h=H,ox=Ox,oy=Oy,redraw=Redraw,focus=Focus,
+	  fi=Fi,priv=Priv,common=Common}) ->
     case Redraw of
 	#st{}=St ->
 	    wings_draw:render(St),
@@ -246,32 +271,45 @@ redraw(#s{w=W,h=H,ox=Ox,oy=Oy,redraw=Redraw,focus=Focus,fi=Fi,priv=Priv}) ->
     wings_io:raised_rect(-?HMARGIN, -?VMARGIN,
 			 W+2*?HMARGIN, H+2*?VMARGIN,
 			 ?MENU_COLOR),
-    draw_fields(1, Fi, Priv, Focus).
+    draw_fields(1, Fi, Priv, Focus, Common).
 
-draw_fields(I, Fis, Priv, Focus) when I =< size(Fis) ->
+draw_fields(I, Fis, Priv, Focus, Common) when I =< size(Fis) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst = element(I, Priv),
-    Handler({redraw,I =:= Focus}, Fi, Fst),
-    draw_fields(I+1, Fis, Priv, Focus);
-draw_fields(_, _, _, _) -> ok.
+    Handler({redraw,I =:= Focus}, Fi, Fst, Common),
+    draw_fields(I+1, Fis, Priv, Focus, Common);
+draw_fields(_, _, _, _, _) -> ok.
 
 %%%
 %%% Conversion of queries to internal format and dimension calculation.
 %%%
 
 normalize(Qs) when is_list(Qs) ->
-    normalize({vframe,Qs,[]});
+    normalize({hframe,[{vframe,Qs},
+		       {vframe,[{button,ok},
+				{button,cancel}]}]});
 normalize(Qs) ->
     normalize(Qs, #fi{x=0,y=0}).
 
+normalize({vframe,Qs}, Fi) ->
+    vframe(Qs, Fi, []);
 normalize({vframe,Qs,Flags}, Fi) ->
     vframe(Qs, Fi, Flags);
+normalize({hframe,Qs}, Fi) ->
+    hframe(Qs, Fi, []);
 normalize({hframe,Qs,Flags}, Fi) ->
     hframe(Qs, Fi, Flags);
 normalize({color,Prompt,Def}, Fi) ->
     normalize_field(color(Prompt, Def), [], Fi);
 normalize({color,Prompt,Def,Flags}, Fi) ->
     normalize_field(color(Prompt, Def), Flags, Fi);
+normalize({alt,VarDef,Prompt,Val}, Fi) ->
+    normalize_field(radiobutton(VarDef, Prompt, Val), [], Fi);
+normalize({button,Action}, Fi) ->
+    Label = button_label(Action),
+    normalize_field(button(Label, Action), [], Fi);
+normalize({button,Label,Action}, Fi) ->
+    normalize_field(button(Label, Action), [], Fi);
 normalize(separator, Fi) ->
     normalize_field(separator(), [], Fi);
 normalize({Prompt,Def}, Fi) when Def == false; Def == true ->
@@ -291,7 +329,7 @@ vframe(Qs, #fi{x=X,y=Y0}=Fi0, Flags) ->
     {Fields,Y,Lw,W0} = vframe_1(Qs, Fi0#fi{x=X+Dx,y=Y0+Dy}, 0, 0, []),
     H0 = Y-Y0,
     {Ipadx,Ipady} = case have_border(Flags) of
-			true -> {10,10};
+			true -> {2*10,10};
 			false -> {0,0}
 		    end,
     W = W0 + Ipadx,
@@ -324,7 +362,7 @@ hframe(Qs, #fi{x=X0,y=Y}=Fi, Flags) ->
     {Fi#fi{handler=Fun,inert=true,flags=Flags,
 	   lw=0,w=W,h=H,ipadx=Ipadx,ipady=Ipady},
      {hframe,Fields}}.
-    
+
 hframe_1([Q|Qs], #fi{x=X}=Fi0, H0, Acc) ->
     {#fi{w=W,h=H}=Fi,Priv} = normalize(Q, Fi0),
     hframe_1(Qs, Fi#fi{x=X+W+?HFRAME_SPACING},
@@ -402,9 +440,9 @@ frame_flatten([{Fi,Priv}|T], FisAcc0, PrivAcc0) ->
 frame_flatten([], FisAcc, PrivAcc) -> {FisAcc,PrivAcc}.
 
 frame_fun() ->
-    fun({redraw,_Active}, Fi, _Dummy) ->
+    fun({redraw,_Active}, Fi, _, _) ->
 	    frame_redraw(Fi);
-       ({event,_Ev}, _Fi, Frame) -> Frame
+       ({event,_Ev}, _Fi, Frame, _) -> Frame
     end.
 
 frame_redraw(#fi{flags=[]}) -> ok;
@@ -447,22 +485,22 @@ vline(X0, Y0, H) ->
     gl:color3f(1, 1, 1),
     gl:vertex2f(X+1, Y),
     gl:vertex2f(X+1, Y+H).
-    
+
 have_border(Flags) ->
     property_lists:is_defined(title, Flags).
-	    
+
 %%%
 %%% Separator.
 %%%
 
 separator() ->
     Fun = separator_fun(),
-    {Fun,true,no_state,0,4*?CHAR_WIDTH,10}.
+    {Fun,true,{},0,4*?CHAR_WIDTH,10}.
 
 separator_fun() ->
-    fun({redraw,_Active}, Fi, _Dummy) ->
+    fun({redraw,_Active}, Fi, _Dummy, _) ->
 	    separator_draw(Fi);
-       ({event,_Ev}, _Fi, Sep) ->
+       ({event,_Ev}, _Fi, Sep, _) ->
 	    Sep
     end.
 
@@ -491,18 +529,18 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
 -record(cb,
 	{label,
 	 state}).
-	 
+
 checkbox(Label, Def) ->
     Cb = #cb{label=Label,state=Def},
     Fun = checkbox_fun(),
     {Fun,false,Cb,0,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT}.
 
 checkbox_fun() ->
-    fun({redraw,Active}, Fi, Cb) ->
+    fun({redraw,Active}, Fi, Cb, _) ->
 	    cb_draw(Active, Fi, Cb);
-       ({event,Ev}, Fi, Cb) ->
+       ({event,Ev}, Fi, Cb, _) ->
 	    cb_event(Ev, Fi, Cb);
-       (value, _Fi, #cb{state=State}) ->
+       (value, _Fi, #cb{state=State}, _) ->
 	    State
     end.
 
@@ -534,6 +572,137 @@ cb_event(#mousebutton{x=Xb,state=?SDL_RELEASED},
 cb_event(_Ev, _Fi, Cb) -> Cb.
 
 %%%
+%%% Checkboxes.
+%%%
+
+-record(rb,
+	{var,
+	 val,
+	 label}).
+
+radiobutton({Var,Def}, Label, Val) ->
+    Rb = #rb{var=Var,val=Val,label=Label},
+    Fun = radiobutton_fun(Def),
+    {Fun,false,Rb,0,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT}.
+
+radiobutton_fun(Def) ->
+    fun({event,init}, _Fi, #rb{var=Var,val=Val}=Rb, Common) ->
+	    case Val of
+		Def -> {Rb,[{Var,Val}|Common]};
+		_ -> Rb
+	    end;
+       ({event,Ev}, Fi, Rb, Common) ->
+ 	    rb_event(Ev, Fi, Rb, Common);
+       ({redraw,Active}, Fi, Rb, Common) ->
+ 	    rb_draw(Active, Fi, Rb, Common);
+       (value, _Fi, #rb{var=Var,val=Val}, Common) ->
+	    case property_lists:get_value(Var, Common) of
+		Val -> Val;
+		_ -> none
+	    end
+    end.
+
+rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,var=Var,val=Val}, Common) ->
+    Y = Y0+?CHAR_HEIGHT,
+    gl:color3f(1, 1, 1),
+    White = <<
+	     2#00111000,
+	     2#01111100,
+	     2#11111110,
+	     2#11111110,
+	     2#11111110,
+	     2#01111100,
+	     2#00111000>>,
+    gl:rasterPos2i(X, Y),
+    gl:bitmap(7, 7, -1, 0, 7, 0, White),
+    gl:color3f(0, 0, 0),
+    B = case property_lists:get_value(Var, Common) of
+	    Val ->
+	       	<<
+	       	 2#00111000,
+	       	 2#01000100,
+	       	 2#10111010,
+	       	 2#10111010,
+	       	 2#10111010,
+	       	 2#01000100,
+	       	 2#00111000>>;
+	_ ->
+	       	<<
+	       	 2#00111000,
+	       	 2#01000100,
+	       	 2#10000010,
+	       	 2#10000010,
+	       	 2#10000010,
+	       	 2#01000100,
+	       	 2#00111000>>
+    end,
+    gl:rasterPos2i(X, Y),
+    gl:bitmap(7, 7, -1, 0, 7, 0, B),
+    wings_io:text_at(X+2*?CHAR_WIDTH, Y, Label),
+    if
+	Active == true ->
+	    wings_io:text_at(X+2*?CHAR_WIDTH, Y,
+			     duplicate(length(Label), $_));
+	true -> ok
+    end.
+
+rb_event({key,_,_,$\s}, _, Rb, Common) ->
+    rb_set(Rb, Common);
+rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED},
+	 #fi{x=X}, #rb{label=Label}=Rb, Common) ->
+    if
+	Xb-X < (4+length(Label))*?CHAR_WIDTH ->
+	    rb_set(Rb, Common);
+	true -> Rb
+    end;
+rb_event(_Ev, _Fi, Rb, _Common) -> Rb.
+
+rb_set(#rb{var=Var,val=Val}=Rb, Common0) ->
+    Common = [{Var,Val}|property_lists:delete(Var, Common0)],
+    {Rb,Common}.
+
+%%%
+%%% Buttons.
+%%%
+
+-record(but,
+	{label,
+	 action}).
+
+button(Label, Action) ->
+    But = #but{label=Label,action=Action},
+    Fun = button_fun(),
+    {Fun,false,But,0,(length(Label)+2)*?CHAR_WIDTH,?LINE_HEIGHT+6}.
+
+button_label(ok) -> "OK";
+button_label(Act) ->
+    wings_util:cap(atom_to_list(Act)).
+
+button_fun() ->
+    fun({redraw,Active}, Fi, But, _) ->
+	    button_draw(Active, Fi, But);
+       ({event,Ev}, Fi, But, _) ->
+	    button_event(Ev, Fi, But);
+       (value, _, _, _) -> none
+    end.
+
+button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
+    Y = Y0+?CHAR_HEIGHT,
+    wings_io:raised_rect(X, Y-H+9, W, H-5, ?MENU_COLOR),
+    TextX = X + (W-length(Label)*?CHAR_WIDTH) div 2,
+    wings_io:text_at(TextX, Y, Label),
+    if
+	Active == true ->
+	    L = length(Label),
+	    wings_io:text_at(TextX, Y, duplicate(L, $_));
+	true -> ok
+    end.
+
+button_event(#mousebutton{state=?SDL_RELEASED}, _, #but{action=Action}) ->
+    Action;
+button_event(_Ev, _Fi, But) -> But.
+
+%%%
 %%% Color box.
 %%%
 
@@ -548,11 +717,11 @@ color(Label, Def) ->
     {Fun,false,Col,L,L+3*?CHAR_WIDTH,?LINE_HEIGHT}.
 
 color_fun() ->
-    fun({redraw,Active}, Fi, Col) ->
+    fun({redraw,Active}, Fi, Col, _) ->
 	    col_draw(Active, Fi, Col);
-       ({event,Ev}, Fi, Col) ->
+       ({event,Ev}, Fi, Col, _) ->
 	    col_event(Ev, Fi, Col);
-       (value, _Fi, #col{color=Color}) ->
+       (value, _Fi, #col{color=Color}, _) ->
 	    Color
     end.
 
@@ -630,7 +799,7 @@ float_chars(_) -> false.
 
 all_chars(_) -> true.
 
-integer_validator(Flags) ->    
+integer_validator(Flags) ->
     case property_lists:get_value(range, Flags) of
 	undefined -> {8,fun accept_all/1};
 	{Min,Max} when is_integer(Min), is_integer(Max), Min =< Max ->
@@ -649,20 +818,20 @@ integer_range(Min, Max) ->
 		Int when is_integer(Int) -> ok
 	    end
     end.
-	    
+
 string_fun() ->
-    fun(value, _Fi, Ts) -> get_text(Ts);
-       (Other, Fi, Ts) -> gen_text_handler(Other, Fi, Ts)
+    fun(value, _Fi, Ts, _) -> get_text(Ts);
+       (Other, Fi, Ts, _) -> gen_text_handler(Other, Fi, Ts)
     end.
 
 integer_fun() ->
-    fun(value, _Fi, Ts) ->
+    fun(value, _Fi, Ts, _) ->
 	    list_to_integer(get_text(validate_string(Ts)));
-       (Other, Fi, Ts) -> gen_text_handler(Other, Fi, Ts)
+       (Other, Fi, Ts, _) -> gen_text_handler(Other, Fi, Ts)
     end.
 
 float_fun() ->
-    fun(value, _Fi, Ts) ->
+    fun(value, _Fi, Ts, _) ->
 	    Text = get_text(Ts),
 	    case catch list_to_float(Text) of
 		Float when is_float(Float) -> Float;
@@ -673,7 +842,7 @@ float_fun() ->
 			    wings_util:error("Bad number ("++Text++")")
 		    end
 	    end;
-       (Other, Fi, Ts) -> gen_text_handler(Other, Fi, Ts)
+       (Other, Fi, Ts, _) -> gen_text_handler(Other, Fi, Ts)
     end.
 
 gen_text_handler({redraw,Active}, Fi, Ts) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.36 2002/03/02 21:31:21 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.37 2002/03/31 10:26:18 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -67,8 +67,7 @@ command(prefs, St) ->
 	     {vframe,
 	      [{"Unselected Width",edge_width},
 	       {"Selected Width",selected_edge_width}],
-	      [{title,"Edge Display"}]}],
-	    []},
+	      [{title,"Edge Display"}]}]},
 	   {hframe,
 	    [{color,"Background",background_color},
 	     {color,"Face",face_color},
@@ -84,10 +83,10 @@ command(prefs, St) ->
 	      [{"Vertices",vertex_hilite},
 	       {"Edges",edge_hilite},
 	       {"Faces",face_hilite},
-	       {"Objects",body_hilite}],[]},
+	       {"Objects",body_hilite}]},
 	     {hframe,
 	      [{color,"Unselected",unselected_hlite},
-	       {color,"Selected",selected_hlite}],[]}],
+	       {color,"Selected",selected_hlite}]}],
 	    [{title,"Highlighting"}]},
 	   {hframe,
 	    [{vframe,[{"Length",active_vector_size},
@@ -96,26 +95,26 @@ command(prefs, St) ->
 	      [{title,"Vector Display"}]},
 	     {vframe,[{"Angle",auto_rotate_angle},
 		      {"Delay (ms)",auto_rotate_delay}],
-	      [{title,"Auto Rotate"}]}],[]},
+	      [{title,"Auto Rotate"}]}]},
 	   {hframe,
 	    [{vframe,
 	      [{"Show Axis Letters",show_axis_letters},
 	       {hframe,
 		[{color,"+X Color",x_color},
-		 {color,"-X Color",neg_x_color}],[]},
+		 {color,"-X Color",neg_x_color}]},
 	       {hframe,
 		[{color,"+Y Color",y_color},
-		 {color,"-Y Color",neg_y_color}],[]},
+		 {color,"-Y Color",neg_y_color}]},
 	       {hframe,
 		[{color,"+Z Color",z_color},
-		 {color,"-Z Color",neg_z_color}],[]}],
+		 {color,"-Z Color",neg_z_color}]}],
 	      [{title,"Axes"}]},
 	     {vframe,
 	      [{"Auto-save interval (min)",autosave_time},
 	       {"Show Memory Used",show_memory_used},
 	       {"Display List Optimization",display_list_opt},
 	       {"Advanced Menus",advanced_menus}],
-	      [{title,"Miscellanous"}]}],[]}],
+	      [{title,"Miscellanous"}]}]}],
     Qs = make_query(Qs0),
     wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
 command({set,List}, _St) ->

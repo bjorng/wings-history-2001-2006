@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.11 2002/03/04 19:31:44 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.12 2002/03/31 10:26:18 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -311,7 +311,6 @@ similar(#st{selmode=edge,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
     Templates0 = [make_edge_template(SelI, We) ||
 		    SelI <- gb_sets:to_list(Sel0)],
     Templates = ordsets:from_list(Templates0),
-    %%io:format("~w/~w\n", [length(Templates0),length(Templates)]),
     wings_sel:make(
       fun(Edge, W) ->
 	      match_templates(make_edge_template(Edge, W), Templates)
@@ -321,7 +320,6 @@ similar(#st{selmode=face,sel=[{Id,Sel0}],shapes=Shapes}=St) ->
     Templates0 = [make_face_template(SelI, We) ||
 		     SelI <- gb_sets:to_list(Sel0)],
     Templates = ordsets:from_list(Templates0),
-    %%io:format("~w/~w\n", [length(Templates0),length(Templates)]),
     wings_sel:make(
       fun(Face, WeI) ->
 	      match_templates(make_face_template(Face, WeI), Templates)
@@ -427,7 +425,7 @@ random(Percent, #st{selmode=Mode}=St) ->
 short_edges(Ask, St) when is_atom(Ask) ->
     Qs = [{"Length tolerance",1.0E-3,[{range,{1.0E-5,10.0}}]}],
     wings_ask:ask(Ask,
-		  {vframe, Qs, [{title,"Select Short Edges"}]}, St,
+		  [{vframe, Qs, [{title,"Select Short Edges"}]}], St,
 		  fun(Res) -> {select,{by,{short_edges,Res}}} end);
 short_edges([Tolerance], St0) ->
     St = wings_sel:make(fun(Edge, We) ->
@@ -435,7 +433,7 @@ short_edges([Tolerance], St0) ->
 			end, edge, St0),
     {save_state,St#st{selmode=edge}}.
 
-short_edge(Tolerance, Edge, #we{es=Etab,vs=Vtab}=We) ->
+short_edge(Tolerance, Edge, #we{es=Etab,vs=Vtab}) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
     VaPos = wings_vertex:pos(Va, Vtab),
     VbPos = wings_vertex:pos(Vb, Vtab),

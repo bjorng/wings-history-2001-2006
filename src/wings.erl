@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.125 2002/03/25 09:52:48 bjorng Exp $
+%%     $Id: wings.erl,v 1.126 2002/03/31 10:26:17 bjorng Exp $
 %%
 
 -module(wings).
@@ -370,9 +370,8 @@ command({edit,repeat_drag}, #st{selmode=Mode,repeatable=Cmd0,args=Args}=St) ->
     end,
     St;
 command({edit,repeat_drag}, St) -> St;
-command({edit,{camera_mode,Mode}}, St) ->
-    wings_camera:command(Mode),
-    St;
+command({edit,camera_mode}, St) ->
+    wings_camera:command(camera_mode, St);
 command({edit,purge_undo}, St) ->
     wings_undo:purge(St);
 command({edit,enable_patches}, St) ->

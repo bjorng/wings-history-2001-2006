@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.19 2002/03/25 09:54:15 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.20 2002/03/31 10:26:18 bjorng Exp $
 %%
 
 -module(wings_camera).
--export([sub_menu/1,command/1,help/0,event/2]).
+-export([sub_menu/1,command/2,help/0,event/2]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -27,25 +27,20 @@
 	}).
 
 sub_menu(_St) ->
-    Mode = wings_pref:get_value(camera_mode, blender),
-    Modes0 = [item(Mode, blender),
-	      item(Mode, nendo),
-	      item(Mode, tds),
-	      item(Mode, maya)],
-    Modes = append(Modes0),
-    {"Camera Mode: " ++ mode_desc(Mode),
-     {camera_mode,Modes}}.
+    {"Camera Mode",camera_mode}.
 
-item(Mode, Mode) -> [];
-item(_Other, Mode) -> [{mode_desc(Mode),Mode}].
-
-mode_desc(blender) -> "Wings/Blender";
-mode_desc(nendo) -> "Nendo";
-mode_desc(tds) -> "3ds max";
-mode_desc(maya) -> "Maya".
-    
-command(Mode) ->
-    wings_pref:set_value(camera_mode, Mode).
+command(camera_mode, St) ->
+    DefVar = {mode,wings_pref:get_value(camera_mode, blender)},
+    Qs = [{vframe,[{alt,DefVar,"Wings/Blender",blender},
+		   {alt,DefVar,"Nendo",nendo},
+		   {alt,DefVar,"3ds max",tds},
+		   {alt,DefVar,"Maya",maya}],
+	   [{title,"Camera Mode"}]}],
+    wings_ask:ask(Qs, St,
+		  fun([Mode]) ->
+			  wings_pref:set_value(camera_mode, Mode),
+			  ignore
+		  end).
 
 help() ->
     case wings_pref:get_value(camera_mode, blender) of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.28 2002/03/13 11:56:11 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.29 2002/03/31 10:26:18 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -94,7 +94,7 @@ cleanup(Ask, St) when is_atom(Ask) ->
 	  {"Isolated Vertices",true,[{key,isolated_vs}]},
 	  {"Maximum Angle",1.0,[{range,{1.0E-5,180.0}}]}],
     wings_ask:ask(Ask,
-		  {vframe, Qs, [{title,"Remove"}]}, St,
+		  [{vframe, Qs, [{title,"Remove"}]}], St,
 		  fun(Res) -> {body,{cleanup,Res}} end);
 cleanup(Opts, St0) ->
     St = wings_sel:map(fun(_, We) -> cleanup_1(Opts, We) end, St0),
