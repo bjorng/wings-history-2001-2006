@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.13 2001/10/21 20:31:06 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.14 2001/10/29 06:00:51 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -372,7 +372,7 @@ axis(I) ->
     A = setelement(I, A0, 1000.0),
     B = setelement(I, A0, -1000.0),
     C = setelement(I, A0, 1.0),
-    C2 = setelement(I, {0.5,0.5,0.5}, 0.0),
+    C2 = setelement(I, {0.8,0.8,0.8}, 0.0),
     gl:'begin'(?GL_LINES),
     gl:color3fv(C),
     gl:vertex3fv(A0),
