@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.269 2004/10/16 07:20:15 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.270 2004/10/20 09:13:53 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -387,7 +387,7 @@ command_menu(vertex, X, Y) ->
 	    separator,
 	    {"Flatten",{flatten,
 			[{"X", x, "Flatten horizontally"},
-			 {"Y", x, "Flatten vertically"}]}, 
+			 {"Y", y, "Flatten vertically"}]}, 
 	     "Flatten selected vertices"},
 	    {"Tighten",tighten,
 	     "Move UV coordinates towards average midpoint",
