@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.4 2001/11/07 07:01:49 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.5 2001/11/15 11:11:15 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2,call_ui/1]).
 
 -include("wings.hrl").
--import(lists, [append/1,flatmap/2,foreach/2,sort/1,reverse/1]).
+-import(lists, [append/1,flatmap/2,foreach/2,sort/1,reverse/1,foldl/3]).
 
 %%%
 %%% Currently, there can be a single directory for plugins, but
@@ -49,15 +49,23 @@ init() ->
 init(Dir) ->
     {Pas,Beams} = list_dir(Dir),
     foreach(fun(Pa) -> code:add_patha(Pa) end, Pas),
-    TypeMods = [to_module(Beam) || Beam <- Beams],
-    foreach(fun({Type,Mod}) -> c:l(Mod) end, TypeMods),
+    TypeMods0 = [to_module(Beam) || Beam <- Beams],
+    TypeMods = load_modules(TypeMods0),
     UiMods = reverse(sort([Mod || {user_interface,Mod} <- TypeMods])),
     init_ui_plugins(UiMods),
     Menus0 = [rearrange(N, T, Type, M, C) ||
-		 {Type,M} <- TypeMods, {N,{T,C}} <- M:menus()],
+		 {Type,M} <- TypeMods, {N,{T,C}} <- catch M:menus()],
     Menus1 = sofs:relation(Menus0),
     Menus = sofs:relation_to_family(Menus1),
     sofs:to_external(Menus).
+
+load_modules(TypeMods) ->
+    foldl(fun({_,Mod}=TypeMod, A) ->
+		  case c:l(Mod) of
+		      {module,Mod} -> [TypeMod|A];
+		      Error -> A
+		  end
+	  end, [], TypeMods).
 
 init_ui_plugins(Ms) ->
     Def = fun(Missing) ->
