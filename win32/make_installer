@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Windows.
 #
-# $Id: make_installer,v 1.10 2004/11/12 17:50:47 bjorng Exp $
+# $Id: make_installer,v 1.11 2005/03/12 09:42:53 bjorng Exp $
 #
 OS=`uname -o`
 if [ X$OS != XCygwin ]; then
@@ -56,7 +56,8 @@ $INSTALL -d "$dest/plugins/default" "$dest/plugins/accel" \
  "$dest/plugins/fonts" \
  "$dest/plugins/import_export" "$dest/plugins/commands" \
  "$dest/plugins/primitives" "$dest/plugins/win32_file" \
- "$dest/plugins/autouv" "$dest/plugins/jpeg"
+ "$dest/plugins/autouv" "$dest/plugins/jpeg" "$dest/plugins/fbx"
+
 $INSTALL -c -m 644 plugins/default/wp9_dialogs.beam "$dest/plugins/default"
 $INSTALL -c -m 644 plugins/accel/* "$dest/plugins/accel"
 $INSTALL -c -m 644 plugins/fonts/* "$dest/plugins/fonts"
@@ -66,6 +67,7 @@ $INSTALL -c -m 644 plugins/primitives/* "$dest/plugins/primitives"
 $INSTALL -c -m 644 plugins/win32_file/* "$dest/plugins/win32_file"
 $INSTALL -c -m 644 plugins/autouv/* "$dest/plugins/autouv"
 $INSTALL -c -m 644 plugins/jpeg/* "$dest/plugins/jpeg"
+$INSTALL -c -m 644 plugins/fbx/* "$dest/plugins/fbx"
 
 # Copy the relevant parts of Erlang/OTP.
 
