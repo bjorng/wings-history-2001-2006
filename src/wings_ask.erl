@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.13 2002/04/10 08:17:13 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.14 2002/04/10 13:00:31 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -87,7 +87,7 @@ init_fields(I, N, #s{fi=Fis,priv=Priv0,common=Common0}=S) when I =< N ->
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv0),
     case Handler({event,init}, Fi, Fst0, Common0) of
-	{Fst,Common} when is_tuple(Fst), is_tuple(Common) ->
+	{Fst,Common} when is_atom(element(1, Fst)), is_tuple(Common) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    init_fields(I+1, N, S#s{priv=Priv,common=Common});
 	Fst when is_atom(element(1, Fst)) ->
@@ -124,6 +124,10 @@ event(#mousemotion{x=X,y=Y}=Ev, S) ->
 event(#resize{}=Ev, _S) ->
     wings_io:putback_event(Ev),
     pop;
+event({action,{update,I,{Fst,Common}}}, #s{priv=Priv0}=S)
+  when is_atom(element(1, Fst)), is_tuple(Common) ->
+    Priv = setelement(I, Priv0, Fst),
+    get_event(S#s{priv=Priv,common=Common});
 event({action,{update,I,Fst}}, #s{priv=Priv0}=S) ->
     Priv = setelement(I, Priv0, Fst),
     get_event(S#s{priv=Priv});
@@ -195,7 +199,7 @@ set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0,common=Common0}=S) ->
     
     {OldFst,Common2} = 
 	case OldHandler({event,{focus,false}}, OldFi, OldFst0, Common0) of
-	    {Ofst,Common1} when is_tuple(Ofst), is_tuple(Common1) ->
+	    {Ofst,Common1} when is_atom(element(1, Ofst)), is_tuple(Common1) ->
 		{Ofst,Common1};
 	    Ofst when is_atom(element(1, Ofst)) ->
 		{Ofst,Common0}
@@ -206,7 +210,7 @@ set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0,common=Common0}=S) ->
     Fst0 = element(I, Priv1),
     {Fst,Common} =
 	case Handler({event,{focus,true}}, Fi, Fst0, Common2) of
-	    {Fst1,Common3} when is_tuple(Fst1), is_tuple(Common3) ->
+	    {Fst1,Common3} when is_atom(element(1, Fst1)), is_tuple(Common3) ->
 		{Fst1,Common3};
 	    Fst1 when is_atom(element(1, Fst1)) ->
 		{Fst1,Common2}
@@ -229,7 +233,7 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	    pop;
 	{ask,Qs,Fun} ->
 	    recursive_ask(I, Qs, Fun, S);
-	{Fst,Common} when is_tuple(Fst), is_tuple(Common) ->
+	{Fst,Common} when is_atom(element(1, Fst)), is_tuple(Common) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    get_event(S#s{priv=Priv,common=Common});
 	Fst when is_atom(element(1, Fst)) ->
@@ -278,6 +282,9 @@ return_result(_, _, _, #s{call=EndFun}=S, Res) ->
 	    exit(Reason);
 	ignore ->
 	    wings_io:putback_event(redraw),
+	    pop;
+	#st{}=St ->
+	    wings_io:putback_event({new_state,St}),
 	    pop;
 	Action when is_tuple(Action); is_atom(Action) ->
 	    wings_io:putback_event({action,Action}),
@@ -741,24 +748,27 @@ button_event(_Ev, _Fi, But) -> But.
 
 -record(col,
 	{label,
-	 color}).
+	 val}).
 
 color(Label, Def) ->
-    Col = #col{label=Label,color=Def},
+    Col = #col{label=Label,val=Def},
     Fun = color_fun(),
     L = (length(Label)+1)*?CHAR_WIDTH,
     {Fun,false,Col,L,L+3*?CHAR_WIDTH,?LINE_HEIGHT}.
 
 color_fun() ->
-    fun({redraw,Active}, Fi, Col, _) ->
-	    col_draw(Active, Fi, Col);
-       ({event,Ev}, Fi, Col, _) ->
-	    col_event(Ev, Fi, Col);
-       (value, _Fi, #col{color=Color}, _) ->
-	    Color
+    fun({redraw,Active}, Fi, Col, Common) ->
+	    col_draw(Active, Fi, Col, Common);
+       ({event,init}, #fi{key=Key}, #col{val=Val}=Col, Common) ->
+	    {Col,gb_trees:insert(Key, Val, Common)};
+       ({event,Ev}, Fi, Col, Common) ->
+	    col_event(Ev, Fi, Col, Common);
+       (value, #fi{key=Key}, _Col, Common) ->
+	    gb_trees:get(Key, Common)
     end.
 
-col_draw(Active, #fi{x=X,y=Y0,lw=Lw}, #col{label=Label,color=Color}) ->
+col_draw(Active, #fi{key=Key,x=X,y=Y0,lw=Lw}, #col{label=Label}, Common) ->
+    Color = gb_trees:get(Key, Common),
     wings_io:sunken_rect(X+Lw, Y0+3,
 			 3*?CHAR_WIDTH, ?CHAR_HEIGHT-2, Color),
     Y = Y0+?CHAR_HEIGHT,
@@ -770,17 +780,18 @@ col_draw(Active, #fi{x=X,y=Y0,lw=Lw}, #col{label=Label,color=Color}) ->
 	true -> ok
     end.
 
-col_event({key,_,_,$\s}, _, Col) ->
-    pick_color(Col);
-col_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, #fi{x=X,lw=Lw}, Col) ->
+col_event({key,_,_,$\s}, Fi, Col, Common) ->
+    pick_color(Fi, Col, Common);
+col_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, #fi{x=X,lw=Lw}=Fi, Col, Common) ->
     if
 	X+Lw =< Xb, Xb < X+Lw+3*?CHAR_WIDTH ->
-	    pick_color(Col);
-	true -> Col
+	    pick_color(Fi, Col, Common);
+	true -> {Col,Common}
     end;
-col_event(_Ev, _Fi, Col) -> Col.
+col_event(_Ev, _Fi, Col, Common) -> {Col,Common}.
 
-pick_color(#col{color={R0,G0,B0}}=Col) ->
+pick_color(#fi{key=Key}, Col, Common0) ->
+    {R0,G0,B0} = gb_trees:get(Key, Common0),
     Range = [{range,{0,255}}],
     Draw = fun(X, Y, _W, _H, Common) ->
 		   Color = {gb_trees:get(r, Common)/255,
@@ -792,7 +803,10 @@ pick_color(#col{color={R0,G0,B0}}=Col) ->
 	  {slider,{"R",trunc(R0*255),[{key,r}|Range]}},
 	  {slider,{"G",trunc(G0*255),[{key,g}|Range]}},
 	  {slider,{"B",trunc(B0*255),[{key,b}|Range]}}],
-     fun([{r,R},{g,G},{b,B}]) -> Col#col{color={R/255,G/255,B/255}} end}.
+     fun([{r,R},{g,G},{b,B}]) ->
+	     Val = {R/255,G/255,B/255},
+	     {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
+     end}.
 
 %%%
 %%% Custom field.
@@ -885,13 +899,14 @@ slider_move(Xb, #fi{x=X}, #sl{min=Min,range=Range,peer=Peer}=Sl, Common) ->
 
 text_field(Label, Def, Flags) when is_float(Def) ->
     DefStr = text_val_to_str(Def),
-    init_text(Label, Def, DefStr, 15, false,
-	      fun float_chars/1, fun(_) -> ok end);
+    {Max,Validator} = float_validator(Flags),
+    init_text(Label, Def, DefStr, Max, false,
+	      fun float_chars/1, Validator);
 text_field(Label, Def, Flags) when is_integer(Def) ->
     {Max,Validator} = integer_validator(Flags),
     init_text(Label, Def, integer_to_list(Def), Max, true,
 	      fun integer_chars/1, Validator);
-text_field(Label, Def, Flags) when is_list(Def) ->
+text_field(Label, Def, _Flags) when is_list(Def) ->
     init_text(Label, Def, Def, 30, false,
 	      fun all_chars/1, fun(_) -> ok end).
 
@@ -928,6 +943,14 @@ integer_validator(Flags) ->
 	    {Digits,integer_range(Min, Max)}
     end.
 
+float_validator(Flags) ->
+    case property_lists:get_value(range, Flags) of
+	undefined -> {12,fun accept_all/1};
+	{Min,Max} when is_float(Min), is_float(Max), Min =< Max ->
+	    Digits = trunc(math:log(Max-Min+1)/math:log(10))+8,
+	    {Digits,float_range(Min, Max)}
+    end.
+
 accept_all(_) -> ok.
 
 integer_range(Min, Max) ->
@@ -937,6 +960,16 @@ integer_range(Min, Max) ->
 		Int when Int < Min -> integer_to_list(Min);
 		Int when Int > Max -> integer_to_list(Max);
 		Int when is_integer(Int) -> ok
+	    end
+    end.
+
+float_range(Min, Max) ->
+    fun(Str) ->
+	    case catch list_to_float(Str) of
+		{'EXIT',_} -> float_to_list(Min);
+		Float when Float < Min -> float_to_list(Min);
+		Float when Float > Max -> float_to_list(Max);
+		Float when is_float(Float) -> ok
 	    end
     end.
 

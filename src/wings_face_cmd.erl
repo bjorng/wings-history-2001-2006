@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.44 2002/04/02 15:55:27 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.45 2002/04/10 13:00:31 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -85,11 +85,8 @@ command(intrude, St) ->
     ?SLOW(intrude(St));
 command(dissolve, St) ->
     {save_state,model_changed(dissolve(St))};
-command({material,_}=Cmd, St0) ->
-    case wings_material:command({face,Cmd}, St0) of
-	#st{}=St -> {save_state,model_changed(St)};
-	Other -> Other
-    end;
+command({material,_}=Cmd, St) ->
+    wings_material:command({face,Cmd}, St);
 command(bridge, St) ->
     {save_state,model_changed(bridge(St))};
 command(smooth, St) ->

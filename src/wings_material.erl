@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.29 2002/04/08 08:08:32 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.30 2002/04/10 13:00:31 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -41,7 +41,7 @@ sub_menu(face, St) ->
     Materials = [{"New",new},separator|Mlist],
     {"Set Material",{material,Materials}};
 sub_menu(edit, St) ->
-    {"Material [ALPHA]",{material,material_list(St)}};
+    {"Material",{material,material_list(St)}};
 sub_menu(select, St) ->
     {"Material",{material,material_list(St)}}.
 
@@ -52,8 +52,8 @@ command({face,{material,{new,Name0}}}, St0) ->
     Name = list_to_atom(Name0),
     Mat = make_default({1.0,1.0,1.0}, 1.0),
     St1 = add(Name, Mat, St0),
-    St = edit(Name, St1),
-    set_material(Name, St);
+    St = set_material(Name, St1),
+    edit(Name, St);
 command({face,{material,Mat}}, St) ->
     set_material(Mat, St);
 command({select,{material,Mat}}, St) ->
@@ -203,12 +203,79 @@ to_external({Name,#mat{ambient=Amb,diffuse=Diff,specular=Spec,
 
 %%% The material editor.
 
+-define(PREVIEW_SIZE, 100).
+
 edit(Name, #st{mat=Mtab0}=St) ->
     Mat0 = gb_trees:get(Name, Mtab0),
-    Mat = setup_fun(wings_matedit:edit(Mat0)),
-    Mtab = gb_trees:update(Name, Mat, Mtab0),
-    wings_draw:model_changed(St#st{mat=Mtab}).
+    #mat{ambient=Amb0,diffuse=Diff0,specular=Spec0,
+	 shininess=Shine0,opacity=Opacity0} = Mat0,
+    Qs = [{hframe,
+	   [{vframe,
+	     [{color,"Diffuse",Diff0,[{key,diffuse}]},
+	      {color,"Ambient",Amb0,[{key,ambient}]},
+	      {color,"Specular",Spec0,[{key,specular}]},
+	      {slider,{"Shininess",Shine0,[{range,{0.0,1.0}},{key,shininess}]}},
+	      {slider,{"Opacity",Opacity0,[{range,{0.0,1.0}},{key,opacity}]}}]},
+	    {custom,?PREVIEW_SIZE,?PREVIEW_SIZE,fun mat_preview/5}]}],
+    Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
+	       {shininess,Shine},{opacity,Opacity}]) ->
+		  Mat1 = Mat0#mat{ambient=Amb,diffuse=Diff,specular=Spec,
+				  shininess=Shine,opacity=Opacity},
+		  Mat = setup_fun(Mat1),
+		  Mtab = gb_trees:update(Name, Mat, Mtab0),
+		  wings_draw:model_changed(St#st{mat=Mtab})
+	  end,
+    wings_ask:ask(Qs, St, Ask).
 
+mat_preview(X, Y, _W, _H, Common) ->
+    wings_io:sunken_rect(X, Y, ?PREVIEW_SIZE, ?PREVIEW_SIZE, ?PANE_COLOR),
+    MM = gl:getDoublev(?GL_MODELVIEW_MATRIX),
+    PM = gl:getDoublev(?GL_PROJECTION_MATRIX),
+    [_,_,_,Wh] = ViewPort = gl:getIntegerv(?GL_VIEWPORT),
+    {true,Ox,Oy0,_} = glu:project(X, Y, 0, MM, PM, ViewPort),
+    Oy = Wh-Oy0,
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.5, 0.5, -2, 1}),
+    gl:viewport(trunc(Ox), trunc(Oy), ?PREVIEW_SIZE, ?PREVIEW_SIZE),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:pushMatrix(),
+    gl:loadIdentity(),
+    gl:shadeModel(?GL_SMOOTH),
+    Alpha = gb_trees:get(opacity, Common),
+    Amb = preview_mat(ambient, Common, Alpha),
+    Diff = preview_mat(diffuse, Common, Alpha),
+    Spec = preview_mat(specular, Common, Alpha),
+    Shine = gb_trees:get(shininess, Common),
+    gl:materialfv(?GL_FRONT, ?GL_SHININESS, (1.0-Shine)*128.0),
+    gl:materialfv(?GL_FRONT, ?GL_AMBIENT, Amb),
+    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
+    gl:materialfv(?GL_FRONT, ?GL_SPECULAR, Spec),
+    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    gl:enable(?GL_LIGHTING),
+    gl:enable(?GL_BLEND),
+    gl:enable(?GL_DEPTH_TEST),
+    Obj = glu:newQuadric(),
+    glu:quadricDrawStyle(Obj, ?GLU_FILL),
+    glu:quadricNormals(Obj, ?GLU_SMOOTH),
+    glu:sphere(Obj, 0.8, 50, 50),
+    glu:deleteQuadric(Obj),
+    gl:disable(?GL_LIGHTING),
+    gl:disable(?GL_BLEND),
+    gl:disable(?GL_DEPTH_TEST),
+    gl:shadeModel(?GL_FLAT),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:popMatrix(),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:popMatrix(),
+    gl:popAttrib().
+
+preview_mat(Key, Colors, Alpha) ->
+    {R,G,B} = gb_trees:get(Key, Colors),
+    {R,G,B,Alpha}.
+    
 %%% Return color in texture for the given UV coordinates.
 
 color(Face, {U,V}, #we{fs=Ftab}, #st{mat=Mtab}) ->
