@@ -8,69 +8,43 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile.win32,v 1.5 2002/11/02 14:08:11 bjorng Exp $
+#     $Id: Makefile.win32,v 1.1 2002/11/02 14:08:11 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
 	.fig .dvi .tex .class .java .pdf .psframe .pscrop .removed
 
 ESRC=.
-EBIN=..\plugins
+EBIN=..\..\plugins\autouv
 ERLC=erlc
-
+WINGS_SRC=../../src
+WINGS_E3D=../../e3d
+!if !defined(ESDL_PATH)
+ESDL_PATH=..\..\..\esdl
+!endif
 
 TARGET_FILES= \
-	$(EBIN)\wp9_dialogs.beam
+	$(EBIN)\auv_segment.beam \
+	$(EBIN)\auv_mapping.beam \
+	$(EBIN)\auv_placement.beam \
+	$(EBIN)\auv_matrix.beam \
+	$(EBIN)\wpc_autouv.beam
 
 REMOVE_FILES=$(TARGET_FILES:.beam=.removed)
 
 # ----------------------------------------------------
 # FLAGS
 # ----------------------------------------------------
-ERL_FLAGS = 
-ERL_COMPILE_FLAGS = -W $(TYPE_FLAGS)
+ERL_FLAGS = -I $(WINGS_SRC) -I $(WINGS_E3D) -pa $(ESDL_PATH)/ebin
+ERL_COMPILE_FLAGS = -W $(TYPE_FLAGS) +warn_unused_vars
 
 # ----------------------------------------------------
 # Targets
 # ----------------------------------------------------
 
-common: $(TARGET_FILES) subdirs
+common: $(TARGET_FILES)
 
-subdirs:
-	cd win32_file
-	$(MAKE)
-	cd ..
-	cd import_export
-	$(MAKE) -f Makefile.win32
-	cd ..
-	cd primitives
-	$(MAKE) -f Makefile.win32
-	cd ..
-	cd commands
-	$(MAKE) -f Makefile.win32
-	cd ..
-	cd autouv
-	$(MAKE) -f Makefile.win32
-	cd ..
-
-clean: $(REMOVE_FILES) subdirs_clean
-
-subdirs_clean:
-	cd win32_file
-	$(MAKE) clean
-	cd .. 
-	cd import_export
-	$(MAKE) clean
-	cd .. 
-	cd primitives
-	$(MAKE) clean
-	cd .. 
-	cd commands
-	$(MAKE) clean
-	cd .. 
-	cd autouv
-	$(MAKE) clean
-	cd .. 
+clean: $(REMOVE_FILES)
 
 {$(EBIN)}.beam{$(EBIN)}.removed:
 	-del $(*R).beam
