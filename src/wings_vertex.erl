@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.32 2002/11/14 20:09:54 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.33 2002/11/20 17:06:28 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -23,7 +23,7 @@
 	 connect/3,force_connect/4,
 	 patch_vertex/3,pos/2,
 	 outer_partition/2,reachable/2,
-	 isolated/1]).
+	 isolated/1,edge_through/3,edge_through/4]).
 
 -include("wings.hrl").
 -import(lists, [member/2,keymember/3,foldl/3,reverse/1,last/1,sort/1]).
@@ -430,15 +430,17 @@ connect_pairs([], _, _) -> no.
 
 try_connect({Va,Vb}, Face, We) ->
     %% Do not try to connect if there is an edge from Va to Vb in this face.
-    Bad = until(fun(_, _, #edge{lf=Lf,rf=Rf}=Rec, A) ->
-			case other(Va, Rec) of
-			    Vb when Lf =:= Face; Rf =:= Face -> true;
-			    _ -> A
-			end
-		end, false, Va, We),
-    case Bad of
-	true -> no;
-	false -> force_connect(Va, Vb, Face, We)
+    case edge_through(Va, Vb, Face, We) of
+	none -> try_connect_1(Va, Vb, Face, We);
+	_ -> no
+    end.
+
+try_connect_1(Va, Vb, Face, We0) ->
+    {We,NewFace} = Res = force_connect(Va, Vb, Face, We0),
+    case wings_face:good_normal(Face, We) andalso
+	wings_face:good_normal(NewFace, We) of
+	true -> Res;
+	false -> no
     end.
 
 force_connect(Vstart, Vend, Face, #we{es=Etab0,fs=Ftab0}=We0) ->
@@ -684,4 +686,25 @@ is_face_stable_1([], _, N) -> N >= 3.
 is_corner(V, We) ->
     N = fold(fun(_, _, _, A) -> A+1 end, 0, V, We),
     N >= 3.
-		     
+
+%% edge_through(Vertex1, Vertex1, Face, We) -> Edge|none
+%%  Returns the edge number of the edge between Vertex1 and Vertex2
+%%  in the given face (if there is one).
+edge_through(Va, Vb, Face, We) ->
+    case edge_through(Va, Vb, We) of
+	none -> none;
+	{Edge,Face,_} -> Edge;
+	{Edge,_,Face} -> Edge;
+	_ -> none
+    end.
+
+%% edge_through(Vertex1, Vertex1, We) -> {Edge,LeftFace,RightFace}|none
+%%  Returns the edge number and faces number of the edge between
+%% Vertex1 and Vertex2 (if there is one).
+edge_through(Va, Vb, We) ->
+    until(fun(Edge, _, #edge{lf=Lf,rf=Rf}=Rec, A) ->
+		  case other(Va, Rec) of
+		      Vb -> {Edge,Lf,Rf};
+		      _ -> A
+		  end
+	  end, none, Va, We).
