@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.22 2003/03/26 22:31:41 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.23 2003/03/27 22:09:30 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -232,7 +232,13 @@ attr(St, Attr) ->
 
 fun_export_2(Attr) ->
     fun (Filename, Contents) ->
-	    export(Attr, Filename, Contents)
+	    case catch export(Attr, Filename, Contents) of
+		ok ->
+		    ok;
+		Error ->
+		    io:format("Failed to export:~n~p~n", [Error]),
+		    {error,"Failed to export"}
+	    end
     end.
 
 load_image(Filename) ->
@@ -247,6 +253,9 @@ load_image(Filename) ->
     end.
 
 
+
+%%% Dialogues and results
+%%%
 
 material_dialog(_Name, Mat) ->
     Maps = proplists:get_value(maps, Mat, []),
@@ -497,6 +506,9 @@ export_dialog(Operation) ->
 
 
 
+%%% Export and rendering functions
+%%%
+
 export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     Render = proplists:get_value(?TAG_RENDER, Attr, false),
     {ExportFile,RenderFile} =
@@ -511,73 +523,69 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 		 filename:rootname(filename:basename(Filename))++".tga"}
 	end,
     ExportDir = filename:dirname(ExportFile),
-    case open(ExportFile, export) of
-	{error,_}=Error -> 
-	    Error;
-	{ok,F} ->
-	    CameraName = "x_Camera",
-	    ConstBackgroundName = "x_ConstBackground",
-	    SunskyBackgroundName = "t_SunskyBackground",
-	    %%
-	    Lights = proplists:get_value(lights, Attr, []),
-	    println(F, "<!-- ~s: Exported from ~s -->~n"++
-		    "~n"++
-		    "<scene>", [filename:basename(ExportFile), Creator]),
-	    %%
-	    section(F, "Shaders"),
-	    foreach(fun ({Name, Mat}) -> 
-			    export_shader(F, "w_"++format(Name), Mat,
-					  ExportDir),
-			    println(F)
-		    end, 
-		    Mats),
-	    %%
-	    section(F, "Objects"),
-	    foreach(fun (#e3d_object{name=Name,obj=Mesh}) ->
-			    export_object(F, "w_"++format(Name), Mesh, Mats),
-			    println(F)
-		    end,
-		    Objs),
-	    %%
-	    section(F, "Lights"),
-	    foreach(fun ({Name, Ps}) -> 
-			    export_light(F, "w_"++format(Name), Ps),
-			    println(F)
-		    end,
-		    Lights),
-	    %%
-	    section(F, "Background, Camera, Filter and Render"),
-	    export_background_constant(F, ConstBackgroundName, Attr),
-	    println(F),
-	    export_background_sunsky(F, SunskyBackgroundName),
-	    println(F),
-	    export_camera(F, CameraName, Attr),
-	    println(F),
-	    export_render(F, CameraName, ConstBackgroundName, 
-			  filename:basename(RenderFile), Attr),
-	    %%
-	    println(F),
-	    println(F, "</scene>"),
-	    close(F),
-	    Renderer = get_var(renderer),
-	    Options = proplists:get_value(options,Attr,?DEF_OPTIONS),
-	    LoadImage = proplists:get_value(load_image,Attr,?DEF_LOAD_IMAGE),
-	    case {Renderer,Render} of
-		{false,_} ->
-		    ok;
-		{_,false} ->
-		    ok;
-		_ ->
-		    Parent = self(),
-		    spawn_link(
-		      fun () -> 
-			      file:delete(RenderFile),
-			      render(Renderer, Options, ExportFile, 
-				     Parent, LoadImage) 
-		      end),
-		    set_var(rendering, RenderFile),
-		    ok
-	    end
+    F = open(ExportFile, export),
+    CameraName = "x_Camera",
+    ConstBackgroundName = "x_ConstBackground",
+    SunskyBackgroundName = "t_SunskyBackground",
+    %%
+    Lights = proplists:get_value(lights, Attr, []),
+    println(F, "<!-- ~s: Exported from ~s -->~n"++
+	    "~n"++
+	    "<scene>", [filename:basename(ExportFile), Creator]),
+    %%
+    section(F, "Shaders"),
+    foreach(fun ({Name, Mat}) -> 
+		    export_shader(F, "w_"++format(Name), Mat,
+				  ExportDir),
+		    println(F)
+	    end, 
+	    Mats),
+    %%
+    section(F, "Objects"),
+    foreach(fun (#e3d_object{name=Name,obj=Mesh}) ->
+		    export_object(F, "w_"++format(Name), Mesh, Mats),
+		    println(F)
+	    end,
+	    Objs),
+    %%
+    section(F, "Lights"),
+    foreach(fun ({Name, Ps}) -> 
+		    export_light(F, "w_"++format(Name), Ps),
+		    println(F)
+	    end,
+	    Lights),
+    %%
+    section(F, "Background, Camera, Filter and Render"),
+    export_background_constant(F, ConstBackgroundName, Attr),
+    println(F),
+    export_background_sunsky(F, SunskyBackgroundName),
+    println(F),
+    export_camera(F, CameraName, Attr),
+    println(F),
+    export_render(F, CameraName, ConstBackgroundName, 
+		  filename:basename(RenderFile), Attr),
+    %%
+    println(F),
+    println(F, "</scene>"),
+    close(F),
+    Renderer = get_var(renderer),
+    Options = proplists:get_value(options,Attr,?DEF_OPTIONS),
+    LoadImage = proplists:get_value(load_image,Attr,?DEF_LOAD_IMAGE),
+    case {Renderer,Render} of
+	{false,_} ->
+	    ok;
+	{_,false} ->
+	    ok;
+	_ ->
+	    Parent = self(),
+	    spawn_link(
+	      fun () -> 
+		      file:delete(RenderFile),
+		      render(Renderer, Options, ExportFile, 
+			     Parent, LoadImage) 
+	      end),
+	    set_var(rendering, RenderFile),
+	    ok
     end.
 
 
@@ -648,7 +656,7 @@ render_job(Port) ->
 		    ok after 1 -> ok end,
 	    ExitStatus;
 	{Port,{data,{Tag,Data}}} ->
-	    io:put_chars(Data),
+	    io:put_chars(cr_to_nl(Data)),
 	    case Tag of	eol -> io:nl(); _ -> ok end,
 	    render_job(Port);
 	{'EXIT',Port,Reason} ->
@@ -1029,8 +1037,15 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
 
 
 
+%% Noisy file output functions. Fail if anything goes wrong.
+
 open(Filename, export) ->
-    file:open(Filename, [write,raw,delayed_write]).
+    case file:open(Filename, [write,raw,delayed_write]) of
+	{ok, F} ->
+	    F;
+	Error ->
+	    erlang:fault(Error, [Filename, export])
+    end.
 
 println(F) ->
     println(F, "").
@@ -1060,6 +1075,9 @@ close(F) ->
     end.
 
 
+
+%% Convert certain terms to printable strings in an 
+%% hopefully efficient way.
 
 format(F) when is_float(F) ->
     I = abs(trunc(F)),
@@ -1138,6 +1156,8 @@ format_decimals_4(F) when is_float(F) ->
 
     
 
+%% Set and get preference variables saved in the .wings file for this module
+
 set_pref(Attr) ->
     wpa:pref_set(?MODULE, Attr).
 
@@ -1145,6 +1165,9 @@ get_pref(Key, Def) ->
     wpa:pref_get(?MODULE, Key, Def).
 
 
+
+%% Set and get global variables (in the process dictionary) 
+%% per wings session for this module.
 
 set_var(Name, undefined) ->
     erase_var(Name);
@@ -1159,6 +1182,8 @@ erase_var(Name) ->
 
 
 
+%% Count the number of equal elements in a row in the list
+
 count_equal([H|T]) ->
     count_equal(T, 1, H, []).
 
@@ -1171,6 +1196,9 @@ count_equal([H|T], C, K, R) ->
 
 
 
+%% Like os:find_executable, but if the found executable is a .bat file
+%% on windows; scan the .bat file for a real executable file.
+%%
 find_executable(Name) ->
     case os:find_executable(Name) of
 	false ->
@@ -1189,6 +1217,7 @@ find_executable(Name) ->
 	    end
     end.
 
+%% Search .bat file for an executable file
 find_in_bat(Filename) ->
     case file:open(Filename, [read]) of
 	{ok,F} ->
@@ -1199,47 +1228,76 @@ find_in_bat(Filename) ->
 	    false
     end.
 
+%% Scan each line of the .bat file
 scan_bat(F) ->
-    case io:get_line(F, "") of
-	"@echo"++[C|_] when C==$ ; C==$\t; C==$\n ->
+    case rskip_warg(skip_walpha(io:get_line(F, ""))) of
+	"" ->
 	    scan_bat(F);
 	"echo"++[C|_] when C==$ ; C==$\t; C==$\n ->
 	    scan_bat(F);
-	"@set"++[C|_] when C==$ ; C==$\t; C==$\n ->
-	    scan_bat(F);
 	"set"++[C|_] when C==$ ; C==$\t; C==$\n ->
 	    scan_bat(F);
-	[$@,Line] ->
-	    rscan_line(F, lists:reverse(Line));
 	Line when list(Line) ->
-	    rscan_line(F, lists:reverse(Line));
-	_ ->
-	    false
-    end.
-
-rscan_line(F, []) ->
-    scan_bat(F);
-rscan_line(F, [C|T])  when C==$ ; C==$\t; C==$\n ->
-    rscan_line(F, T);
-rscan_line(F, [C,$%|T]) when C >= $0, C =< $9 ->
-    rscan_line(F, T);
-rscan_line(F, Rcmd) ->
-    Filename = lists:reverse(Rcmd),
-    case file:read_file_info(Filename) of
-	{ok,#file_info{type=regular,access=A,mode=M}} ->
-	    case A of
-		read when (M band 8#500) == 8#500 ->
-		    Filename;
-		read_write when (M band 8#500) == 8#500 ->
-		    Filename;
+	    %% Check if this is the name of an executable file
+	    Filename = filename:nativename(Line),
+	    case file:read_file_info(Filename) of
+		{ok,#file_info{type=regular,access=A,mode=M}} ->
+		    case A of
+			read when (M band 8#500) == 8#500 ->
+			    Filename;
+			read_write when (M band 8#500) == 8#500 ->
+			    Filename;
+			_ ->
+			    scan_bat(F)
+		    end;
 		_ ->
 		    scan_bat(F)
 	    end;
 	_ ->
-	    scan_bat(F)
+	    false
     end.
 
 
+
+%% Skip whitespace and one '@' from beginning of line
+
+skip_walpha([$ |T]) ->
+    skip_walpha(T);
+skip_walpha([$\t|T]) ->
+    skip_walpha(T);
+skip_walpha([$\n|T]) ->
+    skip_walpha(T);
+skip_walpha([$@|T]) ->
+    skip_walpha1(T);
+skip_walpha(L) ->
+    L.
+
+skip_walpha1([$ |T]) ->
+    skip_walpha(T);
+skip_walpha1([$\t|T]) ->
+    skip_walpha(T);
+skip_walpha1([$\n|T]) ->
+    skip_walpha(T);
+skip_walpha1(L) ->
+    L.
+
+%% Skip whitespace and '%d' .bat file arguments from end of line
+
+rskip_warg(L) ->
+    rskip_warg1(lists:reverse(L)).
+
+rskip_warg1([$ |T]) ->
+    rskip_warg1(T);
+rskip_warg1([$\t|T]) ->
+    rskip_warg1(T);
+rskip_warg1([$\n|T]) ->
+    rskip_warg1(T);
+rskip_warg1([D,$%|T]) when D >= $0, D =< $9 ->
+    rskip_warg1(T);
+rskip_warg1(L) ->
+    lists:reverse(L).
+
+%% Convert all A-Z in string to lowercase
 
 lowercase([]) ->
     [];
@@ -1248,3 +1306,13 @@ lowercase([C|T]) when C >= $A, C =< $Z ->
 lowercase([C|T]) ->
     [C|lowercase(T)].
 
+%% Convert lonely CR to NL, and CRLF to NL
+
+cr_to_nl([$\r,$\n|T]) ->
+    [$\n|cr_to_nl(T)];
+cr_to_nl([$\r|T]) ->
+    [$\n|cr_to_nl(T)];
+cr_to_nl([C|T]) ->
+    [C|cr_to_nl(T)];
+cr_to_nl([]) ->
+    [].
