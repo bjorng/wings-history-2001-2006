@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.163 2004/01/17 01:50:04 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.164 2004/01/17 18:01:44 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -78,7 +78,7 @@
 	 store,				%Data for all fields.
 	 level,				%Levels of nesting.
 	 owner,				%Where to send result.
-	 grab_win			%Previous grabbed focus window.
+	 grab_win			%Previously grabbed focus window.
 	}).
 
 %% Static data for every field.
@@ -444,8 +444,11 @@ event({current_state,_}, _) ->
     keep;
 event(#keyboard{sym=Sym,mod=Mod,unicode=Unicode}, S) ->
     event_key({key,Sym,Mod,Unicode}, S);
-event(Ev=#mousebutton{}, S) ->
-      mouse_event(Ev, S);
+event(#mousebutton{}=Ev, S) ->
+    maybe_doubleclick(Ev),
+    mouse_event(Ev, S);
+event({doubleclick,_,_}=Ev, S) ->
+    mouse_event(Ev, S);
 event({drop,{X,Y},DropData}, S) ->
     drop_event(X, Y, DropData, S);
 event({action,Action}, S) ->
@@ -499,6 +502,30 @@ delete(S) ->
     delete_blanket(S),
     delete.
 
+maybe_doubleclick(#mousebutton{button=1,state=?SDL_RELEASED}=Ev) ->
+    put(wings_ask_doubleclick, 
+	maybe_doubleclick_1(Ev, get(wings_ask_doubleclick)));
+maybe_doubleclick(_) -> ok.
+
+maybe_doubleclick_1(#mousebutton{x=X,y=Y}, undefined) ->
+    {X,Y,now()};
+maybe_doubleclick_1(#mousebutton{x=X,y=Y}, {X0,Y0,Now0}) ->
+    Dx = X-X0, Dy = Y-Y0,
+    Now = now(),
+    case math:sqrt(Dx*Dx+Dy*Dy) of
+	Dist when Dist < 5 ->
+	    case timediff(Now, Now0) of
+		TimeDiff when TimeDiff < 0.25 ->
+		    wings_wm:later({doubleclick,X,Y});
+		_TimeDiff -> ok
+	    end;
+	_Dist -> ok
+    end,
+    {X,Y,Now}.
+
+timediff({A,B,C}, {D,E,F}) ->
+    1000000*(A-D) + B-E + (C-F)/1000000.
+
 mouse_event(Ev=#mousemotion{x=X0,y=Y0}, #s{ox=Ox,oy=Oy}=S) ->
     X = X0-Ox,
     Y = Y0-Oy,
@@ -523,6 +550,13 @@ mouse_event(Ev=#mousebutton{x=X0,y=Y0,state=State},
 		    end;
 		_ -> get_event(S0#s{mouse_focus=false})
 	    end
+    end;
+mouse_event({doubleclick,X0,Y0}, #s{mouse_focus=MouseFocus,ox=Ox,oy=Oy}=S) ->
+    X = X0-Ox,
+    Y = Y0-Oy,
+    case MouseFocus of
+	true -> field_event({doubleclick,X,Y}, S);
+	false -> keep
     end.
 
 drop_event(X, Y, DropData, #s{ox=Ox,oy=Oy,fi=TopFi}=S0) ->
@@ -2483,6 +2517,9 @@ table_event_1(#mousemotion{}=Ev, Fi, Tab, _Val, Sto) ->
 	false -> keep;
 	true -> table_sc_event(Ev, Fi, Tab, Sto)
     end;
+table_event_1({doubleclick,_,_}, _Fi, _Tab, _Val, _Sto) ->
+    wings_wm:later(#keyboard{sym=$\r,mod=0,unicode=$\r}),
+    keep;
 table_event_1(_, _, _, _, _) -> keep.
 
 table_is_scroll_ev(_Ev, _Fi, #table{num_els=N,rows=Rows})
