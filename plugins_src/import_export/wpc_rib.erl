@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.10 2002/08/13 09:51:53 bjorng Exp $
+%%     $Id: wpc_rib.erl,v 1.11 2002/08/21 20:30:33 bjorng Exp $
 
 -module(wpc_rib).
 -include_lib("e3d.hrl").
@@ -44,10 +44,10 @@ menu(_, Menu) -> Menu.
 
 command({file,{export,{rib,Ask}}}, St) ->
     Exporter = fun(Ps, Fun) -> wpa:export(Ps, Fun, St) end,
-    do_export(Ask, Exporter, St);
+    do_export(Ask, export, Exporter, St);
 command({file,{export_selected,{rib,Ask}}}, St) ->
     Exporter = fun(Ps, Fun) -> wpa:export_selected(Ps, Fun, St) end,
-    do_export(Ask, Exporter, St);
+    do_export(Ask, export_selected, Exporter, St);
 command({file,{render,{rendrib,Ask}}}, St) ->
     do_render(Ask, rendrib, St);
 command({file,{render,{air, Ask}}}, St) ->
@@ -223,12 +223,12 @@ random_string() ->
 %%% Export functions.
 %%%
 
-do_export(Ask, _Exporter, St) when is_atom(Ask) ->
+do_export(Ask, Op, _Exporter, St) when is_atom(Ask) ->
     wpa:dialog(Ask, dialog_qs(export), St,
 	       fun(Res) ->
-		       {file,{export,{rib,Res}}}
+		       {file,{Op,{rib,Res}}}
 	       end);
-do_export(Attr0, Exporter, St) when is_list(Attr0) ->
+do_export(Attr0, _Op, Exporter, St) when is_list(Attr0) ->
     set_pref(Attr0),
     Ls = wpa:lights(St),
     Attr = [{lights,Ls},{tmp_render,none}|Attr0],

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.3 2002/06/18 06:26:08 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.4 2002/08/21 20:30:33 bjorng Exp $
 %%
 
 -module(wpc_obj).
@@ -30,10 +30,10 @@ command({file,{import,{obj,Ask}}}, St) ->
     do_import(Ask, St);
 command({file,{export,{obj,Ask}}}, St) ->
     Exporter = fun(Ps, Fun) -> wpa:export(Ps, Fun, St) end,
-    do_export(Ask, Exporter, St);
+    do_export(Ask, export, Exporter, St);
 command({file,{export_selected,{obj,Ask}}}, St) ->
     Exporter = fun(Ps, Fun) -> wpa:export_selected(Ps, Fun, St) end,
-    do_export(Ask, Exporter, St);
+    do_export(Ask, export_selected, Exporter, St);
 command(_, _) ->
     next.
 
@@ -71,12 +71,12 @@ import_fun(Attr) ->
 %%% Export.
 %%%
 
-do_export(Ask, _Exporter, St) when is_atom(Ask) ->
+do_export(Ask, Op, _Exporter, St) when is_atom(Ask) ->
     wpa:dialog(Ask, dialog(export), St,
 	       fun(Res) ->
-		       {file,{export,{obj,Res}}}
+		       {file,{Op,{obj,Res}}}
 	       end);
-do_export(Attr, Exporter, _St) when is_list(Attr) ->
+do_export(Attr, _Op, Exporter, _St) when is_list(Attr) ->
     set_pref(Attr),
     Exporter(props(), export_fun(Attr)).
 
