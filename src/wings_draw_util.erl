@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.133 2004/05/12 07:55:20 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.134 2004/05/12 19:46:44 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -209,60 +209,67 @@ render(#st{selmode=Mode}=St) ->
     wings_view:load_matrices(true),
     ground_and_axes(),
     show_saved_bb(St),
-    #du{dl=Dl} = get_dl_data(),
-    Work = wings_wm:get_prop(workmode),
-    render_scene(Dl, Mode, Work, false),
-    render_scene(Dl, Mode, Work, true),
+    render_objects(Mode),
     axis_letters(),
-    gl:disable(?GL_CULL_FACE),
     gl:lineWidth(1),
     wings_io:ortho_setup(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     {W,H} = wings_wm:win_size(),
-    gl:rectf(0.5, 0.5, W-0.5, H-0.5),
+    gl:rectf(W-0.5, 0.5, 0.5, H-0.5),
     gl:popAttrib().
 
-render_scene(_, _, true, true) -> ok;
-render_scene(Dls, Mode, Work, RenderTrans) ->
-    render_scene_1(Dls, Mode, Work, RenderTrans).
-    
-render_scene_1([D|Dls], Mode, Work, RenderTrans) ->
-    gl:frontFace(?GL_CCW),
-    render_object_0(D, Mode, Work, RenderTrans),
-    render_scene_1(Dls, Mode, Work, RenderTrans);
-render_scene_1([], _, _, _) -> ok.
+render_objects(Mode) ->
+    #du{dl=Dls} = get_dl_data(),
+    case wings_wm:get_prop(workmode) of
+	false ->
+	    render_smooth_objects(Dls, Mode, false),
+	    render_smooth_objects(Dls, Mode, true);
+	true ->
+	    render_work_objects(Dls, Mode)
+    end.
 
-render_object_0(#dlo{drag={matrix,_,_,Matrix}}=D, Mode, Work, RT) ->
+render_smooth_objects([D|Dls], Mode, RenderTrans) ->
+    render_object(D, Mode, false, RenderTrans),
+    render_smooth_objects(Dls, Mode, RenderTrans);
+render_smooth_objects([], _, _) -> ok.
+
+render_work_objects([D|Dls], Mode) ->
+    render_object(D, Mode, true, []),
+    render_work_objects(Dls, Mode);
+render_work_objects([], _) -> ok.
+    
+render_object(#dlo{drag={matrix,_,_,Matrix}}=D, Mode, Work, RT) ->
     gl:pushMatrix(),
     gl:multMatrixf(Matrix),
-    render_object(D, Mode, Work, RT),
+    render_object_1(D, Mode, Work, RT),
     gl:popMatrix();
-render_object_0(D, Mode, Work, RT) ->
-    render_object(D, Mode, Work, RT).
+render_object(D, Mode, Work, RT) ->
+    render_object_1(D, Mode, Work, RT).
 
-render_object(#dlo{mirror=none}=D, Mode, Work, RenderTrans) ->
-    render_object_1(D, Mode, Work, RenderTrans);
-render_object(#dlo{mirror=Matrix}=D, Mode, Work, RenderTrans) ->
-    render_object_1(D, Mode, Work, RenderTrans),
+render_object_1(#dlo{mirror=none}=D, Mode, Work, RenderTrans) ->
+    render_object_2(D, Mode, Work, RenderTrans);
+render_object_1(#dlo{mirror=Matrix}=D, Mode, Work, RenderTrans) ->
+    render_object_2(D, Mode, Work, RenderTrans),
     gl:frontFace(?GL_CW),
     gl:pushMatrix(),
     gl:multMatrixf(Matrix),
-    render_object_1(D, Mode, Work, RenderTrans),
-    gl:popMatrix().
+    render_object_2(D, Mode, Work, RenderTrans),
+    gl:popMatrix(),
+    gl:frontFace(?GL_CCW).
 
-render_object_1(#dlo{src_we=We}=D, _, _, false) when ?IS_LIGHT(We) ->
+render_object_2(#dlo{src_we=We}=D, _, _, false) when ?IS_LIGHT(We) ->
     wings_light:render(D);
-render_object_1(#dlo{src_we=We}, _, _, true) when ?IS_LIGHT(We) ->
+render_object_2(#dlo{src_we=We}, _, _, true) when ?IS_LIGHT(We) ->
     ok;
-render_object_1(D, Mode, true, _) ->
+render_object_2(D, Mode, true, _) ->
     render_plain(D, Mode);
-render_object_1(#dlo{transparent=true}=D, _, false, false) ->
+render_object_2(#dlo{transparent=true}=D, _, false, false) ->
     gl:disable(?GL_CULL_FACE),
     render_smooth(D, false),
     gl:enable(?GL_CULL_FACE);
-render_object_1(#dlo{transparent=true}=D, _, false, true) ->
+render_object_2(#dlo{transparent=true}=D, _, false, true) ->
     render_smooth(D, true);
-render_object_1(#dlo{transparent=false}=D, _, false, RenderTrans) ->
+render_object_2(#dlo{transparent=false}=D, _, false, RenderTrans) ->
     render_smooth(D, RenderTrans).
 
 render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) ->
@@ -829,32 +836,26 @@ axis_letters() ->
 	    Info = {Start,Origin,MM,PM,ViewPort},
 
 	    gl:matrixMode(?GL_PROJECTION),
-	    gl:pushMatrix(),
 	    gl:loadIdentity(),
 	    {_,_,W,H} = ViewPort,
 	    glu:ortho2D(0, W, 0, H),
 	    gl:matrixMode(?GL_MODELVIEW),
-	    gl:pushMatrix(),
 	    gl:loadIdentity(),
 
 	    #view{yon=Yon} = wings_view:current(),
-	    axis_letter(1, Yon, axisx, x_color, Info),
-	    axis_letter(2, Yon, axisy, y_color, Info),
- 	    axis_letter(3, Yon, axisz, z_color, Info),
-
-	    gl:popMatrix(),
-	    gl:matrixMode(?GL_PROJECTION),
-	    gl:popMatrix(),
-	    gl:matrixMode(?GL_MODELVIEW)
+	    axis_letter_1(1, Yon, axisx, x_color, Info),
+	    axis_letter_1(2, Yon, axisy, y_color, Info),
+ 	    axis_letter_1(3, Yon, axisz, z_color, Info)
     end.
 
-axis_letter(I, Yon, Char, Color0, {Start,{Ox,Oy,_,Ow},MM,PM,Viewport}) ->
+axis_letter_1(I, Yon, Char, Color0, {Start,{Ox,Oy,_,Ow},MM,PM,Viewport}) ->
     Color = wings_pref:get_value(Color0),
     wings_io:set_color(Color),
     End = setelement(I, Start, Yon),
     {Px,Py,_,Pw} = proj(End, MM, PM),
+    NegPw = -Pw,
     if
-	-Pw < Px, Px < Pw, -Pw < Py, Py < Pw ->
+	NegPw < Px, Px < Pw, NegPw < Py, Py < Pw ->
 	    show_letter(Px, Py, Pw, Char, Viewport);
 	true ->
 	    clip(Ox, Oy, Ow, Px, Py, Pw, Char, Viewport)
@@ -862,8 +863,9 @@ axis_letter(I, Yon, Char, Color0, {Start,{Ox,Oy,_,Ow},MM,PM,Viewport}) ->
 
 clip(Ox, Oy, Ow, Px, Py, Pw, Char, Viewport) ->
     AxisRay = line(Ox, Oy, Px, Py),
-    Lines = [line(-Ow, -Ow, Ow, -Ow),line(-Ow, Ow, Ow, Ow),
-	     line(-Ow, -Ow, -Ow, Ow),line(Ow, -Ow, Ow, Ow)],
+    NegOw = -Ow,
+    Lines = [line(NegOw, NegOw, Ow, NegOw),line(NegOw, Ow, Ow, Ow),
+	     line(NegOw, NegOw, NegOw, Ow),line(Ow, NegOw, Ow, Ow)],
     case clip_1(AxisRay, Lines, {Ow,Pw}) of
 	none -> ok;
 	{X,Y,W} -> show_letter(X, Y, W, Char, Viewport)
@@ -881,7 +883,7 @@ clip_1({O1,D1}=Axis, [{O2,D2}|Lines], {Ow,_}=W) ->
 		S < 0.0; T < 0.0; T > 1.0 ->
 		    clip_1(Axis, Lines, W);
 		true ->
-		    {X,Y} = add(O1, mul(D1, S)),
+		    {X,Y} = add_prod(O1, D1, S),
 		    {X,Y,Ow}
 	    end
     end;
@@ -902,9 +904,9 @@ proj({X0,Y0,Z0}, MM, PM) ->
 line(Ox, Oy, Px, Py) -> {{Ox,Oy},{Px-Ox,Py-Oy}}.
 
 pdot({X1,Y1}, {X2,Y2}) -> Y1*X2-X1*Y2.
-add({X1,Y1}, {X2,Y2}) -> {X1+X2,Y1+Y2}.
 sub({X1,Y1}, {X2,Y2}) -> {X1-X2,Y1-Y2}.
-mul({X,Y}, S) -> {X*S,Y*S}.
+add_prod({X1,Y1}, {X2,Y2}, S) when is_float(S) ->
+    {S*X2+X1,S*Y2+Y1}.
 
 groundplane(Axes) ->
     case (wings_wm:get_prop(show_groundplane) orelse
