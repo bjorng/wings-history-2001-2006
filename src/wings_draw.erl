@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.127 2003/06/09 08:56:20 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.128 2003/06/12 04:40:14 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -250,11 +250,9 @@ update_sel(#dlo{sel=none,src_sel={face,Faces},src_we=#we{fs=Ftab}=We}=D) ->
 	    gl:newList(List, ?GL_COMPILE),
 	    wings_draw_util:begin_end(
 	      fun() ->
-		      foreach(
-			fun(Face) ->
-				Edge = gb_trees:get(Face, Ftab),
-				wings_draw_util:flat_face(Face, Edge, We)
-			end, gb_sets:to_list(Faces))
+		      foreach(fun(Face) ->
+				      wings_draw_util:flat_face(Face, We)
+			      end, gb_sets:to_list(Faces))
 	      end),
 	    gl:endList(),
 	    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
@@ -311,6 +309,20 @@ update_sel(#dlo{}=D) -> D.
 update_sel_all(#dlo{src_we=#we{mode=vertex},work={call,_,Faces}}=D) ->
     Dl = wings_draw_util:force_flat_color(Faces, wings_pref:get_value(selected_color)),
     D#dlo{sel=Dl};
+update_sel_all(#dlo{src_we=#we{fs=Ftab}=We,work=none}=D) ->
+    Tess = wings_draw_util:tess(),
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
+    wings_draw_util:begin_end(
+      fun() ->
+	      foreach(fun({Face,Edge}) ->
+			      wings_draw_util:flat_face(Face, Edge, We)
+		      end, gb_trees:to_list(Ftab))
+      end),
+    gl:endList(),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
+    D#dlo{sel=List};
 update_sel_all(#dlo{work=Faces}=D) ->
     D#dlo{sel=Faces}.
 
