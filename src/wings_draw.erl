@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.153 2003/09/07 19:13:13 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.154 2003/09/12 14:27:37 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -498,7 +498,10 @@ split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
 	0.0 -> {none,none};
 	PtSize -> 
 	    SelVs = sofs:from_external(gb_sets:to_list(SelVs0), [vertex]),
-	    UnselDyn0 = sofs:difference(DynVs, SelVs),
+	    UnselDyn0 = case wings_pref:get_value(hide_sel_while_dragging) of
+			    false -> sofs:difference(DynVs, SelVs);
+			    true -> DynVs
+			end,
 	    UnselDyn = sofs:to_external(UnselDyn0),
 	    UnselDlist = gl:genLists(1),
 	    gl:newList(UnselDlist, ?GL_COMPILE),
