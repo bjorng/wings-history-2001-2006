@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.17 2002/01/14 08:22:49 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.18 2002/01/17 13:20:40 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -144,23 +144,11 @@ browse(Prefix) ->
     ets:select(wings_state, [{{{Prefix,'$1'},'$2'},[],[{{'$1','$2'}}]}]).
 
 locate(File) ->
-    Dir = filename:dirname(code:which(?MODULE)),
+    Dir = wings:root_dir(),
     Name = filename:absname(File, Dir),
     case filelib:is_file(Name) of
 	true -> Name;
-	false -> locate(File, Dir)
-    end.
-
-locate(File, Dir0) ->
-    case filename:basename(Dir0) of
-	"ebin" ->
-	    Dir = filename:dirname(Dir0),
-	    Name = filename:absname(File, Dir),
-	    case filelib:is_file(Name) of
-		true -> Name;
-		false -> none
-	    end;
-	_ -> none
+	false -> none
     end.
 
 defaults() ->

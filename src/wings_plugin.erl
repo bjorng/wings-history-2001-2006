@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.7 2002/01/17 09:27:29 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.8 2002/01/17 13:20:40 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2,call_ui/1]).
@@ -92,23 +92,11 @@ call_ui(What) ->
     Ui(What).
 
 try_dirs() ->
-    Dir0 = filename:dirname(code:which(?MODULE)),
+    Dir0 = wings:root_dir(),
     Dir = filename:absname("plugins", Dir0),
     case filelib:is_dir(Dir) of
 	true -> Dir;
-	false -> try_dirs(Dir0)
-    end.
-
-try_dirs(Dir0) ->
-    case filename:basename(Dir0) of
-	"ebin" ->
-	    Dir1 = filename:dirname(Dir0),
-	    Dir = filename:absname("plugins", Dir1),
-	    case filelib:is_dir(Dir) of
-		true -> Dir;
-		false -> none
-	    end;
-	_ -> none
+	false -> none
     end.
 
 list_dir(Dir) ->

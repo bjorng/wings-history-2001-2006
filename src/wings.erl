@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.89 2002/01/16 13:32:17 bjorng Exp $
+%%     $Id: wings.erl,v 1.90 2002/01/17 13:20:40 bjorng Exp $
 %%
 
 -module(wings).
--export([start/0,start_halt/0,start_halt/1]).
--export([caption/1,redraw/1,info/1]).
+-export([start/0,start/1,start_halt/1,start_halt/2]).
+-export([root_dir/0,caption/1,redraw/1,info/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -26,22 +26,31 @@
 -import(wings_draw, [model_changed/1]).
 
 start() ->
-    spawn(fun() -> init(none) end).
+    %% Only for development use.
+    Root = filename:dirname(code:which(?MODULE)),
+    spawn(fun() -> init(none, Root) end).
 
-start_halt() ->
+start(Root) ->
+    spawn(fun() -> init(none, Root) end).
+
+start_halt(Root) ->
     spawn(fun() ->
-		  init(none),
+		  init(none, Root),
 		  halt()
 	  end).
 
-start_halt([File|_]) ->
+start_halt([File|_], Root) ->
     spawn(fun() ->
-		  init(File),
+		  init(File, Root),
 		  halt()
 	  end).
 
-init(File) ->
+root_dir() ->
+    get(wings_root_dir).
+
+init(File, Root) ->
     register(wings, self()),
+    put(wings_root_dir, Root),
     case
 	catch
 	init_1(File) of
@@ -51,12 +60,11 @@ init(File) ->
 
 init_1(File) ->
     {ok,Cwd} = file:get_cwd(),
-    wings_plugin:init(),
     sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER),
     Icon = locate("wings.icon"),
     catch sdl_video:wm_setIcon(sdl_video:loadBMP(Icon), null),
     sdl_video:gl_setAttribute(?SDL_GL_DOUBLEBUFFER, 1),
-    sdl_events:eventState(?SDL_ALLEVENTS ,?SDL_IGNORE),
+    sdl_events:eventState(?SDL_ALLEVENTS,?SDL_IGNORE),
     sdl_events:eventState(?SDL_MOUSEMOTION, ?SDL_ENABLE),
     sdl_events:eventState(?SDL_MOUSEBUTTONDOWN, ?SDL_ENABLE),
     sdl_events:eventState(?SDL_MOUSEBUTTONUP, ?SDL_ENABLE),
@@ -68,8 +76,9 @@ init_1(File) ->
     sdl_keyboard:enableKeyRepeat(?SDL_DEFAULT_REPEAT_DELAY,
 				 ?SDL_DEFAULT_REPEAT_INTERVAL),
 
-    wings_color:init(),
     wings_pref:init(),
+    wings_plugin:init(),
+    wings_color:init(),
     wings_io:init(),
     wings_draw_util:init(),
 
@@ -124,12 +133,11 @@ locate(Name) ->
     case filelib:is_file(Name) of
 	true -> Name;
 	false ->
-	    Base = filename:dirname(code:which(?MODULE)),
-	    Path = filename:join(Base, Name),
+	    Root = root_dir(),
+	    Path = filename:join(Root, Name),
 	    case filelib:is_file(Path) of
 		true -> Path;
-		false ->
-		    filename:join([Base,"../src",Name])
+		false -> filename:join([Root,"src",Name])
 	    end
     end.
 
@@ -336,6 +344,12 @@ command({edit,{camera_mode,Mode}}, St) ->
     St;
 command({edit,purge_undo}, St) ->
     wings_undo:purge(St);
+command({edit,enable_patches}, St) ->
+    wings_start:enable_patches(),
+    St;
+command({edit,disable_patches}, St) ->
+    wings_start:disable_patches(),
+    St;
 command({edit,{_,Pref}}, St) ->
     wings_pref:command(Pref),
     St;
@@ -484,7 +498,7 @@ menu(X, Y, edit, St) ->
 	     separator,
 	     wings_camera:sub_menu(St)|wings_pref:menu(St)++
 	     [separator,
-	      {"Purge Undo History",purge_undo}]],
+	      {"Purge Undo History",purge_undo}|patches()]],
     Menu = list_to_tuple(Menu0),
     wings_menu:menu(X, Y, edit, Menu, St);
 menu(X, Y, view, St) ->
@@ -659,6 +673,15 @@ scale() ->
 	       {"Radial X (YZ)",radial_x},
 	       {"Radial Y (XZ)",radial_y},
 	       {"Radial Z (XY)",radial_z}}}}.
+
+patches() ->
+    case wings_start:get_patches() of
+	none -> [];
+	{enabled,Desc} ->
+	    [separator,{"Use "++Desc,disable_patches,[crossmark]}];
+	{disabled,Desc} ->
+	    [separator,{"Use "++Desc,enable_patches}]
+    end.
 
 info(#st{sel=[]}) -> "";
 info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.29 2002/01/12 19:24:25 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.30 2002/01/17 13:20:40 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -74,8 +74,7 @@ arrow() ->
     sdl_mouse:setCursor(Arrow).
 
 read_icons() ->
-    Dir = filename:dirname(code:which(?MODULE)),
-    IconFile = filename:join(Dir, "wings_icon.bundle"),
+    IconFile = filename:join([wings:root_dir(),"ebin","wings_icon.bundle"]),
     {ok,Bin} = file:read_file(IconFile),
     Bin.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.25 2002/01/13 11:11:11 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.26 2002/01/17 13:20:40 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -148,6 +148,7 @@ log_file_dir({win32,_}) ->
 	    Name = filename:dirname(Name0),
 	    case filename:basename(Name) of
 		"ebin" -> filename:dirname(Name);
+		"patches" -> filename:dirname(Name);
 		Other -> Name
 	    end
     end.
