@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.75 2004/04/16 12:42:21 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.76 2004/04/20 08:22:51 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -2234,17 +2234,6 @@ lowercase([C|T]) when C >= $A, C =< $Z ->
     [(C + $a - $A)|lowercase(T)];
 lowercase([C|T]) ->
     [C|lowercase(T)].
-
-%% Convert lonely CR to NL, and CRLF to NL
-%%
-cr_to_nl([$\r,$\n|T]) ->
-    [$\n|cr_to_nl(T)];
-cr_to_nl([$\r|T]) ->
-    [$\n|cr_to_nl(T)];
-cr_to_nl([C|T]) ->
-    [C|cr_to_nl(T)];
-cr_to_nl([]) ->
-    [].
 
 %% Universal quoting
 %%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.139 2004/03/24 19:41:40 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.140 2004/04/20 08:22:52 raimo_niskanen Exp $
 %%
 
 -module(wings_view).
@@ -62,6 +62,11 @@ menu(St) ->
      {"Orthographic View",orthogonal_view,
       "Toggle between orthographic and perspective views",
       crossmark(orthogonal_view)},
+     {"View Ring ("++integer_to_list(queue:len(St#st.views))++")",
+      {view_ring,[{"Next",next},
+		  {"Prev",prev},
+		  {"Save",save},
+		  {"Delete",delete}]}},
      separator,
      {"Camera Settings...",camera_settings,"Set field of view, and near and far clipping planes"},
      separator,
@@ -208,6 +213,8 @@ command(aim, St) ->
 command(frame, St) ->
     frame(St),
     St;
+command({view_ring,ViewRing}, St) ->
+    view_ring(ViewRing, St);
 command({along,Axis}, St) ->
     along(Axis),
     St;
@@ -556,6 +563,57 @@ frame_1([A,B]=BB) ->
     Dist = R/math:tan(Fov*3.14159/2/180),
     set_current(View#view{origin=e3d_vec:neg(C),
 			  distance=Dist,pan_x=0.0,pan_y=0.0}).
+
+view_ring(next, #st{views=Views}=St) ->
+    case queue:out(Views) of
+	{{value,View},NewViews} ->
+	    set_current(View),
+	    St#st{views=queue:in(View, NewViews)};
+	{empty,_} ->
+	    wings_util:message("No saved view")
+    end;
+view_ring(prev, #st{views=Views}=St) ->
+    case queue:is_empty(Views) of
+	true ->
+	    wings_util:message("No saved view");
+	false ->
+	    View = current(),
+	    case queue:last(Views) of
+		View ->
+		    NewViews = queue:in_r(View, queue:init(Views)),
+		    set_current(queue:last(NewViews)),
+		    St#st{views=NewViews};
+		_ ->
+		    set_current(queue:last(Views)),
+		    wings_wm:dirty()
+	    end
+    end;
+view_ring(save, #st{views=Views}=St) ->
+    View = current(),
+    case queue:is_empty(Views) of
+	true ->
+	    St#st{views=queue:in(View, Views)};
+	false ->
+	    case queue:last(Views) of
+		View ->
+		    wings_util:message("Already saved this view");
+		_ ->
+		    St#st{views=queue:in(View, Views)}
+	    end
+    end;
+view_ring(delete, #st{views=Views}=St) ->
+    case queue:is_empty(Views) of
+	true ->
+	    wings_util:message("No saved view");
+	false ->
+	    View = current(),
+	    case queue:last(Views) of
+		View ->
+		    St#st{views=queue:init(Views)};
+		_ ->
+		    wings_util:message("Not at this view")
+	    end
+    end.
 
 toggle_lights() ->
     Lights = case wings_pref:get_value(number_of_lights) of
