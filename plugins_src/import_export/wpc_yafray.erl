@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.95 2004/08/22 22:58:52 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.96 2004/08/26 23:22:14 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -48,7 +48,7 @@ key(Key) -> {key,?KEY(Key)}.
 -define(DEF_FOG_COLOR, {1.0,1.0,1.0,1.0}).
 
 %% Shader
--define(DEF_USE_BLOCK_SHADER, false).
+-define(DEF_SHADER_TYPE, generic).
 -define(DEF_CAUS, false).
 -define(DEF_TIR, false).
 -define(DEF_IOR, 1.0).
@@ -449,8 +449,7 @@ material_dialog(_Name, Mat) ->
     YafRay = proplists:get_value(?TAG, Mat, []),
     Minimized = proplists:get_value(minimized, YafRay, true),
     ObjectMinimized = proplists:get_value(object_minimized, YafRay, true),
-    UseBlockShader = proplists:get_value(use_block_shader, YafRay, 
-					 ?DEF_USE_BLOCK_SHADER),
+    ShaderType = proplists:get_value(shader_type, YafRay, ?DEF_SHADER_TYPE),
     BlockShader = proplists:get_value(block_shader, YafRay, ?DEF_BS),
     Caus = proplists:get_value(caus, YafRay, ?DEF_CAUS),
     Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
@@ -502,13 +501,17 @@ material_dialog(_Name, Mat) ->
 		  {store,gb_trees:update(Var, Val, Sto)};
 	      (_, _) -> void
 	  end}],
-    BlockShaderFrame =
+    ShaderFrame =
 	{hframe,
-	 [{"Block Shader",UseBlockShader,[key(use_block_shader),layout]},
+	 [{menu,
+	   [{"Generic Shader",generic},{"Block Shader",block}],
+	   ShaderType,
+	   [key(shader_type),layout]},
 	  {value,BlockShader,BlockShaderFlags},
 	  {button,"Edit",keep,
-	   [block_shader_hook(?KEY(use_block_shader), 
-			      ?KEY(block_shader)),
+	   [block_shader_hook(?KEY(shader_type), 
+			      ?KEY(block_shader),
+			      Mat),
 	    {drop_flags, [{index,-1}|BlockShaderFlags]}]}]},
     FresnelFrame =
 	{vframe,
@@ -516,8 +519,10 @@ material_dialog(_Name, Mat) ->
 		   {text,IOR,[range(ior),key(ior)]},
 		   panel,
 		   help_button({material_dialog,fresnel})]},
-	  {hframe,[{"Fast Fresnel",FastFresnel,[key(fast_fresnel)]},
-		   {"Total Internal Reflection",TIR,[key(tir)]}]},
+	  {hframe,
+	   [{"Fast Fresnel",FastFresnel,[key(fast_fresnel)]},
+	    {"Total Internal Reflection",TIR,[key(tir)]}],
+	   [hook(enable, [member,?KEY(shader_type),generic])]},
 	  {hframe,[{label,"Minimum Reflection"},
 		   {slider,{text,MinRefle,[range(min_refle),{width,5},
 					   key(min_refle)]}}]},
@@ -530,8 +535,10 @@ material_dialog(_Name, Mat) ->
 		   {vframe,[panel,
 			    {button,"Set Default",keep,
 			     [transmitted_hook(?KEY(transmitted))]}]}]},
-	  {"Grazing Angle Colors",Fresnel2,[key(fresnel2),
-					    layout]},
+	  {"Grazing Angle Colors",
+	   Fresnel2,
+	   [key(fresnel2),layout,
+	    hook(enable, [member,?KEY(shader_type),generic])]},
 	  {hframe,[{vframe,[{label,"Reflected"},
 			    {label,"Transmitted"}]},
 		   {vframe,[{slider,{color,Reflected2,
@@ -541,17 +548,18 @@ material_dialog(_Name, Mat) ->
 		   {vframe,[panel,
 			    {button,"Set Default",keep,
 			     [transmitted_hook(?KEY(transmitted2))]}]}],
-	   [hook(open, ?KEY(fresnel2))]}],
+	   [hook([{open,?KEY(fresnel2)},
+		  {enable,[member,?KEY(shader_type),generic]}])]}],
 	 [{title,"Fresnel Parameters"},{minimized,FresnelMinimized},
 	  key(fresnel_minimized)]},
     %%
     [{vframe,
       [ObjectFrame,
+       ShaderFrame,
        FresnelFrame,
-       BlockShaderFrame,
        {vframe,
 	modulator_dialogs(Modulators, Maps),
-	[hook(open, ['not',?KEY(use_block_shader)])]}],
+	[hook(open, ['not',[member,?KEY(shader_type),block]])]}],
       [{title,"YafRay Options"},{minimized,Minimized},key(minimized)]}].
 
 alpha({R,G,B,A}) -> {R*A,G*A,B*A}.
@@ -773,28 +781,30 @@ modulator(Minimized, Enabled, Mode, Res0, M) ->
 
 %% Hook for the edit button in the enclosing dialog
 %%
-block_shader_hook(EnableVar, DropVar) ->
+block_shader_hook(TypeVar, DropVar, Mat) ->
     {hook,
      fun (update, {_Var,_I,_Val,Sto}) ->
 	     Block = gb_trees:get(DropVar, Sto),
 %%% 	     io:format(?MODULE_STRING":~w Enter~n~p~n", [?LINE,Block]),
-	     Qs = bs_qs(Block, Sto),
-	     Fun = bs_fun(Block, Sto, wings_wm:this()),
+	     Qs = bs_qs(Block, Mat, Sto),
+	     Fun = bs_fun(Block, Mat, Sto, wings_wm:this()),
 	     wings_ask:dialog("Block Shader", Qs, Fun);
 	 (is_minimized, {_Var,_I,Sto}) ->
-	     not gb_trees:get(EnableVar, Sto);
+	     gb_trees:get(TypeVar, Sto) =/= block;
 	 (_, _) -> void
     end}.
 
--record(bs_dialog, {clipboard,parent_store,ps=[]}).
+-record(bs_dialog, {clipboard,parent_store,material,ps=[]}).
 -record(bs_result, {clipboard,parent_store,result,ps=[]}).
--record(bs_export, {material,ps=[],dest,base_name="",name="",n=0}).
+-record(bs_export, {material,export_dir="",
+		    ps=[],dest,base_name="",name="",n=0}).
 
 %% Returns the dialog query term for the block shader editor
 %%
-bs_qs(Block, ParentStore) ->
+bs_qs(Block, Mat, ParentStore) ->
     BsQs = case catch bs(#bs_dialog{parent_store=ParentStore,
-				    clipboard=undefined}, 
+				    clipboard=undefined,
+				    material=Mat},
 			 [Block,"Block Shader",[no_clipboard]]) of
 	       {'EXIT',_} = Exit ->
 		   io:format(?MODULE_STRING":~w 'EXIT'~n~p~n~p~n", 
@@ -807,7 +817,7 @@ bs_qs(Block, ParentStore) ->
 
 %% Returns the dialog return fun for the block shader editor
 %%
-bs_fun(Block, ParentStore, Parent) ->
+bs_fun(Block, Mat, ParentStore, Parent) ->
     fun (Result) ->
 %%% 	    io:format(?MODULE_STRING":~w ~p~n", 
 %%% 		      [?LINE,Result]),
@@ -823,22 +833,22 @@ bs_fun(Block, ParentStore, Parent) ->
 %%% 		    io:format(?MODULE_STRING":~w Loop~n~p~n~p~n", 
 %%% 			      [?LINE,Block,NewBlock]),
 		    {dialog,
-		     bs_qs(NewBlock, ParentStore),
-		     bs_fun(NewBlock, ParentStore, Parent)};
+		     bs_qs(NewBlock, Mat, ParentStore),
+		     bs_fun(NewBlock, Mat, ParentStore, Parent)};
 		Other ->
 		    io:format(?MODULE_STRING":~w Other~n~p~n~p~n", 
 			      [?LINE,Block,Other]),
 		    {dialog,
-		     bs_qs(Block, ParentStore),
-		     bs_fun(Block, ParentStore, Parent)}
+		     bs_qs(Block, Mat, ParentStore),
+		     bs_fun(Block, Mat, ParentStore, Parent)}
 	    end
     end.
 
 %% Entry point for exporting a block shader tree
 %%
-export_block_shader(F, {Type,Ps}, Name, Mat) ->
+export_block_shader(F, {Type,Ps}, Name, Mat, ExportDir) ->
     bs_dispatch(Type,
-		#bs_export{material=Mat,ps=Ps,dest=F,
+		#bs_export{material=Mat,ps=Ps,dest=F,export_dir=ExportDir,
 			   base_name=Name,name=Name,n=0}).
 
 
@@ -1203,18 +1213,55 @@ bs_hsv(#bs_export{ps=Ps,dest=F,name=Name}=Op0) ->
 	    [format(H/360),format(S),format(V)]),
     Op#bs_export{name=Name}.
 
-bs_image(#bs_dialog{ps=Ps}) ->
+bs_image(#bs_dialog{ps=Ps,material=Mat}) ->
+    Types = [image|[{map,M1} || {M1,_} <- proplists:get_value(maps, Mat, [])]],
     Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
     BrowseProps = [{dialog_type,open_dialog},
 		   {extensions,[{".jpg","JPEG compressed image"},
 				{".tga","Targa bitmap"}]}],
-    {hframe,
-     [{label,"Filename"},
-      {button,{text,Filename,[{props,BrowseProps}]}}]};
-bs_image(#bs_result{result=[Filename|Rest],ps=Ps}=Op) ->
-    Op#bs_result{result=Rest,ps=[{filename,Filename}|Ps]};
-bs_image(#bs_export{ps=Ps,dest=F,name=Name}=Op) ->
-    Filename = proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME),
+    NofTypes = length(Types),
+    TypesFrame =
+	case Types of
+	    [image] -> [{value,image}];
+	    _ ->
+		T1 = proplists:get_value(type, Ps, image), 
+		Type = case lists:member(T1, Types) of
+			   true -> T1;
+			   false -> image
+		       end,
+		[{hradio,
+		  [case T2 of
+		       {map,M2} -> {atom_to_list(M2),T2};
+		       _ -> {wings_util:cap(T2),T2}
+		   end || T2 <- Types],
+		  Type}]
+	end,
+    {vframe,
+     TypesFrame++
+     [{hframe,
+       [{label,"Filename"},
+	{button,{text,Filename,[{width,15},{props,BrowseProps}]}}],
+       [hook(enable, [member,-NofTypes,image])]}]};
+bs_image(#bs_result{result=[Type,Filename|Rest],ps=Ps}=Op) ->
+    Op#bs_result{result=Rest,ps=[{type,Type},{filename,Filename}|Ps]};
+bs_image(#bs_export{ps=Ps,dest=F,name=Name,
+		    material=Mat,export_dir=ExportDir}=Op) ->
+    Maps = proplists:get_value(maps, Mat, []),
+    Filename =
+	case proplists:get_value(type, Ps, image) of
+	    image -> 
+		proplists:get_value(filename, Ps, ?DEF_MOD_FILENAME);
+	    {map,Map} ->
+		case proplists:get_value(Map, Maps, undefined) of
+		    undefined ->
+			exit({unknown_texture_map,{?MODULE,?LINE,[Name,Map]}});
+		    #e3d_image{name=ImageName}=Image ->
+			MapFile = ImageName++".tga",
+			ok = e3d_image:save(Image, 
+					    filename:join(ExportDir, MapFile)),
+			MapFile
+		end
+	end,
     println(F, "<shader type=\"image\" name=\"~s\">~n"++
 	    "    <attributes>~n"
 	    "        <filename value=\"~s\"/>~n"
@@ -2484,13 +2531,12 @@ section(F, Name) ->
 
 export_shader(F, Name, Mat, ExportDir) ->
     YafRay = proplists:get_value(?TAG, Mat, []),
-    UseBlockShader = proplists:get_value(use_block_shader, YafRay,
-					 ?DEF_USE_BLOCK_SHADER),
-    case UseBlockShader of
-	true ->
+    ShaderType = proplists:get_value(shader_type, YafRay, ?DEF_SHADER_TYPE),
+    case ShaderType of
+	block ->
 	    BlockShader = proplists:get_value(block_shader, YafRay, ?DEF_BS),
-	    export_block_shader(F, BlockShader, Name, Mat);
-	false ->
+	    export_block_shader(F, BlockShader, Name, Mat, ExportDir);
+	generic ->
 	    export_generic_shader(F, Name, Mat, ExportDir, YafRay)
     end.
 
