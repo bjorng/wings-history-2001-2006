@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.11 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.12 2003/03/08 07:20:41 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
@@ -132,18 +132,7 @@ region(Faces, #we{es=Etab}=We0) ->
 		end, We0, Vs),
     We = connect(G, We1),
     digraph:delete(G),
-    Sel = selection(Edges0, Faces, We0, We),
-    {We,Sel}.
-
-selection(Edges, Faces0, We0, #we{es=Etab}=We) ->
-    Faces = wings_sel:validate_items(Faces0, face, We),
-    All = gb_sets:union(wings_we:new_items(face, We0, We), Faces),
-    OuterFaces0 = foldl(fun(E, A) ->
-				#edge{lf=Lf,rf=Rf} = gb_trees:get(E, Etab),
-				[Lf,Rf|A]
-			end, [], Edges),
-    OuterFaces = gb_sets:from_list(OuterFaces0),
-    gb_sets:difference(All, OuterFaces).
+    We.
 
 new_vertices(V, G, Edges, Faces, We0) ->
     Pos = wings_vertex:pos(V, We0),
@@ -200,7 +189,7 @@ connect(C, We0, Acc) ->
     case C of
 	[Va,_,Vb] ->
 	    Face = get_face(Va, Vb, We0),
-	    {We,NewEdge} = wings_vertex:force_connect(Va, Vb, Face, We0),
+	    {We,NewEdge} = wings_vertex:force_connect(Vb, Va, Face, We0),
 	    {We,[NewEdge|Acc]};
 	[Va|Path] ->
 	    {connect_inner(Va, Path, We0),Acc}
@@ -228,12 +217,12 @@ connect_inner(Current, [_|[_,_]=Next], We) ->
     connect_inner(Current, Next, We);
 connect_inner(Current, [_,Last], We0) ->
     Face = get_face(Current, Last, We0),
-    {We,_} = wings_vertex:force_connect(Current, Last, Face, We0),
+    {We,_} = wings_vertex:force_connect(Last, Current, Face, We0),
     We.
 
 connect_one_inner(Current, B, We0) ->
     Face = get_face(Current, B, We0),
-    {We1,Edge} = wings_vertex:force_connect(Current, B, Face, We0),
+    {We1,Edge} = wings_vertex:force_connect(B, Current, Face, We0),
     Pos = wings_vertex:pos(B, We1),
     wings_edge:fast_cut(Edge, Pos, We1).
 
