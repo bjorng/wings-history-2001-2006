@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.31 2002/02/01 22:39:43 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.32 2002/02/03 08:57:29 bjorng Exp $
 %f%
 
 -module(wings_face_cmd).
@@ -249,8 +249,9 @@ mirror(St0) ->
     St#st{sel=[]}.
 
 mirror_faces(Faces, We0) ->
+    OrigWe = wings_we:invert_normals(We0),
     gb_sets:fold(fun(Face, WeAcc) ->
-			 mirror_face(Face, We0, WeAcc)
+			 mirror_face(Face, OrigWe, WeAcc)
 		 end, We0, Faces).
 
 mirror_face(Face, #we{fs=Ftab}=OrigWe, #we{next_id=Id}=We0) ->
@@ -269,16 +270,22 @@ mirror_face(Face, #we{fs=Ftab}=OrigWe, #we{next_id=Id}=We0) ->
     N = wings_face:vertices(Face, We),
     mirror_weld(N, IterA, Face, IterB, FaceNew, We, We).
 
-mirror_vs(Face, #we{vs=Vtab0}=We0) ->
-    Mirrorout = 2.0,
-    Normal = wings_face:normal(Face, We0),
-    Vs = wings_face:surrounding_vertices(Face, We0),
-    Center = wings_vertex:center(Vs, We0),
-    Vtab = foldl(fun(V, A) ->
- 			 flatten_move(V, Normal, Center, Mirrorout, A)
- 		 end, Vtab0, gb_trees:keys(Vtab0)),
-    We = We0#we{vs=Vtab},
-    wings_we:invert_normals(We).
+mirror_vs(Face, #we{vs=Vtab0}=We) ->
+    Normal = wings_face:normal(Face, We),
+    Vs = wings_face:surrounding_vertices(Face, We),
+    Center = wings_vertex:center(Vs, We),
+    Vtab1 = foldl(fun(Vtx, A) ->
+			  mirror_move_vs(Vtx, Normal, Center, A)
+		  end, [], gb_trees:to_list(Vtab0)),
+    Vtab = gb_trees:from_orddict(reverse(Vtab1)),
+    We#we{vs=Vtab}.
+
+mirror_move_vs({V,#vtx{pos=Pos0}=Vtx}, PlaneNormal, Center, A) ->
+    ToCenter = e3d_vec:sub(Center, Pos0),
+    Dot = e3d_vec:dot(ToCenter, PlaneNormal),
+    ToPlane = e3d_vec:mul(PlaneNormal, 2.0*Dot),
+    Pos = wings_util:share(e3d_vec:add(Pos0, ToPlane)),
+    [{V,Vtx#vtx{pos=Pos}}|A].
 
 mirror_weld(0, IterA0, FaceA, IterB0, FaceB, WeOrig, #we{fs=Ftab0}=We) ->
     Ftab1 = gb_trees:delete(FaceA, Ftab0),
@@ -400,26 +407,10 @@ flatten(Faces, normal, We) ->
 			     e3d_vec:add(Normal, wings_face:normal(Face, We))
 		     end, e3d_vec:zero(), Faces),
     flatten(Faces, e3d_vec:norm(N), We);
-flatten(Faces, PlaneNormal, #we{vs=Vtab0}=We) ->
-    Vs = foldl(fun(Face, Vs0) ->
-		       wings_face:fold(fun(V, _, _, A) ->
-					       gb_sets:add(V, A)
-				       end, Vs0, Face, We)
-	       end, gb_sets:empty(), gb_sets:to_list(Faces)),
+flatten(Faces, PlaneNormal, We) ->
+    Vs = wings_face:to_vertices(Faces, We),
     Center = wings_vertex:center(Vs, We),
-    Vtab = foldl(
-	     fun(V, Tab0) ->
-		     flatten_move(V, PlaneNormal, Center, 1.0, Tab0)
-	     end, Vtab0, gb_sets:to_list(Vs)),
-    We#we{vs=Vtab}.
-
-flatten_move(V, PlaneNormal, Center, Dist, Tab0) ->
-    #vtx{pos=Pos0} = Vtx = gb_trees:get(V, Tab0),
-    ToCenter = e3d_vec:sub(Center, Pos0),
-    Dot = e3d_vec:dot(ToCenter, PlaneNormal),
-    ToPlane = e3d_vec:mul(PlaneNormal, Dot),
-    Pos = wings_util:share(e3d_vec:add(Pos0, e3d_vec:mul(ToPlane, Dist))),
-    gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab0).
+    wings_vertex:flatten(Vs, PlaneNormal, Center, We).
 
 flatten_vector({_,{_,_,_}=Plane}) -> Plane;
 flatten_vector(Plane) -> wings_util:make_vector(Plane).
