@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.89 2002/05/19 05:39:22 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.90 2002/05/25 18:12:02 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -134,12 +134,16 @@ insert_vtx_data_1([V|Vs], Vtab, Acc) ->
 insert_vtx_data_1([], _Vtab, Acc) -> Acc.
 
 mirror_constrain(Tvs, #we{mirror=none}) -> Tvs;
-mirror_constrain(Tvs, #we{mirror=Face}=We) ->
-    [V|_] = Vs = wings_face:surrounding_vertices(Face, We),
-    VsSet = ordsets:from_list(Vs),
-    N = wings_face:face_normal(Vs, We),
-    Vpos = wings_vertex:pos(V, We),
-    mirror_constrain_1(Tvs, VsSet, {N,Vpos}, []).
+mirror_constrain(Tvs, #we{mirror=Face,fs=Ftab}=We) ->
+    case gb_trees:is_defined(Face, Ftab) of
+	false -> Tvs;
+	true ->
+	    [V|_] = Vs = wings_face:surrounding_vertices(Face, We),
+	    VsSet = ordsets:from_list(Vs),
+	    N = wings_face:face_normal(Vs, We),
+	    Vpos = wings_vertex:pos(V, We),
+	    mirror_constrain_1(Tvs, VsSet, {N,Vpos}, [])
+    end.
 
 mirror_constrain_1([{Vs,Tr0}=Fun|Tvs], VsSet, N, Acc) when is_function(Tr0) ->
     case ordsets:intersection(ordsets:from_list(Vs), VsSet) of
@@ -169,7 +173,6 @@ mirror_constrain_2([], _, _, Acc) -> Acc.
 
 project_vector(Vec, Plane) ->
     e3d_vec:sub(Vec, e3d_vec:mul(Plane, e3d_vec:dot(Vec, Plane))).
-
 
 constrain_fun(Tr0, Plane, Vs) ->
     fun(Cmd, Arg) ->
