@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.25 2002/03/23 20:03:36 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.26 2002/03/25 09:52:48 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -36,7 +36,8 @@ init() ->
     wings_pref:set_default(last_point, DefPoint),
     wings_pref:set_default(default_point, DefPoint),
     wings_pref:set_default(magnet_type, dome),
-    wings_pref:set_default(magnet_distance_route, shortest).
+    wings_pref:set_default(magnet_distance_route, shortest),
+    wings_pref:set_default(magnet_radius, 1.0).
 
 menu(_St) -> [].
 
@@ -60,7 +61,7 @@ command({pick,[axis|More],Acc,Names}, St0) ->
 			  common_exit(Check, More, Acc, Names, St)
 		  end,
 	     selmodes=Modes,
-	     label="Axis",sti={last_axis,default_axis}},
+	     label="Axis",sti=last_axis},
     command_message("Select axis for ", Names),
     {seq,{push,dummy},get_event(Ss, St1#st{sel=[]})};
 command({pick,[point|More],Acc,Names}, St0) ->
@@ -72,8 +73,7 @@ command({pick,[point|More],Acc,Names}, St0) ->
 	     exit=fun(_X, _Y, St) ->
 			  common_exit(Check, More, Acc, Names, St)
 		  end,
-	     selmodes=Modes,
-	     label="Point",sti={last_point,default_point}},
+	     selmodes=Modes},
     command_message("Select point for ", Names),
     {seq,{push,dummy},get_event(Ss, St1#st{sel=[]})};
 command({pick,[magnet|More],Acc,Names}, St0) ->
@@ -85,7 +85,7 @@ command({pick,[magnet|More],Acc,Names}, St0) ->
 	     selmodes=Modes,
 	     label=magnet},
     command_message("Select magnet falloff for ", Names),
-    {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
+    {seq,{push,dummy},get_event(Ss, St0#st{selmode=vertex,sel=[]})};
 command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
     pick_init(St0),
     wings_io:icon_restriction(Modes),
@@ -197,7 +197,7 @@ handle_event_5({action,{view,Cmd}}, Ss, St0) ->
     get_event(Ss, St);
 handle_event_5({action,{secondary_selection,Cmd}}, Ss, St) ->
     secondary_selection(Cmd, Ss, St);
-handle_event_5({action,Cmd}, #ss{sti={StiA,_}}, #st{vec=Vec}) ->
+handle_event_5({action,Cmd}, #ss{sti=StiA}, #st{vec=Vec}) ->
     wings_pref:set_value(StiA, Vec),
     wings_io:message(""),
     wings_io:putback_event({action,Cmd}),
@@ -217,13 +217,6 @@ secondary_selection(abort, _Ss, _St) ->
     wings_io:clear_message(),
     wings_io:putback_event(redraw),
     pop;
-secondary_selection({use,Sti}, Ss, St) ->
-    wings_io:message(""),
-    Vec = wings_pref:get_value(Sti),
-    get_event(Ss, St#st{vec=Vec});
-secondary_selection({set,Sti}, Ss, #st{vec=Vec}=St) ->
-    wings_pref:set_value(Sti, Vec),
-    get_event(Ss, St);
 secondary_selection(shortest, Ss, St) ->
     wings_pref:set_value(magnet_distance_route, shortest),
     get_event(Ss, St);
@@ -242,6 +235,7 @@ translate_key(#keyboard{keysym=KeySym}) ->
 translate_key(_Event) -> next.
 
 translate_key_1(#keysym{sym=27}) ->		%Escape
+    wings_draw:clear_orig_sel(),
     wings_io:clear_message(),
     wings_io:message("Command aborted"),
     wings_io:putback_event(redraw),
@@ -272,24 +266,13 @@ add_last_menu(#ss{label=magnet}, _St, Menu) ->
      {"Shortest",shortest,magnet_crossmark(shortest)},
      {"Surface",surface,magnet_crossmark(surface)},
      separator|Menu];
-add_last_menu(#ss{label=Lbl,sti={_,default_axis=StiB}}, St, Menu) ->
-    add_set_action(Lbl, StiB, St, [separator|Menu]);
-add_last_menu(#ss{label=Lbl,sti={StiA,_StiB}}, _St, Menu) ->
-    [separator,
-     {"Use Last "++Lbl,fun(_, _) -> {secondary_selection,{use,StiA}} end},
-     separator|Menu].
+add_last_menu(_, _, Menu) -> Menu.
 
 magnet_crossmark(Val) ->
     case wings_pref:get_value(magnet_distance_route) of
 	Val -> [crossmark];
 	_ -> []
     end.
-
-add_set_action(_Lbl, _Sti, #st{vec=none}, Menu) -> Menu;
-add_set_action(Lbl, Sti, _St, Menu) ->
-    [separator,
-     {"Set Default "++Lbl,
-      fun(_, _) -> {secondary_selection,{set,Sti}} end}|Menu].
 
 common_exit(Check, More, Acc, Ns, #st{vec=none}=St) ->
     case Check(St) of
@@ -302,8 +285,13 @@ common_exit(Check, More, Acc, Ns, #st{vec=none}=St) ->
     end;
 common_exit(_Check, [point]=More, Acc, Ns, #st{vec={Point,Vec}}) ->
     Command = command_name(Ns),
-    F = fun({magnet,_}, _) ->
+    F = fun({magnet,1}, _) ->
 		{vector,{pick,[magnet],[Point|add_to_acc(Vec, Acc)],Ns}};
+	   ({magnet,2}, _) ->
+		ignore;
+	   ({magnet,3}, _) ->
+		Magnet = wings_menu_util:magnet_data(),
+		{vector,{pick,[],[Magnet,Point|add_to_acc(Vec, Acc)],Ns}};
 	   (1, _) ->
 		{vector,{pick,[],[Point|add_to_acc(Vec, Acc)],Ns}};
 	   (3, _) ->
@@ -318,13 +306,18 @@ common_exit(_Check, More, Acc, Ns, #st{vec=Vec}) ->
     common_exit_1(Vec, More, Acc, Ns).
 
 common_exit_1(Vec, [], Acc, Ns) ->
-    Ps = wings_menu_util:magnet_props(vector, Ns),
     Command = command_name(Ns),
-    F = fun({magnet,_}, _) ->
+    F = fun({magnet,1}, _) ->
 		{vector,{pick,[magnet],add_to_acc(Vec, Acc),Ns}};
+	   ({magnet,2}, _) ->
+		ignore;
+	   ({magnet,3}, _) ->
+		Magnet = wings_menu_util:magnet_data(),
+		{vector,{pick,[],[Magnet|add_to_acc(Vec, Acc)],Ns}};
 	   (_, _) ->
 		{vector,{pick,[],add_to_acc(Vec, Acc),Ns}}
 	end,
+    Ps = wings_menu_util:magnet_props(vector, Ns),
     {Command,F,"Execute command",Ps};
 common_exit_1(Vec, More, Acc, Ns) ->
     {"Continue",fun(_, _) ->
@@ -460,7 +453,8 @@ check_point(St) ->
 %%% Magnet functions.
 %%%
 
-exit_magnet(More, Acc, [N|Ns0]=Ns, St) ->
+exit_magnet([], Acc, [N|Ns0]=Ns, St) ->
+    %% Magnet must be last.
     case check_point(St) of
 	{none,Msg} ->
 	    wings_io:message(Msg),
@@ -469,12 +463,9 @@ exit_magnet(More, Acc, [N|Ns0]=Ns, St) ->
 	    wings_io:message(Msg),
 	    Mag = {magnet,wings_pref:get_value(magnet_type),
 		   wings_pref:get_value(magnet_distance_route),Point},
-	    {if
-		 More == [] ->
-		     Command0 = wings_menu:build_command(N, Ns0),
-		     wings_util:stringify(Command0);
-		 true -> "Continue"
-	     end,fun(_, _) -> {vector,{pick,More,[Mag|Acc],Ns}} end}
+	    Cmd0 = wings_menu:build_command(N, Ns0),
+	    Cmd = wings_util:stringify(Cmd0),
+	    {Cmd,fun(_, _) -> {vector,{pick,[],[Mag|Acc],Ns}} end}
     end.
 
 %%%

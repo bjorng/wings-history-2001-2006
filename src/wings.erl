@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.124 2002/03/23 20:03:36 bjorng Exp $
+%%     $Id: wings.erl,v 1.125 2002/03/25 09:52:48 bjorng Exp $
 %%
 
 -module(wings).
@@ -426,6 +426,12 @@ command({vertex,Cmd}, St) ->
 
 %% Tools menu.
 
+command({tools,set_default_axis}, St) ->
+    Cmd = {pick,[axis,point],[],[set_default_axis,tools]},
+    wings_vec:command(Cmd, St);
+command({tools,{set_default_axis,{Axis,Point}}}, St) ->
+    wings_pref:set_value(default_axis, {Point,Axis}),
+    St;
 command({tools,{align,Dir}}, St) ->
     {save_state,model_changed(wings_align:align(Dir, St))};
 command({tools,{center,Dir}}, St) ->
@@ -497,7 +503,9 @@ menu(X, Y, tools, St) ->
 	    {"Save Bounding Box",save_bb},
 	    {"Scale to Saved BB",{scale_to_bb,Dirs}},
 	    {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
-	    {"Move to Saved BB",{move_to_bb,wings_menu_util:all_xyz()}}],
+	    {"Move to Saved BB",{move_to_bb,wings_menu_util:all_xyz()}},
+	    separator,
+	    {"Set Default Axis",set_default_axis}],
     wings_menu:menu(X, Y, tools, Menu, St);
 menu(X, Y, objects, St) ->
     wings_shape:menu(X, Y, St);
