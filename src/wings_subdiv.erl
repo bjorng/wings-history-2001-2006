@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.14 2002/04/12 06:52:40 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.15 2002/04/19 18:38:45 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -167,20 +167,19 @@ cut_edges(Es0, FacePos, Htab, #we{es=Etab}=We) ->
     Es = [{Edge,gb_trees:get(Edge, Etab)} || Edge <- Es0],
     cut_edges_1(Es, FacePos, Htab, We).
 
-cut_edges_1([{Edge,#edge{vs=Va,ve=Vb,a=A,b=B,lf=Lf,rf=Rf}}|Es],
+cut_edges_1([{Edge,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}}|Es],
 	    FacePos, Htab, #we{vs=Vtab}=We0) ->
     case gb_sets:is_member(Edge, Htab) of
 	true ->
 	    {We,_} = wings_edge:fast_cut(Edge, default, We0),
 	    cut_edges_1(Es, FacePos, Htab, We);
 	false ->
-	    {LfPos,Lcol,_} = gb_trees:get(Lf, FacePos),
-	    {RfPos,Rcol,_} = gb_trees:get(Rf, FacePos),
+	    {LfPos,_,_} = gb_trees:get(Lf, FacePos),
+	    {RfPos,_,_} = gb_trees:get(Rf, FacePos),
 	    VaPos = wings_vertex:pos(Va, Vtab),
 	    VbPos = wings_vertex:pos(Vb, Vtab),
 	    Pos = e3d_vec:average([LfPos,RfPos,VaPos,VbPos]),
-	    Col = wings_color:average([A,B,Lcol,Rcol]),
-	    {We,_} = wings_edge:fast_cut(Edge, Pos, Col, We0),
+	    {We,_} = wings_edge:fast_cut(Edge, Pos, We0),
 	    cut_edges_1(Es, FacePos, Htab, We)
     end;
 cut_edges_1([], _FacePos, _Htab, We) -> We.

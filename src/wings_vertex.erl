@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.19 2002/04/01 16:30:43 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.20 2002/04/19 18:38:45 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -471,11 +471,11 @@ force_connect(Vstart, Vend, Face, #we{es=Etab0,fs=Ftab0}=We0) ->
 %%  Connect the edge immediately before Vstart.
 connect_1(Iter0, Vstart, NewEdge, NeRec0, Etab) ->
     case wings_face:next_cw(Iter0) of
-	{_,Edge,#edge{ve=Vstart}=Rec0,Iter} ->
-	    NeRec = NeRec0#edge{rtpr=Edge},
+	{_,Edge,#edge{a=ColA,b=ColB,ve=Vstart}=Rec0,Iter} ->
+	    NeRec = NeRec0#edge{a=ColB,rtpr=Edge},
 	    Rec = Rec0#edge{rtsu=NewEdge};
-	{_,Edge,#edge{vs=Vstart}=Rec0,Iter} ->
-	    NeRec = NeRec0#edge{rtpr=Edge},
+	{_,Edge,#edge{a=ColA,b=ColB,vs=Vstart}=Rec0,Iter} ->
+	    NeRec = NeRec0#edge{a=ColA,rtpr=Edge},
 	    Rec = Rec0#edge{ltsu=NewEdge}
     end,
     {gb_trees:update(Edge, Rec, Etab),NeRec,Iter}.
@@ -517,11 +517,11 @@ connect_3(Iter0, Face, Vend, NewFace, Etab0) ->
 connect_4(Iter0, Vend, NewEdge, NeRec0, Etab0) ->
     {_,Edge,_,Iter} = wings_face:next_cw(Iter0),
     Rec = case gb_trees:get(Edge, Etab0) of
-	      #edge{ve=Vend}=Rec0 ->
-		  NeRec1 = NeRec0#edge{ltpr=Edge},
+	      #edge{a=ColA,b=ColB,ve=Vend}=Rec0 ->
+		  NeRec1 = NeRec0#edge{b=ColB,ltpr=Edge},
 		  Rec0#edge{rtsu=NewEdge};
-	      #edge{vs=Vend}=Rec0 ->
-		  NeRec1 = NeRec0#edge{ltpr=Edge},
+	      #edge{a=ColA,b=ColB,vs=Vend}=Rec0 ->
+		  NeRec1 = NeRec0#edge{b=ColA,ltpr=Edge},
 		  Rec0#edge{ltsu=NewEdge}
 	  end,
     Etab1 = gb_trees:update(Edge, Rec, Etab0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.25 2002/04/18 12:16:35 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.26 2002/04/19 18:38:44 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -19,6 +19,8 @@
 -include("wings.hrl").
 
 -import(lists, [foreach/2,map/2,foldl/3,sort/1,reverse/1,append/1]).
+
+-define(ZOOM_FACTOR, 20).
 
 -record(camera,
 	{x,y,					%Current mouse position.
@@ -32,7 +34,7 @@ sub_menu(_St) ->
 command(camera_mode, St) ->
     DefVar = {mode,wings_pref:get_value(camera_mode, blender)},
     ZoomFlag0 = wings_pref:get_value(wheel_zooms, true),
-    ZoomFactor0 = wings_pref:get_value(wheel_zoom_factor, 25),
+    ZoomFactor0 = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR),
     Qs = [{vframe,[{alt,DefVar,"Wings/Blender",blender},
 		   {alt,DefVar,"Nendo",nendo},
 		   {alt,DefVar,"3ds max",tds},
@@ -307,7 +309,8 @@ zoom_step(Dir) ->
 	true ->
 	    wings_wm:dirty(),
 	    #view{distance=Dist} = View = wings_view:current(),
-	    Delta = Dir*Dist*wings_pref:get_value(wheel_zoom_factor)/100,
+	    ZoomPercent = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR)/100,
+	    Delta = Dir*Dist*ZoomPercent,
 	    wings_view:set_current(View#view{distance=Dist+Delta}),
 	    keep
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.41 2002/04/16 09:40:18 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.42 2002/04/19 18:38:45 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -16,7 +16,7 @@
 %% Commands.
 -export([menu/3,command/2,
  	 select_region/1,select_edge_ring/1,
- 	 cut/2,cut/3,fast_cut/3,fast_cut/4,connect/1,
+ 	 cut/2,cut/3,fast_cut/3,connect/1,
  	 dissolve/1,dissolve_edges/2,dissolve_edge/2,
  	 hardness/2,hardness/3]).
 
@@ -285,46 +285,57 @@ make_vertices_1(N, Id, Va, Dir, Vtab0) ->
 %%  Cut an edge in two parts. Position can be given as
 %%  the atom `default', in which case the position will
 %%  be set to the midpoint of the edge.
-fast_cut(Edge, default, We) ->
-    fast_cut(Edge, default, default, We);
-fast_cut(Edge, {Pos,Col}, We) ->
-    fast_cut(Edge, Pos, Col, We);
-fast_cut(Edge, Pos, We) ->
-    %% XXX Temporary.
-    fast_cut(Edge, Pos, wings_color:white(), We).
 
-fast_cut(Edge, Pos0, Col0, We0) ->
+fast_cut(Edge, Pos0, We0) ->
     {NewV,We} = wings_we:new_ids(1, We0),
     NewEdge = NewV,
     #we{es=Etab0,vs=Vtab0,he=Htab0} = We,
     Template = gb_trees:get(Edge, Etab0),
-    #edge{vs=Vstart,ve=Vend,a=ACol,b=BCol,ltpr=EdgeA,rtsu=EdgeB} = Template,
-
+    #edge{vs=Vstart,ve=Vend,a=ACol,b=BCol,lf=Lf,rf=Rf,
+	  ltpr=EdgeA,rtsu=EdgeB,rtpr=NextBCol} = Template,
     #vtx{pos=VendPos,edge=VendEdge}= VendRec = gb_trees:get(Vend, Vtab0),
     Vtab1 = if
 		VendEdge =:= Edge ->
 		    gb_trees:update(Vend, VendRec#vtx{edge=NewEdge}, Vtab0);
 		true -> Vtab0
 	    end,
+    VstartPos = wings_vertex:pos(Vstart, Vtab0),
     if
-
 	Pos0 =:= default ->
-	    VstartPos = wings_vertex:pos(Vstart, Vtab0),
-	    NewCol = wings_color:average(ACol, BCol),
 	    NewVPos0 = e3d_vec:average([VstartPos,VendPos]);
 	true ->
-	    NewCol = Col0,
 	    NewVPos0 = Pos0
     end,
     NewVPos = wings_util:share(NewVPos0),
     Vtx = #vtx{pos=NewVPos,edge=NewEdge},
     Vtab = gb_trees:insert(NewV, Vtx, Vtab1),
 
-    NewEdgeRec = Template#edge{vs=NewV,a=NewCol,ltsu=Edge,rtpr=Edge},
+    %% Here we handle vertex colors.
+    case We of
+	#we{mode=material} ->
+	    NewColA = NewColB = wings_color:white();
+	_ ->
+	    Weight = if
+			 Pos0 == default -> 0.5;
+			 true ->
+			     ADist = e3d_vec:dist(Pos0, VstartPos),
+			     BDist = e3d_vec:dist(Pos0, VendPos),
+			     case ADist/(ADist+BDist) of
+				 {'EXIT',_} -> 0.5;
+				 Weight0 -> Weight0
+			     end
+		     end,
+	    AColOther = get_vtx_color(EdgeA, Lf, Etab0),
+	    NewColA = wings_color:mix(Weight, ACol, AColOther),
+	    BColOther = get_vtx_color(NextBCol, Rf, Etab0),
+	    NewColB = wings_color:mix(Weight, BCol, BColOther)
+    end,
+
+    NewEdgeRec = Template#edge{vs=NewV,a=NewColA,ltsu=Edge,rtpr=Edge},
     Etab1 = gb_trees:insert(NewEdge, NewEdgeRec, Etab0),
     Etab2 = patch_edge(EdgeA, NewEdge, Edge, Etab1),
     Etab3 = patch_edge(EdgeB, NewEdge, Edge, Etab2),
-    EdgeRec = Template#edge{ve=NewV,b=NewCol,rtsu=NewEdge,ltpr=NewEdge},
+    EdgeRec = Template#edge{ve=NewV,b=NewColB,rtsu=NewEdge,ltpr=NewEdge},
     Etab = gb_trees:update(Edge, EdgeRec, Etab3),
 
     Htab = case gb_sets:is_member(Edge, Htab0) of
@@ -333,6 +344,12 @@ fast_cut(Edge, Pos0, Col0, We0) ->
 	   end,
     {We#we{es=Etab,vs=Vtab,he=Htab},NewV}.
 
+get_vtx_color(Edge, Face, Etab) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{lf=Face,a=Col} -> Col;
+	#edge{rf=Face,b=Col} -> Col
+    end.
+    
 %%%
 %%% Cut and then interactively adjust the vertex positions.
 %%%
