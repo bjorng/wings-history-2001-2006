@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.36 2003/09/04 05:29:13 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.37 2003/09/18 13:16:39 dgud Exp $
 %%
 
 -module(wings_light).
@@ -543,7 +543,27 @@ export(#st{shapes=Shs}) ->
 		      [get_light(We)|A];
 		 (_, A) -> A
 	      end, [], gb_trees:values(Shs)),
-    reverse(L).
+    case L of
+	[] -> %% Camera lights 
+	    Amb = {"Ambient", camera_ambient()},
+	    Ls = case wings_pref:get_value(number_of_lights) of
+		     1 -> [{"Infinite",camera_infinite_1_0()}];
+		     2 -> [{"Infinite1",camera_infinite_2_0()},
+			   {"Infinite2",camera_infinite_2_1()}]
+		 end,
+	    #view{origin=Aim} = wings_view:current(),
+	    CameraPos = wings_view:eye_point(),
+	    GL = fun({Name,Li = #light{aim=Diff}}) ->
+			 LPos = e3d_vec:add(CameraPos,Diff),
+			 We = #we{name = Name,
+				  vp = gb_trees:from_orddict([{1, LPos}]),
+				  light = Li#light{aim=Aim}},
+			 get_light(We)
+		 end,
+	    [GL(Light) || Light <- [Amb|Ls]];
+	_ ->
+	    reverse(L)
+    end.
 
 get_light(#we{name=Name,perm=P}=We) ->
     Ps0 = get_light_1(We),
@@ -632,9 +652,39 @@ setup_lights(CoordType) ->
 	true -> scene_lights(CoordType)
     end.
 
+camera_ambient() ->
+    #light{type = ambient, 
+	   aim = {0.0,0.0,0.0},
+	   ambient = {0.1,0.1,0.1,1.0}}.
+camera_infinite_1_0() ->
+    #light{type = infinite, 
+	   diffuse  = {0.7,0.7,0.7,1},
+	   specular = {0.2,0.2,0.2,1},
+	   ambient  = {0,0,0,1.0},
+	   aim      = {0.110,0.0,0.994}
+	  }.
+camera_infinite_2_0() ->
+    #light{type = infinite, 
+	   diffuse  = {1,1,1,1},
+	   specular = {0.3,0.3,0.3,1},
+	   ambient  = {0,0,0,1.0},
+	   aim      = {0.71,0.71,0.0}
+	  }.
+camera_infinite_2_1() ->
+    #light{type = infinite, 
+	   diffuse  = {0.5,0.5,0.5,0.5},
+	   specular = {0.3,0.3,0.3,1},
+	   ambient  = {0,0,0,1.0},
+	   aim      = {-0.71,-0.71,0.0}
+	  }.
+
+
+infinite({X,Y,Z}) ->
+    {X,Y,Z,0.0};
+infinite(V) -> V.
+
 modeling_lights(global, _Type) -> ok;
 modeling_lights(camera, Type) ->
-    gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0.1,0.1,0.1,1.0}),
     gl:enable(?GL_LIGHT0),
     gl:disable(?GL_LIGHT2),
     gl:disable(?GL_LIGHT3),
@@ -642,21 +692,25 @@ modeling_lights(camera, Type) ->
     gl:disable(?GL_LIGHT5),
     gl:disable(?GL_LIGHT6),
     gl:disable(?GL_LIGHT7),
-    gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0.1,0.1,0.1,1.0}),
+    Amb = camera_ambient(),
+    gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, Amb#light.ambient),
     case Type of
 	1 ->
+	    L = camera_infinite_1_0(),
 	    gl:disable(?GL_LIGHT1),
-	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {0.7,0.7,0.7,1}),
-	    gl:lightfv(?GL_LIGHT0, ?GL_SPECULAR, {0.2,0.2,0.2,1}),
-	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.110,0,0.994,0});
+	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE,  L#light.diffuse),
+	    gl:lightfv(?GL_LIGHT0, ?GL_SPECULAR, L#light.specular),
+	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, infinite(L#light.aim));     
 	2 ->
+	    L20 = camera_infinite_2_0(),
+	    L21 = camera_infinite_2_1(),
 	    gl:enable(?GL_LIGHT1),
-	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, {1,1,1,1}),
-	    gl:lightfv(?GL_LIGHT0, ?GL_SPECULAR, {0.3,0.3,0.3,1}),
-	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.71,0.71,0.0,0.0}),
-	    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {0.5,0.5,0.5,1}),
-	    gl:lightfv(?GL_LIGHT1, ?GL_SPECULAR, {0.3,0.3,0.3,1}),
-	    gl:lightfv(?GL_LIGHT1, ?GL_POSITION, {-0.71,-0.71,0.0,0});
+	    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE,  L20#light.diffuse), 
+	    gl:lightfv(?GL_LIGHT0, ?GL_SPECULAR, L20#light.specular),
+	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, infinite(L20#light.aim)),
+	    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE,  L21#light.diffuse), 
+	    gl:lightfv(?GL_LIGHT1, ?GL_SPECULAR, L21#light.specular),
+	    gl:lightfv(?GL_LIGHT1, ?GL_POSITION, infinite(L21#light.aim));     
 	mat_preview ->
 	    D = 0.8,
 	    S = 0.7,
