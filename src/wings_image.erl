@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.29 2003/10/18 07:34:17 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.30 2003/10/21 12:02:26 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -40,7 +40,7 @@ from_file(Filename) ->
     case wpa:image_read(Props) of
 	#e3d_image{}=Image ->
 	    Name = filename:rootname(filename:basename(Filename)),
-	    req({new,Image#e3d_image{filename=Filename,name=Name}});
+	    req({new,Image#e3d_image{filename=Filename,name=Name},false});
 	{error,_}=Error -> Error
     end.
 
