@@ -33,7 +33,7 @@ OBJDIR = .
 
 # Includes
 #
-INCLUDES = -I. -I$(ERL_TOP)\erl5.1\usr\include
+INCLUDES = -I. -I$(ERL_TOP)\usr\include
 
 # Libraries (static)
 #
