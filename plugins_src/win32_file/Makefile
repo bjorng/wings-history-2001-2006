@@ -8,11 +8,11 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.11 2003/09/21 19:38:30 bjorng Exp $
+#     $Id: Makefile,v 1.12 2003/12/10 16:34:55 raimo_niskanen Exp $
 #
 LIBDIR = ../../plugins/win32_file
 
-ERL_DIR := $(shell echo 'io:format("~s~n",[code:root_dir()]),halt().' | erl | sed 's,^[0-9]*> *,,g' | tail +2)
+ERL_DIR := $(shell echo 'io:format("~s~n",[code:root_dir()]),init:stop().' | erl | sed -n '/^1>/s/^1> //p')
 ERL_INC = $(ERL_DIR)/usr/include
 BEAM = $(LIBDIR)/wp8_file.beam
 LIBS = -shared -lcomdlg32
