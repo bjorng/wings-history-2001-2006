@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d.hrl,v 1.5 2002/04/28 07:47:29 bjorng Exp $
+%%     $Id: e3d.hrl,v 1.6 2002/06/09 18:39:43 bjorng Exp $
 %%
 
 -record(e3d_file,
@@ -26,6 +26,7 @@
 -record(e3d_mesh,
  	{type=triangle,				%'triangle' or 'polygon'.
 	 vs=[],					%Vertex table (list).
+	 vc=[],					%Vertex color table (list).
 	 tx=[],					%Texture coordinates (list).
 	 ns=[],					%Normal table (list).
  	 fs=[],					%Face table (list of e3d_face).
@@ -35,6 +36,7 @@
 
 -record(e3d_face,
 	{vs=[],					%List of vertex indices.
+	 vc=[],					%Vertex color indicies.
 	 tx=[],					%List of texture indices.
 	 ns=[],					%List of normal indicies.
 	 mat=[],				%Materials for face.

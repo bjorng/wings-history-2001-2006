@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.63 2002/05/19 07:58:14 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.64 2002/06/09 18:39:43 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -628,51 +628,67 @@ do_export(#we{name=Name}=We, Acc) ->
 make_mesh(We0) ->
     #we{fs=Ftab,vs=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We0, 0),
     Vs = [P || #vtx{pos=P} <- gb_trees:values(Vs0)],
-    Fs0 = foldl(fun({_,#face{mat='_hole_'}}, A) -> A;
+    {ColTab0,UvTab0} = make_tables(We),
+    ColTab1 = gb_trees:from_orddict(ColTab0),
+    UvTab1 = gb_trees:from_orddict(UvTab0),
+    Fs0 = foldl(fun({_,#face{mat='_hole_'}}, A) ->
+			A;
 		   ({Face,#face{mat=Mat}}, A) ->
-			[make_face(Face, Mat, We)|A]
+			[make_face(Face, Mat, ColTab1, UvTab1, We)|A]
 		end, [], gb_trees:to_list(Ftab)),
-    Fs1 = reverse(Fs0),
-    {Fs,UVTab} = make_uv(Fs1),
+    Fs = reverse(Fs0),
     He = hard_edges(gb_sets:to_list(He0), Etab, []),
     Matrix = e3d_mat:identity(),
-    Mesh = #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=UVTab,he=He,matrix=Matrix},
+    ColTab = strip_numbers(ColTab0),
+    UvTab = strip_numbers(UvTab0),
+    Mesh = #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=UvTab,he=He,
+		     vc=ColTab,matrix=Matrix},
     e3d_mesh:renumber(Mesh).
 
-make_face(Face, Mat, #we{mode=uv}=We) ->
+make_face(Face, Mat, _ColTab, UvTab, #we{mode=uv}=We) ->
     {Vs,UVs} = wings_face:fold_vinfo(
 		 fun(V, {_,_}=UV, {VAcc,UVAcc}) ->
-			 {[V|VAcc],[UV|UVAcc]};
-		    (V, _Info, {VAcc,UVAcc}) ->
+			 {[V|VAcc],[gb_trees:get(UV, UvTab)|UVAcc]};
+		    (V, _, {VAcc,UVAcc}) ->
 			 {[V|VAcc],UVAcc}
 		 end, {[],[]}, Face, We),
-    {Vs,UVs,Mat};
-make_face(Face, Mat, We) ->
+    #e3d_face{vs=Vs,tx=UVs,mat=make_face_mat(Mat)};
+make_face(Face, Mat, ColTab, _UvTab, #we{mode=vertex}=We) ->
+    {Vs,Cols} = wings_face:fold_vinfo(
+		  fun(V, {_,_,_}=Col, {VAcc,ColAcc}) ->
+			  {[V|VAcc],[gb_trees:get(Col, ColTab)|ColAcc]};
+		     (V, _Info, {VAcc,ColAcc}) ->
+			  {[V|VAcc],ColAcc}
+		  end, {[],[]}, Face, We),
+    #e3d_face{vs=Vs,vc=Cols,mat=make_face_mat(Mat)};
+make_face(Face, Mat, _, _, We) ->
     Vs = wings_face:surrounding_vertices(Face, We),
-    {Vs,[],Mat}.
+    #e3d_face{vs=Vs,mat=make_face_mat(Mat)}.
 
-make_uv(Faces) ->
-    R0 = sofs:from_external(Faces, [{vertices,[uv],mat}]),
-    P0 = sofs:projection(2, R0),
-    P1 = sofs:union(P0),
-    P = sofs:to_external(P1),
-    UVmap = gb_trees:from_orddict(sort(number(P, 0, []))),
-    make_uv_1(Faces, UVmap, []).
+make_tables(#we{mode=vertex}=We) ->
+    {make_table(We),[]};
+make_tables(#we{mode=uv}=We) ->
+    {[],make_table(We)};
+make_tables(_) ->
+    {[],[]}.
 
-make_uv_1([{Vs,UVs0,Mat}|Fs], UVMap, Acc) ->
-    UVs = [gb_trees:get(UV, UVMap) || UV <- UVs0],
-    Rec = #e3d_face{vs=Vs,tx=UVs,mat=make_face_mat(Mat)},
-    make_uv_1(Fs, UVMap, [Rec|Acc]);
-make_uv_1([], UVMap, Acc) ->
-    UVTab0 = gb_trees:to_list(UVMap),
-    UVTab1 = sofs:from_external(UVTab0, [{uv,index}]),
-    UVTab2 = sofs:converse(UVTab1),
-    UVTab = [UV || {I,UV} <- sofs:to_external(UVTab2)],
-    {reverse(Acc),UVTab}.
+make_table(#we{es=Etab}) ->
+    Cuvs = foldl(fun(#edge{a=A,b=B}, Acc) ->
+			 [A,B|Acc]
+		 end, [], gb_trees:values(Etab)),
+    number(ordsets:from_list(Cuvs)).
 
-number([UV|UVs], I, Acc) ->
-    number(UVs, I+1, [{UV,I}|Acc]);
-number([], _I, Acc) -> Acc.
+number(L) ->
+    number(L, 0, []).
+number([H|T], I, Acc) ->
+    number(T, I+1, [{H,I}|Acc]);
+number([], _, Acc) -> reverse(Acc).
+
+strip_numbers(L) ->
+    strip_numbers(L, []).
+strip_numbers([{H,_}|T], Acc) ->
+    strip_numbers(T, [H|Acc]);
+strip_numbers([], Acc) -> reverse(Acc).
 
 make_face_mat([_|_]=Mat) -> Mat;
 make_face_mat(Mat) -> [Mat].
@@ -684,3 +700,4 @@ hard_edges([], _Etab, Acc) -> Acc.
 
 hard(A, B) when A < B -> {A,B};
 hard(A, B) -> {B,A}.
+
