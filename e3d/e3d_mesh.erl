@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.35 2004/03/16 23:19:34 raimo_niskanen Exp $
+%%     $Id: e3d_mesh.erl,v 1.36 2004/03/17 10:43:23 raimo_niskanen Exp $
 %%
 
 -module(e3d_mesh).
@@ -244,7 +244,8 @@ slit_hard_edges(Mesh0=#e3d_mesh{vs=Vs0,vc=Vc0,tx=Tx0,ns=Ns0,fs=Fs0,he=He0},
 
 face_areas(#e3d_mesh{vs=Vs,fs=Fs}) -> face_areas(gb_trees:keys(Fs), Vs).
 
-face_areas(Fs, Vs) when list(Fs) -> face_areas_1(Fs, Vs, list_to_tuple(Vs)).
+face_areas(Fs, Vs) when is_list(Fs), is_list(Vs) -> 
+    face_areas_1(Fs, Vs, list_to_tuple(Vs)).
 
 %%%
 %%% End of exported functions. Local functions follow.
@@ -798,6 +799,7 @@ mk_edge(V1, V2) -> {V1,V2}.
 %%%
 %%% Help function for face_areas/1,2.
 
+face_areas_1([], _Vs, _VsT) -> [];
 face_areas_1([#e3d_face{vs=[V1,V2,V3]}|T], Vs, VsT) ->
     P1 = element(V1+1, VsT),
     P2 = element(V2+1, VsT),

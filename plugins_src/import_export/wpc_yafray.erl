@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.68 2004/03/11 08:35:50 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.69 2004/03/17 10:43:26 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -23,7 +23,7 @@
 -include("e3d_image.hrl").
 
 -import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,keydelete/3,
-		foreach/2,foldl/3]).
+		foreach/2,foldl/3,foldr/3]).
 
 -define(TAG, yafray).
 -define(TAG_RENDER, yafray_render).
@@ -1756,40 +1756,41 @@ export_light(F, Name, ambient, OpenGL, YafRay) ->
     Bg;
 export_light(F, Name, area, OpenGL, YafRay) ->
     Color = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
-    #e3d_mesh{vs=Vs,fs=Fs} = proplists:get_value(mesh, OpenGL, #e3d_mesh{}),
+    #e3d_mesh{vs=Vs,fs=Fs0} = proplists:get_value(mesh, OpenGL, #e3d_mesh{}),
     VsT = list_to_tuple(Vs),
     Power = proplists:get_value(power, YafRay, ?DEF_ATTN_POWER),
-    ArealightSamples = proplists:get_value(arealight_samples, YafRay, 
+    Samples = proplists:get_value(arealight_samples, YafRay, 
 					   ?DEF_AREALIGHT_SAMPLES),
-    ArealightPsamples = proplists:get_value(arealight_psamples, YafRay, 
+    Psamples = proplists:get_value(arealight_psamples, YafRay, 
 					    ?DEF_AREALIGHT_PSAMPLES),
     Dummy = proplists:get_value(dummy, YafRay, ?DEF_DUMMY),
+    Fs = foldr(fun (Face, Acc) -> 
+			e3d_mesh:quadrangulate_face(Face, Vs)++Acc
+		end, [], Fs0),
+    As = e3d_mesh:face_areas(Fs, Vs),
+    Area = foldl(fun (A, Acc) -> A+Acc end, 0.0, As),
+    AFs = zip(As, Fs),
     foldl(
-      fun(Face, I) ->
-	      foldl(
-		fun(#e3d_face{vs=V}, J) ->
-			[A,B,C,D] = quadrangle_vertices(V, VsT),
-			NameJ = Name++"_"++integer_to_list(J),
-			println(F, "<light type=\"arealight\" "
-				"name=\"~s\" power=\"~.3f\"~n"
-				"       samples=\"~w\" psamples=\"~w\" "
-				"dummy=\"~s\">", 
-				[NameJ,Power,
-				 ArealightSamples,ArealightPsamples,
-				 format(Dummy)]),
-			export_rgb(F, color, Color),
-			export_pos(F, a, A),
-			export_pos(F, b, B),
-			export_pos(F, c, C),
-			export_pos(F, d, D),
-			println(F, "</light>"),
-			J+1
-		end,
-		I,
-		e3d_mesh:quadrangulate_face(Face, Vs))
-      end,
-      1,
-      Fs),
+      fun ({Af,#e3d_face{vs=VsF}}, I) ->
+	      case catch Power*Af/Area of
+		  {'EXIT',{badarith,_}} -> I;
+		  Pwr ->
+		      NameI = Name++"_"++integer_to_list(I),
+		      [A,B,C,D] = quadrangle_vertices(VsF, VsT),
+		      println(F, "<light type=\"arealight\" "
+			      "name=\"~s\" power=\"~.3f\"~n"
+			      "       samples=\"~w\" "
+			      "psamples=\"~w\" dummy=\"~s\">", 
+			      [NameI,Pwr,Samples,Psamples,format(Dummy)]),
+		      export_rgb(F, color, Color),
+		      export_pos(F, a, A),
+		      export_pos(F, b, B),
+		      export_pos(F, c, C),
+		      export_pos(F, d, D),
+		      println(F, "</light>"),
+		      I+1
+	      end
+      end, 1, AFs),
     undefined;
 export_light(_F, Name, Type, _OpenGL, _YafRay) ->
     io:format("WARNING: Ignoring unknown light \"~s\" type: ~p~n", 
@@ -2269,6 +2270,11 @@ split_list1([], _Pos, _) ->
     badarg;
 split_list1([H|T], Pos, Head) ->
     split_list1(T, Pos-1, [H|Head]).
+
+%% Zip lists together into a list of tuples
+%%
+zip([], []) -> [];
+zip([H1|T1], [H2|T2]) -> [{H1,H2}|zip(T1, T2)].
 
 %%% %% {lists:filter(Pred, List),lists:filter(fun(X) -> not Pred(X) end, List)}
 %%% filter2(Pred, List) -> filter2_1(Pred, List, [], []).
