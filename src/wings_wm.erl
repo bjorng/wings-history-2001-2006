@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.133 2003/11/30 09:15:12 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.134 2003/11/30 21:50:09 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -93,7 +93,7 @@
 %%%
 
 init() ->
-    put(wm_dirty_mode, back),
+    put(wm_dirty_mode, front),
     put(wm_cursor, arrow),
     {W,H} = TopSize = wings_pref:get_value(window_size),
     put(wm_top_size, TopSize),

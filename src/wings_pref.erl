@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.108 2003/11/30 18:01:00 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.109 2003/11/30 21:50:09 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -75,9 +75,9 @@ menu(_St) ->
     {"Preferences...",
       fun(_, _) ->
 	      {edit,{preferences,prefs}}
-      end,"Edit the general preferences",[]}.
+      end,"Edit the preferences for Wings",[]}.
 
-command(prefs, _St) ->
+command(prefs, St) ->
     PrefQs0 = [{"General",gen_prefs()},
 	       {"Camera",{'VALUE',wings_camera:prefs()}},
 	       {"Advanced",advanced_prefs()},
@@ -88,13 +88,14 @@ command(prefs, _St) ->
     Qs = [{oframe,PrefQs,1,[{style,buttons}]}],
     wings_ask:dialog("Preferences", Qs,
 		     fun([_|Res]) ->
-			     {edit,{preferences,{set,Res}}}
-		     end);
-command({set,List}, St) ->
-    foreach(fun({Key,Val}) ->
-		    smart_set_value(Key, Val, St)
-	    end, List),
-    wings_wm:dirty().
+			     set_values(Res, St)
+		     end).
+
+set_values([{Key,Val}|Kvs], St) ->
+    smart_set_value(Key, Val, St),
+    set_values(Kvs, St);
+set_values([], _) -> ignore.
+
 
 gen_prefs() ->
     {vframe,
@@ -128,8 +129,8 @@ gen_prefs() ->
 	  {"Smart Highlighting",smart_highlighting}],
 	 [{title,"Highlighting"}]},
 	{vframe,
-	 [{menu,[{"Solid Face Selections",solid},
-		 {"Stippled Face Selections",stippled}],
+	 [{vradio,[{"Solid Face Selections",solid},
+		   {"Stippled Face Selections",stippled}],
 	   selection_style},
 	  {hframe,[{label,"Selection Color"},{color,selected_color}]} ],
 	 [{title,"Selection"}]}]},
@@ -332,6 +333,9 @@ make_query({alt,Key,Label,Val}) ->
 make_query({menu,List,Key}) ->
     Def = get_value(Key),
     {menu,List,Def,[{key,Key}]};
+make_query({vradio,List,Key}) ->
+    Def = get_value(Key),
+    {vradio,List,Def,[{key,Key}]};
 make_query({slider,{text,Key,Flags}}) ->
     Def = get_value(Key),
     {slider,{text,Def,[{key,Key}|Flags]}};

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.98 2003/11/30 18:00:59 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.99 2003/11/30 21:50:08 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -52,8 +52,8 @@ prefs() ->
     ZoomFactor0 = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR),
     PanSpeed0 = wings_pref:get_value(pan_speed),
     {vframe,
-     [{vframe,[mouse_buttons(2)],[{title,"Mouse Buttons"}]},
-      {vframe,[camera_modes(-2)],[{title,"Camera Mode"}]},
+     [{vframe,[mouse_buttons()],[{title,"Mouse Buttons"}]},
+      {vframe,[camera_modes()],[{title,"Camera Mode"}]},
       {vframe,
        [{hframe,[{slider,{text,PanSpeed0,[{key,pan_speed},{range,{1,50}}]}}]}],
        [{title,"Pan Speed"}]},
@@ -71,32 +71,32 @@ prefs() ->
 	  {label,"%"}],
 	 [{title,"Scroll Wheel"}]}]} ]}.
 
-mouse_buttons(DI) ->
+mouse_buttons() ->
     {menu,[{desc(1),1,[{info,info(1)}]},
 	   {desc(2),2,[{info,info(2)}]},
 	   {desc(3),3,[{info,info(3)}]}],
      wings_pref:get_value(num_buttons),
      [{key,num_buttons},
-      {hook,fun (update, {Var,I,Val,Sto0}) ->
+      {hook,fun (update, {Var,_I,Val,Sto0}) ->
 		    Sto = gb_trees:update(Var, Val, Sto0),
-		    Mode0 = gb_trees:get(I+DI, Sto),
+		    Mode0 = gb_trees:get(camera_mode, Sto),
 		    Mode = case {Val,Mode0} of
 			       {1,_} -> nendo;
 			       {2,blender} -> blender;
 			       {2,_} -> nendo;
 			       {3,_} -> Mode0
 			   end,
-		    {store,gb_trees:update(I+DI, Mode, Sto)};
+		    {store,gb_trees:update(camera_mode, Mode, Sto)};
 		(_, _) -> void
 	    end}]}.
 
-camera_modes(DI) ->
+camera_modes() ->
     Modes = [mirai,nendo,maya,tds,blender,mb],
     {menu,[{desc(Mode),Mode,[{info,info(Mode)}]} || Mode <- Modes],
      wings_pref:get_value(camera_mode),
      [{key,camera_mode},
-      {hook,fun (menu_disabled, {_Var,I,Sto}) ->
- 		    case gb_trees:get(I+DI, Sto) of
+      {hook,fun (menu_disabled, {_Var,_I,Sto}) ->
+ 		    case gb_trees:get(num_buttons, Sto) of
  			1 -> [mirai,maya,tds,blender,mb];
 			2 -> [mirai,maya,tds,mb];
  			3 -> []
