@@ -3,12 +3,12 @@
 %%
 %%     This modules translates hotkeys.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.34 2003/01/29 16:06:00 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.35 2003/02/06 06:25:28 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -269,8 +269,8 @@ default_keybindings() ->
      {{$z,[ctrl]},          {edit,undo_toggle}},
      {{?SDLK_KP_PLUS,[]},   {select,more}},
      {{?SDLK_KP_MINUS,[]},  {select,less}},
-     {{?SDLK_F3,[]},        {select,prev_edge_loop}},
-     {{?SDLK_F4,[]},        {select,next_edge_loop}},
+     {{?SDLK_F3,[]},        {select,{edge_loop,prev_edge_loop}}},
+     {{?SDLK_F4,[]},        {select,{edge_loop,next_edge_loop}}},
      {{?SDLK_F5,[]},        {select,{by,{faces_with,5}}}},
      {{?SDLK_TAB,[]},       {view,workmode}},
      {{?SDLK_TAB,[shift]},  {view,smoothed_preview}},
@@ -283,10 +283,14 @@ default_keybindings() ->
      {$e,               {select,edge}},
 
      {$f,               {select,face}},
-     {$g,               {select,edge_ring}},
+     {$g,               {select,{edge_loop,edge_ring}}},
+     {{$g,[alt]},       {select,{edge_loop,edge_ring_incr}}},
+     {{$g,[alt,ctrl]},  {select,{edge_loop,edge_ring_decr}}},
      {$i,               {select,similar}},
-     {$l,               {select,edge_loop}},
-     {$L,		{select,select_region}},
+     {$l,               {select,{edge_loop,edge_loop}}},
+     {$L,		{select,{edge_loop,edge_loop_to_region}}},
+     {{$l,[alt]},       {select,{edge_loop,edge_link_incr}}},
+     {{$l,[alt,ctrl]},  {select,{edge_loop,edge_link_decr}}},
      {$o,               {view,orthogonal_view}},
      {$r,               {view,reset}},
      {$u,               {view,auto_rotate}},

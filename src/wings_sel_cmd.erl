@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.42 2003/02/05 12:28:49 dgud Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.43 2003/02/06 06:25:28 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -29,24 +29,25 @@ menu(St) ->
      {"Less",less,less_help(St)},
      {"Similar",similar,similar_help(St)},
      separator,
-     {"Edge Loops", {edgesel, 
-		     [
-		      {"Edge Loop to Region",select_region},
-		      {"Edge Loop",edge_loop,"Expand edge selection to loop; "
-		       "convert face selection to selected border edges"},
-		      {"Edge Ring",edge_ring,"Expand edge selection to ring"},
-		      {"Previous Edge Loop",prev_edge_loop,"Select the next edge loop"},
-		      {"Next Edge Loop",next_edge_loop,"Select the previous edge loop"},
-		      separator,
-		      {"Edge Incr (Loop)",edge_link_incr,
-		       "Increase edge selection by one in loop dir"},
-		      {"Edge Decr (Loop)",edge_link_decr,
-		       "Decrease edge selection by one in loop dir"},
-		      {"Edge Incr (Ring)",edge_ring_incr,
-		       "Increase edge selection by one in ring dir"},
-		      {"Edge Decr (Ring)",edge_ring_decr,
-		       "Decrease edge selection by one in ring dir"}
-		     ]}},
+     {"Edge Loop",
+      {edge_loop,
+       [{"Edge Loop",edge_loop,"Expand edge selection to loop; "
+	 "convert face selection to selected border edges"},
+	{"Edge Loop to Region",edge_loop_to_region,
+	 "Select all faces on one side of an edge loop"},
+	{"Edge Ring",edge_ring,"Expand edge selection to ring"},
+	separator,
+	{"Previous Edge Loop",prev_edge_loop,"Select the next edge loop"},
+	{"Next Edge Loop",next_edge_loop,"Select the previous edge loop"},
+	separator,
+	{"Grow Edge Loop",edge_link_incr,
+	 "Grow edge selection by one edge in loop directions"},
+	{"Shrink Edge Loop",edge_link_decr,
+	 "Shrink edge selection by one in loop direction"},
+	{"Grow Edge Ring",edge_ring_incr,
+	 "Grow edge selection by one edge in ring direction"},
+	{"Shrink Edge Ring",edge_ring_decr,
+	 "Shrink edge selection by one edge in ring directions"}]}},
      separator,
      {"Adjacent",{adjacent,[{"Vertices",vertex},
 			    {"Edges",edge},
@@ -168,29 +169,29 @@ similar_help(#st{selmode=body}) ->
     "Select objects with the same number of edges, faces, and vertices";
 similar_help(_) -> [].
     
-command({edgesel, edge_loop}, #st{selmode=face}=St) ->
+command({edge_loop,edge_loop}, #st{selmode=face}=St) ->
     {save_state,
      wings_sel:convert_shape(
        fun(Faces, We) ->
 	       gb_sets:from_list(wings_face:outer_edges(Faces, We))
        end, edge, St)};
-command({edgesel, edge_loop}, St) ->
+command({edge_loop,edge_loop}, St) ->
     {save_state,wings_edge_loop:select_loop(St)};
-command({edgesel,edge_link_decr}, St) ->
+command({edge_loop,edge_link_decr}, St) ->
     {save_state,wings_edge_loop:select_link_decr(St)};
-command({edgesel,edge_link_incr}, St) ->
+command({edge_loop,edge_link_incr}, St) ->
     {save_state,wings_edge_loop:select_link_incr(St)};
-command({edgesel,edge_ring}, St) ->
+command({edge_loop,edge_ring}, St) ->
     {save_state,wings_edge:select_edge_ring(St)};
-command({edgesel,edge_ring_incr}, St) ->
+command({edge_loop,edge_ring_incr}, St) ->
     {save_state,wings_edge:select_edge_ring_incr(St)};
-command({edgesel,edge_ring_decr}, St) ->
+command({edge_loop,edge_ring_decr}, St) ->
     {save_state,wings_edge:select_edge_ring_decr(St)};
-command({edgesel,next_edge_loop}, St) ->
+command({edge_loop,next_edge_loop}, St) ->
     {save_state,wings_edge_loop:select_next(St)};
-command({edgesel,prev_edge_loop}, St) ->
+command({edge_loop,prev_edge_loop}, St) ->
     {save_state,wings_edge_loop:select_prev(St)};
-command({edgesel,select_region}, St) ->
+command({edge_loop,edge_loop_to_region}, St) ->
     {save_state,wings_edge:select_region(St)};
 command(deselect, St) ->
     {save_state,wings_sel:reset(St)};

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.71 2003/02/03 05:30:51 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.72 2003/02/06 06:25:28 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -414,4 +414,9 @@ is_wings_vector(_) -> false.
 
 bad_command({_,{rotate,Atom}}) when is_atom(Atom) -> true;
 bad_command({view,virtual_mirror}) -> true;
+bad_command({select,edge_loop}) -> true;
+bad_command({select,select_region}) -> true;
+bad_command({select,edge_ring}) -> true;
+bad_command({select,prev_edge_loop}) -> true;
+bad_command({select,next_edge_loop}) -> true;
 bad_command(_) -> false.
