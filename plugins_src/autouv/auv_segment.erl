@@ -9,12 +9,12 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.58 2004/05/31 16:58:06 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.59 2004/07/31 18:46:15 dgud Exp $
 
 -module(auv_segment).
 
 -export([create/2,segment_by_material/1,cut_model/3,
-	 normalize_charts/3,map_vertex/2,
+	 normalize_charts/3,map_vertex/2,map_edge/2,
 	 fv_to_uv_map/2,uv_to_charts/3,
 	 finalize_charts/1,finalize_chart/2]).
 
@@ -681,6 +681,16 @@ map_vertex(V0, Vmap) ->
     end.
 
 %%%
+%%% Map back to the original edge.
+%%%
+
+map_edge(E0, Emap) ->
+    case gb_trees:lookup(E0, Emap) of
+	none -> E0;
+	{value,E} -> E
+    end.
+
+%%%
 %%% Cutting along hard edges.
 %%%
 
@@ -697,7 +707,33 @@ cut_one_chart(Keep0, Cuts, We0) ->
     {We1,Map1} = cut_shared_vertices(Keep, OuterEdges, We0, Map0),
     {We2,Vmap} = cut_edges(Keep0, Cuts, We1, Map1),
     Me = gb_sets:to_list(wings_we:new_items(edge, We1, We2)),
-    We = We2#we{name=#ch{vmap=Vmap,me=Me}},
+    
+    %% Testing
+    Emap = 
+	foldl(fun(ME,Acc) ->
+		      case gb_trees:lookup(ME,We2#we.es) of
+			  none ->
+			      Acc;
+			  {value,#edge{vs=V1,ve=V2}} ->
+			      V1m = map_vertex(V1, Vmap),
+			      V2m = map_vertex(V2, Vmap),
+			      if V1m == V2m ->
+				      Acc;
+				 true ->
+				      Lookup = 
+					  fun(E,_,#edge{vs=Vs,ve=Ve},_) 
+					     when Vs==V1m,Ve==V2m -> E;
+					     (E,_,#edge{vs=Ve,ve=Vs},_) 
+					     when Vs==V1m,Ve==V2m -> E;
+					     (_,_,_,Cont) -> Cont
+					  end,
+				      E = wings_vertex:until(Lookup,fail,V1m,We0),
+				      [{ME,E}|Acc]
+			      end
+		      end
+	      end, [], Me),
+    We = We2#we{name=#ch{vmap=Vmap,me=Me, 
+			 emap=gb_trees:from_orddict(sort(Emap))}},
     {Keep0,We}.
 
 cut_shared_vertices(Faces, Es, #we{es=Etab}=We0, InvVmap0) ->

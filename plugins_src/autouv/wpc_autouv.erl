@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.261 2004/07/08 10:43:16 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.262 2004/07/31 18:46:16 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -842,8 +842,7 @@ update_body_sel(face, Elems, Charts) ->
     face_sel_to_body(Charts, Elems, []);
 update_body_sel(body, _, Charts) ->
     body_sel_to_body(Charts, []);
-update_body_sel(Mode, _, _) ->
-    io:format("~p: ~p\n", [?LINE,Mode]),
+update_body_sel(_Mode, _, _) ->
     [].
 
 face_sel_to_body([{K,We}|Cs], Faces, Sel) ->
@@ -1053,7 +1052,7 @@ geom2auv_faces(Fs, _) ->
     Fs.
 
 auv2geom_vs(Vs, #we{name=#ch{vmap=Vmap}}) ->
-    [auv_segment:map_vertex(V, Vmap) || V <- Vs].
+    sort([auv_segment:map_vertex(V, Vmap) || V <- Vs]).
 
 geom2auv_vs(Vs, #we{name=#ch{vmap=Vmap},vp=Vtab}) ->
     geom2auv_vs_1(gb_trees:keys(Vtab), gb_sets:from_list(Vs), Vmap, []).
@@ -1065,8 +1064,16 @@ geom2auv_vs_1([V|Vs], VsSet, Vmap, Acc) ->
     end;
 geom2auv_vs_1([], _, _, Acc) -> sort(Acc).
 
-auv2geom_edges(Es, #we{name=#ch{me=Me}}) ->
-    Es -- Me.
+auv2geom_edges(Es, #we{name=#ch{emap=Emap}}) ->
+    sort([auv_segment:map_edge(E, Emap) || E <- Es]).
 
-geom2auv_edges(Es, _We) ->
-    Es.
+geom2auv_edges(Es, #we{name=#ch{emap=Emap0}}) ->
+    A2We = sofs:relation(gb_trees:to_list(Emap0)),
+    W2Ae = sofs:relation_to_family(sofs:converse(A2We)),
+    Tab = gb_trees:from_orddict(sofs:to_external(W2Ae)),
+    foldl(fun(Edge, Acc) ->
+		  case gb_trees:lookup(Edge, Tab) of
+		      none -> [Edge|Acc];
+		      {value,Hits} -> Hits ++ Acc
+		  end
+	  end, [], Es).
