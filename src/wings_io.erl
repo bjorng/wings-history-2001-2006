@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.41 2002/03/11 11:04:02 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.42 2002/04/10 08:17:13 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -479,7 +479,7 @@ ortho_setup() ->
     gl:disable(?GL_DEPTH_TEST),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    glu:ortho2D(0.0, float(W), float(H), 0.0),
+    glu:ortho2D(0.0, W, H, 0.0),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
     gl:color3f(0.0, 0.0, 0.0),

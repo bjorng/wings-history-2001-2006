@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.12 2002/03/31 10:26:18 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.13 2002/04/10 08:17:13 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -36,13 +36,14 @@
 	 fi,					%Static data for all fields.
 	 priv,					%States for all fields.
 	 coords,				%Coordinates for hit testing.
-	 common=[],				%Data common for all fields.
+	 common=gb_trees:empty(),		%Data common for all fields.
 	 redraw
 	}).
 
 %% Static data for each field.
 -record(fi,
 	{handler,				%Handler fun.
+	 key,					%Field key.
 	 inert=true,				%Inert field.
 	 flags,					%Flags field.
 	 x,y,					%Upper left position.
@@ -67,20 +68,29 @@ setup_ask(Qs0, Redraw, Fun) ->
     Qs1 = normalize(Qs0),
     Qs = propagate_sizes(Qs1),
     {Fis0,Priv0} = flatten_fields(Qs),
-    Fis = list_to_tuple(Fis0),
+    Fis1 = insert_keys(Fis0, 1),
+    Fis = list_to_tuple(Fis1),
     Priv = list_to_tuple(Priv0),
     {#fi{w=W,h=H},_} = Qs,
     S = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis),redraw=Redraw},
     init_fields(1, size(Priv), S).
 
+insert_keys([#fi{flags=Flags}=Fi|T], I) ->
+    Key = case property_lists:get_value(key, Flags) of
+	      undefined -> I;
+	      Key0 -> Key0
+	  end,
+    [Fi#fi{key=Key}|insert_keys(T, I+1)];
+insert_keys([], _) -> [].
+
 init_fields(I, N, #s{fi=Fis,priv=Priv0,common=Common0}=S) when I =< N ->
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv0),
     case Handler({event,init}, Fi, Fst0, Common0) of
-	{Fst,Common} when is_tuple(Fst), is_list(Common) ->
+	{Fst,Common} when is_tuple(Fst), is_tuple(Common) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    init_fields(I+1, N, S#s{priv=Priv,common=Common});
-	Fst when is_tuple(Fst) ->
+	Fst when is_atom(element(1, Fst)) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    init_fields(I+1, N, S#s{priv=Priv})
     end;
@@ -135,6 +145,10 @@ event_key({key,_,_,$\r}, S) ->
 event_key(Ev, S) ->
     field_event(Ev, S).
 
+mouse_event(X0, Y0, #mousemotion{}=Ev, #s{focus=I,ox=Ox,oy=Oy}=S) ->
+    X = X0-Ox,
+    Y = Y0-Oy,
+    field_event(Ev#mousemotion{x=X,y=Y}, I, S);
 mouse_event(X0, Y0, Ev, #s{fi=Fis,ox=Ox,oy=Oy}=S0) ->
     X = X0-Ox,
     Y = Y0-Oy,
@@ -175,18 +189,31 @@ next_focus_1(I0, Dir, #s{fi=Fis}=S) ->
 	_ -> set_focus(I, S)
     end.
 
-set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0,common=Common}=S) ->
+set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0,common=Common0}=S) ->
     #fi{handler=OldHandler} = OldFi = element(OldFocus, Fis),
     OldFst0 = element(OldFocus, Priv0),
-    OldFst = OldHandler({event,{focus,false}}, OldFi, OldFst0, Common),
+    
+    {OldFst,Common2} = 
+	case OldHandler({event,{focus,false}}, OldFi, OldFst0, Common0) of
+	    {Ofst,Common1} when is_tuple(Ofst), is_tuple(Common1) ->
+		{Ofst,Common1};
+	    Ofst when is_atom(element(1, Ofst)) ->
+		{Ofst,Common0}
+	end,
     Priv1 = setelement(OldFocus, Priv0, OldFst),
 
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv1),
-    Fst = Handler({event,{focus,true}}, Fi, Fst0, Common),
+    {Fst,Common} =
+	case Handler({event,{focus,true}}, Fi, Fst0, Common2) of
+	    {Fst1,Common3} when is_tuple(Fst1), is_tuple(Common3) ->
+		{Fst1,Common3};
+	    Fst1 when is_atom(element(1, Fst1)) ->
+		{Fst1,Common2}
+	end,
     Priv = setelement(I, Priv1, Fst),
 
-    S#s{focus=I,priv=Priv}.
+    S#s{focus=I,priv=Priv,common=Common}.
 
 field_event(Ev, #s{focus=I}=S) ->
     field_event(Ev, I, S).
@@ -202,10 +229,10 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	    pop;
 	{ask,Qs,Fun} ->
 	    recursive_ask(I, Qs, Fun, S);
-	{Fst,Common} when is_tuple(Fst), is_list(Common) ->
+	{Fst,Common} when is_tuple(Fst), is_tuple(Common) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    get_event(S#s{priv=Priv,common=Common});
-	Fst when is_tuple(Fst) ->
+	Fst when is_atom(element(1, Fst)) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    get_event(S#s{priv=Priv})
     end.
@@ -310,6 +337,12 @@ normalize({button,Action}, Fi) ->
     normalize_field(button(Label, Action), [], Fi);
 normalize({button,Label,Action}, Fi) ->
     normalize_field(button(Label, Action), [], Fi);
+normalize({custom,W,H,Custom}, Fi) ->
+    normalize_field(custom(W, H, Custom), [], Fi);
+normalize({slider,Field}, Fi) ->
+    normalize({hframe,[Field,{internal_slider,Field}]}, Fi);
+normalize({internal_slider,Field}, Fi) ->
+    normalize_field(slider(Field), [], Fi);
 normalize(separator, Fi) ->
     normalize_field(separator(), [], Fi);
 normalize({Prompt,Def}, Fi) when Def == false; Def == true ->
@@ -572,7 +605,7 @@ cb_event(#mousebutton{x=Xb,state=?SDL_RELEASED},
 cb_event(_Ev, _Fi, Cb) -> Cb.
 
 %%%
-%%% Checkboxes.
+%%% Radio buttons.
 %%%
 
 -record(rb,
@@ -588,7 +621,7 @@ radiobutton({Var,Def}, Label, Val) ->
 radiobutton_fun(Def) ->
     fun({event,init}, _Fi, #rb{var=Var,val=Val}=Rb, Common) ->
 	    case Val of
-		Def -> {Rb,[{Var,Val}|Common]};
+		Def -> {Rb,gb_trees:insert(Var, Val, Common)};
 		_ -> Rb
 	    end;
        ({event,Ev}, Fi, Rb, Common) ->
@@ -596,7 +629,7 @@ radiobutton_fun(Def) ->
        ({redraw,Active}, Fi, Rb, Common) ->
  	    rb_draw(Active, Fi, Rb, Common);
        (value, _Fi, #rb{var=Var,val=Val}, Common) ->
-	    case property_lists:get_value(Var, Common) of
+	    case gb_trees:get(Var, Common) of
 		Val -> Val;
 		_ -> none
 	    end
@@ -616,7 +649,7 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,var=Var,val=Val}, Common) ->
     gl:rasterPos2i(X, Y),
     gl:bitmap(7, 7, -1, 0, 7, 0, White),
     gl:color3f(0, 0, 0),
-    B = case property_lists:get_value(Var, Common) of
+    B = case gb_trees:get(Var, Common) of
 	    Val ->
 	       	<<
 	       	 2#00111000,
@@ -658,7 +691,7 @@ rb_event(#mousebutton{x=Xb,state=?SDL_RELEASED},
 rb_event(_Ev, _Fi, Rb, _Common) -> Rb.
 
 rb_set(#rb{var=Var,val=Val}=Rb, Common0) ->
-    Common = [{Var,Val}|property_lists:delete(Var, Common0)],
+    Common = gb_trees:update(Var, Val, Common0),
     {Rb,Common}.
 
 %%%
@@ -749,11 +782,91 @@ col_event(_Ev, _Fi, Col) -> Col.
 
 pick_color(#col{color={R0,G0,B0}}=Col) ->
     Range = [{range,{0,255}}],
-    {ask,[{"R",trunc(R0*255),Range},
-	  {"G",trunc(G0*255),Range},
-	  {"B",trunc(B0*255),Range}],
-     fun([R,G,B]) -> Col#col{color={R/255,G/255,B/255}} end}.
+    Draw = fun(X, Y, _W, _H, Common) ->
+		   Color = {gb_trees:get(r, Common)/255,
+			    gb_trees:get(g, Common)/255,
+			    gb_trees:get(b, Common)/255},
+		   wings_io:sunken_rect(X, Y, 50, 50-4, Color)
+	   end,
+    {ask,[{custom,50,50,Draw},
+	  {slider,{"R",trunc(R0*255),[{key,r}|Range]}},
+	  {slider,{"G",trunc(G0*255),[{key,g}|Range]}},
+	  {slider,{"B",trunc(B0*255),[{key,b}|Range]}}],
+     fun([{r,R},{g,G},{b,B}]) -> Col#col{color={R/255,G/255,B/255}} end}.
 
+%%%
+%%% Custom field.
+%%%
+
+-record(custom,
+	{handler}
+       ).
+
+custom(W, H, Handler) ->
+    Custom = #custom{handler=Handler},
+    Fun = custom_fun(),
+    {Fun,true,Custom,0,W,H}.
+
+custom_fun() ->
+    fun({redraw,_Active}, #fi{x=X,y=Y,w=W,h=H},
+	#custom{handler=Handler}, Common) ->
+	    Handler(X, Y, W, H, Common);
+       ({event,_Ev}, _Fi, Custom, _) -> Custom
+    end.
+
+%%%
+%%% Slider.
+%%%
+
+-define(SL_LENGTH, 100).
+
+-record(sl,
+	{min,
+	 range,
+	 peer
+	}).
+
+slider(Field) ->
+    Flags = element(size(Field), Field),
+    {Min,Max} = property_lists:get_value(range, Flags),
+    Key = property_lists:get_value(key, Flags),
+    Sl = #sl{min=Min,range=(Max-Min)/?SL_LENGTH,peer=Key},
+    Fun = slider_fun(),
+    {Fun,false,Sl,0,?SL_LENGTH+4,?LINE_HEIGHT}.
+
+slider_fun() ->
+    fun({redraw,_Active}, Fi, Sl, Common) ->
+	    slider_redraw(Fi, Sl, Common);
+       ({event,init}, #fi{key=Key}, #sl{peer=undefined}=Sl, _) ->
+	    Sl#sl{peer=Key-1};
+       ({event,Ev}, Fi, Sl, Common) ->
+	    slider_event(Ev, Fi, Sl, Common);
+       (value, _, _, _) -> none
+    end.
+
+slider_redraw(#fi{x=X,y=Y0,w=W},
+	      #sl{min=Min,range=Range,peer=Peer}, Common) ->
+    Y = Y0+?LINE_HEIGHT div 2 + 4,
+    wings_io:sunken_rect(X, Y, W, 1, {0,0,0}),
+    Val = gb_trees:get(Peer, Common),
+    Pos = trunc((Val-Min) / Range),
+    wings_io:raised_rect(X+Pos, Y-5, 4, 10, ?MENU_COLOR).
+
+slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, Fi, Sl, Common) ->
+    slider_move(Xb, Fi, Sl, Common);
+slider_event(#mousemotion{x=Xb}, Fi, Sl, Common) ->
+    slider_move(Xb, Fi, Sl, Common);
+slider_event(_, _, Sl, _) -> Sl.
+
+slider_move(Xb, #fi{x=X}, #sl{min=Min,range=Range,peer=Peer}=Sl, Common) ->
+    Pos = max(0, min(Xb-X, ?SL_LENGTH)),
+    Val0 = Min + Pos*Range,
+    Val = if
+	      is_integer(Min) -> round(Val0);
+	      true -> Val0
+	  end,
+    {Sl,gb_trees:update(Peer, Val, Common)}.
+    
 %%%
 %%% Text and number input fields.
 %%%
@@ -766,27 +879,35 @@ pick_color(#col{color={R0,G0,B0}}=Col) ->
 	 max,
 	 integer=false,
 	 charset,				%Character set validator.
+	 last_val,
 	 validator
 	}).
 
 text_field(Label, Def, Flags) when is_float(Def) ->
-    Fun = float_fun(),
-    DefStr = simplify_float(lists:flatten(io_lib:format("~f", [Def]))),
-    init_text(Fun, Label, DefStr, 15, false,
+    DefStr = text_val_to_str(Def),
+    init_text(Label, Def, DefStr, 15, false,
 	      fun float_chars/1, fun(_) -> ok end);
 text_field(Label, Def, Flags) when is_integer(Def) ->
     {Max,Validator} = integer_validator(Flags),
-    init_text(integer_fun(), Label, integer_to_list(Def), Max, true,
+    init_text(Label, Def, integer_to_list(Def), Max, true,
 	      fun integer_chars/1, Validator);
 text_field(Label, Def, Flags) when is_list(Def) ->
-    init_text(string_fun(), Label, Def, 30, false,
+    init_text(Label, Def, Def, 30, false,
 	      fun all_chars/1, fun(_) -> ok end).
 
-init_text(Fun, Label, String, Max, IsInteger, Charset, Validator) ->
-    Ts = #text{label=Label,bef=[],aft=String,max=Max,
+init_text(Label, Val, String, Max, IsInteger, Charset, Validator) ->
+    Ts = #text{last_val=Val,label=Label,bef=[],aft=String,max=Max,
 	       integer=IsInteger,charset=Charset,validator=Validator},
     LblLen = (length(Label)+1)*?CHAR_WIDTH,
+    Fun = fun gen_text_handler/4,
     {Fun,false,Ts,LblLen,LblLen+(1+Max)*?CHAR_WIDTH,?LINE_HEIGHT+3}.
+
+text_val_to_str(Val) when is_float(Val) ->
+    simplify_float(lists:flatten(io_lib:format("~f", [Val])));
+text_val_to_str(Val) when is_integer(Val) ->
+    integer_to_list(Val);
+text_val_to_str(Val) when is_list(Val) ->
+    Val.
 
 integer_chars($-) -> true;
 integer_chars(C) when $0 =< C, C =< $9 -> true;
@@ -819,39 +940,58 @@ integer_range(Min, Max) ->
 	    end
     end.
 
-string_fun() ->
-    fun(value, _Fi, Ts, _) -> get_text(Ts);
-       (Other, Fi, Ts, _) -> gen_text_handler(Other, Fi, Ts)
-    end.
+text_get_val(#text{last_val=Val}=Ts) when is_integer(Val) ->
+    list_to_integer(get_text(validate_string(Ts)));
+text_get_val(#text{last_val=Val}=Ts) when is_float(Val) ->
+    Text = case get_text(Ts) of
+	       [$.|_]=T -> [$0|T];
+	       T -> T
+	   end,
+    case catch list_to_float(Text) of
+	Float when is_float(Float) -> Float;
+	_Other ->
+	    case catch list_to_integer(Text) of
+		Int when is_integer(Int) -> float(Int);
+		_Crash -> 0.0
+	    end
+    end;
+text_get_val(#text{last_val=Val}=Ts) when is_list(Val) ->
+    get_text(Ts).
 
-integer_fun() ->
-    fun(value, _Fi, Ts, _) ->
-	    list_to_integer(get_text(validate_string(Ts)));
-       (Other, Fi, Ts, _) -> gen_text_handler(Other, Fi, Ts)
-    end.
+gen_text_handler({redraw,Active}, Fi, Ts, Common) ->
+    draw_text(Active, Fi, Ts, Common);
+gen_text_handler({event,init}, #fi{key=Key},
+		 #text{last_val=Val}=Ts, Common0) ->
+    Common = gb_trees:insert(Key, Val, Common0),
+    {Ts#text{last_val=Val},Common};
+gen_text_handler({event,Ev}, #fi{key=Key}=Fi,
+		 #text{last_val=Val0}=Ts0, Common0) ->
+    Ts1 = case gb_trees:get(Key, Common0) of
+	      Val0 -> Ts0;
+	      Val1 ->
+		  ValStr = text_val_to_str(Val1),
+		  Ts0#text{bef=[],aft=ValStr}
+	  end,
+    Ts = text_event(Ev, Fi, Ts1),
+    Val = text_get_val(Ts),
+    Common = gb_trees:update(Key, Val, Common0),
+    {Ts#text{last_val=Val},Common};
+gen_text_handler(value, #fi{key=Key}, _, Common) ->
+    gb_trees:get(Key, Common).
 
-float_fun() ->
-    fun(value, _Fi, Ts, _) ->
-	    Text = get_text(Ts),
-	    case catch list_to_float(Text) of
-		Float when is_float(Float) -> Float;
-		_Other ->
-		    case catch list_to_integer(Text) of
-			Int when is_integer(Int) -> float(Int);
-			_Crash ->
-			    wings_util:error("Bad number ("++Text++")")
-		    end
-	    end;
-       (Other, Fi, Ts, _) -> gen_text_handler(Other, Fi, Ts)
-    end.
-
-gen_text_handler({redraw,Active}, Fi, Ts) ->
-    draw_text(Fi, Ts, Active);
-gen_text_handler({event,Ev}, Fi, Ts) ->
-    text_event(Ev, Fi, Ts).
-
-draw_text(#fi{x=X0,y=Y0,lw=Lw},
-	  #text{label=Label,sel=Sel,bef=Bef0,aft=Aft,max=Max}, Active) ->
+draw_text(false, #fi{key=Key,x=X0,y=Y0,lw=Lw},
+	  #text{label=Label,max=Max}, Common) ->
+    Val = gb_trees:get(Key, Common),
+    Str = text_val_to_str(Val),
+    gl:color3f(0, 0, 0),
+    wings_io:sunken_rect(X0+Lw-4, Y0+2,
+			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+2,
+			 {1,1,1}),
+    Y = Y0 + ?CHAR_HEIGHT,
+    wings_io:text_at(X0, Y, Label),
+    wings_io:text_at(X0+Lw, Y, Str);
+draw_text(true, #fi{x=X0,y=Y0,lw=Lw},
+	  #text{label=Label,sel=Sel,bef=Bef0,aft=Aft,max=Max}, _) ->
     gl:color3f(0, 0, 0),
     wings_io:sunken_rect(X0+Lw-4, Y0+2,
 			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+2,
@@ -862,7 +1002,6 @@ draw_text(#fi{x=X0,y=Y0,lw=Lw},
     wings_io:text_at(X0+Lw, Y, Bef),
     wings_io:text(Aft),
     if
-	not Active -> ok;
 	Sel < 0 ->
 	    gl:color3f(0, 0, 0.5),
 	    Skip = length(Bef)+Sel,
