@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.109 2003/04/21 10:16:54 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.110 2003/04/22 17:18:57 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -67,7 +67,6 @@ command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, St0) ->
 	    quit_uv -> {St0,MatName0}
 	end,
     St = ?SLOW(insert_uvcoords(Charts, OrWe#we.id, MatName, St1)),
-    reset_view(),
     St;
 command(_, _) -> next.
 
@@ -376,7 +375,6 @@ draw_texture(Uvs = #uvstate{dl=DL, sel=Sel}) ->
 setup_view({Left,Right,Bottom,Top}, Uvs) ->
     #uvstate{st=#st{mat=Mats},option=#setng{texbg=TexBg},
 	     matname=MatN} = Uvs,
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
 
@@ -427,9 +425,6 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:depthFunc(?GL_LESS),
     gl:disable(?GL_TEXTURE_2D),
     gl:shadeModel(?GL_SMOOTH).
-
-reset_view() ->    
-    gl:popAttrib().
 
 %%% Texture Creation
 
@@ -543,14 +538,15 @@ get_event(Uvs) ->
 get_event_nodraw(Uvs) ->
     {replace,fun(Ev) -> handle_event(Ev, Uvs) end}.
 
-draw_windows(#uvstate{mode=Mode}=Uvs) ->
+draw_windows(#uvstate{mode=Mode,geom=Geom}=Uvs0) ->
     Text = [atom_to_list(Mode)," mode: ",
 	    "[L] Select [R] Show menu"],
     wings_wm:message(Text),
-    setup_view(Uvs#uvstate.geom, Uvs),
-    Uvs1 = draw_texture(Uvs),
-    reset_view(),
-    Uvs1.
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    setup_view(Geom, Uvs0),
+    Uvs = draw_texture(Uvs0),
+    gl:popAttrib(),
+    Uvs.
 
 command_menu(faceg, X,Y, _Uvs) ->
     Rotate = [{"Z    Free",  free, "Drag mouse to rotate free"},
@@ -603,7 +599,6 @@ option_menu() ->
      {"Draw Options", edge_options, "Edit draw options"},
      separator,
      {"Export",export,"Export texture"},
-     {"Import",import,"Import texture from file"},
      separator,
      {"Apply Texture", apply_texture, "Attach the current texture to the model"},
      separator,
@@ -766,13 +761,11 @@ handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY},
 	    end
     end;
 handle_event(#keyboard{state=?SDL_PRESSED,keysym=Sym}, 
-	     #uvstate{st=St,id=Id}=Uvs0) ->
+	     #uvstate{st=St,id=Id}) ->
     case Sym of
 	#keysym{sym=?SDLK_SPACE} ->
 	    wings_wm:send(geom, {new_state,wings_select_faces([],Id,St)}),
 	    keep;
-	#keysym{sym = ?SDLK_F5} ->
-	    import_file(default, Uvs0); 
 	_ ->  keep
     end;
 handle_event({drop,_,DropData}, Uvs) ->
@@ -791,14 +784,6 @@ handle_event({action,{auv,export}}, Uvs0) ->
 		    Error = FileName ++ ": " ++ file:format_error(Error0),
 		    wings_util:message("Export failed: " ++ Error)
 	    end
-    end;
-handle_event({action,{auv,import}}, Uvs0) ->
-    Ps = [{extensions,wpa:image_formats()}],
-    case wpa:import_filename(Ps) of
-	aborted -> 
-	    get_event(Uvs0);
-	FileName ->
-	    ?SLOW(import_file(FileName, Uvs0))
     end;
 handle_event({action,{auv,apply_texture}},
 	     #uvstate{st=St0,sel=Sel0,areas=As0,
@@ -979,25 +964,6 @@ handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #uvstate{option=Opt0}=Uvs
 handle_drop(_DropData, _) ->
     %%io:format("~P\n", [_DropData,40]),
     keep.
-    
-import_file(default, Uvs0) ->
-    import_file(Uvs0#uvstate.last_file, Uvs0);
-import_file(Filename, Uvs0) ->
-    Ps = [{filename,Filename}, %% {type,r8g8b8},
-	  {alignment,1},{order,lower_left}],
-    case wpa:image_read(Ps) of
-	{error,Error0} ->
-	    Error = Filename ++ ": " ++ file:format_error(Error0),
-	    wings_util:message("Import failed: " ++ Error);
-	Im = #e3d_image{width = TW, height = TH} ->
-	    case (TW == TH) andalso is_power_of_two(TW) of
-		true ->
-		    add_texture_image(Im, Filename, Uvs0);
-		false ->
-		    wings_util:message("Import failed: Can only import square," 
-				       "power of 2 sized pictures", Uvs0#uvstate.st)	
-	    end
-    end.
 
 add_texture_image(Im, FileName,#uvstate{st=St0,option=Opt,
 					orig_we=OWe,matname=MatName0}=Uvs) ->
