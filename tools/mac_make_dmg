@@ -1,0 +1,28 @@
+#!/bin/sh
+#
+#  mac_make_dmg.m --
+#
+#     Packages the built Wings application into a .dmg file.
+#
+#  Copyright (c) 2002 Bjorn Gustavsson
+#
+#  See the file "license.terms" for information on usage and redistribution
+#  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+#     $Id: mac_make_dmg,v 1.1 2002/11/24 15:29:28 bjorng Exp $
+#
+
+cwd=`pwd`
+cwd=`basename $cwd`
+dest="../$cwd-macosx"
+temp_dmg="$cwd-macosx.dmg"
+dmg="../$temp_dmg"
+echo $temp_dmg
+echo $dmg
+
+rm -f $temp_dmg $dmg
+hdiutil create -megabytes 10 -volname "Wings3D" -fs HFS+ -layout NONE $temp_dmg
+dev=`hdiutil attach $temp_dmg | awk '{print $1}'`
+cp -r macosx/build/Wings3d.app /Volumes/Wings3D
+hdiutil detach $dev
+hdiutil convert $temp_dmg -format UDZO -o $dmg -imagekey zlib-level=9
