@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.231 2003/03/10 17:28:57 bjorng Exp $
+%%     $Id: wings.erl,v 1.232 2003/03/11 21:24:01 bjorng Exp $
 %%
 
 -module(wings).
@@ -178,7 +178,7 @@ new_viewer(St) ->
     {Pos,{W,H}} = wings_wm:win_rect(desktop),
     Size = {W div 2-40,H div 2-40},
     N = free_viewer_num(2),
-    Active = wings_wm:active_window(),
+    Active = wings_wm:this(),
     Props = wings_wm:get_props(Active),
     ToolbarHidden = wings_wm:is_hidden({toolbar,Active}),
     Name = {geom,N},
@@ -330,14 +330,14 @@ handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(resized, _) -> keep;
 handle_event_3(close, _) ->
-    Active = wings_wm:active_window(),
+    Active = wings_wm:this(),
     wings_wm:delete({object,Active}),
     delete;
 handle_event_3(redraw, St) ->
     redraw(St),
     main_loop_noredraw(St#st{vec=none});
 handle_event_3(quit, St) ->
-    case wings_wm:active_window() of
+    case wings_wm:this() of
 	geom -> do_command({file,quit}, St);
 	_ -> keep
     end;
@@ -353,6 +353,8 @@ handle_event_3(revert_state, St) ->
     main_loop(St);
 handle_event_3(need_save, St) ->
     main_loop(caption(St#st{saved=false}));
+handle_event_3({new_default_command,DefCmd}, St) ->
+    main_loop_noredraw(St#st{def=DefCmd});
 handle_event_3(got_focus, _) ->
     {One,_,Three} = wings_camera:button_names(),
     Message = [One," Select  ",Three," Show menu  "|wings_camera:help()],
@@ -620,7 +622,7 @@ tools_menu(_) ->
 	 "Create real geometry from the virtual mirrors"}]}}].
 
 window_menu(_) ->
-    Name = case wings_wm:active_window() of
+    Name = case wings_wm:this() of
 	       {_,geom} ->
 		   "Geometry Graph";
 	       {_,{geom,N}} ->
@@ -829,21 +831,20 @@ command_name(Repeat, CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
 	end,
     lists:flatten(S).
 
-define_command(?SDL_RELEASED, N, #st{repeatable=Cmd,def=DefCmd0}=St) ->
+define_command(?SDL_RELEASED, N, #st{repeatable=Cmd,def=DefCmd0}) ->
+    This = wings_wm:this(),
     CmdStr = wings_util:stringify(Cmd),
     Button = case N of
 		 1 -> "L";
 		 2 -> "M"
 	     end,
-    case wings_util:yes_no("Do you want to define \"" ++ CmdStr ++
-			   "\" as a default command ([Ctrl]+[" ++ Button ++
-			   "])?") of
-	no -> keep;
-	aborted -> keep;
-	yes ->
-	    DefCmd = setelement(N, DefCmd0, Cmd),
-	    main_loop_noredraw(St#st{def=DefCmd})
-    end;
+    wings_util:yes_no("Do you want to define \"" ++ CmdStr ++
+		      "\" as a default command ([Ctrl]+[" ++ Button ++
+		      "])?",
+		      fun() ->
+			      DefCmd = setelement(N, DefCmd0, Cmd),
+			      wings_wm:send(This, {new_default_command,DefCmd})
+		      end, ignore);
 define_command(_, _, _) -> keep.
 
 use_command(_, _, #st{sel=[]}) -> keep;
@@ -875,7 +876,7 @@ crash_handler(redraw, Log, _St) ->
     keep;
 crash_handler(#mousebutton{}, _, St) ->
     wings_wm:message(""),
-    wings_wm:menubar(wings_wm:active_window(), get(wings_menu_template)),
+    wings_wm:menubar(wings_wm:this(), get(wings_menu_template)),
     main_loop(St);
 crash_handler(_, Log, St) ->
     get_crash_event(Log, St).
@@ -1025,7 +1026,7 @@ set_geom_props([], _) -> ok.
 	}).
 
 mode_restriction(Modes) ->
-    Win = {toolbar,wings_wm:active_window()},
+    Win = {toolbar,wings_wm:this()},
     wings_wm:send(Win, {mode_restriction,Modes}),
     case Modes of
 	none ->
@@ -1038,7 +1039,7 @@ clear_mode_restriction() ->
     mode_restriction(none).
 
 get_mode_restriction() ->
-    Name = wings_wm:active_window(),
+    Name = wings_wm:this(),
     case wings_wm:lookup_prop({toolbar,Name}, mode_restriction) of
 	none -> [edge,vertex,face,body];
 	{value,Other} -> Other
@@ -1076,7 +1077,7 @@ button_event(#mousemotion{x=X}, But) ->
     button_help(X, But),
     keep;
 button_event({action,_}=Action, _) ->
-    {toolbar,Client} = wings_wm:active_window(),
+    {toolbar,Client} = wings_wm:this(),
     wings_wm:send(Client, Action);
 button_event({current_state,#st{selmode=Mode,sh=Sh}}, #but{mode=Mode,sh=Sh}) ->
     keep;
@@ -1090,12 +1091,12 @@ button_event({mode_restriction,Restr}, #but{all_buttons=AllButtons}=But) ->
     wings_wm:dirty(),
     get_button_event(But#but{buttons=Buttons,restr=Restr});
 button_event(#keyboard{}=Ev, _) ->
-    {toolbar,Client} = wings_wm:active_window(),
+    {toolbar,Client} = wings_wm:this(),
     wings_wm:send(Client, Ev);
 button_event(_, _) -> keep.
 
 button_resized(#but{restr=Restr}=But) ->
-    {toolbar,Client} = Self = wings_wm:active_window(),
+    {toolbar,Client} = Self = wings_wm:this(),
     {{X,Y},{W,_}} = wings_wm:win_rect(Client),
     {_,H} = wings_wm:win_size(),
     wings_wm:update_window(Self, [{x,X},{y,Y-H},{w,W}]),
@@ -1172,7 +1173,7 @@ button_value(Mode, Mode, false) -> {Mode,down};
 button_value(Name, _, _) -> {Name,up}.
 
 button_value_1(Name, Key, Val) ->
-    {toolbar,Client} = wings_wm:active_window(),
+    {toolbar,Client} = wings_wm:this(),
     case wings_wm:get_prop(Client, Key) of
 	Val -> {Name,down};
 	_ -> {Name,up}
@@ -1190,7 +1191,7 @@ button_was_hit_1(X, [{Pos,Name}|_]) when Pos =< X, X < Pos+?BUTTON_WIDTH ->
 		 perspective -> {view,orthogonal_view};
 		 Other -> {select,Other}
 	     end,
-    {toolbar,Client} = wings_wm:active_window(),
+    {toolbar,Client} = wings_wm:this(),
     wings_wm:send(Client, {action,Action});
 button_was_hit_1(X, [_|Is]) ->
     button_was_hit_1(X, Is);
@@ -1235,7 +1236,7 @@ button_restrict(Buttons0, Restr) ->
     sofs:to_external(Buttons).
 
 choose(Key, Val, First, Second) ->
-    {toolbar,Client} = wings_wm:active_window(),
+    {toolbar,Client} = wings_wm:this(),
     case wings_wm:get_prop(Client, Key) of
 	Val -> First;
 	_ -> Second

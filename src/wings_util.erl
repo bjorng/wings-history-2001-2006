@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.64 2003/03/08 17:36:14 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.65 2003/03/11 21:24:03 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -17,7 +17,7 @@
 	 button_message/1,button_message/2,button_message/3,
 	 button_format/1,button_format/2,button_format/3,
 	 rmb_format/1,
-	 message/1,message/2,yes_no/1,
+	 message/1,message/2,yes_no/1,yes_no/3,
 	 get_matrices/2,mirror_matrix/1,
 	 mirror_flatten/2,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
@@ -109,6 +109,10 @@ message(Message, _) ->
     message(Message).
 
 message(Message) ->
+%     Qs = {vframe,
+% 	  [{label,Message},
+% 	   {hframe,[{button,ok}]}]},
+%     wings_ask:dialog("Error!", Qs, fun(_) -> ignore end).
     wings_plugin:call_ui({message,Message}),
     keep.
 
@@ -152,6 +156,16 @@ rel2fam(Rel) ->
 
 yes_no(Question) ->
     wings_plugin:call_ui({question,Question}).
+
+yes_no(Question, Yes, No) ->
+    Qs = {vframe,
+	  [{label,Question},
+	   {hframe,[{button,"Yes",yes_no_fun(Yes)},
+		    {button,"No",yes_no_fun(No)}]}]},
+    wings_ask:dialog("", Qs, fun(_) -> ignore end).
+
+yes_no_fun(ignore) -> fun(_) -> ignore end;
+yes_no_fun(Fun) -> fun(_) -> Fun() end.
 
 stringify({Atom,Other}) when is_atom(Atom) ->
     cap(atom_to_list(Atom)) ++

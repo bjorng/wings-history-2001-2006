@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.73 2003/03/11 13:43:14 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.74 2003/03/11 21:24:02 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -318,7 +318,7 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	Action when is_function(Action) ->
 	    Res = collect_result(S),
 	    Action(Res),
-	    keep;
+	    delete(S);
 	Fst when is_atom(element(1, Fst)) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    get_event(S#s{priv=Priv})
@@ -468,7 +468,7 @@ normalize({menu,Alt,VarDef,Flags}, Fi) ->
 normalize({button,Action}, Fi) when is_atom(Action) ->
     Label = button_label(Action),
     normalize_field(button(Label, Action), [], Fi);
-normalize({button,Label,Action}, Fi) when is_atom(Action) ->
+normalize({button,Label,Action}, Fi) ->
     normalize_field(button(Label, Action), [], Fi);
 normalize({custom,W,H,Custom}, Fi) ->
     normalize_field(custom(W, H, Custom), [], Fi);
