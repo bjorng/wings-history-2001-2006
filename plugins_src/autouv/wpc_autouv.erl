@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.212 2004/04/02 08:50:23 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.213 2004/04/02 16:40:10 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -343,6 +343,7 @@ init_edit(MatName, Faces0, We0) ->
     Map  = gb_trees:from_orddict(sort(Map1)),
     {Map,MatName}.
 
+has_proper_uvs(Face, #we{mirror=Face}) -> false;
 has_proper_uvs(Face, We) ->
     foldl(fun({_,_}, F) -> F;
 	     (_, _) -> false

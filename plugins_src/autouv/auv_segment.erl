@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.50 2003/09/16 09:01:49 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.51 2004/04/02 16:40:10 bjorng Exp $
 
 -module(auv_segment).
 
@@ -656,9 +656,11 @@ segment_by_material(We) ->
 		end, [], wings_material:get_all(We)),
     segment_by_cluster(Rel, We).
 
-%% Common segmentation algorithm
-segment_by_cluster(Rel0, We) ->
-    Rel = sofs:relation(Rel0),
+%% segment_by_cluster([{Key,Face}], We)
+%%  Group all faces by Key.
+segment_by_cluster(Rel0, #we{mirror=Mirror}=We) ->
+    Rel1 = lists:keydelete(Mirror, 2, Rel0),
+    Rel = sofs:relation(Rel1),
     Clustered = sofs:relation_to_family(Rel),
     Groups0 = sofs:range(Clustered),
     Groups = sofs:to_external(Groups0),
