@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.11 2002/10/16 12:01:03 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.12 2002/10/17 12:20:44 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
@@ -248,7 +248,7 @@ partition_edges_1(Ws0, We, Edges0, EdgeAcc0) ->
 	false ->
 	    {{V,Edge},Ws1} = gb_sets:take_smallest(Ws0),
 	    EdgeAcc = gb_sets:add(Edge, EdgeAcc0),
-	    Edges = wings_util:delete_any(Edge, Edges0),
+	    Edges = gb_sets:delete_any(Edge, Edges0),
 	    Ws = wings_vertex:fold(
 		   fun(E, _, Rec, A) ->
 			   case gb_sets:is_member(E, Edges) of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.45 2002/10/16 08:21:40 dgud Exp $
+%%     $Id: wings_util.erl,v 1.46 2002/10/17 12:20:44 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -17,7 +17,8 @@
 	 message/1,message/2,yes_no/1,serious_yes_no/1,
 	 get_matrices/2,mirror_matrix/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
-	 delete_any/2,nice_float/1,
+	 gb_trees_smallest_key/1,gb_trees_largest_key/1,
+	 nice_float/1,
 	 tc/3,export_we/2,crash_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
 
@@ -135,11 +136,21 @@ update_vpos(Vs, Vtab) ->
 		  [{V,gb_trees:get(V, Vtab),Dist,Inf}|A]
 	  end, [], reverse(Vs)).
 
-delete_any(K, S) ->
-    case gb_sets:is_member(K, S) of
-	true -> gb_sets:delete(K, S);
-	false -> S
-    end.
+gb_trees_smallest_key({_, Tree}) ->
+    smallest_key1(Tree).
+
+smallest_key1({Key, _Value, nil, _Larger}) ->
+    Key;
+smallest_key1({_Key, _Value, Smaller, _Larger}) ->
+    smallest_key1(Smaller).
+
+gb_trees_largest_key({_, Tree}) ->
+    largest_key1(Tree).
+
+largest_key1({Key, _Value, _Smaller, nil}) ->
+    Key;
+largest_key1({_Key, _Value, _Smaller, Larger}) ->
+    largest_key1(Larger).
 
 nice_float(F) when is_float(F) ->
     simplify_float(lists:flatten(io_lib:format("~f", [F]))).

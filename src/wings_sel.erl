@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.37 2002/09/04 19:03:24 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.38 2002/10/17 12:20:44 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -374,4 +374,4 @@ get_all_items(body, _) ->
 
 subtract_mirror_face(Faces, #we{mirror=none}) -> Faces;
 subtract_mirror_face(Faces, #we{mirror=Face}) ->
-    wings_util:delete_any(Face, Faces).
+    gb_sets:delete_any(Face, Faces).
