@@ -3,8 +3,14 @@
 %%% Author  :  <dgud@erix.ericsson.se>
 %%% Description : Snapp texture (image) to model
 %%%
-%%% Created : 28 May 2003 by  <dgud@erix.ericsson.se>
-%%%-------------------------------------------------------------------
+%%% Created : 28 May 2003 by Dan Gudmundsson
+%%-------------------------------------------------------------------
+%%  Copyright (c) 2002-2003 Dan Gudmundsson, Bjorn Gustavsson
+%%
+%%  See the file "license.terms" for information on usage and redistribution
+%%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%     $Id: auv_snap.erl,v 1.7 2004/01/23 15:04:38 dgud Exp $
+
 -module(auv_snap).
 
 -define(NEED_OPENGL, 1).
@@ -12,10 +18,16 @@
 -include("wings.hrl").
 -include("e3d_image.hrl").
 
+-define(HUGE, 1.0E307).
+
 -export([active/0, 
 	 select_image/1, 
+	 scale/2,
+	 move/2,
 	 cancel/1, 
 	 complete/1]).
+
+-record(s, {reply,name,w,h,sx=1.0,sy=1.0,tx=0.0,ty=0.0}).
 
 active() ->
     case get(?MODULE) of
@@ -29,7 +41,7 @@ cancel(St) ->
     St.
 
 complete(St0) ->
-    {Image, _,_,Name} = get(?MODULE),    
+    #s{reply=Image,name=Name} = get(?MODULE),
     St1 = set_materials({Image,Name}, St0),
     Res = insert_uvs(St1),
     Res.
@@ -47,12 +59,11 @@ select_image(_St) ->
 			     wings:register_postdraw_hook(geom, ?MODULE,Draw),
 			     _I = #e3d_image{width=W, height=H, name =Name} = 
 				 wings_image:info(Reply),
-%%			     io:format("~p~n", [_I]),
-			     put(?MODULE,{Reply,W,H,Name}),
+			     %%			     io:format("~p~n", [_I]),
+			     put(?MODULE,#s{reply=Reply,name=Name,w=W,h=H}),
 			     ignore
 		     end,
-	    wings_ask:dialog("Choose Image to snap",
-			     Qs,Select)
+	    wings_ask:dialog("Choose Image to snap",Qs,Select)
     end.
 
 find_images() ->
@@ -65,6 +76,46 @@ find_images_1([{Id,#e3d_image{name=Name}}|Tail], Def, Key) ->
     [{key_alt,{Key,Def},Name,Id}|find_images_1(Tail, Def, Key-1)];
 find_images_1([], _Def, _Key) -> [].
     
+scale(Op, St) ->
+    #s{sx=Ix,sy=Iy} = get(?MODULE),
+    ScaleFun = fun([X,Y], Dlo) -> 
+		       State = #s{sx=SX,sy=SY} = get(?MODULE),
+		       case Op of 
+			   x ->    put(?MODULE, State#s{sx=X});
+			   y ->    put(?MODULE, State#s{sy=Y});
+			   free -> put(?MODULE, State#s{sx=X,sy=Y});
+			   uniform -> 
+			       Diff = X-SX,
+			       DY   = SY+Diff,
+			       put(?MODULE, State#s{sx=X,sy=DY})
+		       end,
+		       Dlo
+	       end,
+    Tvs   = {general, [{find_a_id(St), ScaleFun}]},
+    Units = [{dx, {0.0,?HUGE}},{dy, {0.0,?HUGE}}],
+    Flags = [{initial, [Ix]}, {initial, [Iy]}],
+    wings_drag:setup(Tvs,Units,Flags,St).
+
+move(Op, St) ->
+    #s{tx=Ix,ty=Iy} = get(?MODULE),
+    MoveFun = fun([X,Y], Dlo) -> 
+		      State = get(?MODULE),
+		      case Op of 
+			  x ->    put(?MODULE, State#s{tx=-X});
+			  y ->    put(?MODULE, State#s{ty=-Y});
+			  free -> put(?MODULE, State#s{tx=-X,ty=-Y})
+		      end,
+		      Dlo
+	      end,
+    
+    Tvs   = {general, [{find_a_id(St), MoveFun}]},
+    Units = [{dx, {-?HUGE,?HUGE}},{dy,{-?HUGE,?HUGE}}],
+    Flags = [{initial, [Ix]}, {initial, [Iy]}],
+    wings_drag:setup(Tvs,Units,Flags,St).
+
+find_a_id(#st{shapes=Shs}) ->
+    {Id, _} = gb_trees:smallest(Shs),
+    Id.
 
 draw_image(Image,_St) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),        
@@ -76,6 +127,8 @@ draw_image(Image,_St) ->
 
     gl:disable(?GL_LIGHTING),
     gl:disable(?GL_DEPTH_TEST),    
+    gl:disable(?GL_ALPHA_TEST),
+
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     gl:enable(?GL_TEXTURE_2D),
@@ -83,34 +136,37 @@ draw_image(Image,_St) ->
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
 
     gl:'begin'(?GL_QUADS),
-    gl:color4f(1.0, 1.0, 1.0, 0.3),   %%Semitransparant
+    gl:color4f(1.0, 1.0, 1.0, 0.55),   %%Semitransparant
     {_,_,W,H} = wings_wm:viewport(),
     {Xs,Ys,Xe,Ye} = {0,0,1,1},
     
-    {X,Y} = scale(W,H),
+    #s{w=IW,h=IH,sx=Sx,sy=Sy,tx=Tx,ty=Ty} = get(?MODULE),
+    {X,Y} = scale(W,H,IW,IH),
+
     Center = 0.5,
     Size   = 1.0,
     Xrange = (X*Size)/2,
     Yrange = (Y*Size)/2,
 
-    gl:texCoord2f(Center-Xrange,Center-Yrange),    gl:vertex2f(Xs,Ys),
-    gl:texCoord2f(Center+Xrange,Center-Yrange),    gl:vertex2f(Xe,Ys),
-    gl:texCoord2f(Center+Xrange,Center+Yrange),    gl:vertex2f(Xe,Ye),
-    gl:texCoord2f(Center-Xrange,Center+Yrange),    gl:vertex2f(Xs,Ye),
+    gl:texCoord2f(Tx/2+(Center-Sx*Xrange),Ty/2+(Center-Sy*Yrange)),    gl:vertex2f(Xs,Ys),
+    gl:texCoord2f(Tx/2+(Center+Sx*Xrange),Ty/2+(Center-Sy*Yrange)),    gl:vertex2f(Xe,Ys),
+    gl:texCoord2f(Tx/2+(Center+Sx*Xrange),Ty/2+(Center+Sy*Yrange)),    gl:vertex2f(Xe,Ye),
+    gl:texCoord2f(Tx/2+(Center-Sx*Xrange),Ty/2+(Center+Sy*Yrange)),    gl:vertex2f(Xs,Ye),
+
     gl:'end'(),
     gl:popAttrib().
     
 calc_uv(_V = {X,Y,Z}) ->
     {MM,PM,Viewport = {_,_,W,H}} = wings_util:get_matrices(0, original),
     {S,T, _} = glu:project(X,Y,Z,MM,PM,Viewport),
-    {Xs,Ys} = scale(W,H),        
-    Center = 0.5,   
-    Res = {S/W*Xs+Center-Xs/2,T/H*Ys+Center-Ys/2},
-%%    io:format("~p st ~.3f,~.3f XsYs ~.2f~.2f Res ~p~n", [_V, S/W,T/H,Xs,Ys,Res]),
+    #s{w=IW,h=IH,sx=Sx,sy=Sy,tx=Tx,ty=Ty} = get(?MODULE),
+    {Xs,Ys} = scale(W,H,IW,IH),
+    Center = 0.5,
+    Res = {Tx/2+(S/W*Xs*Sx+Center-Sx*Xs/2),Ty/2+(T/H*Sy*Ys+Center-Sy*Ys/2)},
+%%    io:format("~p st ~.3f,~.3f XsYs ~.2f ~.2f Res ~p~n", [_V, S/W,T/H,Xs,Ys,Res]),
     Res.
 
-scale(W,H) ->
-    {_,IW,IH,_} = get(?MODULE),
+scale(W,H,IW,IH) ->
     if 
 	W == H ->
 	    if 
