@@ -10,12 +10,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.65 2003/09/03 16:57:46 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.66 2003/09/25 12:54:44 bjorng Exp $
 %%
 
 -module(wings_we).
--export([build/2,
-	 rebuild/1,
+-export([build/2,rebuild/1,vertex_gc/1,
 	 new_wrap_range/3,id/2,bump_id/1,
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
@@ -36,24 +35,47 @@
 
 rebuild(#we{vc=undefined,fs=undefined,es=Etab0}=We) ->
     Etab = gb_trees:to_list(Etab0),
-    Vct = rebuild_vct(Etab, []),
-    Ftab = rebuild_ftab(Etab, []),
+    Vct = rebuild_vct(Etab),
+    Ftab = rebuild_ftab(Etab),
     rebuild(We#we{vc=Vct,fs=Ftab});
 rebuild(#we{vc=undefined,es=Etab}=We) ->
-    Vct = rebuild_vct(gb_trees:to_list(Etab), []),
+    Vct = rebuild_vct(gb_trees:to_list(Etab)),
     rebuild(We#we{vc=Vct});
 rebuild(#we{fs=undefined,es=Etab}=We) ->
-    Ftab = rebuild_ftab(gb_trees:to_list(Etab), []),
+    Ftab = rebuild_ftab(gb_trees:to_list(Etab)),
     rebuild(We#we{fs=Ftab});
 rebuild(We) -> update_id_bounds(We).
 
-rebuild_vct([{Edge,#edge{vs=Va,ve=Vb}}|Es], Acc) ->
-    rebuild_vct(Es, [{Va,Edge},{Vb,Edge}|Acc]);
-rebuild_vct([], VtoE) -> build_incident_tab(VtoE).
+rebuild_vct(Es) ->
+    gb_trees:from_orddict(do_rebuild_vct(Es, [])).
 
-rebuild_ftab([{Edge,#edge{lf=Lf,rf=Rf}}|Es], Acc) ->
-    rebuild_ftab(Es, [{Lf,Edge},{Rf,Edge}|Acc]);
-rebuild_ftab([], FtoE) -> build_incident_tab(FtoE).
+do_rebuild_vct([{Edge,#edge{vs=Va,ve=Vb}}|Es], Acc) ->
+    do_rebuild_vct(Es, [{Va,Edge},{Vb,Edge}|Acc]);
+do_rebuild_vct([], VtoE) -> build_incident_tab(VtoE).
+
+rebuild_ftab(Es) ->
+    rebuild_ftab_1(Es, []).
+
+rebuild_ftab_1([{Edge,#edge{lf=Lf,rf=Rf}}|Es], Acc) ->
+    rebuild_ftab_1(Es, [{Lf,Edge},{Rf,Edge}|Acc]);
+rebuild_ftab_1([], FtoE) ->
+    gb_trees:from_orddict(build_incident_tab(FtoE)).
+
+%% vertex_gc(We) -> We'
+%%  Remove vertices in the 'vc' and 'vp' tables that are no
+%%  longer referenced by any edge in the edge table.
+vertex_gc(#we{es=Etab,vp=Vtab}=We) ->
+    Es = gb_trees:to_list(Etab),
+    Vct = do_rebuild_vct(Es, []),
+    Vtab = vertex_gc_1(Vct, gb_trees:to_list(Vtab), []),
+    We#we{vc=Vct,vp=Vtab}.
+
+vertex_gc_1([{V,_}|Vct], [{V,_}=Vtx|Vpos], Acc) ->
+    vertex_gc_1(Vct, Vpos, [Vtx|Acc]);
+vertex_gc_1([_|_]=Vct, [_|Vpos], Acc) ->
+    vertex_gc_1(Vct, Vpos, Acc);
+vertex_gc_1([], _, Acc) ->
+    gb_trees:from_orddict(reverse(Acc)).
 
 %%%
 %%% Build Winged-Edges.
@@ -97,7 +119,7 @@ build_rest(Type, Es, Fs, Vs, HardEdges) ->
     Htab = vpairs_to_edges(HardEdges, Es),
     {Vct0,Etab,Ftab0} = build_tables(Es),
     Ftab = build_faces(Ftab0),
-    Vct = build_incident_tab(Vct0),
+    Vct = gb_trees:from_orddict(build_incident_tab(Vct0)),
     Vpos = number_vertices(Vs, 0, []),
     We = update_id_bounds(#we{mode=Type,es=Etab,fs=Ftab,vc=Vct,vp=Vpos,he=Htab}),
     assign_materials(Fs, We).
@@ -579,8 +601,7 @@ build_incident_tab([{V,_}|VsEs], [{V,_}|_]=Acc) ->
     build_incident_tab(VsEs, Acc);
 build_incident_tab([{V,Edge}|VsEs], Acc) ->
     build_incident_tab(VsEs, [{V,Edge}|Acc]);
-build_incident_tab([], Acc) ->
-    gb_trees:from_orddict(reverse(Acc)).
+build_incident_tab([], Acc) -> reverse(Acc).
 
 %%%
 %%% Convert textures to vertex colors.

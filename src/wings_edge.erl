@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.70 2003/09/04 05:20:45 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.71 2003/09/25 12:54:43 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -418,13 +418,14 @@ cut_edges(Es, We) ->
 			 {W,[V|Vs0]}
 		 end, {We,[]}, Es).
 
-remove_winged_vs(Vs, We) ->
-    foldl(fun(V, W0) ->
-		  case dissolve_vertex(V, W0) of
-		      error -> W0;
-		      W -> W
-		  end
-	  end, We, Vs).
+remove_winged_vs(Vs, We0) ->
+    We = foldl(fun(V, W0) ->
+		       case internal_dissolve_vertex(V, W0) of
+			   error -> W0;
+			   W -> W
+		       end
+	       end, We0, Vs),
+    wings_we:vertex_gc(We).
 
 %%%
 %%% The Dissolve command.
@@ -435,15 +436,18 @@ dissolve(St0) ->
     wings_sel:clear(St).
 
 dissolve_edges(Edges0, We0) when is_list(Edges0) ->
-    #we{es=Etab} = We = foldl(fun dissolve_edge/2, We0, Edges0),
+    #we{es=Etab} = We = foldl(fun internal_dissolve_edge/2, We0, Edges0),
     case [E || E <- Edges0, gb_trees:is_defined(E, Etab)] of
-	Edges0 -> We;
+	Edges0 -> wings_we:vertex_gc(We);
 	Edges -> dissolve_edges(Edges, We)
     end;
 dissolve_edges(Edges, We) ->
     dissolve_edges(gb_sets:to_list(Edges), We).
 
-dissolve_edge(Edge, #we{es=Etab}=We0) ->
+dissolve_edge(Edge, We) ->
+    wings_we:vertex_gc(internal_dissolve_edge(Edge, We)).
+
+internal_dissolve_edge(Edge, #we{es=Etab}=We0) ->
     case gb_trees:lookup(Edge, Etab) of
 	none -> We0;
 	{value,#edge{ltpr=Same,ltsu=Same,rtpr=Same,rtsu=Same}} ->
@@ -454,7 +458,7 @@ dissolve_edge(Edge, #we{es=Etab}=We0) ->
 	{value,#edge{rtsu=Forward,ltpr=Forward}=Rec} ->
 	    merge_edges(forward, Edge, Rec, We0);
 	{value,Rec} ->
-	    case catch dissolve_edge(Edge, Rec, We0) of
+	    case catch dissolve_edge_1(Edge, Rec, We0) of
 		{'EXIT',Reason} -> exit(Reason);
 		{command_error,_}=Error -> throw(Error);
 		hole -> We0;
@@ -462,35 +466,33 @@ dissolve_edge(Edge, #we{es=Etab}=We0) ->
 	    end
     end.
 
-%% dissolve_edge(Edge, EdgeRecord, We) -> We
+%% dissolve_edge_1(Edge, EdgeRecord, We) -> We
 %%  Remove an edge and a face. If one of the faces is degenerated
 %%  (only consists of two edges), remove that one. Otherwise, it
 %%  doesn't matter which face we remove.
-dissolve_edge(Edge, #edge{lf=Remove,rf=Keep,ltpr=Same,ltsu=Same}=Rec, We) ->
-    dissolve_edge(Edge, Remove, Keep, Rec, We);
-dissolve_edge(Edge, #edge{lf=Keep,rf=Remove}=Rec, We) ->
-    dissolve_edge(Edge, Remove, Keep, Rec, We).
+dissolve_edge_1(Edge, #edge{lf=Remove,rf=Keep,ltpr=Same,ltsu=Same}=Rec, We) ->
+    dissolve_edge_2(Edge, Remove, Keep, Rec, We);
+dissolve_edge_1(Edge, #edge{lf=Keep,rf=Remove}=Rec, We) ->
+    dissolve_edge_2(Edge, Remove, Keep, Rec, We).
 
-dissolve_edge(Edge, FaceRemove, FaceKeep, Rec,
-	      #we{fs=Ftab0,es=Etab0,vc=Vct0,he=Htab0}=We0) ->
-    #edge{vs=Vstart,ve=Vend,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
-
+dissolve_edge_2(Edge, FaceRemove, FaceKeep,
+		#edge{vs=Vstart,ve=Vend,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS},
+		#we{fs=Ftab0,es=Etab0,vc=Vct0,he=Htab0}=We0) ->
     %% First change face for all edges surrounding the face we will remove.
-    Etab1 =
-	wings_face:fold(
-	  fun (_, E, _, IntEtab) when E =:= Edge -> IntEtab;
-	      (_, E, R, IntEtab) ->
-		  case R of
- 		      #edge{lf=FaceRemove,rf=FaceKeep} ->
- 			  throw(hole);
- 		      #edge{rf=FaceRemove,lf=FaceKeep} ->
- 			  throw(hole);
-		      #edge{lf=FaceRemove} ->
-			  gb_trees:update(E, R#edge{lf=FaceKeep}, IntEtab);
-		      #edge{rf=FaceRemove} ->
-			  gb_trees:update(E, R#edge{rf=FaceKeep}, IntEtab)
-		  end
-	  end, Etab0, FaceRemove, We0),
+    Etab1 = wings_face:fold(
+	      fun (_, E, _, IntEtab) when E =:= Edge -> IntEtab;
+		  (_, E, R, IntEtab) ->
+		      case R of
+			  #edge{lf=FaceRemove,rf=FaceKeep} ->
+			      throw(hole);
+			  #edge{rf=FaceRemove,lf=FaceKeep} ->
+			      throw(hole);
+			  #edge{lf=FaceRemove} ->
+			      gb_trees:update(E, R#edge{lf=FaceKeep}, IntEtab);
+			  #edge{rf=FaceRemove} ->
+			      gb_trees:update(E, R#edge{rf=FaceKeep}, IntEtab)
+		      end
+	      end, Etab0, FaceRemove, We0),
 
     %% Patch all predecessors and successor of the edge we will remove.
     Etab2 = patch_edge(LP, RS, Edge, Etab1),
@@ -528,7 +530,10 @@ dissolve_edge(Edge, FaceRemove, FaceKeep, Rec,
 
 %% dissolve(Vertex, We) -> We|error
 %%  Remove a "winged vertex" - a vertex with exactly two edges.
-dissolve_vertex(V, #we{es=Etab,vc=Vct}=We0) ->
+dissolve_vertex(V, We) ->
+    wings_we:vertex_gc(internal_dissolve_vertex(V, We)).
+
+internal_dissolve_vertex(V, #we{es=Etab,vc=Vct}=We0) ->
     Edge = gb_trees:get(V, Vct),
     case gb_trees:lookup(Edge, Etab) of
 	{value,#edge{vs=V,ltsu=AnEdge,rtpr=AnEdge}=Rec} ->
@@ -552,10 +557,10 @@ merge_edges(Dir, Edge, Rec, #we{es=Etab}=We) ->
 	#edge{vs=Vb,ve=Va} ->
 	    del_2edge_face(Dir, Edge, Rec, To, We);
 	_Other ->
-	    merge(Dir, Edge, Rec, To, We)
+	    merge_1(Dir, Edge, Rec, To, We)
     end.
 
-merge(Dir, Edge, Rec, To, #we{es=Etab0,vc=Vct0,vp=Vtab0,fs=Ftab0,he=Htab0}=We) ->
+merge_1(Dir, Edge, Rec, To, #we{es=Etab0,vc=Vct0,fs=Ftab0,he=Htab0}=We) ->
     OtherDir = reverse_dir(Dir),
     {Vkeep,Vdelete,Lf,Rf,A,B,L,R} = half_edge(OtherDir, Rec),
     Etab1 = patch_edge(L, To, Edge, Etab0),
@@ -563,13 +568,11 @@ merge(Dir, Edge, Rec, To, #we{es=Etab0,vc=Vct0,vp=Vtab0,fs=Ftab0,he=Htab0}=We) -
     Etab3 = patch_half_edge(To, Vkeep, Lf, A, L, Rf, B, R, Vdelete, Etab2),
     Htab = hardness(Edge, soft, Htab0),
     Etab = gb_trees:delete(Edge, Etab3),
-    Vct1 = gb_trees:delete(Vdelete, Vct0),
-    Vct = wings_vertex:patch_vertex(Vkeep, To, Vct1),
-    Vtab = gb_trees:delete(Vdelete, Vtab0),
+    Vct = wings_vertex:patch_vertex(Vkeep, To, Vct0),
     #edge{lf=Lf,rf=Rf} = Rec,
     Ftab1 = update_face(Lf, To, Edge, Ftab0),
     Ftab = update_face(Rf, To, Edge, Ftab1),
-    check_edge(To, We#we{es=Etab,vc=Vct,vp=Vtab,fs=Ftab,he=Htab}).
+    check_edge(To, We#we{es=Etab,vc=Vct,fs=Ftab,he=Htab}).
 
 check_edge(Edge, #we{es=Etab}=We) ->
     case gb_trees:get(Edge, Etab) of
@@ -582,8 +585,7 @@ check_edge(Edge, #we{es=Etab}=We) ->
 
 update_face(Face, Edge, OldEdge, Ftab) ->
     case gb_trees:get(Face, Ftab) of
-	OldEdge ->
-	    gb_trees:update(Face, Edge, Ftab);
+	OldEdge -> gb_trees:update(Face, Edge, Ftab);
 	_Other -> Ftab
     end.
 
