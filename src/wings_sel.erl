@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.20 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.21 2001/12/28 22:36:16 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -89,6 +89,8 @@ map(F, #st{shapes=Shapes0,sel=Sel}=St) ->
     Shapes = map_1(F, Sel, gb_trees:to_list(Shapes0), []),
     St#st{shapes=Shapes}.
 
+map_1(F, [{Id,_}|_], [{Id,#we{mode=uv}}|_]=Shs, Acc) ->
+    uvmap_error(Shs);
 map_1(F, [{Id,Items}|Sel], [{Id,We0}|Shs], Acc) ->
     ?ASSERT(We0#we.id =:= Id),
     We = F(Items, We0),
@@ -119,6 +121,8 @@ mapfold(F, Acc0, #st{shapes=Shapes0,sel=Sel}=St) ->
     {Shapes,Acc} = mapfold_1(F, Acc0, Sel, gb_trees:to_list(Shapes0), []),
     {St#st{shapes=Shapes},Acc}.
 
+mapfold_1(F, Acc, [{Id,_}|_], [{Id,#we{mode=uv}=We0}|_]=Shs, Acc) ->
+    uvmap_error(Shs);
 mapfold_1(F, Acc0, [{Id,Items}|Sel], [{Id,We0}|Shs], ShsAcc) ->
     ?ASSERT(We0#we.id =:= Id),
     {We,Acc} = F(Items, We0, Acc0),
@@ -127,6 +131,20 @@ mapfold_1(F, Acc, [_|_]=Sel, [Pair|Shs], ShsAcc) ->
     mapfold_1(F, Acc, Sel, Shs, [Pair|ShsAcc]);
 mapfold_1(F, Acc, [], Shs, ShsAcc) ->
     {gb_trees:from_orddict(reverse(ShsAcc, Shs)),Acc}.
+
+
+uvmap_error(Shs) ->
+    Message = "This command is not allowed on objects with textures."
+	" (" ++ uvmap_objects(Shs) ++ ")",
+    throw({command_error,Message}).
+
+uvmap_objects(Shs) ->
+    case [Name || {Id,#we{mode=uv,name=Name}} <- Shs] of
+	[Name] -> "Object " ++ Name;
+	[Na,Nb] -> "Objects " ++ Na ++ " and " ++ Nb;
+	[Na,Nb,Nc] -> "Objects " ++ Na ++ ", " ++ Nb ++ ", and " ++ Nc;
+	[Na,Nb,Nc|_] -> "Objects " ++ Na ++ ", " ++ Nb ++ ", " ++ Nc ++ "..."
+    end.
 
 %%%
 %%% foreach functions (for drawing)
