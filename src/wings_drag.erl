@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.175 2004/03/31 17:38:28 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.176 2004/04/14 17:59:14 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -35,6 +35,7 @@
 	 mmb_count=0,
 	 offset,				%Offset for each dimension.
 	 unit,					%Unit that drag is done in.
+	 unit_sc,				%Scales for each dimension.
 	 flags=[],				%Flags.
 	 falloff,				%Magnet falloff.
 	 magnet,				%Magnet: true|false.
@@ -58,7 +59,8 @@ setup(Tvs, Units, Flags, St) ->
     Offset0 = proplists:get_value(initial, Flags, []),
     Offset1 = pad_offsets(Offset0),
     Offset = setup_offsets(Offset1, Units),
-    Drag = #drag{unit=Units,flags=Flags,offset=Offset,
+    UnitSc = unit_scales(Units),
+    Drag = #drag{unit=Units,unit_sc=UnitSc,flags=Flags,offset=Offset,
 		 falloff=falloff(Units),magnet=Magnet,st=St},
     case Tvs of
 	{matrix,TvMatrix} ->
@@ -72,6 +74,23 @@ setup(Tvs, Units, Flags, St) ->
 	    break_apart(Tvs, St)
     end,
     {drag,Drag}.
+
+unit_scales(Units) ->
+    #view{distance=D} = wings_view:current(),
+    BasicSc = 1/500,
+    DistSc = D/(9*500),
+    unit_scales_1(Units, BasicSc, DistSc).
+
+unit_scales_1([U|Us], BasicSc, DistSc) ->
+    Sc = case clean_unit(U) of
+	     distance -> DistSc;
+	     dx -> DistSc;
+	     dy -> DistSc;
+	     dz -> DistSc;
+	     _ -> BasicSc
+	 end,
+    [Sc|unit_scales_1(Us, BasicSc, DistSc)];
+unit_scales_1([], _, _) -> [].
 
 falloff([falloff|_]) -> 1.0;
 falloff([_|T]) -> falloff(T);
@@ -527,18 +546,20 @@ mouse_pre_translate(_, #mousemotion{state=Mask,mod=Mod}=Ev) ->
     if
 	Mask band ?SDL_BUTTON_RMASK =/= 0,
 	Mod band ?CTRL_BITS =/= 0 ->
-	    {Ev#mousemotion{state=?SDL_BUTTON_MMASK},Mod band (bnot ?CTRL_BITS)};
+	    {Ev#mousemotion{state=?SDL_BUTTON_MMASK},
+	     Mod band (bnot ?CTRL_BITS)};
 	true -> {Ev,Mod}
     end.
 
 mouse_range(#mousemotion{x=X0,y=Y0,state=Mask},
 	    #drag{x=OX,y=OY,xs=Xs0,ys=Ys0,zs=Zs0,
-		  xt=Xt0,yt=Yt0,mmb_count=Count0}=Drag) ->
+		  xt=Xt0,yt=Yt0,mmb_count=Count0,
+		  unit_sc=UnitScales}=Drag) ->
     %%io:format("Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xs0,Ys0}]),
     {X,Y} = wings_wm:local2global(X0, Y0),
     case wings_util:lowpass(X- OX, Y-OY) of
 	{0,0} ->
-	    {[Xs0/?MOUSE_DIVIDER,-Ys0/?MOUSE_DIVIDER,-Zs0/?MOUSE_DIVIDER],
+	    {mouse_scale([Xs0,-Ys0,-Zs0], UnitScales),
 	     Drag#drag{xt=0,yt=0}};
 	{XD0,YD0} ->
 	    XD = XD0 + Xt0,
@@ -559,9 +580,13 @@ mouse_range(#mousemotion{x=X0,y=Y0,state=Mask},
 		    Count = Count0
 	    end,
 	    wings_io:warp(OX, OY),
-	    {[Xs/?MOUSE_DIVIDER,-Ys/?MOUSE_DIVIDER,-Zs/?MOUSE_DIVIDER],
+	    {mouse_scale([Xs,-Ys,-Zs], UnitScales),
 	     Drag#drag{xs=Xs,ys=Ys,zs=Zs,xt=XD0,yt=YD0,mmb_count=Count}}
     end.
+
+mouse_scale([D|Ds], [S|Ss]) ->
+    [D*S|mouse_scale(Ds, Ss)];
+mouse_scale(Ds, []) -> Ds.
 
 constrain(Ds0, Mod, #drag{unit=Unit}=Drag) ->
     Ds = constrain_0(Unit, Ds0, Mod, []),
@@ -664,15 +689,15 @@ clean_unit(Unit) when is_atom(Unit) -> Unit.
 unit(angle, A) ->
     trim(io_lib:format("~10.2f~c  ", [A,?DEGREE]));
 unit(number, N) ->
-    ["N: "|trim(io_lib:format("~10.2f  ", [N]))];
+    ["N: "|trim(io_lib:format("~10.4f  ", [N]))];
 unit(distance, D) ->
-    ["D: "|trim(io_lib:format("~10.2f  ", [D]))];
+    ["D: "|trim(io_lib:format("~10.4f  ", [D]))];
 unit(dx, D) ->
-    ["DX: "|trim(io_lib:format("~10.2f  ", [D]))];
+    ["DX: "|trim(io_lib:format("~10.4f  ", [D]))];
 unit(dy, D) ->
-    ["DY: "|trim(io_lib:format("~10.2f  ", [D]))];
+    ["DY: "|trim(io_lib:format("~10.4f  ", [D]))];
 unit(dz, D) ->
-    ["DZ: "|trim(io_lib:format("~10.2f  ", [D]))];
+    ["DZ: "|trim(io_lib:format("~10.4f  ", [D]))];
 unit(percent, P) ->
     trim(io_lib:format("~.2f%  ", [P*100.0]));
 unit(falloff, R) ->
