@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.31 2003/10/11 13:42:37 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.32 2003/10/12 05:55:53 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -30,10 +30,6 @@ dirs(help, _Mode, Ns) -> dirs_help(Ns).
 dirs_help([move|_]) ->
     {"Move along std. axis","Move along selection's normal",
      "Pick axis to move along"};
-dirs_help([rotate|_]) ->
-    {"Rotate around std. axis","Pick axis to rotate around",
-     "Pick axis and point to rotate through"};
-dirs_help([scale|_]) -> "Scale selected elements";
 dirs_help([extrude|_]) ->
     {"Extrude along std. axis","Extrude along selection's normal",
      "Pick axis to extrude along"};
@@ -49,7 +45,6 @@ dirs_help([duplicate|_]) ->
 dirs_help(_) -> "".
 
 dirs_1(body, Ns) -> directions([free,x,y,z], Ns);
-dirs_1(vertex, [rotate|_]=Ns) -> directions([free,x,y,z], Ns);
 dirs_1(_, Ns) -> directions([normal,free,x,y,z], Ns).
 
 all_xyz() ->
@@ -101,11 +96,13 @@ uniform_scale(2, Ns, _) -> {vector,{pick,[point],[],Ns}};
 uniform_scale(3, Ns, _) -> {vector,{pick,[point],[],Ns}}.
 
 scale(help, _, []) ->
-    {"Scale along std. axis","Pick axis to scale along",
-     "Pick axis and point to scale from"};
+    {"Scale along std. axis",
+     "Pick axis and point to scale from",
+     "Pick axis to scale along"};
 scale(help, _, [radial]) ->
-    {"Scale outward from std. axis","Pick axis to scale out from",
-     "Pick axis and point to scale from"};
+    {"Scale outward from std. axis",
+     "Pick axis and point to scale from",
+     "Pick axis to scale out from"};
 scale(1, Ns, Flags) ->
     [scale_fun(x, Ns, Flags),
      scale_fun(y, Ns, Flags),
@@ -113,8 +110,8 @@ scale(1, Ns, Flags) ->
      {advanced,separator},
      scale_axis_fun(last_axis, Ns, Flags),
      scale_axis_fun(default_axis, Ns, Flags)];
-scale(2, Ns, Flags) -> {vector,{pick,[axis_point],Flags,Ns}};
-scale(3, Ns, Flags) -> {vector,{pick,[axis,point],Flags,Ns}}.
+scale(2, Ns, Flags) -> {vector,{pick,[axis,point],Flags,Ns}};
+scale(3, Ns, Flags) -> {vector,{pick,[axis_point],Flags,Ns}}.
 
 scale_fun(Dir, Names, [radial]) ->
     scale_fun({radial,Dir}, Names, []);
@@ -150,8 +147,9 @@ rotate(_) ->
     {"Rotate",{rotate,fun rotate/2},[],[magnet]}.
 
 rotate(help, _) ->
-    {"Rotate around std. axis","Pick axis to rotate around",
-     "Pick axis and point to rotate through"};
+    {"Rotate around std. axis",
+     "Pick axis and point to rotate through",
+     "Pick axis to rotate around"};
 rotate(1, [rotate,Mode]=Ns) when Mode == vertex; Mode == body ->
     [rotate_fun(free, Ns),
      rotate_fun(x, Ns),
@@ -169,8 +167,8 @@ rotate(1, Ns) ->
      {advanced,separator},
      rotate_axis_fun(last_axis, Ns),
      rotate_axis_fun(default_axis, Ns)];
-rotate(2, Ns) -> {vector,{pick,[axis_point],[],Ns}};
-rotate(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
+rotate(2, Ns) -> {vector,{pick,[axis,point],[],Ns}};
+rotate(3, Ns) -> {vector,{pick,[axis_point],[],Ns}}.
 
 rotate_fun(Dir, Names) ->
     DirString = wings_util:stringify(Dir),
@@ -202,8 +200,9 @@ flatten() ->
     {"Flatten",{flatten,fun flatten/2}}.
 
 flatten(help, _) ->
-    {"Flatten to std. planes","Pick plane",
-     "Pick plane and ref point on plane"};
+    {"Flatten to std. planes",
+     "Pick plane and ref point on plane",
+     "Pick plane"};
 flatten(1, [flatten,vertex]) ->
     %% Vertex mode flatten.
     [flatten_fun(x),
@@ -221,8 +220,8 @@ flatten(1, _) ->
      {advanced,separator},
      {advanced,flatten_axis_fun(last_axis)},
      {advanced,flatten_axis_fun(default_axis)}];
-flatten(2, Ns) -> {vector,{pick,[axis],[],Ns}};
-flatten(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
+flatten(2, Ns) -> {vector,{pick,[axis,point],[],Ns}};
+flatten(3, Ns) -> {vector,{pick,[axis],[],Ns}}.
 
 flatten_axis_fun(Axis) ->
     {_,Vec} = wings_pref:get_value(Axis),
