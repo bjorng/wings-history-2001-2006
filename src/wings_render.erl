@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.4 2004/05/15 07:25:58 bjorng Exp $
+%%     $Id: wings_render.erl,v 1.5 2004/05/17 17:44:23 bjorng Exp $
 %%
 
 -module(wings_render).
@@ -64,7 +64,7 @@ render_smooth_objects([D|Dls], Mode, RenderTrans) ->
 render_smooth_objects([], _, _) -> ok.
 
 render_work_objects([D|Dls], Mode) ->
-    render_object(D, Mode, true, []),
+    render_object(D, Mode, true, false),
     render_work_objects(Dls, Mode);
 render_work_objects([], _) -> ok.
     
