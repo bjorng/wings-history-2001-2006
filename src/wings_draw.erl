@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.144 2003/08/29 09:15:23 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.145 2003/08/29 10:40:28 bjorng Exp $
 %%
 
 -module(wings_draw).
--export([invalidate_dlists/1,update_dlists/1,update_sel_dlist/0,
+-export([invalidate_dlists/1,invalidate_dlists/2,update_dlists/1,update_sel_dlist/0,
 	 changed_we/2,split/3,original_we/1,update_dynamic/2,join/1,
 	 update_mirror/0,smooth_dlist/2]).
 
@@ -43,8 +43,11 @@ update_dlists(St) ->
     update_sel_dlist(),
     update_mirror().
 
-invalidate_dlists(#st{selmode=Mode,sel=Sel}=St) ->
-    prepare_dlists(St),
+invalidate_dlists(St) ->
+    invalidate_dlists(true, St).
+
+invalidate_dlists(Update, #st{selmode=Mode,sel=Sel}=St) ->
+    prepare_dlists(Update, St),
     case wings_draw_util:changed_materials(St) of
 	[] -> ok;
 	ChangedMat -> invalidate_by_mat(ChangedMat)
@@ -53,27 +56,29 @@ invalidate_dlists(#st{selmode=Mode,sel=Sel}=St) ->
 				sel_fun(D, Data, Mode)
 			end, Sel).
 
-prepare_dlists(#st{shapes=Shs}) ->
-    wings_draw_util:update(fun prepare_fun/2, gb_trees:values(Shs)).
+prepare_dlists(Update, #st{shapes=Shs}) ->
+    wings_draw_util:update(fun(D, A) -> prepare_fun(D, Update, A) end,
+			   gb_trees:values(Shs)).
 
-prepare_fun(eol, [#we{perm=Perm}=We|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
+prepare_fun(eol, _, [#we{perm=Perm}=We|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
     {new_we(#dlo{src_we=empty_we(We)}),Wes};
-prepare_fun(eol, [We|Wes]) ->
+prepare_fun(eol, _, [We|Wes]) ->
     {new_we(#dlo{src_we=We}),Wes};
-prepare_fun(eol, []) ->
+prepare_fun(eol, _, []) ->
     eol;
-prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, [We|Wes]) ->
+prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, _, [We|Wes]) ->
     {D#dlo{src_we=We,split=Split#split{orig_we=We}},Wes};
-prepare_fun(#dlo{src_we=We}=D, [We|Wes]) ->
+prepare_fun(#dlo{src_we=We}=D, _, [We|Wes]) ->
     {D#dlo{src_we=We},Wes};
-prepare_fun(#dlo{src_we=#we{id=Id},proxy_data=Proxy}=D, [#we{id=Id,perm=Perm}=We|Wes]) ->
+prepare_fun(#dlo{src_we=#we{id=Id},proxy_data=Proxy}=D, Update,
+	    [#we{id=Id,perm=Perm}=We|Wes]) ->
     if 
 	?IS_VISIBLE(Perm) ->
-	    {changed_we(D, #dlo{src_we=We,mirror=none,proxy_data=Proxy}),Wes};
+	    {changed_we(D, Update, #dlo{src_we=We,mirror=none,proxy_data=Proxy}),Wes};
 	true ->
-	    {changed_we(D, #dlo{src_we=empty_we(We),proxy_data=Proxy}),Wes}
+	    {changed_we(D, Update, #dlo{src_we=empty_we(We),proxy_data=Proxy}),Wes}
     end;
-prepare_fun(#dlo{}, Wes) ->
+prepare_fun(#dlo{}, _, Wes) ->
     {deleted,Wes}.
 
 invalidate_by_mat(Changed0) ->
@@ -107,9 +112,13 @@ new_we(#dlo{src_we=We}=D) ->
     Ns = changed_we_1(none, We),
     D#dlo{ns=Ns}.
     
-changed_we(#dlo{ns=Ns0}, #dlo{src_we=We}=D) ->
+changed_we(D0, D1) ->
+    changed_we(D0, true, D1).
+
+changed_we(#dlo{ns=Ns0}, true, #dlo{src_we=We}=D) ->
     Ns = changed_we_1(Ns0, We),
-    D#dlo{ns=Ns}.
+    D#dlo{ns=Ns};
+changed_we(#dlo{ns=Ns}, false, D) -> D#dlo{ns=Ns}.
 
 changed_we_1(none, #we{fs=Ftab}=We) ->
     changed_we_2(gb_trees:to_list(Ftab), [], We, []);
@@ -146,7 +155,7 @@ changed_we_2([{Face,Edge}|Fs], Ns, We, Acc) ->
     N = e3d_vec:normal(Ps),
     case Ps of
 	[_,_,_] ->
-	    changed_we_2(Fs, Ns, We, [{Face,[N|Ps]}]);
+	    changed_we_2(Fs, Ns, We, [{Face,[N|Ps]}|Acc]);
 	[A,B,C,D] ->
 	    case wings_draw_util:good_triangulation(N, A, B, C, D) of
 		false ->
@@ -155,7 +164,7 @@ changed_we_2([{Face,Edge}|Fs], Ns, We, Acc) ->
 		    changed_we_2(Fs, Ns, We, [{Face,[N|Ps]}|Acc])
 	    end;
 	_ ->
-	    changed_we_2(Fs, Ns, We, [{Face,{N,Ps}}])
+	    changed_we_2(Fs, Ns, We, [{Face,{N,Ps}}|Acc])
     end;
 changed_we_2([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
@@ -249,8 +258,8 @@ update_fun_1(D, [], _) -> D.
 
 update_fun_2(light, D, _) ->
     wings_light:update(D);
-update_fun_2(work, #dlo{work=none,src_we=#we{fs=Ftab}=We}=D, St) ->
-    Dl = draw_faces(gb_trees:to_list(Ftab), We, St),
+update_fun_2(work, #dlo{work=none,src_we=#we{fs=Ftab}}=D, St) ->
+    Dl = draw_faces(gb_trees:to_list(Ftab), D, St),
     D#dlo{work=Dl};
 update_fun_2(smooth, #dlo{smooth=none}=D, St) ->
     We = wings_subdiv:smooth_we(D),
@@ -300,7 +309,7 @@ update_sel_dlist() ->
 update_sel(#dlo{src_we=We}=D) when ?IS_LIGHT(We) -> {D,[]};
 update_sel(#dlo{sel=none,src_sel={body,_}}=D) ->
     update_sel_all(D);
-update_sel(#dlo{sel=none,src_sel={face,Faces},src_we=#we{fs=Ftab}=We}=D) ->
+update_sel(#dlo{sel=none,src_sel={face,Faces},src_we=#we{fs=Ftab}}=D) ->
     case gb_trees:size(Ftab) =:= gb_sets:size(Faces) of
 	true ->
 	    update_sel_all(D);
@@ -312,7 +321,7 @@ update_sel(#dlo{sel=none,src_sel={face,Faces},src_we=#we{fs=Ftab}=We}=D) ->
 	    wings_draw_util:begin_end(
 	      fun() ->
 		      foreach(fun(Face) ->
-				      wings_draw_util:unlit_face(Face, We)
+				      wings_draw_util:unlit_face(Face, D)
 			      end, gb_sets:to_list(Faces))
 	      end),
 	    gl:endList(),
@@ -443,7 +452,7 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd,ns=Ns0}=D,
 		false ->
 		    {FtabDyn0,StaticFtab0} = sofs:partition(1, Ftab, Faces1),
 		    StaticFtab = sofs:to_external(StaticFtab0),
-		    List = draw_faces(StaticFtab, We, St),
+		    List = draw_faces(StaticFtab, D, St),
 		    Faces1
 	    end,
     AllVs = sofs:image(F2V, Faces),
@@ -525,7 +534,7 @@ split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
 split_vs_dlist(_, _, _) -> {none,none}.
 
 %% Re-join display lists that have been split.
-join(#dlo{src_we=#we{vp=Vtab0},split=#split{orig_we=We0,orig_ns=Ns}}=D0) ->
+join(#dlo{src_we=#we{vp=Vtab0},ns=Ns1,split=#split{orig_we=We0,orig_ns=Ns0}}=D0) ->
     #we{vp=OldVtab} = We0,
 
     %% Heuristic for break-even. (Note that we don't know the exact number
@@ -546,8 +555,19 @@ join(#dlo{src_we=#we{vp=Vtab0},split=#split{orig_we=We0,orig_ns=Ns}}=D0) ->
 %     io:format("~p ~p\n", [erts_debug:size([OldVtab,Vtab]),
 % 			   erts_debug:flat_size([OldVtab,Vtab])]),
     We = We0#we{vp=Vtab},
+    Ns = join_ns(Ns0, Ns1),
     D = D0#dlo{vs=none,drag=none,sel=none,split=none,src_we=We,ns=Ns},
     changed_we(D, D).
+
+join_ns(Ns0, Ns1) ->
+    join_ns_1(gb_trees:to_list(Ns0), gb_trees:to_list(Ns1), []).
+
+join_ns_1([{Face,_}|Fs0], [{Face,_}=El|Fs1], Acc) ->
+    join_ns_1(Fs0, Fs1, [El|Acc]);
+join_ns_1([El|Fs0], Fs1, Acc) ->
+    join_ns_1(Fs0, Fs1, [El|Acc]);
+join_ns_1([], Fs, Acc) ->
+    gb_trees:from_orddict(reverse(Acc, Fs)).
 
 join_update(New, Old) ->
     join_update(gb_trees:to_list(New), gb_trees:to_list(Old), Old).
@@ -606,20 +626,20 @@ tricky_share({X,Y,Z}, {_,_,Z}=Old) ->
 %%% Drawing routines for workmode.
 %%%
 
-draw_faces(Ftab, We, St) ->
-    draw_faces(wings_draw_util:prepare(Ftab, We, St), We).
+draw_faces(Ftab, D, St) ->
+    draw_faces(wings_draw_util:prepare(Ftab, D, St), D).
 
-draw_faces({material,MatFaces,St}, We) ->
+draw_faces({material,MatFaces,St}, D) ->
     Dl = gl:genLists(1),
     gl:newList(Dl, ?GL_COMPILE),
-    mat_faces(MatFaces, We, St),
+    mat_faces(MatFaces, D, St),
     gl:endList(),
     Dl;
-draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
+draw_faces({color,Colors,#st{mat=Mtab}}, D) ->
     BasicFaces = gl:genLists(2),
     Dl = BasicFaces+1,
     gl:newList(BasicFaces, ?GL_COMPILE),
-    draw_vtx_faces(Colors, We),
+    draw_vtx_faces(Colors, D),
     gl:endList(),
     
     gl:newList(Dl, ?GL_COMPILE),
@@ -632,34 +652,34 @@ draw_faces({color,Colors,#st{mat=Mtab}}, We) ->
 
     {call,Dl,BasicFaces}.
 
-draw_vtx_faces({Same,Diff}, We) ->
+draw_vtx_faces({Same,Diff}, D) ->
     Draw = fun() ->
 		   Tess = wings_draw_util:tess(),
 		   glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-		   draw_vtx_faces_1(Same, We),
+		   draw_vtx_faces_1(Same, D),
 		   glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-		   draw_vtx_faces_3(Diff, We)
+		   draw_vtx_faces_3(Diff, D)
 	   end,
     wings_draw_util:begin_end(Draw).
 
-draw_vtx_faces_1([{none,Faces}|Fs], We) ->
+draw_vtx_faces_1([{none,Faces}|Fs], D) ->
     gl:color3f(1.0, 1.0, 1.0),
-    draw_vtx_faces_2(Faces, We),
-    draw_vtx_faces_1(Fs, We);
-draw_vtx_faces_1([{Col,Faces}|Fs], We) ->
+    draw_vtx_faces_2(Faces, D),
+    draw_vtx_faces_1(Fs, D);
+draw_vtx_faces_1([{Col,Faces}|Fs], D) ->
     gl:color3fv(Col),
-    draw_vtx_faces_2(Faces, We),
-    draw_vtx_faces_1(Fs, We);
+    draw_vtx_faces_2(Faces, D),
+    draw_vtx_faces_1(Fs, D);
 draw_vtx_faces_1([], _) -> ok.
 
-draw_vtx_faces_2([F|Fs], We) ->
-    wings_draw_util:plain_face(F, We),
-    draw_vtx_faces_2(Fs, We);
+draw_vtx_faces_2([F|Fs], D) ->
+    wings_draw_util:plain_face(F, D),
+    draw_vtx_faces_2(Fs, D);
 draw_vtx_faces_2([], _) -> ok.
 
-draw_vtx_faces_3([F|Fs], We) ->
-    wings_draw_util:vcol_face(F, We),
-    draw_vtx_faces_3(Fs, We);
+draw_vtx_faces_3([F|Fs], D) ->
+    wings_draw_util:vcol_face(F, D),
+    draw_vtx_faces_3(Fs, D);
 draw_vtx_faces_3([], _) -> ok.
 
 %%%

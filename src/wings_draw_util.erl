@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.106 2003/08/29 07:34:24 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.107 2003/08/29 10:40:28 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -583,11 +583,7 @@ vtx_smooth_face_color_1([], Col) -> Col.
 %% Triangulate and draw a face.
 %%
 
-plain_face(Face, #we{fs=Ftab}=We) ->
-    Edge = gb_trees:get(Face, Ftab),
-    plain_face(Face, Edge, We).
-
-plain_face(Face, _, #dlo{ns=Ns}) ->
+plain_face(Face, #dlo{ns=Ns}) ->
     case gb_trees:get(Face, Ns) of
 	[N|VsPos] ->
 	    gl:normal3fv(N),
@@ -596,6 +592,12 @@ plain_face(Face, _, #dlo{ns=Ns}) ->
 	    gl:normal3fv(N),
 	    wings__du:plain_face(N, VsPos)
     end;
+plain_face(Face, #we{fs=Ftab}=We) ->
+    Edge = gb_trees:get(Face, Ftab),
+    plain_face(Face, Edge, We).
+
+plain_face(Face, _, #dlo{}=D) ->
+    plain_face(Face, D);
 plain_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs = wings_face:vertices_cw(Face, Edge, We),
     plain_face_1(Vs, Vtab, []).
@@ -622,10 +624,14 @@ plain_face_1([], _, VsPos) ->
 %% Tesselate and draw face. Include UV coordinates.
 %%
 
+uv_face(Face, #dlo{src_we=We}) ->
+    uv_face(Face, We);
 uv_face(Face, #we{fs=Ftab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
     uv_face(Face, Edge, We).
 
+uv_face(Face, Edge, #dlo{src_we=We}) ->
+    uv_face(Face, Edge, We);
 uv_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs0 = wings_face:vinfo_cw(Face, Edge, We),
     uv_face_1(Vs0, Vtab, [], []).
@@ -653,10 +659,14 @@ uv_face_1([], _, Nacc, Vs) ->
 %% Tesselate and draw face. Include vertex colors.
 %%
 
+vcol_face(Face, #dlo{src_we=We}) ->
+    vcol_face(Face, We);
 vcol_face(Face, #we{fs=Ftab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
     vcol_face(Face, Edge, We).
 
+vcol_face(Face, Edge, #dlo{src_we=We}) ->
+    vcol_face(Face, Edge, We);
 vcol_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs0 = wings_face:vinfo_cw(Face, Edge, We),
     vcol_face_1(Vs0, Vtab, [], []).

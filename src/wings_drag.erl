@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.158 2003/08/29 09:15:22 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.159 2003/08/29 10:40:28 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -102,7 +102,7 @@ setup_offsets([], []) -> [].
 %% moved).
 %%
 break_apart(Tvs, St) ->
-    wings_draw:invalidate_dlists(St),
+    wings_draw:invalidate_dlists(false, St),
     wings_draw:update_mirror(),
     wings_draw_util:map(fun(D, Data) ->
 				break_apart(D, Data, St)
@@ -706,11 +706,11 @@ normalize_fun(#dlo{drag=none}=D, Shs) -> {D,Shs};
 normalize_fun(#dlo{drag={matrix,_,_,_},transparent=#we{id=Id}=We}=D, Shs0) when ?IS_LIGHT(We) ->
     Shs = gb_trees:update(Id, We, Shs0),
     {D#dlo{work=none,drag=none,src_we=We,transparent=false},Shs};
-normalize_fun(#dlo{drag={matrix,_,_,Matrix},
-		   src_we=#we{id=Id}=We0}=D, Shs0) ->
+normalize_fun(#dlo{drag={matrix,_,_,Matrix}, src_we=#we{id=Id}=We0}=D0, Shs0) ->
     We = wings_we:transform_vs(Matrix, We0),
     Shs = gb_trees:update(Id, We, Shs0),
-    {D#dlo{work=none,sel=none,drag=none,src_we=We,mirror=none},Shs};
+    D = D0#dlo{work=none,sel=none,drag=none,src_we=We,mirror=none},
+    {wings_draw:changed_we(D, D),Shs};
 normalize_fun(#dlo{drag={general,_},src_we=#we{id=Id}=We}=D, Shs) ->
     {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)};
 normalize_fun(#dlo{src_we=#we{id=Id}}=D0, Shs) ->

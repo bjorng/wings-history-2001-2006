@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.117 2003/08/27 06:47:39 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.118 2003/08/29 10:40:28 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -725,10 +725,10 @@ draw_fun(#dlo{work=Work,src_we=#we{id=Id,perm=Perm}=We}=D, _)
     gl:popName(),
     gl:popName(),
     D;
-draw_fun(#dlo{pick=none,src_we=We}=D, _) ->
+draw_fun(#dlo{pick=none}=D, _) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
-    draw_1(We),
+    draw_1(D),
     gl:endList(),
     draw_dlist(D#dlo{pick=List});
 draw_fun(D, _) -> draw_dlist(D).
@@ -751,56 +751,39 @@ draw_dlist(#dlo{mirror=Matrix,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:frontFace(?GL_CCW),
     D.
 
-draw_1(#we{perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
+draw_1(#dlo{src_we=#we{perm=Perm}}=D) when ?IS_SELECTABLE(Perm) ->
     Tess = wings_draw_util:tess(),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
     glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_NONE),
     glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
     glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
-    draw_2(We),
+    draw_2(D),
     wings_draw_util:init_cb(Tess),
     gl:edgeFlag(?GL_TRUE);
 draw_1(_) -> ok.
     
-draw_2(#we{fs=Ftab}=We) ->
+draw_2(#dlo{ns=Ns}) ->
     gl:pushName(0),
-    foreach(fun({Face,Edge}) ->
+    foreach(fun({Face,Info}) ->
 		    gl:loadName(Face),
-		    face(Face, Edge, We)
-	    end, gb_trees:to_list(Ftab)),
+		    face(Info)
+	    end, gb_trees:to_list(Ns)),
     gl:popName().
 
-face(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs = wings_face:vertices_cw(Face, Edge, We),
-    face_1(Vs, Vtab, []).
-
-face_1([V|Vs], Vtab, Acc) ->
-    face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-face_1([], _, VsPos) ->
-    N = e3d_vec:normal(VsPos),
-    face_2(N, VsPos).
-
-face_2(_, [A,B,C]) ->
+face([_|[A,B,C]]) ->
     gl:'begin'(?GL_TRIANGLES),
     gl:vertex3dv(A),
     gl:vertex3dv(B),
     gl:vertex3dv(C),
     gl:'end'();
-face_2(N, [A,B,C,D]=VsPos) ->
-    case wings_draw_util:good_triangulation(N, A, B, C, D) of
-	false ->
-	    face_3(N, VsPos);
-	true ->
- 	    gl:'begin'(?GL_QUADS),
-	    gl:vertex3dv(A),
-	    gl:vertex3dv(B),
-	    gl:vertex3dv(C),
-	    gl:vertex3dv(D),
-	    gl:'end'()
-    end;
-face_2(N, VsPos) -> face_3(N, VsPos).
-
-face_3(N, VsPos) ->
+face([_|[A,B,C,D]]) ->
+    gl:'begin'(?GL_QUADS),
+    gl:vertex3dv(A),
+    gl:vertex3dv(B),
+    gl:vertex3dv(C),
+    gl:vertex3dv(D),
+    gl:'end'();
+face({N,VsPos}) ->
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
