@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.175 2003/12/02 20:14:18 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.176 2003/12/02 20:31:05 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -221,21 +221,22 @@ init_show_maps(Map0, #we{es=Etab}=We, St) ->
     Edges = gb_trees:keys(Etab),
     create_uv_state(Edges, Map, none, #setng{}, We, St).
 
-create_uv_state(Edges, Map, MatName, Options, We, St) ->
+create_uv_state(Edges, Map, MatName, Options, We, GeomSt) ->
     wings:mode_restriction([body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {_,Geom} = init_drawarea(),
-    Uvs = #uvstate{st=wpa:sel_set(face, [], St),
-		   origst=St,
+    Uvs = #uvstate{st=wpa:sel_set(face, [], GeomSt),
+		   origst=GeomSt,
 		   areas=Map,
 		   geom=Geom,
 		   orig_we=We,
 		   edges=Edges,
 		   matname=MatName,
 		   option=Options},
+    St = GeomSt#st{selmode=body,sel=[],shapes=Map,bb=Uvs},
     Name = wings_wm:this(),
     wings_wm:set_prop(Name, drag_filter, fun drag_filter/1),
-    get_event(Uvs).
+    get_event(St).
 
 find_boundary_edges([{Id,#we{name=#ch{fs=Fs}}=We}|Cs], Acc) ->
     Be = auv_util:outer_edges(Fs, We),
@@ -712,11 +713,11 @@ handle_event(Ev, St) ->
 	Other -> Other
     end.
 
-handle_event_1({current_state,geom_display_lists,St}, #st{bb=Uvs}=St0) ->
-    case verify_state(St, Uvs) of
+handle_event_1({current_state,geom_display_lists,GeomSt}, #st{bb=Uvs}=St0) ->
+    case verify_state(GeomSt, Uvs) of
 	keep ->
 	    #st{selmode=Mode,sel=Sel,shapes=Shs} = St0,
-	    update_selection(St, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs});
+	    update_selection(GeomSt, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs});
 	Other -> Other
     end;
 handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0},
@@ -776,10 +777,9 @@ handle_command({rotate,Deg}, St0) ->
     get_event(St);
 handle_command(_, #st{sel=[]}) ->
     keep;
-handle_command(Cmd, #st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs0}) ->
-    Uvs = Uvs0#uvstate{mode=Mode,sel=Sel,areas=Shs},
+handle_command(Cmd, St) ->
     {_,X,Y} = wings_wm:local_mouse_state(),
-    {seq,push,get_cmd_event(Cmd, X, Y, Uvs)}.
+    {seq,push,get_cmd_event(Cmd, X, Y, St)}.
 
 % handle_command_1(rescale_all, Uvs0) ->
 %     Uvs = clear_selection(Uvs0),
@@ -790,34 +790,33 @@ handle_command(Cmd, #st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs0}) ->
 %%% Command handling (temporary version).
 %%%
 
-get_cmd_event(Op, X, Y, Uvs) ->
+get_cmd_event(Op, X, Y, #st{}=St) ->
     wings_wm:dirty(),
-    get_cmd_event_noredraw(Op, X, Y, Uvs).
+    get_cmd_event_noredraw(Op, X, Y, St).
 
-get_cmd_event_noredraw(Op, X, Y, Uvs) ->
-    {replace,fun(Ev) -> cmd_event(Ev, Op, X, Y, Uvs) end}.
+get_cmd_event_noredraw(Op, X, Y, #st{}=St) ->
+    {replace,fun(Ev) -> cmd_event(Ev, Op, X, Y, St) end}.
 
-cmd_event(redraw, Op, X, Y, #uvstate{mode=Mode,sel=Sel,areas=Shs,origst=OrigSt}=Uvs0) ->
-    St0 = OrigSt#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs0},
-    #st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs} = redraw(St0),
-    get_cmd_event_noredraw(Op, X, Y, Uvs#uvstate{mode=Mode,sel=Sel,areas=Shs});
-cmd_event(#mousemotion{x=MX0,y=MY0}, Op, X0, Y0, Uvs0) ->
-    #uvstate{geom={X0Y0,MW0,X0Y0,MH0}}=Uvs0,
+cmd_event(redraw, Op, X, Y, St0) ->
+    St = redraw(St0),
+    get_cmd_event_noredraw(Op, X, Y, St);
+cmd_event(#mousemotion{x=MX0,y=MY0}, Op, X0, Y0, St0) ->
+    #st{bb=#uvstate{geom={X0Y0,MW0,X0Y0,MH0}}} = St0,
     {_,_,W,H} = wings_wm:viewport(),
     DX = MX0 - X0,
     DY = MY0 - Y0,
     MW =  (MW0-X0Y0) * DX/W,
     MH = -(MH0-X0Y0) * DY/H,
 %%    ?DBG("Viewp ~p ~p ~p ~p ~p ~p~n", [MW,MH,DX,DY,MX,MY]),
-    Uvs = case Op of
-	      move ->
-		  sel_map(fun(_, We) -> move_chart(4*MW, 4*MH, We) end, Uvs0);
-	      rotate ->
-		  sel_map(fun(_, We) -> rotate_chart(MW*180, We) end, Uvs0)
-	  end,
-    get_cmd_event(Op, MX0, MY0, Uvs);
-cmd_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT}, _, _, _, Uvs) ->
-    wings_wm:later({new_uv_state,Uvs}),
+    St = case Op of
+	     move ->
+		 wpa:sel_map(fun(_, We) -> move_chart(4*MW, 4*MH, We) end, St0);
+	     rotate ->
+		 wpa:sel_map(fun(_, We) -> rotate_chart(MW*180, We) end, St0)
+	 end,
+    get_cmd_event(Op, MX0, MY0, St);
+cmd_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT}, _, _, _, St) ->
+    wings_wm:later({new_uv_state,St}),
     pop;
 cmd_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT}, _, _, _, _) ->
     wings_wm:dirty(),
@@ -1098,11 +1097,6 @@ update_dlists(#st{}=St) ->
     wings_draw:invalidate_dlists(false, St).
 
 all_charts(#uvstate{areas=Charts}) -> Charts.
-
-sel_map(F, #uvstate{areas=Shs0,sel=Sel}=Uvs) ->
-    St = #st{shapes=Shs0,sel=Sel},
-    #st{shapes=Shs} = wpa:sel_map(F, St),
-    Uvs#uvstate{areas=Shs}.
 
 sel_foreach(F, #uvstate{sel=Sel,areas=Shs}) ->
     foreach(fun({Id,_}) -> F(gb_trees:get(Id, Shs)) end, Sel).
