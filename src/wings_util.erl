@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.23 2002/01/07 08:38:54 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.24 2002/01/10 13:53:24 dgud Exp $
 %%
 
 -module(wings_util).
@@ -53,7 +53,7 @@ serious_yes_no(Question) ->
     wings_plugin:call_ui({serious_question,Question}).
     
 ask(false, Qs, Fun) ->
-    Ns = [Def || {_,Def,_,_} <- Qs],
+    Ns = [element(2, Q) || Q <- Qs],
     Fun(Ns);
 ask(true, Qs, Fun) ->
     case wings_plugin:call_ui({ask,Qs}) of
