@@ -4,12 +4,12 @@
 %%     This module contains the Extrude (edge), Bevel (face/edge) and
 %%     Bump commands. (All based on edge extrusion.)
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.36 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.37 2003/02/14 22:16:11 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -48,7 +48,7 @@ bevel(St0) ->
 bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Sel0,Limit0}) ->
     {We1,OrigVs,_,Forbidden} = extrude_edges(Edges, We0),
     We2 = wings_edge:dissolve_edges(Edges, We1),
-    Tv0 = bevel_tv(OrigVs, We2, Forbidden),
+    Tv = bevel_tv(OrigVs, We2, Forbidden),
     We3 = foldl(fun(V, W0) ->
 			WW = wings_collapse:collapse_vertex(V, W0),
 			wings_util:validate(WW),
@@ -56,7 +56,7 @@ bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Sel0,Limit0}) ->
 		end, We2, OrigVs),
     Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, We3#we.vp),
     We = We3#we{vp=Vtab},
-    {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
+    Limit = bevel_limit(Tv, We, Limit0),
     Sel = case gb_sets:is_empty(Forbidden) of
 	      true -> [{Id,wings_we:new_items(face, We0, We)}|Sel0];
 	      false -> Sel0
@@ -79,14 +79,14 @@ bevel_faces(Faces, #we{id=Id}=We0, {Tvs,Limit0}) ->
 	    wings_util:error("Object is too small to bevel.");
 	{_,_} ->
 	    We2 = wings_edge:dissolve_edges(Edges, We1),
-	    Tv0 = bevel_tv(OrigVs, We2, Forbidden),
+	    Tv = bevel_tv(OrigVs, We2, Forbidden),
 	    #we{vp=Vtab0} = We3 =
 		foldl(fun(V, W0) ->
 			      wings_collapse:collapse_vertex(V, W0)
 		      end, We2, OrigVs),
 	    Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, Vtab0),
 	    We = We3#we{vp=Vtab},
-	    {Tv,Limit} = bevel_limit(Tv0, We, Limit0),
+	    Limit = bevel_limit(Tv, We, Limit0),
 	    {We,{[{Id,Tv}|Tvs],Limit}}
     end.
 
@@ -106,7 +106,7 @@ bevel_tv_1(V, We, Forbidden, Acc) ->
 		  false ->
 		      OtherV = wings_vertex:other(V, Rec),
 		      Pos = wings_vertex:pos(OtherV, We),
-		      Vec = e3d_vec:norm(e3d_vec:sub(Pos, Center)),
+		      Vec = e3d_vec:sub(Pos, Center),
 		      [{Vec,[OtherV]}|Tv0]
 	      end
       end, Acc, V, We).
@@ -126,57 +126,50 @@ bevel_reset_pos_1(V, We, Forbidden, Vtab) ->
 	      end
       end, Vtab, V, We).
 
-bevel_limit(Tv0, We, Limit0) ->
-    {Tv,L0} = foldl(fun({Vec,[V]}, A) ->
-			    bevel_limit_1(V, Vec, We, A)
-		    end, {[],[]}, Tv0),
+bevel_limit(Tv0, We, Limit) ->
+    L0 = foldl(fun({Vec,[V]}, A) ->
+		       bevel_limit_1(V, Vec, We, A)
+	       end, [], Tv0),
     L1 = sofs:relation(L0, [{edge,data}]),
     L2 = sofs:relation_to_family(L1),
     L3 = sofs:range(L2),
     L = sofs:to_external(L3),
-    Limit = bevel_min_limit(L, Limit0),
-    {Tv,Limit}.
+    bevel_min_limit(L, Limit).
 
 bevel_limit_1(V, Vec, #we{vp=Vtab}=We, Acc) ->
     Pos = gb_trees:get(V, Vtab),
-    L = wings_vertex:fold(
-	  fun(_, _, Rec, A) ->
-		  OtherV = wings_vertex:other(V, Rec),
-		  OtherPos = gb_trees:get(OtherV, Vtab),
-		  Evec = e3d_vec:norm(e3d_vec:sub(OtherPos, Pos)),
-		  Dot = e3d_vec:dot(Vec, Evec),
-		  [{Dot,OtherV,OtherPos}|A]
-	  end, [], V, We),
-    bevel_limit_2(reverse(sort(L)), V, Pos, Vec, Acc).
-
-bevel_limit_2([{Dot,Va,Vpos}|_], V, Pos, Vec, {A,Lacc}) when Dot > 0.998 ->
-    Lim = e3d_vec:len(e3d_vec:sub(Pos, Vpos)),
-    Ea = edge_name(V, Va),
-    {[{Vec,[V]}|A],[{Ea,{Va,Lim}}|Lacc]};
-bevel_limit_2([{DotA,Va,Apos},{DotB,Vb,Bpos}|_], V, Pos, Vec0, {A,Lacc})
-  when DotA+DotB > 0.998 ->
-    Vec = e3d_vec:mul(Vec0, 1/DotA),
-    LimA = e3d_vec:len(e3d_vec:sub(Pos, Apos)),
-    LimB = e3d_vec:len(e3d_vec:sub(Pos, Bpos)),
-    Ea = edge_name(V, Va),
-    Eb = edge_name(V, Vb),
-    {[{Vec,[V]}|A],[{Ea,{Va,LimA}},{Eb,{Vb,LimB}}|Lacc]};
-bevel_limit_2(_Other, V, _Pos, Vec, {A,Lacc}) ->
-    %% Ignore - degenerated case.
-    {[{Vec,[V]}|A],Lacc}.
+    Data = {Pos,Vec},
+    wings_vertex:fold(fun(_, _, Rec, A) ->
+			      OtherV = wings_vertex:other(V, Rec),
+			      [{edge_name(V, OtherV),Data}|A]
+		      end, Acc, V, We).
 
 edge_name(Va, Vb) when Va < Vb -> {Va,Vb};
 edge_name(Va, Vb) -> {Vb,Va}.
 
-bevel_min_limit([[{_,L}]|T], Min) when L > Min ->
-    bevel_min_limit(T, Min);
-bevel_min_limit([Ls|T], Min) ->
-    N = length(Ls),
-    Sum = foldl(fun({_,L}, S) -> S+L end, 0, Ls),
-    case Sum/N/N of
-	M when M < Min -> bevel_min_limit(T, M);
-	_ -> bevel_min_limit(T, Min)
+bevel_min_limit([[{O1,D1},{O2,D2}]|Tail], Min0) ->
+    %% Find intersection between lines.
+    O2MinusO1 = e3d_vec:sub(O2, O1),
+    D1CrossD2 = e3d_vec:cross(D1, D2),
+    LenD1CrossD2 = e3d_vec:len(D1CrossD2),
+    case LenD1CrossD2*LenD1CrossD2 of
+	Z when abs(Z) < 0.00001 ->
+	    %% No intersection.
+	    bevel_min_limit(Tail, Min0);
+	SqrLen ->
+	    S = e3d_vec:dot(e3d_vec:cross(O2MinusO1, D2), D1CrossD2)/SqrLen,
+	    T = e3d_vec:dot(e3d_vec:cross(O2MinusO1, D1), D1CrossD2)/SqrLen,
+	    if
+		S > 0, T > 0 ->
+		    Min = lists:min([S,T,Min0]),
+		    bevel_min_limit(Tail, Min);
+		true ->
+		    %% No intersection in the forward direction.
+		    bevel_min_limit(Tail, Min0)
+	    end
     end;
+bevel_min_limit([_|Tail], Min) ->
+    bevel_min_limit(Tail, Min);
 bevel_min_limit([], Min) -> Min.
 
 %%
