@@ -16,7 +16,8 @@ Dan Gudmundsson:
 	Wrote the ESDL package that made it possible.
 	Ideas and inspiration.
 	Wrote the e3d_image modules.
-	Wrote the material editor.
+	Wrote the original material editor.
+	Principal author of Auto-UV.
 
 Vlad Dumitrescu: Bugfix for middle-mouse button emulation.
 
@@ -53,3 +54,10 @@ Sean Hinde (Earlyriser):
 Danni Coy (KayosIII):
 	Significantly enhanced the Renderman exporter. Added the Render
 	command.
+
+Auto-UV credits
+===============
+
+Dan Gudmundsson (idea; principal author)
+Bjorn Gustavsson
+Raimo Niskanen (implemented the Least Square Conformal Map algorithm)
