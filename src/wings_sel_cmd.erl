@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.27 2002/12/14 14:24:30 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.28 2002/12/15 15:41:50 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -20,23 +20,23 @@
 
 menu(St) ->
     GroupsMenu = groups_menu(St),
-    [{"Deselect",deselect},
+    [{"Deselect",deselect,"Clear the selection"},
      separator,
-     {"More",more},
-     {"Less",less},
+     {"More",more,more_help(St)},
+     {"Less",less,less_help(St)},
      {"Region",select_region},
      {"Edge Loop",edge_loop},
      {"Edge Ring",edge_ring},
      {"Previous Edge Loop",prev_edge_loop},
      {"Next Edge Loop",next_edge_loop},
-     {"Similar",similar},
+     {"Similar",similar,similar_help(St)},
      separator,
      {"Adjacent",{adjacent,[{"Vertices",vertex},
 			    {"Edges",edge},
 			    {"Faces",face},
 			    {"Objects",body}]}},
-     {"By",{by,[{"Hard Edges",hard_edges},
-		{"Isolated Vertices",isolated_vertices},
+     {"By",{by,[{"Hard Edges",hard_edges,"Select all hard edges"},
+		{"Isolated Vertices",isolated_vertices,"Select all isolated vertices"},
 		{"Vertices With",{vertices_with,
 				  [{"2 Edges",2},
 				   {"3 Edges",3},
@@ -57,15 +57,15 @@ menu(St) ->
 				   {"70%",70},
 				   {"80%",80},
 				   {"90%",90}]}},
-		{"Short Edges",short_edges,[option]},
-		{"Id...",id}]}},
-     {"Lights",lights},
+		{"Short Edges",short_edges,"Select (too) short edges",[option]},
+		{"Id...",id,"Select by numeric id"}]}},
+     {"Lights",lights,"Select all lights"},
      separator,
      {sel_all_str(St),all},
      separator,
      {"Inverse",inverse},
      separator,
-     {"New Group...", new_group} | GroupsMenu].
+     {"New Group...",new_group,"Create a new selection group"}|GroupsMenu].
 
 sel_all_str(#st{selmode=vertex}) -> "All Vertices";
 sel_all_str(#st{selmode=edge}) -> "All Edges";
@@ -75,26 +75,34 @@ sel_all_str(#st{selmode=body}) -> "All Objects".
 groups_menu(#st{ssels=Ssels}=St) -> 
     case gb_trees:is_empty(Ssels) of
         true -> [];
-        false -> [{"Delete Group", {delete_group,
-                    groups_and_help({"Delete group '","'"}, St)}},
-                  separator,
-                  {"Add to Group", {add_to_group, 
-                    groups_and_help({"Add current selection to group '", "'"}, St)}},
-                  {"Subtract from Group", {subtract_from_group,
-                    groups_and_help({"Subtract current selection from group '", "'"}, St)}},
-                  separator,
-                  {"Select Group", {select_group, 
-                    groups_and_help({"Select group '","'"}, St)}},
-                  separator,
-                  {"Union Group", {union_group, 
-                    groups_and_help({"Union group '", "' with current selection"}, St)}},
-                  {"Subtract Group", {subtract_group, 
-                    groups_and_help({"Subtract group '", "' from current selection"}, St)}},
-                  {"Intersect Group", {intersect_group, 
-                    groups_and_help({"Intersect group '", "' with current selection"}, St)}}]
-        end.
+        false ->
+	    [{"Delete Group",
+	      {delete_group,
+	       groups_and_help("Delete group '", "'", St)}},
+	     separator,
+	     {"Add to Group",
+	      {add_to_group, 
+	       groups_and_help("Add current selection to group '", "'", St)}},
+	     {"Subtract from Group",
+	      {subtract_from_group,
+	       groups_and_help("Subtract current selection from group '", "'", St)}},
+	     separator,
+	     {"Select Group",
+	      {select_group, 
+	       groups_and_help("Select group '", "'", St)}},
+	     separator,
+	     {"Union Group",
+	      {union_group, 
+	       groups_and_help("Union group '", "' with current selection", St)}},
+	     {"Subtract Group",
+	      {subtract_group, 
+	       groups_and_help("Subtract group '", "' from current selection", St)}},
+	     {"Intersect Group",
+	      {intersect_group, 
+	       groups_and_help("Intersect group '", "' with current selection", St)}}]
+    end.
       
-groups_and_help({Help0, Help1}, #st{ssels=Ssels}) ->
+groups_and_help(Help0, Help1, #st{ssels=Ssels}) ->
     map(fun({Id, {Name, Id, Mode, _}}) ->
         Title = group_title(Name,Mode),
         {Title, Id, Help0++Name++Help1} end, 
@@ -105,6 +113,30 @@ group_title(Name, edge) -> "edge: "++Name;
 group_title(Name, face) -> "face: "++Name;
 group_title(Name, body) -> "body: "++Name.
 
+more_help(#st{selmode=vertex}) ->
+    "Select all vertices adjacent to a selected vertex";
+more_help(#st{selmode=edge}) ->
+    "Select all edges adjacent to a selected edge";
+more_help(#st{selmode=face}) ->
+    "Select all faces sharing a vertex with a selected face";
+more_help(_) -> "".
+
+less_help(#st{selmode=vertex}) ->
+    "Deselect all vertices adjacent to an unselected vertex";
+less_help(#st{selmode=edge}) ->
+    "Deselect all edges adjacent to an unselected edge";
+less_help(#st{selmode=face}) ->
+    "Deselect all faces sharing a vertex with an unselected face";
+less_help(_) -> "".
+
+similar_help(#st{selmode=vertex}) ->
+    "Select vertices similar to the already selected vertices";
+similar_help(#st{selmode=edge}) ->
+    "Select edges similar to the already selected edges";
+similar_help(#st{selmode=face}) ->
+    "Select faces similar to the already selected faces";
+similar_help(_) -> [].
+    
 command(edge_loop, #st{selmode=face}=St) ->
     {save_state,
      wings_sel:convert_shape(
@@ -152,7 +184,7 @@ command({new_group_name, Name}, St) ->
 command(new_group, St) ->
     new_group(St);
 command({delete_group, Id}, St) ->
-    {save_state, delete_group(Id, St)};
+    {save_state, delete_group(get_group(Id, St), St)};
 command(inverse, St) ->
     {save_state,inverse(St)};
 command({adjacent,Type}, St) ->
