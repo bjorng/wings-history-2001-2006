@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.18 2002/04/17 07:19:36 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.19 2002/05/26 20:12:11 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -24,6 +24,7 @@
 	 fold/4,fold_vinfo/4,fold_faces/4,
 	 iterator/2,skip_to_edge/2,skip_to_cw/2,skip_to_ccw/2,
 	 next_cw/1,next_ccw/1,
+	 iter2etab/1,
 	 patch_face/3,patch_face/4]).
 
 -include("wings.hrl").
@@ -329,6 +330,8 @@ skip_to_ccw(V, {face_iterator,_,Face,_}=Iter0) ->
 	{_,_,#edge{vs=V,rf=Face},Iter} -> Iter;
 	{_,_,_,Iter} -> skip_to_ccw(V, Iter)
     end.
+
+iter2etab({face_iterator,_,_,Etab}) -> Etab.
 
 %% Return next edge clockwise.
 

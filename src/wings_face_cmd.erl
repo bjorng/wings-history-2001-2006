@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.53 2002/05/20 10:21:33 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.54 2002/05/26 20:12:11 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -668,7 +668,7 @@ bridge(FaceA, VsA0, FaceB, VsB0, We0) ->
     IterA = wings_face:skip_to_cw(Va, wings_face:iterator(FaceA, We)),
     IterB = wings_face:skip_to_ccw(Vb, wings_face:iterator(FaceB, We)),
     try_bridge(Len, Len, Va, FaceA, IterA,
-	       Vb, FaceB, IterB, Ids, We, {1.0E250,We}).
+	       Vb, FaceB, IterB, Ids, We, {9.9E307,We}).
 
 try_bridge(0, _Len, _Va, _FaceA, _IterA, _Vb, _FaceB, _IterB, _, _, {_,We}) ->
     We;
@@ -713,28 +713,37 @@ do_bridge(N, Va0, FaceA, IterA0, Vb0, FaceB, IterB0, Ids0, We0) ->
     
     {_,EdgeA,RecA0,IterA} = wings_face:next_cw(IterA0),
     RecA = case RecA0 of
-	       #edge{lf=FaceA} ->
-		   RecA0#edge{lf=RightFace,ltpr=NewEdge,ltsu=RightEdge};
-	       #edge{rf=FaceA} ->
-		   RecA0#edge{rf=RightFace,rtpr=NewEdge,rtsu=RightEdge}
+	       #edge{b=ColA,lf=FaceA,rf=OfA,rtpr=ColEdgeA} ->
+		   ColA0 = bridge_color(ColEdgeA, OfA, IterA),
+		   RecA0#edge{a=ColA0,lf=RightFace,
+			      ltpr=NewEdge,ltsu=RightEdge};
+	       #edge{a=ColA,rf=FaceA,lf=OfA,ltpr=ColEdgeA} ->
+		   ColA0 = bridge_color(ColEdgeA, OfA, IterA),
+		   RecA0#edge{b=ColA0,rf=RightFace,
+			      rtpr=NewEdge,rtsu=RightEdge}
 	   end,
     Etab1 = gb_trees:update(EdgeA, RecA, Etab0),
 
     {_,EdgeB,RecB0,IterB} = wings_face:next_ccw(IterB0),
     RecB = case RecB0 of
-	       #edge{lf=FaceB} ->
-		   RecB0#edge{lf=RightFace,ltpr=RightEdge,ltsu=NewEdge};
-	       #edge{rf=FaceB} ->
-		   RecB0#edge{rf=RightFace,rtpr=RightEdge,rtsu=NewEdge}
+	       #edge{b=ColB,lf=FaceB,rf=OfB,rtpr=ColEdgeB} ->
+		   ColB0 = bridge_color(ColEdgeB, OfB, IterA),
+		   RecB0#edge{a=ColB0,lf=RightFace,
+			      ltpr=RightEdge,ltsu=NewEdge};
+	       #edge{a=ColB,rf=FaceB,lf=OfB,ltpr=ColEdgeB} ->
+		   ColB0 = bridge_color(ColEdgeB, OfB, IterA),
+		   RecB0#edge{b=ColB0,rf=RightFace,
+			      rtpr=RightEdge,rtsu=NewEdge}
 	   end,
     Etab2 = gb_trees:update(EdgeB, RecB, Etab1),
 
     RightRec0 = get_edge(RightEdge, Etab0),
-    RightRec = RightRec0#edge{lf=RightFace,ltpr=EdgeA,ltsu=EdgeB},
+    RightRec = RightRec0#edge{a=ColB,lf=RightFace,ltpr=EdgeA,ltsu=EdgeB},
     Etab3 = gb_trees:enter(RightEdge, RightRec, Etab2),
     
     NewRec0 = get_edge(NewEdge, Etab0),
-    NewRec = NewRec0#edge{ve=Va0,vs=Vb0,rf=RightFace,rtpr=EdgeB,rtsu=EdgeA},
+    NewRec = NewRec0#edge{ve=Va0,vs=Vb0,b=ColA,
+			  rf=RightFace,rtpr=EdgeB,rtsu=EdgeA},
     Etab = gb_trees:enter(NewEdge, NewRec, Etab3),
 
     FaceRec = #face{edge=NewEdge},
@@ -765,6 +774,13 @@ are_neighbors(FaceA, FaceB, We) ->
     VsB = wings_face:surrounding_vertices(FaceB, We),
     ordsets:intersection(ordsets:from_list(VsA),
 			 ordsets:from_list(VsB)) =/= [].
+
+bridge_color(Edge, Face, Iter) ->
+    Etab = wings_face:iter2etab(Iter),
+    case gb_trees:get(Edge, Etab) of
+	#edge{lf=Face,a=Col} -> Col;
+	#edge{rf=Face,b=Col} -> Col
+    end.
 
 %%%
 %%% The Lift command.
