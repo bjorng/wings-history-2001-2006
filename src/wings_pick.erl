@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.4 2001/11/17 18:25:11 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.5 2001/11/22 09:03:17 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -17,9 +17,9 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
--import(lists, [foreach/2,last/1,reverse/1,sort/1]).
+-import(lists, [foreach/2,last/1,reverse/1,sort/1,foldl/3,map/2]).
 
-pick(#st{hit_buf=HitBuf,shapes=Shapes}=St0, X, Y) ->
+pick(#st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode}=St0, X0, Y0) ->
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
     gl:initNames(),
@@ -27,7 +27,15 @@ pick(#st{hit_buf=HitBuf,shapes=Shapes}=St0, X, Y) ->
     gl:matrixMode(?GL_PROJECTION),
     gl:pushMatrix(),
     gl:loadIdentity(),
-    pick_matrix(St0, X, Y),
+
+    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    X = float(X0),
+    Y = H-float(Y0),
+    S = case Mode of
+	    edge -> 10.0;
+	    Other -> 1.0
+	end,
+    glu:pickMatrix(X, Y, S, S, [0,0,W,H]),
     wings_view:perspective(),
     St = select_draw(St0),
 
@@ -39,32 +47,24 @@ pick(#st{hit_buf=HitBuf,shapes=Shapes}=St0, X, Y) ->
 	NumHits ->
 	    HitData = sdl_util:readBin(HitBuf, ?HIT_BUF_SIZE),
 	    Hits = get_hits(NumHits, HitData, []),
-	    %%io:format("~w\n", [Hits]),
 	    case Hits of
 		[] -> St;
-		[{_,Hit}|_] -> update_selection(Hit, St)
+		[{_,Hit}|_] -> update_selection(Hit, X, Y, St)
 	    end
     end.
 
-pick_matrix(#st{selmode=face}, X, Y) ->
-    pick_matrix_1(1.0, X, Y);
-pick_matrix(_, X, Y) ->
-    pick_matrix_1(10.0, X, Y).
-
-pick_matrix_1(S, X, Y) ->
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    glu:pickMatrix(float(X), H-float(Y), S, S, [0,0,W,H]).
-
-update_selection([Id,Item], #st{sel=Sel0}=St) ->
-    Sel = update_selection(Id, Item, Sel0),
+update_selection([Id,Item], X, Y, #st{sel=Sel0}=St) ->
+    Sel = update_selection(Id, Item, Sel0, X, Y, St),
     St#st{sel=Sel}.
 
-update_selection(Id, Item, [{I,_}=H|T]) when Id > I ->
-    [H|update_selection(Id, Item, T)];
-update_selection(Id, Item, [{I,_}|_]=T) when Id < I ->
+update_selection(Id, Item, [{I,_}=H|T], X, Y, St) when Id > I ->
+    [H|update_selection(Id, Item, T, X, Y, St)];
+update_selection(Id, Item0, [{I,_}|_]=T, X, Y, St) when Id < I ->
+    Item = find_item(Id, Item0, X, Y, St),
     [{Id,gb_sets:singleton(Item)}|T];
-update_selection(Id, Item, [{I,Items0}|T]) ->	%Id == I
+update_selection(Id, Item0, [{I,Items0}|T], X, Y, St) -> %Id == I
     ?ASSERT(Id == I),
+    Item = find_item(Id, Item0, X, Y, St),
     case gb_sets:is_member(Item, Items0) of
 	true ->
 	    Items = gb_sets:delete(Item, Items0),
@@ -76,7 +76,8 @@ update_selection(Id, Item, [{I,Items0}|T]) ->	%Id == I
 	    Items = gb_sets:insert(Item, Items0),
 	    [{Id,Items}|T]
     end;
-update_selection(Id, Item, []) ->
+update_selection(Id, Item0, [], X, Y, St) ->
+    Item = find_item(Id, Item0, X, Y, St),
     [{Id,gb_sets:singleton(Item)}].
 
 get_hits(0, _, Acc) -> sort(Acc);
@@ -88,6 +89,61 @@ get_hits(N, <<NumNames:32,Z0:32,_:32,Tail0/binary>>, Acc) ->
 get_name(0, Tail, Acc) -> reverse(Acc);
 get_name(N, <<Name:32,Names/binary>>, Acc) ->
     get_name(N-1, Names, [Name|Acc]).
+
+%%
+%% Given a selection hit, return the correct vertex/edge/face/body.
+%%
+
+find_item(Id, Item, X, Y, #st{selmode=body}) -> Item;
+find_item(Id, Face, X, Y, #st{selmode=face}) -> Face;
+find_item(Id, Edge, X, Y, #st{selmode=edge}) -> Edge; %XXX Temporary.
+find_item(Id, Face, X, Y, #st{selmode=Mode,shapes=Shapes}=St) ->
+    #shape{sh=#we{}=We} = gb_trees:get(Id, Shapes),
+    wings_view:projection(),
+    wings_view:model_transformations(St),
+    ViewPort = gl:getIntegerv(?GL_VIEWPORT),
+    ModelMatrix = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
+    ProjMatrix = list_to_tuple(gl:getDoublev(?GL_PROJECTION_MATRIX)),
+    case Mode of
+	vertex ->
+	    find_vertex(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort);
+	edge ->
+	    find_edge(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort)
+    end.
+
+find_vertex(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort) ->
+    Vs0 = wings_face:surrounding_vertices(Face, We),
+    Vs = map(fun(V) ->
+		     {Px,Py,Pz} = wings_vertex:pos(V, We),
+		     {Xs,Ys,_} = project(Px, Py, Pz, ModelMatrix,
+					 ProjMatrix, ViewPort),
+		     Dx = X-Xs,
+		     Dy = Y-Ys,
+		     {Dx*Dx+Dy*Dy,V}
+	     end, Vs0),
+    {_,V} = lists:min(Vs),
+    V.
+find_edge(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort) ->
+    1.
+
+project(Objx, Objy, ObjZ, ModelMatrix, ProjMatrix, [Vx,Vy,Vw,Vh]) ->
+    Pos0 = {Objx,Objy,ObjZ,1.0},
+    Pos1 = e3d_mat:mul(ModelMatrix, Pos0),
+    Pos2 = {X0,Y0,Z0,W} = e3d_mat:mul(ProjMatrix, Pos1),
+    X1 = X0 / W,
+    Y1 = Y0 / W,
+    Z1 = Z0 / W,
+
+    %% Map x, y, and z to range 0-1.
+    X2 = X1 * 0.5 + 0.5,
+    Y2 = Y1 * 0.5 + 0.5,
+    Z = Z1 * 0.5 + 0.5,
+
+    %% Map x and y to viewport.
+    X = X2*Vw + Vx,
+    Y = Y2*Vh + Vy,
+
+    {X,Y,Z}.
 
 %%
 %% Draw for the purpose of picking the items that the user clicked on.
@@ -124,16 +180,6 @@ select_draw_1(#st{selmode=body}=St) ->
 	      gl:popName(),
 	      gl:popName()
       end, St);
-select_draw_1(#st{selmode=face}=St) ->
-    foreach_we(fun(We) ->
-		       gl:pushName(0),
-		       wings_util:fold_face(
-			 fun(Face, #face{edge=Edge}, _) ->
-				 gl:loadName(Face),
-				 draw_face(Face, Edge, We)
-			 end, [], We),
-		       gl:popName()
-	       end, St);
 select_draw_1(#st{selmode=edge}=St) ->
     foreach_we(
       fun(#we{vs=Vtab}=We) ->
@@ -148,29 +194,28 @@ select_draw_1(#st{selmode=edge}=St) ->
 		end, We),
 	      gl:popName()
       end, St);
-%     gl:pushName(0),
-%     foreach_we(fun(We) ->
-% 		       gl:pushName(0),
-% 		       wings_util:fold_face(
-% 			 fun(Face, #face{edge=Edge}, _) ->
-% 				 gl:loadName(Face),
-% 				 draw_face(Face, Edge, We)
-% 			 end, [], We),
-% 		       gl:popName()
-% 	       end, St),
-%     gl:popName();
-select_draw_1(#st{selmode=vertex}=St) ->
-    foreach_we(fun(#we{}=We) ->
+select_draw_1(St) ->
+    foreach_we(fun(We) ->
 		       gl:pushName(0),
-		       wings_util:fold_vertex(
-			 fun(V, #vtx{pos=Pos}, _) ->
-				 gl:loadName(V),
-				 gl:'begin'(?GL_POINTS),
-				 gl:vertex3fv(Pos),
-				 gl:'end'()
+		       wings_util:fold_face(
+			 fun(Face, #face{edge=Edge}, _) ->
+				 gl:loadName(Face),
+				 draw_face(Face, Edge, We)
 			 end, [], We),
 		       gl:popName()
 	       end, St).
+% select_draw_1(#st{selmode=vertex}=St) ->
+%     foreach_we(fun(#we{}=We) ->
+% 		       gl:pushName(0),
+% 		       wings_util:fold_vertex(
+% 			 fun(V, #vtx{pos=Pos}, _) ->
+% 				 gl:loadName(V),
+% 				 gl:'begin'(?GL_POINTS),
+% 				 gl:vertex3fv(Pos),
+% 				 gl:'end'()
+% 			 end, [], We),
+% 		       gl:popName()
+% 	       end, St).
 
 lookup_pos(Key, Tree) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tree),
