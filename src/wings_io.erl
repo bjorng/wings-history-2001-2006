@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.77 2002/11/25 22:23:42 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.78 2002/11/26 09:07:59 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -28,7 +28,7 @@
 	 set_timer/2,cancel_timer/1]).
 
 -export([reset_grab/0,grab/0,ungrab/0,warp/2]).
--export([setup_for_drawing/0,cleanup_after_drawing/0,ortho_setup/0]).
+-export([ortho_setup/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -158,12 +158,10 @@ get_icon_restriction() ->
 
 update(#st{selmode=Mode}) ->
     wings_wm:send(buttons, {mode,Mode}),
-    #io{w=W,h=H} = Io = get_state(),
-    setup_for_drawing(W, H),
+    #io{h=H} = Io = get_state(),
+    ortho_setup(),
     draw_panes(Io),
-    maybe_show_mem_used(H),
-    cleanup_after_drawing(),
-    ok.
+    maybe_show_mem_used(H).
 
 maybe_show_mem_used(H) ->
     case wings_pref:get_value(show_memory_used) of
@@ -364,29 +362,6 @@ min(_, B) -> B.
 
 max(A, B) when A > B -> A;
 max(_, B) -> B.
-
-setup_for_drawing() ->
-    #io{w=W,h=H} = get_state(),
-    gl:drawBuffer(?GL_FRONT),
-    setup_for_drawing(W, H).
-
-setup_for_drawing(W, H) ->
-    ?CHECK_ERROR(),
-    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-    gl:shadeModel(?GL_FLAT),
-    gl:disable(?GL_DEPTH_TEST),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:loadIdentity(),
-    glu:ortho2D(0, W, H, 0),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
-    gl:color3f(0, 0, 0),
-    draw_panes(get_state()),
-    ?CHECK_ERROR().
-
-cleanup_after_drawing() ->
-    gl:enable(?GL_DEPTH_TEST),
-    gl:drawBuffer(?GL_BACK).
 
 ortho_setup() ->
     ?CHECK_ERROR(),

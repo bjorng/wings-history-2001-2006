@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.21 2002/11/25 22:23:42 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.22 2002/11/26 09:07:59 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -61,12 +61,11 @@ init() ->
     translation_change(),
     put(wm_windows, gb_trees:empty()),
     new(top, {0,0,0}, {W,H}, {push,fun(_) -> keep end}),
-    MsgH = 2*?LINE_HEIGHT-4,
+    MsgH = 2*?LINE_HEIGHT-8,
     new(message, {0,0,98}, {W,MsgH},
 	{seq,push,{replace,fun message_event/1}}),
-    IconH = 2*?LINE_HEIGHT,
-    new(buttons, {0,0,99}, {W,IconH}, init_button()),
-    ok.
+    ButtonH = 2*?LINE_HEIGHT+3,
+    new(buttons, {0,0,99}, {W,ButtonH}, init_button()).
 
 message(Message) ->
     wings_io:putback_event({wm,{message,get(wm_active),Message}}).
@@ -522,7 +521,7 @@ message_setup() ->
     {_,_,W,H} = viewport(),
     wings_io:set_color(?PANE_COLOR),
     gl:recti(0, 0, W, H),
-    wings_io:border(6, 3, W-20, H-5, ?PANE_COLOR),
+    wings_io:border(6, 0, W-20, H-3, ?PANE_COLOR),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
     gl:translatef(10, H-8, 0),
@@ -647,7 +646,7 @@ button_redraw(#but{mode=Mode,buttons=Buttons0,restr=Restr}) ->
 				  member(Name, Restr)]
 	      end,
     foreach(fun({X,Name}) ->
-		    wings_io:draw_icon(X, 2, button_value(Name, Mode))
+		    wings_io:draw_icon(X, 3, button_value(Name, Mode))
 	    end, Buttons),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:disable(?GL_TEXTURE_2D).

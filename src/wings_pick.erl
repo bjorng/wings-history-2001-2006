@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.69 2002/11/26 08:10:02 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.70 2002/11/26 09:07:59 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -194,7 +194,8 @@ clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
 	     keep;
 	(now_enter_marquee_mode) ->
 	     wings_wm:grab_focus(geom),
-	     wings_io:setup_for_drawing(),
+	     gl:drawBuffer(?GL_FRONT),
+	     wings_io:ortho_setup(),
 	     get_marquee_event(Pick);
 	(Ev) ->
 	     wings_io:putback_event(Ev),
@@ -205,7 +206,10 @@ get_marquee_event(Pick) ->
     {replace,fun(Ev) -> marquee_event(Ev, Pick) end}.
 
 marquee_event(redraw, #marquee{cx=Cx,cy=Cy,st=St}=M) ->
+    gl:drawBuffer(?GL_BACK),
     wings:redraw(St),
+    gl:drawBuffer(?GL_FRONT),
+    wings_io:ortho_setup(),
     draw_marquee(Cx, Cy, M),
     keep;
 marquee_event(#resize{w=W,h=H}, #marquee{st=St}) ->
@@ -227,7 +231,7 @@ marquee_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
 	    _Mod -> {false,add}
 	end,
     #marquee{ox=Ox,oy=Oy,st=St0} = M,
-    wings_io:cleanup_after_drawing(),
+    gl:drawBuffer(?GL_BACK),
     X = (Ox+X0)/2.0,
     Y = (Oy+Y0)/2.0,
     W = abs(Ox-X)*2.0,
