@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.58 2002/11/30 09:07:30 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.59 2002/12/03 06:59:31 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -187,6 +187,7 @@ seg_event_5(Ev, #seg{st=St0}=Ss) ->
 seg_event_6({new_state,St}, Ss) ->
     get_seg_event(Ss#seg{st=St});
 seg_event_6({action,{view,auto_rotate}}, _) -> keep;
+seg_event_6({action,{view,smoothed_preview}}, _) -> keep;
 seg_event_6({action,{view,Cmd}}, #seg{st=St0}=Ss) ->
     St = wings_view:command(Cmd, St0),
     get_seg_event(Ss#seg{st=St});
