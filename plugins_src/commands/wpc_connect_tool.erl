@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.4 2004/07/09 11:40:45 bjorng Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.5 2004/07/10 07:56:31 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -67,7 +67,8 @@ handle_connect_event(redraw, C) ->
     redraw(C),
     keep;
 handle_connect_event(Ev, #cs{st=St}=C) ->
-    case wings_camera:event(Ev, St) of
+    Cam = wings_camera:event(Ev, St),
+    case Cam of
 	next -> handle_connect_event0(Ev, C);
 	Other -> Other
     end.
@@ -143,16 +144,13 @@ handle_connect_event1({action,Action}, #cs{st=St0}=C) ->
 	    update_connect_handler(C#cs{st=St});
 	{edit,undo_toggle} ->
 	    St = wings_undo:undo_toggle(St0),
-	    wings_draw:refresh_dlists(St),
-	    update_connect_handler(C#cs{st=St});
+	    undo_refresh(St,C);
 	{edit,undo} ->
 	    St = wings_undo:undo(St0),
-	    wings_draw:refresh_dlists(St),
-	    update_connect_handler(C#cs{st=St});
+	    undo_refresh(St,C);
 	{edit,redo} ->
 	    St = wings_undo:redo(St0),
-	    wings_draw:refresh_dlists(St),
-	    update_connect_handler(C#cs{st=St});
+	    undo_refresh(St,C);
 	_Ignore -> keep
     end;
 handle_connect_event1(Ev, #cs{st=St}) ->
@@ -160,6 +158,13 @@ handle_connect_event1(Ev, #cs{st=St}) ->
 	next -> keep;
 	Other -> wings_wm:later({action,Other})
     end.
+
+undo_refresh(St0,C0) ->
+    St = St0#st{sel=[],temp_sel=none,sh=true},
+    C = C0#cs{v=[],we=undefined,last=undefined,st=St},
+    update_hook(C),
+    wings_draw:refresh_dlists(St),
+    update_connect_handler(C).
 
 exit_connect(#cs{ost=St,st=#st{shapes=Shs}}) ->
     wings:unregister_postdraw_hook(geom,?MODULE),
@@ -238,7 +243,8 @@ do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
 	    case ordsets:intersection(Fs,Ok) of
 		[Face] ->
 		    We = wings_vertex:connect(Face,[Id1,Id2],We0),
-		    St = St1#st{shapes=gb_trees:update(Shape,We, Sh)},
+		    St2 = St1#st{shapes=gb_trees:update(Shape,We, Sh)},
+		    St = wings_undo:save(St0, St2),
 		    C0#cs{v=[VI],we=Shape,last=Id1,st=St};
 		_ ->
 		    C0
