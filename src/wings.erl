@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.180 2002/12/28 10:21:51 bjorng Exp $
+%%     $Id: wings.erl,v 1.181 2002/12/30 22:55:09 bjorng Exp $
 %%
 
 -module(wings).
@@ -211,7 +211,13 @@ handle_event({open_file,Name}, St0) ->
 	{error,_} ->
 	    main_loop(St0)
     end;
-handle_event(#mousebutton{button=But,state=ButSt}=Ev, St) ->
+handle_event(Ev, St) ->
+    case wings_camera:event(Ev, St) of
+	next -> handle_event_0(Ev, St);
+	Other -> Other
+    end.
+
+handle_event_0(#mousebutton{button=But,state=ButSt}=Ev, St) ->
     Mod = wings_wm:me_modifiers(),
     case But of
 	But when But < 3, Mod band ?CTRL_BITS =/= 0,
@@ -220,20 +226,13 @@ handle_event(#mousebutton{button=But,state=ButSt}=Ev, St) ->
 	But when But < 3, Mod band ?CTRL_BITS =/= 0 ->
 	    use_command(ButSt, But, St);
 	_ ->
-	    handle_event_0(Ev, St)
+	    handle_event_1(Ev, St)
     end;
-handle_event(Ev, St) ->
-    handle_event_0(Ev, St).
+handle_event_0(Ev, St) -> handle_event_1(Ev, St).
 
-handle_event_0(Ev, St) ->
-    case wings_camera:event(Ev, St) of
-	next -> handle_event_1(Ev, St);
-	Other -> Other
-    end.
-
-handle_event_1(Event, St) ->
-    case wings_pick:event(Event, St) of
-	next -> handle_event_2(Event, St);
+handle_event_1(Ev, St) ->
+    case wings_pick:event(Ev, St) of
+	next -> handle_event_2(Ev, St);
 	Other -> Other
     end.
 

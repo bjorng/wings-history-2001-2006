@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.34 2002/12/20 15:48:05 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.35 2002/12/30 22:55:09 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -113,7 +113,9 @@ def_commands() ->
 	    "To use a command that has been defined this way, "
 	    "use one of:",
 	    "  [Ctrl]+[L]",
-	    "  [Ctrl]+[M]"],
+	    "  [Ctrl]+[M]",
+	    "Note: When using the 3ds max or Blender camera modes, the second "
+	    "default command cannot be used."],
     help_window(Help).
 
 def_hotkeys() ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.60 2002/12/30 15:51:59 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.61 2002/12/30 22:55:09 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -189,7 +189,7 @@ blender_1(#mousebutton{x=X0,y=Y0}, Mod, Redraw) ->
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
 	    wings_io:grab(),
 	    message(help()),
-	    {seq,{push,dummy},get_blender_event(Camera, Redraw)}
+	    {seq,push,get_blender_event(Camera, Redraw)}
     end.
 
 blender_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, _Redraw) ->
@@ -217,11 +217,15 @@ get_blender_event(Camera, Redraw) ->
 %%%
 
 nendo(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_RELEASED}, Redraw) ->
-    {X,Y} = wings_wm:local2global(X0, Y0),
-    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-    wings_io:grab(),
-    nendo_message(true),
-    {seq,{push,dummy},get_nendo_event(Camera, Redraw, true)};
+    case wings_wm:me_modifiers() of
+	Mod when Mod band ?CTRL_BITS == 0 ->
+	    {X,Y} = wings_wm:local2global(X0, Y0),
+	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+	    wings_io:grab(),
+	    nendo_message(true),
+	    {seq,push,get_nendo_event(Camera, Redraw, true)};
+	_ -> next
+    end;
 nendo(#keyboard{keysym=#keysym{sym=Sym}}, _Redraw) ->
     nendo_pan(Sym);
 nendo(_, _) -> next.
@@ -306,12 +310,16 @@ nendo_mbutton() ->
 %%%
 
 mirai(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_RELEASED}, Redraw) ->
-    {X,Y} = wings_wm:local2global(X0, Y0),
-    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-    wings_io:grab(),
-    mirai_message(true),
-    View = wings_view:current(),
-    {seq,{push,dummy},get_mirai_event(Camera, Redraw, true, View)};
+    case wings_wm:me_modifiers() of
+	Mod when Mod band ?CTRL_BITS == 0 ->
+	    {X,Y} = wings_wm:local2global(X0, Y0),
+	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+	    wings_io:grab(),
+	    mirai_message(true),
+	    View = wings_view:current(),
+	    {seq,push,get_mirai_event(Camera, Redraw, true, View)};
+	_ -> next
+    end;
 mirai(#keyboard{keysym=#keysym{sym=Sym}}, _Redraw) ->
     mirai_pan(Sym);
 mirai(_, _) -> next.
@@ -395,7 +403,7 @@ tds(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
     wings_io:grab(),
     message(["[R] Restore view  "|help()]),
     View = wings_view:current(),
-    {seq,{push,dummy},get_tds_event(Camera, Redraw, View)};
+    {seq,push,get_tds_event(Camera, Redraw, View)};
 tds(_, _) -> next.
 
 tds_event(#mousebutton{button=1,state=?SDL_RELEASED}=Mb, Camera, Redraw, View) ->
@@ -435,7 +443,7 @@ maya(#mousebutton{x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
 	    wings_io:grab(),
 	    message(help()),
-	    {seq,{push,dummy},get_maya_event(Camera, Redraw)};
+	    {seq,push,get_maya_event(Camera, Redraw)};
 	_Mod -> next
     end;
 maya(_, _) -> next.
