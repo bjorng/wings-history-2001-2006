@@ -1,0 +1,25 @@
+#
+#  Makefile --
+#
+#     Top-level Makefile for building Wings 3D.
+#
+#  Copyright (c) 2001 Bjorn Gustavsson
+#
+#  See the file "license.terms" for information on usage and redistribution
+#  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+#     $Id: Makefile.win32,v 1.1 2001/10/31 23:34:19 bufflig Exp $
+#
+
+MFLAGS = -f Makefile.win32
+
+all:
+	cd src 
+	$(MAKE) $(MFLAGS) 
+	cd ..\e3d 
+	$(MAKE) $(MFLAGS)
+	cd ..\plugins_src 
+	$(MAKE) $(MFLAGS)
+	cd ..\icons
+	$(MAKE) $(MFLAGS)
+	cd ..

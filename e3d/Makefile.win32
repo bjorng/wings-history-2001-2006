@@ -1,0 +1,53 @@
+#
+#  Makefile --
+#
+#     Makefile for building the E3D modules.
+#
+#  Copyright (c) 2001 Bjorn Gustavsson
+#
+#  See the file "license.terms" for information on usage and redistribution
+#  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+#     $Id: Makefile.win32,v 1.1 2001/10/31 23:34:20 bufflig Exp $
+#
+
+.SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
+	.fig .dvi .tex .class .java .pdf .psframe .pscrop .removed
+
+ESRC=.
+EBIN=..\ebin
+ERLC=erlc
+
+
+TARGET_FILES= \
+	$(EBIN)\e3d_image.beam \
+	$(EBIN)\e3d_mesh.beam \
+	$(EBIN)\e3d_obj.beam \
+	$(EBIN)\e3d_tds.beam \
+	$(EBIN)\e3d_mat.beam \
+	$(EBIN)\e3d_vec.beam \
+	$(EBIN)\e3d__meshclean.beam \
+	$(EBIN)\e3d__bmp.beam \
+	$(EBIN)\e3d__tga.beam
+
+REMOVE_FILES=$(TARGET_FILES:.beam=.removed)
+
+# ----------------------------------------------------
+# FLAGS
+# ----------------------------------------------------
+ERL_FLAGS = 
+ERL_COMPILE_FLAGS = -W $(TYPE_FLAGS)
+
+# ----------------------------------------------------
+# Targets
+# ----------------------------------------------------
+
+common: $(TARGET_FILES) 
+
+clean: $(REMOVE_FILES) 
+
+{$(EBIN)}.beam{$(EBIN)}.removed:
+	-del $(*R).beam
+
+{$(ESRC)}.erl{$(EBIN)}.beam:
+	$(ERLC) -bbeam $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -o$(EBIN) $(*B).erl

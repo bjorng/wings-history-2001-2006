@@ -1,0 +1,85 @@
+#
+#  Makefile --
+#
+#     Makefile for building Wings 3D.
+#
+#  Copyright (c) 2001 Bjorn Gustavsson
+#
+#  See the file "license.terms" for information on usage and redistribution
+#  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+#     $Id: Makefile.win32,v 1.1 2001/10/31 23:34:20 bufflig Exp $
+#
+
+.SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
+	.fig .dvi .tex .class .java .pdf .psframe .pscrop .removed
+
+include ..\vsn.mk
+
+ESRC=.
+EBIN=..\ebin
+ERLC=erlc
+
+TARGET_FILES = \
+	$(EBIN)\wings.beam \
+	$(EBIN)\wings_align.beam \
+	$(EBIN)\wings_body.beam \
+	$(EBIN)\wings_collapse.beam \
+	$(EBIN)\wings_deform.beam \
+	$(EBIN)\wings_drag.beam \
+	$(EBIN)\wings_draw.beam \
+	$(EBIN)\wings_edge.beam \
+	$(EBIN)\wings_extrude_edge.beam \
+	$(EBIN)\wings_extrude_face.beam \
+	$(EBIN)\wings_face.beam \
+	$(EBIN)\wings_face_cmd.beam \
+	$(EBIN)\wings_file.beam \
+	$(EBIN)\wings_ff_wings.beam \
+	$(EBIN)\wings_getline.beam \
+	$(EBIN)\wings_help.beam \
+	$(EBIN)\wings_io.beam \
+	$(EBIN)\wings_magnet.beam \
+	$(EBIN)\wings_material.beam \
+	$(EBIN)\wings_menu.beam \
+	$(EBIN)\wings_move.beam \
+	$(EBIN)\wings_pick.beam \
+	$(EBIN)\wings_plugin.beam \
+	$(EBIN)\wings_rotate.beam \
+	$(EBIN)\wings_sel.beam \
+	$(EBIN)\wings_scale.beam \
+	$(EBIN)\wings_shape.beam \
+	$(EBIN)\wings_shapes.beam \
+	$(EBIN)\wings_subdiv.beam \
+	$(EBIN)\wings_text.beam \
+	$(EBIN)\wings_undo.beam \
+	$(EBIN)\wings_util.beam \
+	$(EBIN)\wings_vertex.beam \
+	$(EBIN)\wings_vertex_cmd.beam \
+	$(EBIN)\wings_we.beam \
+	$(EBIN)\wings_view.beam \
+	$(EBIN)\wpa.beam
+
+
+REMOVE_FILES=$(TARGET_FILES:.beam=.removed)
+
+# ----------------------------------------------------
+# FLAGS
+# ----------------------------------------------------
+ERL_FLAGS = -pa $(ESDL_PATH)
+ERL_COMPILE_FLAGS = -I$(ESDL_PATH)/include -I ../e3d -W $(TYPE_FLAGS) \
+ "-Dwings_version=\"$(WINGS_VSN)\""
+
+# ----------------------------------------------------
+# Targets
+# ----------------------------------------------------
+
+common: $(TARGET_FILES)
+
+clean: $(REMOVE_FILES) 
+
+{$(EBIN)}.beam{$(EBIN)}.removed:
+	-del $(*R).beam
+
+{$(ESRC)}.erl{$(EBIN)}.beam:
+	$(ERLC) -bbeam $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -o$(EBIN) $(*B).erl
+

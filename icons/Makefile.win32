@@ -1,0 +1,47 @@
+#
+#  Makefile --
+#
+#     Makefile for building the E3D modules.
+#
+#  Copyright (c) 2001 Bjorn Gustavsson
+#
+#  See the file "license.terms" for information on usage and redistribution
+#  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+#
+#     $Id: Makefile.win32,v 1.1 2001/10/31 23:34:20 bufflig Exp $
+#
+
+.SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
+	.fig .dvi .tex .class .java .pdf .psframe .pscrop .removed .bundle
+
+ESRC=.
+EBIN=..\ebin
+ERLC=erlc
+
+
+TARGET_FILES= \
+	$(EBIN)\wings_icon.bundle
+
+REMOVE_FILES=$(TARGET_FILES:.bundle=.removed)
+
+# ----------------------------------------------------
+# FLAGS
+# ----------------------------------------------------
+ERL_FLAGS = 
+ERL_COMPILE_FLAGS = -W $(TYPE_FLAGS)
+
+# ----------------------------------------------------
+# Targets
+# ----------------------------------------------------
+
+common: $(TARGET_FILES) 
+
+clean: $(REMOVE_FILES) 
+
+$(EBIN)\wings_icon.bundle: *.bmp
+	erl -compile collect_bmp
+	erl -noshell -run collect_bmp start . $(EBIN)/wings_icon.bundle -s erlang halt
+
+{$(EBIN)}.bundle{$(EBIN)}.removed:
+	-del $(*R).bundle
+
