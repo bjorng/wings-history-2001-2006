@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.6 2001/11/21 06:53:42 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.7 2001/11/27 20:56:19 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -102,6 +102,13 @@ get_blender_event(Camera, Redraw) ->
 %%% Nendo style camera.
 %%%
 
+nendo(#mousebutton{button=3,x=X,y=Y,state=?SDL_PRESSED}=Mb, Redraw) ->
+    case sdl_keyboard:getModState() of
+	Mod when Mod band ?CTRL_BITS =/= 0 ->
+	    %% Make sure that no menu pop ups.
+	    keep;
+	Mod -> next
+    end;
 nendo(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}=Mb, Redraw) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
@@ -133,6 +140,7 @@ nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, Camera, Redraw) ->
 	keep -> keep;
 	next ->
 	    case wings_hotkey:event(Event) of
+		{view,smooth_preview} -> ok;
 		{view,Cmd} ->
 		    wings_view:command(Cmd, #st{}),
 		    Redraw();
@@ -214,7 +222,7 @@ maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     if
 	Buttons band 3 == 3 ->			%LMB+MMB
-	    zoom(Dy/10);
+	    zoom(-Dx/10);
 	Buttons band 1 == 1 ->			%LMB
 	    rotate(Dx, Dy);
 	Buttons band 2 == 2 ->			%MMB
@@ -280,8 +288,8 @@ camera_mouse_range(X0, Y0, #camera{x=OX,y=OY,xs=Xs,ys=Ys}=Camera) ->
 	true ->
 	    X = X0 + Xs,
 	    Y = Y0 + Ys,
-	    Dx = (X-OX) / 5,
-	    Dy = (Y-OY) / 5,
+	    Dx = (X-OX) / 4,
+	    Dy = (Y-OY) / 4,
 	    {Dx,Dy,Camera#camera{x=X,y=Y}}
     end.
 
