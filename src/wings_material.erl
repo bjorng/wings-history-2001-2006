@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.99 2003/06/12 04:53:40 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.100 2003/06/28 18:24:37 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -663,7 +663,8 @@ assign_materials([{F,M}|_]=MatFace0, We) when is_integer(F), is_atom(M) ->
     MatFace1 = sofs:relation(MatFace0),
     MatFace2 = sofs:converse(MatFace1),
     MatFace = sofs:to_external(MatFace2),
-    assign_materials(MatFace, We).
+    assign_materials(MatFace, We);
+assign_materials([], We) -> We.
 
 assign(Mat, _, #we{mat=Mat}=We) -> We;
 assign(Mat, Faces, #we{mat=Tab0,fs=Ftab}=We) when is_list(Faces) ->
