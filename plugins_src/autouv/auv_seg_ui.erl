@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.5 2003/07/11 10:26:28 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.6 2003/07/11 13:18:43 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -31,18 +31,15 @@
 start(#we{id=Id}=We0, OrigWe, St0) ->
     Modes = [vertex,edge,face],
     wings:mode_restriction(Modes),
+    This = wings_wm:this(),
+    Allowed = [view,select,window],
+    Menu  = [Item || {_,Name,_}=Item <- get(wings_menu_template), member(Name, Allowed)],
+    wings_wm:menubar(This, Menu),
     We = We0#we{mode=material},
-    check_for_defects(We),
     St1 = seg_create_materials(St0),
     St = St1#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
     Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=OrigWe}),
     {seq,push,get_seg_event(Ss)}.
-    
-%     Active = wings_wm:this(),
-%     wings_wm:callback(fun() ->
-% 			      wings_util:menu_restriction(Active, [view,select,window])
-% 		      end),
-    
 
 seg_init_message(Ss) ->
     Msg = ["[L] Select  [R] Show menu  "|wings_camera:help()],
@@ -287,14 +284,6 @@ seg_map_chart([{Fs,Vmap,We0}|Cs], Type, I, N, Acc0, Ss) ->
 seg_error(Message, Ss) ->
     wings_wm:send(geom, {message,Message}),
     get_seg_event(seg_init_message(Ss)).
-
-check_for_defects(We) ->
-    case wings_vertex:isolated(We) of
-	[] ->
-	    ok;
-	[_|_] ->
-	    wpa:error("The model has isolated vertices. (Use the Cleanup command.)")
-    end.
 
 segment(Mode, #st{shapes=Shs}=St) ->
     [{_,We}] = gb_trees:to_list(Shs),

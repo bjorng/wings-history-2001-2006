@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.127 2003/07/11 10:26:28 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.128 2003/07/11 13:18:43 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -94,13 +94,21 @@ start_uvmap_1([{Id,_}|T], St) ->
     Name = {autouv,Id},
     case wings_wm:is_window(Name) of
 	true -> wings_wm:raise(Name);
-	false -> create_autouv_window(Id, St)
+	false -> start_uvmap_2(Id, St)
     end,
     start_uvmap_1(T, St);
 start_uvmap_1([], _) -> keep.
 
-create_autouv_window(Id, #st{shapes=Shs}=St) ->
-    #we{name=ObjName} = We = gb_trees:get(Id, Shs),
+start_uvmap_2(Id, #st{shapes=Shs}=St) ->
+    We = gb_trees:get(Id, Shs),
+    case wings_vertex:isolated(We) of
+	[] ->
+	    start_uvmap_3(Id, We, St);
+	[_|_] ->
+	    wpa:error("The model has isolated vertices. (Use the Cleanup command.)")
+    end.
+    
+start_uvmap_3(Id, #we{name=ObjName}=We, St) ->
     Op = {push,fun(Ev) -> auv_event(Ev, St) end},
     Name = {autouv,Id},
     Title = "AutoUV: " ++ ObjName,
