@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.49 2004/03/28 06:47:15 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.50 2004/04/08 14:58:27 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -62,9 +62,17 @@ command({tools,tweak}, St0) ->
     wings:mode_restriction([vertex,edge,face,body]),
     Active = wings_wm:this(),
     wings_wm:callback(fun() -> wings_util:menu_restriction(Active, [view]) end),
-    St = wings_undo:init(St0#st{selmode=vertex,sel=[],sh=true}),
+    case wpa:pref_get(?MODULE, sel_mode) of
+	{Mode,Sh,Mag,MagType} -> ok;
+	_ ->
+	    Mode = vertex,
+	    Sh = true,
+	    Mag = false,
+	    MagType = dome
+    end,
+    St = wings_undo:init(St0#st{selmode=Mode,sel=[],sh=Sh}),
     wings_draw:refresh_dlists(St),
-    T = #tweak{tmode=wait,orig_st=St0,st=St},
+    T = #tweak{magnet=Mag,mag_type=MagType,tmode=wait,orig_st=St0,st=St},
     help(T),
     {seq,push,update_tweak_handler(T)};
 command(_, _) -> next.
@@ -142,6 +150,7 @@ handle_tweak_event1({current_state,St}=Ev, T) ->
 	    update_tweak_handler(T#tweak{st=St});
 	true ->
 	    wings_wm:later(Ev),
+	    remember_mode(T),
 	    pop
     end;
 handle_tweak_event1({new_state,St}=Ev, T) ->
@@ -151,6 +160,7 @@ handle_tweak_event1({new_state,St}=Ev, T) ->
 	    update_tweak_handler(T#tweak{st=St});
 	true ->
 	    wings_wm:later(Ev),
+	    remember_mode(T),
 	    pop
     end;
 handle_tweak_event1({action,Action}, #tweak{st=St0}=T) ->
@@ -186,9 +196,14 @@ handle_tweak_event1(Ev, #tweak{st=St}) ->
 	Other -> wings_wm:later({action,Other})
     end.
 
-exit_tweak(#tweak{orig_st=St,st=#st{shapes=Shs}}) ->
+exit_tweak(#tweak{orig_st=St,st=#st{shapes=Shs}}=T) ->
+    remember_mode(T),
     wings_wm:later({new_state,St#st{shapes=Shs}}),
     pop.
+
+remember_mode(#tweak{magnet=Mag,mag_type=MagType,
+		     st=#st{selmode=Mode,sh=Sh}}) ->
+    wpa:pref_set(?MODULE, sel_mode, {Mode,Sh,Mag,MagType}).
 
 refresh_dlists(wireframe_selected, _) -> ok;
 refresh_dlists(shade_selected, _) -> ok;
