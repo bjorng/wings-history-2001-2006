@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.76 2003/07/29 17:43:40 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.77 2003/08/02 08:14:49 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -31,7 +31,8 @@
 	 init_gl_restrictions/0,is_gl_restriction/1,
 	 geom_windows/0,
 	 tc/3,export_we/2,crash_log/2,validate/1,validate/3,
-	 gl_error_string/1]).
+	 gl_error_string/1,
+	 min/2,max/2]).
 -export([check_error/2,dump_we/2]).
 
 -define(NEED_OPENGL, 1).
@@ -609,3 +610,9 @@ gl_error_string(Error) -> "Error: "++integer_to_list(Error).
 
 crash(Reason, We) ->
     erlang:fault({crash,get(where),Reason}, [We]).
+
+max(A, B) when A > B -> A;
+max(_A, B) -> B.
+
+min(A, B) when A < B -> A;
+min(_A, B) -> B.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.77 2003/07/21 14:56:51 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.78 2003/08/02 08:14:49 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -524,14 +524,14 @@ zoom_step(Dir) ->
 	    wings_wm:dirty(),
 	    #view{distance=Dist} = View = wings_view:current(),
 	    ZoomPercent = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR)/100,
-	    Delta = Dir*Dist*ZoomPercent,
+	    Delta = dist_factor(Dist)*Dir*ZoomPercent,
 	    wings_view:set_current(View#view{distance=Dist+Delta}),
 	    keep
     end.
 
 zoom(Delta0) ->
     #view{distance=Dist} = View = wings_view:current(),
-    Delta = Dist*Delta0/80,
+    Delta = dist_factor(Dist)*Delta0/80,
     wings_view:set_current(View#view{distance=Dist+Delta}).
 
 pan(Dx0, Dy0) ->
@@ -542,7 +542,10 @@ pan(Dx0, Dy0) ->
     PanX = PanX0 + Dx,
     PanY = PanY0 - Dy,
     wings_view:set_current(View#view{pan_x=PanX,pan_y=PanY}).
-    
+
+dist_factor(Dist) ->
+    wings_util:max(abs(Dist), 0.2).
+
 stop_camera(#camera{ox=Ox,oy=Oy}) ->
     case wings_io:ungrab(Ox, Oy) of
 	still_grabbed ->
