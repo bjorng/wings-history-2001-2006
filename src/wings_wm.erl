@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.89 2003/03/08 17:34:44 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.90 2003/03/10 18:44:53 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -23,7 +23,7 @@
 	 later/1,send/2,send_after_redraw/2,
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
-	 active_window/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,
+	 this/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,
 	 update_window/2,clear_background/0,
 	 callback/1,current_state/1,get_current_state/0,notify/1,
 	 grab_focus/0,grab_focus/1,release_focus/0,
@@ -34,6 +34,9 @@
 	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
 	 translation_change/0,me_modifiers/0,set_me_modifiers/1,
 	 draw_message/1,draw_completions/1,draw_resizer/2]).
+
+%% Obsolete.
+-export([active_window/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -252,6 +255,9 @@ is_hidden(Name) ->
     end.
 
 active_window() ->
+    this().
+
+this() ->
     case get(wm_active) of
 	undefined -> none;
 	Active -> Active

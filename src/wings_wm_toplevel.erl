@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.18 2003/02/27 19:22:48 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.19 2003/03/10 18:44:53 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -112,7 +112,7 @@ ctrl_event(#mousebutton{button=1,state=?SDL_PRESSED},
     wings_wm:grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Cs) ->
-    {_,Client} = Self = wings_wm:active_window(),
+    {_,Client} = Self = wings_wm:this(),
     wings_wm:raise(Client),
     Focus = wings_wm:grabbed_focus_window(),
     wings_wm:grab_focus(Self),
@@ -139,7 +139,7 @@ ctrl_event(#mousemotion{x=X0,y=Y0}, #ctrl{state=moving,local={LocX,LocY}}) ->
     Dx0 = X-OldX,
     Dy0 = Y-OldY,
     {Dx,Dy} = ctrl_constrain_move(Dx0, Dy0),
-    {controller,Client} = wings_wm:active_window(),
+    {controller,Client} = wings_wm:this(),
     wings_wm:update_window(Client, [{dx,Dx},{dy,Dy}]),
     keep;
 ctrl_event(#mousebutton{}=Ev, _) ->
@@ -177,7 +177,7 @@ ctrl_redraw(#ctrl{title=Title}) ->
     wings_io:ortho_setup(),
     {W,_} = wings_wm:win_size(),
     TitleBarH = title_height(),
-    Pref = case {wings_wm:active_window(),wings_wm:actual_focus_window()} of
+    Pref = case {wings_wm:this(),wings_wm:actual_focus_window()} of
 		{{_,Client},Client} -> title_active_color;
 		{{_,Client},{_,Client}} -> title_active_color;
 		{_,_} -> title_passive_color
@@ -204,7 +204,7 @@ ctrl_constrain_move(Dx0, Dy0) ->
 	     _ ->
 		 Dx0
 	 end,
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     {{_,Cy},{_,Ch}} = wings_wm:win_rect(Client),
     Dy = if 
 	     Y0+Dy0 < DeskY ->
@@ -230,7 +230,7 @@ ctrl_menu(X, Y) ->
     wings_menu:popup_menu(X, Y, titlebar, Menu).
 
 ctrl_menu_toolbar() ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     Toolbar = {toolbar,Client},
     case wings_wm:is_window(Toolbar) of
 	false -> [];
@@ -244,14 +244,14 @@ ctrl_menu_toolbar() ->
     end.
 
 ctrl_command(hide_toolbar, _) ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     Toolbar = {toolbar,Client},
     wings_wm:hide(Toolbar),
     {_,H} = wings_wm:win_size(Toolbar),
     wings_wm:update_window(Client, [{dy,-H},{dh,H}]),
     wings_wm:dirty();
 ctrl_command(show_toolbar, _) ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     Toolbar = {toolbar,Client},
     wings_wm:show({toolbar,Client}),
     {_,H} = wings_wm:win_size(Toolbar),
@@ -261,7 +261,7 @@ ctrl_command({fit,Fit}, _) ->
     ctrl_fit(Fit),
     keep;
 ctrl_command(size, _) ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     {W0,H0} = wings_wm:win_size(Client),
     Qs = [{"Width",W0},
 	  {"Height",H0}],
@@ -289,7 +289,7 @@ ctrl_fit(vertical) ->
     fit_vertical().
 
 fit_horizontal() ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     {_,Ch} = wings_wm:win_size(Client),
     {{Left0,Y},{_,H}} = wings_wm:win_rect(),
     Win0 = wings_wm:windows(),
@@ -299,7 +299,7 @@ fit_horizontal() ->
     {DeskLeft,_} = wings_wm:win_ul(desktop),
     Left = fit_hor_constrain_1(Win, Left0, DeskLeft),
     wings_wm:update_window(Client, [{dx,Left-Left0},{dw,Left0-Left}]),
-    {Right0,_} = wings_wm:win_ur(wings_wm:active_window()),
+    {Right0,_} = wings_wm:win_ur(wings_wm:this()),
     {DeskRight,_} = wings_wm:win_ur(desktop),
     Right = fit_hor_constrain_2(Win, Right0, DeskRight),
     wings_wm:update_window(Client, [{dw,Right-Right0}]).
@@ -334,7 +334,7 @@ fit_vertical() ->
 		 have_horizontal_overlap(Wi, X, W),
 		 not is_helper_window(Wi)],
     Y = fit_vert_constrain_1(Win, Y0, DeskY),
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     wings_wm:update_window(Client, [{dy,Y-Y0},{dh,Y0-Y}]),
     {_,BotY0} = wings_wm:win_ll(Client),
     {_,DeskBot} = wings_wm:win_ll(desktop),
@@ -404,13 +404,13 @@ resize_event(#mousebutton{button=1,state=?SDL_PRESSED},
     wings_wm:grab_focus(Focus),
     get_resize_event(Rst#rsz{state=idle});
 resize_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
-    {_,Client} = Self = wings_wm:active_window(),
+    {_,Client} = Self = wings_wm:this(),
     wings_wm:raise(Client),
     Focus = wings_wm:grabbed_focus_window(),
     wings_wm:grab_focus(Self),
     get_resize_event(Rst#rsz{local={X,Y},state=moving,aspect=none,prev_focus=Focus});
 resize_event(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     {W,H} = wings_wm:win_size(Client),
     Focus = wings_wm:grabbed_focus_window(),
     wings_wm:grab_focus(get(wm_active)),
@@ -429,13 +429,13 @@ resize_event(#mousemotion{x=X0,y=Y0},
     {OldX,OldY} = wings_wm:win_ul(),
     Dx0 = X-OldX,
     Dy0 = Y-OldY,
-    {resizer,Client} = wings_wm:active_window(),
+    {resizer,Client} = wings_wm:this(),
     {Dx,Dy} = resize_constrain(Client, Dx0, Dy0, Aspect),
     wings_wm:update_window(Client, [{dw,Dx},{dh,Dy}]),
     keep;
 resize_event({window_updated,Client}, _) ->
     Pos = resizer_pos(Client),
-    wings_wm:move(wings_wm:active_window(), Pos),
+    wings_wm:move(wings_wm:this(), Pos),
     keep;
 resize_event(_, _) -> keep.
 
@@ -526,7 +526,7 @@ event(_, _) -> keep.
 down(Y0, #ss{knob_pos=Pos,knob_prop=Prop}=Ss) ->
     {_,H} = wings_wm:win_size(),
     Y = Y0/H,
-    {vscroller,Client} = wings_wm:active_window(),
+    {vscroller,Client} = wings_wm:this(),
     if
 	Y < Pos ->
 	    wings_wm:send(Client, scroll_page_up),
@@ -546,7 +546,7 @@ drag(Y0, #ss{knob_prop=Prop,track_pos=TrackPos}) ->
 	    Y1 when Y1 < 1-Prop -> Y1;
 	    _ -> 1-Prop
 	end,
-    {vscroller,Client} = wings_wm:active_window(),
+    {vscroller,Client} = wings_wm:this(),
     wings_wm:send(Client, {set_knob_pos,Y}),
     keep.
 
@@ -588,12 +588,12 @@ close_event(got_focus) ->
     wings_wm:message("Close this window"),
     wings_wm:dirty();
 close_event(#mousebutton{button=1,state=?SDL_RELEASED}) ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     wings_wm:send(Client, close),
     keep;
 close_event({window_updated,Client}) ->
     Pos = closer_pos(Client),
-    wings_wm:move(wings_wm:active_window(), Pos),
+    wings_wm:move(wings_wm:this(), Pos),
     keep;
 close_event(_) -> keep.
 
@@ -650,13 +650,13 @@ menubar_event(#mousemotion{x=X0}, #mb{sel=Sel}=Mb) ->
 menubar_event({window_updated,Client}, _) ->
     Pos = menubar_pos(Client),
     Size = {controller_width(Client),?MENU_HEIGHT},
-    wings_wm:move(wings_wm:active_window(), Pos, Size),
+    wings_wm:move(wings_wm:this(), Pos, Size),
     keep;
 menubar_event(_, _) -> keep.
 
 menu_open(Xrel, Name, Fun, #mb{st=St}=Mb) ->
     Menu = Fun(St),
-    {menubar,Client} = Self = wings_wm:active_window(),
+    {menubar,Client} = Self = wings_wm:this(),
     wings_wm:raise(Client),
     {X,Y} = wings_wm:win_ll(Self),
     wings_wm:raise(Client),
@@ -664,7 +664,7 @@ menu_open(Xrel, Name, Fun, #mb{st=St}=Mb) ->
     get_menu_event(Mb#mb{sel=Name}).
 
 menubar_redraw(Mb) ->
-    {menubar,Client} = wings_wm:active_window(),
+    {menubar,Client} = wings_wm:this(),
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(Client),
     wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
@@ -710,7 +710,7 @@ menubar_hit_1([], _, _, _) -> none.
 %%%
 
 is_resizeable() ->
-    {_,Client} = wings_wm:active_window(),
+    {_,Client} = wings_wm:this(),
     wings_wm:is_window({resizer,Client}).
 
 controller_pos(Client) ->

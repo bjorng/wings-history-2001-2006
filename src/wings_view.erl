@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.112 2003/03/09 06:49:24 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.113 2003/03/10 18:44:53 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -96,7 +96,7 @@ menu(_) ->
 crossmark(Key) ->
     Val = case wings_pref:get_value(Key) of
 	      undefined ->
-		  {_,Client} = wings_wm:active_window(),
+		  {_,Client} = wings_wm:this(),
 		  wings_wm:get_prop(Client, Key);
 	      Other -> Other
 	  end,
@@ -292,7 +292,7 @@ auto_rotate(St) ->
     auto_rotate_help(),
     Delay = wings_pref:get_value(auto_rotate_delay),
     Tim = #tim{delay=Delay,st=St},
-    Active = wings_wm:active_window(),
+    Active = wings_wm:this(),
     wings_wm:callback(fun() -> wings_util:menu_restriction(Active, []) end),
     {seq,push,set_auto_rotate_timer(Tim)}.
     
@@ -371,7 +371,7 @@ smoothed_preview(St) ->
     smooth_help(Sm),
     smooth_dlist(St),
     wings_wm:dirty(),
-    Active = wings_wm:active_window(),
+    Active = wings_wm:this(),
     wings_wm:callback(fun() ->
 			      wings_util:menu_restriction(Active, [view])
 		      end),
@@ -391,7 +391,7 @@ smooth_help(#sm{edge_style=EdgeStyle,cage=Cage}) ->
 		plain -> "Show some edges";
 		cool -> "Hide edges"
 	    end],
-    wings_wm:message(Help).
+    wings_wm:message(Help, []).
     
 get_smooth_event(Sm) ->
     {replace,fun(Ev) -> smooth_event(Ev, Sm) end}.
@@ -432,7 +432,7 @@ smooth_event_1(#keyboard{keysym=#keysym{unicode=$w}}, #sm{cage=Cage0}=Sm) ->
 smooth_event_1(#keyboard{}=Kb, _) ->
     case wings_hotkey:event(Kb) of
 	next -> keep;
-	Action -> wings_wm:send(wings_wm:active_window(), {action,Action})
+	Action -> wings_wm:send(wings_wm:this(), {action,Action})
     end;
 smooth_event_1({action,{view,View}}, #sm{st=St}=Sm) ->
     case View of
@@ -469,7 +469,7 @@ smooth_event_1(quit, Sm) ->
     wings_wm:later(quit),
     smooth_exit(Sm);
 smooth_event_1(close, Sm) ->
-    Active = wings_wm:active_window(),
+    Active = wings_wm:this(),
     wings_wm:send_after_redraw(Active, close),
     smooth_exit(Sm);
 smooth_event_1({current_state,#st{shapes=Shs}=St}, #sm{st=#st{shapes=Shs}}=Sm) ->
@@ -651,7 +651,7 @@ subd_preview(St) ->
     subd_help(Sm),
     subd_dlist(St),
     wings_wm:dirty(),
-    Active = wings_wm:active_window(),
+    Active = wings_wm:this(),
     wings_wm:callback(fun() ->
 			      wings_util:menu_restriction(Active, [view])
 		      end),
@@ -685,7 +685,7 @@ subd_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, Sm) ->
 subd_event_1(#keyboard{}=Kb, _) ->
     case wings_hotkey:event(Kb) of
 	next -> keep;
-	Action -> wings_wm:send(wings_wm:active_window(), {action,Action})
+	Action -> wings_wm:send(wings_wm:this(), {action,Action})
     end;
 subd_event_1({action,{view,View}}, #sm{st=St}=Sm) ->
     case View of
