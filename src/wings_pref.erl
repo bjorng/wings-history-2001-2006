@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.28 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.29 2002/02/11 12:27:01 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -56,6 +56,26 @@ prune_defaults(List) ->
 menu(St) ->
     menu_1(presets()).
 
+-ifdef(DIALOG_BOXES).
+%% XXX Doesn't fully work yet.
+menu_1([{Desc,Key}|T0]) ->
+    {Items,T} = collect_items(T0, []),
+    Fun = fun(1, Ns) -> {edit,{preferences,Items}} end,
+    [{Desc,Fun,"Preferences...",[]}|menu_1(T)];
+menu_1([]) -> [].
+
+collect_items([{Desc,Key,_}|T], A) ->
+    V = get_value(Key),
+    collect_items(T, [{Desc,V}|A]);
+collect_items([separator|T], A) ->
+    collect_items(T, [separator|A]);
+collect_items([{Desc,Key}|_]=T, A) ->
+    {reverse(A),T};
+collect_items([], A) ->
+    {reverse(A),[]}.
+command(Qs, St) when is_list(Qs) ->
+    wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end).
+-else.
 menu_1([{Desc,Key}|T0]) ->
     {Items,T} = collect_items(T0, []),
     [{Desc,{Key,Items}}|menu_1(T)];
@@ -77,7 +97,8 @@ command(Key, St) when is_atom(Key) ->
     command_1(Key, Prompt, Def, St).
 
 command_1(Key, Prompt, Bool, St) when Bool == false; Bool == true ->
-    set_value(Key, not get_value(Key));
+    set_value(Key, not get_value(Key)),
+    keep;
 command_1(Key, Prompt, _, St) ->
     Def = get_value(Key),
     wings_ask:ask([{Prompt,Def}], St,
@@ -91,6 +112,7 @@ command_1(Key, Prompt, _, St) ->
 			  end,
 			  ignore
 		  end).
+-endif.
 
 old_pref_file() ->
     case os:type() of

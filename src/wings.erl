@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.109 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wings.erl,v 1.110 2002/02/11 12:27:01 bjorng Exp $
 %%
 
 -module(wings).
@@ -382,6 +382,8 @@ command({edit,disable_patches}, St) ->
     wings_start:disable_patches(),
     St;
 command({edit,{_,Pref}}, St) ->
+    wings_pref:command(Pref, St);
+command({edit,{preferences,Pref}}, St) ->
     wings_pref:command(Pref, St);
 
 %% Select menu.
