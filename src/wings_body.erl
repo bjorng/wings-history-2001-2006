@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.48 2003/01/05 08:12:46 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.49 2003/01/05 14:06:16 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -42,6 +42,9 @@ menu(X, Y, St) ->
 	    {"Separate",separate,
 	     "Separate a combined objects into its components"},
 	    separator,
+	    {"Weld",weld,"Merge pair of faces that are nearly coincident",
+	     [option]},
+	    separator,
 	    {"Cleanup",cleanup,"Remove various defects",[option]},
 	    {"Auto-Smooth",auto_smooth,
 	     "Set edges hard or soft depending on the angle between faces",
@@ -50,6 +53,7 @@ menu(X, Y, St) ->
 	    {"Duplicate",{duplicate,Dir}},
 	    {"Delete",delete,"Delete the selected objects"},
 	    separator,
+	    {"Rename...",rename,"Rename selected objects"},
 	    {"Mode",{mode,
 		     [{"Vertex Color",vertex_color,
 		       "Vertex colors will be shown"},
@@ -57,10 +61,7 @@ menu(X, Y, St) ->
 		       "Materials will be shown"}]},
 	     "Change object mode to vertex colors or material"},
 	    {"Strip Texture",strip_texture,
-	     "Remove a texture, converting it to vertex colors"},
-	    separator,
-	    {"Weld",weld,"Merge pair of faces that are nearly coincident",
-	     [option]}],
+	     "Remove a texture, converting it to vertex colors"}],
     wings_menu:popup_menu(X, Y, body, Menu).
 
 command({move,Type}, St) ->
@@ -97,6 +98,8 @@ command({cleanup,Ask}, St) ->
     cleanup(Ask, St);
 command(collapse, St) ->
     {save_state,wings_collapse:collapse(St)};
+command(rename, St) ->
+    rename(St);
 command(strip_texture, St) ->
     {save_state,strip_texture(St)};
 command({mode,Mode}, St) ->
@@ -336,6 +339,34 @@ auto_smooth(Edge, #edge{lf=Lf,rf=Rf}, Cos, H0, We) ->
 cos_degrees(Angle) ->
     math:cos(Angle*math:pi()/180.0).
 
+
+%%%
+%%% Rename selected objects.
+%%%
+
+rename(St) ->
+    Wes = wings_sel:fold(fun(_, We, A) -> [We|A] end, [], St),
+    Qs = rename_qs(Wes),
+    wings_ask:dialog("Rename", Qs,
+		     fun(NewNames) ->
+			     rename_1(NewNames, Wes, St)
+		     end).
+
+rename_1(Names, Wes, #st{shapes=Shs}=St) ->
+    rename_2(Names, Wes, Shs, St).
+
+rename_2([N|Ns], [#we{id=Id}=We|Wes], Shs0, St) ->
+    Shs = gb_trees:update(Id, We#we{name=N}, Shs0),
+    rename_2(Ns, Wes, Shs, St);
+rename_2([], [], Shs, St) -> St#st{shapes=Shs}.
+
+rename_qs(Wes) ->
+    OldNames = [{label,Name} || #we{name=Name} <- Wes],
+    TextFields = [{text,Name,[]} || #we{name=Name} <- Wes],
+    [{hframe,
+      [{vframe,OldNames},
+       {vframe,TextFields}]}].
+
 %%%
 %%% Set Mode.
 %%%
@@ -484,5 +515,3 @@ weld_selection([F|Fs], OldWe, #we{fs=Ftab}=We, Acc) ->
     end;
 weld_selection([], _, _, Acc) ->
     gb_sets:from_list(Acc).
-	    
-    
