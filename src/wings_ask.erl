@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.58 2003/01/15 07:12:57 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.59 2003/01/16 17:34:37 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -40,7 +40,8 @@
 	 priv,					%States for all fields.
 	 coords,				%Coordinates for hit testing.
 	 common=gb_trees:empty(),		%Data common for all fields.
-	 level=?INITIAL_LEVEL
+	 level=?INITIAL_LEVEL,
+	 owner=Owner				%Where to send result.
 	}).
 
 %% Static data for each field.
@@ -105,7 +106,8 @@ setup_ask(Qs0, Fun) ->
     Fis = list_to_tuple(Fis1),
     Priv = list_to_tuple(Priv0),
     {#fi{w=W,h=H},_} = Qs,
-    S = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis)},
+    Owner = wings_wm:active_window(),
+    S = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis),owner=Owner},
     init_fields(1, size(Priv), S).
 
 insert_keys([#fi{flags=Flags}=Fi|T], I) ->
@@ -331,7 +333,7 @@ drag_event(Ev, _, _, _, _, _) ->
     io:format("~p\n", [Ev]),
     keep.
 
-return_result(#s{call=EndFun}=S) ->
+return_result(#s{call=EndFun,owner=Owner}=S) ->
     Res = collect_result(S),
     case catch EndFun(Res) of
 	{'EXIT',Reason} ->
@@ -342,10 +344,10 @@ return_result(#s{call=EndFun}=S) ->
 	ignore ->
 	    delete(S);
 	#st{}=St ->
-	    wings_wm:send(geom, {new_state,St}),
+	    wings_wm:send(Owner, {new_state,St}),
 	    delete(S);
 	Action when is_tuple(Action); is_atom(Action) ->
-	    wings_io:putback_event({action,Action}),
+	    wings_wm:send(Owner, {action,Action}),
 	    delete(S)
     end.
 
