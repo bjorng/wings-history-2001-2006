@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.17 2002/07/13 06:36:29 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.18 2002/07/13 15:07:29 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -157,9 +157,6 @@ handle_help_event(redraw, DrawData) ->
     keep;
 handle_help_event(#mousemotion{}, _) ->
     keep;
-handle_help_event({resize,_,_}=Ev, _) ->
-    wings_io:putback_event(Ev),
-    delete;
 handle_help_event(quit=Ev, _) ->
     wings_io:putback_event(Ev),
     delete;

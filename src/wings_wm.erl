@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.6 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.7 2002/07/13 15:07:29 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -86,19 +86,32 @@ top_window(Op) ->
 event_loop() ->
     case get(wm_dirty) of
 	undefined ->
-	    Event = get_event(),
-	    Active = get(wm_active),
-	    Win0 = get_window_data(Active),
-	    case send_event(Win0, Event) of
-		#win{name=Name,stk=delete} ->
-		    delete(Name),
-		    event_loop();
-		#win{stk=[]} -> ok;
-		Win ->
-		    put_window_data(Active, Win),
-		    event_loop()
-	    end;
+	    Event = wings_io:get_event(),
+	    dispatch_event(Event);
 	_ -> redraw_all()
+    end.
+
+dispatch_event(#resize{w=W,h=H}=Event) ->
+    put(wm_top_size, {W,H}),
+    Win0 = get_window_data(top),
+    Win1 = Win0#win{w=W,h=H},
+    set_video_mode(W, H),
+    {R,G,B} = wings_pref:get_value(background_color),
+    gl:clearColor(R, G, B, 1.0),
+    Win = send_event(Win1, Event),
+    put_window_data(top, Win),
+    event_loop();
+dispatch_event(Event) ->
+    Active = get(wm_active),
+    Win0 = get_window_data(Active),
+    case send_event(Win0, Event) of
+	#win{name=Name,stk=delete} ->
+	    delete(Name),
+	    event_loop();
+	#win{stk=[]} -> ok;
+	Win ->
+	    put_window_data(Active, Win),
+	    event_loop()
     end.
 
 redraw_all() ->
@@ -119,20 +132,6 @@ maybe_clear(early, true) ->
 maybe_clear(late, false) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT);
 maybe_clear(_, _) -> ok.
-
-get_event() ->
-    case wings_io:get_event() of
-	#resize{w=W,h=H}=Resize ->
-	    put(wm_top_size, {W,H}),
-	    Win = get_window_data(top),
-	    put_window_data(top, Win#win{w=W,h=H}),
-	    set_video_mode(W, H),
-	    {R,G,B} = wings_pref:get_value(background_color),
-	    gl:clearColor(R, G, B, 1.0),
-	    dirty(),
-	    Resize;
-	Other -> Other
-    end.
 
 send_event(Win, {expose}) ->
     dirty(),
