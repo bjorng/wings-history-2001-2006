@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.133 2004/04/19 04:33:59 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.134 2004/04/19 18:43:44 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -162,8 +162,8 @@ hilit_draw_sel(edge, Edge, #dlo{src_we=#we{es=Etab,vp=Vtab}}) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
     gl:lineWidth(wings_pref:get_value(selected_edge_width)),
     gl:'begin'(?GL_LINES),
-    gl:vertex3fv(gb_trees:get(Va, Vtab)),
-    gl:vertex3fv(gb_trees:get(Vb, Vtab)),
+    wpc_ogla:two(gb_trees:get(Va, Vtab),
+		 gb_trees:get(Vb, Vtab)),
     gl:'end'();
 hilit_draw_sel(face, Face, D) ->
     case wings_pref:get_value(selection_style) of
@@ -717,8 +717,8 @@ marquee_draw(#st{selmode=edge}) ->
 		     foreach(fun({Edge,#edge{vs=Va,ve=Vb}}) ->
 				     gl:loadName(Edge),
 				     gl:'begin'(?GL_LINES),
-				     gl:vertex3fv(gb_trees:get(Va, Vtab)),
-				     gl:vertex3fv(gb_trees:get(Vb, Vtab)),
+				     wpc_ogla:two(gb_trees:get(Va, Vtab),
+						  gb_trees:get(Vb, Vtab)),
 				     gl:'end'()
 			     end, gb_trees:to_list(Etab))
 	     end,
