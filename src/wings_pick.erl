@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.6 2001/11/22 09:07:15 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.7 2001/11/22 09:08:29 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -115,8 +115,8 @@ find_vertex(Face, We, X, Y, ModelMatrix, ProjMatrix, ViewPort) ->
     Vs0 = wings_face:surrounding_vertices(Face, We),
     Vs = map(fun(V) ->
 		     {Px,Py,Pz} = wings_vertex:pos(V, We),
-		     {Xs,Ys,_} = project(Px, Py, Pz, ModelMatrix,
-					 ProjMatrix, ViewPort),
+		     {true,Xs,Ys,_} = project(Px, Py, Pz, ModelMatrix,
+					      ProjMatrix, ViewPort),
 		     Dx = X-Xs,
 		     Dy = Y-Ys,
 		     {Dx*Dx+Dy*Dy,V}
@@ -145,7 +145,7 @@ project(Objx, Objy, ObjZ, ModelMatrix0, ProjMatrix0, [Vx,Vy,Vw,Vh]) ->
     X = X2*Vw + Vx,
     Y = Y2*Vh + Vy,
 
-    {X,Y,Z}.
+    {true,X,Y,Z}.
 
 %%
 %% Draw for the purpose of picking the items that the user clicked on.
