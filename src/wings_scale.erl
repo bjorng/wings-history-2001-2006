@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.23 2002/02/08 21:03:51 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.24 2002/02/19 08:35:36 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -73,15 +73,19 @@ inset_face(Face, #we{vs=Vtab}=We, Acc) ->
       fun(_, Edge, #edge{vs=Va,ve=Vb}, {A0,Min}) ->
 	      Pos = wings_vertex:pos(Va, Vtab),
 	      Dir = e3d_vec:sub(wings_vertex:pos(Vb, Vtab), Pos),
-	      T0 = e3d_vec:dot(Dir, e3d_vec:sub(Center, Pos)) /
-		  e3d_vec:dot(Dir, Dir),
-	      Vec = e3d_vec:sub(Center,
-				e3d_vec:add(Pos, e3d_vec:mul(Dir, T0))),
-	      Dist = e3d_vec:len(Vec),
-	      A = [{Va,Vec,Dist},{Vb,Vec,Dist}|A0],
-	      if 
-		  Dist < Min -> {A,Dist};
-		  true -> {A,Min}
+	      case e3d_vec:dot(Dir, Dir) of
+		  Small when Small < 1.0E-3 -> {A0,Min};
+		  DirSqr ->
+		      ToCenter = e3d_vec:sub(Center, Pos),
+		      T0 = e3d_vec:dot(Dir, ToCenter) / DirSqr,
+		      PerpPos = e3d_vec:add(Pos, e3d_vec:mul(Dir, T0)),
+		      Vec = e3d_vec:sub(Center, PerpPos),
+		      Dist = e3d_vec:len(Vec),
+		      A = [{Va,Vec,Dist},{Vb,Vec,Dist}|A0],
+		      if 
+			  Dist < Min -> {A,Dist};
+			  true -> {A,Min}
+		      end
 	      end
       end, Acc, Face, We).
 
