@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.123 2003/06/15 12:57:35 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.124 2003/06/15 16:51:17 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -54,7 +54,7 @@ menu(_) ->
      {"Save Selected...",save_selected,"Save only the selected objects or faces"},
      {"Save Incrementally",save_incr},
      separator,
-     {"Revert",revert,"Revert current scene to the save contents"},
+     {"Revert",revert,"Revert current scene to the saved contents"},
      separator,
      {"Import",{import,ImpFormats}},
      {"Export",{export,ExpFormats}},
