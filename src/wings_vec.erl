@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.27 2002/03/31 10:54:14 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.28 2002/03/31 17:28:40 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -24,17 +24,13 @@
 -record(ss, {check,				%Check fun.
 	     exit,				%Exit fun.
 	     selmodes,				%Legal selection modes.
-	     label=none,			%Description of type.
-	     sti=none				%Store index.
+	     is_axis=false			%True if axis.
 	    }).
 
 init() ->
-    DefPoint = {0.0,0.0,0.0},
-    DefAxis = {DefPoint,{1.0,0.0,0.0}},
+    DefAxis = {{0.0,0.0,0.0},{1.0,0.0,0.0}},
     wings_pref:set_default(last_axis, DefAxis),
     wings_pref:set_default(default_axis, DefAxis),
-    wings_pref:set_default(last_point, DefPoint),
-    wings_pref:set_default(default_point, DefPoint),
     wings_pref:set_default(magnet_type, dome),
     wings_pref:set_default(magnet_distance_route, shortest),
     wings_pref:set_default(magnet_radius, 1.0).
@@ -61,7 +57,7 @@ command({pick,[axis|More],Acc,Names}, St0) ->
 			  common_exit(Check, More, Acc, Names, St)
 		  end,
 	     selmodes=Modes,
-	     label="Axis",sti=last_axis},
+	     is_axis=true},
     command_message("Select axis for ", Names),
     {seq,{push,dummy},get_event(Ss, St1#st{sel=[]})};
 command({pick,[point|More],Acc,Names}, St0) ->
@@ -82,9 +78,8 @@ command({pick,[magnet],Acc,Names}, St0) ->
     wings_io:icon_restriction(Modes),
     Ss = #ss{check=fun check_point/1,
 	     exit=fun(_X, _Y, St) -> exit_magnet([], Acc, Names, St) end,
-	     selmodes=Modes,
-	     label=magnet},
-    command_message("Select magnet falloff for ", Names),
+	     selmodes=Modes},
+    command_message("Select magnet influence for ", Names),
     {seq,{push,dummy},get_event(Ss, St0#st{selmode=vertex,sel=[]})};
 command({pick,[magnet_options],Acc,Names}, St) ->
     wings_magnet:dialog(St, fun(Mag) ->
@@ -206,8 +201,8 @@ handle_event_5({action,{view,Cmd}}, Ss, St0) ->
     get_event(Ss, St);
 handle_event_5({action,{secondary_selection,Cmd}}, Ss, St) ->
     secondary_selection(Cmd, Ss, St);
-handle_event_5({action,Cmd}, #ss{sti=StiA}, #st{vec=Vec}) ->
-    wings_pref:set_value(StiA, Vec),
+handle_event_5({action,Cmd}, Ss, St) ->
+    set_last_axis(Ss, St),
     wings_io:message(""),
     wings_io:putback_event({action,Cmd}),
     pop;
@@ -225,13 +220,11 @@ secondary_selection(abort, _Ss, _St) ->
     wings_draw:clear_orig_sel(),
     wings_io:clear_message(),
     wings_io:putback_event(redraw),
-    pop;
-secondary_selection(shortest, Ss, St) ->
-    wings_pref:set_value(magnet_distance_route, shortest),
-    get_event(Ss, St);
-secondary_selection(surface, Ss, St) ->
-    wings_pref:set_value(magnet_distance_route, surface),
-    get_event(Ss, St).
+    pop.
+
+set_last_axis(#ss{is_axis=true}, #st{vec={{_,_,_},{_,_,_}}=Vec}) ->
+    wings_pref:set_value(last_axis, Vec);
+set_last_axis(_, _) -> ok.
 			       
 filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
     case member(Mode, Modes) of

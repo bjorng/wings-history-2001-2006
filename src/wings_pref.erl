@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.37 2002/03/31 10:26:18 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.38 2002/03/31 17:28:39 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -29,8 +29,11 @@ init() ->
 	none -> ok;
 	Pref ->
 	    case file:consult(Pref) of
-		{ok,List} -> catch ets:insert(wings_state, List);
-		{error,_Reason} -> ok
+		{ok,List0} ->
+		    List = clean(List0),
+		    catch ets:insert(wings_state, List);
+		{error,_Reason} ->
+		    ok
 	    end
     end.
 
@@ -247,3 +250,34 @@ defaults() ->
      {display_list_opt,false},
      {advanced_menus,false}
     ].
+
+clean(List) ->
+    clean(List, []).
+
+clean([{Key,Val}=Pair|T], Acc) ->
+    case not_bad(Key, Val) of
+	true -> clean(T, [Pair|Acc]);
+	false ->
+	    io:format("Removed pref: ~p\n", [Pair]),
+	    clean(T, Acc)
+    end;
+clean([H|T], Acc) ->
+    clean(T, [H|Acc]);
+clean([], Acc) -> Acc.
+
+%% First, get rid of obsolete stuff.
+not_bad(last_point, _) -> false;
+not_bad(default_point, _) -> false;
+not_bad(none, _) -> false;
+
+%% Crashes have occurred.
+not_bad(last_axis, Val) -> is_wings_vector(Val);
+not_bad(default_axis, Val) -> is_wings_vector(Val);
+not_bad(magnet_radius, Val) -> is_number(Val);
+not_bad(_, _) -> true.
+
+is_wings_vector({{Px,Py,Pz},{Vx,Vy,Vz}})
+  when is_number(Px), is_number(Py), is_number(Pz),
+       is_number(Vx), is_number(Vy), is_number(Vz) ->
+    true;
+is_wings_vector(_) -> false.
