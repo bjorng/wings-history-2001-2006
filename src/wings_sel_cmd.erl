@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.44 2003/02/27 19:40:17 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.45 2003/03/27 10:22:25 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -85,7 +85,9 @@ menu(St) ->
      {"Hide Selected",hide_selected,"Hide all (partly or wholly) selected objects"},
      {"Hide Unselected",hide_unselected,"Hide objects that have no selection"},
      {"Lock Unselected",lock_unselected,"Lock objects that have no selection"},
+     separator,
      {"Show All",show_all,"Show all objects that have been hidden"},
+     {"Unlock All",unlock_all,"Unlock all locked objects"},
      separator,
      {"Store Selection",store_selection,
       "Store the selection into the selection group named \"StoredSelection\""},
@@ -234,7 +236,9 @@ command(hide_unselected, St) ->
 command(lock_unselected, St) ->
     {save_state,lock_unselected(St)};
 command(show_all, St) ->
-    {save_state,wings_shape:restore_all(St)};
+    {save_state,wings_shape:show_all(St)};
+command(unlock_all, St) ->
+    {save_state,wings_shape:unlock_all(St)};
 command({adjacent,Type}, St) ->
     set_select_mode(Type, St);
 command(store_selection, #st{ssels=Ssels0,selmode=Mode,sel=Sel}=St) ->
