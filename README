@@ -1,14 +1,19 @@
+WINGS 3D
+========
+
+$Revision: 1.6 $
+$Date: 2003/09/28 16:15:32 $
+
 Wings on the net
 ----------------
 
 http://www.wings3d.com
 
-Unpacking the source release
-----------------------------
+How to build Wings 3D
+---------------------
 
-To decompress the source tar file, you'll need bunzip2.
-
-See http://sources.redhat.com/bzip2.
+If you want to build Wings yourself, you'll need to the
+to download the source tar file from http://www.wings3d.com.
 
 Building and running Wings 3D on Unix (including Mac OS X)
 ----------------------------------------------------------

@@ -1,0 +1,90 @@
+BUILDING WINGS 3D ON UNIX-LIKE SYSTEMS (including MacOS X)
+==========================================================
+
+This guide describes how you can build Wings on unix-like
+systems, such as GNU Linux, FreeBSD, Solaris, and MacOS X.
+
+$Revision: 1.1 $
+$Date: 2003/09/28 16:15:32 $
+
+Required software
+=================
+
+The following software is needed:
+
+- Erlang/OTP R9C-0 or later. http://www.erlang.org
+
+- SDL. http://www.libsdl.org.
+
+- ESDL 0.93.0909 or later. http://esdl.sf.net
+
+- A GNU compatible "make" program. Included with most unix-like
+  systems; otherwise get it from http://www.gnu.org.
+
+- bunzip2 for unpacking the Wings source tar file.
+  Included with most unix-like systems; otherwise get it
+  from http://sources.redhat.com/bzip2.
+
+- And, of course, the Wings source files. http://www.wings3d.com
+
+Summary of build process
+========================
+
+The following is a quick summary of the build process.
+
+* Download and install Erlang/OTP.
+* Download and install SDL.
+* Download and install ESDL.
+$ make
+
+Installing Erlang/OTP
+=====================
+
+Setting up the environment
+==========================
+
+A few environment variables need to be set.
+
+ESDL_PATH need to be set to path of the directory you installed ESDL in.
+
+Example:
+
+# If you use bash or ksh.
+$ export ESDL_PATH=/ldisk/bjorn/esdl-0.93.0909
+
+# If you use csh or tcsh.
+$ setenv ESDL_PATH /ldisk/bjorn/esdl-0.93.0909
+
+Modify the PATH environment variable so that the following program
+is runnable from the shell.
+
+   erlc.exe     (Erlang/OTP)
+
+An easy way to check that the programs are runnable is to use the
+"which" command in a cygwin shell like this:
+
+$ which erlc
+/usr/local/bin/erlc
+$
+
+Unpacking the Wings source code
+===============================
+
+If you have the GNU tar program, use the "tar" program with
+the "j" flag to tell it to decompress using the "bunzip2" program.
+
+Example:
+
+$ tar jxf wings-0.98.16b.tar.bz2
+
+Otherwise, feed the output of "bzcat" to tar:
+
+$ bzcat wings-0.98.16b-pre1.tar.bz2 | tar xf -
+
+The build steps that follow assume that you are in the wings source
+directory.
+
+Example:
+
+$ cd wings-0.98.16b.tar.bz2
+

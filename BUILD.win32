@@ -1,17 +1,17 @@
 BUILDING WINGS 3D ON WINDOWS
-=======================================================================
-
-$Revision: 1.6 $
-$Date: 2003/09/28 07:30:19 $
+============================
 
 This guide describes how you can build Wings 3D from the
 sources on a Windows system.
 
+$Revision: 1.7 $
+$Date: 2003/09/28 16:15:32 $
+
 Required software
 =================
 
-From Wings 0.98.16b and higher, Wings can built using only
-free/open-source software.
+From Wings 0.98.16b and higher, Wings can be built on Windows
+using only free/open-source software.
 
 The following software is needed:
 
@@ -44,7 +44,7 @@ later in the build process.
 Setting up the environment
 ==========================
 
-A number of environment variables need to be set. They can be set
+A few environment variables need to be set. They can be set
 for Windows globally from "My Computer", or only in the Cygwin shell
 by adding them to ".profile".
 
@@ -71,14 +71,14 @@ $
 Unpacking the Wings source code
 ===============================
 
-Use the "tar" program with "j" flag to tell it to decompress using
+Give the "-j" flag to the "tar" program to tell it to decompress using
 the "bunzip2" program.
 
 Example:
 
 $ tar jxf wings-0.98.16b.tar.bz2
 
-The following build steps assume that you are in the wings source
+The build steps that follow assume that you are in the wings source
 directory.
 
 Example:
