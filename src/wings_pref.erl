@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.13 2001/12/31 23:53:55 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.14 2002/01/05 21:23:39 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -45,13 +45,24 @@ prune_defaults(List) ->
     List -- [{Key,Val} || {_,Key,Val} <- presets()].
 
 sub_menu(St) ->
-    M = map(fun({Desc,Key,_}) -> {Desc,Key};
-	       (separator) -> separator
-	    end, presets()),
+    M = map(fun menu_item/1, presets()),
     list_to_tuple(M).
 
+menu_item({Desc,Key,Bool}) when Bool == false; Bool == true ->
+    case get_value(Key) of
+	false -> {Desc++" [OFF]",Key};
+	true ->  {Desc++" [ON]",Key}
+    end;
+menu_item({Desc,Key,_}) -> {Desc,Key};
+menu_item(separator) -> separator.
+
 command(Key) ->
-    {value,{Prompt,_,_}} = keysearch(Key, 2, presets()),
+    {value,{Prompt,_,Def}} = keysearch(Key, 2, presets()),
+    command_1(Key, Prompt, Def).
+
+command_1(Key, Prompt, Bool) when Bool == false; Bool == true ->
+    set_value(Key, not get_value(Key));
+command_1(Key, Prompt, _) ->
     Def = get_value(Key),
     wings_util:ask(true,
 		   [{Prompt,Def}],
@@ -166,6 +177,11 @@ presets() ->
      {"Selected Vertex Size",selected_vertex_size,5.0},
      {"Edge Width",edge_width,2.0},
      {"Selected Edge Width",selected_edge_width,2.0},
+     separator,
+     {"Vertex highlighting",vertex_hilite,true},
+     {"Edge highlighting",edge_hilite,true},
+     {"Face highlighting",face_hilite,true},
+     {"Object highlighting",body_hilite,true},
      separator,
      {"Show Memory Used",show_memory_used,false},
      separator,
