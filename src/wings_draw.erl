@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.95 2002/11/21 08:34:49 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.96 2002/11/21 08:47:24 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -386,7 +386,7 @@ draw_faces(Ftab, #we{mode=material}=We, #st{mat=Mtab}) ->
 	       end,
     Tess = wings_draw_util:tess(),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
-    ?TC(draw_mat_faces(MatFaces, We, Mtab)),
+    draw_mat_faces(MatFaces, We, Mtab),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA);
 draw_faces(Ftab, #we{mode=vertex}=We, #st{mat=Mtab}) ->
     MatFaces = [{default,Ftab}],
@@ -479,7 +479,7 @@ smooth_faces(Faces0, #we{mode=material}, Mtab) ->
 		true ->
 		    sofs:to_external(sofs:relation_to_family(Faces1))
 	    end,
-    ?TC(draw_smooth_1(Faces, Mtab));
+    draw_smooth_1(Faces, Mtab);
 smooth_faces(Faces0, #we{mode=uv}, Mtab) ->
     Faces1 = sofs:relation(Faces0),
     Faces = case wings_pref:get_value(show_textures) of
