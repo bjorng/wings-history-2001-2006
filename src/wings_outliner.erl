@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.31 2003/03/06 05:52:31 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.32 2003/03/12 06:26:21 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -245,15 +245,12 @@ delete_image(Id, #ost{st=St}) ->
 	    wings_util:message("The image is used by a material."),
 	    keep;
 	false ->
-	    case wings_util:yes_no("Are you sure you want to delete the image "
-				   "(NOT undoable)?") of
-		aborted -> keep;
-		no -> keep;
-		yes ->
-		    wings_image:delete(Id),
-		    wings_wm:send(geom, need_save),
-		    keep
-	    end
+	    wings_util:yes_no("Are you sure you want to delete the image "
+			      "(NOT undoable)?",
+			      fun() ->
+				      wings_image:delete(Id),
+				      wings_wm:send(geom, need_save)
+			      end, ignore)
     end.
 
 copy_of("Copy of "++_=Name) -> Name;
@@ -328,10 +325,10 @@ make_mat({Name,Mp}) ->
     {material,atom_to_list(Name),Color,TextColor}.
 
 update_scroller(#ost{n=0}) ->
-    Name = wings_wm:active_window(),
+    Name = wings_wm:this(),
     wings_wm:set_knob(Name, 0.0, 1.0);
 update_scroller(#ost{first=First,n=N}=Ost) ->
-    Name = wings_wm:active_window(),
+    Name = wings_wm:this(),
     Lines = lines(Ost),
     wings_wm:set_knob(Name, First/N, Lines/N).
 

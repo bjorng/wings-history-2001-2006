@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.48 2003/03/12 06:19:39 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.49 2003/03/12 06:26:01 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -299,7 +299,7 @@ redraw(#ts{lines=Lines0,first=First}=Ts) ->
 
 update_scroller(#ts{first=First,th=Th}) ->
     {_,H} = wings_wm:win_size(),
-    Name = wings_wm:active_window(),
+    Name = wings_wm:this(),
     wings_wm:set_knob(Name, First*?LINE_HEIGHT/Th, H/Th).
 
 %%%
