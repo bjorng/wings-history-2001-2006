@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.12 2002/08/23 07:24:36 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.13 2002/08/24 04:52:28 bjorng Exp $
 %%
 
 -module(wings_light).
 -export([light_types/0,menu/3,command/2,is_any_light_selected/1,
 	 create/2,update_dynamic/2,update_matrix/2,update/1,render/1,
 	 global_lights/0,camera_lights/0,
-	 export/1,import/2]).
+	 export/1,import/2,
+	 light_pos/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
