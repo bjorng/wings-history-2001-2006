@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.63 2003/01/13 19:49:29 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.64 2003/01/14 05:15:15 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -557,25 +557,23 @@ default_stack(Name) ->
 wm_event({message,Name,Msg}) ->
     case lookup_window_data(Name) of
 	none -> ok;
-	#win{stk=[#se{msg=Msg}=Se|_]} ->
-	    check_message(Se);
+	#win{stk=[#se{msg=Msg}|_]} -> ok;
 	#win{stk=[Top0|Stk]}=Data0 ->
 	    Top = Top0#se{msg=Msg},
 	    Data = Data0#win{stk=[Top|Stk]},
 	    put_window_data(Name, Data),
-	    check_message(Top)
+	    dirty()
     end;
 wm_event({message_right,Name,Right0}) ->
     Right = lists:flatten(Right0),
     case lookup_window_data(Name) of
 	none -> ok;
-	#win{stk=[#se{msg_right=Right}=Se|_]} ->
-	    check_message(Se);
+	#win{stk=[#se{msg_right=Right}|_]} -> ok;
 	#win{stk=[Top0|Stk]}=Data0 ->
 	    Top = Top0#se{msg_right=Right},
 	    Data = Data0#win{stk=[Top|Stk]},
 	    put_window_data(Name, Data),
-	    check_message(Top)
+	    dirty()
     end;
 wm_event({menubar,Name,Menubar}) ->
     case lookup_window_data(Name) of
@@ -600,12 +598,6 @@ wm_event({callback,Cb}) ->
     Cb();
 wm_event(init_opengl) ->
     init_opengl().
-
-check_message(#se{msg=Msg,msg_right=MsgRight}) ->
-    case get_window_data(message) of
-	#win{stk=[#se{msg=Msg,msg_right=MsgRight}|_]} -> ok;
-	_ -> wings_wm:dirty()
-    end.
     
 %%%
 %%% Finding the active window.
@@ -724,14 +716,15 @@ message_event(redraw) ->
 			 (_) -> false
 		      end),
     case find_active(redraw) of
- 	none -> message_redraw([], []);
+ 	none ->
+	    Msg = Right = [];
  	Active ->
- 	    #win{stk=[#se{msg=Msg,msg_right=Right}|_]} = get_window_data(Active),
-	    #win{stk=[Top|Stk]} = Data0 = get_window_data(message),
-	    Data = Data0#win{stk=[Top#se{msg=Msg,msg_right=Right}|Stk]},
-	    put_window_data(message, Data),
- 	    message_redraw(Msg, Right)
-    end;
+ 	    #win{stk=[#se{msg=Msg,msg_right=Right}|_]} = get_window_data(Active)
+    end,
+    #win{stk=[Top|Stk]} = Data0 = get_window_data(message),
+    Data = Data0#win{stk=[Top#se{msg=Msg,msg_right=Right}|Stk]},
+    put_window_data(message, Data),
+    message_redraw(Msg, Right);
 message_event({action,_}=Action) ->
     send(geom, Action);
 message_event(_) -> keep.
