@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.69 2004/03/09 21:57:15 raimo_niskanen Exp $
+%%     $Id: wings_subdiv.erl,v 1.70 2004/03/21 18:57:08 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -387,6 +387,9 @@ setup(#st{sel=OrigSel}=St) ->
     wings_draw_util:map(fun(D, Sel) -> setup_1(D, Sel) end, OrigSel),
     {save_state,wings_sel:reset(St)}.
 
+setup_1(#dlo{src_we=#we{id=Id}=We}=D, [{Id,_}|Sel]) when ?IS_ANY_LIGHT(We) ->
+    %% Never use proxies on lights.
+    {D,Sel};
 setup_1(#dlo{src_we=#we{id=Id},proxy_data=Pd}=D, [{Id,_}|Sel]) ->
     case Pd of
 	none ->

@@ -3,12 +3,12 @@
 %%
 %%     Implementation of lights.
 %%
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.46 2004/03/17 00:22:29 raimo_niskanen Exp $
+%%     $Id: wings_light.erl,v 1.47 2004/03/21 18:57:08 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -753,21 +753,19 @@ disable_from(Lnum) ->
     disable_from(Lnum+1).
 
 scene_lights_fun(_, Lnum) when Lnum > ?GL_LIGHT7 -> Lnum;
-scene_lights_fun(#dlo{src_we=#we{perm=Perm}}, Lnum) 
-  when ?IS_NOT_VISIBLE(Perm) -> Lnum;
 scene_lights_fun(#dlo{src_we=We}, Lnum) 
   when not ?IS_ANY_LIGHT(We)-> Lnum;
 scene_lights_fun(#dlo{transparent=#we{light=L}=We}, Lnum) ->
-    %% This happens when dragging in Body selection mode.
+    %% This happens when dragging a light in Body selection mode.
+    %% (Not area light.)
     setup_light(Lnum, L, We, none);
-%%scene_lights_fun(#dlo{src_we=#we{light=L}=We,drag=Drag}, Lnum)
-%%  when ?IS_ANY_LIGHT(We) ->
-scene_lights_fun(#dlo{drag=Drag}=D, Lnum) ->
-    We = wings_draw:original_we(D),
+scene_lights_fun(#dlo{drag=Drag,src_we=We}, Lnum) ->
+    %% Area lights handled here in all selection modes +
+    %% other lights in vertex/edge/face modes.
     M = case Drag of
 	    {matrix,_Tr,_M0,M1} -> M1;
-	    _ -> none
-	end,
+ 	    _ -> none
+ 	end,
     setup_light(Lnum, We#we.light, We, M).
 
 setup_light(Lnum, #light{type=ambient,ambient=Amb}, _We, _M) ->
