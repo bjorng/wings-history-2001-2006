@@ -3,12 +3,12 @@
 #
 #     Makefile for building the plug-ins.
 #
-#  Copyright (c) 2001-2002 Bjorn Gustavsson
+#  Copyright (c) 2001-2003 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.8 2003/01/17 09:09:39 raimo_niskanen Exp $
+#     $Id: Makefile,v 1.9 2003/09/25 08:25:28 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -60,4 +60,4 @@ clean:
 	rm -f core
 
 $(EBIN)/%.beam: $(ESRC)/%.erl
-	$(ERLC) -bbeam $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -o$(EBIN) $<
+	$(ERLC) $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -o$(EBIN) $<
