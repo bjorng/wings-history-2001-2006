@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.14 2002/04/08 08:08:32 bjorng Exp $
+%%     $Id: wpa.erl,v 1.15 2002/04/14 18:46:10 bjorng Exp $
 %%
 -module(wpa).
--export([ask/3,ask/4,error/1,message/1,yes_no/1,
+-export([ask/3,ask/4,dialog/3,dialog/4,error/1,message/1,yes_no/1,
 	 bind_unicode/2,bind_virtual/3,
-	 import/3,export/3,export_selected/3,
-	 pref_get/2,pref_get/3,pref_set/3,pref_delete/2,
+	 import/3,export/3,export_selected/3,export_filename/2,
+	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,pref_delete/2,
 	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,
 	 drag/3,drag/4,
@@ -27,13 +27,24 @@
 	]).
 
 -include("wings.hrl").
--import(lists, [reverse/1,foldl/3]).
+-import(lists, [reverse/1,foldl/3,foreach/2]).
+
+%%%
+%%% ask/3,4 is simpler to use, but only supports a single list of fields.
+%%% dialog/3,4 is more powerful but is slightly more involved.
+%%%
 
 ask(Qs, St, Fun) ->
     wings_ask:ask(Qs, St, Fun).
 
 ask(Ask, Qs, St, Fun) ->
     wings_ask:ask(Ask, Qs, St, Fun).
+
+dialog(Qs, St, Fun) ->
+    wings_ask:dialog(Qs, St, Fun).
+
+dialog(Ask, Qs, St, Fun) ->
+    wings_ask:dialog(Ask, Qs, St, Fun).
 
 %% Show String in a dialog box.
 error(String) ->
@@ -84,7 +95,10 @@ export_sel_set_holes(face, Faces, #we{fs=Ftab0}=We) ->
 			 end
 		 end, [], gb_trees:to_list(Ftab0)),
     We#we{fs=gb_trees:from_orddict(reverse(Ftab))}.
-    
+
+export_filename(Prop, St) ->
+    wings_file:export_filename(Prop, St).
+
 %%%
 %%% Preferences.
 %%%
@@ -96,6 +110,11 @@ pref_get(Mod, Key) ->
 
 pref_get(Mod, Key, Default) ->
     wings_pref:get_value({Mod,Key}, Default).
+
+pref_set(Mod, KeyVals) when is_list(KeyVals) ->
+    foreach(fun({Key,Val}) ->
+		    wings_pref:set_value({Mod,Key}, Val)
+	    end, KeyVals).
 
 pref_set(Mod, Key, Value) ->
     wings_pref:set_value({Mod,Key}, Value).
