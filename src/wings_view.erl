@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.102 2003/02/23 20:21:39 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.103 2003/02/25 14:09:08 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -89,7 +89,9 @@ menu(_) ->
 
 crossmark(Key) ->
     Val = case wings_pref:get_value(Key) of
-	      undefined -> wings_wm:get_prop(geom, Key);
+	      undefined ->
+		  {_,Client} = wings_wm:active_window(),
+		  wings_wm:get_prop(Client, Key);
 	      Other -> Other
 	  end,
     case Val of
@@ -609,14 +611,11 @@ smooth_edges(_Plain, Cool, false, #sm{edge_style=cool}) ->
 %%%
 
 toggle_option(Key) ->
-    case wings_wm:active_window() of
-	geom ->
-	    wings_pref:set_value(Key, not wings_pref:get_value(Key, false));
-	_ -> ok
-    end,
     case wings_wm:lookup_prop(Key) of
-	none -> ok;
-	{value,Bool} -> wings_wm:set_prop(Key, not Bool)
+	none ->
+	    wings_pref:set_value(Key, not wings_pref:get_value(Key, false));
+	{value,Bool} ->
+	    wings_wm:set_prop(Key, not Bool)
     end.
 
 current() ->
