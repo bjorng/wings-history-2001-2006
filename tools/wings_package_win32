@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Windows.
 #
-# $Id: wings_package_win32,v 1.13 2003/03/06 07:12:29 bjorng Exp $
+# $Id: wings_package_win32,v 1.14 2003/03/21 20:38:12 bjorng Exp $
 #
 
 # Configurable stuff.
@@ -74,6 +74,8 @@ $INSTALL -c -m 644 $src/lib/stdlib-*/ebin/* $dest/lib/$stdlib/ebin
 $INSTALL -c $erts_src/bin/werl.exe $dest/bin
 $INSTALL -c $erts_src/bin/beam.dll $dest/bin
 $INSTALL -c -m 644 $src/bin/start.boot $dest/bin
+$INSTALL -c $erts_src/bin/erl_stub16.exe $dest/bin/erl_stub16.exe
+$INSTALL -c $erts_src/bin/inet_gethost.exe $dest/bin/inet_gethost.exe
 
 # Strip debug information from all beam files.
 cd "$temp"
