@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.92 2003/06/02 18:38:23 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.93 2003/06/09 09:34:06 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -810,7 +810,10 @@ select_draw_fun(#dlo{pick=none,work=Work,src_we=#we{perm=Perm}=We}=D, _)
 select_draw_fun(#dlo{pick=none,src_we=We}=D, _) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
+    Tess = wings_draw_util:tess(),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
     select_draw_1(We),
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
     gl:endList(),
     draw_dlist(D#dlo{pick=List});
 select_draw_fun(D, _) -> draw_dlist(D).

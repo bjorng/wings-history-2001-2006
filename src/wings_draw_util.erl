@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.76 2003/06/09 08:56:20 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.77 2003/06/09 09:34:06 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -51,7 +51,9 @@ init() ->
 	false ->
 	    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
 	    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND);
-	true ->ok
+	true ->
+	    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
+	    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE)
     end,
         P = <<16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
 	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
