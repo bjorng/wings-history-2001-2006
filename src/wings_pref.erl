@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.32 2002/02/12 19:44:15 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.33 2002/03/01 19:56:42 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -30,7 +30,7 @@ init() ->
 	Pref ->
 	    case file:consult(Pref) of
 		{ok,List} -> catch ets:insert(wings_state, List);
-		{error,Reason} -> ok
+		{error,_Reason} -> ok
 	    end
     end.
 
@@ -53,7 +53,7 @@ finish() ->
 prune_defaults(List) ->
     List -- defaults().
 
-menu(St) ->
+menu(_St) ->
     [{"Color Preferences",fun(_, _) ->
 				  {edit,{preferences,color_prefs}}
 			  end,[],[]},
@@ -84,32 +84,27 @@ command(other_prefs, St) ->
 	   {"Selected Vertex Size",selected_vertex_size},
 	   {"Edge Width",edge_width},
 	   {"Selected Edge Width",selected_edge_width},
-	   separator,
+	   {"Auto-save interval (min)",autosave_time},
+	   {hframe,[{"Vertices",vertex_hilite},
+		    {"Edges",edge_hilite},
+		    {"Faces",face_hilite},
+		    {"Objects",body_hilite}],
+	    [{title,"Highlighting"}]},
+	   {hframe,[{"Angle",auto_rotate_angle},
+		    {"Delay (ms)",auto_rotate_delay}],
+	    [{title,"Auto Rotate"}]},
+	   {hframe,[{"Size",active_vector_size},
+		    {"Width",active_vector_width},
+		    {"Color",active_vector_color}],
+	    [{title,"Vector Display"}]},
 	   {"Show Axis Letters",show_axis_letters},
 	   {"Force Axis-aligned Grid",force_show_along_grid},
-	   separator,
-	   {"Vertex highlighting",vertex_hilite},
-	   {"Edge highlighting",edge_hilite},
-	   {"Face highlighting",face_hilite},
-	   {"Object highlighting",body_hilite},
-	   separator,
 	   {"Show Memory Used",show_memory_used},
-	   separator,
-	   {"Auto-rotate angle",auto_rotate_angle},
-	   {"Auto-rotate delay (ms)",auto_rotate_delay},
-	   separator,
-	   {"Auto-save interval (min) [0=off]",autosave_time},
-	   separator,
-	   {"Vector Display Size",active_vector_size},
-	   {"Vector Display Width",active_vector_width},
-	   {"Vector Display Color",active_vector_color},
-	   separator,
 	   {"Display List Optimisation",display_list_opt},
-	   separator,
 	   {"Advanced Menus",advanced_menus}],
     Qs = make_query(Qs0),
     wings_ask:ask(Qs, St, fun(Res) -> {edit,{preferences,{set,Res}}} end);
-command({set,List}, St) ->
+command({set,List}, _St) ->
     foreach(fun({Key,Val}) ->
 		    set_value(Key, Val),
 		    case Key of
@@ -118,7 +113,7 @@ command({set,List}, St) ->
 			    gl:clearColor(R, G, B, 1.0);
 			display_list_opt ->
 			    wings_draw_util:init();
-			Other -> ok
+			_Other -> ok
 		    end
 	    end, List),
     wings_io:putback_event(redraw),
