@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.58 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings.hrl,v 1.59 2002/05/31 11:09:33 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -85,6 +85,7 @@
 	 src_we=none,				%Source object.
 	 src_sel=none,				%Source selection.
 	 orig_mode=none,			%Original selection mode.
+	 split=none,				%Split data.
 	 drag=none				%For dragging.
 	}).
 

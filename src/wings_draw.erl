@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.85 2002/05/30 09:00:53 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.86 2002/05/31 11:09:33 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([update_dlists/1,update_sel_dlist/0,
-	 split/3,undo_split/2,update_dynamic/3,
+	 split/3,original_we/1,update_dynamic/2,
 	 update_mirror/0,
 	 smooth_faces/2,
 	 render/1]).
@@ -23,6 +23,15 @@
 -include("wings.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1,foldl/3,merge/1,sort/1]).
+
+-record(split,
+	{static_vs,
+	 dyn_vs,
+	 dyn_faces,
+	 dyn_ftab,
+	 etab=none,
+	 orig_we,
+	 st}).
 
 %%
 %% Renders all shapes, including selections.
@@ -57,6 +66,8 @@ prepare_fun(eol, [We|Wes]) ->
     {#dlo{src_we=We,mirror=check_mirror(We)},Wes};
 prepare_fun(eol, []) ->
     eol;
+prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, [We|Wes]) ->
+    {D#dlo{src_we=We,split=Split#split{orig_we=We}},Wes};
 prepare_fun(#dlo{src_we=We}=D, [We|Wes]) ->
     {D#dlo{src_we=We},Wes};
 prepare_fun(#dlo{src_we=#we{id=Id},wire=W}, [#we{id=Id,perm=Perm}=We|Wes]) ->
@@ -239,48 +250,51 @@ update_mirror(D, _) -> D.
 %%% Splitting of objects into two display lists.
 %%%
 
--record(split,
-	{static_vs,
-	 dyn_vs,
-	 dyn_ftab,
-	 orig_we,
-	 st}).
+split(#dlo{split=#split{orig_we=#we{}=We}=Split}=D, Vs, St) ->
+    split(D#dlo{src_we=We}, Split, Vs, St);
+split(D, Vs, St) ->
+    split(D, #split{dyn_faces=sofs:set([], [face])}, Vs, St).
 
-split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=We0}, Vs0, St) ->
-    Vs = sofs:set(Vs0, [vertex]),
-    Etab0 = foldl(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A) ->
+split(#dlo{src_we=#we{es=Etab0}}=D, #split{etab=none}=Split, Vs, St) ->
+    Etab1 = foldl(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A) ->
 			  [{Va,Lf},{Va,Rf},{Vb,Lf},{Vb,Rf}|A]
-		  end, [], gb_trees:values(We0#we.es)),
-    Etab = sofs:relation(Etab0, [{vertex,face}]),
-    Faces = sofs:image(Etab, Vs),
+		  end, [], gb_trees:values(Etab0)),
+    Etab = sofs:relation(Etab1, [{vertex,face}]),
+    split(D, Split#split{etab=Etab}, Vs, St);
+split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We}=D,
+      #split{etab=Etab,dyn_faces=Faces0}=Split0, Vs0, St) ->
+    Vs = sofs:set(Vs0, [vertex]),
+    Faces1 = sofs:image(Etab, Vs),
+    Ftab = sofs:from_external(gb_trees:to_list(Ftab0), [{face,data}]),
+    Faces = case sofs:is_subset(Faces1, Faces0) of
+		false ->
+		    List = static_dlist(Faces1, Ftab, We, St),
+		    Faces1;
+		true ->
+		    List = hd(D#dlo.work),
+		    Faces0
+	    end,
     AllVs = sofs:inverse_image(Etab, Faces),
     
-    List = gl:genLists(1),
-    gl:newList(List, ?GL_COMPILE),
-    Ftab = sofs:from_external(gb_trees:to_list(We0#we.fs), [{face,data}]),
-    StaticFtab = sofs:to_external(sofs:drestriction(Ftab, Faces)),
-    draw_faces(StaticFtab, We0, St),
-    gl:endList(),
-
-    {DynVs,VsDlist} = split_vs_dlist(sofs:to_external(AllVs), Sel, We0),
+    {DynVs,VsDlist} = split_vs_dlist(sofs:to_external(AllVs), Sel, We),
 
     FtabDyn0 = sofs:restriction(Ftab, Faces),
     FtabDyn = sofs:to_external(FtabDyn0),
-    WeDyn = We0#we{fs=gb_trees:from_orddict(FtabDyn)},
+    WeDyn = We#we{fs=gb_trees:from_orddict(FtabDyn)},
 
     StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
-    StaticVs = sort(insert_vtx_data(StaticVs0, We0#we.vs, [])),
-    SplitData = #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_ftab=FtabDyn,
-		       orig_we=We0,st=St},
-    {#dlo{work=[List],wire=W,mirror=M,vs=VsDlist,
-	  src_sel=Sel,src_we=WeDyn},SplitData}.
+    StaticVs = sort(insert_vtx_data(StaticVs0, We#we.vs, [])),
+    Split = Split0#split{static_vs=StaticVs,dyn_vs=DynVs,
+			 dyn_faces=Faces,dyn_ftab=FtabDyn,
+			 orig_we=We,st=St},
+    #dlo{work=[List],wire=W,mirror=M,vs=VsDlist,
+	 src_sel=Sel,src_we=WeDyn,split=Split}.
 
-undo_split(D, #split{orig_we=We}) ->
-    D#dlo{src_we=We}.
+original_we(#dlo{split=#split{orig_we=We}}) -> We.
 
-update_dynamic(#dlo{work=[Work|_],vs=VsList0,src_we=We0}=D,
-	       #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_ftab=Ftab,st=St},
-	       Vtab0) ->
+update_dynamic(#dlo{work=[Work|_],vs=VsList0,
+		    src_we=We0,split=Split}=D, Vtab0) ->
+    #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_ftab=Ftab,st=St} = Split,
     Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
     We = We0#we{vs=Vtab},
     List = gl:genLists(1),
@@ -335,6 +349,14 @@ split_vs_dlist(DynVs0, {vertex,SelVs}, #we{vs=Vtab}) ->
     gl:endList(),
     {UnselDyn,[UnselDlist]};
 split_vs_dlist(_, _, _) -> {none,none}.
+
+static_dlist(Faces, Ftab, We, St) ->
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    StaticFtab = sofs:to_external(sofs:drestriction(Ftab, Faces)),
+    draw_faces(StaticFtab, We, St),
+    gl:endList(),
+    List.
 
 %%%
 %%% Drawing routines.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.90 2002/05/25 18:12:02 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.91 2002/05/31 11:09:33 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -41,9 +41,8 @@
 
 %% Drag per object.
 -record(do,
-	{funs,					%List of transformation funs.
-	 split}					%Split data.
-	).
+	{funs					%List of transformation funs.
+	}).
 
 setup(Tvs, Unit, St) ->
     setup(Tvs, Unit, [], St).
@@ -88,8 +87,8 @@ break_apart(Tvs, St) ->
 break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList0}|Tvs], St) ->
     TvList = mirror_constrain(TvList0, We),
     {Vs,FunList} = combine_tvs(TvList, We),
-    {D,SplitData} = wings_draw:split(D0, Vs, St),
-    Do = #do{funs=FunList,split=SplitData},
+    D = wings_draw:split(D0, Vs, St),
+    Do = #do{funs=FunList},
     {D#dlo{drag=Do},Tvs};
 break_apart(D, Tvs, _) -> {D,Tvs}.
 
@@ -463,9 +462,9 @@ motion_update_fun(#dlo{work={matrix,_,Work},sel={matrix,_,Sel},
 		       drag={matrix,Trans,Matrix0}}=D, Move) ->
     Matrix = e3d_mat:expand(Trans(Matrix0, Move)),
     D#dlo{work={matrix,Matrix,Work},sel={matrix,Matrix,Sel}};
-motion_update_fun(#dlo{drag=#do{funs=Tv,split=SplitData}}=D, Move) ->
+motion_update_fun(#dlo{drag=#do{funs=Tv}}=D, Move) ->
     Vtab = foldl(fun(F, A) -> F(Move, A) end, [], Tv),
-    wings_draw:update_dynamic(D, SplitData, Vtab);
+    wings_draw:update_dynamic(D, Vtab);
 motion_update_fun(D, _) -> D.
 
 parameter_update(Key, Val, Drag0) ->
