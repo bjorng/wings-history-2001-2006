@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.5 2004/10/14 05:58:54 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.6 2004/10/14 10:22:08 bjorng Exp $
 %%
 
 {wings,
@@ -1416,6 +1416,28 @@
    [{1,"La rotazione con magneti su regioni con piu' di uno spigolo necessita un' origine esplicita."}]},
   {faces_to_vertices,
    [{1,"La rotazione con magneti su regioni a piu' facce necessita un' origine esplicita."}]}]}.
+{wings_s,
+ [
+  {alt,
+   [{1,"Alt"}]},
+  {cancel,
+   [{1,"Annulla"}]},
+  {command,
+   [{1,"Command"}]},
+  {ctrl,
+   [{1,"Ctrl"}]},
+  {lmb,
+   [{1,"L"}]},
+  {mmb,
+   [{1,"M"}]},
+  {rmb,
+   [{1,"R"}]},
+  {no,
+   [{1,"No"}]},
+  {shift,
+   [{1,"Shift"}]},
+  {yes,
+   [{1,"Si'"}]}]}.
 {wings_scale,
  [{edges_to_vertices,
    [{1,"Per ridimensionare con magneti su regioni con piu' spigoli selezionati bisogna scegliere un'origine"}]},
@@ -1652,14 +1674,8 @@
    [{1,"Triangola"},
     {2,"Quadrangola"}]}]}.
 {wings_util,
- [{cancel_string,
-   [{1,"Annulla"}]},
-  {magnet_string,
-   [{1,"Percorso magnete:"}]},
-  {no_string,
-   [{1,"No"}]},
-  {yes_string,
-   [{1,"Si'"}]}]}.
+ [{magnet_string,
+   [{1,"Percorso magnete:"}]}]}.
 {wings_vec,
  [{add_help_text,
    [{1,"Scegli un asse (ed un punto)"},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.97 2004/10/14 05:58:54 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.98 2004/10/14 10:22:08 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -21,7 +21,6 @@
 	 message/1,
 	 magnet_string/0,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
-	 yes_string/0,no_string/0,cancel_string/0,
 	 get_matrices/2,mirror_matrix/1,
 	 mirror_flatten/2,
 	 cap/1,upper/1,stringify/1,quote/1,
@@ -180,23 +179,19 @@ yes_no(Question, Yes) ->
 yes_no(Question, Yes, No) ->
     Qs = {vframe,
 	  [{label,Question,[{break,45}]},
-	   {hframe,[{button,yes_string(),yes_no_fun(Yes)},
-		    {button,no_string(),yes_no_fun(No),[cancel]}]}]},
+	   {hframe,[{button,wings_s:yes(),yes_no_fun(Yes)},
+		    {button,wings_s:no(),yes_no_fun(No),[cancel]}]}]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 yes_no_cancel(Question, Yes, No) ->
     Qs = {vframe,
 	  [{label,Question,[{break,45}]},
-	   {hframe,[{button,yes_string(),yes_no_fun(Yes)},
-		    {button,no_string(),yes_no_fun(No)},
-		    {button,cancel_string(),
+	   {hframe,[{button,wings_s:yes(),yes_no_fun(Yes)},
+		    {button,wings_s:no(),yes_no_fun(No)},
+		    {button,wings_s:cancel(),
 		     yes_no_fun(ignore),[cancel]}]}]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
-yes_string() -> ?STR(yes_string,1,"Yes").
-no_string() -> ?STR(no_string,1,"No").
-cancel_string() -> ?STR(cancel_string,1,"Cancel").
-    
 yes_no_fun(ignore) -> fun(_) -> ignore end;
 yes_no_fun(Fun) ->
     This = wings_wm:this(),
