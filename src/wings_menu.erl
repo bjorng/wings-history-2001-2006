@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.31 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.32 2002/03/13 16:09:58 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -169,7 +169,7 @@ max(A, B) when A > B -> A;
 max(_A, B) -> B.
 
 right_width(Ps) ->
-    case have_option_box(Ps) of
+    case have_option_box(Ps) orelse have_magnet(Ps) of
 	true -> 1;
 	false -> 0
     end.
@@ -242,14 +242,14 @@ button_pressed(Event, Button, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
 		{_,{Name,Submenu},_,_,_} when Adv == false ->
 		    submenu(Item, Name, Submenu, Mi);
 		{_,Act0,_,_,Ps} when is_function(Act0) ->
-		    call_action(Act0, Button, Names, Ps);
+		    call_action(X, Act0, Button, Names, Ps, Mi);
 		{_,Act0,_,_,Ps} when is_atom(Act0); is_integer(Act0) ->
 		    Act = check_option_box(Act0, X, Ps, Mi),
-		    check_magnet(Act, Names, Ps)
+		    check_magnet(X, Act, Names, Ps, Mi)
 	    end
     end.
 
-call_action(Act, Button, Ns, Ps) ->
+call_action(X, Act, Button, Ns, Ps, Mi) ->
     case property_lists:is_defined(magnet, Ps) of
 	false ->
 	    case Act(Button, Ns) of
@@ -258,7 +258,7 @@ call_action(Act, Button, Ns, Ps) ->
 		    do_action(Cmd)
 	    end;
 	true ->
-	    Mag = case sdl_keyboard:getModState() band ?SHIFT_BITS =/= 0 of
+	    Mag = case hit_right(X, Mi) of
 		      true -> [magnet];
 		      false -> []
 		  end,
@@ -268,16 +268,6 @@ call_action(Act, Button, Ns, Ps) ->
 		    do_action(Cmd)
 	    end
     end.
-
-check_magnet(Action, Names, Ps) ->
-    Cmd = case property_lists:is_defined(magnet, Ps) andalso
-	      sdl_keyboard:getModState() band ?SHIFT_BITS =/= 0 of
-	      true ->
-		  {vector,{pick,[magnet],[Action],Names}};
-	      false ->
-		  build_command(Action, Names)
-	  end,
-    do_action(Cmd).
 
 do_action(Action) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
@@ -461,14 +451,25 @@ update_highlight(X, Y, Mi) ->
 	    Mi#mi{sel=Item}
     end.
 
-check_option_box(Act, X, Ps, #mi{xleft=Xleft,w=W}) ->
+check_magnet(X, Action, Names, Ps, Mi) ->
+    Cmd = case property_lists:is_defined(magnet, Ps) andalso 
+	      hit_right(X, Mi) of
+	      true ->
+		  {vector,{pick,[magnet],[Action],Names}};
+	      false ->
+		  build_command(Action, Names)
+	  end,
+    do_action(Cmd).
+
+check_option_box(Act, X, Ps, Mi) ->
     case have_option_box(Ps) of
 	false -> Act;
-	true ->
-	    Clicked = X >= Xleft+W-3*?CHAR_WIDTH,
-	    {Act,Clicked}
+	true -> {Act,hit_right(X, Mi)}
     end.
 
+hit_right(X, #mi{xleft=Xleft,w=W}) ->
+    X >= Xleft+W-3*?CHAR_WIDTH.
+    
 new_redraw_fun(#mi{redraw=Redraw0}=Mi) ->
     fun() ->
 	    Redraw0(),
@@ -527,7 +528,7 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 	    Str = Text ++ duplicate(Shortcut-length(Text), $\s) ++ Hotkey,
 	    item_colors(Y, Ps, I, Mi),
 	    draw_menu_text(X, Y, Str, Ps),
-	    draw_option_box(X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3, Ps)
+	    draw_right(X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3, Ps)
     end,
     ?CHECK_ERROR(),
     menu_draw(X, Y+H, Shortcut, Mw, I+1, Hs, Mi).
@@ -543,7 +544,7 @@ draw_menu_text(X, Y, Text, Props) ->
 item_colors(Y, Ps, Sel, #mi{sel=Sel,xleft=Xleft,w=W}) ->
     %% Draw blue background for highlighted item.
     gl:color3f(0, 0, 0.5),
-    HaveOptionBox = have_option_box(Ps),
+    HaveOptionBox = have_option_box(Ps) orelse have_magnet(Ps),
     Right = case HaveOptionBox of
 		true -> Xleft+W-3*?CHAR_WIDTH;
 		false -> Xleft+W-?CHAR_WIDTH
@@ -572,10 +573,9 @@ help_text(#mi{menu=Menu,sel=Sel,ns=Names,adv=Adv}) ->
 	    Help0 = Fun(help, [Name|Names]),
 	    Help = help_text_1(Help0, Adv),
 	    help_message(Help);
-	{_,_,_,Help0,Ps} ->
+	{_,_,_,Help0,_} ->
 	    %% Plain entry - not submenu.
-	    Help1 = help_text_1(Help0, Adv),
-	    Help = magnet_help(Help1, Ps),
+	    Help = help_text_1(Help0, Adv),
 	    help_message(Help);
 	separator -> ok
     end.
@@ -593,12 +593,6 @@ help_text_1({S1,S2,S3}, true) ->
     [lmb|" " ++ S1 ++ [$\s,mmb,$\s] ++ S2 ++ [$\s,rmb,$\s] ++ S3];
 help_text_1([]=S, _) -> S.
 
-magnet_help(Help, Ps) ->
-    case property_lists:is_defined(magnet, Ps) of
-	true -> Help ++ "   [Shift] Use magnet";
-	false -> Help
-    end.
-
 help_message(Msg) ->
     %% Replacement for wings_io:message/1 as it overwrites the icon area.
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
@@ -606,13 +600,21 @@ help_message(Msg) ->
 			 2*?LINE_HEIGHT-8, ?PANE_COLOR),
     wings_io:menu_text(8, H-?LINE_HEIGHT+5, Msg).
 
-draw_option_box(X, Y, Ps) ->
+draw_right(X, Y, Ps) ->
     case have_option_box(Ps) of
-	false -> ok;
 	true ->
 	    wings_io:sunken_rect(X, Y-3,
 				 ?CHAR_WIDTH, ?CHAR_WIDTH,
-				 ?MENU_COLOR)
+				 ?MENU_COLOR);
+	false ->
+	    case have_magnet(Ps) of
+		true ->
+		    gl:color3f(1, 0, 0),
+		    wings_io:text_at(X, Y, [magnet_red]),
+		    gl:color3f(0, 0, 0),
+		    wings_io:text_at(X, Y, [magnet_black]);
+		false -> ok
+	    end
     end.
 
 draw_submenu(_Adv, Item, _X, _Y) when is_atom(Item);
@@ -672,6 +674,9 @@ left_of_parent(Mw, _, #mi{prev=#mi{xleft=X}}) -> X-Mw+10.
 have_option_box(Ps) ->
     property_lists:is_defined(option, Ps) orelse
 	property_lists:is_defined(hotbox, Ps).	%Old name.
+
+have_magnet(Ps) ->
+    property_lists:is_defined(magnet, Ps).
 
 %%%
 %%% Get a key to bind a command to.

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.8 2002/02/17 20:00:16 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.9 2002/03/13 16:10:43 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -166,6 +166,26 @@ char(submenu) ->
        	 2#00000000
       	 >>,
     gl:bitmap(7, 5, -1.0, -1.0, 10.0, 0.0, B);
+
+char(magnet_red) ->
+    B = <<
+	 2#1100000011000000:16,
+	 2#1100000011000000:16,
+	 2#0110000110000000:16,
+       	 2#0110000110000000:16,
+	 2#0110000110000000:16,
+	 2#0011111100000000:16,
+       	 2#0001111000000000:16
+      	 >>,
+    gl:bitmap(11, 7, 0.0, -2.0+2, 13.0, 0.0, B);
+
+char(magnet_black) ->
+    B = <<
+       	 2#1100000011000000:16,
+       	 2#1100000011000000:16,
+       	 2#1100000011000000:16
+      	 >>,
+    gl:bitmap(11,  3, 0.0, 1.0+2, 13.0, 0.0, B);
 
 char(32) ->
  B = <<>>,
