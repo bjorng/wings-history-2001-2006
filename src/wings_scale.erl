@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.24 2002/02/19 08:35:36 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.25 2002/02/28 21:09:59 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -56,7 +56,7 @@ inset(Faces, We) ->
     
 inset([Face|Faces], We, Acc) ->
     inset(Faces, We, inset_face(Face, We, Acc));
-inset([], We, {Vs0,Min}=Acc) ->
+inset([], _We, {Vs0,Min}) ->
     Vs = map(fun({V,Vec,Dist}) when Dist > Min ->
 		     {V,e3d_vec:mul(Vec, Min/Dist)};
 		({V,Vec,_Dist}) ->
@@ -70,14 +70,15 @@ inset_face(Face, #we{vs=Vtab}=We, Acc) ->
     Vs0 = wings_face:surrounding_vertices(Face, We),
     Center = wings_vertex:center(Vs0, We),
     wings_face:fold(
-      fun(_, Edge, #edge{vs=Va,ve=Vb}, {A0,Min}) ->
+      fun(_, _, #edge{vs=Va,ve=Vb}, {A0,Min}) ->
 	      Pos = wings_vertex:pos(Va, Vtab),
 	      Dir = e3d_vec:sub(wings_vertex:pos(Vb, Vtab), Pos),
-	      case e3d_vec:dot(Dir, Dir) of
-		  Small when Small < 1.0E-3 -> {A0,Min};
-		  DirSqr ->
-		      ToCenter = e3d_vec:sub(Center, Pos),
-		      T0 = e3d_vec:dot(Dir, ToCenter) / DirSqr,
+	      DirSqr = e3d_vec:dot(Dir, Dir),
+	      ToCenter = e3d_vec:sub(Center, Pos),
+	      case catch e3d_vec:dot(Dir, ToCenter) / DirSqr of
+		  {'EXIT',_} ->
+		      wings_util:error("Too small face");
+		  T0 ->
 		      PerpPos = e3d_vec:add(Pos, e3d_vec:mul(Dir, T0)),
 		      Vec = e3d_vec:sub(Center, PerpPos),
 		      Dist = e3d_vec:len(Vec),
@@ -92,7 +93,7 @@ inset_face(Face, #we{vs=Vtab}=We, Acc) ->
 average_vectors({V,[Vec]}, Acc) ->
     %% Yes, it can happen.
     [{Vec,[V]}|Acc];
-average_vectors({V,[VecA,VecB]=Vecs}, Acc) ->
+average_vectors({V,[VecA,VecB]}, Acc) ->
     Dot = e3d_vec:dot(VecA, VecB) /
   	e3d_vec:len(VecA) / e3d_vec:len(VecB),
     Vec = e3d_vec:divide(e3d_vec:add(VecA, VecB), (1+Dot)),
@@ -118,7 +119,7 @@ scale_vertices(Type, St) ->
 %% Conversion of edge selections to vertices.
 %%
 
-edges_to_vertices(Es0, #we{es=Etab}=We, Type) ->
+edges_to_vertices(Es0, We, Type) ->
     foldl(fun(Es, A) ->
 		  Vs = wings_edge:to_vertices(Es, We),
 		  scale_vertices(Type, Vs, We, A)
@@ -141,7 +142,7 @@ faces_to_vertices(Faces0, We, Type) ->
 body_to_vertices(We, Type) ->
     Center = e3d_vec:average(wings_vertex:bounding_box(We)),
     {Xt0,Yt0,Zt0} = filter_vec(Type, {1.0,1.0,1.0}),
-    fun(Matrix0, [Dx]) when float(Dx) ->
+    fun(_Matrix0, [Dx]) when is_float(Dx) ->
 	    Xt = 1.01+Xt0*Dx,
 	    Yt = 1.01+Yt0*Dx,
 	    Zt = 1.01+Zt0*Dx,
@@ -154,13 +155,13 @@ body_to_vertices(We, Type) ->
 %%% Utilities.
 %%%
 
-scale_vertices({Type,{Center,Vec}}, Vs, We, Acc) ->
+scale_vertices({Type,{Center,_Vec}}, Vs, We, Acc) ->
     scale_vertices(Type, Center, Vs, We, Acc);
 scale_vertices(Type, Vs, We, Acc) ->
     Center = e3d_vec:average(wings_vertex:bounding_box(Vs, We)),
     scale_vertices(Type, Center, Vs, We, Acc).
 
-scale_vertices(Type, Center, Vs, #we{vs=Vtab}=We, Acc0) ->
+scale_vertices(Type, Center, Vs, #we{vs=Vtab}, Acc0) ->
     foldl(fun(V, Acc) ->
 		  Pos = wings_vertex:pos(V, Vtab),
 		  Vec0 = e3d_vec:sub(Pos, Center),
