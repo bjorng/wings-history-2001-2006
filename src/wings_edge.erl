@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.17 2001/11/11 20:15:51 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.18 2001/11/13 09:41:54 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -65,6 +65,26 @@ select_more(St) ->
 	      adjacent_edges(Vs, We, Edges)
       end, edge, St).
 
+select_less(St) ->
+    wings_sel:convert_shape(
+      fun(Edges, #we{es=Etab}=We) ->
+	      Vs0 = gb_sets:fold(
+		      fun(Edge, A) ->
+			      Rec = gb_trees:get(Edge, Etab),
+			      #edge{vs=Va,ve=Vb,
+				    ltpr=LP,ltsu=LS,
+				    rtpr=RP,rtsu=RS} = Rec,
+			      Set = gb_sets:from_list([LP,LS,RP,RS]),
+			      case gb_sets:is_subset(Set, Edges) of
+				  true -> A;
+				  false -> [Va,Vb|A]
+			      end
+		      end, [], Edges),
+	      Vs = ordsets:from_list(Vs0),
+	      AdjEdges = adjacent_edges(Vs, We, gb_sets:empty()),
+	      gb_sets:subtract(Edges, AdjEdges)
+      end, edge, St).
+
 adjacent_edges(Vs, We, Acc) ->
     foldl(fun(V, A) ->
 		  wings_vertex:fold(
@@ -72,22 +92,6 @@ adjacent_edges(Vs, We, Acc) ->
 			    gb_sets:add(Edge, AA)
 		    end, A, V, We)
 	  end, Acc, Vs).
-
-
-select_less(St) ->
-    wings_sel:convert_shape(
-      fun(Edges, #we{es=Etab}) ->
-	      gb_sets:fold(
-		fun(Edge, A) ->
-			Rec = gb_trees:get(Edge, Etab),
-			#edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
-			Set = gb_sets:from_list([LP,LS,RP,RS]),
-			case gb_sets:is_subset(Set, Edges) of
-			    true -> A;
-			    false -> gb_sets:delete(Edge, A)
-			end
-		end, Edges, Edges)
-      end, edge, St).
 
 %% to_vertices(EdgeGbSet, We) -> VertexGbSet
 %%  Convert a set of edges to a set of vertices.
