@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.49 2004/05/02 09:49:36 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.50 2004/05/03 14:29:58 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -895,19 +895,20 @@ stretch_opt(We0, OVs) ->
  %    ?DBG("F2Vs ~w~n",[gb_trees:to_list(F2Vs)]),
  %    ?DBG("UVs ~w~n", [gb_trees:to_list(Uvs)]),
 
-    S2V = stretch_per_vertex(model_l2,gb_trees:to_list(State#s.v2f),
-			     F2S2,State,gb_trees:empty()),
-    %%    MaxI = 2,     %% Max iterations
+    S2V = stretch_per_vertex(gb_trees:to_list(State#s.v2f),F2S2,State,gb_trees:empty()),
+%    MaxI = 5,     %% Max iterations
     MaxI = 50,    %% Max iterations
-    MinS = 0.001, %% Min Stretch
-    {SUvs0,_F2S2} = wings_pb:done(stretch_iter(S2V,1,MaxI,MinS,F2S2,Uvs,State)),
+    MinS = 1.01, %% Min Stretch
+    {SUvs0,_F2S2} = ?TC(wings_pb:done(stretch_iter(S2V,1,MaxI,MinS,F2S2,Uvs,State))),
+    %% Verify
+    _Mean2  = model_l2(gb_trees:keys(_F2S2), _F2S2, State#s.f2a,0.0, 0.0),
+    io:format("After Stretch sum (mean) ~p ~n",  [_Mean2]),
+
     SUvs1 = gb_trees:to_list(SUvs0),
     
     Suvs = [{Id,{S0/Scale,T0/Scale,0.0}} || {Id,{S0,T0}} <- SUvs1],
     We0#we{vp=gb_trees:from_orddict(Suvs)}.
 
-%     _Mean2  = model_l2(gb_trees:keys(_F2S2), _F2S2, F2Vs, OVs,0.0, 0.0),
-% %%    io:format("After Stretch sum (mean) ~p ~n",  [_Mean2]),
 %     stretch_setup(Fs, Res#ch.we,OVs),
 %     Res.
 
@@ -932,8 +933,8 @@ stretch_setup(Fs, We0, OVs) ->
 stretch_iter(S2V0={[{_,First}|_],_},I,MaxI,MinS,F2S20,Uvs0,State) 
   when First > MinS, I < MaxI ->
     wings_pb:update(I/MaxI, "iteration "++integer_to_list(I)),
-    {S2V,F2S2,Uvs} = ?TC(stretch_iter2(S2V0,I,MaxI,MinS,F2S20,Uvs0,
-				       State,gb_sets:empty())),
+    {S2V,F2S2,Uvs} = 
+	?TC(stretch_iter2(S2V0,I,MaxI,MinS,F2S20,Uvs0,State,gb_sets:empty())),
     stretch_iter(S2V,I+1,MaxI,MinS,F2S2,Uvs,State);
 stretch_iter(_,_,_,_,F2S2,Uvs,_) ->
     {Uvs,F2S2}.
@@ -962,18 +963,17 @@ stretch_iter2({[{V,Val}|R],V2S0},I,MaxI,MinS,F2S20,Uvs0,State,Acc)
 		    Upd0 = foldl(fun(Vtx, New) ->
 					 [{Vtx,gb_trees:get(Vtx, V2Fs)}|New]
 				 end, [], Vs0),
-		    Upd = ?TC(stretch_per_vertex(model_l2,Upd0,F2S2,State,V2S0)),
+		    Upd = ?TC(stretch_per_vertex(Upd0,F2S2,State,V2S0)),
 %		    ?DBG("Update value for ~p ~p~n ~w~n ~w ~n",
 %			[{V,Val},PVal,gb_sets:to_list(Acc),element(1,Upd)]),
 		    stretch_iter2(Upd,I,MaxI,MinS,F2S2,Uvs,State,Acc)
 	    end
     end;
-
 stretch_iter2({_,S2V},_,_,_,F2S2,Uvs,State=#s{v2f=V2Fs},Acc0) ->
     Acc = foldl(fun(V, Vals) ->
 			[{V,gb_trees:get(V,V2Fs)}|Vals]
 		end, [], gb_sets:to_list(Acc0)),
-    Upd = stretch_per_vertex(model_l2,Acc,F2S2,State,S2V),
+    Upd = stretch_per_vertex(Acc,F2S2,State,S2V),
     {Upd, F2S2, Uvs}.
 
 random_line() ->
@@ -1011,20 +1011,20 @@ opt_v(PVal,I,Step,Max,V,L={X,Y},Fs,F2S0,Uvs0,State=#s{f2v=F2Vs,f2ov=F2OV,f2a=F2A
 %%	    opt_v(PVal,I+Step,Step,Max,V,L,Fs,F2Vs,Uvs0,Ovs)
     end;
 opt_v(PVal,_I,_Step,_Max,_V,_L,_Fs,F2S,Uvs0,_) ->
+%%    io:format("I ~p", [_I]),
     {PVal,Uvs0,F2S}.
 
 
 %% Hmm, I just sum this up... should this be calc'ed as model_XX ??
-stretch_per_vertex(Method,[{V,Fs}|R],F2S,State=#s{bv=Bv,f2a=F2A},Tree) ->
+stretch_per_vertex([{V,Fs}|R],F2S,State=#s{bv=Bv,f2a=F2A},Tree) ->
     case gb_sets:is_member(V,Bv) of
 	false ->
-	    Res = ?MODULE:Method(Fs,F2S,F2A,0.0,0.0),
-	    stretch_per_vertex(Method,R,F2S,State,
-			       gb_trees:enter(V,Res,Tree));
+	    Res = model_l2(Fs,F2S,F2A,0.0,0.0),
+	    stretch_per_vertex(R,F2S,State,gb_trees:enter(V,Res,Tree));
 	true ->
-	    stretch_per_vertex(Method,R,F2S,State,Tree)
+	    stretch_per_vertex(R,F2S,State,Tree)
     end;
-stretch_per_vertex(_,[], _, _,Acc) ->
+stretch_per_vertex([], _, _,Acc) ->
     {lists:reverse(lists:keysort(2,gb_trees:to_list(Acc))),Acc}.
 
 init_stretch([{Face,FUvs=[{Id1,P1},{Id2,P2},{Id3,P3}]}|R],
@@ -1032,8 +1032,7 @@ init_stretch([{Face,FUvs=[{Id1,P1},{Id2,P2},{Id3,P3}]}|R],
     {Q1,Q2,Q3} = gb_trees:get(Face,Ovs),
     S2 = l2(P1,P2,P3,Q1,Q2,Q3),
     S8 = l8(P1,P2,P3,Q1,Q2,Q3),
-    init_stretch(R,Ovs,
-		 [{Face,S2}|F2S2],[{Face,S8}|F2S8],
+    init_stretch(R,Ovs, [{Face,S2}|F2S2],[{Face,S8}|F2S8],
 		 [{Face, [Id1,Id2,Id3]}|F2Vs],
 		 [{Id1,Face},{Id2,Face},{Id3,Face}|V2Fs],
 		 FUvs ++ UVs);
