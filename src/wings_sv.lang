@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.44 2004/12/05 13:24:26 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.45 2004/12/06 07:57:59 bjorng Exp $
 %%
 
 {wings,
@@ -145,8 +145,6 @@
    [{1,"Expandera den här rutan; kollapsa andra rutor"},
     {2,"Expandera den här rutan"},
     {3,"Kollapsa den här rutan"}]},
-  {get_event,
-   [{1,"Dialogen krashade med ~p~nOrsak ~p~n"}]},
   {mktree,
    [{1,"Utforska"}]}]}.
 {wings_body,
