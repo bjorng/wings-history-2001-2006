@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.204 2004/05/15 07:25:58 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.205 2004/05/16 14:51:08 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -25,7 +25,7 @@
 -include("e3d.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1,reverse/2,member/2,
-		foldl/3,merge/1,sort/1,any/2,seq/2]).
+		foldl/3,merge/1,sort/1,keysort/2,any/2,seq/2]).
 
 -record(split,
 	{static_vs,
@@ -644,7 +644,8 @@ original_we(#dlo{src_we=We}) -> We.
 update_dynamic(#dlo{src_we=We}=D, Vtab) when ?IS_LIGHT(We) ->
     wings_light:update_dynamic(D, Vtab);
 update_dynamic(#dlo{src_we=We0,split=#split{static_vs=StaticVs}}=D0, Vtab0) ->
-    Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
+    Vtab1 = keysort(1, StaticVs++Vtab0),
+    Vtab = gb_trees:from_orddict(Vtab1),
     We = We0#we{vp=Vtab},
     D1 = D0#dlo{src_we=We},
     D2 = changed_we(D0, D1),

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.75 2004/05/16 10:50:29 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.76 2004/05/16 14:49:32 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -311,7 +311,7 @@ make_edge_map(Es) ->
 
 make_edge_map([{Name,{Edge,{{Lf,_,_,_},{Rf,_,_,_}}}}|Es], Acc) ->
     make_edge_map(Es, [{{Lf,Name},Edge},{{Rf,Name},Edge}|Acc]);
-make_edge_map([], Acc) -> gb_trees:from_orddict(sort(Acc)).
+make_edge_map([], Acc) -> gb_trees:from_orddict(keysort(1, Acc)).
 
 edge_num(Face, Name, Emap) ->
     gb_trees:get({Face,Name}, Emap).
@@ -586,7 +586,8 @@ renumber_vertices(Vtab, Vmap) ->
 renumber_vertices_1([{V0,P}|Vtab], Vmap, VtabAcc) ->
     V = gb_trees:get(V0, Vmap),
     renumber_vertices_1(Vtab, Vmap, [{V,P}|VtabAcc]);
-renumber_vertices_1([], _, Vtab) -> gb_trees:from_orddict(sort(Vtab)).
+renumber_vertices_1([], _, Vtab) ->
+    gb_trees:from_orddict(keysort(1, Vtab)).
     
 renum_hard_edge(Edge0, Emap, New) ->
     Edge = gb_trees:get(Edge0, Emap),
