@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.7 2003/01/27 18:09:50 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.8 2003/01/30 05:06:31 bjorng Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
-	 new/2,rename/2,txid/1,info/1,images/0,
+	 from_file/1,new/2,rename/2,txid/1,info/1,images/0,
 	 next_id/0,delete_older/1,delete_from/1,
 	 update/2,
 	 window/1]).
@@ -21,7 +21,7 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 -include("e3d_image.hrl").
--import(lists, [reverse/1,foreach/2]).
+-import(lists, [reverse/1,foreach/2,flatten/1]).
 
 init() ->
     SdlWrapper = get(sdlwrapper),
@@ -33,6 +33,15 @@ init_opengl() ->
 %%%
 %%% Client API.
 %%%
+
+from_file(Filename) ->
+    Props = [{filename,Filename},{alignment,1}],
+    case wpa:image_read(Props) of
+	#e3d_image{}=Image ->
+	    Name = filename:rootname(filename:basename(Filename)),
+	    req({new,Image#e3d_image{filename=Filename,name=Name}});
+	{error,_}=Error -> Error
+    end.
 
 new(Name, E3DImage) ->
     req({new,E3DImage#e3d_image{name=Name}}).
@@ -139,28 +148,30 @@ make_texture(Id, Image) ->
     TxId = init_texture(Image),
     put(Id, TxId).
 
-init_texture(Image) ->
-    #e3d_image{width=W,height=H,image=Bits} = maybe_scale(Image),
+init_texture(Image0) ->
+    Image = maybe_scale(Image0),
+    #e3d_image{width=W,height=H,bytes_pp=BytesPerPixel,image=Bits} = Image,
     [TxId] = gl:genTextures(1),
     gl:pushAttrib(?GL_TEXTURE_BIT),
     gl:enable(?GL_TEXTURE_2D),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
-    gl:texImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB,
-		  W, H, 0, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits),
+    Format = texture_format(Image),
+    io:format("~p\n", [Format]),
+    gl:texImage2D(?GL_TEXTURE_2D, 0, BytesPerPixel,
+		  W, H, 0, Format, ?GL_UNSIGNED_BYTE, Bits),
     gl:popAttrib(),
     TxId.
 
-maybe_scale(#e3d_image{width=W0,height=H0,image=Bits0}=Image) ->
+maybe_scale(#e3d_image{width=W0,height=H0,bytes_pp=BytesPerPixel,
+		       image=Bits0}=Image) ->
     case {nearest_power_two(W0),nearest_power_two(H0)} of
 	{W0,H0} -> Image;
 	{W,H} ->
-	    In = sdl_util:malloc(W0*H0*3, ?GL_UNSIGNED_BYTE),
-	    sdl_util:write(In, Bits0),
-	    Out = sdl_util:malloc(W*H*3, ?GL_UNSIGNED_BYTE),
-	    glu:scaleImage(?GL_RGB, W0, H0, ?GL_UNSIGNED_BYTE,
-			   In, W, H, ?GL_UNSIGNED_BYTE, Out),
-	    sdl_util:free(In),
-	    Bits = sdl_util:readBin(Out, W*H*3),
+	    Out = sdl_util:malloc(BytesPerPixel*W*H, ?GL_UNSIGNED_BYTE),
+	    Format = texture_format(Image),
+	    glu:scaleImage(Format, W0, H0, ?GL_UNSIGNED_BYTE,
+			   Bits0, W, H, ?GL_UNSIGNED_BYTE, Out),
+	    Bits = sdl_util:readBin(Out, BytesPerPixel*W*H),
 	    sdl_util:free(Out),
 	    Image#e3d_image{width=W,height=H,image=Bits}
     end.
@@ -170,6 +181,12 @@ nearest_power_two(N) -> nearest_power_two(N, 1).
 
 nearest_power_two(N, B) when B > N -> B bsr 1;
 nearest_power_two(N, B) -> nearest_power_two(N, B bsl 1).
+
+texture_format(#e3d_image{type=r8g8b8}) -> ?GL_RGB;
+texture_format(#e3d_image{type=r8g8b8a8}) -> ?GL_RGBA;
+texture_format(#e3d_image{type=b8g8r8}) -> ?GL_BGR;
+texture_format(#e3d_image{type=b8g8r8a8}) -> ?GL_BGRA;
+texture_format(#e3d_image{type=g8}) -> ?GL_LUMINANCE.
 
 delete_older(Id, #ist{images=Images0}=S) ->
     Images1 = delete_older_1(gb_trees:to_list(Images0), Id),
@@ -203,7 +220,7 @@ do_update(Id, #e3d_image{width=W,height=H,image=Bits}, #ist{images=Images0}=S) -
     TxId = get(Id),
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
     gl:texSubImage2D(?GL_TEXTURE_2D, 0, 0, 0,
-		     W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits),
+		     W, H, texture_format(Im), ?GL_UNSIGNED_BYTE, Bits),
     S#ist{images=Images}.
 
 make_unique(Name, Images0) ->
@@ -229,8 +246,7 @@ window(Id) ->
 
 window_params(Id) ->
     #e3d_image{width=W0,height=H0,name=Name} = info(Id),
-    Title = "Image #"++integer_to_list(Id)++
-	": "++Name,
+    Title = flatten(io_lib:format("Image: ~s [~wx~w]", [Name,W0,H0])),
     {DeskW,DeskH} = wings_wm:win_size(desktop),
     W = if
 	    W0+50 < DeskW -> W0;
@@ -253,7 +269,15 @@ event(redraw, Id) ->
 event(_, _) -> keep.
 
 redraw(Id) ->
-    #e3d_image{width=Iw,height=Ih} = info(Id),
+    #e3d_image{width=Iw,height=Ih,order=Order} = info(Id),
+    case Order of
+	upper_left ->
+	    Ua = 0, Ub = 1,
+	    Va = 0, Vb = 1;
+	lower_left ->
+	    Ua = 0, Ub = 1,
+	    Va = 1, Vb = 0
+    end,
     Aspect = Iw/Ih,
     {W0,H0} = wings_wm:win_size(),
     wings_io:ortho_setup(),
@@ -272,13 +296,13 @@ redraw(Id) ->
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     gl:bindTexture(?GL_TEXTURE_2D, txid(Id)),
     gl:'begin'(?GL_QUADS),
-    gl:texCoord2i(0, 1),
+    gl:texCoord2i(Ua, Va),
     gl:vertex2i(X, Y),
-    gl:texCoord2i(0, 0),
+    gl:texCoord2i(Ua, Vb),
     gl:vertex2i(X, Y+H),
-    gl:texCoord2i(1, 0),
+    gl:texCoord2i(Ub, Vb),
     gl:vertex2i(X+W, Y+H),
-    gl:texCoord2i(1, 1),
+    gl:texCoord2i(Ub, Va),
     gl:vertex2i(X+W, Y),
     gl:'end'(),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
