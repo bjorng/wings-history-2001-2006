@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.86 2003/07/03 14:44:34 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.87 2003/07/03 19:38:41 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -207,11 +207,20 @@ event_key({key,?SDLK_TAB,_,_}, S) ->
 event_key({key,_,_,$\t}, S) ->
     get_event(next_focus(S, 1));
 event_key({key,?SDLK_KP_ENTER,_,_}, S) ->
-    return_result(S);
-event_key({key,_,_,$\r}, S) ->
-    return_result(S);
+    enter_pressed({key,$\r,$\r,$\r}, S);
+event_key({key,_,_,$\r}=Ev, S) ->
+    enter_pressed(Ev, S);
 event_key(Ev, S) ->
     field_event(Ev, S).
+
+enter_pressed(Ev, #s{focus=I}=S) ->
+    case field_type(I, S) of
+	but -> field_event(Ev, S);
+	_ -> return_result(S)
+    end.
+
+field_type(I, #s{focus=I,priv=Priv}) ->
+    element(1, element(I, Priv)).
 
 delete(#s{level=[_],grab_win=GrabWin}=S) ->
     delete_blanket(S),
@@ -655,14 +664,14 @@ separator_fun() ->
 
 separator_draw(#fi{x=X,y=Y,w=W}) ->
     ?CHECK_ERROR(),
-    LeftX = X,
-    RightX = X+W,
-    UpperY = Y + 5,
-    gl:lineWidth(1.0),
+    LeftX = X + 0.5,
+    RightX = X + W + 0.5,
+    UpperY = Y + 5.5,
+    gl:lineWidth(1),
     gl:'begin'(?GL_LINES),
     gl:color3f(0.10, 0.10, 0.10),
-    gl:vertex2f(LeftX+0.5, UpperY+0.5),
-    gl:vertex2f(RightX+0.5, UpperY+0.5),
+    gl:vertex2f(LeftX, UpperY),
+    gl:vertex2f(RightX, UpperY),
     gl:'end'(),
     gl:color3b(0, 0, 0),
     ?CHECK_ERROR().
@@ -991,9 +1000,14 @@ button_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #but{label=Label}) ->
 	true -> ok
     end.
 
-button_event(#mousebutton{state=?SDL_RELEASED}, _, #but{action=Action}) ->
+button_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED}, #fi{x=Bx,y=By,w=W,h=H},
+	     #but{action=Action}) when Bx =< X, X =< Bx+W, By =< Y, Y =< By+H ->
     Action;
-button_event(_Ev, _Fi, But) -> But.
+button_event({key,_,_,Key}, _, #but{action=Action})
+  when Key =:= $\r; Key =:= $\s ->
+    Action;
+button_event(_Ev, _Fi, But) ->
+    But.
 
 %%%
 %%% Color box.
