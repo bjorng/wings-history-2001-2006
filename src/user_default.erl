@@ -3,18 +3,19 @@
 %%
 %%     Extends the Erlang shell with Wings utilities.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.16 2003/12/08 19:15:45 bjorng Exp $
+%%     $Id: user_default.erl,v 1.17 2004/10/16 07:20:17 bjorng Exp $
 %% 
 
 -module(user_default).
 
 -export([help/0,wh/0,
-	 wx/0,wxe/0,wxu/1,wxu/3,wxunref/0,wxundef/0]).
+	 wx/0,wxe/0,wxu/1,wxu/3,wxunref/0,wxundef/0,
+	 wldiff/1]).
 
 -import(lists, [foldl/3]).
 
@@ -32,12 +33,14 @@ wh() ->
     p("wxundef()  -- print calls to undefined functions\n"),
     p("wxu(M)     -- print uses of module M\n"),
     p("wxu(M, F, A) -- print uses of M:F/A\n"),
+    p("** Language support **\n"),
+    p("wldiff(Lang) -- diff language files against English templates\n"),
+
     ok.
 
 %%%
 %%% Xref support.
 %%%
-
 
 wx() ->
     WingsLib = code:lib_dir(wings),
@@ -122,6 +125,20 @@ result(Other) -> Other.
 make_query(Format, Args) ->
     lists:flatten(io_lib:format(Format, Args)).
 
+%%%
+%%% Language support.
+%%%
+
+wldiff(Lang) when is_list(Lang) ->
+    wldiff_1(filelib:wildcard("*_"++Lang++".lang"));
+wldiff(Lang) when is_atom(Lang) ->
+    wldiff(atom_to_list(Lang)).
+
+wldiff_1([F|Fs]) ->
+    wings_lang:diff(F),
+    wldiff_1(Fs);
+wldiff_1([]) -> ok.
+    
 %%%
 %%% Internal functions.
 %%%

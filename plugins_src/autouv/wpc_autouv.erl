@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.268 2004/08/28 06:21:17 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.269 2004/10/16 07:20:15 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -85,7 +85,7 @@ start_uvmap_2(Action, Name, Id, #st{shapes=Shs}=St) ->
     Title = "AutoUV: " ++ ObjName,
     {X,Y,W,H} = init_drawarea(),
     Props = [{display_lists,Name}|wings_view:initial_properties()],
-    CreateToolbar = fun(N, P, Wi) -> wings:create_toolbar(N, P, Wi) end,
+    CreateToolbar = fun(N, P, Wi) -> wings_toolbar:create(N, P, Wi) end,
     wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H},
 		      [resizable,closable,menubar,{properties,Props},
 		       {toolbar,CreateToolbar}], Op),
