@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.40 2001/12/28 22:36:58 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.41 2001/12/29 20:32:28 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -39,7 +39,7 @@ menu(X, Y, St) ->
 	    {"Merge","Ctrl-L",merge},
 	    separator,
 	    {"Save","Ctrl-S",save},
-	    {"Save As",save_as},
+	    {"Save As","Shift-Ctrl-S",save_as},
 	    separator,
 	    {"Revert",revert},
 	    separator,

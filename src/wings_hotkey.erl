@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.4 2001/12/12 15:12:47 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.5 2001/12/29 20:32:28 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -32,6 +32,9 @@ translate_key($l, Mod, C) when Mod band ?CTRL_BITS =/= 0 -> {file,merge};
 translate_key($n, Mod, C) when Mod band ?CTRL_BITS =/= 0 -> {file,new};
 translate_key($o, Mod, C) when Mod band ?CTRL_BITS =/= 0 -> {file,open};
 translate_key($q, Mod, C) when Mod band ?CTRL_BITS =/= 0 -> {file,quit};
+translate_key($s, Mod, C) when Mod band ?SHIFT_BITS =/= 0,
+			       Mod band ?CTRL_BITS =/= 0 ->
+    {file,save_as};
 translate_key($s, Mod, C) when Mod band ?CTRL_BITS =/= 0 -> {file,save};
 translate_key($z, Mod, C) when Mod band ?ALT_BITS =/= 0,
 			    Mod band ?CTRL_BITS =/= 0 -> {edit,undo};
