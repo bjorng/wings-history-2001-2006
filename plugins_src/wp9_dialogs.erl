@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.6 2002/01/23 07:39:52 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.7 2002/05/05 07:47:33 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -42,81 +42,18 @@ ui({failure,Message,Prop}, Next) ->
     wings_io:message(Message),
     aborted;
 ui({message,Message}, Next) ->
-    wings_io:message(Message);
+    message(Message);
 ui({question,Question}, Next) ->
     wings_getline:yes_no(Question);
 ui({serious_question,Question}, Next) ->
     wings_getline:yes_no(Question);
-ui({ask,Qs}, Next) ->
-    ask(Qs);
 ui(What, Next) -> Next(What).
 
-ask([{Prompt,Default,Min,Max}|T]=T0) when is_integer(Default) ->
-    case wings_getline:number(Prompt ++ ": ", Default) of
-	aborted -> aborted;
-	N ->
-	    case ask(T) of
-		aborted -> ask(T0);
-		Ns -> [N|Ns]
-	    end
-    end;
-ask([{Prompt,Def}|T]=T0) when is_list(Def) ->
-    case wings_getline:string(Prompt ++ ": ", Def) of
-	aborted -> aborted;
-	N when is_list(N) ->
-	    case ask(T) of
-		aborted -> ask(T0);
-		Ns -> [N|Ns]
-	    end
-    end;
-ask([{Prompt,Def}|T]=T0) ->
-    Str0 = print_term(Def),
-    case wings_getline:string(Prompt ++ ": ", Str0) of
-	aborted -> aborted;
-	Str ->
-	    case catch make_term(Str) of
-		error -> ask(T0);
-		N ->
-		    case ask(T) of
-			aborted -> ask(T0);
-			Ns -> [N|Ns]
-		    end
-	    end
-    end;
-ask([]) -> [].
-
-print_term(Term) ->
-    lists:flatten(print_term_1(Term)).
-
-print_term_1(Tuple) when is_tuple(Tuple) ->
-    ["{",print_tuple(1, size(Tuple), Tuple),"}"];
-print_term_1(Float) when is_float(Float) ->
-    S0 = io_lib:format("~f", [Float]),
-    S = reverse(lists:flatten(S0)),
-    reverse(simplify_float(S));
-print_term_1(Term) ->
-    io_lib:format("~p", [Term]).
-
-print_tuple(I, I, T) ->
-    print_term_1(element(I, T));
-print_tuple(I, Sz, T) ->
-    [print_term_1(element(I, T)),$,|print_tuple(I+1, Sz, T)].
-
-simplify_float("0."++_=F) -> F;
-simplify_float("0"++F) -> simplify_float(F);
-simplify_float(F) -> F.
-
-make_term(Str) ->
-    case erl_scan:string(Str) of
-	{ok, Tokens, _} ->
-	    case erl_parse:parse_term(Tokens ++ [{dot, 1}]) of
-		{ok, Term} -> Term;
-		{error, {_,_,Reason}} ->
-		    io:format("~s: ~s~n", [Reason, Str]),
-		    throw(error)
-	    end;
-	{error, {_,_,Reason}, _} ->
-	    io:format("~s: ~s~n", [Reason, Str]),
-	    throw(error)
-    end.
+message(Message) ->
+    St = get(wings_st_kludge),
+    Qs = {vframe,
+	  [{label,Message},
+	   {button,ok}],
+	  [{title,"Wings Error"}]},
+    wings_ask:dialog(Qs, St, fun(Res) -> ignore end).
 

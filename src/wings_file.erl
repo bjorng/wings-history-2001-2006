@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.59 2002/05/03 10:19:57 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.60 2002/05/05 07:47:34 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -94,7 +94,7 @@ command(revert, St0) ->
 command({import,ndo}, St0) ->
     case import_ndo(St0) of
 	{warning,Warn,St} ->
-	    wings_util:message(Warn),
+	    wings_util:message(Warn, St),
 	    {save_state,model_changed(St)};
 	St -> {save_state,model_changed(St)}
     end;
@@ -365,7 +365,7 @@ import(Prop, Importer, St0) ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    St;
 		{warning,Warn,St} ->
-		    wings_util:message(Warn),
+		    wings_util:message(Warn, St),
 		    St;
 	    	{error,Reason} ->
 		    wings_util:error("Import failed: " ++ Reason),

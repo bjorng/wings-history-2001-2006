@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.35 2002/05/04 06:02:23 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.36 2002/05/05 07:47:34 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([error/1,share/1,share/3,make_vector/1,
-	 message/1,yes_no/1,serious_yes_no/1,
+	 message/2,yes_no/1,serious_yes_no/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
 	 delete_any/2,nice_float/1,
 	 tc/1,export_we/2,crash_log/1,validate/1]).
@@ -46,8 +46,19 @@ make_vector(free) -> free;
 make_vector(normal) -> normal;
 make_vector(intrude) -> normal.
 
-message(Message) ->
-    wings_plugin:call_ui({message,Message}).
+message(Message, St) ->
+    %% XXX Dirty kludge until we get windows working. Store St where
+    %% we can retrieve from wp9_dialogs.
+    put(wings_st_kludge, St),
+    case wings_plugin:call_ui({message,Message}) of
+	[] ->
+	    %% XXX Another kludge to avoid having to change
+	    %% wp8_file plug-ins now. We know that a wp8_file
+	    %% plug-in returns [].
+	    wings_wm:dirty(),
+	    keep;
+	Other -> Other
+    end.
 
 yes_no(Question) ->
     wings_plugin:call_ui({question,Question}).
