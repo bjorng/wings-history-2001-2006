@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.10 2003/11/16 23:59:07 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.11 2003/11/19 18:10:47 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -104,17 +104,28 @@ minimal_dialog(_St) ->
 
 
 
-large_dialog(_St) ->
-    Fun = fun(Res) -> 
-		  erlang:display({?MODULE,?LINE,Res}),
-		  ignore
-	  end,
+large_dialog(St) -> do_large_dialog(St, false, true, false).
+
+do_large_dialog(St, MinimizedL, MinimizedC, MinimizedR) ->
     Dialog =
 	[{hframe,
-	  [large_dialog_l(),large_dialog_r()]}],
-    wings_ask:dialog("Test Ask Large", Dialog, Fun).
+	  [large_dialog_l(MinimizedL, MinimizedC),large_dialog_r(MinimizedR)]}],
+    wings_ask:dialog("Test Ask Large", Dialog, large_result(St)).
 
-large_dialog_l() ->
+large_result(St) ->
+    fun ([MinimizedL|Res]) -> 
+	    erlang:display({?MODULE,?LINE,Res}),
+	    MinimizedC = proplists:get_value(minimized_c, Res),
+	    MinimizedR = proplists:get_value(minimized_r, Res),
+	    case proplists:get_value(reset, Res) of
+		true -> 
+		    do_large_dialog(St, MinimizedL, MinimizedC, MinimizedR),
+		    ignore;
+		false -> ignore
+	    end
+    end.
+
+large_dialog_l(MinimizedL, MinimizedC) ->
     PaneColor = wings_pref:get_value(dialog_color),
     {vframe,
      [{label,"Label"},
@@ -176,10 +187,10 @@ large_dialog_l() ->
 		   {value,0.5},{range,{0.0,1.0}},
 		   {hook,
 		    color_update(v, {hue,sat}, {red,green,blue})}]}
-	 ]}],[{title,"A Hframe"},{minimized,false}]}],
-     [{title,"Left Vframe"},{minimized,false}]}.
+	 ]}],[{title,"A Hframe"},{minimized,MinimizedC},{key,minimized_c}]}],
+     [{title,"Left Vframe"},{minimized,MinimizedL}]}.
 
-large_dialog_r() ->
+large_dialog_r(MinimizedR) ->
     {vframe,
      [{text,123,[{hook,disable_hook(c)}]},
       {slider,{text,0.5,[{range,{0.0,1.0}}]}},
@@ -198,8 +209,9 @@ large_dialog_r() ->
 		      end;
 		  (_, _) -> void
 	      end},
-       {info,"Partly disabled menu"}]}
-     ],[{title,"Right vframe"},{minimized,false}]}.
+       {info,"Partly disabled menu"}]},
+      {button,"Reset",done,[{key,reset}]}
+     ],[{title,"Right vframe"},{minimized,MinimizedR},{key,minimized_r}]}.
 
 info(c) -> "Requires \"Checkbox key\" checked".
     

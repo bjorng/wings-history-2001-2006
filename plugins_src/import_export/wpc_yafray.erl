@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.45 2003/11/10 14:44:03 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.46 2003/11/19 18:10:48 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -354,7 +354,7 @@ def_modulators([{bump,_}|Maps]) ->
 def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
-material_result(_Name, Mat0, [{shadow,_}|_]=Res) ->
+material_result(_Name, Mat0, [_Minimized|[{shadow,_}|_]=Res]) ->
     {Ps,Res0} = split_list(Res, 7),
     {Modulators,Res1} = modulator_result(Res0),
     Mat1 = [{?TAG,[{modulators,Modulators}|Ps]}|keydelete(?TAG, 1, Mat0)],
@@ -373,6 +373,7 @@ modulator_dialogs([Modulator|Modulators], Maps, M) ->
 
 modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 %    erlang:display({?MODULE,?LINE,[Ps,M,Maps]}),
+    No = integer_to_list(M),
     {Mode,Type} = mod_mode_type(Ps, Maps),
     SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
     SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
@@ -391,7 +392,7 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
     Sharpness = proplists:get_value(sharpness, Ps, ?DEF_MOD_SHARPNESS),
     RingscaleX = proplists:get_value(ringscale_x, Ps, ?DEF_MOD_RINGSCALE_X),
     RingscaleZ = proplists:get_value(ringscale_z, Ps, ?DEF_MOD_RINGSCALE_Z),
-    TypeTag = list_to_atom("type"++integer_to_list(M)),
+    TypeTag = list_to_atom("type"++No),
     TaggedType = {TypeTag,Type},
     MapsFrame = 
 	case Maps of
@@ -449,7 +450,7 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 				  [{label,"Depth"},
 				   {text,Depth,[{range,{1,1000}}]}]},
 				 {"Hard Noise",Hard}]}]}]}]}]}]}],
-      [{title,"Modulator"},{minimized,true}]}];
+      [{title,"Modulator "++No++mod_legend(Mode, Type)},{minimized,true}]}];
 modulator_dialog(_Modulator, _Maps, _) ->
     []. % Discard old modulators that anyone may have
 
@@ -467,6 +468,12 @@ mod_mode_type(Ps, Maps) ->
 def_mod_mode_type(Ps, Type) ->
     {proplists:get_value(mode, Ps, ?DEF_MOD_MODE),Type}.
 
+mod_legend(Mode, {map,Map}) ->
+    mod_legend(Mode, Map);
+mod_legend(Mode, Type) ->
+    " ("++atom_to_list(Mode)++", "++atom_to_list(Type)++")".
+		   
+
 modulator_result(Res) ->
     modulator_result(Res, 1, []).
 
@@ -477,10 +484,10 @@ modulator_result([{create_modulator,false}|Res], _, Modulators) ->
     {reverse(Modulators),Res};
 modulator_result([{create_modulator,true}|Res], _, Modulators) ->
     {reverse(Modulators, [{modulator,[]}]),Res};
-modulator_result([delete|Res0], M, Modulators) ->
+modulator_result([_Minimized,delete|Res0], M, Modulators) ->
     {_,Res} = modulator(delete, Res0, M),
     modulator_result(Res, M+1, Modulators);
-modulator_result([Mode|Res0], M, Modulators) ->
+modulator_result([_Minimized,Mode|Res0], M, Modulators) ->
     {Modulator,Res} = modulator(Mode, Res0, M),
     modulator_result(Res, M+1, [Modulator|Modulators]).
 
