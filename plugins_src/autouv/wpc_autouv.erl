@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.299 2005/03/16 21:06:58 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.300 2005/03/20 21:17:16 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -76,6 +76,8 @@ auv_menu(2,_) -> ignore;
 auv_menu(3,_) -> {?MODULE, force_seg}.
 
 command({body,{?MODULE, Op}} , St) ->
+    start_uvmap(Op, St);
+command({face,{?MODULE, Op}} , St) ->
     start_uvmap(Op, St);
 command({?MODULE, Op}, St) ->
     start_uvmap(Op, St);
@@ -489,6 +491,8 @@ handle_event({new_state,St}, _) ->
     new_state(clear_temp_sel(St));
 handle_event(revert_state, St) ->
     get_event(St);
+handle_event({current_state,geom_display_lists,GeomSt}, AuvSt) ->
+    new_geom_state(GeomSt, AuvSt);
 handle_event({do_tweak, Type, St =#st{sh=Sh,selmode=Mode}}, _) ->
     case Type of 
 	temp_selection ->
@@ -502,6 +506,7 @@ handle_event(Ev, St) ->
     case wings_camera:event(Ev, St, fun() -> redraw(St) end) of
 	next ->
 	    FreeLmbMod = wings_msg:free_lmb_modifier(),
+%%	    io:format("Ev ~W~n",[Ev,3]),
 	    handle_event_0(Ev, St, FreeLmbMod);
 	Other -> 
 	    Other
@@ -545,8 +550,6 @@ handle_event_2(Ev, St) ->
 	Cmd -> wings_wm:later({action,Cmd})
     end.
 
-handle_event_3({current_state,geom_display_lists,GeomSt}, AuvSt) ->
-    new_geom_state(GeomSt, AuvSt);
 handle_event_3(#mousebutton{state=?SDL_RELEASED,
 			    button=?SDL_BUTTON_RIGHT,
 			    x=X0,y=Y0},
@@ -556,7 +559,9 @@ handle_event_3(#mousebutton{state=?SDL_RELEASED,
 	       [] -> undefined; 
 	       _ -> Mode0 
 	   end,
-    command_menu(Mode, X, Y);
+    R = command_menu(Mode, X, Y),
+%%    io:format("Menu ~p ~n", [R]),
+    R;
 handle_event_3({drop,_,DropData}, St) ->
     handle_drop(DropData, St);
 handle_event_3({action,{auv,create_texture}},_St) ->
@@ -594,6 +599,7 @@ handle_event_3({action,{auv,quit}}, _St) ->
     cleanup_before_exit(),
     delete;
 handle_event_3({action,{auv,Cmd}}, St) ->
+%%    io:format("Cmd ~p ~n", [Cmd]),
     handle_command(Cmd, St);
 handle_event_3({action,{select,Command}}, St0) ->
     case wings_sel_cmd:command(Command, St0) of
@@ -647,6 +653,7 @@ clear_temp_sel(#st{temp_sel={Mode,Sh}}=St) ->
 -record(tweak, {type, st, pos, ev}).
 
 start_tweak(Type, Ev = #mousebutton{x=X,y=Y}, St0) ->
+%%    io:format("Start tweak~n", []),
     T = #tweak{type=Type,st=St0,pos={X,Y}, ev=Ev},
     {seq,push,get_tweak_event(T)}.
 
