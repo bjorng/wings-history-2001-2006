@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.42 2003/07/16 04:18:01 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.43 2003/08/12 10:25:40 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -87,7 +87,9 @@ map_chart(Type, Chart, We) ->
 	[_] ->
 	    map_chart_1(Type, Chart, We);
 	[_,_|_] ->
-	    {error,"A chart is not allowed to have holes."}
+	    map_chart_1(Type, Chart, We)
+	    %% For the moment at least, allow holes.
+            %%{error,"A chart is not allowed to have holes."}
     end.
 
 map_chart_1(Type, Chart, We) ->
