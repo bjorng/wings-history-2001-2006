@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.47 2002/10/15 12:48:29 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.48 2002/10/31 06:47:22 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -183,7 +183,7 @@ blender_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case wings_wm:me_modifiers() of
 	Mod when Mod band ?SHIFT_BITS =/= 0 ->
-	    pan(Dx/10, Dy/10);
+	    pan(Dx, Dy);
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
 	    zoom(Dy);
 	_Other ->
@@ -226,7 +226,7 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case Buttons band 6 of
 	0 ->					%None of MMB/RMB pressed.
-	    pan(-Dx/10, -Dy/10);
+	    pan(-Dx, -Dy);
 	_Other ->				%MMB and/or RMB pressed.
 	    zoom(Dy)
     end,
@@ -250,13 +250,13 @@ nendo_event(Event, Camera, Redraw, _) ->
     generic_event(Event, Camera, Redraw).
     
 nendo_pan(?SDLK_LEFT) ->
-    nendo_pan(0.1, 0.0);
+    nendo_pan(0.5, 0.0);
 nendo_pan(?SDLK_RIGHT) ->
-    nendo_pan(-0.1, 0.0);
+    nendo_pan(-0.5, 0.0);
 nendo_pan(?SDLK_UP) ->
-    nendo_pan(0.0, 0.1);
+    nendo_pan(0.0, 0.5);
 nendo_pan(?SDLK_DOWN) ->
-    nendo_pan(0.0, -0.1);
+    nendo_pan(0.0, -0.5);
 nendo_pan(_) -> next.
 
 nendo_pan(Dx, Dy) ->
@@ -319,7 +319,7 @@ mirai_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false, View) -
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case Buttons band 4 of
 	0 ->					%MMB pressed.
-	    pan(-Dx/10, -Dy/10);
+	    pan(-Dx, -Dy);
 	_Other ->				%MMB pressed.
 	    zoom(Dy)
     end,
@@ -343,13 +343,13 @@ mirai_event(Event, Camera, Redraw, _, _) ->
     generic_event(Event, Camera, Redraw).
     
 mirai_pan(?SDLK_LEFT) ->
-    mirai_pan(0.1, 0.0);
+    mirai_pan(0.5, 0.0);
 mirai_pan(?SDLK_RIGHT) ->
-    mirai_pan(-0.1, 0.0);
+    mirai_pan(-0.5, 0.0);
 mirai_pan(?SDLK_UP) ->
-    mirai_pan(0.0, 0.1);
+    mirai_pan(0.0, 0.5);
 mirai_pan(?SDLK_DOWN) ->
-    mirai_pan(0.0, -0.1);
+    mirai_pan(0.0, -0.5);
 mirai_pan(_) -> next.
 
 mirai_pan(Dx, Dy) ->
@@ -378,15 +378,19 @@ tds(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
     wings_io:clear_message(),
-    wings_io:message(help()),
-    {seq,{push,dummy},get_tds_event(Camera, Redraw)};
+    wings_io:message(["[R] Cancel  "|help()]),
+    View = wings_view:current(),
+    {seq,{push,dummy},get_tds_event(Camera, Redraw, View)};
 tds(_, _) -> next.
 
-tds_event(#mousebutton{button=1,state=?SDL_RELEASED}=Mb, Camera, Redraw) ->
-    tds_event(Mb#mousebutton{button=2}, Camera, Redraw);
-tds_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, _Redraw) ->
+tds_event(#mousebutton{button=1,state=?SDL_RELEASED}=Mb, Camera, Redraw, View) ->
+    tds_event(Mb#mousebutton{button=2}, Camera, Redraw, View);
+tds_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, _, _) ->
     stop_camera(Camera);
-tds_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
+tds_event(#mousebutton{button=3,state=?SDL_RELEASED}, Camera, _, View) ->
+    wings_view:set_current(View),
+    stop_camera(Camera);
+tds_event(#mousemotion{x=X,y=Y}, Camera0, Redraw, View) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case wings_wm:me_modifiers() of
 	Mod when Mod band ?CTRL_BITS =/= 0, Mod band ?ALT_BITS =/= 0 ->
@@ -394,15 +398,15 @@ tds_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
 	Mod when Mod band ?ALT_BITS =/= 0 ->
 	    rotate(Dx, Dy);
 	_Other ->
-	    pan(Dx/10, Dy/10)
+	    pan(Dx, Dy)
     end,
-    get_tds_event(Camera, Redraw);
-tds_event(Event, Camera, Redraw) ->
+    get_tds_event(Camera, Redraw, View);
+tds_event(Event, Camera, Redraw, _) ->
     generic_event(Event, Camera, Redraw).
 
-get_tds_event(Camera, Redraw) ->
+get_tds_event(Camera, Redraw, View) ->
     wings_wm:dirty(),
-    {replace,fun(Ev) -> tds_event(Ev, Camera, Redraw) end}.
+    {replace,fun(Ev) -> tds_event(Ev, Camera, Redraw, View) end}.
 
 %%%
 %%% Maya style camera.
@@ -434,7 +438,7 @@ maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
 	Buttons band 1 == 1 ->			%LMB
 	    rotate(Dx, Dy);
 	Buttons band 2 == 2 ->			%MMB
-	    pan(Dx/10, Dy/10);
+	    pan(Dx, Dy);
 	true -> ok
     end,
     get_maya_event(Camera, Redraw);
@@ -492,7 +496,10 @@ zoom(Delta0) ->
     Delta = Delta0/10,
     wings_view:set_current(View#view{distance=Dist+Delta}).
 
-pan(Dx, Dy) ->
+pan(Dx0, Dy0) ->
+    S = 25,
+    Dx = Dx0/S,
+    Dy = Dy0/S,
     #view{pan_x=PanX0,pan_y=PanY0} = View = wings_view:current(),
     PanX = PanX0 + Dx,
     PanY = PanY0 - Dy,
