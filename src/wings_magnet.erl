@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.18 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.19 2001/12/28 11:34:03 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -162,8 +162,8 @@ free_move(Dx, Dy, Falloff, DF, Center, VsPos, A) ->
 magnet_move(Falloff, DF, Vec, Center, VsPos, A0) ->
     foldl(fun({V,#vtx{pos=Pos0}=Rec}=Vtx, A) ->
 		  case e3d_vec:dist(Pos0, Center) of
-% 		      Dist0 when Dist0 > Falloff ->
-% 			  [Vtx|A];
+%   		      Dist0 when Dist0 > Falloff ->
+%   			  [Vtx|A];
 		      Dist0 ->
 			  case DF(Dist0, Falloff) of
 			      Dist when Dist < 1.0E-5 ->
@@ -175,41 +175,6 @@ magnet_move(Falloff, DF, Vec, Center, VsPos, A0) ->
 			  end
 		  end
 	  end, A0, VsPos).
-
-% magnet_move([{free,Vs}|Tvs], Dx, Dy, IR, St, OVtab, Vtab0) ->
-%     wings_drag:message([Dx,Dy], distance),
-%     #view{azimuth=Az,elevation=El} = wings_view:current(),
-%     M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
-%     M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
-%     {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx,Dy,0.0}),
-%     Vtab = magnet_move_1({Xt,Yt,Zt}, Vs, IR, OVtab, Vtab0),
-%     magnet_move(Tvs, Dx, Dy, IR, St, OVtab, Vtab);
-% magnet_move([{{Xt0,Yt0,Zt0},Vs}|Tvs], Dx, Dy, IR, St, OVtab, Vtab0) ->
-%     wings_drag:message([Dx], distance),
-%     Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
-%     Vtab = magnet_move_1({Xt,Yt,Zt}, Vs, IR, OVtab, Vtab0),
-%     magnet_move(Tvs, Dx, Dy, IR, St, OVtab, Vtab);
-% magnet_move([], Dx, Dy, IR, St, OVtab, Vtab) -> Vtab.
-
-% magnet_move_1(VtVec, Vs, IR, OVtab, Vtab) ->
-%     foldl(fun(V, Tab) -> 
-% 		  Center = wings_vertex:pos(V, OVtab),
-% 		  magnet_move_2(VtVec, Center, IR, OVtab, Tab)
-% 	  end, Vtab, Vs).
-
-% magnet_move_2(TrVec, Center, {DF,IR}, OVtab, Vtab) ->
-%     wings_util:fold_vertex(
-%       fun (V, #vtx{pos=Pos0}=Vtx, Tab) ->
-% 	      Dist0 = e3d_vec:dist(Pos0, Center),
-% 	      case DF(Dist0, IR) of
-% 		  Dist when Dist < 1.0E-5 -> Tab;
-% 		  Dist ->
-% 		      #vtx{pos=Pos1} = gb_trees:get(V, Vtab),
-% 		      Offset = e3d_vec:mul(TrVec, Dist),
-% 		      Pos = e3d_vec:add(Pos1, Offset),
-% 		      gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
-% 	      end
-%       end, Vtab, OVtab).
 
 %%%
 %%% Pre-defined distance functions.
