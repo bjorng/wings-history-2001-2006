@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.54 2002/05/26 20:12:11 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.55 2002/06/09 18:37:16 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -384,15 +384,23 @@ mirror_weld(N, IterA0, FaceA, IterB0, FaceB, WeOrig, We0) ->
     %% surrounding FaceB.
     {_,EdgeA,RecA0,IterA} = wings_face:next_cw(IterA0),
     {_,EdgeB,RecB0,IterB} = wings_face:next_ccw(IterB0),
+    Col = case RecB0 of
+	      #edge{lf=FaceB,b=Col0} -> Col0;
+	      #edge{rf=FaceB,a=Col0} -> Col0
+	  end,
+    RecA1 = case RecA0 of
+		#edge{lf=FaceA}=R -> R#edge{a=Col};
+		#edge{rf=FaceA}=R -> R#edge{b=Col}
+	    end,
     RecB = turn_edge(RecB0),
     {RecA,Pred,Succ} =
-	case RecA0 of
+	case RecA1 of
 	    #edge{lf=FaceA} ->
-		update_edge(RecA0, RecB,
+		update_edge(RecA1, RecB,
 			    #edge.lf, #edge.ltpr, #edge.ltsu,
 			    #edge.rtpr, #edge.rtsu);
 	    #edge{rf=FaceA} ->
-		update_edge(RecA0, RecB,
+		update_edge(RecA1, RecB,
 			    #edge.rf, #edge.rtpr, #edge.rtsu,
 			    #edge.ltpr, #edge.ltsu)
 	    end,
@@ -425,7 +433,7 @@ mirror_weld(N, IterA0, FaceA, IterB0, FaceB, WeOrig, We0) ->
     Etab = replace_vertex(VendB, VendA, WeOrig, Etab5),
 
     %% Update face table
-    Ftab1 = wings_face:patch_face(wings_face:other(FaceA, RecA0),
+    Ftab1 = wings_face:patch_face(wings_face:other(FaceA, RecA1),
 				  EdgeA, Ftab0),
     Ftab = wings_face:patch_face(wings_face:other(FaceB, RecB), EdgeA, Ftab1),
 
@@ -1076,10 +1084,8 @@ partition_edges(Va, [{Edge,Va,Vb}], Faces, Es0, We, Acc0) ->
     Acc = [Edge|Acc0],
     case gb_trees:lookup(Vb, Es0) of
 	none ->
-	    %%io:format("line:~w, ~w\n", [?LINE,Acc]),
 	    {Acc,Es0};
 	{value,Val} ->
-	    %%io:format("line:~w, ~w\n", [?LINE,{Va,Val}]),
 	    Es = gb_trees:delete(Vb, Es0),
 	    partition_edges(Vb, Val, Faces, Es, We, Acc)
     end;
@@ -1087,7 +1093,6 @@ partition_edges(Va, [Val|More], Faces, Es0, We, []) ->
     Es = gb_trees:insert(Va, More, Es0),
     partition_edges(Va, [Val], Faces, Es, We, []);
 partition_edges(Va, Edges, Faces, Es, We, Acc) ->
-    %%io:format("line:~w, ~w\n", [?LINE,{Va,Edges}]),
     part_try_all_edges(Va, Edges, Faces, Es, We, Acc, [], none).
     
 %% Here we have multiple choices of edges. Use the shortest path
