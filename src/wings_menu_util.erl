@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.7 2002/03/18 06:15:00 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.8 2002/03/19 09:29:22 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -228,7 +228,8 @@ move_axis_fun(Axis, Ns) ->
     Help = dir_help(Axis, Ns),
     F = fun(1, _) -> wings_menu:build_command(Vec, Ns);
 	   (2, _) -> ignore;
-	   (3, _) -> ignore
+	   (3, _) -> ignore;
+	   ({magnet,_}, _) -> {vector,{pick,[magnet],[Vec],Ns}}
 	end,
     {wings_util:stringify(Axis),F,Help,magnet_props(Axis, Ns)}.
 
