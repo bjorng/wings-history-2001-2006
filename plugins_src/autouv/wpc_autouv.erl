@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.225 2004/05/02 13:29:44 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.226 2004/05/02 14:35:05 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -631,9 +631,8 @@ update_selection(#st{selmode=Mode,sel=Sel}=St0,
 
 update_selection_1(vertex, Vs, Charts) ->
     vertex_sel_to_vertex(Charts, Vs, []);
-update_selection_1(edge, _, _) ->
-    io:format("~p\n", [?LINE]),
-    [];
+update_selection_1(edge, Es, Charts) ->
+    edge_sel_to_edge(Charts, Es, []);
 update_selection_1(face, Faces, Charts) ->
     face_sel_to_face(Charts, Faces, []).
 
@@ -660,6 +659,22 @@ vertex_sel_to_vertex([{K,#we{vp=Vtab}=We}|Cs], Vs, Sel) ->
 	    vertex_sel_to_vertex(Cs, Vs, [{K,VertexSel}|Sel])
     end;
 vertex_sel_to_vertex([], _, Sel) -> Sel.
+
+edge_sel_to_edge([{K,#we{es=Etab}=We}|Cs], Es, Sel) ->
+    Vis = gb_sets:from_ordset(wings_we:visible(We)),
+    ChartEs0 = [E || {E,#edge{lf=Lf,rf=Rf}} <- gb_trees:to_list(Etab),
+		     gb_sets:is_member(Lf, Vis) orelse
+			 gb_sets:is_member(Rf, Vis)],
+    ChartEs = auv2geom_edges(ChartEs0, We),
+    case ordsets:intersection(ChartEs, Es) of
+ 	[] ->
+	    edge_sel_to_edge(Cs, Es, Sel);
+	EdgeSel0 ->
+	    EdgeSel1 = geom2auv_edges(EdgeSel0, We),
+	    EdgeSel = gb_sets:from_list(EdgeSel1),
+	    edge_sel_to_edge(Cs, Es, [{K,EdgeSel}|Sel])
+    end;
+edge_sel_to_edge([], _, Sel) -> Sel.
 
 %% update_body_sel(SelModeInGeom, Elems, Charts) -> Selection
 %%  Convert the selection from the geoemetry window to
@@ -920,3 +935,9 @@ geom2auv_vs_1([V|Vs], VsSet, Vmap, Acc) ->
 	false -> geom2auv_vs_1(Vs, VsSet, Vmap, Acc)
     end;
 geom2auv_vs_1([], _, _, Acc) -> sort(Acc).
+
+auv2geom_edges(Es, We) ->
+    Es.
+
+geom2auv_edges(Es, We) ->
+    Es.
