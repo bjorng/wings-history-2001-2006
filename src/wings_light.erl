@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.27 2003/01/17 22:51:16 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.28 2003/01/19 05:43:42 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -148,7 +148,7 @@ info1(point, _, _) -> [];
 info1(Type, Pos, #light{aim=Aim,spot_angle=A}) ->
     {Ax,Ay,Az} = Aim,
     {Dx,Dy,Dz} = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
-    Info = io_lib:format(". Aim ~s ~s ~s. Dir ~s ~s ~s\n",
+    Info = io_lib:format(". Aim ~s ~s ~s. Dir ~s ~s ~s",
 			 [wings_util:nice_float(Ax),
 			  wings_util:nice_float(Ay),
 			  wings_util:nice_float(Az),
@@ -156,7 +156,7 @@ info1(Type, Pos, #light{aim=Aim,spot_angle=A}) ->
 			  wings_util:nice_float(Dy),
 			  wings_util:nice_float(Dz)]),
     [Info|case Type of
-	      spot -> io_lib:format(". Angle ~s~c\n",
+	      spot -> io_lib:format(". Angle ~s~c",
 				    [wings_util:nice_float(A),?DEGREE]);
 	      _ -> []
 	  end].
