@@ -3,18 +3,18 @@
 %%
 %%     Operations on matrices.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.9 2001/11/22 09:04:30 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.10 2002/02/26 12:57:25 bjorng Exp $
 %%
 
 -module(e3d_mat).
 
 -export([identity/0,compress/1,expand/1,
-	 translate/1,translate/3,scale/1,scale/3,rotate/2,
+	 translate/1,translate/3,scale/1,scale/3,rotate/2,rotate_to_z/1,
 	 mul/2,mul_point/2,mul_vector/2]).
 
 identity() ->
@@ -52,7 +52,7 @@ scale(Sx, Sy, Sz) ->
      Zero,Zero,Sz,
      Zero,Zero,Zero}.
 
-rotate(A0, {X,Y,Z}=Vec) when float(X), float(Y), float(Z) ->
+rotate(A0, {X,Y,Z}=Vec) when is_float(X), is_float(Y), is_float(Z) ->
     A = A0*3.1416/180,
     CosA = math:cos(A),
     SinA = math:sin(A),
@@ -84,14 +84,31 @@ rot_sub([], []) -> [].
 rot_mul([H|T], C) -> [H*C|rot_mul(T, C)];
 rot_mul([], C) -> [].
 
+
+rotate_to_z(Vec) ->
+    {Vx,Vy,Vz} = V =
+	case e3d_vec:norm(Vec) of
+	    {Wx,Wy,Wz}=W when abs(Wx) < abs(Wy), abs(Wx) < abs(Wz) ->
+		e3d_vec:norm(0.0, Wz, -Wy);
+	    {Wx,Wy,Wz}=W when abs(Wy) < abs(Wz) ->
+		e3d_vec:norm(Wz, 0.0, -Wx);
+	    {Wx,Wy,Wz}=W ->
+		e3d_vec:norm(Wy, -Wx, 0.0)
+	end,
+    {Ux,Uy,Uz} = e3d_vec:cross(V, W),
+    {Ux,Uy,Uz,
+     Vx,Vy,Vz,
+     Wx,Wy,Wz,
+     0.0,0.0,0.0}.
+
 mul({B_a,B_b,B_c,B_d,B_e,B_f,B_g,B_h,B_i,B_tx,B_ty,B_tz},
     {A_a,A_b,A_c,A_d,A_e,A_f,A_g,A_h,A_i,A_tx,A_ty,A_tz})
-  when float(A_a), float(A_b), float(A_c), float(A_d), float(A_e),
-       float(A_f), float(A_g), float(A_h), float(A_i), float(A_tx),
-       float(A_ty), float(A_tz),
-       float(B_a), float(B_b), float(B_c), float(B_d), float(B_e),
-       float(B_f), float(B_g), float(B_h), float(B_i), float(B_tx),
-       float(B_ty), float(B_tz) ->
+  when is_float(A_a), is_float(A_b), is_float(A_c), is_float(A_d), is_float(A_e),
+       is_float(A_f), is_float(A_g), is_float(A_h), is_float(A_i), is_float(A_tx),
+       is_float(A_ty), is_float(A_tz),
+       is_float(B_a), is_float(B_b), is_float(B_c), is_float(B_d), is_float(B_e),
+       is_float(B_f), is_float(B_g), is_float(B_h), is_float(B_i), is_float(B_tx),
+       is_float(B_ty), is_float(B_tz) ->
     {A_a*B_a + A_b*B_d + A_c*B_g,
      A_a*B_b + A_b*B_e + A_c*B_h,
      A_a*B_c + A_b*B_f + A_c*B_i,
@@ -105,42 +122,42 @@ mul({B_a,B_b,B_c,B_d,B_e,B_f,B_g,B_h,B_i,B_tx,B_ty,B_tz},
      A_tx*B_b + A_ty*B_e + A_tz*B_h + B_ty,
      A_tx*B_c + A_ty*B_f + A_tz*B_i + B_tz};
 mul({A,B,C,Q0,D,E,F,Q1,G,H,I,Q2,Tx,Ty,Tz,Q3}, {X,Y,Z,W})
-  when float(A), float(B), float(C), float(D), float(E),
-       float(F), float(G), float(H), float(I), 
-       float(Tx), float(Ty), float(Tz),
-       float(Q0), float(Q1), float(Q2), float(Q3),
-       float(X), float(Y), float(Z) ->
+  when is_float(A), is_float(B), is_float(C), is_float(D), is_float(E),
+       is_float(F), is_float(G), is_float(H), is_float(I), 
+       is_float(Tx), is_float(Ty), is_float(Tz),
+       is_float(Q0), is_float(Q1), is_float(Q2), is_float(Q3),
+       is_float(X), is_float(Y), is_float(Z) ->
     {X*A + Y*D + Z*G + W*Tx,
      X*B + Y*E + Z*H + W*Ty,
      X*C + Y*F + Z*I + W*Tz,
      X*Q0 + Y*Q1 + Z*Q2 + W*Q3}.
 
 mul_point({A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}, {X,Y,Z})
-  when float(A), float(B), float(C), float(D), float(E),
-       float(F), float(G), float(H), float(I), 
-       float(Tx), float(Ty), float(Tz), float(X), float(Y), float(Z) ->
+  when is_float(A), is_float(B), is_float(C), is_float(D), is_float(E),
+       is_float(F), is_float(G), is_float(H), is_float(I), 
+       is_float(Tx), is_float(Ty), is_float(Tz), is_float(X), is_float(Y), is_float(Z) ->
     share(X*A + Y*D + Z*G + Tx,
 	  X*B + Y*E + Z*H + Ty,
 	  X*C + Y*F + Z*I + Tz);
 mul_point({A,B,C,0.0,D,E,F,0.0,G,H,I,0.0,Tx,Ty,Tz,1.0}, {X,Y,Z})
-  when float(A), float(B), float(C), float(D), float(E),
-       float(F), float(G), float(H), float(I), 
-       float(Tx), float(Ty), float(Tz), float(X), float(Y), float(Z) ->
+  when is_float(A), is_float(B), is_float(C), is_float(D), is_float(E),
+       is_float(F), is_float(G), is_float(H), is_float(I), 
+       is_float(Tx), is_float(Ty), is_float(Tz), is_float(X), is_float(Y), is_float(Z) ->
     share(X*A + Y*D + Z*G + Tx,
 	  X*B + Y*E + Z*H + Ty,
 	  X*C + Y*F + Z*I + Tz).
 
 mul_vector({A,B,C,D,E,F,G,H,I,Tx,Ty,Tz}, {X,Y,Z})
-  when float(A), float(B), float(C), float(D), float(E),
-       float(F), float(G), float(H), float(I), 
-       float(Tx), float(Ty), float(Tz), float(X), float(Y), float(Z) ->
+  when is_float(A), is_float(B), is_float(C), is_float(D), is_float(E),
+       is_float(F), is_float(G), is_float(H), is_float(I), 
+       is_float(Tx), is_float(Ty), is_float(Tz), is_float(X), is_float(Y), is_float(Z) ->
     share(X*A + Y*D + Z*G,
 	  X*B + Y*E + Z*H,
 	  X*C + Y*F + Z*I);
 mul_vector({A,B,C,0.0,D,E,F,0.0,G,H,I,0.0,Tx,Ty,Tz,1.0}, {X,Y,Z})
-  when float(A), float(B), float(C), float(D), float(E),
-       float(F), float(G), float(H), float(I), 
-       float(Tx), float(Ty), float(Tz), float(X), float(Y), float(Z) ->
+  when is_float(A), is_float(B), is_float(C), is_float(D), is_float(E),
+       is_float(F), is_float(G), is_float(H), is_float(I), 
+       is_float(Tx), is_float(Ty), is_float(Tz), is_float(X), is_float(Y), is_float(Z) ->
     share(X*A + Y*D + Z*G,
 	  X*B + Y*E + Z*H,
 	  X*C + Y*F + Z*I).

@@ -3,19 +3,19 @@
 %%
 %%     Arithmetic on vectors and points (represented as three-tuples).
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.8 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.9 2002/02/26 12:57:26 bjorng Exp $
 %%
 
 -module(e3d_vec).
 
 -export([zero/0,is_zero/1,add/1,add/2,sub/1,sub/2,mul/2,divide/2,neg/1,
-	 dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,normal/3,
-	 average/1]).
+	 dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,norm/3,
+	 normal/3,average/1]).
 -compile({inline,[{norm,3}]}).
 
 zero() ->
@@ -24,31 +24,31 @@ zero() ->
 is_zero({0.0,0.0,0.0}) -> true;
 is_zero(_) -> false.
 
-add({V10,V11,V12}, {V20,V21,V22}) when float(V10), float(V11), float(V12),
-				       float(V20), float(V21), float(V22) ->
+add({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12),
+				       is_float(V20), is_float(V21), is_float(V22) ->
     {V10+V20,V11+V21,V12+V22}.
 
 add([{V10,V11,V12}|T]) ->
     add(T, V10, V11, V12).
 
 add([{V10,V11,V12},{V20,V21,V22},{V30,V31,V32}|T], A0, A1, A2)
-  when float(V10), float(V11), float(V12),
-       float(V20), float(V21), float(V22),
-       float(V30), float(V31), float(V32),
-       float(A0), float(A1), float(A2) ->
+  when is_float(V10), is_float(V11), is_float(V12),
+       is_float(V20), is_float(V21), is_float(V22),
+       is_float(V30), is_float(V31), is_float(V32),
+       is_float(A0), is_float(A1), is_float(A2) ->
     add(T, A0+V10+V20+V30, A1+V11+V21+V31, A2+V12+V22+V32);
 add([{V10,V11,V12},{V20,V21,V22}|T], A0, A1, A2)
-  when float(V10), float(V11), float(V12),
-       float(V20), float(V21), float(V22),
-       float(A0), float(A1), float(A2) ->
+  when is_float(V10), is_float(V11), is_float(V12),
+       is_float(V20), is_float(V21), is_float(V22),
+       is_float(A0), is_float(A1), is_float(A2) ->
     add(T, A0+V10+V20, A1+V11+V21, A2+V12+V22);
-add([{V10,V11,V12}|T], A0, A1, A2) when float(V10), float(V11), float(V12),
-					float(A0), float(A1), float(A2) ->
+add([{V10,V11,V12}|T], A0, A1, A2) when is_float(V10), is_float(V11), is_float(V12),
+					is_float(A0), is_float(A1), is_float(A2) ->
     add(T, A0+V10, A1+V11, A2+V12);
 add([], A0, A1, A2) -> {A0,A1,A2}.
 
-sub({V10,V11,V12}, {V20,V21,V22}) when float(V10), float(V11), float(V12),
-				       float(V20), float(V21), float(V22) ->
+sub({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12),
+				       is_float(V20), is_float(V21), is_float(V22) ->
     {V10-V20,V11-V21,V12-V22}.
 
 sub([{V10,V11,V12}|T]) ->
@@ -58,32 +58,32 @@ sub(A0, A1, A2, [{V10,V11,V12}|T]) ->
     sub(A0-V10, A1-V11, A2-V12, T);
 sub(A0, A1, A2, []) -> {A0,A1,A2}.
 
-mul({V10,V11,V12}, S) when float(V10), float(V11), float(V12), float(S) ->
+mul({V10,V11,V12}, S) when is_float(V10), is_float(V11), is_float(V12), is_float(S) ->
     {V10*S,V11*S,V12*S}.
 
-divide({V10,V11,V12}, S) when float(V10), float(V11), float(V12), float(S) ->
+divide({V10,V11,V12}, S) when is_float(V10), is_float(V11), is_float(V12), is_float(S) ->
     {V10/S,V11/S,V12/S}.
 
 neg({X,Y,Z}) -> {-X,-Y,-Z}.
 
-dot({V10,V11,V12}, {V20,V21,V22}) when float(V10), float(V11), float(V12),
-				       float(V20), float(V21), float(V22) ->
+dot({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12),
+				       is_float(V20), is_float(V21), is_float(V22) ->
     V10*V20 + V11*V21 + V12*V22.
 
-cross({V10,V11,V12}, {V20,V21,V22}) when float(V10), float(V11), float(V12),
-					 float(V20), float(V21), float(V22) ->
+cross({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12),
+					 is_float(V20), is_float(V21), is_float(V22) ->
     {V11*V22-V12*V21,V12*V20-V10*V22,V10*V21-V11*V20}.
 
 norm_cross({V10,V11,V12}, {V20,V21,V22})
-  when float(V10), float(V11), float(V12),
-       float(V20), float(V21), float(V22) ->
+  when is_float(V10), is_float(V11), is_float(V12),
+       is_float(V20), is_float(V21), is_float(V22) ->
     norm(V11*V22-V12*V21, V12*V20-V10*V22, V10*V21-V11*V20).
 
-len({X,Y,Z}) when float(X), float(Y), float(Z) ->
+len({X,Y,Z}) when is_float(X), is_float(Y), is_float(Z) ->
     math:sqrt(X*X+Y*Y+Z*Z).
 
-dist({V10,V11,V12}, {V20,V21,V22}) when float(V10), float(V11), float(V12),
-					float(V20), float(V21), float(V22) ->
+dist({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V12),
+					is_float(V20), is_float(V21), is_float(V22) ->
     X = V10-V20,
     Y = V11-V21,
     Z = V12-V22,
@@ -92,7 +92,7 @@ dist({V10,V11,V12}, {V20,V21,V22}) when float(V10), float(V11), float(V12),
 norm({V1,V2,V3}) ->
     norm(V1, V2, V3).
 
-norm(V1, V2, V3) when float(V1), float(V2), float(V3) ->
+norm(V1, V2, V3) when is_float(V1), is_float(V2), is_float(V3) ->
     D = math:sqrt(V1*V1+V2*V2+V3*V3),
     case catch {V1/D,V2/D,V3/D} of
 	{'EXIT',_} -> {0.0,0.0,0.0};
@@ -100,9 +100,9 @@ norm(V1, V2, V3) when float(V1), float(V2), float(V3) ->
     end.
 
 normal({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32})
-  when float(V10), float(V11), float(V12),
-       float(V20), float(V21), float(V22),
-       float(V30), float(V31), float(V32) ->
+  when is_float(V10), is_float(V11), is_float(V12),
+       is_float(V20), is_float(V21), is_float(V22),
+       is_float(V30), is_float(V31), is_float(V32) ->
     D10 = V10-V20,
     D11 = V11-V21,
     D12 = V12-V22,
@@ -124,20 +124,20 @@ average([{V10,V11,V12}|T]=All) ->
     average(T, V10, V11, V12, length(All)).
 
 average([{V10,V11,V12},{V20,V21,V22},{V30,V31,V32}|T], A0, A1, A2, L)
-  when float(V10), float(V11), float(V12),
-       float(V20), float(V21), float(V22),
-       float(V30), float(V31), float(V32),
-       float(A0), float(A1), float(A2) ->
+  when is_float(V10), is_float(V11), is_float(V12),
+       is_float(V20), is_float(V21), is_float(V22),
+       is_float(V30), is_float(V31), is_float(V32),
+       is_float(A0), is_float(A1), is_float(A2) ->
     average(T, A0+V10+V20+V30, A1+V11+V21+V31, A2+V12+V22+V32, L);
 average([{V10,V11,V12},{V20,V21,V22}|T], A0, A1, A2, L)
-  when float(V10), float(V11), float(V12),
-       float(V20), float(V21), float(V22),
-       float(A0), float(A1), float(A2) ->
+  when is_float(V10), is_float(V11), is_float(V12),
+       is_float(V20), is_float(V21), is_float(V22),
+       is_float(A0), is_float(A1), is_float(A2) ->
     average(T, A0+V10+V20, A1+V11+V21, A2+V12+V22, L);
 average([{V10,V11,V12}|T], A0, A1, A2, L)
-  when float(V10), float(V11), float(V12),
-       float(A0), float(A1), float(A2) ->
+  when is_float(V10), is_float(V11), is_float(V12),
+       is_float(A0), is_float(A1), is_float(A2) ->
     average(T, A0+V10, A1+V11, A2+V12, L);
 average([], A0, A1, A2, L0) ->
-    L = float(L0),
+    L = is_float(L0),
     {A0/L,A1/L,A2/L}.
