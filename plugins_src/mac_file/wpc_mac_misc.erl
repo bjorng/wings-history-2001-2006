@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_mac_misc.erl,v 1.2 2004/08/28 07:59:15 bjorng Exp $
+%%     $Id: wpc_mac_misc.erl,v 1.3 2004/12/14 06:41:58 bjorng Exp $
 %%
 
 -module(wpc_mac_misc).
@@ -23,7 +23,7 @@ menu({file}, Menu) ->
     add_our_stuff(Menu);
 menu(_, Menu) -> Menu.
 
-add_our_stuff([{_,install_plugin}|_]=Menu) ->
+add_our_stuff([{_,install_plugin,_}|_]=Menu) ->
     %% Preferred location.
     mac_stuff([separator|Menu]);
 add_our_stuff([{_,quit}|_]=Menu) ->
