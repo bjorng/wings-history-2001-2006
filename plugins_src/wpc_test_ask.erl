@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.9 2003/11/13 10:12:39 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.10 2003/11/16 23:59:07 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -186,7 +186,7 @@ large_dialog_r() ->
       {color,{1.0,0.0,0.0},[{hook,disable_hook(c)}]},
       {color,{0.0,1.0,0.0,1.0}},
       {menu,[{"Alt 1",1},{"Alt 2",2},{"Alt 3",3}],d,3,
-       [{key,menu},{hook,disable_hook(c)}]},
+       [{key,menu},{hook,disable_hook(c)},{info,info(c)}]},
       {hframe,[{color,{0.0,0.0,1.0}},panel]},
       {hframe,[{text,1.23},
 	       {button,"Ok",ok,[{hook,disable_hook(c)}]}]},
@@ -194,13 +194,15 @@ large_dialog_r() ->
        [{hook,fun (menu_disabled, {_Var,_I,Sto}) ->
 		      case gb_trees:get(c, Sto) of
 			  true -> [];
-			  _ -> [b]
+			  _ -> [{b,[{info,info(c)}]}]
 		      end;
 		  (_, _) -> void
-	      end}]}
+	      end},
+       {info,"Partly disabled menu"}]}
      ],[{title,"Right vframe"},{minimized,false}]}.
 
-
+info(c) -> "Requires \"Checkbox key\" checked".
+    
 
 color_update(T, {K1,K2}, {Ka,Kb,Kc}) ->
     fun (update, {_Key,Val,Store0}) ->

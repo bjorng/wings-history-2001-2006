@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.93 2003/11/13 18:46:44 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.94 2003/11/16 23:59:08 raimo_niskanen Exp $
 %%
 
 -module(wings_camera).
@@ -100,7 +100,9 @@ settings() ->
 
 
 mouse_buttons(DI) ->
-    {menu,[{"One",1},{"Two",2},{"Three",3}],
+    {menu,[{desc(1),1,[{info,info(1)}]},
+	   {desc(2),2,[{info,info(2)}]},
+	   {desc(3),3,[{info,info(3)}]}],
      wings_pref:get_value(num_buttons),
      [{hook,fun (update, {_Var,I,Val,Sto}) ->
 		    Mode0 = gb_trees:get(I+DI, Sto),
@@ -119,7 +121,7 @@ mouse_buttons(DI) ->
 
 camera_modes(DI) ->
     Modes = [mirai,nendo,maya,tds,blender,mb],
-    {menu,[{desc(Mode),Mode} || Mode <- Modes],
+    {menu,[{desc(Mode),Mode,[{info,info(Mode)}]} || Mode <- Modes],
      wings_pref:get_value(camera_mode),
      [{hook,fun (menu_disabled, {_Var,I,Sto}) ->
  		    case gb_trees:get(I+DI, Sto) of
@@ -130,12 +132,25 @@ camera_modes(DI) ->
 		(_, _) -> void
 	    end}]}.
 
+desc(1) -> "One";
+desc(2) -> "Two";
+desc(3) -> "Three";
 desc(blender) -> "Blender";
 desc(nendo) -> "Nendo";
 desc(mirai) -> "Mirai";
 desc(tds) -> "3ds max";
 desc(maya) -> "Maya";
 desc(mb) -> "Motionbuilder".
+
+info(1) -> "\""++desc(1)++"\" requires \""++desc(nendo)++"\" Camera Mode";
+info(2) -> "\""++desc(2)++"\" requires \""
+	       ++desc(nendo)++"\" or \""++desc(blender)++"\" Camera Modes";
+info(3) -> "";
+info(nendo) -> "";
+info(blender) -> "\""++desc(blender)++"\" requires at least \""
+		     ++desc(2)++"\" Mouse Buttons";
+info(Mode) -> "\""++desc(Mode)++"\" requires at least \""
+		  ++desc(3)++"\" Mouse Buttons".
 
 help() ->
     case wings_pref:get_value(camera_mode) of

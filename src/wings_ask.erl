@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.121 2003/11/16 18:18:30 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.122 2003/11/16 23:59:08 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -253,7 +253,7 @@ event({action,Action}, S) ->
     field_event(Action, S);
 event({picked_color,Col}, #s{store=Sto0}=S) ->
     [#fi{key=K,index=I,hook=Hook}|_] = get_eyepicker(S),
-    case Hook(update, {K,I,Col,Sto0}) of
+    case Hook(update, {var(K, I),I,Col,Sto0}) of
 	void -> keep;
 	keep -> keep;
 	{store,Sto0} -> keep;
@@ -323,25 +323,25 @@ mouse_event(Ev=#mousebutton{x=X0,y=Y0,state=State},
 	    end;
 	?SDL_PRESSED ->
 	    case mouse_to_field(X, Y, TopFi) of
-		[] -> get_event(S0#s{mouse_focus=false});
-		Path ->
+		Path=[#fi{inert=false,disabled=false}|_] ->
 		    S = set_focus(Path, S0, true),
 		    case field_event(Ev#mousebutton{x=X,y=Y}, S, Path) of
 			keep -> get_event(S);
 			Other -> Other
-		    end
+		    end;
+		_ -> get_event(S0#s{mouse_focus=false})
 	    end
     end.
 
 drop_event(X, Y, DropData, #s{ox=Ox,oy=Oy,fi=TopFi}=S0) ->
     case mouse_to_field(X-Ox, Y-Oy, TopFi) of
-	[] -> get_event(S0#s{mouse_focus=false});
-	Path ->
+	Path=[#fi{inert=false,disabled=false}|_] ->
 	    S = set_focus(Path, S0, true),
 	    case field_event({drop,DropData}, S, Path) of
 		keep -> get_event(S);
 		Other -> Other
-	    end
+	    end;
+	_ -> get_event(S0#s{mouse_focus=false})
     end.
 
 
@@ -383,16 +383,23 @@ set_focus(NewPath=[#fi{index=NewIndex,handler=NewHandler}|_],
 field_event(Ev=#mousemotion{x=X,y=Y,state=Bst}, S=#s{fi=Fi})
   when (Bst band ?BUTTON_MASK) =:= 0 ->
     case mouse_to_field(X, Y, Fi) of
-	[] ->
-	    wings_wm:allow_drag(false),
-	    wings_wm:message("");
-	Path=[#fi{flags=Flags,extra=Extra}|_] ->
+	Path=[#fi{index=_I,inert=Inert,disabled=Disabled,
+		  flags=Flags,extra=Extra}|_] ->
 	    ?DEBUG_DISPLAY({field_event,[_I,Ev]}),
-	    wings_wm:allow_drag(member(drag, Flags)),
+	    Enabled = (not Inert) and (not Disabled),
+	    wings_wm:allow_drag(Enabled andalso member(drag, Flags)),
 	    case Extra of
-		#container{} -> field_event(Ev, S, Path);
-		_ -> wings_wm:message("")
-	    end
+		#container{} when Enabled -> field_event(Ev, S, Path);
+		#container{} -> wings_wm:message("");
+		_ -> 
+		    case proplists:get_value(info, Flags) of
+			undefined -> wings_wm:message("");
+			Info -> wings_wm:message(Info)
+		    end
+	    end;
+	_ ->
+	    wings_wm:allow_drag(false),
+	    wings_wm:message("")
     end, keep;
 field_event({key,_,_,_}=Ev, S=#s{focus=I,fi=Fi}) ->
     %% Key events should always be sent, even if there
@@ -623,8 +630,7 @@ mouse_to_field(X, Y,
 	       Path)
   when Minimized =/= true, X0 =< X, X < X0+W, Y0 =< Y, Y < Y0+H ->
     mouse_to_field(X, Y, Fields, Path, Type);
-mouse_to_field(X, Y, #fi{inert=false,disabled=false,
-			 x=X0,y=Y0,w=W,h=H}, 
+mouse_to_field(X, Y, #fi{x=X0,y=Y0,w=W,h=H}, 
 	       Path)
   when X0 =< X, X < X0+W, Y0 =< Y, Y < Y0+H ->
     Path;
@@ -806,7 +812,7 @@ mktree_container(Qs, Sto0, I0, Flags, Type) ->
     {Fields,Sto1,I} = mktree_container(Qs, Sto0, I0+1, []),
     Minimized = proplists:get_value(minimized, Flags),
     Key = proplists:get_value(key, Flags, 0),
-    Sto2 = gb_trees:insert(key(Key, I0), Minimized, Sto1),
+    Sto2 = gb_trees:insert(var(Key, I0), Minimized, Sto1),
     Sto = gb_trees:insert(-I0, Type, Sto2),
     {#fi{handler=fun frame_event/3,
 	 key=Key,
@@ -874,7 +880,7 @@ layout(Fi=#fi{extra=#leaf{w=W,h=H}}, _Sto, X, Y) ->
 layout(Fi=#fi{key=Key,index=Index,flags=Flags,
 	      extra=Container=#container{type=Type,fields=Fields0}}, 
        Sto, X0, Y0) ->
-    Minimized = gb_trees:get(key(Key, Index), Sto),
+    Minimized = gb_trees:get(var(Key, Index), Sto),
     Title = proplists:get_value(title, Flags),
     {X1,Y1} = 
 	case {Title,Minimized} of
@@ -982,7 +988,7 @@ minimize_siblings(I, Fields, Index, Sto0) when I =< size(Fields) ->
     case element(I, Fields) of
 	#fi{key=Key,index=Ix,extra=#container{minimized=false}} 
 	when Ix =/= Index -> 
-	    Sto = gb_trees:update(key(Key, Ix), true, Sto0),
+	    Sto = gb_trees:update(var(Key, Ix), true, Sto0),
 	    minimize_siblings(I+1, Fields, Index, Sto);
 	#fi{} -> minimize_siblings(I+1, Fields, Index, Sto0)
     end;
@@ -1017,14 +1023,14 @@ frame_event({redraw,Active},
 	    [Fi=#fi{key=Key,index=I,hook=Hook,
 		    extra=#container{minimized=Minimized}}|_],
 	    Store) ->
-    DisEnable = hook(Hook, is_disabled, [key(Key, I), I, Store]),
+    DisEnable = hook(Hook, is_disabled, [var(Key, I), I, Store]),
     frame_redraw(Active, Fi, DisEnable, Minimized);
 frame_event(#mousemotion{x=Xm,y=Ym,state=Bst},
 	    [#fi{key=Key,index=I,inert=false,disabled=false,x=X,y=Y}|_],
 	    Store) when (Bst band ?BUTTON_MASK) =:= 0 ->
     case inside(Xm, Ym, X, Y+3, 10, ?CHAR_HEIGHT) of
 	true ->
-	    Minimized = gb_trees:get(key(Key, I), Store),
+	    Minimized = gb_trees:get(var(Key, I), Store),
 	    case Minimized of
 		true ->
 		    wings_util:button_message(
@@ -1066,8 +1072,8 @@ frame_event({key,_,Mod,$\s},
 		if  ?IS_SHIFTED(Mod) -> Store0;
 		    true -> minimize_siblings(Path, Store0)
 		end,
-	    {layout,gb_trees:update(key(Key, I), false, Store)};
-	false -> {layout,gb_trees:update(key(Key, I), true, Store0)}
+	    {layout,gb_trees:update(var(Key, I), false, Store)};
+	false -> {layout,gb_trees:update(var(Key, I), true, Store0)}
     end;
 frame_event(_Ev, _Path, _Store) -> keep.
 
@@ -1220,17 +1226,17 @@ checkbox(Label, Val) ->
 
 cb_event(init, [#fi{key=Key,index=I}|_], Store) ->
     #cb{val=Val} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(key(Key, I), Val, Store)};
+    {store,gb_trees:enter(var(Key, I), Val, Store)};
 cb_event(value, [#fi{key=Key,index=I}|_], Store) ->
-    {value,gb_trees:get(key(Key, I), Store)};
+    {value,gb_trees:get(var(Key, I), Store)};
 cb_event({redraw,Active}, [Fi=#fi{key=Key,index=I,hook=Hook}|_], Store) ->
     Cb = gb_trees:get(-I, Store),
-    K = key(Key, I),
+    K = var(Key, I),
     Val = gb_trees:get(K, Store),
     DisEnable = hook(Hook, is_disabled, [K, I, Store]),
     cb_draw(Active, Fi, Cb, Val, DisEnable);
 cb_event({key,_,_,$\s}, [#fi{key=Key,index=I}|_], Store) ->
-    K = key(Key, I),
+    K = var(Key, I),
     Val = gb_trees:get(K, Store),
     {store,gb_trees:update(K, not Val, Store)};
 cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED,button=1}, 
@@ -1238,7 +1244,7 @@ cb_event(#mousebutton{x=Xb,state=?SDL_PRESSED,button=1},
     #cb{labelw=LblW,spacew=SpaceW} = gb_trees:get(-I, Store),
     if
 	Xb-X < LblW+4*SpaceW ->
-	    K = key(Key, I),
+	    K = var(Key, I),
 	    Val = gb_trees:get(K, Store),
 	    {store,gb_trees:update(K, not Val, Store)};
 	true -> keep
@@ -1291,17 +1297,17 @@ radiobutton(Var, Def, Label, Val) ->
 rb_event(init, [#fi{index=I}|_], Store) ->
     #rb{var=Var,def=Def,val=Val} = gb_trees:get(-I, Store),
     case Val of
-	Def -> {store,gb_trees:enter(key(Var, I), Val, Store)};
+	Def -> {store,gb_trees:enter(var(Var, I), Val, Store)};
 	_ -> keep
     end;
 rb_event({redraw,Active}, [Fi=#fi{hook=Hook,index=I}|_], Store) ->
     Rb = #rb{var=Var} = gb_trees:get(-I, Store),
-    Key = key(Var, I),
+    Key = var(Var, I),
     DisEnable = hook(Hook, is_disabled, [Key, I, Store]),
     rb_draw(Active, Fi, Rb, gb_trees:get(Key, Store), DisEnable);
 rb_event(value, [#fi{index=I}|_], Store) ->
     #rb{var=Var,val=Val} = gb_trees:get(-I, Store),
-    case gb_trees:get(key(Var, I), Store) of
+    case gb_trees:get(var(Var, I), Store) of
 	Val -> {value,Val};
 	_ -> none
     end;
@@ -1381,7 +1387,7 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
     DisEnable.
 
 rb_set(#fi{key=Key}, #rb{val=Val}, I, Store) ->
-    {store,gb_trees:update(key(Key, I), Val, Store)}.
+    {store,gb_trees:update(var(Key, I), Val, Store)}.
 
 
 %%%
@@ -1394,7 +1400,11 @@ rb_set(#fi{key=Key}, #rb{val=Val}, I, Store) ->
 	 menu
 	}).
 
-menu(Menu, Var, Def) ->
+menu(Menu0, Var, Def) ->
+    Menu = [case X of
+		{D,V} -> {D,V,[]};
+		{_,_,F}=DVF when list(F) -> DVF 
+	    end || X <- Menu0],
     W = menu_width(Menu, 0) + 2*wings_text:width(" ") + 10,
     M = #menu{var=Var,def=Def,menu=Menu},
     Fun = fun menu_event/3,
@@ -1402,35 +1412,35 @@ menu(Menu, Var, Def) ->
 
 menu_event({redraw,Active}, [Fi=#fi{hook=Hook,index=I}|_], Store) ->
     M = #menu{var=Var} = gb_trees:get(-I, Store),
-    Key = key(Var, I),
+    Key = var(Var, I),
     DisEnable = hook(Hook, is_disabled, [Key, I, Store]),
     menu_draw(Active, Fi, M, gb_trees:get(Key, Store), DisEnable);
 menu_event(init, [#fi{index=I}|_], Store) ->
     #menu{var=Var,def=Def} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(key(Var, I), Def, Store)};
+    {store,gb_trees:enter(var(Var, I), Def, Store)};
 menu_event(value, [#fi{index=I}|_], Store) ->
     #menu{var=Var} = gb_trees:get(-I, Store),
-    {value,gb_trees:get(key(Var, I), Store)};
+    {value,gb_trees:get(var(Var, I), Store)};
 menu_event({key,_,_,$\s}, [Fi=#fi{hook=Hook,index=I}|_], Store) ->
     M = #menu{var=Var} = gb_trees:get(-I, Store),
-    Key = key(Var, I),
+    Key = var(Var, I),
     Val = gb_trees:get(Key, Store),
     Disabled = hook(Hook, menu_disabled, [Key, I, Store]),
     menu_popup(Fi, M, Val, Disabled);
 menu_event(#mousebutton{state=?SDL_PRESSED,button=1}, 
 	   [Fi=#fi{hook=Hook,index=I}|_], Store) ->
     M = #menu{var=Var} = gb_trees:get(-I, Store),
-    Key = key(Var, I),
+    Key = var(Var, I),
     Val = gb_trees:get(Key, Store),
     Disabled = hook(Hook, menu_disabled, [Key, I, Store]),
     menu_popup(Fi, M, Val, Disabled);
 menu_event({popup_result,Val}, [#fi{index=I,hook=Hook}|_], Store) ->
     #menu{var=Var} = gb_trees:get(-I, Store),
-    hook(Hook, update, [key(Var, I), I, Val, Store]);
+    hook(Hook, update, [var(Var, I), I, Val, Store]);
 menu_event(_Ev, _Path, _Store) -> keep.
 
-menu_width([{S,_}|T], W0) ->
-    case wings_text:width(S) of
+menu_width([{D,_,_}|T], W0) ->
+    case wings_text:width(D) of
 	W when W < W0 -> menu_width(T, W0);
 	W -> menu_width(T, W)
     end;
@@ -1452,7 +1462,7 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
 		  end
 	  end),
     Y = Y0+?CHAR_HEIGHT,
-    ValStr = [Desc || {Desc,V} <- Menu, V =:= Val],
+    ValStr = [Desc || {Desc,V,_} <- Menu, V =:= Val],
     gl:color3fv(FgColor),
     wings_io:text_at(X+5, Y, ValStr),
     Xr = X + W-8,
@@ -1480,7 +1490,11 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{menu=Menu}, Val, DisEnable) ->
 
 menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{menu=Menu0}, Val, Disabled) ->
     {X1,Y1} = wings_wm:local2global(X0+?HMARGIN, Y0+?VMARGIN),
-    Menu1 = [{Desc,V,lists:member(V, Disabled)} || {Desc,V} <- Menu0],
+    Menu1 = [case proplists:get_value(V, Disabled) of
+		 undefined -> {Desc,V,false,Flags};
+		 true -> {Desc,V,true,Flags};
+		 F when list(F) -> {Desc,V,true,F++Flags}
+	     end || {Desc,V,Flags} <- Menu0],
     case popup_find_index(Menu1, Val) of
 	0 -> ok;
 	Sel ->
@@ -1500,8 +1514,8 @@ popup_find_index(Menu, Val) ->
     popup_find_index(Menu, Val, 1, 0).
 
 popup_find_index([], _Val, _I, J) -> J;
-popup_find_index([{_,Val,false}|_], Val, I, _J) -> I;
-popup_find_index([{_,_,false}|T], Val, I, 0) ->
+popup_find_index([{_,Val,false,_}|_], Val, I, _J) -> I;
+popup_find_index([{_,_,false,_}|T], Val, I, 0) ->
     popup_find_index(T, Val, I+1, I);
 popup_find_index([_|T], Val, I, J) ->
     popup_find_index(T, Val, I+1, J).
@@ -1514,20 +1528,27 @@ popup_event(redraw, Ps) ->
     popup_redraw(Ps);
 popup_event(#mousemotion{y=Y}, #popup{menu=Menu,sel=Sel0}=Ps) ->
     case ((Y-2) div ?LINE_HEIGHT)+1 of
-	Sel0 -> keep;
-	Sel when 0 < Sel, Sel =< size(Menu) ->
-	    case element(Sel, Menu) of
-		{_,_,true} -> % disabled
-		    keep;
-		_ ->
+	Sel when 1 =< Sel, Sel =< size(Menu) ->
+	    {_,_,Disabled,Flags} = element(Sel, Menu),
+	    case proplists:get_value(info, Flags) of
+		undefined -> wings_wm:message("");
+		Info -> wings_wm:message(Info)
+	    end,
+	    if  Disabled =:= true -> keep;
+		Sel =:= Sel0 -> keep;
+		true ->
 		    wings_wm:dirty(),
 		    get_popup_event(Ps#popup{sel=Sel})
 	    end;
-	_ -> keep
+	_ ->
+	    wings_wm:message(""),
+	    keep
     end;
 popup_event(#mousebutton{state=?SDL_RELEASED,button=1}, Ps) ->
+%%%    wings_wm:message(""),
     popup_key($ , 0, $ , Ps);
 popup_event(#keyboard{sym=Sym,mod=Mod,unicode=Unicode}, Ps) ->
+    wings_wm:message(""),
     popup_key(Sym, Mod, Unicode, Ps);
 popup_event(_Event, _Ps) ->
     ?DEBUG_DISPLAY([_Event,_Ps]),
@@ -1545,7 +1566,7 @@ popup_key(?SDLK_KP_ENTER, _Mod, _Unicode, Ps) ->
     popup_key($ , Ps);
 popup_key(?SDLK_ESCAPE, _Mod, _Unicode,
 	  #popup{parent=Parent,menu=Menu,orig_sel=OrigSel}) ->
-    {_,Val,_} = element(OrigSel, Menu),
+    {_,Val,_,_} = element(OrigSel, Menu),
     wings_wm:send(Parent, {popup_result,Val}),
     delete;
 popup_key(_Sym, _Mod, $\r, Ps) ->
@@ -1568,7 +1589,7 @@ popup_key(14, #popup{sel=Sel}=Ps) -> %Ctrl-N
 	    get_popup_event(Ps#popup{sel=NewSel})
     end;
 popup_key($ , #popup{parent=Parent,menu=Menu,sel=Sel}) -> %Space
-    {_,Val,_} = element(Sel, Menu),
+    {_,Val,_,_} = element(Sel, Menu),
     wings_wm:send(Parent, {popup_result,Val}),
     delete;
 popup_key(_Unicode, _Ps) ->
@@ -1579,7 +1600,7 @@ popup_sel(Step, Sel, #popup{sel=PrevSel,menu=Menu}=Ps) ->
     case Sel+Step of
 	NewSel when NewSel >= 1, NewSel =< size(Menu) ->
 	    case element(NewSel, Menu) of
-		{_,_,false} -> NewSel; % not disabled
+		{_,_,false,_} -> NewSel; % not disabled
 		_ -> popup_sel(Step, NewSel, Ps)
 	    end;
 	_ -> PrevSel
@@ -1602,14 +1623,14 @@ popup_redraw(#popup{sel=Sel,orig_sel=OrigSel,menu=Menu}) ->
     keep.
 
 popup_redraw_1(Sel, Menu, Sel, W, X, Y) ->
-    {Desc,_,_} = element(Sel, Menu),
+    {Desc,_,_,_} = element(Sel, Menu),
     gl:color3f(0, 0, 0.5),
     gl:recti(X-2, Y+2, X+W-4*?CHAR_WIDTH, Y-?CHAR_HEIGHT+2),
     gl:color3fv(color3()),
     wings_io:text_at(X, Y, Desc),
     popup_redraw_1(Sel+1, Menu, Sel, W, X, Y+?LINE_HEIGHT);
 popup_redraw_1(I, Menu, Sel, W, X, Y) when I =< size(Menu) ->
-    {Desc,_,Disabled} = element(I, Menu),
+    {Desc,_,Disabled,_} = element(I, Menu),
     case Disabled of
 	true ->
 	    gl:color3fv(color3_disabled());
@@ -1642,7 +1663,7 @@ button_label(S) when is_list(S) -> S;
 button_label(Act) -> wings_util:cap(atom_to_list(Act)).
 
 button_event({redraw,Active}, [Fi=#fi{key=Key,hook=Hook,index=I}|_], Store) ->
-    DisEnable = hook(Hook, is_disabled, [key(Key, I), I, Store]),
+    DisEnable = hook(Hook, is_disabled, [var(Key, I), I, Store]),
     button_draw(Active, Fi, gb_trees:get(-I, Store), DisEnable);
 button_event(value, _Path, _Store) ->
     none;
@@ -1694,31 +1715,31 @@ color(RGB) ->
     {Fun,false,Col,3*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
 col_event({redraw,Active}, [Fi=#fi{key=Key,hook=Hook,index=I}|_], Store) ->
-    K = key(Key, I),
+    K = var(Key, I),
     DisEnable = hook(Hook, is_disabled, [K, I, Store]),
     col_draw(Active, Fi, gb_trees:get(K, Store), DisEnable);
 col_event(init, [#fi{key=Key,index=I}|_], Store) ->
     #col{val=RGB} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(key(Key, I), RGB, Store)};
+    {store,gb_trees:enter(var(Key, I), RGB, Store)};
 col_event(value, [#fi{key=Key,index=I}|_], Store) ->
-    {value,gb_trees:get(key(Key, I), Store)};
+    {value,gb_trees:get(var(Key, I), Store)};
 col_event({key,_,_,$\s}, [#fi{key=Key,index=I}|_], Store) ->
-    pick_color(key(Key, I), Store);
+    pick_color(var(Key, I), Store);
 col_event(#mousemotion{x=Xm,y=Ym}, [Fi=#fi{key=Key,index=I}|_], Store) ->
     case col_inside(Xm, Ym, Fi) of
 	true -> keep;
 	false -> 
-	    RGB = gb_trees:get(key(Key, I), Store),
+	    RGB = gb_trees:get(var(Key, I), Store),
 	    {drag,{3*?CHAR_WIDTH,?CHAR_HEIGHT},{color,RGB}}
     end;
 col_event(#mousebutton{x=Xm,y=Ym,state=?SDL_RELEASED,button=1}, 
 	  [Fi=#fi{key=Key,index=I}|_], Store) ->
     case col_inside(Xm, Ym, Fi) of
-	true -> pick_color(key(Key, I), Store);
+	true -> pick_color(var(Key, I), Store);
 	false -> keep
     end;
 col_event({drop,{color,RGB1}}, [#fi{key=Key,index=I}|_], Store) ->
-    K = key(Key, I),
+    K = var(Key, I),
     RGB0 = gb_trees:get(K, Store),
     RGB = replace_rgb(RGB0, RGB1),
     {store,gb_trees:update(K, RGB, Store)};
@@ -1987,23 +2008,23 @@ string_to_float(Str0) ->
 gen_text_handler({redraw,true}, 
 		 [Fi=#fi{key=Key,hook=Hook,index=I}|_], 
 		 Store) ->
-    DisEnable = hook(Hook, is_disabled, [key(Key, I), I, Store]),
+    DisEnable = hook(Hook, is_disabled, [var(Key, I), I, Store]),
     draw_text_active(Fi, gb_trees:get(-I, Store), DisEnable);
 gen_text_handler({redraw,false}, 
 		 [Fi=#fi{key=Key,hook=Hook,index=I}|_], 
 		 Store) ->
-    K = key(Key, I),
+    K = var(Key, I),
     DisEnable = hook(Hook, is_disabled, [K, I, Store]),
     Val = gb_trees:get(K, Store),
     draw_text_inactive(Fi, gb_trees:get(-I, Store), Val, DisEnable);
 gen_text_handler(value, [#fi{key=Key,index=I}|_], Store) ->
-    {value,gb_trees:get(key(Key, I), Store)};
+    {value,gb_trees:get(var(Key, I), Store)};
 gen_text_handler(init, [#fi{key=Key,index=I}|_], Store) ->
     #text{last_val=Val} = gb_trees:get(-I, Store),
-    {store,gb_trees:enter(key(Key, I), Val, Store)};
+    {store,gb_trees:enter(var(Key, I), Val, Store)};
 gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook}|_], Store0) ->
     #text{last_val=Val0} = Ts0 = gb_trees:get(-I, Store0),
-    K = key(Key, I),
+    K = var(Key, I),
     Ts1 = case gb_trees:get(K, Store0) of
 	      Val0 -> Ts0;
 	      Val1 ->
@@ -2267,11 +2288,11 @@ slider_event(init, [#fi{key=Key,flags=Flags,index=I}|_], Store) ->
 	undefined ->
 	    keep;
 	Val ->
-	    {store,gb_trees:enter(key(Key, I), Val, Store)}
+	    {store,gb_trees:enter(var(Key, I), Val, Store)}
     end;
 slider_event({redraw,Active}, [Fi=#fi{key=Key,hook=Hook,index=I}|_], Store) ->
     Sl = gb_trees:get(-I, Store),
-    K = key(Key, I),
+    K = var(Key, I),
     Val = gb_trees:get(K, Store),
     DisEnable = hook(Hook, is_disabled, [K, I, Store]),
     slider_redraw(Active, Fi, Sl, Val, Store, DisEnable);
@@ -2280,7 +2301,7 @@ slider_event(value, [#fi{flags=Flags,key=Key,index=I}|_], Store) ->
 	undefined ->
 	    none;
 	_ ->
-	    {value,gb_trees:get(key(Key, I), Store)}
+	    {value,gb_trees:get(var(Key, I), Store)}
     end;
 slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED,button=1}, [Fi|_], Store) ->
     slider_event_move(Xb, Fi, Store);
@@ -2315,7 +2336,7 @@ slider_event(_Ev, _Path, _Store) -> keep.
 
 slider_move(D0, #fi{key=Key,index=I,hook=Hook}, Store) ->
     #sl{min=Min,range=Range} = gb_trees:get(-I, Store),
-    Val0 = gb_trees:get(key(Key, I), Store),
+    Val0 = gb_trees:get(var(Key, I), Store),
     D = if
 	     is_integer(Min), D0 > 0 -> max(round(D0*0.01*Range), 1);
 	     is_integer(Min), D0 < 0 -> min(round(D0*0.01*Range), -1);
@@ -2335,7 +2356,7 @@ slider_event_move(Xb, #fi{x=X,key=Key,index=I,hook=Hook}, Store) ->
     slider_update(Hook, Val, Key, I, Store).
 
 slider_update(Hook, Val, Key, I, Store) ->
-    K = key(Key, I),
+    K = var(Key, I),
     ?DEBUG_DISPLAY([Val,K]),
     hook(Hook, update, [K, I, Val, Store]).
 
@@ -2434,9 +2455,9 @@ get_col_range({v, {V,H,S}}) ->
 
 %% Common data storage key. Integer key uses relative field index as
 %% storage key, non-integer uses itself.
-key(0, I) when integer(I) -> I;
-key(Key, I) when integer(Key), integer(I) -> I+Key;
-key(Key, I) when integer(I) -> Key.
+var(0, I) when integer(I) -> I;
+var(Key, I) when integer(Key), integer(I) -> I+Key;
+var(Key, I) when integer(I) -> Key.
 
 
 inside(Xm, Ym, X, Y, W, H) ->
