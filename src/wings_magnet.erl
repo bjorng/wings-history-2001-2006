@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.30 2002/03/24 07:41:13 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.31 2002/03/25 09:54:15 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -49,7 +49,9 @@ flags(none, Flags) -> Flags;
 flags({magnet,Type,_,_}, Flags) -> [{magnet,Type}|Flags].
 
 menu_help() ->
-    "Use magnet".
+    "Magnet: " ++
+	[lmb] ++ " Pick influence radius  " ++
+	[mmb] ++ " Use last radius".
     
 drag_help(Type) ->
     "[+] or [-] Tweak R  " ++
@@ -84,28 +86,21 @@ mf(spike, D0, R) when is_float(D0), is_float(R) ->
 %%% Calculation of influence radius: Shortest distance route.
 %%%
 
-inf_shortest(Point, VsSel0, #we{vs=Vtab}) ->
-    R = radius(Point, VsSel0, Vtab),
+inf_shortest({_,_,_}=Point, VsSel, #we{vs=Vtab}=We) ->
+    R = radius(Point, VsSel, Vtab),
     if
 	R < 1.0E-6 ->
 	    wings_util:error("Too short influence radius.");
 	true ->
 	    ok
     end,
+    inf_shortest(R, VsSel, We);
+inf_shortest(R, VsSel0, #we{vs=Vtab}) when is_number(R) ->
     VsSel = foldl(fun(V, A) ->
 			  Pos = wings_vertex:pos(V, Vtab),
 			  [{V,Pos}|A]
 		  end, [], VsSel0),
     inf_1(gb_trees:to_list(Vtab), VsSel, R, []).
-
-radius(Outer, [V0|Vs], Vtab) ->
-    foldl(fun(V, R0) ->
-		  Pos = wings_vertex:pos(V, Vtab),
-		  case e3d_vec:dist(Pos, Outer) of
-		      R when R < R0 -> R;
-		      _ -> R0
-		  end
-	  end, e3d_vec:dist(Outer, wings_vertex:pos(V0, Vtab)), Vs).
 
 inf_1([{V,#vtx{pos=Pos}=Vtx}|T], VsSel, R, Acc) ->
     case inf_2(VsSel, V, Pos, none, R) of
@@ -123,21 +118,35 @@ inf_2([{_,Pos}|T], V, VPos, Prev, R) ->
 inf_2([], _, _, none, _Dist) -> none;
 inf_2([], _, _, _, Dist) -> Dist.
 
+radius(Outer, [V0|Vs], Vtab) ->
+    foldl(fun(V, R0) ->
+		  Pos = wings_vertex:pos(V, Vtab),
+		  case e3d_vec:dist(Pos, Outer) of
+		      R when R < R0 -> R;
+		      _ -> R0
+		  end
+	  end, e3d_vec:dist(Outer, wings_vertex:pos(V0, Vtab)), Vs).
+
 %%%
 %%% Calculation of influence radius: Surface distance route.
 %%%
+-define(FUDGE_MARGIN, 2.0).
 
-inf_surface(Point, VsSel, We) ->
+inf_surface({_,_,_}=Point, VsSel, We) ->
     %% Step 1: Rough filtering. Calculate the center and radius
     %% of a bounding sphere which will enclose any vertices that
     %% potentially would be inside the influence radius.
+    ?SLOW(ok),
     Middle = e3d_vec:average(wings_vertex:bounding_box(VsSel, We)),
     case e3d_vec:dist(Point, Middle) of
 	R when R < 1.0E-6 ->
 	    wings_util:error("Too short influence radius.");
 	R ->
-	    inf_surface_1(Middle, R*1.1, Point, VsSel, We)
-    end.
+	    inf_surface_1(Middle, R*?FUDGE_MARGIN, Point, VsSel, We)
+    end;
+inf_surface(InfRadius, VsSel, We) ->
+    Middle = e3d_vec:average(wings_vertex:bounding_box(VsSel, We)),
+    inf_surface_1(Middle, InfRadius*?FUDGE_MARGIN, InfRadius, VsSel, We).
 
 inf_surface_1(Middle, R, Point, VsSel0, #we{vs=Vtab}=We) ->
     %% Step 2: Build the list of all vertices inside the bounding sphere.
@@ -166,7 +175,7 @@ inf_surface_2(Ws0, Vs0, Point, We) ->
 	    inf_surface_2(Ws, Vs, Point, We)
     end.
 
-inf_surface_3(Vs, Point) ->
+inf_surface_3(Vs, {_,_,_}=Point) ->
     %% Step 4: We now want to calculate surface distance of the original
     %% falloff point given (Point) to the nearest of the selected vertices.
     %% As an approximation, we use the distance of the vertex that is nearest
@@ -178,7 +187,9 @@ inf_surface_3(Vs, Point) ->
 			  _ -> A
 		      end
 	      end, {?HUGE,none}, Vs),
-
+    wings_pref:set_value(magnet_radius, MaxDist),
+    inf_surface_3(Vs, MaxDist);
+inf_surface_3(Vs, MaxDist) ->
     %% Step 5: Throw away vertices that are too far away.
     {foldl(fun({V,{Vtx,Dist}}, A) when Dist =< MaxDist ->
 		   [{V,Vtx,Dist,0}|A];

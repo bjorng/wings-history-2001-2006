@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.37 2002/03/24 07:41:13 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.38 2002/03/25 09:54:15 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -249,28 +249,19 @@ button_pressed(Event, Button, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
 		    call_action(X, Act0, Button, Names, Ps, Mi);
 		{_,Act0,_,_,Ps} when is_atom(Act0); is_integer(Act0) ->
 		    Act = check_option_box(Act0, X, Ps, Mi),
-		    check_magnet(X, Act, Names, Ps, Mi)
+		    do_action(build_command(Act, Names))
 	    end
     end.
 
 call_action(X, Act, Button, Ns, Ps, Mi) ->
-    case property_lists:is_defined(magnet, Ps) of
-	false ->
-	    case Act(Button, Ns) of
-		ignore -> keep;
-		Cmd when is_tuple(Cmd) ->
-		    do_action(Cmd)
-	    end;
-	true ->
-	    Mag = case hit_right(X, Mi) of
-		      true -> {magnet,Button};
-		      false -> Button
-		  end,
-	    case Act(Mag, Ns) of
-		ignore -> keep;
-		Cmd when is_tuple(Cmd) ->
-		    do_action(Cmd)
-	    end
+    Mag = case have_magnet(Ps) andalso hit_right(X, Mi) of
+	      true -> {magnet,Button};
+	      false -> Button
+	  end,
+    case Act(Mag, Ns) of
+	ignore -> keep;
+	Cmd when is_tuple(Cmd) ->
+	    do_action(Cmd)
     end.
 
 do_action(Action) ->
@@ -459,16 +450,6 @@ update_highlight(X, Y, Mi) ->
 	    Mi#mi{sel=Item}
     end.
 
-check_magnet(X, Action, Names, Ps, Mi) ->
-    Cmd = case property_lists:is_defined(magnet, Ps) andalso 
-	      hit_right(X, Mi) of
-	      true ->
-		  {vector,{pick,[magnet],[Action],Names}};
-	      false ->
-		  build_command(Action, Names)
-	  end,
-    do_action(Cmd).
-
 check_option_box(Act, X, Ps, Mi) ->
     case have_option_box(Ps) of
 	false -> Act;
@@ -577,13 +558,12 @@ help_text(#mi{menu=Menu,sel=Sel}=Mi) ->
 	false -> plain_help(Elem, Mi)
     end.
 
-is_magnet_active({_,_,_,_,Ps}, #mi{xleft=Xleft,w=W}) ->
+is_magnet_active({_,_,_,_,Ps}, Mi) ->
     case have_magnet(Ps) of
 	false -> false;
 	true ->
-	    Right = Xleft+W-3*?CHAR_WIDTH,
-	    {_,Mx,_} = sdl_mouse:getMouseState(),
-	    Mx > Right
+	    {_,X,_} = sdl_mouse:getMouseState(),
+	    hit_right(X, Mi)
     end.
     
 plain_help({Text,{_,_},_,_,_}, #mi{adv=false}) ->

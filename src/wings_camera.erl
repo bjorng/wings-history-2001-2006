@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.18 2002/03/21 10:42:43 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.19 2002/03/25 09:54:15 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -52,7 +52,7 @@ help() ->
 	blender ->
 	    [mmb] ++ " Tumble [Shift]+" ++
 		[mmb] ++ " Track [Ctrl]+" ++
-    		[mmb] ++ " Dolly   (Use [Alt]+" ++ [lmb] ++ " if no " ++ [mmb] ++ ")";
+    		[mmb] ++ " Dolly";
 	nendo ->
 	    [mmb] ++ " or [Ctrl]+" ++ [rmb] ++ " Start camera";
 	tds ->
