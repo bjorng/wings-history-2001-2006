@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.84 2003/06/03 15:15:18 bjorng Exp $
+%%     $Id: wings.hrl,v 1.85 2003/06/03 17:29:44 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -78,7 +78,8 @@
 	 orig_sel=none,				%Original selection.
 	 normals=none,				%Normals.
 	 pick=none,				%For picking.
-	 smooth_proxy=none,			%Smooth proxy.
+	 proxy_faces=none,			%Smooth proxy faces.
+	 proxy_edges=none,			%Smooth proxy edges.
 
 	 %% Miscellanous.
 	 hilite=none,				%Hilite display list.

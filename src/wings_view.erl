@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.121 2003/06/01 06:31:45 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.122 2003/06/03 17:29:45 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -44,6 +44,8 @@ menu(St) ->
      separator,
      {"Toggle Proxy Mode",smooth_proxy,
       "Toggle the smooth proxy mode for selected objects"},
+     {"Quick Smoothed Preview",quick_preview,
+      "Toggle the smooth proxy mode for all objects"},
      separator,
      {"Show Saved BB",show_bb,"Display any saved bounding box",crossmark(show_bb)},
      {"Show Edges",show_edges,"Show edges in workmode",crossmark(show_edges)},
@@ -147,6 +149,9 @@ command(shade, St) ->
 command(smooth_proxy, St) ->
     wings_subdiv:setup(St),
     St;
+command(quick_preview, St) ->
+    wings_subdiv:quick_preview(St),
+    St;
 command(orthogonal_view, St) ->
     toggle_option(orthogonal_view),
     St;
@@ -154,7 +159,7 @@ command(show_textures, St) ->
     toggle_option(show_textures),
     wings_draw_util:map(
       fun(#dlo{src_we=#we{mode=uv}}=D, _) ->
-	      D#dlo{work=none,smooth=none,smooth_proxy=none};
+	      D#dlo{work=none,smooth=none,proxy_faces=none};
 	 (D, _) -> D
       end, []),
     St;
@@ -162,7 +167,7 @@ command(show_materials, St) ->
     toggle_option(show_materials),
     wings_draw_util:map(
       fun(#dlo{src_we=#we{mode=material}}=D, _) ->
-	      D#dlo{work=none,smooth=none,smooth_proxy=none};
+	      D#dlo{work=none,smooth=none,proxy_faces=none};
 	 (D, _) -> D
       end, []),
     St;
@@ -170,7 +175,7 @@ command(show_colors, St) ->
     toggle_option(show_colors),
     wings_draw_util:map(
       fun(#dlo{src_we=#we{mode=vertex}}=D, _) ->
-	      D#dlo{work=none,smooth=none,smooth_proxy=none};
+	      D#dlo{work=none,smooth=none,proxy_faces=none};
 	 (D, _) -> D
       end, []),
     St;

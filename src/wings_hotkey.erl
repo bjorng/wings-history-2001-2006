@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.38 2003/05/30 07:41:40 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.39 2003/06/03 17:29:45 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -312,6 +312,7 @@ default_keybindings() ->
      {{?SDLK_F4,[]},        {select,{edge_loop,next_edge_loop}}},
      {{?SDLK_F5,[]},        {select,{by,{faces_with,5}}}},
      {{?SDLK_TAB,[]},       {view,workmode}},
+     {{?SDLK_TAB,[shift]},  {view,quick_preview}},
      {$\s,              {select,deselect}},
      {$a,               {view,aim}},
      {$A,               {view,frame}},

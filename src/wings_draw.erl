@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.119 2003/06/03 15:17:41 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.120 2003/06/03 17:29:45 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -78,14 +78,14 @@ invalidate_by_mat(Changed0) ->
     Changed = gb_sets:from_list(Changed0),
     wings_draw_util:map(fun(D, _) -> invalidate_by_mat(D, Changed) end, []).
 
-invalidate_by_mat(#dlo{work=none,vs=none,smooth=none,smooth_proxy=none}=D, _) ->
+invalidate_by_mat(#dlo{work=none,vs=none,smooth=none,proxy_faces=none}=D, _) ->
     %% Nothing to do.
     D;
 invalidate_by_mat(#dlo{src_we=We}=D, Changed) ->
     Used = wings_material:used_materials_we(We),
     case gb_sets:is_empty(gb_sets:intersection(Used, Changed)) of
 	true -> D;
-	false -> D#dlo{work=none,vs=none,smooth=none,smooth_proxy=none}
+	false -> D#dlo{work=none,vs=none,smooth=none,proxy_faces=none}
     end.
 
 empty_we(We) ->

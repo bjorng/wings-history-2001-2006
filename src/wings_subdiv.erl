@@ -8,17 +8,18 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.47 2003/06/03 08:54:01 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.48 2003/06/03 17:29:45 bjorng Exp $
 %%
 
 -module(wings_subdiv).
 -export([smooth/1,smooth/5]).
--export([setup/1,update/2,draw/1,clean/1,smooth_we/1]).
+-export([setup/1,quick_preview/1,update/2,draw/2,draw_smooth_edges/1,
+	 clean/1,smooth_we/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
--import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,merge/1]).
+-import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,merge/1,foreach/2]).
 
 %%% The Catmull-Clark subdivision algorithm is used, with
 %%% Tony DeRose's extensions for creases.
@@ -362,6 +363,16 @@ smooth_new_vs([], _, Acc) -> reverse(Acc).
 	 we=none				%Previous smoothed we.
 	}).
 
+quick_preview(_St) ->
+    case any_proxy() of
+	false ->
+	    setup_all(true),
+	    wings_wm:set_prop(workmode, false);
+	true  ->
+	    setup_all(false),
+	    wings_wm:set_prop(workmode, true)
+    end.
+
 setup(#st{sel=OrigSel}=St) ->
     wings_draw_util:map(fun(D, Sel) -> setup_1(D, Sel) end, OrigSel),
     {save_state,wings_sel:reset(St)}.
@@ -377,12 +388,30 @@ setup_1(#dlo{src_we=#we{id=Id},proxy_data=Pd}=D, [{Id,_}|Sel]) ->
 	    Wire0 = wings_wm:get_prop(wings_wm:this(), wireframed_objects),
 	    Wire = gb_sets:delete_any(Id, Wire0),
 	    wings_wm:set_prop(wings_wm:this(), wireframed_objects, Wire),
-	    {D#dlo{smooth=none,smooth_proxy=none,proxy_data=none},Sel}
+	    {D#dlo{smooth=none,proxy_faces=none,proxy_data=none},Sel}
     end;
 setup_1(D, Sel) -> {D,Sel}.
 
+setup_all(Activate) ->
+    wings_draw_util:map(fun(D, _) -> setup_all(D, Activate) end, []).
+
+setup_all(#dlo{src_we=#we{perm=P},proxy_data=none}=D, _) when ?IS_NOT_SELECTABLE(P) ->
+    D;
+setup_all(#dlo{src_we=#we{id=Id},proxy_data=none}=D, true) ->
+    Wire0 = wings_wm:get_prop(wings_wm:this(), wireframed_objects),
+    Wire = gb_sets:add(Id, Wire0),
+    wings_wm:set_prop(wings_wm:this(), wireframed_objects, Wire),
+    D#dlo{smooth=none,proxy_data=#sp{}};
+setup_all(#dlo{proxy_data=none}=D, false) -> D;
+setup_all(#dlo{src_we=#we{id=Id}}=D, false) ->
+    Wire0 = wings_wm:get_prop(wings_wm:this(), wireframed_objects),
+    Wire = gb_sets:delete_any(Id, Wire0),
+    wings_wm:set_prop(wings_wm:this(), wireframed_objects, Wire),
+    D#dlo{smooth=none,proxy_faces=none,proxy_data=none};
+setup_all(D, _) -> D.
+
 update(#dlo{proxy_data=none}=D, _) -> D;
-update(#dlo{smooth_proxy=none,src_we=We0,proxy_data=Pd0}=D, St) ->
+update(#dlo{proxy_faces=none,src_we=We0,proxy_data=Pd0}=D, St) ->
     Pd1 = clean(Pd0),
     Pd = proxy_smooth(We0, Pd1),
     #sp{we=#we{fs=Ftab}=We} = Pd,
@@ -390,8 +419,42 @@ update(#dlo{smooth_proxy=none,src_we=We0,proxy_data=Pd0}=D, St) ->
     gl:newList(Faces, ?GL_COMPILE),
     draw_faces(gb_trees:to_list(Ftab), We, St),
     gl:endList(),
-    D#dlo{smooth_proxy=Faces,proxy_data=[Faces,Pd]};
+    ProxyEdges = update_edges(D, Pd),
+    D#dlo{proxy_faces=Faces,proxy_edges=ProxyEdges,proxy_data=[Faces,Pd]};
+update(#dlo{proxy_edges=none,proxy_data=Pd0}=D, _) ->
+    Pd = clean(Pd0),
+    ProxyEdges = update_edges(D, Pd),
+    D#dlo{proxy_edges=ProxyEdges};
 update(D, _) -> D.
+
+update_edges(D, #sp{we=We}) ->
+    update_edges_1(D, We, wings_pref:get_value(proxy_shaded_edge_style)).
+
+update_edges_1(_, _, cage) -> none;
+update_edges_1(#dlo{src_we=#we{vp=OldVtab}}, #we{vp=Vtab,es=Etab}=We, some) ->
+    Dl = gl:genLists(1),
+    gl:newList(Dl, ?GL_COMPILE),
+    gl:'begin'(?GL_LINES),
+    Edges = wings_edge:from_vs(gb_trees:keys(OldVtab), We),
+    foreach(fun(E) ->
+		    #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
+		    gl:vertex3dv(gb_trees:get(Va, Vtab)),
+		    gl:vertex3dv(gb_trees:get(Vb, Vtab))
+	    end, Edges),
+    gl:'end'(),
+    gl:endList(),
+    Dl;
+update_edges_1(_, #we{es=Etab,vp=Vtab}, all) ->
+    Dl = gl:genLists(1),
+    gl:newList(Dl, ?GL_COMPILE),
+    gl:'begin'(?GL_LINES),
+    foreach(fun(#edge{vs=Va,ve=Vb}) ->
+		    gl:vertex3dv(gb_trees:get(Va, Vtab)),
+		    gl:vertex3dv(gb_trees:get(Vb, Vtab))
+	    end, gb_trees:values(Etab)),
+    gl:'end'(),
+    gl:endList(),
+    Dl.
 
 smooth_we(#dlo{proxy_data=none,src_we=We}) -> We;
 smooth_we(#dlo{proxy_data=Pd0,src_we=We0}) ->
@@ -400,13 +463,17 @@ smooth_we(#dlo{proxy_data=Pd0,src_we=We0}) ->
 	#sp{we=We} -> We
     end.
 
-draw(#dlo{smooth_proxy=Dl}) when is_integer(Dl) ->
-    draw_1(Dl, proxy_static_opacity);
-draw(#dlo{proxy_data=[Dl|_]}) when is_integer(Dl) ->
-    draw_1(Dl, proxy_moving_opacity);
-draw(_) -> ok.
+any_proxy() ->
+    wings_draw_util:fold(fun(#dlo{proxy_data=none}, A) -> A;
+			    (#dlo{}, _) -> true end, false).
 
-draw_1(Dl, Key) ->
+draw(#dlo{proxy_faces=Dl}=D, Wire) when is_integer(Dl) ->
+    draw_1(D, Dl, Wire, proxy_static_opacity, cage);
+draw(#dlo{proxy_data=[Dl|_]}=D, Wire) when is_integer(Dl) ->
+    draw_1(D, Dl, Wire, proxy_moving_opacity, cage);
+draw(_, _) -> ok.
+
+draw_1(D, Dl, Wire, Key, EdgeStyleKey) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
@@ -427,7 +494,28 @@ draw_1(Dl, Key) ->
     gl:disable(?GL_BLEND),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
-    gl:shadeModel(?GL_FLAT).
+    gl:shadeModel(?GL_FLAT),
+    draw_edges(D, Wire, EdgeStyleKey).
+
+draw_smooth_edges(D) ->
+    draw_edges(D, true, wings_pref:get_value(proxy_shaded_edge_style)).
+
+draw_edges(_, false, _) -> ok;
+draw_edges(D, true, EdgeStyle) -> draw_edges_1(D, EdgeStyle).
+
+draw_edges_1(#dlo{work=Work}, cage) ->
+    gl:color3fv(wings_pref:get_value(wire_edge_color)),
+    gl:lineWidth(?NORMAL_LINEWIDTH),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+    gl:enable(?GL_POLYGON_OFFSET_LINE),
+    gl:polygonOffset(1.0, 1.0),
+    gl:disable(?GL_CULL_FACE),
+    wings_draw_util:call(Work),
+    gl:enable(?GL_CULL_FACE);
+draw_edges_1(#dlo{proxy_edges=ProxyEdges}, _) ->
+    gl:color3fv(wings_pref:get_value(wire_edge_color)),
+    gl:lineWidth(?NORMAL_LINEWIDTH),
+    wings_draw_util:call(ProxyEdges).
 
 clean([_,#sp{}=Pd]) -> Pd;
 clean(Other) -> Other.
@@ -520,8 +608,12 @@ mat_face_1([V|Vs], Vtab, Acc) ->
 mat_face_1([], _, VsPos) ->
     N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
-    [A,B,C,D] = VsPos,
-    gl:vertex3dv(A),
-    gl:vertex3dv(B),
-    gl:vertex3dv(C),
-    gl:vertex3dv(D).
+    case VsPos of
+	[A,B,C,D] ->
+	    gl:vertex3dv(A),
+	    gl:vertex3dv(B),
+	    gl:vertex3dv(C),
+	    gl:vertex3dv(D);
+	_ ->					%Could only be the virtual mirror face.
+	    ok
+    end.

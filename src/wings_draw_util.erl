@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.68 2003/06/02 20:13:13 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.69 2003/06/03 17:29:45 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -273,7 +273,7 @@ render_object_1(#dlo{transparent=true}=D, _, false, true) ->
 render_object_1(#dlo{transparent=false}=D, _, false, RenderTrans) ->
     render_smooth(D, RenderTrans).
 
-render_plain(#dlo{work=Faces,src_we=We}=D, SelMode) ->
+render_plain(#dlo{work=Faces,src_we=We,proxy_data=none}=D, SelMode) ->
     %% Draw faces for winged-edge-objects.
     Wire = wire(We),
     case Wire of
@@ -319,7 +319,13 @@ render_plain(#dlo{work=Faces,src_we=We}=D, SelMode) ->
 		    call(Faces)
 	    end
     end,
+    render_plain_rest(D, Wire, SelMode);
+render_plain(#dlo{src_we=We}=D, SelMode) ->
+    Wire = wire(We),
+    wings_subdiv:draw(D, Wire),
+    render_plain_rest(D, Wire, SelMode).
 
+render_plain_rest(D, Wire, SelMode) ->
     gl:disable(?GL_POLYGON_OFFSET_LINE),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
 
@@ -334,9 +340,6 @@ render_plain(#dlo{work=Faces,src_we=We}=D, SelMode) ->
 	    draw_orig_sel(D),
 	    draw_sel(D)
     end,
-
-    wings_subdiv:draw(D),
-
     draw_vertices(D, SelMode),
     draw_hard_edges(D),
     draw_normals(D).
@@ -345,7 +348,8 @@ wire(#we{id=Id}) ->
     W = wings_wm:get_prop(wireframed_objects),
     gb_sets:is_member(Id, W).
 
-render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans}=D, RenderTrans) ->
+render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans,src_we=We,proxy_data=Pd}=D,
+	      RenderTrans) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:enable(?GL_LIGHTING),
@@ -368,7 +372,13 @@ render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans}=D, RenderTrans) ->
     end,
 
     case {Smooth,RenderTrans} of
-	{none,false} -> call(Work);
+	{none,false} ->
+	    if
+		Pd =:= none ->
+		    call(Work);
+		true ->
+		    wings_subdiv:draw(D, wire(We))
+	    end;
 	{[Op,_],false} -> call(Op);
 	{[_,Tr],true} -> call(Tr);
 	{_,_} -> ok
@@ -376,20 +386,19 @@ render_smooth(#dlo{work=Work,smooth=Smooth,transparent=Trans}=D, RenderTrans) ->
 
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:depthMask(?GL_TRUE),
-    draw_edges(D).
-
-draw_edges(#dlo{work=Work,src_we=We}=D) ->
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     case wire(We) of
-	false -> ok;
-	true ->
+	true when Pd =:= none ->
 	    gl:color3fv(wings_pref:get_value(wire_edge_color)),
 	    gl:lineWidth(?NORMAL_LINEWIDTH),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
 	    gl:polygonOffset(1.0, 1.0),
-	    call(Work)
+	    call(Work);
+	true ->
+	    wings_subdiv:draw_smooth_edges(D);
+	false -> ok
     end,
     draw_hilite(D),
     draw_orig_sel(D),

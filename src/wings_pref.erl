@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.82 2003/06/03 08:54:01 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.83 2003/06/03 17:29:45 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -169,7 +169,13 @@ command(advanced, _St) ->
 	   ]}],
     dialog("Advanced Preferences", Qs);
 command(proxy, _St) ->
-    Qs = [{hframe,
+    Qs = [{vframe,
+	   [{menu,[{"Cage",cage},
+		   {"Some Edges",some},
+		   {"All Edges",all}],
+	     proxy_shaded_edge_style}],
+	   [{title,"Shaded Mode Edge Style"}]},
+	  {hframe,
 	   case wings_util:is_gl_ext('GL_ARB_imaging') of
 	       false ->
 		   [{vframe,[{label,"(Opacity preferences only supported when"},
@@ -206,9 +212,9 @@ command(ui, _St) ->
 		       {color,title_passive_color},
 		       {color,title_active_color}]}]}]}],
 	   dialog("UI Preferences", Qs);
-command({set,List}, _St) ->
+command({set,List}, St) ->
     foreach(fun({Key,Val}) ->
-		    smart_set_value(Key, Val)
+		    smart_set_value(Key, Val, St)
 	    end, List),
     wings_wm:dirty().
 
@@ -219,7 +225,7 @@ dialog(Title, Qs0) ->
 			     {edit,{preferences,{set,Res}}}
 		     end).
 
-smart_set_value(Key, Val) ->
+smart_set_value(Key, Val, St) ->
     case ets:lookup(wings_state, Key) of
 	[] -> set_value(Key, Val);
 	[{Key,Val}] -> ok;
@@ -235,6 +241,8 @@ smart_set_value(Key, Val) ->
 		    wings_draw_util:init();
 		autosave_time ->
 		    wings_file:init_autosave();
+		proxy_shaded_edge_style ->
+		    clear_proxy_edges(St);
 		_Other -> ok
 	    end
     end.
@@ -243,6 +251,12 @@ clear_vertex_dlist() ->
     wings_draw_util:map(fun clear_vertex_dlist/2, []).
 
 clear_vertex_dlist(D, _) -> D#dlo{vs=none}.
+
+clear_proxy_edges(St) ->
+    wings_draw_util:map(fun(D, _) -> clear_proxy_edges(D, St) end, []).
+
+clear_proxy_edges(D, St) ->
+    wings_subdiv:update(D#dlo{proxy_edges=none}, St).
 
 make_query([_|_]=List)  ->
     [make_query(El) || El <- List];
@@ -397,6 +411,7 @@ defaults() ->
      {right_click_sel_in_geom,false},
 
      %% Proxy preferences.
+     {proxy_shaded_edge_style,some},
      {proxy_static_opacity,1.0},
      {proxy_moving_opacity,1.0},
 
