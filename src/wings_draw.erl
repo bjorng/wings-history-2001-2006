@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.116 2003/05/30 11:52:16 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.117 2003/06/01 20:45:53 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -134,10 +134,11 @@ update_fun(D0, St) ->
     D = wings_subdiv:update(D0, St),
     update_fun_2(D, St).
 
-update_fun_2(#dlo{smooth=none,src_we=We}=D, St) ->
+update_fun_2(#dlo{smooth=none}=D, St) ->
     case any_smooth_window() of
 	false -> update_fun_3(D);
 	true ->
+	    We = wings_subdiv:smooth_we(D),
 	    {List,Tr} = smooth_dlist(We, St),
 	    update_fun_3(D#dlo{smooth=List,transparent=Tr})
     end;

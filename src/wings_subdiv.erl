@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.43 2003/06/01 08:12:10 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.44 2003/06/01 20:45:54 bjorng Exp $
 %%
 
 -module(wings_subdiv).
 -export([smooth/1,smooth/5]).
--export([setup/1,update/2,draw/1,clean/1]).
+-export([setup/1,update/2,draw/1,clean/1,smooth_we/1]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -392,6 +392,13 @@ update(#dlo{smooth_proxy=none,src_we=We0,proxy_data=Pd0}=D, St) ->
     gl:endList(),
     D#dlo{smooth_proxy=Faces,proxy_data=[Faces,Pd]};
 update(D, _) -> D.
+
+smooth_we(#dlo{proxy_data=none,src_we=We}) -> We;
+smooth_we(#dlo{proxy_data=Pd0,src_we=We0}) ->
+    case clean(Pd0) of
+	#sp{we=none} -> We0;
+	#sp{we=We} -> We
+    end.
 
 draw(#dlo{smooth_proxy=Dl}) when is_integer(Dl) ->
     draw_1(Dl);
