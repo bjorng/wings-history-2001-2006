@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Windows.
 #
-# $Id: wings_package_win32,v 1.20 2003/09/11 11:17:47 bjorng Exp $
+# $Id: wings_package_win32,v 1.21 2003/09/11 11:50:26 bjorng Exp $
 #
 OS=`uname -o`
 if [ X$OS != XCygwin ]; then
@@ -58,10 +58,7 @@ done
 
 WINGS_VSN=`echo "$latest_wings" | sed -e 's/.*wings-//'`
 
-echo "$latest_wings"
-
 cd "$latest_wings"
-echo `pwd`
 make
 case $? in
     0) ;;
@@ -106,6 +103,7 @@ $INSTALL -d "$dest/ebin" "$dest/priv"
 $INSTALL -c -m 644  "$ESDL_PATH"/ebin/* "$dest/ebin"
 $INSTALL -c -m 644  "$ESDL_PATH"/priv/sdl_driver.dll "$dest/priv"
 $INSTALL -c -m 644  "$ESDL_PATH"/priv/SDL.dll "$dest/priv"
+strip --strip-debug --strip-unneeded "$dest/priv/sdl_driver.dll"
 
 # Copy the relevant parts of Erlang/OTP into the application.
 
@@ -124,6 +122,9 @@ $INSTALL -c "$erts_src/bin/erlexec.dll" "$dest/bin"
 $INSTALL -c "$erts_src/bin/beam.dll" "$dest/bin"
 $INSTALL -c -m 644 "$src/bin/start.boot" "$dest/bin"
 $INSTALL -c "$erts_src/bin/inet_gethost.exe" "$dest/bin/inet_gethost.exe"
+strip "$dest/bin/werl.exe"
+strip "$dest/bin/erlexec.dll"
+strip "$dest/bin/inet_gethost.exe"
 
 #
 # Remove files from OTP not needed.
