@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.181 2002/12/30 22:55:09 bjorng Exp $
+%%     $Id: wings.erl,v 1.182 2003/01/01 19:23:55 bjorng Exp $
 %%
 
 -module(wings).
@@ -139,9 +139,6 @@ init(File, Root) ->
     Op = main_loop_noredraw(St),		%Replace crash handler
 						%with this handler.
     wings_wm:new(geom, {0,0,1}, {W,H}, Op),
-
-    %% I don't want to run key checking by default.
-    %%wings_wm:callback(fun() -> wings_pref:cleanup(St) end),
 
     case catch wings_wm:enter_event_loop() of
 	{'EXIT',normal} ->
@@ -416,6 +413,10 @@ command({select,Command}, St) ->
 command({view,Command}, St) ->
     wings_view:command(Command, St);
 
+%% Window menu.
+command({window,object}, St) ->
+    wings_shape:window(St);
+
 %% Body menu.
 command({body,Cmd}, St) ->
     wings_body:command(Cmd, St);
@@ -485,6 +486,7 @@ init_menubar() ->
 	     {"Select",select,fun(St) -> wings_sel_cmd:menu(St) end},
 	     {"Tools",tools,fun tools_menu/1},
 	     {"Objects",objects,fun(St) -> wings_shape:menu(St) end},
+	     {"Window",window,fun window_menu/1},
 	     {"Help",help,fun(St) -> wings_help:menu(St) end}],
     wings_wm:menubar(geom, Menus).
 
@@ -528,6 +530,15 @@ tools_menu(_) ->
 	 "Remove virtual mirrors for all objects"},
 	{"Freeze",freeze,
 	 "Create real geometry from the virtual mirrors"}]}}].
+
+window_menu(_) ->
+    [{"Objects...",object,[],win_crossmark(object)}].
+
+win_crossmark(Name) ->
+    case wings_wm:is_window(Name) of
+	false -> [];
+	true -> [crossmark]
+    end.
 
 patches() ->
     case wings_start:get_patches() of

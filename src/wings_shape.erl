@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.26 2002/12/28 22:10:28 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.27 2003/01/01 19:23:56 bjorng Exp $
 %%
 
 -module(wings_shape).
 -export([new/3,insert/3,replace/3,
-	 menu/1,command/2]).
+	 menu/1,command/2,window/1]).
 
+-define(NEED_ESDL, 1).
 -include("wings.hrl").
 -import(lists, [map/2,reverse/1,reverse/2,keymember/3,keysearch/3,sort/1]).
 
@@ -213,3 +214,130 @@ update_sel(#we{id=Id,perm={SMode,Elems0}}, #st{selmode=Mode,sel=Sel}=St) ->
     #st{sel=[{Id,Elems}]} = wings_sel:convert_selection(Mode, StTemp),
     sort([{Id,Elems}|Sel]);
 update_sel(_, #st{sel=Sel}) -> Sel.
+
+%%%
+%%% Object window.
+%%%
+
+-record(ost,
+	{st,					%Current St.
+	 first,					%First object to show.
+	 sel,					%Current selection.
+	 os,					%All objects.
+	 lh,					%Line height.
+	 eye,					%Eye bitmap data.
+	 lock					%Lock bitmap data.
+	}).
+
+window(St) ->
+    case wings_wm:is_window(object) of
+	true ->
+	    wings_wm:delete(object);
+	false ->
+	    {_,GeomY,GeomW,GeomH} = wings_wm:viewport(),
+	    W = 20*?CHAR_WIDTH,
+	    Ost = #ost{first=0,eye=eye_bitmap(),lock=lock_bitmap(),lh=18},
+	    Op = {seq,push,event({current_state,St}, Ost)},
+	    wings_wm:new(object, {GeomW-W,GeomY,20}, {W,GeomH-50}, Op),
+	    wings_wm:new_controller(object, "Objects"),
+	    keep
+    end.
+
+get_event(Ost) ->
+    {replace,fun(Ev) -> event(Ev, Ost) end}.
+
+event(redraw, Ost) ->
+    wings_io:ortho_setup(),
+    {_,_,W,H} = wings_wm:viewport(),
+    wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
+    draw_objects(Ost),
+    keep;
+event({current_state,#st{sel=Sel,shapes=Shs}=St},
+      #ost{st=#st{sel=Sel,shapes=Shs}}=Ost) ->
+    get_event(Ost#ost{st=St});
+event({current_state,#st{sel=Sel,shapes=Shs}=St}, Ost) ->
+    wings_wm:dirty(),
+    get_event(Ost#ost{st=St,sel=Sel,os=gb_trees:values(Shs)});
+event(#mousebutton{button=4,state=?SDL_RELEASED}, Ost) ->
+    zoom_step(-1, Ost);
+event(#mousebutton{button=5,state=?SDL_RELEASED}, Ost) ->
+    zoom_step(1, Ost);
+event(_, _) -> keep.
+
+zoom_step(Dir, #ost{first=First0,os=Objs}=Ost) ->
+    L = length(Objs),
+    First1 = case First0+20*Dir of
+		 F when F < 0 -> 0;
+		 F when F > L -> L;
+		 F -> F
+	     end,
+    case First1 of
+	First0 -> keep;
+	First ->
+	    wings_wm:dirty(),
+	    get_event(Ost#ost{first=First})
+    end.
+
+draw_objects(#ost{os=Objs0,first=First,lh=Lh}=Ost) ->
+    Objs = lists:nthtail(First, Objs0),
+    Y = Lh-2,
+    wings_io:text_at(5, Y, "V"),
+    wings_io:text_at(20, Y, "L"),
+    wings_io:text_at(37, Y, "Name"),
+    {_,_,W,_} = wings_wm:viewport(),
+    R = W-13,
+    wings_io:text_at(R, Y, "S"),
+    draw_objects_1(Objs, Ost, R, 2*Lh-2).
+
+draw_objects_1([#we{id=Id,name=Name,perm=Perm}|Wes],
+	       #ost{sel=Sel,lh=Lh,eye=Eye,lock=Lock}=Ost, R, Y) ->
+    wings_io:sunken_rect(3, Y-11, 12, 13, ?PANE_COLOR),
+    wings_io:sunken_rect(18, Y-11, 12, 13, ?PANE_COLOR),
+    wings_io:sunken_rect(R, Y-9, 9, 11, ?PANE_COLOR),
+    if
+	?IS_VISIBLE(Perm) ->
+	    gl:rasterPos2i(5, Y),
+	    draw_char(Eye);
+	true -> ok
+    end,
+    if
+	?IS_SELECTABLE(Perm) -> ok;
+	true ->
+    	    gl:rasterPos2i(20, Y),
+	    draw_char(Lock)
+    end,
+    case keymember(Id, 1, Sel) of
+	false -> ok;
+	true -> wings_io:text_at(R+2, Y, [crossmark])
+    end,
+    wings_io:text_at(37, Y, Name),
+    draw_objects_1(Wes, Ost, R, Y+Lh);
+draw_objects_1([], _, _, _) -> ok.
+
+draw_char({A,B,C,D,E,F,Bitmap}) ->
+    gl:bitmap(A, B, C, D, E, F, Bitmap).
+
+eye_bitmap() ->
+    {11,10,0.0,1.0,13.0,0.0,
+     <<2#0001111000000000:16,
+      2#0110000110000000:16,
+      2#0001111001000000:16,
+      2#0011111100100000:16,
+      2#0010011100100000:16,
+      2#1010111101000000:16,
+      2#0111111110000000:16,
+      2#0001111100000000:16,
+      2#1110000011100000:16,
+      2#0001111100000000:16>>}.
+
+lock_bitmap() ->
+    {11,9,0.0,0.0,13.0,0.0,
+     <<2#1111111111100000:16,
+       2#1111101111100000:16,
+       2#1111101111100000:16,
+       2#1111101111100000:16,
+       2#1111111111100000:16,
+       2#1111111111100000:16,
+       2#0011000110000000:16,
+       2#0001101100000000:16,
+       2#0000111000000000:16>>}.
