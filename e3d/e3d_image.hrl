@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.hrl,v 1.2 2001/10/19 19:46:29 bjorng Exp $
+%%     $Id: e3d_image.hrl,v 1.3 2002/11/26 09:46:26 dgud Exp $
 %%
 
 -record(e3d_image,           %% Current supported formats
-	{type = r8g8b8,      %% [r8g8b8 or r8g8b8a8 or b8g8r8 or b8g8r8a8]
+	{type = r8g8b8,      %% [g8 (gray8) or a8 (alpha8) 
+	                     %% r8g8b8 or r8g8b8a8 or b8g8r8 or b8g8r8a8]
 	 bytes_pp = 3,       %% bytes per pixel
 	 alignment = 1,      %% A = 1|2|4 Next row starts direct|even 2|even 4
 	 order = lower_left, %% First pixel is in [lower_left, lower_right, upper_left, upper_right]

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.10 2002/11/13 12:59:02 bjorng Exp $
+%%     $Id: e3d_image.erl,v 1.11 2002/11/26 09:46:26 dgud Exp $
 %%
 
 -module(e3d_image).
@@ -22,7 +22,9 @@
 	 bytes_pp/1, pad_len/2, format_error/1]).
 
 %% internal exports
--export([noswap3/8,noswap4/8,noswap3to4/8,noswap4to3/8, 
+-export([noswap1/8,noswap3/8,noswap4/8,
+	 noswap1to3/8,noswap1ato4/8,noswap1gto4/8,
+	 noswap3to4/8,noswap4to3/8, 
 	 swap3/8,swap4/8,swap3to4/8,swap4to3/8]).
 
 %% Func: load(FileName[, Options])  
@@ -99,12 +101,18 @@ convert(#e3d_image{type=FromType,image=Image,alignment=FromAlm,order=FromOrder}=
     NewPadd = lists:duplicate(NewPaddLength, 0),
     W = In#e3d_image.width,
     
-    TypeConv  = type_conv(FromType, ToType),
-    OrderConv = order_conv(FromOrder, ToOrder),
-
-    New = ?MODULE:TypeConv(0, W, Image, OldPaddLength, NewPadd, OrderConv, [], []),
-    In#e3d_image{image=New,type=ToType,bytes_pp=bytes_pp(ToType), 
-		 alignment=ToAlm,order=ToOrder}.
+    case type_conv(FromType, ToType) of
+	{error, _Reason} = Err ->
+	    Err;
+	TypeConv ->
+	    OrderConv = order_conv(FromOrder, ToOrder),
+	    New = ?MODULE:TypeConv(0, W, Image, 
+				   OldPaddLength, NewPadd, 
+				   OrderConv, [], []),
+	    In#e3d_image{image=New,type=ToType,
+			 bytes_pp=bytes_pp(ToType), 
+			 alignment=ToAlm,order=ToOrder}
+    end.
 
 %% Func: pad_len(RowLength (in bytes), Alignment) 
 %% Rets: integer()
@@ -118,6 +126,8 @@ pad_len(RL, Align) ->
 %% Func: bytes_pp(Type) 
 %% Rets: integer()
 %% Desc: Get the number of bytes per pixel for type Type
+bytes_pp(a8) -> 1;
+bytes_pp(g8) -> 1;
 bytes_pp(r8g8b8) -> 3;
 bytes_pp(b8g8r8) -> 3;
 bytes_pp(r8g8b8a8) -> 4;
@@ -181,6 +191,17 @@ swap(_, _, _, <<>>, _, _, {SC,_SR}, Row, Acc) ->
 	end,
     list_to_binary(NewImage).
 
+noswap1(0, W, <<>>, OPL,NP,OC,[],Acc) ->
+    swap(noswap1, 0, W, <<>>, OPL,NP,OC,[],Acc);
+noswap1(0, W, Bin, OPL, NP, {_,SR}=OC, [], Acc) ->
+    <<Row:W/binary, R/binary>> = Bin,
+    case SR of 
+	false -> swap(noswap1,W,W,R,OPL, NP, OC, [Row], Acc);
+	true ->
+	    RowList = lists:reverse(binary_to_list(Row)),
+	    swap(noswap1,W,W,R,OPL, NP, OC, RowList, Acc)
+    end.
+%%% RGB or BGR 
 noswap3(0, W, Bin, OPL, NP, {_,false}=OC, RowAcc, Acc) ->
     case Bin of
 	<<Row:W/binary-unit:24,R/binary>> ->
@@ -195,17 +216,32 @@ noswap3_1(C, W, <<RGB:3/binary,R/binary>>, OPL, NP, OC, Row, Acc) when C =/= W -
     noswap3_1(C+1, W, R, OPL, NP, OC, [RGB|Row], Acc);
 noswap3_1(C, W, Bin, OPL, NP, OC, Row, Acc) ->
     swap(noswap3, C, W, Bin, OPL, NP, OC, Row, Acc).
-
+%% Alpha8 or Grey8 to RGB
+noswap1to3(C, W, <<G0:8, R/binary>>, OPL, NP, OC, Row, Acc) when C =/= W ->
+    noswap1to3(C+1, W, R, OPL, NP, OC, [?C3(G0,G0,G0)|Row], Acc);
+noswap1to3(C, W, Bin, OPL, NP, OC, Row, Acc) ->
+    swap(noswap1to3, C, W, Bin, OPL, NP, OC, Row, Acc).
+%% Alpha8 to RGBA
+noswap1ato4(C, W, <<A0:8, R/binary>>, OPL, NP, OC, Row, Acc) when C =/= W ->
+    noswap1ato4(C+1, W, R, OPL, NP, OC, [?C4(255,255,255,A0)|Row], Acc);
+noswap1ato4(C, W, Bin, OPL, NP, OC, Row, Acc) ->
+    swap(noswap1ato4, C, W, Bin, OPL, NP, OC, Row, Acc).
+%% Grey8 to RGB
+noswap1gto4(C, W, <<G0:8, R/binary>>, OPL, NP, OC, Row, Acc) when C =/= W ->
+    noswap1gto4(C+1, W, R, OPL, NP, OC, [?C4(G0,G0,G0, 255)|Row], Acc);
+noswap1gto4(C, W, Bin, OPL, NP, OC, Row, Acc) ->
+    swap(noswap1gto4, C, W, Bin, OPL, NP, OC, Row, Acc).
+%% RGB to RGBA 
 noswap3to4(C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, Row, Acc) when C =/= W ->
     noswap3to4(C+1, W, R, OPL, NP, OC, [?C4(B0,G0,R0,255)|Row], Acc);
 noswap3to4(C, W, Bin, OPL, NP, OC, Row, Acc) ->
     swap(noswap3to4, C, W, Bin, OPL, NP, OC, Row, Acc).
-
-noswap4(C, W, <<B0:8,G0:8,R0:8,A0:8, R/binary>>, OPL, NP, OC, Row, Acc) when C =/= W ->
-    noswap4(C+1, W, R, OPL, NP, OC, [?C4(B0,G0,R0,A0)|Row], Acc);
+%% RGBA 
+noswap4(C, W, <<Col:4/binary, R/binary>>, OPL, NP, OC, Row, Acc) when C =/= W ->
+    noswap4(C+1, W, R, OPL, NP, OC, [Col|Row], Acc);
 noswap4(C, W, Bin, OPL, NP, OC, Row, Acc) ->
     swap(noswap4, C, W, Bin, OPL, NP, OC, Row, Acc).
-
+%% RGBA to RGB
 noswap4to3(C, W, <<RGB:3/binary,_:8,R/binary>>, OPL, NP, OC, Row, Acc) when C =/= W ->
     noswap4to3(C+1, W, R, OPL, NP, OC, [RGB|Row], Acc);
 noswap4to3(C, W, Bin, OPL, NP, OC, Row, Acc) ->
@@ -239,9 +275,18 @@ swap3to4(C, W, Bin, OPL, NP, OC, Row, Acc) ->
 
 type_conv(Type, Type) ->  %% No swap
     case bytes_pp(Type) of
+	1 -> noswap1;
 	3 -> noswap3;
 	4 -> noswap4
     end;
+type_conv(a8, r8g8b8) ->
+    noswap1to3;
+type_conv(g8, r8g8b8) ->
+    noswap1to3;
+type_conv(a8, r8g8b8a8) ->
+    noswap1ato4;
+type_conv(g8, r8g8b8a8) ->
+    noswap1gto4;
 type_conv(r8g8b8a8, r8g8b8) ->
     noswap4to3;
 type_conv(b8g8r8a8, b8g8r8) ->
@@ -255,7 +300,8 @@ type_conv(FromType, ToType) ->
 	{3,3} -> swap3;
 	{4,4} -> swap4;
 	{3,4} -> swap3to4;
-	{4,3} -> swap4to3
+	{4,3} -> swap4to3;
+	_ -> {error, {not_supported,conversion,FromType,ToType}}
     end.
 
 order_conv(Order, Order) -> {false, false};   %% {SwapColumns, SwapRows}

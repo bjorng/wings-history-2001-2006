@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.6 2002/08/08 12:33:43 dgud Exp $
+%%     $Id: e3d__tga.erl,v 1.7 2002/11/26 09:46:26 dgud Exp $
 %%
 
 -module(e3d__tga).
@@ -21,7 +21,7 @@ format_error(unsupported_format) ->
 format_error(bad_image_specifiction) ->
     "Bad image specification".
 
-load(FileName, Opts) ->
+load(FileName, _Opts) ->
     case file:read_file(FileName) of
 	%% Uncompressed image
 	{ok, <<0,0,2,0,0,0,0,0,0,0,0,0,  Image/binary>>} ->
@@ -31,7 +31,11 @@ load(FileName, Opts) ->
 	{ok, <<0,0,10,0,0,0,0,0,0,0,0,0, Image/binary>>} ->
 %	    io:format("Loading compressed ~n",[]),
 	    load_comp(Image);
-	{ok, Bin} ->
+	%% Black&White Image 
+	{ok, <<0,0,3,0,0,0,0,0,0,0,0,0, Image/binary>>} ->
+	    load_uncomp(Image);
+	{ok, <<_Bin:12/binary, _Rest/binary>>} ->
+%%	    io:format("~p~n", [Bin]),
 	    {error, {none,?MODULE,unsupported_format}};
 	Error ->
 	    Error
@@ -39,12 +43,18 @@ load(FileName, Opts) ->
 
 load_uncomp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,Image/binary>>) ->
     BytesPerPixel = BitsPP div 8,
-    SpecOK = (W > 0) and (H > 0) and ((BitsPP == 32) or (BitsPP == 24)),
+    SpecOK = (W > 0) and (H > 0) and ((BitsPP == 32) 
+				      or (BitsPP == 24) 
+				      or (BitsPP == 8)),
     if 
 	SpecOK == false ->
+	    io:format("Unsupported image spec W ~p H ~p BitsPP ~p Order ~p Alpha ~p ~n",
+		      [W,H,BitsPP,Order,Alpha]),
 	    {error, {none,?MODULE,bad_image_specifiction}};
 	true ->
 	    Type = case BytesPerPixel of
+		       1 when Alpha == 8 -> a8;
+		       1 -> g8;
 		       3 -> b8g8r8;
 		       4 -> b8g8r8a8
 		   end,
@@ -64,16 +74,18 @@ load_comp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,CImage/bin
 	    {error, {none,?MODULE,bad_image_specifiction}};
 	true ->
 	    Type = case BytesPerPixel of
+		       1 when Alpha == 8 -> a8;
+		       1 -> g8;
 		       3 -> b8g8r8;
 		       4 -> b8g8r8a8
 		   end,	    
-	    Size = W * H,
+	    Size  = W * H,
 	    Image = load_comp(CImage, Size, BytesPerPixel, []),
 	    #e3d_image{width = W, height = H, type = Type, order = get_order(Order),
 		       bytes_pp = BytesPerPixel, image = Image}
     end.
 
-load_comp(_, PL, ByPP, Acc) when PL =< 0 ->
+load_comp(_, PL, _ByPP, Acc) when PL =< 0 ->
     list_to_binary(lists:reverse(Acc));
 
 load_comp(<<0:1, Len:7, Image/binary>>, PLeft, ByPP, Acc) ->
@@ -85,7 +97,7 @@ load_comp(<<1:1, Len:7, RestImage0/binary>>, PLeft, ByPP, Acc) ->
     Pixels = lists:duplicate(Len+1, Pixel),
     load_comp(RestImage, PLeft-(Len+1), ByPP, [Pixels| Acc]).
 
-save(Image0, FileName, Opts) ->
+save(Image0, FileName, _Opts) ->
     Order = get_order(Image0#e3d_image.order),
     {Image, BitsPP, Def} = 
 	if 
