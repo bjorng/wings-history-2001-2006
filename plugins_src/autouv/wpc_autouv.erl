@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.222 2004/04/25 05:21:38 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.223 2004/04/28 08:16:25 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -127,9 +127,9 @@ start_edit(#we{fs=Ftab}=We, St) ->
 	    do_edit(none, Faces, We, St)
     end.
 
-do_edit(MatName0, Faces, We, St) ->
-    {Areas,MatName} = init_edit(MatName0, Faces, We),
-    create_uv_state(Areas, MatName, We, St).
+do_edit(MatName, Faces, We, St) ->
+    Charts = init_edit(Faces, We),
+    create_uv_state(Charts, MatName, We, St).
 
 %%%%%%
 
@@ -293,14 +293,13 @@ insert_material(Cs, MatName, We) ->
     Faces = lists:append([Fs || #we{name=#ch{fs=Fs}} <- gb_trees:values(Cs)]),
     wings_material:assign(MatName, Faces, We).
 
-init_edit(MatName, Faces0, We0) ->
+init_edit(Faces0, We0) ->
     Faces = [F || F <- Faces0, has_proper_uvs(F, We0)],
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We0),
     {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We0),
-    Charts = auv_segment:cut_model(Charts1, Cuts, We0),
-    Map1 = build_map(Charts, FvUvMap, 1, []),
-    Map  = gb_trees:from_orddict(sort(Map1)),
-    {Map,MatName}.
+    Charts2 = auv_segment:cut_model(Charts1, Cuts, We0),
+    Charts = build_map(Charts2, FvUvMap, 1, []),
+    gb_trees:from_orddict(sort(Charts)).
 
 has_proper_uvs(Face, #we{mirror=Face}) -> false;
 has_proper_uvs(Face, We) ->
@@ -460,11 +459,7 @@ handle_event_0(Ev, St) ->
     end.
 
 handle_event_1({current_state,geom_display_lists,GeomSt}, AuvSt) ->
-    case verify_state(GeomSt, AuvSt) of
-	keep ->
-	    update_selection(GeomSt, AuvSt);
-	Other -> Other
-    end;
+    new_geom_state(GeomSt, AuvSt);
 handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0},
 	       #st{selmode=Mode}) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
@@ -832,69 +827,34 @@ orig_pos(We = #we{name=#ch{vmap=Vmap}},St) ->
 		       end 
 	       end, gb_trees:to_list(We#we.vp)),
     gb_trees:from_orddict(Vs3d).
-    
 
 
 %%%
 %%% Verify that the model in the geometry window hasn't changed its topology.
 %%%
-verify_state(WingsSt, AuvSt) ->
-    case same_topology(WingsSt, AuvSt) of
-	true -> keep;
-	false ->
-	    wings_wm:dirty(),
-	    {seq,push,get_broken_event(AuvSt)}
-    end.
 
-same_topology(#st{shapes=Shs}, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}) ->
+new_geom_state(#st{shapes=Shs}=GeomSt, AuvSt0) ->
+    AuvSt = new_geom_state_1(Shs, AuvSt0),
+    update_selection(GeomSt, AuvSt).
+
+new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
     case {gb_trees:lookup(Id, Shs),gb_trees:lookup(Id, Orig)} of
-	{{value,We},{value,We}} -> true;
-	{{value,#we{es=Etab1}},{value,#we{es=Etab2}}} ->
-	    gb_trees:keys(Etab1) =:= gb_trees:keys(Etab2);
-	_ ->
-	    false
+	{{value,We},{value,We}} -> AuvSt;
+	{{value,#we{es=Etab}},{value,#we{es=Etab}}} -> AuvSt;
+	{{value,#we{es=Etab1}=We},{value,#we{es=Etab2}}} ->
+	    case gb_trees:keys(Etab1) =:= gb_trees:keys(Etab2) of
+		false -> topology_updated(We, AuvSt);
+		true -> uvs_updated(We, AuvSt)
+	    end
     end.
 
-get_broken_event(AuvSt) ->
-    {replace,fun(Ev) -> broken_event(Ev, AuvSt) end}.
+uvs_updated(We, AuvSt) ->
+    topology_updated(We, AuvSt).
 
-broken_event(redraw, #st{bb=#uvstate{id=Id, st=#st{shapes=Shs}}}) ->
-    {value, #we{name=Name}} = gb_trees:lookup(Id, Shs),
-    {_,_,W,H} = wings_wm:viewport(),
-    wings_io:ortho_setup(),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    gl:color3f(1, 1, 1),
-    gl:recti(0, H, W, 0),
-    gl:color3f(0, 0, 0),
-    wings_io:text_at(10, ?LINE_HEIGHT,
-		     ["The topology of \"",Name,"\" has changed,"]),
-    wings_io:text_at(10, 2*?LINE_HEIGHT,
-		     "preventing UV coordinates to be applied to it."),
-    wings_io:text_at(10, 4*?LINE_HEIGHT,
-		     "Either quit AutoUV and start over, or Undo your changes."),
-    wings_wm:message("[R] Show menu"),
-    keep;
-broken_event({current_state,geom_display_lists,St}, AuvSt) ->
-    case same_topology(St, AuvSt) of
-	false -> keep;
-	true ->
-	    wings_wm:dirty(),
-	    pop
-    end;
-broken_event(close, _) ->
-    restore_wings_window(),
-    delete;
-broken_event(#keyboard{}=Ev, _St) ->
-    %% To accept Undo.
-    wings_wm:send(geom, Ev),
-    keep;
-broken_event(Ev, _) ->
-    case wings_menu:is_popup_event(Ev) of
-	no -> keep;
-	{yes,X,Y,_} ->
-	    Menu = [{"Cancel",cancel,"Cancel UV mapping"}],
-	    wings_menu:popup_menu(X, Y, wings_wm:this(), Menu)
-    end.
+topology_updated(#we{fs=Ftab}=We, St) ->
+    Charts0 = init_edit(gb_trees:keys(Ftab), We),
+    Charts = restrict_ftab(Charts0),
+    St#st{shapes=Charts}.
 
 %%%
 %%% Draw routines.
