@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.39 2004/12/18 19:36:03 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.40 2004/12/25 19:50:07 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -166,10 +166,15 @@ collapse_edge_1(Edge, Vkeep, Rec,
 	    #edge{lf=LF,rf=RF,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
 
 	    %% Move kept vertex. Delete the other one.
-	    Pos = wings_vertex:center([Vremove,Vkeep], Vtab0),
 	    Vct1 = gb_trees:update(Vkeep, RP, Vct0),
-	    Vtab1 = gb_trees:update(Vkeep, Pos, Vtab0),
-	    
+	    PosKeep = gb_trees:get(Vkeep, Vtab0),
+	    Vtab1 = case gb_trees:get(Vremove, Vtab0) of
+			PosKeep -> Vtab0;
+			PosRemove ->
+			    Pos = e3d_vec:average(PosKeep, PosRemove),
+			    gb_trees:update(Vkeep, Pos, Vtab0)
+		    end,
+
 	    %% Patch all predecessors and successors of
 	    %% the edge we will remove.
 	    Etab1 = wings_edge:patch_edge(LP, LS, LF, Edge, Etab0),
@@ -183,14 +188,14 @@ collapse_edge_1(Edge, Vkeep, Rec,
 	    
 	    %% Now we can safely remove the edge and vertex.
 	    Etab5 = gb_trees:delete(Edge, Etab4),
-	    Htab = wings_edge:hardness(Edge, soft, Htab0),
+	    Htab = gb_trees:delete_any(Edge, Htab0),
 	    Vct = gb_trees:delete(Vremove, Vct1),
 	    Vtab = gb_trees:delete(Vremove, Vtab1),
 	    
 	    %% ... change all references to the kept vertex.
 	    %% We iterate on the original data structure, and operates
 	    %% on our updated edge table.
-	    {_,Etab} = patch_vtx_refs(Vremove, Vkeep, We0, {none,Etab5}),
+	    Etab = slim_patch_vtx_refs(Vremove, Vkeep, We0, Etab5),
 
 	    We1 = We0#we{vc=Vct,vp=Vtab,he=Htab,fs=Ftab,es=Etab},
 	    We = foldl(fun(_Face, bad_edge) -> bad_edge;
@@ -331,6 +336,18 @@ is_waist(Va, Vb, We) ->
 		  end
 	  end, 0, Va, We),
     N =/= 1.
+
+slim_patch_vtx_refs(OldV, NewV, We, Acc) ->
+    wings_vertex:fold(
+      fun(Edge, _, _, Tab) ->
+	      case gb_trees:lookup(Edge, Tab) of
+		  {value,#edge{vs=OldV}=Rec} ->
+		      gb_trees:update(Edge, Rec#edge{vs=NewV}, Tab);
+		  {value,#edge{ve=OldV}=Rec} ->
+		      gb_trees:update(Edge, Rec#edge{ve=NewV}, Tab);
+		  none -> Tab			%An deleted edge.
+	      end
+      end, Acc, OldV, We).
 
 patch_vtx_refs(OldV, NewV, We, {_,_}=Acc) ->
     wings_vertex:fold(
