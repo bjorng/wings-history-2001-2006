@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.8 2002/01/17 13:20:40 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.9 2002/01/18 10:43:05 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2,call_ui/1]).
@@ -158,29 +158,31 @@ command(unsupported, Mod, Cmd, Ask, St) ->
     check_result(Mod:command(Cmd, Ask, St), St).
 
 check_result({new_shape,Prefix,#e3d_object{}=Obj,Mat}, St0) ->
-    {UsedMat,St} = import_object(Obj, St0),
-    add_materials(UsedMat, Mat, St);
-check_result({new_shape,Prefix,Fs,Vs}, #st{onext=Oid}=St) ->
+    {We,UsedMat} = import_object(Obj),
+    St = add_materials(UsedMat, Mat, St0),
+    new_shape(Prefix, We, St);
+check_result({new_shape,Prefix,Fs,Vs}, St) ->
     We = wings_we:build(Fs, Vs),
-    Name = Prefix++integer_to_list(Oid),
-    wings_shape:new(Name, We, St);
+    new_shape(Prefix, We, St);
 check_result(aborted, St) -> aborted;
 check_result({drag,_}=Drag, _) -> Drag;
 check_result(#st{}=St, _) -> St.
 
-import_object(Obj, St) ->
-    import_object(Obj, gb_sets:empty(), St).
+new_shape(Prefix, We, #st{onext=Oid}=St) ->
+    Name = Prefix++integer_to_list(Oid),
+    wings_shape:new(Name, We, St).
 
-import_object(#e3d_object{name=Name,obj=Obj}, UsedMat0, St0) ->
+import_object(Obj) ->
+    import_object(Obj, gb_sets:empty()).
+
+import_object(#e3d_object{name=Name,obj=Obj}, UsedMat0) ->
     #e3d_mesh{matrix=Matrix,vs=Vs0,tx=Tx0,fs=Fs0,he=He} = Obj,
-    io:format("Name ~p\n", [Name]),
     Vs = scale(Vs0, Matrix),
     ObjType = obj_type(Tx0),
-    io:format("~w\n", [ObjType]),
     Tx = list_to_tuple(Tx0),
     {Fs,UsedMat} = import_faces(Fs0, Tx, [], UsedMat0),
-    St = build_object(Name, ObjType, Fs, Vs, He, St0),
-    {UsedMat,St}.
+    We = wings_we:build(ObjType, Fs, Vs, He),
+    {We,UsedMat}.
 
 import_faces([#e3d_face{vs=Vs,tx=Tx0,mat=Mat0}|Fs], Txs, Acc, UsedMat0) ->
     UsedMat = add_used_mat(Mat0, UsedMat0),
@@ -207,20 +209,6 @@ add_used_mat([M|Ms], UsedMat) -> add_used_mat(Ms, gb_sets:add(M, UsedMat)).
 translate_mat([]) -> default;
 translate_mat([Mat]) -> Mat;
 translate_mat([_|_]=List) -> List.
-
-build_object(Name, Type, Fs, Vs, He, St) ->
-    case catch wings_we:build(Type, Fs, Vs, He) of
-	{'EXIT',Reason} ->
-	    io:format("Conversion failed: ~P\n", [Reason,20]),
-	    St;
-	We -> store_object(Name, We, St)
-    end.
-
-store_object(undefined, We, #st{onext=Oid}=St) ->
-    Name = "unnamed_object" ++ integer_to_list(Oid),
-    wings_shape:new(Name, We, St);
-store_object(Name, We, St) ->
-    wings_shape:new(Name, We, St).
 
 add_materials(UsedMat0, Mat0, St) ->
     UsedMat = sofs:from_external(gb_sets:to_list(UsedMat0), [name]),
