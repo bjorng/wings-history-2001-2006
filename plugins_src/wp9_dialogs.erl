@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.19 2003/11/24 00:18:16 raimo_niskanen Exp $
+%%     $Id: wp9_dialogs.erl,v 1.20 2003/11/29 07:14:05 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -28,15 +28,7 @@ ui({image,formats,Formats}, _Next) ->
     image_formats(Formats);
 ui({image,read,Prop}, _Next) ->
     read_image(Prop);
-ui({message,Message}, _Next) ->
-    message(Message);
 ui(What, Next) -> Next(What).
-
-message(Message) ->
-    Qs = {vframe,
-	  [{label,Message},
-	   {hframe,[{button,ok,[ok]}]}]},
-    wings_ask:dialog("Error!", Qs, fun(_) -> ignore end).
 
 open_file(Prompt, Prop) ->
     Exts = file_filters(Prop),
