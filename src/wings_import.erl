@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_import.erl,v 1.6 2002/12/02 14:59:43 bjorng Exp $
+%%     $Id: wings_import.erl,v 1.7 2003/01/01 14:58:47 bjorng Exp $
 %%
 
 -module(wings_import).
@@ -20,33 +20,37 @@
 
 %%-define(DUMP, 1).
 
-import(#e3d_object{obj=Mesh0}, UsedMat) ->
-    Mesh = e3d_mesh:clean_faces(Mesh0),
-    import_1(e3d_mesh:partition(Mesh), UsedMat, []).
+import(#e3d_object{obj=Mesh0}, UsedMat0) ->
+    Mesh1 = e3d_mesh:clean_faces(Mesh0),
+    {Mesh,ObjType,UsedMat} = prepare_mesh(Mesh1, UsedMat0),
+    case catch wings_we:build(ObjType, Mesh) of
+	{'EXIT',_R} ->
+	    %% The mesh needs cleaning up. Unfortunately,
+	    %% that will change the vertex numbering.
+	    {import_1(e3d_mesh:partition(Mesh), ObjType, []),UsedMat};
+	We -> {We,UsedMat}
+    end.
 
-import_1([Mesh|T], UsedMat0, Acc) ->
-    case import_mesh(Mesh, UsedMat0) of
-	error ->
-	    import_1(T, UsedMat0, Acc);
-	{[_|_]=Wes,UsedMat} -> import_1(T, UsedMat, Wes++Acc);
-	{We,UsedMat} -> import_1(T, UsedMat, [We|Acc])
+import_1([Mesh|T], ObjType, Acc) ->
+    case import_mesh(Mesh, ObjType) of
+	error -> import_1(T, ObjType, Acc);
+	[_|_]=Wes -> import_1(T, ObjType, Wes++Acc);
+	We -> import_1(T, ObjType, [We|Acc])
     end;
 import_1([], _, []) -> error;
-import_1([], UsedMat, [#we{mode=Mode}|_]=Wes) ->
+import_1([], _, [#we{mode=Mode}|_]=Wes) ->
     We = wings_we:merge(Wes),
-    {We#we{mode=Mode},UsedMat}.
+    We#we{mode=Mode}.
 
-import_mesh(Mesh0, UsedMat0) ->	
+prepare_mesh(Mesh0, UsedMat0) ->
     Mesh1 = e3d_mesh:make_quads(Mesh0),
     Mesh = e3d_mesh:transform(Mesh1),
     #e3d_mesh{tx=Tx0,fs=Fs0} = Mesh,
     UsedMat = used_mat(Fs0, UsedMat0),
     ObjType = obj_type(Tx0),
-    We = build(ObjType, Mesh),
-    {We,UsedMat}.
+    {Mesh,ObjType,UsedMat}.
 
-build(ObjType, Mesh) ->
-    %% First attempt to build winged-edge object.
+import_mesh(Mesh, ObjType) ->
     case catch wings_we:build(ObjType, Mesh) of
 	{'EXIT',_R} ->
 	    build_1(ObjType, Mesh);
@@ -54,7 +58,7 @@ build(ObjType, Mesh) ->
     end.
 
 build_1(ObjType, Mesh0) ->
-    %% Second attempt: Orient normals consistently.
+    %% Orient normals consistently and try to build again.
     Mesh = e3d_mesh:orient_normals(Mesh0),
     case catch wings_we:build(ObjType, Mesh) of
 	{'EXIT',_R} ->
@@ -63,7 +67,8 @@ build_1(ObjType, Mesh0) ->
 	    rip_apart(ObjType, Mesh);
 	We -> We
     end.
-    
+
+obj_type(#e3d_mesh{tx=Tx}) -> obj_type(Tx);
 obj_type([]) -> material;
 obj_type([_|_]) -> uv.
 
