@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.86 2002/12/26 09:47:10 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.87 2003/01/03 09:45:10 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -623,7 +623,10 @@ aim(St) ->
     set_current(View#view{origin=Origin,distance=Dist,pan_x=0.0,pan_y=0.0}).
 
 frame(#st{sel=[],shapes=Shs}) ->
-    BB = foldl(fun(We, BB) -> wings_vertex:bounding_box(We, BB) end,
+    BB = foldl(fun(#we{perm=P}=We, BB) when ?IS_VISIBLE(P) ->
+		       wings_vertex:bounding_box(We, BB);
+		  (_, BB) -> BB
+	       end,
 	       none, gb_trees:values(Shs)),
     frame_1(BB);
 frame(St) ->
