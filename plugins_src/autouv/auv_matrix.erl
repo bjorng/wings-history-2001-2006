@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_matrix.erl,v 1.4 2002/10/17 20:55:06 raimo_niskanen Exp $
+%%     $Id: auv_matrix.erl,v 1.5 2002/10/17 23:12:16 bjorng Exp $
 
 -module(auv_matrix).
 
@@ -592,30 +592,29 @@ vec_mult_const(F, [Z | B], C) ->
 vec_mult_const(_, [], C) ->
     lists:reverse(C).
 
-vec_mult([Va | A] = AA, [Vb | B] = BB, S) when integer(Va) ->
-    if integer(Vb) ->
-	    if Va == Vb ->
-		    vec_mult(A, B, S);
-	       Va < Vb ->
-		    vec_mult(A, [Vb-Va | B], S);
-	       true ->
-		    vec_mult([Va-Vb | A], B, S)
-	    end;
-       true -> % float(Vb)
-	    vec_mult(pop_z(AA), B, S)
-    end;
-vec_mult([Va | A] = AA, [Vb | B] = BB, S) -> % when float(Va)
-    if integer(Vb) ->
-	    vec_mult(A, pop_z(BB), S);
-       float(Vb), float(Va), float(S) ->
-	    vec_mult(A, B, Va*Vb + S)
-    end;
+vec_mult([Va | A], BB, S) when integer(Va) ->
+    vec_mult_pop(Va, A, BB, S);
+vec_mult([Va | A] = AA, [Vb | B] = BB, S) when integer(Vb) ->
+    vec_mult_pop(Vb, B, AA, S);
+vec_mult([Va | A], [Vb | B], S) -> %% float(Va), float(Vb)
+    vec_mult(A, B, Va*Vb + S);
 vec_mult([], _, S) ->
     S;
 vec_mult(_, [], S) ->
     S.
 
-
+vec_mult_pop(0, AA, BB, S) ->
+    vec_mult(AA, BB, S);
+vec_mult_pop(N, AA, [Vb | B], S) when float(Vb) ->
+    vec_mult_pop(N-1, AA, B, S);
+vec_mult_pop(N, AA, [Vb | B], S) when N < Vb ->
+    vec_mult_pop(Vb-N, B, AA, S);
+vec_mult_pop(N, AA, [Vb | B], S) when Vb < N ->
+    vec_mult_pop(N-Vb, AA, B, S);
+vec_mult_pop(_, AA, [_Vb | B], S) -> %% N == Vb
+    vec_mult(AA, B, S);
+vec_mult_pop(_, _, [], S) ->
+    S.
 
 %% Push value; zeros or float
 push_v(0.0, C) ->
