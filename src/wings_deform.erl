@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.24 2002/02/08 07:05:47 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.25 2002/03/11 16:03:19 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -20,14 +20,14 @@
 -define(PI, 3.1416).
 -compile({inline,[{mix,2}]}).
 
-sub_menu(St) ->
-    {deform,fun(help, Ns) -> "";
-	       (1, Ns) ->
+sub_menu(_St) ->
+    {deform,fun(help, _Ns) -> "";
+	       (1, _Ns) ->
 		    XYZ = [{"X",x},
 			   {"Y",y},
 			   {"Z",z}],
 		    [{"Crumple",crumple},
-		     {"Inflate",inflate},
+		     {"Inflate",{inflate,inflate_fun()}},
 		     {"Taper",{taper,
 			       [{"Along",ignore},
 				separator,
@@ -36,7 +36,7 @@ sub_menu(St) ->
 				taper_item(z)]}},
 		     {"Twist",{twist,XYZ}},
 		     {"Twisty Twist",{twisty_twist,XYZ}}];
-	       (_, Ns) -> ignore
+	       (_, _Ns) -> ignore
 	    end}.
 
 taper_item(Axis) ->
@@ -48,12 +48,10 @@ taper_item(Axis) ->
 			[Effect|_] = Effects,
 			wings_menu:build_command({Axis,Effect}, Ns)
 		end,
-	    [Effect|_] = Effects,
-	    TaperAlong = "Taper along " ++ AxisStr,
 	    Help = "Taper along " ++ AxisStr,
 	    {AxisStr,F,Help};
 	true ->
-	    F = fun(help, Ns) ->
+	    F = fun(help, _Ns) ->
 			[Effect|_] = Effects,
 			TaperAlong = "Taper along " ++ AxisStr,
 			{TaperAlong ++ " (with effect on " ++
@@ -62,9 +60,9 @@ taper_item(Axis) ->
 		   (1, Ns) ->
 			[Effect|_] = Effects,
 			wings_menu:build_command(Effect, Ns);
-		   (3, Ns) ->
+		   (3, _Ns) ->
 			expand_effects(Effects, []);
-		   (_, Ns) -> ignore
+		   (_, _Ns) -> ignore
 		end,
 	    {AxisStr,{Axis,F},[]}
     end.
@@ -78,8 +76,16 @@ expand_effects([H|T], Acc) ->
 expand_effects([], Acc) ->
     [{"Effect",ignore},separator|reverse(Acc)].
 
+inflate_fun() ->
+    fun(help, _) -> {"Inflate elements",[],"Pick center and radius"};
+       (1, _Ns) -> {vertex,{deform,inflate}};
+       (2, _Ns) -> ignore;
+       (3, Ns) -> {vector,{pick,[point,point],[],Ns}}
+    end.
+
 command(crumple, St) -> crumple(St);
 command(inflate, St) -> inflate(St);
+command({inflate,What}, St) -> inflate(What, St);
 command({taper,{Primary,Effect}}, St) -> taper(Primary, Effect, St);
 command({twist,Axis}, St) -> twist(Axis, St);
 command({twisty_twist,Axis}, St) -> twisty_twist(Axis, St).
@@ -133,7 +139,7 @@ inflate(St) ->
     Tvs = wings_sel:fold(fun inflate/3, [], St),
     wings_drag:setup(Tvs, [percent], St).
 
-inflate(Vs0, #we{id=Id,vs=Vtab}=We, Acc) ->
+inflate(Vs0, #we{vs=Vtab}=We, Acc) ->
     Vs = gb_sets:to_list(Vs0),
     Center = wings_vertex:center(Vs, We),
     Radius = foldl(
@@ -141,10 +147,20 @@ inflate(Vs0, #we{id=Id,vs=Vtab}=We, Acc) ->
 		       VPos = wings_vertex:pos(V, Vtab),
 		       case e3d_vec:dist(Center, VPos) of
 			   R when R > R0 -> R;
-			   Smaller -> R0
+			   _Smaller -> R0
 		       end
 	       end, 0.0, Vs),
-    [{Id,foldl(
+    inflate(Center, Radius, Vs, We, Acc).
+
+inflate({Center,Outer}, St) ->
+    Radius = e3d_vec:dist(Center, Outer),
+    Tvs = wings_sel:fold(fun(Vs, We, _) ->
+				 inflate(Center, Radius, gb_sets:to_list(Vs), We, [])
+			 end, [], St),
+    wings_drag:setup(Tvs, [percent], St).
+
+inflate(Center, Radius, Vs, #we{id=Id,vs=Vtab}, Acc) ->
+      [{Id,foldl(
 	  fun(V, A) ->
 		  VPos = wings_vertex:pos(V, Vtab),
 		  D = e3d_vec:dist(Center, VPos),
@@ -152,7 +168,6 @@ inflate(Vs0, #we{id=Id,vs=Vtab}=We, Acc) ->
 		  Vec = e3d_vec:mul(Dir, Radius-D),
 		  [{Vec,[V]}|A]
 	  end, [], Vs)}|Acc].
-			       
 
 %%
 %% The Taper deformer.
@@ -171,9 +186,9 @@ taper_2(Vs, #we{id=Id}=We, Primary, Effect, Acc) ->
     Max = element(Key, MaxR),
     Range = Max - Min,
     check_range(Range, Primary),
-    taper_3(Id, Vs, We, Range, Key, Effect, MinR, MaxR, Acc).
+    taper_3(Id, Vs, We, Key, Effect, MinR, MaxR, Acc).
 
-taper_3(Id, Vs0, We, Range, Key, Effect, MinR, MaxR, Acc) ->
+taper_3(Id, Vs0, We, Key, Effect, MinR, MaxR, Acc) ->
     Tf = taper_fun(Key, Effect, MinR, MaxR),
     Vs = gb_sets:to_list(Vs0),
     VsPos = wings_util:add_vpos(Vs, We),
@@ -186,7 +201,7 @@ taper_3(Id, Vs0, We, Range, Key, Effect, MinR, MaxR, Acc) ->
 	  end,
     [{Id,{Vs,Fun}}|Acc].
 
-taper_fun(Key, Effect, {IX,IY,IZ}=MinR, {AX,AY,AZ}=MaxR) ->
+taper_fun(Key, Effect, {_,_,_}=MinR, {_,_,_}=MaxR) ->
     Min = element(Key, MinR),
     Range = element(Key, MaxR) - element(Key, MinR),
     {Ekey1,Ekey2} = effect(Effect),
@@ -199,7 +214,7 @@ taper_fun(Key, Effect, {IX,IY,IZ}=MinR, {AX,AY,AZ}=MaxR) ->
 		    E = S * (element(Ekey1, Pos)-Eoffset1) + Eoffset1,
 		    setelement(Ekey1, Pos, E)
 	    end;
-	Other ->
+	_Other ->
 	    Eoffset2 = (element(Ekey2, MinR)+element(Ekey2, MaxR))/2,
 	    fun(U, Pos0) when float(U), float(Min), float(Range) ->
 		    S0 = (element(Key, Pos0)-Min)/Range,
@@ -291,7 +306,6 @@ twisty_twist(Vs0, #we{id=Id}=We, Axis, Acc) ->
     Range = Max - Min,
     check_range(Range, Axis),
     Vs = gb_sets:to_list(Vs0),
-    VsPos = wings_util:add_vpos(Vs, We),
     Fun = twister_fun(Vs, Tf, Min, Range, We),
     [{Id,{Vs,Fun}}|Acc].
 
@@ -341,5 +355,5 @@ twister_fun(Vs, Tf, Min, Range, We) ->
 check_range(Range, Axis0) when Range < 0.01 ->
     Axis = wings_util:upper(atom_to_list(Axis0)),
     Error = lists:concat(["Extent along ",Axis," axis is too short."]),
-    throw({command_error,Error});
-check_range(Range, Axis) -> ok.
+    wings_util:error(Error);
+check_range(_Range, _Axis) -> ok.
