@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.86 2002/05/16 10:29:57 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.87 2002/05/17 07:41:48 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -142,7 +142,7 @@ mirror_constrain(Tvs, #we{mirror=Face}=We) ->
     mirror_constrain_1(Tvs, VsSet, {N,Vpos}, []).
 
 mirror_constrain_1([{Vs,Tr0}=Fun|Tvs], VsSet, N, Acc) when is_function(Tr0) ->
-    case ordsets:intersection(Vs, VsSet) of
+    case ordsets:intersection(ordsets:from_list(Vs), VsSet) of
 	[] ->
 	    mirror_constrain_1(Tvs, VsSet, N, [Fun|Acc]);
 	[_|_]=Mvs ->
@@ -150,7 +150,7 @@ mirror_constrain_1([{Vs,Tr0}=Fun|Tvs], VsSet, N, Acc) when is_function(Tr0) ->
 	    mirror_constrain_1(Tvs, VsSet, N, [{Vs,Tr}|Acc])
     end;
 mirror_constrain_1([VecVs0|Tvs], VsSet, N, Acc) ->
-    VecVs1 = sofs:from_external(VecVs0, [{vec,[vertex]}]),
+    VecVs1 = sofs:from_term(VecVs0, [{vec,[vertex]}]),
     VecVs2 = sofs:family_to_relation(VecVs1),
     VecVs3 = sofs:to_external(VecVs2),
     VecVs = mirror_constrain_2(VecVs3, VsSet, N, []),
@@ -295,7 +295,7 @@ handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
     get_drag_event(Drag).
 
 invalidate_fun(#dlo{drag=none}=D, _) -> D;
-invalidate_fun(_, _) -> #dlo{}.
+invalidate_fun(#dlo{src_we=We}=D, _) -> D#dlo{src_we=We#we{es=none}}.
     
 numeric_input(Drag0) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
