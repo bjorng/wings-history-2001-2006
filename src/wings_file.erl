@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.128 2003/08/03 19:31:11 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.129 2003/09/09 06:09:47 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -63,6 +63,8 @@ menu(_) ->
      {"Import Image...",import_image,"Import an image file"},
      separator,
      {"Render",{render,[]}},
+     separator,
+     {"Install Plug-In",install_plugin},
      separator|recent_files([{"Exit",quit}])].
 
 command(new, St) ->
@@ -112,6 +114,9 @@ command({export_selected,ndo}, St) ->
 			  end, [], St),
     Shs = gb_trees:from_orddict(reverse(Shs0)),
     export_ndo(St#st{shapes=Shs}),
+    St;
+command(install_plugin, St) ->
+    install_plugin(),
     St;
 command(quit, St) ->
     quit(St);
@@ -432,7 +437,7 @@ recent_files(Rest) ->
 number_files([{Base,_}|T], I, Rest) ->
     [{Base,I}|number_files(T, I+1, Rest)];
 number_files([], _I, Rest) -> Rest.
-    
+
 %%
 %% The Revert command.
 %%
@@ -527,8 +532,24 @@ export_ndo(St) ->
 	aborted -> St;
 	Name -> wings_ff_ndo:export(Name, St)
     end.
-    
+
+%%%
+%%% Install a plug-in.
+%%%
+
+install_plugin() ->
+    Props = [{extensions,[{".gz","GZip Compressed File"},
+			  {".tar","Tar File"},
+			  {".tgz","Compressed Tar File"},
+			  {".beam","Beam File"}]}],
+    case wings_plugin:call_ui({file,open_dialog,Props}) of
+	aborted -> ok;
+	Name -> wings_plugin:install(Name)
+    end.
+
+%%%    
 %%% Utilities.
+%%%
 
 export_file_prop(none, _) -> none;
 export_file_prop(Prop, #st{file=undefined}) -> Prop;

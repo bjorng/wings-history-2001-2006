@@ -9,10 +9,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.25 2003/09/06 14:43:18 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.26 2003/09/09 06:09:47 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,dialog_result/2,command/2,call_ui/1]).
+-export([install/1]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -241,3 +242,35 @@ check_result(M, Other, St) ->
 
 object_name(Prefix, #st{onext=Oid}) ->
     Prefix++integer_to_list(Oid).
+
+%%%
+%%% Installing a plug-in.
+%%%
+
+install(Name) ->
+    Type = case install_file_type(Name) of
+	       beam -> beam;
+	       tar -> tar
+	   end,
+    io:format("~p: ~p\n", [Type,Name]),
+    ok.
+
+install_file_type(Name) ->
+    case filename:extension(Name) of
+	".tgz" -> tar;
+	".beam" -> beam;
+	".tar" -> tar;
+	".gz" ->
+	    case filename:extension(filename:rootname(Name, ".gz")) of
+		".tar" -> tar;
+		".beam" -> beam;
+		_ ->
+		    wings_util:error("File \"~s\": Unknown file type",
+				     [filename:basename(Name)])
+	    end
+    end.
+
+		    
+	    
+
+	    
