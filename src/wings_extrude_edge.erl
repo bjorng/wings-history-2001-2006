@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.39 2003/03/12 19:13:48 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.40 2003/03/20 21:09:32 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -45,15 +45,15 @@ bevel(St0) ->
     wings_drag:setup(Tvs, [{distance,{0.0,Limit}}],
 		     wings_sel:set(face, Sel, St)).
 
-bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Sel0,Limit0}) ->
-    {We1,OrigVs,_,Forbidden} = extrude_edges(Edges, We0),
+bevel_edges(Edges, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Sel0,Limit0}) ->
+    {We1,OrigVs,_,Forbidden} = extrude_edges(Edges, We0#we{mirror=none}),
     We2 = wings_edge:dissolve_edges(Edges, We1),
     Tv = bevel_tv(OrigVs, We2, Forbidden),
     We3 = foldl(fun(V, W0) ->
 			wings_collapse:collapse_vertex(V, W0)
 		end, We2, OrigVs),
     Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, We3#we.vp),
-    We = We3#we{vp=Vtab},
+    We = We3#we{vp=Vtab,mirror=MirrorFace},
     Limit = bevel_limit(Tv, We, Limit0),
     Sel = case gb_sets:is_empty(Forbidden) of
 	      true -> [{Id,wings_we:new_items(face, We0, We)}|Sel0];
@@ -69,9 +69,9 @@ bevel_faces(St0) ->
     {St,{Tvs,C}} = wings_sel:mapfold(fun bevel_faces/3, {[],1.0E307}, St0),
     wings_drag:setup(Tvs, [{distance,{0.0,C}}], St).
 
-bevel_faces(Faces, #we{id=Id}=We0, {Tvs,Limit0}) ->
+bevel_faces(Faces, #we{id=Id,mirror=MirrorFace}=We0, {Tvs,Limit0}) ->
     Edges = wings_edge:from_faces(Faces, We0),
-    {We1,OrigVs,_,Forbidden} = extrude_edges(Edges, We0),
+    {We1,OrigVs,_,Forbidden} = extrude_edges(Edges, We0#we{mirror=none}),
     case {gb_trees:size(We0#we.es),gb_trees:size(We1#we.es)} of
 	{Same,Same} ->
 	    wings_util:error("Object is too small to bevel.");
@@ -83,7 +83,7 @@ bevel_faces(Faces, #we{id=Id}=We0, {Tvs,Limit0}) ->
 			      wings_collapse:collapse_vertex(V, W0)
 		      end, We2, OrigVs),
 	    Vtab = bevel_reset_pos(OrigVs, We2, Forbidden, Vtab0),
-	    We = We3#we{vp=Vtab},
+	    We = We3#we{vp=Vtab,mirror=MirrorFace},
 	    Limit = bevel_limit(Tv, We, Limit0),
 	    {We,{[{Id,Tv}|Tvs],Limit}}
     end.
@@ -371,17 +371,25 @@ connect(G, Wid, We) ->
     Cs = digraph_utils:components(G),
     connect(G, Cs, Wid, We, []).
 
-connect(G, [C|Cs], Wid, We0, Closed) ->
+connect(G, [C|Cs], Wid, #we{mirror=Mirror}=We0, Closed) ->
     case [VF || {V,_}=VF <- C, V >= Wid] of
 	[] ->
-	    [{_,Face}|_] = C,
-	    connect(G, Cs, Wid, We0, [Face|Closed]);
+	    case C of
+		[{_,Mirror}|_] ->
+		    connect(G, Cs, Wid, We0, Closed);
+		[{_,Face}|_] ->
+		    connect(G, Cs, Wid, We0, [Face|Closed])
+	    end;
 	[Va0,Vb0] ->
-	    [{Va,Face}|Path0] = digraph_get_path(G, Va0, Vb0),
-	    Path = [V || {V,_} <- Path0],
-	    N = wings_face:normal(Face, We0),
-	    We = connect_inner(Va, Path, N, Face, We0),
- 	    connect(G, Cs, Wid, We, Closed)
+	    case digraph_get_path(G, Va0, Vb0) of
+		[{_,Mirror}|_] ->
+		    connect(G, Cs, Wid, We0, Closed);
+		[{Va,Face}|Path0] ->
+		    Path = [V || {V,_} <- Path0],
+		    N = wings_face:normal(Face, We0),
+		    We = connect_inner(Va, Path, N, Face, We0),
+		    connect(G, Cs, Wid, We, Closed)
+	    end
     end;
 connect(_, [], _Wid, We0, Closed) ->
     We = wings_extrude_face:faces(Closed, We0),
