@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.93 2003/01/30 15:14:11 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.94 2003/02/04 06:27:41 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -349,13 +349,14 @@ smoothed_preview(St) ->
     {seq,push,get_smooth_event(Sm)}.
 
 smooth_help(#sm{edge_style=EdgeStyle,cage=Cage}) ->
-    Help = ["[L] Normal Mode ",wings_camera:help(),
-	    "  [W] ",
+    Normal = wings_util:button_format([], [], "Normal Mode"),
+    Help = [Normal," ",wings_camera:help(),
+	    " [W] ",
 	    case Cage of
 		false -> "Show cage";
 		true -> "Hide cage"
 	    end,
-	    "  [E] ",
+	    " [E] ",
 	    case EdgeStyle of
 		none -> "Show all edges";
 		plain -> "Show some edges";
@@ -373,11 +374,15 @@ smooth_event(Ev, Sm) ->
     end.
 
 smooth_event_1(redraw, Sm) ->
-    smooth_help(Sm),
     smooth_redraw(Sm),
     keep;
+smooth_event_1(got_focus, Sm) ->
+    smooth_help(Sm),
+    wings_wm:dirty();
 smooth_event_1(#mousemotion{}, _) -> keep;
 smooth_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
+smooth_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, _) ->
+    smooth_exit();
 smooth_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, _) ->
     smooth_exit();
 smooth_event_1(#keyboard{keysym=#keysym{unicode=$e}}, #sm{edge_style=Estyle0}=Sm) ->
@@ -434,8 +439,7 @@ smooth_event_1(resized, _) ->
 smooth_event_1(quit, _) ->
     wings_io:putback_event(quit),
     smooth_exit();
-smooth_event_1(_, _) ->
-    smooth_exit().
+smooth_event_1(_, _) -> keep.
 
 smooth_exit() ->
     wings_wm:dirty(),
