@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.70 2003/04/10 05:47:57 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.71 2003/05/04 08:20:10 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -102,14 +102,15 @@ again(Mode, Buttons) ->
 		     integer_to_list(Buttons) ++ " buttons.").
       
 camera_modes() ->
-    Modes = [mirai,nendo,maya,tds,blender],
+    Modes = [mirai,nendo,maya,tds,blender,mb],
     [{menu,[{desc(Mode),Mode} || Mode <- Modes],wings_pref:get_value(camera_mode)}].
 
 desc(blender) -> "Blender";
 desc(nendo) -> "Nendo";
 desc(mirai) -> "Mirai";
 desc(tds) -> "3ds max";
-desc(maya) -> "Maya".
+desc(maya) -> "Maya";
+desc(mb) -> "Motionbuilder".
 
 help() ->
     case wings_pref:get_value(camera_mode) of
@@ -130,7 +131,9 @@ help() ->
 	tds ->
 	    "[Alt]+[M] Tumble  [M] Track  [Ctrl]+[Alt]+[M] Dolly";
 	maya ->
-	    "[Alt]+[L] Tumble  [Alt]+[M] Track  [Alt]+[R] Dolly"
+	    "[Alt]+[L] Tumble  [Alt]+[M] Track  [Alt]+[R] Dolly";
+	mb ->
+	    "[Shift]+[Ctrl]+[L] Tumble  [Shift]+[L] Track  [Ctrl]+[L] Dolly"
     end.
 
 button_names() ->
@@ -164,7 +167,8 @@ event(Ev, Redraw) ->
 	nendo -> nendo(Ev, Redraw);
 	mirai -> mirai(Ev, Redraw);
 	tds -> tds(Ev, Redraw);
-	maya -> maya(Ev, Redraw)
+	maya -> maya(Ev, Redraw);
+	mb -> mb(Ev, Redraw)
     end.
 
 %%%
@@ -459,6 +463,46 @@ get_maya_event(Camera, Redraw) ->
 maya_stop_camera(Camera) ->
     sdl_events:eventState(?SDL_KEYUP, ?SDL_IGNORE),
     stop_camera(Camera).
+
+%%%
+%%% Motionbuilder style camera.
+%%%
+
+mb(#mousebutton{button=1,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
+    case wings_wm:me_modifiers() of
+	Mod when Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
+	    {X,Y} = wings_wm:local2global(X0, Y0),
+	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+	    grab(),
+	    message(help()),
+	    {seq,push,get_mb_event(Camera, Redraw)};
+	_ -> next
+    end;
+mb(_, _) -> next.
+
+mb_event(#mousebutton{button=1,state=?SDL_RELEASED}, Camera, _) ->
+    stop_camera(Camera);
+mb_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
+    {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
+    case wings_wm:me_modifiers() of
+	Mod when Mod band ?CTRL_BITS =/= 0, Mod band ?SHIFT_BITS =/= 0 ->
+	    rotate(Dx, Dy),
+	    get_mb_event(Camera, Redraw);
+	Mod when Mod band ?CTRL_BITS =/= 0 ->
+	    zoom(Dy),
+	    get_mb_event(Camera, Redraw);
+	Mod when Mod band ?SHIFT_BITS =/= 0 ->
+	    pan(Dx, Dy),
+	    get_mb_event(Camera, Redraw);
+	_Mod ->
+	    stop_camera(Camera)
+    end;
+mb_event(Event, Camera, Redraw) ->
+    generic_event(Event, Camera, Redraw).
+
+get_mb_event(Camera, Redraw, View) ->
+    wings_wm:dirty(),
+    {replace,fun(Ev) -> mb_event(Ev, Camera, Redraw, View) end}.
     
 %%%
 %%% Common utilities.
