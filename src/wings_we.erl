@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.62 2003/08/18 06:21:56 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.63 2003/08/30 08:16:09 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -25,7 +25,7 @@
 	 uv_mapped_faces/1,
 	 transform_vs/2,
 	 separate/1,
-	 normals/1,
+	 normals/1,normals/2,
 	 new_items/3,
 	 is_consistent/1,is_face_consistent/2]).
 
@@ -634,11 +634,14 @@ transform_vs_1(Transform, #we{vp=Vtab0}=We) ->
 %%% Calculate normals.
 %%%
 
-normals(#we{fs=Ftab,he=He}=We) ->
+normals(#we{fs=Ftab}=We) ->
     FaceNormals0 = foldl(fun({Face,Edge}, Acc) ->
 				 [{Face,wings_face:normal(Face, Edge, We)}|Acc]
 			 end, [], gb_trees:to_list(Ftab)),
     FaceNormals = reverse(FaceNormals0),
+    normals(FaceNormals, We).
+
+normals(FaceNormals, #we{he=He}=We) ->
     case FaceNormals of
 	[_,_] ->
 	    two_faced(FaceNormals, We);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.145 2003/08/29 10:40:28 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.146 2003/08/30 08:16:09 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -126,7 +126,7 @@ changed_we_1(Ns, #we{fs=Ftab}=We) ->
     changed_we_2(gb_trees:to_list(Ftab), gb_trees:to_list(Ns), We, []).
 
 changed_we_2([{Face,Edge}|Fs], [{Face,Data}=Pair|Ns], We, Acc) ->
-    Ps = changed_we_pos(Face, Edge, We),
+    Ps = wings_face:vertex_positions(Face, Edge, We),
     case Data of
 	[_|Ps] ->
 	    changed_we_2(Fs, Ns, We, [Pair|Acc]);
@@ -134,47 +134,23 @@ changed_we_2([{Face,Edge}|Fs], [{Face,Data}=Pair|Ns], We, Acc) ->
 	    changed_we_2(Fs, Ns, We, [Pair|Acc]);
 	_ ->
 	    N = e3d_vec:normal(Ps),
-	    case Ps of
-		[_,_,_] ->
-		    changed_we_2(Fs, Ns, We, [{Face,[N|Ps]}|Acc]);
-		[A,B,C,D] ->
-		    case wings_draw_util:good_triangulation(N, A, B, C, D) of
-			false ->
-			    changed_we_2(Fs, Ns, We, [{Face,{N,Ps}}|Acc]);
-			true ->
-			    changed_we_2(Fs, Ns, We, [{Face,[N|Ps]}|Acc])
-		    end;
-		_ ->
-		    changed_we_2(Fs, Ns, We, [{Face,{N,Ps}}|Acc])
-	    end
+	    changed_we_2(Fs, Ns, We, [{Face,face_ns_data(N, Ps)}|Acc])
     end;
 changed_we_2([{Fa,_}|_]=Fs, [{Fb,_}|Ns], We, Acc) when Fa > Fb ->
     changed_we_2(Fs, Ns, We, Acc);
 changed_we_2([{Face,Edge}|Fs], Ns, We, Acc) ->
-    Ps = changed_we_pos(Face, Edge, We),
+    Ps = wings_face:vertex_positions(Face, Edge, We),
     N = e3d_vec:normal(Ps),
-    case Ps of
-	[_,_,_] ->
-	    changed_we_2(Fs, Ns, We, [{Face,[N|Ps]}|Acc]);
-	[A,B,C,D] ->
-	    case wings_draw_util:good_triangulation(N, A, B, C, D) of
-		false ->
-		    changed_we_2(Fs, Ns, We, [{Face,{N,Ps}}|Acc]);
-		true ->
-		    changed_we_2(Fs, Ns, We, [{Face,[N|Ps]}|Acc])
-	    end;
-	_ ->
-	    changed_we_2(Fs, Ns, We, [{Face,{N,Ps}}|Acc])
-    end;
+    changed_we_2(Fs, Ns, We, [{Face,face_ns_data(N, Ps)}|Acc]);
 changed_we_2([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
-changed_we_pos(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs = wings_face:vertices_cw(Face, Edge, We),
-    changed_we_pos_1(Vs, Vtab, []).
-
-changed_we_pos_1([V|Vs], Vtab, Acc) ->
-    changed_we_pos_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-changed_we_pos_1([], _, VsPos) -> VsPos.
+face_ns_data(N, [_,_,_]=Ps) -> [N|Ps];
+face_ns_data(N, [A,B,C,D]=Ps) ->
+    case wings_draw_util:good_triangulation(N, A, B, C, D) of
+	false -> {N,Ps};
+	true -> [N|Ps]
+    end;
+face_ns_data(N, Ps) -> {N,Ps}.
 
 %%%
 %%% Create all display lists that are currently needed.
@@ -263,7 +239,7 @@ update_fun_2(work, #dlo{work=none,src_we=#we{fs=Ftab}}=D, St) ->
     D#dlo{work=Dl};
 update_fun_2(smooth, #dlo{smooth=none}=D, St) ->
     We = wings_subdiv:smooth_we(D),
-    {List,Tr} = smooth_dlist(We, St),
+    {List,Tr} = smooth_dlist(D#dlo{src_we=We}, St),
     D#dlo{smooth=List,transparent=Tr};
 update_fun_2({vertex,PtSize}, #dlo{vs=none,src_we=#we{vp=Vtab}}=D, _) ->
     UnselDlist = gl:genLists(1),
@@ -379,16 +355,16 @@ update_sel(#dlo{}=D) -> D.
 update_sel_all(#dlo{src_we=#we{mode=vertex},work={call,_,Faces}}=D) ->
     Dl = wings_draw_util:force_flat_color(Faces, wings_pref:get_value(selected_color)),
     D#dlo{sel=Dl};
-update_sel_all(#dlo{src_we=#we{fs=Ftab}=We,work=none}=D) ->
+update_sel_all(#dlo{src_we=#we{fs=Ftab},work=none}=D) ->
     Tess = wings_draw_util:tess(),
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_GLVERTEX),
     wings_draw_util:begin_end(
       fun() ->
-	      foreach(fun({Face,Edge}) ->
-			      wings_draw_util:unlit_face(Face, Edge, We)
-		      end, gb_trees:to_list(Ftab))
+	      foreach(fun(Face) ->
+			      wings_draw_util:unlit_face(Face, D)
+		      end, gb_trees:keys(Ftab))
       end),
     gl:endList(),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
@@ -400,12 +376,15 @@ update_mirror() ->
     wings_draw_util:map(fun update_mirror/2, []).
 
 update_mirror(#dlo{mirror=none,src_we=#we{mirror=none}}=D, _) -> D;
-update_mirror(#dlo{mirror=none,src_we=#we{fs=Ftab,mirror=Face}=We}=D, _) ->
+update_mirror(#dlo{mirror=none,src_we=#we{fs=Ftab,mirror=Face}=We,ns=Ns0}=D, _) ->
     case gb_trees:is_defined(Face, Ftab) of
 	false ->
 	    D#dlo{mirror=none};
 	true ->
-	    N = wings_face:normal(Face, We),
+	    VsPos = wings_face:vertex_positions(Face, We),
+	    N = e3d_vec:normal(VsPos),
+	    FaceNsData = face_ns_data(N, VsPos),
+	    Ns = gb_trees:enter(Face, FaceNsData, Ns0),
 	    Center = wings_face:center(Face, We),
 	    RotBack = e3d_mat:rotate_to_z(N),
 	    Rot = e3d_mat:transpose(RotBack),
@@ -413,7 +392,7 @@ update_mirror(#dlo{mirror=none,src_we=#we{fs=Ftab,mirror=Face}=We}=D, _) ->
 	    Mat1 = e3d_mat:mul(Mat0, e3d_mat:scale(1.0, 1.0, -1.0)),
 	    Mat2 = e3d_mat:mul(Mat1, RotBack),
 	    Mat = e3d_mat:mul(Mat2, e3d_mat:translate(e3d_vec:neg(Center))),
-	    D#dlo{mirror=Mat}
+	    D#dlo{mirror=Mat,ns=Ns}
     end;
 update_mirror(D, _) -> D.
 
@@ -534,8 +513,8 @@ split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
 split_vs_dlist(_, _, _) -> {none,none}.
 
 %% Re-join display lists that have been split.
-join(#dlo{src_we=#we{vp=Vtab0},ns=Ns1,split=#split{orig_we=We0,orig_ns=Ns0}}=D0) ->
-    #we{vp=OldVtab} = We0,
+join(#dlo{src_we=#we{vp=Vtab0},ns=Ns1,split=#split{orig_we=We0,orig_ns=Ns0}}=D) ->
+    #we{vp=OldVtab,fs=Ftab} = We0,
 
     %% Heuristic for break-even. (Note that we don't know the exact number
     %% of vertices that will be updated.)
@@ -555,18 +534,25 @@ join(#dlo{src_we=#we{vp=Vtab0},ns=Ns1,split=#split{orig_we=We0,orig_ns=Ns0}}=D0)
 %     io:format("~p ~p\n", [erts_debug:size([OldVtab,Vtab]),
 % 			   erts_debug:flat_size([OldVtab,Vtab])]),
     We = We0#we{vp=Vtab},
-    Ns = join_ns(Ns0, Ns1),
-    D = D0#dlo{vs=none,drag=none,sel=none,split=none,src_we=We,ns=Ns},
-    changed_we(D, D).
+    Ns = join_ns(Ns1, Ns0, Ftab),
+    D#dlo{vs=none,drag=none,sel=none,split=none,src_we=We,ns=Ns}.
 
-join_ns(Ns0, Ns1) ->
-    join_ns_1(gb_trees:to_list(Ns0), gb_trees:to_list(Ns1), []).
+join_ns(NsNew, NsOld, Ftab) ->
+    join_ns_1(gb_trees:to_list(NsNew), gb_trees:to_list(NsOld), Ftab, []).
 
-join_ns_1([{Face,_}|Fs0], [{Face,_}=El|Fs1], Acc) ->
-    join_ns_1(Fs0, Fs1, [El|Acc]);
-join_ns_1([El|Fs0], Fs1, Acc) ->
-    join_ns_1(Fs0, Fs1, [El|Acc]);
-join_ns_1([], Fs, Acc) ->
+join_ns_1([{Face,_}=El|FsNew], [{Face,_}|FsOld], Ftab, Acc) ->
+    %% Same face: Use new contents.
+    join_ns_1(FsNew, FsOld, Ftab, [El|Acc]);
+join_ns_1([{Fa,_}|_]=FsNew, [{Fb,_}=El|FsOld], Ftab, Acc) when Fa > Fb ->
+    %% Face only in old list: Check in Ftab if it should be kept.
+    case gb_trees:is_defined(Fb, Ftab) of
+	false -> join_ns_1(FsNew, FsOld, Ftab, Acc);
+	true -> join_ns_1(FsNew, FsOld, Ftab, [El|Acc])
+    end;
+join_ns_1([El|FsNew], FsOld, Ftab, Acc) ->
+    %% Fa < Fb: New face.
+    join_ns_1(FsNew, FsOld, Ftab, [El|Acc]);
+join_ns_1([], Fs, _, Acc) ->
     gb_trees:from_orddict(reverse(Acc, Fs)).
 
 join_update(New, Old) ->
@@ -721,6 +707,21 @@ draw_uv_faces([], _) -> ok.
 %%% Smooth drawing.
 %%%
 
+smooth_dlist(#dlo{src_we=#we{he=Htab0,fs=Ftab,mirror=Face}=We,ns=Ns0}, St) ->
+    Ns1 = foldl(fun({F,[N|_]}, A) -> [{F,N}|A];
+		   ({F,{N,_}}, A) -> [{F,N}|A]
+		end, [], gb_trees:to_list(Ns0)),
+    Ns = reverse(Ns1),
+    case gb_trees:is_defined(Face, Ftab) of
+	false ->
+	    Flist = wings_we:normals(Ns, We),
+	    smooth_faces(Flist, We, St);
+	true ->
+	    Edges = wings_face:outer_edges([Face], We),
+	    Htab = gb_sets:union(Htab0, gb_sets:from_list(Edges)),
+	    Flist = wings_we:normals(Ns, We#we{he=Htab}),
+	    smooth_faces(Flist, We, St)
+    end;
 smooth_dlist(#we{he=Htab0,fs=Ftab,mirror=Face}=We, St) ->
     case gb_trees:is_defined(Face, Ftab) of
 	false ->

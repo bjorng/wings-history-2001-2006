@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.90 2003/08/21 06:02:20 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.91 2003/08/30 08:16:09 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -189,12 +189,17 @@ extrude_region_vmirror(OldWe, #we{mirror=Face0}=We0) ->
     FaceSet = gb_sets:singleton(Face0),
     Bordering = wings_face:extend_border(FaceSet, We0),
     NewFaces = wings_we:new_items(face, OldWe, We0),
-    Dissolve = gb_sets:union(FaceSet, gb_sets:intersection(Bordering, NewFaces)),
-    We1 = dissolve(Dissolve, We0),
-    [Face] = NewFace = gb_sets:to_list(wings_we:new_items(face, We0, We1)),
-    We = wings_material:assign('_hole_', NewFace, We1),
-    wings_util:mirror_flatten(OldWe, We#we{mirror=Face}).
-    
+    BorderingNew = gb_sets:intersection(Bordering, NewFaces),
+    case gb_sets:is_empty(BorderingNew) of
+	true -> We0;
+	false ->
+	    Dissolve = gb_sets:union(FaceSet, BorderingNew),
+	    We1 = dissolve(Dissolve, We0),
+	    [Face] = NewFace = gb_sets:to_list(wings_we:new_items(face, We0, We1)),
+	    We = wings_material:assign('_hole_', NewFace, We1),
+	    wings_util:mirror_flatten(OldWe, We#we{mirror=Face})
+    end.
+
 %%%
 %%% The Extract Region command.
 %%%
