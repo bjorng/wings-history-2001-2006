@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.47 2003/04/26 05:52:33 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.48 2003/08/08 05:06:37 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -75,6 +75,8 @@ menu(St) ->
 				   {"80%",80},
 				   {"90%",90}]}},
 		{"Short Edges",short_edges,"Select (too) short edges",[option]},
+		{"Material Edges",material_edges,
+		 "Select all edges between different edges"},
 		{"Id...",id,"Select by numeric id"}]}},
      {"Lights",lights,"Select all lights"},
      separator,
@@ -284,6 +286,8 @@ by_command({faces_with,N}, St) ->
     {save_state,wings_sel:make(Sel, face, St)};
 by_command({material,_}=Cmd, St) ->
     wings_material:command({select,Cmd}, St);
+by_command(material_edges, St) ->
+    material_edges(St);
 by_command({random,Percent}, St) ->
     {save_state,random(Percent, St)};
 by_command({short_edges,Ask}, St) ->
@@ -654,6 +658,17 @@ short_edge(Tolerance, Edge, #we{es=Etab,vp=Vtab}) ->
     VaPos = gb_trees:get(Va, Vtab),
     VbPos = gb_trees:get(Vb, Vtab),
     abs(e3d_vec:dist(VaPos, VbPos)) < Tolerance.
+
+%%
+%% Select all edges between materials.
+%%
+
+material_edges(St) ->
+    wings_sel:make(fun material_edges_fun/2, edge, St).
+
+material_edges_fun(E, #we{es=Etab}=We) ->
+    #edge{lf=Lf,rf=Rf} = gb_trees:get(E, Etab),
+    wings_material:get(Lf, We) =/= wings_material:get(Rf, We).
 
 %%
 %% Select by numerical item id.
