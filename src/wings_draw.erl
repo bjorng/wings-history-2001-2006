@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.197 2004/04/22 17:52:56 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.198 2004/04/23 04:25:54 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -802,7 +802,7 @@ draw_faces({color,Colors,#st{mat=Mtab}}, D) ->
 draw_vtx_faces({Same,Diff}, D) ->
     gl:'begin'(?GL_TRIANGLES),
     draw_vtx_faces_1(Same, D),
-    draw_vtx_faces_3(Diff, D),
+    ?TC(draw_vtx_faces_3(Diff, D)),
     gl:'end'().
 
 draw_vtx_faces_1([{none,Faces}|Fs], D) ->

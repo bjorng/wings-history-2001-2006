@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.96 2004/04/21 20:34:06 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.97 2004/04/23 04:25:54 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -467,8 +467,8 @@ slide_help_mode(relative) -> "Absolute";
 slide_help_mode(absolute) -> "Relative".
 slide_help_freeze(none)   -> "Freeze direction";
 slide_help_freeze(_)      -> "Thaw direction".
-slide_help_stop(false)    -> "Stop at first edge";
-slide_help_stop(true)     -> "Continue Past edges".
+slide_help_stop(false)    -> "Stop at other edges";
+slide_help_stop(true)     -> "Continue past other edges".
 
 make_slide_tv(Slides, State) ->
     Vs = gb_trees:keys(element(1,Slides)),
