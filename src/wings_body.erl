@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.27 2002/03/11 11:04:02 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.28 2002/03/13 11:56:11 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -91,7 +91,8 @@ convert_selection(#st{sel=Sel0}=St) ->
 cleanup(Ask, St) when is_atom(Ask) ->
     Qs = [{"Short edges",true,[{key,short_edges}]},
 	  {"Length tolerance",1.0E-3,[{range,{1.0E-5,10.0}}]},
-	  {"Isolated Vertices",true,[{key,winged_vs}]}],
+	  {"Isolated Vertices",true,[{key,isolated_vs}]},
+	  {"Maximum Angle",1.0,[{range,{1.0E-5,180.0}}]}],
     wings_ask:ask(Ask,
 		  {vframe, Qs, [{title,"Remove"}]}, St,
 		  fun(Res) -> {body,{cleanup,Res}} end);
@@ -105,19 +106,36 @@ cleanup_1([{short_edges,Flag},Tolerance|Opts], We0) ->
 	     false -> We0
 	 end,
     cleanup_1(Opts, We);
-cleanup_1([{winged_vs,true}|Opts], We) ->
-    cleanup_1(Opts, clean_winged_vertices(We));
+cleanup_1([{isolated_vs,true},Angle|Opts], We) ->
+    Cos = cos_degrees(Angle),
+    cleanup_1(Opts, clean_isolated_vertices(Cos, We));
 cleanup_1([_|Opts], We) ->
     cleanup_1(Opts, We);
 cleanup_1([], We) -> We.
 
-clean_winged_vertices(#we{vs=Vtab}=We) ->
-    foldl(fun(V, W) ->
-		  case wings_vertex:dissolve(V, W) of
-		      error -> W;
-		      Other -> Other
-		  end
-	  end, We, gb_trees:keys(Vtab)).
+clean_isolated_vertices(Cos, #we{vs=Vtab}=We) ->
+    foldl(fun({V,#vtx{pos=Pos}}, W) ->
+		  clean_isolated(Cos, V, Pos, W)
+	  end, We, gb_trees:to_list(Vtab)).
+
+clean_isolated(Cos, V, Pos, We) ->
+    Es = wings_vertex:fold(
+	   fun(_, _, Rec, A) ->
+		   OtherPos = wings_vertex:other_pos(V, Rec, We),
+		   [e3d_vec:norm(e3d_vec:sub(Pos, OtherPos))|A]
+	   end, [], V, We),
+    case Es of
+	[E1,E2] ->
+	    case abs(e3d_vec:dot(E1, E2)) of
+		Dot when Dot > Cos ->
+		    case wings_vertex:dissolve(V, We) of
+			error -> We;
+			Other -> Other
+		    end;
+		_ -> We
+	    end;
+	_ -> We
+    end.
 
 clean_short_edges(Tolerance, #we{es=Etab,vs=Vtab}=We) ->
     Short = foldl(
@@ -277,7 +295,7 @@ auto_smooth([Angle], St) ->
     {save_state,model_changed(do_auto_smooth(Angle, St))}.
 
 do_auto_smooth(Angle, St) ->
-    Cos = math:cos(Angle*math:pi()/180),
+    Cos = cos_degrees(Angle),
     wings_sel:map(fun(_, We) -> auto_smooth_1(Cos, We) end, St).
 
 auto_smooth_1(Cos, #we{es=Etab,he=Htab0}=We) ->
@@ -299,3 +317,6 @@ auto_smooth(Edge, #edge{lf=Lf,rf=Rf}, Cos, H0, We) ->
 		    wings_edge:hardness(Edge, soft, H0)
 	    end
     end.
+
+cos_degrees(Angle) ->
+    math:cos(Angle*math:pi()/180.0).
