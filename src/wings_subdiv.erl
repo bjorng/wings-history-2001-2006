@@ -3,12 +3,12 @@
 %%
 %%     This module implements the Smooth command for objects and faces.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.87 2004/12/29 14:24:18 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.88 2005/01/09 10:48:13 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -41,7 +41,7 @@ smooth(Fs, Vs, Es, Htab, #we{vp=Vp,next_id=Id}=We0) ->
     wings_pb:update(0.25, ?__(4,"updating materials")),
     We2 = smooth_materials(Fs, FacePos0, We1),
     wings_pb:update(0.47, ?__(5,"creating new faces")),
-    We = smooth_faces(FacePos0, Id, We2),
+    {We3,Hide} = smooth_faces(FacePos0, Id, We2),
     wings_pb:update(0.60, ?__(6,"moving vertices")),
 
     %% Now calculate all vertex positions.
@@ -49,10 +49,18 @@ smooth(Fs, Vs, Es, Htab, #we{vp=Vp,next_id=Id}=We0) ->
     {UpdatedVs,Mid} = update_edge_vs(Es, We0, FacePos, Htab, Vp, Id),
     NewVs = smooth_new_vs(FacePos0, Mid),
     Vtab = smooth_move_orig(Vs, FacePos, Htab, We0, UpdatedVs ++ NewVs),
+
+    %% Done, except that we'll need to re-hide any hidden faces
+    %% and rebuild tables.
     wings_pb:update(1.0, ?__(7,"finishing")),
-    Res = wings_we:validate_mirror(wings_we:rebuild(We#we{vp=Vtab})),
-    wings_pb:done(),
-    Res.
+    We4 = We3#we{vp=Vtab},
+    We = if
+	     Hide =:= [] ->
+		 wings_we:rebuild(We4);
+	     true ->
+		 wings_we:hide_faces(Hide, We4) %Will force a rebuild.
+	 end,
+    wings_pb:done(We).
 
 inc_smooth(#we{vp=Vp,next_id=Next}=We0, OldWe) ->
     {Faces,Htab} = smooth_faces_htab(We0),
@@ -64,8 +72,6 @@ inc_smooth(#we{vp=Vp,next_id=Next}=We0, OldWe) ->
 			    UpdatedVs ++ NewVs),
     OldWe#we{vp=Vtab}.
 
-
-
 smooth_faces_htab(#we{mirror=none,fs=Ftab,he=Htab}) ->
     Faces = gb_trees:keys(Ftab),
     {Faces,Htab};
@@ -74,8 +80,6 @@ smooth_faces_htab(#we{mirror=Face,fs=Ftab,he=Htab}=We) ->
     He0 = wings_face:outer_edges([Face], We),
     He = gb_sets:union(gb_sets:from_list(He0), Htab),
     {Faces,He}.
-
-
 
 %%%
 %%% Calculation of face centers.
@@ -157,8 +161,12 @@ get_vtx_color(Edge, Face, Etab) ->
 	#edge{rf=Face,b=Col} -> Col
     end.
 
-smooth_faces(FacePos, Id, We) ->
-    smooth_faces_1(FacePos, Id, [], We).
+smooth_faces(FacePos, Id, We0) ->
+    We = smooth_faces_1(FacePos, Id, [], We0),
+    case wings_we:any_hidden(We0) of
+	false -> {We,[]};
+	true -> {We,smooth_faces_hide(FacePos, We0)}
+    end.
 
 smooth_faces_1([{Face,{_,Color,NumIds}}|Fs], Id, EsAcc0, #we{es=Etab0}=We0) ->
     {Ids,We} = wings_we:new_wrap_range(NumIds, 1, We0),
@@ -205,6 +213,19 @@ smooth_edge_fun(Face, NewV, Color, Id) ->
 	    Etab = gb_trees:update(Edge, Rec, Etab0),
 	    {Etab,Es,Ids}
     end.
+
+smooth_faces_hide(Fs, #we{next_id=Id}) ->
+    smooth_faces_hide_1(Fs, Id, []).
+
+smooth_faces_hide_1([{Face,{_,_,NumIds}}|Fs], Id, Acc) when Face >= 0 ->
+    smooth_faces_hide_1(Fs, Id+NumIds, Acc);
+smooth_faces_hide_1([{_,{_,_,NumIds}}|Fs], Id, Acc0) ->
+    Acc = smooth_faces_hide_2(NumIds, Id, Acc0),
+    smooth_faces_hide_1(Fs, Id+NumIds, Acc);
+smooth_faces_hide_1([], _, Acc) -> Acc.
+
+smooth_faces_hide_2(0, _, Acc) -> Acc;
+smooth_faces_hide_2(N, Id, Acc) -> smooth_faces_hide_2(N-1, Id+1, [Id|Acc]).
 
 %% Store in reverse order.
 store(Key, New, [{K,_Old}|_]=Dict) when Key > K ->
