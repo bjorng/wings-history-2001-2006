@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.126 2003/11/16 18:18:30 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.127 2003/11/16 20:47:51 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -688,25 +688,13 @@ build_cursors() ->
 build_cursor(Data) ->
     build_cursor(Data, 0, 0).
 
-build_cursor(Data0, HotX, HotY) ->
-    case os:type() of
-  	{unix,darwin} ->
-  	    build_cursor_1(Data0, {HotX,HotY}, 0, 0);
-	_ when length(Data0) =:= 256 ->
-	    Data = build_cursor_dup(Data0, 0, []),
-	    build_cursor_1(Data, {2*HotX,2*HotY}, 0, 0);
-	_ ->
-	    build_cursor_1(Data0, {HotX,HotY}, 0, 0)
+build_cursor(Data, HotX, HotY) ->
+    case length(Data) of
+	Bytes when Bytes =:= 256 ->
+	    build_cursor_1(Data, {HotX,HotY,16,16}, 0, 0);
+	Bytes when Bytes =:= 1024 ->
+	    build_cursor_1(Data, {HotX,HotY,32,32}, 0, 0)
     end.
-
-build_cursor_dup(Cs, 16, Row0) ->
-    Row = reverse(Row0),
-    Row ++ lists:duplicate(16, $\s) ++
-        build_cursor_dup(Cs, 0, []);
-build_cursor_dup([C|Cs], N, Acc) ->
-    build_cursor_dup(Cs, N+1, [C|Acc]);
-build_cursor_dup([], _, _) ->
-    lists:duplicate(16*16, $\s).
 
 build_cursor_1([$.|T], Hot, Mask, Bits) ->
     build_cursor_1(T, Hot, (Mask bsl 1) bor 1, Bits bsl 1);
@@ -716,16 +704,11 @@ build_cursor_1([$x|T], Hot, Mask, Bits) ->
     build_cursor_1(T, Hot, (Mask bsl 1) bor 1, (Bits bsl 1) bor 1);
 build_cursor_1([_|T], Hot, Mask, Bits) ->
     build_cursor_1(T, Hot, Mask bsl 1, Bits bsl 1);
-build_cursor_1([], {HotX,HotY}, Mask0, Bits0) ->
-    case os:type() of
-	{unix,darwin} ->
-	    Bits = <<Bits0:256>>,
-	    Mask = <<Mask0:256>>;
-	_ ->
-	    Bits = <<Bits0:1024>>,
-	    Mask = <<Mask0:1024>>
-    end,
-    sdl_mouse:createCursor(Bits, Mask, 32, 32, HotX, HotY).
+build_cursor_1([], {HotX,HotY,W,H}, Mask0, Bits0) ->
+    Size = W*H,
+    Bits = <<Bits0:Size>>,
+    Mask = <<Mask0:Size>>,
+    sdl_mouse:createCursor(Bits, Mask, W, H, HotX, HotY).
 
 hourglass_data() ->
         "  ............................	 "
@@ -742,8 +725,8 @@ hourglass_data() ->
 	"   ..     X..........X     ..   "
 	"   ..     X.X......X.X     ..   "
 	"   ..     X.X.X..X.X.X     ..   "
-       	"   ..      X.X.X.X.XX      ..   "
-	"   ..       X..XX..X       ..   "
+       	"   ..      X.X.X.X..X      ..   "
+	"   ..       X...X..X       ..   "
 	"   ..       X......X       ..   "
 	"   ..      X........X      ..   "
        	"   ..     X..........X     ..   "
