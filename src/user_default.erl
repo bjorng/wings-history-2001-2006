@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.22 2004/12/16 15:09:26 bjorng Exp $
+%%     $Id: user_default.erl,v 1.23 2004/12/16 15:59:33 bjorng Exp $
 %% 
 
 -module(user_default).
@@ -150,7 +150,7 @@ result(Other) -> Other.
 
 make_query(Format, Args) ->
     R = lists:flatten(io_lib:format(Format, Args)),
-    io:format("~p\n", [R]),
+    %%io:format("~p\n", [R]),
     R.
 
 %%%
