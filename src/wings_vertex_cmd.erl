@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.20 2002/02/07 11:49:08 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.21 2002/02/12 19:46:19 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -249,8 +249,8 @@ connect(Vs, #we{}=We) ->
 %%% The Tighten command.
 %%%
 
-tighten(St0) ->
-    {St,Tvs} = wings_sel:mapfold(fun tighten/3, [], St0),
+tighten(St) ->
+    Tvs = wings_sel:fold(fun tighten/3, [], St),
     wings_drag:setup(Tvs, [percent], St).
 
 tighten(Vs, #we{id=Id,vs=Vtab}=We, Acc) when is_list(Vs) ->
@@ -259,8 +259,8 @@ tighten(Vs, #we{id=Id,vs=Vtab}=We, Acc) when is_list(Vs) ->
 		   Vec = tighten_vec(V, Vs, We),
 		   [{Vec,[V]}|A]
 	   end, [], Vs),
-    {We,[{Id,Tv}|Acc]};
-tighten(Vs, We, Acc) ->
+    [{Id,Tv}|Acc];
+tighten(Vs, We, Acc) -> 
     tighten(gb_sets:to_list(Vs), We, Acc).
 
 tighten_vec(V, Vs, #we{vs=Vtab}=We) ->

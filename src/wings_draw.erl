@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.58 2002/02/12 10:38:40 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.59 2002/02/12 19:46:17 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -242,7 +242,11 @@ draw_smooth_faces(Mtab, We) ->
 draw_smooth_1([{Mat,Faces}|T], Mtab) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     wings_material:apply_material(Mat, Mtab),
-    wings_draw_util:begin_end(fun() -> draw_smooth_2(Faces) end),
+    wings_draw_util:begin_end(
+      fun() ->
+	      wings_material:apply_material(Mat, Mtab),
+	      draw_smooth_2(Faces)
+      end),
     gl:popAttrib(),
     draw_smooth_1(T, Mtab);
 draw_smooth_1([], Mtab) -> ok.
@@ -252,7 +256,9 @@ draw_smooth_2([Vs|Fs]) ->
     glu:tessNormal(Tess, 0, 0, 0),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    foreach(fun({P,{Diff,N}}) ->
+    foreach(fun({P,{{_,_}=UV,N}}) ->
+		    glu:tessVertex(Tess, P, [{texcoord2,UV},{normal,N}]);
+	       ({P,{_,N}}) ->
 		    glu:tessVertex(Tess, P, [{normal,N}])
 	    end, Vs),
     glu:tessEndContour(Tess),
