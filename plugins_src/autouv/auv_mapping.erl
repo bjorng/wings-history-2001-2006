@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.15 2002/10/19 22:38:35 raimo_niskanen Exp $
+%%     $Id: auv_mapping.erl,v 1.16 2002/10/22 20:19:21 raimo_niskanen Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -31,8 +31,9 @@
 
 -module(auv_mapping).
 
+-export([lsq/2, lsq/4]). % Debug entry points
+
 -ifdef(lsq_standalone).
--export([lsq/2, lsq/4]).
 -define(DBG(Fmt,Args), io:format(?MODULE_STRING++":~p: "++(Fmt), 
 				       [?LINE | (Args)])).
 -define(TC(Cmd), tc(?MODULE, ?LINE, fun () -> Cmd end)).
@@ -132,7 +133,7 @@ get_verts([#e3d_face{vs = Vs}|Fs],I,Coords,Acc) ->
 get_verts([],I,_,Acc) ->
     {Acc, I}.
 
-lsqcm(C = {Id, Fs}, We) ->
+lsqcm(C = {_Id, Fs}, We) ->
     ?DBG("Project and tri ~n", []),
     {Vs1,Area} = ?TC(project_and_triangulate(Fs,We,-1,[],0.0)),    
     {V1, V2} = ?TC(find_pinned(C, We)),
@@ -184,7 +185,7 @@ find_pinned(C = {_Id, Faces}, We) ->
     {V2,Dx,Dy} = find_furthest_away(BE1,0.0,0.0,0.0,Circumference/2,We#we.vs),
     {{V1,{0.0,0.0}},{V2,{Dx,Dy}}}.
     
-find_furthest_away([{V1,V2,_,_}|_], DX,DY, Dist, Max,_) 
+find_furthest_away([{V1,_V2,_,_}|_], DX,DY, Dist, Max,_) 
   when float(Dist), float(Max), Dist >= Max ->
     {V1, math:sqrt(DX),math:sqrt(DY)};
 find_furthest_away([{V1,V2,_,Delta}|Rest], DX0,DY0,Dist, Max,Vs) 
@@ -204,18 +205,12 @@ reorder_edge_loop(V1, [H|Tail], Acc) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 
--ifdef(lsq_standalone).
-
 lsq(Name, Method) ->
     {ok, [{L, P1, P2}]} = file:consult(Name),
     lsq(L, P1, P2, Method).
 
--else.
-
 lsq(L, P1, P2) ->
-    lsq(L, P1, P2, cg).
-
--endif. % -ifdef(lsq_standalone).
+    lsq(L, P1, P2, env).
 
 lsq(_, {P,_} = PUV1, {P,_} = PUV2, _) ->
     {error, {invalid_arguments, [PUV1, PUV2]}};
@@ -224,7 +219,20 @@ lsq(_, {_,{U1,V1}} = PUV1, {_,{U2,V2}} = PUV2, _)
     {error, {invalid_arguments, [PUV1, PUV2]}};
 lsq(L, {_P1,{U1,V1}} = PUV1, {_P2,{U2,V2}} = PUV2, Method)
   when list(L), number(U1), number(V1), number(U2), number(V2) ->
-    case catch lsq_int(L, PUV1, PUV2, Method) of
+    Method_1 =
+	case Method of 
+	    env ->
+		case os:getenv("WINGS_AUTOUV_SOLVER") of
+		    "ge" -> ge;
+		    "cg" -> cg;
+		    "cg_jacobian" -> cg_jacobian;
+		    "cg_colnorm" -> cg_colnorm;
+		    _ -> cg_colnorm
+		end;
+	    M ->
+		M
+	end,
+    case catch lsq_int(L, PUV1, PUV2, Method_1) of
 	{'EXIT', Reason} ->
 	    exit(Reason);
 	badarg ->
@@ -266,13 +274,13 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2, Method) ->
 	?TC(build_matrixes(N,Mf1c,Mp1c,Mf2c,Mp2c,Mf2nc,Mp2nc,UVa,UVb)),
     ?DBG("Solving matrixes~n", []),
     X = case Method of
-	    cg ->
+	    ge ->
+		?TC(minimize(Af,B));
+	    _ ->
 		X0 = auv_matrix:vector(lists:duplicate(M-2, (U1+U2)/2)++
 				       lists:duplicate(M-2, (V1+V2)/2)),
-		{_,X1} = ?TC(minimize_cg(Af, X0, B)),
-		X1;
-	    _ ->
-		?TC(minimize(Af,B))
+		{_,X1} = ?TC(minimize_cg(Af, X0, B, Method)),
+		X1
 	end,
 %%    ?DBG("X=~p~n", [X]),
     %% Extract the vector of previously unknown points,
@@ -346,7 +354,7 @@ mk_solve_matrix(Af,B) ->
 %% using the Preconditioned Coujugate Gradient method with x0 as 
 %% iteration start vector.
 %%
-minimize_cg(A, X0, B) ->
+minimize_cg(A, X0, B, Method) ->
     {N,M} = auv_matrix:dim(A),
     {M,1} = auv_matrix:dim(X0),
     {N,1} = auv_matrix:dim(B),
@@ -354,25 +362,51 @@ minimize_cg(A, X0, B) ->
     Epsilon = 1.0e-3,
     At = auv_matrix:trans(A),
     AtB = auv_matrix:mult(At, B),
-%%% The following Jacobian preconditioning works, but is as expected
-%%% not worth the effort
-%%%     AtA = auv_matrix:mult_trans(At, At),
-%%%     Diag = auv_matrix:diag(AtA),
-%%%     Diag_inv = (catch [1/V || V <- Diag]),
-%%%     M_inv = 
-%%% 	case Diag_inv of
-%%% 	    {'EXIT', {badarith, _}} ->
-%%% 		1.0;
-%%% 	    {'EXIT', Reason} ->
-%%% 		exit(Reason);
-%%% 	    _ ->
-%%% 		auv_matrix:diag(Diag_inv)
-%%% 	end,
-%%%     ?DBG("Preconditioning with ~p~n", [M_inv]),
-    M_inv = 1,
+    M_inv = 
+	case Method of
+	    cg_jacobian ->
+		%% This preconditioning is not worth the effort.
+		%% The time for convergence decreases, but that gain
+		%% is lost on the AtA multiplication.
+		AtA = ?TC(auv_matrix:mult_trans(At, At)),
+		Diag = ?TC(auv_matrix:diag(AtA)),
+		case catch [1/V || V <- Diag] of
+		    {'EXIT', {badarith, _}} ->
+			fun (R_new) ->
+				auv_matrix:mult(1, R_new)
+			end;
+		    {'EXIT', Reason} ->
+			exit(Reason);
+		    Diag_inv ->
+			M_i = ?TC(auv_matrix:diag(Diag_inv)),
+			fun (R_new) ->
+				auv_matrix:mult(M_i, R_new)
+			end
+		end;
+	    cg_colnorm ->
+		Diag = ?TC(auv_matrix:row_norm(At)),
+		case catch [1/V || V <- Diag] of
+		    {'EXIT', {badarith, _}} ->
+			fun (R_new) ->
+				auv_matrix:mult(1, R_new)
+			end;
+		    {'EXIT', Reason} ->
+			exit(Reason);
+		    Diag_inv ->
+			M_i = ?TC(auv_matrix:diag(Diag_inv)),
+			fun (R_new) ->
+				auv_matrix:mult(M_i, R_new)
+			end
+		end;
+	    _ ->
+		fun (R_new) ->
+			auv_matrix:mult(1, R_new)
+		end
+	end,
+    ?DBG("Preconditioning with ~p~n", [Method]),
     R = auv_matrix:sub(AtB, 
 		       auv_matrix:mult(At, auv_matrix:mult(A, X0))),
-    D = auv_matrix:mult(M_inv, R),
+    D = M_inv(R),
     Delta = auv_matrix:mult(auv_matrix:trans(R), D),
     Delta_max = Epsilon*Epsilon*Delta,
     minimize_cg(M_inv, At, A, AtB, Delta_max, 
@@ -405,7 +439,7 @@ minimize_cg(M_inv, At, A, AtB, Delta_max,
 minimize_cg_2(M_inv, At, A, AtB, Delta_max,
 	      Delta, I, D, R, X_new, Alpha, P) ->
     R_new = auv_matrix:sub(R, auv_matrix:mult(Alpha, auv_matrix:mult(At, P))),
-    S = auv_matrix:mult(M_inv, R_new),
+    S = M_inv(R_new),
     Delta_new = auv_matrix:mult(auv_matrix:trans(R_new), S),
     if Delta_new < Delta_max ->
 	    minimize_cg_3(M_inv, At, A, AtB, Delta_max,
@@ -421,7 +455,7 @@ minimize_cg_3(M_inv, At, A, AtB, Delta_max,
     ?DBG("minimize_cg() recalculating residual ~p~n", [Delta]),
     R_new = auv_matrix:sub
 	      (AtB, auv_matrix:mult(At, auv_matrix:mult(A, X_new))),
-    S = auv_matrix:mult(M_inv, R_new),
+    S = M_inv(R_new),
     Delta_new = auv_matrix:mult(auv_matrix:trans(R_new), S),
     D_new = auv_matrix:add(S, auv_matrix:mult(Delta_new/Delta, D)),
     minimize_cg(M_inv, At, A, AtB, Delta_max,

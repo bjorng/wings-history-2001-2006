@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_matrix.erl,v 1.9 2002/10/19 22:38:36 raimo_niskanen Exp $
+%%     $Id: auv_matrix.erl,v 1.10 2002/10/22 20:19:21 raimo_niskanen Exp $
 
 -module(auv_matrix).
 
@@ -18,7 +18,7 @@
 -export([vector/1, vector/2]).
 -export([rows/1, rows/2, cols/1, cols/2]).
 -export([cat_cols/2, cat_rows/2]).
--export([diag/1]).
+-export([diag/1, row_norm/1]).
 -export([trans/1, mult/2, mult_trans/2]).
 -export([add/2, sub/2]).
 -export([reduce/1, backsubst/1]).
@@ -253,6 +253,34 @@ diag_list(I, N, [V | L], C) when number(V) ->
     diag_list(I+1, N, L, [[I-1, float(V), N-I] | C]);
 diag_list(_, _, _, _) ->
     badarg.
+
+
+
+%% Exported
+%%
+row_norm({?TAG,_,_,A}) ->
+    row_norm_int(A, []);
+row_norm({?TAG,_,A}) ->
+    row_norm_col(A, []);
+row_norm(A) ->
+    erlang:fault(badarg, [A]).
+
+row_norm_int([], C) ->
+    lists:reverse(C);
+row_norm_int([Row | A], C) ->
+    row_norm_int(A, [vec_sq(Row, 0.0) | C]).
+
+row_norm_col([], C) ->
+    lists:reverse(C);
+row_norm_col([V | A], C) when float(V) ->
+    row_norm_col(A, [V*V | C]);
+row_norm_col([Z | A], C) ->
+    row_norm_col(Z, A, C).
+
+row_norm_col(0, A, C) ->
+    row_norm_col(A, C);
+row_norm_col(Z, A, C) ->
+    row_norm_col(Z-1, A, [0.0 | C]).
 
 
 
@@ -645,6 +673,13 @@ vec_mult_pop(_, A, [_ | B], S) -> % when Za == Zb
     vec_mult(A, B, S);
 vec_mult_pop(_, _, [], S) ->
     S.
+
+vec_sq([], S) ->
+    S;
+vec_sq([V | A], S) when float(V), float(S) ->
+    vec_sq(A, S + V*V);
+vec_sq([_ | A], S) ->
+    vec_sq(A, S).
 
 
 
