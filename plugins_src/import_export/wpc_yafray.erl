@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.32 2003/04/25 08:16:56 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.33 2003/04/28 14:48:23 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -35,6 +35,11 @@
 -define(DEF_OPTIONS, "").
 -define(DEF_LOAD_IMAGE, true).
 -define(DEF_SUBDIVISIONS, 0).
+-define(DEF_SAVE_ALPHA, false).
+-define(DEF_GAMMA, 1.0).
+-define(DEF_EXPOSURE, 1.41421356237).
+-define(DEF_FOG_DENSITY, 0.0).
+-define(DEF_FOG_COLOR, {1.0,1.0,1.0,1.0}).
 
 %% Shader
 -define(DEF_IOR, 1.0).
@@ -89,7 +94,7 @@
 -define(DEF_SAMPLES, 256).
 
 %% Modulator
--define(DEF_MOD_MODE, off).
+-define(DEF_MOD_MODE, mix).
 -define(DEF_MOD_SIZE_X, 1.0).
 -define(DEF_MOD_SIZE_Y, 1.0).
 -define(DEF_MOD_SIZE_Z, 1.0).
@@ -98,6 +103,7 @@
 -define(DEF_MOD_SPECULAR, 0.0).
 -define(DEF_MOD_AMBIENT, 0.0).
 -define(DEF_MOD_SHININESS, 0.0).
+-define(DEF_MOD_NORMAL, 0.0).
 -define(DEF_MOD_TYPE, image).
 -define(DEF_MOD_FILENAME, ".jpg").
 -define(DEF_MOD_COLOR1, {0.0,0.0,0.0,1.0}).
@@ -289,6 +295,13 @@ load_image(Filename) ->
 
 material_dialog(_Name, Mat) ->
     Maps = proplists:get_value(maps, Mat, []),
+    ModulatorsDefault = 
+	case Maps of
+	    [{diffuse,_}|_] ->
+		[{modulator,[{type,{map,diffuse}},{diffuse,1.0}]}];
+	    _ ->
+		[]
+	end,
     YafRay = proplists:get_value(?TAG, Mat, []),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
@@ -297,7 +310,7 @@ material_dialog(_Name, Mat) ->
     Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
     EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
     RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
-    Modulators = proplists:get_value(modulators, YafRay, []),
+    Modulators = proplists:get_value(modulators, YafRay, ModulatorsDefault),
     [{vframe,
       [{hframe,
 	[{vframe, 
@@ -340,6 +353,7 @@ modulator_dialog({modulator,Ps}, M, Maps) when list(Ps) ->
     Specular = proplists:get_value(specular, Ps, ?DEF_MOD_SPECULAR),
     Ambient = proplists:get_value(ambient, Ps, ?DEF_MOD_AMBIENT),
     Shininess = proplists:get_value(shininess, Ps, ?DEF_MOD_SHININESS),
+    Normal = proplists:get_value(normap, Ps, ?DEF_MOD_NORMAL),
     Type = 
 	case proplists:get_value(type, Ps, ?DEF_MOD_TYPE) of
 	    jpeg -> image;
@@ -379,12 +393,14 @@ modulator_dialog({modulator,Ps}, M, Maps) when list(Ps) ->
 			 {label,"Diffuse "},
 			 {label,"Specular"},
 			 {label,"Ambient"},
-			 {label,"Shininess"}]},
+			 {label,"Shininess"},
+			 {label,"Normal"}]},
 		{vframe,[{slider,{text,Opacity,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Diffuse,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Specular,[{range,{0.0,1.0}}]}},
 			 {slider,{text,Ambient,[{range,{0.0,1.0}}]}},
-			 {slider,{text,Shininess,[{range,{0.0,1.0}}]}}]}]}]++
+			 {slider,{text,Shininess,[{range,{0.0,1.0}}]}},
+			 {slider,{text,Normal,[{range,{0.0,1.0}}]}}]}]}]++
       MapsFrame++
       [{hframe,[{vframe,[{key_alt,TaggedType,"Image",image},
 			 {key_alt,TaggedType,"Clouds",clouds}]},
@@ -415,11 +431,12 @@ modulator_result([Mode|Res0], Ms) ->
     {M,Res} = modulator(Mode, Res0),
     modulator_result(Res, [M|Ms]).
 
-modulator(Mode, [SizeX,SizeY,SizeZ,Opacity,Diffuse,Specular,Ambient,Shininess,
+modulator(Mode, [SizeX,SizeY,SizeZ,
+		 Opacity,Diffuse,Specular,Ambient,Shininess,Normal,
 		 {_,Type},Filename,Color1,Color2,Depth|Res]) ->
     Ps = [{mode,Mode},{size_x,SizeX},{size_y,SizeY},{size_z,SizeZ},
 		 {opacity,Opacity},{diffuse,Diffuse},{specular,Specular},
-		 {ambient,Ambient},{shininess,Shininess},
+		 {ambient,Ambient},{shininess,Shininess},{normal,Normal},
 		 {type,Type},{filename,Filename},
 		 {color1,Color1},{color2,Color2},{depth,Depth}],
     {{modulator,Ps},Res}.
@@ -574,6 +591,9 @@ pref_result(Attr, St) ->
 
 export_dialog(Operation) ->
     SubDiv = get_pref(subdivisions, ?DEF_SUBDIVISIONS),
+    SaveAlpha = get_pref(save_alpha, ?DEF_SAVE_ALPHA),
+    Gamma = get_pref(gamma, ?DEF_GAMMA),
+    Exposure = get_pref(exposure, ?DEF_EXPOSURE),
     AA_passes = get_pref(aa_passes, ?DEF_AA_PASSES),
     Raydepth = get_pref(raydepth, ?DEF_RAYDEPTH),
     Bias = get_pref(bias, ?DEF_BIAS),
@@ -590,19 +610,26 @@ export_dialog(Operation) ->
     AntinoiseFilter = get_pref(antinoise_filter, ?DEF_ANTINOISE_FILTER),
     AntinoiseRadius = get_pref(antinoise_radius, ?DEF_ANTINOISE_RADIUS),
     AntinoiseMaxDelta = get_pref(antinoise_radius, ?DEF_ANTINOISE_MAX_DELTA),
+    FogDensity = get_pref(fog_density, ?DEF_FOG_DENSITY),
+    FogColor = get_pref(fog_color, ?DEF_FOG_COLOR),
     [{hframe,[{label,"Sub-division Steps"},
 	      {text,SubDiv,[{key,subdivisions},{range,0,4}]}],
       [{title,"Pre-rendering"}]},
      {hframe,
       [{vframe,[{label,"AA_passes"},
-		{label,"AA_threshold"}]},
+		{label,"AA_threshold"},
+		{label,"Gamma"}]},
        {vframe,[{text,AA_passes,[{range,{1,1000}},{key,aa_passes}]},
 		{text,AA_threshold,[{range,{0.0,100.0}},
-				 {key,aa_threshold}]}]},
+				    {key,aa_threshold}]},
+		{text,Gamma,[{range,{0.0,10.0}},{key,gamma}]}]},
        {vframe,[{label,"Raydepth"},
-		{label,"Bias"}]},
+		{label,"Bias"},
+		{label,"Exposure"}]},
        {vframe,[{text,Raydepth,[{range,{1,1000}},{key,raydepth}]},
-		{text,Bias,[{range,{0.0,1.0}},{key,bias}]}]}],
+		{text,Bias,[{range,{0.0,1.0}},{key,bias}]},
+		{text,Exposure,[{range,{0.0,32.0}},{key,exposure}]}]},
+       {vframe,[{"Alpha Channel",SaveAlpha,[{key,save_alpha}]}]}],
       [{title,"Render"}]},
      {hframe,
       [{vframe,[{label,"Default Color"}]},
@@ -615,18 +642,25 @@ export_dialog(Operation) ->
        {vframe,[{text,Height,[{range,{1,10000}},{key,height}]}]}],
       [{title,"Camera"}]},
      {hframe,
-      [{vframe,[{"Antinoise",AntinoiseFilter,[{key,antinoise_filter}]},
+      [{vframe,[{label,"Fog Density"},
+		{"Antinoise",AntinoiseFilter,[{key,antinoise_filter}]},
 		{"DOF",DofFilter,[{key,dof_filter}]}]},
-       {vframe,[{label,"Radius"},
-		{label,"Near Blur"},
-		{label,"Scale"}]},
-       {vframe,[{text,AntinoiseRadius,[{range,{0.0,100.0}},
-				       {key,antinoise_radius}]},
-		{text,NearBlur,[{range,{0.0,100.0}},{key,near_blur}]},
-		{text,DofScale,[{range,{0.0,100.0}},{key,dof_scale}]}]},
-       {vframe,[{label,"Max Delta"},
+       {vframe,
+	[{slider,{text,FogDensity,[{range,{0.0,1.0}},
+				   {key,fog_density}]}},
+	 {hframe,
+	  [{vframe,[{label,"Radius"},
+		    {label,"Near Blur"},
+		    {label,"Scale"}]},
+	   {vframe,[{text,AntinoiseRadius,[{range,{0.0,100.0}},
+					   {key,antinoise_radius}]},
+		    {text,NearBlur,[{range,{0.0,100.0}},{key,near_blur}]},
+		    {text,DofScale,[{range,{0.0,100.0}},{key,dof_scale}]}]}]}]},
+       {vframe,[{label,"Fog Color"},
+		{label,"Max Delta"},
 		{label,"Far Blur"}]},
-       {vframe,[{text,AntinoiseMaxDelta,[{range,{0.0,100.0}},
+       {vframe,[{color,FogColor,[{key,fog_color}]},
+		{text,AntinoiseMaxDelta,[{range,{0.0,100.0}},
 					 {key,antinoise_max_delta}]},
 		{text,FarBlur,[{range,{0.0,100.0}},{key,far_blur}]}]}],
       [{title,"Filters"}]}
@@ -962,6 +996,7 @@ export_modulator(F, Texname, {modulator,Ps}) when list(Ps) ->
     Specular = proplists:get_value(specular, Ps, ?DEF_MOD_SPECULAR),
     Ambient = proplists:get_value(ambient, Ps, ?DEF_MOD_AMBIENT),
     Shininess = proplists:get_value(shininess, Ps, ?DEF_MOD_SHININESS),
+    Normal = proplists:get_value(normal, Ps, ?DEF_MOD_NORMAL),
     Color = Diffuse * Opacity,
     HardValue = Shininess,
     Transmission = Diffuse * (1.0 - Opacity),
@@ -973,9 +1008,10 @@ export_modulator(F, Texname, {modulator,Ps}) when list(Ps) ->
 	    "            <hard value=\"~.3f\"/>~n"++
 	    "            <transmission value=\"~.3f\"/>~n"++
 	    "            <reflection value=\"~.3f\"/>~n"++
+	    "            <normal value=\"~.3f\"/>~n"++
 	    "        </modulator>", 
 	    [Texname,format(Mode),SizeX,SizeY,SizeZ,
-	     Color,Specular,HardValue,Transmission,Reflection]).
+	     Color,Specular,HardValue,Transmission,Reflection,Normal]).
 
 
 
@@ -1296,6 +1332,11 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
     Raydepth = proplists:get_value(raydepth, Attr),
     Bias = proplists:get_value(bias, Attr),
     AA_threshold = proplists:get_value(aa_threshold, Attr),
+    SaveAlpha = proplists:get_value(save_alpha, Attr),
+    Gamma = proplists:get_value(gamma, Attr),
+    Exposure = proplists:get_value(exposure, Attr),
+    FogColor = proplists:get_value(fog_color, Attr),
+    FogDensity = proplists:get_value(fog_density, Attr),
     println(F, "<render camera_name=\"~s\" "++
 	    "AA_passes=\"~w\" raydepth=\"~w\"~n"++
 	    "        bias=\"~.10f\" AA_threshold=\"~.10f\">~n"++
@@ -1304,11 +1345,12 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
 	    "    <indirect_samples value=\"0\"/>~n"++
 	    "    <indirect_power value=\"1.0\"/>~n"++
 	    "    <exposure value=\"~.10f\"/>~n"++
-	    "    <gamma value=\"1.0\"/>~n"++
-	    "    <fog_density value=\"0.0\"/>",
+	    "    <save_alpha value=\"~s\"/>~n"++
+	    "    <gamma value=\"~.10f\"/>~n"++
+	    "    <fog_density value=\"~.10f\"/>",
 	    [CameraName,AA_passes,Raydepth,Bias,AA_threshold,
-	     BackgroundName,Outfile,math:sqrt(2.0)]),
-    export_rgb(F, fog_color, {1.0,1.0,1.0,1.0}),
+	     BackgroundName,Outfile,Exposure,SaveAlpha,Gamma,FogDensity]),
+    export_rgb(F, fog_color, FogColor),
     println(F, "</render>").
 
 
@@ -1368,7 +1410,7 @@ close(F) ->
 
 
 
-%% Convert certain terms to printable strings in an 
+%% Convert certain terms to printable strings in a
 %% hopefully efficient way.
 
 format(F) when is_float(F) ->
