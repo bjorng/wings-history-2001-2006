@@ -1,5 +1,5 @@
 -module(proplists).
--export([get_value/2,get_value/3,is_defined/2]).
+-export([get_value/2,get_value/3,get_bool/2,is_defined/2]).
 
 %% =====================================================================
 %% Support functions for property lists
@@ -23,7 +23,7 @@
 %%
 %% Author contact: richardc@csd.uu.se
 %%
-%% $Id: proplists.erl,v 1.2 2002/09/18 13:23:07 bjorng Exp $
+%% $Id: proplists.erl,v 1.3 2002/09/20 12:24:34 bjorng Exp $
 
 %%%
 %%% Compatability module to be used until R9 is released.
@@ -86,3 +86,34 @@ get_value(Key, [P | Ps], Default) ->
     end;
 get_value(_Key, [], Default) ->
     Default.
+
+%% =====================================================================
+%% get_bool(Key, List) -> bool()
+%%
+%%	    Key = Name | term()
+%%	    Name = atom()
+%%	    List = [Name | {Key, ...} | term()]
+%%
+%%	If `lookup(Key, List)' would yield `{Key, true}', this function
+%%	returns `true'; otherwise `false' is returned. Thus, the entry
+%%	associated with `Key' is assumed to be a 2-tuple whose second
+%%	element is a boolean value (`true' or `false'), and if it is
+%%	not, or if there is no entry associated with `Key' in `List',
+%%	the value `false' is used.
+
+get_bool(Key, [P | Ps]) ->
+    if atom(P), P =:= Key ->
+	    true;
+       tuple(P), size(P) >= 1, element(1, P) =:= Key ->
+	    case P of
+		{_, true} ->
+		    true;
+		_ ->
+		    %% Don't continue the search!
+		    false
+	    end;
+       true ->
+	    get_bool(Key, Ps)
+    end;
+get_bool(Key, []) ->
+    false.
