@@ -3,12 +3,12 @@
 %%
 %%     Operations on matrices.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.25 2003/05/13 14:38:11 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.26 2003/05/16 17:31:19 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -62,7 +62,7 @@ scale(Sx, Sy, Sz) ->
      Zero,Zero,Zero}.
 
 rotate(A0, {X,Y,Z}) when is_float(X), is_float(Y), is_float(Z) ->
-    A = A0*3.14159/180,
+    A = A0*(3.14159/180),
     CosA = math:cos(A),
     SinA = math:sin(A),
     XSinA = X*SinA,
