@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.57 2004/11/05 06:05:32 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.58 2004/11/13 04:39:26 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -415,10 +415,9 @@ delete(#st{shapes=Shs0}=St) ->
 %%%
 
 duplicate(Dir, St0) ->
-    Copy = ?STR(duplicate,1,"copy"),
     {St,Sel} = wings_sel:fold(
 		 fun(Elems, We, {#st{onext=Id}=S0,Sel}) ->
-			 S = wings_shape:insert(We, Copy, S0),
+			 S = wings_shape:insert(We, copy, S0),
 			 {S,[{Id,Elems}|Sel]};
 		    (_, _, A) -> A
 		 end, {St0,[]}, St0),

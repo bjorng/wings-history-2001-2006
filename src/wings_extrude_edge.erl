@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.59 2004/10/08 06:02:29 dgud Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.60 2004/11/13 04:39:26 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -18,7 +18,6 @@
 -include("wings.hrl").
 -import(lists, [foldl/3,keydelete/3,member/2,sort/1,
 		reverse/1,reverse/2,last/1,foreach/2]).
--compile(inline).
 
 -define(DEFAULT_EXTRUDE_DIST, 0.2).
 -define(BEVEL_EXTRUDE_DIST_KLUDGE, 0.0001).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.71 2004/11/04 07:35:28 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.72 2004/11/13 04:39:25 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -393,9 +393,8 @@ invert_normals(St) ->
 %%%
 
 duplicate(Dir, #st{onext=Oid0}=St0) ->
-    Copy = ?STR(duplicate,1,"copy"),
     St1 = wings_sel:fold(fun(_, We, St) ->
-				 wings_shape:insert(We, Copy, St)
+				 wings_shape:insert(We, copy, St)
 			 end, St0, St0),
     %% Select the duplicate items, not the original items.
     Zero = gb_sets:singleton(0),
@@ -411,10 +410,9 @@ duplicate(Dir, #st{onext=Oid0}=St0) ->
 %%%
 
 duplicate_object(Objects, #st{shapes=Shs}=St) ->
-    Copy =  ?STR(duplicate,1,"copy"),
     foldl(fun(Id, S) ->
 		  We = gb_trees:get(Id, Shs),
-		  wings_shape:insert(We, Copy, S)
+		  wings_shape:insert(We, copy, S)
 	  end, St, Objects).
 
 %%%
@@ -513,14 +511,13 @@ unify_modes([], Mode) -> Mode.
 %%%
 
 separate(St) ->
-    Sep = "sep",
     wings_sel:fold(
       fun(_, #we{id=Id}=We0, St0) ->
 	      case wings_we:separate(We0) of
 		  [_] -> St0;
 		  [We|Wes] ->
 		      St1 = foldl(fun(W, A) ->
-					  wings_shape:insert(W, Sep, A)
+					  wings_shape:insert(W, sep, A)
 				  end, St0, Wes),
 		      wings_shape:replace(Id, We, St1)
 	      end

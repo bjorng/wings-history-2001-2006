@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.73 2004/10/08 14:33:07 dgud Exp $
+%%     $Id: wings_shape.erl,v 1.74 2004/11/13 04:39:26 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -21,36 +21,31 @@
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,reverse/2,
 		keymember/3,keysearch/3,sort/1]).
--compile(inline).
 
+%%%
+%%% Exported functions.
+%%%
+
+%% new(Name, We, St0) -> St.
+%%  Create a new object having the given name.
 new(Name, We0, #st{shapes=Shapes0,onext=Oid}=St) ->
     We = We0#we{name=Name,id=Oid},
     Shapes = gb_trees:insert(Oid, We, Shapes0),
     St#st{shapes=Shapes,onext=Oid+1}.
 
+%% new(We, Suffix, St0) -> St.
+%%  Suffix = cut | clone | copy | extract | sep
+%%
+%%  Create a new object based on an old object. The name
+%%  will be created from the old name (with digits and known
+%%  suffixes stripped) with the given Suffix and a number
+%%  appended.
 insert(#we{name=OldName}=We0, Suffix, #st{shapes=Shapes0,onext=Oid}=St) ->
     Name = new_name(OldName, Suffix, Oid),
     We = We0#we{id=Oid,name=Name},
     Shapes = gb_trees:insert(Oid, We, Shapes0),
     St#st{shapes=Shapes,onext=Oid+1}.
     
-new_name(OldName, Suffix, Id) ->
-    Base = base(reverse(OldName)),
-    reverse(Base, "_" ++ Suffix ++ integer_to_list(Id)).
-
-base(OldName) ->
-    case base_1(OldName) of
-	error -> OldName;
-	Base -> Base
-    end.
-
-base_1([H|T]) when $0 =< H, H =< $9 -> base_1(T);
-base_1("ypoc_"++Base) -> Base;			%"_copy"
-base_1("tcartxe_"++Base) -> Base;		%"_extract"
-base_1("pes_"++Base) -> Base;			%"_sep"
-base_1("tuc_"++Base) -> Base;			%"_cut"
-base_1(_Base) -> error.
-
 replace(Id, We0, #st{shapes=Shapes0}=St) ->
     We = We0#we{id=Id},
     Shapes = gb_trees:update(Id, We, Shapes0),
@@ -67,6 +62,19 @@ permissions(We, Visible, Locked) ->
 	end,
     We#we{perm=P}.
 
+show_all(#st{shapes=Shs0,sel=Sel0}=St) ->
+    Shs1 = gb_trees:values(Shs0),
+    Shs2 = [{Id,show_we(We)} || #we{id=Id}=We <- Shs1],
+    Shs = gb_trees:from_orddict(Shs2),
+    Sel = sort(show_all_sel(Shs1, St, Sel0)),
+    St#st{shapes=Shs,sel=Sel}.
+
+unlock_all(#st{shapes=Shs0}=St) ->
+    Shs1 = gb_trees:values(Shs0),
+    Shs2 = [{Id,maybe_unlock(We)} || #we{id=Id}=We <- Shs1],
+    Shs = gb_trees:from_orddict(Shs2),
+    St#st{shapes=Shs}.
+
 %% all_selectable(St) -> GbSet
 %%  Return a GbSet containing IDs for all selectable objects (i.e. not locked).
 all_selectable(#st{shapes=Shs}) ->
@@ -77,6 +85,47 @@ all_selectable_1([{Id,#we{perm=P}}|T], Acc) when ?IS_SELECTABLE(P) ->
 all_selectable_1([_|T], Acc) ->
     all_selectable_1(T, Acc);
 all_selectable_1([], Acc) -> gb_sets:from_ordset(reverse(Acc)).
+
+%%%
+%%% Local functions follow.
+%%%
+
+new_name(OldName, Suffix0, Id) ->
+    Suffix = suffix(Suffix0),
+    Base = base(reverse(OldName)),
+    reverse(Base, "_" ++ Suffix ++ integer_to_list(Id)).
+
+%% Note: Filename suffixes are intentionally not translated.
+%% If we are to translate them in the future, base/1 below
+%% must be updated to strip suffixes (both for the current language
+%% and for English).
+
+suffix(cut) -> "cut";
+suffix(clone) -> "clone";
+suffix(copy) -> "copy";
+suffix(extract) -> "extract";
+suffix(mirror) -> "mirror";
+suffix(sep) -> "sep".
+
+%% base_1(ReversedName) -> ReversedBaseName
+%%  Given an object name, strip digits and known suffixes to
+%%  create a base name. Returns the unchanged name if
+%%  no known suffix could be stripped.
+
+base(OldName) ->
+    case base_1(OldName) of
+	error -> OldName;
+	Base -> Base
+    end.
+
+base_1([H|T]) when $0 =< H, H =< $9 -> base_1(T);
+base_1("tuc_"++Base) -> Base;			%"_cut"
+base_1("enolc_"++Base) -> Base;			%"_clone"
+base_1("ypoc_"++Base) -> Base;			%"_copy"
+base_1("tcartxe_"++Base) -> Base;		%"_extract"
+base_1("rorrim_"++Base) -> Base;		%"_mirror"
+base_1("pes_"++Base) -> Base;			%"_sep"
+base_1(_Base) -> error.
 
 %%%
 %%% Object window.
@@ -611,13 +660,6 @@ hide_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
     Sel = [This || {Id,_}=This <- Sel0, Id =:= ThisId],
     St#st{shapes=Shs,sel=Sel}.
 
-show_all(#st{shapes=Shs0,sel=Sel0}=St) ->
-    Shs1 = gb_trees:values(Shs0),
-    Shs2 = [{Id,show_we(We)} || #we{id=Id}=We <- Shs1],
-    Shs = gb_trees:from_orddict(Shs2),
-    Sel = sort(show_all_sel(Shs1, St, Sel0)),
-    St#st{shapes=Shs,sel=Sel}.
-
 show_all_sel([#we{id=Id,perm={Mode,Set}}|T],
 		#st{selmode=Mode}=St, Acc) ->
     show_all_sel(T, St, [{Id,Set}|Acc]);
@@ -641,12 +683,6 @@ lock_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
     Shs = gb_trees:from_orddict(Shs1),
     Sel = [This || {Id,_}=This <- Sel0, Id =:= ThisId],
     St#st{shapes=Shs,sel=Sel}.
-
-unlock_all(#st{shapes=Shs0}=St) ->
-    Shs1 = gb_trees:values(Shs0),
-    Shs2 = [{Id,maybe_unlock(We)} || #we{id=Id}=We <- Shs1],
-    Shs = gb_trees:from_orddict(Shs2),
-    St#st{shapes=Shs}.
 
 maybe_unlock(#we{perm=P}=We) when ?IS_VISIBLE(P) -> We#we{perm=0};
 maybe_unlock(We) -> We.

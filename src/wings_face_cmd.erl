@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.108 2004/10/08 06:02:29 dgud Exp $
+%%     $Id: wings_face_cmd.erl,v 1.109 2004/11/13 04:39:26 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -209,7 +209,7 @@ extract_region(Type, St0) ->
     St1 = wings_sel:fold(
 	    fun(Faces, We0, #st{sel=Sel0,onext=Oid}=S0) ->
 		    We = We0#we{mirror=none},
-		    S = wings_shape:insert(We,?STR(extract_region,1,"extract"), S0),
+		    S = wings_shape:insert(We, extract, S0),
 		    Sel = [{Oid,Faces}|Sel0],
 		    S#st{sel=Sel}
 	    end, St0#st{sel=[]}, St0),
@@ -373,7 +373,7 @@ mirror_sep_faces(Faces, We0, Acc) when is_list(Faces) ->
     Template = wings_we:invert_normals(We0),
     foldl(fun(Face, A) ->
 		  We = mirror_vs(Face, Template),
-		wings_shape:insert(We,?STR(mirror_sep_faces,1,"mirror"), A)
+		  wings_shape:insert(We, mirror, A)
 	  end, Acc, Faces);
 mirror_sep_faces(Faces, We, Acc) ->
     mirror_sep_faces(gb_sets:to_list(Faces), We, Acc).
@@ -1186,7 +1186,7 @@ clone_3(El, We, Tr, N, Clone, #st{selmode=Mode}=St) ->
     M1 = e3d_mat:mul(M0, RotAxis),
     M = e3d_mat:mul(M1, Tr),
     NewWe = wings_we:transform_vs(M, Clone),
-    wings_shape:insert(NewWe, "_clone", St).
+    wings_shape:insert(NewWe, clone, St).
 
 %%
 %% Common help function.

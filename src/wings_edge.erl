@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.103 2004/10/08 06:02:28 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.104 2004/11/13 04:39:26 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -1078,7 +1078,7 @@ loop_cut(Edges, #we{name=Name,id=Id,es=Etab}=We, {Sel0,St}) ->
 
 loop_cut_make_copies([P|Parts], We, Sel0, #st{onext=Id}=St0) ->
     Sel = [{Id,wings_sel:inverse_items(face, P, We)}|Sel0],
-    St = wings_shape:insert(We, ?STR(loop_cut_make_copies,1,"cut"), St0),
+    St = wings_shape:insert(We, cut, St0),
     loop_cut_make_copies(Parts, We, Sel, St);
 loop_cut_make_copies([], _, Sel, St) -> {Sel,St}.
 

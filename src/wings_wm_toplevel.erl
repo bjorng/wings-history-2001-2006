@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.50 2004/10/08 06:02:32 dgud Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.51 2004/11/13 04:39:27 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -24,8 +24,6 @@
 
 -import(lists, [reverse/1,keysearch/3,sort/1,foreach/2]).
 -import(wings_util, [min/2,max/2]).
-
--compile(inline).
 
 toplevel(Name, Title, Pos, Size, Flags, Op) ->
     wings_wm:new(Name, Pos, Size, Op),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.145 2004/10/26 19:24:38 dgud Exp $
+%%     $Id: wings_wm.erl,v 1.146 2004/11/13 04:39:27 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -60,8 +60,6 @@
 		reverse/1,foreach/2,member/2]).
 
 -define(Z_LOWEST_DYNAMIC, 10).
-
--compile(inline).
 
 -record(win,
 	{z,					%Z order.
