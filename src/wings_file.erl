@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.152 2004/12/05 13:37:41 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.153 2004/12/06 07:33:12 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -70,7 +70,8 @@ menu(_) ->
      separator,
      {?__(23,"Render"),{render,[]}},
      separator,
-     {?__(24,"Install Plug-In"),install_plugin},
+     {?__(24,"Install Plug-In"),install_plugin,
+      ?__(27,"Install a plug-in")},
      separator|recent_files([{?__(25,"Exit"),quit}])].
     
 command(new, St) ->
@@ -190,7 +191,8 @@ confirmed_open_dialog() ->
 
     Cont = fun(Filename) -> {file,{confirmed_open,Filename}} end,
     Dir = wings_pref:get_value(current_directory),
-    Ps = [{directory,Dir},{title,?STR(confirmed_open_dialog,1,"Open")}|wings_prop()],
+    Ps = [{directory,Dir},
+	  {title,?__(1,"Open")}|wings_prop()],
     wpa:import_filename(Ps, Cont).
 
 confirmed_open(Name, St0) ->
@@ -208,7 +210,7 @@ confirmed_open(Name, St0) ->
 			  wings:caption(St#st{saved=true,file=Name});
 		      {error,Reason} ->
 			  clean_new_images(St2),
-			  wings_util:error(?STR(confirmed_open,1,"Read failed: ") ++ Reason)
+			  wings_util:error(?__(1,"Read failed: ") ++ Reason)
 		  end
 	  end,
     use_autosave(Name, Fun).
@@ -223,12 +225,12 @@ named_open(Name, St) ->
 			     fun() -> Confirmed end).
 
 str_save_changes() ->
-    ?STR(str_save_changes,1,"Do you want to save your changes?").
+    ?__(1,"Do you want to save your changes?").
 
 merge() ->
     Cont = fun(Filename) -> {file,{merge,Filename}} end,
     Dir = wings_pref:get_value(current_directory),
-    Ps = [{title,?STR(merge,1,"Merge")},{directory,Dir}|wings_prop()],
+    Ps = [{title,?__(1,"Merge")},{directory,Dir}|wings_prop()],
     wpa:import_filename(Ps, Cont).
 
 merge(Name, St0) ->
@@ -240,7 +242,7 @@ merge(Name, St0) ->
 		  case ?SLOW(wings_ff_wings:import(File, St0)) of
 		      {error,Reason} ->
 			  clean_new_images(St1),
-			  wings_util:error(?STR(merge,2,"Read failed: ") ++ Reason);
+			  wings_util:error(?__(2,"Read failed: ") ++ Reason);
 		      #st{}=St ->
 			  set_cwd(dirname(Name)),
 			  St#st{saved=false}
@@ -260,7 +262,7 @@ save_as(Next, St) ->
 		   set_cwd(dirname(Name)),
 		   {file,{save_as,{Name,Next}}}
 	   end,
-    Ps = [{title,?STR(save_as,1,"Save")}|wings_prop()],
+    Ps = [{title,?__(1,"Save")}|wings_prop()],
     wpa:export_filename(Ps, St, Cont).
 
 save_now(Next, #st{file=Name}=St) ->
@@ -274,16 +276,16 @@ save_now(Next, #st{file=Name}=St) ->
 	    maybe_send_action(Next),
 	    {saved,wings:caption(St#st{saved=true})};
 	{error,Reason} ->
-	    wings_util:error(?STR(save_now,1,"Save failed: ") ++ Reason)
+	    wings_util:error(?__(1,"Save failed: ") ++ Reason)
     end.
 
 maybe_send_action(ignore) -> keep;
 maybe_send_action(Action) -> wings_wm:later({action,Action}).
     
 save_selected(#st{sel=[]}) ->
-    wings_util:error(?STR(save_selected,1,"This command requires a selection."));
+    wings_util:error(?__(1,"This command requires a selection."));
 save_selected(St) ->
-    Ps = [{title,?STR(save_selected,2,"Save Selected")}|wings_prop()],
+    Ps = [{title,?__(2,"Save Selected")}|wings_prop()],
     Cont = fun(Name) -> {file,{save_selected,Name}} end,
     wpa:export_filename(Ps, St, Cont).
 
@@ -359,7 +361,7 @@ use_autosave_1(#file_info{mtime=SaveTime0}, File, Body) ->
 	    AutoTime = calendar:datetime_to_gregorian_seconds(AutoInfo0),
 	    if
 		AutoTime > SaveTime ->
-		    Msg = ?STR(use_autosave_1,1,"An autosaved file with a later time stamp exists; do you want to load the autosaved file instead?"),
+		    Msg = ?__(1,"An autosaved file with a later time stamp exists; do you want to load the autosaved file instead?"),
 		    wings_util:yes_no(Msg, autosave_fun(Body, Auto),
 				      autosave_fun(Body, File));
 		true ->
@@ -422,7 +424,8 @@ autosave(#st{file=Name}=St) ->
 	ok ->
 	    wings:caption(St#st{saved=auto});
 	{error,Reason} ->
-	    Msg = lists:flatten(io_lib:format(?STR(autosave,1,"Autosaving \"~s\" failed: ~s"), [Auto,Reason])),
+	    F = ?__(1,"Autosaving \"~s\" failed: ~s"),
+	    Msg = lists:flatten(io_lib:format(F, [Auto,Reason])),
 	    wings_util:message(Msg)
     end.
 
@@ -494,7 +497,7 @@ import_ndo(Name, St0) ->
 	#st{}=St ->
 	    {save_state,St};
 	{error,Reason} ->
-	    wings_util:error(?STR(import_ndo,1,"Import failed: ") ++ Reason),
+	    wings_util:error(?__(1,"Import failed: ") ++ Reason),
 	    St0
     end.
 
@@ -508,7 +511,7 @@ import_image(Name) ->
 	Im when is_integer(Im) ->
 	    keep;
 	{error,Error} ->
-	    wings_util:error(?STR(import_image,1,"Failed to load \"~s\": ~s\n"),
+	    wings_util:error(?__(1,"Failed to load \"~s\": ~s\n"),
 			     [Name,file:format_error(Error)])
     end.
 
@@ -532,12 +535,12 @@ do_export_ndo(Name, St) ->
 %%%
 
 install_plugin() ->
-    Props = [{title,?STR(install_plugin,1,"Install Plug-In")},
+    Props = [{title,?__(1,"Install Plug-In")},
 	     {extensions,
-	      [{".gz",?STR(install_plugin,2,"GZip Compressed File")},
-	       {".tar",?STR(install_plugin,3,"Tar File")},
-	       {".tgz",?STR(install_plugin,4,"Compressed Tar File")},
-	       {".beam",?STR(install_plugin,5,"Beam File")}]}],
+	      [{".gz",?__(2,"GZip Compressed File")},
+	       {".tar",?__(3,"Tar File")},
+	       {".tgz",?__(4,"Compressed Tar File")},
+	       {".beam",?__(5,"Beam File")}]}],
     Cont = fun(Name) -> {file,{install_plugin,Name}} end,
     wpa:import_filename(Props, Cont).
 
