@@ -8,12 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.5 2003/01/20 23:04:19 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.6 2003/01/21 22:20:30 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
 
 -export([init/0,menu/2,dialog/2,command/2]).
+
+
 
 -include("e3d.hrl").
 
@@ -31,6 +33,8 @@
 -define(DEF_TOLERANCE, 0.1).
 -define(DEF_WIDTH, 100).
 -define(DEF_HEIGHT, 100).
+-define(DEF_BACKGROUND_COLOR, {0.0,0.0,0.0}).
+-define(DEF_AUTOSMOOTH_ANGLE, 0.0).
 
 
 
@@ -117,6 +121,8 @@ export_dialog() ->
     Tolerance = get_pref(tolerance, ?DEF_TOLERANCE),
     Width = get_pref(width, ?DEF_WIDTH),
     Height = get_pref(height, ?DEF_HEIGHT),
+    BgColor = get_pref(background_color, ?DEF_BACKGROUND_COLOR),
+    AutosmoothAngle = get_pref(autosmooth_angle, ?DEF_AUTOSMOOTH_ANGLE),
     [{hframe,
       [{vframe,[{label,"Samples"},
 		{label,"Raydepth"}]},
@@ -128,11 +134,21 @@ export_dialog() ->
 		{text,Tolerance,[{range,{0.0,100.0}},{key,tolerance}]}]}],
       [{title,"Rendering"}]},
      {hframe,
+      [{vframe,[{label,"Default Color"}]},
+       {vframe,[{color,BgColor,[{key,background_color}]}]}],
+      [{title,"Background"}]},
+     {hframe,
       [{vframe,[{label,"Width"}]},
        {vframe,[{text,Width,[{range,{1,10000}},{key,width}]}]},
        {vframe,[{label,"Height"}]},
        {vframe,[{text,Height,[{range,{1,10000}},{key,height}]}]}],
-      [{title,"Camera"}]}].
+      [{title,"Camera"}]},
+     {hframe,
+      [{vframe,[{label,"Autosmooth Angle"}]},
+       {vframe,[{slider,{text,AutosmoothAngle,
+			 [{range,{0.0,180.0}},
+			  {key,autosmooth_angle}]}}]}],
+      [{title,"Body"}]}].
 
 
 
@@ -171,7 +187,7 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    %%
 	    section(F, "Objects"),
 	    foreach(fun (#e3d_object{name=NameStr,obj=Mesh}) ->
-			    export_object(F, NameStr, Mesh),
+			    export_object(F, NameStr, Mesh, Attr),
 			    println(F)
 		    end,
 		    Objs),
@@ -184,9 +200,9 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 		    Lights),
 	    %%
 	    section(F, "Background, Camera, Filter and Render"),
-	    export_background(F, constant, ConstBackgroundName),
+	    export_background_constant(F, ConstBackgroundName, Attr),
 	    println(F),
-	    export_background(F, sunsky, "WingsDefaultSunskyBackground"),
+	    export_background_sunsky(F, "WingsDefaultSunskyBackground"),
 	    println(F),
 	    export_camera(F, CameraName, Attr),
 	    println(F),
@@ -266,11 +282,12 @@ export_rgb(F, Type, {R,G,B,_}) ->
 
 
 
-export_object(F, NameStr, #e3d_mesh{}=Mesh) ->
+export_object(F, NameStr, #e3d_mesh{}=Mesh, Attr) ->
     #e3d_mesh{fs=Fs,vs=Vs} = e3d_mesh:triangulate(Mesh),
     %% Find the default material
     MM = sort(foldl(fun (#e3d_face{mat=[M|_]}, Ms) -> [M|Ms] end, [], Fs)),
     [{_Count,DefaultMaterial}|_] = reverse(sort(count_equal(MM))),
+    AutosmoothAngle = proplists:get_value(autosmooth_angle, Attr),
     println(F, "<object name=\"~s\" shader_name=\"~s\" "++
 	    "shadow=\"on\" caus_IOR=\"1.0\"~n"++
 	    "        emit_rad=\"on\" recv_rad=\"on\">~n"++
@@ -279,8 +296,7 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh) ->
     export_rgb(F, caus_rcolor, {0.0,0.0,0.0,1.0}),
     export_rgb(F, caus_tcolor, {0.0,0.0,0.0,1.0}),
     println(F, "    </attributes>~n"++
-	    "    <mesh>", []),
-    template(F, fun () -> println(F, "    <mesh autosmooth=\"50.0\">") end),
+	    "    <mesh autosmooth=\"~.3f\">", [AutosmoothAngle]),
     println(F, "        <points>"),
     export_vertices(F, Vs),
     println(F, "        </points>~n"++
@@ -298,9 +314,16 @@ export_vertices(F, [Pos|T]) ->
 
 
 
+%% The coordinate system rotation is done to make the sunsky
+%% background work as expected. 
+%% It assumes X=South Y=East Z=Up in YafRay coordinates.
+%% Hence Z=South, X=East, Y=Up in Wings coordinates.
 export_pos(F, Type, {X,Y,Z}) ->
-    println(F, "        <~s x=\"~.10f\" y=\"~.10f\" z=\"~.10f\"/>",
-		   [atom_to_list(Type),X,Y,Z]).
+    println(F, ["        <",atom_to_list(Type)," x=\"",format(Z),
+		"\" y=\"",format(X),"\" z=\"",format(Y),"\"/>"]).
+% export_pos(F, Type, {X,Y,Z}) ->
+%    println(F, "        <~s x=\"~.10f\" y=\"~.10f\" z=\"~.10f\"/>",
+% 		   [atom_to_list(Type),Z,X,Y]).
 
 
 
@@ -309,10 +332,15 @@ export_faces(_F, [], _DefMat) ->
 export_faces(F, [#e3d_face{vs=[A,B,C],mat=[Mat|_]}|T], DefaultMaterial) ->
     case Mat of
 	DefaultMaterial ->
-	    println(F, "        <f a=\"~w\" b=\"~w\" c=\"~w\"/>", [A,B,C]);
+	    println(F, ["        <f a=\"",format(A),
+			"\" b=\"",format(B),"\" c=\"",format(C),"\"/>"]);
+% 	    println(F, "        <f a=\"~w\" b=\"~w\" c=\"~w\"/>", [A,B,C]);
 	_ ->
-	    println(F, "        <f a=\"~w\" b=\"~w\" c=\"~w\" "++
-		    " shader_name=\"~s\"/>", [A,B,C,atom_to_list(Mat)])
+	    println(F, ["        <f a=\"",format(A),
+			"\" b=\"",format(B),"\" c=\"",format(C),
+			"\" shader_name=\"",atom_to_list(Mat),"\"/>"])
+% 	    println(F, "        <f a=\"~w\" b=\"~w\" c=\"~w\" "++
+% 		    "shader_name=\"~s\"/>", [A,B,C,atom_to_list(Mat)])
     end,
     export_faces(F, T, DefaultMaterial).
 
@@ -411,11 +439,13 @@ limit_dist(_) -> 0.01.
 
 
 
-export_background(F, constant, Name) ->
+export_background_constant(F, Name, Attr) ->
+    {R,G,B} = proplists:get_value(background_color, Attr),
     println(F, "<background type=\"constant\" name=\"~s\">", [Name]),
-    export_rgb(F, color, {0.0,0.0,0.0,1.0}),
-    println(F, "</background>");
-export_background(F, sunsky, Name) ->
+    export_rgb(F, color, {R,G,B,1.0}),
+    println(F, "</background>").
+
+export_background_sunsky(F, Name) ->
     println(F, "<background type=\"sunsky\" name=\"~s\"~n"++
 	    "            turbidity=\"4.0\" add_sun=\"off\">", [Name]),
     export_pos(F, from, {1.0,1.0,1.0}),
@@ -446,17 +476,17 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
 
 
 open(Filename, export) ->
-    file:open(Filename, [write,raw,{delayed_write,65536,2000}]).
+    file:open(Filename, [write,raw]).
 
 println(F) ->
     println(F, "").
 
-println(F, String) ->
-    case file:write(F, [String,io_lib:nl()]) of
+println(F, DeepString) ->
+    case file:write(F, [DeepString,io_lib:nl()]) of
 	ok ->
 	    ok;
 	Error ->
-	    erlang:fault(Error, [F,String])
+	    erlang:fault(Error, [F,DeepString])
     end.
 
 println(F, Format, Args) ->
@@ -476,6 +506,71 @@ close(F) ->
     end.
 
 
+
+format(I) when is_integer(I) ->
+    integer_to_list(I);
+format(F) when is_float(F) ->
+    I = trunc(F),
+    D = abs(F) - float(abs(I)),
+    [integer_to_list(I)|format_decimals(D)].
+
+format_decimals(F) when float(F), F >= 0.0 ->
+    format_decimals_1(F).
+
+format_decimals_1(0.0) ->
+    ".0";
+format_decimals_1(F) when is_float(F) ->
+    G = 10.0 * F,
+    I = trunc(G),
+    D = G - float(I),
+    [$.,(I+$0)|format_decimals_2(D)].
+
+format_decimals_2(0.0) ->
+    [];
+format_decimals_2(F) when is_float(F) ->
+    G = 100.0 * F,
+    I = trunc(G),
+    D = G - float(I),
+    if I < 10 ->
+	    [$0,(I+$0)|format_decimals_3(D)];
+       true ->
+	    [integer_to_list(I)|format_decimals_3(D)]
+    end.
+
+format_decimals_3(0.0) ->
+    [];
+format_decimals_3(F) when is_float(F) ->
+    G = 1000.0 * F,
+    I = trunc(G),
+    D = G - float(I),
+    if I < 10 ->
+	    [$0,$0,(I+$0)|format_decimals_4(D)];
+       I < 100 ->
+	    [$0,integer_to_list(I)|format_decimals_4(D)];
+       true ->
+	    [integer_to_list(I)|format_decimals_4(D)]
+    end.
+
+format_decimals_4(0.0) ->
+    [];
+format_decimals_4(F) when is_float(F) ->
+    G = 10000.0 * F,
+    I = trunc(G),
+    if I < 100 ->
+	    if I < 10 ->
+		    [$0,$0,$0,(I+$0)];
+	       true ->
+		    [$0,$0|integer_to_list(I)]
+	    end;
+       true ->
+	    if I < 1000 ->
+		    [$0|integer_to_list(I)];
+	       true ->
+		    integer_to_list(I)
+	    end
+    end.
+
+    
 
 set_pref(Attr) ->
     wpa:pref_set(?MODULE, Attr).
