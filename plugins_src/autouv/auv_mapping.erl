@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.17 2002/10/24 19:28:04 raimo_niskanen Exp $
+%%     $Id: auv_mapping.erl,v 1.18 2002/10/25 10:19:28 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -153,15 +153,14 @@ lsqcm(C = {_Id, Fs}, We) ->
 	    TempVs = gb_trees:from_orddict(Vs3),
 	    MappedArea = calc_2dface_area(Fs, We#we{vs=TempVs}, 0.0),	    
 	    Scale = Area/MappedArea,
-	    ?DBG("Scale Chart ~p ~n",[Scale]),
-	    scaleVs(Vs3,Scale,[])
+	    scaleVs(Vs3,math:sqrt(Scale),[])
     end.
 
 scaleVs([{Id, #vtx{pos={X,Y,_}}}|Rest],Scale,Acc) 
   when float(X), float(Y), float(Scale) ->
     scaleVs(Rest, Scale, [{Id, {X*Scale,Y*Scale,0.0}}|Acc]);
 scaleVs([],_,Acc) ->
-    Acc.
+    lists:reverse(Acc).
 
 calc_2dface_area([Face|Rest],We,Area) ->
     Vs0 = wpa:face_vertices(Face, We),
