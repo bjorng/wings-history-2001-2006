@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.143 2004/01/01 14:17:21 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.144 2004/01/01 14:33:28 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -91,8 +91,9 @@ command(save_as, St) ->
 command({save_as,{Filename,Next}}, St) ->
     save_now(Next, St#st{file=Filename});
 command(save_selected, St) ->
-    save_selected(St),
-    St;
+    save_selected(St);
+command({save_selected,Filename}, St) ->
+    save_selected(Filename, St);
 command(save_incr, St) -> 
     save_incr(St);
 command(revert, St0) ->
@@ -111,15 +112,17 @@ command(import_image, _St) ->
 command({import_image,Name}, _) ->
     import_image(Name);
 command({export,ndo}, St) ->
-    export_ndo(St),
-    St;
+    export_ndo(export, "Export", St);
 command({export_selected,ndo}, St) ->
+    export_ndo(export_selected, "Export Selected", St);
+command({export,{ndo,Filename}}, St) ->
+    do_export_ndo(Filename, St);
+command({export_selected,{ndo,Filename}}, St) ->
     Shs0 = wings_sel:fold(fun(_, #we{id=Id}=We, A) ->
 				  [{Id,We}|A]
 			  end, [], St),
     Shs = gb_trees:from_orddict(reverse(Shs0)),
-    export_ndo(St#st{shapes=Shs}),
-    St;
+    do_export_ndo(Filename, St#st{shapes=Shs});
 command(install_plugin, _St) ->
     install_plugin();
 command({install_plugin,Filename}, _St) ->
@@ -258,18 +261,18 @@ maybe_send_action(Action) -> wings_wm:later({action,Action}).
     
 save_selected(#st{sel=[]}) ->
     wings_util:error("This command requires a selection.");
-save_selected(#st{shapes=Shs0,sel=Sel}=St0) ->
-    case output_file("Save", wings_prop()) of
-	aborted -> ok;
-	Name when is_list(Name) ->
-	    Shs = [Sh || {Id,_}=Sh <- gb_trees:to_list(Shs0),
-			 keymember(Id, 1, Sel)],
-	    St = St0#st{shapes=gb_trees:from_orddict(Shs)},
-	    case ?SLOW(wings_ff_wings:export(Name, St)) of
-		ok -> ok;
-		{error,Reason} ->
-		    wings_util:error("Save failed: " ++ Reason)
-	    end
+save_selected(St) ->
+    Ps = [{title,"Save Selected"}|wings_prop()],
+    Cont = fun(Name) -> {file,{save_selected,Name}} end,
+    wpa:export_filename(Ps, St, Cont).
+
+save_selected(Name, #st{shapes=Shs0,sel=Sel}=St0) ->
+    Shs = [Sh || {Id,_}=Sh <- gb_trees:to_list(Shs0),
+		 keymember(Id, 1, Sel)],
+    St = St0#st{shapes=gb_trees:from_orddict(Shs)},
+    case ?SLOW(wings_ff_wings:export(Name, St)) of
+	ok -> keep;
+	{error,Reason} -> wings_util:error(Reason)
     end.
 
 %%%
@@ -513,11 +516,15 @@ export(Props0, Exporter, St) ->
 	    end
     end.
 
-export_ndo(St) ->
-    Prop = [{ext,".ndo"},{ext_desc,"Nendo File"}],
-    case output_file("Export", export_file_prop(Prop, St)) of
-	aborted -> St;
-	Name -> wings_ff_ndo:export(Name, St)
+export_ndo(Cmd, Title, St) ->
+    Ps = [{title,Title},{ext,".ndo"},{ext_desc,"Nendo File"}],
+    Cont = fun(Name) -> {file,{Cmd,{ndo,Name}}} end,
+    wpa:export_filename(Ps, St, Cont).
+
+do_export_ndo(Name, St) ->
+    case wings_ff_ndo:export(Name, St) of
+	ok -> keep;
+	{error,Reason} -> wings_util:error(Reason)
     end.
 
 %%%
