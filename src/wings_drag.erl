@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.152 2003/07/28 19:35:15 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.153 2003/07/29 04:12:58 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -732,7 +732,7 @@ normalize_fun(#dlo{src_we=#we{id=Id,vp=Vtab0}}=D, Shs) ->
 %     io:format("~p ~p\n", [erts_debug:size([OldVtab,Vtab]),
 % 			   erts_debug:flat_size([OldVtab,Vtab])]),
     We = We0#we{vp=Vtab},
-    {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)}.
+    {D#dlo{vs=none,drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)}.
 
 norm_update(New, Old) ->
     norm_update(gb_trees:to_list(New), gb_trees:to_list(Old), Old).
