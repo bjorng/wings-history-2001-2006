@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.144 2002/05/31 15:09:33 bjorng Exp $
+%%     $Id: wings.erl,v 1.145 2002/06/02 20:49:02 bjorng Exp $
 %%
 
 -module(wings).
@@ -27,7 +27,12 @@ start() ->
     RootEbin = filename:dirname(filename:absname(code:which(?MODULE))),
     Split = filename:split(RootEbin),
     Root = filename:join(Split -- ["ebin"]),
-    spawn(fun() -> init(none, Root) end).
+
+    %% Set a minimal heap size to avoiding garbage-collecting
+    %% all the time. Don't set it too high to avoid keeping binaries
+    %% too long.
+    spawn_opt(erlang, apply, [fun() -> init(none, Root) end,[]],
+	      [{fullsweep_after,16384},{min_heap_size,256*1204}]).
 
 start(Root) ->
     spawn(fun() -> init(none, Root) end).
@@ -212,7 +217,7 @@ handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(redraw, St) ->
     wings_draw:render(St),
-    Message = [lmb|" Select "] ++ [rmb|" Show menu "] ++ wings_camera:help(),
+    Message = [lmb," Select ",rmb," Show menu "|wings_camera:help()],
     wings_io:message(Message),
     wings_io:info(info(St)),
     wings_io:update(St),

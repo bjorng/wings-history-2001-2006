@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.25 2002/05/26 20:11:26 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.26 2002/06/02 20:49:02 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -170,7 +170,9 @@ fold(Fun, Acc) ->
 %%
 
 render(#st{selmode=Mode}=St) ->
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:pushAttrib(?GL_CURRENT_BIT bor ?GL_ENABLE_BIT bor
+		  ?GL_TEXTURE_BIT bor ?GL_POLYGON_BIT bor
+		  ?GL_LINE_BIT bor ?GL_COLOR_BUFFER_BIT),
     gl:enable(?GL_DEPTH_TEST),
     wings_view:projection(),
     wings_view:model_transformations(),
@@ -234,7 +236,7 @@ render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
 	    gl:polygonOffset(1.0, 1.0),
-	    case wings_pref:get_value(show_wire_backfaces) of
+	    case Wire andalso wings_pref:get_value(show_wire_backfaces) of
 		true ->
 		    gl:disable(?GL_CULL_FACE),
 		    call(Faces),
@@ -245,7 +247,6 @@ render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
     end,
 
     gl:disable(?GL_POLYGON_OFFSET_LINE),
-    gl:disable(?GL_POLYGON_OFFSET_POINT),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     draw_hilite(D),
     draw_orig_sel(D),
@@ -273,7 +274,6 @@ render_smooth(#dlo{work=Work,smooth=DlistSmooth,wire=Wire}=D) ->
     gl:disable(?GL_POLYGON_OFFSET_FILL),
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
-    gl:disable(?GL_CULL_FACE),
     case Wire of
 	false -> ok;
 	true ->
@@ -358,7 +358,7 @@ draw_normals(#dlo{normals=Ns}) ->
     call(Ns).
 
 %%
-%% Tesslelate and draw face. Include vertex colors or UV coordinates.
+%% Tesselate and draw face. Include vertex colors or UV coordinates.
 %%
 
 face(Face, #we{fs=Ftab}=We) ->
@@ -439,7 +439,6 @@ call(Dl) when is_integer(Dl) -> gl:callList(Dl).
 ground_and_axes() ->
     Axes = wings_pref:get_value(show_axes),
     ?CHECK_ERROR(),
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     groundplane(Axes),
     ?CHECK_ERROR(),
     case Axes of
@@ -448,9 +447,7 @@ ground_and_axes() ->
 	    axis(2, get_pref(y_color), get_pref(neg_y_color)),
 	    axis(3, get_pref(z_color), get_pref(neg_z_color));
 	false -> ok
-    end,
-    ?CHECK_ERROR(),
-    gl:popAttrib().
+    end.
 
 get_pref(Key) ->
     wings_pref:get_value(Key).

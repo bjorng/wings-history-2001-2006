@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.91 2002/05/31 11:09:33 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.92 2002/06/02 20:49:02 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -21,7 +21,7 @@
 -define(CAMMAX, 150).
 
 -import(lists, [foreach/2,map/2,foldl/3,sort/1,keysort/2,
-		reverse/1,reverse/2,concat/1,member/2]).
+		reverse/1,reverse/2,member/2]).
 
 %% Main drag record. Kept in state.
 -record(drag,
@@ -220,7 +220,7 @@ drag_help(#drag{magnet=none,falloff=Falloff}) ->
     Help = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
     case Falloff of
 	none -> Help;
-	_ -> "[+] or [-] Tweak R  " ++ Help
+	_ -> ["[+] or [-] Tweak R  "|Help]
     end;
 drag_help(#drag{magnet=Type}) -> wings_magnet:drag_help(Type).
 

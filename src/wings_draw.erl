@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.86 2002/05/31 11:09:33 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.87 2002/06/02 20:49:02 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -29,7 +29,8 @@
 	 dyn_vs,
 	 dyn_faces,
 	 dyn_ftab,
-	 etab=none,
+	 v2f=none,				%Vertex => face
+	 f2v=none,				%Face => vertex
 	 orig_we,
 	 st}).
 
@@ -174,7 +175,7 @@ update_sel(#dlo{sel=none,src_sel={face,Faces}}=D) ->
 		      foreach(
 			fun(Face) ->
 				#face{edge=Edge} = gb_trees:get(Face, Ftab),
-				wings_draw_util:face(Face, Edge, We)
+				wings_draw_util:flat_face(Face, Edge, We)
 			end, gb_sets:to_list(Faces))
 	      end),
 	    gl:endList(),
@@ -255,16 +256,17 @@ split(#dlo{split=#split{orig_we=#we{}=We}=Split}=D, Vs, St) ->
 split(D, Vs, St) ->
     split(D, #split{dyn_faces=sofs:set([], [face])}, Vs, St).
 
-split(#dlo{src_we=#we{es=Etab0}}=D, #split{etab=none}=Split, Vs, St) ->
-    Etab1 = foldl(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A) ->
-			  [{Va,Lf},{Va,Rf},{Vb,Lf},{Vb,Rf}|A]
-		  end, [], gb_trees:values(Etab0)),
-    Etab = sofs:relation(Etab1, [{vertex,face}]),
-    split(D, Split#split{etab=Etab}, Vs, St);
+split(#dlo{src_we=#we{es=Etab}}=D, #split{v2f=none}=Split, Vs, St) ->
+    V2F0 = foldl(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, A) ->
+			 [{Va,Lf},{Va,Rf},{Vb,Lf},{Vb,Rf}|A]
+		 end, [], gb_trees:values(Etab)),
+    V2F = sofs:relation(V2F0, [{vertex,face}]),
+    F2V = sofs:converse(V2F),
+    split(D, Split#split{v2f=V2F,f2v=F2V}, Vs, St);
 split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We}=D,
-      #split{etab=Etab,dyn_faces=Faces0}=Split0, Vs0, St) ->
+      #split{v2f=V2F,f2v=F2V,dyn_faces=Faces0}=Split0, Vs0, St) ->
     Vs = sofs:set(Vs0, [vertex]),
-    Faces1 = sofs:image(Etab, Vs),
+    Faces1 = sofs:image(V2F, Vs),
     Ftab = sofs:from_external(gb_trees:to_list(Ftab0), [{face,data}]),
     Faces = case sofs:is_subset(Faces1, Faces0) of
 		false ->
@@ -274,7 +276,7 @@ split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We}=D,
 		    List = hd(D#dlo.work),
 		    Faces0
 	    end,
-    AllVs = sofs:inverse_image(Etab, Faces),
+    AllVs = sofs:image(F2V, Faces),
     
     {DynVs,VsDlist} = split_vs_dlist(sofs:to_external(AllVs), Sel, We),
 

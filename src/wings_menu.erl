@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.44 2002/05/04 06:02:23 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.45 2002/06/02 20:49:02 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -227,9 +227,9 @@ handle_menu_event(Event, Mi0) ->
 	redraw ->
 	    get_menu_event(redraw(Mi0#mi{new=false}));
 	{resize,_,_}=Resize ->
-	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
 	    wings_io:clear_menu_sel(),
 	    wings_io:putback_event(Resize),
+	    wings_wm:dirty(),
 	    pop;
 	#mi{}=Mi -> get_menu_event(Mi);
 	quit ->
@@ -537,13 +537,13 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 	    item_colors(Y, Ps, I, Mi),
 	    wings_io:menu_text(X, Y, Text);
 	{Text,{_,_}=Item,Hotkey,_Help,Ps} ->
-	    Str = Text ++ duplicate(Shortcut-length(Text), $\s) ++ Hotkey,
+	    Str = [Text,duplicate(Shortcut-length(Text), $\s)|Hotkey],
 	    item_colors(Y, Ps, I, Mi),
 	    wings_io:menu_text(X, Y, Str),
 	    draw_submenu(Adv, Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
 	{Text,Item,Hotkey,_Help,Ps} ->
-	    Str = Text ++ duplicate(Shortcut-length(Text), $\s) ++ Hotkey,
 	    item_colors(Y, Ps, I, Mi),
+	    Str = [Text,duplicate(Shortcut-length(Text), $\s)|Hotkey],
 	    draw_menu_text(X, Y, Str, Ps),
 	    draw_right(X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3, Ps)
     end,
@@ -596,7 +596,7 @@ is_magnet_active({_,_,_,_,Ps}, Mi) ->
     
 plain_help({Text,{_,_},_,_,_}, #mi{adv=false}) ->
     %% No specific help text for submenus in basic mode.
-    Help = Text ++ " submenu",
+    Help = [Text|" submenu"],
     help_message(Help);
 plain_help({_,{Name,Fun},_,_,_}, #mi{ns=Ns,adv=Adv}) when is_function(Fun) ->
     %% "Submenu" in advanced mode.
@@ -613,13 +613,13 @@ help_text_1([_|_]=S, false) -> S;
 help_text_1({[_|_]=S,_}, false) -> S;
 help_text_1({[_|_]=S,_,_}, false) -> S;
 help_text_1([_|_]=S, true) ->
-    [lmb|" " ++ S];
+    [lmb,$\s|S];
 help_text_1({S1,S2}, true) ->
-    [lmb|" " ++ S1 ++ [$\s,mmb,$\s] ++ S2];
+    [lmb,$\s,S1,$\s,mmb,$\s|S2];
 help_text_1({S1,[],S2}, true) ->
-    [lmb|" " ++ S1 ++  [$\s,rmb,$\s] ++ S2];
+    [lmb,$\s,S1,$\s,rmb,$\s|S2];
 help_text_1({S1,S2,S3}, true) ->
-    [lmb|" " ++ S1 ++ [$\s,mmb,$\s] ++ S2 ++ [$\s,rmb,$\s] ++ S3];
+    [lmb,$\s,S1,$\s,mmb,$\s,S2,$\s,rmb,$\s|S3];
 help_text_1([]=S, _) -> S.
 
 help_message(Msg) ->

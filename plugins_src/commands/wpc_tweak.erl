@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.11 2002/05/31 11:09:32 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.12 2002/06/02 20:49:02 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -37,7 +37,7 @@
 	{v,
 	 vtx,
 	 mag,
-	 mm,
+	 mm,					%original|mirror
 	 plane
 	 }).
 
@@ -274,11 +274,11 @@ mirror_constrain({Plane,Point}, Pos) ->
 help(#tweak{magnet=false}) ->
     Msg = [lmb] ++ " Drag vertices freely " ++ [rmb] ++ " Exit tweak mode",
     wings_io:message(Msg ++ "  " ++ wings_camera:help()),
-    wings_io:message_right("[Q] Magnet On");
+    wings_io:message_right("[1] Magnet On");
 help(#tweak{magnet=true,mag_type=Type}) ->
     Msg = [lmb] ++ " Drag " ++ [rmb] ++ " Exit",
     wings_io:message(Msg),
-    MagMsg = "[Q] Magnet Off  [+]/[-] Tweak R  " ++
+    MagMsg = "[1] Magnet Off  [+]/[-] Tweak R  " ++
 	help_1(Type, [{2,dome},{3,straight},{4,spike}]),
     wings_io:message_right(MagMsg).
 
@@ -301,8 +301,7 @@ magnet_hotkey(C, #tweak{magnet=Mag,mag_type=Type0}=T) ->
 	Type -> setup_magnet(T#tweak{magnet=true,mag_type=Type})
     end.
 
-hotkey($q) -> toggle;
-hotkey($Q) -> toggle;
+hotkey($1) -> toggle;
 hotkey($2) -> dome;
 hotkey($3) -> straight;
 hotkey($4) -> spike;
@@ -390,7 +389,12 @@ draw_magnet(#tweak{mag_r=R}) ->
 			 end, []),
     gl:popAttrib().
 
-draw_magnet_1(#dlo{drag=#drag{vtx=#vtx{pos={X,Y,Z}}}}, R) ->
+draw_magnet_1(#dlo{mirror=Mtx,
+		   drag=#drag{mm=Side,vtx=#vtx{pos={X,Y,Z}}}}, R) ->
+    case Side of
+	mirror -> gl:multMatrixf(Mtx);
+	original -> ok
+    end,
     gl:translatef(X, Y, Z),
     Obj = glu:newQuadric(),
     glu:quadricDrawStyle(Obj, ?GLU_FILL),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.32 2002/05/15 11:42:38 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.33 2002/06/02 20:49:02 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -58,19 +58,19 @@ command(camera_mode, St) ->
 help() ->
     case wings_pref:get_value(camera_mode, blender) of
 	blender ->
-	    [mmb] ++ " Tumble [Shift]+" ++
-		[mmb] ++ " Track [Ctrl]+" ++
-    		[mmb] ++ " Dolly";
+	    [mmb," Tumble [Shift]+",
+	     mmb," Track [Ctrl]+",
+	     mmb," Dolly"];
 	nendo ->
-	    [mmb] ++ " or [Ctrl]+" ++ [rmb] ++ " Start camera";
+	    [mmb," or [Ctrl]+",rmb," Start camera"];
 	tds ->
-	    "[Alt]+" ++ [mmb] ++ " Tumble  " ++
-		[mmb] ++ " Track [Ctrl]+[Alt]+" ++
-		[mmb] ++ " Dolly";
+	    ["[Alt]+",mmb," Tumble  ",
+	     mmb," Track [Ctrl]+[Alt]+",
+	     mmb," Dolly"];
 	maya ->
-	    "[Alt]+" ++ [lmb] ++ " Tumble [Alt]+" ++
-		[mmb] ++ " Track [Alt]+" ++
-		[rmb] ++ " Dolly"
+	    ["[Alt]+",lmb," Tumble [Alt]+",
+	     mmb," Track [Alt]+",
+	     rmb," Dolly"]
     end.
 
 free_rmb_modifier() ->
@@ -156,8 +156,8 @@ nendo(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
     wings_io:clear_message(),
-    Help = "Click " ++ [lmb] ++ " to exit camera mode  Move mouse to tumble  Drag " ++
-	[mmb] ++ " or " ++ [rmb] ++ " to dolly  Use arrows to track",
+    Help = ["Click ",lmb," to exit camera mode  Move mouse to tumble  Drag ",
+	    mmb," or ",rmb," to dolly  Use arrows to track"],
     wings_io:message(Help),
     {seq,{push,dummy},get_nendo_event(Camera, Redraw)};
 nendo(#keyboard{keysym=#keysym{sym=Sym}}, _Redraw) ->

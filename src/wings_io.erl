@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.51 2002/05/31 15:09:34 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.52 2002/06/02 20:49:02 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -234,13 +234,18 @@ display(F, Buf) ->
     cleanup_after_drawing(),
     ok.
 
-update(#io{message=Msg,right=Right,w=W,h=H}=Io0, St) ->
+update(#io{message=Msg0,right=Right,w=W,h=H}=Io0, St) ->
     draw_icons(Io0, St),
     draw_panes(Io0),
     maybe_show_mem_used(H),
     draw_message(
       fun() ->
-	      text_at(0, Msg),
+	      Msg = if
+			Msg0 == undefined -> [];
+			true ->
+			    text_at(0, Msg0),
+			    Msg0
+		    end,
 	      if
 		  Right == undefined -> ok;
 		  length(Msg)+length(Right) < W div ?CHAR_WIDTH-3 ->
@@ -268,7 +273,7 @@ maybe_show_mem_used(H) ->
 			true ->
 			    {(Sz+1024*512) div 1024 div 1024,"Mb"}
 		    end,
-	    Mem = lists:concat(["Memory: ",integer_to_list(N),M]),
+	    Mem = ["Memory: ",integer_to_list(N),M],
 	    ortho_setup(),
 	    text_at(4, H-5*?LINE_HEIGHT+5, Mem);
 	false -> ok
