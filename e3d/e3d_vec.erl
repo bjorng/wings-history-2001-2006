@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.16 2003/07/29 19:28:08 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.17 2003/08/25 16:44:40 bjorng Exp $
 %%
 
 -module(e3d_vec).
@@ -121,9 +121,24 @@ normal({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32})
 	R -> R
     end.
 
-%% poly_normal([{X,Y,Z}]) ->
+%% normal([{X,Y,Z}]) ->
 %%  Calculate the averaged normal for the polygon using Newell's method.
 
+normal([{Ax,Ay,Az},{Bx,By,Bz},{Cx,Cy,Cz}])
+  when is_float(Ax), is_float(Ay), is_float(Az),
+       is_float(Bx), is_float(By), is_float(Bz) ->
+    Sx = (Ay-By)*(Az+Bz) + (By-Cy)*(Bz+Cz) + (Cy-Ay)*(Cz+Az),
+    Sy = (Az-Bz)*(Ax+Bx) + (Bz-Cz)*(Bx+Cx) + (Cz-Az)*(Cx+Ax),
+    Sz = (Ax-Bx)*(Ay+By) + (Bx-Cx)*(By+Cy) + (Cx-Ax)*(Cy+Ay),
+    norm(Sx, Sy, Sz);
+normal([{Ax,Ay,Az},{Bx,By,Bz},{Cx,Cy,Cz},{Dx,Dy,Dz}])
+  when is_float(Ax), is_float(Ay), is_float(Az),
+       is_float(Bx), is_float(By), is_float(Bz),
+       is_float(Cx), is_float(Cy), is_float(Cz) ->
+    Sx = (Ay-By)*(Az+Bz) + (By-Cy)*(Bz+Cz) + (Cy-Dy)*(Cz+Dz) + (Dy-Ay)*(Dz+Az),
+    Sy = (Az-Bz)*(Ax+Bx) + (Bz-Cz)*(Bx+Cx) + (Cz-Dz)*(Cx+Dx) + (Dz-Az)*(Dx+Ax),
+    Sz = (Ax-Bx)*(Ay+By) + (Bx-Cx)*(By+Cy) + (Cx-Dx)*(Cy+Dy) + (Dx-Ax)*(Dy+Ay),
+    norm(Sx, Sy, Sz);
 normal([{Ax,Ay,Az},{Bx,By,Bz}|[{Cx,Cy,Cz}|_]=T]=First)
   when is_float(Ax), is_float(Ay), is_float(Az),
        is_float(Bx), is_float(By), is_float(Bz) ->
@@ -138,14 +153,6 @@ normal_1([{Ax,Ay,Az}], [{Bx,By,Bz}|_], Sx, Sy, Sz)
     norm(Sx + (Ay-By)*(Az+Bz),
 	 Sy + (Az-Bz)*(Ax+Bx),
 	 Sz + (Ax-Bx)*(Ay+By));
-normal_1([{Ax,Ay,Az},{Bx,By,Bz}|[{Cx,Cy,Cz}|_]=T], First, Sx0, Sy0, Sz0)
-  when is_float(Ax), is_float(Ay), is_float(Az),
-       is_float(Bx), is_float(By), is_float(Bz),
-       is_float(Sx0), is_float(Sy0), is_float(Sz0) ->
-    Sx = Sx0 + (Ay-By)*(Az+Bz) + (By-Cy)*(Bz+Cz),
-    Sy = Sy0 + (Az-Bz)*(Ax+Bx) + (Bz-Cz)*(Bx+Cx),
-    Sz = Sz0 + (Ax-Bx)*(Ay+By) + (Bx-Cx)*(By+Cy),
-    normal_1(T, First, Sx, Sy, Sz);
 normal_1([{Ax,Ay,Az}|[{Bx,By,Bz}|_]=T], First, Sx0, Sy0, Sz0)
   when is_float(Ax), is_float(Ay), is_float(Az),
        is_float(Sx0), is_float(Sy0), is_float(Sz0) ->
