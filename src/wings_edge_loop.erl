@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.10 2002/05/22 06:58:01 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.11 2002/10/16 12:01:03 bjorng Exp $
 %%
 
 -module(wings_edge_loop).
@@ -236,8 +236,8 @@ partition_edges(Edges0, #we{es=Etab}=We, Acc) ->
 	true -> Acc;
 	false ->
 	    {Edge,_} = gb_sets:take_smallest(Edges0),
-	    #edge{vs=V} = gb_trees:get(Edge, Etab),
-	    Ws = gb_sets:singleton({V,Edge}),
+	    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+	    Ws = gb_sets:from_list([{Va,Edge},{Vb,Edge}]),
 	    {Part,Edges} = partition_edges_1(Ws, We, Edges0, gb_sets:empty()),
 	    partition_edges(Edges, We, [Part|Acc])
     end.
