@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.24 2003/06/03 18:08:54 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.25 2003/09/02 09:33:56 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -24,8 +24,7 @@
 -import(lists, [reverse/1,foreach/2,flatten/1]).
 
 init() ->
-    SdlWrapper = get(sdlwrapper),
-    spawn_opt(fun() -> server(SdlWrapper) end, [link,{fullsweep_after,0}]).
+    spawn_opt(fun server/0, [link,{fullsweep_after,0}]).
 
 init_opengl() ->
     req(init_opengl).
@@ -111,8 +110,7 @@ req(Req, Notify) ->
 	 images					%All images (gb_trees).
 	}).
 
-server(SdlWrapper) ->
-    put(sdlwrapper, SdlWrapper),
+server() ->
     register(wings_image, self()),
     loop(#ist{images=gb_trees:empty()}).
 
