@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.267 2004/08/19 09:02:43 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.268 2004/08/28 06:21:17 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -373,7 +373,7 @@ command_menu(edge, X, Y) ->
 	    {"Rotate",{rotate,Rotate},"Rotate selected edges"},
 	    separator,
 	    {"Stitch", stitch, "Stitch edges/charts"},
-	    {"Cut Edges", cut_edges, "Cut selected edges"}
+	    {"Cut", cut_edges, "Cut selected edges"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(vertex, X, Y) ->
@@ -393,7 +393,7 @@ command_menu(vertex, X, Y) ->
 	     "Move UV coordinates towards average midpoint",
 	     [magnet]},
 	    separator, 
-	    {"Unfold", lsqcm, "Unfold the chart (Except the selected vertices)"}
+	    {"Unfold", lsqcm, "Unfold the chart (without moving the selected vertices)"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(_, X, Y) ->
