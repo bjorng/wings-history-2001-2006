@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.70 2004/03/24 23:17:30 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.71 2004/03/29 11:27:31 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -2136,8 +2136,9 @@ erase_var(Name) ->
 
 
 
-%% Like os:find_executable, but if the found executable is a .bat file
-%% on windows; scan the .bat file for a real executable file.
+%% A bit like os:find_executable, but if the found executable is a .bat file
+%% on windows; scan the .bat file for a real executable file, and return the
+%% looked up executable name instead of the full path (except for .bat files).
 %%
 find_executable(Name) ->
     case os:find_executable(Name) of
@@ -2150,10 +2151,10 @@ find_executable(Name) ->
 			".bat" ->
 			    find_in_bat(Filename);
 			_ ->
-			    Filename
+			    Name
 		    end;
 		_ ->
-		    Filename
+		    Name
 	    end
     end.
 
