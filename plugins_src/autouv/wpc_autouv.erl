@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.146 2003/08/13 11:29:52 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.147 2003/08/13 16:33:55 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -869,21 +869,17 @@ handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #uvstate{option=Opt0}=Uvs
 	false -> keep;
 	true ->
 	    Opt = Opt0#setng{color=false,edges=no_edges},    
-	    add_texture_image(Im, default, Uvs#uvstate{option=Opt})
+	    add_texture_image(Im, Uvs#uvstate{option=Opt})
     end;
 handle_drop(_DropData, _) ->
     %%io:format("~P\n", [_DropData,40]),
     keep.
 
-add_texture_image(Im, FileName,#uvstate{st=St0,option=Opt,
-					orig_we=OWe,matname=MatName0}=Uvs) ->
+add_texture_image(Im, #uvstate{st=St0,option=Opt,orig_we=OWe,matname=MatName0}=Uvs) ->
     Name = OWe#we.name,
     {St,MatName} = add_material(Im,Name,MatName0,St0),
     wings_wm:send(geom, {new_state,St}),
-    get_event(reset_dl(Uvs#uvstate{st=St,
-				   matname=MatName,
-				   option=Opt#setng{texbg=true},
-				   last_file=FileName})).
+    get_event(reset_dl(Uvs#uvstate{st=St,matname=MatName,option=Opt#setng{texbg=true}})).
 
 is_power_of_two(X) ->
     (X band -X ) == X.
@@ -991,8 +987,7 @@ verify_state(St, Uvs) ->
 	    {seq,push,get_broken_event(Uvs)}
     end.
 
-same_topology(#st{shapes=Shs},
-	      #uvstate{orig_we=#we{id=Id}=We,edges=Edges}) ->
+same_topology(#st{shapes=Shs}, #uvstate{orig_we=#we{id=Id}=We,edges=Edges}) ->
     case gb_trees:lookup(Id, Shs) of
 	none -> false;
 	{value,We} -> true;

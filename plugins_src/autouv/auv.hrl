@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.19 2003/08/12 17:17:43 bjorng Exp $
+%%     $Id: auv.hrl,v 1.20 2003/08/13 16:33:55 bjorng Exp $
 
 %% Chart record (one for each chart).
 %% Stored in the 'name' field in the #we{} record.
@@ -33,10 +33,8 @@
 -record(uvstate,
 	{op,               %% Current op i.e. move rotate, scale..
 	 mode = body,      %% body, face, edge, vertex
-	 size = [0,0],     %% Max Size currently (unscaled)
 	 option = #setng{},%% Settings
 	 geom,             %% Window geom
-	 last_file = "",   %% Export/Imported texture filename
 	 dl,               %% Display list for non selected areas
 %% Data
 	 sel = [],         %% Selected areas
