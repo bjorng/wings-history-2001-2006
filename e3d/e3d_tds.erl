@@ -4,12 +4,12 @@
 %%     Functions for reading and writing 3D Studio Max files (.tds),
 %%     version 3.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.29 2003/03/16 20:36:36 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.30 2004/01/11 17:27:37 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -618,9 +618,11 @@ make_texture_materials([_|T], Base, Acc) ->
 make_texture_materials([], _, Acc) -> Acc.
 
 export_map(_, none, _) -> ok;
-export_map(ChunkId, #e3d_image{name=Name}=Image, Root) ->
+export_map(ChunkId, #e3d_image{filename=none,name=Name}=Image, Root) ->
     MapFile = filename:join(filename:dirname(Root), Name ++ ".bmp"),
     ok = e3d_image:save(Image, MapFile),
+    export_map(ChunkId, Image#e3d_image{filename=MapFile}, Root);
+export_map(ChunkId, #e3d_image{filename=MapFile}, _Root) ->
     FnameChunk = make_chunk(16#A300, [filename:basename(MapFile),0]),
     ParamChunk = make_chunk(16#A351, [0,1]),
     make_chunk(ChunkId, [FnameChunk,ParamChunk]).
