@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.4 2003/01/20 12:50:55 bjorng Exp $
+%%     $Id: wpc_yafray.erl,v 1.5 2003/01/20 23:04:19 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -19,6 +19,18 @@
 
 -import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,keydelete/3,
 		foreach/2,map/2,foldl/3]).
+
+-define(TAG, yafray).
+
+%% Default values
+-define(DEF_IOR, 1.0).
+-define(DEF_MIN_REFLE, 0.0).
+-define(DEF_SAMPLES, 1).
+-define(DEF_RAYDEPTH, 3).
+-define(DEF_BIAS, 0.1).
+-define(DEF_TOLERANCE, 0.1).
+-define(DEF_WIDTH, 100).
+-define(DEF_HEIGHT, 100).
 
 
 
@@ -33,54 +45,28 @@ menu(_, Menu) ->
     Menu.
 
 menu_entry(Menu) ->
-    Menu ++ [{"YafRay [Experimental] (.xml)",yafray, []}].
+    Menu ++ [{"YafRay (.xml)",?TAG,[option]}].
 
-dialog({material_editor_setup,_Name,Mat}, Dialog) ->
-    Yafray = proplists:get_value(yafray, Mat, []),
-    Ior = proplists:get_value(ior, Yafray, 1.0),
-    Minr = proplists:get_value(minr, Yafray, 0.0),
-    Dialog ++ [{hframe,
-		[{vframe, [{label,"Index of Reflection"},
-			   {label,"Minimum Reflection"}]},
-		 {vframe, [{slider,{text,Ior,
-				  [{range,{1.0,2.0}},
-				   {key,ior}]}},
-			   {slider,{text,Minr,
-				    [{range,{0.0,1.0}},
-				     {key,minr}]}}]}],
-		[{title,"YafRay Options"}]}];
-dialog({material_editor_result,_Name,Mat0}, [A,B|Res]) ->
-    Mat = [{yafray,[A,B]}|keydelete(yafray, 1, Mat0)],
-    {Mat,Res};
-dialog({light_editor_setup,_Name,Ps}, Dialog) ->
-    Yafray = proplists:get_value(yafray, Ps, []),
-    Power = proplists:get_value(power, Yafray, 1.0),
-    Dialog ++ [{hframe,
-		[{vframe, [{label,"Power"}]},
-		 {vframe, [{slider,{text,Power,
-				    [{range,{0.0,1.0}},
-				     {key,power}]}}]}],
-		[{title,"YafRay Options"}]}];
-dialog({light_editor_result,_Name,Ps0}, [A|Res]) ->
-    Ps = [{yafray,[A]}|keydelete(yafray, 1, Ps0)],
-    {Ps,Res};
-dialog(_X, Dialog) ->
-    io:format("~p\n", [{_X,Dialog}]),
-    Dialog.
-
-
-command({file,{export,yafray}}, St) ->
-    Props = props(St),
-    wpa:export(Props, fun_export_2(Props), St);
-command({file,{export_selected,yafray}}, St) ->
-    Props = props(St),
-    wpa:export_selected(Props, fun_export_2(Props), St);
-command(_C, _St) ->
+command({file,{export,{?TAG,A}}}, St) ->
+    command_file(export, A, St);
+command({file,{export_selected,{?TAG,A}}}, St) ->
+    command_file(export_selected, A, St);
+command(_, _St) ->
     next.
 
-props(St) ->
-    Lights = wpa:lights(St),
-    [{ext,".xml"},{ext_desc,"YafRay File"},{lights,Lights}].
+command_file(Op, Attr, St) when is_list(Attr) ->
+    set_pref(Attr),
+    wpa:Op(props(), fun_export_2(attr(St, Attr)), St);
+command_file(Op, Ask, _St) when is_atom(Ask) ->
+    wpa:dialog(Ask, "YafRay Export Options", export_dialog(),
+	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
+    
+
+props() ->
+    [{ext,".xml"},{ext_desc,"YafRay File"}].
+
+attr(St, Attr) ->
+    [{lights,wpa:lights(St)}|Attr].
 
 fun_export_2(Props) ->
     fun (Filename, Contents) ->
@@ -89,7 +75,68 @@ fun_export_2(Props) ->
 
 
 
-export(Props, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
+dialog({material_editor_setup,_Name,Mat}, Dialog) ->
+    YafRay = proplists:get_value(?TAG, Mat, []),
+    IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
+    MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
+    Dialog ++ [{hframe,
+		[{vframe, [{label,"Index Of Reflection"},
+			   {label,"Minimum Reflection"}]},
+		 {vframe, [{text,IOR,
+				  [{range,{0.0,100.0}},
+				   {key,ior}]},
+			   {slider,{text,MinRefle,
+				    [{range,{0.0,1.0}},
+				     {key,min_refle}]}}]}],
+		[{title,"YafRay Options"}]}];
+dialog({material_editor_result,_Name,Mat0}, [A,B|Res]) ->
+    Mat = [{?TAG,[A,B]}|keydelete(?TAG, 1, Mat0)],
+    {Mat,Res};
+dialog({light_editor_setup,_Name,Ps}, Dialog) ->
+    YafRay = proplists:get_value(?TAG, Ps, []),
+    Power = proplists:get_value(power, YafRay, 1.0),
+    Dialog ++ [{hframe,
+		[{vframe, [{label,"Power"}]},
+		 {vframe, [{slider,{text,Power,
+				    [{range,{0.0,1.0}},
+				     {key,power}]}}]}],
+		[{title,"YafRay Options"}]}];
+dialog({light_editor_result,_Name,Ps0}, [A|Res]) ->
+    Ps = [{?TAG,[A]}|keydelete(?TAG, 1, Ps0)],
+    {Ps,Res};
+dialog(_X, Dialog) ->
+    io:format("~p\n", [{_X,Dialog}]),
+    Dialog.
+
+
+
+export_dialog() ->
+    Samples = get_pref(samples, ?DEF_SAMPLES),
+    Raydepth = get_pref(raydepth, ?DEF_RAYDEPTH),
+    Bias = get_pref(bias, ?DEF_BIAS),
+    Tolerance = get_pref(tolerance, ?DEF_TOLERANCE),
+    Width = get_pref(width, ?DEF_WIDTH),
+    Height = get_pref(height, ?DEF_HEIGHT),
+    [{hframe,
+      [{vframe,[{label,"Samples"},
+		{label,"Raydepth"}]},
+       {vframe,[{text,Samples,[{range,{1,1000}},{key,samples}]},
+		{text,Raydepth,[{range,{1,1000}},{key,raydepth}]}]},
+       {vframe,[{label,"Bias"},
+		{label,"Tolerance"}]},
+       {vframe,[{text,Bias,[{range,{0.0,1.0}},{key,bias}]},
+		{text,Tolerance,[{range,{0.0,100.0}},{key,tolerance}]}]}],
+      [{title,"Rendering"}]},
+     {hframe,
+      [{vframe,[{label,"Width"}]},
+       {vframe,[{text,Width,[{range,{1,10000}},{key,width}]}]},
+       {vframe,[{label,"Height"}]},
+       {vframe,[{text,Height,[{range,{1,10000}},{key,height}]}]}],
+      [{title,"Camera"}]}].
+
+
+
+export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     case open(Filename, export) of
 	{error,_}=Error -> 
 	    Error;
@@ -99,7 +146,7 @@ export(Props, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    Basename = filename:basename(Filename),
 	    Outfile = filename:rootname(Basename)++".tga",
 	    %%
-	    Lights = proplists:get_value(lights, Props, []),
+	    Lights = proplists:get_value(lights, Attr, []),
 	    println(F, "<!-- ~s: Exported from ~s -->~n"++
 		    "~n"++
 		    "<scene>", [Basename, Creator]),
@@ -141,9 +188,9 @@ export(Props, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
 	    println(F),
 	    export_background(F, sunsky, "WingsDefaultSunskyBackground"),
 	    println(F),
-	    export_camera(F, CameraName),
+	    export_camera(F, CameraName, Attr),
 	    println(F),
-	    export_render(F, CameraName, ConstBackgroundName, Outfile),
+	    export_render(F, CameraName, ConstBackgroundName, Outfile, Attr),
 	    %%
 	    println(F),
 	    println(F, "</scene>"),
@@ -177,6 +224,7 @@ export_texture(F, clouds, Name) ->
 
 export_shader(F, Name, Mat) ->
     OpenGL = proplists:get_value(opengl, Mat),
+    YafRay = proplists:get_value(?TAG, Mat, []),
     println(F, "<shader type=\"generic\" name=\"~s\">~n"++ 
 	    "    <attributes>", [atom_to_list(Name)]),
     {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
@@ -184,14 +232,19 @@ export_shader(F, Name, Mat) ->
     export_rgb(F, color, 
 	       {Dr*Opacity,Dg*Opacity,Db*Opacity,1.0}),
     export_rgb(F, specular, proplists:get_value(specular, OpenGL)),
+    %% XXX Wings scaling of shininess is weird. Commonly this value
+    %% is the cosine power and as such in the range 0..infinity.
+    %% OpenGL limits this to 0..128 which mostly is sufficient.
     println(F, "        <hard value=\"~.10f\"/>", 
-		   [proplists:get_value(shininess, OpenGL)*100.0]),
+		   [proplists:get_value(shininess, OpenGL)*128.0]),
     export_rgb(F, reflected, proplists:get_value(ambient, OpenGL)),
     export_rgb(F, transmited, 
 	       {Dr*Transparency,Dg*Transparency,Db*Transparency,1.0}),
-    println(F, "        <min_refle value=\"0.0\"/>~n"++
-	    "        <IOR value=\"1.0\"/>~n"++
-	    "    </attributes>~n", []),
+    IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
+    MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
+    println(F, "        <IOR value=\"~.10f\"/>~n"++
+	    "        <min_refle value=\"~.10f\"/>~n"++
+	    "    </attributes>~n", [IOR, MinRefle]),
     template(F, fun() -> export_modulator(F, "WingsTemplateModulator") end),
     println(F, "</shader>").
 
@@ -306,12 +359,14 @@ export_light(_F, Name, Type, _OpenGL) ->
 
 
 
-export_camera(F, Name) ->
+export_camera(F, Name, Attr) ->
     [Aim,Distance,Az,El,{TrackX,TrackY},Fov] =
 	wpa:camera_info([aim,distance_to_aim,azimuth,elevation,tracking,fov]),
+    Width = proplists:get_value(width, Attr),
+    Height = proplists:get_value(height, Attr),
     Ro = math:pi()/180.0,
     Dist = limit_dist(Distance),
-    FocalDist = 0.5 / math:tan(limit_fov(Fov)*0.5*Ro),
+    FocalDist = (0.5 / math:tan(limit_fov(Fov)*0.5*Ro)) * (Height / Width),
     Dy = Dist * math:sin(El*Ro),
     P = Dist * math:cos(El*Ro),
     Dx = -(P * math:sin(Az*Ro)),
@@ -333,8 +388,8 @@ export_camera(F, Name) ->
     To = e3d_vec:add(Aim, Transl),
     Up = e3d_vec:sub(From, DownN),
     println(F, "<camera name=\"~s\" "++
-	    "resx=\"640\" resy=\"480\" focal=\"~.10f\">",
-	    [Name,FocalDist]),
+	    "resx=\"~w\" resy=\"~w\" focal=\"~.10f\">",
+	    [Name,Width,Height,FocalDist]),
     export_pos(F, from, From),
     export_pos(F, to, To),
     export_pos(F, up, Up),
@@ -368,10 +423,14 @@ export_background(F, sunsky, Name) ->
 
 
 
-export_render(F, CameraName, BackgroundName, Outfile) ->
+export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
+    Samples = proplists:get_value(samples, Attr),
+    Raydepth = proplists:get_value(raydepth, Attr),
+    Bias = proplists:get_value(bias, Attr),
+    Tolerance = proplists:get_value(tolerance, Attr),
     println(F, "<render camera_name=\"~s\" "++
-	    "samples=\"1\" raydepth=\"3\"~n"++
-	    "        bias=\"0.3\" tolerance=\"0.1\">~n"++
+	    "samples=\"~w\" raydepth=\"~w\"~n"++
+	    "        bias=\"~.10f\" tolerance=\"~.10f\">~n"++
 	    "    <background_name value=\"~s\"/>~n"++
 	    "    <outfile value=\"~s\"/>~n"++
 	    "    <indirect_samples value=\"0\"/>~n"++
@@ -379,7 +438,8 @@ export_render(F, CameraName, BackgroundName, Outfile) ->
 	    "    <exposure value=\"~.10f\"/>~n"++
 	    "    <gamma value=\"1.0\"/>~n"++
 	    "    <fog_density value=\"0.0\"/>",
-	    [CameraName,BackgroundName,Outfile,math:sqrt(2.0)]),
+	    [CameraName,Samples,Raydepth,Bias,Tolerance,
+	     BackgroundName,Outfile,math:sqrt(2.0)]),
     export_rgb(F, fog_color, {1.0,1.0,1.0,1.0}),
     println(F, "</render>").
 
@@ -414,6 +474,14 @@ close(F) ->
 	Error ->
 	    erlang:fault(Error, [F])
     end.
+
+
+
+set_pref(Attr) ->
+    wpa:pref_set(?MODULE, Attr).
+
+get_pref(Key, Def) ->
+    wpa:pref_get(?MODULE, Key, Def).
 
 
 
