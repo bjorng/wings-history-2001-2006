@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.147 2003/12/25 12:34:47 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.148 2003/12/25 14:02:02 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -2675,12 +2675,12 @@ text_event({focus,true}, _Fi, Ts) ->
     Ts#text{bef=[],sel=length(Str),aft=Str};
 text_event(#mousebutton{x=X,state=?SDL_PRESSED,button=1}, Fi, Ts0) ->
     text_pos(X, Fi, Ts0);
-text_event(#mousebutton{x=X,state=?SDL_RELEASED,button=1}, Fi, #text{aft=Aft0}=Ts) ->
-    #text{aft=Aft} = text_pos(X, Fi, Ts),
-    Ts#text{sel=length(Aft0)-length(Aft)};
-text_event(#mousemotion{x=X}, Fi, #text{aft=Aft0}=Ts) ->
-    #text{aft=Aft} = text_pos(X, Fi, Ts),
-    Ts#text{sel=length(Aft0)-length(Aft)};
+text_event(#mousebutton{x=X,state=?SDL_RELEASED,button=1}, Fi,
+	   #text{sel=Sel0,aft=Aft0}=Ts0) ->
+    #text{aft=Aft} = Ts = text_pos(X, Fi, Ts0),
+    Ts#text{sel=Sel0+length(Aft)-length(Aft0)};
+text_event(#mousemotion{x=X}, Fi, Ts) ->
+    text_event(#mousebutton{x=X,state=?SDL_RELEASED,button=1}, Fi, Ts);
 text_event(_Ev, _Fi, Ts) -> Ts.
 
 text_pos(Mx0, #fi{x=X}, #text{cpos=CaretPos,margin=Margin}=Ts0) ->
@@ -2735,30 +2735,30 @@ key($\b, _, #text{sel=0,bef=[_|Bef]}=Ts) ->	%Bksp (no selection).
     Ts#text{bef=Bef};
 key($\b, _, Ts) ->				%Bksp (selection).
     del_sel(Ts);
-key(2, Mod, #text{sel=Sel,bef=Bef}=Ts) when ?IS_SHIFTED(Mod) ->	%Ctrl-B
-    if
-	-length(Bef) < Sel -> Ts#text{sel=Sel-1};
-	true -> Ts
-    end;
-key(2, _, #text{bef=[C|Bef],aft=Aft}=Ts) ->	%Ctrl-B
-    Ts#text{sel=0,bef=Bef,aft=[C|Aft]};
-key(2, _, Ts) ->				%Ctrl-B
-    Ts#text{sel=0};
-key(6, Mod, #text{sel=Sel,aft=Aft}=Ts) when ?IS_SHIFTED(Mod) ->
-    if
-	Sel < length(Aft) -> Ts#text{sel=Sel+1};
-	true -> Ts
-    end;
-key(6, _, #text{bef=Bef,aft=[C|Aft]}=Ts) ->	%Ctrl-F
-    Ts#text{sel=0,bef=[C|Bef],aft=Aft};
-key(1, Mod, #text{bef=Bef}=Ts) when ?IS_SHIFTED(Mod) ->
-    Ts#text{sel=-length(Bef)};
-key(1, _, #text{}=Ts) ->			%Ctrl-A
-    Ts#text{sel=0,bef=[],aft=get_text(Ts)};
-key(5, Mod, #text{aft=Aft}=Ts) when ?IS_SHIFTED(Mod) ->
-    Ts#text{sel=length(Aft)};
-key(5, _, #text{}=Ts) ->			%Ctrl-E
-    Ts#text{sel=0,bef=get_text_r(Ts),aft=[]};
+key(2, Mod, #text{sel=Sel0,bef=[C|Bef],aft=Aft}=Ts) -> %Ctrl-B
+    Sel = if
+	      ?IS_SHIFTED(Mod) -> Sel0+1;
+	      true -> 0
+	  end,
+    Ts#text{sel=Sel,bef=Bef,aft=[C|Aft]};
+key(6, Mod, #text{sel=Sel0,bef=Bef,aft=[C|Aft]}=Ts) -> %Ctrl-F
+    Sel = if
+	      ?IS_SHIFTED(Mod) -> Sel0-1;
+	      true -> 0
+	  end,
+    Ts#text{sel=Sel,bef=[C|Bef],aft=Aft};
+key(1, Mod, #text{bef=Bef}=Ts) ->		%Ctrl-A
+    Sel = if
+	      ?IS_SHIFTED(Mod) -> length(Bef);
+	      true -> 0
+	  end,
+    Ts#text{sel=Sel,bef=[],aft=get_text(Ts)};
+key(5, Mod, #text{aft=Aft}=Ts) ->		%Ctrl-E
+    Sel = if
+	      ?IS_SHIFTED(Mod) -> -length(Aft);
+	      true -> 0
+	  end,
+    Ts#text{sel=Sel,bef=get_text_r(Ts),aft=[]};
 key(11, _, #text{}=Ts) ->			%Ctrl-K
     Ts#text{aft=[]};
 key(4, _, #text{sel=0,aft=[_|Aft]}=Ts) ->	%Ctrl-D
@@ -2793,7 +2793,6 @@ increment(Ts0, Incr) ->
 	    Ts = Ts0#text{bef=reverse(Str),aft=[],sel=-length(Str)},
 	    validate_string(Ts)
     end.
-
 
 
 %%%
