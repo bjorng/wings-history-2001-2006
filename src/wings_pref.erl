@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.107 2003/11/30 09:59:08 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.108 2003/11/30 18:01:00 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -72,13 +72,14 @@ prune_defaults(List) ->
     List -- defaults().
 
 menu(_St) ->
-    [{"Preferences...",
+    {"Preferences...",
       fun(_, _) ->
 	      {edit,{preferences,prefs}}
-      end,"Edit the general preferences",[]}].
+      end,"Edit the general preferences",[]}.
 
 command(prefs, _St) ->
     PrefQs0 = [{"General",gen_prefs()},
+	       {"Camera",{'VALUE',wings_camera:prefs()}},
 	       {"Advanced",advanced_prefs()},
  	       {"Compatibility",compatibility_prefs()},
 	       {"User Interface",ui_prefs()},
@@ -100,25 +101,20 @@ gen_prefs() ->
      [{hframe,
        [{vframe,
 	 [{label_column,
-	   [{"Unselected Size",vertex_size},
-	    {"Selected Size",selected_vertex_size}]}],
+	   [{"Unselected Size",vertex_size,
+	     [{info,"Size in pixels of unselected vertices (0.0 means not shown)"}]},
+	    {"Selected Size",selected_vertex_size,
+	     [{info,"Size in pixels of selected vertices"}]}]}],
 	 [{title,"Vertex Display"}]},
 	{vframe,
 	 [{label_column,
-	   [{"Unselected Width",edge_width},
-	    {"Selected Width",selected_edge_width}]}],
+	   [{"Unselected Width",edge_width,
+	     [{info,"Width in pixels of unselected edges"}]},
+	    {"Selected Width",selected_edge_width,
+	     [{info,"Width in pixels of selected edges"}]},
+	    {color,"Soft Edges",edge_color,[{info,"Color of soft edges"}]},
+	    {color,"Hard Edges",hard_edge_color,[{info,"Color of hard edges"}]}]}],
 	 [{title,"Edge Display"}]}]},
-      {hframe,
-       [{label,"Info Text"},{color,info_color},
-	{label,"Info Background"},{color,info_background_color},
-	{label,"Edges"},{color,edge_color},
-	{label,"Hard Edges"},{color,hard_edge_color}],
-       [{title,"Colors"}]},
-      {hframe,
-       [{label,"Color"},{color,grid_color},
-	{"Force Axis-Aligned Grid",force_show_along_grid,
-	 [{info,"Always show the grid when the view is aligned along one of the major axes"}]}],
-       [{title,"Grid"}]},
       {hframe,
        [{vframe,
 	 [{hframe,
@@ -135,9 +131,19 @@ gen_prefs() ->
 	 [{menu,[{"Solid Face Selections",solid},
 		 {"Stippled Face Selections",stippled}],
 	   selection_style},
-	  {hframe,[{label,"Selection Color"},{color,selected_color}]}
-	 ],
+	  {hframe,[{label,"Selection Color"},{color,selected_color}]} ],
 	 [{title,"Selection"}]}]},
+      {vframe,
+       [{label_column,
+	 [{color,"Text",info_color,[{info,"Color of information text"}]},
+	  {color,"Background",info_background_color,
+	   [{info,"Color of background for information text (including transparency)"}]}]}],
+       [{title,"Information text"}]},
+      {hframe,
+       [{label,"Color"},{color,grid_color},
+	{"Force Axis-Aligned Grid",force_show_along_grid,
+	 [{info,"Always show the grid when the view is aligned along one of the major axes"}]}],
+       [{title,"Grid"}]},
       {hframe,
        [{vframe,
 	 [{"Show Axis Letters",show_axis_letters},
@@ -171,18 +177,16 @@ advanced_prefs() ->
     Flags = [{hook,DisableHook}],
     {vframe,
      [{"Advanced Menus",advanced_menus},
-      separator,
+      {vframe,
+       [{label_column,
+	 [{"Length",active_vector_size,[{range,{0.1,10.0}}|Flags]},
+	  {"Width",active_vector_width,[{range,{1.0,10.0}}|Flags]},
+	  {color,"Color",active_vector_color,Flags}]}],
+       [{title,"Vector Display"}]},
       {"Default Commands",default_commands},
       {"Use Highlight as Temporary Selection",use_temp_sel},
       {"Hide Selection While Dragging",hide_sel_while_dragging},
-      {"Hide Selection While Moving Camera",hide_sel_in_camera_moves},
-      separator,
-      {vframe,
-       [{label_column,
-	 [{"Length",active_vector_size,Flags},
-	  {"Width",active_vector_width,Flags},
-	  {color,"Color",active_vector_color,Flags}]}],
-       [{title,"Vector Display"}]}
+      {"Hide Selection While Moving Camera",hide_sel_in_camera_moves}
      ]}.
 
 ui_prefs() ->
@@ -276,6 +280,10 @@ smart_set_value(Key, Val, St) ->
 		system_font ->
 		    wings_wm:reinit_opengl(),
 		    wings_text:choose_font();
+		camera_mode ->
+		    wings_wm:translation_change();
+		num_buttons ->
+		    wings_wm:translation_change();
 		_Other -> ok
 	    end
     end.
@@ -291,6 +299,8 @@ clear_proxy_edges(St) ->
 clear_proxy_edges(D, St) ->
     wings_subdiv:update(D#dlo{proxy_edges=none}, St).
 
+make_query({'VALUE',Val}) ->
+    Val;
 make_query([_|_]=List)  ->
     [make_query(El) || El <- List];
 make_query({color,Key}) ->

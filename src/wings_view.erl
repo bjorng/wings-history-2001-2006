@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.132 2003/10/18 18:43:46 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.133 2003/11/30 18:01:00 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -62,6 +62,8 @@ menu(St) ->
      {"Orthographic View",orthogonal_view,
       "Toggle between orthographic and perspective views",
       crossmark(orthogonal_view)},
+     separator,
+     {"Camera Settings...",camera_settings,"Set field of view, and near and far clipping planes"},
      separator,
      {"Scene Lights",scene_lights,
       "Use the lights defined in the scene",
@@ -222,6 +224,9 @@ command(align_to_selection, St) ->
 command(toggle_lights, St) ->
     toggle_lights(),
     St;
+command(camera_settings, St) ->
+    camera(),
+    St;
 command(Key, St) ->
     toggle_option(Key),
     St.
@@ -306,6 +311,24 @@ sel_mirror_objects(St) ->
 		      (_, #we{perm=P}, A) when ?IS_NOT_SELECTABLE(P) -> A;
 		      (_, We, A) -> [We|A]
 		   end, [], St).
+
+camera() ->
+    Active = wings_wm:this(),
+    View0 = wings_wm:get_prop(Active, current_view),
+    #view{fov=Fov0,hither=Hither0,yon=Yon0} = View0,
+    Qs = [{label_column,
+	   [{"Field of View",{text,Fov0,[{range,1.0,180.0}]}},
+	    {"Near Clipping Plane",{text,Hither0,
+				      [{range,0.001,1000.0}]}},
+	    {"Far Clipping Plane",{text,Yon0,
+				   [{range,100.0,9.9e307}]}}]}],
+    wings_ask:dialog("Camera Settings", Qs,
+		     fun([Fov,Hither,Yon]) ->
+			     View = View0#view{fov=Fov,hither=Hither,yon=Yon},
+			     wings_wm:set_prop(Active, current_view, View),
+			     ignore
+		     end).
+
 
 %%%
 %%% The Auto Rotate command.

@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.97 2003/11/25 08:09:58 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.98 2003/11/30 18:00:59 bjorng Exp $
 %%
 
 -module(wings_camera).
--export([init/0,sub_menu/1,settings/0,help/0,event/2]).
+-export([init/0,prefs/0,help/0,event/2]).
 -export([button_format/1,button_format/2,button_format/3,
 	 free_rmb_modifier/0,rmb_format/1,mod_name/1,
 	 mod_format/3,join_msg/1,join_msg/2]).
@@ -47,64 +47,37 @@ init() ->
 	{_,_} -> wings_pref:set_value(camera_mode, nendo)
     end.
     
-sub_menu(_) ->
-    [{"Camera Settings...",camera_settings,
-      "Change number of mouse buttons, camera mode, field of view, "
-      "and other camera settings"}].
-
-settings() ->
-    Active = wings_wm:this(),
+prefs() ->
     ZoomFlag0 = wings_pref:get_value(wheel_zooms, true),
     ZoomFactor0 = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR),
     PanSpeed0 = wings_pref:get_value(pan_speed),
-    View0 = wings_wm:get_prop(Active, current_view),
-    #view{fov=Fov0,hither=Hither0,yon=Yon0} = View0,
-    Qs = [{vframe,[mouse_buttons(2)],[{title,"Mouse Buttons"}]},
-	  {vframe,[camera_modes(-2)],[{title,"Camera Mode"}]},
-	  {vframe,
-	   [{hframe,[{slider,{text,PanSpeed0,[{range,{1,50}}]}}]}],
-	   [{title,"Pan Speed"}]},
-	  {vframe,
-	   [{"Wheel Zooms",ZoomFlag0},
-	    {hframe,[{label,"Zoom Factor"},
-		     {text,ZoomFactor0,
-		      [{range,{1,50}},
-		       {hook,fun (is_disabled, {_Var,I,Sto}) ->
-				    not gb_trees:get(I-3, Sto);
-				 (_, _) -> void
-			     end}]},
-		     {label,"%"}]}],
-	   [{title,"Scroll Wheel"}]},
-	  {vframe,
-	   [{label_column,
-	     [{"Field of View",{text,Fov0,[{range,1.0,180.0}]}},
-	      {"Near Clipping Plane",{text,Hither0,
-				      [{range,0.001,1000.0}]}},
-	      {"Far Clipping Plane",{text,Yon0,
-				     [{range,100.0,9.9e307}]}}]}],
-	   [{title,"Camera Parameters"}]}],
-    wings_ask:dialog("Camera Settings", Qs,
-		     fun([Buttons,Mode,PanSpeed,ZoomFlag,ZoomFactor,
-			  Fov,Hither,Yon]) ->
-			     wings_pref:set_value(camera_mode, Mode),
-			     wings_pref:set_value(num_buttons, Buttons),
-			     wings_pref:set_value(pan_speed, PanSpeed),
-			     wings_pref:set_value(wheel_zooms, ZoomFlag),
-			     wings_pref:set_value(wheel_zoom_factor, ZoomFactor),
-			     View = View0#view{fov=Fov,hither=Hither,yon=Yon},
-			     wings_wm:set_prop(Active, current_view, View),
-			     wings_wm:translation_change(),
-			     ignore
-		     end).
-
-
+    {vframe,
+     [{vframe,[mouse_buttons(2)],[{title,"Mouse Buttons"}]},
+      {vframe,[camera_modes(-2)],[{title,"Camera Mode"}]},
+      {vframe,
+       [{hframe,[{slider,{text,PanSpeed0,[{key,pan_speed},{range,{1,50}}]}}]}],
+       [{title,"Pan Speed"}]},
+      {vframe,
+       [{"Wheel Zooms",ZoomFlag0,[{key,wheel_zooms}]},
+	{hframe,
+	 [{label,"Zoom Factor"},
+	  {text,ZoomFactor0,
+	   [{key,wheel_zoom_factor},
+	    {range,{1,50}},
+	    {hook,fun (is_disabled, {_Var,_I,Sto}) ->
+			  not gb_trees:get(wheel_zooms, Sto);
+		      (_, _) -> void
+		  end}]},
+	  {label,"%"}],
+	 [{title,"Scroll Wheel"}]}]} ]}.
 
 mouse_buttons(DI) ->
     {menu,[{desc(1),1,[{info,info(1)}]},
 	   {desc(2),2,[{info,info(2)}]},
 	   {desc(3),3,[{info,info(3)}]}],
      wings_pref:get_value(num_buttons),
-     [{hook,fun (update, {Var,I,Val,Sto0}) ->
+     [{key,num_buttons},
+      {hook,fun (update, {Var,I,Val,Sto0}) ->
 		    Sto = gb_trees:update(Var, Val, Sto0),
 		    Mode0 = gb_trees:get(I+DI, Sto),
 		    Mode = case {Val,Mode0} of
@@ -121,7 +94,8 @@ camera_modes(DI) ->
     Modes = [mirai,nendo,maya,tds,blender,mb],
     {menu,[{desc(Mode),Mode,[{info,info(Mode)}]} || Mode <- Modes],
      wings_pref:get_value(camera_mode),
-     [{hook,fun (menu_disabled, {_Var,I,Sto}) ->
+     [{key,camera_mode},
+      {hook,fun (menu_disabled, {_Var,I,Sto}) ->
  		    case gb_trees:get(I+DI, Sto) of
  			1 -> [mirai,maya,tds,blender,mb];
 			2 -> [mirai,maya,tds,mb];
