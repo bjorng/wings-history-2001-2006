@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 38;
+	objectVersion = 39;
 	objects = {
 		080E96DCFE201CFB7F000001 = {
 			fileRef = 29B97318FDCFA39411CA2CEA;
@@ -19,6 +19,7 @@
 			isa = PBXGroup;
 			name = Classes;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		089C165CFE840E0CC02AAC07 = {
 			children = (
@@ -27,13 +28,16 @@
 			isa = PBXVariantGroup;
 			name = InfoPlist.strings;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		089C165DFE840E0CC02AAC07 = {
 			fileEncoding = 10;
 			isa = PBXFileReference;
+			lastKnownFileType = text.plist.strings;
 			name = English;
 			path = English.lproj/InfoPlist.strings;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		089C165EFE840E0CC02AAC07 = {
 			fileRef = 089C165CFE840E0CC02AAC07;
@@ -58,12 +62,16 @@
 			isa = PBXGroup;
 			name = "Linked Frameworks";
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		1058C7A1FEA54F0111CA2CBB = {
+			fallbackIsa = PBXFileReference;
 			isa = PBXFrameworkReference;
+			lastKnownFileType = wrapper.framework;
 			name = Cocoa.framework;
 			path = /System/Library/Frameworks/Cocoa.framework;
 			refType = 0;
+			sourceTree = "<absolute>";
 		};
 		1058C7A2FEA54F0111CA2CBB = {
 			children = (
@@ -73,6 +81,7 @@
 			isa = PBXGroup;
 			name = "Other Frameworks";
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		1058C7A3FEA54F0111CA2CBB = {
 			fileRef = 1058C7A1FEA54F0111CA2CBB;
@@ -91,9 +100,12 @@
 //173
 //174
 		17587328FF379C6511CA2CBB = {
+			explicitFileType = wrapper.application;
+			fallbackIsa = PBXFileReference;
 			isa = PBXApplicationReference;
 			path = Wings3d.app;
 			refType = 3;
+			sourceTree = BUILT_PRODUCTS_DIR;
 		};
 //170
 //171
@@ -112,6 +124,7 @@
 			isa = PBXGroup;
 			name = Products;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 //190
 //191
@@ -124,6 +137,8 @@
 //293
 //294
 		29B97313FDCFA39411CA2CEA = {
+			buildSettings = {
+			};
 			buildStyles = (
 				4A9504CCFFE6A4B311CA0CBA,
 				4A9504CDFFE6A4B311CA0CBA,
@@ -148,6 +163,7 @@
 			name = Wings3d;
 			path = "";
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		29B97315FDCFA39411CA2CEA = {
 			children = (
@@ -157,12 +173,15 @@
 			name = "Other Sources";
 			path = "";
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		29B97316FDCFA39411CA2CEA = {
 			fileEncoding = 30;
 			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.objc;
 			path = main.m;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		29B97317FDCFA39411CA2CEA = {
 			children = (
@@ -181,6 +200,7 @@
 			name = Resources;
 			path = "";
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		29B97318FDCFA39411CA2CEA = {
 			children = (
@@ -190,12 +210,15 @@
 			name = Erlang.nib;
 			path = "";
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		29B97319FDCFA39411CA2CEA = {
 			isa = PBXFileReference;
+			lastKnownFileType = wrapper.nib;
 			name = Erlang.nib;
 			path = English.lproj/Erlang.nib;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		29B97323FDCFA39411CA2CEA = {
 			children = (
@@ -206,18 +229,25 @@
 			name = Frameworks;
 			path = "";
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		29B97324FDCFA39411CA2CEA = {
+			fallbackIsa = PBXFileReference;
 			isa = PBXFrameworkReference;
+			lastKnownFileType = wrapper.framework;
 			name = AppKit.framework;
 			path = /System/Library/Frameworks/AppKit.framework;
 			refType = 0;
+			sourceTree = "<absolute>";
 		};
 		29B97325FDCFA39411CA2CEA = {
+			fallbackIsa = PBXFileReference;
 			isa = PBXFrameworkReference;
+			lastKnownFileType = wrapper.framework;
 			name = Foundation.framework;
 			path = /System/Library/Frameworks/Foundation.framework;
 			refType = 0;
+			sourceTree = "<absolute>";
 		};
 		29B97326FDCFA39411CA2CEA = {
 			buildPhases = (
@@ -423,7 +453,12 @@
 			);
 			buildSettings = {
 				COPY_PHASE_STRIP = NO;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
 				OPTIMIZATION_CFLAGS = "-O0";
+				ZERO_LINK = YES;
 			};
 			isa = PBXBuildStyle;
 			name = Development;
@@ -433,6 +468,8 @@
 			);
 			buildSettings = {
 				COPY_PHASE_STRIP = YES;
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				ZERO_LINK = NO;
 			};
 			isa = PBXBuildStyle;
 			name = Deployment;
@@ -449,38 +486,52 @@
 //4C4
 		4CB15CFF0489F65500A8000A = {
 			isa = PBXFileReference;
+			lastKnownFileType = image.icns;
 			path = 3ds.icns;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		4CB15D000489F65500A8000A = {
 			isa = PBXFileReference;
+			lastKnownFileType = image.icns;
 			path = wings.icns;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		4CB15D010489F65500A8000A = {
 			isa = PBXFileReference;
+			lastKnownFileType = image.icns;
 			path = mtl.icns;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		4CB15D020489F65500A8000A = {
 			isa = PBXFileReference;
+			lastKnownFileType = image.icns;
 			path = obj.icns;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		4CB15D030489F65500A8000A = {
 			isa = PBXFileReference;
+			lastKnownFileType = image.icns;
 			path = wrl.icns;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		4CB15D040489F65500A8000A = {
 			isa = PBXFileReference;
+			lastKnownFileType = image.icns;
 			path = ndo.icns;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		4CB15D050489F65500A8000A = {
 			isa = PBXFileReference;
+			lastKnownFileType = image.icns;
 			path = mdl.icns;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		4CB15D060489F65500A8000A = {
 			fileRef = 4CB15CFF0489F65500A8000A;
@@ -538,24 +589,16 @@
 			buildActionMask = 2147483647;
 			files = (
 			);
-			generatedFileNames = (
-			);
 			isa = PBXShellScriptBuildPhase;
-			neededFileNames = (
-			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Copy the Wings application.\nINSTALL=/usr/bin/install\nlatest_wings=`(cd ..; pwd)`\n\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/lib/`basename $latest_wings`\n\n$INSTALL -d $dest $dest/ebin $dest/patches\n\ncd $latest_wings\n\n$INSTALL -c -m 644 README AUTHORS license.terms $dest\n$INSTALL -c -m 644 ebin/* $dest/ebin\nrm -f $dest/ebin/user_default.beam\n\n$INSTALL -d $dest/plugins/fonts $dest/plugins/import_export \\\n $dest/plugins/commands \\\n $dest/plugins/primitives $dest/plugins/mac_file \\\n $dest/plugins/autouv \\\n $dest/plugins/default\n$INSTALL -c -m 644 plugins/default/* $dest/plugins/default\n$INSTALL -c -m 644 plugins/fonts/* $dest/plugins/fonts\n$INSTALL -c -m 644 plugins/import_export/* $dest/plugins/import_export\n$INSTALL -c -m 644 plugins/commands/* $dest/plugins/commands\n$INSTALL -c -m 644 plugins/primitives/* $dest/plugins/primitives\n$INSTALL -c -m 644 plugins/mac_file/* $dest/plugins/mac_file\n$INSTALL -c -m 644 plugins/autouv/* $dest/plugins/autouv\n\nfind $dest/plugins -name README | xargs rm\nrm $dest/plugins/default/wpc_test_ask.beam\n";
+			shellScript = "# Copy the Wings application.\nINSTALL=/usr/bin/install\nlatest_wings=`(cd ..; pwd)`\n\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/lib/`basename $latest_wings`\n\n$INSTALL -d $dest $dest/ebin $dest/patches\n\ncd $latest_wings\n\n$INSTALL -c -m 644 README AUTHORS license.terms $dest\n$INSTALL -c -m 644 ebin/* $dest/ebin\nrm -f $dest/ebin/user_default.beam\n\n$INSTALL -d $dest/plugins/fonts \\\n $dest/plugins/accel \\\n $dest/plugins/import_export \\\n $dest/plugins/commands \\\n $dest/plugins/primitives $dest/plugins/mac_file \\\n $dest/plugins/autouv \\\n $dest/plugins/default\n$INSTALL -c -m 644 plugins/accel/* $dest/plugins/accel\n$INSTALL -c -m 644 plugins/default/* $dest/plugins/default\n$INSTALL -c -m 644 plugins/fonts/* $dest/plugins/fonts\n$INSTALL -c -m 644 plugins/import_export/* $dest/plugins/import_export\n$INSTALL -c -m 644 plugins/commands/* $dest/plugins/commands\n$INSTALL -c -m 644 plugins/primitives/* $dest/plugins/primitives\n$INSTALL -c -m 644 plugins/mac_file/* $dest/plugins/mac_file\n$INSTALL -c -m 644 plugins/autouv/* $dest/plugins/autouv\n\nfind $dest/plugins -name README | xargs rm\nrm $dest/plugins/default/wpc_test_ask.beam\n";
 		};
 		F52CB4DB02E8450A01A8000A = {
 			buildActionMask = 2147483647;
 			files = (
 			);
-			generatedFileNames = (
-			);
 			isa = PBXShellScriptBuildPhase;
-			neededFileNames = (
-			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Copy the relevant parts of Erlang/OTP\n# into the application.\nINSTALL=/usr/bin/install\nsrc=$ERLANG_PATH\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources\nerts_src=$src/erts-*\nerts=`basename $erts_src`\nstdlib=`basename $src/lib/stdlib-*`\nkernel=`basename $src/lib/kernel-*`\n\n$INSTALL -d $dest/bin $dest/lib/$stdlib/ebin $dest/lib/$kernel/ebin\n$INSTALL -c -m 644 $src/lib/kernel-*/ebin/* $dest/lib/$kernel/ebin\n$INSTALL -c -m 644 $src/lib/stdlib-*/ebin/* $dest/lib/$stdlib/ebin\n\n../tools/wings_reduce_otp $dest\n\n$INSTALL -c -s $erts_src/bin/erlexec $dest/bin\n$INSTALL -c $erts_src/bin/beam $dest/bin\n$INSTALL -c -m 644 $src/bin/start.boot $dest/bin\n\nstrip -x $dest/bin/beam\nstrip $dest/bin/erlexec\n";
@@ -564,11 +607,7 @@
 			buildActionMask = 2147483647;
 			files = (
 			);
-			generatedFileNames = (
-			);
 			isa = PBXShellScriptBuildPhase;
-			neededFileNames = (
-			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Copy the relevant parts of ESDL into the application.\nINSTALL=/usr/bin/install\nsrc=$ERLANG_PATH\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/lib/`basename $ESDL_PATH`\n\n$INSTALL -d $dest/ebin $dest/priv\n$INSTALL -c -m 644  $ESDL_PATH/ebin/* $dest/ebin\n$INSTALL -c -m 644  $ESDL_PATH/priv/sdl_driver.so $dest/priv\n";
@@ -577,11 +616,7 @@
 			buildActionMask = 2147483647;
 			files = (
 			);
-			generatedFileNames = (
-			);
 			isa = PBXShellScriptBuildPhase;
-			neededFileNames = (
-			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Copy the SDL framework.\nINSTALL=/usr/bin/install\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/Frameworks\n\n$INSTALL -d $dest\n\nfor i in \"/Library/Frameworks\" \"$HOME/Library/Frameworks\"; do\n    if [ -d $i/SDL.framework ]; then\n        sdl_framework=$i/SDL.framework\n    fi\ndone\nif [ -d $dest/SDL.framework ]; then\n    rm -rf $dest/SDL.framework\nfi\ncp -r $sdl_framework $dest/SDL.framework\nif [ -d $dest/SDL.framework/Headers ]; then\n    rm -rf $dest/SDL.framework/Headers\nfi\nfor i in $dest/SDL.framework/Versions/*; do\n    if [ -d $i/Headers ]; then\n        rm -rf $i/Headers\n    fi\ndone\n";
@@ -590,11 +625,7 @@
 			buildActionMask = 2147483647;
 			files = (
 			);
-			generatedFileNames = (
-			);
 			isa = PBXShellScriptBuildPhase;
-			neededFileNames = (
-			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Strip debug information from all beam files.\ntemp=$OBJROOT\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources\n\nerlc -o $temp ../tools/strip.erl\n(cd $dest; erl -noshell -pa $temp -run strip strip)\n";
@@ -602,14 +633,18 @@
 		F5B807F10227DA2101000102 = {
 			fileEncoding = 30;
 			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
 			path = MyController.h;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		F5B807F20227DA2101000102 = {
 			fileEncoding = 30;
 			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.objc;
 			path = MyController.m;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		F5B807F30227DA2101000102 = {
 			fileRef = F5B807F10227DA2101000102;
@@ -625,8 +660,10 @@
 		};
 		F5EEDC2902282D6701000102 = {
 			isa = PBXFileReference;
+			lastKnownFileType = image.icns;
 			path = wings3d.icns;
 			refType = 4;
+			sourceTree = "<group>";
 		};
 		F5EEDC2A02282D6701000102 = {
 			fileRef = F5EEDC2902282D6701000102;
