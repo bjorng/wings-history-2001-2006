@@ -3,12 +3,12 @@
 %%
 %%     Window manager for Wings.
 %%
-%%  Copyright (c) 2002-2004 Bjorn Gustavsson
+%%  Copyright (c) 2002-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.151 2004/12/18 19:36:22 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.152 2005/03/26 07:28:15 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -781,8 +781,10 @@ next_handler(Event, [_|[Next|_]=Stk]) ->
 
 default_stack(Name) ->
     Handler = fun({crash,Crash}) ->
-		      io:format("Window ~p crashed:\n~P\n", [Name,Crash,20]),
-		      exit({window_crash,Name,Crash});
+		      StkTrace = erlang:get_stacktrace(),
+		      io:format("Window ~p crashed:\n~P\n~P\n",
+				[Name,Crash,20,StkTrace,40]),
+		      exit({window_crash,Name,Crash,StkTrace});
 		 (Other) ->
 		      io:format("Window ~p's crash handler got:\n~p\n",
 				[Name,Other]),

@@ -3,12 +3,12 @@
 %%
 %%     The main module of Wings 3D.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.332 2005/01/02 11:13:28 bjorng Exp $
+%%     $Id: wings.erl,v 1.333 2005/03/26 07:28:15 bjorng Exp $
 %%
 
 -module(wings).
@@ -47,8 +47,8 @@ halt_loop(Wings) ->
     receive
 	{'EXIT',Wings,normal} ->
 	    halt();
-	{'EXIT',Wings,{window_crash,Name,Reason}} ->
-	    Log = wings_u:crash_log(Name, Reason),
+	{'EXIT',Wings,{window_crash,Name,Reason,StkTrace}} ->
+	    Log = wings_u:crash_log(Name, Reason, StkTrace),
 	    io:format("\n\n"),
 	    io:format(?__(1,"Fatal internal error - log written to ~s\n"),
 		      [Log]),
