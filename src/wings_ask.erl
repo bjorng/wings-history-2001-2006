@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.172 2004/02/21 20:46:48 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.173 2004/02/28 08:15:39 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1653,7 +1653,7 @@ oframe_event({key,_,0,$\s}, [#fi{x=X,y=Y,key=Key,index=I}|_], Sto) ->
 	#oframe{w=W,style=menu,titles=Titles} ->
 	    Menu = oframe_menu(Titles),
 	    menu_popup(X+10, Y, W, Menu, gb_trees:get(var(Key, I), Sto), []);
-	#oframe{style=button} -> keep
+	#oframe{style=buttons} -> keep
     end;
 oframe_event({key,_,_,$\^B}, Path, Sto) -> % Ctrl-B
     oframe_step(-1, Path, Sto);
