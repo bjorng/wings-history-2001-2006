@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.95 2003/10/20 16:29:42 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.96 2003/10/21 19:24:59 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -335,7 +335,7 @@ set_focus(I, #s{focus=OldFocus,fi=Fis,store=Store0}=S) ->
 		 _ -> Store0
 	     end,
     #fi{handler=Handler} = Fi = element(I, Fis),
-    Store = case Handler({focus,false}, Fi, I, Store2) of
+    Store = case Handler({focus,true}, Fi, I, Store2) of
 		{store,Store3} -> Store3;
 		_ -> Store2
 	    end,
