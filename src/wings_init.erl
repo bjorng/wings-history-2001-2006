@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_init.erl,v 1.4 2004/10/08 06:02:29 dgud Exp $
+%%     $Id: wings_init.erl,v 1.5 2004/12/07 17:10:42 bjorng Exp $
 %%
 
 -module(wings_init).
@@ -19,6 +19,7 @@
 -include("wings.hrl").
 
 init() ->
+    macosx_workaround(),
     os:putenv("SDL_HAS3BUTTONMOUSE", "true"),
 
     wings_pref:set_default(window_size, {780,570}),
@@ -48,6 +49,15 @@ init() ->
     sdl_keyboard:enableKeyRepeat(?SDL_DEFAULT_REPEAT_DELAY,
 				 ?SDL_DEFAULT_REPEAT_INTERVAL),
     ok.
+
+macosx_workaround() ->
+    try 1.0/zero()
+    catch
+	error:_ -> ok
+    end.
+
+zero() ->
+    0.0.
 
 opengl_modes() ->
     [[{buffer_size,32},{depth_size,32},{stencil_size,8},{accum_size,16}],
