@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.36 2003/08/21 14:06:27 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.37 2003/08/23 10:43:46 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -85,7 +85,7 @@ dialog_qs(render) ->
     Stencil = 
 	case hd(gl:getIntegerv(?GL_STENCIL_BITS)) >= 8 of
 	    true -> 
-		[{"Render Shadows (test)",Shadow,[{key,render_shadow}]}];
+		[{"Render Shadows",Shadow,[{key,render_shadow}]}];
 	    false ->
 		[]
 	end,    
@@ -204,9 +204,10 @@ render_exit(#r{lights={Lights,_}, data=D}) ->
 update_st(St0, Attr, Shadows) ->
     St = invisible_holes(St0),
     SubDiv = proplists:get_value(subdivisions, Attr),
+    RenderAlpha = proplists:get_bool(render_alpha, Attr),
     {Ds, {Ls0, Amb}} = 
 	foldl(fun(We, {Wes,Lights}) ->
-		      update_st(We, SubDiv, Wes, St, Lights)
+		      update_st(We, SubDiv, RenderAlpha, Wes, St, Lights)
 	      end, {[],{[],none}}, gb_trees:values(St#st.shapes)),
 
     CLDL = 
@@ -231,9 +232,9 @@ update_st(St0, Attr, Shadows) ->
     ?CHECK_ERROR(),
     {Ds, {Ls, Amb}}.
 
-update_st(#we{perm=P}, _, Wes, _,AL) when ?IS_NOT_VISIBLE(P) ->
+update_st(#we{perm=P}, _, _, Wes, _,AL) when ?IS_NOT_VISIBLE(P) ->
     {Wes, AL};
-update_st(We0=#we{light=none}, SubDiv, Wes, St,AL) ->    
+update_st(We0=#we{light=none}, SubDiv, RenderAlpha, Wes, St,AL) ->    
     We = case SubDiv of
 	     0 ->
 		 %% If no sub-divisions requested, it is safe to
@@ -247,30 +248,30 @@ update_st(We0=#we{light=none}, SubDiv, Wes, St,AL) ->
 		 We2 = sub_divide(SubDiv, We1),
 		 wpa:triangulate(We2)
 	 end,
-    Fast = dlist_mask(We),
+    Fast = dlist_mask(RenderAlpha, We),
     {[Smooth,TrL],Tr} = wings_draw:smooth_dlist(We, St),
     {[#d{s=Smooth,f=Fast,we=We,tr=Tr,trl=TrL}|Wes],AL};
-
-update_st(#we{light=L=#light{type=ambient}}, _,Wes,_, {Lights,_}) ->    
+update_st(#we{light=L=#light{type=ambient}}, _, _, Wes, _, {Lights,_}) ->
     {Wes,{Lights,L}};		 
-update_st(We0=#we{light=L}, _, Wes, _, {Lights,Amb}) ->    
+update_st(We0=#we{light=L}, _, _, Wes, _, {Lights,Amb}) ->    
     Pos = light_pos(We0),
     {Wes,{[#l{pos=Pos,l=L}|Lights],Amb}}.
 
-dlist_mask(#we{fs=Ftab}=We) ->
+dlist_mask(false, _) -> none;
+dlist_mask(true, #we{fs=Ftab}=We) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     wings_draw_util:begin_end(
       fun() ->
-	      dlist_mask(gb_trees:to_list(Ftab), We)
+	      dlist_mask_2(gb_trees:to_list(Ftab), We)
       end),
     gl:endList(),
     List.
 
-dlist_mask([{Face,Edge}|Fs], We) ->
+dlist_mask_2([{Face,Edge}|Fs], We) ->
     wings_draw_util:unlit_tri(Face, Edge, We),
-    dlist_mask(Fs, We);
-dlist_mask([], _We) -> ok.
+    dlist_mask_2(Fs, We);
+dlist_mask_2([], _We) -> ok.
 
 %% Make the hole material a true hole (entirely invisible).
 invisible_holes(#st{mat=Mat}=St) ->
