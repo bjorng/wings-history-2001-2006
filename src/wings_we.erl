@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.67 2003/09/25 13:12:03 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.68 2003/09/25 13:26:25 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -66,8 +66,9 @@ rebuild_ftab_1([], FtoE) ->
 %%  longer referenced by any edge in the edge table.
 vertex_gc(#we{es=Etab,vp=Vtab0}=We) ->
     Es = gb_trees:to_list(Etab),
-    Vct = do_rebuild_vct(Es, []),
-    Vtab = vertex_gc_1(Vct, gb_trees:to_list(Vtab0), []),
+    Vct0 = do_rebuild_vct(Es, []),
+    Vtab = vertex_gc_1(Vct0, gb_trees:to_list(Vtab0), []),
+    Vct = gb_trees:from_orddict(Vct0),
     We#we{vc=Vct,vp=Vtab}.
 
 vertex_gc_1([{V,_}|Vct], [{V,_}=Vtx|Vpos], Acc) ->
