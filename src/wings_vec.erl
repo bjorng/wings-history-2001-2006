@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.70 2003/07/20 21:33:09 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.71 2003/07/21 06:13:54 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -97,15 +97,6 @@ command_1(magnet, Msg, [], Acc, Names, _, St) ->
 	     selmodes=Modes},
     command_message(Msg),
     {seq,push,get_event(Ss, wings_sel:reset(St#st{selmode=vertex}))}.
-% command_1(magnet_options, _, [], Acc, Names, _St) ->
-%     wings_magnet:dialog(fun(Mag) ->
-% 				{vector,{pick,[],[Mag|Acc],Names}}
-% 			end);
-% command_1({magnet_options,Point}, _, [], Acc, Names, _St) ->
-%     wings_magnet:dialog(Point,
-% 			fun(Mag) ->
-% 				{vector,{pick,[],[Mag|Acc],Names}}
-% 			end).
 
 add_help_text([{Atom,Desc}|T], Names) when is_atom(Atom) ->
     [{Atom,none,Desc}|add_help_text(T, Names)];
@@ -127,7 +118,7 @@ magnet_possible([rotate|_], Pl) -> magnet_possible_1(Pl);
 magnet_possible([scale|_], Pl) -> magnet_possible_1(Pl);
 magnet_possible(_, _) -> no.
 
-magnet_possible_1([]) -> no;
+magnet_possible_1([]) -> inactive;
 magnet_possible_1(Pl) ->
     case last(Pl) of
 	{magnet,_,_} -> active;
@@ -148,7 +139,7 @@ common_message(More, Ns, MagnetPossible) ->
 
 magnet_message(no) -> [];
 magnet_message(inactive) ->
-    [$\s,wings_util:rmb_format("Activate magnet")];
+    [$\s,wings_util:rmb_format("Magnet")];
 magnet_message(active) ->
     "  **MAGNET**".
 

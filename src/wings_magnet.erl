@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.44 2003/03/14 19:08:54 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.45 2003/07/21 06:13:54 bjorng Exp $
 %%
 
 -module(wings_magnet).
 -export([setup/3,transform/2,recalc/3,flags/2,
-	 dialog/1,dialog/2,menu_help/0,drag_help/1,hotkey/1]).
+	 dialog/1,dialog/2,drag_help/1,hotkey/1]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,sort/1,concat/1,reverse/1]).
@@ -77,14 +77,6 @@ common_dialog() ->
        {alt,DefRoute,"Surface",surface}],
       [{title,"Distance Route"}]}].
 			  
-menu_help() ->
-    Msg = "Magnet: [L] Pick influence radius  "
-	"[M] Specify radius numerically  "
-	"[R] Use last radius",
-    Route0 = wings_pref:get_value(magnet_distance_route),
-    Route = wings_util:cap(atom_to_list(Route0)),
-    wings_wm:message(Msg, ["Route: "|Route]).
-    
 drag_help(Type) ->
     "[+] or [-] Adjust Radius  " ++
 	help_1(Type, [{1,bell},{2,dome},{3,straight},{4,spike}]).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_6x11.erl,v 1.5 2003/07/20 21:33:08 bjorng Exp $
+%%     $Id: wpf_6x11.erl,v 1.6 2003/07/21 06:13:54 bjorng Exp $
 %%
 
 -module(wpf_6x11).
@@ -118,25 +118,6 @@ char(axisz) ->
     B = <<16#7f,16#60,16#70,16#38,16#1c,16#0e,16#07,16#03,16#7f>>,
     gl:bitmap(8, 9, -1.0, 0.0, 8.0, 0.0, B);
 
-char(magnet_red) ->
-    B = <<
-	 2#1100000011000000:16,
-	 2#1100000011000000:16,
-	 2#0110000110000000:16,
-       	 2#0110000110000000:16,
-	 2#0110000110000000:16,
-	 2#0011111100000000:16,
-       	 2#0001111000000000:16
-      	 >>,
-    gl:bitmap(11, 7, 0.0, -2.0+2, 13.0, 0.0, B);
-
-char(magnet_black) ->
-    B = <<
-       	 2#1100000011000000:16,
-       	 2#1100000011000000:16,
-       	 2#1100000011000000:16
-      	 >>,
-    gl:bitmap(11,  3, 0.0, 1.0+2, 13.0, 0.0, B);
 char(C) ->
     char2(C).
 
