@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.59 2002/12/29 10:33:50 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.60 2002/12/30 15:51:59 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -37,6 +37,7 @@ init() ->
     wings_pref:set_default(camera_hither, 0.25),
     wings_pref:set_default(camera_yon, 1000.0),
     wings_pref:set_default(num_buttons, 3),
+    wings_pref:set_default(pan_speed, 25),
     case {wings_pref:get_value(num_buttons),wings_pref:get_value(camera_mode)} of
 	{3,_} -> ok;
 	{_,nendo} -> ok;
@@ -53,11 +54,16 @@ command(camera_mode, _St) ->
     Fov0 = wings_pref:get_value(camera_fov),
     Hither0 = wings_pref:get_value(camera_hither),
     Yon0 = wings_pref:get_value(camera_yon),
+    PanSpeed0 = wings_pref:get_value(pan_speed),
     Qs = [{vframe,
 	   [{menu,[{"One",1},{"Two",2},{"Three",3}],
 	     wings_pref:get_value(num_buttons)}],
 	   [{title,"Mouse Buttons"}]},
 	  {vframe,camera_modes(),[{title,"Camera Mode"}]},
+	  {vframe,
+	   [{hframe,[{slider,{text,PanSpeed0,
+			      [{range,{1,50}}]}}]}],
+	   [{title,"Pan Speed"}]},
 	  {vframe,
 	   [{"Wheel Zooms",ZoomFlag0},
 	    {hframe,[{label,"Zoom Factor"},
@@ -72,10 +78,11 @@ command(camera_mode, _St) ->
 				     [{range,100.0,9.9e307}]}}]}],
 	   [{title,"Camera Parameters"}]}],
     wings_ask:dialog("Camera Settings", Qs,
-		     fun([Buttons,Mode,ZoomFlag,ZoomFactor,Fov,Hither,Yon]) ->
+		     fun([Buttons,Mode,PanSpeed,ZoomFlag,ZoomFactor,Fov,Hither,Yon]) ->
 			     validate(Buttons, Mode),
 			     wings_pref:set_value(camera_mode, Mode),
 			     wings_pref:set_value(num_buttons, Buttons),
+			     wings_pref:set_value(pan_speed, PanSpeed),
 			     wings_pref:set_value(wheel_zooms, ZoomFlag),
 			     wings_pref:set_value(wheel_zoom_factor, ZoomFactor),
 			     wings_pref:set_value(camera_fov, Fov),
@@ -505,9 +512,9 @@ zoom(Delta0) ->
     wings_view:set_current(View#view{distance=Dist+Delta}).
 
 pan(Dx0, Dy0) ->
-    S = 25,
-    Dx = Dx0/S,
-    Dy = Dy0/S,
+    S = 1/(51-wings_pref:get_value(pan_speed)),
+    Dx = Dx0*S,
+    Dy = Dy0*S,
     #view{pan_x=PanX0,pan_y=PanY0} = View = wings_view:current(),
     PanX = PanX0 + Dx,
     PanY = PanY0 - Dy,
