@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.68 2004/10/08 06:02:28 dgud Exp $
+%%     $Id: wings_body.erl,v 1.69 2004/10/15 09:31:56 dgud Exp $
 %%
 
 -module(wings_body).
@@ -20,6 +20,7 @@
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
+    FlipStr = ?STR(menu,5,"Flip the object around") ++ " ",
     Menu = [{basic,{?STR(menu,1,"Object operations"),ignore}},
 	    {basic,separator},
 	    {?STR(menu,2,"Move"),{move,Dir}},
@@ -27,9 +28,9 @@ menu(X, Y, St) ->
 	    wings_menu_util:scale(St),
 	    separator,
 	    {?STR(menu,3,"Flip"),
-	     {flip,[{?STR(menu,4,"X"),x,?STR(menu,5,"Flip the object around the X axis")},
-		    {?STR(menu,6,"Y"),y,?STR(menu,7,"Flip the object around the Y axis")},
-		    {?STR(menu,8,"Z"),z,?STR(menu,9,"Flip the object around the Z axis")}]}},
+	     {flip,[{wings_s:dir(x),x,FlipStr ++ wings_s:dir_axis(x)},
+		    {wings_s:dir(y),y,FlipStr ++ wings_s:dir_axis(y)},
+		    {wings_s:dir(z),z,FlipStr ++ wings_s:dir_axis(z)}]}},
 	    separator,
 	    {?STR(menu,10,"Invert"),invert,
 	     ?STR(menu,11,"Flip all normals, turning the object inside out")},

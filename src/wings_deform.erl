@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.41 2004/10/08 14:33:07 dgud Exp $
+%%     $Id: wings_deform.erl,v 1.42 2004/10/15 09:31:56 dgud Exp $
 %%
 
 -module(wings_deform).
@@ -31,13 +31,14 @@ sub_menu(_St) ->
 	     {?STR(sub_menu,8,"Torque"),{torque,dirs(torque)}}]}.
 
 crumple_dirs() ->
-    [{?STR(crumple_dirs,1,"Random"),
-      random,
-      ?STR(crumple_dirs,2,"Move each vertex a random amount in a random direction")},
-     {?STR(crumple_dirs,3,"Normal"),normal,?STR(crumple_dirs,4,"Move each vertex a random amount along its normal")},
-     {?STR(crumple_dirs,5,"X"),x,?STR(crumple_dirs,8,"Move each vertex a random amount along the X axis")},
-     {?STR(crumple_dirs,6,"Y"),y,?STR(crumple_dirs,9,"Move each vertex a random amount along the Y axis")},
-     {?STR(crumple_dirs,7,"Z"),z,?STR(crumple_dirs,10,"Move each vertex a random amount along the Z axis")}].
+    Str = ?STR(crumple_dirs,8,"Move each vertex a random amount along") ++ " ",
+    [{?STR(crumple_dirs,1,"Random"), random,
+      Str ++ ?STR(crumple_dirs,2, "a random direction")},
+     {wings_util:cap(wings_s:dir(normal)),normal, 
+      Str ++ ?STR(crumple_dirs,4,"its normal")},
+     {wings_s:dir(x),x,Str ++ wings_s:dir_axis(x)},
+     {wings_s:dir(y),y,Str ++ wings_s:dir_axis(y)},
+     {wings_s:dir(z),z,Str ++ wings_s:dir_axis(z)}].
 
 dirs(Cmd) ->
     [dir(x, Cmd),

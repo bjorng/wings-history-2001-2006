@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.316 2004/10/15 06:14:22 bjorng Exp $
+%%     $Id: wings.erl,v 1.317 2004/10/15 09:31:56 dgud Exp $
 %%
 
 -module(wings).
@@ -705,13 +705,13 @@ undo_info(St) ->
     end.
 
 tools_menu(_) ->
-    Dirs = [{?STR(tools_menu,1,"All"),all},
-	    {?STR(tools_menu,2,"X"),x},
-	    {?STR(tools_menu,3,"Y"),y},
-	    {?STR(tools_menu,4,"Z"),z},
-	    {?STR(tools_menu,5,"Radial X"),radial_x},
-	    {?STR(tools_menu,6,"Radial Y"),radial_y},
-	    {?STR(tools_menu,7,"Radial Z"),radial_z}],
+    Dirs = [{wings_s:dir(all),all},
+	    {wings_s:dir(x),x},
+	    {wings_s:dir(y),y},
+	    {wings_s:dir(z),z},
+	    {wings_s:dir(radial_x),radial_x},
+	    {wings_s:dir(radial_y),radial_y},
+	    {wings_s:dir(radial_z),radial_z}],
     [{?STR(tools_menu,8,"Align"),{align,Dirs}},
      {?STR(tools_menu,9,"Center"),{center,Dirs}},
      separator,
