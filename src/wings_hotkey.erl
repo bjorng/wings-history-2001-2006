@@ -8,17 +8,20 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.35 2003/02/06 06:25:28 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.36 2003/03/09 18:07:53 bjorng Exp $
 %%
 
 -module(wings_hotkey).
 -export([event/1,event/2,matching/1,bind_unicode/3,bind_virtual/4,
-	 bind_from_event/2,delete_by_command/1,set_default/0]).
+	 bind_from_event/2,delete_by_command/1,set_default/0,
+	 listing/0]).
 
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [foldl/3,sort/1,foreach/2,map/2,last/1]).
+-import(lists, [foldl/3,sort/1,foreach/2,map/2,last/1,reverse/1]).
+
+-compile({parse_transform,ms_transform}).
 
 -define(KL, wings_state).
 
@@ -131,6 +134,43 @@ matching_mode(_Other) -> [].
 
 mkeyname({user,K}) -> {1,keyname(K)};
 mkeyname({default,K}) -> {2,keyname(K)}.
+
+%%%
+%%% Make a listing of all hotkeys.
+%%%
+
+listing() ->
+    MatchSpec = ets:fun2ms(fun({{bindkey,K},Cmd,Src}) ->
+				   {all,{{bindkey,K},Cmd,Src}};
+			      ({{bindkey,Mode,K},Cmd,Src}) ->
+				   {Mode,{{bindkey,K},Cmd,Src}}
+			   end),
+    Keys = wings_util:rel2fam(ets:select(?KL, MatchSpec)),
+    listing_1(Keys, []).
+
+listing_1([{Mode,Keys}|T], Acc0) ->
+    Acc = [list_keys(Keys),list_header(Mode)|Acc0],
+    listing_1(T, Acc);
+listing_1([], Acc) -> reverse(Acc).
+
+list_header(all) -> "Hotkeys in all modes";
+list_header(body) -> "Hotkeys in object mode";
+list_header(edge) -> "Hotkeys in edge mode";
+list_header(face) -> "Hotkeys in face mode";
+list_header(light) -> "Hotkeys for lights";
+list_header(vertex) -> "Hotkeys for vertices";
+list_header(A) -> atom_to_list(A).
+
+list_keys([{Key,Cmd,Src}|T]) ->
+    KeyStr = keyname(Key),
+    SrcStr = case Src of
+		 default -> "";
+		 user -> " (user-defined)";
+		 plugin -> " (plug-in-defined)"
+	     end,
+    KeyStr ++ ": " ++ wings_util:stringify(Cmd) ++ SrcStr ++ 
+	"\n" ++ list_keys(T);
+list_keys([]) -> [].
 
 %%%
 %%% Local functions.

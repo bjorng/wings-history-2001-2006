@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.46 2003/03/09 15:04:01 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.47 2003/03/09 18:07:53 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -24,8 +24,10 @@ menu(_) ->
      {"Using a Mouse With One or Two Buttons",one_or_two},
      {"French and German Keyboards",international},
      separator,
+     {"Defined Hotkeys",hotkeys},
+     {"How To Define Hotkeys",defining_hotkeys},
+     separator,
      {"Light Basics",lights},
-     {"Assigning Hotkeys",defining_hotkeys},
      separator,
      {"Advanced Menus",advanced_menus},
      {"Default Commands",default_commands},
@@ -42,6 +44,8 @@ command(international, _St) ->
     international();
 command(defining_hotkeys, _St) ->
     def_hotkeys();
+command(hotkeys, _St) ->
+    hotkeys();
 command(default_commands, _St) ->
     def_commands();
 command(lights, _St) ->
@@ -117,6 +121,10 @@ def_commands() ->
 	    "default command cannot be used."],
     help_window("Assigning Default Commands", Help).
 
+hotkeys() ->
+    Help = wings_hotkey:listing(),
+    help_window("Defined Hotkeys", Help).
+
 def_hotkeys() ->
     Help = ["Any command that appears in a menu, can be assigned a "
 	    "keyboard short-cut (hotkey).",
@@ -126,7 +134,7 @@ def_hotkeys() ->
 	    "and then press the key you want to assign the command to.",
 	    "To delete a hotkey, similarly high-light the command in a "
 	    "menu, and press the [Del] or [\\] key."],
-    help_window("Assigning Hotkeys", Help).
+    help_window("How To Define Hotkeys", Help).
 
 lights() ->
     Help = ["1. Create lights using the Light command in the primitives "
@@ -217,6 +225,8 @@ compressed_texture_info(N) ->
 	 th
 	 }).
 
+help_window(Title, []) ->
+    help_window(Title, ["No help text"]);
 help_window(Title, Text) ->
     help_window(help, Title, Text).
 
@@ -252,6 +262,7 @@ break_line(S, T, Rows, Acc) ->
 	    break_line(More, T, Rows+1, [Line|Acc])
     end.
 
+break_line_1([$\n|T]) -> break_line_1(T);
 break_line_1([$\s|T]) -> break_line_1(T);
 break_line_1([]) -> done;
 break_line_1(T) -> break_line_2(T, 0, [], []).
