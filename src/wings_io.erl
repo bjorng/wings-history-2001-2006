@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.90 2003/01/30 09:53:55 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.91 2003/02/17 20:56:01 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -35,8 +35,8 @@
 -import(lists, [flatmap/2,foldl/3,keysearch/3,member/2,
 		reverse/1,reverse/2,foreach/2,last/1]).
 
--define(ICON_WIDTH, 44).
--define(ICON_HEIGHT, 32).
+-define(ICON_WIDTH, 32).
+-define(ICON_HEIGHT, 28).
 
 -record(io,
 	{eq,					%Event queue.
@@ -228,7 +228,7 @@ put_state(Io) ->
     put(wings_io, Io).
 
 draw_icon(X, Y, Icon) ->
-    draw_icon(X, Y, ?ICON_WIDTH, ?ICON_HEIGHT, 64, 32, Icon).
+    draw_icon(X, Y, ?ICON_WIDTH, ?ICON_HEIGHT, 32, 32, Icon).
 
 draw_icon(X, Y, W, H, Icon) ->
     draw_icon(X, Y, W, H, W, H, Icon).
@@ -280,7 +280,7 @@ create_textures([{Name,{W,H,Icon}}|T], [Id|Ids]) ->
 create_textures([], _Id) -> [].
 
 create_buttons(Icons0) ->
-    flatmap(fun({Name,{64,32,Icon}}) ->
+    flatmap(fun({Name,{32,32,Icon}}) ->
 		    [{{Name,down},create_button(fun active/5, Icon)},
 		     {{Name,up},create_button(fun inactive/5, Icon)}];
 	       ({_Name,_Icon}=T) -> [T]
@@ -289,16 +289,16 @@ create_buttons(Icons0) ->
 create_button(Tr, Icon) ->
     create_button(Tr, Icon, 0, 0, []).
 
-create_button(Tr, T, 64, Y, Acc) ->
+create_button(Tr, T, 32, Y, Acc) ->
     create_button(Tr, T, 0, Y+1, Acc);
 create_button(_Tr, <<>>, _X, _Y, Acc) ->
-    {64,32,list_to_binary(reverse(Acc))};
+    {32,32,list_to_binary(reverse(Acc))};
 create_button(Tr, <<R:8,G:8,B:8,T/binary>>, X, Y, Acc) ->
     create_button(Tr, T, X+1, Y, [Tr(X, Y, R, G, B)|Acc]).
 
 active(X, Y, R, G, B) ->
     if
-	X < 1; X > 42; Y < 1; Y > 30 -> [255,255,255];
+	X < 1; X > 30; Y < 1; Y > 26 -> [255,255,255];
 	true -> [R,G,B]
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.212 2003/02/17 19:17:38 bjorng Exp $
+%%     $Id: wings.erl,v 1.213 2003/02/17 20:56:00 bjorng Exp $
 %%
 
 -module(wings).
@@ -890,8 +890,8 @@ geom_pos({X,Y}=Pos) ->
 %%% The toolbar window with buttons.
 %%%
 
--define(BUTTON_WIDTH, 44).
--define(BUTTON_HEIGHT, 32).
+-define(BUTTON_WIDTH, 34).
+-define(BUTTON_HEIGHT, 28).
 
 -record(but,
 	{mode,					%Selection mode.
@@ -1018,25 +1018,21 @@ button_sh_filter(face, true) ->
     wings_pref:get_value(face_hilite);
 button_sh_filter(_, _) -> false.
 
-buttons_place(W) when W < 300 ->
-    Lmarg = 5,
-    [{Lmarg,vertex},{?BUTTON_WIDTH+Lmarg,edge},
-     {2*?BUTTON_WIDTH+Lmarg,face},{3*?BUTTON_WIDTH+Lmarg,body}];
-buttons_place(W) when W < 495 ->
-    Lmarg = 5,
-    Rmarg = 5,
-    [{Lmarg,vertex},{?BUTTON_WIDTH+Lmarg,edge},
-     {2*?BUTTON_WIDTH+Lmarg,face},{3*?BUTTON_WIDTH+Lmarg,body},
-     {W-2*?BUTTON_WIDTH-Rmarg,groundplane},
-     {W-?BUTTON_WIDTH-Rmarg,axes}];
+buttons_place(W) when W < 325 ->
+    Mid = (W - ?BUTTON_WIDTH) div 2,
+    [{Mid-trunc(1.5*?BUTTON_WIDTH),vertex},
+     {Mid-trunc(0.5*?BUTTON_WIDTH),edge},
+     {Mid+trunc(0.5*?BUTTON_WIDTH),face},
+     {Mid+trunc(1.5*?BUTTON_WIDTH),body}];
 buttons_place(W) ->
     Mid = (W - ?BUTTON_WIDTH) div 2,
     Lmarg = 5,
     Rmarg = 5,
-    [{Lmarg,flatshade},{Lmarg+?BUTTON_WIDTH,smooth},
-     {Mid-2*?BUTTON_WIDTH,vertex},{Mid-?BUTTON_WIDTH,edge},
-     {Mid,face},{Mid+?BUTTON_WIDTH,body},
-     {W-3*?BUTTON_WIDTH-Rmarg,perspective},
+    [{Lmarg,smooth},{Lmarg+?BUTTON_WIDTH,perspective},
+     {Mid-trunc(1.5*?BUTTON_WIDTH),vertex},
+     {Mid-trunc(0.5*?BUTTON_WIDTH),edge},
+     {Mid+trunc(0.5*?BUTTON_WIDTH),face},
+     {Mid+trunc(1.5*?BUTTON_WIDTH),body},
      {W-2*?BUTTON_WIDTH-Rmarg,groundplane},
      {W-?BUTTON_WIDTH-Rmarg,axes}].
 
@@ -1044,8 +1040,6 @@ button_value(groundplane=Name, _, _) ->
     button_value_1(Name, show_groundplane, true);
 button_value(axes=Name, _, _) ->
     button_value_1(Name, show_axes, true);
-button_value(flatshade=Name, _, _) ->
-    button_value_1(Name, workmode, true);
 button_value(smooth=Name, _, _) ->
     button_value_1(Name, workmode, false);
 button_value(perspective=Name, _, _) ->
@@ -1068,7 +1062,7 @@ button_was_hit_1(X, [{Pos,Name}|_]) when Pos =< X, X < Pos+?BUTTON_WIDTH ->
 		 groundplane -> {view,show_groundplane};
 		 axes -> {view,show_axes};
 		 flatshade -> {view,flatshade};
-		 smooth -> {view,smoothshade};
+		 smooth -> {view,workmode};
 		 perspective -> {view,orthogonal_view};
 		 Other -> {select,Other}
 	     end,
@@ -1107,9 +1101,8 @@ button_help_3(perspective) ->
     ["Change to ",choose(orthogonal_view, false,
 			 "orthogonal", "perspective")|" view"];
 button_help_3(smooth) ->
-    choose(workmode, true, "Show objects with smooth shading", "");
-button_help_3(flatshade) ->
-    choose(workmode, false, "Show objects with flat shading", "").
+    ["Show objects with ",choose(workmode, true,
+				 "smooth", "flat")|" shading"].
 
 button_restrict(Buttons, none) -> Buttons;
 button_restrict(Buttons0, Restr) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.96 2003/02/17 19:17:40 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.97 2003/02/17 20:56:02 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -101,12 +101,6 @@ command(workmode, St) ->
     St;
 command(smoothed_preview, St) ->
     ?SLOW(smoothed_preview(St));
-command(flatshade, St) ->
-    wings_wm:set_prop(workmode, true),
-    St;
-command(smoothshade, St) ->
-    wings_wm:set_prop(workmode, false),
-    St;
 command(toggle_wireframe, #st{sel=[]}=St) ->
     mode_change_all(toggle),
     St;
