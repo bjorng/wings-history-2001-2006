@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.77 2003/10/17 07:53:19 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.78 2003/10/17 15:50:35 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -723,10 +723,10 @@ select_region_1([], _Edges, _We, Acc) ->
     PartKey0 = [[{K,sofs:from_term(F)} || K <- Ks] || [F|_]=Ks <- Cs],
     PartKey = gb_trees:from_orddict(sort(lists:append(PartKey0))),
     SetFun = fun(S) ->
-		     {_,E} = sofs:to_external(S),
+		     {_,[E|_]} = sofs:to_external(S),
 		     gb_trees:get(E, PartKey)
 	     end,
-    Part = sofs:to_external(sofs:partition(SetFun, Rel)),
+    Part = sofs:to_external(sofs:partition(SetFun, Fam)),
 
     %% We finally have one partition for each sub-object.
     
@@ -734,12 +734,9 @@ select_region_1([], _Edges, _We, Acc) ->
     Sel = lists:merge(Sel0),
     gb_sets:from_ordset(Sel).
 
-select_region_2(P0) ->
-    P1 = sofs:from_external(P0, [{faces,edge}]),
-    P2 = sofs:relation_to_family(P1),
-    P = sofs:to_external(P2),
+select_region_2(P) ->
     case [Fs || {Fs,[_]} <- P] of
-	Fss when length(Fss) < length(P) ->
+	[_|_]=Fss when length(Fss) < length(P) ->
 	    lists:merge(Fss);
 	_ ->
 	    [{_,Fs}|_] = sort([{length(Fs),Fs} || {Fs,_} <- P]),
