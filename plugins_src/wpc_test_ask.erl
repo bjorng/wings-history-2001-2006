@@ -8,10 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.25 2003/12/26 21:11:45 bjorng Exp $
+%%     $Id: wpc_test_ask.erl,v 1.26 2003/12/27 14:50:43 bjorng Exp $
 %%
 
 -module(wpc_test_ask).
+
+-include_lib("kernel/include/file.hrl").
 
 -export([enable/0,disable/0]).
 -export([load/1]).
@@ -53,6 +55,7 @@ menu({tools}, Menu) ->
 				       {"Overlay Dialog",overlay},
 				       {"Dynamic Dialog",dynamic},
 				       separator,
+				       {"Table Dialog",table},
 				       {"Filename Dialog",filename},
 				       {"Open Dialog",open_dialog}]}}];
 	_ -> Menu
@@ -67,6 +70,8 @@ command({tools,{?MODULE,overlay}}, St) ->
     maybe_dialog(fun overlay_dialog/1, St);
 command({tools,{?MODULE,dynamic}}, St) ->
     maybe_dialog(fun dynamic_dialog/1, St);
+command({tools,{?MODULE,table}}, St) ->
+    maybe_dialog(fun table_dialog/1, St);
 command({tools,{?MODULE,filename}}, St) ->
     maybe_dialog(fun filename_dialog/1, St);
 command({tools,{?MODULE,open_dialog}}, St) ->
@@ -104,6 +109,22 @@ dialog(_X, Dialog) ->
     io:format("~p\n", [{_X,Dialog}]),
     Dialog.
 
+table_dialog(_) ->
+    Dir = filename:dirname(code:which(wings)),
+    {ok,Files0} = file:list_dir(Dir),
+    Files = [table_file(F, Dir) || F <- Files0],
+    Qs = [{table,[{"Filename","Size","Modified"}|Files]}],
+    Ask = fun(Res) ->
+		  io:format("~p\n", [Res]),
+		  ignore
+	  end,
+    wings_ask:dialog("", Qs, Ask).
+
+table_file(F, Dir) ->
+    {ok,#file_info{mtime=Mtime,size=Sz}} =
+	file:read_file_info(filename:join(Dir, F)),
+    DateTime = lists:flatten(io_lib:format("~p", [Mtime])),
+    {{F,F},{Sz,integer_to_list(Sz)},{Mtime,DateTime}}.
 
 filename_dialog(_) ->
     Filename = code:which(?MODULE),
