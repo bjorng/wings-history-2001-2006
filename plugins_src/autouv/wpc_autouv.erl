@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.240 2004/05/13 08:57:43 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.241 2004/05/16 18:30:32 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -901,7 +901,7 @@ init_drawarea() ->
     
 cleanup_before_exit() ->
     wings:unregister_postdraw_hook(wings_wm:this(), ?MODULE),
-    wings_draw_util:delete_dlists().
+    wings_dl:delete_dlists().
 
 %% Generate a checkerboard image of 4x4 squares 
 %% with given side length in pixels.
