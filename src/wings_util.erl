@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.75 2003/07/21 14:56:51 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.76 2003/07/29 17:43:40 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -30,7 +30,8 @@
 	 init_gl_extensions/0,is_gl_ext/1,
 	 init_gl_restrictions/0,is_gl_restriction/1,
 	 geom_windows/0,
-	 tc/3,export_we/2,crash_log/2,validate/1,validate/3]).
+	 tc/3,export_we/2,crash_log/2,validate/1,validate/3,
+	 gl_error_string/1]).
 -export([check_error/2,dump_we/2]).
 
 -define(NEED_OPENGL, 1).
@@ -585,25 +586,26 @@ verify_vertex(V, Edge, #we{vc=Vct}=We) ->
 
 -ifdef(DEBUG).
 check_error(Mod, Line) ->
-    S = case gl:getError() of
-	    ?GL_INVALID_VALUE -> "GL_INVALID_VALUE";
-	    ?GL_INVALID_ENUM -> "GL_INVALID_ENUM";
-	    ?GL_INVALID_OPERATION -> "GL_INVALID_OPERATION";
-	    ?GL_STACK_OVERFLOW -> "GL_STACK_OVERFLOW";
-	    ?GL_STACK_UNDERFLOW -> "GL_STACK_UNDERFLOW";
-	    ?GL_OUT_OF_MEMORY -> "GL_OUT_OF_MEMORY";
-	    0 -> no_error
-	end,
-    case S of
-	no_error -> ok;
-	_Other ->
-	    io:format("~p, line ~p: ~s\n", [Mod,Line,S]),
+    case gl_error_string(gl:getError()) of
+	no_error ->
+	    ok;
+	Str ->
+	    io:format("~p, line ~p: ~s\n", [Mod,Line,Str]),
 	    erlang:fault(gl_error, [Mod,Line])
     end.
 -else.
 check_error(_Mod, _Line) ->
     ok.
 -endif.
+
+gl_error_string(0) -> no_error;
+gl_error_string(?GL_INVALID_VALUE) -> "GL_INVALID_VALUE";
+gl_error_string(?GL_INVALID_ENUM) -> "GL_INVALID_ENUM";
+gl_error_string(?GL_INVALID_OPERATION) -> "GL_INVALID_OPERATION";
+gl_error_string(?GL_STACK_OVERFLOW) -> "GL_STACK_OVERFLOW";
+gl_error_string(?GL_STACK_UNDERFLOW) -> "GL_STACK_UNDERFLOW";
+gl_error_string(?GL_OUT_OF_MEMORY) -> "GL_OUT_OF_MEMORY";
+gl_error_string(Error) -> "Error: "++integer_to_list(Error).
 
 crash(Reason, We) ->
     erlang:fault({crash,get(where),Reason}, [We]).
