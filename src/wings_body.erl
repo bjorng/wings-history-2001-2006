@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.40 2002/11/10 10:48:49 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.41 2002/11/10 10:56:43 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -130,7 +130,7 @@ cleanup_1([_|Opts], We) ->
 cleanup_1([], We) -> We.
 
 clean_isolated_vertices(We) ->
-    Isolated = gb_sets:to_list(wings_vertex:isolated(We)),
+    Isolated = wings_vertex:isolated(We),
     foldl(fun(V, W0) ->
 		  case wings_vertex:dissolve(V, W0) of
 		      error -> W0;

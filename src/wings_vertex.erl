@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.29 2002/11/10 10:36:42 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.30 2002/11/10 10:56:43 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -640,7 +640,7 @@ reachable_edges_1([], Etab, Ws, Reachable) ->
     reachable_edges(Ws, Etab, Reachable).
 
 %% isolated(We) -> GbSet
-%%  Returns a set containing all isolated vertices in We.
+%%  Returns a list containing all isolated vertices in We.
 
 isolated(#we{vs=Vtab}=We) ->
     Vs0 = foldl(fun(V, A) -> 
@@ -650,9 +650,8 @@ isolated(#we{vs=Vtab}=We) ->
     Fs0 = sofs:domain(Vs1),
     Fs = sofs:to_external(Fs0),
     StableFaces = sofs:set(stable_faces(Fs, We)),
-    Vs2 = sofs:image(Vs1, StableFaces),
-    Vs = sofs:to_external(Vs2),
-    gb_sets:from_ordset(Vs).
+    Vs = sofs:image(Vs1, StableFaces),
+    sofs:to_external(Vs).
 
 isolated_1(V, We, Acc) ->
     Fs = fold(fun(_, Face, _, A) ->
