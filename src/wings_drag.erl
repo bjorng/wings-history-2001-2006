@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.120 2003/01/01 15:32:24 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.121 2003/01/02 18:07:41 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -222,9 +222,10 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 %%%
 
 do_drag(Drag) ->
-    {_,X,Y} = sdl_mouse:getMouseState(),
+    {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0},
-    {seq,push,handle_drag_event_1(Ev, Drag#drag{x=X,y=Y})}.
+    {GX,GY} = wings_wm:local2global(X, Y),
+    {seq,push,handle_drag_event_1(Ev, Drag#drag{x=GX,y=GY})}.
 
 help_message(#drag{unit=Unit}=Drag) ->
     Msg = "[L] Accept  [R] Cancel",
@@ -352,7 +353,7 @@ invalidate_fun(#dlo{drag=none}=D, _) -> D;
 invalidate_fun(#dlo{src_we=We}=D, _) -> D#dlo{src_we=We#we{es=none}}.
     
 numeric_input(Drag0) ->
-    {_,X,Y} = sdl_mouse:getMouseState(),
+    {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0},
     wings_wm:set_me_modifiers(0),
     {Move0,Drag} = mouse_translate(Ev, Drag0),
