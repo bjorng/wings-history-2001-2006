@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.162 2003/10/12 06:35:58 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.163 2003/10/12 07:42:21 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -339,7 +339,13 @@ handle_drag_event(#mousebutton{button=3,state=?SDL_RELEASED,mod=Mod}=Ev,
 handle_drag_event(Event, Drag) ->
     case wings_camera:event(Event, fun() -> redraw(Drag) end) of
 	next -> handle_drag_event_0(Event, Drag);
-	Other -> Other
+	Other ->
+	    %% Clear any potential marker for an edge about to be
+	    %% cut (Cut RMB).
+	    wings_draw_util:map(fun(#dlo{hilite=none}=D, _) -> D;
+				   (D, _) -> D#dlo{hilite=none}
+				end, []),
+	    Other
     end.
 
 handle_drag_event_0(#keyboard{}=Ev, #drag{magnet=none}=Drag) ->
