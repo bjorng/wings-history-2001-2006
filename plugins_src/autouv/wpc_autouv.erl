@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.229 2004/05/06 05:13:52 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.230 2004/05/07 04:18:45 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -46,37 +46,27 @@ menu(_Dbg, Menu) ->
     Menu.
 
 command({body,?MODULE}, St) ->
-    ?DBG("Start shapes ~p~n",[gb_trees:keys(St#st.shapes)]), 
-    start_uvmap(St);
+    start_uvmap(segment, St);
 command(_, _) -> next.
 
 window(St) ->
-    start_uvmap(St).
+    start_uvmap(edit, St).
 
-start_uvmap(#st{sel=Sel}=St) ->
-    start_uvmap_1(Sel, St).
+start_uvmap(Action, #st{sel=Sel}=St) ->
+    start_uvmap_1(Sel, Action, St).
 
-start_uvmap_1([{Id,_}|T], St) ->
+start_uvmap_1([{Id,_}|T], Action, St) ->
     Name = {autouv,Id},
     case wings_wm:is_window(Name) of
 	true -> wings_wm:raise(Name);
-	false -> start_uvmap_2(Id, St)
+	false -> start_uvmap_2(Action, Name, Id, St)
     end,
-    start_uvmap_1(T, St);
-start_uvmap_1([], _) -> keep.
+    start_uvmap_1(T, Action, St);
+start_uvmap_1([], _, _) -> keep.
 
-start_uvmap_2(Id, #st{shapes=Shs}=St) ->
-    We = gb_trees:get(Id, Shs),
-    case wings_vertex:isolated(We) of
-	[] ->
-	    start_uvmap_3(Id, We, St);
-	[_|_] ->
-	    wpa:error("The model has isolated vertices. (Use the Cleanup command.)")
-    end.
-    
-start_uvmap_3(Id, #we{name=ObjName}=We, St) ->
+start_uvmap_2(Action, Name, Id, #st{shapes=Shs}=St) ->
+    #we{name=ObjName} = We = gb_trees:get(Id, Shs),
     Op = {push,fun(Ev) -> auv_event(Ev, St) end},
-    Name = {autouv,Id},
     Title = "AutoUV: " ++ ObjName,
     {X,Y,W,H} = init_drawarea(),
     Props = [{display_lists,Name}|wings_view:initial_properties()],
@@ -84,36 +74,30 @@ start_uvmap_3(Id, #we{name=ObjName}=We, St) ->
     wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H},
 		      [resizable,closable,menubar,{properties,Props},
 		       {toolbar,CreateToolbar}], Op),
-    wings_wm:send(Name, {init_uvmapping,We}).
+    wings_wm:send(Name, {init,{Action,We}}).
 
-auv_event({init_uvmapping,We}, St) ->
+auv_event({init,Op}, St) ->
     wings:init_opengl(St),
-    init_uvmapping(We, St);
-auv_event({discard_uvs,Id,#st{shapes=Shs}=St}, #st{shapes=ShsOrig}) ->
-    We = gb_trees:get(Id, Shs),
-    OrigWe = gb_trees:get(Id, ShsOrig),
-    auv_seg_ui:start(We, OrigWe, St);
-auv_event({uv_edit,{MatName,Faces,We}}, St) ->
-    do_edit(MatName, Faces, We, St);
+    case Op of
+	{edit,We} ->
+	    start_edit(We, St);
+	{segment,We} ->
+	    case wings_we:uv_mapped_faces(We) of
+		[] -> auv_seg_ui:start(We, We, St);
+		_Faces -> start_edit(We, St)
+	    end
+    end;
 auv_event({init_show_maps,Id,Map}, #st{shapes=Shs}=St) ->
     We = gb_trees:get(Id, Shs),
     init_show_maps(Map, We, St);
-auv_event({callback,Cb}, _) ->
-    Cb();
 auv_event(redraw, _) ->
     wings_wm:clear_background(),
     keep;
 auv_event(_Ev, _) -> keep.
 
 %%%
-%%% Start UV mapping. Always check if there are pre-existing UV coordinates.
+%%% Start the UV editor.
 %%%
-
-init_uvmapping(We, St) ->
-    case wings_we:uv_mapped_faces(We) of
-	[] -> auv_seg_ui:start(We, We, St);
-	_Faces -> start_edit(We, St)
-    end.
 
 start_edit(#we{fs=Ftab}=We, St) ->
     MatNames0 = wings_material:get_all(We),
@@ -133,8 +117,6 @@ start_edit(#we{fs=Ftab}=We, St) ->
 do_edit(MatName, Faces, We, St) ->
     Charts = init_edit(Faces, We),
     create_uv_state(Charts, MatName, We, St).
-
-%%%%%%
 
 init_show_maps(Map0, We, St) ->
     Map1 = auv_placement:place_areas(Map0),
