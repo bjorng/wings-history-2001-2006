@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.68 2004/03/08 13:26:22 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.69 2004/03/09 21:57:15 raimo_niskanen Exp $
 %%
 
 -module(wings_subdiv).
@@ -464,6 +464,7 @@ update_edges_1(_, #we{es=Etab,vp=Vtab}, all) ->
     Dl.
 
 smooth_we(#dlo{proxy_data=none,src_we=We}) -> We;
+smooth_we(#dlo{src_we=We}) when ?IS_ANY_LIGHT(We) -> We;
 smooth_we(#dlo{proxy_data=Pd0,src_we=We0}) ->
     case clean(Pd0) of
 	#sp{we=none} -> We0;
@@ -532,10 +533,12 @@ proxy_smooth(#we{es=Etab,he=Hard,mat=M,next_id=Next,mirror=Mirror}=We0,
     We = inc_smooth(We0, Pd),
     Pd#sp{src_we=We0,we=We};
 proxy_smooth(We0, Pd, St) ->
-    #we{fs=Ftab} = We = smooth(We0),
+    #we{fs=Ftab} = We = if ?IS_ANY_LIGHT(We0) -> We0;
+			   true -> smooth(We0) 
+			end,
     Plan = wings_draw_util:prepare(gb_trees:to_list(Ftab), We, St),
     Pd#sp{src_we=We0,we=We,plan=Plan}.
-    
+
 inc_smooth(#we{vp=Vp,next_id=Next}=We0, #sp{we=OldWe}) ->
     {Faces,Htab} = smooth_faces_htab(We0),
     FacePos0 = face_centers(Faces, We0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.42 2004/03/08 11:10:41 raimo_niskanen Exp $
+%%     $Id: wings_light.erl,v 1.43 2004/03/09 21:57:15 raimo_niskanen Exp $
 %%
 
 -module(wings_light).
@@ -848,14 +848,15 @@ move_light(Pos, #we{vp=Vtab0}=We) ->
     Vtab = gb_trees:from_orddict(Vtab1),
     We#we{vp=Vtab}.
 
-shape_materials(#light{diffuse=Color}, St) ->
-    Black = {0.0,0.0,0.0,1.0},
+shape_materials(#light{diffuse={_,_,_,Af}=Front,ambient={_,_,_,Ab}=Back}, St) ->
+    BlackF = {0.0,0.0,0.0,Af},
+    BlackB = {0.0,0.0,0.0,Ab},
     Default = 
-	sort([{opengl,sort([{diffuse,Black},{ambient,Black},{specular,Black},
-			    {emission,Color},{shininess,0.0}])},
+	sort([{opengl,sort([{diffuse,BlackF},{ambient,BlackF},{specular,BlackF},
+			    {emission,Front},{shininess,0.0}])},
 	      {maps,[]}]),
     Hole = 
-	 sort([{opengl,sort([{diffuse,Black},{ambient,Black},{specular,Black},
-			     {emission,Black},{shininess,0.0}])},
-	       {maps,[]}]),
+	sort([{opengl,sort([{diffuse,BlackB},{ambient,BlackB},{specular,BlackB},
+			    {emission,Back},{shininess,0.0}])},
+	      {maps,[]}]),
     wings_material:update_materials([{default,Default},{'_hole_',Hole}], St).
