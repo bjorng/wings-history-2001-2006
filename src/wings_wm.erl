@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.29 2002/12/01 11:21:22 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.30 2002/12/01 11:31:57 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -20,7 +20,7 @@
 	 callback/1,current_st/1,
 	 grab_focus/1,release_focus/0,has_focus/1,
 	 top_size/0,viewport/0,viewport/1,
-	 local2global/2,global2local/2,local_mouse_state/0,
+	 local2global/1,local2global/2,global2local/2,local_mouse_state/0,
 	 window_under/2,
 	 translation_change/0,me_modifiers/0,set_me_modifiers/1,
 	 draw_message/1,draw_completions/1]).
@@ -180,6 +180,14 @@ viewport(Name) ->
     {_,TopH} = get(wm_top_size),
     Y = TopH-(Y0+H),
     {X,Y,W,H}.
+
+local2global(#mousebutton{x=X0,y=Y0}=Ev) ->
+    {X,Y} = local2global(X0, Y0),
+    Ev#mousebutton{x=X,y=Y};
+local2global(#mousemotion{x=X0,y=Y0}=Ev) ->
+    {X,Y} = local2global(X0, Y0),
+    Ev#mousemotion{x=X,y=Y};
+local2global(Ev) -> Ev.
 
 local2global(X, Y) ->
     {_,TopH} = get(wm_top_size),
