@@ -3,12 +3,12 @@
 %%
 %%     This module contains the Extrude command for faces and face regions.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.7 2001/10/17 07:48:25 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.8 2002/04/02 18:44:40 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
@@ -84,7 +84,7 @@ inner_extrude_1([Edge|Es], PrevEdge, Face, Mat, Ids0, We0, EdgeAcc0) ->
 
     We = We0#we{fs=Ftab,es=Etab,vs=Vtab},
     inner_extrude_1(Es, Edge, Face, Mat, Ids, We, EdgeAcc);
-inner_extrude_1([], PrevEdge, Face, Mat, Ids, We, EdgeAcc) ->
+inner_extrude_1([], _PrevEdge, _Face, _Mat, _Ids, We, EdgeAcc) ->
     {We,EdgeAcc}.
 
 %%%
@@ -127,7 +127,7 @@ new_vertices(V, G, Edges, Faces, We0) ->
 	      case gb_sets:is_member(Edge, Edges) of
 		  true -> W0;
 		  false ->
-		      #edge{lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
+		      #edge{lf=Lf} = gb_trees:get(Edge, Etab),
 		      case gb_sets:is_member(Lf, Faces) of
 			  true ->
 			      {We,NewV} = wings_edge:fast_cut(Edge, Pos, W0),
@@ -144,7 +144,7 @@ get_edge_rec(Va, Vb, EdgeA, EdgeB, #we{es=Etab}) ->
     case gb_trees:get(EdgeA, Etab) of
 	#edge{vs=Va,ve=Vb}=Rec -> Rec;
 	#edge{vs=Vb,ve=Va}=Rec -> Rec;
-	Other -> gb_trees:get(EdgeB, Etab)
+	_Other -> gb_trees:get(EdgeB, Etab)
     end.
 
 digraph_edge(G, Faces, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
@@ -188,7 +188,7 @@ get_edge_chains(G) ->
 get_edge_chains(G, [V|Vs], Acc) ->
     Chain = collect_chain(G, V, []),
     get_edge_chains(G, Vs, [Chain|Acc]);
-get_edge_chains(G, [], Acc) -> Acc.
+get_edge_chains(_, [], Acc) -> Acc.
 
 collect_chain(G, {V,_}=Va, Acc) ->
     case digraph:out_neighbours(G, Va) of
@@ -196,8 +196,8 @@ collect_chain(G, {V,_}=Va, Acc) ->
 	[Vb] -> collect_chain(G, Vb, [V|Acc])
     end.
 
-connect_inner(Current0, [A|[B,C,_|_]=Next], We0) ->
-    {We,Current} = connect_one_inner(Current0, A, B, C, We0),
+connect_inner(Current0, [_|[B,_,_|_]=Next], We0) ->
+    {We,Current} = connect_one_inner(Current0, B, We0),
     connect_inner(Current, Next, We);
 connect_inner(Current, [_|[_,_]=Next], We) ->
     connect_inner(Current, Next, We);
@@ -206,23 +206,54 @@ connect_inner(Current, [_,Last], We0) ->
     {We,_} = wings_vertex:force_connect(Current, Last, Face, We0),
     We.
 
-connect_one_inner(Current, A, B, C, We0) ->
+connect_one_inner(Current, B, We0) ->
     Face = get_face(Current, B, We0),
     {We1,Edge} = wings_vertex:force_connect(Current, B, Face, We0),
     Pos = wings_vertex:pos(B, We1),
     wings_edge:fast_cut(Edge, Pos, We1).
 
 get_face(Va, Vb, We) ->
-    per_face([Va,Vb], We, []).
+    Vs = [Va,Vb],
+    per_face(Vs, Vs, We, []).
 
-per_face([V|Vs], We, Acc) ->
+per_face([V|Vs], OrigVs, We, Acc) ->
     Fs = wings_vertex:fold(
 	   fun(_, Face, _, A) ->
 		   [Face|A]
 	   end, [], V, We),
-    per_face(Vs, We, [Fs|Acc]);
-per_face([], We, Acc) ->
+    per_face(Vs, OrigVs, We, [Fs|Acc]);
+per_face([], OrigVs, We, Acc) ->
     R = sofs:from_term(Acc, [[face]]),
-    [Face] = sofs:to_external(sofs:intersection(R)),
-    Face.
+    case sofs:to_external(sofs:intersection(R)) of
+	[Face] -> Face;
+	Faces -> choose_face(Faces, OrigVs, We)
+    end.
 
+choose_face([Face|Faces], [Va,Vb], We) ->
+    D = vertex_dist(Face, Va, Vb, We),
+    choose_face_1(Faces, Va, Vb, We, D, Face).
+
+choose_face_1([Face|Faces], Va, Vb, We, OldDist, OldFace) ->
+    case vertex_dist(Face, Va, Vb, We) of
+	Dist when Dist < OldDist ->
+	    choose_face_1(Faces, Va, Vb, We, Dist, Face);
+	_Dist ->
+	    choose_face_1(Faces, Va, Vb, We, OldDist, OldFace)
+    end;
+choose_face_1([], _, _, _, _, Face) -> Face.
+
+vertex_dist(Face, Va, Vb, We) ->
+    NumVerts = wings_face:vertices(Face, We),
+    Iter0 = wings_face:iterator(Face, We),
+    Iter = wings_face:skip_to_cw(Va, Iter0),
+    vertex_dist_1(Iter, Vb, NumVerts, 1).
+
+vertex_dist_1(Iter0, V, NumVerts, D) ->
+    case wings_face:next_cw(Iter0) of
+	{V,_,_,_} ->
+	    if
+		D > NumVerts div 2 -> NumVerts-D;
+		true -> D
+	    end;
+	{_,_,_,Iter} -> vertex_dist_1(Iter, V, NumVerts, D+1)
+    end.
