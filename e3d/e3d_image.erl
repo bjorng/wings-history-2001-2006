@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.2 2001/10/19 19:46:29 bjorng Exp $
+%%     $Id: e3d_image.erl,v 1.3 2001/10/24 12:03:30 dgud Exp $
 %%
 
 -module(e3d_image).
@@ -20,6 +20,10 @@
 	 convert/2, convert/3, convert/4, 
 	 save/2, save/3,
 	 bytes_pp/1]).
+
+
+%% internal exports
+-export([noswap3/7, noswap4/7, swap3/7,swap4/7,swap3to4/7,swap4to3/7]).
 
 %% Func: load(FileName[, Options])  
 %% Args: FileName = [Chars], Options = [Tagged Tuple]
@@ -83,7 +87,7 @@ convert(In = #e3d_image{type = FromType, image = Image,
     TypeConv  = type_conv(FromType, ToType),
     OrderConv = order_conv(FromOrder, ToOrder),
     
-    New = swap(TypeConv, 0, W, Image, OldPaddLength, NewPadd, OrderConv, [[]]),    
+    New = ?MODULE:TypeConv(0, W, Image, OldPaddLength, NewPadd, OrderConv, [[]]),    
     In#e3d_image{image = New, type = ToType}.
 
 %% Func: bytes_pp(Type) 
@@ -127,33 +131,55 @@ fix_outtype(Res = #e3d_image{}, Opts) ->
 fix_outtype(Res, _) ->  %% Propagate Error Case
     Res.
 
+
+%-define(C3(A,B,C), A,B,C).
+%-define(C4(A,B,C,D), A,B,C,D). 
+-define(C3(A,B,C), [A,B,C]).
+-define(C4(A,B,C,D), [A,B,C,D]).   %% Seems faster if I make a binary of each row!!
+%-define(C3(A,B,C), <<A:8,B:8,C:8>>).
+%-define(C4(A,B,C,D), <<A:8,B:8,C:8,D:8>>).
+
 swap(Action, W, W, Bin, OPL, NP, {SC,SR}, [Row|Acc]) ->
     <<Skip:OPL/binary, Rest/binary>> = Bin,    
     NewRow = if 
-		 SR == true ->  [NP|Row];
-		 SR == false -> lists:reverse([NP|Row])
+		 SR == true ->  %[NP|Row];
+		     list_to_binary([NP|Row]);
+		 SR == false -> %lists:reverse([NP|Row])
+		     list_to_binary(lists:reverse([NP|Row]))
 	     end,
-    swap(Action, 0, W, Rest, OPL, NP, {SC,SR}, [[],NewRow|Acc]);
+    ?MODULE:Action(0, W, Rest, OPL, NP, {SC,SR}, [[],NewRow|Acc]);
 swap(_, _, _, <<>>, _, _, {SC,SR}, Acc) ->
     NewImage = 
 	if 
 	    SC == true -> Acc; 
 	    SC == false -> lists:reverse(Acc)
 	end,
-    list_to_binary(NewImage);
+    list_to_binary(NewImage).
 
-swap(3, C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) ->
-    swap(3, C+1, W, R, OPL, NP, OC,[[[B0,G0,R0]|Row]| Acc]);
-swap(4, C, W, <<B0:8,G0:8,R0:8, A0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) ->
-    swap(4, C+1, W, R, OPL, NP, OC,[[[B0,G0,R0,A0]|Row]| Acc]);
-swap(swap3, C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) ->
-    swap(swap3, C+1, W, R, OPL, NP, OC,[[[R0,G0,B0]|Row]| Acc]);
-swap(swap4, C, W, <<B0:8,G0:8,R0:8,A0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) ->
-    swap(swap4, C+1, W, R, OPL, NP, OC,[[[R0,G0,B0,A0]|Row]| Acc]);
-swap(swap4to3,  C, W, <<B0:8,G0:8,R0:8,A0:8, R/binary>>, OPL, NP, OC,[Row|Acc]) ->
-    swap(swap4to3, C+1, W, R, OPL, NP, OC,[[[R0,G0,B0]|Row]| Acc]);
-swap(swap3to4, C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) ->
-    swap(swap3to4, C+1, W, R, OPL, NP, OC,[[[R0,G0,B0,255]|Row]| Acc]).
+noswap3(C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) when C /= W ->
+    noswap3(C+1, W, R, OPL, NP, OC,[[?C3(B0,G0,R0)|Row]| Acc]);
+noswap3(C, W, Bin, OPL, NP, OC, Acc) ->
+    swap(noswap3, C, W, Bin, OPL, NP, OC, Acc).
+noswap4(C, W, <<B0:8,G0:8,R0:8,A0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) when C /= W ->
+    noswap4(C+1, W, R, OPL, NP, OC,[[?C4(B0,G0,R0,A0)|Row]| Acc]);
+noswap4(C, W, Bin, OPL, NP, OC, Acc) ->
+    swap(noswap4, C, W, Bin, OPL, NP, OC, Acc).
+swap3(C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) when C /= W->
+    swap3(C+1, W, R, OPL, NP, OC,[[?C3(R0,G0,B0)|Row]| Acc]);
+swap3(C, W, Bin, OPL, NP, OC, Acc) ->
+    swap(swap3, C, W, Bin, OPL, NP, OC, Acc).
+swap4(C, W, <<B0:8,G0:8,R0:8,A0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) when C /= W->
+    swap4(C+1, W, R, OPL, NP, OC,[[?C4(R0,G0,B0,A0)|Row]| Acc]);
+swap4(C, W, Bin, OPL, NP, OC, Acc) ->
+    swap(swap4, C, W, Bin, OPL, NP, OC, Acc).
+swap4to3(C, W, <<B0:8,G0:8,R0:8,A0:8, R/binary>>, OPL, NP, OC,[Row|Acc]) when C /= W->
+    swap4to3(C+1, W, R, OPL, NP, OC,[[?C3(R0,G0,B0)|Row]| Acc]);
+swap4to3(C, W, Bin, OPL, NP, OC, Acc) ->
+    swap(swap4to3, C, W, Bin, OPL, NP, OC, Acc).
+swap3to4(C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) when C /= W ->
+    swap3to4( C+1, W, R, OPL, NP, OC,[[?C4(R0,G0,B0,255)|Row]| Acc]);
+swap3to4(C, W, Bin, OPL, NP, OC, Acc) ->
+    swap(swap3to4, C, W, Bin, OPL, NP, OC, Acc).
 
 %fix_alignment(<<>>, RL, OldP, NewP, Acc) ->
 %    list_to_binary(lists:reverse(Acc));
@@ -162,7 +188,10 @@ swap(swap3to4, C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, [Row|Acc]) ->
 %    fix_alignment(Rest, RL, OldP, NewP, [NewP, Row | Acc]).
 
 type_conv(Type, Type) ->  %% No swap
-    bytes_pp(Type);
+    case bytes_pp(Type) of
+	3 -> noswap3;
+	4 -> noswap4
+    end;
 type_conv(FromType, ToType) ->
     case {bytes_pp(FromType), bytes_pp(ToType)} of
 	{3,3} -> swap3;
