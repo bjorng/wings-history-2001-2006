@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.40 2001/11/12 19:28:45 bjorng Exp $
+%%     $Id: wings.erl,v 1.41 2001/11/14 10:08:22 bjorng Exp $
 %%
 
 -module(wings).
@@ -43,6 +43,7 @@ init() ->
     end.
 
 init_1() ->
+    {ok,Cwd} = file:get_cwd(),
     wings_plugin:init(),
     sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER),
     Icon = locate("wings.icon"),
@@ -90,6 +91,7 @@ init_1() ->
     wings_file:finish(),
     wings_pref:finish(),
     sdl:quit(),
+    ok = file:set_cwd(Cwd),
     ok.
 
 locate(Name) ->
@@ -570,7 +572,7 @@ menu(X, Y, select, St) ->
 			   {{"2 edges",2},
 			    {"3 edges",3},
 			    {"4 edges",4},
-			    {"5 or more edges",5}}}},
+			    {"5 or more edges","F5",5}}}},
 	    {"Material",{material,materials(St)}},
 	    {"Random",{random,{{"10%",10},
 			       {"20%",20},
@@ -1001,6 +1003,7 @@ translate_key(Sym, Mod, C, St)
 	?SDLK_KP_MINUS -> minus(St);
 	?SDLK_F3 -> {select,prev_edge_loop};
 	?SDLK_F4 -> {select,next_edge_loop};
+	?SDLK_F5 -> {select,{faces_with,5}};
 	_ -> translate_key(C, St)
     end;
 translate_key(_, _, _, St) -> ignore.
