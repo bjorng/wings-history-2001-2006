@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.99 2003/10/30 14:42:55 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.100 2003/10/30 14:43:34 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -57,7 +57,7 @@ do_ask({Do,Done,Flags,Modes}, St, Cb) ->
 do_ask_1(_, [], Res, _, _, Cb) ->
     wings_wm:later(build_result(Res, Cb)),
     keep;
-do_ask_1(Modes, Do0, Done, Flags, #st{selmode=Mode}=St, Cb) ->
+do_ask_1(Modes, Do0, Done, Flags, St, Cb) ->
     Do = add_help_text(Do0),
     Mag = member(magnet, Flags),
     Ss = #ss{cb=Cb,mag=Mag,selmodes=Modes,f=fun(_, _) -> keep end},
