@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.173 2004/03/23 19:29:44 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.174 2004/03/24 05:39:47 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -30,8 +30,6 @@
 	 dyn_vs,
 	 dyn_faces,
 	 dyn_plan,				%Plan for drawing dynamic faces.
-	 v2f=none,				%Vertex => face
-	 f2v=none,				%Face => vertex
 	 orig_ns,
 	 orig_we
 	}).
@@ -123,6 +121,8 @@ sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
 sel_fun(D, Sel, _) ->
     {D#dlo{sel=none,src_sel=none},Sel}.
 
+changed_we(#dlo{ns={_}=Ns}, D) ->
+    D#dlo{ns=Ns};
 changed_we(#dlo{ns=Ns}, D) ->
     D#dlo{ns={Ns}}.
 
@@ -316,11 +316,10 @@ make_edge_dl(Faces, #dlo{ns=Ns}) ->
     gl:endList(),
     Dl.
 
-make_edge_dl_1(Faces, Ns) ->
-    case sofs:is_sofs_set(Faces) of
-	false -> make_edge_dl_2(gb_trees:keys(Faces), Ns, none);
-	true -> make_edge_dl_2(sofs:to_external(Faces), Ns, none)
-    end.
+make_edge_dl_1([_|_]=Fs, Ns) ->
+    make_edge_dl_2(Fs, Ns, none);
+make_edge_dl_1(Fs, Ns) ->
+    make_edge_dl_2(gb_trees:keys(Fs), Ns, none).
 
 make_edge_dl_2([F|Fs], Ns, Mode) ->
     case gb_trees:get(F, Ns) of
@@ -529,97 +528,59 @@ split(#dlo{ns={Ns}}=D, Vs, St) ->
     split_1(D#dlo{ns=Ns}, Vs, St);
 split(D, Vs, St) -> split_1(D, Vs, St).
 
-split_1(#dlo{split=#split{orig_we=#we{}=We,orig_ns=Ns}=Split}=D, Vs, St) ->
-    split(D#dlo{src_we=We,ns=Ns}, Split, Vs, update_materials(D, St));
+split_1(#dlo{split=#split{orig_we=#we{}=We,orig_ns=Ns}}=D, Vs, St) ->
+    split_2(D#dlo{src_we=We,ns=Ns}, Vs, update_materials(D, St));
 split_1(D, Vs, St) ->
-    split(D, #split{dyn_faces=sofs:set([], [face])}, Vs, 
-	  update_materials(D, St)).
+    split_2(D, Vs, update_materials(D, St)).
 
-split(#dlo{src_we=#we{fs=Ftab}=We}=D, #split{v2f=none}=Split, Vs, St) ->
+split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
+	     proxy_data=Pd,ns=Ns0}=D, Vs0, St) ->
     %% Efficiency note: Looping over the face table is slower than
     %% looping over the edge table, but sofs:relation/2 will be
     %% considerable faster, because an edge table loop will construct
     %% a list that is twice as long (with duplicates).
     F2V0 = wings_face:fold_faces(fun(F, V, _, _, A) ->
 					 [{F,V}|A]
-				 end, [], gb_trees:keys(Ftab), We),
+				 end, [], gb_trees:keys(Ftab0), We),
     F2V = sofs:relation(F2V0, [{face,vertex}]),
     V2F = sofs:converse(F2V),
-    split(D, Split#split{v2f=V2F,f2v=F2V}, Vs, St);
-split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,proxy_data=Pd,ns=Ns0}=D,
-      #split{v2f=V2F,f2v=F2V,dyn_faces=Faces0}=Split0, Vs0, St) ->
     Vs = sofs:set(Vs0, [vertex]),
-    Faces1 = sofs:image(V2F, Vs),
+    Faces0 = sofs:image(V2F, Vs),
+    AllVs = sofs:image(F2V, Faces0),
     Ftab = sofs:from_external(gb_trees:to_list(Ftab0), [{face,data}]),
-    Faces = case sofs:is_subset(Faces1, Faces0) of
-		true ->
-		    FtabDyn0 = sofs:restriction(Ftab, Faces0),
-		    case D#dlo.work of
-			[Work|_] -> Faces0;
-			{call,_,_}=Work -> Faces0;
-			Work when is_integer(Work) -> Faces0
-		    end;
-		false ->
-		    {FtabDyn0,StaticFtab0} = sofs:partition(1, Ftab, Faces1),
-		    StaticFtab = sofs:to_external(StaticFtab0),
-		    Work = draw_faces(StaticFtab, D, St),
-		    Faces1
-	    end,
-    StaticEdgeDl = make_static_edges(Faces, Ftab, D),
-    AllVs = sofs:image(F2V, Faces),
-    
+    {Work,FtabDyn} = split_faces(D, Ftab, Faces0, St),
+
+    StaticEdgeDl = make_static_edges(Faces0, Ftab, D),
     {DynVs,VsDlist} = split_vs_dlist(AllVs, Sel, We),
 
-    FtabDyn = sofs:to_external(FtabDyn0),
     WeDyn = wings_material:cleanup(We#we{fs=gb_trees:from_orddict(FtabDyn)}),
 
+    Faces = sofs:to_external(Faces0),
     StaticVs0 = sofs:to_external(sofs:difference(AllVs, Vs)),
     StaticVs = sort(insert_vtx_data(StaticVs0, We#we.vp, [])),
     DynPlan = wings_draw_util:prepare(FtabDyn, We, St),
-    Split = Split0#split{static_vs=StaticVs,dyn_vs=DynVs,
-			 dyn_faces=Faces,dyn_plan=DynPlan,
-			 orig_ns=Ns0,orig_we=We},
-    #dlo{work=[Work],edges=[StaticEdgeDl],mirror=M,vs=VsDlist,
+    Split = #split{static_vs=StaticVs,dyn_vs=DynVs,
+		   dyn_faces=Faces,dyn_plan=DynPlan,
+		   orig_ns=Ns0,orig_we=We},
+    #dlo{work=Work,edges=[StaticEdgeDl],mirror=M,vs=VsDlist,
 	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd}.
 
-original_we(#dlo{split=#split{orig_we=We}}) -> We;
-original_we(#dlo{src_we=We}) -> We.
-
-update_dynamic(#dlo{work=[_|_],src_we=We}=D, Vtab) when ?IS_LIGHT(We) ->
-    wings_light:update_dynamic(D, Vtab);
-update_dynamic(#dlo{work=[Work|_],vs=VsList0,
-		    src_we=We0,split=Split}=D0, Vtab0) ->
-    #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_plan=DynPlan} = Split,
-    Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
-    We = We0#we{vp=Vtab},
-    D1 = D0#dlo{src_we=We},
-    D2 = changed_we(D0, D1),
-    D = update_normals(D2),
-    Dl = draw_faces(DynPlan, D),
-    VsList = update_dynamic_vs(VsList0, DynVs, We),
-    update_dynamic_1(D#dlo{work=[Work,Dl],vs=VsList,src_we=We}).
-
-update_dynamic_1(#dlo{edges=[StaticEdge|_],split=#split{dyn_faces=Faces}}=D) ->
-    EdgeDl = make_edge_dl(Faces, D),
-    D#dlo{edges=[StaticEdge,EdgeDl]}.
+split_faces(#dlo{needed=Need}=D, Ftab, Faces, St) ->
+    case member(work, Need) of
+	false ->
+	    FtabDyn = sofs:to_external(sofs:restriction(Ftab, Faces)),
+	    {none,FtabDyn};
+	true ->
+	    {FtabDyn0,StaticFtab0} = sofs:partition(1, Ftab, Faces),
+	    FtabDyn = sofs:to_external(FtabDyn0),
+	    StaticFtab = sofs:to_external(StaticFtab0),
+	    {[draw_faces(StaticFtab, D, St)],FtabDyn}
+    end.
 
 make_static_edges(DynFaces, DynFtab, D) ->
-    Ftab = sofs:difference(sofs:domain(DynFtab), DynFaces),
+    Ftab0 = sofs:difference(sofs:domain(DynFtab), DynFaces),
+    Ftab = sofs:to_external(Ftab0),
     make_edge_dl(Ftab, D).
-
-update_dynamic_vs(VsList, none, _) -> VsList;
-update_dynamic_vs([Static|_], DynVs, #we{vp=Vtab}) ->
-    UnselDlist = gl:genLists(1),
-    gl:newList(UnselDlist, ?GL_COMPILE),
-    gl:pointSize(wings_pref:get_value(vertex_size)),
-    gl:color3b(0, 0, 0),
-    gl:'begin'(?GL_POINTS),
-    foreach(fun(V) ->
-		    gl:vertex3fv(gb_trees:get(V, Vtab))
-	    end, DynVs),
-    gl:'end'(),
-    gl:endList(),
-    [Static,UnselDlist].
 
 insert_vtx_data([V|Vs], Vtab, Acc) ->
     insert_vtx_data(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
@@ -651,8 +612,54 @@ split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
 	    {UnselDyn,[UnselDlist]}
     end;
 split_vs_dlist(_, _, _) -> {none,none}.
+    
+original_we(#dlo{split=#split{orig_we=We}}) -> We;
+original_we(#dlo{src_we=We}) -> We.
 
-%% Re-join display lists that have been split.
+%%%
+%%% Updating of the dynamic part of a split dlist.
+%%%
+
+update_dynamic(#dlo{src_we=We}=D, Vtab) when ?IS_LIGHT(We) ->
+    wings_light:update_dynamic(D, Vtab);
+update_dynamic(#dlo{src_we=We0,split=#split{static_vs=StaticVs}}=D0, Vtab0) ->
+    Vtab = gb_trees:from_orddict(merge([sort(Vtab0),StaticVs])),
+    We = We0#we{vp=Vtab},
+    D1 = D0#dlo{src_we=We},
+    D2 = changed_we(D0, D1),
+    D3 = update_normals(D2),
+    D4 = dynamic_faces(D3),
+    D = dynamic_edges(D4),
+    dynamic_vs(D).
+
+dynamic_faces(#dlo{work=[Work|_],split=#split{dyn_plan=DynPlan}}=D) ->
+    Dl = draw_faces(DynPlan, D),
+    D#dlo{work=[Work,Dl]};
+dynamic_faces(#dlo{work=none}=D) -> D.
+
+dynamic_edges(#dlo{edges=[StaticEdge|_],split=#split{dyn_faces=Faces}}=D) ->
+    EdgeDl = make_edge_dl(Faces, D),
+    D#dlo{edges=[StaticEdge,EdgeDl]}.
+
+dynamic_vs(#dlo{split=#split{dyn_vs=none}}=D) -> D;
+dynamic_vs(#dlo{src_we=#we{vp=Vtab},vs=[Static|_],
+		split=#split{dyn_vs=DynVs}}=D) ->
+    UnselDlist = gl:genLists(1),
+    gl:newList(UnselDlist, ?GL_COMPILE),
+    gl:pointSize(wings_pref:get_value(vertex_size)),
+    gl:color3b(0, 0, 0),
+    gl:'begin'(?GL_POINTS),
+    foreach(fun(V) ->
+		    gl:vertex3fv(gb_trees:get(V, Vtab))
+	    end, DynVs),
+    gl:'end'(),
+    gl:endList(),
+    D#dlo{vs=[Static,UnselDlist]}.
+
+%%%
+%%% Re-joining of display lists that have been split.
+%%%
+
 join(#dlo{src_we=#we{vp=Vtab0},ns=Ns1,split=#split{orig_we=We0,orig_ns=Ns0}}=D) ->
     #we{vp=OldVtab} = We0,
 
