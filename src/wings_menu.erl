@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.27 2002/02/05 08:57:56 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.28 2002/02/11 20:05:30 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -126,8 +126,6 @@ normalize_menu([Elem0|Els], Hotkeys, Adv, Acc) ->
 		    {S,Name,[],Help,Ps};
 		{S,Name,[C|_]=Help} when is_integer(C) ->
 		    {S,Name,[],Help,[]};
-		{S,{Name},Ps} ->
-		    {S,Name,[],[],[hotbox|Ps]};
 		{S,Name,Ps} ->
 		    {S,Name,[],[],Ps};
 		{S,Name} ->
@@ -137,6 +135,12 @@ normalize_menu([Elem0|Els], Hotkeys, Adv, Acc) ->
 		    separator
 	    end,
     Elem = case keysearch(Name, 1, Hotkeys) of
+	       false when Hotkeys =/= [], is_function(Name) ->
+		   RealName = Name(1, []),
+		   case keysearch(RealName, 1, Hotkeys) of
+		       false -> Elem1;
+		       {value,{_,Hotkey}} -> setelement(3, Elem1, Hotkey)
+		   end;
 	       false -> Elem1;
 	       {value,{_,Hotkey}} -> setelement(3, Elem1, Hotkey)
 	   end,
@@ -280,6 +284,8 @@ current_command(#mi{sel=Sel,menu=Menu,ns=Names}) ->
     case element(Sel, Menu) of
 	{_,Name,_,_,_} when is_atom(Name) ->
 	    build_command(Name, Names);
+	{_,Fun,_,_,_} when is_function(Fun) ->
+	    Fun(1, Names);
 	Other -> none
     end.
 
