@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.3 2002/08/09 06:12:58 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.4 2002/08/10 17:14:10 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -29,7 +29,7 @@
 	 diffuse={1.0,1.0,1.0,1.0},
 	 ambient={0.0,0.0,0.0,1.0},
 	 specular={1.0,1.0,1.0,1.0},
-	 spot_aim,
+	 aim,					%Aim point for spot/infinite.
 	 spot_angle
 	}).
 
@@ -41,6 +41,8 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Position Highlight",position_fun()},
 	    separator,
+	    {"Spot Angle",spot_angle},
+	    separator,
 	    {"Edit Properties",edit}],
     wings_menu:popup_menu(X, Y, light, Menu).
 
@@ -48,6 +50,8 @@ command({move,Type}, St) ->
     wings_move:setup(Type, St);
 command({position_highlight,{Mode,Sel}}, St) ->
     position_highlight(Mode, Sel, St);
+command(spot_angle, St) ->
+    spot_angle(St);
 command(edit, St) ->
     edit(St);
 command(color, St) ->
@@ -93,14 +97,39 @@ position_highlight(Mode, Sel, St) ->
 
 position_highlight_1(Center, #we{light=L0}=We) ->
     case L0 of
-	#light{type=spot} ->
-	    L = L0#light{spot_aim=Center},
-	    We#we{light=L};
 	#light{type=point} ->
 	    move_light(Center, We);
-	#light{type=infinite} ->
-	    We
+	_ ->
+	    L = L0#light{aim=Center},
+	    We#we{light=L}
     end.
+
+spot_angle(St) ->
+    Drag = wings_sel:fold(
+	     fun(_, #we{id=Id,light=L}=We, none) when ?IS_LIGHT(We) ->
+		     case L of
+			 #light{type=spot,spot_angle=SpotAngle} ->
+			     SpotFun = fun spot_angle/2,
+			     Tvs = {general,[{Id,SpotFun}]},
+			     Flags = [{initial,[SpotAngle,0,0]}],
+			     {Tvs,[{angle,{0.1,89.9}}],Flags};
+			 _ ->
+			     wings_util:error("Not a spotlight.")
+		     end;
+		(_, We, _) when ?IS_LIGHT(We) ->
+		     wings_util:error("Select only one spotlight.");
+		(_, _, A) -> A
+	     end, none, St),
+    case Drag of
+	none -> St;
+	{Tvs,Units,Flags} ->
+	    wings_drag:setup(Tvs, Units, Flags, St)
+    end.
+
+spot_angle([Angle|_], #dlo{src_we=#we{light=L0}=We0}=D) ->
+    L = L0#light{spot_angle=Angle},
+    We = We0#we{light=L},
+    update(D#dlo{work=none,src_we=We}).
     
 is_any_light_selected(#st{sel=Sel,shapes=Shs}) ->
     is_any_light_selected(Sel, Shs).
@@ -137,7 +166,8 @@ edit(#st{sel=[{Id,_}],shapes=Shs}=St) ->
 edit(_) -> wings_util:error("Select only one light.").
 
 qs_specific(#light{type=spot,spot_angle=Angle}) ->
-    [{label,"Spot Angle"},{slider,{text,Angle,[{range,{0.0,85.0}}]}}].
+    [{label,"Spot Angle"},{slider,{text,Angle,[{range,{0.0,85.0}}]}}];
+qs_specific(_) -> [].
     
 edit_specific([Angle], #light{type=spot}=L) ->
     L#light{spot_angle=Angle};
@@ -152,13 +182,13 @@ create(infinite, St) ->
 create(point, St) ->
     build("point", #light{type=point}, St);
 create(spot, St) ->
-    build("spot", #light{type=spot,spot_aim={0.0,0.0,0.0},spot_angle=40.0}, St).
+    build("spot", #light{type=spot,spot_angle=40.0}, St).
 
 build(Prefix, L, #st{onext=Oid}=St) ->
     Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
     Vs = lists:duplicate(8, {0.0,3.0,0.0}),
     We0 = wings_we:build(Fs, Vs),
-    We = We0#we{light=L},
+    We = We0#we{light=L#light{aim={0.0,0.0,0.0}}},
     Name = Prefix++integer_to_list(Oid),
     wings_shape:new(Name, We, St).
 
@@ -187,19 +217,19 @@ update_1(Type, We, #dlo{src_sel=SrcSel}) ->
     gl:endList(),
     List.
     
-update_2(infinite, Selected, We) ->
+update_2(infinite, Selected, #we{light=#light{aim=Aim}}=We) ->
     gl:lineWidth(1),
-    LineCol = set_light_col(Selected, We),
+    set_light_col(We),
     gl:pushMatrix(),
-    {X,Y,Z} = light_pos(We),
+    {X,Y,Z} = Pos = light_pos(We),
     gl:translatef(X, Y, Z),
     Obj = glu:newQuadric(),
     glu:quadricDrawStyle(Obj, ?GLU_FILL),
     glu:quadricNormals(Obj, ?GLU_SMOOTH),
-    glu:sphere(Obj, 0.05, 25, 25),
+    glu:sphere(Obj, 0.08, 25, 25),
     glu:deleteQuadric(Obj),
-    Vec = e3d_vec:norm(-X, -Y, -Z),
-    gl:color3fv(LineCol),
+    Vec = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
+    set_sel_color(Selected),
     gl:'begin'(?GL_LINES),
     gl:vertex3fv(e3d_vec:mul(Vec, 0.2)),
     gl:vertex3fv(e3d_vec:mul(Vec, 0.6)),
@@ -207,16 +237,16 @@ update_2(infinite, Selected, We) ->
     gl:popMatrix();
 update_2(point, Selected, We) ->
     gl:lineWidth(1),
-    LineCol = set_light_col(Selected, We),
+    set_light_col(We),
     gl:pushMatrix(),
     {X,Y,Z} = light_pos(We),
     gl:translatef(X, Y, Z),
     Obj = glu:newQuadric(),
     glu:quadricDrawStyle(Obj, ?GLU_FILL),
     glu:quadricNormals(Obj, ?GLU_FLAT),
-    glu:sphere(Obj, 0.05, 25, 25),
+    glu:sphere(Obj, 0.08, 25, 25),
     glu:deleteQuadric(Obj),
-    gl:color3fv(LineCol),
+    set_sel_color(Selected),
     gl:'begin'(?GL_LINES),
     lines({1.0,0.0,0.0}),
     lines({0.0,1.0,0.0}),
@@ -226,29 +256,27 @@ update_2(point, Selected, We) ->
     lines({0.0,0.71,0.71}),
     gl:'end'(),
     gl:popMatrix();
-update_2(spot, Selected, #we{light=L}=We) ->
+update_2(spot, Selected, #we{light=#light{aim=Aim,spot_angle=Angle}}=We) ->
     gl:lineWidth(1),
-    #light{diffuse=Diff,spot_aim=Aim,spot_angle=Angle} = L,
-    case Selected of
-	false -> gl:color4fv(Diff);
-	true ->  gl:color3fv(wings_pref:get_value(selected_color))
-    end,
+    set_light_col(We),
     gl:pushMatrix(),
-
     Obj = glu:newQuadric(),
     {Tx,Ty,Tz} = Top = light_pos(We),
     gl:translatef(Tx, Ty, Tz),
     glu:quadricDrawStyle(Obj, ?GLU_FILL),
     glu:quadricNormals(Obj, ?GLU_SMOOTH),
-    glu:sphere(Obj, 0.05, 25, 25),
-
-    {Dx,Dy,Dz} = SpotDir = e3d_vec:norm(e3d_vec:sub(Aim, Top)),
+    glu:sphere(Obj, 0.08, 25, 25),
+    set_sel_color(Selected),
+    SpotDir = e3d_vec:norm(e3d_vec:sub(Aim, Top)),
+    Rad = 3.1416*Angle/180,
+    R = math:sin(Rad),
+    H = math:cos(Rad),
+    {Dx,Dy,Dz} = e3d_vec:mul(SpotDir, H),
     gl:translatef(Dx, Dy, Dz),
     Rot = e3d_mat:expand(e3d_mat:rotate_s_to_t({0.0,0.0,1.0}, e3d_vec:neg(SpotDir))),
     gl:multMatrixd(Rot),
     glu:quadricDrawStyle(Obj, ?GLU_LINE),
-    R = math:sin(3.1416*Angle/180),
-    glu:cylinder(Obj, R, 0, 1, 12, 1),
+    glu:cylinder(Obj, R, 0.08, H, 12, 1),
     glu:deleteQuadric(Obj),
     gl:popMatrix().
 
@@ -258,16 +286,11 @@ lines(Vec) ->
     gl:vertex3fv(e3d_vec:mul(Vec, -0.2)),
     gl:vertex3fv(e3d_vec:mul(Vec, -0.6)).
 
-set_light_col(Selected, #we{light=#light{diffuse=Diff}}) ->
-    case Selected of
-	false ->
-	    gl:color4fv(Diff),
-	    {0,0,1};
-	true ->
-	    SelCol = wings_pref:get_value(selected_color),
-	    gl:color3fv(SelCol),
-	    SelCol
-    end.
+set_light_col(#we{light=#light{diffuse=Diff}}) ->
+    gl:color4fv(Diff).
+
+set_sel_color(false) -> gl:color3f(0, 0, 1);
+set_sel_color(true) -> gl:color3fv(wings_pref:get_value(selected_color)).
     
 render(#dlo{work=Light}) ->
     wings_draw_util:call(Light).
@@ -327,23 +350,27 @@ scene_lights_fun(#dlo{src_we=#we{light=L}=We}, Lnum) ->
     gl:enable(Lnum),
     Lnum+1.
     
-setup_light(Lnum, #light{type=infinite,diffuse=Diff}, We) ->
-    {X,Y,Z} = e3d_vec:norm(light_pos(We)),
-    gl:lightfv(Lnum, ?GL_DIFFUSE, Diff),
-    gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,0});
-setup_light(Lnum, #light{type=point,diffuse=Diff}, We) ->
+setup_light(Lnum, #light{type=infinite,aim=Aim}=L, We) ->
+    {X,Y,Z} = e3d_vec:norm(e3d_vec:sub(light_pos(We), Aim)),
+    gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,0}),
+    setup_color(Lnum, L);
+setup_light(Lnum, #light{type=point}=L, We) ->
     {X,Y,Z} = light_pos(We),
-    gl:lightfv(Lnum, ?GL_DIFFUSE, Diff),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
-    gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 180.0);
-setup_light(Lnum, #light{type=spot}=L, We) ->
-    #light{diffuse=Diff,spot_angle=SpotAngle,spot_aim=Aim} = L,
+    gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 180.0),
+    setup_color(Lnum, L);
+setup_light(Lnum, #light{type=spot,spot_angle=SpotAngle,aim=Aim}=L, We) ->
     Pos = {X,Y,Z} = light_pos(We),
     Dir = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
-    gl:lightfv(Lnum, ?GL_DIFFUSE, Diff),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, SpotAngle),
-    gl:lightfv(Lnum, ?GL_SPOT_DIRECTION, Dir).
+    gl:lightfv(Lnum, ?GL_SPOT_DIRECTION, Dir),
+    setup_color(Lnum, L).
+
+setup_color(Lnum, #light{diffuse=Diff,ambient=Amb,specular=Spec}) ->
+    gl:lightfv(Lnum, ?GL_DIFFUSE, Diff),
+    gl:lightfv(Lnum, ?GL_AMBIENT, Amb),
+    gl:lightfv(Lnum, ?GL_SPECULAR, Spec).
 
 light_pos(#we{vs=Vtab}) ->
     #vtx{pos=Pos} = gb_trees:get(1, Vtab),
