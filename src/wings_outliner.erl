@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.33 2003/03/12 10:04:22 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.34 2003/04/18 07:33:31 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -95,6 +95,13 @@ event(#mousebutton{button=4,state=?SDL_RELEASED}, Ost) ->
     zoom_step(-1*lines(Ost) div 4, Ost);
 event(#mousebutton{button=5,state=?SDL_RELEASED}, Ost) ->
     zoom_step(lines(Ost) div 4, Ost);
+event(#mousebutton{y=Y,button=2,state=?SDL_PRESSED}=Ev, #ost{os=Objs}=Ost) ->
+    case active_object(Y, Ost) of
+	-1 -> keep;
+	Act ->
+	    drag_and_drop(Ev, lists:nth(Act+1, Objs)),
+	    get_event(Ost#ost{active=Act})
+    end;
 event(#mousebutton{}=Ev, #ost{st=St,active=Act}=Ost) ->
     case wings_menu:is_popup_event(Ev) of
 	no -> keep;
@@ -274,6 +281,16 @@ refresh_image(_) ->
 make_internal(Id) ->
     wings_image:update_filename(Id, none),
     keep.
+
+drag_and_drop(Ev, What) ->
+    DropData = drop_data(What),
+    {W,_} = wings_wm:win_size(),
+    wings_wm:drag(Ev, {W-4,?LINE_HEIGHT}, DropData).
+    
+drop_data({object,Id,_}) -> {object,Id};
+drop_data({light,Id,_}) -> {light,Id};
+drop_data({image,Id,Info}) -> {image,Id,Info};
+drop_data({material,Name,_,_}) -> {material,Name}.
 
 %%%
 %%% Updating the state.

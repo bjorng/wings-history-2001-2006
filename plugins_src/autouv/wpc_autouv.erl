@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.106 2003/03/12 08:37:09 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.107 2003/04/18 07:33:29 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -443,10 +443,6 @@ gen_edit_event(MatName, Faces, We) ->
     Act = {action,{body,{?MODULE,do_edit,{We,MatName,Faces}}}},
     wings_wm:send(geom, Act),
     ignore.
-
-
-%St = discard_uvmap(We, St0),
-%wings_wm:send(geom, {new_state,St}),
 
 discard_uvmap(#we{fs=Ftab}=We0, St) ->
     Faces = gb_trees:keys(Ftab),
@@ -951,18 +947,8 @@ option_menu() ->
     [separator,
      {"Draw Options", edge_options, "Edit draw options"},
      separator,
-     {"Export", export, "Export texture"},
-     {"Import", 
-      {import, [{"File", file, "Import texture from file"},
-		separator,
-		{"Checkerboard", checkerboard, "Generate checkerboard texture"},
-		{"Vertical Bars", vertical_bars, 
-		 "Generate vertical bars texture"},
-		{"Horizontal Bars", horizontal_bars, 
-		 "Generate horizontal bars texture"},
-		{"White", all_white, "Generate white texture"},
-		{"Black", all_black, "Generate black texture"}]}, 
-      "Import texture"},
+     {"Export",export,"Export texture"},
+     {"Import",import,"Import texture from file"},
      separator,
      {"Apply Texture", apply_texture, "Attach the current texture to the model"},
      separator,
@@ -1137,6 +1123,8 @@ handle_event(#keyboard{state=?SDL_PRESSED,keysym=Sym},
 	    import_file(default, Uvs0); 
 	_ ->  keep
     end;
+handle_event({drop,_,DropData}, Uvs) ->
+    handle_drop(DropData, Uvs);
 handle_event({action,{auv,export}}, Uvs0) ->
     Ps = tga_prop(),
     case wpa:export_filename(Ps, #st{}) of
@@ -1152,7 +1140,7 @@ handle_event({action,{auv,export}}, Uvs0) ->
 		    wings_util:message("Export failed: " ++ Error)
 	    end
     end;
-handle_event({action,{auv,{import,file}}}, Uvs0) ->
+handle_event({action,{auv,import}}, Uvs0) ->
     Ps = [{extensions,wpa:image_formats()}],
     case wpa:import_filename(Ps) of
 	aborted -> 
@@ -1160,16 +1148,6 @@ handle_event({action,{auv,{import,file}}}, Uvs0) ->
 	FileName ->
 	    ?SLOW(import_file(FileName, Uvs0))
     end;
-handle_event({action,{auv,{import,checkerboard}}}, Uvs) ->
-    set_texture_image(fun checkerboard/2, Uvs);
-handle_event({action,{auv,{import,vertical_bars}}}, Uvs) ->
-    set_texture_image(fun vertical_bars/2, Uvs);
-handle_event({action,{auv,{import,horizontal_bars}}}, Uvs) ->
-    set_texture_image(fun horizontal_bars/2, Uvs);
-handle_event({action,{auv,{import,all_white}}}, Uvs) ->
-    set_texture_image(fun all_white/2, Uvs);
-handle_event({action,{auv,{import,all_black}}}, Uvs) ->
-    set_texture_image(fun all_black/2, Uvs);
 handle_event({action,{auv,apply_texture}},
 	     #uvstate{st=St0,sel=Sel0,areas=As0,
 		      orig_we=OWe,matname=MatName0}=Uvs) ->
@@ -1339,6 +1317,17 @@ remap({Id, Chart0 = #ch{fs=Fs,we=We0,vmap=Vmap,size={W,H}}}, Type, #we{vp=Vs3d0}
     We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
     {Id, Chart0#ch{we=We, size={Dx*Scale, Dy*Scale}, scale=Scale}}.
 
+handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #uvstate{option=Opt0}=Uvs) ->
+    case W =:= H andalso is_power_of_two(W) of
+	false -> keep;
+	true ->
+	    Opt = Opt0#setng{color=false,edges=no_edges},    
+	    add_texture_image(Im, default, Uvs#uvstate{option=Opt})
+    end;
+handle_drop(_DropData, _) ->
+    %%io:format("~P\n", [_DropData,40]),
+    keep.
+    
 import_file(default, Uvs0) ->
     import_file(Uvs0#uvstate.last_file, Uvs0);
 import_file(Filename, Uvs0) ->
@@ -1357,13 +1346,6 @@ import_file(Filename, Uvs0) ->
 				       "power of 2 sized pictures", Uvs0#uvstate.st)	
 	    end
     end.
-
-set_texture_image(TexFun, #uvstate{option=Opt0}=Uvs) ->
-    TexW = 512,
-    TexH = 512,
-    Opt = Opt0#setng{texbg=true,color=false,edges=no_edges},    
-    Im = #e3d_image{width=TexW,height=TexH,image=TexFun(TexW, TexH)},
-    add_texture_image(Im, default, Uvs#uvstate{option=Opt}).
 
 add_texture_image(Im, FileName,#uvstate{st=St0,option=Opt,
 					orig_we=OWe,matname=MatName0}=Uvs) ->
@@ -1796,62 +1778,3 @@ set_viewport({X,Y,W,H}=Viewport) ->
 
 restore_wings_window(Uvs) ->
     reset_dl(Uvs).
-
-%% Generate a checkerboard image of 4x4 squares 
-%% with given side length in pixels.
-checkerboard(Width, Height) ->
-    White = [255,255,255],
-    Black = [0,0,0],
-    FourWhite = pattern_repeat(4, White),
-    FourBlack = pattern_repeat(4, Black),
-    R1 = pattern_repeat(Width div 8, [FourBlack|FourWhite]),
-    R2 = pattern_repeat(Width div 8, [FourWhite|FourBlack]),
-    R8 = [pattern_repeat(4, [R1])|pattern_repeat(4, [R2])],
-    list_to_binary(pattern_repeat(Height div 8, R8)).
-
-%% Generate a vertical bars image of 4 pixels width 
-%% with given side length in pixels.
-vertical_bars(Width, Height) ->
-    W = [255,255,255],
-    B = [0,0,0],
-    W4 = pattern_repeat(4, W),
-    B4 = pattern_repeat(4, B),
-    R = pattern_repeat(Width div 8, [B4|W4]),
-    R8 = pattern_repeat(8, [R]),
-    list_to_binary(pattern_repeat(Height div 8, [R8])).
-
-%% Generate a horizontal bars image of 4 pixels width 
-%% with given side length in pixels.
-horizontal_bars(Width, Height) ->
-    W = [255,255,255],
-    B = [0,0,0],
-    W8 = pattern_repeat(8, W),
-    B8 = pattern_repeat(8, B),
-    WR4 = pattern_repeat(4*(Width div 8), [W8]),
-    BR4 = pattern_repeat(4*(Width div 8), [B8]),
-    list_to_binary(pattern_repeat(Height div 8, [BR4|WR4])).
-
-%% Generate an all white image
-%% with given side length in pixels.
-all_white(Width, Height) ->
-    solid(Width, Height, [255,255,255]).
-
-%% Generate an all white image
-%% with given side length in pixels.
-all_black(Width, Height) ->
-    solid(Width, Height, [0,0,0]).
-
-solid(Width, Height, Point) ->
-    P8 = pattern_repeat(8, Point),
-    R = pattern_repeat(Width div 8, P8),
-    R8 = pattern_repeat(8, R),
-    list_to_binary(pattern_repeat(Height div 8, R8)).
-
-pattern_repeat(0, _) -> [];
-pattern_repeat(1, D) -> [D];
-pattern_repeat(N, D) ->
-    B = pattern_repeat(N div 2, D),
-    case N rem 2 of
-	0 -> [B|B];
-	1 -> [D,B|B]
-    end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.78 2003/03/12 10:04:20 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.79 2003/04/18 07:33:31 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -313,7 +313,7 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	{dialog,Title,Qs,Fun} ->
 	    recursive_dialog(Title, I, Qs, Fun, S);
 	{drag,WH,DropData} ->
-	    drag(Ev, WH, Fi, Fst0, Common0, DropData, S);
+	    drag(Ev, WH, Fi, Fst0, Common0, DropData);
 	{Fst,Common} when is_atom(element(1, Fst)), is_tuple(Common) ->
 	    Priv = setelement(I, Priv0, Fst),
 	    get_event(S#s{priv=Priv,common=Common});
@@ -331,31 +331,12 @@ recursive_dialog(Title, I, Qs, Fun, #s{level=Level}=S) ->
 	      fun(Vs) -> {update,I,Fun(Vs)} end),
     get_event(S).
 
-drag(#mousemotion{x=X0,y=Y0}, {W,H}, Fi0, Fst, Common, DropData, S) ->
-    {X,Y} = wings_wm:local2global(X0, Y0),
+drag(Ev, {W,H}, #fi{handler=Handler}=Fi0, Fst, Common, DropData) ->
     Fi = Fi0#fi{x=0,y=0,w=W,h=H},
-    Drag = fun(Ev) -> drag_event(Ev, Fi, Fst, Common, DropData, S) end,
-    Op = {push,Drag},
-    Name = dragger,
-    wings_wm:new(Name, {X,Y,highest}, {W,H}, Op),
-    wings_wm:grab_focus(Name),
-    wings_wm:dirty(),
-    keep.
-
-drag_event(redraw, #fi{handler=Handler}=Fi, Fst, Common, _,  _) ->
-    wings_io:ortho_setup(),
-    Handler({redraw,false}, Fi, Fst, Common),
-    keep;
-drag_event(#mousemotion{x=X,y=Y}, #fi{w=W,h=H}, _, _, _, _) ->
-    wings_wm:offset(dragger, X - W div 2, Y - H div 2),
-    wings_wm:dirty(),
-    keep;
-drag_event(#mousebutton{}, #fi{w=W,h=H}, _, _, DropData, _) ->
-    {X,Y} = wings_wm:pos(dragger),
-    Ev = {drop,{X + W div 2,Y + H div 2},DropData},
-    wings_io:putback_event(Ev),
-    delete;
-drag_event(_, _, _, _, _, _) -> keep.
+    Redraw = fun() ->
+		     Handler({redraw,false}, Fi, Fst, Common)
+	     end,
+    wings_wm:drag(Ev, {W,H}, Redraw, DropData).
 
 return_result(#s{call=EndFun,owner=Owner}=S) ->
     Res = collect_result(S),

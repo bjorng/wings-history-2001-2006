@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.95 2003/03/27 12:59:36 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.96 2003/04/18 07:33:31 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -41,6 +41,9 @@
 
 %% Menubar management.
 -export([menubar/1,menubar/2,get_menubar/1]).
+
+%% Drag & Drop support.
+-export([drag/3,drag/4]).
 
 %% Window property mangagement.
 -export([get_props/1,get_prop/1,get_prop/2,lookup_prop/1,lookup_prop/2,
@@ -833,6 +836,58 @@ window_below_1([#win{x=Wx,y=Wy,w=W,h=H,name=Name,z=Z}|T], X, Y) when Z >= 0 ->
 	_ -> window_below_1(T, X, Y)
     end;
 window_below_1(_, _, _) -> none.
+
+%%%
+%%% Drag and drop support.
+%%%
+
+drag(Ev, Rect, DropData) ->
+    Redraw = fun() ->
+		     gl:pushAttrib(?GL_POLYGON_BIT bor ?GL_LINE_BIT),
+		     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+		     gl:lineStipple(2, 2#0101010101010101),
+		     gl:enable(?GL_LINE_STIPPLE),
+		     gl:color3f(0.8, 0.8, 0.8),
+		     {W,H} = wings_wm:win_size(),
+		     gl:recti(0, 0, W-1, H-1),
+		     gl:popAttrib()
+	     end,
+    drag(Ev, Rect, Redraw, DropData).
+
+drag(#mousemotion{x=X,y=Y,state=State}, Rect, Redraw, DropData) ->
+    drag_1(X, Y, State, Rect, Redraw, DropData);
+drag(#mousebutton{x=X,y=Y,button=B}, Rect, Redraw, DropData) ->
+    State = 1 bsl (B-1),
+    drag_1(X, Y, State, Rect, Redraw, DropData).
+
+drag_1(X0, Y0, State, {W,H}, Redraw, DropData) ->
+    {X1,Y1} = wings_wm:local2global(X0, Y0),
+    X = X1 - W div 2,
+    Y = Y1 - H div 2,    
+    Drag = fun(Ev) -> drag_event(Ev, State, DropData, Redraw) end,
+    Op = {push,Drag},
+    Name = dragger,
+    wings_wm:new(Name, {X,Y,highest}, {W,H}, Op),
+    wings_wm:grab_focus(Name),
+    wings_wm:dirty(),
+    keep.
+
+drag_event(redraw, _, _, Redraw) ->
+    wings_io:ortho_setup(),
+    Redraw(),
+    keep;
+drag_event(#mousemotion{x=X,y=Y}, _, _, _) ->
+    {W,H} = wings_wm:win_size(),
+    wings_wm:offset(dragger, X - W div 2, Y - H div 2),
+    wings_wm:dirty(),
+    keep;
+drag_event(#mousebutton{button=B,state=?SDL_RELEASED}, State, DropData, _)
+  when (1 bsl (B-1)) band State =/= 0 ->
+    {{X,Y},{W,H}} = wings_wm:win_rect(dragger),
+    Ev = {drop,{X + W div 2,Y + H div 2},DropData},
+    wings_io:putback_event(Ev),
+    delete;
+drag_event(_, _, _, _) -> keep.
 
 %%%
 %%% Utility functions.
