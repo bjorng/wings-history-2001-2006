@@ -8,11 +8,10 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.12 2003/04/23 12:38:26 bjorng Exp $
+%%     $Id: e3d_image.erl,v 1.13 2003/08/16 20:25:23 bjorng Exp $
 %%
 
 -module(e3d_image).
--author('dgud@erix.ericsson.se').
 
 -include("e3d_image.hrl").
 
@@ -95,6 +94,7 @@ convert(In, ToType, NewAlignment) when atom(ToType) ->
 convert(#e3d_image{type=Type, alignment=Al,order=O}=In, Type, Al, O) -> In;
 convert(#e3d_image{type=FromType,image=Image,alignment=FromAlm,order=FromOrder}=In,
 	ToType, ToAlm, ToOrder) ->
+
     OldRowLength  = In#e3d_image.width * In#e3d_image.bytes_pp,
     NewRowLength  = In#e3d_image.width * bytes_pp(ToType),
 
@@ -249,15 +249,27 @@ noswap4to3(C, W, <<RGB:3/binary,_:8,R/binary>>, OPL, NP, OC, Row, Acc) when C =/
 noswap4to3(C, W, Bin, OPL, NP, OC, Row, Acc) ->
     swap(noswap4to3, C, W, Bin, OPL, NP, OC, Row, Acc).
 
-swap3(C, W, <<B0:8,G0:8,R0:8, R/binary>>, OPL, NP, OC, Row, Acc) when C =/= W->
-    swap3(C+1, W, R, OPL, NP, OC, [?C3(R0,G0,B0)|Row], Acc);
+swap3(0, W, Bin0, OPL, NP, OC, [], Acc) when size(Bin0) >= 3*W ->
+    <<Row0:W/binary-unit:24,Bin/binary>> = Bin0,
+    Row = swap3_row(binary_to_list(Row0), []),
+    swap(swap3, W, W, Bin, OPL, NP, OC, Row, Acc);
 swap3(C, W, Bin, OPL, NP, OC, Row, Acc) ->
     swap(swap3, C, W, Bin, OPL, NP, OC, Row, Acc).
 
-swap4(C, W, <<B0:8,G0:8,R0:8,A0:8, R/binary>>, OPL, NP, OC, Row, Acc) when C =/= W->
-    swap4(C+1, W, R, OPL, NP, OC, [?C4(R0,G0,B0,A0)|Row], Acc);
+swap3_row([B,G,R|T], Acc) ->
+    swap3_row(T, [[R,G,B]|Acc]);
+swap3_row([], Acc) -> Acc.
+
+swap4(0, W, Bin0, OPL, NP, OC, [], Acc) when size(Bin0) >= 4*W ->
+    <<Row0:W/binary-unit:32,Bin/binary>> = Bin0,
+    Row = swap4_row(binary_to_list(Row0), []),
+    swap(swap4, W, W, Bin, OPL, NP, OC, Row, Acc);
 swap4(C, W, Bin, OPL, NP, OC, Row, Acc) ->
     swap(swap4, C, W, Bin, OPL, NP, OC, Row, Acc).
+
+swap4_row([B,G,R,A|T], Acc) ->
+    swap4_row(T, [[R,G,B,A]|Acc]);
+swap4_row([], Acc) -> Acc.
 
 swap4to3(C, W, <<B0:8,G0:8,R0:8,_:8, R/binary>>, OPL, NP, OC, Row, Acc) when C =/= W->
     swap4to3(C+1, W, R, OPL, NP, OC, [?C3(R0,G0,B0)|Row],  Acc);

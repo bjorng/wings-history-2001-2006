@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.14 2003/05/08 18:56:00 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.15 2003/08/16 20:20:44 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -46,7 +46,7 @@ make_image() ->
     case wpa:import_filename(Ps) of
 	aborted -> keep;
 	Name ->
-	    Props = [{filename,Name},{alignment,1},{order,lower_left}],
+	    Props = [{filename,Name}],
 	    case wpa:image_read(Props) of
 		#e3d_image{}=Image ->
 		    make_image_1(Name, Image);
@@ -56,10 +56,12 @@ make_image() ->
 	    end
     end.
 
-make_image_1(Name0, Image0) ->
+make_image_1(Name0, #e3d_image{type=Type}=Image0) ->
+    %% Convert to the format that wings_image wants before padding (faster).
+    Image1 = e3d_image:convert(Image0, img_type(Type), 1, lower_left),
     Name = filename:rootname(filename:basename(Name0)),
-    #e3d_image{width=W0,height=H0} = Image0,
-    Image = pad_image(Image0),
+    #e3d_image{width=W0,height=H0} = Image1,
+    Image = pad_image(Image1),
     #e3d_image{width=W,height=H} = Image,
     ImageId = wings_image:new(Name, Image),
     case can_texture_be_loaded(Image) of
@@ -81,6 +83,10 @@ make_image_1(Name0, Image0) ->
 		   {default,[]}],
 	    {new_shape,"image",Obj,Mat}
     end.
+
+img_type(b8g8r8) -> r8g8b8;
+img_type(b8g8r8a8) -> r8g8b8a8;
+img_type(Type) -> Type.
 
 ratio(D, D) -> {1.0,1.0};
 ratio(W, H) when W < H -> {1.0,H/W};
