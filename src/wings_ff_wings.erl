@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.37 2003/04/05 07:16:51 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.38 2003/04/17 09:37:43 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -77,8 +77,9 @@ import_objects([Sh0|Shs], Mode, NameMap, Oid, ShAcc) ->
     Vtab = import_vs(Vs, 0, []),
     Htab = gb_sets:from_list(He),
     Perm = import_perm(Props),
+    Mirror = proplists:get_value(mirror_face, Props, none),
     We = #we{es=Etab,fs=Ftab,vp=Vtab,he=Htab,perm=Perm,
-	     id=Oid,name=Name,mode=ObjMode},
+	     id=Oid,name=Name,mode=ObjMode,mirror=Mirror},
     import_objects(Shs, Mode, NameMap, Oid+1, [We|ShAcc]);
 import_objects([], _Mode, _NameMap, Oid, Objs0) ->
     %%io:format("flat_size: ~p\n", [erts_debug:flat_size(Objs0)]),
@@ -446,9 +447,13 @@ shape(#we{mode=ObjMode,name=Name,fs=Fs0,vp=Vs0,es=Es0,he=Htab}=We, Acc) ->
     Fs1 = foldl(fun export_face/2, [], gb_trees:values(Fs0)),
     Fs = reverse(Fs1),
     He = gb_sets:to_list(Htab),
-    Props = [{mode,ObjMode}|export_perm(We)],
+    Props0 = [{mode,ObjMode}|export_perm(We)],
+    Props = mirror(We, Props0),
     [{object,Name,{winged,Es,Fs,Vs,He},Props}|Acc].
 
+mirror(#we{mirror=none}, Props) -> Props;
+mirror(#we{mirror=Face}, Props) -> [{mirror_face,Face}|Props].
+    
 export_edge(Rec, Mode, Acc) ->
     #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,
 	  ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu} = Rec,
