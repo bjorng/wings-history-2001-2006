@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.114 2003/05/20 05:09:46 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.115 2003/05/22 05:58:13 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1050,13 +1050,11 @@ select(Mode, X,Y, W, H, Objects0, {XYS,XM,XYS,YM}) ->
 	0 -> 
 	    none;
 	NumHits ->
-	    HitData = sdl_util:readBin(HitBuf, 5*NumHits),
-%	    ?DBG("Hits ~p ", [NumHits]),
-	    Hits = get_hits(NumHits, HitData, []),
-%	    ?DBG("Hits ~p ~n", [lists:usort(Hits)]),
-	    map(fun(Hit = [FG|_]) -> 
-			HitArea = gb_trees:get(FG, Objects0),
-			{Hit, HitArea}
+	    HitData = sdl_util:read(HitBuf, 5*NumHits),
+	    Hits = get_hits(NumHits, HitData),
+	    map(fun(Hit) -> 
+			HitArea = gb_trees:get(Hit, Objects0),
+			{[Hit], HitArea}
 		end, lists:usort(Hits))
     end.
 
@@ -1117,15 +1115,22 @@ select_draw_faces([H|R], We, true) ->
     gl:popName(),
     select_draw_faces(R,We,true).
 
-get_hits(0, _, Acc) -> Acc;
-get_hits(N, <<NumNames:32,_:32,_:32,Tail0/binary>>, Acc) ->
-    <<Names:NumNames/binary-unit:32,Tail/binary>> = Tail0,
-    Name = get_name(NumNames, Names, []),
-    get_hits(N-1, Tail, [Name|Acc]).
+get_hits(N, Buf) ->
+    get_hits_1(N, Buf, []).
 
-get_name(0, _Tail, Acc) -> reverse(Acc);
-get_name(N, <<Name:32,Names/binary>>, Acc) ->
-    get_name(N-1, Names, [Name|Acc]).
+get_hits_1(0, _, Acc) -> Acc;
+get_hits_1(N, [1,_,_,A|T], Acc) ->
+    get_hits_1(N-1, T, [A|Acc]).
+
+% get_hits(0, _, Acc) -> Acc;
+% get_hits(N, <<NumNames:32,_:32,_:32,Tail0/binary>>, Acc) ->
+%     <<Names:NumNames/binary-unit:32,Tail/binary>> = Tail0,
+%     Name = get_name(NumNames, Names, []),
+%     get_hits(N-1, Tail, [Name|Acc]).
+
+% get_name(0, _Tail, Acc) -> reverse(Acc);
+% get_name(N, <<Name:32,Names/binary>>, Acc) ->
+%     get_name(N-1, Names, [Name|Acc]).
 
 -define(OUT, 1.2/2). %% was 1/2 
 
