@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.77 2004/04/23 09:33:24 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.78 2004/05/04 09:53:09 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1664,16 +1664,21 @@ export_light(F, Name, infinite, OpenGL, YafRay) ->
 	    Bg;
 	_ ->
 	    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
-	    CastShadows = 
-		proplists:get_value(cast_shadows, YafRay, ?DEF_CAST_SHADOWS),
-	    Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
-	    Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
-	    println(F,"<light type=\"sunlight\" name=\"~s\" "++
-		    "power=\"~.3f\" cast_shadows=\"~s\">", 
-		    [Name, Power,format(CastShadows)]),
-	    export_pos(F, from, Position),
-	    export_rgb(F, color, Diffuse),
-	    println(F, "</light>"),
+	    if Power > 0.0 ->
+		    CastShadows = proplists:get_value(cast_shadows, YafRay, 
+						      ?DEF_CAST_SHADOWS),
+		    Position = proplists:get_value(position, OpenGL, 
+						   {0.0,0.0,0.0}),
+		    Diffuse = proplists:get_value(diffuse, OpenGL, 
+						  {1.0,1.0,1.0,1.0}),
+		    println(F,"<light type=\"sunlight\" name=\"~s\" "++
+			    "power=\"~.3f\" cast_shadows=\"~s\">", 
+			    [Name, Power,format(CastShadows)]),
+		    export_pos(F, from, Position),
+		    export_rgb(F, color, Diffuse),
+		    println(F, "</light>");
+	       true -> ok
+	    end,
 	    Bg
     end;
 export_light(F, Name, spot, OpenGL, YafRay) ->
@@ -1725,22 +1730,27 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
 export_light(F, Name, ambient, OpenGL, YafRay) ->
     Bg = proplists:get_value(background, YafRay, ?DEF_BACKGROUND),
     Power = proplists:get_value(power, YafRay, ?DEF_POWER),
-    Type = proplists:get_value(type, YafRay, ?DEF_AMBIENT_TYPE),
-    Samples = proplists:get_value(samples, YafRay, ?DEF_SAMPLES),
-    UseQMC = proplists:get_value(use_QMC, YafRay, ?DEF_USE_QMC),
-    println(F,"<light type=\"~w\" name=\"~s\" power=\"~.3f\" use_QMC=\"~s\"", 
-	    [Type,Name,Power,format(UseQMC)]),
-    case Type of
-	hemilight ->
-	    Ambient = proplists:get_value(ambient, OpenGL, 
-					  ?DEF_BACKGROUND_COLOR),
-	    println(F,"       samples=\"~w\">", [Samples]),
-	    export_rgb(F, color, Ambient);
-	pathlight ->
-	    Depth = proplists:get_value(depth, YafRay, ?DEF_DEPTH),
-	    println(F,"       samples=\"~w\" depth=\"~w\">", [Samples,Depth])
+    if Power > 0.0 ->
+	    Type = proplists:get_value(type, YafRay, ?DEF_AMBIENT_TYPE),
+	    Samples = proplists:get_value(samples, YafRay, ?DEF_SAMPLES),
+	    UseQMC = proplists:get_value(use_QMC, YafRay, ?DEF_USE_QMC),
+	    println(F,"<light type=\"~w\" name=\"~s\" "
+		    "power=\"~.3f\" use_QMC=\"~s\"", 
+		    [Type,Name,Power,format(UseQMC)]),
+	    case Type of
+		hemilight ->
+		    Ambient = proplists:get_value(ambient, OpenGL, 
+						  ?DEF_BACKGROUND_COLOR),
+		    println(F,"       samples=\"~w\">", [Samples]),
+		    export_rgb(F, color, Ambient);
+		pathlight ->
+		    Depth = proplists:get_value(depth, YafRay, ?DEF_DEPTH),
+		    println(F,"       samples=\"~w\" depth=\"~w\">", 
+			    [Samples,Depth])
+	    end,
+	    println(F, "</light>");
+       true -> ok
     end,
-    println(F, "</light>"),
     Bg;
 export_light(F, Name, area, OpenGL, YafRay) ->
     Color = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
