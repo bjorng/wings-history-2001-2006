@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.88 2003/01/12 21:48:58 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.89 2003/01/19 06:40:01 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -27,34 +27,54 @@
 
 menu(_) ->
     L = wings_pref:get_value(number_of_lights),
-    [{"Ground Plane",show_groundplane,crossmark(show_groundplane)},
-     {"Axes",show_axes,crossmark(show_axes)},
+    [{"Ground Plane",show_groundplane,"Show the ground plane",
+      crossmark(show_groundplane)},
+     {"Axes",show_axes,"Show the coordinate axes",crossmark(show_axes)},
      separator,
-     {"Workmode",workmode,crossmark(workmode)},
-     {"Smoothed Preview",smoothed_preview},
+     {"Workmode",workmode,"Toggle flat/smooth shading",
+      crossmark(workmode)},
+     {"Smoothed Preview",smoothed_preview,"Show a smoothed preview of the scene"},
      separator,
-     {"Wireframe",wireframe},
-     {"Shade",shade},
-     {"Toggle Wireframed/Shaded",toggle_wireframe},
+     {"Wireframe",wireframe,"Display selected objects as a wireframe "
+      "(same for all objects if nothing is selected)"},
+     {"Shade",shade,"Display selected objects as shaded "
+      "(same for all objects if nothing is selected)"},
+     {"Toggle Wireframed/Shaded",toggle_wireframe,
+      "Toggle display mode for selected objects "
+      "(same for all objects if nothing is selected)"},
      separator,
-     {"Show Saved BB",show_bb,crossmark(show_bb)},
-     {"Show Edges",show_edges,crossmark(show_edges)},
-     {"Show Normals",show_normals,crossmark(show_normals)},
+     {"Show Saved BB",show_bb,"Display any saved bounding box",crossmark(show_bb)},
+     {"Show Edges",show_edges,"Show edges in workmode",crossmark(show_edges)},
+     {"Show Normals",show_normals,"Show normals for selected elements",
+      crossmark(show_normals)},
      {"Show Wireframe Backfaces",show_wire_backfaces,
-      crossmark(show_wire_backfaces)},
+      "Show back-facing faces for wireframed objects",
+     crossmark(show_wire_backfaces)},
      separator,
-     {"Reset View",reset},
-     {"Aim",aim},
-     {"Frame",frame},
+     {"Reset View",reset,"Reset view to the default position"},
+     {"Aim",aim,"Aim the camera at the selected element"},
+     {"Frame",frame,"Dolly to show all selected elements "
+      "(or all objects if nothing is selected)"},
      {"Orthographic View",orthogonal_view,
+      "Toggle between orthographic and perspective views",
       crossmark(orthogonal_view)},
      separator,
-     {"Scene Lights",scene_lights,crossmark(scene_lights)},
-     {one_of(L == 1, "Two Lights", "One Light"),toggle_lights},
+     {"Scene Lights",scene_lights,
+      "Use the lights defined in the scene",
+      crossmark(scene_lights)},
+     {one_of(L == 1, "Two Lights", "One Light"),toggle_lights,
+      one_of(L == 1, "Use two work lights",
+	     "Use one work light")},
      separator,
-     {"Show Colors",show_colors,crossmark(show_colors)},
-     {"Show Materials",show_materials,crossmark(show_materials)},
-     {"Show Textures",show_textures,crossmark(show_textures)},
+     {"Show Colors",show_colors,
+      "Show vertex colors on objects in \"vertex\" mode",
+      crossmark(show_colors)},
+     {"Show Materials",show_materials,
+      "Show materials on objects in \"material\" or \"uv\" modes",
+      crossmark(show_materials)},
+     {"Show Textures",show_textures,
+      "Show the texture on objects in \"uv\" mode",
+      crossmark(show_textures)},
      separator,
      {"View Along",{along,[{"+X",x},
 			   {"+Y",y},
@@ -63,8 +83,9 @@ menu(_) ->
 			   {"-Y",neg_y},
 			   {"-Z",neg_z}]}},
      separator,
-     {"Align to Selection",align_to_selection},
-     {"Auto Rotate",auto_rotate}].
+     {"Align to Selection",align_to_selection,
+      "Align the view to the normal of the selection"},
+     {"Auto Rotate",auto_rotate,"Spin the view"}].
 
 crossmark(Key) ->
     case wings_pref:get_value(Key) of
