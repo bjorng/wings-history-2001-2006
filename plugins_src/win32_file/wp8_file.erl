@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_file.erl,v 1.14 2003/12/28 15:31:10 bjorng Exp $
+%%     $Id: wp8_file.erl,v 1.15 2004/01/18 18:11:15 bjorng Exp $
 %%
 
 -module(wp8_file).
@@ -34,44 +34,44 @@ init(Next) ->
 			    fun(What) ->
 				    fileop(What,Next)
 			    end;
-			Other ->
-			    Next
+			_ -> Next
 		    end;
-		Else ->
-		    Next
+		_ -> Next
 	    end;
-	_ ->
-	    Next
+	_ -> Next
     end.
 
 fileop({file,open_dialog,Prop,Cont}, _Next) ->
     Title = proplists:get_value(title, Prop, "Open"),
-    Dir = proplists:get_value(directory, Prop),
-    case file_dialog(?OP_READ, Dir, Prop, Title) of
-	aborted -> keep;
-	Res -> Cont(Res)
-    end;
+    file_dialog(?OP_READ, Prop, Title, Cont);
 fileop({file,save_dialog,Prop,Cont}, _Next) ->
     Title = proplists:get_value(title, Prop, "Save"),
-    Dir = proplists:get_value(directory, Prop),
-    case file_dialog(?OP_WRITE, Dir, Prop, Title) of
-	aborted -> keep;
-	Res -> Cont(Res)
-    end;
-fileop({file,open_dialog,Prop}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Open"),
-    old_file_dialog(?OP_READ, Prop, Title);
-fileop({file,save_dialog,Prop}, _Next) ->
-    Title = proplists:get_value(title, Prop, "Save"),
-    old_file_dialog(?OP_WRITE, Prop, Title);
+    file_dialog(?OP_WRITE, Prop, Title, Cont);
 fileop(What, Next) ->
     Next(What).
 
-old_file_dialog(Type, Prop, Title) ->
-    Dir = wings_pref:get_value(current_directory),
-    file_dialog(Type, Dir, Prop, Title).
+file_dialog(Type, Prop, Title, Cont) ->
+    %% We create a dummy window here so that no file
+    %% file dialogs on any will execute in the geom windows,
+    %% to help the Windows programmers get their plug-ins
+    %% working on other platforms.
 
-file_dialog(Type, Dir0, Prop, Title) ->
+    Op = {push,fun file_dialog_event/1},
+    Name = dummy_file_dialog_window,
+    wings_wm:new(Name, {0,0,1}, {0,0}, Op),
+    wings_wm:hide(Name),
+    wings_wm:send(Name, {do_dialog,Type,Prop,Title,Cont}).
+
+file_dialog_event({do_dialog,Type,Prop,Title,Cont}) ->
+    Dir = proplists:get_value(directory, Prop),
+    case file_dialog_1(Type, Dir, Prop, Title) of
+	aborted -> keep;
+	Res -> Cont(Res)
+    end,
+    delete;
+file_dialog_event(_) -> keep.
+
+file_dialog_1(Type, Dir0, Prop, Title) ->
     DefName = proplists:get_value(default_filename, Prop, ""),
     {ok,Cwd} = file:get_cwd(),
     file:set_cwd(Dir0),
@@ -110,6 +110,6 @@ file_add_all(Exts) ->
     All = file_add_semicolons(All0),
     ["All Formats (",All,")",0,All,0].
 
-file_add_semicolons([E1|[E2|_]=T]) ->
+file_add_semicolons([E1|[_|_]=T]) ->
     [E1,";"|file_add_semicolons(T)];
 file_add_semicolons(Other) -> Other.
