@@ -11,7 +11,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_jpeg_image.erl,v 1.4 2004/01/25 13:04:54 bjorng Exp $
+%%     $Id: wp8_jpeg_image.erl,v 1.5 2004/10/24 07:01:54 bjorng Exp $
 %%
 
 -module(wp8_jpeg_image).
@@ -34,7 +34,7 @@ init(Next) ->
 		    fun(What) ->
 			    fileop(What,Next)
 		    end;
-		Other ->
+		_Other ->
 		    Next
 	    end;
 	_ -> Next
@@ -57,8 +57,8 @@ fileop({image,write,Prop}=What, Next) ->
     Name = proplists:get_value(filename, Prop),
     Image = proplists:get_value(image, Prop),
     Ext = lower(filename:extension(Name)),
-    case is_format_supported(Name, Ext) of
-	true -> write_image(Name, Ext, Image, Prop);
+    case is_format_supported_ext(Ext) of
+	true -> write_image(Name, Image);
 	false -> Next(What)
     end;
 fileop(What, Next) ->
@@ -77,7 +77,7 @@ read_image_1(Bin, Prop) ->
 	Res -> read_image_2(Res, Prop)
     end.
 
-read_image_2(<<0:32/native,Bin/binary>>, Prop) ->
+read_image_2(<<0:32/native,Bin/binary>>, _Prop) ->
     {error,{none,?MODULE,{message,Bin}}};
 read_image_2(<<W:32/native,H:32/native,SamplesPerPixel:32/native,
 	      Bits/binary>>, Prop) ->
@@ -93,7 +93,7 @@ read_image_2(<<W:32/native,H:32/native,SamplesPerPixel:32/native,
     NeededOrder = proplists:get_value(order, Prop, upper_left),
     e3d_image:convert(Image, NeededType, NeededAlignment, NeededOrder).
 
-write_image(Name, Ext, #e3d_image{bytes_pp=Bpp,type=Type}=Image0, Prop) ->
+write_image(Name, #e3d_image{bytes_pp=Bpp,type=Type}=Image0) ->
     {BitsPP,Image} =
 	case {Bpp,Type} of
 	    {1,g8} ->
@@ -115,9 +115,9 @@ write_image(Name, Ext, #e3d_image{bytes_pp=Bpp,type=Type}=Image0, Prop) ->
 
 is_format_supported(Name) ->
     Ext = lower(filename:extension(Name)),
-    is_format_supported(Name, Ext).
+    is_format_supported_ext(Ext).
 
-is_format_supported(Name, Ext) ->
+is_format_supported_ext(Ext) ->
     lists:keymember(Ext, 1, image_formats([])).
 
 lower([Upper|T]) when $A =< Upper, Upper =< $Z ->
