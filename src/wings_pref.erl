@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.20 2002/01/21 11:11:35 dgud Exp $
+%%     $Id: wings_pref.erl,v 1.21 2002/01/22 09:57:23 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -48,12 +48,12 @@ finish() ->
     PrefFile = new_pref_file(),
     List0 = ets:tab2list(wings_state),
     List = prune_defaults(List0),
-    Write = fun({{bindkey, Key, List}, Action}) ->
+    Write = fun({{bindkey,Key,Mods}, Action}) ->
 		    io_lib:format("{{bindkey, $~c, ~p}, ~p}.~n",
-				  [Key, List, Action]);
+				  [Key,Mods,Action]);
 	       ({{bindkey, Key}, Action}) ->
 		    io_lib:format("{{bindkey, $~c}, ~p}.~n",
-				  [Key, Action]);
+				  [Key,Action]);
 	       (Else) ->
 		    io_lib:format("~p. \n", [Else])
 	    end,
@@ -216,22 +216,22 @@ presets() ->
 
 default_keybindings() ->
     [{{bindkey, $a, [ctrl]},          {select,all}},
-     {{bindkey, $i, [ctrl, shift]},   {select,inverse}},
+     {{bindkey, $i, [ctrl,shift]},    {select,inverse}},
      {{bindkey, $l, [ctrl]},          {file,merge}},
      {{bindkey, $n, [ctrl]},          {file,new}},
      {{bindkey, $o, [ctrl]},          {file,open}},
      {{bindkey, $q, [ctrl]},          {file,quit}},
      {{bindkey, $s, [ctrl,shift]},    {file,save_as}},
      {{bindkey, $s, [ctrl]},          {file,save}},
-     {{bindkey, $z, [alt, ctrl]},     {edit,undo}},
+     {{bindkey, $z, [alt,ctrl]},      {edit,undo}},
      {{bindkey, $z, [ctrl,shift]},    {edit,redo}},
      {{bindkey, $z, [ctrl]},          {edit,undo_toggle}},
-     {{bindkey, ?SDLK_KP_PLUS},       {select,more}},
-     {{bindkey, ?SDLK_KP_MINUS},      {select,less}},
-     {{bindkey, ?SDLK_F3},            {select,prev_edge_loop}},
-     {{bindkey, ?SDLK_F4},            {select,next_edge_loop}},
-     {{bindkey, ?SDLK_F5},            {select,{by,{faces_with,5}}}},
-     {{bindkey, ?SDLK_TAB},           {view,smooth_preview}},
+     {{bindkey, ?SDLK_KP_PLUS, []},   {select,more}},
+     {{bindkey, ?SDLK_KP_MINUS, []},  {select,less}},
+     {{bindkey, ?SDLK_F3, []},        {select,prev_edge_loop}},
+     {{bindkey, ?SDLK_F4, []},        {select,next_edge_loop}},
+     {{bindkey, ?SDLK_F5, []},        {select,{by,{faces_with,5}}}},
+     {{bindkey, $\t},                 {view,smooth_preview}},
      {{bindkey, $\s},                 {select,deselect}},
      {{bindkey, $a},                  {view,aim}},
      {{bindkey, $b},                  {select,body}},
@@ -242,6 +242,7 @@ default_keybindings() ->
      {{bindkey, $l},                  {select,edge_loop}},
      {{bindkey, $o},                  {view,orthogonal_view}},
      {{bindkey, $r},                  {view,reset}},
+     {{bindkey, $R},                  {select,edge_ring}},
      {{bindkey, $s},                  {body,auto_smooth}},
      {{bindkey, $u},                  {view,auto_rotate}},
      {{bindkey, $v},                  {select,vertex}},
