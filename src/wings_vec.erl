@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.89 2003/10/26 15:21:17 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.90 2003/10/26 17:50:51 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -48,7 +48,7 @@ command({pick,PickList0,Acc,Names}, St0) ->
     pick_init(St0),
     Modes = [vertex,edge,face],
     St = mode_restriction(Modes, St0),
-    PickList = add_help_text(PickList0, Names),
+    PickList = add_help_text(PickList0),
     wings_wm:later({action,{pick,PickList,Acc}}),
     CmdStr = command_name(Names) ++ ":",
     Ss = #ss{selmodes=Modes,names=Names,cmdstr=CmdStr,
@@ -60,9 +60,9 @@ command({pick_special,{Modes,Fun}}, St0) ->
     Ss = #ss{selmodes=Modes,f=Fun},
     {seq,push,get_event(Ss, St)}.
 
-add_help_text([{Atom,_Desc}=Pair|T], Names) when is_atom(Atom) ->
-    [Pair|add_help_text(T, Names)];
-add_help_text([Type|T], Names) ->
+add_help_text([{Atom,_Desc}=Pair|T]) when is_atom(Atom) ->
+    [Pair|add_help_text(T)];
+add_help_text([Type|T]) ->
     Val = {Type,
 	   case Type of
 	       axis_point -> "Pick axis (and point)";
@@ -71,8 +71,8 @@ add_help_text([Type|T], Names) ->
 	       magnet -> "Pick outer boundary point for magnet influence";
 	       _ -> []
 	   end},
-    [Val|add_help_text(T, Names)];
-add_help_text([], _) -> [].
+    [Val|add_help_text(T)];
+add_help_text([]) -> [].
 
 magnet_possible([move|_], Pl) -> magnet_possible_1(Pl);
 magnet_possible([rotate|_], Pl) -> magnet_possible_1(Pl);
