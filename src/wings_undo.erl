@@ -3,16 +3,16 @@
 %%
 %%     This module handles the undo stack.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_undo.erl,v 1.10 2003/06/06 16:20:09 bjorng Exp $
+%%     $Id: wings_undo.erl,v 1.11 2004/01/01 14:17:21 bjorng Exp $
 %%
 
 -module(wings_undo).
--export([init/1,save/2,undo_toggle/1,undo/1,redo/1]).
+-export([init/1,save/2,undo_toggle/1,undo/1,redo/1,info/1]).
 
 -include("wings.hrl").
 
@@ -50,6 +50,9 @@ redo(#st{undone=[StOld|Undone]}=St0) ->
     St = St1#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext,mat=Mat},
     St#st{undone=Undone,next_is_undo=true};
 redo(St) -> St.
+
+info(#st{top=Top,bottom=Bot,undone=Undone}) ->
+    {length(Top)+length(Bot),length(Undone)}.
 
 %%
 %% Low-level queue operations.

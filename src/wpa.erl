@@ -3,12 +3,12 @@
 %%
 %%     Wings Plugin API.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.40 2003/12/31 20:45:59 bjorng Exp $
+%%     $Id: wpa.erl,v 1.41 2004/01/01 14:17:21 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -151,9 +151,22 @@ export_sel_set_holes(face, Faces0, #we{fs=Ftab}=We) ->
 %% export_filename([Prop], Continuation).
 %%   The Continuation fun will be called like this: Continuation(Filename).
 export_filename(Prop0, Cont) ->
+    This = wings_wm:this(),
     Dir = wings_pref:get_value(current_directory),
     Prop = Prop0 ++ [{directory,Dir}],
-    wings_plugin:call_ui({file,save_dialog,[{title,"Export"}|Prop],Cont}).
+    Fun = fun(Name) ->
+		  case catch Cont(Name) of
+		      {command_error,Error} ->
+			  wings_util:message(Error);
+		      #st{}=St ->
+			  wings_wm:send(This, {new_state,St});
+		      Tuple when is_tuple(Tuple) ->
+			  wings_wm:send(This, {action,Tuple});
+		      ignore -> keep;
+		      keep -> keep
+		  end
+	  end,
+    wings_plugin:call_ui({file,save_dialog,[{title,"Export"}|Prop],Fun}).
 
 %% export_filename([Prop], St, Continuation).
 %%   The St will only be used to setup the default filename.

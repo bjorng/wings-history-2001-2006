@@ -3,12 +3,12 @@
 %%
 %%     This module contains the commands in the File menu.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.142 2003/12/30 07:29:35 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.143 2004/01/01 14:17:21 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -68,8 +68,6 @@ menu(_) ->
 
 command(new, St) ->
     new(St);
-command(save_new, St) ->
-    save_new(St);
 command(confirmed_new, St) ->
     confirmed_new(St);
 command(open, St) ->
@@ -85,22 +83,18 @@ command(merge, _) ->
 command({merge,Filename}, St) ->
     merge(Filename, St);
 command(save, St) ->
-    save(St);
+    save(ignore, St);
 command({save,Next}, St) ->
     save(Next, St);
-command(save_as, St0) ->
-    case save_as(St0) of
-	aborted -> St0;
-	#st{}=St -> {saved,St}
-    end;
+command(save_as, St) ->
+    save_as(ignore, St);
+command({save_as,{Filename,Next}}, St) ->
+    save_now(Next, St#st{file=Filename});
 command(save_selected, St) ->
     save_selected(St),
     St;
-command(save_incr, St0) -> 
-    case save_incr(St0) of
-	aborted -> St0;
-	#st{}=St -> {saved,St}
-    end;
+command(save_incr, St) -> 
+    save_incr(St);
 command(revert, St0) ->
     case revert(St0) of
 	{error,Reason} ->
@@ -130,25 +124,23 @@ command(install_plugin, _St) ->
     install_plugin();
 command({install_plugin,Filename}, _St) ->
     wings_plugin:install(Filename);
-command(quit, St) ->
-    quit(St);
+command(quit, #st{saved=true}) ->
+    quit;
+command(quit, _) ->
+    wings_util:yes_no_cancel("Do you want to save your changes before quitting?",
+			     fun() -> {file,{save,{file,quit}}} end,
+			     fun() -> {file,confirmed_quit} end);
 command(confirmed_quit, _) ->
     quit;
-command(save_quit, St) ->
-    case save_1(St) of
-	aborted -> St;
-	#st{} -> quit
-    end;
 command(Key, St) when is_integer(Key) ->
     Recent = wings_pref:get_value(recent_files, []),
     {_,File} = lists:nth(Key, Recent),
     named_open(File, St).
 
-quit(#st{saved=true}) -> quit;
-quit(_) ->
-    wings_util:yes_no_cancel("Do you want to save your changes before quitting?",
-			     fun() -> {file,save_quit} end,
-			     fun() -> {file,confirmed_quit} end).
+confirmed_new(#st{file=File}=St) ->
+    %% Remove autosaved file; user has explicitly said so.
+    catch file:delete(autosave_filename(File)),
+    new(St#st{saved=true}).
 
 new(#st{saved=true}=St0) ->
     St1 = clean_st(St0#st{file=undefined}),
@@ -158,19 +150,8 @@ new(#st{saved=true}=St0) ->
 new(St0) ->			     %File is not saved or autosaved.
     wings:caption(St0#st{saved=false}), 
     wings_util:yes_no_cancel("Do you want to save your changes?",
-			     fun() -> {file,save_new} end,
+			     fun() -> {file,{save,{file,new}}} end,
 			     fun() -> {file,confirmed_new} end).
-
-save_new(St0) ->
-    case save_1(St0) of
-	aborted -> St0;
-	#st{}=St -> new(St)
-    end.
-
-confirmed_new(#st{file=File}=St) ->
-    %% Remove autosaved file; user has explicitly said so.
-    catch file:delete(autosave_filename(File)),
-    new(St#st{saved=true}).
 
 open(#st{saved=true}) ->
     confirmed_open_dialog();
@@ -243,53 +224,38 @@ merge(Name, St0) ->
 	  end,
     use_autosave(Name, Fun).
 
-save(St0) ->
-    case save_1(St0) of
-	aborted -> St0;
-	St0 -> St0;
-	St  -> {saved,St}
-    end.
+save(Next, #st{saved=true}) ->
+    maybe_send_action(Next);
+save(Next, #st{file=undefined}=St) ->
+    save_as(Next, St);
+save(Next, St) ->
+    save_now(Next, St).
 
-save(Next, St0) ->
-    case save_1(St0) of
-	aborted -> keep;
-	St0 -> keep;
-	St  ->
-	    wings_wm:later({action,Next}),
-	    {saved,St}
-    end.
+save_as(Next, St) ->
+    Cont = fun(Name) ->
+		   set_cwd(dirname(Name)),
+		   {file,{save_as,{Name,Next}}}
+	   end,
+    Ps = [{title,"Save"}|wings_prop()],
+    wpa:export_filename(Ps, St, Cont).
 
-save_1(#st{saved=true}=St) -> St;
-save_1(#st{file=undefined}=St) ->
-    save_as(St);
-save_1(#st{file=Name}=St) ->
+save_now(Next, #st{file=Name}=St) ->
     Backup = backup_filename(Name),
     file:rename(Name, Backup),
     file:delete(autosave_filename(Name)),
     case ?SLOW(wings_ff_wings:export(Name, St)) of
 	ok ->
 	    set_cwd(dirname(Name)),
-	    wings:caption(St#st{saved=true});
-	{error,Reason} ->
-	    wings_util:error("Save failed: " ++ Reason),
-	    aborted
-    end.
-
-save_as(St) ->
-    case output_file("Save", wings_prop()) of
-	false -> St;
-	aborted -> aborted;
-	Name ->
 	    add_recent(Name),
-	    case ?SLOW(wings_ff_wings:export(Name, St)) of
-		ok ->
-		    wings:caption(St#st{saved=true,file=Name});
-		{error,Reason} ->
-		    wings_util:error("Save failed: " ++ Reason),
-		    aborted
-	    end
+	    maybe_send_action(Next),
+	    {saved,wings:caption(St#st{saved=true})};
+	{error,Reason} ->
+	    wings_util:error("Save failed: " ++ Reason)
     end.
 
+maybe_send_action(ignore) -> keep;
+maybe_send_action(Action) -> wings_wm:later({action,Action}).
+    
 save_selected(#st{sel=[]}) ->
     wings_util:error("This command requires a selection.");
 save_selected(#st{shapes=Shs0,sel=Sel}=St0) ->
@@ -312,10 +278,10 @@ save_selected(#st{shapes=Shs0,sel=Sel}=St0) ->
 
 save_incr(#st{saved=true}=St) -> St;
 save_incr(#st{file=undefined}=St0) ->
-    save_as(St0);
+    save_as(ignore, St0);
 save_incr(#st{file=Name0}=St) -> 
     Name = increment_name(Name0),
-    save_1(St#st{file=Name}).
+    save_now(ignore, St#st{file=Name}).
 
 increment_name(Name0) ->
     Name1 = reverse(filename:rootname(Name0)),
