@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.38 2002/01/04 19:48:16 bjorng Exp $
+%%     $Id: wings.hrl,v 1.39 2002/01/11 16:36:44 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -70,7 +70,8 @@
 	{faces=none,				%Faces.
 	 pick=none,				%For picking.
 	 old_sel,				%Actual selection.
-	 sel=none				%Selected items.
+	 sel=none,				%Selected items.
+	 normals=none				%Normals.
 	}).
 
 %% Main state record containing all objects and other important state.
@@ -160,4 +161,3 @@
 	 pan_y,					%Panning in Y direction.
 	 along_axis=y				%Which axis viewed along.
 	 }).
-

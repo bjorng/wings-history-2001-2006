@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.47 2002/01/07 22:46:18 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.48 2002/01/11 16:36:44 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -38,6 +38,7 @@ sel_changed(St) ->
 -define(DL_FACES, (?DL_DRAW_BASE)).
 -define(DL_EDGES, (?DL_DRAW_BASE+1)).
 -define(DL_SEL, (?DL_DRAW_BASE+2)).
+-define(DL_NORMALS, (?DL_DRAW_BASE+3)).
 
 %%
 %% Renders all shapes, including selections.
@@ -52,13 +53,16 @@ render(St) ->
     Smooth = wings_pref:get_value(smooth_preview),
     update_display_lists(St),
     make_sel_dlist(Smooth, St),
+    make_normals_dlist(St),
     wings_view:projection(),
     wings_view:model_transformations(),
     ground_and_axes(),
+    show_saved_bb(St),
     case Smooth of
 	true -> draw_smooth_shapes(St);
 	false -> draw_plain_shapes(St)
     end,
+    draw_normals(),
     gl:popAttrib(),
     ?CHECK_ERROR(),
     St.
@@ -392,6 +396,70 @@ lookup_pos(Key, Tree) ->
     Pos.
 
 %%
+%% Draw face normals.
+%%
+
+draw_normals() ->
+    case get_dlist() of
+	#dl{normals=none} -> ok;
+	#dl{normals=DL} -> gl:callList(DL)
+    end.
+
+make_normals_dlist(St) ->
+    #dl{normals=OldDl} = DL = get_dlist(),
+    case {wings_pref:get_value(show_normals),OldDl} of
+	{false,none} -> ok;
+	{false,_} -> put_dlist(DL#dl{normals=none});
+	{true,none} ->
+	    gl:newList(?DL_NORMALS, ?GL_COMPILE),
+	    make_normals_dlist_1(St),
+	    gl:endList(),
+	    put_dlist(DL#dl{normals=?DL_NORMALS});
+	{true,_} -> ok
+    end.
+
+make_normals_dlist_1(#st{selmode=Mode,shapes=Shs}) ->
+    gl:color3f(0, 0, 1),
+    gl:lineWidth(2.0),
+    foreach(fun(#we{perm=Perm}=We) when ?IS_VISIBLE(Perm) ->
+		    make_normals_dlist_2(Mode, We);
+	       (#we{}) -> ok
+	    end, gb_trees:values(Shs)).
+
+make_normals_dlist_2(vertex, #we{vs=Vtab}=We) ->
+    gl:'begin'(?GL_LINES),
+    foreach(fun(V) ->
+		    Pos = lookup_pos(V, Vtab),
+		    gl:vertex3fv(Pos),
+		    N = wings_vertex:normal(V, We),
+		    gl:vertex3fv(e3d_vec:add(Pos, e3d_vec:mul(N, 0.3)))
+	    end, gb_trees:keys(Vtab)),
+    gl:'end'();
+make_normals_dlist_2(edge, #we{es=Etab,vs=Vtab}=We) ->
+    gl:'begin'(?GL_LINES),
+    foreach(fun(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}) ->
+		    PosA = lookup_pos(Va, Vtab),
+		    PosB = lookup_pos(Vb, Vtab),
+		    Mid = e3d_vec:average([PosA,PosB]),
+		    gl:vertex3fv(Mid),
+		    N = e3d_vec:average([wings_face:normal(Lf, We),
+					 wings_face:normal(Rf, We)]),
+		    gl:vertex3fv(e3d_vec:add(Mid, e3d_vec:mul(N, 0.3)))
+	    end, gb_trees:values(Etab)),
+    gl:'end'();
+
+make_normals_dlist_2(Other, #we{fs=Ftab}=We) ->
+    gl:'begin'(?GL_LINES),
+    foreach(fun(Face) ->
+		    Vs = wings_face:surrounding_vertices(Face, We),
+		    C = wings_vertex:center(Vs, We),
+		    gl:vertex3fv(C),
+		    N = wings_face:face_normal(Vs, We),
+		    gl:vertex3fv(e3d_vec:add(C, e3d_vec:mul(N, 0.3)))
+	    end, gb_trees:keys(Ftab)),
+    gl:'end'().
+	    
+%%
 %% Miscellanous.
 %%
 
@@ -463,3 +531,34 @@ groundplane(X, Last, Sz, Axes) ->
             gl:vertex3f(Sz, X, 0)
     end,
     groundplane(X+?GROUND_GRID_SIZE, Last, Sz, Axes).
+
+show_saved_bb(#st{bb=none}) -> ok;
+show_saved_bb(#st{bb=[{X1,Y1,Z1},{X2,Y2,Z2}]}) ->
+    case wings_pref:get_value(show_bb) of
+	false -> ok;
+	true ->
+	    gl:enable(?GL_LINE_STIPPLE),
+	    gl:lineStipple(4, 2#1110111011101110),
+	    gl:color3f(0, 0, 1),
+	    gl:'begin'(?GL_LINE_STRIP),
+	    gl:vertex3f(X1, Y1, Z1),
+	    gl:vertex3f(X2, Y1, Z1),
+	    gl:vertex3f(X2, Y2, Z1),
+	    gl:vertex3f(X1, Y2, Z1),
+	    gl:vertex3f(X1, Y1, Z1),
+	    gl:vertex3f(X1, Y1, Z2),
+	    gl:vertex3f(X2, Y1, Z2),
+	    gl:vertex3f(X2, Y2, Z2),
+	    gl:vertex3f(X1, Y2, Z2),
+	    gl:vertex3f(X1, Y1, Z2),
+	    gl:'end'(),
+	    gl:'begin'(?GL_LINES),
+	    gl:vertex3f(X1, Y2, Z1),
+	    gl:vertex3f(X1, Y2, Z2),
+	    gl:vertex3f(X2, Y2, Z1),
+	    gl:vertex3f(X2, Y2, Z2),
+	    gl:vertex3f(X2, Y1, Z1),
+	    gl:vertex3f(X2, Y1, Z2),
+	    gl:'end'(),
+	    gl:disable(?GL_LINE_STIPPLE)
+    end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.37 2002/01/11 08:27:56 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.38 2002/01/11 16:36:44 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -25,17 +25,16 @@
 -import(wings_draw, [model_changed/1]).
 
 menu(X, Y, St) ->
-    Wire = wings_pref:get_value(wire_mode, false),
-    E = wings_pref:get_value(show_edges),
-    S = wings_pref:get_value(smooth_preview),
-    O = wings_pref:get_value(orthogonal_view),
     L = wings_pref:get_value(number_of_lights),
     Menu = {{"Ground plane",show_groundplane,crossmark(show_groundplane)},
 	    {"Axes",show_axes,crossmark(show_axes)},
 	    separator,
 	    {"Wireframe","w",wire_mode,crossmark(wire_mode)},
 	    {"Smooth Preview","Tab",smooth_preview,crossmark(smooth_preview)},
+	    separator,
+	    {"Show Saved BB",show_bb,crossmark(show_bb)},
 	    {"Show Edges",show_edges,crossmark(show_edges)},
+	    {"Show Normals",show_normals,crossmark(show_normals)},
 	    separator,
 	    {"Reset View","r",reset},
 	    {"Aim","a",aim},
@@ -150,6 +149,8 @@ init() ->
     wings_pref:set_default(show_axes, true),
     wings_pref:set_default(show_edges, true),
     wings_pref:set_default(number_of_lights, 1),
+    wings_pref:set_default(show_normals, false),
+    wings_pref:set_default(show_bb, true),
 
     %% Always reset the following preferences + the view itself.
     wings_pref:set_value(wire_mode, false),
