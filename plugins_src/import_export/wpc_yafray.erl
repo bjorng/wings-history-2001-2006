@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.67 2004/03/08 22:27:18 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.68 2004/03/11 08:35:50 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1758,7 +1758,7 @@ export_light(F, Name, area, OpenGL, YafRay) ->
     Color = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,1.0}),
     #e3d_mesh{vs=Vs,fs=Fs} = proplists:get_value(mesh, OpenGL, #e3d_mesh{}),
     VsT = list_to_tuple(Vs),
-    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
+    Power = proplists:get_value(power, YafRay, ?DEF_ATTN_POWER),
     ArealightSamples = proplists:get_value(arealight_samples, YafRay, 
 					   ?DEF_AREALIGHT_SAMPLES),
     ArealightPsamples = proplists:get_value(arealight_psamples, YafRay, 
