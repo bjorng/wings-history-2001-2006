@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.93 2002/01/25 09:04:36 bjorng Exp $
+%%     $Id: wings.erl,v 1.94 2002/01/26 11:26:51 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0,start/1,start_halt/1,start_halt/2]).
 -export([root_dir/0,caption/1,redraw/1,info/1]).
+-export([menu/4,popup_menu/3]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -267,8 +268,14 @@ do_command(Cmd, St0) ->
 	    pop
     end.
 
-do_command_1(Cmd, St) ->
-    command(Cmd, St).
+do_command_1(Cmd, St0) ->
+    case wings_plugin:command(Cmd, St0) of
+	next -> command(Cmd, St0);
+	St0 -> St0;
+	#st{}=St -> {save_state,model_changed(St)};
+	{drag,_}=Drag -> Drag;
+	aborted -> St0
+    end.
 
 remember_command({C,_}=Cmd, St) when C =:= vertex; C =:= edge;
 				     C =:= face; C =:= body ->
@@ -309,23 +316,9 @@ repeatable(Mode, Cmd) ->
 	_ -> no
     end.
 
-command({pick,{vector,Ns}}, St) ->
-    wings_vec:pick(vector, Ns, St);
+command({pick,{What,Ns}}, St) ->
+    wings_vec:pick(What, Ns, St);
 command({secondary_selection,aborted}, St) -> St;
-command({_,{[_|_]}=Plugin}, St0) ->
-    case wings_plugin:command(Plugin, St0) of
-	St0 -> St0;
-	#st{}=St -> {save_state,model_changed(St)};
-	{drag,_}=Drag -> Drag;
-	aborted -> St0
-    end;
-command({_,[_|_]=Plugin}, St0) ->
-    case wings_plugin:command(Plugin, St0) of
-	St0 -> St0;
-	#st{}=St -> {save_state,model_changed(St)};
-	{drag,_}=Drag -> Drag;
-	aborted -> St0
-    end;
 command({menu,Menu,X,Y}, St) ->
     menu(X, Y, Menu, St);
 command({shape,{Shape}}, St0) ->
@@ -657,7 +650,7 @@ directions(#st{selmode=Mode}) ->
     end.
 
 dirs(1, Mode, Ns) -> dirs_1(Mode, Ns);
-dirs(2, Mode, Ns) -> dirs_1(Mode, Ns);
+dirs(2, Mode, Ns) -> {action,{pick,{named_vector,Ns}}};
 dirs(3, Mode, Ns) -> {action,{pick,{vector,Ns}}};
 dirs(submenu, Mode, Ns) -> dirs_1(Mode, Ns);
 dirs(help, Mode, Ns) -> "";
@@ -665,11 +658,22 @@ dirs(adv_help, Mode, Ns) ->
     adv_help(Ns).
 
 adv_help([move|_]) ->
-    "[L] move in standard directions  [R] pick vector to move along";
-adv_help(_) -> "".
+    {"Move along std. axis","Move along named axis",
+     "Pick vector to move along"};
+adv_help([rotate|_]) ->
+    {"Rotate around std. axis","Rotate around named axis",
+     "Pick vector to rotate around"};
+adv_help([scale|_]) -> "Scale selected elements";
+adv_help([extrude|_]) ->
+    {"Extrude along std. axis","Extrude along named axis",
+     "Pick vector to extrude along"};
+adv_help([extrude_region|_]) ->
+    {"Extrude along std. axis","Extrude along named axis",
+     "Pick vector to extrude along"};
+adv_help(Ns) -> "".
 
 dirs_1(Mode, Ns) ->
-    Dirs = [{"Free",help(free, Ns)},
+    Dirs = [{"Free",free,help(free, Ns)},
 	    {"X",x,help(x, Ns)},
 	    {"Y",y,help(y, Ns)},
 	    {"Z",z,help(z, Ns)}],
@@ -684,11 +688,11 @@ help(normal, [extrude|_]) ->
     "Extrude each element; move each element along its normal.";
 help(normal, [extrude_region|_]) ->
     "Extrude faces as region; move faces along the region's normal.";
-help(free, [move|_]) -> "Move freely in all directions";
+help(free, [move|_]) -> "Move freely in all directions.";
 help(free, [extrude|_]) ->
-    "Extrude elements; move freely in all directions";
+    "Extrude elements; move freely in all directions.";
 help(free, [extrude_region|_]) ->
-    "Extrude faces as region; move freely in all directions";
+    "Extrude faces as region; move freely in all directions.";
 help(x, Ns) -> help_axis("X", Ns);
 help(y, Ns) -> help_axis("Y", Ns);
 help(z, Ns) -> help_axis("Z", Ns);

@@ -1,14 +1,14 @@
 %%
-%%  wings_sec_sel.erl --
+%%  wings_vec.erl --
 %%
-%%     This module implements the secondary selection mode.
+%%     This module implements vectors and the secondary selection mode.
 %%
 %%  Copyright (c) 2002 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.1 2002/01/25 09:04:38 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.2 2002/01/26 11:26:51 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -26,8 +26,22 @@
 	     st					%Original st record.
 	    }).
 
-pick(Type, Names, St) ->
-    Ss = #ss{type=Type,names=Names,st=St},
+pick(save_unnamed, {Vec,Ns}=Args, St) ->
+    wings_io:putback_event({action,{pick,{use_vector,Args}}}),
+    case St of
+	#st{svec=[{unnamed,_}|Vecs]} ->
+	    St#st{svec=[{unnamed,Vec}|Vecs]};
+	#st{svec=Vecs} ->
+	    St#st{svec=[{unnamed,Vec}|Vecs]}
+    end;
+pick(named_vector, Names, St) ->
+    named_menu(Names, St);
+pick(use_vector, {{Vec,_},Ns}, St) ->
+    Cmd = wings_menu:build_command(Vec, Ns),
+    wings_io:putback_event({action,Cmd}),
+    St;
+pick(vector, Names, St) ->
+    Ss = #ss{type=vector,names=Names,st=St},
     wings_io:message("Select vector to use."),
     {seq,{push,dummy},get_event(Ss, St#st{sel=[]})}.
 
@@ -88,7 +102,7 @@ exit_menu(X, Y, Ss, St) ->
 	{none,Msg} ->
 	    wings_io:message(Msg),
 	    exit_menu_invalid(X, Y, Ss, St);
-	{{Vec,_},Msg} ->
+	{Vec,Msg} ->
 	    wings_io:message(Msg),
 	    exit_menu_done(X, Y, Vec, Ss, St)
     end.
@@ -100,8 +114,8 @@ exit_menu_invalid(X, Y, #ss{type=Type,names=Names}, St) ->
 	    {"Abort Command",abort}},
     wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
 
-exit_menu_done(X, Y, Vec, #ss{names=Names}, St) ->
-    UseAction = [fun(_, _) -> use_current(Vec, Names) end],
+exit_menu_done(X, Y, Vec, #ss{names=Ns}, St) ->
+    UseAction = [fun(_, _) -> {pick,{save_unnamed,{Vec,Ns}}} end],
     Menu = {{"Vector Selection",ignore},
 	    separator,
 	    {"Use Current Vector",UseAction},
@@ -109,9 +123,27 @@ exit_menu_done(X, Y, Vec, #ss{names=Names}, St) ->
 	    {"Abort Command",aborted}},
     {seq,pop,wings_menu:popup_menu(X, Y, secondary_selection, Menu, St)}.
 
-use_current(Vec, Names) ->
-    foldl(fun(N, A) -> {N,A} end, Vec, Names).
+%%%
+%%% Show menu of named vectors.
+%%%
 
+named_menu(Ns, #st{svec=Vecs}=St) ->
+    Menu = [{"Vector Menu",ignore},separator|named_vectors(Vecs, Ns)],
+    {_,X,Y} = sdl_mouse:getMouseState(),
+    wings_menu:popup_menu(X, Y, use_named_vector, Menu, St).
+
+named_vectors([], Ns) -> {"(No vectors)",ignore};
+named_vectors([{unnamed,Vec}|T], Ns) ->
+    [{"(Last vector)",use_fun(Vec, Ns)}|named_vectors_1(T, Ns)];
+named_vectors(T, Ns) -> named_vectors_1(T, Ns).
+
+named_vectors_1([{Name,Vec}|T], Ns) ->
+    [{atom_to_list(Name),use_fun(Vec, Ns)}|named_vectors_1(T, Ns)];
+named_vectors_1([], Ns) -> [].
+    
+use_fun(Vec, Ns) ->
+    [fun(_, _) -> {pick,{use_vector,{Vec,Ns}}} end].
+	     
 %%%
 %%% Vector functions.
 %%%
@@ -132,7 +164,7 @@ findvec(Type, Sel0, #st{shapes=Shs}=St) ->
             Sel = gb_sets:to_list(Sel1),
             {Vec,Msg} = get_vec(Type, Sel, We),
             {{Vec,{Type,Sel}},Msg};
-        _ -> {{none,none}, "Select parts of one object only"}
+        Other -> {{none,none},"Select parts of one object only"}
     end.
 
 %% Use single edge as axis

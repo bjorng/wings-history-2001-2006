@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.23 2002/01/25 09:04:36 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.24 2002/01/26 11:26:51 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -18,7 +18,7 @@
 -import(lists, [map/2,foldr/3,foldl/3,sort/1]).
 
 setup(Type, #st{selmode=body,sel=Sel}=St) ->
-    Vec = wings_util:make_vector(Type),
+    Vec = vector(Type),
     Fun = translate_fun(Vec),
     Ids = [{Id,Fun} || {Id,_} <- Sel],
     wings_drag:init_drag({matrix,Ids}, constraint(Type), distance, St);

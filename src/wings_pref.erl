@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.23 2002/01/25 09:04:36 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.24 2002/01/26 11:26:51 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -24,19 +24,12 @@
 init() ->
     ets:new(wings_state, [named_table,public,ordered_set]),
     ets:insert(wings_state, defaults()),
-
-    Setup = fun({{bindkey,Key,List}, Action}) ->
-		    ets:insert(wings_state,
-			       {{bindkey,Key,sort(List)},Action});
-	       (Other) -> ets:insert(wings_state, Other)
-	    end,
-    foreach(Setup, default_keybindings()),
-
+    wings_hotkey:set_default(),
     case old_pref_file() of
 	none -> ok;
 	Pref ->
 	    case file:consult(Pref) of
-		{ok,List} -> catch lists:foreach(Setup, List);
+		{ok,List} -> catch ets:insert(wings_state, List);
 		{error,Reason} -> ok
 	    end
     end.
@@ -46,12 +39,14 @@ finish() ->
     PrefFile = new_pref_file(),
     List0 = ets:tab2list(wings_state),
     List = prune_defaults(List0),
-    Write = fun({{bindkey,Key,Mods}, Action}) ->
-		    io_lib:format("{{bindkey, $~c, ~p}, ~p}.~n",
-				  [Key,Mods,Action]);
-	       ({{bindkey, Key}, Action}) ->
-		    io_lib:format("{{bindkey, $~c}, ~p}.~n",
-				  [Key,Action]);
+    Write = fun({{bindkey,_},_,default}) -> [];
+	       ({{bindkey,_},_,plugin}) -> [];
+	       ({{bindkey,{Key,Mods}},Action,Source}) ->
+		    io_lib:format("{{bindkey,{$~c,~p}},~p,~p}.\n",
+				  [Key,Mods,Action,Source]);
+	       ({{bindkey,Key},Action,Source}) ->
+		    io_lib:format("{{bindkey,$~c},~p,~p}.\n",
+				  [Key,Action,Source]);
 	       (Else) ->
 		    io_lib:format("~p. \n", [Else])
 	    end,
@@ -60,8 +55,7 @@ finish() ->
     ok.
 
 prune_defaults(List) ->
-    NonPresets = List -- [{Key,Val} || {_,Key,Val} <- presets()],
-    NonPresets -- default_keybindings().
+    List -- [{Key,Val} || {_,Key,Val} <- presets()].
 
 menu(St) ->
     menu_1(presets()).
@@ -217,57 +211,4 @@ presets() ->
      {"Vector Display Color",active_vector_color,{0.0,0.0,0.65}},
      separator,
      {"Advanced Menus",advanced_menus,false}
-    ].
-
-default_keybindings() ->
-    [{{bindkey,{$a,[ctrl]}},          {select,all}},
-     {{bindkey,{$i,[ctrl,shift]}},     {select,inverse}},
-     {{bindkey,{$l,[ctrl]}},           {file,merge}},
-     {{bindkey,{$n,[ctrl]}},           {file,new}},
-     {{bindkey,{$o,[ctrl]}},           {file,open}},
-     {{bindkey,{$q,[ctrl]}},           {file,quit}},
-     {{bindkey,{$s,[ctrl,shift]}},     {file,save_as}},
-     {{bindkey,{$s,[ctrl]}},           {file,save}},
-     {{bindkey,{$z,[alt,ctrl]}},       {edit,undo}},
-     {{bindkey,{$z,[ctrl,shift]}},     {edit,redo}},
-     {{bindkey,{$z,[ctrl]}},           {edit,undo_toggle}},
-     {{bindkey,{?SDLK_KP_PLUS,[]}},   {select,more}},
-     {{bindkey,{?SDLK_KP_MINUS,[]}},  {select,less}},
-     {{bindkey,{?SDLK_F3,[]}},        {select,prev_edge_loop}},
-     {{bindkey,{?SDLK_F4,[]}},        {select,next_edge_loop}},
-     {{bindkey,{?SDLK_F5,[]}},        {select,{by,{faces_with,5}}}},
-     {{bindkey, $\t},                 {view,smooth_preview}},
-     {{bindkey, $\s},                 {select,deselect}},
-     {{bindkey, $a},                  {view,aim}},
-     {{bindkey, $b},                  {select,body}},
-     {{bindkey, $d},                  {edit,repeat}},
-     {{bindkey, $e},                  {select,edge}},
-     {{bindkey, $f},                  {select,face}},
-     {{bindkey, $i},                  {select,similar}},
-     {{bindkey, $l},                  {select,edge_loop}},
-     {{bindkey, $o},                  {view,orthogonal_view}},
-     {{bindkey, $r},                  {view,reset}},
-     {{bindkey, $R},                  {select,edge_ring}},
-     {{bindkey, $s},                  {body,auto_smooth}},
-     {{bindkey, $u},                  {view,auto_rotate}},
-     {{bindkey, $v},                  {select,vertex}},
-     {{bindkey, $w},                  {view,wire_mode}},
-     {{bindkey, $x},                  {view,{along,x}}},
-     {{bindkey, $y},                  {view,{along,y}}},
-     {{bindkey, $z},                  {view,{along,z}}},
-     {{bindkey, $X},                  {view,{along,neg_x}}},
-     {{bindkey, $Y},                  {view,{along,neg_y}}},
-     {{bindkey, $Z},                  {view,{along,neg_z}}},
-     {{bindkey, $2},                  {edge,{cut,2}}},
-     {{bindkey, $3},                  {edge,{cut,3}}},
-     {{bindkey, $4},                  {edge,{cut,4}}},
-     {{bindkey, $5},                  {edge,{cut,5}}},
-     {{bindkey, $6},                  {edge,{cut,6}}},
-     {{bindkey, $7},                  {edge,{cut,7}}},
-     {{bindkey, $8},                  {edge,{cut,8}}},
-     {{bindkey, $9},                  {edge,{cut,9}}},
-     {{bindkey, $0},                  {edge,{cut,10}}},
-     {{bindkey, $+},                  {select,more}},
-     {{bindkey, $=},                  {select,more}},
-     {{bindkey, $-},                  {select,less}}
     ].
