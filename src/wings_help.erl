@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.33 2002/12/14 14:24:30 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.34 2002/12/20 15:48:05 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -26,6 +26,7 @@ menu(_) ->
      separator,
      {"Light Basics",lights},
      {"Assigning Hotkeys",defining_hotkeys},
+     {"Default Commands",default_commands},
      {"Advanced Menus",advanced_menus},
      separator,
      {"OpenGL Info",opengl_info},
@@ -40,6 +41,8 @@ command(international, _St) ->
     international();
 command(defining_hotkeys, _St) ->
     def_hotkeys();
+command(default_commands, _St) ->
+    def_commands();
 command(lights, _St) ->
     lights();
 command(advanced_menus, _St) ->
@@ -99,6 +102,18 @@ international() ->
 
 	    "On German keyboards, the Undo/Redo commands are found on the"
 	    "[Y] key ([Ctrl]+[Y], [Ctrl]+[Alt]+[Y] and so on)."],
+    help_window(Help).
+
+def_commands() ->
+    Help = ["Assigning Default Commands",
+	    "Two default commands can be defined. To save the "
+	    "previous command that was executed, use one of:",
+	    "  [Shift]+[Ctrl]+[L]",
+	    "  [Shift]+[Ctrl]+[M]",
+	    "To use a command that has been defined this way, "
+	    "use one of:",
+	    "  [Ctrl]+[L]",
+	    "  [Ctrl]+[M]"],
     help_window(Help).
 
 def_hotkeys() ->

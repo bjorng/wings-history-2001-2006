@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.177 2002/12/15 15:42:10 bjorng Exp $
+%%     $Id: wings.erl,v 1.178 2002/12/20 15:48:04 bjorng Exp $
 %%
 
 -module(wings).
@@ -122,7 +122,8 @@ init(File, Root) ->
 	      saved=true,
 	      onext=1,
 	      repeatable=ignore,
-	      args=none
+	      args=none,
+	      def={ignore,ignore}
 	    },
     St = wings_undo:init(St0),
     wings_view:init(),
@@ -208,9 +209,23 @@ handle_event({open_file,Name}, St0) ->
 	{error,_} ->
 	    main_loop(St0)
     end;
-handle_event(Event, St) ->
-    case wings_camera:event(Event, St) of
-	next -> handle_event_1(Event, St);
+handle_event(#mousebutton{button=But,state=ButSt}=Ev, St) ->
+    Mod = wings_wm:me_modifiers(),
+    case But of
+	But when But < 3, Mod band ?CTRL_BITS =/= 0,
+		 Mod band ?SHIFT_BITS =/= 0 ->
+	    define_command(ButSt, But, St);
+	But when But < 3, Mod band ?CTRL_BITS =/= 0 ->
+	    use_command(ButSt, But, St);
+	_ ->
+	    handle_event_0(Ev, St)
+    end;
+handle_event(Ev, St) ->
+    handle_event_0(Ev, St).
+
+handle_event_0(Ev, St) ->
+    case wings_camera:event(Ev, St) of
+	next -> handle_event_1(Ev, St);
 	Other -> Other
     end.
 
@@ -699,6 +714,21 @@ command_name(Repeat, CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
 	    _ ->  [Repeat++" \"",CmdStr,"\""]
 	end,
     lists:flatten(S).
+
+define_command(?SDL_RELEASED, N, #st{repeatable=Cmd,def=DefCmd0}=St) ->
+    DefCmd = setelement(N, DefCmd0, Cmd),
+    main_loop_noredraw(St#st{def=DefCmd});
+define_command(_, _, _) -> keep.
+
+use_command(_, _, #st{sel=[]}) -> keep;
+use_command(?SDL_RELEASED, N, #st{selmode=Mode,def=DefCmd}) ->
+    case repeatable(Mode, element(N, DefCmd)) of
+	no -> keep;
+	Cmd when tuple(Cmd) ->
+	    wings_io:putback_event({action,Cmd}),
+	    keep
+    end;
+use_command(_, _, _) -> keep.
 
 crash_logger(Crash, St) ->
     LogName = wings_util:crash_log(Crash),
