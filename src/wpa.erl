@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.36 2003/12/30 07:53:42 bjorng Exp $
+%%     $Id: wpa.erl,v 1.37 2003/12/30 14:41:05 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
 	 bind_unicode/2,bind_virtual/3,
 	 import/2,import/3,import_filename/2,
-	 export/3,export_selected/3,export_filename/2,
+	 export/3,export_selected/3,
+	 export_filename/2,export_filename/3,
 	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,pref_delete/2,
 	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,sel_strict_face_regions/2,
@@ -142,8 +143,27 @@ export_sel_set_holes(face, Faces0, #we{fs=Ftab}=We) ->
     Faces = ordsets:subtract(AllFaces, Faces1),
     wings_material:assign('_hole_', Faces, We).
 
-export_filename(Prop, St) ->
-    wings_file:export_filename(Prop, St).
+%% export_filename([Prop], Continuation).
+%%   The Continuation fun will be called like this: Continuation(Filename).
+export_filename(Prop, #st{}=St) ->
+    %% XXX Will soon be removed.
+    wings_file:export_filename(Prop, St);
+export_filename(Prop, Cont) ->
+    wings_plugin:call_ui({file,save_dialog,[{title,"Export"}|Prop],Cont}).
+
+%% export_filename([Prop], St, Continuation).
+%%   The St will only be used to setup the default filename.
+%%   The Continuation fun will be called like this: Continuation(Filename).
+export_filename(Prop, #st{file=undefined}, Cont) ->
+    export_filename(Prop, Cont);
+export_filename(Prop0, #st{file=File}, Cont) ->
+    Prop = case proplists:get_value(ext, Prop0) of
+	       undefined -> Prop0;
+	       Ext ->
+		   Def = filename:rootname(filename:basename(File), ".wings") ++ Ext,
+		   [{default_filename,Def}|Prop0]
+	   end,
+    export_filename(Prop, Cont).
 
 %%%
 %%% Preferences.
