@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Unix systems.
 #
-# $Id: make_installer,v 1.1 2003/10/13 06:17:06 bjorng Exp $
+# $Id: make_installer,v 1.2 2003/10/13 18:40:32 bjorng Exp $
 #
 
 # Configurable stuff.
@@ -67,9 +67,22 @@ $INSTALL -c -m 644 "$src/bin/start.boot" "$dest/bin"
 dest="$DEST_ROOT/lib/$ESDL_NAME"
 $INSTALL -d "$dest/ebin" "$dest/priv"
 $INSTALL -c -m 644  "$ESDL_PATH"/ebin/* "$dest/ebin"
-$INSTALL -c -m 644  "$ESDL_PATH"/priv/sdl_driver.so "$dest/priv"
+$INSTALL -c "$ESDL_PATH"/priv/sdl_driver.so "$dest/priv"
 rm -rf "$dest/ebin/sdl_audio.beam" "$dest/ebin/sdl_joystick.beam"
 strip --strip-debug --strip-unneeded "$dest/priv/sdl_driver.so"
+
+# Copy the SDL so.
+sdl_lib=`ldd "$dest/priv/sdl_driver.so" | awk '$1 ~ /^libSDL/ { print $3}'`
+sdl_lib_name=`basename $sdl_lib`
+if [ ! -L $sdl_lib ]; then
+    echo `basename $0`: "$sdl_lib expected to be a symlink"
+else
+    lib_dir=`dirname $sdl_lib`
+    linkname=`readlink $sdl_lib`
+    $INSTALL -c $lib_dir/$linkname "$dest/priv"
+    rm -f $dest/priv/$sdl_lib_name
+    (cd $dest/priv; ln -s $linkname $sdl_lib_name)
+fi
 
 #
 # Remove files from OTP not needed.
@@ -85,7 +98,7 @@ erl -noshell -pa /tmp -run strip strip
 # Package the installer.
 cd $WINGS_DIR
 INSTALLER="$DEST_ROOT/install_wings"
-sed -e "s;%WINGS_VSN%;$WINGS_VSN;" $WINGS_DIR/unix/install_wings.src > $INSTALLER
+sed -e "s;%WINGS_VSN%;$WINGS_VSN;" -e "s;%ESDL_NAME%;$ESDL_NAME;" -e "s;%LIB_SDL_NAME%;$sdl_lib_name;" $WINGS_DIR/unix/install_wings.src > $INSTALLER
 chmod +x $INSTALLER
 
 dest=$DEST_ROOT
