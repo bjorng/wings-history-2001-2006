@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.55 2003/11/27 10:54:10 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.56 2003/11/27 20:33:58 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -1337,13 +1337,27 @@ load_program(Target, Prog) ->
     [PId] = gl:genProgramsARB(1),
     gl:bindProgramARB(Target,PId),
     gl:programStringARB(Target,?GL_PROGRAM_FORMAT_ASCII_ARB,size(Prog),Prog),
-    Err = gl:getString(?GL_PROGRAM_ERROR_STRING_ARB),
-    case Err of
+    case gl:getString(?GL_PROGRAM_ERROR_STRING_ARB) of
 	[] -> PId;
-	_ -> 
-	    io:format("Error when loading program: ~p~n",Err),
+	Err ->
+	    print_program(binary_to_list(Prog)),
+	    io:format("Error when loading program: ~s\n", [Err]),
 	    exit(prog_error)
     end.   
+
+print_program(Cs) ->
+    io:format("~3w: ", [1]),
+    print_program_1(Cs, 1).
+
+print_program_1([$\n|Cs], Line0) ->
+    Line = Line0 + 1,
+    io:format("\n~3w: ", [Line]),
+    print_program_1(Cs, Line);
+print_program_1([C|Cs], Line) ->
+    io:put_chars([C]),
+    print_program_1(Cs, Line);
+print_program_1([], _) -> ok.
+    
 
 vertex_prog() ->
     <<"!!ARBvp1.0
@@ -1369,7 +1383,7 @@ DP4 result.position.w, mvp[3], xyz;
 
 SUB dir, light, xyz;
 DP3 ldist2, dir, dir;
-RSQ dir.w, ldist2;
+RSQ dir.w, ldist2.w;
 MUL dir.xyz, dir, dir.w;
 
 DP3 result.texcoord[1].x, tangent, dir;
