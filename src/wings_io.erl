@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.83 2002/12/14 07:49:56 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.84 2002/12/15 11:32:48 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -22,8 +22,8 @@
 	 text_at/2,text_at/3,text/1,menu_text/3,space_at/2,
 	 draw_icon/3,draw_icon/5,draw_icon/7,
 	 set_color/1]).
--export([putback_event/1,get_event/0,poll_event/0,
-	 set_timer/2,cancel_timer/1]).
+-export([putback_event/1,get_event/0,get_matching_events/1,
+	 poll_event/0,set_timer/2,cancel_timer/1]).
 
 -export([reset_grab/0,grab/0,ungrab/0,warp/2]).
 -export([ortho_setup/0]).
@@ -35,7 +35,7 @@
 -include("wings.hrl").
 
 -import(lists, [flatmap/2,foldl/3,keysearch/3,member/2,
-		reverse/1,foreach/2,last/1]).
+		reverse/1,reverse/2,foreach/2,last/1]).
 
 -define(ICON_WIDTH, 44).
 -define(ICON_HEIGHT, 32).
@@ -325,14 +325,36 @@ inactive(_X, _Y, R, G, B) -> [R,G,B].
 
 putback_event(Event) ->
     #io{eq={In,Out}} = Io = get_state(),
-    put_state(Io#io{eq={In,[Event|Out]}}),
-    ok.
+    put_state(Io#io{eq={In,[Event|Out]}}).
 
 get_event() ->
     case get_sdl_event() of
 	{quit} -> quit;
 	Other -> Other
      end.
+
+get_matching_events(Filter) ->
+    #io{eq=Eq} = get_state(),
+    get_matching_events_1(Filter, Eq, [], []).
+
+get_matching_events_1(Filter, Eq0, Match, NoMatch) ->
+    case queue:out(Eq0) of
+	{{value,Ev},Eq} ->
+	    case Filter(Ev) of
+		false ->
+		    get_matching_events_1(Filter, Eq, Match, [Ev|NoMatch]);
+		true ->
+		    get_matching_events_1(Filter, Eq, [Ev|Match], NoMatch)
+	    end;
+	{empty,{In,Out}} ->
+	    case Match of
+		[] -> [];
+		_ ->
+		    Io = get_state(),
+		    put_state(Io#io{eq={In,reverse(NoMatch, Out)}}),
+		    Match
+	    end
+    end.
 
 poll_event() ->
     #io{eq=Eq} = get_state(),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.35 2002/12/14 10:04:10 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.36 2002/12/15 11:32:48 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -227,7 +227,8 @@ window_under([_|T], X, Y) ->
     
 enter_event_loop() ->
     {W,H} = top_size(),
-    dispatch_event(#resize{w=W,h=H}).
+    dispatch_event(#resize{w=W,h=H}),
+    event_loop().
 
 event_loop() ->
     case get(wm_dirty) of
@@ -242,7 +243,12 @@ event_loop() ->
 
 get_and_dispatch() ->
     Event = wings_io:get_event(),
-    dispatch_event(Event).
+    dispatch_event(Event),
+    event_loop().
+
+dispatch_matching_events(Filter) ->
+    Evs = wings_io:get_matching_events(Filter),
+    foreach(fun dispatch_event/1, Evs).
 
 dispatch_event(#resize{w=W,h=H}=Event) ->
     ?CHECK_ERROR(),
@@ -301,13 +307,12 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
 	    put_window_data(autouv, AutoUVData)
     end,
 
-    dirty(),
-    event_loop();
+    dirty();
 dispatch_event({wm,WmEvent}) ->
     wm_event(WmEvent);
 dispatch_event(Event) ->
     case find_active(Event) of
-	none -> event_loop();
+	none -> ok;
 	Active -> do_dispatch(Active, Event)
     end.
 
@@ -315,23 +320,20 @@ do_dispatch(Active, Ev) ->
     Win0 = get_window_data(Active),
     case send_event(Win0, Ev) of
 	#win{name=Name,stk=delete} ->
-	    delete(Name),
-	    event_loop();
+	    delete(Name);
 	#win{stk=[]} ->
 	    ok;
 	Win ->
-	    put_window_data(Active, Win),
-	    event_loop()
+	    put_window_data(Active, Win)
     end.
 
 redraw_all() ->
     EarlyBC = wings_pref:get_value(early_buffer_clear),
     maybe_clear(late, EarlyBC),			%Clear right before
 						%drawing (late).
-    Ws = map(fun({Name,Win}) ->
-		     {Name,send_event(Win, redraw)}
-	     end, keysort(2, gb_trees:to_list(get(wm_windows)))),
-    put(wm_windows, gb_trees:from_orddict(sort(Ws))),
+    foreach(fun({Name,_}) ->
+		    do_dispatch(Name, redraw)
+	    end, keysort(2, gb_trees:to_list(get(wm_windows)))),
     gl:swapBuffers(),
     maybe_clear(early, EarlyBC),		%Clear immediately after
 						%buffer swap (early).
@@ -354,7 +356,7 @@ send_event(#win{name=Name,x=X,y=Y0,w=W,h=H,stk=[Se|_]=Stk0}, Ev0) ->
     {_,TopH} = get(wm_top_size),
     Y = TopH-(Y0+H),
     ViewPort = {X,Y,W,H},
-    case put(wm_viewport, {X,Y,W,H}) of
+    case put(wm_viewport, ViewPort) of
 	ViewPort -> ok;
 	_ -> gl:viewport(X, Y, W, H)
     end,
@@ -436,8 +438,8 @@ wm_event({message,Name,Msg}) ->
 	    Data = Data0#win{stk=[Top#se{msg=Msg}|Stk]},
 	    put_window_data(Name, Data),
 	    wings_wm:dirty()
-    end,
-    event_loop();
+    end;
+
 wm_event({message_right,Name,Right0}) ->
     Right = lists:flatten(Right0),
     case lookup_window_data(Name) of
@@ -447,8 +449,7 @@ wm_event({message_right,Name,Right0}) ->
 	    Data = Data0#win{stk=[Top#se{msg_right=Right}|Stk]},
 	    put_window_data(Name, Data),
 	    wings_wm:dirty()
-    end,
-    event_loop();
+    end;
 wm_event({menubar,Name,Menubar}) ->
     case lookup_window_data(Name) of
 	none -> ok;
@@ -457,16 +458,14 @@ wm_event({menubar,Name,Menubar}) ->
 	    Data = Data0#win{stk=[Top#se{menubar=Menubar}|Stk]},
 	    put_window_data(Name, Data),
 	    wings_wm:dirty()
-    end,
-    event_loop();
+    end;
 wm_event({send_to,Name,Ev}) ->
     case gb_trees:is_defined(Name, get(wm_windows)) of
-	false -> event_loop();
+	false -> ok;
 	true -> do_dispatch(Name, Ev)
     end;
 wm_event({callback,Cb}) ->
-    Cb(),
-    event_loop().
+    Cb().
 
 %%%
 %%% Finding the active window.
@@ -573,6 +572,10 @@ translate_button_1(B, _, Mod) ->
 %%
 
 message_event(redraw) ->
+    dispatch_matching_events(fun({wm,{message,_,_}}) -> true;
+				({wm,{message_right,_,_}}) -> true;
+				(_) -> false
+			     end),
     case find_active(redraw) of
 	none -> message_redraw([], []);
 	Active ->
