@@ -9,7 +9,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings.nsi,v 1.2 2003/09/11 15:17:16 bjorng Exp $
+#     $Id: wings.nsi,v 1.3 2003/09/12 15:05:22 bjorng Exp $
 #
 
 	!define MUI_PRODUCT "Wings 3D"
@@ -60,17 +60,17 @@
 ;Language Strings
 
 ;Description
-  	LangString DESC_SecWings ${LANG_ENGLISH} "Wings 3D"
+  	LangString DESC_SecWings ${LANG_ENGLISH} "The Wings 3D modeler"
   	LangString DESC_SecWingsBase ${LANG_ENGLISH} \
 		"Basic Wings components"
   	LangString DESC_SecWingsMakeDefault ${LANG_ENGLISH} \
-"Make this installation of Wings 3D the default one and add shell extensions"
+"Make this installation of Wings 3D the one that will be started when you double-click on a .wings file."
   	LangString DESC_SecWingsClutter ${LANG_ENGLISH} \
-		"Clutter your computer with Wings 3D shortcuts"
+		"Clutter your computer with Wings 3D shortcuts."
   	LangString DESC_SecWingsClutterDesktop ${LANG_ENGLISH} \
-		"Clutter your desktop with a shortcut"
+		"Create a shortcut to Wings3D on the Desktop."
   	LangString DESC_SecWingsClutterQuicklaunch ${LANG_ENGLISH} \
-		"Clutter your Quicklaunch with a shortcut"
+       		"Create a shortcut to Wings3D in the task bar."
  
 ;--------------------------------
 ;Installer Sections
@@ -190,7 +190,6 @@ continue_create:
 SectionEnd
 
 Section "QuickLaunch shortcut" SecWingsClutterQuickLaunch
-  
   SetShellVarContext All
   ClearErrors
   CreateShortCut "$QUICKLAUNCH\Wings 3D ${WINGS_VERSION}.lnk" "$INSTDIR\Wings3D.exe"
@@ -291,6 +290,8 @@ done:
 SectionEnd ; end of uninstall section
 
 Function .onInit
+;; Turn off all clutter options by default.
+
 SectionGetFlags ${SecWingsClutterQuickLaunch} $0
 IntOp $0 $0 & ~1
 SectionSetFlags ${SecWingsClutterQuickLaunch} $0
@@ -299,16 +300,19 @@ SectionGetFlags ${SecWingsClutterDesktop} $0
 IntOp $0 $0 & ~1
 SectionSetFlags ${SecWingsClutterDesktop} $0
 
-ReadRegStr ${TEMP} HKLM "SOFTWARE\Wings 3D\DefaultVersion" ""
-StrCmp ${TEMP} "" 0 disable
-SectionGetFlags ${SecWingsMakeDefault} $0
-IntOp $0 $0 | 16
-SectionSetFlags ${SecWingsMakeDefault} $0
-Goto done
-disable:
-SectionGetFlags ${SecWingsMakeDefault} $0
-IntOp $0 $0 & ~1
-SectionSetFlags ${SecWingsMakeDefault} $0
-done:
+;ReadRegStr ${TEMP} HKLM "SOFTWARE\Wings 3D\DefaultVersion" ""
+;StrCmp ${TEMP} "" 0 disable
+
+;SectionGetFlags ${SecWingsMakeDefault} $0
+;IntOp $0 $0 | 16
+;SectionSetFlags ${SecWingsMakeDefault} $0
+;Goto done
+
+;disable:
+;SectionGetFlags ${SecWingsMakeDefault} $0
+;IntOp $0 $0 & ~1
+;SectionSetFlags ${SecWingsMakeDefault} $0
+
+;done:
 FunctionEnd 
 ; eof
