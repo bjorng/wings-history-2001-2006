@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.82 2004/10/08 06:02:31 dgud Exp $
+%%     $Id: wings_subdiv.erl,v 1.83 2004/12/16 15:42:05 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -34,25 +34,25 @@ smooth(Fs, Htab, #we{vp=Vtab,es=Etab}=We) ->
     smooth(Fs, Vs, Es, Htab, We).
 
 smooth(Fs, Vs, Es, Htab, #we{vp=Vp,next_id=Id}=We0) ->
-    wings_pb:start(?STR(smooth,1,"smoothing")),
-    wings_pb:update(0.05, ?STR(smooth,2,"calculating face centers")),
+    wings_pb:start(?__(1,"smoothing")),
+    wings_pb:update(0.05, ?__(2,"calculating face centers")),
     FacePos0 = face_centers(Fs, We0),
 
     %% First do all topological changes to the edge table.
-    wings_pb:update(0.20, ?STR(smooth,3,"cutting edges")),
+    wings_pb:update(0.20, ?__(3,"cutting edges")),
     We1 = cut_edges(Es, Htab, We0#we{vc=undefined}),
-    wings_pb:update(0.25, ?STR(smooth,4,"updating materials")),
+    wings_pb:update(0.25, ?__(4,"updating materials")),
     We2 = smooth_materials(Fs, FacePos0, We1),
-    wings_pb:update(0.47, ?STR(smooth,5,"creating new faces")),
+    wings_pb:update(0.47, ?__(5,"creating new faces")),
     We = smooth_faces(FacePos0, Id, We2),
-    wings_pb:update(0.60, ?STR(smooth,6,"moving vertices")),
+    wings_pb:update(0.60, ?__(6,"moving vertices")),
 
     %% Now calculate all vertex positions.
     FacePos = gb_trees:from_orddict(FacePos0),
     {UpdatedVs,Mid} = update_edge_vs(Es, We0, FacePos, Htab, Vp, Id),
     NewVs = smooth_new_vs(FacePos0, Mid),
     Vtab = smooth_move_orig(Vs, FacePos, Htab, We0, UpdatedVs ++ NewVs),
-    wings_pb:update(1.0, ?STR(smooth,7,"finishing")),
+    wings_pb:update(1.0, ?__(7,"finishing")),
     Res = wings_util:validate_mirror(wings_we:rebuild(We#we{vp=Vtab})),
     wings_pb:done(),
     Res.
@@ -82,8 +82,8 @@ face_centers([Face|Fs], We, Acc) ->
 		  end, {[],[]}, Face, We),
     case Vs of
 	[_,_] ->
-	    wings_util:error(?STR(face_centers,1,"Face ") ++ integer_to_list(Face) ++
-			     ?STR(face_centers,2," has only two edges."));
+	    wings_util:error(?__(1,"Face ") ++ integer_to_list(Face) ++
+			     ?__(2," has only two edges."));
 	_ ->
 	    Center0 = wings_vertex:center(Vs, We),
 	    Center = wings_util:share(Center0),
@@ -498,7 +498,7 @@ draw_1(D, Dl, Wire, Key, EdgeStyleKey) ->
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(2, 2),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    case wings_util:is_gl_ext('GL_ARB_imaging') of
+    case wings_gl:is_ext('GL_ARB_imaging') of
 	false -> ok;
 	true ->
 	    case wings_pref:get_value(Key) of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.134 2004/04/17 19:02:06 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.135 2004/12/16 15:42:04 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -264,7 +264,7 @@ text_at(X, S) ->
     text_at(X, 0, S).
 
 text_at(X, Y, S) ->
-    case wings_util:is_gl_restriction(broken_scissor) of
+    case wings_gl:is_restriction(broken_scissor) of
 	true ->
 	    %% Scissor cannot clip text, but slows down text drawing.
 	    unclipped_text(X, Y, S);

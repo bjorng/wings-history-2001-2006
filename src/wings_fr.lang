@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_fr.lang,v 1.2 2004/12/04 09:43:41 bjorng Exp $
+%%     $Id: wings_fr.lang,v 1.3 2004/12/16 15:42:04 bjorng Exp $
 %%
 
 {wings,
@@ -335,7 +335,7 @@
   {standard_mode_fun,
    [{1,"[Majuscule] et/ou [Controle] Contraindre"},
     {2,"[+] ou [-] Ajuster les rayons"}]},
-  {zmove_help_1,
+  {zmove_help,
    [{1,"Glisser et deplacer le long de Z"},
     {2,"Glisser et ajuster un tierce parametre"}]}]}.
 {wings_edge,

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.68 2004/05/17 17:51:10 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.69 2004/12/16 15:42:01 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -87,7 +87,7 @@ dialog_qs(render) ->
     BumpMap  = get_pref(render_bumps, false),
     Filename = get_pref(output_file, "output.tga"),
     
-    BumpP = wings_util:is_gl_ext({1,3}, bump_exts()) or programmable(),
+    BumpP = wings_gl:is_ext({1,3}, bump_exts()) or programmable(),
     StencilP = hd(gl:getIntegerv(?GL_STENCIL_BITS)) >= 8,
     Ps = [{dialog_type,save_dialog},{ext,".tga"},{ext_desc,"Targa File"}],
 
@@ -500,7 +500,7 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,mat=Mat,shadow=Shadows,no_l=PerLigth}
     wings_view:modelview(false),
     if 
 	Shadows == true -> 
-	    case wings_util:is_gl_ext('GL_NV_depth_clamp') of
+	    case wings_gl:is_ext('GL_NV_depth_clamp') of
 		true -> gl:enable(?GL_DEPTH_CLAMP_NV);
 		false -> setup_projection_matrix()
 	    end;
@@ -577,7 +577,7 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:depthFunc(?GL_LESS),
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_FRONT),
-    {Inc,Dec} = case wings_util:is_gl_ext({1,4}, ['GL_EXT__stencil_wrap']) of
+    {Inc,Dec} = case wings_gl:is_ext({1,4}, ['GL_EXT__stencil_wrap']) of
 		    true -> {?GL_INCR_WRAP, ?GL_DECR_WRAP};
 		    false -> {?GL_INCR, ?GL_DECR}
 		end,
@@ -1069,8 +1069,8 @@ bump_exts() ->
      'GL_EXT_texture3D'].
 
 programmable() ->
-    wings_util:is_gl_ext(['GL_ARB_vertex_program', 
- 			  'GL_ARB_fragment_program']).
+    wings_gl:is_ext(['GL_ARB_vertex_program', 
+		     'GL_ARB_fragment_program']).
 %    false.
 
 %% Bump drawings 

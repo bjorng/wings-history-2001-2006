@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_init.erl,v 1.5 2004/12/07 17:10:42 bjorng Exp $
+%%     $Id: wings_init.erl,v 1.6 2004/12/16 15:42:04 bjorng Exp $
 %%
 
 -module(wings_init).
@@ -33,8 +33,8 @@ init() ->
     %% Make sure that some video mode works. Otherwise crash early.
     %% From best to worst.
     try_video_modes(opengl_modes(), TopSize),
-    wings_util:init_gl_extensions(),
-    wings_util:init_gl_restrictions(),
+    wings_gl:init_extensions(),
+    wings_gl:init_restrictions(),
 
     %% Initialize event handling and other stuff.
     sdl_events:eventState(?SDL_ALLEVENTS,?SDL_IGNORE),
@@ -76,7 +76,7 @@ opengl_modes() ->
      [{buffer_size,0},{depth_size,0},{stencil_size,0},{accum_size,0}]].
 
 try_video_modes(Modes, TopSize) ->
-    io:format(?STR(try_video_modes,1,"Trying OpenGL modes\n")),
+    io:format(?__(1,"Trying OpenGL modes\n")),
     case try_video_modes_1(Modes, TopSize) of
 	ok -> ok;
 	error -> video_mode_failure()
@@ -84,10 +84,10 @@ try_video_modes(Modes, TopSize) ->
 
 video_mode_failure() ->
     io:format("\n###########################################\n\n"),
-    io:format(?STR(video_mode_failure,2,"Failed to find any suitable OpenGL mode.\n\n")),
-    io:format(?STR(video_mode_failure,3,"Make sure that OpenGL drivers are installed.\n\n")),
+    io:format(?__(2,"Failed to find any suitable OpenGL mode.\n\n")),
+    io:format(?__(3,"Make sure that OpenGL drivers are installed.\n\n")),
     io:format("\n###########################################\n\n"),
-    erlang:fault(?STR(video_mode_failure,5,"No suitable OpenGL mode found (are OpenGL drivers installed?)")).
+    erlang:fault(?__(5,"No suitable OpenGL mode found (are OpenGL drivers installed?)")).
 
 try_video_modes_1([Mode|Modes], TopSize) ->
     io:format("  ~p\n", [Mode]),
@@ -134,8 +134,8 @@ display_actual_mode() ->
 	     ?GL_ACCUM_GREEN_BITS,
 	     ?GL_ACCUM_BLUE_BITS,
 	     ?GL_ACCUM_ALPHA_BITS],
-   	      io:format(?STR(display_actual_mode,1,"Actual: RGBA: ~p ~p ~p ~p Depth: ~p Stencil: ~p Accum: ~p ~p ~p ~p\n"),
-	      [hd(gl:getIntegerv(A)) || A <- Attrs]).
+   	      io:format(?__(1,"Actual: RGBA: ~p ~p ~p ~p Depth: ~p Stencil: ~p Accum: ~p ~p ~p ~p\n"),
+			[hd(gl:getIntegerv(A)) || A <- Attrs]).
 
 set_video_mode(W, H) ->
     {surfacep,_} = sdl_video:setVideoMode(W, H, 0, ?SDL_OPENGL bor ?SDL_RESIZABLE),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.101 2004/12/14 20:27:50 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.102 2004/12/16 15:42:05 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -29,11 +29,8 @@
 	 nice_float/1,
 	 menu_restriction/2,
 	 unique_name/2,
-	 init_gl_extensions/0,is_gl_ext/1,is_gl_ext/2,
-	 init_gl_restrictions/0,is_gl_restriction/1,
 	 geom_windows/0,
 	 tc/3,export_we/2,win_crash/1,crash_log/2,validate/1,validate/3,
-	 gl_error_string/1,
 	 min/2,max/2,limit/2,lowpass/1,lowpass/2]).
 -export([check_error/2,dump_we/2]).
 
@@ -135,7 +132,7 @@ message(Message) ->
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 magnet_string() ->
-    ["(",?STR(magnet_string,1,"Magnet route:"),
+    ["(",?__(1,"Magnet route:"),
      atom_to_list(wings_pref:get_value(magnet_distance_route)),
      ")"].
 
@@ -325,78 +322,6 @@ unique_name_2(Base, I, Names) ->
 	false -> Name
     end.
 
-%%%
-%%% OpenGL extensions.
-%%%
-init_gl_extensions() ->
-    ets:new(wings_gl_ext, [named_table,public,ordered_set]),
-    Exts0 = lists:sort(string:tokens(gl:getString(?GL_EXTENSIONS), " ")),
-    Exts = [{list_to_atom(E)} || E <- Exts0],
-    ets:insert(wings_gl_ext, Exts),
-    Ver = case catch get_gl_version() of
-	      {_,_,_}=V -> V;
-	      _ -> {1,1,0}
-	  end,
-    ets:insert(wings_gl_ext, {version,Ver}).
-
-get_gl_version() ->
-    case string:tokens(gl:getString(?GL_VERSION), ". ") of
-	[Major0,Minor0] ->
-	    Patch = 0;
-	[Major0,Minor0,Patch0|_] ->
-	    case catch list_to_integer(Patch0) of
-		{'EXIT',_} -> Patch = 0;
-		Patch -> Patch
-	    end
-    end,
-    Major = list_to_integer(Major0),
-    Minor = list_to_integer(Minor0),
-    {Major,Minor,Patch}.
-
-%% Either check for a given version (or higher), or
-%% for that all the given extensions are implemented.
-is_gl_ext(Wanted) when is_tuple(Wanted), size(Wanted) >= 2 ->
-    [{_,Actual}] = ets:lookup(wings_gl_ext, version),
-    version_match(Wanted, Actual);
-is_gl_ext(Ext) when is_atom(Ext); is_list(Ext) ->
-    is_gl_ext_1(Ext).
-
-%% Must be Wanted version or higher, or the List of extensions must match.
-is_gl_ext(Wanted, []) ->
-    is_gl_ext(Wanted);
-is_gl_ext(Wanted, List) ->
-    is_gl_ext(Wanted) orelse is_gl_ext_1(List).
-
-is_gl_ext_1([]) ->
-    true;
-is_gl_ext_1([Name|R]) ->
-    is_gl_ext_1(Name) andalso is_gl_ext(R);
-is_gl_ext_1(Name) ->
-    ets:member(wings_gl_ext, Name).
-
-version_match({Ma1,Mi1}, {Ma2,Mi2,_}) 
-  when Ma1 =< Ma2, Mi1 =< Mi2 -> true;
-version_match({Ma1,Mi1,P1}, {Ma2,Mi2,P2}) 
-  when Ma1 =< Ma2, Mi1 =< Mi2, P1 =< P2 -> true;
-version_match(_,_) ->
-    false.
-
-%%%
-%%% OpenGL restrictions (bugs and limitations).
-%%%
-init_gl_restrictions() ->
-    ets:new(wings_gl_restriction, [named_table,public,ordered_set]),
-    case os:type() of
-	{unix,sunos} ->
-	    %% Scissor does not work for clipping text.
-	    ets:insert(wings_gl_restriction, [{broken_scissor}]);
-	_ ->
-	    ok
-    end.
-
-is_gl_restriction(Name) ->
-    ets:member(wings_gl_restriction, Name).
-    
 %%
 %% Timing.
 %% 
@@ -671,7 +596,7 @@ verify_vertex(V, Edge, #we{vc=Vct}=We) ->
 
 -ifdef(DEBUG).
 check_error(Mod, Line) ->
-    case gl_error_string(gl:getError()) of
+    case wings_gl:gl_error_string(gl:getError()) of
 	no_error ->
 	    ok;
 	Str ->
@@ -682,15 +607,6 @@ check_error(Mod, Line) ->
 check_error(_Mod, _Line) ->
     ok.
 -endif.
-
-gl_error_string(0) -> no_error;
-gl_error_string(?GL_INVALID_VALUE) -> "GL_INVALID_VALUE";
-gl_error_string(?GL_INVALID_ENUM) -> "GL_INVALID_ENUM";
-gl_error_string(?GL_INVALID_OPERATION) -> "GL_INVALID_OPERATION";
-gl_error_string(?GL_STACK_OVERFLOW) -> "GL_STACK_OVERFLOW";
-gl_error_string(?GL_STACK_UNDERFLOW) -> "GL_STACK_UNDERFLOW";
-gl_error_string(?GL_OUT_OF_MEMORY) -> "GL_OUT_OF_MEMORY";
-gl_error_string(Error) -> "Error: "++integer_to_list(Error).
 
 crash(Reason, We) ->
     erlang:fault({crash,get(where),Reason}, [We]).

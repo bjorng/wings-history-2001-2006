@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.46 2004/12/16 08:05:59 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.47 2004/12/16 15:42:05 bjorng Exp $
 %%
 
 {wings,
@@ -339,7 +339,7 @@
   {standard_mode_fun,
    [{1,"[Shift] och/eller [Ctrl] begränsningar"},
     {2,"[+] eller [-] Justera radie"}]},
-  {zmove_help_1,
+  {zmove_help,
    [{1,"Dra för att flytta längs Z"},
     {2,"Dra för att justera den tredje parametern"}]}]}.
 {wings_edge,
