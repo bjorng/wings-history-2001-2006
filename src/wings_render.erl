@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.1 2004/05/14 05:29:49 bjorng Exp $
+%%     $Id: wings_render.erl,v 1.2 2004/05/14 05:38:25 bjorng Exp $
 %%
 
 -module(wings_render).
@@ -17,6 +17,12 @@
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
+
+%% render(St)
+%%  Render the entire contents of a Geometry or AutoUV window,
+%%  including groundplan and axes. Use the contents of the display
+%%  lists maintained by wings_draw_util. All display lists must
+%%  already exist; no display lists are created by this function.
 
 render(#st{selmode=Mode}=St) ->
     ?CHECK_ERROR(),
@@ -37,6 +43,10 @@ render(#st{selmode=Mode}=St) ->
     {W,H} = wings_wm:win_size(),
     gl:rectf(W-0.5, 0.5, 0.5, H-0.5),
     gl:popAttrib().
+
+%% call(DisplayListTerm)
+%%  Call the OpenGL display list using gl:callList/1 for
+%%  the display lists embedded in the display list term.
 
 call(none) -> none;
 call({call,Dl,_}) -> call(Dl);
