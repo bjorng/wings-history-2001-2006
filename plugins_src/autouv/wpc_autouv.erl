@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.183 2004/02/13 08:02:41 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.184 2004/02/14 15:17:17 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -48,16 +48,6 @@ menu(_Dbg, Menu) ->
 command({body,?MODULE}, St) ->
     ?DBG("Start shapes ~p~n",[gb_trees:keys(St#st.shapes)]), 
     start_uvmap(St);
-command({body,{?MODULE,uvmap_done,QuitOp,#st{shapes=Charts,bb=Uvs}}}, St0) ->
-    #uvstate{matname=MatName0,orig_we=OrWe} = Uvs,
-    {St,MatName} =
-	case QuitOp of
-	    quit_uv_tex ->
-		Tx = ?SLOW(auv_texture:get_texture(Uvs)),
-		add_material(Tx, OrWe#we.name, MatName0, St0);
-	    quit_uv -> {St0,MatName0}
-	end,
-    ?SLOW(insert_uvcoords(Charts, OrWe#we.id, MatName, St));
 command(_, _) -> next.
 
 start_uvmap(#st{sel=Sel}=St) ->
@@ -197,10 +187,20 @@ init_show_maps(Map0, #we{es=Etab}=We, St) ->
     Edges = gb_trees:keys(Etab),
     create_uv_state(Edges, Map, none, We, St).
 
-create_uv_state(Edges, Map, MatName, We, GeomSt) ->
+create_uv_state(Edges, Map, MatName0, We, GeomSt0) ->
     wings:mode_restriction([body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {_,Geom} = init_drawarea(),
+    {GeomSt1,MatName} = 
+	case has_texture(MatName0, GeomSt0) of
+	    true -> 
+		{GeomSt0,MatName0};
+	    false ->
+		Tx = checkerboard(128,128),
+		add_material(Tx, We#we.name, MatName0, GeomSt0)
+	end,
+    GeomSt = insert_uvcoords(Map, We#we.id, MatName, GeomSt1),
+    wings_wm:send(geom, {new_state,GeomSt}),
     Uvs = #uvstate{st=wpa:sel_set(face, [], GeomSt),
 		   origst=GeomSt,
 		   areas=Map,
@@ -215,16 +215,26 @@ create_uv_state(Edges, Map, MatName, We, GeomSt) ->
    
 insert_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
     We0 = gb_trees:get(Id, Shs0),
-    We = insert_uvcoords_1(We0, Charts, MatName),
+    We1 = insert_uvcoords_1(We0, Charts),
+    We2 = insert_material(Charts, MatName, We1),
+    We = We2#we{mode=material},    
     Shs = gb_trees:update(Id, We, Shs0),
     St#st{shapes=Shs}.
 
-insert_uvcoords_1(We0, Cs0, MatName) ->
+update_uvcoords(Charts, #st{bb=Uvs} = St) ->
+    #uvstate{st=#st{shapes=Shs0}=GeomSt0, orig_we=#we{id=Id}} = Uvs,
+    We0 = gb_trees:get(Id, Shs0),
+    UVpos = gen_uv_pos(Charts, []),
+    We  = insert_coords(UVpos, We0),    
+    Shs = gb_trees:update(Id, We, Shs0),
+    GeomSt = GeomSt0#st{shapes=Shs},
+    wings_wm:send(geom, {new_state,GeomSt}),
+    St#st{bb=Uvs#uvstate{st=GeomSt}}.
+
+insert_uvcoords_1(We, Cs0) ->
     Cs = gb_trees:values(Cs0),
     UVpos = gen_uv_pos(Cs, []),
-    We1 = insert_coords(UVpos, We0),
-    We = insert_material(Cs, MatName, We1),
-    We#we{mode=material}.
+    insert_coords(UVpos, We).
 
 gen_uv_pos([#we{vp=Vpos0,name=#ch{fs=Fs,vmap=Vmap}}=We|T], Acc) ->
     Vpos1 = gb_trees:to_list(Vpos0),
@@ -272,7 +282,7 @@ insert_coords([], We0 = #we{es=Etab0}) ->
     We0#we{es=gb_trees:from_orddict(Etab)}.
 
 insert_material(Cs, MatName, We) ->
-    Faces = lists:append([Fs || #we{name=#ch{fs=Fs}} <- Cs]),
+    Faces = lists:append([Fs || #we{name=#ch{fs=Fs}} <- gb_trees:values(Cs)]),
     wings_material:assign(MatName, Faces, We).
 
 init_edit(MatName, Faces, We0) ->
@@ -477,17 +487,17 @@ option_menu() ->
 %      separator,
      {"Create Texture",create_texture,"Make and Attach a texture to the model"}].
 
-quit_menu(#st{bb=#uvstate{st=St,matname=MatN}}) ->
-    A1 = {"Save UV Coordinates and Texture",quit_uv_tex},
-    A2 = {"Save Only UV Coordinates",quit_uv},
-    A3 = {"Discard All Changes",cancel},
-    Alts = case has_texture(MatN, St) of
-	       true -> [A1,A2,A3];
-	       false -> [A1,A3]
-	   end,
-    Qs = [{vradio,Alts,quit_uv_tex}],
-    wings_ask:dialog("Exit Options",
-		     Qs, fun([Quit]) -> {auv,quit,Quit} end).
+% quit_menu(#st{bb=#uvstate{st=St,matname=MatN}}) ->
+%     A1 = {"Save UV Coordinates and Texture",quit_uv_tex},
+%     A2 = {"Save Only UV Coordinates",quit_uv},
+%     A3 = {"Discard All Changes",cancel},
+%     Alts = case has_texture(MatN, St) of
+% 	       true -> [A1,A2,A3];
+% 	       false -> [A1,A3]
+% 	   end,
+%     Qs = [{vradio,Alts,quit_uv_tex}],
+%     wings_ask:dialog("Exit Options",
+% 		     Qs, fun([Quit]) -> {auv,quit,Quit} end).
 
 %%% Event handling
 
@@ -530,7 +540,9 @@ handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, #st{bb=Uvs}=St) -
     GeomSt = wings_select_faces(Sel, St),
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(reset_dl(St#st{selmode=Mode,sel=Sel,shapes=Shs,bb=Uvs#uvstate{st=GeomSt}}));
-handle_event({new_uv_state,St}, _) ->
+handle_event({new_uv_state,St0}, _) ->
+    Wes = wpa:sel_fold(fun(_,We,Acc) -> [We|Acc] end, [], St0),
+    St = update_uvcoords(Wes, St0),
     wings_wm:dirty(),
     get_event(reset_dl(St));
 handle_event(Ev, St) ->
@@ -555,28 +567,23 @@ handle_event_1(#keyboard{state=?SDL_PRESSED,sym=?SDLK_SPACE}, #st{bb=#uvstate{st
 handle_event_1({drop,_,DropData}, St) ->
     handle_drop(DropData, St);
 %% Create Texture (see auv_texture)
-handle_event_1({action,{auv,create_texture}},St) ->
+handle_event_1({action,{auv,create_texture}},_St) ->
     auv_texture:draw_options();
 handle_event_1({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
     #uvstate{st=GeomSt0,orig_we=OWe,matname=MatName0} = Uvs,
     Tx = ?SLOW(auv_texture:get_texture(Uvs, Opt)),
-    Charts = all_charts(Uvs),
-    #we{name=Name,id=Id} = OWe,
-    {GeomSt1,MatName} = add_material(Tx, Name, MatName0, GeomSt0),
-    GeomSt = insert_uvcoords(Charts, Id, MatName, GeomSt1),
+%    Charts = all_charts(Uvs),
+    #we{name=Name,id=_Id} = OWe,
+    {GeomSt,MatName} = add_material(Tx, Name, MatName0, GeomSt0),
+%%    GeomSt = insert_uvcoords(Charts, Id, MatName, GeomSt1),
     wings_wm:send(geom, {new_state,GeomSt}),
     get_event(St#st{bb=Uvs#uvstate{st=GeomSt,matname=MatName}});
 %% Others
 handle_event_1({action,{auv,quit}}, St) ->
-    quit_menu(St);
-handle_event_1(close, St) ->
-    quit_menu(St);
-handle_event_1({action,{auv,quit,cancel}}, St) ->
     restore_wings_window(St),
     delete;
-handle_event_1({action, {auv,quit,QuitOp}}, St) ->
+handle_event_1(close, St) ->
     restore_wings_window(St),
-    wings_wm:send(geom, {action,{body,{?MODULE,uvmap_done,QuitOp,St}}}),
     delete;
 handle_event_1({callback,Fun}, _) when is_function(Fun) ->
     Fun();
@@ -817,7 +824,7 @@ draw_area(#we{name=#ch{fs=Fs}}=We,ColorMode) ->
     gl:pushMatrix(),
     gl:lineWidth(1),
     gl:translatef(0, 0, 0.9),
-    gl:color3f(0.6, 0.6, 0.6),
+    gl:color3f(0.1, 0.1, 0.1),
     draw_all_face_edges(Fs, We),
     gl:popMatrix(),
     if
@@ -866,7 +873,28 @@ restore_wings_window(St) ->
 update_dlists(#st{}=St) ->
     wings_draw:invalidate_dlists(false, St).
 
-all_charts(#uvstate{areas=Charts}) -> Charts.
-
 sel_foreach(F, #uvstate{sel=Sel,areas=Shs}) ->
     foreach(fun({Id,_}) -> F(gb_trees:get(Id, Shs)) end, Sel).
+
+
+%% Generate a checkerboard image of 4x4 squares 
+%% with given side length in pixels.
+checkerboard(Width, Height) ->
+    White = [240,240,220],
+    Black = [215,215,181],
+    FourWhite = pattern_repeat(4, White),
+    FourBlack = pattern_repeat(4, Black),
+    R1 = pattern_repeat(Width div 8, [FourBlack|FourWhite]),
+    R2 = pattern_repeat(Width div 8, [FourWhite|FourBlack]),
+    R8 = [pattern_repeat(4, [R1])|pattern_repeat(4, [R2])],
+    Pixels = list_to_binary(pattern_repeat(Height div 8, R8)),
+    #e3d_image{width=Width,height=Height,image=Pixels,order=lower_left}.
+
+pattern_repeat(0, _) -> [];
+pattern_repeat(1, D) -> [D];
+pattern_repeat(N, D) ->
+    B = pattern_repeat(N div 2, D),
+    case N rem 2 of
+	0 -> [B|B];
+	1 -> [D,B|B]
+    end.
