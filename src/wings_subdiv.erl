@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.19 2002/04/22 18:21:52 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.20 2002/04/23 05:31:06 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -195,21 +195,26 @@ store(Key, New, []) -> [{Key,New}].
 %% Cut edges.
 %%
 
-cut_edges(Es, FacePos, Htab0,
-	  #we{mode=Mode,es=Etab0,vs=Vtab0,next_id=Id0}=We) ->
+cut_edges(Es, FacePos, Hard,
+	  #we{mode=Mode,es=Etab0,vs=Vtab0,he=Htab0,next_id=Id0}=We) ->
     Etab1 = {Id0,Etab0,gb_trees:empty()},
     {Id,Vtab,{_,Etab2,Etab3},Htab} =
-	cut_edges_1(Es, FacePos, Mode, Id0, Etab1, Vtab0, Htab0, []),
+	cut_edges_1(Es, FacePos, Mode, Hard, Id0, Etab1, Vtab0, Htab0, []),
     Etab = gb_trees:from_orddict(gb_trees:to_list(Etab2) ++
 				 gb_trees:to_list(Etab3)),
     We#we{vs=Vtab,es=Etab,he=Htab,next_id=Id}.
 
-cut_edges_1([Edge|Es], FacePos, Mode, NewEdge, Etab0, Vtab0, Htab0, VsAcc0) ->
+cut_edges_1([Edge|Es], FacePos, Mode, Hard, 
+	    NewEdge, Etab0, Vtab0, Htab0, VsAcc0) ->
     #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = Rec = edge_get(Edge, Etab0),
     Pos0 = [wings_vertex:pos(Va, Vtab0),wings_vertex:pos(Vb, Vtab0)],
     {Pos1,Htab} =
-	case gb_sets:is_member(Edge, Htab0) of
-	    true -> {Pos0,gb_sets:insert(NewEdge, Htab0)};
+	case gb_sets:is_member(Edge, Hard) of
+	    true ->
+		{Pos0,case gb_sets:is_member(Edge, Htab0) of
+			  true -> gb_sets:insert(NewEdge, Htab0);
+			  false -> Htab0
+		      end};
 	    false ->
 		{LfPos,_,_} = gb_trees:get(Lf, FacePos),
 		{RfPos,_,_} = gb_trees:get(Rf, FacePos),
@@ -225,8 +230,8 @@ cut_edges_1([Edge|Es], FacePos, Mode, NewEdge, Etab0, Vtab0, Htab0, VsAcc0) ->
 		   Vtab0
 	   end,
     Etab = fast_cut(Edge, Rec, Mode, NewEdge, Etab0),
-    cut_edges_1(Es, FacePos, Mode, NewEdge+1, Etab, Vtab, Htab, VsAcc);
-cut_edges_1([], _FacePos, _Mode, Id, Etab, Vtab0, Htab, VsAcc) ->
+    cut_edges_1(Es, FacePos, Mode, Hard, NewEdge+1, Etab, Vtab, Htab, VsAcc);
+cut_edges_1([], _FacePos, _Mode, _Hard, Id, Etab, Vtab0, Htab, VsAcc) ->
     Vtab = gb_trees:from_orddict(gb_trees:to_list(Vtab0) ++
 				 reverse(VsAcc)),
     {Id,Vtab,Etab,Htab}.
