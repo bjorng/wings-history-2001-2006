@@ -4,12 +4,12 @@
 %%     Functions for reading and writing 3D Studio Max files (.tds),
 %%     version 3.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.25 2002/12/21 15:23:11 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.26 2003/01/22 19:51:12 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -467,7 +467,7 @@ make_tx_uniq(Mat0) ->
 	mapfoldl(fun({N,Ps0}=M, A) ->
 			 case get_map(diffuse, Ps0) of
 			     none -> {M,A};
-			     {W,H,Bits} ->
+			     #e3d_image{width=W,height=H,image=Bits} ->
 				 Name = atom_to_list(N),
 				 Val = {Name,W,H,Bits},
 				 Ps = replace_map(diffuse, Val, Ps0),

@@ -3,12 +3,12 @@
 %%
 %%     Functions for reading and writing Wawefront ASCII files (.obj).
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.32 2002/12/21 15:23:11 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.33 2003/01/22 19:51:11 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -480,7 +480,7 @@ export_maps(F, [_|T], Base, Name) ->
 export_maps(_, [], _, _) -> ok.
 
 export_map(_, _, none, _, _) -> ok;
-export_map(F, Label0, {W,H,Map}, Root, Name) ->
+export_map(F, Label0, #e3d_image{width=W,height=H,image=Map}, Root, Name) ->
     Label = "map_" ++ Label0,
     MapFile = Root ++ "_" ++ atom_to_list(Name) ++ "_" ++ Label ++ ".tga",
     io:format(F, "~s ~s\r\n", [Label,filename:basename(MapFile)]),
