@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.115 2003/05/04 07:13:30 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.116 2003/05/07 06:55:31 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -547,7 +547,7 @@ clean_st(St) ->
     DefMat = wings_material:default(),
     Empty = gb_trees:empty(),
     Limit = wings_image:next_id(),
-    St#st{shapes=Empty,mat=DefMat,sel=[],ssels=Empty,vec=Limit}.
+    St#st{onext=1,shapes=Empty,mat=DefMat,sel=[],ssels=Empty,vec=Limit}.
 
 clean_images(#st{vec=Limit}=St) when is_integer(Limit) ->
     wings_image:delete_older(Limit),
