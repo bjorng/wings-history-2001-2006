@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.115 2003/08/16 17:50:35 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.116 2003/09/16 04:28:49 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -72,14 +72,10 @@ set_cursor_1([_|Cs], Name) ->
     set_cursor_1(Cs, Name).
 
 read_icons() ->
-    IconFile = filename:join([wings:root_dir(),"ebin","wings_icon.bundle"]),
-    case file:read_file(IconFile) of
-	{ok,Bin} -> Bin;
-	{error,enoent} ->
-	    IconFile2 = filename:join([wings:root_dir(),"wings_icon.bundle"]),
-	    {ok,Bin} = file:read_file(IconFile2),
-	    Bin
-    end.
+    Ebin = filename:dirname(code:which(?MODULE)),
+    IconFile = filename:join(Ebin, "wings_icon.bundle"),
+    {ok,Bin} = file:read_file(IconFile),
+    Bin.
 
 resize() ->
     #io{raw_icons=RawIcons} = Io = get_state(),
