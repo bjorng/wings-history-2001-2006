@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.98 2003/02/20 16:13:04 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.99 2003/02/20 18:49:49 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -47,6 +47,8 @@ command({body,?MODULE}, St) ->
     start_uvmap(St);
 command({body,{?MODULE,ask_material,Fun}}, _St) ->
     Fun();
+command({body,?MODULE,discard_uvs}, St) ->
+    start_uvmap_1(St,discard);
 command({body,{?MODULE,do_edit,{We,MatName,Faces}}}, St) ->
     do_edit(MatName, Faces, We, St);
 command({body,{?MODULE,show_map,Info}}, St) ->
@@ -70,7 +72,7 @@ command(_, _) -> next.
 start_uvmap(#st{sel=[{Id,_}],shapes=Shs}=St) ->
     case gb_trees:get(Id, Shs) of
 	#we{mode=uv}=We -> start_edit(Id, We, St);
-	_ -> start_uvmap_1(St)
+	_ -> start_uvmap_1(St,new)
     end;
 start_uvmap(_) ->
     wpa:error("Select only one object.").
@@ -85,14 +87,18 @@ start_uvmap(_) ->
 	      msg				%Message.
 	     }).
 
-start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0) ->
+start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0,Mode) ->
     Modes = [vertex,edge,face],
     wings:mode_restriction(Modes),
     We0 = gb_trees:get(Id, Shs),
     We = We0#we{mode=material},
     check_for_defects(We),
-    St1 = seg_create_materials(St0),
-    St = St1#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
+    St1 = case Mode of 
+	      discard -> discard_uvmap(We, St0);
+	      _ -> St0
+	  end,
+    St2 = seg_create_materials(St1),
+    St = St2#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
     Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=We0}),
     wings_wm:callback(fun() ->
 			      wings_util:menu_restriction(geom,[view,select,window])
@@ -385,9 +391,7 @@ start_edit(_Id, We, St0) ->
 				 edit ->
 				     start_edit_1(We, St0);
 				 discard ->
-				     Act = {action,{body,?MODULE}},
-				     St = discard_uvmap(We, St0),
-				     wings_wm:send(geom, {new_state,St}),
+				     Act = {action,{body,?MODULE,discard_uvs}},
 				     wings_wm:send(geom, Act),
 				     ignore
 			     end
@@ -428,6 +432,10 @@ gen_edit_event(MatName, Faces, We) ->
     Act = {action,{body,{?MODULE,do_edit,{We,MatName,Faces}}}},
     wings_wm:send(geom, Act),
     ignore.
+
+
+%St = discard_uvmap(We, St0),
+%wings_wm:send(geom, {new_state,St}),
 
 discard_uvmap(#we{fs=Ftab}=We0, St) ->
     Faces = gb_trees:keys(Ftab),
