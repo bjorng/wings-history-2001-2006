@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.109 2004/12/24 20:05:06 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.110 2004/12/25 19:12:06 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -186,21 +186,21 @@ fast_cut(Edge, Pos0, We0) ->
     Vtab = gb_trees:insert(NewV, NewVPos, Vtab0),
 
     %% Here we handle vertex colors/UV coordinates.
+    AColOther = get_vtx_color(EdgeA, Lf, Etab0),
+    BColOther = get_vtx_color(NextBCol, Rf, Etab0),
     Weight = if
 		 Pos0 == default -> 0.5;
 		 true ->
 		     ADist = e3d_vec:dist(Pos0, VstartPos),
 		     BDist = e3d_vec:dist(Pos0, VendPos),
-		     case catch ADist/(ADist+BDist) of
-			 {'EXIT',_} -> 0.5;
-			 Weight0 -> Weight0
+		     try ADist/(ADist+BDist)
+		     catch
+			 error:badarith -> 0.5
 		     end
 	     end,
-    AColOther = get_vtx_color(EdgeA, Lf, Etab0),
     NewColA = wings_color:mix(Weight, AColOther, ACol),
-    BColOther = get_vtx_color(NextBCol, Rf, Etab0),
     NewColB = wings_color:mix(Weight, BCol, BColOther),
-
+    
     NewEdgeRec = Template#edge{vs=NewV,a=NewColA,ltsu=Edge,rtpr=Edge},
     Etab1 = gb_trees:insert(NewEdge, NewEdgeRec, Etab0),
     Etab2 = patch_edge(EdgeA, NewEdge, Edge, Etab1),
