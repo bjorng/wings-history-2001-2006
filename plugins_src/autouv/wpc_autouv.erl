@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.4 2002/10/09 14:04:27 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.5 2002/10/09 17:23:52 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -367,12 +367,12 @@ init_edit(We = #we{fs = Ftab0}, Acc, St0) ->
 
 has_texture(MatName, Materials) ->
     Mat = gb_trees:get(MatName, Materials),
-    Maps = property_lists:get_value(maps,Mat,[]),
-    none /= property_lists:get_value(diffuse, Maps, none).
+    Maps = proplists:get_value(maps,Mat,[]),
+    none /= proplists:get_value(diffuse, Maps, none).
 get_texture_size(MatName, Materials) ->
     Mat = gb_trees:get(MatName, Materials),
-    Maps = property_lists:get_value(maps,Mat,[]),
-    case property_lists:get_value(diffuse, Maps, none) of
+    Maps = proplists:get_value(maps,Mat,[]),
+    case proplists:get_value(diffuse, Maps, none) of
 	none -> {512, 512};
 	{W,H,_} -> {W,H}
     end.	     
@@ -382,7 +382,7 @@ textureId(MatName, _Materials) ->
 get_material(Face, Materials, We) ->
     MatName = (gb_trees:get(Face, We#we.fs))#face.mat,
     Mat = gb_trees:get(MatName, Materials),
-    property_lists:get_value(diffuse, property_lists:get_value(opengl, Mat)).
+    proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
 add_material(create_mat, none, St0, Areas = #areas{matname = MatName}) ->
     Mat = {MatName, [{opengl, []},{maps, []}]},
@@ -395,8 +395,8 @@ add_material(create_mat, none, St0, Areas = #areas{matname = MatName}) ->
 add_material(edit, Tx = {TxW,TxH,TxBin}, St0, As = #areas{matname = MatName}) ->
     Mats = St0#st.mat,
     Mat = gb_trees:get(MatName, Mats),
-    Maps = property_lists:get_value(maps, Mat),
-    case property_lists:get_value(diffuse, Maps, none) of
+    Maps = proplists:get_value(maps, Mat),
+    case proplists:get_value(diffuse, Maps, none) of
 	none -> 
 	    [TxId] = gl:genTextures(1),
 	    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
