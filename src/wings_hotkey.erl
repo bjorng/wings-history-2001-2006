@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.19 2002/03/08 13:24:09 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.20 2002/03/13 20:49:38 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -37,7 +37,7 @@ event_1(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, SelMode) ->
     Key = case Mods of
  	      [] when C =/= 0 -> fix_bksp_and_del(Sym, C);
 	      [shift] when C =/= 0 -> C;
-	      Other -> {Sym,Mods}
+	      _Other -> {Sym,Mods}
 	  end,
     case lookup(Key, SelMode) of
 	next -> lookup(Key, none);
@@ -60,7 +60,7 @@ lookup(Key, SelMode) ->
 %%% Binding and unbinding of keys.
 %%%
 
-bind_from_event(#keyboard{keysym=#keysym{sym=Sym}}, Cmd)
+bind_from_event(#keyboard{keysym=#keysym{sym=Sym}}, _Cmd)
   when Sym >= ?SDLK_NUMLOCK ->
     error;
 bind_from_event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, Cmd) ->
@@ -73,7 +73,7 @@ bind_from_event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, Cmd) ->
 		   bind_virtual(Sym, Mods, Cmd, user)
 	   end,
     keyname(Bkey);
-bind_from_event(_, Cmd) -> error.
+bind_from_event(_, _) -> error.
 
 delete_by_command(Cmd) ->
     case sort(ets:match_object(?KL, {'_',Cmd,'_'})) of
@@ -97,13 +97,13 @@ bind_virtual(Key, Mods, Cmd, Source) ->
 bkey(Key, {Mode,_}) when Mode == shapes; Mode == vertex; Mode == edge;
 			 Mode == face; Mode == body ->
     {bindkey,Mode,Key};
-bkey(Key, Cmd) ->
+bkey(Key, _Cmd) ->
     {bindkey,Key}.
     
 matching(Names) ->
     Spec0 = foldl(fun(N, A) -> {N,A} end, '$1', Names),
     Spec = [{{{bindkey,'$2'},Spec0,'_'},
-	     [{'not',{is_tuple,'$1'}}],
+	     [],
 	     [{{'$1','$2'}}]}],
     [{Name,keyname(Key)} || {Name,Key} <- ets:select(?KL, Spec)] ++
 	matching_mode(Spec0).
@@ -112,18 +112,18 @@ matching_mode({Mode,_}=Spec0) when Mode == shapes; Mode == vertex;
 				   Mode == edge; Mode == face;
 				   Mode == body ->
     Spec = [{{{bindkey,Mode,'$2'},Spec0,'_'},
-	     [{'not',{is_tuple,'$1'}}],
+	     [],
 	     [{{'$1','$2'}}]}],
     [{Name,keyname(Key)} || {Name,Key} <- ets:select(?KL, Spec)];
-matching_mode(Other) -> [].
+matching_mode(_Other) -> [].
 
 %%%
 %%% Local functions.
 %%%
 
 %% For the benefit of Mac OS X, but does no harm on other platforms.
-fix_bksp_and_del(?SDLK_DELETE, C) -> ?SDLK_DELETE;
-fix_bksp_and_del(?SDLK_BACKSPACE, C) -> ?SDLK_BACKSPACE;
+fix_bksp_and_del(?SDLK_DELETE, _) -> ?SDLK_DELETE;
+fix_bksp_and_del(?SDLK_BACKSPACE, _) -> ?SDLK_BACKSPACE;
 fix_bksp_and_del(_, C) -> C.
 
 modifiers(Mod) ->
@@ -141,7 +141,7 @@ modifiers(_, Acc) -> lists:sort(Acc).
 
 keyname({bindkey,Key}) ->
     keyname(Key);
-keyname({bindkey,Mode,Key}) ->
+keyname({bindkey,_Mode,Key}) ->
     keyname(Key);
 keyname({C,Mods}) ->
     modname(Mods) ++ vkeyname(C);

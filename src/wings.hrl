@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.48 2002/03/08 13:24:09 bjorng Exp $
+%%     $Id: wings.hrl,v 1.49 2002/03/13 20:49:38 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -106,7 +106,8 @@
 
 	 %% Vectors.
 	 vec=none,				%Currently visible vector.
-	 svec=[],				%Saved vectors (MRU).
+	 padding,				%XXX To avoid breaking
+						%plug-ins.
 
 	 %% Extension field.
 	 wo					%For patches.

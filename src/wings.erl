@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.117 2002/03/11 11:04:01 bjorng Exp $
+%%     $Id: wings.erl,v 1.118 2002/03/13 20:49:38 bjorng Exp $
 %%
 
 -module(wings).
@@ -62,7 +62,8 @@ init(File, Root) ->
 
 init_1(File) ->
     {ok,Cwd} = file:get_cwd(),
-    sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER bor ?SDL_INIT_NOPARACHUTE),
+    sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER bor
+	     ?SDL_INIT_NOPARACHUTE),
     Icon = locate("wings.icon"),
     catch sdl_video:wm_setIcon(sdl_video:loadBMP(Icon), null),
     sdl_video:gl_setAttribute(?SDL_GL_DOUBLEBUFFER, 1),
@@ -91,8 +92,10 @@ init_1(File) ->
 		      {"Tools",tools},
 		      {"Objects",objects},
 		      {"Help",help}]),
-    Empty = gb_trees:empty(),
 
+    wings_vec:init(),
+
+    Empty = gb_trees:empty(),
     St0 = #st{shapes=Empty,
 	      selmode=face,
 	      sel=[],

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.32 2002/03/13 16:09:58 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.33 2002/03/13 20:49:38 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -125,18 +125,21 @@ normalize_menu([Elem0|Els], Hotkeys, Adv, Acc) ->
 		{S,Name,Help,Ps} ->
 		    {S,Name,[],Help,Ps};
 		{S,Name,[C|_]=Help} when is_integer(C) ->
+		    Ps = [],
 		    {S,Name,[],Help,[]};
 		{S,Name,Ps} ->
 		    {S,Name,[],[],Ps};
 		{S,Name} ->
+		    Ps = [],
 		    {S,Name,[],[],[]};
 		separator ->
+		    Ps = [],
 		    Name = none,
 		    separator
 	    end,
     Elem = case keysearch(Name, 1, Hotkeys) of
 	       false when Hotkeys =/= [], is_function(Name) ->
-		   RealName = Name(1, []),
+		   RealName = real_name(Name, [], Ps),
 		   case keysearch(RealName, 1, Hotkeys) of
 		       false -> Elem1;
 		       {value,{_,Hotkey}} -> setelement(3, Elem1, Hotkey)
@@ -302,9 +305,15 @@ current_command(#mi{sel=Sel,menu=Menu,ns=Names}) ->
     case element(Sel, Menu) of
 	{_,Name,_,_,_} when is_atom(Name) ->
 	    build_command(Name, Names);
-	{_,Fun,_,_,_} when is_function(Fun) ->
-	    Fun(1, Names);
+	{_,Fun,_,_,Ps} when is_function(Fun) ->
+	    real_name(Fun, Names, Ps);
 	_Other -> none
+    end.
+
+real_name(Fun, Names, Ps) ->
+    case have_magnet(Ps) of
+	false -> Fun(1, Names);
+	true -> Fun(1, Names, [])
     end.
 
 virtual_button(false, _) -> 1;

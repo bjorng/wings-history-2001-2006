@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.19 2002/02/25 08:49:19 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.20 2002/03/13 20:49:38 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -160,9 +160,6 @@ import_props([{selection,{Mode,Sel0}}|Ps], St) ->
 import_props([{saved_selection,{Mode,Sel0}}|Ps], St) ->
     Sel = import_sel(Sel0, St),
     import_props(Ps, St#st{ssel={Mode,Sel}});
-import_props([{vectors,Svec0}|Ps], St) ->
-    Svec = import_vectors(Svec0, St),
-    import_props(Ps, St#st{svec=Svec});
 import_props([_|Ps], St) ->
     import_props(Ps, St);
 import_props([], St) -> St.
@@ -236,22 +233,10 @@ collect_sel(#st{selmode=Mode,sel=Sel0,ssel={SMode,SSel}}=St) ->
 	       {Id,Elems} <- Sel0],
     Sel2 = [{Id,{SMode,gb_sets:to_list(Elems),saved_selection}} ||
 	       {Id,Elems} <- wings_sel:valid_sel(SSel, SMode, St)] ++ Sel1,
-    Sel3 = collect_vectors(St, Sel2),
-    Sel4 = sofs:relation(Sel3, [{id,data}]),
-    Sel = sofs:relation_to_family(Sel4),
+    Sel3 = sofs:relation(Sel2, [{id,data}]),
+    Sel = sofs:relation_to_family(Sel3),
     sofs:to_external(Sel).
 
-collect_vectors(#st{svec=Svec}=St, Acc) ->
-    collect_vectors_1(Svec, St, 0, Acc).
-
-collect_vectors_1([{Name,{Vec,{Mode,Sel0}}}|Vecs], St, I, Acc0) ->
-    Sel = wings_sel:valid_sel(Sel0, Mode, St),
-    NameVec = {vector,I,Name,Vec},
-    Acc = [{Id,{Mode,gb_sets:to_list(Elems),NameVec}} ||
-	      {Id,Elems} <- Sel] ++ Acc0,
-    collect_vectors_1(Vecs, St, I+1, Acc);
-collect_vectors_1([], _St, _I, Acc) -> Acc.
-    
 renumber([{Id,We0}|Shs], [{Id,Root0}|Sel], NewId, WeAcc, RootAcc) ->
     {We,Root} = wings_we:renumber(We0, 0, Root0),
     renumber(Shs, Sel, NewId+1, [We|WeAcc], [{NewId,Root}|RootAcc]);

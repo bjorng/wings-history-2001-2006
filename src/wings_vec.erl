@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.15 2002/03/13 16:07:24 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.16 2002/03/13 20:49:38 bjorng Exp $
 %%
 
 -module(wings_vec).
 
--export([menu/1,command/2]).
+-export([init/0,menu/1,command/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -23,8 +23,18 @@
 
 -record(ss, {check,				%Check fun.
 	     exit,				%Exit fun.
-	     selmodes				%Legal selection modes.
+	     selmodes,				%Legal selection modes.
+	     label=none,			%Description of type.
+	     sti=none				%Store index.
 	    }).
+
+init() ->
+    DefPoint = {0.0,0.0,0.0},
+    DefAxis = {DefPoint,{1.0,0.0,0.0}},
+    wings_pref:set_default(last_axis, DefAxis),
+    wings_pref:set_default(default_axis, DefAxis),
+    wings_pref:set_default(last_point, DefPoint),
+    wings_pref:set_default(default_point, DefPoint).
 
 menu(_St) -> [].
 
@@ -45,7 +55,8 @@ command({pick,[axis|More],Acc,Names}, St0) ->
 	     exit=fun(_X, _Y, St) ->
 			  common_exit(Check, More, Acc, Names, St)
 		  end,
-	     selmodes=Modes},
+	     selmodes=Modes,
+	     label="Axis",sti={last_axis,default_axis}},
     command_message("Select axis for ", Names),
     {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
 command({pick,[point|More],Acc,Names}, St0) ->
@@ -56,7 +67,8 @@ command({pick,[point|More],Acc,Names}, St0) ->
 	     exit=fun(_X, _Y, St) ->
 			  common_exit(Check, More, Acc, Names, St)
 		  end,
-	     selmodes=Modes},
+	     selmodes=Modes,
+	     label="Point",sti={last_point,default_point}},
     command_message("Select point for ", Names),
     {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
 command({pick,[magnet|More],Acc,Names}, St0) ->
@@ -161,9 +173,12 @@ handle_event_5({action,{select,Cmd}}, Ss, St0) ->
 handle_event_5({action,{view,Cmd}}, Ss, St0) ->
     St = wings_view:command(Cmd, St0),
     get_event(Ss, St);
-handle_event_5({action,{secondary_selection,abort}}, _Ss, _St) ->
+handle_event_5({action,{secondary_selection,Cmd}}, Ss, St) ->
+    secondary_selection(Cmd, Ss, St);
+handle_event_5({action,Cmd}, #ss{sti={StiA,_}}, #st{vec=Vec}) ->
+    wings_pref:set_value(StiA, Vec),
     wings_io:clear_message(),
-    wings_io:putback_event(redraw),
+    wings_io:putback_event({action,Cmd}),
     pop;
 handle_event_5({action,Cmd}, _Ss, _St) ->
     wings_io:clear_message(),
@@ -173,6 +188,17 @@ handle_event_5(quit, _Ss, _St) ->
     wings_io:putback_event(quit),
     pop;
 handle_event_5(_Event, Ss, St) ->
+    get_event(Ss, St).
+
+secondary_selection(abort, _Ss, _St) ->
+    wings_io:clear_message(),
+    wings_io:putback_event(redraw),
+    pop;
+secondary_selection({use,Sti}, Ss, St) ->
+    Vec = wings_pref:get_value(Sti),
+    get_event(Ss, St#st{vec=Vec});
+secondary_selection({set,Sti}, Ss, #st{vec=Vec}=St) ->
+    wings_pref:set_value(Sti, Vec),
     get_event(Ss, St).
 
 filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
@@ -192,26 +218,40 @@ translate_key_1(#keysym{sym=27}) ->		%Escape
     pop;
 translate_key_1(_Other) -> next.
 
-exit_menu(X, Y, #ss{exit=Exit}, St) ->
+exit_menu(X, Y, #ss{exit=Exit}=Ss, St) ->
     case Exit(X, Y, St) of
 	invalid_selection ->
-	    exit_menu_invalid(X, Y, St);
+	    exit_menu_invalid(X, Y, Ss, St);
 	MenuEntry ->
-	    exit_menu_done(X, Y, MenuEntry, St)
+	    exit_menu_done(X, Y, MenuEntry, Ss, St)
     end.
 
-exit_menu_invalid(X, Y, St) ->
-    Menu = [{"Invalid Selection",ignore},
-	    separator,
-	    {"Abort Command",abort}],
+exit_menu_invalid(X, Y, Ss, St) ->
+    Abort = [{"Abort Command",abort}],
+    Menu = [{"Invalid Selection",ignore}|add_last_menu(Ss, St, Abort)],
     wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
 
-exit_menu_done(X, Y, MenuEntry, St) ->
-    Menu = [MenuEntry,
-	    {"Abort Command",abort}],
+exit_menu_done(X, Y, MenuEntry, Ss, St) ->
+    Abort = [{"Abort Command",abort}],
+    Menu = [MenuEntry|add_last_menu(Ss, St, Abort)],
     wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
 
-common_exit(Check, More, Acc, Ns, St) ->
+add_last_menu(#ss{label=none}, _St, Menu) -> Menu;
+add_last_menu(#ss{label=Lbl,sti={StiA,StiB}}, St, Menu) ->
+    [separator,
+     {"Use Last "++Lbl,
+      fun(_, _) -> {secondary_selection,{use,StiA}} end},
+     {"Use Default "++Lbl,
+      fun(_, _) -> {secondary_selection,{use,StiB}} end}|
+     add_set_action(Lbl, StiB, St, [separator|Menu])].
+
+add_set_action(_Lbl, _Sti, #st{vec=none}, Menu) -> Menu;
+add_set_action(Lbl, Sti, _St, Menu) ->
+    [separator,
+     {"Set Default "++Lbl,
+      fun(_, _) -> {secondary_selection,{set,Sti}} end}|Menu].
+
+common_exit(Check, More, Acc, Ns, #st{vec=none}=St) ->
     case Check(St) of
 	{none,Msg} ->
 	    wings_io:message(Msg),
@@ -219,7 +259,11 @@ common_exit(Check, More, Acc, Ns, St) ->
 	{Vec,Msg} ->
 	    wings_io:message(Msg),
 	    common_exit_1(Vec, More, Acc, Ns)
-    end.
+    end;
+common_exit(_Check, More, Acc, Ns, #st{vec={_,Vec}}) ->
+    common_exit_1(Vec, More, Acc, Ns);
+common_exit(_Check, More, Acc, Ns, #st{vec=Vec}) ->
+    common_exit_1(Vec, More, Acc, Ns).
 
 common_exit_1(Vec, [], Acc, Ns) ->
     Ps = wings_menu_util:magnet_props(vector, Ns),
