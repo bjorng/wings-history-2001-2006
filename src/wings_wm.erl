@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.104 2003/04/27 18:30:42 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.105 2003/05/26 05:31:42 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -964,7 +964,8 @@ put_window_data(Name, Data) ->
     put(wm_windows, gb_trees:update(Name, Data, get(wm_windows))).
 
 set_video_mode(W, H) ->
-    sdl_video:setVideoMode(W, H, 0, ?SDL_OPENGL bor ?SDL_RESIZABLE).
+    {surfacep,_} = sdl_video:setVideoMode(W, H, 0, ?SDL_OPENGL bor ?SDL_RESIZABLE),
+    ok.
 
 %%%
 %%% Button translation.
