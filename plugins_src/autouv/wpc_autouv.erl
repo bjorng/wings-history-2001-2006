@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.49 2002/11/09 15:00:11 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.50 2002/11/10 12:45:49 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -344,21 +344,12 @@ make_mat(Diff) ->
 	      {ambient,Diff},
 	      {specular,{0.0,0.0,0.0}}]}].
 
-check_for_defects(#we{fs=Ftab,vs=Vtab}=We) ->
-    case gb_trees:size(Ftab) of
-	2 -> ok;				%No check if only 2 faces.
-	_ ->
-	    foreach(fun(V) ->
-			    check_isolated_vertex(V, We)
-		    end, gb_trees:keys(Vtab))
-    end.
-
-check_isolated_vertex(V, We) ->
-    case wings_vertex:fold(fun(_, _, _, N) -> N+1 end, 0, V, We) of
-	2 ->
-	    wings_util:error("The model has one or more isolated vertices.");
-	_ -> 
-	    ok
+check_for_defects(We) ->
+    case wings_vertex:isolated(We) of
+	[] ->
+	    ok;
+	[_|_] ->
+	    wpa:error("The model has isolated vertices. (Use the Cleanup command.)")
     end.
 
 %%%
