@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.104 2003/07/20 13:36:54 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.105 2003/07/20 21:33:08 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -42,7 +42,8 @@
 	 ignore_rel=true,			%Ignore button release if
 						% just openened.
 	 type=plain,				%Type of menu: plain|popup
-	 owner					%Owning window.
+	 owner,					%Owning window.
+	 flags=[]				%Flags (magnet/dialog).
 	}).
 
 %%%
@@ -80,7 +81,7 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi0) ->
     Hotkeys = wings_hotkey:matching(Names),
     Menu = normalize_menu(Menu1, Hotkeys, Adv),
     {MwL,MwM,MwR,Hs} = menu_dims(Menu),
-    TotalW = (MwL+MwM+MwR) * ?CHAR_WIDTH + 8*?CHAR_WIDTH,
+    TotalW = MwM + (MwL+MwR+8) *  wings_text:width(),
     Mh = lists:sum(Hs),
     Margin = 3,
     {X1,Y1} = case Type of
@@ -234,9 +235,10 @@ menu_dims(Menu, I, MaxA0, MaxB0, MaxC0, Hacc) ->
  	    {S,ignore,[],[],[]} when I == 1, length(S)+1 =< MaxA0+MaxB0 ->
  		{0,0,0,?LINE_HEIGHT};
 	    {S,{_,_},Hotkey,_,_} ->
-		{length(S),length(Hotkey),1,?LINE_HEIGHT};
+		{length(S),wings_text:width(Hotkey),1,?LINE_HEIGHT};
 	    {S,_,Hotkey,_,Ps} ->
-		{length(S),length(Hotkey),right_width(Ps),?LINE_HEIGHT};
+		{length(S),wings_text:width(Hotkey),
+		 right_width(Ps),?LINE_HEIGHT};
 	    separator -> {0,0,0,?SEPARATOR_HEIGHT}
 	end,
     menu_dims(Menu, I-1, max(Wa, MaxA0), max(Wb, MaxB0),
@@ -246,7 +248,7 @@ max(A, B) when A > B -> A;
 max(_A, B) -> B.
 
 right_width(Ps) ->
-    case have_option_box(Ps) orelse have_magnet(Ps) of
+    case have_option_box(Ps) of
 	true -> 1;
 	false -> 0
     end.
@@ -275,7 +277,7 @@ handle_menu_event(#mousemotion{x=X,y=Y}, Mi) ->
     mousemotion(X, Y, Mi);
 handle_menu_event(#mousebutton{}=Ev, Mi) ->
     button_pressed(Ev, Mi);
-handle_menu_event(#mi{}=Mi, _) ->				%Key bound/unbound.
+handle_menu_event(#mi{}=Mi, _) ->		%Key bound/unbound.
     help_text(Mi),
     wings_wm:dirty(),
     get_menu_event(Mi);
@@ -300,14 +302,14 @@ button_pressed(#mousebutton{state=?SDL_RELEASED}, #mi{ignore_rel=true}=Mi) ->
 button_pressed(#mousebutton{button=B,x=X,y=Y,state=?SDL_RELEASED},
 	       #mi{adv=false}=Mi) when (B =< 3) ->
     wings_wm:dirty(),
-    button_pressed(1, X, Y, Mi);
-button_pressed(#mousebutton{button=B,x=X,y=Y,state=?SDL_RELEASED}, Mi)
+    button_pressed(1, 0, X, Y, Mi);
+button_pressed(#mousebutton{button=B,x=X,y=Y,mod=Mod,state=?SDL_RELEASED}, Mi)
   when (B =< 3) ->
     wings_wm:dirty(),
-    button_pressed(B, X, Y, Mi);
+    button_pressed(B, Mod, X, Y, Mi);
 button_pressed(_, _) -> keep.
 
-button_pressed(Button, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
+button_pressed(Button, Mod, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
     clear_timer(Mi0),
     Mi = update_highlight(X, Y, Mi0),
     case selected_item(Y, Mi) of
@@ -318,21 +320,30 @@ button_pressed(Button, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
 		    Act = check_option_box(Act0, X, Ps, Mi),
 		    do_action(build_command(Act, Names), Mi);
 		{_,{Name,Submenu},_,_,_} when Adv == true ->
-		    popup_submenu(Button, X, Y, Name, Submenu, Mi);
+		    popup_submenu(Button, Mod, X, Y, Name, Submenu, Mi);
 		{_,{Name,Submenu},_,_,_} when Adv == false ->
 		    submenu(Item, Name, Submenu, Mi);
 		{_,Act0,_,_,Ps} when is_function(Act0) ->
-		    call_action(X, Act0, Button, Names, Ps, Mi);
+		    call_action(Act0, Button, Mod, Names, Ps, Mi);
 		{_,Act0,_,_,Ps} when is_atom(Act0); is_integer(Act0) ->
 		    Act = check_option_box(Act0, X, Ps, Mi),
 		    do_action(build_command(Act, Names), Mi)
 	    end
     end.
 
-call_action(X, Act, Button, Ns, Ps, Mi) ->
-    Mag = case have_magnet(Ps) andalso hit_right(X, Mi) of
-	      true -> {magnet,Button};
-	      false -> Button
+call_action(Act, Button, Mod, Ns, Ps, #mi{flags=Flags}=Mi) ->
+    Mag = case have_magnet(Ps) of
+	      false -> button;
+	      true ->
+		  case wings_camera:free_rmb_modifier() of
+		      RmbMod when Mod band RmbMod =/= 0 ->
+			  {magnet,1};
+		      _ ->
+			  case proplists:is_defined(magnet, Flags) of
+			      true -> {magnet,1};
+			      false -> Button
+			  end
+		  end
 	  end,
     case Act(Mag, Ns) of
 	ignore -> keep;
@@ -416,23 +427,55 @@ set_hotkey(Val, #mi{sel=Sel,menu=Menu0}=Mi) ->
 	_Other -> Mi
     end.
 
-popup_submenu(Button, X0, Y0, SubName, SubMenu0,
+popup_submenu(Button, Mod, X0, Y0, SubName, SubMenu0,
 	      #mi{owner=Owner,level=Level}=Mi) ->
     %% Only in advanced menu mode.
+    Flags = magnet_flags(Mod),
     case expand_submenu(Button, SubName, SubMenu0, Mi) of
 	ignore -> keep;
-	Action when is_tuple(Action); is_atom(Action) ->
+	Action0 when is_tuple(Action0); is_atom(Action0) ->
+	    Action = insert_magnet_flags(Action0, Flags),
 	    clear_menu_selection(Mi),
 	    wings_wm:send(Owner, {action,Action}),
 	    delete_all(Mi);
 	SubMenu when is_list(SubMenu) ->
 	    clear_timer(Mi),
 	    {X,Y} = wings_wm:local2global(X0, Y0),
-	    menu_setup(popup, X, Y, SubName, SubMenu, Mi#mi{level=Level+1}),
+	    menu_setup(popup, X, Y, SubName, SubMenu,
+		       Mi#mi{flags=Flags,level=Level+1}),
 	    delete
     end.
 
+magnet_flags(Mod) ->
+    case wings_camera:free_rmb_modifier() of
+	RmbMod when Mod band RmbMod =/= 0 ->
+	    [magnet];
+	_ ->
+	    []
+    end.
+
+insert_magnet_flags(Action, []) ->
+    Action;
+insert_magnet_flags({vector,{pick,Pl,Acc,Cmd}}, Flags) ->
+    insert_magnet_flags_1(Cmd, Pl, Acc, Flags);
+insert_magnet_flags(Action, _) -> Action.
+
+insert_magnet_flags_1([move|_]=Cmd, Pl, Acc, Flags) ->
+    insert_magnet_flags_2(Cmd, Pl, Acc, Flags);
+insert_magnet_flags_1([rotate|_]=Cmd, Pl, Acc, Flags) ->
+    insert_magnet_flags_2(Cmd, Pl, Acc, Flags);
+insert_magnet_flags_1([scale|_]=Cmd, Pl, Acc, Flags) ->
+    insert_magnet_flags_2(Cmd, Pl, Acc, Flags);
+insert_magnet_flags_1(Cmd, Pl, Acc, _) ->
+    {vector,{pick,Pl,Acc,Cmd}}.
+
+insert_magnet_flags_2(Cmd, Pl, Acc, [magnet]) ->
+    {vector,{pick,Pl++[magnet],Acc,Cmd}};
+insert_magnet_flags_2(Cmd, Pl, Acc, _) ->
+    {vector,{pick,Pl,Acc,Cmd}}.
+
 submenu(I, Name, Menu0, #mi{w=W,hs=Hs,level=Level}=Mi0) ->
+    %% Only in basic menu mode.
     Menu = expand_submenu(1, Name, Menu0, Mi0),
     X0 = W-?CHAR_WIDTH,
     Y0 = get_item_pos(I, Hs, -?LINE_HEIGHT),
@@ -443,8 +486,8 @@ submenu(I, Name, Menu0, #mi{w=W,hs=Hs,level=Level}=Mi0) ->
 get_item_pos(0, _Hs, Pos) -> Pos;
 get_item_pos(I, [H|Hs], Pos) -> get_item_pos(I-1, Hs, Pos+H).
 
-expand_submenu(B, Name, Submenu0, #mi{ns=Ns}) when is_function(Submenu0) ->
-    Submenu0(B, [Name|Ns]);
+expand_submenu(B, Name, Submenu, #mi{ns=Ns}) when is_function(Submenu) ->
+    Submenu(B, [Name|Ns]);
 expand_submenu(_Button, _Name, Submenu, _Mi) -> Submenu.
 
 clear_timer(#mi{timer=Timer}) -> wings_wm:cancel_timer(Timer).
@@ -602,8 +645,9 @@ menu_draw(X, Y, Shortcut, Mw, I, [H|Hs], #mi{menu=Menu,adv=Adv}=Mi) ->
 			end);
 	{_,{_,_}=Item,Hotkey,_Help,Ps} ->
 	    menu_draw_1(Y, Ps, I, Mi,
-			fun() -> wings_io:menu_text(X, Y, Text),
-				 draw_hotkey(X, Y, Shortcut, Hotkey)
+			fun() ->
+				wings_io:menu_text(X, Y, Text),
+				draw_hotkey(X, Y, Shortcut, Hotkey)
 			end,
 			fun() -> ok end),
 	    draw_submenu(Adv, Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
@@ -728,23 +772,12 @@ draw_right(X, Y, Ps) ->
     end.
 
 draw_right_1(X, Y, Ps) ->
-    case have_magnet(Ps) of
-	true ->
-	    gl:color3f(1, 0, 0),
-	    wings_io:text_at(X, Y, [magnet_red]),
-	    gl:color3b(0, 0, 0),
-	    wings_io:text_at(X, Y, [magnet_black]);
-	false -> draw_right_2(X, Y, Ps)
-    end.
-
-draw_right_2(X, Y, Ps) ->
     case proplists:get_value(color, Ps, none) of
 	none -> ok;
 	Color ->
 	    wings_io:border(X, Y-7,
 			    ?CHAR_WIDTH, ?CHAR_HEIGHT-1,
-			    Color);
-	false -> draw_right_2(X, Y, Ps)
+			    Color)
     end.
 
 draw_submenu(_Adv, Item, _X, _Y) when is_atom(Item);

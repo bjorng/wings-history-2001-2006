@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_7x14.erl,v 1.5 2003/07/20 13:36:56 bjorng Exp $
+%%     $Id: wpf_7x14.erl,v 1.6 2003/07/20 21:33:08 bjorng Exp $
 %%
 
 -module(wpf_7x14).
@@ -18,7 +18,11 @@ desc() ->
     "Large (7x14)".
 
 width(S) ->
-    7*length(S).
+    7*len(S, 0).
+
+len([option|Cs], L) -> len(Cs, L+2);
+len([_|Cs], L) -> len(Cs, L+1);
+len([], L) -> L.
 
 width() -> 7.
 height() -> 14.

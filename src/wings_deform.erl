@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.34 2003/01/20 21:04:44 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.35 2003/07/20 21:33:08 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -115,7 +115,7 @@ inflate_fun() ->
 	    {vector,
 	     {pick,
 	      [{point,"Pick center point"},
-	       {second_point,"Pick point to define radius"}],
+	       {point,"Pick point to define radius"}],
 	      [],[inflate|Ns]}}
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_6x11.erl,v 1.4 2003/07/20 13:36:56 bjorng Exp $
+%%     $Id: wpf_6x11.erl,v 1.5 2003/07/20 21:33:08 bjorng Exp $
 %%
 
 -module(wpf_6x11).
@@ -18,7 +18,11 @@ desc() ->
     "Small (6x11)".
 
 width(S) ->
-    6*length(S).
+    6*len(S, 0).
+
+len([option|Cs], L) -> len(Cs, L+2);
+len([_|Cs], L) -> len(Cs, L+1);
+len([], L) -> L.
 
 width() -> 6.
 height() -> 11.
@@ -52,14 +56,13 @@ char(command) ->
 
 char(option) ->
     B = <<
-	 2#0000000001111000:16,
-	 2#0000000010000000:16,
-	 2#0000000100000000:16,
-	 2#0000001000000000:16,
-       	 2#0000010000000000:16,
-       	 2#0000100000000000:16,
-       	 2#1111000111111000:16>>,
-    gl:bitmap(13, 7, -1, 0, 14, 0, B);
+	 2#00000000111000000:16,
+	 2#00000001000000000:16,
+	 2#00000010000000000:16,
+       	 2#00000100000000000:16,
+       	 2#00001000000000000:16,
+       	 2#11110001111000000:16>>,
+    gl:bitmap(11, 6, -1, 0, 12, 0, B);
 
 char(shift) ->
     B = <<
