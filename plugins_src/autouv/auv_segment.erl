@@ -9,13 +9,14 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.53 2004/05/08 15:12:43 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.54 2004/05/08 15:41:50 bjorng Exp $
 
 -module(auv_segment).
 
 -export([create/2,segment_by_material/1,cut_model/3,
 	 normalize_charts/3,map_vertex/2,
-	 fv_to_uv_map/2,uv_to_charts/3,finalize_charts/1]).
+	 fv_to_uv_map/2,uv_to_charts/3,
+	 finalize_charts/1,finalize_chart/2]).
 
 -ifdef(DEBUG).
 -export([degrees/0, find_features/3, build_seeds/2]). %% Debugging
@@ -691,8 +692,9 @@ cut_one_chart(Keep0, Cuts, We0) ->
     OuterEdges = wings_face:outer_edges(Keep, We0),
     Map0 = gb_trees:empty(),
     {We1,Map1} = cut_shared_vertices(Keep, OuterEdges, We0, Map0),
-    {We,Map} = cut_edges(Keep0, Cuts, We1, Map1),
-    {Keep0,Map,We}.
+    {We2,Vmap} = cut_edges(Keep0, Cuts, We1, Map1),
+    We = We2#we{name=#ch{vmap=Vmap}},
+    {Keep0,We}.
 
 cut_shared_vertices(Faces, Es, #we{es=Etab}=We0, InvVmap0) ->
     VsEs0 = foldl(fun(E, A) ->
@@ -932,11 +934,13 @@ is_cutting_edge(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, D) ->
 finalize_charts(Cs) ->
     finalize_charts_1(Cs, length(Cs), []).
 
-finalize_charts_1([{Fs,Vmap,#we{fs=Ftab0}=We0}|Cs], Id, Acc) ->
-    NotNeeded = ordsets:subtract(gb_trees:keys(Ftab0), Fs),
-    #we{fs=Ftab} = We1 = wings_face_cmd:dissolve(NotNeeded, We0),
-    Hidden = ordsets:subtract(gb_trees:keys(Ftab), Fs),
-    We2 = wings_we:hide_faces(Hidden, We1),
-    We = We2#we{id=Id,name=#ch{vmap=Vmap}},
+finalize_charts_1([{Fs,We0}|Cs], Id, Acc) ->
+    We = finalize_chart(Fs, We0#we{id=Id}),
     finalize_charts_1(Cs, Id-1, [We|Acc]);
 finalize_charts_1([], 0, Acc) -> Acc.
+
+finalize_chart(Fs, #we{fs=Ftab0}=We0) ->
+    NotNeeded = ordsets:subtract(gb_trees:keys(Ftab0), Fs),
+    #we{fs=Ftab} = We = wings_face_cmd:dissolve(NotNeeded, We0),
+    Hidden = ordsets:subtract(gb_trees:keys(Ftab), Fs),
+    wings_we:hide_faces(Hidden, We).

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.19 2004/05/08 15:12:42 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.20 2004/05/08 15:41:50 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -273,30 +273,29 @@ seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     Charts0 = auv_segment:segment_by_material(We0),
     wings_pb:update(0.35, "normalizing"),
     {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
-    wings_pb:update(0.85, "cutting"),
-    Charts2 = auv_segment:cut_model(Charts1, Cuts, OrigWe),
-    wings_pb:update(1.0, "finishing"),
-    Charts = auv_segment:finalize_charts(Charts2),
+    wings_pb:update(1.0, "cutting"),
+    Charts = auv_segment:cut_model(Charts1, Cuts, OrigWe),
     wings_pb:done(),
     N = length(Charts),
     wings_pb:start("mapping"),
-    seg_map_charts_1(Charts, Method, N, [], Ss).
+    seg_map_charts_1(Charts, Method, 1, N, [], Ss).
 
-seg_map_charts_1([#we{id=Id}=We0|Cs], Type, N, Acc,
+seg_map_charts_1([{Fs,We0}|Cs], Type, Id, N, Acc,
 		 #seg{we=#we{id=OrigId},st=St0}=Ss) ->
     wings_pb:update(Id/N, lists:flatten(io_lib:format("chart ~w/~w", [Id,N]))),
-    case auv_mapping:map_chart(Type, We0) of
+    We1 = auv_segment:finalize_chart(Fs, We0#we{id=Id}),
+    case auv_mapping:map_chart(Type, We1) of
 	{error,Message} ->
 	    wings_pb:done(),
 	    wings_util:message(Message),
-	    Fs = wings_we:visible(We0),
+	    Fs = wings_we:visible(We1),
 	    St = St0#st{selmode=face,sel=[{OrigId,gb_sets:from_ordset(Fs)}]},
 	    get_seg_event(seg_init_message(Ss#seg{st=St}));
 	Vs ->
-	    We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
-	    seg_map_charts_1(Cs, Type, N, [We|Acc], Ss)
+	    We = We1#we{vp=gb_trees:from_orddict(sort(Vs))},
+	    seg_map_charts_1(Cs, Type, Id+1, N, [We|Acc], Ss)
     end;
-seg_map_charts_1([], _, _, MappedCharts, #seg{we=#we{id=Id}}) ->
+seg_map_charts_1([], _, _, _, MappedCharts, #seg{we=#we{id=Id}}) ->
     wings_pb:done(),
     wings_wm:later({init_show_maps,Id,reverse(MappedCharts)}),
 
