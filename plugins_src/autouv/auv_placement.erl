@@ -5,11 +5,11 @@
 %%%
 %%% Created :  7 Oct 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
 %%%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2002 Dan Gudmundsson 
+%%  Copyright (c) 2001-2004 Dan Gudmundsson 
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.20 2003/08/16 17:50:34 bjorng Exp $
+%%     $Id: auv_placement.erl,v 1.21 2004/04/14 04:04:59 bjorng Exp $
 
 -module(auv_placement).
 
@@ -21,6 +21,7 @@
 -import(lists, [max/1, sort/1, map/2, reverse/1]).
 
 %% Returns a gb_tree with areas...
+place_areas([]) -> [];
 place_areas(Areas0) ->
     Rotate = fun(#we{name=#ch{fs=Fs}=Ch0}=We0, {C, BBs}) ->
 		     {{Dx,Dy}=Size, Vs} = center_rotate(Fs, We0),
