@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.49 2002/10/31 06:51:56 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.50 2002/11/04 07:10:22 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -317,7 +317,7 @@ mirai_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, true, View) ->
     get_mirai_event(Camera, Redraw, true, View);
 mirai_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw, false, View) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
-    case Buttons band 4 of
+    case Buttons band 2 of
 	0 ->					%MMB pressed.
 	    pan(-Dx, -Dy);
 	_Other ->				%MMB pressed.
