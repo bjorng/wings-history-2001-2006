@@ -7,6 +7,9 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%
+%%     $Id: e3d__tri_quad.erl,v 1.2 2002/01/18 11:35:37 bjorng Exp $
+%%
 
 -module(e3d__tri_quad).
 -export([triangulate_face/2,triangulate_face_with_holes/3,
