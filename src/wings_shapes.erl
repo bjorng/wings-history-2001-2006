@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.19 2002/04/14 18:46:57 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.20 2002/04/16 19:37:19 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -34,7 +34,9 @@ menu(X, Y, St) ->
 	    {"Sphere",sphere,[],[option]},
 	    {"Torus",torus,[],[option]},
 	    separator,
-	    {"Grid",grid,[],[option]}],
+	    {"Grid",grid,[],[option]},
+	    separator,
+	    {"More",{more,[]},"More primitives"}],
     wings_menu:popup_menu(X, Y, shape, Menu, St).
 
 command(tetrahedron, St) -> tetrahedron(St);

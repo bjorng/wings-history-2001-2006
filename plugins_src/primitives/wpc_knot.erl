@@ -42,17 +42,22 @@ init() ->
 %% This function will be called every time a menu is opened,
 %% allowing this plug-in to extend any menu.
 
-menu({shape}, Menu0) ->
+menu({shape,more}, []) ->
+    torus_menu();
+menu({shape,more}, Menu) ->
     %% Will appear in the object creation menu as "Torus Knot"
     %% (without any option box).
-    Menu0 ++ [{"Torus Knot",torus_knot}];
+    Menu ++ [separator|torus_menu()];
 menu(_, Menu) ->
     %% Any other menu. Must return the Menu parameter unchanged.
     Menu.
+
+torus_menu() ->
+    [{"Torus Knot",torus_knot}].
     
 %% This function will be called before executing any command.
 
-command({shape,torus_knot}, St) ->
+command({shape,{more,torus_knot}}, _) ->
     %% Our command.
     make_knot();
 command(_, _) ->
@@ -168,5 +173,5 @@ make_knot() ->
     %% The third and fourth elements are the list of Faces and
     %% the list of VertexPositions.
 
-    {new_shape,"Torus Knot",Faces,VertexPositions}.
+    {new_shape,"knot",Faces,VertexPositions}.
 

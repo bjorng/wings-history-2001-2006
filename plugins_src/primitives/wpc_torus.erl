@@ -28,17 +28,20 @@
 
 init() -> true.
 
-menu({shape}, Menu0) ->
-	Menu0 ++ [separator,
-		{"UV Torus"     ,uvtorus,[option]},
-		{"Lumpy Torus"  ,lutorus,[option]},
-		{"Spiral Torus" ,sptorus,[option]}
-		];
+menu({shape,more}, []) ->
+    torus_menu();
+menu({shape,more}, Menu) ->
+    Menu ++ [separator|torus_menu()];
 menu(_, Menu) -> Menu.
 
-command({shape,{uvtorus,Ask}}, St) -> make_uvtorus(Ask, St);
-command({shape,{lutorus,Ask}}, St) -> make_lutorus(Ask, St);
-command({shape,{sptorus,Ask}}, St) -> make_sptorus(Ask, St);
+torus_menu() ->
+    [{"UV Torus"     ,uvtorus,[option]},
+     {"Lumpy Torus"  ,lutorus,[option]},
+     {"Spiral Torus" ,sptorus,[option]}].
+
+command({shape,{more,{uvtorus,Ask}}}, St) -> make_uvtorus(Ask, St);
+command({shape,{more,{lutorus,Ask}}}, St) -> make_lutorus(Ask, St);
+command({shape,{more,{sptorus,Ask}}}, St) -> make_sptorus(Ask, St);
 command(_, _) -> next.
 
 %%% The rest are local functions.
@@ -50,7 +53,7 @@ make_uvtorus(Ask, St) when is_atom(Ask) ->
 				   {"Major Radius",1.0},
 				   {"Minor Radius",0.2}
 				 ],
-	St, fun(Res) -> {shape,{uvtorus,Res}} end);
+	St, fun(Res) -> {shape,{more,{uvtorus,Res}}} end);
 make_uvtorus([Ures, Vres, MajR, MinR], St) ->
 	Vs = uvtorus_verts(Ures, Vres, MajR, MinR),
 	Fs = uvtorus_faces(Ures, Vres),
@@ -65,7 +68,7 @@ make_lutorus(Ask, St) when is_atom(Ask) ->
 				   {"Lumps       ",8},
 				   {"Lump Amplitude",0.5}
 				 ],
-	St, fun(Res) -> {shape,{lutorus,Res}} end);
+	St, fun(Res) -> {shape,{more,{lutorus,Res}}} end);
 make_lutorus([Ures, Vres, MajR, MinR, Loops, LoopRad], St) ->
 	Vs = lutorus_verts(Ures, Vres, MajR, MinR, Loops, LoopRad),
 	Fs = uvtorus_faces(Ures, Vres),
@@ -80,7 +83,7 @@ make_sptorus(Ask, St) when is_atom(Ask) ->
 				   {"Loops       ",8},
 				   {"Loop Radius ",0.2}
 				 ],
-	St, fun(Res) -> {shape,{sptorus,Res}} end);
+	St, fun(Res) -> {shape,{more,{sptorus,Res}}} end);
 make_sptorus([Ures, Vres, MajR, MinR, Loops, LoopRad], St) ->
 	Vs = sptorus_verts(Ures, Vres, MajR, MinR, Loops, LoopRad),
 	Fs = uvtorus_faces(Ures, Vres),

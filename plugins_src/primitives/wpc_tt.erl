@@ -37,10 +37,16 @@
 
 init() -> true.
 
-menu({shape}, Menu0) ->
-	Menu0 ++ [separator,
-		  {"Text",text,[option]}];
+menu({shape}, Menu) ->
+    insert_before_more(Menu);
 menu(_, Menu) -> Menu.
+
+insert_before_more([H|_]=More) when element(1, element(2, H)) == more ->
+    [{"Text",text,[option]},separator|More];
+insert_before_more([H|T]) ->
+    [H|insert_before_more(T)];
+insert_before_more([]) ->
+    [{"Text",text,[option]}].
 
 command({shape,{text,Ask}}, St) -> make_text(Ask, St);
 command(_, _) -> next.
