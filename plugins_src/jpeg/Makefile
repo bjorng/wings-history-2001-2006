@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.3 2004/01/18 18:49:40 bjorng Exp $
+#     $Id: Makefile,v 1.4 2004/10/24 07:12:07 bjorng Exp $
 #
 
 ifeq ($(findstring CYGWIN,$(shell uname -s)),CYGWIN)
@@ -40,17 +40,12 @@ $(LIBDIR)/%.beam: %.erl
 	$(ERLC) $(ERLC_FLAGS) $<
 
 ifdef CYGWIN
-$(LIBDIR)/wings_jpeg_image_drv.dll: wings_jpeg_image_drv.c \
-  erl_driver.h erl_win_dyn_driver.h
+
+$(LIBDIR)/wings_jpeg_image_drv.dll: wings_jpeg_image_drv.c
 	install -d $(LIBDIR)
-	mingw32-gcc -o $(LIBDIR)/wings_jpeg_image_drv.dll \
+	mingw32-gcc -I$(ERL_INC) -o $(LIBDIR)/wings_jpeg_image_drv.dll \
   wings_jpeg_image_drv.c $(LIBS)
 
-erl_driver.h: $(ERL_INC)/erl_driver.h
-	cp $(ERL_INC)/erl_driver.h .
-
-erl_win_dyn_driver.h: $(ERL_INC)/erl_win_dyn_driver.h
-	sed 's,##Params, Params,g' "$(ERL_INC)/erl_win_dyn_driver.h" > erl_win_dyn_driver.h
 else
 
 $(LIBDIR)/wings_jpeg_image_drv.so: wings_jpeg_image_drv.c
