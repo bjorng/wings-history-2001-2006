@@ -3,12 +3,12 @@
 %%
 %%     This module manages images.
 %%
-%%  Copyright (c) 2003 Bjorn Gustavsson
+%%  Copyright (c) 2003-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.35 2004/02/17 11:18:16 dgud Exp $
+%%     $Id: wings_image.erl,v 1.36 2004/03/17 11:21:43 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -284,7 +284,7 @@ create_default(Type) when Type == diffuse; Type == gloss ->
 		     image= <<255,255,255>>}, % White and full specular.
     make_texture({?DEFAULT,Type},Img);
 create_default(Type) -> 
-    io:format("~p Don't know about the type ~p ignoreing~n", [?MODULE,Type]),
+    io:format("~p Don't know about the type ~p; ignoring\n", [?MODULE,Type]),
     none.
 
 create_normal_cube_map() ->
@@ -468,8 +468,9 @@ window(Id) ->
 	    {Size,Title} = window_params(Id),
 	    Pos = {10,50,highest},
 	    Op = {seq,push,window_fun(Id)},
+	    Props = window_props(),
 	    wings_wm:toplevel(Name, Title, Pos, Size,
-			      [resizable,closable], Op)
+			      [resizable,closable,{properties,Props}], Op)
     end.
 
 window_params(Id) ->
@@ -488,6 +489,21 @@ window_params(Id) ->
 	end,
     {{W,H},Title}.
 
+window_props() ->
+    View = #view{origin={0.0,0.0,0.0},
+		 distance=0.65,
+		 azimuth=0.0,
+		 elevation=0.0,
+		 pan_x=-0.5,
+		 pan_y=-0.5,
+		 fov=90.0,
+		 hither=0.1,
+		 yon=50.0},
+    [{current_view,View},
+     {orthogonal_view,true},
+     {allow_rotation,false},
+     {hide_sel_in_camera_moves,false}].
+
 window_fun(Id) ->
     fun(Ev) ->
 	    event(Ev, Id)
@@ -496,8 +512,13 @@ window_fun(Id) ->
 event(redraw, Id) ->
     redraw(Id),
     keep;
-event(close, _) -> delete;
-event(_, _) -> keep.
+event(close, _) ->
+    delete;
+event(Ev, Id) ->
+    case wings_camera:event(Ev, fun() -> redraw(Id) end) of
+	next -> keep;
+	Other -> Other
+    end.
 
 redraw(Id) ->
     case info(Id) of
@@ -509,45 +530,40 @@ redraw(Id) ->
 
 redraw_1(Id, #e3d_image{width=Iw,height=Ih}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    Aspect = Iw/Ih,
-    {W0,H0} = wings_wm:win_size(),
+    wings_wm:clear_background(),
     wings_io:ortho_setup(),
+    {W0,H0} = wings_wm:win_size(),
     wings_io:border(0, 0, W0-1, H0-1, ?PANE_COLOR),
-    X = 1,
-    Y = 1,
-    W1 = W0-2,
-    H1 = H0-2,
-    W2 = round(Aspect*H1),
-    H2 = round(W1/Aspect),
+    wings_view:load_matrices(false),
     {W,H} = if
-		W2 =< W1 -> {W2,H1};
-		true -> {W1,H2}
+		W0 < H0, Ih > Iw; W0 >= H0, Iw >= Ih ->
+		    {1,Ih/Iw};
+		true ->
+		    {Iw/Ih,1}
 	    end,
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     gl:disable(?GL_DEPTH_TEST),
-    draw_background(X, Y, W, H),
+    draw_image(1, 1, txid(background)),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    draw_image(X, Y, W, H, txid(Id)),
+    draw_image(W, H, txid(Id)),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:popAttrib().
 
-draw_background(X, Y, W, H) ->
-    Ua = 0,
-    Ub = 16*(W div 16)/16,
-    Va = 0,
-    Vb = 16*(H div 16)/16,
-    gl:bindTexture(?GL_TEXTURE_2D, txid(background)),
+draw_image(W, H, TxId) ->
+    Ua = 0, Ub = 1,
+    Va = 1, Vb = 0,
+    gl:bindTexture(?GL_TEXTURE_2D, TxId),
     gl:'begin'(?GL_QUADS),
-    gl:texCoord2f(Ua, Va),
-    gl:vertex2i(X, Y),
-    gl:texCoord2f(Ua, Vb),
-    gl:vertex2i(X, Y+H),
-    gl:texCoord2f(Ub, Vb),
-    gl:vertex2i(X+W, Y+H),
-    gl:texCoord2f(Ub, Va),
-    gl:vertex2i(X+W, Y),
+    gl:texCoord2i(Ua, Va),
+    gl:vertex2f(0, 0),
+    gl:texCoord2i(Ua, Vb),
+    gl:vertex2f(0, H),
+    gl:texCoord2i(Ub, Vb),
+    gl:vertex2f(W, H),
+    gl:texCoord2i(Ub, Va),
+    gl:vertex2f(W, 0),
     gl:'end'().
 
 draw_image(X, Y, W, H, TxId) ->
