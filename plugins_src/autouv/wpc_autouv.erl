@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.140 2003/08/07 05:04:21 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.141 2003/08/07 05:13:42 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -462,10 +462,9 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     gl:color3f(1.0, 1.0, 1.0),   %%Clear
     case TexBg of
-	true when MatN /= none ->
-	    wings_material:apply_material(MatN, Mats);
-	false ->
-	    ok
+	true when MatN == none -> ok;
+	true -> wings_material:apply_material(MatN, Mats);
+	false -> ok
     end,
     gl:'begin'(?GL_QUADS),
     gl:texCoord2f(0,0),    gl:vertex3f(0,0,-0.9),
