@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.64 2005/03/10 10:52:55 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.65 2005/03/12 10:23:25 bjorng Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -161,7 +161,7 @@ lsqcm(Fs, Pinned0, We) ->
 		     Pinned0
 	     end,
     ?DBG("LSQ ~p~n", [Pinned]),
-    case ?TC(lsq(Vs1, Pinned)) of
+    case lsq(Vs1, Pinned) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
 	    exit({txmap_error, What});
