@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.95 2004/10/08 06:02:31 dgud Exp $
+%%     $Id: wings_util.erl,v 1.96 2004/10/13 18:25:27 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -21,6 +21,7 @@
 	 message/1,
 	 magnet_string/0,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
+	 yes_string/0,no_string/0,cancel_string/0,
 	 get_matrices/2,mirror_matrix/1,
 	 mirror_flatten/2,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
@@ -131,9 +132,9 @@ message(Message) ->
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 magnet_string() ->
-    [?STR(magnet_string,1,"(Magnet route:"),
-     atom_to_list(wings_pref:get_value(magnet_distance_route))
-     ,")"].
+    ["(",?STR(magnet_string,1,"Magnet route:"),
+     atom_to_list(wings_pref:get_value(magnet_distance_route)),
+     ")"].
 
 get_matrices(Id, MM) ->
     wings_view:load_matrices(false),
@@ -178,18 +179,23 @@ yes_no(Question, Yes) ->
 yes_no(Question, Yes, No) ->
     Qs = {vframe,
 	  [{label,Question,[{break,45}]},
-	   {hframe,[{button,?STR(yes_no,1,"Yes"),yes_no_fun(Yes)},
-		    {button,?STR(yes_no,2,"No"),yes_no_fun(No),[cancel]}]}]},
+	   {hframe,[{button,yes_string(),yes_no_fun(Yes)},
+		    {button,no_string(),yes_no_fun(No),[cancel]}]}]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
 yes_no_cancel(Question, Yes, No) ->
     Qs = {vframe,
 	  [{label,Question,[{break,45}]},
-	   {hframe,[{button,?STR(yes_no_cancel,1,"Yes"),yes_no_fun(Yes)},
-		    {button,?STR(yes_no_cancel,2,"No"),yes_no_fun(No)},
-		    {button,?STR(yes_no_cancel,3,"Cancel"),yes_no_fun(ignore),[cancel]}]}]},
+	   {hframe,[{button,yes_string(),yes_no_fun(Yes)},
+		    {button,no_string(),yes_no_fun(No)},
+		    {button,cancel_string(),
+		     yes_no_fun(ignore),[cancel]}]}]},
     wings_ask:dialog("", Qs, fun(_) -> ignore end).
 
+yes_string() -> ?STR(yes_string,1,"Yes").
+no_string() -> ?STR(no_string,1,"No").
+cancel_string() -> ?STR(cancel_string,1,"Cancel").
+    
 yes_no_fun(ignore) -> fun(_) -> ignore end;
 yes_no_fun(Fun) ->
     This = wings_wm:this(),
