@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.152 2003/08/17 07:06:06 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.153 2003/08/17 08:41:42 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -19,7 +19,7 @@
 -include("e3d_image.hrl").
 -include("auv.hrl").
  
--export([init/0,menu/2,command/2,redraw/1]).
+-export([init/0,menu/2,command/2,redraw/1,update_dlists/1]).
 
 -import(lists, [sort/1,map/2,foldl/3,reverse/1,
 		append/1,delete/2,usort/1,max/1,min/1,
@@ -221,11 +221,11 @@ init_show_maps(Map0, #we{es=Etab}=We, St) ->
     Edges = gb_trees:keys(Etab),
     create_uv_state(Edges, Map, none, #setng{}, We, St).
 
-create_uv_state(Edges, Map, MatName, Options, #we{id=Id}=We, St) ->
+create_uv_state(Edges, Map, MatName, Options, We, St) ->
     wings:mode_restriction([body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {_,Geom} = init_drawarea(),
-    Uvs = #uvstate{st=wings_select_faces([], Id, St),
+    Uvs = #uvstate{st=wpa:sel_set(face, [], St),
 		   origst=St,
 		   areas=Map,
 		   geom=Geom,
@@ -405,7 +405,7 @@ draw_texture(#uvstate{dl=DL}=Uvs) ->
     draw_selection(Uvs),
     Uvs.
 
-draw_selection(#uvstate{kludge_sel=[]}) -> ok;
+draw_selection(#uvstate{sel=[]}) -> ok;
 draw_selection(Uvs) ->
     {R,G,B} = wings_pref:get_value(selected_color),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
@@ -698,19 +698,10 @@ handle_event({current_state,geom_display_lists,St}, Uvs) ->
 	keep -> update_selection(St, Uvs);
 	Other -> Other
     end;
-handle_event({picked,[{Id,_}|_]}, #uvstate{areas=Curr0,kludge_sel=Sel0,st=GeomSt0,
-					   orig_we=#we{id=OrigId}}=Uvs) ->
-    {Sel,Curr} =
-	case gb_trees:lookup(Id, Curr0) of
-	    none ->
-		{value,{_,Chart}} = lists:keysearch(Id, 1, Sel0),
-		{lists:keydelete(Id, 1, Sel0),gb_trees:insert(Id, Chart, Curr0)};
-	    {value,Chart} ->
-		{[{Id,Chart}|Sel0],gb_trees:delete(Id, Curr0)}
-	end,
-    GeomSt = wings_select_faces(Sel, OrigId, GeomSt0),
+handle_event({new_state,Uvs}, _) ->
+    GeomSt = wings_select_faces(Uvs),
     wings_wm:send(geom, {new_state,GeomSt}),
-    get_event(reset_dl(Uvs#uvstate{kludge_sel=Sel,st=GeomSt,areas=Curr,op=undefined}));
+    get_event(reset_dl(Uvs#uvstate{st=GeomSt,op=undefined}));
 handle_event(Ev, Uvs) ->
     case auv_pick:event(Ev, Uvs) of
 	next -> handle_event_1(Ev, Uvs);
@@ -731,14 +722,8 @@ handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT},
     keep;
 handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT}, Uvs) ->
     get_event(Uvs#uvstate{op=undefined});
-handle_event_1(#keyboard{state=?SDL_PRESSED,sym=Sym},
-	       #uvstate{st=St,orig_we=#we{id=Id}}) ->
-    case Sym of
-	?SDLK_SPACE ->
-	    wings_wm:send(geom, {new_state,wings_select_faces([],Id,St)}),
-	    keep;
-	_ -> keep
-    end;
+handle_event_1(#keyboard{state=?SDL_PRESSED,sym=?SDLK_SPACE}, #uvstate{st=St}) ->
+    wings_wm:send(geom, {new_state,wpa:sel_set(face, [], St)});
 handle_event_1({drop,_,DropData}, Uvs) ->
     handle_drop(DropData, Uvs);
 handle_event_1({action,{auv,apply_texture}},
@@ -797,7 +782,7 @@ handle_command({rotate,flip_vertical}, Uvs0) ->
 handle_command({rotate,Deg}, Uvs0) ->
     Uvs = sel_map(fun(_, We) -> rotate_chart(Deg, We) end, Uvs0),
     get_event(Uvs);
-handle_command(_, #uvstate{kludge_sel=[]}) ->
+handle_command(_, #uvstate{sel=[]}) ->
     keep;
 handle_command(NewOp, Uvs) ->
     get_event(Uvs#uvstate{op=#op{name=NewOp,undo=Uvs}}).
@@ -862,30 +847,28 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
     end.
 
 update_selection_1(face, Faces, #uvstate{areas=Charts}=Uvs) ->
-    update_selection_2(gb_trees:to_list(Charts), Faces, Uvs, [], []);
+    update_selection_2(gb_trees:to_list(Charts), Faces, Uvs, []);
 update_selection_1(_, _, Uvs) ->
     get_event_nodraw(Uvs).
 
-update_selection_2([{K,#we{name=#ch{fs=Fs}}=C}|Cs], Faces, Uvs, NonSel, Sel) ->
+update_selection_2([{K,#we{name=#ch{fs=Fs}}}|Cs], Faces, Uvs, Sel) ->
     case ordsets:intersection(sort(Fs), Faces) of
-	[] -> update_selection_2(Cs, Faces, Uvs, [{K,C}|NonSel], Sel);
-	_ -> update_selection_2(Cs, Faces, Uvs, NonSel, [{K,C}|Sel])
+	[] -> update_selection_2(Cs, Faces, Uvs, Sel);
+	_ -> update_selection_2(Cs, Faces, Uvs, [{K,gb_sets:singleton(0)}|Sel])
     end;
-update_selection_2([], _, Uvs0, NonSel, Sel) ->
-    As = gb_trees:from_orddict(sort(NonSel)),
-    Uvs = Uvs0#uvstate{kludge_sel=sort(Sel),areas=As},
-    get_event(Uvs).
+update_selection_2([], _, Uvs, Sel) ->
+    get_event(Uvs#uvstate{sel=sort(Sel)}).
     
 -define(OUT, 1.2/2). %% was 1/2 
 
-wings_select_faces([], _, St) ->
-    wpa:sel_set(face, [], St);
-wings_select_faces(As, Id, St) ->
-    Faces0 = foldl(fun({_,#we{name=#ch{fs=Fs}}}, A) ->
-			   [Fs|A]
-		   end, [], As),
-    Faces = gb_sets:from_list(lists:append(Faces0)),
-    wpa:sel_set(face, [{Id,Faces}], St).
+wings_select_faces(#uvstate{sel=[],st=GeomSt}) ->
+    wpa:sel_set(face, [], GeomSt);
+wings_select_faces(#uvstate{st=GeomSt,orig_we=#we{id=Id}}=Uvs) ->
+    Fs0 = sel_fold(fun(_, #we{name=#ch{fs=Fs}}, A) ->
+			   Fs++A
+		   end, [], Uvs),
+    Fs = gb_sets:from_list(Fs0),
+    wpa:sel_set(face, [{Id,Fs}], GeomSt).
 
 %%%% GUI Operations
 
@@ -1089,29 +1072,20 @@ restore_wings_window(Uvs) ->
 %%% internal structures.
 %%%
 
-update_dlists(#uvstate{areas=Shs,kludge_sel=[],origst=#st{mat=Mat}}) ->
-    wings_draw:invalidate_dlists(#st{selmode=body,shapes=Shs,mat=Mat});
-update_dlists(#uvstate{areas=Shs0,kludge_sel=Sel,origst=#st{mat=Mat}}) ->
-    Shs = gb_trees:from_orddict(sort(gb_trees:to_list(Shs0) ++ Sel)),
+update_dlists(#uvstate{areas=Shs,origst=#st{mat=Mat}}) ->
     wings_draw:invalidate_dlists(#st{selmode=body,shapes=Shs,mat=Mat}).
 
-clear_selection(#uvstate{kludge_sel=[]}=Uvs) -> Uvs;
-clear_selection(#uvstate{kludge_sel=Sel,areas=Charts}=Uvs) ->
-    Uvs#uvstate{kludge_sel=[],areas=merge_chart_lists(Sel, Charts)}.
+clear_selection(Uvs) -> Uvs#uvstate{sel=[]}.
 
-all_charts(#uvstate{kludge_sel=Sel,areas=Charts}) ->
-    merge_chart_lists(Sel, Charts).
+all_charts(#uvstate{areas=Charts}) -> Charts.
 
-%% XXX Do not use this function directly - it will soon be removed.
-merge_chart_lists(NewAreas, AreaTree) ->
-    foldl(fun({K,#we{}=Chart}, TreeBB) when is_integer(K) ->
- 		  gb_trees:insert(K, Chart, TreeBB) 
- 	  end, AreaTree, NewAreas).
+sel_map(F, #uvstate{areas=Shs0,sel=Sel}=Uvs) ->
+    St = #st{shapes=Shs0,sel=Sel},
+    #st{shapes=Shs} = wpa:sel_map(F, St),
+    Uvs#uvstate{areas=Shs}.
 
-sel_map(F, #uvstate{kludge_sel=Sel0}=Uvs) ->
-    Sel = [{Id,F(0, We)} || {Id,We} <- Sel0],
-    Uvs#uvstate{kludge_sel=Sel}.
+sel_foreach(F, #uvstate{sel=Sel,areas=Shs}) ->
+    foreach(fun({Id,_}) -> F(gb_trees:get(Id, Shs)) end, Sel).
 
-sel_foreach(F, #uvstate{kludge_sel=Sel}) ->
-    foreach(fun({_,#we{}=We}) -> F(We) end, Sel).
-		    
+sel_fold(F, Acc, #uvstate{sel=Sel,areas=Shs}) ->
+    wpa:sel_fold(F, Acc, #st{sel=Sel,shapes=Shs}).

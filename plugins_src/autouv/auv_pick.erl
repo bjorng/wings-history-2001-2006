@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.3 2003/08/15 09:48:44 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.4 2003/08/17 08:41:42 bjorng Exp $
 %%
 
 -module(auv_pick).
@@ -20,7 +20,7 @@
 -include("wings.hrl").
 -include("auv.hrl").
 
--import(lists, [foreach/2,map/2]).
+-import(lists, [foreach/2,map/2,reverse/2]).
 
 %% For ordinary picking.
 -record(pick,
@@ -37,15 +37,15 @@ event(_, _) -> next.
 % pick(X, Y, Mod, Uvs) when Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
 %     Pick = #marquee{ox=X,oy=Y,st=Uvs},
 %     clear_hilite_marquee_mode(Pick);
-pick(X, Y, _, Uvs) ->
-    case raw_pick(X, Y, Uvs) of
+pick(X, Y, _, Uvs0) ->
+    case do_pick(X, Y, Uvs0) of
 	none ->
 	    next;
 % 	    Pick = #marquee{ox=X,oy=Y,st=Uvs},
 % 	    clear_hilite_marquee_mode(Pick);
-	Hit ->
+	{PickOp,Uvs} ->
 	    wings_wm:dirty(),
-	    Pick = #pick{st=Uvs,op=Hit},
+	    Pick = #pick{st=Uvs,op=PickOp},
 	    {seq,push,get_pick_event(Pick)}
     end.
 
@@ -59,16 +59,52 @@ get_pick_event(Pick) ->
 pick_event(redraw, #pick{st=Uvs}) ->
     wpc_autouv:redraw(Uvs),
     keep;
-pick_event(#mousemotion{x=X,y=Y}, #pick{st=Uvs,op=Hit0}=Pick) ->
-    case raw_pick(X, Y, Uvs) of
+pick_event(#mousemotion{x=X,y=Y}, #pick{st=Uvs0,op=Op}=Pick) ->
+    case do_pick(X, Y, Uvs0) of
 	none -> keep;
-	Hit0 -> keep;
-	Hit -> get_pick_event(Pick#pick{op=Hit})
+	{Op,Uvs} ->
+	    wings_wm:dirty(),
+	    wpc_autouv:update_dlists(Uvs),
+	    get_pick_event(Pick#pick{st=Uvs});
+	{_,_} -> keep
     end;
-pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{op=Hit}) ->
-    wings_wm:later({picked,Hit}),
+pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{st=Uvs}) ->
+    wings_wm:later({new_state,Uvs}),
     pop;
 pick_event(_, _) -> keep.
+
+do_pick(X, Y, #uvstate{sel=Sel0}=Uvs) ->
+    case raw_pick(X, Y, Uvs) of
+	none -> none;
+	Hit ->
+	    St = #st{sel=Sel0},
+	    {Type,#st{sel=Sel}} = update_selection({body,Hit}, St),
+	    {Type,Uvs#uvstate{sel=Sel}}
+    end.
+
+update_selection({Mode,{Id,Item}}, #st{sel=Sel0}=St) ->
+    {Type,Sel} = update_selection(Id, Item, Sel0, []),
+    {Type,St#st{selmode=Mode,sel=Sel,sh=false}}.
+
+update_selection(Id, Item, [{I,_}=H|T], Acc) when Id > I ->
+    update_selection(Id, Item, T, [H|Acc]);
+update_selection(Id, Item, [{I,_}|_]=T, Acc) when Id < I ->
+    {add,reverse(Acc, [{Id,gb_sets:singleton(Item)}|T])};
+update_selection(Id, Item, [{_,Items0}|T0], Acc) -> %Id == I
+    case gb_sets:is_member(Item, Items0) of
+	true ->
+	    Items = gb_sets:delete(Item, Items0),
+	    T = case gb_sets:is_empty(Items) of
+		    true -> T0;
+		    false -> [{Id,Items}|T0]
+		end,
+	    {delete,reverse(Acc, T)};
+	false ->
+	    Items = gb_sets:insert(Item, Items0),
+	    {add,reverse(Acc, [{Id,Items}|T0])}
+    end;
+update_selection(Id, Item, [], Acc) ->
+    {add,reverse(Acc, [{Id,gb_sets:singleton(Item)}])}.
 
 raw_pick(X0, Y0, #uvstate{geom={Vx,Vy,Vw,Vh}}) ->
     HitBuf = get(wings_hitbuf),
@@ -88,7 +124,7 @@ raw_pick(X0, Y0, #uvstate{geom={Vx,Vy,Vw,Vh}}) ->
     draw(),
     case get_hits(HitBuf) of
 	none -> none;
-	Hits -> Hits
+	[Hit|_] -> Hit
     end.
 
 %%%
