@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.36 2003/01/02 21:58:12 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.37 2003/01/03 05:48:59 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -347,12 +347,13 @@ tighten(Vs, #we{id=Id}=We, Acc) when is_list(Vs) ->
 tighten(Vs, We, Acc) -> 
     tighten(gb_sets:to_list(Vs), We, Acc).
 
-tighten_vec(V, #we{vp=Vtab}=We) ->
+tighten_vec(V, #we{vp=Vtab,mirror=MirrorFace}=We) ->
     Cs = wings_vertex:fold(
-	   fun(_, Face, _, A) ->
+	   fun(_, Face, _, A) when Face =/= MirrorFace ->
 		   FaceVs = wings_face:to_vertices([Face], We),
 		   C = wings_vertex:center(FaceVs, We),
-		   [C|A]
+		   [C|A];
+	      (_, _, _, A) -> A
 	   end, [], V, We),
     Center = e3d_vec:average(Cs),
     e3d_vec:sub(Center, gb_trees:get(V, Vtab)).
