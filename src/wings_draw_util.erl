@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.60 2003/05/04 07:51:24 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.61 2003/05/06 03:42:49 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -689,36 +689,30 @@ groundplane(Axes) ->
 groundplane_1(Axes) ->
     #view{along_axis=Along} = wings_view:current(),
     gl:color3fv(wings_pref:get_value(grid_color)),
-    ?CHECK_ERROR(),
     gl:lineWidth(?NORMAL_LINEWIDTH),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:pushMatrix(),
+    case Along of
+	x -> gl:rotatef(90, 0, 1, 0);
+	z -> ok;
+	_ -> gl:rotatef(90, 1, 0, 0)
+    end,
     gl:'begin'(?GL_LINES),
     Sz = ?GROUND_GRID_SIZE * 10,
-    groundplane(Along, -Sz, Sz, Sz, Axes),
+    groundplane_2(-Sz, Sz, Sz, Axes),
     gl:'end'(),
+    gl:popMatrix(),
     ?CHECK_ERROR().
 
-groundplane(_Along, X, Last, _Sz, _Axes) when X > Last -> ok;
-groundplane(Along, 0.0, Last, Sz, true) ->
-    groundplane(Along, ?GROUND_GRID_SIZE, Last, Sz, true);
-groundplane(Along, X, Last, Sz, Axes) ->
-    case Along of
-	x ->
-            gl:vertex3f(0, X, -Sz),
-            gl:vertex3f(0, X, Sz),
-            gl:vertex3f(0, -Sz, X),
-            gl:vertex3f(0, Sz, X);
-        z ->
-            gl:vertex3f(X, -Sz, 0),
-            gl:vertex3f(X, Sz, 0),
-            gl:vertex3f(-Sz, X, 0),
-            gl:vertex3f(Sz, X, 0);
-	_Other ->
-            gl:vertex3f(X, 0, -Sz),
-            gl:vertex3f(X, 0, Sz),
-            gl:vertex3f(-Sz, 0, X),
-            gl:vertex3f(Sz, 0, X)
-    end,
-    groundplane(Along, X+?GROUND_GRID_SIZE, Last, Sz, Axes).
+groundplane_2(X, Last, _Sz, _Axes) when X > Last -> ok;
+groundplane_2(X, Last, Sz, true) when X == 0 ->
+    groundplane_2(?GROUND_GRID_SIZE, Last, Sz, true);
+groundplane_2(X, Last, Sz, Axes) ->
+    gl:vertex2f(X, -Sz),
+    gl:vertex2f(X, Sz),
+    gl:vertex2f(-Sz, X),
+    gl:vertex2f(Sz, X),
+    groundplane_2(X+?GROUND_GRID_SIZE, Last, Sz, Axes).
 
 show_saved_bb(#st{bb=none}) -> ok;
 show_saved_bb(#st{bb=[{X1,Y1,Z1},{X2,Y2,Z2}]}) ->
