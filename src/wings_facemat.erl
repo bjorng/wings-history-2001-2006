@@ -9,15 +9,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_facemat.erl,v 1.2 2004/12/29 09:58:21 bjorng Exp $
+%%     $Id: wings_facemat.erl,v 1.3 2004/12/29 14:24:18 bjorng Exp $
 %%
 %%
 %%
 
 -module(wings_facemat).
--export([all/1,face/2,used_materials/1,
+-export([all/1,face/2,used_materials/1,mat_faces/2,
 	 assign/2,assign/3,delete_face/2,delete_faces/2,
-	 hide_faces/1,show_faces/1,renumber/2,gc/1]).
+	 hide_faces/1,show_faces/1,
+	 renumber/2,gc/1,merge/1]).
 
 -include("wings.hrl").
 -import(lists, [keysearch/3,reverse/1,reverse/2,sort/1]).
@@ -46,6 +47,14 @@ face(Face, #we{mat=Tab}) ->
 used_materials(#we{mat=M}) when is_atom(M) -> [M];
 used_materials(#we{mat=L}) when is_list(L) ->
     used_materials_1(L, []).
+
+%% mat_faces([{Face,Info}], We) -> [{Mat,[{Face,Info}]}]
+%%  Group face tab into groups based on material.
+%%  Used for displaying objects.
+mat_faces(Ftab, #we{mat=AtomMat}) when is_atom(AtomMat) ->
+    [{AtomMat,Ftab}];
+mat_faces(Ftab, #we{mat=MatTab}) ->
+    mat_faces_1(Ftab, remove_invisible(MatTab), []).
 
 %%%
 %%% API functions for updating material name mapping.
@@ -115,6 +124,30 @@ gc(#we{mat=Tab0,fs=Ftab}=We) ->
     Tab2 = sofs:restriction(Tab1, Fs),
     Tab = sofs:to_external(Tab2),
     We#we{mat=compress(Tab)}.
+
+%% merge([We]) -> [{Face,MaterialName}] | MaterialName.
+%%  Merge materials for several objects.
+merge([#we{mat=M}|Wes]=L) when is_atom(M) ->
+    case merge_all_same(Wes, M) of
+	true -> M;
+	false -> merge_1(L, [])
+    end;
+merge(L) -> merge_1(L, []).
+
+merge_1([#we{mat=M,es=Etab}|T], Acc) when is_atom(M) ->
+    FsM = merge_2(gb_trees:values(Etab), M, []),
+    merge_1(T, [FsM|Acc]);
+merge_1([#we{mat=FsMs}|T], Acc) ->
+    merge_1(T, [FsMs|Acc]);
+merge_1([], Acc) -> lists:merge(Acc).
+
+merge_2([#edge{lf=Lf,rf=Rf}|T], M, Acc) ->
+    merge_2(T, M, [{Lf,M},{Rf,M}|Acc]);
+merge_2([], _, Acc) -> ordsets:from_list(Acc).
+
+merge_all_same([#we{mat=M}|Wes], M) -> merge_all_same(Wes, M);
+merge_all_same([_|_], _) -> false;
+merge_all_same([], _) -> true.
 
 %%%
 %%% Local functions.
@@ -241,3 +274,9 @@ used_materials_1([{_,M}|T], Acc) ->
     used_materials_1(T, [M|Acc]);
 used_materials_1([], Acc) ->
     ordsets:from_list(Acc).
+
+mat_faces_1([{F1,_}|_]=Fs, [{F2,_}|Ms], Acc) when F2 < F1 ->
+    mat_faces_1(Fs, Ms, Acc);
+mat_faces_1([{F,Info}|Fs], [{F,Mat}|Ms], Acc) ->
+    mat_faces_1(Fs, Ms, [{Mat,{F,Info}}|Acc]);
+mat_faces_1([], _, Acc) -> wings_util:rel2fam(Acc).

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.69 2004/12/16 15:42:01 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.70 2004/12/29 14:24:17 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -228,7 +228,7 @@ prepare_mesh(We0=#we{light=none},SubDiv,RenderAlpha,RenderBumps,Wes,Shapes,St) -
     wings_pb:update(Step+Start, "Generating mesh data"),
     FN0	     = [{Face,wings_face:normal(Face, We)} || Face <- gb_trees:keys(We#we.fs)],
     FVN	     = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
-    MatFs0   = wings_material:mat_faces(FVN, We), %% sorted by mat..
+    MatFs0   = wings_facemat:mat_faces(FVN, We), %% sorted by mat..
     MatFs    = patch_tangent_space(MatFs0, We, []),
     PAble = programmable(),
     wings_pb:pause(),

@@ -8,22 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.126 2004/12/29 09:58:21 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.127 2004/12/29 14:24:18 bjorng Exp $
 %%
 
 -module(wings_material).
 -export([material_menu/1,command/2,new/1,color/4,default/0,
-	 mat_faces/2,add_materials/2,add_materials/3,
+	 add_materials/2,add_materials/3,
 	 update_materials/2,
 	 update_image/4,used_images/1,
-	 get_all/1,
-	 replace_materials/2,
 	 used_materials/1,
-	 apply_material/2,is_transparent/2,
-	 merge/1]).
-
-%% For debugging.
--export([validate/1]).
+	 apply_material/2,is_transparent/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -659,81 +653,9 @@ color_1({U0,V0}, #e3d_image{width=W,height=H,image=Bits}) ->
     Pos = V*W*3 + U*3,
     <<_:Pos/binary,R:8,G:8,B:8,_/binary>> = Bits,
     wings_util:share(R/255, G/255, B/255).
-    
+
 prop_get(Key, Props) ->
     proplists:get_value(Key, Props).
 
 prop_get(Key, Props, Def) ->
     proplists:get_value(Key, Props, Def).
-
-%%%
-%%% New low-level interface introduced when the #face record was
-%%% removed. Ideally, the functions below should be the only ones
-%%% that exactly know how materials are implemented.
-%%%
-
-%% mat_faces([{Face,Info}], We) -> [{Mat,[{Face,Info}]}]
-%%  Group face tab into groups based on material.
-%%  Used for displaying objects.
-mat_faces(Ftab, #we{mirror=none}=We) ->
-    mat_faces_1(Ftab, We);
-mat_faces(Ftab, #we{mirror=Face}=We) ->
-    mat_faces_1(lists:keydelete(Face, 1, Ftab), We).
-
-mat_faces_1(Ftab, We) ->
-    case wings_pref:get_value(show_materials) of
-	false -> [{default,Ftab}];
-	true -> mat_faces_2(Ftab, We)
-    end.
-
-mat_faces_2(Ftab, #we{mat=AtomMat}) when is_atom(AtomMat) ->
-    [{AtomMat,Ftab}];
-mat_faces_2(Ftab0, #we{mat=MatTab}) ->
-    Ftab = mat_join(Ftab0, MatTab, []),
-    wings_util:rel2fam(Ftab).
-
-mat_join([{F1,_}|_]=Fs, [{F2,_}|Ms], Acc) when F2 < F1 ->
-    mat_join(Fs, Ms, Acc);
-mat_join([{F,Info}|Fs], [{F,Mat}|Ms], Acc) ->
-    mat_join(Fs, Ms, [{Mat,{F,Info}}|Acc]);
-mat_join([], _, Acc) -> Acc.
-
-get_all(#we{mat=Mat,fs=Ftab}) ->
-    force_list(Mat, Ftab).
-
-replace_materials(FaceMat, We) ->
-    We#we{mat=sort(FaceMat)}.
-
-force_list(L, _) when is_list(L) -> L;
-force_list(M, Ftab) when is_atom(M) ->
-    reverse(make_tab(M, gb_trees:keys(Ftab))).
-
-make_tab(M, List) ->
-    foldl(fun(F, A) -> [{F,M}|A] end, [], List).
-
-merge([{M,_}|T]=L) ->
-    case all_same(T, M) of
-	true -> M;
-	false -> merge_1(L, [])
-    end.
-
-merge_1([{M,#we{es=Etab}}|T], Acc) when is_atom(M) ->
-    FsM = merge_2(gb_trees:values(Etab), M, []),
-    merge_1(T, [FsM|Acc]);
-merge_1([{FsM,_}|T], Acc) ->
-    merge_1(T, [FsM|Acc]);
-merge_1([], Acc) -> lists:merge(Acc).
-
-merge_2([#edge{lf=Lf,rf=Rf}|T], M, Acc) ->
-    merge_2(T, M, [{Lf,M},{Rf,M}|Acc]);
-merge_2([], _, Acc) -> ordsets:from_list(Acc).
-
-all_same([{M,_}|T], M) ->
-    all_same(T, M);
-all_same([], _) -> true;
-all_same([_|_], _) -> false.
-
-validate(#we{mat=Mat}) when is_atom(Mat) -> ok;
-validate(#we{mat=Mat,fs=Ftab}) ->
-    Faces = gb_trees:keys(Ftab),
-    Faces = [F || {F,_} <- Mat].

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.91 2004/12/29 09:58:22 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.92 2004/12/29 14:24:18 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -463,7 +463,8 @@ merge([]) -> [];
 merge([We]) -> We;
 merge([#we{id=Id,name=Name}|_]=Wes0) ->
     Wes1 = merge_renumber(Wes0),
-    {Vpt0,Et0,Ht0,MatTab} = merge_1(Wes1),
+    MatTab = wings_facemat:merge(Wes1),
+    {Vpt0,Et0,Ht0} = merge_1(Wes1),
     Vpt = gb_trees:from_orddict(Vpt0),
     Et = gb_trees:from_orddict(Et0),
     Ht = gb_sets:from_ordset(Ht0),
@@ -471,20 +472,18 @@ merge([#we{id=Id,name=Name}|_]=Wes0) ->
 		vp=Vpt,es=Et,he=Ht,mat=MatTab}).
 
 merge_1([We]) -> We;
-merge_1(Wes) -> merge_1(Wes, [], [], [], []).
+merge_1(Wes) -> merge_1(Wes, [], [], []).
 
-merge_1([#we{vp=Vp0,es=Es,he=He,mat=Mat}=We|Wes], Vpt0, Et0, Ht0, Mt0) ->
+merge_1([#we{vp=Vp0,es=Es,he=He}|Wes], Vpt0, Et0, Ht0) ->
     Vpt = [gb_trees:to_list(Vp0)|Vpt0],
     Et = [gb_trees:to_list(Es)|Et0],
     Ht = [gb_sets:to_list(He)|Ht0],
-    Mt = [{Mat,We}|Mt0],
-    merge_1(Wes, Vpt, Et, Ht, Mt);
-merge_1([], Vpt0, Et0, Ht0, Mt0) ->
+    merge_1(Wes, Vpt, Et, Ht);
+merge_1([], Vpt0, Et0, Ht0) ->
     Vpt = lists:merge(Vpt0),
     Et = lists:merge(Et0),
     Ht = lists:merge(Ht0),
-    Mt = wings_material:merge(Mt0),
-    {Vpt,Et,Ht,Mt}.
+    {Vpt,Et,Ht}.
 			       
 merge_renumber(Wes0) ->
     [{_,We}|Wes] = merge_bounds(Wes0, []),

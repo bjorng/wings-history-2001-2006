@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.139 2004/05/17 17:51:10 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.140 2004/12/29 14:24:18 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -21,7 +21,7 @@
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
--import(lists, [reverse/1,foreach/2,foldl/3]).
+-import(lists, [reverse/1,foreach/2,foldl/3,keydelete/3]).
 
 init() ->
     P = <<16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
@@ -61,10 +61,21 @@ prepare(Ftab, #we{mode=vertex}=We, St) ->
 	{true,_} ->
 	    {color,vtx_color_split(Ftab, We),St}
     end;
-prepare(Ftab0, #we{mode=material}=We, St) ->
+prepare(Ftab, #we{mode=material,mirror=none}=We, St) ->
+    {material,prepare_mat(Ftab, We),St};
+prepare(Ftab0, #we{mode=material,mirror=Mirror}=We, St) ->
+    Ftab = keydelete(Mirror, 1, Ftab0),
+    {material,prepare_mat(Ftab, We),St}.
+
+prepare_mat(Ftab0, We) ->
     Ftab = wings_we:visible(Ftab0, We),
-    MatFaces = wings_material:mat_faces(Ftab, We),
-    {material,MatFaces,St}.
+    case wings_pref:get_value(show_materials) of
+	false -> [{default,Ftab}];
+	true -> prepare_mat_1(Ftab, We)
+    end.
+
+prepare_mat_1(Ftab, We) ->
+    wings_facemat:mat_faces(Ftab, We).
 
 subtract_mirror_face(Fs, #we{mirror=none}) -> Fs;
 subtract_mirror_face(Fs, #we{mirror=Face}) -> Fs -- [Face].

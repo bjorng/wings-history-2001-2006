@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.86 2004/12/18 19:36:22 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.87 2004/12/29 14:24:18 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -230,14 +230,15 @@ face_fold(Edge, Etab, F, Acc0, Face, LastEdge, _) ->
 	    face_fold(NextEdge, Etab, F, Acc, Face, LastEdge, done)
     end.
 
-
+%%
+%% XXX This is ugly. Here the materials are directly manpulated.
+%%
 smooth_materials(_, _, #we{mat=Mat}=We) when is_atom(Mat) -> We;
-smooth_materials(Fs, FacePos, #we{fs=Ftab}=We) ->
-    Mat0 = wings_material:get_all(We),
+smooth_materials(Fs, FacePos, #we{fs=Ftab,mat=Mat0}=We) ->
     case length(Fs) =:= gb_trees:size(Ftab) of
-	true ->					%We are smoothing all faces.
+	true ->				  %We are smoothing all faces.
 	    smooth_materials_1(Mat0, FacePos, We, []);
-	false ->				%Must pick up the faces not smoothed.
+	false ->		 %Must pick up the faces not smoothed.
 	    Mat1 = sofs:from_external(Mat0, [{face,mat}]),
 	    Changed = sofs:from_external(Fs, [face]),
 	    {Mat2,Keep0} = sofs:partition(1, Mat1, Changed),
@@ -248,7 +249,7 @@ smooth_materials(Fs, FacePos, #we{fs=Ftab}=We) ->
 
 smooth_materials_1(Fmat, Fpos, #we{next_id=Id}=We, Keep) ->
     Mat = smooth_materials_2(Fmat, Fpos, Id, Keep),
-    wings_material:replace_materials(Mat, We).
+    We#we{mat=sort(Mat)}.
 
 smooth_materials_2([{F,Mat}|Fs], [{F,{_,_,N}}|Fpos], Face, Acc0) ->
     NextFace = Face+N,

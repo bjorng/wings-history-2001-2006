@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.60 2004/12/18 19:36:20 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.61 2004/12/29 14:24:18 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -885,7 +885,7 @@ light_pos(#we{vp=Vtab}) ->
     gb_trees:get(1, Vtab).
 
 arealight_posdirexp(#we{light=#light{type=area}}=We) ->
-    FaceMats = wings_material:get_all(We),
+    FaceMats = wings_facemat:all(We),
     ANCs = 
 	[begin 
 	     {wings_face:area(Face, We),

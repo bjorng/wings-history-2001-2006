@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.60 2004/12/29 09:58:21 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.61 2004/12/29 14:24:18 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -471,10 +471,10 @@ collect_sel_groups([{{Mode,Name},Sel}|Gs], St, Acc0) ->
 collect_sel_groups([], _, Acc) -> Acc.
 
 renumber([{Id,We0}|Shs], [{Id,Root0}|Sel], NewId, WeAcc, RootAcc) ->
-    {We,Root} = wings_we:renumber(We0, 0, Root0),
+    {We,Root} = wings_we:renumber(wings_we:show_faces(We0), 0, Root0),
     renumber(Shs, Sel, NewId+1, [We|WeAcc], [{NewId,Root}|RootAcc]);
 renumber([{_,We0}|Shs], Sel, NewId, WeAcc, RootAcc) ->
-    We = wings_we:renumber(We0, 0),
+    We = wings_we:renumber(wings_we:show_faces(We0), 0),
     renumber(Shs, Sel, NewId+1, [We|WeAcc], RootAcc);
 renumber([], [], _NewId, WeAcc, RootAcc) ->
     {WeAcc,RootAcc}.
@@ -508,7 +508,7 @@ shape(#we{mode=ObjMode,name=Name,vp=Vs0,es=Es0,he=Htab}=We, Acc) ->
 			export_edge(E, UvFaces, A)
 		end, [], gb_trees:values(Es0)),
     Es = reverse(Es1),
-    Fs1 = foldl(fun export_face/2, [], wings_material:get_all(We)),
+    Fs1 = foldl(fun export_face/2, [], wings_facemat:all(We)),
     Fs = reverse(Fs1),
     He = gb_sets:to_list(Htab),
     Props0 = [{mode,ObjMode}|export_perm(We)],
