@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.46 2002/08/01 19:25:04 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.47 2002/08/06 06:45:20 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -309,13 +309,12 @@ ask_prop_put(specular=Key, {R,G,B}, _) ->
 ask_prop_put(Key, {R,G,B}, Opacity) ->
     {Key,{R,G,B,Opacity}}.
     
-mat_preview(X, Y, _W, PwH, Common) ->
-    wings_io:sunken_rect(X, Y, ?PREVIEW_SIZE, ?PREVIEW_SIZE, ?PANE_COLOR),
+mat_preview(X, Y, _W, _H, Common) ->
+    wings_io:border(X, Y, ?PREVIEW_SIZE, ?PREVIEW_SIZE, ?PANE_COLOR),
     MM = gl:getDoublev(?GL_MODELVIEW_MATRIX),
     PM = gl:getDoublev(?GL_PROJECTION_MATRIX),
-    {_,_,_,Wh} = ViewPort = wings_wm:viewport(),
-    {true,Ox,Oy0,_} = glu:project(X, Y+PwH-?PREVIEW_SIZE, 0, MM, PM, ViewPort),
-    Oy = Wh-Oy0,
+    ViewPort = wings_wm:viewport(),
+    {true,Ox,Oy,_} = glu:project(X, Y+?PREVIEW_SIZE, 0, MM, PM, ViewPort),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.5, 0.5, -2, 1}),
     gl:viewport(trunc(Ox), trunc(Oy), ?PREVIEW_SIZE, ?PREVIEW_SIZE),
