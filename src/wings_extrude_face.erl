@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.8 2002/04/02 18:44:40 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.9 2002/05/18 07:07:52 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
@@ -41,9 +41,9 @@ inner_extrude([], #we{es=Etab0}=We, EdgeAcc) ->
     Etab1 = merge([sort(EdgeAcc),gb_trees:to_list(Etab0)]),
     Etab = gb_trees:from_orddict(Etab1),
     We#we{es=Etab}.
-    
+
 inner_extrude_edges(Face, We) ->
-    reverse(wings_face:fold(fun(_, E, _, A) -> [E|A] end, [], Face, We)).
+    wings_face:fold(fun(_, E, _, A) -> [E|A] end, [], Face, We).
 
 inner_extrude_1([Edge|Es], PrevEdge, Face, Mat, Ids0, We0, EdgeAcc0) ->
     PrevHor = wings_we:id(2-2, Ids0),
@@ -58,24 +58,32 @@ inner_extrude_1([Edge|Es], PrevEdge, Face, Mat, Ids0, We0, EdgeAcc0) ->
     NextV = NextHor,
 
     Ids = wings_we:bump_id(Ids0),
-
     #we{fs=Ftab0,es=Etab0,vs=Vtab0} = We0,
 
+    Erec0 = gb_trees:get(Edge, Etab0),
+
     {Va,Erec} =
-	case gb_trees:get(Edge, Etab0) of
-	    #edge{lf=Face,ve=V0}=Erec0 ->
-		{V0,Erec0#edge{lf=NewFace,ltpr=VertEdge,ltsu=NextVert}};
-	    #edge{rf=Face,vs=V0}=Erec0 ->
-		{V0,Erec0#edge{rf=NewFace,rtpr=VertEdge,rtsu=NextVert}}
+	case Erec0 of
+	    #edge{a=InCol,lf=Face,vs=V0,rtpr=Next}=Erec0 ->
+		OutCol = get_vtx_color(Next, V0, Etab0),
+		{V0,Erec0#edge{lf=NewFace,a=OutCol,
+			       ltsu=VertEdge,ltpr=NextVert}};
+	    #edge{b=InCol,rf=Face,ve=V0,ltpr=Next}=Erec0 ->
+		OutCol = get_vtx_color(Next, V0, Etab0),
+		{V0,Erec0#edge{rf=NewFace,b=OutCol,
+			       rtsu=VertEdge,rtpr=NextVert}}
 	end,
     Etab = gb_trees:update(Edge, Erec, Etab0),
 
-    EdgeAcc = [{HorEdge,#edge{vs=V,ve=NextV,lf=NewFace,rf=Face,
-			      ltpr=NextVert,ltsu=VertEdge,
-			      rtpr=PrevHor,rtsu=NextHor}},
-	       {VertEdge,#edge{vs=V,ve=Va,lf=PrevFace,rf=NewFace,
-			       ltpr=PrevEdge,ltsu=PrevHor,
-			       rtpr=HorEdge,rtsu=Edge}}|EdgeAcc0],
+    EdgeAcc = [{HorEdge,#edge{vs=NextV,ve=V,
+			      b=InCol,
+			      lf=NewFace,rf=Face,
+			      ltsu=NextVert,ltpr=VertEdge,
+			      rtsu=PrevHor,rtpr=NextHor}},
+	       {VertEdge,#edge{vs=Va,ve=V,
+			       lf=PrevFace,rf=NewFace,
+			       ltsu=PrevEdge,ltpr=PrevHor,
+			       rtsu=HorEdge,rtpr=Edge}}|EdgeAcc0],
 
     Vrec = gb_trees:get(Va, Vtab0),
     Vtab = gb_trees:insert(V, Vrec#vtx{edge=HorEdge}, Vtab0),
@@ -86,6 +94,12 @@ inner_extrude_1([Edge|Es], PrevEdge, Face, Mat, Ids0, We0, EdgeAcc0) ->
     inner_extrude_1(Es, Edge, Face, Mat, Ids, We, EdgeAcc);
 inner_extrude_1([], _PrevEdge, _Face, _Mat, _Ids, We, EdgeAcc) ->
     {We,EdgeAcc}.
+
+get_vtx_color(Edge, V, Etab) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{vs=V,a=Col} -> Col;
+	#edge{ve=V,b=Col} -> Col
+    end.
 
 %%%
 %%% Extrude entire regions (does NOT work for single faces).
