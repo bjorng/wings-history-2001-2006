@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_toolbar.erl,v 1.1 2004/10/16 07:20:17 bjorng Exp $
+%%     $Id: wings_toolbar.erl,v 1.2 2004/12/19 12:43:38 bjorng Exp $
 %%
 
 -module(wings_toolbar).
@@ -195,16 +195,16 @@ button_help_1(X, [{Pos,Name}|_], Mode) when Pos =< X, X < Pos+?BUTTON_WIDTH ->
 button_help_1(X, [_|Is], Mode) ->
     button_help_1(X, Is, Mode);
 button_help_1(_, [], _) ->
-   ?STR(button_help_1,1,"Deselect").
+    ?__(1,"Deselect").
 
-button_help_2(vertex, vertex) -> ?STR(button_help_2,1,"Select adjacent vertices");
-button_help_2(vertex, _) ->  ?STR(button_help_2,2,"Change to vertex selection mode");
-button_help_2(edge, edge) ->  ?STR(button_help_2,3,"Select adjcacent edges");
-button_help_2(edge, _) ->  ?STR(button_help_2,4,"Change to edge selection mode");
-button_help_2(face, face) ->  ?STR(button_help_2,5,"Select adjacent faces");
-button_help_2(face, _) ->  ?STR(button_help_2,6,"Change to face selection mode");
+button_help_2(vertex, vertex) -> ?__(1,"Select adjacent vertices");
+button_help_2(vertex, _) ->  ?__(2,"Change to vertex selection mode");
+button_help_2(edge, edge) ->  ?__(3,"Select adjcacent edges");
+button_help_2(edge, _) ->  ?__(4,"Change to edge selection mode");
+button_help_2(face, face) ->  ?__(5,"Select adjacent faces");
+button_help_2(face, _) ->  ?__(6,"Change to face selection mode");
 button_help_2(body, body) -> "";
-button_help_2(body, _) ->  ?STR(button_help_2,7,"Change to body selection mode");
+button_help_2(body, _) ->  ?__(7,"Change to body selection mode");
 button_help_2(Button, _) -> button_help_3(Button).
 
 button_help_3(groundplane) ->
