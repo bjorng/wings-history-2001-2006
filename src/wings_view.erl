@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.157 2004/10/14 08:54:19 dgud Exp $
+%%     $Id: wings_view.erl,v 1.158 2004/10/17 07:42:53 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -74,10 +74,10 @@ menu(#st{views={CurrentView,Views}}=St) ->
       ?STR(menu,43,"Show vertex colors on objects in \"vertex\" mode"),
       crossmark(show_colors)},
      {?STR(menu,44,"Show Materials"),show_materials,
-      ?STR(menu,45,"Show materials on objects in \"material\" or \"uv\" modes"),
+      ?STR(menu,45,"Show materials on objects in \"material\" mode"),
       crossmark(show_materials)},
      {?STR(menu,46,"Show Textures"),show_textures,
-      ?STR(menu,47,"Show the texture on objects in \"uv\" mode"),
+      ?STR(menu,47,"Show the texture on objects in \"material\" mode"),
       crossmark(show_textures)},
      {?STR(menu,48,"Show Info Text"),show_info_text,
       ?STR(menu,49,"Show an informational text at the top of this Geometry window"),

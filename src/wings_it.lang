@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.15 2004/10/17 06:37:43 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.16 2004/10/17 07:42:53 bjorng Exp $
 %%
 
 {wings,
@@ -1746,11 +1746,11 @@
     {40,"Usa due luci di lavoro"},
     {41,"Usa una luce di lavoro"},
     {42,"Mostra colori"},
-    {43,"Mostra i colori ai vertici sugli oggetti nel modo\"vertici\""},
+    {43,"Mostra i colori ai vertici sugli oggetti nel modo \"vertici\""},
     {44,"Mostra materiali"},
-    {45,"Mostra i materiali sugli oggetti nel modo \"materiale\" o \"uv\""},
+    {45,"Mostra i materiali sugli oggetti nel modo \"materiale\""},
     {46,"Mostra tessiture"},
-    {47,"Mostra le tessiture sugli oggetti nel modo \"uv\""},
+    {47,"Mostra le tessiture sugli oggetti nel modo \"materiale\""},
     {48,"Mostra testo informativo"},
     {49,"Mostra il testo informativo nella parte superiore di questa finestra geometrie"},
     {50,"Vista su"},
