@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.29 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.30 2002/03/14 07:51:22 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -36,7 +36,7 @@ setup(Vec0, Magnet, #st{selmode=Mode}=St) ->
 
 setup_1(Vec, Magnet, Mode, #we{id=Id}=We, Items, Acc) ->
     Tv = setup_we(Mode, Vec, Items, We),
-    [{Id,Tv}|magnet_move(Tv, Vec, Magnet, We, Acc)].
+    magnet_move(Tv, Vec, Magnet, We, {Id,Tv}, Acc).
 
 plus_minus(Type, Tvs0, #st{selmode=Mode}=St) ->
     Vec = wings_util:make_vector(Type),
@@ -315,8 +315,8 @@ translate_fun({Xt0,Yt0,Zt0}) ->
 %%% Magnet move.
 %%%
 
-magnet_move(_, _Vec, none, _, Acc) -> Acc;
-magnet_move(Tv0, Vec, Magnet, #we{id=Id}=We, Acc) ->
+magnet_move(_, _Vec, none, _, Tv, Acc) -> [Tv|Acc];
+magnet_move(Tv0, Vec, Magnet, #we{id=Id}=We, _, Acc) ->
     Vs0 = affected(Tv0),
     VsInf = wings_magnet:influences(Magnet, Vs0, We),
     Affected = [V || {V,_,_} <- VsInf],

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.16 2002/03/13 20:49:38 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.17 2002/03/14 07:51:22 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -34,7 +34,8 @@ init() ->
     wings_pref:set_default(last_axis, DefAxis),
     wings_pref:set_default(default_axis, DefAxis),
     wings_pref:set_default(last_point, DefPoint),
-    wings_pref:set_default(default_point, DefPoint).
+    wings_pref:set_default(default_point, DefPoint),
+    wings_pref:set_default(magnet_type, dome).
 
 menu(_St) -> [].
 
@@ -76,7 +77,8 @@ command({pick,[magnet|More],Acc,Names}, St0) ->
     wings_io:icon_restriction(Modes),
     Ss = #ss{check=fun check_point/1,
 	     exit=fun(_X, _Y, St) -> exit_magnet(More, Acc, Names, St) end,
-	     selmodes=Modes},
+	     selmodes=Modes,
+	     label=magnet},
     command_message("Select magnet falloff for ", Names),
     {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
 command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
@@ -199,6 +201,9 @@ secondary_selection({use,Sti}, Ss, St) ->
     get_event(Ss, St#st{vec=Vec});
 secondary_selection({set,Sti}, Ss, #st{vec=Vec}=St) ->
     wings_pref:set_value(Sti, Vec),
+    get_event(Ss, St);
+secondary_selection({magnet_type,Type}, Ss, St) ->
+    wings_pref:set_value(magnet_type, Type),
     get_event(Ss, St).
 
 filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
@@ -237,6 +242,8 @@ exit_menu_done(X, Y, MenuEntry, Ss, St) ->
     wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
 
 add_last_menu(#ss{label=none}, _St, Menu) -> Menu;
+add_last_menu(#ss{label=magnet}, _St, Menu) ->
+    add_magnet_type(Menu);
 add_last_menu(#ss{label=Lbl,sti={StiA,StiB}}, St, Menu) ->
     [separator,
      {"Use Last "++Lbl,
@@ -250,6 +257,23 @@ add_set_action(Lbl, Sti, _St, Menu) ->
     [separator,
      {"Set Default "++Lbl,
       fun(_, _) -> {secondary_selection,{set,Sti}} end}|Menu].
+
+add_magnet_type(Menu) ->
+    Type = wings_pref:get_value(magnet_type),
+    [separator,
+     mtype(dome, Type),
+     mtype(bell, Type),
+     mtype(straight, Type),
+     mtype(spike, Type),
+     separator|Menu].
+
+mtype(Type, Actual) ->
+    Label = wings_util:cap(atom_to_list(Type)),
+    Fun = fun(_, _) -> {secondary_selection,{magnet_type,Type}} end,
+    {Label,Fun,Label++"-shape magnet",crossmark(Type==Actual)}.
+
+crossmark(false) -> [];
+crossmark(true) -> [crossmark].
 
 common_exit(Check, More, Acc, Ns, #st{vec=none}=St) ->
     case Check(St) of
@@ -423,7 +447,7 @@ exit_magnet(More, Acc, [N|Ns0]=Ns, St) ->
 	    invalid_selection;
 	{Point,Msg} ->
 	    wings_io:message(Msg),
-	    Mag = {magnet,Point},
+	    Mag = {magnet,wings_pref:get_value(magnet_type),Point},
 	    {if
 		 More == [] ->
 		     Command0 = wings_menu:build_command(N, Ns0),

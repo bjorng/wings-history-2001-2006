@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.31 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.32 2002/03/14 07:51:22 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -189,10 +189,10 @@ scale(Vec0, Center, Magnet, Vs, #we{id=Id}=We, Acc) ->
 				[{V,Vtx#vtx{pos=Pos}}|A]
 			end, A0, VsPos)
 	  end,
-    [{Id,{Vs,Fun}}|magnet(Vec, Magnet, Pre, Post, Vs, We, Acc)].
+    magnet(Vec, Magnet, Pre, Post, Vs, We, {Id,{Vs,Fun}}, Acc).
 
-magnet(_Vec, none, _Pre, _Post, _Vs, _We, Acc) -> Acc;
-magnet(Vec, Magnet, Pre, Post, Vs0, #we{id=Id}=We, Acc) ->
+magnet(_Vec, none, _Pre, _Post, _Vs, _We, Tv, Acc) -> [Tv|Acc];
+magnet(Vec, Magnet, Pre, Post, Vs0, #we{id=Id}=We, _, Acc) ->
     VsInf = wings_magnet:influences(Magnet, Vs0, We),
     {Vs,VsPos} = magnet_1(VsInf, Post, [], []),
     [{Id,{Vs,magnet_scale_fun(Vec, Pre, VsPos)}}|Acc].
