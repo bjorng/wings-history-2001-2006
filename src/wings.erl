@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.113 2002/03/03 21:45:01 bjorng Exp $
+%%     $Id: wings.erl,v 1.114 2002/03/04 12:53:11 bjorng Exp $
 %%
 
 -module(wings).
@@ -21,7 +21,6 @@
 -include("wings.hrl").
 
 -define(COLOR_BITS, 16).
--define(INTERESTING_BITS, (?CTRL_BITS bor ?ALT_BITS)).
 -import(lists, [foreach/2,map/2,filter/2,foldl/3,sort/1,
 		keymember/3,reverse/1]).
 -import(wings_draw, [model_changed/1]).
@@ -420,7 +419,7 @@ command({edge,{hardness,Type}}, St) ->
 command({edge,loop_cut}, St) ->
     ?SLOW({save_state,model_changed(wings_edge:loop_cut(St))});
 command({edge,auto_smooth}, St) ->
-    {save_state,model_changed(wings_body:auto_smooth(St))};
+    wings_body:auto_smooth(St);
 
 %% Vertex menu.
 command({vertex,{flatten,Plane}}, St) ->
@@ -438,7 +437,7 @@ command({vertex,{extrude,Type}}, St) ->
 command({vertex,{deform,Deform}}, St0) ->
     ?SLOW(wings_deform:command(Deform, St0));
 command({vertex,auto_smooth}, St) ->
-    {save_state,model_changed(wings_body:auto_smooth(St))};
+    wings_body:auto_smooth(St);
 command({vertex,dissolve}, St) ->
     {save_state,model_changed(wings_vertex_cmd:dissolve(St))};
 

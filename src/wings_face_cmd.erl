@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.39 2002/03/03 21:44:17 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.40 2002/03/04 12:53:11 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -99,7 +99,7 @@ command(bridge, St) ->
 command(smooth, St) ->
     ?SLOW({save_state,model_changed(smooth(St))});
 command(auto_smooth, St) ->
-    {save_state,model_changed(wings_body:auto_smooth(St))};
+    wings_body:auto_smooth(St);
 command({lift,Lift}, St) ->
     lift(Lift, St);
 command(collapse, St) ->

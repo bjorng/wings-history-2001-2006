@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.46 2002/02/23 18:48:59 bjorng Exp $
+%%     $Id: wings.hrl,v 1.47 2002/03/04 12:53:11 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -18,9 +18,9 @@
 -include_lib("esdl/include/sdl_keyboard.hrl").
 -include_lib("esdl/include/sdl_mouse.hrl").
 -include_lib("esdl/src/sdl_util.hrl").
--define(CTRL_BITS, (?KMOD_LCTRL bor ?KMOD_RCTRL)).
--define(ALT_BITS, (?KMOD_LALT bor ?KMOD_RALT)).
--define(SHIFT_BITS, (?KMOD_LSHIFT bor ?KMOD_RSHIFT)).
+-define(CTRL_BITS, ?KMOD_CTRL).
+-define(ALT_BITS, ?KMOD_ALT).
+-define(SHIFT_BITS, ?KMOD_SHIFT).
 -endif.
 
 -ifdef(NEED_OPENGL).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.23 2002/03/03 16:59:26 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.24 2002/03/04 12:53:11 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -263,14 +263,14 @@ separate(St) ->
 %%% The Auto-Smooth command.
 %%%
 
+auto_smooth(St) ->
+    do_auto_smooth(60, St).
+
 auto_smooth(Ask, St) when is_atom(Ask) ->
     wings_ask:ask(Ask, [{"Crease Angle",60,[{range,{0,180}}]}], St,
 		  fun(Res) -> {body,{auto_smooth,Res}} end);
 auto_smooth([Angle], St) ->
     {save_state,model_changed(do_auto_smooth(Angle, St))}.
-
-auto_smooth(St) ->
-    do_auto_smooth(60, St).
 
 do_auto_smooth(Angle, St) ->
     Cos = math:cos(Angle*math:pi()/180),
