@@ -3,12 +3,12 @@
 %%
 %%     This module contains most of the command for entire Wings objects.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.16 2001/12/26 14:46:25 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.17 2002/01/01 11:28:00 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -146,19 +146,32 @@ smooth(St) ->
 %%%
 
 combine(#st{sel=[]}=St) -> St;
-combine(#st{shapes=Shapes0,sel=[{Id,_}=Sel|T]}=St) ->
-    We0 = gb_trees:get(Id, Shapes0),
-    {We,Shapes1} = combine(T, Shapes0, [We0]),
-    Shapes = gb_trees:update(Id, We#we{id=Id}, Shapes1),
-    St#st{shapes=Shapes,sel=[Sel]}.
+combine(#st{shapes=Shs0,sel=[{Id,_}=S|_]=Sel0}=St) ->
+    Shs1 = sofs:from_external(gb_trees:to_list(Shs0), [{id,object}]),
+    Sel1 = sofs:from_external(Sel0, [{id,dummy}]),
+    Sel2 = sofs:domain(Sel1),
+    Wes = sofs:to_external(sofs:range(sofs:restriction(Shs1, Sel2))),
+    Mode = unify_modes(Wes),
+    We0 = wings_we:merge(Wes),
+    We = We0#we{id=Id,mode=Mode},
+    Shs2 = sofs:drestriction(Shs1, Sel2),
+    Shs = gb_trees:from_orddict(sort([{Id,We}|sofs:to_external(Shs2)])),
+    St#st{shapes=Shs,sel=[S]}.
 
-combine([{Id,_}|T], Shapes0, Acc) ->
-    We = gb_trees:get(Id, Shapes0),
-    Shapes = gb_trees:delete(Id, Shapes0),
-    combine(T, Shapes, [We|Acc]);
-combine([], Shapes, Acc) ->
-    We = wings_we:merge(Acc),
-    {We,Shapes}.
+unify_modes([#we{mode=Mode}|Wes]) ->
+    unify_modes(Wes, Mode).
+
+unify_modes([#we{mode=Mode}|Wes], Mode) ->
+    unify_modes(Wes, Mode);
+unify_modes([#we{mode=Mode}|Wes], OldMode) ->
+    NewMode = unify_modes_1(sort([OldMode,Mode])),
+    unify_modes(Wes, NewMode);
+unify_modes([], Mode) -> Mode.
+
+unify_modes_1([_,vertex]) ->
+    throw({command_error,"Objects with vertex colors cannot be combined "
+	   "with objects with materials and/or textures."});
+unify_modes_1([material,uv]) -> uv.
 
 %%%
 %%% The Separate command.
