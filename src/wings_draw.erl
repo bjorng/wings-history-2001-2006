@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.135 2003/08/02 05:09:41 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.136 2003/08/03 11:03:24 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -520,7 +520,7 @@ draw_vtx_faces_2([F|Fs], We) ->
 draw_vtx_faces_2([], _) -> ok.
 
 draw_vtx_faces_3([F|Fs], We) ->
-    wings_draw_util:face(F, We),
+    wings_draw_util:vcol_face(F, We),
     draw_vtx_faces_3(Fs, We);
 draw_vtx_faces_3([], _) -> ok.
 
@@ -528,7 +528,7 @@ draw_uv_faces(MatFaces, We, St) ->
     wings_draw_util:mat_faces(MatFaces, ?GL_TRIANGLES, We, St, fun draw_uv_faces_fun/2).
 
 draw_uv_faces_fun([{Face,Edge}|Fs], We) ->
-    wings_draw_util:face(Face, Edge, We),
+    wings_draw_util:uv_face(Face, Edge, We),
     draw_uv_faces_fun(Fs, We);
 draw_uv_faces_fun([], _We) -> ok.
 

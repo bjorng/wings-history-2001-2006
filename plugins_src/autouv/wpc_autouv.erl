@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.136 2003/08/02 05:09:41 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.137 2003/08/03 11:03:24 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1137,14 +1137,18 @@ select_draw_2(vertex, Fs, #we{vp=Vtab}=We) ->
 		end,
     wings_face:fold_faces(DrawPoint, [], Fs, We).
 
-select_draw_faces([], _We) -> ok;
-select_draw_faces([H|R], We) ->
-    gl:pushName(H),
+select_draw_faces(Faces, We) ->
+    gl:pushName(0),
+    select_draw_faces_1(Faces, We),
+    gl:popName().
+    
+select_draw_faces_1([H|R], We) ->
+    gl:loadName(H),
     gl:'begin'(?GL_TRIANGLES),
-    wings_draw_util:face(H, We),
+    wings_pick:face(H, We),
     gl:'end'(),
-    gl:popName(),
-    select_draw_faces(R, We).
+    select_draw_faces_1(R, We);
+select_draw_faces_1([], _) -> ok.
 
 get_hits(N, Buf) ->
     get_hits_1(N, Buf, []).
@@ -1362,13 +1366,8 @@ draw_area(#we{name=#ch{fs=Fs,center={CX,CY},scale=Scale,rotate=R},he=Tbe}=We,
     end,
     gl:popMatrix().
 
-draw_faces(Fs, #we{mode=Mode}=We) ->
-    Draw = case Mode of
-	       material ->
-		   fun(Face) -> wings_draw_util:flat_face(Face, We) end;
-	       _ ->
-		   fun(Face) -> wings_draw_util:face(Face, We) end
-	   end,
+draw_faces(Fs, We) ->
+    Draw = fun(Face) -> wings_draw_util:face(Face, We) end,
     wings_draw_util:begin_end(fun() -> foreach(Draw, Fs) end).
 
 reset_dl(Uvs = #uvstate{dl = undefined}) ->

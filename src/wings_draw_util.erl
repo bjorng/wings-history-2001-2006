@@ -8,14 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.92 2003/08/02 05:09:41 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.93 2003/08/03 11:03:24 bjorng Exp $
 %%
 
 -module(wings_draw_util).
 -export([init/0,delete_dlists/0,tess/0,begin_end/1,begin_end/2,
 	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,call_one_of/2,
-	 prepare/3,mat_faces/5,face/2,face/3,flat_face/2,flat_face/3,
+	 prepare/3,mat_faces/5,
+	 face/2,flat_face/2,flat_face/3,
+	 uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 force_flat_color/2,consistent_normal/4]).
 
 -define(NEED_OPENGL, 1).
@@ -33,7 +35,7 @@ init() ->
 	undefined -> ok;
 	OldTess -> glu:deleteTess(OldTess)
     end,
-    Tess=glu:newTess(),
+    Tess = glu:newTess(),
     put(wings_tesselator, Tess),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
     glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
@@ -581,66 +583,12 @@ mat_faces_1([], _, _, _, _) -> ok.
 %% Tesselate and draw face. Include vertex colors or UV coordinates.
 %%
 
-face(Face, #we{fs=Ftab}=We) ->
-    Edge = gb_trees:get(Face, Ftab),
-    face(Face, Edge, We).
-
-face(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs0 = wings_face:vinfo_cw(Face, Edge, We),
-    face_1(Vs0, Vtab, [], []).
-
-face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
-    Pos = gb_trees:get(V, Vtab),
-    face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
-face_1([], _, Nacc, Vs) ->
-    N = e3d_vec:normal(Nacc),
-    gl:normal3fv(N),
-    face_2(N, Vs).
-
-face_2(_, [A,B,C]) ->
-    face_vtx(A),
-    face_vtx(B),
-    face_vtx(C);
-face_2(N, [[A0|_]=A,[B0|_]=B,[C0|_]=C,[D0|_]=D]=VsPos) ->
-    case consistent_normal(A0, B0, C0, N) andalso consistent_normal(A0, C0, D0, N) of
-	false ->
-	    face_3(N, VsPos);
-	true ->
-	    face_vtx(A),
-	    face_vtx(B),
-	    gl:edgeFlag(?GL_FALSE),
-	    face_vtx(C),
-	    face_vtx(A),
-	    gl:edgeFlag(?GL_TRUE),
-	    face_vtx(C),
-	    face_vtx(D)
-    end;
-face_2(N, Vs) -> face_3(N, Vs).
-
-face_3(N, Vs) ->
-    Tess = tess(),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    {X,Y,Z} = N,
-    glu:tessNormal(Tess, X, Y, Z),
-    tess_face_vtxcol(Tess, Vs).
-
-tess_face_vtxcol(Tess, [[Pos|{_,_}=UV]|T]) ->
-    glu:tessVertex(Tess, Pos, [{texcoord2,UV}]),
-    tess_face_vtxcol(Tess, T);
-tess_face_vtxcol(Tess, [[Pos|{_,_,_}=Col]|T]) ->
-    glu:tessVertex(Tess, Pos, [{color,Col}]),
-    tess_face_vtxcol(Tess, T);
-tess_face_vtxcol(Tess, []) ->
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess).
-
-face_vtx([Pos|{U,V}]) ->
-    gl:texCoord2f(U, V),
-    gl:vertex3dv(Pos);
-face_vtx([Pos|{R,G,B}]) ->
-    gl:color3f(R, G, B),
-    gl:vertex3dv(Pos).
+face(Face, #we{mode=material}=We) ->
+    flat_face(Face, We);
+face(Face, #we{mode=vertex}=We) ->
+    vcol_face(Face, We);
+face(Face, #we{mode=uv}=We) ->
+    uv_face(Face, We).
 
 %%
 %% Triangulate and draw a face.
@@ -696,6 +644,139 @@ tess_flat_face(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
 
+%%
+%% Tesselate and draw face. Include UV coordinates.
+%%
+
+uv_face(Face, #we{fs=Ftab}=We) ->
+    Edge = gb_trees:get(Face, Ftab),
+    uv_face(Face, Edge, We).
+
+uv_face(Face, Edge, #we{vp=Vtab}=We) ->
+    Vs0 = wings_face:vinfo_cw(Face, Edge, We),
+    uv_face_1(Vs0, Vtab, [], []).
+
+uv_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
+    Pos = gb_trees:get(V, Vtab),
+    uv_face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
+uv_face_1([], _, Nacc, Vs) ->
+    N = e3d_vec:normal(Nacc),
+    gl:normal3fv(N),
+    uv_face_2(N, Vs).
+
+uv_face_2(_, [A,B,C]) ->
+    uv_face_vtx(A),
+    uv_face_vtx(B),
+    uv_face_vtx(C);
+uv_face_2(N, [[A0|_]=A,[B0|_]=B,[C0|_]=C,[D0|_]=D]=VsPos) ->
+    case consistent_normal(A0, B0, C0, N) andalso consistent_normal(A0, C0, D0, N) of
+	false ->
+	    uv_face_3(N, VsPos);
+	true ->
+	    uv_face_vtx(A),
+	    uv_face_vtx(B),
+	    gl:edgeFlag(?GL_FALSE),
+	    uv_face_vtx(C),
+	    uv_face_vtx(A),
+	    gl:edgeFlag(?GL_TRUE),
+	    uv_face_vtx(C),
+	    uv_face_vtx(D)
+    end;
+uv_face_2(N, Vs) -> uv_face_3(N, Vs).
+
+uv_face_3(N, Vs) ->
+    Tess = tess(),
+    {X,Y,Z} = N,
+    glu:tessNormal(Tess, X, Y, Z),
+    glu:tessBeginPolygon(Tess),
+    glu:tessBeginContour(Tess),
+    tess_uv_face(Tess, Vs).
+
+tess_uv_face(Tess, [[Pos|{_,_}=UV]|T]) ->
+    glu:tessVertex(Tess, Pos, [{texcoord2,UV}]),
+    tess_uv_face(Tess, T);
+tess_uv_face(Tess, [[Pos|_]|T]) ->
+    glu:tessVertex(Tess, Pos, [{texcoord2,{0.0,0.0}}]),
+    tess_uv_face(Tess, T);
+tess_uv_face(Tess, []) ->
+    glu:tessEndContour(Tess),
+    glu:tessEndPolygon(Tess).
+
+uv_face_vtx([Pos|{U,V}]) ->
+    gl:texCoord2f(U, V),
+    gl:vertex3dv(Pos);
+uv_face_vtx([Pos|_]) ->
+    gl:texCoord2i(0, 0),
+    gl:vertex3dv(Pos).
+
+%%
+%% Tesselate and draw face. Include vertex colors.
+%%
+
+vcol_face(Face, #we{fs=Ftab}=We) ->
+    Edge = gb_trees:get(Face, Ftab),
+    vcol_face(Face, Edge, We).
+
+vcol_face(Face, Edge, #we{vp=Vtab}=We) ->
+    Vs0 = wings_face:vinfo_cw(Face, Edge, We),
+    vcol_face_1(Vs0, Vtab, [], []).
+
+vcol_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
+    Pos = gb_trees:get(V, Vtab),
+    vcol_face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
+vcol_face_1([], _, Nacc, Vs) ->
+    N = e3d_vec:normal(Nacc),
+    gl:normal3fv(N),
+    vcol_face_2(N, Vs).
+
+vcol_face_2(_, [A,B,C]) ->
+    vcol_face_vtx(A),
+    vcol_face_vtx(B),
+    vcol_face_vtx(C);
+vcol_face_2(N, [[A0|_]=A,[B0|_]=B,[C0|_]=C,[D0|_]=D]=VsPos) ->
+    case consistent_normal(A0, B0, C0, N) andalso consistent_normal(A0, C0, D0, N) of
+	false ->
+	    vcol_face_3(N, VsPos);
+	true ->
+	    vcol_face_vtx(A),
+	    vcol_face_vtx(B),
+	    gl:edgeFlag(?GL_FALSE),
+	    vcol_face_vtx(C),
+	    vcol_face_vtx(A),
+	    gl:edgeFlag(?GL_TRUE),
+	    vcol_face_vtx(C),
+	    vcol_face_vtx(D)
+    end;
+vcol_face_2(N, Vs) -> vcol_face_3(N, Vs).
+
+vcol_face_3(N, Vs) ->
+    Tess = tess(),
+    {X,Y,Z} = N,
+    glu:tessNormal(Tess, X, Y, Z),
+    glu:tessBeginPolygon(Tess),
+    glu:tessBeginContour(Tess),
+    tess_vcol_face(Tess, Vs).
+
+tess_vcol_face(Tess, [[Pos|{_,_,_}=Col]|T]) ->
+    glu:tessVertex(Tess, Pos, [{color,Col}]),
+    tess_vcol_face(Tess, T);
+tess_vcol_face(Tess, [[Pos|_]|T]) ->
+    glu:tessVertex(Tess, Pos, [{color,{0.0,0.0,0.0}}]),
+    tess_vcol_face(Tess, T);
+tess_vcol_face(Tess, []) ->
+    glu:tessEndContour(Tess),
+    glu:tessEndPolygon(Tess).
+
+vcol_face_vtx([Pos|{R,G,B}]) ->
+    gl:color3f(R, G, B),
+    gl:vertex3dv(Pos);
+vcol_face_vtx([Pos|_]) ->
+    gl:color3f(0, 0, 0),
+    gl:vertex3dv(Pos).
+
+%% consistent_normal(Point1, Point2, Point3, Normal) -> true|false
+%%  Return true if the normal for the triangle Point1-Point2-Point3
+%%  points in approximately the same direction as the normal Normal.
 consistent_normal({V10,V11,V12}, {V20,V21,V22}, {V30,V31,V32}, {X,Y,Z})
   when is_float(V10), is_float(V11), is_float(V12),
        is_float(V20), is_float(V21), is_float(V22),
