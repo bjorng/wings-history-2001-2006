@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.34 2003/09/26 07:14:58 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.35 2003/09/26 07:30:23 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -216,20 +216,26 @@ collapse_vertices(Vs, We0) ->
     {We,_} = do_collapse_vertices(Vs, We0),
     We.
 
-do_collapse_vertices(V, We) ->
-    do_collapse_vertices(V, We, gb_sets:empty()).
+do_collapse_vertices(Vs, We) ->
+    do_collapse_vertices(Vs, We, gb_sets:empty(), []).
 
-do_collapse_vertices([V|Vs], #we{vp=Vtab}=We0, Sel0) ->
+do_collapse_vertices([V|Vs], #we{vp=Vtab}=We0, Sel0, Acc) ->
     case gb_trees:is_defined(V, Vtab) of
 	false ->
-	    do_collapse_vertices(Vs, We0, Sel0);
+	    do_collapse_vertices(Vs, We0, Sel0, Acc);
 	true ->
 	    {We,Sel} = collapse_vertex_1(V, We0, Sel0),
-	    do_collapse_vertices(Vs, We, Sel)
+	    do_collapse_vertices(Vs, We, Sel, [V|Acc])
     end;
-do_collapse_vertices([], We, Sel) -> {We,Sel}.
+do_collapse_vertices([], We, Sel, []) ->
+    {We,Sel};
+do_collapse_vertices([], We, Sel, Vs) ->
+    %% Note that a vertex may be connected to two faces that
+    %% have no edge in common. In that case, the vertex will
+    %% still be there.
+    do_collapse_vertices(Vs, We, Sel, []).
 
-collapse_vertex_1(Vremove, We0, Sel0)->
+collapse_vertex_1(Vremove, We0, Sel0) ->
     VsEs = wings_vertex:fold(
 	     fun(E, _, Rec, Acc0) ->
 		     OtherV = wings_vertex:other(Vremove, Rec),
