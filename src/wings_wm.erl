@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.118 2003/07/11 10:26:28 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.119 2003/07/18 14:10:18 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -707,21 +707,18 @@ set_video_prop(accum_size, Bits) ->
     sdl_video:gl_setAttribute(?SDL_GL_ACCUM_ALPHA_SIZE, Bits).
 
 display_actual_mode() ->
-    io:format("\nActual settings:\n"),
-    Info = [{"Red bits",?GL_RED_BITS},
-	    {"Green bits",?GL_GREEN_BITS},
-	    {"Blue bits",?GL_BLUE_BITS},
-	    {"Alpha bits",?GL_ALPHA_BITS},
-	    {"Depth bits",?GL_DEPTH_BITS},
-	    {"Stencil bits",?GL_STENCIL_BITS},
-	    {"Accum. red bits",?GL_ACCUM_RED_BITS},
-	    {"Accum. green bits",?GL_ACCUM_GREEN_BITS},
-	    {"Accum. blue bits",?GL_ACCUM_BLUE_BITS},
-	    {"Accum. alpha bits",?GL_ACCUM_ALPHA_BITS}],
-    foreach(fun({Label,Attr}) ->
-		    [Val|_] = gl:getIntegerv(Attr),
-		    io:format("~s: ~p\n", [Label,Val])
-	    end, Info).
+    Attrs = [?GL_RED_BITS,
+	     ?GL_GREEN_BITS,
+	     ?GL_BLUE_BITS,
+	     ?GL_ALPHA_BITS,
+	     ?GL_DEPTH_BITS,
+	     ?GL_STENCIL_BITS,
+	     ?GL_ACCUM_RED_BITS,
+	     ?GL_ACCUM_GREEN_BITS,
+	     ?GL_ACCUM_BLUE_BITS,
+	     ?GL_ACCUM_ALPHA_BITS],
+    io:format("Actual: RGBA: ~p ~p ~p ~p Depth: ~p Stencil: ~p Accum: ~p ~p ~p ~p\n",
+	      [hd(gl:getIntegerv(A)) || A <- Attrs]).
 
 init_opengl() ->
     {W,H} = get(wm_top_size),
