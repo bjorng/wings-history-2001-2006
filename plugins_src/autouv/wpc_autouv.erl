@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.243 2004/05/17 06:01:48 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.244 2004/05/18 06:18:43 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -174,12 +174,19 @@ create_uv_state(Charts, MatName0, We, GeomSt0) ->
     get_event(St).
 
 menubar() ->
-    [{"Select",select,fun(St) ->
-			      Menu0 = wings_sel_cmd:menu(St),
-			      Menu = [I || I <- Menu0,
-					   keep_sel_item(I)],
-			      redundant_separators(Menu)
-		      end}].
+    [{"Edit",edit,
+      fun(_) ->
+	      [{"Undo/Redo",undo_toggle,"Undo or redo the last command"},
+	       {"Redo",redo,"Redo the last command that was undone"},
+	       {"Undo",undo,"Undo the last command"}]
+      end},
+     {"Select",select,
+      fun(St) ->
+	      Menu0 = wings_sel_cmd:menu(St),
+	      Menu = [I || I <- Menu0,
+			   keep_sel_item(I)],
+	      redundant_separators(Menu)
+      end}].
 
 keep_sel_item(separator) -> true;
 keep_sel_item({_,more,_}) -> true;
@@ -505,6 +512,12 @@ handle_event_3({action,{select,Command}}, St0) ->
 	#st{}=St -> ok
     end,
     new_state(St);
+handle_event_3({action,{edit,undo_toggle}}=Act, _) ->
+    wings_wm:send(geom, Act);
+handle_event_3({action,{edit,undo}}=Act, _) ->
+    wings_wm:send(geom, Act);
+handle_event_3({action,{edit,redo}}=Act, _) ->
+    wings_wm:send(geom, Act);
 handle_event_3(got_focus, _) ->
     Msg1 = wings_util:button_format("Select"),
     Msg2 = wings_camera:help(),
