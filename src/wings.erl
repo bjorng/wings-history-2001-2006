@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.176 2002/12/14 14:24:30 bjorng Exp $
+%%     $Id: wings.erl,v 1.177 2002/12/15 15:42:10 bjorng Exp $
 %%
 
 -module(wings).
@@ -506,7 +506,7 @@ tools_menu(_) ->
        [{"Create",create,
 	 "Given a face selection, set up a virtual mirror"},
 	{"Break",break,
-	 "Remove the virtul mirror for all objects"},
+	 "Remove virtual mirrors for all objects"},
 	{"Freeze",freeze,
 	 "Create real geometry from the virtual mirrors"}]}}].
 
