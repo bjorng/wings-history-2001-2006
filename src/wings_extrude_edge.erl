@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.52 2003/09/26 10:25:50 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.53 2003/09/26 18:42:04 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -433,6 +433,8 @@ connect(G, [C|Cs], ExtrudeDist, Wid, #we{mirror=Mirror}=We0, Closed) ->
 		[{_,Face}|_] ->
 		    connect(G, Cs, ExtrudeDist, Wid, We0, [Face|Closed])
 	    end;
+	[_] ->
+	    wings_util:error("Can't extrude/bevel; try Cleanup.");
 	[Va0,Vb0] ->
 	    case digraph_get_path(G, Va0, Vb0) of
 		[{_,Mirror}|_] ->
