@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.51 2003/11/20 23:21:36 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.52 2003/11/23 17:20:43 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -202,7 +202,7 @@ render_exit(#r{lights=Lights, data=D}) ->
 		    foreach(fun(DL) -> del_list(DL) end,L1++L2)
 	    end, Lights),
     foreach(fun(#d{l=DL}) -> del_list(DL) end, D),
-    case get(gl_shaders) of
+    case erase(gl_shaders) of
 	{Vp, Fp} -> 
 	    gl:deleteProgramsARB(2, [Vp,Fp]);
 	_ ->
@@ -232,15 +232,7 @@ prepare_mesh(We0=#we{light=none},SubDiv,RenderAlpha,RenderBumps,Wes, St) ->
     FVN	     = wings_we:normals(FN0, We),  %% gb_tree of {Face, [VInfo|Normal]}
     MatFs0   = wings_material:mat_faces(FVN, We), %% sorted by mat..
     MatFs    = patch_tangent_space(MatFs0, We, []),
-    PAble = programmable(),
-    UseLight = if 
-		   RenderBumps and PAble -> 
-		       load_shaders(),
-		       pable;
-		   true -> 
-		       skip
-	       end,
-    DL = draw_faces(MatFs, We, St#st.mat, UseLight),
+    DL = draw_faces(MatFs, We, St#st.mat, skip),
     [#d{l=DL,f=Fast,hasBump=RenderBumps,matfs=MatFs,we=We}|Wes];
 prepare_mesh(#we{}, _, _, _,Wes, _) -> %% Skip Lights
     Wes.
@@ -254,6 +246,14 @@ create_dls(St0, Attr, Shadows, Bumps) ->
 	       end, [], gb_trees:values(St#st.shapes)),
     Ls = if
 	     Shadows or Bumps -> %% Needs per-light data..
+		 PAble = programmable(),
+		 if
+		     Bumps and PAble -> 
+			 load_shaders(),
+			 pable;
+		     true -> 
+			 skip
+		 end,
 		 Ls0  = wpa:lights(St),
 		 Mats = St#st.mat,
 		 create_light_data(Ls0, Ds, 0, Mats, Bumps, Shadows, none, []);
@@ -435,8 +435,7 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,mat=Mat,shadow=Shadows,no_l=PerLigth}
     setup_amb(Amb),
     gl:enable(?GL_LIGHTING),
     gl:disable(?GL_CULL_FACE),
-    foreach(fun(#d{l=DL}) ->	     
-		    gl:callList(get_opaque(DL)) end, Wes),
+    foreach(fun(#d{l=DL}) ->	gl:callList(get_opaque(DL)) end, Wes),
     disable_lights(),
     gl:disable(?GL_LIGHTING),
     %% Additive blend in the other lights
@@ -495,7 +494,7 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:depthFunc(?GL_EQUAL),
     setup_light(L),
     gl:enable(?GL_LIGHTING),
-    enable_shaders(L#light.pos),
+    enable_shaders(L#light.pos,L#light.type),
     foreach(fun(DL) -> 
 		    case is_transp(DL) of
 			true -> 
@@ -520,7 +519,7 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:disable(?GL_LIGHTING),
     disable_shaders(),
     disable_lights(),
-						%    debug_shad(Shadow),
+    %%    debug_shad(Shadow),
     true.
 
 
@@ -934,25 +933,21 @@ bump_exts() ->
      'GL_EXT_texture3D'].
 
 programmable() ->
-%     wings_util:is_gl_ext(['GL_ARB_vertex_program', 
-% 			  'GL_ARB_fragment_program']).
-    false.
+    wings_util:is_gl_ext(['GL_ARB_vertex_program', 
+ 			  'GL_ARB_fragment_program']).
+%    false.
 
 %% Bump drawings 
 create_bumped(#d{l=DL}, false, _,_) -> DL;  % No Bumps use default DL
 create_bumped(#d{l=DL,we=We}, _,_,_)	    % Vertex mode can't have bumps.
   when We#we.mode == vertex -> DL;
-create_bumped(#d{matfs=MatFs,we=We,l=DL},true,Mtab,#light{pos=LPos, type=Type}) -> 
-    case programmable() of
-	true -> %% Using the vertex/pixel program path, calc everything in programs
-	    DL;
-	false ->
-	    LType = case Type of 
-			infinite -> dir;
-			_ -> pos
-		    end,
-	    draw_faces(MatFs, We, Mtab, {LType,mult_inverse_model_transform(LPos)})
-    end.
+create_bumped(#d{matfs=MatFs,we=We},true,Mtab,#light{pos=LPos, type=Type}) -> 
+    LType = case Type of 
+		infinite -> dir;
+		_ -> pos
+	    end,
+    {_, InvPos} = mult_inverse_model_transform(LPos),
+    draw_faces(MatFs, We, Mtab, {LType,InvPos}).
 
 mult_inverse_model_transform(Pos) ->
     #view{origin=Origin,distance=Dist,azimuth=Az,
@@ -960,8 +955,8 @@ mult_inverse_model_transform(Pos) ->
     M0 = e3d_mat:translate(e3d_vec:neg(Origin)),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
     M2 = e3d_mat:mul(M1, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
-    M = e3d_mat:mul(M2, e3d_mat:translate(-PanX, -PanY, Dist)),
-    e3d_mat:mul_point(M, Pos).
+    M =  e3d_mat:mul(M2, e3d_mat:translate(-PanX, -PanY, Dist)),
+    {M,e3d_mat:mul_point(M, Pos)}.
 
 draw_faces(MFlist, We, Mtab, L) ->    
     ListOp = gl:genLists(1),
@@ -1014,9 +1009,13 @@ do_draw_smooth(MatN, Faces, We, L, Mtab) ->
 	    gl:'end'(),
 	    gl:popAttrib();
 	_ -> 
-	    apply_bumped_mat(Mat, L),
+	    Pable = case programmable() of
+			true -> pable;
+			false -> L
+		    end,
+	    apply_bumped_mat(Mat, Pable),
 	    gl:'begin'(?GL_TRIANGLES),
-	    do_draw_bumped(Faces, true, We, L),
+	    do_draw_bumped(Faces, true, We, Pable),
 	    gl:'end'(),
 	    disable_bumps(),
 	    gl:popAttrib()
@@ -1120,7 +1119,7 @@ texCoord(_, false, _) ->
     ok.
 
 default_uv(UV = {_,_}) -> UV;	 
-default_uv(none) -> {0.0,0.0}.
+default_uv(_) -> {0.0,0.0}.
 
 calcTS(V1,V2,V3,UV1,UV2,UV3,N) ->
     {S1,T1} = default_uv(UV1),
@@ -1173,8 +1172,7 @@ bumpCoord({Vx,Vy,Vn}, Vpos, {Type,InvLight0}) ->
     X = e3d_vec:dot(Vx,InvLight),
     Y = e3d_vec:dot(Vy,InvLight),
     Z = e3d_vec:dot(Vn,InvLight),
-    gl:multiTexCoord3f(?GL_TEXTURE0, X,Y,Z).	
-
+    gl:multiTexCoord3f(?GL_TEXTURE0, X,Y,Z).
 
 apply_bumped_mat(Mat, Programmable) ->
     OpenGL = proplists:get_value(opengl, Mat),
@@ -1206,15 +1204,19 @@ apply_bumped_mat(Mat, Programmable) ->
     activate_textures(Diffuse,Bump,Gloss,Programmable).
 
 activate_textures(Diffuse,Bump,Gloss,pable) ->
-    gl:activeTexture(?GL_TEXTURE0),
-    gl:enable(?GL_TEXTURE_2D),	   
-    gl:bindTexture(?GL_TEXTURE_2D,Diffuse),
     gl:activeTexture(?GL_TEXTURE1),
     gl:enable(?GL_TEXTURE_2D),	   
     gl:bindTexture(?GL_TEXTURE_2D,Bump),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     gl:activeTexture(?GL_TEXTURE2),
     gl:enable(?GL_TEXTURE_2D),	   
-    gl:bindTexture(?GL_TEXTURE_2D,Gloss);
+    gl:bindTexture(?GL_TEXTURE_2D,Gloss),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+    gl:activeTexture(?GL_TEXTURE0),
+    gl:enable(?GL_TEXTURE_2D),
+    gl:bindTexture(?GL_TEXTURE_2D,Diffuse),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE);
+
 activate_textures(Diffuse,Bump,_,_) ->  % Non programable hardware
     %% Start by creating bump data
     CubeMap = wings_image:normal_cubemapid(),
@@ -1271,28 +1273,27 @@ disable_bumps() ->
     gl:activeTexture(?GL_TEXTURE3),
     gl:disable(?GL_TEXTURE_2D).
 
-enable_shaders({Lx,Ly,Lz}) ->
-    case programmable() of
-	true ->
-	    {Vp,Fp} = get(gl_shaders),
-	    {Cx,Cy,Cz} = mult_inverse_model_transform({0.0,0.0,0.0}),
+enable_shaders({Lx,Ly,Lz},Type) ->
+    case get(gl_shaders) of
+	{Vp,Fp} ->	    
+	    {_InvMV,{Cx,Cy,Cz}} = mult_inverse_model_transform({0.0,0.0,0.0}),
 	    gl:enable(?GL_FRAGMENT_PROGRAM_ARB),
 	    gl:bindProgramARB(?GL_FRAGMENT_PROGRAM_ARB,Fp),
 	    gl:enable(?GL_VERTEX_PROGRAM_ARB),
 	    gl:bindProgramARB(?GL_VERTEX_PROGRAM_ARB,Vp),
-	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,0,Lx,Ly,Lz,0),
-	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,1,Cx,Cy,Cz,0);
-	false ->
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,0,Lx,Ly,Lz,1.0),
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,1,Cx,Cy,Cz,0);	
+	_ ->
 	    ok
-    end.
+    end. 
 
 disable_shaders() ->
-    case programmable() of
-	true ->
+    case get(gl_shaders) of
+	{_Vp,_Fp} ->
 	    gl:disable(?GL_VERTEX_PROGRAM_ARB),
 	    gl:disable(?GL_FRAGMENT_PROGRAM_ARB),
 	    ok;
-	false ->
+	_ ->
 	    ok
     end.
 
@@ -1315,13 +1316,13 @@ load_program(Target, Prog) ->
 	    exit(prog_error)
     end.   
 
+% PARAM transform[4] = { state.matrix.modelview.inverse };
 vertex_prog() ->
     "!!ARBvp1.0
 
 PARAM mvp[4] = { state.matrix.mvp };
-PARAM transform[4] = { state.matrix.modelview.inverse };
 
-PARAM light = program.env[0];
+PARAM light  = program.env[0];
 PARAM camera = program.env[1];
 
 ATTRIB xyz = vertex.position;
@@ -1329,7 +1330,7 @@ ATTRIB normal = vertex.normal;
 ATTRIB tangent = vertex.texcoord[0];
 ATTRIB st = vertex.texcoord[1];
 
-TEMP dir, transform_light, transform_camera, binormal;
+TEMP dir, binormal;
 
 XPD binormal, tangent, normal;
 
@@ -1338,17 +1339,7 @@ DP4 result.position.y, mvp[1], xyz;
 DP4 result.position.z, mvp[2], xyz;
 DP4 result.position.w, mvp[3], xyz;
 
-DP4 transform_light.x, transform[0], light;
-DP4 transform_light.y, transform[1], light;
-DP4 transform_light.z, transform[2], light;
-DP4 transform_light.w, transform[3], light;
-
-DP4 transform_camera.x, transform[0], camera;
-DP4 transform_camera.y, transform[1], camera;
-DP4 transform_camera.z, transform[2], camera;
-DP4 transform_camera.w, transform[3], camera;
-
-SUB dir, transform_light, xyz;
+SUB dir, light, xyz;
 DP3 dir.w, dir, dir;
 RSQ dir.w, dir.w;
 MUL dir.xyz, dir, dir.w;
@@ -1357,8 +1348,8 @@ DP3 result.texcoord[1].x, tangent, dir;
 DP3 result.texcoord[1].y, binormal, dir;
 DP3 result.texcoord[1].z, normal, dir;
 
-SUB dir, transform_light, xyz;
-ADD dir, transform_camera, dir;
+SUB dir, light, xyz;
+ADD dir, camera, dir;
 DP3 dir.w, dir, dir;
 RSQ dir.w, dir.w;
 MUL dir.xyz, dir, dir.w;
@@ -1375,29 +1366,42 @@ END
 fragment_prog() ->
     "!!ARBfp1.0
 
-PARAM param = { 2.0, -1.0, 32.0, 0.0 };
+PARAM param = { 2.0, -1.0, 0.0, 0.0 };
+
+PARAM matdiff  = state.material.diffuse;
+PARAM matspec  = state.material.specular;
+PARAM matemm   = state.material.emission;
+PARAM matshin  = state.material.shininess;
+
+PARAM ldiff = state.light[0].diffuse;
+PARAM lspec = state.light[0].specular;
 
 TEMP base, dot3, gloss, diffuse, specular;
 
 TEX base,  fragment.texcoord[0], texture[0], 2D;
 TEX dot3,  fragment.texcoord[0], texture[1], 2D;
 TEX gloss, fragment.texcoord[0], texture[2], 2D;
-
+# ReCalc RGB to XYZ 
 MAD dot3, dot3, param.x, param.y;
+# Normalize
 DP3 dot3.w, dot3, dot3;
 RSQ dot3.w, dot3.w;
 MUL dot3.xyz, dot3, dot3.w;
-
+# Multiply Bump with ligth vectors
 DP3_SAT diffuse, fragment.texcoord[1], dot3;
-
 DP3_SAT specular, fragment.texcoord[2], dot3;
 
-POW specular, specular.x, param.z;
+POW specular, specular.x, matshin.x;
 
 MUL specular, specular, gloss;
+MUL specular, specular, matspec;
+MUL specular, specular, lspec;
+MUL base, base, matdiff;
+MUL base, base, ldiff;
 
 MAD result.color, base, diffuse, specular;
 
 END
 ".
+
 
