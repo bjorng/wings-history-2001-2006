@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.53 2004/10/25 14:50:09 dgud Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.54 2004/11/16 12:37:49 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -799,11 +799,15 @@ select_lights_1([], _) -> [].
 %%%
 
 select_isolated(#st{shapes=Shs}=St) ->
-    Sel = foldl(fun(#we{id=Id}=We, A) ->
-			Isolated = gb_sets:from_list(wings_vertex:isolated(We)),
-			case gb_sets:is_empty(Isolated) of
-			    true -> A;
-			    false -> [{Id,Isolated}|A]
-			end
+    Sel = foldl(fun(#we{perm=Perm}=We, A) when ?IS_SELECTABLE(Perm) ->
+			select_isolated_1(We, A);
+		   (_, A) -> A
 		end, [], gb_trees:values(Shs)),
     wings_sel:set(vertex, Sel, St).
+
+select_isolated_1(#we{id=Id}=We, A) ->
+    Isolated = gb_sets:from_list(wings_vertex:isolated(We)),
+    case gb_sets:is_empty(Isolated) of
+	true -> A;
+	false -> [{Id,Isolated}|A]
+    end.
