@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.144 2004/10/08 06:02:32 dgud Exp $
+%%     $Id: wings_wm.erl,v 1.145 2004/10/26 19:24:38 dgud Exp $
 %%
 
 -module(wings_wm).
@@ -605,13 +605,8 @@ do_dispatch(Active, Ev) ->
     end.
 
 redraw_all() ->
-    case get(wm_dirty_mode) of
-	back -> ok;
-	front ->
-	    %% If front drawing is taking place (e.g. a marquee selection),
-	    %% buffers weren't cleared directly after buffer swapping.
-	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT)
-    end,
+    %% Remove late buffers clear due to problems with ATI cards when AA.
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     Windows = keysort(2, gb_trees:to_list(get(wm_windows))),
     foreach(fun({Name,_}) ->
 		    dispatch_matching(fun({wm,{send_to,N,_}}) ->
@@ -621,19 +616,6 @@ redraw_all() ->
 		    do_dispatch(Name, redraw)
 	    end, Windows),
     gl:swapBuffers(),
-
-    case get(wm_dirty_mode) of
-	back ->
-	    %% By clearing now, we might be able to overlap the time
-	    %% for clearing with calculations done by the CPU,
-	    %% thus pontentially gaining some speed.
-	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT);
-	front ->
-	    %% If front drawing is taking place, clearing the back buffer
-	    %% might destroy the front buffer too. Do nothing.
-	    ok
-    end,
-
     clean(),
     wings_io:set_cursor(get(wm_cursor)),
     event_loop().
