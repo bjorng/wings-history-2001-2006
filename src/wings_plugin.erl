@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.1 2001/10/17 07:48:25 bjorng Exp $
+%%     $Id: wings_plugin.erl,v 1.2 2001/10/20 19:14:17 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,command/2]).
@@ -16,29 +16,101 @@
 -include("wings.hrl").
 -import(lists, [append/1,flatmap/2,foreach/2]).
 
+%%%
+%%% Currently, there can be a single directory for plugins, but
+%%% sub-directories to any level will be searched.
+%%% The plugin directory must be named 'plugins'. It must be located
+%%% either in the same directory as the beam files, or in a directory
+%%% parallell to the 'ebin' directory if the beam files are kept in
+%%% a 'ebin' directory.
+%%%
+%%% To avoid name space clashing, plugins must be named according to
+%%% the following convention:
+%%%    wpT_*.beam
+%%% where the T should be replaced with the type of the plugin.
+%%%
+%%% The types are defined as following:
+%%%
+%%% 0   Object creation plugin.
+%%% 1   Import/export plugin (NYI).
+%%% u   General plugin. Not recommended for other than experimental
+%%%     use.
+%%%
+
 init() ->
-    PluginDir = filename:absname("plugins"),
-    Dict = case filelib:is_dir(PluginDir) of
-	       true -> init(PluginDir);
-	       false -> []
+    Dict = case try_dirs() of
+	       none -> [];
+	       PluginDir -> init(PluginDir)
 	   end,
     put(wings_plugins, gb_trees:from_orddict(Dict)).
 
 init(Dir) ->
-    Beams = filelib:wildcard(Dir ++ "/*.beam"),
+    {Pas,Beams} = list_dir(Dir),
+    foreach(fun(Pa) -> code:add_patha(Pa) end, Pas),
     Mods = [to_module(Beam) || Beam <- Beams],
-    code:add_patha(Dir),
-    foreach(fun(Mod) -> c:l(Mod) end, Mods),
-    Menus0 = [rearrange(N, T, M, C) || M <- Mods, {N,{T,C}} <- M:menus()],
+    foreach(fun({Type,Mod}) -> c:l(Mod) end, Mods),
+    Menus0 = [rearrange(N, T, Type, M, C) ||
+		 {Type,M} <- Mods, {N,{T,C}} <- M:menus()],
     Menus1 = sofs:relation(Menus0),
     Menus = sofs:relation_to_family(Menus1),
-		 sofs:to_external(Menus).
+    sofs:to_external(Menus).
 
-rearrange(N, T, M, {C}) -> {N,{T,{[M,C]}}};
-rearrange(N, T, M, C) -> {N,{T,[M,C]}}.
+try_dirs() ->
+    Dir0 = filename:dirname(code:which(?MODULE)),
+    Dir = filename:absname("plugins", Dir0),
+    case filelib:is_dir(Dir) of
+	true -> Dir;
+	false -> try_dirs(Dir0)
+    end.
 
-to_module(Beam) ->
-    list_to_atom(filename:rootname(filename:basename(Beam))).
+try_dirs(Dir0) ->
+    case filename:basename(Dir0) of
+	"ebin" ->
+	    Dir1 = filename:dirname(Dir0),
+	    Dir = filename:absname("plugins", Dir1),
+	    case filelib:is_dir(Dir) of
+		true -> Dir;
+		false -> none
+	    end;
+	_ -> none
+    end.
+
+list_dir(Dir) ->
+    list_dir([Dir], [], []).
+
+list_dir([Dir|Dirs0], Pas, Beams0) ->
+    case file:list_dir(Dir) of
+	{ok,List} ->
+	    case list_dir_1(List, Dir, Dirs0, Beams0) of
+		{Dirs,Beams0} -> list_dir(Dirs, Pas, Beams0);
+		{Dirs,Beams} -> list_dir(Dirs, [Dir|Pas], Beams)
+	    end;
+	{error,_} -> list_dir(Dirs0, Pas, Beams0)
+    end;
+list_dir([], Pas, Beams) -> {Pas,Beams}.
+
+list_dir_1([[$w,$p,T,$_|_]=N|Ns], Dir0, Dirs, Beams) ->
+    case filename:extension(N) of
+	".beam" -> list_dir_1(Ns, Dir0, Dirs, [N|Beams]);
+	_ -> list_dir_1(Ns, Dir0, Dirs, Beams)
+    end;
+list_dir_1([N|Ns], Dir0, Dirs, Beams) ->
+    Dir = filename:join(Dir0, N),
+    case filelib:is_dir(Dir) of
+	true -> list_dir_1(Ns, Dir0, [Dir|Dirs], Beams);
+	false -> list_dir_1(Ns, Dir0, Dirs, Beams)
+    end;
+list_dir_1([], Dir, Dirs, Beams) -> {Dirs,Beams}.
+    
+rearrange(N, T, Type, M, {C}) -> {N,{T,{[Type,M,C]}}};
+rearrange(N, T, Type, M, C) -> {N,{T,[Type,M,C]}}.
+
+to_module([_,_,T|_]=Beam) ->
+    {convert_type(T),list_to_atom(filename:rootname(Beam))}.
+
+convert_type($0) -> creator;
+convert_type($1) -> import_export;
+convert_type($u) -> unsupported.
 
 menu(Name, Menu) ->
     Dict = get(wings_plugins),
@@ -49,15 +121,17 @@ menu(Name, Menu) ->
 	    list_to_tuple(tuple_to_list(Menu) ++ [separator|PluginMenu])
     end.       
 
-command({[Mod,Cmd]}, St) -> command(Mod, Cmd, true, St);
-command([Mod,Cmd], St) -> command(Mod, Cmd, false, St).
+command({[Type,Mod,Cmd]}, St) -> command(Type, Mod, Cmd, true, St);
+command([Type,Mod,Cmd], St) -> command(Type, Mod, Cmd, false, St).
     
-command(Mod, Cmd, Ask, #st{onext=Oid}=St0) ->
-    case Mod:command(Cmd, Ask, St0) of
-	{new_shape,Prefix,Fs,Vs} ->
-	    We = wings_we:build(Fs, Vs),
-	    Name = Prefix++integer_to_list(Oid),
-	    wings_shape:new(Name, We, St0);
-	aborted -> aborted;
-	#st{}=St -> St
-    end.
+command(creator, Mod, Cmd, Ask, St) ->
+    check_result(Mod:command(Cmd, Ask), St);
+command(unsupported, Mod, Cmd, Ask, St) ->
+    check_result(Mod:command(Cmd, Ask, St), St).
+
+check_result({new_shape,Prefix,Fs,Vs}, #st{onext=Oid}=St) ->
+    We = wings_we:build(Fs, Vs),
+    Name = Prefix++integer_to_list(Oid),
+    wings_shape:new(Name, We, St);
+check_result(aborted, St) -> aborted;
+check_result(#st{}=St, _) -> St.

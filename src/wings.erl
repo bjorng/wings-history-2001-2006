@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.18 2001/10/19 19:35:14 bjorng Exp $
+%%     $Id: wings.erl,v 1.19 2001/10/20 19:14:17 bjorng Exp $
 %%
 
 -module(wings).
@@ -155,7 +155,12 @@ clean_state(St0) ->
 
 main_loop(St0) ->
     ?VALIDATE_MODEL(St0),
-    St1 = wings_draw:render(St0),
+    St1 = case catch wings_draw:render(St0) of
+	      {'EXIT',Crasch} ->
+		  LogName = wings_util:crasch_log(Crasch),
+		  halt();
+	      S0 -> S0
+	  end,
     wings_io:info(info(St1)),
     wings_io:update(St1),
     
@@ -303,6 +308,8 @@ command({edit,repeat}, St) -> St;
 %% Select menu
 command({select,edge_loop}, St) ->
     {save_state,wings_edge:select_loop(St)};
+command({select,select_region}, St) ->
+    {save_state,wings_edge:select_region(St)};
 command({select,more}, St) ->
     wings_sel:select_more(St);
 command({select,less}, St) ->
@@ -592,6 +599,7 @@ menu(X, Y, select, St) ->
 	    {"More","+",more},
 	    {"Less","-",less},
 	    {"Edge Loop","l",edge_loop},
+	    {"Region","L",select_region},
 	    {"Similar","i",similar},
 	    separator,
 	    {"Adjacent vertices","v",vertex},
@@ -1062,6 +1070,8 @@ translate_key($a, Mod, St) when Mod band ?CTRL_BITS =/= 0 -> {select,all};
 translate_key($i, Mod, St) when Mod band ?CTRL_BITS =/= 0,
 				Mod band ?SHIFT_BITS =/= 0 -> {select,inverse};
 translate_key($l, Mod, St) when Mod band ?CTRL_BITS =/= 0 -> {file,merge};
+translate_key($l, Mod, #st{selmode=edge}) when Mod band ?SHIFT_BITS =/= 0 ->
+    {select,select_region};
 translate_key($n, Mod, St) when Mod band ?CTRL_BITS =/= 0 -> {file,new};
 translate_key($o, Mod, St) when Mod band ?CTRL_BITS =/= 0 -> {file,open};
 translate_key($q, Mod, St) when Mod band ?CTRL_BITS =/= 0 -> {file,quit};

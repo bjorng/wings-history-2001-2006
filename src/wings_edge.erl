@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.14 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.15 2001/10/20 19:14:17 bjorng Exp $
 %%
 
 -module(wings_edge).
 -export([convert_selection/1,select_more/1,select_less/1,
-	 to_vertices/2,
+	 to_vertices/2,select_region/1,
 	 select_loop/1,cut/2,cut/3,fast_cut/3,connect/1,dissolve/1,
 	 dissolve_edges/2,dissolve_edge/2,patch_edge/4,patch_edge/5,
 	 hardness/2,hardness/3,loop_cut/1]).
@@ -494,6 +494,28 @@ hardness(Edge, Hardness, Htab) ->
 	{soft,true} -> gb_sets:delete(Edge, Htab);
 	{hard,false} -> gb_sets:insert(Edge, Htab)
     end.
+
+%%%
+%%% Select one side of an edge loop.
+%%%
+
+select_region(St0) ->
+    St = select_loop(St0),
+    Sel0 = wings_sel:fold_shape(fun select_region/3, [], St),
+    Sel = sort(Sel0),
+    St#st{selmode=face,sel=Sel}.
+
+select_region(#shape{id=Id,sh=We0}=Sh, Edges, Sel) ->
+    #we{es=Etab,fs=Ftab} = We0,
+    {AnEdge,_} = gb_sets:take_smallest(Edges),
+    #edge{lf=Lf,rf=Rf} = gb_trees:get(AnEdge, Etab),
+    Left = collect_faces(Lf, Edges, We0),
+    Right = collect_faces(Rf, Edges, We0),
+    Smallest = case {gb_sets:size(Left),gb_sets:size(Right)} of
+		   {L,R} when L < R -> Left;
+		   {_,_} -> Right
+	       end,
+    [{Id,Smallest}|Sel].
 
 %%%
 %%% The Loop Cut command.

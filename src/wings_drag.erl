@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.13 2001/10/17 07:48:25 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.14 2001/10/20 19:14:17 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -241,10 +241,10 @@ motion_update(Tvs, Dx, Dy, #st{shapes=Shapes0,dl=Dl}=St) ->
 	      end, {none,Shapes0}, Tvs),
     case Matrix of
 	none ->
-	    St#st{shapes=Shapes,dl=Dl#dl{dragging=none,
+	    St#st{shapes=Shapes,dl=Dl#dl{dragging=none,sel=none,
 					 matrix=e3d_mat:identity()}};
 	Other ->
-	    St#st{shapes=Shapes,dl=Dl#dl{matrix=Matrix}}
+	    St#st{shapes=Shapes,dl=Dl#dl{matrix=Matrix,sel=none}}
     end.
 
 transform_vs(Vs0, Dx, Dy, St, #shape{sh=#we{vs=Vtab0}=We}=Shape0) ->

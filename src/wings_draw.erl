@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.11 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.12 2001/10/20 19:14:17 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -24,8 +24,7 @@
 -define(VERTEX_MODE_POINTSIZE, 10.0).
 -define(SEL_COLOR, {0.5,0.0,0.0}).
 
-model_changed(St) ->
-    St#st{dl=none}.
+model_changed(St) -> St#st{dl=none}.
 
 %%
 %% Renders all shapes, including selections.
@@ -39,7 +38,8 @@ render(#st{shapes=Shapes,distance=Dist,azimuth=Az,elevation=El}=St0) ->
     ?CHECK_ERROR(),
     wings_view:model_transformations(St0),
     ground_and_axes(St0),
-    St = update_display_lists(St0),
+    St1 = update_display_lists(St0),
+    St = make_sel_dlist(St1),
     draw_shapes(St),
     gl:popAttrib(),
     ?CHECK_ERROR(),
@@ -65,7 +65,7 @@ draw_shapes(#st{opts=#opt{smooth=true},dl=#dl{drag_faces=none}=DL}=St) ->
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_CULL_FACE),
-    draw_selection(St);
+    draw_sel(St);
 draw_shapes(#st{selmode=SelMode,opts=#opt{wire=Wire}}=St) ->
     gl:enable(?GL_CULL_FACE),
     gl:cullFace(?GL_BACK),
@@ -112,11 +112,30 @@ draw_shapes(#st{selmode=SelMode,opts=#opt{wire=Wire}}=St) ->
     gl:disable(?GL_POLYGON_OFFSET_FILL),
 
     %% Selection.
-    draw_selection(St),
+    draw_sel(St),
 
     %% Draw hard edges.
     draw_hard_edges(St).
 
+draw_sel(#st{sel=[],dl=#dl{sel=none}}=St) -> ok;
+draw_sel(#st{selmode=edge,dl=#dl{sel=DlistSel}}) ->
+    gl:color3fv(?SEL_COLOR),
+    gl:lineWidth(?EDGE_MODE_LINEWIDTH),
+    gl:callList(DlistSel);
+draw_sel(#st{selmode=vertex,dl=#dl{sel=DlistSel}}) ->
+    gl:color3fv(?SEL_COLOR),
+    gl:pointSize(?VERTEX_MODE_POINTSIZE),
+    gl:callList(DlistSel);
+draw_sel(#st{dl=#dl{sel=DlistSel}}) ->
+    gl:enable(?GL_POLYGON_OFFSET_FILL),
+    gl:polygonOffset(1.0, 1.0),
+    gl:color3fv(?SEL_COLOR),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    case catch gl:callList(DlistSel) of
+	{'EXIT',_} -> exit({bad_call_list,DlistSel});
+	_ -> ok
+    end.
+    
 draw_we(#st{dl=#dl{we=DlistWe,dragging=WeDrag,matrix=Matrix}}) ->
     gl:callList(DlistWe),
     case WeDrag of
@@ -146,6 +165,23 @@ update_display_lists(#st{dl=#dl{dragging=none,drag_faces=Faces}=DL}=St) ->
     DlistId = make_dlist(97, Faces, true, St),
     update_display_lists(St#st{dl=DL#dl{dragging=DlistId}});
 update_display_lists(St) -> St.
+
+make_sel_dlist(#st{sel=[],dl=DL}=St) ->
+    St#st{dl=DL#dl{sel=none}};
+make_sel_dlist(#st{dl=#dl{sel=none}}=St) ->
+    do_make_sel_dlist(St);
+make_sel_dlist(#st{sel=Sel,dl=#dl{old_sel=Sel}}=St) ->
+    St;
+make_sel_dlist(#st{dl=DL}=St) ->
+    do_make_sel_dlist(St);
+make_sel_dlist(St) -> St.
+
+do_make_sel_dlist(#st{sel=Sel,dl=DL}=St) ->
+    DlistSel = 95,
+    gl:newList(DlistSel, ?GL_COMPILE),
+    draw_selection(St),
+    gl:endList(),
+    St#st{dl=DL#dl{old_sel=Sel,sel=DlistSel}}.
 
 make_dlist(DlistId, Faces, DrawMembers, #st{shapes=Shapes0}=St) ->
     gl:newList(DlistId, ?GL_COMPILE),
@@ -271,10 +307,6 @@ draw_hard_edges_1(#we{es=Etab,he=Htab,vs=Vtab}) ->
 %% 
 
 draw_selection(#st{selmode=body}=St) ->
-    gl:enable(?GL_POLYGON_OFFSET_FILL),
-    gl:polygonOffset(1.0, 1.0),
-    gl:color3fv(?SEL_COLOR),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     wings_sel:foreach(
       fun(_, #shape{matrix=Matrix,sh=Data}) ->
 	      gl:pushMatrix(),
@@ -284,10 +316,6 @@ draw_selection(#st{selmode=body}=St) ->
       end, St),
     St;
 draw_selection(#st{selmode=face}=St) ->
-    gl:enable(?GL_POLYGON_OFFSET_FILL),
-    gl:polygonOffset(1.0, 1.0),
-    gl:color3fv(?SEL_COLOR),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     wings_sel:foreach(
       fun(Face, #shape{sh=#we{fs=Ftab}=We}) ->
 	      #face{edge=Edge} = gb_trees:get(Face, Ftab),
@@ -295,26 +323,22 @@ draw_selection(#st{selmode=face}=St) ->
       end, St),
     St;
 draw_selection(#st{selmode=edge}=St) ->
-    gl:color3fv(?SEL_COLOR),
-    gl:lineWidth(?EDGE_MODE_LINEWIDTH),
+    gl:'begin'(?GL_LINES),
     wings_sel:foreach(
       fun(Edge, #shape{sh=#we{es=Etab,vs=Vtab}}=Sh) ->
 	      #edge{vs=Vstart,ve=Vend} = gb_trees:get(Edge, Etab),
-	      gl:'begin'(?GL_LINES),
 	      gl:vertex3fv(lookup_pos(Vstart, Vtab)),
-	      gl:vertex3fv(lookup_pos(Vend, Vtab)),
-	      gl:'end'()
+	      gl:vertex3fv(lookup_pos(Vend, Vtab))
       end, St),
+    gl:'end'(),
     St;
 draw_selection(#st{selmode=vertex}=St) ->
-    gl:color3fv(?SEL_COLOR),
-    gl:pointSize(?VERTEX_MODE_POINTSIZE),
+    gl:'begin'(?GL_POINTS),
     wings_sel:foreach(
       fun(V, #shape{sh=#we{vs=Vtab}}) ->
-	      gl:'begin'(?GL_POINTS),
-	      gl:vertex3fv(lookup_pos(V, Vtab)),
-	      gl:'end'()
+	      gl:vertex3fv(lookup_pos(V, Vtab))
       end, St),
+    gl:'end'(),
     St.
 
 %%
