@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.106 2003/08/02 05:09:41 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.107 2003/08/02 05:36:29 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -786,16 +786,18 @@ flat_face_1([], _, VsPos) ->
     flat_face_2(N, VsPos).
 
 flat_face_2(_, [A,B,C]) ->
+    gl:'begin'(?GL_TRIANGLES),
     gl:vertex3dv(A),
     gl:vertex3dv(B),
-    gl:vertex3dv(C);
+    gl:vertex3dv(C),
+    gl:'end'();
 flat_face_2(N, [A,B,C,D]=VsPos) ->
     case wings_draw_util:consistent_normal(A, B, C, N) andalso
 	wings_draw_util:consistent_normal(A, C, D, N) of
 	false ->
 	    flat_face_3(N, VsPos);
 	true ->
-	    gl:'begin'(?GL_QUADS),
+ 	    gl:'begin'(?GL_QUADS),
 	    gl:vertex3dv(A),
 	    gl:vertex3dv(B),
 	    gl:vertex3dv(C),
