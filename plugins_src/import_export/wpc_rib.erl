@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.9 2002/08/11 19:10:14 bjorng Exp $
+%%     $Id: wpc_rib.erl,v 1.10 2002/08/13 09:51:53 bjorng Exp $
 
 -module(wpc_rib).
 -include_lib("e3d.hrl").
@@ -482,12 +482,12 @@ export_light(F, I, {_,Ps}) ->
     export_light(F, Type, I, OpenGL).
 
 export_light(F, point, I, OpenGL) ->
-    io:format(F, "LightSource \"pointlight\" ~p", [I]),
+    io:format(F, "LightSource ~p ~p", ["pointlight",I]),
     export_light_common(F, OpenGL),
     io:nl(F);
 export_light(F, infinite, I, OpenGL) ->
     To = property_lists:get_value(aim_point, OpenGL, {0,0,1}),
-    io:format(F, "LightSource \"distantlight\" ~p", [I]),
+    io:format(F, "LightSource ~p ~p", ["distantlight",I]),
     export_light_common(F, OpenGL),
     show_point(F, "to", To),
     io:nl(F);
@@ -495,11 +495,19 @@ export_light(F, spot, I, OpenGL) ->
     To = property_lists:get_value(aim_point, OpenGL, {0,0,1}),
     Angle0 = property_lists:get_value(cone_angle, OpenGL, 30),
     Angle = Angle0*math:pi()/180,
-    io:format(F, "LightSource \"spotlight\" ~p", [I]),
+    io:format(F, "LightSource ~p ~p", ["spotlight",I]),
     export_light_common(F, OpenGL),
     show_point(F, "to", To),
     io:format(F, " ~p ~p ", ["coneangle",Angle]),
-    io:nl(F).
+    io:nl(F);
+export_light(F, ambient, I, OpenGL) ->
+    io:format(F, "LightSource ~p ~p", ["ambientlight",I]),
+    {R,G,B,_} = property_lists:get_value(ambient, OpenGL, {0.0,0.0,0.0,1.0}),
+    io:format(F, " ~p ~p ", ["intensity",1.0]),
+    show_point(F, "lightcolor", {R,G,B}),
+    io:nl(F);
+export_light(_, Type, _, _) ->
+    io:format("Ignoring unknown light type: ~p\n", [Type]).
 
 export_light_common(F, OpenGL) ->
     From = property_lists:get_value(position, OpenGL, {0,0,0}),
