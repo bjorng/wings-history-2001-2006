@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.105 2003/11/29 07:19:09 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.106 2003/11/30 07:53:19 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -80,7 +80,7 @@ menu(_St) ->
 command(prefs, _St) ->
     PrefQs0 = [{"General",gen_prefs()},
 	       {"Advanced",advanced_prefs()},
-	       {"Compatibility",compatibility_prefs()},
+ 	       {"Compatibility",compatibility_prefs()},
 	       {"User Interface",ui_prefs()},
 	       {"Misc",misc_prefs()}],
     PrefQs = [{Lbl,make_query(Ps)} || {Lbl,Ps} <- PrefQs0],
@@ -111,13 +111,13 @@ gen_prefs() ->
       {hframe,
        [{label,"Info Text"},{color,info_color},
 	{label,"Info Background"},{color,info_background_color},
-	{label,"Selection"},{color,selected_color},
 	{label,"Edges"},{color,edge_color},
 	{label,"Hard Edges"},{color,hard_edge_color}],
        [{title,"Colors"}]},
       {hframe,
        [{label,"Color"},{color,grid_color},
-	{"Force Axis-Aligned Grid",force_show_along_grid}],
+	{"Force Axis-Aligned Grid",force_show_along_grid,
+	 [{info,"Always show the grid when the view is aligned along one of the major axes"}]}],
        [{title,"Grid"}]},
       {hframe,
        [{vframe,
@@ -135,10 +135,9 @@ gen_prefs() ->
 	 [{menu,[{"Solid Face Selections",solid},
 		 {"Stippled Face Selections",stippled}],
 	   selection_style},
-	  {"Hide Selection While Dragging",hide_sel_while_dragging},
-	  {"Hide Selection While Moving Camera",hide_sel_in_camera_moves}
+	  {hframe,[{label,"Selection Color"},{color,selected_color}]}
 	 ],
-	 [{title,"Selection Options"}]}]},
+	 [{title,"Selection"}]}]},
       {hframe,
        [{vframe,
 	 [{"Show Axis Letters",show_axis_letters},
@@ -156,16 +155,34 @@ gen_prefs() ->
 
 compatibility_prefs() ->
     {vframe,
-     [{"Optimized Display-List Use",display_list_opt},
-      {"Use Display Lists for Text",text_display_lists},
-      {"Show Dummy Axis Letter",dummy_axis_letter}]}.
+     [{"Optimized Display-List Use",display_list_opt,
+       [{info,"Try turning this preference off if get strange display artifacts such as missing edges"}]},
+      {"Use Display Lists for Text",text_display_lists,
+       [{info,"Try turning this preference off if there are problems displaying text"}]},
+      {"Show Dummy Axis Letter",dummy_axis_letter,
+       [{info,"Showing a dummy axis letter can prevent a crash with some Matrox graphics cards/drivers"}]}
+     ]}.
 
 advanced_prefs() ->
+    DisableHook = fun (is_disabled, {_Var,_I,Store}) ->
+			  not gb_trees:get(advanced_menus, Store);
+		      (_, _) ->	void
+		  end,
+    Flags = [{hook,DisableHook}],
     {vframe,
      [{"Advanced Menus",advanced_menus},
+      separator,
       {"Default Commands",default_commands},
-      {"Use Highlight as Temporary Selection",
-       use_temp_sel}
+      {"Use Highlight as Temporary Selection",use_temp_sel},
+      {"Hide Selection While Dragging",hide_sel_while_dragging},
+      {"Hide Selection While Moving Camera",hide_sel_in_camera_moves},
+      separator,
+      {vframe,
+       [{label_column,
+	 [{"Length",active_vector_size,Flags},
+	  {"Width",active_vector_width,Flags},
+	  {color,"Color",active_vector_color,Flags}]}],
+       [{title,"Vector Display"}]}
      ]}.
 
 ui_prefs() ->
@@ -203,12 +220,7 @@ ui_prefs() ->
 
 misc_prefs() ->
     {vframe,
-       [{vframe,
-	 [{label_column,
-	   [{"Length",active_vector_size},
-	    {"Width",active_vector_width},
-	    {color,"Color",active_vector_color}]}],
-	 [{title,"Vector Display"}]},
+       [
 	{vframe,
 	 [{label_column,
 	   [{"Angle",auto_rotate_angle},
@@ -282,15 +294,25 @@ make_query([_|_]=List)  ->
 make_query({color,Key}) ->
     Def = get_value(Key),
     {color,Def,[{key,Key}]};
-make_query({color,Str,Key}) when is_list(Str) ->
+make_query({color,[_|_]=Str,Key}) ->
     Def = get_value(Key),
     {Str,{color,Def,[{key,Key}]}};
-make_query({Str,Key}) when is_list(Str) ->
+make_query({color,[_|_]=Str,Key,Flags}) ->
+    Def = get_value(Key),
+    {Str,{color,Def,[{key,Key}|Flags]}};
+make_query({[_|_]=Str,Key}) ->
     case get_value(Key) of
 	Def when Def == true; Def == false ->
 	    {Str,Def,[{key,Key}]};
 	Def ->
 	    {Str,{text,Def,[{key,Key}]}}
+    end;
+make_query({[_|_]=Str,Key,Flags}) ->
+    case get_value(Key) of
+	Def when Def == true; Def == false ->
+	    {Str,Def,[{key,Key}|Flags]};
+	Def ->
+	    {Str,{text,Def,[{key,Key}|Flags]}}
     end;
 make_query({alt,Key,Label,Val}) ->
     Def = get_value(Key),
