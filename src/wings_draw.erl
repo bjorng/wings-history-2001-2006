@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.196 2004/04/22 14:55:01 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.197 2004/04/22 17:52:56 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -506,24 +506,20 @@ split_1(#dlo{split=#split{orig_we=#we{}=We,orig_ns=Ns}}=D, Vs, St) ->
 split_1(D, Vs, St) ->
     split_2(D, Vs, update_materials(D, St)).
 
-split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,
+split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab}=We,
 	     proxy_data=Pd,ns=Ns0,needed=Needed}=D, Vs0, St) ->
     Vs = sort(Vs0),
     Faces = vs_to_faces(Vs, We),
     StaticVs = static_vs(Faces, Vs, We),
-    AllVsSet = sofs:from_external(lists:merge(Vs, StaticVs), [vertex]),
 
-    Ftab1 = gb_trees:to_list(Ftab0),
-    Ftab = sofs:from_external(Ftab1, [{face,data}]),
-    FaceSet = sofs:from_external(Faces, [face]),
-    {Work,FtabDyn} = split_faces(D, Ftab, FaceSet, St),
+    {Work,FtabDyn} = split_faces(D, Ftab, Faces, St),
     StaticEdgeDl = make_static_edges(Faces, D),
-    {DynVs,VsDlist} = split_vs_dlist(AllVsSet, Sel, We),
+    {DynVs,VsDlist} = split_vs_dlist(Vs, StaticVs, Sel, We),
 
     WeDyn = wings_material:cleanup(We#we{fs=gb_trees:from_orddict(FtabDyn)}),
-
-    StaticVtab = sort(insert_vtx_data(StaticVs, We#we.vp, [])),
     DynPlan = wings_draw_util:prepare(FtabDyn, We, St),
+    StaticVtab = insert_vtx_data(StaticVs, We#we.vp, []),
+
     Split = #split{static_vs=StaticVtab,dyn_vs=DynVs,
 		   dyn_plan=DynPlan,orig_ns=Ns0,orig_we=We},
     #dlo{work=Work,edges=[StaticEdgeDl],mirror=M,vs=VsDlist,
@@ -553,16 +549,19 @@ static_vs_1([F|Fs], Fun, We, Acc) ->
     static_vs_1(Fs, Fun, We, wings_face:fold(Fun, Acc, F, We));
 static_vs_1([], _, _, Acc) -> ordsets:from_list(Acc).
 
-split_faces(#dlo{needed=Need}=D, Ftab, Faces, St) ->
+split_faces(#dlo{needed=Need}=D, Ftab0, Fs0, St) ->
+    Ftab1 = gb_trees:to_list(Ftab0),
+    Ftab = sofs:from_external(Ftab1, [{face,data}]),
+    Fs = sofs:from_external(Fs0, [face]),
     case member(work, Need) orelse member(smooth, Need) of
 	false ->
 	    %% This is wireframe mode. We don't need any
 	    %% 'work' display list for faces.
-	    FtabDyn = sofs:to_external(sofs:restriction(Ftab, Faces)),
+	    FtabDyn = sofs:to_external(sofs:restriction(Ftab, Fs)),
 	    {none,FtabDyn};
 	true ->
 	    %% Faces needed. (Either workmode or smooth mode.)
-	    {FtabDyn0,StaticFtab0} = sofs:partition(1, Ftab, Faces),
+	    {FtabDyn0,StaticFtab0} = sofs:partition(1, Ftab, Fs),
 	    FtabDyn = sofs:to_external(FtabDyn0),
 	    StaticFtab = sofs:to_external(StaticFtab0),
 	    {[draw_faces(StaticFtab, D, St)],FtabDyn}
@@ -585,12 +584,13 @@ make_static_edges_2([], Acc) ->
 
 insert_vtx_data([V|Vs], Vtab, Acc) ->
     insert_vtx_data(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
-insert_vtx_data([], _, Acc) -> Acc.
+insert_vtx_data([], _, Acc) -> reverse(Acc).
 
-split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
+split_vs_dlist(Vs, StaticVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
     case wings_pref:get_value(vertex_size) of
 	0.0 -> {none,none};
 	PtSize -> 
+	    DynVs = sofs:from_external(lists:merge(Vs, StaticVs), [vertex]),
 	    SelVs = sofs:from_external(gb_sets:to_list(SelVs0), [vertex]),
 	    UnselDyn0 = case wings_pref:get_value(hide_sel_while_dragging) of
 			    false -> sofs:difference(DynVs, SelVs);
@@ -612,7 +612,7 @@ split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
 	    gl:endList(),
 	    {UnselDyn,[UnselDlist]}
     end;
-split_vs_dlist(_, _, _) -> {none,none}.
+split_vs_dlist(_, _, _, _) -> {none,none}.
     
 original_we(#dlo{split=#split{orig_we=We}}) -> We;
 original_we(#dlo{src_we=We}) -> We.
