@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.16 2002/06/19 09:35:13 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.17 2002/06/26 09:09:57 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -104,28 +104,30 @@ rotate_to_z(Vec) ->
      0.0,0.0,0.0}.
 
 rotate_s_to_t(S, T) ->
-    V = e3d_vec:cross(S, T),
+    %% Tomas Moller/Eric Haines: Real-Time Rendering (ISBN 1-56881-101-2).
+    %%  3.3. Quaternions; Rotating one vector to another (p. 52)
     case e3d_vec:dot(S, T) of
 	E when E > 0.999 ->
 	    identity();
 	E when E < -0.999 ->
-	    rotate_180(S);
+	    V = perpendicular_axis(S),
+	    rotate(180, V);
 	E ->
-	    rotate_so_to_t_1(V, E)
+	    V = e3d_vec:cross(S, T),
+	    rotate_s_to_t_1(V, E)
     end.
 
-rotate_180(S) ->
+perpendicular_axis(S) ->
     X = {1.0,0.0,0.0},
-    V = case e3d_vec:dot(S, X) of
-	    Dot when abs(Dot) > 0.999 ->
-		Y = {0.0,1.0,0.0},
-		e3d_vec:cross(Y, S);
-	    _ ->
-		e3d_vec:cross(X, S)
-	end,
-    rotate(180, V).
+    case e3d_vec:dot(S, X) of
+	Dot when abs(Dot) > 0.99 ->
+	    Y = {0.0,1.0,0.0},
+	    e3d_vec:norm(e3d_vec:cross(Y, S));
+	_ ->
+	    e3d_vec:norm(e3d_vec:cross(X, S))
+    end.
 
-rotate_so_to_t_1({Vx,Vy,Vz}=V, E) when is_float(Vx), is_float(Vy), is_float(Vz) ->
+rotate_s_to_t_1({Vx,Vy,Vz}=V, E) when is_float(Vx), is_float(Vy), is_float(Vz) ->
     H = (1.0 - E)/e3d_vec:dot(V, V),
     {E+H*Vx*Vx,H*Vx*Vy+Vz,H*Vx*Vz-Vy,
      H*Vx*Vy-Vz,E+H*Vy*Vy,H*Vy*Vz+Vx,
