@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.174 2004/03/04 09:46:08 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.175 2004/05/13 09:50:56 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -695,6 +695,9 @@ field_event({key,_,_,_}=Ev, S=#s{focus=I,fi=Fi}) ->
     %% Key events should always be sent, even if there
     %% is no mouse focus. Otherwise you can't TAB to
     %% text fields.
+    field_event(Ev, S, get_fi(I, Fi));
+field_event({popup_result,_}=Ev, S=#s{focus=I,fi=Fi}) ->
+    %% As key events above.
     field_event(Ev, S, get_fi(I, Fi));
 field_event(Ev, S=#s{focus=I,mouse_focus=true,fi=Fi}) ->
     field_event(Ev, S, get_fi(I, Fi));
@@ -1553,7 +1556,8 @@ frame_redraw(Active, DisEnabled, #fi{flags=Flags}=Fi) ->
     end.
 
 frame_redraw_1(Active, DisEnabled, 
-	       #fi{x=X0,y=Y0,w=W0,h=H0,minimized=Minimized}, Title) ->
+	       #fi{x=X0,y=Y0,w=W0,h=H0,minimized=Minimized,flags=Flags}, 
+	       Title) ->
     Cw = wings_text:width(),
     Ch = wings_text:height(),
     Y = Y0 + Ch div 2 + 3,
@@ -1577,31 +1581,41 @@ frame_redraw_1(Active, DisEnabled,
 	  end),
     ColFg = color3_text(),
     gl:color3fv(ColFg),
-    wings_io:text_at(TextPos, Y0+Ch, Title),
     if  Minimized =/= undefined ->
-	    %% Draw button
-	    blend(fun(Col) ->
-			  case DisEnabled of
-			      enabled ->
-				  wings_io:gradient_border(
-				    X0, Y0+3,
-				    10, Ch,
-				    Col, ColFg, Active);
-			      _ ->
-				  wings_io:border(
-				    X0, Y0+3, 
-				    10, Ch,
-				    Col, ColFg)
-			  end
-		  end),
-	    %% Draw +/- symbol
-	    gl:color3fv(ColFg),
-	    gl:rectf(X0+2, Y, X0+9, Y+2),
-	    case Minimized of
-		true -> gl:rectf(X0+4, Y-2, X0+6, Y+4);
-		false -> ok
+	    case proplists:get_value(checkbox, Flags) of
+		true ->
+		    draw_checkbox(Active, X0, Y0, Title, 
+				  not Minimized, DisEnabled);
+		false ->
+		    draw_checkbox(Active, X0, Y0, Title, 
+				  Minimized, DisEnabled);
+		undefined ->
+		    wings_io:text_at(TextPos, Y0+Ch, Title),
+		    %% Draw button
+		    blend(fun(Col) ->
+				  case DisEnabled of
+				      enabled ->
+					  wings_io:gradient_border(
+					    X0, Y0+3,
+					    10, Ch,
+					    Col, ColFg, Active);
+				      _ ->
+					  wings_io:border(
+					    X0, Y0+3, 
+					    10, Ch,
+					    Col, ColFg)
+				  end
+			  end),
+		    %% Draw +/- symbol
+		    gl:color3fv(ColFg),
+		    gl:rectf(X0+2, Y, X0+9, Y+2),
+		    case Minimized of
+			true -> gl:rectf(X0+4, Y-2, X0+6, Y+4);
+			false -> ok
+		    end
 	    end;
-	true -> ok
+	true -> 
+	    wings_io:text_at(TextPos, Y0+Ch, Title)
     end,
     keep.
 
@@ -1859,7 +1873,11 @@ cb_event({key,_,_,$\s},
     hook(Hook, update, [Var,I,not Val,Store,Flags]);
 cb_event(_Ev, _Path, _Store) -> keep.
 
-cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnabled) ->
+cb_draw(Active, #fi{x=X,y=Y}, #cb{label=Label}, Val, DisEnabled) ->
+    draw_checkbox(Active, X, Y, Label, Val, DisEnabled),
+    keep.
+
+draw_checkbox(Active, X, Y0, Label, Val, DisEnabled) ->
     wings_io:sunken_gradient(X, Y0+?CHAR_HEIGHT-?CB_SIZE, ?CB_SIZE, ?CB_SIZE,
 			     case DisEnabled of
 				 enabled -> color3_high();
@@ -1876,8 +1894,7 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnabled) ->
 	true -> wings_io:text_at(X+2, Y-1, [crossmark])
     end,
     wings_io:text_at(X+round(1.8*?CB_SIZE), Y, Label),
-    gl:color3b(0, 0, 0),
-    keep.
+    gl:color3b(0, 0, 0).
 
 
 
@@ -2027,14 +2044,9 @@ menu_event({redraw,Active,DisEnabled},
     menu_draw(Active, X, Y, W, H, ValStr, DisEnabled);
 menu_event(value, [#fi{key=Key,index=I}|_], Store) ->
     {value,gb_trees:get(var(Key, I), Store)};
+menu_event(#mousebutton{state=?SDL_PRESSED,button=1}, Path, Store) ->
+    menu_event({key,$\s,0,$\s}, Path, Store);
 menu_event({key,_,_,$\s}, 
-	   [#fi{x=X,y=Y,w=W,hook=Hook,key=Key,index=I}|_], Store) ->
-    #menu{menu=Menu} = gb_trees:get(-I, Store),
-    Var = var(Key, I),
-    Val = gb_trees:get(Var, Store),
-    Disabled = hook(Hook, menu_disabled, [Var, I, Store]),
-    menu_popup(X, Y, W, Menu, Val, Disabled);
-menu_event(#mousebutton{state=?SDL_PRESSED,button=1}, 
 	   [#fi{x=X,y=Y,w=W,hook=Hook,key=Key,index=I}|_], Store) ->
     #menu{menu=Menu} = gb_trees:get(-I, Store),
     Var = var(Key, I),

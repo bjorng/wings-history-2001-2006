@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.27 2004/01/01 15:16:36 bjorng Exp $
+%%     $Id: wpc_test_ask.erl,v 1.28 2004/05/13 09:50:54 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -291,7 +291,8 @@ large_dialog_l(MinimizedL, MinimizedC) ->
 		   {value,0.5},{range,{0.0,1.0}},
 		   {hook,
 		    color_update(v, {hue,sat}, {red,green,blue})}]}
-	 ]}],[{title,"A Hframe"},{minimized,MinimizedC},{key,minimized_c}]}],
+	 ]}],[{title,"Checkboxed Hframe"},{checkbox,true},
+	      {minimized,MinimizedC},{key,minimized_c}]}],
      [{title,"Left Vframe"},{minimized,MinimizedL}]}.
 
 large_dialog_r(MinimizedR) ->
