@@ -8,8 +8,9 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.14 2004/01/18 18:29:28 bjorng Exp $
+#     $Id: Makefile,v 1.15 2004/06/17 05:09:33 bjorng Exp $
 #
+include vsn.mk
 
 all:
 	(cd src; $(MAKE))
@@ -44,7 +45,7 @@ win32: all
 macosx: all
 	(cd plugins_src/mac_file; $(MAKE))
 	(cd macosx; xcodebuild)
-	sh tools/mac_make_dmg
+	sh tools/mac_make_dmg $(WINGS_VSN)
 
 #
 # Build package for Unix.
