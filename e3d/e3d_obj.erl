@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.27 2002/07/14 09:27:40 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.28 2002/09/08 16:02:44 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -357,7 +357,7 @@ export(File, #e3d_file{objs=Objs,mat=Mat,creator=Creator}, Flags) ->
     {ok,MtlLib} = materials(File, Mat, Creator),
     {ok,F} = file:open(File, [write]),
     label(F, Creator),
-    io:format(F, "mtllib ~s\n", [MtlLib]),
+    io:format(F, "mtllib ./~s\n", [MtlLib]),
     foldl(fun(#e3d_object{name=Name}=Obj, {Vbase,UVbase,Nbase}) ->
 		  io:format(F, "o ~s\n", [Name]),
 		  export_object(F, Obj, Flags, Vbase, UVbase, Nbase)
