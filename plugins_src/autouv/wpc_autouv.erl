@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.195 2004/03/11 05:28:52 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.196 2004/03/11 06:05:16 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -185,7 +185,8 @@ init_show_maps(Map0, We, St) ->
     Map = gb_trees:from_orddict(sort(Map1)),
     create_uv_state(Map, none, We, St).
 
-create_uv_state(Map, MatName0, We, GeomSt0) ->
+create_uv_state(Charts0, MatName0, We, GeomSt0) ->
+    Charts = restrict_ftab(Charts0),
     wings:mode_restriction([body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {_,Geom} = init_drawarea(),
@@ -197,13 +198,13 @@ create_uv_state(Map, MatName0, We, GeomSt0) ->
 		Tx = checkerboard(128, 128),
 		add_material(Tx, We#we.name, MatName0, GeomSt0)
 	end,
-    GeomSt = insert_initial_uvcoords(Map, We#we.id, MatName, GeomSt1),
+    GeomSt = insert_initial_uvcoords(Charts, We#we.id, MatName, GeomSt1),
     wings_wm:send(geom, {new_state,GeomSt}),
     Uvs = #uvstate{st=wpa:sel_set(face, [], GeomSt),
 		   geom=Geom,
 		   id=We#we.id,
 		   matname=MatName},
-    St = GeomSt#st{selmode=body,sel=[],shapes=Map,bb=Uvs},
+    St = GeomSt#st{selmode=body,sel=[],shapes=Charts,bb=Uvs},
     Name = wings_wm:this(),
 
     View = #view{origin={0.0,0.0,0.0},
@@ -223,12 +224,24 @@ create_uv_state(Map, MatName0, We, GeomSt0) ->
     wings_wm:set_prop(show_axes, false),
     wings_wm:set_prop(show_groundplane, false),
     wings_wm:set_prop(wireframed_objects,
-		      lists:seq(1, gb_trees:size(Map))),
+		      lists:seq(1, gb_trees:size(Charts))),
     wings_wm:set_prop(allow_rotation, false),
 
     wings_wm:later(got_focus),
 
     get_event(St).
+
+restrict_ftab(Charts0) ->
+    Charts = [restrict_ftab_1(Ch) || Ch <- gb_trees:values(Charts0)],
+    gb_trees:from_orddict(Charts).
+
+restrict_ftab_1(#we{id=Id,name=#ch{fs=Fs0},fs=Ftab0}=We) ->
+    Ftab1 = sofs:from_external(gb_trees:to_list(Ftab0), [{face,edge}]),
+    Fs = sofs:set(Fs0, [face]),
+    Ftab2 = sofs:restriction(Ftab1, Fs),
+    Ftab3 = sofs:to_external(Ftab2),
+    Ftab = gb_trees:from_orddict(Ftab3),
+    {Id,We#we{fs=Ftab}}.
 
 insert_initial_uvcoords(Charts, Id, MatName, #st{shapes=Shs0}=St) ->
     We0 = gb_trees:get(Id, Shs0),
