@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.27 2002/04/24 08:47:58 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.28 2002/04/29 06:28:56 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -292,13 +292,49 @@ new_id(#we{next_id=Id}=We) ->
 new_ids(N, #we{next_id=Id}=We) ->
     {Id,We#we{next_id=Id+N}}.
 
-invert_normals(#we{es=Etab0}=We) ->
-    Etab1 = [invert_dir(E) || E <- gb_trees:to_list(Etab0)],
+%%% Invert all normals.
+
+invert_normals(#we{es=Etab0}=We0) ->
+    Etab1 = invert_edges(gb_trees:to_list(Etab0), []),
     Etab = gb_trees:from_orddict(Etab1),
+    case We0#we{es=Etab} of
+	#we{mode=material}=We -> We;
+	We -> slide_colors(We)
+    end.
+
+invert_edges([{Edge,Rec0}|Es], Acc) ->
+    #edge{vs=Vs,ve=Ve,ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu} = Rec0,
+    Rec = Rec0#edge{vs=Ve,ve=Vs,ltpr=Ltsu,ltsu=Ltpr,rtpr=Rtsu,rtsu=Rtpr},
+    invert_edges(Es, [{Edge,Rec}|Acc]);
+invert_edges([], Acc) -> reverse(Acc).
+
+slide_colors(#we{fs=Ftab}=We) ->
+    foldl(fun({Face,#face{edge=Edge}}, W) ->
+		  slide_colors(Face, Edge, W)
+	  end, We, gb_trees:to_list(Ftab)).
+
+slide_colors(Face, Edge, #we{es=Etab0}=We) ->
+    PrevEdge = case gb_trees:get(Edge, Etab0) of
+		   #edge{lf=Face,ltsu=Pe0} -> Pe0;
+		   #edge{rf=Face,rtsu=Pe0} -> Pe0
+	       end,
+    PrevCol = case gb_trees:get(PrevEdge, Etab0) of
+		  #edge{lf=Face,a=A} -> A;
+		  #edge{rf=Face,b=B} -> B
+	      end,
+    Etab = slide_colors(Face, Edge, Edge, Etab0, PrevCol, not_done),
     We#we{es=Etab}.
 
-invert_dir({N,#edge{vs=Vs,ve=Ve,ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu}=E}) ->
-    {N,E#edge{vs=Ve,ve=Vs,ltpr=Ltsu,ltsu=Ltpr,rtpr=Rtsu,rtsu=Rtpr}}.
+slide_colors(_Face, LastEdge, LastEdge, Etab, _, done) -> Etab;
+slide_colors(Face, Edge, LastEdge, Etab0, PrevCol, _) ->
+    case gb_trees:get(Edge, Etab0) of
+	#edge{a=Col,lf=Face,ltpr=NextEdge}=Rec ->
+	    Etab = gb_trees:update(Edge, Rec#edge{a=PrevCol}, Etab0),
+	    slide_colors(Face, NextEdge, LastEdge, Etab, Col, done);
+	#edge{b=Col,rf=Face,rtpr=NextEdge}=Rec ->
+	    Etab = gb_trees:update(Edge, Rec#edge{b=PrevCol}, Etab0),
+	    slide_colors(Face, NextEdge, LastEdge, Etab, Col, done)
+    end.
 
 %%% Merge two winged-edge structures.
 merge(We0, We1) ->
