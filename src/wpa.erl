@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.42 2004/01/01 15:01:14 bjorng Exp $
+%%     $Id: wpa.erl,v 1.43 2004/01/04 15:25:23 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -17,7 +17,9 @@
 	 import/2,import/3,import_filename/2,
 	 export/3,export_selected/3,
 	 export_filename/2,export_filename/3,
-	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,pref_delete/2,
+	 dialog_template/2,
+	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,
+	 pref_set_default/3,pref_delete/2,
 	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,sel_strict_face_regions/2,
 	 drag/3,drag/4,
@@ -169,7 +171,7 @@ export_filename(Prop0, Cont) ->
 		      ok -> keep
 		  end
 	  end,
-    wings_plugin:call_ui({file,save_dialog,[{title,"Export"}|Prop],Fun}).
+    wings_plugin:call_ui({file,save_dialog,Prop++[{title,"Export"}],Fun}).
 
 %% export_filename([Prop], St, Continuation).
 %%   The St will only be used to setup the default filename.
@@ -184,6 +186,29 @@ export_filename(Prop0, #st{file=File}, Cont) ->
 		   [{default_filename,Def}|Prop0]
 	   end,
     export_filename(Prop, Cont).
+
+%% dialog_template(Module, Type) -> Template
+%%  Return a template for a standard dialog.
+%%  Module = caller's module (used a preference key)
+%%  Type = import|export
+dialog_template(Mod, import) ->
+    {label_column,
+     [{"Import scale",{text,pref_get(Mod, import_scale, 1.0),[{key,import_scale}]}},
+      {"(Export scale)",{text,pref_get(Mod, export_scale, 1.0),[{key,export_scale}]}}]};
+dialog_template(Mod, export) ->
+    FileTypes = [{lists:flatten([Val," (*",Key,")"]),Key} ||
+		    {Key,Val} <- image_formats()],
+    DefFileType = pref_get(Mod, default_filetype, ".bmp"),
+    {vframe,
+     [{label_column,
+       [{"(Import scale)",{text,pref_get(Mod, import_scale, 1.0),[{key,import_scale}]}},
+	{"Export scale",{text,pref_get(Mod, export_scale, 1.0),[{key,export_scale}]}},
+	{"Sub-division Steps",{text,pref_get(Mod, subdivisions, 0),
+			       [{key,subdivisions},{range,0,4}]}}]},
+      panel,
+      {vframe,
+       [{menu,FileTypes,DefFileType,[{key,default_filetype}]}],
+       [{title,"Default texture file type"}]} ]}.
 
 %%%
 %%% Preferences.
@@ -204,6 +229,9 @@ pref_set(Mod, KeyVals) when is_list(KeyVals) ->
 
 pref_set(Mod, Key, Value) ->
     wings_pref:set_value({Mod,Key}, Value).
+
+pref_set_default(Mod, Key, Value) ->
+    wings_pref:set_default({Mod,Key}, Value).
 
 pref_delete(Mod, Key) ->
     wings_pref:delete_value({Mod,Key}).
