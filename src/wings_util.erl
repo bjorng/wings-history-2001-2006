@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.74 2003/07/21 13:08:09 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.75 2003/07/21 14:56:51 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -16,7 +16,7 @@
 	 validate_mirror/1,rel2fam/1,
 	 button_message/1,button_message/2,button_message/3,
 	 button_format/1,button_format/2,button_format/3,
-	 rmb_format/1,
+	 rmb_format/1,mod_name/1,
 	 message/1,message/2,
 	 magnet_string/0,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
@@ -102,12 +102,13 @@ button_format(MsgOne, MsgTwo, MsgThree) ->
      end].
 
 rmb_format(Message) ->
-    RmbMod = case wings_camera:free_rmb_modifier() of
-		 ?ALT_BITS -> "Alt";
-		 ?CTRL_BITS -> "Ctrl"
-	     end,
+    RmbMod = mod_name(wings_camera:free_rmb_modifier()),
     {_,_,Rmb} = wings_camera:button_names(),
     "[" ++ RmbMod ++ "]+" ++ Rmb ++ " " ++ Message.
+
+mod_name(?ALT_BITS) -> "Alt";
+mod_name(?CTRL_BITS) -> "Ctrl";
+mod_name(?META_BITS) -> "Command".
 
 message(Message, _) ->
     message(Message).

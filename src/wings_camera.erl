@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.76 2003/06/20 16:14:53 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.77 2003/07/21 14:56:51 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -150,6 +150,11 @@ button_names() ->
 free_rmb_modifier() ->
     case wings_pref:get_value(camera_mode) of
 	maya -> ?CTRL_BITS;
+	nendo ->
+	    case wings_pref:get_value(num_buttons) of
+		1 -> ?META_BITS;
+		_ -> ?ALT_BITS
+	    end;
 	_ -> ?ALT_BITS
     end.
 						   

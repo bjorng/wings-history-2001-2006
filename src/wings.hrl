@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.88 2003/06/27 19:43:13 bjorng Exp $
+%%     $Id: wings.hrl,v 1.89 2003/07/21 14:56:51 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -21,6 +21,7 @@
 -define(CTRL_BITS, ?KMOD_CTRL).
 -define(ALT_BITS, ?KMOD_ALT).
 -define(SHIFT_BITS, ?KMOD_SHIFT).
+-define(META_BITS, ?KMOD_META).
 -endif.
 
 -ifdef(NEED_OPENGL).
