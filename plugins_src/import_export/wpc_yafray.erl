@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.64 2004/03/03 10:29:47 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.65 2004/03/08 09:23:23 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -53,6 +53,11 @@
 -define(DEF_EMIT_RAD,true).
 -define(DEF_RECV_RAD,true).
 -define(DEF_FAST_FRESNEL,false).
+%% Arealight
+-define(DEF_AREALIGHT, false).
+-define(DEF_AREALIGHT_SAMPLES, 50).
+-define(DEF_AREALIGHT_PSAMPLES, 0).
+-define(DEF_DUMMY, false).
 
 %% Render
 -define(DEF_AA_PASSES, 0).
@@ -343,6 +348,13 @@ material_dialog(_Name, Mat) ->
     YafRay = proplists:get_value(?TAG, Mat, []),
     Minimized = proplists:get_value(minimized, YafRay, true),
     ObjectMinimized = proplists:get_value(object_minimized, YafRay, true),
+    Arealight = proplists:get_value(arealight, YafRay, ?DEF_AREALIGHT),
+    Power = proplists:get_value(power, YafRay, ?DEF_ATTN_POWER),
+    ArealightSamples = proplists:get_value(arealight_samples, YafRay, 
+					   ?DEF_AREALIGHT_SAMPLES),
+    ArealightPsamples = proplists:get_value(arealight_psamples, YafRay, 
+					    ?DEF_AREALIGHT_PSAMPLES),
+    Dummy = proplists:get_value(dummy, YafRay, ?DEF_DUMMY),
     Caus = proplists:get_value(caus, YafRay, ?DEF_CAUS),
     Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
     EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
@@ -366,55 +378,83 @@ material_dialog(_Name, Mat) ->
     Transmitted2 = 
 	proplists:get_value(transmitted2, YafRay, DefTransmitted),
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
+    %%
+    ArealightVframe =
+	{vframe,
+	 [{hframe,[help_button({material_dialog,arealight}),
+		   {label,"Power"},
+		   {text,Power,[{range,{0.0,10000.0}},
+					 {key,{?TAG,power}}]},
+		   {"Global Photonlight Dummy",Dummy,
+		    [{key,{?TAG,dummy}},layout]}]},
+	  {hframe,[{label,"Samples"},
+		   {text,ArealightSamples,
+		    [{range,{1,1000000}},{key,{?TAG,arealight_samples}},
+		     bhook(disabled, {?TAG,dummy})]},
+		   {label,"Penumbra Samples"},
+		   {text,ArealightPsamples,
+		    [{range,{1,1000000}},{key,{?TAG,arealight_psamples}},
+		     bhook(disabled, {?TAG,dummy})]}]}],
+	 [{title,"Arealight Parameters"}]},
+    ObjectVframe = 
+	{vframe,
+	 [{hframe,[help_button({material_dialog,object}),
+		   {"Cast Shadow",Shadow,[{key,{?TAG,shadow}}]},
+		   {"Emit Rad",EmitRad,[{key,{?TAG,emit_rad}}]},
+		   {"Recv Rad",RecvRad,[{key,{?TAG,recv_rad}}]}]},
+	  {hframe,[{"Use Edge Hardness",UseHardness,
+		    [{key,{?TAG,use_hardness}}]},
+		   {"Caustic",Caus,[{key,{?TAG,caus}}]}]},
+	  {hframe,[{"Autosmooth",Autosmooth,[{key,{?TAG,autosmooth}}]},
+		   {label,"Angle"},
+		   {slider,{text,AutosmoothAngle,
+			    [{range,{0.0,180.0}},{width,5},
+			     {key,{?TAG,autosmooth_angle}}]}}]}],
+	 [{title,"Object Parameters"},{minimized,ObjectMinimized},
+	  {key,{?TAG,object_minimized}}]},
+    FresnelVframe =
+	{vframe,
+	 [{hframe,[help_button({material_dialog,fresnel}),
+		   {label,"Index Of Refraction"},
+		   {text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]}]},
+	  {hframe,[{"Fast Fresnel",FastFresnel,[{key,{?TAG,fast_fresnel}}]},
+		   {"Total Internal Reflection",TIR,[{key,{?TAG,tir}}]}]},
+	  {hframe,[{label,"Minimum Reflection"},
+		   {slider,{text,MinRefle,[{range,{0.0,1.0}},{width,5},
+					   {key,{?TAG,min_refle}}]}}]},
+	  {hframe,[{vframe,[{label,"Reflected"},
+			    {label,"Transmitted"}]},
+		   {vframe,[{slider,{color,Reflected,
+				     [{key,{?TAG,reflected}}]}},
+			    {slider,{color,Transmitted,
+				     [{key,{?TAG,transmitted}}]}}]},
+		   {vframe,[panel,
+			    {button,"Set Default",keep,
+			     [transmitted_hook({?TAG,transmitted})]}]}]},
+	  {"Grazing Angle Colors",Fresnel2,[{key,{?TAG,fresnel2}},
+					    layout]},
+	  {hframe,[{vframe,[{label,"Reflected"},
+			    {label,"Transmitted"}]},
+		   {vframe,[{slider,{color,Reflected2,
+				     [{key,{?TAG,reflected2}}]}},
+			    {slider,{color,Transmitted2,
+				     [{key,{?TAG,transmitted2}}]}}]},
+		   {vframe,[panel,
+			    {button,"Set Default",keep,
+			     [transmitted_hook({?TAG,transmitted2})]}]}],
+	   [bhook(maximized, {?TAG,fresnel2})]}],
+	 [{title,"Fresnel Parameters"},{minimized,FresnelMinimized},
+	  {key,{?TAG,fresnel_minimized}}]},
+    %%
     [{vframe,
-      [{hframe,[help_button(material_dialog)]},
-       {vframe,
-	[{hframe,[help_button({material_dialog,object}),
-		  {"Cast Shadow",Shadow,[{key,{?TAG,shadow}}]},
-		  {"Emit Rad",EmitRad,[{key,{?TAG,emit_rad}}]},
-		  {"Recv Rad",RecvRad,[{key,{?TAG,recv_rad}}]}]},
-	 {hframe,[{"Use Edge Hardness",UseHardness,[{key,{?TAG,use_hardness}}]},
-		  {"Caustic",Caus,[{key,{?TAG,caus}}]}]},
-	 {hframe,[{"Autosmooth",Autosmooth,[{key,{?TAG,autosmooth}}]},
-		  {label,"Angle"},
-		  {slider,{text,AutosmoothAngle,
-			   [{range,{0.0,180.0}},{width,5},
-			    {key,{?TAG,autosmooth_angle}}]}}]}],
-	[{title,"Object Parameters"},{minimized,ObjectMinimized},
-	 {key,{?TAG,object_minimized}}]},
-       {vframe,
-	[{hframe,[help_button({material_dialog,fresnel}),
-		  {label,"Index Of Refraction"},
-		  {text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]}]},
-	 {hframe,[{"Fast Fresnel",FastFresnel,[{key,{?TAG,fast_fresnel}}]},
-		  {"Total Internal Reflection",TIR,[{key,{?TAG,tir}}]}]},
-	 {hframe,[{label,"Minimum Reflection"},
-		  {slider,{text,MinRefle,[{range,{0.0,1.0}},{width,5},
-					  {key,{?TAG,min_refle}}]}}]},
-	 {hframe,[{vframe,[{label,"Reflected"},
-			   {label,"Transmitted"}]},
-		  {vframe,[{slider,{color,Reflected,
-				    [{key,{?TAG,reflected}}]}},
-			   {slider,{color,Transmitted,
-				    [{key,{?TAG,transmitted}}]}}]},
-		  {vframe,[panel,
-			   {button,"Set Default",keep,
-			    [transmitted_hook({?TAG,transmitted})]}]}]},
-	 {"Grazing Angle Colors",Fresnel2,[{key,{?TAG,fresnel2}},
-					   layout]},
-	 {hframe,[{vframe,[{label,"Reflected"},
-			   {label,"Transmitted"}]},
-		  {vframe,[{slider,{color,Reflected2,
-				    [{key,{?TAG,reflected2}}]}},
-			   {slider,{color,Transmitted2,
-				    [{key,{?TAG,transmitted2}}]}}]},
-		  {vframe,[panel,
-			   {button,"Set Default",keep,
-			    [transmitted_hook({?TAG,transmitted2})]}]}],
-	  [maximized_hook({?TAG,fresnel2})]}],
-	[{title,"Fresnel Parameters"},{minimized,FresnelMinimized},
-	 {key,{?TAG,fresnel_minimized}}]}
-       |modulator_dialogs(Modulators, Maps)],
+      [{hframe,[help_button(material_dialog),
+		{"Arealight",Arealight,[{key,{?TAG,arealight}},layout]}]},
+       {vframe,[ArealightVframe],
+	[bhook(maximized, {?TAG,arealight})]},
+       {vframe,[ObjectVframe,
+		FresnelVframe
+		|modulator_dialogs(Modulators, Maps)],
+	[bhook(minimized, {?TAG,arealight})]}],
       [{title,"YafRay Options"},{minimized,Minimized},
        {key,{?TAG,minimized}}]}].
 
@@ -423,11 +463,6 @@ rgba2rgb({R,G,B,_}) -> {R,G,B}.
 def_transmitted({Dr,Dg,Db,Da}) ->
     Dt = 1-Da,
     {Dr*Dt,Dg*Dt,Db*Dt}.
-
-maximized_hook(Tag) ->
-    {hook,fun (is_minimized, {_Var,_I,Sto}) ->
-		  not gb_trees:get(Tag, Sto);
-	      (_, _) -> void end}.
 
 transmitted_hook(Tag) ->
     {hook,fun (update, {_Var,_I,_Val,Sto}) ->
@@ -455,7 +490,7 @@ def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
 material_result(_Name, Mat0, [{{?TAG,minimized},_}|_]=Res0) ->
-    {Ps1,Res1} = split_list(Res0, 19),
+    {Ps1,Res1} = split_list(Res0, 24),
     Ps2 = [{Key,Val} || {{?TAG,Key},Val} <- Ps1],
     {Ps,Res} = modulator_result(Ps2, Res1),
     Mat = [{?TAG,Ps}|keydelete(?TAG, 1, Mat0)],
@@ -969,20 +1004,20 @@ export_dialog(Operation) ->
 		    {label,"Scale"}]},
 	   {vframe,[{text,AntinoiseRadius,[{range,{0.0,100.0}},
 					   {key,antinoise_radius},
-					   filter_hook(antinoise_filter)]},
+					   bhook(enabled, antinoise_filter)]},
 		    {text,NearBlur,[{range,{0.0,100.0}},{key,near_blur},
-				    filter_hook(dof_filter)]},
+				    bhook(enabled, dof_filter)]},
 		    {text,DofScale,[{range,{0.0,100.0}},{key,dof_scale},
-				    filter_hook(dof_filter)]}]}]}]},
+				    bhook(enabled, dof_filter)]}]}]}]},
        {vframe,[{label,"Fog Color"},
 		{label,"Max Delta"},
 		{label,"Far Blur"}]},
        {vframe,[{color,FogColor,[{key,fog_color}]},
 		{text,AntinoiseMaxDelta,[{range,{0.0,100.0}},
 					 {key,antinoise_max_delta},
-					 filter_hook(antinoise_filter)]},
+					 bhook(enabled, antinoise_filter)]},
 		{text,FarBlur,[{range,{0.0,100.0}},{key,far_blur},
-			       filter_hook(dof_filter)]}]}],
+			       bhook(enabled, dof_filter)]}]}],
       [{title,"Filters"}]}
      |
      case Operation of 
@@ -997,9 +1032,19 @@ export_dialog(Operation) ->
 	     []
      end].
 
-filter_hook(Type) ->
+bhook(Type, Tag) ->
     {hook,fun (is_disabled, {_Var,_I,Sto}) ->
-		  not gb_trees:get(Type, Sto);
+		  case Type of
+		      enabled -> not gb_trees:get(Tag, Sto);
+		      disabled -> gb_trees:get(Tag, Sto);
+		      _ -> void
+		  end;
+	      (is_minimized, {_Var,_I,Sto}) ->
+		  case Type of
+		      maximized -> not gb_trees:get(Tag, Sto);
+		      minimized -> gb_trees:get(Tag, Sto);
+		      _ -> void
+		  end;
 	      (_, _) -> void end}.
 
 
@@ -1025,31 +1070,52 @@ export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     io:format("Exporting to ~s~n", [ExportFile]),
     CameraName = "x_Camera",
     ConstBgName = "x_ConstBackground",
-    %%
     Lights = proplists:get_value(lights, Attr, []),
+    %%
     println(F, "<!-- ~s: Exported from ~s -->~n"++
 	    "~n"++
 	    "<scene>", [filename:basename(ExportFile), Creator]),
     %%
     section(F, "Shaders"),
-    foreach(fun ({Name, Mat}) -> 
-		    export_shader(F, "w_"++format(Name), Mat,
-				  ExportDir),
-		    println(F)
-	    end, 
-	    Mats),
+    MatsGb =
+	  foldl(fun ({Name,Mat}, Gb) -> 
+			case export_shader(F, "w_"++format(Name), Mat,
+					   ExportDir) of
+			    shader -> 
+				println(F),
+				gb_trees:insert(Name, Mat, Gb);
+			    arealight -> Gb
+			end
+		end, gb_trees:empty(), Mats),
+    AlMatsGb =
+	foldl(fun ({Name,Mat}, Gb) ->
+		      case gb_trees:is_defined(Name, MatsGb) of
+			  true -> Gb;
+			  false -> gb_trees:insert(Name, Mat, Gb)
+		      end
+	      end, gb_trees:empty(), Mats),
     %%
     section(F, "Objects"),
-    foreach(fun (#e3d_object{name=Name,obj=Mesh}) ->
-		    export_object(F, "w_"++format(Name), Mesh, Mats),
-		    println(F)
-	    end,
-	    Objs),
+    AlObjs = 
+	reverse(
+	  foldl(fun (Obj=#e3d_object{name=Name,obj=Mesh}, Als) ->
+			case export_object(F, "w_"++format(Name), Mesh, 
+					   MatsGb) of
+			    #e3d_mesh{fs=[]} ->
+				println(F),
+				Als;
+			    Al -> [Obj#e3d_object{obj=Al}|Als]
+			end
+		end, [], Objs)),
     %%
     section(F, "Lights"),
+    foreach(fun (#e3d_object{name=Name,obj=Mesh}) ->
+		    export_arealights(F, "w_"++format(Name), Mesh, AlMatsGb),
+		    println(F)
+	    end, AlObjs),
     BgLights = 
 	reverse(
-	  foldl(fun ({Name, Ps}=Light, Bgs) -> 
+	  foldl(fun ({Name,Ps}=Light, Bgs) -> 
 			Bg = export_light(F, "w_"++format(Name), Ps),
 			println(F),
 			case Bg of
@@ -1236,11 +1302,18 @@ section(F, Name) ->
     println(F, [io_lib:nl(),"<!-- Section ",Name," -->",io_lib:nl()]).
 
 
-
 export_shader(F, Name, Mat, ExportDir) ->
+    YafRay = proplists:get_value(?TAG, Mat, []),
+    case proplists:get_value(arealight, YafRay, ?DEF_AREALIGHT) of
+	true -> arealight;
+	false -> 
+	    export_shader_1(F, Name, Mat, ExportDir, YafRay),
+	    shader
+    end.
+
+export_shader_1(F, Name, Mat, ExportDir, YafRay) ->
     Maps = proplists:get_value(maps, Mat, []),
     OpenGL = proplists:get_value(opengl, Mat),
-    YafRay = proplists:get_value(?TAG, Mat, []),
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     foldl(fun ({modulator,Ps}=M, N) when list(Ps) ->
 		  case export_texture(F, [Name,$_,format(N)], 
@@ -1419,11 +1492,27 @@ export_rgb(F, Type, {R,G,B}) ->
 
 
 
-export_object(F, NameStr, Mesh0=#e3d_mesh{fs=Fs0,he=He0}, Mats) ->
+%% Return object with arealight faces only
+%%
+export_object(F, NameStr, Mesh0=#e3d_mesh{fs=Fs0}, MatsGb) ->
+    %% Remove arealight faces
+    {Fs1,FsAl} = 
+	filter2(
+	  fun (#e3d_face{mat=[M|_]}) -> gb_trees:is_defined(M, MatsGb) end,
+	  Fs0),
+    MeshAl = Mesh0#e3d_mesh{fs=FsAl},
     %% Find the default material
     MM = sort(foldl(fun (#e3d_face{mat=[M|_]}, Ms) -> [M|Ms] end, [], Fs0)),
-    [{_Count,DefaultMaterial}|_] = reverse(sort(count_equal(MM))),
-    MatPs = proplists:get_value(DefaultMaterial, Mats, []),
+    case reverse(sort(count_equal(MM))) of
+	[] -> MeshAl;
+	[{_Count,DefaultMaterial}|_] ->
+	    Mesh1 = Mesh0#e3d_mesh{fs=Fs1},
+	    MatPs = gb_trees:get(DefaultMaterial, MatsGb),
+	    export_object_1(F, NameStr, Mesh1, DefaultMaterial, MatPs),
+	    MeshAl
+    end.
+
+export_object_1(F, NameStr, Mesh0=#e3d_mesh{he=He0}, DefaultMaterial, MatPs) ->
     OpenGL = proplists:get_value(opengl, MatPs),
     YafRay = proplists:get_value(?TAG, MatPs, []),
     UseHardness = proplists:get_value(use_hardness, YafRay, ?DEF_USE_HARDNESS),
@@ -1489,6 +1578,7 @@ export_object(F, NameStr, Mesh0=#e3d_mesh{fs=Fs0,he=He0}, Mats) ->
 	    "    </mesh>~n"++
 	    "</object>", []),
     io:format("done~n").
+
 
 
 export_vertices(_F, []) ->
@@ -1573,6 +1663,66 @@ export_faces(F, [#e3d_face{vs=[A,B,C],vc=VCols,tx=Tx,mat=[Mat|_]}|T],
 		"\" b=\"",format(B),"\" c=\"",format(C),"\"",
 		Shader,UV,VCol,"/>"]),
     export_faces(F, T, DefaultMaterial, TxT, VColT).
+
+
+
+export_arealights(F, NameStr, #e3d_mesh{fs=Fs,vs=Vs}, AlMatsGb) ->
+    export_arealight_faces(F, NameStr, Fs, AlMatsGb, Vs, list_to_tuple(Vs), 1).
+
+export_arealight_faces(_F, _NameStr, [], _AlMatsGb, _Vs, _VsT, _I) -> ok;
+export_arealight_faces(F, NameStr, [Face0=#e3d_face{mat=[Mat|_]}|Faces], 
+		       AlMatsGb, Vs, VsT, I) ->
+    Fs = e3d_mesh:quadrangulate_face(Face0, Vs),
+    MatPs = gb_trees:get(Mat, AlMatsGb),
+    J = export_arealight_faces_1(F, NameStr, Fs, MatPs, I, VsT),
+    export_arealight_faces(F, NameStr, Faces, AlMatsGb, Vs, VsT, J).
+
+export_arealight_faces_1(_F, _NameStr, [], _MatPs, I, _VsT) -> I;
+export_arealight_faces_1(F, NameStr, [#e3d_face{vs=Vs}|Faces], MatPs, I, VsT) ->
+    [A,B,C,D] = fix_quad(Vs, VsT),
+    NameStrI = NameStr++"_"++integer_to_list(I),
+    %%
+    OpenGL = proplists:get_value(opengl, MatPs),
+    Emission = rgba2rgb(proplists:get_value(emission, OpenGL)),
+    YafRay = proplists:get_value(?TAG, MatPs, []),
+    Power = proplists:get_value(power, YafRay, ?DEF_ATTN_POWER),
+    ArealightSamples = proplists:get_value(arealight_samples, YafRay, 
+					   ?DEF_AREALIGHT_SAMPLES),
+    ArealightPsamples = proplists:get_value(arealight_psamples, YafRay, 
+					    ?DEF_AREALIGHT_PSAMPLES),
+    Dummy = proplists:get_value(dummy, YafRay, ?DEF_DUMMY),
+    %%
+    println(F, "<light type=\"arealight\" name=\"~s\" power=\"~.3f\"~n"
+	    "       samples=\"~w\" psamples=\"~w\" dummy=\"~s\">", 
+	    [NameStrI,Power,ArealightSamples,ArealightPsamples,format(Dummy)]),
+    export_rgb(F, color, Emission),
+    export_pos(F, a, A),
+    export_pos(F, b, B),
+    export_pos(F, c, C),
+    export_pos(F, d, D),
+    println(F, "</light>"),
+    %%
+    export_arealight_faces_1(F, NameStr, Faces, MatPs, I+1, VsT).
+
+%% Cut the longest edge of a triangle in half to make it a quad.
+%%
+fix_quad([V1,V2,V3], VsT) -> 
+    P1 = element(V1+1, VsT),
+    P2 = element(V2+1, VsT),
+    P3 = element(V3+1, VsT),
+    [L12,L23,L31] = 
+	[e3d_vec:dot(L, L) || 
+	    L <- [e3d_vec:sub(P1, P2),e3d_vec:sub(P2, P3),
+		  e3d_vec:sub(P3, P1)]],
+    if L23 > L31 ->
+	    if L12 > L23 -> [P1,e3d_vec:average([P1,P2]),P2,P3];
+	       true -> [P1,P2,e3d_vec:average([P2,P3]),P3]
+	    end;
+       true -> [P1,P2,P3,e3d_vec:average([P3,P1])]
+    end;
+fix_quad([V1,V2,V3,V4], VsT) -> 
+    [element(V1+1, VsT),element(V2+1, VsT),
+     element(V3+1, VsT),element(V4+1, VsT)].
 
 
 
@@ -2166,6 +2316,17 @@ split_list1([], _Pos, _) ->
 split_list1([H|T], Pos, Head) ->
     split_list1(T, Pos-1, [H|Head]).
 
+%% {lists:filter(Pred, List),lists:filter(fun(X) -> not Pred(X) end, List)}
+filter2(Pred, List) -> filter2_1(Pred, List, [], []).
+%%
+filter2_1(_Pred, [], True, False) ->
+    {reverse(True),reverse(False)};
+filter2_1(Pred, [H|T], True, False) ->
+    case Pred(H) of
+	true -> filter2_1(Pred, T, [H|True], False);
+	false -> filter2_1(Pred, T, True, [H|False])
+    end.
+
 now_diff({A1,B1,C1}, {A2,B2,C2}) ->
     (A1-A2)*1000000.0 + float(B1-B2) + (C1-C2)*0.000001.
 
@@ -2202,11 +2363,25 @@ help_button(Subject) ->
 help(title, material_dialog) ->
     "YafRay Material Properties";
 help(text, material_dialog) ->
-    [<<"Each Material create a YafRay shader. The OpenGL properties "
-      "that map to YafRay shader parameters are:">>,
+    [<<"Each Material except an Arealight Material creates a YafRay shader. "
+      "The OpenGL properties that map to YafRay shader parameters are:">>,
      <<"Diffuse * Opacity -> 'color'.">>,
      <<"Specular -> 'specular'.">>,
-     <<"Shininess * 128-> 'hard'.">>];
+     <<"Shininess * 128-> 'hard'.">>,
+     <<"An Arealight Material creates a YafRay arealight for each face "
+      "it is applied to. You probably want to keep the face count down. "
+      "Beware of subdividing such a face. Also note that a YafRay arealight "
+      "has got 4 vertices.">>];
+help(title, {material_dialog,arealight}) ->
+    "YafRay Material Properties. Arealight Parameters";
+help(text, {material_dialog,arealight}) ->
+    [<<"OpenGL properties that map to YafRay arealight parameters are:">>,
+     <<"Emission -> 'color'">>,
+     <<"Other Yafray arealight parameters mapping:">>,
+     <<"Power -> 'power'">>,
+     <<"Global Photonlight Dummy -> 'dummy'">>,
+     <<"Samples -> 'samples'">>,
+     <<"Penumbra Samples -> 'psamples'">>];
 help(title, {material_dialog,object}) ->
     "YafRay Material Properties: Object Parameters";
 help(text, {material_dialog,object}) ->
