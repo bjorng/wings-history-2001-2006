@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.159 2004/01/01 15:17:35 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.160 2004/01/04 10:32:23 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -628,7 +628,7 @@ field_event(Ev, S=#s{focus=_I,fi=TopFi=#fi{w=W0,h=H0},store=Store0},
 		{W0,H0} -> ok;
 		_ -> 
 		    Size = {W+2*?HMARGIN,H+2*?VMARGIN},
-		    resize_maybe_move(Size)
+		    maybe_resize_move(Size)
 	    end,
 	    ?DEBUG_DISPLAY(other, {W,H}),
 	    get_event(next_focus(0, S#s{w=W,h=H,focusable=Focusable,
@@ -643,8 +643,12 @@ field_event(Ev, S=#s{focus=_I,fi=TopFi=#fi{w=W0,h=H0},store=Store0},
 	    delete(S)
     end.
 
-resize_maybe_move({W,H0}=Size) ->
+maybe_resize_move({W,H0}=Size0) ->
     This = wings_wm:this(),
+    Size = case wings_wm:win_size(This) of
+	       {OldW,OldH}=OldSize when W =< OldW, H0 =< OldH -> OldSize;
+	       _ -> Size0
+	   end,
     {{X1,Y1},{_,H1}} = wings_wm:win_rect({controller,This}),
     H = H0+H1,
     {{X3,Y3},{W3,H3}} = wings_wm:win_rect(desktop),
@@ -655,8 +659,7 @@ resize_maybe_move({W,H0}=Size) ->
 	    Y1+H > H3 -> H3-H;
 	    true -> Y1 end,
     wings_wm:move(This, {X,Y+H1}, Size).
-    
-		
+
 
 return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto,
 		 level=Level,grab_win=GrabWin}=S0) ->
@@ -674,7 +677,7 @@ return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto,
 	    delete(S0);
 	{dialog,Qs,Fun} ->
 	    S = #s{w=W,h=H} = setup_dialog(Qs, Fun),
-	    resize_maybe_move({W,H}),
+	    maybe_resize_move({W,H}),
 	    get_event(S#s{level=Level,grab_win=GrabWin,owner=Owner});
 	Action when is_tuple(Action); is_atom(Action) ->
 	    ?DEBUG_DISPLAY(other, {return_result,[Owner,{action,Action}]}),
