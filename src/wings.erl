@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.254 2003/06/30 06:23:39 bjorng Exp $
+%%     $Id: wings.erl,v 1.255 2003/07/02 18:45:12 bjorng Exp $
 %%
 
 -module(wings).
@@ -1257,13 +1257,12 @@ button_redraw(#but{mode=Mode,buttons=Buttons,sh=Sh0}) ->
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(),
     wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
-    gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    foreach(fun({X,Name}) ->
-		    wings_io:draw_icon(X, 3, button_value(Name, Mode, Sh))
-	    end, Buttons),
-    gl:bindTexture(?GL_TEXTURE_2D, 0),
-    gl:disable(?GL_TEXTURE_2D),
+    wings_io:draw_icons(
+      fun() ->
+	      foreach(fun({X,Name}) ->
+			      wings_io:draw_icon(X, 3, button_value(Name, Mode, Sh))
+		      end, Buttons)
+      end),
     button_redraw_sh(Sh, Buttons).
 
 button_redraw_sh(false, _) -> ok;

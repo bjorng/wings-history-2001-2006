@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.113 2003/07/02 16:39:57 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.114 2003/07/02 18:45:12 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -1132,10 +1132,7 @@ message_redraw(Msg, Right) ->
     keep.
 
 draw_resizer(X, Y) ->
-    gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    wings_io:draw_icon(X, Y, resize),
-    gl:disable(?GL_TEXTURE_2D).
+    wings_io:draw_icons(fun() -> wings_io:draw_icon(X, Y, resize) end).
 
 message_setup() ->
     wings_io:ortho_setup(?PANE_COLOR),

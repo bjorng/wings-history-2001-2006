@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.53 2003/07/02 16:39:57 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.54 2003/07/02 18:45:12 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -332,14 +332,11 @@ handle_splash_event(redraw) ->
     {Xs,Ys} = wings_wm:win_size(),
     wings_io:raised_rect(0, 0, Xs, Ys),
     gl:recti(3, 3, Xs-3, Ys-3),
-    gl:color3f(1.0, 1.0, 1.0),
+    gl:color3f(1, 1, 1),
     gl:recti(4, 4, Xs-4, Ys-4),
-    gl:color3f(1.0, 0.0, 1.0),
-    gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    wings_io:draw_icon(10, 10, wings),
-    gl:disable(?GL_TEXTURE_2D),
-    gl:color3f(0.0, 0.0, 0.0),
+    gl:color3f(1, 0, 1),
+    wings_io:draw_icons(fun() -> wings_io:draw_icon(10, 10, wings) end),
+    gl:color3b(0, 0, 0),
     wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION),
     wings_io:text_at(10, 180, "http://www.wings3d.com"),
     keep;

@@ -15,7 +15,7 @@
 %%
 %% Original Author: Bjorn Gustavsson
 %% 
-%%     $Id: collect_bmp.erl,v 1.2 2001/10/18 16:06:51 bjorng Exp $
+%%     $Id: collect_bmp.erl,v 1.3 2003/07/02 18:45:12 bjorng Exp $
 %%
 
 -module(collect_bmp).
@@ -43,14 +43,29 @@ loadTexture(File) ->
     {ok,Bin0} = file:read_file(File),
     <<$B:8,$M:8,_:8/binary,Offset:32/little,Bin/binary>> = Bin0,
     <<_:32/little,W:32/little,H:32/little,
-     _:16,BitCount:16/little,Compression:16/little,_/binary>> = Bin,
+     _:16,BitCount:16/little,Compression:32/little,
+     ImageSize:32/little,_/binary>> = Bin,
     BitCount = 24,
     Compression = 0,
-    PixelsLen = H*W*3,
+    RowLength = W * 3 + pad_len(W * 3, 4),
+    PixelsLen = H * RowLength,
     <<_:Offset/binary,Pixels0:PixelsLen/binary,_/binary>> = Bin0,
-    Pixels = shuffle_colors(Pixels0, []),
+    Pixels1 = skip_padding(Pixels0, 3*W, pad_len(W * 3, 4), []),
+    Pixels = shuffle_colors(Pixels1, []),
     {W,H,Pixels}.
+
+skip_padding(<<>>, _, _, Acc) ->
+    list_to_binary(reverse(Acc));
+skip_padding(B, Bytes, Skip, Acc) ->
+    <<Row:Bytes/binary,_:Skip/binary,Rest/binary>> = B,
+    skip_padding(Rest, Bytes, Skip, [Row|Acc]).
 
 shuffle_colors(<<B:8,G:8,R:8,T/binary>>, Acc) ->
     shuffle_colors(T, [[R,G,B]|Acc]);
 shuffle_colors(<<>>, Acc) -> list_to_binary(reverse(Acc)).
+
+pad_len(RL, Align) ->
+    case RL rem Align of
+	0 -> 0;
+	Rem -> Align - Rem
+    end.	     	   

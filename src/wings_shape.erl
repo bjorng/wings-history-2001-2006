@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.65 2003/07/02 16:39:57 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.66 2003/07/02 18:45:12 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -482,12 +482,11 @@ draw_objects_1(N, [#we{name=Name}|Wes],
 
 draw_icons(N, Objs, Ost, R, I, Y) ->
     {_,Client} = wings_wm:this(),
-    gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     Wires = wings_wm:get_prop(Client, wireframed_objects),
-    wings_draw_util:fold(fun draw_icons_1/2, {N,Objs,Ost,R,I,Y,Wires}),
-    gl:bindTexture(?GL_TEXTURE_2D, 0),
-    gl:disable(?GL_TEXTURE_2D).
+    DrawData = {N,Objs,Ost,R,I,Y,Wires},
+    wings_io:draw_icons(fun() ->
+				wings_draw_util:fold(fun draw_icons_1/2, DrawData)
+			end).
 
 draw_icons_1(_, done) -> done;
 draw_icons_1(_, {0,_,_,_,_,_,_}) -> done;

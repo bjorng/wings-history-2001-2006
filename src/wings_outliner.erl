@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.39 2003/07/02 16:39:57 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.40 2003/07/02 18:45:12 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -495,11 +495,7 @@ draw_objects_1(N, [O|Objs], #ost{lh=Lh}=Ost, R, Active, Y) ->
     draw_objects_1(N-1, Objs, Ost, R, Active-1, Y+Lh).
 
 draw_icons(N, Objs, Ost, Y) ->
-    gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    draw_icons_1(N, Objs, Ost, Y-14),
-    gl:bindTexture(?GL_TEXTURE_2D, 0),
-    gl:disable(?GL_TEXTURE_2D).
+    wings_io:draw_icons(fun() -> draw_icons_1(N, Objs, Ost, Y-14) end).
     
 draw_icons_1(0, _, _, _) -> ok;
 draw_icons_1(N, [ignore|Objs], #ost{lh=Lh}=Ost, Y) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.31 2003/07/02 16:39:57 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.32 2003/07/02 18:45:12 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -648,11 +648,7 @@ new_closer(Client) ->
 
 close_event(redraw) ->
     wings_io:ortho_setup(),
-    gl:enable(?GL_TEXTURE_2D),
-    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    wings_io:draw_icon(0, 0, small_close),
-    gl:bindTexture(?GL_TEXTURE_2D, 0),
-    gl:disable(?GL_TEXTURE_2D),
+    wings_io:draw_icons(fun() -> wings_io:draw_icon(0, 0, small_close) end),
     keep;
 close_event(got_focus) ->
     wings_wm:message("Close this window"),
