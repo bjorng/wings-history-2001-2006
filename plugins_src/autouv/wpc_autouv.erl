@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.238 2004/05/10 13:49:59 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.239 2004/05/11 06:08:14 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -545,6 +545,7 @@ handle_command(_, #st{sel=[]}) ->
     keep.
 
 drag({drag,Drag}) ->
+    wings:mode_restriction([vertex,edge,face,body]),
     wings_wm:set_prop(show_info_text, true),
     wings_drag:do_drag(Drag, none).
 

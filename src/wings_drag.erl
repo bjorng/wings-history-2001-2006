@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.181 2004/04/26 14:42:39 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.182 2004/05/11 06:08:16 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -322,16 +322,21 @@ gl_rescale_normal() ->
 
 help_message(#drag{unit=Unit,mode_fun=ModeFun,mode_data=ModeData}) ->
     Accept = wings_util:button_format("Accept"),
-    ZMsg = case length(Unit) > 2 of
-	       false -> [];
-	       true -> zmove_help("Drag to Move along Z")
-	   end,
+    ZMsg = zmove_help(Unit),
     Cancel = wings_util:button_format([], [], "Cancel"),
     Msg = wings_camera:join_msg([Accept,ZMsg,Cancel]),
     MsgRight = ModeFun(help, ModeData),
     wings_wm:message(Msg, MsgRight).
 
-zmove_help(Msg) ->
+zmove_help([_]) -> [];
+zmove_help([_,_]) -> [];
+zmove_help([_,_,falloff]) -> [];
+zmove_help([_,_,dz|_]) ->
+    zmove_help_1("Drag to move along Z");
+zmove_help([_,_,_|_]) ->
+    zmove_help_1("Drag to adjust third parameter").
+
+zmove_help_1(Msg) ->
     case wings_pref:get_value(camera_mode) of
 	tds -> wings_camera:mod_format(?CTRL_BITS, 3, Msg);
 	blender -> wings_camera:mod_format(?CTRL_BITS, 3, Msg);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.53 2004/04/18 06:13:15 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.54 2004/05/11 06:08:16 bjorng Exp $
 %%
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
@@ -383,6 +383,26 @@ magnet_move_fun(free, VsInf0, {_,R}=Magnet0) ->
 		      [{V,Pos}|A]
 	      end, Acc, VsInf0)
     end;
+magnet_move_fun(free_2d, VsInf0, {_,R}=Magnet0) ->
+    fun(view_changed, We) ->
+	    VsInf = wings_util:update_vpos(VsInf0, We),
+	    magnet_move_fun(free_2d, VsInf, Magnet0);
+       (new_falloff, Falloff) ->
+	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet0),
+	    magnet_move_fun(free_2d, VsInf, Magnet0);
+       (new_mode_data, {Type,Falloff}) ->
+	    Magnet = {Type,R},
+	    VsInf = wings_magnet:recalc(Falloff, VsInf0, Magnet),
+	    magnet_move_fun(free_2d, VsInf, Magnet);
+       ([Dx,Dy,_|_], Acc) ->
+	    M = view_matrix(),
+	    foldl(
+	      fun({V,{Px,Py,Pz},_,Inf}, A) ->
+		      {Xt,Yt,_} = e3d_mat:mul_point(M, {Dx*Inf,Dy*Inf,0.0}),
+		      Pos = wings_util:share(Px+Xt, Py+Yt, Pz),
+		      [{V,Pos}|A]
+	      end, Acc, VsInf0)
+    end;
 magnet_move_fun(VsVec, VsInf0, {_,R}=Magnet0) ->
     %% Move each element along its own normal.
     fun(new_falloff, Falloff) ->
@@ -440,6 +460,6 @@ view_matrix() ->
     M = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
     e3d_mat:mul(M, e3d_mat:rotate(-El, {1.0,0.0,0.0})).
 
-make_vector(free_2d) -> free;
+make_vector(free_2d) -> free_2d;
 make_vector(Vec) -> wings_util:make_vector(Vec).
     
