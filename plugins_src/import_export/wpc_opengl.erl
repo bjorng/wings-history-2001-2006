@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.52 2003/11/23 17:20:43 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.53 2003/11/25 21:15:11 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -494,7 +494,6 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:depthFunc(?GL_EQUAL),
     setup_light(L),
     gl:enable(?GL_LIGHTING),
-    enable_shaders(L#light.pos,L#light.type),
     foreach(fun(DL) -> 
 		    case is_transp(DL) of
 			true -> 
@@ -517,7 +516,6 @@ draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
 	    end, DLs),
     gl:blendFunc(?GL_ONE, ?GL_ONE),
     gl:disable(?GL_LIGHTING),
-    disable_shaders(),
     disable_lights(),
     %%    debug_shad(Shadow),
     true.
@@ -946,8 +944,7 @@ create_bumped(#d{matfs=MatFs,we=We},true,Mtab,#light{pos=LPos, type=Type}) ->
 		infinite -> dir;
 		_ -> pos
 	    end,
-    {_, InvPos} = mult_inverse_model_transform(LPos),
-    draw_faces(MatFs, We, Mtab, {LType,InvPos}).
+    draw_faces(MatFs, We, Mtab, {LType,LPos}).
 
 mult_inverse_model_transform(Pos) ->
     #view{origin=Origin,distance=Dist,azimuth=Az,
@@ -1008,7 +1005,8 @@ do_draw_smooth(MatN, Faces, We, L, Mtab) ->
 	    do_draw_faces(Faces, IsTxMat, We),
 	    gl:'end'(),
 	    gl:popAttrib();
-	_ -> 
+	_ ->
+	    enable_shaders(L),
 	    Pable = case programmable() of
 			true -> pable;
 			false -> L
@@ -1017,6 +1015,7 @@ do_draw_smooth(MatN, Faces, We, L, Mtab) ->
 	    gl:'begin'(?GL_TRIANGLES),
 	    do_draw_bumped(Faces, true, We, Pable),
 	    gl:'end'(),
+	    disable_shaders(),
 	    disable_bumps(),
 	    gl:popAttrib()
     end.
@@ -1273,7 +1272,7 @@ disable_bumps() ->
     gl:activeTexture(?GL_TEXTURE3),
     gl:disable(?GL_TEXTURE_2D).
 
-enable_shaders({Lx,Ly,Lz},Type) ->
+enable_shaders({_Type, {Lx,Ly,Lz}}) ->
     case get(gl_shaders) of
 	{Vp,Fp} ->	    
 	    {_InvMV,{Cx,Cy,Cz}} = mult_inverse_model_transform({0.0,0.0,0.0}),
@@ -1281,7 +1280,9 @@ enable_shaders({Lx,Ly,Lz},Type) ->
 	    gl:bindProgramARB(?GL_FRAGMENT_PROGRAM_ARB,Fp),
 	    gl:enable(?GL_VERTEX_PROGRAM_ARB),
 	    gl:bindProgramARB(?GL_VERTEX_PROGRAM_ARB,Vp),
-	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,0,Lx,Ly,Lz,1.0),
+%% 	    io:format("L[~.2f,~.2f,~.2f] C[~.2f,~.2f,~.2f]~n",
+%% 		      [Lx,Ly,Lz,Cx,Cy,Cz]),
+	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,0,Lx,Ly,Lz,0.0),
 	    gl:programEnvParameter4fARB(?GL_VERTEX_PROGRAM_ARB,1,Cx,Cy,Cz,0);	
 	_ ->
 	    ok
@@ -1298,8 +1299,8 @@ disable_shaders() ->
     end.
 
 load_shaders() ->
-    VP = load_program(?GL_VERTEX_PROGRAM_ARB,list_to_binary(vertex_prog())),
-    FP = load_program(?GL_FRAGMENT_PROGRAM_ARB,list_to_binary(fragment_prog())),
+    VP = load_program(?GL_VERTEX_PROGRAM_ARB,vertex_prog()),
+    FP = load_program(?GL_FRAGMENT_PROGRAM_ARB,fragment_prog()),
     Shaders = {VP,FP},
     put(gl_shaders, Shaders),
     Shaders.
@@ -1316,9 +1317,8 @@ load_program(Target, Prog) ->
 	    exit(prog_error)
     end.   
 
-% PARAM transform[4] = { state.matrix.modelview.inverse };
 vertex_prog() ->
-    "!!ARBvp1.0
+    <<"!!ARBvp1.0
 
 PARAM mvp[4] = { state.matrix.mvp };
 
@@ -1330,7 +1330,7 @@ ATTRIB normal = vertex.normal;
 ATTRIB tangent = vertex.texcoord[0];
 ATTRIB st = vertex.texcoord[1];
 
-TEMP dir, binormal;
+TEMP dir, binormal, ldist2, temp, cam;
 
 XPD binormal, tangent, normal;
 
@@ -1340,16 +1340,20 @@ DP4 result.position.z, mvp[2], xyz;
 DP4 result.position.w, mvp[3], xyz;
 
 SUB dir, light, xyz;
-DP3 dir.w, dir, dir;
-RSQ dir.w, dir.w;
+DP3 ldist2, dir, dir;
+RSQ dir.w, ldist2;
 MUL dir.xyz, dir, dir.w;
 
 DP3 result.texcoord[1].x, tangent, dir;
 DP3 result.texcoord[1].y, binormal, dir;
 DP3 result.texcoord[1].z, normal, dir;
+MOV result.texcoord[1].w, ldist2;
 
-SUB dir, light, xyz;
-ADD dir, camera, dir;
+SUB cam, camera, xyz;
+DP3 cam.w, cam, cam;
+RSQ cam.w, cam.w;
+MUL cam.xyz, cam, cam.w;
+ADD dir, cam, dir;
 DP3 dir.w, dir, dir;
 RSQ dir.w, dir.w;
 MUL dir.xyz, dir, dir.w;
@@ -1361,10 +1365,10 @@ DP3 result.texcoord[2].z, normal, dir;
 MOV result.texcoord[0], st;
 
 END
-".
+">>.
 
 fragment_prog() ->
-    "!!ARBfp1.0
+    <<"!!ARBfp1.0
 
 PARAM param = { 2.0, -1.0, 0.0, 0.0 };
 
@@ -1376,32 +1380,55 @@ PARAM matshin  = state.material.shininess;
 PARAM ldiff = state.light[0].diffuse;
 PARAM lspec = state.light[0].specular;
 
-TEMP base, dot3, gloss, diffuse, specular;
+TEMP base, dot3, gloss, color, diffuse, specular, lvec, ldist2, att;
+
+# Attenuation
+MOV ldist2, fragment.texcoord[1].w;
+MAD att, state.light[0].attenuation.z, ldist2, state.light[0].attenuation.x;
+RSQ ldist2.w, ldist2.w;
+RCP ldist2.z, ldist2.w;
+MAD att, ldist2.z, state.light[0].attenuation.y, att.x;
+RCP att.x, att.x;
 
 TEX base,  fragment.texcoord[0], texture[0], 2D;
 TEX dot3,  fragment.texcoord[0], texture[1], 2D;
 TEX gloss, fragment.texcoord[0], texture[2], 2D;
+
 # ReCalc RGB to XYZ 
 MAD dot3, dot3, param.x, param.y;
 # Normalize
 DP3 dot3.w, dot3, dot3;
 RSQ dot3.w, dot3.w;
 MUL dot3.xyz, dot3, dot3.w;
-# Multiply Bump with ligth vectors
-DP3_SAT diffuse, fragment.texcoord[1], dot3;
-DP3_SAT specular, fragment.texcoord[2], dot3;
+
+# Multiply Bump with ligth vectors 
+MOV lvec, fragment.texcoord[1];
+DP3 lvec.w, lvec, lvec;
+RSQ lvec.w, lvec.w;
+MUL lvec.xyz, lvec, lvec.w;
+
+DP3_SAT diffuse, lvec, dot3;
+
+MOV lvec, fragment.texcoord[2];
+DP3 lvec.w, lvec, lvec;
+RSQ lvec.w, lvec.w;
+MUL lvec.xyz, lvec, lvec.w;
+
+DP3_SAT specular, lvec, dot3;
 
 POW specular, specular.x, matshin.x;
 
 MUL specular, specular, gloss;
 MUL specular, specular, matspec;
 MUL specular, specular, lspec;
-MUL base, base, matdiff;
-MUL base, base, ldiff;
+MUL color, base, matdiff;
+MUL color, color, ldiff;
 
-MAD result.color, base, diffuse, specular;
+MAD color, color, diffuse, specular;
+MAD color.xyz, color, att.x, matemm;
+MOV result.color, color;
 
 END
-".
+">>.
 
 
