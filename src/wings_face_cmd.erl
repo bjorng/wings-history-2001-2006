@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.66 2002/12/15 21:58:44 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.67 2002/12/17 19:58:55 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -780,7 +780,8 @@ do_bridge(N, Va0, FaceA, IterA0, Vb0, FaceB, IterB0, Ids0, We0) ->
 			  rf=RightFace,rtpr=EdgeB,rtsu=EdgeA},
     Etab = gb_trees:enter(NewEdge, NewRec, Etab3),
 
-    FaceRec = #face{edge=NewEdge},
+    FaceRec0 = gb_trees:get(FaceA, Ftab0),	%Pick up material.
+    FaceRec = FaceRec0#face{edge=NewEdge},
     Ftab = gb_trees:insert(RightFace, FaceRec, Ftab0),
     
     We = We0#we{es=Etab,fs=Ftab},
