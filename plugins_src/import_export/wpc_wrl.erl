@@ -8,13 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.5 2002/05/03 22:57:45 seanhinde Exp $
+%%     $Id: wpc_wrl.erl,v 1.6 2002/06/09 18:40:43 bjorng Exp $
 %%
 
 -module(wpc_wrl).
 -author('Sean Hinde').
 
-%-compile(export_all).
 -export([init/0, menu/2, command/2]).
 -import(lists, [foreach/2, foldl/3, map/2]).
 -include("e3d.hrl").
@@ -33,9 +32,8 @@ command({file, {export, wrl}}, St) ->
     wpa:export(Props, fun export/2, St);
 command({file, {export_selected, wrl}}, St) ->
     Props = props(),
-    wpa:export(Props, fun export/2, St);
-command(Cmd, _) ->
-    next.
+    wpa:export_selected(Props, fun export/2, St);
+command(_, _) -> next.
 
 menu_entry(Menu) ->
     Menu ++ [{"VRML 2.0 (.wrl)", wrl}].
@@ -46,14 +44,11 @@ props() ->
 %% The intent is to create each object from
 %% a sequence of Shapes. Each "sub Shape" will consist of all the
 %% faces and vertices for one material..
-export(File_name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}=St) ->
+export(File_name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
     %io:format("~p~n~p~n",[Objs, Mat]),
     {ok,F} = file:open(File_name, [write]),
     io:format(F, "#VRML V2.0 utf8\n", []),
     io:format(F, "#Exported from ~s\n",[Creator]),
-    %foreach(fun(Mt) ->
-%		    def_material(F, Mt)
-	%    end, Mat),
     foldl(fun(#e3d_object{name = Name, obj=Obj}, Used_mats0) ->
 		  io:format(F, "DEF ~s Transform {\n",[clean_id(Name)]),
 		  io:format(F, "  children [\n",[]),
@@ -66,26 +61,27 @@ export(File_name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}=St) ->
 
 
 
-% A first adventure into sofs. They seem extremely powerful if
-% I could only make any sense of the documentation ;)
-export_object(F, #e3d_mesh{fs=Fs,vs=Vs}, Mat_defs, Used_mats0) ->
+export_object(F, #e3d_mesh{fs=Fs,vs=Vs,vc=[]}, Mat_defs, Used_mats0) ->
+    %% A first adventure into sofs. They seem extremely powerful if
+    %% I could only make any sense of the documentation ;)
+
     Rel = map(fun(#e3d_face{mat=[Mat0], vs=Vs1}) ->
 		      {Mat0, Vs1}
 	      end, Fs),
 
     % Make a set of all vertices involved in 
     % any way with each material              e.g. of structure at each stage:
-    R = sofs:relation(Rel, [{atom, [atom]}]), %[{r,[1,2]},{g,[1,3]},{g,[3,4,5]}]
-    FR = sofs:relation_to_family(R),          %[{r,[[1,2]]},{g,[[1,3],[3,4,5]]}]
-    FU = sofs:family_union(FR),               %[{r,[1,2]},{g,[1,3,4,5]}]
-    Mats = sofs:to_external(FU),
+    R = sofs:relation(Rel, [{mat, [vertex]}]),	%[{r,[1,2]},{g,[1,3]},{g,[3,4,5]}]
+    FR = sofs:relation_to_family(R),		%[{r,[[1,2]]},{g,[[1,3],[3,4,5]]}]
+    Mats = sofs:family_union(FR),		%[{r,[1,2]},{g,[1,3,4,5]}]
 
     % Make a set of faces for each material
-    R2 = sofs:relation(Rel, [{atom, atom}]),
-    FR2 = sofs:relation_to_family(R2),
-    Faces = sofs:to_external(FR2),
+    R2 = sofs:from_term(Rel, [{mat, face}]),
+    Faces = sofs:relation_to_family(R2),
 
-    Combined = zip(Mats, Faces),  %[{r,[1,2],[[1,2]]},{g,[1,3,4,5],[[1,3],[3,4,5]]}]
+    Combined0 = sofs:join(Mats, 1, Faces, 1),
+    %% e.g. [{r,[1,2],[[1,2]]},{g,[1,3,4,5],[[1,3],[3,4,5]]}]
+    Combined = sofs:to_external(Combined0),
     {_, Vs1} = to_gb_tree(Vs),
     foldl_except_last(fun({Mat, Vtxs, Fces}, Used_mats_in) ->
 			      io:format(F, "    Shape {\n",[]),
@@ -97,7 +93,51 @@ export_object(F, #e3d_mesh{fs=Fs,vs=Vs}, Mat_defs, Used_mats0) ->
 		      fun(_, Used_mats_in) ->
 			      io:put_chars(F, "    ,\n"),
 			      Used_mats_in
-		      end, Used_mats0, Combined).
+		      end, Used_mats0, Combined);
+export_object(F, #e3d_mesh{fs=Fs,vs=Vtab,vc=ColTab}, Mat_defs, Used_mats0) ->
+    %% Output vertex colors. We can use the indicies, vertex table, and
+    %% color table directly.
+    io:format(F, "    Shape {\n",[]),
+    Used_mats = material(F, default, Mat_defs, Used_mats0),
+    io:format(F, "      geometry IndexedFaceSet {\n",[]),
+    io:format(F, "        colorPerVertex TRUE\n",[]),
+
+    io:format(F, "        coord Coordinate { point [\n",[]),
+    foreach_except_last(fun({X,Y,Z}) ->
+				io:format(F, "          ~p ~p ~p", [X,Y,Z])
+			end,
+			fun(_) -> io:put_chars(F, ",\n") end,
+			Vtab),
+    io:format(F, "]\n        }\n",[]),
+
+    io:put_chars(F, "        coordIndex [\n"),
+    foreach_except_last(fun(#e3d_face{vs=Vs}) ->
+				io:put_chars(F, "          "),
+				print_face(F, Vs)
+			end,
+			fun(_) -> io:put_chars(F, ",\n") end,
+			Fs),
+    io:put_chars(F, "\n        ]\n"),
+
+    io:format(F, "        color Color { color [\n",[]),
+    foreach_except_last(fun({R,G,B}) ->
+				io:format(F, "          ~p ~p ~p", [R,G,B])
+			end,
+			fun(_) -> io:put_chars(F, ",\n") end,
+			ColTab),
+    io:format(F, "]\n        }\n",[]),
+
+    io:put_chars(F, "        colorIndex [\n"),
+    foreach_except_last(fun(#e3d_face{vc=Vc}) ->
+				io:put_chars(F, "          "),
+				print_face(F, Vc)
+			end,
+			fun(_) -> io:put_chars(F, ",\n") end,
+			Fs),
+    io:put_chars(F, "\n        ]\n"),
+
+    io:put_chars(F, "      }\n    }\n"),
+    Used_mats.
 
 material(F, Name, Mat_defs, Used) ->
     case lists:member(Name, Used) of
@@ -141,10 +181,10 @@ coords(F, Vtxs, Vs) ->
 				{X,Y,Z} = gb_trees:'get'(Vtx, Vs),
 				io:format(F, "          ~p ~p ~p", [X,Y,Z])
 			end,
-			fun(Vtx) -> io:put_chars(F, ",\n") end, Vtxs),
+			fun(_) -> io:put_chars(F, ",\n") end, Vtxs),
     io:format(F, "]\n        }\n",[]).
 
-coord_index(F, Vtxs, Fces) ->
+coord_index(F, Vtxs, Faces) ->
     io:put_chars(F, "        coordIndex [\n"),
     {_,Mapping} =  foldl(fun(Vtx, {N, G}) ->
 				 {N+1, gb_trees:insert(Vtx, N, G)}
@@ -153,18 +193,17 @@ coord_index(F, Vtxs, Fces) ->
 				io:put_chars(F, "          "),
 				print_face(F, Face, Mapping)
 			end,
-			fun(Face) -> io:put_chars(F, ",\n") end, Fces),
+			fun(_) -> io:put_chars(F, ",\n") end, Faces),
     io:put_chars(F, "\n        ]\n"),
     io:put_chars(F, "      }\n    }\n").
 
+print_face(F, Vs) ->
+    foreach(fun(V) -> io:format(F, "~p, ", [V]) end, Vs),
+    io:put_chars(F, "-1").
+
 print_face(F, Face, Mapping) ->
-    foreach_then_last(fun(V) ->
-			      io:format(F, "~p, ", [gb_trees:'get'(V, Mapping)])
-		      end,
-		      fun(V) ->
-			      io:format(F, "~p, ", [gb_trees:'get'(V, Mapping)]),
-			      io:put_chars(F, "-1")
-		      end, Face).
+    foreach(fun(V) -> io:format(F, "~p, ", [gb_trees:'get'(V, Mapping)]) end, Face),
+    io:put_chars(F, "-1").
 
 % Useful helpers
 to_gb_tree(A) ->	       
@@ -176,30 +215,15 @@ foreach_except_last(F, F_each, [H,H1|T]) ->
     F(H),
     F_each(H),
     foreach_except_last(F, F_each, [H1|T]);
-foreach_except_last(F, F_each, [H]) ->
+foreach_except_last(F, _, [H]) ->
     F(H),
     ok.
    
-foreach_then_last(F, F_last, [H,H1|T]) ->
-    F(H),
-    foreach_then_last(F, F_last, [H1|T]);
-foreach_then_last(F, F_last, [H]) ->
-    F_last(H),
-    ok.
-
 foldl_except_last(F, F_each, AccIn, [H,H1|T]) ->
     Acc1 = F(H, AccIn),
     foldl_except_last(F, F_each, F_each(H,Acc1), [H1|T]);
-foldl_except_last(F, F_each, AccIn, [H]) ->
+foldl_except_last(F, _, AccIn, [H]) ->
     F(H, AccIn).
-
-zip(A,B) ->
-    zip(A,B,[]).
-
-zip([{K,V}|T], [{K,V1}|T1], Acc) ->
-    zip(T,T1,[{K,V,V1}|Acc]);
-zip([], [], Acc) ->
-    Acc.
 
 lookup(K, L) ->
     {value, {K, V}} =  lists:keysearch(K, 1, L),
