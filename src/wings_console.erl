@@ -8,13 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_console.erl,v 1.1 2004/04/15 20:35:55 raimo_niskanen Exp $
+%%     $Id: wings_console.erl,v 1.2 2004/04/16 10:20:33 raimo_niskanen Exp $
 %%
 
 -module(wings_console).
-%% I/O server
+
+%% I/O server and console server
 -export([start/0,start/1,get_pid/0,stop/0,stop/1,
-	 get_lines/0,position/1,setopts/1,getopts/1]).
+	 get_lines/0,get_all_lines/0,position/1,
+	 setopts/1,getopts/1]).
+
 %% Wings window
 -export([window/0,window/1,window/3,popup_window/0]).
 
@@ -101,19 +104,15 @@ get_pid() ->
 	    exit(not_started)
     end.
 
-code_change() -> req(code_change).
-
 stop() -> req({stop,normal}).
 stop(Reason) -> req({stop,Reason}).
 
 get_lines() -> 
     {Cnt,Pos,Lines} = req(get_lines),
-    {Cnt,Pos,[case L of
-		  {Tag,B} when is_atom(Tag), is_binary(B) -> 
-		      {Tag,binary_to_list(B)};
-		  {Bef,Aft} when is_list(Bef), is_list(Aft) -> 
-		      L 
-	      end || L <- Lines]}.
+    {Cnt,Pos,fix_lines(Lines)}.
+
+get_all_lines() ->
+    fix_lines(req(get_all_lines)).
 
 position({absolute,_}=Pos) -> req({position,Pos});
 position({relative,_}=Pos) -> req({position,Pos}).
@@ -121,9 +120,6 @@ position({relative,_}=Pos) -> req({position,Pos}).
 setopts(Opts) when is_list(Opts) -> req({setopts,Opts}).
 
 getopts(Opts) when is_list(Opts) -> req({getopts,Opts}).
-
-%% Debug
-get_state() -> req(get_state).
 
 window() ->
     window(?WIN_NAME).
@@ -141,6 +137,26 @@ popup_window() ->
 	false -> 
 	    window()
     end.
+
+%%%
+%%% Debug API
+%%%
+
+get_state() -> req(get_state).
+
+code_change() -> req(code_change).
+
+%%%
+%%% API helpers
+%%%
+
+fix_lines(Lines) ->
+    [case L of
+	 {Tag,B} when is_atom(Tag), is_binary(B) -> 
+	     {Tag,binary_to_list(B)};
+	 {Bef,Aft} when is_list(Bef), is_list(Aft) -> 
+	     L 
+     end || L <- Lines].
 
 %%% End of API ----------------------------------------------------------------
 
@@ -179,7 +195,8 @@ do_window(Name, {X,Y}, {W,H}=Size) -> % {X,Y} is upper right
 	   text_color=wings_pref:get_value(console_text_color),
 	   cursor_color=wings_pref:get_value(console_cursor_color)},
     Op = {seq,push,get_event(S)},
-    wings_wm:toplevel(Name, "Console", {X,Y,highest}, Size,
+    Title = "Console "++integer_to_list(Width)++"x"++integer_to_list(Height),
+    wings_wm:toplevel(Name, Title, {X,Y,highest}, Size,
 		      [closable,vscroller,{anchor,ne}], Op),
     wings_wm:dirty().
 
@@ -193,6 +210,8 @@ handle_event(close, _) ->
     delete;
 handle_event({?MODULE,updated}, _S) ->
     wings_wm:dirty();
+handle_event({action,Action}, S) ->
+    handle_action(Action, S);
 handle_event(#keyboard{sym=?SDLK_HOME,state=?SDL_PRESSED}, S) ->
     handle_event({set_knob_pos,0.0}, S);
 handle_event(#keyboard{sym=?SDLK_END,state=?SDL_PRESSED}, S) ->
@@ -209,22 +228,65 @@ handle_event(scroll_page_up, #s{height=Height}=S) ->
     zoom_step(-max(Height-1, 1), S);
 handle_event(scroll_page_down, #s{height=Height}=S) ->
     zoom_step(max(Height-1, 1), S);
-handle_event(#mousebutton{button=1,state=?SDL_RELEASED}, _S) ->
-    UR1 = wings_wm:win_ur({controller,console}),
-    UR2 = wings_wm:win_ur(console),
-    erlang:display({?MODULE,?LINE,[UR1,UR2]}),
-    keep;
-handle_event(#mousebutton{button=4,state=?SDL_RELEASED}, S) ->
+handle_event(#mousebutton{}=Ev, S) ->
+    case wings_menu:is_popup_event(Ev) of
+	no -> handle_event_1(Ev, S);
+	{yes,X,Y,_} -> popup_menu(X, Y, S)
+    end;
+handle_event(Ev, S) ->
+    handle_event_1(Ev, S).
+
+handle_event_1(#mousebutton{button=4,state=?SDL_RELEASED}, S) ->
     zoom_step(-10, S);
-handle_event(#mousebutton{button=5,state=?SDL_RELEASED}, S) ->
+handle_event_1(#mousebutton{button=5,state=?SDL_RELEASED}, S) ->
     zoom_step(10, S);
-handle_event(#keyboard{sym=?SDLK_UP,state=?SDL_PRESSED}, S) ->
+handle_event_1(#keyboard{sym=?SDLK_UP,state=?SDL_PRESSED}, S) ->
     zoom_step(-1, S);
-handle_event(#keyboard{sym=?SDLK_DOWN,state=?SDL_PRESSED}, S) ->
+handle_event_1(#keyboard{sym=?SDLK_DOWN,state=?SDL_PRESSED}, S) ->
     zoom_step(1, S);
-handle_event(_Ev, _) -> 
-%%    erlang:display({?MODULE,?LINE,_Ev}),
+handle_event_1(_Ev, _) -> 
+%%%     erlang:display({?MODULE,?LINE,_Ev}),
     keep.
+
+handle_action({popup,write_file}, _S) ->
+    Dir = wings_pref:get_value(current_directory),
+    Ps = [{title,"Write"},{directory,Dir},
+	  {ext,".txt"},{ext_desc,"Text File"}],
+    Fun = fun(Name) ->
+		  case write_file(Name) of
+		      ok -> keep;
+		      {error,Reason} ->
+			  Msg = io_lib:format("Write error: ~w", [Reason]),
+			  wings_util:message(Msg),
+			  keep
+		  end
+	  end,
+    wings_plugin:call_ui({file,save_dialog,Ps,Fun}).
+
+write_file(Name) ->
+    case file:open(Name, [write]) of
+	{ok,F} ->
+	    case
+		lists:foldl(
+		  fun ({eol,L}, ok) -> file:write(F, [L|io_lib:nl()]);
+		      ({noeol,L}, ok) -> file:write(F, L);
+		      ({Bef,[]}, ok) -> file:write(F, Bef);
+		      ({Bef,Aft}, ok) -> file:write(F, [Bef,Aft,$\r|Bef]);
+		      (_,Error) -> Error
+		  end, ok, get_all_lines())
+		of
+		ok -> file:close(F);
+		Error ->
+		    file:close(F),
+		    Error
+	    end;
+	Error -> Error
+    end.
+
+popup_menu(X, Y, _S) ->
+    Menu =
+	[{"Write to File",write_file,"Write console contents to a file"}],
+    wings_menu:popup_menu(X, Y, popup, Menu).
 
 zoom_step(Step, #s{height=Height}) ->
     {Cnt,Pos} = position({relative,Step}),
@@ -335,11 +397,9 @@ server_loop(#state{gmon=Gmon,tref=Tref}=State) ->
 	{timeout,Tref,dirty} ->
 	    case State#state.dirty of
 		true ->
-%%% 		    erlang:display({?MODULE,?LINE,dirty_again}),
 		    NewTref = send_update(),
 		    server_loop(State#state{tref=NewTref,dirty=false});
 		false ->
-%%% 		    erlang:display({?MODULE,?LINE,clean}),
 		    server_loop(State#state{tref=undefined})
 	    end;
 	Unknown ->
@@ -398,7 +458,6 @@ put_chars_1(#state{cnt=Cnt,lines=Lines,bef=Bef,aft=Aft}=State, Chars)
     put_chars_2(State, Chars, Cnt, Lines, Bef, Aft, length(Bef), []).
 
 put_chars_2(#state{tref=undefined}=State, [], Cnt, Lines, Bef, Aft, _N, []) ->
-%%%     erlang:display({?MODULE,?LINE,dirty}),
     Tref = send_update(),
     State#state{cnt=Cnt,lines=Lines,bef=Bef,aft=Aft,tref=Tref,dirty=false};
 put_chars_2(State, [], Cnt, Lines, Bef, Aft, _N, []) ->
@@ -450,6 +509,8 @@ put_chars_nl(#state{height=Height,save_lines=SaveLines,pos=Pos}=State0,
 
 wings_console_request(State, get_lines) ->
     {State,wc_get_lines(State)};
+wings_console_request(State, get_all_lines) ->
+    {State,wc_get_all_lines(State)};
 wings_console_request(#state{cnt=Cnt}=State, 
 		      {position,{absolute,P}}) 
   when is_float(P), 0.0 =< P, P =< 1.0  ->
@@ -484,6 +545,10 @@ wings_console_request(State, get_state) ->
     {State,State};
 wings_console_request(State, Request) ->
     {State,{error,{request,Request}}}.
+
+wc_get_all_lines(#state{lines=Lines0,bef=Bef,aft=Aft}) ->
+    Lines = queue:snoc(Lines0, {reverse(Bef),Aft}),
+    queue:to_list(Lines).
 
 wc_get_lines(#state{height=Height,cnt=Cnt,lines=Lines0,
 		    bef=Bef,aft=Aft,pos=Pos}) ->
