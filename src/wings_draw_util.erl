@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.33 2002/07/27 07:37:03 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.34 2002/07/28 17:11:23 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -511,7 +511,7 @@ dummy_axis_letter() ->
     end.
 
 dummy_axis_letter(_, _, _) ->
-    wings_io:axis_text(10, 90, axisx, {1,0,0}).
+    wings_io:axis_text(10, 90, axisx, wings_pref:get_value(background_color)).
 
 axis_letters() ->
     case wings_pref:get_value(show_axis_letters) andalso
