@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.1 2002/10/08 11:00:42 dgud Exp $
+#     $Id: Makefile,v 1.2 2002/10/09 14:04:25 dgud Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -30,6 +30,7 @@ MODULES= \
 	auv_segment \
 	auv_mapping \
 	auv_placement \
+	auv_matrix \
 	wpc_autouv
 
 

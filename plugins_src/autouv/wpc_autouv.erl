@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.3 2002/10/08 22:15:39 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.4 2002/10/09 14:04:27 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -86,7 +86,7 @@ command({body, {uvmap, create}}, St0) ->
     Qs = [{vframe,[{alt,DefVar,"Advanced Cubic",autouvmap},
 		   {alt,DefVar,"By Feature Detection",feature},
 		   {alt,DefVar,"By Material",mat_uvmap},
-		   {alt,DefVar,"I'll do by my self", one}
+		   {alt,DefVar,"I'll do it by my self", one}
 		  ],
 	   [{title,"Segmentation type"}]}],
     Text = "Set charts, place faces into charts",
@@ -101,12 +101,24 @@ command({_, uvmap_cancel}, _St0) ->
     [{oldst,S1}] = get(auv_state),
     erase(auv_state),
     S1;
-command({_, continue_param}, St0) ->
-    [{oldst,Old}] = get(auv_state),
-    %% Now copy the old selections so we map the correct bodies.
-    init_uvmap(St0#st{selmode=Old#st.selmode, sel=Old#st.sel}, 
-	       Old, project);
+command({State, continue_param}, St0) ->
+    DefVar = {seg_type,project},
+    Qs = [{vframe,[{alt,DefVar,"Projection",project},
+		   {alt,DefVar,"Parametrization", lsqcm}
+		  ],
+	   [{title,"UV-mapping Type"}]}],
+    wings_ask:dialog(Qs,
+		     fun([Mode]) ->
+			     {uvmap, {parametrization, Mode}}
+		     end);
 
+command({uvmap, {parametrization, Mode}}, St0) ->
+    %% Now copy the old selections so we map the correct bodies.
+    [{oldst,Old}] = get(auv_state),
+    init_uvmap(St0#st{selmode=Old#st.selmode, 
+		      sel=Old#st.sel}, 
+	       Old, Mode);
+    
 command({body, {uvmap, edit}}, St0) ->
     AllAreas = ?SLOW(wings_sel:fold(fun(_Sel, We, A) ->
 	init_edit(We, A, St0)
@@ -273,6 +285,7 @@ init_uvmap(St0, Old, Type) ->
 init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
     Clusters = auv_segment:segment_by_material(We0),
     We1 = gb_trees:get(Id, St0#st.shapes),
+    ?DBG("Found ~p Chart~n", [length(Clusters)]),
     Areas = init_areas(Clusters, [], Type, We1),
 
     %% Place the cluster on the texturemap
@@ -284,30 +297,18 @@ init_uvmap2(We0 = #we{id=Id,name = Name}, {A, St0}, Type) ->
     {[As1|A], St1}.
 
 init_areas([Chart|R], A, Type, We) ->
-    %% Raimo 
-%    raimo(Chart, We),
     MappedVs = 
 	case Type of 
 	    project -> 
-		auv_mapping:projectFromChartNormal(Chart, We)
+		auv_mapping:projectFromChartNormal(Chart, We);
+	    lsqcm ->
+		auv_mapping:lsqcm(Chart, We)
 	end,
     New = create_area(Chart, MappedVs, We),
     init_areas(R, [New|A], Type, We);
 init_areas([], A, Type, _We) ->
     A.
-
-raimo({Id, Fs}, We) ->    
-    io:format("%% Chart ~p START~n",[Id]), 
-    Raimo = fun(Face) ->
-		    Normal = wings_face:normal(Face, We),
-		    Vs0 = wings_face:to_vertices([Face], We),
-		    Vs2 = auv_mapping:project2d(Vs0, Normal, We),
-		    Vs3 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,Vz}} <- Vs2],
-		    io:format("{~w, ~w}.~n", [Face, Vs3])
-	    end,
-    lists:foreach(Raimo, Fs),
-    io:format("%% Chart ~p END~n",[Id]).
-
+   
 create_area({_,Fs}, Vs0, We) ->    
     [{_, {X,Y,_}} |RVs1] = Vs0,
     {BX0, BX1, BY0, BY1} =
