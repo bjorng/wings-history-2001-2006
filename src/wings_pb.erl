@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.15 2004/10/08 06:02:30 dgud Exp $
+%%     $Id: wings_pb.erl,v 1.16 2004/10/20 12:38:13 dgud Exp $
 %%
 
 -module(wings_pb).
@@ -144,7 +144,12 @@ loop(#state{refresh=After,level=Level,msg=Msg0}=S0) ->
 	    loop(S);
 	{Pid,?PB,done} ->
 	    reply(Pid, ok),
-	    loop(S0#state{level=Level-1,msg=tl(Msg0)});
+	    case Msg0 of
+		[] ->
+		    loop(S0);
+		[_|Msg] ->
+		    loop(S0#state{level=Level-1,msg=Msg})
+	    end;
 	Msg ->
 	    io:format("~p: got unexpected msg ~p~n", [?MODULE, Msg]),
 	    loop(S0)
