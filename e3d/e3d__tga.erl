@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tga.erl,v 1.8 2002/11/27 12:47:14 dgud Exp $
+%%     $Id: e3d__tga.erl,v 1.9 2003/03/18 06:50:18 dgud Exp $
 %%
 
 -module(e3d__tga).
@@ -64,7 +64,6 @@ load_uncomp(<<W:16/little,H:16/little,BitsPP:8,0:1,0:1,Order:2, Alpha:4,Image/bi
 		   end,
 	    Size = BytesPerPixel * W * H,
 	    <<RealImage:Size/binary, _Rest/binary>> = Image,
-	    io:format("Skipped ~p ~p ~n", [size(_Rest),_Rest]),
 	    #e3d_image{width = W, height = H, type = Type, 
 		       order = get_order(Order),
 		       bytes_pp = BytesPerPixel, alignment = 1,
