@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.19 2003/03/10 18:44:53 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.20 2003/03/11 06:30:07 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -290,83 +290,74 @@ ctrl_fit(vertical) ->
 
 fit_horizontal() ->
     {_,Client} = wings_wm:this(),
-    {_,Ch} = wings_wm:win_size(Client),
-    {{Left0,Y},{_,H}} = wings_wm:win_rect(),
-    Win0 = wings_wm:windows(),
-    Win = [Wi || Wi <- Win0,
-		 have_vertical_overlap(Wi, Y, Ch+H),
-		 not is_helper_window(Wi)],
-    {DeskLeft,_} = wings_wm:win_ul(desktop),
-    Left = fit_hor_constrain_1(Win, Left0, DeskLeft),
-    wings_wm:update_window(Client, [{dx,Left-Left0},{dw,Left0-Left}]),
-    {Right0,_} = wings_wm:win_ur(wings_wm:this()),
-    {DeskRight,_} = wings_wm:win_ur(desktop),
-    Right = fit_hor_constrain_2(Win, Right0, DeskRight),
-    wings_wm:update_window(Client, [{dw,Right-Right0}]).
+    {X,Y} = wings_wm:win_center(Client),
+    wings_wm:hide(Client),
+    Below = wings_wm:window_below(X, Y),
+    wings_wm:show(Client),
+    {Left,_} = wings_wm:win_ul(Below),
+    {Right,_} = wings_wm:win_ur(Below),
+    AlmostAll = fit_filter(wings_wm:windows(), Client, Below, []),
+    fit_horizontal_1(AlmostAll, X, Client, Left, Right).
 
-fit_hor_constrain_1([N|Ns], Left, Leftmost) ->
-    case wings_wm:win_ur(N) of
-	{RightEdge,_} when Leftmost < RightEdge, RightEdge =< Left ->
-	    fit_hor_constrain_1(Ns, Left, RightEdge);
-	_ ->
-	    fit_hor_constrain_1(Ns, Left, Leftmost)
+fit_horizontal_1([Client|Ns], X, Client, Min, Max) ->
+    fit_horizontal_1(Ns, X, Client, Min, Max);
+fit_horizontal_1([N|Ns], X, Client, Min0, Max0) ->
+    {{Left,_},{W,_}} = wings_wm:win_rect(N),
+    Right = Left+W,
+    if
+	X < Left, Left < Max0 ->
+	    fit_horizontal_1(Ns, X, Client, Min0, Left);
+	Right < X, Min0 < Right ->
+	    fit_horizontal_1(Ns, X, Client, Right, Max0);
+	true ->
+	    fit_horizontal_1(Ns, X, Client, Min0, Max0)
     end;
-fit_hor_constrain_1([], _, Leftmost) -> Leftmost.
-
-fit_hor_constrain_2([N|Ns], Right, Rightmost) ->
-    case wings_wm:win_ul(N) of
-	{LeftEdge,_} when LeftEdge >= Right, LeftEdge < Rightmost ->
-	    fit_hor_constrain_2(Ns, Right, LeftEdge);
-	_ ->
-	    fit_hor_constrain_2(Ns, Right, Rightmost)
-    end;
-fit_hor_constrain_2([], _, Rightmost) -> Rightmost.
-    
-have_vertical_overlap(Name, Y, H) ->
-    {{_,Oy},{_,Oh}} = wings_wm:win_rect(Name),
-    (Oy =< Y andalso Y < Oy+Oh) orelse (Y =< Oy andalso Oy < Y+H).
+fit_horizontal_1([], _, Client, Left, Right) ->
+    {Left0,_} = wings_wm:win_ul(Client),
+    wings_wm:update_window(Client, [{dx,Left-Left0},{w,Right-Left}]).
 
 fit_vertical() ->
-    {{X,Y0},{W,_}} = wings_wm:win_rect(),
-    {_,DeskY} = wings_wm:win_ul(desktop),
-    Win0 = wings_wm:windows(),
-    Win = [Wi || Wi <- Win0,
-		 have_horizontal_overlap(Wi, X, W),
-		 not is_helper_window(Wi)],
-    Y = fit_vert_constrain_1(Win, Y0, DeskY),
     {_,Client} = wings_wm:this(),
-    wings_wm:update_window(Client, [{dy,Y-Y0},{dh,Y0-Y}]),
-    {_,BotY0} = wings_wm:win_ll(Client),
-    {_,DeskBot} = wings_wm:win_ll(desktop),
-    BotY = fit_vert_constrain_2(Win, BotY0, DeskBot),
-    wings_wm:update_window(Client, [{dh,BotY-BotY0}]).
+    {X,Y} = wings_wm:win_center(Client),
+    wings_wm:hide(Client),
+    Below = wings_wm:window_below(X, Y),
+    wings_wm:show(Client),
+    {_,Top} = wings_wm:win_ul(Below),
+    {_,Bottom} = wings_wm:win_ll(Below),
+    AlmostAll = fit_filter(wings_wm:windows(), Client, Below, []),
+    fit_vert_1(AlmostAll, Y, Client, Top, Bottom).
 
-fit_vert_constrain_1([Name|T], LowestY, HighestY) ->
-    case wings_wm:win_ll(Name) of
-	{_,LowerEdge} when LowerEdge > HighestY, LowerEdge =< LowestY ->
-	    fit_vert_constrain_1(T, LowestY, LowerEdge);
-	_ ->
-	    fit_vert_constrain_1(T, LowestY, HighestY)
+fit_vert_1([N|Ns], Y, Client, Top0, Bottom0) ->
+    {{_,Top},{_,H}} = wings_wm:win_rect(N),
+    Bottom = Top+H,
+    if
+	Y < Top, Top < Bottom0 ->
+	    fit_vert_1(Ns, Y, Client, Top0, Top);
+	Bottom < Y, Top0 < Bottom ->
+	    fit_vert_1(Ns, Y, Client, Bottom, Bottom0);
+	true ->
+	    fit_vert_1(Ns, Y, Client, Top0, Bottom0)
     end;
-fit_vert_constrain_1([], _, HighestY) -> HighestY.
+fit_vert_1([], _, Client, Top, Bottom) ->
+    {_,Top0} = wings_wm:win_ul(Client),
+    wings_wm:update_window(Client, [{dy,Top-Top0},{h,Bottom-Top}]).
 
-fit_vert_constrain_2([Name|T], LowestY, BottomY) ->
-    case wings_wm:win_ul(Name) of
-	{_,UpperEdge} when UpperEdge > LowestY, UpperEdge < BottomY ->
-	    fit_vert_constrain_2(T, LowestY, UpperEdge);
-	_ ->
-	    fit_vert_constrain_2(T, LowestY, BottomY)
+fit_filter([Client|Ns], Client, Below, Acc) ->
+    fit_filter(Ns, Client, Below, Acc);
+fit_filter([Below|Ns], Client, Below, Acc) ->
+    fit_filter(Ns, Client, Below, Acc);
+fit_filter([N|Ns], Client, Below, Acc) ->
+    case is_helper_window(N, Client) of
+	false -> fit_filter(Ns, Client, Below, [N|Acc]);
+	true -> fit_filter(Ns, Client, Below, Acc)
     end;
-fit_vert_constrain_2([], _, BottomY) -> BottomY.
+fit_filter([], _, _, Acc) -> Acc.
 
-have_horizontal_overlap(Name, X, W) ->
-    {{Ox,_},{Ow,_}} = wings_wm:win_rect(Name),
-    (Ox =< X andalso X < Ox+Ow) orelse (X =< Ox andalso Ox < X+W).
-
-is_helper_window({vscroller,_}) -> true;
-is_helper_window({resizer,_}) -> true;
-is_helper_window({closer,_}) -> true;
-is_helper_window(_Name) -> false.
+is_helper_window({controller,Client}, Client) -> true;
+is_helper_window({vscroller,Client}, Client) -> true;
+is_helper_window({resizer,Client}, Client) -> true;
+is_helper_window({closer,Client}, Client) -> true;
+is_helper_window(_, _) -> false.
 
 %%%
 %%% Resizer window.
@@ -390,7 +381,6 @@ ctrl_new_resizer(Client) ->
 
 get_resize_event(Rst) ->
     {replace,fun(Ev) -> resize_event(Ev, Rst) end}.
-
 
 resize_event(redraw, _) ->
     wings_io:ortho_setup(),
