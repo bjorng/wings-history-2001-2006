@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.125 2003/06/08 19:35:32 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.126 2003/06/09 06:08:24 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -598,17 +598,17 @@ do_draw_smooth_1([{_,{{X,Y,Z},Vs}}|Fs], DrawFace, Tess) ->
     do_draw_smooth_1(Fs, DrawFace, Tess);
 do_draw_smooth_1([], _, _) -> ok.
 
-draw_smooth_uv_face([{P,{{_,_}=UV,N}}|Vs], Tess) ->
+draw_smooth_uv_face([{P,{_,_}=UV,N}|Vs], Tess) ->
     glu:tessVertex(Tess, P, [{normal,N},{texcoord2,UV}]),
     draw_smooth_uv_face(Vs, Tess);
 draw_smooth_uv_face([], _) -> ok.
 
-draw_smooth_color_face([{P,{{_,_,_}=Color,N}}|Vs], Tess) ->
+draw_smooth_color_face([{P,{_,_,_}=Color,N}|Vs], Tess) ->
     glu:tessVertex(Tess, P, [{color,Color},{normal,N}]),
     draw_smooth_color_face(Vs, Tess);
 draw_smooth_color_face([], _) -> ok.
 
-draw_smooth_mat_face([{P,{_,N}}|Vs], Tess) ->
+draw_smooth_mat_face([{P,_,N}|Vs], Tess) ->
     glu:tessVertex(Tess, P, [{normal,N}]),
     draw_smooth_mat_face(Vs, Tess);
 draw_smooth_mat_face([], _) -> ok.

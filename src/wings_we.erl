@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.54 2003/06/08 08:57:15 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.55 2003/06/09 06:08:24 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -626,37 +626,63 @@ normals(#we{fs=Ftab,he=He}=We) ->
 	    end
     end.
 
-all_soft(FaceNormals, #we{fs=Ftab}=We) ->
-    VtxNormals = soft_vertex_normals(FaceNormals, We),
-    all_soft_1(gb_trees:values(Ftab), FaceNormals, VtxNormals, We, []).
+all_soft(FaceNormals, #we{vp=Vtab}=We) ->
+    VtxNormals = soft_vertex_normals(gb_trees:to_list(Vtab), FaceNormals, We),
+    FoldFun = fun(V, VInfo, A) ->
+		      {Pos,Normal} = gb_trees:get(V, VtxNormals),
+		      [{Pos,VInfo,Normal}|A]
+	      end,
+    all_soft_1(FoldFun, FaceNormals, We, []).
 
-all_soft_1([_|Fs], [{Face,N}|FNs], VtxNormals, We, Acc) ->
-    Vs = wings_face:fold_vinfo(
-	   fun(V, VInfo, A) ->
-		   {Pos,Normal} = gb_trees:get(V, VtxNormals),
-		   [{Pos,{VInfo,Normal}}|A]
-	   end, [], Face, We),
-    all_soft_1(Fs, FNs, VtxNormals, We, [{Face,{N,Vs}}|Acc]);
-all_soft_1([], [], _, _, Acc) -> reverse(Acc).
+all_soft_1(FoldFun, [{Face,N}|FNs], We, Acc) ->
+    Vs = wings_face:fold_vinfo(FoldFun, [], Face, We),
+    all_soft_1(FoldFun, FNs, We, [{Face,{N,Vs}}|Acc]);
+all_soft_1(_, [], _, Acc) -> reverse(Acc).
 
-soft_vertex_normals(FaceNs0, #we{vp=Vtab}=We) ->
-    FaceNs = gb_trees:from_orddict(FaceNs0),
-    Soft = foldl(
-	     fun({V,Pos}, Acc) ->
-		     N = soft_vtx_normal(V, FaceNs, We),
-		     [{V,{Pos,N}}|Acc]
-	     end, [], gb_trees:to_list(Vtab)),
+soft_vertex_normals(Vtab, FaceNormals0, We) when is_list(FaceNormals0) ->
+    FaceNormals = gb_trees:from_orddict(FaceNormals0),
+    soft_vertex_normals(Vtab, FaceNormals, We);
+soft_vertex_normals(Vtab, FaceNormals, We) ->
+    FoldFun = fun(_, Face, _, A) ->
+		      [gb_trees:get(Face, FaceNormals)|A]
+	      end,
+    Soft = foldl(fun({V,Pos}, Acc) ->
+			 Ns = wings_vertex:fold(FoldFun, [], V, We),
+			 N = e3d_vec:norm(e3d_vec:add(Ns)),
+			 [{V,{Pos,N}}|Acc]
+		 end, [], Vtab),
     gb_trees:from_orddict(reverse(Soft)).
 
-mixed_edges(FaceNormals0, #we{fs=Ftab}=We) ->
-    FaceNormals = gb_trees:from_orddict(FaceNormals0),
+mixed_edges(FaceNormals0, We) ->
     G = digraph:new(),
+    FaceNormals = gb_trees:from_orddict(FaceNormals0),
     VtxNormals = vertex_normals(We, G, FaceNormals),
-    Ns = foldl(fun({Face,_}, Acc) ->
-		       [n_face(Face, G, FaceNormals, VtxNormals, We)|Acc]
-	       end, [], gb_trees:to_list(Ftab)),
+    Ns = foldl(fun({Face,N}, Acc) ->
+		       Vs = n_face(Face, G, FaceNormals, VtxNormals, We),
+		       [{Face,{N,Vs}}|Acc]
+	       end, [], FaceNormals0),
     digraph:delete(G),
     reverse(Ns).
+
+n_face(Face, G, FaceNormals, VtxNormals, #we{vp=Vtab}=We) ->
+    wings_face:fold_vinfo(
+	   fun(V, VInfo, Acc) ->
+		   case gb_trees:lookup(V, VtxNormals) of
+		       {value,{Pos,Normal}} ->
+			   [{Pos,VInfo,Normal}|Acc];
+		       none ->
+			   Pos = gb_trees:get(V, Vtab),
+			   Normal = hard_vtx_normal(G, V, Face, FaceNormals),
+ 			   [{Pos,VInfo,Normal}|Acc]
+		   end
+	   end, [], Face, We).
+
+hard_vtx_normal(G, V, Face, FaceNormals) ->
+    Reachable = digraph_utils:reachable([{V,Face}], G),
+    case [gb_trees:get(AFace, FaceNormals) || {_,AFace} <- Reachable] of
+ 	[N] -> N;
+ 	Ns -> e3d_vec:norm(e3d_vec:add(Ns))
+    end.
 
 two_faced([{FaceA,Na},{FaceB,Nb}], We) ->
     [{FaceA,two_faced_1(FaceA, Na, We)},
@@ -666,7 +692,7 @@ two_faced_1(Face, Normal, #we{vp=Vtab}=We) ->
     Vs = wings_face:fold_vinfo(
 	   fun (V, VInfo, Acc) ->
 		   Pos = gb_trees:get(V, Vtab),
-		   [{Pos,{VInfo,Normal}}|Acc]
+		   [{Pos,VInfo,Normal}|Acc]
 	   end, [], Face, We),
     {Normal,Vs}.
 
@@ -680,46 +706,12 @@ vertex_normals(#we{vp=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
 			 [Va,Vb|A]
 		 end, [], sofs:to_external(Es)),
     Hvs = sofs:set(Hvs0, [vertex]),
-    Vs = sofs:from_external(gb_trees:to_list(Vtab),
-			    [{vertex,data}]),
+    Vs = sofs:from_external(gb_trees:to_list(Vtab), [{vertex,data}]),
     Svs = sofs:drestriction(Vs, Hvs),
     SoftVs = sofs:to_external(Svs),
     HardVs = sofs:to_external(Hvs),
     foreach(fun(V) -> update_digraph(G, V, We) end, HardVs),
-    Soft = foldl(
-	     fun({V,Pos}, Acc) ->
-		     N = soft_vtx_normal(V, FaceNormals, We),
-		     [{V,{Pos,N}}|Acc]
-	     end, [], SoftVs),
-    gb_trees:from_orddict(reverse(Soft)).
-
-soft_vtx_normal(V, FaceNormals, We) ->
-    Ns = wings_vertex:fold(
-	   fun(_, Face, _, A) ->
-		   [gb_trees:get(Face, FaceNormals)|A]
-	   end, [], V, We),
-    e3d_vec:norm(e3d_vec:add(Ns)).
-
-n_face(Face, G, FaceNormals, VtxNormals, #we{vp=Vtab}=We) ->
-    Vs = wings_face:fold_vinfo(
-	   fun (V, VInfo, Acc) ->
-		   case gb_trees:lookup(V, VtxNormals) of
-		       {value,{Pos,Normal}} ->
-			   [{Pos,{VInfo,Normal}}|Acc];
-		       none ->
-			   Pos = gb_trees:get(V, Vtab),
-			   Normal = hard_vtx_normal(G, V, Face, FaceNormals),
- 			   [{Pos,{VInfo,Normal}}|Acc]
-		   end
-	   end, [], Face, We),
-    {Face,{gb_trees:get(Face, FaceNormals),Vs}}.
-
-hard_vtx_normal(G, V, Face, FaceNormals) ->
-    Reachable = digraph_utils:reachable([{V,Face}], G),
-    case [gb_trees:get(AFace, FaceNormals) || {_,AFace} <- Reachable] of
- 	[N] -> N;
- 	Ns -> e3d_vec:norm(e3d_vec:add(Ns))
-    end.
+    soft_vertex_normals(SoftVs, FaceNormals, We).
 
 update_digraph(G, V, #we{he=Htab}=We) ->
     wings_vertex:fold(

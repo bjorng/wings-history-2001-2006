@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.74 2003/06/08 19:35:32 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.75 2003/06/09 06:08:24 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -558,10 +558,10 @@ vtx_smooth_color_split_1([{_,{_,Vs}}=Face|Fs], SameAcc, DiffAcc) ->
 vtx_smooth_color_split_1([], SameAcc, DiffAcc) ->
     {wings_util:rel2fam(SameAcc),DiffAcc}.
 
-vtx_smooth_face_color([{_,{Col,_}}|T]) ->
+vtx_smooth_face_color([{_,Col,_}|T]) ->
     vtx_smooth_face_color_1(T, Col).
 
-vtx_smooth_face_color_1([{_,{Col,_}}|T], Col) ->
+vtx_smooth_face_color_1([{_,Col,_}|T], Col) ->
     vtx_smooth_face_color_1(T, Col);
 vtx_smooth_face_color_1([_|_], _) -> different;
 vtx_smooth_face_color_1([], Col) -> Col.
