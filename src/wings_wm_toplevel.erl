@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.29 2003/03/27 12:59:36 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.30 2003/04/07 18:39:56 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -335,7 +335,9 @@ fit_horizontal(Client, Below, X, _) ->
 		    false -> wings_wm:win_ur(Below)
 		end,
     Win0 = fit_filter(wings_wm:windows(), Client, Below),
-    {{_,Top},{_,H}} = wings_wm:win_rect(),
+    {_,Top} = wings_wm:win_ul(),
+    {_,ClientBot} = wings_wm:win_ll(Client),
+    H = ClientBot-Top,
     Win = [Wi || Wi <- Win0, have_vertical_overlap(Wi, Top, H)],
     fit_horizontal_1(Win, X, Client, Left, Right).
 
