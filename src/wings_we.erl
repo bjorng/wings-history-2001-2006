@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.87 2004/12/19 14:03:01 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.88 2004/12/25 18:39:05 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -25,7 +25,7 @@
 	 transform_vs/2,
 	 separate/1,
 	 normals/2,
-	 new_items/3,
+	 new_items/3,new_items_as_list/3,
 	 is_consistent/1,is_face_consistent/2,
 	 hide_faces/2,show_faces/1,any_hidden/1,visible/1,visible/2,
 	 validate_mirror/1,mirror_flatten/2]).
@@ -898,26 +898,27 @@ soft_vertex_normals(Vtab, FaceNormals, We) ->
 %% new_items(vertex|edge|face, OldWe, NewWe) -> NewItemsGbSet.
 %%  Return all items in NewWe that are not in OldWe (as a GbSet).
 
-new_items(vertex, #we{next_id=Wid}, #we{next_id=NewWid,vp=Tab}) ->
-    new_items_1(Tab, Wid, NewWid);
-new_items(edge, #we{next_id=Wid}, #we{next_id=NewWid,es=Tab}) ->
-    new_items_1(Tab, Wid, NewWid);
-new_items(face, #we{next_id=Wid}, #we{next_id=NewWid,fs=Tab}) ->
-    new_items_1(Tab, Wid, NewWid).
+new_items(Type, OldWe, NewWe) ->
+    gb_sets:from_ordset(new_items_as_list(Type, OldWe, NewWe)).
 
-new_items_1(Tab, Wid, NewWid) when NewWid-Wid < 32 ->
-    new_items_2(Wid, NewWid, Tab, []);
-new_items_1(Tab, Wid, _NewWid) ->
-    Items = [Item || Item <- gb_trees:keys(Tab), Item >= Wid],
-    gb_sets:from_ordset(Items).
+new_items_as_list(vertex, #we{next_id=Wid}, #we{next_id=NewWid,vp=Tab}) ->
+    new_items_as_list_1(Tab, Wid, NewWid);
+new_items_as_list(edge, #we{next_id=Wid}, #we{next_id=NewWid,es=Tab}) ->
+    new_items_as_list_1(Tab, Wid, NewWid);
+new_items_as_list(face, #we{next_id=Wid}, #we{next_id=NewWid,fs=Tab}) ->
+    new_items_as_list_1(Tab, Wid, NewWid).
 
-new_items_2(Wid, NewWid, Tab, Acc) when Wid < NewWid ->
+new_items_as_list_1(Tab, Wid, NewWid) when NewWid-Wid < 32 ->
+    new_items_as_list_2(Wid, NewWid, Tab, []);
+new_items_as_list_1(Tab, Wid, _NewWid) ->
+    [Item || Item <- gb_trees:keys(Tab), Item >= Wid].
+
+new_items_as_list_2(Wid, NewWid, Tab, Acc) when Wid < NewWid ->
     case gb_trees:is_defined(Wid, Tab) of
-	true -> new_items_2(Wid+1, NewWid, Tab, [Wid|Acc]);
-	false -> new_items_2(Wid+1, NewWid, Tab, Acc)
+	true -> new_items_as_list_2(Wid+1, NewWid, Tab, [Wid|Acc]);
+	false -> new_items_as_list_2(Wid+1, NewWid, Tab, Acc)
     end;
-new_items_2(_Wid, _NewWid, _Tab, Acc) ->
-    gb_sets:from_ordset(reverse(Acc)).
+new_items_as_list_2(_Wid, _NewWid, _Tab, Acc) -> reverse(Acc).
 
 %%%
 %%% Test the consistency of a #we{}.
