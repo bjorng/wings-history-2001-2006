@@ -1,3 +1,4 @@
+
 %%
 %%  wings_edge.erl --
 %%
@@ -8,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.95 2004/04/20 14:13:17 dgud Exp $
+%%     $Id: wings_edge.erl,v 1.96 2004/04/21 20:34:06 dgud Exp $
 %%
 
 -module(wings_edge).
@@ -419,7 +420,8 @@ cut_pick_marker({finish,[I]}, D0, Edge, We, Start, Dir, Char) ->
 
 slide(St) ->
     Mode = wings_pref:get_value(slide_mode, relative),
-    State = {Mode,none},
+    Stop = wings_pref:get_value(slide_stop, false),
+    State = {Mode,none,Stop},
     SUp = SDown = SN = {0.0,0.0,0.0},
     {Tvs,_,_,_} = 
 	wings_sel:fold(
@@ -427,7 +429,7 @@ slide(St) ->
 		  LofEs0 = wings_edge_loop:partition_edges(EsSet, We),
 		  LofEs = reverse(sort([{length(Es),Es} || Es <- LofEs0])),
 		  {Slides,Up,Dw,N} = slide_setup_edges(LofEs,Up0,Dw0,N0,We,
-						       gb_trees:empty()),
+						       {gb_trees:empty(), unknown, unknown}),
 		  {[{Id, make_slide_tv(Slides, State)}| Acc], Up,Dw,N}
 	  end, {[], SUp, SDown, SN}, St),
     Units = [distance],
@@ -435,74 +437,90 @@ slide(St) ->
     wings_drag:setup(Tvs, Units, Flags, St).
 
 slide_mode() ->
-    fun(help, State) ->
-	    slide_help(State);
-       ({key,$1}, {relative,F}) ->
-	    {absolute,F};
-       ({key,$1}, {absolute,F}) ->
-	    {relative,F};
-       ({key,$2}, {Mode,none}) ->
+    fun(help, State)              ->    slide_help(State);
+       ({key,$1}, {relative,F,S}) ->    {absolute,F,S};
+       ({key,$1}, {absolute,F,S}) ->    {relative,F,S};
+       ({key,$2}, {Mode,none,S})  ->
 	    case get(wings_slide) of
 		undefined -> 
-		    {Mode,none};
+		    {Mode,none,S};
 		Dx when Dx >= 0 -> 
-		    {Mode,positive};
+		    {Mode,positive,S};
 		_ -> 
-		    {Mode,negative}
+		    {Mode,negative,S}
 	    end;
-       ({key,$2}, {Mode,_}) ->
-	    {Mode,none};
-       (done, {NewMode,_}) ->
-	    wings_pref:set_value(slide_mode, NewMode);
+       ({key,$2}, {Mode,_,S})     ->    {Mode,none,S};
+       ({key,$3}, {Mode,F,false}) ->    {Mode,F,true};
+       ({key,$3}, {Mode,F,true})  ->    {Mode,F,false};
+       (done, {NewMode,_,NewStop})->
+	    wings_pref:set_value(slide_mode, NewMode),
+	    wings_pref:set_value(slide_stop, NewStop);
        (_, _) -> none
     end.
 
-slide_help({Mode,Freeze}) ->
-    ["[1] ",slide_help_mode(Mode),"  [2] ",slide_help_freeze(Freeze)].
+slide_help({Mode,Freeze,Stop}) ->
+    ["[1] ",slide_help_mode(Mode),
+     "  [2] ",slide_help_freeze(Freeze),
+     "  [3] ",slide_help_stop(Stop)].
 
 slide_help_mode(relative) -> "Absolute";
 slide_help_mode(absolute) -> "Relative".
+slide_help_freeze(none)   -> "Freeze direction";
+slide_help_freeze(_)      -> "Thaw direction".
+slide_help_stop(false)    -> "Stop at first edge";
+slide_help_stop(true)     -> "Continue Past edges".
 
-slide_help_freeze(none) -> "Freeze direction";
-slide_help_freeze(_) -> "Thaw direction".
+make_slide_tv(Slides, State) ->
+    Vs = gb_trees:keys(element(1,Slides)),
+    {Vs,make_slide_fun(Vs, Slides, State)}.
 
-make_slide_tv(Slides, {Mode,Freeze}) ->
-    Vs = gb_trees:keys(Slides),
-    {Vs,make_slide_fun(Vs, Slides, Mode, Freeze)}.
+%% The calculating fun
+%% First some restrictions if Stop == true
+slide_fun(Dx,{relative,Freeze,true}, Slides) when Dx > 1.0 ->
+    slide_fun(1.0, {relative,Freeze,true}, Slides);
+slide_fun(Dx,{relative,Freeze,true}, Slides) when Dx < -1.0 ->
+    slide_fun(-1.0, {relative,Freeze,true}, Slides);
+slide_fun(Dx0,{Mode,Freeze,Stop}, {Slides,MinDw,MinUp}) ->
+    {Dx, I, Min} = 
+	case Freeze of   %% 3 = UP, 2 = Down
+	    none when Dx0 >= 0 -> {Dx0, 3, MinUp};
+	    none ->               {-Dx0,2, MinDw};
+	    positive -> 	  {Dx0, 3, MinUp};
+	    negative ->           {-Dx0,2, MinDw}
+	end,
+    case Mode of 
+	relative ->
+	    fun(V,A) ->
+		    Slide = gb_trees:get(V, Slides),
+		    {Dir, Len, Count} = element(I, Slide),
+		    ScaleDir = e3d_vec:mul(e3d_vec:norm(Dir), Dx*(Len/Count)),
+		    [{V,e3d_vec:add(element(1,Slide), ScaleDir)}|A]
+	    end;
+	absolute when Stop == true, abs(Dx) > Min ->
+	    fun(V,A) ->
+		    Slide = gb_trees:get(V, Slides),
+		    {Dir, _Len, _C} = element(I, Slide),
+		    ScaleDir = e3d_vec:mul(e3d_vec:norm(Dir), Min),
+		    [{V,e3d_vec:add(element(1,Slide), ScaleDir)}|A]
+	    end;
+	absolute ->
+	    fun(V,A) ->
+		    Slide = gb_trees:get(V, Slides),
+		    {Dir, _Len, _C} = element(I, Slide),
+		    ScaleDir = e3d_vec:mul(e3d_vec:norm(Dir), Dx),
+		    [{V,e3d_vec:add(element(1,Slide), ScaleDir)}|A]
+	    end
+    end.
 
-make_slide_fun(Vs, Slides, Mode, Freeze) ->
+make_slide_fun(Vs, Slides, State) ->
     fun([Dx|_],Acc) ->
 	    put(wings_slide, Dx),
-	    foldl(fun(V,A) ->
-			  {Pos,{Ndir,NL,NC},{Pdir,PL,PC}} = 
-			      gb_trees:get(V, Slides),
-			  ScaleDir = 
-			      case Freeze of
-				  none ->
-				      if Dx > 0, Mode == relative ->
-					      e3d_vec:mul(e3d_vec:norm(Pdir), Dx*(PL/PC));
-					 Mode == relative ->
-					      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx*(NL/NC));
-					 Dx > 0 ->
-					      e3d_vec:mul(e3d_vec:norm(Pdir), Dx);
-					 true ->
-					      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx)
-				      end;
-				  positive when Mode == relative ->
-				      e3d_vec:mul(e3d_vec:norm(Pdir), Dx*(PL/PC));
-				  positive ->
-				      e3d_vec:mul(e3d_vec:norm(Pdir), Dx);
-				  negative when Mode == relative ->
-				      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx*(NL/NC));
-				  _ ->
-				      e3d_vec:mul(e3d_vec:norm(Ndir),-Dx)
-			      end,
-			  [{V,e3d_vec:add(Pos, ScaleDir)}|A]
-		  end, Acc, Vs);
-       (new_mode_data, {{NewMode,NewFreeze},_}) ->
-	    make_slide_fun(Vs,Slides, NewMode, NewFreeze);
+	    Fun = slide_fun(Dx,State,Slides),
+	    foldl(Fun, Acc, Vs);
+       (new_mode_data, {NewState,_}) ->
+	    make_slide_fun(Vs,Slides,NewState);
        (_,_) ->
-	    make_slide_fun(Vs,Slides,Mode,Freeze)
+	    make_slide_fun(Vs,Slides,State)
     end.
 
 slide_setup_edges([{_Sz,Es0}|LofEs],GUp0,GDw0,GN0,We,Acc0) ->
@@ -513,7 +531,7 @@ slide_setup_edges([], Up,Dw,N,_,Slides) ->
     {Slides,Up,Dw,N}.
 
 slide_add_edges([{LUp,LDw,LN,Es}|Parts],GUp0,GDw0,GN0,Acc0) ->
-%%    io:format("UDN ~p ~p ~p ~p~n", [len(LUp), len(LDw), len(LN), length(Es)]),
+    %%    io:format("UDN ~p ~p ~p ~p~n", [len(LUp), len(LDw), len(LN), length(Es)]),
     case (len(LUp) >= 1) or (len(LDw) >= 1)
 	or (len(LN) =< 1) or (length(Es) < 4) of
 	true -> %% Make sure up is up..
@@ -523,7 +541,7 @@ slide_add_edges([{LUp,LDw,LN,Es}|Parts],GUp0,GDw0,GN0,Acc0) ->
 	    %%DotDw1 = dot(Vec1,norm(GDw0)),
 	    %%DotUp2 = dot(Vec2,norm(GUp0)), 
 	    DotDw2 = dot(Vec2,norm(GDw0)),
-%	    io:format(" ~p ~p~n", [DotUp1,DotDw2]),
+						%     io:format(" ~p ~p~n", [DotUp1,DotDw2]),
 	    if (DotUp1 >= 0) and (DotDw2 >= 0) ->
 		    Acc  = slide_dirs(Es,1.0,Acc0),
 		    slide_add_edges(Parts,add(Vec1, GUp0),add(Vec2,GDw0),GN0,Acc);
@@ -546,16 +564,22 @@ slide_add_edges([{LUp,LDw,LN,Es}|Parts],GUp0,GDw0,GN0,Acc0) ->
 slide_add_edges([],GUp,GDw,GN,Acc) ->
     {GUp,GDw,GN,Acc}.
 
-slide_dirs([{V1,V1dir},{V2,V2dir}|Es],Up,Acc0) ->
+slide_dirs([{V1,V1dir},{V2,V2dir}|Es],Up,{Acc0,MinU0,MinD0}) ->
+    {_,{_,V1M1},{_,V1M2}} = V1dir,
+    {_,{_,V2M1},{_,V2M2}} = V2dir,
     case Up < 0 of
 	true ->
+	    MinU = lists:min([MinU0,V1M2,V2M2]),
+	    MinD = lists:min([MinD0,V1M1,V2M1]),
 	    Acc1 = add_slide_vertex(V1,swap(V1dir), Acc0),
 	    Acc  = add_slide_vertex(V2,swap(V2dir), Acc1),
-	    slide_dirs(Es,Up,Acc);
+	    slide_dirs(Es,Up,{Acc,MinU,MinD});
 	false ->
-	    Acc1 = add_slide_vertex(V1,V1dir, Acc0),
-	    Acc  = add_slide_vertex(V2,V2dir, Acc1),
-	    slide_dirs(Es,Up,Acc)
+	    MinU = lists:min([MinU0,V1M1,V2M1]),
+	    MinD = lists:min([MinD0,V1M2,V2M2]),
+	    Acc1 = add_slide_vertex(V1,V1dir,Acc0),
+	    Acc  = add_slide_vertex(V2,V2dir,Acc1),
+	    slide_dirs(Es,Up,{Acc,MinU,MinD})
     end;
 slide_dirs([],_,Acc) -> Acc.
 
@@ -1257,3 +1281,4 @@ patch_edge(Edge, ToEdge, Face, OrigEdge, Etab) ->
 		  R#edge{rtpr=ToEdge}
 	  end,
     gb_trees:update(Edge, New, Etab).
+
