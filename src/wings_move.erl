@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.50 2004/03/15 17:42:15 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.51 2004/03/19 07:43:00 bjorng Exp $
 %%
 -module(wings_move).
 -export([setup/2,setup_we/4,plus_minus/3,magnet_move_fun/3]).
@@ -426,6 +426,12 @@ move_fun(VsPos, ViewMatrix) ->
 	    {Xt,Yt,Zt} = e3d_mat:mul_point(ViewMatrix, {Dx,Dy,-Dz}),
 	    foldl(fun({V,{X,Y,Z}}, A) -> 
 			  Pos = wings_util:share(X+Xt, Y+Yt, Z+Zt),
+			  [{V,Pos}|A]
+		  end, Acc, VsPos);
+       ([Dx,Dy|_], Acc) ->
+	    {Xt,Yt,_} = e3d_mat:mul_point(ViewMatrix, {Dx,Dy,0.0}),
+	    foldl(fun({V,{X,Y,Z}}, A) -> 
+			  Pos = wings_util:share(X+Xt, Y+Yt, Z),
 			  [{V,Pos}|A]
 		  end, Acc, VsPos)
     end.
