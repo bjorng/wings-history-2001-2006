@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.38 2003/05/31 15:29:22 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.39 2003/05/31 20:07:54 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -38,7 +38,8 @@ smooth(Fs, Vs, Es, Htab, #we{vp=Vp,next_id=Id}=We0) ->
 
     %% First do all topological changes to the edge table.
     We1 = cut_edges(Es, FacePos, Htab, We0#we{vc=undefined}),
-    We = smooth_faces(Fs, FacePos0, Id, We1),
+    We2 = smooth_materials(Fs, FacePos0, We1),
+    We = smooth_faces(FacePos0, Id, We2),
 
     %% Now calculate all vertex positions.
     {UpdatedVs,Mid} = update_edge_vs(Es, We0, FacePos, Htab, Vp, Id),
@@ -161,8 +162,7 @@ edge_get(Edge, {Id,Etab,_}) when Edge < Id ->
 edge_get(Edge, {_,_,Etab}) ->
     gb_trees:get(Edge, Etab).
 
-smooth_faces(Fs, FacePos, Id, We0) ->
-    We = smooth_materials(Fs, FacePos, We0),
+smooth_faces(FacePos, Id, We) ->
     smooth_faces_1(FacePos, Id, [], We).
 
 smooth_faces_1([{Face,{_,Color,NumIds}}|Fs], Id, EsAcc0, #we{es=Etab0}=We0) ->
