@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.35 2003/04/24 05:46:22 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.36 2003/06/02 19:39:38 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -19,7 +19,8 @@
 	 to_vertices/2,
 	 normal/2,face_normal/2,good_normal/2,
 	 center/2,
-	 vinfo/2,vinfo/3,
+	 vinfo_cw/2,vinfo_cw/3,
+	 vinfo_ccw/2,vinfo_ccw/3,
 	 vertices_cw/2,vertices_cw/3,
 	 vertices_ccw/2,vertices_ccw/3,
 	 extend_border/2,bordering_faces/2,
@@ -196,20 +197,36 @@ center(Face, We) ->
 
 %% Vertex info for drawing.
 
-vinfo(Face, #we{fs=Ftab}=We) ->
+vinfo_cw(Face, #we{fs=Ftab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
-    vinfo(Face, Edge, We).
+    vinfo_cw(Face, Edge, We).
 
-vinfo(Face, Edge, #we{es=Etab}) ->
-    vinfo(Edge, Etab, Face, Edge, []).
+vinfo_cw(Face, Edge, #we{es=Etab}) ->
+    vinfo_cw_1(Edge, Etab, Face, Edge, []).
 
-vinfo(LastEdge, _, _, LastEdge, Acc) when Acc =/= [] -> Acc;
-vinfo(Edge, Etab, Face, LastEdge, Acc) ->
+vinfo_cw_1(LastEdge, _, _, LastEdge, Acc) when Acc =/= [] -> Acc;
+vinfo_cw_1(Edge, Etab, Face, LastEdge, Acc) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{vs=V,a=Col,lf=Face,ltpr=NextEdge} ->
+	    vinfo_cw_1(NextEdge, Etab, Face, LastEdge, [[V|Col]|Acc]);
+	#edge{ve=V,b=Col,rtpr=NextEdge} ->
+	    vinfo_cw_1(NextEdge, Etab, Face, LastEdge, [[V|Col]|Acc])
+    end.
+
+vinfo_ccw(Face, #we{fs=Ftab}=We) ->
+    Edge = gb_trees:get(Face, Ftab),
+    vinfo_ccw(Face, Edge, We).
+
+vinfo_ccw(Face, Edge, #we{es=Etab}) ->
+    vinfo_ccw_1(Edge, Etab, Face, Edge, []).
+
+vinfo_ccw_1(LastEdge, _, _, LastEdge, Acc) when Acc =/= [] -> Acc;
+vinfo_ccw_1(Edge, Etab, Face, LastEdge, Acc) ->
     case gb_trees:get(Edge, Etab) of
 	#edge{vs=V,a=Col,lf=Face,ltsu=NextEdge} ->
-	    vinfo(NextEdge, Etab, Face, LastEdge, [[V|Col]|Acc]);
+	    vinfo_ccw_1(NextEdge, Etab, Face, LastEdge, [[V|Col]|Acc]);
 	#edge{ve=V,b=Col,rtsu=NextEdge} ->
-	    vinfo(NextEdge, Etab, Face, LastEdge, [[V|Col]|Acc])
+	    vinfo_ccw_1(NextEdge, Etab, Face, LastEdge, [[V|Col]|Acc])
     end.
 
 vertices_cw(Face, #we{es=Etab,fs=Ftab}) ->
