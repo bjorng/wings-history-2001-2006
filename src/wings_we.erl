@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.85 2004/12/16 20:05:16 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.86 2004/12/19 11:30:24 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -912,76 +912,61 @@ new_items_2(_Wid, _NewWid, _Tab, Acc) ->
 %%%
 
 is_consistent(#we{}=We) ->
-    case catch validate_we(We) of
-	{'EXIT',Reason} ->
-	    io:format("~P\n", [Reason,30]),
-	    false;
-	true -> true
+    try
+	validate_vertex_tab(We),
+	validate_faces(We)
+    catch error:_ -> false
     end.
 
-is_face_consistent(Face, #we{fs=Ftab}=We) ->
+is_face_consistent(Face, #we{fs=Ftab,es=Etab}) ->
     Edge = gb_trees:get(Face, Ftab),
-    case catch validate_face(Face, Edge, We) of
-	true -> true;
-	_ -> false
+    try validate_face(Face, Edge, Etab)
+    catch error:_ -> false
     end.
-
-validate_we(We) ->
-    validate_vertex_tab(We),
-    validate_faces(We),
-    true.
     
-validate_faces(#we{fs=Ftab}=We) ->
-    foreach(fun({Face,Edge}) ->
-		    validate_face(Face, Edge, We)
-	    end, gb_trees:to_list(Ftab)).
+validate_faces(#we{fs=Ftab,es=Etab}) ->
+    validate_faces_1(gb_trees:to_list(Ftab), Etab).
 
-validate_face(Face, Edge, We) ->
-    Cw = walk_face_cw(Face, Edge, Edge, We, []),
-    Ccw = walk_face_ccw(Face, Edge, Edge, We, []),
-    case reverse(Ccw) of
-	Cw -> validate_face_vertices(Cw);
-	_Other -> exit({face_cw_ccw_inconsistency,Face})
-    end.
+validate_faces_1([{Face,Edge}|Fs], Etab) ->
+    validate_face(Face, Edge, Etab),
+    validate_faces_1(Fs, Etab);
+validate_faces_1([], _) -> true.
 
-validate_face_vertices(Vs) ->
-    validate_face_vertices_1(sort(Vs)).
+validate_face(Face, Edge, Etab) ->
+    Ccw = walk_face_ccw(Edge, Etab, Face, Edge, []),
+    Edge = walk_face_cw(Edge, Etab, Face, Ccw),
+    [V|Vs] = sort(Ccw),
+    validate_face_vertices(Vs, V).
 
-validate_face_vertices_1([V,V|_]) ->
-    exit(repeated_vertex);
-validate_face_vertices_1([_|T]) ->
-    validate_face_vertices_1(T);
-validate_face_vertices_1([]) -> true.
+validate_face_vertices([V|_], V) ->
+    erlang:error(repeated_vertex);
+validate_face_vertices([_], _) ->
+    true;
+validate_face_vertices([V|Vs], _) ->
+    validate_face_vertices(Vs, V).
 
-walk_face_cw(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
-walk_face_cw(Face, Edge, LastEdge, We, Acc) ->
-    #we{es=Etab} = We,
-    case gb_trees:get(Edge, Etab) of
-	#edge{vs=V,lf=Face,ltsu=Next} ->
-	    walk_face_cw(Face, Next, LastEdge, We, [V|Acc]);
-	#edge{ve=V,rf=Face,rtsu=Next} ->
-	    walk_face_cw(Face, Next, LastEdge, We, [V|Acc])
-    end.
-
-walk_face_ccw(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
-walk_face_ccw(Face, Edge, LastEdge, We, Acc) ->
-    #we{es=Etab} = We,
+walk_face_ccw(LastEdge, _, _, LastEdge, [_|_]=Acc) -> Acc;
+walk_face_ccw(Edge, Etab, Face, LastEdge, Acc) ->
     case gb_trees:get(Edge, Etab) of
 	#edge{ve=V,lf=Face,ltpr=Next} ->
-	    walk_face_ccw(Face, Next, LastEdge, We, [V|Acc]);
+	    walk_face_ccw(Next, Etab, Face, LastEdge, [V|Acc]);
 	#edge{vs=V,rf=Face,rtpr=Next} ->
-	    walk_face_ccw(Face, Next, LastEdge, We, [V|Acc])
+	    walk_face_ccw(Next, Etab, Face, LastEdge, [V|Acc])
+    end.
+
+walk_face_cw(Edge, _, _, []) -> Edge;
+walk_face_cw(Edge, Etab, Face, [V|Vs]) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{vs=V,lf=Face,ltsu=Next} ->
+	    walk_face_cw(Next, Etab, Face, Vs);
+	#edge{ve=V,rf=Face,rtsu=Next} ->
+	    walk_face_cw(Next, Etab, Face, Vs)
     end.
 
 validate_vertex_tab(#we{es=Etab,vc=Vct}) ->
     foreach(fun({V,Edge}) ->
 		    case gb_trees:get(Edge, Etab) of
-			#edge{vs=V}=Rec ->
-			    validate_edge_rec(Rec);
-			#edge{ve=V}=Rec ->
-			    validate_edge_rec(Rec)
+			#edge{vs=V} -> ok;
+			#edge{ve=V} -> ok
 		    end
 	    end, gb_trees:to_list(Vct)).
-
-validate_edge_rec(#edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS})
-  when is_integer(LP+LS+RP+RS) -> ok.
