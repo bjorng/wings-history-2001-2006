@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.21 2003/07/21 16:18:29 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.22 2003/07/21 20:10:37 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -32,7 +32,8 @@ dirs(help, _Mode, Ns) -> dirs_help(Ns).
 dirs_help([move|_]) ->
     {"Move along std. axis",[],"Pick axis to move along"};
 dirs_help([rotate|_]) ->
-    {"Rotate around std. axis",[],"Pick axis to rotate around"};
+    {"Rotate around std. axis","Pick axis to rotate around",
+     "Pick axis and point to rotate through"};
 dirs_help([scale|_]) -> "Scale selected elements";
 dirs_help([extrude|_]) ->
     {"Extrude along std. axis",[],"Pick axis to extrude along"};
@@ -123,7 +124,8 @@ rotate(_) ->
     {"Rotate",{rotate,fun rotate/2},[],[magnet]}.
 
 rotate(help, _) ->
-    {"Rotate along std. axis",[],"Pick axis to rotate around"};
+    {"Rotate along std. axis","Pick axis to rotate around",
+     "Pick axis and point to rotate through"};
 rotate(1, [rotate,Mode]=Ns) when Mode == vertex; Mode == body ->
     [rotate_fun(free, Ns),
      rotate_fun(x, Ns),
@@ -141,7 +143,7 @@ rotate(1, Ns) ->
      {advanced,separator},
      rotate_axis_fun(last_axis, Ns),
      rotate_axis_fun(default_axis, Ns)];
-rotate(2, _) -> ignore;
+rotate(2, Ns) -> {vector,{pick,[axis],[],Ns}};
 rotate(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
 
 rotate_fun(Dir, Names) ->
