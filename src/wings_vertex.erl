@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.30 2002/11/10 10:56:43 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.31 2002/11/10 13:23:36 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -429,9 +429,10 @@ connect_pairs([{_,Pair}|Pairs], Face, We0) ->
 connect_pairs([], _, _) -> no.
 
 try_connect({Va,Vb}, Face, We) ->
-    Bad = until(fun(_, _, Rec, A) ->
+    %% Do not try to connect if there is an edge from Va to Vb in this face.
+    Bad = until(fun(_, _, #edge{lf=Lf,rf=Rf}=Rec, A) ->
 			case other(Va, Rec) of
-			    Vb -> true;
+			    Vb when Lf =:= Face; Rf =:= Face -> true;
 			    _ -> A
 			end
 		end, false, Va, We),
