@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.254 2004/05/24 13:23:56 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.255 2004/05/29 13:10:30 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -434,6 +434,8 @@ handle_event(resized, St) ->
     get_event(St);
 handle_event({new_state,St}, _) ->
     new_state(St);
+handle_event(revert_state, St) ->
+    get_event(St);
 handle_event(Ev, St) ->
     case wings_camera:event(Ev, fun() -> redraw(St) end) of
 	next -> handle_event_1(Ev, St);
