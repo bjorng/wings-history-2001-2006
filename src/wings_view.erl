@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.120 2003/05/30 07:41:40 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.121 2003/06/01 06:31:45 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -33,6 +33,7 @@ menu(St) ->
      separator,
      {"Workmode",workmode,"Toggle flat/smooth shading",
       crossmark(workmode)},
+     separator,
      {"Wireframe",wireframe,"Display selected objects as a wireframe "
       "(same for all objects if nothing is selected)"},
      {"Shade",shade,"Display selected objects as shaded "
@@ -40,6 +41,9 @@ menu(St) ->
      {"Toggle Wireframe",toggle_wireframe,
       "Toggle display mode for selected objects "
       "(same for all objects if nothing is selected)",wireframe_crossmark(St)},
+     separator,
+     {"Toggle Proxy Mode",smooth_proxy,
+      "Toggle the smooth proxy mode for selected objects"},
      separator,
      {"Show Saved BB",show_bb,"Display any saved bounding box",crossmark(show_bb)},
      {"Show Edges",show_edges,"Show edges in workmode",crossmark(show_edges)},
@@ -139,6 +143,9 @@ command(shade, #st{sel=[]}=St) ->
     St;
 command(shade, St) ->
     mode_change_sel(false, St),
+    St;
+command(smooth_proxy, St) ->
+    wings_subdiv:setup(St),
     St;
 command(orthogonal_view, St) ->
     toggle_option(orthogonal_view),
