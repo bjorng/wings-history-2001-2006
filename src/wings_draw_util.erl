@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.1 2001/11/28 20:49:36 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.2 2001/11/29 10:14:56 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -91,7 +91,7 @@ face(Face, Edge, #we{vs=Vtab}=We) ->
 	    glu:tessNormal(Tess, X, Y, Z),
 	    glu:tessBeginPolygon(Tess),
 	    glu:tessBeginContour(Tess),
-	    Info = [{material,?GL_FRONT,?GL_DIFFUSE,{1.0,1.0,1.0}},
+	    Info = [{material,?GL_FRONT,?GL_AMBIENT_AND_DIFFUSE,{1.0,1.0,1.0}},
 		    {normal,N}],
 	    tess_face(Tess, Vs, Info, Vtab),
 	    glu:tessEndContour(Tess),
@@ -100,13 +100,13 @@ face(Face, Edge, #we{vs=Vtab}=We) ->
 	Vs ->
 	    gl:'begin'(?GL_POLYGON),
 	    gl:normal3fv(wings_face:face_normal(Vs, We)),
-	    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, {1.0,1.0,1.0}),
+	    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
 	    face_1(Vs, Vtab),
 	    gl:'end'()
     end.
 
 tess_face_vtxcol(Tess, [{Pos,Col}|T], Normal) ->
-    glu:tessVertex(Tess, Pos, [{material,?GL_FRONT,?GL_DIFFUSE,Col}|Normal]),
+    glu:tessVertex(Tess, Pos, [{material,?GL_FRONT,?GL_AMBIENT_AND_DIFFUSE,Col}|Normal]),
     tess_face_vtxcol(Tess, T, Normal);
 tess_face_vtxcol(Tess, [], Normal) -> ok.
 
@@ -116,7 +116,7 @@ tess_face(Tess, [V|T], N, Vtab) ->
 tess_face(Tess, [], N, Vtab) -> ok.
 
 face_vtxcol_1([{Pos,Col}|T]) ->
-    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Col),
+    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, Col),
     gl:vertex3fv(Pos),
     face_vtxcol_1(T);
 face_vtxcol_1([]) -> ok.

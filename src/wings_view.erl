@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.23 2001/11/26 08:37:45 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.24 2001/11/29 10:14:56 bjorng Exp $
 %%
 
 -module(wings_view).
--export([menu/3,command/2,init/0,current/0,set_current/1,
+-export([menu/3,command/2,init/0,init_light/0,
+	 current/0,set_current/1,
 	 reset/0,projection/0,perspective/0,
 	 model_transformations/0,eye_point/0,
 	 aim/1,along/2,align_to_selection/1]).
@@ -118,6 +119,9 @@ init() ->
     wings_pref:set_value(orthogonal_view, false),
     reset().
 
+init_light() ->
+    gl:enable(?GL_LIGHT0).
+
 reset() ->
     set_current(#view{origo={0.0,0.0,0.0},
 		      azimuth=-45.0,elevation=25.0,
@@ -148,7 +152,7 @@ model_transformations() ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.0,0.0,1.0,0.0}),
+    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.0,0.71,0.71,0.0}),
     Dist = Dist0 * math:sqrt((W*H) / (640*480)),
     gl:translatef(PanX, PanY, -Dist),
     gl:rotatef(El, 1.0, 0.0, 0.0),

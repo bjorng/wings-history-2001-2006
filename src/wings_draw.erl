@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.29 2001/11/28 20:49:36 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.30 2001/11/29 10:14:56 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -216,7 +216,7 @@ draw_faces(We, false, St) ->
 draw_smooth_faces(Mtab, #we{mode=vertex}=We) ->
     Faces = wings_we:normals(We),
     gl:enable(?GL_COLOR_MATERIAL),
-    gl:colorMaterial(?GL_FRONT, ?GL_DIFFUSE),
+    gl:colorMaterial(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE),
     draw_smooth_vcolor(Faces),
     gl:disable(?GL_COLOR_MATERIAL);
 draw_smooth_faces(Mtab, We) ->
@@ -266,7 +266,7 @@ draw_smooth_vcolor([{_,[_,_,_,_,_|_]=Vs}|T]) ->
 		    glu:tessVertex(Tess, P,
 				   [{normal,N},
 				    {color,Diff},
-				    {material,?GL_FRONT,?GL_DIFFUSE,Diff}])
+				    {material,?GL_FRONT,?GL_AMBIENT_AND_DIFFUSE,Diff}])
 	    end, Vs),
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess),
@@ -276,7 +276,7 @@ draw_smooth_vcolor([{_,Vs}|T]) ->
     foreach(fun({P,{{R,G,B}=Diff,N}}) ->
  		    gl:normal3fv(N),
 		    gl:color3f(R, G, B),
-		    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
+		    gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, Diff),
  		    gl:vertex3fv(P)
  	    end, Vs),
     gl:'end'(),

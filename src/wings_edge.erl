@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.20 2001/11/27 20:58:02 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.21 2001/11/29 10:14:56 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -186,7 +186,7 @@ fast_cut(Edge, {Pos,Col}, We) ->
     fast_cut(Edge, Pos, Col, We);
 fast_cut(Edge, Pos, We) ->
     %% XXX Temporary.
-    fast_cut(Edge, Pos, {0.1,0.2,0.1}, We).
+    fast_cut(Edge, Pos, wings_color:white(), We).
 
 fast_cut(Edge, Pos0, Col0, We0) ->
     {NewV,We} = wings_we:new_ids(1, We0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.60 2001/11/28 20:49:36 bjorng Exp $
+%%     $Id: wings.erl,v 1.61 2001/11/29 10:14:56 bjorng Exp $
 %%
 
 -module(wings).
@@ -112,7 +112,7 @@ locate(Name) ->
 
 resize(W, H, St) ->
     sdl_video:setVideoMode(W, H, 16, ?SDL_OPENGL bor ?SDL_RESIZABLE),
-    gl:enable(?GL_LIGHT0),
+    wings_view:init_light(),
     gl:enable(?GL_DEPTH_TEST),
     {R,G,B} = wings_pref:get_value(background_color),
     gl:clearColor(R, G, B, 1.0),
