@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.47 2003/11/15 21:16:36 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.48 2003/11/23 17:39:42 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -172,8 +172,20 @@ other_pos(V, #edge{ve=V,vs=Other}, Tab) -> pos(Other, Tab).
 
 %% center(We) -> {CenterX,CenterY,CenterZ}
 %%  Find the geometric center of a body.
-center(#we{vp=Vtab}) ->
-    e3d_vec:average(gb_trees:values(Vtab)).
+center(#we{vp=Vtab}=We) ->
+    Center = e3d_vec:average(gb_trees:values(Vtab)),
+    center_1(Center, We).
+
+center_1(Center, #we{mirror=none}) -> Center;
+center_1(Center, #we{mirror=Face}=We) ->
+    %% Slide the center point down to the nearest point on the mirror plane.
+    MirrorNormal = wings_face:normal(Face, We),
+    FaceVs = wings_face:to_vertices(gb_sets:singleton(Face), We),
+    Origin = wings_vertex:center(FaceVs, We),
+    M0 = e3d_mat:translate(Origin),
+    M = e3d_mat:mul(M0, e3d_mat:project_to_plane(MirrorNormal)),
+    Flatten = e3d_mat:mul(M, e3d_mat:translate(e3d_vec:neg(Origin))),
+    e3d_mat:mul_point(Flatten, Center).
 
 %% center(VertexGbSet, We) -> {CenterX,CenterY,CenterZ}
 %%  Find the geometric center of all vertices.
