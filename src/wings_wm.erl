@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.84 2003/02/27 19:22:47 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.85 2003/03/02 08:38:58 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -16,6 +16,7 @@
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,reinit_opengl/0,
 	 new/4,delete/1,raise/1,
 	 link/2,hide/1,show/1,is_hidden/1,
+	 get_props/1,
 	 get_prop/1,get_prop/2,lookup_prop/1,lookup_prop/2,
 	 set_prop/2,set_prop/3,erase_prop/1,erase_prop/2,
 	 message/1,message/2,message_right/1,
@@ -423,6 +424,10 @@ local_mouse_state() ->
     {X,Y} = global2local(X0, Y0),
     {B,X,Y}.
 
+get_props(Win) ->
+    #win{props=Props} = get_window_data(Win),
+    gb_trees:to_list(Props).
+
 get_prop(Name) ->
     get_prop(active_window(), Name).
 
@@ -775,6 +780,12 @@ wm_event(init_opengl) ->
 %%%
 
 find_active(Ev) ->
+    case get(wm_focus_grab) of
+ 	undefined -> find_active_0(Ev);
+ 	Focus -> Focus
+    end.
+
+find_active_0(Ev) ->
     case Ev of
 	#mousebutton{x=X,y=Y} -> ok;
 	#mousemotion{x=X,y=Y} -> ok;
@@ -785,28 +796,10 @@ find_active(Ev) ->
 find_active_1([#win{x=Wx,y=Wy,w=W,h=H,name=Name}|T], X, Y) ->
     case {X-Wx,Y-Wy} of
 	{Rx,Ry} when 0 =< Rx, Rx < W,0 =< Ry, Ry < H ->
-	    find_active_2(Name);
+	    Name;
 	_ -> find_active_1(T, X, Y)
     end;
-find_active_1(_, _, _) -> find_active_2(none).
-
-find_active_2({controller,Client}=Name) ->
-    case get(wm_focus_grab) of
- 	undefined -> Name;
-	Client ->
-	    %% If the mouse cursor is turned off, always respect the
-	    %% grabbed focus.
-	    case wings_io:is_grabbed() of
-		false -> Name;
-		true -> Client
-	    end;
- 	Focus -> Focus
-    end;
-find_active_2(Name) ->
-    case get(wm_focus_grab) of
- 	undefined -> Name;
- 	Focus -> Focus
-    end.
+find_active_1(_, _, _) -> none.
 
 %%%
 %%% Utility functions.

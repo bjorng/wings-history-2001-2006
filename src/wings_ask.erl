@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.67 2003/02/27 11:26:22 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.68 2003/03/02 08:38:57 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -114,10 +114,10 @@ do_dialog(Title, Qs, Level, Fun) ->
     W = W0 + 2*?HMARGIN,
     H = H0 + 2*?VMARGIN,
     S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level},
+    setup_blanket(),
     Op = {seq,push,get_event(S)},
     Name = {dialog,Level},
     wings_wm:toplevel(Name, Title, {trunc(X),trunc(Y),highest}, {W,H}, Op),
-    wings_wm:grab_focus(Name),
     wings_wm:dirty(),
     keep.
 
@@ -166,6 +166,22 @@ init_origin(#s{w=Xs,h=Ys}=S) ->
 	 end,
     S#s{ox=Tx,oy=Ty}.
 
+setup_blanket() ->
+    %% The menu blanket window lies below the dialog, covering the entire
+    %% screen and ignoring any events.
+    case wings_wm:is_window(dialog_blanket) of
+	true -> ok;
+	false ->
+	    Op = {push,fun blanket/1},
+	    {TopW,TopH} = wings_wm:top_size(),
+	    wings_wm:new(dialog_blanket, {0,0,highest}, {TopW,TopH}, Op)
+    end.
+
+remove_blanket() ->
+    wings_wm:delete(dialog_blanket).
+
+blanket(_) -> keep.
+
 get_event(S) ->
     wings_wm:dirty(),
     {replace,fun(Ev) -> event(Ev, S) end}.
@@ -209,10 +225,10 @@ event_key({key,_,_,$\r}, S) ->
 event_key(Ev, S) ->
     field_event(Ev, S).
 
-delete(#s{level=?INITIAL_LEVEL}) -> delete;
-delete(#s{level=Level}) ->
-    wings_wm:grab_focus({dialog,Level-1}),
-    delete.
+delete(#s{level=?INITIAL_LEVEL}) ->
+    remove_blanket(),
+    delete;
+delete(_) -> delete.
 
 mouse_event(_, _, #mousemotion{state=Bst}, _) when Bst band ?SDL_BUTTON_LMASK == 0 ->
     keep;
@@ -344,11 +360,10 @@ drag_event(#mousemotion{x=X,y=Y}, #fi{w=W,h=H}, _, _, _, _) ->
     wings_wm:offset(dragger, X - W div 2, Y - H div 2),
     wings_wm:dirty(),
     keep;
-drag_event(#mousebutton{}, #fi{w=W,h=H}, _, _, DropData, #s{level=Level}) ->
+drag_event(#mousebutton{}, #fi{w=W,h=H}, _, _, DropData, _) ->
     {X,Y} = wings_wm:pos(dragger),
     Ev = {drop,{X + W div 2,Y + H div 2},DropData},
     wings_io:putback_event(Ev),
-    wings_wm:grab_focus({dialog,Level}),
     delete;
 drag_event(_, _, _, _, _, _) -> keep.
 
@@ -919,7 +934,6 @@ popup_event(#mousebutton{button=1,state=?SDL_RELEASED},
 	    #popup{parent=Parent,menu=Menu,sel=Sel}) ->
     {_,Key} = element(Sel, Menu),
     wings_wm:send(Parent, {popup_result,Key}),
-    wings_wm:grab_focus(Parent),
     delete;
 popup_event(_, _) -> keep.
 
