@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_q.erl,v 1.1 2003/03/19 13:55:54 dgud Exp $
+%%     $Id: e3d_q.erl,v 1.2 2003/05/05 07:44:27 dgud Exp $
 %%
 
 %% Quaternions are represented as a {{Qx,Qy,Qz},Qw}
@@ -19,6 +19,7 @@
 -module(e3d_q).
 
 -export([identity/0,inverse/1,norm/1,mult/1,mult/2,
+	 add/2, scale/2,
 	 magnitude/1, conjugate/1,
 	 to_rotation_matrix/1, from_rotation_matrix/1,
 	 from_angle_axis/2, to_angle_axis/1,
@@ -27,6 +28,7 @@
 -compile(inline).
 -compile({inline_size,24}).
 
+%% Multiplicative identity
 identity() ->
     {{0.0,0.0,0.0},1.0}.
 
@@ -48,6 +50,15 @@ norm(Q = {{Qx,Qy,Qz},Qw})
 	{'EXIT', _} -> {{0.0,0.0,0.0},0.0};
 	R -> R
     end.
+
+add({{X1,Y1,Z1},W1}, {{X2,Y2,Z2},W2})
+  when is_float(X1),is_float(Y1),is_float(Z1),is_float(W1),
+       is_float(X2),is_float(Y2),is_float(Z2),is_float(W2) ->
+    {{X1+X2,Y1+Y2,Z1+Z2},W1+W2}.
+
+scale({{Qx,Qy,Qz},Qw}, S)
+  when is_float(Qx),is_float(Qy),is_float(Qz),is_float(Qw), is_float(S) ->
+    {{Qx*S,Qy*S,Qz*S},Qw*S}.
 
 mult([H|R]) ->
     mmult(R,H).
