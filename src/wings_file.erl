@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.119 2003/05/29 08:29:51 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.120 2003/06/01 06:05:28 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -21,10 +21,10 @@
 -include("e3d_image.hrl").
 -include_lib("kernel/include/file.hrl").
 
--import(lists, [sort/1,reverse/1,flatten/1,foldl/3,keymember/3,keydelete/3]).
+-import(lists, [sort/1,reverse/1,flatten/1,foldl/3,keymember/3,keydelete/3,foreach/2]).
 -import(filename, [dirname/1]).
 
--define(WINGS,    ".wings").
+-define(WINGS, ".wings").
 
 init() ->
     case wings_pref:get_value(current_directory) of
@@ -544,6 +544,9 @@ output_file(Title, Prop) ->
     end.
 
 clean_st(St) ->
+    foreach(fun(Win) ->
+		    wings_wm:set_prop(Win, wireframed_objects, gb_sets:empty())
+	    end, wings_util:geom_windows()),
     DefMat = wings_material:default(),
     Empty = gb_trees:empty(),
     Limit = wings_image:next_id(),
