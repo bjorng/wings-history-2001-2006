@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.6 2001/10/17 07:48:25 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.7 2001/10/21 16:03:34 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -91,7 +91,8 @@ menu_show(#mi{xleft=X,ytop=Y,shortcut=Shortcut,w=Mw,h=Mh,
     if
 	integer(Item) -> toggle_highlight(Item, Mi);
 	true -> ok
-    end.
+    end,
+    gl:flush().
 
 menu_width(Menu) ->
     menu_width(Menu, 1, 0, 0).
