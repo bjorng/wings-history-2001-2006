@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.52 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.53 2002/07/21 07:13:23 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -64,7 +64,7 @@ menu(_St) ->
 			      {edit,{preferences,compatibility}}
 		      end,[],[]}].
 
-command(prefs, St) ->
+command(prefs, _St) ->
     Qs = [{hframe,
 	   [{vframe,
 	     [{label_column,
@@ -130,15 +130,15 @@ command(prefs, St) ->
 	      {"Show Memory Used",show_memory_used}
 	     ],
 	     [{title,"Miscellanous"}]}]}],
-    dialog(Qs, St);
-command(compatibility, St) ->
+    dialog(Qs);
+command(compatibility, _St) ->
     Qs = [{vframe,
 	   [{"Optimize display lists",display_list_opt},
 	    {"Use display lists for text",text_display_lists},
-	    {"Early back buffer clear",early_buffer_clear}
-	   ],
+	    {"Show dummy axis letter",dummy_axis_letter},
+	    {"Early back buffer clear",early_buffer_clear}],
 	   [{title,"Compatibility"}]}],
-    dialog(Qs, St);
+    dialog(Qs);
 command({set,List}, _St) ->
     foreach(fun({Key,Val}) ->
 		    smart_set_value(Key, Val)
@@ -146,7 +146,7 @@ command({set,List}, _St) ->
     wings_io:putback_event(redraw),
     keep.
 
-dialog(Qs0, St) ->
+dialog(Qs0) ->
     Qs = make_query(Qs0),
     wings_ask:dialog(Qs,
 		     fun(Res) ->
@@ -302,6 +302,7 @@ defaults() ->
      %% Compatibility preferences.
      {display_list_opt,true},
      {text_display_lists,true},
+     {dummy_axis_letter,false},
      {early_buffer_clear,os:type() =/= {unix,darwin}}
     ].
 

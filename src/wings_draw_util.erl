@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.30 2002/07/15 20:59:33 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.31 2002/07/21 07:13:23 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -184,6 +184,7 @@ render(#st{selmode=Mode}=St) ->
     render_scene(Dl, Mode, Work, false),
     render_scene(Dl, Mode, Work, true),
     axis_letters(),
+    dummy_axis_letter(),
     gl:disable(?GL_DEPTH_TEST),
     draw_vec(St),
     gl:popAttrib().
@@ -488,6 +489,22 @@ axis(I, Pos, Neg) ->
     gl:vertex3fv(A0),
     gl:vertex3fv(B),
     gl:'end'().
+
+dummy_axis_letter() ->
+    %% Attempt to work around a crash occurring with Matrox cards.
+    case wings_pref:get_value(dummy_axis_letter) andalso
+	(wings_pref:get_value(show_axes) == false orelse
+	 wings_pref:get_value(show_axis_letters) == false) of
+	false -> ok;
+	true ->
+	    MM = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
+	    PM = list_to_tuple(gl:getDoublev(?GL_PROJECTION_MATRIX)),
+	    Viewport = gl:getIntegerv(?GL_VIEWPORT),
+	    dummy_axis_letter(MM, PM, Viewport)
+    end.
+
+dummy_axis_letter(_, _, _) ->
+    wings_io:axis_text(10, 90, axisx, {1,0,0}).
 
 axis_letters() ->
     case wings_pref:get_value(show_axis_letters) andalso
