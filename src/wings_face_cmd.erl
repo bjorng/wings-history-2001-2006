@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.12 2001/09/24 07:24:53 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.13 2001/09/25 09:39:18 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -114,7 +114,7 @@ bevel_faces(ShId, Faces, We0, Acc) ->
     {We,[{ShId,MoveEdges}|Acc]}.
 
 bevel_connect(Vs, NewVs, We) ->
-    gb_sets:fold(fun(V, A) -> bevel_connect_1(V, NewVs, A) end, We, Vs).
+    foldl(fun(V, A) -> bevel_connect_1(V, NewVs, A) end, We, Vs).
 
 bevel_connect_1(V, NewVs, We) ->
     Vs = wings_vertex:fold(
@@ -141,9 +141,7 @@ dissolve_edges(Edges, We0) ->
     foldl(fun(E, W) -> wings_edge:dissolve_edge(E, W) end, We0, Edges).
 
 dissolve_more_edges(Vs, NewVs, We) ->
-    gb_sets:fold(fun(V, A) ->
-			 dissolve_more_edges_1(V, NewVs, A)
-		 end, We, Vs).
+    foldl(fun(V, A) -> dissolve_more_edges_1(V, NewVs, A) end, We, Vs).
 
 dissolve_more_edges_1(V, NewVs, We) ->
     Dis = wings_vertex:fold(

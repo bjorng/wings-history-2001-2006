@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.12 2001/09/24 07:24:53 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.13 2001/09/25 09:39:18 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -94,10 +94,10 @@ select_less(St) ->
 to_vertices(Edges, #we{es=Etab}) ->
     to_vertices(gb_sets:to_list(Edges), Etab, []).
 
-to_vertices([], Etab, Acc) -> ordsets:from_list(Acc);
 to_vertices([E|Es], Etab, Acc) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
-    to_vertices(Es, Etab, [Va,Vb|Acc]).
+    to_vertices(Es, Etab, [Va,Vb|Acc]);
+to_vertices([], Etab, Acc) -> ordsets:from_list(Acc).
 
 %%% The Select Edge Loop command.
 

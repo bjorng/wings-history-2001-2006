@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.11 2001/09/24 07:24:53 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.12 2001/09/25 09:39:18 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -132,18 +132,14 @@ bevel_move_1(Face, Es, #we{es=Etab}=We, Acc) ->
 %%
 
 edges_to_vertices(Es, #we{es=Etab}=We, Type) ->
-    Vs = foldl(fun(Edge, Acc) ->
-		       #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-		       gb_sets:add(Va, gb_sets:add(Vb, Acc))
-	       end, gb_sets:empty(), gb_sets:to_list(Es)),
-    scale_vertices(Type, gb_sets:to_list(Vs), We).
+    scale_vertices(Type, wings_edge:to_vertices(Es, We), We).
 
 %%
 %% Conversion of face selections to vertices.
 %%
 
 faces_to_vertices(Faces, We, Type) ->
-    scale_vertices(Type, gb_sets:to_list(wings_face:to_vertices(Faces, We)), We).
+    scale_vertices(Type, wings_face:to_vertices(Faces, We), We).
 
 %%
 %% Conversion of body selection to vertices.

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.8 2001/09/24 07:24:53 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.9 2001/09/25 09:39:18 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -92,16 +92,12 @@ other(Face, #edge{rf=Face,lf=Other}) -> Other.
 %% to_vertices(FaceGbSet, We) -> VertexGbSet
 %%  Convert a set of faces to a set of vertices.
 to_vertices(Faces, We) ->
-    to_vertices(gb_sets:iterator(Faces), We, gb_sets:empty()).
+    to_vertices(gb_sets:to_list(Faces), We, []).
 
-to_vertices(Iter0, We, Acc0) ->
-    case gb_sets:next(Iter0) of
-	none -> Acc0;
-	{Face,Iter} ->
-	    Acc = fold(fun(V, _, _, A) -> gb_sets:add(V, A) end,
-		       Acc0, Face, We),
-	    to_vertices(Iter, We, Acc)
-    end.
+to_vertices([Face|Faces], We, Acc0) ->
+    Acc = fold(fun(V, _, _, A) -> [V|A] end, Acc0, Face, We),
+    to_vertices(Faces, We, Acc);
+to_vertices([], We, Acc) -> ordsets:from_list(Acc).
 
 %% vertices(Face, We) -> NumberOfVertices
 %%  Calculate number of vertices building up a face.

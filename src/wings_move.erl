@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.8 2001/09/24 07:24:53 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.9 2001/09/25 09:39:18 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -117,7 +117,7 @@ faces_to_vertices(Faces, We, normal) ->
 	       end, [], gb_sets:to_list(Faces)),
     face_average(Vs, Vtab);
 faces_to_vertices(Faces, We, Vec) ->
-    make_tvs(gb_sets:to_list(wings_face:to_vertices(Faces, We)), Vec).
+    make_tvs(wings_face:to_vertices(Faces, We), Vec).
 
 face_normal(Face, Vs, Vtab, Acc) ->
     Normal = wings_face:face_normal(Vs, Vtab),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.8 2001/09/24 07:24:53 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.9 2001/09/25 09:39:18 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -53,7 +53,7 @@ setup(Type, #st{selmode=body}=St) ->
 %%
 
 vertices_to_vertices(Vs, We, Vec) ->
-    rotate(Vs, We, Vec).
+    rotate(gb_sets:to_list(Vs), We, Vec).
 
 %%
 %% Conversion of edge selections to vertices.
@@ -68,10 +68,7 @@ edges_to_vertices(Es, #we{es=Etab}=We, normal) ->
     Vec = e3d_vec:norm(e3d_vec:add(Ns)),
     edges_to_vertices(Es, We, Vec);
 edges_to_vertices(Es, #we{es=Etab}=We, Vec) ->
-    Vs = foldl(fun(Edge, Acc) ->
-		       #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
-		       gb_sets:add(Va, gb_sets:add(Vb, Acc))
-	       end, gb_sets:empty(), gb_sets:to_list(Es)),
+    Vs = wings_edge:to_vertices(Es, We),
     rotate(Vs, We, Vec).
  
 %%
@@ -87,8 +84,7 @@ faces_to_vertices(Faces, We, normal) ->
     Vs = wings_face:to_vertices(Faces, We),
     rotate(Vs, We, Vec);
 faces_to_vertices(Faces, We, Vec) ->
-    Vs = gb_sets:to_list(wings_face:to_vertices(Faces, We)),
-    rotate(Vs, We, Vec).
+    rotate(wings_face:to_vertices(Faces, We), We, Vec).
    
 %%
 %% Conversion of body selections (entire objects) to vertices.
@@ -101,6 +97,4 @@ body_to_vertices(#we{vs=Vtab}=We, Vec) ->
 
 rotate(Vs, We, Vec) when list(Vs) ->
     Center = wings_vertex:center(Vs, We),
-    [{{rot,Center,Vec},Vs}];
-rotate(Vs, We, Vec) ->
-    rotate(gb_sets:to_list(Vs), We, Vec).
+    [{{rot,Center,Vec},Vs}].
