@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.41 2002/08/01 19:25:04 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.42 2002/09/19 20:38:59 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([error/1,share/1,share/3,make_vector/1,
-	 validate_mirror/1,
+	 validate_mirror/1,rel2fam/1,
 	 message/2,yes_no/1,serious_yes_no/1,
 	 get_matrices/2,mirror_matrix/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
@@ -78,6 +78,9 @@ mirror_matrix(Id) ->
 
 mirror_matrix(#dlo{mirror=Matrix,src_we=#we{id=Id}}, Id) -> Matrix;
 mirror_matrix(_, Acc) -> Acc.
+
+rel2fam(Rel) ->
+    sofs:to_external(sofs:relation_to_family(sofs:relation(Rel))).
 
 yes_no(Question) ->
     wings_plugin:call_ui({question,Question}).

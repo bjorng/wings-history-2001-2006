@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.59 2002/09/18 06:09:10 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.60 2002/09/19 20:38:59 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -252,19 +252,17 @@ marquee_pick(true, X, Y0, W, H, St0) ->
     case pick_all(true, X, Y0, W, H, St0) of
 	{none,_}=R -> R;
 	{Hits0,St} ->
-	    %% XXX For the moment, ignore any hits in the mirror part
-	    %% of the object.
-	    Hits0A = [Hit || {Id,Face}=Hit <- Hits0, Id > 0],
-	    Hits1 = marquee_filter(Hits0A, St),
-	    Hits2 = sofs:relation(Hits1),
-	    Hits3 = sofs:relation_to_family(Hits2),
-	    Hits4 = sofs:to_external(Hits3),
+	    Hits1 = marquee_filter(Hits0, St),
+	    Hits2 = wings_util:rel2fam(Hits1),
+	    HitsOrig = [Hit || {Id,_}=Hit <- Hits2, Id > 0],
+	    HitsMirror = [Hit || {Id,_}=Hit <- Hits2, Id < 0],
 	    {MM,PM,ViewPort} = wings_util:get_matrices(0, original),
 	    {_,_,_,Wh} = ViewPort,
 	    Y = Wh - Y0,
-	    RectData = {MM,PM,ViewPort,X-W/2,Y-H/2,
-			X+W/2,Y+H/2},
-	    Hits = marquee_convert(Hits4, RectData, St, []),
+	    RectData = {MM,PM,ViewPort,X-W/2,Y-H/2,X+W/2,Y+H/2},
+	    Hits3 = marquee_convert(HitsOrig, RectData, St, []),
+	    Hits4 = marquee_convert(HitsMirror, RectData, St, []),
+	    Hits = sofs:to_external(sofs:union(Hits3, Hits4)),
 	    {Hits,St}
     end.
 
@@ -273,38 +271,57 @@ marquee_filter(Hits, #st{selmode=Mode,shapes=Shs}) ->
     marquee_filter_1(Hits, Shs, Mode, EyePoint, []).
 
 marquee_filter_1([{Id,Face}|Hits], Shs, Mode, EyePoint, Acc) ->
-    We = gb_trees:get(Id, Shs),
-    Vs = [V|_] = wings_face:surrounding_vertices(Face, We),
-    N = wings_face:face_normal(Vs, We),
-    D = e3d_vec:dot(wings_vertex:pos(V, We), N),
+    We = gb_trees:get(abs(Id), Shs),
+    Ps = [P|_] = face_vtx_pos(Face, Id, We),
+    N = e3d_vec:normal(Ps),
+    D = e3d_vec:dot(P, N),
     case e3d_vec:dot(EyePoint, N) of
 	S when S < D ->				%Ignore back-facing face.
 	    marquee_filter_1(Hits, Shs, Mode, EyePoint, Acc);
 	_S ->					%Front-facing face.
 	    marquee_filter_1(Hits, Shs, Mode, EyePoint, [{Id,Face}|Acc])
     end;
-marquee_filter_1([], _St, _Mode, _EyePoint, Acc) -> Acc.
+marquee_filter_1([], _, _, _, Acc) -> Acc.
 
-marquee_convert([{Id,Faces}|Hits], RectData,
+face_vtx_pos(Face, Id, #we{vs=Vtab}=We) ->
+    Vs = wings_face:surrounding_vertices(Face, We),
+    Ps = foldl(fun(V, A) ->
+		       #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+		       [Pos|A]
+	       end, [], Vs),
+    if
+	Id < 0 ->
+	    Mtx = wings_util:mirror_matrix(-Id),
+	    mul_points(Mtx, Ps);
+	true ->
+	    reverse(Ps)
+    end.
+
+marquee_convert([{Id,Faces}|Hits], RectData0,
 	       #st{selmode=Mode,shapes=Shs}=St, Acc) ->
-    We = gb_trees:get(Id, Shs),
+    We = gb_trees:get(abs(Id), Shs),
+    RectData = if
+		   Id < 0 ->
+		       {MM,PM,_} = wings_util:get_matrices(-Id, mirror),
+		       RectData1 = setelement(2, RectData0, PM),
+		       setelement(1, RectData1, MM);
+		   true -> RectData0
+	       end,
     case marquee_convert_1(Faces, Mode, RectData, We) of
 	[] ->
 	    marquee_convert(Hits, RectData, St, Acc);
 	Items ->
-	    marquee_convert(Hits, RectData, St, [{Id,Items}|Acc])
+	    marquee_convert(Hits, RectData, St, [{abs(Id),Items}|Acc])
     end;
-marquee_convert([], _RectData, _St, Hits) ->
-    sofs:to_external(sofs:family_to_relation(sofs:family(Hits))).
+marquee_convert([], _, _, Hits) ->
+    sofs:family_to_relation(sofs:family(Hits)).
 
 marquee_convert_1(Faces0, face, Rect, #we{vs=Vtab}=We) ->
     Vfs0 = wings_face:fold_faces(
 	     fun(Face, V, _, _, A) ->
 		     [{V,Face}|A]
 	     end, [], Faces0, We),
-    Vfs1 = sofs:relation(Vfs0, [{vertex,face}]),
-    Vfs2 = sofs:relation_to_family(Vfs1),
-    Vfs = sofs:to_external(Vfs2),
+    Vfs = wings_util:rel2fam(Vfs0),
     Kill0 = [Fs || {V,Fs} <- Vfs, not is_inside_rect(pos(V, Vtab), Rect)],
     Kill1 = sofs:set(Kill0, [[face]]),
     Kill = sofs:union(Kill1),
