@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.9 2002/02/26 12:57:26 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.10 2002/02/26 13:01:46 bjorng Exp $
 %%
 
 -module(e3d_vec).
@@ -139,5 +139,5 @@ average([{V10,V11,V12}|T], A0, A1, A2, L)
        is_float(A0), is_float(A1), is_float(A2) ->
     average(T, A0+V10, A1+V11, A2+V12, L);
 average([], A0, A1, A2, L0) ->
-    L = is_float(L0),
+    L = float(L0),
     {A0/L,A1/L,A2/L}.
