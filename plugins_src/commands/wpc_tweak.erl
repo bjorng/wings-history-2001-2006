@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.50 2004/04/08 14:58:27 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.51 2004/04/12 05:37:20 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -227,6 +227,7 @@ select_cmd(vertex=M, T) -> mode_change(M, T);
 select_cmd(edge=M, T) -> mode_change(M, T);
 select_cmd(face=M, T) -> mode_change(M, T);
 select_cmd(body=M, T) -> mode_change(M, T);
+select_cmd({adjacent,M}, T) -> mode_change(M, T);
 select_cmd(_, _) -> keep.
 
 mode_change(Mode, #tweak{st=St0}=T) ->
