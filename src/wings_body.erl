@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.70 2004/11/03 07:33:24 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.71 2004/11/04 07:35:28 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -21,10 +21,6 @@
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St),
     FlipStr = ?STR(menu,5,"Flip the object around") ++ " ",
-    Tail0 = [{?STR(menu,45,"Vertex Color"),vertex_color,
-	      ?STR(menu,46,"Apply vertex colors to selected objects")}],
-    Tail1 = mat_col_conv(St, Tail0),
-    Tail = arealight_conv(St, Tail1),
 
     Menu = [{basic,{?STR(menu,1,"Object operations"),ignore}},
 	    {basic,separator},
@@ -59,58 +55,65 @@ menu(X, Y, St) ->
 	    separator,
 	    {?STR(menu,26,"Duplicate"),{duplicate,Dir}},
 	    {?STR(menu,27,"Delete"),delete,?STR(menu,28,"Delete the selected objects")},
-	    {?STR(menu,29,"Rename..."),rename,?STR(menu,30,"Rename selected objects")},
-	    separator,
-	    {?STR(menu,35,"Mode"),
-	     {mode,
-	      [{?STR(menu,36,"Vertex Color"),vertex_color,
-		?STR(menu,37,"Vertex colors will be shown")},
-	       {?STR(menu,38,"Material"),material,
-		?STR(menu,39,"Materials will be shown")}]},
-	     ?STR(menu,40,"Change object mode to vertex colors or material")}|
-	    Tail],
+	    {?STR(menu,29,"Rename..."),rename,?STR(menu,30,"Rename selected objects")}|mode_dependent(St)],
     wings_menu:popup_menu(X, Y, body, Menu).
-				   
-mat_col_conv(St, T) ->
-    case obj_mode_for_sel(St) of
-	vertex ->
-	    [{?STR(menu,43,"Colors to Materials"),colors_to_materials,
-	      ?STR(menu,44,"Convert vertex colors to materials")}|T];
-	material ->
-	    [{?STR(menu,41,"Materials to Colors"),materials_to_colors,
-	      ?STR(menu,42,"Convert materials to vertex colors")}|T];
-	mixed -> T
+
+mode_dependent(St) ->
+    SelObj = wings_sel:fold(fun(_, We, A) -> [We|A] end, [], St),
+    Area = foldl(fun(#we{has_shape=Shape}=We, A) ->
+			 Type = if 
+				    ?IS_ANY_LIGHT(We), Shape -> arealight;
+				    true -> object
+				end,
+			 case A of
+			     none -> Type;
+			     Type -> Type;
+			     _ -> mixed
+			 end
+		 end, none, SelObj),
+    ObjMode = foldl(fun(#we{mode=M}, none) -> M;
+		       (#we{mode=M}, M) -> M;
+		       (_, _) -> mixed
+		    end, none, SelObj),
+    Tail0 = vertex_color_item(Area),
+    Tail1 = mat_col_conv(ObjMode, Area, Tail0),
+    Tail2 = arealight_conv(Area, Tail1),
+    case mode_conv(ObjMode, Area, Tail2) of
+	[] -> [];
+	Tail -> [separator|Tail]
     end.
 
-arealight_conv(St, T) ->
-    case arealight_for_sel(St) of
-	arealight ->
-	    [{?STR(menu,33,"From Area Light"),from_arealight,
-	      ?STR(menu,34,"Convert selected area lights into objects")}|T];
-	object ->
-	    [{?STR(menu,31,"To Area Light"),to_arealight,
-	      ?STR(menu,32,"Convert selected objects into area light")}|T];
-	mixed -> T
-    end.
+vertex_color_item(object) ->
+    [{?STR(vertex_color_item,1,"Vertex Color"),vertex_color,
+      ?STR(vertex_color_item,2,"Apply vertex colors to selected objects "
+	   "(first changing mode to vertex color mode if needed)")}];
+vertex_color_item(_) -> [].
+    
+mat_col_conv(vertex, object, T) ->
+    [{?STR(mat_col_conv,1,"Colors to Materials"),colors_to_materials,
+      ?STR(mat_col_conv,2,"Convert vertex colors to materials")}|T];
+mat_col_conv(material, object, T) ->
+    [{?STR(mat_col_conv,3,"Materials to Colors"),materials_to_colors,
+      ?STR(mat_col_conv,4,"Convert materials to vertex colors")}|T];
+mat_col_conv(_, _, T) -> T.
 
-obj_mode_for_sel(St) ->
-    wings_sel:fold(fun(_, #we{mode=M}, none) -> M;
-		      (_, #we{mode=M}, M) -> M;
-		      (_, _, _) -> mixed
-		   end, none, St).
+arealight_conv(arealight, T) ->
+    [{?STR(arealight_conv,1,"Area Light to Object"),from_arealight,
+      ?STR(arealight_conv,2,"Convert selected area lights to objects")}|T];
+arealight_conv(object, T) ->
+    [{?STR(arealight_conv,3,"Object To Area Light"),to_arealight,
+      ?STR(arealight_conv,4,"Convert selected objects to area lights")}|T];
+arealight_conv(mixed, T) -> T.
 
-arealight_for_sel(St) ->
-    wings_sel:fold(fun(_, #we{has_shape=Shape}=We, A) ->
-			   Type = if 
-				      ?IS_ANY_LIGHT(We), Shape -> arealight;
-				      true -> object
-				  end,
-			   case A of
-			       none -> Type;
-			       Type -> Type;
-			       _ -> mixed
-			   end
-		   end, none, St).
+mode_conv(material, object, T) ->
+    [{?STR(mode_conv,1,"Vertex Color Mode"),vertex_color_mode,
+      ?STR(mode_conv,2,"Change object mode to vertex color mode "
+	   "(materials will be kept, but not shown)")}|T];
+mode_conv(vertex, object, T) ->
+    [{?STR(mode_conv,3,"Material Mode"),material_mode,
+      ?STR(mode_conv,4,"Change object mode to material mode "
+	   "(vertex colors will be kept, but not shown)")}|T];
+mode_conv(_, _, T) -> T.
 
 command({move,Type}, St) ->
     wings_move:setup(Type, St);
@@ -166,8 +169,10 @@ command(materials_to_colors, St) ->
     {save_state,materials_to_colors(St)};
 command(colors_to_materials, St) ->
     {save_state,colors_to_materials(St)};
-command({mode,Mode}, St) ->
-    {save_state,set_mode(Mode, St)};
+command(material_mode, St) ->
+    {save_state,set_mode(material, St)};
+command(vertex_color_mode, St) ->
+    {save_state,set_mode(vertex, St)};
 command({weld,Ask}, St) ->
     weld(Ask, St);
 command(vertex_color, St) ->
