@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.56 2002/08/25 15:06:51 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.57 2002/09/28 19:12:34 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -79,7 +79,8 @@ command(prefs, _St) ->
 	    {label,"Text"},{color,info_color},
 	    {label,"Face"},{color,face_color},
 	    {label,"Selection"},{color,selected_color},
-	    {label,"Hard Edges"},{color,hard_edge_color}],
+	    {label,"Hard Edges"},{color,hard_edge_color},
+	    {label,"Wire Edges"},{color,wire_edge_color}],
 	   [{title,"Colors"}]},
 	  {hframe,
 	   [{label,"Color"},{color,grid_color},
@@ -268,6 +269,7 @@ defaults() ->
      {grid_color,{0.0,0.0,0.0}},
      {face_color,{0.5,0.5,0.5}},
      {hard_edge_color,{0.0,0.5,0.0}},
+     {wire_edge_color,{1.0,1.0,1.0}},
      {selected_color,{0.65,0.0,0.0}},
      {unselected_hlite,{0.0,0.65,0.0}},
      {selected_hlite,{0.70,0.70,0.0}},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.40 2002/08/18 18:32:57 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.41 2002/09/28 19:12:34 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -253,9 +253,12 @@ render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
 	false -> ok;
 	true ->
 	    case {Wire,SelMode} of
-		{true,_} -> gl:color3f(1, 1, 1);
-		{_,body} -> gl:color3f(0.3, 0.3, 0.3);
-		{_,_} -> gl:color3f(0.0, 0.0, 0.0)
+		{true,_} ->
+		    gl:color3fv(wings_pref:get_value(wire_edge_color));
+		{_,body} ->
+		    gl:color3f(0.3, 0.3, 0.3);
+		{_,_} ->
+		    gl:color3f(0.0, 0.0, 0.0)
 	    end,
 	    gl:lineWidth(case SelMode of
 			     edge -> wings_pref:get_value(edge_width);
@@ -329,7 +332,7 @@ draw_edges(#dlo{work=Work,wire=Wire}=D) ->
     case Wire of
 	false -> ok;
 	true ->
-	    gl:color3f(1.0, 1.0, 1.0),
+	    gl:color3fv(wings_pref:get_value(wire_edge_color)),
 	    gl:lineWidth(?NORMAL_LINEWIDTH),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 	    gl:enable(?GL_POLYGON_OFFSET_LINE),
