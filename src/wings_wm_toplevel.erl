@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.27 2003/03/15 08:34:01 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.28 2003/03/21 07:05:20 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -512,14 +512,14 @@ resize_constrain(Client, Dx0, Dy0, Aspect) ->
     {{DeskX,DeskY},{DeskW,DeskH}} = wings_wm:win_rect(desktop),
     {{X,Y},{W,H}} = wings_wm:win_rect(),
     Dx = if
-	     DeskX+DeskW =< X+W+Dx0 ->
-		 DeskX+DeskW-X-W;
+	     DeskX+DeskW-1 =< X+W+Dx0 ->
+		 DeskX+DeskW-X-W-1;
 	     true ->
 		 Dx0
 	 end,
     Dy = if 
-	     DeskY+DeskH =< Y+H+Dy0 ->
-		 DeskY+DeskH-Y-H;
+	     DeskY+DeskH-1 =< Y+H+Dy0 ->
+		 DeskY+DeskH-Y-H-1;
 	     true ->
 		 Dy0
 	 end,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.93 2003/03/11 19:52:11 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.94 2003/03/21 07:05:20 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -607,7 +607,8 @@ clear_background() ->
     %% occupied by the window. Given a slow OpenGL implementation,
     %% it is a big win.
     case any_window_below(Name) of
-	true -> clear_background_1(Name);
+	true ->
+	    clear_background_1(Name);
 	false -> ok
     end.
 
@@ -621,7 +622,7 @@ clear_background_1(Name) ->
 any_window_below(Name) ->
     Windows = gb_trees:values(get(wm_windows)),
     #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Name),
-    any_window_below_1(Windows, Name, Z, {X,Y,W+W,Y+H}).
+    any_window_below_1(Windows, Name, Z, {X,Y,X+W,Y+H}).
 
 any_window_below_1([#win{name=Name}|T], Name, Z, Rect) ->
     any_window_below_1(T, Name, Z, Rect);
