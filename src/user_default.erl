@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.21 2004/12/16 11:55:39 bjorng Exp $
+%%     $Id: user_default.erl,v 1.22 2004/12/16 15:09:26 bjorng Exp $
 %% 
 
 -module(user_default).
@@ -50,6 +50,10 @@ wh() ->
 wx() ->
     WingsLib = code:lib_dir(wings),
     WingsEbin = filename:join(WingsLib, "ebin"),
+    case whereis(s) of
+	undefined -> ok;
+	_ -> xref:stop(s)
+    end,
     xref:start(s),
     xref:set_default(s, [{verbose,false},{warnings,false},{builtins,true}]),
     xref:set_library_path(s, code:get_path() -- [WingsEbin]),
@@ -61,8 +65,8 @@ wx() ->
 	      end, length(Ms), Dirs),
     xref:q(s, "Wings := \"wings.*\":Mod + \"wp.*\":Mod + \"auv_.*\":Mod "),
     io:put_chars(" Variable Wings = <all modules in Wings>\n"),
-    io:put_chars(" Modules loaded: "),
-    N.
+    io:format(" Modules loaded: ~p\n", [N]),
+    wxundef().
 
 wxe() ->
     Dir = filename:dirname(code:which(gl)),
@@ -89,7 +93,10 @@ print_components({ok,Cs}) ->
 print_components(Other) -> Other.
 
 wxundef() ->
-    xref:analyze(s, undefined_function_calls).
+    case xref:analyze(s, undefined_function_calls) of
+	{ok,Undef} -> Undef;
+	Other -> Other
+    end.
 
 wxunref() ->
     {ok,Unref0} = xref:analyze(s, exports_not_used),
