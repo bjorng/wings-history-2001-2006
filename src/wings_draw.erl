@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.212 2004/12/30 17:22:41 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.213 2004/12/31 08:17:11 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -426,11 +426,17 @@ update_sel_dlist() ->
 update_sel(#dlo{src_we=We}=D) when ?IS_LIGHT(We) -> {D,[]};
 update_sel(#dlo{sel=none,src_sel={body,_}}=D) ->
     update_sel_all(D);
-update_sel(#dlo{sel=none,src_sel={face,Faces},src_we=#we{fs=Ftab}}=D) ->
+update_sel(#dlo{split=none,sel=none,src_sel={face,Faces},
+		src_we=#we{fs=Ftab}}=D) ->
+    %% If we are not dragging (no dlists splitted), we can
+    %% optimize the showing of the selection.
     case gb_trees:size(Ftab) =:= gb_sets:size(Faces) of
 	true -> update_sel_all(D);
 	false -> update_face_sel(gb_sets:to_list(Faces), D)
     end;
+update_sel(#dlo{sel=none,src_sel={face,Faces}}=D) ->
+    %% We are dragging. Don't try to be tricky here.
+    update_face_sel(gb_sets:to_list(Faces), D);
 update_sel(#dlo{sel=none,src_sel={edge,Edges}}=D) ->
     #dlo{src_we=#we{es=Etab,vp=Vtab}} = D,
     List = gl:genLists(1),
