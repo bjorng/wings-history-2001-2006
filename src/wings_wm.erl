@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.48 2003/01/06 12:49:50 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.49 2003/01/06 19:51:34 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -1045,7 +1045,7 @@ toplevel(Name, Title, Pos, Size, Flags, Op) ->
 
 new_controller(Client, Title, Flags) ->
     TitleBarH = ?LINE_HEIGHT+3,
-    #win{x=X,y=Y,z=Z,w=W0,h=H0} = Win = get_window_data(Client),
+    #win{x=X,y=Y,z=Z,w=W0} = Win = get_window_data(Client),
     Controller = {controller,Client},
     Controlled0 = ctrl_create_windows(Flags, Client, Win),
     Controlled = [Controller,Client|Controlled0],
@@ -1053,8 +1053,7 @@ new_controller(Client, Title, Flags) ->
 	    false -> W0;
 	    true -> W0 + wings_win_scroller:width()
 	end,
-    H = H0+TitleBarH,
-    Size = {W,H},
+    Size = {W,TitleBarH},
     Cs = #ctrl{title=Title,children=Controlled},
     new(Controller, {X,Y-TitleBarH,Z-0.5}, Size,
 	{seq,push,get_ctrl_event(Cs)}),
