@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.8 2002/11/13 13:24:05 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.9 2002/12/10 13:26:58 raimo_niskanen Exp $
 %%
 
 -module(wpc_image).
 -export([init/0,menu/2,command/2]).
 
--include("gl.hrl").
+-include_lib("esdl/include/gl.hrl").
 -include("e3d.hrl").
 -include("e3d_image.hrl").
 
