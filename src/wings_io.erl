@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.68 2002/11/23 08:48:49 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.69 2002/11/23 08:56:45 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -180,27 +180,6 @@ draw_ui(St) ->
 
 update(St) ->
     display(fun(Io) -> update(Io, St) end, ?GL_BACK).
-
-draw_message(F) ->
-    #io{h=H} = get_state(),
-    gl:pushMatrix(),
-    gl:loadIdentity(),
-    gl:translatef(10, H-10, 0),
-    Res = F(),
-    gl:popMatrix(),
-    Res.
-
-draw_completions(F) ->
-    #io{w=W,h=H} = get_state(),
-    Margin = 10,
-    gl:pushMatrix(),
-    gl:loadIdentity(),
-    gl:translatef(float(Margin), H / 6, 0),
-    border(0, 0, W-2*Margin, 4*H div 6, ?MENU_COLOR),
-    gl:translatef(10.0, float(?LINE_HEIGHT), 0.0),
-    Res = F(),
-    gl:popMatrix(),
-    Res.
 
 %% Internal.
 display(F, Buf) ->
