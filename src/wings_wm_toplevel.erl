@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.20 2003/03/11 06:30:07 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.21 2003/03/11 11:06:00 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -289,75 +289,125 @@ ctrl_fit(vertical) ->
     fit_vertical().
 
 fit_horizontal() ->
-    {_,Client} = wings_wm:this(),
+    {_,Client} = This = wings_wm:this(),
     {X,Y} = wings_wm:win_center(Client),
     wings_wm:hide(Client),
     Below = wings_wm:window_below(X, Y),
     wings_wm:show(Client),
     {Left,_} = wings_wm:win_ul(Below),
-    {Right,_} = wings_wm:win_ur(Below),
-    AlmostAll = fit_filter(wings_wm:windows(), Client, Below, []),
-    fit_horizontal_1(AlmostAll, X, Client, Left, Right).
+    {Right,_} = case wings_wm:is_window(Scroller={vscroller,Below}) of
+		    true -> wings_wm:win_ur(Scroller);
+		    false -> wings_wm:win_ur(Below)
+		end,
+    {_,Top} = wings_wm:win_ul(This),
+    {_,Bottom} = wings_wm:win_ll(Client),
+    Win0 = fit_filter(wings_wm:windows(), Client, Below),
+    Win = [Wi || Wi <- Win0, have_vertical_overlap(Wi, Top, Bottom)],
+    fit_horizontal_1(Win, X, Client, Left, Right).
 
 fit_horizontal_1([Client|Ns], X, Client, Min, Max) ->
     fit_horizontal_1(Ns, X, Client, Min, Max);
 fit_horizontal_1([N|Ns], X, Client, Min0, Max0) ->
     {{Left,_},{W,_}} = wings_wm:win_rect(N),
     Right = Left+W,
-    if
-	X < Left, Left < Max0 ->
-	    fit_horizontal_1(Ns, X, Client, Min0, Left);
-	Right < X, Min0 < Right ->
+    case N of
+	_ when Right < X, Min0 < Right ->
 	    fit_horizontal_1(Ns, X, Client, Right, Max0);
-	true ->
+	{vscroller,_} ->
+	    fit_horizontal_1(Ns, X, Client, Min0, Max0);
+	_ when X < Left, Left < Max0 ->
+	    fit_horizontal_1(Ns, X, Client, Min0, Left);
+	_ ->
 	    fit_horizontal_1(Ns, X, Client, Min0, Max0)
     end;
 fit_horizontal_1([], _, Client, Left, Right) ->
     {Left0,_} = wings_wm:win_ul(Client),
-    wings_wm:update_window(Client, [{dx,Left-Left0},{w,Right-Left}]).
+    W0 = Right-Left,
+    W = case wings_wm:is_window({vscroller,Client}) of
+	    false -> W0;
+	    true -> W0 - vscroller_width()
+	end,
+    wings_wm:update_window(Client, [{dx,Left-Left0},{w,W}]).
 
 fit_vertical() ->
-    {_,Client} = wings_wm:this(),
+    {_,Client} = This = wings_wm:this(),
     {X,Y} = wings_wm:win_center(Client),
     wings_wm:hide(Client),
     Below = wings_wm:window_below(X, Y),
     wings_wm:show(Client),
-    {_,Top} = wings_wm:win_ul(Below),
+    {_,Top} = case wings_wm:is_window(Ctrl={controller,Below}) of
+		  true -> wings_wm:win_ul(Ctrl);
+		  false -> wings_wm:win_ul(Below)
+	      end,
     {_,Bottom} = wings_wm:win_ll(Below),
-    AlmostAll = fit_filter(wings_wm:windows(), Client, Below, []),
-    fit_vert_1(AlmostAll, Y, Client, Top, Bottom).
+    {Left,_} = wings_wm:win_ul(This),
+    {Right,_} = wings_wm:win_ur(This),
+    Win0 = fit_filter(wings_wm:windows(), Client, Below),
+    Win = [Wi || Wi <- Win0, have_horizontal_overlap(Wi, Left, Right)],
+    fit_vert_1(Win, Y, Client, Top, Bottom).
 
 fit_vert_1([N|Ns], Y, Client, Top0, Bottom0) ->
     {{_,Top},{_,H}} = wings_wm:win_rect(N),
     Bottom = Top+H,
-    if
-	Y < Top, Top < Bottom0 ->
+    case N of
+	_ when Y < Top, Top < Bottom0 ->
 	    fit_vert_1(Ns, Y, Client, Top0, Top);
-	Bottom < Y, Top0 < Bottom ->
+	{controller,_} ->
+	    fit_vert_1(Ns, Y, Client, Top0, Bottom0);
+	_ when Bottom < Y, Top0 < Bottom ->
 	    fit_vert_1(Ns, Y, Client, Bottom, Bottom0);
-	true ->
+	_ ->
 	    fit_vert_1(Ns, Y, Client, Top0, Bottom0)
     end;
 fit_vert_1([], _, Client, Top, Bottom) ->
+    {_,CtrlTop} = controller_pos(Client),
     {_,Top0} = wings_wm:win_ul(Client),
-    wings_wm:update_window(Client, [{dy,Top-Top0},{h,Bottom-Top}]).
+    CtrlH = Top0 - CtrlTop,
+    wings_wm:update_window(Client, [{dy,Top-Top0+CtrlH},{h,Bottom-Top-CtrlH}]).
 
-fit_filter([Client|Ns], Client, Below, Acc) ->
-    fit_filter(Ns, Client, Below, Acc);
-fit_filter([Below|Ns], Client, Below, Acc) ->
-    fit_filter(Ns, Client, Below, Acc);
-fit_filter([N|Ns], Client, Below, Acc) ->
+fit_filter(Ns, Client, Below) ->
+    {{Left,Top},{W,H}} = wings_wm:win_rect(Client),
+    Right = Left + W,
+    Bottom = Top + H,
+    fit_filter(Ns, Client, Below, {Left,Right,Top,Bottom}, []).
+
+fit_filter([{toolbar,_}|Ns], Client, Below, Dim, Acc) ->
+    fit_filter(Ns, Client, Below, Dim, Acc);
+fit_filter([{menubar,_}|Ns], Client, Below, Dim, Acc) ->
+    fit_filter(Ns, Client, Below, Dim, Acc);
+fit_filter([{closer,_}|Ns], Client, Below, Dim, Acc) ->
+    fit_filter(Ns, Client, Below, Dim, Acc);
+fit_filter([{resizer,_}|Ns], Client, Below, Dim, Acc) ->
+    fit_filter(Ns, Client, Below, Dim, Acc);
+fit_filter([{vscroller,_}|Ns], Client, Below, Dim, Acc) ->
+    fit_filter(Ns, Client, Below, Dim, Acc);
+fit_filter([Client|Ns], Client, Below, Dim, Acc) ->
+    fit_filter(Ns, Client, Below, Dim, Acc);
+fit_filter([Below|Ns], Client, Below, Dim, Acc) ->
+    fit_filter(Ns, Client, Below, Dim, Acc);
+fit_filter([N|Ns], Client, Below, Dim, Acc) ->
     case is_helper_window(N, Client) of
-	false -> fit_filter(Ns, Client, Below, [N|Acc]);
-	true -> fit_filter(Ns, Client, Below, Acc)
+	true -> fit_filter(Ns, Client, Below, Dim, Acc);
+	false -> fit_filter(Ns, Client, Below, Dim, [N|Acc])
     end;
-fit_filter([], _, _, Acc) -> Acc.
+fit_filter([], _, _, _, Acc) -> Acc.
 
+is_helper_window({object,_}, _) -> false;
 is_helper_window({controller,Client}, Client) -> true;
 is_helper_window({vscroller,Client}, Client) -> true;
 is_helper_window({resizer,Client}, Client) -> true;
 is_helper_window({closer,Client}, Client) -> true;
+is_helper_window({toolbar,Client}, Client) -> true;
+is_helper_window({menubar,Client}, Client) -> true;
 is_helper_window(_, _) -> false.
+
+have_horizontal_overlap(Name, X, W) ->    
+    {{Ox,_},{Ow,_}} = wings_wm:win_rect(Name),
+    (Ox =< X andalso X < Ox+Ow) orelse (X =< Ox andalso Ox < X+W).
+
+have_vertical_overlap(Name, Y, H) ->
+    {{_,Oy},{_,Oh}} = wings_wm:win_rect(Name),
+    (Oy =< Y andalso Y < Oy+Oh) orelse (Y =< Oy andalso Oy < Y+H).
 
 %%%
 %%% Resizer window.
