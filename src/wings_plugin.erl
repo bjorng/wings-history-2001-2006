@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.23 2003/05/28 08:02:56 raimo_niskanen Exp $
+%%     $Id: wings_plugin.erl,v 1.24 2003/06/15 12:43:32 bjorng Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,dialog_result/2,command/2,call_ui/1]).
@@ -223,14 +223,14 @@ convert_type($9) -> user_interface;
 convert_type(_) -> undefined.
 
 check_result(_M, {command_error,_}=Error, _St) -> throw(Error);
-check_result(_M, {new_shape,Prefix,#e3d_object{}=Obj,Mat}, St0) ->
-    {We0,UsedMat} = wings_import:import_object(Obj, gb_sets:empty()),
-    {St,NameMap} = wings_import:add_materials(UsedMat, Mat, St0),
-    We = wings_import:rename_materials(NameMap, We0),
-    new_shape(Prefix, We, St);
+check_result(_M, {new_shape,Prefix,#e3d_object{}=Obj,Mat}, St) ->
+    Name = object_name(Prefix, St),
+    File = #e3d_file{objs=[Obj#e3d_object{name=Name,mat=Mat}]},
+    wings_import:import(File, St);
 check_result(_M, {new_shape,Prefix,Fs,Vs}, St) ->
+    Name = object_name(Prefix, St),
     We = wings_we:build(Fs, Vs),
-    new_shape(Prefix, We, St);
+    wings_shape:new(Name, We, St);
 check_result(_M, aborted, _St) -> aborted;
 check_result(_M, {drag,_}=Drag, _) -> Drag;
 check_result(_M, #st{}=St, _) -> St;
@@ -241,6 +241,5 @@ check_result(M, Other, St) ->
     io:format("~w:command/3: bad return value: ~P\n", [M,Other,20]),
     St.
 
-new_shape(Prefix, We, #st{onext=Oid}=St) ->
-    Name = Prefix++integer_to_list(Oid),
-    wings_shape:new(Name, We, St).
+object_name(Prefix, #st{onext=Oid}) ->
+    Prefix++integer_to_list(Oid).
