@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.207 2003/02/07 17:27:35 bjorng Exp $
+%%     $Id: wings.erl,v 1.208 2003/02/13 11:34:34 bjorng Exp $
 %%
 
 -module(wings).
@@ -63,9 +63,17 @@ halt_loop(Wings) ->
     receive
 	{'EXIT',Wings,normal} ->
 	    halt();
-	{'EXIT',Wings,_} ->
+	{'EXIT',Wings,{window_crash,Name,Reason}} ->
+	    Log = wings_util:crash_log(Name, Reason),
+	    io:format("\n\n"),
+	    io:format("Fatal internal error - log written to ~s\n", [Log]),
 	    ok;
-	_ ->					%Can't happen.
+	{'EXIT',Wings,Reason} ->
+	    Log = wings_util:crash_log("<Unknown Window Name>", Reason),
+	    io:format("\n\n"),
+	    io:format("Fatal internal error - log written to ~s\n", [Log]),
+	    ok;
+	_Other ->				%Can't happen.
 	    halt_loop(Wings)
     end.
 
@@ -155,7 +163,8 @@ init(File, Root) ->
 	{'EXIT',Reason} ->
 	    io:format("~P\n", [Reason,20]),
 	    sdl_util:free(get(wings_hitbuf)),
-	    sdl:quit()
+	    sdl:quit(),
+	    exit(Reason)
     end.
 
 open_file(none) -> ok;
@@ -764,7 +773,7 @@ use_command(?SDL_RELEASED, N, #st{selmode=Mode,def=DefCmd}) ->
 use_command(_, _, _) -> keep.
 
 crash_logger(Crash, St) ->
-    LogName = wings_util:crash_log(Crash),
+    LogName = wings_util:crash_log(geom, Crash),
     get_crash_event(LogName, St).
 
 get_crash_event(Log, St) ->

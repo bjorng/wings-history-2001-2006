@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.59 2003/02/07 09:51:48 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.60 2003/02/13 11:34:34 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -24,7 +24,7 @@
 	 nice_float/1,
 	 menu_restriction/2,
 	 unique_name/2,
-	 tc/3,export_we/2,crash_log/1,validate/1,validate/3]).
+	 tc/3,export_we/2,crash_log/2,validate/1,validate/3]).
 -export([check_error/2,dump_we/2]).
 
 -define(NEED_OPENGL, 1).
@@ -285,10 +285,11 @@ export_we(Name, #st{shapes=Shs}) ->
 %%% Crash log writing.
 %%%
 
-crash_log(BackTrace) ->
+crash_log(WinName, BackTrace) ->
     LogFileDir = log_file_dir(),
     LogName = filename:absname("wings_crash.dump", LogFileDir),
     F = open_log_file(LogName),
+    io:format(F, "Window: ~p\n", [WinName]),
     io:format(F, "Crashed in:\n~p\n\n", [BackTrace]),
     analyse(F, BackTrace),
     file:close(F),

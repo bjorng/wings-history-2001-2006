@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.73 2003/02/06 20:22:08 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.74 2003/02/13 11:34:34 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -623,9 +623,13 @@ next_handler(Event, [_|[Next|_]=Stk]) ->
     handle_event(Next, Event, Stk).
 
 default_stack(Name) ->
-    Handler = fun(Crash) ->
-		      io:format("Window ~p crashed: ~p\n", [Name,Crash]),
-		      exit(too_bad)
+    Handler = fun({crash,Crash}) ->
+		      io:format("Window ~p crashed:\n~P\n", [Name,Crash,20]),
+		      exit({window_crash,Name,Crash});
+		 (Other) ->
+		      io:format("Window ~p's crash handler got:\n~p\n",
+				[Name,Other]),
+		      exit({unexpected,Name,Other})
 	      end,
     [#se{h=Handler}].
 
