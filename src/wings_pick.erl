@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.60 2002/09/19 20:38:59 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.61 2002/09/20 09:00:13 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -739,33 +739,53 @@ pick_all(DrawFaces, X0, Y0, W, H, St0) ->
  	    {get_hits(NumHits, HitData, []),St0}
     end.
 
-marquee_draw(#st{selmode=edge}=St) ->
-    foreach_we(
-      fun(#we{perm=Perm}) when ?IS_NOT_SELECTABLE(Perm) -> ok;
-	 (#we{es=Etab,vs=Vtab}) ->
-	      gl:pushName(0),
-	      foreach(fun({Edge,#edge{vs=Va,ve=Vb}}) ->
-			      gl:loadName(Edge),
-			      gl:'begin'(?GL_LINES),
-			      gl:vertex3fv(pos(Va, Vtab)),
-			      gl:vertex3fv(pos(Vb, Vtab)),
-			      gl:'end'()
-		      end, gb_trees:to_list(Etab)),
-	      gl:popName()
-      end, St);
-marquee_draw(#st{selmode=vertex}=St) ->
-    foreach_we(fun(#we{perm=Perm}) when ?IS_NOT_SELECTABLE(Perm) -> ok;
-		  (#we{vs=Vtab}) ->
-		       gl:pushName(0),
-		       foreach(fun({V,#vtx{pos=Pos}}) ->
-				       gl:loadName(V),
-				       gl:'begin'(?GL_POINTS),
-				       gl:vertex3fv(Pos),
-				       gl:'end'()
-			       end, gb_trees:to_list(Vtab)),
-		       gl:popName()
-	       end, St);
+marquee_draw(#st{selmode=edge}) ->
+      Draw = fun(#we{es=Etab,vs=Vtab}) ->
+		     foreach(fun({Edge,#edge{vs=Va,ve=Vb}}) ->
+				     gl:loadName(Edge),
+				     gl:'begin'(?GL_LINES),
+				     gl:vertex3fv(pos(Va, Vtab)),
+				     gl:vertex3fv(pos(Vb, Vtab)),
+				     gl:'end'()
+			     end, gb_trees:to_list(Etab))
+	     end,
+    marquee_draw_1(Draw);
+marquee_draw(#st{selmode=vertex}) ->
+    Draw = fun(#we{vs=Vtab}) ->
+		   foreach(fun({V,#vtx{pos=Pos}}) ->
+				   gl:loadName(V),
+				   gl:'begin'(?GL_POINTS),
+				   gl:vertex3fv(Pos),
+				   gl:'end'()
+			   end, gb_trees:to_list(Vtab))
+	   end,
+    marquee_draw_1(Draw);
 marquee_draw(St) -> select_draw(St).
+
+marquee_draw_1(Draw) ->
+    wings_draw_util:fold(fun(D, _) -> marquee_draw_fun(D, Draw) end, []).
+
+marquee_draw_fun(#dlo{src_we=#we{perm=Perm}}, _) when not ?IS_SELECTABLE(Perm) -> ok;
+marquee_draw_fun(#dlo{mirror=Mirror,src_we=#we{id=Id}=We}, Draw) ->
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    gl:pushName(0),
+    Draw(We),
+    gl:popName(),
+    gl:endList(),
+    gl:pushName(Id),
+    case Mirror of
+	none ->
+	    wings_draw_util:call(List);
+	Matrix ->
+	    gl:callList(List),
+	    gl:pushMatrix(),
+	    gl:multMatrixf(Matrix),
+	    gl:callList(List),
+	    gl:popMatrix()
+    end,
+    gl:popName(),
+    gl:deleteLists(List, 1).
 
 %%
 %% Draw for the purpose of picking the items that the user clicked on.
@@ -834,20 +854,6 @@ select_draw_nonopt(#we{fs=Ftab}=We) ->
 pos(Key, Tree) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tree),
     Pos.
-
-foreach_we(F, #st{shapes=Shapes}) ->
-    Iter = gb_trees:iterator(Shapes),
-    foreach_we_1(F, Iter).
-
-foreach_we_1(F, Iter0) ->
-    case gb_trees:next(Iter0) of
-	none -> gl:edgeFlag(?GL_TRUE);
-	{Id,We,Iter} ->
-	    gl:pushName(Id),
-	    F(We),
-	    gl:popName(),
-	    foreach_we_1(F, Iter)
-    end.
 
 draw_face(Face, Edge, We) ->
     Vs = wings_face:draw_info(Face, Edge, We),
