@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.56 2004/03/28 17:44:30 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.57 2004/03/29 07:18:49 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -260,9 +260,8 @@ extrude_1(Edges, ExtrudeDist, We0, Acc) ->
 orig_normals(Es0, #we{es=Etab,vp=Vtab}) ->
     VsVec0 = foldl(fun(E, A) ->
 			   #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
-			   Vec0 = e3d_vec:sub(gb_trees:get(Va, Vtab),
-					      gb_trees:get(Vb, Vtab)),
-			   Vec = e3d_vec:norm(Vec0),
+			   Vec = e3d_vec:norm_sub(gb_trees:get(Va, Vtab),
+						  gb_trees:get(Vb, Vtab)),
 			   [{Va,{Vec,Vb}},{Vb,{Vec,Va}}|A]
 		   end, [], gb_sets:to_list(Es0)),
     VsVec1 = sofs:relation(VsVec0, [{vertex,info}]),
@@ -293,7 +292,7 @@ straighten([{V,N0}|Ns], New, #we{vp=Vtab0}=We0) ->
 			 false -> Vt0;
 			 true ->
 			     OPos0 = gb_trees:get(OtherV, Vt0),
-			     Vec = e3d_vec:norm(e3d_vec:sub(Pos, OPos0)),
+			     Vec = e3d_vec:norm_sub(Pos, OPos0),
 			     case e3d_vec:dot(N0, Vec) of
 				 Dot when abs(Dot) < 0.87 ->
 				     Vt0;
@@ -379,7 +378,7 @@ new_vertex_1(V, G, Edge, Center, ExtrudeDist, We0) ->
     digraph_edge(G, Rec),
     #we{vp=Vtab0} = We,
     Pos0 = gb_trees:get(NewV, Vtab0),
-    Dir = e3d_vec:norm(e3d_vec:sub(Pos0, Center)),
+    Dir = e3d_vec:norm_sub(Pos0, Center),
     Pos = e3d_vec:add_prod(Center, Dir, ExtrudeDist),
     Vtab = gb_trees:update(NewV, Pos, Vtab0),
     We#we{vp=Vtab}.
@@ -541,8 +540,8 @@ new_vertex_pos(A, B, C, N, ExtrudeDist, Vtab) ->
     APos = gb_trees:get(A, Vtab),
     BPos = gb_trees:get(B, Vtab),
     CPos = gb_trees:get(C, Vtab),
-    VecA0 = e3d_vec:norm(e3d_vec:sub(APos, BPos)),
-    VecB0 = e3d_vec:norm(e3d_vec:sub(BPos, CPos)),
+    VecA0 = e3d_vec:norm_sub(APos, BPos),
+    VecB0 = e3d_vec:norm_sub(BPos, CPos),
     VecA = e3d_vec:norm_cross(VecA0, N),
     VecB = e3d_vec:norm_cross(VecB0, N),
     Vec = average(VecA, VecB),

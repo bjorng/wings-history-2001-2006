@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.102 2004/03/08 13:26:22 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.103 2004/03/29 07:19:14 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -948,11 +948,10 @@ lift_from_edge_2(Dir, Face, Edge, Side, #we{id=Id,es=Etab}=We0, Tv) ->
     VbPos = wings_vertex:pos(Vb, We0),
     case Dir of
 	rotate ->
-	    Axis0 = case Side of
-			left -> e3d_vec:sub(VbPos, VaPos);
-			right -> e3d_vec:sub(VaPos, VbPos)
-		    end,
-	    Axis = e3d_vec:norm(Axis0),
+	    Axis = case Side of
+			left -> e3d_vec:norm_sub(VbPos, VaPos);
+			right -> e3d_vec:norm_sub(VaPos, VbPos)
+		   end,
 	    Rot = wings_rotate:rotate(Axis, VaPos, FaceVs, We, Tv),
 	    {We,Rot};
 	_Other ->
@@ -1047,7 +1046,7 @@ lift_from_vertex_2(Dir, Face, V, #we{id=Id,next_id=Next}=We0, Tv) ->
 				       Va -> wings_vertex:pos(Vb, We);
 				       Vb -> wings_vertex:pos(Va, We)
 				   end,
-			     [e3d_vec:norm(e3d_vec:sub(Pos, Vpos))|A];
+			     [e3d_vec:norm_sub(Pos, Vpos)|A];
 			(_, _, _, A) -> A
 		     end, [], V, We),
 	    M = e3d_vec:norm(e3d_vec:add(Vecs)),
