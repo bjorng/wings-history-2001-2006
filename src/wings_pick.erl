@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.58 2002/08/14 19:41:20 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.59 2002/09/18 06:09:10 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -20,7 +20,8 @@
 -include("wings.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1,reverse/2,
-		sort/1,foldl/3,map/2,min/1,keysearch/3,member/2]).
+		sort/1,foldl/3,map/2,min/1,
+		keysearch/3,member/2,delete/2]).
 
 %% For ordinary picking.
 -record(pick,
@@ -365,7 +366,8 @@ marquee_update_sel(Op, Hits0, St) ->
     Hits = sofs:relation_to_family(Hits1),
     marquee_update_sel_1(Op, Hits, St).
 
-marquee_update_sel_1(add, Hits, #st{sel=Sel0}=St) ->
+marquee_update_sel_1(add, Hits0, #st{sel=Sel0}=St) ->
+    Hits = marquee_filter_hits(Hits0, St),
     Sel1 = [{Id,gb_sets:to_list(Items)} || {Id,Items} <- Sel0],
     Sel2 = sofs:from_external(Sel1, [{id,[data]}]),
     Sel3 = sofs:family_union(Sel2, Hits),
@@ -379,6 +381,18 @@ marquee_update_sel_1(delete, Hits, #st{sel=Sel0}=St) ->
     Sel4 = sofs:to_external(Sel3),
     Sel = [{Id,gb_sets:from_list(Items)} || {Id,Items} <- Sel4, Items =/= []],
     St#st{sel=Sel}.
+
+%% Filter out any mirror face from the hits.
+marquee_filter_hits(Hits0, #st{selmode=face,shapes=Shs}) ->
+    Type = sofs:type(Hits0),
+    Hits = map(fun({Id,Faces}=Hit) ->
+		case gb_trees:get(Id, Shs) of
+		    #we{mirror=none} -> Hit;
+		    #we{mirror=Face} -> {Id,delete(Face, Faces)}
+		end
+	       end, sofs:to_external(Hits0)),
+    sofs:from_external(Hits, Type);
+marquee_filter_hits(Hits, _) -> Hits.
 
 %%
 %% Drag picking.
