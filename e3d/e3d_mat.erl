@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.21 2002/12/17 07:52:50 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.22 2002/12/17 08:10:07 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -148,8 +148,8 @@ closest_axis({X0,Y0,Z0}) ->
 	    end
     end.
     
-rotate_s_to_t_1({Vx,Vy,Vz}=V, E) when is_float(Vx), is_float(Vy), is_float(Vz) ->
-    H = (1.0 - E)/e3d_vec:dot(V, V),
+rotate_s_to_t_1({Vx,Vy,Vz}, E) when is_float(Vx), is_float(Vy), is_float(Vz) ->
+    H = (1.0 - E)/(Vx*Vx+Vy*Vy+Vz*Vz),
     HVx = H*Vx,
     HVz = H*Vz,
     HVxy = HVx*Vy,
