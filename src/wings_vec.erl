@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.101 2003/11/09 16:40:01 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.102 2003/11/10 20:14:25 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -483,10 +483,10 @@ check_point(St) ->
 	    NoMirrorCenter = e3d_vec:average(wings_sel:bounding_box(NoMirror)),
 	    [{Center,"Midpoint of selection saved "
 	      "(press \"2\" to disregard virtual mirror in "
-	      "midpoint calculation)"},
+	      "reference point calculation)"},
 	     {NoMirrorCenter,"Midpoint of selection saved "
 	      "(press \"1\" to include virtual mirror in " 
-	      "midpoint calculation)"}]
+	      "reference point calculation)"}]
     end.
 
 check_magnet_point(#st{sel=[]}) -> {none,""};
