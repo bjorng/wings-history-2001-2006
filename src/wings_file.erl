@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.37 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.38 2001/12/26 18:42:34 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -46,11 +46,11 @@ menu(X, Y, St) ->
 	    {"Import",{import,
 		       {{"Nendo (.ndo)",ndo},
 			{"3D Studio (.3ds)",tds},
-			{"Wawefront (.obj)",obj}}}},
+			{"Wavefront (.obj)",obj}}}},
 	    {"Export",{export,
 		       {{"Nendo (.ndo)",ndo},
 			{"3D Studio (.3ds)",tds},
-			{"Wawefront (.obj)",obj},
+			{"Wavefront (.obj)",obj},
 			{"RenderMan (.rib)",rib}}}},
 	    separator|recent_files([{"Exit","Ctrl-Q",quit}])],
     wings_menu:menu(X, Y, file, list_to_tuple(Menu), St).
@@ -324,7 +324,7 @@ export_file_prop(Ext, #st{file=File}) ->
 
 file_prop(".ndo"=Ext) -> file_prop(Ext, "Nendo File");
 file_prop(".3ds"=Ext) -> file_prop(Ext, "3D Studio File");
-file_prop(".obj"=Ext) -> file_prop(Ext, "Wawefront");
+file_prop(".obj"=Ext) -> file_prop(Ext, "Wavefront");
 file_prop(".rib"=Ext) -> file_prop(Ext, "Renderman").
 
 file_prop(Ext, Desc) ->
