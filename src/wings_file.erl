@@ -3,12 +3,12 @@
 %%
 %%     This module contains the commands in the File menu.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2000 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.42 2001/12/30 09:00:56 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.43 2002/01/02 12:25:21 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -434,7 +434,7 @@ translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0,
     St = build_object(Name, ObjType, Fs, Vs, He, St0),
     translate_objects(Os, UsedMat, I+1, Suffix, St);
 translate_objects([], UsedMat, _, _, St) -> {UsedMat,St}.
-
+    
 obj_type([]) -> material;
 obj_type(L) -> uv.
 
@@ -465,8 +465,14 @@ build_object(Name, Type, Fs, Vs, He, St) ->
 	{'EXIT',Reason} ->
 	    io:format("Conversion failed: ~P\n", [Reason,20]),
 	    St;
-	We -> wings_shape:new(Name, We, St)
+	We -> store_object(Name, We, St)
     end.
+
+store_object(undefined, We, #st{onext=Oid}=St) ->
+    Name = "unnamed_object" ++ integer_to_list(Oid),
+    wings_shape:new(Name, We, St);
+store_object(Name, We, St) ->
+    wings_shape:new(Name, We, St).
 
 %%%
 %%% Generic export code.
