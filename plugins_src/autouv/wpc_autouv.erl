@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.63 2002/12/09 07:31:14 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.64 2002/12/10 19:01:09 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -670,7 +670,7 @@ draw_texture(Uvs = #uvstate{dl=DL, sel=Sel, areas=#areas{we=We}}) ->
 
 setup_view({Left,Right,Bottom,Top}, Uvs) ->
     #uvstate{st=#st{mat=Mats},option=#setng{texbg=TexBg},
-	     areas=#areas{matname=MatN}}=Uvs,
+	     areas=#areas{matname=MatN}} = Uvs,
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
@@ -966,8 +966,10 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 		    false ->
 			update_selection([hd(Hits)], Sel0, Curr0)
 		end,
+	    WingsSt = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
+	    wings_wm:send(geom, {new_state,WingsSt}),
 	    get_event(Uvs0#uvstate{sel = Sel1,
-				   st = wings_select_faces(Sel1, We, Uvs0#uvstate.st),
+				   st=WingsSt,
 				   areas = As#areas{as=Curr1},
 				   dl = undefined, op = undefined})
     end;
@@ -992,7 +994,6 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 		none -> 
 		    get_event(Uvs0#uvstate{op = undefined});
 		Hits -> 
-		    %%			    ?DBG("Hit number ~p \n",[length(Hits)]),
 		    {Sel1, Curr1} = update_selection(Hits, Sel0, Curr0),
 		    get_event(Uvs0#uvstate{sel = Sel1,
 					   st = wings_select_faces(Sel1, We0, Uvs0#uvstate.st),
@@ -1224,15 +1225,31 @@ is_power_of_two(X) ->
 update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #uvstate{st=#st{selmode=Mode,sel=Sel}}=Uvs) ->
     get_event_nodraw(Uvs#uvstate{st=St});
-update_selection(#st{sel=Sel}=St,
+update_selection(#st{selmode=Mode,sel=Sel}=St,
 		 #uvstate{areas=#areas{orig_we=#we{id=Id}}=As,sel=ChSel}=Uvs) ->
     case keysearch(Id, 1, Sel) of
 	false ->
 	    get_event(Uvs#uvstate{st=St,sel=[],areas=add_areas(ChSel, As),
 				  dl=undefined});
-	{value,{Id,GbSet}} ->
-	    get_event_nodraw(Uvs#uvstate{st=St})
+	{value,{Id,Elems}} ->
+	    update_selection_1(Mode, gb_sets:to_list(Elems), Uvs#uvstate{st=St})
     end.
+
+update_selection_1(face, Faces, #uvstate{sel=Sel,areas=#areas{as=As0}}=Uvs) ->
+    As = gb_trees:to_list(add_as(Sel, As0)),
+    update_selection_2(As, Faces, Uvs, [], []);
+update_selection_1(_, _, Uvs) ->
+    get_event_nodraw(Uvs).
+
+update_selection_2([{K,#ch{fs=Fs}=C}|Cs], Faces, Uvs, NonSel, Sel) ->
+    case ordsets:intersection(Fs, Faces) of
+	[] -> update_selection_2(Cs, Faces, Uvs, [{K,C}|NonSel], Sel);
+	_ -> update_selection_2(Cs, Faces, Uvs, NonSel, [{[K],C}|Sel])
+    end;
+update_selection_2([], _, #uvstate{areas=As0}=Uvs0, NonSel, Sel) ->
+    As = As0#areas{as=gb_trees:from_orddict(sort(NonSel))},
+    Uvs = Uvs0#uvstate{sel=sort(Sel),areas=As,dl=undefined},
+    get_event(Uvs).
 
 %%%%% Selection 
 draw_marquee({X, Y}, {Ox,Oy}) ->
