@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.62 2004/12/24 17:43:17 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.63 2004/12/24 19:32:53 bjorng Exp $
 
 -module(auv_segment).
 
@@ -909,7 +909,8 @@ uv_to_charts(Faces0, Dict, We) ->
 uv_to_charts_1(Faces0, We, D, Cuts0, Charts) ->
     case gb_trees:is_empty(Faces0) of
 	true ->
-	    normalize_charts(Charts, Cuts0, We);
+ 	    Cuts = remove_boundary_edges(Cuts0, Charts, We),
+ 	    {Charts,Cuts};
 	false ->
 	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
 	    Ws = gb_sets:singleton(Face),
@@ -934,7 +935,8 @@ collect_adj_faces(Face, We, D, Ws, Faces0) ->
     wings_face:fold(
       fun(_, _, Rec, {W0,F0}=A) ->
 	      Of = wings_face:other(Face, Rec),
-	      case gb_sets:is_member(Of, F0) andalso not is_cutting_edge(Rec, D) of
+	      case gb_sets:is_member(Of, F0) andalso
+		  not is_cutting_edge(Rec, D) of
 		  false -> A;
 		  true -> {gb_sets:insert(Of, W0),gb_sets:delete(Of, F0)}
 	      end
@@ -954,6 +956,11 @@ remove_non_cutting(Face, D, We, Charts, Cuts0) ->
 is_cutting_edge(#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}, D) ->
     gb_trees:get({Lf,Va}, D) =/= gb_trees:get({Rf,Va}, D) orelse
 	gb_trees:get({Lf,Vb}, D) =/= gb_trees:get({Rf,Vb}, D).
+
+remove_boundary_edges(Cuts, Charts, We) ->
+    AllInner0 = lists:append([wings_face:inner_edges(C, We) || C <- Charts]),
+    AllInner = gb_sets:from_list(AllInner0),
+    gb_sets:intersection(Cuts, AllInner).
 
 %%%
 %%% Finalize a chart for use in AutoUV.
