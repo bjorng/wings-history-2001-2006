@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.45 2005/01/15 14:44:35 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.46 2005/01/16 04:36:33 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -213,7 +213,7 @@ internal_collapse_edge(Edge, Vkeep, Vremove, Rec,
 			   vc=Vct0,vp=Vtab0}=We)->
     Etab1 = slim_patch_vtx_refs(Vremove, Vkeep, We, Etab0),
     Etab2 = gb_trees:delete(Edge, Etab1),
-    Htab = gb_trees:delete_any(Edge, Htab0),
+    Htab = gb_sets:delete_any(Edge, Htab0),
     Vct1 = gb_trees:delete(Vremove, Vct0),
 	    
     #edge{lf=LF,rf=RF,ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
