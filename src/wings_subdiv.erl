@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.77 2004/05/15 18:00:59 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.78 2004/05/15 19:12:55 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -203,8 +203,8 @@ get_edge(_Key, [{_K,Value}|_]) -> Value;	%Key == K
 get_edge(_Key, []) -> #edge{}.
 
 %% Store in reverse order.
-store(Key, New, [{K,_Old}=E|Dict]) when Key > K ->
-    [{Key,New},E|Dict];
+store(Key, New, [{K,_Old}|_]=Dict) when Key > K ->
+    [{Key,New}|Dict];
 store(Key, New, [{K,_Old}=E|Dict]) when Key < K ->
     [E|store(Key, New, Dict)];
 store(Key, New, [{_K,_Old}|Dict]) ->		%Key == K
