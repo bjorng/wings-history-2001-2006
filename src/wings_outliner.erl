@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.13 2003/01/25 17:31:26 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.14 2003/01/25 17:36:09 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -110,6 +110,7 @@ event(Ev, Ost) ->
 	_ -> keep
     end.
 
+do_menu(-1, _, _, _) -> keep;
 do_menu(Act, X, Y, #ost{os=Objs}) ->
     Menu = case lists:nth(Act+1, Objs) of
 	       {material,Name,_,_} ->
