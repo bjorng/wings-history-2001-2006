@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.27 2003/02/23 07:29:26 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.28 2003/02/25 10:21:32 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -61,7 +61,8 @@ menu(_, Menu) -> Menu.
 command({tools,tweak}, St0) ->
     Modes = [vertex],
     wings:mode_restriction(Modes),
-    wings_util:menu_restriction(geom, [view]),
+    Active = wings_wm:active_window(),
+    wings_wm:callback(fun() -> wings_util:menu_restriction(Active, [view]) end),
     St = wings_undo:init(St0#st{selmode=vertex,sel=[],sh=false}),
     wings_draw:update_dlists(St),
     T = #tweak{tmode=wait,orig_st=St0,st=St},
