@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.215 2005/01/15 09:45:19 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.216 2005/01/15 12:51:18 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -539,7 +539,8 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab}=We,
     Faces = wings_we:visible(wings_face:from_vs(Vs, We), We),
     StaticVs = static_vs(Faces, Vs, We),
 
-    {Work,FtabDyn} = split_faces(D, Ftab, Faces, St),
+    VisFtab = wings_we:visible(gb_trees:to_list(Ftab), We),
+    {Work,FtabDyn} = split_faces(D, VisFtab, Faces, St),
     StaticEdgeDl = make_static_edges(Faces, D),
     {DynVs,VsDlist} = split_vs_dlist(Vs, StaticVs, Sel, We),
 
@@ -580,8 +581,7 @@ static_vs_1([F|Fs], Fun, We, Acc) ->
 static_vs_1([], _, _, Acc) -> ordsets:from_list(Acc).
 
 split_faces(#dlo{needed=Need}=D, Ftab0, Fs0, St) ->
-    Ftab1 = gb_trees:to_list(Ftab0),
-    Ftab = sofs:from_external(Ftab1, [{face,data}]),
+    Ftab = sofs:from_external(Ftab0, [{face,data}]),
     Fs = sofs:from_external(Fs0, [face]),
     case member(work, Need) orelse member(smooth, Need) of
 	false ->
