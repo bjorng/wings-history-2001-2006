@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.40 2003/08/29 21:31:11 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.41 2003/09/01 21:46:20 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -42,6 +42,7 @@
 -define(DEF_FOG_COLOR, {1.0,1.0,1.0,1.0}).
 
 %% Shader
+-define(DEF_CAUS, false).
 -define(DEF_IOR, 1.0).
 -define(DEF_MIN_REFLE, 0.0).
 -define(DEF_AUTOSMOOTH_ANGLE, 60.0).
@@ -312,6 +313,7 @@ load_image(Filename) ->
 material_dialog(_Name, Mat) ->
     Maps = proplists:get_value(maps, Mat, []),
     YafRay = proplists:get_value(?TAG, Mat, []),
+    Caus = proplists:get_value(caus, YafRay, ?DEF_CAUS),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
     AutosmoothAngle = 
@@ -324,12 +326,13 @@ material_dialog(_Name, Mat) ->
       [{hframe,
 	[{vframe, 
 	  [{label,"Index Of Refraction"},
+	   {"Shadow",Shadow,[{key,shadow}]},
 	   {label,"Minimum Reflection"},
 	   {label,"Autosmooth Angle"}]},
 	 {vframe,
 	  [{hframe,[{text,IOR,[{range,{0.0,100.0}},{key,ior}]},
-		    {"Shadow",Shadow,[{key,shadow}]},
-		    {"Emit Rad",EmitRad,[{key,emit_rad}]},
+		    {"Caustics",Caus,[{key,caus}]}]},
+	   {hframe,[{"Emit Rad",EmitRad,[{key,emit_rad}]},
 		    {"Recv Rad",RecvRad,[{key,recv_rad}]}]},
 	   {slider,{text,MinRefle,[{range,{0.0,1.0}},{key,min_refle}]}},
 	   {slider,{text,AutosmoothAngle,[{range,{0.0,180.0}},
@@ -351,8 +354,8 @@ def_modulators([{bump,_}|Maps]) ->
 def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
-material_result(_Name, Mat0, [{ior,_}|_]=Res) ->
-    {Ps,Res0} = split_list(Res, 6),
+material_result(_Name, Mat0, [{shadow,_}|_]=Res) ->
+    {Ps,Res0} = split_list(Res, 7),
     {Modulators,Res1} = modulator_result(Res0),
     Mat1 = [{?TAG,[{modulators,Modulators}|Ps]}|keydelete(?TAG, 1, Mat0)],
     {Mat1,Res1};
@@ -738,16 +741,19 @@ export_dialog(Operation) ->
 export(Attr, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
     ExportTS = erlang:now(),
     Render = proplists:get_value(?TAG_RENDER, Attr, false),
+    ExportDir = filename:dirname(Filename),
     {ExportFile,RenderFile} =
 	case Render of
 	    true ->
-		{?MODULE_STRING++"-"++uniqstr()++".xml",Filename};
+		{filename:join(ExportDir, 
+			       ?MODULE_STRING++"-"++uniqstr()++".xml"),
+		 Filename};
 	    false ->
 		{Filename,
-		 filename:rootname(filename:basename(Filename))++".tga"}
+		 filename:rootname(Filename)++".tga"}
 	end,
-    ExportDir = filename:dirname(ExportFile),
     F = open(ExportFile, export),
+    io:format("Exporting to ~s~n", [ExportFile]),
     CameraName = "x_Camera",
     ConstBgName = "x_ConstBackground",
     %%
@@ -1118,6 +1124,7 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Mats) ->
     MatPs = proplists:get_value(DefaultMaterial, Mats, []),
     OpenGL = proplists:get_value(opengl, MatPs),
     YafRay = proplists:get_value(?TAG, MatPs, []),
+    Caus = proplists:get_value(caus, YafRay, ?DEF_CAUS),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     AutosmoothAngle = 
 	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
@@ -1127,14 +1134,22 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Mats) ->
     {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
     Transparency = 1 - Opacity,
     println(F, "<object name=\"~s\" shader_name=\"~s\" shadow=\"~s\"~n"++
-	    "        caus_IOR=\"~.10f\" emit_rad=\"~s\" recv_rad=\"~s\">~n"++
-	    "    <attributes>",
-	    [NameStr,"w_"++format(DefaultMaterial),format(Shadow),
-	     IOR,format(EmitRad),format(RecvRad)]),
-    export_rgb(F, caus_rcolor, proplists:get_value(ambient, OpenGL)),
-%    export_rgb(F, caus_rcolor, {Dr*Opacity,Dg*Opacity,Db*Opacity}),
-    export_rgb(F, caus_tcolor, 
-	       {Dr*Transparency,Dg*Transparency,Db*Transparency}),
+	    "        "++
+	    case Caus of true -> "caus_IOR=\"~.10f\" ";
+		false -> ""
+	    end++"emit_rad=\"~s\" recv_rad=\"~s\">",
+	    [NameStr,"w_"++format(DefaultMaterial),format(Shadow)|
+	     case Caus of true -> [IOR];
+		 false -> []
+	     end]++[format(EmitRad),format(RecvRad)]),
+    println(F, "    <attributes>"),
+    case Caus of true ->
+	    export_rgb(F, caus_rcolor, proplists:get_value(ambient, OpenGL)),
+%	    export_rgb(F, caus_rcolor, {Dr*Opacity,Dg*Opacity,Db*Opacity}),
+	    export_rgb(F, caus_tcolor, 
+		       {Dr*Transparency,Dg*Transparency,Db*Transparency});
+	false -> ok
+    end,
     println(F, "    </attributes>"),
     case AutosmoothAngle of
 	0.0 ->
