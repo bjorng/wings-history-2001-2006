@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.85 2002/05/16 08:30:46 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.86 2002/05/16 10:29:57 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -271,6 +271,7 @@ handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     wings_io:putback_event(DragEnded),
     pop;
 handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, _Drag) ->
+    wings_draw_util:map(fun invalidate_fun/2, []),
     wings_io:ungrab(),
     wings_io:clear_message(),
     wings_wm:dirty(),
@@ -293,6 +294,9 @@ handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
 	   end,
     get_drag_event(Drag).
 
+invalidate_fun(#dlo{drag=none}=D, _) -> D;
+invalidate_fun(_, _) -> #dlo{}.
+    
 numeric_input(Drag0) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
     {Dx0,Dy0,Drag} = mouse_range(X, Y, Drag0),
