@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.103 2003/02/25 14:09:08 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.104 2003/03/01 06:37:42 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -456,6 +456,7 @@ smooth_event_1(quit, Sm) ->
     wings_wm:later(quit),
     smooth_exit(Sm);
 smooth_event_1({current_state,#st{shapes=Shs}=St}, #sm{st=#st{shapes=Shs}}=Sm) ->
+    refresh_dlist(St),
     get_smooth_event(Sm#sm{st=St});
 smooth_event_1({current_state,St}, Sm) ->
     smooth_dlist(St),
@@ -467,6 +468,18 @@ smooth_exit(#sm{st=St}) ->
     wings_wm:later({new_state,St}),
     wings_wm:dirty(),
     pop.
+
+refresh_dlist(St) ->
+    wings_draw_util:map(fun(D, []) ->
+				refresh_dlist(D, St)
+			end, []).
+
+refresh_dlist(#dlo{src_we=#we{light=L}}=D, _) when L =/= none -> {D,[]};
+refresh_dlist(#dlo{smoothed=none,drag=none,src_we=We}=D, St) ->
+    smooth_dlist_1(D, We, St);
+refresh_dlist(#dlo{smoothed=none}=D, St) ->
+    smooth_dlist_1(D, wings_draw:original_we(D), St);
+refresh_dlist(D, _) -> D.
 
 smooth_dlist(St) ->
     wings_draw_util:map(fun(D, []) ->
