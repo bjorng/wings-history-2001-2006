@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.46 2003/12/28 07:59:26 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.47 2003/12/28 10:20:16 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -656,7 +656,6 @@ redraw(#ss{knob_pos=Pos,knob_prop=Prop}) ->
     wings_io:ortho_setup(none),
     {W,H} = wings_wm:win_size(),
     wings_io:border(-1, 0, W, H, ?PANE_COLOR),
-    gl:color3f(0.2, 0.2, 0.2),
     X = 0.5, Y = H*Pos+1.5,
     X2 = W-0.5, Y2 = H*(Pos+Prop),
     gl:shadeModel(?GL_SMOOTH),
