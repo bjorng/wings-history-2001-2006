@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.4 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.5 2001/08/30 08:49:20 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -24,7 +24,6 @@
 	 normals/1,
 	 new_items/3]).
 -include("wings.hrl").
-
 -import(lists, [map/2,foreach/2,foldl/3,sort/1,last/1,reverse/1,merge/1]).
 
 %%%
@@ -38,7 +37,7 @@ empty() ->
 build(Name, Matrix, Fs, Vs, St) ->
     build(Name, Matrix, Fs, Vs, [], St).
 
-build(Name, Matrix, Fs0, Vs, HardEdges, #st{onext=Id,shapes=Shapes}=St) ->
+build(Name, Matrix, Fs0, Vs, HardEdges0, #st{onext=Id,shapes=Shapes}=St) ->
     Es0 = build_edges(Fs0),
     {Es1,Fs} = case fill_holes(Es0) of
 		   [] -> {Es0,Fs0};
@@ -47,6 +46,7 @@ build(Name, Matrix, Fs0, Vs, HardEdges, #st{onext=Id,shapes=Shapes}=St) ->
 			Fs0 ++ [{hole,F} || F <- Holes]}
 	       end,
     Es = number_edges(Es1),
+    HardEdges = [edge_name(He) || He <- HardEdges0],
     Htab = hard_edges(HardEdges, Es),
     {Vtab0,Etab,Ftab0} = build_tables(Es),
     Ftab = build_faces(Ftab0, Fs),
@@ -133,9 +133,9 @@ number_edges([], Edge, Tab) -> reverse(Tab).
 hard_edges([], Es) -> gb_sets:empty();
 hard_edges(HardEdges, Es) ->
     SofsEdges = sofs:relation(Es),
-    SofsHard = sofs:restriction(SofsEdges, sofs:from_list(HardEdges)),
+    SofsHard = sofs:restriction(SofsEdges, sofs:set(HardEdges)),
     Htab = [Edge || {_,{Edge,_}} <- sofs:to_external(SofsHard)],
-    gb_sets:from_list(Htab).
+    gb_sets:from_list(sort(Htab)).
 
 build_tables(Edges) ->
     build_tables(Edges, gb_trees:from_orddict(Edges), [], [], []).
@@ -476,7 +476,7 @@ vertex_normals(#we{vs=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
 		Hvs0 = foldl(fun({_,#edge{vs=Va,ve=Vb}}, A) ->
 				     [Va,Vb|A]
 			     end, [], sofs:to_external(Es)),
-		Hvs = sofs:from_term(Hvs0),
+		Hvs = sofs:set(Hvs0),
 		Vs = sofs:from_external(gb_trees:to_list(Vtab), [{atom,atom}]),
 		Svs = sofs:drestriction(Vs, Hvs),
 		{sofs:to_external(Svs),sofs:to_external(Hvs)}

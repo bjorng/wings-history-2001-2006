@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex.erl,v 1.2 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_vertex.erl,v 1.3 2001/08/30 08:49:20 bjorng Exp $
 %%
 
 -module(wings_vertex).
@@ -182,7 +182,7 @@ bounding_box(Vs, We) ->
     bounding_box(Vs, We, none).
     
 bounding_box(Vs0, #we{vs=Vtab}, BB) ->
-    Vs1 = sofs:from_list(gb_sets:to_list(Vs0)),
+    Vs1 = sofs:set(gb_sets:to_list(Vs0)),
     R = sofs:relation(gb_trees:to_list(Vtab)),
     Vs = sofs:to_external(sofs:range(sofs:restriction(R, Vs1))),
     do_bounding_box(Vs, BB).

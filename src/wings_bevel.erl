@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_bevel.erl,v 1.1 2001/08/14 18:16:40 bjorng Exp $
+%%     $Id: wings_bevel.erl,v 1.2 2001/08/30 08:49:20 bjorng Exp $
 %%
 
 -module(wings_bevel).
@@ -28,7 +28,6 @@ bevel_faces(ShId, Faces, #we{next_id=Id}=We0, Acc) ->
     We2 = dissolve_edges(DisEdges, We1),
     We3 = connect(OrigVs, Faces, We2),
     We = dissolve_more_edges(OrigVs, Faces, We3),
-    wings_util:validate(We),
     MoveEdges = move_edges(Neighbors, Faces, We),
     {We,[{ShId,MoveEdges}|Acc]}.
 

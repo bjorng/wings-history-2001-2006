@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.1 2001/08/14 18:16:37 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.2 2001/08/30 08:49:20 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -82,7 +82,7 @@ combine(Tvs) ->
     F = sofs:relation_to_family(S),
     map(fun({Id,[Fun]}) when function(Fun) -> {Id,Fun};
 	   ({Id,L}) ->
-		RR = sofs:from_term(lists:append(L), [{atom,[atom]}]),
+		RR = sofs:relation(lists:append(L)),
 		FF = sofs:relation_to_family(RR),
  		EF = sofs:to_external(FF),
  		{Id,map(fun({Vec,Vs}) -> {Vec,lists:append(Vs)} end, EF)}

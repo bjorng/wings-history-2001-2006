@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.4 2001/08/27 07:34:52 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.5 2001/08/30 08:49:20 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -169,10 +169,11 @@ do_import(Mod, Name, St0) ->
     end.
 
 add_materials(UsedMat0, Mat0, St) ->
-    UsedMat = sofs:from_list(gb_sets:to_list(UsedMat0)),
+    UsedMat = sofs:set(gb_sets:to_list(UsedMat0)),
     Mat1 = sofs:relation(Mat0),
     Mat1 = sofs:restriction(Mat1, UsedMat),
     NotDefined0 = sofs:difference(UsedMat, sofs:domain(Mat1)),
+    %% XXX In the future, mayby sofs:adjoin() will work.
     NotDefined1 = [{M,[]} || M <- sofs:to_external(NotDefined0)],
     NotDefined = sofs:relation(NotDefined1),
     Mat = sofs:to_external(sofs:union(Mat1, NotDefined)),
@@ -296,7 +297,7 @@ used_materials(Mat0, St) ->
 	      fun(#shape{sh=#we{fs=Ftab}}, A) ->
 		      used_materials_1(Ftab, A)
 	      end, gb_sets:empty(), St),
-    Used = sofs:from_list(gb_sets:to_list(Used0)),
+    Used = sofs:set(gb_sets:to_list(Used0)),
     Mat = sofs:relation(Mat0),
     sofs:to_external(sofs:restriction(Mat, Used)).
 

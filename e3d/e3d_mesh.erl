@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.4 2001/08/27 07:34:51 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.5 2001/08/30 08:49:20 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -157,10 +157,10 @@ print_vs([], F, Face) -> ok.
 %%%
 
 partition_faces(Es0) ->
-    F0 = sofs:family_of_subsets(Es0),
-    F1 = sofs:specification(fun({_,L}) -> length(L) =< 2 end, F0),
+    F0 = sofs:family(Es0),
+    F1 = sofs:specification(fun({_,L}) when length(L) =< 2 -> true end, F0),
     R0 = sofs:family_to_relation(F0),
-    R = sofs:inverse(R0),
+    R = sofs:converse(R0),
     F2 = sofs:relation_to_family(R),
     F = sofs:to_external(F2),
     Etab0 = sofs:to_external(F1),
@@ -213,10 +213,10 @@ renumber_part(Ps, Fs, Vtab0) ->
     renumber_part(Ps, Ftab, Vtab, [], []).
     
 renumber_part([P|Ps], Ftab, Vtab, FsAcc0, VsAcc0) ->
-    Fs0 = sofs:restriction(Ftab, sofs:from_list(P)),
+    Fs0 = sofs:restriction(Ftab, sofs:set(P)),
     Fs1 = sofs:range(Fs0),
     Fs = sofs:to_external(Fs1),
-    Vs0 = sofs:from_term([Vs || #e3d_face{vs=Vs} <- Fs]),
+    Vs0 = sofs:set([Vs || #e3d_face{vs=Vs} <- Fs], [[atom]]),
     Vs1 = sofs:union(Vs0),
     Vs2 = sofs:restriction(Vtab, Vs1),
     Vs = sofs:to_external(Vs2),
@@ -529,7 +529,7 @@ vertex_normals([], Vn, FaceNormals, Acc) -> Acc.
 
 vn_hard_normals([], HardVtxFace, Fs, FaceNormals, VtxNormals) -> VtxNormals;
 vn_hard_normals(He, HardVtxFace, Fs, FaceNormals, VtxNormals0) ->
-    Hard = sofs:from_list(He),
+    Hard = sofs:set(He),
     Edges = sofs:relation(vn_face_edges(Fs, 0, [])),
     Soft0 = sofs:drestriction(Edges, Hard),
     Soft = sofs:relation_to_family(Soft0),

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.1 2001/08/14 18:16:40 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.2 2001/08/30 08:49:20 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -17,7 +17,6 @@
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,sort/1,keymember/3,member/2]).
--import(wings_edge, [hardness/3,patch_edge/4]).
 -import(wings_we, [new_id/1]).
 -import(wings_mat, [norm_cross_product/2]).
 
@@ -36,77 +35,84 @@ collapse(St0) ->
     end.
 
 collapse_faces(Id, Faces, We0, SelAcc)->
-    {We,Sel} = foldl(fun collapse_face/2,
-		     {We0,gb_sets:empty()}, gb_sets:to_list(Faces)),
+    We = foldl(fun collapse_face/2, We0, gb_sets:to_list(Faces)),
+    Sel = wings_we:new_items(vertex, We0, We),
     {We,[{Id,Sel}|SelAcc]}.
 
-collapse_face(Face, {We0,Sels}) ->
-    collapse_face_1(Face, has_face(Face, We0), We0, Sels).
+collapse_face(Face, #we{fs=Ftab}=We) ->
+    %% This face could have have been removed earlier because it
+    %% had only two edges left.
+    case gb_trees:is_defined(Face, Ftab) of
+	true -> collapse_face_1(Face, We);
+	false -> We
+    end.
 
-collapse_face_1(Face, false, We0, Sel) ->
-    {We0,Sel};
-collapse_face_1(Face, true, We0, Sel) ->
-    collapse_face_2(Face, check_flat_body(Face, We0), We0, Sel).
+collapse_face_1(Face, We0) ->
+    Vertices = wings_face:surrounding_vertices(Face, We0),
 
-collapse_face_2(Face, true, We0, Sel) ->
-    {We0,Sel};
-collapse_face_2(Face, false, We0, Sel) ->
-    %% collect some info
-    Edges= get_edges(Face, We0),
-    FVE= [case E of
-	      #edge{lf=Face,rf=F,vs=V,ve=Nv,rtpr=E2} -> {F,V,E2};
-	      #edge{lf=F,rf=Face,ve=V,vs=Ns,ltpr=E2} -> {F,V,E2}
-	  end || {_, E} <- Edges],
-    Vremoved = [I || {_,I,_} <- FVE],
+    %% Allocate an Id for the new center vertex.
+    {NewV,We1}= new_id(We0),
+    #we{es=Es0,he=He0,fs=Fs0,vs=Vs0}= We1,
 
-    %% Get id and position for new vertex
-    {Newid, We1}= new_id(We0),
-    #we{es= Es0, he= He0, fs= Fs0, vs= Vs0}= We1,
-    Pt = wings_vertex:center(Vremoved, Vs0),
+    %% Delete edges and vertices.
+    {Es1,Vs1,Fs1,He1} =
+	wings_face:fold(
+	  fun(V, Edge, _, A) ->
+		  delete_edges(V, Edge, Face, A)
+	  end, {Es0,Vs0,Fs0,He0}, Face, We1),
 
-    %% remove edges (kanske vi kan använda dissolve_edges?)
-    {Es1, Vs1, Fs1, He1}=
-	foldl(
-	  fun({Edge,_}, {Etab0, Vtab0, Ftab0, Htab0}) ->
-		  #edge{ltpr= LP, ltsu= LS, rtpr= RP, rtsu=RS,
-			vs= Vstart, ve=Vend, lf= LF, rf= RF}=
-		      gb_trees:get(Edge, Etab0),
-		  %% Patch all predecessors and successor of
-		  %% the edge we will remove.
-		  Etab1 = patch_edge(LP, LS, Edge, Etab0),
-		  Etab2 = patch_edge(LS, LP, Edge, Etab1),
-		  Etab3 = patch_edge(RP, RS, Edge, Etab2),
-		  Etab4 = patch_edge(RS, RP, Edge, Etab3),
-		  %% patch vertices referring to edge
-		  Vtab1 = wings_vertex:patch_vertex(Vstart, RP, Vtab0),
-		  Vtab = wings_vertex:patch_vertex(Vend, RS, Vtab1),
-		  %% Patch the face entries for the remaining face.
-		  Ftab1= wings_face:patch_face(LF, Edge, LP, Ftab0),
-		  Ftab = wings_face:patch_face(RF, Edge, RP, Ftab1),
-		  %% now we can safely remove the edge
-		  Etab = gb_trees:delete(Edge, Etab4),
-		  Htab = hardness(Edge, soft, Htab0),
-		  {Etab, Vtab, Ftab, Htab}
-	       end, {Es0, Vs0, Fs0, He0}, Edges),
+    %% Delete face.
+    Fs2 = gb_trees:delete(Face, Fs1),
 
-    %% remove the face
-    Fs2= gb_trees:delete(Face, Fs1),
+    %% Patch vertices references in edges surronding the deleted vertices.
+    {AnEdge,Es2} = foldl(fun(V, A) ->
+				 patch_vtx_refs(V, NewV, We0, A)
+			 end, {none,Es1}, Vertices),
 
-    %% remove vertices
-    Vs2= foldl(fun(V, Vtab0) ->
-		       gb_trees:delete(V, Vtab0)
-	       end, Vs1, Vremoved),
+    %% Insert the new vertex, if there are any edges left
+    %% to connect it to.
+    if
+	AnEdge =:= none -> We0;
+	true ->
+	    Pos = wings_vertex:center(Vertices, We1),
+	    Vs = gb_trees:insert(NewV, #vtx{edge=AnEdge,pos=Pos}, Vs1),
+	    We2 = We1#we{vs=Vs,es=Es2,fs=Fs2,he=He1},
+	    We = wings_vertex:fold(
+		   fun(_, F, _, W) ->
+			   delete_degenerated(F, W)
+		   end, We2, NewV, We2),
 
-    Es2 = foldl(fun(V, A) ->
-			patch_vtx_refs(V, Newid, We0, A)
-		end, Es1, Vremoved),
+	    %% If no edges left, return the original object.
+	    case gb_trees:is_empty(We#we.es) of
+		true -> We0;
+		false -> We
+	    end
+    end.
 
-    %% insert the new vertex
-    {_,_,Edgeid} = hd(FVE),
-    We2 = We1#we{vs = gb_trees:insert(Newid, #vtx{edge=Edgeid,pos=Pt}, Vs2),
-		 es = Es2, fs = Fs2, he = He1},
-    Faces = [F || {F,V,E} <- FVE],
-    {remove_2side_faces(Faces, We2), gb_sets:add(Newid, Sel)}.
+delete_edges(V, Edge, Face, {Etab0,Vtab0,Ftab0,Htab0}) ->
+    Rec = gb_trees:get(Edge, Etab0),
+
+    %% Patch all predecessors and successor of
+    %% the edge we will remove.
+    #edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
+    Etab1 = wings_edge:patch_edge(LP, LS, Edge, Etab0),
+    Etab2 = wings_edge:patch_edge(LS, LP, Edge, Etab1),
+    Etab3 = wings_edge:patch_edge(RP, RS, Edge, Etab2),
+    Etab4 = wings_edge:patch_edge(RS, RP, Edge, Etab3),
+
+    %% Delete edge and vertex.
+    Etab = gb_trees:delete(Edge, Etab4),
+    Vtab = gb_trees:delete(V, Vtab0),
+
+    %% Patch the face entry for the remaining face.
+    Ftab = case Rec of
+	       #edge{lf=Face,rf=AFace,rtpr=AnEdge} ->
+		   wings_face:patch_face(AFace, Edge, AnEdge, Ftab0);
+	       #edge{rf=Face,lf=AFace,ltpr=AnEdge} ->
+		   wings_face:patch_face(AFace, Edge, AnEdge, Ftab0)
+	   end,
+    Htab = wings_edge:hardness(Edge, soft, Htab0),
+    {Etab,Vtab,Ftab,Htab}.
 
 collapse_edges(Id, Edges0, #we{es=Etab}=We0, SelAcc)->
     Edges = gb_sets:to_list(Edges0),
@@ -141,10 +147,10 @@ collapse_edge_1({value,Erec}, Edge,
 	    
 	    %% Patch all predecessors and successor of
 	    %% the edge we will remove.
-	    Etab1 = patch_edge(LP, LS, Edge, Etab0),
-	    Etab2 = patch_edge(LS, LP, Edge, Etab1),
-	    Etab3 = patch_edge(RP, RS, Edge, Etab2),
-	    Etab4 = patch_edge(RS, RP, Edge, Etab3),
+	    Etab1 = wings_edge:patch_edge(LP, LS, Edge, Etab0),
+	    Etab2 = wings_edge:patch_edge(LS, LP, Edge, Etab1),
+	    Etab3 = wings_edge:patch_edge(RP, RS, Edge, Etab2),
+	    Etab4 = wings_edge:patch_edge(RS, RP, Edge, Etab3),
 	    
 	    %% Patch the vertices referring to edge.
 	    Vtab2 = wings_vertex:patch_vertex(Vkeep, RP, Vtab1),
@@ -155,7 +161,7 @@ collapse_edge_1({value,Erec}, Edge,
 	    
 	    %% now we can safely remove the edge
 	    Etab5 = gb_trees:delete(Edge, Etab4),
-	    Htab = hardness(Edge, soft, Htab0),
+	    Htab = wings_edge:hardness(Edge, soft, Htab0),
 	    
 	    %% Remove vertex...
 	    Vtab = gb_trees:delete(Vremove, Vtab2),
@@ -163,7 +169,7 @@ collapse_edge_1({value,Erec}, Edge,
 	    %% ... change all references to the kept vertex.
 	    %% We iterate on the original data structure, and operates
 	    %% on our updated edge table.
-	    Etab = patch_vtx_refs(Vremove, Vkeep, We0, Etab5),
+	    {_,Etab} = patch_vtx_refs(Vremove, Vkeep, We0, {none,Etab5}),
 
 	    We1 = We0#we{vs = Vtab, he = Htab, fs = Ftab, es= Etab},
 	    Lredges = get_edges(RF, We1)++get_edges(LF, We1),
@@ -242,8 +248,23 @@ remove_1vertex_edges([Edge|Erest], #we{es=Etab0}=We0) ->
 	  end,
     remove_1vertex_edges(Erest, We1).
 
-%% ok, det är överdrivet (overkill) att använda dissolve_edge, men jag var trött...
-%% Remove all faces with just two edges (in a given list of faces)
+%% Delete a degenerate face (a face consisting of only two edges).
+delete_degenerated(Face, #we{fs=Ftab,es=Etab}=We) ->
+    %% Note: The face could have been deleted by a previous
+    %% wings_edge:dissolve_edge/2.
+    case gb_trees:lookup(Face, Ftab) of
+	{value,#face{edge=Edge}} ->
+	    case gb_trees:get(Edge, Etab) of
+		#edge{ltpr=Same,ltsu=Same} ->
+		    wings_edge:dissolve_edge(Edge, We);
+		#edge{rtpr=Same,rtsu=Same} ->
+		    wings_edge:dissolve_edge(Edge, We);
+		Other -> We
+	    end;
+	none -> We
+    end.
+
+%% Remove all faces with just two edges (in a given list of faces).
 remove_2side_faces([], We) ->
     We;
 remove_2side_faces([Face|Frest], #we{fs=Ftab0,es=Etab0}=We0) ->
@@ -305,29 +326,17 @@ check_waist(#edge{vs=Vs0,ve=Ve0}=Erec, [Edge1|Erest], Etab0) ->
 	    check_waist(Erec, Erest, Etab0)
     end.
 
-check_flat_body(Face, #we{es=Es0,fs=Fs0}) ->
-    #face{edge=Fedge} = gb_trees:get(Face, Fs0),
-    case gb_trees:get(Fedge, Es0) of
-	#edge{ltsu=L,rtpr=L} ->
-	    true;
-	_ ->
-	    false
-    end.
-
-has_face(Face, #we{fs=Fs0}) ->
-    gb_trees:lookup(Face, Fs0) =/= none.
-
-patch_vtx_refs(OldV, NewV, We, Etab) ->
+patch_vtx_refs(OldV, NewV, We, {_,_}=Acc) ->
     wings_vertex:fold(
-      fun(Edge, _, _, Tab) ->
+      fun(Edge, _, _, {_,Tab}=A) ->
 	      case gb_trees:lookup(Edge, Tab) of
 		  {value,#edge{vs=OldV}=Rec} ->
-		      gb_trees:update(Edge, Rec#edge{vs=NewV}, Tab);
+		      {Edge,gb_trees:update(Edge, Rec#edge{vs=NewV}, Tab)};
 		  {value,#edge{ve=OldV}=Rec} ->
-		      gb_trees:update(Edge, Rec#edge{ve=NewV}, Tab);
-		  none -> Tab		%An deleted edge.
+		      {Edge,gb_trees:update(Edge, Rec#edge{ve=NewV}, Tab)};
+		  none -> A		%An deleted edge.
 	      end
-      end, Etab, OldV, We).
+      end, Acc, OldV, We).
 
 get_edges(Face, We) ->
     wings_face:fold(fun(_, Edge, Rec, Acc0) ->
