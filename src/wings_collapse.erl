@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.35 2003/09/26 07:30:23 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.36 2003/09/26 07:41:14 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -217,23 +217,29 @@ collapse_vertices(Vs, We0) ->
     We.
 
 do_collapse_vertices(Vs, We) ->
-    do_collapse_vertices(Vs, We, gb_sets:empty(), []).
+    do_collapse_vertices(Vs, We, gb_sets:empty(), [], []).
 
-do_collapse_vertices([V|Vs], #we{vp=Vtab}=We0, Sel0, Acc) ->
+do_collapse_vertices([V|Vs], #we{vp=Vtab}=We0, Sel0, IsoAcc, Acc) ->
     case gb_trees:is_defined(V, Vtab) of
 	false ->
-	    do_collapse_vertices(Vs, We0, Sel0, Acc);
+	    do_collapse_vertices(Vs, We0, Sel0, IsoAcc, Acc);
 	true ->
-	    {We,Sel} = collapse_vertex_1(V, We0, Sel0),
-	    do_collapse_vertices(Vs, We, Sel, [V|Acc])
+	    case collapse_vertex_1(V, We0, Sel0) of
+		isolated ->
+		    do_collapse_vertices(Vs, We0, Sel0, [V|IsoAcc], Acc);
+		{We,Sel} ->
+		    do_collapse_vertices(Vs, We, Sel, IsoAcc, [V|Acc])
+	    end
     end;
-do_collapse_vertices([], We, Sel, []) ->
+do_collapse_vertices([], We, Sel, [], []) ->
     {We,Sel};
-do_collapse_vertices([], We, Sel, Vs) ->
+do_collapse_vertices([], We0, Sel, Isolated, Vs) ->
+    We = wings_vertex:dissolve_isolated(Isolated, We0),
+
     %% Note that a vertex may be connected to two faces that
     %% have no edge in common. In that case, the vertex will
     %% still be there.
-    do_collapse_vertices(Vs, We, Sel, []).
+    do_collapse_vertices(Isolated++Vs, We, Sel, [], []).
 
 collapse_vertex_1(Vremove, We0, Sel0) ->
     VsEs = wings_vertex:fold(
@@ -243,7 +249,9 @@ collapse_vertex_1(Vremove, We0, Sel0) ->
 	     end, [], Vremove, We0),
     case VsEs of
 	[_,_] ->
-	    {wings_vertex:dissolve(Vremove, We0),Sel0};
+	    %% For performance reasons, we will remove all
+	    %% isolated vertices at once.
+	    isolated;
 	_ ->
 	    Vlist = reverse([V || {V,_} <- VsEs]),
 	    check_vertices(Vlist),
