@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.52 2002/07/26 17:43:54 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.53 2002/07/26 18:04:16 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -398,11 +398,10 @@ motion_outside_1(X, Y, #mi{level=Lev}) ->
 	_ -> none
     end.
 
-clear_timer(#mi{timer=short}) -> ok;
 clear_timer(#mi{timer=Timer}) -> wings_io:cancel_timer(Timer).
 
 set_submenu_timer(#mi{sel=Sel}=Mi, #mi{sel=Sel}, _X, _Y) -> Mi;
-set_submenu_timer(#mi{sel=Sel,timer=OldTimer}=Mi, OldMi, X0, Y0) ->
+set_submenu_timer(#mi{sel=Sel}=Mi, OldMi, X0, Y0) ->
     clear_timer(OldMi),
     case is_submenu(Sel, Mi) of
 	false ->
@@ -411,11 +410,7 @@ set_submenu_timer(#mi{sel=Sel,timer=OldTimer}=Mi, OldMi, X0, Y0) ->
 	true ->
 	    {X,Y} = wings_wm:local2global(X0, Y0),
 	    Event = #mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED},
-	    Time = case OldTimer of
-		       short -> 1;
-		       _ -> ?SUB_MENU_TIME
-		   end,
-	    Timer = wings_io:set_timer(Time, Event),
+	    Timer = wings_io:set_timer(?SUB_MENU_TIME, Event),
 	    Mi#mi{timer=Timer}
     end.
 
