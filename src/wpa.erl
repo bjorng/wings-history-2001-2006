@@ -8,10 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.5 2002/01/25 09:04:38 bjorng Exp $
+%%     $Id: wpa.erl,v 1.6 2002/01/26 11:17:22 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,error/1,message/1,yes_no/1,
+	 bind_unicode/2,bind_virtual/3,
 	 pref_get/2,pref_get/3,pref_set/3,pref_delete/2,
 	 sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,
@@ -38,6 +39,12 @@ message(Message) ->
 %% Ask yes/no question. Returns yes|no|aborted.
 yes_no(Question) ->
     wings_util:yes_no(Question).
+
+bind_unicode(Key, Command) ->
+    wings_hotkey:bind_unicode(Key, Command, plugin).
+
+bind_virtual(Key, Mods, Command) ->
+    wings_hotkey:bind_virtual(Key, Command, plugin).
 
 %%%
 %%% Preferences.
