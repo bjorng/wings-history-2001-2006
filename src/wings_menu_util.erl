@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.35 2003/10/31 06:22:18 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.36 2003/11/08 19:12:31 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -186,7 +186,7 @@ rotate_fun_1(Dir, Names) ->
     DirString = wings_util:stringify(Dir),
     F = magnet_scale_rot_fun(Dir, center),
     Help0 = dir_help(Dir, Names),
-    Help = {Help0,[],"Pick point that axis will pass through"},
+    Help = {Help0,[],"Pick point for axis to pass through"},
     Ps = magnet_props(Dir, Names),
     {DirString,F,Help,Ps}.
 
@@ -195,7 +195,7 @@ rotate_axis_fun(Axis, Names) ->
     DirString = stringify_dir(Axis),
     F = magnet_scale_rot_fun(Vec, Point),
     Help0 = dir_help(Axis, Names),
-    Help = {Help0,[],"Pick point that axis will pass through"},
+    Help = {Help0,[],"Pick point for axis to pass through"},
     {advanced,{DirString,F,Help,magnet_props(Axis, Names)}}.
 
 magnet_scale_rot_fun(Vec, Point) ->
