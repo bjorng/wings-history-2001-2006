@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.1 2001/08/14 18:16:31 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.2 2001/08/20 07:34:28 bjorng Exp $
 %%
 
 -module(e3d_mesh).
 -export([clean/1,triangulate/1,make_quads/1,vertex_normals/1]).
 
 -include("e3d.hrl").
--import(lists, [foreach/2,sort/1,reverse/1,reverse/2,
+-import(lists, [foreach/2,sort/1,reverse/1,reverse/2,seq/2,
 		foldl/3,filter/2,mapfoldl/3,mapfoldr/3,last/1]).
 
 clean(#e3d_mesh{vs=Vs0,fs=Fs0,he=He0}=Mesh) ->
@@ -455,13 +455,39 @@ is_convex([A,B], [], Plane, Vtab) -> true.
 %%% Calculate normals for each vertex in a mesh.
 %%%
 
-vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0}=Mesh) ->
+vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
     Vtab = list_to_tuple(Vtab0),
     FaceNormals = face_normals(Ftab, Vtab),
-%     VtxNormals = soft_vertex_normals(Vtab, FaceNormals),
-%     io:format("~p\n", [gb_trees:to_list(FaceNormals)]),
-    ok.
+    AllVs = sofs:from_term(seq(0, size(Vtab)-1), [atom]),
+    HardVs = hard_vertices(He),
+    SoftVs = sofs:difference(AllVs, HardVs),
+    VtxFace0 = vtx_to_face_tab(Ftab),
+    VtxFace = sofs:restriction(VtxFace0, SoftVs),
+    VtxNormals0 = vertex_normals(sofs:to_external(VtxFace), 0, FaceNormals),
+    VtxNormals = gb_trees:from_orddict(VtxNormals0),
+    Faces = vn_faces(Ftab, VtxNormals, FaceNormals, []),
+    Normals0 = wings_util:gb_trees_values(VtxNormals),
+    Normals1 = sort(Normals0),
+    Normals = [N || {Vn,N} <- Normals1],
+    {Faces,Normals}.
 
+vn_faces([#e3d_face{mat=Mat,vs=Vs0}|Fs], VtxNs, FNs, Acc) ->
+    Vs1 = foldl(fun(V, A) ->
+			vn_face(V, VtxNs, FNs, A)
+		end, [], Vs0),
+    Vs = reverse(Vs1),
+    vn_faces(Fs, VtxNs, FNs, [{Mat,Vs}|Acc]);
+vn_faces([], VtxNs, FNs, Acc) -> reverse(Acc).
+
+vn_face(V, VtxNs, FNs, Acc) ->
+    [{V,vn_lookup(V, VtxNs)}|Acc].
+    
+vn_lookup(V, VtxNs) ->
+    case gb_trees:lookup(V, VtxNs) of
+	{value,{Vn,_}} -> Vn;
+	none -> -1
+    end.
+	    
 face_normals(Ftab, Vtab) ->
     {Ns,_} = mapfoldl(fun(#e3d_face{vs=[A0,B0,C0|_]}, Face) ->
 			      A = element(A0+1, Vtab),
@@ -470,3 +496,26 @@ face_normals(Ftab, Vtab) ->
 			      {{Face,e3d_vec:normal(A, B, C)},Face+1}
 		      end, 0, Ftab),
     gb_trees:from_orddict(Ns).
+
+vtx_to_face_tab(Fs) ->
+    vtx_to_face_tab(Fs, 0, []).
+
+vtx_to_face_tab([#e3d_face{vs=Vs}|Fs], Face, Acc0) ->
+    Acc = [{V,Face} || V <- Vs] ++ Acc0,
+    vtx_to_face_tab(Fs, Face+1, Acc);
+vtx_to_face_tab([], Face, Acc) ->
+    R = sofs:relation(Acc),
+    sofs:relation_to_family(R).
+
+vertex_normals(Vfs, Vn, FaceNormals) ->
+    vertex_normals(Vfs, Vn, FaceNormals, []).
+
+vertex_normals([{V,Fs}|Vfs], Vn, FaceNormals, Acc) ->
+    Ns = [gb_trees:get(F, FaceNormals) || F <- Fs],
+    N = e3d_vec:norm(e3d_vec:add(Ns)),
+    vertex_normals(Vfs, Vn+1, FaceNormals, [{V,{Vn,N}}|Acc]);
+vertex_normals([], Vn, FaceNormals, Acc) -> reverse(Acc).
+
+hard_vertices(He) ->
+    R = sofs:relation(He),
+    sofs:field(R).

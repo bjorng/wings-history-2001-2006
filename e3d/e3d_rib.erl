@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_rib.erl,v 1.2 2001/08/17 10:16:57 bjorng Exp $
+%%     $Id: e3d_rib.erl,v 1.3 2001/08/20 07:34:28 bjorng Exp $
 %%
 
 -module(e3d_rib).
