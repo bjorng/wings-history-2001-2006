@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.8 2002/01/04 09:28:04 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.9 2002/01/07 15:11:38 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -82,8 +82,8 @@ face(Face, Edge, #we{mode=vertex}=We) ->
 	    glu:tessEndPolygon(Tess),
 	    gl:edgeFlag(?GL_TRUE);
 	Vs ->
-	    gl:'begin'(?GL_POLYGON),
 	    gl:normal3fv(wings_face:draw_normal(Vs)),
+	    gl:'begin'(?GL_POLYGON),
 	    face_vtxcol_1(Vs),
 	    gl:'end'()
     end;
@@ -101,8 +101,8 @@ face(Face, Edge, #we{vs=Vtab}=We) ->
 	    glu:tessEndPolygon(Tess),
 	    gl:edgeFlag(?GL_TRUE);
 	Vs ->
-	    gl:'begin'(?GL_POLYGON),
 	    gl:normal3fv(wings_face:face_normal(Vs, We)),
+	    gl:'begin'(?GL_POLYGON),
 	    face_1(Vs, Vtab),
 	    gl:'end'()
     end.
