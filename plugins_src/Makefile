@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.5 2002/10/29 19:26:51 bjorng Exp $
+#     $Id: Makefile,v 1.6 2002/12/28 10:23:44 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -45,6 +45,7 @@ opt debug:
 common: $(TARGET_FILES) subdirs
 
 subdirs:
+	(cd import_fonts; $(MAKE))
 	(cd import_export; $(MAKE))
 	(cd primitives; $(MAKE))
 	(cd commands; $(MAKE))
@@ -55,6 +56,7 @@ clean: subdirs_clean
 	rm -f core
 
 subdirs_clean:
+	(cd fonts; $(MAKE) clean)
 	(cd import_export; $(MAKE) clean)
 	(cd primitives; $(MAKE) clean)
 	(cd commands; $(MAKE) clean)
