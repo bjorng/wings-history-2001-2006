@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.84 2003/03/14 19:38:59 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.85 2003/04/17 14:20:38 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -297,18 +297,21 @@ marquee_filter_1([{_}|Hits], Shs, Mode, EyePoint, Acc) ->
     marquee_filter_1(Hits, Shs, Mode, EyePoint, Acc);
 marquee_filter_1([], _, _, _, Acc) -> Acc.
 
-face_vtx_pos(Face, Id, #we{vp=Vtab}=We) ->
-    Vs = wings_face:surrounding_vertices(Face, We),
-    Ps = foldl(fun(V, A) ->
-		       [gb_trees:get(V, Vtab)|A]
-	       end, [], Vs),
-    if
-	Id < 0 ->
-	    Mtx = wings_util:mirror_matrix(-Id),
-	    mul_points(Mtx, Ps);
-	true ->
-	    reverse(Ps)
-    end.
+face_vtx_pos(Face, Id, We) when Id < 0 ->
+    Vs = wings_face:vertices_ccw(Face, We),
+    Ps = vspos(Vs, We),
+    Mtx = wings_util:mirror_matrix(-Id),
+    mul_points(Mtx, Ps);
+face_vtx_pos(Face, _, We) ->
+    Vs = wings_face:vertices_cw(Face, We),
+    vspos(Vs, We).
+
+vspos(Vs, #we{vp=Vtab}) -> vspos(Vs, Vtab, []);
+vspos(Vs, Vtab) -> vspos(Vs, Vtab, []).
+    
+vspos([V|Vs], Vtab, Acc) ->
+    vspos(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+vspos([], _, Acc) -> Acc.
 
 marquee_convert([{Id,Faces}|Hits], RectData0,
 	       #st{selmode=Mode,shapes=Shs}=St, Acc) ->
@@ -561,8 +564,8 @@ filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
 	      true -> identity
 	  end,
     We = gb_trees:get(abs(Id), Shs),
-    Vs = wings_face:surrounding_vertices(Face, We),
-    Ps0 = [wings_vertex:pos(V, We) || V <- Vs],
+    Vs = wings_face:vertices_cw(Face, We),
+    Ps0 = vspos(Vs, We),
     [P|_] = Ps = mul_points(Mtx, Ps0),
     N = if
 	    Id < 0 -> e3d_vec:neg(e3d_vec:normal(Ps));
@@ -646,7 +649,7 @@ convert_hit(Mode, X, Y, Id, Face, MM, We) ->
     end.
 
 find_vertex(Face, We, X, Y, Trans) ->
-    Vs0 = wings_face:surrounding_vertices(Face, We),
+    Vs0 = wings_face:vertices_ccw(Face, We),
     map(fun(V) ->
 		{Xs,Ys} = Pos = project_vertex(V, We, Trans),
 		Dx = X-Xs,
