@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.38 2003/12/30 15:52:57 bjorng Exp $
+%%     $Id: wpa.erl,v 1.39 2003/12/30 21:14:50 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -33,10 +33,15 @@
 	 triangulate/1,triangulate/2,quadrangulate/1,quadrangulate/2
 	]).
 
+-export([format_error/1]).
+
 -include("wings.hrl").
 -include("e3d.hrl").
 
 -import(lists, [reverse/1,foldl/3,foreach/2]).
+
+format_error({crash,Term}) ->
+    lists:flatten(io_lib:format("Internal error: ~P\n", [Term,20])).
 
 %%%
 %%% ask/3,4 is simpler to use, but only supports a single list of fields.
@@ -349,7 +354,11 @@ image_read(Ps) ->
     wings_plugin:call_ui({image,read,Ps}).
 
 image_write(Ps) ->
-    wings_plugin:call_ui({image,write,Ps}).
+    case catch wings_plugin:call_ui({image,write,Ps}) of
+	{'EXIT',Reason} ->
+	    {error,{none,?MODULE,{crash,Reason}}};
+	Result -> Result
+    end.
 
 %%%
 %%% Virtual mirror.
