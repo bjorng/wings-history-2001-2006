@@ -10,24 +10,50 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.12 2001/10/17 07:48:25 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.13 2001/12/10 18:39:58 bjorng Exp $
 %%
 
 -module(wings_shapes).
--export([tetrahedron/2,octahedron/2,dodecahedron/2,icosahedron/2,cube/2,
-	 cylinder/2,cone/2,sphere/2,torus/2,grid/2]).
+-export([menu/3,command/3]).
 -include("wings.hrl").
 
 -import(lists, [foreach/2,foldl/3,sort/1,last/1,seq/2,seq/3]).
 -import(math, [sqrt/1,cos/1,sin/1,pi/0]).
 -import(wings_util, [ask/3]).
 
+menu(X, Y, St) ->
+    Menu = {{"Tetrahedron",tetrahedron},
+	    {"Octahedron",octahedron},
+	    {"Dodecahedron",dodecahedron},
+	    {"Icosahedron",icosahedron},
+	    separator,
+	    {"Cube",cube},
+	    separator,
+	    {"Cylinder",{cylinder}},
+	    {"Cone",{cone}},
+	    {"Sphere",{sphere}},
+	    {"Torus",{torus}},
+	    separator,
+	    {"Grid",{grid}}},
+    wings_menu:popup_menu(X, Y, shape, Menu, St).
+
+command(tetrahedron, _, St) -> tetrahedron(St);
+command(octahedron, _, St) -> octahedron(St);
+command(dodecahedron, _, St) -> dodecahedron(St);
+command(icosahedron, _, St) -> icosahedron(St);
+command(cube, _, St) -> cube(St);
+command(cylinder, Ask, St) -> cylinder(Ask, St);
+command(cone, Ask, St) -> cone(Ask, St);
+command(sphere, Ask, St) -> sphere(Ask, St);
+command(torus, Ask, St) -> torus(Ask, St);
+command(grid, Ask, St) -> grid(Ask, St).
+
 build_shape(Prefix, Fs, Vs, #st{onext=Oid}=St) ->
     We = wings_we:build(Fs, Vs),
     Name = Prefix++integer_to_list(Oid),
     wings_shape:new(Name, We, St).
 
-tetrahedron(_, St) ->
+tetrahedron(St) ->
     Fs = [[2,1,0],[1,2,3],[1,3,0],[3,2,0]],
     Vs = [{0.0,1.0*2,0.0},
 	  {0.0,-0.33333*2,0.942809*2},
@@ -35,13 +61,13 @@ tetrahedron(_, St) ->
 	  {0.816497*2,-0.333333*2,-0.471405*2}],
     build_shape("tetrahedron", Fs, Vs, St).
 
-octahedron(_, St) ->
+octahedron(St) ->
     Fs = [[2,4,0],[4,2,1],[4,3,0],[3,4,1],[5,2,0],[2,5,1],[3,5,0],[5,3,1]],
     Vs = [{2.0,0.0,0.0},{-2.0,0.0,0.0},{0.0,2.0,0.0},
 	  {0.0,-2.0,0.0},{0.0,0.0,2.0},{0.0,0.0,-2.0}],
     build_shape("octahedron", Fs, Vs, St).
 
-dodecahedron(_, St) ->
+dodecahedron(St) ->
     Alpha = sqrt(2.0 / (3.0 + sqrt(5.0))),
     Beta = 1.0 + sqrt(6.0 / (3.0 + sqrt(5.0)) -
 		      2.0 + 2.0 * sqrt(2.0 / (3.0 + sqrt(5.0)))),
@@ -57,7 +83,7 @@ dodecahedron(_, St) ->
 	  {0.0,-Beta,-Alpha}],
     build_shape("dodecahedron", Fs, Vs, St).
 
-icosahedron(_, St) ->
+icosahedron(St) ->
     X = 1.05146,
     Z = 1.70130,
     Fs = [[1,4,0],[4,9,0],[4,5,9],[8,5,4],[1,8,4],[1,10,8],
@@ -69,7 +95,7 @@ icosahedron(_, St) ->
 	  {Z,-X,0.0},{-Z,-X,0.0}],
     build_shape("icosahedron", Fs, Vs, St).
 
-cube(_, St) ->
+cube(St) ->
     Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
     Vs = [{-1.0,-1.0,1.0},{-1.0,1.0,1.0},{1.0,1.0,1.0},{1.0,-1.0,1.0},
 	  {-1.0,-1.0,-1.0},{-1.0,1.0,-1.0},{1.0,1.0,-1.0},{1.0,-1.0,-1.0}],

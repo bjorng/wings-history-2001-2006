@@ -8,14 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.1 2001/11/01 12:47:20 dgud Exp $
+%%     $Id: e3d__tif.erl,v 1.2 2001/12/10 18:39:57 bjorng Exp $
 %%
 
 -module(e3d__tif).
--author('dgud@erix.ericsson.se').
-
--compile(export_all).
-%%-export([Function/Arity, ...]).
+-export([load/2, save/3, save/4]).
 -include("e3d_image.hrl").
 
 load(FileName, Opts) ->

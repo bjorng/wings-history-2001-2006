@@ -8,14 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.10 2001/12/07 19:48:30 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.11 2001/12/10 18:39:58 bjorng Exp $
 %%
 
 -module(wings_pref).
 -export([init/0,finish/0,
 	 sub_menu/1,command/1,
-	 get_value/1,get_value/2,set_value/2,set_default/2,
-	 locate/1]).
+	 get_value/1,get_value/2,set_value/2,set_default/2]).
 
 -include("wings.hrl").
 -import(lists, [foreach/2,keysearch/3,map/2]).

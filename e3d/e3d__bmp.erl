@@ -8,13 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__bmp.erl,v 1.2 2001/10/19 19:46:29 bjorng Exp $
+%%     $Id: e3d__bmp.erl,v 1.3 2001/12/10 18:39:57 bjorng Exp $
 %%
 
 -module(e3d__bmp).
--author('dgud@erix.ericsson.se').
-
--compile(export_all).
+-export([load/2,save/3]).
 
 -include("e3d_image.hrl").
 
@@ -76,12 +74,11 @@ save(Image0, FileName, Opts) ->
 %    io:format("Size ~p ~n", [size(Image#e3d_image.image)]),
     Binary = <<?BITMAPFILEHEADER, ?BITMAPINFOHEADER, (Image#e3d_image.image)/binary>> ,
     file:write_file(FileName, Binary).
-         
      
-debug(I1, I2) ->
-    debug(I1#e3d_image.image, I2#e3d_image.image, 0).
+% debug(I1, I2) ->
+%     debug(I1#e3d_image.image, I2#e3d_image.image, 0).
     
-debug(<<R:8,G:8,B:8, R1/binary>>, <<R:8,G:8,B:8, R2/binary>>, N) ->
-    debug(R1,R2, N+1);
-debug(I1, I2, N) ->
-    io:format("Diff: in Pixel ~p ~n~P~n~P~n", [N, I1, 10, I2, 10]).
+% debug(<<R:8,G:8,B:8, R1/binary>>, <<R:8,G:8,B:8, R2/binary>>, N) ->
+%     debug(R1,R2, N+1);
+% debug(I1, I2, N) ->
+%     io:format("Diff: in Pixel ~p ~n~P~n~P~n", [N, I1, 10, I2, 10]).

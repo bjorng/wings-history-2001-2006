@@ -8,13 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.16 2001/11/12 19:28:45 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.17 2001/12/10 18:39:58 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([share/1,share/3,make_vector/1,ask/3,upper/1,
 	 fold_shape/3,fold_face/3,fold_vertex/3,fold_edge/3,
-	 foreach_shape/2,foreach_face/2,foreach_edge/2,
 	 average_normals/1,
 	 tc/1,crasch_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
@@ -108,68 +107,6 @@ fold_edge_1(F, Acc, Iter0) ->
 	none -> Acc;
 	{Edge,Rec,Iter} ->
 	    fold_edge_1(F, F(Edge, Rec, Acc), Iter)
-    end.
-
-%%%
-%%% `foreach' functions.
-%%%
-
-foreach_shape(F, St) ->
-    fold_shape(fun (#shape{id=Id}=Sh, _) -> F(Id, Sh)
-	       end, [], St).
-
-foreach_face(F, #shape{sh=Data}=Sh) ->
-    case Data of
-	#we{fs=Ftab} ->
-	    foreach_face_2(F, gb_trees:iterator(Ftab), Sh);
-	Other -> ok
-    end;
-foreach_face(F, #st{shapes=Shapes}) ->
-    Iter = gb_trees:iterator(Shapes),
-    foreach_face_1(F, Iter).
-
-foreach_face_1(F, Iter0) ->
-    case gb_trees:next(Iter0) of
-	none -> ok;
-	{Num,#shape{sh=Data}=Sh,Iter} ->
-	    case Data of
-		#we{fs=Ftab} ->
-		    foreach_face_2(F, gb_trees:iterator(Ftab), Sh),
-		    foreach_face_1(F, Iter);
-		Other -> ok
-	    end
-    end.
-
-foreach_face_2(F, Iter0, Sh) ->
-    case gb_trees:next(Iter0) of
-	none -> ok;
-	{Num,Face,Iter} ->
-	    F(Num, Face, Sh),
-	    foreach_face_2(F, Iter, Sh)
-    end.
-
-foreach_edge(F, #we{es=Etab}=We) ->
-    foreach_edge_2(F, gb_trees:iterator(Etab), We);
-foreach_edge(F, #shape{sh=#we{es=Etab}}=Sh) ->
-    foreach_edge_2(F, gb_trees:iterator(Etab), Sh);
-foreach_edge(F, #st{shapes=Shapes}) ->
-    Iter = gb_trees:iterator(Shapes),
-    foreach_edge_1(F, Iter).
-
-foreach_edge_1(F, Iter0) ->
-    case gb_trees:next(Iter0) of
-	none -> ok;
-	{Num,#shape{sh=#we{es=Etab}}=Sh,Iter} ->
-	    foreach_edge_2(F, gb_trees:iterator(Etab), Sh),
-foreach_edge_1(F, Iter)
-    end.
-
-foreach_edge_2(F, Iter0, Sh) ->
-    case gb_trees:next(Iter0) of
-	none -> ok;
-	{Num,Edge,Iter} ->
-	    F(Num, Edge, Sh),
-	    foreach_edge_2(F, Iter, Sh)
     end.
 
 average_normals(Vs) ->

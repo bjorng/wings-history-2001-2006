@@ -2,7 +2,7 @@
 %%  wings_we.erl --
 %%
 %%     This module contains functions to build and manipulate
-%%     we records (Winged-Edged records, the central data structure
+%%     we records (winged-edged records, the central data structure
 %%     in Wings 3D).
 %%
 %%  Copyright (c) 2001 Bjorn Gustavsson
@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.18 2001/11/21 07:15:59 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.19 2001/12/10 18:39:58 bjorng Exp $
 %%
 
 -module(wings_we).

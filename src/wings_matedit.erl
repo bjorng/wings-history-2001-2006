@@ -8,15 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.13 2001/12/09 14:10:12 bjorng Exp $
+%%     $Id: wings_matedit.erl,v 1.14 2001/12/10 18:39:58 bjorng Exp $
 %%
 
 -module(wings_matedit).
--compile(export_all).
+-export([edit/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
+
 -define(E, 2.71828).
 -define(LOG_BASE, 10000.0).
 

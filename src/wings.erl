@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.64 2001/12/10 07:29:01 bjorng Exp $
+%%     $Id: wings.erl,v 1.65 2001/12/10 18:39:58 bjorng Exp $
 %%
 
 -module(wings).
@@ -25,6 +25,7 @@
 -define(INTERESTING_BITS, (?CTRL_BITS bor ?ALT_BITS)).
 -import(lists, [foreach/2,map/2,filter/2,foldl/3,sort/1,
 		keymember/3,reverse/1]).
+-import(wings_draw, [model_changed/1]).
 
 -define(COLOR_BITS, 16).
 
@@ -303,10 +304,13 @@ command({_,[_|_]=Plugin}, St0) ->
     end;
 command({menu,Menu,X,Y}, St) ->
     menu(X, Y, Menu, St);
-command({shape,{Shape}}, St) ->
-    create_shape(true, Shape, St);
+command({shape,{Shape}}, St0) ->
+    case wings_shapes:command(Shape, true, St0) of
+	aborted -> St0;
+	St -> {save_state,model_changed(St)}
+    end;
 command({shape,Shape}, St) ->
-    create_shape(false, Shape, St);
+    {save_state,model_changed(wings_shapes:command(Shape, false, St))};
 command({help,What}, St) ->
     wings_help:What(St);
 
@@ -522,7 +526,7 @@ command({_,{scale,Type}}, St) ->
 
 popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
     case {Sel,Mode} of
- 	{[],_} -> shape_menu(X, Y, St);
+ 	{[],_} -> wings_shapes:menu(X, Y, St);
  	{_,vertex} -> vertex_menu(X, Y, St);
  	{_,edge} -> edge_menu(X, Y, St);
  	{_,face} -> face_menu(X, Y, St);
@@ -630,22 +634,6 @@ menu_item_sel_all(Mode, What, #st{selmode=Mode}) ->
     {cap(What),"Ctrl-A",Mode};
 menu_item_sel_all(Mode, What, St) ->
     {cap(What),Mode}.
-
-shape_menu(X, Y, St) ->
-    Menu = {{"Tetrahedron",tetrahedron},
-	    {"Octahedron",octahedron},
-	    {"Dodecahedron",dodecahedron},
-	    {"Icosahedron",icosahedron},
-	    separator,
-	    {"Cube",cube},
-	    separator,
-	    {"Cylinder",{cylinder}},
-	    {"Cone",{cone}},
-	    {"Sphere",{sphere}},
-	    {"Torus",{torus}},
-	    separator,
-	    {"Grid",{grid}}},
-    wings_menu:popup_menu(X, Y, shape, Menu, St).
 
 vertex_menu(X, Y, St) ->
     XYZ = xyz(),
@@ -793,15 +781,6 @@ scale() ->
 	       {"Radial X (YZ)",radial_x},
 	       {"Radial Y (XZ)",radial_y},
 	       {"Radial Z (XY)",radial_z}}}}.
-
-model_changed(St) ->
-    wings_draw:model_changed(St).
-
-create_shape(Ask, Shape, St0) ->
-    case wings_shapes:Shape(Ask, St0) of
-	aborted -> St0;
-	St -> {save_state,model_changed(St)}
-    end.
 
 set_select_mode(Mode, #st{drag=Drag}=St) when Drag =/= none ->
     St;

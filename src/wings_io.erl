@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.20 2001/12/09 14:10:12 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.21 2001/12/10 18:39:58 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -17,11 +17,11 @@
 	 update/1,button/2,
 	 info/1,message/1,clear_message/0,progress/2,
 	 clear_menu_sel/0,
-	 sunken_rect/4,sunken_rect/5,raised_rect/4,raised_rect/5,
+	 sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,menu_text/3,space_at/2,
-	 draw_icon/3,draw_icon/5,
+	 draw_icon/5,
 	 draw_message/1,draw_completions/1]).
--export([putback_event/1,get_event/0,flush_events/0,
+-export([putback_event/1,get_event/0,
 	 set_timer/2,cancel_timer/1,
 	 enter_event_loop/1]).
 -export([grab/0,ungrab/0,warp/2]).
@@ -450,18 +450,6 @@ inactive(X, Y, R, G, B) -> [R,G,B].
 %%%
 %%% Input.
 %%%
-
-flush_events() ->
-    #io{eq={In,Out}} = Io = get_state(),
-    flush_events_1(),
-    put_state(Io#io{eq=queue:new()}),
-    ok.
-
-flush_events_1() ->
-    case sdl_events:peepEvents(16, ?SDL_GETEVENT, ?SDL_ALLEVENTS) of
-	{0,[]} -> ok;
-	{N,Evs} -> flush_events_1()
-    end.
 
 putback_event(Event) ->
     #io{eq={In,Out}} = Io = get_state(),

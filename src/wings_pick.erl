@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.16 2001/11/28 20:49:36 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.17 2001/12/10 18:39:58 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -316,14 +316,14 @@ marque_draw(#st{selmode=edge}=St) ->
     foreach_we(
       fun(#we{vs=Vtab}=We) ->
 	      gl:pushName(0),
-	      wings_util:foreach_edge(
-		fun(Edge, #edge{vs=Vstart,ve=Vend}, _Sh) ->
+	      wings_util:fold_edge(
+		fun(Edge, #edge{vs=Va,ve=Vb}, _) ->
 			gl:loadName(Edge),
 			gl:'begin'(?GL_LINES),
-			gl:vertex3fv(lookup_pos(Vstart, Vtab)),
-			gl:vertex3fv(lookup_pos(Vend, Vtab)),
+			gl:vertex3fv(lookup_pos(Va, Vtab)),
+			gl:vertex3fv(lookup_pos(Vb, Vtab)),
 			gl:'end'()
-		end, We),
+		end, [], We),
 	      gl:popName()
       end, St);
 marque_draw(#st{selmode=vertex}=St) ->
