@@ -5,12 +5,12 @@
 %%     we records (winged-edged records, the central data structure
 %%     in Wings 3D).
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.22 2001/12/28 22:36:58 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.23 2002/01/20 11:10:25 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -23,7 +23,8 @@
 	 separate/1,
 	 get_sub_object/2,
 	 normals/1,
-	 new_items/3]).
+	 new_items/3,
+	 is_consistent/1]).
 
 %% For reading wings files.
 -export([build_edges_only/1,build_rest/5,vpairs_to_edges/2]).
@@ -441,18 +442,13 @@ renum_hard_edge(Edge0, Emap, New) ->
 %%% Separate a combined winged-edge structure.
 %%%
 
-
 %% get_sub_object(Edge, We) -> We'
 %%  Returns a copy of the sub-object that is reachable from Edge.
 
 get_sub_object(Edge, #we{es=Etab0,vs=Vtab,fs=Ftab,he=Htab}=We) ->
     Ws = gb_sets:singleton(Edge),
     {EtabLeft,NewEtab} = separate(Ws, Etab0, gb_trees:empty()),
-    Iter = gb_trees:iterator(NewEtab),
-    Empty = gb_trees:empty(),
-    EmptySet = gb_sets:empty(),
-    Huge = 1.0E300,
-    NewWe = copy_dependents(Iter, We, Empty, Empty, EmptySet, Huge, -1),
+    NewWe = copy_dependents(NewEtab, We),
     NewWe#we{es=NewEtab}.
 
 separate(We) ->
@@ -465,11 +461,7 @@ separate(#we{es=Etab0,vs=Vtab,fs=Ftab,he=Htab}=We, Acc) ->
 	    {Edge,Rec,_} = gb_trees:take_smallest(Etab0),
 	    Ws = gb_sets:singleton(Edge),
 	    {EtabLeft,NewEtab} = separate(Ws, Etab0, gb_trees:empty()),
-	    Iter = gb_trees:iterator(NewEtab),
-	    Empty = gb_trees:empty(),
-	    EmptySet = gb_sets:empty(),
-	    Huge = 1.0E300,
-	    NewWe = copy_dependents(Iter, We, Empty, Empty, EmptySet, Huge, -1),
+	    NewWe = copy_dependents(NewEtab, We),
 	    separate(We#we{es=EtabLeft}, [NewWe#we{es=NewEtab}|Acc])
     end.
 
@@ -492,34 +484,43 @@ separate(Ws0, Etab0, Acc0) ->
 	    end
     end.
 
-copy_dependents(Iter0, We, Vtab0, Ftab0, Htab0, Min0, Max0) ->
-    #we{vs=OldVtab,fs=OldFtab,he=OldHtab} = We,
-    case gb_trees:next(Iter0) of
-	none ->
-	    We#we{vs=Vtab0,fs=Ftab0,he=Htab0,first_id=Min0,next_id=Max0+1};
-	{Edge,Rec,Iter} ->
-	    #edge{vs=Vs,ve=Ve,lf=Lf,rf=Rf} = Rec,
-	    VsRec = gb_trees:get(Vs, OldVtab),
-	    Vtab1 = gb_trees:enter(Vs, VsRec, Vtab0),
-	    VeRec = gb_trees:get(Ve, OldVtab),
-	    Vtab = gb_trees:enter(Ve, VeRec, Vtab1),
-	    LfRec = gb_trees:get(Lf, OldFtab),
-	    Ftab1 = gb_trees:enter(Lf, LfRec, Ftab0),
-	    RfRec = gb_trees:get(Rf, OldFtab),
-	    Ftab = gb_trees:enter(Rf, RfRec, Ftab1),
-	    Htab = case gb_sets:is_member(Edge, OldHtab) of
-		       true -> gb_sets:insert(Edge, Htab0);
-		       false -> Htab0
-		   end,
-	    Ids = [Vs,Ve,Lf,Rf,Edge],
-	    Min = foldl(fun(Id, Min) when Id < Min -> Id;
-			   (_, Min) -> Min
-			end, Min0, Ids),
-	    Max = foldl(fun(Id, Max) when Id > Max -> Id;
-			   (_, Max) -> Max
-			end, Max0, Ids),
-	    copy_dependents(Iter, We, Vtab, Ftab, Htab, Min, Max)
-    end.
+copy_dependents(Es0, We) ->
+    [{E,_}|_] = Es = gb_trees:to_list(Es0),
+    copy_dependents(Es, We, [], [], [], E, E).
+
+copy_dependents([], We, VsEs0, Fs, Hs, Min, Max) ->
+    #we{vs=OldVtab,fs=OldFtab} = We,
+    VsEs1 = sofs:relation(VsEs0, [{vertex,edge}]),
+    VsEs = sofs:relation_to_family(VsEs1),
+    Vtab0 = sofs:relation(gb_trees:to_list(OldVtab), [{vertex,data}]),
+    Vtab1 = sofs:restriction(Vtab0, sofs:domain(VsEs)),
+    Vtab = update_vtab(sofs:to_external(Vtab1), sofs:to_external(VsEs), []),
+    Ftab0 = sofs:relation(gb_trees:to_list(OldFtab), [{face,data}]),
+    Ftab1 = sofs:restriction(Ftab0, sofs:set(Fs, [face])),
+    Ftab = gb_trees:from_orddict(sofs:to_external(Ftab1)),
+    Htab = gb_sets:from_list(Hs),
+    We#we{vs=Vtab,fs=Ftab,he=Htab,first_id=Min,next_id=Max+1};
+copy_dependents([{Edge,Rec}|Es], We, Vs0, Fs0, Hs0, Min0, Max0) ->
+    #we{he=OldHtab} = We,
+    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = Rec,
+    Vs = [{Va,Edge},{Vb,Edge}|Vs0],
+    Fs = [Lf,Rf|Fs0],
+    Hs = case gb_sets:is_member(Edge, OldHtab) of
+	     true -> [Edge|Hs0];
+	     false -> Hs0
+	 end,
+    Ids = [Va,Vb,Lf,Rf,Edge],
+    Min = foldl(fun(Id, Min) when Id < Min -> Id;
+		   (_, Min) -> Min
+		end, Min0, Ids),
+    Max = foldl(fun(Id, Max) when Id > Max -> Id;
+		   (_, Max) -> Max
+		end, Max0, Ids),
+    copy_dependents(Es, We, Vs, Fs, Hs, Min, Max).
+
+update_vtab([{V,Vtx}|Vs], [{V,[E|_]}|VsEs], Acc) ->
+    update_vtab(Vs, VsEs, [{V,Vtx#vtx{edge=E}}|Acc]);
+update_vtab([], [], Acc) -> gb_trees:from_orddict(reverse(Acc)).
 
 %%%
 %%% Transform all vertices according to the matrix.
@@ -677,3 +678,63 @@ new_items_2(Wid, NewWid, Tab, Acc) when Wid < NewWid ->
     end;
 new_items_2(Wid, NewWid, Tab, Acc) ->
     gb_sets:from_ordset(reverse(Acc)).
+
+%%%
+%%% Test if a winged-edge record is consistent.
+%%%
+
+is_consistent(#we{}=We) ->
+    case catch validate_we(We) of
+	{'EXIT',Reason} ->
+	    io:format("~P\n", [Reason,30]),
+	    false;
+	true -> true
+    end.
+
+validate_we(We) ->
+    validate_vertex_tab(We),
+    validate_faces(We),
+    true.
+    
+validate_faces(#we{fs=Ftab}=We) ->
+    foreach(fun({Face,#face{edge=Edge}}) ->
+		    Cw = walk_face_cw(Face, Edge, Edge, We, []),
+		    Ccw = walk_face_ccw(Face, Edge, Edge, We, []),
+ 		    case reverse(Ccw) of
+ 			Cw -> ok;
+ 			Other -> exit({face_cw_ccw_inconsistency,Face})
+ 		    end
+	    end, gb_trees:to_list(Ftab)).
+
+walk_face_cw(Face, LastEdge, LastEdge, We, [_|_]=Acc) -> Acc;
+walk_face_cw(Face, Edge, LastEdge, We, Acc) ->
+    #we{es=Etab} = We,
+    case gb_trees:get(Edge, Etab) of
+	#edge{vs=V,lf=Face,ltsu=Next} ->
+	    walk_face_cw(Face, Next, LastEdge, We, [V|Acc]);
+	#edge{ve=V,rf=Face,rtsu=Next} ->
+	    walk_face_cw(Face, Next, LastEdge, We, [V|Acc])
+    end.
+
+walk_face_ccw(Face, LastEdge, LastEdge, We, [_|_]=Acc) -> Acc;
+walk_face_ccw(Face, Edge, LastEdge, We, Acc) ->
+    #we{es=Etab} = We,
+    case gb_trees:get(Edge, Etab) of
+	#edge{ve=V,lf=Face,ltpr=Next} ->
+	    walk_face_ccw(Face, Next, LastEdge, We, [V|Acc]);
+	#edge{vs=V,rf=Face,rtpr=Next} ->
+	    walk_face_ccw(Face, Next, LastEdge, We, [V|Acc])
+    end.
+
+validate_vertex_tab(#we{es=Etab,vs=Vtab}=We) ->
+    foreach(fun({V,#vtx{edge=Edge}}) ->
+		    case gb_trees:get(Edge, Etab) of
+			#edge{vs=V}=Rec ->
+			    validate_edge_rec(Rec);
+			#edge{ve=V}=Rec ->
+			    validate_edge_rec(Rec)
+		    end
+	    end, gb_trees:to_list(Vtab)).
+
+validate_edge_rec(#edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS})
+  when is_integer(LP+LS+RP+RS) -> ok.
