@@ -21,7 +21,7 @@
 -include("wings.hrl").
 
 %% Wings api
--export([str/2, str/4, 
+-export([init/0, str/2, str/4, 
 	 available_languages/0, 
 	 load_language/1]).
 
@@ -261,7 +261,7 @@ get_info1([$\\,$n|R], Acc) -> get_info1(R,[$\n|Acc]);
 get_info1([$\\,C|R], Acc) -> get_info1(R,[C|Acc]);
 get_info1([C|R],Acc) -> get_info1(R,[C|Acc]).
     
-skip_ws([$   |R]) -> skip_ws(R);
+skip_ws([$\s |R]) -> skip_ws(R);
 skip_ws([$\t |R]) -> skip_ws(R);
 skip_ws([$\n |R]) -> skip_ws(R);
 skip_ws(R) -> R.
@@ -284,10 +284,3 @@ files(Dir) ->
 		end
 	end,
     lists:foldl(Filter, [], lists:sort(Fs0)).
-
-try_location(Dir, File) ->
-    Name = filename:join(Dir, File),
-    case filelib:is_file(Name) of
-	true -> Name;        
-	false -> none
-    end.
