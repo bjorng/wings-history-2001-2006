@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.234 2004/05/10 06:01:18 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.235 2004/05/10 06:12:34 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -590,7 +590,7 @@ uvs_updated(We, AuvSt) ->
 
 topology_updated(#we{fs=Ftab}=We, St) ->
     Charts = init_edit(gb_trees:keys(Ftab), We),
-    St#st{shapes=Charts}.
+    St#st{sel=[],shapes=Charts}.
 
 %% update_selection(GemoSt, AuvSt0) -> AuvSt
 %%  Update the selection in the AutoUV window given a selection
