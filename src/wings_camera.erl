@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.102 2004/03/17 12:23:26 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.103 2004/04/08 09:01:18 dgud Exp $
 %%
 
 -module(wings_camera).
@@ -55,7 +55,7 @@ prefs() ->
      [{vframe,[mouse_buttons()],[{title,"Mouse Buttons"}]},
       {vframe,[camera_modes()],[{title,"Camera Mode"}]},
       {vframe,
-       [{hframe,[{slider,{text,PanSpeed0,[{key,pan_speed},{range,{1,50}}]}}]}],
+       [{hframe,[{slider,{text,PanSpeed0,[{key,pan_speed},{range,{1,100}}]}}]}],
        [{title,"Pan Speed"}]},
       {vframe,
        [{"Wheel Zooms",ZoomFlag0,[{key,wheel_zooms}]},
@@ -694,7 +694,7 @@ zoom(Delta0) ->
 pan(Dx0, Dy0) ->
     #view{pan_x=PanX0,pan_y=PanY0,distance=D} = View = wings_view:current(),
     %% The float/1 call below is a workaround for a compiler bug in R9C-0.
-    S = D*(1/8)/(51-float(wings_pref:get_value(pan_speed))),
+    S = D*(1/20)/(101-float(wings_pref:get_value(pan_speed))),
     Dx = Dx0*S,
     Dy = Dy0*S,
     PanX = PanX0 + Dx,
