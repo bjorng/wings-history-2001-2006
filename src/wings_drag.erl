@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.161 2003/10/11 09:29:31 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.162 2003/10/12 06:35:58 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -286,12 +286,14 @@ gl_rescale_normal() ->
     end.
 
 help_message(#drag{unit=Unit}=Drag) ->
-    Msg = wings_util:button_format("Accept", [], "Cancel"),
-    Zmsg = case length(Unit) > 2 of
+    Accept = wings_util:button_format("Accept"),
+    ZMsg = case length(Unit) > 2 of
 	       false -> [];
-	       true -> ["  Drag ",zmove_help("Move along Z")]
+	       true -> zmove_help("Drag to Move along Z")
 	   end,
-    wings_wm:message([Msg,Zmsg], help_message_right(Drag)).
+    Cancel = wings_util:button_format([], [], "Cancel"),
+    Msg = wings_camera:join_msg([Accept,ZMsg,Cancel]),
+    wings_wm:message(Msg, help_message_right(Drag)).
 
 help_message_right(#drag{magnet=none,falloff=Falloff}) ->
     Help = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",

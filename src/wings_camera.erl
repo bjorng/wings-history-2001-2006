@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.84 2003/10/12 06:10:22 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.85 2003/10/12 06:35:58 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -367,15 +367,13 @@ get_nendo_event(Camera, Redraw, MouseRotates) ->
     {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw, MouseRotates) end}.
 
 nendo_message(true) ->
-    Help = join_msg([button_format("Accept"),
+    Help = join_msg([button_format("Accept", "Drag to Dolly"),
 		     "Move mouse to tumble",
-		     ["Drag-",button_format([], "Dolly")],
 		     ["[Q]",?CSEP,"Move mouse to track"]]),
     message(Help);
 nendo_message(false) ->
-    Help = join_msg([button_format("Accept"),
+    Help = join_msg([button_format("Accept", "Drag to Dolly"),
 		     "Move mouse to track",
-		     ["Drag-",button_format([], "Dolly")],
 		     ["[Q]",?CSEP,"Move mouse to tumble"]]),
     message(Help).
 
@@ -451,18 +449,19 @@ get_mirai_event(Camera, Redraw, MouseRotates, View) ->
     {replace,fun(Ev) -> mirai_event(Ev, Camera, Redraw, MouseRotates, View) end}.
 
 mirai_message(true) ->
-    Help = join_msg([button_format("Accept",[],"Cancel/restore view"),
+    Help = join_msg([button_format("Accept",
+				   "Drag to Dolly",
+				   "Cancel/restore view"),
 		     "Move mouse to tumble",
-		     ["Drag-",button_format([], "Dolly")],
 		     ["[Q]",?CSEP,"Move mouse to track"]]),
     message(Help);
 mirai_message(false) ->
-    Help = join_msg([button_format("Accept",[],"Cancel/restore view"),
+    Help = join_msg([button_format("Accept",
+				   "Drag to Dolly",
+				   "Cancel/restore view"),
 		     "Move mouse to track",
-		     ["Drag-",button_format([], "Dolly")],
 		     ["[Q]",?CSEP,"Move mouse to tumble"]]),
     message(Help).
-
 
 %%%
 %%% 3ds max style camera.
@@ -472,7 +471,7 @@ tds(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     grab(),
-    message([button_format([], [], "Restore view"),?SEP|tds_help()]),
+    message(join_msg(tds_help(), button_format([], [], "Restore view"))),
     View = wings_view:current(),
     {seq,push,get_tds_event(Camera, Redraw, View)};
 tds(_, _) -> next.

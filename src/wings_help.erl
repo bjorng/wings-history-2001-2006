@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.56 2003/07/29 17:43:24 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.57 2003/10/12 06:35:58 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -62,17 +62,17 @@ getting_started() ->
 	    "bottom of the screen. Generally it shows what the "
 	    "mouse buttons will do at any given moment.",
 
-	    "Note that [L] means the left mouse button, not the key L "
-	    "on the keyboard. Similarly, [M] means the middle mouse "
-	    "button (or the scroll wheel), and [R] means the right mouse "
-	    "button.",
+	    "The actions for the mouse buttons are given first, "
+	    "labeled L: (left mouse button), "
+	    "M: (middle button or scroll wheel), R: (right button).",
 
-	    "See \"Using a Mouse with One or Two Buttons\" "
-	    "if your mouse doesn't have three buttons.",
+	    "To use mice with only one or two buttons, "
+	    "you must inform Wings how many buttons your mouse has "
+	    "in the Edit|Camera Mode dialog box.",
 
-	    "Generally, [L] (left mouse button) is used for selecting and "
-	    "accepting, the [M] (middle mouse button) for operating the camera, "
-	    "and the [R] (right mouse button) to access the context-sensitive "
+	    "Generally, L (left mouse button) is used for selecting and "
+	    "accepting, M (middle mouse button) for operating the camera, "
+	    "and R (right mouse button) to access the context-sensitive "
 	    "pop-up menus."
 	   ],
     help_window("Getting Started", Help).
@@ -89,7 +89,7 @@ advanced_menus() ->
 
 	    "With Advanced Menus turned on, many menu commands do "
 	    "different things depending on which mouse-button you invoke "
-	    "them with. For instance, [R] clicking on the Move command "
+	    "them with. For instance, R clicking on the Move command "
 	    "allows you to specify a direction vector to move along."],
     help_window("Advanced Menus", Help).
 
@@ -111,12 +111,12 @@ def_commands() ->
 
 	    "Two default commands can be defined. To save the "
 	    "previous command that was executed, use one of:",
-	    "  [Shift]+[Ctrl]+[L]",
-	    "  [Shift]+[Ctrl]+[M]",
+	    "  [Shift]+[Ctrl]+L:",
+	    "  [Shift]+[Ctrl]+M:",
 	    "To use a command that has been defined this way, "
 	    "use one of:",
-	    "  [Ctrl]+[L]",
-	    "  [Ctrl]+[M]",
+	    "  [Ctrl]+L:",
+	    "  [Ctrl]+M:",
 	    "Note: When using the 3ds max or Blender camera modes, the second "
 	    "default command cannot be used."],
     help_window("Assigning Default Commands", Help).
@@ -138,9 +138,9 @@ def_hotkeys() ->
 
 lights() ->
     Help = ["1. Create lights using the Light command in the primitives "
-	    "menu ([R]-click when there is no selection).",
-	    "2. Select a light by [L]-clicking on it. When any light is "
-	    "selected, a special Light menu will pop up when you [R]-click.",
+	    "menu (R-click when there is no selection).",
+	    "2. Select a light by L-clicking on it. When any light is "
+	    "selected, a special Light menu will pop up when you R-click.",
 	    "3. To tell Wings to actually use the lights you have created, "
 	    "use the View|Scene Lights command."],
     help_window("Light Basics", Help).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.38 2003/10/11 09:29:31 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.39 2003/10/12 06:35:58 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -202,7 +202,7 @@ ctrl_event({action,{titlebar,Action}}, Cs) ->
 ctrl_event(_, _) -> keep.
 
 ctrl_message() ->
-    M0 = ["Drag-",wings_util:button_format("Move")],
+    M0 = wings_util:button_format("Drag to Move"),
     M1 = case is_resizeable() of
 	     false -> [];
 	     true -> wings_util:button_format([], "Fit", "Show menu")
