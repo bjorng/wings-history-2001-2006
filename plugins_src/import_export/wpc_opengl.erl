@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.64 2004/03/14 12:43:50 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.65 2004/03/18 22:58:29 raimo_niskanen Exp $
 
 -module(wpc_opengl).
 
@@ -25,6 +25,7 @@
 		flat_length/1,append/1,append/2]).
 
 -export([calcTS/4]). %% debug
+-export([expand_arealights/1]). % debug
 
 %% UNTIL ESDL catches up..
 -ifndef(GL_DEPTH_CLAMP_NV).
@@ -258,7 +259,7 @@ create_dls(St0, Attr, Shadows, Bumps) ->
 	       end, [], Objects),
     Ls = if
 	     Shadows or Bumps -> %% Needs per-light data..
-		 Ls0  = wpa:lights(St),
+		 Ls0  = expand_arealights(wpa:lights(St)),
 		 Mats = St#st.mat,
 		 wings_pb:update(0.95, "Generating shadows and bump data per light "),
 		 wings_pb:pause(),
@@ -269,6 +270,94 @@ create_dls(St0, Attr, Shadows, Bumps) ->
     wings_pb:update(0.98, "Rendering"),
     ?CHECK_ERROR(),
     {Ds, Ls}.
+
+expand_arealights([]) -> [];
+expand_arealights([{Name,Ps0}=Light|Ls]) ->
+    case proplists:get_value(visible, Ps0) of
+	false -> [Light|expand_arealights(Ls)];
+	true ->
+	    OpenGL = proplists:get_value(opengl, Ps0),
+	    Ps = proplists:delete(opengl, Ps0),
+	    case proplists:get_value(type, OpenGL) of
+		area -> 
+		    expand_arealight(Name, Ps, OpenGL)++expand_arealights(Ls);
+		_ -> 
+		    [Light|expand_arealights(Ls)]
+	    end
+    end.
+
+expand_arealight(Name, Ps, OpenGL0) ->
+    Diffuse = proplists:get_value(diffuse, OpenGL0),
+    Ambient = proplists:get_value(ambient, OpenGL0),
+    Specular = proplists:get_value(specular, OpenGL0),
+    #e3d_mesh{vs=Vs,fs=Fs} = Mesh = 
+	e3d_mesh:triangulate(proplists:get_value(mesh, OpenGL0)),
+    OpenGL = proplists_delete_list(
+	       [diffuse,ambient,specular,mesh,cone_angle,spot_exponent], 
+	       OpenGL0),
+    As0 = e3d_mesh:face_areas(Mesh),
+    Area = foldl(fun (A, Acc) -> A+Acc end, 0.0, As0),
+    case catch [A/Area || A <- As0] of
+	{'EXIT',{badarith,_}} -> [];
+	As -> expand_arealight_1(Name, Ps, OpenGL, 1,
+				 Diffuse, Ambient, Specular,
+				 list_to_tuple(Vs), Fs, As)
+    end.
+
+expand_arealight_1(_Name, _Ps, _OpenGL, _I, _Diffuse, _Ambient, _Specular,
+		   _VsT, [], []) -> [];
+expand_arealight_1(Name, Ps, OpenGL, I, Diffuse, Ambient, Specular,
+		   VsT, [#e3d_face{vs=[V1,V2,V3]}|Fs], [A|As]) ->
+    P1 = element(V1+1, VsT),
+    P2 = element(V2+1, VsT),
+    P3 = element(V3+1, VsT),
+    P0 = e3d_vec:average([P1,P2,P3]),
+    P12 = e3d_vec:average(P1, P2),
+    P23 = e3d_vec:average(P2, P3),
+    P31 = e3d_vec:average(P3, P1),
+    P01 = e3d_vec:average(P0, P1),
+    P02 = e3d_vec:average(P0, P2),
+    P03 = e3d_vec:average(P0, P3),
+    case e3d_vec:normal(P1, P2, P3) of
+	{0.0,0.0,0.0} -> 
+	    expand_arealight_1(Name, Ps, OpenGL, I+1, 
+			       Diffuse, Ambient, Specular,
+			       VsT, Fs, As);
+	Direction ->
+	    PPs = [{P1,A/36},{P2,A/36},{P3,A/36},
+		   {P12,A/12},{P23,A/12},{P31,A/12},
+		   {P01,A/6},{P02,A/6},{P03,A/6},{P0,A/6}],
+	    expand_arealight_2(Name++"_"++integer_to_list(I), Ps, OpenGL, 1,
+			       Diffuse, Ambient, Specular, Direction, PPs)
+		++expand_arealight_1(Name, Ps, OpenGL, I+1,
+				     Diffuse, Ambient, Specular,
+				     VsT, Fs, As)
+    end.
+
+expand_arealight_2(_Name, _Ps, _OpenGL, _J, _Diffuse, _Ambient, _Specular,
+		   _Direction, []) -> [];
+expand_arealight_2(Name, Ps, OpenGL, J, Diffuse, Ambient, Specular,
+		   Direction, [{Position,Power}|PPs]) ->
+    [{Name++"_"++integer_to_list(J),
+      [{opengl,
+	[{type,spot},
+	 {diffuse,scale_color(Diffuse, Power)},
+	 {ambient,scale_color(Ambient, Power)},
+	 {specular,scale_color(Specular, Power)},
+	 {position,Position},
+	 {aim_point,e3d_vec:add(Position, Direction)},
+	 {cone_angle,90.0},
+	 {spot_exponent,1.0}|OpenGL]}
+       |Ps]}|expand_arealight_2(Name, Ps, OpenGL, J+1,
+				Diffuse, Ambient, Specular, Direction, PPs)].
+
+proplists_delete_list([], Ps) -> Ps;
+proplists_delete_list([Key|Keys], Ps) -> 
+    proplists_delete_list(Keys, proplists:delete(Key, Ps)).
+			     
+scale_color({R,G,B,A}, Scale) -> {R*Scale,G*Scale,B*Scale,A}.
+
+
 
 create_light_data([], _Ds, C, _Mat, _Bumps, _Shadow, Amb, Acc) ->
     {C,Amb,Acc};

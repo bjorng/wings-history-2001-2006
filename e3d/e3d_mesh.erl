@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.36 2004/03/17 10:43:23 raimo_niskanen Exp $
+%%     $Id: e3d_mesh.erl,v 1.37 2004/03/18 22:58:27 raimo_niskanen Exp $
 %%
 
 -module(e3d_mesh).
@@ -242,7 +242,7 @@ slit_hard_edges(Mesh0=#e3d_mesh{vs=Vs0,vc=Vc0,tx=Tx0,ns=Ns0,fs=Fs0,he=He0},
 %% The areas are for one possible triangulation. This is only
 %% important if the faces are not flat.
 
-face_areas(#e3d_mesh{vs=Vs,fs=Fs}) -> face_areas(gb_trees:keys(Fs), Vs).
+face_areas(#e3d_mesh{vs=Vs,fs=Fs}) -> face_areas(Fs, Vs).
 
 face_areas(Fs, Vs) when is_list(Fs), is_list(Vs) -> 
     face_areas_1(Fs, Vs, list_to_tuple(Vs)).
