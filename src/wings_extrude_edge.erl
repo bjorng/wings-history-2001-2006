@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.18 2002/01/31 07:43:31 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.19 2002/02/03 22:39:35 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -177,12 +177,15 @@ bevel_min_limit([], Min) -> Min.
 %%
 
 extrude(Type, St0) ->
-    Vec = wings_util:make_vector(Type),
+    Vec = extrude_vector(Type),
     {St,Tvs} = wings_sel:mapfold(
 		 fun(Edges, We, A) ->
 			 extrude_1(Edges, Vec, We, A)
 		 end, [], St0),
     wings_move:plus_minus(Type, Tvs, St).
+
+extrude_vector({_,{_,_,_}=Vec}) -> Vec;
+extrude_vector(Vec) -> wings_util:make_vector(Vec).
 
 extrude_1(Edges, Vec, We0, Acc) ->
     {We,_} = extrude_edges(Edges, We0),
