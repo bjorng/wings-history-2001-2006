@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.71 2002/08/01 19:25:04 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.72 2002/08/01 20:13:36 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -288,17 +288,28 @@ get_event(Tim) ->
 
 -record(sm,
 	{st,					%State
-	 wire=true}).				%Show wireframe: true|false
+	 wire=true,				%Show wireframe: true|false
+	 cage=true}).				%Show cage: true|false
 
 smoothed_preview(St) ->
-    smooth_help(),
+    Sm = #sm{st=St},
+    smooth_help(Sm),
     smooth_dlist(St),
     wings_wm:dirty(),
-    Sm = #sm{st=St},
     {seq,{push,dummy},get_smooth_event(Sm)}.
 
-smooth_help() ->
-    Help = ["[L] Normal Mode ",wings_camera:help()],
+smooth_help(#sm{wire=Wire,cage=Cage}) ->
+    Help = ["[L] Normal Mode ",wings_camera:help(),
+	    "  [W] ",
+	    case Cage of
+		false -> "Show cage";
+		true -> "Hide cage"
+	    end,
+	    "  [E] ",
+	    case Wire of
+		false -> "Show edges";
+		true -> "Hide edges"
+	    end],
     wings_io:message(Help).
     
 get_smooth_event(Sm) ->
@@ -311,28 +322,25 @@ smooth_event(Ev, Sm) ->
     end.
 
 smooth_event_1(redraw, Sm) ->
-    smooth_help(),
+    smooth_help(Sm),
     smooth_redraw(Sm),
     get_smooth_event(Sm);
 smooth_event_1(#mousemotion{}, _) -> keep;
 smooth_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
 smooth_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, _) ->
     smooth_exit();
-smooth_event_1(#keyboard{}=Kb, #sm{wire=Wire,st=St}=Sm) ->
+smooth_event_1(#keyboard{keysym=#keysym{unicode=$e}}, #sm{wire=Wire}=Sm) ->
+    wings_wm:dirty(),
+    get_smooth_event(Sm#sm{wire=not Wire});
+smooth_event_1(#keyboard{keysym=#keysym{unicode=$w}}, #sm{cage=Cage}=Sm) ->
+    wings_wm:dirty(),
+    get_smooth_event(Sm#sm{cage=not Cage});
+smooth_event_1(#keyboard{}=Kb, #sm{st=St}) ->
     case wings_hotkey:event(Kb) of
 	{view,workmode} ->
 	    smooth_exit();
 	{view,smoothed_preview} ->
 	    smooth_exit();
- 	{view,toggle_wireframe} ->
- 	    wings_wm:dirty(),
-	    get_smooth_event(Sm#sm{wire=not Wire});
- 	{view,wireframe} ->
- 	    wings_wm:dirty(),
-	    get_smooth_event(Sm#sm{wire=true});
- 	{view,shade} ->
- 	    wings_wm:dirty(),
-	    get_smooth_event(Sm#sm{wire=false});
 	{view,{along,_Axis}=Cmd} ->
 	    command(Cmd, St),
 	    wings_wm:dirty(),
@@ -451,10 +459,10 @@ smooth_redraw_1(#dlo{smoothed=[Dlist,Es],transparent=Trans}=D, Sm, RenderTrans) 
     ?CHECK_ERROR(),
     gl:depthMask(?GL_TRUE),
     wireframe(D, Sm),
-    smooth_wireframe(Es, RenderTrans).
+    smooth_wireframe(Es, RenderTrans, Sm).
 
-wireframe(_, #sm{wire=false}) -> ok;
-wireframe(#dlo{work=Work}, #sm{wire=true}) ->
+wireframe(_, #sm{cage=false}) -> ok;
+wireframe(#dlo{work=Work}, #sm{cage=true}) ->
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_CULL_FACE),
@@ -463,8 +471,9 @@ wireframe(#dlo{work=Work}, #sm{wire=true}) ->
     gl:color3f(0, 0, 1),
     wings_draw_util:call(Work).
 
-smooth_wireframe(_, true) -> ok;
-smooth_wireframe(Dlist, false) ->
+smooth_wireframe(_, true, _) -> ok;
+smooth_wireframe(_, false, #sm{wire=false}) -> ok;
+smooth_wireframe(Dlist, false, #sm{wire=true}) ->
     gl:disable(?GL_LIGHTING),
     gl:shadeModel(?GL_FLAT),
     gl:color3f(1, 1, 1),
