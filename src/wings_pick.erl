@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.129 2004/03/20 18:42:38 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.130 2004/04/06 04:34:05 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -170,9 +170,9 @@ hilit_draw_sel(face, Face, D) ->
 	solid -> ok
     end,
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    wings_draw_util:begin_end(fun() ->
-				      wings_draw_util:unlit_face(Face, D)
-			      end),
+    gl:'begin'(?GL_TRIANGLES),
+    wings_draw_util:unlit_face(Face, D),
+    gl:'end'(),
     gl:disable(?GL_POLYGON_STIPPLE);
 hilit_draw_sel(body, _, #dlo{src_we=#we{fs=Ftab}}=D) ->
     case wings_pref:get_value(selection_style) of
@@ -180,12 +180,11 @@ hilit_draw_sel(body, _, #dlo{src_we=#we{fs=Ftab}}=D) ->
 	solid -> ok
     end,
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    wings_draw_util:begin_end(
-      fun() ->
-	      foreach(fun(Face) ->
-			      wings_draw_util:unlit_face(Face, D)
-		      end, gb_trees:keys(Ftab))
-      end),
+    gl:'begin'(?GL_TRIANGLES),
+    foreach(fun(Face) ->
+		    wings_draw_util:unlit_face(Face, D)
+	    end, gb_trees:keys(Ftab)),
+    gl:'end'(),
     gl:disable(?GL_POLYGON_STIPPLE).
 
 %%
@@ -512,7 +511,7 @@ best_face_hit_1(Hits0) ->
     ViewPort = {0,0,W,H},
     Orig = glu:unProject(0, 0, 0, Model, Proj, ViewPort),
     Dir0 = glu:unProject(0, 0, 0.5, Model, Proj, ViewPort),
-    Dir = e3d_vec:norm(e3d_vec:sub(Dir0, Orig)),
+    Dir = e3d_vec:norm_sub(Dir0, Orig),
     ViewRay = {Orig,Dir},
     {_,Best,_} = wings_draw_util:fold(fun(D, A) ->
 					      best_face_hit_1(D, ViewRay, A) end,
