@@ -8,17 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_terminal8x12.erl,v 1.1 2004/04/07 05:27:46 bjorng Exp $
+%%     $Id: wpf_terminal8x12.erl,v 1.2 2004/04/07 17:39:34 bjorng Exp $
 %%
 
 -module(wpf_terminal8x12).
--export([desc/0,width/0,width/1,height/0,draw/1,char/1,bold/1]).
+-export([desc/0,width/0,width_fun/0,height/0,draw/1,char/1,bold/1]).
 
 desc() ->
     "Terminal (8x12)".
 
-width(S) ->
-    width_1(S, 0).
+width_fun() -> fun cw/1.
 
 width() -> 8.
 height() -> 12.
@@ -33,16 +32,6 @@ bold([C|T]) ->
     bold(T);
 bold([]) -> ok.
 
-width_1([C|Cs], W) ->
-    width_1(Cs, W+cw(C));
-width_1([], W) -> W.
-
-cw(command) -> 8;
-cw(folder) -> 14;
-cw(option) -> 14;
-cw(shift) -> 14;
-cw(space2) -> 14;
-cw(crossmark) -> 8;
 cw(_) -> 8.
 
 bold_char(C) ->
