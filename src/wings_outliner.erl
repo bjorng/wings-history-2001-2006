@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.17 2003/01/30 09:53:56 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.18 2003/01/30 10:31:04 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -18,7 +18,8 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 -include("e3d_image.hrl").
--import(lists, [map/2,reverse/1,reverse/2,keymember/3,keysearch/3,sort/1]).
+-import(lists, [map/2,foldl/3,reverse/1,reverse/2,
+		keymember/3,keysearch/3,sort/1]).
 -compile(inline).
 
 %%%
@@ -136,9 +137,14 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
 		    {"Duplicate",menu_cmd(duplicate_object, Id),"Duplicate this light"},
 		    {"Delete",menu_cmd(delete_object, Id),"Delete this light"}];
 	       {image,Id,Im} ->
-		   image_menu(Id, Im)
+		   image_menu(Id, Im);
+	       ignore -> none;
+	       {image_preview,_} -> none
 	   end,
-    wings_menu:popup_menu(X, Y, outliner, Menu).
+    if
+	Menu == none -> keep;
+	true -> wings_menu:popup_menu(X, Y, outliner, Menu)
+    end.
 
 image_menu(Id, Im) ->
     [{"Show",menu_cmd(show_image, Id),
@@ -236,13 +242,18 @@ update_state_2(#st{mat=Mat,shapes=Shs0}=St, #ost{os=Objs0}=Ost) ->
 				?IS_NOT_LIGHT(We)] ++
 	[{light,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
 			    ?IS_LIGHT(We)] ++
-	[make_mat(M) || M <- gb_trees:to_list(Mat)] ++
-	[{image,Id,Im} || {Id,Im} <- wings_image:images()],
+	[make_mat(M) || M <- gb_trees:to_list(Mat)] ++ update_images(),
     case Objs of
 	Objs0 -> ok;
 	_ -> wings_wm:dirty()
     end,
     Ost#ost{st=St,os=Objs,n=length(Objs)}.
+
+update_images() ->
+    Ims = foldl(fun({Id,Im}, A) ->
+			[ignore,{image_preview,Id},{image,Id,Im}|A]
+		end, [], wings_image:images()),
+    reverse(Ims).
 
 make_mat({Name,Mp}) ->
     OpenGL = proplists:get_value(opengl, Mp),
@@ -313,7 +324,9 @@ draw_objects_1(N, [O|Objs], #ost{lh=Lh}=Ost, R, Active, Y) ->
 	    wings_io:draw_char(m_bitmap()),
 	    gl:color3f(0, 0, 0);
 	{image,_,#e3d_image{name=Name}} -> ok;
-	{_,_,Name} -> ok
+	{_,_,Name} -> ok;
+	{image_preview,_} -> Name = [];
+	ignore -> Name = []
     end,
     if
 	Active == 0 ->
@@ -334,6 +347,8 @@ draw_icons(N, Objs, Ost, Y) ->
     gl:disable(?GL_TEXTURE_2D).
     
 draw_icons_1(0, _, _, _) -> ok;
+draw_icons_1(N, [ignore|Objs], #ost{lh=Lh}=Ost, Y) ->
+    draw_icons_1(N-1, Objs, Ost, Y+Lh);
 draw_icons_1(N, [O|Objs], #ost{lh=Lh}=Ost, Y) ->
     X = 2,
     Type = element(1, O),
@@ -349,6 +364,9 @@ draw_icons_1(N, [O|Objs], #ost{lh=Lh}=Ost, Y) ->
 		_ ->
 		    wings_io:draw_icon(X, Y, 16, 16, small_image2)
 	    end;
+	image_preview ->
+	    W = H = 2*Lh,
+	    wings_image:draw_preview(name_pos(), Y, W, H, element(2, O));
 	material -> ok
     end,
     draw_icons_1(N-1, Objs, Ost, Y+Lh).

@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.9 2003/01/30 09:53:55 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.10 2003/01/30 10:31:04 bjorng Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
 	 from_file/1,new/2,rename/2,txid/1,info/1,images/0,
 	 next_id/0,delete_older/1,delete_from/1,
-	 update/2,update_filename/2,
+	 update/2,update_filename/2,draw_preview/5,
 	 window/1]).
 
 -define(NEED_OPENGL, 1).
@@ -72,6 +72,9 @@ update(Id, Image) ->
 
 update_filename(Id, Filename) ->
     req({update_filename,Id,Filename}).
+
+draw_preview(X, Y, W, H, Id) ->
+    req({draw_preview,X,Y,W,H,Id}, false).
 
 req(Req) ->
     req(Req, true).
@@ -158,7 +161,14 @@ handle({update_filename,Id,NewName}, #ist{images=Images0}=S) ->
     Im0 = gb_trees:get(Id, Images0),
     Im = Im0#e3d_image{filename=NewName},
     Images = gb_trees:update(Id, Im, Images0),
-    S#ist{images=Images}.
+    S#ist{images=Images};
+handle({draw_preview,X,Y,W,H,Id}, #ist{images=Images}=S) ->
+    {case get(Id) of
+	 undefined -> error;
+	 TxId ->
+	     Im = gb_trees:get(Id, Images),
+	     draw_image(X, Y, W, H, TxId, Im)
+     end,S}.
 
 make_texture(Id, Image) ->
     TxId = init_texture(Image),
@@ -324,3 +334,24 @@ redraw(Id) ->
     gl:'end'(),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:disable(?GL_TEXTURE_2D).
+
+draw_image(X, Y, W, H, TxId, #e3d_image{order=Order}) ->
+    case Order of
+	upper_left ->
+	    Ua = 0, Ub = 1,
+	    Va = 0, Vb = 1;
+	lower_left ->
+	    Ua = 0, Ub = 1,
+	    Va = 1, Vb = 0
+    end,
+    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+    gl:'begin'(?GL_QUADS),
+    gl:texCoord2i(Ua, Va),
+    gl:vertex2i(X, Y),
+    gl:texCoord2i(Ua, Vb),
+    gl:vertex2i(X, Y+H),
+    gl:texCoord2i(Ub, Vb),
+    gl:vertex2i(X+W, Y+H),
+    gl:texCoord2i(Ub, Va),
+    gl:vertex2i(X+W, Y),
+    gl:'end'().
