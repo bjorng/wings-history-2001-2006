@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.13 2001/11/29 20:58:34 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.14 2001/12/06 14:05:13 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -82,7 +82,7 @@ menu_setup(Type, X0, Y0, Name, Menu, Mi) ->
 	  sel=none,name=Name,menu=Menu}.
 
 menu_show(#mi{xleft=X,ytop=Y,ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
-    wings_io:beveled_rect(X, Y, Mw, Mh + 2*Margin+3),
+    wings_io:raised_rect(X, Y, Mw, Mh + 2*Margin+3),
     gl:color3f(0.0, 0.0, 0.0),
     menu_draw(X+3*?CHAR_WIDTH, Y+Margin+?CHAR_HEIGHT,
 	      Shortcut, Mw, 1, Mi).
@@ -341,7 +341,7 @@ draw_blue_rect(Item, #mi{xleft=Xleft,ytop=Ytop,
 	     Right, Ytop+Margin+Item*?LINE_HEIGHT).
 
 draw_submenu({Item}, X, Y) ->
-    wings_io:beveled_rect(X, Y-3, ?CHAR_WIDTH, ?CHAR_WIDTH),
+    wings_io:sunken_rect(X, Y-3, ?CHAR_WIDTH, ?CHAR_WIDTH),
     ?CHECK_ERROR();
 draw_submenu(Item, X, Y) when atom(Item); integer(Item); list(Item) -> ok;
 draw_submenu(Item, X, Y) ->
@@ -359,20 +359,17 @@ draw_separator(X, Y, Mw) ->
     RightX = X+Mw-4*?CHAR_WIDTH,
     UpperY = Y-?CHAR_HEIGHT div 2 + 2,
     LowerY = UpperY + 1,
-    gl:lineWidth(0.1),
-    gl:color3f(0.0, 0.0, 0.0),
+    gl:lineWidth(1.0),
     gl:'begin'(?GL_LINES),
-    gl:vertex2i(LeftX, UpperY),
-    gl:vertex2i(RightX, UpperY),
-    gl:'end'(),
-    gl:color3f(1.0, 1.0, 1.0),
-    gl:'begin'(?GL_LINES),
-    gl:vertex2i(LeftX+1, LowerY),
-    gl:vertex2i(RightX, LowerY),
+    gl:color3f(0.25, 0.25, 0.25),
+    gl:vertex2f(LeftX+0.5, UpperY+0.5),
+    gl:vertex2f(RightX+0.5, UpperY+0.5),
+    gl:color3f(0.75, 0.75, 0.75),
+    gl:vertex2f(LeftX+1.5, LowerY+0.5),
+    gl:vertex2f(RightX+0.5, LowerY+0.5),
     gl:'end'(),
     gl:color3f(0.0, 0.0, 0.0),
     ?CHECK_ERROR().
-
 
 move_if_outside(X, Y, Mw, Mh, Mi) ->
     [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),

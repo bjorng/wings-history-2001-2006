@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.14 2001/11/29 20:58:34 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.15 2001/12/06 14:05:13 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -17,7 +17,8 @@
 	 update/1,button/2,
 	 info/1,message/1,clear_message/0,progress/2,
 	 clear_menu_sel/0,
-	 beveled_rect/4,text_at/2,text_at/3,menu_text/3,space_at/2,
+	 sunken_rect/4,raised_rect/4,
+	 text_at/2,text_at/3,menu_text/3,space_at/2,
 	 draw_icon/3,draw_icon/5,
 	 draw_message/1,draw_completions/1]).
 -export([putback_event/1,get_event/0,flush_events/0,
@@ -70,7 +71,7 @@ progress(Message, Percent) ->
 progress_1(Message, Percent) ->
     text_at(0, Message),
     X = length(Message) * ?CHAR_WIDTH,
-    embossed_rect(X, -?LINE_HEIGHT+3, 100, ?LINE_HEIGHT+3),
+    sunken_rect(X, -?LINE_HEIGHT+3, 100, ?LINE_HEIGHT+3),
     gl:color3f(0.0, 0.0, 1.0),
     gl:recti(X, -?CHAR_HEIGHT, X+Percent, 3).
 
@@ -119,7 +120,7 @@ draw_completions(F) ->
     gl:pushMatrix(),
     gl:loadIdentity(),
     gl:translatef(float(Margin), H / 6, 0.0),
-    beveled_rect(0, 0, W-2*Margin, 4*H div 6),
+    raised_rect(0, 0, W-2*Margin, 4*H div 6),
     gl:translatef(10.0, float(?LINE_HEIGHT), 0.0),
     Res = F(),
     gl:popMatrix(),
@@ -145,9 +146,8 @@ update(#io{message=Msg,info=Info}=Io0, St) ->
     Io0.
 
 draw_panes(#io{w=W,h=H,menubar=Bar,sel=Sel}=Io) ->
-    beveled_rect(-1, 0, W+2, ?LINE_HEIGHT+6),
-    beveled_rect(-1, H-2*?LINE_HEIGHT, W+2, 4*?LINE_HEIGHT+1),
-    embossed_rect(6, H-2*?LINE_HEIGHT+5, W-10, 2*?LINE_HEIGHT-8),
+    raised_rect(-1, 0, W+2, ?LINE_HEIGHT+6),
+    sunken_rect(6, H-2*?LINE_HEIGHT+5, W-10, 2*?LINE_HEIGHT-8),
     draw_bar(0, Bar, Sel).
 
 -define(MENU_MARGIN, 8).
@@ -157,7 +157,7 @@ draw_bar(X, [{Name,Item}|T], Sel) ->
     W = ?CHAR_WIDTH*(?MENU_ITEM_SPACING+length(Name)),
     if
 	Item =:= Sel ->
-	    embossed_rect(X+1, 3, W, ?LINE_HEIGHT);
+	    sunken_rect(X+1, 3, W, ?LINE_HEIGHT);
 	true -> ok
     end,
     text_at(?MENU_MARGIN+X, ?LINE_HEIGHT-1, Name),
@@ -165,10 +165,10 @@ draw_bar(X, [{Name,Item}|T], Sel) ->
 draw_bar(X, [], Sel) -> ok.
 
 draw_icons(#io{w=W,h=H,icons=Icons}, St) ->
-    beveled_rect(-1, H-4*?LINE_HEIGHT-4, W+2, 2*?LINE_HEIGHT+3),
+    raised_rect(-1, H-4*?LINE_HEIGHT-3, W+2, 4*?LINE_HEIGHT+3),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-    Y = H-4*?LINE_HEIGHT-2,
+    Y = H-4*?LINE_HEIGHT+2,
     foreach(fun({X,Name}) ->
 		    draw_icon(X, Y, icon_button(Name, St))
 	    end, Icons),
@@ -197,7 +197,7 @@ icon_button(Name, Key, Val) ->
 button(X, Y) when Y > ?LINE_HEIGHT; X < ?MENU_MARGIN ->
     #io{h=H,icons=Icons} = get_state(),
     put_state((get_state())#io{sel=undefined}),
-    case H-4*?LINE_HEIGHT-3 of
+    case H-4*?LINE_HEIGHT of
 	Low when Low =< Y, Y < Low + 32 ->
 	    icon_row_hit(X, Icons),
 	    ignore;
@@ -236,24 +236,30 @@ icon_row_hit(X, [_|Is]) ->
     icon_row_hit(X, Is);
 icon_row_hit(X, []) -> none.
 
-embossed_rect(X, Y, Mw, Mh) ->
-    beveled_rect(X+Mw, Y+Mh, -Mw, -Mh).
+raised_rect(X, Y, Mw, Mh) ->
+    sunken_rect(X+Mw, Y+Mh, -Mw, -Mh).
 
-beveled_rect(X, Y, Mw, Mh) ->
-    gl:color3f(0.75, 0.75, 0.75),
-    gl:recti(X, Y, X+Mw, Y+Mh),
-    gl:'begin'(?GL_LINE_LOOP),
-    gl:color3f(0.95, 0.95, 0.95),
-    gl:vertex2i(X, Y+Mh),
-    gl:vertex2i(X, Y),
-    gl:color3f(0.25, 0.25, 0.25),
-    gl:vertex2i(X+Mw, Y),
-    gl:vertex2i(X+Mw, Y+Mh),
+sunken_rect(X0, Y0, Mw0, Mh0) ->
+    X = X0 + 0.5,
+    Y = Y0 + 0.5,
+    Mw = Mw0 + 0.5,
+    Mh = Mh0 + 0.5,
+    gl:color3f(0.52, 0.52, 0.52),
+    gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
+    gl:color3f(1.0, 0, 0),
+    gl:'begin'(?GL_LINE_STRIP),
+    gl:vertex2f(X, Y+Mh),
+    gl:color3f(0.0, 0.0, 0.0),
+    gl:vertex2f(X, Y),
+    gl:vertex2f(X+Mw, Y),
+    gl:color3f(1.0, 1.0, 1.0),
+    gl:vertex2f(X+Mw, Y+Mh),
+    gl:vertex2f(X, Y+Mh),
     gl:'end'(),
     gl:color3f(0.0, 0.0, 0.0).
 
 space_at(X, Y) ->
-    gl:color3f(0.75, 0.75, 0.75),
+    gl:color3f(0.52, 0.52, 0.52),
     gl:recti(X, Y-?LINE_HEIGHT+3, X+?CHAR_WIDTH, Y+3),
     gl:color3f(0.0, 0.0, 0.0).
 
@@ -316,7 +322,6 @@ ortho_setup() ->
     gl:loadIdentity(),
     gl:color3f(0.0, 0.0, 0.0),
     ?CHECK_ERROR().
-
 
 get_state() ->
     get(wings_io).
