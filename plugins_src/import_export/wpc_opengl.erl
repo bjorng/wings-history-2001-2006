@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.22 2003/02/06 05:51:36 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.23 2003/02/07 17:38:29 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -101,9 +101,6 @@ do_render(Attr0, St) ->
 	    Aa = proplists:get_value(aa, Attr),
 	    AccSize = translate_aa(Aa),
 	    Rr = #r{acc_size=AccSize,attr=Attr,next=fun render_redraw/1},
-	    wings_wm:callback(fun() ->
-				      wings_wm:menubar(geom, [])
-			      end),
 	    {seq,push,get_render_event(Rr)}
     end.
 
