@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.17 2004/10/16 07:20:17 bjorng Exp $
+%%     $Id: user_default.erl,v 1.18 2004/10/17 07:16:56 bjorng Exp $
 %% 
 
 -module(user_default).
@@ -130,11 +130,17 @@ make_query(Format, Args) ->
 %%%
 
 wldiff(Lang) when is_list(Lang) ->
-    wldiff_1(filelib:wildcard("*_"++Lang++".lang"));
+    case filelib:wildcard("*_"++Lang++".lang") of
+	[] ->
+	    io:format("No ~p language files found.\n", [Lang]),
+	    error;
+	Files -> wldiff_1(Files)
+    end;
 wldiff(Lang) when is_atom(Lang) ->
     wldiff(atom_to_list(Lang)).
 
 wldiff_1([F|Fs]) ->
+    io:format("Diffing ~p (with English)\n", [F]),
     wings_lang:diff(F),
     wldiff_1(Fs);
 wldiff_1([]) -> ok.
