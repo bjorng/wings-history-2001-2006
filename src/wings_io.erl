@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.100 2003/04/27 17:14:13 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.101 2003/04/27 18:38:43 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -540,11 +540,12 @@ build_cursor(Data0) ->
 
 build_cursor_dup(Cs, 16, Row0) ->
     Row = reverse(Row0),
-    Row ++ lists:duplicate(16, " ") ++
+    Row ++ lists:duplicate(16, $\s) ++
         build_cursor_dup(Cs, 0, []);
 build_cursor_dup([C|Cs], N, Acc) ->
     build_cursor_dup(Cs, N+1, [C|Acc]);
-build_cursor_dup([], _, _) -> [].
+build_cursor_dup([], _, _) ->
+    lists:duplicate(16*16, $\s).
 
 build_cursor([$.|T], Mask, Bits) ->
     build_cursor(T, (Mask bsl 1) bor 1, Bits bsl 1);
