@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.45 2003/11/01 08:37:13 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.46 2003/11/02 15:19:19 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -88,7 +88,7 @@ bind_virtual(Key, Mods, Cmd, Source) ->
     Bkey.
 
 bindkey(#keyboard{sym=?SDLK_TAB=C,mod=Mod}, Cmd) ->
-    bkey({C,sort(Mod)}, Cmd);
+    bkey({C,sort(modifiers(Mod))}, Cmd);
 bindkey(#keyboard{sym=Sym,mod=Mod,unicode=C}, Cmd) ->
     case modifiers(Mod) of
 	[] when C =/= 0 ->
