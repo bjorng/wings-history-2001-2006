@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings.nsi,v 1.1 2002/01/18 11:59:32 bjorng Exp $
+#     $Id: wings.nsi,v 1.2 2002/01/18 12:16:23 bjorng Exp $
 #
 
 Name "Wings 3D"
@@ -105,6 +105,10 @@ continue_1:
   Delete "$INSTDIR\unwise.exe"
   Delete "$INSTDIR\install.log"
   Delete "$INSTDIR\wings_crasch.dump" ; Old spelling
+  RMDir "$INSTDIR\icons"
+  Delete "$INSTDIR\Makefile"
+  Delete "$INSTDIR\Makefile.win32"
+  Delete "$INSTDIR\README"
 
   ; create shortcuts
   Call GetStartMenu
@@ -142,11 +146,21 @@ SectionEnd ; end of default section
 UninstallText "This will uninstall Wings 3D from your system"
 
 Section Uninstall
-; add delete commands to delete whatever files/registry keys/etc you installed here.
-Delete "$INSTDIR\uninst.exe"
+  Delete "$INSTDIR\AUTHORS"
+  Delete "$INSTDIR\vsn.mk"
+  Delete "$INSTDIR\license.terms"
+  RMDir /r "$INSTDIR\e3d"
+  RMDir /r "$INSTDIR\src"
+  RMDir /r "$INSTDIR\plugins_src"
+  RMDir /r "$INSTDIR\plugins"
+  RMDir /r "$INSTDIR\ebin"
+  RMDir /r "$INSTDIR\priv"
 
-Call un.GetStartMenu
-Pop $0
+
+  Delete "$INSTDIR\uninst.exe"
+
+  Call un.GetStartMenu
+  Pop $0
 
 Delete "$0\Wings 3D\Wings 3D.lnk"
 Delete "$0\Wings 3D\Wings 3D Uninstall.lnk"
