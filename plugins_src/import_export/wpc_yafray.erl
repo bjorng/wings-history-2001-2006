@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.85 2004/06/01 10:57:59 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.86 2004/06/02 12:48:34 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -113,6 +113,7 @@
 -define(DEF_BACKGROUND, undefined).
 -define(DEF_BACKGROUND_COLOR, {0.0,0.0,0.0}).
 -define(DEF_TURBIDITY, 4.0).
+-define(DEF_SUNSKY_VAR, 1.0).
 %% Hemilight and Pathlight
 -define(DEF_AMBIENT_TYPE, hemilight).
 -define(DEF_BACKGROUND_FILENAME, "").
@@ -852,10 +853,20 @@ light_dialog(_Name, spot, Ps) ->
 				      {key,{?TAG,cluster}}]}]}],
       [light_hook({?TAG,type}, photonlight)]}];
 light_dialog(_Name, infinite, Ps) ->
-    Bg = proplists:get_value(background, Ps, ?DEF_BACKGROUND),
-    BgColor = proplists:get_value(background_color, Ps, ?DEF_BACKGROUND_COLOR),
     CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
+    Bg = proplists:get_value(background, Ps, ?DEF_BACKGROUND),
+    %%
+    BgColor = proplists:get_value(background_color, Ps, ?DEF_BACKGROUND_COLOR),
+    %%
     Turbidity = proplists:get_value(turbidity, Ps, ?DEF_TURBIDITY),
+    A_var = proplists:get_value(a_var, Ps, ?DEF_SUNSKY_VAR),
+    B_var = proplists:get_value(b_var, Ps, ?DEF_SUNSKY_VAR),
+    C_var = proplists:get_value(c_var, Ps, ?DEF_SUNSKY_VAR),
+    D_var = proplists:get_value(d_var, Ps, ?DEF_SUNSKY_VAR),
+    E_var = proplists:get_value(e_var, Ps, ?DEF_SUNSKY_VAR),
+    MinimizedHorizon = proplists:get_value(minimized_horizon, Ps, true),
+    MinimizedSun = proplists:get_value(minimized_sun, Ps, true),
+    %%
     [{"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]},
      {vframe,
       [{hradio,[{"Constant",constant},
@@ -864,8 +875,29 @@ light_dialog(_Name, infinite, Ps) ->
        {hframe,[{label,"Color"},
 		{color,BgColor,[{key,{?TAG,background_color}}]}],
 	[light_hook({?TAG,background}, constant)]},
-       {hframe,[{label,"Turbidity"},{text,Turbidity,[{range,{0.0,100.0}},
-						     {key,{?TAG,turbidity}}]}],
+       {vframe,
+	[{hframe,[{label,"Turbidity"},
+		  {text,Turbidity,[{range,{0.0,100.0}},
+				   {key,{?TAG,turbidity}}]}]},
+	 {hframe,
+	  [{vframe,[{label,"a:Brightness"},
+		    {label,"b:Spread"}]},
+	   {vframe,[{text,A_var,[{range,{-100.0,100.0}},
+				 {key,{?TAG,a_var}}]},
+		    {text,B_var,[{range,{-100.0,100.0}},
+				 {key,{?TAG,b_var}}]}]}],
+	  [{title,"Horizon"},{minimized,MinimizedHorizon}]},
+	 {hframe,
+	  [{vframe,[{label,"c:Brightness"},
+		    {label,"d:Contraction"},
+		    {label,"e:Backscatter"}]},
+	   {vframe,[{text,C_var,[{range,{-100.0,100.0}},
+				 {key,{?TAG,c_var}}]},
+		    {text,D_var,[{range,{-100.0,100.0}},
+				 {key,{?TAG,d_var}}]},
+		    {text,E_var,[{range,{-100.0,100.0}},
+				 {key,{?TAG,e_var}}]}]}],
+	  [{title,"Sun"},{minimized,MinimizedSun}]}],
 	[light_hook({?TAG,background}, sunsky)]}],
       [{title,"Background"}]}];
 light_dialog(_Name, ambient, Ps) ->
@@ -1103,7 +1135,7 @@ light_result([{{?TAG,type},photonlight}|_]=Ps) ->
     split_list(Ps, 20);
 %% Infinite
 light_result([_,{{?TAG,background},_}|_]=Ps) ->
-    split_list(Ps, 4);
+    split_list(Ps, 11);
 %% Area
 light_result([_,{{?TAG,arealight_samples},_}|_]=Ps) ->
     split_list(Ps, 3);
@@ -1887,10 +1919,11 @@ export_light(F, Name, point, OpenGL, YafRay) ->
     undefined;
 export_light(F, Name, infinite, OpenGL, YafRay) ->
     Bg = proplists:get_value(background, YafRay, ?DEF_BACKGROUND),
-    case Bg of 
-	sunsky ->
-	    Bg;
-	_ ->
+%%%     case Bg of 
+%%% 	sunsky ->
+%%% 	    Bg;
+%%% 	_ ->
+    begin
 	    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
 	    if Power > 0.0 ->
 		    CastShadows = proplists:get_value(cast_shadows, YafRay, 
@@ -2176,12 +2209,26 @@ export_background(F, Name, Ps) ->
 					  ?DEF_BACKGROUND_COLOR),
 	    export_rgb(F, color, BgColor);
 	sunsky ->
-	    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
-	    AddSun = (Power > 0.0),
+%%% 	    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
 	    Turbidity = proplists:get_value(turbidity, YafRay, ?DEF_TURBIDITY),
+	    A_var = proplists:get_value(a_var, YafRay, ?DEF_SUNSKY_VAR),
+	    B_var = proplists:get_value(b_var, YafRay, ?DEF_SUNSKY_VAR),
+	    C_var = proplists:get_value(c_var, YafRay, ?DEF_SUNSKY_VAR),
+	    D_var = proplists:get_value(d_var, YafRay, ?DEF_SUNSKY_VAR),
+	    E_var = proplists:get_value(e_var, YafRay, ?DEF_SUNSKY_VAR),
 	    Position = proplists:get_value(position, OpenGL, {1.0,1.0,1.0}),
-	    println(F, "~n            turbidity=\"~.3f\" add_sun=\"~s\">", 
-		    [Turbidity,format(AddSun)]),
+	    println(F, "~n            turbidity=\"~.3f\" a_var=\"~.3f\"~n"
+		    "            b_var=\"~.3f\" c_var=\"~.3f\"~n"
+		    "            d_var=\"~.3f\" e_var=\"~.3f\" "
+		    "add_sun=\"off\">",
+		    [Turbidity,A_var,B_var,C_var,D_var,E_var]),
+%%% 	    if Power > 0.0 ->
+%%% 		    println(F, "~n            add_sun=\"on\" "
+%%% 			    "sun_power=\"~.3f\">",
+%%% 			    [Power]);
+%%% 	       true ->
+%%% 		    println(F, ">")
+%%% 	    end,
 	    export_pos(F, from, Position);
 	'HDRI' ->
 	    BgFname = proplists:get_value(background_filename_HDRI, YafRay, 
