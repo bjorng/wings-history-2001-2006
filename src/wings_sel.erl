@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.34 2002/05/28 08:31:50 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.35 2002/08/18 10:26:00 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -18,7 +18,7 @@
 	 map/2,fold/3,mapfold/3,
 	 foreach/2,make/3,valid_sel/1,valid_sel/3,
 	 centers/1,bounding_box/1,
-	 face_regions/2,edge_regions/2,validate_items/3,
+	 face_regions/2,strict_face_regions/2,edge_regions/2,validate_items/3,
 	 select_object/2,deselect_object/2,
 	 get_all_items/2,get_all_items/3,
 	 inverse_items/3,
@@ -192,8 +192,9 @@ bounding_box(body, _Items, We, BB) ->
     wings_vertex:bounding_box(We, BB).
 
 %%%
-%%% Here we want to divide the selection into regions of adjoining
-%%% faces. We use a standard working-set algorithm.
+%%% Divide the face selection into regions where each face shares at least
+%%% one edge with another face in the same region. Two faces can share a
+%%% vertex without necessarily being in the same region.
 %%%
 
 face_regions(Faces, We) when is_list(Faces) ->
@@ -233,6 +234,53 @@ collect_adj_sel(Face, We, Ws0, Faces0) ->
 		  false -> A
 	      end
       end, {Ws0,Faces0}, Face, We).
+
+%%%
+%%% Divide the face selection into regions where each face shares at least
+%%% one vertex with another face in the same region.
+%%%
+
+strict_face_regions(Faces, We) when is_list(Faces) ->
+    find_strict_face_regions(gb_sets:from_list(Faces), We, []);
+strict_face_regions(Faces, We) ->
+    find_strict_face_regions(Faces, We, []).
+
+find_strict_face_regions(Faces0, We, Acc) ->
+    case gb_sets:is_empty(Faces0) of
+	true -> Acc;
+	false ->
+	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
+	    Ws = gb_sets:singleton(Face),
+	    {Reg,Faces} = collect_strict_face_region(Ws, We, gb_sets:empty(), Faces1),
+	    find_strict_face_regions(Faces, We, [Reg|Acc])
+    end.
+
+collect_strict_face_region(Ws0, We, Reg0, Faces0) ->
+    case gb_sets:is_empty(Ws0) of
+	true -> {Reg0,Faces0};
+	false ->
+	    {Face,Ws1} = gb_sets:take_smallest(Ws0),
+	    Reg = gb_sets:add(Face, Reg0),
+	    {Ws,Faces} = collect_strict_adj_sel(Face, We, Ws1, Faces0),
+	    collect_strict_face_region(Ws, We, Reg, Faces)
+    end.
+
+collect_strict_adj_sel(Face, We, Ws0, Faces0) ->
+    wings_face:fold(
+      fun(V, _, _, A0) ->
+	      wings_vertex:fold(
+		fun(_, Of, _, {W0,F0}=A1) ->
+		   case gb_sets:is_member(Of, F0) of
+		       true -> {gb_sets:insert(Of, W0),gb_sets:delete(Of, F0)};
+		       false -> A1
+		   end
+		end, A0, V, We)
+      end, {Ws0,Faces0}, Face, We).
+
+%%%
+%%% Here we want to divide the selection into regions of connected edges.
+%%% We use a standard working-set algorithm.
+%%%
 
 edge_regions(Edges, We) when is_list(Edges) ->
     find_edge_regions(gb_sets:from_list(Edges), We, []);
