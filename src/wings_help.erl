@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.26 2002/10/13 19:11:42 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.27 2002/11/02 12:49:55 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -248,4 +248,7 @@ redraw(splash) ->
     wings_io:draw_icon(90, 140, 128, 64, powered),
     gl:disable(?GL_TEXTURE_2D),
     gl:color3f(0.0, 0.0, 0.0),
-    wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION).
+    wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION),
+    wings_io:text_at(10, 215, "http://www.wings3d.com").
+    
+
