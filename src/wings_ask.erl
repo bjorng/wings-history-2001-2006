@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.160 2004/01/04 10:32:23 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.161 2004/01/12 18:11:54 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -3125,8 +3125,6 @@ slider_event(#mousemotion{x=Xb,state=Bst}, [Fi|_], Store)
 slider_event({key,?SDLK_LEFT,_,_}, [Fi|_], Store) ->
     slider_move(-1, Fi, Store);
 slider_event({key,?SDLK_RIGHT,_,_}, [Fi|_], Store) ->
-    slider_move(1, Fi, Store);
-slider_event({key,?SDLK_LEFT,_,_}, [Fi|_], Store) ->
     slider_move(1, Fi, Store);
 slider_event({key,?SDLK_UP,_,_}, [Fi|_], Store) ->
     slider_move(10, Fi, Store);
