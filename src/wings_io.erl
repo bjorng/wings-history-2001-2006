@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.6 2001/11/07 07:09:59 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.7 2001/11/09 13:26:37 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -403,8 +403,8 @@ putback_event(Event) ->
 
 get_event() ->
     case get_sdl_event() of
-	 {quit} -> quit;
-	 Other -> Other
+	{quit} -> quit;
+	Other -> Other
      end.
 
 get_sdl_event() ->
@@ -436,6 +436,8 @@ read_out(Eq0) ->
     case queue:out(Eq0) of
 	{{value,#mousemotion{}=Event},Eq} ->
 	    read_out(Event, Eq);
+	{{value,no_event},Eq} ->
+	    {ignore,Eq};
 	{{value,Event},Eq} ->
 	    {Event,Eq};
 	{empty,Eq} ->
@@ -452,6 +454,8 @@ read_out(Motion, Eq0) ->
     case queue:out(Eq0) of
 	{{value,#mousemotion{}=Event},Eq} ->
 	    read_out(Event, Eq);
+	{{value,no_event},Eq} ->
+	    {ignore,Eq};
 	Other -> {Motion,Eq0}
     end.
 
