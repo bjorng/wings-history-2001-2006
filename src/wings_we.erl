@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.29 2002/05/10 14:01:00 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.30 2002/06/04 19:50:13 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -26,9 +26,6 @@
 	 normals/1,
 	 new_items/3,
 	 is_consistent/1]).
-
-%% For reading wings files.
--export([build_edges_only/1,build_rest/5,vpairs_to_edges/2]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foreach/2,foldl/3,sort/1,keysort/2,
@@ -56,10 +53,6 @@ build(Type, Fs0, Vs, HardEdges) ->
 	       end,
     Es = number_edges(Es0),
     build_rest(Type, Es, Fs, Vs, HardEdges).
-
-build_edges_only(Faces) ->
-    {Good,[]} = build_edges(Faces, material),
-    number_edges(Good).
 
 build_rest(Type, Es, Fs, Vs, HardEdges) ->
     Htab = vpairs_to_edges(HardEdges, Es),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.22 2002/05/20 10:19:30 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.23 2002/06/04 19:50:12 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -26,15 +26,9 @@ import(Name, St0) ->
 	    case catch binary_to_term(Data) of
 		{wings,0,Shapes} ->
                     {error,"Pre-0.80 Wings format no longer supported."};
-		{wings,1,Shapes,_Materials,Props} ->
-                    %% Support for this format will be removed
-                    %% in Wings 1.0. (Note: Materials intentionally
-                    %% ignored from 0.94.03.)
-                    St1 = St0#st{selmode=import_selmode(Props, St0)},
-		    case import_old_objects(Shapes, St1) of
-			#st{}=St -> St;
-			Other -> {error,"bad objects in Wings file"}
-		    end;
+		{wings,1,_,_,_} ->
+                     %% Pre-0.92. No longer supported.
+                    {error,"Pre-0.92 Wings format no longer supported."};
 		{wings,2,{Shapes,Materials,Props}} ->
                     import_vsn2(Shapes, Materials, Props, St0);
 		{wings,_,_} ->
@@ -218,60 +212,6 @@ translate_material([], _, OpenGL, Maps) ->
 
 trans({Key,{R,G,B}}, Opac) -> {Key,{R,G,B,Opac}}.
     
-%%%
-%%% Import of old Wings file in format 1.
-%%%
-
-import_old_objects(Shapes, #st{selmode=Mode,shapes=Shs0,onext=Oid0}=St) ->
-    {Objs,Sel0,Oid} = import_old_objects(Shapes, Mode, Oid0, {[],[]}),
-    Shs = gb_trees:from_orddict(gb_trees:to_list(Shs0) ++ reverse(Objs)),
-    Sel = reverse(Sel0),
-    St#st{shapes=Shs,sel=Sel,onext=Oid}.
-
-import_old_objects([Sh0|Shs], Mode, Oid, {ShAcc,SelAcc0}) ->
-    {object,Name,{winged,Fs0,Vs0,He},Props} = Sh0,
-    Vs = decode_vs(Vs0),
-    Fs = import_old_clean_fs(Fs0),
-    Es = wings_we:build_edges_only(Fs),
-    We0 = wings_we:build_rest(material, Es, Fs, Vs, He),
-    We = We0#we{id=Oid,name=Name},
-    SelAcc = import_old_sel(Mode, Oid, Props, Es, SelAcc0),
-    import_old_objects(Shs, Mode, Oid+1, {[{Oid,We}|ShAcc],SelAcc});
-import_old_objects([], _Mode, Oid, {ShAcc,SelAcc}) -> {ShAcc,SelAcc,Oid}.
-
-import_old_sel(Mode, Id, Prop, Es, Acc) ->
-    case property_lists:get_value(selected, Prop) of
-	undefined -> Acc;
-	Items -> [{Id,import_old_sel_1(Mode, Items, Es)}|Acc]
-    end.
-
-import_old_clean_fs([{_Material,Vs,_Tx}|Fs]) ->
-    [Vs|import_old_clean_fs(Fs)];
-import_old_clean_fs([{_Material,Vs}|Fs]) ->
-    [Vs|import_old_clean_fs(Fs)];
-import_old_clean_fs([Vs|Fs]) ->
-    [Vs|import_old_clean_fs(Fs)];
-import_old_clean_fs([]) -> [].
-
-import_selmode(Prop, #st{selmode=Mode}) ->
-    property_lists:get_value(selmode, Prop, Mode).
-
-import_old_sel_1(vertex, Vs, _Es) ->
-    gb_sets:from_list(Vs);
-import_old_sel_1(edge, Vpairs, Es) ->
-    wings_we:vpairs_to_edges(Vpairs, Es);
-import_old_sel_1(face, Faces, _Es) ->
-    gb_sets:from_list(Faces);
-import_old_sel_1(body, _Items, _Es) ->
-    gb_sets:singleton(0).
-
-decode_vs(Bin) ->
-    decode_vs(Bin, []).
-
-decode_vs(<<X/float,Y/float,Z/float,T/binary>>, Acc) ->
-    decode_vs(T, [wings_util:share(X, Y, Z)|Acc]);
-decode_vs(<<>>, Acc) -> reverse(Acc).
-
 %%%
 %%% Save a Wings file (in version 2).
 %%%
