@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.68 2003/03/02 08:38:57 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.69 2003/03/04 08:52:11 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -114,9 +114,9 @@ do_dialog(Title, Qs, Level, Fun) ->
     W = W0 + 2*?HMARGIN,
     H = H0 + 2*?VMARGIN,
     S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level},
-    setup_blanket(),
-    Op = {seq,push,get_event(S)},
     Name = {dialog,Level},
+    setup_blanket(Name),
+    Op = {seq,push,get_event(S)},
     wings_wm:toplevel(Name, Title, {trunc(X),trunc(Y),highest}, {W,H}, Op),
     wings_wm:dirty(),
     keep.
@@ -166,13 +166,14 @@ init_origin(#s{w=Xs,h=Ys}=S) ->
 	 end,
     S#s{ox=Tx,oy=Ty}.
 
-setup_blanket() ->
+setup_blanket(Dialog) ->
     %% The menu blanket window lies below the dialog, covering the entire
-    %% screen and ignoring any events.
+    %% screen and ignoring most events. Keyboard events will be forwarded
+    %% to the active dialog window.
     case wings_wm:is_window(dialog_blanket) of
 	true -> ok;
 	false ->
-	    Op = {push,fun blanket/1},
+	    Op = {push,fun(Ev) -> blanket(Ev, Dialog) end},
 	    {TopW,TopH} = wings_wm:top_size(),
 	    wings_wm:new(dialog_blanket, {0,0,highest}, {TopW,TopH}, Op)
     end.
@@ -180,7 +181,9 @@ setup_blanket() ->
 remove_blanket() ->
     wings_wm:delete(dialog_blanket).
 
-blanket(_) -> keep.
+blanket(#keyboard{}=Ev, Dialog) ->
+    wings_wm:send(Dialog, Ev);
+blanket(_, _) -> keep.
 
 get_event(S) ->
     wings_wm:dirty(),
