@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.24 2003/03/12 10:04:23 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.25 2003/03/12 14:34:40 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -310,7 +310,7 @@ ctrl_fit(How) ->
 
 ctrl_fit_1(both) ->
     fit_horizontal(),
-    fit_vertical();
+    wings_wm:later({action,{titlebar,{fit,vertical}}});
 ctrl_fit_1(horizontal) ->
     fit_horizontal();
 ctrl_fit_1(vertical) ->
@@ -327,10 +327,9 @@ fit_horizontal() ->
 		    true -> wings_wm:win_ur(Scroller);
 		    false -> wings_wm:win_ur(Below)
 		end,
-    {_,Top} = wings_wm:win_ul(This),
-    {_,Bottom} = wings_wm:win_ll(Client),
     Win0 = fit_filter(wings_wm:windows(), Client, Below),
-    Win = [Wi || Wi <- Win0, have_vertical_overlap(Wi, Top, Bottom)],
+    {{_,Top},{_,H}} = wings_wm:win_rect(This),
+    Win = [Wi || Wi <- Win0, have_vertical_overlap(Wi, Top, H)],
     fit_horizontal_1(Win, X, Client, Left, Right).
 
 fit_horizontal_1([Client|Ns], X, Client, Min, Max) ->
@@ -368,10 +367,9 @@ fit_vertical() ->
 		  false -> wings_wm:win_ul(Below)
 	      end,
     {_,Bottom} = wings_wm:win_ll(Below),
-    {Left,_} = wings_wm:win_ul(This),
-    {Right,_} = wings_wm:win_ur(This),
     Win0 = fit_filter(wings_wm:windows(), Client, Below),
-    Win = [Wi || Wi <- Win0, have_horizontal_overlap(Wi, Left, Right)],
+    {{Left,_},{W,_}} = wings_wm:win_rect(This),
+    Win = [Wi || Wi <- Win0, have_horizontal_overlap(Wi, Left, W)],
     fit_vert_1(Win, Y, Client, Top, Bottom).
 
 fit_vert_1([N|Ns], Y, Client, Top0, Bottom0) ->
@@ -429,7 +427,7 @@ is_helper_window({toolbar,Client}, Client) -> true;
 is_helper_window({menubar,Client}, Client) -> true;
 is_helper_window(_, _) -> false.
 
-have_horizontal_overlap(Name, X, W) ->    
+have_horizontal_overlap(Name, X, W) ->
     {{Ox,_},{Ow,_}} = wings_wm:win_rect(Name),
     (Ox =< X andalso X < Ox+Ow) orelse (X =< Ox andalso Ox < X+W).
 
