@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.143 2002/05/28 08:36:22 bjorng Exp $
+%%     $Id: wings.erl,v 1.144 2002/05/31 15:09:33 bjorng Exp $
 %%
 
 -module(wings).
@@ -488,7 +488,7 @@ patches() ->
 	    [separator,{"Use "++Desc,enable_patches}]
     end.
 
-info(#st{sel=[]}) -> ok;
+info(#st{sel=[]}) -> [];
 info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
     Sh = gb_trees:get(Id, Shapes),
     shape_info(Sh);
@@ -499,47 +499,47 @@ info(#st{selmode=vertex,sel=[{_Id,Sel}]}=St) ->
 	0 -> "";
 	1 ->
 	    [V] = gb_sets:to_list(Sel),
-	    measure(flat_format("Vertex ~p selected", [V]), St);
+	    measure(io_lib:format("Vertex ~p selected", [V]), St);
 	N when N < 5 ->
 	    Vs = gb_sets:to_list(Sel),
 	    measure(item_list(Vs, "Vertices"), St);
 	N ->
-	    flat_format("~p vertices selected", [N])
+	    io_lib:format("~p vertices selected", [N])
     end;
 info(#st{selmode=edge,sel=[{_,Sel}]}=St) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
 	    [Edge] = gb_sets:to_list(Sel),
-	    measure(flat_format("Edge ~p selected", [Edge]), St);
+	    measure(io_lib:format("Edge ~p selected", [Edge]), St);
 	N when N < 5 ->
 	    Edges = gb_sets:to_list(Sel),
 	    item_list(Edges, "Edges");
 	N ->
-	    flat_format("~p edges selected", [N])
+	    io_lib:format("~p edges selected", [N])
     end;
 info(#st{selmode=face,sel=[{_,Sel}]}=St) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
 	    [Face] = gb_sets:to_list(Sel),
-	    measure(flat_format("Face ~p selected", [Face]), St);
+	    measure(io_lib:format("Face ~p selected", [Face]), St);
 	N when N < 5 ->
 	    Faces = gb_sets:to_list(Sel),
 	    item_list(Faces, "Faces");
 	N ->
-	    flat_format("~p faces selected", [N])
+	    io_lib:format("~p faces selected", [N])
     end;
 info(#st{selmode=Mode,sel=Sel}=St) ->
     On = length(Sel),
     N = foldl(fun({_,S}, A) -> A+gb_sets:size(S) end, 0, Sel),
     Str = case Mode of
 	      vertex ->
-		  flat_format("~p vertices selected in ~p objects", [N,On]);
+		  io_lib:format("~p vertices selected in ~p objects", [N,On]);
 	      edge ->
-		  flat_format("~p edges selected in ~p objects", [N,On]);
+		  io_lib:format("~p edges selected in ~p objects", [N,On]);
 	      face ->
-		  flat_format("~p faces selected in ~p objects", [N,On])
+		  io_lib:format("~p faces selected in ~p objects", [N,On])
 	  end,
     measure(Str, St).
 
@@ -549,17 +549,17 @@ measure(Base, #st{selmode=vertex,sel=[{Id,Vs}],shapes=Shs}) ->
 	    We = gb_trees:get(Id, Shs),
  	    [Va] = gb_sets:to_list(Vs),
 	    {X,Y,Z} = wings_vertex:pos(Va, We),
-	    Base ++ flat_format(". Position ~s ~s ~s",
+	    [Base|io_lib:format(". Position ~s ~s ~s",
 				[wings_util:nice_float(X),
 				 wings_util:nice_float(Y),
-				 wings_util:nice_float(Z)]);
+				 wings_util:nice_float(Z)])];
 	2 ->
 	    We = gb_trees:get(Id, Shs),
  	    [Va,Vb] = gb_sets:to_list(Vs),
  	    Dist = e3d_vec:dist(wings_vertex:pos(Va, We),
 				wings_vertex:pos(Vb, We)),
-	    Base ++ flat_format(". Distance ~s",
-				[wings_util:nice_float(Dist)]);
+	    [Base|io_lib:format(". Distance ~s",
+				[wings_util:nice_float(Dist)])];
 	_ -> Base
     end;
 measure(Base, #st{selmode=vertex,sel=[{IdA,VsA},{IdB,VsB}],shapes=Shs}) ->
@@ -572,8 +572,8 @@ measure(Base, #st{selmode=vertex,sel=[{IdA,VsA},{IdB,VsB}],shapes=Shs}) ->
  	    [Vb] = gb_sets:to_list(VsB),
  	    Dist = e3d_vec:dist(wings_vertex:pos(Va, WeA),
 				wings_vertex:pos(Vb, WeB)),
-	    Base ++ flat_format(". Distance ~s",
-				[wings_util:nice_float(Dist)]);
+	    [Base|io_lib:format(". Distance ~s",
+				[wings_util:nice_float(Dist)])];
 	_ -> Base
     end;
 measure(Base, #st{selmode=edge,sel=[{Id,Es}],shapes=Shs}) ->
@@ -584,8 +584,8 @@ measure(Base, #st{selmode=edge,sel=[{Id,Es}],shapes=Shs}) ->
 	    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, We#we.es),
  	    Dist = e3d_vec:dist(wings_vertex:pos(Va, We),
 				wings_vertex:pos(Vb, We)),
-	    Base ++ flat_format(". Length ~s",
-				[wings_util:nice_float(Dist)]);
+	    [Base|io_lib:format(". Length ~s",
+				[wings_util:nice_float(Dist)])];
 	_ -> Base
     end;
 measure(Base, #st{selmode=face,sel=[{Id,Fs}],shapes=Shs}) ->
@@ -595,10 +595,10 @@ measure(Base, #st{selmode=face,sel=[{Id,Fs}],shapes=Shs}) ->
  	    [Face] = gb_sets:to_list(Fs),
 	    Vs = wings_face:surrounding_vertices(Face, We),
 	    {X,Y,Z} = wings_vertex:center(Vs, We),
-	    Base ++ flat_format(". Midpt ~s ~s ~s",
+	    [Base|io_lib:format(". Midpt ~s ~s ~s",
 				[wings_util:nice_float(X),
 				 wings_util:nice_float(Y),
-				 wings_util:nice_float(Z)]);
+				 wings_util:nice_float(Z)])];
 	_ -> Base
     end;
 measure(Base, _) -> Base.
@@ -607,14 +607,14 @@ item_list(Items, Desc) ->
     item_list(Items, " ", Desc).
 
 item_list([Item|Items], Sep, Desc) ->
-    item_list(Items, ", ", Desc++Sep++integer_to_list(Item));
-item_list([], _Sep, Desc) -> Desc ++ " selected".
+    item_list(Items, ", ", [Desc,Sep|integer_to_list(Item)]);
+item_list([], _Sep, Desc) -> [Desc|" selected"].
 
 shape_info(#we{name=Name,fs=Ftab,es=Etab,vs=Vtab}) ->
     Faces = gb_trees:size(Ftab),
     Edges = gb_trees:size(Etab),
     Vertices = gb_trees:size(Vtab),
-    flat_format("Object ~s has ~p polygons, ~p edges, ~p vertices",
+    io_lib:format("Object ~s has ~p polygons, ~p edges, ~p vertices",
 		[Name,Faces,Edges,Vertices]).
 
 shape_info(Objs, Shs) ->
@@ -627,11 +627,8 @@ shape_info([{Id,_}|Objs], Shs, On, Vn, En, Fn) ->
     Vertices = gb_trees:size(Vtab),
     shape_info(Objs, Shs, On+1, Vn+Vertices, En+Edges, Fn+Faces);
 shape_info([], _Shs, N, Vertices, Edges, Faces) ->
-    flat_format("~p objects, ~p faces, ~p edges, ~p vertices",
+    io_lib:format("~p objects, ~p faces, ~p edges, ~p vertices",
 		[N,Faces,Edges,Vertices]).
-
-flat_format(Format, Args) ->
-    lists:flatten(io_lib:format(Format, Args)).
 
 caption(#st{file=undefined}=St) ->
     Caption = wings(),

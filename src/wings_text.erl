@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.9 2002/03/13 16:10:43 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.10 2002/05/31 15:09:34 bjorng Exp $
 %%
 
 -module(wings_text).
@@ -1422,6 +1422,12 @@ char(12) ->
 char(11) ->
  B = <<16#f0,16#10,16#10,16#10,16#10,16#10,16#10,16#10>>,
  gl:bitmap(4, 8, 0, -4, 7, 0, B);
+
+% char: 0x08 BSP */
+
+char(8) ->
+ B = <<16#00>>,
+ gl:bitmap(6, 1, -1, 2, -7, 0, B);
 
 % char: 0x2
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.50 2002/05/12 17:35:27 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.51 2002/05/31 15:09:34 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -100,7 +100,20 @@ resize(W0, H0) ->
     case sdl_video:wm_isMaximized() of
 	false -> wings_pref:set_value(window_size, {W0,H0});
 	true ->  wings_pref:set_value(window_size, {W0-8,H0-10})
-    end.
+    end,
+    make_font_dlists().
+
+make_font_dlists() ->
+    Base = gl:genLists(256),
+    make_font_dlists(0, Base),
+    gl:listBase(Base).
+
+make_font_dlists(256, _) -> ok;
+make_font_dlists(C, Base) ->
+    gl:newList(Base+C, ?GL_COMPILE),
+    catch wings_text:char(C),
+    gl:endList(),
+    make_font_dlists(C+1, Base).
 
 place_icons(W) ->
     Mid = W div 2,
@@ -401,31 +414,49 @@ space_at(X, Y) ->
     gl:recti(X, Y-?LINE_HEIGHT+3, X+?CHAR_WIDTH, Y+3),
     gl:color3f(0.0, 0.0, 0.0).
 
-text(S) ->
-    catch wings_text:draw(S).
-
 text_at(X, S) ->
     gl:rasterPos2i(X, 0),
-    catch wings_text:draw(S).
+    text(S).
 
 text_at(X, Y, S) ->
     gl:rasterPos2i(X, Y),
-    catch wings_text:draw(S).
+    text(S).
+
+text(S) ->
+    text(S, []).
+
+text([Atom|Cs], Acc) when is_atom(Atom) ->
+    draw_reverse(Acc),
+    wings_text:char(Atom),
+    text(Cs, []);
+text([C|Cs], Acc) when is_integer(C) ->
+    text(Cs, [C|Acc]);
+text([L|Cs], Acc) when is_list(L) ->
+    draw_reverse(Acc),
+    text(L, []),
+    text(Cs, []);
+text([], Acc) -> draw_reverse(Acc).
+
+draw_reverse([]) -> ok;
+draw_reverse(S) -> gl:callLists(length(S), ?GL_UNSIGNED_BYTE, reverse(S)).
 
 menu_text(X, Y, S) ->
     gl:rasterPos2i(X, Y),
-    catch menu_text(S, Y).
+    menu_text(S, []).
 
-menu_text([$&,C|T], Y) ->
-    [X,_,_,_] = gl:getIntegerv(?GL_CURRENT_RASTER_POSITION),
-    wings_text:char($_),
-    gl:rasterPos2i(X, Y),
-    wings_text:char(C),
-    menu_text(T, Y);
-menu_text([C|T], Y) ->
-    wings_text:char(C),
-    menu_text(T, Y);
-menu_text([], _Y) -> ok.
+menu_text([Atom|Cs], Acc) when is_atom(Atom) ->
+    draw_reverse(Acc),
+    wings_text:char(Atom),
+    menu_text(Cs, []);
+menu_text([$&,C|T], Acc) when is_integer(C) ->
+    menu_text(T, [$_,8,C|Acc]);
+menu_text([C|T], Acc) when is_integer(C) ->
+    menu_text(T, [C|Acc]);
+menu_text([L|Cs], Acc) when is_list(L) ->
+    draw_reverse(Acc),
+    text(L, []),
+    menu_text(Cs, []);
+menu_text([], Acc) -> draw_reverse(Acc).
 
 axis_text(X, Y, C, Color) ->
     #io{w=W,h=H} = get_state(),
