@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.99 2003/05/26 16:37:50 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.100 2003/05/27 04:55:45 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -778,24 +778,28 @@ draw_separator(X, Y, Mw) ->
     gl:color3f(0, 0, 0),
     ?CHECK_ERROR().
 
-move_if_outside(X, Y, Mw, Mh, Mi) ->
+move_if_outside(X0, Y, Mw, Mh, Mi) ->
     {W,H} = wings_wm:top_size(),
     if
-	X+Mw > W ->
-	    NewX = left_of_parent(Mw, W, Mi),
-	    move_if_outside(NewX, Y, Mw, Mh, Mi);
-	Y < 1 ->
-	    move_if_outside(X, 1, Mw, Mh, Mi);
-	Y+Mh > H ->
-	    move_if_outside(X, H-Mh, Mw, Mh, Mi);
+	X0+Mw > W ->
+	    X = left_of_parent(Mw, W, Mi),
+	    move_if_outside_1(X, Y, Mh, H);
 	true ->
-	    move_if_outside_x(X, Y)
+	    move_if_outside_1(X0, Y, Mh, H)
     end.
 
-move_if_outside_x(X, Y) when X < 0 ->
-    {0,Y};
-move_if_outside_x(X, Y) ->
-    {X,Y}.
+move_if_outside_1(X, Y, Mh, H) when Y+Mh > H ->
+    move_if_outside_2(X, H-Mh);
+move_if_outside_1(X, Y, _, _) ->
+    move_if_outside_2(X, Y).
+
+move_if_outside_2(X, Y) when X < 0 ->
+    move_if_outside_3(0, Y);
+move_if_outside_2(X, Y) ->
+    move_if_outside_3(X, Y).
+
+move_if_outside_3(X, Y) when Y < 1 -> {X,1};
+move_if_outside_3(X, Y) -> {X,Y}.
 
 left_of_parent(Mw, W, #mi{level=?INITIAL_LEVEL}) -> W-Mw;
 left_of_parent(Mw, _, #mi{level=Level}) ->
