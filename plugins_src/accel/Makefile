@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.5 2004/04/20 06:56:37 bjorng Exp $
+#     $Id: Makefile,v 1.6 2004/04/20 12:25:35 bjorng Exp $
 #
 OS := $(shell uname -s)
 
@@ -25,7 +25,7 @@ BEAM = $(LIBDIR)/wpc_ogla.beam
 ifdef CYGWIN
  SO_EXT = dll
  LIBS = -shared
- GL_LIBS = -lopengl32
+ GL_LIBS = -lopengl32 -lglu32
 else
  SO_EXT = so
  ifeq ($(OS),Darwin)
@@ -33,7 +33,7 @@ else
    GL_LIBS =
  else
    LIBS = -shared -fpic
-   GL_LIBS = -lGL
+   GL_LIBS = -lGL -lGLU
  endif
 endif
 
