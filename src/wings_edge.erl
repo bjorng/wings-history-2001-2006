@@ -3,12 +3,12 @@
 %%
 %%     This module contains most edge command and edge utility functions.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson.
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson.
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.56 2003/01/01 12:09:47 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.57 2003/01/22 07:06:45 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -44,7 +44,7 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Extrude",{extrude,Dir}},
 	    separator,
-	    {"Cut",{cut,cut_fun()}},
+	    cut_line(St),
 	    {"Connect",connect,
 	     "Create a new edge by connecting midpoints of selected edges"},
 	    {"Bevel",bevel,"Round off selected edges"},
@@ -58,20 +58,28 @@ menu(X, Y, St) ->
 	    {"Loop Cut",loop_cut,"Cut into two objects along edge loop"}],
     wings_menu:popup_menu(X, Y, edge, Menu).
 
-cut_fun() ->
-    fun(help, _Ns) ->
-	    {"Cut into edges of equal length",[],"Pick cut position"};
-       (1, _Ns) ->
-	    [cut_entry(2),
-	     cut_entry(3),
-	     cut_entry(4),
-	     cut_entry(5),
-	     separator,
-	     cut_entry(10)];
-       (2, _) -> ignore;
-       (3, _) ->
-	    {edge,cut_pick}
+cut_line(#st{sel=[{_,Es}]}) ->
+    case gb_sets:size(Es) of
+	1 -> cut_fun();
+	_ -> {"Cut",{cut,cut_entries()},"Cut into edges of equal length"}
     end.
+
+cut_fun() ->
+    F = fun(help, _Ns) ->
+		{"Cut into edges of equal length",[],"Cut and slide"};
+	   (1, _Ns) -> cut_entries();
+	   (2, _) -> ignore;
+	   (3, _) -> {edge,cut_pick}
+	end,
+    {"Cut",{cut,F}}.
+
+cut_entries() ->
+    [cut_entry(2),
+     cut_entry(3),
+     cut_entry(4),
+     cut_entry(5),
+     separator,
+     cut_entry(10)].
 
 cut_entry(N) ->
     Str = integer_to_list(N),
