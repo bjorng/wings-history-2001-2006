@@ -8,13 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_rib.erl,v 1.1 2001/08/14 18:16:31 bjorng Exp $
+%%     $Id: e3d_rib.erl,v 1.2 2001/08/17 10:16:57 bjorng Exp $
 %%
 
 -module(e3d_rib).
 -export([export/2]).
 
--include("wings.hrl").
 -include("e3d.hrl").
 
 -import(lists, [foldl/3,map/2,foreach/2]).
