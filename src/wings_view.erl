@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.158 2004/10/17 07:42:53 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.159 2004/10/18 15:20:28 dgud Exp $
 %%
 
 -module(wings_view).
@@ -963,7 +963,7 @@ views({save,Ask}, #st{views={CurrentView,Views}}) when is_atom(Ask) ->
     if S > 0 ->
 	    case element(view_index(CurrentView, S), Views) of
 		{View,_} ->
-		    wings_util:message(?STR(views,1,"This view is alreay the current"));
+		    wings_util:message(?STR(views,1,"This view is already the current"));
 		_ ->
 		    views_save_dialog(Ask, [view_legend(View)])
 	    end;
