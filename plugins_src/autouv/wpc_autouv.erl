@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.286 2004/12/29 09:58:18 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.287 2004/12/31 10:08:27 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -868,7 +868,7 @@ update_selection(#st{selmode=Mode,sel=Sel}=St0,
 	     %% Different selection modes. Convert Geom selection to
 	     %% the mode in AutoUV.
 	     St = St0#st{sel=[IdElems]},
-	     #st{sel=[{Id,Elems0}]} = wings_sel:convert_selection(AuvMode, St),
+	     #st{sel=[{Id,Elems0}]} = wings_sel_conv:mode(AuvMode, St),
 	     Elems = gb_sets:to_list(Elems0),
 	     NewSel = update_selection_1(AuvMode, Elems, Charts),
 	     AuvSt0#st{sel=sort(NewSel),sh=false,bb=Uvs#uvstate{st=St0}}
