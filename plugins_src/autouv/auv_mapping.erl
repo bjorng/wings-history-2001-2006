@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.3 2002/10/09 14:04:25 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.4 2002/10/09 17:23:26 bjorng Exp $
 
 -module(auv_mapping).
 -include("wings.hrl").
@@ -200,10 +200,11 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2) ->
     M2c = auv_matrix:cols(M2),
     M2nc = auv_matrix:cols(M2n),
     %% Split the column lists into free (Mf) and pinned (Mp)
-    Pick = lists:sort([Q1, Q2]),
-    {Mf1c,Mp1c} = pick(M1c, Pick),
-    {Mf2c,Mp2c} = pick(M2c, Pick),
-    {Mf2nc,Mp2nc} = pick(M2nc, Pick),
+    [{Qa,{Ua,Va}}, {Qb,{Ub,Vb}}] = lists:sort([{Q1,{U1,V1}}, {Q2,{U2,V2}}]),
+    QaQb = [Qa, Qb],
+    {Mf1c,Mp1c} = pick(M1c, QaQb),
+    {Mf2c,Mp2c} = pick(M2c, QaQb),
+    {Mf2nc,Mp2nc} = pick(M2nc, QaQb),
     
     %% Build the matrixes Af and Ap, and vector B
     %% A = [ M1 -M2 ],  B = Ap U, U is vector of pinned points
@@ -215,7 +216,7 @@ lsq_int(L, {P1,{U1,V1}} = PUV1, {P2,{U2,V2}} = PUV2) ->
     Apu = auv_matrix:cols(N, 4, Mp1c++Mp2nc),
     Apl = auv_matrix:cols(N, 4, Mp2c++Mp1c),
     Ap = auv_matrix:cat_rows(Apu, Apl),
-    U = auv_matrix:rows(4, 1, [[{1,U1}], [{1,U2}], [{1,V1}], [{1,V2}]]),
+    U = auv_matrix:rows(4, 1, [[{1,Ua}], [{1,Ub}], [{1,Va}], [{1,Vb}]]),
     B = auv_matrix:mult(-1, auv_matrix:mult(Ap, U)),
     
     %% Solve A x = B in a Least SQares sense
