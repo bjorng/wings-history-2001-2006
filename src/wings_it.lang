@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.6 2004/10/14 10:22:08 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.7 2004/10/14 10:27:28 bjorng Exp $
 %%
 
 {wings,
@@ -46,10 +46,8 @@
     {2,"Premi un pulsante del mouse per continuare a lavorare"},
     {3,"Continua il lavoro"}]},
   {define_command,
-   [{1,"L"},
-    {2,"M"},
-    {3,"Ha voglia di definire"},
-    {4,"come un comando predefinito"}]},
+   [{1,"Ha voglia di definire"},
+    {2,"come un comando predefinito"}]},
   {edit_menu,
    [{1,"Cancellare gli stati di annullamento ragguagliando memoria ("},
     {2,")"},
