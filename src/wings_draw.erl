@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.194 2004/04/22 13:36:18 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.195 2004/04/22 14:33:58 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -352,16 +352,16 @@ make_edge_dl(Ns) ->
 make_edge_dl_1([[_|[A,B,C]]|Ns], ?GL_TRIANGLES) ->
     wpc_ogla:tri(A, B, C),
     make_edge_dl_1(Ns, ?GL_TRIANGLES);
-make_edge_dl_1([[_|[A,B,C]]|Ns], _Mode) ->
-    gl:'end'(),
+make_edge_dl_1([[_|[A,B,C]]|Ns], Mode) ->
+    maybe_end(Mode),
     gl:'begin'(?GL_TRIANGLES),
     wpc_ogla:tri(A, B, C),
     make_edge_dl_1(Ns, ?GL_TRIANGLES);
 make_edge_dl_1([[_|[A,B,C,D]]|Ns], ?GL_QUADS) ->
     wpc_ogla:quad(A, B, C, D),
     make_edge_dl_1(Ns, ?GL_QUADS);
-make_edge_dl_1([[_|[A,B,C,D]]|Ns], _Mode) ->
-    gl:'end'(),
+make_edge_dl_1([[_|[A,B,C,D]]|Ns], Mode) ->
+    maybe_end(Mode),
     gl:'begin'(?GL_QUADS),
     wpc_ogla:quad(A, B, C, D),
     make_edge_dl_1(Ns, ?GL_QUADS);
