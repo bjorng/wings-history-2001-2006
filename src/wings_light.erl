@@ -3,12 +3,12 @@
 %%
 %%     Implementation of lights.
 %%
-%%  Copyright (c) 2002 Bjorn Gustavsson
+%%  Copyright (c) 2002-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.26 2003/01/17 00:21:31 raimo_niskanen Exp $
+%%     $Id: wings_light.erl,v 1.27 2003/01/17 22:51:16 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -113,6 +113,8 @@ command(spot_falloff, St) ->
     spot_falloff(St);
 command(edit, St) ->
     edit(St);
+command({edit,Id}, St) ->
+    edit(Id, St);
 command(delete, St) ->
     {save_state,delete(St)};
 command({duplicate,Dir}, St) ->
@@ -310,11 +312,14 @@ adjust_fun(AdjFun) ->
 %%
 %% The Edit Properties command.
 %%
-edit(#st{sel=[{Id,_}],shapes=Shs}=St) ->
-    We = gb_trees:get(Id, Shs),
-    edit_1(We, Shs, St);
+edit(#st{sel=[{Id,_}]}=St) ->
+    edit(Id, St);
 edit(_) -> wings_util:error("Select only one light.").
 
+edit(Id, #st{shapes=Shs}=St) ->
+    We = gb_trees:get(Id, Shs),
+    edit_1(We, Shs, St).
+    
 edit_1(#we{id=Id,light=#light{type=ambient,ambient=Amb0}=L0}=We0, Shs, St) ->
     Qs = [{hframe,
 	   [{vframe,[{label,"Ambient"}]},
@@ -494,20 +499,7 @@ update_2(spot, Selected, #we{light=#light{aim=Aim,spot_angle=Angle}}=We) ->
     glu:cylinder(Obj, R, 0.08, H, 12, 1),
     glu:deleteQuadric(Obj),
     gl:popMatrix();
-update_2(ambient, Selected, #we{light=#light{ambient=Amb}}=We) ->
-    gl:color4fv(Amb),
-    gl:pushMatrix(),
-    {X,Y,Z} = light_pos(We),
-    gl:translatef(X, Y, Z),
-    Obj = glu:newQuadric(),
-    glu:quadricDrawStyle(Obj, ?GLU_FILL),
-    glu:quadricNormals(Obj, ?GLU_SMOOTH),
-    glu:sphere(Obj, 0.15, 25, 25),
-    set_sel_color(Selected),
-    glu:quadricDrawStyle(Obj, ?GLU_LINE),
-    glu:sphere(Obj, 0.2, 4, 4),
-    glu:deleteQuadric(Obj),
-    gl:popMatrix().
+update_2(ambient, _, _) -> ok.
 
 lines(Vec) ->
     gl:vertex3fv(e3d_vec:mul(Vec, 0.2)),
