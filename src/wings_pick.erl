@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.38 2002/04/11 16:12:04 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.39 2002/04/17 08:12:34 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -601,6 +601,26 @@ select_draw_0(St) ->
     end.
 
 select_draw_1(St) ->
+    case wings_pref:get_value(display_list_opt) of
+	false -> select_draw_nonopt(St);
+	true ->  select_draw_opt(St)
+    end.
+
+
+select_draw_opt(St) ->
+    foreach_we(fun(#we{fs=Ftab,perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
+		       gl:pushName(0),
+		       foreach(fun({Face,#face{edge=Edge}}) ->
+				       gl:loadName(Face),
+				       gl:'begin'(?GL_TRIANGLES),
+				       draw_face(Face, Edge, We),
+				       gl:'end'()
+			       end, gb_trees:to_list(Ftab)),
+		       gl:popName();
+		  (#we{}) -> ok
+	       end, St).
+
+select_draw_nonopt(St) ->
     foreach_we(fun(#we{fs=Ftab,perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
 		       gl:pushName(0),
 		       foreach(fun({Face,#face{edge=Edge}}) ->
@@ -637,7 +657,6 @@ draw_face(Face, Edge, We) ->
     Vs = wings_face:draw_info(Face, Edge, We),
     {X,Y,Z} = wings_face:draw_normal(Vs),
     Tess = wings_draw_util:tess(),
-    gl:'begin'(?GL_TRIANGLES),
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
@@ -645,5 +664,4 @@ draw_face(Face, Edge, We) ->
 		    glu:tessVertex(Tess, Pos)
 	    end, Vs),
     glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess),
-    gl:'end'().
+    glu:tessEndPolygon(Tess).
