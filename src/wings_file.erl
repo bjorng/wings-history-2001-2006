@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.130 2003/09/29 19:10:15 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.131 2003/10/24 03:25:25 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -139,7 +139,8 @@ quit(_) ->
 			     fun() -> {file,confirmed_quit} end).
 
 new(Next, #st{saved=true}=St0) ->
-    St = clean_st(St0#st{file=undefined}),
+    St1 = clean_st(St0#st{file=undefined}),
+    St = wings_undo:init(St1),
     wings:caption(St),
     Next(St);
 new(Next, St0) -> %% File is not saved or autosaved.
