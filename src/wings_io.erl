@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.49 2002/05/11 08:47:50 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.50 2002/05/12 17:35:27 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -149,6 +149,7 @@ progress_tick() ->
 
 info(Info) ->
     ortho_setup(),
+    gl:color3fv(wings_pref:get_value(info_color)),
     text_at(4, 2*?LINE_HEIGHT+3, Info).
     
 message(Message) ->

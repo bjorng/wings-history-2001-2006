@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.46 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.47 2002/05/12 17:35:27 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -75,6 +75,7 @@ command(prefs, St) ->
 	      [{title,"Edge Display"}]}]},
 	   {hframe,
 	    [{label,"Background"},{color,background_color},
+	     {label,"Text"},{color,info_color},
 	     {label,"Face"},{color,face_color},
 	     {label,"Selection"},{color,selected_color},
 	     {label,"Hard Edges"},{color,hard_edge_color}],
@@ -248,6 +249,7 @@ locate(File) ->
 
 defaults() ->
     [{background_color,{0.4,0.4,0.4}},
+     {info_color,{0.0,0.0,0.0}},
      {grid_color,{0.0,0.0,0.0}},
      {face_color,{0.5,0.5,0.5}},
      {hard_edge_color,{0.0,0.5,0.0}},
