@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.173 2004/02/28 08:15:39 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.174 2004/03/04 09:46:08 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -526,14 +526,22 @@ event_key({key,Sym,Mod,_}, S) when ?SDLK_KP0 =< Sym, Sym =< ?SDLK_KP9 ->
 event_key(Ev, S) ->
     field_event(Ev, S).
 
-enter_pressed(Ev, S0=#s{fi=TopFi,store=Store}) ->
-    case find_ok(TopFi, Store) of
-	[] -> return_result(S0);
-	Path -> 
-	    S = set_focus(Path, S0, false),
-	    case field_event(Ev, S, Path) of
-		keep -> get_event(S);
-		Other -> Other
+enter_pressed(Ev, #s{focus=I,fi=TopFi,store=Store}=S0) ->
+    %% Try the following in order:
+    %% 1. If the current field is a button, send the event to it.
+    %% 2. If there is an OK button, send the event to it;
+    %%    otherwise finish the dialog returning the result.
+    case field_type(I, Store) of
+	but -> field_event(Ev, S0);
+	_ ->
+	    case find_ok(TopFi, Store) of
+		[] -> return_result(S0);
+		Path -> 
+		    S = set_focus(Path, S0, false),
+		    case field_event(Ev, S, Path) of
+			keep -> get_event(S);
+			Other -> Other
+		    end
 	    end
     end.
 
@@ -551,6 +559,7 @@ escape_pressed(S0=#s{fi=TopFi,store=Sto}) ->
 delete(#s{level=[_],grab_win=GrabWin}=S) ->
     delete_blanket(S),
     wings_wm:grab_focus(GrabWin),
+    wings_wm:allow_drag(false),
     delete;
 delete(S) ->
     delete_blanket(S),
