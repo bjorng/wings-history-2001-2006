@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_mac_file.erl,v 1.2 2002/07/11 18:18:05 bjorng Exp $
+%%     $Id: wp8_mac_file.erl,v 1.3 2002/07/12 07:40:53 bjorng Exp $
 %%
 
 -module(wp8_mac_file).
@@ -24,8 +24,8 @@
 -define(OP_MESSAGE, 3).
 -define(OP_SERIOUS_QUESTION, 4).
 
-menus() ->
-    [].
+menus() -> [].
+
 init(Next) ->
     case os:type() of
 	{unix,darwin} ->
@@ -85,19 +85,10 @@ fileop(What, Next) ->
 file_dialog(Type, Prop, Title) ->
     Ext = property_lists:get_value(ext, Prop, ".wings"),
     ExtDesc = property_lists:get_value(ext_desc, Prop, "Default type"),
-
-    Dir = case get(wp8_file_defdir) of
-	      undefined ->
-		  [];
-	      DefDir ->
-		  filename:nativename(DefDir)
-	  end,
+    Dir = wings_pref:get_value(current_directory),
     DefName = property_lists:get_value(default_filename, Prop, ""),
     Data = [Dir,0,Ext,0,ExtDesc,0,Title,0,DefName,0],
     case erlang:port_control(wp8_file_port, Type, Data) of
-	[] ->
-	    aborted;
-	Else ->
-	    put(wp8_file_defdir,filename:dirname(Else)),
-	    filename:absname(Else) % Happens to turn windows slashes...
+	[] -> aborted;
+	Else -> filename:absname(Else)
     end.

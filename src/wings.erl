@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.146 2002/06/04 07:41:07 bjorng Exp $
+%%     $Id: wings.erl,v 1.147 2002/07/12 07:40:53 bjorng Exp $
 %%
 
 -module(wings).
@@ -154,7 +154,7 @@ open_file(none, St) -> St;
 open_file(Name, St0) ->
     case ?SLOW(wings_ff_wings:import(Name, St0)) of
 	#st{}=St ->
-	    wings_getline:set_cwd(filename:dirname(Name)),
+	    wings_pref:set_value(current_directory, filename:dirname(Name)),
 	    caption(St#st{saved=true,file=Name});
 	{error,Reason} ->
 	    wings_io:message("Read failed: " ++ Reason),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.70 2002/07/12 04:55:18 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.71 2002/07/12 07:40:53 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -28,16 +28,23 @@
 
 init() ->
     case wings_pref:get_value(current_directory) of
-	undefined -> ok;
-	Cwd -> file:set_cwd(Cwd)
+	undefined ->
+	    case file:get_cwd() of
+		{ok,Cwd} -> wings_pref:set_value(current_directory, Cwd);
+		{error,_} -> wings_pref:set_value(current_directory, "/")
+	    end;
+	Cwd ->
+	    case filelib:is_dir(Cwd) of
+		false ->
+		    wings_pref:delete_value(current_directory),
+		    init();
+		true -> ok
+	    end
     end,
     set_autosave_timer().
 
 finish() ->
-    case file:get_cwd() of
-	{ok,Cwd} -> wings_pref:set_value(current_directory, Cwd);
-	{error,_} -> ok
-    end.
+    ok.
 
 menu(X, Y, St) ->
     Formats = [{"Nendo (.ndo)",ndo}],
@@ -161,7 +168,7 @@ read(St0) ->
 		    File = use_autosave(Name),
 		    case ?SLOW(wings_ff_wings:import(File, St1)) of
 			#st{}=St ->
-			    wings_getline:set_cwd(dirname(Name)),
+			    set_cwd(dirname(Name)),
 			    wings:caption(St#st{saved=true,file=Name});
 			{error,Reason} ->
 			    wings_util:error("Read failed: " ++ Reason),
@@ -178,7 +185,7 @@ named_open(Name, St0) ->
 	    File = use_autosave(Name),
 	    case ?SLOW(wings_ff_wings:import(File, St1)) of
 		#st{}=St ->
-		    wings_getline:set_cwd(dirname(Name)),
+		    set_cwd(dirname(Name)),
 		    wings:caption(St#st{saved=true,file=Name});
 		{error,Reason} ->
 		    wings_util:error("Read failed: " ++ Reason),
@@ -215,7 +222,7 @@ save_1(#st{file=Name}=St) ->
     file:delete(autosave_filename(Name)),
     case ?SLOW(wings_ff_wings:export(Name, St)) of
 	ok ->
-	    wings_getline:set_cwd(dirname(Name)),
+	    set_cwd(dirname(Name)),
 	    wings:caption(St#st{saved=true});
 	{error,Reason} ->
 	    wings_plugin:call_ui({failure,"Save failed: " ++ Reason})
@@ -229,7 +236,7 @@ save_as(St) ->
 	    add_recent(Name),
 	    case ?SLOW(wings_ff_wings:export(Name, St)) of
 		ok ->
-		    wings_getline:set_cwd(dirname(Name)),
+		    set_cwd(dirname(Name)),
 		    wings:caption(St#st{saved=true,file=Name});
 		{error,Reason} ->
 		    wings_util:error("Save failed: " ++ Reason),
@@ -293,6 +300,9 @@ use_autosave(File) ->
 		    File
 	    end
     end.
+
+set_cwd(Cwd) ->
+    wings_pref:set_value(current_directory, Cwd).
 
 set_autosave_timer() ->
     case wings_pref:get_value(autosave_time) of
@@ -378,7 +388,7 @@ import(Prop, Importer, St0) ->
 	Name ->
 	    case ?SLOW(do_import(Importer, Name, St0)) of
 		#st{}=St ->
-		    wings_getline:set_cwd(dirname(Name)),
+		    set_cwd(dirname(Name)),
 		    St;
 		{warning,Warn,St} ->
 		    wings_util:message(Warn, St),
@@ -396,7 +406,7 @@ import_ndo(St0) ->
 	Name ->
 	    case ?SLOW(wings_ff_ndo:import(Name, St0)) of
 		#st{}=St ->
-		    wings_getline:set_cwd(dirname(Name)),
+		    set_cwd(dirname(Name)),
 		    St;
 	    	{error,Reason} ->
 		    wings_util:error("Import failed: " ++ Reason),
@@ -412,7 +422,7 @@ export_filename(Prop, St) ->
     case output_file(export, export_file_prop(Prop, St)) of
 	aborted -> ok;
 	Name ->
-	    wings_getline:set_cwd(dirname(Name)),
+	    set_cwd(dirname(Name)),
 	    Name
     end.
 
@@ -424,7 +434,7 @@ export(Props0, Exporter, St) ->
 	    case output_file(export, Props) of
 		aborted -> ok;
 		Name ->
-		    wings_getline:set_cwd(dirname(Name)),
+		    set_cwd(dirname(Name)),
 		    ?SLOW(do_export(Exporter, Name, St))
 	    end
     end.
@@ -434,7 +444,7 @@ export_ndo(St) ->
     case output_file(export, export_file_prop(Prop, St)) of
 	aborted -> St;
 	Name ->
-	    wings_getline:set_cwd(dirname(Name)),
+	    set_cwd(dirname(Name)),
 	    wings_ff_ndo:export(Name, St)
     end.
 

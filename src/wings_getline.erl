@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_getline.erl,v 1.11 2002/07/11 18:18:05 bjorng Exp $
+%%     $Id: wings_getline.erl,v 1.12 2002/07/12 07:40:53 bjorng Exp $
 %%
 
 -module(wings_getline).
--export([filename/2,string/1,string/2,yes_no/1,set_cwd/1]).
+-export([filename/2,string/1,string/2,yes_no/1]).
 
 -import(lists, [reverse/1,reverse/2,prefix/2,nthtail/2]).
 
@@ -63,18 +63,8 @@ please_answer_yes_or_no() ->
       end),
     receive after 1000 -> ok end.
 
-set_cwd(Dir) ->
-    put(wings_cwd, slashify(Dir)).
-
 cwd() ->
-    case get(wings_cwd) of
-	undefined ->
-	    {ok,Cwd0} = file:get_cwd(),
-	    Cwd = slashify(Cwd0),
-	    put(wings_cwd, Cwd),
-	    Cwd;
-	Cwd -> Cwd
-    end.
+    slashify(wings_pref:get_value(current_directory)).
 
 slashify(Cwd0) ->
     Cwd = filename:join([Cwd0]),
