@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.41 2001/11/14 10:08:22 bjorng Exp $
+%%     $Id: wings.erl,v 1.42 2001/11/14 19:26:23 bjorng Exp $
 %%
 
 -module(wings).
@@ -87,7 +87,7 @@ init_1() ->
     wings_file:init(),
     resize(800, 600, St),
     caption(St),
-    top_level(wings_undo:init(St)),
+    enter_top_level(wings_undo:init(St)),
     wings_file:finish(),
     wings_pref:finish(),
     sdl:quit(),
@@ -119,14 +119,23 @@ resize(W, H, St) ->
     gl:matrixMode(?GL_MODELVIEW),
     wings_io:resize(W, H).
 
+enter_top_level(St) ->
+    Init = {init,fun() -> top_level_1(St) end,{push,dummy}},
+    wings_io:enter_event_loop(Init).
+
 top_level(St) ->
     wings_io:clear_message(),
     top_level_1(St).
 
-top_level_1(St0) ->
-    case
-	catch
-	main_loop(St0) of
+top_level_1(St) ->
+    {init,
+     fun() ->
+	     {init,fun() -> main_loop(St) end,{push,dummy}}
+     end,
+     {replace,fun(Event) -> handle_top_event(Event, St) end}}.
+
+handle_top_event(Event, St0) ->
+    case Event of
 	#st{}=St1 ->				%Undoable operation.
 	    ?ASSERT(St1#st.drag == undefined),
 	    ?ASSERT(St1#st.camera == undefined),
@@ -149,11 +158,11 @@ top_level_1(St0) ->
 	    top_level(clean_state(St));
 	quit ->
 	    sdl_util:free(St0#st.hit_buf),
-	    ok;
-	{'EXIT',Crasch} ->
-	    LogName = wings_util:crasch_log(Crasch),
+	    pop;
+	{crash,Crash} ->
+	    LogName = wings_util:crasch_log(Crash),
 	    wings_io:message("Internal error - log written to " ++ LogName),
-	    top_level_1(St0)
+	    enter_top_level(St0)
     end.
 
 clean_state(St0) ->
@@ -165,15 +174,10 @@ main_loop(St0) ->
     St1 = wings_draw:render(St0),
     wings_io:info(info(St1)),
     wings_io:update(St1),
-    
-    %%
-    %% To support undo, operations that have changed the
-    %% state of the model should return the new state.
-    %% Other operations (such as view changes) should
-    %% continue to loop in this function.
-    %%
-    
-    case translate_event(wings_io:get_event(), St1) of
+    {replace,fun(Event) -> handle_event(Event, St1) end}.
+
+handle_event(Event, St1) ->
+    case translate_event(Event, St1) of
 	redraw ->
 	    main_loop(St1);
 	{mousemotion,X,Y} ->
@@ -183,9 +187,9 @@ main_loop(St0) ->
 		{select,#st{sel=Sel}=St2} ->
 		    case wings_pick:pick(St2, X, Y) of
 			#st{sel=Sel}=St -> main_loop(St);
-			St -> St
+			St -> return_to_top(St)
 		    end;
-		{drag_ended,St} -> St
+		{drag_ended,St} -> return_to_top(St)
 	    end;
  	{start_camera,X,Y} ->
  	    main_loop(wings_drag:start_camera(X, Y, St1));
@@ -197,7 +201,7 @@ main_loop(St0) ->
 		    popup_menu(X, Y, St1),
 		    main_loop(St1);
  		drag_aborted ->
-		    drag_aborted
+		    return_to_top(drag_aborted)
  	    end;
 	{right_click,X,Y} ->
 	    main_loop(St1);
@@ -207,6 +211,7 @@ main_loop(St0) ->
  	{edit,undo_toggle} -> execute_or_ignore(undo_toggle, St1);
  	{edit,undo} -> execute_or_ignore(undo, St1);
  	{edit,redo} -> execute_or_ignore(redo, St1);
+	{crash,_}=Crash -> next;
 	Cmd -> do_command(Cmd, St1)
     end.
 
@@ -214,18 +219,23 @@ execute_or_ignore(Cmd, #st{camera=Camera}=St) when Camera =/= undefined ->
     main_loop(St);
 execute_or_ignore(Cmd, #st{drag=Drag}=St) when Drag =/= undefined ->
     main_loop(St);
-execute_or_ignore(Cmd, St) -> {Cmd,St}.
+execute_or_ignore(Cmd, St) -> return_to_top({Cmd,St}).
     
 do_command(Cmd, St0) ->
     St1 = remember_command(Cmd, St0),
     case do_command_1(Cmd, St1) of
-	quit -> quit;
+	quit -> return_to_top(quit);
 	#st{}=St -> main_loop(St);
-	{save_state,#st{}=St} -> St;
-	{saved,#st{}}=Res -> Res;
-	{new,#st{}}=Res -> Res
+	{save_state,#st{}=St} -> return_to_top(St);
+	{saved,#st{}}=Res -> return_to_top(Res);
+	{new,#st{}}=Res -> return_to_top(Res);
+	{push,_}=Push -> Push
     end.
 
+return_to_top(Res) ->
+    wings_io:putback_event(Res),
+    pop.
+    
 do_command_1(Cmd, St) ->
     command(Cmd, St).
 

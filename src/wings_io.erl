@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.8 2001/11/14 16:41:12 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.9 2001/11/14 19:26:23 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -20,13 +20,15 @@
 	 draw_icon/3,draw_icon/5,
 	 draw_message/1,draw_completions/1]).
 -export([putback_event/1,get_event/0,flush_events/0,
-	 periodic_event/2,cancel_periodic_event/0,has_periodic_event/0]).
+	 periodic_event/2,cancel_periodic_event/0,has_periodic_event/0,
+	 enter_event_loop/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [flatmap/2,foldl/3,keysearch/3,reverse/1,foreach/2]).
+-import(lists, [flatmap/2,foldl/3,keysearch/3,
+		reverse/1,foreach/2,last/1]).
 
 -record(io,
 	{w,					%Width of screen (pixels).
@@ -275,7 +277,7 @@ menu_text(X, Y, S) ->
 
 menu_text([$&,C|T], Y) ->
     [X,Y1,_,_] = gl:getIntegerv(?GL_CURRENT_RASTER_POSITION),
-    erlang:display({Y,Y1}),
+%%    erlang:display({Y,Y1}),
     wings_text:char($_),
     gl:rasterPos2i(X, Y),
     wings_text:char(C),
@@ -500,3 +502,48 @@ cancel_periodic_event() ->
 
 has_periodic_event() ->
     whereis(wings_periodic) =/= undefined.
+
+%%%
+%%% Event loop handling.
+%%%
+
+enter_event_loop(Init) ->
+    handle_response(Init, system_dummy_event, [], []).
+    
+event_loop([Handler|Next]=Stk) ->
+    Event = get_event(),
+    handle_event(Handler, Event, Next, Stk);
+event_loop([]) -> ok.
+
+handle_event(_, {system_init_event,Handler}, Next, Stk) ->
+    Res = Handler(),
+    handle_response(Res, system_dummy_event, Next, Stk);
+handle_event(Handler, Event, Next, Stk) ->
+    case catch Handler(Event) of
+	{'EXIT',Reason} ->
+	    CrashHandler = last(Stk),
+	    CrashHandler({crash,Reason});
+	Res ->
+	    handle_response(Res, Event, Next, Stk)
+    end.
+
+handle_response(Res, Event, Next, Stk) ->
+    case Res of
+	keep -> event_loop(Stk);
+	next -> next_handler(Event, Next, Stk);
+	pop -> pop(Stk);
+	{init,More,NewRes} ->
+	    putback_event({system_init_event,More}),
+	    handle_response(NewRes, Event, Next, Stk);
+	{replace,Top} -> replace_top(Top, Stk);
+	{push,Top} -> event_loop([Top|Stk])
+    end.
+
+pop([_|Stk]) ->
+    event_loop(Stk).
+
+replace_top(Top, [_|Stk]) ->
+    event_loop([Top|Stk]).
+
+next_handler(Event, [Next|Ns], Stk) ->
+    handle_event(Next, Event, Ns, Stk).
