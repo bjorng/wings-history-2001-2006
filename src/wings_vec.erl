@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.84 2003/09/21 10:11:40 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.85 2003/10/12 07:25:35 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -44,10 +44,12 @@ init() ->
 
 command({pick,[],[Res],Ns}, _) ->
     Cmd = wings_menu:build_command(Res, Ns),
+    maybe_finish(Cmd),
     wings_io:putback_event({action,Cmd}),
     keep;
 command({pick,[],Res,Ns}, _) ->
     Cmd = wings_menu:build_command(list_to_tuple(reverse(Res)), Ns),
+    maybe_finish(Cmd),
     wings_io:putback_event({action,Cmd}),
     keep;
 command({pick,PickList,Acc,Names}, St) ->
@@ -163,6 +165,9 @@ pick_init(#st{selmode=Mode}) ->
 pick_init_1(#dlo{orig_sel=none,sel=SelDlist}=D, Mode) ->
     D#dlo{orig_sel=SelDlist,orig_mode=Mode};
 pick_init_1(D, _) -> D.
+
+maybe_finish({vector,_}) -> clear_sel();
+maybe_finish(_)  -> pick_finish().
 
 pick_finish() ->
     wings_wm:dirty(),
@@ -317,11 +322,8 @@ exit_menu(X, Y, Mod, #ss{f=Exit,vec=Vec}=Ss, St) ->
 	Action ->
 	    erase_vector(),
 	    set_last_axis(Ss),
+	    maybe_finish(Action),
 	    wings_wm:later({action,Action}),
-	    case Action of
-		{vector,_} -> clear_sel();
-		_ -> pick_finish()
-	    end,
 	    pop
     end.
 
