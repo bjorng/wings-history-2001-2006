@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.48 2004/03/22 20:13:18 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.49 2004/03/25 15:49:51 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -431,11 +431,11 @@ create(Type, #st{onext=Oid}=St) ->
 %%%
 %%% Updating, drawing and rendering lights.
 %%%
-update_dynamic(#dlo{work=[Work|_],src_we=We0}=D, Vtab0) ->
+update_dynamic(#dlo{src_we=We0}=D, Vtab0) ->
     Vtab = gb_trees:from_orddict(sort(Vtab0)),
     We = We0#we{vp=Vtab},
     List = update_1(We, D),
-    D#dlo{work=[Work,List],src_we=We}.
+    D#dlo{work=List,src_we=We}.
 
 update_matrix(#dlo{src_we=We0}=D, Matrix) ->
     We = wings_we:transform_vs(Matrix, We0),
