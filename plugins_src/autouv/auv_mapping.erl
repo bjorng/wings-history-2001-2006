@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.53 2004/05/05 16:42:24 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.54 2004/05/05 19:11:17 bjorng Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -1125,40 +1125,31 @@ model_l2([Face|R], F2S2, F2A, Mean, Area)  ->
 model_l2([],_,_,Mean,Area) ->
     math:sqrt(Mean/Area).
 
-l2(P1,P2,P3,Q1,Q2,Q3) ->  %% Mean stretch value
-    case area2d2(P1, P2, P3) of
-	A2 when A2 > 0.00000001 ->
-	    A = ss_dot(P1,P2,P3,Q1,Q2,Q3),
-	    C = st_dot(P1,P2,P3,Q1,Q2,Q3),
-	    case (A+C)/(2.0*A2*A2) of
-		Temp when Temp < 1.0 -> 1.0;
-		Temp -> math:sqrt(Temp)
-	    end;
+l2({S1,T1}, {S2,T2}, {S3,T3},
+   {Q1x,Q1y,Q1z}, {Q2x,Q2y,Q2z}, {Q3x,Q3y,Q3z})
+  when is_float(S1), is_float(S2), is_float(S3),
+       is_float(T1), is_float(T2), is_float(T3),
+       is_float(Q1x), is_float(Q1y), is_float(Q1z),
+       is_float(Q2x), is_float(Q2y), is_float(Q2z),
+       is_float(Q3x), is_float(Q3y), is_float(Q3z) ->
+    T23 = T2-T3,    T31 = T3-T1,    T12 = T1-T2,
+    S32 = S3-S2,    S13 = S1-S3,    S21 = S2-S1,
+    case S21*T31-S13*T12 of
+	DoubleArea when DoubleArea > 0.00000001 ->
+	    SX = Q1x*T23+Q2x*T31+Q3x*T12,
+	    SY = Q1y*T23+Q2y*T31+Q3y*T12,
+	    SZ = Q1z*T23+Q2z*T31+Q3z*T12,
+	    A = SX*SX+SY*SY+SZ*SZ,
+
+	    TX = Q1x*S32+Q2x*S13+Q3x*S21,
+	    TY = Q1y*S32+Q2y*S13+Q3y*S21,
+	    TZ = Q1z*S32+Q2z*S13+Q3z*S21,
+	    C = TX*TX+TY*TY+TZ*TZ,
+
+	    math:sqrt((A+C)/(2.0*DoubleArea*DoubleArea));
 	_ -> 
 	    9999999999.9
     end.
-
-ss_dot({_,T1},{_,T2},{_,T3},{Q1x,Q1y,Q1z},{Q2x,Q2y,Q2z},{Q3x,Q3y,Q3z}) 
-  when is_float(T1),is_float(T2),is_float(T3),
-       is_float(Q1x),is_float(Q1y),is_float(Q1z),
-       is_float(Q2x),is_float(Q2y),is_float(Q2z),
-       is_float(Q3x),is_float(Q3y),is_float(Q3z) ->
-    T23 = T2-T3,    T31 = T3-T1,    T12 = T1-T2,
-    X = Q1x*T23+Q2x*T31+Q3x*T12,
-    Y = Q1y*T23+Q2y*T31+Q3y*T12,
-    Z = Q1z*T23+Q2z*T31+Q3z*T12,
-    X*X+Y*Y+Z*Z.
-
-st_dot({S1,_},{S2,_},{S3,_},{Q1x,Q1y,Q1z},{Q2x,Q2y,Q2z},{Q3x,Q3y,Q3z}) 
-  when is_float(S1),is_float(S2),is_float(S3),
-       is_float(Q1x),is_float(Q1y),is_float(Q1z),
-       is_float(Q2x),is_float(Q2y),is_float(Q2z),
-       is_float(Q3x),is_float(Q3y),is_float(Q3z) ->
-    S32 = S3-S2,    S13 = S1-S3,    S21 = S2-S1,
-    X = Q1x*S32+Q2x*S13+Q3x*S21,
-    Y = Q1y*S32+Q2y*S13+Q3y*S21,
-    Z = Q1z*S32+Q2z*S13+Q3z*S21,
-    X*X+Y*Y+Z*Z.
 
 l8(P1,P2,P3,Q1,Q2,Q3) ->  %% Worst stretch value
     A2 = area2d2(P1,P2,P3),
