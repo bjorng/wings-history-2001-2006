@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.104 2002/08/18 18:32:57 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.105 2002/08/25 11:06:35 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -19,7 +19,6 @@
 -include("wings.hrl").
 
 -define(CAMMAX, 150).
--define(DEGREE, 176).				%Degree character.
 
 -import(lists, [foreach/2,map/2,foldl/3,sort/1,keysort/2,
 		reverse/1,reverse/2,member/2]).

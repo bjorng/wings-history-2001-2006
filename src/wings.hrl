@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.62 2002/08/08 07:58:06 bjorng Exp $
+%%     $Id: wings.hrl,v 1.63 2002/08/25 11:06:35 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -36,6 +36,7 @@
 -define(GROUND_GRID_SIZE, 1.0).
 -define(CAMERA_DIST, (8*?GROUND_GRID_SIZE)).
 -define(NORMAL_LINEWIDTH, 1.0).
+-define(DEGREE, 176).				%Degree character.
 
 -define(MOUSE_DIVIDER, 500).
 

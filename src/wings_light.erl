@@ -8,15 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.13 2002/08/24 04:52:28 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.14 2002/08/25 11:06:35 bjorng Exp $
 %%
 
 -module(wings_light).
--export([light_types/0,menu/3,command/2,is_any_light_selected/1,
+-export([light_types/0,menu/3,command/2,is_any_light_selected/1,info/1,
 	 create/2,update_dynamic/2,update_matrix/2,update/1,render/1,
 	 global_lights/0,camera_lights/0,
-	 export/1,import/2,
-	 light_pos/1]).
+	 export/1,import/2]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -107,6 +106,36 @@ is_any_light_selected([{Id,_}|Sel], Shs) ->
 	#we{} -> true
     end;
 is_any_light_selected([], _) -> false.
+
+info(#we{name=Name,light=#light{type=Type}=L}=We) ->
+    Info0 = io_lib:format("Light ~s", [Name]),
+    case Type of
+	ambient -> Info0;
+	_ ->
+	    {X,Y,Z} = Pos = light_pos(We),
+	    Info = [Info0|io_lib:format(": Pos ~s ~s ~s",
+					[wings_util:nice_float(X),
+					 wings_util:nice_float(Y),
+					 wings_util:nice_float(Z)])],
+	    [Info|info1(Type, Pos, L)]
+    end.
+
+info1(point, _, _) -> [];
+info1(Type, Pos, #light{aim=Aim,spot_angle=A}) ->
+    {Ax,Ay,Az} = Aim,
+    {Dx,Dy,Dz} = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
+    Info = io_lib:format(". Aim ~s ~s ~s. Dir ~s ~s ~s\n",
+			 [wings_util:nice_float(Ax),
+			  wings_util:nice_float(Ay),
+			  wings_util:nice_float(Az),
+			  wings_util:nice_float(Dx),
+			  wings_util:nice_float(Dy),
+			  wings_util:nice_float(Dz)]),
+    [Info|case Type of
+	      spot -> io_lib:format(". Angle ~s~c\n",
+				    [wings_util:nice_float(A),?DEGREE]);
+	      _ -> []
+	  end].
 
 %%%
 %%% Light Commands.
