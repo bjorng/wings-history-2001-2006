@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.105 2004/11/16 12:19:21 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.106 2004/12/16 16:06:21 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -695,7 +695,7 @@ dissolve_edges(Edges0, We0) when is_list(Edges0) ->
     case [E || E <- Edges0, gb_trees:is_defined(E, Etab)] of
 	Edges0 ->
 	    %% No edge was deleted in the last pass. We are done.
-	    wings_util:validate_mirror(wings_we:vertex_gc(We));
+	    wings_we:validate_mirror(wings_we:vertex_gc(We));
 	Edges ->
 	    dissolve_edges(Edges, We)
     end;

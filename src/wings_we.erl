@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.83 2004/12/06 07:49:45 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.84 2004/12/16 16:06:22 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -27,7 +27,8 @@
 	 normals/2,
 	 new_items/3,
 	 is_consistent/1,is_face_consistent/2,
-	 hide_faces/2,show_faces/1,any_hidden/1,visible/1,visible/2]).
+	 hide_faces/2,show_faces/1,any_hidden/1,visible/1,visible/2,
+	 validate_mirror/1]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -160,6 +161,13 @@ show_faces_1(#we{es=Etab0}=We0) ->
 
 show_face(F) when F < 0 -> -F-1;
 show_face(F) -> F.
+
+validate_mirror(#we{mirror=none}=We) -> We;
+validate_mirror(#we{fs=Ftab,mirror=Face}=We) ->
+    case gb_trees:is_defined(Face, Ftab) of
+	false -> We#we{mirror=none};
+	true -> We
+    end.
     
 %%%
 %%% Build Winged-Edges.

@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.102 2004/12/16 15:42:05 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.103 2004/12/16 16:06:22 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([error/1,error/2,share/1,share/3,make_vector/1,
-	 validate_mirror/1,rel2fam/1,
+	 rel2fam/1,
 	 button_message/1,button_message/2,button_message/3,
 	 button_format/1,button_format/2,button_format/3,
 	 rmb_format/1,key_format/2,
@@ -87,13 +87,6 @@ make_vector(intrude) -> normal;
 make_vector(Axis) when Axis == last_axis; Axis == default_axis ->
     {_,Vec} = wings_pref:get_value(Axis),
     Vec.
-
-validate_mirror(#we{mirror=none}=We) -> We;
-validate_mirror(#we{fs=Ftab,mirror=Face}=We) ->
-    case gb_trees:is_defined(Face, Ftab) of
-	false -> We#we{mirror=none};
-	true -> We
-    end.
 
 button_message(LmbMsg) ->
     wings_wm:message(wings_camera:button_format(LmbMsg)).
@@ -638,4 +631,3 @@ lowpass_1(N) when N =< 15 -> (N-7)*0.6 + lowpass_1(7);
 lowpass_1(N) when N =< 30 -> (N-15)*0.5 + lowpass_1(15);
 lowpass_1(N) when N =< 50 -> (N-30)*0.05 + lowpass_1(30);
 lowpass_1(_) -> lowpass_1(50).
-

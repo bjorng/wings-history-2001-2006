@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.83 2004/12/16 15:42:05 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.84 2004/12/16 16:06:21 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -53,7 +53,7 @@ smooth(Fs, Vs, Es, Htab, #we{vp=Vp,next_id=Id}=We0) ->
     NewVs = smooth_new_vs(FacePos0, Mid),
     Vtab = smooth_move_orig(Vs, FacePos, Htab, We0, UpdatedVs ++ NewVs),
     wings_pb:update(1.0, ?__(7,"finishing")),
-    Res = wings_util:validate_mirror(wings_we:rebuild(We#we{vp=Vtab})),
+    Res = wings_we:validate_mirror(wings_we:rebuild(We#we{vp=Vtab})),
     wings_pb:done(),
     Res.
 
