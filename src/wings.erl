@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.142 2002/05/12 17:35:27 bjorng Exp $
+%%     $Id: wings.erl,v 1.143 2002/05/28 08:36:22 bjorng Exp $
 %%
 
 -module(wings).
@@ -409,6 +409,8 @@ command({tools,{scale_to_bb_prop,Dir}}, St) ->
     {save_state,wings_align:scale_to_bb_prop(Dir, St)};
 command({tools,{move_to_bb,Dir}}, St) ->
     {save_state,wings_align:move_to_bb(Dir, St)};
+command({tools,{virtual_mirror,Cmd}}, St) ->
+    wings_view:virtual_mirror(Cmd, St);
 
 %% Objects menu.
 
@@ -460,7 +462,17 @@ menu(X, Y, tools, St) ->
 	    {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
 	    {"Move to Saved BB",{move_to_bb,wings_menu_util:all_xyz()}},
 	    separator,
-	    {"Set Default Axis",set_default_axis}],
+	    {"Set Default Axis",set_default_axis},
+	    separator,
+	    {"Virtual Mirror",
+	     {virtual_mirror,
+	      [{"Create",create,
+		"Given a face selection, set up a virtual mirror"},
+	       {"Break",break,
+		"Remove the virtul mirror for all objects"},
+	       {"Freeze",freeze,
+		"Create real geometry from the virtual mirrors"}]}}
+	   ],
     wings_menu:menu(X, Y, tools, Menu, St);
 menu(X, Y, objects, St) ->
     wings_shape:menu(X, Y, St);

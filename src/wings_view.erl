@@ -8,11 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.61 2002/05/20 10:21:33 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.62 2002/05/28 08:36:22 bjorng Exp $
 %%
 
 -module(wings_view).
--export([menu/3,command/2,init/0,init_light/0,
+-export([menu/3,command/2,
+	 virtual_mirror/2,
+	 init/0,init_light/0,
 	 current/0,set_current/1,
 	 projection/0,perspective/0,
 	 model_transformations/0,eye_point/0]).
@@ -60,15 +62,6 @@ menu(X, Y, St) ->
 				  {"-X",neg_x},
 				  {"-Y",neg_y},
 				  {"-Z",neg_z}]}},
-	    separator,
-	    {"Virtual Mirror",
-	     {virtual_mirror,
-	      [{"Create",create,
-		"Given a face selection, set up a virtual mirror"},
-	       {"Break",break,
-		"Remove the virtul mirror for all objects"},
-	       {"Freeze",freeze,
-		"Create real geometry from the virtual mirrors"}]}},
 	    separator,
 	    {"Align to Selection",align_to_selection},
 	    {"Auto Rotate",auto_rotate}],
@@ -158,32 +151,28 @@ command(rotate_left, St) ->
 command(align_to_selection, St) ->
     aim(St),
     align_to_selection(St);
-command({virtual_mirror,create}, #st{selmode=face}=St0) ->
-    St = wings_sel:map(fun virtual_mirror_fun/2, St0),
-    {save_state,St#st{sel=[]}};
-command({virtual_mirror,create}, _) ->
-    wings_util:error("Virtual mirror requires a face selection.");
-command({virtual_mirror,break}, #st{shapes=Shs0}=St) ->
-    case break_mirror(Shs0) of
-	Shs0 -> St;
-	Shs -> {save_state,St#st{shapes=Shs}}
-    end;
-command({virtual_mirror,freeze}, #st{shapes=Shs0}=St) ->
-    case freeze_mirror(Shs0) of
-	Shs0 -> St;
-	Shs -> {save_state,St#st{shapes=Shs}}
-    end;
 command(toggle_lights, St) ->
-    Lights = case wings_pref:get_value(number_of_lights) of
-		 1 -> 2;
-		 2 -> 1
-	     end,
-    wings_pref:set_value(number_of_lights, Lights),
-    init_light(),
+    toggle_lights(),
     St;
 command(Key, St) ->
     toggle_option(Key),
     St.
+
+virtual_mirror(create, #st{selmode=face}=St0) ->
+    St = wings_sel:map(fun virtual_mirror_fun/2, St0),
+    {save_state,St#st{sel=[]}};
+virtual_mirror(create, _) ->
+    wings_util:error("Virtual mirror requires a face selection.");
+virtual_mirror(break, #st{shapes=Shs0}=St) ->
+    case break_mirror(Shs0) of
+	Shs0 -> St;
+	Shs -> {save_state,St#st{shapes=Shs}}
+    end;
+virtual_mirror(freeze, #st{shapes=Shs0}=St) ->
+    case freeze_mirror(Shs0) of
+	Shs0 -> St;
+	Shs -> {save_state,St#st{shapes=Shs}}
+    end.
 
 mode_change_all(Wire) ->
     wings_draw_util:update(fun mode_change_all/2, Wire).
@@ -352,6 +341,14 @@ smooth_event_1(#keyboard{}=Kb, #sm{wire=Wire,st=St}=Sm) ->
 	    keep;
 	{view,reset} ->
 	    reset(),
+	    wings_wm:dirty(),
+	    keep;
+	{view,orthogonal_view} ->
+	    toggle_option(orthogonal_view),
+	    wings_wm:dirty(),
+	    keep;
+	{view,toggle_lights} ->
+	    toggle_lights(),
 	    wings_wm:dirty(),
 	    keep;
 	_ ->
@@ -562,6 +559,14 @@ frame_1(BB) ->
     View = current(),
     set_current(View#view{origo=e3d_vec:neg(C),
 			  distance=Dist,pan_x=0.0,pan_y=0.0}).
+
+toggle_lights() ->
+    Lights = case wings_pref:get_value(number_of_lights) of
+		 1 -> 2;
+		 2 -> 1
+	     end,
+    wings_pref:set_value(number_of_lights, Lights),
+    init_light().
 
 along(x) -> along(x, -90.0, 0.0);
 along(y) -> along(y, 0.0, 90.0);
