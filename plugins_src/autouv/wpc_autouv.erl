@@ -1,14 +1,14 @@
-%%% File    : wpu_autouv.erl
-%%% Author  : Dan Gudmundsson <dgud@erix.ericsson.se>
-%%% Description : A semi-simple semi-automatic UV-mapping plugin
-%%%
-%%% Created : 24 Jan 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
-%%%-------------------------------------------------------------------
+%% File    : wpu_autouv.erl
+%% Author  : Dan Gudmundsson <dgud@erix.ericsson.se>
+%% Description : A semi-simple semi-automatic UV-mapping plugin
+%%
+%% Created : 24 Jan 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
+%%-------------------------------------------------------------------
 %%  Copyright (c) 2001-2002 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.61 2002/12/08 17:41:03 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.62 2002/12/08 20:48:36 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -50,20 +50,17 @@ command({body,{?MODULE,do_edit,{We,MatName,Faces}}}, St) ->
 command({body,{?MODULE,show_map,Info}}, St) ->
     {MappedCharts,We,Vmap,OrigWe} = Info,
     init_show_maps(MappedCharts, We, Vmap, OrigWe, St);
-command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, _) ->
-    #uvstate{st=St0,areas=Current,sel=Sel} = Uvs,
-    Areas1 = add_areas(Sel, Current),
-    St2 = case QuitOp of
-	      quit_uv_tex ->
-		  Tx = ?SLOW(get_texture(Uvs)),
-		  {St1,Areas1} = add_material(edit, Tx, St0, Areas1),
-		  St1;
-	      quit_uv ->
-		  St0
-	  end,
-    We = ?SLOW(insert_uvcoords(Areas1)),
-    Shapes = gb_trees:update(We#we.id, We, St2#st.shapes),
-    St = St2#st{shapes=Shapes},
+command({body,{?MODULE,uvmap_done,QuitOp,Uvs}}, St0) ->
+    #uvstate{areas=Current,sel=Sel} = Uvs,
+    Charts0 = add_areas(Sel, Current),
+    {St1,Charts} =
+	case QuitOp of
+	    quit_uv_tex ->
+		Tx = ?SLOW(get_texture(Uvs)),
+		add_material(Tx, St0, Charts0);
+	    quit_uv -> {St0,Charts0}
+	end,
+    St = ?SLOW(insert_uvcoords(Charts, St1)),
     reset_view(),
     St;
 command(_, _) -> next.
@@ -482,27 +479,32 @@ find_boundary_edges([{Id,#ch{fs=Fs}=C}|Cs], We, Acc) ->
     find_boundary_edges(Cs, We, [{Id,C#ch{be=Be}}|Acc]);
 find_boundary_edges([], _, Acc) -> sort(Acc).
 
-init_show_maps(Map0, #we{name=Name}=We0, Vmap, OrigWe, St0) ->
+init_show_maps(Map0, We0, Vmap, OrigWe, St0) ->
     Map1 = auv_placement:place_areas(Map0, We0),
     We = replace_uvs(Map1, We0),
     Map2 = find_boundary_edges(Map1, We, []),
     Map = gb_trees:from_orddict(Map2),
     Edges = gb_trees:keys(OrigWe#we.es),
-    As0 = #areas{we=We,orig_we=OrigWe,edges=Edges,
-		 as=Map,vmap=Vmap,
-		 matname=list_to_atom(Name ++ "_auv")},
-    {St1,Areas} = add_material(create_mat, none, St0, As0),
+    Charts = #areas{we=We,orig_we=OrigWe,edges=Edges,
+		    as=Map,vmap=Vmap,
+		    matname=none},
     {{X,Y,W,H},Geom} = init_drawarea(),
-    Uvs = #uvstate{st=wings_select_faces([], Areas#areas.we, St1),
+    Uvs = #uvstate{st=wings_select_faces([], Charts#areas.we, St0),
 		   origst=St0,
-		   areas=Areas, 
+		   areas=Charts,
 		   geom=Geom},
     Op = {seq,push,get_event(Uvs)},
     wings_wm:new(autouv, {X,Y,2}, {W,H}, Op),
     wings_wm:callback(fun() -> wings_util:menu_restriction(autouv, []) end),
     keep.
    
-insert_uvcoords(#areas{orig_we=We0,we=WorkWe,as=Cs0,matname=MatName,vmap=Vmap}) ->
+insert_uvcoords(#areas{orig_we=#we{id=Id}}=Charts, #st{shapes=Shs0}=St) ->
+    We0 = gb_trees:get(Id, Shs0),
+    We = insert_uvcoords_1(We0, Charts),
+    Shs = gb_trees:update(Id, We, Shs0),
+    St#st{shapes=Shs}.
+
+insert_uvcoords_1(We0, #areas{we=WorkWe,as=Cs0,matname=MatName,vmap=Vmap}) ->
     Cs = gb_trees:values(Cs0),
     UVpos = gen_uv_pos(Cs, WorkWe, []),
     We1 = insert_coords(UVpos, Vmap, We0),
@@ -587,15 +589,18 @@ build_map([], _, _, _, Acc) -> Acc.
 has_texture(MatName, #st{mat=Materials}) ->
     has_texture(MatName, Materials);
 has_texture(MatName, Materials) ->
-    Mat = gb_trees:get(MatName, Materials),
-    Maps = proplists:get_value(maps,Mat, []),
-    none /= proplists:get_value(diffuse, Maps, none).
+    case gb_trees:lookup(MatName, Materials) of
+	none -> false;
+	{value,Mat} ->
+	    Maps = proplists:get_value(maps, Mat, []),
+	    none /= proplists:get_value(diffuse, Maps, none)
+    end.
 
 get_texture_size(MatName, #st{mat=Materials}) ->
     Mat = gb_trees:get(MatName, Materials),
     Maps = proplists:get_value(maps, Mat, []),
     case proplists:get_value(diffuse, Maps, none) of
-	none -> {512, 512};
+	none -> {512,512};
 	{W,H,_} -> {W,H}
     end.	     
 
@@ -604,17 +609,18 @@ get_material(Face, Materials, #we{fs=Ftab}) ->
     Mat = gb_trees:get(MatName, Materials),
     proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
-add_material(create_mat, none, St0, #areas{matname=MatName}=Areas) ->
-    Mat = {MatName, [{opengl, []},{maps, []}]},
+add_material(Tx, St0, #areas{we=#we{name=Name},matname=none}=Charts) ->
+    MatName0 = list_to_atom(Name++"_auv"),
+    Mat = {MatName0,[{opengl,[]},{maps,[{diffuse,Tx}]}]},
     case wings_material:add_materials([Mat], St0) of
-	{St1, []} ->
-	    {St1, Areas};
-	{St1, [{MatName,NewName}]} ->
-	    {St1, Areas#areas{matname = NewName}}
+	{St,[]} ->
+	    {St,Charts#areas{matname=MatName0}};
+	{St,[{MatName0,MatName}]} ->
+	    {St,Charts#areas{matname=MatName}}
     end;
-add_material(edit, Tx, St0, #areas{matname=MatName}=As) ->
+add_material(Tx, St0, #areas{matname=MatName}=Charts) ->
     St = wings_material:replace_map(MatName, diffuse, Tx, St0),
-    {St,As}.
+    {St,Charts}.
 
 %%% Opengl drawing routines
 
@@ -663,8 +669,8 @@ draw_texture(Uvs = #uvstate{dl=DL, sel=Sel, areas=#areas{we=We}}) ->
     Uvs.
 
 setup_view({Left,Right,Bottom,Top}, Uvs) ->
-    #uvstate{st=#st{mat=Mats}, option=#setng{texbg=TexBg},
-	     areas=#areas{matname = MatN}}=Uvs,
+    #uvstate{st=#st{mat=Mats},option=#setng{texbg=TexBg},
+	     areas=#areas{matname=MatN}}=Uvs,
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:disable(?GL_CULL_FACE),
     gl:disable(?GL_LIGHTING),
@@ -707,22 +713,6 @@ setup_view({Left,Right,Bottom,Top}, Uvs) ->
     gl:disable(?GL_TEXTURE_2D),
     gl:enable(?GL_DEPTH_TEST),
     gl:shadeModel(?GL_SMOOTH).
-
-% wings_view(#uvstate{mode=Mode,geom={WingsPort,{X2,Y2,_,_,_,_,_}},st=St}=Uvs) ->
-%     ModeL = atom_to_list(Mode),
-%     Text = [ModeL] ++ [" Mode: [R] in texture window to access menu, "
-% 		       "[L] to select face groups"],
-%     wings_wm:message(Text),
-%     {_,_,_,Oh} = OldViewport = wings_wm:viewport(),
-%     set_viewport(WingsPort),
-%     wings_draw:render(St),
-%     set_viewport(OldViewport),
-%     wings_io:update(Uvs#uvstate.st),
-%     wings_io:ortho_setup(),
-%     gl:color3fv(?PANE_COLOR),
-%     {_,_,W,_} = WingsPort,
-%     gl:recti(W, 0, X2, Oh - Y2),
-%     ok.
 
 reset_view() ->    
     gl:popAttrib().
@@ -1079,14 +1069,13 @@ handle_event({action,{auv,checkerboard}}, #uvstate{option=Opt0}=Uvs) ->
     Opt = Opt0#setng{texbg=true,color=false,edges=no_edges},
     add_texture_image(Sz, Sz, Bin, default, Uvs#uvstate{option=Opt});
 handle_event({action,{auv,apply_texture}},
-	     Uvs0=#uvstate{sel = Sel0,areas=As=#areas{we=We}}) ->
-    Tx = ?SLOW(get_texture(Uvs0)),
-    Areas1 = add_areas(Sel0,As),
-    {St2, Areas1} = add_material(edit, Tx, Uvs0#uvstate.st, Areas1),
-    We2 = insert_uvcoords(Areas1),
-    Shapes1 = gb_trees:update(We#we.id, We2, St2#st.shapes),
-    St3 = St2#st{shapes = Shapes1},
-    get_event(Uvs0#uvstate{st = St3});
+	     #uvstate{st=St0,sel=Sel0,areas=As0}=Uvs) ->
+    Tx = ?SLOW(get_texture(Uvs)),
+    As1 = add_areas(Sel0, As0),
+    {St1,As} = add_material(Tx, St0, As1),
+    St = insert_uvcoords(As, St1),
+    wings_wm:send(geom, {new_state,St}),
+    get_event(Uvs#uvstate{st=St,areas=As});
 handle_event({action, {auv, edge_options}}, Uvs) ->
     edge_option_menu(Uvs);
 handle_event({action,{auv,quit}}, Uvs) ->
@@ -1151,7 +1140,10 @@ handle_event({action,wings,{view, Cmd}}, Uvs0) ->
     St = wings_view:command(Cmd, Uvs0#uvstate.st),
     get_event(Uvs0#uvstate{st=St});
 handle_event({current_state,St}, Uvs) ->
-    verify_state(St, Uvs);
+    case verify_state(St, Uvs) of
+	keep -> get_event_nodraw(Uvs#uvstate{st=St});
+	Other -> Other
+    end;
 handle_event(_Event, Uvs) ->
     ?DBG("Got unhandled Event ~p ~n", [_Event]),
     get_event(Uvs).
@@ -1219,13 +1211,14 @@ import_file(Filename, Uvs0) ->
 	    end
     end.
 
-add_texture_image(TW, TH, TexBin, FileName, #uvstate{option=Opt}=Uvs0) ->
-    {St1,_As} = add_material(edit, {TW,TH,TexBin},
-			     Uvs0#uvstate.st, Uvs0#uvstate.areas),
-    get_event(Uvs0#uvstate{st=St1, 
-			   option=Opt#setng{texbg = true}, 
-			   last_file = FileName,
-			   dl = undefined}).
+add_texture_image(TW, TH, TexBin, FileName,
+		  #uvstate{st=St0,option=Opt,areas=As0}=Uvs) ->
+    {St,As} = add_material({TW,TH,TexBin}, St0, As0),
+    wings_wm:send(geom, {new_state,St}),
+    get_event(Uvs#uvstate{st=St,areas=As,
+			  option=Opt#setng{texbg=true},
+			  last_file=FileName,
+			  dl=undefined}).
 
 is_power_of_two(X) ->
     (X band -X ) == X.
