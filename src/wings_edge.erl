@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.116 2005/01/09 09:30:37 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.117 2005/01/15 20:24:35 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -283,6 +283,9 @@ dissolve_isolated_vs_2([{V,Edge}|T], We0, Acc) ->
 	done -> dissolve_isolated_vs_2(T, We0, Acc);
 	We -> dissolve_isolated_vs_2(T, We, [V|Acc])
     end;
+dissolve_isolated_vs_2([], We, []) ->
+    %% Nothing was done in the last pass. We don't need to do a vertex GC.
+    We;
 dissolve_isolated_vs_2([], We0, Vs) ->
     We = wings_we:vertex_gc(We0),
 
