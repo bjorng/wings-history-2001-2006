@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.27 2002/01/06 14:47:09 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.28 2002/01/12 16:28:34 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -481,10 +481,16 @@ find_edge(Face, We, Cx, Cy, Trans) ->
 		       is_float(Bx), is_float(By) ->
 			   Xdist = Bx-Ax,
 			   Ydist = By-Ay,
-			   L = math:sqrt(Xdist*Xdist+Ydist*Ydist),
-			   S = ((Ay-Cy)*Xdist-(Ax-Cx)*Ydist)/L/L,
-			   Dist = abs(S)*L,
-			   [{Dist,Edge}|A]
+			   L = Xdist*Xdist+Ydist*Ydist,
+			   {Px,Py} = case ((Cx-Ax)*Xdist+(Cy-Ay)*Ydist)/L of
+					 R when R =< 0 -> {Ax,Ay};
+					 R when R >= 1 -> {Bx,By};
+					 R -> {Ax+R*Xdist,Ay+R*Ydist}
+				     end,
+			   Xdiff = Px-Cx,
+			   Ydiff = Py-Cy,
+			   DistSqr = Xdiff*Xdiff + Ydiff*Ydiff,
+			   [{DistSqr,Edge}|A]
 		   end
 	   end, [], Face, We),
     {_,Edge} = min(Es),
