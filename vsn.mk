@@ -1,1 +1,1 @@
-WINGS_VSN=0.98.27-pre2
+WINGS_VSN=0.98.27-pre3
