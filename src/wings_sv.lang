@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.31 2004/11/02 07:20:34 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.32 2004/11/02 20:20:35 bjorng Exp $
 %%
 
 {wings,
@@ -612,7 +612,7 @@
      "omkringliggande geometri för vissa kommandon. "
      "Man kan kontrollera typ av magnet och influensområde."},
     {14,"Vektor- och magnetoperationer kan kombineras."},
-    {15,"Med avancerade menyer påslagna, många kommandon i menyer gör olika "
+    {15,"Med avancerade menyer påslagna, gör många kommandon i menyer olika "
      "saker beroende vilken musknapp man väljer de med."},
     {16,"Till exempel kan man H-klicka på Rotera-kommandot för att ange en axel "
      "som man vill rotera markering runt, eller M-klicka för att ange både "
@@ -631,17 +631,25 @@
     {13," eller "},
     {15," kan det andra snabbkommandot inte användas."}]},
   {def_hotkeys,
-   [{1,"Any command that appears in a menu, can be assigned a keyboard short-cut (hotkey)."},
-    {2,"To assign a hotkey to a command, open the menu containing the command. With the command high-lighted, press the [Insert] or [/] key, and then press the key you want to assign the command to."},
-    {3,"To delete a hotkey, similarly high-light the command in a menu, and press the [Del] or [] key."}]},
+   [{1,"Alla kommandon i menyer kan tilldelas en korttangent."},
+    {2,"För att tilldela en korttangent till ett kommando, öppna menyn som "
+     "kommandot finns i. Med kommandot valt, tryck [Insert] eller [/], och "
+     "sedan på den tangent som du vill tilldela kommando till."},
+    {3,"För att radera en korttangent, välj kommandot i en meny, och tryck "
+     "[Del] eller [\\]."}]},
   {getting_started,
-   [{1,"When learning Wings, keep an eye at the information line at the bottom of the screen. Generally it shows what the mouse buttons will do at any given moment."},
-    {2,"The actions for the mouse buttons are given first, labeled "},
-    {3,"To use mice with only one or two buttons, you must inform Wings how many buttons your mouse has in the "},
-    {4,"Edit"},
-    {5,"Preferences"},
-    {6," dialog."},
-    {7,"Generally, L (left mouse button) is used for selecting and accepting, M (middle mouse button) for operating the camera, and R (right mouse button) to access the context-sensitive pop-up menus."},
+   [{1,"När du lär dig Wings, håll ett öga på informationsraden längst ner "
+     "i Wings-fönstret. Den visar vanligen vad musknapparna kommer att göra "
+     "just nu."},
+    {2,"Vad musknapparna kommer att göra anges först, med följande förkortningar "},
+    {3,"Om du vill använda en mus med bara en eller två knappar, måste du "
+     "först informera Wings om hur många knappar musen har i dialogen "},
+    {4,"Redigera"},
+    {5,"Inställningar"},
+    {6,"."},
+    {7,"Vanligtvis används V (vänsterknappen) för att markera och godkänna "
+     "M (mittenknappen) för att styra kameran, and H (högerknappen) för "
+     "att öppna kontextkänsliga menyer."},
     {9,"To use mice with only one or two buttons, you must inform Wings how many buttons your mouse has in the "},
     {10,"Edit"},
     {11,"Preferences"},
@@ -650,10 +658,10 @@
     {15," and "},
     {17," modes can be used with a two-button mouse. Only the "},
     {19," mode can be used with an one-button mouse."},
-    {left_def,"left mouse button"},
-    {middle_def,"middle button or scroll wheel"},
-    {right_def,"right button"},
-    {two_a,"followed by any hotkey actions."}]},
+    {left_def,"vänster musknapp"},
+    {middle_def,"mittenknappen eller scrollhjulet"},
+    {right_def,"höger musknapp"},
+    {two_a,"därefter följer vad eventuella korttangenter kommer att göra."}]},
   {header,
    [{1,"Komma igång"},
     {2,"Använda en mus med en eller två knappar"},
