@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.88 2002/11/26 20:05:29 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.89 2002/12/05 07:27:38 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -58,6 +58,7 @@ menu(_) ->
      {"Save",save},
      {"Save As...",save_as},
      {"Save Selected...",save_selected},
+     {"Save Incrementally...",save_incr},
      separator,
      {"Revert",revert},
      separator,
@@ -67,7 +68,6 @@ menu(_) ->
      separator,
      {"Render",{render,[]}},
      separator|recent_files([{"Exit",quit}])].
-%%wings_menu:menu(X, Y, file, Menu).
 
 command(new, St0) ->
     case new(St0) of
@@ -95,6 +95,11 @@ command(save_as, St0) ->
 command(save_selected, St) ->
     save_selected(St),
     St;
+command(save_incr, St0) -> 
+    case save_incr(St0) of
+	aborted -> St0;
+	#st{}=St -> {saved,St}
+    end;
 command(autosave, St) ->
     autosave(St);
 command(revert, St0) ->
@@ -275,6 +280,42 @@ save_selected(#st{shapes=Shs0,sel=Sel}=St0) ->
 		    wings_util:error("Save failed: " ++ Reason)
 	    end
     end.
+
+%%%
+%%% Save incrementally. Original code submitted by Clacos.
+%%%
+
+save_incr(#st{saved=true}=St) -> St;
+save_incr(#st{file=undefined}=St0) ->
+    save_as(St0);
+save_incr(#st{file=Name0}=St) -> 
+    Name = increment_name(Name0),
+    save_1(St#st{file=Name}).
+
+increment_name(Name0) ->
+    Name = filename:rootname(Name0),
+    incr(reverse(Name)).
+
+incr(Name0) -> 
+    {Digits0,Base} = find_digits(Name0),
+    case Digits0 of
+	[] -> Base ++ "_01.wings";
+	_ ->
+	    Number = list_to_integer(Digits0) + 1,
+	    Digits = integer_to_list(Number),
+	    Base ++ lists:duplicate(length(Digits0)-length(Digits), $0) ++
+		Digits ++ ".wings"
+    end.
+
+find_digits(List) -> 
+    find_digits1(List, []).
+
+find_digits1([H|T], Digits) when $0 =< H, H =< $9 ->
+    find_digits1(T, [H|Digits]);
+find_digits1([_|_]=Rest, Digits) ->
+    {Digits,reverse(Rest)};
+find_digits1([], Digits) ->
+    {Digits,[]}.
 
 wings_prop() ->
     %% Should we add autosaved wings files ??
