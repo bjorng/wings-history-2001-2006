@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.298 2005/03/16 17:48:00 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.299 2005/03/16 21:06:58 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -208,6 +208,7 @@ create_uv_state(Charts, MatName, We, GeomSt) ->
     wings_wm:set_prop(wireframed_objects,
 		      gb_sets:from_list(gb_trees:keys(Charts))),
     wings_wm:set_prop(allow_rotation, false),
+    wings_wm:set_prop(select_backface, true),
 
     wings_wm:later(got_focus),
 
@@ -418,9 +419,9 @@ command_menu(edge, X, Y) ->
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(vertex, X, Y) ->
     Scale = scale_directions(),
-    Rotate = rotate_directions(),
     Align = 	    
-	[{"Chart to X", align_x, 
+	[{"Free",free,"Rotate selection freely"},
+	 {"Chart to X", align_x, 
 	  "Rotate chart to align (imaginary) edge joining selected verts to X-axis"},
 	 {"Chart to Y", align_y, 
 	  "Rotate chart to align (imaginary) edge joining selected verts to Y-axis"}],
@@ -429,7 +430,7 @@ command_menu(vertex, X, Y) ->
 	    {basic,separator},
 	    {"Move",move,"Move selected vertices",[magnet]},
 	    {"Scale",{scale,Scale},"Scale selected vertices"},
-	    {"Rotate",{rotate,Rotate++Align},"Rotation commands"},
+	    {"Rotate",{rotate,Align},"Rotation commands"},
 	    separator,
 	    {"Flatten",{flatten,
 			[{"X", x, "Flatten horizontally"},
@@ -455,14 +456,6 @@ scale_directions() ->
     [{"Uniform",    scale_uniform, "Scale in both directions"},
      {"Horizontal", scale_x, "Scale horizontally (X dir)"},
      {"Vertical",   scale_y, "Scale vertically (Y dir)"}].
-
-rotate_directions() ->
-    [{"Free",free,"Rotate selection freely"},
-     {"90"++[?DEGREE]++" CW",-90,
-      "Rotate selection 90 degrees clockwise"},
-     {"90"++[?DEGREE]++" CCW",90,
-      "Rotate selection 90 degrees counter-clockwise"},
-     {"180"++[?DEGREE],180,"Rotate selection 180 degrees"}].
 
 option_menu() ->
     [separator,
@@ -683,7 +676,7 @@ new_state(#st{bb=#uvstate{}=Uvs}=St0) ->
     get_event(St).
 
 handle_command(move, St) ->
-    drag(wings_move:setup(free, St));
+    drag(wings_move:setup(free_2d, St));
 handle_command({move,Magnet}, St) ->
     drag(wings_move:setup({free_2d,Magnet}, St));
 handle_command({scale,scale_uniform}, St) ->
@@ -923,7 +916,7 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
 	{{value,We},_} -> {rebuild_charts(We, AuvSt, []),true}
     end.
 
-rebuild_charts(We, St, ExtraCuts) ->
+rebuild_charts(We, St = #st{bb=UVS=#uvstate{st=Old}}, ExtraCuts) ->
     {Faces,FvUvMap} = auv_segment:fv_to_uv_map(We),
     {Charts0,Cuts0} = auv_segment:uv_to_charts(Faces, FvUvMap, We),
     {Charts1,Cuts} =
@@ -937,7 +930,7 @@ rebuild_charts(We, St, ExtraCuts) ->
     Charts = update_uv_tab(Charts2, FvUvMap),
     wings_wm:set_prop(wireframed_objects,
 		      gb_sets:from_ordset(lists:seq(1, length(Charts2)))),
-    St#st{sel=[],shapes=Charts}.
+    St#st{sel=[],bb=UVS#uvstate{st=Old#st{sel=[]}},shapes=Charts}.
 
 update_uv_tab(Cs, FvUvMap) ->
     update_uv_tab_1(Cs, FvUvMap, []).
