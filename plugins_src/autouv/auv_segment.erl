@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.30 2002/10/28 09:39:35 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.31 2002/10/28 19:39:22 bjorng Exp $
 
 -module(auv_segment).
 
@@ -622,8 +622,7 @@ cut_model(Cuts, Charts, #we{mode=Mode}=We0) ->
 
 cut_one_chart(Keep0, Cuts, We0, Map0) ->
     Keep = gb_sets:from_list(Keep0),
-    OuterVs = append(wpa:face_outer_vertices(Keep0, We0)),
-    {We1,Map1} = cut_shared_vertex(OuterVs, Keep, We0, Map0),
+    {We1,Map1} = cut_shared_vertices(Keep, We0, Map0),
     {We2,Map2} = cut_edges(Keep0, Cuts, We1, Map1),
     AllFaces = wings_sel:get_all_items(face, We2),
     Del = gb_sets:difference(AllFaces, Keep),
@@ -635,17 +634,22 @@ cut_one_chart(Keep0, Cuts, We0, Map0) ->
     Next = lists:max([We0#we.next_id,We#we.next_id]),
     {We,{Map,We0#we{next_id=Next}}}.
 
-cut_shared_vertex(OuterVs, Faces, We0, InvVmap0) ->
-    Shared = get_shared_vs(sort(OuterVs), []),
+cut_shared_vertices(Faces, #we{es=Etab}=We0, InvVmap0) ->
+    Es = wings_face:outer_edges(Faces, We0),
+    VsEs0 = foldl(fun(E, A) ->
+			  #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
+			  [{Va,E},{Vb,E}|A]
+		  end, [], Es),
+    VsEs = sofs:relation(VsEs0),
+    F = sofs:relation_to_family(VsEs),
+    Shared0 = sofs:specification({external,fun({_,L}) ->
+						   length(L) > 2
+					   end}, F),
+    Shared = sofs:to_external(sofs:domain(Shared0)),
+    ?DBG("Shared: ~w\n", [Shared]),
     foldl(fun(V, A) ->
 		  do_cut_shared(V, Faces, A)
 	  end, {We0,InvVmap0}, Shared).
-
-get_shared_vs([V|[V|_]=T], Acc) ->
-    get_shared_vs(T, [V|Acc]);
-get_shared_vs([_|T], Acc) ->
-    get_shared_vs(T, Acc);
-get_shared_vs([], Shared) -> ordsets:from_list(Shared).
 
 do_cut_shared(V, Faces, {#we{next_id=Wid}=We0,Ivmap}) ->
     Fs = wings_vertex:fold(
@@ -734,7 +738,7 @@ cut_cleanup(Faces, MaybeRemove, #we{es=Etab}=We) ->
 	  end, We, R).
     
 cut_renumber(Faces, #we{vs=Vtab,es=Etab,fs=Ftab,next_id=Next}=We0, Map0) ->
-    Vs = lists:concat(wpa:face_outer_vertices(Faces, We0)),
+    Vs = outer_vertices(Faces, We0),
     Vmap = cut_make_map(gb_trees:keys(Vtab), gb_sets:from_list(Vs), Next, []),
     Es = lists:concat(wpa:face_outer_edges(Faces, We0)),
     Emap = cut_make_map(gb_trees:keys(Etab), gb_sets:from_list(Es), Next, []),
@@ -754,6 +758,10 @@ cut_make_map([E|Es], MustRenumber, Id, Acc) ->
     end;
 cut_make_map([], _, _, Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
+
+outer_vertices(Faces, We) ->
+    Es = wings_face:outer_edges(Faces, We),
+    wings_edge:to_vertices(Es, We).
 
 add_new_vs(OldV, NewVs, Map) ->
     foldl(fun(NewV, M) -> add_new_vs_1(OldV, NewV, M) end, Map, NewVs).
