@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.15 2005/01/26 09:25:13 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.16 2005/01/26 13:25:18 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -199,12 +199,9 @@ handle_connect_event1({action,Action}, #cs{st=St0}=C) ->
 	{edit,redo} ->
 	    St = wings_undo:redo(St0),
 	    undo_refresh(St,C);
-	Tweak = {tools, tweak} ->
-	    wings_wm:later({action,Tweak}),
-	    exit_connect(C);
-	_Ignore -> 
-	    io:format("Action: ~p~n",[_Ignore]),
-	    keep
+	Other ->
+	    wings_wm:later({action,Other}),
+	    exit_connect(C)
     end;
 handle_connect_event1(Ev, #cs{st=St}) ->
     case wings_hotkey:event(Ev, St) of
