@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.148 2003/06/29 15:42:36 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.149 2003/07/07 18:43:11 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -249,7 +249,7 @@ do_drag(Drag, none) ->
     Ev = #mousemotion{x=X,y=Y,state=0},
     {GX,GY} = wings_wm:local2global(X, Y),
     {seq,push,handle_drag_event_1(Ev, Drag#drag{x=GX,y=GY})};
-do_drag(Drag0, Move) ->
+do_drag(#drag{unit=Units}=Drag0, Move) when length(Units) =:= length(Move) ->
     {_,X,Y} = wings_wm:local_mouse_state(),
     Ev = #mousemotion{x=X,y=Y,state=0},
     {GX,GY} = wings_wm:local2global(X, Y),
@@ -260,6 +260,12 @@ do_drag(Drag0, Move) ->
     St = normalize(Drag),
     DragEnded = {new_state,St#st{args=Move}},
     wings_wm:later(DragEnded),
+    keep;
+do_drag(Drag0, _) ->
+    {_,X,Y} = wings_wm:local_mouse_state(),
+    {GX,GY} = wings_wm:local2global(X, Y),
+    ungrab(Drag0#drag{x=GX,y=GY}),
+    wings_wm:later(revert_state),
     keep.
 
 help_message(#drag{unit=Unit}=Drag) ->
