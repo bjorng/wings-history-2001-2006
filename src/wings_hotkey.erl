@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.20 2002/03/13 20:49:38 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.21 2002/04/22 06:59:05 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -35,6 +35,7 @@ event(Event, #st{selmode=Mode}) ->
 event_1(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, SelMode) ->
     Mods = modifiers(Mod),
     Key = case Mods of
+	      _ when Sym == ?SDLK_TAB -> {Sym,Mods};
  	      [] when C =/= 0 -> fix_bksp_and_del(Sym, C);
 	      [shift] when C =/= 0 -> C;
 	      _Other -> {Sym,Mods}
@@ -63,6 +64,8 @@ lookup(Key, SelMode) ->
 bind_from_event(#keyboard{keysym=#keysym{sym=Sym}}, _Cmd)
   when Sym >= ?SDLK_NUMLOCK ->
     error;
+bind_from_event(#keyboard{keysym=#keysym{sym=?SDLK_TAB,mod=Mod}}, Cmd) ->
+    keyname(bind_virtual(?SDLK_TAB, modifiers(Mod), Cmd, user));
 bind_from_event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, Cmd) ->
     Bkey = case modifiers(Mod) of
  	       [] when C =/= 0 ->
@@ -224,7 +227,8 @@ default_keybindings() ->
      {{?SDLK_F3,[]},        {select,prev_edge_loop}},
      {{?SDLK_F4,[]},        {select,next_edge_loop}},
      {{?SDLK_F5,[]},        {select,{by,{faces_with,5}}}},
-     {$\t,              {view,smooth_preview}},
+     {{?SDLK_TAB,[]},       {view,workmode}},
+     {{?SDLK_TAB,[shift]},  {view,smoothed_preview}},
      {$\s,              {select,deselect}},
      {$a,               {view,aim}},
      {$A,               {view,frame}},
@@ -232,6 +236,7 @@ default_keybindings() ->
      {$d,               {edit,repeat}},
      {$D,               {edit,repeat_drag}},
      {$e,               {select,edge}},
+
      {$f,               {select,face}},
      {$g,               {select,edge_ring}},
      {$i,               {select,similar}},

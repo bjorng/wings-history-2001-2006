@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.17 2002/04/21 06:39:46 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.18 2002/04/22 06:59:05 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -192,22 +192,80 @@ store(Key, New, [{_K,_Old}|Dict]) ->		%Key == K
     [{Key,New}|Dict];
 store(Key, New, []) -> [{Key,New}].
 
-cut_edges(Es, FacePos, Htab, #we{es=Etab}=We) ->
-    cut_edges_1(Es, FacePos, Htab, Etab, We).
+%%
+%% Cut edges.
+%%
 
-cut_edges_1([Edge|Es], FacePos, Htab, Etab, #we{vs=Vtab}=We0) ->
-    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
-    case gb_sets:is_member(Edge, Htab) of
-	true ->
-	    {We,_} = wings_edge:fast_cut(Edge, default, We0),
-	    cut_edges_1(Es, FacePos, Htab, Etab, We);
-	false ->
-	    {LfPos,_,_} = gb_trees:get(Lf, FacePos),
-	    {RfPos,_,_} = gb_trees:get(Rf, FacePos),
-	    VaPos = wings_vertex:pos(Va, Vtab),
-	    VbPos = wings_vertex:pos(Vb, Vtab),
-	    Pos = e3d_vec:average([LfPos,RfPos,VaPos,VbPos]),
-	    {We,_} = wings_edge:fast_cut(Edge, Pos, We0),
-	    cut_edges_1(Es, FacePos, Htab, Etab, We)
-    end;
-cut_edges_1([], _FacePos, _Htab, _Etab, We) -> We.
+cut_edges(Es, FacePos, Htab0,
+	  #we{mode=Mode,es=Etab0,vs=Vtab0,next_id=Id0}=We) ->
+    {Id,Vtab,Etab,Htab} = cut_edges_1(Es, FacePos, Mode, Id0, Etab0,
+ 				      Vtab0, Htab0, []),
+    We#we{vs=Vtab,es=Etab,he=Htab,next_id=Id}.
+
+cut_edges_1([Edge|Es], FacePos, Mode, NewEdge, Etab0, Vtab0, Htab0, VsAcc0) ->
+    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = Rec = gb_trees:get(Edge, Etab0),
+    Pos0 = [wings_vertex:pos(Va, Vtab0),wings_vertex:pos(Vb, Vtab0)],
+    {Pos1,Htab} =
+	case gb_sets:is_member(Edge, Htab0) of
+	    true -> {Pos0,gb_sets:insert(NewEdge, Htab0)};
+	    false ->
+		{LfPos,_,_} = gb_trees:get(Lf, FacePos),
+		{RfPos,_,_} = gb_trees:get(Rf, FacePos),
+		{[LfPos,RfPos|Pos0],Htab0}
+	end,
+    Pos = wings_util:share(e3d_vec:average(Pos1)),
+    Vtx = #vtx{pos=Pos,edge=NewEdge},
+    VsAcc = [{NewEdge,Vtx}|VsAcc0],
+    Vtab = case gb_trees:get(Vb, Vtab0) of
+	       #vtx{edge=Edge}=VbRec ->
+		   gb_trees:update(Vb, VbRec#vtx{edge=NewEdge}, Vtab0);
+	       _ ->
+		   Vtab0
+	   end,
+    Etab = fast_cut(Edge, Rec, Mode, NewEdge, Etab0),
+    cut_edges_1(Es, FacePos, Mode, NewEdge+1, Etab, Vtab, Htab, VsAcc);
+cut_edges_1([], _FacePos, _Mode, Id, Etab, Vtab0, Htab, VsAcc) ->
+    Vtab = gb_trees:from_orddict(gb_trees:to_list(Vtab0) ++
+				 reverse(VsAcc)),
+    {Id,Vtab,Etab,Htab}.
+
+fast_cut(Edge, Template, Mode, NewV=NewEdge, Etab0) ->
+    #edge{ltpr=EdgeA,rtsu=EdgeB} = Template,
+
+    %% Here we handle vertex colors.
+    case Mode of
+	material ->
+	    NewColA = NewColB = wings_color:white();
+	_Other ->
+	    #edge{a=ACol,b=BCol,lf=Lf,rf=Rf,rtpr=NextBCol} = Template,
+	    AColOther = get_vtx_color(EdgeA, Lf, Etab0),
+	    NewColA = wings_color:mix(0.5, ACol, AColOther),
+	    BColOther = get_vtx_color(NextBCol, Rf, Etab0),
+	    NewColB = wings_color:mix(0.5, BCol, BColOther)
+    end,
+
+    NewEdgeRec = Template#edge{vs=NewV,a=NewColA,ltsu=Edge,rtpr=Edge},
+    Etab1 = gb_trees:insert(NewEdge, NewEdgeRec, Etab0),
+    Etab2 = patch_edge(EdgeA, NewEdge, Edge, Etab1),
+    Etab = patch_edge(EdgeB, NewEdge, Edge, Etab2),
+    EdgeRec = Template#edge{ve=NewV,b=NewColB,rtsu=NewEdge,ltpr=NewEdge},
+    gb_trees:update(Edge, EdgeRec, Etab).
+
+get_vtx_color(Edge, Face, Etab) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{lf=Face,a=Col} -> Col;
+	#edge{rf=Face,b=Col} -> Col
+    end.
+
+patch_edge(Edge, ToEdge, OrigEdge, Etab) ->
+    New = case gb_trees:get(Edge, Etab) of
+	      #edge{ltsu=OrigEdge}=R ->
+		  R#edge{ltsu=ToEdge};
+	      #edge{ltpr=OrigEdge}=R ->
+		  R#edge{ltpr=ToEdge};
+	      #edge{rtsu=OrigEdge}=R ->
+		  R#edge{rtsu=ToEdge};
+	      #edge{rtpr=OrigEdge}=R ->
+		  R#edge{rtpr=ToEdge}
+	  end,
+    gb_trees:update(Edge, New, Etab).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.49 2002/04/11 16:12:04 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.50 2002/04/22 06:59:05 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -32,7 +32,8 @@ menu(X, Y, St) ->
 	    {"Axes",show_axes,crossmark(show_axes)},
 	    separator,
 	    {"Wireframe",wire_mode,crossmark(wire_mode)},
-	    {"Smooth Preview",smooth_preview,crossmark(smooth_preview)},
+	    {"Workmode",workmode,crossmark(workmode)},
+	    {"Smoothed Preview",smoothed_preview},
 	    separator,
 	    {"Show Saved BB",show_bb,crossmark(show_bb)},
 	    {"Show Edges",show_edges,crossmark(show_edges)},
@@ -72,16 +73,18 @@ crossmark(Key) ->
 command(reset, St) ->
     reset(),
     St;
-command(smooth_preview, St) ->
-    toggle_option(smooth_preview),
+command(workmode, St) ->
+    toggle_option(workmode),
     ?SLOW(model_changed(St));
+command(smoothed_preview, St) ->
+    ?SLOW(smoothed_preview(St));
 command(flatshade, St) ->
     wings_pref:set_value(wire_mode, false),
-    wings_pref:set_value(smooth_preview, false),
+    wings_pref:set_value(workmode, true),
     model_changed(St);
 command(smoothshade, St) ->
     wings_pref:set_value(wire_mode, false),
-    wings_pref:set_value(smooth_preview, true),
+    wings_pref:set_value(workmode, false),
     model_changed(St);
 command(orthogonal_view, St) ->
     toggle_option(orthogonal_view),
@@ -119,6 +122,11 @@ command(toggle_lights, St) ->
 command(Key, St) ->
     toggle_option(Key),
     St.
+
+
+%%%
+%%% The Auto Rotate command.
+%%%
 
 -record(tim,
 	{timer,					%Current timer.
@@ -187,6 +195,132 @@ set_auto_rotate_timer(#tim{delay=Delay}=Tim0) ->
 get_event(Tim) ->
     {replace,fun(Ev) -> auto_rotate_event(Ev, Tim) end}.
 
+%%%
+%%% Smoothed Preview
+%%%
+
+-record(sm,
+	{st,					%State
+	 wire=false}).				%Show wireframe: true|false
+
+smoothed_preview(St) ->
+    smooth_help(),
+    smooth_dlist(St),
+    wings_wm:dirty(),
+    Sm = #sm{st=St},
+    {seq,{push,dummy},get_smooth_event(Sm)}.
+
+smooth_help() ->
+    Help = [lmb|" Normal Mode "] ++ wings_camera:help(),
+    wings_io:message_right("[W] Toggle wireframe"),
+    wings_io:message(Help).
+    
+get_smooth_event(Sm) ->
+    {replace,fun(Ev) -> smooth_event(Ev, Sm) end}.
+
+smooth_event(Ev, Sm) ->
+    case wings_camera:event(Ev, fun() -> smooth_redraw(Sm) end) of
+	next -> smooth_event_1(Ev, Sm);
+	Other -> Other
+    end.
+
+smooth_event_1(redraw, Sm) ->
+    smooth_help(),
+    smooth_redraw(Sm),
+    get_smooth_event(Sm);
+smooth_event_1(#mousemotion{}, _) -> keep;
+smooth_event_1(#mousebutton{state=?SDL_PRESSED}, _) -> keep;
+smooth_event_1(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, _) ->
+    smooth_exit();
+smooth_event_1(#keyboard{}=Kb, #sm{st=St,wire=Wire}=Sm) ->
+    case wings_hotkey:event(Kb) of
+	{view,workmode} ->
+	    smooth_exit();
+	{view,smoothed_preview} ->
+	    smooth_exit();
+	{view,wire_mode} ->
+	    wings_wm:dirty(),
+	    get_smooth_event(Sm#sm{wire=not Wire});
+	{view,{along,_Axis}=Cmd} ->
+	    command(Cmd, St),
+	    wings_wm:dirty(),
+	    keep;
+	{view,reset} ->
+	    reset(),
+	    wings_wm:dirty(),
+	    keep;
+	_ ->
+	    keep
+    end;
+smooth_event_1(_, _) ->
+    wings_io:clear_message(),
+    wings_wm:dirty(),
+    pop.
+
+smooth_exit() ->
+    wings_io:clear_message(),
+    wings_wm:dirty(),
+    pop.
+
+smooth_dlist(St) ->
+    case wings_draw:get_dlist() of
+	#dl{smooth=none} -> build_smooth_dlist(St);
+	_ -> ok
+    end.
+	    
+build_smooth_dlist(#st{mat=Mat,shapes=Shs}) ->
+    wings_io:disable_progress(),
+    gl:newList(?DL_SMOOTH, ?GL_COMPILE),
+    foreach(fun(#we{perm=Perm}=We0) when ?IS_VISIBLE(Perm) ->
+		    We = wings_subdiv:smooth(We0),
+		    wings_draw:draw_smooth_faces(Mat, We);
+	       (#we{}) -> ok
+	    end, gb_trees:values(Shs)),
+    gl:endList(),
+    DL = wings_draw:get_dlist(),
+    wings_draw:put_dlist(DL#dl{smooth=DL}).
+
+smooth_redraw(#sm{st=St}=Sm) ->
+    ?CHECK_ERROR(),
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:enable(?GL_DEPTH_TEST),
+    wings_view:projection(),
+    wings_view:model_transformations(),
+    gl:enable(?GL_CULL_FACE),
+    gl:cullFace(?GL_BACK),
+    gl:shadeModel(?GL_SMOOTH),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    ?CHECK_ERROR(),
+    gl:enable(?GL_LIGHTING),
+    gl:enable(?GL_POLYGON_OFFSET_FILL),
+    gl:enable(?GL_BLEND),
+    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    gl:callList(?DL_SMOOTH),
+    wireframe(Sm),
+    gl:popAttrib(),
+    ?CHECK_ERROR(),
+    wings_io:update(St),
+    ?CHECK_ERROR().
+
+wireframe(#sm{wire=false}) -> ok;
+wireframe(_) ->
+    gl:disable(?GL_POLYGON_OFFSET_FILL),
+    gl:disable(?GL_LIGHTING),
+    gl:shadeModel(?GL_FLAT),
+    gl:disable(?GL_CULL_FACE),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+    gl:enable(?GL_POLYGON_OFFSET_LINE),
+    gl:color3f(0, 0, 1),
+    draw_faces().
+
+draw_faces() ->
+    #dl{faces=DlistFaces} = wings_draw:get_dlist(),
+    gl:callList(DlistFaces).
+
+%%%
+%%% Other stuff.
+%%%
+
 toggle_option(Key) ->
     wings_pref:set_value(Key, not wings_pref:get_value(Key)).
 
@@ -212,7 +346,7 @@ init() ->
 
     %% Always reset the following preferences + the view itself.
     wings_pref:set_value(wire_mode, false),
-    wings_pref:set_value(smooth_preview, false),
+    wings_pref:set_value(workmode, true),
     wings_pref:set_value(orthogonal_view, false),
     reset().
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.53 2002/04/11 08:20:39 bjorng Exp $
+%%     $Id: wings.hrl,v 1.54 2002/04/22 06:59:05 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -64,6 +64,7 @@
 -define(CHECK_ERROR(), ok).
 -endif.
 
+-define(DL_SMOOTH, 97).
 -define(DL_UTIL, 98).
 -define(DL_PICK, 99).
 -define(DL_DRAW_BASE, 100).
@@ -76,7 +77,8 @@
 	 old_sel,				%Actual selection.
 	 sel=none,				%Selected items.
 	 orig_sel=none,				%Original selection.
-	 normals=none				%Normals.
+	 normals=none,				%Normals.
+	 smooth=none				%Smooth preview.
 	}).
 
 %% Main state record containing all objects and other important state.

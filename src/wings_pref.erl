@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.41 2002/04/14 18:37:00 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.42 2002/04/22 06:59:05 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -284,6 +284,7 @@ clean([], Acc) -> Acc.
 %% First, get rid of obsolete stuff.
 not_bad(last_point, _) -> false;
 not_bad(default_point, _) -> false;
+not_bad(smooth_preview, _) -> false;
 not_bad(none, _) -> false;
 
 %% Crashes have occurred.

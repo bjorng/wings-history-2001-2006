@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.26 2002/04/19 18:38:44 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.27 2002/04/22 06:59:05 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -76,6 +76,8 @@ event(#mousebutton{button=4,state=?SDL_RELEASED}, _Redraw) ->
     zoom_step(-1);
 event(#mousebutton{button=5,state=?SDL_RELEASED}, _Redraw) ->
     zoom_step(1);
+event(#mousebutton{button=B}, _Redraw) when B==4; B==5 ->
+    keep;
 event(Ev, Redraw) ->
     case wings_pref:get_value(camera_mode, blender) of
 	blender -> blender(Ev, Redraw);
@@ -328,7 +330,7 @@ pan(Dx, Dy) ->
     
 stop_camera(#camera{ox=OX,oy=OY}) ->
     wings_io:clear_message(),
-    wings_io:putback_event(redraw),
+    wings_wm:dirty(),
     case wings_io:ungrab() of
 	still_grabbed ->
 	    sdl_mouse:warpMouse(OX, OY),

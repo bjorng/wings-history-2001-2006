@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.70 2002/04/12 15:43:35 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.71 2002/04/22 06:59:05 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([model_changed/0,model_changed/1,sel_changed/1,
 	 clear_orig_sel/0,make_vec_dlist/1,
+	 draw_smooth_faces/2,
 	 get_dlist/0,put_dlist/1,render/1,ground_and_axes/0,
 	 axis_letters/0]).
 
@@ -65,7 +66,7 @@ render(St) ->
     ?CHECK_ERROR(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     ?CHECK_ERROR(),
-    Smooth = wings_pref:get_value(smooth_preview),
+    Smooth = not wings_pref:get_value(workmode),
     update_display_lists(St),
     make_sel_dlist(Smooth, St),
     make_normals_dlist(St),
@@ -93,7 +94,8 @@ draw_smooth_shapes(St) ->
     gl:enable(?GL_LIGHTING),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:enable(?GL_BLEND),
-    gl:lightModeli(?GL_LIGHT_MODEL_COLOR_CONTROL, ?GL_SEPARATE_SPECULAR_COLOR),
+    ?CHECK_ERROR(),
+    %%gl:lightModeli(?GL_LIGHT_MODEL_COLOR_CONTROL, ?GL_SEPARATE_SPECULAR_COLOR),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     gl:polygonOffset(2.0, 2.0),
     draw_faces(),
@@ -130,7 +132,6 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
 	false -> ok;
 	true ->
 	    case {Wire,SelMode} of
-		{true,_} -> gl:color3f(1.0, 1.0, 1.0);
 		{true,_} -> gl:color3f(1.0, 1.0, 1.0);
 		{_,body} -> gl:color3f(0.3, 0.3, 0.3);
 		{_,_} -> gl:color3f(0.0, 0.0, 0.0)
@@ -257,7 +258,7 @@ draw_faces() ->
 update_display_lists(#st{shapes=Shs}=St) ->
     case get_dlist() of
 	undefined ->
-	    Smooth = wings_pref:get_value(smooth_preview),
+	    Smooth = not wings_pref:get_value(workmode),
 	    gl:newList(?DL_FACES, ?GL_COMPILE),
 	    foreach(fun(#we{perm=Perm}=We) when ?IS_VISIBLE(Perm) ->
 			    draw_faces(We, Smooth, St);

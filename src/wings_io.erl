@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.43 2002/04/11 16:12:04 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.44 2002/04/22 06:59:05 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -19,7 +19,7 @@
 	 update/1,
 	 event/1,button/2,
 	 info/1,message/1,message_right/1,clear_message/0,
-	 progress/1,progress_tick/0,
+	 disable_progress/0,progress/1,progress_tick/0,
 	 clear_menu_sel/0,
 	 sunken_rect/5,raised_rect/4,raised_rect/5,
 	 text_at/2,text_at/3,text/1,menu_text/3,axis_text/4,space_at/2,
@@ -115,6 +115,10 @@ menubar(Menubar) ->
     Io = get_state(),
     put_state(Io#io{menubar=Menubar}).
 
+disable_progress() ->
+    Io = get_state(),
+    put_state(Io#io{progress_pos=none}).
+    
 progress(Message) ->
     display(fun(_W, _H) ->
 		    draw_message(fun() -> text_at(0, Message) end)
@@ -123,20 +127,23 @@ progress(Message) ->
     put_state(Io#io{progress_pos=length(Message)*?CHAR_WIDTH}).
     
 progress_tick() ->
-    #io{w=W,h=H,progress_pos=Pos} = Io = get_state(),
-    gl:drawBuffer(?GL_FRONT),
-    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-    gl:shadeModel(?GL_FLAT),
-    gl:disable(?GL_DEPTH_TEST),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:loadIdentity(),
-    glu:ortho2D(0.0, float(W), float(H), 0.0),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
-    gl:color3f(0.0, 0.0, 0.0),
-    draw_message(fun() -> text_at(Pos, ".") end),
-    cleanup_after_drawing(),
-    put_state(Io#io{progress_pos=Pos+?CHAR_WIDTH}).
+    case get_state() of
+	#io{progress_pos=none} -> ok;
+	#io{w=W,h=H,progress_pos=Pos}=Io ->
+	    gl:drawBuffer(?GL_FRONT),
+	    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+	    gl:shadeModel(?GL_FLAT),
+	    gl:disable(?GL_DEPTH_TEST),
+	    gl:matrixMode(?GL_PROJECTION),
+	    gl:loadIdentity(),
+	    glu:ortho2D(0.0, float(W), float(H), 0.0),
+	    gl:matrixMode(?GL_MODELVIEW),
+	    gl:loadIdentity(),
+	    gl:color3f(0.0, 0.0, 0.0),
+	    draw_message(fun() -> text_at(Pos, ".") end),
+	    cleanup_after_drawing(),
+	    put_state(Io#io{progress_pos=Pos+?CHAR_WIDTH})
+    end.
 
 info(Info) ->
     Io = get_state(),
@@ -289,9 +296,9 @@ icon_button(axes=Name, _St) ->
 icon_button(wire=Name, _St) ->
     icon_button(Name, wire_mode, true);
 icon_button(flatshade=Name, _St) ->
-    icon_button(Name, smooth_preview, false);
+    icon_button(Name, workmode, true);
 icon_button(smooth=Name, _St) ->
-    icon_button(Name, smooth_preview, true);
+    icon_button(Name, workmode, false);
 icon_button(perspective=Name, _St) ->
     icon_button(Name, orthogonal_view, true);
 icon_button(Name, #st{selmode=Name}) -> {Name,down};
