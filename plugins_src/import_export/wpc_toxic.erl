@@ -1,10 +1,16 @@
-%%%-------------------------------------------------------------------
-%%% File    : wpc_toxic.erl
-%%% Author  : Dan Gudmundsson <dgud@users.sf.net>
-%%% Description : An exporter for the Toxic Renderer.
-%%%
-%%% Created :  7 Jun 2004 by Dan Gudmundsson <dgud@users.sf.net>
-%%%-------------------------------------------------------------------
+%%
+%%  wpc_toxic.erl
+%%
+%%     Toxic Plugin User Interface and Exporter.
+%%
+%%  Copyright (c) 2004 Dan Gudmundsson Raimo Niskanen
+%%
+%%  See the file "license.terms" for information on usage and redistribution
+%%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
+%%
+%%     $Id: wpc_toxic.erl,v 1.2 2004/06/10 06:55:13 dgud Exp $
+%%
+
 -module(wpc_toxic).
 
 -export([init/0,menu/2,dialog/2,command/2]).
