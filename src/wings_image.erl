@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.23 2003/05/21 04:58:48 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.24 2003/06/03 18:08:54 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -138,7 +138,7 @@ handle(init_opengl, #ist{images=Images}=S) ->
     S;
 handle({new,#e3d_image{name=Name0}=Im0}, #ist{next=Id,images=Images0}=S) ->
     Name = make_unique(Name0, Images0),
-    Im = Im0#e3d_image{name=Name},
+    Im = maybe_convert(Im0#e3d_image{name=Name}),
     Images = gb_trees:insert(Id, Im, Images0),
     make_texture(Id, Im),
     {Id,S#ist{next=Id+1,images=Images}};
@@ -175,13 +175,21 @@ handle({update_filename,Id,NewName}, #ist{images=Images0}=S) ->
     Im = Im0#e3d_image{filename=NewName},
     Images = gb_trees:update(Id, Im, Images0),
     S#ist{images=Images};
-handle({draw_preview,X,Y,W,H,Id}, #ist{images=Images}=S) ->
+handle({draw_preview,X,Y,W,H,Id}, S) ->
     {case get(Id) of
 	 undefined -> error;
-	 TxId ->
-	     Im = gb_trees:get(Id, Images),
-	     draw_image(X, Y, W, H, TxId, Im)
+	 TxId -> draw_image(X, Y, W, H, TxId)
      end,S}.
+
+maybe_convert(#e3d_image{type=Type0,order=Order}=Im) ->
+    case {img_type(Type0),Order} of
+	{Type0,lower_left} -> Im;
+	{Type,_} -> e3d_image:convert(Im, Type, 1, lower_left)
+    end.
+
+img_type(b8g8r8) -> r8g8b8;
+img_type(b8g8r8a8) -> r8g8b8a8;
+img_type(Type) -> Type.
 
 init_background_tx() ->
     White = [255,255,255],
@@ -350,7 +358,7 @@ redraw(Id) ->
 	Im -> redraw_1(Id, Im)
     end.
 
-redraw_1(Id, #e3d_image{width=Iw,height=Ih}=Im) ->
+redraw_1(Id, #e3d_image{width=Iw,height=Ih}) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     Aspect = Iw/Ih,
     {W0,H0} = wings_wm:win_size(),
@@ -372,7 +380,7 @@ redraw_1(Id, #e3d_image{width=Iw,height=Ih}=Im) ->
     draw_background(X, Y, W, H),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    draw_image(X, Y, W, H, txid(Id), Im),
+    draw_image(X, Y, W, H, txid(Id)),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:popAttrib().
 
@@ -393,15 +401,9 @@ draw_background(X, Y, W, H) ->
     gl:vertex2i(X+W, Y),
     gl:'end'().
 
-draw_image(X, Y, W, H, TxId, #e3d_image{order=Order}) ->
-    case Order of
-	upper_left ->
-	    Ua = 0, Ub = 1,
-	    Va = 0, Vb = 1;
-	lower_left ->
-	    Ua = 0, Ub = 1,
-	    Va = 1, Vb = 0
-    end,
+draw_image(X, Y, W, H, TxId) ->
+    Ua = 0, Ub = 1,
+    Va = 1, Vb = 0,
     gl:bindTexture(?GL_TEXTURE_2D, TxId),
     gl:'begin'(?GL_QUADS),
     gl:texCoord2i(Ua, Va),
