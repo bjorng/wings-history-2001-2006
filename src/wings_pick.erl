@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.12 2001/11/25 08:17:12 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.13 2001/11/25 13:46:19 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -162,11 +162,11 @@ update_selection(Id, Item, [], Acc) ->
 %%% Pick up raw hits.
 %%%
 
-get_hits(0, _, Acc) -> sort(Acc);
-get_hits(N, <<NumNames:32,Z0:32,_:32,Tail0/binary>>, Acc) ->
+get_hits(0, _, Acc) -> Acc;
+get_hits(N, <<NumNames:32,_:32,_:32,Tail0/binary>>, Acc) ->
     <<Names:NumNames/binary-unit:32,Tail/binary>> = Tail0,
     Name = get_name(NumNames, Names, []),
-    get_hits(N-1, Tail, [{Z0,Name}|Acc]).
+    get_hits(N-1, Tail, [Name|Acc]).
 
 get_name(0, Tail, Acc) -> list_to_tuple(reverse(Acc));
 get_name(N, <<Name:32,Names/binary>>, Acc) ->
@@ -178,19 +178,37 @@ get_name(N, <<Name:32,Names/binary>>, Acc) ->
 
 filter_hits(Hits, X, Y, #st{selmode=Mode,shapes=Shs}) ->
     EyePoint = wings_view:eye_point(),
-    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint).
+    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, none).
 
-filter_hits_1([{_,{Id,Face}}|Hits], Shs, Mode, X, Y, EyePoint) ->
+filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
     #shape{sh=We} = gb_trees:get(Id, Shs),
     Vs = [V|_] = wings_face:surrounding_vertices(Face, We),
     N = wings_face:face_normal(Vs, We),
     D = e3d_vec:dot(wings_vertex:pos(V, We), N),
     case e3d_vec:dot(EyePoint, N) of
-	S when S < D -> filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint);
-	S -> convert_hit(Mode, X, Y, Id, Face, We)
+	S when S < D ->				%Ignore back-facing face.
+	    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit0);
+	S ->					%Candidate.
+	    Hit = best_hit(Id, Face, Vs, We, EyePoint, Hit0),
+	    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit)
     end;
-filter_hits_1([], St, Mode, X, Y, EyePoint) -> none.
-    
+filter_hits_1([], St, Mode, X, Y, EyePoint, none) -> none;
+filter_hits_1([], St, Mode, X, Y, EyePoint, {_,{Id,Face,We}}) ->
+    convert_hit(Mode, X, Y, Id, Face, We).
+
+best_hit(Id, Face, Vs, We, EyePoint, Hit0) ->
+    Center = wings_vertex:center(Vs, We),
+    D = e3d_vec:sub(Center, EyePoint),
+    DistSqr = e3d_vec:dot(D, D),
+    case Hit0 of
+	none ->
+	    {DistSqr,{Id,Face,We}};
+	{DistSqr0,_} when DistSqr < DistSqr0 ->
+	    {DistSqr,{Id,Face,We}};
+	Other ->
+	    Hit0
+    end.
+
 %%
 %% Given a selection hit, return the correct vertex/edge/face/body.
 %%
@@ -244,6 +262,9 @@ project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
     {true,Xs,Ys,_} = project(Px, Py, Pz, ModelMatrix, ProjMatrix, ViewPort),
     {Xs,Ys}.
 
+%%
+%% glu:project/6 is broken in the current version of ESDL.
+%%
 project(Objx, Objy, ObjZ, ModelMatrix0, ProjMatrix0, [Vx,Vy,Vw,Vh]) ->
     ModelMatrix = list_to_tuple(ModelMatrix0),
     ProjMatrix = list_to_tuple(ProjMatrix0),
@@ -289,15 +310,9 @@ pick_all(X0, Y0, W, H, St) ->
 	0 -> none;
 	NumHits ->
  	    HitData = sdl_util:readBin(HitBuf, ?HIT_BUF_SIZE),
- 	    Hits = get_all_hits(NumHits, HitData, []),
+ 	    Hits = get_hits(NumHits, HitData, []),
 	    add_to_selection(Hits, St)
     end.
-
-get_all_hits(0, _, Acc) -> Acc;
-get_all_hits(N, <<NumNames:32,_:32,_:32,Tail0/binary>>, Acc) ->
-    <<Names:NumNames/binary-unit:32,Tail/binary>> = Tail0,
-    Name = get_name(NumNames, Names, []),
-    get_all_hits(N-1, Tail, [Name|Acc]).
 
 add_to_selection(Hits0, #st{selmode=body}=St) ->
     Hits1 = sofs:relation(Hits0, [{id,data}]),
