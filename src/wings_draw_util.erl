@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.99 2003/08/21 06:02:51 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.100 2003/08/23 09:32:01 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -659,7 +659,7 @@ consistent_normal({A0,A1,A2}, {B0,B1,B2}, {C0,C1,C2}, {X,Y,Z})
     D20 = B0-C0,
     D21 = B1-C1,
     D22 = B2-C2,
-    X*(D11*D22-D12*D21) + Y*(D12*D20-D10*D22) + Z*(D10*D21-D11*D20) > 0.
+    X*(D11*D22-D12*D21) + Y*(D12*D20-D10*D22) + Z*(D10*D21-D11*D20) > 0.2.
 
 %% force_flat_color(OriginalDlist, Color) -> NewDlist.
 %%  Wrap a previous display list (that includes gl:color*() calls)
