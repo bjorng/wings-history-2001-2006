@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.25 2002/06/16 18:08:23 bjorng Exp $
+#     $Id: Makefile,v 1.26 2002/07/10 17:09:28 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -107,4 +107,6 @@ $(EBIN)/%.beam: $(ESRC)/%.erl
 
 
 $(TARGET_FILES): wings.hrl
+
+$(EBIN)/wings_file.beam $(EBIN)/wings_help.beam: ../vsn.mk
 
