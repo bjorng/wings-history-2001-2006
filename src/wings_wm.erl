@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.55 2003/01/10 17:05:53 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.56 2003/01/10 19:14:56 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -1132,17 +1132,16 @@ ctrl_event(#mousebutton{button=1,state=?SDL_RELEASED}, #ctrl{prev_focus=Focus}=C
     grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
 ctrl_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
-	   #ctrl{state=moving,children=Children,local={LocX,LocY}}=Cs) ->
+	   #ctrl{state=moving,children=Children,local={LocX,LocY}}) ->
     {X1,Y1} = local2global(X0, Y0),
     X = X1 - LocX,
     Y = Y1 - LocY,
-    Self = get(wm_active),
-    #win{x=OldX,y=OldY} = get_window_data(Self),
+    {OldX,OldY} = win_ul(),
     Dx0 = X-OldX,
     Dy0 = Y-OldY,
-    {Dx,Dy} = ctrl_constrain_move(Dx0, Dy0, Self),
+    {Dx,Dy} = ctrl_constrain_move(Dx0, Dy0),
     update_windows(Children, [{dx,Dx},{dy,Dy}]),
-    get_ctrl_event(Cs);
+    keep;
 ctrl_event(#mousemotion{state=?SDL_RELEASED},
 	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
     grab_focus(Focus),
@@ -1167,7 +1166,7 @@ ctrl_redraw(#ctrl{title=Title}) ->
     wings_io:text_at(10, TitleBarH-5, Title),
     keep.
 
-ctrl_constrain_move(Dx0, Dy0, {_,Client}) ->
+ctrl_constrain_move(Dx0, Dy0) ->
     {{DeskX,DeskY},{DeskW,DeskH}} = win_rect(desktop),
     {{X0,Y0},{W,_}} = win_rect(),
     Dx = case X0+Dx0-DeskX of
@@ -1178,6 +1177,7 @@ ctrl_constrain_move(Dx0, Dy0, {_,Client}) ->
 	     _ ->
 		 Dx0
 	 end,
+    {_,Client} = get(wm_active),
     {{_,Cy},{_,Ch}} = win_rect(Client),
     Dy = if 
 	     Y0+Dy0 < DeskY ->
@@ -1196,7 +1196,6 @@ ctrl_constrain_move(Dx0, Dy0, {_,Client}) ->
 -record(rsz,
 	{state=idle,				%idle|moving
 	 local,
-	 prev,
 	 prev_focus				%Previous focus holder.
 	}).
 
@@ -1222,27 +1221,27 @@ resize_event(#mousebutton{button=1,state=?SDL_PRESSED},
 resize_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
     Focus = focus_window(),
     grab_focus(get(wm_active)),
-    get_resize_event(Rst#rsz{prev={X,Y},local={X,Y},state=moving,prev_focus=Focus});
+    get_resize_event(Rst#rsz{local={X,Y},state=moving,prev_focus=Focus});
 resize_event(#mousebutton{button=1,state=?SDL_RELEASED}, #rsz{prev_focus=Focus}=Rst) ->
     grab_focus(Focus),
     get_resize_event(Rst#rsz{state=idle});
 resize_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
-	     #rsz{state=moving,local={LocX,LocY}}=Rst) ->
+	     #rsz{state=moving,local={LocX,LocY}}) ->
     {X1,Y1} = local2global(X0, Y0),
     X = X1 - LocX,
     Y = Y1 - LocY,
+    {OldX,OldY} = win_ul(),
+    Dx0 = X-OldX,
+    Dy0 = Y-OldY,
+    {Dx,Dy} = resize_constrain(Dx0, Dy0),
     {resizer,Client} = Self = get(wm_active),
-    #win{x=OldX,y=OldY} = get_window_data(Self),
-    Dx = X-OldX,
-    Dy = Y-OldY,
     update_window(Client, [{dw,Dx},{dh,Dy}]),
     NewPos = resize_pos(Client),
     move(Self, NewPos),
     ResizeMsg = {client_resized,Client},
     send({controller,Client}, ResizeMsg),
     send({vscroller,Client}, ResizeMsg),
-    dirty(),
-    get_resize_event(Rst#rsz{prev={X,Y}});
+    keep;
 resize_event(#mousemotion{state=?SDL_RELEASED},
 	   #rsz{state=moving,prev_focus=Focus}=Rst) ->
     grab_focus(Focus),
@@ -1255,3 +1254,21 @@ resize_pos(Client) ->
 	false ->  {X+W-13,Y+H-13,Z+0.5};
 	true -> {X+W,Y+H-13,Z+0.5}
     end.
+
+resize_constrain(Dx0, Dy0) ->
+    {{DeskX,DeskY},{DeskW,DeskH}} = win_rect(desktop),
+    {{X,Y},{W,H}} = win_rect(),
+    Dx = if
+	     DeskX+DeskW =< X+H+Dx0 ->
+		 DeskX+DeskW-X-W;
+	     true ->
+		 Dx0
+	 end,
+    Dy = if 
+	     DeskY+DeskH =< Y+H+Dy0 ->
+		 DeskY+DeskH-Y-H;
+	     true ->
+		 Dy0
+	 end,
+    {Dx,Dy}.
+
