@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.78 2003/04/05 16:16:46 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.79 2003/05/04 07:51:24 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -420,7 +420,8 @@ not_bad(current_view, _) -> false;
 not_bad(camera_fov, _) -> false;
 not_bad(camera_hither, _) -> false;
 not_bad(camera_yon, _) -> false;
-    
+not_bad(show_wire_backfaces, _) -> false;
+     
 %% Crashes have occurred.
 not_bad(last_axis, Val) -> is_wings_vector(Val);
 not_bad(default_axis, Val) -> is_wings_vector(Val);

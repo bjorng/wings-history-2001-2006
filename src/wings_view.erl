@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.115 2003/04/21 10:16:59 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.116 2003/05/04 07:51:24 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -50,9 +50,6 @@ menu(St) ->
      {"Show Edges",show_edges,"Show edges in workmode",crossmark(show_edges)},
      {"Show Normals",show_normals,"Show normals for selected elements",
       crossmark(show_normals)},
-     {"Show Wireframe Backfaces",show_wire_backfaces,
-      "Show back-facing faces for wireframed objects",
-     crossmark(show_wire_backfaces)},
      separator,
      {"Reset View",reset,"Reset view to the default position"},
      {"Aim",aim,"Aim the camera at the selected element"},
@@ -858,7 +855,6 @@ init() ->
     wings_pref:set_default(number_of_lights, 1),
     wings_pref:set_default(show_normals, false),
     wings_pref:set_default(show_bb, true),
-    wings_pref:set_default(show_wire_backfaces, false),
     wings_pref:set_default(show_colors, true),
     wings_pref:set_default(show_materials, true),
     wings_pref:set_default(show_textures, true),
