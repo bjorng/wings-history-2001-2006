@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.101 2003/02/17 07:16:29 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.102 2003/02/22 13:18:39 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -136,14 +136,20 @@ update_fun(#dlo{vs=none,src_we=#we{vp=Vtab}}=D, #st{selmode=vertex}=St) ->
     gl:endList(),
     update_fun(D#dlo{vs=UnselDlist}, St);
 update_fun(D, St) ->
-    update_fun_2(D, wings_pref:get_value(workmode), St).
+    update_fun_2(D, St).
 
-update_fun_2(#dlo{smooth=none,src_we=We}=D, false, St) ->
-    {List,Tr} = smooth_dlist(We, St),
-    update_fun_3(D#dlo{smooth=List,transparent=Tr});
-update_fun_2(#dlo{hard=none,src_we=#we{he=Htab}=We}=D, true, _) ->
+update_fun_2(#dlo{smooth=none,src_we=We}=D, St) ->
+    case any_smooth_window() of
+	false -> update_fun_3(D);
+	true ->
+	    {List,Tr} = smooth_dlist(We, St),
+	    update_fun_3(D#dlo{smooth=List,transparent=Tr})
+    end;
+update_fun_2(D, _) -> update_fun_3(D).
+
+update_fun_3(#dlo{hard=none,src_we=#we{he=Htab}=We}=D) ->
     case gb_sets:is_empty(Htab) orelse not wings_pref:get_value(show_edges) of
-	true -> update_fun_3(D);
+	true -> update_fun_4(D);
 	false ->
 	    List = gl:genLists(1),
 	    gl:newList(List, ?GL_COMPILE),
@@ -156,14 +162,31 @@ update_fun_2(#dlo{hard=none,src_we=#we{he=Htab}=We}=D, true, _) ->
 		    end, gb_sets:to_list(Htab)),
 	    gl:'end'(),
 	    gl:endList(),
-	    update_fun_3(D#dlo{hard=List})
+	    update_fun_4(D#dlo{hard=List})
     end;
-update_fun_2(D, _, _) -> update_fun_3(D).
+update_fun_3(D) -> update_fun_4(D).
 
-update_fun_3(D) ->
+update_fun_4(D) ->
     case wings_pref:get_value(show_normals) of
 	false -> D;
 	true -> make_normals_dlist(D)
+    end.
+
+any_smooth_window() ->
+    case wings_wm:get_prop(geom, workmode) of
+	false -> true;
+	true -> any_smooth_window_1(2)
+    end.
+
+any_smooth_window_1(N) ->
+    Name = {geom,N},
+    case wings_wm:is_window(Name) of
+	false -> false;
+	true ->
+	    case wings_wm:get_prop(Name, workmode) of
+		true -> any_smooth_window_1(N+1);
+		false -> true
+	    end
     end.
 
 update_sel_dlist() ->
