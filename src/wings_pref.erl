@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.73 2003/02/17 19:17:40 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.74 2003/02/22 14:23:40 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -398,8 +398,6 @@ not_bad(none, _) -> false;
 not_bad(use_front_buffer, _) -> false;
 not_bad(one_button_mouse, _) -> false;
 not_bad(face_color, _) -> false;
-not_bad(workmode, _) -> false;
-not_bad(orthogonal_view, _) -> false;
 not_bad(show_memory_used, _) -> false;
     
 %% Crashes have occurred.
