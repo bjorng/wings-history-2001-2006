@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.16 2002/01/31 07:43:31 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.17 2002/02/01 05:16:26 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -85,8 +85,8 @@ ex_new_vertices(V, VsSet, OrigWe, #we{vs=Vtab}=We0) ->
 
 edge_ratio(V, VsSet, #we{vs=Vtab}) ->
     case gb_trees:is_defined(V, Vtab) of
-	false -> 1.0;
-	true -> 0.5
+	false -> 0.5;
+	true -> 0.25
     end.
 
 ex_connect([Va,Face|[Vb|_]=T], More, We0) ->
