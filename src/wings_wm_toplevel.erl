@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.32 2003/07/02 18:45:12 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.33 2003/07/02 19:43:56 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -455,7 +455,7 @@ ctrl_new_resizer(Client) ->
     Rst = #rsz{},
     Z = wings_wm:win_z(Client),
     {X,Y} = resizer_pos(Client),
-    wings_wm:new(Name, {X,Y,Z+1}, {12,12},
+    wings_wm:new(Name, {X,Y,Z+1}, {13,13},
 		 {seq,push,get_resize_event(Rst)}),
     Name.
 

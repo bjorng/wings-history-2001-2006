@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.114 2003/07/02 18:45:12 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.115 2003/07/02 19:43:56 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -1126,7 +1126,7 @@ message_redraw(Msg, Right) ->
 	_ -> ok
     end,
     case os:type() of
-	{unix,darwin} -> draw_resizer(W-23, -4);
+	{unix,darwin} -> draw_resizer(W-23, -5);
 	_ -> ok
     end,
     keep.
