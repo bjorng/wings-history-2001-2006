@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.81 2003/03/09 07:23:57 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.82 2003/03/12 05:19:35 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -293,6 +293,8 @@ marquee_filter_1([{Id,Face}|Hits], Shs, Mode, EyePoint, Acc) ->
 	_S ->					%Front-facing face.
 	    marquee_filter_1(Hits, Shs, Mode, EyePoint, [{Id,Face}|Acc])
     end;
+marquee_filter_1([{_}|Hits], Shs, Mode, EyePoint, Acc) ->
+    marquee_filter_1(Hits, Shs, Mode, EyePoint, Acc);
 marquee_filter_1([], _, _, _, Acc) -> Acc.
 
 face_vtx_pos(Face, Id, #we{vp=Vtab}=We) ->
