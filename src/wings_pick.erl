@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.54 2002/08/05 05:14:19 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.55 2002/08/08 07:58:06 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -125,6 +125,8 @@ insert_hilite(#dlo{src_we=#we{id=Id}}=D, {_,_,{Id,_}}, DrawFun) ->
     {D#dlo{hilite=DrawFun},[]};
 insert_hilite(D, _, _) -> {D#dlo{hilite=none},[]}.
 
+hilite_draw_sel_fun({_,_,{_}}, _) ->
+    fun() -> ok end;
 hilite_draw_sel_fun({Mode,_,{Id,Item}=Hit}, St) ->
     fun() ->
 	    hilite_color(Hit, St),
@@ -432,9 +434,21 @@ raw_pick(X0, Y0, St) ->
 	    filter_hits(Hits, X, Y, St)
     end.
 
+update_selection({Mode,MM,{Id}}, #st{sel=Sel0}=St) ->
+    {Type,Sel} = update_light_selection(Id, St, Sel0, []),
+    {Type,MM,St#st{selmode=Mode,sel=Sel}};
 update_selection({Mode,MM,{Id,Item}}, #st{sel=Sel0}=St) ->
     {Type,Sel} = update_selection(Id, Item, Sel0, []),
     {Type,MM,St#st{selmode=Mode,sel=Sel}}.
+
+update_light_selection(Id, St, [{I,_}=H|T], Acc) when Id > I ->
+    update_light_selection(Id, St, T, [H|Acc]);
+update_light_selection(Id, #st{selmode=Mode}=St, [{I,_}|_]=T, Acc) when Id < I ->
+    {add,reverse(Acc, [{Id,wings_sel:get_all_items(Mode, Id, St)}|T])};
+update_light_selection(_, _, [{_,_}|T], Acc) -> %Id == I
+    {delete,reverse(Acc, T)};
+update_light_selection(Id, #st{selmode=Mode}=St, [], Acc) ->
+    {add,reverse(Acc, [{Id,wings_sel:get_all_items(Mode, Id, St)}])}.
 
 update_selection(Id, Item, [{I,_}=H|T], Acc) when Id > I ->
     update_selection(Id, Item, T, [H|Acc]);
@@ -474,6 +488,8 @@ get_name(N, <<Name:32/signed,Names/binary>>, Acc) ->
 %%% Filter hits to obtain just one hit.
 %%%
 
+filter_hits([{Id}|_], _, _, #st{selmode=Mode}) ->
+    {Mode,original,{Id}};
 filter_hits(Hits, X, Y, #st{selmode=Mode0,shapes=Shs,sel=Sel}) ->
     Mode = case Sel of
 	       [] when Mode0 =/= body ->
@@ -707,16 +723,17 @@ marquee_draw(St) -> select_draw(St).
 %%
 
 select_draw(_) ->
-    wings_draw_util:update(fun select_draw/2, []).
+    wings_draw_util:map(fun select_draw_fun/2, []).
 
-select_draw(eol, _) -> eol;
-select_draw(#dlo{pick=none,src_we=We}=D, _) ->
+select_draw_fun(#dlo{pick=none,work=Work,src_we=We}=D, _) when ?IS_LIGHT(We) ->
+    draw_dlist(D#dlo{pick=Work});
+select_draw_fun(#dlo{pick=none,src_we=We}=D, _) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
     select_draw_1(We),
     gl:endList(),
     draw_dlist(D#dlo{pick=List});
-select_draw(D, _) -> draw_dlist(D).
+select_draw_fun(D, _) -> draw_dlist(D).
 
 draw_dlist(#dlo{mirror=none,pick=Pick,src_we=#we{id=Id}}=D) ->
     gl:pushName(Id),

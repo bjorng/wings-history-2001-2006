@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.38 2002/08/04 17:32:54 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.39 2002/08/08 07:58:06 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -177,7 +177,7 @@ render(#st{selmode=Mode}=St) ->
     gl:enable(?GL_DEPTH_TEST),
     gl:enable(?GL_CULL_FACE),
     wings_view:projection(),
-    wings_view:model_transformations(),
+    wings_view:model_transformations(true),
     ground_and_axes(),
     show_saved_bb(St),
     #du{dl=Dl} = get(?MODULE),
@@ -210,6 +210,10 @@ render_object(#dlo{mirror=Matrix}=D, Mode, Work, RenderTrans) ->
     render_object_1(D, Mode, Work, RenderTrans),
     gl:popMatrix().
 
+render_object_1(#dlo{src_we=We}=D, Mode, _, false) when ?IS_LIGHT(We) ->
+    wings_light:render(D);
+render_object_1(#dlo{src_we=#we{light=L}}, _, _, _) when L =/= none ->
+    ok;
 render_object_1(D, Mode, true, _) ->
     render_plain(D, Mode);
 render_object_1(#dlo{transparent=true}=D, _, false, false) ->
@@ -222,7 +226,6 @@ render_object_1(#dlo{transparent=false}=D, _, false, RenderTrans) ->
     render_smooth(D, RenderTrans).
 
 render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
-
     %% Draw faces for winged-edge-objects.
     case Wire of
 	false ->
@@ -242,7 +245,7 @@ render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
 	false -> ok;
 	true ->
 	    case {Wire,SelMode} of
-		{true,_} -> gl:color3f(1.0, 1.0, 1.0);
+		{true,_} -> gl:color3f(1, 1, 1);
 		{_,body} -> gl:color3f(0.3, 0.3, 0.3);
 		{_,_} -> gl:color3f(0.0, 0.0, 0.0)
 	    end,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.76 2002/07/28 12:36:47 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.77 2002/08/08 07:58:06 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -536,9 +536,10 @@ do_export(Exporter, Name, #st{shapes=Shs}=St) ->
     Exporter(Name, Contents).
 
 do_export(#we{perm=Perm}, Acc) when ?IS_NOT_VISIBLE(Perm) -> Acc;
-do_export(#we{name=Name}=We, Acc) ->
+do_export(#we{name=Name,light=none}=We, Acc) ->
     Mesh = make_mesh(We),
-    [#e3d_object{name=Name,obj=Mesh}|Acc].
+    [#e3d_object{name=Name,obj=Mesh}|Acc];
+do_export(_, Acc) -> Acc.
 
 make_mesh(We0) ->
     #we{fs=Ftab,vs=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We0, 0),

@@ -8,16 +8,16 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.74 2002/08/04 17:32:54 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.75 2002/08/08 07:58:07 bjorng Exp $
 %%
 
 -module(wings_view).
 -export([menu/3,command/2,
 	 virtual_mirror/2,
-	 init/0,init_light/0,
+	 init/0,
 	 current/0,set_current/1,
 	 projection/0,perspective/0,
-	 model_transformations/0,eye_point/0]).
+	 model_transformations/0,model_transformations/1,eye_point/0]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -48,6 +48,8 @@ menu(X, Y, _) ->
 	    {"Frame",frame},
 	    {"Ortographic View",orthogonal_view,
 	     crossmark(orthogonal_view)},
+	    separator,
+	    {"Scene Lights",scene_lights,crossmark(scene_lights)},
 	    {one_of(L == 1, "Two lights", "One light"),toggle_lights},
 	    separator,
  	    {"Show Colors",show_colors,crossmark(show_colors)},
@@ -382,6 +384,7 @@ smooth_dlist(St) ->
 			   end, []).
 
 smooth_dlist(eol, _) -> eol;
+smooth_dlist(#dlo{src_we=#we{light=L}}=D, _) when L =/= none -> {D,[]};
 smooth_dlist(#dlo{smoothed=none,src_we=We0}=D, St) ->
     wings_io:disable_progress(),
     #we{es=Etab,vs=Vtab} = We = wings_subdiv:smooth(We0),
@@ -402,8 +405,8 @@ smooth_redraw(#sm{st=St}=Sm) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:enable(?GL_DEPTH_TEST),
     gl:frontFace(?GL_CCW),
-    wings_view:projection(),
-    wings_view:model_transformations(),
+    projection(),
+    model_transformations(true),
     wings_draw_util:fold(fun(D, _) -> smooth_redraw(D, Sm, false) end, []),
     wings_draw_util:fold(fun(D, _) -> smooth_redraw(D, Sm, true) end, []),
     gl:popAttrib(),
@@ -422,6 +425,8 @@ smooth_redraw(#dlo{mirror=Matrix}=D, Sm, Flag) ->
     gl:frontFace(?GL_CCW);
 smooth_redraw(_, _, _) -> ok.
 
+smooth_redraw_1(#dlo{src_we=#we{light=L}}, _Sm, _RenderTrans) when L =/= none ->
+    ok;
 smooth_redraw_1(#dlo{smoothed=[Dlist,Es],transparent=Trans}=D, Sm, RenderTrans) ->
     ?CHECK_ERROR(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
@@ -512,6 +517,8 @@ init() ->
     wings_pref:set_default(camera_hither, 0.25),
     wings_pref:set_default(camera_yon, 1000.0),
 
+    wings_pref:set_default(scene_lights, false),
+
     %% Always reset the following preferences + the view itself.
     wings_pref:set_value(workmode, true),
     wings_pref:set_value(orthogonal_view, false),
@@ -521,18 +528,6 @@ init() ->
 		 yon=wings_pref:get_value(camera_yon)},
     set_current(View),
     reset().
-
-init_light() ->
-    gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0.1,0.1,0.1,1.0}),
-    case wings_pref:get_value(number_of_lights) of
-	1 ->
-	    gl:enable(?GL_LIGHT0),
-	    gl:disable(?GL_LIGHT1);
-	2 ->
-	    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {0.5,0.5,0.5,1}),
-	    gl:enable(?GL_LIGHT0),
-	    gl:enable(?GL_LIGHT1)
-    end.
 
 reset() ->
     View = current(),
@@ -561,25 +556,28 @@ perspective() ->
     end.
 
 model_transformations() ->
+    model_transformations(false).
+
+model_transformations(IncludeLights) ->
     #view{origin=Origin,distance=Dist0,azimuth=Az,
 	  elevation=El,pan_x=PanX,pan_y=PanY} = current(),
     {_,_,W,H} = wings_wm:viewport(),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-
-    case wings_pref:get_value(number_of_lights) of
-	1 ->
-	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.0,0.71,0.71,0.0});
-	2 ->
-	    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.71,0.71,0.0,0.0}),
-	    gl:lightfv(?GL_LIGHT1, ?GL_POSITION, {-0.71,-0.71,0.0})
+    if
+	IncludeLights -> wings_light:camera_lights();
+	true -> ok
     end,
     Dist = Dist0 * math:sqrt((W*H) / (640*480)),
     gl:translatef(PanX, PanY, -Dist),
     gl:rotatef(El, 1.0, 0.0, 0.0),
     gl:rotatef(Az, 0.0, 1.0, 0.0),
     {OX,OY,OZ} = Origin,
-    gl:translatef(OX, OY, OZ).
+    gl:translatef(OX, OY, OZ),
+    if
+	IncludeLights -> wings_light:global_lights();
+	true -> ok
+    end.
 
 eye_point() ->
     #view{origin=Origin,distance=Dist0,azimuth=Az,
@@ -628,8 +626,7 @@ toggle_lights() ->
 		 1 -> 2;
 		 2 -> 1
 	     end,
-    wings_pref:set_value(number_of_lights, Lights),
-    init_light().
+    wings_pref:set_value(number_of_lights, Lights).
 
 along(x) -> along(x, -90.0, 0.0);
 along(y) -> along(y, 0.0, 90.0);

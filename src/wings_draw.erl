@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.92 2002/07/27 07:37:03 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.93 2002/08/08 07:58:06 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -83,7 +83,7 @@ prepare_fun(#dlo{}, Wes) ->
 
 empty_we(We) ->
     Et = gb_trees:empty(),
-    We#we{es=Et,fs=Et,vs=Et,he=gb_sets:empty(),mirror=none}.
+    We#we{es=Et,fs=Et,vs=Et,he=gb_sets:empty(),mirror=none,light=none}.
 
 check_mirror(#we{mirror=none}) -> none;
 check_mirror(#we{fs=Ftab,mirror=Face}) ->
@@ -100,6 +100,8 @@ sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
 sel_fun(D, Sel, _) ->
     {D#dlo{sel=none,src_sel=none},Sel}.
 
+update_fun(#dlo{src_we=We}=D, _) when ?IS_LIGHT(We) ->
+    wings_light:update(D);
 update_fun(#dlo{work=none,src_we=#we{fs=Ftab}=We}=D, St) ->
     List = gl:genLists(1),
     gl:newList(List, ?GL_COMPILE),
@@ -157,6 +159,7 @@ update_sel_dlist() ->
 				update_sel(D)
 			end, []).
 
+update_sel(#dlo{src_we=We}=D) when ?IS_LIGHT(We) -> {D,[]};
 update_sel(#dlo{work=Faces,sel=none,src_sel={body,_}}=D) ->
     {D#dlo{sel=Faces},[]};
 update_sel(#dlo{sel=none,src_sel={face,Faces}}=D) ->
@@ -293,6 +296,8 @@ split(#dlo{wire=W,mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We}=D,
 
 original_we(#dlo{split=#split{orig_we=We}}) -> We.
 
+update_dynamic(#dlo{work=[_|_],src_we=We}=D, Vtab) when ?IS_LIGHT(We) ->
+    wings_light:update_dynamic(D, Vtab);
 update_dynamic(#dlo{work=[Work|_],vs=VsList0,
 		    src_we=We0,split=Split}=D, Vtab0) ->
     #split{static_vs=StaticVs,dyn_vs=DynVs,dyn_ftab=Ftab,st=St} = Split,

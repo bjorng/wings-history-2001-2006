@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.17 2002/08/06 05:53:57 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.18 2002/08/08 07:58:04 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -191,6 +191,7 @@ begin_drag(MM, St, T) ->
 				begin_drag_fun(D, MM, St, T)
 			end, []).
 
+begin_drag_fun(#dlo{src_we=We}=D, _, _, _) when ?IS_LIGHT(We) -> D;
 begin_drag_fun(#dlo{src_sel={vertex,Vs0},src_we=#we{vs=Vtab}=We}=D0,
 	       MM, St, T) ->
     [V] = gb_sets:to_list(Vs0),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.61 2002/06/24 18:52:08 bjorng Exp $
+%%     $Id: wings.hrl,v 1.62 2002/08/08 07:58:06 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -139,13 +139,17 @@
 	 next_id,				%Next free ID for vertices,
 						% edges, and faces
 	 mode,					%'vertex'/'material'/'uv'
-	 mirror=none				%Mirror: none|Face
+	 mirror=none,				%Mirror: none|Face
+	 light=none				%Light data: none|Light
 	}).
 
 -define(IS_VISIBLE(Perm), (Perm =< 1)).
 -define(IS_NOT_VISIBLE(Perm), (Perm > 1)).
 -define(IS_SELECTABLE(Perm), (Perm == 0)).
 -define(IS_NOT_SELECTABLE(Perm), (Perm =/= 0)).
+
+-define(IS_LIGHT(We), (We#we.light =/= none)).
+-define(IS_NOT_LIGHT(We), (We#we.light =:= none)).
 
 %% Edge in a winged-edge shape.
 -record(edge,

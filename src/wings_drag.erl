@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.94 2002/07/26 20:47:07 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.95 2002/08/08 07:58:06 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -88,7 +88,11 @@ break_apart(Tvs, St) ->
 break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList0}|Tvs], St) ->
     TvList = mirror_constrain(TvList0, We),
     {Vs,FunList} = combine_tvs(TvList, We),
-    D = wings_draw:split(D0, Vs, St),
+    D1 = if
+	     ?IS_LIGHT(We) -> D0#dlo{split=none};
+	     true -> D0
+	 end,
+    D = wings_draw:split(D1, Vs, St),
     Do = #do{funs=FunList},
     {D#dlo{drag=Do},Tvs};
 break_apart(D, Tvs, _) -> {D,Tvs}.

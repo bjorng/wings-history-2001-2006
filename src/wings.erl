@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.152 2002/08/05 05:48:17 bjorng Exp $
+%%     $Id: wings.erl,v 1.153 2002/08/08 07:58:05 bjorng Exp $
 %%
 
 -module(wings).
@@ -162,7 +162,6 @@ locate(Name) ->
     end.
 
 resize(W, H, St) ->
-    wings_view:init_light(),
     wings_io:resize(W, H),
     wings_draw_util:init(),
     wings_material:init(St).
@@ -199,7 +198,7 @@ handle_event({open_file,Name}, St0) ->
 	#st{}=St ->
 	    wings_pref:set_value(current_directory, filename:dirname(Name)),
 	    main_loop(caption(St#st{saved=true,file=Name}));
-	{error,Reason} ->
+	{error,_} ->
 	    main_loop(St0)
     end;
 handle_event(Event, St) ->
@@ -422,6 +421,10 @@ command({edge,Cmd}, St) ->
 command({vertex,Cmd}, St) ->
     wings_vertex_cmd:command(Cmd, St);
 
+%% Light menu.
+command({light,Cmd}, St) ->
+    wings_light:command(Cmd, St);
+
 %% Tools menu.
 
 command({tools,set_default_axis}, St) ->
@@ -450,13 +453,18 @@ command({tools,{virtual_mirror,Cmd}}, St) ->
 command({objects,Obj}, St) ->
     wings_shape:command(Obj, St).
 
-popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
-    case {Sel,Mode} of
- 	{[],_} -> wings_shapes:menu(X, Y, St);
- 	{_,vertex} -> wings_vertex_cmd:menu(X, Y, St);
- 	{_,edge} -> wings_edge:menu(X, Y, St);
- 	{_,face} -> wings_face_cmd:menu(X, Y, St);
- 	{_,body} -> wings_body:menu(X, Y, St)
+popup_menu(X, Y, #st{sel=[]}=St) ->
+    wings_shapes:menu(X, Y, St);
+popup_menu(X, Y, #st{selmode=Mode}=St) ->
+    case wings_light:is_any_light_selected(St) of
+	true -> wings_light:menu(X, Y, St);
+	false ->
+	    case Mode of
+		vertex -> wings_vertex_cmd:menu(X, Y, St);
+		edge -> wings_edge:menu(X, Y, St);
+		face -> wings_face_cmd:menu(X, Y, St);
+		body -> wings_body:menu(X, Y, St)
+	    end
     end.
 
 menu(X, Y, file, St) ->

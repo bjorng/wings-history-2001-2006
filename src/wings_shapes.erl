@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.22 2002/07/26 17:43:55 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.23 2002/08/08 07:58:07 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -36,6 +36,10 @@ menu(X, Y, _) ->
 	    separator,
 	    {"Grid",grid,[],[option]},
 	    separator,
+	    {"Light",{light,
+		      [{"Infinite",infinite},
+		       {"Point",point},
+		       {"Spot",spot}]}},
 	    {"More",{more,[]},"More primitives"}],
     wings_menu:popup_menu(X, Y, shape, Menu).
 
@@ -49,7 +53,8 @@ command({cylinder,Ask}, St) -> cylinder(Ask, St);
 command({cone,Ask}, St) -> cone(Ask, St);
 command({sphere,Ask}, St) -> sphere(Ask, St);
 command({torus,Ask}, St) -> torus(Ask, St);
-command({grid,Ask}, St) -> grid(Ask, St).
+command({grid,Ask}, St) -> grid(Ask, St);
+command({light,Type}, St) -> wings_light:create(Type, St).
 
 build_shape(Prefix, Fs, Vs, #st{onext=Oid}=St) ->
     We = wings_we:build(Fs, Vs),
@@ -187,8 +192,8 @@ sphere(Ask, St) when is_atom(Ask) ->
     ask(sphere, Ask, [{"Sections",16,[{range,{3,128}}]},
 		      {"Slices",8,[{range,{3,128}}]}]);
 sphere([Ns,Nl], St) ->
-    Vs = sphere_circles(Ns, Nl) ++ [{0.0, 1.0, 0.0}, {0.0, -1.0, 0.0}],
     Fs = sphere_faces(Ns, Nl),
+    Vs = sphere_circles(Ns, Nl) ++ [{0.0, 1.0, 0.0}, {0.0, -1.0, 0.0}],
     build_shape("sphere", Fs, Vs, St).
     
 torus(Ask, St) when is_atom(Ask) ->
