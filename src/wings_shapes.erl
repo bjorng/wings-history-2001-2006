@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.34 2004/10/08 14:33:07 dgud Exp $
+%%     $Id: wings_shapes.erl,v 1.35 2004/11/09 07:23:25 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -21,39 +21,81 @@
 -import(math, [sqrt/1,cos/1,sin/1,pi/0]).
 
 menu(X, Y, _) ->
-    Menu0 = [{?STR(menu,1,"Tetrahedron"),tetrahedron},
-	     {?STR(menu,2,"Octahedron"),octahedron},
-	     {?STR(menu,3,"Octotoad"),octotoad},
-	     {?STR(menu,4,"Dodecahedron"),dodecahedron},
-	     {?STR(menu,5,"Icosahedron"),icosahedron},
+    Opt = [option],
+    Menu0 = [tetrahedron,
+	     octahedron,
+	     octotoad,
+	     dodecahedron,
+	     icosahedron,
 	     separator,
-	     {?STR(menu,6,"Cube"),cube},
+	     cube,
 	     separator,
-	     {?STR(menu,7,"Cylinder"),cylinder,[],[option]},
-	     {?STR(menu,8,"Cone"),cone,[],[option]},
-	     {?STR(menu,9,"Sphere"),sphere,[],[option]},
-	     {?STR(menu,10,"Torus"),torus,[],[option]},
+	     {cylinder,Opt},
+	     {cone,Opt},
+	     {sphere,Opt},
+	     {torus,Opt},
 	     separator,
-	     {?STR(menu,11,"Grid"),grid,[],[option]},
+	     {grid,Opt},
 	     separator,
-	     {?STR(menu,12,"Light"),{light,wings_light:light_types()}},
-	     {?STR(menu,13,"Material..."),material},
-	     {?STR(menu,14,"Image..."),image},
+	     {prim_name(light),{light,wings_light:light_types()}},
+	     material,
+	     image,
 	     separator,
 	     {?STR(menu,15,"More"),{more,[]},?STR(menu,16,"More primitives")}],
-    Menu = [prim_help(Item) || Item <- Menu0],
+    Menu = [prim_trans(Item) || Item <- Menu0],
     wings_menu:popup_menu(X, Y, shape, Menu).
 
-prim_help({S,K}) ->
-    {S,K,create_help(S)};
-prim_help({S,K,[],Opts}) when is_atom(K) ->
-    {S,K,create_help(S),Opts};
-prim_help(Other) -> Other.
+prim_trans(separator) ->
+    separator;
+prim_trans({K,Opts}) when is_atom(K) ->
+    {prim_name(K),K,prim_help(K),Opts};
+prim_trans(K) when is_atom(K) ->
+    {prim_name(K),K,prim_help(K)};
+prim_trans(Other) -> Other.
 
-create_help([Vowel|T]) when Vowel == $O; Vowel == $I ->
-     ?STR(create_help,1,"Create an ")++[Vowel+($a-$A)|T];
-create_help([H|T]) ->
-      ?STR(create_help,2,"Create a ")++[H+($a-$A)|T].
+prim_name(tetrahedron) ->  ?STR(prim_name,tetrahedron,"Tetrahedron");
+prim_name(octahedron) ->   ?STR(prim_name,octahedron,"Octahedron");
+prim_name(octotoad) ->     ?STR(prim_name,octotoad,"Octotoad");
+prim_name(dodecahedron) -> ?STR(prim_name,dodecahedron,"Dodecahedron");
+prim_name(icosahedron) ->  ?STR(prim_name,icosahedron,"Icosahedron");
+prim_name(cube) ->         ?STR(prim_name,cube,"Cube");
+prim_name(cylinder) ->     ?STR(prim_name,cylinder,"Cylinder");
+prim_name(cone) ->         ?STR(prim_name,cone,"Cone");
+prim_name(sphere) ->       ?STR(prim_name,sphere,"Sphere");
+prim_name(torus) ->        ?STR(prim_name,torus,"Torus");
+prim_name(grid) ->         ?STR(prim_name,grid,"Grid");
+prim_name(light) ->        ?STR(prim_name,light,"Light");
+prim_name(material) ->     ?STR(prim_name,material,"Material...");
+prim_name(image) ->        ?STR(prim_name,image,"Image...").
+
+prim_help(tetrahedron) ->
+    ?STR(prim_help,tetrahedron,"Create a tetrahedron");
+prim_help(octahedron) ->
+    ?STR(prim_help,octahedron,"Create an octahedron");
+prim_help(octotoad) ->
+    ?STR(prim_help,octotoad,"Create an octotoad");
+prim_help(dodecahedron) ->
+    ?STR(prim_help,dodecahedron,"Create a dodecahedron");
+prim_help(icosahedron) ->
+    ?STR(prim_help,icosahedron,"Create an icosahedron");
+prim_help(cube) ->
+    ?STR(prim_help,cube,"Create a cube");
+prim_help(cylinder) ->
+    ?STR(prim_help,cylinder,"Create a cylinder");
+prim_help(cone) ->
+    ?STR(prim_help,cone,"Create a cone");
+prim_help(sphere) ->
+    ?STR(prim_help,sphere,"Create a sphere");
+prim_help(torus) ->
+    ?STR(prim_help,torus,"Create a torus");
+prim_help(grid) ->
+    ?STR(prim_help,grid,"Create a grid");
+prim_help(light) ->
+    ?STR(prim_help,light,"Create a light");
+prim_help(material) ->
+    ?STR(prim_help,material,"Create a material...");
+prim_help(image) ->
+    ?STR(prim_help,image,"Create an image...").
 
 command(tetrahedron, St) -> tetrahedron(St);
 command(octahedron, St) -> octahedron(St);
@@ -81,13 +123,15 @@ tetrahedron(St) ->
 	  {0.0,-0.33333*2,0.942809*2},
 	  {-0.816497*2,-0.333333*2,-0.471405*2},
 	  {0.816497*2,-0.333333*2,-0.471405*2}],
-    build_shape(  ?STR(tetrahedron,1,"tetrahedron"), Fs, Vs, St).
+    %% The string below is intentionally not translated.
+    build_shape("tetrahedron", Fs, Vs, St).
 
 octahedron(St) ->
     Fs = [[2,4,0],[4,2,1],[4,3,0],[3,4,1],[5,2,0],[2,5,1],[3,5,0],[5,3,1]],
     Vs = [{2.0,0.0,0.0},{-2.0,0.0,0.0},{0.0,2.0,0.0},
 	  {0.0,-2.0,0.0},{0.0,0.0,2.0},{0.0,0.0,-2.0}],
-    build_shape(  ?STR(octahedron,1,"octahedron"), Fs, Vs, St).
+    %% The string below is intentionally not translated.
+    build_shape("octahedron", Fs, Vs, St).
 
 octotoad(St) ->
     Fs = [[2,3,1,0],[7,6,4,5],[9,8,0,1],[10,11,3,2],
@@ -109,7 +153,8 @@ octotoad(St) ->
 	  {-0.556,-1.668,0.556},{-0.556,-1.668,-0.556},
 	  {-0.556,0.556,1.668},{-0.556,0.556,-1.668},
 	  {-0.556,-0.556,1.668},{-0.556,-0.556,-1.668}],
-    build_shape(  ?STR(octotad,1,"octotoad"), Fs, Vs, St).
+    %% The string below is intentionally not translated.
+    build_shape("octotoad", Fs, Vs, St).
 
 dodecahedron(St) ->
     Alpha = sqrt(2.0 / (3.0 + sqrt(5.0))),
@@ -125,7 +170,8 @@ dodecahedron(St) ->
 	  {-Beta,-Alpha,0.0},{-Alpha,0.0,-Beta},{Alpha,0.0,-Beta},
 	  {0.0,Beta,Alpha},{0.0,Beta,-Alpha},{0.0,-Beta,Alpha},
 	  {0.0,-Beta,-Alpha}],
-    build_shape(  ?STR(dodecahedron,1,"dodecahedron"), Fs, Vs, St).
+    %% The string below is intentionally not translated.
+    build_shape("dodecahedron", Fs, Vs, St).
 
 icosahedron(St) ->
     X = 1.05146,
@@ -137,13 +183,15 @@ icosahedron(St) ->
     Vs = [{-X,0.0,Z},{X,0.0,Z},{-X,0.0,-Z},{X,0.0,-Z},{0.0,Z,X},
 	  {0.0,Z,-X},{0.0,-Z,X},{0.0,-Z,-X},{Z,X,0.0},{-Z,X,0.0},
 	  {Z,-X,0.0},{-Z,-X,0.0}],
-    build_shape(  ?STR(icosahedron,1,"icosahedron"), Fs, Vs, St).
+    %% The string below is intentionally not translated.
+    build_shape("icosahedron", Fs, Vs, St).
 
 cube(St) ->
     Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
     Vs = [{-1.0,-1.0,1.0},{-1.0,1.0,1.0},{1.0,1.0,1.0},{1.0,-1.0,1.0},
 	  {-1.0,-1.0,-1.0},{-1.0,1.0,-1.0},{1.0,1.0,-1.0},{1.0,-1.0,-1.0}],
-    build_shape(  ?STR(cube,1,"cube"), Fs, Vs, St).
+    %% The string below is intentionally not translated.
+    build_shape("cube", Fs, Vs, St).
 
 circle(N, Y) ->
     circle(N, Y, 1.0).
@@ -157,7 +205,8 @@ cylinder(Ask, _St) when is_atom(Ask) ->
 cylinder([Sections], St) ->
     Fs = cylinder_faces(Sections),
     Vs = cylinder_vertices(Sections),
-    build_shape( ?STR(cylinder,2,"cylinder"), Fs, Vs, St).
+    %% The string below is intentionally not translated.
+    build_shape("cylinder", Fs, Vs, St).
 
 cylinder_faces(N) ->
     Ns =lists:reverse(lists:seq(0, N-1)),
@@ -178,7 +227,8 @@ cone([N], St) ->
     Vs = C ++ [{0.0,1.0,0.0}],
     Sides = [[N, (I+1) rem N, I] || I <- Ns],
     Fs = [Lower | Sides],
-    build_shape( ?STR(cone,2,"cone"), Fs, Vs, St).
+    %% The string below is intentionally not translated.
+    build_shape("cone", Fs, Vs, St).
     
 sphere_circles(Ns, Nl) ->
     Delta = pi() / Nl,
@@ -208,7 +258,8 @@ sphere(Ask, _St) when is_atom(Ask) ->
 sphere([Ns,Nl], St) ->
     Fs = sphere_faces(Ns, Nl),
     Vs = sphere_circles(Ns, Nl) ++ [{0.0, 1.0, 0.0}, {0.0, -1.0, 0.0}],
-    build_shape( ?STR(sphere,3,"sphere"), Fs, Vs, St).
+    %% The string below is intentionally not translated.
+    build_shape("sphere", Fs, Vs, St).
     
 torus(Ask, _St) when is_atom(Ask) ->
     ask(torus, Ask, [{ ?STR(torus,1,"Sections"),16,[{range,{3,128}}]},
@@ -218,7 +269,8 @@ torus(Ask, _St) when is_atom(Ask) ->
 torus([Ns,Nl,Major,Minor], St) ->
     Vs = torus_vertices(Ns, Nl, Major, Minor),
     Fs = torus_faces(Ns, Nl),
-    build_shape(?STR(torus,5,"torus"), Fs, Vs, St).
+    %% The string below is intentionally not translated.
+    build_shape("torus", Fs, Vs, St).
 
 torus_faces(Ns, Nl) ->
     Slices = [ [ [(I+1) rem Ns + J*Ns, I + J*Ns,
@@ -242,7 +294,8 @@ grid(Ask, _) when is_atom(Ask) ->
 grid([Size], St) ->
     Vs = grid_vertices(Size),
     Fs = grid_faces(Size),
-    build_shape(?STR(grid,2,"grid"), Fs, Vs, St).
+    %% The string below is intentionally not translated.
+    build_shape("grid", Fs, Vs, St).
 
 grid_vertices(Size) ->
     {Low,High} = case Size rem 2 of
@@ -272,5 +325,5 @@ grid_face(I, J, Rsz) ->
      Rsz*(J+1)+I, Rsz*(J+1)+I+1].
 
 ask(Shape, Bool, Qs) ->
-    Title = ?STR(ask,1,"Create ") ++ wings_util:cap(atom_to_list(Shape)),
+    Title = prim_help(Shape),
     wings_ask:ask(Bool, Title, Qs, fun(Res) -> {shape,{Shape,Res}} end).
