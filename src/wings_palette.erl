@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.8 2004/05/19 13:53:53 dgud Exp $
+%%     $Id: wings_palette.erl,v 1.9 2004/05/19 14:37:19 dgud Exp $
 %%
 -module(wings_palette).
 
@@ -237,11 +237,15 @@ event(lost_focus, Pst) ->
 
 event({new_color,Cols}, Pst = #pst{w=W,h=H0,knob=Knob}) ->
     Sz = length(Cols),
-    case Sz == W*H0 of 
-	true ->
+    case Sz == W*H0 of
+	true -> 
 	    get_event(update(Cols,Pst));
 	false ->
-	    H = if (Sz rem W) == 0 -> Sz div W; true -> (Sz div W) + 1 end,
+	    H = if Sz > W*H0 ->
+			if (Sz rem W) == 0 -> Sz div W; true -> (Sz div W) + 1 end;
+		   true -> 
+			H0
+		end,
 	    update_scroller(Knob, H),
 	    get_event(update(add_empty(Cols,W,H),Pst#pst{h=H}))
     end;
@@ -287,6 +291,8 @@ do_menu(Id,X,Y,#pst{cols=Cols}) ->
     Rest = [separator,
 	    {"Clear All", clear_all, "Clear palette"},
 	    {"Compact", compact, "Compact Palette"},
+	    {"Scan Colors", scan_all, "Scan colors from selected objects"},
+	    separator,
 	    {"Export", export, "Export palette to file"},
 	    {"Import", import, "Import palette from file"}],
     wings_menu:popup_menu(X,Y,palette,Menu ++ Smooth ++ Rest).
@@ -323,6 +329,11 @@ command({edit,Id}, #pst{cols=Cols0}) ->
 		   ignore
 	   end,
     wings_color:choose(color(Prev), Send);
+
+command(scan_all, #pst{st=St, cols=Cols}) ->
+    New = scan_colors(St, del_trailing(Cols)),
+    wings_wm:send(palette,{new_color,New}),
+    keep;
 
 command(export, #pst{cols=Cols}) ->
     Dir = wings_pref:get_value(current_directory),
@@ -450,3 +461,24 @@ select(X,Y,#pst{w=ColsW,h=ColsH, knob=Knob}) ->
 	Id >= (ColsW*ColsH) -> none;
 	true -> Id
     end.
+
+scan_colors(St = #st{mat=Mtab}, Old) ->
+    Cols = wings_sel:fold(fun(_, We, Cols) ->  scan_color(We,Cols) end, Old, St),
+    Mats = scan_materials(gb_trees:values(Mtab), Cols),
+    lists:usort(Mats).
+
+scan_color(#we{mode = material}, Acc) ->    Acc;
+scan_color(#we{mode = vertex, es=Etab}, Acc) ->
+    foldl(fun(#edge{a=Ca,b=Cb}, Cols) ->
+		  [color(Ca),color(Cb)|Cols]
+	  end, Acc, gb_trees:values(Etab)).
+
+scan_materials([Mat|Ms], Cols) ->
+    Opengl = proplists:get_value(opengl, Mat),
+    Diff   = proplists:get_value(diffuse, Opengl),
+    Amb    = proplists:get_value(ambient, Opengl),
+    Spec   = proplists:get_value(specular, Opengl),
+    Emis   = proplists:get_value(emission, Opengl),
+    scan_materials(Ms, [color(Diff),color(Amb),color(Spec),
+			color(Emis) |Cols]);
+scan_materials([], Cols) -> Cols.
