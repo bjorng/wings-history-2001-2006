@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.84 2003/02/24 21:23:19 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.85 2003/02/25 07:41:02 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -352,6 +352,9 @@ used_materials_1(Ftab, Acc) ->
 
 is_transparent(Name, Mtab) ->
     Mat = gb_trees:get(Name, Mtab),
+    is_mat_transparent(Mat) orelse is_tx_transparent(Mat).
+
+is_mat_transparent(Mat) ->
     OpenGL = prop_get(opengl, Mat),
     foldl(fun(_, true) -> true;
 	     ({emission,_}, _) -> false;
@@ -359,6 +362,17 @@ is_transparent(Name, Mtab) ->
 	     ({_,{_,_,_,_}}, _) -> true;
 	     (_, _) -> false
 	  end, false, OpenGL).
+
+is_tx_transparent(Mat) ->
+    Maps = prop_get(maps, Mat),
+    case prop_get(diffuse, Maps) of
+	undefined -> false;
+	ImId ->
+	    case wings_image:info(ImId) of
+		#e3d_image{bytes_pp=4} -> true;
+		_ -> false
+	    end
+    end.
 
 %%% The material editor.
 
