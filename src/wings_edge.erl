@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.48 2002/07/26 17:43:54 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.49 2002/08/18 12:00:54 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -317,7 +317,7 @@ fast_cut(Edge, Pos0, We0) ->
 		 true ->
 		     ADist = e3d_vec:dist(Pos0, VstartPos),
 		     BDist = e3d_vec:dist(Pos0, VendPos),
-		     case ADist/(ADist+BDist) of
+		     case catch ADist/(ADist+BDist) of
 			 {'EXIT',_} -> 0.5;
 			 Weight0 -> Weight0
 		     end
