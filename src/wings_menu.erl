@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.39 2002/04/06 06:46:05 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.40 2002/04/08 19:06:25 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -42,7 +42,8 @@
 	 redraw,				%Redraw parent fun.
 	 st,					%State record.
 	 num_redraws=0,				%Total number of redraws.
-	 adv					%Advanced menus (true|false).
+	 adv,					%Advanced menus (true|false).
+	 type=plain				%Type of menu: plain|popup
 	}).
 
 %%%
@@ -105,7 +106,7 @@ menu_setup(Type, X0, Y0, Name, Menu0, #mi{ns=Names0,adv=Adv}=Mi) ->
     {X,Y} = move_if_outside(X1, Y1, TotalW, Mh+2*Margin, Mi),
     Mi#mi{xleft=X,ytop=Y,ymarg=Margin,
 	  shortcut=MwL+1,w=TotalW-10,h=Mh,hs=Hs,
-	  sel=none,ns=Names,menu=Menu,adv=Adv}.
+	  sel=none,ns=Names,menu=Menu,adv=Adv,type=Type}.
 
 menu_show(#mi{xleft=X,ytop=Y,ymarg=Margin,shortcut=Shortcut,w=Mw,h=Mh}=Mi) ->
     wings_io:raised_rect(X, Y, Mw, Mh + 2*Margin+3, ?MENU_COLOR),
@@ -358,8 +359,14 @@ expand_submenu(B, Name, Submenu0, #mi{ns=Ns}) when is_function(Submenu0) ->
     Submenu0(B, [Name|Ns]);
 expand_submenu(_Button, _Name, Submenu, _Mi) -> Submenu.
 
-button_outside(#mousebutton{x=X,y=Y}, #mi{prev=[]}) ->
-    wings_io:button(X, Y),
+button_outside(#mousebutton{x=X,y=Y}=Ev, #mi{prev=[]}) ->
+    wings_io:clear_menu_sel(),
+    case wings_io:button(X, Y) of
+	none -> ok;
+	ignore -> ok;
+	ButtonHit -> wings_io:putback_event({action,ButtonHit})
+    end,
+    wings_io:event(Ev),
     wings_io:putback_event(redraw),
     pop;
 button_outside(#mousebutton{x=X,y=Y}=Event, #mi{prev=PrevMenu}=Mi) ->
@@ -372,8 +379,26 @@ button_outside(#mousebutton{x=X,y=Y}=Event, #mi{prev=PrevMenu}=Mi) ->
 	    pop
     end.
 
-motion_outside(#mousemotion{}, #mi{prev=[]}) -> none;
-motion_outside(#mousemotion{x=X,y=Y}=Event, #mi{prev=PrevMenu0}=Mi) ->
+motion_outside(#mousemotion{x=X,y=Y}=Event, #mi{type=plain}=Mi) ->
+    case wings_io:button(X, Y) of
+	none -> motion_outside_1(Event, Mi);
+	ignore -> motion_outside_1(Event, Mi);
+	{_,Name,_,_}=ButtonHit ->
+	    case same_menu(Name, Mi) of
+		true -> motion_outside_1(Event, Mi);
+		false ->
+		    wings_io:putback_event({action,ButtonHit}),
+		    wings_io:putback_event(Event),
+		    wings_io:putback_event(redraw),
+		    pop
+	    end
+    end;
+motion_outside(Ev, Mi) -> motion_outside_1(Ev, Mi).
+
+same_menu(Name, #mi{ns=Names}) -> lists:last(Names) =:= Name.
+
+motion_outside_1(#mousemotion{}, #mi{prev=[]}) -> none;
+motion_outside_1(#mousemotion{x=X,y=Y}=Event, #mi{prev=PrevMenu0}=Mi) ->
     #mi{sel=PrevSel} = PrevMenu0,
     case selected_item(X, Y, PrevMenu0) of
 	outside -> none;

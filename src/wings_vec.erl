@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.28 2002/03/31 17:28:40 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.29 2002/04/08 19:06:25 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -204,10 +204,6 @@ handle_event_5({action,{secondary_selection,Cmd}}, Ss, St) ->
 handle_event_5({action,Cmd}, Ss, St) ->
     set_last_axis(Ss, St),
     wings_io:message(""),
-    wings_io:putback_event({action,Cmd}),
-    pop;
-handle_event_5({action,Cmd}, _Ss, _St) ->
-    wings_io:clear_message(),
     wings_io:putback_event({action,Cmd}),
     pop;
 handle_event_5(quit, _Ss, _St) ->
