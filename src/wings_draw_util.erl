@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.35 2002/07/29 20:20:28 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.36 2002/08/01 06:50:15 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -347,7 +347,7 @@ draw_sel(#dlo{sel=SelDlist}) ->
 sel_color() ->
     gl:color3fv(wings_pref:get_value(selected_color)).
 
-draw_vertices(#dlo{vs=VsDlist}, vertex) ->
+draw_vertices(#dlo{src_we=#we{perm=P},vs=VsDlist}, vertex) when ?IS_SELECTABLE(P) ->
     call(VsDlist);
 draw_vertices(_, _) -> ok.
 
