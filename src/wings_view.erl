@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.47 2002/03/31 17:22:44 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.48 2002/04/02 15:53:37 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -132,10 +132,11 @@ auto_rotate(St) ->
     Tim = #tim{delay=Delay,st=St},
     {seq,{push,dummy},set_auto_rotate_timer(Tim)}.
     
-auto_rotate_event(Event, #tim{st=St}=Tim) ->
+auto_rotate_event(Event, #tim{timer=Timer,st=St}=Tim) ->
     case wings_camera:event(Event, St) of
 	next -> auto_rotate_event_1(Event, Tim);
 	Other ->
+	    wings_io:cancel_timer(Timer),
 	    {seq,fun(Ev) ->
 			 auto_rotate_help(),
 			 wings_io:putback_event(Ev),
