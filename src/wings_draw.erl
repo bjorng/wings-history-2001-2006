@@ -8,11 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.25 2001/11/25 08:17:11 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.26 2001/11/27 13:17:57 bjorng Exp $
 %%
 
 -module(wings_draw).
--export([model_changed/1,render/1,ground_and_axes/0]).
+-export([init/0,
+	 model_changed/1,render/1,ground_and_axes/0]).
+
+-define(TESSELATE, 1).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -24,6 +27,24 @@ model_changed(St) -> St#st{dl=none}.
 -define(DL_FACES, (?DL_DRAW_BASE)).
 -define(DL_EDGES, (?DL_DRAW_BASE+1)).
 -define(DL_SEL, (?DL_DRAW_BASE+2)).
+
+-ifndef(TESSELATE).
+init() ->
+    ok.
+-else.
+init() ->
+    Tess = glu:newTess(),
+    put(wings_gnu_tess, Tess), 
+    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
+    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
+    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
+    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
+    glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_SIMPLE_COMBINE),
+    glu:tessCallback(Tess, ?GLU_TESS_ERROR, ?ESDL_TESSCB_ERROR_PRINT).
+
+tess() ->
+    get(wings_gnu_tess).
+-endif.
 
 %%
 %% Renders all shapes, including selections.
@@ -236,6 +257,91 @@ draw_smooth_1([{Mat,Faces}|T], Mtab) ->
     draw_smooth_1(T, Mtab);
 draw_smooth_1([], Mtab) -> ok.
 
+-ifdef(TESSELATE).
+draw_smooth_2([[_,_,_,_,_|_]=Vs|Fs]) ->
+    %% This face needs tesselation.
+    Tess = tess(),
+    glu:tessNormal(Tess, 0, 0, 0),
+    glu:tessBeginPolygon(Tess),
+    glu:tessBeginContour(Tess),
+    foreach(fun({P,{Diff,N}}) ->
+		    glu:tessVertex(Tess, P, [{normal,N}])
+	    end, Vs),
+    glu:tessEndContour(Tess),
+    glu:tessEndPolygon(Tess),
+    draw_smooth_2(Fs);
+draw_smooth_2([Vs|Fs]) ->
+    gl:'begin'(?GL_POLYGON),
+    foreach(fun({P,{Diff,N}}) ->
+ 		    gl:normal3fv(N),
+ 		    gl:vertex3fv(P)
+ 	    end, Vs),
+    gl:'end'(),
+    draw_smooth_2(Fs);
+draw_smooth_2([]) -> ok.
+
+%% Smooth drawing for vertex colors.
+draw_smooth_vcolor([{_,[_,_,_,_,_|_]=Vs}|T]) ->
+    Tess = tess(),
+    glu:tessNormal(Tess, 0, 0, 0),
+    glu:tessBeginPolygon(Tess),
+    glu:tessBeginContour(Tess),
+    foreach(fun({P,{{R,G,B}=Diff,N}}) ->
+		    glu:tessVertex(Tess, P,
+				   [{normal,N},
+				    {color,Diff},
+				    {material,?GL_FRONT,?GL_DIFFUSE,Diff}])
+	    end, Vs),
+    glu:tessEndContour(Tess),
+    glu:tessEndPolygon(Tess),
+    draw_smooth_vcolor(T);
+draw_smooth_vcolor([{_,Vs}|T]) ->
+    gl:'begin'(?GL_POLYGON),
+    foreach(fun({P,{{R,G,B}=Diff,N}}) ->
+ 		    gl:normal3fv(N),
+		    gl:color3f(R, G, B),
+		    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
+ 		    gl:vertex3fv(P)
+ 	    end, Vs),
+    gl:'end'(),
+    draw_smooth_vcolor(T);
+draw_smooth_vcolor([]) -> ok.
+
+draw_face(Face, Edge, #we{es=Etab,vs=Vtab}=We) ->
+    Vs = wings_face:surrounding_vertices(Face, We),
+    Normal = wings_face:face_normal(Vs, We),
+    case Vs of
+	[_,_,_,_,_|_] ->
+	    gl:normal3fv(Normal),
+	    Tess = tess(),
+	    {X,Y,Z} = Normal,
+	    glu:tessNormal(Tess, X, Y, Z),
+	    glu:tessBeginPolygon(Tess),
+	    glu:tessBeginContour(Tess),
+	    draw_tess_1(Tess, Face, Edge, Edge, Etab, Vtab, not_done),
+	    glu:tessEndContour(Tess),
+	    glu:tessEndPolygon(Tess),
+	    gl:edgeFlag(?GL_TRUE);
+	Other ->
+	    gl:'begin'(?GL_POLYGON),
+	    gl:normal3fv(Normal),
+	    draw_face_1(Face, Edge, Edge, Etab, Vtab, not_done),
+	    gl:'end'()
+    end.
+
+draw_tess_1(Tess, Face, LastEdge, LastEdge, Etab, Vtab, done) -> ok;
+draw_tess_1(Tess, Face, Edge, LastEdge, Etab, Vtab, Acc) ->
+    {Next,V,Diff} =
+	case gb_trees:get(Edge, Etab) of
+	    #edge{vs=V0,a=D0,lf=Face,ltpr=Next0}=Rec -> {Next0,V0,D0};
+	    #edge{ve=V0,b=D0,rf=Face,rtpr=Next0}=Rec -> {Next0,V0,D0}
+	end,
+    P = lookup_pos(V, Vtab),
+    glu:tessVertex(Tess, P, [{material,?GL_FRONT,?GL_DIFFUSE,Diff}]),
+    draw_tess_1(Tess, Face, Next, LastEdge, Etab, Vtab, done).
+
+-else.						%No tesselation.
+
 draw_smooth_2([Vs|Fs]) ->
     gl:'begin'(?GL_POLYGON),
     foreach(fun({P,{Diff,N}}) ->
@@ -265,6 +371,7 @@ draw_face(Face, Edge, #we{es=Etab,vs=Vtab}=We) ->
     gl:normal3fv(Normal),
     draw_face_1(Face, Edge, Edge, Etab, Vtab, not_done),
     gl:'end'().
+-endif.
 
 draw_face_1(Face, LastEdge, LastEdge, Etab, Vtab, done) -> ok;
 draw_face_1(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
