@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.123 2003/09/15 06:11:49 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.124 2003/10/14 20:56:15 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -805,11 +805,12 @@ draw_1(#dlo{src_we=#we{perm=Perm}}=D) when ?IS_SELECTABLE(Perm) ->
     gl:edgeFlag(?GL_TRUE);
 draw_1(_) -> ok.
     
-draw_2(#dlo{ns=Ns}) ->
+draw_2(#dlo{ns=Ns,src_we=#we{mirror=Mirror}}) ->
     gl:pushName(0),
-    foreach(fun({Face,Info}) ->
+    foreach(fun({Face,Info}) when Face =/= Mirror ->
 		    gl:loadName(Face),
-		    face(Info)
+		    face(Info);
+	       (_) -> ok
 	    end, gb_trees:to_list(Ns)),
     gl:popName().
 
