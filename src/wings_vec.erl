@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.19 2002/03/15 10:13:15 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.20 2002/03/16 10:31:40 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -251,6 +251,8 @@ exit_menu_done(X, Y, MenuEntry, Ss, St) ->
 add_last_menu(#ss{label=none}, _St, Menu) -> Menu;
 add_last_menu(#ss{label=magnet}, _St, Menu) ->
     add_magnet_type(Menu);
+add_last_menu(#ss{label=Lbl,sti={_,default_axis=StiB}}, St, Menu) ->
+    add_set_action(Lbl, StiB, St, [separator|Menu]);
 add_last_menu(#ss{label=Lbl,sti={StiA,StiB}}, St, Menu) ->
     [separator,
      {"Use Last "++Lbl,

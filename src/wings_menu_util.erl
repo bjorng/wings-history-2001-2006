@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.5 2002/03/15 10:13:15 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.6 2002/03/16 10:31:40 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -71,7 +71,11 @@ scale(1, Ns) ->
      scale_fun(z, Ns),
      scale_fun({radial,x}, Ns),
      scale_fun({radial,y}, Ns),
-     scale_fun({radial,z}, Ns)];
+     scale_fun({radial,z}, Ns),
+     {advanced,separator},
+     scale_axis_fun(last_axis, Ns),
+     scale_axis_fun(default_axis, Ns)
+    ];
 scale(2, Ns) -> {vector,{pick,[axis,point],[radial],Ns}};
 scale(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
 
@@ -85,6 +89,20 @@ scale_fun(Dir, Names) ->
     Help0 = dir_help(Dir, Names),
     Help = {Help0,[],"Pick point to scale to"},
     {DirString,F,Help,magnet_props(Dir, Names)}.
+
+
+scale_axis_fun(Axis, Names) ->
+    {_,Vec} = wings_pref:get_value(Axis),
+    DirString = stringify_dir(Axis),
+    F = fun(1, Ns) -> wings_menu:build_command({Vec,center}, Ns);
+	   (2, _Ns) -> ignore;
+	   (3, Ns) ->
+		{vector,{pick,[point],[Vec],Ns}};
+	   ({magnet,_}, Ns) -> {vector,{pick,[magnet],[center,Vec],Ns}}
+	end,
+    Help0 = dir_help(Axis, Names),
+    Help = {Help0,[],"Pick point to scale to"},
+    {DirString,F,Help,[magnet]}.
 
 stringify_dir({radial,Axis}) -> "Radial " ++ wings_util:stringify(Axis);
 stringify_dir(Dir) -> wings_util:stringify(Dir).
@@ -102,13 +120,19 @@ rotate(1, [rotate,Mode]=Ns) when Mode == vertex; Mode == body ->
     [rotate_fun(free, Ns),
      rotate_fun(x, Ns),
      rotate_fun(y, Ns),
-     rotate_fun(z, Ns)];
+     rotate_fun(z, Ns),
+     {advanced,separator},
+     rotate_axis_fun(last_axis, Ns),
+     rotate_axis_fun(default_axis, Ns)];
 rotate(1, Ns) ->
     [rotate_fun(normal, Ns),
      rotate_fun(free, Ns),
      rotate_fun(x, Ns),
      rotate_fun(y, Ns),
-     rotate_fun(z, Ns)];
+     rotate_fun(z, Ns),
+     {advanced,separator},
+     rotate_axis_fun(last_axis, Ns),
+     rotate_axis_fun(default_axis, Ns)];
 rotate(2, _) -> ignore;
 rotate(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
 
@@ -124,6 +148,19 @@ rotate_fun(Dir, Names) ->
     Ps = magnet_props(Dir, Names),
     {DirString,F,Help,Ps}.
 
+rotate_axis_fun(Axis, Names) ->
+    {_,Vec} = wings_pref:get_value(Axis),
+    DirString = stringify_dir(Axis),
+    F = fun(1, Ns) -> wings_menu:build_command({Vec,center}, Ns);
+	   (2, _Ns) -> ignore;
+	   (3, Ns) ->
+		{vector,{pick,[point],[Vec],Ns}};
+	   ({magnet,_}, Ns) -> {vector,{pick,[magnet],[center,Vec],Ns}}
+	end,
+    Help0 = dir_help(Axis, Names),
+    Help = {Help0,[],"Pick point to rotate through"},
+    {DirString,F,Help,magnet_props(Axis, Names)}.
+
 %%%
 %%% Flatten submenu.
 %%%
@@ -136,12 +173,18 @@ flatten(help, _) ->
 flatten(1, [flatten,vertex]) ->
     [flatten_fun(x),
      flatten_fun(y),
-     flatten_fun(z)];
+     flatten_fun(z),
+     {advanced,separator},
+     flatten_axis_fun(last_axis),
+     flatten_axis_fun(default_axis)];
 flatten(1, _) ->
     [flatten_fun(normal),
      flatten_fun(x),
      flatten_fun(y),
-     flatten_fun(z)];
+     flatten_fun(z),
+     {advanced,separator},
+     flatten_axis_fun(last_axis),
+     flatten_axis_fun(default_axis)];
 flatten(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
 
 flatten_fun(Dir) ->
@@ -154,17 +197,40 @@ flatten_fun(Dir) ->
     Help = {Help0,[],"Pick point on plane"},
     {DirString,F,Help,[]}.
 
+flatten_axis_fun(Axis) ->
+    {_,Vec} = wings_pref:get_value(Axis),
+    AxisString = wings_util:stringify(Axis),
+    F = fun(1, Ns) -> wings_menu:build_command(Vec, Ns);
+	   (2, _Ns) -> ignore;
+	   (3, Ns) -> {vector,{pick,[point],[Vec],Ns}}
+	end,
+    Help0 = dir_help(Axis, [flatten]),
+    Help = {Help0,[],"Pick point on plane"},
+    {AxisString,F,Help,[]}.
+
 %%%
 %%% General directions.
 %%%
 
 directions([D|Dirs], Ns) ->
     [direction(D, Ns)|directions(Dirs, Ns)];
-directions([], _) -> [].
+directions([], Ns) ->
+    [{advanced,separator},
+     {advanced,move_axis_fun(last_axis, Ns)},
+     {advanced,move_axis_fun(default_axis, Ns)}].
 
 direction(Dir, Ns) ->
     Help = dir_help(Dir, Ns),
     {wings_util:stringify(Dir),Dir,Help,magnet_props(Dir, Ns)}.
+
+move_axis_fun(Axis, Ns) ->
+    {_,Vec} = wings_pref:get_value(Axis),
+    Help = dir_help(Axis, Ns),
+    F = fun(1, _) -> wings_menu:build_command(Vec, Ns);
+	   (2, _) -> ignore;
+	   (3, _) -> ignore
+	end,
+    {wings_util:stringify(Axis),F,Help,magnet_props(Axis, Ns)}.
 
 magnet_props(normal, _) -> [];
 magnet_props(_, [_,body]) -> [];
@@ -175,6 +241,10 @@ magnet_props(_, _) -> [].
 
 dir_help(Axis, Ns) when Axis == x; Axis == y; Axis == z ->
     dir_help_1(Ns, "the " ++ wings_util:stringify(Axis) ++ " axis");
+dir_help(last_axis, Ns) ->
+    dir_help_1(Ns, "the last axis");
+dir_help(default_axis, Ns) ->
+    dir_help_1(Ns, "the default axis");
 dir_help({radial,Axis}, Ns) ->
     dir_help_1(Ns, [around|"the " ++ wings_util:stringify(Axis) ++ " axis"]);
 dir_help(radial_x, Ns) ->
