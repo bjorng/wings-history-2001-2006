@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.13 2004/04/20 11:53:49 bjorng Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.14 2004/10/07 08:32:01 dgud Exp $
 %%
 
 -module(e3d__tri_quad).
@@ -36,10 +36,8 @@
 						% Triangulate an entire mesh.
 triangulate(#e3d_mesh{type=triangle}=Mesh) -> Mesh;
 triangulate(#e3d_mesh{type=polygon,fs=Fs0,vs=Vs}=Mesh) ->
-    case triangulate(Fs0, list_to_tuple(Vs), []) of
-	error -> error;
-	Fs -> Mesh#e3d_mesh{type=triangle,fs=Fs}
-    end.
+    Fs = triangulate(Fs0, list_to_tuple(Vs), []),
+    Mesh#e3d_mesh{type=triangle,fs=Fs}.
 
 triangulate([#e3d_face{vs=[_,_,_]}=FaceRec|Ps], Vtab, Acc) ->
     triangulate(Ps, Vtab, [FaceRec|Acc]);
@@ -69,10 +67,8 @@ renumber_one(Va, Vb, Vc, Orig) ->
 %% Quadrangulate an entire mesh. (Not optimized yet; slow on large meshes.)
 quadrangulate(#e3d_mesh{type=quad}=Mesh) -> Mesh;
 quadrangulate(#e3d_mesh{fs=Fs0,vs=Vs}=Mesh) ->
-    case quadrangulate_1(Fs0, Vs, []) of
-	error -> error;
-	Fs -> Mesh#e3d_mesh{type=quad,fs=Fs}
-    end.
+    Fs = quadrangulate_1(Fs0, Vs, []),
+    Mesh#e3d_mesh{type=quad,fs=Fs}.
 
 quadrangulate_1([FaceRec|Ps], Vtab, Acc) ->
     Faces = quadrangulate_face(FaceRec, Vtab),
@@ -803,9 +799,9 @@ segsintersect(IA, IB, IC, ID, Vtab) ->
 	    (SI > 0.0 andalso SI < 1.0
 	     andalso TI > 0.0 andalso TI < 1.0);
 	true ->
-						% parallel or overlapping
+	    %% parallel or overlapping
 	    case {dot2(U,U), dot2(V,V)} of
-		{false,false} ->
+		{0.0,0.0} ->
 		    Z = sub2(B, C),
 		    {Vx,Vy}=V, {Wx,Wy}=W, {Zx,Zy}=Z,
 		    {T0,T1} = case Vx of

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.13 2003/12/31 10:46:37 bjorng Exp $
+%%     $Id: e3d__tif.erl,v 1.14 2004/10/07 08:32:00 dgud Exp $
 %%
 
 -module(e3d__tif).
@@ -853,17 +853,17 @@ type2type(Id) ->
 	10 -> srational;
 	11 -> float;
 	12 -> double;
-	byte -> 1;
-	ascii -> 2;
+%	byte -> 1;
+%	ascii -> 2;
 	short -> 3;
 	long -> 4;
 	rational -> 5;
-	sbyte -> 6;
-	undefined -> 7;
-	sshort -> 8;
-	slong -> 9;
-	srational -> 10;
-	float -> 11;
-	double -> 12;
+%	sbyte -> 6;
+%	undefined -> 7;
+%	sshort -> 8;
+%	slong -> 9;
+%	srational -> 10;
+%	float -> 11;
+%	double -> 12;
 	_ -> Id
     end.
