@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.234 2003/03/12 14:18:51 bjorng Exp $
+%%     $Id: wings.erl,v 1.235 2003/03/13 20:13:34 bjorng Exp $
 %%
 
 -module(wings).
@@ -478,8 +478,11 @@ command({edit,camera_mode}, St) ->
     wings_camera:command(camera_mode, St);
 command({edit,font}, St) ->
     wings_text:command(font, St);
-command({edit,purge_undo}, St) ->
-    wings_undo:purge(St);
+command({edit,purge_undo}, _St) ->
+    wings_util:yes_no("Are you sure (NOT undoable)?",
+		      fun() -> {edit,confirmed_purge_undo} end);
+command({edit,confirmed_purge_undo}, St) ->
+    wings_undo:init(St);
 command({edit,enable_patches}, St) ->
     wings_start:enable_patches(),
     St;
