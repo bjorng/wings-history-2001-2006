@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.153 2004/07/01 09:11:13 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.154 2004/07/02 00:07:12 raimo_niskanen Exp $
 %%
 
 -module(wings_view).
@@ -588,14 +588,17 @@ camera() ->
 
 camera_update_1(Var, Val, Sto) ->
     Props = gbget(lists:delete(Var, [fov,negative_format,
-				     negative_height,negative_width]), Sto),
+				     negative_height,negative_width]), 
+		  Sto),
     gbupdate(camera_propconv(from_fov, [{Var,Val}|Props]),
 	     gbupdate(Var, Val, Sto)).
 
 camera_update_2(Var, Val, Sto) ->
-    Props0 = gbget([negative_format,negative_height,negative_width], Sto),
-    Props1 = camera_propconv(fov, [{Var,Val}|Props0])++Props0,
-    Props = camera_propconv(from_fov, Props1)++Props1,
+    [_|Props0] = Props1 = 
+	gbget([lens_length,
+	       negative_format,negative_height,negative_width], Sto),
+    Props2 = camera_propconv(fov, [{Var,Val}|Props1])++Props0,
+    Props = camera_propconv(from_fov, Props2)++Props2,
     gbupdate(proplists:delete(Var, Props), gbupdate(Var, Val, Sto)).
 
 camera_propconv(from_fov, Props) ->
