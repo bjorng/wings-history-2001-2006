@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.61 2004/12/23 16:12:49 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.62 2004/12/24 17:43:17 bjorng Exp $
 
 -module(auv_segment).
 
@@ -851,47 +851,38 @@ normalize_charts([], Cuts0, We, Charts) ->
     Cuts = gb_sets:intersection(Cuts0, AllInner),
     {Charts,Cuts}.
 
-normalize_chart(Fs, Cuts, We, Acc) ->
-    case gb_sets:is_empty(Fs) of
+normalize_chart(Faces, Cuts, We, Acc) ->
+    find_reachable(Faces, We, collect_fun(Cuts), Acc).
+
+find_reachable(Faces0, We, Coll, Acc) ->
+    case gb_sets:is_empty(Faces0) of
 	true -> Acc;
 	false ->
-	    {F,_} = gb_sets:take_smallest(Fs),
-	    Reachable = reachable_faces(F, Fs, Cuts, We),
-	    Rest = gb_sets:difference(Fs, Reachable),
-	    normalize_chart(Rest, Cuts, We, [gb_sets:to_list(Reachable)|Acc])
+	    {Face,Faces1} = gb_sets:take_smallest(Faces0),
+	    Ws = [Face],
+	    {Reg,Faces} = collect_reachable(Ws, We, Coll, [], Faces1),
+	    find_reachable(Faces, We, Coll, [Reg|Acc])
     end.
 
-%% reachable_faces(Face, FaceSet, EdgeSet, We) -> Faces.
-%%  Return a set containing all faces in FaceSet reachable from Face,
-%%  without crossing any edge in EdgeSet.
-reachable_faces(Face, Faces, Edges, We) ->
-    reachable_faces_1(gb_sets:singleton(Face), We, {Faces,Edges}, gb_sets:empty()).
+collect_reachable([_|_]=Ws0, We, Coll, Reg0, Faces0) ->
+    Reg = Ws0++Reg0,
+    {Ws,Faces} = wings_face:fold_faces(Coll, {[],Faces0}, Ws0, We),
+    collect_reachable(Ws, We, Coll, Reg, Faces);
+collect_reachable([], _, _, Reg, Faces) ->
+    {sort(Reg),Faces}.
 
-reachable_faces_1(Work0, We, Constraints, Acc0) ->
-    case gb_sets:is_empty(Work0) of
-	true -> Acc0;
-	false ->
-	    {Face,Work1} = gb_sets:take_smallest(Work0),
-	    Acc = gb_sets:insert(Face, Acc0),
-	    Work = collect_maybe_add(Work1, Face, Constraints, We, Acc),
-	    reachable_faces_1(Work, We, Constraints, Acc)
+collect_fun(Cuts) ->
+    fun(Face, _, Edge, Rec, {Ws,Faces}=A) ->
+	    Of = case Rec of
+		     #edge{lf=Face,rf=Of0} -> Of0;
+		     #edge{rf=Face,lf=Of0} -> Of0
+		 end,
+	    case gb_sets:is_member(Of, Faces) andalso
+		not gb_sets:is_member(Edge, Cuts) of
+		true -> {[Of|Ws],gb_sets:delete(Of, Faces)};
+		false -> A
+	    end
     end.
-
-collect_maybe_add(Work, Face, {Faces,Edges}, We, Res) ->
-    wings_face:fold(
-      fun(_, Edge, Rec, A) ->
-	      case gb_sets:is_member(Edge, Edges) of
-		  true -> A;
-		  false ->
-		      Of = wings_face:other(Face, Rec),
-		      case gb_sets:is_member(Of, Faces) andalso
-			  not gb_sets:is_member(Of, Res) of
-			  false -> A;
-			  true -> gb_sets:add(Of, A)
-		      end
-	      end
-      end, Work, Face, We).
-
 
 %%%
 %%% Build a map {F,V} => UV.
