@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.257 2004/05/31 16:58:06 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.258 2004/06/02 03:59:03 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -579,7 +579,7 @@ vertex_tighten(Vs0, We, A) ->
     Vs = [V || V <- gb_sets:to_list(Vs0), not_bordering(V, Vis, We)],
     wings_vertex_cmd:tighten(Vs, We, A).
 
-body_tighten(#we{mode=body,vp=Vtab}=We, A) ->
+body_tighten(#we{vp=Vtab}=We, A) ->
     Vis = gb_sets:from_ordset(wings_we:visible(We)),
     Vs = [V || V <- gb_trees:keys(Vtab), not_bordering(V, Vis, We)],
     wings_vertex_cmd:tighten(Vs, We, A).
