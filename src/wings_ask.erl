@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.154 2003/12/27 18:28:11 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.155 2003/12/27 18:46:43 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -2431,8 +2431,7 @@ table_event({redraw,Active,DisEnabled}, [#fi{key=Key,index=I}=Fi|_], Sto) ->
     Sel = gb_trees:get(var(Key, I), Sto),
     table_redraw(Fi, gb_trees:get(-I, Sto), Sel, DisEnabled, Active);
 table_event(value, [#fi{key=Key,index=I}|_], Sto) ->
-    Sel = gb_trees:get(var(Key, I), Sto),
-    {value,Sel};
+    {value,gb_trees:get(var(Key, I), Sto)};
 table_event(#mousebutton{button=1,state=?SDL_PRESSED,y=Y},
 	    [#fi{y=YTop,key=Key,index=I,hook=Hook,flags=Flags}|_], Sto) ->
     #table{tmarg=TopMarg,elh=Elh,first=First,num_els=NumEls} = gb_trees:get(-I, Sto),
@@ -2443,7 +2442,16 @@ table_event(#mousebutton{button=1,state=?SDL_PRESSED,y=Y},
 	      _Outside -> []			%Clear selection.
 	  end,
     hook(Hook, update, [var(Key, I),I,{Sel,Els},Sto,Flags]);
-table_event(_Ev, _Path, _Store) -> keep.
+table_event(Ev, [#fi{key=Key,index=I}=Fi|_], Store) ->
+    Tab = gb_trees:get(-I, Store),
+    Val = gb_trees:get(var(Key, I), Store),
+    table_event_1(Ev, Fi, Tab, Val, Store).
+
+table_event_1(#mousebutton{button=4,state=?SDL_RELEASED}, Fi, Tab, Val, Sto) ->
+    table_scroll(-1, Fi, Tab, Val, Sto);
+table_event_1(#mousebutton{button=5,state=?SDL_RELEASED}, Fi, Tab, Val, Sto) ->
+    table_scroll(1, Fi, Tab, Val, Sto);
+table_event_1(_, _, _, _, _) -> keep.
 
 table_redraw(#fi{x=X,y=Y0,w=W,h=H},
 	     #table{head=Head,elh=Elh,rows=Rows,first=First,tmarg=TopMarg},
@@ -2484,6 +2492,15 @@ table_mark_sel_1([E|Els], I, [I|Sel]) ->
 table_mark_sel_1([E|Els], I, Sel) ->
     [E|table_mark_sel_1(Els, I+1, Sel)];
 table_mark_sel_1([], _, _) -> [].
+
+table_scroll(Dir, #fi{index=I}, #table{first=First0,num_els=N,rows=Rows}=Tab, _Val, Sto) ->
+    Incr = Rows div 4,
+    First = case First0+Dir*Incr of
+		Neg when Neg < 0 -> 0;
+		High when High > N-1 -> N-1;
+		F -> F
+	    end,
+    {store,gb_trees:update(-I, Tab#table{first=First}, Sto)}.
 
 %%%
 %%% Text and number input fields.
