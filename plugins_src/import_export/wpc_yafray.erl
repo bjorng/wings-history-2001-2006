@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.8 2003/01/24 14:47:26 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.9 2003/02/21 14:56:21 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -35,6 +35,21 @@
 -define(DEF_HEIGHT, 100).
 -define(DEF_BACKGROUND_COLOR, {0.0,0.0,0.0}).
 -define(DEF_AUTOSMOOTH_ANGLE, 0.0).
+-define(DEF_POWER, 1.0).
+-define(DEF_CONE_ANGLE, 45.0).
+-define(DEF_SPOT_EXPONENT, 2.0).
+
+-record(modulator, {mode=off,
+		    size=1.0,
+		    diffuse=0.0,
+		    specular=0.0,
+		    ambient=0.0,
+		    shininess=0.0,
+		    type=jpeg,
+		    filename=".jpg",
+		    color1={0.0,0.0,0.0,1.0},
+		    color2={1.0,1.0,1.0,1.0},
+		    depth=2}).
 
 
 
@@ -83,27 +98,31 @@ dialog({material_editor_setup,_Name,Mat}, Dialog) ->
     YafRay = proplists:get_value(?TAG, Mat, []),
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
-    Dialog ++ [{hframe,
-		[{vframe, [{label,"Index Of Reflection"},
-			   {label,"Minimum Reflection"}]},
-		 {vframe, [{text,IOR,
-				  [{range,{0.0,100.0}},
-				   {key,ior}]},
-			   {slider,{text,MinRefle,
-				    [{range,{0.0,1.0}},
-				     {key,min_refle}]}}]}],
+    Modulators = proplists:get_value(modulators, YafRay, []),
+    Dialog ++ [{vframe,
+		[{hframe,
+		  [{vframe, [{label,"Index Of Reflection"},
+			     {label,"Minimum Reflection"}]},
+		   {vframe, [{text,IOR,
+			      [{range,{0.0,100.0}},
+			       {key,ior}]},
+			     {slider,{text,MinRefle,
+				      [{range,{0.0,1.0}},
+				       {key,min_refle}]}}]}]
+		 }|modulator_dialogs(Modulators)],
 		[{title,"YafRay Options"}]}];
-dialog({material_editor_result,_Name,Mat0}, [A,B|Res]) ->
-    Mat = [{?TAG,[A,B]}|keydelete(?TAG, 1, Mat0)],
+dialog({material_editor_result,_Name,Mat0}, [A,B|Res0]) ->
+    {Modulators,Res} = modulator_result(Res0),
+    Mat = [{?TAG,[A,B,{modulators,Modulators}]}|keydelete(?TAG, 1, Mat0)],
     {Mat,Res};
 dialog({light_editor_setup,_Name,Ps}, Dialog) ->
     YafRay = proplists:get_value(?TAG, Ps, []),
     Power = proplists:get_value(power, YafRay, 1.0),
     Dialog ++ [{hframe,
 		[{vframe, [{label,"Power"}]},
-		 {vframe, [{slider,{text,Power,
-				    [{range,{0.0,1.0}},
-				     {key,power}]}}]}],
+		 {vframe, [{text,Power,
+				    [{range,{0.0,10000.0}},
+				     {key,power}]}]}],
 		[{title,"YafRay Options"}]}];
 dialog({light_editor_result,_Name,Ps0}, [A|Res]) ->
     Ps = [{?TAG,[A]}|keydelete(?TAG, 1, Ps0)],
@@ -112,6 +131,79 @@ dialog(_X, Dialog) ->
     io:format("~p\n", [{_X,Dialog}]),
     Dialog.
 
+modulator_dialogs([]) ->
+    [];
+%%Yet to come...%%    modulator_dialog(#modulator{}, new_modulator);
+modulator_dialogs([Modulator|Modulators]) ->
+    modulator_dialog(Modulator, modulator)++
+	modulator_dialogs(Modulators).
+
+modulator_dialog(#modulator{mode=Mode,
+			    size=Size,
+			    diffuse=Diffuse,
+			    specular=Specular,
+			    ambient=Ambient,
+			    shininess=Shininess,
+			    type=Type,
+			    filename=Filename,
+			    color1=Color1,
+			    color2=Color2,
+			    depth=Depth},
+		 Key) ->
+    [{vframe,
+      [{hframe,[{menu,case Key of 
+			  modulator -> [{"Delete",delete}];
+			  new_modulator -> []
+		      end++[{if Mode==off ->"Disabled";
+				true -> "Disable"
+			     end,off},{"Mix",mix},{"Mul",mul},{"Add",add}],
+		 Mode,[{key,Key}]},
+		{label,"Size"},
+		{text,Size,[{range,0.0,1000000.0}]}]},
+       {hframe,[{vframe,[{label,"Diffuse"},
+			 {label,"Specular"},
+			 {label,"Ambient"},
+			 {label,"Shininess"}]},
+		{vframe,[{slider,{text,Diffuse,[{range,{0.0,1.0}}]}},
+			 {slider,{text,Specular,[{range,{0.0,1.0}}]}},
+			 {slider,{text,Ambient,[{range,{0.0,1.0}}]}},
+			 {slider,{text,Shininess,[{range,{0.0,1.0}}]}}]}]},
+       {menu,[{"JPEG",jpeg},{"Clouds",clouds}],Type},
+       {hframe,[{label,"Filename"},{text,Filename}]},
+       {hframe,[{label,"Color 1"},{color,Color1},
+		{label,"Color 2"},{color,Color2},
+		{label,"Depth"},{text,Depth,[{range,{1,1000}}]}]}
+      ],
+      [{title,case Key of 
+		  modulator -> "Modulator";
+		  new_modulator -> "New Modulator"
+	      end}]}].
+
+modulator_result(Res) ->
+    modulator_result(Res, []).
+
+modulator_result([], Ms) ->
+    {reverse(Ms), []};
+modulator_result([{new_modulator,off}|Res0], Ms) ->
+    {_,Res} = modulator(off, Res0),
+    {reverse(Ms),Res};
+modulator_result([{new_modulator,Mode}|Res0], Ms) ->
+    {M,Res} = modulator(Mode, Res0),
+    {reverse(Ms, [M]), Res};
+modulator_result([{modulator,delete}|Res0], Ms) ->
+    {_,Res} = modulator(delete, Res0),
+    modulator_result(Res, Ms);
+modulator_result([{modulator,Mode}|Res0], Ms) ->
+    {M,Res} = modulator(Mode, Res0),
+    modulator_result(Res, [M|Ms]).
+
+modulator(Mode, [Size,Diffuse,Specular,Ambient,Shininess,
+		 Type,Filename,Color1,Color2,Depth|Res]) ->
+    {#modulator{mode=Mode,size=Size,
+		diffuse=Diffuse,specular=Specular,
+		ambient=Ambient,shininess=Shininess,
+		type=Type,filename=Filename,
+		color1=Color1,color2=Color2,depth=Depth},Res}.
 
 
 export_dialog() ->
@@ -295,8 +387,13 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Attr) ->
 	    [NameStr, format(DefaultMaterial)]),
     export_rgb(F, caus_rcolor, {0.0,0.0,0.0,1.0}),
     export_rgb(F, caus_tcolor, {0.0,0.0,0.0,1.0}),
-    println(F, "    </attributes>~n"++
-	    "    <mesh autosmooth=\"~.3f\">", [AutosmoothAngle]),
+    println(F, "    </attributes>"),
+    case AutosmoothAngle of
+	0.0 ->
+	    println(F, "    <mesh>");
+	_ ->
+	    println(F, "    <mesh autosmooth=\"~.3f\">", [AutosmoothAngle])
+    end,
     println(F, "        <points>"),
     export_vertices(F, Vs),
     println(F, "        </points>~n"++
@@ -351,40 +448,43 @@ export_faces(F, [#e3d_face{vs=[A,B,C],mat=[Mat|_]}|T], DefaultMaterial, TxT) ->
 
 export_light(F, {Name,Ps}) ->
     OpenGL = proplists:get_value(opengl, Ps, []),
+    YafRay = proplists:get_value(?TAG, Ps, []),
     Type = proplists:get_value(type, OpenGL, []),
-    export_light(F, Name, Type, OpenGL).
+    Power = proplists:get_value(power, YafRay, ?DEF_POWER),
+    export_light(F, Name, Type, OpenGL, Power).
 
-export_light(F, Name, point, OpenGL) ->
+export_light(F, Name, point, OpenGL, Power) ->
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
     println(F,"<light type=\"pointlight\" name=\"~s\" "++
-	    "power=\"1.0\" cast_shadows=\"on\">", [Name]),
+	    "power=\"~.3f\" cast_shadows=\"on\">", [Name, Power]),
     export_pos(F, from, Position),
     export_rgb(F, color, Diffuse),
     println(F, "</light>~n~n", []);
-export_light(F, Name, infinite, OpenGL) ->
+export_light(F, Name, infinite, OpenGL, Power) ->
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
     println(F,"<light type=\"sunlight\" name=\"~s\" "++
-	    "power=\"1.0\" cast_shadows=\"on\">", [Name]),
+	    "power=\"~.3f\" cast_shadows=\"on\">", [Name, Power]),
     export_pos(F, from, Position),
     export_rgb(F, color, Diffuse),
     println(F, "</light>");
-export_light(F, Name, spot, OpenGL) ->
+export_light(F, Name, spot, OpenGL, Power) ->
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     AimPoint = proplists:get_value(aim_point, OpenGL, {0.0,0.0,1.0}),
-    ConeAngle = proplists:get_value(cone_angle, OpenGL, 45.0),
-    SpotExponent = proplists:get_value(spot_exponent, OpenGL, 2.0),
+    ConeAngle = proplists:get_value(cone_angle, OpenGL, ?DEF_CONE_ANGLE),
+    SpotExponent = 
+	proplists:get_value(spot_exponent, OpenGL, ?DEF_SPOT_EXPONENT),
     Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
     println(F, "<light type=\"spotlight\" name=\"~s\" "++
-	    "power=\"1.0\" cast_shadows=\"on\"~n"++
+	    "power=\"~.3f\" cast_shadows=\"on\"~n"++
 	    "       size=\"~.10f\" beam_falloff=\"~.10f\">", 
-	    [Name, ConeAngle, SpotExponent]),
+	    [Name, Power, ConeAngle, SpotExponent]),
     export_pos(F, from, Position),
     export_pos(F, to, AimPoint),
     export_rgb(F, color, Diffuse),
     println(F, "</light>");
-export_light(_F, Name, Type, _OpenGL) ->
+export_light(_F, Name, Type, _OpenGL, _Power) ->
     io:format("Ignoring unknown light \"~s\" type: ~p~n", [Name, format(Type)]).
 
 
@@ -510,9 +610,13 @@ close(F) ->
 
 
 format(F) when is_float(F) ->
-    I = trunc(F),
-    D = abs(F) - float(abs(I)),
-    [integer_to_list(I)|format_decimals(D)];
+    I = abs(trunc(F)),
+    D = abs(F) - float(I),
+    if F < 0 ->
+	    [$-,integer_to_list(I)|format_decimals(D)];
+       true ->
+	    [integer_to_list(I)|format_decimals(D)]
+    end;
 format(I) when is_integer(I) ->
     integer_to_list(I);
 format(A) when is_atom(A) ->
