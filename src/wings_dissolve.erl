@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dissolve.erl,v 1.6 2004/12/29 09:58:21 bjorng Exp $
+%%     $Id: wings_dissolve.erl,v 1.7 2005/01/10 17:17:06 bjorng Exp $
 %%
 
 -module(wings_dissolve).
@@ -197,13 +197,16 @@ succ([], [Succ|_]) -> Succ.
 %%  but faster.
 
 outer_edge_loop(Faces, We) ->
-    [{Key,Val}|Es0] = sort(collect_outer_edges(Faces, We)),
-    case any_duplicates(Es0, Key) of
-	false ->
-	    Es = gb_trees:from_orddict(Es0),
-	    N = gb_trees:size(Es),
-	    outer_edge_loop_1(Val, Es, Key, N, []);
-	true -> error
+    case sort(collect_outer_edges(Faces, We)) of
+	[] -> error;
+	[{Key,Val}|Es0] ->
+	    case any_duplicates(Es0, Key) of
+		false ->
+		    Es = gb_trees:from_orddict(Es0),
+		    N = gb_trees:size(Es),
+		    outer_edge_loop_1(Val, Es, Key, N, []);
+		true -> error
+	    end
     end.
 
 outer_edge_loop_1({Edge,V}, _, V, 0, Acc) ->
