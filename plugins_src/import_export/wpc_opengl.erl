@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.29 2003/05/30 07:41:26 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.30 2003/06/03 19:39:18 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -138,7 +138,7 @@ get_filename(Attr, St) ->
 render_exit() ->
     gl:getError(),
     wings_draw_util:map(fun(D, []) ->
-				D#dlo{smooth=none,smooth_proxy=none}
+				D#dlo{smooth=none,proxy_faces=none}
 			end, []),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     wings_wm:dirty().
@@ -158,7 +158,7 @@ render_dlist(#dlo{src_we=We0}=D, St, SubDiv, RenderAlpha) ->
 	       true -> dlist_mask(We);
 	       false -> none
 	   end,
-    {D#dlo{smooth=List,transparent=Tr,smooth_proxy=Mask},[]}.
+    {D#dlo{smooth=List,transparent=Tr,proxy_faces=Mask},[]}.
 
 dlist_mask(#we{fs=Ftab}=We) ->
     List = gl:genLists(1),
@@ -305,7 +305,7 @@ render_redraw_2(#dlo{smooth=Dlist,transparent=Trans}, RenderTrans) ->
     gl:depthMask(?GL_TRUE),
     ?CHECK_ERROR().
 
-render_mask(#dlo{smooth_proxy=Dlist}) ->
+render_mask(#dlo{proxy_faces=Dlist}) ->
     ?CHECK_ERROR(),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
