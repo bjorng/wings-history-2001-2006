@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.14 2004/12/18 19:36:21 bjorng Exp $
+%%     $Id: wings_palette.erl,v 1.15 2004/12/24 10:03:40 bjorng Exp $
 %%
 -module(wings_palette).
 
@@ -215,9 +215,9 @@ event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, #pst{sel=Sel,cols=Cols
 		     face ->
 			 wings_face_cmd:set_color(Color, St0);
 		     body -> 
-			 St1 = wings_face:convert_selection(St0),
+			 St1 = wings_sel:convert_selection(face, St0),
 			 St2 = wings_face_cmd:set_color(Color, St1),
-			 St2#st{sel=St0#st.sel, selmode=St0#st.selmode};
+			 St2#st{sel=St0#st.sel,selmode=St0#st.selmode};
 		     _ ->
 			 St0
 		 end,
