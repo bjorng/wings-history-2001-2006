@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_rib.erl,v 1.7 2002/05/05 13:14:50 bjorng Exp $
+%%     $Id: wpc_rib.erl,v 1.8 2002/06/14 13:06:28 bjorng Exp $
 
 -module(wpc_rib).
 -include_lib("e3d.hrl").
@@ -176,12 +176,12 @@ render_fun(Attr) ->
     end.
 
 render(none, Contents, Attr) ->
-    TmpName = "wpc_rib_temp" ++ os:getpid() ++ ".rib",
+    TmpName = "wpc_rib_temp" ++ random_string() ++ ".rib",
     TxList = export_1(TmpName, Contents, Attr),
     Width = property_lists:get_value(width, Attr),
     Height = property_lists:get_value(height, Attr),
-    Renderer = property_lists:get_value(tmp_render, Attr),
-    Options1 = case Renderer of
+    Renderer0 = property_lists:get_value(tmp_render, Attr),
+    Options1 = case Renderer0 of
 		   rendrib ->
 		       " -silent -res " ++ integer_to_list(Width) ++ " " ++
 			   integer_to_list(Height) ++ " -d 16 ";
@@ -191,7 +191,7 @@ render(none, Contents, Attr) ->
 		       " -silent -res " ++ integer_to_list(Width) ++ " " ++
 			   integer_to_list(Height) ++ " -d 16 "
 	       end,
-    Options2 = case Renderer of
+    Options2 = case Renderer0 of
 		   rendrib ->
 		       " -silent -res " ++ integer_to_list(Width) ++ " " ++
 			   integer_to_list(Height) ++ " ";
@@ -201,20 +201,34 @@ render(none, Contents, Attr) ->
 		       " -silent -res " ++ integer_to_list(Width) ++ " " ++
 			   integer_to_list(Height) ++ " "
 	       end,
-    case property_lists:get_value(render_file, Attr) of
-    	undefined ->
-	    os:cmd(atom_to_list(Renderer) ++ Options1 ++ TmpName);
-    	RendFile ->
-	    os:cmd(atom_to_list(Renderer) ++ Options2 ++ TmpName),
-	    case os:find_executable("iv") of
-		false -> true;
-		_Path ->  os:cmd("iv " ++ RendFile)
-	    end
-    end,
-    ok = file:delete(TmpName),
-    foreach(fun(TmpImg) ->
-		    ok = file:delete(TmpImg)
-	    end, TxList).			% delete textures created...
+    Renderer = atom_to_list(Renderer0),
+    F = fun() ->
+		case property_lists:get_value(render_file, Attr) of
+		    undefined ->
+			os:cmd(Renderer ++ Options1 ++ TmpName);
+		    RendFile ->
+			os:cmd(Renderer ++ Options2 ++ TmpName),
+			case os:find_executable("iv") of
+			    false -> true;
+			    _Path ->  os:cmd("iv " ++ RendFile)
+			end
+		end,
+		ok = file:delete(TmpName),
+		foreach(fun(TmpImg) ->
+				ok = file:delete(TmpImg)
+			end, TxList)
+	end,
+    spawn(F),
+    ok.
+
+random_string() ->
+    {A,B,C} = now(),
+    foldl(fun(I, Acc) ->
+		  integer_to_list(I) ++ [$_|Acc]
+	  end, [$_|os:getpid()], [A,B,C]).
+    
+			  
+    
 
 %%%
 %%% Export functions.
@@ -280,7 +294,6 @@ export_all(F, [{[MatName],Faces}|T], OrigMesh, Base, Mat, Attr) ->
     export_mesh(F, MeshType, Mesh, Attr),
     export_all(F, T, OrigMesh, Base, Mat, Attr);
 export_all(_F, [], _, _, _, _) -> ok.
-
 
 export_mesh(F, _, Mesh, Attr) ->
     #e3d_mesh{fs=Fs,vs=Vs0,ns=Ns0,tx=Tx0,he=He} = e3d_mesh:renumber(Mesh),
