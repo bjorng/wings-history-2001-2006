@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.132 2004/05/08 13:50:32 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.133 2004/05/12 07:55:20 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -436,37 +436,31 @@ draw_hilite(#dlo{hilite=DL}) -> call(DL).
 
 draw_orig_sel(#dlo{orig_sel=none}) -> ok;
 draw_orig_sel(#dlo{orig_sel=Dlist,orig_mode=Mode}) ->
-    sel_color(),
     draw_orig_sel_1(Mode, Dlist).
 
 draw_orig_sel_1(vertex, DlistSel) ->
     gl:pointSize(wings_pref:get_value(selected_vertex_size)*2),
-    gl:depthMask(?GL_FALSE),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     {R0,G0,B0} = wings_pref:get_value(selected_color),
     gl:color4f(R0, G0, B0, 0.5),
     call(DlistSel),
-    gl:disable(?GL_BLEND),
-    gl:depthMask(?GL_TRUE);
+    gl:disable(?GL_BLEND);
 draw_orig_sel_1(edge, DlistSel) ->
     gl:lineWidth(wings_pref:get_value(selected_edge_width)*2),
-    gl:depthMask(?GL_FALSE),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     {R0,G0,B0} = wings_pref:get_value(selected_color),
     gl:color4f(R0, G0, B0, 0.5),
     call(DlistSel),
-    gl:disable(?GL_BLEND),
-    gl:depthMask(?GL_TRUE);
+    gl:disable(?GL_BLEND);
 draw_orig_sel_1(_, DlistSel) ->
+    sel_color(),
     gl:enable(?GL_POLYGON_STIPPLE),
-    gl:depthMask(?GL_FALSE),
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(1, 1),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     call(DlistSel),
-    gl:depthMask(?GL_TRUE),
     gl:disable(?GL_POLYGON_STIPPLE).
 
 draw_hard_edges(#dlo{hard=none}, _) -> ok;
