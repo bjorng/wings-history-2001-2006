@@ -3,12 +3,12 @@
 %%
 %%     This module manages the face materials (i.e. colors and textures).
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.113 2004/03/08 11:10:41 raimo_niskanen Exp $
+%%     $Id: wings_material.erl,v 1.114 2004/03/20 17:54:50 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -671,15 +671,20 @@ prop_get(Key, Props, Def) ->
 %% mat_faces([{Face,Info}], We) -> [{Mat,[{Face,Info}]}]
 %%  Group face tab into groups based on material.
 %%  Used for displaying objects.
-mat_faces(Ftab, We) ->
+mat_faces(Ftab, #we{mirror=none}=We) ->
+    mat_faces_1(Ftab, We);
+mat_faces(Ftab, #we{mirror=Face}=We) ->
+    mat_faces_1(lists:keydelete(Face, 1, Ftab), We).
+
+mat_faces_1(Ftab, We) ->
     case wings_pref:get_value(show_materials) of
 	false -> [{default,Ftab}];
-	true -> mat_faces_1(Ftab, We)
+	true -> mat_faces_2(Ftab, We)
     end.
 
-mat_faces_1(Ftab, #we{mat=AtomMat}) when is_atom(AtomMat) ->
+mat_faces_2(Ftab, #we{mat=AtomMat}) when is_atom(AtomMat) ->
     [{AtomMat,Ftab}];
-mat_faces_1(Ftab0, #we{mat=MatTab}) ->
+mat_faces_2(Ftab0, #we{mat=MatTab}) ->
     Ftab = mat_join(Ftab0, MatTab, []),
     wings_util:rel2fam(Ftab).
 

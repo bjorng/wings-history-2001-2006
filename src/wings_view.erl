@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.137 2004/03/17 17:47:51 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.138 2004/03/20 17:54:50 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -283,7 +283,7 @@ sel_to_set(#st{sel=Sel0}) ->
 virtual_mirror_fun(Faces, We) ->
     case gb_sets:to_list(Faces) of
 	[Face] ->
-	    wings_material:assign('_hole_', [Face], We#we{mirror=Face});
+	    We#we{mirror=Face};
 	_ ->
 	    wings_util:error("Only a single face must be selected per object.")
     end.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.126 2004/03/19 17:43:20 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.127 2004/03/20 17:54:49 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -520,7 +520,8 @@ subtract_mirror_face(Fs, #we{mirror=Face}) -> Fs -- [Face].
 
 vtx_color_split([{_,Edge}|_]=Ftab0, We) when is_integer(Edge) ->
     vtx_color_split_1(Ftab0, We, [], []);
-vtx_color_split(Ftab, _) -> vtx_smooth_color_split(Ftab).
+vtx_color_split(Ftab, #we{mirror=Face}) ->
+    vtx_smooth_color_split(Ftab, Face).
 
 vtx_color_split_1([{Face,_}|Fs], #we{mirror=Face}=We, SameAcc, DiffAcc) ->
     %% No need to show the mirror face, and it causes crashes with
@@ -554,15 +555,19 @@ no_colors([{_,_,_}|_]) -> false;
 no_colors([_|Cols]) -> no_colors(Cols);
 no_colors([]) -> true.
 
-vtx_smooth_color_split(Ftab) ->
-    vtx_smooth_color_split_1(Ftab, [], []).
+vtx_smooth_color_split(Ftab, Mirror) ->
+    vtx_smooth_color_split_1(Ftab, Mirror, [], []).
 
-vtx_smooth_color_split_1([{_,Vs}=Face|Fs], SameAcc, DiffAcc) ->
+vtx_smooth_color_split_1([{Mirror,_}|Fs], Mirror, SameAcc, DiffAcc) ->
+    vtx_smooth_color_split_1(Fs, Mirror, SameAcc, DiffAcc);
+vtx_smooth_color_split_1([{_,Vs}=Face|Fs], Mirror, SameAcc, DiffAcc) ->
     case vtx_smooth_face_color(Vs) of
-	different -> vtx_smooth_color_split_1(Fs, SameAcc, [Face|DiffAcc]);
-	Col -> vtx_smooth_color_split_1(Fs, [{Col,Face}|SameAcc], DiffAcc)
+	different ->
+	    vtx_smooth_color_split_1(Fs, Mirror, SameAcc, [Face|DiffAcc]);
+	Col ->
+	    vtx_smooth_color_split_1(Fs, Mirror, [{Col,Face}|SameAcc], DiffAcc)
     end;
-vtx_smooth_color_split_1([], SameAcc, DiffAcc) ->
+vtx_smooth_color_split_1([], _, SameAcc, DiffAcc) ->
     {wings_util:rel2fam(SameAcc),DiffAcc}.
 
 vtx_smooth_face_color(Vs) ->
