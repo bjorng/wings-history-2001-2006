@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.44 2003/06/01 20:45:54 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.45 2003/06/02 17:03:55 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -372,12 +372,12 @@ setup_1(#dlo{src_we=#we{id=Id},proxy_data=Pd}=D, [{Id,_}|Sel]) ->
 	    Wire0 = wings_wm:get_prop(wings_wm:this(), wireframed_objects),
 	    Wire = gb_sets:add(Id, Wire0),
 	    wings_wm:set_prop(wings_wm:this(), wireframed_objects, Wire),
-	    {D#dlo{proxy_data=#sp{}},Sel};
+	    {D#dlo{smooth=none,proxy_data=#sp{}},Sel};
 	_ ->
 	    Wire0 = wings_wm:get_prop(wings_wm:this(), wireframed_objects),
 	    Wire = gb_sets:delete_any(Id, Wire0),
 	    wings_wm:set_prop(wings_wm:this(), wireframed_objects, Wire),
-	    {D#dlo{smooth_proxy=none,proxy_data=none},Sel}
+	    {D#dlo{smooth=none,smooth_proxy=none,proxy_data=none},Sel}
     end;
 setup_1(D, Sel) -> {D,Sel}.
 
