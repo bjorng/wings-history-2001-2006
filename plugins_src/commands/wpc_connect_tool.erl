@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.8 2004/08/28 05:57:38 bjorng Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.9 2004/11/17 11:50:43 bjorng Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -167,9 +167,13 @@ handle_connect_event1({action,Action}, #cs{st=St0}=C) ->
 	    wings_view:command(aim, St),
 	    update_connect_handler(C);
 	{view,Cmd} ->
-	    St = wings_view:command(Cmd, St0),
-	    refresh_dlists(Cmd, St),
-	    update_connect_handler(C#cs{st=St});
+	    case wings_view:command(Cmd, St0) of
+		keep ->
+		    keep;
+		#st{}=St ->
+		    refresh_dlists(Cmd, St),
+		    update_connect_handler(C#cs{st=St})
+	    end;
 	{edit,undo_toggle} ->
 	    St = wings_undo:undo_toggle(St0),
 	    undo_refresh(St,C);
@@ -194,9 +198,9 @@ undo_refresh(St0,C0) ->
     wings_draw:refresh_dlists(St),
     update_connect_handler(C).
 
-exit_connect(#cs{ost=St,st=#st{shapes=Shs}}) ->
-    wings:unregister_postdraw_hook(geom,?MODULE),
-    wings_wm:later({new_state,St#st{shapes=Shs}}),
+exit_connect(#cs{ost=St,st=#st{shapes=Shs,views=Views}}) ->
+    wings:unregister_postdraw_hook(geom, ?MODULE),
+    wings_wm:later({new_state,St#st{shapes=Shs,views=Views}}),
     pop.
 
 refresh_dlists(wireframe_selected, _) -> ok;
