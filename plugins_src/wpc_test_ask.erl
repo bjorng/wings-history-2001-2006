@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.23 2003/12/21 19:12:23 bjorng Exp $
+%%     $Id: wpc_test_ask.erl,v 1.24 2003/12/21 19:37:06 bjorng Exp $
 %%
 
 -module(wpc_test_ask).
@@ -107,7 +107,8 @@ open_dialog(_) ->
 		io:format("~p\n", [Res]),
 		ignore
 	end,
-    Ps = [{ext,".wings"},{ext_desc,"Wings File"}],
+    Dir = wings_pref:get_value(current_directory),
+    Ps = [{directory,Dir},{ext,".wings"},{ext_desc,"Wings File"}],
     wings_plugin:call_ui({file,open_dialog,Ps,F}).
 
 minimal_dialog(_St) ->
