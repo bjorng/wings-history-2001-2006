@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.24 2002/11/05 13:41:22 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.25 2002/11/05 18:47:37 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -368,16 +368,17 @@ vn_edge_name(Va, Vb) -> {Vb,Va}.
 %%% Help functions for renumber/1.
 %%%
 
-renumber_1(#e3d_mesh{fs=Ftab0,vs=Vs0,tx=Tx0,ns=Ns0}=Mesh,
+renumber_1(#e3d_mesh{fs=Ftab0,vs=Vs0,tx=Tx0,ns=Ns0,he=He0}=Mesh,
 	   UsedVs, UsedUV, UsedNs) ->
     VsMap = rn_make_map(UsedVs, 0, []),
     UVMap = rn_make_map(UsedUV, 0, []),
     NsMap = rn_make_map(UsedNs, 0, []),
     Ftab = renumber_ftab(Ftab0, VsMap, UVMap, NsMap, []),
+    He = renumber_hard_edges(He0, VsMap, []),
     Vs = rn_remove_unused(Vs0, VsMap),
     Tx = rn_remove_unused(Tx0, UVMap),
     Ns = rn_remove_unused(Ns0, NsMap),
-    Mesh#e3d_mesh{fs=Ftab,vs=Vs,tx=Tx,ns=Ns}.
+    Mesh#e3d_mesh{fs=Ftab,vs=Vs,tx=Tx,ns=Ns,he=He}.
 
 renumber_ftab([#e3d_face{vs=Vs0,tx=Tx0,ns=Ns0}=Rec|Fs],
 	      VsMap, UVMap, NsMap, Acc) ->
@@ -387,6 +388,16 @@ renumber_ftab([#e3d_face{vs=Vs0,tx=Tx0,ns=Ns0}=Rec|Fs],
     renumber_ftab(Fs, VsMap, UVMap, NsMap,
 		  [Rec#e3d_face{vs=Vs,tx=Tx,ns=Ns}|Acc]);
 renumber_ftab([], _, _, _, Acc) -> reverse(Acc).
+
+renumber_hard_edges([{Va0,Vb0}|T], VsMap, Acc) ->
+    Va = map_vtx(Va0, VsMap),
+    case map_vtx(Vb0, VsMap) of
+	Vb when Va < Vb ->
+	    renumber_hard_edges(T, VsMap, [{Va,Vb}|Acc]);
+	Vb ->
+	    renumber_hard_edges(T, VsMap, [{Vb,Va}|Acc])
+    end;
+renumber_hard_edges([], _, Acc) -> reverse(Acc).
 
 map_vtx(V, {map,Low,_}) -> V-Low;
 map_vtx(V, Map) -> gb_trees:get(V, Map).
