@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.12 2002/10/17 12:20:44 bjorng Exp $
+%%     $Id: wings_edge_loop.erl,v 1.13 2003/02/05 11:01:36 dgud Exp $
 %%
 
 -module(wings_edge_loop).
--export([select_next/1,select_prev/1,select_loop/1]).
+-export([select_next/1,select_prev/1,select_loop/1, 
+	 select_link_decr/1, select_link_incr/1]).
 
 %% Utilities.
 -export([edge_loop_vertices/2,partition_edges/2]).
@@ -184,6 +185,79 @@ add_mirror_edges(Edges, #we{mirror=Face}=We) ->
 	true -> Edges;
 	false -> gb_sets:union(Edges, MirrorEdges)
     end.
+
+select_link_decr(#st{selmode=edge}=St) ->
+    Sel = wings_sel:fold(fun select_link_decr/3, [], St),
+    wings_sel:set(Sel, St);
+select_link_decr(St) -> St.
+
+select_link_decr(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
+    EndPoints = init_expand(Edges0, Etab),
+    Edges1 = decrease_edge_link(EndPoints, Edges0),
+    Edges = add_mirror_edges(Edges1, We),
+    [{Id,Edges}|Acc].
+
+decrease_edge_link([{_V, Edge}| R], Edges) ->
+    decrease_edge_link(R, gb_sets:delete(Edge,Edges));
+decrease_edge_link([], Edges) ->
+    Edges.
+
+select_link_incr(#st{selmode=edge}=St) ->
+    Sel = wings_sel:fold(fun select_link_incr/3, [], St),
+    wings_sel:set(Sel, St);
+select_link_incr(St) -> St.
+
+select_link_incr(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
+    EndPoints = init_expand(Edges0, Etab),
+    Edges1 = expand_edge_link(EndPoints, We, Edges0),
+    Edges = add_mirror_edges(Edges1, We),
+    [{Id,Edges}|Acc].
+
+expand_edge_link([{V,OrigEdge}|R], We, Sel) ->
+    Eds0 = 
+	wings_vertex:fold(fun(E,_,_,Acc) -> [E|Acc] end,
+			  [], V, We),
+    case length(Eds0) rem 2 of	
+	0 -> 
+	    Eds = reorder(Eds0, OrigEdge, []),
+	    NewEd = lists:nth(length(Eds0) div 2, Eds),
+	    expand_edge_link(R, We, gb_sets:add(NewEd,Sel));
+	1 -> %% Bjorn doesn't want to expand this..
+	    expand_edge_link(R, We, Sel)
+    end;
+expand_edge_link([], _, Sel) ->
+    Sel.
+
+reorder([Edge|R], Edge, Acc) ->
+    Acc ++ lists:reverse(R);
+reorder([E|R], Edge, Acc) ->
+    reorder(R, Edge, [E|Acc]).
+
+%% Returns start and end tuple {vertex, edge} for each link
+init_expand(Edges, Etab) ->
+    G = digraph:new(),
+    init_expand(gb_sets:to_list(Edges), Etab, G),    
+    Expand = find_end_vs(digraph:vertices(G),G,[]),
+    digraph:delete(G),
+    Expand.
+
+init_expand([Edge|R], Etab, G) ->
+    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+    add_edge(G,Edge,Va,Vb),
+    init_expand(R, Etab, G);
+init_expand([], _Etab, G) ->
+    G.
+
+find_end_vs([V|R], G, Acc) ->
+    New = digraph:in_edges(G,V) ++ digraph:out_edges(G,V),
+    case New of
+	[Edge] ->
+	    find_end_vs(R,G,[{V,Edge}|Acc]);
+	_ ->
+	    find_end_vs(R,G,Acc)
+    end;
+find_end_vs([], _G, Acc) -> Acc.
+    
 
 %% edge_loop_vertices(EdgeSet, WingedEdge) -> [[Vertex]] | none
 %%  Given a set of edges that is supposed to form

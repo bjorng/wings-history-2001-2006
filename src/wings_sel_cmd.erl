@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.40 2003/02/01 09:12:54 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.41 2003/02/05 11:01:39 dgud Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -27,12 +27,19 @@ menu(St) ->
      separator,
      {"More",more,more_help(St)},
      {"Less",less,less_help(St)},
-     {"Region",select_region},
-     {"Edge Loop",edge_loop,"Expand edge selection to loop; "
-      "convert face selection to selected border edges"},
-     {"Edge Ring",edge_ring,"Expand edge selection to ring"},
-     {"Previous Edge Loop",prev_edge_loop,"Select the next edge loop"},
-     {"Next Edge Loop",next_edge_loop,"Select the previous edge loop"},
+     {"Edge Loops", {edgesel, 
+		[
+		 {"Edge Loop to Region",select_region},
+		 {"Edge Loop",edge_loop,"Expand edge selection to loop; "
+		  "convert face selection to selected border edges"},
+		 {"Edge Ring",edge_ring,"Expand edge selection to ring"},
+		 {"Edge Incr (Loop)",edge_link_incr,
+		  "Increase edge selection by one in loop dir"},
+		 {"Edge Decr (Loop)",edge_link_decr,
+		  "Decrease edge selection by one in loop dir"},
+		 {"Previous Edge Loop",prev_edge_loop,"Select the next edge loop"},
+		 {"Next Edge Loop",next_edge_loop,"Select the previous edge loop"}
+		]}},
      {"Similar",similar,similar_help(St)},
      separator,
      {"Adjacent",{adjacent,[{"Vertices",vertex},
@@ -155,21 +162,25 @@ similar_help(#st{selmode=body}) ->
     "Select objects with the same number of edges, faces, and vertices";
 similar_help(_) -> [].
     
-command(edge_loop, #st{selmode=face}=St) ->
+command({edgesel, edge_loop}, #st{selmode=face}=St) ->
     {save_state,
      wings_sel:convert_shape(
        fun(Faces, We) ->
 	       gb_sets:from_list(wings_face:outer_edges(Faces, We))
        end, edge, St)};
-command(edge_loop, St) ->
+command({edgesel, edge_loop}, St) ->
     {save_state,wings_edge_loop:select_loop(St)};
-command(edge_ring, St) ->
+command({edgesel,edge_link_decr}, St) ->
+    {save_state,wings_edge_loop:select_link_decr(St)};
+command({edgesel,edge_link_incr}, St) ->
+    {save_state,wings_edge_loop:select_link_incr(St)};
+command({edgesel,edge_ring}, St) ->
     {save_state,wings_edge:select_edge_ring(St)};
-command(next_edge_loop, St) ->
+command({edgesel,next_edge_loop}, St) ->
     {save_state,wings_edge_loop:select_next(St)};
-command(prev_edge_loop, St) ->
+command({edgesel,prev_edge_loop}, St) ->
     {save_state,wings_edge_loop:select_prev(St)};
-command(select_region, St) ->
+command({edgesel,select_region}, St) ->
     {save_state,wings_edge:select_region(St)};
 command(deselect, St) ->
     {save_state,wings_sel:reset(St)};
