@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.114 2003/08/06 15:52:46 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.115 2003/08/16 17:50:35 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,resize/0,
-	 set_cursor/1,arrow/0,hourglass/0,
+	 set_cursor/1,hourglass/0,
 	 info/1,
 	 blend/2,
 	 border/5,border/6,sunken_rect/5,raised_rect/4,raised_rect/5,
@@ -21,7 +21,7 @@
 	 draw_icons/1,draw_icon/3,draw_char/1,
 	 set_color/1]).
 -export([putback_event/1,putback_event_once/1,get_event/0,get_matching_events/1,
-	 poll_event/0,set_timer/2,cancel_timer/1]).
+	 set_timer/2,cancel_timer/1]).
 
 -export([reset_grab/0,grab/0,ungrab/2,is_grabbed/0,warp/2]).
 -export([ortho_setup/0,ortho_setup/1]).
@@ -59,9 +59,6 @@ init() ->
 
 hourglass() ->
     set_cursor(hourglass).
-
-arrow() ->
-    set_cursor(arrow).
 
 set_cursor(Cursor) ->
     #io{cursors=Cursors} = get_state(),
@@ -456,13 +453,6 @@ get_matching_events_1(Filter, Eq0, Match, NoMatch) ->
 		    put(?EVENT_QUEUE, {In,reverse(NoMatch, Out)}),
 		    Match
 	    end
-    end.
-
-poll_event() ->
-    Eq = get(?EVENT_QUEUE),
-    case queue:out(Eq) of
-	{{value,Ev},_} -> Ev;
-	{empty,_} -> none
     end.
 
 get_sdl_event() ->

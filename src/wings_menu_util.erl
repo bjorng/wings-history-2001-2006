@@ -8,12 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.26 2003/07/28 05:19:16 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.27 2003/08/16 17:50:35 bjorng Exp $
 %%
 
 -module(wings_menu_util).
--export([directions/1,directions/2,scale/1,rotate/1,flatten/0,
-	 magnet_props/2,xyz/0,all_xyz/0]).
+-export([directions/1,directions/2,scale/1,rotate/1,flatten/0,all_xyz/0]).
 
 -include("wings.hrl").
 
@@ -49,11 +48,6 @@ dirs_help(_) -> "".
 dirs_1(body, Ns) -> directions([free,x,y,z], Ns);
 dirs_1(vertex, [rotate|_]=Ns) -> directions([free,x,y,z], Ns);
 dirs_1(_, Ns) -> directions([normal,free,x,y,z], Ns).
-
-xyz() ->
-    [{"X",x},
-     {"Y",y},
-     {"Z",z}].
 
 all_xyz() ->
     [{"All",all},

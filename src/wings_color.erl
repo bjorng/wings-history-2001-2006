@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.10 2003/08/03 19:31:11 bjorng Exp $
+%%     $Id: wings_color.erl,v 1.11 2003/08/16 17:50:35 bjorng Exp $
 %%
 
 -module(wings_color).
 -export([init/0,default/0,share/1,store/1,average/1,mix/3,white/0,
-	 rgb_to_hsv/1,rgb_to_hsv/3,hsv_to_rgb/1,hsv_to_rgb/3]).
+	 rgb_to_hsv/3,hsv_to_rgb/3]).
 
 -include("wings.hrl").
 -import(lists, [foreach/2]).
@@ -95,8 +95,6 @@ average_uvs_1([], A0, A1, L0) ->
     L = float(L0),
     {A0/L,A1/L}.
 
-rgb_to_hsv({R,G,B}) ->
-    rgb_to_hsv(R,G,B).
 rgb_to_hsv(R, G, B) ->
     Max = lists:max([R,G,B]),
     Min = lists:min([R,G,B]),
@@ -119,9 +117,7 @@ rgb_to_hsv(R, G, B) ->
 	    {Hue,Sat,V}
     end.
 
-hsv_to_rgb({H,S,V}) ->
-    hsv_to_rgb(H,S,V).
-hsv_to_rgb(H,S,V) ->
+hsv_to_rgb(H, S, V) ->
     Min = V*(1-S),
     if 
 	V < 1.0E-5 ->

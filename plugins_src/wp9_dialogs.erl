@@ -8,14 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.17 2003/07/12 09:01:10 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.18 2003/08/16 17:50:33 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
--export([menus/0,init/1]).
+-export([init/1]).
 -import(lists, [reverse/1]).
-
-menus() -> [].
 
 init(Next) ->
     fun(What) -> ui(What, Next) end.

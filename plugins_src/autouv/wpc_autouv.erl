@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.150 2003/08/16 08:53:00 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.151 2003/08/16 17:50:34 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -400,7 +400,7 @@ draw_texture(#uvstate{dl=undefined,option=Options,areas=As}=Uvs) ->
     ?SLOW(foreach(DrawArea, gb_trees:to_list(As))),
     gl:endList(),
     draw_texture(Uvs#uvstate{dl=Dl});
-draw_texture(Uvs = #uvstate{dl=DL, sel=Sel}) ->
+draw_texture(#uvstate{dl=DL,kludge_sel=Sel}=Uvs) ->
     gl:enable(?GL_DEPTH_TEST),
     gl:callList(DL),
     case Sel of 
@@ -576,12 +576,6 @@ get_event(Uvs) ->
     wings_wm:dirty(),
     get_event_nodraw(Uvs).
 
-update_dlists(#uvstate{areas=Shs,sel=[],origst=#st{mat=Mat}}) ->
-    wings_draw:invalidate_dlists(#st{selmode=body,shapes=Shs,mat=Mat});
-update_dlists(#uvstate{areas=Shs0,sel=Sel,origst=#st{mat=Mat}}) ->
-    Shs = gb_trees:from_orddict(sort(gb_trees:to_list(Shs0) ++ Sel)),
-    wings_draw:invalidate_dlists(#st{selmode=body,shapes=Shs,mat=Mat}).
-
 get_event_nodraw(Uvs) ->
     {replace,fun(Ev) -> handle_event(Ev, Uvs) end}.
 
@@ -708,7 +702,7 @@ handle_event({current_state,geom_display_lists,St}, Uvs) ->
 	keep -> update_selection(St, Uvs);
 	Other -> Other
     end;
-handle_event({picked,[{Id,_}|_]}, #uvstate{areas=Curr0,sel=Sel0,st=GeomSt0,
+handle_event({picked,[{Id,_}|_]}, #uvstate{areas=Curr0,kludge_sel=Sel0,st=GeomSt0,
 					   orig_we=#we{id=OrigId}}=Uvs) ->
     {Sel,Curr} =
 	case gb_trees:lookup(Id, Curr0) of
@@ -720,7 +714,7 @@ handle_event({picked,[{Id,_}|_]}, #uvstate{areas=Curr0,sel=Sel0,st=GeomSt0,
 	end,
     GeomSt = wings_select_faces(Sel, OrigId, GeomSt0),
     wings_wm:send(geom, {new_state,GeomSt}),
-    get_event(reset_dl(Uvs#uvstate{sel=Sel,st=GeomSt,areas=Curr,op=undefined}));
+    get_event(reset_dl(Uvs#uvstate{kludge_sel=Sel,st=GeomSt,areas=Curr,op=undefined}));
 handle_event(Ev, Uvs) ->
     case auv_pick:event(Ev, Uvs) of
 	next -> handle_event_1(Ev, Uvs);
@@ -807,7 +801,7 @@ handle_command({rotate,flip_vertical}, Uvs0) ->
 handle_command({rotate,Deg}, Uvs0) ->
     Uvs = sel_map(fun(_, We) -> rotate_chart(Deg, We) end, Uvs0),
     get_event(Uvs);
-handle_command(_, #uvstate{sel=[]}) ->
+handle_command(_, #uvstate{kludge_sel=[]}) ->
     keep;
 handle_command(NewOp, Uvs) ->
     get_event(Uvs#uvstate{op=#op{name=NewOp,undo=Uvs}}).
@@ -883,7 +877,7 @@ update_selection_2([{K,#we{name=#ch{fs=Fs}}=C}|Cs], Faces, Uvs, NonSel, Sel) ->
     end;
 update_selection_2([], _, Uvs0, NonSel, Sel) ->
     As = gb_trees:from_orddict(sort(NonSel)),
-    Uvs = Uvs0#uvstate{sel=sort(Sel),areas=As},
+    Uvs = Uvs0#uvstate{kludge_sel=sort(Sel),areas=As},
     get_event(Uvs).
     
 -define(OUT, 1.2/2). %% was 1/2 
@@ -1094,11 +1088,21 @@ restore_wings_window(Uvs) ->
     wings_draw_util:delete_dlists(),
     reset_dl(Uvs).
 
-clear_selection(#uvstate{sel=[]}=Uvs) -> Uvs;
-clear_selection(#uvstate{sel=Sel,areas=Charts}=Uvs) ->
-    Uvs#uvstate{sel=[],areas=merge_chart_lists(Sel, Charts)}.
+%%%
+%%% Most of this code will be rewritten as we slowly change the
+%%% internal structures.
+%%%
+update_dlists(#uvstate{areas=Shs,kludge_sel=[],origst=#st{mat=Mat}}) ->
+    wings_draw:invalidate_dlists(#st{selmode=body,shapes=Shs,mat=Mat});
+update_dlists(#uvstate{areas=Shs0,kludge_sel=Sel,origst=#st{mat=Mat}}) ->
+    Shs = gb_trees:from_orddict(sort(gb_trees:to_list(Shs0) ++ Sel)),
+    wings_draw:invalidate_dlists(#st{selmode=body,shapes=Shs,mat=Mat}).
 
-all_charts(#uvstate{sel=Sel,areas=Charts}) ->
+clear_selection(#uvstate{kludge_sel=[]}=Uvs) -> Uvs;
+clear_selection(#uvstate{kludge_sel=Sel,areas=Charts}=Uvs) ->
+    Uvs#uvstate{kludge_sel=[],areas=merge_chart_lists(Sel, Charts)}.
+
+all_charts(#uvstate{kludge_sel=Sel,areas=Charts}) ->
     merge_chart_lists(Sel, Charts).
 
 %% XXX Do not use this function directly - it will soon be removed.
@@ -1107,6 +1111,6 @@ merge_chart_lists(NewAreas, AreaTree) ->
  		  gb_trees:insert(K, Chart, TreeBB) 
  	  end, AreaTree, NewAreas).
 
-sel_map(F, #uvstate{sel=Sel0}=Uvs) ->
+sel_map(F, #uvstate{kludge_sel=Sel0}=Uvs) ->
     Sel = [{Id,F(0, We)} || {Id,We} <- Sel0],
-    Uvs#uvstate{sel=Sel}.
+    Uvs#uvstate{kludge_sel=Sel}.

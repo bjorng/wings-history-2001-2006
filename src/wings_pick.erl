@@ -8,13 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.111 2003/08/13 08:26:37 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.112 2003/08/16 17:50:35 bjorng Exp $
 %%
 
 -module(wings_pick).
 -export([event/2,event/3,hilite_event/3]).
 -export([do_pick/3]).
--export([face/2,face/3]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).

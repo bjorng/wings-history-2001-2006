@@ -8,14 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.262 2003/08/15 19:22:47 bjorng Exp $
+%%     $Id: wings.erl,v 1.263 2003/08/16 17:50:34 bjorng Exp $
 %%
 
 -module(wings).
--export([start/0,start/1,start_halt/1,start_halt/2]).
+-export([start/1,start_halt/1,start_halt/2]).
 -export([root_dir/0,caption/1,redraw/1,redraw/2,init_opengl/1,command/2]).
 -export([mode_restriction/1,clear_mode_restriction/0,get_mode_restriction/0]).
--export([install_restorer/1]).
 -export([create_toolbar/3]).
 -export([set_temp_sel/2,clear_temp_sel/1]).
 
@@ -28,25 +27,25 @@
 -import(lists, [foreach/2,map/2,filter/2,foldl/3,sort/1,
 		keymember/3,reverse/1]).
 
-start() ->
-    %% Only for development use.
-    RootEbin = filename:dirname(filename:absname(code:which(?MODULE))),
-    Split = filename:split(RootEbin),
-    Root = filename:join(Split -- ["ebin"]),
-    spawn(fun() ->
-		  {ok,Cwd} = file:get_cwd(),
-		  process_flag(trap_exit, true),
-		  Wings = do_spawn(none, Root, [link]),
-		  wait_for_exit(Wings, Cwd)
-	  end).
+% start() ->
+%     %% Only for development use.
+%     RootEbin = filename:dirname(filename:absname(code:which(?MODULE))),
+%     Split = filename:split(RootEbin),
+%     Root = filename:join(Split -- ["ebin"]),
+%     spawn(fun() ->
+% 		  {ok,Cwd} = file:get_cwd(),
+% 		  process_flag(trap_exit, true),
+% 		  Wings = do_spawn(none, Root, [link]),
+% 		  wait_for_exit(Wings, Cwd)
+% 	  end).
 
-wait_for_exit(Wings, Cwd) ->
-    receive
-	{'EXIT',Wings,_} ->
-	    file:set_cwd(Cwd);
-	_ ->					%Can't happen.
-	    wait_for_exit(Wings, Cwd)
-    end.
+% wait_for_exit(Wings, Cwd) ->
+%     receive
+% 	{'EXIT',Wings,_} ->
+% 	    file:set_cwd(Cwd);
+% 	_ ->					%Can't happen.
+% 	    wait_for_exit(Wings, Cwd)
+%     end.
 
 start(Root) ->
     do_spawn(none, Root).
@@ -270,12 +269,6 @@ save_state(St0, St1) ->
 	     _Other -> caption(St2#st{saved=false})
 	 end,
     main_loop(clear_temp_sel(St)).
-
-install_restorer(Next) ->
-    {seq,{pop_handler,fun() ->
-			      St = wings_wm:get_current_state(),
-			      main_loop(St)
-		      end},Next}.
 
 main_loop(St) ->
     ?VALIDATE_MODEL(St),

@@ -9,14 +9,14 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_placement.erl,v 1.19 2003/08/15 09:48:44 bjorng Exp $
+%%     $Id: auv_placement.erl,v 1.20 2003/08/16 17:50:34 bjorng Exp $
 
 -module(auv_placement).
 
 -include("wings.hrl").
 -include("auv.hrl").
 
--export([place_areas/1,group_edge_loops/2, center_rotate/2]).
+-export([place_areas/1,group_edge_loops/2]).
 
 -import(lists, [max/1, sort/1, map/2, reverse/1]).
 

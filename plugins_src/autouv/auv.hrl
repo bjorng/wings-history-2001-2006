@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.21 2003/08/15 09:48:44 bjorng Exp $
+%%     $Id: auv.hrl,v 1.22 2003/08/16 17:50:34 bjorng Exp $
 
 %% Chart record (one for each chart).
 %% Stored in the 'name' field in the #we{} record.
@@ -34,7 +34,7 @@
 	 geom,             %% Window geom
 	 dl,               %% Display list for non selected areas
 %% Data
-	 sel = [],         %% Selected areas
+	 kludge_sel = [],  %% Selected areas
 	 areas,            %% The charts 
 %%
 	 matname,

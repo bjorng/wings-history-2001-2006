@@ -10,11 +10,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.60 2003/08/15 09:48:44 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.61 2003/08/16 17:50:35 bjorng Exp $
 %%
 
 -module(wings_we).
--export([build/2,build/3,build/4,
+-export([build/2,
 	 rebuild/1,
 	 new_wrap_range/3,id/2,bump_id/1,
 	 new_id/1,new_ids/2,
@@ -63,7 +63,7 @@ build(Mode, #e3d_mesh{fs=Fs0,vs=Vs,tx=Tx,he=He}) when is_atom(Mode) ->
     Fs = translate_faces(Fs0, list_to_tuple(Tx), []),
     build(Mode, Fs, Vs, He);
 build(Fs, Vs) ->
-    build(material, Fs, Vs).
+    build(material, Fs, Vs, []).
 
 translate_faces([#e3d_face{vs=Vs,tx=Tx0,mat=Mat0}|Fs], Txs, Acc) ->
     Mat = translate_mat(Mat0),
@@ -79,9 +79,6 @@ translate_faces([], _, Acc) -> reverse(Acc).
 translate_mat([]) -> default;
 translate_mat([Mat]) -> Mat;
 translate_mat([_|_]=List) -> List.
-
-build(Type, Fs, Vs) ->
-    build(Type, Fs, Vs, []).
 
 build(Type, Fs0, Vs, HardEdges) ->
     {Good0,Bad0} = build_edges(Fs0, Type),

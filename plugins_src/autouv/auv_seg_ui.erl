@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.11 2003/08/12 18:12:19 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.12 2003/08/16 17:50:34 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -209,30 +209,8 @@ seg_command({select,Mat}, _) ->
 seg_command({segment,Type}, #seg{st=St0}=Ss) ->
     St = segment(Type, St0),
     get_seg_event(Ss#seg{st=St});
-seg_command({debug,select_features}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
-    Tot = gb_trees:size(We#we.es),
-    {Es,_,_} = auv_segment:find_features(We, 60, Tot div 50),
-    Sel = [{Id,gb_sets:from_list(Es)}],
-    get_seg_event(Ss#seg{st=St#st{selmode=edge,sel=Sel}});
-seg_command({debug,select_seeds}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
-    Tot = gb_trees:size(We#we.es),
-    {Features,_,_} = auv_segment:find_features(We, 60, Tot div 50),
-    {Seeds0,_} = auv_segment:build_seeds(Features, We),
-    Seeds = [S || {_,S} <- Seeds0],
-    Sel = [{Id,gb_sets:from_list(Seeds)}],
-    get_seg_event(Ss#seg{st=St#st{selmode=face,sel=Sel}});
-seg_command({debug,select_pinned}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
-    [{Id,SetOfFaces}] = St#st.sel,
-    case {St#st.selmode == face, gb_sets:to_list(SetOfFaces)} of
-	{true,Fs} when Fs /= [] ->
-	    {{V1,_UV1},{V2,_UV2}} = auv_mapping:find_pinned(Fs, We),
-	    ?DBG("Pinned ~p ~n", [{{V1,_UV1},{V2,_UV2}}]),
-	    Sel = [{Id,gb_sets:from_list([V1,V2])}],
-	    get_seg_event(Ss#seg{st=St#st{selmode=vertex,sel=Sel}});
-	_ -> 
-	    ?DBG("Not in face mode~n", []),
-	    keep
-    end;
+seg_command({debug,Cmd}, Ss) ->
+    seg_command_debug(Cmd, Ss);
 
 seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
     case gb_trees:is_defined(Cmd, Mat) of
@@ -243,6 +221,35 @@ seg_command(Cmd, #seg{st=#st{mat=Mat}=St0}=Ss) ->
 	    St = wings_material:command({assign,atom_to_list(Cmd)}, St0),
 	    get_seg_event(Ss#seg{st=St})
     end.
+
+-ifndef(DEBUG).
+seg_command_debug(_, _) -> keep.
+-else.
+seg_command_debug({debug,select_features}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
+    Tot = gb_trees:size(We#we.es),
+    {Es,_,_} = auv_segment:find_features(We, 60, Tot div 50),
+    Sel = [{Id,gb_sets:from_list(Es)}],
+    get_seg_event(Ss#seg{st=St#st{selmode=edge,sel=Sel}});
+seg_command_debug({debug,select_seeds}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
+    Tot = gb_trees:size(We#we.es),
+    {Features,_,_} = auv_segment:find_features(We, 60, Tot div 50),
+    {Seeds0,_} = auv_segment:build_seeds(Features, We),
+    Seeds = [S || {_,S} <- Seeds0],
+    Sel = [{Id,gb_sets:from_list(Seeds)}],
+    get_seg_event(Ss#seg{st=St#st{selmode=face,sel=Sel}});
+seg_command_debug({debug,select_pinned}, #seg{we=#we{id=Id}=We,st=St}=Ss) ->
+    [{Id,SetOfFaces}] = St#st.sel,
+    case {St#st.selmode == face, gb_sets:to_list(SetOfFaces)} of
+	{true,Fs} when Fs /= [] ->
+	    {{V1,_UV1},{V2,_UV2}} = auv_mapping:find_pinned(Fs, We),
+	    ?DBG("Pinned ~p ~n", [{{V1,_UV1},{V2,_UV2}}]),
+	    Sel = [{Id,gb_sets:from_list([V1,V2])}],
+	    get_seg_event(Ss#seg{st=St#st{selmode=vertex,sel=Sel}});
+	_ -> 
+	    ?DBG("Not in face mode~n", []),
+	    keep
+    end.
+-endif.
 
 seg_cancel() ->
     wings_draw_util:delete_dlists(),

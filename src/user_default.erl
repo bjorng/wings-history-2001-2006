@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: user_default.erl,v 1.13 2003/08/04 19:34:34 bjorng Exp $
+%%     $Id: user_default.erl,v 1.14 2003/08/16 17:50:34 bjorng Exp $
 %% 
 
 -module(user_default).
@@ -75,7 +75,50 @@ wxundef() ->
     xref:analyze(s, undefined_function_calls).
 
 wxunref() ->
-    io:format("~p\n", [xref:analyze(s, exports_not_used)]).
+    {ok,Unref0} = xref:analyze(s, exports_not_used),
+    Unref = filter_unref(Unref0),
+    io:format("~p\n", [Unref]).
+
+filter_unref([{M,F,A}=MFA|T]) ->
+    case filter_unref(M, F, A) of
+	true -> [MFA|filter_unref(T)];
+	false -> filter_unref(T)
+    end;
+filter_unref([]) -> [].
+
+filter_unref(user_default, _, _) -> false;
+filter_unref(wings_start, start, 0) -> false;
+filter_unref(wings_start, start, 1) -> false;
+filter_unref(wings_start, start_halt, 0) -> false;
+filter_unref(wings_start, start_halt, 1) -> false;
+filter_unref(M, F, A) ->
+    case atom_to_list(M) of
+	"wpc_"++_ ->
+	    filter_standard_plugin(F, A);
+	"wp9_"++_ ->
+	    filter_ui_plugin(F, A);
+	"wpf_"++_ ->
+	    filter_font_plugin(F, A);
+	_ ->
+	    true
+    end.
+
+filter_standard_plugin(init, 0) -> false;
+filter_standard_plugin(command, 2) -> false;
+filter_standard_plugin(menu, 2) -> false;
+filter_standard_plugin(_, _) -> true.
+
+filter_ui_plugin(init, 1) -> false;
+filter_ui_plugin(_, _) -> true.
+
+filter_font_plugin(char, 1) -> false;
+filter_font_plugin(desc, 0) -> false;
+filter_font_plugin(draw, 1) -> false;
+filter_font_plugin(height, 0) -> false;
+filter_font_plugin(width, 0) -> false;
+filter_font_plugin(height, 1) -> false;
+filter_font_plugin(width, 1) -> false;
+filter_font_plugin(_, _) -> true.
 
 result({ok,List}) ->
     io:format("~p\n", [List]);

@@ -10,13 +10,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_matrix.erl,v 1.11 2002/10/24 19:28:05 raimo_niskanen Exp $
+%%     $Id: auv_matrix.erl,v 1.12 2003/08/16 17:50:34 bjorng Exp $
 
 -module(auv_matrix).
 
 -export([dim/1]).
 -export([vector/1, vector/2]).
--export([rows/1, rows/2, cols/1, cols/2]).
+-export([rows/2, cols/1, cols/2]).
 -export([cat_cols/2, cat_rows/2]).
 -export([diag/1, row_norm/1]).
 -export([trans/1, mult/2, mult_trans/2]).
@@ -24,7 +24,9 @@
 -export([add/2, sub/2]).
 -export([reduce/1, backsubst/1]).
 
+-ifdef(DEBUG).
 -export([float_perf/2]).
+-endif.
 
 -define(TAG, ?MODULE).
 
@@ -132,8 +134,7 @@ rows_to_list(M, [Row | A], C) ->
 
 %% Exported
 %%
-rows(M, L)
-  when integer(M), list(L), M >= 1 ->
+rows(M, L) when integer(M), list(L), M >= 1 ->
     case vecs(M, L) of
 	{A, N} when list(A) ->
 	    fix({?TAG,N,M,A});
@@ -775,7 +776,7 @@ fix(M) ->
     M.
 
 
-
+-ifdef(DEBUG).
 float_perf(A, L) ->
     float_perf(A, L, []).
 
@@ -788,3 +789,4 @@ float_perf_int([], [], S) ->
     S;
 float_perf_int([Va | A], [Vb | B], S) when float(Va), float(Vb), float(S) ->
     float_perf_int(A, B, Va*Vb + S).
+-endif.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.68 2003/07/22 06:23:03 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.69 2003/08/16 17:50:35 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -18,14 +18,14 @@
 
 %% Utilities.
 -export([convert_selection/1,
-	 select_more/1,select_more/2,
+	 select_more/1,select_less/1,
 	 from_vs/2,
 	 select_region/1,
 	 select_edge_ring/1,select_edge_ring_incr/1, select_edge_ring_decr/1,
  	 cut/3,fast_cut/3,cut_edges/2,
  	 dissolve_edges/2,dissolve_edge/2,
  	 hardness/2,hardness/3,
-	 select_less/1,adjacent_edges/2,
+	 adjacent_edges/2,
 	 to_vertices/2,from_faces/2,extend_sel/2,
 	 patch_edge/4,patch_edge/5]).
 

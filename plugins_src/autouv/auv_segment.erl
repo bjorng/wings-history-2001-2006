@@ -9,14 +9,18 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.48 2003/06/02 19:40:55 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.49 2003/08/16 17:50:34 bjorng Exp $
 
 -module(auv_segment).
 
 -export([create/2, segment_by_material/1, cut_model/3,
 	 normalize_charts/3, map_vertex/2,
 	 fv_to_uv_map/2, uv_to_charts/3]).
+
+-ifdef(DEBUG).
 -export([degrees/0, find_features/3, build_seeds/2]). %% Debugging
+-endif.
+
 -include("wings.hrl").
 -include("auv.hrl").
 
@@ -47,6 +51,7 @@ create(Mode, We0) ->
 -record(restr, {sharp, featl}).
 
 %% Debug func %%
+-ifdef(DEBUG).
 degrees() ->
     Test = fun(D) ->
 		   X = (math:cos(D * math:pi() / 180) + 1) / 2, 
@@ -55,13 +60,12 @@ degrees() ->
 		   io:format("~.3w deg -> ~w ~w~n", [D, Dir, 1 - Dir])
 	   end,
     lists:foreach(Test, lists:seq(0,360,15)).
+-endif.
 
 degrees(Deg) ->
     X = (math:cos(Deg * math:pi() / 180) + 1) / 2, 
     Y = math:sin(Deg *  math:pi() / 180) /2,    
     math:sqrt(X*X+Y*Y).
-
-
 
 segment_by_feature(We, SharpEdgeDeg, MinFeatureLen) ->
     {Features,VEG,EWs} = ?TC(find_features(We, SharpEdgeDeg, MinFeatureLen)),

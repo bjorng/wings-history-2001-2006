@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.155 2003/08/14 07:11:05 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.156 2003/08/16 17:50:35 bjorng Exp $
 %%
 
 -module(wings_drag).
--export([setup/3,setup/4,do_drag/2,translate/4]).
+-export([setup/3,setup/4,do_drag/2]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).

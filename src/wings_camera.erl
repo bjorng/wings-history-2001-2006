@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.78 2003/08/02 08:14:49 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.79 2003/08/16 17:50:34 bjorng Exp $
 %%
 
 -module(wings_camera).
 -export([init/0,sub_menu/1,command/2,help/0,event/2]).
--export([desc/1,button_names/0,free_rmb_modifier/0]).
+-export([button_names/0,free_rmb_modifier/0]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.78 2003/08/07 05:04:22 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.79 2003/08/16 17:50:35 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -17,7 +17,7 @@
 	 button_message/1,button_message/2,button_message/3,
 	 button_format/1,button_format/2,button_format/3,
 	 rmb_format/1,mod_name/1,
-	 message/1,message/2,
+	 message/1,
 	 magnet_string/0,
 	 yes_no/2,yes_no/3,yes_no_cancel/3,
 	 get_matrices/2,mirror_matrix/1,
@@ -111,9 +111,6 @@ rmb_format(Message) ->
 mod_name(?ALT_BITS) -> "Alt";
 mod_name(?CTRL_BITS) -> "Ctrl";
 mod_name(?META_BITS) -> "Command".
-
-message(Message, _) ->
-    message(Message).
 
 message(Message) ->
     Qs = {vframe,

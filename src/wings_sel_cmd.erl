@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.48 2003/08/08 05:06:37 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.49 2003/08/16 17:50:35 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -318,19 +318,21 @@ select_all(#st{selmode=Mode,sel=Sel0}=St) ->
     Sel = [{Id,wings_sel:get_all_items(Mode, Id, St)} || {Id,_} <- Sel0],
     St#st{sel=Sel}.
 
-select_more(St) ->
-    selection_change(select_more, St).
+select_more(#st{selmode=vertex}=St) ->
+    wings_vertex:select_more(St);
+select_more(#st{selmode=edge}=St) ->
+    wings_edge:select_more(St);
+select_more(#st{selmode=face}=St) ->
+    wings_face:select_more(St);
+select_more(St) -> St.
 
-select_less(St) ->
-    selection_change(select_less, St).
-
-selection_change(Change, #st{selmode=vertex}=St) ->
-    wings_vertex:Change(St);
-selection_change(Change, #st{selmode=edge}=St) ->
-    wings_edge:Change(St);
-selection_change(Change, #st{selmode=face}=St) ->
-    wings_face:Change(St);
-selection_change(_, St) -> St.
+select_less(#st{selmode=vertex}=St) ->
+    wings_vertex:select_less(St);
+select_less(#st{selmode=edge}=St) ->
+    wings_edge:select_less(St);
+select_less(#st{selmode=face}=St) ->
+    wings_face:select_less(St);
+select_less(St) -> St.
 
 %%%
 %%% Select Inverse.

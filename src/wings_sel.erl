@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.44 2003/05/29 05:50:49 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.45 2003/08/16 17:50:35 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -16,9 +16,9 @@
 -export([clear/1,reset/1,set/2,set/3,
 	 convert_shape/3,convert_selection/2,
 	 map/2,fold/3,mapfold/3,
-	 foreach/2,make/3,valid_sel/1,valid_sel/3,
+	 make/3,valid_sel/1,valid_sel/3,
 	 center/1,bounding_box/1,bounding_boxes/1,
-	 face_regions/2,strict_face_regions/2,edge_regions/2,validate_items/3,
+	 face_regions/2,strict_face_regions/2,edge_regions/2,
 	 select_object/2,deselect_object/2,
 	 get_all_items/2,get_all_items/3,
 	 inverse_items/3,
@@ -125,25 +125,6 @@ mapfold_1(F, Acc, [_|_]=Sel, [Pair|Shs], St, ShsAcc) ->
     mapfold_1(F, Acc, Sel, Shs, St, [Pair|ShsAcc]);
 mapfold_1(_F, Acc, [], Shs, _St, ShsAcc) ->
     {gb_trees:from_orddict(reverse(ShsAcc, Shs)),Acc}.
-
-%%%
-%%% foreach functions (for drawing)
-%%%
-
-foreach(F, #st{sel=Sel,shapes=Shapes}) ->
-    lists:foreach(fun({Id,Items}) ->
-			  Sh = gb_trees:get(Id, Shapes),
-			  Iter = gb_sets:iterator(Items),
-			  foreach_1(F, Iter, Sh)
-		  end, Sel).
-
-foreach_1(F, Iter0, Sh) ->
-    case gb_sets:next(Iter0) of
-	none -> ok;
-	{Item,Iter} ->
-	    F(Item, Sh),
-	    foreach_1(F, Iter, Sh)
-    end.
 
 %%%
 %%% Make a selection.

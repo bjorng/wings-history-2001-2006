@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.121 2003/07/27 13:40:21 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.122 2003/08/16 17:50:35 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -40,7 +40,7 @@
 -export([message/1,message/2,message_right/1]).
 
 %% Menubar management.
--export([menubar/1,menubar/2,get_menubar/1]).
+-export([menubar/2,get_menubar/1]).
 
 %% Drag & Drop support.
 -export([drag/3,drag/4,allow_drag/1]).
@@ -141,9 +141,6 @@ message_right(Right) ->
 message(Message, Right) ->
     message(Message),
     message_right(Right).
-
-menubar(Menubar) ->
-    menubar(get(wm_active), Menubar).
 
 menubar(Name, Menubar) ->
     wings_io:putback_event({wm,{menubar,Name,Menubar}}).
