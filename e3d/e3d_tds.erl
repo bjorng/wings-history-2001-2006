@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.32 2004/01/11 17:58:23 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.33 2004/01/11 18:22:15 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -24,7 +24,7 @@
 %% R9C required is required if debugging is turned on,
 %% sinced the debug printouts use the new hex formatting characters.
 
-%% -define(DEBUG, 1).
+%%-define(DEBUG, 1).
 
 %% Inline dbg/2 so that the call will disappear completely if
 %% DEBUG is turned off.
@@ -110,6 +110,11 @@ editor(<<16#AFFF:16/little,Sz0:32/little,T0/binary>>, #e3d_file{mat=M}=Acc) ->
     <<Mat0:Sz/binary,T/binary>> = T0,
     Mat = material(Mat0, M),
     editor(T, Acc#e3d_file{mat=Mat});
+editor(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
+    Sz = Sz0 - 6,
+    <<Chunk:Sz/binary,T/binary>> = T0,
+    dbg("Unknown editor chunk: ~.16#: ~P\n", [Tag,Chunk,20]),
+    editor(T, Acc);
 editor(<<>>, Acc) -> Acc.
 
 block(Bin) ->
