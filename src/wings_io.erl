@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.99 2003/04/27 08:44:57 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.100 2003/04/27 17:14:13 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -515,16 +515,17 @@ warp(X, Y) ->
 %%%
 
 build_cursors() ->
-    case os:type() of
-	{unix,darwin} ->
-	    [{arrow,sdl_mouse:getCursor()},
-	     {hourglass,none},
-	     {stop,build_cursor(stop_data())}];
-	_ ->
+    [{stop,build_cursor(stop_data())},
+     {pointing_hand,build_cursor(pointing_hand_data())},
+     {closed_hand,build_cursor(closed_hand_data())}|
+     case os:type() of
+	 {unix,darwin} ->
+	     [{arrow,sdl_mouse:getCursor()},
+	      {hourglass,none}];
+	 _ ->
 	    [{arrow,build_cursor(arrow_data())},
-	     {hourglass,build_cursor(hourglass_data())},
-	     {stop,build_cursor(stop_data())}]
-    end.
+	     {hourglass,build_cursor(hourglass_data())}]
+     end].
 
 build_cursor(Data0) ->
     case os:type() of
@@ -649,3 +650,40 @@ stop_data() ->
         "   xxx    xxx   "
         "   xxxxxxxxxx   "
         "     xxxxxx     ".
+
+pointing_hand_data() ->
+        "       xx       "
+        "      x..x      "
+        "      x..x      "
+       	"      x..x      "
+       	"  xx  x..xx     "
+        " x..x x..x.xx   "
+        " x...xx..x.x.xx "
+       	" x....x..x.x.x.x"
+       	"  x...x......x.x"
+	"   x...........x"
+	"   x...........x"
+       	"   x..........x "
+        "    x.........x "
+        "    x........x  "
+        "    x........x  "
+        "    x........x  ".
+
+closed_hand_data() ->
+        "                "
+        "                "
+        "                "
+       	"                "
+        "  x xx xx xx    "
+        " x.x..x..x.x.xx "
+       	"x..x..x..x..x..x"
+       	"x...........x..x"
+	" x.............x"
+	"x..............x"
+       	"x..............x"
+        "x.............x "
+        "x.............x "
+        " x...........x  "
+        "  x..........x  "
+        "  x..........x  ".
+		       

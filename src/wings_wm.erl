@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.102 2003/04/27 13:35:52 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.103 2003/04/27 17:14:13 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -919,11 +919,11 @@ drag_filter(#drag{over=Win,data=DropData}=Drag) ->
 	    case Fun(DropData) of
 		yes ->
 		    message(""),
-		    put(wm_cursor, arrow),
+		    put(wm_cursor, closed_hand),
 		    get_drag_event(Drag#drag{drop_ok=true});
 		{yes,Message} ->
 		    message(Message),
-		    put(wm_cursor, arrow),
+		    put(wm_cursor, closed_hand),
 		    get_drag_event(Drag#drag{drop_ok=true});
 		no ->
 		    stop_cursor(Drag)
