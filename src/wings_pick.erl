@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.124 2003/10/14 20:56:15 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.125 2003/10/23 19:42:50 uid59848 Exp $
 %%
 
 -module(wings_pick).
@@ -175,13 +175,18 @@ hilit_draw_sel(face, Face, D) ->
 			      end),
     gl:disable(?GL_POLYGON_STIPPLE);
 hilit_draw_sel(body, _, #dlo{src_we=#we{fs=Ftab}}=D) ->
+    case wings_pref:get_value(selection_style) of
+	stippled -> gl:enable(?GL_POLYGON_STIPPLE);
+	solid -> ok
+    end,
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
     wings_draw_util:begin_end(
       fun() ->
 	      foreach(fun(Face) ->
 			      wings_draw_util:unlit_face(Face, D)
 		      end, gb_trees:keys(Ftab))
-      end).
+      end),
+    gl:disable(?GL_POLYGON_STIPPLE).
 
 %%
 %% Marquee picking.
