@@ -9,7 +9,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings3.nsi,v 1.3 2003/09/06 17:01:45 bjorng Exp $
+#     $Id: wings3.nsi,v 1.4 2003/09/06 18:57:18 bjorng Exp $
 #
 
 	!define MUI_PRODUCT "Wings 3D"
@@ -177,7 +177,7 @@ Section "Make Default" SecWingsMakeDefault
   WriteRegStr HKCR ".wings" "" "Wings3DFile"
   WriteRegStr HKCR "Wings3DFile" "" "Wings 3D File"
   WriteRegStr HKCR "Wings3DFile\shell" "" "open"
-  WriteRegStr HKCR "Wings3DFile\DefaultIcon" "" $INSTDIR\Wings3D.exe,0
+  WriteRegStr HKCR "Wings3DFile\DefaultIcon" "" $INSTDIR\Wings3D.exe,1
   WriteRegStr HKCR "Wings3DFile\shell\open\command" "" '$INSTDIR\Wings3D.exe "%1"'
   WriteRegStr HKLM "SOFTWARE\Wings 3D\DefaultVersion" "" ${WINGS_VERSION}
 SectionEnd  
