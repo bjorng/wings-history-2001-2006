@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.24 2002/03/21 10:32:19 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.25 2002/03/23 20:03:36 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -35,7 +35,8 @@ init() ->
     wings_pref:set_default(default_axis, DefAxis),
     wings_pref:set_default(last_point, DefPoint),
     wings_pref:set_default(default_point, DefPoint),
-    wings_pref:set_default(magnet_type, dome).
+    wings_pref:set_default(magnet_type, dome),
+    wings_pref:set_default(magnet_distance_route, shortest).
 
 menu(_St) -> [].
 
@@ -222,6 +223,12 @@ secondary_selection({use,Sti}, Ss, St) ->
     get_event(Ss, St#st{vec=Vec});
 secondary_selection({set,Sti}, Ss, #st{vec=Vec}=St) ->
     wings_pref:set_value(Sti, Vec),
+    get_event(Ss, St);
+secondary_selection(shortest, Ss, St) ->
+    wings_pref:set_value(magnet_distance_route, shortest),
+    get_event(Ss, St);
+secondary_selection(surface, Ss, St) ->
+    wings_pref:set_value(magnet_distance_route, surface),
     get_event(Ss, St).
 			       
 filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
@@ -260,13 +267,23 @@ exit_menu_done(X, Y, MenuEntry, Ss, St) ->
     wings_menu:popup_menu(X, Y, secondary_selection, Menu, St).
 
 add_last_menu(#ss{label=none}, _St, Menu) -> Menu;
-add_last_menu(#ss{label=magnet}, _St, Menu) -> Menu;
+add_last_menu(#ss{label=magnet}, _St, Menu) ->
+    [separator,
+     {"Shortest",shortest,magnet_crossmark(shortest)},
+     {"Surface",surface,magnet_crossmark(surface)},
+     separator|Menu];
 add_last_menu(#ss{label=Lbl,sti={_,default_axis=StiB}}, St, Menu) ->
     add_set_action(Lbl, StiB, St, [separator|Menu]);
 add_last_menu(#ss{label=Lbl,sti={StiA,_StiB}}, _St, Menu) ->
     [separator,
      {"Use Last "++Lbl,fun(_, _) -> {secondary_selection,{use,StiA}} end},
      separator|Menu].
+
+magnet_crossmark(Val) ->
+    case wings_pref:get_value(magnet_distance_route) of
+	Val -> [crossmark];
+	_ -> []
+    end.
 
 add_set_action(_Lbl, _Sti, #st{vec=none}, Menu) -> Menu;
 add_set_action(Lbl, Sti, _St, Menu) ->
@@ -450,7 +467,8 @@ exit_magnet(More, Acc, [N|Ns0]=Ns, St) ->
 	    invalid_selection;
 	{Point,Msg} ->
 	    wings_io:message(Msg),
-	    Mag = {magnet,wings_pref:get_value(magnet_type),Point},
+	    Mag = {magnet,wings_pref:get_value(magnet_type),
+		   wings_pref:get_value(magnet_distance_route),Point},
 	    {if
 		 More == [] ->
 		     Command0 = wings_menu:build_command(N, Ns0),

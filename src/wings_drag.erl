@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.68 2002/03/21 09:22:27 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.69 2002/03/23 20:03:36 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -494,7 +494,10 @@ translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
 
 progress(Move, #drag{unit=Units}) ->
     Msg = progress_units(Units, Move),
-    wings_io:message(lists:flatten(Msg)).
+    progress_1(reverse(lists:flatten(Msg))).
+
+progress_1([$\s|Str]) -> progress_1(Str);
+progress_1(Str) -> wings_io:message(reverse(Str)).
 
 progress_units([{Unit,_}|Units], [N|Ns]) ->
     [unit(Unit, N)|progress_units(Units, Ns)];
