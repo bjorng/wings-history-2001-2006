@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.57 2004/01/21 00:25:19 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.58 2004/01/22 00:00:05 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1383,7 +1383,14 @@ export_faces(F, [#e3d_face{vs=[A,B,C],tx=Tx,mat=[Mat|_]}|T],
 	    _ -> [" shader_name=\"w_",format(Mat),"\""]
 	end,
     UV = case {TxT,Tx} of
-	     {{},_} -> "";
+	     {{},[]} -> "";
+	     {{},_} ->
+		 io:format("WARNING! Face refers to non-existing "
+			   "texture coordinates~n"),
+		 "";
+	     {_,[]} ->
+		 %%io:format("WARNING! Face missing texture coordinates~n"),
+		 "";
 	     {_,[Ta,Tb,Tc]} ->
 		 {Ua,Va} = element(1+Ta, TxT),
 		 {Ub,Vb} = element(1+Tb, TxT),
@@ -1393,7 +1400,11 @@ export_faces(F, [#e3d_face{vs=[A,B,C],tx=Tx,mat=[Mat|_]}|T],
 		  io_lib:nl(),"           u_b=\"",format(Ub),
 		  "\" v_b=\"",format(-Vb),"\"",
 		  io_lib:nl(),"           u_c=\"",format(Uc),
-		  "\" v_c=\"",format(-Vc),"\""]
+		  "\" v_c=\"",format(-Vc),"\""];
+	     _ ->
+		 io:display("WARNING! Face has ~w =/= 3texture coordinates~n",
+			    [length(Tx)]),
+		 ""
 	 end,
     println(F, ["        <f a=\"",format(A),
 		"\" b=\"",format(B),"\" c=\"",format(C),"\"",
