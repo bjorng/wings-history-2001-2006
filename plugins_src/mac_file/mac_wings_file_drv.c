@@ -11,7 +11,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: mac_wings_file_drv.c,v 1.5 2002/07/19 10:14:18 bjorng Exp $
+ *     $Id: mac_wings_file_drv.c,v 1.6 2002/09/16 19:29:19 bjorng Exp $
  */
 
 /*cc -ObjC -I ~/local/lib/erlang/usr/include -bundle -flat_namespace -undefined suppress -framework Cocoa -o ../../plugins/mac_file/mac_wings_file_drv.so mac_wings_file_drv.c */
@@ -180,8 +180,8 @@ static int mac_wings_file_control(ErlDrvData handle, unsigned int command,
       }
     case 3: /* Message box */
     {
-      NSString *text = [NSString stringWithCString:buff];
-      NSString *title = [NSString stringWithCString:buff + strlen(buff) + 1];
+      NSString *title = [NSString stringWithCString:buff];
+      NSString *text = [NSString stringWithCString:buff + strlen(buff) + 1];
       NSRunAlertPanel(title, text, nil, nil, nil);	
       return 0;
     }

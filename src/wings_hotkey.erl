@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.29 2002/08/19 06:27:37 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.30 2002/09/16 19:29:19 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -18,7 +18,7 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [foldl/3,sort/1,foreach/2]).
+-import(lists, [foldl/3,sort/1,foreach/2,map/2]).
 
 -define(KL, wings_state).
 
@@ -145,6 +145,9 @@ modifiers(Mod, Acc) when Mod band ?ALT_BITS =/= 0 ->
 modifiers(Mod, Acc) when Mod band ?SHIFT_BITS =/= 0 ->
     Pressed = Mod band ?SHIFT_BITS,
     modifiers(Mod bxor Pressed, [shift|Acc]);
+modifiers(Mod, Acc) when Mod band ?KMOD_META =/= 0 ->
+    Pressed = Mod band ?KMOD_META,
+    modifiers(Mod bxor Pressed, [command|Acc]);
 modifiers(_, Acc) -> lists:sort(Acc).
 
 keyname({bindkey,Key}) ->
@@ -157,14 +160,31 @@ keyname($\b) -> "Bksp";
 keyname($\t) -> "Tab";
 keyname($\s) -> "Space";
 keyname(C) when $a =< C, C =< $z -> [C-32];
-keyname(C) when $A =< C, C =< $Z -> "Shift+" ++ [C];
+keyname(C) when $A =< C, C =< $Z ->
+    case get(wings_os_type) of
+	{unix,darwin} -> [shift,C];
+	_ -> "Shift+" ++ [C]
+    end;
 keyname(C) when is_integer(C), C < 256 -> [C];
 keyname(C) -> [$<|integer_to_list(C)++">"].
 
-modname([ctrl|T]) -> "Ctrl+"++modname(T);
-modname([shift|T]) -> "Shift+"++modname(T);
-modname([alt|T]) -> "Alt+"++modname(T);
-modname([]) -> [].
+modname(Mods) ->
+    case get(wings_os_type) of
+	{unix,darwin} -> mac_modname(Mods, []);
+	_ -> modname_1(Mods)
+    end.
+
+modname_1([ctrl|T]) -> "Ctrl+"++modname_1(T);
+modname_1([shift|T]) -> "Shift+"++modname_1(T);
+modname_1([alt|T]) -> "Alt+"++modname_1(T);
+modname_1([]) -> [].
+
+mac_modname([ctrl|T], Acc) ->
+    [$^|mac_modname(T, Acc)];
+mac_modname([shift|T], Acc) -> mac_modname(T, [shift|Acc]);
+mac_modname([alt|T], Acc) -> mac_modname(T, [option|Acc]);
+mac_modname([command|T], Acc) -> mac_modname(T, Acc++[command]);
+mac_modname([], Acc) -> Acc.
 
 vkeyname(?SDLK_BACKSPACE) -> "Bksp";
 vkeyname(?SDLK_TAB) -> "Tab";
@@ -202,19 +222,29 @@ vkeyname(_) -> "UKEY".
 
 set_default() ->
     foreach(
-      fun({{Key,List},Action}) when is_integer(Key) ->
+      fun({{Key,List0},Action}) when is_integer(Key) ->
+	      List = convert_modifiers(List0),
 	      ets:insert(wings_state, {{bindkey,{Key,sort(List)}},
 				       Action,default});
 	 ({Key,Action}) when is_integer(Key) ->
 	      ets:insert(wings_state, {{bindkey,Key},
 				       Action,default});
-	 ({Mode,{Key,List},Action}) when is_integer(Key) ->
+	 ({Mode,{Key,List0},Action}) when is_integer(Key) ->
+	      List = convert_modifiers(List0),
 	      ets:insert(wings_state, {{bindkey,Mode,{Key,sort(List)}},
 				       Action,default});
 	 ({Mode,Key,Action}) when is_integer(Key) ->
 	      ets:insert(wings_state, {{bindkey,Mode,Key},
 				       Action,default})
       end, default_keybindings()).
+
+convert_modifiers(Mod) ->
+    case get(wings_os_type) of
+	{unix,darwin} ->
+	    map(fun(ctrl) -> command;
+		   (Other) -> Other end, Mod);
+	_ -> Mod
+    end.
 
 default_keybindings() ->
     [{{$a,[ctrl]},          {select,all}},

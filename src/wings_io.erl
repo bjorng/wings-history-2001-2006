@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.64 2002/08/27 05:37:04 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.65 2002/09/16 19:29:19 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -492,7 +492,7 @@ menu_text([C|T], Acc) when is_integer(C), C < 256 ->
     menu_text(T, [C|Acc]);
 menu_text([L|Cs], Acc) when is_list(L) ->
     draw_reverse(Acc),
-    text(L, []),
+    menu_text(L, []),
     menu_text(Cs, []);
 menu_text([], Acc) -> draw_reverse(Acc).
 

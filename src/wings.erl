@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.157 2002/08/25 11:06:35 bjorng Exp $
+%%     $Id: wings.erl,v 1.158 2002/09/16 19:29:19 bjorng Exp $
 %%
 
 -module(wings).
@@ -84,6 +84,7 @@ root_dir() ->
 
 init(File, Root) ->
     register(wings, self()),
+    put(wings_os_type, os:type()),
     put(wings_root_dir, Root),
     sdl:init(?SDL_INIT_VIDEO bor ?SDL_INIT_ERLDRIVER bor
 	     ?SDL_INIT_NOPARACHUTE),
