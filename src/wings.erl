@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.122 2002/03/20 07:37:40 bjorng Exp $
+%%     $Id: wings.erl,v 1.123 2002/03/21 09:22:27 bjorng Exp $
 %%
 
 -module(wings).
@@ -554,7 +554,8 @@ patches() ->
 	    [separator,{"Use "++Desc,enable_patches}]
     end.
 
-info(#st{sel=[]}) -> "";
+info(#st{sel=[]}) ->
+    [lmb|" Select "] ++ [rmb|" Show menu "] ++ wings_camera:help();
 info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
     Sh = gb_trees:get(Id, Shapes),
     shape_info(Sh);

@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.16 2002/03/13 20:48:38 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.17 2002/03/21 09:22:27 bjorng Exp $
 %%
 
 -module(wings_camera).
--export([sub_menu/1,command/1,event/2]).
+-export([sub_menu/1,command/1,help/0,event/2]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -47,6 +47,24 @@ mode_desc(maya) -> "Maya".
 command(Mode) ->
     wings_pref:set_value(camera_mode, Mode).
 
+help() ->
+    case wings_pref:get_value(camera_mode, blender) of
+	blender ->
+	    [mmb] ++ " Tumble [Shift]+" ++
+		[mmb] ++ " Track [Ctrl]+" ++
+    		[mmb] ++ " Dolly   (Use [Alt]+" ++ [lmb] ++ " if no " ++ [mmb] ++ ")";
+	nendo ->
+	    "Click " ++ [mmb] ++ " or [Ctrl]+" ++ [rmb] ++ " to start camera";
+	tds ->
+	    "[Alt]+" ++ [mmb] ++ " Tumble  " ++
+		[mmb] ++ " Track [Ctrl]+[Alt]+" ++
+		[mmb] ++ " Dolly";
+	maya ->
+	    "[Alt]+" ++ [lmb] ++ " Tumble [Alt]+" ++
+		[mmb] ++ " Track [Alt]+" ++
+		[rmb] ++ " Dolly"
+    end.
+						   
 %% Event handler.
 
 event(Ev, Redraw) ->
@@ -70,6 +88,8 @@ blender(#mousebutton{button=1,state=?SDL_PRESSED}=Mb, Redraw) ->
 blender(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
+    wings_io:clear_message(),
+    wings_io:message(help()),
     {seq,{push,dummy},get_blender_event(Camera, Redraw)};
 blender(_, _) -> next.
 
@@ -114,6 +134,10 @@ nendo(#mousebutton{button=3,state=?SDL_RELEASED}=Mb, Redraw) ->
 nendo(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
+    wings_io:clear_message(),
+    Help = "Click " ++ [lmb] ++ " to exit camera mode  Move mouse to tumble  Drag " ++
+	[mmb] ++ " or " ++ [rmb] ++ " to dolly  Use arrows to track",
+    wings_io:message(Help),
     {seq,{push,dummy},get_nendo_event(Camera, Redraw)};
 nendo(#keyboard{keysym=#keysym{sym=Sym}}, Redraw) ->
     nendo_pan(Sym, Redraw);
@@ -129,7 +153,6 @@ nendo_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
 	_Other ->				%MMB and/or RMB pressed.
 	    zoom(Dy/10)
     end,
-    redraw(Redraw),
     get_nendo_event(Camera, Redraw);
 nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw) ->
     case nendo_pan(Sym, Redraw) of
@@ -138,8 +161,7 @@ nendo_event(#keyboard{keysym=#keysym{sym=Sym}}=Event, _Camera, Redraw) ->
 	    case wings_hotkey:event(Event) of
 		{view,smooth_preview} -> ok;
 		{view,Cmd} ->
-		    wings_view:command(Cmd, get_st(Redraw)),
-		    redraw(Redraw);
+		    wings_view:command(Cmd, get_st(Redraw));
 		_Other -> ok
 	    end
     end,
@@ -162,6 +184,7 @@ nendo_pan(Dx, Dy, Redraw) ->
     keep.
     
 get_nendo_event(Camera, Redraw) ->
+    redraw(Redraw),
     {replace,fun(Ev) -> nendo_event(Ev, Camera, Redraw) end}.
 
 %%%
@@ -171,6 +194,8 @@ get_nendo_event(Camera, Redraw) ->
 tds(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
     wings_io:grab(),
+    wings_io:clear_message(),
+    wings_io:message(help()),
     {seq,{push,dummy},get_tds_event(Camera, Redraw)};
 tds(_, _) -> next.
 
@@ -188,11 +213,11 @@ tds_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
 	_Other ->
 	    pan(Dx/10, Dy/10)
     end,
-    redraw(Redraw),
     get_tds_event(Camera, Redraw);
 tds_event(_Other, _Camera, _Redraw) -> keep.
 
 get_tds_event(Camera, Redraw) ->
+    redraw(Redraw),
     {replace,fun(Ev) -> tds_event(Ev, Camera, Redraw) end}.
 
 %%%
@@ -205,6 +230,8 @@ maya(#mousebutton{x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
 	    sdl_events:eventState(?SDL_KEYUP, ?SDL_ENABLE),
 	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
 	    wings_io:grab(),
+	    wings_io:clear_message(),
+	    wings_io:message(help()),
 	    {seq,{push,dummy},get_maya_event(Camera, Redraw)};
 	Mod -> next
     end;
@@ -226,11 +253,11 @@ maya_event(#mousemotion{x=X,y=Y,state=Buttons}, Camera0, Redraw) ->
 	    pan(Dx/10, Dy/10);
 	true -> ok
     end,
-    redraw(Redraw),
     get_maya_event(Camera, Redraw);
 maya_event(_Other, _Camera, _Redraw) -> keep.
 
 get_maya_event(Camera, Redraw) ->
+    redraw(Redraw),
     {replace,fun(Ev) -> maya_event(Ev, Camera, Redraw) end}.
 
 maya_stop_camera(Camera) ->
@@ -269,6 +296,8 @@ pan(Dx, Dy) ->
     wings_view:set_current(View#view{pan_x=PanX,pan_y=PanY}).
     
 stop_camera(#camera{ox=OX,oy=OY}) ->
+    wings_io:clear_message(),
+    wings_io:putback_event(redraw),
     case wings_io:ungrab() of
 	still_grabbed ->
 	    sdl_mouse:warpMouse(OX, OY),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.67 2002/03/21 06:43:32 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.68 2002/03/21 09:22:27 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -182,18 +182,17 @@ insert_vtx_data_1([], _Vtab, Acc) -> Acc.
 %%% Handling of drag events.
 %%%
 
-do_drag(#drag{magnet=none,falloff=Falloff}=Drag) ->
-    Help0 = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
-    Help = case Falloff of
-	       none -> Help0;
-	       _ -> "[+] or [-] Tweak R  " ++ Help0
-	   end,
-    wings_io:message_right(Help),
-    {seq,{push,dummy},get_drag_event_1(Drag)};
-do_drag(#drag{magnet=Type}=Drag) ->
-    Help = wings_magnet:help(Type),
-    wings_io:message_right(Help),
+do_drag(Drag) ->
+    wings_io:message_right(drag_help(Drag)),
     {seq,{push,dummy},get_drag_event_1(Drag)}.
+
+drag_help(#drag{magnet=none,falloff=Falloff}) ->
+    Help = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
+    case Falloff of
+	none -> Help;
+	_ -> "[+] or [-] Tweak R  " ++ Help
+    end;
+drag_help(#drag{magnet=Type}) -> wings_magnet:help(Type).
 
 get_drag_event(Drag) ->
     redraw(Drag),
@@ -336,6 +335,7 @@ magnet_radius(Sign, #drag{falloff=Falloff0}=Drag0) ->
     end.
 
 view_changed(#drag{flags=Flags}=Drag0) ->
+    wings_io:message_right(drag_help(Drag0)),
     case member(screen_relative, Flags) of
 	false -> Drag0;
 	true ->
