@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.17 2003/02/25 13:33:33 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.18 2003/02/27 19:22:48 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -382,8 +382,9 @@ is_helper_window(_Name) -> false.
 ctrl_new_resizer(Client) ->
     Name = {resizer,Client},
     Rst = #rsz{},
-    Pos = resize_pos(Client),
-    wings_wm:new(Name, Pos, {12,12},
+    Z = wings_wm:win_z(Client),
+    {X,Y} = resizer_pos(Client),
+    wings_wm:new(Name, {X,Y,Z+1}, {12,12},
 		 {seq,push,get_resize_event(Rst)}),
     Name.
 
@@ -433,18 +434,10 @@ resize_event(#mousemotion{x=X0,y=Y0},
     wings_wm:update_window(Client, [{dw,Dx},{dh,Dy}]),
     keep;
 resize_event({window_updated,Client}, _) ->
-    Pos = resize_pos(Client),
+    Pos = resizer_pos(Client),
     wings_wm:move(wings_wm:active_window(), Pos),
     keep;
 resize_event(_, _) -> keep.
-
-resize_pos(Client) ->
-    {{X,Y},{W,H}} = wings_wm:win_rect(Client),
-    Z = wings_wm:win_z(Client),
-    case wings_wm:is_window({vscroller,Client}) of
-	false ->  {X+W-13,Y+H-13,Z+1};
-	true -> {X+W,Y+H-13,Z+1}
-    end.
 
 resize_constrain(Client, Dx0, Dy0, Aspect) ->
     {{DeskX,DeskY},{DeskW,DeskH}} = wings_wm:win_rect(desktop),
@@ -576,7 +569,8 @@ max(_, B) -> B.
 %%%
 
 new_closer(Client) ->
-    {X,Y,Z} = closer_pos(Client),
+    {X,Y} = closer_pos(Client),
+    Z = wings_wm:win_z(Client),
     Name = {closer,Client},
     wings_wm:new(Name, {X,Y,Z}, {14,13},
 		 {push,fun close_event/1}),
@@ -595,8 +589,8 @@ close_event(got_focus) ->
     wings_wm:dirty();
 close_event(#mousebutton{button=1,state=?SDL_RELEASED}) ->
     {_,Client} = wings_wm:active_window(),
-    wings_wm:delete(Client),
-    delete;
+    wings_wm:send(Client, close),
+    keep;
 close_event({window_updated,Client}) ->
     Pos = closer_pos(Client),
     wings_wm:move(wings_wm:active_window(), Pos),
@@ -634,8 +628,6 @@ menubar_event(got_focus, _) ->
 menubar_event({action,_}=Action, _) ->
     wings_wm:send(geom, Action);
 menubar_event(clear_menu_selection, Mb) ->
-    {_,Client} = Self = wings_wm:active_window(),
-    wings_wm:update_window(Self, [{z,wings_wm:win_z(Client)}]),
     wings_wm:dirty(),
     get_menu_event(Mb#mb{sel=none});
 menubar_event({current_state,St}, Mb) ->
@@ -667,6 +659,7 @@ menu_open(Xrel, Name, Fun, #mb{st=St}=Mb) ->
     {menubar,Client} = Self = wings_wm:active_window(),
     wings_wm:raise(Client),
     {X,Y} = wings_wm:win_ll(Self),
+    wings_wm:raise(Client),
     wings_menu:menu(X+Xrel, Y-1, Client, Name, Menu),
     get_menu_event(Mb#mb{sel=Name}).
 
@@ -760,6 +753,12 @@ closer_pos(Client) ->
     TitleH = title_height(),
     {_,Y0} = menubar_pos(Client),
     Y = Y0 - TitleH + (TitleH-14) div 2 + 1,
-    Z = wings_wm:win_z(Client),
     W = controller_width(Client),
-    {X+W-16,Y,Z+1}.
+    {X+W-16,Y}.
+
+resizer_pos(Client) ->
+    {{X,Y},{W,H}} = wings_wm:win_rect(Client),
+    case wings_wm:is_window({vscroller,Client}) of
+	false ->  {X+W-13,Y+H-13};
+	true -> {X+W,Y+H-13}
+    end.

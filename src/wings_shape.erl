@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.58 2003/02/25 17:43:14 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.59 2003/02/27 19:22:47 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -92,8 +92,7 @@ window({_,Client}=Name, Pos, Size, St) ->
     Current = {current_state,St},
     Op = {seq,push,event(Current, Ost)},
     wings_wm:toplevel(Name, Title, Pos, Size,
-		      [resizable,closable,vscroller,{anchor,ne}], Op),
-    wings_wm:link(Client, Name).
+		      [resizable,closable,vscroller,{anchor,ne}], Op).
 
 get_event(Ost) ->
     {replace,fun(Ev) -> event(Ev, Ost) end}.
@@ -101,6 +100,8 @@ get_event(Ost) ->
 event(resized, Ost) ->
     update_scroller(Ost),
     keep;
+event(close, _) ->
+    delete;
 event(redraw, Ost) ->
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.28 2003/02/25 17:43:14 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.29 2003/02/27 19:22:46 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -68,6 +68,8 @@ event(redraw, Ost) ->
 event(resized, Ost) ->
     update_scroller(Ost),
     keep;
+event(close, Ost) ->
+    delete;
 event(got_focus, _) ->
     Msg = wings_util:button_format("Select", [],
 				   "Show outliner menu (if selection) or "

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.221 2003/02/26 06:59:07 bjorng Exp $
+%%     $Id: wings.erl,v 1.222 2003/02/27 19:22:45 bjorng Exp $
 %%
 
 -module(wings).
@@ -315,6 +315,10 @@ handle_event_3(init_opengl, St) ->
 handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(resized, _) -> keep;
+handle_event_3(close, _) ->
+    Active = wings_wm:active_window(),
+    wings_wm:delete({object,Active}),
+    delete;
 handle_event_3(redraw, St) ->
     redraw(St),
     main_loop_noredraw(St#st{vec=none});

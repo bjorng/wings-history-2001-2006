@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.92 2003/02/26 19:39:17 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.93 2003/02/27 19:22:46 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -141,7 +141,8 @@ setup_menu_killer(#mi{owner=Owner,level=Level}) ->
 		Level =:= ?INITIAL_LEVEL ->
 		    %% An new top-level menu will be created. Make sure
 		    %% that the menu killer window will be directly below it.
-		    wings_wm:raise(menu_killer);
+		    wings_wm:raise(menu_killer),
+		    raise_menubar(Owner);
 		true ->
 		    %% A sub-menu will be created. Don't move the menu killer.
 		    ok
@@ -149,9 +150,11 @@ setup_menu_killer(#mi{owner=Owner,level=Level}) ->
 	false ->
 	    Op = {push,fun(Ev) -> menu_killer(Ev, Owner) end},
 	    {TopW,TopH} = wings_wm:top_size(),
-	    wings_wm:new(menu_killer, {0,0,highest},
-			 {TopW,TopH}, Op)
-    end,
+	    wings_wm:new(menu_killer, {0,0,highest}, {TopW,TopH}, Op),
+	    raise_menubar(Owner)
+    end.
+
+raise_menubar(Owner) ->
     Menubar = {menubar,Owner},
     case wings_wm:is_window(Menubar) of
 	false -> ok;

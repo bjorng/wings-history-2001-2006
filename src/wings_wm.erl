@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.83 2003/02/27 09:56:38 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.84 2003/02/27 19:22:47 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -178,34 +178,15 @@ new_resolve_z(Z) when is_integer(Z), Z >= 0-> Z.
 delete(Name) ->
     Windows = delete_windows(Name, get(wm_windows)),
     put(wm_windows, Windows),
-    case get(wm_focus_grab) of
-	Name -> erase(wm_focus_grab);
-	_ -> ok
+    case is_window(get(wm_focus_grab)) of
+	false -> erase(wm_focus_grab);
+	true -> ok
     end,
-    case get(wm_focus) of
-	Name -> update_focus(find_active(none));
-	_ -> ok
+    case is_window(get(wm_focus)) of
+	false -> update_focus(find_active(none));
+	true -> ok
     end,
     dirty().
-
-raise(Name) ->
-    case get_window_data(Name) of
-	#win{z=Z} when Z < ?Z_LOWEST_DYNAMIC -> ok;
-	#win{z=Z0} ->
-	    case highest_z() of
-		Z when Z > Z0 -> update_window(Name, [{z,Z+1}]);
-		_ -> ok
-	    end
-    end.
-
-highest_z() ->
-    highest_z_1(gb_trees:values(get(wm_windows)), 0).
-
-highest_z_1([#win{z=Z}|T], Max) when Z < Max ->
-    highest_z_1(T, Max);
-highest_z_1([#win{z=Max}|T], _) ->
-    highest_z_1(T, Max);
-highest_z_1([], Max) -> Max.
 
 delete_windows(Name, W0) ->
     case gb_trees:lookup(Name, W0) of
@@ -218,6 +199,26 @@ delete_windows(Name, W0) ->
 		     (_, A) -> A
 		  end, W, Links)
     end.
+
+raise(Name) ->
+    case get_window_data(Name) of
+	#win{z=Z} when Z < ?Z_LOWEST_DYNAMIC -> ok;
+	#win{z=Z0} ->
+	    case highest_z() of
+		Z when Z > Z0 ->
+		    update_window(Name, [{z,Z+1}]);
+		_ -> ok
+	    end
+    end.
+
+highest_z() ->
+    highest_z_1(gb_trees:values(get(wm_windows)), 0).
+
+highest_z_1([#win{z=Z}|T], Max) when Z < Max ->
+    highest_z_1(T, Max);
+highest_z_1([#win{z=Max}|T], _) ->
+    highest_z_1(T, Max);
+highest_z_1([], Max) -> Max.
 
 link(From, To) ->
     #win{links=Links} = Win = get_window_data(From),
@@ -274,10 +275,13 @@ update_window(Name, Updates) ->
     send(Name, resized),
     #win{links=Links} = get_window_data(Name),
     Msg = {window_updated,Name},
-    foreach(fun(L) -> wings_wm:send(L, Msg) end, Links),
     case Data of
 	#win{z=Z0} -> ok;
 	#win{z=Z} -> update_linked_z(Links, Z-Z0)
+    end,
+    case Updates of
+	[{z,_}] -> ok;
+	_ -> foreach(fun(L) -> wings_wm:send(L, Msg) end, Links)
     end,
     dirty().
 
@@ -553,8 +557,8 @@ redraw_all() ->
     gl:swapBuffers(),
     maybe_clear(early, EarlyBC),		%Clear immediately after
 						%buffer swap (early).
-    wings_io:arrow(),
     erase(wm_dirty),
+    wings_io:arrow(),
     event_loop().
 
 maybe_clear(early, true) ->
@@ -568,8 +572,7 @@ clear_background() ->
 
     %% "Optimization": Check if we really need to clear the area
     %% occupied by the window. We actually lose time on my iMac.
-    %% But given a slow OpenGL implementation, it should be a
-    %% win (I hope).
+    %% But given a slow OpenGL implementation, it is a win.
     case any_window_below(Name) of
 	true -> clear_background_1(Name);
 	false -> ok
