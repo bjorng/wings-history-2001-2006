@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.41 2002/10/21 13:11:37 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.42 2002/10/29 06:15:35 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -513,13 +513,18 @@ renum_hard_edge(Edge0, Emap, New) ->
     [Edge|New].
 
 update_id_bounds(#we{vs=Vtab,es=Etab,fs=Ftab}=We) ->
-    FirstId = lists:min([wings_util:gb_trees_smallest_key(Vtab),
-			 wings_util:gb_trees_smallest_key(Etab),
-			 wings_util:gb_trees_smallest_key(Ftab)]),
-    LastId = lists:max([wings_util:gb_trees_largest_key(Vtab),
-			wings_util:gb_trees_largest_key(Etab),
-			wings_util:gb_trees_largest_key(Ftab)]),
-    We#we{first_id=FirstId,next_id=LastId+1}.
+    case gb_trees:is_empty(Etab) of
+	true ->
+	    We#we{first_id=0,next_id=0};
+	false ->
+	    FirstId = lists:min([wings_util:gb_trees_smallest_key(Vtab),
+				 wings_util:gb_trees_smallest_key(Etab),
+				 wings_util:gb_trees_smallest_key(Ftab)]),
+	    LastId = lists:max([wings_util:gb_trees_largest_key(Vtab),
+				wings_util:gb_trees_largest_key(Etab),
+				wings_util:gb_trees_largest_key(Ftab)]),
+	    We#we{first_id=FirstId,next_id=LastId+1}
+    end.
 
 %%%
 %%% Separate a combined winged-edge structure.
