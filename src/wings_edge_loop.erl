@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_loop.erl,v 1.13 2003/02/05 11:01:36 dgud Exp $
+%%     $Id: wings_edge_loop.erl,v 1.14 2003/02/10 13:37:37 dgud Exp $
 %%
 
 -module(wings_edge_loop).
@@ -198,7 +198,7 @@ select_link_decr(Edges0, #we{id=Id,es=Etab}=We, Acc) ->
     [{Id,Edges}|Acc].
 
 decrease_edge_link([{_V, Edge}| R], Edges) ->
-    decrease_edge_link(R, gb_sets:delete(Edge,Edges));
+    decrease_edge_link(R, gb_sets:delete_any(Edge,Edges));
 decrease_edge_link([], Edges) ->
     Edges.
 
