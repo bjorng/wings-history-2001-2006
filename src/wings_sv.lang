@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.27 2004/10/31 11:59:46 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.28 2004/11/01 08:16:02 raimo_niskanen Exp $
 %%
 
 {wings,
@@ -1724,28 +1724,36 @@
     {2,"[+] Högre fart"},
     {3,"[-] Lägre fart"}]},
   {camera,
-   [{1,"Negative Format"},
-    {4,"Custom"},
+   [{1,"Negativformat"},
+    {4,"Special"},
     {5,"x"},
-    {6,"Wide-Angle Lens"},
-    {7,"Moderate Wide-Angle Lens"},
-    {8,"Standard Lens"},
-    {9,"Portrait Telephoto Lens"},
-    {10,"Telephoto Lens"},
-    {11,"Custom Lens"},
-    {12,"Length"},
+    {6,"Vidvinkel"},
+    {7,"Måttlig vidvinkel"},
+    {8,"Normal"},
+    {9,"Porträttele"},
+    {10,"Tele"},
+    {11,"Special"},
+    {12,"Brännvidd"},
     {13,"x Zoom"},
-    {14,"Lens"},
-    {15,"Field of View"},
-    {16,"Near Clipping Plane"},
-    {17,"Far Clipping Plane"},
-    {18,"Camera Settings"}]},
+    {14,"Objektiv"},
+    {15,"Bildvinkel"},
+    {16,"Närgräns"},
+    {17,"Fjärrgräns"},
+    {18,"Kamerainställningar"}]},
   {help,
-   [{1,"Camera Settings: Field of View"},
-    {2,"Sets the vertical field of view, i.e. the angle from lower to upper border seen from the camera. "},
-    {3,"The Lens controls sets the field of view according to other perhaps more well-known entities, at least for a photographer. The negative size is stored among the user preferences."},
-    {4,"The Lens controls make the height of the picture right for the choosen lens, so if you do not have the same aspect ratio for the negative size in the Lens frame, as for the size of the Geometry window, the width will be in error."},
-    {5,"Note: the zoom factor is relative a standard lens length of the negative diagonal, while only the negative height affects the effective lens length."}]},
+   [{1,"Kamerainställningar: Bildvinkel"},
+    {2,"Bestämmer vertikal bildvinkel, i.e vinkeln från nedre till övre "
+     "bildkant sett från kameran. "},
+    {3,"Inställningarna för Objektiv sätter bildvinkeln enligt andra kanske "
+     "mer välkända storheter, åtminstone för en fotograf. "
+     "Negativformatet sparas bland inställningarna."},
+    {4,"Inställningarna för Objektiv gör bildens höjd korrekt för valt "
+     "objektiv, så om det inte är samma sidförhållande på negativformatet "
+     "i inställningarna för Objektiv, som på geometrifönstret, "
+     "så kommer bildens bredd att bli fel."},
+    {5,"OBS: zoomfaktorn räknas relativt ett normalobjektiv "
+     "med brännvidden lika med negativets diagonal, emedan det är bara "
+     "negativets höjd som påverkar den effektiva brännvidden."}]},
   {menu,
    [{1,"Grundplan"},
     {2,"Visa grundplanet"},
