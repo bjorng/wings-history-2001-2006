@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.13 2001/11/13 13:57:41 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.14 2001/11/18 19:25:28 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -17,11 +17,20 @@
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,sort/1]).
 
+% setup(Type, #st{selmode=body,sel=Sel}=St) ->
+%     Vec = wings_util:make_vector(Type),
+%     Fun = translate_fun(Vec),
+%     Ids = [Id || {Id,_} <- Sel],
+%     wings_drag:init_drag({matrix,Fun,Ids}, none, distance, St);
 setup(Type, #st{selmode=Mode}=St) ->
     Vec = wings_util:make_vector(Type),
-    Tvs = wings_sel:fold_shape(fun(Sh, Items, Acc) ->
-				       setup_1(Mode, Sh, Items, Vec, Acc)
-			       end, [], St),
+    Tvs0 = wings_sel:fold_shape(fun(Sh, Items, Acc) ->
+					setup_1(Mode, Sh, Items, Vec, Acc)
+				end, [], St),
+    Tvs = case Mode of
+	      body -> {matrix,Tvs0};
+	      Other -> Tvs0
+	  end,
     wings_drag:init_drag(Tvs, constraint(Type), distance, St).
 
 setup_1(Mode, #shape{id=Id,sh=We}=Sh, Items, Vec, Acc) ->
@@ -193,8 +202,7 @@ translate_fun(free) ->
 	    M1 = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
 	    {Xt,Yt,Zt} = e3d_mat:mul_point(M1, {Dx,Dy,0.0}),
 	    M3 = e3d_mat:translate(Xt, Yt, Zt),
-	    Matrix = e3d_mat:mul(Matrix0, M3),
-	    {shape_matrix,Matrix}
+	    e3d_mat:mul(Matrix0, M3)
     end;
 translate_fun({Xt0,Yt0,Zt0}) ->
     fun(Sh, Dx, Dy, St) when float(Dx) ->
@@ -202,7 +210,7 @@ translate_fun({Xt0,Yt0,Zt0}) ->
 	    Xt = Xt0*Dx,
 	    Yt = Yt0*Dx,
 	    Zt = Zt0*Dx,
-	    {shape_matrix,e3d_mat:translate(Xt, Yt, Zt)}
+	    e3d_mat:translate(Xt, Yt, Zt)
     end.
 
 %%%

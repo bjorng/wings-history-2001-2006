@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.14 2001/11/13 13:57:41 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.15 2001/11/18 19:25:28 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -42,7 +42,7 @@ setup(Type, #st{selmode=body}=St) ->
 	    fun(#shape{id=Id}=Sh, Acc) ->
 		    [{Id,body_to_vertices(Sh, Type)}|Acc]
 	    end, [], St),
-    init_drag(Tvs, St).
+    init_drag({matrix,Tvs}, St).
 
 init_drag(Tvs, St) ->
     wings_drag:init_drag(Tvs, {-1.0,?HUGE}, percent, St).
@@ -157,9 +157,8 @@ scale_fun(#shape{sh=We}, Type) ->
 	    Yt = 1.01+Yt0*Dx,
 	    Zt = 1.01+Zt0*Dx,
 	    Mat0 = e3d_mat:translate(Center),
-	    Mat1 = e3d_mat:mul(Mat0, e3d_mat:scale(Xt, Yt, Zt)),
-	    Mat = e3d_mat:mul(Mat1, e3d_mat:translate(e3d_vec:neg(Center))),
-	    {shape_matrix,Mat}
+	    Mat = e3d_mat:mul(Mat0, e3d_mat:scale(Xt, Yt, Zt)),
+	    e3d_mat:mul(Mat, e3d_mat:translate(e3d_vec:neg(Center)))
     end.
 
 %%%

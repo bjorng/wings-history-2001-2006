@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.25 2001/11/18 09:52:14 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.26 2001/11/18 19:25:28 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -62,11 +62,6 @@ init_drag_1(Tvs, Constraint, Unit, #st{shapes=OldShapes}=St) ->
     Drag = #drag{x=X,y=Y,constraint=Constraint,unit=Unit,shapes=OldShapes},
     init_drag_2(Tvs, Drag, St).
 
-init_drag_2({shape_matrix,Fun,Ids}, Drag0, St) ->
-    Drag1 = Drag0#drag{tvs=Fun,ids=Ids},
-    Drag = static_display_list(Drag1, St),
-    #drag{x=X,y=Y} = Drag,
-    motion(X, Y, St);
 init_drag_2(Tvs0, Drag0, St0) ->
     Tvs = combine(Tvs0),
     Faces = faces(Tvs, St0),
@@ -76,6 +71,7 @@ init_drag_2(Tvs0, Drag0, St0) ->
     #drag{x=X,y=Y} = Drag,
     motion(X, Y, St).
 
+combine({matrix,_}=Tvs) -> Tvs;
 combine(Tvs) ->
     S = sofs:relation(Tvs),
     F = sofs:relation_to_family(S),
@@ -220,38 +216,39 @@ constrain(Dx0, Dy0, #drag{constraint=Constraint}) ->
 	    {Dx,Dy}
     end.
 
-motion_update(Tvs, Dx, Dy, #st{shapes=Shapes0,dl=Dl}=St) ->
-    {Matrix,Shapes} =
-	foldl(fun({Id,Tr}, {Matrix0,Shs0}) when function(Tr) ->
+motion_update({matrix,Tvs}, Dx, Dy, #st{shapes=Shapes0}=St) ->
+    Shapes = foldl(fun({Id,Trans}, Shs0) when function(Trans) ->
+			   Sh0 = gb_trees:get(Id, Shs0),
+			   Matrix = Trans(Sh0, Dx, Dy, St),
+			   %% XXX Plainly wrong. Soon to be fixed.
+			   put(a_matrix, Matrix),
+			   Sh = Sh0#shape{matrix=Matrix},
+			   Shapes = gb_trees:update(Id, Sh, Shs0)
+		   end, Shapes0, Tvs),
+    #st{drag=Drag} = St,
+    Matrix = get(a_matrix),
+    St#st{shapes=Shapes,drag=Drag#drag{matrix=Matrix,dl_sel=none}};
+motion_update(Tvs, Dx, Dy, #st{shapes=Shapes0}=St) ->
+    Shapes =
+	foldl(fun({Id,Trans}, Shs0) when function(Trans) ->
 		      Sh0 = gb_trees:get(Id, Shs0),
-		      case Tr(Sh0, Dx, Dy, St) of
-			  {shape_matrix,Matrix} ->
-			      Sh = Sh0#shape{matrix=Matrix},
-			      Shapes = gb_trees:update(Id, Sh, Shs0),
-			      {Matrix,Shapes};
+		      case Trans(Sh0, Dx, Dy, St) of
 			  {shape,Sh} ->
-			      Shapes = gb_trees:update(Id, Sh, Shs0),
-			      {Matrix0,Shapes};
+			      gb_trees:update(Id, Sh, Shs0);
 			  {tvs,List} ->
 			      Sh0 = gb_trees:get(Id, Shs0),
 			      Sh = transform_vs(List, Dx, Dy, St, Sh0),
-			      {Matrix0,gb_trees:update(Id, Sh, Shs0)}
+			      gb_trees:update(Id, Sh, Shs0)
 		      end;
-		 ({Id,List}, {Matrix0,Shapes}) ->
+		 ({Id,List}, Shapes) ->
 		      Sh0 = gb_trees:get(Id, Shapes),
 		      Sh = transform_vs(List, Dx, Dy, St, Sh0),
-		      {Matrix0,gb_trees:update(Id, Sh, Shapes)}
-	      end, {none,Shapes0}, Tvs),
-    #st{drag=Drag0} = St,
-    Drag = Drag0#drag{dl_sel=none},
-    case Matrix of
-	none ->
-	    Ident = e3d_mat:identity(),
-	    St#st{shapes=Shapes,
-		  drag=Drag#drag{dl_dragging=none,matrix=Ident}};
-	Other ->
-	    St#st{shapes=Shapes,drag=Drag#drag{matrix=Matrix}}
-    end.
+		      gb_trees:update(Id, Sh, Shapes)
+	      end, Shapes0, Tvs),
+    #st{drag=Drag} = St,
+    Ident = e3d_mat:identity(),
+    St#st{shapes=Shapes,
+	  drag=Drag#drag{dl_dragging=none,matrix=Ident,dl_sel=none}}.
 
 transform_vs(Tvs, Dx, Dy, St, #shape{sh=#we{vs=Vtab0}=We}=Shape0) ->
     show_message(Tvs, Dx, Dy, St),
@@ -260,18 +257,6 @@ transform_vs(Tvs, Dx, Dy, St, #shape{sh=#we{vs=Vtab0}=We}=Shape0) ->
 		 end, Vtab0, Tvs),
     Shape0#shape{sh=We#we{vs=Vtab}}.
 
-show_message([{Vec,Vs}|_], Dx, Dy, St) ->
-    show_message_1(Vec, Dx, Dy, St);
-show_message([], Dx, Dy, St) -> ok.
-
-show_message_1({rot,_,Vec}, Dx, Dy, St) ->
-    message([15*Dx], St);
-show_message_1({free,Matrix}, Dx, Dy, St) ->
-    message([Dx,Dy], St);
-show_message_1({_,_,_}, Dx, Dy, St) ->
-    message([Dx], St);
-show_message_1(Other, _, _, _) -> ok.
-    
 trans_vec({rot,{Cx,Cy,Cz},Vec}, Dx, Dy, Vs, St, Vtab) ->
     A = 15*Dx,
     M0 = e3d_mat:translate(Cx, Cy, Cz),
@@ -292,6 +277,18 @@ trans_vec({free,Matrix}, Dx, Dy, Vs, St, Vtab) ->
 trans_vec({Xt0,Yt0,Zt0}, Dx, Dy, Vs, St, Vtab) ->
     Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
     translate(Xt, Yt, Zt, Vs, Vtab).
+
+show_message([{Vec,Vs}|_], Dx, Dy, St) ->
+    show_message_1(Vec, Dx, Dy, St);
+show_message([], Dx, Dy, St) -> ok.
+
+show_message_1({rot,_,Vec}, Dx, Dy, St) ->
+    message([15*Dx], St);
+show_message_1({free,Matrix}, Dx, Dy, St) ->
+    message([Dx,Dy], St);
+show_message_1({_,_,_}, Dx, Dy, St) ->
+    message([Dx], St);
+show_message_1(Other, _, _, _) -> ok.
 
 message(L, #st{drag=#drag{unit=Unit}}) ->
     message_0(L, Unit);
@@ -321,11 +318,12 @@ translate(Xt, Yt, Zt, Vs, Vtab) ->
 		  gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
 	  end, Vtab, Vs).
 
+faces({matrix,Tvs}, St) ->
+    [{Id,all_faces} || {Id,_} <- Tvs];
 faces(Tvs, #st{shapes=Shapes}) ->
     [{Id,faces_1(Vs, gb_trees:get(Id, Shapes))} || {Id,Vs} <- Tvs].
 
-faces_1(Tr, #shape{sh=#we{fs=Ftab}=We}) when function(Tr) ->
-    gb_sets:from_list(gb_trees:keys(Ftab));
+faces_1(Tr, #shape{sh=#we{fs=Ftab}=We}) when function(Tr) -> all_faces;
 faces_1(Vs0, #shape{sh=#we{}=We}) ->
     foldl(fun ({_,Vs}, Acc) ->
 		  faces_2(Vs, We, Acc)
@@ -391,7 +389,11 @@ draw_shapes(#st{selmode=SelMode}=St) ->
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:enable(?GL_POLYGON_OFFSET_FILL),
 	    gl:polygonOffset(2.0, 2.0),
-	    draw_we(St)
+	    gl:shadeModel(?GL_SMOOTH),
+	    gl:enable(?GL_LIGHTING),
+	    draw_we(St),
+	    gl:disable(?GL_LIGHTING),
+	    gl:shadeModel(?GL_FLAT)
     end,
 
     %% Draw edges.
@@ -452,6 +454,7 @@ draw_sel(#st{drag=#drag{dl_sel=DlistSel}}) ->
     
 draw_we(#st{drag=#drag{dl_static=Static,dl_dragging=Dragged,matrix=Matrix}}) ->
     gl:callList(Static),
+    gl:disable(?GL_LIGHTING),
     case Dragged of
 	none -> ok;
 	Other ->
@@ -488,25 +491,55 @@ make_dlist(DlistId, Faces, DrawMembers, #st{shapes=Shapes0}=St) ->
     gl:endList(),
     DlistId.
 
-make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], DrawMembers) ->
-    Draw = fun(F, Fs0) -> DrawMembers =:= gb_sets:is_member(F, Fs0) end,
+make_dlist_1([{Id,Shape}|Shs], [{Id,all_faces}|Fs], false) ->
+    make_dlist_1(Shs, Fs, false);
+make_dlist_1([{Id,Shape}|Shs], [{Id,all_faces}|Fs], true) ->
+    Draw = fun draw_face_normal/3,
+    mkdl_draw_faces(Shape, Draw),
+    make_dlist_1(Shs, Fs, false);
+make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], false) ->
+    Draw = fun(F, Fs0, Edge, We) ->
+		   case gb_sets:is_member(F, Fs0) of
+		       false -> draw_face_normal(F, Edge, We);
+		       true -> ok
+		   end
+	   end,
     mkdl_draw_faces(Shape, Faces, Draw),
-    make_dlist_1(Shs, Fs, DrawMembers);
-make_dlist_1([{Id,Shape}|Shs], Fs, DrawMembers) ->
-    Draw = not DrawMembers,
-    mkdl_draw_faces(Shape, dummy, fun(_, _) -> Draw end),
-    make_dlist_1(Shs, Fs, DrawMembers);
+    make_dlist_1(Shs, Fs, false);
+make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], true) ->
+    Draw = fun(F, Fs0, Edge, We) ->
+		   case gb_sets:is_member(F, Fs0) of
+		       true -> draw_face(F, Edge, We);
+		       false -> ok
+		   end
+	   end,
+    mkdl_draw_faces(Shape, Faces, Draw),
+    make_dlist_1(Shs, Fs, true);
+make_dlist_1([{Id,Shape}|Shs], Fs, false) ->
+    Draw = fun(F, Fs0, Edge, We) ->
+		   draw_face_normal(F, Edge, We)
+	   end,
+    mkdl_draw_faces(Shape, dummy, Draw),
+    make_dlist_1(Shs, Fs, false);
+make_dlist_1([{Id,Shape}|Shs], Fs, true) ->
+    Draw = fun(F, Fs0, Edge, We) -> ok end,
+    mkdl_draw_faces(Shape, dummy, Draw),
+    make_dlist_1(Shs, Fs, true);
 make_dlist_1([], Fs, Draw) -> ok.
 
 mkdl_draw_faces(#shape{sh=#we{}=We}, Faces, Draw) ->
     wings_util:fold_face(
       fun(Face, #face{edge=Edge}, _) ->
-	      case Draw(Face, Faces) of
-		  true -> draw_face(Face, Edge, We);
-		  false -> ok
-	      end
+	      Draw(Face, Faces, Edge, We)
       end, [], We);
 mkdl_draw_faces(_, _, _) -> ok.
+
+mkdl_draw_faces(#shape{sh=#we{}=We}, Draw) ->
+    wings_util:fold_face(
+      fun(Face, #face{edge=Edge}, _) ->
+	      Draw(Face, Edge, We)
+      end, [], We);
+mkdl_draw_faces(_, _) -> ok.
 
 draw_faces(#we{}=We, St) ->
     wings_util:fold_face(
@@ -516,6 +549,12 @@ draw_faces(#we{}=We, St) ->
 
 draw_face(Face, Edge, #we{es=Etab,vs=Vtab}) ->
     gl:'begin'(?GL_POLYGON),
+    draw_face_1(Face, Edge, Edge, Etab, Vtab, not_done),
+    gl:'end'().
+
+draw_face_normal(Face, Edge, #we{es=Etab,vs=Vtab}=We) ->
+    gl:'begin'(?GL_POLYGON),
+    gl:normal3fv(wings_face:normal(Face, We)),
     draw_face_1(Face, Edge, Edge, Etab, Vtab, not_done),
     gl:'end'().
 
