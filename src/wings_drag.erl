@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.20 2001/11/13 13:57:41 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.21 2001/11/16 12:20:28 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -256,15 +256,27 @@ motion_update(Tvs, Dx, Dy, #st{shapes=Shapes0,dl=Dl}=St) ->
 	    St#st{shapes=Shapes,dl=Dl#dl{matrix=Matrix,sel=none}}
     end.
 
-transform_vs(Vs0, Dx, Dy, St, #shape{sh=#we{vs=Vtab0}=We}=Shape0) ->
+transform_vs(Tvs, Dx, Dy, St, #shape{sh=#we{vs=Vtab0}=We}=Shape0) ->
+    show_message(Tvs, Dx, Dy, St),
     Vtab = foldl(fun ({Vec,Vs}, Tab) ->
 			 trans_vec(Vec, Dx, Dy, Vs, St, Tab)
-		 end, Vtab0, Vs0),
+		 end, Vtab0, Tvs),
     Shape0#shape{sh=We#we{vs=Vtab}}.
 
+show_message([{Vec,Vs}|_], Dx, Dy, St) ->
+    show_message_1(Vec, Dx, Dy, St);
+show_message([], Dx, Dy, St) -> ok.
+
+show_message_1({rot,_,Vec}, Dx, Dy, St) ->
+    message([15*Dx], St);
+show_message_1({free,Matrix}, Dx, Dy, St) ->
+    message([Dx,Dy], St);
+show_message_1({_,_,_}, Dx, Dy, St) ->
+    message([Dx], St);
+show_message_1(Other, _, _, _) -> ok.
+    
 trans_vec({rot,{Cx,Cy,Cz},Vec}, Dx, Dy, Vs, St, Vtab) ->
     A = 15*Dx,
-    message([A], St),
     M0 = e3d_mat:translate(Cx, Cy, Cz),
     M1 = e3d_mat:mul(M0, e3d_mat:rotate(A, Vec)),
     M = e3d_mat:mul(M1, e3d_mat:translate(-Cx, -Cy, -Cz)),
@@ -274,7 +286,6 @@ trans_vec({rot,{Cx,Cy,Cz},Vec}, Dx, Dy, Vs, St, Vtab) ->
 		  gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
 	  end, Vtab, Vs);
 trans_vec({free,Matrix}, Dx, Dy, Vs, St, Vtab) ->
-    message([Dx,Dy], St),
     {Xt,Yt,Zt} = e3d_mat:mul_point(Matrix, {Dx,Dy,0.0}),
     foldl(fun(V, Tab) -> 
 		  #vtx{pos={X,Y,Z}}= Vtx = gb_trees:get(V, Tab),
@@ -282,7 +293,6 @@ trans_vec({free,Matrix}, Dx, Dy, Vs, St, Vtab) ->
 		  gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
 	  end, Vtab, Vs);
 trans_vec({Xt0,Yt0,Zt0}, Dx, Dy, Vs, St, Vtab) ->
-    message([Dx], St),
     Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
     translate(Xt, Yt, Zt, Vs, Vtab).
 

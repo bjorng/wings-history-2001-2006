@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.11 2001/11/11 08:31:28 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.12 2001/11/16 12:20:28 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -111,7 +111,7 @@ bevel(#st{sel=Vsel}=St0) ->
 	  end, {[],[]}, St0),
     FaceSel = sort(FaceSel0),
     {Min,Tvs} = bevel_normalize(Tvs0, Vsel),
-    wings_drag:init_drag(Tvs, {0,Min}, St#st{selmode=face,sel=FaceSel}).
+    wings_drag:init_drag(Tvs, {0.0,Min}, St#st{selmode=face,sel=FaceSel}).
 
 bevel_vertices(Iter0, Vs, WeOrig, We0, Acc0, Facc) ->
     case gb_sets:next(Iter0) of

@@ -8,20 +8,21 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.9 2001/11/14 19:26:23 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.10 2001/11/16 12:20:28 bjorng Exp $
 %%
 
 -module(wings_io).
 -export([init/0,menubar/1,resize/2,display/1,
 	 update/1,button/2,
-	 info/1, message/1,clear_message/0,progress/2,
-	 set_current_menu/1,clear_menu_sel/0,
+	 info/1,message/1,clear_message/0,progress/2,
+	 clear_menu_sel/0,
 	 beveled_rect/4,text_at/2,text_at/3,menu_text/3,space_at/2,
 	 draw_icon/3,draw_icon/5,
 	 draw_message/1,draw_completions/1]).
 -export([putback_event/1,get_event/0,flush_events/0,
 	 periodic_event/2,cancel_periodic_event/0,has_periodic_event/0,
 	 enter_event_loop/1]).
+-export([setup_for_drawing/0,cleanup_after_drawing/0]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -34,7 +35,6 @@
 	{w,					%Width of screen (pixels).
 	 h,					%Height of screen (pixels).
 	 menubar,				%Menu bar at top.
-	 menu=none,				%Current rolldown or popup menu.
 	 sel,					%Selected item in menubar.
 	 message,				%Message to show (or undefined).
 	 info="",				%Information message.
@@ -86,13 +86,9 @@ clear_message() ->
 clear_menu_sel() ->
     put_state((get_state())#io{sel=undefined}).
 
-set_current_menu(Menu) ->
-    put_state((get_state())#io{menu=Menu}).
-
 display(F) ->
     #io{w=W,h=H} = Io = get_state(),
-    gl:drawBuffer(?GL_FRONT),
-    setup_for_drawing(W, H),
+    setup_for_drawing(),
     draw_panes(Io),
     Res = F(W, H),
     cleanup_after_drawing(),
@@ -170,6 +166,7 @@ draw_icons(#io{w=W,h=H,icons=Icons}, St) ->
     foreach(fun({X,Name}) ->
 		    draw_icon(X, Y, icon_button(Name, St))
 	    end, Icons),
+    gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:disable(?GL_TEXTURE_2D).
 
 icon_button(groundplane=Name, St) ->
@@ -194,15 +191,11 @@ icon_button(Name, Key, Val) ->
 button(X, Y) when Y > ?LINE_HEIGHT; X < ?MENU_MARGIN ->
     #io{h=H,icons=Icons} = get_state(),
     put_state((get_state())#io{sel=undefined}),
-    case reactivate_menu(X, Y) of
-	ignore -> ignore;
-	none ->
-	    case H-4*?LINE_HEIGHT-3 of
-		Low when Low =< Y, Y < Low + 32 ->
-		    icon_row_hit(X, Icons),
-		    ignore;
-		Other -> none
-	    end
+    case H-4*?LINE_HEIGHT-3 of
+	Low when Low =< Y, Y < Low + 32 ->
+	    icon_row_hit(X, Icons),
+	    ignore;
+	Other -> none
     end;
 button(X0, Y) ->
     X = X0 - ?MENU_MARGIN,
@@ -236,11 +229,6 @@ icon_row_hit(X, [{Pos,Name}|Is]) when Pos =< X, X < Pos+32 ->
 icon_row_hit(X, [_|Is]) ->
     icon_row_hit(X, Is);
 icon_row_hit(X, []) -> none.
-    
-reactivate_menu(X, Y) ->
-    #io{menu=Menu} = Io = get_state(),
-    put_state(Io#io{menu=none}),
-    wings_menu:reactivate(X, Y, Menu).
 
 embossed_rect(X, Y, Mw, Mh) ->
     beveled_rect(X+Mw, Y+Mh, -Mw, -Mh).
@@ -276,8 +264,7 @@ menu_text(X, Y, S) ->
     catch menu_text(S, Y).
 
 menu_text([$&,C|T], Y) ->
-    [X,Y1,_,_] = gl:getIntegerv(?GL_CURRENT_RASTER_POSITION),
-%%    erlang:display({Y,Y1}),
+    [X,_,_,_] = gl:getIntegerv(?GL_CURRENT_RASTER_POSITION),
     wings_text:char($_),
     gl:rasterPos2i(X, Y),
     wings_text:char(C),
@@ -287,29 +274,28 @@ menu_text([C|T], Y) ->
     menu_text(T, Y);
 menu_text([], Y) -> ok.
 
+setup_for_drawing() ->
+    #io{w=W,h=H} = Io = get_state(),
+    gl:drawBuffer(?GL_FRONT),
+    setup_for_drawing(W, H).
+
 setup_for_drawing(W, H) ->
     ?CHECK_ERROR(),
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_DEPTH_TEST),
     gl:matrixMode(?GL_PROJECTION),
-    gl:pushMatrix(),
     gl:loadIdentity(),
     glu:ortho2D(0.0, float(W), float(H), 0.0),
     gl:matrixMode(?GL_MODELVIEW),
-    gl:pushMatrix(),
     gl:loadIdentity(),
-    gl:color3f(0.0, 0.0, 0.0).
+    gl:color3f(0.0, 0.0, 0.0),
+    draw_panes(get_state()),
+    ?CHECK_ERROR().
 
 cleanup_after_drawing() ->
-    gl:popAttrib(),
-    gl:drawBuffer(?GL_BACK),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:popMatrix(),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:popMatrix(),
-    ?CHECK_ERROR().
+    gl:enable(?GL_DEPTH_TEST),
+    gl:drawBuffer(?GL_BACK).
 
 get_state() ->
     get(wings_io).
@@ -455,7 +441,7 @@ read_out(Eq0) ->
 	{{value,#mousemotion{}=Event},Eq} ->
 	    read_out(Event, Eq);
 	{{value,no_event},Eq} ->
-	    {ignore,Eq};
+	    {redraw,Eq};
 	{{value,Event},Eq} ->
 	    {Event,Eq};
 	{empty,Eq} ->
@@ -473,7 +459,7 @@ read_out(Motion, Eq0) ->
 	{{value,#mousemotion{}=Event},Eq} ->
 	    read_out(Event, Eq);
 	{{value,no_event},Eq} ->
-	    {ignore,Eq};
+	    {redraw,Eq};
 	Other -> {Motion,Eq0}
     end.
 
@@ -508,33 +494,37 @@ has_periodic_event() ->
 %%%
 
 enter_event_loop(Init) ->
-    handle_response(Init, system_dummy_event, [], []).
+    handle_response(Init, system_dummy_event, []).
     
-event_loop([Handler|Next]=Stk) ->
+event_loop([Handler|_]=Stk) ->
     Event = get_event(),
-    handle_event(Handler, Event, Next, Stk);
+    handle_event(Handler, Event, Stk);
 event_loop([]) -> ok.
 
-handle_event(_, {system_init_event,Handler}, Next, Stk) ->
+handle_event(_, {system_init_event,Handler}, Stk) ->
     Res = Handler(),
-    handle_response(Res, system_dummy_event, Next, Stk);
-handle_event(Handler, Event, Next, Stk) ->
+    handle_response(Res, system_dummy_event, Stk);
+handle_event(Handler, Event, Stk) ->
+    %%io:format("~p: ~p\n", [Event,Stk]),
     case catch Handler(Event) of
 	{'EXIT',Reason} ->
 	    CrashHandler = last(Stk),
 	    CrashHandler({crash,Reason});
 	Res ->
-	    handle_response(Res, Event, Next, Stk)
+	    handle_response(Res, Event, Stk)
     end.
 
-handle_response(Res, Event, Next, Stk) ->
+handle_response(Res, Event, Stk) ->
     case Res of
 	keep -> event_loop(Stk);
-	next -> next_handler(Event, Next, Stk);
+	next -> next_handler(Event, Stk);
 	pop -> pop(Stk);
+	{seq,First,Then} ->
+	    handle_response({init,fun() -> Then end,First},
+			    Event, Stk);
 	{init,More,NewRes} ->
 	    putback_event({system_init_event,More}),
-	    handle_response(NewRes, Event, Next, Stk);
+	    handle_response(NewRes, Event, Stk);
 	{replace,Top} -> replace_top(Top, Stk);
 	{push,Top} -> event_loop([Top|Stk])
     end.
@@ -545,5 +535,5 @@ pop([_|Stk]) ->
 replace_top(Top, [_|Stk]) ->
     event_loop([Top|Stk]).
 
-next_handler(Event, [Next|Ns], Stk) ->
-    handle_event(Next, Event, Ns, Stk).
+next_handler(Event, [_|[Next|_]=Stk]) ->
+    handle_event(Next, Event, Stk).

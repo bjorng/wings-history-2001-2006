@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.8 2001/11/14 16:41:12 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.9 2001/11/16 12:20:28 bjorng Exp $
 %%
 
 -module(wings_menu).
--export([menu/4,reactivate/3]).
+-export([menu/4,reactivate/1]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -28,54 +28,26 @@
 	 sel=none,				%Selected item (1..size(Menu))
 	 name,					%Name of menu (atom)
 	 menu,					%Original menu term
-	 prev=none}).				%Previous mi record or `none'.
+	 top_level=true}).			%Top-level menu or not.
 
 menu(X, Y, Name, Menu0) ->
     Menu = wings_plugin:menu(Name, Menu0),
     Mi = menu_setup(X, Y, Name, Menu, #mi{}),
     top_level(Mi).
 
-top_level(Mi) ->
-    R = wings_io:display(
-	  fun(_, _) ->
-		  menu_show(Mi),
-		  catch get_menu_event(Mi)
-	  end),
-    wings_io:clear_menu_sel(),
-    case R of
-	{'EXIT',Reason} -> exit(Reason);
-	ignore -> ok;
-	Other -> wings_io:putback_event({action,Other})
-    end,
-    ignore.
-
-reactivate(X, Y, none) -> none;
-reactivate(X, Y, #mi{name=Name,prev=Prev}=Mi) ->
-    case selected_item(X, Y, Mi) of
-	outside ->
-	    wings_io:set_current_menu(Prev),
-	    if
-		Prev =/= none -> ignore;
-		true -> none
-	    end;
-	Item when Item =:= none; integer(Item) ->
- 	    wings_io:putback_event(#mousebutton{button=1,x=X,y=Y,
- 						state=?SDL_RELEASED}),
-	    redraw(Mi),
-	    top_level(Mi#mi{sel=Item})
-    end.
-
-redraw(#mi{prev=none}) -> ok;
-redraw(#mi{prev=Prev}=Mi) ->
-    redraw(Prev),
-    menu_show(Mi).
-
 menu(X0, Y0, Name, Menu, Mi0) ->
-    Mi = menu_setup(X0, Y0, Name, Menu, Mi0),
-    menu_show(Mi),
-    get_menu_event(Mi).
+    Mi = menu_setup(X0, Y0, Name, Menu, Mi0#mi{top_level=false}),
+    top_level(Mi).
 
-menu_setup(X0, Y0, Name, Menu, Mi) ->
+reactivate(Mi) ->
+    top_level(Mi).
+
+top_level(#mi{name=Name}=Mi) ->
+    wings_io:setup_for_drawing(),
+    menu_show(Mi),
+    {seq,{push,dummy},get_menu_event(Mi)}.
+
+menu_setup(X0, Y0, Name, Menu, Mi) -> 
     {MwL,MwR} = menu_width(Menu),
     TotalW = (MwL+MwR) * ?CHAR_WIDTH + 9*?CHAR_WIDTH,
     Mh = size(Menu) * ?LINE_HEIGHT,
@@ -111,28 +83,64 @@ max(A, B) when A > B -> A;
 max(A, B) -> B.
     
 get_menu_event(Mi) ->
-    handle_menu_event(wings_io:get_event(), Mi).
+    {replace,fun(Ev) -> handle_menu_event(Ev, Mi) end}.
 
-handle_menu_event(Event, #mi{name=Name,prev=Prev}=Mi0) ->
+handle_menu_event(Event, #mi{name=Name,top_level=TopLevel}=Mi0) ->
     case Event of
+	{reactivate_menu,Mi} ->
+	    reactivate(Mi);
 	#keyboard{keysym=#keysym{sym=27}} ->	%escape
-	    ignore;
+	    wings_io:cleanup_after_drawing(),
+	    wings_io:putback_event(redraw),
+	    next;
 	#mousemotion{x=X,y=Y} ->
-	    Mi = highlight_item(X, Y, Mi0),
-	    get_menu_event(Mi);
+%%	    case wings_io:button(X, Y) of
+%%		none ->
+		    Mi = highlight_item(X, Y, Mi0),
+		    get_menu_event(Mi);
+%%		ButtonHit ->
+% 		    wings_io:putback_event({action,ButtonHit}),
+% 		    wings_io:putback_event(#keyboard{keysym=#keysym{sym=27}}),
+% 		    keep
+% 	    end;
 	#mousebutton{button=B,x=X,y=Y,state=?SDL_RELEASED}=Button
 	when B == 1; B == 3 ->
-	    case select_item(X, Y, Mi0) of
+	    Mi1 = highlight_item(X, Y, Mi0),
+	    case select_item(X, Y, Mi1) of
+		{seq,_,_}=Seq -> Seq;
 		#mi{}=Mi -> get_menu_event(Mi);
+		outside ->
+		    wings_io:cleanup_after_drawing(),
+		    if
+			TopLevel ->
+			    case wings_io:button(X, Y) of
+				none -> ok;
+				ButtonHit ->
+				    wings_io:putback_event({action,ButtonHit})
+			    end;
+			true ->
+			    wings_io:putback_event(Button)
+		    end,
+		    wings_io:putback_event(redraw),
+		    pop;
 		ignore ->
-		    wings_io:set_current_menu(Prev),
-		    wings_io:putback_event(Button),
-		    throw(ignore);
+		    erlang:fault(ignore);
 		Other ->
-		    {Name,Other}
+		    wings_io:cleanup_after_drawing(),
+		    wings_io:clear_menu_sel(),
+		    wings_io:putback_event({menu_action,{Name,Other}}),
+		    pop
 	    end;
-	_ ->
-	    get_menu_event(Mi0)
+	{menu_action,Action} ->
+	    wings_io:putback_event({menu_action,{Name,Action}}),
+	    pop;
+	ignore ->
+	    erlang:fault(ignore);
+	redraw ->
+	    wings_io:cleanup_after_drawing(),
+	    wings_io:putback_event({reactivate_menu,Mi0}),
+	    next;
+	IgnoreMe -> get_menu_event(Mi0)
     end.
 
 highlight_item(X0, Y0, Mi) ->
@@ -159,7 +167,7 @@ highlight_item(X0, Y0, Mi) ->
 
 select_item(X0, Y0, #mi{menu=Menu,xleft=Xleft,w=W}=Mi) ->
     case selected_item(X0, Y0, Mi) of
-	outside -> ignore;
+	outside -> outside;
 	none -> Mi;
 	Item when integer(Item) ->
 	    Action = case element(Item, Menu) of
@@ -171,7 +179,7 @@ select_item(X0, Y0, #mi{menu=Menu,xleft=Xleft,w=W}=Mi) ->
 		    #mi{xleft=Xleft,ytop=Ytop,w=W,h=H}=Mi,
 		    SubX = Xleft+W,
 		    SubY = Ytop+(Item-1)*?LINE_HEIGHT,
-		    menu(SubX, SubY, What, SubMenu, Mi#mi{prev=Mi});
+		    menu(SubX, SubY, What, SubMenu, Mi);
 		{Act} when Xleft =< X0, X0 < Xleft+W-2*?CHAR_WIDTH ->
 		    Act;
 		Act when atom(Act); integer(Act);

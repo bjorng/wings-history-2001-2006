@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.42 2001/11/14 19:26:23 bjorng Exp $
+%%     $Id: wings.erl,v 1.43 2001/11/16 12:20:28 bjorng Exp $
 %%
 
 -module(wings).
@@ -176,10 +176,12 @@ main_loop(St0) ->
     wings_io:update(St1),
     {replace,fun(Event) -> handle_event(Event, St1) end}.
 
+handle_event({reactivate_menu,Mi}, St) ->
+    wings_menu:reactivate(Mi);
 handle_event(Event, St1) ->
     case translate_event(Event, St1) of
-	redraw ->
-	    main_loop(St1);
+	ignore -> keep;
+	redraw -> main_loop(St1);
 	{mousemotion,X,Y} ->
 	    main_loop(wings_drag:motion(X, Y, St1));
 	{left_click,X,Y} ->
@@ -198,8 +200,7 @@ handle_event(Event, St1) ->
  	{right_click,X,Y} when St1#st.camera == undefined ->
  	    case wings_drag:abort_drag(St1) of
  		no_drag ->
-		    popup_menu(X, Y, St1),
-		    main_loop(St1);
+		    popup_menu(X, Y, St1);
  		drag_aborted ->
 		    return_to_top(drag_aborted)
  	    end;
@@ -229,7 +230,9 @@ do_command(Cmd, St0) ->
 	{save_state,#st{}=St} -> return_to_top(St);
 	{saved,#st{}}=Res -> return_to_top(Res);
 	{new,#st{}}=Res -> return_to_top(Res);
-	{push,_}=Push -> Push
+	{push,_}=Push -> Push;
+	{init,_,_}=Init -> Init;
+	{seq,_,_}=Seq -> Seq
     end.
 
 return_to_top(Res) ->
@@ -279,7 +282,6 @@ repeatable(Mode, Cmd) ->
 	_ -> no
     end.
 
-command(ignore, St) -> St;
 command({_,{[_|_]}=Plugin}, St0) ->
     case wings_plugin:command(Plugin, St0) of
 	St0 -> St0;
@@ -293,8 +295,7 @@ command({_,[_|_]=Plugin}, St0) ->
 	St -> {save_state,model_changed(St)}
     end;
 command({menu,Menu,X,Y}, St) ->
-    menu(X, Y, Menu, St),
-    St;
+    menu(X, Y, Menu, St);
 command({shape,{Shape}}, St) ->
     create_shape(true, Shape, St);
 command({shape,Shape}, St) ->
@@ -951,7 +952,7 @@ rename_object(Id, #st{shapes=Shapes0}=St) ->
 translate_event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}, St) ->
     translate_key(Sym, Mod, C, St);
 translate_event(quit, St) -> {file,quit};
-translate_event(ignore, ST) -> ignore;
+translate_event(ignore, St) -> ignore;
 translate_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}=Mb, St) ->
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?ALT_BITS =/= 0 ->
@@ -983,7 +984,12 @@ translate_event(#mousebutton{}, St) ->
 translate_event(#mousemotion{x=X,y=Y}, St) ->
     {mousemotion,X,Y};
 translate_event(#resize{w=W,h=H}, St) -> {resize,W,H};
-translate_event(#expose{}, St) -> ignore;
+translate_event(#expose{}, St) -> redraw;
+translate_event(redraw_menu, St) -> ignore;
+translate_event({menu_action,Action}, St) ->
+    wings_io:putback_event({action,Action}),
+    redraw;
+translate_event(redraw, St) -> redraw;
 translate_event({action,Action}, St) -> Action.
 
 translate_key($c, Mod, C, St) when Mod band ?ALT_BITS =/= 0 -> {edit,copy_bb};

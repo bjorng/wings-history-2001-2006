@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.18 2001/11/12 07:22:59 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.19 2001/11/16 12:20:28 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -30,6 +30,8 @@ model_changed(St) -> St#st{dl=none}.
 render(#st{shapes=Shapes}=St0) ->
     ?CHECK_ERROR(),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    gl:enable(?GL_DEPTH_TEST),
+    wings_view:projection(),
     ?CHECK_ERROR(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     ?CHECK_ERROR(),
