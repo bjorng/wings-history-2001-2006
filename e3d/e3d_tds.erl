@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.20 2002/11/05 15:27:18 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.21 2002/11/05 18:45:56 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -134,8 +134,7 @@ trimesh(<<16#4120:16/little,Sz0:32/little,NFaces:16/little,T0/binary>>, Acc) ->
     <<Faces0:Fsz/binary,Desc:Dsz/binary,T/binary>> = T0,
     Faces1 = get_faces(Faces0),
     {Faces,Smooth} = face_desc(Desc, {Faces1,[]}),
-    HardEdges = hard_edges(Smooth, Faces),
-    trimesh(T, Acc#e3d_mesh{fs=Faces,he=HardEdges});
+    trimesh(T, Acc#e3d_mesh{fs=Faces,he=Smooth});
 trimesh(<<16#4140:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     dbg("Texture coordinates ~w\n", [Sz0]),
     Sz = Sz0 - 8,
@@ -391,17 +390,19 @@ add_uv_to_faces(#e3d_mesh{fs=Fs0}=Mesh) ->
 	       end, [], Fs0),
     Mesh#e3d_mesh{fs=reverse(Fs)}.
 
-clean_mesh(#e3d_mesh{fs=Fs0,vs=Vs0}=Mesh0) ->
+clean_mesh(#e3d_mesh{fs=Fs0,vs=Vs0,he=Smooth}=Mesh0) ->
     %% Here we combines vertices that have exactly the same position
     %% and renumber vertices to leave no gaps.
     R = sofs:relation(append_index(Vs0), [{pos,old_vertex}]),
     S = sofs:range(sofs:relation_to_family(R)),
     CR = sofs:canonical_relation(S),
     Map = gb_trees:from_orddict(sofs:to_external(CR)),
-    Fs = map_faces(Fs0, Map),
-    #e3d_mesh{vs=Vs1} = Mesh = e3d_mesh:renumber(Mesh0#e3d_mesh{fs=Fs}),
+    Fs1 = map_faces(Fs0, Map),
+    #e3d_mesh{vs=Vs1,fs=Fs} = Mesh =
+	e3d_mesh:renumber(Mesh0#e3d_mesh{fs=Fs1,he=[]}),
+    He = hard_edges(Smooth, Fs),
     Vs = [{X,Y,Z} || <<X:32/?FLOAT,Y:32/?FLOAT,Z:32/?FLOAT>> <- Vs1],
-    Mesh#e3d_mesh{vs=Vs}.
+    Mesh#e3d_mesh{vs=Vs,he=He}.
 
 append_index(L) -> append_index(L, 0, []).
 append_index([H|T], I, Acc) -> append_index(T, I+1, [{H,I}|Acc]);
