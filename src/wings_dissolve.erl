@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dissolve.erl,v 1.4 2004/12/24 09:41:10 bjorng Exp $
+%%     $Id: wings_dissolve.erl,v 1.5 2004/12/26 09:40:47 bjorng Exp $
 %%
 
 -module(wings_dissolve).
@@ -128,7 +128,7 @@ complex_dissolve([Faces|T], We0) ->
     We1 = wings_material:delete_faces(Faces, We0),
     Parts = outer_edge_partition(Faces, We1),
     We2 = do_dissolve(Faces, Parts, Mat, We0, We1),
-    NewFaces = gb_sets:to_list(wings_we:new_items(face, We0, We2)),
+    NewFaces = wings_we:new_items_as_ordset(face, We0, We2),
     We = foldl(fun(_, bad_edge) -> bad_edge;
 		  (F, W) -> wings_face:delete_if_bad(F, W)
 	       end, We2, NewFaces),

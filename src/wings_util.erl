@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.105 2004/12/18 19:36:22 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.106 2004/12/26 09:40:47 bjorng Exp $
 %%
 %% Note: To keep the call graph clean, wings_util MUST NOT call
 %%       other wings_* modules (except wings_pref).
@@ -20,6 +20,7 @@
 	 cap/1,upper/1,stringify/1,quote/1,
 	 add_vpos/2,update_vpos/2,
 	 gb_trees_smallest_key/1,gb_trees_largest_key/1,
+	 gb_trees_map/2,
 	 nice_float/1,
 	 unique_name/2,
 	 tc/3,
@@ -146,6 +147,15 @@ largest_key1({Key, _Value, _Smaller, nil}) ->
     Key;
 largest_key1({_Key, _Value, _Smaller, Larger}) ->
     largest_key1(Larger).
+
+gb_trees_map(F, {Size,Tree}) ->
+    {Size,gb_trees_map_1(F, Tree)}.
+
+gb_trees_map_1(_, nil) -> nil;
+gb_trees_map_1(F, {K,V,Smaller,Larger}) ->
+    {K,F(K, V),
+     gb_trees_map_1(F, Smaller),
+     gb_trees_map_1(F, Larger)}.
 
 nice_float(F) when is_float(F) ->
     simplify_float(lists:flatten(io_lib:format("~f", [F]))).

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.70 2004/12/26 09:18:59 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.71 2004/12/26 09:40:47 bjorng Exp $
 
 -module(auv_segment).
 
@@ -712,7 +712,7 @@ cut_one_chart(Keep0, Cuts, We0) ->
     Map0 = gb_trees:empty(),
     {We1,Map1} = cut_shared_vertices(Keep, OuterEdges, We0, Map0),
     {We2,Vmap} = cut_edges(Keep0, Cuts, We1, Map1),
-    Me = wings_we:new_items_as_list(edge, We1, We2),
+    Me = wings_we:new_items_as_ordset(edge, We1, We2),
     
     %% Testing
     Emap = 
@@ -796,14 +796,14 @@ cut_edges_1(Faces, Cuts, We0, Map0) ->
     {We1,Map1} = bevel_cut_vs(Vs, We0, Map0),
     CutEdges = edges_to_cut(Cuts, We1),
     {We2,Map} = cut_new_edges(CutEdges, We1, Map1),
-    MaybeRem = wings_we:new_items_as_list(edge, We0, We2),
+    MaybeRem = wings_we:new_items_as_ordset(edge, We0, We2),
     We3 = connect_edges(Cuts, We2),
     We = cut_cleanup(Faces, MaybeRem, We3),
     {We,Map}.
 
 bevel_cut_vs([V|Vs], We0, Map0) ->
     We = wings_vertex_cmd:bevel_vertex(V, We0),
-    NewVs = wings_we:new_items_as_list(vertex, We0, We),
+    NewVs = wings_we:new_items_as_ordset(vertex, We0, We),
     Map = add_new_vs(V, NewVs, Map0),
     bevel_cut_vs(Vs, We, Map);
 bevel_cut_vs([], We, Map) -> {We,Map}.
