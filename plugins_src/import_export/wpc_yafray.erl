@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.92 2004/06/23 11:25:31 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.93 2004/06/24 09:43:45 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -239,7 +239,7 @@ command({file,{render,{?TAG,A}}}, St) ->
 command({file,{?TAG_RENDER,Data}}, St) ->
     command_file(?TAG_RENDER, Data, St);
 command({edit,{plugin_preferences,?TAG}}, St) ->
-    pref_edit(St);
+    pref_dialog(St);
 command(_Spec, _St) ->
 %    erlang:display({?MODULE,?LINE,Spec}),
     next.
@@ -338,9 +338,9 @@ command_file(render, Attr, St) when is_list(Attr) ->
        _RenderFile ->
 	    wpa:error("Already rendering.")
     end;
-command_file(render, Ask, _St) when is_atom(Ask) ->
-    export_dialog(Ask, "YafRay Render Options", render,
-		  fun(Attr) -> {file,{render,{?TAG,Attr}}} end);
+command_file(render=Op, Ask, _St) when is_atom(Ask) ->
+    export_dialog(Ask, "YafRay Render Options",
+		  fun(Attr) -> {file,{Op,{?TAG,Attr}}} end);
 command_file(?TAG_RENDER, Result, _St) ->
     Rendering = set_var(rendering, false),
     case Rendering of
@@ -364,7 +364,7 @@ command_file(Op, Attr, St) when is_list(Attr) ->
     set_prefs(Attr),
     do_export(Op, props(Op), Attr, St);
 command_file(Op, Ask, _St) when is_atom(Ask) ->
-    export_dialog(Ask, "YafRay Export Options", Op,
+    export_dialog(Ask, "YafRay Export Options",
 	       fun(Attr) -> {file,{Op,{?TAG,Attr}}} end).
 
 -record(camera_info, {pos,dir,up,fov}).
@@ -1082,9 +1082,11 @@ light_result(Ps) ->
 
 
 
-pref_edit(St) ->
-    [{dialogs,Dialogs},{renderer,Renderer}] = 
-	get_prefs([{dialogs,?DEF_DIALOGS},{renderer,?DEF_RENDERER}]),
+pref_dialog(St) ->
+    [{dialogs,Dialogs},{renderer,Renderer},
+     {options,Options},{load_image,LoadImage}] = 
+	get_user_prefs([{dialogs,?DEF_DIALOGS},{renderer,?DEF_RENDERER},
+			{options,?DEF_OPTIONS},{load_image,?DEF_LOAD_IMAGE}]),
     BrowseProps = [{dialog_type,open_dialog},{directory,"/"},
 		   case os:type() of
 		       {win32,_} -> 
@@ -1092,13 +1094,23 @@ pref_edit(St) ->
 		       _-> {extensions,[]}
 		   end],
     Dialog =
-	[{vframe,[{menu,[{"Disabled Dialogs",disabled},
-			 {"Automatic Dialogs",auto},
-			 {"Enabled Dialogs",enabled}],
-		   Dialogs,[{key,dialogs}]},
-		  {label,"Rendering Command:"},
-		  {button,{text,Renderer,
-			   [{key,renderer},{props,BrowseProps}]}}]}],
+	[{vframe,
+	  [{hframe,
+	    [{menu,[{"Disabled Dialogs",disabled},
+		    {"Automatic Dialogs",auto},
+		    {"Enabled Dialogs",enabled}],
+	      Dialogs,[{key,dialogs}]},
+	     panel,
+	     help_button(pref_dialog)]},
+	   {vframe,
+	    [{hframe,
+	      [{vframe,[{label,"Executable"},
+			{label,"Options"}]},
+	       {vframe,[{button,{text,Renderer,
+				 [{key,renderer},{props,BrowseProps}]}},
+			{text,Options,[{key,options}]}]}]},
+	     {"Auto Load Image",LoadImage,[{key,load_image}]}],
+	    [{title,"Rendering"}]}]}],
     wpa:dialog("YafRay Options", Dialog, 
 	       fun (Attr) -> pref_result(Attr,St) end).
 
@@ -1109,17 +1121,16 @@ pref_result(Attr, St) ->
 
 
 
-export_dialog(Ask, Title, Operation, Fun) ->
+export_dialog(Ask, Title, Fun) ->
     wpa:dialog(Ask, Title, 
-	       export_dialog_qs(Operation, 
-				get_prefs(def_export_prefs())
+	       export_dialog_qs(get_prefs(export_prefs())
 				++[save,load,reset]),
-	       export_dialog_fun(Operation, Fun)).
+	       export_dialog_fun(Fun)).
 
-export_dialog_fun(Operation, Fun) ->
-    fun (Attr) -> export_dialog_loop(Operation, Fun, Attr) end.
+export_dialog_fun(Fun) ->
+    fun (Attr) -> export_dialog_loop(Fun, Attr) end.
 
-def_export_prefs() ->
+export_prefs() ->
     [{subdivisions,?DEF_SUBDIVISIONS},
      {aa_passes,?DEF_AA_PASSES},
      {aa_minsamples,?DEF_AA_MINSAMPLES},
@@ -1141,36 +1152,31 @@ def_export_prefs() ->
      {dof_scale,?DEF_DOF_SCALE},
      {fog_color,?DEF_FOG_COLOR},
      {antinoise_max_delta,?DEF_ANTINOISE_MAX_DELTA},
-     {far_blur,?DEF_FAR_BLUR},
-     {options,?DEF_OPTIONS},
-     {load_image,?DEF_LOAD_IMAGE}].
+     {far_blur,?DEF_FAR_BLUR}].
 
-export_dialog_qs(Operation,
-	  [{subdivisions,SubDiv},
-	   {aa_passes,AA_passes},
-	   {aa_minsamples,AA_minsamples},
-	   {raydepth,Raydepth},
-	   {gamma,Gamma},
-	   {aa_threshold,AA_threshold},
-	   {aa_pixelwidth,AA_pixelwidth},
-	   {bias,Bias},
-	   {exposure,Exposure},
-	   {save_alpha,SaveAlpha},
-	   {background_color,BgColor},
-	   {width,Width},
-	   {height,Height},
-	   {antinoise_filter,AntinoiseFilter},
-	   {dof_filter,DofFilter},
-	   {fog_density,FogDensity},
-	   {antinoise_radius,AntinoiseRadius},
-	   {near_blur,NearBlur},
-	   {dof_scale,DofScale},
-	   {fog_color,FogColor},
-	   {antinoise_max_delta,AntinoiseMaxDelta},
-	   {far_blur,FarBlur},
-	   {options,Options},
-	   {load_image,LoadImage},
-	   _Save,_Load,_Reset]) ->
+export_dialog_qs([{subdivisions,SubDiv},
+		  {aa_passes,AA_passes},
+		  {aa_minsamples,AA_minsamples},
+		  {raydepth,Raydepth},
+		  {gamma,Gamma},
+		  {aa_threshold,AA_threshold},
+		  {aa_pixelwidth,AA_pixelwidth},
+		  {bias,Bias},
+		  {exposure,Exposure},
+		  {save_alpha,SaveAlpha},
+		  {background_color,BgColor},
+		  {width,Width},
+		  {height,Height},
+		  {antinoise_filter,AntinoiseFilter},
+		  {dof_filter,DofFilter},
+		  {fog_density,FogDensity},
+		  {antinoise_radius,AntinoiseRadius},
+		  {near_blur,NearBlur},
+		  {dof_scale,DofScale},
+		  {fog_color,FogColor},
+		  {antinoise_max_delta,AntinoiseMaxDelta},
+		  {far_blur,FarBlur},
+		  _Save,_Load,_Reset]) ->
     AA_thresholdFlags = [range(aa_threshold),{key,aa_threshold}],
     AA_pixelwidthFlags = [range(aa_pixelwidth),{key,aa_pixelwidth}],
     BiasFlags = [range(bias),{key,bias}],
@@ -1238,43 +1244,28 @@ export_dialog_qs(Operation,
 		{text,FarBlur,[range(dof_blur),{key,far_blur},
 			       hook(enable, dof_filter)]}]}],
       [{title,"Filters"}]},
-     {hframe,
-      [{label,"Options"},
-       {text,Options,[{key,options}]},
-       {"Load Image",LoadImage,[{key,load_image}]}],
-      [{title,"Rendering Job"},
-       {hook,
-	fun (is_disabled, {_Var,_I,_Sto}) ->
-		case Operation of
-		    render -> false;
-		    _ -> true
-		end;
-	    (_, _) -> void
-	end}]},
      {hframe,[{button,"Save",done,[{info,"Save to user preferences"}]},
 	      {button,"Load",done,[{info,"Load from user preferences"}]},
 	      {button,"Reset",done,[{info,"Reset to default values"}]}]}].
 
-export_dialog_loop(Operation, Fun, Attr) ->
-    {Prefs,Buttons} = split_list(Attr, 24),
+export_dialog_loop(Fun, Attr) ->
+    {Prefs,Buttons} = split_list(Attr, 22),
     case Buttons of
 	[true,false,false] -> % Save
 	    set_user_prefs(Prefs),
 	    {dialog,
-	     export_dialog_qs(Operation, Attr),
-	     export_dialog_fun(Operation, Fun)};
+	     export_dialog_qs(Attr),
+	     export_dialog_fun(Fun)};
 	[false,true,false] -> % Load
 	    {dialog,
-	     export_dialog_qs(Operation,
-			      get_user_prefs(def_export_prefs())
+	     export_dialog_qs(get_user_prefs(export_prefs())
 			      ++[save,load,reset]),
-	     export_dialog_fun(Operation, Fun)};
+	     export_dialog_fun(Fun)};
 	[false,false,true] -> % Reset
 	    {dialog,
-	     export_dialog_qs(Operation,
-			      def_export_prefs()
+	     export_dialog_qs(export_prefs()
 			      ++[save,load,reset]),
-	     export_dialog_fun(Operation, Fun)};
+	     export_dialog_fun(Fun)};
 	[false,false,false] -> % Ok
 	    Fun(Prefs)
     end.
@@ -2805,4 +2796,36 @@ help(text, light_dialog) ->
      <<"YafRay parameters mapping is pretty straightforward - "
       "the dialog field names should be self-explanatory">>,
     <<"Note: For a YafRay Global Photon Light (one of the Ambient lights) - "
-     "the Power parameter is ignored">>].
+     "the Power parameter is ignored">>];
+help(title, pref_dialog) ->
+    "YafRay Options";
+help(text, pref_dialog) ->
+    [<<"These are user preferences for the YafRay exporter plugin">>,
+     "Automatic Dialogs: "
+     ++wings_help:cmd(["File","Export","YafRay"])++", "
+     ++wings_help:cmd(["File","Export Selected","YafRay"])++" and "
+     ++wings_help:cmd(["File","Render","YafRay"])++" "
+     "are enabled if the rendering executable is found (in the path), "
+     "or if the rendering executable is specified with an absolute path.",
+     %%
+     "Disabled Dialogs: "
+     ++wings_help:cmd(["File","Export","YafRay"])++", "
+     ++wings_help:cmd(["File","Export Selected","YafRay"])++" and "
+     ++wings_help:cmd(["File","Render","YafRay"])++" "
+     "are disabled.",
+     %%
+     "Enabled Dialogs: "
+     ++wings_help:cmd(["File","Export","YafRay"])++" and "
+     ++wings_help:cmd(["File","Export Selected","YafRay"])++" "
+     "are always enabled, but "
+     ++wings_help:cmd(["File","Render","YafRay"])++" "
+     "is still as for \"Automatic Dialogs\".",
+     %%
+     <<"Rendering; Executable: The rendering command for the YafRay "
+      "raytrace renderer (normally 'yafray') that is supposed to be found "
+      "in the executables search path; "
+      "or, the absolute path of that executable.">>,
+     <<"Rendering; Options: Rendering command line options to be inserted "
+      "between the executable and the .xml filename.">>,
+     <<"Auto Load Image: Whether to load the rendered image when "
+      "rendering is done.">>].
