@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.21 2004/11/02 07:20:34 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.22 2004/11/07 17:52:33 bjorng Exp $
 %%
 
 {wings,
@@ -153,7 +153,10 @@
   {mktree,
    [{1,"Sfoglia"}]}]}.
 {wings_body,
- [{auto_smooth,
+ [{arealight_conv,
+   [{2,"Converte la luce d'Area in un oggetto"},
+    {4,"Converte gli oggetti selezionati in una luce d' Area"}]},
+  {auto_smooth,
    [{1,"Parametri di arrotondamento automatico"},
     {2,"Angolo della piega"}]},
   {clean_isolated_vertices,
@@ -175,6 +178,11 @@
     {2," ha solo uno spigolo."}]},
   {duplicate,
    [{1,"copia"}]},
+  {mat_col_conv,
+   [{1,"Colori in materiali"},
+    {2,"Converte i colori dei vertici in materiali"},
+    {3,"Materiali in colori"},
+    {4,"Converte i materiali in colori sui vertici"}]},
   {menu,
    [{1,"Operazioni con gli oggetti"},
     {2,"Sposta"},
@@ -200,27 +208,13 @@
     {27,"Elimina"},
     {28,"Elimina gli oggetti scelti"},
     {29,"Rinomina"},
-    {30,"Rinomina gli oggetti scelti"},
-    {31,"luce d'Area"},
-    {32,"Converte gli oggetti selezionati in una luce d' Area"},
-    {33,"Da luce d'Area"},
-    {34,"Converte la luce d'Area in un oggetto"},
-    {35,"Modo"},
-    {36,"Colora vertici"},
-    {37,"Mostra i colori dei vertici"},
-    {38,"Materiale"},
-    {39,"Mostra i materiali"},
-    {40,"Cambia il modo dell' oggetto in Materiale o Vertici colorati"},
-    {41,"Materiali in colori"},
-    {42,"Converte i materiali in colori sui vertici"},
-    {43,"Colori in materiali"},
-    {44,"Converte i colori dei vertici in materiali"},
-    {45,"Colori dei vertici"},
-    {46,"Applica il colore ai vertici degli oggetti selezionati"}]},
+    {30,"Rinomina gli oggetti scelti"}]},
   {rename_1,
    [{1,"Rinomina"}]},
   {unify_modes,
    [{1,"Gli oggetti con colori sui vertici non possono essere combinati con oggetti con materiali."}]},
+  {vertex_color_item,
+   [{1,"Colori dei vertici"}]},
   {weld,
    [{1,"Tolleranza"},
     {2,"Salda"}]},
