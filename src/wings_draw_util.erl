@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.28 2002/06/24 18:53:35 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.29 2002/07/05 09:52:23 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -210,10 +210,12 @@ render_object(#dlo{mirror=Matrix}=D, Mode, Work, RenderTrans) ->
 
 render_object_1(D, Mode, true, _) ->
     render_plain(D, Mode);
-render_object_1(#dlo{transparent=true}=D, _, false, RenderTrans) ->
+render_object_1(#dlo{transparent=true}=D, _, false, false) ->
     gl:disable(?GL_CULL_FACE),
-    render_smooth(D, RenderTrans),
+    render_smooth(D, false),
     gl:enable(?GL_CULL_FACE);
+render_object_1(#dlo{transparent=true}=D, _, false, true) ->
+    render_smooth(D, true);
 render_object_1(#dlo{transparent=false}=D, _, false, RenderTrans) ->
     render_smooth(D, RenderTrans).
 

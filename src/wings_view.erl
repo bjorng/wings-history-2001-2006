@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.64 2002/06/26 14:57:59 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.65 2002/07/05 09:52:23 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -411,7 +411,7 @@ smooth_redraw_1(#dlo{smoothed=Dlist,transparent=Trans}=D, Sm, RenderTrans) ->
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
-    case Trans of
+    case Trans andalso not RenderTrans of
 	true -> gl:disable(?GL_CULL_FACE);
 	false -> gl:enable(?GL_CULL_FACE)
     end,
