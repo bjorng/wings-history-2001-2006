@@ -3,12 +3,12 @@
 %%
 %%     Wavefront import/export.
 %%
-%%  Copyright (c) 2002-2003 Bjorn Gustavsson
+%%  Copyright (c) 2002-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_obj.erl,v 1.10 2003/09/25 08:28:49 bjorng Exp $
+%%     $Id: wpc_obj.erl,v 1.11 2004/01/04 16:32:31 bjorng Exp $
 %%
 
 -module(wpc_obj).
@@ -88,26 +88,24 @@ export_fun(Attr) ->
     end.
 
 export_1(Filename, Contents0, Attr) ->
-    Contents = export_transform(Contents0, Attr),
+    Filetype = proplists:get_value(default_filetype, Attr, ".tga"),
+    Contents1 = export_transform(Contents0, Attr),
+    Contents = wpa:save_images(Contents1, filename:dirname(Filename), Filetype),
     case e3d_obj:export(Filename, Contents, Attr) of
 	ok -> ok;
 	{error,_}=Error -> Error
     end.
 
 dialog(import) ->
-    [{label_column,
-      [{"Import scale",{text,get_pref(import_scale, 1.0),[{key,import_scale}]}},
-       {"(Export scale)",{text,get_pref(export_scale, 1.0),[{key,export_scale}]}}]}];
+    [wpa:dialog_template(?MODULE, import)];
 dialog(export) ->
+    wpa:pref_set_default(?MODULE, default_filetype, ".tga"),
     [{"One group per material",get_pref(group_per_material, true),
       [{key,group_per_material}]},
      {"Vue d'Esprit workaround",get_pref(dot_slash_mtllib, false),
       [{key,dot_slash_mtllib}]},
-     {label_column,
-	[{"(Import scale)",{text,get_pref(import_scale, 1.0),[{key,import_scale}]}},
-	 {"Export scale",{text,get_pref(export_scale, 1.0),[{key,export_scale}]}},
-	 {"Sub-division Steps",{text,get_pref(subdivisions, 0),
-				[{key,subdivisions},{range,0,4}]}} ]} ].
+     panel,
+     wpa:dialog_template(?MODULE, export)].
 
 get_pref(Key, Def) ->
     wpa:pref_get(?MODULE, Key, Def).
