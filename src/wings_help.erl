@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.58 2003/10/14 20:24:46 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.59 2003/11/13 18:22:29 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -68,7 +68,7 @@ getting_started() ->
 
 	    "To use mice with only one or two buttons, "
 	    "you must inform Wings how many buttons your mouse has "
-	    "in the Edit|Camera Mode dialog box.",
+	    "in the Edit|Camera Settings dialog box.",
 
 	    "Generally, L (left mouse button) is used for selecting and "
 	    "accepting, M (middle mouse button) for operating the camera, "
