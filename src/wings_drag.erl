@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.180 2004/04/21 06:54:03 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.181 2004/04/26 14:42:39 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -381,10 +381,15 @@ handle_drag_event_0(#keyboard{unicode=C}=Ev,
     case ModeFun({key,C}, ModeData0) of
 	none -> handle_drag_event_1(Ev, Drag0);
 	ModeData ->
+	    wings_wm:dirty(),
 	    wings_wm:message_right(ModeFun(help, ModeData)),
 	    Val = {ModeData,Drag0#drag.falloff},
-	    Drag = parameter_update(new_mode_data, Val,
-				    Drag0#drag{mode_data=ModeData}),
+	    Drag1 = parameter_update(new_mode_data, Val,
+				     Drag0#drag{mode_data=ModeData}),
+	    Drag = case ModeFun(units, ModeData) of
+		       none -> Drag1;
+		       Units -> Drag1#drag{unit=Units}
+		   end,
 	    get_drag_event(Drag)
     end;
 handle_drag_event_0(Ev, Drag) -> handle_drag_event_1(Ev, Drag).

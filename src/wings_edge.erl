@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.98 2004/04/23 04:27:20 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.99 2004/04/26 14:42:39 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -431,7 +431,7 @@ slide(St) ->
 						       {gb_trees:empty(), unknown, unknown}),
 		  {[{Id, make_slide_tv(Slides, State)}| Acc], Up,Dw,N}
 	  end, {[], SUp, SDown, SN}, St),
-    Units = [distance],
+    Units = slide_units(State),
     Flags = [{mode,{slide_mode(),State}},{initial,[0]}],
     wings_drag:setup(Tvs, Units, Flags, St).
 
@@ -451,11 +451,25 @@ slide_mode() ->
        ({key,$2}, {Mode,_,S})     ->    {Mode,none,S};
        ({key,$3}, {Mode,F,false}) ->    {Mode,F,true};
        ({key,$3}, {Mode,F,true})  ->    {Mode,F,false};
+
+       (units, NewState) ->
+	    slide_units(NewState);
+       
        (done, {NewMode,_,NewStop})->
 	    wings_pref:set_value(slide_mode, NewMode),
-	    wings_pref:set_value(slide_stop, NewStop);
+	    wings_pref:set_value(slide_stop, NewStop),
+	    erase(wings_slide);
+
        (_, _) -> none
     end.
+
+slide_units({absolute,_,false}) -> [distance];
+slide_units({absolute,_Freeze,true}) ->
+    %% I leave as an exercise to Dan to calculate the proper
+    %% limits in absolute mode.
+    [distance];
+slide_units({relative,_,false}) -> [percent];
+slide_units({relative,_,true}) -> [{percent,{-1.0,1.0}}].
 
 slide_help({Mode,Freeze,Stop}) ->
     ["[1] ",slide_help_mode(Mode),
@@ -474,13 +488,8 @@ make_slide_tv(Slides, State) ->
     {Vs,make_slide_fun(Vs, Slides, State)}.
 
 %% The calculating fun
-%% First some restrictions if Stop == true
-slide_fun(Dx,{relative,Freeze,true}, Slides) when Dx > 1.0 ->
-    slide_fun(1.0, {relative,Freeze,true}, Slides);
-slide_fun(Dx,{relative,Freeze,true}, Slides) when Dx < -1.0 ->
-    slide_fun(-1.0, {relative,Freeze,true}, Slides);
 slide_fun(Dx0,{Mode,Freeze,Stop}, {Slides,MinDw,MinUp}) ->
-    {Dx, I, Min} = 
+    {Dx,I,Min} = 
 	case Freeze of   %% 3 = UP, 2 = Down
 	    none when Dx0 >= 0 -> {Dx0, 3, MinUp};
 	    none ->               {-Dx0,2, MinDw};
