@@ -1,0 +1,25 @@
+Building and running Wings 3D on Unix
+-------------------------------------
+
+1) Set the environment variable ESDL_PATH to the root of your ESDL installation.
+
+   Example:
+
+	# If you use bash or ksh.
+	export ESDL_PATH=/ldisk/bjorn/esdl-0.9.0906
+
+	# If you use csh or tcsh.
+	setenv ESDL_PATH /ldisk/bjorn/esdl-0.9.0906
+
+2) Run a GNU compatible `make'.
+
+3) Start Wings like this:
+
+	erl -pa $ESDL_PATH/ebin MY_WINGS_PATH/ebin -run wings
+
+   where you should substitute MY_WINGS_PATH with the actual path to
+   your Wings directory.   
+
+   Example:
+
+	erl -pa $ESDL_PATH/ebin /ldisk/bjorn/wings/ebin -run wings
