@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.34 2003/04/18 07:33:31 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.35 2003/04/23 11:17:08 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -182,8 +182,7 @@ do_menu(Act, X, Y, #ost{os=Objs}) ->
 
 image_menu(Id, Im) ->
     [{"Show",menu_cmd(show_image, Id),
-      "Show the image in a window"}|begin image_menu_1(Id, Im),
-					  common_image_menu(Id) end].
+      "Show the image in a window"}|image_menu_1(Id, Im)].
 
 %% Currently disabled.
 image_menu_1(Id, #e3d_image{filename=none}) ->
@@ -194,6 +193,8 @@ image_menu_1(Id, _) ->
 
 common_image_menu(Id) ->
     [separator,
+     {"Export...",menu_cmd(export_image, Id),"Export the image"},
+     separator,
      {"Duplicate",menu_cmd(duplicate_image, Id),"Duplicate selected image"},
      {"Delete",menu_cmd(delete_image, Id),"Delete selected image"},
      {"Rename",menu_cmd(rename_image, Id),"Rename selected image"}].
@@ -234,6 +235,10 @@ command({rename_image,Id}, _) ->
     rename_image(Id);
 command({make_internal,Id}, _) ->
     make_internal(Id);
+command({make_external,Id}, _) ->
+    make_external(Id);
+command({export_image,Id}, Ost) ->
+    export_image(Id, Ost);
 command(Cmd, _) ->
     io:format("NYI: ~p\n", [Cmd]),
     keep.
@@ -275,12 +280,33 @@ rename_image(Id) ->
 		     (_) -> ignore
 		  end).
 
+make_external(Id) ->
+    keep.
+
 refresh_image(_) ->
     keep.
 
 make_internal(Id) ->
     wings_image:update_filename(Id, none),
     keep.
+
+export_image(Id, #ost{st=St}) ->
+    Ps = [{extensions,wpa:image_formats()}],
+    case wpa:export_filename(Ps, St) of
+	aborted -> keep;
+	FileName ->
+	    Image = wings_image:info(Id),
+	    case ?SLOW((catch e3d_image:save(Image, FileName))) of
+		ok ->  keep;
+		{_, Error0} ->
+		    Error = FileName ++ ": " ++ file:format_error(Error0),
+		    wings_util:message("Export failed: " ++ Error)
+	    end
+    end.
+
+%%%
+%%% Drag and drop.
+%%%
 
 drag_and_drop(Ev, What) ->
     DropData = drop_data(What),
