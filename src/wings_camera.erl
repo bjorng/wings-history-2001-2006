@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.58 2002/12/28 22:10:28 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.59 2002/12/29 10:33:50 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -53,7 +53,9 @@ command(camera_mode, _St) ->
     Fov0 = wings_pref:get_value(camera_fov),
     Hither0 = wings_pref:get_value(camera_hither),
     Yon0 = wings_pref:get_value(camera_yon),
-    Qs = [{hframe,{alt,[{"One",1},{"Two",2},{"Three",3}],num_buttons},
+    Qs = [{vframe,
+	   [{menu,[{"One",1},{"Two",2},{"Three",3}],
+	     wings_pref:get_value(num_buttons)}],
 	   [{title,"Mouse Buttons"}]},
 	  {vframe,camera_modes(),[{title,"Camera Mode"}]},
 	  {vframe,
@@ -100,7 +102,7 @@ again(Mode, Buttons) ->
       
 camera_modes() ->
     Modes = [mirai,nendo,maya,tds,blender],
-    {alt,[{desc(Mode),Mode} || Mode <- Modes],camera_mode}.
+    [{menu,[{desc(Mode),Mode} || Mode <- Modes],wings_pref:get_value(camera_mode)}].
 
 desc(blender) -> "Blender";
 desc(nendo) -> "Nendo";

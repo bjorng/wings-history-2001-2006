@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.50 2002/12/28 22:09:58 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.51 2002/12/29 10:33:50 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -216,7 +216,7 @@ drop_event(X, Y, DropData, #s{ox=Ox,oy=Oy,fi=Fis}=S0) ->
 	    S = set_focus(I, S0),
 	    field_event({drop,DropData}, S)
     end.
-    
+
 mouse_to_field(I, Fis, _X, _Y) when I > size(Fis) -> none;
 mouse_to_field(I, Fis, X, Y) ->
     case element(I, Fis) of
@@ -243,8 +243,8 @@ next_focus_1(I0, Dir, #s{fi=Fis}=S) ->
 set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0,common=Common0}=S) ->
     #fi{handler=OldHandler} = OldFi = element(OldFocus, Fis),
     OldFst0 = element(OldFocus, Priv0),
-    
-    {OldFst,Common2} = 
+
+    {OldFst,Common2} =
 	case OldHandler({focus,false}, OldFi, OldFst0, Common0) of
 	    {Ofst,Common1} when is_atom(element(1, Ofst)), is_tuple(Common1) ->
 		{Ofst,Common1};
@@ -277,6 +277,8 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	    return_result(S);
 	cancel ->
 	    delete(S);
+	{recursive,Return} ->
+	    Return;
 	{dialog,Title,Qs,Fun} ->
 	    recursive_dialog(Title, I, Qs, Fun, S);
 	{drag,WH,DropData} ->
@@ -421,6 +423,10 @@ normalize({alt,VarDef,Prompt,Val}, Fi) ->
     normalize_field(radiobutton(VarDef, Prompt, Val), [], Fi);
 normalize({key_alt,{Key,_}=VarDef,Prompt,Val}, Fi) ->
     normalize_field(radiobutton(VarDef, Prompt, Val), [{key,Key}], Fi);
+normalize({menu,Alt,VarDef}, Fi) ->
+    normalize_field(menu(VarDef, Alt), [], Fi);
+normalize({menu,Alt,VarDef,Flags}, Fi) ->
+    normalize_field(menu(VarDef, Alt), Flags, Fi);
 normalize({button,Action}, Fi) ->
     Label = button_label(Action),
     normalize_field(button(Label, Action), [], Fi);
@@ -789,6 +795,134 @@ rb_set(#rb{var=Var,val=Val}=Rb, Common0) ->
     {Rb,Common}.
 
 %%%
+%%% Menu.
+%%%
+
+-record(menu,
+	{key,
+	 menu
+	}).
+
+menu(Key, Alt) ->
+    W = menu_width(Alt, 0) + 2*wings_text:width(" ") + 10,
+    M = #menu{key=Key,menu=Alt},
+    Fun = menu_fun(),
+    {Fun,false,M,W,?LINE_HEIGHT+3}.
+
+menu_fun() ->
+    fun({redraw,Active}, Fi, M, _) ->
+	    menu_draw(Active, Fi, M);
+       (value, _, #menu{key=Key}, _) ->
+	    Key;
+       (Ev, Fi, M, _) ->
+	    menu_event(Ev, Fi, M)
+    end.
+
+menu_width([{S,_}|T], W0) ->
+    case wings_text:width(S) of
+	W when W < W0 -> menu_width(T, W0);
+	W -> menu_width(T, W)
+    end;
+menu_width([], W) -> W.
+
+menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
+    wings_io:raised_rect(X, Y0, W-?CHAR_WIDTH+10, H-2, ?MENU_COLOR),
+    Y = Y0+?CHAR_HEIGHT,
+    Val = [Desc || {Desc,K} <- Menu, K =:= Key],
+    wings_io:text_at(X+5, Y, Val),
+
+    Xr = X + W-8,
+    wings_io:border(Xr-2, Y-9, 10, 10, ?PANE_COLOR),
+    gl:color3f(0, 0, 0),
+    Arrows = <<
+	      2#00010000,
+	      2#00111000,
+	      2#01111100,
+	      2#00000000,
+	      2#01111100,
+	      2#00111000,
+	      2#00010000>>,
+    gl:rasterPos2i(Xr, Y),
+    gl:bitmap(7, 7, -1, 0, 7, 0, Arrows),
+    M.
+
+menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, Fi, M) ->
+    menu_popup(Fi, M),
+    M;
+menu_event({popup_result,Key}, _, M) ->
+    M#menu{key=Key};
+menu_event(_, _, M) -> M.
+
+-record(popup,
+	{parent,				%Parent window name.
+	 sel,					%Selected element (integer).
+	 orig_sel,				%Original selection (integer).
+	 menu					%Tuple.
+	}).
+
+menu_popup(#fi{x=X0,y=Y0,w=W}, #menu{key=Key,menu=Menu0}) ->
+    {X1,Y1} = wings_wm:local2global(X0+?HMARGIN, Y0+?VMARGIN),
+    Sel = popup_find_index(Menu0, Key, 1),
+    Menu = list_to_tuple(Menu0),
+    Mh = size(Menu)*?LINE_HEIGHT,
+    Ps = #popup{parent=wings_wm:active_window(),sel=Sel,orig_sel=Sel,menu=Menu},
+    Op = {seq,push,get_popup_event(Ps)},
+    X = X1-2*?CHAR_WIDTH,
+    Y = Y1-2-(Sel-1)*?LINE_HEIGHT,
+    wings_wm:new(menu_popup, {X,Y,500}, {W+2*?CHAR_WIDTH,Mh+10}, Op),
+    wings_wm:grab_focus(menu_popup).
+
+popup_find_index([{_,Key}|_], Key, I) -> I;
+popup_find_index([_|T], Key, I) -> popup_find_index(T, Key, I+1).
+
+get_popup_event(Ps) ->
+    {replace,fun(Ev) -> popup_event(Ev, Ps) end}.
+
+popup_event(redraw, Ps) ->
+    popup_redraw(Ps);
+popup_event(#mousemotion{y=Y}, #popup{menu=Menu,sel=Sel0}=Ps) ->
+    case ((Y-2) div ?LINE_HEIGHT)+1 of
+	Sel0 -> keep;
+	Sel when 0 < Sel, Sel =< size(Menu) ->
+	    wings_wm:dirty(),
+	    get_popup_event(Ps#popup{sel=Sel});
+	_ -> keep
+    end;
+popup_event(#mousebutton{button=1,state=?SDL_RELEASED},
+	    #popup{parent=Parent,menu=Menu,sel=Sel}) ->
+    {_,Key} = element(Sel, Menu),
+    wings_wm:send(Parent, {popup_result,Key}),
+    wings_wm:grab_focus(Parent),
+    delete;
+popup_event(_, _) -> keep.
+
+popup_redraw(#popup{sel=Sel,orig_sel=OrigSel,menu=Menu}) ->
+    wings_io:ortho_setup(),
+    {_,_,W,H} = wings_wm:viewport(),
+    wings_io:border(0, 0, W-1, H-1, ?MENU_COLOR),
+    gl:color3f(0, 0, 0),
+    X = 3*?CHAR_WIDTH-1,
+    Y = ?CHAR_HEIGHT+2,
+    popup_redraw_1(1, Menu, Sel, W, X, ?CHAR_HEIGHT+2),
+    gl:color3f(0, 0, 0),
+    wings_io:text_at(X-10, OrigSel*Y, [crossmark]),
+    keep.
+
+popup_redraw_1(Sel, Menu, Sel, W, X, Y) ->
+    {Desc,_} = element(Sel, Menu),
+    gl:color3f(0, 0, 0.5),
+    gl:recti(X-2, Y+2, X+W-2*?CHAR_WIDTH, Y-?CHAR_HEIGHT+2),
+    gl:color3f(1, 1, 1),
+    wings_io:text_at(X, Y, Desc),
+    gl:color3f(0, 0, 0),
+    popup_redraw_1(Sel+1, Menu, Sel, W, X, Y+?LINE_HEIGHT);
+popup_redraw_1(I, Menu, Sel, W, X, Y) when I =< size(Menu) ->
+    {Desc,_} = element(I, Menu),
+    wings_io:text_at(X, Y, Desc),
+    popup_redraw_1(I+1, Menu, Sel, W, X, Y+?LINE_HEIGHT);
+popup_redraw_1(_, _, _, _, _, _) -> keep.
+
+%%%
 %%% Buttons.
 %%%
 
@@ -1028,14 +1162,14 @@ get_colRange(v, Common) ->
 get_colRange(_E, _Common) ->
     [?MENU_COLOR, ?MENU_COLOR].
 
-hue_color_slider(Hue,_,_,_,_,_,_) when Hue > (360-60) ->    
+hue_color_slider(Hue,_,_,_,_,_,_) when Hue > (360-60) ->
     ok;
 hue_color_slider(Hue,S,V,X,W,Y,H) ->
     X0 = (X+1)+W*Hue/360.0,
     X1 = (X+1)+W*(Hue+60)/360.0,
     gl:vertex2f(X0,Y+H),
     gl:vertex2f(X0,Y+1),
-    gl:color3fv(wings_color:hsv_to_rgb(60+Hue,S,V)), 
+    gl:color3fv(wings_color:hsv_to_rgb(60+Hue,S,V)),
     gl:vertex2f(X1,Y+1),
     gl:vertex2f(X1,Y+H),
     hue_color_slider(Hue+60,S,V,X,W,Y,H).
@@ -1045,30 +1179,30 @@ color_slider(h,X,W,Y,H,Common) ->
     gl:'begin'(?GL_QUADS),
     S = gb_trees:get(s, Common),
     V = gb_trees:get(v, Common),
-    gl:color3fv(wings_color:hsv_to_rgb(0,S,V)), 
+    gl:color3fv(wings_color:hsv_to_rgb(0,S,V)),
     hue_color_slider(0,S,V,X,W,Y,H),
     gl:'end'();
 color_slider(Peer,X,W,Y,H,Common) ->
     [SCol,ECol] = get_colRange(Peer, Common),
     gl:shadeModel(?GL_SMOOTH),
     gl:'begin'(?GL_QUADS),
-    gl:color3fv(SCol), 
+    gl:color3fv(SCol),
     gl:vertex2f(X+1,Y+H),
     gl:vertex2f(X+1,Y+1),
-    gl:color3fv(ECol), 
+    gl:color3fv(ECol),
     gl:vertex2f(X+1+W,Y+1),
     gl:vertex2f(X+1+W,Y+H),
     gl:'end'().
 
 slider_redraw(#fi{x=X,y=Y0,w=W},
-	      #sl{min=Min,range=Range,peer=Peer,h=H}, 
+	      #sl{min=Min,range=Range,peer=Peer,h=H},
 	      Common) ->
     Y = Y0+?LINE_HEIGHT div 2 + 2,
     wings_io:sunken_rect(X, Y-(H div 2), W, H, ?MENU_COLOR),
     color_slider(Peer, X, W, Y-(H div 2), H, Common),
     Val = gb_trees:get(Peer, Common),
     Pos = trunc((Val-Min) / Range),
-    wings_io:raised_rect(X+Pos, Y-(?SL_BAR_H div 2), 
+    wings_io:raised_rect(X+Pos, Y-(?SL_BAR_H div 2),
 			 4, ?SL_BAR_H, ?MENU_COLOR).
 
 slider_event(#mousebutton{x=Xb,state=?SDL_RELEASED}, Fi, Sl, Common) ->
@@ -1106,7 +1240,7 @@ update_color(HSV, Common0) when HSV == h; HSV == s; HSV == v ->
     gb_trees:update(b, B, Common2);
 update_color(_, Common) ->
     Common.
-    
+
 %%%
 %%% Label.
 %%%
@@ -1123,7 +1257,7 @@ label_fun() ->
 	    wings_io:text_at(X, Y+?CHAR_HEIGHT, Text);
        (_, _, Label, _) -> Label
     end.
-    
+
 %%%
 %%% Text and number input fields.
 %%%
