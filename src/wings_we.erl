@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.81 2004/10/08 06:02:32 dgud Exp $
+%%     $Id: wings_we.erl,v 1.82 2004/10/09 05:44:36 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -32,7 +32,7 @@
 -include("wings.hrl").
 -include("e3d.hrl").
 -import(lists, [map/2,foreach/2,foldl/3,sort/1,keysort/2,
-		last/1,reverse/1,duplicate/2,seq/2,filter/2]).
+		last/1,reverse/1,duplicate/2,seq/2,filter/2,zip/2]).
 
 rebuild(#we{vc=undefined,fs=undefined,es=Etab0}=We) ->
     Etab = gb_trees:to_list(Etab0),
@@ -268,10 +268,6 @@ pairs([{V1,T1}|[{V2,T2}|_]=Vs], First, Acc) ->
     pairs(Vs, First, [{{V2,V1},{T2,T1}}|Acc]);
 pairs([{V,T}], [{V1,T1},{V2,T2},{V3,T3}|_], Acc) ->
     [{{V3,V2},{T3,T2}},{{V2,V1},{T2,T1}},{{V1,V},{T1,T}}|Acc].
-
-zip([V|Vs], [UV|UVs]) ->
-    [{V,UV}|zip(Vs, UVs)];
-zip([], []) -> [].
 
 edge_name({Vs,Ve}=Name) when Vs < Ve -> Name;
 edge_name({Vs,Ve}) -> {Ve,Vs}.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.155 2004/10/08 06:02:31 dgud Exp $
+%%     $Id: wings_view.erl,v 1.156 2004/10/09 05:45:45 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -24,7 +24,7 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
--import(lists, [foreach/2,foldl/3]).
+-import(lists, [foreach/2,foldl/3,zip/2]).
 
 menu(#st{views={CurrentView,Views}}=St) ->
     L = wings_pref:get_value(number_of_lights),
@@ -1167,10 +1167,6 @@ export_views_1([{View,Name}|Views]) ->
     Props = [{name,Name}|zip(Tags, camera_info(Tags, View))],
     [{view,Props}|export_views_1(Views)];
 export_views_1([]) -> [].
-
-zip([H1|T1], [H2|T2]) ->
-    [{H1,H2}|zip(T1, T2)];
-zip([], []) -> [].
 
 import_views(Views, #st{views={CurrentView,_}}=St) ->
     St#st{views={CurrentView,list_to_tuple(import_views_1(Views))}}.
