@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.36 2002/02/24 22:36:52 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.37 2002/03/09 19:22:25 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -28,13 +28,10 @@
 	 op					%Operation: add/delete
 	}).
 
-%% For marque picking.
--record(marque,
+%% For marquee picking.
+-record(marquee,
 	{ox,oy,					%Original X,Y.
 	 cx,cy,					%Current X,Y.
-	 inside,				%All items must be
-						% exactly inside.
-	 op=add,				%add/delete
 	 st
 	}).
 
@@ -51,7 +48,7 @@ event(#mousemotion{}=Mm, #st{selmode=Mode}=St) ->
     end;
 event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St) ->
     pick(X, Y, St);
-event(Ev, St) -> next.
+event(_, _) -> next.
 
 hilite_enabled(vertex) -> wings_pref:get_value(vertex_hilite);
 hilite_enabled(edge) -> wings_pref:get_value(edge_hilite);
@@ -59,28 +56,16 @@ hilite_enabled(face) -> wings_pref:get_value(face_hilite);
 hilite_enabled(body) -> wings_pref:get_value(body_hilite).
 
 pick(X, Y, St0) ->
-    {Inside,Marque,MarqueOp} =
-	case sdl_keyboard:getModState() of
-	    Mod when Mod band ?SHIFT_BITS =/= 0, Mod band ?CTRL_BITS =/= 0 ->
-		{true,true,delete};
-	    Mod when Mod band ?CTRL_BITS =/= 0 ->
-		{false,true,delete};
-	    Mod when Mod band ?SHIFT_BITS =/= 0 ->
-		{true,true,add};
-	    Mod ->
-		{false,maybe,add}
-	end,
-    case Marque of
+    Mod = sdl_keyboard:getModState(),
+    if 
+	Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
+	    Pick = #marquee{ox=X,oy=Y,st=St0},
+	    marquee_mode(Pick);
 	true ->
-	    wings_io:setup_for_drawing(),
-	    Pick = #marque{inside=Inside,op=MarqueOp,ox=X,oy=Y,st=St0},
-	    {seq,{push,dummy},get_marque_event(Pick)};
-	maybe ->
 	    case do_pick(X, Y, St0) of
 		none ->
-		    wings_io:setup_for_drawing(),
-		    Pick = #marque{inside=Inside,op=MarqueOp,ox=X,oy=Y,st=St0},
-		    {seq,{push,dummy},get_marque_event(Pick)};
+		    Pick = #marquee{ox=X,oy=Y,st=St0},
+		    marquee_mode(Pick);
 		{PickOp,St} ->
 		    wings:redraw(St),
 		    Pick = #pick{st=St,op=PickOp},
@@ -95,7 +80,7 @@ pick(X, Y, St0) ->
 get_hilite_event(HL) ->
     fun(Ev) -> handle_hilite_event(Ev, HL) end.
 
-handle_hilite_event(#mousemotion{x=X,y=Y}=Mm, #hl{prev=PrevHit,st=St}=HL) ->
+handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
     case do_pick_1(X, Y, St) of
 	PrevHit ->
 	    get_hilite_event(HL);
@@ -107,7 +92,7 @@ handle_hilite_event(#mousemotion{x=X,y=Y}=Mm, #hl{prev=PrevHit,st=St}=HL) ->
 	    wings:redraw(St#st{hilite=DrawFun}),
 	    get_hilite_event(HL#hl{prev=Hit})
     end;
-handle_hilite_event(Ev, St) -> next.
+handle_hilite_event(_, _) -> next.
 
 hilite_draw_sel_fun(Hit, St) ->
     fun() ->
@@ -157,40 +142,61 @@ hilit_draw_sel(body, _, #we{fs=Ftab}=We) ->
       end).
 
 %%
-%% Marque picking.
+%% Marquee picking.
 %%
-get_marque_event(Pick) ->
-    {replace,fun(Ev) -> marque_event(Ev, Pick) end}.
 
-marque_event(#mousemotion{x=X,y=Y}, #marque{cx=Cx,cy=Cy}=M) ->
-    draw_marque(Cx, Cy, M),
-    draw_marque(X, Y, M),
-    get_marque_event(M#marque{cx=X,cy=Y});
-marque_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
-    #marque{op=Op,inside=Inside,ox=Ox,oy=Oy,st=St0} = M,
+marquee_mode(Pick) ->
+    wings_io:setup_for_drawing(),
+    wings_io:draw_message(
+      fun() ->
+	      Message = "[Ctrl] Deselect  "
+		  "[Shift] (De)select only elements wholly inside marquee",
+	      wings_io:text_at(0, Message)
+      end),
+    {seq,{push,dummy},get_marquee_event(Pick)}.
+
+get_marquee_event(Pick) ->
+    {replace,fun(Ev) -> marquee_event(Ev, Pick) end}.
+
+marquee_event(#mousemotion{x=X,y=Y}, #marquee{cx=Cx,cy=Cy}=M) ->
+    draw_marquee(Cx, Cy, M),
+    draw_marquee(X, Y, M),
+    get_marquee_event(M#marquee{cx=X,cy=Y});
+marquee_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
+    {Inside,Op} =
+	case sdl_keyboard:getModState() of
+	    Mod when Mod band ?SHIFT_BITS =/= 0, Mod band ?CTRL_BITS =/= 0 ->
+		{true,delete};
+	    Mod when Mod band ?CTRL_BITS =/= 0 ->
+		{false,delete};
+	    Mod when Mod band ?SHIFT_BITS =/= 0 ->
+		{true,add};
+	    Mod -> {false,add}
+	end,
+    #marquee{ox=Ox,oy=Oy,st=St0} = M,
     wings_io:cleanup_after_drawing(),
     X = (Ox+X0)/2.0,
     Y = (Oy+Y0)/2.0,
     W = abs(Ox-X)*2.0,
     H = abs(Oy-Y)*2.0,
-    St = case marque_pick(Inside, X, Y, W, H, St0) of
+    St = case marquee_pick(Inside, X, Y, W, H, St0) of
 	     {none,St1} -> St1;
 	     {Hits,St1} ->
-		 St2 = marque_update_sel(Op, Hits, St0),
-		 wings_io:putback_event({new_selection,St2}),
+		 St2 = marquee_update_sel(Op, Hits, St0),
+		 wings_io:putback_event({new_state,St2}),
 		 St2
-	     end,
+	 end,
     wings:redraw(St),
     pop;
-marque_event(Event, Pick) -> keep.
+marquee_event(_, _) -> keep.
 
-marque_pick(false, X, Y, W, H, St) ->
+marquee_pick(false, X, Y, W, H, St) ->
     pick_all(false, X, Y, W, H, St);
-marque_pick(true, X, Y0, W, H, St0) ->
+marquee_pick(true, X, Y0, W, H, St0) ->
     case pick_all(true, X, Y0, W, H, St0) of
 	{none,_}=R -> R;
 	{Hits0,St} ->
-	    Hits1 = marque_filter(Hits0, St),
+	    Hits1 = marquee_filter(Hits0, St),
 	    Hits2 = sofs:relation(Hits1),
 	    Hits3 = sofs:relation_to_family(Hits2),
 	    Hits4 = sofs:to_external(Hits3),
@@ -202,40 +208,40 @@ marque_pick(true, X, Y0, W, H, St0) ->
 	    Y = Wh - Y0,
 	    RectData = {MM,PM,ViewPort,X-W/2,Y-H/2,
 			X+W/2,Y+H/2},
-	    Hits = marque_convert(Hits4, RectData, St, []),
+	    Hits = marquee_convert(Hits4, RectData, St, []),
 	    {Hits,St}
     end.
 
-marque_filter(Hits, #st{selmode=Mode,shapes=Shs}) ->
+marquee_filter(Hits, #st{selmode=Mode,shapes=Shs}) ->
     EyePoint = wings_view:eye_point(),
-    marque_filter_1(Hits, Shs, Mode, EyePoint, []).
+    marquee_filter_1(Hits, Shs, Mode, EyePoint, []).
 
-marque_filter_1([{Id,Face}|Hits], Shs, Mode, EyePoint, Acc) ->
+marquee_filter_1([{Id,Face}|Hits], Shs, Mode, EyePoint, Acc) ->
     We = gb_trees:get(Id, Shs),
     Vs = [V|_] = wings_face:surrounding_vertices(Face, We),
     N = wings_face:face_normal(Vs, We),
     D = e3d_vec:dot(wings_vertex:pos(V, We), N),
     case e3d_vec:dot(EyePoint, N) of
 	S when S < D ->				%Ignore back-facing face.
-	    marque_filter_1(Hits, Shs, Mode, EyePoint, Acc);
+	    marquee_filter_1(Hits, Shs, Mode, EyePoint, Acc);
 	S ->					%Front-facing face.
-	    marque_filter_1(Hits, Shs, Mode, EyePoint, [{Id,Face}|Acc])
+	    marquee_filter_1(Hits, Shs, Mode, EyePoint, [{Id,Face}|Acc])
     end;
-marque_filter_1([], St, Mode, EyePoint, Acc) -> Acc.
+marquee_filter_1([], _St, _Mode, _EyePoint, Acc) -> Acc.
 
-marque_convert([{Id,Faces}|Hits], RectData,
+marquee_convert([{Id,Faces}|Hits], RectData,
 	       #st{selmode=Mode,shapes=Shs}=St, Acc) ->
     We = gb_trees:get(Id, Shs),
-    case marque_convert_1(Faces, Mode, RectData, We) of
+    case marquee_convert_1(Faces, Mode, RectData, We) of
 	[] ->
-	    marque_convert(Hits, RectData, St, Acc);
+	    marquee_convert(Hits, RectData, St, Acc);
 	Items ->
-	    marque_convert(Hits, RectData, St, [{Id,Items}|Acc])
+	    marquee_convert(Hits, RectData, St, [{Id,Items}|Acc])
     end;
-marque_convert([], RectData, St, Hits) ->
+marquee_convert([], _RectData, _St, Hits) ->
     sofs:to_external(sofs:family_to_relation(sofs:family(Hits))).
 
-marque_convert_1(Faces0, face, Rect, #we{vs=Vtab}=We) ->
+marquee_convert_1(Faces0, face, Rect, #we{vs=Vtab}=We) ->
     Vfs0 = wings_face:fold_faces(
 	     fun(Face, V, _, _, A) ->
 		     [{V,Face}|A]
@@ -249,20 +255,20 @@ marque_convert_1(Faces0, face, Rect, #we{vs=Vtab}=We) ->
     Faces1 = sofs:from_external(Faces0, [face]),
     Faces = sofs:difference(Faces1, Kill),
     sofs:to_external(Faces);
-marque_convert_1(Faces, vertex, Rect, #we{vs=Vtab}=We) ->
-    Vs0 = wings_face:fold_faces(fun(_, V, E, _, A) ->
+marquee_convert_1(Faces, vertex, Rect, #we{vs=Vtab}=We) ->
+    Vs0 = wings_face:fold_faces(fun(_, V, _, _, A) ->
 					[V|A]
 				end, [], Faces, We),
     Vs = ordsets:from_list(Vs0),
     [V || V <- Vs, is_inside_rect(pos(V, Vtab), Rect)];
-marque_convert_1(Faces, edge, Rect, #we{vs=Vtab}=We) ->
+marquee_convert_1(Faces, edge, Rect, #we{vs=Vtab}=We) ->
     Es0 = wings_face:fold_faces(fun(_, _, E, Rec, A) ->
 					[{E,Rec}|A]
 				end, [], Faces, We),
     Es = ordsets:from_list(Es0),
     [E || {E,#edge{vs=Va,ve=Vb}} <- Es,
 	  is_all_inside_rect([pos(Va, Vtab),pos(Vb, Vtab)], Rect)];
-marque_convert_1(Faces, body, Rect, #we{vs=Vtab}=We) ->
+marquee_convert_1(_Faces, body, Rect, #we{vs=Vtab}) ->
     case is_all_inside_rect(gb_trees:values(Vtab), Rect) of
 	true -> [0];
 	false -> []
@@ -272,15 +278,15 @@ is_all_inside_rect([#vtx{pos=P}|Ps], Rect) ->
     is_inside_rect(P, Rect) andalso is_all_inside_rect(Ps, Rect);
 is_all_inside_rect([P|Ps], Rect) ->
     is_inside_rect(P, Rect) andalso is_all_inside_rect(Ps, Rect);
-is_all_inside_rect([], Rect) -> true.
+is_all_inside_rect([], _Rect) -> true.
 
 is_inside_rect({Px,Py,Pz}, {MM,PM,ViewPort,X1,Y1,X2,Y2}) ->
-    R = {true,Sx,Sy,_} = glu:project(Px, Py, Pz, MM, PM, ViewPort),
+    {true,Sx,Sy,_} = glu:project(Px, Py, Pz, MM, PM, ViewPort),
     X1 < Sx andalso Sx < X2 andalso
 	Y1 < Sy andalso Sy < Y2.
 
-draw_marque(undefined, undefined, _) -> ok;
-draw_marque(X, Y, #marque{ox=Ox,oy=Oy}) ->
+draw_marquee(undefined, undefined, _) -> ok;
+draw_marquee(X, Y, #marquee{ox=Ox,oy=Oy}) ->
     gl:color3f(1.0, 1.0, 1.0),
     gl:enable(?GL_COLOR_LOGIC_OP),
     gl:logicOp(?GL_XOR),
@@ -293,25 +299,25 @@ draw_marque(X, Y, #marque{ox=Ox,oy=Oy}) ->
     gl:flush(),
     gl:disable(?GL_COLOR_LOGIC_OP).
 
-marque_update_sel(Op, Hits0, #st{selmode=body}=St) ->
+marquee_update_sel(Op, Hits0, #st{selmode=body}=St) ->
     Hits1 = sofs:relation(Hits0, [{id,data}]),
     Hits2 = sofs:domain(Hits1),
     Zero = sofs:from_term([0], [data]),
     Hits = sofs:constant_function(Hits2, Zero),
-    marque_update_sel_1(Op, Hits, St);
-marque_update_sel(Op, Hits0, #st{sel=Sel}=St) ->
+    marquee_update_sel_1(Op, Hits, St);
+marquee_update_sel(Op, Hits0, St) ->
     Hits1 = sofs:relation(Hits0, [{id,data}]),
     Hits = sofs:relation_to_family(Hits1),
-    marque_update_sel_1(Op, Hits, St).
+    marquee_update_sel_1(Op, Hits, St).
 
-marque_update_sel_1(add, Hits, #st{sel=Sel0}=St) ->
+marquee_update_sel_1(add, Hits, #st{sel=Sel0}=St) ->
     Sel1 = [{Id,gb_sets:to_list(Items)} || {Id,Items} <- Sel0],
     Sel2 = sofs:from_external(Sel1, [{id,[data]}]),
     Sel3 = sofs:family_union(Sel2, Hits),
     Sel4 = sofs:to_external(Sel3),
     Sel = [{Id,gb_sets:from_list(Items)} || {Id,Items} <- Sel4],
     St#st{sel=Sel};
-marque_update_sel_1(delete, Hits, #st{sel=Sel0}=St) ->
+marquee_update_sel_1(delete, Hits, #st{sel=Sel0}=St) ->
     Sel1 = [{Id,gb_sets:to_list(Items)} || {Id,Items} <- Sel0],
     Sel2 = sofs:from_external(Sel1, [{id,[data]}]),
     Sel3 = sofs:family_difference(Sel2, Hits),
@@ -335,9 +341,9 @@ pick_event(#mousemotion{x=X,y=Y}, #pick{op=Op,st=St0}=Pick) ->
 	{_,_} -> keep
     end;
 pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{st=St}) ->
-    wings_io:putback_event({new_selection,St}),
+    wings_io:putback_event({new_state,St}),
     pop;
-pick_event(Event, Pick) -> keep.
+pick_event(_, _) -> keep.
 
 do_pick(X, Y, St) ->
     case do_pick_1(X, Y, St) of
@@ -345,7 +351,7 @@ do_pick(X, Y, St) ->
 	Hit -> update_selection(Hit, St)
     end.
 
-do_pick_1(X0, Y0, #st{shapes=Shapes,selmode=Mode}=St) ->
+do_pick_1(X0, Y0, St) ->
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
@@ -381,8 +387,7 @@ update_selection(Id, Item, [{I,_}=H|T], Acc) when Id > I ->
     update_selection(Id, Item, T, [H|Acc]);
 update_selection(Id, Item, [{I,_}|_]=T, Acc) when Id < I ->
     {add,reverse(Acc, [{Id,gb_sets:singleton(Item)}|T])};
-update_selection(Id, Item, [{I,Items0}|T0], Acc) -> %Id == I
-    ?ASSERT(Id == I),
+update_selection(Id, Item, [{_,Items0}|T0], Acc) -> %Id == I
     case gb_sets:is_member(Item, Items0) of
 	true ->
 	    Items = gb_sets:delete(Item, Items0),
@@ -408,7 +413,7 @@ get_hits(N, <<NumNames:32,_:32,_:32,Tail0/binary>>, Acc) ->
     Name = get_name(NumNames, Names, []),
     get_hits(N-1, Tail, [Name|Acc]).
 
-get_name(0, Tail, Acc) -> list_to_tuple(reverse(Acc));
+get_name(0, _Tail, Acc) -> list_to_tuple(reverse(Acc));
 get_name(N, <<Name:32,Names/binary>>, Acc) ->
     get_name(N-1, Names, [Name|Acc]).
 
@@ -432,8 +437,8 @@ filter_hits_1([{Id,Face}|Hits], Shs, Mode, X, Y, EyePoint, Hit0) ->
 	    Hit = best_hit(Id, Face, Vs, We, EyePoint, Hit0),
 	    filter_hits_1(Hits, Shs, Mode, X, Y, EyePoint, Hit)
     end;
-filter_hits_1([], St, Mode, X, Y, EyePoint, none) -> none;
-filter_hits_1([], St, Mode, X, Y, EyePoint, {_,{Id,Face,We}}) ->
+filter_hits_1([], _Shs, _Mode, _X, _Y, _EyePoint, none) -> none;
+filter_hits_1([], _Shs, Mode, X, Y, _EyePoint, {_,{Id,Face,We}}) ->
     convert_hit(Mode, X, Y, Id, Face, We).
 
 best_hit(Id, Face, Vs, We, EyePoint, Hit0) ->
@@ -445,16 +450,15 @@ best_hit(Id, Face, Vs, We, EyePoint, Hit0) ->
 	    {DistSqr,{Id,Face,We}};
 	{DistSqr0,_} when DistSqr < DistSqr0 ->
 	    {DistSqr,{Id,Face,We}};
-	Other ->
-	    Hit0
+	_Other -> Hit0
     end.
 
 %%
 %% Given a selection hit, return the correct vertex/edge/face/body.
 %%
 
-convert_hit(body, X, Y, Id, Face, We) -> {Id,0};
-convert_hit(face, X, Y, Id, Face, We) -> {Id,Face};
+convert_hit(body, _X, _Y, Id, _Face, _We) -> {Id,0};
+convert_hit(face, _X, _Y, Id, Face, _We) -> {Id,Face};
 convert_hit(Mode, X, Y, Id, Face, We) ->
     wings_view:projection(),
     wings_view:model_transformations(),
@@ -515,8 +519,9 @@ project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
 %% Pick all in the given rectangle (with center at X,Y).
 %%
 
-pick_all(DrawFaces, X, Y, W, H, St) when W < 1.0; H < 1.0 -> {none,St};
-pick_all(DrawFaces, X0, Y0, W, H, #st{shapes=Shapes,selmode=Mode}=St0) ->
+pick_all(_DrawFaces, _X, _Y, W, H, St) when W < 1.0; H < 1.0 ->
+    {none,St};
+pick_all(DrawFaces, X0, Y0, W, H, St0) ->
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
@@ -531,7 +536,7 @@ pick_all(DrawFaces, X0, Y0, W, H, #st{shapes=Shapes,selmode=Mode}=St0) ->
     wings_view:model_transformations(),
     case DrawFaces of
 	true -> select_draw(St0);
-	false -> marque_draw(St0)
+	false -> marquee_draw(St0)
     end,
     gl:flush(),
     case gl:renderMode(?GL_RENDER) of
@@ -541,7 +546,7 @@ pick_all(DrawFaces, X0, Y0, W, H, #st{shapes=Shapes,selmode=Mode}=St0) ->
  	    {get_hits(NumHits, HitData, []),St0}
     end.
 
-marque_draw(#st{selmode=edge}=St) ->
+marquee_draw(#st{selmode=edge}=St) ->
     foreach_we(
       fun(#we{perm=Perm}) when ?IS_NOT_SELECTABLE(Perm) -> ok;
 	 (#we{es=Etab,vs=Vtab}) ->
@@ -555,7 +560,7 @@ marque_draw(#st{selmode=edge}=St) ->
 		      end, gb_trees:to_list(Etab)),
 	      gl:popName()
       end, St);
-marque_draw(#st{selmode=vertex}=St) ->
+marquee_draw(#st{selmode=vertex}=St) ->
     foreach_we(fun(#we{perm=Perm}) when ?IS_NOT_SELECTABLE(Perm) -> ok;
 		  (#we{vs=Vtab}) ->
 		       gl:pushName(0),
@@ -567,7 +572,7 @@ marque_draw(#st{selmode=vertex}=St) ->
 			       end, gb_trees:to_list(Vtab)),
 		       gl:popName()
 	       end, St);
-marque_draw(St) -> select_draw(St).
+marquee_draw(St) -> select_draw(St).
 
 %%
 %% Draw for the purpose of picking the items that the user clicked on.
@@ -624,13 +629,13 @@ foreach_we_1(F, Iter0) ->
 
 draw_face(Face, Edge, We) ->
     Vs = wings_face:draw_info(Face, Edge, We),
-    {X,Y,Z} = N = wings_face:draw_normal(Vs),
+    {X,Y,Z} = wings_face:draw_normal(Vs),
     Tess = wings_draw_util:tess(),
     gl:'begin'(?GL_TRIANGLES),
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    foreach(fun({Pos,Col}) ->
+    foreach(fun({Pos,_}) ->
 		    glu:tessVertex(Tess, Pos)
 	    end, Vs),
     glu:tessEndContour(Tess),
