@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.22 2002/11/07 07:49:43 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.23 2002/11/10 10:36:07 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -35,6 +35,7 @@ menu(X, Y, St) ->
 				   {"Faces",face},
 				   {"Objects",body}]}},
 	    {"By",{by,[{"Hard edges",hard_edges},
+		       {"Isolated vertices",isolated_vertices},
 		       {"Vertices with",{vertices_with,
 					 [{"2 edges",2},
 					  {"3 edges",3},
@@ -131,6 +132,8 @@ by_command(hard_edges, St) ->
 		  gb_sets:is_member(Edge, Htab)
 	  end,
     {save_state,wings_sel:make(Sel, edge, St)};
+by_command(isolated_vertices, St) ->
+    {save_state,select_isolated(St)};
 by_command({vertices_with,N}, St) ->
     Sel = fun(V, We) ->
 		  Cnt = wings_vertex:fold(
@@ -523,3 +526,17 @@ select_lights_1([#we{id=Id,vs=Vtab,es=Etab,fs=Ftab}|Shs], Mode) ->
     Sel = gb_trees:keys(Tab),
     [{Id,gb_sets:from_ordset(Sel)}|select_lights_1(Shs, Mode)];
 select_lights_1([], _) -> [].
+
+%%%
+%%% Select isolated vertices.
+%%%
+
+select_isolated(#st{shapes=Shs}=St) ->
+    Sel = foldl(fun(#we{id=Id}=We, A) ->
+			Isolated = wings_vertex:isolated(We),
+			case gb_sets:is_empty(Isolated) of
+			    true -> A;
+			    false -> [{Id,Isolated}|A]
+			end
+		end, [], gb_trees:values(Shs)),
+    wings_sel:set(vertex, Sel, St).
