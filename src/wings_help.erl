@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.22 2002/08/13 09:42:20 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.23 2002/08/25 15:05:01 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -23,10 +23,12 @@ menu(X, Y, _) ->
     Menu = [{"Getting Started",getting_started},
 	    separator,
 	    {"Accessing the Third Dimension",third_dimension},
-	    {"Two-Button Mouse",two_button},
-	    {"Assigning Hotkeys",defining_hotkeys},
-	    separator,
 	    {"Light Basics",lights},
+	    {"Assigning Hotkeys",defining_hotkeys},
+	    {"Advanced Menus",advanced_menus},
+	    separator,
+	    {"One-Button Mouse (Mac)",one_button},
+	    {"Two-Button Mouse",two_button},
 	    separator,
 	    {"OpenGL Info",opengl_info},
 	    separator,
@@ -37,12 +39,16 @@ command(getting_started, _St) ->
     getting_started();
 command(third_dimension, _St) ->
     third_dimension();
+command(one_button, _St) ->
+    one_button();
 command(two_button, _St) ->
     two_button();
 command(defining_hotkeys, _St) ->
     def_hotkeys();
 command(lights, _St) ->
     lights();
+command(advanced_menus, _St) ->
+    advanced_menus();
 command(opengl_info, _St) ->
     opengl_info();
 command(about, _St) ->
@@ -59,14 +65,25 @@ getting_started() ->
 	    "button (or the scroll wheel), and [R] means the right mouse "
 	    "button.",
 
-	    "See the Help topic \"Two-Button Mouse\" if your mouse only "
-	    "have two buttons.",
+	    "See \"One-Button Mouse\" or \"Two-Button Mouse\" "
+	    "if your mouse doesn't have three buttons.",
 
 	    "Generally, [L] (left mouse button) is used for selecting and "
 	    "accepting, the [M] (middle mouse button) for operating the camera, "
 	    "and the [R] (right mouse button) to access the context-sensitive "
 	    "pop-up menus."
 	   ],
+    help_window(Help).
+
+advanced_menus() ->
+    Help = ["Advanced Menus",
+	    "In the Edit|Preferences dialog box, there is a check box "
+	    "for \"Advanced Menus\".",
+
+	    "With Advanced Menus turned on, many menu commands do "
+	    "different things depending on which mouse-button you invoke "
+	    "them with. For instance, [R] clicking on the Move command "
+	    "allow you to specify a direction vector to move along."],
     help_window(Help).
 
 third_dimension() ->
@@ -88,6 +105,18 @@ third_dimension() ->
 	    "[Ctrl]+[R] if you use the 3ds max camera mode.",
 
 	    "[M] if you use the Maya camera mode."],
+    help_window(Help).
+
+one_button() ->
+    Help = ["Using A One-Button Mouse (Mac)",
+	    "To use the default Wings/Blender camera mode with an one-button "
+	    "mouse, you must first enable \"One-button mouse\" in the "
+	    "Edit|Preferences dialog box. Note that you cannot access the "
+	    "third dimension in the Wings/Blender mode.",
+
+	    "To emulate the middle mouse button, hold the [Alt/Option] key.",
+
+	    "To emulate the right mouse button, hold the [Command] key."],
     help_window(Help).
 
 two_button() ->
