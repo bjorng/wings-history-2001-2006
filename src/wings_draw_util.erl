@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.105 2003/08/27 09:23:58 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.106 2003/08/29 07:34:24 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -515,6 +515,8 @@ draw_normals(#dlo{normals=Ns}) ->
 %%% Set material and draw faces.
 %%%
 
+prepare(Ftab, #dlo{src_we=We}, St) ->
+    prepare(Ftab, We, St);
 prepare(Ftab, #we{mode=vertex}=We, St) ->
     MatFaces = [{default,Ftab}],
     case wings_pref:get_value(show_colors) of
@@ -585,6 +587,15 @@ plain_face(Face, #we{fs=Ftab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
     plain_face(Face, Edge, We).
 
+plain_face(Face, _, #dlo{ns=Ns}) ->
+    case gb_trees:get(Face, Ns) of
+	[N|VsPos] ->
+	    gl:normal3fv(N),
+	    wings__du:plain_face(VsPos);
+	{N,VsPos} ->
+	    gl:normal3fv(N),
+	    wings__du:plain_face(N, VsPos)
+    end;
 plain_face(Face, Edge, #we{vp=Vtab}=We) ->
     Vs = wings_face:vertices_cw(Face, Edge, We),
     plain_face_1(Vs, Vtab, []).
@@ -782,6 +793,11 @@ smooth_vcol_faces([{_,{N,Vs}}|Fs]) ->
 smooth_vcol_faces([]) -> ok.
 
 %% Draw a face without any lighting.
+unlit_face(Face, #dlo{ns=Ns}) ->
+    case gb_trees:get(Face, Ns) of
+	[_|VsPos] -> wings__du:plain_face(VsPos);
+	{N,VsPos} -> wings__du:plain_face(N, VsPos)
+    end;
 unlit_face(Face, #we{fs=Ftab}=We) ->
     Edge = gb_trees:get(Face, Ftab),
     unlit_face(Face, Edge, We).
