@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_matrix.erl,v 1.7 2002/10/18 22:25:38 raimo_niskanen Exp $
+%%     $Id: auv_matrix.erl,v 1.8 2002/10/19 19:06:11 raimo_niskanen Exp $
 
 -module(auv_matrix).
 
@@ -249,7 +249,7 @@ mult({?TAG,_,K,_} = A, {?TAG,K,_,_} = B) ->
 mult({?TAG,1,M,[A]}, {?TAG,M,B}) ->
     vec_mult(A, B);
 mult({?TAG,N,M,A}, {?TAG,M,B}) ->
-    fix({?TAG,N,mult_vec(B, A, [])});
+    fix({?TAG,N,mult_vec(B, A)});
 mult(A, {?TAG,N,1,[B]}) when number(A) ->
     fix({?TAG,N,1,[vec_mult(float(A), B)]});
 mult(A, {?TAG,N,M,B}) when number(A) ->
@@ -266,6 +266,9 @@ mult(A, B) when number(A), number(B) ->
     float(A*B);
 mult(A, B) ->
     erlang:fault(badarg, [A, B]).
+
+mult_vec(VecA, B) ->
+    mult_vec(list_to_tuple(vector_to_list(VecA, [])), B, []).
 
 mult_vec(_, [], C) ->
     lists:reverse(C);
@@ -304,12 +307,7 @@ mult_trans(A, B) ->
 mult_row([], _, C) ->
     lists:reverse(C);
 mult_row([RowA | A], B, C) ->
-    mult_row(A, B, [mult_col(RowA, B, []) | C]).
-
-mult_col(_, [], C) ->
-    lists:reverse(C);
-mult_col(RowA, [ColB | B], C) ->
-    mult_col(RowA, B, push_v(vec_mult(RowA, ColB), C)).
+    mult_row(A, B, [mult_vec(RowA, B) | C]).
 
 mult_const(_, [], C) ->
     lists:reverse(C);
@@ -542,6 +540,8 @@ vec_add(_, _, [], C) ->
 
 vec_mult(F, B) when float(F) ->
     vec_mult_const(F, B, []);
+vec_mult(T, B) when tuple(T) ->
+    vec_mult_tuple(T, 1, B, 0.0);
 vec_mult(A, B) ->
     vec_mult(A, B, 0.0).
 
@@ -552,6 +552,16 @@ vec_mult_const(F, [Z | B], C) ->
     vec_mult_const(F, B, push_v(Z, C));
 vec_mult_const(_, [], C) ->
     lists:reverse(C).
+
+vec_mult_tuple(T, I, [Zb | B], S) when integer(Zb) ->
+    vec_mult_tuple(T, I+Zb, B, S);
+vec_mult_tuple(T, I, [Vb | B], S) when float(Vb), float(S) ->
+    case element(I, T) of
+	Va when float(Va) ->
+	    vec_mult_tuple(T, I+1, B, Va*Vb + S)
+    end;
+vec_mult_tuple(_, _, [], S) ->
+    S.
 
 vec_mult([Za | A], B, S) when integer(Za) ->
     vec_mult_pop(Za, A, B, S);
