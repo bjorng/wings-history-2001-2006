@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.9 2003/07/16 04:18:01 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.10 2003/07/16 19:55:42 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -32,7 +32,7 @@ start(#we{id=Id}=We0, OrigWe, St0) ->
     Modes = [vertex,edge,face],
     wings:mode_restriction(Modes),
     This = wings_wm:this(),
-    Allowed = [view,select,window],
+    Allowed = [view,select],
     Menu  = [Item || {_,Name,_}=Item <- get(wings_menu_template), member(Name, Allowed)],
     wings_wm:menubar(This, Menu),
     We = We0#we{mode=material},
