@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.106 2003/03/01 07:31:30 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.107 2003/03/01 13:32:51 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -323,7 +323,8 @@ split(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab0}=We,smoothed=Sm}=D,
     #dlo{work=[List],mirror=M,vs=VsDlist,
 	 src_sel=Sel,src_we=WeDyn,split=Split,smoothed=Sm}.
 
-original_we(#dlo{split=#split{orig_we=We}}) -> We.
+original_we(#dlo{split=#split{orig_we=We}}) -> We;
+original_we(#dlo{src_we=We}) -> We.
 
 update_dynamic(#dlo{work=[_|_],src_we=We}=D, Vtab) when ?IS_LIGHT(We) ->
     wings_light:update_dynamic(D, Vtab);
