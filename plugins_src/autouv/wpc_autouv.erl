@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.244 2004/05/18 06:18:43 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.245 2004/05/18 06:46:48 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -66,7 +66,7 @@ start_uvmap_1([], _, _) -> keep.
 
 start_uvmap_2(Action, Name, Id, #st{shapes=Shs}=St) ->
     #we{name=ObjName} = We = gb_trees:get(Id, Shs),
-    Op = {push,fun(Ev) -> auv_event(Ev, St) end},
+    Op = {replace,fun(Ev) -> auv_event(Ev, St) end},
     Title = "AutoUV: " ++ ObjName,
     {X,Y,W,H} = init_drawarea(),
     Props = [{display_lists,Name}|wings_view:initial_properties()],
@@ -444,6 +444,10 @@ get_event_nodraw(#st{}=St) ->
     wings_wm:current_state(St),
     {replace,fun(Ev) -> handle_event(Ev, St) end}.
 
+handle_event({crash,_}=Crash, _) ->
+    LogName = wings_util:crash_log(wings_wm:this(), Crash),
+    wings_wm:send(geom, {crash_in_other_window,LogName}),
+    delete;
 handle_event(redraw, St) ->
     redraw(St),
     get_event_nodraw(St);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.306 2004/05/15 07:25:57 bjorng Exp $
+%%     $Id: wings.erl,v 1.307 2004/05/18 06:46:49 bjorng Exp $
 %%
 
 -module(wings).
@@ -254,6 +254,8 @@ main_loop_noredraw(St) ->
 
 handle_event({crash,_}=Crash, St) ->
     crash_logger(Crash, St);
+handle_event({crash_in_other_window,LogName}, St) ->
+    get_crash_event(LogName, St);
 handle_event({open_file,Name}, St0) ->
     case catch ?SLOW(wings_ff_wings:import(Name, St0)) of
 	#st{}=St ->
