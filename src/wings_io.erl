@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.16 2001/12/07 08:40:06 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.17 2001/12/07 12:53:15 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -24,7 +24,7 @@
 -export([putback_event/1,get_event/0,flush_events/0,
 	 set_timer/2,cancel_timer/1,
 	 enter_event_loop/1]).
--export([grab/0,ungrab/0]).
+-export([grab/0,ungrab/0,warp/2]).
 -export([setup_for_drawing/0,cleanup_after_drawing/0,ortho_setup/0]).
 
 -define(NEED_OPENGL, 1).
@@ -534,6 +534,19 @@ ungrab() ->
 	    no_grab;
 	_ ->
 	    still_grabbed
+    end.
+
+warp(X, Y) ->
+    %% Strangely enough, on Solaris the warp doesn't seem to
+    %% work unless the mouse cursor is visible.
+    %% On Windows, the mouse cursor must not be visible.
+    case os:type() of
+	{unix,sunos} ->
+	    sdl_mouse:showCursor(true),
+	    sdl_mouse:warpMouse(X, Y),
+	    sdl_mouse:showCursor(false);
+	_ ->
+	    sdl_mouse:warpMouse(X, Y)
     end.
 
 %%%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.7 2001/11/27 20:56:19 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.8 2001/12/07 12:53:15 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -294,18 +294,5 @@ camera_mouse_range(X0, Y0, #camera{x=OX,y=OY,xs=Xs,ys=Ys}=Camera) ->
     end.
 
 camera_warp(X, Y, XsInc, YsInc, #camera{xs=Xs,ys=Ys}=Camera) ->
-    warp_mouse(X, Y),
+    wings_io:warp(X, Y),
     camera_mouse_range(X, Y, Camera#camera{xs=Xs+XsInc,ys=Ys+YsInc}).
-
-warp_mouse(X, Y) ->
-    %% Strangely enough, on Solaris the warp doesn't seem to
-    %% work unless the mouse cursor is visible.
-    %% On Windows, the mouse cursor must not be visible.
-    case os:type() of
-	{unix,solaris} ->
-	    sdl_mouse:showCursor(true),
-	    sdl_mouse:warpMouse(X, Y),
-	    sdl_mouse:showCursor(false);
-	_ ->
-	    sdl_mouse:warpMouse(X, Y)
-    end.

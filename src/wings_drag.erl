@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.33 2001/11/29 14:31:44 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.34 2001/12/07 12:53:15 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -195,21 +195,8 @@ mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs,ys=Ys}=Drag) ->
     end.
 
 warp(X, Y, XsInc, YsInc, #drag{xs=Xs,ys=Ys}=Drag) ->
-    warp_mouse(X, Y),
+    wings_io:warp(X, Y),
     mouse_range(X, Y, Drag#drag{xs=Xs+XsInc,ys=Ys+YsInc}).
-
-warp_mouse(X, Y) ->
-    %% Strangely enough, on Solaris the warp doesn't seem to
-    %% work unless the mouse cursor is visible.
-    %% On Windows, the mouse cursor must not be visible.
-    case os:type() of
-	{unix,solaris} ->
-	    sdl_mouse:showCursor(true),
-	    sdl_mouse:warpMouse(X, Y),
-	    sdl_mouse:showCursor(false);
-	_ ->
-	    sdl_mouse:warpMouse(X, Y)
-    end.
 
 constrain(Dx0, Dy0, #drag{constraint=Constraint}) ->
     {Dx,Dy} = case sdl_keyboard:getModState() of
