@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.75 2004/04/19 16:46:17 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.76 2004/04/27 17:10:21 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -408,8 +408,6 @@ setup_1(D, Sel) -> {D,Sel}.
 setup_all(Activate) ->
     wings_draw_util:map(fun(D, _) -> setup_all(D, Activate) end, []).
 
-setup_all(#dlo{src_we=#we{perm=P},proxy_data=none}=D, _) when ?IS_NOT_SELECTABLE(P) ->
-    D;
 setup_all(#dlo{src_we=#we{id=Id},proxy_data=none}=D, true) ->
     Wire0 = wings_wm:get_prop(wings_wm:this(), wireframed_objects),
     Wire = gb_sets:add(Id, Wire0),
