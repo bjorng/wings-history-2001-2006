@@ -3,12 +3,12 @@
 %%
 %%     This module contains the Align and Center commands.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_align.erl,v 1.13 2002/01/11 11:19:55 bjorng Exp $
+%%     $Id: wings_align.erl,v 1.14 2002/04/26 13:08:05 bjorng Exp $
 %%
 
 -module(wings_align).
@@ -18,13 +18,13 @@
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,reverse/1]).
 
-align(Axis, #st{sel=[]}=St) -> St;
+align(_Axis, #st{sel=[]}=St) -> St;
 align(Axis, St) ->
     Cs = wings_sel:centers(St),
     Center = e3d_vec:average(Cs),
     move_to(Center, Cs, Axis, St).
 
-center(Axis, #st{sel=[]}=St) -> St;
+center(_Axis, #st{sel=[]}=St) -> St;
 center(Axis, St) ->
     Cs0 = wings_sel:centers(St),
     CommonCenter = e3d_vec:average(Cs0),
@@ -36,7 +36,7 @@ copy_bb(St) ->
     BB = wings_sel:bounding_box(St),
     St#st{bb=BB}.
 
-scale_to_bb(Dir, #st{bb=none}=St) -> St;
+scale_to_bb(_Dir, #st{bb=none}=St) -> St;
 scale_to_bb(Dir, #st{bb=Dest}=St) ->
     case wings_sel:bounding_box(St) of
 	none -> St;
@@ -45,7 +45,7 @@ scale_to_bb(Dir, #st{bb=Dest}=St) ->
 	    transform(Matrix, St)
     end.
 
-scale_to_bb_prop(Dir, #st{bb=none}=St) -> St;
+scale_to_bb_prop(_Dir, #st{bb=none}=St) -> St;
 scale_to_bb_prop(Dir, #st{bb=Dest}=St) ->
     case wings_sel:bounding_box(St) of
 	none -> St;
@@ -54,7 +54,7 @@ scale_to_bb_prop(Dir, #st{bb=Dest}=St) ->
 	    transform(Matrix, St)
     end.
 
-move_to_bb(Dir, #st{bb=none}=St) -> St;
+move_to_bb(_Dir, #st{bb=none}=St) -> St;
 move_to_bb(Dir, #st{bb=Dest}=St) ->
     case wings_sel:bounding_box(St) of
 	none -> St;
@@ -64,7 +64,7 @@ move_to_bb(Dir, #st{bb=Dest}=St) ->
     end.
 
 transform(Matrix, St) ->
-    wings_sel:map(fun(Items, We0) ->
+    wings_sel:map(fun(_Items, We0) ->
 			  wings_we:transform_vs(Matrix, We0)
 		  end, St).
 
