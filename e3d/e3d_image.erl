@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.8 2002/07/18 09:18:56 bjorng Exp $
+%%     $Id: e3d_image.erl,v 1.9 2002/08/12 08:50:32 dgud Exp $
 %%
 
 -module(e3d_image).
@@ -19,7 +19,7 @@
 -export([load/1, load/2, 
 	 convert/2, convert/3, convert/4, 
 	 save/2, save/3,
-	 bytes_pp/1, format_error/1]).
+	 bytes_pp/1, pad_len/2, format_error/1]).
 
 
 %% internal exports
@@ -94,8 +94,8 @@ convert(In = #e3d_image{type = FromType, image = Image,
 	ToType, ToAlm, ToOrder) ->
     OldRowLength  = In#e3d_image.width * In#e3d_image.bytes_pp,
     NewRowLength  = In#e3d_image.width * bytes_pp(ToType),
-    OldPaddLength = (OldRowLength rem FromAlm),
-    NewPaddLength = (NewRowLength rem ToAlm),
+    OldPaddLength = pad_len(OldRowLength, FromAlm),
+    NewPaddLength = pad_len(NewRowLength, ToAlm),
     NewPadd = lists:duplicate(NewPaddLength, 0),
     W = In#e3d_image.width,
     
@@ -105,6 +105,16 @@ convert(In = #e3d_image{type = FromType, image = Image,
     New = ?MODULE:TypeConv(0, W, Image, OldPaddLength, NewPadd, OrderConv, [[]]),    
     In#e3d_image{image = New, type = ToType, bytes_pp = bytes_pp(ToType), 
 		 alignment = ToAlm, order = ToOrder}.
+
+
+%% Func: pad_len(RowLenght (in bytes), Alignment) 
+%% Rets: integer()
+%% Desc: Get the number of bytes each row is padded with
+pad_len(RL, Align) ->
+    case RL rem Align of
+	0 -> 0;
+	Rem -> Align - Rem
+    end.	     	   
 
 %% Func: bytes_pp(Type) 
 %% Rets: integer()

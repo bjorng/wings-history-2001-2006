@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__bmp.erl,v 1.5 2002/08/05 06:23:46 bjorng Exp $
+%%     $Id: e3d__bmp.erl,v 1.6 2002/08/12 08:50:32 dgud Exp $
 %%
 
 -module(e3d__bmp).
@@ -47,12 +47,12 @@ load(FileName, Opts) ->
     Compression = 0,
     BiPlanes = 1,
     case file:read_file(FileName) of	
-	{ok, <<?BITMAPFILEHEADER, ?BITMAPINFOHEADER, TmpImage/binary>>} -> 	    
+	{ok, <<?BITMAPFILEHEADER, ?BITMAPINFOHEADER, TmpImage/binary>>} when BiBitCount == 24 ->
 %	    ?DBGOUT(),
-%	    io:format("Size ~p ~n", [size(Image)]),
+%	    io:format("Size ~p ~n", [size(TmpImage)]),
 
 	    %% Strip off last bytes on padded images so we get correct length
-	    RowLength  = (BiW * 3) + (BiW * 3 rem 4),
+	    RowLength = BiW * 3 + e3d_image:pad_len(BiW * 3, 4),
 	    Sz = BiH * RowLength,
 	    <<Image:Sz/binary, _/binary>> = TmpImage,
 	    #e3d_image{width = BiW, height = BiH, 
