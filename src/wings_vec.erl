@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.20 2002/03/16 10:31:40 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.21 2002/03/17 16:59:16 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -40,15 +40,17 @@ init() ->
 menu(_St) -> [].
 
 command({pick,[],[Res],Ns}, St) ->
+    pick_init(St),
     Cmd = wings_menu:build_command(Res, Ns),
     wings_io:putback_event({action,Cmd}),
     St;
 command({pick,[],Res,Ns}, St) ->
+    pick_init(St),
     Cmd = wings_menu:build_command(list_to_tuple(reverse(Res)), Ns),
-
     wings_io:putback_event({action,Cmd}),
     St;
 command({pick,[axis|More],Acc,Names}, St0) ->
+    pick_init(St0),
     Modes = [vertex,edge,face],
     St1 = mode_restriction(Modes, St0),
     Check = fun vector_exit_check/1,
@@ -61,6 +63,7 @@ command({pick,[axis|More],Acc,Names}, St0) ->
     command_message("Select axis for ", Names),
     {seq,{push,dummy},get_event(Ss, St1#st{sel=[]})};
 command({pick,[point|More],Acc,Names}, St0) ->
+    pick_init(St0),
     Modes = [vertex,edge,face],
     St1 = mode_restriction(Modes, St0),
     Check = fun check_point/1,
@@ -73,6 +76,7 @@ command({pick,[point|More],Acc,Names}, St0) ->
     command_message("Select point for ", Names),
     {seq,{push,dummy},get_event(Ss, St1#st{sel=[]})};
 command({pick,[magnet|More],Acc,Names}, St0) ->
+    pick_init(St0),
     Modes = [vertex,edge,face],
     wings_io:icon_restriction(Modes),
     Ss = #ss{check=fun check_point/1,
@@ -82,6 +86,7 @@ command({pick,[magnet|More],Acc,Names}, St0) ->
     command_message("Select magnet falloff for ", Names),
     {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
 command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
+    pick_init(St0),
     wings_io:icon_restriction(Modes),
     St = Init(St0),
     Ss = #ss{selmodes=Modes,check=Check,exit=Exit},
@@ -96,6 +101,13 @@ mode_restriction(Modes, #st{selmode=Mode}=St) ->
     case member(Mode, Modes) of
 	true -> St;
 	false -> St#st{sel=[],selmode=last(Modes)}
+    end.
+
+pick_init(#st{selmode=Mode}) ->
+    case wings_draw:get_dlist() of
+	#dl{sel=SelDL,orig_sel=none}=DL ->
+	    wings_draw:put_dlist(DL#dl{orig_sel={Mode,SelDL}});
+	_ -> ok
     end.
 
 %%%
@@ -200,6 +212,7 @@ handle_event_5(_Event, Ss, St) ->
     get_event(Ss, St).
 
 secondary_selection(abort, _Ss, _St) ->
+    pick_cleanup(),
     wings_io:clear_message(),
     wings_io:putback_event(redraw),
     pop;
@@ -213,6 +226,11 @@ secondary_selection({magnet_type,Type}, Ss, St) ->
     wings_pref:set_value(magnet_type, Type),
     get_event(Ss, St).
 
+pick_cleanup() ->
+    #dl{orig_sel={_,DlistSel}}= DL = wings_draw:get_dlist(),
+    gl:deleteLists(DlistSel, 1),
+    wings_draw:put_dlist(DL#dl{orig_sel=none}).
+			       
 filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
     case member(Mode, Modes) of
 	true -> handle_event({new_state,St}, Ss, St);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.63 2002/03/11 11:04:02 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.64 2002/03/17 16:59:16 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -43,8 +43,9 @@ sel_changed(St) ->
 
 -define(DL_FACES, (?DL_DRAW_BASE)).
 -define(DL_EDGES, (?DL_DRAW_BASE+1)).
--define(DL_SEL, (?DL_DRAW_BASE+2)).
--define(DL_NORMALS, (?DL_DRAW_BASE+3)).
+-define(DL_SEL1, (?DL_DRAW_BASE+2)).
+-define(DL_SEL2, (?DL_DRAW_BASE+3)).
+-define(DL_NORMALS, (?DL_DRAW_BASE+4)).
 
 %%
 %% Renders all shapes, including selections.
@@ -93,6 +94,7 @@ draw_smooth_shapes(St) ->
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_CULL_FACE),
     ?CHECK_ERROR(),
+    draw_orig_sel(),
     draw_sel(St),
     gl:lightModeli(?GL_LIGHT_MODEL_COLOR_CONTROL, ?GL_SINGLE_COLOR).
 
@@ -148,12 +150,47 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
     ?CHECK_ERROR(),
     draw_hilite(St),
     ?CHECK_ERROR(),
+    draw_orig_sel(),
     draw_sel(St),
     ?CHECK_ERROR(),
     draw_hard_edges(St).
 
 draw_hilite(#st{hilite=none}) -> ok;
 draw_hilite(#st{hilite=Hilite}) -> Hilite().
+
+draw_orig_sel() ->
+    case get_dlist() of
+	#dl{orig_sel=none} -> ok;
+	#dl{orig_sel={Mode,DL}}-> draw_orig_sel_1(Mode, DL)
+    end.
+
+draw_orig_sel_1(vertex, DlistSel) ->
+    gl:pointSize(wings_pref:get_value(selected_vertex_size)*2),
+    gl:depthMask(?GL_FALSE),
+    gl:enable(?GL_BLEND),
+    gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
+    {R0,G0,B0} = wings_pref:get_value(selected_color),
+    gl:color4f(R0, G0, B0, 0.5),
+    gl:callList(DlistSel),
+    gl:disable(?GL_BLEND),
+    gl:depthMask(?GL_TRUE);
+draw_orig_sel_1(edge, DlistSel) ->
+    gl:enable(?GL_LINE_STIPPLE),
+    gl:lineStipple(2, 16#AAAA),
+    gl:lineWidth(wings_pref:get_value(selected_edge_width)),
+    gl:depthMask(?GL_FALSE),
+    gl:callList(DlistSel),
+    gl:depthMask(?GL_TRUE),
+    gl:disable(?GL_LINE_STIPPLE);
+draw_orig_sel_1(_, DlistSel) ->
+    gl:enable(?GL_POLYGON_STIPPLE),
+    gl:depthMask(?GL_FALSE),
+    gl:enable(?GL_POLYGON_OFFSET_FILL),
+    gl:polygonOffset(1.0, 1.0),
+    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
+    gl:callList(DlistSel),
+    gl:depthMask(?GL_TRUE),
+    gl:disable(?GL_POLYGON_STIPPLE).
 
 sel_color() ->
     gl:color3fv(wings_pref:get_value(selected_color)).
@@ -163,6 +200,8 @@ draw_sel(#st{selmode=edge}) ->
     gl:lineWidth(wings_pref:get_value(selected_edge_width)),
     gl:callList(DlistSel);
 draw_sel(#st{selmode=vertex}) ->
+    sel_color(),
+    gl:pointSize(wings_pref:get_value(selected_vertex_size)),
     #dl{sel=DlistSel} = get_dlist(),
     gl:callList(DlistSel);
 draw_sel(_St) ->
@@ -199,7 +238,7 @@ make_sel_dlist(Smooth, St) ->
 
 do_make_sel_dlist(false, #st{selmode=body,sel=Sel,shapes=Shs}=St) ->
     DL = get_dlist(),
-    DlistSel = ?DL_SEL,
+    DlistSel = get_sel_dlist(DL),
     gl:newList(DlistSel, ?GL_COMPILE),
     case {gb_trees:size(Shs),length(Sel)} of
 	{Sz,Sz} ->
@@ -210,15 +249,16 @@ do_make_sel_dlist(false, #st{selmode=body,sel=Sel,shapes=Shs}=St) ->
     end,
     gl:endList(),
     put_dlist(DL#dl{old_sel=Sel,sel=DlistSel});
-do_make_sel_dlist(Smooth, St) -> do_make_sel_dlist_1(Smooth, St).
-
-do_make_sel_dlist_1(Smooth, #st{sel=Sel}=St) ->
-    DlistSel = ?DL_SEL,
+do_make_sel_dlist(Smooth, #st{sel=Sel}=St) ->
+    DL = get_dlist(),
+    DlistSel = get_sel_dlist(DL),
     gl:newList(DlistSel, ?GL_COMPILE),
     draw_selection(Smooth, St),
     gl:endList(),
-    DL = get_dlist(),
     put_dlist(DL#dl{old_sel=Sel,sel=DlistSel}).
+
+get_sel_dlist(#dl{orig_sel=none}) -> ?DL_SEL1;
+get_sel_dlist(_) -> ?DL_SEL2.
     
 draw_faces(We, true, #st{mat=Mtab}) ->
     draw_smooth_faces(Mtab, We);
@@ -426,8 +466,6 @@ draw_vtx_sel([{Id,#we{vs=Vtab0}=We}|Shs], [{Id,Vs}|Sel], Smooth) ->
     R = sofs:from_external(gb_sets:to_list(Vs), [vertex]),
     SelVs = sofs:restriction(Vtab, R),
     DrawFun = fun({_,#vtx{pos=Pos}}) -> gl:vertex3fv(Pos) end,
-    sel_color(),
-    gl:pointSize(wings_pref:get_value(selected_vertex_size)),
     gl:'begin'(?GL_POINTS),
     foreach(DrawFun, sofs:to_external(SelVs)),
     gl:'end'(),

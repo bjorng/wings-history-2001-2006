@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.118 2002/03/13 20:49:38 bjorng Exp $
+%%     $Id: wings.erl,v 1.119 2002/03/17 16:59:16 bjorng Exp $
 %%
 
 -module(wings).
@@ -83,7 +83,6 @@ init_1(File) ->
     wings_plugin:init(),
     wings_color:init(),
     wings_io:init(),
-    wings_draw_util:init(),
 
     wings_io:menubar([{"File",file},
 		      {"Edit",edit},
@@ -160,6 +159,7 @@ resize(W, H, St) ->
     gl:clearColor(R, G, B, 1.0),
     gl:viewport(0, 0, W, H),
     wings_io:resize(W, H),
+    wings_draw_util:init(),
     wings_material:init(St).
 
 redraw(St0) ->

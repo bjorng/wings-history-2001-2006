@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.13 2002/02/24 22:36:52 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.14 2002/03/17 16:59:16 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -32,7 +32,24 @@ init() ->
 	    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
 	    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND);
 	true ->ok
-    end.
+    end,
+        P = <<16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55,
+	 16#AA,16#AA,16#AA,16#AA,16#55,16#55,16#55,16#55>>,
+    gl:polygonStipple(P).
 
 tess() ->
     get(wings_glu_tess).
