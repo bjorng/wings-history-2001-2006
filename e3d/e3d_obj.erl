@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.33 2003/01/22 19:51:11 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.34 2003/03/16 08:35:26 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -480,11 +480,10 @@ export_maps(F, [_|T], Base, Name) ->
 export_maps(_, [], _, _) -> ok.
 
 export_map(_, _, none, _, _) -> ok;
-export_map(F, Label0, #e3d_image{width=W,height=H,image=Map}, Root, Name) ->
+export_map(F, Label0, #e3d_image{name=ImageName}=Image, Root, _) ->
     Label = "map_" ++ Label0,
-    MapFile = Root ++ "_" ++ atom_to_list(Name) ++ "_" ++ Label ++ ".tga",
+    MapFile = filename:join(filename:dirname(Root), ImageName ++ ".tga"),
     io:format(F, "~s ~s\r\n", [Label,filename:basename(MapFile)]),
-    Image = #e3d_image{image=Map,width=W,height=H},
     ok = e3d_image:save(Image, MapFile).
 
 label(F, Creator) ->

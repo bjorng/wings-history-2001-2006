@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.26 2003/01/22 19:51:12 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.27 2003/03/16 08:35:27 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -462,27 +462,22 @@ make_names_uniq(Objs) ->
     [Obj#e3d_object{name=gb_trees:get(Name, Map)} ||
 	#e3d_object{name=Name}=Obj <- Objs].
 
-make_tx_uniq(Mat0) ->
-    {Mat,Names} =
-	mapfoldl(fun({N,Ps0}=M, A) ->
-			 case get_map(diffuse, Ps0) of
-			     none -> {M,A};
-			     #e3d_image{width=W,height=H,image=Bits} ->
-				 Name = atom_to_list(N),
-				 Val = {Name,W,H,Bits},
-				 Ps = replace_map(diffuse, Val, Ps0),
-				 {{N,Ps},[Name|A]}
-			 end
-		 end, [], Mat0),
+make_tx_uniq(Mat) ->
+    Names = foldl(fun({_,Ps}, A) ->
+			  case get_map(diffuse, Ps) of
+			      none -> A;
+			      #e3d_image{name=Name} -> [Name|A]
+			  end
+		  end, [], Mat),
     MapTrans0 = e3d_util:make_uniq(Names, 8),
     MapTrans = gb_trees:from_orddict(sort(MapTrans0)),
     map(fun({N,Ps0}=M) ->
 		case get_map(diffuse, Ps0) of
 		    none -> M;
-		    {Name0,W,H,Bits} ->
+		    #e3d_image{name=Name0}=Image0 ->
 			Name = gb_trees:get(Name0, MapTrans),
-			Val = {Name,W,H,Bits},
-			Ps = replace_map(diffuse, Val, Ps0),
+			Image = Image0#e3d_image{name=Name},
+			Ps = replace_map(diffuse, Image, Ps0),
 			{N,Ps}
 		end
 	end, Mat).
@@ -596,9 +591,8 @@ make_texture_materials([_|T], Base, Acc) ->
 make_texture_materials([], _, Acc) -> Acc.
 
 export_map(_, none, _) -> ok;
-export_map(ChunkId, {Name,W,H,Map}, Root) ->
+export_map(ChunkId, #e3d_image{name=Name}=Image, Root) ->
     MapFile = filename:join(filename:dirname(Root), Name ++ ".bmp"),
-    Image = #e3d_image{image=Map,width=W,height=H},
     ok = e3d_image:save(Image, MapFile),
     FnameChunk = make_chunk(16#A300, [filename:basename(MapFile),0]),
     ParamChunk = make_chunk(16#A351, [0,1]),
