@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.9 2004/07/01 09:08:30 dgud Exp $
+%%     $Id: wpc_wrl.erl,v 1.10 2004/07/01 18:33:44 dgud Exp $
 %%
 
 -module(wpc_wrl).
@@ -18,6 +18,7 @@
 -export([init/0, menu/2, command/2]).
 -import(lists, [foreach/2, foldl/3, map/2]).
 -include("e3d.hrl").
+-include("e3d_image.hrl").
 
 init() ->
     true.
@@ -45,8 +46,10 @@ props() ->
 %% The intent is to create each object from
 %% a sequence of Shapes. Each "sub Shape" will consist of all the
 %% faces and vertices for one material..
-export(File_name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
+export(File_name, Export0) ->
     %io:format("~p~n~p~n",[Objs, Mat]),
+    Export = wpa:save_images(Export0, filename:dirname(File_name), ".jpg"),
+    #e3d_file{objs=Objs,mat=Mat,creator=Creator} = Export,
     {ok,F} = file:open(File_name, [write]),
     io:format(F, "#VRML V2.0 utf8\n", []),
     io:format(F, "#Exported from ~s\n",[Creator]),
@@ -60,16 +63,14 @@ export(File_name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
 	  end, [], Objs),
     ok = file:close(F).
 
-
-
-export_object(F, #e3d_mesh{fs=Fs,vs=Vs,vc=[],tx=[]}, Mat_defs, Used_mats0) ->
+sort_by_material(Fs) ->
     %% A first adventure into sofs. They seem extremely powerful if
     %% I could only make any sense of the documentation ;)
 
     Rel = map(fun(#e3d_face{mat=[Mat0], vs=Vs1}) ->
 		      {Mat0, Vs1}
 	      end, Fs),
-
+    
     % Make a set of all vertices involved in 
     % any way with each material              e.g. of structure at each stage:
     R = sofs:relation(Rel, [{mat, [vertex]}]),	%[{r,[1,2]},{g,[1,3]},{g,[3,4,5]}]
@@ -82,23 +83,27 @@ export_object(F, #e3d_mesh{fs=Fs,vs=Vs,vc=[],tx=[]}, Mat_defs, Used_mats0) ->
 
     Combined0 = sofs:join(Mats, 1, Faces, 1),
     %% e.g. [{r,[1,2],[[1,2]]},{g,[1,3,4,5],[[1,3],[3,4,5]]}]
-    Combined = sofs:to_external(Combined0),
-    {_, Vs1} = to_gb_tree(Vs),
+    sofs:to_external(Combined0).
+
+export_object(F, #e3d_mesh{fs=Fs,vs=Vs0,vc=[],tx=[]}, Mat_defs, Used_mats0) ->
+    M2F = sort_by_material(Fs),
+    {_, Vs} = to_gb_tree(Vs0),
     foldl_except_last(fun({Mat, Vtxs, Fces}, Used_mats_in) ->
 			      io:format(F, "    Shape {\n",[]),
 			      Used_mats1 = material(F, Mat, Mat_defs, Used_mats_in),
-			      coords(F, Vtxs, Vs1),
+			      coords(F, Vtxs, Vs),
 			      coord_index(F, Vtxs, Fces),
 			      Used_mats1
 		      end,
 		      fun(_, Used_mats_in) ->
 			      io:put_chars(F, "    ,\n"),
 			      Used_mats_in
-		      end, Used_mats0, Combined);
-export_object(F, #e3d_mesh{fs=Fs,vs=Vtab,vc=[],tx=UVtab}, [{Name,_}|_] = Mat_defs, Used_mats0) ->
+		      end, Used_mats0, M2F);
+export_object(F, #e3d_mesh{fs=Fs,vs=Vtab,vc=[],tx=UVtab}, Mat_defs, Used_mats0) ->
     %% Output UV Coords. We can use the indicies, vertex table, and
     %% UV table directly.
     io:format(F, "    Shape {\n",[]),
+    [Name] = (hd(Fs))#e3d_face.mat,
     Used_mats = material(F, Name, Mat_defs, Used_mats0),
     %Used_mats = Used_mats0,
     io:format(F, "      geometry IndexedFaceSet {\n",[]),
@@ -138,11 +143,11 @@ export_object(F, #e3d_mesh{fs=Fs,vs=Vtab,vc=[],tx=UVtab}, [{Name,_}|_] = Mat_def
 
     io:put_chars(F, "      }\n    }\n"),
     Used_mats;
-export_object(F, #e3d_mesh{fs=Fs,vs=Vtab,vc=ColTab}, [{Name,_}|_] = Mat_defs, Used_mats0) ->
+export_object(F, #e3d_mesh{fs=Fs,vs=Vtab,vc=ColTab}, Mat_defs, Used_mats0) ->
     %% Output vertex colors. We can use the indicies, vertex table, and
     %% color table directly.
     io:format(F, "    Shape {\n",[]),
-    Used_mats = material(F, Name, Mat_defs, Used_mats0),
+    Used_mats = material(F, default, Mat_defs, Used_mats0),
     io:format(F, "      geometry IndexedFaceSet {\n",[]),
     io:format(F, "        colorPerVertex TRUE\n",[]),
 
@@ -212,12 +217,22 @@ def_material(F, Name, Mat0) ->
     S = lookup(shininess, Mat),
     io:format(F, "          shininess ~p\n",[S]),
     io:put_chars(F, "        }\n"),
+    case lists:keysearch(maps, 1, Mat0) of 
+	{value, {maps,Maps}} -> 
+	    case lists:keysearch(diffuse, 1, Maps) of
+		{value, {diffuse,#e3d_image{filename=File}}} ->
+		    io:format(F, "     texture ImageTexture { [url \"file:///~s\"]}~n",
+			      [File]);
+		_ ->
+		    ignore
+	    end;
+	_ -> ignore
+    end,
     io:format(F, "      }\n", []).
     
 use_material(F, Mat) ->
     io:format(F, "      appearance Appearance {\n",[]),
     io:format(F, "        material USE ~s\n",[clean_id(Mat)]),
-    io:format(F, "#		  texture ImageTexture { url ~p }", ["file.png"]),
     io:format(F, "      }\n", []).
 
 coords(F, Vtxs, Vs) ->
