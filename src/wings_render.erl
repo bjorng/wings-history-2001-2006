@@ -4,12 +4,12 @@
 %%     Render all objects and helpers (such as axes) in the scene.
 %%     Used for the Geometry and AutoUV windows.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.7 2004/12/21 06:48:13 bjorng Exp $
+%%     $Id: wings_render.erl,v 1.8 2005/01/15 09:45:19 bjorng Exp $
 %%
 
 -module(wings_render).
@@ -175,7 +175,7 @@ render_plain_rest(D, Wire, SelMode) ->
     draw_normals(D).
 
 render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
-		   src_we=We,proxy_data=Pd}=D,
+		   src_we=We,proxy_data=Pd,open=Open}=D,
 	      RenderTrans) ->
     gl:shadeModel(?GL_SMOOTH),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
@@ -198,7 +198,7 @@ render_smooth(#dlo{work=Work,edges=Edges,smooth=Smooth,transparent=Trans,
 	    gl:depthMask(?GL_TRUE)
     end,
 
-    case wings_we:any_hidden(We) of
+    case Open of
 	false -> ok;
 	true -> gl:disable(?GL_CULL_FACE)
     end,

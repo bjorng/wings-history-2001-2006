@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.102 2005/01/15 08:38:26 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.103 2005/01/15 09:45:19 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -29,7 +29,8 @@
 	 is_consistent/1,is_face_consistent/2,
 	 hide_faces/2,show_faces/1,num_hidden/1,
 	 any_hidden/1,all_hidden/1,
-	 visible/1,visible/2,visible_vs/1,visible_edges/1,visible_edges/2,
+	 visible/1,visible/2,visible_vs/1,visible_vs/2,
+	 visible_edges/1,visible_edges/2,
 	 validate_mirror/1,mirror_flatten/2]).
 
 -include("wings.hrl").
@@ -177,11 +178,11 @@ visible_vs_1([#edge{vs=Va,ve=Vb}|Es], Mirror, Acc) ->
     visible_vs_1(Es, Mirror, [Va,Vb|Acc]);
 visible_vs_1([], _, Acc) -> ordsets:from_list(Acc).
 
-visible_vs(Vs, We) ->
+visible_vs(Vs, #we{mirror=Face,es=Etab}=We) ->
     case any_hidden(We) of
 	false -> Vs;
 	true ->
-	    Vis0 = visible_vs(We),
+	    Vis0 = visible_vs_1(gb_trees:values(Etab), Face, []),
 	    case Vs of
 		[{_,_}|_] ->
 		    VsSet = sofs:relation(Vs),
@@ -858,7 +859,19 @@ transform_vs_1(Transform, #we{vp=Vtab0}=We) ->
 %%% Calculate normals.
 %%%
 
-normals(FaceNormals, #we{he=He}=We) ->
+normals(Ns, #we{mirror=none}=We) ->
+    case any_hidden(We) of
+	false -> normals_2(Ns, We);
+	true -> normals_1(Ns, We)
+    end;
+normals(Ns, We) -> normals_1(Ns, We).
+
+normals_1(FaceNormals, #we{he=Htab0}=We) ->
+    Edges = wings_face:outer_edges(visible(We), We),
+    Htab = gb_sets:union(Htab0, gb_sets:from_ordset(Edges)),
+    normals_2(FaceNormals, We#we{he=Htab}).
+
+normals_2(FaceNormals, #we{he=He}=We) ->
     wings_pb:start(?__(1,"calculating soft normals")),
     Res = case FaceNormals of
 	      [_,_] ->
@@ -930,17 +943,9 @@ two_faced_1(Face, Normal, We) ->
 			  end, [], Face, We).
 
 vertex_normals(#we{vp=Vtab}=We, G, FaceNormals) ->
-    Vs0 = sofs:from_external(gb_trees:to_list(Vtab), [{vertex,data}]),
-    case any_hidden(We) of
-	false ->
-	    vertex_normals_1(Vs0, We, G, FaceNormals);
-	true ->
-	    Vis = visible(We),
-	    VisVs0 = wings_face:to_vertices(Vis, We),
-	    VisVs = sofs:set(VisVs0, [vertex]),
-	    Vs = sofs:restriction(Vs0, VisVs),
-	    vertex_normals_1(Vs, We, G, FaceNormals)
-    end.
+    Vs0 = visible_vs(gb_trees:to_list(Vtab), We),
+    Vs = sofs:from_external(Vs0, [{vertex,data}]),
+    vertex_normals_1(Vs, We, G, FaceNormals).
 
 vertex_normals_1(Vs, #we{es=Etab,he=Htab}=We, G, FaceNormals) ->
     He0 = gb_sets:to_list(Htab),

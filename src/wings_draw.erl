@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.214 2004/12/31 10:09:40 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.215 2005/01/15 09:45:19 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -636,14 +636,8 @@ split_vs_dlist(Vs, StaticVs, {vertex,SelVs0}, #we{vp=Vtab}=We) ->
 	    gl:'begin'(?GL_POINTS),
 	    List0 = sofs:from_external(gb_trees:to_list(Vtab), [{vertex,info}]),
 	    List1 = sofs:drestriction(List0, DynVs),
-	    List2 = case wings_we:any_hidden(We) of
-			false -> List1;
-			true ->
-			    Vis0 = wings_we:visible_vs(We),
-			    Vis = sofs:from_external(Vis0, [vertex]),
-			    sofs:restriction(List1, Vis)
-		    end,
-	    List = sofs:to_external(List2),
+	    List2 = sofs:to_external(List1),
+	    List = wings_we:visible_vs(List2, We),
 	    foreach(fun({_,Pos}) ->
 			    gl:vertex3fv(Pos)
 		    end, List),
@@ -904,34 +898,16 @@ draw_uv_faces([], _) -> ok.
 %%% Smooth drawing.
 %%%
 
-smooth_dlist(#dlo{src_we=#we{he=Htab0,fs=Ftab,mirror=Face}=We,ns=Ns0}=D, St) ->
+smooth_dlist(#dlo{src_we=#we{}=We,ns=Ns0}=D, St) ->
     Ns1 = foldl(fun({F,[N|_]}, A) -> [{F,N}|A];
 		   ({F,{N,_,_}}, A) -> [{F,N}|A]
 		end, [], gb_trees:to_list(Ns0)),
     Ns = reverse(Ns1),
-    case gb_trees:is_defined(Face, Ftab) of
-	false ->
-	    Flist = soft_normals(Ns, We),
-	    smooth_faces(Flist, D, St);
-	true ->
-	    Edges = wings_face:outer_edges([Face], We),
-	    Htab = gb_sets:union(Htab0, gb_sets:from_list(Edges)),
-	    Flist = soft_normals(Ns, We#we{he=Htab}),
-	    smooth_faces(Flist, D, St)
-    end;
+    Flist = wings_we:normals(Ns, We),
+    smooth_faces(Flist, D, St);
 smooth_dlist(We, St) ->
     D = update_normals(changed_we(#dlo{}, #dlo{src_we=We})),
     smooth_dlist(D, St).
-
-soft_normals(Ns, #we{he=Htab0}=We) ->
-    case wings_we:any_hidden(We) of
-	false ->
-	    wings_we:normals(Ns, We);
-	true ->
-	    Edges = wings_face:outer_edges(wings_we:visible(We), We),
-	    Htab = gb_sets:union(Htab0, gb_sets:from_list(Edges)),
-	    wings_we:normals(Ns, We#we{he=Htab})
-    end.
 
 smooth_faces(Ftab, D, St) ->
     smooth_faces(wings_draw_util:prepare(Ftab, D, St), D).
