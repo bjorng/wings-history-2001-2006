@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.18 2003/02/01 20:02:53 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.19 2003/03/27 10:25:10 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -66,12 +66,14 @@ read_object_1(<<L:16,T0/binary>>) ->
     case get_name(L, T0) of
 	bad -> bad;
 	{Name,T1} ->
-	    io:format("~w: ~s\n", [L,Name]),
 	    <<Vis:8,Sensivity:8,_:8,_:8,_:72/binary,T2/binary>> = T1,
+	    io:format("~w: ~s: vis=~p sensitivity=~p\n",
+		      [L,Name,Vis,Sensivity]),
 	    Perm = case {Vis,Sensivity} of
-		       {1,1} -> 0;
-		       {1,0} -> 1;
-		       {_,_} -> []
+		       {1,1} -> 0;		%Visible, unlocked
+		       {1,0} -> 1;		%Visible, locked
+		       {0,1} -> 2;		%Hidden, unlocked
+		       {0,0} -> 3		%Hidden, locked
 		   end,
 	    {Etab,Htab,T3} = read_edges(T2),
 	    {Ftab,T4} = read_faces(T3),
@@ -204,8 +206,8 @@ shape(#we{name=Name,perm=Perm}=We0, St, Acc) ->
 	      true -> 0
 	  end,
     Sense = if
-		?IS_SELECTABLE(Perm) -> 1;
-		true -> 0
+		Perm =:= 1; Perm =:= 3 -> 0;
+		true -> 1
 	    end,
     Shaded = 1,
     EnableColors = 1,

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.35 2003/03/09 19:20:17 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.36 2003/03/27 10:25:11 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -127,8 +127,10 @@ import_perm(Props) ->
     case proplists:get_value(state, Props) of
 	undefined -> 0;
 	locked -> 1;
-	hidden -> [];
-	{hidden,Mode,Set} -> {Mode,gb_sets:from_list(Set)}
+	hidden -> 2;
+	hidden_locked -> 3;
+	{hidden,Mode,Set} -> {Mode,gb_sets:from_list(Set)};
+	_Unknown -> 0
     end.
 
 face_add_incident(Ftab0, Es) ->
@@ -363,7 +365,8 @@ export_edge(Rec, Mode, Acc) ->
 
 export_perm(#we{perm=0}) -> [];
 export_perm(#we{perm=1}) -> [{state,locked}];
-export_perm(#we{perm=[]}) -> [{state,hidden}];
+export_perm(#we{perm=2}) -> [{state,hidden}];
+export_perm(#we{perm=3}) -> [{state,hidden_locked}];
 export_perm(#we{perm={Mode,Elems}}) ->
     [{state,{hidden,Mode,gb_sets:to_list(Elems)}}].
     

@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.60 2003/03/12 08:21:01 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.61 2003/03/27 10:25:11 bjorng Exp $
 %%
 
 -module(wings_shape).
 -export([new/3,insert/3,replace/3,window/1,window/4]).
--export([restore_all/1]).
+-export([show_all/1,unlock_all/1]).
 
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
@@ -304,14 +304,14 @@ toggle_visibility(#we{id=Id,perm=Perm}, #ost{st=St0}=Ost) ->
 		  ?IS_VISIBLE(Perm) -> 
 		      {hide,hide_object(Id, St0)};
 		  true ->
-		      {show,restore_object(Id, St0)}
+		      {show,show_object(Id, St0)}
 	      end,
     send_client({new_state,St}),
     get_event(Ost#ost{op=Op}).
 
 toggle_visibility_all(#we{id=Id}, #ost{os=Objs,st=St0}=Ost) ->
     St = case are_all_visible(Objs, Id) of
-	     false -> restore_all(St0);
+	     false -> show_all(St0);
 	     true -> hide_others(Id, St0)
 	 end,
     send_client({new_state,St}),
@@ -331,12 +331,12 @@ toggle_lock(#we{id=Id,perm=Perm}, #ost{st=St0}=Ost) when ?IS_SELECTABLE(Perm) ->
     send_client({new_state,lock_object(Id, St0)}),
     get_event(Ost#ost{op=lock});
 toggle_lock(#we{id=Id}, #ost{st=St0}=Ost) ->
-    send_client({new_state,restore_object(Id, St0)}),
+    send_client({new_state,unlock_object(Id, St0)}),
     get_event(Ost#ost{op=unlock}).
 
 toggle_lock_all(#we{id=Id}, #ost{st=St0,os=Objs}=Ost) ->
     St = case are_all_visible_locked(Objs, Id) of
-	     true -> restore_all(St0);
+	     true -> unlock_all(St0);
 	     false -> lock_others(Id, St0)
 	 end,
     send_client({new_state,St}),
@@ -477,14 +477,14 @@ draw_icons_1(#dlo{src_we=#we{id=Id}},
     IconY = Y - 14,
     Wire = gb_sets:is_member(Id, Wires),
     if
+	Perm =:= 1; Perm =:= 3 ->
+	    wings_io:draw_icon(LockPos, IconY, 16, 16, small_locked);
+	true ->
+	    wings_io:draw_icon(LockPos, IconY, 16, 16, small_unlocked)
+    end,
+    if
 	?IS_VISIBLE(Perm) ->
 	    wings_io:draw_icon(EyePos, IconY, 16, 16, small_eye),
-	    if
-		?IS_SELECTABLE(Perm) ->
-		    wings_io:draw_icon(LockPos, IconY, 16, 16, small_unlocked);
-		true ->
-		    wings_io:draw_icon(LockPos, IconY, 16, 16, small_locked)
-	    end,
 	    case Wire of
 		false ->
 		    wings_io:draw_icon(WirePos, IconY, 16, 16, small_object);
@@ -534,15 +534,39 @@ lines(#ost{lh=Lh}) ->
 %%% Utilities.
 %%%
 
-hide_object(Id, St0) ->
-    St = wings_sel:deselect_object(Id, St0),
-    update_permission(get_sel(Id, St0), Id, St).
+hide_object(Id, #st{shapes=Shs0}=St) ->
+    We0 = gb_trees:get(Id, Shs0),
+    We = hide_we(We0, St),
+    Shs = gb_trees:update(Id, We, Shs0),
+    wings_sel:deselect_object(Id, St#st{shapes=Shs}).
+
+hide_we(#we{id=Id,perm=Perm0}=We, St) ->
+    Perm = case get_sel(Id, St) of
+	       [] -> Perm0 bor 2;
+	       Other -> Other
+	   end,
+    We#we{perm=Perm}.
+
+show_object(Id, #st{shapes=Shs0}=St) ->
+    We0 = gb_trees:get(Id, Shs0),
+    Sel = update_sel(We0, St),
+    We = show_we(We0),
+    Shs = gb_trees:update(Id, We, Shs0),
+    St#st{sel=Sel,shapes=Shs}.
+
+show_we(#we{perm=Perm0}=We) ->
+    Perm = case Perm0 of
+	       3 -> 1;
+	       1 -> 1;
+	       _ -> 0
+	   end,
+    We#we{perm=Perm}.
 
 lock_object(Id, St0) ->
     St = wings_sel:deselect_object(Id, St0),
     update_permission(1, Id, St).
 
-restore_object(Id, St) ->
+unlock_object(Id, St) ->
     update_permission(0, Id, St).
 
 update_permission(Perm, Id, #st{shapes=Shs0}=St) ->
@@ -554,11 +578,30 @@ update_permission(Perm, Id, #st{shapes=Shs0}=St) ->
 hide_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
     Shs1 = map(fun(#we{id=Id}=We) when ThisId =:= Id -> {Id,We};
 		  (#we{id=Id}=We) ->
-		       {Id,We#we{perm=get_sel(Id, St)}}
+		       {Id,hide_we(We, St)}
 	       end, gb_trees:values(Shs0)),
     Shs = gb_trees:from_orddict(Shs1),
     Sel = [This || {Id,_}=This <- Sel0, Id =:= ThisId],
     St#st{shapes=Shs,sel=Sel}.
+
+show_all(#st{shapes=Shs0,sel=Sel0}=St) ->
+    Shs1 = gb_trees:values(Shs0),
+    Shs2 = [{Id,show_we(We)} || #we{id=Id}=We <- Shs1],
+    Shs = gb_trees:from_orddict(Shs2),
+    Sel = sort(show_all_sel(Shs1, St, Sel0)),
+    St#st{shapes=Shs,sel=Sel}.
+
+show_all_sel([#we{id=Id,perm={Mode,Set}}|T],
+		#st{selmode=Mode}=St, Acc) ->
+    show_all_sel(T, St, [{Id,Set}|Acc]);
+show_all_sel([#we{id=Id,perm={SMode,Set0}}|T],
+		#st{selmode=Mode}=St, Acc) ->
+    StTemp = St#st{selmode=SMode,sel=[{Id,Set0}]},
+    #st{sel=[{Id,Set}]} = wings_sel:convert_selection(Mode, StTemp),
+    show_all_sel(T, St, [{Id,Set}|Acc]);
+show_all_sel([_|T], St, Acc) ->
+    show_all_sel(T, St, Acc);
+show_all_sel([], _St, Acc) -> Acc.
 
 lock_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
     Shs1 = map(fun(#we{id=Id}=We) when ThisId =:= Id ->
@@ -572,25 +615,15 @@ lock_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
     Sel = [This || {Id,_}=This <- Sel0, Id =:= ThisId],
     St#st{shapes=Shs,sel=Sel}.
 
-restore_all(#st{shapes=Shs0,sel=Sel0}=St) ->
+unlock_all(#st{shapes=Shs0}=St) ->
     Shs1 = gb_trees:values(Shs0),
-    Shs2 = [{Id,We#we{perm=0}} || #we{id=Id}=We <- Shs1],
+    Shs2 = [{Id,maybe_unlock(We)} || #we{id=Id}=We <- Shs1],
     Shs = gb_trees:from_orddict(Shs2),
-    Sel = sort(restore_all_sel(Shs1, St, Sel0)),
-    St#st{shapes=Shs,sel=Sel}.
+    St#st{shapes=Shs}.
 
-restore_all_sel([#we{id=Id,perm={Mode,Set}}|T],
-		#st{selmode=Mode}=St, Acc) ->
-    restore_all_sel(T, St, [{Id,Set}|Acc]);
-restore_all_sel([#we{id=Id,perm={SMode,Set0}}|T],
-		#st{selmode=Mode}=St, Acc) ->
-    StTemp = St#st{selmode=SMode,sel=[{Id,Set0}]},
-    #st{sel=[{Id,Set}]} = wings_sel:convert_selection(Mode, StTemp),
-    restore_all_sel(T, St, [{Id,Set}|Acc]);
-restore_all_sel([_|T], St, Acc) ->
-    restore_all_sel(T, St, Acc);
-restore_all_sel([], _St, Acc) -> Acc.
-
+maybe_unlock(#we{perm=P}=We) when ?IS_VISIBLE(P) -> We#we{perm=0};
+maybe_unlock(We) -> We.
+    
 get_sel(Id, #st{selmode=Mode,sel=Sel}) ->
     case keysearch(Id, 1, Sel) of
 	false -> [];
