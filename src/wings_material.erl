@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.55 2002/11/07 20:12:04 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.56 2002/11/08 07:08:15 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -23,7 +23,7 @@
 -include("wings.hrl").
 -include("e3d_image.hrl").
 
--import(lists, [map/2,foreach/2,sort/1,foldl/3,reverse/1,keyreplace/4]).
+-import(lists, [map/2,foreach/2,sort/1,foldl/3,reverse/1,keyreplace/4,keydelete/3]).
 
 init(#st{mat=MatTab}=St) ->
     case put(?MODULE, gb_trees:empty()) of
@@ -111,10 +111,10 @@ make_default({R,G,B}, Opacity) ->
 replace_map(MatName, MapType, Map, #st{mat=Mtab0}=St) ->
     Mat0 = gb_trees:get(MatName, Mtab0),
     Maps0 = prop_get(maps, Mat0, []),
-    Maps = keyreplace(MapType, 1, Maps0, {MapType,Map}),
+    Maps = [{MapType,Map}|keydelete(MapType, 1, Maps0)],
     Mat = keyreplace(maps, 1, Mat0, {maps,Maps}),
     Mtab = gb_trees:update(MatName, Mat, Mtab0),
-    init_texture(MatName, Mtab),
+    init_texture(MatName, Mat),
     St#st{mat=Mtab}.
 
 add_materials(Ms, St) ->
@@ -405,7 +405,7 @@ init_texture(Name, Mat) ->
 	    case gb_trees:lookup(Name, TxDict0) of
 		{value,TxId} ->
 		    gl:bindTexture(?GL_TEXTURE_2D, TxId),
-		    gl:texSubImage2D(?GL_TEXTURE_2D, 0, ?GL_RGB, 0, 0,
+		    gl:texSubImage2D(?GL_TEXTURE_2D, 0, 0, 0,
 				     W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits);
 		none ->
 		    [TxId] = gl:genTextures(1),
