@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.16 2002/12/15 15:32:42 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.17 2002/12/28 14:47:04 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -141,6 +141,9 @@ render_event({resize,_,_}=Resize, _) ->
 render_event(quit, _) ->
     wings_io:putback_event(quit),
     render_exit();
+render_event(time_to_quit, _) ->
+    wings_wm:dirty(),
+    pop;
 render_event(_, _) ->
     keep.
 
@@ -160,7 +163,6 @@ render_dlist(St0, Attr) ->
 			end, []).
 
 render_dlist(#dlo{src_we=We0}=D, St, SubDiv) ->
-    wings_io:disable_progress(),
     We = sub_divide(SubDiv, We0),
     {List,Tr} = wings_draw:smooth_dlist(We, St),
     Mask = dlist_mask(We),
