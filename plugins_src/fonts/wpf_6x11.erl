@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_6x11.erl,v 1.17 2004/04/07 17:39:34 bjorng Exp $
+%%     $Id: wpf_6x11.erl,v 1.18 2004/11/02 06:53:32 bjorng Exp $
 %%
 
 -module(wpf_6x11).
@@ -47,6 +47,7 @@ cw($u) -> 5;
 cw($w) -> 8;
 cw($y) -> 8;
 cw($|) -> 2;
+cw($A) -> 8;
 cw($I) -> 4;
 cw(160) -> 2;
 cw(169) -> 9;
@@ -1180,8 +1181,16 @@ char(66) ->
 % char: 0x41 'A' */
 
 char(65) ->
- B = <<16#88,16#88,16#f8,16#88,16#88,16#50,16#20>>,
- gl:bitmap(5, 7, 0, 0, 6, 0, B);
+    B = <<
+	 2#10000010,
+	 2#10000010,
+	 2#01111100,
+	 2#01000100,
+	 2#00101000,
+	 2#00101000,
+	 2#00010000
+	 >>,
+    gl:bitmap(7, 7, 0, 0, 8, 0, B);
 
 % char: 0x40 '@' */
 

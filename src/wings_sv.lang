@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.29 2004/11/02 06:53:16 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.30 2004/11/02 06:54:57 bjorng Exp $
 %%
 
 {wings,
@@ -759,7 +759,7 @@
     {30," command."}]},
   {splash_contents,
    [{1,"Wings 3D är en 3D-modellerare inspirerad"},
-    {2,"av Nendo och Mirai from IZware."},
+    {2,"av Nendo och Mirai från IZware."},
     {3,"Wings 3D har ingen garanti,"},
     {4,"men får fritt användas för alla ändamål"},
     {5,"(inklusive kommersiella)."},
