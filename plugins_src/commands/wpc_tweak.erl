@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.60 2005/01/25 15:28:59 dgud Exp $
+%%     $Id: wpc_tweak.erl,v 1.61 2005/01/26 13:26:50 dgud Exp $
 %%
 
 -module(wpc_tweak).
@@ -198,10 +198,9 @@ handle_tweak_event1({action,Action}, #tweak{st=St0}=T) ->
 	    St = wings_undo:redo(St0),
 	    wings_draw:refresh_dlists(St),
 	    update_tweak_handler(T#tweak{st=St});
-	Connect = {tools, connect} ->
-	    wings_wm:later({action,Connect}),
-	    exit_tweak(T);
-	_Ignore -> keep
+	Other ->
+	    wings_wm:later({action,Other}),
+	    exit_tweak(T)
     end;
 handle_tweak_event1(Ev, #tweak{st=St}) ->
     case wings_hotkey:event(Ev, St) of
