@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.48 2004/10/15 06:14:23 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.49 2004/11/14 12:21:08 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -59,12 +59,9 @@ lookup(Ev, Cmd) ->
 %%%
 
 bind_from_event(Ev, Cmd) ->
-    case bindkey(Ev, Cmd) of
-	error -> error;
-	Bkey ->
-	    ets:insert(?KL, {Bkey,Cmd,user}),
-	    keyname(Bkey)
-    end.
+    Bkey = bindkey(Ev, Cmd),
+    ets:insert(?KL, {Bkey,Cmd,user}),
+    keyname(Bkey).
 
 delete_by_command(Cmd) ->
     case sort(ets:match_object(?KL, {'_',Cmd,'_'})) of
