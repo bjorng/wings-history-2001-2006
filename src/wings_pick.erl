@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.107 2003/08/02 05:36:29 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.108 2003/08/03 10:34:46 bjorng Exp $
 %%
 
 -module(wings_pick).
 -export([event/2,event/3,hilite_event/3]).
 -export([do_pick/3]).
+-export([face/2,face/3]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -770,32 +771,35 @@ select_draw_2(#we{fs=Ftab}=We) ->
     gl:pushName(0),
     foreach(fun({Face,Edge}) ->
 		    gl:loadName(Face),
-		    flat_face(Face, Edge, We)
+		    face(Face, Edge, We)
 	    end, gb_trees:to_list(Ftab)),
     gl:popName().
 
-flat_face(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs = wings_face:vertices_cw(Face, Edge, We),
-    flat_face_1(Vs, Vtab, []).
+face(Face, #we{es=Etab}=We) ->
+    face(Face, gb_trees:get(Face, Etab), We).
 
-flat_face_1([V|Vs], Vtab, Acc) ->
-    flat_face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
-flat_face_1([], _, VsPos) ->
+face(Face, Edge, #we{vp=Vtab}=We) ->
+    Vs = wings_face:vertices_cw(Face, Edge, We),
+    face_1(Vs, Vtab, []).
+
+face_1([V|Vs], Vtab, Acc) ->
+    face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+face_1([], _, VsPos) ->
     N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
-    flat_face_2(N, VsPos).
+    face_2(N, VsPos).
 
-flat_face_2(_, [A,B,C]) ->
+face_2(_, [A,B,C]) ->
     gl:'begin'(?GL_TRIANGLES),
     gl:vertex3dv(A),
     gl:vertex3dv(B),
     gl:vertex3dv(C),
     gl:'end'();
-flat_face_2(N, [A,B,C,D]=VsPos) ->
+face_2(N, [A,B,C,D]=VsPos) ->
     case wings_draw_util:consistent_normal(A, B, C, N) andalso
 	wings_draw_util:consistent_normal(A, C, D, N) of
 	false ->
-	    flat_face_3(N, VsPos);
+	    face_3(N, VsPos);
 	true ->
  	    gl:'begin'(?GL_QUADS),
 	    gl:vertex3dv(A),
@@ -804,19 +808,19 @@ flat_face_2(N, [A,B,C,D]=VsPos) ->
 	    gl:vertex3dv(D),
 	    gl:'end'()
     end;
-flat_face_2(N, VsPos) -> flat_face_3(N, VsPos).
+face_2(N, VsPos) -> face_3(N, VsPos).
 
-flat_face_3(N, VsPos) ->
+face_3(N, VsPos) ->
     Tess = wings_draw_util:tess(),
     {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    tess_flat_face(Tess, VsPos).
+    tess_face(Tess, VsPos).
 
-tess_flat_face(Tess, [P|T]) ->
+tess_face(Tess, [P|T]) ->
     glu:tessVertex(Tess, P),
-    tess_flat_face(Tess, T);
-tess_flat_face(Tess, []) ->
+    tess_face(Tess, T);
+tess_face(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
