@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.112 2002/11/26 20:05:29 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.113 2002/11/29 06:32:17 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -60,7 +60,6 @@ setup(Tvs, Unit, Flags, St) ->
 	{general,General} -> break_apart_general(General);
 	_ -> break_apart(Tvs, St)
     end,
-    wings_io:grab(),
     {drag,Drag}.
 
 falloff([falloff|_]) -> 1.0;
@@ -219,6 +218,7 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 %%%
 
 do_drag(Drag0) ->
+    wings_io:grab(),
     {Event,Drag} = initial_motion(Drag0),
     {seq,{push,dummy},handle_drag_event_1(Event, Drag)}.
 

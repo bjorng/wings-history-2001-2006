@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.170 2002/11/27 05:48:31 bjorng Exp $
+%%     $Id: wings.erl,v 1.171 2002/11/29 06:32:17 bjorng Exp $
 %%
 
 -module(wings).
 -export([start/0,start/1,start_halt/1,start_halt/2]).
--export([root_dir/0,caption/1,redraw/1,resize/3]).
+-export([root_dir/0,caption/1,redraw/1,resize/3,command/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -135,6 +135,10 @@ init(File, Root) ->
     Op = main_loop_noredraw(St),		%Replace crash handler
 						%with this handler.
     wings_wm:new(geom, {0,0,1}, {W,H}, Op),
+
+    %% I don't want to run key checking by default.
+    %%wings_wm:callback(fun() -> wings_pref:cleanup(St) end),
+
     case catch wings_wm:enter_event_loop() of
 	{'EXIT',normal} ->
 	    wings_file:finish(),

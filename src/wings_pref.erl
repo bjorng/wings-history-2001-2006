@@ -8,18 +8,19 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.60 2002/11/07 07:49:43 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.61 2002/11/29 06:32:18 bjorng Exp $
 %%
 
 -module(wings_pref).
 -export([init/0,finish/0,
 	 menu/1,command/2,
 	 get_value/1,get_value/2,set_value/2,set_default/2,
-	 delete_value/1,browse/1]).
+	 delete_value/1,browse/1,cleanup/1]).
 
 -define(NEED_ESDL, 1).    %% Some keybindings
 -include("wings.hrl").
 -import(lists, [foreach/2,keysearch/3,map/2,reverse/1,sort/1]).
+-compile({parse_transform,ms_transform}).
 
 init() ->
     ets:new(wings_state, [named_table,public,ordered_set]),
@@ -50,7 +51,7 @@ finish() ->
     Str = lists:map(Write, List),
     catch file:write_file(PrefFile, Str),
     ok.
-    
+
 prune_defaults(List) ->
     List -- defaults().
 
@@ -328,6 +329,13 @@ clean([{{bindkey,_},Cmd,user}=Bk|T], Acc) ->
 	    io:format("Removed pref: ~p\n", [Bk]),
 	    clean(T, Acc)
     end;
+clean([{{bindkey,_,_},Cmd,user}=Bk|T], Acc) ->
+    case bad_command(Cmd) of
+	false -> clean(T, [Bk|Acc]);
+	true ->
+	    io:format("Removed pref: ~p\n", [Bk]),
+	    clean(T, Acc)
+    end;
 clean([H|T], Acc) ->
     clean(T, [H|Acc]);
 clean([], Acc) -> Acc.
@@ -354,5 +362,48 @@ is_wings_vector({{Px,Py,Pz},{Vx,Vy,Vz}})
     true;
 is_wings_vector(_) -> false.
 
+bad_command({_,{rotate,Atom}}) when is_atom(Atom) -> true;
 bad_command({view,virtual_mirror}) -> true;
 bad_command(_) -> false.
+
+%%%
+%%% Cleanup obsolete bindkeys on startup.
+%%%
+cleanup(St0) ->
+    St1 = wings_shapes:command(cube, St0),
+    Sel = cleanup_sel(St1),
+    St = St1#st{sel=Sel},
+    Spec = ets:fun2ms(fun({{bindkey,_,_},_,user}) -> object() end),
+    Bad = cleanup(ets:select(wings_state, Spec), St, []),
+    io:format("~p\n", [Bad]),
+    keep.
+
+cleanup([{{_,Mode,_},{Mode,_}=Cmd,_}=Bk|T], St, Bad) ->
+    case catch wings:command(Cmd, St#st{selmode=Mode}) of
+	{'EXIT',_} ->
+	    case cleanup_is_plugin(Cmd) of
+		true -> cleanup(T, St, Bad);
+		false -> cleanup(T, St, [Bk|Bad])
+	    end;
+	_ -> cleanup(T, St, Bad)
+    end;
+cleanup([_|T], St, Bad) ->
+    cleanup(T, St, Bad);
+cleanup([], _, Bad) -> Bad.
+
+cleanup_sel(#st{shapes=Shs}) ->
+    [Id] = gb_trees:keys(Shs),
+    [{Id,gb_sets:singleton(1)}].
+
+cleanup_is_plugin(Cmd) when is_atom(Cmd) ->
+    cleanup_is_wpc_atom(Cmd);
+cleanup_is_plugin({Cmd,More}) ->
+    cleanup_is_wpc_atom(Cmd) orelse cleanup_is_plugin(More);
+cleanup_is_plugin(_) -> false.
+
+cleanup_is_wpc_atom(Atom) when is_atom(Atom) ->
+    case atom_to_list(Atom) of
+	"wpc_" ++ _ -> true;
+	_ -> false
+    end.
+	    
