@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.28 2004/11/01 08:16:02 raimo_niskanen Exp $
+%%     $Id: wings_sv.lang,v 1.29 2004/11/02 06:53:16 bjorng Exp $
 %%
 
 {wings,
@@ -572,7 +572,7 @@
     {18,"Importera"},
     {19,"Exportera"},
     {20,"Exportera markering"},
-    {21,"Import bildfil..."},
+    {21,"Importera bildfil..."},
     {22,"Importera en bildfil"},
     {23,"Rendera"},
     {24,"Installera insticksmodul"},
