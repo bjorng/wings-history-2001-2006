@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.38 2002/03/25 09:54:15 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.39 2002/04/06 06:46:05 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -359,11 +359,7 @@ expand_submenu(B, Name, Submenu0, #mi{ns=Ns}) when is_function(Submenu0) ->
 expand_submenu(_Button, _Name, Submenu, _Mi) -> Submenu.
 
 button_outside(#mousebutton{x=X,y=Y}, #mi{prev=[]}) ->
-    case wings_io:button(X, Y) of
-	none -> ok;
-	ButtonHit ->
-	    wings_io:putback_event({action,ButtonHit})
-    end,
+    wings_io:button(X, Y),
     wings_io:putback_event(redraw),
     pop;
 button_outside(#mousebutton{x=X,y=Y}=Event, #mi{prev=PrevMenu}=Mi) ->
