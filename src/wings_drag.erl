@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.58 2002/02/24 22:36:52 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.59 2002/02/28 20:15:28 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -52,11 +52,15 @@
 setup(Tvs, Unit, St) ->
     setup(Tvs, Unit, [], St).
 
-setup(Tvs, Unit, Flags, #st{inf_r=Falloff}=St) ->
+setup(Tvs, Unit, Flags, St) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = #drag{x=X,y=Y,unit=Unit,flags=Flags,falloff=Falloff},
+    Drag = #drag{x=X,y=Y,unit=Unit,flags=Flags,falloff=falloff(Unit, St)},
     init_1(Tvs, Drag, St).
 
+falloff([falloff|_], #st{inf_r=Falloff}) -> Falloff;
+falloff([_|T], St) -> falloff(T, St);
+falloff([], _St) -> none.
+    
 init_1(Tvs0, Drag0, #st{selmode=Mode,sel=Sel0}=St0) ->
     St = wings_draw:model_changed(St0),
     wings_draw:make_vec_dlist(St),
@@ -106,8 +110,8 @@ combine(Tvs) ->
 %% (not moved during drag) and dynamic (part of objects actually
 %% moved).
 %%
-break_apart({matrix,_}=Tvs, St) -> Tvs;		%Specially handled.
-break_apart(Tvs, #st{shapes=Shs}=St) ->
+break_apart({matrix,_}=Tvs, _St) -> Tvs;	%Specially handled.
+break_apart(Tvs, #st{shapes=Shs}) ->
     break_apart(Tvs, gb_trees:to_list(Shs), []).
 
 break_apart([{Id,_}|_]=Tvs, [{ShId,We}|Shs], Dyn) when ShId < Id ->
@@ -158,11 +162,11 @@ tv_vertices(Tv) ->
 insert_vtx_data([{Vec,Vs0}|VecVs], Vtab, Acc) ->
     Vs = insert_vtx_data_1(Vs0, Vtab, []),
     insert_vtx_data(VecVs, Vtab, [{Vec,Vs}|Acc]);
-insert_vtx_data([], Vtab, Acc) -> Acc.
+insert_vtx_data([], _Vtab, Acc) -> Acc.
 
 insert_vtx_data_1([V|Vs], Vtab, Acc) ->
     insert_vtx_data_1(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
-insert_vtx_data_1([], Vtab, Acc) -> Acc.
+insert_vtx_data_1([], _Vtab, Acc) -> Acc.
 
 %%%
 %%% Handling of drag events.
@@ -197,7 +201,7 @@ handle_drag_event_1(#mousemotion{x=X,y=Y}, Drag0) ->
     Drag = motion_update(Move, Drag1),
     get_drag_event(Drag);
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED},
-		    #drag{st=St0}=Drag0) ->
+		    Drag0) ->
     wings_io:ungrab(),
     {Drag,Move} = ?SLOW(motion(X, Y, Drag0#drag{done=true})),
     cleanup(Drag),
@@ -205,7 +209,7 @@ handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED},
     DragEnded = {drag_ended,St#st{args=Move}},
     wings_io:putback_event(DragEnded),
     pop;
-handle_drag_event_1({drag_arguments,Move}, #drag{st=St0}=Drag0) ->
+handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     wings_io:ungrab(),
     Drag = ?SLOW(motion_update(Move, Drag0#drag{done=true})),
     cleanup(Drag),
@@ -213,8 +217,7 @@ handle_drag_event_1({drag_arguments,Move}, #drag{st=St0}=Drag0) ->
     DragEnded = {drag_ended,St#st{args=Move}},
     wings_io:putback_event(DragEnded),
     pop;
-handle_drag_event_1(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED},
-		    Drag) ->
+handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Drag) ->
     cleanup(Drag),
     wings_io:ungrab(),
     wings_io:putback_event(drag_aborted),
@@ -233,7 +236,7 @@ handle_drag_event_1(Event, #drag{st=St}=Drag0) ->
 		   magnet_radius(-1, Drag0);
 	       {select,more} ->
 		   magnet_radius(1, Drag0);
-	       Other -> Drag0
+	       _Other -> Drag0
 	   end,
     get_drag_event(Drag).
 
@@ -250,11 +253,11 @@ numeric_input(Drag0) ->
 make_query(Move, #drag{unit=Units}) ->
     make_query_1(Units, Move).
 
-make_query_1([{percent,{Min,Max}}|Units], [V|Vals]) ->
+make_query_1([{percent,{_Min,_Max}}|Units], [V|Vals]) ->
     [{"P",V*100.0}|make_query_1(Units, Vals)];
 make_query_1([percent|Units], [V|Vals]) ->
     [{"P",V*100.0}|make_query_1(Units, Vals)];
-make_query_1([{U,{Min,Max}}|Units], [V|Vals]) ->
+make_query_1([{U,{_Min,_Max}}|Units], [V|Vals]) ->
     [{qstr(U),V}|make_query_1(Units, Vals)];
 make_query_1([U|Units], [V|Vals]) ->
     [{qstr(U),V}|make_query_1(Units, Vals)];
@@ -275,25 +278,26 @@ make_move_1([{percent,_}=Unit|Units], [V|Vals]) ->
     [constrain_range(Unit, V/100)|make_move_1(Units, Vals)];
 make_move_1([percent|Units], [V|Vals]) ->
     [V/100|make_move_1(Units, Vals)];
-make_move_1([{U,{Min,Max}}=Unit|Units], [V|Vals]) ->
+make_move_1([{U,{_Min,_Max}}=Unit|Units], [V|Vals]) ->
     make_move_1([U|Units], [constrain_range(Unit, V)|Vals]);
-make_move_1([U|Units], [V|Vals]) ->
+make_move_1([_U|Units], [V|Vals]) ->
     [float(V)|make_move_1(Units, Vals)];
 make_move_1([], []) -> [].
 
 cleanup(#drag{matrices=none}) -> ok;
 cleanup(#drag{matrices=Mtxs}) ->
-    foreach(fun({Id,Matrix}) ->
+    foreach(fun({Id,_Matrix}) ->
 		    gl:deleteLists(?DL_DYNAMIC+Id, 1)
 	    end, Mtxs).
 
+magnet_radius(_Sign, #drag{falloff=none}=Drag) -> Drag;
 magnet_radius(Sign, #drag{falloff=Falloff0}=Drag0) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
     case Falloff0+Sign*?GROUND_GRID_SIZE/5 of
 	Falloff when Falloff > 0 ->
 	    {Drag,_} = motion(X, Y, Drag0#drag{falloff=Falloff}),
 	    Drag;
-	Other -> Drag0
+	_Falloff -> Drag0
     end.
 
 view_changed(#drag{flags=Flags}=Drag0) ->
@@ -324,7 +328,7 @@ update_tvs([], []) -> [].
 update_tvs_1([F0|Fs], NewWe, Acc) ->
     F = F0(view_changed, NewWe),
     update_tvs_1(Fs, NewWe, [F|Acc]);
-update_tvs_1([], NewWe, Acc) -> reverse(Acc).
+update_tvs_1([], _, Acc) -> reverse(Acc).
     
 motion(X, Y, Drag0) ->
     {Dx0,Dy0,Drag} = mouse_range(X, Y, Drag0),
@@ -348,7 +352,7 @@ mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs0,ys=Ys0, xt=Xt0, yt=Yt0}=Drag) ->
 	     Drag#drag{xs=Xs,ys=Ys,xt=XD0, yt=YD0}}
     end.
 
-constrain(Dx0, _Dy, #drag{unit=[angle]}=Drag) ->
+constrain(Dx0, _Dy, #drag{unit=[angle]}) ->
     Dx = case sdl_keyboard:getModState() of
 	     Mod when Mod band ?SHIFT_BITS =/= 0,
 		      Mod band ?CTRL_BITS =/= 0 ->
@@ -360,7 +364,7 @@ constrain(Dx0, _Dy, #drag{unit=[angle]}=Drag) ->
 	     Mod -> Dx0
 	 end,
     [15*Dx];
-constrain(Dx0, Dy0, #drag{unit=Unit,flags=Flags}=Drag) ->
+constrain(Dx0, Dy0, #drag{unit=Unit}=Drag) ->
     {Dx,Dy} = case sdl_keyboard:getModState() of
 		  Mod when Mod band ?SHIFT_BITS =/= 0,
 			   Mod band ?CTRL_BITS =/= 0 ->
@@ -384,8 +388,8 @@ constrain_1([U1,U2,falloff], Dx, Dy, #drag{falloff=Falloff}) ->
 constrain_1([U1,U2], Dx, Dy, _Drag) ->
     [constrain_range(U1, Dx),constrain_range(U2, Dy)].
 
-constrain_range({_,{Min,Max}}, D) when D < Min -> Min;
-constrain_range({_,{Min,Max}}, D) when D > Max -> Max;
+constrain_range({_,{Min,_Max}}, D) when D < Min -> Min;
+constrain_range({_,{_Min,Max}}, D) when D > Max -> Max;
 constrain_range(_, D) -> D.
 
 %%%
@@ -421,7 +425,7 @@ motion_update(Move, #drag{tvs=Tvs,sel=Sel,done=Done}=Drag) ->
     Drag#drag{new=New}.
 
 motion_update_1([{Tv,StaticVs,Id,We0}|Tvs], Move, #drag{done=Done}=Drag, A) ->
-    Vtab0 = transform_vs(Tv, Move, Drag, StaticVs),
+    Vtab0 = transform_vs(Tv, Move, StaticVs),
     Vtab = gb_trees:from_orddict(sort(Vtab0)),
     We = We0#we{vs=Vtab},
     if
@@ -429,11 +433,11 @@ motion_update_1([{Tv,StaticVs,Id,We0}|Tvs], Move, #drag{done=Done}=Drag, A) ->
 	true -> draw_flat_faces(We)
     end,
     motion_update_1(Tvs, Move, Drag, [{Id,We}|A]);
-motion_update_1([], Move, Drag, A) -> A.
+motion_update_1([], _Move, _Drag, A) -> A.
 
-transform_vs([F0|_]=Fs, Move, Drag, Acc) when is_function(F0) ->
+transform_vs([F0|_]=Fs, Move, Acc) when is_function(F0) ->
     foldl(fun(F, A) -> F(Move, A) end, Acc, Fs);
-transform_vs(Tvs, [Dx], Drag, Acc) ->
+transform_vs(Tvs, [Dx], Acc) ->
     foldl(fun({Vec,Vs}, A) ->
 		  translate(Vec, Dx, Vs, A)
 	  end, Acc, Tvs).
@@ -583,7 +587,7 @@ draw_sel(vertex) ->
     sel_color(),
     gl:pointSize(wings_pref:get_value(selected_vertex_size)),
     gl:callList(?DL_SEL);
-draw_sel(Other) ->
+draw_sel(_Mode) ->
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(1.0, 1.0),
     sel_color(),
@@ -604,26 +608,26 @@ static_display_list(Faces, #st{shapes=Shs0}=St) ->
     gl:newList(?DL_SEL, ?GL_COMPILE),
     gl:endList().
 
-make_dlist(DlistId, Faces, DrawMembers, #st{shapes=Shapes0}=St) ->
+make_dlist(DlistId, Faces, DrawMembers, #st{shapes=Shapes0}) ->
     gl:newList(DlistId, ?GL_COMPILE),
     make_dlist_1(gb_trees:to_list(Shapes0), Faces, DrawMembers),
     gl:endList().
 
-make_dlist_1([{Id,Shape}|Shs], [{Id,matrix}|Fs], false) ->
+make_dlist_1([{Id,_}|Shs], [{Id,matrix}|Fs], false) ->
     make_dlist_1(Shs, Fs, false);
 make_dlist_1([{Id,We}|Shs], [{Id,matrix}|Fs], true) ->
     gl:newList(?DL_DYNAMIC+Id, ?GL_COMPILE),
     draw_faces(We),
     gl:endList(),
     make_dlist_1(Shs, Fs, true);
-make_dlist_1([{Id,We}|Shs], Fs, false) ->
+make_dlist_1([{_Id,We}|Shs], Fs, false) ->
     draw_faces(We),
     make_dlist_1(Shs, Fs, false);
-make_dlist_1([{Id,Shape}|Shs], Fs, true) ->
+make_dlist_1([{_,_}|Shs], Fs, true) ->
     make_dlist_1(Shs, Fs, true);
-make_dlist_1([], Fs, Draw) -> ok.
+make_dlist_1([], _Fs, _Draw) -> ok.
 
-draw_faces(#we{perm=Perm}=We) when ?IS_NOT_VISIBLE(Perm) -> ok;
+draw_faces(#we{perm=Perm}) when ?IS_NOT_VISIBLE(Perm) -> ok;
 draw_faces(#we{fs=Ftab}=We) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
     wings_draw_util:begin_end(
@@ -653,7 +657,7 @@ make_sel_dlist(Objs, {Mode,Sel}) ->
 make_sel_dlist_1(Mode, [{Id,Items}|Sel], [{Id,We}|Wes]) ->
     draw_sel(Mode, Items, We),
     make_sel_dlist_1(Mode, Sel, Wes);
-make_sel_dlist_1(Mode, [], []) -> ok.
+make_sel_dlist_1(_Mode, [], []) -> ok.
 
 draw_sel(vertex, Vs, #we{vs=Vtab}) ->
     gl:'begin'(?GL_POINTS),
@@ -676,7 +680,7 @@ draw_sel(face, Faces, We) ->
 			      wings_draw_util:flat_face(Face, We)
 		      end, Faces)
       end);
-draw_sel(body, Dummy, #we{fs=Ftab}=We) ->
+draw_sel(body, _, #we{fs=Ftab}=We) ->
     draw_sel(face, gb_trees:keys(Ftab), We).
 
 lookup_pos(Key, Tree) ->
