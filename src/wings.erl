@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.62 2001/12/07 10:44:22 bjorng Exp $
+%%     $Id: wings.erl,v 1.63 2001/12/09 14:10:12 bjorng Exp $
 %%
 
 -module(wings).
@@ -198,7 +198,9 @@ handle_event_1({new_selection,St}, _) -> return_to_top(St);
 handle_event_1(Event, St0) ->
     case translate_event(Event, St0) of
 	ignore -> keep;
-	redraw -> main_loop(St0);
+	redraw ->
+	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+	    main_loop(St0);
  	{left_click,X,Y} ->
 	    wings_pick:pick(X, Y, St0);
  	{right_click,X,Y} ->

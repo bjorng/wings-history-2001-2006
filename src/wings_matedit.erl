@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.12 2001/12/07 13:40:07 bjorng Exp $
+%%     $Id: wings_matedit.erl,v 1.13 2001/12/09 14:10:12 bjorng Exp $
 %%
 
 -module(wings_matedit).
@@ -99,7 +99,9 @@ edit(PC) when record(PC, mat) ->
     gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.5, 0.5, -2, 1}),
 
     gl:shadeModel (?GL_SMOOTH),
-    case catch color_picker_loop(NS) of
+    Res = (catch color_picker_loop(NS)),
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    case Res of
 	{'EXIT',normal} ->
 	    restore_state(NS),
 	    NS#s.prev;
@@ -247,7 +249,6 @@ color_picker_loop(S) ->
     end,
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    gl:clear(?GL_DEPTH_BUFFER_BIT),
     AmbM =  {AR*Amb#c.lscale, AG*Amb#c.lscale, AB*Amb#c.lscale, S#s.transp},
     DiffM = {DR*Diff#c.lscale, DG*Diff#c.lscale, DB*Diff#c.lscale, S#s.transp},
     SpecM = {SR*Spec#c.lscale, SG*Spec#c.lscale, SB*Spec#c.lscale, S#s.transp},
@@ -711,6 +712,7 @@ fixdeg(Hue) ->
     Hue.
 
 check_event(S) ->
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     Event = wings_io:get_event(),
     case Event of
 	quit ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.35 2001/12/07 19:46:55 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.36 2001/12/09 14:10:12 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -31,7 +31,6 @@ model_changed(St) -> St#st{dl=none}.
 
 render(#st{shapes=Shapes}=St0) ->
     ?CHECK_ERROR(),
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     gl:enable(?GL_DEPTH_TEST),
     ?CHECK_ERROR(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
@@ -320,21 +319,19 @@ draw_vtx_sel([{Id1,#shape{sh=#we{vs=Vtab}}}|Shs], [{Id2,_}|_]=Sel, true)
     draw_vtx_sel(Shs, Sel, true);
 draw_vtx_sel([{Id1,#shape{sh=#we{vs=Vtab}}}|Shs], [{Id2,_}|_]=Sel, false)
   when Id1 < Id2 ->
-    gl:pointSize(wings_pref:get_value(vertex_size)),
-    gl:color3f(0, 0, 0),
-    gl:'begin'(?GL_POINTS),
-    foreach(fun(#vtx{pos=Pos}) -> gl:vertex3fv(Pos) end,
-	    gb_trees:values(Vtab)),
-    gl:'end'(),
+    draw_unsel_vtx(fun() ->
+			   foreach(fun(#vtx{pos=Pos}) ->
+					   gl:vertex3fv(Pos) end,
+				   gb_trees:values(Vtab))
+		   end),
     draw_vtx_sel(Shs, Sel, false);
 draw_vtx_sel([{_,#shape{sh=#we{vs=Vtab}}}|Shs], [], true) -> ok;
 draw_vtx_sel([{_,#shape{sh=#we{vs=Vtab}}}|Shs], [], false) ->
-    gl:pointSize(wings_pref:get_value(vertex_size)),
-    gl:color3f(0, 0, 0),
-    gl:'begin'(?GL_POINTS),
-    foreach(fun(#vtx{pos=Pos}) -> gl:vertex3fv(Pos) end,
-	    gb_trees:values(Vtab)),
-    gl:'end'(),
+    draw_unsel_vtx(fun() ->
+			   foreach(fun(#vtx{pos=Pos}) ->
+					   gl:vertex3fv(Pos) end,
+				   gb_trees:values(Vtab))
+		   end),
     draw_vtx_sel(Shs, [], false);
 draw_vtx_sel([{Id,#shape{sh=#we{vs=Vtab0}}}|Shs], [{Id,Vs}|Sel], Smooth) ->
     Vtab = sofs:from_external(gb_trees:to_list(Vtab0), [{vertex,data}]),
@@ -349,15 +346,25 @@ draw_vtx_sel([{Id,#shape{sh=#we{vs=Vtab0}}}|Shs], [{Id,Vs}|Sel], Smooth) ->
     case Smooth of
 	true -> ok;
 	false ->
-	    gl:color3f(0, 0, 0),
 	    NonSelVs = sofs:drestriction(Vtab, R),
-	    gl:pointSize(wings_pref:get_value(vertex_size)),
-	    gl:'begin'(?GL_POINTS),
-	    foreach(DrawFun, sofs:to_external(NonSelVs)),
-	    gl:'end'()
+	    draw_unsel_vtx(
+	      fun() ->
+		      foreach(DrawFun, sofs:to_external(NonSelVs))
+	      end)
     end,
     draw_vtx_sel(Shs, Sel, Smooth);
 draw_vtx_sel([], [], Smooth) -> ok.
+
+draw_unsel_vtx(Draw) ->
+    case wings_pref:get_value(vertex_size) of
+	0.0 -> ok;
+	PtSize -> 
+	    gl:pointSize(PtSize),
+	    gl:color3f(0, 0, 0),
+	    gl:'begin'(?GL_POINTS),
+	    Draw(),
+	    gl:'end'()
+    end.
 
 lookup_pos(Key, Tree) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tree),

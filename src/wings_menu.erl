@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.15 2001/12/07 08:40:06 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.16 2001/12/09 14:10:12 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -213,6 +213,7 @@ set_submenu_timer_1(#mi{sel=Sel}=Mi, OldMi, X, Y) ->
 redraw(#mi{redraw=Redraw,st=St,num_redraws=NumRedraws}=Mi) ->
     if
 	NumRedraws < 2 ->
+	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
 	    Redraw();
 	true -> ok
     end,

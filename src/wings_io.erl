@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.19 2001/12/07 19:50:16 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.20 2001/12/09 14:10:12 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -47,16 +47,25 @@
 	 eq,					%Event queue.
 	 icons=[],				%Position for Icons.
 	 tex=[],				%Textures.
-	 grab_count=0				%Number of grabs.
+	 grab_count=0,				%Number of grabs.
+	 raw_icons				%Raw icon bundle.
 	}).
 
 init() ->
-    put_state(#io{eq=queue:new()}).
+    Icons = read_icons(),
+    put_state(#io{eq=queue:new(),raw_icons=Icons}).
+
+read_icons() ->
+    Dir = filename:dirname(code:which(?MODULE)),
+    IconFile = filename:join(Dir, "wings_icon.bundle"),
+    {ok,Bin} = file:read_file(IconFile),
+    Bin.
 
 resize(W, H) ->
-    Io = get_state(),
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    #io{raw_icons=RawIcons} = Io = get_state(),
     Icons = place_icons(W, H),
-    Tex = load_textures(),
+    Tex = load_textures(RawIcons),
     put_state(Io#io{w=W,h=H,tex=Tex,icons=Icons}).
 
 place_icons(W, H) ->
@@ -114,7 +123,8 @@ draw_ui(St) ->
 
 update(St) ->
     display(fun(Io) -> update(Io, St) end, ?GL_BACK),
-    gl:swapBuffers().
+    gl:swapBuffers(),
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT).
 
 draw_message(F) ->
     #io{w=W,h=H} = get_state(),
@@ -389,22 +399,16 @@ draw_icon(X, Y, W, H, Wtot, Htot, Icon) ->
     gl:'end'(),
     gl:color3f(0.0, 0.0, 0.0).
 
-load_textures() ->
-    Dir = filename:dirname(code:which(?MODULE)),
-    IconFile = filename:join(Dir, "wings_icon.bundle"),
-    case file:read_file(IconFile) of
-	{ok,Bin} ->
-	    case catch binary_to_term(Bin) of
-		{'EXIT',_} -> [];
-		Icons0 ->
-		    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-		    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-		    Icons = create_buttons(Icons0),
-		    Tex = create_textures(Icons, 1),
-		    gl:popAttrib(),
-		    Tex
-	    end;
-	{error,Reason} -> []
+load_textures(Bin) ->
+    case catch binary_to_term(Bin) of
+	{'EXIT',_} -> [];
+	Icons0 ->
+	    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+	    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+	    Icons = create_buttons(Icons0),
+	    Tex = create_textures(Icons, 1),
+	    gl:popAttrib(),
+	    Tex
     end.
 
 create_textures([{Name,{W,H,Icon}}|T], Id) ->
