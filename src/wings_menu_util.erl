@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.24 2003/07/22 16:33:29 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.25 2003/07/23 17:38:38 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -64,47 +64,75 @@ all_xyz() ->
 %%%
 %%% Scale sub-menu.
 %%%
+scale(St) ->
+    case wings_pref:get_value(advanced_menus) of
+	false -> basic_scale();
+	true -> adv_scale(St)
+    end.
 
-scale(#st{selmode=body}) ->
-    {"Scale",{scale,fun scale/2}};
-scale(_) ->
-    {"Scale",{scale,fun scale/2},[],[magnet]}.
+%% Basic menu Scale command.
 
-scale(help, _) ->
-     {"Scale along std. axis","Pick axis for radial scale",
-      "Pick axis to scale along"};
-scale(1, Ns) ->
-    [scale_fun(uniform, Ns),
-     scale_fun(x, Ns),
-     scale_fun(y, Ns),
-     scale_fun(z, Ns),
-     scale_fun({radial,x}, Ns),
-     scale_fun({radial,y}, Ns),
-     scale_fun({radial,z}, Ns),
+basic_scale() ->
+    Names = [scale],
+    Dirs = [uniform,x,y,z,{radial,x},{radial,y},{radial,z}],
+    {"Scale",{scale,basic_scale_1(Dirs, Names)}}.
+
+basic_scale_1([Dir|Dirs], Names) ->
+    DirString = stringify_dir(Dir),
+    Help = dir_help(Dir, Names),
+    [{DirString,{'VALUE',{Dir,center}},Help}|basic_scale_1(Dirs, Names)];
+basic_scale_1([], _) -> [].
+
+%% Advanced menu Scale commands.
+
+adv_scale(#st{selmode=body}) ->
+    adv_scale_1([]);
+adv_scale(_) ->
+    adv_scale_1([magnet]).
+
+adv_scale_1(Flags) ->
+    [{"Scale",{scale,fun uniform_scale/2},[],Flags},
+     {"Axis Scale",{scale,fun(B, Ns) -> scale(B, Ns, []) end},[],Flags},
+     {"Radial Scale",{scale,fun(B, Ns) -> scale(B, Ns, [radial]) end},[],Flags}].
+
+uniform_scale(help, _) ->
+     {"Scale uniformly from midpoint of selection",[],
+      "Choose point to scale from"};
+uniform_scale(1, _Ns) -> {face,{scale,{uniform,center}}};
+uniform_scale(2, _Ns) -> ignore;
+uniform_scale(3, Ns) -> {vector,{pick,[point],[],Ns}}.
+
+scale(help, _, []) ->
+    {"Scale along std. axis","Pick axis to scale along",
+     "Pick axis and point to scale from"};
+scale(help, _, [radial]) ->
+    {"Scale outward from std. axis","Pick axis to scale outwards from",
+     "Pick axis and point to scale from"};
+scale(1, Ns, Flags) ->
+    [scale_fun(x, Ns, Flags),
+     scale_fun(y, Ns, Flags),
+     scale_fun(z, Ns, Flags),
      {advanced,separator},
-     scale_axis_fun(last_axis, Ns),
-     scale_axis_fun(default_axis, Ns),
-     {advanced,separator},
-     scale_axis_fun({radial,last_axis}, Ns),
-     scale_axis_fun({radial,default_axis}, Ns)
-    ];
-scale(2, Ns) -> {vector,{pick,[axis,point],[radial],Ns}};
-scale(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
+     scale_axis_fun(last_axis, Ns, Flags),
+     scale_axis_fun(default_axis, Ns, Flags)];
+scale(2, Ns, Flags) -> {vector,{pick,[axis_point],Flags,Ns}};
+scale(3, Ns, Flags) -> {vector,{pick,[axis,point],Flags,Ns}}.
 
-scale_fun(Dir, Names) ->
+scale_fun(Dir, Names, [radial]) ->
+    scale_fun({radial,Dir}, Names, []);
+scale_fun(Dir, Names, _Flags) ->
     DirString = stringify_dir(Dir),
     F = magnet_scale_rot_fun(Dir, center),
     Help0 = dir_help(Dir, Names),
-    Help = {Help0,[],"Pick point to scale to"},
+    Help = {Help0,[],"Pick point to scale from"},
     {DirString,F,Help,magnet_props(Dir, Names)}.
 
-scale_axis_fun(Axis, Names) ->
-    {Point,Vec} = case Axis of
-		      {radial,Ax} ->
-			  {Point0,Vec0} = wings_pref:get_value(Ax),
-			  {Point0,{radial,Vec0}};
-		      Ax -> wings_pref:get_value(Ax)
-		  end,
+scale_axis_fun(Axis0, Names, Flags) ->
+    {Point,Vec0} = wings_pref:get_value(Axis0),
+    {Vec,Axis} = case Flags of
+		     [] -> {Vec0,Axis0};
+		     [radial] -> {{radial,Vec0},{radial,Axis0}}
+		 end,
     DirString = stringify_dir(Axis),
     F = magnet_scale_rot_fun(Vec, Point),
     Help0 = dir_help(Axis, Names),

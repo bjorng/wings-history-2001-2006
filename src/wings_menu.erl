@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.111 2003/07/21 16:18:28 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.112 2003/07/23 17:38:38 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -181,6 +181,8 @@ normalize_menu([{advanced,_}|Els], Hotkeys, false, Acc) ->
     normalize_menu(Els, Hotkeys, false, Acc);
 normalize_menu([{advanced,El}|Els], Hotkeys, true, Acc) ->
     normalize_menu([El|Els], Hotkeys, true, Acc);
+normalize_menu([[_|_]=List|Els], Hotkeys, Adv, Acc) ->
+    normalize_menu(List++Els, Hotkeys, Adv, Acc);
 normalize_menu([Elem0|Els], Hotkeys, Adv, Acc) ->
     Elem1 = case Elem0 of
 		{S,Name,Help,Ps} ->

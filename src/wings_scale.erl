@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_scale.erl,v 1.44 2003/04/17 14:43:48 bjorng Exp $
+%%     $Id: wings_scale.erl,v 1.45 2003/07/23 17:38:39 bjorng Exp $
 %%
 
 -module(wings_scale).
@@ -19,8 +19,12 @@
 -import(lists, [map/2,foldr/3,foldl/3]).
 -define(HUGE, 1.0E307).
 
+setup({X,Y,Z}=Point, St) when is_float(X), is_float(Y), is_float(Z) ->
+    setup(uniform, Point, none, St);
 setup({Vec,Point,Magnet}, St) ->
     setup(Vec, Point, Magnet, St);
+setup({Point,Magnet}, St) when element(1, Magnet) == magnet ->
+    setup(uniform, Point, Magnet, St);
 setup({Vec,Point}, St) ->
     setup(Vec, Point, none, St).
 
