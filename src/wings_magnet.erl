@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.43 2003/01/31 17:20:51 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.44 2003/03/14 19:08:54 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -288,6 +288,9 @@ inf_surface_nearest_1([V|Vs], Point, Vtab, OldDist, OldV) ->
     end;
 inf_surface_nearest_1([], _, _, Dist, V) -> {V,Dist}.
 
-all_bordering(V, We) ->
-    Faces = wings_vertex:fold(fun(_, Face, _, A) -> [Face|A] end, [], V, We),
+all_bordering(V, #we{mirror=Mirror}=We) ->
+    Faces = wings_vertex:fold(fun(_, Face, _, A) when Face =/= Mirror ->
+				      [Face|A];
+				 (_, _, _, A) -> A
+			      end, [], V, We),
     wings_face:to_vertices(Faces, We).
