@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.291 2005/03/03 21:24:13 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.292 2005/03/04 10:32:00 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -1031,6 +1031,9 @@ update_geom_selection(#st{selmode=vertex,sel=Sel,
 
 rotate_chart(Angle, We) ->
     Center = wings_vertex:center(We),
+    rotate_chart(Angle, Center, We).
+
+rotate_chart(Angle, Center, We) ->
     Rot0 = e3d_mat:translate(e3d_vec:neg(Center)),
     Rot1 = e3d_mat:mul(e3d_mat:rotate(float(Angle), {0.0,0.0,1.0}), Rot0),
     Rot = e3d_mat:mul(e3d_mat:translate(Center), Rot1),
@@ -1053,7 +1056,7 @@ align_chart(Dir, St = #st{selmode=Mode}) ->
 	      end
       end, St).
 
-align_chart(Dir, {X1,Y1,_}, {X2,Y2,_}, We) ->
+align_chart(Dir, V1={X1,Y1,_},V2={X2,Y2,_}, We) ->
     Deg0 = 180.0/math:pi() *
 	case Dir of
 	    x -> math:atan2(Y2-Y1,X2-X1);
@@ -1062,7 +1065,8 @@ align_chart(Dir, {X1,Y1,_}, {X2,Y2,_}, We) ->
     Deg = if abs(Deg0) < 90.0 -> Deg0;
 	     true -> Deg0 + 180
 	  end,
-    rotate_chart(-Deg,We).
+    Center = e3d_vec:average(V1,V2),
+    rotate_chart(-Deg,Center,We).
 
 align_error() ->
     wings_u:error("Select two vertices or one edge").
