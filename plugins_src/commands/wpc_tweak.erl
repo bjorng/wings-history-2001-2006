@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.2 2002/05/13 06:58:38 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.3 2002/05/14 07:04:09 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -22,10 +22,11 @@
 -include_lib("e3d.hrl").
 
 -record(tweak,
-	{tmode,		% wait or drag
-	 ox,oy,		% Original X,Y
-	 cx,cy,		% Current X,Y
-	 st}).		% wings st record
+	{tmode,					% wait or drag
+	 ox,oy,					% Original X,Y
+	 cx,cy,					% Current X,Y`
+	 orig_st,				% keeps undo, selection
+	 st}).					% wings st record (working)
 
 init() -> true.
 
@@ -40,12 +41,13 @@ command({tools, tweak}, St0) ->
     Modes = [vertex],
     wings_io:icon_restriction(Modes),
     wings_io:message(help()),
-    St = St0#st{selmode=vertex,sel=[]},
+    St = wings_undo:init(St0#st{selmode=vertex,sel=[]}),
     wings_draw:update_dlists(St),
-    T = #tweak{tmode=wait,st=St},
+    T = #tweak{tmode=wait,orig_st=St0,st=St},
     wings_wm:dirty(),
     {seq,{push,dummy},update_tweak_handler(T)};
-command({tools, tweak_end, #tweak{st=St}}, _) -> St;
+command({tools,tweak_end,#tweak{orig_st=St,st=#st{shapes=Shs}}}, _) ->
+    St#st{shapes=Shs};
 command(_, _) -> next.
 
 help() ->
@@ -110,11 +112,24 @@ handle_tweak_event1(#mousebutton{button=3,state=?SDL_RELEASED}, T) ->
 handle_tweak_event1(Ev, #tweak{st=St0}=T) ->
     case wings_hotkey:event(Ev, St0) of
 	{view,auto_rotate} -> keep;
+	{view,virtual_mirror} -> keep;
 	{view,Cmd} ->
 	    St = wings_view:command(Cmd, St0),
 	    refresh_dlists(Cmd, St),
 	    update_tweak_handler(T#tweak{st=St});
-	_ -> keep
+	{edit,undo_toggle} ->
+	    St = wings_undo:undo_toggle(St0),
+	    wings_draw:update_dlists(St),
+	    update_tweak_handler(T#tweak{st=St});
+	{edit,undo} ->
+	    St = wings_undo:undo(St0),
+	    wings_draw:update_dlists(St),
+	    update_tweak_handler(T#tweak{st=St});
+	{edit,redo} ->
+	    St = wings_undo:redo(St0),
+	    wings_draw:update_dlists(St),
+	    update_tweak_handler(T#tweak{st=St});
+	_Ignore -> keep
     end.
 
 refresh_dlists(wireframe_selected, _) -> ok;
@@ -146,7 +161,8 @@ begin_drag_fun(#dlo{src_sel={vertex,Vs0},src_we=#we{vs=Vtab}}=D0, MM, St) ->
 begin_drag_fun(D, _, _) -> D.
 
 end_drag(#tweak{st=St0}=T) ->
-    St = wings_draw_util:map(fun end_drag/2, St0),
+    St1 = wings_draw_util:map(fun end_drag/2, St0),
+    St = wings_undo:save(St0, St1),
     wings_draw:update_dlists(St),
     wings_io:message(help()),
     update_tweak_handler(T#tweak{tmode=wait,st=St}).
