@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.14 2004/10/07 08:32:01 dgud Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.15 2004/12/04 09:13:47 bjorng Exp $
 %%
 
 -module(e3d__tri_quad).
@@ -800,16 +800,22 @@ segsintersect(IA, IB, IC, ID, Vtab) ->
 	     andalso TI > 0.0 andalso TI < 1.0);
 	true ->
 	    %% parallel or overlapping
-	    case {dot2(U,U), dot2(V,V)} of
-		{0.0,0.0} ->
+	    case {dot2(U, U),dot2(V, V)} of
+		{0.0,_} -> false;
+		{_,0.0} -> false;
+		{_,_} ->
+		    %% At this point, we know that none of the
+		    %% segments are points.
 		    Z = sub2(B, C),
 		    {Vx,Vy}=V, {Wx,Wy}=W, {Zx,Zy}=Z,
 		    {T0,T1} = case Vx of
-				  0.0 -> {Wx/Vx, Zx/Vx};
-				  _ -> {Wy/Vy, Zy,Vy}
+				  0.0 ->
+				      {Wy/Vy, Zy/Vy};
+				  _ ->
+				      {Wx/Vx, Zx/Vx}
 			      end,
-		    (T0 > 0.0) andalso (T0 < 1.0) andalso (T1 > 0.0) andalso (T1 < 1.0);
-		_ -> false	% one or both segs are points; shouldn't happen
+		    (0.0 < T0) andalso (T0 < 1.0) andalso
+		    (0.0 < T1) andalso (T1 < 1.0)
 	    end
     end.
 
@@ -820,16 +826,8 @@ welement(I, N, T) -> element(windex(I, N), T).
 windex(I, N) when I < 1 -> windex(I+N, N);
 windex(I, N) when I =< N -> I;
 windex(I, N) -> windex(I-N, N).
-    
 
 
-%     if
-% 	I =< 0 -> 1 + N + ((I-1) rem N);
-% 	I < N -> I 
-% 	I > 0 -> 1 + ((I-1) rem N);
-	
-		     
-%     end.
 
 -ifdef(TESTING).
 
