@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.84 2003/06/15 04:41:04 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.85 2003/06/27 19:44:23 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1324,25 +1324,28 @@ label_draw([], _, _) -> ok.
 	 integer=false,
 	 charset,				%Character set validator.
 	 last_val,
-	 validator
+	 validator,
+         password=false
 	}).
 
 text_field(Def, Flags) when is_float(Def) ->
     DefStr = text_val_to_str(Def),
     {Max,Validator} = float_validator(Flags),
     init_text(Def, DefStr, Max, false,
-	      fun float_chars/1, Validator);
+	      fun float_chars/1, Validator, Flags);
 text_field(Def, Flags) when is_integer(Def) ->
     {Max,Validator} = integer_validator(Flags),
     init_text(Def, integer_to_list(Def), Max, true,
-	      fun integer_chars/1, Validator);
-text_field(Def, _Flags) when is_list(Def) ->
+	      fun integer_chars/1, Validator, Flags);
+text_field(Def, Flags) when is_list(Def) ->
     init_text(Def, Def, 30, false,
-	      fun all_chars/1, fun(_) -> ok end).
+	      fun all_chars/1, fun(_) -> ok end, Flags).
 
-init_text(Val, String, Max, IsInteger, Charset, Validator) ->
+init_text(Val, String, Max, IsInteger, Charset, Validator, Flags) ->
+    Password = proplists:get_bool(password, Flags),
     Ts = #text{last_val=Val,bef=[],aft=String,max=Max,
-	       integer=IsInteger,charset=Charset,validator=Validator},
+	       integer=IsInteger,charset=Charset,
+               validator=Validator,password=Password},
     Fun = fun gen_text_handler/4,
     {Fun,false,Ts,(1+Max)*?CHAR_WIDTH,?LINE_HEIGHT+2}.
 
@@ -1452,7 +1455,14 @@ gen_text_handler(Ev, #fi{key=Key}=Fi,
     Common = update_color(Key, Common1),
     {Ts#text{last_val=Val},Common}.
 
-draw_text(false, #fi{key=Key,x=X0,y=Y0}, #text{max=Max}, Common) ->
+draw_text(Active, Fi, #text{bef=Bef0,aft=Aft0,password=true}=Ts, Common) ->
+    Bef = subst_stars(Bef0),
+    Aft = subst_stars(Aft0),
+    draw_text_0(Active, Fi, Ts#text{bef=Bef,aft=Aft}, Common);
+draw_text(Active, Fi, Ts, Common) ->
+    draw_text_0(Active, Fi, Ts, Common).
+
+draw_text_0(false, #fi{key=Key,x=X0,y=Y0}, #text{max=Max}, Common) ->
     Val = gb_trees:get(Key, Common),
     Str = text_val_to_str(Val),
     gl:color3f(0, 0, 0),
@@ -1462,7 +1472,7 @@ draw_text(false, #fi{key=Key,x=X0,y=Y0}, #text{max=Max}, Common) ->
     Y = Y0 + ?CHAR_HEIGHT,
     X = X0 + 4,
     wings_io:text_at(X, Y, Str);
-draw_text(true, #fi{x=X0,y=Y0}, #text{sel=Sel,bef=Bef0,aft=Aft,max=Max}, _) ->
+draw_text_0(true, #fi{x=X0,y=Y0}, #text{sel=Sel,bef=Bef0,aft=Aft,max=Max}, _) ->
     gl:color3f(0, 0, 0),
     wings_io:sunken_rect(X0, Y0+2,
 			 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
@@ -1499,6 +1509,9 @@ draw_text_1(_, _, _, 0) ->
 draw_text_1(X, Y, [C|T], N) ->
     wings_io:text_at(X, Y, [C]),
     draw_text_1(X+?CHAR_WIDTH, Y, T, N-1).
+
+subst_stars(S) ->
+    lists:duplicate(length(S), $*).
 
 validate_string(#text{validator=Validator,sel=Sel0}=Ts) ->
     case Validator(get_text(Ts)) of
