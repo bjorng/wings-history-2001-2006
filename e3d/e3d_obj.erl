@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.24 2002/06/16 18:04:08 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.25 2002/07/08 17:53:26 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -251,13 +251,24 @@ try_matlib(Name) ->
 	{ok,Fd} ->
 	    Res = read(fun mtl_parse/2, Fd, []),
 	    close(Fd),
-	    [{Mat,[{maps,Maps},{opengl,OpenGL}]} || {Mat,OpenGL,Maps} <- Res];
+	    [{Mat,[{maps,Maps},{opengl,fixup_mat(OpenGL)}]} ||
+		{Mat,OpenGL,Maps} <- Res];
 	{error,_Reason} -> error
     end.
+
+%% Combine diffuse color with opacity.
+fixup_mat(OpenGL0) ->
+    Opacity = property_lists:get_value(opacity, OpenGL0, 1.0),
+    OpenGL1 = lists:keydelete(opacity, 1, OpenGL0),
+    {R,G,B} = property_lists:get_value(diffuse, OpenGL1, {1.0,1.0,1.0}),
+    OpenGL = lists:keydelete(diffuse, 1, OpenGL0),
+    [{diffuse,{R,G,B,Opacity}}|OpenGL].
 
 mtl_parse(["newmtl",Name0], Ms) ->
     Name = list_to_atom(Name0),
     [{Name,[],[]}|Ms];
+mtl_parse(["d",Opacity], Mtl) ->
+    mtl_add({opacity,str2float(Opacity)}, Mtl);
 mtl_parse(["Ka"|RGB], Mtl) ->
     mtl_add({ambient,mtl_text_to_tuple(RGB)}, Mtl);
 mtl_parse(["Kd"|RGB], Mtl) ->
@@ -432,9 +443,11 @@ materials(Name0, Mats, Creator) ->
 
 material(F, Base, {Name,Mat}) ->
     OpenGL = property_lists:get_value(opengl, Mat),
+    {_,_,_,Opacity} = property_lists:get_value(diffuse, OpenGL),
+    Shininess = property_lists:get_value(shininess, OpenGL),
     io:format(F, "newmtl ~s\n", [atom_to_list(Name)]),
-    io:format(F, "Ns 80\n", []),
-    io:format(F, "d 1.000000\n", []),
+    io:format(F, "Ns ~p\n", [Shininess*100]),
+    io:format(F, "d ~p\n", [Opacity]),
     io:format(F, "illum 2\n", []),
     mat_color(F, "Kd", diffuse, OpenGL),
     mat_color(F, "Ka", ambient, OpenGL),
