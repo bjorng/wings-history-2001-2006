@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.16 2002/03/31 10:52:54 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.17 2002/04/12 15:09:13 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -16,6 +16,7 @@
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
+-import(lists, [reverse/1]).
 
 init() ->
     case tess() of
@@ -75,9 +76,10 @@ face(Face, #we{fs=Ftab}=We) ->
 
 face(Face, Edge, #we{mode=material,vs=Vtab}=We) ->
     Vs = wings_face:surrounding_vertices(Face, Edge, We),
-    VsPos = [pos(V, Vtab) || V <- Vs],
-    {X,Y,Z} = N = e3d_vec:normal(VsPos),
+    VsPos = vspos(Vs, Vtab, []),
+    N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
+    {X,Y,Z} = N,
     Tess = tess(),
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
@@ -105,11 +107,19 @@ tess_face_vtxcol(Tess, []) ->
     glu:tessEndPolygon(Tess).
 
 tess_face(Tess, [P|T]) ->
-    glu:tessVertex(Tess, P),
+    glu_tessVertex(Tess, P),
     tess_face(Tess, T);
 tess_face(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
+
+-record(tessPtr, {ptr}).
+
+%% Dirty hack until Dan includes it in ESDL.
+glu_tessVertex(#tessPtr{ptr=Tobj}, {X,Y,Z}) ->
+    sdl:cast(<<(941):16, Tobj:32/unsigned,
+	      X:64/float,Y:64/float,Z:64/float,
+	      3:16,0>>).
 
 %%
 %% Draw a face. Tesselate polygons (4 edges or more).
@@ -121,9 +131,10 @@ flat_face(Face, #we{fs=Ftab}=We) ->
 
 flat_face(Face, Edge, #we{vs=Vtab}=We) ->
     Vs = wings_face:surrounding_vertices(Face, Edge, We),
-    VsPos = [pos(V, Vtab) || V <- Vs],
-    {X,Y,Z} = N = e3d_vec:normal(VsPos),
+    VsPos = vspos(Vs, Vtab, []),
+    N = e3d_vec:normal(VsPos),
     gl:normal3fv(N),
+    {X,Y,Z} = N,
     Tess = tess(),
     glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
@@ -141,6 +152,7 @@ tess_flat_face(Tess, []) ->
 %% Utilities.
 %%
 
-pos(Key, Tab) ->
-    #vtx{pos=Pos} = gb_trees:get(Key, Tab),
-    Pos.
+vspos([V|Vs], Vtab, Acc) ->
+    #vtx{pos=P} = gb_trees:get(V, Vtab),
+    vspos(Vs, Vtab, [P|Acc]);
+vspos([], _, Acc) -> reverse(Acc).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.68 2002/03/20 07:37:41 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.69 2002/04/12 15:09:13 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -309,12 +309,15 @@ draw_faces(#we{mode=uv}=We, false, #st{mat=Mtab}=St) ->
     end;
 draw_faces(#we{fs=Ftab}=We, false, _St) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1,1,1,1}),
-    wings_draw_util:begin_end(
+    ?TC(wings_draw_util:begin_end(
       fun() ->
-	      foreach(fun({Face,#face{edge=Edge}}) ->
-			      wings_draw_util:face(Face, Edge, We)
-		      end, gb_trees:to_list(Ftab))
-      end).
+	      draw_faces_1(gb_trees:to_list(Ftab), We)
+	end)).
+
+draw_faces_1([{Face,#face{edge=Edge}}|Fs], We) ->
+    wings_draw_util:face(Face, Edge, We),
+    draw_faces_1(Fs, We);
+draw_faces_1([], _) -> ok.
 
 draw_uv_faces([{Mat,Faces}|T], We, Mtab) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
