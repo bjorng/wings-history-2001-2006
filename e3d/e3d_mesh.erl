@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.44 2004/11/10 05:11:37 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.45 2004/11/14 12:36:36 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -211,9 +211,9 @@ used_materials(#e3d_mesh{fs=Fs0}) ->
 %%
 slit_hard_edges(Mesh) -> slit_hard_edges(Mesh, []).
 %%
-slit_hard_edges(Mesh0=#e3d_mesh{he=[]}, Options) when list(Options) -> Mesh0;
+slit_hard_edges(Mesh0=#e3d_mesh{he=[]}, Options) when is_list(Options) -> Mesh0;
 slit_hard_edges(Mesh0=#e3d_mesh{vs=Vs0,vc=Vc0,tx=Tx0,ns=Ns0,fs=Fs0,he=He0},
-		Options) when list(Options) ->
+		Options) when is_list(Options) ->
     %%io:format("Before: "),
     %%print_mesh(Mesh0),
     VsT = list_to_tuple(Vs0),
@@ -226,33 +226,26 @@ slit_hard_edges(Mesh0=#e3d_mesh{vs=Vs0,vc=Vc0,tx=Tx0,ns=Ns0,fs=Fs0,he=He0},
     VsGt = 
 	case proplists:get_bool(slit_end_vertices, Options) of
 	    false ->%% Altered - PM (11/8/2004)
-		lists:foldl(
-		  fun({V1,V2}, Gt) when V1 < V2 -> 
-			  gb_trees_increment(V2, 1, 
-					     gb_trees_increment(V1, 1, Gt)) end,
-		  gb_trees:empty(),
-		  He0);
+		foldl(fun({V1,V2}, Gt) when V1 < V2 -> 
+			      gb_trees_increment(V2, 1, 
+						 gb_trees_increment(V1, 1, Gt))
+		      end, gb_trees:empty(), He0);
 	    true ->
 		%% Fake a vertex count of 2 (i.e more than 1) for all
-		lists:foldl(
-		  fun({V1,V2}, Gt) when V1 < V2 -> 
-			  gb_trees:enter(V2, 2, 
-					     gb_trees:enter(V1, 2, Gt)) end,
-		  gb_trees:empty(),
-		  He0)
+		foldl(fun({V1,V2}, Gt) when V1 < V2 -> 
+			      gb_trees:enter(V2, 2, 
+					     gb_trees:enter(V1, 2, Gt))
+		      end, gb_trees:empty(), He0)
 	end,
-    HeGt = lists:foldl(
-	     fun({V1,V2}=E, Gt) when V1 < V2 -> 
-		     gb_trees:insert(E, 0, Gt) end,
-	     gb_trees:empty(),
-	     He0),
-    Mesh = 
-	case slit_hard_f(Old, VsGt, HeGt, Fs0, New, []) of
-	    #e3d_mesh{vs={_,[]}} -> Mesh0#e3d_mesh{he=[]};
-	    #e3d_mesh{type=Type,vs=Vs1,vc=Vc1,tx=Tx1,ns=Ns1,fs=Fs1} ->
-		Mesh0#e3d_mesh{type=Type,vs=Vs0++Vs1,vc=Vc0++Vc1,
-			      tx=Tx0++Tx1,ns=Ns0++Ns1,fs=Fs1,he=[]}
-	end,
+    HeGt = foldl(fun({V1,V2}=E, Gt) when V1 < V2 -> 
+			 gb_trees:insert(E, 0, Gt)
+		 end, gb_trees:empty(), He0),
+    Mesh = case slit_hard_f(Old, VsGt, HeGt, Fs0, New, []) of
+	       #e3d_mesh{vs={_,[]}} -> Mesh0#e3d_mesh{he=[]};
+	       #e3d_mesh{type=Type,vs=Vs1,vc=Vc1,tx=Tx1,ns=Ns1,fs=Fs1} ->
+		   Mesh0#e3d_mesh{type=Type,vs=Vs0++Vs1,vc=Vc0++Vc1,
+				  tx=Tx0++Tx1,ns=Ns0++Ns1,fs=Fs1,he=[]}
+	   end,
     %%io:format("After: "),
     %%print_mesh(Mesh),
     Mesh.
