@@ -8,17 +8,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.16 2002/01/12 19:24:25 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.17 2002/01/14 08:22:49 bjorng Exp $
 %%
 
 -module(wings_pref).
 -export([init/0,finish/0,
-	 sub_menu/1,command/1,
+	 menu/1,command/1,
 	 get_value/1,get_value/2,set_value/2,set_default/2,
 	 delete_value/1,browse/1]).
 
 -include("wings.hrl").
--import(lists, [foreach/2,keysearch/3,map/2]).
+-import(lists, [foreach/2,keysearch/3,map/2,reverse/1]).
 
 init() ->
     ets:new(wings_state, [named_table,public,ordered_set]),
@@ -44,17 +44,24 @@ finish() ->
 prune_defaults(List) ->
     List -- [{Key,Val} || {_,Key,Val} <- presets()].
 
-sub_menu(St) ->
-    M = map(fun menu_item/1, presets()),
-    list_to_tuple(M).
+menu(St) ->
+    menu_1(presets()).
 
-menu_item({Desc,Key,Bool}) when Bool == false; Bool == true ->
-    case get_value(Key) of
-	false -> {Desc,Key};
-	true ->  {Desc,Key,[crossmark]}
-    end;
-menu_item({Desc,Key,_}) -> {Desc,Key};
-menu_item(separator) -> separator.
+menu_1([{Desc,Key}|T0]) ->
+    {Items,T} = collect_items(T0, []),
+    [{Desc,{Key,list_to_tuple(Items)}}|menu_1(T)];
+menu_1([]) -> [].
+
+collect_items([{Desc,Key,Bool}|T], A) when Bool == false; Bool == true ->
+    I = case get_value(Key) of
+	    false -> {Desc,Key};
+	    true ->  {Desc,Key,[crossmark]}
+	end,
+    collect_items(T, [I|A]);
+collect_items([{Desc,Key,_}|T], A) -> collect_items(T, [{Desc,Key}|A]);
+collect_items([separator|T], A) -> collect_items(T, [separator|A]);
+collect_items([{Desc,Key}|_]=T, A) -> {reverse(A),T};
+collect_items([], A) -> {reverse(A),[]}.
 
 command(Key) ->
     {value,{Prompt,_,Def}} = keysearch(Key, 2, presets()),
@@ -160,13 +167,15 @@ defaults() ->
     [{Key,Val} || {_,Key,Val} <- presets()].
 
 presets() ->
-    [{"Background Color",background_color,{0.4,0.4,0.4}},
+    [{"Color Preferences",color_prefs},
+     {"Background Color",background_color,{0.4,0.4,0.4}},
      {"Grid Color",grid_color,{0.0,0.0,0.0}},
      {"Face Color",face_color,{0.5,0.5,0.5}},
-     {"Selection Color",selected_color,{0.65,0.0,0.0}},
      {"Hard Edge Color",hard_edge_color,{0.0,0.5,0.0}},
      separator,
-     {"Show Axis Letters",show_axis_letters,true},
+     {"Selection Color",selected_color,{0.65,0.0,0.0}},
+     {"Unselected Hilite",unselected_hlite,{0.0,0.65,0.0}},
+     {"Selected Hilite",selected_hlite,{0.70,0.70,0.0}},
      separator,
      {"+X Color",x_color,{1.0,0.0,0.0}},
      {"+Y Color",y_color,{0.0,1.0,0.0}},
@@ -174,11 +183,14 @@ presets() ->
      {"-X Color",neg_x_color,{0.0,0.8,0.8}},
      {"-Y Color",neg_y_color,{0.8,0.0,0.8}},
      {"-Z Color",neg_z_color,{0.8,0.8,0.0}},
-     separator,
+
+     {"Other Preferences",other_prefs},
      {"Vertex Size",vertex_size,4.0},
      {"Selected Vertex Size",selected_vertex_size,5.0},
      {"Edge Width",edge_width,2.0},
      {"Selected Edge Width",selected_edge_width,2.0},
+     separator,
+     {"Show Axis Letters",show_axis_letters,true},
      separator,
      {"Vertex highlighting",vertex_hilite,true},
      {"Edge highlighting",edge_hilite,true},

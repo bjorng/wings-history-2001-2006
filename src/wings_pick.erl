@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.28 2002/01/12 16:28:34 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.29 2002/01/14 08:22:49 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -118,14 +118,15 @@ hilite_draw_sel_fun(Hit, St) ->
     end.
 
 hilite_color({Id,Item}, #st{sel=Sel}) ->
-    case keysearch(Id, 1, Sel) of
-	false -> gl:color3fv({0.0,0.65,0.0});
-	{value,{Id,Items}} ->
-	    case gb_sets:is_member(Item, Items) of
-		false -> gl:color3fv({0.0,0.65,0.0});
-		true -> gl:color3fv({0.70,0.70,0.0})
-	    end
-    end.
+    Key = case keysearch(Id, 1, Sel) of
+	      false -> unselected_hlite;
+	      {value,{Id,Items}} ->
+		  case gb_sets:is_member(Item, Items) of
+		      false -> unselected_hlite;
+		      true -> selected_hlite
+		  end
+	  end,
+    gl:color3fv(wings_pref:get_value(Key)).
 
 hilit_draw_sel(vertex, V, #we{vs=Vtab}) ->
     gl:pointSize(wings_pref:get_value(selected_vertex_size)),

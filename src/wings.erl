@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.86 2002/01/13 15:26:58 bjorng Exp $
+%%     $Id: wings.erl,v 1.87 2002/01/14 08:22:49 bjorng Exp $
 %%
 
 -module(wings).
@@ -315,11 +315,11 @@ command({edit,repeat}, St) -> St;
 command({edit,{camera_mode,Mode}}, St) ->
     wings_camera:command(Mode),
     St;
-command({edit,{preferences,Pref}}, St) ->
-    wings_pref:command(Pref),
-    St;
 command({edit,purge_undo}, St) ->
     wings_undo:purge(St);
+command({edit,{_,Pref}}, St) ->
+    wings_pref:command(Pref),
+    St;
 
 %% Select menu.
 command({select,Command}, St) ->
@@ -455,18 +455,18 @@ popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
 menu(X, Y, file, St) ->
     wings_file:menu(X, Y, St);
 menu(X, Y, edit, St) ->
-    Menu = {{"Undo/redo","Ctrl-Z",undo_toggle},
-	    {"Redo","Shift-Ctrl-Z",redo},
-	    {"Undo","Alt-Ctrl-Z",undo},
-	    separator,
-	    {command_name(St),"d",repeat},
-	    separator,
-	    wings_material:sub_menu(edit, St),
-	    separator,
-	    wings_camera:sub_menu(St),
-	    {"Preferences",{preferences,wings_pref:sub_menu(St)}},
-	    separator,
-	    {"Purge Undo History",purge_undo}},
+    Menu0 = [{"Undo/redo","Ctrl-Z",undo_toggle},
+	     {"Redo","Shift-Ctrl-Z",redo},
+	     {"Undo","Alt-Ctrl-Z",undo},
+	     separator,
+	     {command_name(St),"d",repeat},
+	     separator,
+	     wings_material:sub_menu(edit, St),
+	     separator,
+	     wings_camera:sub_menu(St)|wings_pref:menu(St)++
+	     [separator,
+	      {"Purge Undo History",purge_undo}]],
+    Menu = list_to_tuple(Menu0),
     wings_menu:menu(X, Y, edit, Menu, St);
 menu(X, Y, view, St) ->
     wings_view:menu(X, Y, St);
