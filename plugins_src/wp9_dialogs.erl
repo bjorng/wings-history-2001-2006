@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.36 2004/01/03 09:28:30 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.37 2004/01/04 10:22:17 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -99,9 +99,32 @@ dialog_1(DlgType, Types, Title, Cont, Ps) ->
 			       ok_action(Cont, Res)
 		       end,[ok,{hook,OkHook}]},
 		      {button,"Cancel",cancel,[cancel]}]}]}]},
-    Ask = fun(Res) ->
-		  %% This callback will only be used to restart the dialog.
-		  dialog_1(DlgType, Types, Title, Cont, Res)
+    Ask = fun(Res0) ->
+		  %% This callback is mainly used for restarting the dialog.
+		  case proplists:get_value(filename, Res0) of
+		      {NewFilename} ->
+			  %% Here we must ask whether an existing
+			  %% file should be overwritten.
+			  Res = [{filename,NewFilename}|Res0],
+			  YesNoQs = {vframe,
+				     [{label,NewFilename ++ " exists; overwrite?",
+				       [{break,45}]},
+				      {hframe,
+				       [{button,"Yes",
+					 fun(_) ->
+						 ok_action(Cont, Res)
+					 end},
+					{button,"No",done,[cancel]}]}]},
+			  {dialog,YesNoQs,
+			   fun(_) ->
+				   %% Will be called if the answer is No.
+				   %% Restart the file dialog.
+				   dialog_1(DlgType, Types, Title, Cont, Res)
+			   end};
+		      _ -> 
+			  %% Standard restart.
+			  dialog_1(DlgType, Types, Title, Cont, Res0)
+		  end
 	  end,
     {dialog,Qs,Ask}.
 
@@ -174,8 +197,9 @@ check_filename(Store, DlgType) ->
 		false ->
 		    {store,gb_trees:update(filename, Name1, Store)};
 		true ->
-		    wings_util:message(Name ++ " exists"),
-		    done
+		    %% Mark the filename to signal that an overwrite
+		    %% question should be asked.
+		    {done,gb_trees:update(filename, {Name1}, Store)}
 	    end
     end.
 
