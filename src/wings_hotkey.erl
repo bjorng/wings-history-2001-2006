@@ -3,12 +3,12 @@
 %%
 %%     This modules translates hotkeys.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.47 2004/10/08 06:02:29 dgud Exp $
+%%     $Id: wings_hotkey.erl,v 1.48 2004/10/15 06:14:23 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -230,14 +230,11 @@ modname(Mods) ->
 	_ -> modname_1(Mods)
     end.
 
-modname_1([ctrl|T]) ->?STR(modname_1,1,"Ctrl+")++modname_1(T);
-modname_1([shift|T]) ->?STR(modname_1,2,"Shift+")++modname_1(T);
-modname_1([alt|T]) -> ?STR(modname_1,3,"Alt+")++modname_1(T);
-modname_1([command|T]) -> ?STR(modname_1,4,"Meta+")++modname_1(T);
+modname_1([command|T]) -> "Meta+" ++modname_1(T);
+modname_1([Mod|T]) -> wings_s:modkey(Mod) ++ "+" ++modname_1(T);
 modname_1([]) -> [].
 
-mac_modname([ctrl|T], Acc) ->
-    [$^|mac_modname(T, Acc)];
+mac_modname([ctrl|T], Acc) -> [$^|mac_modname(T, Acc)];
 mac_modname([shift|T], Acc) -> mac_modname(T, [shift|Acc]);
 mac_modname([alt|T], Acc) -> mac_modname(T, [option|Acc]);
 mac_modname([command|T], Acc) -> mac_modname(T, Acc++[command]);

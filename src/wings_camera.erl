@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.106 2004/10/08 06:02:28 dgud Exp $
+%%     $Id: wings_camera.erl,v 1.107 2004/10/15 06:14:23 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -157,19 +157,23 @@ mod_format(0, But, Msg) ->
 mod_format(Mod, But, Msg) ->
     M0 = [But,?CSEP,Msg],
     M1 = if
-	     (Mod band ?SHIFT_BITS) =/= 0 -> [?STR(mod_format,1,"[Shift]+")|M0];
+	     (Mod band ?SHIFT_BITS) =/= 0 ->
+		 [wings_s:key(shift),$+|M0];
 	     true -> M0
 	 end,
     M2 = if
-	     (Mod band ?ALT_BITS) =/= 0 -> [?STR(mod_format,2,"[Alt]+")|M1];
+	     (Mod band ?ALT_BITS) =/= 0 ->
+		 [wings_s:key(alt),$+|M1];
 	     true -> M1
 	 end,
     M3 = if
-	     (Mod band ?CTRL_BITS) =/= 0 -> [?STR(mod_format,3,"[Ctrl]+")|M2];
+	     (Mod band ?CTRL_BITS) =/= 0 ->
+		 [wings_s:key(ctrl),$+|M2];
 	     true -> M2
 	 end,
     if
-	(Mod band ?META_BITS) =/= 0 -> [?STR(mod_format,4,"[Command]+")|M3];
+	(Mod band ?META_BITS) =/= 0 ->
+	    [wings_s:key(command),$+|M3];
 	true -> M3
     end.
 
@@ -217,32 +221,32 @@ button_format(LmbMsg, MmbMsg, RmbMsg) ->
 drop_last(S) ->
     reverse(tl(reverse(S))).
 
-lmb_name() -> ?STR(lmb_name,1,"L:").
+lmb_name() -> [wings_s:lmb()|":"].
 
 mmb_name() ->
     mmb_name(wings_pref:get_value(num_buttons)).
 
-mmb_name(3) -> ?STR(mmb_name,1,"M:");
+mmb_name(3) -> [wings_s:mmb()|":"];
 mmb_name(2) ->
     case wings_pref:get_value(camera_mode) of
-	blender -> [?STR(mmb_name,2,"[Alt]+")|lmb_name()];
-	nendo -> [?STR(mmb_name,3,"[Ctrl]+")|rmb_name(2)]
+	blender -> [wings_s:key(alt),$+|lmb_name()];
+	nendo -> [wings_s:key(ctrl),$+|rmb_name(2)]
     end;
-mmb_name(1) -> [?STR(mmb_name,4,"[Alt]+")|lmb_name()].
+mmb_name(1) -> [wings_s:key(alt),$+|lmb_name()].
 
 rmb_name() ->
     rmb_name(wings_pref:get_value(num_buttons)).
 
-rmb_name(1) -> ?STR(rmb_name,1,"[Ctrl]+L:");
-rmb_name(_) -> ?STR(rmb_name,2,"R:").
+rmb_name(1) -> [wings_s:key(ctrl),$+,lmb_name()];
+rmb_name(_) -> [wings_s:lmb()|":"].
 
 rmb_format(Message) ->
     RmbMod = mod_name(free_rmb_modifier()),
-    ["[",RmbMod,"]+",rmb_name(),?CSEP|Message].
+    [wings_s:key(RmbMod),$+,rmb_name(),?CSEP|Message].
 
-mod_name(?ALT_BITS) -> ?STR(mod_name,1,"Alt");
-mod_name(?CTRL_BITS) -> ?STR(mod_name,2,"Ctrl");
-mod_name(?META_BITS) -> ?STR(mod_name,3,"Command").
+mod_name(?ALT_BITS) -> wings_s:alt();
+mod_name(?CTRL_BITS) -> wings_s:ctrl();
+mod_name(?META_BITS) -> wings_s:command().
 
 join_msg([M0,M1|T]) ->
     join_msg(join_msg(M0, M1), join_msg(T));

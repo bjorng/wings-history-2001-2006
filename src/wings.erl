@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.315 2004/10/14 10:27:28 bjorng Exp $
+%%     $Id: wings.erl,v 1.316 2004/10/15 06:14:22 bjorng Exp $
 %%
 
 -module(wings).
@@ -1003,7 +1003,7 @@ define_command(?SDL_RELEASED, N, #st{repeatable=Cmd,def=DefCmd0}) ->
     Q = lists:flatten([?STR(define_command,1,"Do you want to define"),
 		       " ",wings_util:quote(CmdStr), " ",
 		       ?STR(define_command,2,"as a default command"),
-		       " ([Ctrl]+" ++ Button ++ ")?"]),
+		       " (",wings_s:key(ctrl),"+",Button,")?"]),
     wings_util:yes_no(Q,
 		      fun() ->
 			      DefCmd = setelement(N, DefCmd0, Cmd),

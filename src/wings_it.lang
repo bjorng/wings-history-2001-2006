@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.8 2004/10/15 05:33:47 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.9 2004/10/15 06:14:23 bjorng Exp $
 %%
 
 {wings,
@@ -288,8 +288,6 @@
     {4," necessita almeno 2 bottoni del mouse"},
     {5,"Nota: La modalita' "},
     {6," necessita 3 bottoni del mouse"}]},
-  {lmb_name,
-   [{1,"L:"}]},
   {message,
    [{1,"Accetta"},
     {2,"Trascina per ingrandire"},
@@ -298,20 +296,6 @@
     {5,"Sposta il mouse per ruotare la camera"},
     {6,"Annulla/Ripristina vista"},
     {7,"Ripristina vista"}]},
-  {mmb_name,
-   [{1,"M:"},
-    {2,"[Alt]+"},
-    {3,"[Ctrl]+"},
-    {4,"[Alt]+"}]},
-  {mod_format,
-   [{1,"[Maiusc]+"},
-    {2,"[Alt]+"},
-    {3,"[Ctrl]+"},
-    {4,"[Command]+"}]},
-  {mod_name,
-   [{1,"Alt"},
-    {2,"Ctrl"},
-    {3,"Command"}]},
   {mode_help,
    [{1,"Spostamento"},
     {2,"Ingrandimento"},
@@ -324,10 +308,7 @@
     {5,"In avanti, ingrandimento"},
     {6,"In avanti, rimpicciolimento"},
     {7,"Ingrandimento"},
-    {9,"Ruota del mouse"}]},
-  {rmb_name,
-   [{1,"[Ctrl]+L:"},
-    {2,"R:"}]}]}.
+    {9,"Ruota del mouse"}]}]}.
 {wings_collapse,
  [{check_consistency,
    [{1,"Collassare creerebbe una struttura inconsistente."}]},
@@ -856,11 +837,6 @@
   {list_keys,
    [{1," (definite dall'utente)"},
     {2," (definite dal modulo)"}]},
-  {modname_1,
-   [{1,"Ctrl+"},
-    {2,"Maiusc.+"},
-    {3,"Alt+"},
-    {4,"Meta+"}]},
   {vkeyname,
    [{1,"Indietro"},
     {2,"Tab"},
@@ -1434,7 +1410,7 @@
   {no,
    [{1,"No"}]},
   {shift,
-   [{1,"Shift"}]},
+   [{1,"Maiusc"}]},
   {yes,
    [{1,"Si'"}]}]}.
 {wings_scale,
