@@ -6,7 +6,7 @@
 # Configurable stuff.
 WINGS_PATH=c:/mydocu~1/wings_releases
 INSTALL=/usr/bin/install
-ERLANG_PATH=/cygdrive/c/progra~1/erl5.1.2
+ERLANG_PATH=/cygdrive/c/progra~1/erl5.2
 DEST_ROOT=$WINGS_PATH/wings3d
 ESDL_PATH=c:/mydocu~1/esdl
 NSIS=c:/progra~1/nsis/makensis-bz2
@@ -36,11 +36,12 @@ $INSTALL -c -m 644 README AUTHORS license.terms vsn.mk $dest
 $INSTALL -c -m 644 wings2.nsi $dest
 $INSTALL -c -m 644 ebin/* $dest/ebin
 
-$INSTALL -d $dest/plugins/import_export $dest/plugins/commands $dest/plugins/primitives $dest/plugins/win32_file
+$INSTALL -d $dest/plugins/import_export $dest/plugins/commands $dest/plugins/primitives $dest/plugins/win32_file $dest/plugins/autouv
 $INSTALL -c -m 644 plugins/import_export/* $dest/plugins/import_export
 $INSTALL -c -m 644 plugins/commands/* $dest/plugins/commands
 $INSTALL -c -m 644 plugins/primitives/* $dest/plugins/primitives
 $INSTALL -c -m 644 plugins/win32_file/* $dest/plugins/win32_file
+$INSTALL -c -m 644 plugins/autouv/* $dest/plugins/autouv
 
 # Copy the relevant parts of ESDL into the application.
 
