@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.29 2003/01/17 21:10:47 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.30 2003/01/30 13:00:49 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -38,6 +38,8 @@ menu(X, Y, _) ->
 	     separator,
 	     {"Light",{light,wings_light:light_types()}},
 	     {"Material...",material},
+	     {"Image...",image},
+	     separator,
 	     {"More",{more,[]},"More primitives"}],
     Menu = [prim_help(Item) || Item <- Menu0],
     wings_menu:popup_menu(X, Y, shape, Menu).
@@ -65,7 +67,8 @@ command({sphere,Ask}, St) -> sphere(Ask, St);
 command({torus,Ask}, St) -> torus(Ask, St);
 command({grid,Ask}, St) -> grid(Ask, St);
 command({light,Type}, St) -> wings_light:create(Type, St);
-command(material, St) -> wings_material:new(St).
+command(material, St) -> wings_material:new(St);
+command(image, St) -> wings_image:create(St).
 
 build_shape(Prefix, Fs, Vs, #st{onext=Oid}=St) ->
     We = wings_we:build(Fs, Vs),

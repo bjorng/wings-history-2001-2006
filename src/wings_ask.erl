@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.63 2003/01/27 18:09:50 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.64 2003/01/30 13:00:47 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -69,6 +69,8 @@ ask(Bool, Title, Qs0, Fun) ->
 
 ask_unzip(Qs) ->
     ask_unzip(Qs, [], []).
+ask_unzip([{Label,{menu,_,_}=Menu}|T], AccA, AccB) ->
+    ask_unzip(T, [{label,Label}|AccA], [Menu|AccB]);
 ask_unzip([{Label,Def}|T], AccA, AccB) ->
     ask_unzip(T, [{label,Label}|AccA], [{text,Def}|AccB]);
 ask_unzip([{Label,Def,Flags}|T], AccA, AccB) ->

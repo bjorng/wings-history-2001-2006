@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.10 2003/01/30 10:31:04 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.11 2003/01/30 13:00:48 bjorng Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
-	 from_file/1,new/2,rename/2,txid/1,info/1,images/0,
+	 from_file/1,new/2,create/1,rename/2,txid/1,info/1,images/0,
 	 next_id/0,delete_older/1,delete_from/1,
 	 update/2,update_filename/2,draw_preview/5,
 	 window/1]).
@@ -45,6 +45,10 @@ from_file(Filename) ->
 
 new(Name, E3DImage) ->
     req({new,E3DImage#e3d_image{name=Name}}).
+
+create(St) ->
+    create_image(),
+    St.
 
 rename(Id, NewName) ->
     req({rename,Id,NewName}).
@@ -355,3 +359,111 @@ draw_image(X, Y, W, H, TxId, #e3d_image{order=Order}) ->
     gl:texCoord2i(Ub, Va),
     gl:vertex2i(X+W, Y),
     gl:'end'().
+
+%%%
+%%% Creating images with pre-defined patterns.
+%%%
+
+create_image() ->
+    Qs = [{"Width",256,[{range,{8,1024}}]},
+	  {"Height",256,[{range,{8,1024}}]},
+	  {"Pattern",{menu,[{"Grid",grid},
+			    {"Checkerboard",checkerboard},
+			    {"Vertical Bars",vbars},
+			    {"Horizontal Bars",hbars},
+			    {"White",white},
+			    {"Black",black}],
+		      grid}}],
+    wings_ask:ask("Create Image", Qs,
+		  fun([W,H,Pattern]) ->
+			  create_image_1(Pattern, W, H),
+			  ignore
+		  end).
+
+create_image_1(Pattern, W, H) ->
+    Pixels = pattern(Pattern, W, H),
+    Im = #e3d_image{width=W,height=H,image=Pixels,order=upper_left},
+    new(atom_to_list(Pattern), Im).
+
+pattern(grid, W, H) ->
+    grid(W, H);
+pattern(checkerboard, W, H) ->
+    checkerboard(W, H);
+pattern(vbars, W, H) ->
+    vertical_bars(W, H);
+pattern(hbars, W, H) ->
+    horizontal_bars(W, H);
+pattern(white, W, H) ->
+    all_white(W, H);
+pattern(black, W, H) ->
+    all_black(W, H).
+
+%% Generate a grid image.
+grid(Width, Height) ->
+    White = [255,255,255],
+    Black = [0,0,0],
+    WhiteRow = pattern_repeat(Width, White),
+    BlackRow = pattern_repeat(15, Black),
+    R0 = pattern_repeat(15*(Width div 16), [White,BlackRow]),
+    R = [WhiteRow|R0],
+    All = pattern_repeat(Height div 16, R),
+    list_to_binary(All).
+
+%% Generate a checkerboard image of 4x4 squares 
+%% with given side length in pixels.
+checkerboard(Width, Height) ->
+    White = [255,255,255],
+    Black = [0,0,0],
+    FourWhite = pattern_repeat(4, White),
+    FourBlack = pattern_repeat(4, Black),
+    R1 = pattern_repeat(Width div 8, [FourBlack|FourWhite]),
+    R2 = pattern_repeat(Width div 8, [FourWhite|FourBlack]),
+    R8 = [pattern_repeat(4, [R1])|pattern_repeat(4, [R2])],
+    list_to_binary(pattern_repeat(Height div 8, R8)).
+
+%% Generate a vertical bars image of 4 pixels width 
+%% with given side length in pixels.
+vertical_bars(Width, Height) ->
+    W = [255,255,255],
+    B = [0,0,0],
+    W4 = pattern_repeat(4, W),
+    B4 = pattern_repeat(4, B),
+    R = pattern_repeat(Width div 8, [B4|W4]),
+    R8 = pattern_repeat(8, [R]),
+    list_to_binary(pattern_repeat(Height div 8, [R8])).
+
+%% Generate a horizontal bars image of 4 pixels width 
+%% with given side length in pixels.
+horizontal_bars(Width, Height) ->
+    W = [255,255,255],
+    B = [0,0,0],
+    W8 = pattern_repeat(8, W),
+    B8 = pattern_repeat(8, B),
+    WR4 = pattern_repeat(4*(Width div 8), [W8]),
+    BR4 = pattern_repeat(4*(Width div 8), [B8]),
+    list_to_binary(pattern_repeat(Height div 8, [BR4|WR4])).
+
+%% Generate an all white image
+%% with given side length in pixels.
+all_white(Width, Height) ->
+    solid(Width, Height, [255,255,255]).
+
+%% Generate an all white image
+%% with given side length in pixels.
+all_black(Width, Height) ->
+    solid(Width, Height, [0,0,0]).
+
+solid(Width, Height, Point) ->
+    P8 = pattern_repeat(8, Point),
+    R = pattern_repeat(Width div 8, P8),
+    R8 = pattern_repeat(8, R),
+    list_to_binary(pattern_repeat(Height div 8, R8)).
+
+pattern_repeat(0, _) -> [];
+pattern_repeat(1, D) -> [D];
+pattern_repeat(N, D) ->
+    B = pattern_repeat(N div 2, D),
+    case N rem 2 of
+	0 -> [B|B];
+	1 -> [D,B|B]
+    end.
