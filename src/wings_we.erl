@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.48 2003/02/13 20:25:15 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.49 2003/03/20 06:03:30 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -26,7 +26,7 @@
 	 separate/1,
 	 normals/1,
 	 new_items/3,
-	 is_consistent/1]).
+	 is_consistent/1,is_face_consistent/2]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -821,6 +821,13 @@ is_consistent(#we{}=We) ->
 	true -> true
     end.
 
+is_face_consistent(Face, #we{fs=Ftab}=We) ->
+    #face{edge=Edge} = gb_trees:get(Face, Ftab),
+    case catch validate_face(Face, Edge, We) of
+	true -> true;
+	_ -> false
+    end.
+
 validate_we(We) ->
     validate_vertex_tab(We),
     validate_faces(We),
@@ -828,13 +835,16 @@ validate_we(We) ->
     
 validate_faces(#we{fs=Ftab}=We) ->
     foreach(fun({Face,#face{edge=Edge}}) ->
-		    Cw = walk_face_cw(Face, Edge, Edge, We, []),
-		    Ccw = walk_face_ccw(Face, Edge, Edge, We, []),
- 		    case reverse(Ccw) of
- 			Cw -> validate_face_vertices(Cw);
- 			_Other -> exit({face_cw_ccw_inconsistency,Face})
- 		    end
+		    validate_face(Face, Edge, We)
 	    end, gb_trees:to_list(Ftab)).
+
+validate_face(Face, Edge, We) ->
+    Cw = walk_face_cw(Face, Edge, Edge, We, []),
+    Ccw = walk_face_ccw(Face, Edge, Edge, We, []),
+    case reverse(Ccw) of
+	Cw -> validate_face_vertices(Cw);
+	_Other -> exit({face_cw_ccw_inconsistency,Face})
+    end.
 
 validate_face_vertices(Vs) ->
     validate_face_vertices_1(sort(Vs)).
@@ -843,7 +853,7 @@ validate_face_vertices_1([V,V|_]) ->
     exit(repeated_vertex);
 validate_face_vertices_1([_|T]) ->
     validate_face_vertices_1(T);
-validate_face_vertices_1([]) -> ok.
+validate_face_vertices_1([]) -> true.
 
 walk_face_cw(_Face, LastEdge, LastEdge, _We, [_|_]=Acc) -> Acc;
 walk_face_cw(Face, Edge, LastEdge, We, Acc) ->

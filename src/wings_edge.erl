@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.63 2003/02/26 15:38:36 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.64 2003/03/20 06:03:29 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -417,6 +417,7 @@ dissolve_edge(Edge, #we{es=Etab}=We0) ->
 	{value,Rec} -> 
 	    case catch dissolve_edge(Edge, Rec, We0) of
 		{'EXIT',Reason} -> exit(Reason);
+		{command_error,_}=Error -> throw(Error);
 		hole -> We0;
 		We -> We
 	    end
@@ -472,14 +473,18 @@ dissolve_edge(Edge, FaceRemove, FaceKeep, Rec,
     Vct = wings_vertex:patch_vertex(Vend, RS, Vct1),
 
     %% Return result.
-    We = We0#we{es=Etab,fs=Ftab,vc=Vct,he=Htab},
+    We1 = We0#we{es=Etab,fs=Ftab,vc=Vct,he=Htab},
     #face{edge=AnEdge} = gb_trees:get(FaceKeep, Ftab),
-    case gb_trees:get(AnEdge, Etab) of
-	#edge{lf=FaceKeep,ltpr=Same,ltsu=Same} ->
-	    dissolve_edge(AnEdge, We);
-	#edge{rf=FaceKeep,rtpr=Same,rtsu=Same} ->
-	    dissolve_edge(AnEdge, We);
-	_Other -> We
+    We = case gb_trees:get(AnEdge, Etab) of
+	     #edge{lf=FaceKeep,ltpr=Same,ltsu=Same} ->
+		 dissolve_edge(AnEdge, We1);
+	     #edge{rf=FaceKeep,rtpr=Same,rtsu=Same} ->
+		 dissolve_edge(AnEdge, We1);
+	     _Other -> We1
+	 end,
+    case wings_we:is_face_consistent(FaceKeep, We) of
+	true -> We;
+	false -> wings_util:error("Dissolving would create a badly formed face.")
     end.
 
 %% dissolve(Vertex, We) -> We|error
