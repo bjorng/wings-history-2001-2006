@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.31 2003/10/28 05:16:33 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.32 2003/10/30 22:21:55 dgud Exp $
 %%
 
 -module(wings_image).
@@ -135,11 +135,14 @@ loop(S0) ->
 		    Client ! {Ref,Resp}
 	    end,
 	    loop(S);
+	reload ->
+	    ?MODULE:loop(S0);
 	Other ->
 	    exit({bad_message_to_wings_image,Other})
     end.
 
 handle(init_opengl, #ist{images=Images}=S) ->
+    erase(), %% Forget all textures!
     foreach(fun({Id,Image}) ->
 		    make_texture(Id, Image)
 	    end, gb_trees:to_list(Images)),
@@ -215,11 +218,31 @@ handle({draw_preview,X,Y,W,H,Id}, S) ->
      end,S}.
 
 create_bump(Id, #ist{images=Images0}) ->
+    delete_bump(Id),  %% update case..
     case gb_trees:lookup(Id, Images0) of
 	{value, E3D} -> 
 	    %% Scale ?? 4 is used in the only example I've seen.
-	    Bump = e3d_image:height2normal(E3D, 4),
-	    make_texture({Id,bump}, Bump);
+	    gl:pushAttrib(?GL_TEXTURE_BIT),
+	    Img = maybe_scale(maybe_convert(E3D)),
+	    {#e3d_image{width=W,height=H,image=Bits},MipMaps} 
+		= e3d_image:height2normal(Img, 4, true),
+	    [TxId] = gl:genTextures(1),
+	    put({Id,bump}, TxId),
+	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+	    gl:enable(?GL_TEXTURE_2D),
+	    gl:bindTexture(?GL_TEXTURE_2D, TxId),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR_MIPMAP_LINEAR),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
+	    gl:texImage2D(?GL_TEXTURE_2D,0,?GL_RGB,W,H,0,?GL_RGB,?GL_UNSIGNED_BYTE,Bits),
+ 	    Load = fun({Level,MW,MH, Bin}) ->
+ 			   gl:texImage2D(?GL_TEXTURE_2D,Level,?GL_RGB,MW,MH,0,
+ 					 ?GL_RGB, ?GL_UNSIGNED_BYTE, Bin)
+ 		   end,
+	    [Load(MM) || MM <- MipMaps],
+	    gl:popAttrib(),
+	    TxId;
 	_ ->
 	    none
     end.
@@ -385,8 +408,7 @@ do_update(Id, In = #e3d_image{width=W,height=H,type=Type},
 	undefined ->     
 	    S#ist{images=Images};
 	_Bid -> 
-	    Bump = e3d_image:height2normal(Im, 4),
-	    do_update({Id,bump}, Bump, S#ist{images=Images})
+	    create_bump(Id, S#ist{images=Images})
     end.
 
 make_unique(Name, Images0) ->
@@ -621,6 +643,7 @@ pattern_repeat(N, D) ->
 make_normalize_vector_cubemap(Size) ->
     gl:texParameteri(?GL_TEXTURE_CUBE_MAP, ?GL_TEXTURE_WRAP_S, ?GL_CLAMP_TO_EDGE),
     gl:texParameteri(?GL_TEXTURE_CUBE_MAP, ?GL_TEXTURE_WRAP_T, ?GL_CLAMP_TO_EDGE),
+    gl:texParameteri(?GL_TEXTURE_CUBE_MAP, ?GL_TEXTURE_WRAP_R, ?GL_CLAMP_TO_EDGE),
     gl:texParameteri(?GL_TEXTURE_CUBE_MAP, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
     gl:texParameteri(?GL_TEXTURE_CUBE_MAP, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
 
