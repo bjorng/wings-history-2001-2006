@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.107 2003/06/03 08:01:05 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.108 2003/06/05 07:24:39 dgud Exp $
 %%
 
 -module(wings_wm).
@@ -76,6 +76,12 @@
 	 menubar=[]				%Menubar for this window.
 	}).
 
+-define(ACCUM_R, ?SDL_GL_ACCUM_RED_SIZE).
+-define(ACCUM_G, ?SDL_GL_ACCUM_GREEN_SIZE).
+-define(ACCUM_B, ?SDL_GL_ACCUM_BLUE_SIZE).
+-define(ACCUM_A, ?SDL_GL_ACCUM_ALPHA_SIZE).
+
+
 %%%
 %%% Process dictionary usage:
 %%%
@@ -97,8 +103,28 @@ init() ->
     {W,H} = TopSize = wings_pref:get_value(window_size),
     put(wm_top_size, TopSize),
 
-    %% Make sure that this vide mode works. Otherwise crash early.
-    set_video_mode(W, H),
+    %% Make sure that some vide mode works. Otherwise crash early.
+    %% From best to worst 
+    OpenGLModes = [[{?SDL_GL_BUFFER_SIZE,32},{?SDL_GL_DEPTH_SIZE,32},{?SDL_GL_STENCIL_SIZE,8},
+		    {?ACCUM_R,16},{?ACCUM_G,16},{?ACCUM_B,16},{?ACCUM_A, 16}],
+		   [{?SDL_GL_BUFFER_SIZE,24},{?SDL_GL_DEPTH_SIZE,32},{?SDL_GL_STENCIL_SIZE,8},
+		    {?ACCUM_R,16},{?ACCUM_G,16},{?ACCUM_B,16},{?ACCUM_A, 16}],
+		   [{?SDL_GL_BUFFER_SIZE,24},{?SDL_GL_DEPTH_SIZE,24},{?SDL_GL_STENCIL_SIZE,8},
+		    {?ACCUM_R,16},{?ACCUM_G,16},{?ACCUM_B,16},{?ACCUM_A, 16}],
+		   [{?SDL_GL_BUFFER_SIZE,24},{?SDL_GL_DEPTH_SIZE,24},{?SDL_GL_STENCIL_SIZE,0},
+		    {?ACCUM_R,0},{?ACCUM_G,0},{?ACCUM_B,0},{?ACCUM_A, 0}],
+		   [{?SDL_GL_BUFFER_SIZE,24},{?SDL_GL_DEPTH_SIZE,16},{?SDL_GL_STENCIL_SIZE,0},
+		    {?ACCUM_R,16},{?ACCUM_G,16},{?ACCUM_B,16},{?ACCUM_A, 16}],
+		   [{?SDL_GL_BUFFER_SIZE,24},{?SDL_GL_DEPTH_SIZE,16},{?SDL_GL_STENCIL_SIZE,0},
+		    {?ACCUM_R,0},{?ACCUM_G,0},{?ACCUM_B,0},{?ACCUM_A, 0}],
+		   [{?SDL_GL_BUFFER_SIZE,16},{?SDL_GL_DEPTH_SIZE,16},{?SDL_GL_STENCIL_SIZE,0},
+		    {?ACCUM_R,16},{?ACCUM_G,16},{?ACCUM_B,16},{?ACCUM_A, 16}],
+		   [{?SDL_GL_BUFFER_SIZE,16},{?SDL_GL_DEPTH_SIZE,16},{?SDL_GL_STENCIL_SIZE,0},
+		    {?ACCUM_R,0},{?ACCUM_G,0},{?ACCUM_B,0},{?ACCUM_A, 0}],
+		   [{?SDL_GL_BUFFER_SIZE,15},{?SDL_GL_DEPTH_SIZE,16},{?SDL_GL_STENCIL_SIZE,0},
+		    {?ACCUM_R,0},{?ACCUM_G,0},{?ACCUM_B,0},{?ACCUM_A, 0}]
+		  ],
+    try_video_mode(OpenGLModes),
     wings_util:init_gl_extensions(),
 
     translation_change(),
@@ -641,6 +667,22 @@ possible_intersection(#win{x=X,y=Y,w=W,h=H}, {Left,Top,Right,Bot}) ->
 
 reinit_opengl() ->
     wings_io:putback_event({wm,init_opengl}).
+
+try_video_mode([[{Prop, Value}|Values]| All]) ->
+    sdl_video:gl_setAttribute(Prop, Value),
+    try_video_mode([Values|All]);
+try_video_mode([[]|Rest]) ->
+    {W,H} = get(wm_top_size),
+    case catch set_video_mode(W, H) of
+	ok ->
+	    io:format("\n",[]),
+	    ok;
+	_ ->
+	    io:format(".",[]),
+	    try_video_mode(Rest)
+    end;
+try_video_mode([]) ->
+    erlang:fault("No opengl video mode found\n").
 
 init_opengl() ->
     {W,H} = get(wm_top_size),
