@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.43 2003/10/30 15:15:16 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.44 2003/11/09 13:50:44 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -77,7 +77,9 @@ command({scale,Type}, St) ->
 command(vertex_color, St) ->
     wings_color:choose(fun(Color) ->
 			       set_color(Color, St)
-		       end).
+		       end);
+command({'ASK',Ask}, St) ->
+    wings:ask(Ask, St, fun command/2).
     
 %%%
 %%% The Flatten command.
