@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.9 2004/02/11 05:29:53 bjorng Exp $
+%%     $Id: wings_pb.erl,v 1.10 2004/02/22 06:02:00 bjorng Exp $
 %%
 
 -module(wings_pb).
@@ -17,7 +17,8 @@
 -include("wings.hrl").
 
 -export([start/1,update/1,update/2,pause/0,
-	 done/0,done/1,done_stat/0,done_stat/1]).
+	 done/0,done/1,done_stat/0,done_stat/1,
+	 cancel/0]).
 
 -export([init/0,loop/1]).
 
@@ -52,28 +53,21 @@ done_stat(Ret) ->
     Stat(),
     Ret.
 
+cancel() ->
+    call(cancel).
+
 %% Helpers
 
 call(What) ->
-    case whereis(?PB) of
-	undefined ->
-	    {error, not_running};
-	Pid ->
-	    Pid ! {self(), ?PB, What},
-	    receive 
-		{?PB, Res} ->
-		    Res
-	    end
+    ?PB ! {self(),?PB,What},
+    receive
+	{?PB,Res} ->
+	    Res
     end.
 
 cast(What) ->
-    case whereis(?PB) of
-	undefined ->
-	    {error, not_running};
-	Pid ->
-	    Pid ! {?PB, What},
-	    ok
-    end.
+    ?PB ! {?PB,What},
+    ok.
 
 reply(Pid, What) ->
     Pid ! {?PB,What},
@@ -101,6 +95,9 @@ init() ->
 
 loop(#state{refresh=After,level=Level}=S0) ->
     receive
+	{Pid,?PB,cancel} ->
+	    reply(Pid, ok),
+	    loop(#state{});
 	{?PB,{start,Msg,_Data,{X,Y,W,H}}} when Level =:= 0 ->
 	    S = #state{refresh=?REFRESH_T,level=1,
 		       msg=["",Msg],t0=now()},

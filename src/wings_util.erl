@@ -3,12 +3,12 @@
 %%
 %%     Various utility functions that not obviously fit somewhere else.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.88 2003/12/10 15:02:23 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.89 2004/02/22 06:02:05 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -42,10 +42,11 @@
 -import(lists, [foreach/2,map/2,foldl/3,reverse/1,member/2,last/1]).
 
 error(Message) when is_list(Message) ->
+    wings_pb:cancel(),
     throw({command_error,Message}).
 
 error(Format, Arg) ->
-    throw({command_error,lists:flatten(io_lib:format(Format, Arg))}).
+    error(lists:flatten(io_lib:format(Format, Arg))).
     
 share(X, X, X) -> {X,X,X};
 share(X, X, Z) -> {X,X,Z};
