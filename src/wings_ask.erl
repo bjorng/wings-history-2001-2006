@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.83 2003/06/02 05:50:56 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.84 2003/06/15 04:41:04 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1393,15 +1393,11 @@ integer_range(Min, Max) ->
     end.
 
 float_range(Min, Max) ->
-    fun(Str0) ->
-	    Str = case Str0 of
-		      [$.|_] -> [$0|Str0];
-		      _ -> Str0
-		  end,
-	    case catch list_to_float(Str) of
-		{'EXIT',_} -> float_to_list(Min);
-		Float when Float < Min -> float_to_list(Min);
-		Float when Float > Max -> float_to_list(Max);
+    fun(Str) ->
+	    case string_to_float(Str) of
+		error -> wings_util:nice_float(Min);
+		Float when Float < Min -> wings_util:nice_float(Min);
+		Float when Float > Max -> wings_util:nice_float(Max);
 		Float when is_float(Float) -> ok
 	    end
     end.
@@ -1412,21 +1408,27 @@ text_get_val(#text{last_val=OldVal}=Ts) when is_integer(OldVal) ->
 	Val -> Val
     end;
 text_get_val(#text{last_val=Val}=Ts) when is_float(Val) ->
-    Text = case get_text(Ts) of
-	       [$.|_]=T -> [$0|T];
-	       [$-|[$.|_]=T] -> [$-,$0|T];
-	       T -> T
-	   end,
-    case catch list_to_float(Text) of
-	Float when is_float(Float) -> Float;
-	_Other ->
-	    case catch list_to_integer(Text) of
-		Int when is_integer(Int) -> float(Int);
-		_Crash -> 0.0
-	    end
+    case string_to_float(get_text(Ts)) of
+	error -> 0.0;
+	F -> F
     end;
 text_get_val(#text{last_val=Val}=Ts) when is_list(Val) ->
     get_text(Ts).
+
+string_to_float(Str0) ->
+    Str = case Str0 of
+	      [$.|_]=T -> [$0|T];
+	      [$-|[$.|_]=T] -> [$-,$0|T];
+	      T -> T
+	  end,
+    case catch list_to_float(Str) of
+	Float when is_float(Float) -> Float;
+	_Other ->
+	    case catch list_to_integer(Str) of
+		Int when is_integer(Int) -> float(Int);
+		_Crash -> error
+	    end
+    end.
 
 gen_text_handler({redraw,Active}, Fi, Ts, Common) ->
     draw_text(Active, Fi, Ts, Common);
