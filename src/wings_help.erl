@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.59 2003/11/13 18:22:29 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.60 2003/12/06 08:34:36 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -68,7 +68,7 @@ getting_started() ->
 
 	    "To use mice with only one or two buttons, "
 	    "you must inform Wings how many buttons your mouse has "
-	    "in the Edit|Camera Settings dialog box.",
+	    "in the Edit|Preferences dialog box.",
 
 	    "Generally, L (left mouse button) is used for selecting and "
 	    "accepting, M (middle mouse button) for operating the camera, "
@@ -80,16 +80,20 @@ getting_started() ->
 one_or_two() ->
     Help = ["To use mice with only one or two buttons, "
 	    "you must inform Wings how many buttons your mouse has "
-	    "in the Edit|Camera Mode dialog box."],
+	    "in the Edit|Preferences dialog box.",
+
+	    "Note that only the Nendo and Blender modes can be "
+	    "used with a two-button mouse. Only the Nendo mode can "
+	    "be used with one-button mouse."],
     help_window("Using a mouse with One or Two buttons", Help).
 
 advanced_menus() ->
-    Help = ["In the Edit|Advanced Preferences dialog box, there is a check box "
+    Help = ["In the Edit|Preferences dialog box, there is a check box "
 	    "for \"Advanced Menus\".",
 
 	    "Activating advanced menus provide the following additional features:",
 
-	    "New commands: Face | Put On and Face | Lift",
+	    "New commands: Face|Put On and Face|Lift",
 
 	    "Vector based operations: The means to specify an axis (or vector) "
 	    "and to be able to re-locate it so it passes though a new point.",
@@ -130,7 +134,7 @@ international() ->
     help_window("French And German Keyboards", Help).
 
 def_commands() ->
-    Help = ["In the Edit|Advanced Preferences dialog box, you can turn on "
+    Help = ["In the Edit|Preferences dialog box, you can turn on "
 	    "\"Default Commands\".",
 
 	    "Two default commands can be defined. To save the "
