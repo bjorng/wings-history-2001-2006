@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.79 2004/06/01 05:18:03 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.80 2004/06/02 04:26:19 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -27,7 +27,7 @@
 	 normals/2,
 	 new_items/3,
 	 is_consistent/1,is_face_consistent/2,
-	 hide_faces/2,any_hidden/1,visible/1,visible/2]).
+	 hide_faces/2,show_faces/1,any_hidden/1,visible/1,visible/2]).
 
 -include("wings.hrl").
 -include("e3d.hrl").
@@ -138,6 +138,29 @@ visible_1(Fs) -> Fs.
 visible_2([F|Fs]) when F < 0 -> visible_2(Fs);
 visible_2(Fs) -> Fs.
 
+show_faces(We) ->
+    case any_hidden(We) of
+	false -> We;
+	true -> show_faces_1(We)
+    end.
+
+show_faces_1(#we{es=Etab0}=We0) ->
+    Etab1 = gb_trees:to_list(Etab0),
+    Etab2 = foldl(fun({E,#edge{lf=Lf0,rf=Rf0}=R0}, A) ->
+			  Lf = show_face(Lf0),
+			  Rf = show_face(Rf0),
+			  case R0#edge{lf=Lf,rf=Rf} of
+			      R0 -> [{E,R0}|A];
+			      R -> [{E,R}|A]
+			  end
+		  end, [], Etab1),
+    Etab = gb_trees:from_orddict(reverse(Etab2)),
+    We = We0#we{es=Etab,fs=undefined},
+    rebuild(We).
+
+show_face(F) when F < 0 -> -F-1;
+show_face(F) -> F.
+    
 %%%
 %%% Build Winged-Edges.
 %%%
