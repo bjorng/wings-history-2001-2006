@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.24 2004/06/02 04:57:55 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.25 2004/08/17 10:34:36 dgud Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -304,7 +304,7 @@ seg_map_charts_1([{Fs,We0}|Cs], Type, Id, N, Acc,
 		 #seg{we=#we{id=OrigId},st=St0}=Ss) ->
     wings_pb:update(Id/N, lists:flatten(io_lib:format("chart ~w/~w", [Id,N]))),
     We1 = auv_segment:finalize_chart(Fs, We0#we{id=Id}),
-    case auv_mapping:map_chart(Type, We1) of
+    case auv_mapping:map_chart(Type, We1, none) of
 	{error,Message} ->
 	    wings_pb:done(),
 	    wings_util:message(Message),

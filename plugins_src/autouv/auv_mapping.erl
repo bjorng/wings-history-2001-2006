@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.58 2004/05/31 16:58:06 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.59 2004/08/17 10:34:36 dgud Exp $
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -40,7 +40,7 @@
 
 -export([lsq/2, lsq/3, find_pinned/2]). % Debug entry points
 -export([stretch_opt/2, area2d2/3,area3d/3]).
--export([map_chart/2, project2d/3]).
+-export([map_chart/3, project2d/3]).
 
 %% Internal exports.
 -export([model_l2/5]).
@@ -78,7 +78,7 @@ tc(Module, Line, Fun) ->
 %    %%		?DBG("Projected by ~p using camera ~p ~n", [N2, _CI]),
 %    [create_area(Clustered, N2, We0)];
 
-map_chart(Type, We) ->
+map_chart(Type, We, Pinned) ->
     Faces = wings_we:visible(We),
     case wpa:face_outer_edges(Faces, We) of
 	[] ->
@@ -87,16 +87,18 @@ map_chart(Type, We) ->
 	     "or cut it along some edges.)"};
 	[[_,_]] ->
 	    {error,"A cut in a closed surface must consist of at least two edges."};
+	_ when is_list(Pinned), length(Pinned) < 2 ->
+		  {error, "Atleast 2 vertices must be selected"};
 	[_] ->
-	    map_chart_1(Type, Faces, We);
+	    map_chart_1(Type, Faces, Pinned, We);
 	[_,_|_] ->
-	    map_chart_1(Type, Faces, We)
+	    map_chart_1(Type, Faces, Pinned, We)
 	    %% For the moment at least, allow holes.
             %%{error,"A chart is not allowed to have holes."}
     end.
 
-map_chart_1(Type, Chart, We) ->
-    case catch map_chart_2(Type, Chart, We) of
+map_chart_1(Type, Chart, Pinned, We) ->
+    case catch map_chart_2(Type, Chart, Pinned, We) of
 	{'EXIT',{badarith,_}} when Type == project ->
 	    {error,"Numeric problem. (Probably impossible to calculate chart normal.)"};
 	{'EXIT',{badarith,_}} ->
@@ -107,10 +109,8 @@ map_chart_1(Type, Chart, We) ->
 	Other -> Other
     end.
 
-map_chart_2(project, C, We) -> projectFromChartNormal(C, We);
-map_chart_2(lsqcm, C, We) -> lsqcm(C, We);
-map_chart_2(lsqcm2, C, We) -> lsqcm2(C, We).
-
+map_chart_2(project, C, _, We) -> projectFromChartNormal(C, We);
+map_chart_2(lsqcm, C, Pinned, We) -> lsqcm(C, Pinned, We).
 
 projectFromChartNormal(Chart, We) ->
     CalcNormal = fun(Face, Sum) ->
@@ -182,16 +182,25 @@ get_verts([#e3d_face{vs = Vs}|Fs],I,Coords,Acc) ->
 get_verts([],I,_,Acc) ->
     {Acc, I}.
 
-lsqcm(Fs, We) ->
+lsqcm(Fs, Pinned0, We = #we{vp=Vtab}) ->
     ?DBG("Project and tri ~n", []),
     {Vs1,Area} = project_and_triangulate(Fs,We,-1,[],0.0),
-    {V1, V2} = find_pinned(Fs, We),
-    ?DBG("LSQ ~p ~p~n", [V1,V2]),
+    Pinned = case Pinned0 of
+		 none -> 
+		     {V1, V2} = find_pinned(Fs, We),
+		     [V1,V2];
+		 _ -> 
+		     lists:map(fun(V) -> 
+				       {Xp,Yp,_} = gb_trees:get(V,Vtab),
+				       {V,{Xp,Yp}}
+			       end, Pinned0)
+	     end,
+    ?DBG("LSQ ~p~n", Pinned),
 %    Idstr = lists:flatten(io_lib:format("~p", [Id])),
 %    {ok, Fd} = file:open("raimo_" ++ Idstr, [write]),
 %    io:format(Fd, "{~w, ~w}.~n", [Vs1,[V1,V2]]),
 %    file:close(Fd),
-    case lsq(Vs1, [V1,V2]) of
+    case lsq(Vs1, Pinned) of
 	{error, What} ->
 	    ?DBG("TXMAP error ~p~n", [What]),
 	    exit({txmap_error, What});
@@ -204,123 +213,6 @@ lsqcm(Fs, We) ->
 	    Scale = Area/MappedArea,
 	    scaleVs(Vs3,math:sqrt(Scale),[])
     end.
-
-%%
-%%  We have extended the lsqcm idea with a separate pass to generate good
-%%  borders, then we use the result of the first pass as input to the second
-%%  pass when we generate the whole chart.
-%%
-lsqcm2(Fs, We) ->
-    Vs = lists:append(wings_vertex:outer_partition(Fs,We)),
-    OVs = gb_sets:from_list(Vs),    
-    IEds = wings_face:inner_edges(Fs,We),
-    case has_inner_vs(IEds, OVs, We#we.es) of
-	false ->  %% We don't want the 2pass algo for one face charts..
-	    lsqcm(Fs,We);  
-	_ -> 
-	    lsqcm2impl(Fs, We)
-    end.
-
-has_inner_vs([Edge|Rest], Ovs, Etab) ->
-    #edge{vs = Va, ve = Vb} = gb_trees:get(Edge, Etab),
-    case gb_sets:is_member(Va,Ovs) andalso gb_sets:is_member(Vb,Ovs) of
-	true ->
-	    has_inner_vs(Rest,Ovs, Etab);
-	false ->
-	    true
-    end;
-has_inner_vs([], _, _) ->
-    false.
-
-lsqcm2impl(Fs, We) ->
-    ?DBG("LSQCM2 => Project and tri ~n", []),
-    {CF, BorderEds} = find_border_edges(Fs,We),
-    {P1,P2} = find_pinned_from_edges(BorderEds, CF, We),
- 
-    FsSet = gb_sets:from_list(Fs),
-    {TempFs,BorderVs} = 
-	foldl(fun({Va,Vb,E,_}, {Faces,Verts}) ->
-		      #edge{lf=LF,rf=RF} = gb_trees:get(E,We#we.es),
-		      case gb_sets:is_member(LF, FsSet) of
-			  true ->
-			      {[LF|Faces],[Va,Vb|Verts]};
-			  false ->
-			      {[RF|Faces],[Va,Vb|Verts]}
-		      end
-	      end, {[],[]}, BorderEds),
-    BorderVsSet = gb_sets:from_list(BorderVs),
-    TempFsSet = gb_sets:from_list(TempFs),
-    DelFs = gb_sets:difference(FsSet, TempFsSet),
-    %% Create a new face, we are not allowed to have holes, right Bjorn :-)
-    TempWe = wings_face_cmd:dissolve(DelFs, We),
-    InnerFaces = gb_sets:to_list(wings_we:new_items(face, We, TempWe)),
-    ?DBG("BordersFaces ~p ~p ~n", [TempFs, InnerFaces]),
-    {Vs0,_} = project_and_triangulate(InnerFaces ++ TempFs,TempWe,-1,[],0.0),
-
-    {ok,PBVs}  = lsq(Vs0,[P1,P2]),
-    PinnedBorder = foldl(fun(PV = {Vid, _}, Acc) ->
-				 case gb_sets:is_member(Vid,BorderVsSet) of
-				     true -> [PV|Acc];
-				     false -> Acc
-				 end
-			 end, [], PBVs),
-    ?DBG("LSQ2 (2pass) ~p ~n", [PinnedBorder]),
-    {Vs1,Area} = project_and_triangulate(Fs,We,-1,[],0.0),
-    case lsq(Vs1, PinnedBorder) of
- 	{error, What2} ->
- 	    ?DBG("TXMAP (second pass) error ~p~n", [What2]),
- 	    exit({txmap_error2, What2});
- 	{ok,Vs2} ->
- %	    ?DBG("LSQ res ~p~n", [Vs2]),
- 	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,{Ut,Vt,0.0}} end,
- 	    Vs3 = lists:sort(lists:map(Patch, Vs2)),
- 	    TempVs = gb_trees:from_orddict(Vs3),
- 	    MappedArea = calc_2dface_area(Fs, We#we{vp=TempVs}, 0.0),
- 	    Scale = Area/MappedArea,
- 	    scaleVs(Vs3,math:sqrt(Scale),[])
-    end.
-
-% lsqcm2impl(Fs, We) ->
-%     ?DBG("LSQCM2 => Project and tri ~n", []),
-%     {CF, BorderEds} = find_border_edges(Fs,We),
-%     ?DBG("BE ~p ~n", [BorderEds]),
-% %     {BorderVs, Center0} = 
-% % 	lists:mapfoldl(fun({V1,_V2,_E,Dist}, Acc) ->
-% % 			      V1p = (gb_trees:get(V1, We#we.vs))#vtx.pos,
-% % 			      T = e3d_vec:mul(V1p, Dist),
-% % 			      Sum = e3d_vec:add(Acc, T),
-% % 			      {{V1, V1p}, Sum}
-% % 		      end, e3d_vec:zero(), BorderEds),
-% %     Center = e3d_vec:divide(Center0, CF),        
-%     BorderVs = [{V1,(gb_trees:get(V1, We#we.vs))#vtx.pos} || {V1,_,_,_} <-BorderEds],
-%     Vs = [Vpos || {_,Vpos} <- BorderVs],
-%     Center = e3d_vec:average(Vs),    
-%     {V1, V2} = ?TC(find_pinned_from_edges(BorderEds, CF, We)),
-%     TempFs = create_border_fs(BorderVs, BorderVs, {-1,Center}, 0, []),
-%     ?DBG("LSQ2 (1pass) ~p ~p~n", [V1,V2]),
-%     PinnedBorder =
-% 	case ?TC(lsq(TempFs, [V1,V2])) of
-% 	    {error, What} ->
-% 		?DBG("TXMAP error (1st pass) ~p~n", [What]),
-% 		exit({txmap_error1, What});
-% 	    {ok,Pinned0} ->
-% 		?DBG("LSQ2 (2pass) ~p ~n", [Pinned0]),
-% 		lists:keydelete(-1, 1, Pinned0)
-% 	end,
-%     {Vs1,Area} = ?TC(project_and_triangulate(Fs,We,-1,[],0.0)),
-%     case ?TC(lsq(Vs1, PinnedBorder)) of
-%  	{error, What2} ->
-%  	    ?DBG("TXMAP (second pass) error ~p~n", [What2]),
-%  	    exit({txmap_error2, What2});
-%  	{ok,Vs2} ->
-%  %	    ?DBG("LSQ res ~p~n", [Vs2]),
-%  	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt,#vtx{pos={Ut,Vt,0.0}}} end,
-%  	    Vs3 = lists:sort(lists:map(Patch, Vs2)),
-%  	    TempVs = gb_trees:from_orddict(Vs3),
-%  	    MappedArea = calc_2dface_area(Fs, We#we{vs=TempVs}, 0.0),	    
-%  	    Scale = Area/MappedArea,
-%  	    scaleVs(Vs3,math:sqrt(Scale),[])
-%     end.
 
 scaleVs([{Id, {X,Y,_}}|Rest],Scale,Acc) 
   when is_float(X), is_float(Y), is_float(Scale) ->

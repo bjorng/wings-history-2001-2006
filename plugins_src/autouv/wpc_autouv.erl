@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.262 2004/07/31 18:46:16 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.263 2004/08/17 10:34:36 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -382,9 +382,15 @@ command_menu(vertex, X, Y) ->
 	    {"Scale",{scale,Scale},"Scale selected vertices"},
 	    {"Rotate",{rotate,Rotate},"Rotate selected vertices"},
 	    separator,
+	    {"Flatten",{flatten,
+			[{"X", x, "Flatten horizontally"},
+			 {"Y", x, "Flatten vertically"}]}, 
+	     "Flatten selected vertices"},
 	    {"Tighten",tighten,
 	     "Move UV coordinates towards average midpoint",
-	     [magnet]}
+	     [magnet]},
+	    separator, 
+	    {"Unfold", lsqcm, "Unfold the chart (Except the selected vertices)"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(_, X, Y) ->
@@ -476,6 +482,9 @@ handle_event_3({action,{auv,{draw_options,Opt}}}, #st{bb=Uvs}=St) ->
 handle_event_3({action,{auv,{remap,Method}}}, St0) ->
     St = remap(Method, St0),
     get_event(St);
+handle_event_3({action,{auv,lsqcm}}, St0) ->
+    St = remap(lsqcm, St0),
+    get_event(St);
 
 %% Others
 handle_event_3({vec_command,Command,_St}, _) when is_function(Command) ->
@@ -526,7 +535,7 @@ handle_event_3(got_focus, _) ->
     Message = wings_util:join_msg([Msg1,Msg2,Msg3]),
     wings_wm:message(Message),
     wings_wm:dirty();
-handle_event_3(_, _) ->
+handle_event_3(_Event, _) ->
     keep.
 
 new_state(#st{bb=#uvstate{}=Uvs}=St0) ->
@@ -567,6 +576,9 @@ handle_command(delete, St) ->
     get_event(delete_charts(St));
 handle_command({'ASK',Ask}, St) ->
     wings:ask(Ask, St, fun handle_command/2);
+handle_command({flatten, Plane}, St0 = #st{selmode=vertex}) ->
+    {save_state, St} = wings_vertex_cmd:flatten(Plane, St0),
+    get_event(St);
 handle_command(_, #st{sel=[]}) ->
     keep.
 
@@ -921,42 +933,52 @@ flip(Flip, We0) ->
     We = wings_we:transform_vs(T, We0),
     wings_we:invert_normals(We).
 
-remap(Method, #st{sel=Sel}=St0) ->
+remap(Method, #st{sel=Sel,selmode=Mode}=St0) ->
     wings_pb:start("remapping"),
     wings_pb:update(0.001),
     N = length(Sel),
-    {St,_} = wings_sel:mapfold(fun(_, We, I) ->
+    {St,_} = wings_sel:mapfold(fun(Vs, We, I) ->
 				       Msg = "chart " ++ integer_to_list(I),
 				       wings_pb:update(I/N, Msg),
-				       {remap(Method, We, St0),I+1}
+				       Pinned = case Mode of
+						    vertex -> gb_sets:to_list(Vs);
+						    _ -> none
+						end,
+				       {remap(Method, Pinned, We, St0),I+1}
 			       end, 1, St0),
     wings_pb:done(update_selected_uvcoords(St)).
 
-remap(stretch_opt, We, St) ->
+remap(stretch_opt, _, We, St) ->
     Vs3d = orig_pos(We, St),
     ?SLOW(auv_mapping:stretch_opt(We, Vs3d));
-remap(Type, #we{name=Ch}=We0, St) ->
+remap(Type, Pinned, #we{name=Ch}=We0, St) ->
     [Lower,Upper] = wings_vertex:bounding_box(We0),
     {W,H,_} = e3d_vec:sub(Upper, Lower),
 
     %% Get 3d positions (even for mapped vs).
     Vs3d = orig_pos(We0, St),
-    Vs0 = auv_mapping:map_chart(Type, We0#we{vp=Vs3d}),
-    We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs0))},    
-    Fs = wings_we:visible(We1),
-    {{Dx,Dy},Vs1} = auv_placement:center_rotate(Fs, We1),
-    Center = wings_vertex:center(We0),
-    Scale = if Dx > Dy -> W / Dx;
- 	       true -> H / Dy
-	    end,
-    Smat = e3d_mat:scale(Scale),
-    Cmat = e3d_mat:translate(Center),
-    Fix  = e3d_mat:mul(Cmat, Smat),
-    Vs = foldl(fun({VId, Pos}, Acc) -> 
-		       [{VId,e3d_mat:mul_point(Fix, Pos)}|Acc] 
-	       end, [], Vs1),
-    We0#we{vp=gb_trees:from_orddict(sort(Vs)),
-	   name=Ch#ch{size={Dx*Scale, Dy*Scale}}}.
+    case auv_mapping:map_chart(Type, We0#we{vp=Vs3d}, Pinned) of
+	{error, Msg} -> 
+	    wings_pb:done(),
+	    wings_util:message(Msg),
+	    We0;
+	Vs0 -> 
+	    We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs0))},
+	    Fs = wings_we:visible(We1),
+	    {{Dx,Dy},Vs1} = auv_placement:center_rotate(Fs, We1),
+	    Center = wings_vertex:center(We0),
+	    Scale = if Dx > Dy -> W / Dx;
+		       true -> H / Dy
+		    end,
+	    Smat = e3d_mat:scale(Scale),
+	    Cmat = e3d_mat:translate(Center),
+	    Fix  = e3d_mat:mul(Cmat, Smat),
+	    Vs = foldl(fun({VId, Pos}, Acc) -> 
+			       [{VId,e3d_mat:mul_point(Fix, Pos)}|Acc] 
+		       end, [], Vs1),
+	    We0#we{vp=gb_trees:from_orddict(sort(Vs)),
+		   name=Ch#ch{size={Dx*Scale, Dy*Scale}}}
+    end.
 
 %% gb_tree of every vertex orig 3d position, (including the new cut ones)
 orig_pos(We = #we{name=#ch{vmap=Vmap}},St) ->
