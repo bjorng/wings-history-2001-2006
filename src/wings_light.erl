@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.18 2002/11/23 20:34:32 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.19 2002/11/26 20:08:34 dgud Exp $
 %%
 
 -module(wings_light).
 -export([light_types/0,menu/3,command/2,is_any_light_selected/1,info/1,
 	 create/2,update_dynamic/2,update_matrix/2,update/1,render/1,
-	 global_lights/0,camera_lights/0,
+	 modeling_lights/2,global_lights/0,camera_lights/0,
 	 export/1,import/2]).
 
 -define(NEED_OPENGL, 1).
@@ -603,12 +603,14 @@ global_lights() ->
 
 setup_lights(CoordType) ->
     case wings_pref:get_value(scene_lights) of
-	false -> modeling_lights(CoordType);
+	false -> 
+	    NoOfLights = wings_pref:get_value(number_of_lights),
+	    modeling_lights(CoordType, NoOfLights);
 	true -> scene_lights(CoordType)
     end.
 
-modeling_lights(global) -> ok;
-modeling_lights(camera) ->
+modeling_lights(global, _NoL) -> ok;
+modeling_lights(camera, NoL) ->
     gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0.1,0.1,0.1,1.0}),
     gl:enable(?GL_LIGHT0),
     gl:disable(?GL_LIGHT2),
@@ -617,7 +619,7 @@ modeling_lights(camera) ->
     gl:disable(?GL_LIGHT5),
     gl:disable(?GL_LIGHT6),
     gl:disable(?GL_LIGHT7),
-    case wings_pref:get_value(number_of_lights) of
+    case NoL of
 	1 ->
 	    gl:disable(?GL_LIGHT1),
 	    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, {1,1,1,1}),

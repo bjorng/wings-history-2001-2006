@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.59 2002/11/16 16:22:31 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.60 2002/11/26 20:08:34 dgud Exp $
 %%
 
 -module(wings_material).
@@ -350,8 +350,8 @@ mat_preview(X, Y, _W, _H, Common) ->
     gl:matrixMode(?GL_MODELVIEW),
     gl:pushMatrix(),
     gl:loadIdentity(),
-    wings_light:camera_lights(),
-    wings_light:global_lights(),
+    wings_light:modeling_lights(camera,2),
+%%    wings_light:global_lights(),
     gl:shadeModel(?GL_SMOOTH),
     Alpha = gb_trees:get(opacity, Common),
     Amb = preview_mat(ambient, Common, Alpha),
