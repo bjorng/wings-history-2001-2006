@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.58 2002/05/15 07:15:04 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.59 2002/05/16 07:10:51 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -33,8 +33,9 @@ menu(X, Y, St) ->
 	    {"Workmode",workmode,crossmark(workmode)},
 	    {"Smoothed Preview",smoothed_preview},
 	    separator,
-	    {"Wireframe",wireframe_selected},
-	    {"Shade",shade_selected},
+	    {"Wireframe",wireframe},
+	    {"Shade",shade},
+	    {"Toggle wireframed/shaded",toggle_wireframe},
 	    separator,
 	    {"Show Saved BB",show_bb,crossmark(show_bb)},
 	    {"Show Edges",show_edges,crossmark(show_edges)},
@@ -85,16 +86,22 @@ command(flatshade, St) ->
 command(smoothshade, St) ->
     wings_pref:set_value(workmode, false),
     St;
-command(wireframe_selected, #st{sel=[]}=St) ->
+command(toggle_wireframe, #st{sel=[]}=St) ->
+    mode_change_all(toggle),
+    St;
+command(toggle_wireframe, St) ->
+    mode_change_sel(toggle),
+    St;
+command(wireframe, #st{sel=[]}=St) ->
     mode_change_all(true),
     St;
-command(wireframe_selected, St) ->
+command(wireframe, St) ->
     mode_change_sel(true),
     St;
-command(shade_selected, #st{sel=[]}=St) ->
+command(shade, #st{sel=[]}=St) ->
     mode_change_all(false),
     St;
-command(shade_selected, St) ->
+command(shade, St) ->
     mode_change_sel(false),
     St;
 command(orthogonal_view, St) ->
@@ -169,12 +176,18 @@ mode_change_all(Wire) ->
     wings_draw_util:update(fun mode_change_all/2, Wire).
 
 mode_change_all(eol, _) -> eol;
-mode_change_all(D, Wire) -> {D#dlo{wire=Wire},Wire}.
+mode_change_all(#dlo{wire=Wire}=D, toggle) ->
+    {D#dlo{wire=not Wire},toggle};
+mode_change_all(D, Wire) ->
+    {D#dlo{wire=Wire},Wire}.
 
 mode_change_sel(Wire) ->
     wings_draw_util:map(fun mode_change_sel/2, Wire).
 
-mode_change_sel(#dlo{src_sel={_,_}}=D, Wire) -> {D#dlo{wire=Wire},Wire};
+mode_change_sel(#dlo{wire=Wire,src_sel={_,_}}=D, toggle) ->
+    {D#dlo{wire=not Wire},toggle};
+mode_change_sel(#dlo{src_sel={_,_}}=D, Wire) ->
+    {D#dlo{wire=Wire},Wire};
 mode_change_sel(D, Wire) -> {D,Wire}.
 
 virtual_mirror_fun(Faces, We) ->

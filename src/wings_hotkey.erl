@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.24 2002/05/12 17:36:01 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.25 2002/05/16 07:10:51 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -245,10 +245,9 @@ default_keybindings() ->
      {$o,               {view,orthogonal_view}},
      {$r,               {view,reset}},
      {$R,               {wings,reset}},
-     {$s,               {view,shade_selected}},
      {$u,               {view,auto_rotate}},
      {$v,               {select,vertex}},
-     {$w,               {view,wireframe_selected}},
+     {$w,               {view,toggle_wireframe}},
      {$x,               {view,{along,x}}},
      {$y,               {view,{along,y}}},
      {$z,               {view,{along,z}}},
@@ -281,5 +280,8 @@ default_keybindings() ->
      {vertex,{?SDLK_DELETE,[]},	{vertex,collapse}},
      {edge,{?SDLK_DELETE,[]},	{edge,dissolve}},
      {face,{?SDLK_DELETE,[]},	{face,dissolve}},
-     {body,{?SDLK_DELETE,[]},	{body,delete}}
+     {body,{?SDLK_DELETE,[]},	{body,delete}},
+
+     {face,$s,		{face,smooth}},
+     {body,$s,		{body,smooth}}
     ].
