@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.23 2002/06/15 19:55:59 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.24 2002/06/16 18:04:08 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -64,7 +64,7 @@ import_2(Fd, Dir) ->
     Objs = make_objects(Gs, Ftab, Template),
     #e3d_file{objs=Objs,mat=Mat}.
 
-separate([{eof,N}], []) -> [{undefined,0,N}];
+separate([{eof,N}], []) -> [{undefined,N}];
 separate([{eof,_}], [{_,_,E}|_]=Acc) ->
     separate_1(Acc, E, []);
 separate([{group,[Name|_],N}|T], Acc) ->

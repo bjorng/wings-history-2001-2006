@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.20 2002/06/15 19:55:59 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.21 2002/06/16 18:04:08 bjorng Exp $
 %%
 
 -module(e3d_mesh).
--export([clean/1,transform/2,renumber/1,triangulate/1,quadrangulate/1,
-	 make_quads/1,vertex_normals/1]).
+-export([clean/1,transform/1,transform/2,triangulate/1,quadrangulate/1,
+	 make_quads/1,vertex_normals/1,renumber/1,partition/1]).
 -export([triangulate_face/2,triangulate_face_with_holes/3]).
 -export([quadrangulate_face/2,quadrangulate_face_with_holes/3]).
 
@@ -24,10 +24,16 @@
 clean(Mesh) ->
     e3d__meshclean:clean(Mesh).
 
-%%%
-%%% Transform all vertices in the mesh by the matrix.
-%%%
+%% transform(Mesh0) -> Mesh
+%%  Transform all vertices in the mesh by the matrix in the e3d_mesh
+%%  record.
+%%
 
+transform(#e3d_mesh{matrix=none}=Mesh) -> Mesh;
+transform(#e3d_mesh{matrix=Matrix}=Mesh) -> transform(Mesh, Matrix).
+    
+%% transform(Mesh0, Matrix) -> Mesh
+%%  Transform all vertices in the mesh by the matrix.
 transform(#e3d_mesh{vs=Vs0}=Mesh, Matrix) ->
     case e3d_mat:is_identity(Matrix) of
 	true -> Mesh;
@@ -39,13 +45,11 @@ transform(#e3d_mesh{vs=Vs0}=Mesh, Matrix) ->
 	    Mesh#e3d_mesh{vs=Vs}
     end.
 
-%%%
-%%% If two adjacent triangles share a hidden edge, combine the
-%%% triangles to a quad. Triangles with more than one hidden edge
-%%% will never be combined to avoid isolating vertices and/or
-%%% creating concave polygons.
-%%%
-
+%% make_quads(Mesh0) -> Mesh
+%%  If two adjacent triangles share a hidden edge, combine the
+%%  triangles to a quad. Triangles with more than one hidden edge
+%%  will never be combined to avoid isolating vertices and/or
+%%  creating concave polygons.
 make_quads(#e3d_mesh{type=triangle,fs=Fs0}=Mesh) ->
     Ftab0 = number_faces(Fs0),
     Es = rhe_collect_edges(Ftab0),
@@ -54,6 +58,95 @@ make_quads(#e3d_mesh{type=triangle,fs=Fs0}=Mesh) ->
     Fs = gb_trees:values(Ftab),
     Mesh#e3d_mesh{type=polygon,fs=Fs};
 make_quads(Mesh) -> Mesh.
+
+%%%
+%%% Mesh triangulation.
+%%%
+
+triangulate(#e3d_mesh{}=Mesh) ->
+    e3d__tri_quad:triangulate(Mesh).
+
+triangulate_face(Face, Vcoords) ->
+    e3d__tri_quad:triangulate_face(Face, Vcoords).
+
+triangulate_face_with_holes(Face, Holes, Vcoords) ->
+    e3d__tri_quad:triangulate_face_with_holes(Face, Holes, Vcoords).
+
+%%%
+%%% Mesh quadrangulation.
+%%%
+
+quadrangulate(#e3d_mesh{}=Mesh) ->
+    e3d__tri_quad:quadrangulate(Mesh).
+
+quadrangulate_face(Face, Vcoords) ->
+    e3d__tri_quad:quadrangulate_face(Face, Vcoords).
+
+quadrangulate_face_with_holes(Face, Holes, Vcoords) ->
+    e3d__tri_quad:quadrangulate_face_with_holes(Face, Holes, Vcoords).
+
+%% vertex_normals(Mesh0) -> Mesh
+%%  Calculate vertex normals for each face.
+vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
+    Vtab = list_to_tuple(Vtab0),
+    FaceNormals = face_normals(Ftab, Vtab),
+
+    %% Calculate normals for vertices with no hard edges.
+    HardVs = sofs:field(sofs:relation(He)),
+    VtxFace0 = sofs:relation(vtx_to_face_tab(Ftab)),
+    HardVtxFace0 = sofs:restriction(VtxFace0, HardVs),
+    VtxFace1 = sofs:difference(VtxFace0, HardVtxFace0),
+    VtxFace2 = sofs:relation_to_family(VtxFace1),
+    VtxFace = sofs:to_external(VtxFace2),
+    VtxNormals0 = vertex_normals(VtxFace, 0, FaceNormals),
+
+    %% Calculate normals for vertices surrounded by one or more hard edges.
+    HardVtxFace = sofs:to_external(HardVtxFace0),
+    VtxNormals1 = vn_hard_normals(He, HardVtxFace, Ftab,
+				  FaceNormals, VtxNormals0),
+
+    %% Generate face data.
+    VtxNormals = gb_trees:from_orddict(sort(VtxNormals1)),
+    Faces = vn_faces(Ftab, VtxNormals, 0, []),
+    Normals0 = gb_trees:values(VtxNormals),
+    Normals1 = sort(Normals0),
+    Normals = [N || {Vn,N} <- Normals1],
+    Mesh#e3d_mesh{fs=Faces,ns=Normals}.
+
+%% renumber(Mesh0) -> Mesh
+%%  Removes vertices and UV coordinates that are not referenced
+%%  from any faces and renumbers vertices and UV coordinates to
+%%  remove the gaps.
+renumber(#e3d_mesh{tx=Tx,vs=Vtab,ns=Ns}=Mesh) ->
+    {UsedVs,UsedUv,UsedNs} = rn_used_vs(Mesh),
+    if
+	length(Vtab) =/= length(UsedVs);
+	length(Tx) =/= length(UsedUv);
+	length(Ns) =/= length(UsedNs) ->
+	    renumber_1(Mesh, UsedVs, UsedUv, UsedNs);
+	true -> Mesh
+    end.
+
+%% partition(Mesh0) -> [Mesh]
+%%  Partitions a mesh in disjoint sub-meshes.
+partition(#e3d_mesh{fs=Faces0}=Template) ->
+    Faces1 = number_faces(Faces0),
+    Faces = sofs:relation(Faces1, [{face,data}]),
+    FacePart = partition_1(Faces),
+    Res = foldl(fun(Fs0, A) ->
+			Fs = strip_index(sofs:to_external(Fs0)),
+			Mesh = renumber(Template#e3d_mesh{fs=Fs}),
+			[Mesh|A]
+		end, [], sort(FacePart)),
+    reverse(Res).
+
+%%%
+%%% End of exported functions. Local functions follow.
+%%%
+
+%%%
+%%% Help functions for make_quads/1.
+%%%
 
 merge_faces([{_Name,L}|Es], Ftab0) ->
     Ftab = case L of
@@ -135,61 +228,22 @@ rhe_edges([{Va,Vb,Vis}|Ps], Face, Acc) ->
     rhe_edges(Ps, Face, [{Name,{Face,Va,Vb,Vis}}|Acc]);
 rhe_edges([], _Face, Acc) -> Acc.
 
-%%%
-%%% Mesh triangulation.
-%%%
+pairs(Vs, Vis) ->
+    pairs(Vs, Vs, Vis, []).
 
-triangulate(#e3d_mesh{}=Mesh) ->
-    e3d__tri_quad:triangulate(Mesh).
+pairs([V1|[V2|_]=Vs], More, Vis, Acc) ->
+    State = visible(Vis),
+    pairs(Vs, More, Vis bsl 1, [{V1,V2,State}|Acc]);
+pairs([V1], [V2|_], Vis, Acc) ->
+    State = visible(Vis),
+    [{V1,V2,State}|Acc].
 
-triangulate_face(Face, Vcoords) ->
-    e3d__tri_quad:triangulate_face(Face, Vcoords).
-
-triangulate_face_with_holes(Face, Holes, Vcoords) ->
-    e3d__tri_quad:triangulate_face_with_holes(Face, Holes, Vcoords).
-
-%%%
-%%% Mesh quadrangulation.
-%%%
-
-quadrangulate(#e3d_mesh{}=Mesh) ->
-    e3d__tri_quad:quadrangulate(Mesh).
-
-quadrangulate_face(Face, Vcoords) ->
-    e3d__tri_quad:quadrangulate_face(Face, Vcoords).
-
-quadrangulate_face_with_holes(Face, Holes, Vcoords) ->
-    e3d__tri_quad:quadrangulate_face_with_holes(Face, Holes, Vcoords).
+visible(F) when F band 4 =/= 0 -> visible;
+visible(_) -> invisible.
 
 %%%
-%%% Calculate normals for each vertex in a mesh.
+%%% Help functions for vertex_normals/1.
 %%%
-
-vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
-    Vtab = list_to_tuple(Vtab0),
-    FaceNormals = face_normals(Ftab, Vtab),
-
-    %% Calculate normals for vertices with no hard edges.
-    HardVs = sofs:field(sofs:relation(He)),
-    VtxFace0 = sofs:relation(vtx_to_face_tab(Ftab)),
-    HardVtxFace0 = sofs:restriction(VtxFace0, HardVs),
-    VtxFace1 = sofs:difference(VtxFace0, HardVtxFace0),
-    VtxFace2 = sofs:relation_to_family(VtxFace1),
-    VtxFace = sofs:to_external(VtxFace2),
-    VtxNormals0 = vertex_normals(VtxFace, 0, FaceNormals),
-
-    %% Calculate normals for vertices surrounded by one or more hard edges.
-    HardVtxFace = sofs:to_external(HardVtxFace0),
-    VtxNormals1 = vn_hard_normals(He, HardVtxFace, Ftab,
-				  FaceNormals, VtxNormals0),
-
-    %% Generate face data.
-    VtxNormals = gb_trees:from_orddict(sort(VtxNormals1)),
-    Faces = vn_faces(Ftab, VtxNormals, 0, []),
-    Normals0 = gb_trees:values(VtxNormals),
-    Normals1 = sort(Normals0),
-    Normals = [N || {Vn,N} <- Normals1],
-    Mesh#e3d_mesh{fs=Faces,ns=Normals}.
 
 vn_faces([#e3d_face{vs=Vs}=E3DFace|Fs], VtxNormals, Face, Acc) ->
     Ns0 = foldl(fun(V, A) ->
@@ -284,19 +338,9 @@ vn_pairs([V1], [V2|_], Face, Acc) ->
 vn_edge_name(Va, Vb) when Va < Vb -> {Va,Vb};
 vn_edge_name(Va, Vb) -> {Vb,Va}.
 
-%% renumber(Mesh0) -> Mesh
-%%  Removes vertices and UV coordinates that are not referenced
-%%  from any faces and renumbers vertices and UV coordinates to
-%%  remove the gaps.
-renumber(#e3d_mesh{tx=Tx,vs=Vtab,ns=Ns}=Mesh) ->
-    {UsedVs,UsedUv,UsedNs} = rn_used_vs(Mesh),
-    if
-	length(Vtab) =/= length(UsedVs);
-	length(Tx) =/= length(UsedUv);
-	length(Ns) =/= length(UsedNs) ->
-	    renumber_1(Mesh, UsedVs, UsedUv, UsedNs);
-	true -> Mesh
-    end.
+%%%
+%%% Help functions for renumber/1.
+%%%
 
 renumber_1(#e3d_mesh{fs=Ftab0,vs=Vs0,tx=Tx0,ns=Ns0}=Mesh,
 	   UsedVs, UsedUV, UsedNs) ->
@@ -350,23 +394,49 @@ rn_make_map([V|Vs], I, Acc) ->
     rn_make_map(Vs, I+1, [{V,I}|Acc]);
 rn_make_map([], _, []) -> gb_trees:empty().
 
+%%%
+%%% Help functions for partition/1.
+%%%
+
+partition_1(Faces) ->
+    E2F = par_pairs(sofs:to_external(Faces), []),
+    R = sofs:relation(E2F, [{edge,face}]),
+    F0 = sofs:relation_to_family(R),
+    CR = sofs:canonical_relation(sofs:range(F0)),
+    F1 = sofs:relation_to_family(CR),
+    F = sofs:family_union(F1),
+    G = sofs:family_to_digraph(F),
+    Cs = digraph_utils:strong_components(G),
+    digraph:delete(G),
+    foldl(fun(C, A) ->
+		  Part = sofs:set(C, [face]),
+		  [sofs:restriction(Faces, Part)|A]
+	  end, [], Cs).
+
+par_pairs([{Face,#e3d_face{vs=Vs}}|Fs], Acc) ->
+    par_pairs(Fs, par_pairs_1(Vs, Vs, Face, Acc));
+par_pairs([], Acc) -> Acc.
+
+par_pairs_1([V1|[V2|_]=Vs], More, Face, Acc) ->
+    par_pairs_1(Vs, More, Face, [{par_edge_name(V1, V2),Face}|Acc]);
+par_pairs_1([V1], [V2|_], Face, Acc) ->
+    [{par_edge_name(V1, V2),Face}|Acc].
+
+par_edge_name(Va, Vb) when Va < Vb -> [Va|Vb];
+par_edge_name(Va, Vb) -> [Vb|Va].
+
+strip_index(Fs) ->
+    strip_index(Fs, []).
+strip_index([{_,Data}|T], Acc) ->
+    strip_index(T, [Data|Acc]);
+strip_index([], Acc) -> reverse(Acc).
+
+%%%
+%%% Common help functions.
+%%%
+
 number_faces(Fs) ->
     number_faces(Fs, 0, []).
 number_faces([F|Fs], Face, Acc) ->
     number_faces(Fs, Face+1, [{Face,F}|Acc]);
 number_faces([], _Face, Acc) -> reverse(Acc).
-
-pairs(Vs, Vis) ->
-    pairs(Vs, Vs, Vis, []).
-
-pairs([V1|[V2|_]=Vs], More, Vis, Acc) ->
-    State = visible(Vis),
-    pairs(Vs, More, Vis bsl 1, [{V1,V2,State}|Acc]);
-pairs([V1], [V2|_], Vis, Acc) ->
-    State = visible(Vis),
-    [{V1,V2,State}|Acc].
-
-visible(F) when F band 4 =/= 0 -> visible;
-visible(_) -> invisible.
-    
-    
