@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.80 2003/11/15 21:18:19 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.81 2003/11/17 04:40:46 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -529,29 +529,65 @@ dissolve_isolated_vs([_|_]=Vs, We) ->
     dissolve_isolated_vs_1(Vs, We, []);
 dissolve_isolated_vs([], We) -> We.
 
-dissolve_isolated_vs_1([V|Vs], We0, Acc) ->
-    case dissolve_vertex(V, We0) of
-	error -> dissolve_isolated_vs_1(Vs, We0, Acc);
-	We -> dissolve_isolated_vs_1(Vs, We, [V|Acc])
+%% Since the dissolve operation will not keep the incident
+%% edge table for vertices updates, we'll need to lookup
+%% all incident edges now before we have started to dissolve.
+dissolve_isolated_vs_1([V|Vs], #we{vc=Vct}=We, Acc) ->
+    case gb_trees:lookup(V, Vct) of
+	none ->
+	    %% A previous pass has already removed this vertex.
+	    dissolve_isolated_vs_1(Vs, We, Acc);
+	{value,Edge} ->
+	    dissolve_isolated_vs_1(Vs, We, [{V,Edge}|Acc])
     end;
-dissolve_isolated_vs_1([], We0, Vs) ->
+dissolve_isolated_vs_1([], We, Vc) ->
+    dissolve_isolated_vs_2(Vc, We, []).
+
+%% Now do all dissolving.
+dissolve_isolated_vs_2([{V,Edge}|T], We0, Acc) ->
+    case dissolve_vertex(V, Edge, We0) of
+	done -> dissolve_isolated_vs_2(T, We0, Acc);
+	We -> dissolve_isolated_vs_2(T, We, [V|Acc])
+    end;
+dissolve_isolated_vs_2([], We0, Vs) ->
     We = wings_we:vertex_gc(We0),
 
-    %% Try again, as some vertices may have been common
-    %% to two faces that have no edge in common.
+    %% Now do another pass over the vertices still in our list.
+    %% Reason:
+    %%
+    %% 1. An incident edge may have become wrong by a previous
+    %%    dissolve (on another vertex). Do another try now that
+    %%    the incident table has been rebuilt.
+    %%
+    %% 2. A vertex may have be connected to two faces that
+    %%    have no edge in common. In that case, all edges
+    %%    are not reachable from the incident edge.
     dissolve_isolated_vs(Vs, We).
 
-dissolve_vertex(V, #we{es=Etab,vc=Vct}=We0) ->
-    case gb_trees:lookup(V, Vct) of
-	none -> error;
-	{value,Edge} ->
-	    case gb_trees:lookup(Edge, Etab) of
-		{value,#edge{vs=V,ltsu=AnEdge,rtpr=AnEdge}=Rec} ->
-		    merge_edges(backward, Edge, Rec, We0);
-		{value,#edge{ve=V,rtsu=AnEdge,ltpr=AnEdge}=Rec} ->
-		    merge_edges(forward, Edge, Rec, We0);
-		_Other -> error
-	    end
+%% dissolve(V, Edge, We0) -> We|done
+%%  Dissolve the given vertex. The 'done' return value means
+%%  that the vertex is already non-existing (or is not isolated).
+%%  If a We is returned, the caller must call this function again
+%%  (after rebuilding the incident table) since there might be more
+%%  work to do. 
+dissolve_vertex(V, Edge, #we{es=Etab}=We0) ->
+    case gb_trees:lookup(Edge, Etab) of
+	{value,#edge{vs=V,ltsu=AnEdge,rtpr=AnEdge}=Rec} ->
+	    merge_edges(backward, Edge, Rec, We0);
+	{value,#edge{ve=V,rtsu=AnEdge,ltpr=AnEdge}=Rec} ->
+	    merge_edges(forward, Edge, Rec, We0);
+
+	%% Handle the case that the incident edge is correct for
+	%% the given vertex, but the vertex is NOT isolated.
+	{value,#edge{vs=V}} -> done;
+	{value,#edge{ve=V}} -> done;
+
+	%% The incident edge is either non-existing or no longer
+	%% references the given edge. In this case, we'll need
+	%% to try dissolving the vertex again in the next
+	%% pass after the incident table has been rebuilt.
+	none -> We0;
+	{value,_} -> We0
     end.
 
 %%

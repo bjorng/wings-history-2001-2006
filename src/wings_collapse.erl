@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_collapse.erl,v 1.36 2003/09/26 07:41:14 bjorng Exp $
+%%     $Id: wings_collapse.erl,v 1.37 2003/11/17 04:40:46 bjorng Exp $
 %%
 
 -module(wings_collapse).
@@ -237,8 +237,11 @@ do_collapse_vertices([], We0, Sel, Isolated, Vs) ->
     We = wings_vertex:dissolve_isolated(Isolated, We0),
 
     %% Note that a vertex may be connected to two faces that
-    %% have no edge in common. In that case, the vertex will
-    %% still be there.
+    %% have no edge in common. In that case, the vertex might
+    %% still be there (it will not have been removed by
+    %% wings_vertex:dissolve_isolated/2 if it is not isolated
+    %% in all faces it occurs in).
+    %% 
     do_collapse_vertices(Isolated++Vs, We, Sel, [], []).
 
 collapse_vertex_1(Vremove, We0, Sel0) ->
