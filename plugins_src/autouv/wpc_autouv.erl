@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.42 2002/11/07 07:19:30 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.43 2002/11/07 18:06:52 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1681,55 +1681,39 @@ draw_area(A = #a{fs=Fs, vpos=Vs, center={CX,CY}, scale=Scale, rotate = R, twe=Tw
     A#a{twe = TempWe, tbe = TempBE}.
 
 draw_faces(Fs, We) ->
-    case wings_pref:get_value(display_list_opt) of
-	false ->
-	    draw_faces2(Fs,We);
-	true ->
-	    gl:'begin'(?GL_TRIANGLES),
-	    draw_faces2(Fs,We),
-	    gl:'end'()
-    end,
-    gl:edgeFlag(?GL_TRUE).
+    wings_draw_util:begin_end(fun() -> draw_faces2(Fs, We) end).
 
-draw_faces2([], _We) ->    ok;
-draw_faces2([H|R], We) ->
+draw_faces2([], _We) -> ok;
+draw_faces2([H|T], We) ->
     draw_face(H, We),
-    draw_faces2(R,We).
+    draw_faces2(T, We).
 
-draw_face(Face, #we{mode=material,vs=Vtab, fs = Ftab}=We) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
-    Vs = wings_face:surrounding_vertices(Face, Edge, We),
-    {X,Y,Z} = N = wings_face:face_normal(Vs, We),
+draw_face(Face, #we{mode=material}=We) ->
+    wings_draw_util:flat_face(Face, We);
+draw_face(Face, #we{vs=Vtab}=We) ->
+    Vs0 = wings_face:vinfo(Face, We),
+    draw_face_1(Vs0, Vtab, [], []).
+
+draw_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
+    #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+    draw_face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
+draw_face_1([], _, Nacc, Vs) ->
+    N = e3d_vec:normal(reverse(Nacc)),
+    gl:normal3fv(N),
     Tess = wings_draw_util:tess(),
-    glu:tessNormal(Tess, X, Y, Z),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
-    Info = [{normal,N}],
-    tess_face(Tess, Vs, Info, Vtab);
-draw_face(Face, We = #we{fs = Ftab}) ->
-    #face{edge=Edge} = gb_trees:get(Face, Ftab),
-    Vs = wings_face:draw_info(Face, Edge, We),
-    {X,Y,Z} = N = wings_face:draw_normal(Vs),
-    Tess = wings_draw_util:tess(),
+    {X,Y,Z} = N,
     glu:tessNormal(Tess, X, Y, Z),
-    glu:tessBeginPolygon(Tess),
-    glu:tessBeginContour(Tess),
-    tess_face_vtxcol(Tess, Vs, [{normal,N}]).
+    tess_face_vtxcol(Tess, Vs).
 
-tess_face_vtxcol(Tess, [{Pos,{_,_}=UV}|T], Normal) ->
-    glu:tessVertex(Tess, Pos, [{texcoord2,UV}|Normal]),
-    tess_face_vtxcol(Tess, T, Normal);
-tess_face_vtxcol(Tess, [{Pos,{_,_,_}=Col}|T], Normal) ->
-    glu:tessVertex(Tess, Pos, [{color,Col}|Normal]),
-    tess_face_vtxcol(Tess, T, Normal);
-tess_face_vtxcol(Tess, [], _Normal) ->
-    glu:tessEndContour(Tess),
-    glu:tessEndPolygon(Tess).
-
-tess_face(Tess, [V|T], N, Vtab) ->
-    glu:tessVertex(Tess, wings_vertex:pos(V, Vtab), N),
-    tess_face(Tess, T, N, Vtab);
-tess_face(Tess, [], _N, _Vtab) ->
+tess_face_vtxcol(Tess, [[Pos|{_,_}=UV]|T]) ->
+    glu:tessVertex(Tess, Pos, [{texcoord2,UV}]),
+    tess_face_vtxcol(Tess, T);
+tess_face_vtxcol(Tess, [[Pos|{_,_,_}=Col]|T]) ->
+    glu:tessVertex(Tess, Pos, [{color,Col}]),
+    tess_face_vtxcol(Tess, T);
+tess_face_vtxcol(Tess, []) ->
     glu:tessEndContour(Tess),
     glu:tessEndPolygon(Tess).
 
