@@ -1,15 +1,15 @@
-%%%-------------------------------------------------------------------
-%%% File    : auv_mapping.erl
-%%% Author  : Dan Gudmundsson <dgud@erix.ericsson.se>
-%%% Description : Provides different uv-parametrisation algorihms
-%%%
-%%% Created :  4 Oct 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
-%%%-------------------------------------------------------------------
-%%  Copyright (c) 2001-2004 Dan Gudmundsson, Raimo Niskanen, Bjorn Gustavsson.
+%%
+%%  auv_mapping.erl --
+%%
+%%     The UV parametrisation algorithms.
+%%
+%%  Copyright (c) 2002-2004 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.60 2004/10/20 11:21:25 dgud Exp $
+%%
+%%     $Id: auv_mapping.erl,v 1.61 2004/11/21 10:13:05 bjorng Exp $
+%%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
 %% Algorithms based on the paper, 
@@ -88,7 +88,7 @@ map_chart(Type, We, Pinned) ->
 	[[_,_]] ->
 	    {error,"A cut in a closed surface must consist of at least two edges."};
 	_ when is_list(Pinned), length(Pinned) < 2 ->
-		  {error, "Atleast 2 vertices must be selected"};
+	    {error,"At least 2 vertices (per chart) must be selected"};
 	[_] ->
 	    map_chart_1(Type, Faces, Pinned, We);
 	[_,_|_] ->
