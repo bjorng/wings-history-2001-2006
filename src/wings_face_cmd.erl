@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.69 2002/12/30 07:48:43 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.70 2003/01/15 07:36:03 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -48,7 +48,9 @@ menu(X, Y, St) ->
 			"the selected face to another element",[],
 			"Clone object on to one or more elements"},[]}},
 	    separator,
-	    {"Mirror",mirror,"Make mirror of object around selected faces"},
+	    {"Mirror",mirror_fun(),
+	     {"Mirror object around selected faces and merge to object",[],
+	      "Mirror and create separate objects"},[]},
     	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
 	    {"Collapse",collapse,"Delete faces, replacing them with vertices"},
 	    separator,
@@ -77,6 +79,14 @@ put_on_fun() ->
        (_, _) -> ignore
     end.
 
+mirror_fun() ->
+    fun(1, _Ns) ->
+	    {face,mirror};
+       (3, _Ns) ->
+	    {face,mirror_separate};
+       (_, _) -> ignore
+    end.
+
 command({extrude,Type}, St) ->
     ?SLOW(extrude(Type, St));
 command({extrude_region,Type}, St) ->
@@ -93,6 +103,8 @@ command(inset, St) ->
     ?SLOW(inset(St));
 command(mirror, St) ->
     ?SLOW({save_state,mirror(St)});
+command(mirror_separate, St) ->
+    ?SLOW({save_state,mirror_separate(St)});
 command(intrude, St) ->
     ?SLOW(intrude(St));
 command(dissolve, St) ->
@@ -353,6 +365,19 @@ intrude_bridge([], [], We) -> We.
 %%%
 %%% The Mirror command.
 %%%
+
+mirror_separate(St0) ->
+    St = wings_sel:fold(fun mirror_sep_faces/3, St0, St0),
+    wings_sel:clear(St).
+    
+mirror_sep_faces(Faces, We0, Acc) when is_list(Faces) ->
+    Template = wings_we:invert_normals(We0),
+    foldl(fun(Face, A) ->
+		  We = mirror_vs(Face, Template),
+		  wings_shape:insert(We, "mirror", A)
+	  end, Acc, Faces);
+mirror_sep_faces(Faces, We, Acc) ->
+    mirror_sep_faces(gb_sets:to_list(Faces), We, Acc).
 
 mirror(St0) ->
     St = wings_sel:map(fun mirror_faces/2, St0),
