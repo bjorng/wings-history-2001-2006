@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.7 2001/11/20 12:49:22 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.8 2001/11/22 15:46:29 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -72,7 +72,7 @@ read_object_1(<<L:16,T0/binary>>) ->
 	    {Ftab,T4} = read_faces(T3),
 	    {Vtab,T5} = read_vertices(T4),
 	    T = skip_rest(T5),
-	    We0 = #we{es=Etab,vs=Vtab,fs=Ftab,he=Htab},
+	    We0 = #we{mode=vertex,es=Etab,vs=Vtab,fs=Ftab,he=Htab},
 	    We = set_next_id(We0),
 	    {Name,We,T}
     end.
