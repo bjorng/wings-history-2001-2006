@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.1 2002/08/08 07:58:06 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.2 2002/08/08 13:26:20 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -286,17 +286,17 @@ scene_lights_fun(#dlo{src_we=#we{light=L}=We}, Lnum) ->
     
 setup_light(Lnum, #light{type=infinite,diffuse=Diff}, We) ->
     {X,Y,Z} = e3d_vec:norm(light_pos(We)),
-    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, Diff),
+    gl:lightfv(Lnum, ?GL_DIFFUSE, Diff),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,0});
 setup_light(Lnum, #light{type=point,diffuse=Diff}, We) ->
     {X,Y,Z} = light_pos(We),
-    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, Diff),
+    gl:lightfv(Lnum, ?GL_DIFFUSE, Diff),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 180.0);
 setup_light(Lnum, #light{type=spot}=L, We) ->
     #light{diffuse=Diff,spot_angle=SpotAngle,spot_dir=SpotDir} = L,
     {X,Y,Z} = light_pos(We),
-    gl:lightfv(?GL_LIGHT1, ?GL_DIFFUSE, Diff),
+    gl:lightfv(Lnum, ?GL_DIFFUSE, Diff),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, SpotAngle),
     gl:lightfv(Lnum, ?GL_SPOT_DIRECTION, SpotDir).
