@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.89 2005/01/09 20:33:04 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.90 2005/01/15 09:49:07 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -77,7 +77,7 @@ smooth_faces_htab(#we{mirror=none,fs=Ftab,he=Htab}) ->
     {Faces,Htab};
 smooth_faces_htab(#we{mirror=Face,fs=Ftab,he=Htab}=We) ->
     Faces = gb_trees:keys(gb_trees:delete(Face, Ftab)),
-    He0 = wings_face:outer_edges([Face], We),
+    He0 = wings_face:to_edges([Face], We),
     He = gb_sets:union(gb_sets:from_list(He0), Htab),
     {Faces,He}.
 
