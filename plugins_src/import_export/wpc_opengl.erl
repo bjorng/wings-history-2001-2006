@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.11 2002/08/18 07:27:43 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.12 2002/08/26 12:55:21 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -36,6 +36,7 @@ command(_, _) -> next.
 
 dialog_qs(render) ->
     DefVar = {output_type,get_pref(output_type, preview)},
+    SubDiv = get_pref(subdivisions, 0),
     Back = get_pref(background_color, {0.4,0.4,0.4}),
     Alpha = get_pref(render_alpha, false),
     [{hframe,
@@ -44,6 +45,8 @@ dialog_qs(render) ->
 	 {key_alt,DefVar,"File",file}],
 	[{title,"Output"}]}]},
      aa_frame(),
+     {hframe,
+      [{label,"Sub-division Steps"},{text,SubDiv,[{key,subdivisions},{range,1,4}]}]},
      {hframe,
       [{label,"Background Color"},{color,Back,[{key,background_color}]}]},
      {"Render Alpha Channel",Alpha,[{key,render_alpha}]}].
@@ -93,7 +96,7 @@ do_render(Attr0, St) ->
     case get_filename(Attr0, St) of
 	aborted -> keep;
 	Attr ->
-	    render_dlist(St),
+	    render_dlist(St, Attr),
 	    wings_wm:dirty(),
 	    Aa = property_lists:get_value(aa, Attr),
 	    AccSize = translate_aa(Aa),
@@ -141,14 +144,16 @@ render_exit() ->
     wings_wm:dirty(),
     pop.
 
-render_dlist(St0) ->
+render_dlist(St0, Attr) ->
     St = invisible_holes(St0),
+    SubDiv = property_lists:get_value(subdivisions, Attr),
     wings_draw_util:map(fun(D, []) ->
-				render_dlist(D, St)
+				render_dlist(D, St, SubDiv)
 			end, []).
 
-render_dlist(#dlo{src_we=We}=D, St) ->
+render_dlist(#dlo{src_we=We0}=D, St, SubDiv) ->
     wings_io:disable_progress(),
+    We = sub_divide(SubDiv, We0),
     {List,Tr} = wings_draw:smooth_dlist(We, St),
     Mask = dlist_mask(We),
     {D#dlo{smooth=List,transparent=Tr,smoothed=Mask},[]}.
@@ -177,6 +182,9 @@ invisible_holes(#st{mat=Mat}=St) ->
     Hole = [{opengl,OpenGl}|lists:keydelete(opengl, 1, Hole0)],
     St#st{mat=gb_trees:update('_hole_', Hole, Mat)}.
 
+sub_divide(0, We) -> We;
+sub_divide(N, We) -> sub_divide(N-1, wings_subdiv:smooth(We)).
+    
 %%%
 %%% Rendering.
 %%%
