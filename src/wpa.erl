@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.43 2004/01/04 15:25:23 bjorng Exp $
+%%     $Id: wpa.erl,v 1.44 2004/01/04 16:08:21 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -17,6 +17,7 @@
 	 import/2,import/3,import_filename/2,
 	 export/3,export_selected/3,
 	 export_filename/2,export_filename/3,
+	 save_images/3,
 	 dialog_template/2,
 	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,
 	 pref_set_default/3,pref_delete/2,
@@ -186,6 +187,14 @@ export_filename(Prop0, #st{file=File}, Cont) ->
 		   [{default_filename,Def}|Prop0]
 	   end,
     export_filename(Prop, Cont).
+
+%% save_images(E3DFile0, Directory, DefaultFiletype) -> E3DFile
+%%  Save all images in all materials, inserting the filename
+%%  into each saved image. 
+%%    E3DFile = #e3d_file{}
+%%    DefaultFiletype = Extension (list), e.g. ".bmp".
+save_images(E3DFile, Directory, Filetype) ->
+    wings_export:save_images(E3DFile, Directory, Filetype).
 
 %% dialog_template(Module, Type) -> Template
 %%  Return a template for a standard dialog.
