@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.120 2004/12/23 06:52:39 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.121 2004/12/23 07:34:31 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -1283,28 +1283,24 @@ outer_edge_loop(Faces, We) ->
     case any_duplicates(Es0, Key) of
 	false ->
 	    Es = gb_trees:from_orddict(Es0),
-	    case outer_edge_loop_1(Val, Es, []) of
-		error -> error;
-		{Key,Loop} -> Loop;
-		{_,_} -> error
-	    end;
+	    N = gb_trees:size(Es),
+	    outer_edge_loop_1(Val, Es, Key, N, []);
 	true -> error
     end.
 
-outer_edge_loop_1({Edge,Vb}, Es0, Acc0) ->
+outer_edge_loop_1({Edge,V}, _, V, 0, Acc) ->
+    %% This edge completes the loop, and we have used all possible edges.
+    [Edge|Acc];
+outer_edge_loop_1({_,V}, _, V, _N, _) ->
+    %% Loop is complete, but we haven't used all edges.
+    error;
+outer_edge_loop_1({_,_}, _, _, 0, _) ->
+    %% We have used all possible edges, but somehow the loop
+    %% is not complete. I can't see how this is possible.
+    erlang:error(internal_error);
+outer_edge_loop_1({Edge,Vb}, Es, EndV, N, Acc0) ->
     Acc = [Edge|Acc0],
-    case gb_trees:lookup(Vb, Es0) of
-	none ->
-	    %% This loop is finished. We'll succeed only if
-	    %% there are no more edges left.
-	    case gb_trees:is_empty(Es0) of
-		true -> {Vb,Acc};
-		false -> error
-	    end;
-	{value,Val} ->
-	    Es = gb_trees:delete(Vb, Es0),
-	    outer_edge_loop_1(Val, Es, Acc)
-    end.
+    outer_edge_loop_1(gb_trees:get(Vb, Es), Es, EndV, N-1, Acc).
 
 any_duplicates([{V,_}|_], V) -> true;
 any_duplicates([_], _) -> false;
