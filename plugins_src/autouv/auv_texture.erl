@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_texture.erl,v 1.4 2004/02/18 13:42:41 dgud Exp $
+%%     $Id: auv_texture.erl,v 1.5 2004/03/13 14:41:52 dgud Exp $
 
 -module(auv_texture).
 -export([get_texture/1, get_texture/2, draw_options/0]).
@@ -202,10 +202,11 @@ calc_texsize(Vp, Tex, Orig) ->
 
 
 %%%
-draw_area(#we{name=#ch{fs=Fs}}=We,
+draw_area(#we{fs=Fs0}=We,
 	  #opt{color=ColorMode,edges=EdgeMode}=Options, Materials) -> 
     gl:pushMatrix(),
     gl:lineWidth(Options#opt.edge_width),
+    Fs = gb_trees:keys(Fs0),
     Tbe = auv_util:outer_edges(Fs, We),
     %% Draw Materials and Vertex Colors
     case EdgeMode of
