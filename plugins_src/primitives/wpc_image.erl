@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_image.erl,v 1.6 2002/10/20 12:23:28 bjorng Exp $
+%%     $Id: wpc_image.erl,v 1.7 2002/10/20 17:15:48 bjorng Exp $
 %%
 
 -module(wpc_image).
@@ -47,7 +47,8 @@ make_image(Format) ->
     case wpa:import_filename(Ps) of
 	aborted -> keep;
 	Name ->
-	    case e3d_image:load(Name, [{type,r8g8b8},{order,lower_left}, {alignment, 1}]) of
+	    Type = [{type,r8g8b8},{order,lower_left},{alignment,1}],
+	    case e3d_image:load(Name, Type) of
 		#e3d_image{width=W,height=H,image=Pixels} ->
 		    Image = {W,H,Pixels},
 		    make_image_1(Image);
@@ -60,12 +61,10 @@ make_image(Format) ->
 
 make_image_1({W0,H0,_}=Image0) ->
     {W,H,_Pixels} = Image = pad_image(Image0),
-    io:format("~p\n", [{W,H}]),
     case can_texture_be_loaded(Image) of
 	false ->
 	    wings_util:error("The image cannot be loaded as a texture "
-			     "(it is probably too large or "
-			     " has wrong dimensions).");
+			     "(it is probably too large).");
 	true ->
 	    MaxU = W0/W,
 	    MaxV = H0/H,
@@ -73,7 +72,7 @@ make_image_1({W0,H0,_}=Image0) ->
 	    Fs = [#e3d_face{vs=[0,3,2,1],tx=[1,0,3,2],mat=M},
 		  #e3d_face{vs=[1,2,3,0],tx=[2,3,0,1],mat=M}],
 	    Tx = [{0.0,0.0},{MaxU,0.0},{MaxU,MaxV},{0.0,MaxV}],
-	    {X,Y} = ratio(W, H),
+	    {X,Y} = ratio(W0, H0),
 	    Vs = [{0.0,-Y,-X},{0.0,Y,-X},{0.0,Y,X},{0.0,-Y,X}],
 	    Mesh = #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=Tx},
 	    Obj = #e3d_object{obj=Mesh},
