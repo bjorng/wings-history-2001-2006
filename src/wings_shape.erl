@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.17 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.18 2002/02/23 18:44:05 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -31,7 +31,7 @@ insert(#we{name=OldName}=We0, Suffix, #st{shapes=Shapes0,onext=Oid}=St) ->
     
 new_name(OldName, Suffix, Id) ->
     Base = base(reverse(OldName)),
-    Name = reverse(Base, "_" ++ Suffix ++ integer_to_list(Id)).
+    reverse(Base, "_" ++ Suffix ++ integer_to_list(Id)).
 
 base(OldName) ->
     case base_1(OldName) of
@@ -44,7 +44,7 @@ base_1("ypoc_"++Base) -> Base;			%"_copy"
 base_1("tcartxe_"++Base) -> Base;		%"_extract"
 base_1("pes_"++Base) -> Base;			%"_sep"
 base_1("tuc_"++Base) -> Base;			%"_cut"
-base_1(Base) -> error.
+base_1(_Base) -> error.
 
 replace(Id, We0, #st{shapes=Shapes0}=St) ->
     We = We0#we{id=Id},
@@ -66,10 +66,10 @@ menu(X, Y, #st{sel=Sel,shapes=Shapes}=St) ->
 		[] -> [];
 		_ -> [separator|Menu0]
 	    end,
-    Menu2 = [{"Show And Unlock All",restore_all},
-	     {"Hide Unselected",hide_unselected},
-	     {"Lock Unselected",lock_unselected}|Menu1],
-    Menu = Menu2,
+    Menu = [{"Show And Unlock All",restore_all},
+	    {"Hide Selected",hide_selected},
+	    {"Hide Unselected",hide_unselected},
+	    {"Lock Unselected",lock_unselected}|Menu1],
     wings_menu:menu(X, Y, objects, Menu, St).
 
 state(0, IsSel, Name) ->
@@ -121,6 +121,8 @@ command({Id,hide_others}, St) ->
     {save_state,hide_others(Id, St)};
 command(restore_all, St) ->
     {save_state,restore_all(St)};
+command(hide_selected, St) ->
+    {save_state,hide_selected(St)};
 command(hide_unselected, St) ->
     {save_state,hide_unselected(St)};
 command(lock_unselected, St) ->
@@ -137,10 +139,10 @@ lock_object(Id, St0) ->
 restore_object(Id, St) ->
     update_permission(0, Id, St).
 
-update_permission(Perm, Id, #st{sel=Sel0,shapes=Shs0}=St) ->
+update_permission(Perm, Id, #st{shapes=Shs0}=St) ->
     We = gb_trees:get(Id, Shs0),
     Shs = gb_trees:update(Id, We#we{perm=Perm}, Shs0),
-    Sel = update_sel(We, Sel0),
+    Sel = update_sel(We, St),
     wings_draw:model_changed(St#st{sel=Sel,shapes=Shs}).
 
 hide_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
@@ -153,34 +155,62 @@ hide_others(ThisId, #st{shapes=Shs0,sel=Sel0}=St) ->
     wings_draw:model_changed(St#st{shapes=Shs,sel=Sel}).
 
 restore_all(#st{shapes=Shs0,sel=Sel0}=St) ->
-    Shs1 = [{Id,We#we{perm=0}} || #we{id=Id}=We <- gb_trees:values(Shs0)],
+    Shs1 = gb_trees:values(Shs0),
+    Shs2 = [{Id,We#we{perm=0}} || #we{id=Id}=We <- Shs1],
+    Shs = gb_trees:from_orddict(Shs2),
+    Sel = sort(restore_all_sel(Shs1, St, Sel0)),
+    wings_draw:model_changed(St#st{shapes=Shs,sel=Sel}).
+
+restore_all_sel([#we{id=Id,perm={Mode,Set}}|T],
+		#st{selmode=Mode}=St, Acc) ->
+    restore_all_sel(T, St, [{Id,Set}|Acc]);
+restore_all_sel([#we{id=Id,perm={SMode,Set0}}|T],
+		#st{selmode=Mode}=St, Acc) ->
+    StTemp = St#st{selmode=SMode,sel=[{Id,Set0}]},
+    #st{sel=[{Id,Set}]} = wings_sel:convert_selection(Mode, StTemp),
+    restore_all_sel(T, St, [{Id,Set}|Acc]);
+restore_all_sel([_|T], St, Acc) ->
+    restore_all_sel(T, St, Acc);
+restore_all_sel([], _St, Acc) -> Acc.
+
+hide_selected(#st{selmode=Mode,shapes=Shs0,sel=Sel}=St) ->
+    Shs1 = map(fun(#we{id=Id}=We) ->
+		       case keysearch(Id, 1, Sel) of
+			   false -> {Id,We};
+			   {value,{_,Set}} -> {Id,We#we{perm={Mode,Set}}}
+		       end
+	       end, gb_trees:values(Shs0)),
     Shs = gb_trees:from_orddict(Shs1),
-    Sel = [{Id,Set} || #we{id=Id,perm=Set}=We <- gb_trees:values(Shs0),
-		       is_tuple(Set)] ++ Sel0,
-    wings_draw:model_changed(St#st{shapes=Shs,sel=sort(Sel)}).
+    wings_draw:model_changed(St#st{shapes=Shs,sel=[]}).
 
 hide_unselected(St) ->
-    update_unsel(gb_sets:empty(), St).
+    update_unsel([], St).
 
 lock_unselected(St) ->
     update_unsel(1, St).
 
 update_unsel(Perm, #st{shapes=Shs0,sel=Sel}=St) ->
-    Shs1 = map(fun(#we{id=Id}=We) ->
+    Shs1 = map(fun(#we{id=Id,perm=0}=We) ->
 		       case keymember(Id, 1, Sel) of
 			   true -> {Id,We};
 			   false -> {Id,We#we{perm=Perm}}
-		       end
+		       end;
+		  (#we{id=Id}=We) -> {Id,We}
 	       end, gb_trees:values(Shs0)),
     Shs = gb_trees:from_orddict(Shs1),
     wings_draw:model_changed(St#st{shapes=Shs}).
 
-get_sel(Id, #st{sel=Sel}) ->
+get_sel(Id, #st{selmode=Mode,sel=Sel}) ->
     case keysearch(Id, 1, Sel) of
 	false -> [];
-	{value,{Id,Set}} -> Set
+	{value,{Id,Set}} -> {Mode,Set}
     end.
 
-update_sel(#we{id=Id,perm=Set}, Sel) when is_tuple(Set) ->
+update_sel(#we{id=Id,perm={Mode,Set}}, #st{selmode=Mode,sel=Sel}) ->
     sort([{Id,Set}|Sel]);
-update_sel(_, Sel) -> Sel.
+update_sel(#we{id=Id,perm={SMode,Elems0}}, #st{selmode=Mode,sel=Sel}=St) ->
+    StTemp = St#st{selmode=SMode,sel=[{Id,Elems0}]},
+    #st{sel=[{Id,Elems}]} = wings_sel:convert_selection(Mode, StTemp),
+    sort([{Id,Elems}|Sel]);
+update_sel(_, #st{sel=Sel}) -> Sel.
+    
