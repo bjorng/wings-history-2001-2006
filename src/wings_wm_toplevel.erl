@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.40 2003/11/09 10:31:19 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.41 2003/11/12 16:19:37 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -647,9 +647,9 @@ drag(Y0, #ss{knob_prop=Prop,track_pos=TrackPos}) ->
 redraw(#ss{knob_pos=Pos,knob_prop=Prop}) ->
     wings_io:ortho_setup(),
     {W,H} = wings_wm:win_size(),
-    wings_io:border(0, 0, W-1, H, ?PANE_COLOR),
+    wings_io:border(-1, 0, W, H, ?PANE_COLOR),
     gl:color3f(0.2, 0.2, 0.2),
-    X = 1.5, Y = H*Pos+1.5,
+    X = 0.5, Y = H*Pos+1.5,
     X2 = W-0.5, Y2 = H*(Pos+Prop),
     gl:shadeModel(?GL_SMOOTH),
     gl:'begin'(?GL_QUADS),
@@ -679,7 +679,7 @@ new_closer(Client) ->
     {X,Y} = closer_pos(Client),
     Z = wings_wm:win_z(Client),
     Name = {closer,Client},
-    wings_wm:new(Name, {X,Y,Z}, {14,13},
+    wings_wm:new(Name, {X,Y,Z}, {14,11},
 		 {push,fun close_event/1}),
     Name.
 
