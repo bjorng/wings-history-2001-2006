@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.21 2001/10/25 14:24:05 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.22 2001/10/25 15:00:48 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -95,7 +95,7 @@ save_as(#st{shapes=Shapes}=St) ->
     end.
 
 wings_prop() ->
-    [{ext,".wings"},{ext_description,"Wings File"}].
+    [{ext,".wings"},{ext_desc,"Wings File"}].
 
 %%
 %% The Revert command.
