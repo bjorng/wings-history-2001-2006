@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_mapping.erl,v 1.68 2005/04/01 14:13:09 dgud Exp $
+%%     $Id: auv_mapping.erl,v 1.69 2005/04/05 16:30:52 dgud Exp $
 %%
 
 %%%%%% Least Square Conformal Maps %%%%%%%%%%%%
@@ -85,65 +85,90 @@ map_chart_2(camera, C, _, Dir, We) ->   projectFromCamera(C, Dir, We);
 map_chart_2(sphere,C, Loop, Pinned, We) -> spheremap(C, Pinned, Loop,We);
 map_chart_2(lsqcm, C, Loop, Pinned, We) -> lsqcm(C, Pinned, Loop, We).
 
-spheremap(Chart, Pinned, Loop ={_,BEdges}, We = #we{vp=Vtab}) ->
+spheremap(Chart, Pinned, Loop ={_,BEdges}, We) ->
     %% Rotates to +Z axis
-    Vs = projectFromChartNormal(Chart,We),
+    ChartNormal = chart_normal(Chart,We),
+    Vs0 = wings_face:to_vertices(Chart, We),
+    StoT = e3d_mat:rotate_s_to_t(ChartNormal,{0.0,0.0,1.0}),
+    Vs1 = lists:sort([{V,e3d_mat:mul_point(StoT, wings_vertex:pos(V, We))} || V <- Vs0]),
+    Vtab0 = gb_trees:from_orddict(Vs1),
     %% Get poles.
     {{V1,_},{V2,_}} = case Pinned of 
-			  none -> find_pinned(Loop,We);
+			  none -> find_poles(Loop,We#we{vp=Vtab0});
 			  _ -> Pinned
 		      end,
-    V1p = gb_trees:get(V1,Vtab),
-    V2p = gb_trees:get(V2,Vtab),
-    {Npole,Spole} = 
-	if element(2,V1p) > element(2,V2p) -> {V1p,V2p};
-	   true -> {V2p,V1p}
+    V1p = gb_trees:get(V1,Vtab0),
+    V2p = gb_trees:get(V2,Vtab0),
+    {NPolePos,SPolePos,North,South} = 
+	if element(2,V1p) > element(2,V2p) -> {V1p,V2p,V1,V2};
+	   true -> {V2p,V1p,V2,V1}
 	end,
-    Center = e3d_vec:average(Npole,Spole),
-    ZAngle = math:acos(e3d_vec:dot(e3d_vec:norm(e3d_vec:sub(Npole,Center)),
-				   {0.0,1.0,0.0})),
-    Rot = e3d_mat:rotate(ZAngle*180/math:pi(), {0.0,0.0,1.0}),
-    io:format("Center ~p is of ~p~n  ~p~n",[Center,{V1,V2},{Npole,Spole}]),
-    io:format("Angle is ~p degrees~n",[ZAngle]),
+    %% Center and rotate chart so poles are at Y=1.0 and -1.0,
+    Center = e3d_vec:average(NPolePos,SPolePos),
+    {UpX,UpY,UpZ} = e3d_vec:norm(e3d_vec:sub(NPolePos,Center)),
+    %%    ZAngle = math:acos(e3d_vec:dot(e3d_vec:norm({UpX,UpY,0.0}),{0.0,1.0,0.0})),
+    ZAngle = math:atan2(UpX,UpY),
+    Rot0   = e3d_mat:rotate(ZAngle*180/math:pi(), {0.0,0.0,1.0}),
+    XAngle = math:atan2(UpZ,UpY),
+    Rot1   = e3d_mat:rotate(XAngle*180/math:pi(), {1.0,0.0,0.0}),
+%     io:format("Center ~p is of ~p~n  ~p~n",[Center,{V1,V2},{NPolePos,SPolePos}]),
+%     io:format("Angle is ~p @Z ~p @X degrees and CN ~p ~n",
+% 	      [ZAngle*180/math:pi(),XAngle*180/math:pi(),ChartNormal]),
+    Transl = e3d_mat:translate(e3d_vec:neg(Center)),
+    Transf = e3d_mat:mul(Rot1,e3d_mat:mul(Rot0, Transl)),
+    Vs = [{V,e3d_vec:norm(e3d_mat:mul_point(Transf,Pos))} || {V,Pos} <- Vs1],
+
+%     io:format("Npole ~p~n", [e3d_vec:norm(e3d_mat:mul_point(Transf,NPolePos))]),
+%     io:format("Spole ~p~n", [e3d_vec:norm(e3d_mat:mul_point(Transf,SPolePos))]),
+    %% Check the border vertices positions should they be mapped on X= -1 or X=1
+    Vtab1 = gb_trees:from_orddict(Vs), 
+    TempWe = We#we{vp=Vtab1},
+    BorderVs0 = 
+	lists:map(fun({VS,VE,_,Face,_}) -> 
+			  {X0,_,Z} = gb_trees:get(VS,Vtab1),
+			  {X1,_,_} = gb_trees:get(VE,Vtab1),
+			  X = (X0+X1)/2,
+			  {FX,_,_} = wings_face:center(Face,TempWe),
+			  R=if  Z < 0.0, FX < 0, X > -0.0005 -> {VS,{x,-1.0}};
+				Z < 0.0, FX > 0, X < 0.0005 -> {VS,{x,1.0}};
+				true -> {VS,calc}
+			    end,
+% 			  io:format("X = ~p FX=~p => ~p ~n",[X,FX,R]),
+			  R
+		  end, BEdges),
+    BorderVs = gb_trees:from_orddict(lists:sort(BorderVs0)),
     Proj =
-	fun({V,Pos0}) ->
-		Pos1 = e3d_vec:sub(Pos0,Center),
-		%% Rotate and scale/normalize
-		{X0,Y0,Z0} = e3d_vec:norm(e3d_mat:mul_point(Rot,Pos1)),
-		X = clamp_near_zero(X0),
-		Z = clamp_near_zero(Z0),
+	fun({V,_}) when V == North -> {V,{0.0,0.5,0.0}};
+	   ({V,_}) when V == South -> {V,{0.0,-0.5,0.0}};
+	   ({V,{X0,Y0,Z0}}) ->
 		T = math:acos(-Y0)/math:pi()-0.5,
-		S = case {X,Z} of
-			{0.0,0.0} -> 0.0;
-			{0.0, _} when Z < 0.0 ->
-			    %% On the border
-			    %% Remake this, it don't work face is not in correct position!!
-			    io:format("~p: ~p ~n",[?LINE,V]),
-			    case lists:keysearch(V, 1, BEdges) of 
- 				{value, {V,_V2,_Edge,Face,_Dist}} ->
-				    case wings_face:center(Face,We) of
-					{X,_,_} when X < 0.0 ->
-					    io:format("~p: ~p ~n",[?LINE,V]),
-					    -1.0;
-					_ -> 
-					    io:format("~p: ~p ~n",[?LINE,V]),
-					    1.0
-				    end;
-				_What ->
-				    io:format("~p: ~p ~n",[?LINE,V]),
-				    1.0
-		 	    end;
-	 		_ -> math:atan2(X,Z)/math:pi()
-		    end,
- 		io:format("~p: {~.5f,~.5f,~.5f} => {~.2f,~.2f}~n",
-	 		  [V,X0,Y0,Z0,S,T]),
-		{V,{S,T,0.0}}
- 	end,
+		case gb_trees:lookup(V,BorderVs) of
+		    {value, {x, S}} -> 
+%%			io:format("Border ~p ~n", [V]),
+			{V,{S,T,0.0}};
+		    _ ->
+			{V,{math:atan2(X0,Z0)/math:pi(),T,0.0}}
+		end
+	end,
     lists:map(Proj, Vs).
-	    
-clamp_near_zero(Z) when Z < 1.0e-5, Z > -1.0e-5 -> 0.0;
-clamp_near_zero(Z) -> Z.     
-    
+
+%clamp_near_zero(Z) when Z < 1.0e-5, Z > -1.0e-5 -> 0.0;
+%clamp_near_zero(Z) -> Z.     
+
+find_poles(Loop={_,BEdges}, We=#we{name=#ch{vmap=Vmap}}) ->
+    Mapped = [{auv_segment:map_vertex(V,Vmap),V} || {V,_,_,_,_} <- BEdges],
+    case uncut_verts(lists:sort(Mapped),[]) of
+	[V1,V2] -> {{V1,ignore},{V2,ignore}};
+	_ -> 
+	    find_pinned(Loop,We)
+    end.
+
+uncut_verts([{V1,_},{V1,_}|R],Acc) ->
+    uncut_verts(R,Acc);
+uncut_verts([{_,V}|R],Acc) ->
+    uncut_verts(R,[V|Acc]);
+uncut_verts([],Acc) -> Acc.
+
 projectFromChartNormal(Chart, We) ->
     Normal = chart_normal(Chart,We),
     Vs0 = wings_face:to_vertices(Chart, We),
@@ -159,7 +184,7 @@ projectFromCamera(Chart,{matrices,{MM,PM,VP}},We) ->
     lists:map(Proj, Vs).
 
 chart_normal([],_We) -> throw("Can not calculate normal for chart.");
-chart_normal(Fs,We) ->
+chart_normal(Fs,We = #we{es=Etab}) ->
     CalcNormal = 
 	fun(Face, Sum) ->
 		Normal = wings_face:normal(Face, We),
@@ -169,14 +194,25 @@ chart_normal(Fs,We) ->
 	end,
     N0 = foldl(CalcNormal, e3d_vec:zero(), Fs),
     case e3d_vec:norm(N0) of
-	{0.0,0.0,0.0} -> %% Bad normal :-)
-	    NewFs = decrease_chart(Fs,We),
-	    chart_normal(NewFs, We);
+	{0.0,0.0,0.0} -> %% Bad normal Fallback1
+	    BE = auv_util:outer_edges(Fs,We,false),
+	    EdgeNormals = 
+		fun({Edge,_Face}, Sum0) ->
+			#edge{lf=LF,rf=RF} = gb_trees:get(Edge, Etab),
+			Sum1 = CalcNormal(LF,Sum0),
+			CalcNormal(RF,Sum1)
+		end,
+	    N1 = foldl(EdgeNormals, e3d_vec:zero(), BE),
+	    case e3d_vec:norm(N1) of
+		{0.0,0.0,0.0} -> %% Bad normal Fallback2
+		    NewFs = decrease_chart(Fs,BE),
+		    chart_normal(NewFs, We);
+		N -> e3d_vec:mul(N,-1.0)
+	    end;
 	N -> N
     end.
 	    
-decrease_chart(Fs0,We) ->
-    BE = auv_util:outer_edges(Fs0,We,false),
+decrease_chart(Fs0,BE) ->
     Fs1 = gb_sets:from_list(Fs0),
     Del = fun({_E,Face},FSin) ->
 		  gb_sets:del_element(Face,FSin)
