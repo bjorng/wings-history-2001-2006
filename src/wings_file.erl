@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.22 2001/10/25 15:00:48 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.23 2001/10/25 15:12:10 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -151,7 +151,7 @@ export(Mod, Ext, St) ->
 %%% Utilities.
 
 file_prop(".3ds"=Ext) -> file_prop(Ext, "3D Stdio File");
-file_prop(".obj"=Ext) -> file_prop(Ext, "Wawefront (OBJ)").
+file_prop(".obj"=Ext) -> file_prop(Ext, "Wawefront").
 
 file_prop(Ext, Desc) ->
     [{ext,Ext},{ext_desc,Desc}].
