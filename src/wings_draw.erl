@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.34 2001/12/03 14:26:26 dgud Exp $
+%%     $Id: wings_draw.erl,v 1.35 2001/12/07 19:46:55 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -111,7 +111,9 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
     gl:disable(?GL_POLYGON_OFFSET_POINT),
     gl:disable(?GL_POLYGON_OFFSET_FILL),
 
+    ?CHECK_ERROR(),
     draw_sel(St),
+    ?CHECK_ERROR(),
     draw_hard_edges(St).
 
 sel_color() ->
@@ -121,7 +123,6 @@ draw_sel(#st{selmode=edge,dl=#dl{sel=DlistSel}}) ->
     gl:lineWidth(wings_pref:get_value(selected_edge_width)),
     gl:callList(DlistSel);
 draw_sel(#st{selmode=vertex,dl=#dl{sel=DlistSel}}) ->
-    gl:pointSize(wings_pref:get_value(selected_vertex_size)),
     gl:callList(DlistSel);
 draw_sel(#st{dl=#dl{sel=DlistSel}}) ->
     gl:enable(?GL_POLYGON_OFFSET_FILL),
@@ -309,9 +310,7 @@ draw_selection(Smooth, #st{selmode=edge}=St) ->
       end, St),
     gl:'end'();
 draw_selection(Smooth, #st{selmode=vertex}=St) ->
-    gl:'begin'(?GL_POINTS),
-    draw_vtx_sel(Smooth, St),
-    gl:'end'().
+    draw_vtx_sel(Smooth, St).
 
 draw_vtx_sel(Smooth, #st{shapes=Shapes,sel=Sel}) ->
     draw_vtx_sel(gb_trees:to_list(Shapes), Sel, Smooth).
@@ -321,15 +320,21 @@ draw_vtx_sel([{Id1,#shape{sh=#we{vs=Vtab}}}|Shs], [{Id2,_}|_]=Sel, true)
     draw_vtx_sel(Shs, Sel, true);
 draw_vtx_sel([{Id1,#shape{sh=#we{vs=Vtab}}}|Shs], [{Id2,_}|_]=Sel, false)
   when Id1 < Id2 ->
+    gl:pointSize(wings_pref:get_value(vertex_size)),
     gl:color3f(0, 0, 0),
+    gl:'begin'(?GL_POINTS),
     foreach(fun(#vtx{pos=Pos}) -> gl:vertex3fv(Pos) end,
 	    gb_trees:values(Vtab)),
+    gl:'end'(),
     draw_vtx_sel(Shs, Sel, false);
 draw_vtx_sel([{_,#shape{sh=#we{vs=Vtab}}}|Shs], [], true) -> ok;
 draw_vtx_sel([{_,#shape{sh=#we{vs=Vtab}}}|Shs], [], false) ->
+    gl:pointSize(wings_pref:get_value(vertex_size)),
     gl:color3f(0, 0, 0),
+    gl:'begin'(?GL_POINTS),
     foreach(fun(#vtx{pos=Pos}) -> gl:vertex3fv(Pos) end,
 	    gb_trees:values(Vtab)),
+    gl:'end'(),
     draw_vtx_sel(Shs, [], false);
 draw_vtx_sel([{Id,#shape{sh=#we{vs=Vtab0}}}|Shs], [{Id,Vs}|Sel], Smooth) ->
     Vtab = sofs:from_external(gb_trees:to_list(Vtab0), [{vertex,data}]),
@@ -337,13 +342,19 @@ draw_vtx_sel([{Id,#shape{sh=#we{vs=Vtab0}}}|Shs], [{Id,Vs}|Sel], Smooth) ->
     SelVs = sofs:restriction(Vtab, R),
     DrawFun = fun({_,#vtx{pos=Pos}}) -> gl:vertex3fv(Pos) end,
     sel_color(),
+    gl:pointSize(wings_pref:get_value(selected_vertex_size)),
+    gl:'begin'(?GL_POINTS),
     foreach(DrawFun, sofs:to_external(SelVs)),
+    gl:'end'(),
     case Smooth of
 	true -> ok;
 	false ->
 	    gl:color3f(0, 0, 0),
 	    NonSelVs = sofs:drestriction(Vtab, R),
-	    foreach(DrawFun, sofs:to_external(NonSelVs))
+	    gl:pointSize(wings_pref:get_value(vertex_size)),
+	    gl:'begin'(?GL_POINTS),
+	    foreach(DrawFun, sofs:to_external(NonSelVs)),
+	    gl:'end'()
     end,
     draw_vtx_sel(Shs, Sel, Smooth);
 draw_vtx_sel([], [], Smooth) -> ok.
@@ -393,10 +404,9 @@ axis(I, Pos, Neg) ->
     gl:'end'().
 
 groundplane(Axes) ->
-    gl:color3f(0.0, 0.0, 0.0),
+    gl:color3fv(wings_pref:get_value(grid_color)),
     ?CHECK_ERROR(),
     gl:lineWidth(0.1),
-    ?CHECK_ERROR(),
     gl:'begin'(?GL_LINES),
     Sz = ?GROUND_GRID_SIZE * 10,
     groundplane(-Sz, Sz, Sz, Axes),
