@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.297 2005/03/15 00:08:21 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.298 2005/03/16 17:48:00 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -62,15 +62,27 @@ auv_menu(help,_) ->
     {"Generate UV mapping or texture",
      "",
      "Force to segmenting mode"};
-auv_menu(1,_) -> {?MODULE, segment};
-auv_menu(2,_) -> {?MODULE, segment};
+auv_menu(1,_What) -> 
+    case wings_pref:get_value(advanced_menus) of
+	false -> 
+	    [{"Direct", segment,
+	      "Open UV-window directly if selection already contains uv-coords"},
+	     {"Force Segment", force_seg,
+	      "Delete old UV-coords and start over with segmenting"}];
+	true -> 
+	    {?MODULE, segment}
+    end;
+auv_menu(2,_) -> ignore;
 auv_menu(3,_) -> {?MODULE, force_seg}.
 
+command({body,{?MODULE, Op}} , St) ->
+    start_uvmap(Op, St);
 command({?MODULE, Op}, St) ->
     start_uvmap(Op, St);
 command({window,uv_editor_window}, St) ->
     window(St);
-command(_, _) -> next.
+command(_Cmd, _) -> 
+    next.
 
 window(St) ->
     start_uvmap(edit, St).
