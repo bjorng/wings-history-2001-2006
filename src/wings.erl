@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.130 2002/04/16 09:40:18 bjorng Exp $
+%%     $Id: wings.erl,v 1.131 2002/04/24 09:42:21 bjorng Exp $
 %%
 
 -module(wings).
@@ -503,12 +503,17 @@ info(#st{shapes=Shapes,selmode=body,sel=[{Id,_}]}) ->
     shape_info(Sh);
 info(#st{shapes=Shapes,selmode=body,sel=Sel}) ->
     shape_info(Sel, Shapes);
-info(#st{selmode=vertex,sel=[{_,Sel}]}) ->
+info(#st{selmode=vertex,sel=[{Id,Sel}],shapes=Shs}) ->
     case gb_sets:size(Sel) of
 	0 -> "";
 	1 ->
 	    [V] = gb_sets:to_list(Sel),
 	    flat_format("Vertex: ~p", [V]);
+	2 ->
+	    We = gb_trees:get(Id, Shs),
+	    [Va,Vb] = gb_sets:to_list(Sel),
+	    Dist = e3d_vec:dist(wings_vertex:pos(Va, We), wings_vertex:pos(Vb, We)),
+	    flat_format("Vertices: ~p, ~p  D=~p", [Va,Vb,Dist]);
 	N when N < 5 ->
 	    Vs = gb_sets:to_list(Sel),
 	    item_list(Vs, "Vertices");
