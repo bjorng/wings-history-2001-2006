@@ -8,16 +8,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.46 2003/01/02 17:40:29 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.47 2003/01/06 09:54:24 bjorng Exp $
 %%
 
 -module(wings_wm).
 -export([init/0,enter_event_loop/0,dirty/0,clean/0,new/4,delete/1,
 	 toplevel/5,toplevel/6,
-	 message/1,message/2,message_right/1,send/2,
+	 message/1,message/2,message_right/1,send/2,send_after_redraw/2,
 	 menubar/1,menubar/2,get_menubar/1,
 	 set_timer/2,cancel_timer/1,
-	 active_window/0,offset/3,move/3,pos/1,windows/0,is_window/1,exists/1,
+	 active_window/0,offset/3,move/2,move/3,pos/1,windows/0,is_window/1,exists/1,
+	 update_window/2,
 	 callback/1,current_state/1,
 	 grab_focus/0,grab_focus/1,release_focus/0,has_focus/1,focus_window/0,
 	 top_size/0,viewport/0,viewport/1,
@@ -30,6 +31,7 @@
 -include("wings.hrl").
 -import(lists, [map/2,last/1,sort/1,keysort/2,keysearch/3,
 		reverse/1,foreach/2,member/2]).
+-compile(inline).
 
 -define(BUTTON_WIDTH, 44).
 -define(BUTTON_HEIGHT, 32).
@@ -104,6 +106,9 @@ send(Name, Ev) ->
     wings_io:putback_event({wm,{send_to,Name,Ev}}),
     keep.
 
+send_after_redraw(Name, Ev) ->
+    wings_io:putback_event({wm,{send_after_redraw,Name,Ev}}).
+
 current_state(St) ->
     case put(wm_current_state, St) of
 	St -> ok;
@@ -144,7 +149,8 @@ delete(Name) ->
 
 delete_windows(Name, W0) ->
     W1 = gb_trees:delete_any(Name, W0),
-    W = gb_trees:delete_any({controller,Name}, W1),
+    W2 = gb_trees:delete_any({controller,Name}, W1),
+    W = gb_trees:delete_any({resizer,Name}, W2),
     gb_trees:delete_any({vscroller,Name}, W).
 
 active_window() ->
@@ -166,10 +172,56 @@ offset(Name, Xoffs, Yoffs) ->
     #win{x=X,y=Y} = Win = get_window_data(Name),
     put_window_data(Name, Win#win{x=X+Xoffs,y=Y+Yoffs}).
 
+move(Name, {X,Y,Z}) ->
+    dirty(),
+    Win = get_window_data(Name),
+    put_window_data(Name, Win#win{x=X,y=Y,z=Z}).
+
 move(Name, {X,Y,Z}, {W,H}) ->
+    dirty(),
     Win = get_window_data(Name),
     put_window_data(Name, Win#win{x=X,y=Y,z=Z,w=W,h=H}).
-    
+
+update_windows(Names, Updates) ->
+    update_windows_1(Names, Updates, get(wm_windows)).
+
+update_windows_1([N|Ns], Updates, Windows0) ->
+    Win0 = gb_trees:get(N, Windows0),
+    Win = update_window_1(Updates, Win0),
+    Windows = gb_trees:update(N, Win, Windows0),
+    update_windows_1(Ns, Updates, Windows);
+update_windows_1([], _, Windows) ->
+    put(wm_windows, Windows),
+    dirty().
+
+update_window(Name, Updates) ->
+    send(Name, resized),
+    put_window_data(Name, update_window_1(Updates, get_window_data(Name))),
+    dirty().
+
+update_window_1([{dx,Dx}|T], #win{x=X}=Win) ->
+    update_window_1(T, Win#win{x=X+Dx});
+update_window_1([{dy,Dy}|T], #win{y=Y}=Win) ->
+    update_window_1(T, Win#win{y=Y+Dy});
+update_window_1([{dw,Dw}|T], #win{w=W}=Win) ->
+    update_window_1(T, Win#win{w=W+Dw});
+update_window_1([{dh,Dh}|T], #win{h=H}=Win) ->
+    update_window_1(T, Win#win{h=H+Dh});
+update_window_1([{x,X}|T], Win) ->
+    update_window_1(T, Win#win{x=X});
+update_window_1([{w,W}|T], Win) ->
+    update_window_1(T, Win#win{w=W});
+update_window_1([{h,H}|T], Win) ->
+    update_window_1(T, Win#win{h=H});
+update_window_1([], Win) ->
+    range_check(Win).
+
+range_check(#win{w=W}=Win) when W < 1 ->
+    range_check(Win#win{w=1});
+range_check(#win{h=H}=Win) when H < 1 ->
+    range_check(Win#win{h=1});
+range_check(Win) -> Win.
+
 pos(Name) ->
     #win{x=X,y=Y} = get_window_data(Name),
     {X,Y}.
@@ -242,13 +294,8 @@ enter_event_loop() ->
 
 event_loop() ->
     case get(wm_dirty) of
-	undefined ->
-	    get_and_dispatch();
-	_ ->
-	    case wings_io:poll_event() of
-		{new_state,_} -> get_and_dispatch();
-		_ -> redraw_all()
-	    end
+	undefined -> get_and_dispatch();
+	_ -> redraw_all()
     end.
 
 get_and_dispatch() ->
@@ -256,7 +303,7 @@ get_and_dispatch() ->
     dispatch_event(Event),
     event_loop().
 
-dispatch_matching_events(Filter) ->
+dispatch_matching(Filter) ->
     Evs = wings_io:get_matching_events(Filter),
     foreach(fun dispatch_event/1, Evs).
 
@@ -329,23 +376,31 @@ dispatch_event(Event) ->
     end.
 
 do_dispatch(Active, Ev) ->
-    Win0 = get_window_data(Active),
-    case send_event(Win0, Ev) of
-	#win{name=Name,stk=delete} ->
-	    delete(Name);
-	#win{stk=[]} ->
-	    ok;
-	Win ->
-	    put_window_data(Active, Win)
+    case gb_trees:lookup(Active, get(wm_windows)) of
+	none -> ok;
+	{value,Win0} ->
+	    case send_event(Win0, Ev) of
+		#win{name=Name,stk=delete} ->
+		    delete(Name);
+		#win{stk=[]} ->
+		    ok;
+		Win ->
+		    put_window_data(Active, Win)
+	    end
     end.
 
 redraw_all() ->
     EarlyBC = wings_pref:get_value(early_buffer_clear),
     maybe_clear(late, EarlyBC),			%Clear right before
 						%drawing (late).
+    Windows = keysort(2, gb_trees:to_list(get(wm_windows))),
     foreach(fun({Name,_}) ->
+		    dispatch_matching(fun({wm,{send_to,N,_}}) ->
+					      N =:= Name;
+					 (_) -> false
+				      end),
 		    do_dispatch(Name, redraw)
-	    end, keysort(2, gb_trees:to_list(get(wm_windows)))),
+	    end, Windows),
     gl:swapBuffers(),
     maybe_clear(early, EarlyBC),		%Clear immediately after
 						%buffer swap (early).
@@ -476,6 +531,11 @@ wm_event({send_to,Name,Ev}) ->
 	false -> ok;
 	true -> do_dispatch(Name, Ev)
     end;
+wm_event({send_after_redraw,Name,Ev}) ->
+    case gb_trees:is_defined(Name, get(wm_windows)) of
+	false -> ok;
+	true -> do_dispatch(Name, Ev)
+    end;
 wm_event({callback,Cb}) ->
     Cb().
 
@@ -591,10 +651,10 @@ translate_button_1(B, _, Mod) ->
 %%
 
 message_event(redraw) ->
-    dispatch_matching_events(fun({wm,{message,_,_}}) -> true;
-				({wm,{message_right,_,_}}) -> true;
-				(_) -> false
-			     end),
+    dispatch_matching(fun({wm,{message,_,_}}) -> true;
+			 ({wm,{message_right,_,_}}) -> true;
+			 (_) -> false
+		      end),
     case find_active(redraw) of
 	none -> message_redraw([], []);
 	Active ->
@@ -625,14 +685,16 @@ message_redraw(Msg, Right) ->
 	_ -> ok
     end,
     case os:type() of
-	{unix,darwin} ->
-	    gl:enable(?GL_TEXTURE_2D),
-	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
-	    wings_io:draw_icon(W-23, -4, 12, 12, 16, 16, resize),
-	    gl:disable(?GL_TEXTURE_2D);
+	{unix,darwin} -> draw_resizer(W-23, -4);
 	_ -> ok
     end,
     keep.
+
+draw_resizer(X, Y) ->
+    gl:enable(?GL_TEXTURE_2D),
+    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+    wings_io:draw_icon(X, Y, 12, 12, 16, 16, resize),
+    gl:disable(?GL_TEXTURE_2D).
 
 message_setup() ->
     wings_io:ortho_setup(),
@@ -999,8 +1061,11 @@ new_controller(Client, Title, Flags) ->
     ctrl_anchor(Controlled, Flags, Size, TitleBarH),
     keep.
 
-ctrl_create_windows([vscroller|Flags], Client, #win{x=X,y=Y,z=Z,w=W,h=H}=Win) ->
-    Name = wings_win_scroller:vscroller(Client, {X+W,Y,Z-0.5}, {0,H}),
+ctrl_create_windows([vscroller|Flags], Client, #win{x=X,y=Y,z=Z,w=W}=Win) ->
+    Name = wings_win_scroller:vscroller(Client, {X+W,Y,Z+0.1}),
+    [Name|ctrl_create_windows(Flags, Client, Win)];
+ctrl_create_windows([resizable|Flags], Client, Win) ->
+    Name = ctrl_new_resizer(Client),
     [Name|ctrl_create_windows(Flags, Client, Win)];
 ctrl_create_windows([_|Flags], Client, Win) ->
     ctrl_create_windows(Flags, Client, Win);
@@ -1014,9 +1079,9 @@ ctrl_anchor(Controlled, Flags, Size, TitleBarH) ->
     end.
 
 ctrl_anchor_1(nw, Controlled, _, Th) ->
-    ctrl_move_win(Controlled, 0, Th);
+    update_windows(Controlled, [{dy,Th}]);
 ctrl_anchor_1(ne, Controlled, {W,_}, Th) ->
-    ctrl_move_win(Controlled, -W, Th).
+    update_windows(Controlled, [{dx,-W},{dy,Th}]).
 
 get_ctrl_event(Cs) ->
     {replace,fun(Ev) -> ctrl_event(Ev, Cs) end}.
@@ -1041,20 +1106,21 @@ ctrl_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
     Y = Y1 - LocY,
     Self = get(wm_active),
     #win{x=OldX,y=OldY} = get_window_data(Self),
-    ctrl_move_win(Children, X-OldX, Y-OldY),
-    dirty(),
+    update_windows(Children, [{dx,X-OldX},{dy,Y-OldY}]),
     get_ctrl_event(Cs#ctrl{prev={X,Y}});
 ctrl_event(#mousemotion{state=?SDL_RELEASED},
 	   #ctrl{state=moving,prev_focus=Focus}=Cs) ->
     grab_focus(Focus),
     get_ctrl_event(Cs#ctrl{state=idle});
+ctrl_event({client_resized,Client}, _) ->
+    {_,_,W,_} = viewport(Client),
+    Self = {controller,Client},
+    case is_window({vscroller,Client}) of
+	false -> update_window(Self, [{w,W}]);
+	true -> update_window(Self, [{w,W+wings_win_scroller:width()}])
+    end,
+    keep;
 ctrl_event(_, _) -> keep.
-
-ctrl_move_win([Name|Names], Dx, Dy) ->
-    #win{x=X,y=Y}= Data = get_window_data(Name),
-    put_window_data(Name, Data#win{x=X+Dx,y=Y+Dy}),
-    ctrl_move_win(Names, Dx, Dy);
-ctrl_move_win([], _, _) -> ok.
 
 ctrl_redraw(#ctrl{title=Title}) ->
     TitleBarH = ?LINE_HEIGHT+2,
@@ -1062,6 +1128,72 @@ ctrl_redraw(#ctrl{title=Title}) ->
     {_,_,W,_} = viewport(),
     Color = {0.3,0.4,0.3},
     wings_io:border(0, 0, W-1, TitleBarH, Color),
-    gl:color3f(0, 0, 0),
+    gl:color3f(1, 1, 1),
     wings_io:text_at(10, TitleBarH-3, Title),
     keep.
+
+%%%
+%%% Resizer window.
+%%%
+
+-record(rsz,
+	{state=idle,				%idle|moving
+	 local,
+	 prev,
+	 prev_focus				%Previous focus holder.
+	}).
+
+ctrl_new_resizer(Client) ->
+    Name = {resizer,Client},
+    Rst = #rsz{},
+    Pos = resize_pos(Client),
+    wings_wm:new(Name, Pos, {12,12},
+		 {seq,push,get_resize_event(Rst)}),
+    Name.
+
+get_resize_event(Rst) ->
+    {replace,fun(Ev) -> resize_event(Ev, Rst) end}.
+
+resize_event(redraw, _) ->
+    wings_io:ortho_setup(),
+    draw_resizer(0, 0),
+    keep;
+resize_event(#mousebutton{button=1,state=?SDL_PRESSED},
+	     #rsz{state=moving,prev_focus=Focus}=Rst) ->
+    grab_focus(Focus),
+    get_resize_event(Rst#rsz{state=idle});
+resize_event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, Rst) ->
+    Focus = focus_window(),
+    grab_focus(get(wm_active)),
+    get_resize_event(Rst#rsz{prev={X,Y},local={X,Y},state=moving,prev_focus=Focus});
+resize_event(#mousebutton{button=1,state=?SDL_RELEASED}, #rsz{prev_focus=Focus}=Rst) ->
+    grab_focus(Focus),
+    get_resize_event(Rst#rsz{state=idle});
+resize_event(#mousemotion{x=X0,y=Y0,state=?SDL_PRESSED},
+	     #rsz{state=moving,local={LocX,LocY}}=Rst) ->
+    {X1,Y1} = local2global(X0, Y0),
+    X = X1 - LocX,
+    Y = Y1 - LocY,
+    {resizer,Client} = Self = get(wm_active),
+    #win{x=OldX,y=OldY} = get_window_data(Self),
+    Dx = X-OldX,
+    Dy = Y-OldY,
+    update_window(Client, [{dw,Dx},{dh,Dy}]),
+    NewPos = resize_pos(Client),
+    move(Self, NewPos),
+    ResizeMsg = {client_resized,Client},
+    send({controller,Client}, ResizeMsg),
+    send({vscroller,Client}, ResizeMsg),
+    dirty(),
+    get_resize_event(Rst#rsz{prev={X,Y}});
+resize_event(#mousemotion{state=?SDL_RELEASED},
+	   #rsz{state=moving,prev_focus=Focus}=Rst) ->
+    grab_focus(Focus),
+    get_resize_event(Rst#rsz{state=idle});
+resize_event(_, _) -> keep.
+
+resize_pos(Client) ->
+    #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Client),
+    {X+W-2,Y+H-13,Z+0.5}.
+    
+    

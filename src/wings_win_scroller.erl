@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_win_scroller.erl,v 1.2 2003/01/02 17:40:29 bjorng Exp $
+%%     $Id: wings_win_scroller.erl,v 1.3 2003/01/06 09:54:23 bjorng Exp $
 %%
 
 -module(wings_win_scroller).
 
--export([vscroller/3,width/0,set_knob/3]).
+-export([vscroller/2,width/0,set_knob/3]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -26,11 +26,12 @@
 	 track_pos=none
 	}).
 
-vscroller(Name0, Pos, {_,H}) ->
+vscroller(Name0, Pos) ->
     Name = {vscroller,Name0},
     Ss = #ss{knob_pos=0.0,knob_prop=1.0},
-    wings_wm:new(Name, Pos, {width(),H},
+    wings_wm:new(Name, Pos, {width(),1},
 		 {seq,push,get_event(Ss)}),
+    wings_wm:send(Name, {client_resized,Name0}),
     Name.
 
 set_knob({vscroller,_}=Name, Pos, Proportion) ->
@@ -39,7 +40,7 @@ set_knob(Name, Pos, Proportion) ->
     set_knob({vscroller,Name}, Pos, Proportion).
 
 width() ->
-    10.
+    12.
 
 %%%
 %%% Implementation.
@@ -65,6 +66,14 @@ event(#mousebutton{button=1,state=?SDL_RELEASED}, Ss) ->
 event(#mousemotion{y=Y,state=?SDL_PRESSED}, #ss{track_pos=Pos}=Ss)
   when Pos =/= none ->
     drag(Y, Ss);
+event({client_resized,Name}, _) ->
+    {X,_,W,H} = wings_wm:viewport(Name),
+    Updates = case wings_wm:is_window({resizer,Name}) of
+		  false -> [{h,H}];
+		  true -> [{h,H-13}]
+	      end,
+    wings_wm:update_window({vscroller,Name}, [{x,X+W}|Updates]),
+    keep;
 event(_, _) -> keep.
 
 down(Y0, #ss{knob_pos=Pos,knob_prop=Prop}=Ss) ->
@@ -91,7 +100,7 @@ drag(Y0, #ss{knob_prop=Prop,track_pos=TrackPos}) ->
 	    _ -> 1-Prop
 	end,
     {vscroller,Client} = wings_wm:active_window(),
-     wings_wm:send(Client, {set_knob_pos,Y}),
+    wings_wm:send(Client, {set_knob_pos,Y}),
     keep.
 
 redraw(#ss{knob_pos=Pos,knob_prop=Prop}) ->

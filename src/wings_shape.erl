@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.37 2003/01/04 16:25:15 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.38 2003/01/06 09:54:23 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -79,10 +79,10 @@ window(St) ->
 	    Ost = #ost{first=0,eye=eye_bitmap(),lock=lock_bitmap(),lh=18,active=-1},
 	    Current = {current_state,St},
 	    Op = {seq,push,event(Current, Ost)},
-	    Pos = {GeomW,TopH-(GeomY+GeomH),20},
-	    Size = {W,GeomH-30},
+	    Pos = {GeomW-5,TopH-(GeomY+GeomH)+5,20},
+	    Size = {W,TopH div 2},
 	    wings_wm:toplevel(object, "Objects", Pos, Size,
-			      [vscroller,{anchor,ne}], Op),
+			      [resizable,vscroller,{anchor,ne}], Op),
 	    wings_wm:send(object, Current),
 	    keep
     end.
@@ -90,6 +90,9 @@ window(St) ->
 get_event(Ost) ->
     {replace,fun(Ev) -> event(Ev, Ost) end}.
 
+event(resized, Ost) ->
+    update_scroller(Ost),
+    keep;
 event(redraw, Ost) ->
     wings_io:ortho_setup(),
     {_,_,W,H} = wings_wm:viewport(),

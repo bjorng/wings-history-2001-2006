@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.72 2003/01/05 09:44:18 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.73 2003/01/06 09:54:23 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -75,7 +75,7 @@ is_popup_event(Ev0, PrefKey, St0) ->
 			{add,_,St} ->
 			    Ev = wings_wm:local2global(Ev0),
 			    wings_io:putback_event(Ev),
-			    wings_io:putback_event({new_state,St}),
+			    wings_wm:send(geom, {new_state,St}),
 			    keep;
 			_Other -> Res
 		    end
@@ -322,7 +322,7 @@ call_action(X, Act, Button, Ns, Ps, Mi) ->
 
 do_action(Action, #mi{owner=Owner}=Mi) ->
     wings_wm:send(menubar, clear_menu_selection),
-    wings_wm:send(Owner, {action,Action}),
+    wings_wm:send_after_redraw(Owner, {action,Action}),
     delete_all(Mi).
 	    
 handle_key(#keysym{sym=27}, Mi) ->		%Escape.
