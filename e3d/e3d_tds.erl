@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.8 2001/10/24 08:50:44 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.9 2001/12/28 22:31:42 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -338,7 +338,7 @@ map_faces(Fs, Map) ->
     map_faces(Fs, Map, []).
 map_faces([#e3d_face{vs=Vs0}=Face|Fs], Map, Acc) ->
     Vs = [gb_trees:get(V, Map) || V <- Vs0],
-    map_faces(Fs, Map, [Face#e3d_face{vs=Vs,tx=Vs0}|Acc]);
+    map_faces(Fs, Map, [Face#e3d_face{vs=Vs,tx=[]}|Acc]);
 map_faces([], Map, Acc) -> reverse(Acc).
 
 %%dbg(_, _) -> ok;
