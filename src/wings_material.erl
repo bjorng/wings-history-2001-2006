@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.58 2002/11/14 19:22:00 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.59 2002/11/16 16:22:31 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -23,7 +23,8 @@
 -include("wings.hrl").
 -include("e3d_image.hrl").
 
--import(lists, [map/2,foreach/2,sort/1,foldl/3,reverse/1,keyreplace/4,keydelete/3]).
+-import(lists, [map/2,foreach/2,sort/1,foldl/3,reverse/1,
+		keyreplace/4,keydelete/3,flatten/1]).
 
 init(#st{mat=MatTab}=St) ->
     case put(?MODULE, gb_trees:empty()) of
@@ -267,13 +268,13 @@ is_transparent(Name, Mtab) ->
 
 edit(Name, #st{mat=Mtab0}=St) ->
     Mat0 = gb_trees:get(Name, Mtab0),
-    %%Maps = prop_get(maps, Mat0),
     OpenGL0 = prop_get(opengl, Mat0),
     {Diff0,Opacity0} = ask_prop_get(diffuse, OpenGL0),
     {Amb0,_} = ask_prop_get(ambient, OpenGL0),
     {Spec0,_} = ask_prop_get(specular, OpenGL0),
     Shine0 = prop_get(shininess, OpenGL0),
     {Emiss0,_} = ask_prop_get(emission, OpenGL0),
+    Maps0 = show_maps(Mat0),
     Qs = [{hframe,
 	   [{custom,?PREVIEW_SIZE,?PREVIEW_SIZE,fun mat_preview/5},
 	    {vframe,
@@ -289,9 +290,10 @@ edit(Name, #st{mat=Mtab0}=St) ->
 	      {color,Spec0,[{key,specular}]},
 	      {color,Emiss0,[{key,emission}]},
 	      {slider,{text,Shine0,[{range,{0.0,1.0}},{key,shininess}]}},
-	      {slider,{text,Opacity0,[{range,{0.0,1.0}},{key,opacity}]}}]}]}],
+	      {slider,{text,Opacity0,[{range,{0.0,1.0}},{key,opacity}]}}]}
+	   ]}|Maps0],
     Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
-	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}]) ->
+	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}|_Maps]) ->
 		  OpenGL = [ask_prop_put(diffuse, Diff, Opacity),
 			    ask_prop_put(ambient, Amb, Opacity),
 			    ask_prop_put(specular, Spec, Opacity),
@@ -303,6 +305,17 @@ edit(Name, #st{mat=Mtab0}=St) ->
 		  St#st{mat=Mtab}
 	  end,
     wings_ask:dialog(Qs, Ask).
+
+show_maps(Mat) ->
+    case prop_get(maps, Mat) of
+	[] -> [];
+	Maps -> [separator|[show_map(M) || M <- sort(Maps)]]
+    end.
+
+show_map({Type,{W,H,_Bits}}) ->
+    Label = flatten(io_lib:format("~p ~px~p", [Type,W,H])),
+    {hframe,
+     [{label,Label}]}.
 
 invalidate_dlists(#dlo{src_we=#we{fs=Ftab}}=D, Name) ->
     case material_used(gb_trees:values(Ftab), Name) of
