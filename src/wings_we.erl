@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.105 2005/01/15 17:08:23 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.106 2005/01/16 04:30:21 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -794,18 +794,29 @@ copy_dependents(We0) ->
     Vtab = gb_trees:from_orddict(sofs:to_external(Vtab2)),
     wings_facemat:gc(We#we{he=Htab,vp=Vtab}).
 
-%% build_incident_tab([{Elem,Edge}]) -> GbTree([{Elem,Edge1}])
+%% build_incident_tab([{Elem,Edge}]) -> [{Elem,Edge}]
 %%      Elem = Face or Vertex
 %%  Build the table of incident edges for either faces or vertices.
+%%  Returns an ordered list where each Elem is unique.
 
 build_incident_tab(ElemToEdgeRel) ->
-    build_incident_tab(keysort(1, ElemToEdgeRel), []).
+    T = ets:new(?MODULE, [ordered_set]),
+    ets:insert(T, ElemToEdgeRel),
+    R = ets:tab2list(T),
+    ets:delete(T),
+    R.
+
+%% Reference implementation below. On my Mac is twice as slow as the
+%% implementation above (lists:keysort/2 takes most of the time).
+
+%% build_incident_tab(ElemToEdgeRel) ->
+%%     build_incident_tab_1(keysort(1, ElemToEdgeRel), []).
     
-build_incident_tab([{V,_}|VsEs], [{V,_}|_]=Acc) ->
-    build_incident_tab(VsEs, Acc);
-build_incident_tab([{V,Edge}|VsEs], Acc) ->
-    build_incident_tab(VsEs, [{V,Edge}|Acc]);
-build_incident_tab([], Acc) -> reverse(Acc).
+%% build_incident_tab_1([{V,_}|VsEs], [{V,_}|_]=Acc) ->
+%%     build_incident_tab_1(VsEs, Acc);
+%% build_incident_tab_1([Pair|VsEs], Acc) ->
+%%     build_incident_tab_1(VsEs, [Pair|Acc]);
+%% build_incident_tab_1([], Acc) -> reverse(Acc).
 
 %%%
 %%% Convert textures to vertex colors.
