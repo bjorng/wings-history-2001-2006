@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.48 2003/01/26 11:33:38 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.49 2003/01/26 14:01:04 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -252,7 +252,7 @@ do_action(#mousebutton{button=B}, _) when B > 3 -> keep;
 do_action(#mousebutton{x=X,y=Y,button=B,state=S}, #ost{active=Act0,os=Objs}=Ost) ->
     Act = active_object(Y, Ost),
     case active_field(X) of
-	name when B =:= 1 ->
+	name when B =:= 1, S =:= ?SDL_PRESSED ->
 	    if
 		Act =:= Act0 -> keep;
 		true ->
@@ -382,22 +382,6 @@ toggle_wire_all(#we{id=Id}, _) ->
 			   (#dlo{}=D, _) -> D#dlo{wire=B}
 			end, []),
     wings_wm:dirty().
-				
-	
-					    
-
-%     toggle_wire_all_1(We, Ost),
-%     get_event(Ost#ost{op=none}).
-
-% toggle_wire_all_1(_, #ost{sel=[],st=St0}) ->
-%     St = wings_sel_cmd:select_all(St0),
-%     wings_wm:send(geom, {new_state,St});
-% toggle_wire_all_1(#we{id=Id}, #ost{sel=[{Id,_}],st=St0}) ->
-%     St = wings_sel_cmd:select_all(St0#st{sel=[]}),
-%     wings_wm:send(geom, {new_state,St});
-% toggle_wire_all_1(#we{id=Id,perm=P}, #ost{st=St}) when ?IS_SELECTABLE(P) ->
-%     wings_wm:send(geom, {new_state,wings_sel:select_object(Id, St#st{sel=[]})});
-% toggle_wire_all_1(_, _) -> ok.
 
 %%%
 %%% Popup menus.

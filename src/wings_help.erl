@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.40 2003/01/24 11:09:52 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.41 2003/01/26 14:01:03 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -181,7 +181,7 @@ about() ->
 		       handle_help_event(Ev, splash)
 	       end},
     Xs = 280,
-    Ys = 170+40,
+    Ys = 176,
     {W,H} = wings_wm:top_size(),
     X = trunc((W-Xs) / 2),
     Y = trunc((H-Ys) / 2),
@@ -275,9 +275,8 @@ redraw(splash) ->
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     wings_io:draw_icon(10, 10, 256, 128, wings),
-    wings_io:draw_icon(90, 140, 128, 64, powered),
     gl:disable(?GL_TEXTURE_2D),
     gl:color3f(0.0, 0.0, 0.0),
     wings_io:text_at(10, 155, "Wings 3D " ++ ?WINGS_VERSION),
-    wings_io:text_at(10, 215, "http://www.wings3d.com").
+    wings_io:text_at(10, 180, "http://www.wings3d.com").
 
