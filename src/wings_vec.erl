@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.17 2002/03/14 07:51:22 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.18 2002/03/14 08:44:32 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -19,7 +19,7 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [foldl/3,keydelete/3,reverse/1,member/2]).
+-import(lists, [foldl/3,keydelete/3,reverse/1,member/2,last/1]).
 
 -record(ss, {check,				%Check fun.
 	     exit,				%Exit fun.
@@ -50,7 +50,7 @@ command({pick,[],Res,Ns}, St) ->
     St;
 command({pick,[axis|More],Acc,Names}, St0) ->
     Modes = [vertex,edge,face],
-    wings_io:icon_restriction(Modes),
+    St1 = mode_restriction(Modes, St0),
     Check = fun vector_exit_check/1,
     Ss = #ss{check=fun check_vector/1,
 	     exit=fun(_X, _Y, St) ->
@@ -59,10 +59,10 @@ command({pick,[axis|More],Acc,Names}, St0) ->
 	     selmodes=Modes,
 	     label="Axis",sti={last_axis,default_axis}},
     command_message("Select axis for ", Names),
-    {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
+    {seq,{push,dummy},get_event(Ss, St1#st{sel=[]})};
 command({pick,[point|More],Acc,Names}, St0) ->
     Modes = [vertex,edge,face],
-    wings_io:icon_restriction(Modes),
+    St1 = mode_restriction(Modes, St0),
     Check = fun check_point/1,
     Ss = #ss{check=Check,
 	     exit=fun(_X, _Y, St) ->
@@ -71,7 +71,7 @@ command({pick,[point|More],Acc,Names}, St0) ->
 	     selmodes=Modes,
 	     label="Point",sti={last_point,default_point}},
     command_message("Select point for ", Names),
-    {seq,{push,dummy},get_event(Ss, St0#st{sel=[]})};
+    {seq,{push,dummy},get_event(Ss, St1#st{sel=[]})};
 command({pick,[magnet|More],Acc,Names}, St0) ->
     Modes = [vertex,edge,face],
     wings_io:icon_restriction(Modes),
@@ -90,6 +90,13 @@ command({pick_special,{Modes,Init,Check,Exit}}, St0) ->
 command_message(Prefix, Ns) ->
     wings_io:message_right(Prefix ++ command_name(Ns)),
     wings_io:message("").
+
+mode_restriction(Modes, #st{selmode=Mode}=St) ->
+    wings_io:icon_restriction(Modes),
+    case member(Mode, Modes) of
+	true -> St;
+	false -> St#st{sel=[],selmode=last(Modes)}
+    end.
 
 %%%
 %%% Event handler for secondary selection mode.
