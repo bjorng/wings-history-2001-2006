@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.61 2004/02/10 17:26:10 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.62 2004/02/10 22:58:22 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -155,24 +155,14 @@ do_render(Ask, _St) when is_atom(Ask) ->
 	       end);
 do_render(Attr, St) ->
     set_pref(Attr),
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    gl:drawBuffer(?GL_FRONT),
-    gl:clearColor(0.5, 0.5, 0.5, 1),
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-    wings_io:ortho_setup(),
-    {_,H} = wings_wm:win_size(),
-    wings_io:text_at(10, H-20, "Rendering..."),
-    gl:drawBuffer(?GL_BACK),
-    gl:popAttrib(),
-    gl:flush(),
-
+    
     Aa = proplists:get_value(aa, Attr),
     AccSize = translate_aa(Aa),
     RenderAlpha	 = proplists:get_bool(render_alpha, Attr),
     RenderShadow = proplists:get_value(render_shadow, Attr, false),
     RenderBumps	 = proplists:get_value(render_bumps, Attr, false),
 
-    wings_pb:start("Preparing meshes"),
+    wings_pb:start("Rendering"),
     {Data,{NOL, Amb,Lights}} = create_dls(St, Attr, RenderShadow, RenderBumps),
     
     Rr = #r{acc_size=AccSize,attr=Attr,
@@ -181,7 +171,7 @@ do_render(Attr, St) ->
 	    mask = RenderAlpha, shadow=RenderShadow},
     wings_pb:paus(),
     render_redraw(Rr),
-    wings_pb:done_stat(),
+    wings_pb:done(),
     render_exit(Rr).
 
 translate_aa(draft) -> 1;
@@ -211,12 +201,9 @@ render_exit(#r{lights=Lights, data=D}) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
     wings_wm:dirty().
 
-prepare_mesh(#we{perm=P}, _, _, _,Wes, _) when ?IS_NOT_VISIBLE(P) ->
-    Wes;
-prepare_mesh(We0=#we{light=none},SubDiv,RenderAlpha,RenderBumps,Wes, St) ->    
-    Shapes = gb_trees:size(St#st.shapes),
-    Done = length(Wes),
-    Step = 0.8/Shapes, 
+prepare_mesh(We0=#we{light=none},SubDiv,RenderAlpha,RenderBumps,Wes,Shapes,St) ->    
+    Done  = length(Wes),
+    Step  = 0.90/Shapes, 
     Start = Done * Step,
     
     We = case SubDiv of
@@ -251,22 +238,28 @@ prepare_mesh(We0=#we{light=none},SubDiv,RenderAlpha,RenderBumps,Wes, St) ->
 		    skip
 	    end,
     DL = draw_faces(MatFs, We, St#st.mat, Rtype),
-    [#d{l=DL,f=Fast,hasBump=RenderBumps,matfs=MatFs,we=We}|Wes];
-prepare_mesh(#we{}, _, _, _,Wes, _) -> %% Skip Lights
-    Wes.
+    [#d{l=DL,f=Fast,hasBump=RenderBumps,matfs=MatFs,we=We}|Wes].
 
 create_dls(St0, Attr, Shadows, Bumps) ->
     St = invisible_holes(St0),
     SubDiv = proplists:get_value(subdivisions, Attr),
     RenderAlpha = proplists:get_bool(render_alpha, Attr),
+    Objects = foldl(fun(#we{perm=P},Wes) when ?IS_NOT_VISIBLE(P) ->
+			    Wes;
+		       (We = #we{light=none},Wes) ->
+			    [We|Wes];
+		       (_,Wes) ->
+			    Wes
+		    end,[], gb_trees:values(St#st.shapes)),
     Ds = foldl(fun(We, Wes) ->
-		       prepare_mesh(We, SubDiv, RenderAlpha, Bumps, Wes, St)
-	       end, [], gb_trees:values(St#st.shapes)),    
+		       prepare_mesh(We, SubDiv, RenderAlpha, Bumps, 
+				    Wes, length(Objects), St)
+	       end, [], Objects),
     Ls = if
 	     Shadows or Bumps -> %% Needs per-light data..
 		 Ls0  = wpa:lights(St),
 		 Mats = St#st.mat,
-		 wings_pb:update(0.90, "Generating per light shadows and bump data"),
+		 wings_pb:update(0.95, "Generating shadows and bump data per light "),
 		 wings_pb:paus(),
 		 create_light_data(Ls0, Ds, 0, Mats, Bumps, Shadows, none, []);
 	     true ->
