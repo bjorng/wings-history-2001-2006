@@ -8,18 +8,24 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.30 2002/01/10 09:22:48 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.31 2002/01/12 10:32:39 bjorng Exp $
 %%
 
 -module(wings_edge).
+
+%% Commands.
+-export([select_region/1,
+	 cut/2,cut/3,fast_cut/3,fast_cut/4,connect/1,
+	 dissolve/1,dissolve_edges/2,dissolve_edge/2,
+	 hardness/2,hardness/3,loop_cut/1]).
+
+%% Utilities.
 -export([convert_selection/1,
 	 select_more/1,select_more/2,
 	 select_less/1,adjacent_edges/2,
-	 to_vertices/2,select_region/1,
-	 cut/2,cut/3,fast_cut/3,fast_cut/4,connect/1,connect/2,
-	 dissolve/1,dissolve_edges/2,dissolve_edge/2,
-	 patch_edge/4,patch_edge/5,
-	 hardness/2,hardness/3,loop_cut/1]).
+	 to_vertices/2,from_faces/2,extend_sel/2,
+	 connect/2,
+	 patch_edge/4,patch_edge/5]).
 
 -include("wings.hrl").
 -import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,
@@ -34,22 +40,14 @@ convert_selection(#st{selmode=body}=St) ->
 	      gb_sets:from_list(gb_trees:keys(Etab))
       end, edge, St);
 convert_selection(#st{selmode=face}=St) ->
-    wings_sel:convert(
-      fun(Face, We, Sel0) ->
-	      wings_face:fold(
-		fun(_, Edge, _, Sel) ->
-			gb_sets:add(Edge, Sel)
-		end, Sel0, Face, We)
+    wings_sel:convert_shape(
+      fun(Faces, We) ->
+	      from_faces(Faces, We)
       end, edge, St);
 convert_selection(#st{selmode=edge}=St) ->
     wings_sel:convert_shape(
-      fun(Edges, #we{es=Etab}) ->
-	      gb_sets:fold(
-		fun(Edge, S0) ->
-			Rec = gb_trees:get(Edge, Etab),
-			#edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
-			gb_sets:union(S0, gb_sets:from_list([LP,LS,RP,RS]))
-		end, Edges, Edges)
+      fun(Edges, We) ->
+	      extend_sel(Edges, We)
       end, edge, St);
 convert_selection(#st{selmode=vertex}=St) ->
     wings_sel:convert(
@@ -101,6 +99,7 @@ adjacent_edges(Vs, We, Acc) ->
 
 %% to_vertices(EdgeGbSet, We) -> VertexGbSet
 %%  Convert a set of edges to a set of vertices.
+
 to_vertices(Edges, #we{es=Etab}) when is_list(Edges) ->
     to_vertices(Edges, Etab, []);
 to_vertices(Edges, #we{es=Etab}) ->
@@ -110,6 +109,29 @@ to_vertices([E|Es], Etab, Acc) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
     to_vertices(Es, Etab, [Va,Vb|Acc]);
 to_vertices([], Etab, Acc) -> ordsets:from_list(Acc).
+
+%% from_faces(FaceSet, We) -> EdgeSet
+%%  Convert faces to edges.
+from_faces(Faces, We) ->
+    Edges = wings_face:fold_faces(
+	      fun(_, _, Edge, _, A) ->
+		      [Edge|A]
+	      end, [], Faces, We),
+    gb_sets:from_list(Edges).
+
+%% from_faces(Edges, We) -> EdgeSet
+%%  Extend Edges with all neighboring edges.
+extend_sel(Edges, We) when is_list(Edges) ->
+    extend_sel(Edges, gb_sets:from_list(Edges), We);
+extend_sel(EdgeSet, We) ->
+    extend_sel(gb_sets:to_list(EdgeSet), EdgeSet, We).
+
+extend_sel(Edges, EdgeSet, #we{es=Etab}) ->
+    foldl(fun(Edge, S0) ->
+		  Rec = gb_trees:get(Edge, Etab),
+		  #edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
+		  gb_sets:union(S0, gb_sets:from_list([LP,LS,RP,RS]))
+	  end, EdgeSet, Edges).
 
 %%%
 %%% The Cut command.
