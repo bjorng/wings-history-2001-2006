@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.108 2003/03/15 08:21:34 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.109 2003/03/27 15:51:39 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -154,7 +154,7 @@ quit(#st{saved=true}) -> quit;
 quit(St) ->
     wings_util:yes_no_cancel("Do you want to save your changes before quitting?",
 			     fun() ->
-				     case save(St) of
+				     case save_1(St) of
 					 aborted -> ignore;
 					 _Other -> {file,confirmed_quit}
 				     end
@@ -306,10 +306,13 @@ increment_name(Name0) ->
 	       {[],Base} ->
 		   Base ++ "_01.wings";
 	       {Digits0,Base} ->
-		   Number = list_to_integer(Digits0) + 1,
-		   Digits = integer_to_list(Number),
-		   Base ++ lists:duplicate(length(Digits0)-length(Digits), $0) ++
-		       Digits ++ ".wings"
+		   Number = list_to_integer(Digits0),
+		   Digits = integer_to_list(Number+1),
+		   Zs = case length(Digits0)-length(Digits) of
+			    Neg when Neg =< 0 -> [];
+			    Nzs -> lists:duplicate(Nzs, $0)
+			end,
+		   Base ++ Zs ++ Digits ++ ".wings"
 	   end,
     update_recent(Name0, Name),
     Name.
