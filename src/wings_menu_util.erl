@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.19 2003/07/21 13:08:09 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.20 2003/07/21 13:27:10 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -161,10 +161,9 @@ rotate_axis_fun(Axis, Names) ->
     {advanced,{DirString,F,Help,magnet_props(Axis, Names)}}.
 
 magnet_scale_rot_fun(Vec, Point) ->
-    fun(1, Ns) -> wings_menu:build_command({Vec,Point}, Ns);
+    fun(1, Ns) -> {vector,{pick,[],[Point,Vec],Ns}};
        (2, _Ns) -> ignore;
-       (3, Ns) -> {vector,{pick,[point],[Vec],Ns}};
-       ({magnet,1}, Ns) -> {vector,{pick,[magnet],[Point,Vec],Ns}}
+       (3, Ns) -> {vector,{pick,[point],[Vec],Ns}}
     end.
 
 %%%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.107 2003/07/21 13:08:09 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.108 2003/07/21 13:27:10 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -335,14 +335,14 @@ button_pressed(Button, Mod, X, Y, #mi{ns=Names,menu=Menu,adv=Adv}=Mi0) ->
 	    end
     end.
 
-call_action(Act, Button, Mod, Ns, Ps, Mi) ->
-    Mag = case is_magnet_active(Mod, Ps, Mi) of
-	      true -> {magnet,1};
-	      false -> Button
-	  end,
-    case Act(Mag, Ns) of
+call_action(Act, Button, Mod, Ns, Ps, #mi{flags=Flags}=Mi) ->
+    case Act(Button, Ns) of
 	ignore -> keep;
-	Cmd when is_tuple(Cmd) ->
+	Cmd0 when is_tuple(Cmd0) ->
+	    Cmd = case is_magnet_active(Mod, Ps, Mi) of
+		      false -> Cmd0;
+		      true -> insert_magnet_flags(Cmd0, Flags)
+		  end,
 	    send_action(Cmd, Mi)
     end.
 
