@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mat.erl,v 1.20 2002/12/16 22:06:16 bjorng Exp $
+%%     $Id: e3d_mat.erl,v 1.21 2002/12/17 07:52:50 bjorng Exp $
 %%
 
 -module(e3d_mat).
@@ -61,29 +61,25 @@ scale(Sx, Sy, Sz) ->
      Zero,Zero,Zero}.
 
 rotate(A0, {X,Y,Z}) when is_float(X), is_float(Y), is_float(Z) ->
-    A = A0*3.1416/180,
+    A = A0*3.14159/180,
     CosA = math:cos(A),
     SinA = math:sin(A),
     XSinA = X*SinA,
     YSinA = Y*SinA,
     ZSinA = Z*SinA,
-    SSinA = {0.0,-ZSinA,YSinA,
-	     ZSinA,0.0,-XSinA,
-	     -YSinA,XSinA,0.0},
-    Uut = {X*X,X*Y,X*Z,
-	   Y*X,Y*Y,Y*Z,
-	   Z*X,Z*Y,Z*Z},
-    rot_imul_add(Uut, CosA, SSinA).
-
-rot_imul_add({A1,A2,A3,A4,A5,A6,A7,A8,A9}, S,
-	     {C1,C2,C3,C4,C5,C6,C7,C8,C9})
-  when is_float(A1), is_float(A2), is_float(A3),
-       is_float(A4), is_float(A5), is_float(A6),
-       is_float(A7), is_float(A8), is_float(A9), is_float(S) ->
+    {C2,C3, C4,C6, C7,C8} =
+	{-ZSinA,YSinA,
+	 ZSinA,-XSinA,
+	 -YSinA,XSinA},
+    {U1,U2,U3,U4,U5,U6,U7,U8,U9} =
+	{X*X,X*Y,X*Z,
+	 Y*X,Y*Y,Y*Z,
+	 Z*X,Z*Y,Z*Z},
+    S = CosA,
     NegS = -S,
-    {A1+S*(1.0-A1)+C1, A4+NegS*A4+C4, A7+NegS*A7+C7,
-     A2+NegS*A2+C2, A5+S*(1.0-A5)+C5, A8+NegS*A8+C8,
-     A3+NegS*A3+C3, A6+NegS*A6+C6,    A9+S*(1.0-A9)+C9,
+    {U1+S*(1.0-U1), U4+NegS*U4+C4, U7+NegS*U7+C7,
+     U2+NegS*U2+C2, U5+S*(1.0-U5), U8+NegS*U8+C8,
+     U3+NegS*U3+C3, U6+NegS*U6+C6, U9+S*(1.0-U9),
      0.0,0.0,0.0}.
 
 rotate_to_z(Vec) ->
