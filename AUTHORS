@@ -1,4 +1,4 @@
-$Id: AUTHORS,v 1.26 2004/11/10 05:10:17 bjorng Exp $
+$Id: AUTHORS,v 1.27 2004/11/30 06:21:28 bjorng Exp $
 
 Björn Gustavsson:
 	Has written the bulk of code.
@@ -85,11 +85,14 @@ Riccardo Venier (verme@insiberia.net):
 	Translated all the strings in the Wings core to Italian, and implemented
 	a mechanism for changing langugages.
 
-Paul M (elrond79)
+Paul M (elrond79):
 	Wrote intersect (vertex/edge) commands and force ortho view option when
 	camera is on one of the major axis.
 	Improved 3DS import so that all triangles are converted to polygons
 	(unless doing so would create holes or create isolated vertices).
+
+Nicolas Bouillard (syndarion):
+	French translation.
 
 Auto-UV credits
 ===============
