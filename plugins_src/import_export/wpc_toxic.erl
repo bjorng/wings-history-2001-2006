@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.10 2004/06/16 12:14:26 dgud Exp $
+%%     $Id: wpc_toxic.erl,v 1.11 2004/06/17 10:23:17 dgud Exp $
 %%
 
 -module(wpc_toxic).
@@ -1047,10 +1047,7 @@ export_light(F, Name, area, Scale, OpenGL, Toxic) ->
 	      Width  = Scale * e3d_vec:dist(A,B),
 	      Height = Scale * e3d_vec:dist(B,C),
 	      Pos = e3d_vec:average(Vs),
-	      io:format("Area light ~p ~p ~p ~p ~n", 
-			[Width,Height,Pos,Vs]),
 	      Normal = e3d_vec:normal(Vs),
-	      io:format("Normal ~p~n", [Normal]),
 	      println(F,"  <Object type=\"square\">"),
 	      println(F,"     <Parameter name=\"~s\" value=\"~s\"/>", 
 		      ["surfaceshader", Name]),
@@ -1063,17 +1060,22 @@ export_light(F, Name, area, Scale, OpenGL, Toxic) ->
 	      lists:foreach(fun(E) -> print(F,"~s ", [format(E)]) end,
 			    tuple_to_list(e3d_mat:expand(Mat))),
 	      println(F,"      ~n       </Matrix4>",[]),
-	      %% Rotate plane around normal
-	      A1 = e3d_mat:mul_point(Mat, {0.5,0.0,0.5}),
-%	      B1 = e3d_mat:mul_point(Mat, {0.5,0.0,-0.5}),
-	      V1 = e3d_vec:norm(e3d_vec:sub(A,Pos)),
-	      V2 = e3d_vec:norm(e3d_vec:sub(A1,Pos)),
+	      %% Rotate arealight around normal, 
+	      %% to get the corners in the correct position
+	      [MyCorner|_] = lists:sort([e3d_mat:mul_point(Mat,{Cx*Width,0.0,Cz*Height}) 
+					 || {Cx,Cz} <- [{-0.5,-0.5},{-0.5,0.5},
+							{0.5,0.5},{-0.5,0.5}]]),
+	      [Corner|_] = lists:sort(Vs),
+	      V1 = e3d_vec:norm(e3d_vec:sub(Corner,Pos)),
+	      V2 = e3d_vec:norm(MyCorner),
 	      ACos = case e3d_vec:cross(V1,V2) < 0.0 of
 			 true -> - e3d_vec:dot(V1,V2);
 			 false -> e3d_vec:dot(V1,V2)
-		     end,		  
+		     end,
+	      io:format("Normal ~p~n", [Normal]),
+	      io:format("Pos ~p ~p~nVecs ~p ~p~nAngle ~p~n", [Corner,MyCorner,V1,V2,ACos]),
 	      println(F,"      <Rotation angle=\"~s\" axis=\"~s ~s ~s\"/>", 
-		      [format(math:acos(ACos)*180/?PI)|vector_to_list(Normal)]),
+		      [format(acos(ACos)*180/?PI)|vector_to_list(Normal)]),
 	      println(F,"      <Translation value=\"~s ~s ~s\"/>",
 		      vector_to_list(Pos)),
 	      println(F,"     </Transform>"),
@@ -1100,6 +1102,15 @@ export_light(F, _, _, Scale, OpenGL, Toxic) ->
     println(F,"      <Scale value=\"~s\"/>", [format(Scale)]),
     println(F,"    </Transform>"),
     println(F,"  </Object>").
+
+
+acos(V) when abs(V) < 1.0 ->
+    math:acos(V);
+acos(V) when abs(V) < 1.1 ->
+    case V > 0.0 of
+	true -> 0.0;
+	false -> ?PI
+    end.
 
 export_camera(F, Scale, Attr) ->
     #camera_info{ %pos=_Pos,dir=Dir,up=Up,
@@ -1542,21 +1553,6 @@ split_list1([T={TAG, _}|R], Toxic) when element(1, TAG) == ?TAG ->
 split_list1(R,Toxic) ->
     {lists:reverse(Toxic),R}.
  
-% split_list(List, Pos) when list(List), integer(Pos), Pos >= 0 ->
-%     case split_list1(List, Pos, []) of
-% 	{_,_}=Result ->
-% 	    Result;
-% 	Error ->
-% 	    erlang:fault(Error, [List, Pos])
-%     end.
-% %%
-% split_list1(List, 0, Head) ->
-%     {lists:reverse(Head),List};
-% split_list1([], _Pos, _) ->
-%     badarg;
-% split_list1([H|T], Pos, Head) ->
-%     split_list1(T, Pos-1, [H|Head]).
-
 %%% %% {lists:filter(Pred, List),lists:filter(fun(X) -> not Pred(X) end,List)}
 %%% filter2(Pred, List) -> filter2_1(Pred, List, [], []).
 %%% %%
