@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.71 2004/12/26 09:40:47 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.72 2004/12/26 10:40:10 bjorng Exp $
 
 -module(auv_segment).
 
@@ -707,46 +707,49 @@ cut_model_1([Fs|Cs], Cuts, OrigWe, Id, Acc) ->
 cut_model_1([], _, _, _, Acc) -> Acc.
 
 cut_one_chart(Keep0, Cuts, We0) ->
+    {InnerEdges,OuterEdges} = wings_face:inner_outer_edges(Keep0, We0),
     Keep = gb_sets:from_list(Keep0),
-    OuterEdges = wings_face:outer_edges(Keep, We0),
     Map0 = gb_trees:empty(),
     {We1,Map1} = cut_shared_vertices(Keep, OuterEdges, We0, Map0),
-    {We2,Vmap} = cut_edges(Keep0, Cuts, We1, Map1),
-    Me = wings_we:new_items_as_ordset(edge, We1, We2),
-    
-    %% Testing
-    Emap = 
-	foldl(fun(ME,Acc) ->
-		      case gb_trees:lookup(ME,We2#we.es) of
-			  none ->
-			      Acc;
-			  {value,#edge{vs=V1,ve=V2}} ->
-			      V1m = map_vertex(V1, Vmap),
-			      V2m = map_vertex(V2, Vmap),
-			      if V1m == V2m ->
-				      Acc;
-				 true ->
-				      Lookup = 
-					  fun(E,_,#edge{vs=Vs,ve=Ve},_) 
-					     when Vs==V1m,Ve==V2m -> E;
-					     (E,_,#edge{vs=Ve,ve=Vs},_) 
-					     when Vs==V1m,Ve==V2m -> E;
-					     (_,_,_,Cont) -> Cont
-					  end,
-				      E = wings_vertex:until(Lookup,fail,V1m,We0),
-				      [{ME,E}|Acc]
-			      end
-		      end
-	      end, [], Me),
-    We = We2#we{name=#ch{vmap=Vmap,me=Me, 
-			 emap=gb_trees:from_orddict(sort(Emap))}},
-    finalize_chart(Keep0, We).
+    {We2,Vmap} = cut_edges(Keep0, InnerEdges, Cuts, We1, Map1),
 
-finalize_chart(Fs, #we{fs=Ftab0}=We0) ->
-    NotNeeded = ordsets:subtract(gb_trees:keys(Ftab0), Fs),
-    #we{fs=Ftab} = We = wpa:face_dissolve(NotNeeded, We0),
-    Hidden = ordsets:subtract(gb_trees:keys(Ftab), Fs),
+    %% Create edge map and finish We.
+    Me = wings_we:new_items_as_ordset(edge, We1, We2),
+    Emap = make_emap(Me, Vmap, We0, We2, []),
+    We3 = We2#we{name=#ch{vmap=Vmap,me=Me,emap=Emap}},
+
+    %% Dissolve unneeded faces and also hide them.
+    #we{fs=Ftab0} = We3,
+    NotNeeded = ordsets:subtract(gb_trees:keys(Ftab0), Keep0),
+    #we{fs=Ftab} = We = wpa:face_dissolve(NotNeeded, We3),
+    Hidden = ordsets:subtract(gb_trees:keys(Ftab), Keep0),
     wings_we:hide_faces(Hidden, We).
+
+make_emap([ME|T], Vmap, We0, #we{es=Etab}=We, Acc) ->
+    case gb_trees:lookup(ME, Etab) of
+	none ->
+	    make_emap(T, Vmap, We0, We, Acc);
+	{value,#edge{vs=Va0,ve=Vb0}} ->
+	    Va = map_vertex(Va0, Vmap),
+	    case map_vertex(Vb0, Vmap) of
+		Va ->
+		    make_emap(T, Vmap, We0, We, Acc);
+		Vb ->
+		    E = wings_vertex:until(
+			  fun(E, _, Rec, A) ->
+				  case Rec of
+				      #edge{vs=Va,ve=Vb} -> E;
+				      #edge{vs=Vb,ve=Va} -> E;
+				      _ -> A
+				  end
+			  end, none, Va, We0),
+		    case E of
+			none -> make_emap(T, Vmap, We0, We, Acc);
+			_ -> make_emap(T, Vmap, We0, We, [{ME,E}|Acc])
+		    end
+	    end
+    end;
+make_emap([], _, _, _, Acc) -> gb_trees:from_orddict(sort(Acc)).
 
 cut_shared_vertices(Faces, Es, #we{es=Etab}=We0, InvVmap0) ->
     VsEs0 = foldl(fun(E, A) ->
@@ -784,8 +787,7 @@ do_cut_shared_1([F|Fs], V, Wid, We0, Map0) ->
     do_cut_shared_1(Fs, V, Wid, We, Map);
 do_cut_shared_1([], _, _, We, Map) -> {We,Map}.
 
-cut_edges(Faces, Cuts0, We, Map) ->
-    Inner = wings_face:inner_edges(Faces, We),
+cut_edges(Faces, Inner, Cuts0, We, Map) ->
     case ordsets:intersection(Inner, Cuts0) of
 	[] -> {We,Map};
 	Cuts -> cut_edges_1(Faces, Cuts, We, Map)

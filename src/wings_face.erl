@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.46 2004/12/24 09:40:38 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.47 2004/12/26 10:40:13 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -28,7 +28,7 @@
 	 vertex_positions/2,vertex_positions/3,
 	 vertex_info/2,vertex_info/3,
 	 extend_border/2,
-	 inner_edges/2,outer_edges/2,
+	 inner_edges/2,outer_edges/2,inner_outer_edges/2,
 	 fold/4,fold/5,fold_vinfo/4,fold_faces/4,
 	 iterator/2,skip_to_edge/2,skip_to_cw/2,skip_to_ccw/2,
 	 next_cw/1,next_ccw/1,
@@ -376,6 +376,20 @@ outer_edges_1([E,E|T], Out) ->
 outer_edges_1([E|T], Out) ->
     outer_edges_1(T, [E|Out]);
 outer_edges_1([], Out) -> reverse(Out).
+
+%% inner_outer_edges(Faces, We) -> {[InnerEdge],[OuterEdge]}
+%%  Given a set of faces, return all inner and outer edges.
+inner_outer_edges(Faces, We) ->
+    S = to_edges_raw(Faces, We),
+    inner_outer_edges_1(sort(S), [], []).
+
+inner_outer_edges_1([E,E|T], In, Out) ->
+    inner_outer_edges_1(T, [E|In], Out);
+inner_outer_edges_1([E|T], In, Out) ->
+    inner_outer_edges_1(T, In, [E|Out]);
+inner_outer_edges_1([], In, Out) ->
+    {reverse(In),reverse(Out)}.
+
 
 %% Fold over all edges surrounding a face.
 
