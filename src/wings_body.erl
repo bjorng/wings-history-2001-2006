@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.20 2002/02/07 11:49:07 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.21 2002/02/12 19:45:33 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -118,13 +118,13 @@ flip_scale(z) -> e3d_mat:scale(1.0, 1.0, -1.0).
 %%% The Tighten command.
 %%%
 
-tighten(St0) ->
-    {St,Tvs} = wings_sel:mapfold(fun tighten/3, [], St0),
+tighten(St) ->
+    Tvs = wings_sel:fold(fun tighten/3, [], St),
     wings_drag:setup(Tvs, [percent], St).
 
-tighten(_, #we{vs=Vtab}=We0, A) ->
+tighten(_, #we{vs=Vtab}=We, A) ->
     Vs = gb_trees:keys(Vtab),
-    wings_vertex_cmd:tighten(Vs, We0, A).
+    wings_vertex_cmd:tighten(Vs, We, A).
     
 %%%
 %%% The Smooth command.
