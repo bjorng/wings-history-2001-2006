@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.36 2003/05/14 06:27:27 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.37 2003/05/14 15:30:45 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1255,7 +1255,7 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
 		proplists:get_value(cast_shadows, YafRay, ?DEF_CAST_SHADOWS),
 	    SpotExponent = 
 		proplists:get_value(spot_exponent, OpenGL, ?DEF_SPOT_EXPONENT),
-	    println(F, "       cast_shadows=\"~s\" size=\"~.10f\"~n"++
+	    println(F, "       cast_shadows=\"~s\" size=\"~.3f\"~n"++
 		    "       beam_falloff=\"~.10f\">", 
 		    [format(CastShadows), ConeAngle, SpotExponent]);
 	photonlight ->
@@ -1273,10 +1273,11 @@ export_light(F, Name, spot, OpenGL, YafRay) ->
 		_ ->
 		    ok
 	    end,
-	    println(F, "       photons=\"~w\" depth=\"\~w\"~n"++
+	    println(F, "       angle=\"~.3f\" photons=\"~w\" depth=\"\~w\"~n"++
 		    "       fixedradius=\"~.10f\" search=\"~w\"~n"++
 		    "       mindepth=\"~w\" cluster=\"~.10f\">",
-		    [Photons,Depth,Fixedradius,Search,Mindepth,Cluster])
+		    [ConeAngle,Photons,Depth,
+		     Fixedradius,Search,Mindepth,Cluster])
     end,
     export_pos(F, from, Position),
     export_pos(F, to, AimPoint),
