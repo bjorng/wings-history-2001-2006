@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.89 2004/02/22 06:02:05 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.90 2004/03/09 19:40:40 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -33,7 +33,7 @@
 	 geom_windows/0,
 	 tc/3,export_we/2,crash_log/2,validate/1,validate/3,
 	 gl_error_string/1,
-	 min/2,max/2]).
+	 min/2,max/2,lowpass/1,lowpass/2]).
 -export([check_error/2,dump_we/2]).
 
 -define(NEED_OPENGL, 1).
@@ -675,3 +675,16 @@ max(_A, B) -> B.
 
 min(A, B) when A < B -> A;
 min(_A, B) -> B.
+
+lowpass(X, Y) ->
+    {lowpass(X),lowpass(Y)}.
+
+lowpass(N) when N > 0 -> lowpass_1(N);
+lowpass(N) -> -lowpass_1(-N).
+
+lowpass_1(N) when N =< 7 -> N;
+lowpass_1(N) when N =< 15 -> (N-7)*0.6 + lowpass_1(7);
+lowpass_1(N) when N =< 30 -> (N-15)*0.5 + lowpass_1(15);
+lowpass_1(N) when N =< 50 -> (N-30)*0.05 + lowpass_1(30);
+lowpass_1(_) -> lowpass_1(50).
+    

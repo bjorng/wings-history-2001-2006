@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.100 2004/03/08 20:46:56 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.101 2004/03/09 19:40:40 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -725,17 +725,12 @@ camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
     {X1,Y1} = wings_wm:local2global(X0, Y0),
     XD0 = (X1 - OX),
     YD0 = (Y1 - OY),
-    XD = XD0 + Xt0,
-    YD = YD0 + Yt0,
+    {XD,YD} = wings_util:lowpass(XD0 + Xt0, YD0 + Yt0),
 
-    if (XD0 == 0), (YD0 == 0) ->
-	    {float(0), float(0), Camera#camera{xt=0,yt=0}};
-       %% Linux gets really large jumps sometime, 
-       %% so we throw events with large delta movements.
-       (XD > ?CAMMAX); (YD > ?CAMMAX) -> 
-	    wings_io:warp(OX, OY),
-	    {0.0, 0.0, Camera#camera{xt=XD0, yt=YD0}};
-       true ->
+    if
+	XD0 == 0, YD0 == 0 ->
+	    {0.0,0.0,Camera#camera{xt=0,yt=0}};
+	true ->
 	    wings_io:warp(OX, OY),
 	    {XD/?CAMDIV, YD/?CAMDIV, Camera#camera{xt=XD0, yt=YD0}}
     end.
