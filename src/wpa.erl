@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.31 2003/07/12 08:56:31 bjorng Exp $
+%%     $Id: wpa.erl,v 1.32 2003/08/21 05:46:13 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,ask/4,dialog/3,dialog/4,error/1,
@@ -27,7 +27,9 @@
 	 edge_loop_vertices/2,
 	 obj_name/1,obj_id/1,
 	 camera_info/1,lights/1,import_lights/2,
-	 image_formats/0,image_read/1
+	 image_formats/0,image_read/1,
+	 vm_freeze/1,
+	 triangulate/1,triangulate/2,quadrangulate/1,quadrangulate/2
 	]).
 
 %% Not recommended.
@@ -304,3 +306,29 @@ image_formats() ->
 
 image_read(Ps) ->
     wings_plugin:call_ui({image,read,Ps}).
+
+%%%
+%%% Virtual mirror.
+%%%
+
+vm_freeze(#we{mirror=none}=We) -> We;
+vm_freeze(#we{mirror=Face}=We0) ->
+    We = wings_face_cmd:mirror_faces([Face], We0),
+    We#we{mirror=none}.
+
+%%%
+%%% Tesselation/subdivision.
+%%%
+
+triangulate(We) ->
+    wings_tesselation:triangulate(We).
+
+triangulate(Faces, We) ->
+    wings_tesselation:triangulate(Faces, We).
+
+quadrangulate(We) ->
+    wings_tesselation:quadrangulate(We).
+
+quadrangulate(Faces, We) ->
+    wings_tesselation:quadrangulate(Faces, We).
+
