@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.38 2002/11/02 09:48:23 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.39 2002/11/02 10:11:47 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -142,15 +142,21 @@ seg_event_3(Ev, #seg{st=#st{selmode=Mode}}=Ss) ->
 				   [{"Projection",autouvmap},
 				    {"Feature Detection",feature}]}}|
 		    seg_mode_menu(Mode, Ss,
-				  [separator,
-				   {"Debugging",
-				    {debug,
-				     [{"Select features",select_features},
-				      {"Select seeds",select_seeds}]}},
-				   separator,
-				   {"Cancel",cancel}])],
+				  seg_debug([separator,
+					     {"Cancel",cancel}]))],
 	    wings_menu:popup_menu(X, Y, auv_segmentation, Menu)
     end.
+
+-ifndef(DEBUG).
+seg_debug(Tail) -> Tail.
+-else.
+seg_debug(Tail) ->
+    [separator,
+     {"Debugging",
+      {debug,
+       [{"Select features",select_features},
+	{"Select seeds",select_seeds}]}}|Tail].
+-endif.
 
 seg_mode_menu(vertex, _, Tail) -> Tail;
 seg_mode_menu(edge, _, Tail) ->
@@ -203,8 +209,8 @@ seg_event_6({message,Message}, _) ->
 seg_event_6(#mousemotion{}, _) -> keep;
 seg_event_6(#mousebutton{}, _) -> keep;
 seg_event_6(#keyboard{}, _) -> keep;
-seg_event_6(Ev, _) ->
-    io:format("~w\n", [Ev]),
+seg_event_6(_Ev, _) ->
+    ?DBG("~w\n", [_Ev]),
     keep.
 
 translate_key(#keyboard{keysym=KeySym}) ->
@@ -655,17 +661,18 @@ init_drawarea() ->
     %%    {{0,0,HW,OH}, {X2,Y2,W3,H3}}.
     {{0,0,HW,OH}, {X2,Y2,W2,H2,X0Y0,XMax,YMax}}.
 
-draw_texture(Uvs = #uvstate{dl = undefined, option = Options}) ->
+draw_texture(Uvs = #uvstate{dl=undefined,option=Options}) ->
     Materials = (Uvs#uvstate.origst)#st.mat,
     Areas = #areas{we = We, as = As0} = Uvs#uvstate.areas,
     DrawArea = fun({Id,A}) ->
 		       {Id,draw_area(A, We, Options, Materials)}
 	       end,
-    %%    ?DBG("Rebuilding display list\n"),
-    gl:newList(200, ?GL_COMPILE),
-    As1 = ?SLOW(lists:map(DrawArea, gb_trees:to_list(As0))),
+    Dl = gl:genLists(1),
+    gl:newList(Dl, ?GL_COMPILE),
+    As = ?SLOW(map(DrawArea, gb_trees:to_list(As0))),
     gl:endList(),
-    draw_texture(Uvs#uvstate{dl = 200, areas = Areas#areas{as = gb_trees:from_orddict(As1)}});
+    draw_texture(Uvs#uvstate{dl=Dl,
+			     areas=Areas#areas{as=gb_trees:from_orddict(As)}});
 draw_texture(Uvs = #uvstate{dl=DL, sel=Sel, areas=#areas{we=We}}) ->
     gl:callList(DL),
     case Sel of 
@@ -1191,7 +1198,6 @@ handle_event({resize, NX,NY},Uvs0) ->
     wings_io:resize(NX, NY),
     wings_draw_util:init(),
     St1 = wings_material:init(Uvs0#uvstate.st),	    
-    %% gl:viewport(0,0,NX,NY),
     Geom = init_drawarea(),
     get_event(Uvs0#uvstate{geom=Geom, st=St1, dl=undefined});
 handle_event(_Event,Uvs0) ->

@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv.hrl,v 1.8 2002/11/02 09:45:05 bjorng Exp $
+%%     $Id: auv.hrl,v 1.9 2002/11/02 10:11:47 bjorng Exp $
 
 -record(a,
 	{center = {0,0},
@@ -57,3 +57,8 @@
 -define(DBG(S,A), ok).
 -endif.
 
+
+-ifndef(DEBUG).
+-undef(TC).
+-define(TC(Cmd), Cmd).
+-endif.
