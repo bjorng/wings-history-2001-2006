@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.165 2003/11/09 16:07:52 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.166 2003/11/25 08:03:09 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -150,19 +150,22 @@ start_edit(_Faces, We, St0) ->
     Qs = {vframe,
 	  [{label,Prompt,[{break,45}]},
 	   {hframe,[{button,"Edit UVs",
-		     fun([]) -> start_edit_1(This, We, St0) end},
+		     fun(_) ->
+			     start_edit_1(This, We, St0) end},
 		    {button,"Discard UVs",
-		     fun([]) ->
+		     fun(_) ->
 			     St = discard_uvmap(We, St0),
 			     wings_wm:send(This, {discard_uvs,We#we.id,St}),
 			     ignore
 		     end},
 		    {button,"Cancel",
-		     fun([]) ->
+		     fun(_) ->
 			     wings_wm:delete(This),
 			     ignore
 		     end,[cancel]}]}]},
-    wings_ask:dialog("", Qs, fun(_) -> ignore end).
+    wings_ask:dialog("", Qs, fun(Args) ->
+				     ignore
+			     end).
 
 start_edit_1(Win, #we{name=ObjName,fs=Ftab}=We, St) ->
     MatNames0 = wings_material:get_all(We),
