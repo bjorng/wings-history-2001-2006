@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.91 2002/07/27 05:54:44 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.92 2002/07/27 07:37:03 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -443,8 +443,9 @@ smooth_dlist(#we{he=Htab0}=We, #st{mat=Mtab}) ->
     end.
 
 smooth_faces(Faces, #we{mode=vertex}, _Mtab) ->
-    List = gl:genLists(1),
-    gl:newList(List, ?GL_COMPILE),
+    ListOp = gl:genLists(2),
+    ListTr = ListOp+1,
+    gl:newList(ListOp, ?GL_COMPILE),
     case wings_pref:get_value(show_colors) of
 	false -> draw_smooth_plain(Faces);
 	true ->
@@ -456,7 +457,9 @@ smooth_faces(Faces, #we{mode=vertex}, _Mtab) ->
 	    gl:disable(?GL_COLOR_MATERIAL)
     end,
     gl:endList(),
-    {List,false};
+    gl:newList(ListTr, ?GL_COMPILE),
+    gl:endList(),
+    {[ListOp,ListTr],false};
 smooth_faces(Faces0, #we{mode=material}, Mtab) ->
     Faces1 = sofs:relation(Faces0),
     Faces = case wings_pref:get_value(show_materials) of

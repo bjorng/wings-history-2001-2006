@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.32 2002/07/21 15:59:07 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.33 2002/07/27 07:37:03 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -297,7 +297,6 @@ render_smooth(#dlo{work=Work,smooth=Smooth}=D, RenderTrans) ->
 	{none,false} -> call(Work);
 	{[Op,_],false} -> call(Op);
 	{[_,Tr],true} -> call(Tr);
-	{Smooth,true} when is_integer(Smooth) -> call(Smooth);
 	{_,_} -> ok
     end,
     gl:disable(?GL_POLYGON_OFFSET_FILL),
