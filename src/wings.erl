@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.302 2004/05/06 05:13:51 bjorng Exp $
+%%     $Id: wings.erl,v 1.303 2004/05/11 08:19:10 bjorng Exp $
 %%
 
 -module(wings).
@@ -586,9 +586,6 @@ command({window,outliner}, St) ->
     wings_outliner:window(St);
 command({window,object}, St) ->
     wings_shape:window(St);
-command({window,console}, _St) ->
-    wings_console:window(),
-    keep;
 command({window,console}, _St) ->
     wings_console:window(),
     keep;
