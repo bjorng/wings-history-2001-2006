@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.51 2004/05/07 09:56:59 raimo_niskanen Exp $
+%%     $Id: wings_ff_wings.erl,v 1.52 2004/05/18 09:52:43 raimo_niskanen Exp $
 %%
 
 -module(wings_ff_wings).
@@ -59,7 +59,7 @@ import_vsn2(Shapes, Materials0, Props, St0) ->
     {St1,NameMap0} = wings_material:add_materials(Materials, St0),
     NameMap1 = gb_trees:from_orddict(sort(NameMap0)),
     NameMap = optimize_name_map(Materials, NameMap1, []),
-    St = import_props(Props, St1#st{views={0,{}}}),
+    St = import_props(Props, St1),
     wings_pb:update(1.0, "objects"),
     import_objects(Shapes, NameMap, St).
 

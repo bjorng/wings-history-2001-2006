@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.149 2004/05/15 18:01:01 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.150 2004/05/18 09:52:43 raimo_niskanen Exp $
 %%
 
 -module(wings_view).
 -export([menu/1,command/2,
 	 virtual_mirror/2,
-	 init/0,initial_properties/0,
+	 init/0,initial_properties/0,delete_all/1,
 	 current/0,set_current/1,
 	 load_matrices/1,projection/0,
 	 modelview/0,modelview/1,
@@ -582,6 +582,8 @@ initial_properties() ->
      {show_wire_backfaces,false}
     ].
 
+delete_all(St) -> St#st{views={0,{}}}.
+
 reset() ->
     reset(current()).
 
@@ -753,8 +755,7 @@ views(delete_all, St) ->
     wings_util:yes_no(
       "Are you sure you want to delete all saved views?",
       fun() -> 
-	      wings_wm:send(This, 
-			    {new_state,St#st{views={0,{}}}}),
+	      wings_wm:send(This, {new_state,delete_all(St)}),
 	      ignore
       end).
 
