@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.20 2001/10/21 07:52:01 bjorng Exp $
+%%     $Id: wings.erl,v 1.21 2001/10/21 16:04:31 bjorng Exp $
 %%
 
 -module(wings).
@@ -281,6 +281,13 @@ command({file,save_as}, St0) ->
     case wings_file:save_as(St0) of
 	aborted -> St0;
 	#st{}=St -> {saved,St}
+    end;
+command({file,revert}, St0) ->
+    case wings_file:revert(St0) of
+	{error,Reason} ->
+	    wings_io:message("Revert failed: " ++ Reason),
+	    St0;
+	#st{}=St -> {save_state,model_changed(St)}
     end;
 command({file,delete}, St) ->
     wings_file:delete(St),
@@ -569,6 +576,8 @@ menu(X, Y, file, St) ->
 	    separator,
 	    {"Save","Ctrl-S",save},
 	    {"Save As",save_as},
+	    separator,
+	    {"Revert",revert},
 	    separator,
 	    {"Import",{import,
 		       {{"3D Studio (.3ds)",tds},

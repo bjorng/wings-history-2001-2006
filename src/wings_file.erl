@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.16 2001/10/17 07:48:25 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.17 2001/10/21 16:04:31 bjorng Exp $
 %%
 
 -module(wings_file).
--export([new/1,read/1,merge/1,save/1,save_as/1,import/2,export/2,delete/1]).
+-export([new/1,read/1,merge/1,save/1,save_as/1,
+	 revert/1,import/2,export/2,delete/1]).
 
 -include("e3d.hrl").
 -include("wings.hrl").
@@ -93,6 +94,21 @@ save_as(#st{shapes=Shapes}=St) ->
 	    end
     end.
 
+%%
+%% The Revert command.
+%%
+
+revert(#st{file=File}=St0) ->
+    St1 = St0#st{shapes=gb_trees:empty(),sel=[]},
+    case wings_ff_wings:import(File, St1) of
+	#st{}=St -> St;
+	{error,_}=Error -> Error
+    end.
+
+%%
+%% Import.
+%%
+
 import(tds, St) -> import(".3ds", e3d_tds, St);
 import(obj, St) -> import(".obj", e3d_obj, St).
 
@@ -110,6 +126,10 @@ import(Ext, Mod, St0) ->
 		    St0
 	    end
     end.
+
+%%
+%% Export.
+%%
 
 export(tds, St) -> export(e3d_tds, ".3ds", St);
 export(rib, St) -> export(e3d_rib, ".rib", St);
