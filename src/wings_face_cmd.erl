@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.72 2003/01/17 22:51:41 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.73 2003/02/07 10:52:52 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -53,8 +53,8 @@ menu(X, Y, St) ->
 	      "Mirror and create separate objects"},[]},
     	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
 	    {"Collapse",collapse,"Delete faces, replacing them with vertices"},
-	    separator,
-	    {"Smooth",smooth,"Subdivide selected faces to smooth them"}],
+	    {"Smooth",smooth,"Subdivide selected faces to smooth them"},
+	    separator|wings_material:material_menu(St)],
     wings_menu:popup_menu(X, Y, face, Menu).
 
 lift_fun(St) ->
@@ -125,6 +125,8 @@ command({clone_on,PutOn}, St) ->
     {save_state,clone_on(PutOn, St)};
 command(collapse, St) ->
     {save_state,wings_collapse:collapse(St)};
+command({material,Cmd}, St) ->
+    wings_material:command(Cmd, St);
 command({move,Type}, St) ->
     wings_move:setup(Type, St);
 command({rotate,Type}, St) ->

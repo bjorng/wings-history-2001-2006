@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.81 2003/02/06 04:50:47 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.82 2003/02/07 10:52:52 bjorng Exp $
 %%
 
 -module(wings_material).
--export([command/2,new/1,color/4,default/0,add_materials/2,update_image/4,
+-export([material_menu/1,command/2,new/1,color/4,default/0,
+	 add_materials/2,update_image/4,
 	 used_materials/1,apply_material/2,is_transparent/2]).
 
 -define(NEED_OPENGL, 1).
@@ -23,27 +24,57 @@
 -import(lists, [map/2,foreach/2,sort/1,foldl/3,reverse/1,
 		keyreplace/4,keydelete/3,keysearch/3,flatten/1]).
 
+material_menu(St) ->
+    [{basic,{"Material",
+	     {material,
+	      [{"New...",new,
+		"Create a new material and assign to selected faces"},
+	       separator|mat_list(St)]}}},
+     {advanced,{"Material",{material,material_fun(St)}}}].
+
+material_fun(St) ->
+    fun(help, _Ns) ->
+	    {"Assign existing material to selection",[],
+	     "Create and assign new material"};
+       (1, _Ns) ->
+	    mat_list(St);
+       (3, _) ->
+	    {material,new};
+       (_, _) -> ignore
+    end.
+
+mat_list(#st{mat=Mtab}) ->
+    mat_list_1(gb_trees:to_list(Mtab), []).
+
+mat_list_1([{Name,Ps}|Ms], Acc) ->
+    OpenGL = prop_get(opengl, Ps, []),
+    Diff = prop_get(diffuse, OpenGL),
+    Menu = {atom_to_list(Name),{'VALUE',{assign,Name}},[],[{color,Diff}]},
+    mat_list_1(Ms, [Menu|Acc]);
+mat_list_1([], Acc) -> reverse(Acc).
+
 new(_) ->
+    new_1(new).
+
+new_1(Act) ->
     wings_ask:ask("New Material",
 		  [{"Material Name","New Material"}],
 		  fun([Name]) ->
-			  Action = {action,{material,{new,Name}}},
+			  Action = {action,{material,{Act,Name}}},
 			  wings_wm:send_after_redraw(geom, Action),
 			  ignore
 		  end).
 
-command({new,Name0}, #st{mat=Mtab}=St) ->
-    Name1 = list_to_atom(Name0),
-    case gb_trees:is_defined(Name1, Mtab) of
-	true ->
-	    Names = [atom_to_list(N) || N <- gb_trees:keys(Mtab)],
-	    Name = list_to_atom(wings_util:unique_name(Name0, Names)),
-	    new_material(Name, St);
-	false ->
-	    new_material(Name1, St)
-    end;
+command(new, _) ->
+    new_1(assign_new);
+command({assign_new,Name}, St) ->
+    new_material(Name, true, St);
+command({new,Name}, St) ->
+    new_material(Name, false, St);
 command({edit,Mat}, St) ->
-    edit(list_to_atom(Mat), St);
+    edit(list_to_atom(Mat), false, St);
+command({assign,Mat}, St) when is_atom(Mat) ->
+    set_material(Mat, St);
 command({assign,Mat}, St) ->
     set_material(list_to_atom(Mat), St);
 command({select,[Mat]}, St) ->
@@ -58,10 +89,21 @@ command({rename,MatList0}, St) ->
 	MatList -> rename(MatList, St)
     end.
 
-new_material(Name, St0) ->
+new_material(Name0, Assign, #st{mat=Mtab}=St) ->
+    Name1 = list_to_atom(Name0),
+    case gb_trees:is_defined(Name1, Mtab) of
+	true ->
+	    Names = [atom_to_list(N) || N <- gb_trees:keys(Mtab)],
+	    Name = list_to_atom(wings_util:unique_name(Name0, Names)),
+	    new_material_1(Name, Assign, St);
+	false ->
+	    new_material_1(Name1, Assign, St)
+    end.
+
+new_material_1(Name, Assign, St0) ->
     Mat = make_default({1.0,1.0,1.0}, 1.0),
     St = add(Name, Mat, St0),
-    edit(Name, St).
+    edit(Name, Assign, St).
 
 duplicate_material([M0|Ms], #st{mat=Mat}=St0) ->
     M1 = list_to_atom(M0),
@@ -319,7 +361,7 @@ is_transparent(Name, Mtab) ->
 
 -define(PREVIEW_SIZE, 100).
 
-edit(Name, #st{mat=Mtab0}=St) ->
+edit(Name, Assign, #st{mat=Mtab0}=St) ->
     Mat0 = gb_trees:get(Name, Mtab0),
     OpenGL0 = prop_get(opengl, Mat0),
     {Diff0,Opacity0} = ask_prop_get(diffuse, OpenGL0),
@@ -365,10 +407,13 @@ edit(Name, #st{mat=Mtab0}=St) ->
 		  Mat1 = keyreplace(opengl, 1, Mat0, {opengl,OpenGL}),
 		  Mat = plugin_results(Name, More, Mat1),
 		  Mtab = gb_trees:update(Name, Mat, Mtab0),
-		  St#st{mat=Mtab}
+		  maybe_assign(Assign, Name, St#st{mat=Mtab})
 	  end,
     wings_ask:dialog("Material Properties: "++atom_to_list(Name), Qs, Ask).
 
+maybe_assign(false, _, St) -> St;
+maybe_assign(true, Name, St) -> set_material(Name, St).
+    
 plugin_results(_, [], Mat) -> Mat;
 plugin_results(Name, Res0, Mat0) ->
     {Mat,Res} = wings_plugin:dialog({material_editor_result,Name,Mat0}, Res0),
