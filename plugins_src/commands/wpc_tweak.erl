@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.19 2002/11/23 20:34:30 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.20 2002/11/27 06:20:36 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -61,12 +61,13 @@ menu(_, Menu) -> Menu.
 command({tools,tweak}, St0) ->
     Modes = [vertex],
     wings_io:icon_restriction(Modes),
+    wings_util:menu_restriction(geom, [view]),
     St = wings_undo:init(St0#st{selmode=vertex,sel=[]}),
     wings_draw:update_dlists(St),
     T = #tweak{tmode=wait,orig_st=St0,st=St},
     help(T),
     wings_wm:dirty(),
-    {seq,{push,dummy},update_tweak_handler(T)};
+    {seq,push,update_tweak_handler(T)};
 command(_, _) -> next.
 
 %% Event handler for tweak mode
@@ -81,12 +82,8 @@ handle_tweak_event(redraw, #tweak{st=St}=T) ->
     draw_magnet(T),
     keep;
 handle_tweak_event(Ev, #tweak{st=St}=T) ->
-    case wings_io:event(Ev) of
-	next ->
-	    case wings_camera:event(Ev, St) of
-		next -> handle_tweak_event0(Ev, T);
-		Other -> Other
-	    end;
+    case wings_camera:event(Ev, St) of
+	next -> handle_tweak_event0(Ev, T);
 	Other -> Other
     end.
 

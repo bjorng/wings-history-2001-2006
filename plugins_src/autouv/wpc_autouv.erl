@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.56 2002/11/25 22:23:07 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.57 2002/11/27 06:20:36 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -95,7 +95,10 @@ start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0) ->
     St1 = seg_create_materials(St0),
     St = St1#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
     Ss = seg_init_message(#seg{selmodes=Modes,st=St,we=We0}),
-    {seq,{push,dummy},get_seg_event(Ss)}.
+    wings_wm:callback(fun() ->
+			      wings_util:menu_restriction(geom,[view,select])
+		      end),
+    {seq,push,get_seg_event(Ss)}.
 
 seg_init_message(Ss) ->
     Msg = ["[L] Select  [R] Show menu  "|wings_camera:help()],
@@ -109,13 +112,7 @@ seg_event(redraw, #seg{st=St,msg=Msg}) ->
     wings_wm:message(Msg, "Segmenting"),
     wings:redraw(St),
     keep;
-seg_event(Ev, Ss) ->
-    case wings_io:event(Ev) of
-	next -> seg_event_1(Ev, Ss);
-	Other -> Other
-    end.
-
-seg_event_1(Ev, #seg{st=St}=Ss) ->
+seg_event(Ev, #seg{st=St}=Ss) ->
     case wings_camera:event(Ev, St) of
 	next -> seg_event_2(Ev, Ss);
 	Other -> Other
@@ -189,6 +186,7 @@ seg_event_5(Ev, #seg{st=St0}=Ss) ->
 
 seg_event_6({new_state,St}, Ss) ->
     get_seg_event(Ss#seg{st=St});
+seg_event_6({action,{view,auto_rotate}}, _) -> keep;
 seg_event_6({action,{view,Cmd}}, #seg{st=St0}=Ss) ->
     St = wings_view:command(Cmd, St0),
     get_seg_event(Ss#seg{st=St});
@@ -421,7 +419,8 @@ do_edit(MatName, Faces, We, St) ->
 		   areas=Areas,
 		   geom=Geom, 
 		   option=#setng{color=false,texbg=true,texsz=TexSz}},
-    {seq,{push,dummy},get_event(Uvs)}.
+    wings_util:menu_restriction(geom, []),
+    {seq,push,get_event(Uvs)}.
 
 segment(Mode, #st{shapes=Shs}=St) ->
     [{_,We}] = gb_trees:to_list(Shs),
@@ -489,7 +488,8 @@ init_show_maps(Map0, #we{name=Name}=We0, Vmap, OrigWe, St0) ->
 		   origst=St0,
 		   areas=Areas, 
 		   geom=Geom},
-    {seq,{push,dummy},get_event(Uvs)}.
+    wings_util:menu_restriction(geom, []),
+    {seq,push,get_event(Uvs)}.
    
 insert_uvcoords(#areas{orig_we=We0,we=WorkWe,as=Cs0,matname=MatName,vmap=Vmap}) ->
     Cs = gb_trees:values(Cs0),
@@ -607,25 +607,23 @@ add_material(edit, Tx, St0, #areas{matname=MatName}=As) ->
 %%% Opengl drawing routines
 
 init_drawarea() ->
-    {_,_,Ow,Oh} = wings_wm:viewport(),
+    {Ox,Oy,Ow,Oh} = wings_wm:viewport(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     HW = (Ow - 4) div 2,
-    WingsPort = {0,0,HW,Oh},
+    WingsPort = {Ox,Oy,HW,Oh},
     {X2, W2} = {Ow - HW, HW},
-    EH2 = 25,					% Menu bar height
-    H2 = Oh - EH2,
     Border = 10,
     
     {X0Y0, XMax, YMax} =
  	if 
-	    W2 > H2 -> 
+	    W2 > Oh -> 
 		WF = Border / W2,
-		{-WF, W2/H2+WF, 1+WF};
+		{-WF, W2/Oh+WF, 1+WF};
 	    true -> 
-		WF = Border / H2,
-		{-WF, 1+WF, H2/W2+WF}
+		WF = Border / Oh,
+		{-WF, 1+WF, Oh/W2+WF}
 	    end,
-    {WingsPort, {X2,0,W2,H2,X0Y0,XMax,YMax}}.
+    {WingsPort, {X2,0,W2,Oh,X0Y0,XMax,YMax}}.
 
 draw_texture(Uvs = #uvstate{dl=undefined,option=Options}) ->
     Materials = (Uvs#uvstate.origst)#st.mat,
@@ -726,7 +724,7 @@ wings_view(#uvstate{mode=Mode,geom={WingsPort,{X2,Y2,_,_,_,_,_}},st=St}=Uvs) ->
     wings_io:ortho_setup(),
     gl:color3fv(?PANE_COLOR),
     {_,_,W,_} = WingsPort,
-    gl:recti(W, 23, X2, Oh - Y2),
+    gl:recti(W, 0, X2, Oh - Y2),
     ok.
 
 reset_view() ->    

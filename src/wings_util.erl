@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.50 2002/11/27 05:48:31 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.51 2002/11/27 06:20:36 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -19,7 +19,7 @@
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
 	 gb_trees_smallest_key/1,gb_trees_largest_key/1,
 	 nice_float/1,
-	 restrict_menus/2,
+	 menu_restriction/2,
 	 tc/3,export_we/2,crash_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
 
@@ -160,7 +160,7 @@ simplify_float_1("0."++_=F) -> F;
 simplify_float_1("0"++F) -> simplify_float_1(F);
 simplify_float_1(F) -> F.
 
-restrict_menus(Win, Allowed) ->
+menu_restriction(Win, Allowed) ->
     Mb0 = wings_wm:get_menubar(Win),
     Mb = [Item || {_,Name,_}=Item <- Mb0, member(Name, Allowed)],
     wings_wm:menubar(Win, Mb).

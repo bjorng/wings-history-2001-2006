@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.47 2002/11/26 20:05:30 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.48 2002/11/27 06:20:36 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -105,7 +105,9 @@ mode_restriction(Modes, #st{selmode=Mode}=St) ->
     end.
 
 pick_init(#st{selmode=Mode}) ->
-    wings_wm:callback(fun restrict_menus/0),
+    wings_wm:callback(fun() ->
+			      wings_util:menu_restriction(geom, [view,select])
+		      end),
     wings_draw_util:map(fun(D, _) -> pick_init_1(D, Mode) end, []).
 
 pick_init_1(#dlo{orig_sel=none,sel=SelDlist}=D, Mode) ->
