@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.13 2002/04/24 13:02:18 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.14 2002/04/25 08:55:50 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -68,11 +68,28 @@ def_hotkeys(St) ->
     help_window(Help, St).
 
 opengl_info(St) ->
-    Help = ["OpenGL Info",
-	    "Vendor:     " ++ gl:getString(?GL_VENDOR) ++ "\n" ++
-	    "Renderer:   " ++ gl:getString(?GL_RENDERER) ++ "\n" ++
-	    "Version:    " ++ gl:getString(?GL_VERSION)],
+    Help = ["Basic OpenGL Info",
+	    "Vendor: " ++ gl:getString(?GL_VENDOR) ++ "\n" ++
+	    "Renderer: " ++ gl:getString(?GL_RENDERER) ++ "\n" ++
+	    "Version: " ++ gl:getString(?GL_VERSION),
+	    "Detailed Info",
+	    deep_info([{"Red size",?SDL_GL_RED_SIZE},
+		       {"Green size",?SDL_GL_GREEN_SIZE},
+		       {"Blue size",?SDL_GL_BLUE_SIZE},
+		       {"Alpha size",?SDL_GL_ALPHA_SIZE},
+		       {"Buffer size",?SDL_GL_BUFFER_SIZE},
+		       {"Depth size",?SDL_GL_DEPTH_SIZE},
+		       {"Stencil size",?SDL_GL_STENCIL_SIZE},
+		       {"Accum. red size",?SDL_GL_ACCUM_RED_SIZE},
+		       {"Accum. green size",?SDL_GL_ACCUM_GREEN_SIZE},
+		       {"Accum. blue size",?SDL_GL_ACCUM_BLUE_SIZE},
+		       {"Accum. alpha size",?SDL_GL_ACCUM_ALPHA_SIZE}])],
     help_window(Help, St).
+
+deep_info([{Label,Attr}|T]) ->
+    Label ++ ": " ++ integer_to_list(sdl_video:gl_getAttribute(Attr)) ++ "\n" ++
+	deep_info(T);
+deep_info([]) -> [].
 
 about(St) ->
     Redraw = fun show_splash/2,
