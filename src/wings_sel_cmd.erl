@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.14 2002/05/07 09:38:28 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.15 2002/05/28 08:31:51 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -155,7 +155,7 @@ by_command({short_edges,Ask}, St) ->
 by_command(id, St) ->
     by_id(St);
 by_command({id,Sel}, St) ->
-    {save_state,wings_sel:set(Sel, St)}.
+    {save_state,sel_by_id(Sel, St)}.
 
 %%%
 %%% Selection commands.
@@ -170,14 +170,10 @@ select_all(#st{selmode=body,shapes=Shapes}=St) ->
 			 ?IS_SELECTABLE(Perm)],
     St#st{sel=Sel};
 select_all(#st{selmode=Mode,sel=[],shapes=Shapes}=St) ->
-    case gb_trees:is_empty(Shapes) of
-	true -> St;
-	false ->
-	    Sel = [{Id,wings_sel:get_all_items(Mode, Id, St)} ||
-		      #we{id=Id,perm=Perm} <- gb_trees:values(Shapes),
-		      ?IS_SELECTABLE(Perm)],
-	    St#st{sel=Sel}
-    end;
+    Sel = [{Id,wings_sel:get_all_items(Mode, We)} ||
+	      #we{id=Id,perm=Perm}=We <- gb_trees:values(Shapes),
+	      ?IS_SELECTABLE(Perm)],
+    St#st{sel=Sel};
 select_all(#st{selmode=Mode,sel=Sel0}=St) ->
     Sel = [{Id,wings_sel:get_all_items(Mode, Id, St)} || {Id,_} <- Sel0],
     St#st{sel=Sel}.
@@ -444,7 +440,7 @@ short_edge(Tolerance, Edge, #we{es=Etab,vs=Vtab}) ->
 %%
 
 by_id(#st{selmode=body}=St) ->
-    ask([{"Object Id",0}], St,
+    ask([{"Object Id",1}], St,
 	fun([Id]) ->
 		valid_sel("", [{Id,gb_sets:singleton(0)}], St)
 	end);
@@ -458,15 +454,27 @@ by_id(#st{selmode=face}=St) ->
 item_by_id(Prompt, #st{sel=[{Id,_}]}=St) ->
     ask([{Prompt,0}], St,
 	fun([Item]) ->
-		valid_sel(Prompt, [{Id,gb_sets:singleton(Item)}], St)
+		{Prompt,[{Id,gb_sets:singleton(Item)}]}
 	end);
-item_by_id(Prompt, St) ->
-    ask([{"Object Id",0},
-	 {Prompt,0}], St,
-	fun([Id,Item]) ->
-		valid_sel(Prompt, [{Id,gb_sets:singleton(Item)}], St)
-	end).
-    
+item_by_id(Prompt, #st{shapes=Shs}=St) ->
+    case gb_trees:to_list(Shs) of
+	[] -> wings_util:error("Nothing to select.");
+	[{Id,_}] ->
+	    ask([{Prompt,0}], St,
+		fun([Item]) ->
+			{Prompt,[{Id,gb_sets:singleton(Item)}]}
+		end);
+	[{Id0,_}|_] ->
+	    ask([{"Object Id",Id0},
+		 {Prompt,0}], St,
+		fun([Id,Item]) ->
+			{Prompt,[{Id,gb_sets:singleton(Item)}]}
+		end)
+    end.
+
+sel_by_id({Prompt,Sel}, St) ->
+    wings_sel:set(valid_sel(Prompt, Sel, St), St).
+
 valid_sel(Prompt, Sel, #st{shapes=Shs,selmode=Mode}=St) ->
     case wings_sel:valid_sel(Sel, Mode, St) of
 	[] ->
@@ -474,11 +482,11 @@ valid_sel(Prompt, Sel, #st{shapes=Shs,selmode=Mode}=St) ->
 	    [Item] = gb_sets:to_list(Item0),
 	    case gb_trees:is_defined(Id, Shs) of
 		false ->
-		    throw({command_error,"The Object Id "++
-			   integer_to_list(Id)++" is invalid."});
+		    wings_util:error("The Object Id "++
+				     integer_to_list(Id)++" is invalid.");
 		true ->
-		    throw({command_error,"The "++Prompt++" "++
-			   integer_to_list(Item)++" is invalid."})
+		    wings_util:error("The "++Prompt++" "++
+				     integer_to_list(Item)++" is invalid.")
 	    end;
 	Sel -> Sel
     end.

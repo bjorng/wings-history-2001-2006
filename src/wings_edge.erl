@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.45 2002/05/20 10:29:37 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.46 2002/05/28 08:31:51 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -124,13 +124,15 @@ convert_selection(#st{selmode=edge}=St) ->
 	      extend_sel(Edges, We)
       end, edge, St);
 convert_selection(#st{selmode=vertex}=St) ->
-    wings_sel:convert(
-      fun(V, We, Sel0) ->
-	      wings_vertex:fold(
-		fun(Edge, _, _, Sel) ->
-			gb_sets:add(Edge, Sel)
-		end, Sel0, V, We)
-      end, edge, St).
+    wings_sel:convert_shape(fun(Vs, We) -> from_vs(Vs, We) end, edge, St).
+
+from_vs(Vs, We) ->
+    from_vs(gb_sets:to_list(Vs), We, []).
+
+from_vs([V|Vs], We, Acc0) ->
+    Acc = wings_vertex:fold(fun(E, _, _, A) -> [E|A] end, Acc0, V, We),
+    from_vs(Vs, We, Acc);
+from_vs([], We, Acc) -> gb_sets:from_list(Acc).
 
 %%% Select more or less.
 
@@ -625,7 +627,8 @@ select_region(St) -> St.
 
 select_region(Edges, #we{id=Id}=We, Acc) ->
     Part = wings_edge_loop:partition_edges(Edges, We),
-    FaceSel = select_region_1(Part, Edges, We, []),
+    FaceSel0 = select_region_1(Part, Edges, We, []),
+    FaceSel = wings_sel:subtract_mirror_face(FaceSel0, We),
     [{Id,FaceSel}|Acc].
 
 select_region_1([[AnEdge|_]|Ps], Edges, #we{es=Etab}=We, Acc) ->

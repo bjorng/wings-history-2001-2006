@@ -8,19 +8,21 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.33 2002/05/10 14:02:59 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.34 2002/05/28 08:31:50 bjorng Exp $
 %%
 
 -module(wings_sel).
 
 -export([clear/1,set/2,set/3,
-	 convert/3,convert_shape/3,convert_selection/2,
+	 convert_shape/3,convert_selection/2,
 	 map/2,fold/3,mapfold/3,
 	 foreach/2,make/3,valid_sel/1,valid_sel/3,
 	 centers/1,bounding_box/1,
 	 face_regions/2,edge_regions/2,validate_items/3,
-	 select_object/2,deselect_object/2,get_all_items/3,
-	 inverse_items/3]).
+	 select_object/2,deselect_object/2,
+	 get_all_items/2,get_all_items/3,
+	 inverse_items/3,
+	 subtract_mirror_face/2]).
 
 -include("wings.hrl").
 -import(lists, [foldl/3,reverse/1,reverse/2,sort/1,keydelete/3]).
@@ -61,27 +63,6 @@ convert_shape(F, NewType, St) ->
 		       end
 	       end, [], St),
     St#st{selmode=NewType,sel=reverse(Sel)}.
-
-convert(F, NewType, St) ->
-    Sel = fold(fun(Items0, #we{id=Id}=We, Acc) ->
-		       Items = convert_items(F, Items0, We),
-		       case gb_sets:is_empty(Items) of
-			   true -> Acc;
-			   false -> [{Id,Items}|Acc]
-		       end
-	       end, [], St),
-    St#st{selmode=NewType,sel=reverse(Sel)}.
-
-convert_items(F, Items, We) ->
-    convert_items(F, gb_sets:empty(), gb_sets:iterator(Items), We).
-
-convert_items(F, Acc0, Iter0, We) ->
-    case gb_sets:next(Iter0) of
-	none -> Acc0;
-	{Item,Iter} ->
-	    Acc = F(Item, We, Acc0),
-	    convert_items(F, Acc, Iter, We)
-    end.
 
 %%%
 %%% Map over the selection, modifying the selected objects.
@@ -308,18 +289,10 @@ valid_sel(Sel0, Mode, #st{shapes=Shapes}) ->
 	    end, [], Sel0),
     reverse(Sel).
 
-validate_items(Vs, vertex, #we{vs=Vtab}) ->
-    tab_set_intersection(Vs, Vtab);
-validate_items(Es, edge, #we{es=Etab}) ->
-    tab_set_intersection(Es, Etab);
-validate_items(Fs, face, #we{fs=Ftab}) ->
-    tab_set_intersection(Fs, Ftab);
-validate_items(Items, body, _We) -> Items.
-
-tab_set_intersection(Set, Tab) ->
-    Keys = gb_sets:from_ordset(gb_trees:keys(Tab)),
-    gb_sets:intersection(Set, Keys).
-
+validate_items(Items, body, _We) -> Items;
+validate_items(Items, Mode, We) ->
+    gb_sets:intersection(Items, get_all_items(Mode, We)).
+    
 select_object(Id, #st{selmode=Mode,sel=Sel0}=St) ->
     Sel = sort([{Id,get_all_items(Mode, Id, St)}|Sel0]),
     St#st{sel=Sel}.
@@ -328,24 +301,22 @@ deselect_object(Id, #st{sel=Sel0}=St) ->
     Sel = keydelete(Id, 1, Sel0),
     St#st{sel=Sel}.
 
+inverse_items(Mode, Elems, We) ->
+    gb_sets:difference(get_all_items(Mode, We), Elems).
+
 get_all_items(Mode, Id, #st{shapes=Shapes}) ->
     We = gb_trees:get(Id, Shapes),
-    Items = case Mode of
-		vertex -> gb_trees:keys(We#we.vs);
-		edge -> gb_trees:keys(We#we.es);
-		face -> gb_trees:keys(We#we.fs);
-		body -> [0]
-	    end,
-    gb_sets:from_ordset(Items).
+    get_all_items(Mode, We).
 
-inverse_items(vertex, Items, #we{vs=Tab}) ->
-    inverse_items_1(Items, Tab);
-inverse_items(edge, Items, #we{es=Tab}) ->
-    inverse_items_1(Items, Tab);
-inverse_items(face, Items, #we{fs=Tab}) ->
-    inverse_items_1(Items, Tab).
+get_all_items(vertex, #we{vs=Vtab}) ->
+    gb_sets:from_ordset(gb_trees:keys(Vtab));
+get_all_items(edge, #we{es=Etab}) ->
+    gb_sets:from_ordset(gb_trees:keys(Etab));
+get_all_items(face, #we{fs=Ftab}=We) ->
+    subtract_mirror_face(gb_sets:from_ordset(gb_trees:keys(Ftab)), We);
+get_all_items(body, _) ->
+    gb_sets:singleton(0).
 
-inverse_items_1(Items, Tab) ->
-    Keys0 = gb_trees:keys(Tab),
-    Keys = gb_sets:from_ordset(Keys0),
-    gb_sets:difference(Keys, Items).
+subtract_mirror_face(Faces, #we{mirror=none}) -> Faces;
+subtract_mirror_face(Faces, #we{mirror=Face}) ->
+    wings_util:delete_any(Face, Faces).

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.19 2002/05/26 20:12:11 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.20 2002/05/28 08:31:51 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -19,7 +19,7 @@
 	 normal/2,face_normal/2,good_normal/2,
 	 draw_info/3,draw_normal/1,
 	 surrounding_vertices/2,surrounding_vertices/3,
-	 extend_border/2,bordering_faces/2,
+	 bordering_faces/2,
 	 inner_edges/2,outer_edges/2,
 	 fold/4,fold_vinfo/4,fold_faces/4,
 	 iterator/2,skip_to_edge/2,skip_to_cw/2,skip_to_ccw/2,
@@ -35,8 +35,8 @@
 %%
 convert_selection(#st{selmode=body}=St) ->
     wings_sel:convert_shape(
-      fun(_, #we{fs=Ftab}) ->
-	      gb_sets:from_list(gb_trees:keys(Ftab))
+      fun(_, We) ->
+	      wings_sel:get_all_items(face, We)
       end, face, St);
 convert_selection(#st{selmode=face}=St) ->
     wings_sel:convert_shape(
@@ -44,32 +44,45 @@ convert_selection(#st{selmode=face}=St) ->
 	      extend_border(Sel0, We)
       end, face, St);
 convert_selection(#st{selmode=edge}=St) ->
-    wings_sel:convert(
-      fun(Edge, #we{es=Etab}, Sel0) ->
-	      #edge{lf=FaceL,rf=FaceR} = gb_trees:get(Edge, Etab),
-	      gb_sets:add(FaceL, gb_sets:add(FaceR, Sel0))
-      end, face, St);
+    wings_sel:convert_shape(fun(Es, We) -> from_edges(Es, We) end, face, St);
 convert_selection(#st{selmode=vertex}=St) ->
-    wings_sel:convert(
-      fun(V, We, Sel0) ->
-	      wings_vertex:fold(
-		fun(_, Face, _, Sel1) ->
-			gb_sets:add(Face, Sel1)
-		end, Sel0, V, We)
-      end, face, St).
+    wings_sel:convert_shape(fun(Vs, We) -> from_vs(Vs, We) end, face, St).
+
+from_edges(Es, #we{es=Etab}=We) ->
+    Fs = from_edges(gb_sets:to_list(Es), Etab, []),
+    wings_sel:subtract_mirror_face(Fs, We).
+    
+from_edges([E|Es], Etab, Acc) ->
+    #edge{lf=Lf,rf=Rf} = gb_trees:get(E, Etab),
+    from_edges(Es, Etab, [Lf,Rf|Acc]);
+from_edges([], _, Acc) -> gb_sets:from_list(Acc).
+
+from_vs(Vs, We) ->
+    from_vs(gb_sets:to_list(Vs), We, []).
+
+from_vs([V|Vs], We, Acc0) ->
+    Acc = wings_vertex:fold(fun(_, Face, _, A) -> [Face|A] end, Acc0, V, We),
+    from_vs(Vs, We, Acc);
+from_vs([], We, Acc) ->
+    wings_sel:subtract_mirror_face(gb_sets:from_list(Acc), We).
 
 %%% Select more.
 select_more(St) ->
-    wings_sel:convert(
-      fun(Face, We, A) ->
-	      fold(
-		fun(V, _, _, AA) ->
-			wings_vertex:fold(
-			  fun(_, AFace, _, AAA) ->
-				  gb_sets:add(AFace, AAA)
-			  end, AA, V, We)
-		end, gb_sets:add(Face, A), Face, We)
-      end, face, St).
+    wings_sel:convert_shape(fun select_more/2, face, St).
+
+select_more(Fs0, We) ->
+    Fs = foldl(fun(Face, A) ->
+		       do_select_more(Face, We, A)
+	       end, Fs0, gb_sets:to_list(Fs0)),
+    wings_sel:subtract_mirror_face(Fs, We).
+
+do_select_more(Face, We, Acc) ->
+    foldl(fun(V, A0) ->
+		  wings_vertex:fold(
+		    fun(_, AFace, _, A1) ->
+			    gb_sets:add(AFace, A1)
+		    end, A0, V, We)
+	  end, Acc, surrounding_vertices(Face, We)).
 
 select_less(St) ->
     wings_sel:convert_shape(
@@ -89,7 +102,7 @@ select_less(St) ->
 
 vs_faces(Faces, We) ->
     fold_faces(fun(Face, V, _, _, A) -> [{V,Face}|A] end, [], Faces, We).
-		       
+
 vs_bordering(Vs, FaceSet, We) ->
     B = foldl(fun(V, A) ->
 		      case vtx_bordering(V, FaceSet, We) of
@@ -200,7 +213,7 @@ draw_normal([], Acc) -> e3d_vec:normal(reverse(Acc)).
 surrounding_vertices(Face, #we{es=Etab,fs=Ftab}) ->
     #face{edge=Edge} = gb_trees:get(Face, Ftab),
     face_traverse(Face, Edge, Edge, Etab, []).
-    
+
 surrounding_vertices(Face, Edge, #we{es=Etab}) ->
     face_traverse(Face, Edge, Edge, Etab, []).
 
@@ -216,15 +229,16 @@ face_traverse(Face, Edge, LastEdge, Es, Acc) ->
 %% extend_border(FacesGbSet, We) -> FacesGbSet'
 %%  Extend the the given set of faces to include all faces not in the
 %%  set that share at least one edge with a face in the set.
-extend_border(Faces, We) ->
-    foldl(fun(Face, S0) ->
-		  fold(fun(_, _, #edge{lf=Lf,rf=Rf}, S1) ->
-			       if
-				   Lf =/= Face -> gb_sets:add(Lf, S1);
-				   true -> gb_sets:add(Rf, S1)
-			       end
-		       end, S0, Face, We)
-	  end, Faces, gb_sets:to_list(Faces)).
+extend_border(Fs0, We) ->
+    Fs = foldl(fun(Face, S0) ->
+		       fold(fun(_, _, #edge{lf=Lf,rf=Rf}, S1) ->
+				    if
+					Lf =/= Face -> gb_sets:add(Lf, S1);
+					true -> gb_sets:add(Rf, S1)
+				    end
+			    end, S0, Face, We)
+	       end, Fs0, gb_sets:to_list(Fs0)),
+    wings_sel:subtract_mirror_face(Fs, We).
 
 %% bordering_faces(FacesGbSet, We) -> FacesGbSet'
 %%  Given a set of faces, return all faces that are adjacent to
@@ -243,7 +257,7 @@ bordering_faces(Faces, We) ->
 inner_edges(Faces, We) ->
     S = fold_faces(fun(_, _, E, _, A) -> [E|A] end, [], Faces, We),
     inner_edges_1(sort(S), []).
-    
+
 inner_edges_1([E,E|T], In) ->
     inner_edges_1(T, [E|In]);
 inner_edges_1([_|T], In) ->
@@ -255,7 +269,7 @@ inner_edges_1([], In) -> reverse(In).
 outer_edges(Faces, We) ->
     S = fold_faces(fun(_, _, E, _, A) -> [E|A] end, [], Faces, We),
     outer_edges_1(sort(S), []).
-    
+
 outer_edges_1([E,E|T], Out) ->
     outer_edges_1(T, Out);
 outer_edges_1([E|T], Out) ->
@@ -291,7 +305,7 @@ fold_vinfo(F, Acc0, Face, Edge, LastEdge, Etab, _) ->
 		  F(V, VInfo, Acc0);
 	      #edge{ve=V,b=VInfo,rf=Face,rtsu=NextEdge} ->
 		  F(V, VInfo, Acc0)
-    end,
+	  end,
     fold_vinfo(F, Acc, Face, NextEdge, LastEdge, Etab, done).
 
 %% fold over a set of faces.
