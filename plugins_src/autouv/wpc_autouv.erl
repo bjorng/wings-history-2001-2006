@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.162 2003/09/16 21:37:24 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.163 2003/10/27 06:33:20 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -40,7 +40,7 @@ menu({body}, Menu) ->
 	    Menu;
 	false ->
 	    Menu ++ [separator,
-		     {"UV Mapping (experimental)", ?MODULE,
+		     {"UV Mapping", ?MODULE,
 		      "Generate or edit UV mapping or texture"}
 		    ]
     end;
