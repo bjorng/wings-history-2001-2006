@@ -3,12 +3,12 @@
 %%
 %%     Utilities for drawing objects.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.140 2004/12/29 14:24:18 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.141 2005/01/09 21:08:43 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -16,8 +16,7 @@
 	 plain_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_plain_faces/2,smooth_uv_faces/2,smooth_vcol_faces/2,
 	 unlit_face/2,unlit_face/3,
-	 force_flat_color/2,force_flat_color/3,good_triangulation/5,
-	 subtract_mirror_face/2]).
+	 force_flat_color/2,force_flat_color/3,good_triangulation/5]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -48,47 +47,36 @@ init() ->
 
 prepare(Ftab, #dlo{src_we=We}, St) ->
     prepare(Ftab, We, St);
-prepare(Ftab, #we{mode=vertex}=We, St) ->
+prepare(Ftab0, We, St) ->
+    Ftab = wings_we:visible(Ftab0, We),
+    prepare_1(Ftab, We, St).
+
+prepare_1(Ftab, #we{mode=vertex}=We, St) ->
     case {wings_pref:get_value(show_colors),Ftab} of
 	{false,[{_,Edge}|_]} when is_integer(Edge) ->
 	    Fs0 = sofs:from_external(Ftab, [{face,edge}]),
 	    Fs1 = sofs:domain(Fs0),
-	    Fs2 = sofs:to_external(Fs1),
-	    Fs = subtract_mirror_face(Fs2, We),
+	    Fs = sofs:to_external(Fs1),
 	    {color,{[{wings_color:white(),Fs}],[]},St};
 	{false,_} ->
 	    {color,{[{wings_color:white(),Ftab}],[]},St};
 	{true,_} ->
 	    {color,vtx_color_split(Ftab, We),St}
     end;
-prepare(Ftab, #we{mode=material,mirror=none}=We, St) ->
-    {material,prepare_mat(Ftab, We),St};
-prepare(Ftab0, #we{mode=material,mirror=Mirror}=We, St) ->
-    Ftab = keydelete(Mirror, 1, Ftab0),
+prepare_1(Ftab, #we{mode=material}=We, St) ->
     {material,prepare_mat(Ftab, We),St}.
 
-prepare_mat(Ftab0, We) ->
-    Ftab = wings_we:visible(Ftab0, We),
+prepare_mat(Ftab, We) ->
     case wings_pref:get_value(show_materials) of
 	false -> [{default,Ftab}];
-	true -> prepare_mat_1(Ftab, We)
+	true -> wings_facemat:mat_faces(Ftab, We)
     end.
-
-prepare_mat_1(Ftab, We) ->
-    wings_facemat:mat_faces(Ftab, We).
-
-subtract_mirror_face(Fs, #we{mirror=none}) -> Fs;
-subtract_mirror_face(Fs, #we{mirror=Face}) -> Fs -- [Face].
 
 vtx_color_split([{_,Edge}|_]=Ftab0, We) when is_integer(Edge) ->
     vtx_color_split_1(Ftab0, We, [], []);
-vtx_color_split(Ftab, #we{mirror=Face}) ->
-    vtx_smooth_color_split(Ftab, Face).
+vtx_color_split(Ftab, _) ->
+    vtx_smooth_color_split(Ftab).
 
-vtx_color_split_1([{Face,_}|Fs], #we{mirror=Face}=We, SameAcc, DiffAcc) ->
-    %% No need to show the mirror face, and it causes crashes with
-    %% certain OpenGL drivers. (GLU Tesselation + Vertex colors = Bad Crash)
-    vtx_color_split_1(Fs, We, SameAcc, DiffAcc);
 vtx_color_split_1([{Face,Edge}|Fs], We, SameAcc, DiffAcc) ->
     Cols = wings_face:vertex_info(Face, Edge, We),
     case vtx_color_split_2(Cols) of
@@ -117,19 +105,17 @@ no_colors([{_,_,_}|_]) -> false;
 no_colors([_|Cols]) -> no_colors(Cols);
 no_colors([]) -> true.
 
-vtx_smooth_color_split(Ftab, Mirror) ->
-    vtx_smooth_color_split_1(Ftab, Mirror, [], []).
+vtx_smooth_color_split(Ftab) ->
+    vtx_smooth_color_split_1(Ftab, [], []).
 
-vtx_smooth_color_split_1([{Mirror,_}|Fs], Mirror, SameAcc, DiffAcc) ->
-    vtx_smooth_color_split_1(Fs, Mirror, SameAcc, DiffAcc);
-vtx_smooth_color_split_1([{_,Vs}=Face|Fs], Mirror, SameAcc, DiffAcc) ->
+vtx_smooth_color_split_1([{_,Vs}=Face|Fs], SameAcc, DiffAcc) ->
     case vtx_smooth_face_color(Vs) of
 	different ->
-	    vtx_smooth_color_split_1(Fs, Mirror, SameAcc, [Face|DiffAcc]);
+	    vtx_smooth_color_split_1(Fs, SameAcc, [Face|DiffAcc]);
 	Col ->
-	    vtx_smooth_color_split_1(Fs, Mirror, [{Col,Face}|SameAcc], DiffAcc)
+	    vtx_smooth_color_split_1(Fs, [{Col,Face}|SameAcc], DiffAcc)
     end;
-vtx_smooth_color_split_1([], _, SameAcc, DiffAcc) ->
+vtx_smooth_color_split_1([], SameAcc, DiffAcc) ->
     {wings_util:rel2fam(SameAcc),DiffAcc}.
 
 vtx_smooth_face_color(Vs) ->
