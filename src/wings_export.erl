@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.6 2004/10/08 06:02:29 dgud Exp $
+%%     $Id: wings_export.erl,v 1.7 2004/12/04 09:42:22 bjorng Exp $
 %%
 
 -module(wings_export).
@@ -19,7 +19,8 @@
 -include("e3d_image.hrl").
 -import(lists, [foldl/3,keydelete/3,reverse/1]).
 
-export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
+export(Exporter, Name, SubDivs, #st{shapes=Shs}=St0) ->
+    St = wings_view:freeze_mirror(St0),
     Objs = foldl(fun(W, A) ->
 			 export_1(W, SubDivs, A)
 		 end, [], gb_trees:values(Shs)),
@@ -32,15 +33,19 @@ export(Exporter, Name, SubDivs, #st{shapes=Shs}=St) ->
     Mat = mat_images(Mat1),
     Contents = #e3d_file{objs=Objs,mat=Mat,creator=Creator},
     wings_pb:update(1.0),
-    Res = wings_pb:done(catch Exporter(Name, Contents)),
-    case Res of
+    try Exporter(Name, Contents) of
 	ok -> ok;
 	{error,Atom} when is_atom(Atom) ->
 	    wings_util:error(file:format_error(Atom));
 	{error,Reason} ->
-	    wings_util:error(Reason);
-	{'EXIT',Reason} ->
-	wings_util:error(?STR(export,4,"Exporter crashed:\n~P\n"), [Reason,20])
+	    wings_util:error(Reason)
+    catch
+	error:Reason ->
+	    Msg = ?STR(export,4,"Exporter crashed"),
+	    wings_util:error(Msg++": ~P\n\n~P\n",
+			     [Reason,20,erlang:get_stacktrace(),20])
+    after
+	wings_pb:done()
     end.
 
 save_images(#e3d_file{mat=Mat0}=E3DFile, Dir, Filetype) ->
@@ -57,7 +62,14 @@ export_1(#we{name=Name}=We, SubDivs, Acc) when not ?IS_ANY_LIGHT(We) ->
     [#e3d_object{name=Name,obj=Mesh}|Acc];
 export_1(_, _, Acc) -> Acc.
 
-make_mesh(We0, SubDivs) ->
+make_mesh(#we{mirror=none}=We, Subdivs) ->
+    make_mesh_1(We, Subdivs);
+make_mesh(#we{mirror=Face}=We0, Subdivs) ->
+    %% Freeze the virtual mirror.
+    We = wings_face_cmd:mirror_faces([Face], We0),
+    make_mesh_1(We, Subdivs).
+
+make_mesh_1(We0, SubDivs) ->
     We1 = sub_divide(SubDivs, We0),
     #we{vp=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We1, 0),
     Vs = gb_trees:values(Vs0),
