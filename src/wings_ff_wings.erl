@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.14 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.15 2001/12/28 22:36:58 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -58,7 +58,7 @@ import_objects([Sh0|Shs], Mode, Oid, {ShAcc,SelAcc0}) ->
     {object,Name,{winged,Fs,Vs0,He},Props} = Sh0,
     Vs = decode_vs(Vs0),
     Es = wings_we:build_edges_only(Fs),
-    We0 = wings_we:build_rest(Es, Fs, Vs, He),
+    We0 = wings_we:build_rest(material, Es, Fs, Vs, He),
     We = We0#we{id=Oid,name=Name},
     SelAcc = import_sel(Mode, Oid, Props, Es, SelAcc0),
     import_objects(Shs, Mode, Oid+1, {[{Oid,We}|ShAcc],SelAcc});
@@ -91,11 +91,12 @@ import_sel_1(body, Items, Es) ->
 
 %% Reading of version 0 wings files.
 old_import_objects(Shapes, St0) ->		% Version 0.
-    foldl(fun ({object,Name,Matrix0,{winged,Fs,Vs},Prop}, St) ->
+    foldl(fun ({object,Name,Matrix0,{winged,Fs,Vs0},Prop}, St) ->
 		  HardEdges = property_lists:get_value(hard_edges, Prop, []),
 		  Matrix1 = e3d_mat:compress(Matrix0),
 		  Matrix = e3d_mat:mul(Matrix1, e3d_mat:scale(0.1, 0.1, 0.1)),
-		  We = wings_we:build(Matrix, Fs, Vs, HardEdges),
+		  Vs = [e3d_mat:mul_point(Matrix, P) || P <- Vs0],
+		  We = wings_we:build(Fs, Vs, HardEdges),
 		  wings_shape:new(Name, We, St)
 	  end, St0, Shapes).
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.19 2001/12/28 11:35:52 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.20 2001/12/28 22:36:58 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -223,7 +223,6 @@ edit(Name, #st{mat=Mtab0}=St) ->
 %%% Texture support.
 
 init_texture(#mat{diffuse_map={W,H,Bits}}=Mat, #st{next_tx=TxId}=St) ->
-    io:format("~w\n", [TxId]),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     gl:enable(?GL_TEXTURE_2D),

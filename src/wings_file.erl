@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.39 2001/12/28 11:35:05 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.40 2001/12/28 22:36:58 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -87,7 +87,9 @@ command(revert, St0) ->
     end;
 command({import,Type}, St0) ->
     case import(Type, St0) of
-	St0 -> St0;
+	{warning,Warn,St} ->
+	    wings_util:message(Warn),
+	    {save_state,model_changed(St)};
 	St -> {save_state,model_changed(St)}
     end;
 command({export,Type}, St) ->
@@ -265,6 +267,9 @@ import(Ext, Mod, St0) ->
 		#st{}=St ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    St;
+		{warning,Warn,St} ->
+		    wings_util:message(Warn),
+		    St;
 	    	{error,Reason} ->
 		    wings_io:message("Import failed: " ++ Reason),
 		    St0
@@ -378,12 +383,22 @@ do_import(Mod, Name, St0) ->
     wings_io:progress("Reading " ++ filename:basename(Name)),
     case Mod:import(Name) of
 	{ok,#e3d_file{objs=Objs,mat=Mat}} ->
-	    Suffix = " of " ++ integer_to_list(length(Objs)),
-	    {UsedMat,St} = translate_objects(Objs, gb_sets:empty(),
+	    NumObjs = length(Objs),
+	    Suffix = " of " ++ integer_to_list(NumObjs),
+	    {UsedMat,St1} = translate_objects(Objs, gb_sets:empty(),
 					     1, Suffix, St0),
-	    add_materials(UsedMat, Mat, St);
+	    St = add_materials(UsedMat, Mat, St1),
+	    case gb_trees:size(St#st.shapes)-gb_trees:size(St0#st.shapes) of
+		NumObjs -> St;
+		N ->
+		    Warn = integer_to_list(NumObjs-N) ++
+			" object(s) out of " ++
+			integer_to_list(NumObjs) ++
+			" object(s) could not be converted.",
+		    {warning,Warn,St}
+	    end;
 	{error,Reason}=Error ->
-	    Error
+	    throw({command_error,Reason})
     end.
 
 add_materials(UsedMat0, Mat0, St) ->
@@ -401,18 +416,22 @@ translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0,
     wings_io:progress("Converting obj " ++ integer_to_list(I) ++ Suffix),
     Obj1 = e3d_mesh:clean(Obj0),
     Obj = e3d_mesh:make_quads(Obj1),
-    #e3d_mesh{matrix=Matrix0,type=Type,vs=Vs,tx=Tx0,fs=Fs0,he=He} = Obj,
+    #e3d_mesh{matrix=Matrix,vs=Vs0,tx=Tx0,fs=Fs0,he=He} = Obj,
     io:format("Name ~p\n", [Name]),
-    Matrix = case Matrix0 of
-		 none -> identity;
-		 _ -> Matrix0
-	     end,
+    Vs = scale_objects(Vs0, Matrix),
     Tx = list_to_tuple(Tx0),
     {Fs,UsedMat} = translate_faces(Fs0, Tx, [], UsedMat0),
+    ObjType = obj_type(Tx0),
     wings_io:progress("Building Wings obj " ++ integer_to_list(I) ++ Suffix),
-    St = build_object(Name, Matrix, Fs, Vs, He, St0),
+    St = build_object(Name, ObjType, Fs, Vs, He, St0),
     translate_objects(Os, UsedMat, I+1, Suffix, St);
 translate_objects([], UsedMat, _, _, St) -> {UsedMat,St}.
+
+obj_type([]) -> material;
+obj_type(L) -> uv.
+
+scale_objects(Vs, none) -> Vs;
+scale_objects(Vs, Matrix) -> [e3d_mat:mul_point(Matrix, P) || P <- Vs].
 
 translate_faces([#e3d_face{vs=Vs,tx=Tx0,mat=Mat0}|Fs], Txs, Acc, UsedMat0) ->
     UsedMat = add_used_mat(Mat0, UsedMat0),
@@ -433,13 +452,10 @@ translate_mat([]) -> default;
 translate_mat([Mat]) -> Mat;
 translate_mat([_|_]=List) -> List.
 
-build_object(Name, Matrix0, Fs, Vs, He, St) ->
-    Matrix = identity,
-    case
-	%%catch
-	wings_we:build(Matrix, Fs, Vs, He) of
+build_object(Name, Type, Fs, Vs, He, St) ->
+    case catch wings_we:build(Type, Fs, Vs, He) of
 	{'EXIT',Reason} ->
-	    io:format("Conversion failed\n"),
+	    io:format("Conversion failed: ~P\n", [Reason,20]),
 	    St;
 	We -> wings_shape:new(Name, We, St)
     end.
@@ -462,18 +478,50 @@ do_export(#we{name=Name}=We, Acc) ->
 make_mesh(We0) ->
     #we{vs=Vs0,es=Etab,he=He0} = We = wings_we:renumber(We0, 0),
     Vs = [P || #vtx{pos=P} <- gb_trees:values(Vs0)],
-    Fs1 = wings_util:fold_face(
+    Fs0 = wings_util:fold_face(
 	    fun(Face, #face{mat=Mat}, A) ->
 		    [make_face(Face, Mat, We)|A]
 	    end, [], We),
-    Fs = reverse(Fs1),
+    Fs1 = reverse(Fs0),
+    {Fs,UVTab} = make_uv(Fs1),
     He = hard_edges(gb_sets:to_list(He0), Etab, []),
     Matrix = e3d_mat:identity(),
-    #e3d_mesh{type=polygon,fs=Fs,vs=Vs,he=He,matrix=Matrix}.
+    #e3d_mesh{type=polygon,fs=Fs,vs=Vs,tx=UVTab,he=He,matrix=Matrix}.
 
+make_face(Face, Mat, #we{mode=uv}=We) ->
+    {Vs,UVs} = wings_face:fold_vinfo(
+		 fun(V, {_,_}=UV, {VAcc,UVAcc}) ->
+			 {[V|VAcc],[UV|UVAcc]};
+		    (V, Info, {VAcc,UVAcc}) ->
+			 {[V|VAcc],UVAcc}
+		 end, {[],[]}, Face, We),
+    {Vs,UVs,Mat};
 make_face(Face, Mat, We) ->
     Vs = wings_face:surrounding_vertices(Face, We),
-    #e3d_face{vs=Vs,mat=make_face_mat(Mat)}.
+    {Vs,[],Mat}.
+
+make_uv(Faces) ->
+    R0 = sofs:from_external(Faces, [{vertices,[uv],mat}]),
+    P0 = sofs:projection(2, R0),
+    P1 = sofs:union(P0),
+    P = sofs:to_external(P1),
+    UVmap = gb_trees:from_orddict(sort(number(P, 0, []))),
+    make_uv_1(Faces, UVmap, []).
+
+make_uv_1([{Vs,UVs0,Mat}|Fs], UVMap, Acc) ->
+    UVs = [gb_trees:get(UV, UVMap) || UV <- UVs0],
+    Rec = #e3d_face{vs=Vs,tx=UVs,mat=make_face_mat(Mat)},
+    make_uv_1(Fs, UVMap, [Rec|Acc]);
+make_uv_1([], UVMap, Acc) ->
+    UVTab0 = gb_trees:to_list(UVMap),
+    UVTab1 = sofs:from_external(UVTab0, [{uv,index}]),
+    UVTab2 = sofs:converse(UVTab1),
+    UVTab = [UV || {I,UV} <- sofs:to_external(UVTab2)],
+    {reverse(Acc),UVTab}.
+
+number([UV|UVs], I, Acc) ->
+    number(UVs, I+1, [{UV,I}|Acc]);
+number([], I, Acc) -> Acc.
 
 make_face_mat([_|_]=Mat) -> Mat;
 make_face_mat(Mat) -> [Mat].

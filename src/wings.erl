@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.76 2001/12/28 11:35:52 bjorng Exp $
+%%     $Id: wings.erl,v 1.77 2001/12/28 22:36:58 bjorng Exp $
 %%
 
 -module(wings).
@@ -138,12 +138,12 @@ clean_state(St) ->
 
 save_state(St0, St1) ->
     St = wings_undo:save(St0, St1),
+    wings_io:clear_message(),
     main_loop(St#st{saved=false}).
 
 main_loop(St) ->
     ?VALIDATE_MODEL(St),
     redraw(St),
-    wings_io:clear_message(),
     main_loop_noredraw(St).
 
 main_loop_noredraw(St) ->

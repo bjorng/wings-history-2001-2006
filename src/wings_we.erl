@@ -10,12 +10,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.21 2001/12/28 11:35:52 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.22 2001/12/28 22:36:58 bjorng Exp $
 %%
 
 -module(wings_we).
 -export([build/2,build/3,build/4,
-	 build_edges_only/1,build_rest/4,vpairs_to_edges/2,
 	 new_wrap_range/3,id/2,bump_id/1,
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
@@ -25,6 +24,10 @@
 	 get_sub_object/2,
 	 normals/1,
 	 new_items/3]).
+
+%% For reading wings files.
+-export([build_edges_only/1,build_rest/5,vpairs_to_edges/2]).
+
 -include("wings.hrl").
 -import(lists, [map/2,foreach/2,foldl/3,sort/1,keysort/2,
 		last/1,reverse/1,duplicate/2,seq/2,filter/2]).
@@ -34,15 +37,12 @@
 %%%
 
 build(Fs, Vs) ->
-    build(Fs, Vs, []).
+    build(material, Fs, Vs).
 
-build(identity, Fs, Vs, He) ->
-    build(Fs, Vs, He);
-build(Matrix, Fs, Vs0, He) ->
-    Vs = [e3d_mat:mul_point(Matrix, P) || P <- Vs0],
-    build(Fs, Vs, He).
+build(Type, Fs, Vs) ->
+    build(Type, Fs, Vs, []).
 
-build(Fs0, Vs, HardEdges) ->
+build(Type, Fs0, Vs, HardEdges) ->
     {Good0,Bad0} = build_edges(Fs0),
     {Es0,Fs} = if
 		   Bad0 =:= [] -> {Good0,Fs0};
@@ -53,13 +53,13 @@ build(Fs0, Vs, HardEdges) ->
 		       {Good,Fs1}
 	       end,
     Es = number_edges(Es0),
-    build_rest(Es, Fs, Vs, HardEdges).
+    build_rest(Type, Es, Fs, Vs, HardEdges).
 
 build_edges_only(Faces) ->
     {Good,[]} = build_edges(Faces),
     number_edges(Good).
 
-build_rest(Es, Fs, Vs, HardEdges) ->
+build_rest(Type, Es, Fs, Vs, HardEdges) ->
     Htab = vpairs_to_edges(HardEdges, Es),
     {Vtab0,Etab,Ftab0} = build_tables(Es),
     Ftab = build_faces(Ftab0, Fs),
@@ -67,7 +67,7 @@ build_rest(Es, Fs, Vs, HardEdges) ->
     NextId = 2+last(sort([gb_trees:size(Etab),
 			  gb_trees:size(Ftab),
 			  gb_trees:size(Vtab)])),
-    #we{es=Etab,fs=Ftab,vs=Vtab,he=Htab,first_id=0,next_id=NextId}.
+    #we{mode=Type,es=Etab,fs=Ftab,vs=Vtab,he=Htab,first_id=0,next_id=NextId}.
 
 build_edges(Fs) ->
     build_edges(Fs, 0, []).
@@ -350,7 +350,8 @@ renumber(We0, Id) ->
     {We,_} = renumber(We0, Id, []),
     We.
 
-renumber(#we{vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We0, Id, RootSet0) ->
+renumber(#we{mode=Mode,vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We0,
+	 Id, RootSet0) ->
     Etab1 = gb_trees:to_list(Etab0),
     {Emap,IdE} = make_map(Etab1, Id),
 
@@ -380,7 +381,8 @@ renumber(#we{vs=Vtab0,es=Etab0,fs=Ftab0,he=Htab0}=We0, Id, RootSet0) ->
 
     RootSet = map_rootset(RootSet0, Emap, Vmap, Fmap),
     NextId = last(sort([IdV,IdE,IdF])),
-    We = We0#we{vs=Vtab,es=Etab,fs=Ftab,he=Htab,first_id=Id,next_id=NextId},
+    We = We0#we{mode=Mode,vs=Vtab,es=Etab,fs=Ftab,he=Htab,
+		first_id=Id,next_id=NextId},
     {We,RootSet}.
 
 map_rootset([{vertex,Vs}|T], Emap, Vmap, Fmap) when list(Vs) ->
@@ -413,12 +415,12 @@ renum_edge({Edge0,Rec0}, Emap, Vmap, Fmap, New) ->
     Edge = gb_trees:get(Edge0, Emap),
     #edge{vs=Vs,ve=Ve,lf=Lf,rf=Rf,ltpr=Ltpr,ltsu=Ltsu,
 	  rtpr=Rtpr,rtsu=Rtsu} = Rec0,
-    Rec = #edge{vs=gb_trees:get(Vs, Vmap),ve=gb_trees:get(Ve, Vmap),
-		lf=gb_trees:get(Lf, Fmap),rf=gb_trees:get(Rf, Fmap),
-		ltpr=gb_trees:get(Ltpr, Emap),
-		ltsu=gb_trees:get(Ltsu, Emap),
-		rtpr=gb_trees:get(Rtpr, Emap),
-		rtsu=gb_trees:get(Rtsu, Emap)},
+    Rec = Rec0#edge{vs=gb_trees:get(Vs, Vmap),ve=gb_trees:get(Ve, Vmap),
+		    lf=gb_trees:get(Lf, Fmap),rf=gb_trees:get(Rf, Fmap),
+		    ltpr=gb_trees:get(Ltpr, Emap),
+		    ltsu=gb_trees:get(Ltsu, Emap),
+		    rtpr=gb_trees:get(Rtpr, Emap),
+		    rtsu=gb_trees:get(Rtsu, Emap)},
     [{Edge,Rec}|New].
     
 renum_vertex({V0,#vtx{edge=Edge}=Rec0}, Emap, Vmap, New) ->
