@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.23 2002/11/05 07:45:40 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.24 2002/11/05 13:41:22 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -172,12 +172,7 @@ merge_faces_1(Fa, Fb, Va, Vb, Ftab0) ->
 	    case merge_faces_2(Va, Vb, Vs1, Vs2) of
 		error -> Ftab0;
 		Vs when is_list(Vs) ->
-		    R0 = [zip(Vs1, Tx1),zip(Vs2, Tx2)],
-		    R1 = sofs:set(R0, [[{v,uv}]]),
-		    R = sofs:union(R1),
-		    F0 = sofs:relation_to_family(R),
-		    F = gb_trees:from_orddict(sofs:to_external(F0)),
-		    Tx = merge_uvs(Vs, F),
+		    Tx = merge_uvs(Vs, Vs1, Vs2, Tx1, Tx2),
 		    Rec = Rec0#e3d_face{vs=Vs,tx=Tx,vis=-1},
 		    Ftab = gb_trees:update(Fa, Rec, Ftab0),
 		    gb_trees:delete(Fb, Ftab)
@@ -185,10 +180,19 @@ merge_faces_1(Fa, Fb, Va, Vb, Ftab0) ->
 	{_,_} -> Ftab0
     end.
 
-merge_uvs([V|T], V2UV) ->
+merge_uvs(_, _, _, [], []) -> [];
+merge_uvs(Vs, Vs1, Vs2, Tx1, Tx2) ->
+    R0 = [zip(Vs1, Tx1),zip(Vs2, Tx2)],
+    R1 = sofs:set(R0, [[{v,uv}]]),
+    R = sofs:union(R1),
+    F0 = sofs:relation_to_family(R),
+    F = gb_trees:from_orddict(sofs:to_external(F0)),
+    merge_uvs_1(Vs, F).
+
+merge_uvs_1([V|T], V2UV) ->
     [UV|_] = gb_trees:get(V, V2UV),
-    [UV|merge_uvs(T, V2UV)];
-merge_uvs([], _) -> [].
+    [UV|merge_uvs_1(T, V2UV)];
+merge_uvs_1([], _) -> [].
 
 merge_faces_2(Va, Vb, VsA0, VsB0) ->
     VsA = rot_face(Va, Vb, VsA0),
