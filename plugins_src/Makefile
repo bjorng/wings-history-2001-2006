@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.9 2004/04/19 04:33:59 bjorng Exp $
+#     $Id: Makefile,v 1.10 2004/11/27 19:27:14 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -58,6 +58,7 @@ clean: subdirs_clean
 	rm -f core
 
 subdirs_clean:
+	(cd accel; $(MAKE) clean)
 	(cd fonts; $(MAKE) clean)
 	(cd import_export; $(MAKE) clean)
 	(cd primitives; $(MAKE) clean)

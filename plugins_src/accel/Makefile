@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.8 2004/10/25 16:25:31 bjorng Exp $
+#     $Id: Makefile,v 1.9 2004/11/27 19:27:16 bjorng Exp $
 #
 OS := $(shell uname -s)
 
@@ -42,7 +42,9 @@ ERLC_FLAGS = -o $(LIBDIR)
 
 DRV = $(LIBDIR)/wings_ogla_drv.$(SO_EXT)
 
-all: $(BEAM) $(DRV)
+TARGET_FILES=$(BEAM) $(DRV)
+
+all: $(TARGET_FILES)
 
 $(LIBDIR)/%.beam: %.erl
 	install -d $(LIBDIR)
@@ -53,14 +55,13 @@ $(LIBDIR)/wings_ogla_drv.dll: wings_ogla_drv.c
 	install -d $(LIBDIR)
 	mingw32-gcc -I$(ERL_INC) -o $(LIBDIR)/wings_ogla_drv.dll \
   wings_ogla_drv.c $(LIBS) $(GL_LIBS)
-
-erl_win_dyn_driver.h: $(ERL_INC)/erl_win_dyn_driver.h
-	sed 's,##Params, Params,g' "$(ERL_INC)/erl_win_dyn_driver.h" > erl_win_dyn_driver.h
 else
-
 $(LIBDIR)/wings_ogla_drv.so: wings_ogla_drv.c
 	install -d $(LIBDIR)
 	gcc -o $(LIBDIR)/wings_ogla_drv.so -I$(ERL_INC) \
   wings_ogla_drv.c $(LIBS) $(GL_LIBS)
 endif
 
+clean:
+	rm -f $(TARGET_FILES)
+	rm -f core
