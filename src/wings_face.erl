@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.20 2002/05/28 08:31:51 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.21 2002/06/11 09:34:07 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -145,7 +145,8 @@ vertices(Face, We) ->
 
 normal(Face, #we{vs=Vtab}=We) ->
     Vpos = fold(fun(V, _, _, A) ->
-			[wings_vertex:pos(V, Vtab)|A]
+			#vtx{pos=P} = gb_trees:get(V, Vtab),
+			[P|A]
 		end, [], Face, We),
     e3d_vec:normal(Vpos).
 

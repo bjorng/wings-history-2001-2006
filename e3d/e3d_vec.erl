@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.11 2002/03/19 19:34:09 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.12 2002/06/11 09:34:06 bjorng Exp $
 %%
 
 -module(e3d_vec).
@@ -16,7 +16,9 @@
 -export([zero/0,is_zero/1,add/1,add/2,sub/1,sub/2,mul/2,divide/2,neg/1,
 	 dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,norm/3,
 	 normal/3,normal/1,average/1]).
--compile({inline,[{norm,3}]}).
+
+-compile(inline).
+-compile({inline_size,24}).
 
 zero() ->
     {0.0,0.0,0.0}.
