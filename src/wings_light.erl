@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.2 2002/08/08 13:26:20 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.3 2002/08/09 06:12:58 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -27,7 +27,9 @@
 -record(light,
 	{type,
 	 diffuse={1.0,1.0,1.0,1.0},
-	 spot_dir,
+	 ambient={0.0,0.0,0.0,1.0},
+	 specular={1.0,1.0,1.0,1.0},
+	 spot_aim,
 	 spot_angle
 	}).
 
@@ -37,13 +39,17 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Move",{move,Dir}},
 	    separator,
-	    {"Position Highlight",position_fun()}],
+	    {"Position Highlight",position_fun()},
+	    separator,
+	    {"Edit Properties",edit}],
     wings_menu:popup_menu(X, Y, light, Menu).
 
 command({move,Type}, St) ->
     wings_move:setup(Type, St);
 command({position_highlight,{Mode,Sel}}, St) ->
     position_highlight(Mode, Sel, St);
+command(edit, St) ->
+    edit(St);
 command(color, St) ->
     St.
 
@@ -88,8 +94,7 @@ position_highlight(Mode, Sel, St) ->
 position_highlight_1(Center, #we{light=L0}=We) ->
     case L0 of
 	#light{type=spot} ->
-	    Dir = e3d_vec:norm(e3d_vec:sub(Center, light_pos(We))),
-	    L = L0#light{spot_dir=Dir},
+	    L = L0#light{spot_aim=Center},
 	    We#we{light=L};
 	#light{type=point} ->
 	    move_light(Center, We);
@@ -107,6 +112,38 @@ is_any_light_selected([{Id,_}|Sel], Shs) ->
 is_any_light_selected([], _) -> false.
 
 %%%
+%%% Editing lights.
+%%%
+edit(#st{sel=[{Id,_}],shapes=Shs}=St) ->
+    #we{light=L0} = We0 = gb_trees:get(Id, Shs),
+    #light{diffuse=Diff0,ambient=Amb0,specular=Spec0} = L0,
+    Qs = [{hframe,
+	   [{vframe,
+	     [{label,"Diffuse"},
+	      {label,"Ambient"},
+	      {label,"Specular"}]},
+	    {vframe,
+	     [{color,Diff0},
+	      {color,Amb0},
+	      {color,Spec0}]}],
+	   [{title,"Colors"}]}|qs_specific(L0)],
+    wings_ask:dialog(Qs,
+		     fun([Diff,Amb,Spec|More]) ->
+			     L1 = L0#light{diffuse=Diff,ambient=Amb,specular=Spec},
+			     L = edit_specific(More, L1),
+			     We = We0#we{light=L},
+			     St#st{shapes=gb_trees:update(Id, We, Shs)}
+		     end);
+edit(_) -> wings_util:error("Select only one light.").
+
+qs_specific(#light{type=spot,spot_angle=Angle}) ->
+    [{label,"Spot Angle"},{slider,{text,Angle,[{range,{0.0,85.0}}]}}].
+    
+edit_specific([Angle], #light{type=spot}=L) ->
+    L#light{spot_angle=Angle};
+edit_specific(_, L) -> L.
+    
+%%%
 %%% Creating lights.
 %%%
 
@@ -115,7 +152,7 @@ create(infinite, St) ->
 create(point, St) ->
     build("point", #light{type=point}, St);
 create(spot, St) ->
-    build("spot", #light{type=spot,spot_dir={0.0,-1.0,0.0},spot_angle=40.0}, St).
+    build("spot", #light{type=spot,spot_aim={0.0,0.0,0.0},spot_angle=40.0}, St).
 
 build(Prefix, L, #st{onext=Oid}=St) ->
     Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
@@ -191,18 +228,24 @@ update_2(point, Selected, We) ->
     gl:popMatrix();
 update_2(spot, Selected, #we{light=L}=We) ->
     gl:lineWidth(1),
-    #light{diffuse=Diff,spot_dir=SpotDir,spot_angle=Angle} = L,
+    #light{diffuse=Diff,spot_aim=Aim,spot_angle=Angle} = L,
     case Selected of
 	false -> gl:color4fv(Diff);
 	true ->  gl:color3fv(wings_pref:get_value(selected_color))
     end,
     gl:pushMatrix(),
-    Top = light_pos(We),
-    {X,Y,Z} = e3d_vec:add(Top, SpotDir),
-    Rot = e3d_mat:expand(e3d_mat:rotate_s_to_t({0.0,0.0,1.0}, e3d_vec:neg(SpotDir))),
-    gl:translatef(X, Y, Z),
-    gl:multMatrixd(Rot),
+
     Obj = glu:newQuadric(),
+    {Tx,Ty,Tz} = Top = light_pos(We),
+    gl:translatef(Tx, Ty, Tz),
+    glu:quadricDrawStyle(Obj, ?GLU_FILL),
+    glu:quadricNormals(Obj, ?GLU_SMOOTH),
+    glu:sphere(Obj, 0.05, 25, 25),
+
+    {Dx,Dy,Dz} = SpotDir = e3d_vec:norm(e3d_vec:sub(Aim, Top)),
+    gl:translatef(Dx, Dy, Dz),
+    Rot = e3d_mat:expand(e3d_mat:rotate_s_to_t({0.0,0.0,1.0}, e3d_vec:neg(SpotDir))),
+    gl:multMatrixd(Rot),
     glu:quadricDrawStyle(Obj, ?GLU_LINE),
     R = math:sin(3.1416*Angle/180),
     glu:cylinder(Obj, R, 0, 1, 12, 1),
@@ -294,12 +337,13 @@ setup_light(Lnum, #light{type=point,diffuse=Diff}, We) ->
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 180.0);
 setup_light(Lnum, #light{type=spot}=L, We) ->
-    #light{diffuse=Diff,spot_angle=SpotAngle,spot_dir=SpotDir} = L,
-    {X,Y,Z} = light_pos(We),
+    #light{diffuse=Diff,spot_angle=SpotAngle,spot_aim=Aim} = L,
+    Pos = {X,Y,Z} = light_pos(We),
+    Dir = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
     gl:lightfv(Lnum, ?GL_DIFFUSE, Diff),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, SpotAngle),
-    gl:lightfv(Lnum, ?GL_SPOT_DIRECTION, SpotDir).
+    gl:lightfv(Lnum, ?GL_SPOT_DIRECTION, Dir).
 
 light_pos(#we{vs=Vtab}) ->
     #vtx{pos=Pos} = gb_trees:get(1, Vtab),
@@ -309,4 +353,3 @@ move_light(Pos, #we{vs=Vtab0}=We) ->
     Vtab1 = [{V,Vtx#vtx{pos=Pos}} || {V,Vtx} <- gb_trees:to_list(Vtab0)],
     Vtab = gb_trees:from_orddict(Vtab1),
     We#we{vs=Vtab}.
-

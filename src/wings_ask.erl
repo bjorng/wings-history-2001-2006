@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.26 2002/07/26 07:14:05 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.27 2002/08/09 06:12:58 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -811,7 +811,7 @@ color_fun() ->
 
 col_draw(Active, #fi{key=Key,x=X,y=Y0}, _, Common) ->
     Color = gb_trees:get(Key, Common),
-    wings_io:sunken_rect(X, Y0+3,
+    wings_io:border(X, Y0+3,
 			 3*?CHAR_WIDTH, ?CHAR_HEIGHT, Color),
     Y = Y0+?CHAR_HEIGHT,
     if
@@ -842,7 +842,11 @@ col_inside(Xm, Ym, #fi{x=X,y=Y})
 col_inside(_, _, _) -> false.
 
 pick_color(#fi{key=Key}, Col, Common0) ->
-    {R0,G0,B0} = gb_trees:get(Key, Common0),
+    {R1,G1,B1,A} =
+	case gb_trees:get(Key, Common0) of
+	    {R0,G0,B0} -> {R0,G0,B0,none};
+	    {R0,G0,B0,A0} -> {R0,G0,B0,A0}
+	end,
     Range = [{range,{0,255}}],
     Draw = fun(X, Y, _W, _H, Common) ->
 		   Color = {gb_trees:get(r, Common)/255,
@@ -854,11 +858,14 @@ pick_color(#fi{key=Key}, Col, Common0) ->
     {dialog,[{hframe,
 	      [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
 	       {label_column,
-		[{"R",{slider,{text,trunc(R0*255),[{key,r}|Range]}}},
-		 {"G",{slider,{text,trunc(G0*255),[{key,g}|Range]}}},
-		 {"B",{slider,{text,trunc(B0*255),[{key,b}|Range]}}}]}]}],
+		[{"R",{slider,{text,trunc(R1*255),[{key,r}|Range]}}},
+		 {"G",{slider,{text,trunc(G1*255),[{key,g}|Range]}}},
+		 {"B",{slider,{text,trunc(B1*255),[{key,b}|Range]}}}]}]}],
      fun([{r,R},{g,G},{b,B}]) ->
-	     Val = {R/255,G/255,B/255},
+	     Val = case A of
+		       none -> {R/255,G/255,B/255};
+		       _ -> {R/255,G/255,B/255,A}
+		   end,
 	     {Col#col{val=Val},gb_trees:update(Key, Val, Common0)}
      end}.
 

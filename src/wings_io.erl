@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.60 2002/08/03 09:13:45 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.61 2002/08/09 06:12:58 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -409,7 +409,7 @@ border(X0, Y0, Mw0, Mh0, FillColor) ->
     Y = Y0 + 0.5,
     Mw = Mw0 - 0.5,
     Mh = Mh0 + 0.5,
-    gl:color3fv(FillColor),
+    set_color(FillColor),
     gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
     gl:color3f(0.20, 0.20, 0.20),
     gl:'begin'(?GL_LINE_LOOP),
@@ -419,6 +419,9 @@ border(X0, Y0, Mw0, Mh0, FillColor) ->
     gl:vertex2f(X+Mw, Y+Mh),
     gl:'end'(),
     gl:color3f(0, 0, 0).
+
+set_color({_,_,_}=RGB) -> gl:color3fv(RGB);
+set_color({_,_,_,_}=RGBA) -> gl:color4fv(RGBA).
     
 raised_rect(X, Y, Mw, Mh) ->
     raised_rect(X, Y, Mw, Mh, ?PANE_COLOR).
