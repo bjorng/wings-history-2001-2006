@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.105 2003/11/09 08:27:26 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.106 2003/11/09 08:35:59 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -1909,8 +1909,8 @@ color_slider(C, Min, Range, X, W, Y, H) ->
     gl:vertex2f(X+1,Y+H),
     gl:vertex2f(X+1,Y+1),
     wings_io:set_color(ECol),
-    gl:vertex2f(X+1+W,Y+1),
-    gl:vertex2f(X+1+W,Y+H),
+    gl:vertex2f(X+W,Y+1),
+    gl:vertex2f(X+W,Y+H),
     gl:'end'(),
     slider_pos(Val, Min, Range).
 
@@ -1919,13 +1919,13 @@ slider_pos(Val, Min, Range) ->
 
 hue_color_slider(S, V, X, W, Y, H) ->
     wings_io:set_color(hsv_to_rgb(0, S, V)),
-    hue_color_slider(S, V, X, W, Y, H, 0).
+    hue_color_slider(S, V, X+1, W-1, Y, H, 0).
 
 hue_color_slider(_, _, _, _, _, _, Hue) when Hue > (360-60) ->
     ok;
 hue_color_slider(S, V, X, W, Y, H, Hue) ->
-    X0 = (X+1)+W*Hue/360.0,
-    X1 = (X+1)+W*(Hue+60)/360.0,
+    X0 = X+W*Hue/360.0,
+    X1 = X+W*(Hue+60)/360.0,
     gl:vertex2f(X0,Y+H),
     gl:vertex2f(X0,Y+1),
     gl:color3fv(hsv_to_rgb(60+Hue, S, V)),
