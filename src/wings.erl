@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.274 2003/10/25 20:00:09 bjorng Exp $
+%%     $Id: wings.erl,v 1.275 2003/10/28 05:54:27 bjorng Exp $
 %%
 
 -module(wings).
@@ -972,7 +972,8 @@ handle_drop(DropData, {X0,Y0}, St) ->
     handle_drop_1(DropData, X, Y, St).
 
 handle_drop_1(_, X, Y, #st{sel=[]}) ->
-    wings_menu:popup_menu(X, Y, drop, [{"No Selection",ignore}]);
+    wings_menu:popup_menu(X, Y, drop,
+			  [{"No Selection",cancel_drop,"Cancel drop operation"}]);
 handle_drop_1({material,Name}, X, Y, #st{selmode=face}) ->
     Menu = [{"Assign material to selected faces",menu_cmd(assign_to_sel, Name),
 	     "Assign material \""++Name++"\" only to selected faces"},
@@ -995,7 +996,8 @@ drop_command({assign_to_sel,Name}, St) ->
     wings_material:command({assign,Name}, St);
 drop_command({assign_to_body,Name}, #st{selmode=Mode}=St0) ->
     St = wings_material:command({assign,Name}, St0#st{selmode=body}),
-    St#st{selmode=Mode}.
+    St#st{selmode=Mode};
+drop_command(cancel_drop, St) -> St.
 
 %%%
 %%% Saving and restoring of window layouts.
