@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp9_dialogs.erl,v 1.34 2004/01/01 15:01:07 bjorng Exp $
+%%     $Id: wp9_dialogs.erl,v 1.35 2004/01/02 10:02:23 bjorng Exp $
 %%
 
 -module(wp9_dialogs).
@@ -76,7 +76,7 @@ dialog_1(DlgType, Types, Title, Cont, Ps) ->
     DirMenu = dir_menu(Dir, []),
     OkHook = fun(Op, Arg) -> ok_hook(Op, Arg, DlgType) end,
     Qs = {vframe,
-	  [{hframe,[{label,"Look in:"},
+	  [{hframe,[{label,"Look in"},
 		    {menu,DirMenu,Dir,[{key,directory},{hook,fun menu_hook/2}]},
 		    {button,"Up",fun(_) -> ignore end,[{key,up},{hook,fun up_button/2}]}]},
 	   panel,
@@ -87,7 +87,7 @@ dialog_1(DlgType, Types, Title, Cont, Ps) ->
 	      [{label,"File name"},
 	       {label,"File format"}]},
 	     {vframe,
-	      [{text,Filename,[{key,filename}]},
+	      [{text,Filename,[{key,filename},{hook,fun filename_hook/2}]},
 	       {menu,Types,DefType,[{key,filetype},{hook,fun menu_hook/2}]}]},
 	     {vframe,[{button,Title,
 		       %% We will always exit the dialog through this
@@ -148,6 +148,11 @@ ok_hook(update, {_Var,_I,_Val,Store}, DlgType) ->
     end;
 ok_hook(_, _, _) -> void.
 
+filename_hook(update, {Var,_I,Val,Sto0}) ->
+    {_,Els} = gb_trees:get(file_list, Sto0),
+    Sto = gb_trees:update(file_list, {[],Els}, Sto0),
+    {store,gb_trees:update(Var, Val, Sto)};
+filename_hook(_, _) -> void.
 
 check_filename(Store, DlgType) ->
     Dir = gb_trees:get(directory, Store),
