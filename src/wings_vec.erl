@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.52 2002/12/20 19:22:48 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.53 2002/12/23 10:27:30 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -48,9 +48,9 @@ command({pick,[{Atom,Desc}|T],Acc,Names}, St) when is_atom(Atom) ->
     command_1(Atom, Desc, T, Acc, Names, St);
 command({pick,[Atom|T],Acc,Names}, St) when is_atom(Atom) ->
     Msg = case Atom of
-	      axis -> {"Select axis for ",Names};
-	      point -> {"Select point for ",Names};
-	      magnet -> {"Select magnet influence for ",Names};
+	      axis -> {"Pick axis for ",Names};
+	      point -> {"Pick point for ",Names};
+	      magnet -> {"Pick magnet influence for ",Names};
 	      _ -> []
 	  end,
     command_1(Atom, Msg, T, Acc, Names, St);
@@ -65,10 +65,9 @@ command_1(axis, Msg, More, Acc, Names, St0) ->
     pick_init(St0),
     Modes = [vertex,edge,face],
     St1 = mode_restriction(Modes, St0),
-    Check = fun vector_exit_check/1,
     Ss = #ss{check=fun check_vector/1,
 	     exit=fun(_X, _Y, St) ->
-			  common_exit(Check, More, Acc, Names, St)
+			  common_exit(More, Acc, Names, St)
 		  end,
 	     selmodes=Modes,
 	     is_axis=true},
@@ -81,7 +80,7 @@ command_1(point, Msg, More, Acc, Names, St0) ->
     Check = fun check_point/1,
     Ss = #ss{check=Check,
 	     exit=fun(_X, _Y, St) ->
-			  common_exit(Check, More, Acc, Names, St)
+			  common_exit(More, Acc, Names, St)
 		  end,
 	     selmodes=Modes},
     command_message(Msg),
@@ -168,53 +167,54 @@ handle_event_2(Ev0, Ss, St0) ->
 	    end
     end.
 
-handle_event_3(Event, Ss, St) ->
-    case translate_key(Event) of
-	next -> handle_event_4(Event, Ss, St);
+handle_event_3(#keyboard{}=Ev, Ss, St0) ->
+    case handle_key(Ev, Ss, St0) of
+	next ->
+	    case wings_hotkey:event(Ev, St0) of
+		next -> handle_event_4(Ev, Ss, St0);
+		{Menu,_}=Act when Menu == view; Menu == select->
+		    wings_io:putback_event({action,Act}),
+		    keep;
+		_Other -> keep
+	    end;
 	Other -> Other
-    end.
-    
-handle_event_4(Event, Ss, St0) ->
-    case wings_hotkey:event(Event, St0) of
-	next -> handle_event_5(Event, Ss, St0);
-	{Menu,_}=Act when Menu == view; Menu == select->
-	    wings_io:putback_event({action,Act}),
-	    keep;
-	_Other -> keep
-    end.
+    end;
+handle_event_3(Ev, Ss, St) -> handle_event_4(Ev, Ss, St).
 
-handle_event_5({new_state,St}, #ss{check=Check}=Ss, _St0) ->
-    {Vec,Msg} = Check(St),
-    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
-handle_event_5(#keyboard{}, Ss, St) ->
-    get_event(Ss, St);
-handle_event_5(redraw, Ss, St) ->
+handle_event_4({new_state,St}, #ss{check=Check}=Ss, _St0) ->
+    case Check(St) of
+	{Vec,Msg} -> 
+	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
+	[{Vec,Msg}|_] ->
+	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec})
+    end;
+handle_event_4(redraw, Ss, St) ->
     redraw(Ss, St),
     keep;
-handle_event_5({action,{select,Cmd}}, Ss, St0) ->
+handle_event_4({action,{select,Cmd}}, Ss, St0) ->
     case wings_sel_cmd:command(Cmd, St0) of
 	St0 -> keep;
 	{save_state,St} -> filter_sel_command(Ss, St);
 	St -> filter_sel_command(Ss, St)
     end;
-handle_event_5({action,{view,auto_rotate}}, _, _) ->
+handle_event_4({action,{view,auto_rotate}}, _, _) ->
     keep;
-handle_event_5({action,{view,Cmd}}, Ss, St0) ->
+handle_event_4({action,{view,Cmd}}, Ss, St0) ->
     St = wings_view:command(Cmd, St0),
     get_event(Ss, St);
-handle_event_5({action,{secondary_selection,Cmd}}, Ss, St) ->
+handle_event_4({action,{secondary_selection,Cmd}}, Ss, St) ->
     secondary_selection(Cmd, Ss, St);
-handle_event_5({action,Cmd}, Ss, St) ->
+handle_event_4({action,Cmd}, Ss, St) ->
     set_last_axis(Ss, St),
     wings_io:putback_event({action,Cmd}),
     pop;
-handle_event_5(quit, _Ss, _St) ->
+handle_event_4(quit, _Ss, _St) ->
     wings_io:putback_event(quit),
     pop;
-handle_event_5(#resize{w=W,h=H}, Ss, St0) ->
+handle_event_4(#resize{w=W,h=H}, Ss, St0) ->
     St = wings:resize(W, H, St0),
     get_event(Ss, St);
-handle_event_5(_Event, Ss, St) ->
+handle_event_4(_Event, Ss, St) ->
     get_event(Ss, St).
 
 secondary_selection(abort, _Ss, _St) ->
@@ -243,15 +243,26 @@ filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
 	false -> keep
     end.
 
-translate_key(#keyboard{keysym=KeySym}) ->
-    translate_key_1(KeySym);
-translate_key(_Event) -> next.
+handle_key(#keyboard{keysym=KeySym}, Ss, St) ->
+    handle_key_1(KeySym, Ss, St).
 
-translate_key_1(#keysym{sym=27}) ->		%Escape
+handle_key_1(#keysym{sym=$1}, _, St) ->	%1
+    wings_io:putback_event({new_state,St}),
+    keep;
+handle_key_1(#keysym{sym=$2}, #ss{check=Check}=Ss, St) -> %2
+    case Check(St) of
+	{Vec,Msg} -> 
+	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
+	[_,{Vec,Msg}|_] ->
+	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec});
+	[{Vec,Msg}] ->
+	    get_event(Ss#ss{info=Msg}, St#st{vec=Vec})
+    end;
+handle_key_1(#keysym{sym=27}, _, _) ->		%Escape
     pick_finish(),
     wings_wm:dirty(),
     pop;
-translate_key_1(_Other) -> next.
+handle_key_1(_, _, _) -> next.
 
 exit_menu(X, Y, Mod, #ss{exit=Exit}=Ss, St) ->
     RmbMod = wings_camera:free_rmb_modifier(),
@@ -284,12 +295,9 @@ exit_menu_done(X, Y, MenuEntry) ->
     Menu = [MenuEntry,{"Abort Command",abort}],
     wings_menu:popup_menu(X, Y, secondary_selection, Menu).
 
-common_exit(Check, More, Acc, Ns, #st{vec=none}=St) ->
-    case Check(St) of
-	{none,_} -> invalid_selection;
-	{Vec,_} -> common_exit_1(Vec, More, Acc, Ns)
-    end;
-common_exit(_Check, [point]=More, Acc, Ns, #st{vec={Point,Vec}}) ->
+common_exit(_, _, _, #st{vec=none}) ->
+    invalid_selection;
+common_exit([point]=More, Acc, Ns, #st{vec={Point,Vec}}) ->
     Command = command_name(Ns),
     F = fun({magnet,1}, _) ->
 		{vector,{pick,[magnet],[Point|add_to_acc(Vec, Acc)],Ns}};
@@ -307,9 +315,9 @@ common_exit(_Check, [point]=More, Acc, Ns, #st{vec={Point,Vec}}) ->
 	end,
     Ps = wings_menu_util:magnet_props(vector, Ns),
     {Command,F,{"Execute command",[],pick_more_help(More, Ns)},Ps};
-common_exit(_Check, More, Acc, Ns, #st{vec={_,Vec}}) ->
+common_exit(More, Acc, Ns, #st{vec={_,Vec}}) ->
     common_exit_1(Vec, More, Acc, Ns);
-common_exit(_Check, More, Acc, Ns, #st{vec=Vec}) ->
+common_exit(More, Acc, Ns, #st{vec=Vec}) ->
     common_exit_1(Vec, More, Acc, Ns).
 
 common_exit_1(Vec, [], Acc, Ns) ->
@@ -325,11 +333,7 @@ common_exit_1(Vec, [], Acc, Ns) ->
 		{vector,{pick,[],add_to_acc(Vec, Acc),Ns}}
 	end,
     Ps = wings_menu_util:magnet_props(vector, Ns),
-    {Command,F,"Execute command",Ps};
-common_exit_1(Vec, More, Acc, Ns) ->
-    {"Continue",fun(_, _) ->
-			{vector,{pick,More,add_to_acc(Vec, Acc),Ns}}
-		end,pick_more_help(More, Ns),[]}.
+    {Command,F,"Execute command",Ps}.
 
 pick_more_help([point|_], Ns) ->
     "Continue to select point for " ++ command_name(Ns);
@@ -350,12 +354,6 @@ command_name([N|Ns]) ->
 %%% Vector functions.
 %%%
 
-vector_exit_check(St) ->
-    case check_vector(St) of
-	{none,_}=None -> None;
-	{{_,Vec},Msg} -> {Vec,Msg}
-    end.
-
 check_vector(#st{sel=[]}) -> {none,""};
 check_vector(#st{selmode=Mode,sel=[{Id,Elems0}],shapes=Shs}) ->
     We = gb_trees:get(Id, Shs),
@@ -365,12 +363,17 @@ check_vector(_) -> {none,"Select parts of one object only"}.
 
 %% Use single edge as axis
 get_vec(edge, [Edge], #we{es=Etab,vs=Vtab}=We) ->
-    #edge{vs=Va,ve=Vb} = gb_trees:get(Edge, Etab),
+    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf} = gb_trees:get(Edge, Etab),
     VaPos = wings_vertex:pos(Va, Vtab),
     VbPos = wings_vertex:pos(Vb, Vtab),
     Vec = e3d_vec:norm(e3d_vec:sub(VbPos, VaPos)),
     Center = wings_vertex:center([Va,Vb], We),
-    {{Center,Vec},"Edge saved as axis."};
+    Ln = wings_face:normal(Lf, We),
+    Rn = wings_face:normal(Rf, We),
+    Normal = e3d_vec:norm(e3d_vec:add(Ln, Rn)),
+    [{{Center,Vec},"Edge saved as axis (press \"2\" to save edge normal)."},
+     {{Center,Normal},
+      "Edge normal saved as axis (press \"1\" to save edge direction)."}];
 %% Use direction between two edges
 get_vec(edge, [Edge1,Edge2], #we{es=Etab,vs=Vtab}) ->
     #edge{vs=Va1,ve=Vb1} = gb_trees:get(Edge1, Etab),
@@ -383,14 +386,14 @@ get_vec(edge, [Edge1,Edge2], #we{es=Etab,vs=Vtab}) ->
     Center2 = e3d_vec:average([Va2Pos,Vb2Pos]),
     Center = e3d_vec:average([Center1,Center2]),
     Vec = e3d_vec:norm(e3d_vec:sub(Center1, Center2)),
-    {{Center,Vec},"Direction between edges saved as axis."};
+    [{{Center,Vec},"Direction between edges saved as axis."}];
 %% Use edge-loop normal.
 get_vec(edge, Edges, #we{vs=Vtab}=We) ->
     case wings_edge_loop:edge_loop_vertices(Edges, We) of
 	[Vs] -> 
 	    Center = wings_vertex:center(Vs, We),
 	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
-	    {{Center,Vec},"Edge loop normal saved as axis."};
+	    [{{Center,Vec},"Edge loop normal saved as axis."}];
 	_Other ->
 	    {none,"Multi-edge selection must form a single closed edge loop."}
     end;
@@ -399,19 +402,19 @@ get_vec(edge, Edges, #we{vs=Vtab}=We) ->
 get_vec(vertex, [V], We) ->
     Vec = wings_vertex:normal(V, We),
     Center = wings_vertex:center([V], We),
-    {{Center,Vec}, "Vertex normal saved."};
+    [{{Center,Vec},"Vertex normal saved."}];
 %% Direction between 2 vertices as axis
 get_vec(vertex, [Va,Vb]=Vs, We) ->
     VaPos = wings_vertex:pos(Va, We),
     VbPos = wings_vertex:pos(Vb, We),
     Vec = e3d_vec:norm(e3d_vec:sub(VaPos, VbPos)),
     Center = wings_vertex:center(Vs, We),
-    {{Center,Vec},"Direction between vertices saved as axis."};
+    [{{Center,Vec},"Direction between vertices saved as axis."}];
 %% 3-point (defines face) perpendicular
 get_vec(vertex, [_,_,_]=Vs, #we{vs=Vtab}=We) ->
     Vec = wings_face:face_normal(Vs, Vtab),
     Center = wings_vertex:center(Vs, We),
-    {{Center,Vec},"3-point perp. normal saved as axis."};
+    [{{Center,Vec},"3-point perp. normal saved as axis."}];
 %% Take the edge loop normal.
 get_vec(vertex, Vs0, #we{vs=Vtab}=We) ->
     Edges = find_edges(Vs0, We),
@@ -419,7 +422,7 @@ get_vec(vertex, Vs0, #we{vs=Vtab}=We) ->
 	[Vs] -> 
 	    Center = wings_vertex:center(Vs, We),
 	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
-	    {{Center,Vec},"Edge loop normal saved as axis."};
+	    [{{Center,Vec},"Edge loop normal saved as axis."}];
 	_Other ->
 	    {none,"Multi-vertex selection must form a single closed edge loop."}
     end;
@@ -429,7 +432,7 @@ get_vec(face, [Face], We) ->
     Vec = wings_face:normal(Face, We),
     Vs = wings_face:to_vertices([Face], We),
     Center = wings_vertex:center(Vs, We),
-    {{Center,Vec},"Face normal saved as axis."};
+    [{{Center,Vec},"Face normal saved as axis."}];
 %% Direction between two faces as axis
 get_vec(face, [Face1,Face2], We) ->
     VsList1 = wings_face:surrounding_vertices(Face1, We),
@@ -438,13 +441,13 @@ get_vec(face, [Face1,Face2], We) ->
     Center2 = wings_vertex:center(VsList2, We),
     Center = e3d_vec:average([Center1,Center2]),
     Vec = e3d_vec:norm(e3d_vec:sub(Center1, Center2)),
-    {{Center,Vec},"Direction between faces saved as axis."};
+    [{{Center,Vec},"Direction between faces saved as axis."}];
 get_vec(face, Faces, #we{vs=Vtab}=We) ->
     case wings_vertex:outer_partition(Faces, We) of
 	[Vs] ->
 	    Center = wings_vertex:center(Vs, We),
 	    Vec = wings_face:face_normal(reverse(Vs), Vtab),
-	    {{Center,Vec},"Edge loop normal for region saved as axis."};
+	    [{{Center,Vec},"Edge loop normal for region saved as axis."}];
 	_Other ->
 	    {none,"Multi-face selection must have a single edge loop."}
     end;
@@ -458,7 +461,7 @@ get_vec(_, _, _) -> {none,"Select vertices, edges, or faces."}.
 check_point(#st{sel=[]}) -> {none,""};
 check_point(St) ->
     Center = e3d_vec:average(wings_sel:bounding_box(St)),
-    {Center,"Midpoint of selection saved."}.
+    [{Center,"Midpoint of selection saved."}].
 
 %%%
 %%% Magnet functions.
@@ -469,7 +472,7 @@ exit_magnet([], Acc, [N|Ns0]=Ns, St) ->
     case check_point(St) of
 	{none,_} ->
 	    invalid_selection;
-	{Point,_} ->
+	[{Point,_}] ->
 	    Mag = {magnet,wings_pref:get_value(magnet_type),
 		   wings_pref:get_value(magnet_distance_route),Point},
 	    Cmd0 = wings_menu:build_command(N, Ns0),
