@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge_cmd.erl,v 1.3 2005/01/09 09:30:38 bjorng Exp $
+%%     $Id: wings_edge_cmd.erl,v 1.4 2005/01/16 05:12:44 bjorng Exp $
 %%
 
 -module(wings_edge_cmd).
@@ -20,7 +20,7 @@
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
 
--import(lists, [foldl/3,reverse/1,sort/1]).
+-import(lists, [foldl/3,mapfoldl/3,reverse/1,sort/1]).
 -import(e3d_vec, [add/1,add/2,sub/2,neg/1,norm/1,len/1,
 		  average/1,average/2,
 		  dot/2,cross/2]).
@@ -134,18 +134,38 @@ connect(St0) ->
     {St,Sel} = wings_sel:mapfold(fun connect/3, [], St0),
     wings_sel:set(Sel, St).
 
-connect(Es, #we{id=Id}=We0, Acc) ->
-    {We1,Vs} = cut_edges(Es, We0),
+connect(Es0, #we{id=Id}=We0, Acc) ->
+    Es1 = gb_sets:to_list(Es0),
+    Es = remove_nonconnectable(Es1, Es0, We0, []),
+    {Vs,We1} = cut_edges(Es, We0),
     We2 = wings_vertex_cmd:connect(Vs, We1),
     Sel = wings_we:new_items(edge, We1, We2),
     We = wings_edge:dissolve_isolated_vs(Vs, We2),
     {We,[{Id,Sel}|Acc]}.
 
 cut_edges(Es, We) ->
-    gb_sets:fold(fun(Edge, {W0,Vs0}) ->
-			 {W,V} = wings_edge:cut(Edge, 2, W0),
-			 {W,[V|Vs0]}
-		 end, {We,[]}, Es).
+    mapfoldl(fun(Edge, W0) ->
+		     {W,V} = wings_edge:cut(Edge, 2, W0),
+		     {V,W}
+	     end, We, Es).
+
+%% Remove from the selection all edges that will obviously not get connected,
+%% to avoid having those edges first cut and later joined again.
+
+remove_nonconnectable([E|Es], Sel, We, Acc) ->
+    Fs = wings_face:from_edges([E], We),
+    NearEs = gb_sets:delete(E, gb_sets:from_ordset(wings_face:to_edges(Fs, We))),
+    case gb_sets:is_empty(gb_sets:intersection(Sel, NearEs)) of
+	false ->
+	    remove_nonconnectable(Es, Sel, We, [E|Acc]);
+	true ->
+	    %% None of edges in the two faces on either side of this
+	    %% edge is selected. Therefore, don't even bother cutting
+	    %% this edge since there is no chance that the new vertex
+	    %% will get connected.
+	    remove_nonconnectable(Es, Sel, We, Acc)
+    end;
+remove_nonconnectable([], _, _, Acc) -> Acc.
 
 %%%
 %%% The Vertex Color command.
