@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.142 2003/08/27 06:47:39 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.143 2003/08/29 08:32:37 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -487,17 +487,13 @@ update_dynamic_vs(VsList, none, _) -> VsList;
 update_dynamic_vs([Static|_], DynVs, #we{vp=Vtab}) ->
     UnselDlist = gl:genLists(1),
     gl:newList(UnselDlist, ?GL_COMPILE),
-    case wings_pref:get_value(vertex_size) of
-	0.0 -> ok;
-	PtSize -> 
-	    gl:pointSize(PtSize),
-	    gl:color3b(0, 0, 0),
-	    gl:'begin'(?GL_POINTS),
-	    foreach(fun(V) ->
-			    gl:vertex3fv(gb_trees:get(V, Vtab))
-		    end, DynVs),
-	    gl:'end'()
-    end,
+    gl:pointSize(wings_pref:get_value(vertex_size)),
+    gl:color3b(0, 0, 0),
+    gl:'begin'(?GL_POINTS),
+    foreach(fun(V) ->
+		    gl:vertex3fv(gb_trees:get(V, Vtab))
+	    end, DynVs),
+    gl:'end'(),
     gl:endList(),
     [Static,UnselDlist].
 
@@ -506,14 +502,14 @@ insert_vtx_data([V|Vs], Vtab, Acc) ->
 insert_vtx_data([], _, Acc) -> Acc.
 
 split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
-    SelVs = sofs:from_external(gb_sets:to_list(SelVs0), [vertex]),
-    UnselDyn0 = sofs:difference(DynVs, SelVs),
-    UnselDyn = sofs:to_external(UnselDyn0),
-    UnselDlist = gl:genLists(1),
-    gl:newList(UnselDlist, ?GL_COMPILE),
     case wings_pref:get_value(vertex_size) of
-	0.0 -> ok;
+	0.0 -> {none,none};
 	PtSize -> 
+	    SelVs = sofs:from_external(gb_sets:to_list(SelVs0), [vertex]),
+	    UnselDyn0 = sofs:difference(DynVs, SelVs),
+	    UnselDyn = sofs:to_external(UnselDyn0),
+	    UnselDlist = gl:genLists(1),
+	    gl:newList(UnselDlist, ?GL_COMPILE),
 	    gl:pointSize(PtSize),
 	    gl:color3b(0, 0, 0),
 	    gl:'begin'(?GL_POINTS),
@@ -523,10 +519,10 @@ split_vs_dlist(DynVs, {vertex,SelVs0}, #we{vp=Vtab}) ->
 	    foreach(fun({_,Pos}) ->
 			    gl:vertex3fv(Pos)
 		    end, List),
-	    gl:'end'()
-    end,
-    gl:endList(),
-    {UnselDyn,[UnselDlist]};
+	    gl:'end'(),
+	    gl:endList(),
+	    {UnselDyn,[UnselDlist]}
+    end;
 split_vs_dlist(_, _, _) -> {none,none}.
 
 %%%
