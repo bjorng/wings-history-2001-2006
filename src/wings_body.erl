@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.52 2003/03/17 20:41:28 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.53 2003/03/19 05:32:58 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -140,7 +140,8 @@ cleanup(Ask, _) when is_atom(Ask) ->
 		     fun(Res) -> {body,{cleanup,Res}} end);
 cleanup(Opts, St0) ->
     St = wings_sel:map(fun(_, We0) ->
-			       We = cleanup_waists(We0),
+			       We1 = cleanup_repeated_vtxs(We0),
+			       We = cleanup_waists(We1),
 			       cleanup_1(Opts, We)
 		       end, St0),
     {save_state,St}.
@@ -182,6 +183,78 @@ clean_short_edges(Tolerance, #we{es=Etab,vp=Vtab}=We) ->
 		      false -> W
 		  end
 	  end, We, Short).
+
+%%
+%% A vertex may not be used more than once in a single face.
+%%
+cleanup_repeated_vtxs(#we{fs=Ftab}=We) ->
+    cleanup_rep_1(gb_trees:keys(Ftab), We).
+
+cleanup_rep_1([F|Fs], We0) ->
+    case repeated_vertex(F, We0) of
+	none ->
+	    cleanup_rep_1(Fs, We0);
+	V ->
+	    io:format("Repeated vertex ~p in face ~p\n", [V,F]),
+	    We = cleanup_rep_2(F, V, We0),
+	    NewFaces = gb_sets:to_list(wings_we:new_items(face, We0, We)),
+	    cleanup_rep_1(NewFaces++Fs, We)
+    end;
+cleanup_rep_1([], We) -> We.
+
+cleanup_rep_2(Face, V0, #we{es=Etab,fs=Ftab0}=We0) ->
+    Es = wings_vertex:fold(
+	   fun(Edge, _, Rec, A) ->
+		   case Rec of
+		       #edge{ve=V0,lf=Face} -> [Edge|A];
+		       #edge{vs=V0,rf=Face} -> [Edge|A];
+		       _ -> A
+		   end
+	   end, [], V0, We0),
+    Ves = wings_face:fold(fun(V, E, _, A) -> [{V,E}|A] end, [], Face, hd(Es), We0),
+    Frec = gb_trees:get(Face, Ftab0),
+    Ftab = gb_trees:delete(Face, Ftab0),
+    cleanup_rep_3(Ves, V0, Face, Frec, Ftab, Etab, We0).
+
+cleanup_rep_3([], _, _, _, Ftab, Etab, We) ->
+    We#we{fs=Ftab,es=Etab};
+cleanup_rep_3(Ves0, V, Face, Frec, Ftab0, Etab0, We0) ->
+    [{_,First}|_] = Ves0,
+    {NewFace,We} = wings_we:new_id(We0),
+    Ftab = gb_trees:insert(NewFace, Frec#face{edge=First}, Ftab0),
+    {Ves,Etab1} = cleanup_rep_4(Ves0, V, Face, NewFace, Etab0),
+    [{_,Last}|NextVes] = Ves,
+    Etab2 = cleanup_patch_edge(V, NewFace, First, Last, Etab1),
+    Etab = cleanup_patch_edge(V, NewFace, Last, First, Etab2),
+    cleanup_rep_3(NextVes, V, Face, Frec, Ftab, Etab, We).
+
+cleanup_rep_4([{Vtx,Edge}|T]=Ves, V0, Face, NewFace, Etab0) ->
+    Rec = case gb_trees:get(Edge, Etab0) of
+	      #edge{lf=Face}=Rec0 -> Rec0#edge{lf=NewFace};
+	      #edge{rf=Face}=Rec0 -> Rec0#edge{rf=NewFace}
+	  end,
+    Etab = gb_trees:update(Edge, Rec, Etab0),
+    if
+	Vtx =:= V0 -> {Ves,Etab};
+	true -> cleanup_rep_4(T, V0, Face, NewFace, Etab)
+    end.
+
+repeated_vertex(Face, We) ->
+    Vs = wings_face:surrounding_vertices(Face, We),
+    repeated_vertex_1(sort(Vs)).
+
+repeated_vertex_1([V,V|_]) -> V;
+repeated_vertex_1([_|T]) -> repeated_vertex_1(T);
+repeated_vertex_1([]) -> none.
+
+cleanup_patch_edge(V, Face, From, To, Etab) ->
+    R = case gb_trees:get(From, Etab) of
+	    #edge{lf=Face,ve=V}=R0 -> R0#edge{ltpr=To};
+	    #edge{lf=Face,vs=V}=R0 -> R0#edge{ltsu=To};
+	    #edge{rf=Face,vs=V}=R0 -> R0#edge{rtpr=To};
+	    #edge{rf=Face,ve=V}=R0 -> R0#edge{rtsu=To}
+	end,
+    gb_trees:update(From, R, Etab).
 
 %%
 %% A waist is a vertex shared by edges all of which cannot be
