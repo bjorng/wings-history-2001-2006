@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.145 2003/12/25 10:18:48 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.146 2003/12/25 12:24:04 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -506,7 +506,7 @@ mouse_event(Ev=#mousebutton{x=X0,y=Y0,state=State},
     case State of
 	?SDL_RELEASED ->
 	    case MouseFocus of
-		true ->field_event(Ev#mousebutton{x=X,y=Y}, S0);
+		true -> field_event(Ev#mousebutton{x=X,y=Y}, S0);
 		false -> keep
 	    end;
 	?SDL_PRESSED ->
@@ -552,11 +552,15 @@ next_focus(Dir, S=#s{focus=Index,focusable=Focusable,fi=TopFi}) ->
 	    set_focus(Path, S, false)
     end.
 
-set_focus(NewPath=[#fi{index=NewIndex,handler=NewHandler}|_], 
+set_focus([#fi{index=Index}|_], #s{focus=Index}=S, MouseFocus) ->
+    %% Focus on the same field. Do NOT call the handlers -
+    %% the text field depends on it.
+    S#s{mouse_focus=MouseFocus};
+set_focus([#fi{index=NewIndex,handler=NewHandler}|_]=NewPath,
 	  #s{focus=OldIndex,focusable=_Focusable,
 	     fi=TopFi,store=Store0}=S, MouseFocus) ->
     ?DEBUG_DISPLAY(other, {set_focus,[OldIndex,NewIndex,_Focusable]}),
-    OldPath = [#fi{handler=OldHandler}|_] = get_fi(OldIndex, TopFi),
+    [#fi{handler=OldHandler}|_] = OldPath = get_fi(OldIndex, TopFi),
     Store2 = case OldHandler({focus,false}, OldPath, Store0) of
 		 {store,Store1} -> Store1;
 		 _ -> Store0
@@ -2360,8 +2364,7 @@ label_draw([], _, _) -> keep.
 -record(text,
 	{bef,					%Reversed list of characters before cursor.
 	 aft,					%List of characters after cursor.
-	 w_bef,					%Width of characters before cursor.
-	 first,				        %First character shown.
+	 first=0,			        %First character shown.
 	 sel=0,
 	 cpos=0,				%Caret pos (pixels).
 	 max,					%Max numbers of characters.
@@ -2667,31 +2670,38 @@ text_event({focus,true}, _Fi, Ts) ->
     Ts#text{bef=[],sel=length(Str),aft=Str};
 text_event(#mousebutton{x=X,state=?SDL_PRESSED,button=1}, Fi, Ts0) ->
     text_pos(X, Fi, Ts0);
-text_event(#mousebutton{x=X,state=?SDL_RELEASED,button=1}, Fi, Ts0) ->
-    text_sel(X, Fi, Ts0);
-text_event(#mousemotion{x=X}, Fi, Ts) ->
-    text_sel(X, Fi, Ts);
+text_event(#mousebutton{x=X,state=?SDL_RELEASED,button=1}, Fi, #text{aft=Aft0}=Ts) ->
+    #text{aft=Aft} = text_pos(X, Fi, Ts),
+    Ts#text{sel=length(Aft0)-length(Aft)};
+text_event(#mousemotion{x=X}, Fi, #text{aft=Aft0}=Ts) ->
+    #text{aft=Aft} = text_pos(X, Fi, Ts),
+    Ts#text{sel=length(Aft0)-length(Aft)};
 text_event(_Ev, _Fi, Ts) -> Ts.
 
-text_pos(Mx0, #fi{x=X}, #text{bef=Bef,aft=Aft}=Ts) ->
-    D = round((Mx0-X-(?CHAR_WIDTH div 2))/?CHAR_WIDTH) - length(Bef),
-    text_pos_1(D, Bef, Aft, Ts).
+text_pos(Mx0, #fi{x=X}, #text{cpos=CaretPos}=Ts0) ->
+    Ts = Ts0#text{sel=0},
+    case Mx0 - X - ?CHAR_WIDTH div 2 of
+	Mx when Mx < CaretPos ->
+	    text_pos_left(Mx, Ts);
+	Mx ->
+	    text_pos_right(Mx, Ts)
+    end.
 
-text_pos_1(D, [C|Bef], Aft, Ts) when D < 0 ->
-    text_pos_1(D+1, Bef, [C|Aft], Ts);
-text_pos_1(D, Bef, [C|Aft], Ts) when D > 0 ->
-    text_pos_1(D-1, [C|Bef], Aft, Ts);
-text_pos_1(_, Bef, Aft, Ts) ->
-    Ts#text{bef=Bef,aft=Aft,sel=0}.
+text_pos_left(Mx, #text{bef=[C|Bef],aft=Aft,cpos=CaretPos}=Ts) ->
+    case wings_text:width([C]) of
+	Cw when Mx =< CaretPos-Cw ->
+	    text_pos_left(Mx, Ts#text{bef=Bef,aft=[C|Aft],cpos=CaretPos-Cw});
+	_ -> Ts
+    end;
+text_pos_left(_, Ts) -> Ts.
 
-text_sel(Mx0, #fi{x=X}, #text{bef=Bef}=Ts) ->
-    Len = length(Bef),
-    text_sel_1(round((Mx0-X-(?CHAR_WIDTH div 2))/?CHAR_WIDTH)-Len, Len, Ts).
-
-text_sel_1(D, Len, #text{}=Ts) when D < 0 ->
-    Ts#text{sel=max(D, -Len)};
-text_sel_1(D, _Len, #text{aft=Aft}=Ts) ->
-    Ts#text{sel=min(D, length(Aft))}.
+text_pos_right(Mx, #text{bef=Bef,aft=[C|Aft],cpos=CaretPos}=Ts) ->
+    case wings_text:width([C]) of
+	Cw when CaretPos+Cw =< Mx ->
+	    text_pos_right(Mx, Ts#text{bef=[C|Bef],aft=Aft,cpos=CaretPos+Cw});
+	_ -> Ts
+    end;
+text_pos_right(_, Ts) -> Ts.
 
 key(?SDLK_KP_PLUS, _, _, #text{integer=true}=Ts) ->
     increment(Ts, 1);
@@ -3011,9 +3021,9 @@ get_col_range({v, {V,H,S}}) ->
 
 %% Common data storage key. Integer key uses relative field index as
 %% storage key, non-integer uses itself.
-var(0, I) when integer(I) -> I;
-var(Key, I) when integer(Key), integer(I) -> I+Key;
-var(Key, I) when integer(I) -> Key.
+var(0, I) when is_integer(I) -> I;
+var(Key, I) when is_integer(Key), is_integer(I) -> I+Key;
+var(Key, I) when is_integer(I) -> Key.
 
 
 gb_trees_ensure(X, V, T) ->
