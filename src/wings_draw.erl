@@ -8,12 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.28 2001/11/28 13:00:12 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.29 2001/11/28 20:49:36 bjorng Exp $
 %%
 
 -module(wings_draw).
--export([init/0,tess/0,model_changed/1,render/1,ground_and_axes/0,
-	 draw_face_normal/3]).
+-export([model_changed/1,render/1,ground_and_axes/0]).
 
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
@@ -25,18 +24,6 @@ model_changed(St) -> St#st{dl=none}.
 -define(DL_FACES, (?DL_DRAW_BASE)).
 -define(DL_EDGES, (?DL_DRAW_BASE+1)).
 -define(DL_SEL, (?DL_DRAW_BASE+2)).
-
-init() ->
-    Tess = glu:newTess(),
-    put(wings_gnu_tess, Tess), 
-    glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
-    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
-    glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
-    glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE).
-
-tess() ->
-    get(wings_gnu_tess).
 
 %%
 %% Renders all shapes, including selections.
@@ -95,8 +82,6 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
     case Wire of
 	true -> ok;
 	false ->
-% 	    FaceColor = wings_pref:get_value(face_color),
-% 	    gl:color3fv(FaceColor),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:enable(?GL_POLYGON_OFFSET_FILL),
 	    gl:polygonOffset(2.0, 2.0),
@@ -220,12 +205,12 @@ do_make_sel_dlist(#st{sel=Sel,dl=DL}=St) ->
 shape(#shape{sh=Data}, Smooth, St) ->
     draw_faces(Data, Smooth, St).
 
-draw_faces(#we{}=We, true, #st{mat=Mtab}) ->
+draw_faces(We, true, #st{mat=Mtab}) ->
     draw_smooth_faces(Mtab, We);
-draw_faces(#we{}=We, false, St) ->
+draw_faces(We, false, St) ->
     wings_util:fold_face(
       fun(Face, #face{edge=Edge}, _) ->
-	      draw_face_normal(Face, Edge, We)
+	      wings_draw_util:face(Face, Edge, We)
       end, [], We).
 
 draw_smooth_faces(Mtab, #we{mode=vertex}=We) ->
@@ -251,7 +236,7 @@ draw_smooth_1([], Mtab) -> ok.
 
 draw_smooth_2([[_,_,_,_,_|_]=Vs|Fs]) ->
     %% This face needs tesselation.
-    Tess = tess(),
+    Tess = wings_draw_util:tess(),
     glu:tessNormal(Tess, 0, 0, 0),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
@@ -273,7 +258,7 @@ draw_smooth_2([]) -> ok.
 
 %% Smooth drawing for vertex colors.
 draw_smooth_vcolor([{_,[_,_,_,_,_|_]=Vs}|T]) ->
-    Tess = tess(),
+    Tess = wings_draw_util:tess(),
     glu:tessNormal(Tess, 0, 0, 0),
     glu:tessBeginPolygon(Tess),
     glu:tessBeginContour(Tess),
@@ -320,41 +305,6 @@ draw_hard_edges_1(#we{es=Etab,he=Htab,vs=Vtab}) ->
 	    end, gb_sets:to_list(Htab)).
 
 %%
-%% Draw a face and tesselate it if necessary.
-%%
-
-draw_face_normal(Face, Edge, We) ->
-    case wings_face:draw_info(Face, Edge, We) of
-	[_,_,_,_,_|_]=Vs ->
-	    {X,Y,Z} = N = wings_face:draw_normal(Vs),
-	    Tess = wings_draw:tess(),
-	    glu:tessNormal(Tess, X, Y, Z),
-	    glu:tessBeginPolygon(Tess),
-	    glu:tessBeginContour(Tess),
-	    draw_tess_face(Tess, Vs, N),
-	    glu:tessEndContour(Tess),
-	    glu:tessEndPolygon(Tess),
-	    gl:edgeFlag(?GL_TRUE);
-	Vs ->
-	    gl:'begin'(?GL_POLYGON),
-	    gl:normal3fv(wings_face:draw_normal(Vs)),
-	    draw_face_normal_1(Vs),
-	    gl:'end'()
-    end.
-
-draw_tess_face(Tess, [{Pos,Col}|T], Normal) ->
-    glu:tessVertex(Tess, Pos, [{material,?GL_FRONT,?GL_DIFFUSE,Col},
-			       {normal,Normal}]),
-    draw_tess_face(Tess, T, Normal);
-draw_tess_face(Tess, [], Normal) -> ok.
-
-draw_face_normal_1([{Pos,Col}|T]) ->
-    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Col),
-    gl:vertex3fv(Pos),
-    draw_face_normal_1(T);
-draw_face_normal_1([]) -> ok.
-
-%%
 %% Draw the currently selected items.
 %%
 
@@ -367,8 +317,7 @@ draw_selection(#st{selmode=body}=St) ->
 draw_selection(#st{selmode=face}=St) ->
     wings_sel:foreach(
       fun(Face, #shape{sh=#we{fs=Ftab}=We}) ->
-	      #face{edge=Edge} = gb_trees:get(Face, Ftab),
-	      draw_face_normal(Face, Edge, We)
+	      wings_draw_util:sel_face(Face, We)
       end, St),
     St;
 draw_selection(#st{selmode=edge}=St) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.30 2001/11/27 20:58:59 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.31 2001/11/28 20:49:36 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -507,7 +507,7 @@ make_dlist_1([{Id,Shape}|Shs], [{Id,matrix}|Fs], false) ->
 make_dlist_1([{Id,Shape}|Shs], [{Id,matrix}|Fs], true) ->
     gl:newList(?DL_DYNAMIC+Id, ?GL_COMPILE),
     Draw = fun(Face, Edge, We) ->
-		   wings_draw:draw_face_normal(Face, Edge, We)
+		   wings_draw_util:face(Face, Edge, We)
 	   end,
     mkdl_draw_faces(Shape, Draw),
     gl:endList(),
@@ -516,14 +516,14 @@ make_dlist_1([{Id,Shape}|Shs], [{Id,all_faces}|Fs], false) ->
     make_dlist_1(Shs, Fs, false);
 make_dlist_1([{Id,Shape}|Shs], [{Id,all_faces}|Fs], true) ->
     Draw = fun(Face, Edge, We) ->
-		   wings_draw:draw_face_normal(Face, Edge, We)
+		   wings_draw_util:face(Face, Edge, We)
 	   end,
     mkdl_draw_faces(Shape, Draw),
     make_dlist_1(Shs, Fs, false);
 make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], false) ->
     Draw = fun(F, Fs0, Edge, We) ->
 		   case gb_sets:is_member(F, Fs0) of
-		       false -> wings_draw:draw_face_normal(F, Edge, We);
+		       false -> wings_draw_util:face(F, Edge, We);
 		       true -> ok
 		   end
 	   end,
@@ -532,7 +532,7 @@ make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], false) ->
 make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], true) ->
     Draw = fun(F, Fs0, Edge, We) ->
 		   case gb_sets:is_member(F, Fs0) of
-		       true -> draw_face(F, Edge, We);
+		       true -> wings_draw_util:face(F, Edge, We);
 		       false -> ok
 		   end
 	   end,
@@ -540,7 +540,7 @@ make_dlist_1([{Id,Shape}|Shs], [{Id,Faces}|Fs], true) ->
     make_dlist_1(Shs, Fs, true);
 make_dlist_1([{Id,Shape}|Shs], Fs, false) ->
     Draw = fun(F, Fs0, Edge, We) ->
-		   wings_draw:draw_face_normal(F, Edge, We)
+		   wings_draw_util:face(F, Edge, We)
 	   end,
     mkdl_draw_faces(Shape, dummy, Draw),
     make_dlist_1(Shs, Fs, false);
@@ -567,23 +567,8 @@ mkdl_draw_faces(_, _) -> ok.
 draw_faces(#we{}=We, St) ->
     wings_util:fold_face(
       fun(Face, #face{edge=Edge}, _) ->
-	      draw_face(Face, Edge, We)
+	      wings_draw_util:face(Face, Edge, We)
       end, [], We).
-
-draw_face(Face, Edge, #we{es=Etab,vs=Vtab}) ->
-    gl:'begin'(?GL_POLYGON),
-    draw_face_1(Face, Edge, Edge, Etab, Vtab, not_done),
-    gl:'end'().
-
-draw_face_1(Face, LastEdge, LastEdge, Etab, Vtab, done) -> ok;
-draw_face_1(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
-    case gb_trees:get(Edge, Etab) of
-	#edge{vs=V,a=Diff,lf=Face,ltpr=Next}=Rec -> ok;
-	#edge{ve=V,b=Diff,rf=Face,rtpr=Next}=Rec -> ok
-    end,
-    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
-    gl:vertex3fv(lookup_pos(V, Vtab)),
-    draw_face_1(Face, Next, LastEdge, Etab, Vtab, done).
 
 draw_hard_edges(#st{shapes=Shapes}) ->
     gl:color3fv(wings_pref:get_value(hard_edge_color)),
@@ -619,8 +604,7 @@ draw_selection(#st{selmode=body}=St) ->
 draw_selection(#st{selmode=face}=St) ->
     wings_sel:foreach(
       fun(Face, #shape{sh=#we{fs=Ftab}=We}) ->
-	      #face{edge=Edge} = gb_trees:get(Face, Ftab),
-	      draw_face(Face, Edge, We)
+	      wings_draw_util:sel_face(Face, We)
       end, St),
     St;
 draw_selection(#st{selmode=edge}=St) ->

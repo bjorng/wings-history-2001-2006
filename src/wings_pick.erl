@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.15 2001/11/27 20:58:59 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.16 2001/11/28 20:49:36 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -404,7 +404,7 @@ draw_face(Face, Edge, We) ->
     case wings_face:draw_info(Face, Edge, We) of
 	[_,_,_,_,_|_]=Vs ->
 	    {X,Y,Z} = N = wings_face:draw_normal(Vs),
-	    Tess = wings_draw:tess(),
+	    Tess = wings_draw_util:tess(),
 	    glu:tessNormal(Tess, X, Y, Z),
 	    glu:tessBeginPolygon(Tess),
 	    glu:tessBeginContour(Tess),

@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.12 2001/11/27 20:58:59 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.13 2001/11/28 20:49:36 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -18,7 +18,7 @@
 	 to_vertices/2,
 	 normal/2,face_normal/2,good_normal/2,
 	 draw_info/3,draw_normal/1,
-	 surrounding_vertices/2,
+	 surrounding_vertices/2,surrounding_vertices/3,
 	 inner_edges/2,outer_edges/2,
 	 fold/4,fold_vinfo/4,fold_faces/4,
 	 bordering_faces/2,
@@ -202,15 +202,18 @@ draw_normal_1(D1, Other, More, Acc) -> e3d_vec:add(Acc).
 
 surrounding_vertices(Face, #we{es=Etab,fs=Ftab}) ->
     #face{edge=Edge} = gb_trees:get(Face, Ftab),
-    face_traverse(Face, Edge, Edge, Etab, [], not_done).
+    face_traverse(Face, Edge, Edge, Etab, []).
+    
+surrounding_vertices(Face, Edge, #we{es=Etab}) ->
+    face_traverse(Face, Edge, Edge, Etab, []).
 
-face_traverse(Face, LastEdge, LastEdge, Es, Acc, done)-> Acc;
-face_traverse(Face, Edge, LastEdge, Es, Acc, _) ->
+face_traverse(Face, LastEdge, LastEdge, Es, Acc) when Acc =/= [] -> Acc;
+face_traverse(Face, Edge, LastEdge, Es, Acc) ->
     case gb_trees:get(Edge, Es) of
 	#edge{ve=V,lf=Face,ltsu=NextEdge} ->
-	    face_traverse(Face, NextEdge, LastEdge, Es, [V|Acc], done);
+	    face_traverse(Face, NextEdge, LastEdge, Es, [V|Acc]);
 	#edge{vs=V,rf=Face,rtsu=NextEdge} ->
-	    face_traverse(Face, NextEdge, LastEdge, Es, [V|Acc], done)
+	    face_traverse(Face, NextEdge, LastEdge, Es, [V|Acc])
     end.
 
 %% bordering_faces(FacesGbSet, We) -> FacesGbSet'
