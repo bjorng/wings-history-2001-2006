@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.41 2003/07/21 13:08:09 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.42 2003/10/19 18:43:25 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -41,7 +41,10 @@ menu(X, Y, St) ->
 	    {"Collapse",collapse,
 	     "Delete selected vertices (creating a face selection)"},
 	    separator,
-	    {"Deform",wings_deform:sub_menu(St)}],
+	    {"Deform",wings_deform:sub_menu(St)},
+	    separator,
+	    {"Vertex Color",vertex_color,
+	     "Apply vertex colors to selected vertices"}],
     wings_menu:popup_menu(X, Y, vertex, Menu).
 
 %% Vertex menu.
@@ -70,8 +73,12 @@ command({move,Type}, St) ->
 command({rotate,Type}, St) ->
     wings_rotate:setup(Type, St);
 command({scale,Type}, St) ->
-    wings_scale:setup(Type, St).
-
+    wings_scale:setup(Type, St);
+command(vertex_color, St) ->
+    wings_color:choose(fun(Color) ->
+			       set_color(Color, St)
+		       end).
+    
 %%%
 %%% The Flatten command.
 %%%
@@ -386,3 +393,25 @@ magnet_tighten_vec([], _, Acc) ->
 dissolve(St0) ->
     St = wings_collapse:collapse(St0),
     St#st{selmode=vertex,sel=[]}.
+
+%%%
+%%% Set vertex color.
+%%%
+
+set_color(Color, St) ->
+    wings_sel:map(fun(Vs, We) ->
+			  set_color_1(gb_sets:to_list(Vs), Color,
+				      We#we{mode=vertex})
+		  end, St).
+
+set_color_1([V|Vs], Color, #we{es=Etab0}=We) ->
+    Etab = wings_vertex:fold(
+	     fun(Edge, _Face, Rec0, Es) ->
+		     Rec = case Rec0 of
+			       #edge{vs=V} -> Rec0#edge{a=Color};
+			       #edge{ve=V} -> Rec0#edge{b=Color}
+			   end,
+		     gb_trees:update(Edge, Rec, Es)
+	     end, Etab0, V, We),
+    set_color_1(Vs, Color, We#we{es=Etab});
+set_color_1([], _, We) -> We.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.94 2003/10/18 07:38:12 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.95 2003/10/19 18:43:25 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -53,9 +53,12 @@ menu(X, Y, St) ->
 	      "Mirror and create separate objects"},[]},
     	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
 	    {"Collapse",collapse,"Delete faces, replacing them with vertices"},
-	    {"Smooth",smooth,"Subdivide selected faces to smooth them (Catmull-Clark)"},
+	    {"Smooth",smooth,
+	     "Subdivide selected faces to smooth them (Catmull-Clark)"},
 	    {"Tesselate",{subdivide,wings_tesselation:submenu()}},
-	    separator|wings_material:material_menu(St)],
+	    separator] ++ wings_material:material_menu(St) ++
+	[{"Vertex Color",vertex_color,
+	  "Apply vertex colors to selected faces"}],
     wings_menu:popup_menu(X, Y, face, Menu).
 
 lift_fun(St) ->
@@ -135,7 +138,11 @@ command({rotate,Type}, St) ->
 command({scale,Type}, St) ->
     wings_scale:setup(Type, St);
 command({subdivide,Subdivide}, St) ->
-    wings_tesselation:command(Subdivide, St).
+    wings_tesselation:command(Subdivide, St);
+command(vertex_color, St) ->
+    wings_color:choose(fun(Color) ->
+			       set_color(Color, St)
+		       end).
 
 %%%
 %%% Extrude, Extrude Region, and Inset commands.
@@ -1224,6 +1231,29 @@ on_target(vertex, V, We) ->
     N = wings_vertex:normal(V, We),
     Center = wings_vertex:pos(V, We),
     {N,Center}.
+
+%%%
+%%% Set vertex color for selected faces.
+%%%
+
+set_color(Color, St) ->
+    wings_sel:map(fun(Fs, We) ->
+			  set_color_1(gb_sets:to_list(Fs), Color,
+				      We#we{mode=vertex})
+		  end, St).
+
+set_color_1([F|Fs], Color, #we{es=Etab0}=We) ->
+    Etab = wings_face:fold(
+	     fun(_V, Edge, Rec0, Es) ->
+		     Rec = case Rec0 of
+			       #edge{lf=F} -> Rec0#edge{a=Color};
+			       #edge{rf=F} -> Rec0#edge{b=Color}
+			   end,
+		     gb_trees:update(Edge, Rec, Es)
+	     end, Etab0, F, We),
+    set_color_1(Fs, Color, We#we{es=Etab});
+set_color_1([], _, We) -> We.
+
     
 %% outer_edge_partition(FaceSet, WingedEdge) -> [[Edge]].
 %%  Partition all outer edges. Outer edges are all edges

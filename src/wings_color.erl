@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.13 2003/08/18 17:11:35 bjorng Exp $
+%%     $Id: wings_color.erl,v 1.14 2003/10/19 18:43:23 bjorng Exp $
 %%
 
 -module(wings_color).
--export([init/0,share/1,store/1,average/1,average/2,mix/3,white/0,
+-export([init/0,choose/1,
+	 share/1,store/1,average/1,average/2,mix/3,white/0,
 	 rgb_to_hsv/3,hsv_to_rgb/3]).
 
 -include("wings.hrl").
@@ -25,10 +26,20 @@ init() ->
     Black = ?BLACK,
     White = ?WHITE,
     Standard = [Black,White,average([Black,White])],
+    put(wings_color_chosen, Black),
     foreach(fun(C0) ->
 		    C = wings_util:share(C0),
 		    put(C, C)
 	    end, Standard).
+
+choose(Done) ->
+    Color0 = get(wings_color_chosen),
+    wings_ask:dialog("Choose Color",
+		     [{color,Color0}],
+		     fun([Color]) ->
+			     put(wings_color_chosen, Color),
+			     Done(Color)
+		     end).
 
 share({Same,Same}) -> {Same,Same};
 share({_,_}=UV) -> UV;
