@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.226 2004/05/02 14:35:05 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.227 2004/05/02 19:08:49 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -247,7 +247,7 @@ update_uvs_1([#we{vp=Vpos0,name=#ch{vmap=Vmap,fm_a2g=A2G0}}=ChartWe|Cs],
     Vpos = gb_trees:to_list(Vpos0),
     Etab = update_uvs_2(Vpos, VFace, Vmap, We, Etab0),
     update_uvs_1(Cs, We, Etab);
-update_uvs_1([], We, Etab) ->  We#we{es=Etab}.
+update_uvs_1([], We, Etab) -> We#we{es=Etab}.
 
 update_uvs_2([{V0,{X,Y,_}}|Vs], [{V0,Fs}|VFs], Vmap, We, Etab0) ->
     UV = {X,Y},
@@ -727,23 +727,18 @@ update_geom_selection(#st{selmode=face,sel=Sel,
     wpa:sel_set(face, [{Id,Fs}], GeomSt);
 update_geom_selection(#st{selmode=edge,sel=Sel,
 			  bb=#uvstate{st=GeomSt,id=Id}}=St) ->
-    Fs0 = wpa:sel_fold(fun(_, We, A) ->
-			       Fs0 = wings_we:visible(We),
-			       Fs = auv2geom_faces(Fs0, We),
-			       Fs++A
+    Es0 = wpa:sel_fold(fun(Es, We, A) ->
+			       auv2geom_edges(gb_sets:to_list(Es), We)++A
 		       end, [], St#st{sel=Sel}),
-    Fs = gb_sets:from_list(Fs0),
-    wpa:sel_set(face, [{Id,Fs}], GeomSt);
+    Es = gb_sets:from_list(Es0),
+    wpa:sel_set(edge, [{Id,Es}], GeomSt);
 update_geom_selection(#st{selmode=vertex,sel=Sel,
 			  bb=#uvstate{st=GeomSt,id=Id}}=St) ->
     Fs0 = wpa:sel_fold(fun(Vs, We, A) ->
-			       update_geom_sel_vtx(Vs, We, A)
+			       auv2geom_vs(gb_sets:to_list(Vs), We) ++ A
 		       end, [], St#st{sel=Sel}),
     Fs = gb_sets:from_list(Fs0),
     wpa:sel_set(vertex, [{Id,Fs}], GeomSt).
-
-update_geom_sel_vtx(Vs, #we{name=#ch{vmap=Vmap}}, A) ->
-    [auv_segment:map_vertex(V, Vmap) || V <- gb_sets:to_list(Vs)] ++ A.
 
 reset_sel(St0) ->
     wings_sel:reset(St0).
