@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.3 2002/02/11 20:07:07 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.4 2002/02/14 17:46:41 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -18,20 +18,27 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
+-define(HMARGIN, 16).
+-define(VMARGIN, 8).
+
 -import(lists, [reverse/1,reverse/2,duplicate/2]).
 -record(s,
 	{w,
 	 h,
+	 ox,
+	 oy,
 	 call,
 	 focus,
 	 fi,					%Static data for all fields.
 	 priv,					%States for all fields.
+	 coords,				%Coordinates for hit testing.
 	 redraw
 	}).
 
 %% Static data for each field.
 -record(fi,
 	{handler,				%Handler fun.
+	 inert=true,				%Inert field.
 	 flags,					%Flags field.
 	 x,y,					%Upper left position.
 	 lw,					%Label width.
@@ -53,8 +60,21 @@ ask(Qs0, Redraw, Fun) ->
     {#fi{lw=Lw,w=W0,h=H},_} = Qs,
     W = Lw+W0,
     S0 = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis),redraw=Redraw},
-    S = next_focus(S0, 1),
+    S1 = init_origin(S0),
+    S = next_focus(S1, 1),
     {seq,{push,dummy},get_event(S)}.
+
+init_origin(#s{w=Xs,h=Ys}=S) ->
+    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    Tx = case (W-Xs)/2 of
+	     SmallX when SmallX < 10 -> 10;
+	     Tx0 -> Tx0
+	 end,
+    Ty = case (H-Ys)/2 of
+	     SmallY when SmallY < 36 -> 36;
+	     Ty0 -> Ty0
+	 end,
+    S#s{ox=Tx,oy=Ty}.
 
 get_event(S) ->
     redraw(S),
@@ -62,6 +82,10 @@ get_event(S) ->
 
 event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=Unicode}}, S) ->
     event_key({key,Sym,Mod,Unicode}, S);
+event(#mousebutton{button=1,x=X,y=Y}=Ev, S) ->
+    mouse_event(X, Y, Ev, S);
+event(#mousemotion{x=X,y=Y}=Ev, S) ->
+    mouse_event(X, Y, Ev, S);
 event(#resize{}=Ev, S) ->
     wings_io:putback_event(Ev),
     pop;
@@ -84,6 +108,39 @@ event_key({key,_,_,$\r}, S) ->
 event_key(Ev, S) ->
     field_event(Ev, S).
 
+mouse_event(X0, Y0, Ev, #s{fi=Fis,ox=Ox,oy=Oy,w=W,h=H}=S0) ->
+    case {X0-Ox,Y0-Oy} of
+	{X,Y} when X < -?HMARGIN; X >= W+?HMARGIN;
+		   Y < -?VMARGIN; Y >= W+?VMARGIN ->
+	    case Ev of
+		#mousebutton{} ->
+		    wings_io:putback_event(redraw),
+		    pop;
+		Other -> keep
+	    end;
+	{X,Y} ->
+	    case mouse_to_field(1, Fis, X, Y) of
+		none -> keep;
+		I ->
+		    case Ev of
+			#mousebutton{} ->
+			    S = set_focus(I, S0),
+			    field_event(Ev#mousebutton{x=X,y=Y}, S);
+			#mousemotion{} ->
+			    field_event(Ev#mousemotion{x=X,y=Y}, I, S0)
+		    end
+	    end
+    end.
+
+mouse_to_field(I, Fis, X, Y) when I > size(Fis) -> none;
+mouse_to_field(I, Fis, X, Y) ->
+    case element(I, Fis) of
+	#fi{inert=false,x=Lx,y=Uy,lw=Lw,w=W,h=H}
+	when Lx =< X, X < Lx+Lw+W,
+	     Uy =< Y, Y < Uy+H -> I;
+	_Other -> mouse_to_field(I+1, Fis, X, Y)
+    end.
+
 next_focus(#s{focus=I}=S, Dir) ->
     next_focus_1(I, Dir, S).
 
@@ -93,13 +150,28 @@ next_focus_1(I0, Dir, #s{fi=Fis,priv=Priv}=S) ->
 	    0 -> size(Fis);
 	    _ -> 1
 	end,
-    #fi{handler=Handler} = Fi = element(I, Fis),
-    case Handler(is_inert, Fi, element(I, Priv)) of
-	true -> next_focus_1(I, Dir, S);
-	false -> S#s{focus=I}
+    case element(I, Fis) of
+	#fi{inert=true} -> next_focus_1(I, Dir, S);
+	_ -> set_focus(I, S)
     end.
+
+set_focus(I, #s{focus=OldFocus,fi=Fis,priv=Priv0}=S) ->
+    #fi{handler=OldHandler} = OldFi = element(OldFocus, Fis),
+    OldFst0 = element(I, Priv0),
+    OldFst = OldHandler({event,{focus,false}}, OldFi, OldFst0),
+    Priv1 = setelement(I, Priv0, OldFst),
+
+    #fi{handler=Handler} = Fi = element(I, Fis),
+    Fst0 = element(I, Priv1),
+    Fst = Handler({event,{focus,true}}, Fi, Fst0),
+    Priv = setelement(I, Priv1, Fst),
     
-field_event(Ev, #s{focus=I,call=EndFun,fi=Fis,priv=Priv0}=S) ->
+    S#s{focus=I,priv=Priv}.
+    
+field_event(Ev, #s{focus=I}=S) ->
+    field_event(Ev, I, S).
+
+field_event(Ev, I, #s{call=EndFun,fi=Fis,priv=Priv0}=S) ->
     #fi{handler=Handler} = Fi = element(I, Fis),
     Fst0 = element(I, Priv0),
     Fst = Handler({event,Ev}, Fi, Fst0),
@@ -110,11 +182,11 @@ return_result(#s{fi=Fis,priv=Priv}=S) ->
     return_result(1, Fis, Priv, S, []).
 
 return_result(I, Fis, Priv, S, Acc) when I =< size(Fis) ->
-    #fi{handler=Handler,flags=Flags} = Fi = element(I, Fis),
-    Fst = element(I, Priv),
-    case Handler(is_inert, Fi, Fst) of
-	true -> return_result(I+1, Fis, Priv, S, Acc);
-	false ->
+    case element(I, Fis) of
+	#fi{inert=true} ->
+	    return_result(I+1, Fis, Priv, S, Acc);
+	#fi{handler=Handler,flags=Flags}=Fi ->
+	    Fst = element(I, Priv),
 	    case catch Handler(value, Fi, Fst) of
 		{'EXIT',Reason} ->
 		    exit(Reason);
@@ -144,7 +216,7 @@ return_result(_, _, _, #s{call=EndFun}=S, Res) ->
 	    pop
     end.
     
-redraw(#s{w=Xs,h=Ys,redraw=Redraw,focus=Focus,fi=Fi,priv=Priv}) ->
+redraw(#s{w=W,h=H,ox=Ox,oy=Oy,redraw=Redraw,focus=Focus,fi=Fi,priv=Priv}) ->
     case Redraw of
 	#st{}=St ->
 	    wings_draw:render(St),
@@ -153,17 +225,10 @@ redraw(#s{w=Xs,h=Ys,redraw=Redraw,focus=Focus,fi=Fi,priv=Priv}) ->
 	    Redraw()
     end,
     wings_io:ortho_setup(),
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    Tx = case (W-Xs)/2 of
-	     SmallX when SmallX < 10 -> 10;
-	     Tx0 -> Tx0
-	 end,
-    Ty = case (H-Ys)/2 of
-	     SmallY when SmallY < 36 -> 36;
-	     Ty0 -> Ty0
-	 end,
-    gl:translated(Tx, Ty, 0.0),
-    wings_io:raised_rect(-16, -8, Xs+32, Ys+16, ?MENU_COLOR),
+    gl:translated(Ox, Oy, 0),
+    wings_io:raised_rect(-?HMARGIN, -?VMARGIN,
+			 W+2*?HMARGIN, H+2*?VMARGIN,
+			 ?MENU_COLOR),
     draw_fields(1, Fi, Priv, Focus),
     wings_io:swap_buffers().
 
@@ -209,7 +274,7 @@ vframe([], _, Flags, Fields0) ->
     {Lw0,W0,H0} = frame_init_size(Flags),
     {Lw,W,H} = vframe_size(Fields, Lw0, W0, H0),
     Fun = frame_fun(),
-    {Fi#fi{handler=Fun,lw=Lw,w=W,h=H,flags=Flags},{vframe,Fields}}.
+    {Fi#fi{handler=Fun,inert=true,lw=Lw,w=W,h=H,flags=Flags},{vframe,Fields}}.
 
 hframe([Q|Qs], #fi{x=X}=Fi0, Flags, Acc) ->
     {#fi{lw=Lw,w=W}=Fi,Priv} = normalize(Q, Fi0),
@@ -219,10 +284,10 @@ hframe([], _, Flags, Fields0) ->
     {Lw0,W0,H0} = frame_init_size(Flags),
     {Lw,W,H} = hframe_size(Fields, Lw0, W0, H0),
     Fun = frame_fun(),
-    {Fi#fi{handler=Fun,lw=Lw,w=W,h=H,flags=Flags},{vframe,Fields}}.
+    {Fi#fi{handler=Fun,inert=true,lw=Lw,w=W,h=H,flags=Flags},{vframe,Fields}}.
 
-normalize_field({Handler,Priv,Lw,W,H}, Flags, Fi) ->
-    {Fi#fi{handler=Handler,flags=Flags,w=W,h=H,lw=Lw},Priv}.
+normalize_field({Handler,Inert,Priv,Lw,W,H}, Flags, Fi) ->
+    {Fi#fi{handler=Handler,inert=Inert,flags=Flags,w=W,h=H,lw=Lw},Priv}.
 
 frame_init_size(Flags) ->
     case property_lists:is_defined(border, Flags) of
@@ -280,8 +345,7 @@ frame_flatten([], FisAcc, PrivAcc) -> {FisAcc,PrivAcc}.
 
 frame_fun() ->
     fun({redraw,Active}, Fi, _Dummy) -> ok;
-       ({event,Ev}, Fi, Frame) -> Frame;
-       (is_inert, Fi, Frame) -> true
+       ({event,Ev}, Fi, Frame) -> Frame
     end.
 
 %%%
@@ -290,14 +354,13 @@ frame_fun() ->
 
 separator() ->
     Fun = separator_fun(),
-    {Fun,no_state,0,4*?CHAR_WIDTH,10}.
+    {Fun,true,no_state,0,4*?CHAR_WIDTH,10}.
 
 separator_fun() ->
     fun({redraw,Active}, Fi, _Dummy) ->
 	    separator_draw(Active, Fi);
        ({event,Ev}, Fi, Sep) ->
-	    Sep;
-       (is_inert, Fi, Sep) -> true
+	    Sep
     end.
 
 separator_draw(Active, #fi{x=X,y=Y,w=W}) ->
@@ -329,7 +392,7 @@ separator_draw(Active, #fi{x=X,y=Y,w=W}) ->
 checkbox(Label, Def) ->
     Cb = #cb{label=Label,state=Def},
     Fun = checkbox_fun(),
-    {Fun,Cb,0,(length(Label)+5)*?CHAR_WIDTH,?LINE_HEIGHT}.
+    {Fun,false,Cb,0,(length(Label)+5)*?CHAR_WIDTH,?LINE_HEIGHT}.
 
 checkbox_fun() ->
     fun({redraw,Active}, Fi, Cb) ->
@@ -337,9 +400,7 @@ checkbox_fun() ->
        ({event,Ev}, Fi, Cb) ->
 	    cb_event(Ev, Cb);
        (value, Fi, #cb{state=State}) ->
-	    State;
-       (is_inert, Fi, Sep) ->
-	    false
+	    State
     end.
 
 cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
@@ -358,7 +419,15 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label,state=State}) ->
 
 cb_event({key,_,_,$\s}, #cb{state=State}=Cb) ->
     Cb#cb{state=not State};
-cb_event(_, Cb) -> Cb.
+cb_event(#mousebutton{x=X,y=Y,state=?SDL_RELEASED},
+	 #cb{label=Label,state=State}=Cb) ->
+    if 
+	X < (4+length(Label))*?CHAR_WIDTH ->
+	    Cb#cb{state=not State};
+	true -> Cb
+    end;
+cb_event(Ev, Cb) ->
+    Cb.
 
 %%%
 %%% Text and number input fields.
@@ -367,8 +436,7 @@ cb_event(_, Cb) -> Cb.
 -record(text,
 	{bef,
 	 aft,
-	 max,
-	 ext,
+	 sel=0,
 	 label,
 	 integer=false
 	}).
@@ -388,8 +456,8 @@ text_field(Label, Def) ->
 
 init_text(Fun, Label, String, Max0, IsInteger) ->
     Max = max(Max0, length(String)+5),
-    Ts = #text{label=Label,max=Max,bef=[],aft=String,integer=IsInteger},
-    {Fun,Ts,(length(Label)+1)*?CHAR_WIDTH,Max*?CHAR_WIDTH,?LINE_HEIGHT}.
+    Ts = #text{label=Label,bef=[],aft=String,integer=IsInteger},
+    {Fun,false,Ts,(length(Label)+1)*?CHAR_WIDTH,Max*?CHAR_WIDTH,?LINE_HEIGHT}.
 
 string_fun() ->
     fun(value, Fi, Ts) -> get_text(Ts);
@@ -432,12 +500,13 @@ term_fun() ->
 gen_text_handler({redraw,Active}, Fi, Ts) ->
     draw_text(Fi, Ts, Active);
 gen_text_handler({event,Ev}, Fi, Ts) ->
-    text_event(Ev, Ts);
-gen_text_handler(is_inert, Fi, Ts) ->
-    false.
+    text_event(Ev, Ts).
 
-text_event({key,Sym,_,Unicode}, Ts) ->
-    key(Sym, Unicode, Ts);
+text_event({key,Sym,Mod,Unicode}, Ts) ->
+    key(Sym, Mod, Unicode, Ts);
+text_event({focus,true}, #text{bef=Bef,aft=Aft}=Ts) ->
+    Str = reverse(Bef, Aft),
+    Ts#text{bef=[],sel=length(Str),aft=Str};
 text_event(_Ev, Ts) -> Ts.
 
 draw_text(#fi{x=X,y=Y0,lw=Lw}, #text{label=Label,bef=BefC,aft=AftC}, false) ->
@@ -445,70 +514,82 @@ draw_text(#fi{x=X,y=Y0,lw=Lw}, #text{label=Label,bef=BefC,aft=AftC}, false) ->
     wings_io:text_at(X, Y, Label),
     wings_io:text_at(X+Lw, Y, reverse(BefC)),
     wings_io:text(AftC);
-draw_text(#fi{x=X0,y=Y0,lw=Lw}, #text{label=Label,bef=BefC,aft=AftC}, true) ->
+draw_text(#fi{x=X0,y=Y0,lw=Lw},
+	  #text{label=Label,sel=Sel,bef=BefC,aft=AftC}, true) ->
     Y = Y0 + ?CHAR_HEIGHT,
     wings_io:text_at(X0, Y, Label),
     wings_io:text_at(X0+Lw, Y, reverse(BefC)),
     X1 = X0+Lw+length(BefC)*?CHAR_WIDTH,
-    gl:color3f(0, 0, 0),
-    gl:recti(X1, Y-?CHAR_HEIGHT, X1+?CHAR_WIDTH, Y+3),
-    gl:color3f(1, 1, 1),			%White text
-    T = case AftC of
-	    [C|T0] ->
-		wings_io:text_at(X1, Y, [C]),
-		T0;
-	    [] ->
-		wings_io:text_at(X1, Y, [$\s]),
-		[]
-	end,
-    gl:color3f(0, 0, 0),
-    X = X1 + ?CHAR_WIDTH,
-    wings_io:text_at(X, Y, T).
+    case Sel of
+	0 ->
+	    gl:color3f(1, 0, 0),
+	    wings_io:text_at(X1, Y, [caret]),
+	    gl:color3f(0, 0, 0),
+	    wings_io:text_at(X1+2, Y, AftC);
+	_ ->
+	    gl:color3f(0, 0, 0.5),
+	    gl:recti(X1, Y-?CHAR_HEIGHT, X1+Sel*?CHAR_WIDTH, Y+3),
+	    gl:color3f(1, 1, 1),
+	    wings_io:text_at(X1, Y, AftC),
+	    gl:color3f(0, 0, 0)
+    end.
 
 get_text(#text{bef=Bef,aft=Aft}) ->
     reverse(Bef, Aft).
 
-key(?SDLK_KP_PLUS, _, #text{integer=true}=Ts) ->
+key(?SDLK_KP_PLUS, _, _, #text{integer=true}=Ts) ->
     increment(Ts, 1);
-key(?SDLK_KP_MINUS, _, #text{integer=true}=Ts) ->
+key(?SDLK_KP_MINUS, _, _, #text{integer=true}=Ts) ->
     increment(Ts, -1);
-key(?SDLK_HOME, _, Ts) -> key(1, Ts);
-key(?SDLK_END, _, Ts) -> key(5, Ts);
-key(?SDLK_LEFT, _, Ts) -> key(2, Ts);
-key(?SDLK_RIGHT, _, Ts) -> key(6, Ts);
-key(?SDLK_DELETE, _, Ts) -> key(4, Ts);
-key(?SDLK_KP_PERIOD, _, Ts) ->
-    key($., Ts);
-key(C, _, Ts) when ?SDLK_KP0 =< C, C =< ?SDLK_KP9 ->
-    key(C-?SDLK_KP0+$0, Ts);
-key(Other, Unicode, Ts) ->
-    key(Unicode, Ts).
+key(?SDLK_HOME, Mod, _, Ts) -> key(1, Mod, Ts);
+key(?SDLK_END, Mod, _, Ts) -> key(5, Mod, Ts);
+key(?SDLK_LEFT, Mod, _, Ts) -> key(2, Mod, Ts);
+key(?SDLK_RIGHT, Mod, _, Ts) -> key(6, Mod, Ts);
+key(?SDLK_DELETE, Mod, _, Ts) -> key(4, Mod, Ts);
+key(?SDLK_KP_PERIOD, Mod, _, Ts) ->
+    key($., Mod, Ts);
+key(C, Mod, _, Ts) when ?SDLK_KP0 =< C, C =< ?SDLK_KP9 ->
+    key(C-?SDLK_KP0+$0, Mod, Ts);
+key(Other, Mod, Unicode, Ts) ->
+    key(Unicode, Mod, Ts).
 
-key($+, #text{integer=true}=Ts) ->
+key($+, Mod, #text{integer=true}=Ts) ->
     increment(Ts, 1);
-key($=, #text{integer=true}=Ts) ->		%Same key as plus on American keybd.
+key($=, Mod, #text{integer=true}=Ts) ->		%Same key as plus on American keybd.
     increment(Ts, 1);
-key($-, #text{integer=true}=Ts) ->
+key($-, Mod, #text{integer=true}=Ts) ->
     increment(Ts, -1);
-key($\b, #text{bef=[_|Bef]}=Ts) ->
+key($\b, Mod, #text{sel=0,bef=[_|Bef]}=Ts) ->	%Bksp (no selection).
     Ts#text{bef=Bef};
-key(2, #text{bef=[C|Bef],aft=Aft}=Ts) ->	%Ctrl-B
-    Ts#text{bef=Bef,aft=[C|Aft]};
-key(6, #text{bef=Bef,aft=[C|Aft]}=Ts) ->	%Ctrl-F
-    Ts#text{bef=[C|Bef],aft=Aft};
-key(1, #text{bef=Bef,aft=Aft}=Ts) ->		%Ctrl-A
-    Ts#text{bef=[],aft=reverse(Bef, Aft)};
-key(5, #text{bef=Bef,aft=Aft}=Ts) ->		%Ctrl-E
-    Ts#text{bef=reverse(Aft, Bef),aft=[]};
-key(11, #text{}=Ts) ->				%Ctrl-K
+key($\b, Mod, Ts) ->				%Bksp (selection).
+    del_sel(Ts);
+key(2, Mod, #text{bef=[C|Bef],aft=Aft}=Ts) ->	%Ctrl-B
+    set_sel(Mod, Ts, Ts#text{bef=Bef,aft=[C|Aft]});
+key(6, Mod, #text{bef=Bef,aft=[C|Aft]}=Ts) ->	%Ctrl-F
+    set_sel(Mod, Ts, Ts#text{bef=[C|Bef],aft=Aft});
+key(1, Mod, #text{bef=Bef,aft=Aft}=Ts) ->	%Ctrl-A
+    set_sel(Mod, Ts, Ts#text{bef=[],aft=reverse(Bef, Aft)});
+key(5, Mod, #text{bef=Bef,aft=Aft}=Ts) ->	%Ctrl-E
+    set_sel(Mod, Ts, Ts#text{bef=reverse(Aft, Bef),aft=[]});
+key(11, Mod, #text{}=Ts) ->			%Ctrl-K
     Ts#text{aft=[]};
-key(4, #text{aft=[_|Aft]}=Ts) ->		%Ctrl-D
+key(4, Mod, #text{sel=0,aft=[_|Aft]}=Ts) ->	%Ctrl-D
     Ts#text{aft=Aft};
-key(C, #text{bef=Bef0}=Ts0) when $\s =< C, C < 256 ->
-    Ts0#text{bef=[C|Bef0]};
-key(C, Ts) ->
+key(4, Mod, Ts) ->				%Ctrl-D
+    del_sel(Ts);
+key(C, Mod, #text{bef=Bef0}=Ts0) when $\s =< C, C < 256 ->
+    del_sel(Ts0#text{bef=[C|Bef0]});
+key(C, Mod, Ts) ->
     %%erlang:display({C,Ts}),
     Ts.
+
+del_sel(#text{sel=0}=Ts) -> Ts;
+del_sel(#text{sel=Sel,aft=Aft}=Ts) ->
+    Ts#text{sel=0,aft=lists:nthtail(Sel, Aft)}.
+
+set_sel(Mod, _, #text{sel=0}=Ts) when Mod band ?SHIFT_BITS =:= 0 -> Ts;
+set_sel(Mod, _, Ts) when Mod band ?SHIFT_BITS =:= 0 -> Ts#text{sel=0};
+set_sel(Mod, OldTs, Ts) -> Ts.
 
 increment(Ts, Incr) ->
     Str0 = get_text(Ts),
