@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.72 2004/12/26 10:40:10 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.73 2004/12/27 12:15:33 bjorng Exp $
 
 -module(auv_segment).
 
@@ -651,8 +651,9 @@ seg_dir({X,Y,Z}) ->
 %% By Color 
 segment_by_material(We) ->
     Rel = foldl(fun({_,'_hole_'}, A) -> A;
-		   ({_, ?HOLE}, A) -> A;
-		   ({Face,Name}, A) -> [{Name,Face}|A]
+		   ({_,?HOLE}, A) -> A;
+		   ({Face,Name}, A) when Face >= 0 -> [{Name,Face}|A];
+		   ({_,_}, A) -> A
 		end, [], wings_material:get_all(We)),
     segment_by_cluster(Rel, We).
 
@@ -934,8 +935,11 @@ fvuvmap_1([], _, FaceAcc, Acc) ->
 uv_info(F, E, We) ->
     uv_info_1(wings_face:vinfo_ccw(F, E, We), F, []).
 
-uv_info_1([[V|UV]|T], F, Acc) ->
+uv_info_1([[V|{_,_}=UV]|T], F, Acc) ->
     uv_info_1(T, F, [{[F|V],UV}|Acc]);
+uv_info_1([[V|_]|T], F, Acc) ->
+    %% No UV coordinates for this vertex.
+    uv_info_1(T, F, [{[F|V],none}|Acc]);
 uv_info_1([_|_], _, _) -> error;
 uv_info_1([], _, Acc) -> Acc.
 

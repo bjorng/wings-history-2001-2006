@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.283 2004/12/27 11:44:10 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.284 2004/12/27 12:15:32 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -819,19 +819,30 @@ update_uv_tab_1([#we{id=Id,name=#ch{vmap=Vmap}}=We0|Cs], FvUvMap, Acc) ->
 		     OrigV = auv_segment:map_vertex(V, Vmap),
 		     [{V,[F|OrigV]}|A]
 	     end, [], Fs, We0),
-    UVs1 = update_uv_tab_2(sort(UVs0), FvUvMap, 0.0, []),
-    UVs = gb_trees:from_orddict(UVs1),
-    We = We0#we{vp=UVs},
-    update_uv_tab_1(Cs, FvUvMap, [{Id,We}|Acc]);
+    case update_uv_tab_2(sort(UVs0), FvUvMap, 0.0, []) of
+	error ->
+	    %% No UV coordinate for at least some vertices (probably
+	    %% all) in the chart. Throw away this chart.
+	    update_uv_tab_1(Cs, FvUvMap, Acc);
+	UVs1 ->
+	    UVs = gb_trees:from_orddict(UVs1),
+	    We = We0#we{vp=UVs},
+	    update_uv_tab_1(Cs, FvUvMap, [{Id,We}|Acc])
+    end;
 update_uv_tab_1([], _, Acc) ->
     gb_trees:from_orddict(sort(Acc)).
 
 update_uv_tab_2([{V,_}|T], FvUvMap, Z, [{V,_}|_]=Acc) ->
     update_uv_tab_2(T, FvUvMap, Z, Acc);
 update_uv_tab_2([{V,Key}|T], FvUvMap, Z, Acc) ->
-    {X,Y} = gb_trees:get(Key, FvUvMap),
-    Pos = {X,Y,Z},
-    update_uv_tab_2(T, FvUvMap, Z, [{V,Pos}|Acc]);
+    case gb_trees:get(Key, FvUvMap) of
+	{X,Y} ->
+	    Pos = {X,Y,Z},
+	    update_uv_tab_2(T, FvUvMap, Z, [{V,Pos}|Acc]);
+	_ ->
+	    %% No UV-coordinate for this vertex. Abandon the entire chart.
+	    error
+    end;
 update_uv_tab_2([], _, _, Acc) -> reverse(Acc).
 
 %% update_selection(GemoSt, AuvSt0) -> AuvSt
