@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.171 2004/03/21 06:52:26 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.172 2004/03/21 07:26:53 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -22,7 +22,8 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--import(lists, [foreach/2,last/1,reverse/1,reverse/2,foldl/3,merge/1,sort/1,any/2]).
+-import(lists, [foreach/2,last/1,reverse/1,reverse/2,member/2,
+		foldl/3,merge/1,sort/1,any/2]).
 
 -record(split,
 	{static_vs,
@@ -209,9 +210,9 @@ update_needed_fun(#dlo{src_we=#we{id=Id,he=Htab},proxy_data=Pd}=D,
 	       Pd =:= none -> Need1;
 	       true -> [proxy|Need1]
 	   end,
-    D#dlo{needed=more_need(Wins, Id, Need)}.
+    D#dlo{needed=more_need(Wins, Id, true, Need)}.
 
-more_need([W|Ws], Id, Acc0) ->
+more_need([W|Ws], Id, FastEdges0, Acc0) ->
     Wire = wings_wm:get_prop(W, wireframed_objects),
     IsWireframe = gb_sets:is_member(Id, Wire),
     Acc = case {wings_wm:get_prop(W, workmode),IsWireframe} of
@@ -222,10 +223,21 @@ more_need([W|Ws], Id, Acc0) ->
 	      {true,true} ->
 		  [edges|Acc0];
 	      {true,false} ->
-		  [edges,work|Acc0]
+		  case wings_pref:get_value(show_edges) of
+		      false -> [work|Acc0];
+		      true -> [edges,work|Acc0]
+		  end
 	  end,
-    more_need(Ws, Id, Acc);
-more_need([], _, Acc) -> ordsets:from_list(Acc).
+    FastEdges = FastEdges0 andalso wings_wm:get_prop(W, show_wire_backfaces),
+    more_need(Ws, Id, FastEdges, Acc);
+more_need([], _, false, Acc) ->
+    ordsets:from_list(Acc);
+more_need([], _, true, Acc) ->
+    Need = ordsets:from_list(Acc),
+    case member(edges, Need) of
+	false -> Need;
+	true -> [fast_edges|Need--[edges]]
+    end.
 
 wins_of_same_class() ->
     case wings_wm:get_prop(display_lists) of
@@ -294,6 +306,9 @@ update_fun_2(hard_edges, #dlo{hard=none,src_we=#we{he=Htab}=We}=D, _) ->
 update_fun_2(edges, #dlo{edges=none,src_we=#we{fs=Ftab}}=D, _) ->
     EdgeDl = make_edge_dl(Ftab, D),
     D#dlo{edges=EdgeDl};
+update_fun_2(fast_edges, #dlo{edges=none,src_we=#we{fs=Ftab}}=D, _) ->
+    EdgeDl = make_fast_edge_dl(Ftab, D),
+    D#dlo{edges=EdgeDl};
 update_fun_2(normals, D, _) ->
     make_normals_dlist(D);
 update_fun_2(proxy, D, St) ->
@@ -348,6 +363,34 @@ end_begin(Same, Same) ->
 end_begin(New, _Old) ->
     gl:'end'(),
     gl:'begin'(New).
+
+make_fast_edge_dl(Faces, #dlo{src_we=We}) ->
+    Dl = gl:genLists(1),
+    gl:newList(Dl, ?GL_COMPILE),
+    make_fast_edge_dl_1(Faces, We),
+    gl:endList(),
+    Dl.
+
+make_fast_edge_dl_1(Faces, We) ->
+    case sofs:is_sofs_set(Faces) of
+	false -> make_fast_edge_dl_2(gb_trees:keys(Faces), We);
+	true -> make_fast_edge_dl_2(sofs:to_external(Faces), We)
+    end.
+
+make_fast_edge_dl_2(Fs, #we{es=Etab,vp=Vtab}) ->
+    gl:'begin'(?GL_LINES),
+    make_fast_edge_dl_3(gb_trees:values(Etab), gb_sets:from_list(Fs), Vtab).
+
+make_fast_edge_dl_3([#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}|Es], Fs, Vtab) ->
+    case gb_sets:is_member(Lf, Fs) orelse gb_sets:is_member(Rf, Fs) of
+	false ->
+	    make_fast_edge_dl_3(Es, Fs, Vtab);
+	true ->
+	    gl:vertex3dv(gb_trees:get(Va, Vtab)),
+	    gl:vertex3dv(gb_trees:get(Vb, Vtab)),
+	    make_fast_edge_dl_3(Es, Fs, Vtab)
+    end;
+make_fast_edge_dl_3([], _, _) -> gl:'end'().
 
 force_flat([], _) -> [];
 force_flat([H|T], Color) ->
