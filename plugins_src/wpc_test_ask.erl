@@ -3,12 +3,12 @@
 %%
 %%     Default disabled test plugin for dialogs (wings_ask).
 %%
-%%  Copyright (c) 2003 Raimo Niskanen
+%%  Copyright (c) 2003-2004 Raimo Niskanen
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.26 2003/12/27 14:50:43 bjorng Exp $
+%%     $Id: wpc_test_ask.erl,v 1.27 2004/01/01 15:16:36 bjorng Exp $
 %%
 
 -module(wpc_test_ask).
@@ -132,7 +132,7 @@ filename_dialog(_) ->
     wings_ask:dialog("", Qs, Ask).
 
 do_filename_dialog(Filename) ->
-    Ps = [{dialog_type,open},{ext,".beam"},{ext_desc,"Beam File"}],
+    Ps = [{dialog_type,open_dialog},{ext,".beam"},{ext_desc,"Beam File"}],
     Qs = [{hframe,
 	   [{label,"Filename"},
 	    {button,{text,Filename,[{props,Ps}]}}]}],
