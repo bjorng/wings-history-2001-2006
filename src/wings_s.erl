@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_s.erl,v 1.5 2004/10/16 12:22:04 bjorng Exp $
+%%     $Id: wings_s.erl,v 1.6 2004/12/06 08:01:46 bjorng Exp $
 %%
 
 -module(wings_s).
@@ -20,10 +20,10 @@
 
 -include("wings.hrl").
 
-yes() -> ?STR(yes,1,"Yes").
-no() -> ?STR(no,1,"No").
-cancel() -> ?STR(cancel,1,"Cancel").
-accept() -> ?STR(accept,1,"Accept").
+yes() -> ?__(1,"Yes").
+no() -> ?__(1,"No").
+cancel() -> ?__(1,"Cancel").
+accept() -> ?__(1,"Accept").
     
 %% Mouse buttons.
 lmb() -> ?STR(mouse_b,l,"L").
@@ -52,28 +52,28 @@ key_1(Key) when is_atom(Key) -> atom_to_list(Key);
 key_1(Key) when is_list(Key) -> Key.
 
 %% All directions.        
-dir(x) -> ?STR(dir,x,"X");
-dir(y) -> ?STR(dir,y,"Y");
-dir(z) -> ?STR(dir,z,"Z");
-dir(all) -> ?STR(dir,all,"All");
-dir(last_axis) -> ?STR(dir,la,"last axis");
-dir(default_axis) -> ?STR(dir,da,"default axis");
-dir(normal) -> ?STR(dir,n,"Normal");
-dir(free) ->  ?STR(dir,f,"Free");
-dir(uniform) ->  ?STR(dir,u,"Uniform");
-dir({radial,Axis}) ->  ?STR(dir,r,"Radial") ++ " " ++ dir(Axis);
-dir(radial_x) ->  ?STR(dir,r,"Radial") ++ " " ++ dir(x);
-dir(radial_y) ->  ?STR(dir,r,"Radial") ++ " " ++ dir(y);
-dir(radial_z) ->  ?STR(dir,r,"Radial") ++ " " ++ dir(z).
+dir(x) -> ?__(x,"X");
+dir(y) -> ?__(y,"Y");
+dir(z) -> ?__(z,"Z");
+dir(all) -> ?__(all,"All");
+dir(last_axis) -> ?__(la,"last axis");
+dir(default_axis) -> ?__(da,"default axis");
+dir(normal) -> ?__(n,"Normal");
+dir(free) ->  ?__(f,"Free");
+dir(uniform) ->  ?__(u,"Uniform");
+dir({radial,Axis}) ->  ?__(r,"Radial") ++ " " ++ dir(Axis);
+dir(radial_x) ->  ?__(r,"Radial") ++ " " ++ dir(x);
+dir(radial_y) ->  ?__(r,"Radial") ++ " " ++ dir(y);
+dir(radial_z) ->  ?__(r,"Radial") ++ " " ++ dir(z).
 
 dir_axis(Axis) -> 
     io_lib:format(?STR(dir,the_axis,"the ~s axis"), [dir(Axis)]).
 
 %% Camera modes; probably don't need to be translated, but could
 %% need to be transliterad for languages with non-Latin alphabets.
-camera_mode(blender) -> ?STR(camera_mode,blender,"Blender");
-camera_mode(nendo) -> ?STR(camera_mode,nendo,"Nendo");
-camera_mode(mirai) -> ?STR(camera_mode,mirai,"Mirai");
-camera_mode(tds) -> ?STR(camera_mode,tds,"3ds max");
-camera_mode(maya) -> ?STR(camera_mode,maya,"Maya");
-camera_mode(mb) -> ?STR(camera_mode,mb,"Motionbuilder").
+camera_mode(blender) -> ?__(blender,"Blender");
+camera_mode(nendo) -> ?__(nendo,"Nendo");
+camera_mode(mirai) -> ?__(mirai,"Mirai");
+camera_mode(tds) -> ?__(tds,"3ds max");
+camera_mode(maya) -> ?__(maya,"Maya");
+camera_mode(mb) -> ?__(mb,"Motionbuilder").
