@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.65 2003/01/01 12:09:47 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.66 2003/01/04 23:22:41 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -60,7 +60,11 @@ menu(_St) ->
 		    end,[],[]},
      {"Compatibility...",fun(_, _) ->
 			      {edit,{preferences,compatibility}}
-		      end,[],[]}].
+		      end,[],[]},
+     {"Advanced Preferences...",fun(_, _) ->
+					{edit,{preferences,advanced}}
+				end,[],[]}
+    ].
 
 command(prefs, _St) ->
     Qs = [{hframe,
@@ -124,10 +128,9 @@ command(prefs, _St) ->
 	     [{title,"Axes"}]},
 	    {vframe,
 	     [{label_column,
-	       [{"Auto-Save Interval (min)",autosave_time}]},
-	      {"Advanced Menus",advanced_menus}
+	       [{"Auto-Save Interval (min)",autosave_time}]}
 	     ],
-	     [{title,"Miscellanous"}]}]}],
+	     [{title,"Auto Save"}]}]}],
     dialog("Preferences", Qs);
 command(compatibility, _St) ->
     Qs = [{vframe,
@@ -136,11 +139,19 @@ command(compatibility, _St) ->
 	    {"Show Dummy Axis Letter",dummy_axis_letter},
 	    {"Early Back Buffer Clear",early_buffer_clear}]}],
     dialog("Compatibility Settings", Qs);
+command(advanced, _St) ->
+    Qs = [{vframe,
+	   [{"Advanced Menus",advanced_menus},
+	    {"Default Commands",default_commands},
+	    {"Right Click Selects in Secondary Selection Mode",
+	     right_click_sel_in_ss}
+	   ]}],
+    dialog("Advanced Preferences", Qs);
 command({set,List}, _St) ->
     foreach(fun({Key,Val}) ->
 		    smart_set_value(Key, Val)
 	    end, List),
-    wings_io:putback_event(redraw),
+    wings_wm:dirty(),
     keep.
 
 dialog(Title, Qs0) ->
@@ -293,14 +304,18 @@ defaults() ->
      {active_vector_size,1.0},
      {active_vector_width,2.0},
      {active_vector_color,{0.0,0.0,0.65}},
-     {advanced_menus,false},
      {smart_highlighting,false},
 
      %% Compatibility preferences.
      {display_list_opt,true},
      {text_display_lists,true},
      {dummy_axis_letter,false},
-     {early_buffer_clear,os:type() =/= {unix,darwin}}
+     {early_buffer_clear,os:type() =/= {unix,darwin}},
+
+     %% Advanced features.
+     {advanced_menus,false},
+     {default_commands,false},
+     {right_click_sel_in_ss,false}
     ].
 
 clean(List) ->
