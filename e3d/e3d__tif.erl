@@ -8,14 +8,22 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tif.erl,v 1.9 2002/07/12 12:49:19 dgud Exp $
+%%     $Id: e3d__tif.erl,v 1.10 2002/08/03 09:05:36 bjorng Exp $
 %%
 
 -module(e3d__tif).
 -export([load/2, save/3, save/4]).
+-export([format_error/1]).
 -include("e3d_image.hrl").
 
 -export([decompress/4]).
+
+format_error(unsupported_format) ->
+    "Unsupported format or bad TIFF file";
+format_error({none,?MODULE,{tif_decode,_}}) ->
+    "Decoding error";
+format_error({unsupported_compression,Comp}) ->
+    io_lib:format("Unsupported compression type (~p)", [Comp]).
 
 load(FileName, Opts) ->
     case file:read_file(FileName) of
@@ -29,7 +37,7 @@ load(FileName, Opts) ->
 %		      [size(Orig), IFDOffset, IFDs]),
 	    Image = load_image(big, hd(IFDs), Orig);
 	{ok, Bin} ->
-	    {error, {unsupported_format, tif, FileName}};
+	    {error, {none,?MODULE,unsupported_format}};
 	Error ->
 	    Error
     end.
@@ -159,8 +167,10 @@ load_image(Enc, IFDs, Orig) ->
 	    #e3d_image{width = Tif#tif.w, height = Tif#tif.h, alignment = 1, %% Correct ??
 		       image = Image2, order = Tif#tif.order, 
 		       type = Type, bytes_pp = Bypp};
+ 	{error,_}=Error ->
+ 	    Error;
 	Else ->
-	    {error, {tif_decode, Else}}
+	    {error, {none,?MODULE,{tif_decode,Else}}}
     end.
 
 remove_extra_samples(RGBits, DiscardBits, <<>>, Acc) ->
@@ -379,7 +389,7 @@ decompress([], Comp, _, Acc) ->
     list_to_binary(Acc);
 decompress(RevStrips, Comp, _, Acc) ->
     io:format("~p: Unsupported Compression ~p ~n", [?MODULE, Comp]),
-    {error, {e3d__tif, unsupported_compression}}.
+    {error, {none,?MODULE,{unsupported_compression,Comp}}}.
 
 undo_differencing4(W, W, Rest, _,_,_,_,Ack) ->
     undo_differencing4(0,W, Rest, 0,0,0,0,Ack);
