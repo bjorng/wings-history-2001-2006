@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.48 2003/11/27 17:37:22 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.49 2003/12/03 00:44:33 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -321,24 +321,25 @@ material_dialog(_Name, Mat) ->
     Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
     EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
     RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
+    Minimized = proplists:get_value(minimized, YafRay, true),
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     [{vframe,
       [{hframe,
 	[{vframe, 
 	  [{label,"Index Of Refraction"},
-	   {"Shadow",Shadow,[{key,shadow}]},
+	   {"Shadow",Shadow,[{key,{?TAG,shadow}}]},
 	   {label,"Minimum Reflection"},
 	   {label,"Autosmooth Angle"}]},
 	 {vframe,
-	  [{hframe,[{text,IOR,[{range,{0.0,100.0}},{key,ior}]},
-		    {"Caustics",Caus,[{key,caus}]}]},
-	   {hframe,[{"Emit Rad",EmitRad,[{key,emit_rad}]},
-		    {"Recv Rad",RecvRad,[{key,recv_rad}]}]},
-	   {slider,{text,MinRefle,[{range,{0.0,1.0}},{key,min_refle}]}},
+	  [{hframe,[{text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]},
+		    {"Caustics",Caus,[{key,{?TAG,caus}}]}]},
+	   {hframe,[{"Emit Rad",EmitRad,[{key,{?TAG,emit_rad}}]},
+		    {"Recv Rad",RecvRad,[{key,{?TAG,recv_rad}}]}]},
+	   {slider,{text,MinRefle,[{range,{0.0,1.0}},{key,{?TAG,min_refle}}]}},
 	   {slider,{text,AutosmoothAngle,[{range,{0.0,180.0}},
-					  {key,autosmooth_angle}]}}]}]}
+					  {key,{?TAG,autosmooth_angle}}]}}]}]}
        |modulator_dialogs(Modulators, Maps)],
-      [{title,"YafRay Options"},{minimized,true}]}].
+      [{title,"YafRay Options"},{minimized,Minimized},{key,{?TAG,minimized}}]}].
 
 def_modulators([]) ->
     [];
@@ -354,8 +355,9 @@ def_modulators([{bump,_}|Maps]) ->
 def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
-material_result(_Name, Mat0, [_Minimized|[{shadow,_}|_]=Res]) ->
-    {Ps,Res0} = split_list(Res, 7),
+material_result(_Name, Mat0, [{{?TAG,minimized},_}|_]=Res) ->
+    {Ps0,Res0} = split_list(Res, 8),
+    Ps = [{Key,Val} || {{?TAG,Key},Val} <- Ps0],
     {Modulators,Res1} = modulator_result(Res0),
     Mat1 = [{?TAG,[{modulators,Modulators}|Ps]}|keydelete(?TAG, 1, Mat0)],
     {Mat1,Res1};
@@ -366,15 +368,17 @@ modulator_dialogs(Modulators, Maps) ->
     modulator_dialogs(Modulators, Maps, 1).
 
 modulator_dialogs([], _Maps, _) ->
-    [{"Create a Modulator",false,[{key,create_modulator}]}];
+    [{hframe,
+      [{button,"New Modulator",done,[{key,{?TAG,new_modulator}}]},
+       panel]}];
 modulator_dialogs([Modulator|Modulators], Maps, M) ->
     modulator_dialog(Modulator, Maps, M)++
 	modulator_dialogs(Modulators, Maps, M+1).
 
 modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 %    erlang:display({?MODULE,?LINE,[Ps,M,Maps]}),
-    No = integer_to_list(M),
     {Mode,Type} = mod_mode_type(Ps, Maps),
+    Minimized = proplists:get_value(minimized, Ps, true),
     SizeX = proplists:get_value(size_x, Ps, ?DEF_MOD_SIZE_X),
     SizeY = proplists:get_value(size_y, Ps, ?DEF_MOD_SIZE_Y),
     SizeZ = proplists:get_value(size_z, Ps, ?DEF_MOD_SIZE_Z),
@@ -392,21 +396,13 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
     Sharpness = proplists:get_value(sharpness, Ps, ?DEF_MOD_SHARPNESS),
     RingscaleX = proplists:get_value(ringscale_x, Ps, ?DEF_MOD_RINGSCALE_X),
     RingscaleZ = proplists:get_value(ringscale_z, Ps, ?DEF_MOD_RINGSCALE_Z),
-    TypeTag = list_to_atom("type"++No),
-    TaggedType = {TypeTag,Type},
-    MapsFrame = 
-	case Maps of
-	    [] -> [];
-	    _ ->  [{hframe,[{key_alt,TaggedType,atom_to_list(Map),{map,Map}} ||
-			       {Map,_} <- Maps]}]
-	end,
+    TypeTag = {?TAG,type,M},
+    MapsFrame = [{hradio,[{atom_to_list(Map),{map,Map}} || {Map,_} <- Maps],
+		  Type,[{key,TypeTag}]}],
     [{vframe,
-      [{menu,[{"Delete",delete},
-	      {if Mode==off ->"Disabled";
-		  true -> "Disable"
-	       end,off},
-	      {"Mix",mix},{"Mul",mul},{"Add",add}],
-	Mode},
+      [{hframe,[{menu,[{"Off",off},{"Mix",mix},{"Mul",mul},{"Add",add}],
+		 Mode},
+		{button,"Delete",done}]},
        {hframe,[{label,"SizeX"},
 		{text,SizeX,[{range,0.0,1000.0}]},
 		{label,"SizeY"},
@@ -425,10 +421,8 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 			 {slider,{text,Normal,[{range,{0.0,1.0}}]}}]}]}]++
       MapsFrame++
       [{hframe,
-	[{vframe,[{key_alt,TaggedType,"Image",image},
-		  {key_alt,TaggedType,"Clouds",clouds},
-		  {key_alt,TaggedType,"Marble",marble},
-		  {key_alt,TaggedType,"Wood",wood}]},
+	[{vradio,[{"Image",image},{"Clouds",clouds},
+		  {"Marble",marble},{"Wood",wood}],Type,[{key,TypeTag}]},
 	 {vframe,
 	  [{hframe,
 	    [{vframe,[{label,"Filename"},
@@ -450,7 +444,8 @@ modulator_dialog({modulator,Ps}, Maps, M) when list(Ps) ->
 				  [{label,"Depth"},
 				   {text,Depth,[{range,{1,1000}}]}]},
 				 {"Hard Noise",Hard}]}]}]}]}]}]}],
-      [{title,"Modulator "++No++mod_legend(Mode, Type)},{minimized,true}]}];
+      [{title,"Modulator "++integer_to_list(M)++mod_legend(Mode, Type)},
+       {minimized,Minimized}]}];
 modulator_dialog(_Modulator, _Maps, _) ->
     []. % Discard old modulators that anyone may have
 
@@ -480,20 +475,20 @@ modulator_result(Res) ->
 modulator_result([], _, Modulators) ->
     %% Should not happen
     {reverse(Modulators), []};
-modulator_result([{create_modulator,false}|Res], _, Modulators) ->
+modulator_result([{{?TAG,new_modulator},false}|Res], _, Modulators) ->
     {reverse(Modulators),Res};
-modulator_result([{create_modulator,true}|Res], _, Modulators) ->
+modulator_result([{{?TAG,new_modulator},true}|Res], _, Modulators) ->
     {reverse(Modulators, [{modulator,[]}]),Res};
-modulator_result([_Minimized,delete|Res0], M, Modulators) ->
-    {_,Res} = modulator(delete, Res0, M),
+modulator_result([_Minimized,_Mode,true|Res0], M, Modulators) -> %Delete
+    {_,Res} = split_list(Res0, 18),
     modulator_result(Res, M+1, Modulators);
-modulator_result([_Minimized,Mode|Res0], M, Modulators) ->
-    {Modulator,Res} = modulator(Mode, Res0, M),
+modulator_result([Minimized,Mode,false|Res0], M, Modulators) ->
+    {Modulator,Res} = modulator(Minimized, Mode, Res0, M),
     modulator_result(Res, M+1, [Modulator|Modulators]).
 
-modulator(Mode, Res0, M) ->
+modulator(Minimized, Mode, Res0, M) ->
     {Res1,Res} = split_list(Res0, 18),
-    TypeTag = list_to_atom("type"++integer_to_list(M)),
+    TypeTag = {?TAG,type,M},
     {value,{TypeTag,Type}} = lists:keysearch(TypeTag, 1, Res1),
     [SizeX,SizeY,SizeZ,
      Diffuse,Specular,Ambient,Shininess,Normal,
@@ -502,7 +497,8 @@ modulator(Mode, Res0, M) ->
      Color2,Sharpness,RingscaleZ,
      Depth,Hard] %% 17 values = 18-1
 	= lists:keydelete(TypeTag, 1, Res1),
-    Ps = [{mode,Mode},{size_x,SizeX},{size_y,SizeY},{size_z,SizeZ},
+    Ps = [{minimized,Minimized},{mode,Mode},
+	  {size_x,SizeX},{size_y,SizeY},{size_z,SizeZ},
 	  {diffuse,Diffuse},{specular,Specular},{ambient,Ambient},
 	  {shininess,Shininess},{normal,Normal},
 	  {type,Type},
@@ -524,31 +520,31 @@ light_dialog(Name, Ps) ->
     [{vframe,
       [{hframe,[{vframe, [{label,"Power"}]},
 		{vframe,[{text,Power,
-			  [{range,{0.0,10000.0}},{key,power}]}]}]}|
+			  [{range,{0.0,10000.0}},{key,{?TAG,power}}]}]}]}|
        light_dialog(Name, Type,YafRay)],
       [{title,"YafRay Options"}]}].
 
 light_dialog(_Name, point, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_POINT_TYPE),
-    TypeDef = {type,Type},
+    TypeDef = {{?TAG,type},Type},
     CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
     Bias = proplists:get_value(bias, Ps, ?DEF_BIAS),
     Res = proplists:get_value(res, Ps, ?DEF_RES),
     Radius = proplists:get_value(radius, Ps, ?DEF_RADIUS),
     [{hframe,
       [{key_alt,TypeDef,"Pointlight",pointlight},
-       {"Cast Shadows",CastShadows,[{key,cast_shadows}]}]},
+       {"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]}]},
      {hframe,
       [{key_alt,TypeDef,"Softlight",softlight},
        {vframe,[{label,"Bias"},
 		{label,"Res"},
 		{label,"Radius"}]},
-       {vframe,[{text,Bias,[{range,0.0,1.0},{key,bias}]},
-		{text,Res,[{range,0,10000},{key,res}]},
-		{text,Radius,[{range,0,10000},{key,radius}]}]}]}];
+       {vframe,[{text,Bias,[{range,0.0,1.0},{key,{?TAG,bias}}]},
+		{text,Res,[{range,0,10000},{key,{?TAG,res}}]},
+		{text,Radius,[{range,0,10000},{key,{?TAG,radius}}]}]}]}];
 light_dialog(_Name, spot, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_SPOT_TYPE),
-    TypeDef = {type,Type},
+    TypeDef = {{?TAG,type},Type},
     CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
     Blend = proplists:get_value(blend, Ps, ?DEF_BLEND),
     Mode = proplists:get_value(mode, Ps, ?DEF_MODE),
@@ -560,77 +556,83 @@ light_dialog(_Name, spot, Ps) ->
     Cluster = proplists:get_value(cluster, Ps, ?DEF_CLUSTER),
     [{hframe,
       [{key_alt,TypeDef,"Spotlight",spotlight},
-       {"Cast Shadows",CastShadows,[{key,cast_shadows}]},
-       {label,"Blend"},{text,Blend,[{range,0.0,100.0},{key,blend}]}]},
+       {"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]},
+       {label,"Blend"},{text,Blend,[{range,0.0,100.0},{key,{?TAG,blend}}]}]},
      {hframe,
       [{key_alt,TypeDef,"Photonlight",photonlight},
        {vframe,
-	[{menu,[{"Diffuse",diffuse},{"Caustic",caustic}],Mode,[{key,mode}]},
+	[{menu,[{"Diffuse",diffuse},{"Caustic",caustic}],Mode,
+	  [{key,{?TAG,mode}}]},
 	 {hframe,[{vframe,[{label,"Photons"},
 			   {label,"Depth"},
 			   {label,"Fixedradius"}]},
-		  {vframe,[{text,Photons,[{range,0,1000000},{key,photons}]},
-			   {text,Depth,[{range,1,100},{key,depth}]},
+		  {vframe,[{text,Photons,[{range,0,1000000},
+					  {key,{?TAG,photons}}]},
+			   {text,Depth,[{range,1,100},{key,{?TAG,depth}}]},
 			   {text,Fixedradius,[{range,1.0,1000000.0},
-					      {key,fixedradius}]}]},
+					      {key,{?TAG,fixedradius}}]}]},
 		  {vframe,[{label,"Search"},
 			   {label,"Mindepth"},
 			   {label,"Cluster"}]},
-		  {vframe,[{text,Search,[{range,0,1000000},{key,search}]},
-			   {text,Mindepth,[{range,0,1000000},{key,mindepth}]},
+		  {vframe,[{text,Search,[{range,0,1000000},
+					 {key,{?TAG,search}}]},
+			   {text,Mindepth,[{range,0,1000000},
+					   {key,{?TAG,mindepth}}]},
 			   {text,Cluster,[{range,0.0,1000000.0},
-					  {key,cluster}]}]}]}]}]}];
+					  {key,{?TAG,cluster}}]}]}]}]}]}];
 light_dialog(_Name, infinite, Ps) ->
     Bg = proplists:get_value(background, Ps, ?DEF_BACKGROUND),
-    BgDef = {background,Bg},
+    BgDef = {{?TAG,background},Bg},
     BgColor = proplists:get_value(background_color, Ps, ?DEF_BACKGROUND_COLOR),
     CastShadows = proplists:get_value(cast_shadows, Ps, ?DEF_CAST_SHADOWS),
     Turbidity = proplists:get_value(turbidity, Ps, ?DEF_TURBIDITY),
-    [{"Cast Shadows",CastShadows,[{key,cast_shadows}]},
+    [{"Cast Shadows",CastShadows,[{key,{?TAG,cast_shadows}}]},
      {hframe,
       [{vframe,[{key_alt,BgDef,"Constant",constant},
 		{key_alt,BgDef,"Sunsky",sunsky},
 		{key_alt,BgDef,"None", undefined}]},
        {vframe,[{label,"Color"},
 		{label,"Turbidity"}]},
-       {vframe,[{color,BgColor,[{key,background_color}]},
+       {vframe,[{color,BgColor,[{key,{?TAG,background_color}}]},
 		{hframe,
-		 [{text,Turbidity,[{range,0.0,100.0},{key,turbidity}]}]}]}],
+		 [{text,Turbidity,[{range,0.0,100.0},
+				   {key,{?TAG,turbidity}}]}]}]}],
       [{title,"Background"}]}];
 light_dialog(_Name, ambient, Ps) ->
     Type = proplists:get_value(type, Ps, ?DEF_AMBIENT_TYPE),
-    TypeDef = {type,Type},
+    TypeDef = {{?TAG,type},Type},
     Samples = proplists:get_value(samples, Ps, ?DEF_SAMPLES),
     Depth = proplists:get_value(depth, Ps, ?DEF_DEPTH),
     [{hframe,[{key_alt,TypeDef,"Hemilight",hemilight},
 	      {key_alt,TypeDef,"Pathlight",pathlight},
 	      {label,"Depth"},
-	      {text,Depth,[{range,1,100},{key,depth}]}]},
+	      {text,Depth,[{range,1,100},{key,{?TAG,depth}}]}]},
      {hframe,[{label,"Samples"}, 
-	      {text,Samples,[{range,1,1000000},{key,samples}]}]}];
+	      {text,Samples,[{range,1,1000000},{key,{?TAG,samples}}]}]}];
 light_dialog(_Name, _Type, _Ps) ->
 %    erlang:display({?MODULE,?LINE,{_Name,_Type,_Ps}}),
     [].
 
-light_result(_Name, Ps0, [Power|Res0]) ->
-    {LightPs,Res1} = light_result(Res0),
-    Ps = [{?TAG,[Power|LightPs]}|keydelete(?TAG, 1, Ps0)],
+light_result(_Name, Ps0, [{{?TAG,power},Power}|Res0]) ->
+    {LightPs0,Res1} = light_result(Res0),
+    LightPs = [{Key,Val} || {{?TAG,Key},Val} <- LightPs0],
+    Ps = [{?TAG,[{power,Power}|LightPs]}|keydelete(?TAG, 1, Ps0)],
 %    erlang:display({?MODULE,?LINE,[Ps,Res1]}),
     {Ps,Res1}.
 
-light_result([{type,pointlight}|_]=Res) ->
+light_result([{{?TAG,type},pointlight}|_]=Res) ->
     split_list(Res, 5);
-light_result([_,{type,softlight}|_]=Res) ->
+light_result([_,{{?TAG,type},softlight}|_]=Res) ->
     split_list(Res, 5);
-light_result([{type,spotlight}|_]=Ps) ->
+light_result([{{?TAG,type},spotlight}|_]=Ps) ->
     split_list(Ps, 10);
-light_result([_,_,{type,photonlight}|_]=Ps) ->
+light_result([_,_,{{?TAG,type},photonlight}|_]=Ps) ->
     split_list(Ps, 10);
-light_result([_,{background,_}|_]=Ps) ->
+light_result([_,{{?TAG,background},_}|_]=Ps) ->
     split_list(Ps, 4);
-light_result([{type,hemilight}|_]=Res) ->
+light_result([{{?TAG,type},hemilight}|_]=Res) ->
     split_list(Res, 3);
-light_result([{type,pathlight}|_]=Res) ->
+light_result([{{?TAG,type},pathlight}|_]=Res) ->
     split_list(Res, 3);
 light_result(Tail) ->
 %    erlang:display({?MODULE,?LINE,Tail}),

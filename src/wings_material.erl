@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.109 2003/12/01 21:19:29 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.110 2003/12/03 00:44:33 raimo_niskanen Exp $
 %%
 
 -module(wings_material).
@@ -441,8 +441,13 @@ is_mat_transparent(Mat) ->
 
 -define(PREVIEW_SIZE, 100).
 
-edit(Name, Assign, #st{mat=Mtab0}=St) ->
-    Mat0 = gb_trees:get(Name, Mtab0),
+edit(Name, Assign, #st{mat=Mtab}=St) ->
+    Mat = gb_trees:get(Name, Mtab),
+    {dialog,Qs,Fun} = edit_dialog(Name, Assign, St, Mat),
+    wings_ask:dialog("Material Properties: "++atom_to_list(Name), Qs, Fun).
+    
+
+edit_dialog(Name, Assign, St=#st{mat=Mtab0}, Mat0) ->
     OpenGL0 = prop_get(opengl, Mat0),
     {Diff0,Opacity0} = ask_prop_get(diffuse, OpenGL0),
     {Amb0,_} = ask_prop_get(ambient, OpenGL0),
@@ -479,7 +484,10 @@ edit(Name, Assign, #st{mat=Mtab0}=St) ->
 					   {key,opacity}]}}]}]
 	     }|Maps0]
 	   }],
-    Qs = wings_plugin:dialog({material_editor_setup,Name,Mat0}, Qs1),
+    Qs2 = wings_plugin:dialog({material_editor_setup,Name,Mat0}, Qs1),
+    Qs = {hframe,[{vframe,Qs2},
+		  {vframe,[{button,"OK",done,[ok,{key,material_editor_ok}]},
+			   {button,cancel,[cancel]}]}]},
     Ask = fun([{diffuse,Diff},{ambient,Amb},{specular,Spec},
 	       {emission,Emiss},{shininess,Shine},{opacity,Opacity}|More0]) ->
 		  OpenGL = [ask_prop_put(diffuse, Diff, Opacity),
@@ -489,19 +497,24 @@ edit(Name, Assign, #st{mat=Mtab0}=St) ->
 			    {shininess,Shine}],
 		  Mat1 = keyreplace(opengl, 1, Mat0, {opengl,OpenGL}),
 		  {Mat2,More} = update_maps(Mat1, More0),
-		  Mat  = plugin_results(Name, Mat2, More),
-		  Mtab = gb_trees:update(Name, Mat, Mtab0),
-		  maybe_assign(Assign, Name, St#st{mat=Mtab})
+		  case plugin_results(Name, Mat2, More) of
+		      {again,Mat} -> edit_dialog(Name, Assign, St, Mat);
+		      {ok,Mat}  ->
+			  Mtab = gb_trees:update(Name, Mat, Mtab0),
+			  maybe_assign(Assign, Name, St#st{mat=Mtab})
+		  end
 	  end,
-    wings_ask:dialog("Material Properties: "++atom_to_list(Name), Qs, Ask).
+    {dialog,Qs,Ask}.
 
 maybe_assign(false, _, St) -> St;
 maybe_assign(true, Name, St) -> set_material(Name, St).
 
 plugin_results(Name, Mat0, Res0) ->
     case wings_plugin:dialog_result({material_editor_result,Name,Mat0}, Res0) of
-	{Mat,[]} ->
-	    Mat;
+	{Mat,[{material_editor_ok,true}]} ->
+	    {ok,Mat};
+	{Mat,[{material_editor_ok,false}]} ->
+	    {again,Mat};
 	{_,Res} ->
 	    io:format("Material editor plugin(s) left garbage:~n    ~P~n", 
 		      [Res,20]),
@@ -538,7 +551,11 @@ show_map({Type,Image}) ->
 		Label = flatten(io_lib:format("~p [~px~px~p]",
 					      [Name,W,H,PP*8])),
 		[{label, Label}, 
-		 {menu,[{"Diffuse", diffuse}, {"Bump", bump}], Type, [{key,{texture_mode,Image}}]}];
+		 {menu,[{"Diffuse", diffuse}, {"Bump", bump}],Type,
+		  [{key,{texture_mode,Image}},
+		   {hook,fun (update, {Var,_I,Val,Sto}) ->
+				{done,gb_trees:update(Var, Val, Sto)};
+			     (_, _) -> void end}]}];
 	    #e3d_image{name=Name,width=W,height=H,bytes_pp=PP} ->
 		Label = flatten(io_lib:format("~p: ~p [~px~px~p]",
 					      [Type,Name,W,H,PP*8])),

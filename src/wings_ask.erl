@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.136 2003/12/02 15:55:05 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.137 2003/12/03 00:44:33 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -65,7 +65,7 @@
 	 coords,				%Coordinates for hit testing.
 	 store,					%Data for all fields.
 	 level,					%Levels of nesting.
-	 owner=Owner,				%Where to send result.
+	 owner,					%Where to send result.
 	 grab_win				%Previous grabbed focus window.
 	}).
 
@@ -142,8 +142,8 @@ ask_unzip([], Labels, Vals) ->
 %%
 
 dialog(false, _Title, Qs, Fun) ->
-    S = setup_ask(Qs, Fun),
-    return_result(S),
+    S = setup_dialog(Qs, Fun),
+    return_result(S#s{owner=wings_wm:this()}),
     keep;
 dialog(true, Title, Qs, Fun) -> dialog(Title, Qs, Fun).
 
@@ -154,58 +154,28 @@ dialog(Title, Qs, Fun) ->
 
 do_dialog(Title, Qs, Level, Fun) ->
     GrabWin = wings_wm:release_focus(),
-    S0 = setup_ask(Qs, Fun),
-    #s{w=W0,h=H0} = S0,
-    W = W0 + 2*?HMARGIN,
-    H = H0 + 2*?VMARGIN,
-    S = #s{fi=Fi,store=Store} = 
-	S0#s{ox=?HMARGIN,oy=?VMARGIN,level=Level,grab_win=GrabWin},
+    Owner = wings_wm:this(),
+    S0 = #s{w=W,h=H,fi=Fi,store=Store} = setup_dialog(Qs, Fun),
+    S = S0#s{level=Level,grab_win=GrabWin,owner=Owner},
     Name = {dialog,hd(Level)},
     setup_blanket(Name, Fi, Store),
     Op = {seq,push,get_event(S)},
-    {{X,Y},Anchor} 
-	= case find_position(Fi, Store) of
-	      [] -> {mouse_pos(),n};
-	      [#fi{index=Index}|_] ->
-		  case gb_trees:get(-Index, Store) of
-		      #position{position=undefined} -> {mouse_pos(),n};
-		      #position{position=Pos} -> {Pos,nw}
-		  end
-	  end,
-    wings_wm:toplevel(Name, Title, {X,Y,highest}, {W,H}, 
-		      [{anchor,Anchor}], Op),
+    {_,Xm,Ym} = sdl_mouse:getMouseState(),
+    wings_wm:toplevel(Name, Title, {Xm,Ym-?LINE_HEIGHT}, {W,H}, 
+		      [{anchor,n}], Op),
     wings_wm:set_prop(Name, drag_filter, fun(_) -> yes end),
     ?DEBUG_DISPLAY({W,H}),
     keep.
 
-mouse_pos() ->
-    {_,X,Y} = sdl_mouse:getMouseState(),
-    {X,Y-?LINE_HEIGHT}.
-
-
-setup_ask(Qs, Fun) ->
-    ?DEBUG_FORMAT("setup_ask~n  (~p,~n   ~p)~n", [Qs,Fun]),
-    {Fi0,Sto,N} = mktree(Qs, gb_trees:empty()),
-%    ?DEBUG_FORMAT("Sto = ~p~nN = ~p~nFi0 = ~p~n", [Sto,N,Fi0]),
-    Fi = #fi{w=W,h=H} = layout(Fi0, Sto),
-    ?DMPTREE(Fi),
-    Focusable = focusable(Fi),
-    Owner = wings_wm:this(),
-    S = #s{w=W,h=H,call=Fun,focus=N,focusable=Focusable,
-	   fi=Fi,n=N,owner=Owner,store=init_fields(Fi, Sto)},
-    ?DEBUG_DISPLAY({W,H}),
-    next_focus(1, S).
-
-setup_dialog(#s{level=Level,grab_win=GrabWin,owner=Owner}, Qs, Fun) ->
+setup_dialog(Qs, Fun) ->
     {Fi0,Sto,N} = mktree(Qs, gb_trees:empty()),
     Fi = #fi{w=W0,h=H0} = layout(Fi0, Sto),
     Focusable = focusable(Fi),
     W = W0 + 2*?HMARGIN,
     H = H0 + 2*?VMARGIN,
-    #s{ox=?HMARGIN,oy=?VMARGIN,w=W,h=H,
-       level=Level,grab_win=GrabWin,owner=Owner,
-       call=Fun,focus=N,focusable=Focusable,
-       fi=Fi,n=N,store=init_fields(Fi, Sto)}.
+    next_focus(1, #s{ox=?HMARGIN,oy=?VMARGIN,w=W,h=H,
+		     call=Fun,focus=N,focusable=Focusable,
+		     fi=Fi,n=N,store=init_fields(Fi, Sto)}).
 
 setup_blanket(Dialog, Fi, Sto) ->
     EyePicker = case find_eyepicker(Fi, Sto) of
@@ -490,7 +460,8 @@ resize_maybe_move({W,H0}=Size) ->
     
 		
 
-return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto}=S0) ->
+return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto,
+		 level=Level,grab_win=GrabWin}=S0) ->
     Res = collect_result(Fi, Sto),
     ?DEBUG_DISPLAY({return_result,Res}),
     case catch EndFun(Res) of
@@ -504,9 +475,9 @@ return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto}=S0) ->
 	    wings_wm:send(Owner, {new_state,St}),
 	    delete(S0);
 	{dialog,Qs,Fun} ->
-	    S = #s{w=W,h=H} = setup_dialog(S0, Qs, Fun),
+	    S = #s{w=W,h=H} = setup_dialog(Qs, Fun),
 	    resize_maybe_move({W,H}),
-	    get_event(S);
+	    get_event(S#s{level=Level,grab_win=GrabWin,owner=Owner});
 	Action when is_tuple(Action); is_atom(Action) ->
 	    ?DEBUG_DISPLAY({return_result,[Owner,{action,Action}]}),
 	    wings_wm:send(Owner, {action,Action}),
@@ -574,11 +545,6 @@ find_eyepicker(Fi, Sto) ->
     find_field(fun([#fi{index=Index}|_]) ->
 		       field_type(Index, Sto) =:= eyepicker
 	       end, Fi).
-
-find_position(Fi, Sto) ->
-    find_field(fun([#fi{index=Index}|_]) ->
-		       field_type(Index, Sto) =:= position
-	       end, Fi) .
 
 field_type(I, Store) ->
     case gb_trees:lookup(-I, Store) of
@@ -801,11 +767,6 @@ mktree(panel, Sto, I) ->
 mktree({eyepicker,Hook}, Sto, I) ->
     mktree_fi(eyepicker(), Sto, I, [{hook,Hook}]);
 %%
-mktree({position,Position}, Sto, I) ->
-    mktree_fi(position(Position), Sto, I, []);
-mktree({position,Position,Flags}, Sto, I) ->
-    mktree_fi(position(Position), Sto, I, Flags);
-%%
 mktree({label,Label}, Sto, I) ->
     mktree_fi(label(Label, []), Sto, I, []);
 mktree({label,Label,Flags}, Sto, I) ->
@@ -881,7 +842,7 @@ radio(FrameType, Qs0, Def, Flags) ->
 	    _ -> 
 		[{alt,Def,Prompt,Val,Flags} || {Prompt,Val} <- Qs0]
 	end,
-    {FrameType,Qs,Flags}.
+    {FrameType,Qs,proplists:delete(key,Flags)}.
 
 radio_alt(I, [{Prompt,Val}|T], Def, Flags) ->
     [{key_alt,{I,Def},Prompt,Val,Flags}|radio_alt(I-1, T, Def, Flags)];
@@ -2169,17 +2130,6 @@ eyepicker_event({picked_color,Col},
 		Store)  ->
     hook(Hook, update, [var(Key, I),I,Col,Store]);
 eyepicker_event(_Ev, _Path, _Store) -> keep.
-
-%%%
-%%% Position
-%%%
-
-position(Position) ->
-    {fun position_event/3, value, #position{position=Position}, 0, 0}.
-
-position_event(value, _Path, _Store) ->
-    {value,wings_wm:win_ul({controller,wings_wm:this()})};
-position_event(_Ev, _Path, _Store) -> keep.
 
 %%%
 %%% Label.

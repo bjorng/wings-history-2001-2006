@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.19 2003/12/02 14:44:53 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.20 2003/12/03 00:44:32 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -316,34 +316,33 @@ disable_hook(V) ->
 
 
 
-dynamic_dialog(St) -> dynamic_dialog_1(St, [init,undefined]).
+dynamic_dialog(St) -> 
+    {dialog,Qs,Fun} = mk_dynamic_dialog(St, [init]),
+    wings_ask:dialog("Dynamic Dialog",Qs,Fun).
 
-dynamic_dialog_1(St, Res) -> 
-    dynamic_dialog_2(St, Res, []).
+check_dynamic_dialog(St, Res) -> 
+    check_dynamic_dialog_1(St, Res, []).
 
-dynamic_dialog_2(_St, [false,_Pos], R0) -> 
+check_dynamic_dialog_1(_St, [false], R0) -> 
     %% Dialog closed ok
     R = reverse(R0, [false]),
     erlang:display({?MODULE,?LINE,R}),
-    R;
-dynamic_dialog_2(St, [init,Pos], R) -> dynamic_dialog_3(St, [Pos,false|R]);
-dynamic_dialog_2(St, [true,Pos], R) -> %% New frame
+    ignore;
+check_dynamic_dialog_1(St, [true], R) -> %% New frame
     Z = true, E = false, F = 0.5, D = false,
-    dynamic_dialog_3(St, [Pos,false,D,F,E,Z|R]);
-dynamic_dialog_2(St, [_Z,_E,_F,true|T], R) ->  %% Delete frame
-    dynamic_dialog_3(St, reverse(T, R));
-dynamic_dialog_2(St, [Z,E,F,false|T], R) -> 
-    dynamic_dialog_2(St, T, [false,F,E,Z|R]).
+    mk_dynamic_dialog(St, [false,D,F,E,Z|R]);
+check_dynamic_dialog_1(St, [_Z,_E,_F,true|T], R) ->  % Delete frame
+    mk_dynamic_dialog(St, reverse(T, R));
+check_dynamic_dialog_1(St, [Z,E,F,false|T], R) -> % Keep frame
+    check_dynamic_dialog_1(St, T, [false,F,E,Z|R]).
 
-dynamic_dialog_3(St, [Pos,_New|R]) ->
-    dynamic_dialog_4(St, R, [{hframe,[{button,"New",done},panel]},
-			     {position,Pos}]).
+mk_dynamic_dialog(St, [_New|R]) ->
+    mk_dynamic_dialog_1(St, R, [{hframe,[{button,"New",done},panel]}]).
 
-dynamic_dialog_4(St, [], Dialog) ->
-    wings_ask:dialog("Test Ask Dynamic", Dialog, 
-		     fun (R) -> dynamic_dialog_1(St, R), ignore end);
-dynamic_dialog_4(St, [_D,F,E,Z|T], Dialog0) ->
-    Dialog = 
+mk_dynamic_dialog_1(St, [], Qs) ->
+    {dialog,Qs,fun (R) -> check_dynamic_dialog(St, R) end};
+mk_dynamic_dialog_1(St, [_D,F,E,Z|T], Qs0) ->
+    Qs = 
 	[{hframe,[{vframe,[{"Enable",E},
 			   {text,F,[{range,{0.0,1.0}},
 				    {hook,disable_hook(-1)}]}]},
@@ -352,5 +351,5 @@ dynamic_dialog_4(St, [_D,F,E,Z|T], Dialog0) ->
 				   {key,-5},
 				   {hook,disable_hook(-6)}]}]}],
 	  [{title,"Foo"},{minimized,Z}]}
-	 |Dialog0],
-    dynamic_dialog_4(St, T, Dialog).
+	 |Qs0],
+    mk_dynamic_dialog_1(St, T, Qs).
