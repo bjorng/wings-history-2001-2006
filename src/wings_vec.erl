@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.11 2002/02/17 20:01:56 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.12 2002/03/10 07:54:06 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -158,7 +158,7 @@ handle_event_4(Event, Ss, St0) ->
 	Other -> keep
     end.
 
-handle_event_5({new_selection,St}, #ss{check=Check}=Ss, St0) ->
+handle_event_5({new_state,St}, #ss{check=Check}=Ss, St0) ->
     {Vec,Msg} = Check(St),
     wings_io:message(Msg),
     get_event(Ss, St#st{vec=Vec});
@@ -193,7 +193,7 @@ handle_event_5(Event, Ss, St) ->
 
 filter_sel_command(#ss{selmodes=Modes}=Ss, #st{selmode=Mode}=St) ->
     case member(Mode, Modes) of
-	true -> handle_event({new_selection,St}, Ss, St);
+	true -> handle_event({new_state,St}, Ss, St);
 	false -> keep
     end.
 
