@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.117 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.118 2002/12/26 20:35:27 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -221,7 +221,7 @@ break_apart_general(D, Tvs) -> {D,Tvs}.
 
 do_drag(Drag0) ->
     {Event,Drag} = initial_motion(Drag0),
-    {seq,{push,dummy},handle_drag_event_1(Event, Drag)}.
+    {seq,push,handle_drag_event_1(Event, Drag)}.
 
 help_message(#drag{unit=Unit}=Drag) ->
     Msg = "[L] Accept  [R] Cancel",
@@ -666,22 +666,80 @@ normalize_fun(#dlo{drag={matrix,_,_,Matrix},
 normalize_fun(#dlo{drag={general,_},src_we=#we{id=Id}=We}=D, Shs) ->
     {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)};
 normalize_fun(#dlo{src_we=#we{id=Id,vp=Vtab0}}=D, Shs) ->
-    #we{vp=OldVtab0}= We0 = gb_trees:get(Id, Shs),
-    Vtab1 = norm_update(gb_trees:to_list(Vtab0), gb_trees:to_list(OldVtab0)),
-    Vtab = gb_trees:from_orddict(Vtab1),
+    #we{vp=OldVtab}= We0 = gb_trees:get(Id, Shs),
+    %% Heuristic for break-even. (Note that we don't know the exact number
+    %% of vertices that will be updated.)
+    Break = round(16*math:log(gb_trees:size(OldVtab))/math:log(2)+0.5),
+    Vtab = case gb_trees:size(Vtab0) of
+	       Sz when Sz =< Break ->
+		   %% Update the gb_tree to allow sharing with the undo list.
+		   Vt = norm_update(Vtab0, OldVtab),
+%  		   io:format("cmp: ~p% \n", [round(100*cmp(Vt, OldVtab)/
+%  						   gb_trees:size(OldVtab))]),
+		   Vt;
+	       _Sz ->
+		   %% Too much updated - faster to rebuild the gb_tree.
+		   %% (There would not have been much sharing anyway.)
+		   norm_rebuild(Vtab0, OldVtab)
+	   end,
+%     io:format("~p ~p\n", [erts_debug:size([OldVtab,Vtab]),
+% 			   erts_debug:flat_size([OldVtab,Vtab])]),
     We = We0#we{vp=Vtab},
     {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)}.
 
 norm_update(New, Old) ->
-    norm_update(New, Old, []).
+    norm_update(gb_trees:to_list(New), gb_trees:to_list(Old), Old).
 
-norm_update([{V,_}=N|New], [{V,_}|Old], Acc) ->
-    norm_update(New, Old, [N|Acc]);
-norm_update(New, [O|Old], Acc) ->
-    norm_update(New, Old, [O|Acc]);
-norm_update([], Old, Acc) ->
-    reverse(Acc, Old).
+norm_update([Same|New], [Same|Old], Acc) ->
+    norm_update(New, Old, Acc);
+norm_update([{V,P0}|New], [{V,OldP}|Old], Acc) ->
+    P = tricky_share(P0, OldP),
+    norm_update(New, Old, gb_trees:update(V, P, Acc));
+norm_update(New, [_|Old], Acc) ->
+    norm_update(New, Old, Acc);
+norm_update([], _, Acc) -> Acc.
 
+norm_rebuild(New, Old) ->
+    norm_rebuild(gb_trees:to_list(New), gb_trees:to_list(Old), []).
+
+norm_rebuild([N|New], [O|Old], Acc) when N =:= O ->
+    norm_rebuild(New, Old, [O|Acc]);
+norm_rebuild([{V,P0}|New], [{V,OldP}|Old], Acc) ->
+    P = tricky_share(P0, OldP),
+    norm_rebuild(New, Old, [{V,P}|Acc]);
+norm_rebuild(New, [O|Old], Acc) ->
+    norm_rebuild(New, Old, [O|Acc]);
+norm_rebuild([], Old, Acc) ->
+    gb_trees:from_orddict(reverse(Acc, Old)).
+
+%% What do you think about this?
+tricky_share({X,Y,Z}=New, {OldX,OldY,OldZ})
+  when X =/= OldX, Y =/= OldY, Z =/= OldZ -> New;
+tricky_share({X,Y,Z}, {X,Y,_}=Old) ->
+    setelement(3, Old, Z);
+tricky_share({X,Y,Z}, {X,_,Z}=Old) ->
+    setelement(2, Old, Y);
+tricky_share({X,Y,Z}, {_,Y,Z}=Old) ->
+    setelement(1, Old, X);
+tricky_share({X,Y,Z}, {X,_,_}=Old) ->
+    {element(1, Old),Y,Z};
+tricky_share({X,Y,Z}, {_,Y,_}=Old) ->
+    {X,element(2, Old),Z};
+tricky_share({X,Y,Z}, {_,_,Z}=Old) ->
+    {X,Y,element(3, Old)}.
+
+% cmp({S,New}, {S,Old}) ->
+%     cmp(New, Old, 0).
+
+% cmp({_,_,NewSmaller,NewBigger}=New, {_,_,OldSmaller,OldBigger}=Old, N0) ->
+%     N1 = case erts_debug:same(New, Old) of
+% 	     false -> N0;
+% 	     true -> N0+1
+% 	 end,
+%     N = cmp(NewSmaller, OldSmaller, N1),
+%     cmp(NewBigger, OldBigger, N);
+% cmp(nil, nil, N) -> N.
+    
 %%%
 %%% Redrawing while dragging.
 %%%
