@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.157 2003/09/07 05:32:57 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.158 2003/09/14 11:48:08 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -680,8 +680,6 @@ quit_menu(Uvs) ->
 
 %%% Event handling
 
--record(op, {name, prev, add, undo}).
-
 handle_event(redraw, Uvs0) ->
     %%    ?DBG("redraw event\n"),
     Uvs = redraw(Uvs0),
@@ -699,11 +697,14 @@ handle_event({current_state,geom_display_lists,St}, Uvs) ->
 	keep -> update_selection(St, Uvs);
 	Other -> Other
     end;
+handle_event({new_uv_state,Uvs}, _) ->
+    wings_wm:dirty(),
+    get_event(reset_dl(Uvs));
 handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, Uvs0) ->
     Uvs = Uvs0#uvstate{mode=Mode,sel=Sel,areas=Shs},
     GeomSt = wings_select_faces(Uvs),
     wings_wm:send(geom, {new_state,GeomSt}),
-    get_event(reset_dl(Uvs#uvstate{st=GeomSt,op=undefined}));
+    get_event(reset_dl(Uvs#uvstate{st=GeomSt}));
 handle_event(Ev, #uvstate{areas=Shs,sel=Sel,mode=Mode,origst=#st{mat=Mat}}=Uvs) ->
     St = #st{selmode=Mode,shapes=Shs,sel=Sel,mat=Mat,bb=Uvs},
     case auv_pick:event(Ev, St) of
@@ -711,20 +712,10 @@ handle_event(Ev, #uvstate{areas=Shs,sel=Sel,mode=Mode,origst=#st{mat=Mat}}=Uvs) 
 	Other -> Other
     end.
 
-handle_event_1(#mousemotion{}=Ev, #uvstate{op=Op}=Uvs) when Op /= undefined ->	   
-    handle_mousemotion(Ev, Uvs);
 handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0}, 
-	     #uvstate{op=undefined,mode=Mode}=Uvs) ->
+	       #uvstate{mode=Mode}=Uvs) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     command_menu(Mode, X, Y, Uvs);
-handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT}, 
-	     #uvstate{op=Op}) ->	   
-    get_event(Op#op.undo);
-handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT},
-	       #uvstate{op=undefined}) ->
-    keep;
-handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT}, Uvs) ->
-    get_event(Uvs#uvstate{op=undefined});
 handle_event_1(#keyboard{state=?SDL_PRESSED,sym=?SDLK_SPACE}, #uvstate{st=St}) ->
     wings_wm:send(geom, {new_state,wpa:sel_set(face, [], St)});
 handle_event_1({drop,_,DropData}, Uvs) ->
@@ -788,29 +779,47 @@ handle_command({rotate,Deg}, Uvs0) ->
 handle_command(_, #uvstate{sel=[]}) ->
     keep;
 handle_command(NewOp, Uvs) ->
-    get_event(Uvs#uvstate{op=#op{name=NewOp,undo=Uvs}}).
+    {_,X,Y} = wings_wm:local_mouse_state(),
+    {seq,push,get_cmd_event(NewOp, X, Y, Uvs)}.
 
-handle_mousemotion(#mousemotion{x=MX0,y=MY0}, Uvs0) ->
-    #uvstate{geom={X0Y0,MW0,X0Y0,MH0},op=Op}=Uvs0,
+%%%
+%%% Command handling (temporary version).
+%%%
+
+get_cmd_event(Op, X, Y, #uvstate{areas=Shs,origst=#st{mat=Mat}}=Uvs) ->
+    St = #st{selmode=body,shapes=Shs,mat=Mat},
+    update_dlists(St),
+    wings_wm:dirty(),
+    get_cmd_event_noredraw(Op, X, Y, Uvs).
+
+get_cmd_event_noredraw(Op, X, Y, Uvs) ->
+    {replace,fun(Ev) -> cmd_event(Ev, Op, X, Y, Uvs) end}.
+
+cmd_event(redraw, Op, X, Y, Uvs0) ->
+    Uvs = redraw(Uvs0),
+    get_cmd_event_noredraw(Op, X, Y, Uvs);
+cmd_event(#mousemotion{x=MX0,y=MY0}, Op, X0, Y0, Uvs0) ->
+    #uvstate{geom={X0Y0,MW0,X0Y0,MH0}}=Uvs0,
     {_,_,W,H} = wings_wm:viewport(),
-    {DX,DY} = case Op#op.prev of 
-		  undefined -> {0,0};
-						% {DX0,DY0}; 
-		  {MX1,MY1}->  %% Don't trust relative mouse event
-		      {MX0-MX1, MY0-MY1}
-	      end,
+    DX = MX0 - X0,
+    DY = MY0 - Y0,
     MW =  (MW0-X0Y0) * DX/W,
     MH = -(MH0-X0Y0) * DY/H,
 %%    ?DBG("Viewp ~p ~p ~p ~p ~p ~p~n", [MW,MH,DX,DY,MX,MY]),
-    NewOp = Op#op{prev={MX0,MY0}},
-    Uvs1 = Uvs0#uvstate{op=NewOp},
-    Uvs = case Op#op.name of
+    Uvs = case Op of
 	      move ->
-		  sel_map(fun(_, We) -> move_chart(4*MW, 4*MH, We) end, Uvs1);
+		  sel_map(fun(_, We) -> move_chart(4*MW, 4*MH, We) end, Uvs0);
 	      rotate ->
-		  sel_map(fun(_, We) -> rotate_chart(MW*180, We) end, Uvs1)
+		  sel_map(fun(_, We) -> rotate_chart(MW*180, We) end, Uvs0)
 	  end,
-    get_event(Uvs).
+    get_cmd_event(Op, MX0, MY0, Uvs);
+cmd_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT}, _, _, _, Uvs) ->
+    wings_wm:later({new_uv_state,Uvs}),
+    pop;
+cmd_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT}, _, _, _, _) ->
+    wings_wm:dirty(),
+    pop;
+cmd_event(_, _, _, _, _) -> keep.
 
 drag_filter({image,_,_}) ->
     {yes,"Drop: Change the texture image"};
