@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings__du.erl,v 1.8 2003/12/08 19:15:45 bjorng Exp $
+%%     $Id: wings__du.erl,v 1.9 2004/01/20 13:47:02 bjorng Exp $
 %%
 
 -module(wings__du).
--export([init_cb/1,begin_end/2,
+-export([begin_end/2,
 	 plain_face/1,plain_face/2,uv_face/2,uv_face/3,vcol_face/2,vcol_face/3,
 	 smooth_plain_face/2,smooth_plain_face/3,
 	 smooth_uv_face/2,smooth_uv_face/3,
@@ -23,10 +23,6 @@
 
 -define(GL__BEGIN(Type), ok).
 -define(GL__END(Op), Op).
-
-init_cb(Tess) ->
-    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
-    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE).
 
 begin_end(Type, Body) ->
     gl:'begin'(Type),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.116 2003/12/08 19:15:45 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.117 2004/01/20 13:47:02 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -68,10 +68,11 @@ init() ->
     gl:polygonStipple(P).
 
 init_cb(Tess) ->
+    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_NONE),
+    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_NONE),
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
     glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
-    glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE),
-    wings__du:init_cb(Tess).
+    glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE).
 
 delete_dlists() ->
     case erase(wings_wm:get_prop(display_lists)) of
