@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.46 2003/11/19 18:10:48 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.47 2003/11/24 10:45:04 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1468,7 +1468,8 @@ export_render(F, CameraName, BackgroundName, Outfile, Attr) ->
 	    "    <gamma value=\"~.10f\"/>~n"++
 	    "    <fog_density value=\"~.10f\"/>",
 	    [CameraName,AA_passes,Raydepth,Bias,AA_threshold,
-	     BackgroundName,Outfile,Exposure,SaveAlpha,Gamma,FogDensity]),
+	     BackgroundName,Outfile,Exposure,
+	     format(SaveAlpha),Gamma,FogDensity]),
     export_rgb(F, fog_color, FogColor),
     println(F, "</render>").
 
