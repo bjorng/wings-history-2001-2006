@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.90 2003/04/21 10:16:58 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.91 2003/04/21 13:38:20 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -595,16 +595,14 @@ prop_get(Key, Props, Def) ->
 mat_faces(Ftab, #we{mat=AtomMat}) when is_atom(AtomMat) ->
     [{AtomMat,Ftab}];
 mat_faces(Ftab0, #we{mat=MatTab}) ->
-    Ftab1 = mat_join(Ftab0, MatTab, []),
-    Ftab2 = sofs:from_external(Ftab1, [{material,info}]),
-    Ftab = sofs:relation_to_family(Ftab2),
-    sofs:to_external(Ftab).
+    Ftab = mat_join(Ftab0, MatTab, []),
+    wings_util:rel2fam(Ftab).
 
 mat_join([{F1,_}|_]=Fs, [{F2,_}|Ms], Acc) when F2 < F1 ->
     mat_join(Fs, Ms, Acc);
 mat_join([{F,Info}|Fs], [{F,Mat}|Ms], Acc) ->
     mat_join(Fs, Ms, [{Mat,{F,Info}}|Acc]);
-mat_join([], _, Acc) -> reverse(Acc).
+mat_join([], _, Acc) -> Acc.
 
 get_all(#we{mat=Mat,fs=Ftab}) ->
     force_list(Mat, Ftab).
