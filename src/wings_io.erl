@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.104 2003/06/12 06:20:41 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.105 2003/06/12 11:37:40 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -227,11 +227,17 @@ text([L|Cs], Acc) when is_list(L) ->
 text([], Acc) -> draw_reverse(Acc).
 
 setup_scissor(DrawText) ->
-    {X,Y,W,H} = wings_wm:viewport(),
-    gl:scissor(X, Y, W, H),
-    gl:enable(?GL_SCISSOR_TEST),
-    DrawText(),
-    gl:disable(?GL_SCISSOR_TEST).
+    case wings_util:is_gl_restriction(broken_scissor) of
+	true ->
+	    %% Scissor cannot clip text, but slows down text drawing.
+	    DrawText();
+	false ->
+	    {X,Y,W,H} = wings_wm:viewport(),
+	    gl:scissor(X, Y, W, H),
+	    gl:enable(?GL_SCISSOR_TEST),
+	    DrawText(),
+	    gl:disable(?GL_SCISSOR_TEST)
+    end.
 
 menu_text(X, Y, S) ->
     gl:rasterPos2i(X, Y),

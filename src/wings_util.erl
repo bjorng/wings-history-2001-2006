@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.70 2003/06/03 08:01:05 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.71 2003/06/12 11:37:40 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -27,6 +27,7 @@
 	 menu_restriction/2,
 	 unique_name/2,
 	 init_gl_extensions/0,is_gl_ext/1,
+	 init_gl_restrictions/0,is_gl_restriction/1,
 	 geom_windows/0,
 	 tc/3,export_we/2,crash_log/2,validate/1,validate/3]).
 -export([check_error/2,dump_we/2]).
@@ -313,6 +314,22 @@ init_gl_extensions() ->
 
 is_gl_ext(Name) ->
     ets:member(wings_gl_ext, Name).
+
+%%%
+%%% OpenGL restrictions (bugs and limitations).
+%%%
+init_gl_restrictions() ->
+    ets:new(wings_gl_restriction, [named_table,public,ordered_set]),
+    case os:type() of
+	{unix,sunos} ->
+	    %% Scissor does not work for clipping text.
+	    ets:insert(wings_gl_restriction, [{broken_scissor}]);
+	_ ->
+	    ok
+    end.
+
+is_gl_restriction(Name) ->
+    ets:member(wings_gl_restriction, Name).
     
 %%
 %% Timing.

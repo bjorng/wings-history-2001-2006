@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.111 2003/06/12 06:20:42 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.112 2003/06/12 11:37:40 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -101,6 +101,7 @@ init() ->
     %% From best to worst.
     try_video_modes(opengl_modes()),
     wings_util:init_gl_extensions(),
+    wings_util:init_gl_restrictions(),
 
     translation_change(),
     put(wm_windows, gb_trees:empty()),
