@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.49 2002/12/28 16:57:54 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.50 2002/12/28 22:09:58 bjorng Exp $
 %%
 
 -module(wings_ask).
--export([ask/2,ask/3,dialog/2,dialog/3]).
+-export([ask/3,ask/4,dialog/3,dialog/4]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -25,7 +25,7 @@
 
 -define(IS_SHIFTED(Mod), ((Mod) band ?SHIFT_BITS =/= 0)).
 
--define(INITIAL_LEVEL, 100).
+-define(INITIAL_LEVEL, 250).
 
 -import(lists, [reverse/1,reverse/2,duplicate/2,keysearch/3]).
 
@@ -54,15 +54,15 @@
 	 ipadx=0,ipady=0			%Internal padding.
 	}).
 
-ask(Qs, Fun) ->
-    ask(true, Qs, Fun).
+ask(Title, Qs, Fun) ->
+    ask(true, Title, Qs, Fun).
 
-ask(Bool, Qs0, Fun) ->
+ask(Bool, Title, Qs0, Fun) ->
     {Labels,Vals} = ask_unzip(Qs0),
     Qs = [{hframe,
 	   [{vframe,Labels},
 	    {vframe,Vals}]}],
-    dialog(Bool, Qs, Fun).
+    dialog(Bool, Title, Qs, Fun).
 
 ask_unzip(Qs) ->
     ask_unzip(Qs, [], []).
@@ -73,16 +73,16 @@ ask_unzip([{Label,Def,Flags}|T], AccA, AccB) ->
 ask_unzip([], Labels, Vals) ->
     {reverse(Labels),reverse(Vals)}.
 
-dialog(false, Qs, Fun) ->
+dialog(false, _Title, Qs, Fun) ->
     S = setup_ask(Qs, Fun),
     return_result(S),
     keep;
-dialog(true, Qs, Fun) -> dialog(Qs, Fun).
+dialog(true, Title, Qs, Fun) -> dialog(Title, Qs, Fun).
 
-dialog(Qs, Fun) ->
-    do_dialog(Qs, ?INITIAL_LEVEL, Fun).
+dialog(Title, Qs, Fun) ->
+    do_dialog(Title, Qs, ?INITIAL_LEVEL, Fun).
 
-do_dialog(Qs, Level, Fun) ->
+do_dialog(Title, Qs, Level, Fun) ->
     S0 = setup_ask(Qs, Fun),
     S1 = init_origin(S0),
     S2 = next_focus(S1, 1),
@@ -93,6 +93,7 @@ do_dialog(Qs, Level, Fun) ->
     Op = {seq,push,get_event(S)},
     Name = {dialog,Level},
     wings_wm:new(Name, {trunc(X),trunc(Y),Level}, {W,H}, Op),
+    wings_wm:new_controller(Name, Title),
     wings_wm:grab_focus(Name),
     wings_wm:dirty(),
     keep.
@@ -276,8 +277,8 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	    return_result(S);
 	cancel ->
 	    delete(S);
-	{dialog,Qs,Fun} ->
-	    recursive_dialog(I, Qs, Fun, S);
+	{dialog,Title,Qs,Fun} ->
+	    recursive_dialog(Title, I, Qs, Fun, S);
 	{drag,WH,DropData} ->
 	    drag(Ev, WH, Fi, Fst0, Common0, DropData, S);
 	{Fst,Common} when is_atom(element(1, Fst)), is_tuple(Common) ->
@@ -292,8 +293,8 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	    get_event(S#s{priv=Priv})
     end.
 
-recursive_dialog(I, Qs, Fun, #s{level=Level}=S) ->
-    do_dialog(Qs, Level+1, fun(Vs) -> {update,I,Fun(Vs)} end),
+recursive_dialog(Title, I, Qs, Fun, #s{level=Level}=S) ->
+    do_dialog(Title, Qs, Level+1, fun(Vs) -> {update,I,Fun(Vs)} end),
     get_event(S).
 
 drag(#mousemotion{x=X0,y=Y0}, {W,H}, Fi0, Fst, Common, DropData,
@@ -912,6 +913,7 @@ pick_color(#fi{key=Key}, Col, Common0) ->
 			 {internal_slider,{text,A1,[{key,a}|RGBRange]}}]}]
 	      end,
     {dialog,
+     "Pick Color",
      [{hframe,
        [{custom,?COL_PREVIEW_SZ,?COL_PREVIEW_SZ,Draw},
 	{vframe,
