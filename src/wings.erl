@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.91 2002/01/18 16:40:59 dgud Exp $
+%%     $Id: wings.erl,v 1.92 2002/01/22 11:21:54 bjorng Exp $
 %%
 
 -module(wings).
@@ -125,7 +125,7 @@ open_file(Name, St0) ->
     case ?SLOW(wings_ff_wings:import(Name, St0)) of
 	#st{}=St ->
 	    wings_getline:set_cwd(filename:dirname(Name)),
-	    wings:caption(St#st{saved=true,file=Name});
+	    caption(St#st{saved=true,file=Name});
 	{error,Reason} ->
 	    wings_io:message("Read failed: " ++ Reason),
 	    St0
@@ -169,7 +169,10 @@ clean_state(St) ->
 save_state(St0, St1) ->
     St = wings_undo:save(St0, St1),
     wings_io:clear_message(),
-    main_loop(St#st{saved=false}).
+    case St of
+	#st{saved=false} -> main_loop(St);
+	Other -> main_loop(caption(St#st{saved=false}))
+    end.
 
 main_loop(St) ->
     ?VALIDATE_MODEL(St),
@@ -772,8 +775,16 @@ caption(#st{file=undefined}=St) ->
     Caption = wings(),
     sdl_video:wm_setCaption(Caption, Caption),
     St;
-caption(#st{file=Name}=St) ->
+caption(#st{saved=true,file=Name}=St) ->
     Caption = wings() ++ " - " ++ filename:basename(Name),
+    sdl_video:wm_setCaption(Caption, Caption),
+    St;
+caption(#st{saved=auto,file=Name}=St) ->
+    Caption = wings() ++ " - " ++ filename:basename(Name) ++ "* [auto-saved]",
+    sdl_video:wm_setCaption(Caption, Caption),
+    St;
+caption(#st{file=Name}=St) ->
+    Caption = wings() ++ " - " ++ filename:basename(Name) ++ "*",
     sdl_video:wm_setCaption(Caption, Caption),
     St.
 

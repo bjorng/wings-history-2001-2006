@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.10 2002/01/04 19:48:16 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.11 2002/01/22 11:21:54 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -244,7 +244,7 @@ rotate(Dx, Dy) ->
     #view{azimuth=Az0,elevation=El0} = View = wings_view:current(),
     Az = Az0 + Dx,
     El = El0 + Dy,
-    wings_view:set_current(View#view{azimuth=Az,elevation=El,along_axis=y}).
+    wings_view:set_current(View#view{azimuth=Az,elevation=El,along_axis=none}).
 
 zoom(Delta) ->
     #view{distance=Dist} = View = wings_view:current(),

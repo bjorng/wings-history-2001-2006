@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.50 2002/01/22 10:02:35 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.51 2002/01/22 11:21:54 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -467,14 +467,10 @@ make_normals_dlist_2(Other, #we{fs=Ftab}=We) ->
 %%
 
 ground_and_axes() ->
-    Ground = wings_pref:get_value(show_groundplane),
     Axes = wings_pref:get_value(show_axes),
     ?CHECK_ERROR(),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    case Ground of
-	true -> groundplane(Axes);
-	false -> ok
-    end,
+    groundplane(Axes),
     ?CHECK_ERROR(),
     case Axes of
 	true ->
@@ -573,37 +569,46 @@ sub({X1,Y1}, {X2,Y2}) -> {X1-X2,Y1-Y2}.
 mul({X,Y}, S) -> {X*S,Y*S}.
 
 groundplane(Axes) ->
+    case (wings_pref:get_value(show_groundplane) orelse
+	  (wings_pref:get_value(force_show_along_grid) andalso
+	   (wings_view:current())#view.along_axis =/= none)) of
+	true -> groundplane_1(Axes);
+	false -> ok
+    end.
+
+groundplane_1(Axes) ->
+    #view{along_axis=Along} = wings_view:current(),
     gl:color3fv(wings_pref:get_value(grid_color)),
     ?CHECK_ERROR(),
     gl:lineWidth(0.1),
     gl:'begin'(?GL_LINES),
     Sz = ?GROUND_GRID_SIZE * 10,
-    groundplane(-Sz, Sz, Sz, Axes),
+    groundplane(Along, -Sz, Sz, Sz, Axes),
     gl:'end'(),
     ?CHECK_ERROR().
 
-groundplane(X, Last, Sz, Axes) when X > Last -> ok;
-groundplane(0.0, Last, Sz, true) ->
-    groundplane(?GROUND_GRID_SIZE, Last, Sz, true);
-groundplane(X, Last, Sz, Axes) ->
-    case (wings_view:current())#view.along_axis of
-        x ->
+groundplane(Along, X, Last, Sz, Axes) when X > Last -> ok;
+groundplane(Along, 0.0, Last, Sz, true) ->
+    groundplane(Along, ?GROUND_GRID_SIZE, Last, Sz, true);
+groundplane(Along, X, Last, Sz, Axes) ->
+    case Along of
+	x ->
             gl:vertex3f(0, X, -Sz),
             gl:vertex3f(0, X, Sz),
             gl:vertex3f(0, -Sz, X),
             gl:vertex3f(0, Sz, X);
-        y ->
-            gl:vertex3f(X, 0, -Sz),
-            gl:vertex3f(X, 0, Sz),
-            gl:vertex3f(-Sz, 0, X),
-            gl:vertex3f(Sz, 0, X);
         z ->
             gl:vertex3f(X, -Sz, 0),
             gl:vertex3f(X, Sz, 0),
             gl:vertex3f(-Sz, X, 0),
-            gl:vertex3f(Sz, X, 0)
+            gl:vertex3f(Sz, X, 0);
+	Other ->
+            gl:vertex3f(X, 0, -Sz),
+            gl:vertex3f(X, 0, Sz),
+            gl:vertex3f(-Sz, 0, X),
+            gl:vertex3f(Sz, 0, X)
     end,
-    groundplane(X+?GROUND_GRID_SIZE, Last, Sz, Axes).
+    groundplane(Along, X+?GROUND_GRID_SIZE, Last, Sz, Axes).
 
 show_saved_bb(#st{bb=none}) -> ok;
 show_saved_bb(#st{bb=[{X1,Y1,Z1},{X2,Y2,Z2}]}) ->

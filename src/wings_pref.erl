@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.21 2002/01/22 09:57:23 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.22 2002/01/22 11:21:55 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -19,20 +19,18 @@
 
 -define(NEED_ESDL, 1).    %% Some keybindings
 -include("wings.hrl").
--import(lists, [foreach/2,keysearch/3,map/2,reverse/1]).
+-import(lists, [foreach/2,keysearch/3,map/2,reverse/1,sort/1]).
 
 init() ->
     ets:new(wings_state, [named_table,public,ordered_set]),
     ets:insert(wings_state, defaults()),
 
-    Setup = fun({{bindkey, Key, List}, Action}) ->
-		    ets:insert(wings_state, {{bindkey, Key, lists:sort(List)}, Action});
-	       (What = {{bindkey, Key}, Action}) when integer(Key) ->
-		    ets:insert(wings_state, What);
-	       (Else) ->
-		    ets:insert(wings_state, Else)
+    Setup = fun({{bindkey,Key,List}, Action}) ->
+		    ets:insert(wings_state,
+			       {{bindkey,Key,sort(List)},Action});
+	       (Other) -> ets:insert(wings_state, Other)
 	    end,
-    lists:foreach(Setup, default_keybindings()),
+    foreach(Setup, default_keybindings()),
 
     case old_pref_file() of
 	none -> ok;
@@ -200,6 +198,7 @@ presets() ->
      {"Selected Edge Width",selected_edge_width,2.0},
      separator,
      {"Show Axis Letters",show_axis_letters,true},
+     {"Force Axis-aligned Grid",force_show_along_grid,false},
      separator,
      {"Vertex highlighting",vertex_hilite,true},
      {"Edge highlighting",edge_hilite,true},
@@ -211,7 +210,7 @@ presets() ->
      {"Auto-rotate angle",auto_rotate_angle,1.0},
      {"Auto-rotate delay (ms)",auto_rotate_delay,60},
      separator,
-     {"Auto-save time (in min) 0 is off", autosave_time, 5}
+     {"Auto-save interval (minutes) [0 is off]",autosave_time,2}
     ].
 
 default_keybindings() ->

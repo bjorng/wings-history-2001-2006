@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.45 2002/01/21 11:11:35 dgud Exp $
+%%     $Id: wings_file.erl,v 1.46 2002/01/22 11:21:55 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -214,7 +214,7 @@ save_1(#st{shapes=Shapes,file=Name}=St) ->
     case ?SLOW(wings_ff_wings:export(Name, St)) of
 	ok ->
 	    wings_getline:set_cwd(dirname(Name)),
-	    St#st{saved=true};
+	    wings:caption(St#st{saved=true});
 	{error,Reason} ->
 	    wings_plugin:call_ui({failure,"Save failed: " ++ Reason})
     end.
@@ -268,22 +268,21 @@ use_autosave(File) ->
 
 set_autosave_timer() ->
     case wings_pref:get_value(autosave_time) of
-	0 ->
-	    ok;
-	N when number (N) ->
-	    wings_io:set_timer(N * 60000, {action, {file, autosave}})
+	0 -> ok;
+	N when is_number(N) ->
+	    wings_io:set_timer(trunc(N*60000), {action,{file,autosave}})
     end.
     
-autosave(#st{file = undefined} = St) -> 
+autosave(#st{file=undefined} = St) -> 
     set_autosave_timer(),
     St;
-autosave(#st{saved = true} = St) ->
+autosave(#st{saved=true} = St) ->
     set_autosave_timer(),
     St;
-autosave(#st{saved = auto} = St) ->
+autosave(#st{saved=auto} = St) ->
     set_autosave_timer(),
     St;
-autosave(#st{shapes=Shapes,file=Name}=St) ->
+autosave(#st{file=Name}=St) ->
     Auto = autosave_filename(Name),
     %% Maybe this should be spawned to another process
     %% to let the autosaving be done in the background.
@@ -291,7 +290,7 @@ autosave(#st{shapes=Shapes,file=Name}=St) ->
     case ?SLOW(wings_ff_wings:export(Auto, St)) of
 	ok ->
 	    set_autosave_timer(),
-	    St#st{saved = auto};
+	    wings:caption(St#st{saved=auto});
 	{error,Reason} ->
 	    set_autosave_timer(),
 	    wings_io:message("AutoSave failed: " ++ Reason),
@@ -305,15 +304,19 @@ backup_filename(File) ->
     File ++ ?BACKUP.
 
 wings_extensions() ->
-    [?WINGS, ?WINGS ++ ?BACKUP, ?WINGS ++ ?AUTOSAVE].    
+    [?WINGS,?WINGS ++ ?BACKUP,?WINGS ++ ?AUTOSAVE].
 
 add_recent(Name) ->
     Base = filename:basename(Name),
-    File = {Base,Name},
-    Recent0 = wings_pref:get_value(recent_files, []),
-    Recent1 = Recent0 -- [File],
-    Recent = add_recent(File, Recent1),
-    wings_pref:set_value(recent_files, Recent).
+    case filename:extension(Base) of
+	?WINGS ->
+	    File = {Base,Name},
+	    Recent0 = wings_pref:get_value(recent_files, []),
+	    Recent1 = Recent0 -- [File],
+	    Recent = add_recent(File, Recent1),
+	    wings_pref:set_value(recent_files, Recent);
+	Other -> ok
+    end.
 
 add_recent(File, [A,B,C|_]) -> [File,A,B,C];
 add_recent(File, Recent) -> [File|Recent].
