@@ -3,12 +3,12 @@
 %%
 %%     Preference management.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.12 2001/12/13 15:59:57 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.13 2001/12/31 23:53:55 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -167,5 +167,8 @@ presets() ->
      {"Edge Width",edge_width,2.0},
      {"Selected Edge Width",selected_edge_width,2.0},
      separator,
-     {"Show Memory Used",show_memory_used,false}
+     {"Show Memory Used",show_memory_used,false},
+     separator,
+     {"Auto-rotate angle",auto_rotate_angle,1.0},
+     {"Auto-rotate delay (ms)",auto_rotate_delay,60}
     ].

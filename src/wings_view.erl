@@ -3,12 +3,12 @@
 %%
 %%     This module implements most of the command in the View menu.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.33 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.34 2001/12/31 23:53:55 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -89,7 +89,7 @@ command(auto_rotate, St) ->
     {seq,{push,dummy},set_auto_rotate_timer(St)};
 command(rotate_left, St) ->
     #view{azimuth=Az0} = View = wings_view:current(),
-    Az = Az0 + 1.0,
+    Az = Az0 + wings_pref:get_value(auto_rotate_angle),
     set_current(View#view{azimuth=Az}),
     St;
 command(align_to_selection, St) ->
@@ -106,18 +106,29 @@ command(Key, St) ->
     toggle_option(Key),
     St.
 
-auto_rotate_event(#mousemotion{}, Timer, St) -> keep;
-auto_rotate_event(#mousebutton{state=?SDL_PRESSED}, Timer, ST) -> keep;
-auto_rotate_event({view,rotate_left=Cmd}, Timer, St) ->
+auto_rotate_event(Event, Timer, St) ->
+    case wings_camera:event(Event, fun() -> wings:redraw(St) end) of
+	next -> auto_rotate_event_1(Event, Timer, St);
+	Other ->
+	    {seq,fun(Ev) ->
+			 wings_io:putback_event(Ev),
+			 set_auto_rotate_timer(St)
+		 end,Other}
+    end.
+
+auto_rotate_event_1(#mousemotion{}, Timer, St) -> keep;
+auto_rotate_event_1(#mousebutton{state=?SDL_PRESSED}, Timer, ST) -> keep;
+auto_rotate_event_1({view,rotate_left=Cmd}, Timer, St) ->
     command(Cmd, dummy),
     wings:redraw(St),
     set_auto_rotate_timer(St);
-auto_rotate_event(Other, Timer, St) ->
+auto_rotate_event_1(Other, Timer, St) ->
     wings_io:cancel_timer(Timer),
     pop.
 
 set_auto_rotate_timer(St) ->
-    Timer = wings_io:set_timer(60, {view,rotate_left}),
+    Delay = wings_pref:get_value(auto_rotate_delay),
+    Timer = wings_io:set_timer(Delay, {view,rotate_left}),
     {replace,fun(Ev) -> auto_rotate_event(Ev, Timer, St) end}.
 
 toggle_option(Key) ->
