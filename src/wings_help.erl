@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.66 2004/02/29 17:56:36 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.67 2004/03/28 16:39:42 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -362,6 +362,8 @@ cmd([M]) -> [{bold,M}].
 %%% Help|About (splash screen).
 %%%
 
+-define(MARGIN, 12).
+
 about() ->
 %% \		    /
 %%  \		   /		    	         __    	__
@@ -370,10 +372,8 @@ about() ->
 %%     \  /  \ 	/      |  |  | 	|  |  |__      	   \   |   |
 %%	\/    \/       |  |  | 	|__|   __|	\__/   |__/
 %%		       	     	 __|
-%    Xs = 280+60,
-%    Ys = 176+50,
     {Xs0,Ys} = splash_size(),
-    Xs = Xs0+20,
+    Xs = Xs0+2*?MARGIN,
     {W,H} = wings_wm:top_size(),
     X = trunc((W-Xs) / 2),
     Y = trunc((H-Ys) / 2),
@@ -412,7 +412,7 @@ splash_size_1([{icon,_,W,H}|T], W0, H0) ->
     splash_size_1(T, wings_util:max(W, W0), H0+H);
 splash_size_1([{text,Text}|T], W0, H0) ->
     Tw = wings_text:width(Text),
-    splash_size_1(T, wings_util:max(W0, Tw), H0+wings_text:height()+5);
+    splash_size_1(T, wings_util:max(W0, Tw), H0+wings_text:height()+4);
 splash_size_1([{spacer,W,H}|T], W0, H0) ->
     splash_size_1(T, wings_util:max(W0, W), H0+H);
 splash_size_1([], W, H) -> {W,H}.
@@ -423,7 +423,7 @@ draw_splash(L) ->
 draw_splash_1([{icon,Name,Iw,Ih}|T], Y) ->
     gl:color3f(1, 0, 1),
     {W,_} = wings_wm:win_size(),
-    X = (W - Iw) div 2,
+    X = W - Iw - ?MARGIN,
     wings_io:draw_icons(fun() -> wings_io:draw_icon(X, Y, Name) end),
     draw_splash_1(T, Y+Ih);
 draw_splash_1([{text,Text}|T], Y) ->
@@ -431,9 +431,9 @@ draw_splash_1([{text,Text}|T], Y) ->
     Th = wings_text:height(),
     {W,_} = wings_wm:win_size(),
     Tw = wings_text:width(Text),
-    X = (W - Tw) div 2,
+    X = W - Tw - ?MARGIN,
     wings_io:text_at(X, Y+Th, Text),
-    draw_splash_1(T, Y+Th+5);
+    draw_splash_1(T, Y+Th+4);
 draw_splash_1([{spacer,_,H}|T], Y) ->
     draw_splash_1(T, Y+H);
 draw_splash_1([_|T], Y) ->
@@ -446,7 +446,7 @@ splash_contents() ->
      {text,?WINGS_VERSION},
      {spacer,0,10},
      {text,"Wings 3D is a subdivision modeler inspired"},
-     {text,"by Nendo and Mirai from IZWare."},
+     {text,"by Nendo and Mirai from IZware."},
      {spacer,0,10},
      {text,"Wings 3D comes with absolutely no warranty,"},
      {text,"but is completely free for any kind of use"},
@@ -454,7 +454,6 @@ splash_contents() ->
      {spacer,0,10},
      {text,"Copyright " ++ [169] ++ " 2001-2004 "
       "Bj" ++ [246] ++ "rn Gustavsson & Others"},
-     {spacer,0,5},
      {text,"JPEG library: Copyright " ++ [169] ++
       " 1991-1998 Thomas G. Lane"}
     ].
