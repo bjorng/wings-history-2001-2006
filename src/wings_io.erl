@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.82 2002/12/08 17:39:47 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.83 2002/12/14 07:49:56 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -27,6 +27,8 @@
 
 -export([reset_grab/0,grab/0,ungrab/0,warp/2]).
 -export([ortho_setup/0]).
+
+-compile(inline).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -227,17 +229,15 @@ draw_reverse(S0) ->
 
 ortho_setup() ->
     ?CHECK_ERROR(),
-    {_,_,W,H} = wings_wm:viewport(),
-    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     gl:shadeModel(?GL_FLAT),
     gl:disable(?GL_DEPTH_TEST),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
+    {_,_,W,H} = wings_wm:viewport(),
     glu:ortho2D(0, W, H, 0),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
-    gl:color3f(0, 0, 0),
-    ?CHECK_ERROR().
+    gl:color3f(0, 0, 0).
 
 get_state() ->
     get(wings_io).
@@ -257,26 +257,25 @@ draw_icon(X, Y, W, H, Wtot, Htot, Icon) ->
 	false -> ok;
 	{value,{Icon,Id}} ->
 	    gl:bindTexture(?GL_TEXTURE_2D, Id),
+	    MaxU = W/Wtot,
+	    MaxV = H/Htot,
 	    gl:'begin'(?GL_QUADS),
-	    gl:texCoord2f(0, H/Htot),
+	    gl:texCoord2f(0, MaxV),
 	    gl:vertex2i(X, Y),
 	    gl:texCoord2f(0, 0),
 	    gl:vertex2i(X, Y+H),
-	    gl:texCoord2f(W/Wtot, 0),
+	    gl:texCoord2f(MaxU, 0),
 	    gl:vertex2i(X+W, Y+H),
-	    gl:texCoord2f(W/Wtot, H/Htot),
+	    gl:texCoord2f(MaxU, MaxV),
 	    gl:vertex2i(X+W, Y),
 	    gl:'end'()
-    end,
-    gl:color3f(0, 0, 0).
-
+    end.
 
 load_textures(Bin) ->
     case catch binary_to_term(Bin) of
 	{'EXIT',_} -> [];
 	Icons0 ->
-	    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-	    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+	    gl:pushAttrib(?GL_TEXTURE_BIT),
 	    Icons = create_buttons(Icons0),
 	    TxIds = gl:genTextures(length(Icons)),
 	    Tex = create_textures(Icons, TxIds),

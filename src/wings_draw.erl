@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.96 2002/11/21 08:47:24 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.97 2002/12/14 07:49:56 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -406,7 +406,7 @@ mat_faces([], Faces0) ->
     sofs:to_external(Faces).
 
 draw_uv_faces([{Mat,Faces}|T], We, Mtab) ->
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:pushAttrib(?GL_TEXTURE_BIT),
     wings_material:apply_material(Mat, Mtab),
     wings_draw_util:begin_end(
       fun() ->
@@ -422,7 +422,7 @@ draw_attr_faces([{Face,#face{edge=Edge}}|Fs], We) ->
 draw_attr_faces([], _We) -> ok.
 
 draw_mat_faces([{Mat,Ftab}|T], We, Mtab) ->
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:pushAttrib(?GL_TEXTURE_BIT),
     wings_material:apply_material(Mat, Mtab),
     wings_draw_util:begin_end(
       fun() ->
@@ -512,7 +512,7 @@ draw_smooth_1([{M,Faces}|T], Mtab, Flag, N) ->
 draw_smooth_1([], _, _, N) -> N.
 
 draw_smooth_2(Mat, Faces, Mtab) ->
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:pushAttrib(?GL_TEXTURE_BIT),
     wings_material:apply_material(Mat, Mtab),
     Tess = wings_draw_util:tess(),
     wings_draw_util:begin_end(

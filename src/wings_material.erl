@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.64 2002/12/08 17:41:03 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.65 2002/12/14 07:49:56 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -433,8 +433,7 @@ init_texture(Name, Mat) ->
 				     W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Bits);
 		none ->
 		    [TxId] = gl:genTextures(1),
-		    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-		    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+		    gl:pushAttrib(?GL_TEXTURE_BIT),
 		    gl:enable(?GL_TEXTURE_2D),
 		    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
 		    gl:bindTexture(?GL_TEXTURE_2D, TxId),

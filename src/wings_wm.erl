@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.33 2002/12/11 10:47:32 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.34 2002/12/14 07:49:56 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -258,6 +258,7 @@ dispatch_event(#resize{w=W0,h=H0}=Event) ->
     put_window_data(top, Win1),
     set_video_mode(W, H),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
     wings_io:resize(),
 
     {R,G,B} = wings_pref:get_value(background_color),
