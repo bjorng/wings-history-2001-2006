@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.44 2003/10/11 09:29:30 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.45 2003/11/20 20:35:22 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -54,7 +54,7 @@ init() -> true.
 menu({tools}, Menu0) ->
     Menu0 ++ [separator,
 	      {"Tweak", tweak,
-	       "Mode for quickly changing vertex positions"}
+	       "Mode for quickly moving single elements"}
 	     ];
 menu(_, Menu) -> Menu.
 
@@ -302,10 +302,10 @@ screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
     glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
 
 help(#tweak{magnet=false}) ->
-    M0 = wings_util:button_format("Drag vertices freely", [],
-				  "Exit tweak mode"),
-    M1 = wings_camera:help(),
-    Msg = wings_util:join_msg(M0, M1),
+    Msg1 = wings_util:button_format("Drag element freely"),
+    Msg2 = wings_camera:help(),
+    Msg3 = wings_util:button_format([], [], "Exit tweak mode"),
+    Msg = wings_util:join_msg([Msg1,Msg2,Msg3]),
     wings_wm:message(Msg, "[1] Magnet On");
 help(#tweak{magnet=true,mag_type=Type}) ->
     Msg = wings_util:button_format("Drag", [], "Exit"),
