@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.25 2003/07/23 17:38:38 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.26 2003/07/28 05:19:16 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -91,9 +91,9 @@ adv_scale(_) ->
     adv_scale_1([magnet]).
 
 adv_scale_1(Flags) ->
-    [{"Scale",{scale,fun uniform_scale/2},[],Flags},
-     {"Axis Scale",{scale,fun(B, Ns) -> scale(B, Ns, []) end},[],Flags},
-     {"Radial Scale",{scale,fun(B, Ns) -> scale(B, Ns, [radial]) end},[],Flags}].
+    [{"Scale Uniform",{scale,fun uniform_scale/2},[],Flags},
+     {"Scale Axis",{scale,fun(B, Ns) -> scale(B, Ns, []) end},[],Flags},
+     {"Scale Radial",{scale,fun(B, Ns) -> scale(B, Ns, [radial]) end},[],Flags}].
 
 uniform_scale(help, _) ->
      {"Scale uniformly from midpoint of selection",[],
