@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.84 2002/05/16 07:08:54 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.85 2002/05/16 08:30:46 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -23,6 +23,7 @@
 -import(lists, [foreach/2,map/2,foldl/3,sort/1,keysort/2,
 		reverse/1,reverse/2,concat/1,member/2]).
 
+%% Main drag record. Kept in state.
 -record(drag,
 	{x,					%Original 2D position
 	 y,					
@@ -38,9 +39,11 @@
 	 st					%Saved st record.
 	}).
 
--record(dlist,					%Display list.
-	{faces,
-	 edges}).
+%% Drag per object.
+-record(do,
+	{funs,					%List of transformation funs.
+	 split}					%Split data.
+	).
 
 setup(Tvs, Unit, St) ->
     setup(Tvs, Unit, [], St).
@@ -82,21 +85,22 @@ break_apart(Tvs, St) ->
 				break_apart(D, Data, St)
 			end, Tvs).
 
-break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList}|Tvs], St) ->
+break_apart(#dlo{src_we=#we{id=Id}=We}=D0, [{Id,TvList0}|Tvs], St) ->
+    TvList = mirror_constrain(TvList0, We),
     {Vs,FunList} = combine_tvs(TvList, We),
     {D,SplitData} = wings_draw:split(D0, Vs, St),
-    {D#dlo{drag={FunList,SplitData}},Tvs};
+    Do = #do{funs=FunList,split=SplitData},
+    {D#dlo{drag=Do},Tvs};
 break_apart(D, Tvs, _) -> {D,Tvs}.
 
-combine_tvs(TvList, #we{vs=Vtab}=We) ->
+combine_tvs(TvList, #we{vs=Vtab}) ->
     {FunList,VecVs0} = split_tv(TvList, [], []),
-    VecVs1 = mirror_constrain(VecVs0, We),
-    SS = sofs:from_term(VecVs1, [{vec,[vertex]}]),
+    SS = sofs:from_term(VecVs0, [{vec,[vertex]}]),
     FF = sofs:relation_to_family(SS),
     FU = sofs:family_union(FF),
-    VecVs2 = sofs:to_external(FU),
+    VecVs1 = sofs:to_external(FU),
     Affected = foldl(fun({_,Vs}, A) -> Vs++A end, [], VecVs1),
-    case insert_vtx_data(VecVs2, Vtab, []) of
+    case insert_vtx_data(VecVs1, Vtab, []) of
 	[] -> combine_tv_1(FunList, Affected, []);
 	VecVs -> combine_tv_1(FunList, Affected, [translate_fun(VecVs)])
     end.
@@ -129,25 +133,61 @@ insert_vtx_data_1([V|Vs], Vtab, Acc) ->
     insert_vtx_data_1(Vs, Vtab, [{V,gb_trees:get(V, Vtab)}|Acc]);
 insert_vtx_data_1([], _Vtab, Acc) -> Acc.
 
-mirror_constrain([], _) -> [];
-mirror_constrain(VecVs, #we{mirror=none}) -> VecVs;
-mirror_constrain(VecVs0, #we{mirror=Face}=We) ->
-    Vs = wings_face:surrounding_vertices(Face, We),
-    VsSet = gb_sets:from_list(Vs),
+mirror_constrain(Tvs, #we{mirror=none}) -> Tvs;
+mirror_constrain(Tvs, #we{mirror=Face}=We) ->
+    [V|_] = Vs = wings_face:surrounding_vertices(Face, We),
+    VsSet = ordsets:from_list(Vs),
     N = wings_face:face_normal(Vs, We),
+    Vpos = wings_vertex:pos(V, We),
+    mirror_constrain_1(Tvs, VsSet, {N,Vpos}, []).
+
+mirror_constrain_1([{Vs,Tr0}=Fun|Tvs], VsSet, N, Acc) when is_function(Tr0) ->
+    case ordsets:intersection(Vs, VsSet) of
+	[] ->
+	    mirror_constrain_1(Tvs, VsSet, N, [Fun|Acc]);
+	[_|_]=Mvs ->
+	    Tr = constrain_fun(Tr0, N, Mvs),
+	    mirror_constrain_1(Tvs, VsSet, N, [{Vs,Tr}|Acc])
+    end;
+mirror_constrain_1([VecVs0|Tvs], VsSet, N, Acc) ->
     VecVs1 = sofs:from_external(VecVs0, [{vec,[vertex]}]),
     VecVs2 = sofs:family_to_relation(VecVs1),
-    VecVs = sofs:to_external(VecVs2),
-    mirror_constrain_1(VecVs, N, VsSet, []).
+    VecVs3 = sofs:to_external(VecVs2),
+    VecVs = mirror_constrain_2(VecVs3, VsSet, N, []),
+    mirror_constrain_1(Tvs, VsSet, N, [VecVs|Acc]);
+mirror_constrain_1([], _, _, Acc) -> Acc.
 
-mirror_constrain_1([{Vec0,V}|T], N, VsSet, Acc) ->
-    case gb_sets:is_member(V, VsSet) of
-	false -> mirror_constrain_1(T, N, VsSet, [{Vec0,[V]}|Acc]);
+mirror_constrain_2([{Vec0,V}|T], VsSet, {N,_}=Plane, Acc) ->
+    case member(V, VsSet) of
+	false ->
+	    mirror_constrain_2(T, VsSet, Plane, [{Vec0,[V]}|Acc]);
 	true ->
 	    Vec = wings_util:project_vector(Vec0, N),
-	    mirror_constrain_1(T, N, VsSet, [{Vec,[V]}|Acc])
+	    mirror_constrain_2(T, VsSet, Plane, [{Vec,[V]}|Acc])
     end;
-mirror_constrain_1([], _, _, Acc) -> Acc.
+mirror_constrain_2([], _, _, Acc) -> Acc.
+
+constrain_fun(Tr0, Plane, Vs) ->
+    fun(Cmd, Arg) ->
+	    case Tr0(Cmd, Arg) of
+		Tr when is_function(Tr) ->
+		    constrain_fun(Tr, Plane, Vs);
+		List ->
+		    constrain_vs(List, Vs, Plane, [])
+	    end
+    end.
+
+constrain_vs([{V,#vtx{pos=Pos0}=Vtx}=H|T], Vs, {N,Point}=Plane, Acc) ->
+    case member(V, Vs) of
+	false -> constrain_vs(T, Vs, Plane, [H|Acc]);
+	true ->
+	    ToPoint = e3d_vec:sub(Point, Pos0),
+	    Dot = e3d_vec:dot(ToPoint, N),
+	    ToPlane = e3d_vec:mul(N, Dot),
+	    Pos = e3d_vec:add(Pos0, ToPlane),
+	    constrain_vs(T, Vs, Plane, [{V,Vtx#vtx{pos=Pos}}|Acc])
+    end;
+constrain_vs([], _, _, Acc) -> Acc.
 
 insert_matrix(Tvs) ->
     Id = e3d_mat:identity(),
@@ -321,9 +361,9 @@ view_changed(#drag{flags=Flags}=Drag0) ->
 
 view_changed_fun(#dlo{work={matrix,Mtx,_},drag={matrix,Tr,_}}=D, _) ->
     {D#dlo{drag={matrix,Tr,e3d_mat:compress(Mtx)}},[]};
-view_changed_fun(#dlo{drag={Tv0,SplitData},src_we=We}=D, _) ->
+view_changed_fun(#dlo{drag=#do{funs=Tv0}=Do,src_we=We}=D, _) ->
     Tv = update_tvs(Tv0, We, []),
-    {D#dlo{drag={Tv,SplitData}},[]};
+    {D#dlo{drag=Do#do{funs=Tv}},[]};
 view_changed_fun(D, _) -> {D,[]}.
 
 update_tvs([F0|Fs], NewWe, Acc) ->
@@ -411,7 +451,7 @@ motion_update_fun(#dlo{work={matrix,_,Work},sel={matrix,_,Sel},
 		       drag={matrix,Trans,Matrix0}}=D, Move) ->
     Matrix = e3d_mat:expand(Trans(Matrix0, Move)),
     D#dlo{work={matrix,Matrix,Work},sel={matrix,Matrix,Sel}};
-motion_update_fun(#dlo{drag={Tv,SplitData}}=D, Move) ->
+motion_update_fun(#dlo{drag=#do{funs=Tv,split=SplitData}}=D, Move) ->
     Vtab = foldl(fun(F, A) -> F(Move, A) end, [], Tv),
     wings_draw:update_dynamic(D, SplitData, Vtab);
 motion_update_fun(D, _) -> D.
@@ -424,9 +464,9 @@ parameter_update(Key, Val, Drag0) ->
     {Drag,_} = motion(X, Y, Drag0),
     Drag.
 
-parameter_update_fun(#dlo{drag={Tv0,SplitData}}=D, Key, Val) ->
+parameter_update_fun(#dlo{drag=#do{funs=Tv0}=Do}=D, Key, Val) ->
     Tv = foldl(fun(F, A) -> [F(Key, Val)|A] end, [], Tv0),
-    D#dlo{drag={Tv,SplitData}};
+    D#dlo{drag=Do#do{funs=Tv}};
 parameter_update_fun(D, _, _) -> D.
 
 translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
