@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.58 2004/11/13 04:39:26 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.59 2004/12/17 06:05:36 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -43,41 +43,46 @@
 	}).
 
 light_types() ->
-    [{?STR(light_types,1,"Infinite"),infinite,?STR(light_types,2,"Create a far-away, directional light (like the sun)")},
-     {?STR(light_types,3,"Point"),point,?STR(light_types,4,"Create a light that radiates light in every direction")},
-     {?STR(light_types,5,"Spot"),spot,?STR(light_types,6,"Create a spotlight")},
-     {?STR(light_types,7,"Ambient"),ambient,?STR(light_types,8,"Create an ambient light source")},
-     {?STR(light_types,9,"Area"),area,?STR(light_types,10,"Create an area that radiates light")}].
+    [{?__(1,"Infinite"),infinite,
+      ?__(2,"Create a far-away, directional light (like the sun)")},
+     {?__(3,"Point"),point,
+      ?__(4,"Create a light that radiates light in every direction")},
+     {?__(5,"Spot"),spot,
+      ?__(6,"Create a spotlight")},
+     {?__(7,"Ambient"),ambient,
+      ?__(8,"Create an ambient light source")},
+     {?__(9,"Area"),area,
+      ?__(10,"Create an area that radiates light")}].
 
 menu(X, Y, St) ->
     SpotOnly = {iff,[spot]},
     NotAmb = {iff,[spot,infinite,point,area]},
     One = one_light,
     Dir = wings_menu_util:directions(St#st{selmode=body}),
-    Menu0 = [{basic,{?STR(menu,1,"Light operations"),ignore}},
+    Menu0 = [{basic,{?__(1,"Light operations"),ignore}},
 	     {basic,separator},
-	     {?STR(menu,2,"Move"),{move_light,Dir}},
+	     {?__(2,"Move"),{move_light,Dir}},
 	     {NotAmb,separator},
-	     {NotAmb,{?STR(menu,3,"Position Highlight"),
+	     {NotAmb,{?__(3,"Position Highlight"),
 		      {'VALUE',{position_highlight,{'ASK',{[point],[]}}}},
-		      ?STR(menu,4,"Position the aim point or location of light")}},
-	     {NotAmb,{?STR(menu,5,"Color"),color,
-		      ?STR(menu,6,"Interactively adjust hue, value, and saturation")}},
+		      ?__(4,"Position the aim point or location of light")}},
+	     {NotAmb,{?__(5,"Color"),color,
+		      ?__(6,"Interactively adjust hue, value, and saturation")}},
 	     {NotAmb,
-	      {?STR(menu,7,"Attenuation"),
+	      {?__(7,"Attenuation"),
 	       {attenuation,
-		[{?STR(menu,8,"Linear"),linear,
-		  ?STR(menu,9,"Interactively adjust how much light weakens as it travels away from its source (linear factor)")},
-		 {?STR(menu,10,"Quadratic"),quadratic,
-		  ?STR(menu,11,"Interactively adjust how much light weakens as it travels away from its source (quadratic factor)")}]}}},
+		[{?__(8,"Linear"),linear,
+		  ?__(9,"Interactively adjust how much light weakens as it travels away from its source (linear factor)")},
+		 {?__(10,"Quadratic"),quadratic,
+		  ?__(11,"Interactively adjust how much light weakens as it travels away from its source (quadratic factor)")}]}}},
 	     {SpotOnly,separator},
-	     {SpotOnly,{?STR(menu,12,"Spot Angle"),spot_angle,
-			?STR(menu,13,"Interactivly adjust the angle of the spotlight cone")}},
-	     {SpotOnly,{?STR(menu,14,"Spot Falloff"),spot_falloff,
-			?STR(menu,15,"Interactivly adjust how much light weakens farther away from the center of the spotlight cone")}},
+	     {SpotOnly,{?__(12,"Spot Angle"),spot_angle,
+			?__(13,"Interactivly adjust the angle of the spotlight cone")}},
+	     {SpotOnly,{?__(14,"Spot Falloff"),spot_falloff,
+			?__(15,"Interactivly adjust how much light weakens farther away from the center of the spotlight cone")}},
 	     {One,separator},
-	     {One,{?STR(menu,16,"Edit Properties..."),edit,
-		   ?STR(menu,17,"Edit light properties")}}|body_menu(Dir, St)],
+	     {One,{?__(16,"Edit Properties..."),edit,
+		   ?__(17,"Edit light properties")}}|body_menu(Dir, St)],
     Menu = filter_menu(Menu0, St),
     wings_menu:popup_menu(X, Y, light, Menu).
 
@@ -136,23 +141,23 @@ is_any_light_selected([{Id,_}|Sel], Shs) ->
 is_any_light_selected([], _) -> false.
 
 info(#we{name=Name,light=#light{type=Type}=L}=We) ->
-    Info0 = io_lib:format(?STR(info,1,"Light ~s"), [Name]),
+    Info0 = io_lib:format(?__(1,"Light ~s"), [Name]),
     case Type of
 	ambient -> Info0;
 	_ ->
 	    {X,Y,Z} = Pos = light_pos(We),
-	    Info = [Info0|io_lib:format(?STR(info,2,": Pos ~s ~s ~s"),
+	    Info = [Info0|io_lib:format(?__(2,": Pos ~s ~s ~s"),
 					[wings_util:nice_float(X),
 					 wings_util:nice_float(Y),
 					 wings_util:nice_float(Z)])],
-	    [Info|info1(Type, Pos, L)]
+	    [Info|info_1(Type, Pos, L)]
     end.
 
-info1(point, _, _) -> [];
-info1(Type, Pos, #light{aim=Aim,spot_angle=A}) ->
+info_1(point, _, _) -> [];
+info_1(Type, Pos, #light{aim=Aim,spot_angle=A}) ->
     {Ax,Ay,Az} = Aim,
     {Dx,Dy,Dz} = e3d_vec:norm_sub(Aim, Pos),
-    Info = io_lib:format(?STR(info_1,1,". Aim ~s ~s ~s. Dir ~s ~s ~s"),
+    Info = io_lib:format(?__(1,". Aim ~s ~s ~s. Dir ~s ~s ~s"),
 			 [wings_util:nice_float(Ax),
 			  wings_util:nice_float(Ay),
 			  wings_util:nice_float(Az),
@@ -160,7 +165,7 @@ info1(Type, Pos, #light{aim=Aim,spot_angle=A}) ->
 			  wings_util:nice_float(Dy),
 			  wings_util:nice_float(Dz)]),
     [Info|case Type of
-	      spot -> io_lib:format(?STR(info_1,2,". Angle ~s~c"),
+	      spot -> io_lib:format(?__(2,". Angle ~s~c"),
 				    [wings_util:nice_float(A),?DEGREE]);
 	      _ -> []
 	  end].
@@ -185,7 +190,7 @@ color(St) ->
 		     Flags = [{initial,[H,V,S]}],
 		     {Tvs,Units,Flags};
 		(_, We, _) when ?IS_LIGHT(We) ->
-		     wings_util:error(?STR(color,1,"Select only one light."));
+		     wings_util:error(?__(1,"Select only one light."));
 		(_, _, A) -> A
 	     end, none, St),
     case Drag of
@@ -236,7 +241,7 @@ spot_angle(St) ->
 	    Flags = [{initial,[SpotAngle]}],
 	    wings_drag:setup(Tvs, Units, Flags, St);
 	{_,_} ->
-	    wings_util:error(?STR(spot_angle,1,"Not a spotlight."))
+	    wings_util:error(?__(1,"Not a spotlight."))
     end.
 
 spot_falloff(St) ->
@@ -249,7 +254,7 @@ spot_falloff(St) ->
 	    Flags = [{initial,[SpotExp]}],
 	    wings_drag:setup(Tvs, Units, Flags, St);
 	{_,_} ->
-	    wings_util:error(?STR(spot_falloff,1,"Not a spotlight."))
+	    wings_util:error(?__(1,"Not a spotlight."))
     end.
 
 attenuation(Type, St) ->
@@ -262,8 +267,7 @@ attenuation(Type, St) ->
 	    Flags = [{initial,[Initial]}],
 	    wings_drag:setup(Tvs, Units, Flags, St);
 	{_,_} ->
-	    wings_util:error(?STR(attenuation,1,
-				  "Not a point light or spotlight."))
+	    wings_util:error(?__(1,"Not a point light or spotlight."))
     end.
 
 att_initial(linear, #light{lin_att=LinAtt}) -> LinAtt;
@@ -279,7 +283,8 @@ selected_light(St) ->
     wings_sel:fold(fun(_, #we{id=Id,light=L}=We, none) when ?IS_LIGHT(We) ->
 			   {Id,L};
 		      (_, We, _) when ?IS_LIGHT(We) ->
-			   wings_util:error(?STR(selected_light,1,"Select only one light."));
+			   wings_util:error(?__(1,
+						"Select only one light."));
 		      (_, _, A) -> A
 		   end, none, St).
 
@@ -298,7 +303,7 @@ adjust_fun_1(AdjFun, Ds, #dlo{src_we=#we{light=L0}=We0}=D) ->
 %%
 edit(#st{sel=[{Id,_}]}=St) ->
     edit(Id, St);
-edit(_) -> wings_util:error(?STR(edit,1,"Select only one light.")).
+edit(_) -> wings_util:error(?__(1,"Select only one light.")).
 
 edit(Id, #st{shapes=Shs}=St) ->
     We = #we{light=#light{type=Type}} = gb_trees:get(Id, Shs),
@@ -306,21 +311,22 @@ edit(Id, #st{shapes=Shs}=St) ->
     case Type of
 	ambient ->
 	    {dialog,Qs,Fun} = edit_ambient_dialog(Name, Prop, We, Shs, St),
-	    wings_ask:dialog(?STR(edit,2,"Ambient Light Properties"), Qs, Fun);
+	    wings_ask:dialog(?__(2,"Ambient Light Properties"), Qs, Fun);
 	_ ->
 	    {dialog,Qs,Fun} = edit_dialog(Name, Prop, We, Shs, St),
-	    wings_ask:dialog(?STR(edit,3,"Light Properties"), Qs, Fun)
+	    wings_ask:dialog(?__(3,"Light Properties"), Qs, Fun)
     end.
 
 edit_ambient_dialog(Name, Prop0, 
 		    We0=#we{id=Id,light=#light{ambient=Amb0}=L0}, Shs, St) ->
     Qs0 = [{hframe,
-	    [{vframe,[{label,?STR(edit_ambient_dialog,1,"Ambient")}]},
+	    [{vframe,[{label,?__(1,"Ambient")}]},
 	     {vframe,[{color,Amb0}]}],
-	    [{title,?STR(edit_ambient_dialog,2,"Color")}]}|qs_specific(L0)],
+	    [{title,?__(2,"Color")}]}|qs_specific(L0)],
     Qs1 = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
     Qs = {hframe,[{vframe,Qs1},
-		  {vframe,[{button,?STR(edit_ambient_dialog,3,"OK"),done,[ok,{key,light_editor_ok}]},
+		  {vframe,[{button,?__(3,"OK"),done,
+			    [ok,{key,light_editor_ok}]},
 			   {button,wings_s:cancel(),cancel,[cancel]}]}]},
     Fun = fun([Amb|Res]) ->
 		  case plugin_results(Name, Prop0, Res) of
@@ -338,17 +344,17 @@ edit_dialog(Name, Prop0, #we{id=Id,light=L0}=We0, Shs, St) ->
     #light{diffuse=Diff0,ambient=Amb0,specular=Spec0} = L0,
     Qs0 = [{hframe,
 	    [{vframe,
-	      [{label,?STR(edit_dialog,1,"Diffuse")},
-	       {label,?STR(edit_dialog,2,"Ambient")},
-	       {label,?STR(edit_dialog,3,"Specular")}]},
+	      [{label,?__(1,"Diffuse")},
+	       {label,?__(2,"Ambient")},
+	       {label,?__(3,"Specular")}]},
 	     {vframe,
 	      [{color,Diff0},
 	       {color,Amb0},
 	       {color,Spec0}]}],
-	    [{title,?STR(edit_dialog,4,"Colors")}]}|qs_specific(L0)],
+	    [{title,?__(4,"Colors")}]}|qs_specific(L0)],
     Qs1 = wings_plugin:dialog({light_editor_setup,Name,Prop0}, Qs0),
     Qs = {hframe,[{vframe,Qs1},
-		  {vframe,[{button,?STR(edit_dialog,5,"OK"),done,[ok,{key,light_editor_ok}]},
+		  {vframe,[{button,?__(5,"OK"),done,[ok,{key,light_editor_ok}]},
 			   {button,wings_s:cancel(),cancel,[cancel]}]}]},
     Fun = fun([Diff,Amb,Spec|More0]) ->
 		  L1 = L0#light{diffuse=Diff,ambient=Amb,specular=Spec},
@@ -369,28 +375,29 @@ plugin_results(Name, Prop0, Res0) ->
 	{Prop,[{light_editor_ok,false}]} ->
 	    {again,Prop};
 	{_,Res} ->
-	  io:format(?STR(plugin_results,1,"Light editor plugin(s) left garbage:~n    ~P~n"), 
-		      [Res,20]),
-	  wings_util:error(?STR(plugin_results,2,"Plugin(s) left garbage"))
+	  io:format(?__(1,
+			"Light editor plugin(s) left garbage:~n    ~P~n"), 
+		    [Res,20]),
+	    wings_util:error(?__(2,"Plugin(s) left garbage"))
     end.
 
 qs_specific(#light{type=spot,spot_angle=Angle,spot_exp=SpotExp}=L) ->
-    Spot = [{vframe,[{label,?STR(qs_specific,1,"Angle")},
+    Spot = [{vframe,[{label,?__(1,"Angle")},
 		     {slider,{text,Angle,[{range,{0.0,89.9}}]}},
-		     {label,?STR(qs_specific,2,"Falloff")},
+		     {label,?__(2,"Falloff")},
 		     {slider,{text,SpotExp,[{range,{0.0,128.0}}]}}],
-	     [{title,?STR(qs_specific,3,"Spot Parameters")}]}],
+	     [{title,?__(3,"Spot Parameters")}]}],
     qs_att(L, Spot);
 qs_specific(#light{type=point}=L) -> qs_att(L, []);
 qs_specific(#light{type=area}=L) -> qs_att(L, []);
 qs_specific(_) -> [].
 
 qs_att(#light{lin_att=Lin,quad_att=Quad}, Tail) ->
-    [{vframe,[{label,?STR(qs_att,1,"Linear")},
+    [{vframe,[{label,?__(1,"Linear")},
 	      {slider,{text,Lin,[{range,{0.0,1.0}}]}},
-	      {label,?STR(qs_att,2,"Quadratic")},
+	      {label,?__(2,"Quadratic")},
 	      {slider,{text,Quad,[{range,{0.0,0.5}}]}}],
-      [{title,?STR(qs_att,3,"Attenuation")}]}|Tail].
+      [{title,?__(3,"Attenuation")}]}|Tail].
     
 edit_specific([LinAtt,QuadAtt,Angle,SpotExp|More], #light{type=spot}=L) ->
     {L#light{spot_angle=Angle,spot_exp=SpotExp,lin_att=LinAtt,quad_att=QuadAtt},More};
@@ -557,13 +564,13 @@ export(#st{shapes=Shs}) ->
     reverse(L).
 
 export_camera_lights() ->
-    Amb = {?STR(export_camera_lights,1,"Ambient"), camera_ambient()},
+    Amb = {?__(1,"Ambient"), camera_ambient()},
     Ls = case wings_pref:get_value(number_of_lights) of
 	     1 ->
-		 [{?STR(export_camera_lights,2,"Infinite"),camera_infinite_1_0()}];
+		 [{?__(2,"Infinite"),camera_infinite_1_0()}];
 	     2 ->
-		 [{?STR(export_camera_lights,3,"Infinite1"),camera_infinite_2_0()},
-		  {?STR(export_camera_lights,4,"Infinite2"),camera_infinite_2_1()}]
+		 [{?__(3,"Infinite1"),camera_infinite_2_0()},
+		  {?__(4,"Infinite2"),camera_infinite_2_1()}]
 	 end,
     #view{origin=Aim} = wings_view:current(),
     CameraPos = wings_view:eye_point(),
@@ -610,6 +617,8 @@ get_light_1(#we{light=L}=We) ->
 	     end,
     [{opengl,OpenGL}|Prop].
 
+export_perm([], Ps) ->
+    [{visible,false},{locked,false}|Ps];
 export_perm({_,_}, Ps) ->
     [{visible,false},{locked,false}|Ps];
 export_perm(P, Ps) when is_integer(P) ->
