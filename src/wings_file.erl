@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.54 2002/03/04 14:40:21 dgud Exp $
+%%     $Id: wings_file.erl,v 1.55 2002/03/04 14:56:27 dgud Exp $
 %%
 
 -module(wings_file).
@@ -132,7 +132,7 @@ new(St0) -> %% File is not saved or autosaved.
     wings:caption(St0#st{saved=false}), 
     case wings_util:yes_no("Do you want to save your changes?") of
 	no -> %% Remove autosaved file, user has explicitly said so.
-	    file:delete(autosave_filename(St0#st.file)),
+	    catch file:delete(autosave_filename(St0#st.file)),
 	    new(St0#st{saved=true});
 	yes ->
 	    case save(St0) of
