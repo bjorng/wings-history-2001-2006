@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_6x11.erl,v 1.7 2003/10/11 09:29:31 bjorng Exp $
+%%     $Id: wpf_6x11.erl,v 1.8 2003/12/27 08:39:35 bjorng Exp $
 %%
 
 -module(wpf_6x11).
@@ -20,7 +20,10 @@ desc() ->
 width(S) ->
     len(S, 0).
 
+len([folder|Cs], L) -> len(Cs, L+12);
 len([option|Cs], L) -> len(Cs, L+12);
+len([shift|Cs], L) -> len(Cs, L+14);
+len([space2|Cs], L) -> len(Cs, L+12);
 len([32|Cs], L) -> len(Cs, L+4);
 len([160|Cs], L) -> len(Cs, L+3);
 len([_|Cs], L) -> len(Cs, L+6);
@@ -42,7 +45,7 @@ char(option_box) ->
 	        2#10000100,
 	        2#11111100,
 	        2#11111100>>);
-		       
+
 char(command) ->
     B = <<
        	 2#01000100,
@@ -119,6 +122,23 @@ char(axisy) ->
 char(axisz) ->
     B = <<16#7f,16#60,16#70,16#38,16#1c,16#0e,16#07,16#03,16#7f>>,
     gl:bitmap(8, 9, -1.0, 0.0, 8.0, 0.0, B);
+
+char(folder) ->
+    B = <<
+       	 2#0111111111000000:16,
+	 2#0100000001000000:16,
+	 2#0100000001000000:16,
+       	 2#0100000001000000:16,
+	 2#0100000001000000:16,
+	 2#0111111111000000:16,
+       	 2#0010001000000000:16,
+       	 2#0001110000000000:16,
+       	 2#0000000000000000:16>>,
+    gl:bitmap(11, 9, -1, 0, 12, 0, B);
+
+char(space2) ->
+    B = <<>>,
+    gl:bitmap(0, 0, 0, 0, 12, 0, B);
 
 char(C) ->
     char2(C).

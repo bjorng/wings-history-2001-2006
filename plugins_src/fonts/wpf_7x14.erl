@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_7x14.erl,v 1.8 2003/10/11 09:29:31 bjorng Exp $
+%%     $Id: wpf_7x14.erl,v 1.9 2003/12/27 08:39:35 bjorng Exp $
 %%
 
 -module(wpf_7x14).
@@ -20,7 +20,10 @@ desc() ->
 width(S) ->
     len(S, 0).
 
+len([folder|Cs], L) -> len(Cs, L+14);
 len([option|Cs], L) -> len(Cs, L+14);
+len([shift|Cs], L) -> len(Cs, L+14);
+len([space2|Cs], L) -> len(Cs, L+14);
 len([32|Cs], L) -> len(Cs, L+5);
 len([160|Cs], L) -> len(Cs, L+3);
 len([_|Cs], L) -> len(Cs, L+7);
@@ -28,7 +31,7 @@ len([], L) -> L.
 
 width() -> 7.
 height() -> 14.
-    
+
 draw([C|T]) -> char(C), draw(T);
 draw([]) -> ok.
 
@@ -125,6 +128,24 @@ char(axisy) ->
 char(axisz) ->
     B = <<16#7f,16#60,16#70,16#38,16#1c,16#0e,16#07,16#03,16#7f>>,
     gl:bitmap(8, 9, -1.0, 0.0, 8.0, 0.0, B);
+
+char(folder) ->
+    B = <<
+       	 2#0111111111110000:16,
+	 2#0100000000010000:16,
+	 2#0100000000010000:16,
+	 2#0100000000010000:16,
+       	 2#0100000000010000:16,
+	 2#0100000000010000:16,
+	 2#0111111111110000:16,
+       	 2#0010000100000000:16,
+       	 2#0001111000000000:16,
+       	 2#0000000000000000:16>>,
+    gl:bitmap(13, 10, -1, 0, 14, 0, B);
+
+char(space2) ->
+    B = <<>>,
+    gl:bitmap(0, 0, 0, 0, 14, 0, B);
 
 char(32) ->
  B = <<>>,
