@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.104 2004/11/13 04:39:26 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.105 2004/11/16 12:19:21 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -693,8 +693,11 @@ dissolve_edge(Edge, We) ->
 dissolve_edges(Edges0, We0) when is_list(Edges0) ->
     #we{es=Etab} = We = foldl(fun internal_dissolve_edge/2, We0, Edges0),
     case [E || E <- Edges0, gb_trees:is_defined(E, Etab)] of
-	Edges0 -> wings_we:vertex_gc(We);
-	Edges -> dissolve_edges(Edges, We)
+	Edges0 ->
+	    %% No edge was deleted in the last pass. We are done.
+	    wings_util:validate_mirror(wings_we:vertex_gc(We));
+	Edges ->
+	    dissolve_edges(Edges, We)
     end;
 dissolve_edges(Edges, We) ->
     dissolve_edges(gb_sets:to_list(Edges), We).
@@ -710,11 +713,10 @@ internal_dissolve_edge(Edge, #we{es=Etab}=We0) ->
 	{value,#edge{rtsu=Forward,ltpr=Forward}=Rec} ->
 	    merge_edges(forward, Edge, Rec, We0);
 	{value,Rec} ->
-	    case catch dissolve_edge_1(Edge, Rec, We0) of
-		{'EXIT',Reason} -> exit(Reason);
-		{command_error,_}=Error -> throw(Error);
-		hole -> We0;
+	    try dissolve_edge_1(Edge, Rec, We0) of
 		We -> We
+	    catch
+		throw:hole -> We0
 	    end
     end.
 
@@ -786,7 +788,7 @@ dissolve_isolated_vs([_|_]=Vs, We) ->
 dissolve_isolated_vs([], We) -> We.
 
 %% Since the dissolve operation will not keep the incident
-%% edge table for vertices updates, we'll need to lookup
+%% edge table for vertices updated, we'll need to lookup
 %% all incident edges now before we have started to dissolve.
 dissolve_isolated_vs_1([V|Vs], #we{vc=Vct}=We, Acc) ->
     case gb_trees:lookup(V, Vct) of
@@ -1292,4 +1294,3 @@ patch_edge(Edge, ToEdge, Face, OrigEdge, Etab) ->
 		  R#edge{rtpr=ToEdge}
 	  end,
     gb_trees:update(Edge, New, Etab).
-
