@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.102 2003/05/20 04:45:16 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.103 2003/05/22 19:53:03 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -397,7 +397,7 @@ get_sdl_event(#io{eq=Eq0}=Io) ->
     {Event,Io#io{eq=Eq}}.
 
 read_events(Eq0) ->
-    case sdl_events:peepEvents(16, ?SDL_GETEVENT, ?SDL_ALLEVENTS) of
+    case sdl_events:peepEvents() of
 	[] -> read_out(Eq0);
 	[_|_]=Evs -> read_events(enter_events(Evs, Eq0))
     end.
@@ -469,7 +469,7 @@ do_grab(0) ->
 	    ignore;  %% GRAB doesn't work good enough on Darwin
 	_ ->
 	    %% Good for Linux to read out any mouse events here.
-	    sdl_events:peepEvents(1, ?SDL_GETEVENT, ?SDL_ALLEVENTS),
+	    sdl_events:peepEvents(1, ?SDL_MOUSEMOTIONMASK),
 	    sdl_video:wm_grabInput(?SDL_GRAB_ON)
     end;
 do_grab(_N) -> ok.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.27 2003/04/21 10:16:55 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.28 2003/05/22 19:53:01 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -385,10 +385,9 @@ capture(N, Type) ->
     gl:readBuffer(?GL_BACK),
     {X,Y,W,H} = wings_wm:viewport(),
     NumBytes = N*W*H,
-    Mem = sdl_util:malloc(NumBytes, ?GL_UNSIGNED_BYTE),
+    Mem = sdl_util:alloc(NumBytes, ?GL_UNSIGNED_BYTE),
     gl:readPixels(X, Y, W, H, Type, ?GL_UNSIGNED_BYTE, Mem),
-    Pixels = sdl_util:readBin(Mem, NumBytes),
-    sdl_util:free(Mem),
+    Pixels = sdl_util:getBin(Mem),
     #e3d_image{bytes_pp=N,order=lower_left,width=W,height=H,image=Pixels}.
 
 combine_images(#e3d_image{image=Pixels0}=Image, #e3d_image{image=Mask}) ->
