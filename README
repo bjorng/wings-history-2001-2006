@@ -1,5 +1,10 @@
-Building and running Wings 3D on Unix
--------------------------------------
+Wings on the net
+----------------
+
+http://www.wings3d.com
+
+Building and running Wings 3D on Unix (including Mac OS X)
+----------------------------------------------------------
 
 1) Set the environment variable ESDL_PATH to the root of your ESDL installation.
 
