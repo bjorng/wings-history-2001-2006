@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_toxic.erl,v 1.15 2004/07/01 09:22:27 bjorng Exp $
+%%     $Id: wpc_toxic.erl,v 1.16 2005/03/17 10:49:13 dgud Exp $
 %%
 
 -module(wpc_toxic).
@@ -464,18 +464,21 @@ export_dialog(Operation) ->
     IDLMaxDist   = get_pref(idlmaxDist,    ?DEF_IDLMAXDIST),
 
     RadPreComp    = get_pref(radprecomp,     ?DEF_RADPRE_COMP),
-    RadPreSpacing = get_pref(radprespacing,  ?DEF_RADPRE_SPACING),
-    RadPreSearch  = get_pref(radpresearch,   ?DEF_RADPRE_SEARCH),
+    RadPreSpacing = get_pref({radprecomp,spacing},  ?DEF_RADPRE_SPACING),
+    RadPreSearch  = get_pref({radprecomp,search},   ?DEF_RADPRE_SEARCH),
 
     RadPrimary = get_pref(radprimary,    ?DEF_RADPRIMARY),
-    IDLtype    = get_pref({indirect_light,sstype},    ?DEF_SSTYPE),
-    IDLrandom  = get_pref({indirect_light,ssrandom},  ?DEF_SSRANDOM),
-    IDLWidth   = get_pref({indirect_light,sswidth},   ?DEF_SSWIDTH*2),
-    IDLHeight  = get_pref({indirect_light,ssheight},  ?DEF_SSHEIGHT div 2),
-
+    IDLPtype    = get_pref({radprimary,sstype}, ?DEF_SSTYPE),
+    IDLPrandom  = get_pref({radprimary,ssrandom},?DEF_SSRANDOM),
+    IDLPWidth   = get_pref({radprimary,sswidth}, ?DEF_SSWIDTH*2),
+    IDLPHeight  = get_pref({radprimary,ssheight},?DEF_SSHEIGHT div 2),
+    
     RadSecondary = get_pref(radsecondary,    ?DEF_RADSECONDARY),
     RadSecDist   = get_pref(radsecdist,      ?DEF_RADSECDIST),
-
+    IDLStype    = get_pref({radsecondary,sstype}, ?DEF_SSTYPE),
+    IDLSrandom  = get_pref({radsecondary,ssrandom},?DEF_SSRANDOM),
+    IDLSWidth   = get_pref({radsecondary,sswidth}, ?DEF_SSWIDTH*2),
+    IDLSHeight  = get_pref({radsecondary,ssheight},?DEF_SSHEIGHT div 2),
     %% Specular
     SpecDepth    = get_pref(specdepth,       ?DEF_SPECDEPTH),
 
@@ -574,19 +577,24 @@ export_dialog(Operation) ->
 	      [{"", RadPrimary, [{key, {?TAG, radprimary}}]},
 	       {vframe,
 		[{label, "Primary Final Gathering"} |
-		 pixelsampling(radprimary, [IDLtype, IDLrandom,
-					    IDLWidth,IDLHeight])],
+		 pixelsampling(radprimary, [IDLPtype, IDLPrandom,
+					    IDLPWidth,IDLPHeight])],
 		[enable_hook({?TAG, radprimary})]}]},
 	     {hframe,
 	      [{"", RadSecondary, [{key, {?TAG, radsecondary}}]},
-	       {label, "Secondary Final Gathering"},
-	       {text, RadSecDist, [{range, {0.0000001, 1000.0}},
-				   {key, {?TAG, {radsecondary, dist}}},
-				   enable_hook({?TAG,radsecondary})]}]}],
+	       {vframe, 
+		[{hframe, 
+		  [{label, "Secondary Final Gathering"},
+		   {text, RadSecDist, 
+		    [{range, {0.0000001, 1000.0}},
+		     {key, {?TAG, {radsecondary, dist}}}]}]} |
+		 pixelsampling(radsecondary, [IDLStype, IDLSrandom,
+					      IDLSWidth,IDLSHeight])],
+		[enable_hook({?TAG,radsecondary})]}]}],
 	    [{title,"Enable Indirect Lighting"},
 	     {minimized,InDirectLightMin},
 	     {key,{?TAG,indirect_light_min}},
-	     enable_hook({?TAG,indirect_light})]}]},
+	   enable_hook({?TAG,indirect_light})]}]},
 	 {hframe,
 	  [{"", SpecularRefl, [{key, {?TAG,specular_refl}}]},
 	   {hframe,
@@ -743,7 +751,8 @@ export(Attr, Filename, E3DExport0) ->
 export_objs(#files{}, []) -> ok;
 export_objs(F=#files{dir=Dir}, [E3F|R]) ->
     #e3d_file{objs=[#e3d_object{name=File}]} = E3F,
-    e3d_obj:export(filename:join(Dir,File++".obj"), E3F),
+    e3d_obj:export(filename:join(Dir,File++".obj"), E3F, 
+		   [{include_normals,true}]),
     export_objs(F,R);
 export_objs(#files{objects=File}, E3DExport) ->
     e3d_obj:export(File, E3DExport).
@@ -789,6 +798,14 @@ fixName(Name) ->
 fixName2([$_|R]) ->
     [$_,$_|fixName2(R)];
 fixName2([$ |R]) ->
+    [$_|fixName2(R)];
+fixName2([$/|R]) ->
+    [$_|fixName2(R)];
+fixName2([92|R]) -> %% \
+    [$_|fixName2(R)];
+fixName2([$.|R]) ->
+    [$_|fixName2(R)];
+fixName2([$*|R]) ->
     [$_|fixName2(R)];
 fixName2([A|R]) ->
     [A|fixName2(R)];
@@ -873,6 +890,7 @@ export_settings(#files{settings=File}, Attr) ->
 		true ->
 		    println(F, " <SecondaryFinalGathering distancethreshold=\"~s\">",
 			    [format(pget({radsecondary,dist},Attr))]),
+		    export_sampling(F,radsecondary, Attr),
 		    println(F, " </SecondaryFinalGathering>");
 		false -> ok
 	    end,
