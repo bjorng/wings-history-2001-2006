@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.166 2003/11/25 08:03:09 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.167 2003/11/25 08:03:59 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -163,7 +163,7 @@ start_edit(_Faces, We, St0) ->
 			     wings_wm:delete(This),
 			     ignore
 		     end,[cancel]}]}]},
-    wings_ask:dialog("", Qs, fun(Args) ->
+    wings_ask:dialog("", Qs, fun(_) ->
 				     ignore
 			     end).
 
