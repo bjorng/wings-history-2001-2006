@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.129 2003/11/27 17:37:22 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.130 2003/11/28 15:35:03 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -133,12 +133,11 @@ ask_unzip([], Labels, Vals) ->
 %%
 %% {label,LabelString}				-- Textual label
 %%
-%% {vradio,Alts,VarName,DefaultValue,Flags}	-- Radio buttons vertically
-%% {hradio,Alts,VarName,DefaultValue,Flags}     -- Radio buttons horizontally
+%% {vradio,Alts,DefaultValue[,Flags]}	-- Radio buttons vertically
+%% {hradio,Alts,DefaultValue[,Flags]}     -- Radio buttons horizontally
 %%     Alts = [{PromptString,Value}]
-%%     VarName = atom()
 %%     Flags = [Flag]
-%%     Flag = key|{title,TitleString}
+%%     Flag = {key,Key}|{title,TitleString}
 %% (Example: see wpc_am.erl.)
 %%
 
@@ -761,14 +760,14 @@ mktree({label_column,Qs0}, Sto, I) ->
 	   {vframe,Fields}]},
     mktree(Qs, Sto, I);
 %%
-mktree({vradio,Qs,Var,Def}, Sto, I) ->
-    mktree(radio(vframe, Qs, Var, Def, []), Sto, I);
-mktree({vradio,Qs,Var,Def,Flags}, Sto, I) ->
-    mktree(radio(vframe, Qs, Var, Def, Flags), Sto, I);
-mktree({hradio,Qs,Var,Def}, Sto, I) ->
-    mktree(radio(hframe, Qs, Var, Def, []), Sto, I);
-mktree({hradio,Qs,Var,Def,Flags}, Sto, I) ->
-    mktree(radio(hframe, Qs, Var,Def, Flags), Sto, I);
+mktree({vradio,Qs,Def}, Sto, I) ->
+    mktree(radio(vframe, Qs, Def, []), Sto, I);
+mktree({vradio,Qs,Def,Flags}, Sto, I) ->
+    mktree(radio(vframe, Qs, Def, Flags), Sto, I);
+mktree({hradio,Qs,Def}, Sto, I) ->
+    mktree(radio(hframe, Qs, Def, []), Sto, I);
+mktree({hradio,Qs,Def,Flags}, Sto, I) ->
+    mktree(radio(hframe, Qs, Def, Flags), Sto, I);
 %%
 mktree({vframe,Qs}, Sto, I) ->
     mktree_container(Qs, Sto, I, [], vframe);
@@ -804,16 +803,14 @@ mktree({color,Def}, Sto, I) ->
 mktree({color,Def,Flags}, Sto, I) ->
     mktree_fi(color(Def), Sto, I, [drag|Flags]);
 %%
-mktree({alt,{Var,Def},Prompt,Val}, Sto, I) ->
-    mktree_fi(radiobutton(Var, Def, Prompt, Val), Sto, I, []);
-mktree({alt,Var,Def,Prompt,Val}, Sto, I) ->
-    mktree_fi(radiobutton(Var, Def, Prompt, Val), Sto, I, []);
-mktree({alt,Var,Def,Prompt,Val,Flags}, Sto, I) ->
-    mktree_fi(radiobutton(Var, Def, Prompt, Val), Sto, I, Flags);
+mktree({alt,Def,Prompt,Val}, Sto, I) ->
+    mktree_fi(radiobutton(Def, Prompt, Val), Sto, I, []);
+mktree({alt,Def,Prompt,Val,Flags}, Sto, I) ->
+    mktree_fi(radiobutton(Def, Prompt, Val), Sto, I, Flags);
 mktree({key_alt,{Key,Def},Prompt,Val}, Sto, I) ->
-    mktree_fi(radiobutton(Key, Def, Prompt, Val), Sto, I, [{key,Key}]);
+    mktree_fi(radiobutton(Def, Prompt, Val), Sto, I, [{key,Key}]);
 mktree({key_alt,{Key,Def},Prompt,Val,Flags}, Sto, I) ->
-    mktree_fi(radiobutton(Key, Def, Prompt, Val), Sto, I, [{key,Key}|Flags]);
+    mktree_fi(radiobutton(Def, Prompt, Val), Sto, I, [{key,Key}|Flags]);
 %%
 mktree({menu,Menu,Def}, Sto, I) ->
     mktree_fi(menu(Menu, Def), Sto, I, []);
@@ -856,13 +853,19 @@ mktree({Prompt,Def}, Sto, I) when Def==false; Def == true ->
 mktree({Prompt,Def,Flags}, Sto, I) when Def==false; Def == true ->
     mktree_fi(checkbox(Prompt, Def), Sto, I, Flags).
 
-radio(FrameType, Qs0, Var, Def, Flags) ->
-    AltTag = case proplists:get_value(key, Flags, 0) of
-		 0 -> alt;
-		 _ -> key_alt
-	     end,
-    Qs = [{AltTag,Var,Def,Prompt,Val} || {Prompt,Val} <- Qs0],
+radio(FrameType, Qs0, Def, Flags) ->
+    Qs = 
+	case proplists:get_value(key, Flags, 0) of
+	    I when integer(I) -> 
+		radio_alt(I, Qs0, Def, Flags);
+	    _ -> 
+		[{alt,Def,Prompt,Val,Flags} || {Prompt,Val} <- Qs0]
+	end,
     {FrameType,Qs,Flags}.
+
+radio_alt(I, [{Prompt,Val}|T], Def, Flags) ->
+    [{key_alt,{I,Def},Prompt,Val,Flags}|radio_alt(I-1, T, Def, Flags)];
+radio_alt(_I, [], _Def, _Flags) -> [].
 
 mktree_fi({Handler,Inert,Priv,W,H}, Sto, I, Flags) ->
     {#fi{handler=Handler,inert=Inert,
@@ -1257,7 +1260,6 @@ frame_redraw_1(Active, Title, #fi{x=X0,y=Y0,w=W0,h=H0},
 		  gl:rectf(TextPos-Cw, Y-1,
 			   TextPos+wings_text:width(Title)+Cw, Y+2)
 	  end),
-%%%     Col = color3(),
     ColFg = color3_text(),
     gl:color3fv(ColFg),
     wings_io:text_at(TextPos, Y0+Ch, Title),
@@ -1308,14 +1310,15 @@ vline(X0, Y0, H, ColLow, ColHigh) ->
     gl:vertex2f(X+1, Y),
     gl:vertex2f(X+1, Y+H).
 
+
+
 %%
 %% Oframe
 %%
 
-oframe_event({redraw,Active}, [Fi=#fi{key=Key,index=I,hook=Hook}|_], Store) ->
+oframe_event({redraw,Active}, [Fi=#fi{index=I}|_], Store) ->
     Oframe = gb_trees:get(-I, Store),
-    DisEnable = hook(Hook, is_disabled, [var(Key, I), I, Store]),
-    oframe_redraw(Active, Fi, Oframe, DisEnable);
+    oframe_redraw(Active, Fi, Oframe);
 oframe_event(value, [#fi{key=Key,index=I}|_], Store) ->
     {value,gb_trees:get(var(Key, I), Store)};
 oframe_event(#mousemotion{state=Bst}, _Path, _Store)
@@ -1323,7 +1326,7 @@ oframe_event(#mousemotion{state=Bst}, _Path, _Store)
     wings_wm:message(""),
     keep;
 oframe_event(#mousebutton{x=Xb,button=1,state=?SDL_PRESSED}, 
-	    [#fi{x=X,y=Y,key=Key,index=I,hook=Hook}|_], 
+	    Path=[#fi{x=X,key=Key,index=I,hook=Hook}|_], 
 	    Sto0) ->
     case gb_trees:get(-I, Sto0) of
 	#oframe{style=tabs,titles=Titles} ->
@@ -1335,18 +1338,29 @@ oframe_event(#mousebutton{x=Xb,button=1,state=?SDL_PRESSED},
 			Other -> Other
 		    end
 	    end;
-	#oframe{w=W,style=menu,titles=Titles} ->
-	    Menu = oframe_menu(Titles),
-	    Var = var(Key, I),
-	    Val = gb_trees:get(Var, Sto0),
-	    Disabled = hook(Hook, menu_disabled, [Var, I, Sto0]),
-	    menu_popup(X+10, Y, W, Menu, Val, Disabled)
+	#oframe{style=menu} ->
+	    oframe_event({key,$\s,0,$\s}, Path, Sto0)
     end;
 oframe_event({popup_result,Val}, [#fi{index=I,key=Key,hook=Hook}|_], Sto0) ->
     case hook(Hook, update, [var(Key, I), I, Val, Sto0]) of
 	{store,Sto} -> {layout,Sto};
 	Other -> Other
     end;
+oframe_event({key,?SDLK_LEFT,_,_}, Path, Sto) ->
+    oframe_event({key,2,0,2}, Path, Sto); % Ctrl-B
+oframe_event({key,?SDLK_RIGHT,_,_}, Path, Sto) ->
+    oframe_event({key,6,0,6}, Path, Sto); % Ctrl-F
+oframe_event({key,$\s,0,$\s}, [#fi{x=X,y=Y,key=Key,index=I}|_], Sto) ->
+    case gb_trees:get(-I, Sto) of
+	#oframe{w=W,style=menu,titles=Titles} ->
+	    Menu = oframe_menu(Titles),
+	    menu_popup(X+10, Y, W, Menu, gb_trees:get(var(Key, I), Sto), []);
+	#oframe{style=tabs} -> keep
+    end;
+oframe_event({key,_,_,2}, Path, Sto) -> % Ctrl-B
+    oframe_step(-1, Path, Sto);
+oframe_event({key,_,_,6}, Path, Sto) -> % Ctrl-F
+    oframe_step(+1, Path, Sto);
 oframe_event(_Ev, _Path, _Store) -> keep.
 
 oframe_which_tab(X0, Xb, Titles) when Xb >= X0 -> 
@@ -1367,129 +1381,90 @@ oframe_menu(_Titles, _N) -> [].
 
 oframe_redraw(Active, 
 	      #fi{x=X0,y=Y0,w=W0,h=H0,extra=#container{active=I}},
-	      #oframe{style=menu,w=Wt,h=Ht,titles=Titles},
-	      DisEnable) ->
-    Y = Y0 + Ht div 2 + 3,
-    H = H0 - (Y-Y0) - 4,
+	      #oframe{style=menu,w=Wt,h=Ht,titles=Titles}) ->
+    Y = Y0+((Ht-10+4) div 2),
+    H = H0-(Y-Y0+5),
     ColLow = color4_lowlight(),
     ColHigh = color4_highlight(),
     blend(fun(_Col) ->
 		  gl:'begin'(?GL_LINES),
-		  hline(X0, Y, 10, ColLow, ColHigh),
-		  hline(X0+Wt-10, Y, W0-Wt+10, ColLow, ColHigh),
-		  hline(X0, Y+H-1, W0-1, ColLow, ColHigh),
-		  vline(X0, Y+1, H-2, ColLow, ColHigh),
-		  vline(X0+W0-2, Y, H, ColLow, ColHigh),
-		  gl:'end'()
-	  end),
-    Title = element(I, Titles),
-    menu_draw(Active, X0+10, Y0+1, Wt, Ht, Title, DisEnable);
-oframe_redraw(Active, 
-	      #fi{x=X0,y=Y0,w=W0,h=H0,extra=#container{active=I}},
-	      #oframe{style=tabs,h=Ht,titles=Titles},
-	      DisEnable) ->
-    Y = Y0+Ht-5,
-    H = H0-Ht,
-    ColLow = color4_lowlight(),
-    ColHigh = color4_highlight(),
-    {X1,X2} = oframe_title_pos(X0, I, Titles),
-    blend(fun(_Col) ->
-		  gl:'begin'(?GL_LINES),
-		  hline(X0, Y, X1-X0, ColLow, ColHigh),
-		  hline(X2, Y, W0-(X2-X0), ColLow, ColHigh),
+ 		  hline(X0, Y, W0, ColLow, ColHigh),
 		  hline(X0, Y+H-2, W0, ColLow, ColHigh),
 		  vline(X0, Y+1, H-4, ColLow, ColHigh),
 		  vline(X0+W0, Y+1, H-4, ColLow, ColHigh),
 		  gl:'end'()
 	  end),
-    oframe_redraw_titles(X0, Y0, Ht-5, Titles, DisEnable),
-    case Active of false -> DisEnable;
-	true ->
-%%% 	    blend(fun(_Col) ->
-%%% 			  gl:color3fv(color3_text()),
-%%% 			  draw_hat(X1, Y, X2-X1, H, Active)
-%%% 		  end),
-	    DisEnable
-    end.
-
-draw_hat(X, Y, W, H, Double) ->
-    gl:'begin'(?GL_LINES),
-    gl:vertex2f(X, Y), gl:vertex2f(X+W, Y),
-    gl:vertex2f(X, Y), gl:vertex2f(X, Y+H),
-    gl:vertex2f(X+W, Y), gl:vertex2f(X+W, Y+H),
-    case Double of false -> ok;
-	true ->
-	    gl:vertex2f(X-1, Y+1), gl:vertex2f(X-1+W, Y+1),
-	    gl:vertex2f(X-1, Y+1), gl:vertex2f(X-1, Y+H),
-	    gl:vertex2f(X-1+W, Y+1), gl:vertex2f(X+W, Y+H)
-    end,
-    gl:'end'().
-
-oframe_title_pos(X, Active, Titles) ->
-    oframe_title_pos_1(X, Active, Titles, 1, ?CHAR_WIDTH).
-
-oframe_title_pos_1(X, Active, Titles, I, Cw) ->
-    W = Cw + wings_text:width(element(I, Titles)) + Cw,
-    if  I =:= Active ->
-	    {X,X+W};
-	true ->
-	    oframe_title_pos_1(X+W, Active, Titles, I+1, Cw)
-    end.
-
-oframe_redraw_titles(X, Y, H, Titles, DisEnable) -> 
-    Cw = ?CHAR_WIDTH,
-    ColText = color3_text(),
+    Title = element(I, Titles),
+    menu_draw(Active, X0+10, Y0, Wt, Ht-10+4, Title, keep);
+oframe_redraw(Active, 
+	      #fi{x=X0,y=Y0,w=W0,h=H0,extra=#container{active=I}},
+	      #oframe{style=tabs,h=Ht,titles=Titles}) ->
+    Y = Y0+Ht-5,
+    H = H0-(Y-Y0+5),
     ColLow = color4_lowlight(),
     ColHigh = color4_highlight(),
-    oframe_redraw_titles(X, Y, H, Titles, DisEnable, 
-			 Cw, ColText, ColLow, ColHigh, 1).
+    blend(fun(_Col) ->
+		  gl:'begin'(?GL_LINES),
+ 		  hline(X0, Y, W0, ColLow, ColHigh),
+		  hline(X0, Y+H-2, W0, ColLow, ColHigh),
+		  vline(X0, Y+1, H-4, ColLow, ColHigh),
+		  vline(X0+W0, Y+1, H-4, ColLow, ColHigh),
+		  gl:'end'()
+	  end),
+    oframe_redraw_titles(Active, X0, Y0, Ht-5, I, Titles),
+    keep.
 
-oframe_redraw_titles(X, Y, H, Titles, DisEnable, 
-		     Cw, ColText, ColLow, ColHigh, I)
+oframe_redraw_titles(Focus, X, Y, H, Active, Titles) -> 
+    Cw = ?CHAR_WIDTH,
+    ColText = color3_text(),
+    ColPane = color3(),
+    ColHigh = color3_high(),
+    oframe_redraw_titles(Focus, X, Y, H, Active, Titles, 
+			 Cw, ColText, ColPane, ColHigh, 1).
+
+oframe_redraw_titles(Focus, X, Y, H, Active, Titles, 
+		     Cw, ColText, ColPane, ColHigh, I)
   when I =< size(Titles) ->
     Title = element(I, Titles),
     W = wings_text:width(Title),
+    X2 = X+Cw+W+Cw,
+    Result = 
+	%% Draw active tab last
+	if I =:= Active ->
+		R = oframe_redraw_titles(Focus, X2, Y, H, Active, Titles,
+					 Cw, ColText, ColPane, ColHigh, I+1),
+		wings_io:gradient_border(X, Y, X2-X, H, 
+					 ColHigh, ColText, Focus),
+		R;
+	   true -> 
+		wings_io:border(X, Y, X2-X, H, ColPane, ColText),
+		keep
+	end,
     gl:color3fv(ColText),
     wings_io:text_at(X+Cw, Y+H-4, Title),
-    X2 = X+Cw+W+Cw,
-    blend(fun(_Col) ->
-%%% 		  if  I =:= 1 -> ok;
-%%% 		      true ->
-%%% 			  gl:color4fv(ColHigh),
-%%% 			  gl:rasterPos2i(X, Y),
-%%% 			  gl:bitmap(8, 4, 3, 4, 0, 0, 
-%%% 				    << 
-%%% 				     2#00001000,
-%%% 				     2#00101100,
-%%% 				     2#11000111,
-%%% 				     2#00000000>>),
-%%% 			  gl:color4fv(ColLow),
-%%% 			  gl:rasterPos2i(X, Y),
-%%% 			  gl:bitmap(8, 4, 3, 4, 0, 0, 
-%%% 				    << 
-%%% 				     2#00010000,
-%%% 				     2#00010000,
-%%% 				     2#00010000,
-%%% 				     2#11111111>>)
-%%% 		  end,
-		  gl:'begin'(?GL_LINES),
-%%% 		  hline(X+4, Y, X2-X-8, ColLow, ColHigh),
-%%% 		  vline(X, Y+3, H-4, ColLow, ColHigh),
-		  hline(X, Y, X2-X, ColLow, ColHigh),
-		  vline(X, Y+1, H-2, ColLow, ColHigh),
-		  gl:'end'()
-	  end),
-    oframe_redraw_titles(X2, Y, H, Titles, DisEnable, 
-			 Cw, ColText, ColLow, ColHigh, I+1);
-oframe_redraw_titles(X, Y, H, _Titles, DisEnable, 
-		     _Cw, _ColText, ColLow, ColHigh, _I) ->
-    blend(fun(_Col) ->
-		  gl:'begin'(?GL_LINES),
-		  vline(X, Y+1, H-2, ColLow, ColHigh),
-		  gl:'end'()
-	  end),
-    DisEnable.
+    if I =/= Active ->
+	    oframe_redraw_titles(Focus, X2, Y, H, Active, Titles, 
+				 Cw, ColText, ColPane, ColHigh, I+1);
+       true -> Result
+    end;
+oframe_redraw_titles(_Focus, _X, _Y, _H, _Active, _Titles, 
+		     _Cw, _ColText, _ColPane, _ColHigh, _I) -> keep.
 
+oframe_step(Step, [#fi{key=Key,index=I,hook=Hook,
+		       extra=#container{fields=Fields}}|_], Sto0) ->
+    case gb_trees:get(-I, Sto0) of
+	#oframe{style=tabs} ->
+	    Var = var(Key, I),
+	    Val = gb_trees:get(Var, Sto0) + Step,
+	    if 1 =< Val, Val =< size(Fields) ->
+		    case hook(Hook, update, [Var, I, Val, Sto0]) of
+			{store,Sto} -> {layout,Sto};
+			Other -> Other
+		    end;
+	       true -> keep
+	    end;
+	#oframe{style=menu} -> keep
+    end.
 
 
 %%%
@@ -1523,8 +1498,6 @@ separator_draw(#fi{x=X,y=Y,w=W}) ->
     gl:color3b(0, 0, 0),
     ?CHECK_ERROR(),
     keep.
-
-
 
 
 
@@ -1577,7 +1550,7 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
     wings_io:sunken_gradient(X, Y0+?CHAR_HEIGHT-?CB_SIZE, ?CB_SIZE, ?CB_SIZE,
 			     case DisEnable of
 				 disable -> color3();
-				 _ -> {0.82,0.82,0.82}
+				 _ -> color3_high()
 			     end, color4(), Active),
     FgColor = case DisEnable of
 		  disable -> color3_disabled();
@@ -1600,36 +1573,35 @@ cb_draw(Active, #fi{x=X,y=Y0}, #cb{label=Label}, Val, DisEnable) ->
 %%%
 
 -record(rb,
-	{var,					%Variable key.
-	 def,					%Default value.
+	{def,					%Default value.
 	 val,
 	 label,
 	 labelw,			    %Width of label in pixels.
 	 spacew				  %Width of a space character.
 	}).
 
-radiobutton(Var, Def, Label, Val) ->
+radiobutton(Def, Label, Val) ->
     LabelWidth = wings_text:width(Label),
     SpaceWidth = wings_text:width(" "),
-    Rb = #rb{var=Var,def=Def,val=Val,label=Label,
+    Rb = #rb{def=Def,val=Val,label=Label,
 	     labelw=LabelWidth,spacew=SpaceWidth},
     Fun = fun rb_event/3,
     {Fun,false,Rb,LabelWidth+2*SpaceWidth,?LINE_HEIGHT+2}.
 
-rb_event(init, [#fi{index=I}|_], Store) ->
-    #rb{var=Var,def=Def,val=Val} = gb_trees:get(-I, Store),
+rb_event(init, [#fi{key=Key,index=I}|_], Store) ->
+    #rb{def=Def,val=Val} = gb_trees:get(-I, Store),
     case Val of
-	Def -> {store,gb_trees:enter(var(Var, I), Val, Store)};
+	Def -> {store,gb_trees:enter(var(Key, I), Val, Store)};
 	_ -> keep
     end;
-rb_event({redraw,Active}, [Fi=#fi{hook=Hook,index=I}|_], Store) ->
-    Rb = #rb{var=Var} = gb_trees:get(-I, Store),
-    Key = var(Var, I),
-    DisEnable = hook(Hook, is_disabled, [Key, I, Store]),
-    rb_draw(Active, Fi, Rb, gb_trees:get(Key, Store), DisEnable);
-rb_event(value, [#fi{index=I}|_], Store) ->
-    #rb{var=Var,val=Val} = gb_trees:get(-I, Store),
-    case gb_trees:get(var(Var, I), Store) of
+rb_event({redraw,Active}, [Fi=#fi{hook=Hook,key=Key,index=I}|_], Store) ->
+    Rb = gb_trees:get(-I, Store),
+    Var = var(Key, I),
+    DisEnable = hook(Hook, is_disabled, [Var, I, Store]),
+    rb_draw(Active, Fi, Rb, gb_trees:get(Var, Store), DisEnable);
+rb_event(value, [#fi{key=Key,index=I}|_], Store) ->
+    #rb{val=Val} = gb_trees:get(-I, Store),
+    case gb_trees:get(var(Key, I), Store) of
 	Val -> {value,Val};
 	_ -> none
     end;
@@ -1708,8 +1680,8 @@ rb_draw(Active, #fi{x=X,y=Y0}, #rb{label=Label,val=Val}, Common, DisEnable) ->
     gl:color3b(0, 0, 0),
     DisEnable.
 
-rb_set(#fi{index=I,hook=Hook}, #rb{var=Var,val=Val}, Store) ->
-    hook(Hook, update, [var(Var, I), I, Val, Store]).
+rb_set(#fi{key=Key,index=I,hook=Hook}, #rb{val=Val}, Store) ->
+    hook(Hook, update, [var(Key, I), I, Val, Store]).
 
 
 %%%
@@ -2426,7 +2398,7 @@ draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
 	    _ ->
 		wings_io:sunken_gradient(X0, Y0+2,
 					 (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
-					 {0.82,0.82,0.82}, color4(), false),
+					 color3_high(), color4(), false),
 		color3_text()
 	end,
     Y = Y0 + ?CHAR_HEIGHT,
@@ -2439,7 +2411,7 @@ draw_text_active(#fi{x=X0,y=Y0},
 		 #text{sel=Sel,bef=Bef,aft=Aft,max=Max,password=Password},
 		 DisEnable) ->
     wings_io:sunken_gradient(X0, Y0+2, (Max+1)*?CHAR_WIDTH, ?CHAR_HEIGHT+1,
-			     {0.82,0.82,0.82}, color4(), true),
+			     color3_high(), color4(), true),
     Y = Y0 + ?CHAR_HEIGHT,
     X = X0 + (?CHAR_WIDTH div 2),
     Len = length(Bef),
@@ -2851,9 +2823,15 @@ color4_highlight() ->
 color4_lowlight() ->
     wings_color:mix(?BEVEL_LOWLIGHT_MIX, {0,0,0}, color4()).
 
-color3() ->
-    {R,G,B,_} = color4(),
-    {R,G,B}.
+color3_high() ->
+    color3(wings_color:mix(0.3*?BEVEL_HIGHLIGHT_MIX, {1,1,1}, color4())).
+
+%%% color3_low() ->
+%%%     color3(wings_color:mix(0.3*?BEVEL_LOWLIGHT_MIX, {0,0,0}, color4())).
+
+color3() -> color3(color4()).
+
+color3({R,G,B,_}) -> {R,G,B}.
 
 color4() ->
     wings_pref:get_value(dialog_color).

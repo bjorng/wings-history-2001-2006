@@ -58,11 +58,13 @@ select_image(_St) ->
 find_images() ->
     case wings_image:images() of 
 	[] -> [];
-	Imgs = [{Def,_}|_] ->
-	    DefVar = {answer,Def},
-	    [{alt, DefVar, Name, Id} || 
-		{Id, #e3d_image{name=Name}} <- Imgs]
+	Imgs = [{Def,_}|_] -> find_images_1(Imgs, Def, 0)
     end.
+
+find_images_1([{Id,#e3d_image{name=Name}}|Tail], Def, Key) ->
+    [{key_alt,{Key,Def},Name,Id}|find_images_1(Tail, Def, Key-1)];
+find_images_1([], _Def, _Key) -> [].
+    
 
 draw_image(Image,_St) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),        

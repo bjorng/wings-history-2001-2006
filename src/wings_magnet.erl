@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.45 2003/07/21 06:13:54 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.46 2003/11/28 15:35:04 raimo_niskanen Exp $
 %%
 
 -module(wings_magnet).
@@ -70,13 +70,12 @@ dialog(Point, Fun) ->
 		     end).
 
 common_dialog() ->
-    DefRoute = {route,wings_pref:get_value(magnet_distance_route)},
-    [{hframe,
-      [{alt,DefRoute,"Shortest",shortest},
-       {alt,DefRoute,"Midpoint",midpoint},
-       {alt,DefRoute,"Surface",surface}],
-      [{title,"Distance Route"}]}].
-			  
+    Route = wings_pref:get_value(magnet_distance_route),
+    [{hradio,[{"Shortest",shortest},
+	      {"Midpoint",midpoint},
+	      {"Surface",surface}],
+      Route, [{title,"Distance Route"}]}].
+
 drag_help(Type) ->
     "[+] or [-] Adjust Radius  " ++
 	help_1(Type, [{1,bell},{2,dome},{3,straight},{4,spike}]).

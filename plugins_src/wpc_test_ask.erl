@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.16 2003/11/27 17:37:21 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.17 2003/11/28 15:35:03 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -141,31 +141,43 @@ large_result(St) ->
 	    end
     end.
 
-overlay_dialog(St) -> do_overlay_dialog(St, 1, false, true, false, undefined).
+overlay_dialog(St) -> 
+    do_overlay_dialog(St, tabs, 1, false, true, false, undefined).
 
-do_overlay_dialog(St, Active, MinimizedL, MinimizedC, MinimizedR, Pos) ->
+do_overlay_dialog(St, Style, Active, MinimizedL, MinimizedC, MinimizedR, Pos) ->
     Dialog =
-	[{oframe,
+	[{hframe,[{label,"Style  "},
+		  {hradio,[{"Tabs",tabs},{"Menu",menu}],Style,
+		  [{hook,fun (update, {Var,_I,Val,Sto}) ->
+				 erlang:display({?MODULE,?LINE,
+						 [update,{Var,_I,Val,sto}]}),
+				{done,gb_trees:update(Var, Val, Sto)};
+			     (_, _) -> void end}]}]},
+	 {oframe,
 	  [{"Left frame",large_dialog_l(MinimizedL, MinimizedC)},
 	   {"Right frame",large_dialog_r(MinimizedR)}],
 	  Active,
-	  [{style,tabs}]},
+	  [{style,Style}]},
 	 {position,Pos,[{key,position}]}],
-    wings_ask:dialog("Test Ask Overlay", Dialog, overlay_result(St)).
+    wings_ask:dialog("Test Ask Overlay", 
+		     {hframe,[{vframe,Dialog},
+			      {vframe,[{button,done,[ok]},
+				       {button,cancel,[cancel]}]}]}, 
+		     overlay_result(St)).
 
 overlay_result(St) ->
-    fun ([Active,MinimizedL|Res]) -> 
+    fun ([Style,Active,MinimizedL|Res]) -> 
 	    erlang:display({?MODULE,?LINE,Res}),
 	    MinimizedC = proplists:get_value(minimized_c, Res),
 	    MinimizedR = proplists:get_value(minimized_r, Res),
 	    Pos = proplists:get_value(position, Res),
-	    case proplists:get_value(reset, Res) of
-		true -> 
-		    do_overlay_dialog(St, Active,
+	    case lists:last(Res) of
+		false -> 
+		    do_overlay_dialog(St, Style, Active,
 				      MinimizedL, MinimizedC, MinimizedR, 
 				      Pos),
 		    ignore;
-		false -> ignore
+		true -> ignore
 	    end
     end.
 

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.167 2003/11/25 08:03:59 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.168 2003/11/28 15:35:03 raimo_niskanen Exp $
 
 -module(wpc_autouv).
 
@@ -188,9 +188,7 @@ start_edit_1(Win, #we{name=ObjName,fs=Ftab}=We, St) ->
     end.
 
 start_edit_cb(Win, First, Ms, We) ->
-    DefVar = {answer,First},
-    Qs = [{vframe,
-	   [{alt,DefVar,"Material "++atom_to_list(M),M} || {M,_} <- Ms]}],
+    Qs = [{vradio,[{"Material "++atom_to_list(M),M} || {M,_} <- Ms], First}],
     wings_ask:dialog("Choose Material to Edit",
 		     Qs,
 		     fun([Mat]) ->
@@ -635,14 +633,13 @@ option_menu() ->
      {"Apply Texture", apply_texture, "Attach the current texture to the model"}].
 
 edge_option_menu(#uvstate{option = Option}) ->
-    DefVar = {edge_mode, Option#setng.edges},
     [MaxTxs0|_] = gl:getIntegerv(?GL_MAX_TEXTURE_SIZE),
     MaxTxs = min([4096,MaxTxs0]),
     
-    Qs = [{vframe,[{alt,DefVar,"Draw All Edges",    all_edges},
-		   {alt,DefVar,"Draw Border Edges", border_edges},
-		   {alt,DefVar,"Don't Draw Edges",  no_edges}],
-	   [{title,"Edge Options"}]},
+    Qs = [{vradio,[{"Draw All Edges",    all_edges},
+		   {"Draw Border Edges", border_edges},
+		   {"Don't Draw Edges",  no_edges}], 
+	   Option#setng.edges, [{title,"Edge Options"}]},
 	  {vframe,[{"Use Face/Vertex Color on Border Edges", Option#setng.edge_color},
 		   {label_column, [{"Edge width",  {text, Option#setng.edge_width}}]}],
 	   [{title, "Overdraw options"}]},
