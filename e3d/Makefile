@@ -3,12 +3,12 @@
 #
 #     Makefile for building the E3D modules.
 #
-#  Copyright (c) 2001 Bjorn Gustavsson
+#  Copyright (c) 2001-2003 Bjorn Gustavsson
 #
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.12 2003/03/19 13:55:54 dgud Exp $
+#     $Id: Makefile,v 1.13 2003/09/25 08:23:01 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -62,4 +62,4 @@ clean:
 	rm -f core
 
 $(EBIN)/%.beam: $(ESRC)/%.erl
-	$(ERLC) -bbeam $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -o$(EBIN) $<
+	$(ERLC) $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -o$(EBIN) $<
