@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.93 2002/07/13 10:10:39 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.94 2002/07/26 20:47:07 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -52,6 +52,7 @@ setup(Tvs, Unit, Flags, St) ->
     Magnet = property_lists:get_value(magnet, Flags, none),
     Drag = #drag{x=X,y=Y,unit=Unit,flags=Flags,
 		 falloff=falloff(Unit),magnet=Magnet},
+    
     init_1(Tvs, Drag, St).
 
 falloff([falloff|_]) -> 1.0;
@@ -212,9 +213,10 @@ insert_matrix_fun(D, Tvs, _) -> {D,Tvs}.
 %%% Handling of drag events.
 %%%
 
-do_drag(Drag) ->
+do_drag(#drag{x=X,y=Y}=Drag) ->
     wings_io:message_right(drag_help(Drag)),
-    {seq,{push,dummy},get_drag_event_1(Drag)}.
+    Mm = #mousemotion{x=X,y=Y},
+    {seq,{push,dummy},handle_drag_event_1(Mm, Drag)}.
 
 drag_help(#drag{magnet=none,falloff=Falloff}) ->
     Help = "[Tab] Numeric entry  [Shift] and/or [Ctrl] Constrain",
@@ -308,7 +310,6 @@ numeric_input(Drag0) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
     {Dx0,Dy0,Drag} = mouse_range(X, Y, Drag0),
     Move0 = constrain(Dx0, Dy0, Drag),
-    Redraw = fun() -> redraw(Drag) end,
     wings_ask:ask(make_query(Move0, Drag),
 		  fun(Res) ->
 			  {numeric_input,make_move(Res, Drag)}

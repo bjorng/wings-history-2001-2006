@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.15 2002/06/26 11:01:09 seanhinde Exp $
+%%     $Id: wpc_tweak.erl,v 1.16 2002/07/26 20:47:07 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -277,11 +277,11 @@ mirror_constrain({Plane,Point}, Pos) ->
 %%%
 
 help(#tweak{magnet=false}) ->
-    Msg = [lmb] ++ " Drag vertices freely " ++ [rmb] ++ " Exit tweak mode",
+    Msg = "[L] Drag vertices freely  [R] Exit tweak mode",
     wings_io:message(Msg ++ "  " ++ wings_camera:help()),
     wings_io:message_right("[1] Magnet On");
 help(#tweak{magnet=true,mag_type=Type}) ->
-    Msg = [lmb] ++ " Drag " ++ [rmb] ++ " Exit",
+    Msg = "[L] Drag  [R] Exit",
     wings_io:message(Msg),
     MagMsg = "[1] Magnet Off  [+]/[-] Tweak R  " ++
 	help_1(Type, [{2,dome},{3,straight},{4,spike}]),
