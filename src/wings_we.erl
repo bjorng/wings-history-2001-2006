@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.23 2002/01/20 11:10:25 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.24 2002/02/22 11:20:58 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -19,6 +19,7 @@
 	 new_id/1,new_ids/2,
 	 invert_normals/1,
 	 merge/1,merge/2,renumber/1,renumber/2,renumber/3,
+	 uv_to_color/2,
 	 transform_vs/2,
 	 separate/1,
 	 get_sub_object/2,
@@ -521,6 +522,21 @@ copy_dependents([{Edge,Rec}|Es], We, Vs0, Fs0, Hs0, Min0, Max0) ->
 update_vtab([{V,Vtx}|Vs], [{V,[E|_]}|VsEs], Acc) ->
     update_vtab(Vs, VsEs, [{V,Vtx#vtx{edge=E}}|Acc]);
 update_vtab([], [], Acc) -> gb_trees:from_orddict(reverse(Acc)).
+
+%%%
+%%% Convert UV coordinates to vertex colors.
+%%%
+
+uv_to_color(#we{mode=uv,es=Etab0}=We, St) ->
+    Etab1 = foldl(
+	      fun({Edge,#edge{lf=Lf,rf=Rf,a=UVa,b=UVb}=Rec}, A) ->
+		      ColA = wings_material:color(Lf, UVa, We, St),
+		      ColB = wings_material:color(Rf, UVb, We, St),
+		      [{Edge,Rec#edge{a=ColA,b=ColB}}|A]
+	      end, [], gb_trees:to_list(Etab0)),
+    Etab = gb_trees:from_orddict(reverse(Etab1)),
+    We#we{mode=vertex,es=Etab};
+uv_to_color(We, _St) -> We.
 
 %%%
 %%% Transform all vertices according to the matrix.

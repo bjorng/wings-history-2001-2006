@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.28 2002/02/06 16:59:07 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.29 2002/02/22 11:20:58 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -87,66 +87,50 @@ convert_items(F, Acc0, Iter0, We) ->
 %%% Map over the selection, modifying the selected objects.
 %%%
 
-map(F, #st{shapes=Shapes0,sel=Sel}=St) ->
-    Shapes = map_1(F, Sel, gb_trees:to_list(Shapes0), []),
-    St#st{shapes=Shapes}.
+map(F, #st{shapes=Shs0,sel=Sel}=St) ->
+    Shs1 = gb_trees:to_list(Shs0),
+    Shs = map_1(F, Sel, Shs1, St, []),
+    St#st{shapes=Shs}.
 
-map_1(F, [{Id,_}|_], [{Id,#we{mode=uv}}|_]=Shs, Acc) ->
-    uvmap_error(Shs);
-map_1(F, [{Id,Items}|Sel], [{Id,We0}|Shs], Acc) ->
+map_1(F, [{Id,Items}|Sel], [{Id,We0}|Shs], St, Acc) ->
     ?ASSERT(We0#we.id =:= Id),
-    We = F(Items, We0),
-    map_1(F, Sel, Shs, [{Id,We}|Acc]);
-map_1(F, [_|_]=Sel, [Pair|Shs], Acc) ->
-    map_1(F, Sel, Shs, [Pair|Acc]);
-map_1(F, [], Shs, Acc) ->
+    We = F(Items, wings_we:uv_to_color(We0, St)),
+    map_1(F, Sel, Shs, St, [{Id,We}|Acc]);
+map_1(F, [_|_]=Sel, [Pair|Shs], St, Acc) ->
+    map_1(F, Sel, Shs, St, [Pair|Acc]);
+map_1(_F, [], Shs, _St, Acc) ->
     gb_trees:from_orddict(reverse(Acc, Shs)).
 
 %%%
 %%% Fold over the selection.
 %%%
 
-fold(F, Acc, #st{sel=Sel,shapes=Shapes}=St) ->
+fold(F, Acc, #st{sel=Sel,shapes=Shapes}) ->
     fold_1(F, Acc, Shapes, Sel).
 
 fold_1(F, Acc0, Shapes, [{Id,Items}|T]) ->
     We = gb_trees:get(Id, Shapes),
     ?ASSERT(We#we.id =:= Id),
     fold_1(F, F(Items, We, Acc0), Shapes, T);
-fold_1(F, Acc, Shapes, []) -> Acc.
+fold_1(_F, Acc, _Shapes, []) -> Acc.
 
 %%%
 %%% Map and fold over the selection.
 %%%
 
-mapfold(F, Acc0, #st{shapes=Shapes0,sel=Sel}=St) ->
-    {Shapes,Acc} = mapfold_1(F, Acc0, Sel, gb_trees:to_list(Shapes0), []),
-    {St#st{shapes=Shapes},Acc}.
+mapfold(F, Acc0, #st{shapes=Shs0,sel=Sel}=St) ->
+    Shs1 = gb_trees:to_list(Shs0),
+    {Shs,Acc} = mapfold_1(F, Acc0, Sel, Shs1, St, []),
+    {St#st{shapes=Shs},Acc}.
 
-mapfold_1(F, Acc, [{Id,_}|_], [{Id,#we{mode=uv}=We0}|_]=Shs, Acc) ->
-    uvmap_error(Shs);
-mapfold_1(F, Acc0, [{Id,Items}|Sel], [{Id,We0}|Shs], ShsAcc) ->
+mapfold_1(F, Acc0, [{Id,Items}|Sel], [{Id,We0}|Shs], St, ShsAcc) ->
     ?ASSERT(We0#we.id =:= Id),
-    {We,Acc} = F(Items, We0, Acc0),
-    mapfold_1(F, Acc, Sel, Shs, [{Id,We}|ShsAcc]);
-mapfold_1(F, Acc, [_|_]=Sel, [Pair|Shs], ShsAcc) ->
-    mapfold_1(F, Acc, Sel, Shs, [Pair|ShsAcc]);
-mapfold_1(F, Acc, [], Shs, ShsAcc) ->
+    {We,Acc} = F(Items, wings_we:uv_to_color(We0, St), Acc0),
+    mapfold_1(F, Acc, Sel, Shs, St, [{Id,We}|ShsAcc]);
+mapfold_1(F, Acc, [_|_]=Sel, [Pair|Shs], St, ShsAcc) ->
+    mapfold_1(F, Acc, Sel, Shs, St, [Pair|ShsAcc]);
+mapfold_1(_F, Acc, [], Shs, _St, ShsAcc) ->
     {gb_trees:from_orddict(reverse(ShsAcc, Shs)),Acc}.
-
-
-uvmap_error(Shs) ->
-    Message = "This command is not allowed on objects with textures."
-	" (" ++ uvmap_objects(Shs) ++ ")",
-    throw({command_error,Message}).
-
-uvmap_objects(Shs) ->
-    case [Name || {Id,#we{mode=uv,name=Name}} <- Shs] of
-	[Name] -> "Object " ++ Name;
-	[Na,Nb] -> "Objects " ++ Na ++ " and " ++ Nb;
-	[Na,Nb,Nc] -> "Objects " ++ Na ++ ", " ++ Nb ++ ", and " ++ Nc;
-	[Na,Nb,Nc|_] -> "Objects " ++ Na ++ ", " ++ Nb ++ ", " ++ Nc ++ "..."
-    end.
 
 %%%
 %%% foreach functions (for drawing)
@@ -189,7 +173,7 @@ make_1([#we{id=Id,vs=Vtab,es=Etab,fs=Ftab}=We|Shs], Filter, Mode) ->
 	[] -> make_1(Shs, Filter, Mode);
 	Sel -> [{Id,gb_sets:from_ordset(Sel)}|make_1(Shs, Filter, Mode)]
     end;
-make_1([], Filter, Mode) -> [].
+make_1([], _Filter, _Mode) -> [].
 
 %%%
 %%% Calculate the centers for all selected objects.
@@ -217,7 +201,7 @@ bounding_box(face, Faces, We, BB) ->
     wings_vertex:bounding_box(wings_face:to_vertices(Faces, We), We, BB);
 bounding_box(edge, Edges, We, BB) ->
     wings_vertex:bounding_box(wings_edge:to_vertices(Edges, We), We, BB);
-bounding_box(body, Items, #we{vs=Vtab}=We, BB) ->
+bounding_box(body, _Items, We, BB) ->
     wings_vertex:bounding_box(We, BB).
 
 %%%
@@ -324,7 +308,7 @@ validate_items(Es, edge, #we{es=Etab}) ->
     tab_set_intersection(Es, Etab);
 validate_items(Fs, face, #we{fs=Ftab}) ->
     tab_set_intersection(Fs, Ftab);
-validate_items(Items, body, Shape) -> Items.
+validate_items(Items, body, _We) -> Items.
 
 tab_set_intersection(Set, Tab) ->
     Keys = gb_sets:from_ordset(gb_trees:keys(Tab)),

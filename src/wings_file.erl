@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.51 2002/01/30 18:51:23 dgud Exp $
+%%     $Id: wings_file.erl,v 1.52 2002/02/22 11:20:58 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -84,7 +84,7 @@ command(autosave, St) ->
 command(revert, St0) ->
     case revert(St0) of
 	{error,Reason} ->
-	    wings_io:message("Revert failed: " ++ Reason),
+	    wings_util:error("Revert failed: " ++ Reason),
 	    St0;
 	#st{}=St -> {save_state,model_changed(St)}
     end;
@@ -155,7 +155,7 @@ read(St0) ->
 			    wings_getline:set_cwd(dirname(Name)),
 			    wings:caption(St#st{saved=true,file=Name});
 			{error,Reason} ->
-			    wings_io:message("Read failed: " ++ Reason),
+			    wings_util:error("Read failed: " ++ Reason),
 			    St0
 		    end
 	    end
@@ -172,7 +172,7 @@ named_open(Name, St0) ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    wings:caption(St#st{saved=true,file=Name});
 		{error,Reason} ->
-		    wings_io:message("Read failed: " ++ Reason),
+		    wings_util:error("Read failed: " ++ Reason),
 		    St0
 	    end
     end.
@@ -185,7 +185,7 @@ merge(St0) ->
 	    File = use_autosave(Name),
 	    case ?SLOW(wings_ff_wings:import(File, St0)) of
 		{error,Reason} ->
-		    wings_io:message("Read failed: " ++ Reason),
+		    wings_util:error("Read failed: " ++ Reason),
 		    St0;
 		#st{}=St -> St
 	    end
@@ -224,7 +224,7 @@ save_as(#st{shapes=Shapes}=St) ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    wings:caption(St#st{saved=true,file=Name});
 		{error,Reason} ->
-		    wings_io:message("Save failed: " ++ Reason),
+		    wings_util:error("Save failed: " ++ Reason),
 		    aborted
 	    end
     end.
@@ -297,7 +297,7 @@ autosave(#st{file=Name}=St) ->
 	    wings:caption(St#st{saved=auto});
 	{error,Reason} ->
 	    set_autosave_timer(),
-	    wings_io:message("AutoSave failed: " ++ Reason),
+	    wings_util:error("AutoSave failed: " ++ Reason),
             St
     end.
 
@@ -364,7 +364,7 @@ import(Prop, Importer, St0) ->
 		    wings_util:message(Warn),
 		    St;
 	    	{error,Reason} ->
-		    wings_io:message("Import failed: " ++ Reason),
+		    wings_util:error("Import failed: " ++ Reason),
 		    St0
 	    end
     end.
@@ -381,7 +381,7 @@ import_ndo(St0) ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    St;
 	    	{error,Reason} ->
-		    wings_io:message("Import failed: " ++ Reason),
+		    wings_util:error("Import failed: " ++ Reason),
 		    St0
 	    end
     end.

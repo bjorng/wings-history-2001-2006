@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.23 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.24 2002/02/22 11:20:58 bjorng Exp $
 %%
 
 -module(wings_material).
--export([init/1,sub_menu/2,command/2,default/0,add_materials/2,
+-export([init/1,sub_menu/2,command/2,color/4,default/0,add_materials/2,
 	 used_materials/1,apply_material/2]).
 
 -define(NEED_OPENGL, 1).
@@ -215,6 +215,23 @@ edit(Name, #st{mat=Mtab0}=St) ->
     Mtab = gb_trees:update(Name, Mat, Mtab0),
     wings_draw:model_changed(St#st{mat=Mtab}).
 
+%%% Return color in texture for the given UV coordinates.
+
+color(Face, {U,V}, #we{fs=Ftab}, #st{mat=Mtab}) ->
+    #face{mat=Name} = gb_trees:get(Face, Ftab),
+    case gb_trees:get(Name, Mtab) of
+	#mat{diffuse_map=Tx} -> color_1(U, V, Tx);
+	#mat{diffuse=Diff} -> wings_color:share(Diff)
+    end;
+color(_Face, {_,_,_}=RGB, _We, _St) -> RGB.
+
+color_1(U0, V0, {W,H,Bits}) ->
+    U = (((round(U0*W) rem W) + W) rem W),
+    V = ((round(V0*H) rem H) + H) rem H,
+    Pos = V*W*3 + U*3,
+    <<_:Pos/binary,R:8,G:8,B:8,_/binary>> = Bits,
+    wings_util:share(R/255, G/255, B/255).
+    
 %%% Texture support.
 
 init_texture(#mat{diffuse_map={W,H,Bits}}=Mat, #st{next_tx=TxId}=St) ->

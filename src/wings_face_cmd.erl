@@ -8,8 +8,8 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.37 2002/02/10 18:14:29 bjorng Exp $
-%f%
+%%     $Id: wings_face_cmd.erl,v 1.38 2002/02/22 11:20:58 bjorng Exp $
+%%
 
 -module(wings_face_cmd).
 -export([extrude/2,extrude_region/2,extract_region/2,
@@ -56,7 +56,7 @@ extrude_region_1([Faces0|Rs0]=Rs, We0, Acc) ->
 	1 ->
 	    [Face] = gb_sets:to_list(Faces0),
 	    extrude_region_1(Rs0, We0, [Face|Acc]);
-	Other ->
+	_Other ->
 	    We = wings_extrude_face:faces(Acc, We0),
 	    Sel = [gb_sets:from_list(Acc)],
 	    extrude_region_2(Rs, We, Sel)
@@ -75,9 +75,10 @@ extrude_region_2([], We, Sel) ->
 %%% The Extract Region command.
 %%%
 
-extract_region(Type, #st{onext=Id0,shapes=Shapes0}=St0) ->
+extract_region(Type, St0) ->
     St1 = wings_sel:fold(
-	    fun(Faces, We, #st{sel=Sel0,onext=Oid}=S0) ->
+	    fun(Faces, We0, #st{sel=Sel0,onext=Oid}=S0) ->
+		    We = wings_we:uv_to_color(We0, St0),
 		    S = wings_shape:insert(We, "extract", S0),
 		    Sel = [{Oid,Faces}|Sel0],
 		    S#st{sel=Sel}
@@ -146,7 +147,7 @@ do_dissolve_1([EdgeList|Ess], Mat, WeOrig,
     {KeepVs,Etab} = update_outer([Last|EdgeList], EdgeList, Face, WeOrig,
 				 Ftab, KeepVs0, Etab0),
     do_dissolve_1(Ess, Mat, WeOrig, KeepVs, We#we{es=Etab,fs=Ftab});
-do_dissolve_1([], Mat, WeOrig, KeepVs, We) -> {KeepVs,We}.
+do_dissolve_1([], _Mat, _WeOrig, KeepVs, We) -> {KeepVs,We}.
 
 do_dissolve_faces(Faces, #we{fs=Ftab0}=We) ->
     Ftab = gb_sets:fold(fun(Face, Ft) ->
