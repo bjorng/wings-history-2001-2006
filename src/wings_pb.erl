@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.4 2004/02/07 18:39:14 bjorng Exp $
+%%     $Id: wings_pb.erl,v 1.5 2004/02/07 19:35:07 bjorng Exp $
 %%
 
 -module(wings_pb).
@@ -152,14 +152,13 @@ loop(#state{refresh=After,activity=Active}=S0) ->
 	    loop(draw_position(S))
     end.
 
-update(Msg, Percent, #state{next_pos=OldNext,msg=[_|Msg0],
-			    stats=Stats0,t0=Time0}=S) ->
+update(Msg, Percent, #state{msg=[_|Msg0],stats=Stats0,t0=Time0}=S) ->
     NowDiff = now_diff(now(), Time0),
     Stats = [Percent,NowDiff|Stats0],
-    S#state{msg=[Msg|Msg0],pos=OldNext,next_pos=Percent,stats=Stats}.
+    S#state{msg=[Msg|Msg0],next_pos=Percent,stats=Stats}.
 
 calc_position(#state{pos=Pos0,next_pos=NextPos}=S) when Pos0 < NextPos ->
-    Pos = Pos0 + (NextPos - Pos0) / 3,
+    Pos = Pos0 + (NextPos - Pos0) / 4,
     S#state{pos=Pos}.
 
 print_stats(#state{t0=Time0,stats=[_|Stats0]}) ->

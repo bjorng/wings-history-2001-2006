@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.13 2003/10/27 06:24:57 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.14 2004/02/07 19:35:07 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -266,19 +266,24 @@ seg_create_materials(St0) ->
     St.
 
 seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
+    wings_pb:start("preparing mapping"),
     [#we{he=Cuts0}=We0] = gb_trees:values(Shs),
+    wings_pb:update(0.15, "segmenting"),
     Charts0 = auv_segment:segment_by_material(We0),
+    wings_pb:update(0.40, "normalizing"),
     {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
+    wings_pb:update(1.0, "cutting"),
     Charts = auv_segment:cut_model(Charts1, Cuts, OrigWe),
+    wings_pb:done(),
     N = length(Charts),
+    wings_pb:start("mapping"),
     seg_map_charts_1(Charts, Method, 1, N, [], Ss).
 
 seg_map_charts_1(Cs, Type, I, N, Acc, Ss) when I =< N ->
-    MapChart = fun() -> seg_map_chart(Cs, Type, I, N, Acc, Ss) end,
-    wings_wm:later({callback,MapChart}),
-    Msg = io_lib:format("Mapping chart ~w of ~w", [I,N]),
-    get_seg_event(Ss#seg{msg=Msg});
+    wings_pb:update(I/N, lists:flatten(io_lib:format("chart ~w/~w", [I,N]))),
+    seg_map_chart(Cs, Type, I, N, Acc, Ss);
 seg_map_charts_1(_, _, _, _, MappedCharts, #seg{we=#we{id=Id}}) ->
+    wings_pb:done(),
     wings_wm:later({init_show_maps,Id,MappedCharts}),
 
     %% Empty display list structure.
@@ -290,6 +295,7 @@ seg_map_charts_1(_, _, _, _, MappedCharts, #seg{we=#we{id=Id}}) ->
 seg_map_chart([{Fs,Vmap,#we{id=Id}=We0}|Cs], Type, I, N, Acc0, #seg{st=St0}=Ss) ->
     case auv_mapping:map_chart(Type, Fs, We0) of
 	{error,Message} ->
+	    wings_pb:done(),
 	    wings_util:message(Message),
 	    St = St0#st{selmode=face,sel=[{Id,gb_sets:from_ordset(Fs)}]},
 	    get_seg_event(seg_init_message(Ss#seg{st=St}));

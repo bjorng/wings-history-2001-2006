@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.71 2004/02/07 13:41:01 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.72 2004/02/07 19:35:07 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -703,9 +703,12 @@ soft_vertex_normals(Vtab, FaceNormals, We) ->
     gb_trees:from_orddict(reverse(Soft)).
 
 mixed_edges(FaceNormals0, We) ->
+    wings_pb:update(0.20, "preparing"),
     G = digraph:new(),
     FaceNormals = gb_trees:from_orddict(FaceNormals0),
+    wings_pb:update(0.50, "vertex normals"),
     VtxNormals = vertex_normals(We, G, FaceNormals),
+    wings_pb:update(0.99, "vertex normals per face"),
     Ns = foldl(fun({Face,_}, Acc) ->
 		       Vs = n_face(Face, G, FaceNormals, VtxNormals, We),
 		       [{Face,Vs}|Acc]
