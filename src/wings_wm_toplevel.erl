@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.7 2003/01/24 11:09:53 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.8 2003/01/25 08:45:46 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -325,7 +325,7 @@ fit_vert_constrain_1([], _, HighestY) -> HighestY.
 
 fit_vert_constrain_2([Name|T], LowestY, BottomY) ->
     case wings_wm:win_ul(Name) of
-	{_,UpperEdge} when BottomY < UpperEdge, UpperEdge =< LowestY ->
+	{_,UpperEdge} when UpperEdge > LowestY, UpperEdge < BottomY ->
 	    fit_vert_constrain_2(T, LowestY, UpperEdge);
 	_ ->
 	    fit_vert_constrain_2(T, LowestY, BottomY)
