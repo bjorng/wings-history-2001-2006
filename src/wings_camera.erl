@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.73 2003/05/20 05:09:47 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.74 2003/05/26 06:05:42 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -175,26 +175,20 @@ event(Ev, Redraw) ->
 %%% Blender style camera.
 %%%
 
-blender(#mousebutton{button=2,state=?SDL_PRESSED}=Event, Redraw) ->
-    blender_1(Event, wings_wm:me_modifiers(), Redraw);
-blender(_, _) -> next.
-
-blender_1(#mousebutton{x=X0,y=Y0}, Mod, Redraw) ->
+blender(#mousebutton{button=2,state=?SDL_PRESSED,x=X0,y=Y0,mod=Mod}, Redraw)
+  when Mod band ?ALT_BITS =:= 0 ->
     {X,Y} = wings_wm:local2global(X0, Y0),
-    case Mod band ?ALT_BITS =/= 0 of
-	true -> next;
-	false ->
-	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-	    grab(),
-	    message(help()),
-	    {seq,push,get_blender_event(Camera, Redraw)}
-    end.
+    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+    grab(),
+    message(help()),
+    {seq,push,get_blender_event(Camera, Redraw)};
+blender(_, _) -> next.
 
 blender_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, _Redraw) ->
     stop_camera(Camera);
-blender_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
+blender_event(#mousemotion{x=X,y=Y,mod=Mod}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
-    case wings_wm:me_modifiers() of
+    case Mod of
 	Mod when Mod band ?SHIFT_BITS =/= 0 ->
 	    pan(Dx, Dy);
 	Mod when Mod band ?CTRL_BITS =/= 0 ->
@@ -214,16 +208,13 @@ get_blender_event(Camera, Redraw) ->
 %%% Nendo style camera.
 %%%
 
-nendo(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_RELEASED}, Redraw) ->
-    case wings_wm:me_modifiers() of
-	Mod when Mod band ?CTRL_BITS == 0 ->
-	    {X,Y} = wings_wm:local2global(X0, Y0),
-	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-	    grab(),
-	    nendo_message(true),
-	    {seq,push,get_nendo_event(Camera, Redraw, true)};
-	_ -> next
-    end;
+nendo(#mousebutton{button=2,x=X0,y=Y0,mod=Mod,state=?SDL_RELEASED}, Redraw)
+  when Mod band ?CTRL_BITS =:= 0 ->
+    {X,Y} = wings_wm:local2global(X0, Y0),
+    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+    grab(),
+    nendo_message(true),
+    {seq,push,get_nendo_event(Camera, Redraw, true)};
 nendo(#keyboard{sym=Sym}, _Redraw) ->
     nendo_pan(Sym);
 nendo(_, _) -> next.
@@ -302,17 +293,14 @@ nendo_mbutton() ->
 %%% Mirai style camera.
 %%%
 
-mirai(#mousebutton{button=2,x=X0,y=Y0,state=?SDL_RELEASED}, Redraw) ->
-    case wings_wm:me_modifiers() of
-	Mod when Mod band ?CTRL_BITS == 0 ->
-	    {X,Y} = wings_wm:local2global(X0, Y0),
-	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-	    grab(),
-	    mirai_message(true),
-	    View = wings_view:current(),
-	    {seq,push,get_mirai_event(Camera, Redraw, true, View)};
-	_ -> next
-    end;
+mirai(#mousebutton{button=2,x=X0,y=Y0,mod=Mod,state=?SDL_RELEASED}, Redraw)
+  when Mod band ?CTRL_BITS =:= 0 ->
+    {X,Y} = wings_wm:local2global(X0, Y0),
+    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+    grab(),
+    mirai_message(true),
+    View = wings_view:current(),
+    {seq,push,get_mirai_event(Camera, Redraw, true, View)};
 mirai(#keyboard{sym=Sym}, _Redraw) ->
     mirai_pan(Sym);
 mirai(_, _) -> next.
@@ -401,14 +389,14 @@ tds_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, _, _) ->
 tds_event(#mousebutton{button=3,state=?SDL_RELEASED}, Camera, _, View) ->
     wings_view:set_current(View),
     stop_camera(Camera);
-tds_event(#mousemotion{x=X,y=Y}, Camera0, Redraw, View) ->
+tds_event(#mousemotion{x=X,y=Y,mod=Mod}, Camera0, Redraw, View) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
-    case wings_wm:me_modifiers() of
-	Mod when Mod band ?CTRL_BITS =/= 0, Mod band ?ALT_BITS =/= 0 ->
+    if
+	Mod band ?CTRL_BITS =/= 0, Mod band ?ALT_BITS =/= 0 ->
 	    zoom(Dy);
-	Mod when Mod band ?ALT_BITS =/= 0 ->
+	Mod band ?ALT_BITS =/= 0 ->
 	    rotate(Dx, Dy);
-	_Other ->
+	true ->
 	    pan(Dx, Dy)
     end,
     get_tds_event(Camera, Redraw, View);
@@ -423,17 +411,14 @@ get_tds_event(Camera, Redraw, View) ->
 %%% Maya style camera.
 %%%
 
-maya(#mousebutton{x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
-    case wings_wm:me_modifiers() of
-	Mod when Mod band ?ALT_BITS =/= 0 ->
-	    {X,Y} = wings_wm:local2global(X0, Y0),
-	    sdl_events:eventState(?SDL_KEYUP, ?SDL_ENABLE),
-	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-	    grab(),
-	    message(help()),
-	    {seq,push,get_maya_event(Camera, Redraw)};
-	_Mod -> next
-    end;
+maya(#mousebutton{x=X0,y=Y0,mod=Mod,state=?SDL_PRESSED}, Redraw)
+  when Mod band ?ALT_BITS =/= 0 ->
+    {X,Y} = wings_wm:local2global(X0, Y0),
+    sdl_events:eventState(?SDL_KEYUP, ?SDL_ENABLE),
+    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+    grab(),
+    message(help()),
+    {seq,push,get_maya_event(Camera, Redraw)};
 maya(_, _) -> next.
 
 maya_event(#keyboard{sym=Alt,state=?SDL_RELEASED},
@@ -468,33 +453,30 @@ maya_stop_camera(Camera) ->
 %%% Motionbuilder style camera.
 %%%
 
-mb(#mousebutton{button=1,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw) ->
-    case wings_wm:me_modifiers() of
-	Mod when Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
-	    {X,Y} = wings_wm:local2global(X0, Y0),
-	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-	    grab(),
-	    message(help()),
-	    {seq,push,get_mb_event(Camera, Redraw)};
-	_ -> next
-    end;
+mb(#mousebutton{button=1,mod=Mod,x=X0,y=Y0,state=?SDL_PRESSED}, Redraw)
+  when Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
+    {X,Y} = wings_wm:local2global(X0, Y0),
+    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+    grab(),
+    message(help()),
+    {seq,push,get_mb_event(Camera, Redraw)};
 mb(_, _) -> next.
 
 mb_event(#mousebutton{button=1,state=?SDL_RELEASED}, Camera, _) ->
     stop_camera(Camera);
-mb_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
+mb_event(#mousemotion{x=X,y=Y,mod=Mod}, Camera0, Redraw) ->
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
-    case wings_wm:me_modifiers() of
-	Mod when Mod band ?CTRL_BITS =/= 0, Mod band ?SHIFT_BITS =/= 0 ->
+    if
+	Mod band ?CTRL_BITS =/= 0, Mod band ?SHIFT_BITS =/= 0 ->
 	    rotate(Dx, Dy),
 	    get_mb_event(Camera, Redraw);
-	Mod when Mod band ?CTRL_BITS =/= 0 ->
+	Mod band ?CTRL_BITS =/= 0 ->
 	    zoom(Dy),
 	    get_mb_event(Camera, Redraw);
-	Mod when Mod band ?SHIFT_BITS =/= 0 ->
+	Mod band ?SHIFT_BITS =/= 0 ->
 	    pan(Dx, Dy),
 	    get_mb_event(Camera, Redraw);
-	_Mod ->
+	true ->
 	    stop_camera(Camera)
     end;
 mb_event(Event, Camera, Redraw) ->
