@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.46 2002/12/14 07:07:22 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.47 2002/12/14 09:15:26 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -591,8 +591,7 @@ axis_letters() ->
 axis_letter(I, Char, Color0, {Start,{Ox,Oy,_,Ow},MM,PM,Viewport}) ->
     Color = wings_pref:get_value(Color0),
     End = setelement(I, Start, wings_pref:get_value(camera_yon)),
-    {Px,Py,_,Pw0} = proj(End, MM, PM),
-    Pw = Pw0,
+    {Px,Py,_,Pw} = proj(End, MM, PM),
     if
 	-Pw < Px, Px < Pw, -Pw < Py, Py < Pw ->
 	    show_letter(Px, Py, Pw, Char, Color, Viewport);
@@ -628,7 +627,7 @@ clip_1({O1,D1}=Axis, [{O2,D2}|Lines], {Ow,_}=W) ->
 clip_1(_, [], _W) -> none.
 
 show_letter(X0, Y0, W, Char, Color, {_,_,Vw,Vh}) ->
-    X = trunc((0.5*X0/W+0.5)*(Vw-16) + 5),
+    X = trunc((0.5*X0/W+0.5)*(Vw-20) + 10),
     Y = trunc((0.5*Y0/W+0.5)*(Vh-16) + 7),
     axis_text(X, Y, Char, Color).
 
