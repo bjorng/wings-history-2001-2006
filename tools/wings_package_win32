@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Windows.
 #
-# $Id: wings_package_win32,v 1.22 2003/09/11 15:17:15 bjorng Exp $
+# $Id: wings_package_win32,v 1.23 2003/09/15 15:50:02 bjorng Exp $
 #
 OS=`uname -o`
 if [ X$OS != XCygwin ]; then
@@ -119,9 +119,6 @@ $INSTALL -c "$erts_src/bin/erlexec.dll" "$dest/bin"
 $INSTALL -c "$erts_src/bin/beam.dll" "$dest/bin"
 $INSTALL -c -m 644 "$src/bin/start.boot" "$dest/bin"
 $INSTALL -c "$erts_src/bin/inet_gethost.exe" "$dest/bin/inet_gethost.exe"
-strip "$dest/bin/werl.exe"
-strip "$dest/bin/erlexec.dll"
-strip "$dest/bin/inet_gethost.exe"
 
 # Copy the relevant parts of ESDL.
 dest="$DEST_ROOT/lib/$ESDL_NAME"
