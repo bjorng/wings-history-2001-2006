@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Windows.
 #
-# $Id: make_installer,v 1.8 2004/11/12 17:32:34 bjorng Exp $
+# $Id: make_installer,v 1.9 2004/11/12 17:44:46 bjorng Exp $
 #
 OS=`uname -o`
 if [ X$OS != XCygwin ]; then
@@ -83,7 +83,7 @@ $INSTALL -c -m 644 "$src"/lib/stdlib-*/ebin/* "$dest/lib/$stdlib/ebin"
 # Unfortunately, the shell in R10B needs the sys_pre_expand module
 # from the compiler directory. We'll copy just that module.
 $INSTALL -d "$dest/lib/$compiler/ebin" "$dest/lib/$kernel/ebin"
-$INSTALL -c -m 644 "$src"/lib/stdlib-*/ebin/sys_pre_expand.beam "$dest/lib/$compiler/ebin"
+$INSTALL -c -m 644 "$src"/lib/stdlib-*/ebin/sys_pre_expand.beam "$dest/lib/$compiler/ebin/sys_pre_expand.beam"
 
 $INSTALL -c "$erts_src/bin/werl.exe" "$dest/bin"
 $INSTALL -c "$erts_src/bin/erlexec.dll" "$dest/bin"
