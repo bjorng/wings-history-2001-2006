@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.15 2001/12/29 20:33:56 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.16 2002/01/07 22:47:53 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -72,18 +72,46 @@ select_more(St) ->
 
 select_less(St) ->
     wings_sel:convert_shape(
-      fun(Faces, We) ->
-	      Border = bordering_faces(Faces, We),
-	      gb_sets:difference(Faces, Border)
+      fun(Faces0, We) ->
+	      Faces1 = gb_sets:to_list(Faces0),
+	      Faces = sofs:from_external(Faces1, [face]),
+	      VsFs0 = vs_faces(Faces1, We),
+	      VsFs = sofs:relation(VsFs0, [{vertex,face}]),
+	      Vs = sofs:to_external(sofs:domain(VsFs)),
+	      BorderVs0 = vs_bordering(Vs, Faces0, We),
+	      BorderVs = sofs:from_external(BorderVs0, [vertex]),
+	      BorderFs = sofs:restriction(VsFs, BorderVs),
+	      Border = sofs:range(BorderFs),
+	      Sel = sofs:difference(Faces, Border),
+	      gb_sets:from_ordset(sofs:to_external(Sel))
       end, face, St).
+
+vs_faces(Faces, We) ->
+    fold_faces(fun(Face, V, _, _, A) -> [{V,Face}|A] end, [], Faces, We).
+		       
+vs_bordering(Vs, FaceSet, We) ->
+    B = foldl(fun(V, A) ->
+		      case vtx_bordering(V, FaceSet, We) of
+			  true -> [V|A];
+			  false -> A
+		      end
+	      end, [], Vs),
+    ordsets:from_list(B).
+
+vtx_bordering(V, FaceSet, We) ->
+    wings_vertex:fold(
+      fun(_, _, _, true) -> true;
+	 (_, Face, _, false) ->
+	      not gb_sets:is_member(Face, FaceSet)
+      end, false, V, We).
 
 %% other(Face, EdgeRecord) -> OtherFace
 %%  Pick up the "other face" from an edge record.
 other(Face, #edge{lf=Face,rf=Other}) -> Other;
 other(Face, #edge{rf=Face,lf=Other}) -> Other.
 
-%% to_vertices(FaceGbSet, We) -> VertexGbSet
-%%  Convert a set of faces to a set of vertices.
+%% to_vertices(FaceGbSet, We) -> VertexList
+%%  Convert a set of faces to a list of vertices.
 to_vertices(Faces, We) when is_list(Faces) ->
     to_vertices(Faces, We, []);
 to_vertices(Faces, We) ->
