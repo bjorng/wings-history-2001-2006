@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.25 2003/02/07 13:31:46 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.26 2003/02/07 18:25:02 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -68,8 +68,9 @@ event(resized, Ost) ->
     update_scroller(Ost),
     keep;
 event(got_focus, _) ->
-    Msg = [wings_util:button_format("Select", [], "Show outliner menu"),$\s,
-	   wings_util:rmb_format("Show element creation menu")],
+    Msg = wings_util:button_format("Select", [],
+				   "Show outliner menu (if selection) or "
+				  "creation menu (if no selection)"),
     wings_wm:message(Msg),
     wings_wm:dirty();
 event({current_state,St}, Ost0) ->
@@ -95,12 +96,9 @@ event(#mousebutton{}=Ev, #ost{st=St,active=Act}=Ost) ->
     case wings_menu:is_popup_event(Ev) of
 	no -> keep;
 	{yes,X,Y,_} ->
-	    RmbMod = wings_camera:free_rmb_modifier(),
-	    case wings_wm:me_modifiers() of
-		Mod when Mod band RmbMod =:= 0 ->
-		    do_menu(Act, X, Y, Ost);
-		_ ->
-		    wings_shapes:menu(X, Y, St)
+	    if
+		Act =:= -1 -> wings_shapes:menu(X, Y, St);
+		true -> do_menu(Act, X, Y, Ost)
 	    end
     end;
 event(scroll_page_up, Ost) ->
@@ -124,6 +122,7 @@ event({action,{shape,_}}=Act, _) ->
 event(Ev, Ost) ->
     case wings_hotkey:event(Ev) of
 	{select,deselect} ->
+	    wings_wm:dirty(),
 	    get_event(Ost#ost{active=-1});
 	_ -> keep
     end.
