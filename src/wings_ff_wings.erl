@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.32 2003/02/01 18:59:32 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.33 2003/02/26 07:17:37 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -345,6 +345,15 @@ mat_images_1([H|T], Acc) ->
 mat_images_1([], Acc) -> Acc.
 
 mat_images_2([{Type,Image}|T], Acc) ->
-    #e3d_image{width=W,height=H,image=Bits} = wings_image:info(Image),
+    case wings_image:info(Image) of
+	#e3d_image{width=W,height=H,type=r8g8b8,
+		   order=lower_left,alignment=1,image=Bits} -> ok;
+	E3D ->
+	    %% Temporary solution until we start saving images:
+	    %%   Strip any alpha. Make sure that order and alignment
+	    %%   is correct.
+	    #e3d_image{width=W,height=H,image=Bits} =
+		e3d_image:convert(E3D, r8g8b8, 1, lower_left)
+    end,
     mat_images_2(T, [{Type,{W,H,Bits}}|Acc]);
 mat_images_2([], Acc) -> Acc.
