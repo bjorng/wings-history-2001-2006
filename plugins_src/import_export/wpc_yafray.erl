@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.14 2003/02/28 14:45:47 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.15 2003/03/03 08:31:56 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -488,16 +488,16 @@ export_pos(F, Type, {X,Y,Z}) ->
 
 export_faces(_F, [], _DefMat, _TxT) ->
     ok;
-export_faces(F, [#e3d_face{vs=[A,B,C],tx=[Ta,Tb,Tc],mat=[Mat|_]}|T], 
+export_faces(F, [#e3d_face{vs=[A,B,C],tx=Tx,mat=[Mat|_]}|T], 
 	     DefaultMaterial, TxT) ->
     Shader =
 	case Mat of
 	    DefaultMaterial -> "";
 	    _ -> [" shader_name=\"w_",format(Mat),"\""]
 	end,
-    UV = case TxT of
-	     {} -> "";
-	     _ ->
+    UV = case {TxT,Tx} of
+	     {{},_} -> "";
+	     {_,[Ta,Tb,Tc]} ->
 		 {Ua,Va} = element(1+Ta, TxT),
 		 {Ub,Vb} = element(1+Tb, TxT),
 		 {Uc,Vc} = element(1+Tc, TxT),
