@@ -3,12 +3,12 @@
 %%
 %%     Implementation of pulldown and popup menus.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.124 2003/11/23 07:37:40 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.125 2004/02/27 20:40:31 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -868,11 +868,13 @@ draw_submenu(_Adv, Item, _X, _Y) when is_atom(Item);
     ok;
 draw_submenu(true, _Item, _X, _Y) -> ok;
 draw_submenu(false, _Item, X, Y) ->
+    Cw = wings_text:width(),
+    H = (wings_text:height()+2) div 3,
     ?CHECK_ERROR(),
     gl:'begin'(?GL_TRIANGLES),
-    gl:vertex2i(X-?CHAR_WIDTH div 2, Y),
-    gl:vertex2i(X-?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3),
-    gl:vertex2i(X-?CHAR_WIDTH, Y+?CHAR_HEIGHT div 3),
+    gl:vertex2i(X-Cw div 2, Y),
+    gl:vertex2i(X-Cw, Y-H),
+    gl:vertex2i(X-Cw, Y+H),
     gl:'end'(),
     ?CHECK_ERROR().
 
