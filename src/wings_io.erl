@@ -3,12 +3,12 @@
 %%
 %%     This module contains most of the low-level GUI for Wings.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.135 2004/12/16 15:42:04 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.136 2005/03/26 07:53:07 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -278,9 +278,11 @@ text_at(X, Y, S) ->
 
 unclipped_text(X, Y, S) ->
     gl:rasterPos2i(X, Y),
-    case catch text(S, X, Y, []) of
-	{newline,More} -> unclipped_text(X, Y+?LINE_HEIGHT, More);
-	Other -> Other
+    try
+	text(S, X, Y, [])
+    catch
+	throw:{newline,More} ->
+	    unclipped_text(X, Y+?LINE_HEIGHT, More)
     end.
 
 text([$\n|Cs], _, _, []) ->
@@ -311,8 +313,17 @@ text([{space,W}|Cs], X0, Y, Acc) ->
     draw_reverse(Acc),
     gl:rasterPos2i(X, Y),
     text(Cs, X, Y, []);
-text([C|Cs], X, Y, Acc) when is_integer(C) ->
-    text(Cs, X, Y, [C|Acc]);
+text([C|Cs], X0, Y, Acc) when is_integer(C) ->
+    if
+	C < 256 ->
+	    text(Cs, X0, Y, [C|Acc]);
+	true ->
+	    %% Unicode character.
+	    X = X0 + wings_text:width([C|Acc]),
+	    draw_reverse(Acc),
+	    wings_text:char(C),
+	    text(Cs, X, Y, [])
+    end;
 text([Atom|Cs], X0, Y, Acc) when is_atom(Atom) ->
     X = X0 + wings_text:width([Atom|Acc]),
     draw_reverse(Acc),
