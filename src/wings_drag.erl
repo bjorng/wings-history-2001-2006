@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.106 2002/09/18 13:16:07 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.107 2002/10/06 07:32:24 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -417,7 +417,6 @@ view_changed(#drag{flags=Flags}=Drag0) ->
 
 view_changed_fun(#dlo{drag={matrix,Tr,_,_},transparent=#we{}=We}=D, _) ->
     Id = e3d_mat:identity(),
-%%    {D#dlo{src_we=We,drag={matrix,Tr,e3d_mat:compress(Mtx),Mtx}},[]};
     {D#dlo{src_we=We,drag={matrix,Tr,Id,e3d_mat:expand(Id)}},[]};
 view_changed_fun(#dlo{drag={matrix,Tr,_,Mtx}}=D, _) ->
     {D#dlo{drag={matrix,Tr,e3d_mat:compress(Mtx),Mtx}},[]};
@@ -641,13 +640,13 @@ normalize_fun(#dlo{drag={matrix,_,_,Matrix},
     Shs = gb_trees:update(Id, We, Shs0),
     {D#dlo{work=none,sel=none,drag=none,src_we=We,mirror=M},Shs};
 normalize_fun(#dlo{drag={general,_},src_we=#we{id=Id}=We}=D, Shs) ->
-    {D#dlo{drag=none,src_we=We},gb_trees:update(Id, We, Shs)};
+    {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)};
 normalize_fun(#dlo{src_we=#we{id=Id,vs=Vtab0}}=D, Shs) ->
     #we{vs=OldVtab0}= We0 = gb_trees:get(Id, Shs),
     Vtab1 = norm_update(gb_trees:to_list(Vtab0), gb_trees:to_list(OldVtab0)),
     Vtab = gb_trees:from_orddict(Vtab1),
     We = We0#we{vs=Vtab},
-    {D#dlo{drag=none,src_we=We},gb_trees:update(Id, We, Shs)}.
+    {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)}.
 
 norm_update(New, Old) ->
     norm_update(New, Old, []).
