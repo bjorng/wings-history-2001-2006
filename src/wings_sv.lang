@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.7 2004/10/16 08:18:24 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.8 2004/10/16 12:22:04 bjorng Exp $
 %%
 
 {wings,
@@ -232,13 +232,7 @@
   {desc,
    [{1,"En"},
     {2,"Två"},
-    {3,"Tre"},
-    {4,"Blender"},
-    {5,"Nendo"},
-    {6,"Mirai"},
-    {7,"3ds max"},
-    {8,"Maya"},
-    {9,"Motionbuilder"}]},
+    {3,"Tre"}]},
   {help,
    [{1,"Starta kameran"}]},
   {info,
@@ -609,6 +603,18 @@
 %% Regenerate the rest of the wings_help texts when it is time to translate.
 %% (Many changes.)
 %%
+  {menu,
+   [{1,"Komma igång"},
+    {2,"Använda en mus med en eller två knappar"},
+    {3,"Franska och tyska tangentbord"},
+    {4,"Definerade korttangenter"},
+    {5,"Definera korttangenter"},
+    {6,"Grundläggande om ljus"},
+    {7,"Avancerade menyer"},
+    {8,"Fördefinierade kommandon"},
+    {9,"Tips för bättre prestanda"},
+    {10,"OpenGL Info"},
+    {11,"Om Wings 3D"}]},
   {splash_contents,
    [{1,"Wings 3D är en 3D-modellerare inspirerad"},
     {2,"av Nendo och Mirai from IZware."},
@@ -616,7 +622,7 @@
     {4,"men får fritt användas för alla ändamål"},
     {5,"(inklusive kommersiella)."},
     {6,"Copyright "},
-    {7," 2001-2004 "},
+    {7," & andra"},
     {8,"JPEG library: Copyright "}]}]}.
 {wings_hotkey,
  [
@@ -1192,6 +1198,13 @@
  [
   {accept,
    [{1,"Godkänn"}]},
+  {camera_mode,
+   [{blender,"Blender"},
+    {may,"Maya"},
+    {mb,"Motionbuilder"},
+    {mirai,"Mirai"},
+    {nendo,"Nendo"},
+    {tds,"3ds max"}]},
   {cancel,
    [{1,"Avbryt"}]},
   {dir,

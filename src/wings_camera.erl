@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.109 2004/10/15 15:40:30 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.110 2004/10/16 12:22:02 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -113,12 +113,7 @@ camera_modes() ->
 desc(1) -> ?STR(desc,1,"One");
 desc(2) -> ?STR(desc,2,"Two");
 desc(3) -> ?STR(desc,3,"Three");
-desc(blender) -> ?STR(desc,4,"Blender");
-desc(nendo) -> ?STR(desc,5,"Nendo");
-desc(mirai) -> ?STR(desc,6,"Mirai");
-desc(tds) -> ?STR(desc,7,"3ds max");
-desc(maya) -> ?STR(desc,8,"Maya");
-desc(mb) -> ?STR(desc,9,"Motionbuilder").
+desc(Other) -> wings_s:camera_mode(Other).
 
 info(1) ->
     ?STR(info,1,"Note: Only the Nendo camera mode can be used with a one-button mouse");

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.74 2004/10/16 08:18:24 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.75 2004/10/16 12:22:04 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -63,35 +63,59 @@ command(about, _St) ->
     about().
 
 getting_started() ->
-    Help = [?STR(getting_started,1,"When learning Wings, keep an eye at the information line at the bottom of the screen. Generally it shows what the mouse buttons will do at any given moment."),
+    B = "(",
+    E = ")",
+    H = [?STR(getting_started,1,
+	      "When learning Wings, keep an eye at the information line at the bottom of the screen."
+	      " Generally it shows what the mouse buttons will do at any given moment."),
 
-	    ?STR(getting_started,2,"The actions for the mouse buttons are given first, labeled L: (left mouse button), M: (middle button or scroll wheel), R: (right button), followed by any hotkey actions."),
+	 ?STR(getting_started,2,
+	      "The actions for the mouse buttons are given first, labeled "),
 
-	    ?STR(getting_started,3,"To use mice with only one or two buttons, you must inform Wings how many buttons your mouse has in the ")
-		++cmd([?STR(getting_started,4,"Edit"),
-		       ?STR(getting_started,5,"Preferences")
-		       ])++
-	    ?STR(getting_started,6," dialog."),
-	    ?STR(getting_started,7,"Generally, L (left mouse button) is used for selecting and accepting, M (middle mouse button) for operating the camera, and R (right mouse button) to access the context-sensitive pop-up menus.")
-	   ],
-    help_window(?STR(getting_started,8,"Getting Started"), Help).
+	 wings_util:button_format(B++?STR(getting_started,left_def,
+					  "left mouse button")++E),
+	 wings_util:button_format([],
+				  B++?STR(getting_started,middle_def,
+					  "middle button or scroll wheel")++E),
+	 wings_util:button_format([],
+				  B++?STR(getting_started,right_def,
+					  "right button")++E),
+
+	 ?STR(getting_started,two_a,
+	      "followed by any hotkey actions."),
+
+	 ?STR(getting_started,3,
+	      "To use mice with only one or two buttons, you must inform Wings how many buttons your mouse has in the ")++
+	 cmd([?STR(getting_started,4,"Edit"),
+	      ?STR(getting_started,5,"Preferences")
+	     ])++
+	 ?STR(getting_started,6," dialog."),
+	 ?STR(getting_started,7,
+	      "Generally, L (left mouse button) is used for selecting and accepting, M (middle mouse button) for operating the camera, and R (right mouse button) to access the context-sensitive pop-up menus.")
+	],
+    help_window(?STR(getting_started,8,"Getting Started"), H).
 
 one_or_two() ->
+    Nendo = [{ul,wings_s:camera_mode(nendo)}],
     Help = [?STR(getting_started,9,"To use mice with only one or two buttons, you must inform Wings how many buttons your mouse has in the ")
 		++cmd([?STR(getting_started,10,"Edit"),
                        ?STR(getting_started,11,"Preferences")
 		      ])++
 	    ?STR(getting_started,12," dialog."),
 
-	    ?STR(getting_started,13,"Note that only the ")
-		++[{ul,?STR(getting_started,14,"Nendo")}]
-		++?STR(getting_started,15," and ")++
-	    [{ul,?STR(getting_started,16,"Blender")}]++
-	    ?STR(getting_started,17," modes can be used with a two-button mouse. Only the ")
-		++[{ul,?STR(getting_started,18,"Nendo")}]
-		++?STR(getting_started,19," mode can be used with an one-button mouse.")
+	    ?STR(getting_started,13,"Note that only the ")++
+	    Nendo++
+	    ?STR(getting_started,15," and ")++
+	    [{ul,wings_s:camera_mode(blender)}]++
+	    ?STR(getting_started,17,
+		 " modes can be used with a two-button mouse."
+		 " Only the ")++
+	    Nendo++
+	    ?STR(getting_started,19,
+		 " mode can be used with an one-button mouse.")
 	   ],
-    help_window(?STR(getting_started,20,"Using a mouse with One or Two buttons"), Help).
+    help_window(?STR(getting_started,20,
+		     "Using a mouse with One or Two buttons"), Help).
 
 advanced_menus() ->
     Help = [?STR(advanced_menus,1,"In the ")
@@ -140,9 +164,9 @@ def_commands() ->
 	    "  " ++ Ctrl ++ wings_s:lmb(),
 	    "  " ++ Ctrl ++ wings_s:mmb(),
 	    ?STR(def_commands,11,"Note: When using the") ++ " " ++
-	    [{ul,?STR(def_commands,12,"3ds max")}] ++ " " ++
+	    [{ul,wings_s:camera_mode(tds)}] ++ " " ++
 	    ?STR(def_commands,13,"or") ++ " " ++
-	    [{ul,?STR(def_commands,14,"Blender")}] ++ " " ++
+	    [{ul,wings_s:camera_mode(blender)}] ++ " " ++
 	    ?STR(def_commands,15,
 		 "camera modes, the second default command cannot be used.")],
     help_window(?STR(def_commands,16,"Assigning Default Commands"), Help).
@@ -486,10 +510,9 @@ splash_contents() ->
      {text,?STR(splash_contents,4,"but is completely free for any kind of use")},
      {text,?STR(splash_contents,5,"(including commercial).")},
      {spacer,0,10},
-     {text,?STR(splash_contents,6,"Copyright ") 
-	     ++ [169] 
-	     ++ ?STR(splash_contents,7," 2001-2004 ")
-      ++"Bj" ++ [246] ++ "rn Gustavsson & Others"},
-     {text,?STR(splash_contents,8,"JPEG library: Copyright ") ++ [169] ++
+     {text,?STR(splash_contents,6,"Copyright") 
+      ++ [$\s,169] ++ " 2001-2004 "++"Bj" ++ [246] ++ "rn Gustavsson " ++
+      ?STR(splash_contents,7,"& Others")},
+     {text,?STR(splash_contents,8,"JPEG library: Copyright") ++ [$\s,169] ++
       " 1991-1998 Thomas G. Lane"}
     ].
