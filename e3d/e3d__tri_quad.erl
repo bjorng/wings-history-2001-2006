@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__tri_quad.erl,v 1.6 2002/03/16 10:33:01 bjorng Exp $
+%%     $Id: e3d__tri_quad.erl,v 1.7 2002/04/03 09:01:28 bjorng Exp $
 %%
 
 -module(e3d__tri_quad).
@@ -36,21 +36,24 @@ triangulate(#e3d_mesh{type=polygon,fs=Fs0,vs=Vs}=Mesh) ->
 
 triangulate([#e3d_face{vs=[_,_,_]}=FaceRec|Ps], Vtab, Acc) ->
     triangulate(Ps, Vtab, [FaceRec|Acc]);
-triangulate([#e3d_face{vs=Vs0}=FaceRec0|Ps], Vtab, Acc0) ->
+triangulate([#e3d_face{vs=Vs0,tx=Tx0}=FaceRec0|Ps], Vtab, Acc0) ->
     Vs = seq(0, length(Vs0)-1),
     TempVtab = [element(V+1, Vtab) || V <- Vs0],
     FaceRec = FaceRec0#e3d_face{vs=Vs},
     Tris = triangulate_face(FaceRec, TempVtab),
-    Acc = renumber_result(Tris, list_to_tuple(Vs0), Acc0),
+    Acc = renumber_result(Tris, list_to_tuple(Vs0), list_to_tuple(Tx0), Acc0),
     triangulate(Ps, Vtab, Acc);
 triangulate([], Vtab, Acc) -> reverse(Acc).
 
-renumber_result([#e3d_face{vs=[Va,Vb,Vc]}=Rec|Tris], OrigNum, Acc) ->
-    Vs = [element(Va+1, OrigNum),
-	  element(Vb+1, OrigNum),
-	  element(Vc+1, OrigNum)],
-    renumber_result(Tris, OrigNum, [Rec#e3d_face{vs=Vs}|Acc]);
-renumber_result([], _, Acc) -> Acc.
+renumber_result([#e3d_face{vs=[Va,Vb,Vc]}=Rec|Tris], OrigNum, OrigTx, Acc) ->
+    Vs = renumber_one(Va, Vb, Vc, OrigNum),
+    Tx = renumber_one(Va, Vb, Vc, OrigTx),
+    renumber_result(Tris, OrigNum, OrigTx, [Rec#e3d_face{vs=Vs,tx=Tx}|Acc]);
+renumber_result([], _, _, Acc) -> Acc.
+
+renumber_one(Va, Vb, Vc, {}) -> [];
+renumber_one(Va, Vb, Vc, Orig) ->
+    [element(Va+1, Orig),element(Vb+1, Orig),element(Vc+1, Orig)].
 
 % Quadrangulate an entire mesh. (Not optimized yet; slow on large meshes.)
 quadrangulate(#e3d_mesh{type=quad}=Mesh) -> Mesh;
