@@ -8,12 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.27 2002/01/20 11:14:38 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.28 2002/02/06 16:59:07 bjorng Exp $
 %%
 
 -module(wings_sel).
 
--export([convert/3,convert_shape/3,convert_selection/2,
+-export([clear/1,set/2,set/3,
+	 convert/3,convert_shape/3,convert_selection/2,
 	 fold/3,map/2,mapfold/3,
 	 foreach/2,make/3,valid_sel/1,valid_sel/3,
 	 centers/1,bounding_box/1,
@@ -23,6 +24,15 @@
 
 -include("wings.hrl").
 -import(lists, [foldl/3,reverse/1,reverse/2,sort/1,keydelete/3]).
+
+clear(St) ->
+    St#st{sel=[]}.
+
+set(Sel, St) ->
+    St#st{sel=sort(Sel)}.
+
+set(Mode, Sel, St) ->
+    St#st{selmode=Mode,sel=sort(Sel)}.
 
 %%%
 %%% Convert selection.

@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.8 2002/01/31 07:33:29 bjorng Exp $
+%%     $Id: wpa.erl,v 1.9 2002/02/06 16:57:48 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,error/1,message/1,yes_no/1,
 	 bind_unicode/2,bind_virtual/3,
 	 import/3,export/3,export_selected/3,
 	 pref_get/2,pref_get/3,pref_set/3,pref_delete/2,
-	 sel_map/2,sel_fold/3,sel_convert/3,
+	 sel_get/1,sel_set/2,sel_set/3,sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,
 	 vertices/1,vertex_pos/2,vertex_flatten/3,vertex_center/2,
 	 faces/1,face_vertices/2,face_outer_vertices/2,face_outer_edges/2,
@@ -83,8 +83,19 @@ pref_set(Mod, Key, Value) ->
 
 pref_delete(Mod, Key) ->
     wings_pref:delete_value({Mod,Key}).
-    
+
+%%%    
 %%% Selection utilities.
+%%%
+
+sel_set(Sel, St) ->
+    wings_sel:set(Sel, St).
+
+sel_set(Mode, Sel, St) ->
+    wings_sel:set(Mode, Sel, St).
+
+sel_get(#st{sel=Sel}) ->
+    Sel.
 
 sel_map(F, St) ->
     wings_sel:map(
