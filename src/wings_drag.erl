@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.54 2002/02/10 18:17:11 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.55 2002/02/11 12:26:28 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -619,14 +619,18 @@ make_dlist_1([], Fs, Draw) -> ok.
 draw_faces(#we{perm=Perm}=We) when ?IS_NOT_VISIBLE(Perm) -> ok;
 draw_faces(#we{fs=Ftab}=We) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1.0,1.0,1.0}),
+    gl:'begin'(?GL_TRIANGLES),
     foreach(fun({Face,#face{edge=Edge}}) ->
 		    wings_draw_util:face(Face, Edge, We)
-	    end, gb_trees:to_list(Ftab)).
+	    end, gb_trees:to_list(Ftab)),
+    gl:'end'().
 
 draw_flat_faces(#we{first_id=Flist}=We) ->
+    gl:'begin'(?GL_TRIANGLES),
     foreach(fun({Face,#face{edge=Edge}}) ->
 		    wings_draw_util:flat_face(Face, Edge, We)
-	    end, Flist).
+	    end, Flist),
+    gl:'end'().
 
 %%
 %% Draw the currently selected items.
@@ -657,13 +661,13 @@ draw_sel(edge, Edges, #we{es=Etab,vs=Vtab}) ->
 	    end, Edges),
     gl:'end'();
 draw_sel(face, Faces, We) ->
+    gl:'begin'(?GL_TRIANGLES),
     foreach(fun(Face) ->
 		    wings_draw_util:sel_face(Face, We)
-	    end, Faces);
+	    end, Faces),
+    gl:'end'();
 draw_sel(body, Dummy, #we{fs=Ftab}=We) ->
-    foreach(fun(Face) ->
-		    wings_draw_util:sel_face(Face, We)
-	    end, gb_trees:keys(Ftab)).
+    draw_sel(face, gb_trees:keys(Ftab), We).
 
 lookup_pos(Key, Tree) ->
     #vtx{pos=Pos} = gb_trees:get(Key, Tree),

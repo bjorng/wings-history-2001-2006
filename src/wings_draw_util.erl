@@ -3,12 +3,12 @@
 %%
 %%     Utilities for drawing objects.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.10 2002/01/07 22:46:18 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.11 2002/02/11 12:26:28 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -21,8 +21,6 @@ init() ->
     Tess = glu:newTess(),
     put(wings_gnu_tess, Tess), 
     glu:tessCallback(Tess, ?GLU_TESS_VERTEX, ?ESDL_TESSCB_VERTEX_DATA),
-    glu:tessCallback(Tess, ?GLU_TESS_BEGIN, ?ESDL_TESSCB_GLBEGIN),
-    glu:tessCallback(Tess, ?GLU_TESS_END, ?ESDL_TESSCB_GLEND),
     glu:tessCallback(Tess, ?GLU_TESS_EDGE_FLAG, ?ESDL_TESSCB_GLEDGEFLAG),
     glu:tessCallback(Tess, ?GLU_TESS_COMBINE, ?ESDL_TESSCB_COMBINE).
 
@@ -45,21 +43,17 @@ sel_face(Face, #we{vs=Vtab}=We) ->
 	    glu:tessEndContour(Tess),
 	    glu:tessEndPolygon(Tess),
 	    gl:edgeFlag(?GL_TRUE);
-	Vs ->
-	    gl:'begin'(?GL_POLYGON),
-	    sel_face_1(Vs, Vtab),
-	    gl:'end'()
+	[A,B,C] ->
+	    gl:vertex3fv(pos(A, Vtab)),
+	    gl:vertex3fv(pos(B, Vtab)),
+	    gl:vertex3fv(pos(C, Vtab));
+	Vs -> ok
     end.
 
 tess_sel_face(Tess, [V|T], Vtab) ->
     glu:tessVertex(Tess, pos(V, Vtab)),
     tess_sel_face(Tess, T, Vtab);
 tess_sel_face(Tess, [], Vtab) -> ok.
-
-sel_face_1([Pos|T], Vtab) ->
-    gl:vertex3fv(pos(Pos, Vtab)),
-    sel_face_1(T, Vtab);
-sel_face_1([], Vtab) -> ok.
 
 %%
 %% Draw a face. Tesselate polygons (>4 edges).
@@ -81,11 +75,10 @@ face(Face, Edge, #we{mode=vertex}=We) ->
 	    glu:tessEndContour(Tess),
 	    glu:tessEndPolygon(Tess),
 	    gl:edgeFlag(?GL_TRUE);
-	Vs ->
+	[_,_,_]=Vs ->
 	    gl:normal3fv(wings_face:draw_normal(Vs)),
-	    gl:'begin'(?GL_POLYGON),
-	    face_vtxcol_1(Vs),
-	    gl:'end'()
+	    face_vtxcol_1(Vs);
+	Vs -> ok
     end;
 face(Face, Edge, #we{vs=Vtab}=We) ->
     case wings_face:surrounding_vertices(Face, Edge, We) of
@@ -100,11 +93,10 @@ face(Face, Edge, #we{vs=Vtab}=We) ->
 	    glu:tessEndContour(Tess),
 	    glu:tessEndPolygon(Tess),
 	    gl:edgeFlag(?GL_TRUE);
-	Vs ->
+	[_,_,_]=Vs ->
 	    gl:normal3fv(wings_face:face_normal(Vs, We)),
-	    gl:'begin'(?GL_POLYGON),
-	    face_1(Vs, Vtab),
-	    gl:'end'()
+	    face_1(Vs, Vtab);
+	Vs -> ok
     end.
 
 tess_face_vtxcol(Tess, [{Pos,Col}|T], Normal) ->
@@ -140,27 +132,21 @@ flat_face(Face, Edge, #we{vs=Vtab}=We) ->
 	    glu:tessNormal(Tess, X, Y, Z),
 	    glu:tessBeginPolygon(Tess),
 	    glu:tessBeginContour(Tess),
-	    Info = [],
-	    tess_flat_face(Tess, Vs, Info, Vtab),
+	    tess_flat_face(Tess, Vs, Vtab),
 	    glu:tessEndContour(Tess),
 	    glu:tessEndPolygon(Tess),
 	    gl:edgeFlag(?GL_TRUE);
-	Vs ->
-	    gl:'begin'(?GL_POLYGON),
-	    flat_face_1(Vs, Vtab),
-	    gl:'end'()
+	[A,B,C]=Vs ->
+	    gl:vertex3fv(pos(A, Vtab)),
+	    gl:vertex3fv(pos(B, Vtab)),
+	    gl:vertex3fv(pos(C, Vtab));
+	Vs -> ok
     end.
 
-tess_flat_face(Tess, [V|T], N, Vtab) ->
-    glu:tessVertex(Tess, pos(V, Vtab), N),
-    tess_flat_face(Tess, T, N, Vtab);
-tess_flat_face(Tess, [], N, Vtab) -> ok.
-
-flat_face_1([Pos|T], Vtab) ->
-    gl:vertex3fv(pos(Pos, Vtab)),
-    flat_face_1(T, Vtab);
-flat_face_1([], Vtab) -> ok.
-
+tess_flat_face(Tess, [V|T], Vtab) ->
+    glu:tessVertex(Tess, pos(V, Vtab)),
+    tess_flat_face(Tess, T, Vtab);
+tess_flat_face(Tess, [], Vtab) -> ok.
 
 %%
 %% Utilities.
