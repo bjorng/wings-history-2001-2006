@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.14 2001/10/03 12:11:12 bjorng Exp $
+%%     $Id: wings.erl,v 1.15 2001/10/11 13:16:50 bjorng Exp $
 %%
 
 -module(wings).
--export([start/0]).
+-export([start/0,start_halt/0]).
 -export([caption/1]).
 
 -define(NEED_OPENGL, 1).
@@ -28,6 +28,12 @@
 
 start() ->
     spawn_link(fun init/0).
+
+start_halt() ->
+    spawn_link(fun() ->
+		       init(),
+		       halt()
+	       ened).
 
 init() ->
     register(wings, self()),
