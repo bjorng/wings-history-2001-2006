@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.2 2003/01/17 14:24:36 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.3 2003/01/17 23:16:07 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -58,105 +58,126 @@ fun_export_2(Props) ->
 
 
 export(Props, Filename, #e3d_file{objs=Objs,mat=Mats,creator=Creator}) ->
-    case file:open(Filename, [write]) of
+    case open(Filename, export) of
 	{error,_}=Error -> 
 	    Error;
 	{ok,F} ->
 	    CameraName = "WingsDefaultCamera",
 	    ConstBackgroundName = "WingsDefaultConstBackground",
-	    Outfile = filename:rootname(Filename)++".tga",
+	    Basename = filename:basename(Filename),
+	    Outfile = filename:rootname(Basename)++".tga",
 	    %%
 	    Lights = proplists:get_value(lights, Props, []),
-	    ok = io:format(F, "<!-- ~s: Exported from ~s -->~n~n", 
-			   [Filename, Creator]),
-	    ok = io:format(F, "<scene>~n", []),
-	    decomment(F, fun() -> 
+	    println(F, "<!-- ~s: Exported from ~s -->~n"++
+		    "~n"++
+		    "<scene>", [Basename, Creator]),
+	    %%
+	    section(F, "Textures"),
+	    template(F, fun() -> 
 				 export_texture(F, jpeg, 
 						"WingsTemplateJpegTexture") 
 			 end),
-	    decomment(F, fun() -> 
+	    println(F),
+	    template(F, fun() -> 
 				 export_texture(F, clouds, 
 						"WingsTemplateCloudsTexture") 
 			 end),
+	    %%
+	    section(F, "Shaders"),
 	    foreach(fun ({Name, Mat}) -> 
-			    export_shader(F, Name, Mat) 
+			    export_shader(F, Name, Mat),
+			    println(F)
 		    end, 
 		    Mats),
+	    %%
+	    section(F, "Objects"),
 	    foreach(fun (#e3d_object{name=NameStr,obj=Mesh}) ->
-			    export_object(F, NameStr, Mesh)
+			    export_object(F, NameStr, Mesh),
+			    println(F)
 		    end,
 		    Objs),
+	    %%
+	    section(F, "Lights"),
 	    foreach(fun (Light) -> 
-			    export_light(F, Light) 
+			    export_light(F, Light),
+			    println(F)
 		    end,
 		    Lights),
-	    export_camera(F, CameraName),
+	    %%
+	    section(F, "Background, Camera, Filter and Render"),
 	    export_background(F, constant, ConstBackgroundName),
+	    println(F),
 	    export_background(F, sunsky, "WingsDefaultSunskyBackground"),
+	    println(F),
+	    export_camera(F, CameraName),
+	    println(F),
 	    export_render(F, CameraName, ConstBackgroundName, Outfile),
-	    ok = io:format(F, "</scene>~n", []),
-	    ok = file:close(F)
+	    %%
+	    println(F),
+	    println(F, "</scene>"),
+	    close(F)
     end.
 
 
 
-decomment(F, Fun_0) ->
-    ok = io:format(F, "<!--~n", []),
+template(F, Fun_0) ->
+    println(F, "<!-- Begin Template"),
     Fun_0(),
-    ok = io:format(F, " -->~n~n", []).
+    println(F, "End Template -->").
+
+section(F, Name) ->
+    println(F, [io_lib:nl(),"<!-- Section ",Name," -->",io_lib:nl()]).
 
 
 
 export_texture(F, jpeg, Name) ->
-    ok = io:format(F, "<texture type=\"jpeg\" name=\"~s\">~n", [Name]),
-    ok = io:format(F, "    <filename value=\"~s.jpg\"/>~n", [Name]),
-    ok = io:format(F, "</texture>~n~n", []);
+    println(F, "<texture type=\"jpeg\" name=\"~s\">~n"++
+	    "    <filename value=\"~s.jpg\"/>~n"++
+	    "</texture>", [Name,Name]);
 export_texture(F, clouds, Name) ->
-    ok = io:format(F, "<texture type=\"clouds\" name=\"~s\">~n", [Name]),
-    ok = io:format(F, "    <depth value=\"2\"/>~n", []),
+    println(F, "<texture type=\"clouds\" name=\"~s\">~n"++
+	    "    <depth value=\"2\"/>", [Name]),
     export_rgb(F, color1, {0.0,0.0,0.0,1.0}),
     export_rgb(F, color2, {1.0,1.0,1.0,1.0}),
-    ok = io:format(F, "</texture>~n~n", []).
+    println(F, "</texture>").
 
 
 
 export_shader(F, Name, Mat) ->
     OpenGL = proplists:get_value(opengl, Mat),
-    ok = io:format(F, "<shader type=\"generic\" name=\"~s\">~n", 
-		   [atom_to_list(Name)]),
-    ok = io:format(F, "    <attributes>~n", []),
+    println(F, "<shader type=\"generic\" name=\"~s\">~n"++ 
+	    "    <attributes>", [atom_to_list(Name)]),
     {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
     Transparency = 1 - Opacity,
     export_rgb(F, color, 
 	       {Dr*Opacity,Dg*Opacity,Db*Opacity,1.0}),
     export_rgb(F, specular, proplists:get_value(specular, OpenGL)),
-    ok = io:format(F, "        <hard value=\"~.10f\"/>~n", 
+    println(F, "        <hard value=\"~.10f\"/>", 
 		   [proplists:get_value(shininess, OpenGL)*100.0]),
     export_rgb(F, reflected, proplists:get_value(ambient, OpenGL)),
     export_rgb(F, transmited, 
 	       {Dr*Transparency,Dg*Transparency,Db*Transparency,1.0}),
-    ok = io:format(F, "        <min_refle value=\"0.0\"/>~n", []),
-    ok = io:format(F, "        <IOR value=\"1.0\"/>~n", []),
-    ok = io:format(F, "    </attributes>~n", []),
-    decomment(F, fun() -> export_modulator(F, "WingsTemplateModulator") end),
-    ok = io:format(F, "</shader>~n~n", []).
+    println(F, "        <min_refle value=\"0.0\"/>~n"++
+	    "        <IOR value=\"1.0\"/>~n"++
+	    "    </attributes>~n", []),
+    template(F, fun() -> export_modulator(F, "WingsTemplateModulator") end),
+    println(F, "</shader>").
 
 export_modulator(F, Texname) ->
-    ok = io:format(F, "        <modulator texname=\"~s\" "++
-		   "mode=\"mix\" size=\"1.0\">~n", [Texname]),
-    ok = io:format(F, "            <color value=\"0.0\"/>~n", []),
-    ok = io:format(F, "            <specular value=\"0.0\"/>~n", []),
-    ok = io:format(F, "            <hard value=\"0.0\"/>~n", []),
-    ok = io:format(F, "            <transmission value=\"0.0\"/>~n", []),
-    ok = io:format(F, "            <reflection value=\"0.0\"/>~n", []),
-    ok = io:format(F, "        </modulator>~n", []).
+    println(F, "        <modulator texname=\"~s\" mode=\"mix\""++
+	    "                   sizex=\"1.0\" sizey=\"1.0\" sizez=\"1.0\">~n"++
+	    "            <color value=\"0.0\"/>~n"++
+	    "            <specular value=\"0.0\"/>~n"++
+	    "            <hard value=\"0.0\"/>~n"++
+	    "            <transmission value=\"0.0\"/>~n"++
+	    "            <reflection value=\"0.0\"/>~n"++
+	    "        </modulator>", [Texname]).
 
 
 
 export_rgb(F, Type, {R,G,B,_}) ->
-    ok = io:format(F,
-		   "        <~s r=\"~.10f\" g=\"~.10f\" b=\"~.10f\"/>~n", 
-		   [atom_to_list(Type),R,G,B]).
+    println(F, "        <~s r=\"~.10f\" g=\"~.10f\" b=\"~.10f\"/>", 
+	    [atom_to_list(Type),R,G,B]).
 
 
 
@@ -165,24 +186,24 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh) ->
     %% Find the default material
     MM = sort(foldl(fun (#e3d_face{mat=[M|_]}, Ms) -> [M|Ms] end, [], Fs)),
     [{_Count,DefaultMaterial}|_] = reverse(sort(count_equal(MM))),
-    ok = io:format(F, "<object name=\"~s\" shader_name=\"~s\" "++
-		   "shadow=\"on\" caus_IOR=\"1.0\" "++
-		   "emit_rad=\"on\" recv_rad=\"on\">~n",
-		   [NameStr, atom_to_list(DefaultMaterial)]),
-    ok = io:format(F, "    <attributes>~n", []),
+    println(F, "<object name=\"~s\" shader_name=\"~s\" "++
+	    "shadow=\"on\" caus_IOR=\"1.0\"~n"++
+	    "        emit_rad=\"on\" recv_rad=\"on\">~n"++
+	    "    <attributes>",
+	    [NameStr, atom_to_list(DefaultMaterial)]),
     export_rgb(F, caus_rcolor, {0.0,0.0,0.0,1.0}),
     export_rgb(F, caus_tcolor, {0.0,0.0,0.0,1.0}),
-    ok = io:format(F, "    </attributes>~n", []),
-    ok = io:format(F, "    <mesh><!-- <mesh autosmooth=\"50.0\"> -->~n", []),
-    ok = io:format(F, "        <points>~n", []),
+    println(F, "    </attributes>~n"++
+	    "    <mesh>", []),
+    template(F, fun () -> println(F, "    <mesh autosmooth=\"50.0\">") end),
+    println(F, "        <points>"),
     export_vertices(F, Vs),
-    ok = io:format(F, "        </points>~n", []),
-    ok = io:format(F, "        <faces>~n", []),
+    println(F, "        </points>~n"++
+	    "        <faces>", []),
     export_faces(F, Fs, DefaultMaterial),
-    ok = io:format(F, "        </faces>~n", []),
-    ok = io:format(F, "    </mesh>~n", []),
-    ok = io:format(F, "</object>~n~n", []),
-    ok.
+    println(F, "        </faces>~n"++
+	    "    </mesh>~n"++
+	    "</object>", []).
 
 export_vertices(_F, []) ->
     ok;
@@ -193,7 +214,7 @@ export_vertices(F, [Pos|T]) ->
 
 
 export_pos(F, Type, {X,Y,Z}) ->
-    ok = io:format(F, "        <~s x=\"~.10f\" y=\"~.10f\" z=\"~.10f\"/>~n",
+    println(F, "        <~s x=\"~.10f\" y=\"~.10f\" z=\"~.10f\"/>",
 		   [atom_to_list(Type),X,Y,Z]).
 
 
@@ -203,12 +224,10 @@ export_faces(_F, [], _DefMat) ->
 export_faces(F, [#e3d_face{vs=[A,B,C],mat=[Mat|_]}|T], DefaultMaterial) ->
     case Mat of
 	DefaultMaterial ->
-	    ok = io:format(F, "        <f a=\"~w\" b=\"~w\" c=\"~w\"/>~n",
-			   [A,B,C]);
+	    println(F, "        <f a=\"~w\" b=\"~w\" c=\"~w\"/>", [A,B,C]);
 	_ ->
-	    ok = io:format(F, "        <f a=\"~w\" b=\"~w\" c=\"~w\" "++
-			   " shader_name=\"~s\"/>~n",
-			   [A,B,C,atom_to_list(Mat)])
+	    println(F, "        <f a=\"~w\" b=\"~w\" c=\"~w\" "++
+		    " shader_name=\"~s\"/>", [A,B,C,atom_to_list(Mat)])
     end,
     export_faces(F, T, DefaultMaterial).
 
@@ -222,38 +241,36 @@ export_light(F, {Name,Ps}) ->
 export_light(F, Name, point, OpenGL) ->
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
-    ok = io:format(F,"<light type=\"pointlight\" name=\"~s\" "++
-		   "power=\"1.0\" cast_shadows=\"on\">~n", 
-		   [Name]),
+    println(F,"<light type=\"pointlight\" name=\"~s\" "++
+	    "power=\"1.0\" cast_shadows=\"on\">", [Name]),
     export_pos(F, from, Position),
     export_rgb(F, color, Diffuse),
-    ok = io:format(F, "</light>~n~n", []);
+    println(F, "</light>~n~n", []);
 export_light(F, Name, infinite, OpenGL) ->
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
-    ok = io:format(F,"<light type=\"sunlight\" name=\"~s\" "++
-		   "power=\"1.0\" cast_shadows=\"on\">~n", 
-		   [Name]),
+    println(F,"<light type=\"sunlight\" name=\"~s\" "++
+	    "power=\"1.0\" cast_shadows=\"on\">", [Name]),
     export_pos(F, from, Position),
     export_rgb(F, color, Diffuse),
-    ok = io:format(F, "</light>~n~n", []);
+    println(F, "</light>");
 export_light(F, Name, spot, OpenGL) ->
     Position = proplists:get_value(position, OpenGL, {0.0,0.0,0.0}),
     AimPoint = proplists:get_value(aim_point, OpenGL, {0.0,0.0,1.0}),
     ConeAngle = proplists:get_value(cone_angle, OpenGL, 45.0),
     SpotExponent = proplists:get_value(spot_exponent, OpenGL, 2.0),
     Diffuse = proplists:get_value(diffuse, OpenGL, {1.0,1.0,1.0,0.1}),
-    ok = io:format(F,"<light type=\"spotlight\" name=\"~s\" "++
-		   "power=\"1.0\" cast_shadows=\"on\" "++
-		   "size=\"~.10f\" beam_falloff=\"~.10f\">~n", 
-		   [Name, ConeAngle, SpotExponent]),
+    println(F, "<light type=\"spotlight\" name=\"~s\" "++
+	    "power=\"1.0\" cast_shadows=\"on\"~n"++
+	    "       size=\"~.10f\" beam_falloff=\"~.10f\">", 
+	    [Name, ConeAngle, SpotExponent]),
     export_pos(F, from, Position),
     export_pos(F, to, AimPoint),
     export_rgb(F, color, Diffuse),
-    ok = io:format(F, "</light>~n~n", []);
+    println(F, "</light>");
 export_light(_F, Name, Type, _OpenGL) ->
-    ok = io:format("Ignoring unknown light \"~s\" type: ~p~n", 
-		   [Name, atom_to_list(Type)]).
+    io:format("Ignoring unknown light \"~s\" type: ~p~n", 
+	      [Name, atom_to_list(Type)]).
 
 
 
@@ -283,13 +300,13 @@ export_camera(F, Name) ->
     From = e3d_vec:add(Pos, Transl),
     To = e3d_vec:add(Aim, Transl),
     Up = e3d_vec:sub(From, DownN),
-    ok = io:format(F, "<camera name=\"~s\" "++
-		   "resx=\"640\" resy=\"480\" focal=\"~.10f\">~n",
-		   [Name,FocalDist]),
+    println(F, "<camera name=\"~s\" "++
+	    "resx=\"640\" resy=\"480\" focal=\"~.10f\">",
+	    [Name,FocalDist]),
     export_pos(F, from, From),
     export_pos(F, to, To),
     export_pos(F, up, Up),
-    ok = io:format(F, "</camera>~n~n", []).
+    println(F, "</camera>").
 
 limit_fov(Fov) when Fov < 1.0 -> 1.0;
 limit_fov(Fov) when Fov > 179.0 -> 179.0;
@@ -308,31 +325,63 @@ limit_dist(_) -> 0.01.
 
 
 export_background(F, constant, Name) ->
-    ok = io:format(F, "<background type=\"constant\" name=\"~s\">~n", [Name]),
+    println(F, "<background type=\"constant\" name=\"~s\">", [Name]),
     export_rgb(F, color, {0.0,0.0,0.0,1.0}),
-    ok = io:format(F, "</background>~n~n", []);
+    println(F, "</background>");
 export_background(F, sunsky, Name) ->
-    ok = io:format(F, "<background type=\"sunsky\" name=\"~s\" "++
-		   "turbidity=\"4.0\" add_sun=\"off\">~n", [Name]),
+    println(F, "<background type=\"sunsky\" name=\"~s\"~n"++
+	    "            turbidity=\"4.0\" add_sun=\"off\">", [Name]),
     export_pos(F, from, {1.0,1.0,1.0}),
-    ok = io:format(F, "</background>~n~n", []).
+    println(F, "</background>").
 
 
 
 export_render(F, CameraName, BackgroundName, Outfile) ->
-    ok = io:format(F, "<render camera_name=\"~s\" "++
-		   "samples=\"1\" raydepth=\"3\" "++
-		   "bias=\"0.3\" tolerance=\"0.1\">~n", [CameraName]),
-    ok = io:format(F, "    <background_name value=\"~s\"/>~n",
-		   [BackgroundName]),
-    ok = io:format(F, "    <outfile value=\"~s\"/>~n", [Outfile]),
-    ok = io:format(F, "    <indirect_samples value=\"0\"/>~n", []),
-    ok = io:format(F, "    <indirect_power value=\"1.0\"/>~n", []),
-    ok = io:format(F, "    <exposure value=\"~.10f\"/>~n", [math:sqrt(2.0)]),
-    ok = io:format(F, "    <gamma value=\"1.0\"/>~n", []),
-    ok = io:format(F, "    <fog_density value=\"0.0\"/>~n", []),
+    println(F, "<render camera_name=\"~s\" "++
+	    "samples=\"1\" raydepth=\"3\"~n"++
+	    "        bias=\"0.3\" tolerance=\"0.1\">~n"++
+	    "    <background_name value=\"~s\"/>~n"++
+	    "    <outfile value=\"~s\"/>~n"++
+	    "    <indirect_samples value=\"0\"/>~n"++
+	    "    <indirect_power value=\"1.0\"/>~n"++
+	    "    <exposure value=\"~.10f\"/>~n"++
+	    "    <gamma value=\"1.0\"/>~n"++
+	    "    <fog_density value=\"0.0\"/>",
+	    [CameraName,BackgroundName,Outfile,math:sqrt(2.0)]),
     export_rgb(F, fog_color, {1.0,1.0,1.0,1.0}),
-    ok = io:format(F, "</render>~n~n", []).
+    println(F, "</render>").
+
+
+
+open(Filename, export) ->
+    file:open(Filename, [write,raw,{delayed_write,65536,2000}]).
+
+println(F) ->
+    println(F, "").
+
+println(F, String) ->
+    case file:write(F, [String,io_lib:nl()]) of
+	ok ->
+	    ok;
+	Error ->
+	    erlang:fault(Error, [F,String])
+    end.
+
+println(F, Format, Args) ->
+    case file:write(F, [io_lib:format(Format, Args),io_lib:nl()]) of
+	ok ->
+	    ok;
+	Error ->
+	    erlang:fault(Error, [F,Format,Args])
+    end.
+
+close(F) ->
+    case file:close(F) of
+	ok ->
+	    ok;
+	Error ->
+	    erlang:fault(Error, [F])
+    end.
 
 
 
