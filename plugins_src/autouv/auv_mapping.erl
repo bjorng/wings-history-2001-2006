@@ -9,11 +9,12 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_mapping.erl,v 1.4 2002/10/09 17:23:26 bjorng Exp $
+%%     $Id: auv_mapping.erl,v 1.5 2002/10/09 21:46:34 dgud Exp $
 
 -module(auv_mapping).
 -include("wings.hrl").
 -include("auv.hrl").
+-include("e3d.hrl").
 -export([projectFromChartNormal/2, project2d/3, lsqcm/2]).
 
 %%% From camera would look something like this!! 
@@ -30,7 +31,7 @@
 %    %%		?DBG("Projected by ~p using camera ~p ~n", [N2, _CI]),
 %    [create_area(Clustered, N2, We0)];
 
-projectFromChartNormal({Id,Chart},We) ->
+projectFromChartNormal({_Id,Chart},We) ->
     CalcNormal = fun(Face, Sum) ->
 			 Normal = wings_face:normal(Face, We),
 			 Vs0 = wpa:face_vertices(Face, We),
@@ -64,15 +65,40 @@ sum_crossp([V1,V2|Vs], Acc) ->
 sum_crossp([_Last], Acc) ->
     Acc.
 
+project_and_triangulate([Face|Fs], We, I, Acc) ->
+    Normal = wings_face:normal(Face, We),
+    Vs0 = wings_face:to_vertices([Face], We),
+    Vs2 = project2d(Vs0, Normal, We),
+    if length(Vs2) > 3 ->
+	    {Ids,Cds,All} = setup_tri_vs(Vs2,0,[],[],[]),
+	    NewFs = e3d_mesh:triangulate_face(#e3d_face{vs=Ids}, Cds),
+	    VT = gb_trees:from_orddict(All),
+	    {Add, I1} = get_verts(NewFs, I, VT, []),
+	    project_and_triangulate(Fs,We,I1,Add ++ Acc);
+       true ->
+	    Vs3 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,Vz}} <- Vs2],
+	    project_and_triangulate(Fs,We,I,[{Face, Vs3}|Acc])
+    end;
+project_and_triangulate([],_,_,Acc) -> 
+    Acc.
+
+setup_tri_vs([{Old,Coord}|Vs],Id,Ids,Cds,All) ->
+    setup_tri_vs(Vs,Id+1,[Id|Ids],[Coord|Cds],[{Id,{Old,Coord}}|All]);
+setup_tri_vs([],_,Ids,Cds,All) ->
+    {lists:reverse(Ids),lists:reverse(Cds),lists:reverse(All)}.
+
+get_verts([#e3d_face{vs = Vs}|Fs],I,Coords,Acc) ->
+    Get = fun(Id) ->
+		  {RealId,{X,Y,_}} = gb_trees:get(Id, Coords),
+		  {RealId,{X,Y}}
+	  end,
+    VsC = lists:map(Get, Vs),
+    get_verts(Fs,I-1,Coords,[{I, VsC}|Acc]);
+get_verts([],I,_,Acc) ->
+    {Acc, I}.
+
 lsqcm(C = {Id, Fs}, We) ->
-    Raimo = fun(Face) ->
-		    Normal = wings_face:normal(Face, We),
-		    Vs0 = wings_face:to_vertices([Face], We),
-		    Vs2 = project2d(Vs0, Normal, We),
-		    Vs3 = [{Vid, {Vx, Vy}} || {Vid,{Vx,Vy,Vz}} <- Vs2],
-		    {Face, Vs3}
-	    end,
-    Vs1 = lists:map(Raimo, Fs),
+    Vs1 = project_and_triangulate(Fs,We,-1,[]),
     {V1, V2} = get_2uvs(C, We),
     case lsq(Vs1,V1,V2) of
 	{error, What} ->
@@ -82,7 +108,7 @@ lsqcm(C = {Id, Fs}, We) ->
 	    Patch = fun({Idt, {Ut,Vt}}) -> {Idt, {Ut,Vt, 0.0}} end,
 	    lists:map(Patch, Vs2)
     end.
-    
+
 get_2uvs(C = {Id, Faces}, We) ->
     %% Hack to test Raimo's algo 
     VsProjected = projectFromChartNormal(C, We),
@@ -104,8 +130,7 @@ get_2uvs(C = {Id, Faces}, We) ->
 		   [{Vs,V1},{Ve,V2}|Acc]
 	   end,
     Vs0 = lists:foldl(Pick, [], BorderEdges),
-    
-    ?DBG("Projected ~p ~n", [Vs0]),
+
     [First |RVs1] = Vs0,
     {BX0={_,{X1,_,_}}, BX1={_,{X2,_,_}}, 
      BY0={_,{_,Y1,_}}, BY1={_,{_,Y2,_}}} =

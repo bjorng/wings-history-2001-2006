@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.5 2002/10/09 17:23:52 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.6 2002/10/09 21:46:34 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -67,7 +67,7 @@ menu({What}, Menu0)
 			    lists:keysearch("Set Material",1,Menu0), 
 			Mat1 = setelement(1, Mat0, "Add to Chart"),
 			Mat2 = {"Get Charts", chart_names, ""},
-			[separator, Mat1, Mat2];
+			[Mat1, Mat2, separator];
 		    _ ->
 			[]
 		end,
