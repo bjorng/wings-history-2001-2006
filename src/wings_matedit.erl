@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.3 2001/11/21 07:07:25 bjorng Exp $
+%%     $Id: wings_matedit.erl,v 1.4 2001/11/21 11:03:57 dgud Exp $
 %%
 
 -module(wings_matedit).
@@ -35,8 +35,8 @@
 -record(s, {ambient, diffuse, specular, shininess = 0.0, transp = 1.0,
 	    prev, %% Prev color used in cancel
 	    x,y,w,h, bgc = {0.6, 0.6, 0.5},
-	    orig_w,
-	    orig_h
+	    orig_w, orig_h,
+	    mouse, key
 	   }). %% Windows stuff
 -record(c, {name, x, y, rgb = {1,1,1}, cx = 0, cy = 0, lscale = 1.0}).
 
@@ -301,115 +301,209 @@ color_picker_loop(S) ->
     gl:disable(?GL_DEPTH_TEST),
     gl:swapBuffers(),
     Ns = 
-	case
-	    %%catch
-	    check_event(S) of
+	case check_event(S) of
 	    quit ->
 		exit(normal); 
-	    {select, X0, Y0} when 
+	    {select, {X0, Y0}} when %% Color Selection
 		  Y0 >= Amb#c.y - ?COLORCIRCLE_RADIE,
-		  Y0 =< Amb#c.y + ?COLORCIRCLE_RADIE -> 
-		if %% Ambient color selection 
-		    X0 >= Amb#c.x - ?COLORCIRCLE_RADIE,
-		    X0 =< Amb#c.x + ?COLORCIRCLE_RADIE ->
-			X = (X0 - Amb#c.x) / ?COLORCIRCLE_RADIE,
-			Y = (Y0 - Amb#c.y) / ?COLORCIRCLE_RADIE,
-			Inside = math:sqrt(X*X+Y*Y) =< 1,
-			if 
-			    Inside ->
-				Color = calc_color(X,Y),
-				%%io:format("Ambient ~p ~p ~p~n", [X,Y,Color]),
-				S#s{ambient = Amb#c{rgb=Color, lscale=1.0, cx=X, cy=Y}};
-			    true -> 
-				S
-			end;
-		    %% Ambient darkness selection
-		    X0 >= Amb#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX - ?LSCALEHALFW,
-		    X0 =< Amb#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX + ?LSCALEHALFW ->
-			LScale = (Y0 - (Amb#c.y - ?COLORCIRCLE_RADIE)) 
-			    / (2 * ?COLORCIRCLE_RADIE),
-			%%io:format("Ambient Lscale ~p ~p~n", [LScale, Y0]),
-			S#s{ambient = Amb#c{lscale = LScale}};
-		    %% Diffuse color selection
-		    X0 >= Diff#c.x - ?COLORCIRCLE_RADIE,
-		    X0 =< Diff#c.x + ?COLORCIRCLE_RADIE ->
-			X = (X0 - Diff#c.x) / ?COLORCIRCLE_RADIE,
-			Y = (Y0 - Diff#c.y) / ?COLORCIRCLE_RADIE,
-			Inside = math:sqrt(X*X+Y*Y) =< 1,
-			if 
-			    Inside ->
-				Color = calc_color(X,Y),
-				%%io:format("Diffuse ~p ~p ~p~n", [X,Y,Color]),
-				S#s{diffuse = Diff#c{rgb=Color, lscale=1.0, cx=X, cy=Y}};
-			    true -> 
-				S
-			end;
-		    %% Diffuse darkness selection
-		    X0 >= Diff#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX - ?LSCALEHALFW,
-		    X0 =< Diff#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX + ?LSCALEHALFW ->
-			LScale = (Y0 - (Diff#c.y - ?COLORCIRCLE_RADIE)) 
-			    / (2 * ?COLORCIRCLE_RADIE),
-			%%io:format("Diffuse Lscale ~p ~p~n", [LScale, Y0]),
-			S#s{diffuse = Diff#c{lscale = LScale}};
-		    %% Specular color selection
-		    X0 >= Spec#c.x - ?COLORCIRCLE_RADIE,
-		    X0 =< Spec#c.x + ?COLORCIRCLE_RADIE ->
-			X = (X0 - Spec#c.x) / ?COLORCIRCLE_RADIE,
-			Y = (Y0 - Spec#c.y) / ?COLORCIRCLE_RADIE,
-			Inside = math:sqrt(X*X+Y*Y) =< 1,
-			if 
-			    Inside ->
-				Color = calc_color(X,Y),
-				%%io:format("Specul ~p ~p ~p~n", [X,Y,Color]),
-				S#s{specular = Spec#c{rgb=Color, lscale=1.0, cx=X, cy=Y}};
-			    true -> 
-				S
-			end;
-		    X0 >= Spec#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX - ?LSCALEHALFW,
-		    X0 =< Spec#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX + ?LSCALEHALFW ->
-			LScale = (Y0 - (Spec#c.y - ?COLORCIRCLE_RADIE)) 
-			    / (2 * ?COLORCIRCLE_RADIE),
-			%%io:format("Specul Lscale ~p ~p~n", [LScale, Y0]),
-			S#s{specular = Spec#c{lscale = LScale}};
-		    true ->
-			S
-		end;
-	    {select, X0, Y0} when  %% Shininess or Transparency
+		  Y0 =< Amb#c.y + ?COLORCIRCLE_RADIE -> 		
+		Selected = select_color(X0, Y0, S),
+		update_selected(X0, Y0, S#s{mouse = Selected, key = Selected});
+	    {select, {X0, Y0}} when  %% Shininess or Transparency
 		  Y0 =< TandSY, Y0 >= TandSY - ?LSCALEX ->
-		if 
-		    X0 >= ?BORDER_W, X0 =< ?BORDER_W + TandSXLen -> %% Transparency
-			Transp = (X0 - ?BORDER_W) / TandSXLen,
-			S#s{transp = Transp};
-		    X0 >= STextX, X0 =< STextX + TandSXLen -> %% Shin
-			Shininess = ((X0 - STextX) / TandSXLen),
-			S#s{shininess = Shininess};
-		    true ->
-			S
-		end;
-	    {select, X0, Y0} when  %% Ok or Cancel
+		Selected = select_st(X0,Y0, ?BORDER_W, ?BORDER_W + TandSXLen),
+		update_selected(X0, Y0, S#s{mouse = Selected, key = Selected});
+	    {select, {X0, Y0}} when  %% Ok or Cancel
 		  Y0 =< ?ButtonSzY + ?BORDER_H div 2, Y0 >= ?BORDER_H div 2 ->
-		if  %% OK
-		    X0 >= OkX - ?ButtonSzX - ?BORDER_W, 
-		    X0 =< OkX - ?BORDER_W ->
-			AmbR  = {AR*Amb#c.lscale, AG*Amb#c.lscale, AB*Amb#c.lscale},
-			DiffR = {DR*Diff#c.lscale, DG*Diff#c.lscale, DB*Diff#c.lscale},
-			SpecR = {SR*Spec#c.lscale, SG*Spec#c.lscale, SB*Spec#c.lscale},
-			exit({normal, (S#s.prev)#mat{ambient = AmbR, 
-						     diffuse = DiffR, 
-						     specular = SpecR,
-						     shininess = S#s.shininess,
-						     opacity = S#s.transp
-						    }});
-		    X0 >= CancelX1, X0 =< CancelX2 ->
-			exit(normal);
-		    true ->
-			S
-		end;
-	    _ ->
+		Selected = select_butt(X0, OkX- ?ButtonSzX - ?BORDER_W, CancelX1, ?ButtonSzX, S),
+		update_selected(X0, Y0, S#s{mouse = Selected, key = Selected});
+	    {motion, {X0,Y0}} ->
+		update_selected(X0, Y0, S);
+	    {release, {X0,Y0}} ->
+		Ns0 = update_selected(X0, Y0, S),
+		Ns0#s{mouse = undefined};
+
+%		if  %% OK
+%		    X0 >= OkX - ?ButtonSzX - ?BORDER_W, 
+%		    X0 =< OkX - ?BORDER_W ->
+%			AmbR  = {AR*Amb#c.lscale, AG*Amb#c.lscale, AB*Amb#c.lscale},
+%			DiffR = {DR*Diff#c.lscale, DG*Diff#c.lscale, DB*Diff#c.lscale},
+%			SpecR = {SR*Spec#c.lscale, SG*Spec#c.lscale, SB*Spec#c.lscale},
+%			exit({normal, (S#s.prev)#mat{ambient = AmbR, 
+%						     diffuse = DiffR, 
+%						     specular = SpecR,
+%						     shininess = S#s.shininess,
+%						     opacity = S#s.transp
+%						    }});
+%		    X0 >= CancelX1, X0 =< CancelX2 ->
+%			exit(normal);
+		_ ->
 		S	
 	end,
     timer:sleep(10),
     color_picker_loop(Ns).
+
+update_selected(X0, Y0, S) ->
+    case S#s.mouse of
+	undefined -> 
+	    S;
+	ambient ->
+	    Color = S#s.ambient,
+	    {X,Y} = scale_pos(X0,Y0,Color#c.x,Color#c.y,?COLORCIRCLE_RADIE, 1),
+	    NewColor = do_update_color(Color, X, Y),
+	    S#s{ambient = NewColor};
+	{ambient, darkness} ->
+	    Color = S#s.ambient,
+	    X = scale_pos(Y0, Color#c.y - ?COLORCIRCLE_RADIE, 2*?COLORCIRCLE_RADIE, 1),
+	    NewColor = do_update_color_darkness(Color, X),
+	    S#s{ambient = NewColor};
+	diffuse ->
+	    Color = S#s.diffuse,	   
+	    {X,Y} = scale_pos(X0,Y0,Color#c.x,Color#c.y,?COLORCIRCLE_RADIE, 1),
+	    NewColor = do_update_color(Color, X, Y),
+	    S#s{diffuse = NewColor};
+	{diffuse, darkness} ->
+	    Color = S#s.diffuse,
+	    X = scale_pos(Y0, Color#c.y - ?COLORCIRCLE_RADIE, 2*?COLORCIRCLE_RADIE, 1),
+	    NewColor = do_update_color_darkness(Color, X),
+	    S#s{diffuse = NewColor};
+	specular ->
+	    Color = S#s.specular,	   
+	    {X,Y} = scale_pos(X0,Y0,Color#c.x,Color#c.y,?COLORCIRCLE_RADIE, 1),
+	    NewColor = do_update_color(Color, X, Y),
+	    S#s{specular = NewColor};
+	{specular, darkness} ->
+	    Color = S#s.specular,
+	    X = scale_pos(Y0, Color#c.y - ?COLORCIRCLE_RADIE, 2*?COLORCIRCLE_RADIE, 1),
+	    NewColor = do_update_color_darkness(Color, X),
+	    S#s{specular = NewColor};
+	{transp, Xs, Size} ->
+	    X = scale_pos(X0, Xs, Size, 1),
+	    S#s{transp = X};
+	{shininess, Xs, Size} ->
+	    X = scale_pos(X0, Xs, Size, 1),
+	    S#s{shininess = X};	    
+	Else ->
+	    io:format("~p ~p: internal error ~p ~n", [?MODULE, ?LINE, Else]),
+	    S
+    end.
+
+select_color(X0, Y0, S) ->
+    Amb = S#s.ambient,	  
+    Diff = S#s.diffuse,	   
+    Spec = S#s.specular,
+    
+    if 
+	%% Ambient color selection 
+	X0 >= Amb#c.x - ?COLORCIRCLE_RADIE,
+	X0 =< Amb#c.x + ?COLORCIRCLE_RADIE ->	
+	    check_circle(X0,Y0,Amb#c.x,Amb#c.y, ?COLORCIRCLE_RADIE, ambient);
+	%% Ambient darkness selection
+	X0 >= Amb#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX - ?LSCALEHALFW,
+	X0 =< Amb#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX + ?LSCALEHALFW ->
+	    {ambient, darkness};
+	%% Diffuse color selection
+	X0 >= Diff#c.x - ?COLORCIRCLE_RADIE,
+	X0 =< Diff#c.x + ?COLORCIRCLE_RADIE ->
+	    check_circle(X0,Y0,Diff#c.x,Diff#c.y,?COLORCIRCLE_RADIE, diffuse);
+	%% Diffuse darkness selection
+	X0 >= Diff#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX - ?LSCALEHALFW,
+	X0 =< Diff#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX + ?LSCALEHALFW ->
+	    {diffuse, darkness};
+	%% Specular color selection
+	X0 >= Spec#c.x - ?COLORCIRCLE_RADIE,
+	X0 =< Spec#c.x + ?COLORCIRCLE_RADIE ->
+	    check_circle(X0,Y0,Spec#c.x,Spec#c.y,?COLORCIRCLE_RADIE, specular);
+	%% Specular darkness selection
+	X0 >= Spec#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX - ?LSCALEHALFW,
+	X0 =< Spec#c.x + ?COLORCIRCLE_RADIE + ?LSCALEX + ?LSCALEHALFW ->
+	    {specular, darkness};
+	true ->
+	    undefined
+    end.
+
+select_st(X0, TS, SS, Size) ->
+    if
+	X0 >= TS, X0 =< TS + Size->
+	    {transp, TS, Size};
+	X0 >= SS, X0 =< SS + Size->
+	    {shininess, SS, Size};
+	true ->
+	    undefined
+    end.
+	
+select_butt(X0, OkS, CancelS, Size, S) ->
+    if
+	X0 >= OkS, X0 =< OkS + Size ->
+	    Amb = S#s.ambient,	  
+	    Diff = S#s.diffuse,	   
+	    Spec = S#s.specular,
+	    {AR,AG,AB} = Amb#c.rgb,
+	    {DR,DG,DB} = Diff#c.rgb,
+	    {SR,SG,SB} = Spec#c.rgb,
+	    
+	    AmbR  = {AR*Amb#c.lscale, AG*Amb#c.lscale, AB*Amb#c.lscale},
+	    DiffR = {DR*Diff#c.lscale, DG*Diff#c.lscale, DB*Diff#c.lscale},
+	    SpecR = {SR*Spec#c.lscale, SG*Spec#c.lscale, SB*Spec#c.lscale},	   
+	    exit({normal, (S#s.prev)#mat{ambient = AmbR, 
+					 diffuse = DiffR, 
+					 specular = SpecR,
+					 shininess = S#s.shininess,
+					 opacity = S#s.transp
+					}});
+	X0 >= CancelS, X0 =< CancelS + Size ->
+	    exit(normal);
+	true ->
+	    undefined
+    end.
+ 	    
+scale_pos(X0, X1, Scale, Constraint) ->
+    Len = (X0 - X1) / Scale,
+    if Len < 0 -> 0;
+       Len > Constraint -> Constraint;
+       true -> Len
+    end.
+
+scale_pos(X0,Y0,X1,Y1, Scale, Constraint) ->
+    X = (X0 - X1) / Scale,
+    Y = (Y0 - Y1) / Scale,
+    Length = math:sqrt(X*X+Y*Y),
+    ConstraintMatch = 
+	(Length > Constraint) bor (abs(X) > Constraint) bor (abs(Y) > Constraint),
+    if 
+	Length > Constraint ->
+	    Div = Constraint / Length,
+	    {chop(X / Div, Constraint), chop(Y / Div, Constraint)};
+	true ->
+	    {X, Y}
+    end.
+
+chop(X, Constraint) when abs(X) > Constraint ->
+    if X > 0 ->
+	    Constraint;
+       X < 0 ->
+	    -Constraint
+    end;
+chop(X, Constraint) ->
+    X.
+
+check_circle(X0, Y0, X1, Y1, Scale, Ret) -> 
+    X = (X0 - X1) / Scale,
+    Y = (Y0 - Y1) / Scale,
+    Length = math:sqrt(X*X+Y*Y),
+    if 
+	Length =< 1 ->
+	    Ret;
+	true ->
+	    undefined
+    end.
+
+do_update_color(CType, X, Y) ->
+    Color = calc_color(X,Y),
+    %%io:format("Ambient ~p ~p ~p~n", [X,Y,Color]),
+    CType#c{rgb=Color, lscale=1.0, cx=X, cy=Y}.
+do_update_color_darkness(CType, X) ->
+    CType#c{lscale = X}.
 
 draw_filled_box(X1,X2,Y1,Y2) ->
     gl:glBegin(?GL_QUADS),
@@ -669,11 +763,9 @@ check_event(S) ->
 		    ok
 	    end;		    
 	{mousebutton,0,1,0, X,Y} ->
-	    translate_position(X, Y, S);
-	
+	    {release, translate_position(X, Y, S)};	
 	{mousebutton,0,1,1, X,Y} ->
-	    ok;
-	
+	    {select, translate_position(X, Y, S)};	
 	{0, []} -> 
 	    ok; 
 	{'EXIT', Why} ->
@@ -682,7 +774,7 @@ check_event(S) ->
 	    io:format("Got ~p events: ~p~n", [NE, Evs]),
 	    ok;
 	#mousemotion{x=X,y=Y,state=State} when State band 1 =:= 1 ->
-	    translate_position(X, Y, S);
+	    {motion, translate_position(X, Y, S)};
 	#mousemotion{} ->
 	    ok;
 	Event -> 
@@ -693,4 +785,4 @@ check_event(S) ->
 translate_position(X, Y, S) ->
     WindowsSizeH = S#s.orig_h,
     %% X 0 Y 0 Upper Left 
-    {select, X - S#s.x, (WindowsSizeH - Y) - S#s.y}.
+    {X - S#s.x, (WindowsSizeH - Y) - S#s.y}.
