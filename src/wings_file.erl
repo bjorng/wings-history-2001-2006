@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.66 2002/06/15 06:31:41 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.67 2002/06/16 18:08:23 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -556,53 +556,15 @@ rename_mat([{Id,#we{fs=Ftab0}=We}|Objs], NameMap, FirstId, Acc) ->
 rename_mat([], _, _, Acc) ->
     gb_trees:from_orddict(reverse(Acc)).
 
-translate_objects([#e3d_object{name=Name,obj=Obj0}|Os], UsedMat0,
+translate_objects([#e3d_object{name=Name}=Obj|Os], UsedMat0,
 		  I, Suffix, St0) ->
-    wings_io:progress("Converting obj " ++ integer_to_list(I) ++ Suffix),
-    Obj1 = e3d_mesh:clean(Obj0),
-    Obj = e3d_mesh:make_quads(Obj1),
-    #e3d_mesh{matrix=Matrix,vs=Vs0,tx=Tx0,fs=Fs0,he=He} = Obj,
-    Vs = scale_objects(Vs0, Matrix),
-    Tx = list_to_tuple(Tx0),
-    {Fs,UsedMat} = translate_faces(Fs0, Tx, [], UsedMat0),
-    ObjType = obj_type(Tx0),
-    wings_io:progress("Building Wings obj " ++ integer_to_list(I) ++ Suffix),
-    St = build_object(Name, ObjType, Fs, Vs, He, St0),
+    wings_io:progress("Building obj " ++ integer_to_list(I) ++ Suffix),
+    {St,UsedMat} = case wings_import:import(Obj, UsedMat0) of
+		       error -> {St0,UsedMat0};
+		       {We,Us0} -> {store_object(Name, We, St0),Us0}
+		   end,
     translate_objects(Os, UsedMat, I+1, Suffix, St);
 translate_objects([], UsedMat, _, _, St) -> {UsedMat,St}.
-    
-obj_type([]) -> material;
-obj_type([_|_]) -> uv.
-
-scale_objects(Vs, none) -> Vs;
-scale_objects(Vs, Matrix) -> [e3d_mat:mul_point(Matrix, P) || P <- Vs].
-
-translate_faces([#e3d_face{vs=Vs,tx=Tx0,mat=Mat0}|Fs], Txs, Acc, UsedMat0) ->
-    UsedMat = add_used_mat(Mat0, UsedMat0),
-    Mat = translate_mat(Mat0),
-    FaceData = case Tx0 of
-		   [] -> {Mat,Vs};
-		   Tx1 ->
-		       Tx = [element(Tx+1, Txs) || Tx <- Tx1],
-		       {Mat,Vs,Tx}
-	       end,
-    translate_faces(Fs, Txs, [FaceData|Acc], UsedMat);
-translate_faces([], _Txs, Acc, UsedMat) -> {reverse(Acc),UsedMat}.
-
-add_used_mat([], UsedMat) -> UsedMat;
-add_used_mat([M|Ms], UsedMat) -> add_used_mat(Ms, gb_sets:add(M, UsedMat)).
-    
-translate_mat([]) -> default;
-translate_mat([Mat]) -> Mat;
-translate_mat([_|_]=List) -> List.
-
-build_object(Name, Type, Fs, Vs, He, St) ->
-    case catch wings_we:build(Type, Fs, Vs, He) of
-	{'EXIT',Reason} ->
-	    io:format("Conversion failed: ~P\n", [Reason,20]),
-	    St;
-	We -> store_object(Name, We, St)
-    end.
 
 store_object(undefined, We, #st{onext=Oid}=St) ->
     Name = "unnamed_object" ++ integer_to_list(Oid),

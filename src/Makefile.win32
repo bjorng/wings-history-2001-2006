@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile.win32,v 1.17 2002/04/11 16:12:04 bjorng Exp $
+#     $Id: Makefile.win32,v 1.18 2002/06/16 18:08:23 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -46,6 +46,7 @@ TARGET_FILES = \
 	$(EBIN)\wings_getline.beam \
 	$(EBIN)\wings_help.beam \
 	$(EBIN)\wings_hotkey.beam \
+	$(EBIN)\wings_import.beam \
 	$(EBIN)\wings_io.beam \
 	$(EBIN)\wings_magnet.beam \
 	$(EBIN)\wings_material.beam \
