@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.21 2002/05/05 13:14:11 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.22 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_ask).
--export([ask/3,ask/4,dialog/3,dialog/4]).
+-export([ask/2,ask/3,dialog/2,dialog/3]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -37,7 +37,7 @@
 	 priv,					%States for all fields.
 	 coords,				%Coordinates for hit testing.
 	 common=gb_trees:empty(),		%Data common for all fields.
-	 redraw
+	 level=0
 	}).
 
 %% Static data for each field.
@@ -51,15 +51,15 @@
 	 ipadx=0,ipady=0			%Internal padding.
 	}).
 
-ask(Qs, St, Fun) ->
-    ask(true, Qs, St, Fun).
+ask(Qs, Fun) ->
+    ask(true, Qs, Fun).
 
-ask(Bool, Qs0, St, Fun) ->
+ask(Bool, Qs0, Fun) ->
     {Labels,Vals} = ask_unzip(Qs0),
     Qs = [{hframe,
 	   [{vframe,Labels},
 	    {vframe,Vals}]}],
-    dialog(Bool, Qs, St, Fun).
+    dialog(Bool, Qs, Fun).
 
 ask_unzip(Qs) ->
     ask_unzip(Qs, [], []).
@@ -70,19 +70,31 @@ ask_unzip([{Label,Def,Flags}|T], AccA, AccB) ->
 ask_unzip([], Labels, Vals) ->
     {reverse(Labels),reverse(Vals)}.
 
-dialog(false, Qs, St, Fun) ->
-    S = setup_ask(Qs, St, Fun),
+dialog(false, Qs, Fun) ->
+    S = setup_ask(Qs, Fun),
     return_result(S),
     keep;
-dialog(true, Qs, St, Fun) -> dialog(Qs, St, Fun).
+dialog(true, Qs, Fun) -> dialog(Qs, Fun).
 
-dialog(Qs, Redraw, Fun) ->
-    S0 = setup_ask(Qs, Redraw, Fun),
+dialog(Qs, Fun) ->
+    do_dialog(Qs, 0, Fun).
+
+do_dialog(Qs, Level, Fun) ->
+    S0 = setup_ask(Qs, Fun),
     S1 = init_origin(S0),
-    S = next_focus(S1, 1),
-    {seq,{push,dummy},get_event(S)}.
+    S2 = next_focus(S1, 1),
+    #s{ox=X,oy=Y,w=W0,h=H0} = S2,
+    W = W0 + 2*?HMARGIN,
+    H = H0 + 2*?VMARGIN,
+    S = S2#s{ox=?HMARGIN,oy=?VMARGIN,level=Level},
+    Op = {seq,{push,dummy},get_event(S)},
+    Name = {dialog,Level},
+    wings_wm:new(Name, {trunc(X),trunc(Y),10}, {W,H}, Op),
+    wings_wm:set_active(Name),
+    wings_wm:dirty(),
+    keep.
 
-setup_ask(Qs0, Redraw, Fun) ->
+setup_ask(Qs0, Fun) ->
     Qs1 = normalize(Qs0),
     Qs = propagate_sizes(Qs1),
     {Fis0,Priv0} = flatten_fields(Qs),
@@ -90,7 +102,7 @@ setup_ask(Qs0, Redraw, Fun) ->
     Fis = list_to_tuple(Fis1),
     Priv = list_to_tuple(Priv0),
     {#fi{w=W,h=H},_} = Qs,
-    S = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis),redraw=Redraw},
+    S = #s{w=W,h=H,call=Fun,fi=Fis,priv=Priv,focus=size(Fis)},
     init_fields(1, size(Priv), S).
 
 insert_keys([#fi{flags=Flags}=Fi|T], I) ->
@@ -115,7 +127,7 @@ init_fields(I, N, #s{fi=Fis,priv=Priv0,common=Common0}=S) when I =< N ->
 init_fields(_, _, S) -> S.
 
 init_origin(#s{w=Xs,h=Ys}=S) ->
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    {W,H} = wings_wm:top_size(),
     Tx = case (W-Xs)/2 of
 	     SmallX when SmallX < 10 -> 10;
 	     Tx0 -> Tx0
@@ -141,9 +153,6 @@ event(#mousemotion{state=Bst}, _S) when Bst band ?SDL_BUTTON_LMASK == 0 ->
     keep;
 event(#mousemotion{x=X,y=Y}=Ev, S) ->
     mouse_event(X, Y, Ev, S);
-event(#resize{}=Ev, _S) ->
-    wings_io:putback_event(Ev),
-    pop;
 event({action,{update,I,{Fst,Common}}}, #s{priv=Priv0}=S)
   when is_atom(element(1, Fst)), is_tuple(Common) ->
     Priv = setelement(I, Priv0, Fst),
@@ -153,9 +162,8 @@ event({action,{update,I,Fst}}, #s{priv=Priv0}=S) ->
     get_event(S#s{priv=Priv});
 event(Ev, S) -> field_event(Ev, S).
 
-event_key({key,?SDLK_ESCAPE,_,_}, _S) ->
-    wings_wm:dirty(),
-    pop;
+event_key({key,?SDLK_ESCAPE,_,_}, S) ->
+    delete(S);
 event_key({key,?SDLK_TAB,Mod,_}, S) when Mod band ?SHIFT_BITS =/= 0 ->
     get_event(next_focus(S, -1));
 event_key({key,?SDLK_TAB,_,_}, S) ->
@@ -168,6 +176,11 @@ event_key({key,_,_,$\r}, S) ->
     return_result(S);
 event_key(Ev, S) ->
     field_event(Ev, S).
+
+delete(#s{level=0}) -> delete;
+delete(#s{level=Level}) ->
+    wings_wm:set_active({dialog,Level-1}),
+    delete.
 
 mouse_event(X0, Y0, #mousemotion{}=Ev, #s{focus=I,ox=Ox,oy=Oy}=S) ->
     X = X0-Ox,
@@ -249,8 +262,7 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	ok ->
 	    return_result(S);
 	cancel ->
-	    wings_wm:dirty(),
-	    pop;
+	    delete(S);
 	{dialog,Qs,Fun} ->
 	    recursive_dialog(I, Qs, Fun, S);
 	{Fst,Common} when is_atom(element(1, Fst)), is_tuple(Common) ->
@@ -261,12 +273,9 @@ field_event(Ev, I, #s{fi=Fis,priv=Priv0,common=Common0}=S) ->
 	    get_event(S#s{priv=Priv})
     end.
 
-recursive_dialog(I, Qs, Fun, S0) ->
-    S = S0#s{focus=none},
-    Redraw = fun() ->
-		     redraw(S)
-	     end,
-    dialog(Qs, Redraw, fun(Vs) -> {update,I,Fun(Vs)} end).
+recursive_dialog(I, Qs, Fun, #s{level=Level}=S) ->
+    do_dialog(Qs, Level+1, fun(Vs) -> {update,I,Fun(Vs)} end),
+    get_event(S).
 
 return_result(#s{fi=Fis,priv=Priv}=S) ->
     return_result(1, Fis, Priv, S, []).
@@ -295,25 +304,16 @@ return_result(_, _, _, #s{call=EndFun}=S, Res) ->
 	{'EXIT',Reason} ->
 	    exit(Reason);
 	ignore ->
-	    wings_wm:dirty(),
-	    pop;
+	    delete(S);
 	#st{}=St ->
 	    wings_io:putback_event({new_state,St}),
-	    pop;
+	    delete(S);
 	Action when is_tuple(Action); is_atom(Action) ->
 	    wings_io:putback_event({action,Action}),
-	    pop
+	    delete(S)
     end.
 
-redraw(#s{w=W,h=H,ox=Ox,oy=Oy,redraw=Redraw,focus=Focus,
-	  fi=Fi,priv=Priv,common=Common}) ->
-    case Redraw of
-	#st{}=St ->
-	    wings_draw:render(St),
-	    wings_io:draw_ui(St);
-	_Other ->
-	    Redraw()
-    end,
+redraw(#s{w=W,h=H,ox=Ox,oy=Oy,focus=Focus,fi=Fi,priv=Priv,common=Common}) ->
     wings_io:ortho_setup(),
     gl:translated(Ox, Oy, 0),
     wings_io:raised_rect(-?HMARGIN, -?VMARGIN,

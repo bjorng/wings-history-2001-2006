@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.36 2002/06/26 17:57:12 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.37 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -79,12 +79,12 @@ command({pick,[magnet],Acc,Names}, St0) ->
 	     selmodes=Modes},
     command_message("Select magnet influence for ", Names),
     {seq,{push,dummy},get_event(Ss, St0#st{selmode=vertex,sel=[]})};
-command({pick,[magnet_options],Acc,Names}, St) ->
-    wings_magnet:dialog(St, fun(Mag) ->
+command({pick,[magnet_options],Acc,Names}, _St) ->
+    wings_magnet:dialog(fun(Mag) ->
 				    {vector,{pick,[],[Mag|Acc],Names}}
 			    end);
-command({pick,[{magnet_options,Point}],Acc,Names}, St) ->
-    wings_magnet:dialog(Point, St,
+command({pick,[{magnet_options,Point}],Acc,Names}, _St) ->
+    wings_magnet:dialog(Point,
 			fun(Mag) ->
 				{vector,{pick,[],[Mag|Acc],Names}}
 			end);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.92 2002/06/02 20:49:02 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.93 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -309,7 +309,7 @@ numeric_input(Drag0) ->
     {Dx0,Dy0,Drag} = mouse_range(X, Y, Drag0),
     Move0 = constrain(Dx0, Dy0, Drag),
     Redraw = fun() -> redraw(Drag) end,
-    wings_ask:ask(make_query(Move0, Drag), Redraw,
+    wings_ask:ask(make_query(Move0, Drag),
 		  fun(Res) ->
 			  {numeric_input,make_move(Res, Drag)}
 		  end).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.39 2002/05/18 07:09:32 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.40 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -55,19 +55,9 @@ validate_mirror(#we{fs=Ftab,mirror=Face}=We) ->
 	true -> We
     end.
 
-message(Message, St) ->
-    %% XXX Dirty kludge until we get windows working. Store St where
-    %% we can retrieve from wp9_dialogs.
-    put(wings_st_kludge, St),
-    case wings_plugin:call_ui({message,Message}) of
-	[] ->
-	    %% XXX Another kludge to avoid having to change
-	    %% wp8_file plug-ins now. We know that a wp8_file
-	    %% plug-in returns [].
-	    wings_wm:dirty(),
-	    keep;
-	Other -> Other
-    end.
+message(Message, _) ->
+    wings_plugin:call_ui({message,Message}),
+    keep.
 
 get_matrices(Id, MM) ->
     wings_view:projection(),

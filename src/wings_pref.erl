@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.51 2002/07/12 07:31:27 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.52 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -148,7 +148,7 @@ command({set,List}, _St) ->
 
 dialog(Qs0, St) ->
     Qs = make_query(Qs0),
-    wings_ask:dialog(Qs, St,
+    wings_ask:dialog(Qs,
 		     fun(Res) ->
 			     {edit,{preferences,{set,Res}}}
 		     end).

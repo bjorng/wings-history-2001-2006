@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.5 2002/07/12 17:44:53 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.6 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -31,9 +31,10 @@
 %%%
 %%% Process dictionary usage:
 %%%
-%%% wings_active	#win record for active window.
-%%% wings_windows	All windows
-%%% wings_dirty		Exists if redraw is needed.
+%%% wm_active		Window name for active window.
+%%% wm_windows		All windows
+%%% wm_dirty		Exists if redraw is needed.
+%%% wm_top_size         Size of top window.
 %%%
 %%% Event loop.
 %%%
@@ -43,31 +44,31 @@ init() ->
     {W,H} = wings_pref:get_value(window_size),
     set_video_mode(W, H),			%Needed on Solaris/Sparc.
     Win = #win{x=0,y=0,w=W,h=H,z=0,name=top,stk=[crash_handler()]},
-    put(wings_windows, gb_trees:from_orddict([{top,Win}])),
-    put(wings_active, top),
+    put(wm_windows, gb_trees:from_orddict([{top,Win}])),
+    put(wm_active, top),
     ok.
 
 dirty() ->
-    put(wings_dirty, dirty).
+    put(wm_dirty, dirty).
 
 new(Name, {X,Y,Z}, {W,H}, Op) when is_integer(X), is_integer(Y),
 				   is_integer(W), is_integer(H) ->
     Stk = handle_response(Op, dummy_event, [crash_handler()]),
     Win = #win{x=X,y=Y,z=Z,w=W,h=H,name=Name,stk=Stk},
-    put(wings_windows, gb_trees:insert(Name, Win, get(wings_windows))),
+    put(wm_windows, gb_trees:insert(Name, Win, get(wm_windows))),
     keep.
 
 delete(Name) ->
-    case get(wings_active) of
-	Name -> put(wings_active, top);
+    case get(wm_active) of
+	Name -> put(wm_active, top);
 	_ -> ok
     end,
     dirty(),
-    put(wings_windows, gb_trees:delete(Name, get(wings_windows))),
+    put(wm_windows, gb_trees:delete(Name, get(wm_windows))),
     keep.
 	    
 set_active(Name) ->
-    put(wings_active, Name).
+    put(wm_active, Name).
 
 top_size() ->
     #win{w=W,h=H} = get_window_data(top),
@@ -78,15 +79,15 @@ top_window(Op) ->
     Stk = handle_response(Op, dummy_event, [crash_handler()]),
     Win = Win0#win{stk=Stk},
     put_window_data(top, Win),
-    erase(wings_dirty),
+    erase(wm_dirty),
     wings_io:putback_event(#resize{w=W,h=H}),
     event_loop().
 
 event_loop() ->
-    case get(wings_dirty) of
+    case get(wm_dirty) of
 	undefined ->
 	    Event = get_event(),
-	    Active = get(wings_active),
+	    Active = get(wm_active),
 	    Win0 = get_window_data(Active),
 	    case send_event(Win0, Event) of
 		#win{name=Name,stk=delete} ->
@@ -105,12 +106,12 @@ redraw_all() ->
     maybe_clear(late, EarlyBC),			%Clear right before drawing (late).
     Ws = map(fun({Name,Win}) ->
 		     {Name,send_event(Win, redraw)}
-	     end, keysort(2, gb_trees:to_list(get(wings_windows)))),
-    put(wings_windows, gb_trees:from_orddict(sort(Ws))),
+	     end, keysort(2, gb_trees:to_list(get(wm_windows)))),
+    put(wm_windows, gb_trees:from_orddict(sort(Ws))),
     gl:swapBuffers(),
     maybe_clear(early, EarlyBC),		%Clear immediately after buffer swap (early).
     wings_io:arrow(),
-    erase(wings_dirty),
+    erase(wm_dirty),
     event_loop().
 
 maybe_clear(early, true) ->
@@ -122,6 +123,7 @@ maybe_clear(_, _) -> ok.
 get_event() ->
     case wings_io:get_event() of
 	#resize{w=W,h=H}=Resize ->
+	    put(wm_top_size, {W,H}),
 	    Win = get_window_data(top),
 	    put_window_data(top, Win#win{w=W,h=H}),
 	    set_video_mode(W, H),
@@ -135,10 +137,18 @@ get_event() ->
 send_event(Win, {expose}) ->
     dirty(),
     Win;
-send_event(#win{x=X,y=Y,w=W,h=H,stk=[Handler|_]=Stk0}=Win, Event) ->
-    gl:viewport(X, Y, W, H),
-    Stk = handle_event(Handler, Event, Stk0),
+send_event(#win{x=X,y=Y,w=W,h=H,stk=[Handler|_]=Stk0}=Win, Ev0) ->
+    Ev = translate_event(Ev0, X, Y),
+    {_,TopH} = get(wm_top_size),
+    gl:viewport(X, TopH-(Y+H), W, H),
+    Stk = handle_event(Handler, Ev, Stk0),
     Win#win{stk=Stk}.
+
+translate_event(#mousemotion{x=X,y=Y}=M, Ox, Oy) ->
+    M#mousemotion{x=X-Ox,y=Y-Oy};
+translate_event(#mousebutton{x=X,y=Y}=M, Ox, Oy) ->
+    M#mousebutton{x=X-Ox,y=Y-Oy};
+translate_event(Ev, _, _) -> Ev.
     
 handle_event(Handler, Event, Stk) ->
     case catch Handler(Event) of
@@ -184,10 +194,10 @@ crash_handler() ->
 %%%
 
 get_window_data(Name) ->
-    gb_trees:get(Name, get(wings_windows)).
+    gb_trees:get(Name, get(wm_windows)).
 
 put_window_data(Name, Data) ->
-    put(wings_windows, gb_trees:update(Name, Data, get(wings_windows))).
+    put(wm_windows, gb_trees:update(Name, Data, get(wm_windows))).
 
 set_video_mode(W, H) ->
     sdl_video:setVideoMode(W, H, 0, ?SDL_OPENGL bor ?SDL_RESIZABLE).

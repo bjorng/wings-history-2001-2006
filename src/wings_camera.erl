@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.34 2002/06/24 18:52:08 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.35 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -58,19 +58,19 @@ command(camera_mode, St) ->
 	      {"Far Clipping Plane",{text,Yon0,
 				     [{range,100.0,9.9e307}]}}]}],
 	   [{title,"Camera Parameters"}]}],
-    wings_ask:dialog(Qs, St,
-		  fun([Mode,ZoomFlag,ZoomFactor,Fov,Hither,Yon]) ->
-			  wings_pref:set_value(camera_mode, Mode),
-			  wings_pref:set_value(wheel_zooms, ZoomFlag),
-			  wings_pref:set_value(wheel_zoom_factor, ZoomFactor),
-			  wings_pref:set_value(camera_fov, Fov),
-			  wings_pref:set_value(camera_hither, Hither),
-			  wings_pref:set_value(camera_yon, Yon),
-			  View0 = wings_view:current(),
-			  View = View0#view{fov=Fov,hither=Hither,yon=Yon},
-			  wings_view:set_current(View),
-			  ignore
-		  end).
+    wings_ask:dialog(Qs,
+		     fun([Mode,ZoomFlag,ZoomFactor,Fov,Hither,Yon]) ->
+			     wings_pref:set_value(camera_mode, Mode),
+			     wings_pref:set_value(wheel_zooms, ZoomFlag),
+			     wings_pref:set_value(wheel_zoom_factor, ZoomFactor),
+			     wings_pref:set_value(camera_fov, Fov),
+			     wings_pref:set_value(camera_hither, Hither),
+			     wings_pref:set_value(camera_yon, Yon),
+			     View0 = wings_view:current(),
+			     View = View0#view{fov=Fov,hither=Hither,yon=Yon},
+			     wings_view:set_current(View),
+			     ignore
+		     end).
 
 help() ->
     case wings_pref:get_value(camera_mode, blender) of

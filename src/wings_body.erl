@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.35 2002/05/20 10:29:37 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.36 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -113,8 +113,8 @@ cleanup(Ask, St) when is_atom(Ask) ->
 	  {hframe,
 	   [{label,"Maximum Angle"},{text,1.0,[{range,{1.0E-5,180.0}}]}]}],
     wings_ask:dialog(Ask,
-		  [{vframe, Qs, [{title,"Remove"}]}], St,
-		  fun(Res) -> {body,{cleanup,Res}} end);
+		     [{vframe, Qs, [{title,"Remove"}]}],
+		     fun(Res) -> {body,{cleanup,Res}} end);
 cleanup(Opts, St0) ->
     St = wings_sel:map(fun(_, We) -> cleanup_1(Opts, We) end, St0),
     {save_state,St}.
@@ -308,7 +308,7 @@ auto_smooth(St) ->
     do_auto_smooth(60, St).
 
 auto_smooth(Ask, St) when is_atom(Ask) ->
-    wings_ask:ask(Ask, [{"Crease Angle",60,[{range,{0,180}}]}], St,
+    wings_ask:ask(Ask, [{"Crease Angle",60,[{range,{0,180}}]}],
 		  fun(Res) -> {body,{auto_smooth,Res}} end);
 auto_smooth([Angle], St) ->
     {save_state,do_auto_smooth(Angle, St)}.

@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.20 2002/04/16 19:37:19 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.21 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_shapes).
@@ -134,7 +134,7 @@ circle(N, Y, R) ->
     [{R*cos(I*Delta), Y, R*sin(I*Delta)} || I <- lists:seq(0, N-1)].
 
 cylinder(Ask, St) when is_atom(Ask) ->
-    ask(cylinder, Ask, St, [{"Sections",16,[{range,{3,1024}}]}]);
+    ask(cylinder, Ask, [{"Sections",16,[{range,{3,1024}}]}]);
 cylinder([Sections], St) ->
     Fs = cylinder_faces(Sections),
     Vs = cylinder_vertices(Sections),
@@ -151,7 +151,7 @@ cylinder_vertices(N) ->
     circle(N, 1.0) ++ circle(N, -1.0).
 
 cone(Ask, St) when is_atom(Ask) ->
-    ask(cone, Ask, St, [{"Sections",16,[{range,{3,1024}}]}]);
+    ask(cone, Ask, [{"Sections",16,[{range,{3,1024}}]}]);
 cone([N], St) ->
     Ns = lists:seq(0, N-1),
     Lower = lists:seq(0, N-1),
@@ -184,16 +184,16 @@ sphere_faces(Ns, Nl) ->
     Topf ++ Botf ++ lists:append(Slices).
 
 sphere(Ask, St) when is_atom(Ask) ->
-    ask(sphere, Ask, St, [{"Sections",16,[{range,{3,128}}]},
-			  {"Slices",8,[{range,{3,128}}]}]);
+    ask(sphere, Ask, [{"Sections",16,[{range,{3,128}}]},
+		      {"Slices",8,[{range,{3,128}}]}]);
 sphere([Ns,Nl], St) ->
     Vs = sphere_circles(Ns, Nl) ++ [{0.0, 1.0, 0.0}, {0.0, -1.0, 0.0}],
     Fs = sphere_faces(Ns, Nl),
     build_shape("sphere", Fs, Vs, St).
     
 torus(Ask, St) when is_atom(Ask) ->
-    ask(torus, Ask, St, [{"Sections",16,[{range,{3,128}}]},
-			 {"Slices",8,[{range,{1,128}}]}]);
+    ask(torus, Ask, [{"Sections",16,[{range,{3,128}}]},
+		     {"Slices",8,[{range,{1,128}}]}]);
 torus([Ns,Nl], St) ->
     Vs = torus_vertices(Ns, Nl, 0.75),
     Fs = torus_faces(Ns, Nl),
@@ -216,7 +216,7 @@ torus_vertices(Ns, Nl, Hs) ->
     lists:flatten(Circles).
 
 grid(Ask, St) when is_atom(Ask) ->
-    ask(grid, Ask, St, [{"Rows/cols",10,[{range,{1,128}}]}]);
+    ask(grid, Ask, [{"Rows/cols",10,[{range,{1,128}}]}]);
 grid([Size], St) ->
     Vs = grid_vertices(Size),
     Fs = grid_faces(Size),
@@ -249,5 +249,5 @@ grid_face(I, J, Rsz) ->
     [Rsz*J+I+1,   Rsz*J+I,
      Rsz*(J+1)+I, Rsz*(J+1)+I+1].
 
-ask(Shape, Bool, St, Qs) ->
-    wings_ask:ask(Bool, Qs, St, fun(Res) -> {shape,{Shape,Res}} end).
+ask(Shape, Bool, Qs) ->
+    wings_ask:ask(Bool, Qs, fun(Res) -> {shape,{Shape,Res}} end).

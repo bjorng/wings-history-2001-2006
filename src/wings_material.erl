@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.37 2002/07/05 09:51:01 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.38 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -40,8 +40,8 @@ sub_menu(edit, St) ->
 sub_menu(select, St) ->
     {"Material",{material,material_list(St)}}.
 
-command({face,{material,new}}, St) ->
-    wings_ask:ask([{"Material Name",""}], St,
+command({face,{material,new}}, _St) ->
+    wings_ask:ask([{"Material Name",""}],
 		  fun([Name]) -> {face,{material,{new,Name}}} end);
 command({face,{material,{new,Name0}}}, #st{mat=Mtab}=St0) ->
     Name = list_to_atom(Name0),
@@ -276,7 +276,7 @@ edit(Name, #st{mat=Mtab0}=St) ->
 		  wings_draw_util:map(fun invalidate_dlists/2, Name),
 		  St#st{mat=Mtab}
 	  end,
-    wings_ask:dialog(Qs, St, Ask).
+    wings_ask:dialog(Qs, Ask).
 
 invalidate_dlists(#dlo{src_we=#we{fs=Ftab}}=D, Name) ->
     case material_used(gb_trees:values(Ftab), Name) of

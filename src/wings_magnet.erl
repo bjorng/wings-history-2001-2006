@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.36 2002/04/13 07:23:21 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.37 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_magnet).
 -export([setup/3,transform/2,recalc/3,flags/2,
-	 dialog/2,dialog/3,menu_help/0,drag_help/1,hotkey/1]).
+	 dialog/1,dialog/2,menu_help/0,drag_help/1,hotkey/1]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,sort/1,concat/1,reverse/1]).
@@ -49,21 +49,19 @@ recalc(Sc, VsInf, {Type,R0}) ->
 flags(none, Flags) -> Flags;
 flags({magnet,Type,_,_}, Flags) -> [{magnet,Type}|Flags].
 
-dialog(St, Fun) ->
+dialog(Fun) ->
     R0 = wings_pref:get_value(magnet_radius),
     wings_ask:dialog(
       [{label,"Influence Radius"},{text,R0}|common_dialog()],
-      St, 
       fun([R,Route,Type]) ->
 	      wings_pref:set_value(magnet_distance_route, Route),
 	      Mag = {magnet,Type,Route,R},
 	      Fun(Mag)
       end).
 
-dialog(Point, St, Fun) ->
+dialog(Point, Fun) ->
     wings_ask:dialog(
       common_dialog(),
-      St, 
       fun([Route,Type]) ->
 	      wings_pref:set_value(magnet_distance_route, Route),
 	      Mag = {magnet,Type,Route,Point},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.16 2002/06/13 07:34:40 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.17 2002/07/13 10:10:39 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -419,11 +419,11 @@ random(Percent, #st{selmode=Mode}=St) ->
 %% Select by numerical item id.
 %%
 
-short_edges(Ask, St) when is_atom(Ask) ->
+short_edges(Ask, _St) when is_atom(Ask) ->
     Qs = [{label,"Length tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}],
     wings_ask:dialog(Ask,
-		  [{hframe, Qs, [{title,"Select Short Edges"}]}], St,
-		  fun(Res) -> {select,{by,{short_edges,Res}}} end);
+		     [{hframe, Qs, [{title,"Select Short Edges"}]}],
+		     fun(Res) -> {select,{by,{short_edges,Res}}} end);
 short_edges([Tolerance], St0) ->
     St = wings_sel:make(fun(Edge, We) ->
 				short_edge(Tolerance, Edge, We)
@@ -441,7 +441,7 @@ short_edge(Tolerance, Edge, #we{es=Etab,vs=Vtab}) ->
 %%
 
 by_id(#st{selmode=body}=St) ->
-    ask([{"Object Id",1}], St,
+    ask([{"Object Id",1}],
 	fun([Id]) ->
 		valid_sel("", [{Id,gb_sets:singleton(0)}], St)
 	end);
@@ -452,22 +452,22 @@ by_id(#st{selmode=edge}=St) ->
 by_id(#st{selmode=face}=St) ->
     item_by_id("Face Id", St).
 
-item_by_id(Prompt, #st{sel=[{Id,_}]}=St) ->
-    ask([{Prompt,0}], St,
+item_by_id(Prompt, #st{sel=[{Id,_}]}) ->
+    ask([{Prompt,0}],
 	fun([Item]) ->
 		{Prompt,[{Id,gb_sets:singleton(Item)}]}
 	end);
-item_by_id(Prompt, #st{shapes=Shs}=St) ->
+item_by_id(Prompt, #st{shapes=Shs}) ->
     case gb_trees:to_list(Shs) of
 	[] -> wings_util:error("Nothing to select.");
 	[{Id,_}] ->
-	    ask([{Prompt,0}], St,
+	    ask([{Prompt,0}],
 		fun([Item]) ->
 			{Prompt,[{Id,gb_sets:singleton(Item)}]}
 		end);
 	[{Id0,_}|_] ->
 	    ask([{"Object Id",Id0},
-		 {Prompt,0}], St,
+		 {Prompt,0}],
 		fun([Id,Item]) ->
 			{Prompt,[{Id,gb_sets:singleton(Item)}]}
 		end)
@@ -492,8 +492,8 @@ valid_sel(Prompt, Sel, #st{shapes=Shs,selmode=Mode}=St) ->
 	Sel -> Sel
     end.
     
-ask(Qs, St, Fun) ->
-    wings_ask:ask(Qs, St, fun(Res) ->
-				  Sel = Fun(Res),
-				  {select,{by,{id,Sel}}}
-			  end).
+ask(Qs, Fun) ->
+    wings_ask:ask(Qs, fun(Res) ->
+			      Sel = Fun(Res),
+			      {select,{by,{id,Sel}}}
+		      end).
