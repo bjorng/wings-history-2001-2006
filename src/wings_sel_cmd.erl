@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.50 2004/05/04 18:51:17 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.51 2004/05/17 06:01:50 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -82,9 +82,9 @@ menu(St) ->
 		{"Id...",id,"Select by numeric id"}]}},
      {"Lights",lights,"Select all lights"},
      separator,
-     {sel_all_str(St),all},
+     {sel_all_str(St),all,"Select all elements"},
      separator,
-     {"Inverse",inverse},
+     {"Inverse",inverse,"Invert the selection"},
      separator,
      {"Hide Selected",hide_selected,"Hide all (partly or wholly) selected objects"},
      {"Hide Unselected",hide_unselected,"Hide objects that have no selection"},

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.242 2004/05/16 18:41:44 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.243 2004/05/17 06:01:48 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -182,7 +182,14 @@ menubar() ->
 		      end}].
 
 keep_sel_item(separator) -> true;
+keep_sel_item({_,more,_}) -> true;
+keep_sel_item({_,less,_}) -> true;
+keep_sel_item({_,similar,_}) -> true;
+keep_sel_item({_,inverse,_}) -> true;
+keep_sel_item({_,all,_}) -> true;
 keep_sel_item({_,deselect,_}) -> true;
+keep_sel_item({_,{edge_loop,_}}) -> true;
+keep_sel_item({_,{adjacent,_}}) -> true;
 keep_sel_item({_,hide_selected,_}) -> true;
 keep_sel_item({_,hide_unselected,_}) -> true;
 keep_sel_item({_,show_all,_}) -> true;
