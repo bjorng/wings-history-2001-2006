@@ -3,12 +3,12 @@
 %%
 %%     Segmentation UI for AutoUV.
 %%
-%%  Copyright (c) 2002-2004 Dan Gudmundsson, Bjorn Gustavsson
+%%  Copyright (c) 2002-2005 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_seg_ui.erl,v 1.33 2005/03/23 16:12:02 dgud Exp $
+%%     $Id: auv_seg_ui.erl,v 1.34 2005/03/24 14:49:50 bjorng Exp $
 %%
 
 -module(auv_seg_ui).
@@ -54,7 +54,7 @@ seg_init_message(Ss) ->
     Msg1 = wings_msg:button_format("Select"),
     Msg2 = wings_camera:help(),
     Msg3 = wings_msg:button_format([], [], "Show menu"),
-    Msg = wings_msg:join([Msg1,Msg2,Msg3]),
+    Msg  = wings_msg:join([Msg1,Msg2,Msg3]),
     Ss#seg{msg=Msg}.
 
 get_seg_event(#seg{st=St}=Ss) ->
@@ -76,6 +76,22 @@ seg_event(redraw, #seg{st=St,msg=Msg}) ->
     wings_wm:message(Msg, "Segmenting"),
     wings:redraw(St),
     keep;
+seg_event({add_faces,_,_},#seg{fs=object}) ->
+    keep;
+seg_event({add_faces,Mode0,_St},#seg{fs=Fs,st=St0}=Ss) ->
+    #st{shapes=Shs0} = St0,
+    [We0 = #we{id=Id}] = gb_trees:values(Shs0),
+    {Mode,We} = case Mode0 of
+		    object -> {object,wings_we:show_faces(We0)};
+		    NewFs -> 
+			Vis = gb_sets:union(NewFs,Fs),
+			We1 = wings_we:show_faces(We0),
+			Other = wings_sel:inverse_items(face, Vis, We1),
+			We2 = wings_we:hide_faces(Other, We1),
+			{Vis,We2}
+		end,
+    St = St0#st{shapes=gb_trees:update(Id,We,Shs0)},
+    get_seg_event(Ss#seg{st=St,fs=Mode});
 seg_event(close, _) ->
     seg_cancel();
 seg_event(Ev, #seg{st=St}=Ss) ->
@@ -194,7 +210,6 @@ seg_event_6(#mousemotion{}, _) -> keep;
 seg_event_6(#mousebutton{}, _) -> keep;
 seg_event_6(#keyboard{}, _) -> keep;
 seg_event_6(_Ev, _) ->
-%%    ?DBG("~w\n", [_Ev]),
     keep.
 
 translate_key(#keyboard{sym=27}) ->
@@ -282,7 +297,7 @@ seg_hide_other(Id, #st{selmode=face,sel=[{Id,Faces}],shapes=Shs}=St) ->
     Other = wings_sel:inverse_items(face, Faces, We0),
     We = wings_we:hide_faces(Other, We0),
     {Faces,wings_sel:clear(St#st{shapes=gb_trees:update(Id, We, Shs)})};
-seg_hide_other(_, St) -> {object,St}.    
+seg_hide_other(_, St) -> {object,St}.
 
 seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
     wings_pb:start("preparing mapping"),
