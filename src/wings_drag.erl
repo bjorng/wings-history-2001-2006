@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.36 2001/12/09 14:10:12 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.37 2001/12/12 15:12:47 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -17,10 +17,6 @@
 -define(NEED_ESDL, 1).
 -define(NEED_OPENGL, 1).
 -include("wings.hrl").
-
--define(CTRL_BITS, (?KMOD_LCTRL bor ?KMOD_RCTRL)).
--define(ALT_BITS, (?KMOD_LALT bor ?KMOD_RALT)).
--define(SHIFT_BITS, (?KMOD_LSHIFT bor ?KMOD_RSHIFT)).
 
 -define(DL_STATIC_FACES, (?DL_DRAW_BASE)).
 -define(DL_DYNAMIC_FACES, (?DL_DRAW_BASE+1)).

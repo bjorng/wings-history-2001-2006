@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.31 2001/12/12 10:21:41 bjorng Exp $
+%%     $Id: wings.hrl,v 1.32 2001/12/12 15:12:47 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -16,6 +16,9 @@
 -include_lib("esdl/include/sdl_events.hrl").
 -include_lib("esdl/include/sdl_video.hrl").
 -include_lib("esdl/include/sdl_keyboard.hrl").
+-define(CTRL_BITS, (?KMOD_LCTRL bor ?KMOD_RCTRL)).
+-define(ALT_BITS, (?KMOD_LALT bor ?KMOD_RALT)).
+-define(SHIFT_BITS, (?KMOD_LSHIFT bor ?KMOD_RSHIFT)).
 -endif.
 
 -ifdef(NEED_OPENGL).

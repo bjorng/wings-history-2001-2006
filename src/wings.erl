@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.69 2001/12/12 10:21:41 bjorng Exp $
+%%     $Id: wings.erl,v 1.70 2001/12/12 15:12:47 bjorng Exp $
 %%
 
 -module(wings).
@@ -19,9 +19,6 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--define(CTRL_BITS, (?KMOD_LCTRL bor ?KMOD_RCTRL)).
--define(ALT_BITS, (?KMOD_LALT bor ?KMOD_RALT)).
--define(SHIFT_BITS, (?KMOD_LSHIFT bor ?KMOD_RSHIFT)).
 -define(INTERESTING_BITS, (?CTRL_BITS bor ?ALT_BITS)).
 -import(lists, [foreach/2,map/2,filter/2,foldl/3,sort/1,
 		keymember/3,reverse/1]).

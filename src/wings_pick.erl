@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.18 2001/12/12 10:21:41 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.19 2001/12/12 15:12:47 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -29,19 +29,39 @@
 -record(marque,
 	{ox,oy,					%Original X,Y.
 	 cx,cy,					%Current X,Y.
+	 inside,				%All items must be exactly inside.
+	 op=add,				%add/delete
 	 st
 	}).
 
 pick(X, Y, St0) ->
-    case do_pick(X, Y, St0) of
-	none ->
+    {Inside,Marque,MarqueOp} =
+	case sdl_keyboard:getModState() of
+	    Mod when Mod band ?SHIFT_BITS =/= 0, Mod band ?CTRL_BITS =/= 0 ->
+		{true,true,delete};
+	    Mod when Mod band ?CTRL_BITS =/= 0 ->
+		{false,true,delete};
+	    Mod when Mod band ?SHIFT_BITS =/= 0 ->
+		{true,true,add};
+	    Mod ->
+		{false,maybe,add}
+	end,
+    case Marque of
+	true ->
 	    wings_io:setup_for_drawing(),
-	    Pick = #marque{ox=X,oy=Y,st=St0},
+	    Pick = #marque{inside=Inside,op=MarqueOp,ox=X,oy=Y,st=St0},
 	    {seq,{push,dummy},get_marque_event(Pick)};
-	{Op,St} ->
-	    wings:redraw(St),
-	    Pick = #pick{st=St,op=Op},
-	    {seq,{push,dummy},get_pick_event(Pick)}
+	maybe ->
+	    case do_pick(X, Y, St0) of
+		none ->
+		    wings_io:setup_for_drawing(),
+		    Pick = #marque{inside=Inside,op=MarqueOp,ox=X,oy=Y,st=St0},
+		    {seq,{push,dummy},get_marque_event(Pick)};
+		{PickOp,St} ->
+		    wings:redraw(St),
+		    Pick = #pick{st=St,op=PickOp},
+		    {seq,{push,dummy},get_pick_event(Pick)}
+	    end
     end.
 
 %%
@@ -55,15 +75,16 @@ marque_event(#mousemotion{x=X,y=Y}, #marque{cx=Cx,cy=Cy}=M) ->
     draw_marque(X, Y, M),
     get_marque_event(M#marque{cx=X,cy=Y});
 marque_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
-    #marque{ox=Ox,oy=Oy,st=St0} = M,
+    #marque{op=Op,inside=Inside,ox=Ox,oy=Oy,st=St0} = M,
     wings_io:cleanup_after_drawing(),
     X = (Ox+X0)/2.0,
     Y = (Oy+Y0)/2.0,
     W = abs(Ox-X)*2.0,
     H = abs(Oy-Y)*2.0,
-    St = case pick_all(X, Y, W, H, St0) of
+    St = case pick_all(X, Y, W, H, Inside, St0) of
 	     none -> St0;
-	     St1 ->
+	     Hits ->
+		 St1 = marque_update_sel(Op, Hits, St0),
 		 wings_io:putback_event({new_selection,St1}),
 		 St1
 	 end,
@@ -84,6 +105,32 @@ draw_marque(X, Y, #marque{ox=Ox,oy=Oy}) ->
     gl:'end'(),
     gl:flush(),
     gl:disable(?GL_COLOR_LOGIC_OP).
+
+marque_update_sel(Op, Hits0, #st{selmode=body}=St) ->
+    Hits1 = sofs:relation(Hits0, [{id,data}]),
+    Hits2 = sofs:domain(Hits1),
+    Zero = sofs:from_term([0], [data]),
+    Hits = sofs:constant_function(Hits2, Zero),
+    marque_update_sel_1(Op, Hits, St);
+marque_update_sel(Op, Hits0, #st{sel=Sel}=St) ->
+    Hits1 = sofs:relation(Hits0, [{id,data}]),
+    Hits = sofs:relation_to_family(Hits1),
+    marque_update_sel_1(Op, Hits, St).
+
+marque_update_sel_1(add, Hits, #st{sel=Sel0}=St) ->
+    Sel1 = [{Id,gb_sets:to_list(Items)} || {Id,Items} <- Sel0],
+    Sel2 = sofs:from_external(Sel1, [{id,[data]}]),
+    Sel3 = sofs:family_union(Sel2, Hits),
+    Sel4 = sofs:to_external(Sel3),
+    Sel = [{Id,gb_sets:from_list(Items)} || {Id,Items} <- Sel4],
+    St#st{sel=Sel};
+marque_update_sel_1(delete, Hits, #st{sel=Sel0}=St) ->
+    Sel1 = [{Id,gb_sets:to_list(Items)} || {Id,Items} <- Sel0],
+    Sel2 = sofs:from_external(Sel1, [{id,[data]}]),
+    Sel3 = sofs:family_difference(Sel2, Hits),
+    Sel4 = sofs:to_external(Sel3),
+    Sel = [{Id,gb_sets:from_list(Items)} || {Id,Items} <- Sel4, Items =/= []],
+    St#st{sel=Sel}.
 
 %%
 %% Drag picking.
@@ -267,8 +314,8 @@ project_vertex(V, We, {ModelMatrix,ProjMatrix,ViewPort}) ->
 %% Pick all in the given rectangle (with center at X,Y).
 %%
 
-pick_all(X, Y, W, H, St) when W < 1.0; H < 1.0 -> none;
-pick_all(X0, Y0, W, H, St) ->
+pick_all(X, Y, W, H, Inside, St) when W < 1.0; H < 1.0 -> none;
+pick_all(X0, Y0, W, H, Inside, St) ->
     #st{hit_buf=HitBuf,shapes=Shapes,selmode=Mode} = St,
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
@@ -287,31 +334,9 @@ pick_all(X0, Y0, W, H, St) ->
 	0 -> none;
 	NumHits ->
  	    HitData = sdl_util:readBin(HitBuf, 5*NumHits),
- 	    Hits = get_hits(NumHits, HitData, []),
-	    add_to_selection(Hits, St)
+ 	    get_hits(NumHits, HitData, [])
     end.
 
-add_to_selection(Hits0, #st{selmode=body}=St) ->
-    Hits1 = sofs:relation(Hits0, [{id,data}]),
-    Hits2 = sofs:domain(Hits1),
-    Zero = sofs:from_term([0], [data]),
-    Hits = sofs:constant_function(Hits2, Zero),
-    add_to_sel_1(Hits, St);
-add_to_selection(Hits0, #st{sel=Sel}=St) ->
-    Hits1 = sofs:relation(Hits0, [{id,data}]),
-    Hits = sofs:relation_to_family(Hits1),
-    add_to_sel_1(Hits, St).
-
-add_to_sel_1(Hits, #st{sel=Sel0}=St) ->
-    Sel1 = [{Id,gb_sets:to_list(Items)} || {Id,Items} <- Sel0],
-    Sel2 = sofs:from_external(Sel1, [{id,[data]}]),
-    Sel3 = sofs:union(Hits, Sel2),
-    Sel4 = sofs:relation_to_family(Sel3),
-    Sel5 = sofs:family_union(Sel4),
-    Sel6 = sofs:to_external(Sel5),
-    Sel = [{Id,gb_sets:from_list(Items)} || {Id,Items} <- Sel6],
-    St#st{sel=Sel}.
-    
 marque_draw(#st{selmode=edge}=St) ->
     foreach_we(
       fun(#we{vs=Vtab}=We) ->

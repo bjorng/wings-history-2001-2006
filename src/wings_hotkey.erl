@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_hotkey.erl,v 1.3 2001/11/24 18:36:17 bjorng Exp $
+%%     $Id: wings_hotkey.erl,v 1.4 2001/12/12 15:12:47 bjorng Exp $
 %%
 
 -module(wings_hotkey).
@@ -17,9 +17,6 @@
 -define(NEED_ESDL, 1).
 -include("wings.hrl").
 
--define(CTRL_BITS, (?KMOD_LCTRL bor ?KMOD_RCTRL)).
--define(ALT_BITS, (?KMOD_LALT bor ?KMOD_RALT)).
--define(SHIFT_BITS, (?KMOD_LSHIFT bor ?KMOD_RSHIFT)).
 -define(INTERESTING_BITS, (?CTRL_BITS bor ?ALT_BITS)).
 
 event(#keyboard{keysym=#keysym{sym=Sym,mod=Mod,unicode=C}}) ->
