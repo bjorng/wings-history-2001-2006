@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.41 2002/09/28 19:12:34 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.42 2002/10/28 06:19:42 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -252,13 +252,16 @@ render_plain(#dlo{work=Faces,wire=Wire}=D, SelMode) ->
     case Wire orelse wings_pref:get_value(show_edges) of
 	false -> ok;
 	true ->
-	    case {Wire,SelMode} of
-		{true,_} ->
+	    case Wire of
+		true ->
 		    gl:color3fv(wings_pref:get_value(wire_edge_color));
-		{_,body} ->
-		    gl:color3f(0.3, 0.3, 0.3);
-		{_,_} ->
-		    gl:color3f(0.0, 0.0, 0.0)
+		false ->
+		    case {SelMode,wings_pref:get_value(edge_color)} of
+			{body,{0.0,0.0,0.0}} ->
+			    gl:color3f(0.3, 0.3, 0.3);
+			{_,EdgeColor} ->
+			    gl:color3fv(EdgeColor)
+		    end
 	    end,
 	    gl:lineWidth(case SelMode of
 			     edge -> wings_pref:get_value(edge_width);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.58 2002/10/13 19:11:42 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.59 2002/10/28 06:19:42 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -77,8 +77,8 @@ command(prefs, _St) ->
 	  {hframe,
 	   [{label,"Background"},{color,background_color},
 	    {label,"Text"},{color,info_color},
-	    {label,"Face"},{color,face_color},
 	    {label,"Selection"},{color,selected_color},
+	    {label,"Edges"},{color,edge_color},
 	    {label,"Hard Edges"},{color,hard_edge_color},
 	    {label,"Wire Edges"},{color,wire_edge_color}],
 	   [{title,"Colors"}]},
@@ -269,7 +269,7 @@ defaults() ->
     [{background_color,{0.4,0.4,0.4}},
      {info_color,{0.0,0.0,0.0}},
      {grid_color,{0.0,0.0,0.0}},
-     {face_color,{0.5,0.5,0.5}},
+     {edge_color,{0.0,0.0,0.0}},
      {hard_edge_color,{0.0,0.5,0.0}},
      {wire_edge_color,{1.0,1.0,1.0}},
      {selected_color,{0.65,0.0,0.0}},
@@ -340,6 +340,7 @@ not_bad(wire_mode, _) -> false;
 not_bad(none, _) -> false;
 not_bad(use_front_buffer, _) -> false;
 not_bad(one_button_mouse, _) -> false;
+not_bad(face_color, _) -> false;
 
 %% Crashes have occurred.
 not_bad(last_axis, Val) -> is_wings_vector(Val);
