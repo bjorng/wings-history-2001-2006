@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.179 2004/04/20 07:52:36 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.180 2004/04/21 06:54:03 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -441,7 +441,8 @@ ungrab(#drag{x=Ox,y=Oy}) ->
     wings_io:ungrab(Ox, Oy).
 
 invalidate_fun(#dlo{drag=none}=D, _) -> D;
-invalidate_fun(#dlo{src_we=We}=D, _) -> D#dlo{src_we=We#we{es=none}}.
+invalidate_fun(#dlo{src_we=We}=D, _) ->
+    wings_draw:abort_split(D#dlo{src_we=We#we{es=none}}).
     
 numeric_input(Drag0) ->
     {_,X,Y} = wings_wm:local_mouse_state(),

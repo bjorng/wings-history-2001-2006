@@ -8,14 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.192 2004/04/20 17:49:23 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.193 2004/04/21 06:54:03 bjorng Exp $
 %%
 
 -module(wings_draw).
 -export([refresh_dlists/1,
 	 invalidate_dlists/1,
 	 update_sel_dlist/0,
-	 changed_we/2,split/3,original_we/1,update_dynamic/2,join/1,
+	 changed_we/2,
+	 split/3,original_we/1,update_dynamic/2,join/1,abort_split/1,
 	 face_ns_data/1]).
 
 -define(NEED_OPENGL, 1).
@@ -97,8 +98,8 @@ prepare_fun_1(#dlo{src_we=#we{perm=Perm0}=We0}=D, #we{perm=Perm1}=We, Wes) ->
 	false -> prepare_fun_2(D, We, Wes)
     end.
 
-prepare_fun_2(#dlo{proxy_data=Proxy}=D, We, Wes) ->
-    {changed_we(D, #dlo{src_we=We,mirror=none,proxy_data=Proxy}),Wes}.
+prepare_fun_2(#dlo{proxy_data=Proxy,ns=Ns}=D, We, Wes) ->
+    {changed_we(D, #dlo{src_we=We,mirror=none,proxy_data=Proxy,ns=Ns}),Wes}.
 
 only_permissions_changed(#we{perm=P}, #we{perm=P}) -> false;
 only_permissions_changed(We0, We1) -> We0#we{perm=0} =:= We1#we{perm=0}.
@@ -658,6 +659,15 @@ dynamic_vs(#dlo{src_we=#we{vp=Vtab},vs=[Static|_],
     gl:'end'(),
     gl:endList(),
     D#dlo{vs=[Static,UnselDlist]}.
+
+%%%
+%%% Abort a split.
+%%%
+
+abort_split(#dlo{split=#split{orig_ns=Ns}}=D) ->
+    %% Restoring the original normals will probably be beneficial.
+    D#dlo{split=none,ns=Ns};
+abort_split(D) -> D.
 
 %%%
 %%% Re-joining of display lists that have been split.
