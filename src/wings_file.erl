@@ -8,12 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.19 2001/10/24 08:51:39 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.20 2001/10/25 12:24:58 bjorng Exp $
 %%
 
 -module(wings_file).
 -export([new/1,read/1,merge/1,save/1,save_as/1,
-	 revert/1,import/2,export/2,delete/1]).
+	 revert/1,import/2,export/2]).
 
 -include("e3d.hrl").
 -include("wings.hrl").
@@ -166,13 +166,6 @@ output_file(Tag, Ext) ->
 	    end
     end.
 
-delete(#st{file=undefined}=St) -> aborted;
-delete(#st{file=Name}=St) ->
-    case wings_getline:yes_no("Delete file \"" ++ Name ++ "\"? ") of
-	yes -> file:delete(Name);
-	no -> aborted
-    end.
-		    
 %%%
 %%% Generic import code.
 %%%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.25 2001/10/24 18:36:32 bjorng Exp $
+%%     $Id: wings.erl,v 1.26 2001/10/25 12:24:58 bjorng Exp $
 %%
 
 -module(wings).
@@ -320,9 +320,6 @@ command({file,revert}, St0) ->
 	    St0;
 	#st{}=St -> {save_state,model_changed(St)}
     end;
-command({file,delete}, St) ->
-    wings_file:delete(St),
-    St;
 command({file,{import,Type}}, St0) ->
     case wings_file:import(Type, St0) of
 	St0 -> St0;
@@ -607,8 +604,6 @@ menu(X, Y, file, St) ->
 		       {{"3D Studio (.3ds)",tds},
 			{"Wawefront (.obj)",obj},
 			{"RenderMan (.rib)",rib}}}},
-	    separator,
-	    {"Delete File",delete},
 	    separator,
 	    {"Exit","Ctrl-Q",quit}},
     wings_menu:menu(X, Y, file, Menu);
