@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.288 2005/01/31 12:53:27 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.289 2005/03/02 22:42:31 dgud Exp $
 %%
 
 -module(wpc_autouv).
@@ -326,17 +326,12 @@ add_material(Im = #e3d_image{}, _, MatName,St) ->
 %%%% Menus.
 
 command_menu(body, X, Y) ->
-    Rotate = rotate_directions(),
-
-    Scale =  [{"Uniform",    scale_uniform, "Scale in both directions"},
-	      {"Horizontal", scale_x, "Scale horizontally (X dir)"},
-	      {"Vertical",   scale_y, "Scale vertically (Y dir)"}],
-
     Menu = [{basic,{"Chart operations",ignore}},
 	    {basic,separator},
 	    {"Move", move, "Move selected charts"},
-	    {"Scale", {scale, Scale}, "Scale selected charts"},
-	    {"Rotate", {rotate, Rotate}, "Rotate selected charts"},
+	    {"Scale", {scale, scale_directions()}, "Scale selected charts"},
+	    {"Rotate", {rotate, rotate_directions()}, "Rotate selected charts"},
+	    {"Center", {center, center_directions()}, "Center selected charts"},
 	    separator,
 	    {"Flip",{flip,
 		     [{"Horizontal",horizontal,"Flip selection horizontally"},
@@ -376,6 +371,11 @@ command_menu(edge, X, Y) ->
 	    {"Scale",{scale,Scale},"Scale selected edges"},
 	    {"Rotate",{rotate,Rotate},"Rotate selected edges"},
 	    separator,
+	    {"Align chart", {align,			
+			     [{"X", x, "Align horizontally"},
+			      {"Y", y, "Align vertically"}]}, 
+	     "Rotate chart so that selected vertices lies on axis"},
+	    separator,
 	    {"Stitch", stitch, "Stitch edges/charts"},
 	    {"Cut", cut_edges, "Cut selected edges"}
 	   ] ++ option_menu(),
@@ -397,12 +397,21 @@ command_menu(vertex, X, Y) ->
 	     "Move UV coordinates towards average midpoint",
 	     [magnet]},
 	    separator, 
+	    {"Align chart", {align,			
+			      [{"X", x, "Align horizontally"},
+			       {"Y", y, "Align vertically"}]}, 
+	     "Rotate chart so that selected vertices lies on axis"},
 	    {"Unfold",lsqcm,"Unfold the chart (without moving the selected vertices)"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(_, X, Y) ->
     [_|Menu] = option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu).
+
+center_directions() ->
+    [{"Both",    both, "Center both horizontally and vertically"},
+     {"Horizontal", x,  "Center horizontally (X dir)"},
+     {"Vertical",   y,  "Center vertically (Y dir)"}].
 
 scale_directions() ->
     [{"Uniform",    scale_uniform, "Scale in both directions"},
@@ -592,6 +601,14 @@ handle_command({scale,scale_y}, St) ->
     drag(wings_scale:setup({y,center}, St));
 handle_command({rotate,free}, St) ->
     drag(wings_rotate:setup({free,center}, St));
+handle_command({center,Dir}, St0) ->
+    St1 = wpa:sel_map(fun(_, We) -> center(Dir,We) end, St0),
+    St = update_selected_uvcoords(St1),
+    get_event(St);
+handle_command({align,Dir}, St0) ->
+    St1 = align_chart(Dir, St0),
+    St = update_selected_uvcoords(St1),
+    get_event(St);
 handle_command({flip,horizontal}, St0) ->
     St1 = wpa:sel_map(fun(_, We) -> flip_horizontal(We) end, St0),
     St = update_selected_uvcoords(St1),
@@ -990,9 +1007,40 @@ update_geom_selection(#st{selmode=vertex,sel=Sel,
 rotate_chart(Angle, We) ->
     Center = wings_vertex:center(We),
     Rot0 = e3d_mat:translate(e3d_vec:neg(Center)),
-    Rot1 = e3d_mat:mul(e3d_mat:rotate(float(trunc(Angle)), {0.0,0.0,1.0}), Rot0),
+    Rot1 = e3d_mat:mul(e3d_mat:rotate(float(Angle), {0.0,0.0,1.0}), Rot0),
     Rot = e3d_mat:mul(e3d_mat:translate(Center), Rot1),
     wings_we:transform_vs(Rot, We).
+
+align_chart(Dir, St = #st{selmode=Mode}) ->
+    wings_sel:map(
+      fun(Sel, We = #we{vp=Vtab,es=Etab}) ->
+	      case gb_sets:to_list(Sel) of
+		  [V1,V2] when Mode == vertex -> 
+		      align_chart(Dir,gb_trees:get(V1,Vtab),
+				  gb_trees:get(V2,Vtab),
+				  We);
+		  [E] when Mode == edge -> 
+		      #edge{vs=V1,ve=V2} = gb_trees:get(E, Etab),
+		      align_chart(Dir,gb_trees:get(V1,Vtab),
+				  gb_trees:get(V2,Vtab),
+				  We);
+		  _ -> align_error()
+	      end
+      end, St).
+
+align_chart(Dir, {X1,Y1,_}, {X2,Y2,_}, We) ->
+    Deg0 = 180.0/math:pi() *
+	case Dir of
+	    x -> math:atan2(Y2-Y1,X2-X1);
+	    y -> math:atan2(X1-X2,Y2-Y1)
+	end,
+    Deg = if abs(Deg0) < 90.0 -> Deg0;
+	     true -> Deg0 + 180
+	  end,
+    rotate_chart(-Deg,We).
+
+align_error() ->
+    wings_u:error("Select two vertices or one edge").
 
 flip_horizontal(We) ->
     flip(e3d_mat:scale(-1.0, 1.0, 1.0), We).
@@ -1007,6 +1055,16 @@ flip(Flip, We0) ->
     T = e3d_mat:mul(e3d_mat:translate(Center), T1),
     We = wings_we:transform_vs(T, We0),
     wings_we:invert_normals(We).
+
+center(Dir,We) ->
+    ChartCenter = {CCX,CCY,CCZ} = wings_vertex:center(We),
+    Pos = case Dir of
+	      both -> {0.5,0.5,CCZ};
+	      x -> {0.5,CCY,CCZ};
+	      y -> {CCX,0.5,CCZ}
+	  end,
+    T = e3d_mat:translate(e3d_vec:sub(Pos, ChartCenter)),
+    wings_we:transform_vs(T, We).
 
 reunfold(#st{sel=Sel,selmode=vertex}=St0) ->
     %% Check correct pinning.
