@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.40 2003/05/31 20:16:55 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.41 2003/05/31 21:16:54 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -86,16 +86,21 @@ face_centers([], _We, Acc) -> reverse(Acc).
 %%% Updating of the topology (edge and hard edge tables).
 %%%
 
-cut_edges(Es, Hard, #we{es=Etab0,he=Htab0,next_id=Id0}=We) ->
-    Etab1 = {Id0,Etab0,gb_trees:empty()},
-    {Id,{_,Etab2,Etab3},Htab} =
-	cut_edges_1(Es, Hard, Id0, Etab1, Htab0),
-    Etab = gb_trees:from_orddict(gb_trees:to_list(Etab2) ++
-				 gb_trees:to_list(Etab3)),
+cut_edges(Es, Hard, #we{he=Htab0,next_id=Id0}=We) ->
+    Etab0 = prepare_etab(Es, We),
+    {Id,Etab,Htab} = cut_edges_1(Es, Hard, Id0, Etab0, Htab0),
     We#we{es=Etab,he=Htab,next_id=Id}.
 
+prepare_etab(Es, #we{es=Etab0,next_id=Id}) ->
+    Etab = prepare_etab_1(Id+length(Es)-1, Id, []),
+    gb_trees:from_orddict(gb_trees:to_list(Etab0) ++ Etab).
+
+prepare_etab_1(Id, Lim, Acc) when Id >= Lim ->
+    prepare_etab_1(Id-1, Lim, [{Id,dummy}|Acc]);
+prepare_etab_1(_, _, Acc) -> Acc.
+
 cut_edges_1([Edge|Es], Hard, NewEdge, Etab0, Htab0) ->
-    Rec = edge_get(Edge, Etab0),
+    Rec = gb_trees:get(Edge, Etab0),
     Etab = fast_cut(Edge, Rec, NewEdge, Etab0),
     case gb_sets:is_member(Edge, Hard) of
 	true ->
@@ -118,49 +123,18 @@ fast_cut(Edge, Template, NewV=NewEdge, Etab0) ->
     BColOther = get_vtx_color(NextBCol, Rf, Etab0),
     NewColB = wings_color:mix(0.5, BCol, BColOther),
 
-    {Id,EtabA0,EtabB0} = Etab0,
     NewEdgeRec = Template#edge{vs=NewV,a=NewColA,ltsu=Edge,rtpr=Edge},
-    EtabB = gb_trees:insert(NewEdge, NewEdgeRec, EtabB0),
+    Etab1 = gb_trees:update(NewEdge, NewEdgeRec, Etab0),
     EdgeRec = Template#edge{ve=NewV,b=NewColB,rtsu=NewEdge,ltpr=NewEdge},
-    EtabA = gb_trees:update(Edge, EdgeRec, EtabA0),
-    Etab = patch_edge(EdgeA, NewEdge, Edge, {Id,EtabA,EtabB}),
-    patch_edge(EdgeB, NewEdge, Edge, Etab).
+    Etab2 = gb_trees:update(Edge, EdgeRec, Etab1),
+    Etab = wings_edge:patch_edge(EdgeA, NewEdge, Edge, Etab2),
+    wings_edge:patch_edge(EdgeB, NewEdge, Edge, Etab).
 
 get_vtx_color(Edge, Face, Etab) ->
-    case edge_get(Edge, Etab) of
+    case gb_trees:get(Edge, Etab) of
 	#edge{lf=Face,a=Col} -> Col;
 	#edge{rf=Face,b=Col} -> Col
     end.
-
-patch_edge(Edge, ToEdge, OrigEdge, {Id,EtabA,EtabB}) when Edge < Id ->
-    New = case gb_trees:get(Edge, EtabA) of
-	      #edge{ltsu=OrigEdge}=R ->
-		  R#edge{ltsu=ToEdge};
-	      #edge{ltpr=OrigEdge}=R ->
-		  R#edge{ltpr=ToEdge};
-	      #edge{rtsu=OrigEdge}=R ->
-		  R#edge{rtsu=ToEdge};
-	      #edge{rtpr=OrigEdge}=R ->
-		  R#edge{rtpr=ToEdge}
-	  end,
-    {Id,gb_trees:update(Edge, New, EtabA),EtabB};
-patch_edge(Edge, ToEdge, OrigEdge, {Id,EtabA,EtabB}) ->
-    New = case gb_trees:get(Edge, EtabB) of
-	      #edge{ltsu=OrigEdge}=R ->
-		  R#edge{ltsu=ToEdge};
-	      #edge{ltpr=OrigEdge}=R ->
-		  R#edge{ltpr=ToEdge};
-	      #edge{rtsu=OrigEdge}=R ->
-		  R#edge{rtsu=ToEdge};
-	      #edge{rtpr=OrigEdge}=R ->
-		  R#edge{rtpr=ToEdge}
-	  end,
-    {Id,EtabA,gb_trees:update(Edge, New, EtabB)}.
-
-edge_get(Edge, {Id,Etab,_}) when Edge < Id ->
-    gb_trees:get(Edge, Etab);
-edge_get(Edge, {_,_,Etab}) ->
-    gb_trees:get(Edge, Etab).
 
 smooth_faces(FacePos, Id, We) ->
     smooth_faces_1(FacePos, Id, [], We).
