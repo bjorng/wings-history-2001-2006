@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.87 2003/03/06 05:52:07 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.88 2003/03/06 06:04:52 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -330,14 +330,14 @@ apply_material(Name, Mtab) when is_atom(Name) ->
     gl:materialf(?GL_FRONT_AND_BACK, ?GL_SHININESS, Shine),
     gl:materialfv(?GL_FRONT_AND_BACK, ?GL_EMISSION, prop_get(emission, OpenGL)),
     Maps = prop_get(maps, Mat, []),
-    case prop_get(diffuse, Maps, none) of
-	none -> gl:disable(?GL_TEXTURE_2D);
-	DiffuseImage -> apply_texture(DiffuseImage)
-    end.
+    apply_texture(prop_get(diffuse, Maps, none)).
 
+apply_texture(none) -> no_texture();
 apply_texture(Image) ->
     case wings_image:txid(Image) of
-	none -> ok;
+	none ->
+	    %% Image was deleted.
+	    no_texture();
 	TxId ->
 	    gl:enable(?GL_TEXTURE_2D),
 	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_MODULATE),
@@ -345,8 +345,19 @@ apply_texture(Image) ->
 	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MAG_FILTER, ?GL_LINEAR),
 	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_MIN_FILTER, ?GL_LINEAR),
 	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_S, ?GL_REPEAT),
-	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT)
+	    gl:texParameteri(?GL_TEXTURE_2D, ?GL_TEXTURE_WRAP_T, ?GL_REPEAT),
+	    case wings_image:info(Image) of
+		#e3d_image{bytes_pp=4} ->
+		    gl:enable(?GL_ALPHA_TEST),
+		    gl:alphaFunc(?GL_GREATER, 0.5);
+		_ -> 
+		    gl:disable(?GL_ALPHA_TEST)
+	    end
     end.
+
+no_texture() ->
+    gl:disable(?GL_TEXTURE_2D),
+    gl:disable(?GL_ALPHA_TEST).
 
 %% Return the materials used by the objects in the scene.
 
