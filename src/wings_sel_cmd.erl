@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.57 2004/12/31 07:56:30 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.58 2005/01/23 08:44:30 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -194,12 +194,7 @@ similar_help(#st{selmode=body}) ->
 similar_help(_) -> [].
     
 command({edge_loop,edge_loop}, #st{selmode=face}=St) ->
-    Sel = wings_sel:fold(
-	    fun(Fs, #we{id=Id}=We, Acc) ->
-		    Es = gb_sets:from_list(wings_face:outer_edges(Fs, We)),
-		    [{Id,Es}|Acc]
-	    end, [], St),
-    {save_state,wings_sel:set(edge, Sel, St)};
+    {save_state,face_region_to_edge_loop(St)};
 command({edge_loop,edge_loop}, St) ->
     {save_state,wings_edge_loop:select_loop(St)};
 command({edge_loop,edge_link_decr}, St) ->
@@ -318,6 +313,20 @@ by_command(id, St) ->
 by_command({id,Sel}, St) ->
     {save_state,sel_by_id(Sel, St)}.
 
+face_region_to_edge_loop(St) ->
+    Sel = wings_sel:fold(
+	    fun(Fs, #we{id=Id}=We, Acc) ->
+		    Es0 = wings_face:outer_edges(Fs, We),
+		    Es1 = subtract_mirror_edges(Es0, We),
+		    Es = gb_sets:from_list(Es1),
+		    [{Id,Es}|Acc]
+	    end, [], St),
+    wings_sel:set(edge, Sel, St).
+
+subtract_mirror_edges(Es, #we{mirror=none}) -> Es;
+subtract_mirror_edges(Es, #we{mirror=Face}=We) ->
+    Es -- wings_face:to_edges([Face], We).
+    
 %%%
 %%% Selection commands.
 %%%
