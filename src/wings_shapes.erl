@@ -5,12 +5,12 @@
 %%     shapes that can be created, such as Cube, Sphere,
 %%     and Grid.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shapes.erl,v 1.36 2004/11/09 07:25:47 bjorng Exp $
+%%     $Id: wings_shapes.erl,v 1.37 2004/11/09 15:45:14 bjorng Exp $
 %%
 
 -module(wings_shapes).
