@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.89 2003/07/25 09:40:03 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.90 2003/07/25 19:41:55 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -240,7 +240,6 @@ render(#st{selmode=Mode}=St) ->
     render_scene(Dl, Mode, Work, false),
     render_scene(Dl, Mode, Work, true),
     axis_letters(),
-    dummy_axis_letter(),
     gl:disable(?GL_CULL_FACE),
     gl:lineWidth(1),
     wings_io:ortho_setup(),
@@ -732,19 +731,13 @@ axis(I, Yon, Pos, Neg) ->
 
 dummy_axis_letter() ->
     %% Attempt to work around a crash occurring with Matrox cards.
-    case wings_pref:get_value(dummy_axis_letter) andalso
-	(wings_wm:get_prop(show_axes) == false orelse
-	 wings_pref:get_value(show_axis_letters) == false) of
-	false -> ok;
-	true ->
-	    MM = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
-	    PM = list_to_tuple(gl:getDoublev(?GL_PROJECTION_MATRIX)),
-	    %% Since this is a workaround, we will do a real fetching
-	    %% of the viewport (rather than wings_wm:viewport/0).
-	    [X,Y,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-	    Viewport = {X,Y,W,H},
-	    dummy_axis_letter(MM, PM, Viewport)
-    end.
+    MM = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
+    PM = list_to_tuple(gl:getDoublev(?GL_PROJECTION_MATRIX)),
+    %% Since this is a workaround, we will do a real fetching
+    %% of the viewport (rather than wings_wm:viewport/0).
+    [X,Y,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    Viewport = {X,Y,W,H},
+    dummy_axis_letter(MM, PM, Viewport).
 
 dummy_axis_letter(_, _, {_,_,W,H}) ->
     gl:matrixMode(?GL_PROJECTION),
@@ -764,7 +757,11 @@ dummy_axis_letter(_, _, {_,_,W,H}) ->
 axis_letters() ->
     case wings_pref:get_value(show_axis_letters) andalso
 	wings_wm:get_prop(show_axes) of
-	false -> ok;
+	false ->
+	    case wings_pref:get_value(dummy_axis_letter) of
+		false -> ok;
+		true -> dummy_axis_letter()
+	    end;
 	true ->
 	    MM = list_to_tuple(gl:getDoublev(?GL_MODELVIEW_MATRIX)),
 	    PM = list_to_tuple(gl:getDoublev(?GL_PROJECTION_MATRIX)),
