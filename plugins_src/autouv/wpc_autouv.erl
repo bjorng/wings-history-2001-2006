@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.129 2003/07/12 07:42:19 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.130 2003/07/12 07:46:50 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1392,4 +1392,5 @@ set_viewport({X,Y,W,H}=Viewport) ->
     gl:viewport(X, Y, W, H).
 
 restore_wings_window(Uvs) ->
+    wings_draw_util:delete_dlists(),
     reset_dl(Uvs).
