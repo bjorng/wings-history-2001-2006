@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.74 2003/07/22 18:50:47 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.75 2003/07/23 05:09:17 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -48,17 +48,16 @@ command({pick,PickList,Acc,Names}, St) ->
     [{Type,Def,Desc}|More] = add_help_text(PickList, Names),
     MagnetPossible = magnet_possible(Names, More),
     command_1(Type, Desc, More, Acc, Names, MagnetPossible, St#st{vec=Def});
-command({pick_special,{Modes,Init,Fun}}, St0) ->
+command({pick_special,{Modes,Fun}}, St0) ->
     pick_init(St0),
-    wings:mode_restriction(Modes),
-    St = Init(St0),
+    St = wings_sel:reset(mode_restriction(Modes, St0)),
     Ss = #ss{selmodes=Modes,f=Fun},
     {seq,push,get_event(Ss, St)}.
 
-command_1(magnet, Msg, [], Acc, Names, _, St) ->
-    pick_init(St),
+command_1(magnet, Msg, [], Acc, Names, _, St0) ->
+    pick_init(St0),
     Modes = [vertex,edge,face],
-    wings:mode_restriction(Modes),
+    St = mode_restriction(Modes, St0),
     Ss = #ss{f=fun(check, S) ->
 		       check_point(S);
 		  (exit, {Mod,S}) ->

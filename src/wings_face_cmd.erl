@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.84 2003/07/21 13:08:09 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.85 2003/07/23 05:09:17 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -867,10 +867,7 @@ bridge_color(Edge, Face, Iter) ->
 %%%
 
 lift_selection(Dir, OrigSt) ->
-    {[edge,vertex],
-     fun(St) ->
-	     wings_sel:reset(St)
-     end,
+    {[vertex,edge],
      fun(check, St) ->
 	     lift_check_selection(St, OrigSt);
 	(exit, {_,#st{selmode=Mode,sel=Sel}=St}) ->
@@ -1130,9 +1127,6 @@ put_on(_) ->
 
 put_on_selection(OrigSt) ->
     {[face,edge,vertex],
-     fun(St) ->
-	     wings_sel:reset(St)
-     end,
      fun(check, St) -> put_on_check_selection(St, OrigSt);
 	(exit, {_,#st{selmode=Mode,sel=Sel}=St}) ->
 	     case put_on_check_selection(St, OrigSt) of
@@ -1195,9 +1189,6 @@ clone_on(_) ->
 
 clone_on_selection() ->
     {[face,edge,vertex],
-     fun(St) ->
-	     wings_sel:reset(St)
-     end,
      fun(check, _) ->
 	     {none,""};
 	(exit, {_,#st{selmode=Mode,sel=Sel}}) ->
