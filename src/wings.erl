@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.307 2004/05/18 06:46:49 bjorng Exp $
+%%     $Id: wings.erl,v 1.308 2004/05/19 19:36:22 dgud Exp $
 %%
 
 -module(wings).
@@ -1114,6 +1114,8 @@ save_windows() ->
 
 save_windows_1([console|Ns]) ->
     save_window(console, Ns);
+save_windows_1([palette|Ns]) ->
+    save_window(palette, Ns);
 save_windows_1([outliner|Ns]) ->
     save_window(outliner, Ns);
 save_windows_1([{object,_}=N|Ns]) ->
@@ -1186,6 +1188,9 @@ restore_windows_1([{outliner,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
     restore_windows_1(Ws, St);
 restore_windows_1([{console,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
     wings_console:window(console, Pos, Size),
+    restore_windows_1(Ws, St);
+restore_windows_1([{palette,{_,_}=Pos,{_,_}=Size}|Ws], St) ->
+    wings_palette:window(Pos,Size,St),
     restore_windows_1(Ws, St);
 restore_windows_1([_|Ws], St) ->
     restore_windows_1(Ws, St);
