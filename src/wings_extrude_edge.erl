@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.23 2002/02/14 17:47:58 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.24 2002/05/08 09:12:11 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -29,7 +29,7 @@ bump(St0) ->
     {St,Tvs} = wings_sel:mapfold(fun bump/3, [], St0),
     wings_move:plus_minus(normal, Tvs, St).
 
-bump(Faces, #we{id=Id}=We0, Acc) ->
+bump(Faces, We0, Acc) ->
     Edges = gb_sets:from_list(wings_face:outer_edges(Faces, We0)),
     {We,_} = extrude_edges(Edges, Faces, We0),
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
@@ -45,7 +45,7 @@ bevel(St0) ->
     wings_drag:setup(Tvs, [{distance,{0.0,Limit}}],
 		    wings_sel:set(face, Sel, St)).
 
-bevel_edges(Edges, #we{id=Id,es=Etab,next_id=Next}=We0, {Tvs,Ss,Limit0}) ->
+bevel_edges(Edges, #we{id=Id}=We0, {Tvs,Ss,Limit0}) ->
     {We1,OrigVs} = extrude_edges(Edges, We0),
     OrigFaces = bevel_orig_faces(Edges, We1),
     We2 = wings_edge:dissolve_edges(Edges, We1),
@@ -69,12 +69,12 @@ bevel_faces(St0) ->
     {St,{Tvs,C}} = wings_sel:mapfold(fun bevel_faces/3, {[],1.0E300}, St0),
     wings_drag:setup(Tvs, [{distance,{0.0,C}}], St).
 
-bevel_faces(Faces, #we{id=Id,es=Etab,next_id=Next}=We0, {Tvs,Limit0}) ->
+bevel_faces(Faces, #we{id=Id}=We0, {Tvs,Limit0}) ->
     Edges = wings_edge:from_faces(Faces, We0),
     {We1,OrigVs} = extrude_edges(Edges, We0),
     We2 = wings_edge:dissolve_edges(Edges, We1),
     Tv0 = bevel_tv(OrigVs, We2),
-    #we{fs=Ftab,vs=Vtab0} = We3 =
+    #we{vs=Vtab0} = We3 =
 	foldl(fun(V, W0) ->
 		      wings_collapse:collapse_vertex(V, W0)
 	      end, We2, OrigVs),
@@ -93,7 +93,7 @@ bevel_tv(Vs, We) ->
 bevel_tv_1(V, We, Acc) ->
     Center = wings_vertex:pos(V, We),
     wings_vertex:fold(
-      fun(Face, Edge, Rec, Tv0) ->
+      fun(_, _, Rec, Tv0) ->
 	      OtherV = wings_vertex:other(V, Rec),
 	      Pos = wings_vertex:pos(OtherV, We),
 	      Vec = e3d_vec:norm(e3d_vec:sub(Pos, Center)),
@@ -106,13 +106,13 @@ bevel_reset_pos(Vs, We, Vtab) ->
 bevel_reset_pos_1(V, We, Vtab) ->
     Center = wings_vertex:pos(V, We),
     wings_vertex:fold(
-      fun(Face, Edge, Rec, Vt) ->
+      fun(_, _, Rec, Vt) ->
 	      OtherV = wings_vertex:other(V, Rec),
 	      Vtx = gb_trees:get(OtherV, Vt),
 	      gb_trees:update(OtherV, Vtx#vtx{pos=Center}, Vt)
       end, Vtab, V, We).
 
-bevel_orig_faces(Edges, #we{es=Etab}=We0) ->
+bevel_orig_faces(Edges, #we{es=Etab}) ->
     Faces = foldl(fun(E, A) ->
 			  #edge{lf=Lf,rf=Rf} = gb_trees:get(E, Etab),
 			  [Lf,Rf|A]
@@ -140,13 +140,13 @@ bevel_limit_1(V, Vec, #we{vs=Vtab}=We, Acc) ->
 		  Dot = e3d_vec:dot(Vec, Evec),
 		  [{Dot,OtherV,OtherPos}|A]
 	  end, [], V, We),
-    bevel_limit_2(reverse(sort(L)), V, Pos, Vec, We, Acc).
+    bevel_limit_2(reverse(sort(L)), V, Pos, Vec, Acc).
 
-bevel_limit_2([{Dot,Va,Vpos}|_], V, Pos, Vec, We, {A,Lacc}) when Dot > 0.998 ->
+bevel_limit_2([{Dot,Va,Vpos}|_], V, Pos, Vec, {A,Lacc}) when Dot > 0.998 ->
     Lim = e3d_vec:len(e3d_vec:sub(Pos, Vpos)),
     Ea = edge_name(V, Va),
     {[{Vec,[V]}|A],[{Ea,{Va,Lim}}|Lacc]};
-bevel_limit_2([{DotA,Va,Apos},{DotB,Vb,Bpos}|_], V, Pos, Vec0, We, {A,Lacc})
+bevel_limit_2([{DotA,Va,Apos},{DotB,Vb,Bpos}|_], V, Pos, Vec0, {A,Lacc})
   when DotA+DotB > 0.998 ->
     Vec = e3d_vec:mul(Vec0, 1/DotA),
     LimA = e3d_vec:len(e3d_vec:sub(Pos, Apos)),
@@ -154,7 +154,7 @@ bevel_limit_2([{DotA,Va,Apos},{DotB,Vb,Bpos}|_], V, Pos, Vec0, We, {A,Lacc})
     Ea = edge_name(V, Va),
     Eb = edge_name(V, Vb),
     {[{Vec,[V]}|A],[{Ea,{Va,LimA}},{Eb,{Vb,LimB}}|Lacc]};
-bevel_limit_2(Other, V, Pos, Vec, We, {A,Lacc}) ->
+bevel_limit_2(_Other, V, _Pos, Vec, {A,Lacc}) ->
     %% Ignore - degenerated case.
     {[{Vec,[V]}|A],Lacc}.
 
@@ -168,7 +168,7 @@ bevel_min_limit([Ls|T], Min) ->
     Sum = foldl(fun({_,L}, S) -> S+L end, 0, Ls),
     case Sum/N/N of
 	M when M < Min -> bevel_min_limit(T, M);
-	M -> bevel_min_limit(T, Min)
+	_ -> bevel_min_limit(T, Min)
     end;
 bevel_min_limit([], Min) -> Min.
 
@@ -187,7 +187,7 @@ extrude(Type, St0) ->
 extrude_vector({_,{_,_,_}=Vec}) -> Vec;
 extrude_vector(Vec) -> wings_util:make_vector(Vec).
 
-extrude_1(Edges, Vec, We0, Acc) ->
+extrude_1(Edges, _Vec, We0, Acc) ->
     {We,_} = extrude_edges(Edges, We0),
     NewVs = gb_sets:to_list(wings_we:new_items(vertex, We0, We)),
     {We,[{Edges,NewVs,We}|Acc]}.
@@ -213,7 +213,7 @@ extrude_edges(Edges, Faces, #we{next_id=Wid,es=Etab}=We0) ->
 new_vertex(V, G, Edges, Faces, Wid, We0) ->
     Center = wings_vertex:pos(V, We0),
     wings_vertex:fold(
-      fun(Edge, Face, Rec, #we{es=Etab}=W0) ->
+      fun(Edge, Face, Rec, W0) ->
 	      case gb_sets:is_member(Edge, Edges) orelse
 		  gb_sets:is_member(Face, Faces) of
 		  true -> W0;
@@ -251,7 +251,7 @@ move_vertex(V, Center, #we{vs=Vtab0}=We) ->
     case e3d_vec:len(Dir) of
 	D when D < ?EXTRUDE_DIST ->
 	    We;
-	D ->
+	_ ->
 	    Pos = e3d_vec:add(Center,
 			      e3d_vec:mul(e3d_vec:norm(Dir),
 					  ?EXTRUDE_DIST)),
@@ -263,7 +263,7 @@ get_edge_rec(Va, Vb, EdgeA, EdgeB, #we{es=Etab}) ->
     case gb_trees:get(EdgeA, Etab) of
 	#edge{vs=Va,ve=Vb}=Rec -> Rec;
 	#edge{vs=Vb,ve=Va}=Rec -> Rec;
-	Other -> gb_trees:get(EdgeB, Etab)
+	_Other -> gb_trees:get(EdgeB, Etab)
     end.
 
 digraph_edge(G, #edge{lf=Lf,rf=Rf,vs=Va,ve=Vb}) ->
@@ -297,14 +297,14 @@ connect(G, [C|Cs], Wid, We0, Closed) ->
 	[] ->
 	    [{_,Face}|_] = C,
 	    connect(G, Cs, Wid, We0, [Face|Closed]);
-	[Va0,Vb0]=Vs ->
+	[Va0,Vb0] ->
 	    [{Va,Face}|Path0] = digraph_get_path(G, Va0, Vb0),
 	    Path = [V || {V,_} <- Path0],
 	    N = wings_face:normal(Face, We0),
 	    We = connect_inner(Va, Path, N, Face, We0),
 	    connect(G, Cs, Wid, We, Closed)
     end;
-connect(G, [], Wid, We0, Closed) ->
+connect(_, [], _Wid, We0, Closed) ->
     We = wings_extrude_face:faces(Closed, We0),
     move_vertices(Closed, We).
 
@@ -319,7 +319,7 @@ connect_inner(Current0, [A|[B,C,_|_]=Next], N, DefFace, We0) ->
     connect_inner(Current, Next, N, DefFace, We);
 connect_inner(Current, [_|[_,_]=Next], N, DefFace, We) ->
     connect_inner(Current, Next, N, DefFace, We);
-connect_inner(Current, [_,Last], N, DefFace, We0) ->
+connect_inner(Current, [_,Last], _, DefFace, We0) ->
     Face = get_face(Current, Last, DefFace, We0),
     {We,_} = wings_vertex:force_connect(Current, Last, Face, We0),
     We.
@@ -356,7 +356,7 @@ move_vertices([Va|[Vb,Vc|_]=Vs], First, N, OldVtab, Vtab0) ->
     move_vertices(Vs, First, N, OldVtab, Vtab);
 move_vertices([Va,Vb], [Vc,Vd|_], N, OldVtab, Vtab) ->
     move_vertices([Va,Vb,Vc,Vd], [], N, OldVtab, Vtab);
-move_vertices([_,_], [], N, OldVtab, Vtab) -> Vtab.
+move_vertices([_,_], [], _, _, Vtab) -> Vtab.
 
 new_vertex_pos(A, B, C, N, Vtab) ->
     APos = wings_vertex:pos(A, Vtab),

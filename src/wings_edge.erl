@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.42 2002/04/19 18:38:45 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.43 2002/05/08 09:12:10 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -546,14 +546,14 @@ check_edge(Edge, #we{es=Etab}=We) ->
 	    dissolve_edge(Edge, We);
 	#edge{rtpr=Same,rtsu=Same} ->
 	    dissolve_edge(Edge, We);
-	Other -> We
+	_Other -> We
     end.
 
 update_face(Face, Edge, OldEdge, Ftab) ->
     case gb_trees:get(Face, Ftab) of
 	#face{edge=OldEdge}=Frec ->
 	    gb_trees:update(Face, Frec#face{edge=Edge}, Ftab);
-	Other -> Ftab
+	_Other -> Ftab
     end.
 
 del_2edge_face(Dir, EdgeA, RecA, EdgeB,
