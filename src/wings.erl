@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.322 2004/11/04 07:48:30 bjorng Exp $
+%%     $Id: wings.erl,v 1.323 2004/11/14 13:06:11 bjorng Exp $
 %%
 
 -module(wings).
@@ -16,6 +16,7 @@
 -export([caption/1,redraw/1,redraw/2,init_opengl/1,command/2]).
 -export([mode_restriction/1,clear_mode_restriction/0,get_mode_restriction/0]).
 -export([ask/3]).
+-export([init_menubar/0]).
 
 -export([register_postdraw_hook/3,unregister_postdraw_hook/2]).
 
@@ -370,6 +371,9 @@ handle_event_3({note,_}, _) ->
     keep;
 handle_event_3({drop,Pos,DropData}, St) ->
     handle_drop(DropData, Pos, St);
+handle_event_3(language_changed, _) ->
+    wings_wm:menubar(wings_wm:this(), get(wings_menu_template)),
+    keep;
 handle_event_3(ignore, _St) -> keep.
 
 do_hotkey(Ev, #st{sel=[]}=St0) ->

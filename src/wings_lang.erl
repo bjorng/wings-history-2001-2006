@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_lang.erl,v 1.8 2004/10/30 09:19:07 bjorng Exp $
+%%     $Id: wings_lang.erl,v 1.9 2004/11/14 13:06:12 bjorng Exp $
 %%
 %%  Totally rewritten but Riccardo is still the one who did the hard work.
 %%
@@ -23,7 +23,7 @@
 %% Translation support tools.
 -export([generate_template/0,generate_template/1,diff/1,diff/2]).
 
--import(lists, [reverse/1,reverse/2]).
+-import(lists, [reverse/1,reverse/2,foreach/2]).
 
 -define(DEF_LANG_STR, "en").			% English
 -define(DEF_LANG_ATOM, en).			% English
@@ -50,9 +50,15 @@ init() ->
 		       false -> ?DEF_LANG_STR
 		   end
 	   end,
-    load_language(Lang).
+    load_language_only(Lang).
 
-load_language(Lang0) when is_list(Lang0) ->
+load_language(Lang) when is_list(Lang) ->
+    load_language_only(Lang),
+    wings:init_menubar(),
+    foreach(fun(W) -> wings_wm:send(W, language_changed) end,
+	    wings_wm:windows()).
+
+load_language_only(Lang0) when is_list(Lang0) ->
     Lang = list_to_atom(Lang0),
     put(?MODULE, Lang), 
     catch ets:delete(?MODULE), 
