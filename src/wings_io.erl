@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.110 2003/07/08 12:38:24 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.111 2003/07/08 12:41:50 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -503,13 +503,12 @@ read_out(Motion, Eq0) ->
     end.
 
 wait_for_event(Eq) ->
-    State = sdl_active:getAppState(),
-    Time = if
-	       State == 0 ->			%Iconified.
+    Time = case sdl_active:getAppState() of
+	       0 ->				%Iconified.
 		   650;
-	       State == 7 ->			%Fully active.
+	       7 ->				%Fully active.
 		   10;
-	       true ->				%Cursor outside of window.
+	       _ ->				%Cursor outside of window.
 		   120
 	   end,
     receive
