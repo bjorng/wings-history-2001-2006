@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.4 2002/10/10 13:04:10 dgud Exp $
+%%     $Id: auv_segment.erl,v 1.5 2002/10/10 14:39:26 dgud Exp $
 
 
 
@@ -253,17 +253,20 @@ get_vector(A,B,B,We) ->
 get_vector(A,B,#we{vs = Vs}) ->
     e3d_vec:norm(e3d_vec:sub((gb_trees:get(A,Vs))#vtx.pos,(gb_trees:get(B,Vs))#vtx.pos)).
 
-%% This could be improved V2 should be in opposite direction of V1
-%% Find is used when pick features failed, i.e. a backup function
 find_extremities(#we{vs= Vs}) ->
     Vs1 = gb_trees:to_list(Vs),
     Vs2 = [Pos || {_, #vtx{pos = Pos}} <- Vs1],
-    Center = e3d_vec:average(Vs2),
-    All = lists:map(fun({Id, #vtx{pos = Pos}}) ->
+    Center = e3d_vec:average(Vs2),    
+    AllC = lists:map(fun({Id, #vtx{pos = Pos}}) ->
 			    Dist = e3d_vec:dist(Pos, Center),
-			    {Dist, Id}
+			    {Dist, Id, Pos}
 		    end, Vs1),
-    [{_,V1},{_,V2}|_] = lists:reverse(lists:sort(All)),
+    [{_,V1,V1Pos}|_] = lists:reverse(lists:sort(AllC)),
+    AllV1 = lists:map(fun({Id, #vtx{pos = Pos}}) ->
+			      Dist = e3d_vec:dist(Pos, V1Pos),
+			      {Dist, Id, Pos}
+		      end, Vs1),   
+    [{_,V2,_}|_] = lists:reverse(lists:sort(AllV1)),
     E1 = (gb_trees:get(V1, Vs))#vtx.edge,
     E2 = (gb_trees:get(V2, Vs))#vtx.edge,
     [E1,E2].
