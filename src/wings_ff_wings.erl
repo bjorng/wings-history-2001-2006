@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.33 2003/02/26 07:17:37 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.34 2003/03/03 21:44:13 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -46,7 +46,9 @@ import(Name, St0) ->
     end.
 
 import_vsn2(Shapes, Materials0, Props, St0) ->
-    Materials = translate_materials(Materials0),
+    Images = import_images(Props),
+    Materials1 = translate_materials(Materials0),
+    Materials = translate_map_images(Materials1, Images),
     {St1,NameMap0} = wings_material:add_materials(Materials, St0),
     St = import_props(Props, St1),
     NameMap = gb_trees:from_orddict(sort(NameMap0)),
@@ -180,6 +182,53 @@ new_sel_group(Name, Mode, Sel, #st{ssels=Ssels0}=St) ->
 	    St#st{ssels=Ssels}
     end.
 
+import_images(Props) ->
+    Empty = gb_trees:empty(),
+    case proplists:get_value(images, Props) of
+	undefined -> Empty;
+	Images -> import_images_1(Images, Empty)
+    end.
+	    
+import_images_1([{Id0,Im}|T], Map) ->
+    Name = proplists:get_value(name, Im, "unnamed image"),
+    W = proplists:get_value(width, Im, 0),
+    H = proplists:get_value(height, Im, 0),
+    PP = proplists:get_value(samples_per_pixel, Im, 0),
+    Pixels = proplists:get_value(pixels, Im),
+    if
+	W*H*PP =:= size(Pixels) -> ok;
+	true -> wings_util:error("Bad image: ~p\n", [Name])
+    end,
+    Type = case PP of
+	       1 -> g8;
+	       2 -> g8a8;
+	       3 -> r8g8b8;
+	       4 -> r8g8b8a8
+	   end,
+    E3D = #e3d_image{width=W,height=H,type=Type,order=lower_left,
+		     alignment=1,bytes_pp=PP,image=Pixels},
+    Id = wings_image:new(Name, E3D),
+    import_images_1(T, gb_trees:insert(Id0, Id, Map));
+import_images_1([], Map) -> Map.
+
+translate_map_images(Mats, ImMap) ->
+    [translate_map_images_1(M, ImMap) || M <- Mats].
+
+translate_map_images_1({Name,Props0}=Mat, ImMap) ->
+    case proplists:get_value(maps, Props0, []) of
+	[] -> Mat;
+	Maps ->
+	    Props = lists:keydelete(maps, 1, Props0),
+	    {Name,[{maps,translate_map_images_2(Maps, ImMap)}|Props]}
+    end.
+
+translate_map_images_2([{Type,Im0}|T], ImMap) when is_integer(Im0) ->
+    Im = gb_trees:get(Im0, ImMap),
+    [{Type,Im}|translate_map_images_2(T, ImMap)];
+translate_map_images_2([H|T], ImMap) ->
+    [H|translate_map_images_2(T, ImMap)];
+translate_map_images_2([], _) -> [].
+
 %%%
 %%% Import of old materials format (up to and including wings-0.94.02).
 %%%
@@ -225,12 +274,15 @@ export(Name, St0) ->
     Sel0 = collect_sel(St),
     {Shs1,Sel} = renumber(gb_trees:to_list(Shs0), Sel0, 0, [], []),
     Shs = foldl(fun shape/2, [], Shs1),
-    Materials0 = wings_material:used_materials(St),
-    Materials = mat_images(Materials0),
+    Materials = wings_material:used_materials(St),
     Props0 = export_props(Sel),
-    Props = case Lights of
-		[] -> Props0;
-		[_|_] -> [{lights,Lights}|Props0]
+    Props1 = case Lights of
+		 [] -> Props0;
+		 [_|_] -> [{lights,Lights}|Props0]
+	     end,
+    Props = case export_images() of
+		[] -> Props1;
+		Images -> [{images,Images}|Props1]
 	    end,
     Wings = {wings,2,{Shs,Materials,Props}},
     write_file(Name, term_to_binary(Wings, [compressed])).
@@ -329,31 +381,21 @@ export_face(#face{mat=Mat}, Acc) ->
 export_vertex({X,Y,Z}, Acc) ->
     [[<<X/float,Y/float,Z/float>>]|Acc].
 
-mat_images(Mats) ->
-    mat_images(Mats, []).
+export_images() ->
+    export_images_1(wings_image:images()).
 
-mat_images([{Name,Mat0}|T], Acc) ->
-    Mat = mat_images_1(Mat0, []),
-    mat_images(T, [{Name,Mat}|Acc]);
-mat_images([], Acc) -> Acc.
+export_images_1([{Id,Im}|T]) ->
+    [{Id,export_image(Im)}|export_images_1(T)];
+export_images_1([]) -> [].
 
-mat_images_1([{maps,Maps0}|T], Acc) ->
-    Maps = mat_images_2(Maps0, []),
-    mat_images_1(T, [{maps,Maps}|Acc]);
-mat_images_1([H|T], Acc) ->
-    mat_images_1(T, [H|Acc]);
-mat_images_1([], Acc) -> Acc.
+export_image(#e3d_image{type=Type0,order=Order}=Im0) ->
+    Im = case {export_img_type(Type0),Order} of
+	     {Type0,lower_left} -> Im0;
+	     {Type,_} -> e3d_image:convert(Im0, Type, 1, lower_left)
+	 end,
+    #e3d_image{width=W,height=H,bytes_pp=PP,image=Pixels,name=Name} = Im,
+    [{name,Name},{width,W},{height,H},{samples_per_pixel,PP},{pixels,Pixels}].
 
-mat_images_2([{Type,Image}|T], Acc) ->
-    case wings_image:info(Image) of
-	#e3d_image{width=W,height=H,type=r8g8b8,
-		   order=lower_left,alignment=1,image=Bits} -> ok;
-	E3D ->
-	    %% Temporary solution until we start saving images:
-	    %%   Strip any alpha. Make sure that order and alignment
-	    %%   is correct.
-	    #e3d_image{width=W,height=H,image=Bits} =
-		e3d_image:convert(E3D, r8g8b8, 1, lower_left)
-    end,
-    mat_images_2(T, [{Type,{W,H,Bits}}|Acc]);
-mat_images_2([], Acc) -> Acc.
+export_img_type(b8g8r8) -> r8g8b8;
+export_img_type(b8g8r8a8) -> r8g8b8a8;
+export_img_type(Type) -> Type.
