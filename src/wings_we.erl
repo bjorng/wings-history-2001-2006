@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.30 2002/06/04 19:50:13 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.31 2002/06/17 07:58:12 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -28,6 +28,7 @@
 	 is_consistent/1]).
 
 -include("wings.hrl").
+-include("e3d.hrl").
 -import(lists, [map/2,foreach/2,foldl/3,sort/1,keysort/2,
 		last/1,reverse/1,duplicate/2,seq/2,filter/2]).
 
@@ -35,8 +36,26 @@
 %%% Build Winged-Edges.
 %%%
 
+build(Mode, #e3d_mesh{fs=Fs0,vs=Vs,tx=Tx,he=He}) when is_atom(Mode) ->
+    Fs = translate_faces(Fs0, list_to_tuple(Tx), []),
+    build(Mode, Fs, Vs, He);
 build(Fs, Vs) ->
     build(material, Fs, Vs).
+
+translate_faces([#e3d_face{vs=Vs,tx=Tx0,mat=Mat0}|Fs], Txs, Acc) ->
+    Mat = translate_mat(Mat0),
+    FaceData = case Tx0 of
+		   [] -> {Mat,Vs};
+		   Tx1 ->
+		       Tx = [element(Tx+1, Txs) || Tx <- Tx1],
+		       {Mat,Vs,Tx}
+	       end,
+    translate_faces(Fs, Txs, [FaceData|Acc]);
+translate_faces([], _, Acc) -> reverse(Acc).
+
+translate_mat([]) -> default;
+translate_mat([Mat]) -> Mat;
+translate_mat([_|_]=List) -> List.
 
 build(Type, Fs, Vs) ->
     build(Type, Fs, Vs, []).
@@ -90,9 +109,7 @@ build_face_edges([{Pred,_}|[{E0,{_UVa,UVb}},{Succ,_}|_]=Es], Face, Acc0) ->
 		  enter_half_edge(right, Name, Face, Pred, Succ, UVb, Acc0);
 	      {Vs,Ve} when Ve < Vs ->
 		  Name = {Ve,Vs},
-		  enter_half_edge(left, Name, Face, Pred, Succ, UVb, Acc0);
-	      _Equal=Name ->
-		  enter_half_edge(same, Name, Face, Pred, Succ, UVb, Acc0)
+		  enter_half_edge(left, Name, Face, Pred, Succ, UVb, Acc0)
 	  end,
     build_face_edges(Es, Face, Acc);
 build_face_edges([_,_], _Face, Acc) -> Acc.
@@ -100,22 +117,6 @@ build_face_edges([_,_], _Face, Acc) -> Acc.
 enter_half_edge(Side, Name, Face, Pred, Succ, UV,Tab0) ->
     Rec = {Face,UV,edge_name(Pred),edge_name(Succ)},
     [{Name,{Side,Rec}}|Tab0].
-
-% pairs([V,V,X]) ->
-%     pairs([V,X]);
-% pairs([V,X,V]) ->
-%     pairs([V,X]);
-% pairs([X,V,V]) ->
-%     pairs([V,X]);
-% pairs([V1,V2]) ->
-%     [{V2,V1},{V1,V2},{V2,V1},{V1,V2}];
-% pairs(Vs) ->
-%     pairs(Vs, Vs, []).
-    
-% pairs([V1|[V2|_]=Vs], First, Acc) ->
-%     pairs(Vs, First, [{V2,V1}|Acc]);
-% pairs([V], [V1,V2,V3|_], Acc) ->
-%     [{V3,V2},{V2,V1},{V1,V}|Acc].
 
 pairs(Vs) ->
     pairs(Vs, Vs, []).
@@ -146,22 +147,10 @@ combine_half_edges(HalfEdges) ->
     
 combine_half_edges([{Name,[{left,Ldata},{right,Rdata}]}|Hes], Good, Bad) ->
     combine_half_edges(Hes, [{Name,{Ldata,Rdata}}|Good], Bad);
-combine_half_edges([{Name,Other}=BadEdge|Hes], Good0, Bad) ->
-    Left = filter(fun({Side,_}) -> Side =:= left end, Other),
-    Right = filter(fun({Side,_}) -> Side =:= right end, Other),
-    case length(Left) =:= length(Right) of
-	true ->
-	    Good = combine_half_edges_1(Name, Left, Right, Good0),
-	    combine_half_edges(Hes, Good, Bad);
-	false -> combine_half_edges(Hes, Good0, [BadEdge|Bad])
-    end;
+combine_half_edges([{_,[_]}=BadEdge|Hes], Good, Bad) ->
+    combine_half_edges(Hes, Good, [BadEdge|Bad]);
 combine_half_edges([], Good, Bad) ->
     {reverse(Good),reverse(Bad)}.
-
-combine_half_edges_1(Name, [{left,Ldata}|Les], [{right,Rdata}|Res], Good0) ->
-    Good = [{Name,{Ldata,Rdata}}|Good0],
-    combine_half_edges_1(Name, Les, Res, Good);
-combine_half_edges_1(_Name, [], [], Good) -> Good.
 
 number_edges(Es) ->
     number_edges(Es, 1, []).
@@ -264,7 +253,6 @@ make_digraph([{{Vb,Va},[{left,_Data}]}|Es], G) ->
     digraph:add_vertex(G, Vb),
     digraph:add_edge(G, Va, Vb),
     make_digraph(Es, G);
-make_digraph([_|Es], G) -> make_digraph(Es, G);
 make_digraph([], _G) -> ok.
 
 %%% Utilities for allocating IDs.
@@ -602,13 +590,32 @@ normals(#we{fs=Ftab}=We) ->
 			 end, [], gb_trees:to_list(Ftab)),
     FaceNormals1 = reverse(FaceNormals0),
     FaceNormals = gb_trees:from_orddict(FaceNormals1),
-    G = new_digraph(We),
-    VtxNormals = vertex_normals(We, G, FaceNormals),
-    Ns = foldl(fun({Face,#face{mat=Mat}}, Acc) ->
-		       [n_face(Face, Mat, G, FaceNormals, VtxNormals, We)|Acc]
-	       end, [], gb_trees:to_list(Ftab)),
-    delete_digraph(G),
-    Ns.
+    case gb_trees:size(FaceNormals) of
+	2 ->
+	    two_faced(FaceNormals, We);
+	_ ->
+	    G = new_digraph(We),
+	    VtxNormals = vertex_normals(We, G, FaceNormals),
+	    Ns = foldl(fun({Face,#face{mat=Mat}}, Acc) ->
+			       [n_face(Face, Mat, G, FaceNormals, VtxNormals, We)|Acc]
+		       end, [], gb_trees:to_list(Ftab)),
+	    delete_digraph(G),
+	    Ns
+    end.
+
+two_faced(Normals, #we{fs=Ftab}=We) ->
+    [#face{mat=MatA},#face{mat=MatB}] = gb_trees:values(Ftab),
+    [{FaceA,Na},{FaceB,Nb}] = gb_trees:to_list(Normals),
+    [{MatA,two_faced_1(FaceA, Na, We)},
+     {MatB,two_faced_1(FaceB, Nb, We)}].
+
+two_faced_1(Face, Normal, #we{vs=Vtab}=We) ->
+    Vs = wings_face:fold_vinfo(
+	   fun (V, VInfo, Acc) ->
+		   #vtx{pos=Pos} = gb_trees:get(V, Vtab),
+		   [{Pos,{VInfo,Normal}}|Acc]
+	   end, [], Face, We),
+    {Normal,Vs}.
 
 vertex_normals(#we{vs=Vtab,es=Etab,he=Htab}=We, G, FaceNormals) ->
     {SoftVs,HardVs} =
