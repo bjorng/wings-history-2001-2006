@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.95 2003/11/17 04:52:15 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.96 2003/11/20 23:40:45 raimo_niskanen Exp $
 %%
 
 -module(wings_camera).
@@ -104,7 +104,8 @@ mouse_buttons(DI) ->
 	   {desc(2),2,[{info,info(2)}]},
 	   {desc(3),3,[{info,info(3)}]}],
      wings_pref:get_value(num_buttons),
-     [{hook,fun (update, {_Var,I,Val,Sto}) ->
+     [{hook,fun (update, {Var,I,Val,Sto0}) ->
+		    Sto = gb_trees:update(Var, Val, Sto0),
 		    Mode0 = gb_trees:get(I+DI, Sto),
 		    Mode = case {Val,Mode0} of
 			       {1,_} -> nendo;

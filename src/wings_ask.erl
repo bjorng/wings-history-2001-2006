@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.126 2003/11/20 13:52:56 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.127 2003/11/20 23:40:45 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -272,14 +272,8 @@ event({drop,{X,Y},DropData}, S) ->
     drop_event(X, Y, DropData, S);
 event({action,Action}, S) ->
     field_event(Action, S);
-event({picked_color,Col}, #s{fi=Fi,store=Sto0}=S) ->
-    [#fi{key=K,index=I,hook=Hook}|_] = get_eyepicker(Fi, Sto0),
-    case Hook(update, {var(K, I),I,Col,Sto0}) of
-	void -> keep;
-	keep -> keep;
-	{store,Sto0} -> keep;
-	{store,Sto} -> get_event(S#s{store=Sto})
-    end;
+event(Ev={picked_color,_}, #s{fi=Fi,store=Sto}=S) ->
+    field_event(Ev, S, get_eyepicker(Fi, Sto));
 event(Ev, S) -> field_event(Ev, S).
 
 event_key({key,?SDLK_ESCAPE,_,_}, S) ->
@@ -447,9 +441,7 @@ field_event(Ev, S=#s{focus=_I,fi=TopFi=#fi{w=W0,h=H0},store=Store0},
 	keep -> keep;
 	{recursive,Return} -> Return;
 	{drag,{_,_}=WH,DropData} -> wings_wm:drag(Ev, WH, DropData);
-	{store,Store0} -> keep;
 	{store,Store} -> get_event(S#s{store=Store});
-	{layout,Store0} -> keep;
 	{layout,Store} ->
 	    case layout(TopFi, Store) of
 		TopFi -> get_event(next_focus(0, S#s{store=Store}));
@@ -496,7 +488,7 @@ resize_maybe_move({W,H0}=Size) ->
 return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto}=S) ->
     Res = collect_result(Fi, Sto),
     ?DEBUG_DISPLAY({return_result,Res}),
-    case EndFun(Res) of
+    case catch EndFun(Res) of
 	{command_error,Message} ->
 	    wings_util:message(Message),
 	    get_event(S);
@@ -752,6 +744,8 @@ mktree({eyepicker,Hook}, Sto, I) ->
     mktree_fi(eyepicker(), Sto, I, [{hook,Hook}]);
 mktree({position,Position}, Sto, I) ->
     mktree_fi(position(Position), Sto, I, []);
+mktree({position,Position,Flags}, Sto, I) ->
+    mktree_fi(position(Position), Sto, I, Flags);
 mktree({label,Label}, Sto, I) ->
     mktree_fi(label(Label, []), Sto, I, []);
 mktree({label,Label,Flags}, Sto, I) ->
@@ -837,8 +831,9 @@ mktree_fi({Handler,Inert,Priv,W,H}, Sto, I, Flags) ->
 	     
 mktree_container(Qs, Sto0, I0, Flags, Type) ->
     {Fields,Sto1,I} = mktree_container(Qs, Sto0, I0+1, []),
+    Title = proplists:get_value(title, Flags),
     Minimized = proplists:get_value(minimized, Flags),
-    Inert = (Minimized == undefined),
+    Inert = (Title =:= undefined orelse Minimized =:= undefined),
     Key = proplists:get_value(key, Flags, 0),
     Sto2 = gb_trees:insert(var(Key, I0), Minimized, Sto1),
     Sto = gb_trees:insert(-I0, Type, Sto2),
@@ -910,25 +905,25 @@ layout(Fi=#fi{key=Key,index=Index,flags=Flags,
        Sto, X0, Y0) ->
     Minimized = gb_trees:get(var(Key, Index), Sto),
     Title = proplists:get_value(title, Flags),
-    {X1,Y1} = 
-	case {Title,Minimized} of
-	    {undefined,undefined} -> {X0,Y0};
-	    _ -> {X0+10,Y0+?LINE_HEIGHT}
-	end,
+    {X1,Y1} = if Title =:= undefined -> {X0,Y0};
+		 true -> {X0+10,Y0+?LINE_HEIGHT} end,
+%%% 	case {Title,Minimized} of
+%%% 	    {undefined,undefined} -> {X0,Y0};
+%%% 	    _ -> {X0+10,Y0+?LINE_HEIGHT}
+%%% 	end,
     {Fields,X2,Y2} = layout_container(Type, Fields0, Sto, X1, Y1),
-    Wi =
-	case {Title,Minimized} of
-	    {undefined,undefined} -> X2-X1;
-%	    {_,true} -> 3*?CHAR_WIDTH+wings_text:width(Title);
-	    _ -> max(3*?CHAR_WIDTH+wings_text:width(Title),X2-X1)
-	end,
+    Wi = if Title =:= undefined -> X2-X1;
+	    true -> max(3*?CHAR_WIDTH+wings_text:width(Title),X2-X1) end,
+%%% 	case {Title,Minimized} of
+%%% 	    {undefined,undefined} -> X2-X1;
+%%% %	    {_,true} -> 3*?CHAR_WIDTH+wings_text:width(Title);
+%%% 	    _ -> max(3*?CHAR_WIDTH+wings_text:width(Title),X2-X1)
+%%% 	end,
     Hi = Y2-Y1,
-    {Wo,Ho} =
-	case {Title,Minimized} of
-	    {undefined,undefined} -> {X1-X0+Wi,Y1-Y0+Hi};
-	    {_,true} -> {X1-X0+Wi+10,Y1-Y0};
-	    _ -> {X1-X0+Wi+10,Y1-Y0+Hi+10}
-	end,
+    Wo = 2*(X1-X0)+Wi,
+    Ho = Y1-Y0 +
+	if Minimized =:= true -> 0; true -> Hi end +
+	if Title =:= undefined -> 0; true -> 10 end,
     Fi#fi{x=X0,y=Y0,w=Wo,h=Ho,
 	  extra=Container#container{x=X1,y=Y1,w=Wi,h=Hi,
 				    fields=Fields,
@@ -1108,9 +1103,8 @@ frame_event(_Ev, _Path, _Store) -> keep.
 
 frame_redraw(Active, #fi{flags=Flags}=Fi, DisEnable, Minimized) ->
     Title = proplists:get_value(title, Flags),
-    case {Title,Minimized} of
-	{undefined,undefined} -> keep;
-	_ -> frame_redraw_1(Active, Title, Fi, DisEnable, Minimized)
+    if  Title =:= undefined -> keep;
+	true -> frame_redraw_1(Active, Title, Fi, DisEnable, Minimized) 
     end.
 
 frame_redraw_1(Active, Title, #fi{x=X0,y=Y0,w=W0,h=H0}, 
@@ -1132,22 +1126,14 @@ frame_redraw_1(Active, Title, #fi{x=X0,y=Y0,w=W0,h=H0},
 		      true -> ok
 		  end,
 		  gl:'end'(),
-		  if  Title =/= undefined ->
-			  gl:color4fv(Col),
-			  gl:rectf(TextPos-Cw, 
-				   Y-1,
-				   TextPos+wings_text:width(Title)+Cw,
-				   Y+2);
-		      true -> ok
-		  end
+		  gl:color4fv(Col),
+		  gl:rectf(TextPos-Cw, Y-1,
+			   TextPos+wings_text:width(Title)+Cw, Y+2)
 	  end),
-						%	    Col = color3(),
+%%%     Col = color3(),
     ColFg = color3_text(),
-    if  Title =/= undefined ->
-	    gl:color3fv(ColFg),
-	    wings_io:text_at(TextPos, Y0+Ch, Title);
-	true -> ok
-    end,
+    gl:color3fv(ColFg),
+    wings_io:text_at(TextPos, Y0+Ch, Title),
     if  Minimized =/= undefined ->
 	    %% Draw button
 	    blend(fun(Col) ->
@@ -1716,8 +1702,7 @@ button_event({key,_,_,$\s}, [#fi{key=Key,index=I,hook=Hook}|_], Store0) ->
     case hook(Hook, update, [var(Key, I), I, true, Store0]) of
 	keep -> Action;
 	{store,Store} -> {Action,Store};
-	done -> done;
-	{done,_}=Result -> Result
+	Result -> Result
     end;
 button_event(_Ev, _Path, _Store) -> keep.
 
@@ -1857,7 +1842,19 @@ panel() -> {fun (_Ev, _Path, _Store) -> keep end, true, #panel{}, 0, 0}.
 -record(eyepicker, {}).
 
 eyepicker() ->
-    {fun (_Ev, _Path, _Store) -> keep end, true, #eyepicker{}, 0, 0}.
+    {fun eyepicker_event/3, true, #eyepicker{}, 0, 0}.
+
+eyepicker_event(init, [#fi{key=Key,index=I}|_], Store) ->
+    Var = var(Key, I),
+    case gb_trees:is_defined(Var, Store) of
+	true -> keep;
+	false -> {store,gb_trees:insert(Var, undefined, Store)}
+    end;
+eyepicker_event({picked_color,Col}, 
+		[#fi{key=Key,index=I,hook=Hook}|_], 
+		Store)  ->
+    hook(Hook, update, [var(Key, I),I,Col,Store]);
+eyepicker_event(_Ev, _Path, _Store) -> keep.
 
 %%%
 %%% Position
@@ -2081,28 +2078,24 @@ gen_text_handler(value, [#fi{key=Key,index=I}|_], Store) ->
 gen_text_handler(init, [#fi{key=Key,index=I}|_], Store) ->
     #text{last_val=Val} = gb_trees:get(-I, Store),
     {store,gb_trees:enter(var(Key, I), Val, Store)};
-gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook}|_], Store0) ->
-    #text{last_val=Val0} = Ts0 = gb_trees:get(-I, Store0),
+gen_text_handler(Ev, [Fi=#fi{key=Key,index=I,hook=Hook}|_], Store) ->
+    #text{last_val=Val0} = Ts0 = gb_trees:get(-I, Store),
     K = var(Key, I),
-    Ts1 = case gb_trees:get(K, Store0) of
+    Ts1 = case gb_trees:get(K, Store) of
 	      Val0 -> Ts0;
 	      Val1 ->
 		  ?DEBUG_DISPLAY([K,I,Val1]),
 		  ValStr = text_val_to_str(Val1),
 		  Ts0#text{bef=[],aft=ValStr}
 	  end,
-    Ts2 = text_event(Ev, Fi, Ts1),
-    {Ts,Store} = 
-	case text_get_val(Ts2) of
-	    Val0 -> {Ts2,Store0};
-	    Val  -> 
-		{Ts2#text{last_val=Val},
-		 case hook(Hook, update, [K, I, Val, Store0]) of
-		     keep -> Store0;
-		     {store,S} -> S
-		 end}
-	end,
-    {store,gb_trees:update(-I, Ts, Store)}.
+    Ts = text_event(Ev, Fi, Ts1),
+    case text_get_val(Ts) of
+	Val0 ->
+	    {store,gb_trees:update(-I, Ts, Store)};
+	Val ->
+	    hook(Hook, update, 
+		 [K,I,Val,gb_trees:update(-I, Ts#text{last_val=Val}, Store)])
+    end.
 
 draw_text_inactive(#fi{x=X0,y=Y0}, #text{max=Max,password=Password},
 		   Val, DisEnable) ->
@@ -2579,26 +2572,18 @@ hook(Hook, is_disabled, [Var, I, Store]) ->
 		false -> enable
 	    end
     end;
-hook(Hook, update, [Var, I, Val, Store0]) ->
-    {Default,Store1} = 
-	case gb_trees:get(Var, Store0) of
-	    Val -> {keep,Store0};
-	    _ -> 
-		S = gb_trees:update(Var, Val, Store0),
-		{{store,S},S}
-	end,
+hook(Hook, update, [Var, I, Val, Store]) ->
     case Hook of
-	undefined -> Default;
+	undefined -> update(Var, Val, Store);
 	_ when is_function(Hook) ->
-	    case Hook(update, {Var,I,Val,Store1}) of
-		void -> Default;
-		keep -> Default;
+	    case Hook(update, {Var,I,Val,Store}) of
+		void -> update(Var, Val, Store);
+		%% Result -> Result % but more paranoid
+		keep -> keep;
 		{store,_}=Result -> Result;
-		done -> case Default of 
-			    keep -> done;
-			    {store,Store} -> {done,Store}
-			end;
-		{done,_}=Result -> Result
+		done -> done;
+		{done,_}=Result -> Result;
+		{layout,_}=Result -> Result
 	    end
     end;
 hook(Hook, menu_disabled, [Var, I, Store]) ->
@@ -2609,4 +2594,10 @@ hook(Hook, menu_disabled, [Var, I, Store]) ->
 		void -> [];
 		Disabled when list(Disabled) -> Disabled
 	    end
+    end.
+
+update(Var, Val, Store) ->
+    case gb_trees:get(Var, Store) of
+	Val -> keep;
+	_ -> {store,gb_trees:update(Var, Val, Store)}
     end.

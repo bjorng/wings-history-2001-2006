@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.20 2003/11/16 18:18:30 bjorng Exp $
+%%     $Id: wings_color.erl,v 1.21 2003/11/20 23:40:45 raimo_niskanen Exp $
 %%
 
 -module(wings_color).
@@ -277,26 +277,28 @@ color_text_flags(T, {K1,K2,K3}, Kabc, Range) ->
     [{key,K1},{range,Range},{width,5},{hook,color_update(T, {K2,K3}, Kabc)}].
 
 color_update(T, {K1,K2}, {Ka,Kb,Kc}) ->
-    fun (update, {_Key,_I,Val,Store0}) ->
+    fun (update, {Var,_I,Val,Store0}) ->
 	    V1 = gb_trees:get(K1, Store0),
 	    V2 = gb_trees:get(K2, Store0),
 	    {Va,Vb,Vc} = color_update(T, Val, V1, V2),
-	    Store1 = gb_trees:update(Ka, Va, Store0),
-	    Store2 = gb_trees:update(Kb, Vb, Store1),
-	    Store = gb_trees:update(Kc, Vc, Store2),
+	    Store1 = gb_trees:update(Var, Val, Store0),
+	    Store2 = gb_trees:update(Ka, Va, Store1),
+	    Store3 = gb_trees:update(Kb, Vb, Store2),
+	    Store = gb_trees:update(Kc, Vc, Store3),
 	    {store,Store};
 	(_, _) ->
 	    void
     end.
 
-eyepicker_update(update, {_Key,_I,{R,G,B},Sto0}) ->
-    Sto1 = gb_trees:update(red, R, Sto0),
-    Sto2 = gb_trees:update(green, G, Sto1),
-    Sto3 = gb_trees:update(blue, B, Sto2),
+eyepicker_update(update, {Var,_I,{R,G,B}=Col,Sto0}) ->
+    Sto1 = gb_trees:update(Var, Col, Sto0),
+    Sto2 = gb_trees:update(red, R, Sto1),
+    Sto3 = gb_trees:update(green, G, Sto2),
+    Sto4 = gb_trees:update(blue, B, Sto3),
     {H,S,V} = rgb_to_hsv(R, G, B),
-    Sto4 = gb_trees:update(hue, H, Sto3),
-    Sto5 = gb_trees:update(sat, S, Sto4),
-    Sto = gb_trees:update(val, V, Sto5),
+    Sto5 = gb_trees:update(hue, H, Sto4),
+    Sto6 = gb_trees:update(sat, S, Sto5),
+    Sto = gb_trees:update(val, V, Sto6),
     {store,Sto};
 eyepicker_update(_, _) -> void.
 

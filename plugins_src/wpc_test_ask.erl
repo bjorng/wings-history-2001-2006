@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.13 2003/11/20 13:52:55 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.14 2003/11/20 23:40:44 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -100,7 +100,11 @@ dialog(_X, Dialog) ->
 minimal_dialog(_St) ->
     Fun = fun(Res) -> 
 		  erlang:display({?MODULE,?LINE,Res}),
-		  ignore
+		  case Res of 
+		      [{a,true}|_] -> 
+			  wings_util:error("Uncheck the checkbox!");
+		      _ -> ok
+		  end, ignore
 	  end,
     Dialog =
 	[{hframe,[{label,"Label"},{"Checkbox",false,[{key,a}]}],
@@ -109,12 +113,14 @@ minimal_dialog(_St) ->
 
 
 
-large_dialog(St) -> do_large_dialog(St, false, true, false).
+large_dialog(St) -> do_large_dialog(St, false, true, false, undefined).
 
-do_large_dialog(St, MinimizedL, MinimizedC, MinimizedR) ->
+do_large_dialog(St, MinimizedL, MinimizedC, MinimizedR, Pos) ->
     Dialog =
 	[{hframe,
-	  [large_dialog_l(MinimizedL, MinimizedC),large_dialog_r(MinimizedR)]}],
+	  [large_dialog_l(MinimizedL, MinimizedC),
+	   large_dialog_r(MinimizedR)]},
+	 {position,Pos,[{key,position}]}],
     wings_ask:dialog("Test Ask Large", Dialog, large_result(St)).
 
 large_result(St) ->
@@ -122,9 +128,11 @@ large_result(St) ->
 	    erlang:display({?MODULE,?LINE,Res}),
 	    MinimizedC = proplists:get_value(minimized_c, Res),
 	    MinimizedR = proplists:get_value(minimized_r, Res),
+	    Pos = proplists:get_value(position, Res),
 	    case proplists:get_value(reset, Res) of
 		true -> 
-		    do_large_dialog(St, MinimizedL, MinimizedC, MinimizedR),
+		    do_large_dialog(St, MinimizedL, MinimizedC, MinimizedR, 
+				    Pos),
 		    ignore;
 		false -> ignore
 	    end
@@ -203,9 +211,16 @@ large_dialog_r(MinimizedR) ->
       {color,{0.0,1.0,0.0,1.0}},
       {menu,[{"Alt 1",1},{"Alt 2",2},{"Alt 3",3}],d,3,
        [{key,menu},{hook,disable_hook(c)},{info,info(c)}]},
-      {hframe,[{color,{0.0,0.0,1.0}},panel]},
+      {hframe,[{color,{0.0,0.0,1.0}},
+	       panel,
+	       {"Hide next frame",true,
+		[{key,1},
+		 {hook,fun (update, {Var,_I,Val,Store}) ->
+			       {layout,gb_trees:update(Var, Val, Store)};
+			   (_, _) -> void end}]}]},
       {hframe,[{text,1.23},
-	       {button,"Ok",ok,[{hook,disable_hook(c)}]}]},
+	       {button,"Ok",ok,[{hook,disable_hook(c)}]}],
+       [{minimized,true}]},
       {menu,[{"A",a},{"B",b},{"C",c}],m,a,
        [{hook,fun (menu_disabled, {_Var,_I,Sto}) ->
 		      case gb_trees:get(c, Sto) of
@@ -222,13 +237,14 @@ info(c) -> "Requires \"Checkbox key\" checked".
     
 
 color_update(T, {K1,K2}, {Ka,Kb,Kc}) ->
-    fun (update, {_Key,Val,Store0}) ->
+    fun (update, {Var,_I,Val,Store0}) ->
 	    V1 = gb_trees:get(K1, Store0),
 	    V2 = gb_trees:get(K2, Store0),
 	    {Va,Vb,Vc} = color_update(T, Val, V1, V2),
-	    Store1 = gb_trees:update(Ka, Va, Store0),
-	    Store2 = gb_trees:update(Kb, Vb, Store1),
-	    Store = gb_trees:update(Kc, Vc, Store2),
+	    Store1 = gb_trees:update(Var, Val, Store0),
+	    Store2 = gb_trees:update(Ka, Va, Store1),
+	    Store3 = gb_trees:update(Kb, Vb, Store2),
+	    Store = gb_trees:update(Kc, Vc, Store3),
 	    {store,Store};
 	(_, _) ->
 	    void
