@@ -3,12 +3,12 @@
 %%
 %%     Utilities for drawing objects.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.50 2003/01/24 08:32:39 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.51 2003/01/30 15:14:11 bjorng Exp $
 %%
 
 -module(wings_draw_util).

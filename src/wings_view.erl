@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.92 2003/01/26 11:33:38 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.93 2003/01/30 15:14:11 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -159,6 +159,15 @@ command(show_normals, St) ->
 	false -> St;
 	true ->
 	    wings_draw_util:map(fun(D, _) -> D#dlo{normals=none} end, []),
+	    St
+    end;
+command(show_edges, St) ->
+    Bool = wings_pref:get_value(show_edges),
+    wings_pref:set_value(show_edges, not Bool),
+    case Bool of
+	false -> St;
+	true ->
+	    wings_draw_util:map(fun(D, _) -> D#dlo{hard=none} end, []),
 	    St
     end;
 command(aim, St) ->

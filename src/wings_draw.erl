@@ -3,12 +3,12 @@
 %%
 %%     This module draws objects using OpenGL.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2003 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.98 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.99 2003/01/30 15:14:10 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -129,7 +129,7 @@ update_fun_2(#dlo{smooth=none,src_we=We}=D, false, St) ->
     {List,Tr} = smooth_dlist(We, St),
     update_fun_3(D#dlo{smooth=List,transparent=Tr});
 update_fun_2(#dlo{hard=none,src_we=#we{he=Htab}=We}=D, true, _) ->
-    case gb_sets:is_empty(Htab) of
+    case gb_sets:is_empty(Htab) orelse not wings_pref:get_value(show_edges) of
 	true -> update_fun_3(D);
 	false ->
 	    List = gl:genLists(1),
