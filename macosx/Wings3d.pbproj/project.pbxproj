@@ -597,7 +597,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Strip debug information from all beam files.\ntemp=$OBJROOT\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/erlang/lib\n\ncat >$temp/strip.erl <<'EOF'\n-module(strip).\n-export([strip/1]).\n\nstrip([LibRoot]) ->\n    case catch strip_1(filelib:wildcard(filename:join(LibRoot, \"*/ebin/*.beam\"))) of\n        {'EXIT',Reason} ->\n            io:format(\"~P\\n\", [Reason,40]),\n            halt(1);\n        _ ->\n            halt(0)\n    end.\n    \nstrip_1([B|Bs]) ->\n    {ok,{_,B}} = beam_lib:strip(B),\n    strip_1(Bs);\nstrip_1([]) -> ok.\nEOF\n\nerlc -o $temp $temp/strip.erl\nerl -noshell -pa $temp -run strip strip $dest\n";
+			shellScript = "# Strip debug information from all beam files.\ntemp=$OBJROOT\ndest=$SYMROOT/$TARGETNAME.app/Contents/Resources/erlang\n\nerlc -o $temp ../tools/strip.erl\n(cd $dest; erl -noshell -pa $temp -run strip strip)\n";
 		};
 		F5B807F10227DA2101000102 = {
 			fileEncoding = 30;
