@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.85 2003/02/25 07:41:02 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.86 2003/02/27 21:07:15 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -154,13 +154,29 @@ rename_qs(Ms) ->
       [{vframe,OldNames},
        {vframe,TextFields}]}].
 
-reassign_material(Old, New, #st{sel=OldSel}=St0) ->
-    case select_material(Old, St0) of
+reassign_material(Old, New, St0) ->
+    %% It would be tempting to call select_material/2 here instead of
+    %% make_fake_selection/2, but we must make sure that even invisible
+    %% and locked objects gets selected.
+    case make_fake_selection(Old, St0) of
 	#st{sel=[]} -> St0;
 	St1 ->
-	    St = set_material(New, St1),
-	    St#st{sel=OldSel}
+	    #st{shapes=Shs,mat=Mat} = set_material(New, St1),
+	    St0#st{shapes=Shs,mat=Mat}
     end.
+
+make_fake_selection(OldMat, #st{shapes=Shapes}=St) ->
+    Sel0 = gb_trees:values(Shapes),
+    Sel = make_fake_selection_1(Sel0, OldMat),
+    St#st{selmode=face,sel=Sel}.
+
+make_fake_selection_1([#we{id=Id,fs=Ftab}|Shs], OldMat) ->
+    Keys = gb_trees:to_list(Ftab),
+    case [Face || {Face,#face{mat=Mat}} <- Keys, Mat =:= OldMat] of
+	[] -> make_fake_selection_1(Shs, OldMat);
+	Sel -> [{Id,gb_sets:from_ordset(Sel)}|make_fake_selection_1(Shs, OldMat)]
+    end;
+make_fake_selection_1([], _) -> [].
 
 select_material(Mat, St) ->
     wings_sel:make(fun(Face, #we{fs=Ftab}) ->
