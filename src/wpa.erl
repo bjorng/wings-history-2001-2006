@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.7 2002/01/28 17:31:43 bjorng Exp $
+%%     $Id: wpa.erl,v 1.8 2002/01/31 07:33:29 bjorng Exp $
 %%
 -module(wpa).
 -export([ask/3,error/1,message/1,yes_no/1,
@@ -45,8 +45,7 @@ bind_unicode(Key, Command) ->
     wings_hotkey:bind_unicode(Key, Command, plugin).
 
 bind_virtual(Key, Mods, Command) ->
-    wings_hotkey:bind_virtual(Key, Command, plugin).
-
+    wings_hotkey:bind_virtual(Key, Mods, Command, plugin).
 
 %%%
 %%% Import/export support.
