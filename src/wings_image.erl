@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.16 2003/02/24 21:23:49 bjorng Exp $
+%%     $Id: wings_image.erl,v 1.17 2003/02/25 07:29:25 bjorng Exp $
 %%
 
 -module(wings_image).
@@ -131,6 +131,7 @@ handle(init_opengl, #ist{images=Images}=S) ->
     foreach(fun({Id,Image}) ->
 		    make_texture(Id, Image)
 	    end, gb_trees:to_list(Images)),
+    init_background_tx(),
     S;
 handle({new,#e3d_image{name=Name0}=Im0}, #ist{next=Id,images=Images0}=S) ->
     Name = make_unique(Name0, Images0),
@@ -173,6 +174,17 @@ handle({draw_preview,X,Y,W,H,Id}, #ist{images=Images}=S) ->
 	     Im = gb_trees:get(Id, Images),
 	     draw_image(X, Y, W, H, TxId, Im)
      end,S}.
+
+init_background_tx() ->
+    White = [255,255,255],
+    Grey = [204,204,204],
+    EightWhite = pattern_repeat(8, White),
+    EightGrey = pattern_repeat(8, Grey),
+    B0 = [pattern_repeat(8, [EightGrey|EightWhite])|
+	  pattern_repeat(8, [EightWhite|EightGrey])],
+    B = list_to_binary(B0),
+    Im = #e3d_image{width=16,height=16,image=B},
+    put(background, init_texture(Im)).
 
 make_texture(Id, Image) ->
     TxId = init_texture(Image),
@@ -339,11 +351,29 @@ redraw(Id) ->
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     gl:disable(?GL_DEPTH_TEST),
+    draw_background(X, Y, W, H),
     gl:enable(?GL_BLEND),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
     draw_image(X, Y, W, H, txid(Id), Im),
     gl:bindTexture(?GL_TEXTURE_2D, 0),
     gl:popAttrib().
+
+draw_background(X, Y, W, H) ->
+    Ua = 0,
+    Ub = 16*(W div 16)/16,
+    Va = 0,
+    Vb = 16*(H div 16)/16,
+    gl:bindTexture(?GL_TEXTURE_2D, txid(background)),
+    gl:'begin'(?GL_QUADS),
+    gl:texCoord2f(Ua, Va),
+    gl:vertex2i(X, Y),
+    gl:texCoord2f(Ua, Vb),
+    gl:vertex2i(X, Y+H),
+    gl:texCoord2f(Ub, Vb),
+    gl:vertex2i(X+W, Y+H),
+    gl:texCoord2f(Ub, Va),
+    gl:vertex2i(X+W, Y),
+    gl:'end'().
 
 draw_image(X, Y, W, H, TxId, #e3d_image{order=Order}) ->
     case Order of
