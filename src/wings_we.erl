@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.58 2003/08/14 07:11:05 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.59 2003/08/14 13:28:14 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -297,10 +297,8 @@ new_ids(N, #we{next_id=Id}=We) ->
 invert_normals(#we{es=Etab0}=We0) ->
     Etab1 = invert_edges(gb_trees:to_list(Etab0), []),
     Etab = gb_trees:from_orddict(Etab1),
-    case We0#we{es=Etab} of
-	#we{mode=material}=We -> We;
-	We -> slide_colors(We)
-    end.
+    We = We0#we{es=Etab},
+    slide_colors(We).
 
 invert_edges([{Edge,Rec0}|Es], Acc) ->
     #edge{vs=Vs,ve=Ve,ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu} = Rec0,
