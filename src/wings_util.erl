@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.58 2003/02/05 06:38:36 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.59 2003/02/07 09:51:48 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -16,6 +16,7 @@
 	 validate_mirror/1,rel2fam/1,
 	 button_message/1,button_message/2,button_message/3,
 	 button_format/1,button_format/2,button_format/3,
+	 rmb_format/1,
 	 message/1,message/2,yes_no/1,
 	 get_matrices/2,mirror_matrix/1,
 	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
@@ -27,6 +28,7 @@
 -export([check_error/2,dump_we/2]).
 
 -define(NEED_OPENGL, 1).
+-define(NEED_ESDL, 1).
 -include("wings.hrl").
 -import(lists, [foreach/2,map/2,foldl/3,reverse/1,member/2,last/1]).
 
@@ -92,6 +94,14 @@ button_format(MsgOne, MsgTwo, MsgThree) ->
 	 MsgThree =/= [] -> [$\s,Three,$\s|MsgThree];
 	 true -> []
      end].
+
+rmb_format(Message) ->
+    RmbMod = case wings_camera:free_rmb_modifier() of
+		 ?ALT_BITS -> "Alt";
+		 ?CTRL_BITS -> "Ctrl"
+	     end,
+    {_,_,Rmb} = wings_camera:button_names(),
+    "[" ++ RmbMod ++ "]+" ++ Rmb ++ " " ++ Message.
 
 message(Message, _) ->
     message(Message).
