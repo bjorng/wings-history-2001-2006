@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_autouv.erl,v 1.278 2004/12/25 07:21:59 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.279 2004/12/25 07:45:15 bjorng Exp $
 %%
 
 -module(wpc_autouv).
@@ -791,8 +791,8 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
     end.
 
 rebuild_charts(We, St, ExtraCuts) ->
-    Faces = ?TC(wings_we:uv_mapped_faces(We)),
-    FvUvMap = ?TC(auv_segment:fv_to_uv_map(Faces, We)),
+    %%Faces = ?TC(wings_we:uv_mapped_faces(We)),
+    {Faces,FvUvMap} = ?TC(auv_segment:fv_to_uv_map(We)),
     {Charts0,Cuts0} = ?TC(auv_segment:uv_to_charts(Faces, FvUvMap, We)),
     {Charts1,Cuts} =
 	case ExtraCuts of

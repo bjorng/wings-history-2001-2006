@@ -9,13 +9,13 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.63 2004/12/24 19:32:53 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.64 2004/12/25 07:45:15 bjorng Exp $
 
 -module(auv_segment).
 
 -export([create/2,segment_by_material/1,cut_model/3,
 	 normalize_charts/3,map_vertex/2,map_edge/2,
-	 fv_to_uv_map/2,uv_to_charts/3,
+	 fv_to_uv_map/1,uv_to_charts/3,
 	 finalize_chart/2]).
 
 -ifdef(DEBUG).
@@ -888,14 +888,25 @@ collect_fun(Cuts) ->
 %%% Build a map {F,V} => UV.
 %%%
 
-fv_to_uv_map(Fs, We) ->
-    fv_to_uv_map(Fs, We, []).
+fv_to_uv_map(#we{fs=Ftab}=We) ->
+    FsEs = gb_trees:to_list(Ftab),
+    fvuvmap_1(FsEs, We, [], []).
 
-fv_to_uv_map([F|Fs], We, Acc0) ->
-    Acc = [{{F,V},UV} || [V|UV] <- wings_face:vinfo_ccw(F, We)] ++ Acc0,
-    fv_to_uv_map(Fs, We, Acc);
-fv_to_uv_map([], _, Acc) ->
-    gb_trees:from_orddict(sort(Acc)).
+fvuvmap_1([{F,E}|FsEs], We, FaceAcc, Acc) ->
+    case uv_info(F, E, We) of
+	error -> fvuvmap_1(FsEs, We, FaceAcc, Acc);
+	Info -> fvuvmap_1(FsEs, We, [F|FaceAcc], Info++Acc)
+    end;
+fvuvmap_1([], _, FaceAcc, Acc) ->
+    {FaceAcc,gb_trees:from_orddict(sort(Acc))}.
+	
+uv_info(F, E, We) ->
+    uv_info_1(wings_face:vinfo_ccw(F, E, We), F, []).
+
+uv_info_1([[V|UV]|T], F, Acc) ->
+    uv_info_1(T, F, [{{F,V},UV}|Acc]);
+uv_info_1([_|_], _, _) -> error;
+uv_info_1([], _, Acc) -> Acc.
 
 %%%
 %%% Given a model having UV coordinates, partition it into charts.
