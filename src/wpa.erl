@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.64 2005/02/11 07:16:45 dgud Exp $
+%%     $Id: wpa.erl,v 1.65 2005/02/15 06:40:16 bjorng Exp $
 %%
 %% Note: To keep the call graph clean, wpa MUST NOT be called
 %%       from the wings core modules.
@@ -21,7 +21,8 @@
 	 export/3,export_selected/3,
 	 export_filename/2,export_filename/3,
 	 save_images/3,
-	 dialog_template/2,import_matrix/1,export_matrix/1,
+	 dialog_template/2,dialog_template/3,
+	 import_matrix/1,export_matrix/1,
 	 send_command/1,
 	 pref_get/2,pref_get/3,pref_set/2,pref_set/3,
 	 pref_set_default/3,pref_delete/2,
@@ -205,12 +206,13 @@ dialog_template(Mod, export) ->
 	{?__(6,"Sub-division Steps"),
 	 {text,pref_get(Mod, subdivisions, 0),
 	  [{key,subdivisions},{range,0,4}]}}]},
-      {?__(norms, "Include normals/smoothing groups"),  
-       pref_get(Mod, include_normal, true), [{key,include_normal}]},
-      {?__(uv,    "Include UV-Coords (if available)"), 
-       pref_get(Mod, include_uv, true), [{key, include_uv}]},
-      {?__(color, "Include vertex colors (if available)"),
-       pref_get(Mod, include_colors, true), [{key, include_color}]},
+      panel,
+      {?__(norms, "Export normals/smoothing groups"),  
+       pref_get(Mod, include_normals, true), [{key,include_normals}]},
+      {?__(uv,    "Export UV coordinates"),
+       pref_get(Mod, include_uvs, true), [{key,include_uvs}]},
+      {?__(color, "Export vertex colors"),
+       pref_get(Mod, include_colors, true), [{key,include_colors}]},
       panel,
       {vframe,
        [{menu,FileTypes,DefFileType,[{key,default_filetype}]}],
@@ -221,6 +223,33 @@ dialog_template(Mod, tesselate) ->
 			{"Triangulate",triangulate},
 			{"Quadrangulate", quadrangulate}],
 	       pref_get(Mod,tesselation,none), [{key,tesselation}]}]}.
+
+%% dialog_template(Module, Type, ExcludeKeys) -> Template
+%%  Return a template for a standard dialog. The flags argument makes
+%%  it possible to exclude certain keys.
+%%  Module = caller's module (used as preference key)
+%%  Type = import|export
+%%  Flags = List of keys to exclude from the dialog template
+
+dialog_template(Mod, Type, Flags) ->
+    Dlg = dialog_template(Mod, Type),
+    prune_keys(Dlg, ordsets:from_list(Flags)).
+
+prune_keys({_,_,[{key,Key}|_]}=El, Exclude) ->
+    case ordsets:is_element(Key, Exclude) of
+	false -> El;
+	true -> deleted
+    end;
+prune_keys({vframe,Items}, Exclude) ->
+    {vframe,prune_list(Items, Exclude)};
+prune_keys(Other, _) -> Other.
+
+prune_list([I0|Is], Exclude) ->
+    case prune_keys(I0, Exclude) of
+	deleted -> prune_list(Is, Exclude);
+	I -> [I|prune_list(Is, Exclude)]
+    end;
+prune_list([], _) -> [].
 
 import_scale_s() -> ?__( 1, "Import scale").
 export_scale_s() -> ?__( 1, "Export scale").
