@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.140 2003/08/18 06:21:55 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.141 2003/08/26 11:42:25 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -56,21 +56,21 @@ prepare_dlists(#st{shapes=Shs}) ->
     wings_draw_util:update(fun prepare_fun/2, gb_trees:values(Shs)).
 
 prepare_fun(eol, [#we{perm=Perm}=We|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
-    {#dlo{src_we=empty_we(We)},Wes};
+    {new_we(#dlo{src_we=empty_we(We)}),Wes};
 prepare_fun(eol, [We|Wes]) ->
-    {#dlo{src_we=We,mirror=none},Wes};
+    {new_we(#dlo{src_we=We}),Wes};
 prepare_fun(eol, []) ->
     eol;
 prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, [We|Wes]) ->
     {D#dlo{src_we=We,split=Split#split{orig_we=We}},Wes};
 prepare_fun(#dlo{src_we=We}=D, [We|Wes]) ->
     {D#dlo{src_we=We},Wes};
-prepare_fun(#dlo{src_we=#we{id=Id},proxy_data=Proxy}, [#we{id=Id,perm=Perm}=We|Wes]) ->
+prepare_fun(#dlo{src_we=#we{id=Id},proxy_data=Proxy}=D, [#we{id=Id,perm=Perm}=We|Wes]) ->
     if 
 	?IS_VISIBLE(Perm) ->
-	    {#dlo{src_we=We,mirror=none,proxy_data=Proxy},Wes};
+	    {changed_we(D, #dlo{src_we=We,mirror=none,proxy_data=Proxy}),Wes};
 	true ->
-	    {#dlo{src_we=empty_we(We),proxy_data=Proxy},Wes}
+	    {changed_we(D, #dlo{src_we=empty_we(We),proxy_data=Proxy}),Wes}
     end;
 prepare_fun(#dlo{}, Wes) ->
     {deleted,Wes}.
@@ -101,6 +101,73 @@ sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
     end;
 sel_fun(D, Sel, _) ->
     {D#dlo{sel=none,src_sel=none},Sel}.
+
+new_we(#dlo{src_we=We}=D) ->
+    Ns = changed_we_1(none, We),
+    D#dlo{ns=Ns}.
+    
+changed_we(#dlo{ns=Ns0}, #dlo{src_we=We}=D) ->
+    Ns = changed_we_1(Ns0, We),
+    D#dlo{ns=Ns}.
+
+changed_we_1(_, _) ->
+    none.
+%% Currently disabled.
+% changed_we_1(none, #we{fs=Ftab}=We) ->
+%     changed_we_2(gb_trees:to_list(Ftab), [], We, []);
+% changed_we_1(Ns, #we{fs=Ftab}=We) ->
+%     changed_we_2(gb_trees:to_list(Ftab), gb_trees:to_list(Ns), We, []).
+
+changed_we_2([{Face,Edge}|Fs], [{Face,Data}=Pair|Ns], We, Acc) ->
+    Ps = changed_we_pos(Face, Edge, We),
+    case Data of
+	[_|Ps] ->
+	    changed_we_2(Fs, Ns, We, [Pair|Acc]);
+	{_,Ps} ->
+	    changed_we_2(Fs, Ns, We, [Pair|Acc]);
+	_ ->
+	    N = e3d_vec:normal(Ps),
+	    case Ps of
+		[_,_,_] ->
+		    changed_we_2(Fs, Ns, We, [{Face,[N|Ps]}|Acc]);
+		[A,B,C,D] ->
+		    case wings_draw_util:good_triangulation(N, A, B, C, D) of
+			false ->
+			    changed_we_2(Fs, Ns, We, [{Face,{N,Ps}}|Acc]);
+			true ->
+			    changed_we_2(Fs, Ns, We, [{Face,[N|Ps]}|Acc])
+		    end;
+		_ ->
+		    changed_we_2(Fs, Ns, We, [{Face,{N,Ps}}|Acc])
+	    end
+    end;
+changed_we_2([{Fa,_}|_]=Fs, [{Fb,_}|Ns], We, Acc) when Fa > Fb ->
+    changed_we_2(Fs, Ns, We, Acc);
+changed_we_2([{Face,Edge}|Fs], Ns, We, Acc) ->
+    Ps = changed_we_pos(Face, Edge, We),
+    N = e3d_vec:normal(Ps),
+    case Ps of
+	[_,_,_] ->
+	    changed_we_2(Fs, Ns, We, [{Face,[N|Ps]}]);
+	[A,B,C,D] ->
+	    case wings_draw_util:good_triangulation(N, A, B, C, D) of
+		false ->
+		    changed_we_2(Fs, Ns, We, [{Face,{N,Ps}}|Acc]);
+		true ->
+		    changed_we_2(Fs, Ns, We, [{Face,[N|Ps]}|Acc])
+	    end;
+	_ ->
+	    changed_we_2(Fs, Ns, We, [{Face,{N,Ps}}])
+    end;
+changed_we_2([], _, _, Acc) -> gb_trees:from_orddict(reverse(Acc)).
+
+changed_we_pos(Face, Edge, #we{vp=Vtab}=We) ->
+    Vs = wings_face:vertices_cw(Face, Edge, We),
+    changed_we_pos_1(Vs, Vtab, []).
+
+changed_we_pos_1([V|Vs], Vtab, Acc) ->
+    changed_we_pos_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
+changed_we_pos_1([], _, VsPos) -> VsPos.
 
 %%%
 %%% Create all display lists that are currently needed.
