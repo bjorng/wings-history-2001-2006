@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.18 2002/04/28 07:47:29 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.19 2002/04/30 07:09:20 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -292,9 +292,9 @@ face_mat(F, Name, {Ms,Fs}, Vbase, UVbase, Nbase) ->
 	    end, Ms),
     io:nl(F),
     io:put_chars(F, "usemtl"),
-    foreach(fun(M) ->
-		    io:format(F, "_~s", [atom_to_list(M)])
-	    end, Ms),
+    foldl(fun(M, Prefix) ->
+		  io:format(F, "~c~s", [Prefix,atom_to_list(M)])
+	  end, $\s, Ms),
     io:nl(F),
     foreach(fun(Vs) -> face(F, Vs, Vbase, UVbase, Nbase) end, Fs).
 
@@ -328,19 +328,19 @@ materials(Name0, Mats, Creator) ->
     {ok,filename:basename(Name)}.
 
 material(F, Base, {Name,Mat}) ->
-    {value,{_,{R,G,B}}} = keysearch(ambient, 1, Mat),
     io:format(F, "newmtl ~s\n", [atom_to_list(Name)]),
     io:format(F, "Ns 80\n", []),
     io:format(F, "d 1.000000\n", []),
     io:format(F, "illum 2\n", []),
-    Ambience = 0.5,
-    io:format(F, "Ka ~p ~p ~p\n", [R*Ambience,G*Ambience,B*Ambience]),
-    One = 1.0,
-    io:format(F, "Kd ~p ~p ~p\n", [One,One,One]),
-    Specular = 0.2,
-    io:format(F, "Ks ~p ~p ~p\n", [R*Specular,G*Specular,R*Specular]),
+    mat_color(F, "Kd", diffuse, Mat),
+    mat_color(F, "Ka", ambient, Mat),
+    mat_color(F, "Ks", specular, Mat),
     diff_map(F, Base, Name, Mat),
     io:nl(F).
+
+mat_color(F, Label, Key, Mat) ->
+    {R,G,B} = property_lists:get_value(Key, Mat),
+    io:format(F, "~s ~p ~p ~p\n", [Label,R,G,B]).
 
 diff_map(F, Base, Name, Mat) ->
     case property_lists:get_value(diffuse_map, Mat, none) of
