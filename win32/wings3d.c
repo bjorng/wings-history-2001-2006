@@ -8,7 +8,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings3d.c,v 1.3 2003/08/12 09:51:02 bjorng Exp $
+ *     $Id: wings3d.c,v 1.4 2003/09/11 15:17:16 bjorng Exp $
  *
  */
 
@@ -53,9 +53,8 @@ WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR szCmdLine, int sw)
     --i;
   }
   install_dir[i] = '\0';
-  sprintf(cmd_line, "\"%s\\erlang\\bin\\werl.exe\" -pa \"%s\\ebin\" "
-          "-run wings_start start_halt",
-          install_dir, install_dir);
+  sprintf(cmd_line, "\"%s\\bin\\werl.exe\" -run wings_start start_halt",
+          install_dir);
   if (argc > 1) {
     sprintf(cmd_line+strlen(cmd_line), " \"%s\"", argv[1]);
   }
@@ -83,7 +82,7 @@ WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR szCmdLine, int sw)
 static void
 install(void)
 {
-  FILE* fp = fopen("erlang/bin/erl.ini", "w");
+  FILE* fp = fopen("bin/erl.ini", "w");
   char dir[MAX_PATH];
   char* s;
 
@@ -98,9 +97,9 @@ install(void)
     exit(1);
   }
   fprintf(fp, "[erlang]\n");
-  fprintf(fp, "Bindir=%s/erlang/bin\n", dir);
+  fprintf(fp, "Bindir=%s/bin\n", dir);
   fprintf(fp, "Progname=erl\n");
-  fprintf(fp, "Rootdir=%s/erlang\n", dir);
+  fprintf(fp, "Rootdir=%s\n", dir);
   fclose(fp);
   exit(0);
 }

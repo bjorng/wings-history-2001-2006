@@ -2,7 +2,7 @@
 #
 # Script for creating a self-contained Wings package for Windows.
 #
-# $Id: wings_package_win32,v 1.21 2003/09/11 11:50:26 bjorng Exp $
+# $Id: wings_package_win32,v 1.22 2003/09/11 15:17:15 bjorng Exp $
 #
 OS=`uname -o`
 if [ X$OS != XCygwin ]; then
@@ -30,6 +30,7 @@ if [ -z "$ESDL_PATH" ]; then
 	 "the top of the ESDL installation." >&2
     exit 1
 fi
+ESDL_NAME=`basename $ESDL_PATH`
 
 #
 # Make sure we have a working GNU make.
@@ -57,6 +58,7 @@ for file in "$WINGS_PATH"/wings-*; do
 done
 
 WINGS_VSN=`echo "$latest_wings" | sed -e 's/.*wings-//'`
+WINGS_APP=`basename "$latest_wings"`
 
 cd "$latest_wings"
 make
@@ -76,14 +78,17 @@ nmake -nologo
 cd "$latest_wings"
 dest="$DEST_ROOT"
 
-$INSTALL -d "$dest" "$dest/ebin" "$dest/patches"
-
+$INSTALL -d "$dest"
 $INSTALL -c -m 644 README AUTHORS license.terms vsn.mk "$dest"
-$INSTALL -c -m 644 ebin/* "$dest/ebin"
 $INSTALL -c -m 644 win32/wings.nsi "$dest"
 $INSTALL -c -m 644 win32/Wings3D.exe "$dest"
 $INSTALL -c -m 644 win32/wings.ico "$dest"
 $INSTALL -c -m 644 win32/install.ico "$dest"
+
+dest="$DEST_ROOT/lib/$WINGS_APP"
+
+$INSTALL -d "$dest" "$dest/ebin" "$dest/patches"
+$INSTALL -c -m 644 ebin/* "$dest/ebin"
 
 $INSTALL -d "$dest/plugins/default" "$dest/plugins/fonts" \
  "$dest/plugins/import_export" "$dest/plugins/commands" \
@@ -97,18 +102,10 @@ $INSTALL -c -m 644 plugins/primitives/* "$dest/plugins/primitives"
 $INSTALL -c -m 644 plugins/win32_file/* "$dest/plugins/win32_file"
 $INSTALL -c -m 644 plugins/autouv/* "$dest/plugins/autouv"
 
-# Copy the relevant parts of ESDL into the application.
-
-$INSTALL -d "$dest/ebin" "$dest/priv"
-$INSTALL -c -m 644  "$ESDL_PATH"/ebin/* "$dest/ebin"
-$INSTALL -c -m 644  "$ESDL_PATH"/priv/sdl_driver.dll "$dest/priv"
-$INSTALL -c -m 644  "$ESDL_PATH"/priv/SDL.dll "$dest/priv"
-strip --strip-debug --strip-unneeded "$dest/priv/sdl_driver.dll"
-
-# Copy the relevant parts of Erlang/OTP into the application.
+# Copy the relevant parts of Erlang/OTP.
 
 src="$ERLANG_PATH"
-dest="$DEST_ROOT/erlang"
+dest="$DEST_ROOT"
 erts_src=`echo "$src"/erts-*`
 stdlib=`basename "$src"/lib/stdlib-*`
 kernel=`basename "$src"/lib/kernel-*`
@@ -125,6 +122,15 @@ $INSTALL -c "$erts_src/bin/inet_gethost.exe" "$dest/bin/inet_gethost.exe"
 strip "$dest/bin/werl.exe"
 strip "$dest/bin/erlexec.dll"
 strip "$dest/bin/inet_gethost.exe"
+
+# Copy the relevant parts of ESDL.
+dest="$DEST_ROOT/lib/$ESDL_NAME"
+$INSTALL -d "$dest/ebin" "$dest/priv"
+$INSTALL -c -m 644  "$ESDL_PATH"/ebin/* "$dest/ebin"
+$INSTALL -c -m 644  "$ESDL_PATH"/priv/sdl_driver.dll "$dest/priv"
+$INSTALL -c -m 644  "$ESDL_PATH"/priv/SDL.dll "$dest/priv"
+strip --strip-debug --strip-unneeded "$dest/priv/sdl_driver.dll"
+rm -rf "$dest/ebin/sdl_audio.beam" "$dest/ebin/sdl_joystick.beam"
 
 #
 # Remove files from OTP not needed.

@@ -9,7 +9,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: wings.nsi,v 1.1 2003/09/07 05:57:50 bjorng Exp $
+#     $Id: wings.nsi,v 1.2 2003/09/11 15:17:16 bjorng Exp $
 #
 
 	!define MUI_PRODUCT "Wings 3D"
@@ -86,14 +86,10 @@ SectionIn 1 2 3 RO
 skip_silent_mode:
   	SetOutPath "$INSTDIR"
   	File /r AUTHORS license.terms Wings3D.exe
-  	SetOutPath "$INSTDIR\plugins"
-  	File /r plugins\*.*
-  	SetOutPath "$INSTDIR\ebin"
-  	File /r ebin\*.*
-  	SetOutPath "$INSTDIR\priv"
-  	File /r priv\*.*
-  	SetOutPath "$INSTDIR\erlang"
-  	File /r erlang\*.*
+  	SetOutPath "$INSTDIR\lib"
+  	File /r lib\*.*
+  	SetOutPath "$INSTDIR\bin"
+  	File /r bin\*.*
   	SetOutPath "$INSTDIR"
 
   	WriteRegStr HKLM "SOFTWARE\Wings 3D\${WINGS_VERSION}" "" $INSTDIR
@@ -162,14 +158,14 @@ continue_create:
 		"NoRepair" 1
 
 done:
+        CreateShortCut "$INSTDIR\plugins.lnk" "$INSTDIR\lib\wings-${WINGS_VERSION}\plugins"
+
+  	; Delete beam files in $INSTDIR (should not be any).
+  	Delete "$INSTDIR\*.beam"
 
   	; Delete any installed patches. Create empty patches directory.
-  	Delete "$INSTDIR\patches\*.*"
-  	CreateDirectory "$INSTDIR\patches"
-
-  	; Delete beam files in $INSTDIR.
-  	Delete "$INSTDIR\*.beam"
-  
+  	Delete "$INSTDIR\lib\wings-${WINGS_VERSION}\patches\*.*"
+        CreateDirectory "$INSTDIR\lib\wings-${WINGS_VERSION}\patches"
 SectionEnd ; SecWingsBase
 
 Section "Make Default" SecWingsMakeDefault
@@ -241,14 +237,9 @@ Section Uninstall
   SetShellVarContext current
   Delete "$DESKTOP\Wings 3D ${WINGS_VERSION}.lnk"
   Delete "$QUICKLAUNCH\Wings 3D ${WINGS_VERSION}.lnk"
-  RMDir /r "$INSTDIR\e3d"
-  RMDir /r "$INSTDIR\src"
-  RMDir /r "$INSTDIR\plugins_src"
-  RMDir /r "$INSTDIR\plugins"
-  RMDir /r "$INSTDIR\ebin"
-  RMDir /r "$INSTDIR\priv"
-  RMDir /r "$INSTDIR\erlang"
-
+  RMDir /r "$INSTDIR\lib"
+  RMDir /r "$INSTDIR\bin"
+  Delete "$INSTDIR\plugins.lnk"
   Delete "$INSTDIR\Uninstall.exe"
 
 ;Remove shortcut
@@ -281,8 +272,6 @@ noshortcuts:
   	DeleteRegKey HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}"
   	DeleteRegKey HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Wings 3D ${MUI_VERSION}"
 
-  	Delete "$INSTDIR\patches\*.*"
-  	RMDir /r "$INSTDIR\patches"
   	RMDir "$INSTDIR"
 
   	ReadRegStr ${TEMP} HKLM "SOFTWARE\Wings 3D\DefaultVersion" ""
