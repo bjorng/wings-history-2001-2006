@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.153 2003/12/27 16:34:03 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.154 2003/12/27 18:28:11 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -2439,20 +2439,15 @@ table_event(#mousebutton{button=1,state=?SDL_PRESSED,y=Y},
     {_Sel0,Els} = gb_trees:get(var(Key, I), Sto),
     Sel = case (Y-YTop-TopMarg) / Elh of
 	      N when 0 =< N, N+First < NumEls->
-		  [First+round(N)];
+		  [First+trunc(N)];
 	      _Outside -> []			%Clear selection.
 	  end,
     hook(Hook, update, [var(Key, I),I,{Sel,Els},Sto,Flags]);
-% table_event(#mousebutton{}, _, _) ->
-%     keep;
-% table_event(Ev, _Path, _Store) ->
-%     io:format("~p\n", [Ev]),
-%     keep;
 table_event(_Ev, _Path, _Store) -> keep.
 
 table_redraw(#fi{x=X,y=Y0,w=W,h=H},
 	     #table{head=Head,elh=Elh,rows=Rows,first=First,tmarg=TopMarg},
-	     {Sel,Els0}, _DisEnabled, Active) ->
+	     {Sel0,Els0}, _DisEnabled, Active) ->
     Ch = wings_text:height(),
     wings_io:sunken_rect(X, Y0+Ch+2, W, H-Ch-4, {0.9,0.9,0.9}, color4(), Active),
     wings_io:sunken_gradient(X, Y0+2, W, Ch+1,
@@ -2460,16 +2455,35 @@ table_redraw(#fi{x=X,y=Y0,w=W,h=H},
     gl:color3fv(color3_text()),
     Y = Y0 + TopMarg,
     wings_io:text_at(X+2, Y-2, hd(Head)),
-    Els = lists:nthtail(First, Els0),
-    table_draw_els(Els, Rows, X+2, Y, Elh),
+    Els1 = lists:nthtail(First, Els0),
+    Sel = [El-First || El <- Sel0],
+    Els = table_mark_sel(Els1, Sel),
+    table_draw_els(Els, Rows, X+2, Y, W, Elh),
     keep.
 
-table_draw_els(_, 0, _, _, _) -> ok;
-table_draw_els([], _, _, _, _) -> ok;
-table_draw_els([El|Els], Rows, X, Y, Elh) ->
+table_draw_els(_, 0, _, _, _, _) -> ok;
+table_draw_els([], _, _, _, _, _) -> ok;
+table_draw_els([{sel,El}|Els], Rows, X, Y, W, Elh) ->
+    {_,Text} = element(1, El),
+    gl:color3f(0, 0, 0.5),
+    gl:recti(X, Y+3, X+W-6, Y+Elh+3),
+    gl:color3f(1, 1, 1),
+    wings_io:text_at(X, Y+Elh, Text),
+    gl:color3fv(color3_text()),
+    table_draw_els(Els, Rows-1, X, Y+Elh, W, Elh);
+table_draw_els([El|Els], Rows, X, Y, W, Elh) ->
     {_,Text} = element(1, El),
     wings_io:text_at(X, Y+Elh, Text),
-    table_draw_els(Els, Rows-1, X, Y+Elh, Elh).
+    table_draw_els(Els, Rows-1, X, Y+Elh, W, Elh).
+
+table_mark_sel(Els, []) -> Els;
+table_mark_sel(Els, Sel) -> table_mark_sel_1(Els, 0, Sel).
+
+table_mark_sel_1([E|Els], I, [I|Sel]) ->
+    [{sel,E}|table_mark_sel_1(Els, I+1, Sel)];
+table_mark_sel_1([E|Els], I, Sel) ->
+    [E|table_mark_sel_1(Els, I+1, Sel)];
+table_mark_sel_1([], _, _) -> [].
 
 %%%
 %%% Text and number input fields.
