@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.85 2003/01/29 06:22:30 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.86 2003/01/29 23:10:20 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -631,16 +631,18 @@ init_drawarea() ->
     {X,Y,_,H} = wings_wm:viewport(geom),
     {W0,TopH} = wings_wm:top_size(),
     W = (W0 - 0) div 2,
+    {{X+W,TopH-Y-H,W,H}, wingeom(W,H)}.
+    
+wingeom(W,H) ->
     Border = 15,
-    {{X+W,TopH-Y-H,W,H},
-     if 
-	 W > H ->
-	     WF = Border / W,
-	     {-WF,W/H+WF,-WF,1+2*WF};
-	 true ->
-	     WF = Border / H,
-	     {-WF,1+WF,-WF,H/W+WF}
-     end}.
+    if 
+	W > H ->
+	    WF = Border / W,
+	    {-WF,W/H+WF,-WF,1+2*WF};
+	true ->
+	    WF = Border / H,
+	    {-WF,1+WF,-WF,H/W+WF}
+    end.
 
 draw_texture(#uvstate{dl=undefined,option=Options,areas=As}=Uvs) ->
     Materials = (Uvs#uvstate.origst)#st.mat,
@@ -731,15 +733,11 @@ calc_texsize(Vp, Tex, Orig) ->
 
 get_texture(#uvstate{option=#setng{texsz={TexW,TexH}},sel=Sel,areas=As}=Uvs0) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-    gl:clearColor(1, 1, 1, 1),
-    gl:shadeModel(?GL_FLAT),
-    gl:disable(?GL_CULL_FACE),
-    gl:disable(?GL_LIGHTING),
     Current = wings_wm:viewport(),
     {W0,H0} = wings_wm:top_size(),
     {W,Wd} = calc_texsize(W0, TexW),
     {H,Hd} = calc_texsize(H0, TexH),
+    ?DBG("Get texture sz ~p ~p ~n", [{W,Wd},{H,Hd}]),
     set_viewport({0,0,W,H}),
     Mem = sdl_util:malloc(W*H*3, ?GL_BYTE),
     Uvs = reset_dl(Uvs0#uvstate{sel=[],areas=add_areas(Sel, As)}),
@@ -760,7 +758,12 @@ get_texture(#uvstate{option=#setng{texsz={TexW,TexH}},sel=Sel,areas=As}=Uvs0) ->
 		 
 get_texture(Wc, Wd, Hc, Hd, {W,H,Mem}=Info, Uvs0, ImageAcc)
   when Wc < Wd, Hc < Hd ->
-    gl:clear(?GL_COLOR_BUFFER_BIT),
+        gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
+    gl:clearColor(1, 1, 1, 1),
+    gl:shadeModel(?GL_SMOOTH),
+    gl:disable(?GL_CULL_FACE),
+    gl:disable(?GL_LIGHTING),
     texture_view(Wc, Wd, Hc, Hd, Uvs0),
     Uvs = draw_texture(Uvs0),
     gl:flush(),
@@ -1161,8 +1164,14 @@ handle_event({action, {auv, NewOp}},Uvs0=#uvstate{sel = Sel0}) ->
 handle_event({callback, Fun}, _) when function(Fun) ->
     Fun();
 handle_event(init_opengl, Uvs0) ->
-    {_,Geom} = init_drawarea(),
+    {_,_,W,H} = wings_wm:viewport(autouv),
+    Geom = wingeom(W,H),
     get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
+handle_event(resized, Uvs0) ->
+    {_,_,W,H} = wings_wm:viewport(autouv),
+    Geom = wingeom(W,H),
+    get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
+
 handle_event({action,_, {view,smoothed_preview}}, _Uvs0) ->
     keep; %% Bugbug didn't work crashes inside wings update_dlists
 handle_event({action,wings,{view, Cmd}}, Uvs0) ->
