@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.1 2001/11/04 16:55:08 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.2 2001/11/05 05:58:52 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -73,8 +73,7 @@ read_object_1(<<L:16,T0/binary>>) ->
 	    {Vtab,T5} = read_vertices(T4),
 	    T = skip_rest(T5),
 	    We0 = #we{es=Etab,vs=Vtab,fs=Ftab,he=Htab},
-	    We1 = set_next_id(We0),
-	    We = wings_we:invert_normals(We1),
+	    We = set_next_id(We0),
 	    {Name,We,T}
     end.
 
@@ -117,7 +116,7 @@ read_edges(N, N, T, Eacc, Hacc) ->
     Htab = gb_sets:from_ordset(reverse(Hacc)),
     {Etab,Htab,T};
 read_edges(Edge, N, <<EdgeRec0:25/binary,T/binary>>, Eacc, Hacc0) ->
-    <<Va:16,Vb:16,Lf:16,Rf:16,Ltpr:16,Rtpr:16,Rtsu:16,Ltsu:16,
+    <<Vb:16,Va:16,Lf:16,Rf:16,Ltsu:16,Rtsu:16,Rtpr:16,Ltpr:16,
      Hardness:8,Colors:8/binary>> = EdgeRec0,
     EdgeRec = {Edge,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,
 			  ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu}},
@@ -155,9 +154,8 @@ set_next_id(#we{es=Etab,vs=Vtab,fs=Ftab}=We) ->
 			gb_trees:size(Vtab)])),
     We#we{first_id=0,next_id=NextId}.
 
-
-show_first(<<First:32/binary,_/binary>>) ->
-    io:format("~w\n", [First]);
-show_first(Bin) ->
-    io:format("~w\n", [Bin]).
+% show_first(<<First:32/binary,_/binary>>) ->
+%     io:format("~w\n", [First]);
+% show_first(Bin) ->
+%     io:format("~w\n", [Bin]).
 
