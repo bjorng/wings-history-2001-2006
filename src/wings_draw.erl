@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.21 2001/11/17 18:25:11 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.22 2001/11/20 12:49:22 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -270,10 +270,12 @@ draw_face(Face, Edge, #we{es=Etab,vs=Vtab}=We) ->
 
 draw_face_1(Face, LastEdge, LastEdge, Etab, Vtab, done) -> ok;
 draw_face_1(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
-    {Next,V} = case gb_trees:get(Edge, Etab) of
-		   #edge{ve=V0,lf=Face,ltpr=Next0}=Rec -> {Next0,V0};
-		   #edge{vs=V0,rf=Face,rtpr=Next0}=Rec -> {Next0,V0}
-	       end,
+    {Next,V,Diff} =
+	case gb_trees:get(Edge, Etab) of
+	    #edge{vs=V0,a=D0,lf=Face,ltpr=Next0}=Rec -> {Next0,V0,D0};
+	    #edge{ve=V0,b=D0,rf=Face,rtpr=Next0}=Rec -> {Next0,V0,D0}
+	end,
+    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
     gl:vertex3fv(lookup_pos(V, Vtab)),
     draw_face_1(Face, Next, LastEdge, Etab, Vtab, done).
 

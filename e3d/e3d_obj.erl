@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.13 2001/11/15 11:44:01 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.14 2001/11/20 12:49:22 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -81,10 +81,11 @@ read(Parse, " " ++ Line, Fd, Acc) ->
 read(Parse, eof, Fd, Acc) -> Acc;
 read(Parse, "mtllib" ++ Name0, Fd, Acc0) ->
     Name1 = skip_blanks(Name0),
-    Name = case reverse(Name0) of
+    Name = case reverse(Name1) of
 	       [$\n,$\r|Name2] -> reverse(Name2);
 	       [$\n|Name2] -> reverse(Name2)
 	   end,
+    io:format("~s\n", [Name]),
     case Parse(["mtllib",Name], Acc0) of
 	eof -> Acc0;
 	Acc -> read(Parse, Fd, Acc)

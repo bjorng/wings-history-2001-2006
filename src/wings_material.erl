@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.7 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.8 2001/11/20 12:49:22 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -35,7 +35,7 @@
 	 }).
 
 default() ->
-    M0 = [{default,wings_util:share(0.5, 0.5, 0.5)},
+    M0 = [{default,wings_util:share(1.0, 1.0, 1.0)},
 	  {hole,wings_util:share(0.5, 0.5, 0.0)},
 	  {black,wings_util:share(0.0, 0.0, 0.0)},
 	  {red,wings_util:share(1.0, 0.0, 0.0)},

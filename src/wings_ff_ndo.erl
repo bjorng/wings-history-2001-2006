@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_ndo.erl,v 1.6 2001/11/10 10:26:33 bjorng Exp $
+%%     $Id: wings_ff_ndo.erl,v 1.7 2001/11/20 12:49:22 bjorng Exp $
 %%
 
 -module(wings_ff_ndo).
@@ -117,21 +117,16 @@ read_edges(N, N, T, Eacc, Hacc) ->
     {Etab,Htab,T};
 read_edges(Edge, N, <<EdgeRec0:25/binary,T/binary>>, Eacc, Hacc0) ->
     <<Vb:16,Va:16,Lf:16,Rf:16,Ltsu:16,Rtsu:16,Rtpr:16,Ltpr:16,
-     Hardness:8,Colors:8/binary>> = EdgeRec0,
-%%    print_colors(Edge, Colors),
-    EdgeRec = {Edge,#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,
+     Hardness:8,BColor0:4/binary,AColor0:4/binary>> = EdgeRec0,
+    AColor = convert_color(AColor0),
+    BColor = convert_color(BColor0),
+    EdgeRec = {Edge,#edge{vs=Va,ve=Vb,a=AColor,b=BColor,lf=Lf,rf=Rf,
 			  ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu}},
     Hacc = if
 	       Hardness == 0 -> Hacc0;
 	       true -> [Edge|Hacc0]
 	   end,
     read_edges(Edge+1, N, T, [EdgeRec|Eacc], Hacc).
-
-% print_colors(Edge, <<R1:8,G1:8,B1:8,A1:8,R2:8,G2:8,B2:8,A2:8>>) ->
-%     RGB1 = {R1,B1,G1,A1},
-%     RGB2 = {R2,B2,G2,A2},
-%     io:format("~w: ~w ~w\n", [Edge,RGB1,RGB2]),
-%     ok.
 
 read_faces(<<NumFaces:16,T/binary>>) ->
     io:format(" faces ~w\n", [NumFaces]),
@@ -199,9 +194,10 @@ write_edges([{Edge,Erec0}|Es], Htab, Acc) ->
 		   false -> 0;
 		   true -> 1
 	       end,
-    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu} = Erec0,
-    Erec = <<Vb:16,Va:16,Lf:16,Rf:16,Ltsu:16,Rtsu:16,Rtpr:16,Ltpr:16,
-    Hardness:8,255,255,255,255,255,255,255,255>>,
+    #edge{vs=Va,ve=Vb,a=ACol,b=BCol,lf=Lf,rf=Rf,
+	  ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu} = Erec0,
+    Erec = [<<Vb:16,Va:16,Lf:16,Rf:16,Ltsu:16,Rtsu:16,Rtpr:16,Ltpr:16,
+	     Hardness:8>>,convert_color(BCol)|convert_color(ACol)],
     write_edges(Es, Htab, [Erec|Acc]);
 write_edges([], Htab, Acc) ->
     list_to_binary([<<(length(Acc)):16>>|reverse(Acc)]).
@@ -224,3 +220,13 @@ write_file(Name, Objects) ->
 	ok -> ok;
 	{error,Reason} -> {error,file:format_error(Reason)}
     end.
+
+%%%
+%%% Common utilities.
+%%%
+
+convert_color(<<R:8,G:8,B:8,A:8>>) ->
+    wings_color:share({R/255,G/255,B/255});
+convert_color({R,G,B}) ->
+    [trunc(R*255),trunc(G*255),trunc(B*255),255].
+

@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.12 2001/11/16 18:19:40 bjorng Exp $
+#     $Id: Makefile,v 1.13 2001/11/20 12:49:22 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -32,6 +32,7 @@ MODULES= \
 	wings_body \
 	wings_camera \
 	wings_collapse \
+	wings_color \
 	wings_deform \
 	wings_drag \
 	wings_draw \
@@ -94,4 +95,7 @@ clean:
 
 $(EBIN)/%.beam: $(ESRC)/%.erl
 	$(ERLC) -bbeam $(ERL_FLAGS) $(ERL_COMPILE_FLAGS) -o$(EBIN) $<
+
+
+$(TARGET_FILES): wings.hrl
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.18 2001/11/13 09:41:54 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.19 2001/11/20 12:49:22 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -185,7 +185,7 @@ fast_cut(Edge, Pos, We0) ->
     NewEdge = NewV,
     #we{es=Etab0,vs=Vtab0,he=Htab0} = We,
     Template = gb_trees:get(Edge, Etab0),
-    #edge{vs=Vstart,ve=Vend,ltpr=EdgeA,rtsu=EdgeB} = Template,
+    #edge{vs=Vstart,ve=Vend,a=ACol,b=BCol,ltpr=EdgeA,rtsu=EdgeB} = Template,
 
     #vtx{pos=VendPos,edge=VendEdge}= VendRec = gb_trees:get(Vend, Vtab0),
     Vtab1 = if
@@ -193,21 +193,25 @@ fast_cut(Edge, Pos, We0) ->
 		    gb_trees:update(Vend, VendRec#vtx{edge=NewEdge}, Vtab0);
 		true -> Vtab0
 	    end,
-    NewVPos0 = if
-		   Pos =:= default ->
-		       VstartPos = wings_vertex:pos(Vstart, Vtab0),
-		       e3d_vec:average([VstartPos,VendPos]);
-		   true -> Pos
-	       end,
+    if
+	Pos =:= default ->
+	    VstartPos = wings_vertex:pos(Vstart, Vtab0),
+	    NewCol = wings_color:average(ACol, BCol),
+	    NewVPos0 = e3d_vec:average([VstartPos,VendPos]);
+	true ->
+	    %% XXX Need to be fixed.
+	    NewCol = wings_color:white(),
+	    NewVPos0 = Pos
+    end,
     NewVPos = wings_util:share(NewVPos0),
     Vtx = #vtx{pos=NewVPos,edge=NewEdge},
     Vtab = gb_trees:insert(NewV, Vtx, Vtab1),
 
-    NewEdgeRec = Template#edge{vs=NewV,ltsu=Edge,rtpr=Edge},
+    NewEdgeRec = Template#edge{vs=NewV,a=NewCol,ltsu=Edge,rtpr=Edge},
     Etab1 = gb_trees:insert(NewEdge, NewEdgeRec, Etab0),
     Etab2 = patch_edge(EdgeA, NewEdge, Edge, Etab1),
     Etab3 = patch_edge(EdgeB, NewEdge, Edge, Etab2),
-    EdgeRec = Template#edge{ve=NewV,rtsu=NewEdge,ltpr=NewEdge},
+    EdgeRec = Template#edge{ve=NewV,b=NewCol,rtsu=NewEdge,ltpr=NewEdge},
     Etab = gb_trees:update(Edge, EdgeRec, Etab3),
 
     Htab = case gb_sets:is_member(Edge, Htab0) of

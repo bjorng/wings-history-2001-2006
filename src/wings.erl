@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.48 2001/11/18 19:24:50 bjorng Exp $
+%%     $Id: wings.erl,v 1.49 2001/11/20 12:49:22 bjorng Exp $
 %%
 
 -module(wings).
@@ -61,6 +61,7 @@ init_1() ->
     sdl_keyboard:enableKeyRepeat(?SDL_DEFAULT_REPEAT_DELAY,
 				 ?SDL_DEFAULT_REPEAT_INTERVAL),
 
+    wings_color:init(),
     wings_pref:init(),
     wings_io:init(),
     wings_io:menubar([{"File",file},
@@ -853,7 +854,10 @@ info(#st{shapes=Shapes,selmode=edge,sel=[{Id,Sel}]}) ->
 	0 -> "";
 	1 ->
 	    [Edge] = gb_sets:to_list(Sel),
-	    flat_format("Edge: ~p", [Edge]);
+	    #shape{sh=#we{es=Etab}} = gb_trees:get(Id, Shapes),
+	    #edge{a=A,b=B} = gb_trees:get(Edge, Etab),
+	    flat_format("Edge: ~p (~p, ~p)", [Edge,A,B]);
+%%	    flat_format("Edge: ~p", [Edge]);
 	N when N < 5 ->
 	    Faces = gb_sets:to_list(Sel),
 	    item_list(Faces, "Edges");

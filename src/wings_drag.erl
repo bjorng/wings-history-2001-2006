@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.26 2001/11/18 19:25:28 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.27 2001/11/20 12:49:22 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -384,8 +384,8 @@ draw_shapes(#st{selmode=SelMode}=St) ->
     case Wire of
 	true -> ok;
 	false ->
-	    FaceColor = wings_pref:get_value(face_color),
-	    gl:color3fv(FaceColor),
+ 	    FaceColor = wings_pref:get_value(face_color),
+ 	    gl:color3fv(FaceColor),
 	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
 	    gl:enable(?GL_POLYGON_OFFSET_FILL),
 	    gl:polygonOffset(2.0, 2.0),
@@ -560,10 +560,11 @@ draw_face_normal(Face, Edge, #we{es=Etab,vs=Vtab}=We) ->
 
 draw_face_1(Face, LastEdge, LastEdge, Etab, Vtab, done) -> ok;
 draw_face_1(Face, Edge, LastEdge, Etab, Vtab, Acc) ->
-    {Next,V} = case gb_trees:get(Edge, Etab) of
-		   #edge{ve=V0,lf=Face,ltpr=Next0}=Rec -> {Next0,V0};
-		   #edge{vs=V0,rf=Face,rtpr=Next0}=Rec -> {Next0,V0}
-	       end,
+    case gb_trees:get(Edge, Etab) of
+	#edge{vs=V,a=Diff,lf=Face,ltpr=Next}=Rec -> ok;
+	#edge{ve=V,b=Diff,rf=Face,rtpr=Next}=Rec -> ok
+    end,
+    gl:materialfv(?GL_FRONT, ?GL_DIFFUSE, Diff),
     gl:vertex3fv(lookup_pos(V, Vtab)),
     draw_face_1(Face, Next, LastEdge, Etab, Vtab, done).
 
