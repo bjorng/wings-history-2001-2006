@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.50 2002/06/24 18:43:26 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.51 2002/07/12 07:31:27 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -133,10 +133,10 @@ command(prefs, St) ->
     dialog(Qs, St);
 command(compatibility, St) ->
     Qs = [{vframe,
-	    [{"Optimize display lists",display_list_opt},
-	     {"Use display lists for text",text_display_lists},
-	     {"Use front buffer",use_front_buffer}
-	    ],
+	   [{"Optimize display lists",display_list_opt},
+	    {"Use display lists for text",text_display_lists},
+	    {"Early back buffer clear",early_buffer_clear}
+	   ],
 	   [{title,"Compatibility"}]}],
     dialog(Qs, St);
 command({set,List}, _St) ->
@@ -302,7 +302,7 @@ defaults() ->
      %% Compatibility preferences.
      {display_list_opt,true},
      {text_display_lists,true},
-     {use_front_buffer,os:type() =/= {unix,darwin}}
+     {early_buffer_clear,os:type() =/= {unix,darwin}}
     ].
 
 clean(List) ->
@@ -334,6 +334,7 @@ not_bad(default_point, _) -> false;
 not_bad(smooth_preview, _) -> false;
 not_bad(wire_mode, _) -> false;
 not_bad(none, _) -> false;
+not_bad(use_front_buffer, _) -> false;
 
 %% Crashes have occurred.
 not_bad(last_axis, Val) -> is_wings_vector(Val);

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.3 2002/06/04 07:41:07 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.4 2002/07/12 07:31:27 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -76,15 +76,23 @@ event_loop() ->
     end.
 
 redraw_all() ->
+    EarlyBC = wings_pref:get_value(early_buffer_clear),
+    maybe_clear(late, EarlyBC),			%Clear right before drawing (late).
     Ws = map(fun({Name,Win}) ->
 		     {Name,send_event(Win, redraw)}
 	     end, gb_trees:to_list(get(wings_windows))),
     put(wings_windows, gb_trees:from_orddict(Ws)),
     gl:swapBuffers(),
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    maybe_clear(early, EarlyBC),		%Clear immediately after buffer swap (early).
     wings_io:arrow(),
     erase(wings_dirty),
     event_loop().
+
+maybe_clear(early, true) ->
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT);
+maybe_clear(late, false) ->
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT);
+maybe_clear(_, _) -> ok.
 
 get_event() ->
     case wings_io:get_event() of
