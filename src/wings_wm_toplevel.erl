@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.26 2003/03/13 19:43:53 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.27 2003/03/15 08:34:01 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -697,6 +697,8 @@ menubar_event(got_focus, _) ->
 menubar_event({action,_}=Action, _) ->
     wings_wm:send(geom, Action);
 menubar_event(clear_menu_selection, Mb) ->
+    {_,Client} = This = wings_wm:this(),
+    wings_wm:update_window(This, [{z,wings_wm:win_z(Client)}]),
     wings_wm:dirty(),
     get_menu_event(Mb#mb{sel=none});
 menubar_event({current_state,St}, Mb) ->
@@ -726,9 +728,7 @@ menubar_event(_, _) -> keep.
 menu_open(Xrel, Name, Fun, #mb{st=St}=Mb) ->
     Menu = Fun(St),
     {menubar,Client} = Self = wings_wm:this(),
-    wings_wm:raise(Client),
     {X,Y} = wings_wm:win_ll(Self),
-    wings_wm:raise(Client),
     wings_menu:menu(X+Xrel, Y-1, Client, Name, Menu),
     get_menu_event(Mb#mb{sel=Name}).
 
