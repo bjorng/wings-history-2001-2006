@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_region.erl,v 1.5 2002/08/09 06:19:59 bjorng Exp $
+%%     $Id: wpc_region.erl,v 1.6 2002/10/20 09:47:44 bjorng Exp $
 %%
 
 -module(wpc_region).
@@ -73,7 +73,7 @@ command(_, _) -> next.
 %%%
 
 move_region(Faces, We) ->
-    move_region(wpa:sel_face_regions(Faces, We), We, []).
+    move_region(wpa:sel_strict_face_regions(Faces, We), We, []).
 
 move_region([Fs|Regs], We, Acc0) ->
     Acc = case wpa:face_outer_vertices(Fs, We) of
@@ -93,7 +93,7 @@ move_region(OuterVs0, Faces, We, Acc) ->
 %%%
 
 scale_region(Faces, We) ->
-    scale_region(wpa:sel_face_regions(Faces, We), We, []).
+    scale_region(wpa:sel_strict_face_regions(Faces, We), We, []).
 
 scale_region([Fs|Regs], We, Acc0) ->
     Acc = case wpa:face_outer_vertices(Fs, We) of
@@ -119,7 +119,7 @@ scale_region(OuterVs0, Faces, We, Acc) ->
 %%%
 
 rotate_region(Faces, We, Acc) ->
-    rotate_region_1(wpa:sel_face_regions(Faces, We), We, Acc).
+    rotate_region_1(wpa:sel_strict_face_regions(Faces, We), We, Acc).
 
 rotate_region_1([Fs|Regs], We, Acc0) ->
     Acc = case wpa:face_outer_vertices(Fs, We) of
