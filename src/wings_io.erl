@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.72 2002/11/23 20:34:32 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.73 2002/11/24 09:44:21 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -205,7 +205,14 @@ draw_bar(X, [{Name,Item}|T], Sel) ->
 draw_bar(_X, [], _Sel) -> ok.
 
 draw_icons(#io{w=W,h=H,icons=Icons0,selmodes=Modes}, St) ->
-    border(-2, H-2*?LINE_HEIGHT-3, W+2, 4*?LINE_HEIGHT+3),
+    set_color(?PANE_COLOR),
+    gl:rectf(0, H, W-1, H-2*?LINE_HEIGHT-2),
+    gl:color3f(0.20, 0.20, 0.20),
+    gl:'begin'(?GL_LINES),
+    gl:vertex2f(0.5, H-2*?LINE_HEIGHT-2.5),
+    gl:vertex2f(W-1.5, H-2*?LINE_HEIGHT-2.5),
+    gl:'end'(),
+    gl:color3f(0, 0, 0),
     gl:enable(?GL_TEXTURE_2D),
     gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
     Y = H-2*?LINE_HEIGHT+2,
