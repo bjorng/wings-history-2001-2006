@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.12 2003/08/18 06:21:55 bjorng Exp $
+%%     $Id: wings_color.erl,v 1.13 2003/08/18 17:11:35 bjorng Exp $
 %%
 
 -module(wings_color).
--export([init/0,share/1,store/1,average/1,mix/3,white/0,
+-export([init/0,share/1,store/1,average/1,average/2,mix/3,white/0,
 	 rgb_to_hsv/3,hsv_to_rgb/3]).
 
 -include("wings.hrl").
@@ -67,6 +67,13 @@ average([H|T]=L) ->
 	uvs -> average_uvs(T, H);
 	none -> none
     end.
+
+average(Same, Same) -> Same;
+average({U0,V0}, {U1,V1}) when is_float(U0), is_float(V0) ->
+    share({(U0+U1)/2,(V0+V1)/2});
+average({R0,G0,B0}, {R1,G1,B1}) when is_float(R0), is_float(G0), is_float(B0) ->
+    share({(R0+R1)/2,(G0+G1)/2,(B0+B1)/2});
+average(_, _) -> none.
 
 classify([], _) -> same;
 classify([none|_], _) -> none;

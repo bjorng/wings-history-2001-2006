@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.113 2003/08/18 06:21:56 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.114 2003/08/18 17:11:35 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -59,7 +59,7 @@ hilite_event(#mousemotion{}=Mm, #st{selmode=Mode}=St, Redraw) ->
     case hilite_enabled(Mode) of
 	false -> next;
 	true ->
-	    {seq,{push,dummy},
+	    {seq,push,
 	     handle_hilite_event(Mm, #hl{st=St,redraw=Redraw})}
     end;
 hilite_event(_, _, _) -> next.

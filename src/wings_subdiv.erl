@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.58 2003/08/03 15:28:35 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.59 2003/08/18 17:11:35 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -120,9 +120,9 @@ fast_cut(Edge, Template, NewV=NewEdge, Etab0) ->
     #edge{a=ACol,b=BCol,lf=Lf,rf=Rf,
 	  ltpr=EdgeA,rtsu=EdgeB,rtpr=NextBCol} = Template,
     AColOther = get_vtx_color(EdgeA, Lf, Etab0),
-    NewColA = wings_color:mix(0.5, ACol, AColOther),
+    NewColA = wings_color:average(AColOther, ACol),
     BColOther = get_vtx_color(NextBCol, Rf, Etab0),
-    NewColB = wings_color:mix(0.5, BCol, BColOther),
+    NewColB = wings_color:average(BColOther, BCol),
 
     NewEdgeRec = Template#edge{vs=NewV,a=NewColA,ltsu=Edge,rtpr=Edge},
     Etab1 = gb_trees:update(NewEdge, NewEdgeRec, Etab0),
