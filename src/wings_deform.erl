@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.33 2003/01/20 19:17:28 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.34 2003/01/20 21:04:44 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -29,8 +29,7 @@ sub_menu(_St) ->
 			taper_item(y),
 			taper_item(z)]}},
 	     {"Twist",{twist,dirs(twist)}},
-	     {"Torque",{torque,dirs(torque)}}],
-     "Deform selected vertices in various ways"}.
+	     {"Torque",{torque,dirs(torque)}}]}.
 
 crumple_dirs() ->
     [{"Random",random,"Move each vertex a random amount "
