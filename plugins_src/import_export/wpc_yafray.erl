@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.59 2004/01/26 10:55:23 bjorng Exp $
+%%     $Id: wpc_yafray.erl,v 1.60 2004/01/28 23:44:49 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -328,35 +328,90 @@ load_image(Filename) ->
 
 material_dialog(_Name, Mat) ->
     Maps = proplists:get_value(maps, Mat, []),
+    OpenGL = proplists:get_value(opengl, Mat),
+    Ambient = rgba2rgb(proplists:get_value(ambient, OpenGL)),
+    DiffuseA = proplists:get_value(diffuse, OpenGL),
+    DefTransmitted = def_transmitted(DiffuseA),
+    Ambient = rgba2rgb(proplists:get_value(ambient, OpenGL)),
     YafRay = proplists:get_value(?TAG, Mat, []),
+    Minimized = proplists:get_value(minimized, YafRay, true),
     Caus = proplists:get_value(caus, YafRay, ?DEF_CAUS),
-    IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
-    MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
-    AutosmoothAngle = 
-	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
     Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
     EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
     RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
-    Minimized = proplists:get_value(minimized, YafRay, true),
+    AutosmoothAngle = 
+	proplists:get_value(autosmooth_angle, YafRay, ?DEF_AUTOSMOOTH_ANGLE),
+    FresnelMinimized = proplists:get_value(fresnel_minimized, YafRay, true),
+    IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
+    MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
+    Reflected = proplists:get_value(reflected, YafRay, Ambient),
+    Transmitted = 
+	proplists:get_value(transmitted, YafRay, DefTransmitted),
+    Fresnel2 = proplists:get_value(fresnel2, YafRay, false),
+    Reflected2 = proplists:get_value(reflected2, YafRay, Ambient),
+    Transmitted2 = 
+	proplists:get_value(transmitted2, YafRay, DefTransmitted),
     Modulators = proplists:get_value(modulators, YafRay, def_modulators(Maps)),
     [{vframe,
-      [{hframe,
-	[{vframe, 
-	  [{label,"Index Of Refraction"},
-	   {"Shadow",Shadow,[{key,{?TAG,shadow}}]},
-	   {label,"Minimum Reflection"},
-	   {label,"Autosmooth Angle"}]},
-	 {vframe,
-	  [{hframe,[{text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]},
-		    {"Caustics",Caus,[{key,{?TAG,caus}}]}]},
-	   {hframe,[{"Emit Rad",EmitRad,[{key,{?TAG,emit_rad}}]},
-		    {"Recv Rad",RecvRad,[{key,{?TAG,recv_rad}}]}]},
-	   {slider,{text,MinRefle,[{range,{0.0,1.0}},{width,5},
-				   {key,{?TAG,min_refle}}]}},
-	   {slider,{text,AutosmoothAngle,[{range,{0.0,180.0}},{width,5},
-					  {key,{?TAG,autosmooth_angle}}]}}]}]}
+      [{hframe,[{"Caustics",Caus,[{key,{?TAG,caus}}]},
+		{"Cast Shadow",Shadow,[{key,{?TAG,shadow}}]},
+		{"Emit Rad",EmitRad,[{key,{?TAG,emit_rad}}]},
+		{"Recv Rad",RecvRad,[{key,{?TAG,recv_rad}}]}]},
+       {hframe,[{label,"Autosmooth Angle"},
+		{slider,{text,AutosmoothAngle,
+			 [{range,{0.0,180.0}},{width,5},
+			  {key,{?TAG,autosmooth_angle}}]}}]},
+       {vframe,
+	[{hframe,[{label,"Index Of Refraction"},
+		  {text,IOR,[{range,{0.0,100.0}},{key,{?TAG,ior}}]}]},
+	 {hframe,[{label,"Minimum Reflection"},
+		  {slider,{text,MinRefle,[{range,{0.0,1.0}},{width,5},
+					  {key,{?TAG,min_refle}}]}}]},
+	 {hframe,[{vframe,[{label,"Reflected"},
+			   {label,"Transmitted"}]},
+		  {vframe,[{slider,{color,Reflected,
+				    [{key,{?TAG,reflected}}]}},
+			   {slider,{color,Transmitted,
+				    [{key,{?TAG,transmitted}}]}}]},
+		  {vframe,[panel,
+			   {button,"Set Default",keep,
+			    [transmitted_hook({?TAG,transmitted})]}]}]},
+	 {"Grazing Angle Colors",Fresnel2,[{key,{?TAG,fresnel2}},
+					   layout]},
+	 {hframe,[{vframe,[{label,"Reflected"},
+			   {label,"Transmitted"}]},
+		  {vframe,[{slider,{color,Reflected2,
+				    [{key,{?TAG,reflected2}}]}},
+			   {slider,{color,Transmitted2,
+				    [{key,{?TAG,transmitted2}}]}}]},
+		  {vframe,[panel,
+			   {button,"Set Default",keep,
+			    [transmitted_hook({?TAG,transmitted2})]}]}],
+	  [maximized_hook({?TAG,fresnel2})]}],
+	[{title,"Fresnel Parameters"},{minimized,FresnelMinimized},
+	 {key,{?TAG,fresnel_minimized}}]}
        |modulator_dialogs(Modulators, Maps)],
-      [{title,"YafRay Options"},{minimized,Minimized},{key,{?TAG,minimized}}]}].
+      [{title,"YafRay Options"},{minimized,Minimized},
+       {key,{?TAG,minimized}}]}].
+
+rgba2rgb({R,G,B,_}) -> {R,G,B}.
+
+def_transmitted({Dr,Dg,Db,Da}) ->
+    Dt = 1-Da,
+    {Dr*Dt,Dg*Dt,Db*Dt}.
+
+maximized_hook(Tag) ->
+    {hook,fun (is_minimized, {_Var,_I,Sto}) ->
+		  not gb_trees:get(Tag, Sto);
+	      (_, _) -> void end}.
+
+transmitted_hook(Tag) ->
+    {hook,fun (update, {_Var,_I,_Val,Sto}) ->
+		  {Dr,Dg,Db} = gb_trees:get(diffuse, Sto),
+		  Da = gb_trees:get(opacity, Sto),
+		  Transmitted = def_transmitted({Dr,Dg,Db,Da}),
+		  {store,gb_trees:update(Tag, Transmitted, Sto)};
+	      (_, _) -> void end}.
 
 def_modulators([]) ->
     [];
@@ -376,7 +431,7 @@ def_modulators([_|Maps]) ->
     def_modulators(Maps).
 
 material_result(_Name, Mat0, [{{?TAG,minimized},_}|_]=Res0) ->
-    {Ps1,Res1} = split_list(Res0, 8),
+    {Ps1,Res1} = split_list(Res0, 14),
     Ps2 = [{Key,Val} || {{?TAG,Key},Val} <- Ps1],
     {Ps,Res} = modulator_result(Ps2, Res1),
     Mat = [{?TAG,Ps}|keydelete(?TAG, 1, Mat0)],
@@ -1161,18 +1216,31 @@ export_shader(F, Name, Mat, ExportDir) ->
 	  end, 1, Modulators),
     println(F, "<shader type=\"generic\" name=\"~s\">~n"++ 
 	    "    <attributes>", [Name]),
-    {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
-    Transparency = 1 - Opacity,
-    export_rgb(F, color, {Dr*Opacity,Dg*Opacity,Db*Opacity}),
-    export_rgb(F, specular, proplists:get_value(specular, OpenGL)),
+    DiffuseA = {_,_,_,Opacity} = proplists:get_value(diffuse, OpenGL),
+    Color = alpha(DiffuseA),
+    Specular = alpha(proplists:get_value(specular, OpenGL)),
+    Ambient = rgba2rgb(proplists:get_value(ambient, OpenGL)),
+    DefTransmitted = def_transmitted(DiffuseA),
+    export_rgb(F, color, Color),
+    export_rgb(F, specular, Specular),
     %% XXX Wings scaling of shininess is weird. Commonly this value
     %% is the cosine power and as such in the range 0..infinity.
     %% OpenGL limits this to 0..128 which mostly is sufficient.
     println(F, "        <hard value=\"~.10f\"/>", 
 		   [proplists:get_value(shininess, OpenGL)*128.0]),
-    export_rgb(F, reflected, proplists:get_value(ambient, OpenGL)),
+    export_rgb(F, reflected, 
+	       proplists:get_value(reflected, YafRay, Ambient)),
     export_rgb(F, transmitted, 
-	       {Dr*Transparency,Dg*Transparency,Db*Transparency}),
+	       proplists:get_value(transmitted, YafRay, DefTransmitted)),
+    case proplists:get_value(fresnel2, YafRay, false) of
+	true ->
+	    export_rgb(F, reflected2, 
+		       proplists:get_value(reflected2, YafRay, Ambient)),
+	    export_rgb(F, transmitted2, 
+		       proplists:get_value(transmitted2, YafRay, 
+					   DefTransmitted));
+	false -> ok
+    end,
     IOR = proplists:get_value(ior, YafRay, ?DEF_IOR),
     MinRefle = proplists:get_value(min_refle, YafRay, ?DEF_MIN_REFLE),
     println(F, "        <IOR value=\"~.10f\"/>~n"++
@@ -1190,6 +1258,8 @@ export_shader(F, Name, Mat, ExportDir) ->
 		  N % Ignore old modulators
 	  end, 1, Modulators),
     println(F, "</shader>").
+
+alpha({R,G,B,A}) -> {R*A,G*A,B*A}.
 
 export_texture(F, Name, Maps, ExportDir, {modulator,Ps}) when list(Ps) ->
     case mod_enabled_mode_type(Ps, Maps) of
@@ -1320,8 +1390,6 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Mats) ->
     Shadow = proplists:get_value(shadow, YafRay, ?DEF_SHADOW),
     EmitRad = proplists:get_value(emit_rad, YafRay, ?DEF_EMIT_RAD),
     RecvRad = proplists:get_value(recv_rad, YafRay, ?DEF_RECV_RAD),
-    {Dr,Dg,Db,Opacity} = proplists:get_value(diffuse, OpenGL),
-    Transparency = 1 - Opacity,
     println(F, "<object name=\"~s\" shader_name=\"~s\" shadow=\"~s\"~n"++
 	    "        "++
 	    case Caus of true -> "caus_IOR=\"~.10f\" ";
@@ -1333,10 +1401,14 @@ export_object(F, NameStr, #e3d_mesh{}=Mesh, Mats) ->
 	     end]++[format(EmitRad),format(RecvRad)]),
     println(F, "    <attributes>"),
     case Caus of true ->
-	    export_rgb(F, caus_rcolor, proplists:get_value(ambient, OpenGL)),
-%	    export_rgb(F, caus_rcolor, {Dr*Opacity,Dg*Opacity,Db*Opacity}),
-	    export_rgb(F, caus_tcolor, 
-		       {Dr*Transparency,Dg*Transparency,Db*Transparency});
+	    Ambient = rgba2rgb(proplists:get_value(ambient, OpenGL)),
+	    Reflected = proplists:get_value(reflected, YafRay, Ambient),
+	    DefTransmitted = 
+		def_transmitted(proplists:get_value(diffuse, OpenGL)),
+	    Transmitted = 
+		proplists:get_value(transmitted, YafRay, DefTransmitted),
+	    export_rgb(F, caus_rcolor, Reflected),
+	    export_rgb(F, caus_tcolor, Transmitted);
 	false -> ok
     end,
     println(F, "    </attributes>"),

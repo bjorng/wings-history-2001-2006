@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.165 2004/01/20 00:48:26 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.166 2004/01/28 23:45:06 raimo_niskanen Exp $
 %%
 
 -module(wings_ask).
@@ -2229,6 +2229,7 @@ button_event({key,_,_,$\s},
     #but{action=Action} = gb_trees:get(-I, Store0),
     case hook(Hook, update, [var(Key, I),I,true,Store0,Flags]) of
 	keep -> Action;
+	{store,Store} = Result when Action == keep -> Result;
 	{store,Store} -> {Action,Store};
 	Result -> Result
     end;
