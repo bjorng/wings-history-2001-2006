@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.143 2003/08/13 05:19:53 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.144 2003/08/13 09:56:40 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -19,7 +19,7 @@
 -include("e3d_image.hrl").
 -include("auv.hrl").
  
--export([init/0,menu/2,command/2]).
+-export([init/0,menu/2,command/2,redraw/1]).
 
 -import(lists, [sort/1, map/2, foldl/3, reverse/1, 
 		append/1,delete/2, usort/1, max/1, min/1,
@@ -29,7 +29,7 @@ init() ->
     true.
 
 add_areas(NewAreas, AreaTree) ->
-    foldl(fun({[K|_],Area}, TreeBB) ->
+    foldl(fun({K,Area}, TreeBB) when is_integer(K) ->
  		  gb_trees:insert(K, Area, TreeBB) 
  	  end, AreaTree, NewAreas).
 
@@ -619,15 +619,6 @@ command_menu(body, X,Y, _Uvs) ->
 	    {"Rotate", {rotate, Rotate}, "Rotate selected faces"},
 	    separator,
 	    {"Rescale All", rescale_all, "Pack the space in lower-left before rescaling"}
-% 	    separator,
-% 	    {"ReMap UV", {remap, [{"Project Normal", project, 
-% 				   "Project UVs from chart normal"},
-% 				  {"Unfold", lsqcm, " "},
-% 				  separator,
-% 				  {"Stretch optimization", stretch_opt, 
-% 				   "Optimize the chart stretch"}
-% 				 ]}, 
-% 	     "Re-calculate new uv's with choosen algorithmen"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 
@@ -724,12 +715,24 @@ handle_event({current_state,geom_display_lists,St}, Uvs) ->
 	keep -> update_selection(St, Uvs);
 	Other -> Other
     end;
+handle_event({picked,[{Id,_}|_]}, #uvstate{areas=Curr0,sel=Sel0,st=GeomSt0,
+					   orig_we=#we{id=OrigId}}=Uvs) ->
+    {Sel,Curr} =
+	case gb_trees:lookup(Id, Curr0) of
+	    none ->
+		{value,{_,Chart}} = lists:keysearch(Id, 1, Sel0),
+		{lists:keydelete(Id, 1, Sel0),gb_trees:insert(Id, Chart, Curr0)};
+	    {value,Chart} ->
+		{[{Id,Chart}|Sel0],gb_trees:delete(Id, Curr0)}
+	end,
+    GeomSt = wings_select_faces(Sel, OrigId, GeomSt0),
+    wings_wm:send(geom, {new_state,GeomSt}),
+    get_event(reset_dl(Uvs#uvstate{sel=Sel,st=GeomSt,areas=Curr,op=undefined}));
 handle_event(Ev, Uvs) ->
-    handle_event_1(Ev, Uvs).
-%     case auv_pick:event(Ev, Uvs) of
-% 	next -> handle_event_1(Ev, Uvs);
-% 	Other -> Other
-%     end.
+    case auv_pick:event(Ev, Uvs) of
+	next -> handle_event_1(Ev, Uvs);
+	Other -> Other
+    end.
 
 handle_event_1(#mousemotion{}=Ev, #uvstate{op=Op}=Uvs) when Op /= undefined ->	   
     handle_mousemotion(Ev, Uvs);
@@ -746,98 +749,17 @@ handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
   when X /= MX; Y /= MY ->
     % fmove, not nowhere
     get_event(Uvs0#uvstate{op=undefined});
-handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
-			  x=MX,y=MY}, 
-	     #uvstate{geom=ViewP,
-		      mode=Mode,
-		      op=Op,
-		      orig_we=#we{id=Id},
-		      sel=Sel0,
-		      areas=Curr0} = Uvs0)
-  when Op == undefined; 
-       record(Op, op), Op#op.name == fmove ->
-    % Deselection
-    {_,_,_,OH} = wings_wm:viewport(),
-    SX = MX,
-    SY = OH-MY,
-    case select(Mode, SX, SY, add_areas(Sel0, Curr0), ViewP) of
-	none when Op == undefined ->
-	    keep;
-	none -> 
-	    get_event(Uvs0#uvstate{op = undefined});
-	Hits ->
-	    {Sel,Curr1} = 
-		case (sdl_keyboard:getModState() band ?KMOD_CTRL) /= 0 of
-		    true -> 
-			update_selection(Hits -- Sel0, Sel0, Curr0);
-		    false ->
-			update_selection([hd(Hits)], Sel0, Curr0)
-		end,
-	    WingsSt = wings_select_faces(Sel, Id, Uvs0#uvstate.st),
-	    wings_wm:send(geom, {new_state,WingsSt}),
-	    get_event(reset_dl(Uvs0#uvstate{sel=Sel,
-					    st=WingsSt,
-					    areas=Curr1,
-					    op=undefined}))
-    end;
-handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
-	     #uvstate{geom=ViewP,
-		      mode = Mode,
-		      op = Op,
-		      orig_we=#we{id=Id},
-		      sel = Sel0,
-		      areas=Curr0}=Uvs0) ->
-    {_,_,_,OH} = wings_wm:viewport(),
+handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT},
+	       #uvstate{op=undefined}) ->
+    keep;
+handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT},
+	       #uvstate{op=Op,sel=Sel0}=Uvs0) ->
     case Op#op.name of
-	boxsel when Op#op.add == {MX,MY} -> %% No box
-	    get_event(Uvs0#uvstate{op = undefined});
-	boxsel ->
-	    {OX,OY} = Op#op.add,
-	    BW = abs(OX-MX),
-	    BH = abs(OY-MY),
-	    CX = if OX > MX -> MX + BW div 2; true -> MX - BW div 2 end,
-	    CY = if OY > MY -> MY + BH div 2; true -> MY - BH div 2 end,
-	    %%		    ?DBG("BW ~p BH ~p Center ~p \n",[BW,BH, {CX,CY}]),
-	    case select_1(Mode, CX,(OH-CY), BW,BH, Curr0, ViewP) of
-		none -> 
-		    get_event(Uvs0#uvstate{op = undefined});
-		Hits -> 
-		    {Sel1,Curr1} = update_selection(Hits, Sel0, Curr0),
-		    WingsSt = wings_select_faces(Sel1, Id, Uvs0#uvstate.st),
-		    wings_wm:send(geom, {new_state,WingsSt}),
-		    Uvs = Uvs0#uvstate{op=undefined,
-				       sel=Sel1,
-				       st=WingsSt,
-				       areas=Curr1},
-		    get_event(reset_dl(Uvs))
-	    end;
 	rotate ->
 	    Sel = [finish_rotate(A)|| A <- Sel0],
 	    get_event(Uvs0#uvstate{op=undefined,sel=Sel});
 	_ ->
-	    get_event(Uvs0#uvstate{op = undefined})
-    end;
-
-handle_event_1(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
-	     #uvstate{geom=ViewP,
-		      mode=Mode,
-		      op=Op,
-		      sel=Sel0,
-		      areas=Curr0}=Uvs0) 
-  when Op == undefined ->
-    {_,_,_,OH} = wings_wm:viewport(),
-    case select(Mode, MX, (OH-MY), add_areas(Sel0, Curr0), ViewP) of
-	none -> 
-	    get_event(Uvs0#uvstate{op=#op{name=boxsel, add={MX,MY}, 
-					  prev={MX+1,MY+1},undo=Uvs0}});
-	Hits ->
-	    case Hits -- Sel0 of  
-		Hits -> 
-		    keep;
-		_ -> %% Hit atleast one of the selected
-		    get_event(Uvs0#uvstate{op=#op{name=fmove, add={MX,MY},
-						  prev={MX,MY}, undo=Uvs0}})
-	    end
+	    get_event(Uvs0#uvstate{op=undefined})
     end;
 handle_event_1(#keyboard{state=?SDL_PRESSED,sym=Sym},
 	       #uvstate{st=St,orig_we=#we{id=Id}}) ->
@@ -939,57 +861,9 @@ handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
 	rotate ->
 	    Sel1 = [rotate_area(Mode, A, MW)|| A <- Sel0],
 	    get_event(Uvs0#uvstate{sel = Sel1, op=NewOp});
-	boxsel ->
-	    gl:matrixMode(?GL_PROJECTION),
-	    gl:pushMatrix(),
-	    gl:loadIdentity(),
-	    {_,_,WW,WH} = wings_wm:viewport(),
-	    glu:ortho2D(0, WW, WH, 0),
-	    gl:drawBuffer(?GL_FRONT),
-	    gl:matrixMode(?GL_MODELVIEW),
-	    gl:loadIdentity(),
-	    gl:color3f(0,0,0),
-	    draw_marquee(Op#op.add, Op#op.prev),
-	    draw_marquee(Op#op.add, {MX0,MY0}),
-	    gl:popMatrix(),
-	    gl:flush(),
-	    gl:drawBuffer(?GL_BACK),
-	    get_event_nodraw(Uvs0#uvstate{op = NewOp});
 	_ ->
 	    keep
     end.
-
-% remap({Id,#we{name=#ch{vmap=Vmap},vp=Vtab}=We0}, stretch_opt, #we{vp=Orig}) ->
-%     Vs3d = map(fun(V0) ->
-% 		       case gb_trees:lookup(V0, Vmap) of
-% 			   none -> 
-% 			       {V0, gb_trees:get(V0, Orig)};
-% 			   {value,V} ->
-% 			       {V0, gb_trees:get(V, Orig)}
-% 		       end 
-% 	       end, gb_trees:keys(Vtab)),
-%     We = auv_mapping:stretch_opt(We0, gb_trees:from_orddict(Vs3d)),
-%     {Id,We};
-
-%remap({Id, Chart0 = #ch{fs=Fs,we=We0,vmap=Vmap,size={W,H}}}, Type, #we{vp=Vs3d0}) ->
-%     %% Get 3d positions (even for mapped vs)
-%     Vs3d = map(fun({V0,_Pos}) ->
-% 		       case gb_trees:lookup(V0, Vmap) of
-% 			   none -> 
-% 			       {V0, gb_trees:get(V0, Vs3d0)};
-% 			   {value,V} ->
-% 			       {V0, gb_trees:get(V, Vs3d0)}
-% 		       end 
-% 	       end, gb_trees:to_list(We0#we.vp)),
-%     Vs0 = auv_mapping:map_chart(Type, Fs, 
-% 				We0#we{vp=gb_trees:from_orddict(Vs3d)}),
-%     We1 = We0#we{vp=gb_trees:from_orddict(sort(Vs0))},    
-%     {{Dx,Dy}, Vs} = auv_placement:center_rotate(Fs, We1),
-%     Scale = if Dx > Dy -> W / Dx;
-% 	       true -> H / Dy
-% 	    end,
-%     We = We0#we{vp=gb_trees:from_orddict(sort(Vs))},
-%     {Id, Chart0#ch{we=We, size={Dx*Scale, Dy*Scale}, scale=Scale}}.
 
 drag_filter({image,_,_}) ->
     {yes,"Drop: Change the texture image"};
@@ -1032,74 +906,9 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
 	    update_selection_1(Mode, gb_sets:to_list(Elems), Uvs#uvstate{st=St})
     end.
 
-update_selection_1(face, Faces, #uvstate{sel=Sel,areas=As0}=Uvs) ->
-    As = gb_trees:to_list(add_areas(Sel, As0)),
-    update_selection_2(As, Faces, Uvs, [], []);
 update_selection_1(_, _, Uvs) ->
     get_event_nodraw(Uvs).
-
-update_selection_2([{K,#we{name=#ch{fs=Fs}}=C}|Cs],Faces,Uvs,NonSel,Sel) ->
-    case ordsets:intersection(sort(Fs), Faces) of
-	[] -> update_selection_2(Cs, Faces, Uvs, [{K,C}|NonSel], Sel);
-	_ -> update_selection_2(Cs, Faces, Uvs, NonSel, [{[K],C}|Sel])
-    end;
-update_selection_2([], _, Uvs0, NonSel, Sel) ->
-    As = gb_trees:from_orddict(sort(NonSel)),
-    Uvs = Uvs0#uvstate{sel=sort(Sel),areas=As},
-    get_event(reset_dl(Uvs)).
-
-%%%%% Selection 
-draw_marquee({X, Y}, {Ox,Oy}) ->
-    gl:color3f(1.0, 1.0, 1.0),
-    gl:enable(?GL_COLOR_LOGIC_OP),
-    gl:logicOp(?GL_XOR),
-    gl:'begin'(?GL_LINE_LOOP),
-    gl:vertex2i(X, Oy),
-    gl:vertex2i(X, Y),
-    gl:vertex2i(Ox, Y),
-    gl:vertex2i(Ox, Oy),
-    gl:'end'(),
-    gl:flush(),
-    gl:disable(?GL_COLOR_LOGIC_OP);
-draw_marquee(_,_) -> ok.
     
-update_selection(Areas, Sel0, Other0) -> 
-    foldl(fun(Hit = {[Id|_],Area}, {Sel, Other}) ->
-		  case gb_trees:lookup(Id, Other) of
-		      {value, _} -> %% other 
-			  {[Hit|Sel], gb_trees:delete(Id, Other)};
-		      none ->
-			  {lists:delete(Hit,Sel), gb_trees:insert(Id, Area,Other)}
-		  end
-	  end, {Sel0, Other0}, Areas).
-
-select(Mode, X,Y, Objects, ViewP) ->
-    select_1(Mode, X,Y, 3,3, Objects, ViewP).
-
-select_1(_Mode, X,Y, W, H, All, {XYS,XM,XYS,YM}) ->
-    {_,_,UVW,UVH} = wings_wm:viewport(),
-    HitBuf = get(wings_hitbuf),
-    gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
-    gl:renderMode(?GL_SELECT),
-    gl:initNames(),
-    gl:viewport(0, 0, UVW, UVH),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:loadIdentity(),
-    glu:pickMatrix(X, Y, W,H, {0,0,UVW,UVH}),
-    glu:ortho2D(XYS, XM, XYS, YM),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
-    auv_pick:draw(),
-    case auv_pick:get_hits(HitBuf) of
-	none -> none;
-	Hits0 ->
-	    Hits = ordsets:from_list([Id || {Id,_} <- Hits0]),
-	    map(fun(Hit) -> 
-			HitArea = gb_trees:get(Hit, All),
-			{[Hit], HitArea}
-		end, Hits)
-    end.
-
 -define(OUT, 1.2/2). %% was 1/2 
 
 wings_select_faces([], _, St) ->

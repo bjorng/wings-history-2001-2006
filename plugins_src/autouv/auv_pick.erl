@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: auv_pick.erl,v 1.1 2003/08/13 05:19:53 bjorng Exp $
+%%     $Id: auv_pick.erl,v 1.2 2003/08/13 09:56:40 bjorng Exp $
 %%
 
 -module(auv_pick).
--export([get_hits/1,draw/0]).
+-export([event/2]).
 
 -define(NEED_OPENGL, 1).
 -define(NEED_ESDL, 1).
@@ -20,7 +20,76 @@
 -include("wings.hrl").
 -include("auv.hrl").
 
--import(lists, [foreach/2]).
+-import(lists, [foreach/2,map/2]).
+
+%% For ordinary picking.
+-record(pick,
+	{st,					%Saved state.
+	 op					%Operation: add/delete
+	}).
+
+% event(#mousemotion{}=Mm, Uvs) ->
+%     {seq,push,handle_hilite_event(Mm, #hl{st=St,redraw=Redraw};
+event(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_PRESSED}, Uvs) ->
+    pick(X, Y, Mod, Uvs);
+event(_, _) -> next.
+
+% pick(X, Y, Mod, Uvs) when Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
+%     Pick = #marquee{ox=X,oy=Y,st=Uvs},
+%     clear_hilite_marquee_mode(Pick);
+pick(X, Y, _, Uvs) ->
+    case raw_pick(X, Y, Uvs) of
+	none ->
+	    next;
+% 	    Pick = #marquee{ox=X,oy=Y,st=Uvs},
+% 	    clear_hilite_marquee_mode(Pick);
+	Hit ->
+	    wings_wm:dirty(),
+	    Pick = #pick{st=Uvs,op=Hit},
+	    {seq,push,get_pick_event(Pick)}
+    end.
+
+%%
+%% Drag picking.
+%%
+
+get_pick_event(Pick) ->
+    {replace,fun(Ev) -> pick_event(Ev, Pick) end}.
+
+pick_event(redraw, #pick{st=Uvs}) ->
+    wpc_autouv:redraw(Uvs),
+    keep;
+pick_event(#mousemotion{x=X,y=Y}, #pick{st=Uvs,op=Hit0}=Pick) ->
+    case raw_pick(X, Y, Uvs) of
+	none -> keep;
+	Hit0 -> keep;
+	Hit -> get_pick_event(Pick#pick{op=Hit})
+    end;
+pick_event(#mousebutton{button=1,state=?SDL_RELEASED}, #pick{op=Hit}) ->
+    wings_wm:later({picked,Hit}),
+    pop;
+pick_event(_, _) -> keep.
+
+raw_pick(X0, Y0, #uvstate{geom={Vx,Vy,Vw,Vh}}) ->
+    HitBuf = get(wings_hitbuf),
+    gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
+    gl:renderMode(?GL_SELECT),
+    gl:initNames(),
+    gl:matrixMode(?GL_PROJECTION),
+    gl:loadIdentity(),
+    {W,H} = wings_wm:win_size(),
+    X = float(X0),
+    Y = H-float(Y0),
+    S = 5,
+    glu:pickMatrix(X, Y, S, S, {0,0,W,H}),
+    glu:ortho2D(Vx, Vy, Vw, Vh),
+    gl:matrixMode(?GL_MODELVIEW),
+    gl:loadIdentity(),
+    draw(),
+    case get_hits(HitBuf) of
+	none -> none;
+	Hits -> Hits
+    end.
 
 %%%
 %%% Pick up raw hits.
@@ -92,7 +161,6 @@ face_1([V|Vs], Vtab, Acc) ->
     face_1(Vs, Vtab, [gb_trees:get(V, Vtab)|Acc]);
 face_1([], _, VsPos) ->
     N = e3d_vec:normal(VsPos),
-    gl:normal3fv(N),
     face_2(N, VsPos).
 
 face_2(_, [A,B,C]) ->
