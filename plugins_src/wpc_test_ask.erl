@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_test_ask.erl,v 1.21 2003/12/08 01:57:34 raimo_niskanen Exp $
+%%     $Id: wpc_test_ask.erl,v 1.22 2003/12/12 15:27:14 raimo_niskanen Exp $
 %%
 
 -module(wpc_test_ask).
@@ -148,11 +148,11 @@ mk_overlay_dialog(Style, Active, MinimizedL, MinimizedC, MinimizedR) ->
     Dialog =
 	[{hframe,[{label,"Style  "},
 		  {hradio,[{"Buttons",buttons},{"Menu",menu}],Style,
-		  [{hook,fun (update, {Var,_I,Val,Sto}) ->
-				 erlang:display({?MODULE,?LINE,
-						 [update,{Var,_I,Val,sto}]}),
-				{done,gb_trees:update(Var, Val, Sto)};
-			     (_, _) -> void end}]}]},
+		   [{hook,fun (update, {Var,_I,Val,Sto}) ->
+				  erlang:display({?MODULE,?LINE,
+						  [update,{Var,_I,Val,sto}]}),
+				  {done,gb_trees:update(Var, Val, Sto)};
+			      (_, _) -> void end}]}]},
 	 {oframe,
 	  [{"Left frame",large_dialog_l(MinimizedL, MinimizedC)},
 	   {"Right frame",large_dialog_r(MinimizedR)}],
@@ -183,7 +183,7 @@ large_dialog_l(MinimizedL, MinimizedC) ->
      [{label,"Label"},
       {key_alt,{d,1},"Alt 3",3,[{hook,disable_hook(c)}]},
       separator,
-      {"Checkbox",false},
+      {"Checkbox",false,[layout]},
       {"Checkbox key",false,[{key,c},{hook,disable_hook(-1)}]},
       separator,
       {key_alt,{d,1},"Alt 1",1,[{hook,disable_hook(c)}]},
@@ -196,7 +196,7 @@ large_dialog_l(MinimizedL, MinimizedC) ->
 						   wings_io:sunken_rect(
 						     X, Y, W, H, Color, Col)
 					   end)
-		    end},
+		    end,[{hook,minimize_hook(-4)}]},
       {slider,[{range,{1,3}},{key,d},{hook,disable_hook(c)}]},
       {key_alt,{d,1},"Alt 2",2,[{hook,disable_hook(c)}]},
       separator,
@@ -307,6 +307,15 @@ disable_hook(V) ->
     fun (is_disabled, {_Var,I,Store}) when integer(V) ->
 	    not gb_trees:get(I+V, Store);
 	(is_disabled, {_Var,_I,Store}) ->
+	    not gb_trees:get(V, Store);
+	(_, _) ->
+	    void
+    end.
+
+minimize_hook(V) ->
+    fun (is_minimized, {_Var,I,Store}) when integer(V) ->
+	    not gb_trees:get(I+V, Store);
+	(is_minimized, {_Var,_I,Store}) ->
 	    not gb_trees:get(V, Store);
 	(_, _) ->
 	    void
