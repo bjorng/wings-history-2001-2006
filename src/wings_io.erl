@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.18 2001/12/07 13:40:07 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.19 2001/12/07 19:50:16 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -150,12 +150,28 @@ update(#io{message=Msg,info=Info}=Io0, St) ->
     draw_icons(Io0, St),
     draw_panes(Io0),
     Text = case Msg of
-	       undefined -> Info;
+	       undefined -> maybe_show_mem_used(Info);
 	       Other -> Msg
 	   end,
     draw_message(fun() -> text_at(0, Text) end),
     Io0.
 
+maybe_show_mem_used(Info) ->
+    case wings_pref:get_value(show_memory_used) of
+	true ->
+	    {memory,Sz} = process_info(self(), memory),
+	    {N,M} = if
+			Sz < 1024 ->
+			    {Sz,"bytes"};
+			Sz < 1024*1204 -> 
+			    {(Sz+512) div 1024,"Kb"};
+			true ->
+			    {(Sz+1024*512) div 1024 div 1024,"Mb"}
+		    end,
+	    lists:concat(["[mem:",integer_to_list(N),M,"] ",Info]);
+	false -> Info
+    end.
+	    
 draw_panes(#io{w=W,h=H,menubar=Bar,sel=Sel}=Io) ->
     raised_rect(-2, 0, W+2, ?LINE_HEIGHT+6),
     sunken_rect(6, H-2*?LINE_HEIGHT+5, W-10, 2*?LINE_HEIGHT-8),
