@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.83 2003/06/29 10:34:08 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.84 2003/06/29 15:42:36 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -75,15 +75,8 @@ init() ->
 
 clear_old_dl([#dlo{src_we=We,proxy_data=Pd0}|T]) ->
     Pd = wings_subdiv:clean(Pd0),
-    [#dlo{src_we=We,mirror=check_mirror(We),proxy_data=Pd}|clear_old_dl(T)];
+    [#dlo{src_we=We,mirror=none,proxy_data=Pd}|clear_old_dl(T)];
 clear_old_dl([]) -> [].
-
-check_mirror(#we{mirror=none}) -> none;
-check_mirror(#we{fs=Ftab,mirror=Face}) ->
-    case gb_trees:is_defined(Face, Ftab) of
-	false -> none;
-	true -> {Face}
-    end.
 
 tess() ->
     #du{tess=Tess} = get(?MODULE),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.129 2003/06/28 18:10:49 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.130 2003/06/29 15:42:36 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -55,7 +55,7 @@ prepare_dlists(#st{shapes=Shs}) ->
 prepare_fun(eol, [#we{perm=Perm}=We|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
     {#dlo{src_we=empty_we(We)},Wes};
 prepare_fun(eol, [We|Wes]) ->
-    {#dlo{src_we=We,mirror=check_mirror(We)},Wes};
+    {#dlo{src_we=We,mirror=none},Wes};
 prepare_fun(eol, []) ->
     eol;
 prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, [We|Wes]) ->
@@ -65,7 +65,7 @@ prepare_fun(#dlo{src_we=We}=D, [We|Wes]) ->
 prepare_fun(#dlo{src_we=#we{id=Id},proxy_data=Proxy}, [#we{id=Id,perm=Perm}=We|Wes]) ->
     if 
 	?IS_VISIBLE(Perm) ->
-	    {#dlo{src_we=We,mirror=check_mirror(We),proxy_data=Proxy},Wes};
+	    {#dlo{src_we=We,mirror=none,proxy_data=Proxy},Wes};
 	true ->
 	    {#dlo{src_we=empty_we(We),proxy_data=Proxy},Wes}
     end;
@@ -90,13 +90,6 @@ empty_we(We) ->
     Et = gb_trees:empty(),
     We#we{es=Et,fs=Et,vc=Et,vp=Et,he=gb_sets:empty(),mat=default,
 	  mirror=none,light=none}.
-
-check_mirror(#we{mirror=none}) -> none;
-check_mirror(#we{fs=Ftab,mirror=Face}) ->
-    case gb_trees:is_defined(Face, Ftab) of
-	false -> none;
-	true -> {Face}
-    end.
 
 sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
     case SrcSel of
@@ -329,16 +322,22 @@ update_sel_all(#dlo{work=Faces}=D) ->
 update_mirror() ->
     wings_draw_util:map(fun update_mirror/2, []).
 
-update_mirror(#dlo{mirror={Face},src_we=We}=D, _) when is_integer(Face) ->
-    N = wings_face:normal(Face, We),
-    Center = wings_face:center(Face, We),
-    RotBack = e3d_mat:rotate_to_z(N),
-    Rot = e3d_mat:transpose(RotBack),
-    Mat0 = e3d_mat:mul(e3d_mat:translate(Center), Rot),
-    Mat1 = e3d_mat:mul(Mat0, e3d_mat:scale(1.0, 1.0, -1.0)),
-    Mat2 = e3d_mat:mul(Mat1, RotBack),
-    Mat = e3d_mat:mul(Mat2, e3d_mat:translate(e3d_vec:neg(Center))),
-    D#dlo{mirror=Mat};
+update_mirror(#dlo{mirror=none,src_we=#we{mirror=none}}=D, _) -> D;
+update_mirror(#dlo{mirror=none,src_we=#we{fs=Ftab,mirror=Face}=We}=D, _) ->
+    case gb_trees:is_defined(Face, Ftab) of
+	false ->
+	    D#dlo{mirror=none};
+	true ->
+	    N = wings_face:normal(Face, We),
+	    Center = wings_face:center(Face, We),
+	    RotBack = e3d_mat:rotate_to_z(N),
+	    Rot = e3d_mat:transpose(RotBack),
+	    Mat0 = e3d_mat:mul(e3d_mat:translate(Center), Rot),
+	    Mat1 = e3d_mat:mul(Mat0, e3d_mat:scale(1.0, 1.0, -1.0)),
+	    Mat2 = e3d_mat:mul(Mat1, RotBack),
+	    Mat = e3d_mat:mul(Mat2, e3d_mat:translate(e3d_vec:neg(Center))),
+	    D#dlo{mirror=Mat}
+    end;
 update_mirror(D, _) -> D.
 
 %%%
@@ -543,12 +542,12 @@ draw_mat_faces_fun([], _We) -> ok.
 %%% Smooth drawing.
 %%%
 
-smooth_dlist(#we{he=Htab0}=We, St) ->
-    case check_mirror(We) of
-	none ->
+smooth_dlist(#we{he=Htab0,fs=Ftab,mirror=Face}=We, St) ->
+    case gb_trees:is_defined(Face, Ftab) of
+	false ->
 	    Flist = wings_we:normals(We),
 	    smooth_faces(Flist, We, St);
-	{Face} ->
+	true ->
 	    Edges = wings_face:outer_edges([Face], We),
 	    Htab = gb_sets:union(Htab0, gb_sets:from_list(Edges)),
 	    Flist = wings_we:normals(We#we{he=Htab}),
