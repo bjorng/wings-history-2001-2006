@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vertex_cmd.erl,v 1.27 2002/05/12 05:00:53 bjorng Exp $
+%%     $Id: wings_vertex_cmd.erl,v 1.28 2002/05/25 21:36:25 bjorng Exp $
 %%
 
 -module(wings_vertex_cmd).
@@ -142,38 +142,33 @@ ex_connect([Va,Face], [Vb|_], We0) ->
 bevel(St0) ->
     {St,{Tvs0,FaceSel}} =
 	wings_sel:mapfold(
-	  fun(Vs, #we{id=Id}=We0, {Tvs,Fa}) ->
-		  Iter = gb_sets:iterator(Vs),
-		  {We,Tv,Fs0} = bevel_vertices(Iter, Vs, We0, We0, [], []),
-		  Fs = gb_sets:from_list(Fs0),
-		  {We,{[{Id,Tv}|Tvs],[{Id,Fs}|Fa]}}
+	  fun(VsSet, #we{id=Id}=We0, {Tvs,Fa}) ->
+		  Vs = gb_sets:to_list(VsSet),
+		  {We,Tv,Fs0} = bevel_vertices(Vs, VsSet, We0, We0, [], []),
+		  FaceSel = case Fs0 of
+				[] -> Fa;
+				_ -> [{Id,gb_sets:from_list(Fs0)}|Fa]
+			    end,
+		  {We,{[{Id,Tv}|Tvs],FaceSel}}
 	  end, {[],[]}, St0),
     {Min,Tvs} = bevel_normalize(Tvs0),
     wings_drag:setup(Tvs, [{distance,{0.0,Min}}],
-			  wings_sel:set(face, FaceSel, St)).
+		     wings_sel:set(face, FaceSel, St)).
 
-bevel_vertices(Iter0, Vs, WeOrig, We0, Acc0, Facc) ->
-    case gb_sets:next(Iter0) of
-	none -> {We0,Acc0,Facc};
-	{V,Iter} ->
-	    Adj = adjacent(V, Vs, WeOrig),
-	    case bevel_vertex(V, Adj, We0, Acc0) of
-		winged_vertex ->
-		    bevel_vertices(Iter, Vs, WeOrig, We0, Acc0, Facc);
-		{We,Acc,Face} ->
-		    bevel_vertices(Iter, Vs, WeOrig, We, Acc, [Face|Facc])
-	    end
-    end.
-
-bevel_vertex(V, Adj, We, Vec0) ->
+bevel_vertices([V|Vs], VsSet, WeOrig, We0, Acc0, Facc) ->
+    Adj = adjacent(V, VsSet, WeOrig),
     Es = wings_vertex:fold(
 	   fun(Edge, Face, Rec, Acc) ->
 		   [{Edge,Face,Rec}|Acc]
-	   end, [], V, We),
+	   end, [], V, We0),
     case length(Es) of
-	2 -> winged_vertex;
-	NumEdges -> bevel_vertex_1(V, Es, NumEdges, Adj, We, Vec0)
-    end.
+	2 ->					%Winged vertex - ignore.
+	    bevel_vertices(Vs, VsSet, WeOrig, We0, Acc0, Facc);
+	NumEdges ->
+	    {We,Acc,Face} = bevel_vertex_1(V, Es, NumEdges, Adj, We0, Acc0),
+	    bevel_vertices(Vs, VsSet, WeOrig, We, Acc, [Face|Facc])
+    end;
+bevel_vertices([], _, _, We, Acc, Facc) -> {We,Acc,Facc}.
 
 bevel_vertex_1(V, Es, NumEdges, Adj, We0, Vec0) ->
     {InnerFace,We1} = wings_we:new_id(We0),
@@ -183,45 +178,60 @@ bevel_vertex_1(V, Es, NumEdges, Adj, We0, Vec0) ->
     {_,Etab,Vec} = foldl(
 		     fun(E, {Ids0,Etab1,Vs0}) ->
 			     {Etab,Vec} = bevel(V, E, InnerFace, Ids0,
-						Adj, Vtab0, Etab1),
+						Adj, Vtab0, Etab0, Etab1),
 			     {wings_we:bump_id(Ids0),Etab,[Vec|Vs0]}
 		     end, {Ids,Etab0,Vec0}, Es),
-    Ftab = gb_trees:insert(InnerFace, #face{edge=wings_we:id(1, Ids)}, Ftab0),
+    Mat = bevel_material(Es, We),
+    FaceRec = #face{mat=Mat,edge=wings_we:id(1, Ids)},
+    Ftab = gb_trees:insert(InnerFace, FaceRec, Ftab0),
     {We#we{es=Etab,fs=Ftab,vs=Vtab},Vec,InnerFace}.
 
-bevel(V, {Edge,Face,Rec0}, InnerFace, Ids, Adj, Vtab, Etab0) ->
+bevel_material(Es, #we{fs=Ftab}) ->
+    bevel_material(Es, Ftab, []).
+
+bevel_material([{_,Face,_}|Es], Ftab, Acc) ->
+    #face{mat=Mat} = gb_trees:get(Face, Ftab),
+    bevel_material(Es, Ftab, [{Mat,Face}|Acc]);
+bevel_material([], _, A0) ->
+    A1 = sofs:relation(A0, [{mat,face}]),
+    A2 = sofs:relation_to_family(A1),
+    A = sofs:to_external(A2),
+    [{_,Mat}|_] = sort([{-length(Fs),M} || {M,Fs} <- A]),
+    Mat.
+
+bevel(V, {Edge,Face,Rec0}, InnerFace, Ids, Adj, Vtab, OrigEtab, Etab0) ->
     Vprev = wings_we:id(0, Ids),
     Eprev = wings_we:id(1, Ids),
     Va = wings_we:id(2, Ids),
     Ecurr = wings_we:id(3, Ids),
     Vb = wings_we:id(4, Ids),
     Enext = wings_we:id(5, Ids),
-    Vpos = wings_vertex:pos(V, Vtab),
-    {Rec,Curr,Vec} =
+    {Rec,Curr} =
 	case Rec0 of
-	    #edge{vs=V,ve=Vother,rf=Face} ->
+	    #edge{vs=V,ve=Vother,rf=Face,rtpr=ColEdge} ->
+		Col = bevel_color(ColEdge, Face, OrigEtab),
 		{Rec0#edge{vs=Va,rtpr=Ecurr,ltsu=Eprev},
-		 Rec0#edge{vs=Vb,ve=Va,lf=InnerFace,
-			   rtsu=Edge,ltpr=Eprev,ltsu=Enext},
-		 bevel_vec(Adj, Vother, Vpos, Vtab)};
-	    #edge{vs=V,ve=Vother} ->
+		 Rec0#edge{vs=Vb,ve=Va,a=Col,lf=InnerFace,
+			   rtsu=Edge,ltpr=Eprev,ltsu=Enext}};
+	    #edge{vs=V,ve=Vother,rf=Of,rtpr=ColEdge} ->
+		Col = bevel_color(ColEdge, Of, OrigEtab),
 		{Rec0#edge{vs=Va,rtpr=Ecurr,ltsu=Enext},
-		 Rec0#edge{vs=Vprev,ve=Va,lf=InnerFace,
-			   rtsu=Edge,ltpr=Enext,ltsu=Eprev},
-		 bevel_vec(Adj, Vother, Vpos, Vtab)};
-	    #edge{ve=V,vs=Vother,lf=Face} ->
+		 Rec0#edge{vs=Vprev,ve=Va,a=Col,lf=InnerFace,
+			   rtsu=Edge,ltpr=Enext,ltsu=Eprev}};
+	    #edge{ve=V,vs=Vother,lf=Face,ltpr=ColEdge} ->
+		Col = bevel_color(ColEdge, Face, OrigEtab),
 		{Rec0#edge{ve=Va,ltpr=Ecurr,rtsu=Eprev},
-		 Rec0#edge{vs=Va,ve=Vb,rf=InnerFace,
-			   ltsu=Edge,rtpr=Eprev,rtsu=Enext},
-		 bevel_vec(Adj, Vother, Vpos, Vtab)};
-	    #edge{ve=V,vs=Vother} ->
+		 Rec0#edge{vs=Va,ve=Vb,b=Col,rf=InnerFace,
+			   ltsu=Edge,rtpr=Eprev,rtsu=Enext}};
+	    #edge{ve=V,vs=Vother,lf=Of,ltpr=ColEdge} ->
+		Col = bevel_color(ColEdge, Of, OrigEtab),
 		{Rec0#edge{ve=Va,ltpr=Ecurr,rtsu=Enext},
-		 Rec0#edge{vs=Va,ve=Vprev,rf=InnerFace,
-			   ltsu=Edge,rtpr=Enext,rtsu=Eprev},
-		 bevel_vec(Adj, Vother, Vpos, Vtab)}
-
+		 Rec0#edge{vs=Va,ve=Vprev,b=Col,rf=InnerFace,
+			   ltsu=Edge,rtpr=Enext,rtsu=Eprev}}
 	end,
     Etab = gb_trees:update(Edge, Rec, Etab0),
+    Vpos = wings_vertex:pos(V, Vtab),
+    Vec = bevel_vec(Adj, Vother, Vpos, Vtab),
     {gb_trees:insert(Ecurr, Curr, Etab),{Vec,Va}}.
 
 bevel_vec(Adj, Vother, Vpos, Vtab) ->
@@ -260,6 +270,12 @@ bevel_normalize_1(VecVs, Min0) ->
 			   end,
 		     {{e3d_vec:norm(Vec),[V]},Min}
 	     end, Min0, VecVs).
+
+bevel_color(ColEdge, Face, Etab0) ->
+    case gb_trees:get(ColEdge, Etab0) of
+	#edge{lf=Face,a=Col} -> Col;
+	#edge{rf=Face,b=Col} -> Col
+    end.
 
 adjacent(V, Vs, We) ->
     wings_vertex:fold(
