@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.30 2002/05/04 06:02:23 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.31 2002/05/14 19:59:08 dgud Exp $
 %%
 
 -module(wings_camera).
@@ -105,6 +105,7 @@ blender(#mousebutton{button=1,state=?SDL_PRESSED}=Mb, Redraw) ->
     end;
 blender(#mousebutton{button=2,x=X,y=Y,state=?SDL_PRESSED}, Redraw) ->
     Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+%%    io:format("Start at ~p ~n ", [{X,Y}]),
     wings_io:grab(),
     wings_io:clear_message(),
     wings_io:message(help()),
@@ -115,7 +116,8 @@ blender_event(#mousebutton{button=1,state=?SDL_RELEASED}=Mb, Camera, Redraw) ->
     blender_event(Mb#mousebutton{button=2}, Camera, Redraw);
 blender_event(#mousebutton{button=2,state=?SDL_RELEASED}, Camera, _Redraw) ->
     stop_camera(Camera);
-blender_event(#mousemotion{x=X,y=Y}, Camera0, Redraw) ->
+blender_event(MM = #mousemotion{x=X,y=Y}, Camera0, Redraw) ->
+%%    io:format("~p ", [MM]),
     {Dx,Dy,Camera} = camera_mouse_range(X, Y, Camera0),
     case sdl_keyboard:getModState() of
 	Mod when Mod band ?SHIFT_BITS =/= 0 ->
@@ -347,17 +349,24 @@ stop_camera(#camera{ox=OX,oy=OY}) ->
     end.
 
 -define(CAMDIV, 4).
+-define(CAMMAX, 150).  %% Always larger than 300 on my pc
 
 camera_mouse_range(X0, Y0, #camera{x=OX,y=OY, xt=Xt0, yt=Yt0}=Camera) ->
-    %%io:format("Camera Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xt0,Yt0}]),
+%%    io:format("Camera Mouse Range ~p ~p~n", [{X0,Y0}, {OX,OY,Xt0,Yt0}]),
     XD0 = (X0 - OX),
     YD0 = (Y0 - OY),
-    case {XD0,YD0} of
-	{0,0} ->
+    XD = XD0 + Xt0,
+    YD = YD0 + Yt0,
+
+    if (XD0 == 0), (YD0 == 0) ->
 	    {float(0), float(0), Camera#camera{xt=0,yt=0}};
-	_ ->
-	    XD = XD0 + Xt0,
-	    YD = YD0 + Yt0,
+       %% Linux gets really large jumps sometime, 
+       %% so we throw events with large Delta
+       (XD > ?CAMMAX); (YD > ?CAMMAX) -> 
+	    wings_io:warp(OX, OY),
+	    {0.0, 0.0, Camera#camera{xt=XD0, yt=YD0}};
+       %%{0,0,Camera#camera{xt=0,yt=0}}; 
+       true ->
 	    wings_io:warp(OX, OY),
 	    {XD/?CAMDIV, YD/?CAMDIV, Camera#camera{xt=XD0, yt=YD0}}
     end.
