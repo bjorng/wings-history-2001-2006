@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_align.erl,v 1.10 2001/10/03 09:24:11 bjorng Exp $
+%%     $Id: wings_align.erl,v 1.11 2001/10/26 12:40:52 bjorng Exp $
 %%
 
 -module(wings_align).
@@ -18,11 +18,13 @@
 -include("wings.hrl").
 -import(lists, [map/2,foldr/3,foldl/3,reverse/1]).
 
+align(Axis, #st{sel=[]}=St) -> St;
 align(Axis, St) ->
     Cs = wings_sel:centers(St),
     Center = e3d_vec:average(Cs),
     move_to(Center, Cs, Axis, St).
 
+center(Axis, #st{sel=[]}=St) -> St;
 center(Axis, St) ->
     Cs0 = wings_sel:centers(St),
     CommonCenter = e3d_vec:average(Cs0),
