@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.70 2004/03/21 18:57:08 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.71 2004/04/05 19:02:44 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -401,7 +401,7 @@ setup_1(#dlo{src_we=#we{id=Id},proxy_data=Pd}=D, [{Id,_}|Sel]) ->
 	    Wire0 = wings_wm:get_prop(wings_wm:this(), wireframed_objects),
 	    Wire = gb_sets:delete_any(Id, Wire0),
 	    wings_wm:set_prop(wings_wm:this(), wireframed_objects, Wire),
-	    {D#dlo{smooth=none,proxy_faces=none,proxy_data=none},Sel}
+	    {D#dlo{edges=none,smooth=none,proxy_faces=none,proxy_data=none},Sel}
     end;
 setup_1(D, Sel) -> {D,Sel}.
 
@@ -420,7 +420,7 @@ setup_all(#dlo{src_we=#we{id=Id}}=D, false) ->
     Wire0 = wings_wm:get_prop(wings_wm:this(), wireframed_objects),
     Wire = gb_sets:delete_any(Id, Wire0),
     wings_wm:set_prop(wings_wm:this(), wireframed_objects, Wire),
-    D#dlo{smooth=none,proxy_faces=none,proxy_data=none};
+    D#dlo{edges=none,smooth=none,proxy_faces=none,proxy_data=none};
 setup_all(D, _) -> D.
 
 update(#dlo{proxy_data=none}=D, _) -> D;
