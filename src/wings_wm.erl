@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.125 2003/11/02 10:13:42 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.126 2003/11/05 19:12:45 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -788,19 +788,16 @@ translate_event({drop,{X,Y},DropData}, Ox, Oy) ->
 translate_event(Ev, _, _) -> Ev.
     
 handle_event(#se{h=Handler}, Event, Stk) ->
-    case catch Handler(Event) of
-	{'EXIT',normal} ->
-	    exit(normal);
-	{'EXIT',Reason} ->
-	    [#se{h=CrashHandler}] = pop_all_but_one(Stk),
-	    handle_response(CrashHandler({crash,Reason}), Event,
-			    default_stack(unknown_window));
-	Res ->
-	    handle_response(Res, Event, Stk)
-    end.
+    handle_response(catch Handler(Event), Event, Stk).
 
 handle_response(Res, Event, Stk0) ->
     case Res of
+	{'EXIT',normal} ->
+	    exit(normal);
+	{'EXIT',Reason} ->
+	    [#se{h=CrashHandler}] = pop_all_but_one(Stk0),
+	    handle_response(CrashHandler({crash,Reason}), Event,
+			    default_stack(unknown_window));
 	keep -> Stk0;
 	next -> next_handler(Event, Stk0);
 	pop -> pop(Stk0);
@@ -818,7 +815,7 @@ handle_response(Res, Event, Stk0) ->
 	    replace_handler(Top, Stk0);
 	{replace,Top,Continue} when is_function(Top) ->
 	    Stk = replace_handler(Top, Stk0),
-	    handle_response(Continue(), Event, Stk);
+	    handle_response(catch Continue(), Event, Stk);
 	{pop_handler,_}=PopH -> replace_handler(PopH, Stk0);
 	Top when is_function(Top) -> replace_handler(Top, Stk0)
     end.
