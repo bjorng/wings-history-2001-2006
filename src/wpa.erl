@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.67 2005/02/20 05:20:19 bjorng Exp $
+%%     $Id: wpa.erl,v 1.68 2005/02/20 05:34:30 bjorng Exp $
 %%
 %% Note: To keep the call graph clean, wpa MUST NOT be called
 %%       from the wings core modules.
@@ -126,6 +126,14 @@ do_import(Importer, Name, St0) ->
 %%   The Continuation fun will be called like this: Continuation(Filename).
 import_filename(Ps, Cont) ->
     wings_file:import_filename(Ps, Cont).
+
+%% export([Property], ExporterFun, St)
+%%  
+%%  Recognized values for Property:
+%%       {subdivisions,Levels}
+%%       {tesselation,none|triangulation|quadrangulation}
+%%       {include_uvs,Bool}
+%%       {include_hard_edges,Bool}
 
 export(none, Exporter, St) ->
     wings_export:export(Exporter, none, [], St);

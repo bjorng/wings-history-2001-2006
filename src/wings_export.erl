@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_export.erl,v 1.12 2005/02/20 05:20:19 bjorng Exp $
+%%     $Id: wings_export.erl,v 1.13 2005/02/20 05:34:30 bjorng Exp $
 %%
 
 -module(wings_export).
@@ -85,7 +85,10 @@ make_mesh_1(We0, Ps) ->
 			end
 		end, [], wings_facemat:all(We)),
     Fs = reverse(Fs0),
-    He = hard_edges(gb_sets:to_list(He0), Etab, []),
+    He = case proplists:get_value(include_hard_edges, Ps, true) of
+	     false -> [];
+	     true -> hard_edges(gb_sets:to_list(He0), Etab, [])
+	 end,
     Matrix = e3d_mat:identity(),
     ColTab = strip_numbers(ColTab0),
     UvTab = strip_numbers(UvTab0),

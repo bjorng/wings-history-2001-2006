@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_3ds.erl,v 1.12 2005/02/19 10:01:05 bjorng Exp $
+%%     $Id: wpc_3ds.erl,v 1.13 2005/02/20 05:34:30 bjorng Exp $
 %%
 
 -module(wpc_3ds).
@@ -88,10 +88,12 @@ do_export(Ask, Op, _Exporter, _St) when is_atom(Ask) ->
 do_export(Attr, _Op, Exporter, _St) when is_list(Attr) ->
     set_pref(Attr),
     SubDivs = proplists:get_value(subdivisions, Attr, 0),
-    Normals = proplists:get_bool(include_normals, Attr),
     Uvs = proplists:get_bool(include_uvs, Attr),
-    Ps = [{include_uvs,Uvs},{include_normals,Normals},
-	  {subdivisions,SubDivs}|props()],
+    %% If smoothing groups are not wanted, we'll turn off
+    %% export of hard edges. That will create only one smoothing group.
+    HardEdges = proplists:get_bool(include_normals, Attr),
+    Ps = [{include_uvs,Uvs},{include_hard_edges,HardEdges},
+	  {subdivisions,SubDivs},{include_hard_edges,HardEdges}|props()],
     Exporter(Ps, export_fun(Attr)).
 
 export_fun(Attr) ->
