@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.59 2003/11/28 22:15:21 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.60 2003/12/30 14:39:39 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -77,20 +77,19 @@ command(_, _) -> next.
 
 dialog_qs(render) ->
     DefOutput = get_pref(output_type, preview),
+    DefKey = {output_type,DefOutput},
     SubDiv = get_pref(subdivisions, 0),
     Back = get_pref(background_color, {0.4,0.4,0.4}),
     Alpha = get_pref(render_alpha, false),
     Shadow = get_pref(render_shadow, false),
     BumpMap  = get_pref(render_bumps, false),
-
+    Filename = get_pref(output_file, "output.tga"),
+    
     BumpP = wings_util:is_gl_ext({1,3}, bump_exts()) or programmable(),
     StencilP = hd(gl:getIntegerv(?GL_STENCIL_BITS)) >= 8,
+    Ps = [{dialog_type,save_dialog},{ext,".tga"},{ext_desc,"Targa File"}],
 
-    [{menu,[{"Render to Image Window",preview},
-	    {"Render to File",file}],
-      DefOutput,[{key,output_type}]},
-     aa_frame(),
-
+    [aa_frame(),
      {hframe,
       [{label,"Sub-division Steps"},{text,SubDiv,[{key,subdivisions},
 						  {range,1,4}]}]},
@@ -100,7 +99,19 @@ dialog_qs(render) ->
      {"Render Shadows",Shadow,
       [{key,render_shadow}, {hook, fun(is_disabled, _) -> not StencilP; (_,_) -> void end}]},
      {"Render Self-Shadows (Bump maps)", BumpMap, 
-      [{key,render_bumps}, {hook, fun(is_disabled, _) -> not BumpP; (_,_) -> void end}]}].
+      [{key,render_bumps}, {hook, fun(is_disabled, _) -> not BumpP; (_,_) -> void end}]},
+     {vframe,
+      [{key_alt,DefKey,"Image Window",preview},
+       {hframe,
+	[{key_alt,DefKey,"File: ",file},
+	 {button,{text,Filename,[{key,output_file},{props,Ps},
+				 {hook,fun button_hook/2}]}}]}],
+      [{title,"Render Output"}]}
+    ].
+
+button_hook(is_disabled, {_Var,_I,Store}) ->
+    gb_trees:get(output_type, Store) =/= file;
+button_hook(_, _) -> void.
 
 aa_frame() ->
     HaveAccum = have_accum(),
@@ -142,53 +153,38 @@ do_render(Ask, _St) when is_atom(Ask) ->
 	       fun(Res) ->
 		       {file,{render,{opengl,Res}}}
 	       end);
-do_render(Attr0, St) ->
-    set_pref(Attr0),
-    case get_filename(Attr0, St) of
-	aborted -> keep;
-	Attr ->
-	    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-	    gl:drawBuffer(?GL_FRONT),
-	    gl:clearColor(0.5, 0.5, 0.5, 1),
-	    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-	    wings_io:ortho_setup(),
-	    {_,H} = wings_wm:win_size(),
-	    wings_io:text_at(10, H-20, "Rendering..."),
-	    gl:drawBuffer(?GL_BACK),
-	    gl:popAttrib(),
-	    gl:flush(),
+do_render(Attr, St) ->
+    set_pref(Attr),
+    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
+    gl:drawBuffer(?GL_FRONT),
+    gl:clearColor(0.5, 0.5, 0.5, 1),
+    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    wings_io:ortho_setup(),
+    {_,H} = wings_wm:win_size(),
+    wings_io:text_at(10, H-20, "Rendering..."),
+    gl:drawBuffer(?GL_BACK),
+    gl:popAttrib(),
+    gl:flush(),
 
-	    Aa = proplists:get_value(aa, Attr),
-	    AccSize = translate_aa(Aa),
-	    RenderAlpha	 = proplists:get_bool(render_alpha, Attr),
-	    RenderShadow = proplists:get_value(render_shadow, Attr, false),
-	    RenderBumps	 = proplists:get_value(render_bumps, Attr, false),
+    Aa = proplists:get_value(aa, Attr),
+    AccSize = translate_aa(Aa),
+    RenderAlpha	 = proplists:get_bool(render_alpha, Attr),
+    RenderShadow = proplists:get_value(render_shadow, Attr, false),
+    RenderBumps	 = proplists:get_value(render_bumps, Attr, false),
 
-	    {Data,{NOL, Amb,Lights}} = create_dls(St, Attr, RenderShadow, RenderBumps),
+    {Data,{NOL, Amb,Lights}} = create_dls(St, Attr, RenderShadow, RenderBumps),
 
-	    Rr = #r{acc_size=AccSize,attr=Attr,
-		    data=Data,mat=St#st.mat,
-		    no_l=NOL,amb=Amb,lights=Lights,
-		    mask = RenderAlpha, shadow=RenderShadow},
-	    render_redraw(Rr),
-	    render_exit(Rr)
-    end.
+    Rr = #r{acc_size=AccSize,attr=Attr,
+	    data=Data,mat=St#st.mat,
+	    no_l=NOL,amb=Amb,lights=Lights,
+	    mask = RenderAlpha, shadow=RenderShadow},
+    render_redraw(Rr),
+    render_exit(Rr).
 
 translate_aa(draft) -> 1;
 translate_aa(regular) -> 4;
 translate_aa(super) -> 8;
 translate_aa(premium) -> 16.
-
-get_filename(Attr, St) ->
-    case proplists:get_value(output_type, Attr) of
-	preview -> Attr;
-	file ->
-	    Props = [{ext,".tga"},{ext_desc,"Targa File"}],
-	    case wpa:export_filename(Props, St) of
-		aborted -> aborted;
-		File -> [{output_file,File}|Attr]
-	    end
-    end.
 
 del_list(X) when integer(X) ->
     gl:deleteLists(X,1);
