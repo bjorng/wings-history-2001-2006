@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.147 2003/08/13 16:33:55 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.148 2003/08/13 16:48:58 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -898,7 +898,7 @@ update_selection(#st{selmode=Mode,sel=Sel}=St,
     end.
 
 update_selection_1(face, Faces, #uvstate{areas=Charts}=Uvs) ->
-    update_selection_2(Charts, Faces, Uvs, [], []);
+    update_selection_2(gb_trees:to_list(Charts), Faces, Uvs, [], []);
 update_selection_1(_, _, Uvs) ->
     get_event_nodraw(Uvs).
 
@@ -910,7 +910,7 @@ update_selection_2([{K,#we{name=#ch{fs=Fs}}=C}|Cs], Faces, Uvs, NonSel, Sel) ->
 update_selection_2([], _, Uvs0, NonSel, Sel) ->
     As = gb_trees:from_orddict(sort(NonSel)),
     Uvs = Uvs0#uvstate{sel=sort(Sel),areas=As},
-    get_event(reset_dl(Uvs)).
+    get_event(Uvs).
     
 -define(OUT, 1.2/2). %% was 1/2 
 
@@ -1139,6 +1139,6 @@ all_charts(#uvstate{sel=Sel,areas=Charts}) ->
 
 %% XXX Do not use this function directly - it will soon be removed.
 merge_chart_lists(NewAreas, AreaTree) ->
-    foldl(fun({K,Area}, TreeBB) when is_integer(K) ->
- 		  gb_trees:insert(K, Area, TreeBB) 
+    foldl(fun({K,#we{}=Chart}, TreeBB) when is_integer(K) ->
+ 		  gb_trees:insert(K, Chart, TreeBB) 
  	  end, AreaTree, NewAreas).
