@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.1 2004/07/06 14:52:02 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.2 2004/07/06 21:29:34 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -74,10 +74,12 @@ handle_connect_event(Ev, #cs{st=St}=C) ->
 
 handle_connect_event0(#keyboard{sym=?SDLK_ESCAPE}, C) ->
     exit_connect(C);
-handle_connect_event0(#mousemotion{}=Ev, #cs{st=St}=C) ->
-    io:format("~p ", [?LINE]),
+handle_connect_event0(#mousemotion{}=Ev, #cs{st=St, v=VL}=C) ->
+    Update = VL /= [],
     Redraw = fun() -> redraw(C) end,
-    case wings_pick:hilite_event(Ev, St, Redraw) of
+    Options = [{always_dirty,Update}, 
+	       {filter, fun(Hit) -> filter_hl(Hit,C) end}],
+    case wings_pick:hilite_event(Ev, St, Redraw, Options) of
 	next -> handle_connect_event1(Ev, C);
 	Other -> Other
     end;
@@ -174,8 +176,8 @@ select_cmd(deselect, #cs{st=St0}=C) ->
     update_connect_handler(C#cs{st=St});
 select_cmd(vertex=M, C) -> mode_change(M, C);
 select_cmd(edge=M, C) -> mode_change(M, C);
-select_cmd(face=M, C) -> mode_change(M, C);
-select_cmd(body=M, C) -> mode_change(M, C);
+% select_cmd(face=M, C) -> mode_change(M, C);
+% select_cmd(body=M, C) -> mode_change(M, C);
 select_cmd({adjacent,M}, C) -> mode_change(M, C);
 select_cmd(_, _) -> keep.
 
@@ -194,10 +196,26 @@ redraw(#cs{st=St}) ->
     wings:redraw("", St),
     keep.
 
+%%filter_hl(Hit,Cstate) -> true|false
+filter_hl(_, #cs{v=[]}) -> true;
+filter_hl({_,_,{Sh,_}},#cs{we=Prev}) when Sh /= Prev ->
+    false;
+filter_hl({edge,_,{Shape,Edge}}, #cs{last=Id,st=#st{shapes=Sh}}) ->
+    We = #we{es=Es} = gb_trees:get(Shape,Sh),
+    Ok = vertex_fs(Id, We),
+    #edge{lf=F1,rf=F2} = gb_trees:get(Edge, Es),
+    Fs = ordsets:from_list([F1,F2]),
+    length(ordsets:intersection(Fs,Ok)) == 1;
+filter_hl({vertex,_,{_,Id1}}, #cs{last=Id1}) -> true; %% Allow quitting
+filter_hl({vertex,_,{Shape,Id1}}, #cs{last=Id2,st=#st{shapes=Sh}}) ->
+    We = gb_trees:get(Shape,Sh),
+    Ok = vertex_fs(Id2, We),
+    Fs = vertex_fs(Id1, We),
+    length(ordsets:intersection(Fs,Ok)) == 1.
+
 do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
 	   C0=#cs{v=VL,we=Prev}) ->
     [Id1] = gb_sets:to_list(Sel0),
-    io:format("~p Vertex: ~p ~p ~n", [?LINE, MM, Id1]),
     We0 = gb_trees:get(Shape, Sh),
     Pos = gb_trees:get(Id1, We0#we.vp),
     St1 = St0#st{sel=[],temp_sel=none, sh=true},
@@ -233,7 +251,6 @@ do_connect(X,Y,MM,St0=#st{selmode=edge,sel=[{Shape,Sel0}],shapes=Sh},
 	    St1 = St0#st{sel=[],temp_sel=none,sh=true},
 	    {Pos,Fs} = calc_edgepos(X,Y,Edge,MM,We0),
 	    {We1,Id1} = wings_edge:fast_cut(Edge, Pos, We0),
-	    io:format("~p Edge: ~p ~p ~p ~p ~n", [?LINE, MM, Id1, {X,Y}, Pos]),
 	    VI = #vi{id=Id1,mm=MM,pos=Pos},
 	    case VL of
 		[] ->
@@ -267,8 +284,10 @@ calc_edgepos(X,Y0,Edge,MM,#we{id=Id,es=Es,vp=Vs}) ->
     Matrices = wings_util:get_matrices(Id, MM),
     V1Sp = setelement(3,obj_to_screen(Matrices, Pos1),0.0),
     V2Sp = setelement(3,obj_to_screen(Matrices, Pos2),0.0),
-    TotDist = e3d_vec:dist(V1Sp,V2Sp),
     V1Dist  = e3d_vec:dist(V1Sp,{float(X),float(Y),0.0}),
+    V2Dist  = e3d_vec:dist(V2Sp,{float(X),float(Y),0.0}),
+    %TotDist = e3d_vec:dist(V1Sp,V2Sp),
+    TotDist = V1Dist+V2Dist,
     Dist = V1Dist/TotDist,
     Vec = e3d_vec:mul(e3d_vec:sub(Pos2,Pos1),Dist),
     Pos = e3d_vec:add(Pos1, Vec),
@@ -318,7 +337,6 @@ draw_connect(#cs{v=[#vi{pos=Pos0,mm=MM}],we=Id}) ->
     Y = H-Y0,
     Matrices = wings_util:get_matrices(Id, MM),
     Pos1 = setelement(3,obj_to_screen(Matrices, Pos0),0.0),
-    io:format("DC ~p ~p ~p~n", [{W,H},{X,Y},Pos1]),
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     gl:disable(?GL_LIGHTING),
     gl:disable(?GL_DEPTH_TEST),    
@@ -335,21 +353,3 @@ draw_connect(#cs{v=[#vi{pos=Pos0,mm=MM}],we=Id}) ->
     gl:'end'(),
     gl:popAttrib().
 
-% mirror_info(#we{mirror=none}) -> {[],none};
-% mirror_info(#we{mirror=Face}=We) ->
-%     PlaneNormal = wings_face:normal(Face, We),
-%     FaceVs = wpa:face_vertices(Face, We),
-%     Origin = wings_vertex:center(FaceVs, We),
-%     M0 = e3d_mat:translate(Origin),
-%     M = e3d_mat:mul(M0, e3d_mat:project_to_plane(PlaneNormal)),
-%     Flatten = e3d_mat:mul(M, e3d_mat:translate(e3d_vec:neg(Origin))),
-%     {FaceVs,Flatten}.
-
-% mirror_matrix(V, {MirrorVs,Flatten}) ->
-%     case member(V, MirrorVs) of
-% 	false -> none;
-% 	true -> Flatten
-%     end.
-
-% mirror_constrain(none, Pos) -> Pos;
-% mirror_constrain(Matrix, Pos) -> e3d_mat:mul_point(Matrix, Pos).
