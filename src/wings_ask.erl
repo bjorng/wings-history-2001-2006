@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.79 2003/04/18 07:33:31 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.80 2003/04/27 13:35:52 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -117,7 +117,9 @@ do_dialog(Title, Qs, Level, Fun) ->
     Op = {seq,push,get_event(S)},
     {_,X,Y} = sdl_mouse:getMouseState(),
     wings_wm:toplevel(Name, Title, {X,Y-?LINE_HEIGHT,highest}, {W,H},
-		      [{anchor,n}], Op).
+		      [{anchor,n}], Op),
+    wings_wm:set_prop(Name, drag_filter, fun(_) -> yes end),
+    keep.
 
 setup_ask(Qs0, Fun) ->
     Qs1 = normalize(Qs0),
@@ -173,6 +175,7 @@ get_event(S) ->
     {replace,fun(Ev) -> event(Ev, S) end}.
 
 event(redraw, S) ->
+    wings_util:button_message("Select or Drag"),
     redraw(S),
     keep;
 event({current_state,_}, _) ->
@@ -331,12 +334,8 @@ recursive_dialog(Title, I, Qs, Fun, #s{level=Level}=S) ->
 	      fun(Vs) -> {update,I,Fun(Vs)} end),
     get_event(S).
 
-drag(Ev, {W,H}, #fi{handler=Handler}=Fi0, Fst, Common, DropData) ->
-    Fi = Fi0#fi{x=0,y=0,w=W,h=H},
-    Redraw = fun() ->
-		     Handler({redraw,false}, Fi, Fst, Common)
-	     end,
-    wings_wm:drag(Ev, {W,H}, Redraw, DropData).
+drag(Ev, {_,_}=Pos, _, _, _, DropData) ->
+    wings_wm:drag(Ev, Pos, DropData).
 
 return_result(#s{call=EndFun,owner=Owner}=S) ->
     Res = collect_result(S),

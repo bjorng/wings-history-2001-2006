@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.240 2003/04/21 10:16:56 bjorng Exp $
+%%     $Id: wings.erl,v 1.241 2003/04/27 13:35:52 bjorng Exp $
 %%
 
 -module(wings).
@@ -156,6 +156,7 @@ init(File, Root) ->
 		       menubar,{properties,Props}],
 		      Op),
     wings_wm:menubar(geom, get(wings_menu_template)),
+    set_drag_filter(geom),
 
     open_file(File),
     restore_windows(St),
@@ -194,6 +195,7 @@ new_viewer({geom,N}=Name, {X,Y}, Size, Props, ToolbarHidden, St) ->
 		      Op),
     wings_wm:menubar(Name, get(wings_menu_template)),
     wings_wm:send({menubar,Name}, {current_state,St}),
+    set_drag_filter(Name),
     if
 	ToolbarHidden -> wings_wm:hide({toolbar,Name});
 	true -> ok
@@ -353,7 +355,8 @@ handle_event_3(got_focus, _) ->
     wings_wm:dirty();
 handle_event_3(lost_focus, _) -> keep;
 handle_event_3({note,_}, _) -> keep;
-handle_event_3({drop,_,_}, _) -> keep;
+handle_event_3({drop,Pos,DropData}, St) ->
+    handle_drop(DropData, Pos, St);
 handle_event_3(ignore, _St) -> keep.
 
 do_command(Cmd, St) ->    
@@ -440,6 +443,10 @@ command({shape,Shape}, St0) ->
     end;
 command({help,What}, St) ->
     wings_help:command(What, St);
+
+%% Drag & drop.
+command({drop,What}, St) ->
+    drop_command(What, St);
 
 %% File menu.
 command({file,Command}, St) ->
@@ -881,6 +888,46 @@ wings() -> "Wings 3D [debug]".
 -else.
 wings() -> "Wings 3D".
 -endif.
+
+%%%
+%%% Drag & Drop.
+%%%
+
+set_drag_filter(Name) ->
+    F = fun({material,_}) -> yes;
+	   (_) -> no
+	end,
+    wings_wm:set_prop(Name, drag_filter, F).
+
+handle_drop(DropData, {X0,Y0}, St) ->
+    {X,Y} = wings_wm:local2global(X0, Y0),
+    handle_drop_1(DropData, X, Y, St).
+
+handle_drop_1(_, X, Y, #st{sel=[]}) ->
+    wings_menu:popup_menu(X, Y, drop, [{"No Selection",ignore}]);
+handle_drop_1({material,Name}, X, Y, #st{selmode=face}) ->
+    Menu = [{"Assign material to selected faces",menu_cmd(assign_to_sel, Name),
+	     "Assign material \""++Name++"\" only to selected faces"},
+	    {"Assign material to all faces",
+	     menu_cmd(assign_to_body, Name),
+	     "Assign material \""++Name++
+	     "\" to all faces in objects having a selection"}],
+    wings_menu:popup_menu(X, Y, drop, Menu);
+handle_drop_1({material,Name}, X, Y, _) ->
+    Menu = [{"Assign material to all faces",
+	     menu_cmd(assign_to_body, Name),
+	     "Assign material \""++Name++
+	     "\" to all faces in objects having a selection"}],
+    wings_menu:popup_menu(X, Y, drop, Menu).
+    
+menu_cmd(Cmd, Id) ->
+    {'VALUE',{Cmd,Id}}.
+
+drop_command({assign_to_sel,Name}, St) ->
+    wings_material:command({assign,Name}, St);
+drop_command({assign_to_body,Name}, #st{selmode=Mode}=St0) ->
+    St = wings_material:command({assign,Name}, St0#st{selmode=body}),
+    St#st{selmode=Mode}.
 
 %%%
 %%% Saving and restoring of window layouts.

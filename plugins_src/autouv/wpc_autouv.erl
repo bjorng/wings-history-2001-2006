@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.112 2003/04/27 08:38:06 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.113 2003/04/27 13:35:51 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -937,7 +937,7 @@ remap({Id, Chart0 = #ch{fs=Fs,we=We0,vmap=Vmap,size={W,H}}}, Type, #we{vp=Vs3d0}
     {Id, Chart0#ch{we=We, size={Dx*Scale, Dy*Scale}, scale=Scale}}.
 
 drag_filter({image,_,_}) ->
-    {ok,"Drop: Change the texture image"};
+    {yes,"Drop: Change the texture image"};
 drag_filter(_) -> no.
 
 handle_drop({image,_,#e3d_image{width=W,height=H}=Im}, #uvstate{option=Opt0}=Uvs) ->

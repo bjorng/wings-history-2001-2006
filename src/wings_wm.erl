@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.101 2003/04/27 12:32:13 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.102 2003/04/27 13:35:52 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -839,8 +839,10 @@ window_below_1(_, _, _) -> none.
 	{data,					%Drop data.
 	 bstate,				%State of mouse buttons.
 	 redraw,				%Redraw function.
-	 over=none				%We are over this window.
+	 over=none,				%We are over this window.
+	 drop_ok=false				%Drop is OK on this window.
 	}).
+
 drag(Ev, Rect, DropData) ->
     Redraw = fun() ->
 		     gl:pushAttrib(?GL_POLYGON_BIT bor ?GL_LINE_BIT),
@@ -890,39 +892,49 @@ drag_event(#mousemotion{x=X0,y=Y0}, #drag{over=Over0}=Drag0) ->
 	Over0 -> keep;
 	_ ->
 	    Drag = Drag0#drag{over=Over},
-	    drag_filter(Drag),
-	    get_drag_event(Drag)
+	    drag_filter(Drag)
     end;
 drag_event(#mousebutton{button=B,state=?SDL_RELEASED},
-	   #drag{bstate=State,data=DropData}) ->
+	   #drag{bstate=State,data=DropData,drop_ok=DropOK}) ->
     if
 	((1 bsl (B-1)) band State) =/= 0 ->
-	    {{X,Y},{W,H}} = wings_wm:win_rect(dragger),
-	    Ev = {drop,{X + W div 2,Y + H div 2},DropData},
-	    wings_io:putback_event(Ev),
+	    case DropOK of
+		false -> ok;
+		true ->
+		    {{X,Y},{W,H}} = wings_wm:win_rect(dragger),
+		    Ev = {drop,{X + W div 2,Y + H div 2},DropData},
+		    wings_io:putback_event(Ev)
+	    end,
 	    put(wm_cursor, arrow),
 	    delete;
 	true -> keep
     end;
 drag_event(_, _) -> keep.
 
-drag_filter(#drag{over=none}) ->
-    stop_cursor();
-drag_filter(#drag{over=Win,data=DropData}) ->
+drag_filter(#drag{over=none}=Drag) ->
+    stop_cursor(Drag);
+drag_filter(#drag{over=Win,data=DropData}=Drag) ->
     case lookup_prop(Win, drag_filter) of
 	{value,Fun} when is_function(Fun) ->
 	    case Fun(DropData) of
-		{ok,Message} ->
+		yes ->
+		    message(""),
+		    put(wm_cursor, arrow),
+		    get_drag_event(Drag#drag{drop_ok=true});
+		{yes,Message} ->
 		    message(Message),
-		    put(wm_cursor, arrow);
-		no -> stop_cursor()
+		    put(wm_cursor, arrow),
+		    get_drag_event(Drag#drag{drop_ok=true});
+		no ->
+		    stop_cursor(Drag)
 	    end;
-	none -> stop_cursor()
+	none -> stop_cursor(Drag)
     end.
 
-stop_cursor() ->
+stop_cursor(Drag) ->
     put(wm_cursor, stop),
-    message("").
+    message(""),
+    get_drag_event(Drag#drag{drop_ok=false}).
 
 %%%
 %%% Utility functions.
