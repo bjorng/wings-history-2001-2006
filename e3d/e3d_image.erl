@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.7 2002/01/09 13:08:04 dgud Exp $
+%%     $Id: e3d_image.erl,v 1.8 2002/07/18 09:18:56 bjorng Exp $
 %%
 
 -module(e3d_image).
@@ -19,7 +19,7 @@
 -export([load/1, load/2, 
 	 convert/2, convert/3, convert/4, 
 	 save/2, save/3,
-	 bytes_pp/1]).
+	 bytes_pp/1, format_error/1]).
 
 
 %% internal exports
@@ -49,7 +49,7 @@ load(FileName, Opts) when list(FileName), list(Opts) ->
 	    ".tiff" -> 
 		e3d__tif:load(FileName, Opts);
 	    _ ->
-		{error, {not_supported, Extension}}
+		return_error({not_supported, Extension})
 	end,
     fix_outtype(Res, Opts).
 
@@ -74,8 +74,11 @@ save(Image = #e3d_image{}, Filename, Opts) ->
 	".tiff" -> 
 	    e3d__tif:save(Image, Filename, Opts);
 	_ ->
-	    {error, {not_supported, Extension}}
+	    return_error({not_supported, Extension})
     end.
+
+format_error({not_supported, Extension}) ->
+    io_lib:format("Files of type ~s are not supported", [Extension]).
 
 %% Func: convert(#e3d_image, NewType [,NewAlignment [,NewOrder ]])
 %% Rets: #e3d_image | {error, Reason}
@@ -245,3 +248,5 @@ order_conv(upper_right, upper_left) ->  {false,true};
 order_conv(lower_right, lower_left) ->  {false,true};
 order_conv(upper_left,  upper_right) -> {false,true}.
 
+return_error(Reason) ->
+    {error, {none, ?MODULE, Reason}}.
