@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_dissolve.erl,v 1.3 2004/12/24 08:30:05 bjorng Exp $
+%%     $Id: wings_dissolve.erl,v 1.4 2004/12/24 09:41:10 bjorng Exp $
 %%
 
 -module(wings_dissolve).
@@ -59,7 +59,7 @@ simple_dissolve(Faces0, Loop, We0) ->
     We1 = wings_material:delete_faces(Faces, We0),
     #we{es=Etab0,fs=Ftab0,he=Htab0} = We1,
     {Ftab1,Etab1,Htab} =
-	simple_del(Faces, Loop, Ftab0, Etab0, Htab0, We1),
+	simple_del(Faces, Ftab0, Etab0, Htab0, We1),
     {NewFace,We2} = wings_we:new_id(We1),
     Ftab = gb_trees:insert(NewFace, hd(Loop), Ftab1),
     Last = last(Loop),
@@ -72,11 +72,11 @@ to_gb_set(List) when is_list(List) ->
 to_gb_set(S) -> S.
 
 %% Delete faces and inner edges for a simple region.
-simple_del(Faces, Loop, Ftab0, Etab0, Htab0, We) ->
+simple_del(Faces, Ftab0, Etab0, Htab0, We) ->
     case {gb_trees:size(Ftab0),gb_sets:size(Faces)} of
 	{AllSz,FaceSz} when AllSz < 2*FaceSz ->
 	    %% At least half of the faces are selected.
-	    %% It is faster to find the inner edges for the
+	    %% It is faster to find the edges for the
 	    %% unselected faces.
 	    UnselFaces = ordsets:subtract(gb_trees:keys(Ftab0),
 					  gb_sets:to_list(Faces)),
@@ -87,7 +87,7 @@ simple_del(Faces, Loop, Ftab0, Etab0, Htab0, We) ->
 	    Ftab2 = sofs:restriction(Ftab1, UnselSet),
 	    Ftab = gb_trees:from_orddict(sofs:to_external(Ftab2)),
 
-	    Keep0 = wings_face:inner_edges(UnselFaces, We) ++ Loop,
+	    Keep0 = wings_face:to_edges(UnselFaces, We),
 	    Keep = sofs:set(Keep0, [edge]),
 	    Etab1 = sofs:from_external(gb_trees:to_list(Etab0),
 				       [{edge,info}]),

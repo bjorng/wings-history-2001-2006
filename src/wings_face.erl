@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.45 2004/05/23 14:37:50 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.46 2004/12/24 09:40:38 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -137,8 +137,7 @@ other(Face, #edge{rf=Face,lf=Other}) -> Other.
 %% to_edges(Faces, We) -> [Edge]
 %%  Convert a set or list of faces to a list of edges.
 to_edges(Fs, We) ->
-    Es = fold_faces(fun(_, _, E, _, A) -> [E|A] end, [], Fs, We),
-    ordsets:from_list(Es).
+    ordsets:from_list(to_edges_raw(Fs, We)).
 
 %% to_vertices(Faces, We) -> [Vertex]
 %%  Convert a set or list of faces to a list of vertices.
@@ -357,7 +356,7 @@ extend_border(Fs0, We) ->
 %% inner_edges(Faces, We) -> [Edge]
 %%  Given a set of faces, return all inner edges.
 inner_edges(Faces, We) ->
-    S = fold_faces(fun(_, _, E, _, A) -> [E|A] end, [], Faces, We),
+    S = to_edges_raw(Faces, We),
     inner_edges_1(sort(S), []).
 
 inner_edges_1([E,E|T], In) ->
@@ -369,7 +368,7 @@ inner_edges_1([], In) -> reverse(In).
 %% outer_edges(Faces, We) -> [Edge]
 %%  Given a set of faces, return all outer edges.
 outer_edges(Faces, We) ->
-    S = fold_faces(fun(_, _, E, _, A) -> [E|A] end, [], Faces, We),
+    S = to_edges_raw(Faces, We),
     outer_edges_1(sort(S), []).
 
 outer_edges_1([E,E|T], Out) ->
@@ -433,6 +432,28 @@ fold_faces_1(Edge, Etab, F, Acc0, Face, LastEdge, _) ->
 	#edge{vs=V,rf=Face,rtsu=NextEdge}=E ->
 	    Acc = F(Face, V, Edge, E, Acc0),
 	    fold_faces_1(NextEdge, Etab, F, Acc, Face, LastEdge, done)
+    end.
+
+%% Return an unsorted list of edges for the faces (with duplicates).
+
+to_edges_raw(Faces, #we{es=Etab,fs=Ftab}) when is_list(Faces) ->
+    to_edges_raw(Faces, Ftab, Etab, []);
+to_edges_raw(Faces, We) ->
+    to_edges_raw(gb_sets:to_list(Faces), We).
+
+to_edges_raw([Face|Faces], Ftab, Etab, Acc0) ->
+    Edge = gb_trees:get(Face, Ftab),
+    Acc = to_edges_raw_1(Edge, Etab, Acc0, Face, Edge, not_done),
+    to_edges_raw(Faces, Ftab, Etab, Acc);
+to_edges_raw([], _, _, Acc) -> Acc.
+
+to_edges_raw_1(LastEdge, _, Acc, _, LastEdge, done) -> Acc;
+to_edges_raw_1(Edge, Etab, Acc, Face, LastEdge, _) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{lf=Face,ltsu=NextEdge} ->
+	    to_edges_raw_1(NextEdge, Etab, [Edge|Acc], Face, LastEdge, done);
+	#edge{rf=Face,rtsu=NextEdge} ->
+	    to_edges_raw_1(NextEdge, Etab, [Edge|Acc], Face, LastEdge, done)
     end.
 
 %% Return an iterator which can be used to traverse the face.
