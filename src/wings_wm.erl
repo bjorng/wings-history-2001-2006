@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.100 2003/04/27 08:59:46 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.101 2003/04/27 12:32:13 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -847,7 +847,7 @@ drag(Ev, Rect, DropData) ->
 		     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
 		     gl:lineStipple(2, 2#0101010101010101),
 		     gl:enable(?GL_LINE_STIPPLE),
-		     gl:color3f(0.8, 0.8, 0.8),
+		     gl:color3f(0, 0, 0),
 		     {W,H} = wings_wm:win_size(),
 		     gl:recti(0, 0, W-1, H-1),
 		     gl:popAttrib()
@@ -869,7 +869,6 @@ drag_1(X0, Y0, State, {W,H}, Redraw, DropData) ->
     Name = dragger,
     new(Name, {X,Y,highest}, {W,H}, Op),
     grab_focus(Name),
-    put(wm_cursor, stop),
     dirty(),
     keep.
 
