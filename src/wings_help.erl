@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.43 2003/03/09 09:45:45 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.44 2003/03/09 11:43:54 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -153,6 +153,17 @@ opengl_info() ->
 		       {"Accum. green size",?SDL_GL_ACCUM_GREEN_SIZE},
 		       {"Accum. blue size",?SDL_GL_ACCUM_BLUE_SIZE},
 		       {"Accum. alpha size",?SDL_GL_ACCUM_ALPHA_SIZE}]),
+	    get_info([{"Max lights",?GL_MAX_LIGHTS},
+		      {"Max clip planes",?GL_MAX_CLIP_PLANES},
+		      {"Max modelview stack depth",?GL_MAX_MODELVIEW_STACK_DEPTH},
+		      {"Max projection stack depth",?GL_MAX_PROJECTION_STACK_DEPTH},
+		      {"Max texture stack depth",?GL_MAX_TEXTURE_STACK_DEPTH},
+		      {"Subpixel bits",?GL_SUBPIXEL_BITS},
+		      {"Max 3D texture size",?GL_MAX_3D_TEXTURE_SIZE},
+		      {"Max texture size",?GL_MAX_TEXTURE_SIZE}
+		      
+]),
+	    
 %%	    "# compressed texture formats: " ++
 %%	    integer_to_list(hd(gl:getIntegerv(?GL_NUM_COMPRESSED_TEXTURE_FORMATS))),
 	    "OpenGL Extensions",gl:getString(?GL_EXTENSIONS)],
@@ -162,6 +173,12 @@ deep_info([{Label,Attr}|T]) ->
     Label ++ ": " ++ integer_to_list(sdl_video:gl_getAttribute(Attr)) ++ "\n" ++
 	deep_info(T);
 deep_info([]) -> [].
+
+get_info([{Label,Attr}|T]) ->
+    Val = gl:getIntegerv(Attr),
+    ValStr = integer_to_list(hd(Val)),
+    Label ++ ": " ++ ValStr ++ "\n" ++ get_info(T);
+get_info([]) -> [].
 
 about() ->
     Xs = 280,
