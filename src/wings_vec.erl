@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_vec.erl,v 1.78 2003/07/25 09:40:03 bjorng Exp $
+%%     $Id: wings_vec.erl,v 1.79 2003/07/26 13:01:32 bjorng Exp $
 %%
 
 -module(wings_vec).
@@ -115,7 +115,7 @@ magnet_possible(_, _) -> no.
 magnet_possible_1([]) -> inactive;
 magnet_possible_1(Pl) ->
     case last(Pl) of
-	{magnet,_,_} -> active;
+	{magnet,_} -> active;
 	_ -> inactive
     end.
 
@@ -332,7 +332,7 @@ common_exit(Type, Vec, Mod, More, Acc, Ns, inactive, _St) ->
 	    common_exit_1(Type, Vec, add_magnet(More), Acc, Ns);
 	true ->
 	    case last(More) of
-		{magnet,_,_} -> common_exit_1(Type, Vec, More, Acc, Ns);
+		{magnet,_} -> common_exit_1(Type, Vec, More, Acc, Ns);
 		_  -> common_exit_1(Type, Vec, add_magnet(More), Acc, Ns)
 	    end
     end;
