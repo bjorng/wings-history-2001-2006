@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.16 2002/01/02 12:27:32 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.17 2002/04/04 18:20:24 bjorng Exp $
 %%
 
 -module(e3d_obj).
@@ -72,7 +72,7 @@ make_ftab([], Acc) -> Acc.
 read(Parse, Fd, Acc) ->
     read(Parse, io:get_line(Fd, ''), Fd, Acc).
 
-read(Parse, "#" ++ Comment, Fd, Acc) ->
+read(Parse, "#" ++ _Comment, Fd, Acc) ->
     read(Parse, Fd, Acc);
 read(Parse, "\r\n", Fd, Acc) ->
     read(Parse, Fd, Acc);
@@ -82,7 +82,7 @@ read(Parse, " " ++ Line, Fd, Acc) ->
     read(Parse, Line, Fd, Acc);
 read(Parse, "\t" ++ Line, Fd, Acc) ->
     read(Parse, Line, Fd, Acc);
-read(Parse, eof, Fd, Acc) -> Acc;
+read(_Parse, eof, _Fd, Acc) -> Acc;
 read(Parse, "mtllib" ++ Name0, Fd, Acc0) ->
     Name1 = skip_blanks(Name0),
     Name = case reverse(Name1) of
@@ -132,7 +132,7 @@ parse(["f"|Vlist0], #ost{f=Ftab,mat=Mat}=Ost) ->
     Ost#ost{f=[{Mat,Vlist}|Ftab]};
 parse(["g"], Ost) ->
     Ost;
-parse(["g"|Names], #ost{ignore_groups=true}=Ost) ->
+parse(["g"|_Names], #ost{ignore_groups=true}=Ost) ->
     Ost;
 parse(["g"|Names], #ost{name=OldName}=Ost) ->
     case {Names,OldName} of
@@ -151,8 +151,8 @@ parse(["usemtl"|[Mat|_]], Ost) ->
 parse(["mtllib",FileName], #ost{dir=Dir}=Ost) ->
     Mat = read_matlib(FileName, Dir),
     Ost#ost{matdef=Mat};
-parse(["End","Of","File"], Ost) -> eof;		%In files written by ZBrush.
-parse([Tag|Args]=Other, #ost{seen=Seen}=Ost) ->
+parse(["End","Of","File"], _Ost) -> eof;	%In files written by ZBrush.
+parse([Tag|_]=Other, #ost{seen=Seen}=Ost) ->
     case gb_sets:is_member(Tag, Seen) of
 	true -> Ost;
 	false ->
@@ -162,7 +162,7 @@ parse([Tag|Args]=Other, #ost{seen=Seen}=Ost) ->
 
 collect_vs([V|Vs], Ost) ->
     [collect_vtxref(V, Ost)|collect_vs(Vs, Ost)];
-collect_vs([], Ost) -> [].
+collect_vs([], _Ost) -> [].
 
 collect_vtxref(S, Ost) ->
     case collect_vtxref_1(S, []) of
@@ -176,7 +176,7 @@ collect_vtxref_1(S0, Acc) ->
     {Ref,S} = collect_one_vtxref(S0),
     collect_vtxref_1(S, [Ref|Acc]).
 
-collect_vtxref_2(V0, Vt0, Vn0, #ost{v=Vtab,vt=VtTab,vn=VnTab}=Ost) ->
+collect_vtxref_2(V0, Vt0, Vn0, #ost{v=Vtab,vt=VtTab,vn=VnTab}) ->
     V = resolve_vtxref(V0, Vtab),
     Vt = resolve_vtxref(Vt0, VtTab),
     Vn = resolve_vtxref(Vn0, VnTab),
@@ -218,7 +218,7 @@ try_matlib(Name) ->
 	    Res = read(fun mtl_parse/2, Fd, []),
 	    file:close(Fd),
 	    Res;
-	{error,Reason} -> error
+	{error,_Reason} -> error
     end.
 
 mtl_parse(["newmtl",Name0], Ms) ->
@@ -261,7 +261,6 @@ export(File, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
     io:format(F, "mtllib ~s\n", [MtlLib]),
     foldl(fun(#e3d_object{name=Name}=Obj, {Vbase,UVbase,Nbase}) ->
 		  io:format(F, "o ~s\n", [Name]),
-		  io:format(F, "g ~s\n", [Name]),
 		  export_object(F, Obj, Vbase, UVbase, Nbase)
 	  end, {1,1,1}, Objs),
     ok = file:close(F).
@@ -288,12 +287,12 @@ export_object(F, #e3d_object{name=Name,obj=Mesh}, Vbase, UVbase, Nbase) ->
 face_mat(F, Name, {Ms,Fs}, Vbase, UVbase, Nbase) ->
     io:format(F, "g ~s", [Name]),
     foreach(fun(M) ->
-		    io:format(F, " ~p", [M])
+		    io:format(F, "_~s", [atom_to_list(M)])
 	    end, Ms),
     io:nl(F),
     io:put_chars(F, "usemtl"),
     foreach(fun(M) ->
-		    io:format(F, " ~p", [M])
+		    io:format(F, "_~s", [atom_to_list(M)])
 	    end, Ms),
     io:nl(F),
     foreach(fun(Vs) -> face(F, Vs, Vbase, UVbase, Nbase) end, Fs).
@@ -319,7 +318,7 @@ materials(Name0, Mats, Creator) ->
 
 material(F, Base, {Name,Mat}) ->
     {value,{_,{R,G,B}}} = keysearch(ambient, 1, Mat),
-    io:format(F, "newmtl ~p\n", [Name]),
+    io:format(F, "newmtl ~s\n", [atom_to_list(Name)]),
     io:format(F, "Ns 80\n", []),
     io:format(F, "d 1.000000\n", []),
     io:format(F, "illum 2\n", []),
