@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.265 2004/08/17 13:01:45 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.266 2004/08/18 13:43:09 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -370,7 +370,10 @@ command_menu(edge, X, Y) ->
 	    {basic,separator},
 	    {"Move",move,"Move selected edges",[magnet]},
 	    {"Scale",{scale,Scale},"Scale selected edges"},
-	    {"Rotate",{rotate,Rotate},"Rotate selected edges"}
+	    {"Rotate",{rotate,Rotate},"Rotate selected edges"},
+	    separator,
+	    {"Stitch", stitch, "Stitch edges/charts"},
+	    {"Cut Edges", cut_edges, "Cut selected edges"}
 	   ] ++ option_menu(),
     wings_menu:popup_menu(X,Y, auv, Menu);
 command_menu(vertex, X, Y) ->
@@ -584,8 +587,25 @@ handle_command(delete, St) ->
 handle_command({'ASK',Ask}, St) ->
     wings:ask(Ask, St, fun handle_command/2);
 handle_command({flatten, Plane}, St0 = #st{selmode=vertex}) ->
-    {save_state, St} = wings_vertex_cmd:flatten(Plane, St0),
+    {save_state, St1} = wings_vertex_cmd:flatten(Plane, St0),
+    St = update_selected_uvcoords(St1),
     get_event(St);
+handle_command(stitch, St0 = #st{selmode=edge}) ->
+    St1 = stitch(St0),
+    AuvSt = #st{bb=#uvstate{id=Id,st=Geom}} = update_selected_uvcoords(St1),
+    %% Do something here, i.e. restart uvmapper.
+    St = rebuild_charts(gb_trees:get(Id,Geom#st.shapes),AuvSt,false,[]),
+    get_event(St);
+handle_command(cut_edges, St0 = #st{selmode=edge,bb=#uvstate{id=Id,st=Geom}}) ->
+    Es = wpa:sel_fold(fun(Es,#we{name=#ch{emap=Emap}},A) ->
+			      [auv_segment:map_edge(E,Emap)
+			       || E<-gb_sets:to_list(Es)] ++ A
+		      end, [], St0),
+    %% Do something here, i.e. restart uvmapper.
+    St = rebuild_charts(gb_trees:get(Id,Geom#st.shapes),St0,false,Es),
+    get_event(St);
+
+%%    get_event(St);
 handle_command(_, #st{sel=[]}) ->
     keep.
 
@@ -644,6 +664,58 @@ delete_charts(#st{shapes=Shs0}=St0) ->
 		       end, Shs0, St),
     St#st{shapes=Shs,sel=[]}.
 
+stitch(St0) ->
+    Map0 = wpa:sel_fold(fun(Es,#we{id=Id,name=#ch{emap=Emap}},A) ->
+				[{auv_segment:map_edge(E,Emap),{Id,E}}
+				 || E<-gb_sets:to_list(Es)] ++ A
+			end, [], St0),
+    Map1 = sofs:to_external(sofs:relation_to_family(sofs:relation(Map0))),
+    foldl(fun stitch/2, St0, Map1).
+
+stitch({_E, [_]}, St) -> St; %% Both edges not selected ignore
+stitch({_E, [{Id,E1id},{Id,E2id}]},St0 = #st{shapes=Sh0}) -> %% Same We
+    We = #we{name=#ch{vmap=Vmap},es=Etab,vp=Vpos0} = gb_trees:get(Id,Sh0),
+    #edge{vs=Vs1,ve=Ve1} = gb_trees:get(E1id,Etab),
+    #edge{vs=Vs2,ve=Ve2} = gb_trees:get(E2id,Etab),
+    Vs1map = auv_segment:map_vertex(Vs1, Vmap),
+    Same = case auv_segment:map_vertex(Vs2, Vmap) of
+	       Vs1map -> [{Vs1,Vs2},{Ve1,Ve2}];
+	       _ -> [{Vs1,Ve2},{Ve1,Vs2}]
+	   end,
+    Vpos = average_pos(Same, Vpos0),
+    St0#st{shapes = gb_trees:update(Id, We#we{vp=Vpos}, Sh0)};
+
+stitch({_E, [{Id1,E1id},{Id2,E2id}]}, St0 = #st{shapes=Sh0}) -> % Merge Charts
+    We1 = #we{name=#ch{vmap=Vmap1},es=Etab1,vp=Vpos1} = gb_trees:get(Id1,Sh0),
+    We2 = #we{name=#ch{vmap=Vmap2},es=Etab2,vp=Vpos2} = gb_trees:get(Id2,Sh0),
+    #edge{vs=Vs1,ve=Ve1} = gb_trees:get(E1id,Etab1),
+    #edge{vs=Vs2,ve=Ve2} = gb_trees:get(E2id,Etab2),
+    Vs1map = auv_segment:map_vertex(Vs1, Vmap1),
+    Same = case auv_segment:map_vertex(Vs2, Vmap2) of
+	       Vs1map -> [{Vs1,Vs2},{Ve1,Ve2}];
+	       _ -> [{Vs1,Ve2},{Ve1,Vs2}]
+	   end,
+    {Vp1,Vp2} = average_pos(Same, Vpos1, Vpos2),
+    Sh1 = gb_trees:update(Id1, We1#we{vp=Vp1}, Sh0),
+    Sh  = gb_trees:update(Id2, We2#we{vp=Vp2}, Sh1),
+    St0#st{shapes = Sh}.
+
+average_pos([{V1,V2}|R], Vpos0) ->
+    Pos = e3d_vec:average(gb_trees:get(V1,Vpos0),gb_trees:get(V2,Vpos0)),
+    Vpos1 = gb_trees:update(V1,Pos,Vpos0),
+    Vpos  = gb_trees:update(V2,Pos,Vpos1),
+    average_pos(R, Vpos);
+average_pos([],Vpos) -> Vpos.
+
+average_pos([{V1,V2}|R], Vpos1,Vpos2) ->
+    Pos = e3d_vec:average(gb_trees:get(V1,Vpos1),gb_trees:get(V2,Vpos2)),
+    Vp1 = gb_trees:update(V1,Pos,Vpos1),
+    Vp2 = gb_trees:update(V2,Pos,Vpos2),
+    average_pos(R, Vp1,Vp2);
+average_pos([],Vpos1,Vpos2) -> {Vpos1,Vpos2}.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 drag_filter({image,_,_}) ->
     {yes,"Drop: Change the texture image"};
 drag_filter(_) -> no.
@@ -687,20 +759,31 @@ new_geom_state_1(Shs, #st{bb=#uvstate{id=Id,st=#st{shapes=Orig}}}=AuvSt) ->
 	{none,_} -> delete;
 	{{value,We},{value,We}} -> {AuvSt,false};
 	{{value,#we{es=Etab}},{value,#we{es=Etab}}} -> {AuvSt,false};
-	{{value,We},_} -> new_geom_state_2(We, AuvSt)
+	{{value,We},_} -> {rebuild_charts(We, AuvSt,true,[]),true}
     end.
 
-new_geom_state_2(We, #st{shapes=OldCharts}=St) ->
+rebuild_charts(We, #st{shapes=OldCharts}=St,Reuse,ExtraCuts) ->
     Faces = wings_we:uv_mapped_faces(We),
     FvUvMap = auv_segment:fv_to_uv_map(Faces, We),
-    {Charts1,Cuts} = auv_segment:uv_to_charts(Faces, FvUvMap, We),
+    {Charts0,Cuts0} = auv_segment:uv_to_charts(Faces, FvUvMap, We),
+    {Charts1,Cuts} =
+	case ExtraCuts of
+	    [] ->  {Charts0,Cuts0};
+	    _ ->
+		Cuts1 = foldl(fun(Edge,Cuts) -> gb_sets:add(Edge,Cuts) end, 
+			      Cuts0, ExtraCuts),
+		auv_segment:normalize_charts(Charts0,Cuts1,We)
+	end,
     Charts2 = auv_segment:cut_model(Charts1, Cuts, We),
-    Charts3 = update_charts(Charts2, gb_trees:values(OldCharts)),
+    Old = if Reuse -> gb_trees:values(OldCharts);
+	     true -> []
+	  end,
+    Charts3 = update_charts(Charts2, Old),
     Charts4 = build_map(Charts3, FvUvMap, []),
     Charts = gb_trees:from_orddict(keysort(1, Charts4)),
     wings_wm:set_prop(wireframed_objects,
 		      gb_sets:from_list(gb_trees:keys(Charts))),
-    {St#st{sel=[],shapes=Charts},true}.
+    St#st{sel=[],shapes=Charts}.
 
 update_charts(Cs, OldCs) ->
     Id = length(Cs),
