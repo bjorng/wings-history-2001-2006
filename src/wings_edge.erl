@@ -8,16 +8,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.38 2002/03/13 11:57:39 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.39 2002/04/12 17:36:55 bjorng Exp $
 %%
 
 -module(wings_edge).
 
 %% Commands.
--export([select_region/1,select_edge_ring/1,
-	 cut/2,cut/3,fast_cut/3,fast_cut/4,connect/1,
-	 dissolve/1,dissolve_edges/2,dissolve_edge/2,
-	 hardness/2,hardness/3,loop_cut/1]).
+-export([menu/3,command/2,
+ 	 select_region/1,select_edge_ring/1,
+ 	 cut/2,cut/3,fast_cut/3,fast_cut/4,connect/1,
+ 	 dissolve/1,dissolve_edges/2,dissolve_edge/2,
+ 	 hardness/2,hardness/3]).
 
 %% Utilities.
 -export([convert_selection/1,
@@ -29,9 +30,80 @@
 
 -export([dissolve_vertex/2]).
 
+-define(NEED_ESDL, 1).
 -include("wings.hrl").
 -import(lists, [foldl/3,last/1,member/2,reverse/1,reverse/2,
 		seq/2,sort/1]).
+-import(wings_draw, [model_changed/1]).
+
+menu(X, Y, St) ->
+    Dir = wings_menu_util:directions(St),
+    Menu = [{"Edge operations",ignore},
+	    separator,
+	    {"Move",{move,Dir}},
+	    wings_menu_util:rotate(),
+	    wings_menu_util:scale(),
+	    separator,
+	    {"Extrude",{extrude,Dir}},
+	    separator,
+	    {"Cut",{cut,cut_fun()}},
+	    {"Connect",connect,"Create a new edge to connect selected edges"},
+	    {"Bevel",bevel,"Round off selected edges"},
+	    separator,
+	    {"Dissolve",dissolve,"Eliminate selected edges"},
+	    {"Collapse",collapse,"Delete edges, replacing them with vertices"},
+	    separator,
+	    {"Hardness",{hardness,[{"Soft",soft},
+				   {"Hard",hard}]}},
+	    separator,
+	    {"Loop Cut",loop_cut,"Cut into two objects along edge loop"} |
+	    wings_vec:menu(St)],
+    wings_menu:popup_menu(X, Y, edge, Menu, St).
+
+cut_fun() ->
+    fun(help, _Ns) ->
+	    {"Cut into edges of equal length",[],"Pick cut position"};
+       (1, _Ns) ->
+	    [cut_entry(2),
+	     cut_entry(3),
+	     cut_entry(4),
+	     cut_entry(5),
+	     separator,
+	     cut_entry(10)];
+       (2, _) -> ignore;
+       (3, _) ->
+	    {edge,cut_pick}
+    end.
+
+cut_entry(N) ->
+    Str = integer_to_list(N),
+    {Str,N,"Cut into " ++ Str ++ " edges of equal length"}.
+    
+%% Edge commands.
+command(bevel, St) ->
+    ?SLOW(wings_extrude_edge:bevel(St));
+command({extrude,Type}, St) ->
+    ?SLOW(wings_extrude_edge:extrude(Type, St));
+command(cut_pick, St) ->
+    cut_pick(St);
+command({cut,Num}, St) ->
+    {save_state,model_changed(cut(Num, St))};
+command(connect, St) ->
+    {save_state,model_changed(connect(St))};
+command(dissolve, St) ->
+    {save_state,model_changed(dissolve(St))};
+command({hardness,Type}, St) ->
+    {save_state,model_changed(hardness(Type, St))};
+command(loop_cut, St) ->
+    ?SLOW({save_state,model_changed(loop_cut(St))});
+command(auto_smooth, St) ->
+    wings_body:auto_smooth(St);
+command({move,Type}, St) ->
+    wings_move:setup(Type, St);
+command({rotate,Type}, St) ->
+    wings_rotate:setup(Type, St);
+command({scale,Type}, St) ->
+    wings_scale:setup(Type, St).
 
 %%
 %% Convert the current selection to an edge selection.
@@ -259,6 +331,24 @@ fast_cut(Edge, Pos0, Col0, We0) ->
 	       true -> gb_sets:insert(NewEdge, Htab0)
 	   end,
     {We#we{es=Etab,vs=Vtab,he=Htab},NewV}.
+
+%%%
+%%% Cut and then interactively adjust the vertex positions.
+%%%
+
+cut_pick(St0) ->
+    St = cut(2, St0),
+    Tvs = wings_sel:fold(
+	    fun(Vs, #we{id=Id}=We, Acc) ->
+		    [{Id,cut_pick_1(gb_sets:to_list(Vs), We, [])}|Acc]
+	    end, [], St),
+    wings_drag:setup(Tvs, [{percent,{-1.0,1.0}}], [], St).
+
+cut_pick_1([V|Vs], #we{vs=Vtab,es=Etab}=We, Acc) ->		    
+    #vtx{pos=Pa,edge=Edge} = gb_trees:get(V, Vtab),
+    Pb = wings_vertex:other_pos(V, gb_trees:get(Edge, Etab), Vtab),
+    cut_pick_1(Vs, We, [{e3d_vec:sub(Pa, Pb),[V]}|Acc]);
+cut_pick_1([], _, Acc) -> Acc.
 
 %%%
 %%% The Connect command.

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.127 2002/04/11 16:12:04 bjorng Exp $
+%%     $Id: wings.erl,v 1.128 2002/04/12 17:36:55 bjorng Exp $
 %%
 
 -module(wings).
@@ -403,22 +403,8 @@ command({face,Cmd}, St) ->
     wings_face_cmd:command(Cmd, St);
 
 %% Edge commands.
-command({edge,bevel}, St) ->
-    ?SLOW(wings_extrude_edge:bevel(St));
-command({edge,{extrude,Type}}, St) ->
-    ?SLOW(wings_extrude_edge:extrude(Type, St));
-command({edge,{cut,Num}}, St) ->
-    {save_state,model_changed(wings_edge:cut(Num, St))};
-command({edge,connect}, St) ->
-    {save_state,model_changed(wings_edge:connect(St))};
-command({edge,dissolve}, St) ->
-    {save_state,model_changed(wings_edge:dissolve(St))};
-command({edge,{hardness,Type}}, St) ->
-    {save_state,model_changed(wings_edge:hardness(Type, St))};
-command({edge,loop_cut}, St) ->
-    ?SLOW({save_state,model_changed(wings_edge:loop_cut(St))});
-command({edge,auto_smooth}, St) ->
-    wings_body:auto_smooth(St);
+command({edge,Cmd}, St) ->
+    wings_edge:command(Cmd, St);
 
 %% Vertex menu.
 command({vertex,Cmd}, St) ->
@@ -464,7 +450,7 @@ popup_menu(X, Y, #st{selmode=Mode,sel=Sel}=St) ->
     case {Sel,Mode} of
  	{[],_} -> wings_shapes:menu(X, Y, St);
  	{_,vertex} -> wings_vertex_cmd:menu(X, Y, St);
- 	{_,edge} -> edge_menu(X, Y, St);
+ 	{_,edge} -> wings_edge:menu(X, Y, St);
  	{_,face} -> wings_face_cmd:menu(X, Y, St);
  	{_,body} -> wings_body:menu(X, Y, St)
     end.
@@ -512,46 +498,6 @@ menu(X, Y, objects, St) ->
 menu(X, Y, help, St) ->
     wings_help:menu(X, Y, St).
 
-edge_menu(X, Y, St) ->
-    Dir = wings_menu_util:directions(St),
-    Menu = [{"Edge operations",ignore},
-	    separator,
-	    {"Move",{move,Dir}},
-	    wings_menu_util:rotate(),
-	    wings_menu_util:scale(),
-	    separator,
-	    {"Extrude",{extrude,Dir}},
-	    separator,
-	    {"Cut",{cut,cut_fun()}},
-	    {"Connect",connect,"Create a new edge to connect selected edges"},
-	    {"Bevel",bevel,"Round off selected edges"},
-	    separator,
-	    {"Dissolve",dissolve,"Eliminate selected edges"},
-	    {"Collapse",collapse,"Delete edges, replacing them with vertices"},
-	    separator,
-	    {"Hardness",{hardness,[{"Soft",soft},
-				   {"Hard",hard}]}},
-	    separator,
-	    {"Loop Cut",loop_cut,"Cut into two objects along edge loop"} |
-	    wings_vec:menu(St)],
-    wings_menu:popup_menu(X, Y, edge, Menu, St).
-
-cut_fun() ->
-    fun(help, _Ns) -> "";
-       (1, _Ns) ->
-	    [cut_entry(2),
-	     cut_entry(3),
-	     cut_entry(4),
-	     cut_entry(5),
-	     separator,
-	     cut_entry(10)];
-       (_, _) -> ignore
-    end.
-
-cut_entry(N) ->
-    Str = integer_to_list(N),
-    {Str,N,"Cut into " ++ Str ++ " edges of equal length"}.
-    
 patches() ->
     case wings_start:get_patches() of
 	none -> [];
