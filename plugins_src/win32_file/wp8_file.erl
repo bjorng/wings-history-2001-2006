@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_file.erl,v 1.13 2003/12/26 21:58:08 bjorng Exp $
+%%     $Id: wp8_file.erl,v 1.14 2003/12/28 15:31:10 bjorng Exp $
 %%
 
 -module(wp8_file).
@@ -47,11 +47,17 @@ init(Next) ->
 fileop({file,open_dialog,Prop,Cont}, _Next) ->
     Title = proplists:get_value(title, Prop, "Open"),
     Dir = proplists:get_value(directory, Prop),
-    Cont(file_dialog(?OP_READ, Dir, Prop, Title));
+    case file_dialog(?OP_READ, Dir, Prop, Title) of
+	aborted -> keep;
+	Res -> Cont(Res)
+    end;
 fileop({file,save_dialog,Prop,Cont}, _Next) ->
     Title = proplists:get_value(title, Prop, "Save"),
     Dir = proplists:get_value(directory, Prop),
-    Cont(file_dialog(?OP_WRITE, Dir, Prop, Title));
+    case file_dialog(?OP_WRITE, Dir, Prop, Title) of
+	aborted -> keep;
+	Res -> Cont(Res)
+    end;
 fileop({file,open_dialog,Prop}, _Next) ->
     Title = proplists:get_value(title, Prop, "Open"),
     old_file_dialog(?OP_READ, Prop, Title);
