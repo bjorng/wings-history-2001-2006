@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.14 2005/01/25 15:28:49 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.15 2005/01/26 09:25:13 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -36,6 +36,8 @@
 -record(vi, {id,    %% Vertex Id
 	     mm,    %% MatrixMode
 	     pos}). %% Vertex Pos
+
+-define(EPS, 0.000001).
 
 init() -> true.
 
@@ -297,8 +299,8 @@ do_connect(_X,_Y,MM,St0=#st{selmode=vertex,sel=[{Shape,Sel0}],shapes=Sh},
 		St = wings_undo:save(St0, St2),
 		C0#cs{v=[VI],we=Shape,last=Id1,st=St}
 	    catch _:_What -> 
-% 		    io:format("~p catched ~p ~p~n", 
-% 			      [?LINE,_What,erlang:get_stacktrace()]),
+%%   		    io:format("~p catched ~w ~p~n", 
+%%   			      [?LINE,_What,erlang:get_stacktrace()]),
 		    C0
 	    end
     end;
@@ -315,7 +317,7 @@ connect_edge(C0=#cs{v=[VI=#vi{id=Id1,mm=MM},#vi{id=Id2}],we=Shape,st=St0}) ->
 	St = St0#st{shapes=gb_trees:update(Shape,We,St0#st.shapes)},
 	C0#cs{v=[VI],we=Shape,last=Id1,st=St}
     catch _E:_What -> 
-%%	    io:format("~p ignored ~p ~p~n", [?LINE,_What,erlang:get_stacktrace()]),
+%%	    io:format("~p ignored ~w ~p~n", [?LINE,_What,erlang:get_stacktrace()]),
 	    C0
     end.
 
@@ -375,6 +377,7 @@ connect_link(IdStart,FacesStart,IdEnd,FacesEnd,MM,We0) ->
 	    connect_link(Id1,Ok,IdEnd,FacesEnd,MM,We)
     end.
 
+select_way([],_,_) -> exit(vertices_are_not_possible_to_connect);
 select_way([Cut],_,_) -> Cut;
 select_way(Cuts,We = #we{id=Id},MM) -> 
     {MVM,_PM,_} = wings_u:get_matrices(Id, MM),
@@ -442,8 +445,6 @@ calc_edgepos(X,Y0,Edge,MM,#we{id=Id,es=Es,vp=Vs},VL) ->
     Pos = e3d_vec:add(Pos1, Vec),
     {Pos, ordsets:from_list([F1,F2])}.
 
--define(EPS, 0.000001).
-
 line_intersect2d({V1,V2},{V3,V4}) ->
     line_intersect2d(V1,V2,V3,V4).
 line_intersect2d({X1,Y1,_},{X2,Y2,_},{X3,Y3,_},{X4,Y4,_}) ->
@@ -487,7 +488,7 @@ help(#cs{v=[]}) ->
     Msg = wings_msg:join([Msg1,Msg2,Msg3]),
     wings_wm:message(Msg, "");
 help(_) ->
-    Msg1 = wings_msg:button_format("Connects edge/vertex [reselect last vertex to end]"),
+    Msg1 = wings_msg:button_format("Connects edges/vertices [reselect last vertex to end]"),
     Msg2 = wings_camera:help(),
     Msg3 = wings_msg:button_format([], [], "Exit Connect"),
     Msg = wings_msg:join([Msg1,Msg2,Msg3]),
@@ -568,7 +569,7 @@ slide(C=#cs{st=St=#st{shapes=Sh},we=Shape,v=[#vi{id=Id1,mm=MM}|_]},S,E) ->
 	    true ->       {End0,Start0}
 	end,
     {Tvs,Sel,Init} = slide_make_tvs(Id1,Curr,Start,End,Shape,C),
-    Units = [{percent,{0.0,1.0}}],
+    Units = [{percent,{0.0+2*?EPS,1.0-2*?EPS}}],
     Flags = [{initial,[Init]}],
     wings_drag:setup(Tvs, Units, Flags, wings_sel:set(vertex, Sel, St)).
 
