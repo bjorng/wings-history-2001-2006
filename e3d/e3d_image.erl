@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_image.erl,v 1.13 2003/08/16 20:25:23 bjorng Exp $
+%%     $Id: e3d_image.erl,v 1.14 2003/09/20 13:34:03 dgud Exp $
 %%
 
 -module(e3d_image).
@@ -17,6 +17,7 @@
 
 -export([load/1, load/2, 
 	 convert/2, convert/3, convert/4, 
+	 height2normal/2,
 	 save/2, save/3,
 	 bytes_pp/1, pad_len/2, format_error/1]).
 
@@ -136,6 +137,63 @@ bytes_pp(r8g8b8a8) -> 4;
 bytes_pp(b8g8r8a8) -> 4;
 bytes_pp(#e3d_image{bytes_pp = Bpp}) ->
     Bpp.
+
+%% Func: height2normal(Image, Scale)  
+%% Args: Image = #e3d_image, Scale = number
+%% Rets: #e3d_image | {error, Reason}
+%% Desc: Filter and build a normalmap from a heightmap.
+%%       assumes the heightmap is greyscale.
+height2normal(Old = #e3d_image{width=W,bytes_pp=B,alignment=A,image=I,name=Name}, Scale) ->
+    Extra = (A - (W*B rem A)) rem A, 
+    RSz  = W*B + Extra,
+    <<Row1:RSz/binary,Row2:RSz/binary,Rest/binary>> = I,
+    New = bumps(Row1,Row2,Rest,RSz,B,Row1,Scale,[]),
+    Old#e3d_image{bytes_pp=3,type=r8g8b8, image=New, filename=none, name=Name++"bump"}.
+	
+%bumps(Row1,Row2,Rest,RSz,B,First,Acc) ->
+bumps(R1,R2,Rest,RSz,B,First,S,Bump) 
+  when size(Rest) < RSz, size(R2) < RSz ->
+    <<F:8,_/binary>> = R1,
+    Row = bumpmapRow(R1,First,F,B,S,[]),
+    list_to_binary(lists:reverse([Row|Bump]));
+bumps(R1,R2,Rest0,RSz,B,First,S,Bump) ->
+    <<F:8,_/binary>> = R1,
+    Row = bumpmapRow(R1,R2,F,B,S,[]),
+    case Rest0 of 
+	<<R3:RSz/binary,Rest/binary>> ->
+	    bumps(R2,R3,Rest,RSz,B,First,S,[Row|Bump]);
+	_ ->
+	    bumps(R2,<<>>,<<>>,RSz,B,First,S,[Row|Bump])
+    end.
+
+bumpmapRow(R1,<<>>,_,B,_,Br) when size(R1) < B ->
+    list_to_binary(lists:reverse(Br));
+bumpmapRow(R1,R2,F,B,Scale,BR) ->
+    Skip = (B-1)*8,
+    <<C0:8, _:Skip,Row1/binary>> = R1,
+    <<Cy0:8,_:Skip,Row2/binary>> = R2,
+    ToFloat = 1.0/255.0,
+    C = C0*ToFloat,
+    Cx = case Row1 of
+	     <<Cx0:8, _/binary>> ->
+		 Cx0*ToFloat;
+	     <<>> ->
+		 F*ToFloat
+	 end,
+    Cy = Cy0*ToFloat,
+    DCX = Scale * (C-Cx),
+    DCY = Scale * (C-Cy),
+    %% Normalize
+    Sqlen = DCX*DCX+DCY*DCY+1,
+    Recip = 1.0/math:sqrt(Sqlen),
+    Nx = DCY*Recip,
+    Ny = -DCX*Recip,
+    Nz = Recip,
+    %% Pack in RGB
+    RGB = [round(128.0+127.0*Nx),
+	   round(128.0+127.0*Ny),
+	   round(128.0+127.0*Nz)],
+    bumpmapRow(Row1,Row2,F,B,Scale,[RGB|BR]).
 
 %% Helpers 
 file_extension(FileName) ->
