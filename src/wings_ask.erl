@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.51 2002/12/29 10:33:50 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.52 2002/12/29 11:05:20 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -807,11 +807,11 @@ menu(Key, Alt) ->
     W = menu_width(Alt, 0) + 2*wings_text:width(" ") + 10,
     M = #menu{key=Key,menu=Alt},
     Fun = menu_fun(),
-    {Fun,false,M,W,?LINE_HEIGHT+3}.
+    {Fun,false,M,W,?LINE_HEIGHT+4}.
 
 menu_fun() ->
-    fun({redraw,Active}, Fi, M, _) ->
-	    menu_draw(Active, Fi, M);
+    fun({redraw,_Active}, Fi, M, _) ->
+	    menu_draw(Fi, M);
        (value, _, #menu{key=Key}, _) ->
 	    Key;
        (Ev, Fi, M, _) ->
@@ -825,14 +825,14 @@ menu_width([{S,_}|T], W0) ->
     end;
 menu_width([], W) -> W.
 
-menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
-    wings_io:raised_rect(X, Y0, W-?CHAR_WIDTH+10, H-2, ?MENU_COLOR),
+menu_draw(#fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
+    wings_io:raised_rect(X, Y0+1, W-?CHAR_WIDTH+10, H-2, ?MENU_COLOR),
     Y = Y0+?CHAR_HEIGHT,
     Val = [Desc || {Desc,K} <- Menu, K =:= Key],
     wings_io:text_at(X+5, Y, Val),
 
     Xr = X + W-8,
-    wings_io:border(Xr-2, Y-9, 10, 10, ?PANE_COLOR),
+    wings_io:border(Xr-1.5, Y-9, 10, 10, ?PANE_COLOR),
     gl:color3f(0, 0, 0),
     Arrows = <<
 	      2#00010000,
@@ -842,8 +842,8 @@ menu_draw(Active, #fi{x=X,y=Y0,w=W,h=H}, #menu{key=Key,menu=Menu}=M) ->
 	      2#01111100,
 	      2#00111000,
 	      2#00010000>>,
-    gl:rasterPos2i(Xr, Y),
-    gl:bitmap(7, 7, -1, 0, 7, 0, Arrows),
+    gl:rasterPos2f(Xr+0.5, Y+0.5),
+    gl:bitmap(7, 7, 0, -1, 7, 0, Arrows),
     M.
 
 menu_event(#mousebutton{button=1,state=?SDL_PRESSED}, Fi, M) ->
