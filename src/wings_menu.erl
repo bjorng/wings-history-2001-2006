@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.18 2002/01/06 17:14:39 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.19 2002/01/06 18:39:16 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -148,6 +148,13 @@ handle_menu_event(Event, #mi{name=Name,new=New}=Mi0) ->
 	    pop;
 	redraw ->
 	    get_menu_event(Mi0#mi{new=false,num_redraws=0});
+	{expose} ->
+	    get_menu_event(Mi0#mi{new=false,num_redraws=0});
+	{resize,W,H}=Resize ->
+	    wings_io:cleanup_after_drawing(),
+	    wings_io:clear_menu_sel(),
+	    wings_io:putback_event(Resize),
+	    pop;
 	IgnoreMe ->
 	    get_menu_event(Mi0#mi{new=false})
     end.
