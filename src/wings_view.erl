@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.124 2003/06/13 12:01:38 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.125 2003/06/13 16:43:11 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -441,7 +441,7 @@ perspective() ->
 	false ->
 	    glu:perspective(Fov, Aspect, Hither, Yon);
 	true ->
-	    Sz = 4.0 * D / ?CAMERA_DIST,
+	    Sz = D*math:tan(Fov*3.14159/180/2),
 	    gl:ortho(-Sz*Aspect, Sz*Aspect, -Sz, Sz, Hither, Yon)
     end.
 
@@ -501,12 +501,11 @@ frame(#st{sel=[],shapes=Shs}) ->
 frame(St) -> frame_1(wings_sel:bounding_box(St)).
 
 frame_1(none) -> ok;
-frame_1(BB) ->
-    {W,H} = wings_wm:win_size(),
+frame_1([A,B]=BB) ->
     C = e3d_vec:average(BB),
-    R = e3d_vec:len(e3d_vec:sub(C, hd(BB))),
+    R = e3d_vec:len(e3d_vec:sub(A, B)) / 2,
     #view{fov=Fov} = View = current(),
-    Dist = R/math:tan(Fov*3.1416/2/180) / math:sqrt((W*H) / (640*480)),
+    Dist = R/math:tan(Fov*3.14159/2/180),
     set_current(View#view{origin=e3d_vec:neg(C),
 			  distance=Dist,pan_x=0.0,pan_y=0.0}).
 
