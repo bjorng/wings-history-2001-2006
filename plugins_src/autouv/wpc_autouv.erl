@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.211 2004/04/02 06:48:05 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.212 2004/04/02 08:50:23 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -187,7 +187,7 @@ init_show_maps(Map0, We, St) ->
 
 create_uv_state(Charts0, MatName0, We, GeomSt0) ->
     Charts = restrict_ftab(Charts0),
-    wings:mode_restriction([body]),
+    wings:mode_restriction([vertex,edge,face,body]),
     wings_wm:current_state(#st{selmode=body,sel=[]}),
     {GeomSt1,MatName} = 
 	case has_texture(MatName0, GeomSt0) of
@@ -545,7 +545,8 @@ new_state(#st{bb=#uvstate{}=Uvs,sel=Sel}=St0) ->
     GeomSt = wings_select_faces(Sel, St0),
     St1 = St0#st{bb=Uvs#uvstate{st=GeomSt}},
     St = update_selected_uvcoords(St1),
-    get_event(St#st{selmode=body,sh=false}).
+    get_event(St).
+    %%get_event(St#st{selmode=body,sh=false}).
 
 handle_command(move, St) ->
     drag(wings_move:setup(free_2d, St));
@@ -686,10 +687,11 @@ wings_select_faces(Sel, #st{bb=#uvstate{st=GeomSt,id=Id}}=St) ->
     wpa:sel_set(face, [{Id,Fs}], GeomSt).
 
 reset_sel(St0) ->
-    case wings_sel:reset(St0) of
-	#st{selmode=body,sh=false}=St -> St;
-	St -> St#st{selmode=body,sh=false}
-    end.
+    wings_sel:reset(St0).
+%     case wings_sel:reset(St0) of
+% 	#st{selmode=body,sh=false}=St -> St;
+% 	St -> St#st{selmode=body,sh=false}
+%     end.
 
 %%%% GUI Operations
 
@@ -712,26 +714,6 @@ flip(Flip, We) ->
     T1 = e3d_mat:mul(Flip, T0),
     T = e3d_mat:mul(e3d_mat:translate(Center), T1),
     wings_we:transform_vs(T, We).
-
-% rescale_all(Charts0) ->
-%     Charts = gb_trees:values(Charts0),
-%     Find = fun(#we{name=#ch{center={CX,CY},size={W,H}}}, [MX,MY]) ->
-% 		   TX = CX + W/2,
-% 		   TY = CY + H/2,
-% 		   NewMX = if TX > MX -> TX; true -> MX end,
-% 		   NewMY = if TY > MY -> TY; true -> MY end,
-% 		   [NewMX, NewMY]
-% 	   end,
-%     Max = max(foldl(Find, [0,0], Charts)),
-%     Ns = 1.0 / Max,
-%     rescale_all_1(Charts, Ns, []).
-
-% rescale_all_1([#we{id=Id,name=#ch{center={CX0,CY0},size={W0,H0},scale=S0}=Ch}=We0|T],
-% 	      Ns, Acc) ->
-%     We = We0#we{name=Ch#ch{center={CX0*Ns,CY0*Ns},size={W0*Ns,H0*Ns},scale=S0*Ns}},
-%     rescale_all_1(T, Ns, [{Id,We}|Acc]);
-% rescale_all_1([], _, Acc) ->
-%     gb_trees:from_orddict(reverse(Acc)).
 
 %%%
 %%% Verify that the model in the geometry window hasn't changed its topology.
