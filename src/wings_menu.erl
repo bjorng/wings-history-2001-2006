@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.87 2003/02/03 17:58:12 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.88 2003/02/10 06:14:55 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -269,8 +269,8 @@ handle_menu_event(lost_focus, Mi) ->
 	Y >= H -> mousemotion(X, H-2, Mi);
 	true -> keep
     end;
-handle_menu_event(#keyboard{keysym=KeySym}, Mi) ->
-    handle_key(KeySym, Mi);
+handle_menu_event(#keyboard{}=Ev, Mi) ->
+    handle_key(Ev, Mi);
 handle_menu_event(#mousemotion{x=X,y=Y}, Mi) ->
     mousemotion(X, Y, Mi);
 handle_menu_event(#mousebutton{}=Ev, Mi) ->
@@ -341,11 +341,14 @@ do_action(Action, #mi{owner=Owner}=Mi) ->
     wings_wm:send(menubar, clear_menu_selection),
     wings_wm:send_after_redraw(Owner, {action,Action}),
     delete_all(Mi).
-	    
-handle_key(#keysym{sym=27}, Mi) ->		%Escape.
+
+handle_key(Ev, Mi) ->
+    handle_key_1(key(Ev), Mi).
+
+handle_key_1(cancel, Mi) ->
     wings_wm:send(menubar, clear_menu_selection),
     delete_all(Mi);
-handle_key(#keysym{sym=C}, Mi0) when C == ?SDLK_DELETE; C == $\\  ->
+handle_key_1(delete, Mi0) ->
     %% Delete hotkey bound to this entry.
     case current_command(Mi0) of
 	none -> keep;
@@ -356,7 +359,7 @@ handle_key(#keysym{sym=C}, Mi0) when C == ?SDLK_DELETE; C == $\\  ->
 	    Mi = set_hotkey(NextKey, Mi0),
 	    get_menu_event(Mi)
     end;
-handle_key(#keysym{sym=C}, Mi) when C == ?SDLK_INSERT; C == $/ ->
+handle_key_1(insert, Mi) ->
     %% Define new hotkey for this entry.
     case current_command(Mi) of
 	none -> keep;
@@ -364,7 +367,14 @@ handle_key(#keysym{sym=C}, Mi) when C == ?SDLK_INSERT; C == $/ ->
 	    wings_wm:dirty(),
 	    get_hotkey(Cmd, Mi)
     end;
-handle_key(_, _) -> keep.
+handle_key_1(_, _) -> keep.
+
+key(#keyboard{keysym=#keysym{sym=27}}) -> cancel;
+key(#keyboard{keysym=#keysym{sym=?SDLK_INSERT}}) -> insert;
+key(#keyboard{keysym=#keysym{unicode=$/}}) -> insert;
+key(#keyboard{keysym=#keysym{sym=?SDLK_DELETE}}) -> delete;
+key(#keyboard{keysym=#keysym{unicode=$\\}}) -> delete;
+key(_) -> none.
 
 current_command(#mi{owner=Owner}) when Owner =/= geom -> none;
 current_command(#mi{sel=none}) -> none;
