@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.188 2004/02/25 05:33:02 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.189 2004/02/25 05:41:10 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -135,7 +135,7 @@ start_edit(_Faces, We, St0) ->
 				     ignore
 			     end).
 
-start_edit_1(Win, #we{name=ObjName,fs=Ftab}=We, St) ->
+start_edit_1(Win, #we{fs=Ftab}=We, St) ->
     MatNames0 = wings_material:get_all(We),
     MatNames1 = sofs:from_external(MatNames0, [{face,material}]),
     MatNames2 = sofs:converse(MatNames1),
@@ -145,8 +145,7 @@ start_edit_1(Win, #we{name=ObjName,fs=Ftab}=We, St) ->
     case MatNames of
 	[] ->
 	    Faces = gb_trees:keys(Ftab),
-	    MatName = list_to_atom(ObjName ++ "_auv"),
-	    gen_edit_event(Win, MatName, Faces, We);
+	    gen_edit_event(Win, none, Faces, We);
 	[{MatName,Faces}] ->
 	    gen_edit_event(Win, MatName, Faces, We);
 	[{First,_}|_]=Ms ->
