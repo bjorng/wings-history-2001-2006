@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.21 2002/11/05 18:45:56 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.22 2002/11/06 07:01:08 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -457,7 +457,7 @@ make_mesh_1(#e3d_mesh{vs=Vs,fs=Fs,he=He,tx=Tx,matrix=_Matrix0}) ->
 	  0.0:32/?FLOAT,0.0:32/?FLOAT,0.0:32/?FLOAT>>,
     Matrix = make_chunk(16#4160, MD),
     UVs = make_uvs(Tx),
-    make_chunk(16#4100, [Matrix,VsChunk,FsChunk|UVs]).
+    make_chunk(16#4100, [Matrix,VsChunk,UVs|FsChunk]).
 
 make_vertices(Vs) ->
     Chunk = [<<(length(Vs)):16/little>>|make_vertices(Vs, [])],
