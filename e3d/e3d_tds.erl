@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.35 2004/06/22 07:33:59 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.36 2004/06/23 18:20:37 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -24,7 +24,7 @@
 %% R9C required is required if debugging is turned on,
 %% sinced the debug printouts use the new hex formatting characters.
 
-%%-define(DEBUG, 1).
+-define(DEBUG, 1).
 
 %% Inline dbg/2 so that the call will disappear completely if
 %% DEBUG is turned off.
@@ -329,7 +329,7 @@ read_map_chunks(<<16#A351:16/little,Sz0:32/little,T0/binary>>, Acc) ->
 read_map_chunks(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     Sz = Sz0 - 6,
     <<_Chunk:Sz/binary,T/binary>> = T0,
-    dbg("Unknown map sub-chunk: ~.16E: ~P\n", [Tag,_Chunk,20]),
+    dbg("Unknown map sub-chunk: ~.16#: ~P\n", [Tag,_Chunk,20]),
     read_map_chunks(T, Acc);
 read_map_chunks(<<>>, Acc) -> Acc.
 
