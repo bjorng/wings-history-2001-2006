@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.95 2003/08/03 15:28:35 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.96 2003/08/03 16:44:56 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -733,7 +733,7 @@ tess_vcol_face(Tess, [[Pos|{_,_,_}=Col]|T]) ->
     glu:tessVertex(Tess, Pos, [{color,Col}]),
     tess_vcol_face(Tess, T);
 tess_vcol_face(Tess, [[Pos|_]|T]) ->
-    glu:tessVertex(Tess, Pos, [{color,{0.0,0.0,0.0}}]),
+    glu:tessVertex(Tess, Pos, [{color,{1.0,1.0,1.0}}]),
     tess_vcol_face(Tess, T);
 tess_vcol_face(Tess, []) ->
     glu:tessEndContour(Tess),
@@ -743,7 +743,7 @@ vcol_face_vtx([Pos|{R,G,B}]) ->
     gl:color3f(R, G, B),
     gl:vertex3dv(Pos);
 vcol_face_vtx([Pos|_]) ->
-    gl:color3f(0, 0, 0),
+    gl:color3f(1, 1, 1),
     gl:vertex3dv(Pos).
 
 %% consistent_normal(Point1, Point2, Point3, Normal) -> true|false
