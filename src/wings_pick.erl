@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.22 2001/12/26 14:46:26 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.23 2001/12/30 22:18:45 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -29,7 +29,8 @@
 -record(marque,
 	{ox,oy,					%Original X,Y.
 	 cx,cy,					%Current X,Y.
-	 inside,				%All items must be exactly inside.
+	 inside,				%All items must be
+						% exactly inside.
 	 op=add,				%add/delete
 	 st
 	}).
@@ -433,7 +434,8 @@ pick_all(DrawFaces, X0, Y0, W, H, St0) ->
 
 marque_draw(#st{selmode=edge}=St) ->
     foreach_we(
-      fun(#we{vs=Vtab}=We) ->
+      fun(#we{perm=Perm}) when ?IS_NOT_SELECTABLE(Perm) -> ok;
+	 (#we{vs=Vtab}=We) ->
 	      gl:pushName(0),
 	      wings_util:fold_edge(
 		fun(Edge, #edge{vs=Va,ve=Vb}, _) ->
@@ -446,7 +448,8 @@ marque_draw(#st{selmode=edge}=St) ->
 	      gl:popName()
       end, St);
 marque_draw(#st{selmode=vertex}=St) ->
-    foreach_we(fun(#we{}=We) ->
+    foreach_we(fun(#we{perm=Perm}) when ?IS_NOT_SELECTABLE(Perm) -> ok;
+		  (We) ->
 		       gl:pushName(0),
 		       wings_util:fold_vertex(
 			 fun(V, #vtx{pos=Pos}, _) ->
@@ -458,7 +461,8 @@ marque_draw(#st{selmode=vertex}=St) ->
 		       gl:popName()
 	       end, St);
 marque_draw(St) ->
-    foreach_we(fun(We) ->
+    foreach_we(fun(#we{perm=Perm}) when ?IS_NOT_SELECTABLE(Perm) -> ok;
+		  (We) ->
 		       gl:pushName(0),
 		       wings_util:fold_face(
 			 fun(Face, #face{edge=Edge}, _) ->
@@ -490,14 +494,15 @@ select_draw_0(St) ->
     end.
 
 select_draw_1(St) ->
-    foreach_we(fun(We) ->
+    foreach_we(fun(#we{perm=Perm}=We) when ?IS_SELECTABLE(Perm) ->
 		       gl:pushName(0),
 		       wings_util:fold_face(
 			 fun(Face, #face{edge=Edge}, _) ->
 				 gl:loadName(Face),
 				 draw_face(Face, Edge, We)
 			 end, [], We),
-		       gl:popName()
+		       gl:popName();
+		  (#we{}) -> ok
 	       end, St).
 
 %%

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.40 2001/12/28 11:35:52 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.41 2001/12/30 22:18:45 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -154,8 +154,9 @@ update_display_lists(#st{shapes=Shapes}=St) ->
 	undefined ->
 	    Smooth = wings_pref:get_value(smooth_preview),
 	    gl:newList(?DL_FACES, ?GL_COMPILE),
-	    foreach(fun(We) ->
-			    draw_faces(We, Smooth, St)
+	    foreach(fun(#we{perm=Perm}=We) when ?IS_VISIBLE(Perm) ->
+			    draw_faces(We, Smooth, St);
+		       (#we{}) -> ok
 		    end, gb_trees:values(Shapes)),
 	    gl:endList(),
 	    put_dlist(#dl{faces=?DL_FACES});
@@ -328,23 +329,23 @@ draw_vtx_sel(Smooth, #st{shapes=Shapes,sel=Sel}) ->
 draw_vtx_sel([{Id1,#we{vs=Vtab}}|Shs], [{Id2,_}|_]=Sel, true)
   when Id1 < Id2 ->
     draw_vtx_sel(Shs, Sel, true);
-draw_vtx_sel([{Id1,#we{vs=Vtab}}|Shs], [{Id2,_}|_]=Sel, false)
+draw_vtx_sel([{Id1,#we{vs=Vtab}=We}|Shs], [{Id2,_}|_]=Sel, false)
   when Id1 < Id2 ->
     draw_unsel_vtx(fun() ->
 			   foreach(fun(#vtx{pos=Pos}) ->
 					   gl:vertex3fv(Pos) end,
 				   gb_trees:values(Vtab))
-		   end),
+		   end, We),
     draw_vtx_sel(Shs, Sel, false);
 draw_vtx_sel([{_,#we{vs=Vtab}}|Shs], [], true) -> ok;
-draw_vtx_sel([{_,#we{vs=Vtab}}|Shs], [], false) ->
+draw_vtx_sel([{_,#we{vs=Vtab}=We}|Shs], [], false) ->
     draw_unsel_vtx(fun() ->
 			   foreach(fun(#vtx{pos=Pos}) ->
 					   gl:vertex3fv(Pos) end,
 				   gb_trees:values(Vtab))
-		   end),
+		   end, We),
     draw_vtx_sel(Shs, [], false);
-draw_vtx_sel([{Id,#we{vs=Vtab0}}|Shs], [{Id,Vs}|Sel], Smooth) ->
+draw_vtx_sel([{Id,#we{vs=Vtab0}=We}|Shs], [{Id,Vs}|Sel], Smooth) ->
     Vtab = sofs:from_external(gb_trees:to_list(Vtab0), [{vertex,data}]),
     R = sofs:from_external(gb_sets:to_list(Vs), [vertex]),
     SelVs = sofs:restriction(Vtab, R),
@@ -361,12 +362,14 @@ draw_vtx_sel([{Id,#we{vs=Vtab0}}|Shs], [{Id,Vs}|Sel], Smooth) ->
 	    draw_unsel_vtx(
 	      fun() ->
 		      foreach(DrawFun, sofs:to_external(NonSelVs))
-	      end)
+	      end, We)
     end,
     draw_vtx_sel(Shs, Sel, Smooth);
 draw_vtx_sel([], [], Smooth) -> ok.
 
-draw_unsel_vtx(Draw) ->
+draw_unsel_vtx(Draw, #we{perm=Perm}) when ?IS_NOT_VISIBLE(Perm)->
+    ok;
+draw_unsel_vtx(Draw, We) ->
     case wings_pref:get_value(vertex_size) of
 	0.0 -> ok;
 	PtSize -> 

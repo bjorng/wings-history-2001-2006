@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.42 2001/12/26 14:46:25 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.43 2001/12/30 22:18:45 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -543,6 +543,7 @@ make_dlist_1([{Id,Shape}|Shs], Fs, true) ->
     make_dlist_1(Shs, Fs, true);
 make_dlist_1([], Fs, Draw) -> ok.
 
+draw_faces(#we{perm=Perm}=We) when ?IS_NOT_VISIBLE(Perm) -> ok;
 draw_faces(#we{fs=Ftab}=We) ->
     foreach(fun({Face,#face{edge=Edge}}) ->
 		    wings_draw_util:face(Face, Edge, We)

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.78 2001/12/29 20:33:56 bjorng Exp $
+%%     $Id: wings.erl,v 1.79 2001/12/30 22:18:44 bjorng Exp $
 %%
 
 -module(wings).
@@ -476,8 +476,8 @@ command({tools,{move_to_bb,Dir}}, St) ->
 
 %% Objects menu.
 
-command({objects,Id}, St) when integer(Id) ->
-    {save_state,rename_object(Id, St)};
+command({objects,Obj}, St) ->
+    wings_shape:command(Obj, St);
 
 %% Common commands.
 command({_,collapse}, St) ->
@@ -584,12 +584,8 @@ menu(X, Y, tools, St) ->
 	    {"Scale to Saved BB Proportionally",{scale_to_bb_prop,Dirs}},
 	    {"Move to Saved BB",{move_to_bb,all_xyz()}}},
     wings_menu:menu(X, Y, tools, Menu, St);
-menu(X, Y, objects, #st{shapes=Shapes}=St) ->
-    Menu0 = map(fun({Id,#we{name=Name}}) ->
-			{"Rename "++Name,Id}
-		end, gb_trees:to_list(Shapes)),
-    Menu = list_to_tuple(Menu0),
-    wings_menu:menu(X, Y, objects, Menu, St);
+menu(X, Y, objects, St) ->
+    wings_shape:menu(X, Y, St);
 menu(X, Y, help, St) ->
     Menu = {{"About",about}},
     wings_menu:menu(X, Y, help, Menu, St).
@@ -840,15 +836,6 @@ caption(#st{file=Name}=St) ->
     Caption = wings() ++ " - " ++ filename:basename(Name),
     sdl_video:wm_setCaption(Caption, Caption),
     St.
-
-rename_object(Id, #st{shapes=Shapes0}=St) ->
-    #we{name=Name0} = We = gb_trees:get(Id, Shapes0),
-    case wings_getline:string("New name: ", Name0) of
-	aborted -> St;
-	Name when list(Name) ->
-	    Shapes = gb_trees:update(Id, We#we{name=Name}, Shapes0),
-	    St#st{shapes=Shapes}
-    end.
 
 translate_event(#keyboard{}=Event, St) ->
     translate_key(Event, St);

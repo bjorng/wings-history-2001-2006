@@ -10,10 +10,17 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.22 2001/12/29 20:33:56 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.23 2001/12/30 22:18:45 bjorng Exp $
 %%
 
 -module(wings_sel).
+
+%% Selection commands.
+-export([select_object/2,deselect_object/2,
+	 select_all/1,select_more/1,select_less/1,
+	 save/1,load/1,
+	 exchange/1,union/1,subtract/1,intersection/1,
+	 inverse/1,similar/1]).
 
 %% Utilities.
 -export([convert/3,convert_shape/3,convert_selection/2,
@@ -23,14 +30,8 @@
 	 face_regions/2,edge_regions/2,validate_items/3,inverse_items/3,
 	 random/2]).
 
-%% Selection commands.
--export([select_all/1,select_more/1,select_less/1,
-	 save/1,load/1,
-	 exchange/1,union/1,subtract/1,intersection/1,
-	 inverse/1,similar/1]).
-
 -include("wings.hrl").
--import(lists, [foldl/3,reverse/1,reverse/2,sort/1]).
+-import(lists, [foldl/3,reverse/1,reverse/2,sort/1,keydelete/3]).
 
 %%%
 %%% Convert selection.
@@ -174,6 +175,8 @@ make(Filter, Mode, #st{shapes=Shapes}=St) ->
     Sel = make_1(Sel0, Filter, Mode),
     St#st{selmode=Mode,sel=Sel}.
 
+make_1([#we{perm=Perm}|_], Filter, Mode) when ?IS_NOT_SELECTABLE(Perm) ->
+    [];
 make_1([#we{id=Id,vs=Vtab,es=Etab,fs=Ftab}=We|Shs], Filter, Mode) ->
     Tab = case Mode of
 	      vertex -> Vtab;
@@ -332,18 +335,28 @@ validate_items(Items, body, Shape) -> Items.
 
 select_all(#st{selmode=body,shapes=Shapes}=St) ->
     Items = gb_sets:singleton(0),
-    Sel = [{Id,Items} || Id <- gb_trees:keys(Shapes)],
+    Sel = [{Id,Items} || #we{id=Id,perm=Perm} <- gb_trees:values(Shapes),
+			 ?IS_SELECTABLE(Perm)],
     St#st{sel=Sel};
 select_all(#st{selmode=Mode,sel=[],shapes=Shapes}=St) ->
     case gb_trees:is_empty(Shapes) of
 	true -> St;
 	false ->
-	    Sel0 = gb_trees:keys(Shapes),
-	    Sel = [{Id,get_all_items(Mode, Id, St)} || Id <- Sel0],
+	    Sel = [{Id,get_all_items(Mode, Id, St)} ||
+		      #we{id=Id,perm=Perm} <- gb_trees:values(Shapes),
+		      ?IS_SELECTABLE(Perm)],
 	    St#st{sel=Sel}
     end;
 select_all(#st{selmode=Mode,sel=Sel0}=St) ->
     Sel = [{Id,get_all_items(Mode, Id, St)} || {Id,_} <- Sel0],
+    St#st{sel=Sel}.
+
+select_object(Id, #st{selmode=Mode,sel=Sel0}=St) ->
+    Sel = sort([{Id,get_all_items(Mode, Id, St)}|Sel0]),
+    St#st{sel=Sel}.
+
+deselect_object(Id, #st{sel=Sel0}=St) ->
+    Sel = keydelete(Id, 1, Sel0),
     St#st{sel=Sel}.
 
 get_all_items(Mode, Id, #st{shapes=Shapes}) ->
@@ -351,7 +364,8 @@ get_all_items(Mode, Id, #st{shapes=Shapes}) ->
     Items = case Mode of
 		vertex -> gb_trees:keys(We#we.vs);
 		edge -> gb_trees:keys(We#we.es);
-		face -> gb_trees:keys(We#we.fs)
+		face -> gb_trees:keys(We#we.fs);
+		body -> [0]
 	    end,
     gb_sets:from_ordset(Items).
 
@@ -454,8 +468,9 @@ tab_set_intersection(Set, Tab) ->
 %%%
 
 inverse(#st{selmode=body,sel=Sel0,shapes=Shapes}=St) ->
-    Zero = gb_sets:singleton(0),
-    All = [{Id,Zero} || Id <- gb_trees:keys(Shapes)],
+    Items = gb_sets:singleton(0),
+    All = [{Id,Items} || #we{id=Id,perm=Perm} <- gb_trees:values(Shapes),
+			 ?IS_SELECTABLE(Perm)],
     Sel = ordsets:subtract(All, Sel0),
     St#st{sel=Sel};
 inverse(#st{selmode=Mode}=St) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.35 2001/12/28 22:36:16 bjorng Exp $
+%%     $Id: wings.hrl,v 1.36 2001/12/30 22:18:45 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -104,6 +104,10 @@
 %% See http://www.cs.mtu.edu/~shene/COURSES/cs3621/NOTES/model/winged-e.html
 -record(we,
 	{id,					%Shape id.
+	 perm=0,				%Permissions:
+						% 0 - Everything allowed.
+						% 1 - Visible, can't select.
+						% 2 - Invisible, can't select.
 	 name,					%Name.
 	 es,					%gb_tree containing edges
 	 vs,					%gb_tree containing vertices
@@ -114,6 +118,11 @@
 						% edges, and faces
 	 mode					%'vertex'/'material'/'uv'
 	 }).
+
+-define(IS_VISIBLE(Perm), (Perm < 2)).
+-define(IS_NOT_VISIBLE(Perm), (Perm >= 2)).
+-define(IS_SELECTABLE(Perm), (Perm == 0)).
+-define(IS_NOT_SELECTABLE(Perm), (Perm =/= 0)).
 
 %% Edge in a winged-edge shape.
 -record(edge,
