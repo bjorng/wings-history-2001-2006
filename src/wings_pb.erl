@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pb.erl,v 1.12 2004/04/17 19:02:07 bjorng Exp $
+%%     $Id: wings_pb.erl,v 1.13 2004/04/20 12:23:45 bjorng Exp $
 %%
 
 -module(wings_pb).
@@ -172,7 +172,14 @@ now_diff({A2, B2, C2}, {A1, B1, C1}) ->
 
 %% Draw Progress Bar 
 
-draw_position(#state{msg=Msg,pos=Pos}=S) ->
+draw_position(#state{t0=T0}=S) ->
+    case now_diff(now(), T0) of
+	Diff when Diff < 500000 -> ok;
+	_Diff -> draw_position_1(S)
+    end,
+    S.
+	    
+draw_position_1(#state{msg=Msg,pos=Pos}=S) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     {X,Y,W,H} = get(wm_viewport),
     gl:viewport(X, Y, W, H),
