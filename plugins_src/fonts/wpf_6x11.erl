@@ -8,11 +8,21 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_6x11.erl,v 1.13 2004/02/29 08:10:00 bjorng Exp $
+%%     $Id: wpf_6x11.erl,v 1.14 2004/03/01 06:47:49 bjorng Exp $
 %%
 
 -module(wpf_6x11).
--export([desc/0,width/0,width/1,height/0,draw/1,char/1]).
+-export([desc/0,width/0,width/1,height/0,draw/1,char/1,bold/1]).
+
+draw([C|T]) ->
+    char(C),
+    draw(T);
+draw([]) -> ok.
+
+bold([C|T]) ->
+    bold_char(C),
+    bold(T);
+bold([]) -> ok.
 
 desc() ->
     "Small (6x11)".
@@ -55,8 +65,11 @@ cw(_) -> 6.
 width() -> 6.
 height() -> 11.
 
-draw([C|T]) -> char(C), draw(T);
-draw([]) -> ok.
+bold_char(C) ->
+    char(C),
+    Cw = cw(C),
+    gl:bitmap(1, 1, 0, 0, -Cw+1, 0, <<0>>),
+    char(C).
 
 char(option_box) ->
     B = <<

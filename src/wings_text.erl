@@ -3,16 +3,16 @@
 %%
 %%     Text and font support.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_text.erl,v 1.21 2004/02/29 17:56:36 bjorng Exp $
+%%     $Id: wings_text.erl,v 1.22 2004/03/01 06:47:50 bjorng Exp $
 %%
 
 -module(wings_text).
--export([init/0,width/0,width/1,height/0,draw/1,char/1]).
+-export([init/0,width/0,width/1,height/0,draw/1,char/1,bold/1]).
 -export([break_lines/2]).
 -export([font_module/1,choose_font/0,fonts/0]).
 
@@ -49,6 +49,9 @@ draw(S) ->
 
 char(C) ->
     (get(?MODULE)):char(C).
+
+bold(S) ->
+    (get(?MODULE)):bold(S).
 
 fonts() ->
     MatchSpec = ets:fun2ms(fun({Font,Desc}) -> {Desc,Font} end),

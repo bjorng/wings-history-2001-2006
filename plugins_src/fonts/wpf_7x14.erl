@@ -8,17 +8,30 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpf_7x14.erl,v 1.14 2004/02/29 08:10:00 bjorng Exp $
+%%     $Id: wpf_7x14.erl,v 1.15 2004/03/01 06:47:49 bjorng Exp $
 %%
 
 -module(wpf_7x14).
--export([desc/0,width/0,width/1,height/0,draw/1,char/1]).
+-export([desc/0,width/0,width/1,height/0,draw/1,char/1,bold/1]).
 
 desc() ->
     "Large (7x14)".
 
 width(S) ->
     width_1(S, 0).
+
+width() -> 7.
+height() -> 14.
+
+draw([C|T]) ->
+    char(C),
+    draw(T);
+draw([]) -> ok.
+
+bold([C|T]) ->
+    bold_char(C),
+    bold(T);
+bold([]) -> ok.
 
 width_1([C|Cs], W) ->
     width_1(Cs, W+cw(C));
@@ -45,11 +58,11 @@ cw(160) -> 3;
 cw(169) -> 9;
 cw(_) -> 7.
 
-width() -> 7.
-height() -> 14.
-
-draw([C|T]) -> char(C), draw(T);
-draw([]) -> ok.
+bold_char(C) ->
+    char(C),
+    Cw = cw(C),
+    gl:bitmap(1, 1, 0, 0, -Cw+1, 0, <<0>>),
+    char(C).
 
 char(option_box) ->
     B = <<

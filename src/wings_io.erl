@@ -3,12 +3,12 @@
 %%
 %%     This module contains most of the low-level GUI for Wings.
 %%
-%%  Copyright (c) 2001-2003 Bjorn Gustavsson
+%%  Copyright (c) 2001-2004 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.130 2004/02/29 19:14:27 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.131 2004/03/01 06:47:50 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -279,13 +279,9 @@ text([$\n|Cs], _, _,Acc) ->
     draw_reverse(Acc),
     throw({newline,Cs});
 text([{bold,Str}|Cs], X0, Y, Acc) ->
-    X1 = X0 + wings_text:width(Acc),
     draw_reverse(Acc),
-    gl:rasterPos2i(X1, Y),
-    draw_text(Str),
-    gl:rasterPos2i(X1+1, Y),
-    X = X1 +  + wings_text:width(Str) + 1,
-    draw_text(Str),
+    X = X0 + wings_text:width(Acc) + wings_text:width(Str) + length(Str),
+    wings_text:bold(Str),
     text(Cs, X, Y, []);
 text([{ul,Str}|Cs], X0, Y, Acc) ->
     X1 = X0 + wings_text:width(Acc),
