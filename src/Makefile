@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.57 2004/12/31 07:56:24 bjorng Exp $
+#     $Id: Makefile,v 1.58 2005/03/03 07:25:38 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -127,10 +127,17 @@ opt debug:
 common: $(TARGET_FILES)
 
 template: opt
-	erl -pa $(EBIN) -run wings_lang generate_template ../ebin -run erlang halt
+	erl -pa $(EBIN) -noinput -run wings_lang generate_template ../ebin -run erlang halt
 
 lang: template
-	cp *.lang $(EBIN)
+	@cp *.lang $(EBIN)
+	@for i in $(EBIN)/wings_*.lang; do \
+		case $$i in \
+			*/wings_en.lang) ;; \
+			*) echo "Processing: $$i"; \
+	 erl -pa ../ebin -noinput -eval "wings_lang:diff(\"$$i\")" -run erlang halt >> $$i ;; \
+		esac \
+	done
 
 clean:
 	rm -f $(TARGET_FILES)
