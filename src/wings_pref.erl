@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.93 2003/08/04 19:34:34 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.94 2003/09/06 06:58:20 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -22,6 +22,7 @@
 -import(lists, [foreach/2,keysearch/3,map/2,reverse/1,sort/1]).
 
 -define(MAC_PREFS, "Library/Preferences/Wings 3D Preferences.txt").
+-define(WIN32_PREFS, "Preferences").
 
 init() ->
     ets:new(wings_state, [named_table,public,ordered_set]),
@@ -290,17 +291,29 @@ make_query(Other) -> Other.
 old_pref_file() ->
     case os:type() of
 	{unix,darwin} ->
-	    Name = filename:join(os:getenv("HOME"), ?MAC_PREFS),
-	    case filelib:is_file(Name) of
-		true -> Name;
-		false -> unix_pref()
+	    case try_location(os:getenv("HOME"), ?MAC_PREFS) of
+		none -> unix_pref();
+		File -> File
 	    end;
 	{unix,_} -> unix_pref();
-	{win32,_} -> locate("Preferences")
+	{win32,_} -> win32_pref()
     end.
 
 unix_pref() ->
-    Name = filename:join(os:getenv("HOME"), ".wings"),
+    try_location(os:getenv("HOME"), ".wings").
+
+win32_pref() ->
+    case try_location(wings:root_dir(), ?WIN32_PREFS) of
+	none -> win32_pref_1();
+	File -> File
+    end.
+
+win32_pref_1() ->
+    %% Try to locate a preference file in an old installation of Wings.
+    none.
+
+try_location(Dir, File) ->
+    Name = filename:join(Dir, File),
     case filelib:is_file(Name) of
 	true -> Name;
 	false -> none
@@ -313,20 +326,7 @@ new_pref_file() ->
 	{unix,_} ->
 	    filename:join(os:getenv("HOME"), ".wings");
 	{win32,_} ->
-	    new_pref_file_win32()
-    end.
-
-new_pref_file_win32() ->
-    case locate("Preferences") of
-	none ->
-	    case locate("vsn.mk") of
-		none -> ok;
-		Vsn ->
-		    Vsn = locate("vsn.mk"),
-		    Dir = filename:dirname(Vsn),
-		    filename:join(Dir, "Preferences")
-	    end;
-	Pref -> Pref
+	    filename:join(wings:root_dir(), ?WIN32_PREFS)
     end.
 
 get_value(Key) ->
@@ -353,14 +353,6 @@ set_default(Key, Value) ->
 delete_value(Key) ->
     ets:delete(wings_state, Key),
     ok.
-
-locate(File) ->
-    Dir = wings:root_dir(),
-    Name = filename:absname(File, Dir),
-    case filelib:is_file(Name) of
-	true -> Name;
-	false -> none
-    end.
 
 defaults() ->
     [{background_color,{0.8,0.8,0.8}},
