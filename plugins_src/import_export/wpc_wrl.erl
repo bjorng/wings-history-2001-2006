@@ -3,16 +3,17 @@
 %%
 %%     VRML export plugin.
 %%
-%%  Copyright (c) 2002 Sean Hinde
+%%  Copyright (c) 2004 Sean Hinde, Danni Coy
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_wrl.erl,v 1.8 2003/10/19 10:08:28 bjorng Exp $
+%%     $Id: wpc_wrl.erl,v 1.9 2004/07/01 09:08:30 dgud Exp $
 %%
 
 -module(wpc_wrl).
 -author('Sean Hinde').
+%% Thanks KayosIII (Danni Aaron Coy) who wrote the UV coordinates export code
 
 -export([init/0, menu/2, command/2]).
 -import(lists, [foreach/2, foldl/3, map/2]).
@@ -59,7 +60,9 @@ export(File_name, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
 	  end, [], Objs),
     ok = file:close(F).
 
-export_object(F, #e3d_mesh{fs=Fs,vs=Vs,vc=[]}, Mat_defs, Used_mats0) ->
+
+
+export_object(F, #e3d_mesh{fs=Fs,vs=Vs,vc=[],tx=[]}, Mat_defs, Used_mats0) ->
     %% A first adventure into sofs. They seem extremely powerful if
     %% I could only make any sense of the documentation ;)
 
@@ -92,11 +95,54 @@ export_object(F, #e3d_mesh{fs=Fs,vs=Vs,vc=[]}, Mat_defs, Used_mats0) ->
 			      io:put_chars(F, "    ,\n"),
 			      Used_mats_in
 		      end, Used_mats0, Combined);
-export_object(F, #e3d_mesh{fs=Fs,vs=Vtab,vc=ColTab}, Mat_defs, Used_mats0) ->
+export_object(F, #e3d_mesh{fs=Fs,vs=Vtab,vc=[],tx=UVtab}, [{Name,_}|_] = Mat_defs, Used_mats0) ->
+    %% Output UV Coords. We can use the indicies, vertex table, and
+    %% UV table directly.
+    io:format(F, "    Shape {\n",[]),
+    Used_mats = material(F, Name, Mat_defs, Used_mats0),
+    %Used_mats = Used_mats0,
+    io:format(F, "      geometry IndexedFaceSet {\n",[]),
+    io:format(F, "        coord Coordinate { point [\n",[]),
+    foreach_except_last(fun({X,Y,Z}) ->
+				io:format(F, "          ~p ~p ~p", [X,Y,Z])
+			end,
+			fun(_) -> io:put_chars(F, ",\n") end,
+			Vtab),
+    io:format(F, "]\n        }\n",[]),
+
+    io:put_chars(F, "        coordIndex [\n"),
+    foreach_except_last(fun(#e3d_face{vs=Vs}) ->
+				io:put_chars(F, "          "),
+				print_face(F, Vs)
+			end,
+			fun(_) -> io:put_chars(F, ",\n") end,
+			Fs),
+    io:put_chars(F, "\n        ]\n"),
+
+    io:format(F, "        texCoord TextureCoordinate { point [\n",[]),
+    foreach_except_last(fun({U,V}) ->
+				io:format(F, "          ~p ~p", [U,V])
+			end,
+			fun(_) -> io:put_chars(F, ",\n") end,
+			UVtab),
+    io:format(F, "]\n        }\n",[]),
+
+    io:put_chars(F, "        texCoordIndex [\n"),
+    foreach_except_last(fun(#e3d_face{tx=Tx}) ->
+				io:put_chars(F, "          "),
+				print_face(F, Tx)
+			end,
+			fun(_) -> io:put_chars(F, ",\n") end,
+			Fs),
+    io:put_chars(F, "\n        ]\n"),
+
+    io:put_chars(F, "      }\n    }\n"),
+    Used_mats;
+export_object(F, #e3d_mesh{fs=Fs,vs=Vtab,vc=ColTab}, [{Name,_}|_] = Mat_defs, Used_mats0) ->
     %% Output vertex colors. We can use the indicies, vertex table, and
     %% color table directly.
     io:format(F, "    Shape {\n",[]),
-    Used_mats = material(F, default, Mat_defs, Used_mats0),
+    Used_mats = material(F, Name, Mat_defs, Used_mats0),
     io:format(F, "      geometry IndexedFaceSet {\n",[]),
     io:format(F, "        colorPerVertex TRUE\n",[]),
 
@@ -171,6 +217,7 @@ def_material(F, Name, Mat0) ->
 use_material(F, Mat) ->
     io:format(F, "      appearance Appearance {\n",[]),
     io:format(F, "        material USE ~s\n",[clean_id(Mat)]),
+    io:format(F, "#		  texture ImageTexture { url ~p }", ["file.png"]),
     io:format(F, "      }\n", []).
 
 coords(F, Vtxs, Vs) ->
