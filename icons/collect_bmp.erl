@@ -15,7 +15,7 @@
 %%
 %% Original Author: Bjorn Gustavsson
 %% 
-%%     $Id: collect_bmp.erl,v 1.4 2003/07/27 13:40:20 bjorng Exp $
+%%     $Id: collect_bmp.erl,v 1.5 2004/10/08 13:32:24 bjorng Exp $
 %%
 
 -module(collect_bmp).
@@ -25,7 +25,7 @@
 start() ->
     start(["icons","wings_icon.bundle"]).
 
-start([InDir,OutFile]=Arg) ->
+start([InDir,OutFile]) ->
     Icons = load_icons(filelib:wildcard(filename:join(InDir, "*.{bmp,tga}"))),
     Bin = term_to_binary(Icons, [compressed]),
     io:format("Writing ~s\n", [OutFile]),
@@ -53,7 +53,7 @@ load_file(File) ->
 load_bmp(<<$B:8,$M:8,_:8/binary,Offset:32/little,Bin/binary>>=Bin0) ->
     <<_:32/little,W:32/little,H:32/little,
      _:16,BitCount:16/little,Compression:32/little,
-     ImageSize:32/little,_/binary>> = Bin,
+     _ImageSize:32/little,_/binary>> = Bin,
     BitCount = 24,
     Compression = 0,
     RowLength = W * 3 + pad_len(W * 3, 4),
