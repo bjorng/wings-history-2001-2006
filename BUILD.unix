@@ -4,8 +4,8 @@ BUILDING WINGS 3D ON UNIX-LIKE SYSTEMS (including MacOS X)
 This guide describes how you can build Wings on unix-like
 systems, such as GNU Linux, FreeBSD, Solaris, and MacOS X.
 
-$Revision: 1.2 $
-$Date: 2003/09/29 05:28:57 $
+$Revision: 1.3 $
+$Date: 2003/10/01 05:08:23 $
 
 Required software
 =================
@@ -36,7 +36,8 @@ The following is a quick summary of the build process.
 * Download and install Erlang/OTP.
 * Download and install SDL.
 * Download and install ESDL.
-$ make
+* Download and upnpack the Wings source file.
+* Run "make".
 
 Installing Erlang/OTP
 =====================
