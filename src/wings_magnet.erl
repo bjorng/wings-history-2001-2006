@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_magnet.erl,v 1.16 2001/12/16 21:30:08 bjorng Exp $
+%%     $Id: wings_magnet.erl,v 1.17 2001/12/23 17:48:06 bjorng Exp $
 %%
 
 -module(wings_magnet).
@@ -39,7 +39,7 @@ command({Type,Dir}, #st{selmode=vertex}=St) ->
     Tvs = wings_sel:fold_shape(fun(Sh, Items, Acc) ->
 				       setup_1(Sh, Items, Vec, Type, Acc)
 			       end, [], St),
-    wings_drag:init_drag(Tvs, constraint(Type), St#st{inf_r=1.0}).
+    wings_drag:init_drag(Tvs, {magnet,constraint(Dir)}, St#st{inf_r=1.0}).
 
 setup_1(#shape{id=Id,sh=We}=Sh, Items, Vec, Type, Acc) ->
     Tv = vertices_to_vertices(gb_sets:to_list(Items), We, Type, Vec),
@@ -118,24 +118,102 @@ wrap_body(Name, Body0) ->
 %%
 
 vertices_to_vertices(Vs, We, Type, normal) ->
-    make_tvs(Type, vertex_normals(We, Vs), We);
+    Vec = e3d_vec:norm(e3d_vec:add(vertex_normal(Vs, We))),
+    make_tvs(Type, Vec, Vs, We);
 vertices_to_vertices(Vs, We, Type, Vec) ->
-    make_tvs(Type, [{Vec,Vs}], We).
+    make_tvs(Type, Vec, Vs, We).
 
-vertex_normals(We, Vs) ->
+vertex_normal(Vs, We) ->
     foldl(fun(V, Acc) ->
 		  Vec = wings_vertex:normal(V, We),
-		  [{Vec,[V]}|Acc]
+		  [Vec|Acc]
 	  end, [], Vs).
 
-make_tvs(Type, Tvs, #we{vs=Vt}) ->
+make_tvs(Type, Vec, Vs, #we{vs=Vtab}=We) ->
     DF = distance_fun(Type),
-    All = gb_trees:keys(Vt),
-    {All,fun(#shape{sh=#we{vs=Vtab0}=We0}=Sh, Dx, Dy, #st{inf_r=IR}=St) ->
-		 Vtab = magnet_move(Tvs, Dx, Dy, {DF,IR}, St, Vtab0, Vtab0),
-		 We = We0#we{vs=Vtab},
-		 {shape,Sh#shape{sh=We}}
-	 end}.
+    All = gb_trees:keys(Vtab),
+    VsPos = wings_util:add_vpos(All, We),
+    Center = wings_vertex:center(Vs, Vtab),
+    {All,magnet_fun(DF, Vec, Center, VsPos)}.
+
+magnet_fun(DF, Vec, Center, VsPos) ->
+    fun(view_changed, NewWe) ->
+	    magnet_fun(DF, Center, Vec,
+		       wings_util:update_vpos(VsPos, NewWe));
+       ({Dx,Falloff}, A) ->
+	    move(Dx, Falloff, DF, Vec, Center, VsPos, A);
+       ({Dx,Dy,Falloff}, A) ->
+	    free_move(Dx, Dy, Falloff, DF, Center, VsPos, A)
+    end.
+
+move(Dx, Falloff, DF, Vec0, Center, VsPos, A) ->
+    wings_drag:message([Dx], distance),
+    Vec = e3d_vec:mul(Vec0, Dx),
+    magnet_move(Falloff, DF, Vec, Center, VsPos, A).
+
+free_move(Dx, Dy, Falloff, DF, Center, VsPos, A) ->
+    wings_drag:message([Dx,Dy], distance),
+    #view{azimuth=Az,elevation=El} = wings_view:current(),
+    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
+    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
+    Vec = e3d_mat:mul_point(M, {Dx,Dy,0.0}),
+    magnet_move(Falloff, DF, Vec, Center, VsPos, A).
+
+magnet_move(Falloff, DF, Vec, Center, VsPos, A0) ->
+    foldl(fun({V,#vtx{pos=Pos0}=Rec}=Vtx, A) ->
+		  case e3d_vec:dist(Pos0, Center) of
+% 		      Dist0 when Dist0 > Falloff ->
+% 			  [Vtx|A];
+		      Dist0 ->
+			  case DF(Dist0, Falloff) of
+			      Dist when Dist < 1.0E-5 ->
+				  [Vtx|A];
+			      Dist ->
+				  Offset = e3d_vec:mul(Vec, Dist),
+				  Pos = e3d_vec:add(Pos0, Offset),
+				  [{V,Rec#vtx{pos=Pos}}|A]
+			  end
+		  end
+	  end, A0, VsPos).
+
+% magnet_move([{free,Vs}|Tvs], Dx, Dy, IR, St, OVtab, Vtab0) ->
+%     wings_drag:message([Dx,Dy], distance),
+%     #view{azimuth=Az,elevation=El} = wings_view:current(),
+%     M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
+%     M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
+%     {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx,Dy,0.0}),
+%     Vtab = magnet_move_1({Xt,Yt,Zt}, Vs, IR, OVtab, Vtab0),
+%     magnet_move(Tvs, Dx, Dy, IR, St, OVtab, Vtab);
+% magnet_move([{{Xt0,Yt0,Zt0},Vs}|Tvs], Dx, Dy, IR, St, OVtab, Vtab0) ->
+%     wings_drag:message([Dx], distance),
+%     Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
+%     Vtab = magnet_move_1({Xt,Yt,Zt}, Vs, IR, OVtab, Vtab0),
+%     magnet_move(Tvs, Dx, Dy, IR, St, OVtab, Vtab);
+% magnet_move([], Dx, Dy, IR, St, OVtab, Vtab) -> Vtab.
+
+% magnet_move_1(VtVec, Vs, IR, OVtab, Vtab) ->
+%     foldl(fun(V, Tab) -> 
+% 		  Center = wings_vertex:pos(V, OVtab),
+% 		  magnet_move_2(VtVec, Center, IR, OVtab, Tab)
+% 	  end, Vtab, Vs).
+
+% magnet_move_2(TrVec, Center, {DF,IR}, OVtab, Vtab) ->
+%     wings_util:fold_vertex(
+%       fun (V, #vtx{pos=Pos0}=Vtx, Tab) ->
+% 	      Dist0 = e3d_vec:dist(Pos0, Center),
+% 	      case DF(Dist0, IR) of
+% 		  Dist when Dist < 1.0E-5 -> Tab;
+% 		  Dist ->
+% 		      #vtx{pos=Pos1} = gb_trees:get(V, Vtab),
+% 		      Offset = e3d_vec:mul(TrVec, Dist),
+% 		      Pos = e3d_vec:add(Pos1, Offset),
+% 		      gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
+% 	      end
+%       end, Vtab, OVtab).
+
+%%%
+%%% Pre-defined distance functions.
+%%%
 
 distance_fun(linear) ->
     fun(Dist0, Radius) ->
@@ -148,7 +226,7 @@ distance_fun(linear) ->
 distance_fun(gaussian) ->
     fun(Dist0, Radius) ->
 	    Dist = Dist0/Radius,
-	    math:exp(-(Dist*Dist)/2)
+	    math:exp(-(Dist*Dist)/2.0)
     end;
 distance_fun(User) ->
     case catch wings__magnet:User() of
@@ -157,41 +235,6 @@ distance_fun(User) ->
 	    wings__magnet:User();
 	Fun when is_function(Fun) -> Fun
     end.
-
-magnet_move([{free,Vs}|Tvs], Dx, Dy, IR, St, OVtab, Vtab0) ->
-    wings_drag:message([Dx,Dy], distance),
-    #view{azimuth=Az,elevation=El} = wings_view:current(),
-    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
-    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),
-    {Xt,Yt,Zt} = e3d_mat:mul_point(M, {Dx,Dy,0.0}),
-    Vtab = magnet_move_1({Xt,Yt,Zt}, Vs, IR, OVtab, Vtab0),
-    magnet_move(Tvs, Dx, Dy, IR, St, OVtab, Vtab);
-magnet_move([{{Xt0,Yt0,Zt0},Vs}|Tvs], Dx, Dy, IR, St, OVtab, Vtab0) ->
-    wings_drag:message([Dx], distance),
-    Xt = Xt0*Dx, Yt = Yt0*Dx, Zt = Zt0*Dx,
-    Vtab = magnet_move_1({Xt,Yt,Zt}, Vs, IR, OVtab, Vtab0),
-    magnet_move(Tvs, Dx, Dy, IR, St, OVtab, Vtab);
-magnet_move([], Dx, Dy, IR, St, OVtab, Vtab) -> Vtab.
-
-magnet_move_1(VtVec, Vs, IR, OVtab, Vtab) ->
-    foldl(fun(V, Tab) -> 
-		  Center = wings_vertex:pos(V, OVtab),
-		  magnet_move_2(VtVec, Center, IR, OVtab, Tab)
-	  end, Vtab, Vs).
-
-magnet_move_2(TrVec, Center, {DF,IR}, OVtab, Vtab) ->
-    wings_util:fold_vertex(
-      fun (V, #vtx{pos=Pos0}=Vtx, Tab) ->
-	      Dist0 = e3d_vec:dist(Pos0, Center),
-	      case DF(Dist0, IR) of
-		  Dist when Dist < 1.0E-5 -> Tab;
-		  Dist ->
-		      #vtx{pos=Pos1} = gb_trees:get(V, Vtab),
-		      Offset = e3d_vec:mul(TrVec, Dist),
-		      Pos = e3d_vec:add(Pos1, Offset),
-		      gb_trees:update(V, Vtx#vtx{pos=Pos}, Tab)
-	      end
-      end, Vtab, OVtab).
 
 %%%
 %%% Compilation support.

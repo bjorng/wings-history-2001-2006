@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_rotate.erl,v 1.16 2001/12/23 11:32:46 bjorng Exp $
+%%     $Id: wings_rotate.erl,v 1.17 2001/12/23 17:48:06 bjorng Exp $
 %%
 
 -module(wings_rotate).
@@ -91,7 +91,7 @@ faces_to_vertices(Faces, We, normal) ->
     rotate(Vs, We, Vec);
 faces_to_vertices(Faces, We, Vec) ->
     rotate(wings_face:to_vertices(Faces, We), We, Vec).
-   
+
 %%
 %% Conversion of body selections (entire objects) to vertices.
 %%
@@ -101,7 +101,7 @@ body_to_vertices(We, Vec) ->
 
 body_rotate_fun(We, free) ->
     {Cx,Cy,Cz} = wings_vertex:center(We),
-    fun(Matrix0, Dx, Dy, St) when float(Dx) ->
+    fun(Matrix0, {Dx,Dy}) when float(Dx) ->
 	    wings_drag:message([Dx], angle),
 	    A = 15*Dx,
 	    Vec = view_vector(),
@@ -111,14 +111,14 @@ body_rotate_fun(We, free) ->
     end;
 body_rotate_fun(We, Vec) ->
     {Cx,Cy,Cz} = wings_vertex:center(We),
-    fun(Matrix0, Dx, Dy) when float(Dx) ->
+    fun(Matrix0, Dx) when float(Dx) ->
 	    A = 15*Dx,
 	    wings_drag:message([A], angle),
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:translate(Cx, Cy, Cz)),
 	    M = e3d_mat:mul(M0, e3d_mat:rotate(A, Vec)),
 	    e3d_mat:mul(M, e3d_mat:translate(-Cx, -Cy, -Cz))
     end.
-	    
+
 %% Setup rotation.
 
 rotate(Vs, We, free) ->
@@ -132,11 +132,13 @@ rotate(Vs, We, Vec) ->
     {Vs,rotate_fun(Center, VsPos, Vec)}.
 
 rotate_fun(Center, VsPos, Axis) ->
-    fun(view_changed, NewWe, _) ->
+    fun(view_changed, NewWe) ->
 	    NewAxis = view_vector(),
 	    NewVsPos = wings_util:update_vpos(VsPos, NewWe),
 	    rotate_fun(Center, NewVsPos, NewAxis);
-       (Dx, Dy, A) ->
+       ({Dx,Dy}, A) ->
+	    rotate(Center, Axis, Dx, VsPos, A);
+       (Dx, A) ->
 	    rotate(Center, Axis, Dx, VsPos, A)
     end.
 

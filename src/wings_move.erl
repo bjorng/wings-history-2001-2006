@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_move.erl,v 1.18 2001/12/23 11:32:46 bjorng Exp $
+%%     $Id: wings_move.erl,v 1.19 2001/12/23 17:48:06 bjorng Exp $
 %%
 
 -module(wings_move).
@@ -201,7 +201,7 @@ body_to_vertices(Sh, Vec) ->
     translate_fun(Vec).
 
 translate_fun(free) ->
-    fun(Matrix0, Dx, Dy) ->
+    fun(Matrix0, {Dx,Dy}) ->
 	    wings_drag:message([Dx,Dy], distance),
 	    #view{azimuth=Az,elevation=El} = wings_view:current(),
 	    M0 = e3d_mat:mul(Matrix0, e3d_mat:rotate(-Az, {0.0,1.0,0.0})),
@@ -210,7 +210,7 @@ translate_fun(free) ->
 	    e3d_mat:translate(Xt, Yt, Zt)
     end;
 translate_fun({Xt0,Yt0,Zt0}) ->
-    fun(Matrix0, Dx, Dy) when float(Dx) ->
+    fun(Matrix0, Dx) when float(Dx) ->
 	    wings_drag:message([Dx], distance),
 	    Xt = Xt0*Dx,
 	    Yt = Yt0*Dx,
@@ -228,9 +228,9 @@ make_tvs(Vs, free, We) ->
 make_tvs(Vs, Vec, We) -> [{Vec,Vs}].
 
 move_fun(VsPos) ->
-    fun(view_changed, NewWe, _) ->
+    fun(view_changed, NewWe) ->
 	    move_fun(wings_util:update_vpos(VsPos, NewWe));
-       (Dx, Dy, Acc) ->
+       ({Dx,Dy}, Acc) ->
 	    #view{azimuth=Az,elevation=El} = wings_view:current(),
 	    M0 = e3d_mat:rotate(-Az, {0.0,1.0,0.0}),
 	    M = e3d_mat:mul(M0, e3d_mat:rotate(-El, {1.0,0.0,0.0})),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.18 2001/12/23 11:32:46 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.19 2001/12/23 17:48:06 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -63,7 +63,7 @@ crumple(#shape{id=Id,sh=We}, Vs0, Acc) ->
     {Sa,Sb,Sc} = now(),
     Vs = gb_sets:to_list(Vs0),
     VsPos = wings_util:add_vpos(Vs, We),
-    Fun = fun(Dx, Dy, A) ->
+    Fun = fun(Dx, A) ->
 		  wings_drag:message([Dx], percent),
 		  random:seed(Sa, Sb, Sc),
 		  foldl(fun({V,#vtx{pos={X0,Y0,Z0}}=Rec}, VsAcc) ->
@@ -149,7 +149,7 @@ taper_3(Id, Vs0, We, Range, Key, Effect, MinR, MaxR, Acc) ->
     Tf = taper_fun(Key, Effect, MinR, MaxR),
     Vs = gb_sets:to_list(Vs0),
     VsPos = wings_util:add_vpos(Vs, We),
-    Fun = fun(Dx, Dy, A) ->
+    Fun = fun(Dx, A) ->
 		  wings_drag:message([Dx], percent),
 		  U = Dx + 1.0,
 		  foldl(fun({V,#vtx{pos=Pos0}=Rec}, VsAcc) ->
@@ -301,7 +301,7 @@ key(z) -> 3.
 
 twister_fun(Vs, Tf, Min, Range, We) ->
     VsPos = wings_util:add_vpos(Vs, We),
-    fun(Dx, Dy, A) ->
+    fun(Dx, A) ->
 	    Angle = Dx * 15,
 	    U = (Angle / 180.0 * ?PI)/Range,
 	    wings_drag:message([Angle], angle),

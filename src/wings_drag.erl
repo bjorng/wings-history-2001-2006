@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.40 2001/12/23 11:32:46 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.41 2001/12/23 17:48:06 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -37,7 +37,8 @@
 	 unit,					%Unit that drag is done in.
 	 new,					%New objects.
 	 sel,					%Massaged selection.
-	 matrices=none				%Transformation matrices.
+	 matrices=none,				%Transformation matrices.
+	 falloff				%Magnet falloff.
 	}).
 
 -record(dlist,					%Display list.
@@ -50,9 +51,9 @@ init_drag(Tvs, Constraint, St) ->
 init_drag(Tvs, Constraint, Unit, St) ->
     init_drag_1(Tvs, Constraint, Unit, St).
 
-init_drag_1(Tvs, Constraint, Unit, St) ->
+init_drag_1(Tvs, Constraint, Unit, #st{inf_r=Falloff}=St) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
-    Drag = #drag{x=X,y=Y,constraint=Constraint,unit=Unit},
+    Drag = #drag{x=X,y=Y,constraint=Constraint,unit=Unit,falloff=Falloff},
     init_drag_2(Tvs, Drag, St).
 
 init_drag_2(Tvs0, Drag0, #st{selmode=Mode,sel=Sel0}=St) ->
@@ -183,8 +184,8 @@ handle_drag_event(Event, St) ->
 
 handle_drag_event_1(#mousemotion{x=X,y=Y}, #st{drag=Drag0}=St0) ->
     {Dx0,Dy0,Drag1} = mouse_range(X, Y, Drag0),
-    {Dx,Dy} = constrain(Dx0, Dy0, Drag1),
-    Drag = motion_update(Dx, Dy, Drag1),
+    Move = constrain(Dx0, Dy0, Drag1),
+    Drag = motion_update(Move, Drag1),
     St = St0#st{drag=Drag},
     get_drag_event(St);
 handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, St0) ->
@@ -202,16 +203,20 @@ handle_drag_event_1(#mousebutton{button=3,x=X,y=Y,state=?SDL_RELEASED}, St) ->
     pop;
 handle_drag_event_1(view_changed, St) ->
     get_drag_event(view_changed(St));
-handle_drag_event_1(Event, St0) ->
+handle_drag_event_1(Event, #st{drag=Drag0}=St0) ->
     St = case wings_hotkey:event(Event) of
 	     next -> St0;
 	     {view,Cmd} ->
 		 wings_view:command(Cmd, St0),
 		 view_changed(St0);
 	     {select,less} ->
-		 magnet_radius(-1, St0);
+		 {_,X,Y} = sdl_mouse:getMouseState(),
+		 Drag = magnet_radius(-1, Drag0),
+		 motion(X, Y, St0#st{drag=Drag});
 	     {select,more} ->
-		 magnet_radius(1, St0);
+		 {_,X,Y} = sdl_mouse:getMouseState(),
+		 Drag = magnet_radius(1, Drag0),
+		 motion(X, Y, St0#st{drag=Drag});
 	     Other -> St0
 	 end,
     get_drag_event(St).
@@ -222,12 +227,11 @@ cleanup(#st{drag=#drag{matrices=Mtxs}}) ->
 		    gl:deleteLists(?DL_DYNAMIC+Id, 1)
 	    end, Mtxs).
 
-magnet_radius(Sign, #st{inf_r=InfR0}=St) ->
-    {_,X,Y} = sdl_mouse:getMouseState(),
-    case InfR0+Sign*?GROUND_GRID_SIZE/4 of
-	InfR when InfR > 0 ->
-	    motion(X, Y, St#st{inf_r=InfR});
-	Other -> St
+magnet_radius(Sign, #drag{falloff=Falloff0}=Drag) ->
+    case Falloff0+Sign*?GROUND_GRID_SIZE/4 of
+	Falloff when Falloff > 0 ->
+	    Drag#drag{falloff=Falloff};
+	Other -> Drag
     end.
 
 view_changed(#st{drag=#drag{constraint=view_dependent}=Drag0}=St) ->
@@ -254,14 +258,14 @@ update_tvs([{Tv,StaticVs,Id,StaticWe}|Tvs], [{Id,NewWe}|New]) ->
 update_tvs([], []) -> [].
 
 update_tvs_1([F0|Fs], NewWe, Acc) ->
-    F = F0(view_changed, NewWe, dummy),
+    F = F0(view_changed, NewWe),
     update_tvs_1(Fs, NewWe, [F|Acc]);
 update_tvs_1([], NewWe, Acc) -> reverse(Acc).
     
 motion(X, Y, #st{drag=Drag0}=St) ->
     {Dx0,Dy0,Drag1} = mouse_range(X, Y, Drag0),
-    {Dx,Dy} = constrain(Dx0, Dy0, Drag1),
-    Drag = motion_update(Dx, Dy, Drag1),
+    Move = constrain(Dx0, Dy0, Drag1),
+    Drag = motion_update(Move, Drag1),
     St#st{drag=Drag}.
 
 mouse_range(X0, Y0, #drag{x=OX,y=OY,xs=Xs,ys=Ys}=Drag) ->
@@ -291,9 +295,9 @@ warp(X, Y, XsInc, YsInc, #drag{xs=Xs,ys=Ys}=Drag) ->
     wings_io:warp(X, Y),
     mouse_range(X, Y, Drag#drag{xs=Xs+XsInc,ys=Ys+YsInc}).
 
-constrain(Dx0, Dy0, #drag{unit=Unit,constraint=Constraint}) ->
+constrain(Dx0, Dy0, #drag{unit=Unit,constraint=Constraint}=Drag) ->
     {Dx,Dy} = case sdl_keyboard:getModState() of
-  		  Mod when Mod band ?SHIFT_BITS =/= 0,
+		  Mod when Mod band ?SHIFT_BITS =/= 0,
 			   Mod band ?CTRL_BITS =/= 0 ->
 		      D = if
 			      Unit == angle -> 150.0;
@@ -310,27 +314,26 @@ constrain(Dx0, Dy0, #drag{unit=Unit,constraint=Constraint}) ->
 		      {float(trunc(Dx0)),float(trunc(Dy0))};
 		  Mod -> {Dx0,Dy0}
 	      end,
-    case Constraint of
-	none ->
-	    {Dx,Dy};
-	view_dependent ->
-	    {Dx,Dy};
-	{Min,Max} when Dx < Min ->
-	    {Min,Dy};
-	{Min,Max} when Dx > Max ->
-	    {Max,Dy};
-	{_,_} ->
-	    {Dx,Dy}
-    end.
+    constrain_1(Constraint, Dx, Dy, Drag).
+
+constrain_1({magnet,view_dependent}, Dx, Dy, #drag{falloff=Falloff}=Drag) ->
+    {Dx,Dy,Falloff};
+constrain_1({magnet,none}, Dx, Dy, #drag{falloff=Falloff}=Drag) ->
+    {Dx,Falloff};
+constrain_1(none, Dx, Dy, Drag) -> Dx;
+constrain_1(view_dependent, Dx, Dy, Drag) -> {Dx,Dy};
+constrain_1({Min,Max}, Dx, Dy, Drag) when Dx < Min -> Min;
+constrain_1({Min,Max}, Dx, Dy, Drag) when Dx > Max -> Max;
+constrain_1(Other, Dx, Dy, Drag) -> Dx.
 
 %%%
 %%% Update selection for new mouse position.
 %%%
 
-motion_update(Dx, Dy, #drag{tvs={matrix,Tvs}}=Drag) ->
+motion_update(Move, #drag{tvs={matrix,Tvs}}=Drag) ->
     gl:newList(?DL_DYNAMIC_FACES, ?GL_COMPILE),
     Mtxs = foldl(fun({Id,Trans,Matrix0}, Acc) when function(Trans) ->
-			 Matrix = Trans(Matrix0, Dx, Dy),
+			 Matrix = Trans(Matrix0, Move),
 			 gl:pushMatrix(),
 			 gl:multMatrixf(e3d_mat:expand(Matrix)),
 			 gl:callList(?DL_DYNAMIC+Id),
@@ -343,24 +346,24 @@ motion_update(Dx, Dy, #drag{tvs={matrix,Tvs}}=Drag) ->
     gl:callList(?DL_DYNAMIC_FACES),
     gl:endList(),
     Drag#drag{matrices=Mtxs};
-motion_update(Dx, Dy, #drag{tvs=Tvs,sel=Sel}=Drag) ->
+motion_update(Move, #drag{tvs=Tvs,sel=Sel}=Drag) ->
     gl:newList(?DL_DYNAMIC_FACES, ?GL_COMPILE),
-    New = motion_update_1(Tvs, Dx, Dy, Drag, []),
+    New = motion_update_1(Tvs, Move, Drag, []),
     gl:endList(),
     make_sel_dlist(New, Sel),
     Drag#drag{new=New}.
 
-motion_update_1([{Tv,StaticVs,Id,We0}|Tvs], Dx, Dy, Drag, A) ->
-    Vtab0 = transform_vs(Tv, Dx, Dy, Drag, StaticVs),
+motion_update_1([{Tv,StaticVs,Id,We0}|Tvs], Move, Drag, A) ->
+    Vtab0 = transform_vs(Tv, Move, Drag, StaticVs),
     Vtab = gb_trees:from_orddict(sort(Vtab0)),
     We = We0#we{vs=Vtab},
     draw_flat_faces(We),
-    motion_update_1(Tvs, Dx, Dy, Drag, [{Id,We}|A]);
-motion_update_1([], Dx, Dy, Drag, A) -> A.
+    motion_update_1(Tvs, Move, Drag, [{Id,We}|A]);
+motion_update_1([], Move, Drag, A) -> A.
 
-transform_vs([F0|_]=Fs, Dx, Dy, Drag, Acc) when is_function(F0) ->
-    foldl(fun(F, A) -> F(Dx, Dy, A) end, Acc, Fs);
-transform_vs(Tvs, Dx, Dy, Drag, Acc) ->
+transform_vs([F0|_]=Fs, Move, Drag, Acc) when is_function(F0) ->
+    foldl(fun(F, A) -> F(Move, A) end, Acc, Fs);
+transform_vs(Tvs, Dx, Drag, Acc) ->
     message([Dx], Drag),
     foldl(fun({Vec,Vs}, A) ->
 		  translate(Vec, Dx, Vs, A)
