@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_palette.erl,v 1.5 2004/05/18 08:19:56 dgud Exp $
+%%     $Id: wings_palette.erl,v 1.6 2004/05/18 14:54:21 dgud Exp $
 %%
 -module(wings_palette).
 
@@ -29,7 +29,7 @@
 
 -define(BORD, 2).
 
--record(pst, {st, sel=none, cols}).
+-record(pst, {st, sel=none, cols, w=?COLS_W, h=?COLS_H, knob=0}).
 
 window(St) ->
     case wings_wm:is_window(palette) of
@@ -38,21 +38,25 @@ window(St) ->
 	    keep;
 	false ->
 	    {{_,DeskY},{DeskW,_DeskH}} = wings_wm:win_rect(desktop),
-	    Pos = {DeskW-5,DeskY+55},
+	    Pos  = {DeskW-5,DeskY+55},
 	    Size = {?COLS_W*?BOX_W+?COLS_W*?BORD+?BORD*2, 
 		    ?COLS_H*?BOX_H+?COLS_H*?BORD+?BORD*2},
 	    window(Pos, Size, St),
 	    keep
     end.
 
-window(Pos, Size, St) ->
-    Cols = get_all_colors(St),
-    Pst = #pst{st=St, cols=Cols},
+window(Pos, Size = {W,_}, St) ->
+    Cols0 = get_all_colors(St),
+    ColsW = W div (?BOX_W+?BORD),
+    ColsH0 = length(Cols0) div ColsW,
+    ColsH = if (length(Cols0) rem ColsW) == 0 -> ColsH0; true -> ColsH0+1 end,
+    Cols = Cols0 ++ lists:duplicate(ColsH*ColsW-length(Cols0),none),
+    Pst = #pst{st=St, cols=Cols, w=ColsW, h=ColsH},
     Op  = {seq,push,event({current_state,St}, Pst)},
     Props = [{display_lists,geom_display_lists}],
     wings_wm:toplevel(palette, "Palette", Pos, Size,
-		      [%{sizeable,?PANE_COLOR},
-		       closable, %vscroller,
+		      [{sizeable,?PANE_COLOR},
+		       closable, vscroller,
 		       {anchor,ne},
 		       {properties,Props}], Op),
     F = fun({color,_}) -> yes;
@@ -85,9 +89,48 @@ event(redraw, Pst) ->
     wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
     draw_objs(Pst),
     keep;
-% event(resized, Pst) ->
-%     update_scroller(Pst),
-%     keep;
+
+event(resized, Pst=#pst{cols=Cols0,w=CW,h=CH}) ->
+    {_,_,W,H} = wings_wm:viewport(),
+    ColsW0 = W div (?BOX_W+?BORD),
+    ColsW = if ColsW0 < 1 -> 1; true -> ColsW0 end,
+    ColsH0 = H div (?BOX_H+?BORD),
+    NewCols = ColsW*ColsH0,
+    OldCols = CW*CH,
+    {Cols,ColsH} = 
+	if OldCols < NewCols ->
+		New = lists:duplicate(NewCols-OldCols,none),
+		{Cols0 ++ New, ColsH0};
+	   (OldCols rem ColsW) == 0 -> 
+		ColsH1 = OldCols div ColsW,
+		{Cols0, ColsH1};
+	   true ->
+		{N, NonEmpty} = del_empty(reverse(Cols0)),
+		Old = OldCols - N,
+		ColsH1 = (Old div ColsW) + 1,
+		if ColsH1 > ColsH0 ->
+ 			New = lists:duplicate(ColsH1*ColsW-Old,none),
+			{reverse(NonEmpty) ++ New, ColsH1};
+		   true ->
+ 			New = lists:duplicate(ColsH0*ColsW-Old,none),
+			{reverse(NonEmpty) ++ New, ColsH0}
+		end
+	end,
+%     io:format("W ~p H ~p {~p,~p}= ~p {~p,~p}=~p Real ~p ~n", 
+% 	      [W,H,ColsW,ColsH0,ColsW*ColsH0,ColsW,ColsH,ColsW*ColsH,length(Cols)]),
+    update_scroller(0,ColsH0,ColsH),
+    get_event(Pst#pst{knob=0,cols=Cols,w=ColsW,h=ColsH});
+
+event({set_knob_pos, Pos}, Pst = #pst{h=N,knob=Knob}) ->
+    case round(Pos*N) of
+	Knob -> keep;
+	New0  ->
+	    New = if New0 < N -> New0; true -> N end,
+	    {_,_,_,H} = wings_wm:viewport(),
+	    Visible = H div (?BOX_H+?BORD),
+	    update_scroller(New,Visible,N),
+	    get_event(Pst#pst{knob=New})
+    end;
 event(close, #pst{cols=Cols}) ->
     put(?MODULE, Cols),
     delete;
@@ -102,7 +145,7 @@ event({current_state,St}, Pst) ->
 event(Ev = #mousemotion{state=Bst,x=X,y=Y, mod=Mod}, Pst = #pst{sel=Sel,cols=Cols})
   when Bst band ?SDL_BUTTON_LMASK =/= 0 ->
     Delete = Mod band ?CTRL_BITS =/= 0,
-    case select(X,Y) of
+    case select(X,Y,Pst) of
 	none -> keep;
  	Sel -> keep;
 	Id when Delete ->
@@ -123,9 +166,9 @@ event(#mousebutton{button=Butt,x=X,y=Y,mod=Mod,state=?SDL_PRESSED}, #pst{cols=Co
   when Butt =:= 1; Butt =:= 2 ->
     case Mod band ?CTRL_BITS =/= 0 of
 	false ->
-	    get_event(Pst#pst{sel=select(X,Y)});
+	    get_event(Pst#pst{sel=select(X,Y,Pst)});
 	true when Butt =:= 1 ->
-	    case select(X,Y) of
+	    case select(X,Y,Pst) of
 		none -> keep;
 		Id ->
 		    {Bef,[_Prev|Rest]} = lists:split(Id, Cols0),		    
@@ -138,7 +181,7 @@ event(#mousebutton{button=Butt,x=X,y=Y,mod=Mod,state=?SDL_PRESSED}, #pst{cols=Co
 event(#mousebutton{button=1,state=?SDL_RELEASED}, #pst{sel=none}) ->
     keep;
 event(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Pst = #pst{sel=Sel}) ->
-    case select(X,Y) of
+    case select(X,Y,Pst) of
 	Sel -> 
 	    command({edit,Sel}, Pst);
 	_ -> 
@@ -146,7 +189,7 @@ event(#mousebutton{button=2,x=X,y=Y,state=?SDL_RELEASED}, Pst = #pst{sel=Sel}) -
     end;
 event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, #pst{sel=Sel,cols=Cols,st=St0}=Pst) ->
     Color = lists:nth(Sel+1, Cols),
-    case select(X,Y) of
+    case select(X,Y,Pst) of
 	none -> keep;
 	Sel when Color /= none -> 
 	    St = case St0#st.selmode of
@@ -171,7 +214,7 @@ event(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED}, #pst{sel=Sel,cols=Cols
 	    get_event(Pst#pst{sel=none})
     end;
 event(#mousebutton{x=X0,y=Y0}=Ev, Pst) ->
-    Id = select(X0,Y0),
+    Id = select(X0,Y0,Pst),
     case wings_menu:is_popup_event(Ev) of
  	{yes,X,Y,_} when is_integer(Id) ->
 	    do_menu(Id, X, Y, Pst);
@@ -185,7 +228,7 @@ event(lost_focus, Pst) ->
 event({new_color,Cols}, Pst) ->
     get_event(Pst#pst{cols=Cols});
 event({drop,{X,Y},{color,Color}}, #pst{cols=Cols0}=Pst) ->
-    case select(X,Y) of
+    case select(X,Y,Pst) of
 	none -> keep;
 	Id ->
 	    {Bef,[_Prev|Rest]} = lists:split(Id, Cols0),
@@ -193,7 +236,7 @@ event({drop,{X,Y},{color,Color}}, #pst{cols=Cols0}=Pst) ->
 	    get_event(Pst#pst{cols=Cols})
     end;
 event({drop,{X,Y},{material,Name}}, #pst{cols=Cols0,st=St}=Pst) ->
-    case select(X,Y) of
+    case select(X,Y,Pst) of
 	none -> keep;
 	Id ->
 	    {Bef,[_Prev|Rest]} = lists:split(Id, Cols0),
@@ -202,9 +245,13 @@ event({drop,{X,Y},{material,Name}}, #pst{cols=Cols0,st=St}=Pst) ->
 	    Cols = Bef ++ [color(Color)|Rest],
 	    get_event(Pst#pst{cols=Cols})
     end;
-
 event(_Ev, _Pst) ->
+%%    io:format("Missed Ev ~p~n", [_Ev]),
     keep.
+
+update_scroller(First,Visible,Total) ->
+    Name = wings_wm:this(),
+    wings_wm:set_knob(Name, First/Total, Visible/Total).
 
 do_menu(Id,X,Y,#pst{cols=Cols}) ->    
     Menu = [{"Edit",{'VALUE',{edit,Id}}, "Edit color"}],
@@ -219,6 +266,7 @@ do_menu(Id,X,Y,#pst{cols=Cols}) ->
 
 command(clear_all, Pst) ->
     get_event(Pst#pst{sel=none,cols=lists:duplicate(?COLS_W*?COLS_H, none)});
+command({_,none}, _) -> keep;
 command({smooth,Id}, Pst = #pst{cols=Cols0}) ->
     {Bef0,After0} = lists:split(Id, Cols0),
     {BC, Bef1} = del_empty(reverse(Bef0)),
@@ -264,33 +312,34 @@ drag_and_drop(Ev, What) ->
     DropData = {color, color(What)},
     wings_wm:drag(Ev, {?BOX_W,?BOX_H}, DropData).
 
-draw_objs(#pst{cols=Cols}) ->
-    draw_objs(0, ?BORD, ?BORD, Cols).
-draw_objs(_,_,_,[]) ->    ok;
-draw_objs(N,X,Y,[Color|Cols]) when N < ?COLS_W ->
+draw_objs(#pst{cols=Cols0, w=W, h=_H, knob=Knob}) ->
+    length(Cols0) == W*_H, %% Assert
+    {_Bef,Cols} = lists:split(Knob*W, Cols0),
+    draw_objs(0, ?BORD, ?BORD, W, Cols).
+draw_objs(_,_,_,_,[]) ->    ok;
+draw_objs(N,X,Y,W,[Color|Cols]) when N < W ->
     case Color of
 	none ->
 	    wings_io:border(X, Y, ?BOX_W, ?BOX_H, ?PANE_COLOR);
 	_ ->
 	    wings_io:border(X, Y, ?BOX_W, ?BOX_H, Color)
     end,
-    draw_objs(N+1, X+?BOX_W+?BORD, Y, Cols);
-draw_objs(_,_,Y,Cols) ->
-    draw_objs(0, ?BORD, Y+?BOX_H+?BORD,Cols).
+    draw_objs(N+1, X+?BOX_W+?BORD, Y, W, Cols);
+draw_objs(_,_,Y,W,Cols) ->
+    draw_objs(0, ?BORD, Y+?BOX_H+?BORD,W,Cols).
 
 color(none) -> {1.0,1.0,1.0};
 color({_,_,_}=C) -> C;
 color({R,G,B,_}) -> {R,G,B}.
 
-select(X,Y) ->
+select(X,Y,#pst{w=ColsW,h=ColsH, knob=Knob}) ->
     Col = X div (?BORD+?BOX_W),
-    Row = Y div (?BORD+?BOX_H),
-    Id =  Row*?COLS_W+Col,
-    if Id < 0 -> none;
-       Id >= (?COLS_W*?COLS_H) -> none;
-       true -> Id
+    Row = Knob + (Y div (?BORD+?BOX_H)),
+    Id =  (Row*ColsW+Col),
+    if 
+	X > ColsW *(?BORD+?BOX_W) -> none;
+	Y > ColsH *(?BORD+?BOX_H) -> none;
+	Id < 0 -> none;
+	Id >= (ColsW*ColsH) -> none;
+	true -> Id
     end.
-	    
-	     
-	
-
