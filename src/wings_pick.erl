@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.77 2003/01/11 09:42:45 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.78 2003/01/24 08:32:40 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -105,39 +105,41 @@ handle_hilite_event(#mousemotion{x=X,y=Y}, #hl{prev=PrevHit,st=St}=HL) ->
 	PrevHit ->
 	    get_hilite_event(HL);
 	none ->
-	    insert_hilite_fun(none, none),
 	    wings_wm:dirty(),
+	    insert_hilite_dl(none, none),
 	    get_hilite_event(HL#hl{prev=none});
 	Hit ->
 	    wings_wm:dirty(),
-	    DrawFun = hilite_draw_sel_fun(Hit, St),
-	    insert_hilite_fun(Hit, DrawFun),
+	    DL = hilite_draw_sel_dl(Hit, St),
+	    insert_hilite_dl(Hit, DL),
 	    get_hilite_event(HL#hl{prev=Hit})
     end;
 handle_hilite_event(init_opengl, #hl{st=St}) ->
     wings:init_opengl(St);
 handle_hilite_event(_, _) ->
-    insert_hilite_fun(none, none),
+    insert_hilite_dl(none, none),
     next.
 
-insert_hilite_fun(Hit, DrawFun) ->
+insert_hilite_dl(Hit, DL) ->
     wings_draw_util:map(fun(D, _) ->
-				insert_hilite(D, Hit, DrawFun)
+				insert_hilite_dl_1(D, Hit, DL)
 			end, []).
 
-insert_hilite(#dlo{src_we=#we{id=Id}}=D, {_,_,{Id,_}}, DrawFun) ->
-    {D#dlo{hilite=DrawFun},[]};
-insert_hilite(D, _, _) -> {D#dlo{hilite=none},[]}.
+insert_hilite_dl_1(#dlo{src_we=#we{id=Id}}=D, {_,_,{Id,_}}, DL) ->
+    {D#dlo{hilite=DL},[]};
+insert_hilite_dl_1(D, _, _) -> {D#dlo{hilite=none},[]}.
 
-hilite_draw_sel_fun({_,_,{_}}, _) ->
-    fun() -> ok end;
-hilite_draw_sel_fun({Mode,_,{Id,Item}=Hit}, St) ->
-    fun() ->
-	    hilite_color(Hit, St),
-	    #st{shapes=Shs} = St,
-	    We = gb_trees:get(Id, Shs),
-	    hilit_draw_sel(Mode, Item, We)
-    end.
+hilite_draw_sel_dl({_,_,{_}}, _) ->
+    none;
+hilite_draw_sel_dl({Mode,_,{Id,Item}=Hit}, St) ->
+    List = gl:genLists(1),
+    gl:newList(List, ?GL_COMPILE),
+    hilite_color(Hit, St),
+    #st{shapes=Shs} = St,
+    We = gb_trees:get(Id, Shs),
+    hilit_draw_sel(Mode, Item, We),
+    gl:endList(),
+    List.
 
 hilite_color({Id,Item}, #st{sel=Sel}) ->
     Key = case keysearch(Id, 1, Sel) of

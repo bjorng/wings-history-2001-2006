@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.49 2003/01/10 07:17:45 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.50 2003/01/24 08:32:39 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -144,8 +144,8 @@ update_last(Data, Seen, Acc) ->
 
 update_seen(D, Seen) ->
     #dlo{work=F,smooth=Sm1,smoothed=Sm2,hard=Hard,vs=Vs,
-	 sel=Sel,orig_sel=OrigSel,normals=Ns,pick=Pick} = D,
-    Lists = [F,Sm1,Sm2,Hard,Vs,Sel,OrigSel,Ns,Pick],
+	 sel=Sel,orig_sel=OrigSel,normals=Ns,pick=Pick,hilite=Hilite} = D,
+    Lists = [F,Sm1,Sm2,Hard,Vs,Sel,OrigSel,Ns,Pick,Hilite],
     update_seen_1(Lists, Seen).
 
 update_seen_1([H|T], Seen) ->
@@ -374,8 +374,7 @@ draw_vertices(#dlo{src_we=#we{perm=P},vs=VsDlist}, vertex) when ?IS_SELECTABLE(P
     call(VsDlist);
 draw_vertices(_, _) -> ok.
 
-draw_hilite(#dlo{hilite=none}) -> ok;
-draw_hilite(#dlo{hilite=Hilite}) -> Hilite().
+draw_hilite(#dlo{hilite=DL}) -> call(DL).
 
 draw_orig_sel(#dlo{orig_sel=none}) -> ok;
 draw_orig_sel(#dlo{orig_sel=Dlist,orig_mode=Mode}) ->
