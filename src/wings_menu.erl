@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.93 2003/02/27 19:22:46 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.94 2003/03/04 19:44:06 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -398,9 +398,9 @@ key(#keyboard{keysym=#keysym{sym=?SDLK_DELETE}}) -> delete;
 key(#keyboard{keysym=#keysym{unicode=$\\}}) -> delete;
 key(_) -> none.
 
-current_command(#mi{owner=Owner}) when Owner =/= geom -> none;
 current_command(#mi{sel=none}) -> none;
-current_command(#mi{sel=Sel,menu=Menu,ns=Names}) ->
+current_command(#mi{sel=Sel,menu=Menu,ns=Names,owner=Owner})
+  when Owner == geom; element(1, Owner) == geom ->
     case element(Sel, Menu) of
 	{_,Name,_,_,Ps} when is_atom(Name) ->
 	    {build_command(Name, Names),have_option_box(Ps)};
@@ -411,7 +411,8 @@ current_command(#mi{sel=Sel,menu=Menu,ns=Names}) ->
 		false -> none
 	    end;
 	_Other -> none
-    end.
+    end;
+current_command(_) -> none.
 
 %% Test if a term can be represented in a text file and read back.
 is_ascii_clean([H|T]) ->
