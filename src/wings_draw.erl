@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.177 2004/03/24 07:59:03 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.178 2004/03/24 08:41:22 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -316,7 +316,7 @@ make_edge_dl(Faces, #dlo{ns=Ns}) ->
     gl:endList(),
     Dl.
 
-make_edge_dl_1([_|_]=Fs, Ns) ->
+make_edge_dl_1(Fs, Ns) when is_list(Fs) ->
     make_edge_dl_2(Fs, Ns, none);
 make_edge_dl_1(Fs, Ns) ->
     make_edge_dl_2(gb_trees:keys(Fs), Ns, none).
@@ -325,21 +325,21 @@ make_edge_dl_2([F|Fs], Ns, Mode) ->
     case gb_trees:get(F, Ns) of
 	[_|[A,B,C]] ->
 	    end_begin(?GL_TRIANGLES, Mode),
-	    gl:vertex3dv(A),
-	    gl:vertex3dv(B),
-	    gl:vertex3dv(C),
+	    gl:vertex3fv(A),
+	    gl:vertex3fv(B),
+	    gl:vertex3fv(C),
 	    make_edge_dl_2(Fs, Ns, ?GL_TRIANGLES);
 	[_|[A,B,C,D]] ->
 	    end_begin(?GL_QUADS, Mode),
-	    gl:vertex3dv(A),
-	    gl:vertex3dv(B),
-	    gl:vertex3dv(C),
-	    gl:vertex3dv(D),
+	    gl:vertex3fv(A),
+	    gl:vertex3fv(B),
+	    gl:vertex3fv(C),
+	    gl:vertex3fv(D),
 	    make_edge_dl_2(Fs, Ns, ?GL_QUADS);
 	{_,VsPos} ->
 	    maybe_end(Mode),
 	    gl:'begin'(?GL_POLYGON),
-	    foreach(fun(V) -> gl:vertex3dv(V) end, VsPos),
+	    foreach(fun(V) -> gl:vertex3fv(V) end, VsPos),
 	    gl:'end'(),
 	    make_edge_dl_2(Fs, Ns, none)
     end;
@@ -379,8 +379,8 @@ make_fast_edge_dl_3([#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}|Es], Fs, Vtab) ->
 	false ->
 	    make_fast_edge_dl_3(Es, Fs, Vtab);
 	true ->
-	    gl:vertex3dv(gb_trees:get(Va, Vtab)),
-	    gl:vertex3dv(gb_trees:get(Vb, Vtab)),
+	    gl:vertex3fv(gb_trees:get(Va, Vtab)),
+	    gl:vertex3fv(gb_trees:get(Vb, Vtab)),
 	    make_fast_edge_dl_3(Es, Fs, Vtab)
     end;
 make_fast_edge_dl_3([], _, _) -> gl:'end'().
