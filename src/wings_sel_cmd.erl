@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.13 2002/04/11 08:20:39 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.14 2002/05/07 09:38:28 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
@@ -194,7 +194,7 @@ selection_change(Change, #st{selmode=edge}=St) ->
     wings_edge:Change(St);
 selection_change(Change, #st{selmode=face}=St) ->
     wings_face:Change(St);
-selection_change(Change, St) -> St.
+selection_change(_, St) -> St.
 
 save(#st{selmode=Mode,sel=Sel}=St) ->
     St#st{ssel={Mode,Sel}}.
@@ -207,9 +207,9 @@ load(#st{ssel={SMode,SSel}}=St) ->
     Sel = wings_sel:valid_sel(SSel, SMode, St),
     St#st{selmode=SMode,sel=Sel}.
 
-union(#st{selmode=Mode,sel=Sel0,ssel={Mode,Ssel}}=St) ->
-    SSel = wings_sel:valid_sel(Ssel, Mode, St),
-    Sel = combine_sel(fun(Ss) -> gb_sets:union(Ss) end, Sel0, Ssel),
+union(#st{selmode=Mode,sel=Sel0,ssel={Mode,SSel0}}=St) ->
+    SSel = wings_sel:valid_sel(SSel0, Mode, St),
+    Sel = combine_sel(fun(Ss) -> gb_sets:union(Ss) end, Sel0, SSel),
     St#st{sel=Sel};
 union(#st{sel=Sel0}=St) ->			%Different selection modes.
     Ssel = coerce_ssel(St),
@@ -224,9 +224,9 @@ subtract(#st{sel=Sel0}=St) ->		%Differenct selection modes.
     Sel = subtract(Sel0, Ssel),
     St#st{sel=Sel}.
 
-subtract([{Id1,_}=E1|Es1], [{Id2,_}|Es2]=Set2) when Id1 < Id2 ->
+subtract([{Id1,_}=E1|Es1], [{Id2,_}|_]=Set2) when Id1 < Id2 ->
     [E1|subtract(Es1, Set2)];
-subtract([{Id1,_}|Es1]=Set1, [{Id2,_}|Es2]) when Id1 > Id2 ->
+subtract([{Id1,_}|_]=Set1, [{Id2,_}|Es2]) when Id1 > Id2 ->
     subtract(Set1, Es2);
 subtract([{Id,E1}|Es1], [{Id,E2}|Es2]) ->	%E1 == E2
     E = gb_sets:subtract(E1, E2),
@@ -234,7 +234,7 @@ subtract([{Id,E1}|Es1], [{Id,E2}|Es2]) ->	%E1 == E2
 	true -> subtract(Es1, Es2);
 	false -> [{Id,E}|subtract(Es1, Es2)]
     end;
-subtract([], Es2) -> [];
+subtract([], _Es2) -> [];
 subtract(Es1, []) -> Es1.
 
 intersection(#st{selmode=Mode,sel=Sel0,ssel={Mode,Ssel}}=St) ->
