@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.6 2003/07/11 13:18:43 bjorng Exp $
+%%     $Id: auv_seg_ui.erl,v 1.7 2003/07/11 17:58:57 bjorng Exp $
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -255,7 +255,7 @@ seg_create_materials(St0) ->
     St.
 
 seg_map_charts(Method, #seg{st=#st{shapes=Shs},we=OrigWe}=Ss) ->
-    [{_,#we{he=Cuts0}=We0}] = gb_trees:to_list(Shs),
+    [#we{he=Cuts0}=We0] = gb_trees:values(Shs),
     Charts0 = auv_segment:segment_by_material(We0),
     {Charts1,Cuts} = auv_segment:normalize_charts(Charts0, Cuts0, We0),
     Charts = auv_segment:cut_model(Charts1, Cuts, OrigWe),
@@ -281,8 +281,8 @@ seg_map_chart([{Fs,Vmap,We0}|Cs], Type, I, N, Acc0, Ss) ->
 	    seg_map_charts_1(Cs, Type, I+1, N, Acc, Ss)
     end.
 
-seg_error(Message, Ss) ->
-    wings_wm:send(geom, {message,Message}),
+seg_error(Error, Ss) ->
+    wings_util:message(Error),
     get_seg_event(seg_init_message(Ss)).
 
 segment(Mode, #st{shapes=Shs}=St) ->
