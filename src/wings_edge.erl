@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.54 2002/12/26 09:47:08 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.55 2003/01/01 10:36:52 bjorng Exp $
 %%
 
 -module(wings_edge).
@@ -633,38 +633,43 @@ loop_cut(#st{onext=NextId}=St0) ->
     Sel = [S || {Id,_}=S <- Sel1, Id >= NextId],
     wings_body:convert_selection(wings_sel:set(body, Sel, St)).
 
-loop_cut(Edges, #we{name=Name}=We, Acc) ->
-    case wings_edge_loop:edge_loop_vertices(Edges, We) of
-	none ->
-	    Error = "Selected edges in \"" ++
-		Name ++ "\" does not form one or more loops.",
-	    throw({command_error,Error});
-	_Other -> loop_cut_1(Edges, We, Acc)
+loop_cut(Edges, #we{name=Name,id=Id,es=Etab}=We, {Sel0,St}) ->
+    AdjFaces = loop_cut_adj_faces(gb_sets:to_list(Edges), Etab, []),
+    case loop_cut_1(AdjFaces, Edges, We, []) of
+	[_] ->
+	    wings_util:error("Edge loop doesn't divide ~p "
+			     " into two (or more) parts.", [Name]);
+	Parts0 ->
+	    Parts1 = [{gb_trees:size(P),P} || P <- Parts0],
+	    Parts2 = reverse(sort(Parts1)),
+	    [_|Parts] = [P || {_,P} <- Parts2],
+	    NotInvolved = wings_sel:inverse_items(face, gb_sets:union(Parts), We),
+	    Orig = wings_sel:inverse_items(face, NotInvolved, We),
+	    Sel = [{Id,Orig}|Sel0],
+	    loop_cut_make_copies(Parts, We, Sel, St)
     end.
 
-loop_cut_1(Edges, #we{id=Id,es=Etab,name=Name}=We0,
-	   {Sel0,#st{onext=NewId}=St0}) ->
-    {AnEdge,_} = gb_sets:take_smallest(Edges),
-    #edge{lf=Lf,rf=Rf} = gb_trees:get(AnEdge, Etab),
-    LeftFaces = collect_faces(Lf, Edges, We0),
-    RightFaces = collect_faces(Rf, Edges, We0),
-    case gb_sets:is_subset(LeftFaces, RightFaces) orelse
-	gb_sets:is_subset(RightFaces, LeftFaces) of
-	true ->
-	    Error = "Edge loop doesn't divide \"" ++ Name ++
-		"\" into two (or more) parts.",
-	    wings_util:error(Error);
+loop_cut_make_copies([P|Parts], We, Sel0, #st{onext=Id}=St0) ->
+    Sel = [{Id,wings_sel:inverse_items(face, P, We)}|Sel0],
+    St = wings_shape:insert(We, "cut", St0),
+    loop_cut_make_copies(Parts, We, Sel, St);
+loop_cut_make_copies([], _, Sel, St) -> {Sel,St}.
+
+loop_cut_1(Faces0, Edges, We, Acc) ->
+    case gb_trees:is_empty(Faces0) of
+	true -> Acc;
 	false ->
-	    WeCopy = wings_we:get_sub_object(AnEdge, We0),
-	    St = wings_shape:insert(WeCopy, "cut", St0),
-	    Sel = case gb_sets:size(LeftFaces) < gb_sets:size(RightFaces) of
-		      true ->
-			  [{Id,LeftFaces},{NewId,RightFaces}|Sel0];
-		      false ->
-			  [{Id,RightFaces},{NewId,LeftFaces}|Sel0]
-		  end,
-	    {Sel,St}
+	    {AFace,Faces1} = gb_sets:take_smallest(Faces0),
+	    Reachable = collect_faces(AFace, Edges, We),
+	    Faces = gb_sets:difference(Faces1, Reachable),
+	    loop_cut_1(Faces, Edges, We, [Reachable|Acc])
     end.
+
+loop_cut_adj_faces([E|Es], Etab, Acc) ->
+    #edge{lf=Lf,rf=Rf} = gb_trees:get(E, Etab),
+    loop_cut_adj_faces(Es, Etab, [Lf,Rf|Acc]);
+loop_cut_adj_faces([], _, Acc) ->
+    gb_sets:from_list(Acc).
 
 collect_faces(Face, Edges, We) ->
     collect_faces(gb_sets:singleton(Face), We, Edges, gb_sets:empty()).
