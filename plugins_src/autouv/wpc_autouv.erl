@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.206 2004/03/16 18:00:35 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.207 2004/03/17 05:41:14 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -445,10 +445,11 @@ handle_event(init_opengl, St) ->
     get_event(St);
 handle_event(resized, St) ->
     get_event(St);
-handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs}}, #st{bb=Uvs}=St0) ->
+handle_event({new_state,#st{selmode=Mode,sel=Sel,shapes=Shs,sh=Sh}},
+	     #st{bb=Uvs}=St0) ->
     St1 = St0#st{selmode=Mode,sel=Sel,shapes=Shs},
     GeomSt = wings_select_faces(Sel, St1),
-    St2 = St1#st{bb=Uvs#uvstate{st=GeomSt}},
+    St2 = St1#st{bb=Uvs#uvstate{st=GeomSt},sh=Sh},
     St = update_selected_uvcoords(St2),
     get_event(St);
 handle_event(Ev, St) ->
