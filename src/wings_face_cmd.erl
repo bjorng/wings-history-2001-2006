@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.29 2002/01/27 11:48:30 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.30 2002/01/28 08:39:19 bjorng Exp $
 %f%
 
 -module(wings_face_cmd).
@@ -214,7 +214,7 @@ find_edge(V, Etab, We) ->
 intrude(St0) ->
     St1 = dissolve(St0),
     {St,Sel} = wings_sel:mapfold(fun intrude/3, [], St1),
-    wings_move:setup(intrude, St#st{sel=Sel}).
+    wings_move:setup(intrude, St#st{sel=reverse(Sel)}).
 
 intrude(Faces0, #we{id=Id,es=Etab,fs=Ftab,next_id=Wid}=We0, SelAcc) ->
     Faces = gb_sets:to_list(Faces0),
