@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.77 2004/05/29 13:18:33 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.78 2004/06/01 05:17:18 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -123,7 +123,7 @@ hide_map_face(F, Fs) ->
     end.
 
 any_hidden(#we{fs=Ftab}) ->
-    not gb_trees:is_empty(Ftab) orelse
+    not gb_trees:is_empty(Ftab) andalso
 	wings_util:gb_trees_smallest_key(Ftab) < 0.
 
 visible(#we{fs=Ftab}) ->
