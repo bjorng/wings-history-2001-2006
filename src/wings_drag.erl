@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.165 2003/11/15 16:12:25 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.166 2003/12/09 08:17:03 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -229,10 +229,10 @@ insert_matrix(Tvs) ->
 				insert_matrix_fun(D, Data, Id)
 			end, sort(Tvs)).
 
-insert_matrix_fun(#dlo{work=Work,sel=Sel,src_sel=SrcSel,
+insert_matrix_fun(#dlo{work=Work,edges=Edges,sel=Sel,src_sel=SrcSel,
 		       src_we=#we{id=Id}=We,mirror=M,proxy_data=Pd},
 		  [{Id,Tr}|Tvs], Matrix) ->
-    {#dlo{work=Work,sel=Sel,drag={matrix,Tr,Matrix,Matrix},
+    {#dlo{work=Work,edges=Edges,sel=Sel,drag={matrix,Tr,Matrix,Matrix},
 	  src_we=We,src_sel=SrcSel,mirror=M,proxy_data=Pd},Tvs};
 insert_matrix_fun(D, Tvs, _) -> {D,Tvs}.
 
@@ -720,7 +720,7 @@ normalize_fun(#dlo{drag={matrix,_,_,_},transparent=#we{id=Id}=We}=D, Shs0) when 
 normalize_fun(#dlo{drag={matrix,_,_,Matrix}, src_we=#we{id=Id}=We0}=D0, Shs0) ->
     We = wings_we:transform_vs(Matrix, We0),
     Shs = gb_trees:update(Id, We, Shs0),
-    D = D0#dlo{work=none,sel=none,drag=none,src_we=We,mirror=none},
+    D = D0#dlo{work=none,edges=none,sel=none,drag=none,src_we=We,mirror=none},
     {wings_draw:changed_we(D, D),Shs};
 normalize_fun(#dlo{drag={general,_},src_we=#we{id=Id}=We}=D, Shs) ->
     {D#dlo{drag=none,sel=none,src_we=We},gb_trees:update(Id, We, Shs)};
