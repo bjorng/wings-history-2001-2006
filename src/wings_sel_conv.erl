@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_conv.erl,v 1.3 2004/12/31 10:30:43 bjorng Exp $
+%%     $Id: wings_sel_conv.erl,v 1.4 2004/12/31 11:37:58 bjorng Exp $
 %%
 
 -module(wings_sel_conv).
@@ -112,10 +112,9 @@ vertex_visible(V, We) ->
 %%
 
 edge_selection(#st{selmode=body}=St) ->
-    conv_sel(
-      fun(_, #we{es=Etab}) ->
-	      gb_sets:from_list(gb_trees:keys(Etab))
-      end, edge, St);
+    conv_sel(fun(_, We) ->
+		     gb_sets:from_ordset(wings_we:visible_edges(We))
+	     end, edge, St);
 edge_selection(#st{selmode=face}=St) ->
     conv_sel(
       fun(Faces, We) ->
@@ -124,7 +123,7 @@ edge_selection(#st{selmode=face}=St) ->
 edge_selection(#st{selmode=edge}=St) ->
     conv_sel(
       fun(Edges, We) ->
-	      wings_edge:extend_sel(Edges, We)
+	      edge_extend_sel(Edges, We)
       end, edge, St);
 edge_selection(#st{selmode=vertex}=St) ->
     conv_sel(fun(Vs, We) -> wings_edge:from_vs(Vs, We) end, edge, St).
@@ -134,7 +133,8 @@ edge_more(St) ->
 
 edge_more(Edges, We) ->
     Vs = wings_edge:to_vertices(Edges, We),
-    adjacent_edges(Vs, We, Edges).
+    Es = adjacent_edges(Vs, We, Edges),
+    remove_invisible_edges(Es, We).
 
 edge_less(St) ->
     conv_sel(fun(Edges, #we{es=Etab}=We) ->
@@ -172,6 +172,22 @@ adjacent_edges(Vs, We, Acc) ->
 			    gb_sets:add(Edge, AA)
 		    end, A, V, We)
 	  end, Acc, Vs).
+
+edge_extend_sel(Es0, #we{es=Etab}=We) ->
+    Es = foldl(fun(Edge, S) ->
+		       #edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} =
+			   gb_trees:get(Edge, Etab),
+		       gb_sets:union(S, gb_sets:from_list([LP,LS,RP,RS]))
+	       end, Es0, gb_sets:to_list(Es0)),
+    remove_invisible_edges(Es, We).
+
+remove_invisible_edges(Es, We) ->
+    case wings_we:any_hidden(We) of
+	false -> Es;
+	true ->
+	    Vis = gb_sets:from_ordset(wings_we:visible_edges(We)),
+	    gb_sets:intersection(Vis, Es)
+    end.
 
 %%
 %% Convert the current selection to a face selection.

@@ -8,19 +8,18 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.114 2004/12/31 10:09:40 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.115 2004/12/31 11:37:57 bjorng Exp $
 %%
 
 -module(wings_edge).
 
 %% Utilities.
--export([from_vs/2,
+-export([from_vs/2,to_vertices/2,from_faces/2,
 	 select_region/1,
 	 select_edge_ring/1,select_edge_ring_incr/1,select_edge_ring_decr/1,
 	 cut/3,fast_cut/3,screaming_cut/3,
 	 dissolve_edges/2,dissolve_edge/2,
 	 hardness/2,hardness/3,
-	 to_vertices/2,from_faces/2,extend_sel/2,
 	 set_color/2,
 	 patch_edge/4,patch_edge/5]).
 
@@ -57,20 +56,6 @@ to_vertices([], _Etab, Acc) -> ordsets:from_list(Acc).
 %%  Convert faces to edges.
 from_faces(Faces, We) ->
     gb_sets:from_ordset(wings_face:to_edges(Faces, We)).
-
-%% from_faces(Edges, We) -> EdgeSet
-%%  Extend Edges with all neighboring edges.
-extend_sel(Edges, We) when is_list(Edges) ->
-    extend_sel(Edges, gb_sets:from_list(Edges), We);
-extend_sel(EdgeSet, We) ->
-    extend_sel(gb_sets:to_list(EdgeSet), EdgeSet, We).
-
-extend_sel(Edges, EdgeSet, #we{es=Etab}) ->
-    foldl(fun(Edge, S0) ->
-		  Rec = gb_trees:get(Edge, Etab),
-		  #edge{ltpr=LP,ltsu=LS,rtpr=RP,rtsu=RS} = Rec,
-		  gb_sets:union(S0, gb_sets:from_list([LP,LS,RP,RS]))
-	  end, EdgeSet, Edges).
 
 %% cut(Edge, Parts, We0) -> {We,NewVertex,NewEdge}
 %%  Cut an edge into Parts parts.

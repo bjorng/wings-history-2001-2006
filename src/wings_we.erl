@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.97 2004/12/31 10:30:43 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.98 2004/12/31 11:37:58 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -28,7 +28,8 @@
 	 new_items/3,new_items_as_ordset/3,new_items_as_gbset/3,
 	 is_consistent/1,is_face_consistent/2,
 	 hide_faces/2,show_faces/1,num_hidden/1,
-	 any_hidden/1,all_hidden/1,visible/1,visible/2,visible_vs/1,
+	 any_hidden/1,all_hidden/1,
+	 visible/1,visible/2,visible_vs/1,visible_edges/1,
 	 validate_mirror/1,mirror_flatten/2]).
 
 -include("wings.hrl").
@@ -166,17 +167,24 @@ visible_vs(#we{vc=Vct,es=Etab}=We) ->
 	true -> visible_vs_1(gb_trees:values(Etab), [])
     end.
 
-visible_vs_1([#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf}|Es], Acc0) ->
-    Acc1 = if
-	       Lf < 0 -> Acc0;
-	       true -> [Va|Acc0]
-	   end,
-    Acc = if
-	      Rf < 0 -> Acc0;
-	      true -> [Vb|Acc1]
-	  end,
+visible_vs_1([#edge{lf=Lf,rf=Rf}|Es], Acc) when Lf < 0, Rf < 0 ->
     visible_vs_1(Es, Acc);
+visible_vs_1([#edge{vs=Va,ve=Vb}|Es], Acc) ->
+    visible_vs_1(Es, [Va,Vb|Acc]);
 visible_vs_1([], Acc) ->
+    ordsets:from_list(Acc).
+
+visible_edges(#we{es=Etab}=We) ->
+    case any_hidden(We) of
+	false -> gb_trees:keys(Etab);
+	true -> visible_es_1(gb_trees:to_list(Etab), [])
+    end.
+
+visible_es_1([{_,#edge{lf=Lf,rf=Rf}}|Es], Acc) when Lf < 0, Rf < 0 ->
+    visible_es_1(Es, Acc);
+visible_es_1([{E,_}|Es], Acc) ->
+    visible_es_1(Es, [E|Acc]);
+visible_es_1([], Acc) ->
     ordsets:from_list(Acc).
 
 show_faces(We) ->
