@@ -1,4 +1,4 @@
-$Id: AUTHORS,v 1.23 2004/10/13 14:57:51 bjorng Exp $
+$Id: AUTHORS,v 1.24 2004/10/14 08:54:17 dgud Exp $
 
 Björn Gustavsson:
 	Has written the bulk of code.
@@ -85,6 +85,9 @@ Riccardo Venier (verme@insiberia.net):
 	Translated all the strings in the Wings core to Italian, and implemented
 	a mechanism for changing langugages.
 
+Paul ??? (elrond79)
+	Wrote intersect (vertex/edge) commands and force ortho view option when
+	camera is on one of the major axis.
 
 Auto-UV credits
 ===============

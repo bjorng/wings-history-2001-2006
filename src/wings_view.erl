@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.156 2004/10/09 05:45:45 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.157 2004/10/14 08:54:19 dgud Exp $
 %%
 
 -module(wings_view).
@@ -870,8 +870,12 @@ load_matrices(IncludeLights) ->
 projection() ->
     {W,H} = wings_wm:win_size(),
     Aspect = W/H,
-    #view{distance=D,fov=Fov,hither=Hither,yon=Yon} = current(),
-    case wings_wm:get_prop(orthogonal_view) of
+    #view{distance=D,fov=Fov,hither=Hither,yon=Yon,along_axis=AA} = 
+	current(),
+    Ortho = wings_wm:get_prop(orthogonal_view) 
+	orelse ((AA =/= none) andalso 
+		wings_pref:get_value(force_ortho_along_axis)),
+    case Ortho of
 	false ->
 	    glu:perspective(Fov, Aspect, Hither, Yon);
 	true ->

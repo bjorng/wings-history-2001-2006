@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_plugin.erl,v 1.31 2004/10/08 06:02:30 dgud Exp $
+%%     $Id: wings_plugin.erl,v 1.32 2004/10/14 08:54:19 dgud Exp $
 %%
 -module(wings_plugin).
 -export([init/0,menu/2,dialog/2,dialog_result/2,command/2,call_ui/1]).
@@ -232,6 +232,7 @@ check_result(_M, {new_shape,Prefix,Fs,Vs}, St) ->
 check_result(_M, aborted, _St) -> aborted;
 check_result(_M, {drag,_}=Drag, _) -> Drag;
 check_result(_M, #st{}=St, _) -> St;
+check_result(_M, {save_state,#st{}}=SS, _) -> SS;
 check_result(_M, {push,_}=Push, _) -> Push;
 check_result(_M, {seq,_,_}=Seq, _) -> Seq;
 check_result(_M, keep, _) -> keep;

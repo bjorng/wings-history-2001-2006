@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.125 2004/10/13 13:59:46 dgud Exp $
+%%     $Id: wings_pref.erl,v 1.126 2004/10/14 08:54:19 dgud Exp $
 %%
 
 -module(wings_pref).
@@ -152,8 +152,11 @@ gen_prefs() ->
       {hframe,
        [{label,?STR(gen_prefs,32,"Color")},{color,grid_color},
 	{?STR(gen_prefs,33,"Force Axis-Aligned Grid"),force_show_along_grid,
-	 [{info,?STR(gen_prefs,34,"Always show the grid when the view is aligned along one of the major axes")}]}],
-       [{title,?STR(gen_prefs,35,"Grid")}]},
+	 [{info,?STR(gen_prefs,34,"Always show the grid when the view is aligned along one of the major axes")}]},
+	{?STR(gen_prefs,aa_ortho1,"Force Axis-Aligned Ortho"),
+	 force_ortho_along_axis,
+	[{info, ?STR(gen_prefs,aa_ortho2,"Always go into orthogonal mode when the view is aligned along one of the major axes")}]}],
+      [{title,?STR(gen_prefs,35,"Grid")}]},
       {hframe,
        [{vframe,
 	 [{?STR(gen_prefs,36,"Show Axis Letters"),show_axis_letters},
@@ -704,6 +707,7 @@ defaults() ->
      {selected_edge_width,2.0},
      {show_axis_letters,true},
      {force_show_along_grid,false},
+     {force_ortho_along_axis,false},
      {vertex_hilite,true},
      {edge_hilite,true},
      {face_hilite,true},
