@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.47 2003/01/06 09:54:24 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.48 2003/01/06 12:49:50 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -331,14 +331,14 @@ dispatch_event(#resize{w=W,h=H}=Event) ->
     put_window_data(top, Win),
 
     MenubarData0 = get_window_data(menubar),
-    MenubarH = ?CHAR_HEIGHT+5,
+    MenubarH = ?CHAR_HEIGHT+6,
     MenubarData1 = MenubarData0#win{x=0,y=0,w=W,h=MenubarH},
     put_window_data(menubar, MenubarData1),
     MenubarData = send_event(MenubarData1, Event#resize{w=W}),
     put_window_data(menubar, MenubarData),
 
     MsgData0 = get_window_data(message),
-    MsgH = ?CHAR_HEIGHT+6,
+    MsgH = ?CHAR_HEIGHT+8,
     MsgY = H-MsgH,
     MsgData1 = MsgData0#win{x=0,y=MsgY,w=W,h=MsgH},
     put_window_data(message, MsgData1),
@@ -702,7 +702,7 @@ message_setup() ->
     wings_io:set_color(?PANE_COLOR),
     gl:recti(0, 0, W, H),
     wings_io:border(6, 0, W-20, H-2, ?PANE_COLOR),
-    gl:translatef(10, H-5, 0),
+    gl:translatef(10, H-6.5, 0),
     {W,H}.
 
 %% Dirty hack to draw in the front buffer.
@@ -1044,7 +1044,7 @@ toplevel(Name, Title, Pos, Size, Flags, Op) ->
 	}).
 
 new_controller(Client, Title, Flags) ->
-    TitleBarH = ?LINE_HEIGHT+2,
+    TitleBarH = ?LINE_HEIGHT+3,
     #win{x=X,y=Y,z=Z,w=W0,h=H0} = Win = get_window_data(Client),
     Controller = {controller,Client},
     Controlled0 = ctrl_create_windows(Flags, Client, Win),
@@ -1123,13 +1123,13 @@ ctrl_event({client_resized,Client}, _) ->
 ctrl_event(_, _) -> keep.
 
 ctrl_redraw(#ctrl{title=Title}) ->
-    TitleBarH = ?LINE_HEIGHT+2,
+    TitleBarH = ?LINE_HEIGHT+3,
     wings_io:ortho_setup(),
     {_,_,W,_} = viewport(),
     Color = {0.3,0.4,0.3},
-    wings_io:border(0, 0, W-1, TitleBarH, Color),
+    wings_io:border(0, 0, W-0.5, TitleBarH, Color),
     gl:color3f(1, 1, 1),
-    wings_io:text_at(10, TitleBarH-3, Title),
+    wings_io:text_at(10, TitleBarH-5, Title),
     keep.
 
 %%%
@@ -1194,6 +1194,6 @@ resize_event(_, _) -> keep.
 
 resize_pos(Client) ->
     #win{x=X,y=Y,z=Z,w=W,h=H} = get_window_data(Client),
-    {X+W-2,Y+H-13,Z+0.5}.
+    {X+W,Y+H-13,Z+0.5}.
     
     

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_win_scroller.erl,v 1.3 2003/01/06 09:54:23 bjorng Exp $
+%%     $Id: wings_win_scroller.erl,v 1.4 2003/01/06 12:49:50 bjorng Exp $
 %%
 
 -module(wings_win_scroller).
@@ -40,7 +40,7 @@ set_knob(Name, Pos, Proportion) ->
     set_knob({vscroller,Name}, Pos, Proportion).
 
 width() ->
-    12.
+    13.
 
 %%%
 %%% Implementation.
@@ -106,9 +106,9 @@ drag(Y0, #ss{knob_prop=Prop,track_pos=TrackPos}) ->
 redraw(#ss{knob_pos=Pos,knob_prop=Prop}) ->
     wings_io:ortho_setup(),
     {_,_,W,H} = wings_wm:viewport(),
-    wings_io:border(0, 0, W-1, H-1, ?PANE_COLOR),
+    wings_io:border(0.0, 0.0, W-0.5, H, ?PANE_COLOR),
     gl:color3f(0.2, 0.2, 0.2),
-    gl:rectf(2, H*Pos, W-2, H*(Pos+Prop)),
+    gl:rectf(2.5, H*Pos, W-4.5, H*(Pos+Prop)),
     keep.
 
 min(A, B) when A < B -> A;
@@ -116,4 +116,3 @@ min(_, B) -> B.
 
 max(A, B) when A > B -> A;
 max(_, B) -> B.
-
