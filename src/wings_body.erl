@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.42 2002/12/15 21:58:43 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.43 2002/12/17 19:07:24 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -354,15 +354,14 @@ strip_texture(St) ->
 %%% The Weld command.
 %%%
 
-weld(_, #st{sel=[_,_|_]}) ->
-    wings_util:error("Select only one object.");
 weld(Ask, _) when is_atom(Ask) ->
     Qs = [{hframe,
 	   [{label,"Distance Tolerance"},{text,1.0E-3,[{range,{1.0E-5,10.0}}]}]}],
     wings_ask:dialog(Ask, Qs,
 		     fun(Res) -> {body,{weld,Res}} end);
 weld([Tolerance], St0) ->
-    St = wings_sel:map(fun(_, We) -> weld_1(Tolerance, We) end, St0),
+    St1 = combine(St0),
+    St = wings_sel:map(fun(_, We) -> weld_1(Tolerance, We) end, St1),
     {save_state,St}.
 
 weld_1(Tol, #we{fs=Fs0}=We0) ->
