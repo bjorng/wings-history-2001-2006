@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d__bmp.erl,v 1.6 2002/08/12 08:50:32 dgud Exp $
+%%     $Id: e3d__bmp.erl,v 1.7 2003/09/25 08:19:21 bjorng Exp $
 %%
 
 -module(e3d__bmp).
@@ -41,10 +41,8 @@
 format_error(unsupported_format) ->
     "Unsupported format or bad BMP file".
 
-load(FileName, Opts) ->
+load(FileName, _Opts) ->
     %% Currently only supported format 
-    BitCount = 24,
-    Compression = 0,
     BiPlanes = 1,
     case file:read_file(FileName) of	
 	{ok, <<?BITMAPFILEHEADER, ?BITMAPINFOHEADER, TmpImage/binary>>} when BiBitCount == 24 ->
@@ -60,13 +58,13 @@ load(FileName, Opts) ->
 		       bytes_pp = 3, 
 		       alignment = 4,
 		       image = Image};
-	{ok, Bin} ->
+	{ok,_Bin} ->
 	    {error, {none,?MODULE,unsupported_format}};
 	Error ->
 	    Error
     end.
 
-save(Image0, FileName, Opts) ->
+save(Image0, FileName, _Opts) ->
     Image = e3d_image:convert(Image0, b8g8r8, 4, lower_left),
     FileSz = ?BITMAPFILEHEADERSZ + ?BITMAPINFOHEADERSZ + size(Image#e3d_image.image),
     Offset = ?BITMAPFILEHEADERSZ + ?BITMAPINFOHEADERSZ,
