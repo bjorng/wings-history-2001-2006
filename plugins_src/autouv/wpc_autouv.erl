@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.119 2003/06/02 23:11:45 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.120 2003/06/20 09:19:56 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -634,9 +634,8 @@ option_menu() ->
 
 edge_option_menu(#uvstate{option = Option}) ->
     DefVar = {edge_mode, Option#setng.edges},
-    DefTSz = {txsize, element(1, Option#setng.texsz)},
-    MaxTxs = min([4096,gl:getIntegerv(?GL_MAX_TEXTURE_SIZE)]),
-    TxSzs = genSizeOption(128, MaxTxs, DefTSz, []),    
+    [MaxTxs0|_] = gl:getIntegerv(?GL_MAX_TEXTURE_SIZE),
+    MaxTxs = min([4096,MaxTxs0]),
     
     Qs = [{vframe,[{alt,DefVar,"Draw All Edges",    all_edges},
 		   {alt,DefVar,"Draw Border Edges", border_edges},
@@ -648,10 +647,25 @@ edge_option_menu(#uvstate{option = Option}) ->
 	  {vframe,[{"Show Colors (or texture)",Option#setng.color},
 		   {"Texture Background (if available)", Option#setng.texbg}],
 	   [{title, "Display Color and texture?"}]},
-	  {vframe, TxSzs, [{title,"Texture Size"}]}],
+	  {vradio,gen_tx_sizes(MaxTxs, []),txsize,element(1, Option#setng.texsz),
+	   [{title,"Texture Size"}]}],
     wings_ask:dialog("Draw Options", Qs,
 		     fun([Mode,BEC,BEW,Color,TexBg, TSz]) -> 
 			     {auv, set_options, {Mode,BEC,BEW,Color,TexBg,TSz}}  end).
+
+gen_tx_sizes(Sz, Acc) when Sz < 128 -> Acc;
+gen_tx_sizes(Sz, Acc) ->
+    Bytes = Sz*Sz*3,
+    Mb = 1024*1024,
+    SzStr = if
+		Bytes < 1024*1024 ->
+		    io_lib:format("(~pKb)",[Bytes div 1024]);
+		true ->
+		    io_lib:format("(~pMb)",[Bytes div Mb])
+	    end,
+    Str0 = io_lib:format("~px~p ", [Sz,Sz]),
+    Str = lists:flatten([Str0|SzStr]),
+    gen_tx_sizes(Sz div 2, [{Str,Sz}|Acc]).
 
 quit_menu(Uvs) ->
     #uvstate{st=St,matname=MatN} = Uvs,
@@ -665,12 +679,6 @@ quit_menu(Uvs) ->
     Qs = [{vradio,Alts,quit_mode,quit_uv_tex}],
     wings_ask:dialog("Exit Options",
 		     Qs, fun([Quit]) -> {auv,quit,Quit} end).
-
-genSizeOption(V, MaxTxs, DefTSz, Acc) when V =< MaxTxs->
-    Str = lists:flatten(io_lib:format("~px~p (~pkB)",[V,V,(V*V*3) div 1024])),
-    genSizeOption(V*2, MaxTxs, DefTSz, [{alt, DefTSz, Str, V}|Acc]);
-genSizeOption(_V, _MaxTxs, _DefTSz, Acc) ->
-    reverse(Acc).
 
 %%% Event handling
 
