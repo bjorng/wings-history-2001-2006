@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.82 2003/06/29 10:27:45 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.83 2003/06/29 10:34:08 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -236,6 +236,7 @@ render(#st{selmode=Mode}=St) ->
     gl:disable(?GL_DEPTH_TEST),
     draw_vec(St),
     gl:disable(?GL_CULL_FACE),
+    gl:lineWidth(1),
     wings_io:ortho_setup(),
     gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
     {W,H} = wings_wm:win_size(),
