@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_matedit.erl,v 1.8 2001/11/25 15:48:11 bjorng Exp $
+%%     $Id: wings_matedit.erl,v 1.9 2001/11/27 13:16:32 bjorng Exp $
 %%
 
 -module(wings_matedit).
@@ -104,13 +104,14 @@ edit(PC) when record(PC, mat) ->
 
     gl:disable (?GL_LIGHTING),
     gl:disable(?GL_COLOR_MATERIAL),    
-    gl:disable(?GL_LIGHT0),
-    gl:disable(?GL_LIGHT1),
-    gl:enable(?GL_LIGHT6),
-    gl:lightfv(?GL_LIGHT6, ?GL_POSITION, {0.5, 0.5, -2, 1}),
-    gl:lightfv(?GL_LIGHT6, ?GL_AMBIENT,  {0.3, 0.3, 0.3, 1}),
-    gl:lightfv(?GL_LIGHT6, ?GL_DIFFUSE,  {0.9, 0.9, 0.9, 1}),
-    gl:lightfv(?GL_LIGHT6, ?GL_SPECULAR, {1.0, 1.0, 1.0, 1}),
+    gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {0.5, 0.5, -2, 1}),
+%     gl:disable(?GL_LIGHT0),
+%     gl:disable(?GL_LIGHT1),
+%     gl:enable(?GL_LIGHT6),
+%     gl:lightfv(?GL_LIGHT6, ?GL_POSITION, {0.5, 0.5, -2, 1}),
+%     gl:lightfv(?GL_LIGHT6, ?GL_AMBIENT,  {0.3, 0.3, 0.3, 1}),
+%     gl:lightfv(?GL_LIGHT6, ?GL_DIFFUSE,  {0.9, 0.9, 0.9, 1}),
+%     gl:lightfv(?GL_LIGHT6, ?GL_SPECULAR, {1.0, 1.0, 1.0, 1}),
 
     gl:shadeModel (?GL_SMOOTH),
     case catch color_picker_loop(NS) of
@@ -128,9 +129,9 @@ edit(PC) when record(PC, mat) ->
 
 restore_state(#s{orig_w=W,orig_h=H}) ->
     gl:viewport(0, 0, W, H),
-    gl:enable(?GL_LIGHT0),
-    gl:enable(?GL_LIGHT1),
-    gl:disable(?GL_LIGHT6),
+%    gl:enable(?GL_LIGHT0),
+%    gl:enable(?GL_LIGHT1),
+%    gl:disable(?GL_LIGHT6),
     gl:popAttrib(),
     ok.
 
