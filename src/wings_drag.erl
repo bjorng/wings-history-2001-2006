@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.99 2002/08/12 20:20:49 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.100 2002/08/13 09:42:20 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -19,6 +19,7 @@
 -include("wings.hrl").
 
 -define(CAMMAX, 150).
+-define(DEGREE, 176).				%Degree character.
 
 -import(lists, [foreach/2,map/2,foldl/3,sort/1,keysort/2,
 		reverse/1,reverse/2,member/2]).
@@ -233,6 +234,7 @@ initial_motion(#drag{x=X0,y=Y0,flags=Flags,unit=Unit}=Drag) ->
 initial_motion_1([U|Us], [D|Ds]) ->
     P = case clean_unit(U) of
 	    angle -> round(D*?MOUSE_DIVIDER/15);
+	    number -> round(D*?MOUSE_DIVIDER/20);
 	    _ -> round(D*?MOUSE_DIVIDER)
 	end,
     [P|initial_motion_1(Us, Ds)];
@@ -348,22 +350,26 @@ numeric_input(Drag0) ->
     {_,X,Y} = sdl_mouse:getMouseState(),
     Ev = #mousemotion{x=X,y=Y,state=0},
     {Move0,Drag} = mouse_translate(Ev, Drag0),
-    wings_ask:ask(make_query(Move0, Drag),
-		  fun(Res) ->
-			  {numeric_input,make_move(Res, Drag)}
-		  end).
+    wings_ask:dialog(make_query(Move0, Drag),
+		     fun(Res) ->
+			     {numeric_input,make_move(Res, Drag)}
+		     end).
 
 make_query(Move, #drag{unit=Units}) ->
     make_query_1(Units, Move).
 
-make_query_1([{percent,{_Min,_Max}}|Units], [V|Vals]) ->
-    [{"P",V*100.0}|make_query_1(Units, Vals)];
-make_query_1([percent|Units], [V|Vals]) ->
-    [{"P",V*100.0}|make_query_1(Units, Vals)];
-make_query_1([{U,{_Min,_Max}}|Units], [V|Vals]) ->
-    [{qstr(U),V}|make_query_1(Units, Vals)];
-make_query_1([U|Units], [V|Vals]) ->
-    [{qstr(U),V}|make_query_1(Units, Vals)];
+make_query_1([U0|Units], [V|Vals]) ->
+    case clean_unit(U0) of
+	percent ->
+	    [{hframe,[{label,"P"},{text,V*100.0,qrange(U0)}|
+		      make_query_1(Units, Vals)]}];
+	angle ->
+	    [{hframe,[{label,"A"},{text,V,qrange(U0)},{label,[?DEGREE]}]}|
+	     make_query_1(Units, Vals)];
+	U ->
+	    [{hframe,[{label,qstr(U)},{text,V,qrange(U0)}|
+		      make_query_1(Units, Vals)]}]
+    end;
 make_query_1([], []) -> [].
 
 qstr(distance) -> "Dx";
@@ -372,9 +378,13 @@ qstr(dy) -> "Dy";
 qstr(dz) -> "Dz";
 qstr(falloff) -> "R";
 qstr(angle) -> "A";
+qstr(number) -> "N";
 qstr(percent) -> "P";
 qstr(Atom) -> atom_to_list(Atom).
 
+qrange({_,{_,_}=Range}) -> [{range,Range}];
+qrange(_) -> [].
+    
 make_move(Move, #drag{unit=Units}) ->
     make_move_1(Units, Move).
 
@@ -432,7 +442,7 @@ mouse_translate(Event0, Drag0) ->
     Move = constrain(Ds, Mod, Drag),
     {Move,Drag}.
 
-mouse_pre_translate(nendo, Mod, #mousemotion{state=Mask}=Ev) ->
+mouse_pre_translate(_, Mod, #mousemotion{state=Mask}=Ev) ->
     if
 	Mask band ?SDL_BUTTON_RMASK =/= 0,
 	Mod band ?CTRL_BITS =/= 0 ->
@@ -504,6 +514,14 @@ constraint_factor(angle, Mod) ->
 	Mod band ?SHIFT_BITS =/= 0 -> {1,15.0};
 	true -> {15.0E5,1.0E-5}
     end;
+constraint_factor(number, Mod) ->
+    if
+	Mod band ?SHIFT_BITS =/= 0,
+	Mod band ?CTRL_BITS =/= 0 -> {200,2/10};
+	Mod band ?CTRL_BITS =/= 0 -> {20,2.0};
+	Mod band ?SHIFT_BITS =/= 0 -> {2,20.0};
+	true -> {2.0E6,2.0E-6}
+    end;
 constraint_factor(_, Mod) ->
     if
 	Mod band ?SHIFT_BITS =/= 0,
@@ -557,11 +575,9 @@ translate({Xt0,Yt0,Zt0}, Dx, VsPos, Acc) ->
 	  end, Acc, VsPos).
 
 progress(Move, #drag{unit=Units}) ->
-    Msg = progress_units(Units, Move),
-    progress_1(reverse(lists:flatten(Msg))).
-
-progress_1([$\s|Str]) -> progress_1(Str);
-progress_1(Str) -> wings_io:message(reverse(Str)).
+    Msg0 = progress_units(Units, Move),
+    Msg = reverse(trim(reverse(lists:flatten(Msg0)))),
+    wings_io:message(Msg).
 
 progress_units([Unit|Units], [N|Ns]) ->
     [unit(clean_unit(Unit), N)|progress_units(Units, Ns)];
@@ -571,23 +587,33 @@ clean_unit({Unit,_}) when is_atom(Unit) -> Unit;
 clean_unit(Unit) when is_atom(Unit) -> Unit.
     
 unit(angle, A) ->
-    io_lib:format("A: ~-10.2f", [A]);
+    trim(io_lib:format("~10.2f~c  ", [A,?DEGREE]));
+unit(number, N) ->
+    ["N: "|trim(io_lib:format("~10.2f  ", [N]))];
 unit(distance, D) ->
-    io_lib:format("D: ~-10.2f", [D]);
+    ["D: "|trim(io_lib:format("~10.2f  ", [D]))];
 unit(dx, D) ->
-    io_lib:format("DX: ~-10.2f", [D]);
+    ["DX: "|trim(io_lib:format("~10.2f  ", [D]))];
 unit(dy, D) ->
-    io_lib:format("DY: ~-10.2f", [D]);
+    ["DY: "|trim(io_lib:format("~10.2f", [D]))];
 unit(dz, D) ->
-    io_lib:format("DZ: ~-10.2f", [D]);
+    ["DZ: "|trim(io_lib:format("~10.2f", [D]))];
 unit(percent, P) ->
-    ["P: ",io_lib:format("~.2f%  ", [P*100.0])];
+    trim(io_lib:format("~.2f%  ", [P*100.0]));
 unit(falloff, R) ->
-    io_lib:format("R: ~-10.2f", [R]);
+    ["R: "|trim(io_lib:format("~10.2f", [R]))];
 unit(Unit, Move) ->
     io:format("~p\n", [{Unit,Move}]),
     [].
 
+trim([$\s|T]) -> trim(T);
+trim([[_|_]=H|T]) ->
+    case trim(H) of
+	[] -> trim(T);
+	S -> [S|T]
+    end;
+trim(S) -> S.
+    
 normalize(#drag{magnet=none}=Drag) ->
     normalize_1(Drag);
 normalize(#drag{magnet=Type}=Drag) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.21 2002/08/01 19:25:03 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.22 2002/08/13 09:42:20 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -20,22 +20,75 @@
 -import(lists, [reverse/1,foldl/3]).
 
 menu(X, Y, _) ->
-    Menu = [{"Two-Button Mouse",two_button},
+    Menu = [{"Getting Started",getting_started},
+	    separator,
+	    {"Accessing the Third Dimension",third_dimension},
+	    {"Two-Button Mouse",two_button},
 	    {"Assigning Hotkeys",defining_hotkeys},
+	    separator,
+	    {"Light Basics",lights},
 	    separator,
 	    {"OpenGL Info",opengl_info},
 	    separator,
-	    {"About",about}],
+	    {"About Wings 3D",about}],
     wings_menu:menu(X, Y, help, Menu).
 
+command(getting_started, _St) ->
+    getting_started();
+command(third_dimension, _St) ->
+    third_dimension();
 command(two_button, _St) ->
     two_button();
 command(defining_hotkeys, _St) ->
     def_hotkeys();
+command(lights, _St) ->
+    lights();
 command(opengl_info, _St) ->
     opengl_info();
 command(about, _St) ->
     about().
+
+getting_started() ->
+    Help = ["Getting Started",
+	    "When learning Wings, keep an eye at the status line at "
+	    "at the bottom of the screen. Generally it shows what the "
+	    "mouse buttons will do at any given moment.",
+
+	    "Note that [L] means the left mouse button, not the key L "
+	    "on the keyboard. Similarily, [M] means the middle mouse "
+	    "button (or the scroll wheel), and [R] means the right mouse "
+	    "button.",
+
+	    "See the Help topic \"Two-Button Mouse\" if your mouse only "
+	    "have two buttons.",
+
+	    "Generally, [L] (left mouse button) is used for selecting and "
+	    "accepting, the [M] (middle mouse button) for operating the camera, "
+	    "and the [R] (right mouse button) to access the context-sensitive "
+	    "pop-up menus."
+	   ],
+    help_window(Help).
+
+third_dimension() ->
+    Help = ["Accessing the Third Dimension",
+	    "Some commands, such as Move|Free, "
+	    "allow movements in three dimensions.",
+
+	    "To move along the first and second dimensions, simply move "
+	    "the mouse left/right and up/down.",
+
+	    "To move along the third dimension, move up/down and hold "
+	    "down:",
+	    
+	    "[Alt]+[M] or [Ctrl]+[R] if you use the default "
+	    "Wings/Blender camera mode.",
+
+	    "[M] or [Ctrl]+[R] if you use the Nendo camera mode.",
+
+	    "[Ctrl]+[R] if you use the 3ds max camera mode.",
+
+	    "[M] if you use the Maya camera mode."],
+    help_window(Help).
 
 two_button() ->
     Help = ["Using A Two-Button Mouse",
@@ -65,6 +118,16 @@ def_hotkeys() ->
 	    "and then press the key you want to assign the command to.",
 	    "To delete a hotkey, similarily high-light the command in a "
 	    " menu, and press the [Del] or [\\] key."],
+    help_window(Help).
+
+lights() ->
+    Help = ["Light Basics",
+	    "1. Create lights using the Light command in the primitives "
+	    "menu ([R]-click when there is no selection).",
+	    "2. Select a light by [L]-clicking on it. When any light is "
+	    "selected, a special Light menu will pop up when you [R]-click.",
+	    "3. To tell Wings to actually use the lights you have created, "
+	    "use the View|Scene Lights command."],
     help_window(Help).
 
 opengl_info() ->

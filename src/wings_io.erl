@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.61 2002/08/09 06:12:58 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.62 2002/08/13 09:42:20 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -178,7 +178,7 @@ message_right(Right) ->
     case get_state() of
 	#io{right=Right} -> ok;
 	Io ->
-	    put_state(Io#io{right=Right}),
+	    put_state(Io#io{right=lists:flatten(Right)}),
 	    wings_wm:dirty()
     end.
 

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_light.erl,v 1.8 2002/08/12 20:20:49 bjorng Exp $
+%%     $Id: wings_light.erl,v 1.9 2002/08/13 09:42:20 bjorng Exp $
 %%
 
 -module(wings_light).
@@ -35,14 +35,15 @@
 	 aim,					%Aim point for spot/infinite.
 	 lin_att,				%Linear attenuation.
 	 quad_att,				%Quadratic attenuation.
-	 spot_angle
+	 spot_angle,
+	 spot_exp				%Spot exponent.
 	}).
 
 light_types() ->
-    [{"Infinite",infinite},
-     {"Point",point},
-     {"Spot",spot},
-     {"Ambient",ambient}].
+    [{"Infinite",infinite,"Create a far-away, directional light (like the sun)"},
+     {"Point",point,"Create a light that radiates light in every direction"},
+     {"Spot",spot,"Create a spotlight"},
+     {"Ambient",ambient,"Create an ambient light source"}].
 
 menu(X, Y, St) ->
     Dir = wings_menu_util:directions(St#st{selmode=body}),
@@ -50,16 +51,26 @@ menu(X, Y, St) ->
 	    separator,
 	    {"Move",{move,Dir}},
 	    separator,
-	    {"Position Highlight",position_fun()},
-	    {"Color",color},
+	    {"Position Highlight",position_fun(),
+	     "Position the aim point or location of light"},
+	    {"Color",color,"Interactively adjust hue, intensity, "
+	     "and saturation"},
 	    {"Attenuation",
 	     {attenuation,
-	      [{"Linear",linear},
-	       {"Quadratic",quadratic}]}},
+	      [{"Linear",linear,
+		"Interactively adjust how much light weakens as it travels "
+		"away from its source (linear factor)"},
+	       {"Quadratic",quadratic,
+		"Interactively adjust how much light weakens as it travels "
+		"away from its source (quadratic factor)"}]}},
 	    separator,
-	    {"Spot Angle",spot_angle},
+	    {"Spot Angle",spot_angle,
+	     "Interactivly adjust the angle of the spotlight cone"},
+	    {"Spot Falloff",spot_falloff,
+	     "Interactivly adjust how much light weakens farther away "
+	     "from the center of the spotlight cone"},
 	    separator,
-	    {"Edit Properties",edit}],
+	    {"Edit Properties",edit,"Edit light properties"}],
     wings_menu:popup_menu(X, Y, light, Menu).
 
 command({move,Type}, St) ->
@@ -72,6 +83,8 @@ command({attenuation,Type}, St) ->
     attenuation(Type, St);
 command(spot_angle, St) ->
     spot_angle(St);
+command(spot_falloff, St) ->
+    spot_falloff(St);
 command(edit, St) ->
     edit(St);
 command(color, St) ->
@@ -185,6 +198,18 @@ spot_angle(St) ->
 	{_,_} -> wings_util:error("Not a spotlight.")
     end.
 
+spot_falloff(St) ->
+    case selected_light(St) of
+	{Id,#light{type=spot,spot_exp=SpotExp}} ->
+	    SpotFun0 = fun([Exp|_], L) -> L#light{spot_exp=Exp} end,
+	    SpotFun = adjust_fun(SpotFun0),
+	    Tvs = {general,[{Id,SpotFun}]},
+	    Units = [{number,{0.0,128.0}}],
+	    Flags = [{initial,[SpotExp]}],
+	    wings_drag:setup(Tvs, Units, Flags, St);
+	{_,_} -> wings_util:error("Not a spotlight.")
+    end.
+
 attenuation(Type, St) ->
     case selected_light(St) of
 	{Id,#light{type=Ltype}=L} when Ltype == point; Ltype == spot ->
@@ -205,7 +230,7 @@ att_fun(quadratic) -> fun([V|_], L) -> L#light{quad_att=V} end.
 
 att_range(linear) -> {0.0,1.0};
 att_range(quadratic) -> {0.0,0.5}.
-    
+
 selected_light(St) ->
     wings_sel:fold(fun(_, #we{id=Id,light=L}=We, none) when ?IS_LIGHT(We) ->
 			   {Id,L};
@@ -261,15 +286,21 @@ edit_1(#we{id=Id,light=L0}=We0, Shs, St) ->
 		     end).
 
 qs_specific(#light{type=spot,spot_angle=Angle}=L) ->
-    [{label,"Spot Angle"},{slider,{text,Angle,[{range,{0.0,85.0}}]}}|qs_att(L)];
-qs_specific(#light{type=point}=L) -> qs_att(L);
+    Spot = [{vframe,[{label,"Angle"},
+		     {slider,{text,Angle,[{range,{0.0,89.9}}]}},
+		     {label,"Falloff"},
+		     {slider,{text,Angle,[{range,{0.0,128.0}}]}}],
+	     [{title,"Spot Parameters"}]}],
+    qs_att(L, Spot);
+qs_specific(#light{type=point}=L) -> qs_att(L, []);
 qs_specific(_) -> [].
 
-qs_att(#light{lin_att=Lin,quad_att=Quad}) ->
-    [{label,"Linear Attenuation"},
-     {slider,{text,Lin,[{range,{0.0,1.0}}]}},
-     {label,"Quadratic Attenuation"},
-     {slider,{text,Quad,[{range,{0.0,0.5}}]}}].
+qs_att(#light{lin_att=Lin,quad_att=Quad}, Tail) ->
+    [{vframe,[{label,"Linear"},
+	      {slider,{text,Lin,[{range,{0.0,1.0}}]}},
+	      {label,"Quadratic"},
+	      {slider,{text,Quad,[{range,{0.0,0.5}}]}}],
+      [{title,"Attenuation"}]}|Tail].
     
 edit_specific([Angle,LinAtt,QuadAtt], #light{type=spot}=L) ->
     L#light{spot_angle=Angle,lin_att=LinAtt,quad_att=QuadAtt};
@@ -420,13 +451,16 @@ get_light(#we{name=Name,light=#light{type=ambient,ambient=Amb}}=We) ->
     {Name,[{opengl,OpenGL}]};
 get_light(#we{name=Name,light=L}=We) ->
     #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
-	   aim=Aim,spot_angle=Angle,lin_att=LinAtt,quad_att=QuadAtt} = L,
+	   aim=Aim,spot_angle=Angle,spot_exp=SpotExp,
+	   lin_att=LinAtt,quad_att=QuadAtt} = L,
     P = light_pos(We),
     Common = [{type,Type},{position,P},{aim_point,Aim},
 	      {diffuse,Diff},{ambient,Amb},{specular,Spec}],
     OpenGL0 = case Type of
-		  spot -> [{cone_angle,Angle}|Common];
-		  _ -> Common
+		  spot ->
+		      [{cone_angle,Angle},{spot_exponent,SpotExp}|Common];
+		  _ ->
+		      Common
 	     end,
     OpenGL = if
 		 Type == point; Type == spot ->
@@ -454,9 +488,10 @@ import_fun({Name,Ps}, St) ->
     LinAtt = property_lists:get_value(linear_attenuation, OpenGL, 0.0),
     QuadAtt = property_lists:get_value(quadratic_attenuation, OpenGL, 0.0),
     Angle = property_lists:get_value(cone_angle, OpenGL, 30.0),
+    SpotExp = property_lists:get_value(spot_exponent, OpenGL, 0.0),
     L = #light{type=Type,diffuse=Diff,ambient=Amb,specular=Spec,
 	       aim=Aim,lin_att=LinAtt,quad_att=QuadAtt,
-	       spot_angle=Angle},
+	       spot_angle=Angle,spot_exp=SpotExp},
     Fs = [[0,3,2,1],[2,3,7,6],[0,4,7,3],[1,2,6,5],[4,5,6,7],[0,1,5,4]],
     Vs = lists:duplicate(8, Pos),
     We0 = wings_we:build(Fs, Vs),
@@ -537,11 +572,12 @@ setup_light(Lnum, #light{type=point}=L, We) ->
     gl:lightf(Lnum, ?GL_SPOT_CUTOFF, 180.0),
     setup_color(Lnum, L),
     setup_attenuation(Lnum, L);
-setup_light(Lnum, #light{type=spot,spot_angle=SpotAngle,aim=Aim}=L, We) ->
+setup_light(Lnum, #light{type=spot,aim=Aim,spot_angle=Angle,spot_exp=Exp}=L, We) ->
     Pos = {X,Y,Z} = light_pos(We),
     Dir = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
     gl:lightfv(Lnum, ?GL_POSITION, {X,Y,Z,1}),
-    gl:lightf(Lnum, ?GL_SPOT_CUTOFF, SpotAngle),
+    gl:lightf(Lnum, ?GL_SPOT_CUTOFF, Angle),
+    gl:lightf(Lnum, ?GL_SPOT_EXPONENT, Exp),
     gl:lightfv(Lnum, ?GL_SPOT_DIRECTION, Dir),
     setup_color(Lnum, L),
     setup_attenuation(Lnum, L).
