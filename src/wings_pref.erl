@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.14 2002/01/05 21:23:39 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.15 2002/01/05 23:54:52 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -50,8 +50,8 @@ sub_menu(St) ->
 
 menu_item({Desc,Key,Bool}) when Bool == false; Bool == true ->
     case get_value(Key) of
-	false -> {Desc++" [OFF]",Key};
-	true ->  {Desc++" [ON]",Key}
+	false -> {Desc,Key};
+	true ->  {Desc,Key,[crossmark]}
     end;
 menu_item({Desc,Key,_}) -> {Desc,Key};
 menu_item(separator) -> separator.

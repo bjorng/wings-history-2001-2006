@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu.erl,v 1.16 2001/12/09 14:10:12 bjorng Exp $
+%%     $Id: wings_menu.erl,v 1.17 2002/01/05 23:54:50 bjorng Exp $
 %%
 
 -module(wings_menu).
@@ -92,6 +92,9 @@ menu_width(Menu) ->
 menu_width(Menu, Last, MaxA, MaxB) when Last > size(Menu) -> {MaxA,MaxB};
 menu_width(Menu, I, MaxA0, MaxB0) ->
     {Wa,Wb} = case element(I, Menu) of
+		  {S,{_},Ps} when is_list(Ps) -> {length(S)+1,0};
+		  {S,_,Ps} when is_list(Ps) -> {length(S),0};
+		  {S1,S2,_,Ps} when is_list(Ps) -> {length(S1),length(S2)};
 		  {S,{_}} -> {length(S)+1,0};
 		  {S,Sub} when tuple(Sub) -> {length(S)+1,0};
 		  {S,_} -> {length(S),0};
@@ -241,10 +244,12 @@ select_item(X0, Y0, #mi{menu=Menu,xleft=Xleft,w=W}=Mi) ->
 	outside -> outside;
 	none -> Mi;
 	Item when integer(Item) ->
-	    Action = case element(Item, Menu) of
-			 {_,A} -> A;
-			 {_,_,A} -> A
-		     end,
+	    {Action,Ps} = case element(Item, Menu) of
+			      {_,A,Ps0} when is_list(Ps0) -> {A,Ps0};
+			      {_,_,A,Ps0} when is_list(Ps0) -> {A,Ps0};
+			      {_,A} -> {A,[]};
+			      {_,_,A} -> {A,[]}
+			  end,
 	    case Action of
 		{What,SubMenu} ->
 		    #mi{xleft=Xleft,ytop=Ytop,ymarg=Margin,w=W,h=H}=Mi,
@@ -254,8 +259,8 @@ select_item(X0, Y0, #mi{menu=Menu,xleft=Xleft,w=W}=Mi) ->
 		    menu(SubX, SubY, What, SubMenu, Mi, Redraw);
 		{Act} when Xleft =< X0, X0 < Xleft+W-2*?CHAR_WIDTH ->
 		    Act;
-		Act when atom(Act); integer(Act);
-			 tuple(Act); list(Act) -> Act
+		Act when is_atom(Act); is_integer(Act);
+			 is_tuple(Act); is_list(Act) -> Act
 	    end
     end.
 
@@ -291,6 +296,10 @@ has_options(Item, Menu) ->
     case element(Item, Menu) of
 	{_,{_}} -> true;
 	{_,_,{_}}-> true;
+	{_,_,Ps} when is_list(Ps) ->
+	    property_lists:is_defined(hotbox, Ps);
+	{_,_,_,Ps} when is_list(Ps) ->
+	    property_lists:is_defined(hotbox, Ps);
 	_ -> false
     end.
 
@@ -298,7 +307,8 @@ is_submenu(I, #mi{menu=Menu}) when is_integer(I) ->
     case element(I, Menu) of
 	separator -> false;
 	{S,Item} -> is_submenu_1(Item);
-	{S1,S2,Item} -> is_submenu_1(Item)
+	{S1,S2,Item} -> is_submenu_1(Item);
+	{S1,S2,Item,Ps} when is_list(Ps) -> false
     end;
 is_submenu(I, Mi) -> false.
 
@@ -313,10 +323,19 @@ menu_draw(X, Y, Shortcut, Mw, I, #mi{menu=Menu}=Mi) ->
     case element(I, Menu) of
 	separator ->
 	    draw_separator(X, Y, Mw);
+	{Text,Item,Ps} when is_list(Text), is_list(Ps) ->
+	    item_colors(I, Mi),
+	    draw_menu_text(X, Y, Text, Ps),
+	    draw_submenu(Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3, Ps);
 	{Text,Item} when is_list(Text) ->
 	    item_colors(I, Mi),
 	    wings_io:menu_text(X, Y, Text),
 	    draw_submenu(Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3);
+	{S1,S2,Item,Ps} when is_list(S1), is_list(Ps) ->
+	    Text = S1 ++ lists:duplicate(Shortcut-length(S1), $\s) ++ S2,
+	    item_colors(I, Mi),
+	    draw_menu_text(X, Y, Text, Ps),
+	    draw_submenu(Item, X+Mw-5*?CHAR_WIDTH, Y-?CHAR_HEIGHT div 3, Ps);
 	{S1,S2,Item} when is_list(S1) ->
 	    Text = S1 ++ lists:duplicate(Shortcut-length(S1), $\s) ++ S2,
 	    item_colors(I, Mi),
@@ -326,6 +345,14 @@ menu_draw(X, Y, Shortcut, Mw, I, #mi{menu=Menu}=Mi) ->
     ?CHECK_ERROR(),
     menu_draw(X, Y+?LINE_HEIGHT, Shortcut, Mw, I+1, Mi).
 
+draw_menu_text(X, Y, Text, Props) ->
+    case property_lists:is_defined(crossmark, Props) of
+	false ->
+	    wings_io:menu_text(X, Y, Text);
+	true ->
+	    wings_io:menu_text(X-2*?CHAR_WIDTH, Y, [crossmark,$\s|Text])
+    end.
+    
 item_colors(Sel, #mi{sel=Sel}=Mi) ->
     draw_blue_rect(Sel, Mi),
     gl:color3f(1.0, 1.0, 1.0);
@@ -340,6 +367,15 @@ draw_blue_rect(Item, #mi{xleft=Xleft,ytop=Ytop,
 	    end,
     gl:recti(Xleft+?CHAR_WIDTH, Ytop+Margin+(Item-1)*?LINE_HEIGHT,
 	     Right, Ytop+Margin+Item*?LINE_HEIGHT).
+
+draw_submenu(Item, X, Y, Ps) ->
+    case property_lists:is_defined(hotbox, Ps) of
+	false -> ok;
+	true ->
+	    wings_io:sunken_rect(X, Y-3,
+				 ?CHAR_WIDTH, ?CHAR_WIDTH,
+				 ?MENU_COLOR)
+    end.
 
 draw_submenu({Item}, X, Y) ->
     wings_io:sunken_rect(X, Y-3, ?CHAR_WIDTH, ?CHAR_WIDTH, ?MENU_COLOR),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.35 2002/01/04 19:48:16 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.36 2002/01/05 23:54:53 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -26,24 +26,21 @@
 
 menu(X, Y, St) ->
     Wire = wings_pref:get_value(wire_mode, false),
-    G = wings_pref:get_value(show_groundplane),
-    A = wings_pref:get_value(show_axes),
     E = wings_pref:get_value(show_edges),
     S = wings_pref:get_value(smooth_preview),
     O = wings_pref:get_value(orthogonal_view),
     L = wings_pref:get_value(number_of_lights),
-    Menu = {{one_of(G, "Hide", "Show") ++ " ground plane",show_groundplane},
-	    {one_of(A, "Hide", "Show") ++ " axes",show_axes},
+    Menu = {{"Ground plane",show_groundplane,crossmark(show_groundplane)},
+	    {"Axes",show_axes,crossmark(show_axes)},
 	    separator,
-	    {one_of(Wire, "Filled", "Wireframe"),"w",wire_mode},
-	    {one_of(S, "Flat Apperance", "Smooth Preview"),
-	     "Tab",smooth_preview},
-	    {one_of(E, "Hide Edges", "Show Edges"),show_edges},
+	    {"Wireframe","w",wire_mode,crossmark(wire_mode)},
+	    {"Smooth Preview","Tab",smooth_preview,crossmark(smooth_preview)},
+	    {"Show Edges",show_edges,crossmark(show_edges)},
 	    separator,
 	    {"Reset View","r",reset},
 	    {"Aim","a",aim},
-	    {one_of(O, "Perspective View", "Ortographic View"),
-	     "o",orthogonal_view},
+	    {"Ortographic View","o",orthogonal_view,
+	     crossmark(orthogonal_view)},
 	    {one_of(L == 1, "Two lights", "One light"),toggle_lights},
 	    separator,
 	    {"View Along",{along,{{"+X","x",x},
@@ -58,6 +55,12 @@ menu(X, Y, St) ->
 	    {"Auto Rotate","u",auto_rotate}},
     wings_menu:menu(X, Y, view, Menu, St).
 
+crossmark(Key) ->
+    case wings_pref:get_value(Key) of
+	false -> [];
+	true -> [crossmark]
+    end.
+	     
 command(reset, St) ->
     reset(),
     St;

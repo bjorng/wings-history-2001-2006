@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_shape.erl,v 1.12 2001/12/30 22:18:45 bjorng Exp $
+%%     $Id: wings_shape.erl,v 1.13 2002/01/05 23:54:53 bjorng Exp $
 %%
 
 -module(wings_shape).
@@ -72,14 +72,12 @@ menu(X, Y, #st{sel=Sel,shapes=Shapes}=St) ->
     Menu = list_to_tuple(Menu2),
     wings_menu:menu(X, Y, objects, Menu, St).
 
-state(0, Sel, Name) -> state_1($o, Sel, Name);
-state(1, Sel, Name) -> state_1($#, Sel, Name);
-state(2, Sel, Name) -> state_1($-, Sel, Name).
+state(0, Sel, Name) -> state_1(eye, Sel, Name);
+state(1, Sel, Name) -> state_1(lock, Sel, Name);
+state(2, Sel, Name) -> state_1(hidden, Sel, Name).
 
-state_1(C, false, Name) ->
-    "[" ++ [C] ++ "] " ++ Name;
-state_1(C, true, Name) ->
-    "[<" ++ [C] ++ ">] " ++ Name.
+state_1(C, false, Name) -> [C|Name];
+state_1(C, true, Name) -> "<" ++ [C] ++ "> " ++ Name.
 
 choices(0, false) ->
     [{"Select",select}|more_choices()];
