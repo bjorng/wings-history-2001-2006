@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.19 2001/11/20 12:49:22 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.20 2001/11/27 20:58:02 bjorng Exp $
 %%
 
 -module(wings_edge).
 -export([convert_selection/1,select_more/1,select_less/1,
 	 to_vertices/2,select_region/1,
-	 cut/2,cut/3,fast_cut/3,connect/1,dissolve/1,
+	 cut/2,cut/3,fast_cut/3,fast_cut/4,connect/1,dissolve/1,
 	 dissolve_edges/2,dissolve_edge/2,patch_edge/4,patch_edge/5,
 	 hardness/2,hardness/3,loop_cut/1]).
 
@@ -180,7 +180,15 @@ make_vertices_1(N, Id, Va, Dir, Vtab0) ->
 %%  Cut an edge in two parts. Position can be given as
 %%  the atom `default', in which case the position will
 %%  be set to the midpoint of the edge.
-fast_cut(Edge, Pos, We0) ->
+fast_cut(Edge, default, We) ->
+    fast_cut(Edge, default, default, We);
+fast_cut(Edge, {Pos,Col}, We) ->
+    fast_cut(Edge, Pos, Col, We);
+fast_cut(Edge, Pos, We) ->
+    %% XXX Temporary.
+    fast_cut(Edge, Pos, {0.1,0.2,0.1}, We).
+
+fast_cut(Edge, Pos0, Col0, We0) ->
     {NewV,We} = wings_we:new_ids(1, We0),
     NewEdge = NewV,
     #we{es=Etab0,vs=Vtab0,he=Htab0} = We,
@@ -194,14 +202,14 @@ fast_cut(Edge, Pos, We0) ->
 		true -> Vtab0
 	    end,
     if
-	Pos =:= default ->
+
+	Pos0 =:= default ->
 	    VstartPos = wings_vertex:pos(Vstart, Vtab0),
 	    NewCol = wings_color:average(ACol, BCol),
 	    NewVPos0 = e3d_vec:average([VstartPos,VendPos]);
 	true ->
-	    %% XXX Need to be fixed.
-	    NewCol = wings_color:white(),
-	    NewVPos0 = Pos
+	    NewCol = Col0,
+	    NewVPos0 = Pos0
     end,
     NewVPos = wings_util:share(NewVPos0),
     Vtx = #vtx{pos=NewVPos,edge=NewEdge},

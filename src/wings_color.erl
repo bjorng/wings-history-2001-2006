@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_color.erl,v 1.1 2001/11/20 12:49:22 bjorng Exp $
+%%     $Id: wings_color.erl,v 1.2 2001/11/27 20:58:02 bjorng Exp $
 %%
 
 -module(wings_color).
--export([init/0,default/0,share/1,average/2,
+-export([init/0,default/0,share/1,average/1,average/2,
 	 white/0]).
 
 -include("wings.hrl").
@@ -37,6 +37,9 @@ share({_,_,_}=RGB) ->
 	undefined -> wings_util:share(RGB);
 	Other -> Other
     end.
+
+average(Colors) ->
+    share(e3d_vec:average(Colors)).
 
 average(Same, Same) -> Same;
 average(C1, C2) -> share(e3d_vec:average([C1,C2])).
