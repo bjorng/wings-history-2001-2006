@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.57 2003/10/12 06:35:58 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.58 2003/10/14 20:24:46 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -87,10 +87,34 @@ advanced_menus() ->
     Help = ["In the Edit|Advanced Preferences dialog box, there is a check box "
 	    "for \"Advanced Menus\".",
 
-	    "With Advanced Menus turned on, many menu commands do "
-	    "different things depending on which mouse-button you invoke "
-	    "them with. For instance, R clicking on the Move command "
-	    "allows you to specify a direction vector to move along."],
+	    "Activating advanced menus provide the following additional features:",
+
+	    "New commands: Face | Put On and Face | Lift",
+
+	    "Vector based operations: The means to specify an axis (or vector) "
+	    "and to be able to re-locate it so it passes though a new point.",
+
+	    "Magnet operations: A facility that provides a way of attaining "
+	    "smooth modifications / transitions to surrounding geometry during "
+	    "the operation of any valid tool. Magnet type and influence radius "
+	    "settings provide further control options.",
+
+	    "Vector and magnet operations can be combined.",
+
+	    "With advanced menus turned on, many menu commands do "
+	    "different things depending on which mouse button you invoke "
+	    "them with.",
+
+	    "For instance, R clicking on the Rotate command allows "
+	    "you to specify an axis (or vector) to rotate your "
+	    "selection around, while M clicking lets you "
+	    "define an axis - and a new point through which that axis "
+	    "will pass. (A vector does not have to be parallel to "
+	    "an x, y or z axis.)",
+
+	    "Reading the contents of the info line at the bottom of "
+	    "the Wings window is highly recommended when "
+	    "using advanced menus."],
     help_window("Advanced Menus", Help).
 
 international() ->
