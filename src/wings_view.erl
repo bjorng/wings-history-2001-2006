@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.69 2002/07/27 08:00:18 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.70 2002/07/29 20:18:51 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -420,6 +420,11 @@ smooth_redraw_1(#dlo{smoothed=[Dlist,Es],transparent=Trans}=D, Sm, RenderTrans) 
     gl:enable(?GL_POLYGON_OFFSET_FILL),
     gl:polygonOffset(2.0, 2.0),
 
+    case Trans of
+	false -> gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_FALSE);
+	true -> gl:lightModeli(?GL_LIGHT_MODEL_TWO_SIDE, ?GL_TRUE)
+    end,
+
     case RenderTrans of
 	true ->
 	    %% Transparent materials should not update the depth buffer.
@@ -507,6 +512,7 @@ init() ->
     reset().
 
 init_light() ->
+    gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, {0.1,0.1,0.1,1.0}),
     case wings_pref:get_value(number_of_lights) of
 	1 ->
 	    gl:enable(?GL_LIGHT0),
