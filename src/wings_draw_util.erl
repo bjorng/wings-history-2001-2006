@@ -8,11 +8,12 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.66 2003/06/02 06:06:43 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.67 2003/06/02 19:40:34 bjorng Exp $
 %%
 
 -module(wings_draw_util).
--export([init/0,tess/0,begin_end/1,update/2,map/2,fold/2,changed_materials/1,
+-export([init/0,tess/0,begin_end/1,begin_end/2,
+	 update/2,map/2,fold/2,changed_materials/1,
 	 render/1,call/1,face/2,face/3,flat_face/2,flat_face/3]).
 
 -define(NEED_OPENGL, 1).
@@ -78,11 +79,14 @@ tess() ->
     Tess.
 
 begin_end(Body) ->
+    begin_end(?GL_TRIANGLES, Body).
+
+begin_end(Type, Body) ->
     case wings_pref:get_value(display_list_opt) of
 	false ->
 	    Res = Body();
 	true ->
-	    gl:'begin'(?GL_TRIANGLES),
+	    gl:'begin'(Type),
 	    Res = Body(),
 	    gl:'end'()
     end,
@@ -477,14 +481,14 @@ face(Face, #we{fs=Ftab}=We) ->
     face(Face, Edge, We).
 
 face(Face, Edge, #we{vp=Vtab}=We) ->
-    Vs0 = wings_face:vinfo(Face, Edge, We),
+    Vs0 = wings_face:vinfo_cw(Face, Edge, We),
     face_1(Vs0, Vtab, [], []).
 
 face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
     Pos = gb_trees:get(V, Vtab),
     face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
 face_1([], _, Nacc, Vs) ->
-    N = e3d_vec:normal(reverse(Nacc)),
+    N = e3d_vec:normal(Nacc),
     gl:normal3fv(N),
     Tess = tess(),
     glu:tessBeginPolygon(Tess),

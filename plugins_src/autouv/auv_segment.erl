@@ -9,7 +9,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_segment.erl,v 1.47 2003/04/21 10:16:54 bjorng Exp $
+%%     $Id: auv_segment.erl,v 1.48 2003/06/02 19:40:55 bjorng Exp $
 
 -module(auv_segment).
 
@@ -864,7 +864,7 @@ fv_to_uv_map(Fs, We) ->
     fv_to_uv_map(Fs, We, []).
 
 fv_to_uv_map([F|Fs], We, Acc0) ->
-    Acc = [{{F,V},UV} || [V|UV] <- wings_face:vinfo(F, We)] ++ Acc0,
+    Acc = [{{F,V},UV} || [V|UV] <- wings_face:vinfo_ccw(F, We)] ++ Acc0,
     fv_to_uv_map(Fs, We, Acc);
 fv_to_uv_map([], _, Acc) ->
     gb_trees:from_orddict(sort(Acc)).

@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.117 2003/06/02 08:03:10 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.118 2003/06/02 19:40:56 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -1380,14 +1380,14 @@ draw_faces2([H|T], We) ->
 draw_face(Face, #we{mode=material}=We) ->
     wings_draw_util:flat_face(Face, We);
 draw_face(Face, #we{vp=Vtab}=We) ->
-    Vs0 = wings_face:vinfo(Face, We),
+    Vs0 = wings_face:vinfo_cw(Face, We),
     draw_face_1(Vs0, Vtab, [], []).
 
 draw_face_1([[V|Col]|Vs], Vtab, Nacc, VsAcc) ->
     Pos = gb_trees:get(V, Vtab),
     draw_face_1(Vs, Vtab, [Pos|Nacc], [[Pos|Col]|VsAcc]);
 draw_face_1([], _, Nacc, Vs) ->
-    N = e3d_vec:normal(reverse(Nacc)),
+    N = e3d_vec:normal(Nacc),
     gl:normal3fv(N),
     Tess = wings_draw_util:tess(),
     glu:tessBeginPolygon(Tess),
