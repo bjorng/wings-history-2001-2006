@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.1 2004/04/19 04:33:59 bjorng Exp $
+#     $Id: Makefile,v 1.2 2004/04/19 06:24:50 bjorng Exp $
 #
 OS := $(shell uname -s)
 
@@ -24,8 +24,15 @@ BEAM = $(LIBDIR)/wpc_ogla.beam
 
 ifeq ($(OS),Darwin)
    LIBS = -bundle -flat_namespace -undefined suppress
+   GL_LIBS =
 else
-   LIBS = -shared -lopengl32
+ ifeq ($(OS),Linux)
+   LIBS = -shared
+   GL_LIBS = -lopengl32
+  else
+   LIBS = -shared -fPIC
+   GL_LIBS = -lGL
+  endif
 endif
 
 ERLC = erlc
@@ -50,7 +57,7 @@ $(LIBDIR)/wings_ogla_drv.dll: wings_ogla_drv.c \
   erl_driver.h erl_win_dyn_driver.h
 	install -d $(LIBDIR)
 	mingw32-gcc -o $(LIBDIR)/wings_ogla_drv.dll \
-  wings_ogla_drv.c $(LIBS)
+  wings_ogla_drv.c $(LIBS) $(GL_LIBS)
 
 erl_driver.h: $(ERL_INC)/erl_driver.h
 	cp $(ERL_INC)/erl_driver.h .
