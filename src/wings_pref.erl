@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pref.erl,v 1.55 2002/08/14 15:49:10 bjorng Exp $
+%%     $Id: wings_pref.erl,v 1.56 2002/08/25 15:06:51 bjorng Exp $
 %%
 
 -module(wings_pref).
@@ -131,7 +131,8 @@ command(prefs, _St) ->
     dialog(Qs);
 command(compatibility, _St) ->
     Qs = [{vframe,
-	   [{"Optimize display lists",display_list_opt},
+	   [{"One-button mouse",one_button_mouse},
+	    {"Optimize display lists",display_list_opt},
 	    {"Use display lists for text",text_display_lists},
 	    {"Show dummy axis letter",dummy_axis_letter},
 	    {"Early back buffer clear",early_buffer_clear}],
@@ -298,6 +299,7 @@ defaults() ->
      {smart_highlighting,false},
 
      %% Compatibility preferences.
+     {one_button_mouse,false},
      {display_list_opt,true},
      {text_display_lists,true},
      {dummy_axis_letter,false},

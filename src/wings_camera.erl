@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.41 2002/08/18 10:44:05 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.42 2002/08/25 15:06:51 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -121,13 +121,17 @@ blender(#mousebutton{button=2,state=?SDL_PRESSED}=Event, Redraw) ->
     blender_1(Event, sdl_keyboard:getModState(), Redraw);
 blender(_, _) -> next.
 
-blender_1(_, Mod, _) when Mod band ?ALT_BITS =/=0 -> next;
-blender_1(#mousebutton{x=X,y=Y}, _, Redraw) ->
-    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
-    wings_io:grab(),
-    wings_io:clear_message(),
-    wings_io:message(help()),
-    {seq,{push,dummy},get_blender_event(Camera, Redraw)}.
+blender_1(#mousebutton{x=X,y=Y}, Mod, Redraw) ->
+    case Mod band ?ALT_BITS =/= 0 andalso
+	not wings_pref:get_value(one_button_mouse) of
+	true -> next;
+	false ->
+	    Camera = #camera{x=X,y=Y,ox=X,oy=Y},
+	    wings_io:grab(),
+	    wings_io:clear_message(),
+	    wings_io:message(help()),
+	    {seq,{push,dummy},get_blender_event(Camera, Redraw)}
+    end.
 
 blender_event(#mousebutton{button=1,state=?SDL_RELEASED}=Mb, Camera, Redraw) ->
     blender_event(Mb#mousebutton{button=2}, Camera, Redraw);
