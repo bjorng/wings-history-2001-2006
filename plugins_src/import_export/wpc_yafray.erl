@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_yafray.erl,v 1.50 2003/12/23 01:38:24 raimo_niskanen Exp $
+%%     $Id: wpc_yafray.erl,v 1.51 2003/12/27 15:21:44 raimo_niskanen Exp $
 %%
 
 -module(wpc_yafray).
@@ -1123,6 +1123,7 @@ export_modulator(F, Texname, Maps, {modulator,Ps}, Opacity) when list(Ps) ->
 	    Transmission = Diffuse * (1.0 - Opacity),
 	    Reflection = Ambient,
 	    println(F, "        <modulator texname=\"~s\" mode=\"~s\"~n"++
+		    "         texco=\"uv\" clipping=\"repeat\"~n"++
 		    "         sizex=\"~.3f\" sizey=\"~.3f\" sizez=\"~.3f\">~n"++
 		    "            <color value=\"~.3f\"/>~n"++
 		    "            <specular value=\"~.3f\"/>~n"++
