@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.61 2002/03/08 13:24:09 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.62 2002/03/09 19:23:05 bjorng Exp $
 %%
 
 -module(wings_draw).
--export([model_changed/1,sel_changed/1,
+-export([model_changed/0,model_changed/1,sel_changed/1,
 	 make_vec_dlist/1,
 	 get_dlist/0,put_dlist/1,render/1,ground_and_axes/0,
 	 axis_letters/0]).
@@ -22,6 +22,9 @@
 -include("wings.hrl").
 
 -import(lists, [foreach/2,last/1,reverse/1]).
+
+model_changed() ->
+    erase(wings_dlist).
 
 model_changed(St) ->
     erase(wings_dlist),
@@ -410,7 +413,7 @@ draw_vtx_sel([{Id1,#we{vs=Vtab}=We}|Shs], [{Id2,_}|_]=Sel, false)
 				   gb_trees:values(Vtab))
 		   end, We),
     draw_vtx_sel(Shs, Sel, false);
-draw_vtx_sel([{_,#we{vs=Vtab}}|Shs], [], true) -> ok;
+draw_vtx_sel([_|_], [], true) -> ok;
 draw_vtx_sel([{_,#we{vs=Vtab}=We}|Shs], [], false) ->
     draw_unsel_vtx(fun() ->
 			   foreach(fun(#vtx{pos=Pos}) ->
@@ -440,9 +443,8 @@ draw_vtx_sel([{Id,#we{vs=Vtab0}=We}|Shs], [{Id,Vs}|Sel], Smooth) ->
     draw_vtx_sel(Shs, Sel, Smooth);
 draw_vtx_sel([], [], _Smooth) -> ok.
 
-draw_unsel_vtx(Draw, #we{perm=Perm}) when ?IS_NOT_VISIBLE(Perm)->
-    ok;
-draw_unsel_vtx(Draw, We) ->
+draw_unsel_vtx(_Draw, #we{perm=Perm}) when ?IS_NOT_VISIBLE(Perm)-> ok;
+draw_unsel_vtx(Draw, _We) ->
     case wings_pref:get_value(vertex_size) of
 	0.0 -> ok;
 	PtSize -> 
@@ -509,8 +511,7 @@ make_normals_dlist_2(edge, #we{es=Etab,vs=Vtab}=We) ->
 		    gl:vertex3fv(e3d_vec:add(Mid, e3d_vec:mul(N, 0.3)))
 	    end, gb_trees:values(Etab)),
     gl:'end'();
-
-make_normals_dlist_2(Other, #we{fs=Ftab}=We) ->
+make_normals_dlist_2(_, #we{fs=Ftab}=We) ->
     gl:'begin'(?GL_LINES),
     foreach(fun(Face) ->
 		    Vs = wings_face:surrounding_vertices(Face, We),
@@ -574,8 +575,8 @@ axis_letters() ->
 axis_letter(I, Char, Color, {MM,PM,Viewport}) ->
     Start = {0.0,0.0,0.0},
     End = setelement(I, Start, 1000.0),
-    {Ox,Oy,Oz,Ow} = proj(Start, MM, PM),
-    {Px,Py,Pz,Pw0} = proj(End, MM, PM),
+    {Ox,Oy,_,Ow} = proj(Start, MM, PM),
+    {Px,Py,_,Pw0} = proj(End, MM, PM),
     Pw = abs(Pw0),
     if
 	-Pw < Px, Px < Pw, -Pw < Py, Py < Pw ->
@@ -593,7 +594,7 @@ clip(Ox, Oy, Ow, Px, Py, Pw, Char, Color, Viewport) ->
 	{X,Y,W} -> show_letter(X, Y, W, Char, Color, Viewport)
     end.
 
-clip_1({O1,D1}=Axis, [{O2,D2}|Lines], {Ow,Pw}=W) ->
+clip_1({O1,D1}=Axis, [{O2,D2}|Lines], {Ow,_}=W) ->
     E = 1.0E-6,
     case {pdot(D1, D2),pdot(D2, D1)} of
 	{Z1,Z2} when abs(Z1) < E; abs(Z2) < E ->
@@ -609,7 +610,7 @@ clip_1({O1,D1}=Axis, [{O2,D2}|Lines], {Ow,Pw}=W) ->
 		    {X,Y,Ow}
 	    end
     end;
-clip_1(_, [], W) -> none.
+clip_1(_, [], _W) -> none.
 
 show_letter(X0, Y0, W, Char, Color, [Vx,Vy,Vw,Vh]) ->
     X = (0.5*X0/W + 0.5)*Vw + Vx,
@@ -646,7 +647,7 @@ groundplane_1(Axes) ->
     gl:'end'(),
     ?CHECK_ERROR().
 
-groundplane(Along, X, Last, Sz, Axes) when X > Last -> ok;
+groundplane(_Along, X, Last, _Sz, _Axes) when X > Last -> ok;
 groundplane(Along, 0.0, Last, Sz, true) ->
     groundplane(Along, ?GROUND_GRID_SIZE, Last, Sz, true);
 groundplane(Along, X, Last, Sz, Axes) ->

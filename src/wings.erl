@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.115 2002/03/09 07:46:32 bjorng Exp $
+%%     $Id: wings.erl,v 1.116 2002/03/09 19:23:05 bjorng Exp $
 %%
 
 -module(wings).
@@ -229,16 +229,11 @@ handle_event_3(#expose{}, St) ->
     handle_event_3(redraw, St);
 handle_event_3(redraw, St) ->
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-    main_loop(St);
+    main_loop(St#st{vec=none});
 handle_event_3(quit, St) ->
     do_command({file,quit}, St);
-handle_event_3(drag_aborted, St) ->
+handle_event_3({new_state,St}, St0) ->
     wings_io:clear_message(),
-    main_loop(model_changed(St#st{vec=none}));
-handle_event_3({drag_ended,St}, St0) ->
-    wings_io:clear_message(),
-    save_state(St0, St);
-handle_event_3({new_selection,St}, St0) ->
     save_state(St0, St);
 handle_event_3(ignore, _St) -> keep.
     

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.59 2002/02/28 20:15:28 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.60 2002/03/09 19:23:05 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -206,7 +206,7 @@ handle_drag_event_1(#mousebutton{button=1,x=X,y=Y,state=?SDL_RELEASED},
     {Drag,Move} = ?SLOW(motion(X, Y, Drag0#drag{done=true})),
     cleanup(Drag),
     St = normalize(Drag),
-    DragEnded = {drag_ended,St#st{args=Move}},
+    DragEnded = {new_state,St#st{args=Move}},
     wings_io:putback_event(DragEnded),
     pop;
 handle_drag_event_1({drag_arguments,Move}, Drag0) ->
@@ -214,13 +214,15 @@ handle_drag_event_1({drag_arguments,Move}, Drag0) ->
     Drag = ?SLOW(motion_update(Move, Drag0#drag{done=true})),
     cleanup(Drag),
     St = normalize(Drag),
-    DragEnded = {drag_ended,St#st{args=Move}},
+    DragEnded = {new_state,St#st{args=Move}},
     wings_io:putback_event(DragEnded),
     pop;
 handle_drag_event_1(#mousebutton{button=3,state=?SDL_RELEASED}, Drag) ->
     cleanup(Drag),
     wings_io:ungrab(),
-    wings_io:putback_event(drag_aborted),
+    wings_io:clear_message(),
+    wings_draw:model_changed(),
+    wings_io:putback_event(redraw),
     pop;
 handle_drag_event_1(view_changed, Drag) ->
     get_drag_event(view_changed(Drag));
