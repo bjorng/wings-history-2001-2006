@@ -8,10 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpa.erl,v 1.3 2002/01/17 09:25:12 bjorng Exp $
+%%     $Id: wpa.erl,v 1.4 2002/01/22 19:47:11 bjorng Exp $
 %%
 -module(wpa).
--export([ask/3,error/1,
+-export([ask/3,error/1,message/1,yes_no/1,
+	 pref_get/2,pref_get/3,pref_set/3,pref_delete/2,
 	 sel_map/2,sel_fold/3,sel_convert/3,
 	 sel_edge_regions/2,sel_face_regions/2,
 	 vertices/1,vertex_pos/2,vertex_flatten/3,vertex_center/2,
@@ -30,6 +31,32 @@ ask(Ask, Qs, Fun) ->
 error(String) ->
     throw({command_error,String}).
 
+%% Show message and wait for OK.
+message(Message) ->
+    wings_util:message(Message).
+
+%% Ask yes/no question. Returns yes|no|aborted.
+yes_no(Question) ->
+    wings_util:yes_no(Question).
+
+%%%
+%%% Preferences.
+%%%
+%%% As Mod, pass in ?MODULE.
+%%%
+
+pref_get(Mod, Key) ->
+    wings_pref:get_value({Mod,Key}).
+
+pref_get(Mod, Key, Default) ->
+    wings_pref:get_value({Mod,Key}, Default).
+
+pref_set(Mod, Key, Value) ->
+    wings_pref:set_value({Mod,Key}, Value).
+
+pref_delete(Mod, Key) ->
+    wings_pref:delete_value({Mod,Key}).
+    
 %%% Selection utilities.
 
 sel_map(F, St) ->
