@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.155 2003/12/27 18:46:43 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.156 2003/12/28 14:06:43 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -2401,13 +2401,16 @@ label_draw([], _, _) -> keep.
 %%% Table field.
 %%%
 
+-define(SCROLLER_WIDTH, 13).
+
 -record(table,
 	{head,					%Table header.
 	 num_els,				%Number of elements.
 	 elh,					%Height of each element.
 	 rows,					%Number of rows.
 	 first=0,				%First row to show.
-	 tmarg					%Top margin.
+	 tmarg,					%Top margin.
+	 tpos=none				%Tracker position.
 	}).
 
 %% Note: In the Store, we keep {[Sel],[Element]}, where the Sel list is
@@ -2432,29 +2435,47 @@ table_event({redraw,Active,DisEnabled}, [#fi{key=Key,index=I}=Fi|_], Sto) ->
     table_redraw(Fi, gb_trees:get(-I, Sto), Sel, DisEnabled, Active);
 table_event(value, [#fi{key=Key,index=I}|_], Sto) ->
     {value,gb_trees:get(var(Key, I), Sto)};
-table_event(#mousebutton{button=1,state=?SDL_PRESSED,y=Y},
-	    [#fi{y=YTop,key=Key,index=I,hook=Hook,flags=Flags}|_], Sto) ->
-    #table{tmarg=TopMarg,elh=Elh,first=First,num_els=NumEls} = gb_trees:get(-I, Sto),
-    {_Sel0,Els} = gb_trees:get(var(Key, I), Sto),
-    Sel = case (Y-YTop-TopMarg) / Elh of
-	      N when 0 =< N, N+First < NumEls->
-		  [First+trunc(N)];
-	      _Outside -> []			%Clear selection.
-	  end,
-    hook(Hook, update, [var(Key, I),I,{Sel,Els},Sto,Flags]);
 table_event(Ev, [#fi{key=Key,index=I}=Fi|_], Store) ->
     Tab = gb_trees:get(-I, Store),
     Val = gb_trees:get(var(Key, I), Store),
     table_event_1(Ev, Fi, Tab, Val, Store).
 
+table_event_1({focus,false}, #fi{index=I}, Tab, _Val, Sto) ->
+    {store,gb_trees:update(-I, Tab#table{tpos=none}, Sto)};
 table_event_1(#mousebutton{button=4,state=?SDL_RELEASED}, Fi, Tab, Val, Sto) ->
     table_scroll(-1, Fi, Tab, Val, Sto);
 table_event_1(#mousebutton{button=5,state=?SDL_RELEASED}, Fi, Tab, Val, Sto) ->
     table_scroll(1, Fi, Tab, Val, Sto);
+table_event_1(#mousebutton{}=Ev, Fi, Tab, Val, Sto) ->
+    case table_is_scroll_ev(Ev, Fi, Tab) of
+	false -> table_sel_event(Ev, Fi, Tab, Val, Sto);
+	true -> table_sc_event(Ev, Fi, Tab, Sto)
+    end;
+table_event_1(#mousemotion{}=Ev, Fi, Tab, _Val, Sto) ->
+    case table_is_scroll_ev(Ev, Fi, Tab) of
+	false -> keep;
+	true -> table_sc_event(Ev, Fi, Tab, Sto)
+    end;
 table_event_1(_, _, _, _, _) -> keep.
 
-table_redraw(#fi{x=X,y=Y0,w=W,h=H},
-	     #table{head=Head,elh=Elh,rows=Rows,first=First,tmarg=TopMarg},
+table_is_scroll_ev(_Ev, _Fi, #table{num_els=N,rows=Rows})
+  when N =< Rows -> false;
+table_is_scroll_ev(_Ev, _Fi, #table{tpos=Tpos})
+  when Tpos =/= none -> true;
+table_is_scroll_ev(#mousebutton{x=X,y=Y}, Fi, Tab) ->
+    table_is_scroll_ev_1(X, Y, Fi, Tab);
+table_is_scroll_ev(#mousemotion{x=X,y=Y}, Fi, Tab) ->
+    table_is_scroll_ev_1(X, Y, Fi, Tab);
+table_is_scroll_ev(_, _, _) -> false.
+
+table_is_scroll_ev_1(_X, Y, _Fi, #table{tmarg=TopMarg})
+  when Y < TopMarg -> false;
+table_is_scroll_ev_1(X, _Y, #fi{x=FiX,w=FiW}, _)
+    when X < FiX+FiW-?SCROLLER_WIDTH -> false;
+table_is_scroll_ev_1(_, _, _, _) -> true.
+
+table_redraw(#fi{x=X,y=Y0,w=W,h=H}=Fi,
+	     #table{head=Head,elh=Elh,rows=Rows,first=First,tmarg=TopMarg}=Tab,
 	     {Sel0,Els0}, _DisEnabled, Active) ->
     Ch = wings_text:height(),
     wings_io:sunken_rect(X, Y0+Ch+2, W, H-Ch-4, {0.9,0.9,0.9}, color4(), Active),
@@ -2467,6 +2488,7 @@ table_redraw(#fi{x=X,y=Y0,w=W,h=H},
     Sel = [El-First || El <- Sel0],
     Els = table_mark_sel(Els1, Sel),
     table_draw_els(Els, Rows, X+2, Y, W, Elh),
+    table_draw_scroller(Fi, Tab),
     keep.
 
 table_draw_els(_, 0, _, _, _, _) -> ok;
@@ -2493,12 +2515,102 @@ table_mark_sel_1([E|Els], I, Sel) ->
     [E|table_mark_sel_1(Els, I+1, Sel)];
 table_mark_sel_1([], _, _) -> [].
 
+table_sel_event(#mousebutton{button=1,state=?SDL_PRESSED,y=Y},
+		#fi{y=YTop,key=Key,index=I,hook=Hook,flags=Flags},
+		#table{tmarg=TopMarg,elh=Elh,first=First,num_els=NumEls},
+		{_Sel0,Els}, Sto) ->
+    Sel = case (Y-YTop-TopMarg) / Elh of
+	      N when 0 =< N, N+First < NumEls->
+		  [First+trunc(N)];
+	      _Outside -> []			%Clear selection.
+	  end,
+    hook(Hook, update, [var(Key, I),I,{Sel,Els},Sto,Flags]);
+table_sel_event(_, _, _, _, _) -> keep.
+
 table_scroll(Dir, #fi{index=I}, #table{first=First0,num_els=N,rows=Rows}=Tab, _Val, Sto) ->
     Incr = Rows div 4,
     First = case First0+Dir*Incr of
 		Neg when Neg < 0 -> 0;
 		High when High > N-1 -> N-1;
 		F -> F
+	    end,
+    {store,gb_trees:update(-I, Tab#table{first=First}, Sto)}.
+
+table_draw_scroller(_, #table{num_els=NumEls,rows=Rows}) when NumEls =< Rows ->
+    ok;
+table_draw_scroller(#fi{x=X0,y=Y0,w=W,h=H0},
+		    #table{num_els=N,first=First,rows=Rows,tmarg=TopMarg}) ->
+    X1 = X0+W-?SCROLLER_WIDTH,
+    Y1 = Y0+TopMarg+1,
+    H = H0-TopMarg-4,
+    wings_io:border(X1, Y1, ?SCROLLER_WIDTH, H, ?PANE_COLOR),
+    X = X1+1.5, Y = Y1 + H*First/N + 0.5,
+    X2 = X+?SCROLLER_WIDTH-2, Y2 = Y1 + H*(min(First+Rows, N))/N - 0.5,
+    gl:shadeModel(?GL_SMOOTH),
+    gl:'begin'(?GL_QUADS),
+    gl:color3fv(?PANE_COLOR),
+    gl:vertex2f(X2, Y),
+    gl:vertex2f(X2, Y2),
+    gl:color3f(0.7, 0.7, 0.7),
+    gl:vertex2f(X, Y2),
+    gl:vertex2f(X, Y),
+    gl:'end'(),
+    gl:shadeModel(?GL_FLAT),
+    gl:color3b(0, 0, 0),
+    wings_io:border_only(X, Y, X2-X, Y2-Y),
+    ok.
+
+table_sc_event(#mousebutton{button=1,y=Y,state=?SDL_PRESSED}, Fi, Tab, Sto) ->
+    table_sc_down(Y, Fi, Tab, Sto);
+table_sc_event(#mousebutton{button=1,state=?SDL_RELEASED},
+	       #fi{index=I}, Tab, Sto) ->
+    {store,gb_trees:update(-I, Tab#table{tpos=none}, Sto)};
+table_sc_event(#mousemotion{y=Y}, Fi, #table{tpos=Pos}=Tab, Sto)
+  when Pos =/= none ->
+    table_sc_drag(Y, Fi, Tab, Sto);
+table_sc_event(_, _, _, _) -> keep.
+
+table_sc_down(Y0, #fi{index=I,y=FiY,h=H0}=Fi, 
+	      #table{num_els=N,first=First,tmarg=TopMarg,rows=Rows}=Tab,
+	      Sto) ->
+    Y = Y0 - TopMarg - 1 - FiY,
+    H = H0-TopMarg-4,
+    Pos = Y / H,
+    TLow = First/N,
+    THigh = min(First+Rows, N)/N,
+    if
+	Pos < TLow ->
+	    table_page_up(Fi, Tab, Sto);
+	Pos < THigh ->
+	    %% Tracker hit. Start dragging.
+	    {store,gb_trees:update(-I, Tab#table{tpos=Pos-TLow}, Sto)};
+	true ->
+	    table_page_down(Fi, Tab, Sto)
+    end.
+
+table_page_down(#fi{index=I}, #table{first=First0,rows=Rows,num_els=N}=Tab, Sto) ->
+    First = case First0 + Rows of
+		F when N-Rows < F -> N-Rows;
+		F -> F
+	    end,
+    {store,gb_trees:update(-I, Tab#table{first=First}, Sto)}.
+
+table_page_up(#fi{index=I}, #table{first=First0,rows=Rows}=Tab, Sto) ->
+    First = case First0 - Rows of
+		F when F < 0 -> 0;
+		F -> F
+	    end,
+    {store,gb_trees:update(-I, Tab#table{first=First}, Sto)}.
+
+table_sc_drag(Y0, #fi{index=I,y=FiY,h=H0},
+	      #table{num_els=N,tmarg=TopMarg,rows=Rows,tpos=Tpos}=Tab,
+	      Sto) ->
+    Y = Y0 - TopMarg - 1 - FiY,
+    H = H0-TopMarg-4,
+    First = case Y/H - Tpos of
+		Pos when Pos < 0 -> 0;
+		Pos when Pos+Rows/N < 1 -> trunc(N*Pos);
+		_ -> N - Rows
 	    end,
     {store,gb_trees:update(-I, Tab#table{first=First}, Sto)}.
 
