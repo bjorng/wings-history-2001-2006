@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.89 2003/07/21 14:56:51 bjorng Exp $
+%%     $Id: wings.hrl,v 1.90 2003/07/25 09:39:24 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -124,10 +124,7 @@
 	 top,					%Top of stack.
 	 bottom,				%Bottom of stack.
 	 next_is_undo,				%State of undo/redo toggle.
-	 undone,				%States that were undone.
-
-	 %% Vectors.
-	 vec=none				%Currently visible vector.
+	 undone				        %States that were undone.
 	}).
 
 %% The Winged-Edge data structure.
