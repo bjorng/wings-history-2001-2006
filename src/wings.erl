@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.28 2001/10/25 14:38:06 bjorng Exp $
+%%     $Id: wings.erl,v 1.29 2001/11/04 16:55:08 bjorng Exp $
 %%
 
 -module(wings).
@@ -600,7 +600,8 @@ menu(X, Y, file, St) ->
 	    {"Revert",revert},
 	    separator,
 	    {"Import",{import,
-		       {{"3D Studio (.3ds)",tds},
+		       {{"Nendo (.ndo)",ndo},
+			{"3D Studio (.3ds)",tds},
 			{"Wawefront (.obj)",obj}}}},
 	    {"Export",{export,
 		       {{"3D Studio (.3ds)",tds},
@@ -1160,6 +1161,7 @@ translate_key($l, St) -> {select,edge_loop};
 translate_key($L, #st{selmode=edge}) -> {select,select_region};
 translate_key($o, St) -> {view,toggle_ortho};
 translate_key($p, St) -> {view,info};
+translate_key($q, St) -> {file,{import,ndo}};
 translate_key($r, St) -> {view,reset};
 translate_key($s, St) -> {body,auto_smooth};
 translate_key($u, St) -> {view,flyaround};

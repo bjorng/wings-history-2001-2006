@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.23 2001/10/25 15:12:10 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.24 2001/11/04 16:55:08 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -114,7 +114,8 @@ revert(#st{file=File}=St0) ->
 %%
 
 import(tds, St) -> import(".3ds", e3d_tds, St);
-import(obj, St) -> import(".obj", e3d_obj, St).
+import(obj, St) -> import(".obj", e3d_obj, St);
+import(ndo, St) -> import_ndo(St).
 
 import(Ext, Mod, St0) ->
     Prop = file_prop(Ext),
@@ -123,6 +124,23 @@ import(Ext, Mod, St0) ->
 	Name0 ->
 	    Name = ensure_extension(Name0, Ext),
 	    case do_import(Mod, Name, St0) of
+		#st{}=St ->
+		    wings_getline:set_cwd(dirname(Name)),
+		    St;
+	    	{error,Reason} ->
+		    wings_io:message("Import failed: " ++ Reason),
+		    St0
+	    end
+    end.
+
+import_ndo(St0) ->
+    Ext = ".ndo",
+    Prop = file_prop(Ext),
+    case wings_plugin:call_ui({file,import,Prop}) of
+	aborted -> St0;
+	Name0 ->
+	    Name = ensure_extension(Name0, Ext),
+	    case wings_ff_ndo:import(Name, St0) of
 		#st{}=St ->
 		    wings_getline:set_cwd(dirname(Name)),
 		    St;
@@ -150,7 +168,8 @@ export(Mod, Ext, St) ->
 
 %%% Utilities.
 
-file_prop(".3ds"=Ext) -> file_prop(Ext, "3D Stdio File");
+file_prop(".ndo"=Ext) -> file_prop(Ext, "Nendo File");
+file_prop(".3ds"=Ext) -> file_prop(Ext, "3D Studio File");
 file_prop(".obj"=Ext) -> file_prop(Ext, "Wawefront").
 
 file_prop(Ext, Desc) ->
