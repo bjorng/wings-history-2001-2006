@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.31 2003/01/20 07:36:55 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.32 2003/02/01 18:59:32 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -172,8 +172,13 @@ import_sel(Sel, #st{onext=IdBase}) ->
     [{IdBase+Id,gb_sets:from_list(Elems)} || {Id,Elems} <- Sel].
 
 new_sel_group(Name, Mode, Sel, #st{ssels=Ssels0}=St) ->
-    Ssels = gb_trees:insert({Mode,Name}, Sel, Ssels0),
-    St#st{ssels=Ssels}.
+    Key = {Mode,Name},
+    case gb_trees:is_defined(Key, Ssels0) of
+	true -> St;
+	false ->
+	    Ssels = gb_trees:insert(Key, Sel, Ssels0),
+	    St#st{ssels=Ssels}
+    end.
 
 %%%
 %%% Import of old materials format (up to and including wings-0.94.02).
