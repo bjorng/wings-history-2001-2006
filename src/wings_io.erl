@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_io.erl,v 1.65 2002/09/16 19:29:19 bjorng Exp $
+%%     $Id: wings_io.erl,v 1.66 2002/10/09 05:52:26 bjorng Exp $
 %%
 
 -module(wings_io).
@@ -163,7 +163,7 @@ progress_tick() ->
 
 info(Info) ->
     ortho_setup(),
-    gl:color3fv(wings_pref:get_value(info_color)),
+    set_color(wings_pref:get_value(info_color)),
     text_at(4, 2*?LINE_HEIGHT+3, Info).
     
 message(Message) ->
@@ -261,7 +261,7 @@ update(#io{message=Msg0,right=Right,w=W,h=H}=Io0, St) ->
 		  length(Msg)+length(Right) < W div ?CHAR_WIDTH-3 ->
 		      L = length(Right),
 		      Pos = W-?CHAR_WIDTH*(L+3),
-		      gl:color3fv(?MENU_COLOR),
+		      set_color(?MENU_COLOR),
 		      gl:recti(Pos-?CHAR_WIDTH, -?LINE_HEIGHT+3,
 			       Pos+(L+1)*?CHAR_WIDTH, 3),
 		      gl:color3f(0, 0, 0),
@@ -434,15 +434,15 @@ sunken_rect(X0, Y0, Mw0, Mh0, FillColor) ->
     Y = Y0 + 0.5,
     Mw = Mw0 + 0.5,
     Mh = Mh0 + 0.5,
-    gl:color3fv(FillColor),
+    set_color(FillColor),
     gl:rectf(X0, Y0, X0+Mw0, Y0+Mh0),
     gl:'begin'(?GL_LINES),
-    gl:color3fv(?BEVEL_LOWLIGHT),
+    set_color(?BEVEL_LOWLIGHT),
     gl:vertex2f(X, Y+Mh),
     gl:vertex2f(X, Y),
     gl:vertex2f(X, Y),
     gl:vertex2f(X+Mw, Y),
-    gl:color3fv(?BEVEL_HIGHLIGHT),
+    set_color(?BEVEL_HIGHLIGHT),
     gl:vertex2f(X+Mw, Y),
     gl:vertex2f(X+Mw, Y+Mh),
     gl:vertex2f(X+Mw, Y+Mh),
@@ -451,7 +451,7 @@ sunken_rect(X0, Y0, Mw0, Mh0, FillColor) ->
     gl:color3f(0, 0, 0).
 
 space_at(X, Y) ->
-    gl:color3fv(?PANE_COLOR),
+    set_color(?PANE_COLOR),
     gl:recti(X, Y-?LINE_HEIGHT+3, X+?CHAR_WIDTH, Y+3),
     gl:color3f(0.0, 0.0, 0.0).
 
@@ -515,7 +515,7 @@ axis_text(X, Y, C, Color) ->
     gl:loadIdentity(),
     ClipX = min(trunc(X), W-9),
     ClipY = max(min(trunc(Y-10), H-35), 74),
-    gl:color3fv(Color),
+    set_color(Color),
     gl:rasterPos2i(ClipX, ClipY),
     wings_text:char(C),
     gl:popMatrix(),
