@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.193 2004/03/09 07:24:25 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.194 2004/03/11 05:12:44 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -225,6 +225,8 @@ create_uv_state(Map, MatName0, We, GeomSt0) ->
     wings_wm:set_prop(wireframed_objects,
 		      lists:seq(1, gb_trees:size(Map))),
     wings_wm:set_prop(allow_rotation, false),
+
+    wings_wm:later(got_focus),
 
     get_event(St).
 
