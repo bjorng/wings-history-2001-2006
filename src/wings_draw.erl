@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.118 2003/06/02 20:13:13 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.119 2003/06/03 15:17:41 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -97,7 +97,7 @@ check_mirror(#we{mirror=none}) -> none;
 check_mirror(#we{fs=Ftab,mirror=Face}) ->
     case gb_trees:is_defined(Face, Ftab) of
 	false -> none;
-	true -> Face
+	true -> {Face}
     end.
 
 sel_fun(#dlo{src_we=#we{id=Id},src_sel=SrcSel}=D, [{Id,Items}|Sel], Mode) ->
@@ -260,7 +260,7 @@ update_sel(#dlo{}=D) -> {D,[]}.
 update_mirror() ->
     wings_draw_util:map(fun update_mirror/2, []).
 
-update_mirror(#dlo{mirror=Face,src_we=We}=D, _) when is_integer(Face) ->
+update_mirror(#dlo{mirror={Face},src_we=We}=D, _) when is_integer(Face) ->
     N = wings_face:normal(Face, We),
     Center = wings_face:center(Face, We),
     RotBack = e3d_mat:rotate_to_z(N),
@@ -443,7 +443,7 @@ smooth_dlist(#we{he=Htab0}=We, #st{mat=Mtab}) ->
 	none ->
 	    Flist = wings_we:normals(We),
 	    smooth_faces(Flist, We, Mtab);
-	Face ->
+	{Face} ->
 	    Edges = wings_face:outer_edges([Face], We),
 	    Htab = gb_sets:union(Htab0, gb_sets:from_list(Edges)),
 	    Flist = wings_we:normals(We#we{he=Htab}),
