@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_edge.erl,v 1.15 2001/10/20 19:14:17 bjorng Exp $
+%%     $Id: wings_edge.erl,v 1.16 2001/11/08 14:01:09 bjorng Exp $
 %%
 
 -module(wings_edge).
 -export([convert_selection/1,select_more/1,select_less/1,
 	 to_vertices/2,select_region/1,
-	 select_loop/1,cut/2,cut/3,fast_cut/3,connect/1,dissolve/1,
+	 cut/2,cut/3,fast_cut/3,connect/1,dissolve/1,
 	 dissolve_edges/2,dissolve_edge/2,patch_edge/4,patch_edge/5,
 	 hardness/2,hardness/3,loop_cut/1]).
 
@@ -98,65 +98,6 @@ to_vertices([E|Es], Etab, Acc) ->
     #edge{vs=Va,ve=Vb} = gb_trees:get(E, Etab),
     to_vertices(Es, Etab, [Va,Vb|Acc]);
 to_vertices([], Etab, Acc) -> ordsets:from_list(Acc).
-
-%%% The Select Edge Loop command.
-
-select_loop(#st{selmode=edge}=St) ->
-    Sel = wings_sel:fold_shape(fun select_loop/3, [], St),
-    St#st{sel=reverse(Sel)};
-select_loop(St) -> St.
-
-select_loop(#shape{id=Id,sh=#we{es=Etab}=We}, Edges0, Acc) ->
-    Edges = select_loop_1(Edges0, Etab, gb_sets:empty()),
-    [{Id,Edges}|Acc].
-
-select_loop_1(Edges0, Etab, Sel0) ->
-    case gb_sets:is_empty(Edges0) of
-	true -> Sel0;
-	false ->
-	    {Edge,Edges1} = gb_sets:take_smallest(Edges0),
-	    Sel = gb_sets:insert(Edge, Sel0),
-	    Edges = select_loop_edges(Edge, Etab, Sel, Edges1),
-	    select_loop_1(Edges, Etab, Sel)
-    end.
-
-select_loop_edges(Edge, Etab, Sel, Edges0) ->
-    #edge{vs=Va,ve=Vb} = Erec = gb_trees:get(Edge, Etab),
-    Edges = try_edge_from(Va, Edge, Erec, Etab, Sel, Edges0),
-    try_edge_from(Vb, Edge, Erec, Etab, Sel, Edges).
-
-try_edge_from(V, FromEdge, Erec, Etab, Sel, Edges) ->
-    case try_edge_from_1(V, FromEdge, Erec, Etab) of
-	none -> Edges;
-	Edge ->
-	    case gb_sets:is_member(Edge, Sel) of
-		true -> Edges;
-		false -> gb_sets:add(Edge, Edges)
-	    end
-    end.
-
-try_edge_from_1(V, From, Erec, Etab) ->
-    case Erec of
-	#edge{vs=V,lf=FL,rf=FR,ltsu=EL,rtpr=ER} -> ok;
-	#edge{ve=V,lf=FL,rf=FR,ltpr=EL,rtsu=ER} -> ok
-    end,
-    if
-	EL =:= ER -> EL;
-	true ->
-	    case {next_edge(From, V, FL, EL, Etab),
-		  next_edge(From, V, FR, ER, Etab)} of
-		{Edge,Edge} -> Edge;
-		{_,_} -> none
-	    end
-    end.
-
-next_edge(From, V, Face, Edge, Etab) ->
-    case gb_trees:get(Edge, Etab) of
-	#edge{vs=V,ve=Ov,rf=Face,rtpr=From,ltsu=To} -> To;
-	#edge{vs=V,ve=Ov,lf=Face,ltsu=From,rtpr=To} -> To;
-	#edge{ve=V,vs=Ov,rf=Face,rtsu=From,ltpr=To} -> To;
-	#edge{ve=V,vs=Ov,lf=Face,ltpr=From,rtsu=To} -> To
-    end.
 
 %%%
 %%% The Cut command.
@@ -500,7 +441,7 @@ hardness(Edge, Hardness, Htab) ->
 %%%
 
 select_region(St0) ->
-    St = select_loop(St0),
+    St = wings_edge_loop:select_loop(St0),
     Sel0 = wings_sel:fold_shape(fun select_region/3, [], St),
     Sel = sort(Sel0),
     St#st{selmode=face,sel=Sel}.

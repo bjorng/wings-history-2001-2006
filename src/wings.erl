@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.36 2001/11/07 20:55:55 bjorng Exp $
+%%     $Id: wings.erl,v 1.37 2001/11/08 14:01:09 bjorng Exp $
 %%
 
 -module(wings).
@@ -79,7 +79,7 @@ init_1() ->
 	     mat=wings_material:default(),
 	     saved=true,
 	     onext=0,
-	     last_command=ignore,
+	     repeatable=ignore,
 	     hit_buf=sdl_util:malloc(?HIT_BUF_SIZE, ?GL_UNSIGNED_INT)
 	    },
     wings_view:init(),
@@ -229,9 +229,8 @@ do_command_1(Cmd, St) ->
 
 remember_command({C,_}=Cmd, St) when C =:= vertex; C =:= edge;
 				     C =:= face; C =:= body ->
-    St#st{last_command=Cmd};
-remember_command(Cmd, #st{last_command=Last}=St) ->
-    St.
+    St#st{repeatable=Cmd};
+remember_command(Cmd, St) -> St.
 
 
 %% Test if the saved command can be safely repeated, and
@@ -300,7 +299,7 @@ command({edit,{material,Mat}}, St) ->
     wings_material:edit(Mat, St);
 command({edit,repeat}, #st{sel=[]}=St) -> St;
 command({edit,repeat}, #st{drag=undefined,camera=undefined,
-			   selmode=Mode,last_command=Cmd0}=St) ->
+			   selmode=Mode,repeatable=Cmd0}=St) ->
     case repeatable(Mode, Cmd0) of
 	no -> ok;
 	Cmd when tuple(Cmd) -> wings_io:putback_event({action,Cmd})
@@ -313,7 +312,11 @@ command({edit,{preferences,Pref}}, St) ->
 
 %% Select menu
 command({select,edge_loop}, St) ->
-    {save_state,wings_edge:select_loop(St)};
+    {save_state,wings_edge_loop:select_loop(St)};
+command({select,next_edge_loop}, St) ->
+    {save_state,wings_edge_loop:select_next(St)};
+command({select,prev_edge_loop}, St) ->
+    {save_state,wings_edge_loop:select_prev(St)};
 command({select,select_region}, St) ->
     {save_state,wings_edge:select_region(St)};
 command({select,more}, St) ->
@@ -546,8 +549,10 @@ menu(X, Y, select, St) ->
 	    separator,
 	    {"More","+",more},
 	    {"Less","-",less},
-	    {"Edge Loop","l",edge_loop},
 	    {"Region","L",select_region},
+	    {"Edge Loop","l",edge_loop},
+	    {"Previous Edge Loop","F3",prev_edge_loop},
+	    {"Next Edge Loop","F4",next_edge_loop},
 	    {"Similar","i",similar},
 	    separator,
 	    {"Adjacent vertices","v",vertex},
@@ -1018,6 +1023,8 @@ translate_key(Sym, Mod, C, #st{drag=Drag}=St)
 	{?SDLK_KP_MINUS,undefined} -> {select,less};
 	{?SDLK_KP_PLUS,_} -> {influence_radius,1};
 	{?SDLK_KP_MINUS,_} -> {influence_radius,-1};
+	{?SDLK_F3,_} -> {select,prev_edge_loop};
+	{?SDLK_F4,_} -> {select,next_edge_loop};
 	{_,_} -> translate_key(C, St)
     end;
 translate_key(_, _, _, St) -> ignore.
@@ -1060,15 +1067,15 @@ translate_key($=, St)  -> {select,more};
 translate_key(?SDLK_MINUS, St)  -> {select,less};
 translate_key(_, _) -> ignore.
 
-command_name(#st{last_command=ignore}) ->
+command_name(#st{repeatable=ignore}) ->
     "(Can't repeat)";
-command_name(#st{last_command={_,Cmd}}=St) ->
+command_name(#st{repeatable={_,Cmd}}=St) ->
     CmdStr = stringify(Cmd),
     command_name(CmdStr, St).
 
 command_name(CmdStr, #st{sel=[]}) ->
     lists:flatten(["(Can't repeat \"",CmdStr,"\")"]);
-command_name(CmdStr, #st{selmode=Mode,last_command=Cmd}) ->
+command_name(CmdStr, #st{selmode=Mode,repeatable=Cmd}) ->
     S = case repeatable(Mode, Cmd) of
 	    no -> ["(Can't repeat \"",CmdStr,"\")"];
 	    _ ->  ["Repeat \"",CmdStr,"\""]

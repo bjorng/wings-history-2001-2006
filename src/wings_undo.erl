@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_undo.erl,v 1.2 2001/11/07 20:55:55 bjorng Exp $
+%%     $Id: wings_undo.erl,v 1.3 2001/11/08 14:01:09 bjorng Exp $
 %%
 
 -module(wings_undo).
@@ -22,7 +22,8 @@
 	{shapes,
 	 selmode,
 	 sel,
-	 onext}).
+	 onext
+	}).
 
 init(St) ->
     St#st{top=[],bottom=[],undone=[],next_is_undo=true}.
@@ -47,13 +48,13 @@ redo(#st{undone=[StOld|Undone]}=St0) ->
     St = St1#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext},
     St#st{undone=Undone,next_is_undo=true};
 redo(St) -> St.
-    
+
 %%
 %% Low-level queue operations.
 %%
 
-push(St, #st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext}) ->
-    Est = #est{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext},
+push(St, OldState) ->
+    Est = save_essential(OldState),
     push_1(St, Est).
 
 push_1(#st{top=[],bottom=[_|_]=Bottom}=St, #est{}=Est) ->
@@ -68,6 +69,9 @@ push_1(#st{top=[PrevEst|PrevTop]=Top}=St, #est{}=Est) ->
 	    St#st{top=[PrevEst#est{sel=Sel}|PrevTop]}
     end.
 
+save_essential(#st{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext}) ->
+    #est{shapes=Sh,selmode=Mode,sel=Sel,onext=Onext}.
+    
 compare_states(Old, New) ->
     #est{shapes=Osh,selmode=Omode,sel=Osel,onext=Oonext} = Old,
     #est{shapes=Nsh,selmode=Nmode,sel=Nsel,onext=Nonext} = New,

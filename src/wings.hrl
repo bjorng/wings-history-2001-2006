@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.16 2001/11/07 20:55:55 bjorng Exp $
+%%     $Id: wings.hrl,v 1.17 2001/11/08 14:01:09 bjorng Exp $
 %%
 
 -ifdef(NEED_ESDL).
@@ -81,8 +81,11 @@
 	 onext,					%Next object id to use.
 	 hit_buf,				%Hit buffer for hit testing.
 	 inf_r,					%Radius of influence (for magnet).
-	 last_command,				%Last command.
 	 bb=none,				%Saved bounding box.
+	 edge_loop=none,			%Previous edge loop.
+
+	 %% Previous commands.
+	 repeatable,				%Last repeatable command.
 
 	 %% Undo information.
 	 top,					%Top of stack.
