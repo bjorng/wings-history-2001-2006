@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.184 2004/10/25 20:59:43 raimo_niskanen Exp $
+%%     $Id: wings_ask.erl,v 1.185 2004/11/21 10:19:34 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -402,7 +402,7 @@ do_dialog(Title, Qs, Level, Fun) ->
     S = S0#s{level=Level,grab_win=GrabWin,owner=Owner},
     Name = {dialog,hd(Level)},
     setup_blanket(Name, Fi, Store),
-    Op = {seq,push,get_event(S)},
+    Op = get_event(S),				%No push - replace crash handler.
     {_,Xm,Ym} = sdl_mouse:getMouseState(),
     wings_wm:toplevel(Name, Title, {Xm,Ym-?LINE_HEIGHT}, {W,H}, 
 		      [{anchor,n}], Op),
@@ -457,18 +457,12 @@ blanket(_, _, _) -> keep.
 
 get_event(S) ->
     wings_wm:dirty(),
-    {replace,
-     fun(Ev) ->
-	     case catch event1(Ev, S) of
-		 {'EXIT',Reason} ->
-		     %% dmptree(S#s.fi),
-		     io:format(?STR(get_event,1,"Dialog crashed for event ~p~n"
-				    "With reason ~p~n"), [Ev,Reason]),
-		     delete(S);
-		 Result -> Result
-	     end
-     end}.
+    {replace,fun(Ev) -> event1(Ev, S) end}.
 
+event1({crash,Reason}, S) ->
+    %% dmptree(S#s.fi),
+    wings_util:win_crash(Reason),
+    delete(S);
 event1(redraw, S) ->
     ?DEBUG_DISPLAY(event, redraw),
     redraw(S);
@@ -793,10 +787,7 @@ return_result(#s{call=EndFun,owner=Owner,fi=Fi,store=Sto,
 		 level=Level,grab_win=GrabWin}=S0) ->
     Res = collect_result(Fi, Sto),
     ?DEBUG_DISPLAY(other, {return_result,Res}),
-    case catch EndFun(Res) of
-	{command_error,Message} ->
-	    wings_util:message(Message),
-	    get_event(S0);
+    case EndFun(Res) of
 	ignore ->
 	    delete(S0);
 	#st{}=St ->

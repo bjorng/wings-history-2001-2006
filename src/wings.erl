@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.324 2004/11/14 13:47:26 bjorng Exp $
+%%     $Id: wings.erl,v 1.325 2004/11/21 10:19:34 bjorng Exp $
 %%
 
 -module(wings).
@@ -54,9 +54,11 @@ halt_loop(Wings) ->
 		      [Log]),
 	    ok;
 	{'EXIT',Wings,Reason} ->
-	    Log = wings_util:crash_log(?STR(halt_loop,2,"<Unknown Window Name>"), Reason),
+	    Log = wings_util:crash_log(?STR(halt_loop,2,"<Unknown Window Name>"),
+				       Reason),
 	    io:format("\n\n"),
-	    io:format(?STR(halt_loop,3,"Fatal internal error - log written to ~s\n"), [Log]),
+	    io:format(?STR(halt_loop,3,"Fatal internal error - log written to ~s\n"),
+		      [Log]),
 	    ok;
 	_Other ->				%Can't happen.
 	    halt_loop(Wings)
@@ -248,7 +250,7 @@ main_loop(St) ->
 main_loop_noredraw(St) ->
     {replace,fun(Event) -> handle_event(Event, St) end}.
 
-handle_event({crash,_}=Crash, St) ->
+handle_event({crash,Crash}, St) ->
     crash_logger(Crash, St);
 handle_event({crash_in_other_window,LogName}, St) ->
     get_crash_event(LogName, St);
@@ -430,12 +432,8 @@ do_command(Cmd, St0) ->
      fun() -> raw_command(Cmd, none, St) end}.
 
 raw_command(Cmd, Args, St) ->
-    command_response(catch do_command_1(Cmd, St), Args, St).
+    command_response(do_command_1(Cmd, St), Args, St).
 
-command_response({'EXIT',Reason}, _, _) ->
-    exit(Reason);
-command_response({command_error,Error}, _, _) ->
-    wings_util:message(Error);
 command_response(#st{}=St, _, _) ->
     main_loop(clear_temp_sel(St));
 command_response({drag,Drag}, Args, _) ->

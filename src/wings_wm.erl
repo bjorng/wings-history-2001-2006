@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.148 2004/11/15 04:10:32 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.149 2004/11/21 10:19:35 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -715,17 +715,32 @@ translate_event({drop,{X,Y},DropData}, Ox, Oy) ->
     {drop,{X-Ox,Y-Oy},DropData};
 translate_event(Ev, _, _) -> Ev.
     
-handle_event(#se{h=Handler}, Event, Stk) ->
-    handle_response(catch Handler(Event), Event, Stk).
+handle_event(State, Event, Stk) ->
+    try
+	case State of
+	    #se{h=Handler} -> Handler(Event);
+	    Fun when is_function(Fun) -> Fun()
+	end of
+	Res ->
+	    handle_response(Res, Event, Stk)
+    catch
+	throw:{command_error,Error} ->
+	    wings_util:message(Error),
+	    Stk;
+	  exit:normal ->
+	    exit(normal);
+	  exit:Exit ->
+	    [#se{h=CrashHandler}] = pop_all_but_one(Stk),
+	    handle_response(CrashHandler({crash,Exit}), Event,
+			    default_stack(this()));
+	  error:Reason ->
+	    [#se{h=CrashHandler}] = pop_all_but_one(Stk),
+	    handle_response(CrashHandler({crash,Reason}), Event,
+			    default_stack(this()))
+    end.
 
 handle_response(Res, Event, Stk0) ->
     case Res of
-	{'EXIT',normal} ->
-	    exit(normal);
-	{'EXIT',Reason} ->
-	    [#se{h=CrashHandler}] = pop_all_but_one(Stk0),
-	    handle_response(CrashHandler({crash,Reason}), Event,
-			    default_stack(this()));
 	keep -> Stk0;
 	next -> next_handler(Event, Stk0);
 	pop -> pop(Stk0);
@@ -741,9 +756,9 @@ handle_response(Res, Event, Stk0) ->
 	    handle_response(Then, Event, Stk);
 	{replace,Top} when is_function(Top) ->
 	    replace_handler(Top, Stk0);
-	{replace,Top,Continue} when is_function(Top) ->
+	{replace,Top,Continue} when is_function(Top), is_function(Continue) ->
 	    Stk = replace_handler(Top, Stk0),
-	    handle_response(catch Continue(), Event, Stk);
+	    handle_event(Continue, dummy_event, Stk);
 	{pop_handler,_}=PopH -> replace_handler(PopH, Stk0);
 	Top when is_function(Top) -> replace_handler(Top, Stk0)
     end.

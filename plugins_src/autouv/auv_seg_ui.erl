@@ -1,14 +1,15 @@
-%% File    : auv_seg_ui.erl
-%% Author  : Dan Gudmundsson <dgud@erix.ericsson.se>
-%% Description : The segmentation interface.
 %%
-%% Created : 24 Jan 2002 by Dan Gudmundsson <dgud@erix.ericsson.se>
-%%-------------------------------------------------------------------
-%%  Copyright (c) 2002-2004 Bjorn Gustavsson, Dan Gudmundsson
+%%  auv_seg_ui.erl --
+%%
+%%     Segmentation UI for AutoUV.
+%%
+%%  Copyright (c) 2002-2004 Dan Gudmundsson, Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: auv_seg_ui.erl,v 1.25 2004/08/17 10:34:36 dgud Exp $
+%%
+%%     $Id: auv_seg_ui.erl,v 1.26 2004/11/21 10:19:33 bjorng Exp $
+%%
 
 -module(auv_seg_ui).
 -export([start/3]).
@@ -64,9 +65,8 @@ get_seg_event(#seg{st=St}=Ss) ->
 get_seg_event_noredraw(Ss) ->
     {replace,fun(Ev) -> seg_event(Ev, Ss) end}.
 
-seg_event({crash,_}=Crash, _) ->
-    LogName = wings_util:crash_log(wings_wm:this(), Crash),
-    wings_wm:send(geom, {crash_in_other_window,LogName}),
+seg_event({crash,Crash}, _) ->
+    wings_util:win_crash(Crash),
     delete;
 seg_event(init_opengl, #seg{st=St}=Ss) ->
     wings:init_opengl(St),

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.99 2004/11/02 07:20:34 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.100 2004/11/21 10:19:34 bjorng Exp $
 %%
 
 -module(wings_util).
@@ -32,7 +32,7 @@
 	 init_gl_extensions/0,is_gl_ext/1,is_gl_ext/2,
 	 init_gl_restrictions/0,is_gl_restriction/1,
 	 geom_windows/0,
-	 tc/3,export_we/2,crash_log/2,validate/1,validate/3,
+	 tc/3,export_we/2,win_crash/1,crash_log/2,validate/1,validate/3,
 	 gl_error_string/1,
 	 min/2,max/2,limit/2,lowpass/1,lowpass/2]).
 -export([check_error/2,dump_we/2]).
@@ -440,14 +440,30 @@ export_we(Name, #st{shapes=Shs}) ->
 %%% Crash log writing.
 %%%
 
-crash_log(WinName, BackTrace) ->
+win_crash(Reason) ->
+    LogName = crash_log(wings_wm:this(), Reason),
+    wings_wm:send(geom, {crash_in_other_window,LogName}).
+
+crash_log(WinName, Reason) ->
     wings_pb:cancel(),
     LogFileDir = log_file_dir(),
     LogName = filename:absname("wings_crash.dump", LogFileDir),
+    StackTrace = erlang:get_stacktrace(),
     F = open_log_file(LogName),
     io:format(F, "Window: ~p\n", [WinName]),
-    io:format(F, "Crashed in:\n~p\n\n", [BackTrace]),
-    analyse(F, BackTrace),
+    io:format(F, "Reason: ~p\n\n", [Reason]),
+    ShortStackTrace = [{M,N,if
+				is_list(A) -> length(A);
+				true -> A
+			    end} || {M,N,A} <- StackTrace],
+    case ShortStackTrace =:= StackTrace of
+	false ->
+	    io:format(F, "Short stack trace:\n~p\n\n", [ShortStackTrace]),
+	    io:format(F, "Long stack trace:\n~p\n\n", [StackTrace]);
+	true ->
+	    io:format(F, "Stack trace:\n~p\n\n", [StackTrace])
+    end,
+    analyse(F, StackTrace),
     file:close(F),
     LogName.
 
@@ -481,7 +497,7 @@ open_log_file(Name) ->
     io:format(F, "Dump written ~p-~p-~p_~p-~p\n", [Y,Mo,D,H,Mi]),
     F.
 
-analyse(F, {_,[{_Mod,_Fun,Args}|_]}) when is_list(Args) ->
+analyse(F, [{_Mod,_Fun,Args}|_]) when is_list(Args) ->
     try_args(F, Args, 1);
 analyse(_, _) -> ok.
 
