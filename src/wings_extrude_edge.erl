@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_edge.erl,v 1.30 2002/08/25 14:11:10 bjorng Exp $
+%%     $Id: wings_extrude_edge.erl,v 1.31 2002/08/25 20:15:05 bjorng Exp $
 %%
 
 -module(wings_extrude_edge).
@@ -219,7 +219,8 @@ orig_normals_1([{V,[{VecA,OtherV}]}|T], VsVec, Acc) ->
 	_ ->
 	    orig_normals_1(T, VsVec, Acc)
     end;
-orig_normals_1([_|T], VsVec, Acc) -> orig_normals_1(T, VsVec, Acc);
+orig_normals_1([H|T], VsVec, Acc) ->
+    orig_normals_1(T, VsVec, Acc);
 orig_normals_1([], _, Acc) -> reverse(Acc).
 
 straighten([{V,N0}|Ns], New, #we{vs=Vtab0}=We0) ->
@@ -232,11 +233,15 @@ straighten([{V,N0}|Ns], New, #we{vs=Vtab0}=We0) ->
 			 true ->
 			     #vtx{pos=OPos0} = Vtx0 = gb_trees:get(OtherV, Vt0),
 			     Vec = e3d_vec:norm(e3d_vec:sub(Pos, OPos0)),
-			     N = case e3d_vec:dot(N0, Vec) of
-				     Dot when Dot < 0 -> e3d_vec:neg(N0);
-				     _ -> N0
-				 end,
-			     straighten_1(Vec, N, Pos, OtherV, Vtx0, Vt0)
+			     case e3d_vec:dot(N0, Vec) of
+				 Dot when abs(Dot) < 0.87 ->
+				     Vt0;
+				 Dot when Dot < 0 ->
+				     N = e3d_vec:neg(N0),
+				     straighten_1(Vec, N, Pos, OtherV, Vtx0, Vt0);
+				 _ ->
+				     straighten_1(Vec, N0, Pos, OtherV, Vtx0, Vt0)
+			     end
 		     end
 	     end, Vtab0, V, We0),
     We = We0#we{vs=Vtab},
