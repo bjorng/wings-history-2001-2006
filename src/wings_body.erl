@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_body.erl,v 1.61 2003/07/21 13:08:09 bjorng Exp $
+%%     $Id: wings_body.erl,v 1.62 2003/08/03 19:26:40 bjorng Exp $
 %%
 
 -module(wings_body).
@@ -61,8 +61,9 @@ menu(X, Y, St) ->
 		      {"Material",material,
 		       "Materials will be shown"}]},
 	     "Change object mode to vertex colors or material"},
-	    {"Strip Texture",strip_texture,
-	     "Remove a texture, converting it to vertex colors"},
+	    separator,
+	    {"Materials to Colors",materials_to_colors,
+	     "Convert materials to vertex colors"},
 	    {"Colors to Materials",colors_to_materials,
 	     "Convert vertex colors to materials"}],
     wings_menu:popup_menu(X, Y, body, Menu).
@@ -109,8 +110,8 @@ command(rename, St) ->
     rename(St);
 command({rename,Ids}, St) ->
     rename(Ids, St);
-command(strip_texture, St) ->
-    {save_state,strip_texture(St)};
+command(materials_to_colors, St) ->
+    {save_state,materials_to_colors(St)};
 command(colors_to_materials, St) ->
     {save_state,colors_to_materials(St)};
 command({mode,Mode}, St) ->
@@ -427,9 +428,8 @@ combine(#st{shapes=Shs0,sel=[{Id,_}=S|_]=Sel0}=St) ->
     Sel1 = sofs:from_external(Sel0, [{id,dummy}]),
     Sel2 = sofs:domain(Sel1),
     {Wes0,Shs2} = sofs:partition(1, Shs1, Sel2),
-    Wes1 = sofs:to_external(sofs:range(Wes0)),
-    Mode = unify_modes(Wes1),
-    Wes = add_zero_uvs(Wes1, Mode),
+    Wes = sofs:to_external(sofs:range(Wes0)),
+    Mode = unify_modes(Wes),
     We0 = wings_we:merge(Wes),
     We = We0#we{id=Id,mode=Mode},
     Shs = gb_trees:from_orddict(sort([{Id,We}|sofs:to_external(Shs2)])),
@@ -440,28 +440,10 @@ unify_modes([#we{mode=Mode}|Wes]) ->
 
 unify_modes([#we{mode=Mode}|Wes], Mode) ->
     unify_modes(Wes, Mode);
-unify_modes([#we{mode=Mode}|Wes], OldMode) ->
-    NewMode = unify_modes_1(sort([OldMode,Mode])),
-    unify_modes(Wes, NewMode);
-unify_modes([], Mode) -> Mode.
-
-unify_modes_1([_,vertex]) ->
+unify_modes([_|_], _) ->
     wings_util:error("Objects with vertex colors cannot be combined "
-		     "with objects with materials and/or textures.");
-unify_modes_1([material,uv]) -> uv.
-
-add_zero_uvs(Wes, material) -> Wes;
-add_zero_uvs(Wes, uv) -> add_zero_uvs_1(Wes, {0.0,0.0}, []).
-
-add_zero_uvs_1([#we{mode=uv}=We|Wes], ZeroUV, Acc) ->
-    add_zero_uvs_1(Wes, ZeroUV, [We|Acc]);
-add_zero_uvs_1([#we{es=Etab0}=We|Wes], ZeroUV, Acc) ->
-    Etab1 = foldl(fun({E,Rec}, A) ->
-			  [{E,Rec#edge{a=ZeroUV,b=ZeroUV}}|A]
-		  end, [], gb_trees:to_list(Etab0)),
-    Etab = gb_trees:from_orddict(reverse(Etab1)),
-    add_zero_uvs_1(Wes, ZeroUV, [We#we{es=Etab}|Acc]);
-add_zero_uvs_1([], _, Acc) -> reverse(Acc).
+		     "with objects with materials.");
+unify_modes([], Mode) -> Mode.
 		    
 %%%
 %%% The Separate command.
@@ -562,20 +544,13 @@ rename_qs(Wes) ->
 %%%
 
 set_mode(vertex_color, St) -> set_mode(vertex, St);
-set_mode(Mode, St) ->
-    wings_sel:map(
-      fun(_, #we{mode=uv}) ->
-	      Error ="Objects with UV coordinates cannot "
-		  " have their mode changed.",
-	      wings_util:error(Error);
-	 (_, We) -> We#we{mode=Mode}
-      end, St).
+set_mode(Mode, St) -> wings_sel:map(fun(_, We) -> We#we{mode=Mode} end, St).
 
 %%%
-%%% Strip Texture.
+%%% Convert materials to vertex colors.
 %%%
 
-strip_texture(St) ->
+materials_to_colors(St) ->
     wings_sel:map(fun(_, We) ->
 			  wings_we:uv_to_color(We, St)
 		  end, St).
