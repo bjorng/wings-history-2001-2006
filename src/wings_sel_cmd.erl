@@ -8,12 +8,15 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel_cmd.erl,v 1.31 2002/12/30 15:22:12 bjorng Exp $
+%%     $Id: wings_sel_cmd.erl,v 1.32 2003/01/01 23:20:24 bjorng Exp $
 %%
 
 -module(wings_sel_cmd).
 
 -export([menu/1,command/2]).
+
+%% Utilities.
+-export([select_all/1]).
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1,reverse/2,sort/1,keydelete/3]).

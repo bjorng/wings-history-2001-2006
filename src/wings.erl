@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.182 2003/01/01 19:23:55 bjorng Exp $
+%%     $Id: wings.erl,v 1.183 2003/01/01 23:20:24 bjorng Exp $
 %%
 
 -module(wings).
@@ -458,12 +458,7 @@ command({tools,{scale_to_bb_prop,Dir}}, St) ->
 command({tools,{move_to_bb,Dir}}, St) ->
     {save_state,wings_align:move_to_bb(Dir, St)};
 command({tools,{virtual_mirror,Cmd}}, St) ->
-    wings_view:virtual_mirror(Cmd, St);
-
-%% Objects menu.
-
-command({objects,Obj}, St) ->
-    wings_shape:command(Obj, St).
+    wings_view:virtual_mirror(Cmd, St).
 
 popup_menu(X, Y, #st{sel=[]}=St) ->
     wings_shapes:menu(X, Y, St);
@@ -485,7 +480,6 @@ init_menubar() ->
 	     {"View",view,fun(St) -> wings_view:menu(St) end},
 	     {"Select",select,fun(St) -> wings_sel_cmd:menu(St) end},
 	     {"Tools",tools,fun tools_menu/1},
-	     {"Objects",objects,fun(St) -> wings_shape:menu(St) end},
 	     {"Window",window,fun window_menu/1},
 	     {"Help",help,fun(St) -> wings_help:menu(St) end}],
     wings_wm:menubar(geom, Menus).

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.39 2002/12/26 09:47:09 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.40 2003/01/01 23:20:24 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -25,7 +25,7 @@
 	 subtract_mirror_face/2]).
 
 -include("wings.hrl").
--import(lists, [foldl/3,reverse/1,reverse/2,sort/1,keydelete/3]).
+-import(lists, [foldl/3,reverse/1,reverse/2,sort/1,keydelete/3,keymember/3]).
 
 clear(St) ->
     St#st{sel=[]}.
@@ -349,8 +349,12 @@ validate_items(Items, Mode, We) ->
     gb_sets:intersection(Items, get_all_items(Mode, We)).
     
 select_object(Id, #st{selmode=Mode,sel=Sel0}=St) ->
-    Sel = sort([{Id,get_all_items(Mode, Id, St)}|Sel0]),
-    St#st{sel=Sel}.
+    case keymember(Id, 1, Sel0) of
+	true -> St;
+	false ->
+	    Sel = sort([{Id,get_all_items(Mode, Id, St)}|Sel0]),
+	    St#st{sel=Sel}
+    end.
 
 deselect_object(Id, #st{sel=Sel0}=St) ->
     Sel = keydelete(Id, 1, Sel0),
