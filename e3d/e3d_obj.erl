@@ -8,13 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_obj.erl,v 1.14 2001/11/20 12:49:22 bjorng Exp $
+%%     $Id: e3d_obj.erl,v 1.15 2001/12/28 22:32:19 bjorng Exp $
 %%
 
 -module(e3d_obj).
 -export([import/1,export/2]).
 
 -include("e3d.hrl").
+-include("e3d_image.hrl").
 
 -import(lists, [reverse/1,reverse/2,sort/1,keysearch/3,foreach/2,
 		map/2,foldl/3]).
@@ -28,6 +29,7 @@
 	 matdef=[],				%Material definitions.
 	 name,					%Object name.
 	 dir,					%Directory of .obj file.
+	 ignore_groups=false,			%Ignore groups if "o" seen.
 	 seen=gb_sets:empty()}).		%Unknown type seen.
 
 import(Name) ->
@@ -61,7 +63,7 @@ import_2(Fd, Dir) ->
 make_ftab([{Mat,Vs0}|Fs], Acc) ->
     Vs = [V || {V,_,_} <- Vs0],
     Tx = case [Vt || {_,Vt,_} <- Vs0] of
-	     [none|_] -> none;
+	     [none|_] -> [];
 	     Other -> Other
 	 end,
     make_ftab(Fs, [#e3d_face{mat=Mat,vs=Vs,tx=Tx}|Acc]);
@@ -77,6 +79,8 @@ read(Parse, "\r\n", Fd, Acc) ->
 read(Parse, "\n", Fd, Acc) ->
     read(Parse, Fd, Acc);
 read(Parse, " " ++ Line, Fd, Acc) ->
+    read(Parse, Line, Fd, Acc);
+read(Parse, "\t" ++ Line, Fd, Acc) ->
     read(Parse, Line, Fd, Acc);
 read(Parse, eof, Fd, Acc) -> Acc;
 read(Parse, "mtllib" ++ Name0, Fd, Acc0) ->
@@ -126,12 +130,14 @@ parse(["vn",X0,Y0,Z0|_], #ost{vn=Vn}=Ost) ->
 parse(["f"|Vlist0], #ost{f=Ftab,mat=Mat}=Ost) ->
     Vlist = collect_vs(Vlist0, Ost),
     Ost#ost{f=[{Mat,Vlist}|Ftab]};
+parse(["g"|Names], #ost{ignore_groups=true}=Ost) ->
+    Ost;
 parse(["g"|Names], #ost{name=OldName}=Ost) ->
     case {Names,OldName} of
-	{[Name|_],undefined} -> Ost#ost{name=Name};
-	{_,_} -> Ost
+	{[Name|_],Name} -> Ost;
+	{[Name|_],_} -> Ost#ost{name=Name}
     end;
-parse(["o"|Names], #ost{name=OldName}=Ost) ->
+parse(["o"|Names], #ost{ignore_groups=true,name=OldName}=Ost) ->
     case {Names,OldName} of
 	{[Name|_],undefined} -> Ost#ost{name=Name};
 	{_,_} -> Ost
@@ -249,28 +255,33 @@ export(File, #e3d_file{objs=Objs,mat=Mat,creator=Creator}) ->
     {ok,F} = file:open(File, [write]),
     label(F, Creator),
     io:format(F, "mtllib ~s\n", [MtlLib]),
-    foldl(fun(#e3d_object{name=Name}=Obj, {Vbase,Nbase}) ->
+    foldl(fun(#e3d_object{name=Name}=Obj, {Vbase,UVbase,Nbase}) ->
 		  io:format(F, "o ~s\n", [Name]),
 		  io:format(F, "g ~s\n", [Name]),
-		  export_object(F, Obj, Vbase, Nbase)
-	  end, {1,1}, Objs),
+		  export_object(F, Obj, Vbase, UVbase, Nbase)
+	  end, {1,1,1}, Objs),
     ok = file:close(F).
 
-export_object(F, #e3d_object{name=Name,obj=Mesh}, Vbase, Nbase) ->
-    #e3d_mesh{vs=Vs} = Mesh,
+export_object(F, #e3d_object{name=Name,obj=Mesh}, Vbase, UVbase, Nbase) ->
+    #e3d_mesh{vs=Vs,tx=Tx} = Mesh,
     mesh_info(F, Mesh),
     foreach(fun({X,Y,Z}) ->
 		    io:format(F, "v ~p ~p ~p\n", [X,Y,Z])
 	    end, Vs),
+    foreach(fun({U,V}) ->
+		    io:format(F, "vt ~p ~p\n", [U,V])
+	    end, Tx),
     {Fs0,Ns} = e3d_mesh:vertex_normals(Mesh),
     foreach(fun({X,Y,Z}) ->
 		    io:format(F, "vn ~p ~p ~p\n", [X,Y,Z])
 	    end, Ns),
     Fs = sofs:to_external(sofs:relation_to_family(sofs:relation(Fs0))),
-    foreach(fun(Face) -> face_mat(F, Name, Face, Vbase, Nbase) end, Fs),
-    {Vbase+length(Vs),Nbase+length(Ns)}.
+    foreach(fun(Face) ->
+		    face_mat(F, Name, Face, Vbase, UVbase, Nbase)
+	    end, Fs),
+    {Vbase+length(Vs),UVbase+length(Tx),Nbase+length(Ns)}.
 
-face_mat(F, Name, {Ms,Fs}, Vbase, Nbase) ->
+face_mat(F, Name, {Ms,Fs}, Vbase, UVbase, Nbase) ->
     io:format(F, "g ~s", [Name]),
     foreach(fun(M) ->
 		    io:format(F, " ~p", [M])
@@ -281,24 +292,28 @@ face_mat(F, Name, {Ms,Fs}, Vbase, Nbase) ->
 		    io:format(F, " ~p", [M])
 	    end, Ms),
     io:nl(F),
-    foreach(fun(Vs) -> face(F, Vs, Vbase, Nbase) end, Fs).
+    foreach(fun(Vs) -> face(F, Vs, Vbase, UVbase, Nbase) end, Fs).
 
-face(F, Vs, Vbase, Nbase) ->
+face(F, Vs, Vbase, UVbase, Nbase) ->
     io:put_chars(F, "f"),
-    foreach(fun({V,N}) ->
+    foreach(fun({V,N,UV}) ->
+		    io:format(F, " ~p/~p/~p", [V+Vbase,UV+UVbase,N+Nbase]);
+	       ({V,N}) ->
 		    io:format(F, " ~p//~p", [V+Vbase,N+Nbase])
 	    end, Vs),
     io:nl(F).
 
 materials(Name0, Mats, Creator) ->
-    Name = filename:rootname(Name0, ".obj") ++ ".mtl",
+    Root = filename:rootname(Name0, ".obj"),
+    Name = Root ++ ".mtl",
+    Base = filename:basename(Root),
     {ok,F} = file:open(Name, [write]),
     label(F, Creator),
-    foreach(fun(M) -> material(F, M) end, Mats),
+    foreach(fun(M) -> material(F, Base, M) end, Mats),
     file:close(F),
     {ok,filename:basename(Name)}.
 
-material(F, {Name,Mat}) ->
+material(F, Base, {Name,Mat}) ->
     {value,{_,{R,G,B}}} = keysearch(ambient, 1, Mat),
     io:format(F, "newmtl ~p\n", [Name]),
     io:format(F, "Ns 80\n", []),
@@ -310,7 +325,18 @@ material(F, {Name,Mat}) ->
     io:format(F, "Kd ~p ~p ~p\n", [One,One,One]),
     Specular = 0.2,
     io:format(F, "Ks ~p ~p ~p\n", [R*Specular,G*Specular,R*Specular]),
+    diff_map(F, Base, Name, Mat),
     io:nl(F).
+
+diff_map(F, Base, Name, Mat) ->
+    case property_lists:get_value(diffuse_map, Mat, none) of
+	none -> ok;
+	{W,H,DiffMap} ->
+	    MapFile = Base ++ "_" ++ atom_to_list(Name) ++ "_diffmap.tga",
+	    io:format(F, "map_Kd ~s\n", [MapFile]),
+	    Image = #e3d_image{image=DiffMap,width=W,height=H},
+	    ok = e3d_image:save(Image, MapFile)
+    end.
 
 label(F, Creator) ->
     io:format(F, "# Exported from ~s\n", [Creator]).

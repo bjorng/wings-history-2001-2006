@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_mesh.erl,v 1.11 2001/09/17 07:19:18 bjorng Exp $
+%%     $Id: e3d_mesh.erl,v 1.12 2001/12/28 22:32:19 bjorng Exp $
 %%
 
 -module(e3d_mesh).
@@ -281,13 +281,19 @@ vertex_normals(#e3d_mesh{fs=Ftab,vs=Vtab0,he=He}=Mesh) ->
     Normals = [N || {Vn,N} <- Normals1],
     {Faces,Normals}.
 
-vn_faces([#e3d_face{mat=Mat,vs=Vs0}|Fs], VtxNormals, Face, Acc) ->
+vn_faces([#e3d_face{mat=Mat,vs=Vs0,tx=Tx}|Fs], VtxNormals, Face, Acc) ->
     Vs1 = foldl(fun(V, A) ->
 			vn_face(V, VtxNormals, Face, A)
 		end, [], Vs0),
-    Vs = reverse(Vs1),
+    Vs2 = reverse(Vs1),
+    Vs = add_uv(Vs2, Tx),
     vn_faces(Fs, VtxNormals, Face+1, [{Mat,Vs}|Acc]);
 vn_faces([], VtxNormals, Face, Acc) -> reverse(Acc).
+
+add_uv(Vs, []) -> Vs;
+add_uv([{V,N}|Vs], [UV|UVs]) ->
+    [{V,N,UV}|add_uv(Vs, UVs)];
+add_uv([], []) -> [].
 
 vn_face(V, VtxNormals, Face, Acc) ->
     [{V,vn_lookup(V, Face, VtxNormals)}|Acc].
