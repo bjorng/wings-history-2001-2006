@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.180 2004/02/11 11:33:16 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.181 2004/02/11 20:03:15 dgud Exp $
 
 -module(wpc_autouv).
 
@@ -24,6 +24,9 @@
 -import(lists, [sort/1,map/2,foldl/3,reverse/1,
 		append/1,delete/2,usort/1,max/1,min/1,
 		member/2,foreach/2,keysearch/3]).
+
+%% Exports to auv_texture
+-export([get_material/3,has_texture/2]).
 
 init() ->
     true.
@@ -50,7 +53,7 @@ command({body,{?MODULE,uvmap_done,QuitOp,#st{shapes=Charts,bb=Uvs}}}, St0) ->
     {St,MatName} =
 	case QuitOp of
 	    quit_uv_tex ->
-		Tx = ?SLOW(get_texture(Uvs)),
+		Tx = ?SLOW(auv_texture:get_texture(Uvs)),
 		add_material(Tx, OrWe#we.name, MatName0, St0);
 	    quit_uv -> {St0,MatName0}
 	end,
@@ -322,6 +325,11 @@ has_texture(MatName, Materials) ->
 	    none /= proplists:get_value(diffuse, Maps, none)
     end.
 
+get_material(Face, Materials, We) ->
+    MatName = wings_material:get(Face, We),
+    Mat = gb_trees:get(MatName, Materials),
+    proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
+
 get_texture_size(MatName, #st{mat=Materials}) ->
     Mat = gb_trees:get(MatName, Materials),
     Maps = proplists:get_value(maps, Mat, []),
@@ -331,11 +339,6 @@ get_texture_size(MatName, #st{mat=Materials}) ->
 	    #e3d_image{width=W,height=H} = wings_image:info(ImageId),
 	    {W,H}
     end.	     
-
-get_material(Face, Materials, We) ->
-    MatName = wings_material:get(Face, We),
-    Mat = gb_trees:get(MatName, Materials),
-    proplists:get_value(diffuse, proplists:get_value(opengl, Mat)).
 
 add_material(Tx = #e3d_image{},Name,none,St0) ->
     MatName0 = list_to_atom(Name++"_auv"),
@@ -442,105 +445,6 @@ setup_view(#uvstate{geom={Left,Right,Bottom,Top},st=#st{mat=Mats},
     gl:depthFunc(?GL_LESS),
     gl:disable(?GL_TEXTURE_2D),
     gl:shadeModel(?GL_SMOOTH).
-
-%%% Texture Creation
-
-calc_texsize(Vp, Tex) ->
-    calc_texsize(Vp, Tex, Tex).
-
-calc_texsize(Vp, Tex, Orig) when Tex < Vp ->
-    {Tex,Orig div Tex};
-calc_texsize(Vp, Tex, Orig) ->
-    calc_texsize(Vp, Tex div 2, Orig).
-
-get_texture(#uvstate{option=#setng{texsz={TexW,TexH}}}=Uvs0) ->
-    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-    Current = wings_wm:viewport(),
-    {W0,H0} = wings_wm:top_size(),
-    {W,Wd} = calc_texsize(W0, TexW),
-    {H,Hd} = calc_texsize(H0, TexH),
-    ?DBG("Get texture sz ~p ~p ~n", [{W,Wd},{H,Hd}]),
-    set_viewport({0,0,W,H}),
-    Uvs = reset_dl(Uvs0),
-    ImageBins = get_texture(0, Wd, 0, Hd, {W,H}, Uvs, []),
-    ImageBin = merge_texture(ImageBins, Wd, Hd, W*3, H, []),
-    set_viewport(Current),
-    gl:popAttrib(),
-
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-    case (TexW*TexH *3) == size(ImageBin) of
-	true ->
-	    #e3d_image{image=ImageBin,width=TexW,height=TexH};
-	false ->
-	    BinSzs = [size(Bin) || Bin <- ImageBins],
-	    exit({texture_error,{TexW, TexH, size(ImageBin), 
-				 W,Wd,H,Hd, BinSzs}})
-    end.
-		 
-get_texture(Wc, Wd, Hc, Hd, {W,H}=Info, Uvs0, ImageAcc)
-  when Wc < Wd, Hc < Hd ->
-    gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
-    gl:pixelStorei(?GL_UNPACK_ALIGNMENT, 1),
-    gl:clearColor(1, 1, 1, 1),
-    gl:shadeModel(?GL_SMOOTH),
-    gl:disable(?GL_CULL_FACE),
-    gl:disable(?GL_LIGHTING),
-    texture_view(Wc, Wd, Hc, Hd, Uvs0),
-    Uvs = draw_texture(Uvs0),
-    gl:flush(),
-    gl:readBuffer(?GL_BACK),
-    Mem = sdl_util:alloc(W*H*3, ?GL_UNSIGNED_BYTE),
-    gl:readPixels(0, 0, W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Mem),
-    ImageBin = sdl_util:getBin(Mem),
-    get_texture(Wc+1, Wd, Hc, Hd, Info, Uvs, [ImageBin|ImageAcc]);
-get_texture(_Wc,Wd,Hc,Hd, Info, Uvs, ImageAcc) when Hc < Hd ->
-    get_texture(0, Wd, Hc+1, Hd, Info, Uvs, ImageAcc);
-get_texture(_, _, _, _, _, _, ImageAcc) -> reverse(ImageAcc).
-
-texture_view(WC, WD, HC, HD, Uvs) ->
-    #uvstate{st=#st{mat=Mats}, option=#setng{texbg=TexBg},
-	     matname = MatN}=Uvs,
-    gl:disable(?GL_DEPTH_TEST),
-    gl:matrixMode(?GL_PROJECTION),
-    gl:loadIdentity(),
-    glu:ortho2D(WC/WD, (1+WC)/WD, HC/HD, (1+HC)/HD),
-    gl:matrixMode(?GL_MODELVIEW),
-    gl:loadIdentity(),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_FILL),
-    gl:color3f(1.0, 1.0, 1.0),
-    case TexBg of
-	true -> wings_material:apply_material(MatN, Mats);
-	false -> ok
-    end,
-    gl:'begin'(?GL_QUADS),
-    gl:texCoord2f(0,0),    gl:vertex3f(0, 0, -0.9),
-    gl:texCoord2f(1,0),    gl:vertex3f(1, 0, -0.9),
-    gl:texCoord2f(1,1),    gl:vertex3f(1, 1, -0.9),
-    gl:texCoord2f(0,1),    gl:vertex3f(0, 1, -0.9),
-    gl:'end'(),
-    gl:disable(?GL_TEXTURE_2D),
-    gl:enable(?GL_DEPTH_TEST).
-
-merge_texture_cols(List, Wd, Wd, _W, _RowC, Acc) ->
-    {list_to_binary(reverse(Acc)), List};
-merge_texture_cols([H|R], Wc, Wd, W, RowC, Acc) ->
-    SkipBytes = RowC*W,
-    <<_:SkipBytes/binary, Row:W/binary,_/binary>> = H,
-    merge_texture_cols(R, Wc + 1, Wd, W, RowC, [Row|Acc]).
-
-merge_texture_rows(_ImageBins, H, H, _W, _Wd,Acc, Last) ->
-    {list_to_binary(reverse(Acc)), Last};
-merge_texture_rows(ImageBins, RowC, H, W, Wd, Acc, _) ->
-    {Row, Rest} = merge_texture_cols(ImageBins, 0, Wd, W, RowC, []),
-    merge_texture_rows(ImageBins, RowC + 1, H,W,Wd, [Row|Acc], Rest).
-
-merge_texture([Bin],1,1,_,_,[]) ->   Bin;  %% No merge needed.
-merge_texture(Bins, 1,_,_,_,[]) ->   list_to_binary(Bins);  %% No merge needed.
-merge_texture([],_,_,_,_,Acc) -> 
-    list_to_binary(reverse(Acc));
-merge_texture(ImageBins,Wd,Hd,W,H,Acc) ->    
-    {Col, Bins} = merge_texture_rows(ImageBins, 0, H, W, Wd, [], ImageBins),
-    merge_texture(Bins,Wd,Hd,W,H,[Col|Acc]).
 
 %%%%%%% Events handling and window redrawing 
    
@@ -706,7 +610,7 @@ handle_event_1({drop,_,DropData}, St) ->
     handle_drop(DropData, St);
 handle_event_1({action,{auv,apply_texture}},
 	       #st{bb=#uvstate{st=GeomSt0,orig_we=OWe,matname=MatName0}=Uvs}=St) ->
-    Tx = ?SLOW(get_texture(Uvs)),
+    Tx = ?SLOW(auv_texture:get_texture(Uvs)),
     Charts = all_charts(Uvs),
     #we{name=Name,id=Id} = OWe,
     {GeomSt1,MatName} = add_material(Tx, Name, MatName0, GeomSt0),
@@ -1075,10 +979,6 @@ reset_dl(#uvstate{dl=undefined}=Uvs) -> Uvs;
 reset_dl(#uvstate{dl=DL}=Uvs) ->
     gl:deleteLists(DL, 1),
     Uvs#uvstate{dl=undefined}.
-
-set_viewport({X,Y,W,H}=Viewport) ->
-    put(wm_viewport, Viewport),
-    gl:viewport(X, Y, W, H).
 
 restore_wings_window(St) ->
     wings_draw_util:delete_dlists(),
