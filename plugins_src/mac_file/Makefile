@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.7 2003/12/31 10:47:33 bjorng Exp $
+#     $Id: Makefile,v 1.8 2004/01/07 16:10:03 bjorng Exp $
 #
 LIBDIR = ../../plugins/mac_file
 
@@ -17,7 +17,7 @@ ERL_DIR := $(shell echo 'io:format("~s~n",[code:root_dir()]),halt().' | erl | se
 BEAM = $(LIBDIR)/wp8_mac_image.beam
 
 ERLC = erlc
-ERLC_FLAGS = -o $(LIBDIR) -I ../../e3d -I ../../src -I $(ESDL_PATH)/include -pa $(ESDL_PATH)
+ERLC_FLAGS = -W +warn_unused_vars -o $(LIBDIR) -I ../../e3d -I ../../src -I $(ESDL_PATH)/include -pa $(ESDL_PATH)
 
 DRV = $(LIBDIR)/mac_wings_file_drv.so $(LIBDIR)/mac_wings_image_drv.so
 
