@@ -8,14 +8,13 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.5 2002/11/17 12:30:20 bjorng Exp $
+#     $Id: Makefile,v 1.6 2002/11/25 21:36:11 bjorng Exp $
 #
 LIBDIR = ../../plugins/mac_file
 
 ERL_DIR := $(shell echo 'io:format("~s~n",[code:root_dir()]),halt().' | erl | sed 's,^[0-9]*> *,,g' | tail +2)
 
 BEAM = $(LIBDIR)/wp8_mac_file.beam \
-       $(LIBDIR)/wpc_resize.beam \
        $(LIBDIR)/wp8_mac_image.beam
 
 ERLC = erlc
