@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_help.erl,v 1.45 2003/03/09 11:50:00 bjorng Exp $
+%%     $Id: wings_help.erl,v 1.46 2003/03/09 15:04:01 bjorng Exp $
 %%
 
 -module(wings_help).
@@ -154,20 +154,26 @@ opengl_info() ->
 		       {"Accum. green size",?SDL_GL_ACCUM_GREEN_SIZE},
 		       {"Accum. blue size",?SDL_GL_ACCUM_BLUE_SIZE},
 		       {"Accum. alpha size",?SDL_GL_ACCUM_ALPHA_SIZE}]),
-	    get_info([{"Max lights",?GL_MAX_LIGHTS},
+	    get_info([{"Max number of lights",?GL_MAX_LIGHTS},
 		      {"Max clip planes",?GL_MAX_CLIP_PLANES},
 		      {"Max modelview stack depth",?GL_MAX_MODELVIEW_STACK_DEPTH},
 		      {"Max projection stack depth",?GL_MAX_PROJECTION_STACK_DEPTH},
 		      {"Max texture stack depth",?GL_MAX_TEXTURE_STACK_DEPTH},
 		      {"Subpixel bits",?GL_SUBPIXEL_BITS},
 		      {"Max 3D texture size",?GL_MAX_3D_TEXTURE_SIZE},
-		      {"Max texture size",?GL_MAX_TEXTURE_SIZE}
-		      
-]),
-	    
-%%	    "# compressed texture formats: " ++
-%%	    integer_to_list(hd(gl:getIntegerv(?GL_NUM_COMPRESSED_TEXTURE_FORMATS))),
-	    "OpenGL Extensions",gl:getString(?GL_EXTENSIONS)],
+		      {"Max texture size",?GL_MAX_TEXTURE_SIZE},
+		      {"Max pixel map table",?GL_MAX_PIXEL_MAP_TABLE},
+		      {"Max name stack depth",?GL_MAX_NAME_STACK_DEPTH},
+		      {"Max display-list call nesting",?GL_MAX_LIST_NESTING},
+		      {"Max evaluator polynomial order",?GL_MAX_EVAL_ORDER},
+		      {"Max viewport dimensions",?GL_MAX_VIEWPORT_DIMS},
+		      {"Max depth of attribute stack",?GL_MAX_ATTRIB_STACK_DEPTH},
+		      {"Max depth of client attribute stack",
+		       ?GL_MAX_CLIENT_ATTRIB_STACK_DEPTH},
+		      {"Max number of texturing units",
+		       ?GL_MAX_TEXTURE_UNITS}]),
+	    compressed_texture_info(),
+	    "OpenGL Extensions",extensions()],
     help_window("OpenGL Info", Help).
 
 deep_info([{Label,Attr}|T]) ->
@@ -184,28 +190,32 @@ get_info([{Label,Attr}|T]) ->
     Label ++ ": " ++ ValStr ++ "\n" ++ get_info(T);
 get_info([]) -> [].
 
-about() ->
-    Xs = 280,
-    Ys = 176,
-    {W,H} = wings_wm:top_size(),
-    X = trunc((W-Xs) / 2),
-    Y = trunc((H-Ys) / 2),
-    Op = {push,fun handle_splash_event/1},
-    wings_wm:new(help, {X,Y,highest}, {Xs,Ys+?LINE_HEIGHT}, Op),
-    wings_wm:grab_focus(help),
-    wings_wm:dirty(),
-    keep.
+extensions() ->
+    extensions(lists:sort(string:tokens(gl:getString(?GL_EXTENSIONS), " "))).
+
+extensions([H|T]) -> H ++ "\n" ++ extensions(T);
+extensions([]) -> [].
+
+compressed_texture_info() ->
+    N = gl:getIntegerv(?GL_NUM_COMPRESSED_TEXTURE_FORMATS),
+    case gl:getError() of
+	0 -> compressed_texture_info(N);
+	_ -> []
+    end.
+
+compressed_texture_info(N) ->
+    "Number of compression formats: " ++ integer_to_list(hd(N)).
 
 %%%
 %%% Scrollable help window.
 %%%
+
 -record(ts,
 	{lines,
 	 first,
 	 tw,
 	 th
 	 }).
-	 
 
 help_window(Title, Text) ->
     help_window(help, Title, Text).
@@ -267,7 +277,6 @@ get_help_event(Ts) ->
 	     end}.
 
 handle_help_event(redraw, DrawData) ->
-    wings_wm:message("[L] Close help window"),
     redraw(DrawData),
     keep;
 handle_help_event(close, _) -> delete;
@@ -279,12 +288,18 @@ handle_help_event(scroll_page_up, Ts) ->
     zoom_step(-10, Ts);
 handle_help_event(scroll_page_down, Ts) ->
     zoom_step(10, Ts);
+handle_help_event(#mousebutton{button=4,state=?SDL_RELEASED}, Ost) ->
+    zoom_step(-10, Ost);
+handle_help_event(#mousebutton{button=5,state=?SDL_RELEASED}, Ost) ->
+    zoom_step(10, Ost);
 handle_help_event(_, _) -> keep.
 
-zoom_step(Step, #ts{first=First0}=Ts0) ->
+zoom_step(Step, #ts{first=First0,th=Th}=Ts0) ->
+    NumLines = Th div ?LINE_HEIGHT,
     First = case First0+Step of
 		Neg when Neg < 0 -> 0;
-		First1 -> First1
+		First1 when First1 < NumLines -> First1;
+		_ -> First0
 	    end,
     Ts = Ts0#ts{first=First},
     update_scroller(Ts),
@@ -312,8 +327,20 @@ update_scroller(#ts{first=First,th=Th}) ->
 %%% Help|About (splash screen).
 %%%
 
+about() ->
+    Xs = 280,
+    Ys = 176,
+    {W,H} = wings_wm:top_size(),
+    X = trunc((W-Xs) / 2),
+    Y = trunc((H-Ys) / 2),
+    Op = {push,fun handle_splash_event/1},
+    wings_wm:new(help, {X,Y,highest}, {Xs,Ys+?LINE_HEIGHT}, Op),
+    wings_wm:grab_focus(help),
+    wings_wm:dirty(),
+    keep.
+
 handle_splash_event(redraw) ->
-    wings_wm:message("[L] Close help window"),
+    message(),
     wings_io:ortho_setup(),
     {Xs,Ys} = wings_wm:win_size(),
     wings_io:raised_rect(0, 0, Xs, Ys),
@@ -331,6 +358,10 @@ handle_splash_event(redraw) ->
     wings_io:text_at(10, 180, "http://www.wings3d.com"),
     keep;
 handle_splash_event(#mousemotion{}) -> keep;
-handle_splash_event(got_focus) -> keep;
+handle_splash_event(got_focus) -> message();
 handle_splash_event(lost_focus) -> keep;
 handle_splash_event(_) -> delete.
+
+message() ->
+    wings_util:button_message("Close help window"),
+    keep.
