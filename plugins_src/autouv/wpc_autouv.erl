@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.210 2004/03/20 18:42:37 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.211 2004/04/02 06:48:05 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -228,9 +228,35 @@ create_uv_state(Charts0, MatName0, We, GeomSt0) ->
 
     wings_wm:later(got_focus),
 
-    wings:register_postdraw_hook(wings_wm:this(), ?MODULE,
+    Win = wings_wm:this(),
+    wings:register_postdraw_hook(Win, ?MODULE,
 				 fun draw_background/1),
+    wings_wm:menubar(Win, menubar()),
+    wings_wm:send({menubar,Win}, {current_state,St}),
+
     get_event(St).
+
+menubar() ->
+    [{"Select",select,fun(St) ->
+			      Menu0 = wings_sel_cmd:menu(St),
+			      Menu = [I || I <- Menu0,
+					   keep_sel_item(I)],
+			      redundant_separators(Menu)
+		      end}].
+
+keep_sel_item(separator) -> true;
+keep_sel_item({_,deselect,_}) -> true;
+keep_sel_item({_,hide_selected,_}) -> true;
+keep_sel_item({_,hide_unselected,_}) -> true;
+keep_sel_item({_,show_all,_}) -> true;
+keep_sel_item(_) -> false.
+
+redundant_separators([]) -> [];
+redundant_separators([separator]) -> [];
+redundant_separators([separator|[separator|_]=T]) ->
+    redundant_separators(T);
+redundant_separators([H|T]) ->
+    [H|redundant_separators(T)].
 
 restrict_ftab(Charts0) ->
     Empty = gb_sets:empty(),
