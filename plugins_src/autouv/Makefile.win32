@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile.win32,v 1.3 2003/04/18 08:11:36 bjorng Exp $
+#     $Id: Makefile.win32,v 1.4 2003/06/03 07:21:39 bjorng Exp $
 #
 
 .SUFFIXES: .erl .jam .beam .yrl .xrl .bin .mib .hrl .sgml .html .ps .3 .1 \
@@ -30,6 +30,7 @@ TARGET_FILES= \
 	$(EBIN)\auv_matrix.beam \
 	$(EBIN)\auv_util.beam \
 	$(EBIN)\auv_seg_ui.beam \
+	$(EBIN)\auv_snap.beam \
 	$(EBIN)\wpc_autouv.beam
 
 REMOVE_FILES=$(TARGET_FILES:.beam=.removed)
