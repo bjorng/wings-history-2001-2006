@@ -8,14 +8,14 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_vec.erl,v 1.21 2004/04/16 18:25:26 bjorng Exp $
+%%     $Id: e3d_vec.erl,v 1.22 2004/04/20 19:42:29 bjorng Exp $
 %%
 
 -module(e3d_vec).
 
 -export([zero/0,is_zero/1,add/1,add/2,add_prod/3,sub/1,sub/2,norm_sub/2,mul/2,
-	 divide/2,neg/1,dot/2,cross/2,norm_cross/2,len/1,dist/2,norm/1,norm/3,
-	 normal/3,normal/1,average/1,average/2,average/4,
+	 divide/2,neg/1,dot/2,cross/2,norm_cross/2,len/1,dist/2,dist_sqr/2,
+	 norm/1,norm/3,normal/3,normal/1,average/1,average/2,average/4,
 	 bounding_box/1,area/3]).
 
 -compile(inline).
@@ -95,6 +95,13 @@ dist({V10,V11,V12}, {V20,V21,V22}) when is_float(V10), is_float(V11), is_float(V
     Y = V11-V21,
     Z = V12-V22,
     math:sqrt(X*X+Y*Y+Z*Z).
+
+dist_sqr({V10,V11,V12}, {V20,V21,V22})
+  when is_float(V10), is_float(V11), is_float(V12) ->
+    X = V10-V20,
+    Y = V11-V21,
+    Z = V12-V22,
+    X*X+Y*Y+Z*Z.
 
 norm({V1,V2,V3}) ->
     norm(V1, V2, V3).
