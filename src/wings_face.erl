@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face.erl,v 1.38 2003/07/26 05:35:05 bjorng Exp $
+%%     $Id: wings_face.erl,v 1.39 2003/08/29 13:41:24 bjorng Exp $
 %%
 
 -module(wings_face).
@@ -25,6 +25,7 @@
 	 vinfo_ccw/2,vinfo_ccw/3,
 	 vertices_cw/2,vertices_cw/3,
 	 vertices_ccw/2,vertices_ccw/3,
+	 vertex_positions/3,
 	 extend_border/2,bordering_faces/2,
 	 inner_edges/2,outer_edges/2,
 	 fold/4,fold/5,fold_vinfo/4,fold_faces/4,
@@ -277,6 +278,20 @@ vertices_ccw_1(Edge, Etab, Face, LastEdge, Acc) ->
 	    vertices_ccw_1(NextEdge, Etab, Face, LastEdge, [V|Acc]);
 	#edge{vs=V,rf=Face,rtsu=NextEdge} ->
 	    vertices_ccw_1(NextEdge, Etab, Face, LastEdge, [V|Acc])
+    end.
+
+vertex_positions(Face, Edge, #we{es=Etab,vp=Vtab}) ->
+    vertex_positions_1(Edge, Etab, Vtab, Face, Edge, []).
+
+vertex_positions_1(LastEdge, _, _, _, LastEdge, Acc) when Acc =/= [] -> Acc;
+vertex_positions_1(Edge, Etab, Vtab, Face, LastEdge, Acc) ->
+    case gb_trees:get(Edge, Etab) of
+	#edge{ve=V,lf=Face,ltsu=NextEdge} ->
+	    Pos = gb_trees:get(V, Vtab),
+	    vertex_positions_1(NextEdge, Etab, Vtab, Face, LastEdge, [Pos|Acc]);
+	#edge{vs=V,rf=Face,rtsu=NextEdge} ->
+	    Pos = gb_trees:get(V, Vtab),
+	    vertex_positions_1(NextEdge, Etab, Vtab, Face, LastEdge, [Pos|Acc])
     end.
 
 %% extend_border(FacesGbSet, We) -> FacesGbSet'
