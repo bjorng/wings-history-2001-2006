@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.18 2002/11/23 20:34:33 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.19 2002/11/25 07:46:48 bjorng Exp $
 %%
 
 -module(wings_wm).
@@ -478,14 +478,22 @@ message_redraw(Msg, Right) ->
     end,
     case Right of
 	[] -> ok;
-	Right when length(Msg)+length(Right) < W div ?CHAR_WIDTH-3 ->
+	Right when length(Msg)+length(Right) < W div ?CHAR_WIDTH - 5 ->
 	    L = length(Right),
-	    Pos = W-?CHAR_WIDTH*(L+3),
+	    Pos = W-?CHAR_WIDTH*(L+5),
 	    wings_io:set_color(?MENU_COLOR),
 	    gl:recti(Pos-?CHAR_WIDTH, -?LINE_HEIGHT+3,
 		     Pos+(L+1)*?CHAR_WIDTH, 3),
 	    gl:color3f(0, 0, 0),
 	    wings_io:text_at(Pos, Right);
+	_ -> ok
+    end,
+    case os:type() of
+	{unix,darwin} ->
+	    gl:enable(?GL_TEXTURE_2D),
+	    gl:texEnvi(?GL_TEXTURE_ENV, ?GL_TEXTURE_ENV_MODE, ?GL_REPLACE),
+	    wings_io:draw_icon(W-23, -4, 12, 12, 16, 16, resize),
+	    gl:disable(?GL_TEXTURE_2D);
 	_ -> ok
     end,
     keep.
@@ -495,7 +503,7 @@ message_setup() ->
     {_,_,W,H} = viewport(),
     wings_io:set_color(?PANE_COLOR),
     gl:recti(0, 0, W, H),
-    wings_io:border(6, 3, W-10, H-5, ?PANE_COLOR),
+    wings_io:border(6, 3, W-20, H-5, ?PANE_COLOR),
     gl:matrixMode(?GL_MODELVIEW),
     gl:loadIdentity(),
     gl:translatef(10, H-8, 0),
