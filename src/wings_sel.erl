@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sel.erl,v 1.17 2001/12/11 15:48:34 bjorng Exp $
+%%     $Id: wings_sel.erl,v 1.18 2001/12/12 11:28:14 bjorng Exp $
 %%
 
 -module(wings_sel).
@@ -38,14 +38,15 @@
 %%% Convert selection.
 %%%
 
-convert_selection(vertex, St) ->
-    wings_draw:sel_changed(wings_vertex:convert_selection(St));
-convert_selection(edge, St) ->
-    wings_draw:sel_changed(wings_edge:convert_selection(St));
-convert_selection(face, St) ->
-    wings_draw:sel_changed(wings_face:convert_selection(St));
-convert_selection(body, St) ->
-    wings_draw:sel_changed(wings_body:convert_selection(St)).
+convert_selection(Mode, #st{sel=[]}=St) ->
+    wings_draw:sel_changed(St#st{selmode=Mode});
+convert_selection(Mode, St) ->
+    ?SLOW(wings_draw:sel_changed(conv_sel(Mode, St))).
+
+conv_sel(vertex, St) -> wings_vertex:convert_selection(St);
+conv_sel(edge, St) -> wings_edge:convert_selection(St);
+conv_sel(face, St) -> wings_face:convert_selection(St);
+conv_sel(body, St) -> wings_body:convert_selection(St).
 
 %%%
 %%% Convert selection (helpers for wings_{vertex,edge,face,body}.
