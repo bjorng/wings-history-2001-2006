@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_connect_tool.erl,v 1.19 2005/02/01 00:12:41 dgud Exp $
+%%     $Id: wpc_connect_tool.erl,v 1.20 2005/02/01 00:13:50 dgud Exp $
 %%
 -module(wpc_connect_tool).
 
@@ -315,7 +315,7 @@ connect_edge(C0=#cs{v=[VI=#vi{id=Id1,mm=MM},#vi{id=Id2}],we=Shape,st=St0}) ->
 	St = St0#st{shapes=gb_trees:update(Shape,We,St0#st.shapes)},
 	C0#cs{v=[VI],last=Id1,st=St}
     catch _E:_What -> 
-	    io:format("~p ignored ~w ~p~n", [?LINE,_What,erlang:get_stacktrace()]),
+%%	    io:format("~p ignored ~w ~p~n", [?LINE,_What,erlang:get_stacktrace()]),
 	    C0
     end.
 
@@ -340,10 +340,9 @@ vertex_fs(Id, We) ->
     ordsets:from_list(Fs).
 
 connect_link(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,MM,We0) ->
-    io:format("~p cut ~p <=> ~p ~n", [?LINE, IdStart, IdEnd]),    
+%%    io:format("~p cut ~p <=> ~p ~n", [?LINE, IdStart, IdEnd]),    
     case connect_done(FacesStart,FacesEnd,Prev,MM,We0) of
 	{true,LastFace} -> %% Done
-	    io:format("Done connecting~n",[]),
 	    wings_vertex:connect(LastFace,[IdStart,IdEnd],We0);
 	{false,_} ->	    
 	    Find = check_possible(CutLine,IdStart,IdEnd,Prev,MM,We0),
@@ -356,7 +355,7 @@ connect_link(CutLine,IdStart,FacesStart,IdEnd,FacesEnd,Prev,MM,We0) ->
 				wings_edge:fast_cut(Edge, Pos, We0)
 			end,
 	    Ok = vertex_fs(Id1,We1),
-	    io:format("~p ~p of ~p fs ~w~n", [?LINE, Id1, Cuts, Selected]),
+%%	    io:format("~p ~p of ~p fs ~w~n", [?LINE, Id1, Cuts, Selected]),
 	    [First] = ordsets:intersection(Ok,FacesStart),
 	    We = wings_vertex:connect(First,[Id1,IdStart],We1),
 	    connect_link(CutLine,Id1,Ok,IdEnd,FacesEnd,IdStart,MM,We)
@@ -392,7 +391,6 @@ check_possible(CutLine,IdStart,IdEnd,Prev,MM,We) ->
 
 
 connect_done(End,Start,Prev,MM,We) ->
-    io:format("Done ~p ~p ~p~n", [End,Start,Prev]),
     case ordsets:intersection(Start,End) of
 	[LastFace] when Prev == undefined -> %% Done
 	    {check_normal(LastFace,MM,We), LastFace};
