@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.63 2005/01/27 05:55:39 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.64 2005/01/27 06:18:17 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -301,7 +301,7 @@ end_drag(D, St) -> {D,St}.
     
 sel_to_vs(vertex, Vs, _) -> Vs;
 sel_to_vs(edge, Es, We) -> wings_vertex:from_edges(Es, We);
-sel_to_vs(face, [Face], We) -> wings_face:vertices_cw(Face, We).
+sel_to_vs(face, [Face], We) -> wings_face:vertices_ccw(Face, We).
 
 do_tweak(DX, DY, Normal) ->
     wings_dl:map(fun(D, _) ->
@@ -320,27 +320,8 @@ do_tweak(#dlo{drag=#drag{vs=Vs,pos=Pos0,mag=Mag0,mm=MM}=Drag,
 	      src_we=We=#we{id=Id}}=D0,DX,DY,AlongNormal) ->
     Matrices = wings_u:get_matrices(Id, MM),
     {Xs,Ys,Zs} = obj_to_screen(Matrices, Pos0),
-    TweakPos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),    
-    Pos = case AlongNormal of
-	      false -> 
-		  TweakPos;
-	      true ->
-		  Dist = dir(DX,DY)*e3d_vec:dist(Pos0, TweakPos),
-		  case Vs of 
-		      [V] ->     % Vertex mode	       
-			  Normal = wings_vertex:normal(V,We),
-			  e3d_vec:add(Pos0,e3d_vec:mul(Normal,Dist));
-		      [V1,V2] -> % Edge mode
-			  N1 = wings_vertex:normal(V1,We),
-			  N2 = wings_vertex:normal(V2,We),
-			  Normal = e3d_vec:norm(e3d_vec:add(N1,N2)),
-			  e3d_vec:add(Pos0,e3d_vec:mul(Normal,Dist));
-		      _ ->      %  Face mode
-			  VsPos = [wings_vertex:pos(V,We) || V <- Vs],
-			  Normal = e3d_vec:normal(VsPos), 
-			  e3d_vec:add(Pos0,e3d_vec:mul(Normal,Dist))
-		  end
-	  end,
+    TweakPos = screen_to_obj(Matrices, {Xs+DX,Ys-DY,Zs}),
+    Pos = tweak_pos(AlongNormal, Vs, DX, DY, Pos0, TweakPos, We),
     {Vtab,Mag} = magnet_tweak(Mag0, Pos),
     D = D0#dlo{sel=none,drag=Drag#drag{pos=Pos,mag=Mag}},
     wings_draw:update_dynamic(D, Vtab);
@@ -351,6 +332,24 @@ obj_to_screen({MVM,PM,VP}, {X,Y,Z}) ->
 
 screen_to_obj({MVM,PM,VP}, {Xs,Ys,Zs}) ->
     glu:unProject(Xs, Ys, Zs, MVM, PM, VP).
+
+tweak_pos(false, _, _, _, _, Pos, _) -> Pos;
+tweak_pos(true, Vs, DX, DY, Pos0, TweakPos, We) ->
+    Dist = dir(DX, DY)*e3d_vec:dist(Pos0, TweakPos),
+    case Vs of 
+	[V] ->				  % Vertex mode	       
+	    Normal = wings_vertex:normal(V, We),
+	    e3d_vec:add(Pos0,e3d_vec:mul(Normal, Dist));
+	[V1,V2] ->				% Edge mode
+	    N1 = wings_vertex:normal(V1, We),
+	    N2 = wings_vertex:normal(V2, We),
+	    Normal = e3d_vec:norm(e3d_vec:add(N1, N2)),
+	    e3d_vec:add(Pos0, e3d_vec:mul(Normal, Dist));
+	_ ->					%  Face mode
+	    VsPos = [wings_vertex:pos(V, We) || V <- Vs],
+	    Normal = e3d_vec:normal(VsPos),
+	    e3d_vec:add(Pos0, e3d_vec:mul(Normal, Dist))
+    end.
 
 dir(X,Y) ->
     if 
@@ -440,7 +439,8 @@ setup_magnet(#tweak{tmode=drag}=T) ->
     T;
 setup_magnet(T) -> T.
 
-setup_magnet_fun(#dlo{drag=#drag{vs=Vs0,pos0=Center}=Drag}=Dl0, #tweak{st=St}=T) ->
+setup_magnet_fun(#dlo{drag=#drag{vs=Vs0,pos0=Center}=Drag}=Dl0,
+		 #tweak{st=St}=T) ->
     We = wings_draw:original_we(Dl0),
     {Vs,Mag} = begin_magnet(T, Vs0, Center, We),
     Dl = wings_draw:split(Dl0, Vs, St),
