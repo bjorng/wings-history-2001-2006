@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_it.lang,v 1.19 2004/10/31 10:13:22 bjorng Exp $
+%%     $Id: wings_it.lang,v 1.20 2004/10/31 11:59:45 bjorng Exp $
 %%
 
 {wings,
@@ -1143,10 +1143,12 @@
  [{loop,
    [{1,"fatto"}]}]}.
 {wings_pick,
- [{clear_hilite_marquee_mode,
-   [{1,"[Ctrl] Deseleziona [Shift] (De)seleziona soltanto elementi compresi nel rettangolo"}]},
+ [
+  {clear_hilite_marquee_mode,
+   [{ctrl_action,"Deseleziona"},
+    {shift_action,"(De)seleziona soltanto elementi compresi nel rettangolo"}]},
   {handle_hilite_event,
-   [{2,"#~p (nella simmetria)"}]}]}.
+   [{2,"(nella simmetria)"}]}]}.
 {wings_plugin,
  [{def_ui_plugin,
    [{1,"Installare nuovamente Wings. Manca il modulo per ~p."}]},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.140 2004/10/08 06:02:30 dgud Exp $
+%%     $Id: wings_pick.erl,v 1.141 2004/10/31 11:59:46 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -100,9 +100,12 @@ get_hilite_event(HL) ->
 
 handle_hilite_event(redraw, #hl{redraw=#st{sel=[]}=St,prev={_,Where,{_,Elem}}}) ->
     Info = case Where of
-	       original -> io_lib:format("#~p", [Elem]);
-	       mirror -> io_lib:format("#~p ~s", 
-				       [Elem, ?STR(handle_hilite_event,2,"(in mirror)")])
+	       original ->
+		   io_lib:format("#~p", [Elem]);
+	       mirror ->
+		   io_lib:format("#~p ~s", 
+				 [Elem,
+				  ?STR(handle_hilite_event,2,"(in mirror)")])
 	   end,
     wings:redraw(Info, St),
     keep;
@@ -215,7 +218,15 @@ hilit_draw_sel(body, _, #dlo{src_we=We}=D) ->
 %% Marquee picking.
 %%
 clear_hilite_marquee_mode(#marquee{st=St}=Pick) ->
-    Message = ?STR(clear_hilite_marquee_mode,1,"[Ctrl] Deselect  [Shift] (De)select only elements wholly inside marquee"),
+    Ctrl = wings_s:key(ctrl),
+    Shift = wings_s:key(shift),
+    Mctrl = [Ctrl,$\s,
+	     ?STR(clear_hilite_marquee_mode,ctrl_action,
+		  "Deselect")],
+    Mshift = [Shift,$\s,
+	      ?STR(clear_hilite_marquee_mode,shift_action,
+		   "(De)select only elements wholly inside marquee")],
+    Message = wings_util:join_msg(Mctrl, Mshift),
     wings_wm:message(Message),
     wings_wm:dirty_mode(front),
     {seq,push,

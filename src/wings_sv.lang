@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_sv.lang,v 1.26 2004/10/31 10:13:22 bjorng Exp $
+%%     $Id: wings_sv.lang,v 1.27 2004/10/31 11:59:46 bjorng Exp $
 %%
 
 {wings,
@@ -1178,7 +1178,8 @@
 {wings_pick,
  [
   {clear_hilite_marquee_mode,
-   [{1,"[Ctrl] Avmarkera  [Shift] (Av)markera element helt inom rutan"}]},
+   [{ctrl_action,"Avmarkera"},
+    {shift_action,"(Av)markera bara element helt inom rutan"}]},
   {handle_hilite_event,
    [{2,"(i spegel)"}]}]}.
 {wings_plugin,
