@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.14 2002/11/19 23:48:00 bjorng Exp $
+%%     $Id: wpc_opengl.erl,v 1.15 2002/12/15 15:27:49 bjorng Exp $
 
 -module(wpc_opengl).
 
@@ -46,7 +46,8 @@ dialog_qs(render) ->
 	[{title,"Output"}]}]},
      aa_frame(),
      {hframe,
-      [{label,"Sub-division Steps"},{text,SubDiv,[{key,subdivisions},{range,1,4}]}]},
+      [{label,"Sub-division Steps"},{text,SubDiv,[{key,subdivisions},
+						  {range,1,4}]}]},
      {hframe,
       [{label,"Background Color"},{color,Back,[{key,background_color}]}]},
      {"Render Alpha Channel",Alpha,[{key,render_alpha}]}].
@@ -84,7 +85,9 @@ set_pref(KeyVals) ->
 -record(r,
 	{pass=1,
 	 acc_size=6,
-	 attr}).
+	 attr,
+	 next
+	}).
 
 do_render(Ask, _St) when is_atom(Ask) ->
     wpa:dialog(Ask, dialog_qs(render),
@@ -97,11 +100,13 @@ do_render(Attr0, St) ->
 	aborted -> keep;
 	Attr ->
 	    render_dlist(St, Attr),
-	    wings_wm:dirty(),
 	    Aa = proplists:get_value(aa, Attr),
 	    AccSize = translate_aa(Aa),
-	    Rr = #r{acc_size=AccSize,attr=Attr},
-	    {seq,{push,dummy},get_render_event(Rr)}
+	    Rr = #r{acc_size=AccSize,attr=Attr,next=fun render_redraw/1},
+	    wings_wm:callback(fun() ->
+				      wings_wm:menubar(geom, [])
+			      end),
+	    {seq,push,get_render_event(Rr)}
     end.
 
 translate_aa(draft) -> 1;
@@ -123,11 +128,11 @@ get_filename(Attr, St) ->
 get_render_event(Rr) ->
     {replace,fun(Ev) -> render_event(Ev, Rr) end}.
 
-render_event(redraw, Rr) ->
-    render_redraw(Rr),
-    get_render_event(Rr);
+render_event(redraw, #r{next=Next}=Rr) ->
+    get_render_event(Next(Rr));
 render_event(#mousemotion{}, _) -> keep;
-render_event(#mousebutton{state=?SDL_RELEASED}, _) -> render_exit();
+render_event(#mousebutton{button=3,state=?SDL_RELEASED}, _) ->
+    render_exit();
 render_event(#keyboard{keysym=#keysym{sym=?SDLK_ESCAPE}}, _) ->
     render_exit();
 render_event({resize,_,_}=Resize, _) ->
@@ -137,10 +142,12 @@ render_event(quit, _) ->
     wings_io:putback_event(quit),
     render_exit();
 render_event(_, _) ->
-    render_exit().
+    keep.
 
 render_exit() ->
-    wings_draw_util:map(fun(D, []) -> D#dlo{smooth=none,smoothed=none} end, []),
+    wings_draw_util:map(fun(D, []) ->
+				D#dlo{smooth=none,smoothed=none}
+			end, []),
     wings_wm:dirty(),
     pop.
 
@@ -191,71 +198,88 @@ sub_divide(N, We) -> sub_divide(N-1, wings_subdiv:smooth(We)).
 
 render_redraw(#r{attr=Attr}=Rr) ->
     case proplists:get_value(output_type, Attr) of
-	preview -> render_image(Rr);
+	preview ->
+	    render_image(Rr);
 	file ->
-	    render_to_file(Rr),
-	    wings_io:putback_event(time_to_quit)
+	    render_to_file(Rr)
     end.
 
-render_to_file(#r{attr=Attr}=Rr) ->
-    render_image(Rr#r{attr=[{render_alpha,true}|Attr]}),
-    MaskImage = capture(1, ?GL_RED),
-    render_image(Rr#r{attr=[{render_alpha,false}|Attr]}),
-    ObjectImage = capture(3, ?GL_RGB),
-    Image = combine_images(ObjectImage, MaskImage),
-    RendFile = proplists:get_value(output_file, Attr),
-    ok = e3d_image:save(Image, RendFile).
+render_to_file(Rr0) ->
+    render_one(Rr0, true,
+	       fun(Rr) ->
+		       MaskImage = capture(1, ?GL_RED),
+		       render_to_file_1(MaskImage, Rr)
+	       end).
 
-render_image(#r{attr=Attr}=Rr) ->
+render_to_file_1(MaskImage, Rr0) ->
+    render_one(Rr0, false,
+	       fun(#r{attr=Attr}=R) ->
+		       ObjectImage = capture(3, ?GL_RGB),
+		       Image = combine_images(ObjectImage, MaskImage),
+		       RendFile = proplists:get_value(output_file, Attr),
+		       ok = e3d_image:save(Image, RendFile),
+		       wings_io:putback_event(time_to_quit),
+		       R
+	       end).
+
+render_one(#r{attr=Attr0}=Rr0, RenderAlpha, Next) ->
+    Attr = [{render_alpha,RenderAlpha}|Attr0],
+    case render_image(Rr0#r{attr=Attr}) of
+	#r{pass=done}=Rr -> Next(Rr);
+	Rr -> render_one_1(Rr, Next)
+    end.
+	    
+render_one_1(#r{next=Render}=Rr, Next0) ->
+    Next = fun(R0) ->
+		   case Render(R0) of
+		       #r{pass=done}=R -> Next0(R);
+		       R -> render_one_1(R, Next0)
+		   end
+	   end,
+    Rr#r{next=Next}.
+
+render_image(#r{acc_size=AccSize}=Rr) ->
+    gl:clear(?GL_ACCUM_BUFFER_BIT),
+    J = jitter(AccSize),
+    jitter_draw(J, Rr#r{pass=1}).
+
+jitter_draw([{Jx,Jy}|J], #r{pass=Pass,acc_size=AccSize,attr=Attr}=Rr) ->
     gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
     case proplists:get_bool(render_alpha, Attr) of
-	false ->
-	    {R,G,B} = proplists:get_value(background_color, Attr),
-	    gl:clearColor(R, G, B, 1);
-	true ->
-	    gl:clearColor(0, 0, 0, 1),
-	    gl:color3f(1, 1, 1)
+ 	false ->
+ 	    {R,G,B} = proplists:get_value(background_color, Attr),
+ 	    gl:clearColor(R, G, B, 1);
+ 	true ->
+ 	    gl:clearColor(0, 0, 0, 1),
+ 	    gl:color3f(1, 1, 1)
     end,
     gl:enable(?GL_DEPTH_TEST),
     gl:frontFace(?GL_CCW),
     gl:readBuffer(?GL_BACK),
-    jitter_draw(Rr),
-    gl:drawBuffer(?GL_BACK),
-    gl:popAttrib().
-
-jitter_draw(#r{pass=Pass,acc_size=AccSize}=Rr) ->
-    gl:clear(?GL_ACCUM_BUFFER_BIT),
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
-    J = jitter(AccSize),
-    jitter_draw_1(J, Pass, W, H, Rr).
-
-jitter_draw_1([{Jx,Jy}|J], Pass, W, H, #r{acc_size=AccSize}=Rr) ->
+    {X,Y,W,H} = wings_wm:viewport(),
+    gl:scissor(X, Y, W, H),
+    gl:enable(?GL_SCISSOR_TEST),
     gl:clear(?GL_COLOR_BUFFER_BIT bor ?GL_DEPTH_BUFFER_BIT),
+    gl:disable(?GL_SCISSOR_TEST),
     [Fov,Hither,Yon] = wpa:camera_info([fov,hither,yon]),
     accPerspective(Fov, W/H, Hither, Yon, Jx, Jy, 0, 0, 1),
     draw_all(Rr),
+    gl:popAttrib(),
     if
 	Pass == 1 -> gl:accum(?GL_LOAD, 1/AccSize);
 	true ->     gl:accum(?GL_ACCUM, 1/AccSize)
     end,
+    gl:accum(?GL_RETURN, AccSize/Pass),
     if
 	Pass < AccSize ->
-	    gl:drawBuffer(?GL_FRONT),
-	    gl:accum(?GL_RETURN, AccSize/Pass),
-	    gl:flush(),
-	    gl:pushAttrib(?GL_ALL_ATTRIB_BITS),
-	    wings_io:ortho_setup(),
-	    gl:drawBuffer(?GL_FRONT),
-	    gl:disable(?GL_LIGHTING),
-	    wings_io:text_at(20, H-20,
-			     io_lib:format("Pass ~p of ~p", [Pass,AccSize])),
-	    gl:flush(),
-	    gl:popAttrib(),
-	    gl:drawBuffer(?GL_BACK),
-	    jitter_draw_1(J, Pass+1, W, H, Rr);
+	    wings_wm:message(io_lib:format("Pass ~p of ~p", [Pass,AccSize])),
+	    wings_wm:callback(fun() -> wings_wm:dirty() end),
+	    Rr#r{pass=Pass+1,next=fun(R) -> jitter_draw(J, R) end};
 	true ->
-	    gl:drawBuffer(?GL_BACK),
-	    gl:accum(?GL_RETURN, AccSize/Pass)
+	    wings_wm:message("[R] Exit render mode", "Done"),
+	    Rr#r{pass=done,next=fun(R) ->
+					R
+				end}
     end.
 
 draw_all(Rr) ->
@@ -333,7 +357,7 @@ render_mask(#dlo{smoothed=Dlist}) ->
 
 accFrustum(Left, Right, Bottom, Top, ZNear, ZFar,
 	   Pixdx, Pixdy, Eyedx, Eyedy, Focus) ->
-    [_,_,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    {_,_,W,H} = wings_wm:viewport(),
 
     Xwsize = Right - Left,
     Ywsize = Top - Bottom,
@@ -399,7 +423,7 @@ jitter(16) ->
 capture(N, Type) ->
     gl:pixelStorei(?GL_PACK_ALIGNMENT, 1),
     gl:readBuffer(?GL_BACK),
-    [X,Y,W,H] = gl:getIntegerv(?GL_VIEWPORT),
+    {X,Y,W,H} = wings_wm:viewport(),
     NumBytes = N*W*H,
     Mem = sdl_util:malloc(NumBytes, ?GL_UNSIGNED_BYTE),
     gl:readPixels(X, Y, W, H, Type, ?GL_UNSIGNED_BYTE, Mem),
