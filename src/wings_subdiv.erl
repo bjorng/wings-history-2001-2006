@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.78 2004/05/15 19:12:55 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.79 2004/05/15 19:44:15 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -197,7 +197,12 @@ smooth_edge(Face, Edge, Rec0, NewV, Color, Id, {Etab0,Es0,Ids0}) ->
     Es = store(NewEdge, NewErec, Es0),
     {Etab,Es,Ids}.
 
-get_edge(Key, [{K,_Value}|_]) when Key > K -> #edge{};
+get_edge(Key, [{K,EdgeTemplate}|_]) when Key > K ->
+    %% This is UGLY. We need to create a new empty edge record
+    %% here. Since we know that all fields will eventually be
+    %% overwritten with new contents, an edge record for another
+    %% edge can be returned (to build less garbage).
+    EdgeTemplate;
 get_edge(Key, [{K,_Value}|D]) when Key < K -> get_edge(Key, D);
 get_edge(_Key, [{_K,Value}|_]) -> Value;	%Key == K
 get_edge(_Key, []) -> #edge{}.
