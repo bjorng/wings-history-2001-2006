@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.113 2004/12/19 09:56:45 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.114 2004/12/19 10:04:04 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -1280,7 +1280,7 @@ partition_edges(Es0, Acc) ->
 %%  Note: This function can only return 'none' when called
 %%  recursively.
 
-part_collect_cycle(_, [{repeated,_,_}], _, _) ->
+part_collect_cycle(_, repeated, _, _) ->
     %% Repeated vertex - we are not allowed to go this way.
     %% Can only happen if we were called recursively because
     %% a fork was encountered.
@@ -1306,7 +1306,7 @@ part_collect_cycle(Va, Edges, Es0, Acc) ->
     %% fork (multiple choice of edges). Here we must choose
     %% an edge that closes the cycle without passing Va
     %% again (because repeated vertices are not allowed).
-    Es = gb_trees:insert(Va, [{repeated,fake,fake}], Es0),
+    Es = gb_trees:insert(Va, repeated, Es0),
     part_fork(Va, Edges, Es, Acc, []).
     
 part_fork(Va, [Val|More], Es0, Acc, Tried) ->
