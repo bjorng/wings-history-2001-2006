@@ -9,7 +9,7 @@
  *  See the file "license.terms" for information on usage and redistribution
  *  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  *
- *     $Id: wings_file_drv.c,v 1.2 2001/10/25 12:44:05 bjorng Exp $
+ *     $Id: wings_file_drv.c,v 1.3 2001/10/25 15:11:06 bufflig Exp $
  */
 
 #include <windows.h>
@@ -135,6 +135,7 @@ static int wings_file_control(ErlDrvData handle, unsigned int command,
     char *ptr;
     char *defdir;
     char *filter;
+    char *filter_desc;
     char *title;
     char *text;
     int ret;
@@ -160,8 +161,9 @@ static int wings_file_control(ErlDrvData handle, unsigned int command,
     case 2: /* Save (or export) file */
         defdir = buff; /* Default directory */
 	filter = defdir + strlen(defdir) + 1; /* Filter expression (.wings) */
-	title = filter + strlen(filter) + 1;  /* Title of dialog box */
-	sprintf(filterbuff,"Requested type (*%s)",filter);
+	filter_desc = filter + strlen(filter) + 1;      /* Desc. of filter */
+	title = filter_desc + strlen(filter_desc) + 1;  /* Title of dialog */
+	sprintf(filterbuff,"%s (*%s)",filter_desc,filter);
 	ptr = filterbuff + strlen(filterbuff) +1;
 	sprintf(ptr,"*%s",filter);
 	ptr += strlen(ptr)+1;
@@ -182,7 +184,7 @@ static int wings_file_control(ErlDrvData handle, unsigned int command,
 	  ofn.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY; 
 	  ret = GetOpenFileName(&ofn);
 	} else {
-	  ofn.Flags = OFN_HIDEREADONLY; 
+	  ofn.Flags = OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT;
 	  ret = GetSaveFileName(&ofn);
 	}
 	if (ret) {

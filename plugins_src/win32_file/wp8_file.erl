@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wp8_file.erl,v 1.3 2001/10/25 12:44:05 bjorng Exp $
+%%     $Id: wp8_file.erl,v 1.4 2001/10/25 15:11:06 bufflig Exp $
 %%
 
 -module(wp8_file).
@@ -40,32 +40,31 @@ init(Next) ->
 	    Next
     end.
 
-fileop({file,{overwrite,FName}},_Next) ->
-    question("Overwrite?",["Do you really want to overwrite ",
-		           FName,"?"]);
+fileop({file,overwrite,Prop},_Next) ->
+    yes; %Fixed in dialog instead
 
-fileop({file,ask_save_changes},_Next) ->
+fileop({file,ask_save_changes,Prop},_Next) ->
     question("Save changes?","Do you want to save your current "
 		             "changes?");
 
-fileop({quit,ask_save_changes},_Next) ->
+fileop({quit,ask_save_changes,Prop},_Next) ->
     question("Save changes?","Do you want to save your current "
-		             "changes?");
+		             "changes before quitting?");
 
-fileop({file,{open,Ext}}, _Next) ->
-    file_dialog(1,Ext,"Open Wings 3D file");
+fileop({file,open,Prop}, _Next) ->
+    file_dialog(1,Prop,"Open Wings 3D file");
 
-fileop({file,{save,Ext}}, _Next) ->
-    file_dialog(2,Ext,"Save Wings 3D file");
+fileop({file,save,Prop}, _Next) ->
+    file_dialog(2,Prop,"Save Wings 3D file");
 
-fileop({file,{import,Ext}}, _Next) ->
-    file_dialog(1,Ext,"Import file into Wings 3D");
+fileop({file,import,Prop}, _Next) ->
+    file_dialog(1,Prop,"Import file into Wings 3D");
 
-fileop({file,{export,Ext}}, _Next) ->
-    file_dialog(2,Ext,"Export file from Wings 3D");
+fileop({file,export,Prop}, _Next) ->
+    file_dialog(2,Prop,"Export file from Wings 3D");
 
-fileop({file,merge}, _Next) ->
-    file_dialog(1,".wings","Merge Wings 3D file");
+fileop({file,merge,Prop}, _Next) ->
+    file_dialog(1,Prop,"Merge Wings 3D file");
 
 fileop(What,Next) ->
 %     io:format("Default called for ~p~n",[What]),
@@ -74,14 +73,17 @@ fileop(What,Next) ->
 %     Ret.
     Next(What).
 
-file_dialog(Type,Ext,Title) ->
+file_dialog(Type,Prop,Title) ->
+    Ext = property_lists:get_value(ext, Prop, ".wings"),
+    ExtDesc = property_lists:get_value(ext_desc, Prop, "Default type"),
+
     Dir = case get(wp8_file_defdir) of
 	      undefined ->
 		  [];
 	      DefDir ->
 		  filename:nativename(DefDir)
 	  end,
-    case erlang:port_control(wp8_file_port,Type,[Dir,0,Ext,0,
+    case erlang:port_control(wp8_file_port,Type,[Dir,0,Ext,0,ExtDesc,0,
 					         Title,0]) of
 	[] ->
 	    aborted;
