@@ -3,12 +3,12 @@
 %%
 %%     This module contains the Extrude command for faces and face regions.
 %%
-%%  Copyright (c) 2001-2002 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_extrude_face.erl,v 1.14 2004/12/29 09:58:21 bjorng Exp $
+%%     $Id: wings_extrude_face.erl,v 1.15 2005/01/15 13:45:22 bjorng Exp $
 %%
 
 -module(wings_extrude_face).
@@ -21,6 +21,8 @@
 %%% Extrusion of faces individually (used by Extrude, Inset, Bevel).
 %%%
 
+faces([], We) ->
+    We;
 faces(Faces, We) when list(Faces) ->
     inner_extrude(Faces, We, []);
 faces(Faces, We) ->
