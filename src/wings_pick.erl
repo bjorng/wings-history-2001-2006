@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.122 2003/09/01 19:24:16 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.123 2003/09/15 06:11:49 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -415,7 +415,7 @@ do_pick(X, Y, St) ->
 	Hit -> update_selection(Hit, St)
     end.
 
-raw_pick(X0, Y0, St) ->
+raw_pick(X0, Y0, #st{selmode=Mode}=St) ->
     HitBuf = get(wings_hitbuf),
     gl:selectBuffer(?HIT_BUF_SIZE, HitBuf),
     gl:renderMode(?GL_SELECT),
@@ -433,7 +433,7 @@ raw_pick(X0, Y0, St) ->
     draw(),
     gl:disable(?GL_CULL_FACE),
     Hits = get_hits(HitBuf),
-    case best_face_hit(Hits) of
+    case best_face_hit(Hits, Mode) of
 	none -> none;
 	{Id,Face} -> convert_hit(Id, Face, X, Y, St)
     end.
@@ -483,9 +483,21 @@ get_hits_1(N, [2,_,_,A,B|T], Acc) ->
 %%% Filter face hits to obtain just one hit.
 %%%
 
-best_face_hit([]) -> none;
-best_face_hit([Hit]) -> Hit;
-best_face_hit(Hits0) ->
+best_face_hit([], _) -> none;
+best_face_hit([Hit], _) -> Hit;
+best_face_hit([{Id,_}|T]=Hits, body) ->
+    %% If all hits are in the same body we can return any hit.
+    best_face_hit_body(T, Id, Hits);
+best_face_hit(Hits, _) -> best_face_hit_1(Hits).
+
+best_face_hit_body([{Id,_}|T], Id, Hits) ->
+    best_face_hit_body(T, Id, Hits);
+best_face_hit_body([_|_], _, Hits) ->
+    %% Different bodies.  Must find the nearest face the in the usual way.
+    best_face_hit_1(Hits);
+best_face_hit_body([], _, [Hit|_]) -> Hit.
+
+best_face_hit_1(Hits0) ->
     Hits = sort([{abs(Id),Id,Face} || {Id,Face} <- Hits0]),
     {_,_,W,H} =  wings_wm:viewport(),
     Model = gl:getDoublev(?GL_MODELVIEW_MATRIX),
