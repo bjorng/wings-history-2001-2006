@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_facemat.erl,v 1.3 2004/12/29 14:24:18 bjorng Exp $
+%%     $Id: wings_facemat.erl,v 1.4 2004/12/29 14:26:44 bjorng Exp $
 %%
 %%
 %%
@@ -116,7 +116,7 @@ renumber(L, Fmap) when is_list(L) -> renumber_1(L, Fmap, []).
 
 %% gc(We) -> We'
 %%  Garbage collect the material mapping information, removing
-%%  the mapping for anhy face no longer present in the face table.
+%%  the mapping for any face no longer present in the face table.
 gc(#we{mat=Mat}=We) when is_atom(Mat) -> We;
 gc(#we{mat=Tab0,fs=Ftab}=We) ->
     Fs = sofs:from_external(gb_trees:keys(Ftab), [face]),
