@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_tweak.erl,v 1.29 2003/03/10 06:36:12 bjorng Exp $
+%%     $Id: wpc_tweak.erl,v 1.30 2003/03/12 08:35:48 bjorng Exp $
 %%
 
 -module(wpc_tweak).
@@ -61,7 +61,7 @@ menu(_, Menu) -> Menu.
 command({tools,tweak}, St0) ->
     Modes = [vertex],
     wings:mode_restriction(Modes),
-    Active = wings_wm:active_window(),
+    Active = wings_wm:this(),
     wings_wm:callback(fun() -> wings_util:menu_restriction(Active, [view]) end),
     St = wings_undo:init(St0#st{selmode=vertex,sel=[],sh=false}),
     wings_draw:update_dlists(St),
@@ -174,7 +174,7 @@ handle_tweak_event1({action,Action}, #tweak{st=St0}=T) ->
 handle_tweak_event1(Ev, #tweak{st=St}) ->
     case wings_hotkey:event(Ev, St) of
 	next -> keep;
-	Other -> wings_wm:send(wings_wm:active_window(), {action,Other})
+	Other -> wings_wm:later({action,Other})
     end.
 
 exit_tweak(#tweak{orig_st=St,st=#st{shapes=Shs}}) ->

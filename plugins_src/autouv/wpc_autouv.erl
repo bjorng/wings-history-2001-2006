@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.105 2003/02/27 22:33:46 dgud Exp $
+%%     $Id: wpc_autouv.erl,v 1.106 2003/03/12 08:37:09 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -106,7 +106,7 @@ start_uvmap_1(#st{sel=[{Id,_}],shapes=Shs}=St0,Mode) ->
     St2 = seg_create_materials(St0),
     St = St2#st{sel=[],selmode=face,shapes=gb_trees:from_orddict([{Id,We}])},
     Ss = seg_init_message(#seg{selmodes=Modes,origst=OrigSt,st=St,we=OrigWe}),
-    Active = wings_wm:active_window(),
+    Active = wings_wm:this(),
     wings_wm:callback(fun() ->
 			      wings_util:menu_restriction(Active, [view,select,window])
 		      end),
@@ -393,7 +393,7 @@ start_edit(_Id, We, St0) ->
     Qs = [{vframe,[{alt,DefVar,"Edit existing UV mapping",edit},
 		   {alt,DefVar,"Discard existing UV mapping and start over",discard}],
 	   [{title,"Model is already UV-mapped"}]}],
-    Geom = wings_wm:active_window(),
+    Geom = wings_wm:this(),
     Ask = fun([Reply]) ->
 		  case Reply of
 		      edit ->

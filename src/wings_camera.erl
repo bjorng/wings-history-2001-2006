@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_camera.erl,v 1.68 2003/03/11 19:16:18 bjorng Exp $
+%%     $Id: wings_camera.erl,v 1.69 2003/03/12 08:33:24 bjorng Exp $
 %%
 
 -module(wings_camera).
@@ -46,7 +46,7 @@ sub_menu(_St) ->
     [{"Camera Mode...",camera_mode}].
 
 command(camera_mode, _St) ->
-    Active = wings_wm:active_window(),
+    Active = wings_wm:this(),
     ZoomFlag0 = wings_pref:get_value(wheel_zooms, true),
     ZoomFactor0 = wings_pref:get_value(wheel_zoom_factor, ?ZOOM_FACTOR),
     PanSpeed0 = wings_pref:get_value(pan_speed),
