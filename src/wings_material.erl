@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.108 2003/10/21 14:46:24 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.109 2003/12/01 21:19:29 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -464,10 +464,10 @@ edit(Name, Assign, #st{mat=Mtab0}=St) ->
 		 {label,"Emission"}]
 	       },
 	       {vframe,
-		[{color,Diff0,[{key,diffuse}]},
-		 {color,Amb0,[{key,ambient}]},
-		 {color,Spec0,[{key,specular}]},
-		 {color,Emiss0,[{key,emission}]}
+		[{slider,{color,Diff0,[{key,diffuse}]}},
+		 {slider,{color,Amb0,[{key,ambient}]}},
+		 {slider,{color,Spec0,[{key,specular}]}},
+		 {slider,{color,Emiss0,[{key,emission}]}}
 		]}]},
 	     {hframe, [{vframe, [{label,"Shininess"},
 				 {label,"Opacity"}]},

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ask.erl,v 1.133 2003/11/30 20:43:03 bjorng Exp $
+%%     $Id: wings_ask.erl,v 1.134 2003/12/01 21:19:28 bjorng Exp $
 %%
 
 -module(wings_ask).
@@ -831,14 +831,21 @@ mktree({custom,W,H,Custom}, Sto, I) ->
 mktree({custom,W,H,Custom,Flags}, Sto, I) ->
     mktree_fi(custom(W, H, Custom), Sto, I, Flags);
 %%
-mktree({slider,Flags}, Sto, I) when is_list(Flags) ->
-    mktree_fi(slider(Flags), Sto, I, Flags);
 mktree({slider,{text,_,Flags}=Field}, Sto, I) ->
     SliderFlags = case proplists:get_value(key, Flags, 0) of
-		      K when integer(K) -> [{key,K-1}|Flags];
+		      K when is_integer(K) -> [{key,K-1}|Flags];
 		      _ -> Flags
 		  end,
     mktree({hframe,[Field,{slider,SliderFlags}]}, Sto, I);
+mktree({slider,{color,_,Flags}=Field}, Sto, I) ->
+    SliderFlags0 = case proplists:get_value(key, Flags, 0) of
+		       K when is_integer(K) -> [{key,K+1}|Flags];
+		       _ -> Flags
+		   end,
+    SliderFlags = [{range,{0.001,1.0}},{color,true}|SliderFlags0],
+    mktree({hframe,[{slider,SliderFlags},Field]}, Sto, I);
+mktree({slider,Flags}, Sto, I) when is_list(Flags) ->
+    mktree_fi(slider(Flags), Sto, I, Flags);
 %%
 mktree(separator, Sto, I) ->
     mktree_fi(separator(), Sto, I, []);
@@ -2663,6 +2670,7 @@ slider(Flags) ->
     {Min,Max} = proplists:get_value(range, Flags),
     Color = case proplists:get_value(color, Flags) of
 		undefined -> undefined;
+		true -> true;
 		{T,_,_}=C when T==r;T==g;T==b;T==h;T==s;T==v -> C
 	    end,
     Sl = #sl{min=Min,range=Max-Min,color=Color,h=?SL_BAR_H},
@@ -2728,24 +2736,44 @@ slider_move(D0, #fi{key=Key,index=I,hook=Hook}, Store) ->
 	     is_integer(Min), D0 < 0 -> min(round(D0*0.01*Range), -1);
 	     is_float(Min) -> D0*0.01*Range
 	 end,
-    Val = max(Min, min(Min+Range, Val0+D)),
+    Val = if
+	      is_tuple(Val0) -> slider_color_add(D, Val0);
+	      true -> max(Min, min(Min+Range, Val0+D))
+	  end,
     slider_update(Hook, Val, Key, I, Store).
 
 slider_event_move(Xb, #fi{x=X,key=Key,index=I,hook=Hook}, Store) ->
     #sl{min=Min,range=Range} = gb_trees:get(-I, Store),
     Pos = max(0, min(Xb-X, ?SL_LENGTH)),
     V = Min + Pos*Range/?SL_LENGTH,
+    Val0 = gb_trees:get(var(Key, I), Store),
     Val = if
 	      is_integer(Min) -> round(V);
+	      is_tuple(Val0) -> slider_color_move(V, Val0);
 	      true -> V
 	  end,
     slider_update(Hook, Val, Key, I, Store).
 
+slider_color_move(V, {R,G,B}) ->
+    {H,S,_} = rgb_to_hsv(R, G, B),
+    hsv_to_rgb(H, S, V).
+
+slider_color_add(VOffs, {R,G,B}) ->
+    {H,S,V0} = rgb_to_hsv(R, G, B),
+    V = case V0+VOffs of
+	    V1 when V1 < 0.001 -> 0.001;
+	    V1 when V1 > 1.0 -> 1.0;
+	    V1 -> V1
+	end,
+    hsv_to_rgb(H, S, V).
+    
 slider_update(Hook, Val, Key, I, Store) ->
     K = var(Key, I),
     ?DEBUG_DISPLAY([Val,K]),
     hook(Hook, update, [K, I, Val, Store]).
 
+slider_redraw(Active, Fi, #sl{color=true}=Sl, Val, _Store, DisEnable) ->
+    slider_redraw_1(Active, Fi, Sl, Val, DisEnable);
 slider_redraw(Active, Fi, #sl{color={T,K1,K2}}=Sl, Val, Store, DisEnable) ->
     V1 = gb_trees:get(K1, Store),
     V2 = gb_trees:get(K2, Store),
@@ -2783,6 +2811,20 @@ color_slider({h,{Hue,S,V}}, Min, Range, X, W, Y, H) ->
     hue_color_slider(S, V, X, W, Y, H),
     gl:'end'(),
     slider_pos(Hue, Min, Range);
+color_slider({R,G,B}, Min, Range, X, W, Y, H) ->
+    {Hue,S,V} = rgb_to_hsv(R, G, B),
+    SCol = hsv_to_rgb(Hue, S, 0.0),
+    ECol = hsv_to_rgb(Hue, S, 1.0),
+    gl:shadeModel(?GL_SMOOTH),
+    gl:'begin'(?GL_QUADS),
+    wings_io:set_color(SCol),
+    gl:vertex2f(X+1,Y+H),
+    gl:vertex2f(X+1,Y+1),
+    wings_io:set_color(ECol),
+    gl:vertex2f(X+W,Y+1),
+    gl:vertex2f(X+W,Y+H),
+    gl:'end'(),
+    slider_pos(V, Min, Range);
 color_slider(Val, Min, Range, X, W, Y, H) when is_number(Val) ->
     Pos0 = slider_pos(Val, Min, Range),
     Pos = Pos0 + ?SL_BAR_W div 2,
