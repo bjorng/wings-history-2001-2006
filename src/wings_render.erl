@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_render.erl,v 1.6 2004/12/16 16:20:33 bjorng Exp $
+%%     $Id: wings_render.erl,v 1.7 2004/12/21 06:48:13 bjorng Exp $
 %%
 
 -module(wings_render).
@@ -102,7 +102,8 @@ render_object_2(#dlo{transparent=true}=D, _, false, true) ->
 render_object_2(#dlo{transparent=false}=D, _, false, RenderTrans) ->
     render_smooth(D, RenderTrans).
 
-render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) ->
+render_plain(#dlo{work=Faces,edges=Edges,open=Open,
+		  src_we=We,proxy_data=none}=D, SelMode) ->
     %% Draw faces for winged-edge-objects.
     Wire = wire(We),
     case Wire of
@@ -112,7 +113,7 @@ render_plain(#dlo{work=Faces,edges=Edges,src_we=We,proxy_data=none}=D, SelMode) 
 	    gl:polygonOffset(2, 2),
 	    gl:shadeModel(?GL_SMOOTH),
 	    gl:enable(?GL_LIGHTING),
-	    case wings_we:any_hidden(We) of
+	    case Open of
 		false ->
 		    wings_dl:call(Faces);
 		true ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.209 2004/12/19 14:03:01 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.210 2004/12/21 06:48:12 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -66,7 +66,7 @@ prepare_dlists(#st{shapes=Shs}) ->
 prepare_fun(eol, [#we{perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
     prepare_fun(eol, Wes);
 prepare_fun(eol, [We|Wes]) ->
-    D = #dlo{src_we=We},
+    D = #dlo{src_we=We,open=wings_we:any_hidden(We)},
     {changed_we(D, D),Wes};
 prepare_fun(eol, []) ->
     eol;
@@ -78,6 +78,8 @@ prepare_fun(#dlo{}=D, [#we{perm=Perm}|Wes]) when ?IS_NOT_VISIBLE(Perm) ->
 prepare_fun(#dlo{src_we=We,split=#split{}=Split}=D, [We|Wes]) ->
     {D#dlo{src_we=We,split=Split#split{orig_we=We}},Wes};
 prepare_fun(#dlo{src_we=We}=D, [We|Wes]) ->
+    %% No real change - take the latest We for possible speed-up
+    %% of further comparisons.
     {D#dlo{src_we=We},Wes};
 prepare_fun(#dlo{src_we=#we{id=Id}}=D, [#we{id=Id}=We1|Wes]) ->
     prepare_fun_1(D, We1, Wes);
@@ -98,7 +100,9 @@ prepare_fun_1(#dlo{src_we=#we{perm=Perm0}=We0}=D, #we{perm=Perm1}=We, Wes) ->
     end.
 
 prepare_fun_2(#dlo{proxy_data=Proxy,ns=Ns}=D, We, Wes) ->
-    {changed_we(D, #dlo{src_we=We,mirror=none,proxy_data=Proxy,ns=Ns}),Wes}.
+    Open = wings_we:any_hidden(We),
+    {changed_we(D, #dlo{src_we=We,open=Open,
+			mirror=none,proxy_data=Proxy,ns=Ns}),Wes}.
 
 only_permissions_changed(#we{perm=P}, #we{perm=P}) -> false;
 only_permissions_changed(We0, We1) -> We0#we{perm=0} =:= We1#we{perm=0}.
@@ -512,7 +516,7 @@ split_1(D, Vs, St) ->
     split_2(D, Vs, update_materials(D, St)).
 
 split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab}=We,
-	     proxy_data=Pd,ns=Ns0,needed=Needed}=D, Vs0, St) ->
+	     proxy_data=Pd,ns=Ns0,needed=Needed,open=Open}=D, Vs0, St) ->
     Vs = sort(Vs0),
     Faces = vs_to_faces(Vs, We),
     StaticVs = static_vs(Faces, Vs, We),
@@ -529,7 +533,7 @@ split_2(#dlo{mirror=M,src_sel=Sel,src_we=#we{fs=Ftab}=We,
 		   dyn_plan=DynPlan,orig_ns=Ns0,orig_we=We},
     #dlo{work=Work,edges=[StaticEdgeDl],mirror=M,vs=VsDlist,
 	 src_sel=Sel,src_we=WeDyn,split=Split,proxy_data=Pd,
-	 needed=Needed}.
+	 needed=Needed,open=Open}.
 
 remove_stale_ns(none, _) -> none;
 remove_stale_ns(Ns, Ftab) ->

@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.hrl,v 1.107 2004/12/05 13:37:41 bjorng Exp $
+%%     $Id: wings.hrl,v 1.108 2004/12/21 06:48:12 bjorng Exp $
 %%
 
 -compile({parse_transform,wings_lang}).
@@ -100,6 +100,7 @@
 	 drag=none,				%For dragging.
 	 transparent=false,			%Object includes transparancy.
 	 proxy_data=none,			%Data for smooth proxy.
+	 open=false,				%Open (has hole).
 
 	 %% List of display lists known to be needed only based
 	 %% on display modes, not whether the lists themselves exist.
