@@ -3,18 +3,18 @@
 %%
 %%     Various utility function that not obviously fit somewhere else.
 %%
-%%  Copyright (c) 2001 Bjorn Gustavsson
+%%  Copyright (c) 2001-2002 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_util.erl,v 1.27 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_util.erl,v 1.28 2002/01/27 15:52:32 bjorng Exp $
 %%
 
 -module(wings_util).
 -export([share/1,share/3,make_vector/1,
 	 message/1,yes_no/1,serious_yes_no/1,prompt/3,ask/3,
-	 cap/1,upper/1,add_vpos/2,update_vpos/2,
+	 cap/1,upper/1,stringify/1,add_vpos/2,update_vpos/2,
 	 delete_any/2,
 	 tc/1,crash_log/1,validate/1]).
 -export([check_error/2,dump_we/2]).
@@ -65,8 +65,19 @@ ask(true, Qs, Fun) ->
 	Ns -> Fun(Ns)
     end.
 
-cap(Str) ->
-    cap(Str, true).
+stringify({{_,_,_},{_,_,_}}) ->
+    "(vector)";
+stringify({Atom,Other}) when is_atom(Atom) ->
+    wings_util:cap(atom_to_list(Atom)) ++ "|" ++ stringify(Other);
+stringify(Atom) when is_atom(Atom) ->
+    wings_util:cap(atom_to_list(Atom));
+stringify(Int) when integer(Int) ->
+    integer_to_list(Int);
+stringify(Other) -> "UNKNOWN".
+
+cap(Str) when is_atom(Str) -> cap(atom_to_list(Str));
+cap(Str) -> cap(Str, true).
+
 cap([Lower|T], true) when $a =< Lower, Lower =< $z ->
     [Lower-$a+$A|cap(T, false)];
 cap([$_|T], Any) ->
@@ -75,6 +86,7 @@ cap([H|T], Any) ->
     [H|cap(T, false)];
 cap([], Flag) -> [].
     
+upper(Str) when is_atom(Str) -> upper(atom_to_list(Str));
 upper([Lower|T]) when $a =< Lower, Lower =< $z ->
     [Lower-$a+$A|upper(T)];
 upper([H|T]) ->

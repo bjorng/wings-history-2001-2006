@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_deform.erl,v 1.21 2002/01/27 11:50:28 bjorng Exp $
+%%     $Id: wings_deform.erl,v 1.22 2002/01/27 15:52:32 bjorng Exp $
 %%
 
 -module(wings_deform).
@@ -16,37 +16,73 @@
 
 -include("wings.hrl").
 -import(lists, [map/2,foldl/3,reverse/1]).
--define(HUGE, 1.0E200).
+-define(HUGE, 1.0E300).
 -define(PI, 3.1416).
 -compile({inline,[{mix,2}]}).
 
 sub_menu(St) ->
-    XYZ = [{"X",x},
-	   {"Y",y},
-	   {"Z",z}],
-    {deform,[{"Crumple",crumple},
-	     {"Inflate",inflate},
-	     {"Taper",{taper,
-		       [{"Along",ignore},
-			separator,
-			{"X",taper_item(x)},
-			{"Y",taper_item(y)},
-			{"Z",taper_item(z)}]}},
-	     {"Twist",{twist,XYZ}},
-	     {"Twisty Twist",{twisty_twist,XYZ}}]}.
+    {deform,fun(help, Ns) -> "";
+	       (1, Ns) ->
+		    XYZ = [{"X",x},
+			   {"Y",y},
+			   {"Z",z}],
+		    [{"Crumple",crumple},
+		     {"Inflate",inflate},
+		     {"Taper",{taper,
+			       [{"Along",ignore},
+				separator,
+				taper_item(x),
+				taper_item(y),
+				taper_item(z)]}},
+		     {"Twist",{twist,XYZ}},
+		     {"Twisty Twist",{twisty_twist,XYZ}}];
+	       (_, Ns) -> ignore
+	    end}.
 
-taper_item(x) -> taper_item_1([yz,y,z], x, []);
-taper_item(y) -> taper_item_1([xz,x,z], y, []);
-taper_item(z) -> taper_item_1([xy,x,y], z, []).
+taper_item(Axis) ->
+    Effects = effect_menu(Axis),
+    AxisStr = wings_util:upper(Axis),
+    case wings_pref:get_value(advanced_menus) of
+	false ->
+	    F = fun(1, Ns) ->
+			[Effect|_] = Effects,
+			wings_menu:build_command({Axis,Effect}, Ns)
+		end,
+	    [Effect|_] = Effects,
+	    TaperAlong = "Taper along " ++ AxisStr,
+	    Help = "Taper along " ++ AxisStr,
+	    {AxisStr,F,Help};
+	true ->
+	    F = fun(help, Ns) ->
+			[Effect|_] = Effects,
+			TaperAlong = "Taper along " ++ AxisStr,
+			{TaperAlong ++ " (with effect on " ++
+			 wings_util:upper(Effect) ++ ")",[],
+			 TaperAlong ++ " and choose effect axis"};
+		   (1, Ns) ->
+			[Effect|_] = Effects,
+			wings_menu:build_command(Effect, Ns);
+		   (3, Ns) ->
+			expand_effects(Effects, []);
+		   (_, Ns) -> ignore
+		end,
+	    {AxisStr,{Axis,F},[]}
+    end.
 
-taper_item_1([H|T], Label, Acc) ->		    
-    taper_item_1(T, Label, [{wings_util:upper(atom_to_list(H)),H}|Acc]);
-taper_item_1([], Label, Acc) ->
-    {Label,[{"Effect",ignore},separator|reverse(Acc)]}.
+effect_menu(x) -> [yz,y,z];
+effect_menu(y) -> [xz,x,z];
+effect_menu(z) -> [xy,x,y].
+
+expand_effects([H|T], Acc) ->		    
+    expand_effects(T, [{wings_util:upper(H),H}|Acc]);
+expand_effects([], Acc) ->
+    [{"Effect",ignore},separator|reverse(Acc)].
 
 command(crumple, St) -> crumple(St);
 command(inflate, St) -> inflate(St);
-command({taper,{Primary,Effect}}, St) -> taper(Primary, Effect, St);
+command({taper,{Primary,Effect}}, St) ->
+    io:format("~p\n", [{Primary,Effect}]),
+    taper(Primary, Effect, St);
 command({twist,Axis}, St) -> twist(Axis, St);
 command({twisty_twist,Axis}, St) -> twisty_twist(Axis, St).
 
