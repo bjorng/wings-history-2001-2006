@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.80 2004/05/16 09:12:12 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.81 2004/05/16 09:39:13 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -152,49 +152,48 @@ smooth_faces(FacePos, Id, We) ->
 smooth_faces_1([{Face,{_,Color,NumIds}}|Fs], Id, EsAcc0, #we{es=Etab0}=We0) ->
     {Ids,We} = wings_we:new_wrap_range(NumIds, 1, We0),
     NewV = wings_we:id(0, Ids),
-    {Etab,EsAcc,_} =
-	face_fold(
-	  fun(E, Rec, Next, A) ->
-		  smooth_edge(Face, E, Rec, Next, NewV, Color, Id, A)
-	  end, {Etab0,EsAcc0,Ids}, Face, We),
+    Fun = smooth_edge_fun(Face, NewV, Color, Id),
+    {Etab,EsAcc,_} = face_fold(Fun, {Etab0,EsAcc0,Ids}, Face, We),
     smooth_faces_1(Fs, Id, EsAcc, We#we{es=Etab});
 smooth_faces_1([], _, Es, #we{es=Etab0}=We) ->
     Etab1 = gb_trees:to_list(Etab0) ++ reverse(Es),
     Etab = gb_trees:from_orddict(Etab1),
     We#we{es=Etab,fs=undefined}.
 
-smooth_edge(Face, Edge, Rec0, Next, NewV, Color, Id, {Etab0,Es0,Ids0}) ->
-    LeftEdge = RFace = wings_we:id(0, Ids0),
-    NewEdge = LFace = wings_we:id(1, Ids0),
-    RightEdge = wings_we:id(2, Ids0),
-    case Rec0 of
-	#edge{ve=Vtx,b=OldCol,rf=Face} when Vtx >= Id ->
-	    Ids = Ids0,
-	    Rec = Rec0#edge{rf=RFace,rtsu=NewEdge},
-	    NewErec = #edge{vs=Vtx,a=OldCol,ve=NewV,b=Color,
-			    rf=RFace,lf=LFace,
-			    rtpr=Edge,rtsu=LeftEdge,
-			    ltpr=RightEdge,ltsu=Next},
-	    Es = store(NewEdge, NewErec, Es0);
-	#edge{vs=Vtx,a=OldCol,lf=Face} when Vtx >= Id ->
-	    Ids = Ids0,
-	    Rec = Rec0#edge{lf=RFace,ltsu=NewEdge},
-	    NewErec = #edge{vs=Vtx,a=OldCol,ve=NewV,b=Color,
-			    rf=RFace,lf=LFace,
-			    rtpr=Edge,rtsu=LeftEdge,
-			    ltpr=RightEdge,ltsu=Next},
-	    Es = store(NewEdge, NewErec, Es0);
- 	#edge{vs=Vtx,rf=Face} when Vtx >= Id ->
-	    Rec = Rec0#edge{rf=LFace,rtpr=NewEdge},
-	    Es = Es0,
-	    Ids = wings_we:bump_id(Ids0);
- 	#edge{ve=Vtx,lf=Face} when Vtx >= Id ->
-	    Rec = Rec0#edge{lf=LFace,ltpr=NewEdge},
-	    Es = Es0,
-	    Ids = wings_we:bump_id(Ids0)
-    end,
-    Etab = gb_trees:update(Edge, Rec, Etab0),
-    {Etab,Es,Ids}.
+smooth_edge_fun(Face, NewV, Color, Id) ->
+    fun(Edge, Rec0, Next, {Etab0,Es0,Ids0}) ->
+	    LeftEdge = RFace = wings_we:id(0, Ids0),
+	    NewEdge = LFace = wings_we:id(1, Ids0),
+	    RightEdge = wings_we:id(2, Ids0),
+	    case Rec0 of
+		#edge{ve=Vtx,b=OldCol,rf=Face} when Vtx >= Id ->
+		    Ids = Ids0,
+		    Rec = Rec0#edge{rf=RFace,rtsu=NewEdge},
+		    NewErec = #edge{vs=Vtx,a=OldCol,ve=NewV,b=Color,
+				    rf=RFace,lf=LFace,
+				    rtpr=Edge,rtsu=LeftEdge,
+				    ltpr=RightEdge,ltsu=Next},
+		    Es = store(NewEdge, NewErec, Es0);
+		#edge{vs=Vtx,a=OldCol,lf=Face} when Vtx >= Id ->
+		    Ids = Ids0,
+		    Rec = Rec0#edge{lf=RFace,ltsu=NewEdge},
+		    NewErec = #edge{vs=Vtx,a=OldCol,ve=NewV,b=Color,
+				    rf=RFace,lf=LFace,
+				    rtpr=Edge,rtsu=LeftEdge,
+				    ltpr=RightEdge,ltsu=Next},
+		    Es = store(NewEdge, NewErec, Es0);
+		#edge{vs=Vtx,rf=Face} when Vtx >= Id ->
+		    Rec = Rec0#edge{rf=LFace,rtpr=NewEdge},
+		    Es = Es0,
+		    Ids = wings_we:bump_id(Ids0);
+		#edge{ve=Vtx,lf=Face} when Vtx >= Id ->
+		    Rec = Rec0#edge{lf=LFace,ltpr=NewEdge},
+		    Es = Es0,
+		    Ids = wings_we:bump_id(Ids0)
+	    end,
+	    Etab = gb_trees:update(Edge, Rec, Etab0),
+	    {Etab,Es,Ids}
+    end.
 
 %% Store in reverse order.
 store(Key, New, [{K,_Old}|_]=Dict) when Key > K ->
