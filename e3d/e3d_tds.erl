@@ -4,12 +4,12 @@
 %%     Functions for reading and writing 3D Studio Max files (.tds),
 %%     version 3.
 %%
-%%  Copyright (c) 2001-2004 Bjorn Gustavsson
+%%  Copyright (c) 2001-2005 Bjorn Gustavsson
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.44 2004/10/12 17:46:14 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.45 2005/03/13 16:38:10 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -525,7 +525,8 @@ make_editor(Name, #e3d_file{objs=Objs0,mat=Mat0}) ->
     make_chunk(16#3D3D, [MeshVer,Mat,Unit,Objs]).
 
 make_objects([#e3d_object{name=Name,obj=Mesh0}|Objs], MatMap) ->
-    Mesh = e3d_mesh:triangulate(Mesh0),
+    Mesh1 = assign_smooth_groups(Mesh0),
+    Mesh = e3d_mesh:triangulate(Mesh1),
     MeshChunk = make_mesh(Mesh, MatMap),
     Chunk = make_chunk(16#4000, [Name,0,MeshChunk]),
     [Chunk|make_objects(Objs, MatMap)];
@@ -571,10 +572,10 @@ make_mesh(Mesh0, MatMap) ->
     Mesh = split_vertices(Mesh0),
     make_mesh_1(Mesh, MatMap).
 
-make_mesh_1(#e3d_mesh{vs=Vs,fs=Fs,he=He,tx=Tx,matrix=_Matrix0}, MatMap) ->
+make_mesh_1(#e3d_mesh{vs=Vs,fs=Fs,tx=Tx,matrix=_Matrix0}, MatMap) ->
     %% XXX Matrix0 should be used here.
     VsChunk = make_vertices(Vs),
-    FsChunk = make_faces(Fs, He, MatMap),
+    FsChunk = make_faces(Fs, MatMap),
     MD = <<1.0:32/?FLOAT,0.0:32/?FLOAT,0.0:32/?FLOAT,
 	  0.0:32/?FLOAT,1.0:32/?FLOAT,0.0:32/?FLOAT,
 	  0.0:32/?FLOAT,0.0:32/?FLOAT,1.0:32/?FLOAT,
@@ -602,10 +603,10 @@ make_uvs([{U,V}|Ps], Acc) ->
     make_uvs(Ps, [Chunk|Acc]);
 make_uvs([], Acc) -> reverse(Acc).
 
-make_faces(Fs, He, MatMap) ->
+make_faces(Fs, MatMap) ->
     FaceChunk = [<<(length(Fs)):16/little>>|make_faces_1(Fs, [])],
     MatChunk = make_face_mat(Fs, MatMap),
-    SmoothChunk = make_smooth_groups(Fs, He),
+    SmoothChunk = make_smooth_groups(Fs),
     make_chunk(16#4120, [FaceChunk,MatChunk,SmoothChunk]).
 
 make_faces_1([#e3d_face{vs=[A,B,C],vis=Hidden}|Faces], Acc) ->
@@ -708,11 +709,11 @@ make_chunk(Tag, Contents) when list(Contents) ->
 %%% Create smoothing groups from the hard egdes.
 %%%
 
-make_smooth_groups(Fs, []) ->
-    Contents = lists:duplicate(length(Fs), <<1:32/little>>),
-    make_chunk(16#4150, Contents);
-make_smooth_groups(Fs, He) ->
-    Es = msg_edges(Fs, 0, []),
+assign_smooth_groups(#e3d_mesh{fs=Fs0,he=[]}=Mesh) ->
+    Fs = [Face#e3d_face{ns=1} || Face <- Fs0],
+    Mesh#e3d_mesh{fs=Fs};
+assign_smooth_groups(#e3d_mesh{fs=Fs0,he=He}=Mesh) ->
+    Es = asg_edges(Fs0, 0, []),
     R0 = sofs:relation(Es),
     ConvR = sofs:converse(R0),
     {Ws0,Rs0} = sofs:partition(2, R0, sofs:set(He)),
@@ -723,94 +724,102 @@ make_smooth_groups(Fs, He) ->
     Rs2 = sofs:relative_product(Rs1, ConvR),
     Rs3 = sofs:relation_to_family(Rs2),
     Rs = sofs:to_external(Rs3),
-    Groups1 = msg_assign_hardness(Ws, gb_trees:empty()),
-    Groups2 = msg_assign_softness(Rs, gb_trees:from_orddict(Ws), Groups1),
+    Groups1 = asg_assign_hardness(Ws, gb_trees:empty()),
+    Groups2 = asg_assign_softness(Rs, gb_trees:from_orddict(Ws), Groups1),
     Groups3 = gb_trees:to_list(Groups2),
-    AllGroupsUsed = msg_all_groups_used(Groups3, 0),
+    AllGroupsUsed = asg_all_groups_used(Groups3, 0),
     Groups4 = sofs:from_external(Groups3, [{atom,atom}]),
-    Groups5 = sofs:extension(Groups4, sofs:set(lists:seq(0, length(Fs)-1)),
+    Groups5 = sofs:extension(Groups4, sofs:set(lists:seq(0, length(Fs0)-1)),
 			     sofs:from_term(AllGroupsUsed)),
     Groups = sofs:to_external(Groups5),
-    msg_chunk(Groups, []).
+    Fs = asg_assign(Fs0, Groups, []),
+    Mesh#e3d_mesh{fs=Fs}.
 
-msg_all_groups_used([{_,G}|T], Acc) ->
-    msg_all_groups_used(T, G bor Acc);
-msg_all_groups_used([], Acc) -> Acc.
+asg_assign([Face|Fs], [{_,SG}|Sgs], Acc) ->
+    asg_assign(Fs, Sgs, [Face#e3d_face{ns=SG}|Acc]);
+asg_assign([], [], Acc) -> reverse(Acc).
+
+asg_all_groups_used([{_,G}|T], Acc) ->
+    asg_all_groups_used(T, G bor Acc);
+asg_all_groups_used([], Acc) -> Acc.
     
-msg_chunk([{_,SG}|T], Acc) -> msg_chunk(T, [<<SG:32/little>>|Acc]);
-msg_chunk([], Acc) -> make_chunk(16#4150, reverse(Acc)).
+asg_edge(A, B) when A < B -> {A,B};
+asg_edge(A, B) -> {B,A}.
 
-msg_edge(A, B) when A < B -> {A,B};
-msg_edge(A, B) -> {B,A}.
+asg_edges([#e3d_face{vs=[V|_]=Vs}|T], Face, Acc0) ->
+    Acc = asg_edges_1(Vs++[V], Face, Acc0),
+    asg_edges(T, Face+1, Acc);
+asg_edges([], _, Acc) -> Acc.
 
-msg_edges([#e3d_face{vs=[A,B,C]}|T], Face, Acc) ->
-    E1 = msg_edge(A, B),
-    E2 = msg_edge(B, C),
-    E3 = msg_edge(C, A),
-    msg_edges(T, Face+1, [{Face,E1},{Face,E2},{Face,E3}|Acc]);
-msg_edges([], _, Acc) -> Acc.
+asg_edges_1([A|[B|_]=Vs], Face, Acc) ->
+    asg_edges_1(Vs, Face, [{Face,asg_edge(A, B)}|Acc]);
+asg_edges_1([_], _, Acc) -> Acc.
 
-msg_assign_hardness([{Face,HardFs}|T], Groups0) ->
-    Groups = msg_assign_hardness_1(Face, HardFs, Groups0, 0),
-    msg_assign_hardness(T, Groups);
-msg_assign_hardness([], Groups) -> Groups.
+asg_assign_hardness([{Face,HardFs}|T], Groups0) ->
+    Groups = asg_assign_hardness_1(Face, HardFs, Groups0, 0),
+    asg_assign_hardness(T, Groups);
+asg_assign_hardness([], Groups) -> Groups.
 
-msg_assign_hardness_1(Face, [Face|Fs], Groups, Acc) ->
-    msg_assign_hardness_1(Face, Fs, Groups, Acc);
-msg_assign_hardness_1(Face, [AFace|Fs], Groups, Acc) ->
+asg_assign_hardness_1(Face, [Face|Fs], Groups, Acc) ->
+    asg_assign_hardness_1(Face, Fs, Groups, Acc);
+asg_assign_hardness_1(Face, [AFace|Fs], Groups, Acc) ->
     case gb_trees:lookup(AFace, Groups) of
-	none -> msg_assign_hardness_1(Face, Fs, Groups, Acc);
-	{value,G} -> msg_assign_hardness_1(Face, Fs, Groups, Acc bor G)
+	none -> asg_assign_hardness_1(Face, Fs, Groups, Acc);
+	{value,G} -> asg_assign_hardness_1(Face, Fs, Groups, Acc bor G)
     end;
-msg_assign_hardness_1(Face, [], Groups, NotAllowed) ->
-    G = msg_find_group(NotAllowed),
+asg_assign_hardness_1(Face, [], Groups, NotAllowed) ->
+    G = asg_find_group(NotAllowed),
     gb_trees:insert(Face, G, Groups).
 
-msg_assign_softness([{Face,SoftFs}|T], HardTab, Groups0) ->
-    Groups = msg_assign_softness_1(Face, SoftFs, HardTab, Groups0),
-    msg_assign_softness(T, HardTab, Groups);
-msg_assign_softness([], _, Groups) -> Groups.
+asg_assign_softness([{Face,SoftFs}|T], HardTab, Groups0) ->
+    Groups = asg_assign_softness_1(Face, SoftFs, HardTab, Groups0),
+    asg_assign_softness(T, HardTab, Groups);
+asg_assign_softness([], _, Groups) -> Groups.
 
-msg_assign_softness_1(Face, [Face|Fs], HardTab, Groups) ->
-    msg_assign_softness_1(Face, Fs, HardTab, Groups);
-msg_assign_softness_1(Face, [AFace|Fs], HardTab, Groups0) ->
+asg_assign_softness_1(Face, [Face|Fs], HardTab, Groups) ->
+    asg_assign_softness_1(Face, Fs, HardTab, Groups);
+asg_assign_softness_1(Face, [AFace|Fs], HardTab, Groups0) ->
     case gb_trees:lookup(AFace, Groups0) of
 	none ->					%Will get default value.
-	    msg_assign_softness_1(Face, Fs, HardTab, Groups0);
+	    asg_assign_softness_1(Face, Fs, HardTab, Groups0);
 	{value,Ga} ->
 	    case gb_trees:get(Face, Groups0) of
 		G when G band Ga =:= 0 ->
-		    Groups = msg_assign_softness_2(Face, AFace, G, Ga,
+		    Groups = asg_assign_softness_2(Face, AFace, G, Ga,
 						   HardTab, Groups0),
-		    msg_assign_softness_1(Face, Fs, HardTab, Groups);
+		    asg_assign_softness_1(Face, Fs, HardTab, Groups);
 		_ ->				%Already soft.
-		    msg_assign_softness_1(Face, Fs, HardTab, Groups0)
+		    asg_assign_softness_1(Face, Fs, HardTab, Groups0)
 	    end
     end;
-msg_assign_softness_1(_, [], _, Groups) -> Groups.
+asg_assign_softness_1(_, [], _, Groups) -> Groups.
 
-msg_assign_softness_2(Face, AFace, G0, Ga0, HardTab, Groups0) ->
-    NotAllowed = msg_not_allowed(gb_trees:get(Face, HardTab), Groups0) bor
-	msg_not_allowed(gb_trees:get(AFace, HardTab), Groups0),
-    NewG = msg_find_group(NotAllowed),
+asg_assign_softness_2(Face, AFace, G0, Ga0, HardTab, Groups0) ->
+    NotAllowed = asg_not_allowed(gb_trees:get(Face, HardTab), Groups0) bor
+	asg_not_allowed(gb_trees:get(AFace, HardTab), Groups0),
+    NewG = asg_find_group(NotAllowed),
     G = G0 bor NewG,
     Ga = Ga0 bor NewG,
     Groups = gb_trees:update(Face, G, Groups0),
     gb_trees:update(AFace, Ga, Groups).
 				 
-msg_not_allowed(Fs, Groups) ->
-    msg_not_allowed(Fs, Groups, 0).
+asg_not_allowed(Fs, Groups) ->
+    asg_not_allowed(Fs, Groups, 0).
     
-msg_not_allowed([F|Fs], Groups, Acc) ->
-    msg_not_allowed(Fs, Groups, gb_trees:get(F, Groups) bor Acc);
-msg_not_allowed([], _, Acc) -> Acc.
+asg_not_allowed([F|Fs], Groups, Acc) ->
+    asg_not_allowed(Fs, Groups, gb_trees:get(F, Groups) bor Acc);
+asg_not_allowed([], _, Acc) -> Acc.
     
-msg_find_group(NotAllowed) ->
-    msg_find_group(1, NotAllowed).
+asg_find_group(NotAllowed) ->
+    asg_find_group(1, NotAllowed).
 
-msg_find_group(B, NotAllowed) when B band NotAllowed =/= 0 ->
-    msg_find_group(B bsl 1, NotAllowed);
-msg_find_group(B, _) -> B.
+asg_find_group(B, NotAllowed) when B band NotAllowed =/= 0 ->
+    asg_find_group(B bsl 1, NotAllowed);
+asg_find_group(B, _) -> B.
+
+make_smooth_groups(Fs) ->
+    Contents = [<<Smo:32/little>> || #e3d_face{ns=Smo} <- Fs],
+    make_chunk(16#4150, Contents).
     
 %%%
 %%% Split vertices: Each vertex in the 3D Studio format can only have one
@@ -892,4 +901,3 @@ split_dummy_uvs_1([#e3d_face{tx=[_,_,_]}=F|T], UV, Acc) ->
 split_dummy_uvs_1([F|T], UV, Acc) ->
     split_dummy_uvs_1(T, UV, [F#e3d_face{tx=[UV,UV,UV]}|Acc]);
 split_dummy_uvs_1([], _, Acc) -> reverse(Acc).
-
