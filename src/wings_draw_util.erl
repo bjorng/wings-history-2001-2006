@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw_util.erl,v 1.134 2004/05/12 19:46:44 bjorng Exp $
+%%     $Id: wings_draw_util.erl,v 1.135 2004/05/12 19:57:28 bjorng Exp $
 %%
 
 -module(wings_draw_util).
@@ -903,8 +903,12 @@ proj({X0,Y0,Z0}, MM, PM) ->
 
 line(Ox, Oy, Px, Py) -> {{Ox,Oy},{Px-Ox,Py-Oy}}.
 
-pdot({X1,Y1}, {X2,Y2}) -> Y1*X2-X1*Y2.
-sub({X1,Y1}, {X2,Y2}) -> {X1-X2,Y1-Y2}.
+pdot({X1,Y1}, {X2,Y2}) when is_float(X1), is_float(Y1) ->
+    Y1*X2-X1*Y2.
+
+sub({X1,Y1}, {X2,Y2}) ->
+    {X1-X2,Y1-Y2}.
+
 add_prod({X1,Y1}, {X2,Y2}, S) when is_float(S) ->
     {S*X2+X1,S*Y2+Y1}.
 
