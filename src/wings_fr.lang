@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_fr.lang,v 1.6 2005/01/13 06:06:27 bjorng Exp $
+%%     $Id: wings_fr.lang,v 1.7 2005/03/03 06:54:24 bjorng Exp $
 %%
 
 {wings,
@@ -1859,7 +1859,7 @@
    [{1,"en preparation"},
     {2,"Normale du point"},
     {3,"Normale du point par facette"}]},
-  {normals,
+  {normals_2,
    [{1,"effectue le calcul des normales"}]}]}.
 {wings_wm,
  [
