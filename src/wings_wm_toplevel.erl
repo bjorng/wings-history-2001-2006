@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm_toplevel.erl,v 1.44 2003/11/13 06:27:04 bjorng Exp $
+%%     $Id: wings_wm_toplevel.erl,v 1.45 2003/11/23 07:24:35 bjorng Exp $
 %%
 
 -module(wings_wm_toplevel).
@@ -126,10 +126,10 @@ ctrl_anchor_1(nw, Client, Th) ->
     wings_wm:update_window(Client, [{dy,Th}]);
 ctrl_anchor_1(n, Client, Th) ->
     W = controller_width(Client),
-    wings_wm:update_window(Client, [{dx,-W div 2},{dy,Th}]);
+    wings_wm:offset(Client, -W div 2, Th);
 ctrl_anchor_1(ne, Client, Th) ->
     W = controller_width(Client),
-    wings_wm:update_window(Client, [{dx,-W},{dy,Th}]);
+    wings_wm:offset(Client, -W, Th);
 ctrl_anchor_1(sw, Client, Th) ->
     {_,H} = wings_wm:win_size(Client),
     wings_wm:update_window(Client, [{dy,Th-H}]).
@@ -174,7 +174,7 @@ ctrl_event(#mousemotion{x=X0,y=Y0}, #ctrl{state=moving,local={LocX,LocY}}) ->
     Dy0 = Y-OldY,
     {controller,Client} = wings_wm:this(),
     {Dx,Dy} = ctrl_constrain_move(Client, Dx0, Dy0),
-    wings_wm:update_window(Client, [{dx,Dx},{dy,Dy}]),
+    wings_wm:offset(Client, Dx, Dy),
     keep;
 ctrl_event(#mousebutton{}=Ev, _) ->
     case is_resizeable() of
@@ -316,13 +316,13 @@ ctrl_resize(Client, W, H) ->
 	W > TopW; H > TopH ->
 	    wings_util:error("Too large size specified");
 	true ->
-	    wings_wm:update_window(Client, [{w,W},{h,H}])
+	    wings_wm:resize(Client, {W,H})
     end.
 
 ctrl_fit(How) ->
     {_,Client} = wings_wm:this(),
     wings_wm:raise(Client),
-    {X,Y} = wings_wm:win_center(Client),
+    {X,Y} = win_center(Client),
     wings_wm:hide(Client),
     Below = wings_wm:window_below(X, Y),
     wings_wm:show(Client),
@@ -330,6 +330,13 @@ ctrl_fit(How) ->
 	Below == none -> ok;
 	true -> ctrl_fit_1(How, Client, Below, X, Y)
     end.
+
+win_center(Name) ->
+    {TopW,TopH} = wings_wm:top_size(),
+    {{X,Y},{W0,H0}} = wings_wm:win_rect(Name),
+    W = min(W0, TopW),
+    H = min(H0, TopH),
+    {X + W div 2,Y + H div 2}.
 
 ctrl_fit_1(both, Client, Below, X, Y) ->
     fit_horizontal(Client, Below, X, Y),
@@ -534,17 +541,17 @@ resize_event({window_updated,Client}, _) ->
 resize_event(_, _) -> keep.
 
 resize_constrain(Client, Dx0, Dy0, Aspect) ->
-    {{DeskX,DeskY},{DeskW,DeskH}} = wings_wm:win_rect(desktop),
+    {DeskW,DeskH} = wings_wm:win_size(desktop),
     {{X,Y},{W,H}} = wings_wm:win_rect(),
     Dx = if
-	     DeskX+DeskW-1 =< X+W+Dx0 ->
-		 DeskX+DeskW-X-W-1;
+	     DeskW =< X+W+Dx0 ->
+		 DeskW-X-W;
 	     true ->
 		 Dx0
 	 end,
     Dy = if 
-	     DeskY+DeskH-1 =< Y+H+Dy0 ->
-		 DeskY+DeskH-Y-H-1;
+	     DeskH =< Y+H+Dy0 ->
+		 DeskH-Y-H;
 	     true ->
 		 Dy0
 	 end,

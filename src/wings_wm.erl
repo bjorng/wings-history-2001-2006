@@ -8,11 +8,11 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_wm.erl,v 1.130 2003/11/20 20:52:17 bjorng Exp $
+%%     $Id: wings_wm.erl,v 1.131 2003/11/23 07:24:35 bjorng Exp $
 %%
 
 -module(wings_wm).
--export([toplevel/5,toplevel/6,set_knob/3]).
+-export([toplevel/6,set_knob/3]).
 -export([init/0,enter_event_loop/0,dirty/0,reinit_opengl/0,
 	 new/4,delete/1,raise/1,
 	 link/2,hide/1,show/1,is_hidden/1,
@@ -30,7 +30,7 @@
 -export([top_size/0,viewport/0,viewport/1,
 	 win_size/0,win_ul/0,win_rect/0,
 	 win_size/1,win_ul/1,win_ur/1,win_ll/1,win_lr/1,win_z/1,
-	 win_center/1,win_rect/1]).
+	 win_rect/1]).
 
 %% Focus management.
 -export([grab_focus/0,grab_focus/1,release_focus/0,
@@ -425,10 +425,6 @@ win_z(Name) ->
 win_rect(Name) ->
     #win{x=X,y=Y,w=W,h=H} = get_window_data(Name),
     {{X,Y},{W,H}}.
-
-win_center(Name) ->
-    #win{x=X,y=Y,w=W,h=H} = get_window_data(Name),
-    {X+W div 2,Y+H div 2}.
 
 local2global(#mousebutton{x=X0,y=Y0}=Ev) ->
     {X,Y} = local2global(X0, Y0),
@@ -1152,9 +1148,6 @@ draw_completions(F) ->
 %%% can optionally add other things such as a scroller.
 %%%
 
-toplevel(Name, Title, Pos, Size, Op) ->
-    toplevel(Name, Title, Pos, Size, [], Op).
-    
 toplevel(Name, Title, Pos, Size, Flags, Op) ->
     wings_wm_toplevel:toplevel(Name, Title, Pos, Size, Flags, Op).
 
