@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_ff_wings.erl,v 1.43 2003/08/03 19:31:11 bjorng Exp $
+%%     $Id: wings_ff_wings.erl,v 1.44 2003/08/05 05:55:32 bjorng Exp $
 %%
 
 -module(wings_ff_wings).
@@ -96,10 +96,20 @@ import_edge([{edge,Va,Vb,Lf,Rf,Ltpr,Ltsu,Rtpr,Rtsu}|T], Rec0) ->
     Rec = Rec0#edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,
 		    ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu},
     import_edge(T, Rec);
+import_edge([{uv_lt,<<U/float,V/float>>}|T], Rec) ->
+    import_edge(T, Rec#edge{a={U,V}});
+import_edge([{uv_rt,<<U/float,V/float>>}|T], Rec) ->
+    import_edge(T, Rec#edge{b={U,V}});
+import_edge([{color_lt,<<R:32/float,G:32/float,B:32/float>>}|T], Rec) ->
+    import_edge(T, Rec#edge{a={R,G,B}});
+import_edge([{color_rt,<<R:32/float,G:32/float,B:32/float>>}|T], Rec) ->
+    import_edge(T, Rec#edge{b={R,G,B}});
 import_edge([{color,Bin}|T], Rec) ->
+    %% Old-style vertex colors (pre 0.98.15).
     <<R1/float,G1/float,B1/float,R2/float,G2/float,B2/float>> = Bin,
     import_edge(T, Rec#edge{a={R1,G1,B1},b={R2,G2,B2}});
 import_edge([{uv,Bin}|T], Rec) ->
+    %% Old-style UV coordinates (pre 0.98.15).
     <<U1/float,V1/float,U2/float,V2/float>> = Bin,
     import_edge(T, Rec#edge{a={U1,V1},b={U2,V2}});
 import_edge([_|T], Rec) ->
@@ -448,8 +458,9 @@ write_file(Name, Bin) ->
 shape(#we{mode=ObjMode,name=Name,vp=Vs0,es=Es0,he=Htab}=We, Acc) ->
     Vs1 = foldl(fun export_vertex/2, [], gb_trees:values(Vs0)),
     Vs = reverse(Vs1),
+    UvFaces = gb_sets:from_ordset(wings_we:uv_mapped_faces(We)),
     Es1 = foldl(fun(E, A) ->
-			export_edge(E, ObjMode, A)
+			export_edge(E, UvFaces, A)
 		end, [], gb_trees:values(Es0)),
     Es = reverse(Es1),
     Fs1 = foldl(fun export_face/2, [], wings_material:get_all(We)),
@@ -462,13 +473,6 @@ shape(#we{mode=ObjMode,name=Name,vp=Vs0,es=Es0,he=Htab}=We, Acc) ->
 mirror(#we{mirror=none}, Props) -> Props;
 mirror(#we{mirror=Face}, Props) -> [{mirror_face,Face}|Props].
     
-export_edge(Rec, Mode, Acc) ->
-    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,
-	  ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu} = Rec,
-    Data0 = [{edge,Va,Vb,Lf,Rf,Ltpr,Ltsu,Rtpr,Rtsu}],
-    Data = edge_data(Mode, Rec, Data0),
-    [Data|Acc].
-
 export_perm(#we{perm=[]}) ->
     [{state,hidden_locked}];	     %Only for backward compatibility.
 export_perm(#we{perm=0}) -> [];
@@ -477,14 +481,30 @@ export_perm(#we{perm=2}) -> [{state,hidden}];
 export_perm(#we{perm=3}) -> [{state,hidden_locked}];
 export_perm(#we{perm={Mode,Elems}}) ->
     [{state,{hidden,Mode,gb_sets:to_list(Elems)}}].
+
+export_edge(Rec, UvFaces, Acc) ->
+    #edge{vs=Va,ve=Vb,lf=Lf,rf=Rf,
+	  ltpr=Ltpr,ltsu=Ltsu,rtpr=Rtpr,rtsu=Rtsu} = Rec,
+    Data0 = [{edge,Va,Vb,Lf,Rf,Ltpr,Ltsu,Rtpr,Rtsu}],
+    Data = edge_data(Rec, UvFaces, Data0),
+    [Data|Acc].
     
-edge_data(uv, #edge{a={U1,V1},b={U2,V2}}, Acc) ->
-    [{uv,<<U1/float,V1/float,U2/float,V2/float>>}|Acc];
-edge_data(_, #edge{a={1.0,1.0,1.0},b={1.0,1.0,1.0}}, Acc) -> Acc;
-edge_data(_, #edge{a={R1,G1,B1},b={R2,G2,B2}}, Acc) ->
-    [{color,<<R1/float,G1/float,B1/float,
-      R2/float,G2/float,B2/float>>}|Acc];
-edge_data(_, _, Acc) -> Acc.
+edge_data(#edge{lf=Lf,rf=Rf,a=A,b=B}, UvFaces, Acc0) ->
+    Acc = edge_data_1(left, Lf, A, UvFaces, Acc0),
+    edge_data_1(right, Rf, B, UvFaces, Acc).
+
+edge_data_1(Side, Face, {U,V}, UvFaces, Acc) ->
+    case gb_sets:is_member(Face, UvFaces) of
+	false -> Acc;
+	true when Side == left  -> [{uv_lt,<<U/float,V/float>>}|Acc];
+	true when Side == right -> [{uv_rt,<<U/float,V/float>>}|Acc]
+    end;
+edge_data_1(_Side, _Face, {1.0,1.0,1.0}, _UvFaces, Acc) -> Acc;
+edge_data_1(left, _Face, {R,G,B}, _UvFaces, Acc) ->
+    [{color_lt,<<R:32/float,G:32/float,B:32/float>>}|Acc];
+edge_data_1(right, _Face, {R,G,B}, _UvFaces, Acc) ->
+    [{color_rt,<<R:32/float,G:32/float,B:32/float>>}|Acc];
+edge_data_1(_, _, _, _, Acc) -> Acc.
 
 export_face({_,default}, Acc) -> [[]|Acc];
 export_face({_,Mat}, Acc) -> [[{material,Mat}]|Acc].

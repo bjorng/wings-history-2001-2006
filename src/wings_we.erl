@@ -10,7 +10,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_we.erl,v 1.56 2003/08/03 19:31:11 bjorng Exp $
+%%     $Id: wings_we.erl,v 1.57 2003/08/05 05:55:32 bjorng Exp $
 %%
 
 -module(wings_we).
@@ -22,6 +22,7 @@
 	 merge/1,merge/2,
 	 renumber/2,renumber/3,
 	 uv_to_color/2,
+	 uv_mapped_faces/1,
 	 transform_vs/2,
 	 separate/1,
 	 normals/1,
@@ -594,6 +595,21 @@ uv_to_color(#we{mode=material,es=Etab0}=We, St) ->
     Etab = gb_trees:from_orddict(reverse(Etab1)),
     We#we{mode=vertex,es=Etab,mat=default};
 uv_to_color(We, _St) -> We.
+
+%% uv_mapped_faces(We) -> [Face]
+%%  Return an ordered list of all faces that have UV coordinates.
+uv_mapped_faces(#we{fs=Ftab}=We) ->
+    uv_mapped_faces_1(gb_trees:to_list(Ftab), We, []).
+
+uv_mapped_faces_1([{F,E}|Fs], We, Acc) ->
+    Good = foldl(fun([_|{_,_}], Flag) -> Flag;
+		    (_, _) -> false
+		 end, true, wings_face:vinfo_ccw(F, E, We)),
+    case Good of
+	false -> uv_mapped_faces_1(Fs, We, Acc);
+	true -> uv_mapped_faces_1(Fs, We, [F|Acc])
+    end;
+uv_mapped_faces_1([], _, Acc) -> reverse(Acc).
 
 %%%
 %%% Transform all vertices according to the matrix.

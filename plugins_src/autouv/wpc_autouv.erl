@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.138 2003/08/03 19:31:08 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.139 2003/08/05 05:55:32 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -144,23 +144,10 @@ auv_event(_Ev, _) -> keep.
 %%%
 
 init_uvmapping(We, St) ->
-    case uv_mapped_faces(We) of
+    case wings_we:uv_mapped_faces(We) of
 	[] -> auv_seg_ui:start(We, We, St);
 	Faces -> start_edit(Faces, We, St)
     end.
-
-uv_mapped_faces(#we{fs=Ftab}=We) ->
-    uv_mapped_faces_1(gb_trees:to_list(Ftab), We, []).
-
-uv_mapped_faces_1([{F,E}|Fs], We, Acc) ->
-    Good = foldl(fun([_|{_,_}], Flag) -> Flag;
-		    (_, _) -> false
-		 end, true, wings_face:vinfo_ccw(F, E, We)),
-    case Good of
-	false -> uv_mapped_faces_1(Fs, We, Acc);
-	true -> uv_mapped_faces_1(Fs, We, [F|Acc])
-    end;
-uv_mapped_faces_1([], _, Acc) -> reverse(Acc).
 
 start_edit(Faces, We, St0) ->
     DefVar = {answer,edit},
