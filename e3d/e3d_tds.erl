@@ -9,7 +9,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: e3d_tds.erl,v 1.22 2002/11/06 07:01:08 bjorng Exp $
+%%     $Id: e3d_tds.erl,v 1.23 2002/11/16 13:53:28 bjorng Exp $
 %%
 
 -module(e3d_tds).
@@ -148,9 +148,9 @@ trimesh(<<16#4160:16/little,_Sz:32/little,T0/binary>>, Acc) ->
      OX:32/?FLOAT,OY:32/?FLOAT,OZ:32/?FLOAT,
      T/binary>> = T0,
     _CS = {1.0,0.0,0.0,0.0,
-	  0.0,1.0,0.0,0.0,
-	  0.0,0.0,1.0,0.0,
-	  OX,OY,OZ,1.0},
+	   0.0,1.0,0.0,0.0,
+	   0.0,0.0,1.0,0.0,
+	   OX,OY,OZ,1.0},
     %%dbg("Local:~p\n", [CS]),
     %%trimesh(T, Acc#e3d_mesh{matrix=Id});
     %% Ignore local coordinate system.
@@ -235,8 +235,15 @@ read_map(<<Sz0:32/little,T0/binary>>, Type, [{Name,Props}|Acc]) ->
 
 read_map_chunks(<<16#A300:16/little,Sz0:32/little,T0/binary>>, _Acc) ->
     Sz = Sz0 - 6 - 1,
-    <<Filename:Sz/binary,_:8,T/binary>> = T0,
-    read_map_chunks(T, binary_to_list(Filename));
+    <<Filename0:Sz/binary,_:8,T/binary>> = T0,
+    Filename = binary_to_list(Filename0),
+    dbg("Filename: ~s\n", [Filename]),
+    read_map_chunks(T, Filename);
+read_map_chunks(<<16#A351:16/little,Sz0:32/little,T0/binary>>, Acc) ->
+    Sz = Sz0 - 6,
+    <<Params:Sz/binary,T/binary>> = T0,
+    dbg("Params: ~p\n", [Params]),
+    read_map_chunks(T, Acc);
 read_map_chunks(<<Tag:16/little,Sz0:32/little,T0/binary>>, Acc) ->
     dbg("Unknown map sub-chunk: ~s\n", [hex4(Tag)]),
     Sz = Sz0 - 6,
@@ -552,7 +559,8 @@ export_map(ChunkId, Label0, {W,H,Map}, Root, Name) ->
     Image = #e3d_image{image=Map,width=W,height=H},
     ok = e3d_image:save(Image, MapFile),
     FnameChunk = make_chunk(16#A300, [filename:basename(MapFile),0]),
-    make_chunk(ChunkId, FnameChunk).
+    ParamChunk = make_chunk(16#A351, [0,1]),
+    make_chunk(ChunkId, [FnameChunk,ParamChunk]).
 
 make_rgb({R0,G0,B0,_}) when float(R0), float(G0), float(B0) ->
     make_chunk(16#0010, <<R0:32/?FLOAT,G0:32/?FLOAT,
@@ -562,11 +570,11 @@ make_rgb({R,G,B,_}) when integer(R), integer(G), integer(B) ->
 
 make_percent(0) ->
     make_percent(0.0);
-make_percent(Percent0) when float(Percent0) ->
+make_percent(Percent0) when is_float(Percent0) ->
     Percent = trunc(Percent0*100.0),
     make_chunk(16#0030, <<Percent:16/little>>).
     
-make_chunk(Tag, Contents) when binary(Contents) ->
+make_chunk(Tag, Contents) when is_binary(Contents) ->
     Size = size(Contents) + 6,
     [<<Tag:16/little,Size:32/little>>|Contents];
 make_chunk(Tag, Contents) when list(Contents) ->
