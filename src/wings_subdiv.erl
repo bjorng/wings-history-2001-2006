@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_subdiv.erl,v 1.12 2001/12/12 13:02:43 bjorng Exp $
+%%     $Id: wings_subdiv.erl,v 1.13 2002/01/05 21:37:52 bjorng Exp $
 %%
 
 -module(wings_subdiv).
@@ -52,10 +52,16 @@ face_centers([Face|Fs], We, Acc) ->
 		     (V, _, #edge{vs=V,b=C}, {Vs0,Col0}) ->
 			  {[V|Vs0],[C|Col0]}
 		  end, {[],[]}, Face, We),
-    Center0 = wings_vertex:center(Vs, We),
-    Center = wings_util:share(Center0),
-    Col = wings_color:average(Cols),
-    face_centers(Fs, We, [{Face,{Center,Col,length(Vs)}}|Acc]);
+    case Vs of
+	[_,_] ->
+	    throw({command_error,"Face " ++ integer_to_list(Face) ++
+		   " has only two edges."});
+	_ ->
+	    Center0 = wings_vertex:center(Vs, We),
+	    Center = wings_util:share(Center0),
+	    Col = wings_color:average(Cols),
+	    face_centers(Fs, We, [{Face,{Center,Col,length(Vs)}}|Acc])
+    end;
 face_centers([], We, Acc) -> Acc.
 
 smooth_move_orig([V|Vs], FacePos, Htab, We, Vtab0) ->
