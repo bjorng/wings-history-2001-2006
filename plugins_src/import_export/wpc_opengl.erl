@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wpc_opengl.erl,v 1.41 2003/09/24 22:52:14 dgud Exp $
+%%     $Id: wpc_opengl.erl,v 1.42 2003/10/01 08:59:09 dgud Exp $
 
 -module(wpc_opengl).
 
@@ -361,7 +361,7 @@ jitter_draw([{Jx,Jy}|J], Op, #r{acc_size=AccSize}=Rr, RendMask) ->
     jitter_draw(J, ?GL_ACCUM, Rr, RendMask);
 jitter_draw([], _, _,_) -> ok.
 
-draw_all(#r{data=Wes,lights=Ligths,amb=Amb,no_l=NoL,mat=Mat,shadow=true},false) ->
+draw_all(#r{data=Wes,lights=Ligths,amb=Amb,mat=Mat,shadow=true},false) ->
     wings_view:modelview(false),
     case wings_util:is_gl_ext('GL_NV_depth_clamp') of
 	true -> gl:enable(?GL_DEPTH_CLAMP_NV);
@@ -388,7 +388,7 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,no_l=NoL,mat=Mat,shadow=true},false) 
     ?CHECK_ERROR(),
     %% Set the depth-buffer and ambient colors
 
-    setup_amb(Amb,NoL),
+    setup_amb(Amb),
     gl:enable(?GL_LIGHTING),
     gl:disable(?GL_CULL_FACE),
     foreach(fun(#d{l=DL}) ->         
@@ -396,18 +396,15 @@ draw_all(#r{data=Wes,lights=Ligths,amb=Amb,no_l=NoL,mat=Mat,shadow=true},false) 
     disable_lights(),
     gl:disable(?GL_LIGHTING),
     gl:disable(?GL_BLEND),
-    %% Blend in the other lights
-    case wings_util:is_gl_ext('GL_ARB_imaging') of
-	true -> 
-	    gl:blendFunc(?GL_CONSTANT_COLOR, ?GL_ONE_MINUS_CONSTANT_COLOR);
-	false ->
-	    gl:blendFunc(?GL_ONE, ?GL_ONE)	     
-    end,
+    %% Additive blend in the other lights
+    gl:blendFunc(?GL_ONE, ?GL_ONE),
+    gl:enable(?GL_BLEND), 
+
     %% No more depth writes...
     gl:depthMask(?GL_FALSE),
     gl:enable(?GL_STENCIL_TEST),
-    foldl(fun(L,Clear) -> draw_with_shadows(Clear, NoL, L, Mat) end, 
-	  {false, 1}, Ligths),
+    foldl(fun(L,Clear) -> draw_with_shadows(Clear, L, Mat) end, 
+	  false, Ligths),
     gl:disable(?GL_STENCIL_TEST),
     gl:depthMask(?GL_TRUE),
     gl:blendFunc(?GL_SRC_ALPHA, ?GL_ONE_MINUS_SRC_ALPHA),
@@ -422,20 +419,11 @@ draw_all(RR, RMask) ->
     foreach(fun(Data) -> render_redraw(Data, RMask, true) end, 
 	    RR#r.data).
 
-draw_with_shadows({true,N}, NoL, L, _Mats) ->
+draw_with_shadows(true, L, _Mats) ->
     %% New light, clear and update stencil
     gl:clear(?GL_STENCIL_BUFFER_BIT),
-    case wings_util:is_gl_ext('GL_ARB_imaging') of
-	true -> 
-	    PerLight = 1/N,
-	    gl:blendColor(PerLight,PerLight,PerLight,PerLight),
-	    gl:blendFunc(?GL_CONSTANT_COLOR, ?GL_ONE_MINUS_CONSTANT_COLOR);
-	false -> %% ARB_imaging not available  
-	    gl:blendFunc(?GL_ONE, ?GL_ONE)
-    end,
-    gl:enable(?GL_BLEND), %% blend all other lights
-    draw_with_shadows({false,N}, NoL, L, _Mats);
-draw_with_shadows({false,LNo}, NoL, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
+    draw_with_shadows(false, L, _Mats);
+draw_with_shadows(false, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:colorMask(?GL_FALSE,?GL_FALSE,?GL_FALSE,?GL_FALSE),
 
     gl:stencilFunc(?GL_ALWAYS, ?STENCIL_INIT, 16#FFFFFFFF),
@@ -452,7 +440,7 @@ draw_with_shadows({false,LNo}, NoL, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:stencilOp(?GL_KEEP,?GL_KEEP,?GL_KEEP),
     gl:colorMask(?GL_TRUE,?GL_TRUE,?GL_TRUE,?GL_TRUE),
     gl:depthFunc(?GL_EQUAL),
-    setup_light(L,NoL),
+    setup_light(L),
     gl:enable(?GL_LIGHTING),
     foreach(fun(DL) -> 
 		    case is_transp(DL) of
@@ -478,7 +466,7 @@ draw_with_shadows({false,LNo}, NoL, L=#light{sv=Shadow,dl=DLs}, _Mats) ->
     gl:disable(?GL_LIGHTING),
     disable_lights(),
 %    debug_shad(Shadow),
-    {true,LNo+1}.
+    true.
 
 
 %%%%%%%%%%%%%%%%%%%%
@@ -815,55 +803,47 @@ disable_lights(Lnum) ->
     gl:disable(Lnum),
     disable_lights(Lnum+1).
 
-scale_light(L = {R,G,B,A}, S) ->
-    case wings_util:is_gl_ext('GL_ARB_imaging') of
-	true -> L;
-	false -> {R/S,G/S,B/S,A}
-    end.
-	    
-setup_amb(none,_S) ->    ok;
-setup_amb(Amb0,S) ->
-    Amb = scale_light(Amb0, S),
+setup_amb(none) ->    ok;
+setup_amb(Amb) ->
     gl:lightModelfv(?GL_LIGHT_MODEL_AMBIENT, Amb).
 
-setup_light(#light{type=infinite,aim=Aim,pos=Pos,attr=L}, S) ->
+setup_light(#light{type=infinite,aim=Aim,pos=Pos,attr=L}) ->
     {X,Y,Z} = e3d_vec:norm(e3d_vec:sub(Pos,Aim)),
     gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {X,Y,Z,0}),
-    setup_light_attr(L,S);
-setup_light(#light{type=point,pos={X,Y,Z},attr=L}, S) ->
+    setup_light_attr(L);
+setup_light(#light{type=point,pos={X,Y,Z},attr=L}) ->
     gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightf(?GL_LIGHT0, ?GL_SPOT_CUTOFF, 180.0),
-    setup_light_attr(L,S);
-setup_light(#light{type=spot,aim=Aim,pos=Pos={X,Y,Z},attr=L}, S) ->
+    setup_light_attr(L);
+setup_light(#light{type=spot,aim=Aim,pos=Pos={X,Y,Z},attr=L}) ->
     Dir = e3d_vec:norm(e3d_vec:sub(Aim, Pos)),
     gl:lightfv(?GL_LIGHT0, ?GL_POSITION, {X,Y,Z,1}),
     gl:lightfv(?GL_LIGHT0, ?GL_SPOT_DIRECTION, Dir),
-    setup_light_attr(L,S).
+    setup_light_attr(L).
 
-setup_light_attr([],_) ->
+setup_light_attr([]) ->
     gl:enable(?GL_LIGHT0);
-setup_light_attr([{diffuse,Col}|As], S) ->
-    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, scale_light(Col,S)),
-    setup_light_attr(As, S);
-setup_light_attr([{specular,Col}|As], S) ->
-    gl:lightfv(?GL_LIGHT0, ?GL_SPECULAR, scale_light(Col,S)),
-    setup_light_attr(As, S);
-setup_light_attr([{ambient,_Col}|As], S) -> %% No ambient from these right
-%    gl:lightf(?GL_LIGHT0, ?GL_AMBIENT, scale_light(Col,S)),
+setup_light_attr([{diffuse,Col}|As]) ->
+    gl:lightfv(?GL_LIGHT0, ?GL_DIFFUSE, Col),
+    setup_light_attr(As);
+setup_light_attr([{specular,Col}|As]) ->
+    gl:lightfv(?GL_LIGHT0, ?GL_SPECULAR, Col),
+    setup_light_attr(As);
+setup_light_attr([{ambient,_Col}|As]) -> %% No ambient from these right
     gl:lightfv(?GL_LIGHT0, ?GL_AMBIENT, {0.0,0.0,0.0,1.0}),
-    setup_light_attr(As, S);
-setup_light_attr([{cone_angle,Angle}|As], S) ->
+    setup_light_attr(As);
+setup_light_attr([{cone_angle,Angle}|As]) ->
     gl:lightf(?GL_LIGHT0, ?GL_SPOT_CUTOFF, Angle),
-    setup_light_attr(As, S);
-setup_light_attr([{spot_exponent,Exp}|As], S) ->
+    setup_light_attr(As);
+setup_light_attr([{spot_exponent,Exp}|As]) ->
     gl:lightf(?GL_LIGHT0, ?GL_SPOT_EXPONENT, Exp),
-    setup_light_attr(As, S);
-setup_light_attr([{linear_attenuation,Att}|As], S) ->
+    setup_light_attr(As);
+setup_light_attr([{linear_attenuation,Att}|As]) ->
     gl:lightf(?GL_LIGHT0, ?GL_LINEAR_ATTENUATION, Att),
-    setup_light_attr(As, S);
-setup_light_attr([{quadratic_attenuation,Att}|As], S) ->
+    setup_light_attr(As);
+setup_light_attr([{quadratic_attenuation,Att}|As]) ->
     gl:lightf(?GL_LIGHT0, ?GL_QUADRATIC_ATTENUATION, Att),
-    setup_light_attr(As, S).
+    setup_light_attr(As).
 
 %% Bump helpers
 
