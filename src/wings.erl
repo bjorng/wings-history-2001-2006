@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.257 2003/07/11 10:26:28 bjorng Exp $
+%%     $Id: wings.erl,v 1.258 2003/07/12 08:58:38 bjorng Exp $
 %%
 
 -module(wings).
@@ -351,6 +351,8 @@ handle_event_3(#keyboard{}=Ev, St0) ->
 	next -> keep;
 	{Cmd,St} -> do_command(Cmd, St)
     end;
+handle_event_3({action,Callback}, _) when is_function(Callback) ->
+    Callback();
 handle_event_3({action,Cmd}, St) ->
     do_command(Cmd, St);
 handle_event_3({action,Cmd,Args}, St) ->

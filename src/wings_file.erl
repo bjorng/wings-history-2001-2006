@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_file.erl,v 1.125 2003/06/30 05:25:39 bjorng Exp $
+%%     $Id: wings_file.erl,v 1.126 2003/07/12 08:58:38 bjorng Exp $
 %%
 
 -module(wings_file).
@@ -74,11 +74,8 @@ command({confirmed_new,Next}, St) ->
     confirmed_new(Next, St);
 command(open, St) ->
     open(St);
-command(merge, St0) ->
-    case merge(St0) of
-	St0 -> St0;
-	St -> {save_state,St}
-    end;
+command(merge, St) ->
+    merge(St);
 command(save, St) ->
     save(St);
 command(save_as, St0) ->
@@ -167,16 +164,18 @@ do_open(St0, OldSt) ->
 	aborted -> OldSt;
 	Name ->
 	    set_cwd(dirname(Name)),
-	    File = use_autosave(Name),
-	    case ?SLOW(wings_ff_wings:import(File, St0)) of
-		#st{}=St1 ->
-		    St = clean_images(St1),
-		    add_recent(Name),
-		    wings:caption(St#st{saved=true,file=Name});
-		{error,Reason} ->
-		    clean_new_images(St0),
-		    wings_util:error("Read failed: " ++ Reason)
-	    end
+	    Fun = fun(File) ->
+			  case ?SLOW(wings_ff_wings:import(File, St0)) of
+			      #st{}=St1 ->
+				  St = clean_images(St1),
+				  add_recent(Name),
+				  wings:caption(St#st{saved=true,file=Name});
+			      {error,Reason} ->
+				  clean_new_images(St0),
+				  wings_util:error("Read failed: " ++ Reason)
+			  end
+		     end,
+	    use_autosave(Name, Fun)
     end.
 
 named_open(Name, St) ->
@@ -184,30 +183,34 @@ named_open(Name, St) ->
 
 do_named_open(Name, St0) ->
     add_recent(Name),
-    File = use_autosave(Name),
-    case ?SLOW(wings_ff_wings:import(File, St0)) of
-	#st{}=St1 ->
-	    St = clean_images(St1),
-	    set_cwd(dirname(Name)),
-	    wings:caption(St#st{saved=true,file=Name});
-	{error,Reason} ->
-	    clean_new_images(St0),
-	    wings_util:error("Read failed: " ++ Reason)
-    end.
+    Fun = fun(File) ->
+		  case ?SLOW(wings_ff_wings:import(File, St0)) of
+		      #st{}=St1 ->
+			  St = clean_images(St1),
+			  set_cwd(dirname(Name)),
+			  wings:caption(St#st{saved=true,file=Name});
+		      {error,Reason} ->
+			  clean_new_images(St0),
+			  wings_util:error("Read failed: " ++ Reason)
+		  end
+	  end,
+    use_autosave(Name, Fun).
 
 merge(St0) ->
     case wings_plugin:call_ui({file,open_dialog,[{title,"Merge"}|wings_prop()]}) of
 	aborted -> St0;
 	Name ->
-	    File = use_autosave(Name),
-	    St1 = St0#st{vec=wings_image:next_id()},
-	    case ?SLOW(wings_ff_wings:import(File, St0)) of
-		    {error,Reason} ->
-		    clean_new_images(St1),
-		    wings_util:error("Read failed: " ++ Reason);
-		#st{}=St ->
-		    St#st{vec=none}
-	    end
+	    Fun = fun(File) ->
+			  St1 = St0#st{vec=wings_image:next_id()},
+			  case ?SLOW(wings_ff_wings:import(File, St0)) of
+			      {error,Reason} ->
+				  clean_new_images(St1),
+				  wings_util:error("Read failed: " ++ Reason);
+			      #st{}=St ->
+				  St#st{vec=none}
+			  end
+		  end,
+	    use_autosave(Name, Fun)
     end.
 
 save(St0) ->
@@ -307,52 +310,54 @@ wings_prop() ->
     %% It's pretty nice to NOT see them in the file chooser /Dan
     [{ext,?WINGS},{ext_desc,"Wings File"}].    
 
-use_autosave(File) ->
+use_autosave(File, Body) ->
     case file:read_file_info(File) of
-	{ok, SaveInfo} ->
+	{ok,SaveInfo} ->
+	    use_autosave_1(SaveInfo, File, Body);
+	{error, _} ->			     % use autosaved file if it exists 
 	    Auto = autosave_filename(File),
-	    case file:read_file_info(Auto) of
-		{ok, AutoInfo} ->
-		    SaveTime = calendar:datetime_to_gregorian_seconds(SaveInfo#file_info.mtime),
-		    AutoTime = calendar:datetime_to_gregorian_seconds(AutoInfo#file_info.mtime),
-		    if
-			AutoTime > SaveTime ->
-			    Msg = "An autosaved file with later time stamp exists, "
-				"do you want to load the autosaved file instead?",
-			    case wpa:yes_no(Msg) of
-				yes -> 
-				    Auto;
-				no -> 
-				    File;
-				aborted ->  %% ???
-				    File
-			    end;
-			SaveTime >= AutoTime ->
-			    File
-		    end;
-		{error, _} ->  %% No autosave file
-		    File
-	    end;
-	{error, _} -> %% use autosave if exists 
-	    Auto = autosave_filename(File),
-	    case filelib:is_file(Auto) of
-		true -> Auto;
-		false -> File			%Let reader handle error.
-	    end
+	    Body(case filelib:is_file(Auto) of
+		     true -> Auto;
+		     false -> File			%Let reader handle error.
+		 end)
     end.
+
+use_autosave_1(#file_info{mtime=SaveTime0}, File, Body) ->
+    Auto = autosave_filename(File),
+    case file:read_file_info(Auto) of
+	{ok,#file_info{mtime=AutoInfo0}} ->
+	    SaveTime = calendar:datetime_to_gregorian_seconds(SaveTime0),
+	    AutoTime = calendar:datetime_to_gregorian_seconds(AutoInfo0),
+	    if
+		AutoTime > SaveTime ->
+		    Msg = "An autosaved file with later time stamp exists; "
+			"do you want to load the autosaved file instead?",
+		    wings_util:yes_no(Msg, autosave_fun(Body, Auto),
+				      autosave_fun(Body, File));
+		true ->
+		    Body(File)
+	    end;
+	{error, _} ->				% No autosave file
+	    Body(File)
+    end.
+
+autosave_fun(Body, Filename) ->
+    fun() -> fun() -> wings_wm:send(geom, {new_state,Body(Filename)}) end end.
 
 set_cwd(Cwd) ->
     wings_pref:set_value(current_directory, Cwd).
 
 init_autosave() ->
-    case wings_wm:is_window(autosaver) of
+    Name = autosaver,
+    case wings_wm:is_window(Name) of
 	true -> ok;
 	false ->
 	    Op = {seq,push,get_autosave_event(make_ref(), #st{saved=auto})},
-	    wings_wm:new(autosaver, {0,0,1}, {1,1}, Op),
-	    wings_wm:hide(autosaver)
+	    wings_wm:new(Name, {0,0,1}, {1,1}, Op),
+	    wings_wm:hide(Name),
+	    wings_wm:set_prop(Name, display_lists, geom_display_lists)
     end,
-    wings_wm:send(autosaver, start_timer).
+    wings_wm:send(Name, start_timer).
 
 get_autosave_event(Ref, St) ->
     {replace,fun(Ev) -> autosave_event(Ev, Ref, St) end}.
