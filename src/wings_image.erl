@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.41 2004/10/08 14:33:07 dgud Exp $
+%%     $Id: wings_image.erl,v 1.42 2004/10/22 07:38:38 dgud Exp $
 %%
 
 -module(wings_image).
@@ -448,7 +448,8 @@ do_update(Id, In = #e3d_image{width=W,height=H,type=Type},
 	undefined ->     
 	    S#ist{images=Images};
 	_Bid -> 
-	    create_bump(Id, S#ist{images=Images})
+	    create_bump(Id, S#ist{images=Images}),
+	    S#ist{images=Images}
     end.
 
 make_unique(Name, Images0) ->
