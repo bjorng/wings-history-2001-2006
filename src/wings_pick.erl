@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_pick.erl,v 1.97 2003/06/13 17:09:18 bjorng Exp $
+%%     $Id: wings_pick.erl,v 1.98 2003/06/14 07:14:04 bjorng Exp $
 %%
 
 -module(wings_pick).
@@ -51,8 +51,8 @@ event(#mousemotion{}=Mm, #st{selmode=Mode}=St, Redraw) ->
 	false -> next;
 	true -> {seq,push,handle_hilite_event(Mm, #hl{st=St,redraw=Redraw})}
     end;
-event(#mousebutton{button=1,x=X,y=Y,state=?SDL_PRESSED}, St, _) ->
-    pick(X, Y, St);
+event(#mousebutton{button=1,x=X,y=Y,mod=Mod,state=?SDL_PRESSED}, St, _) ->
+    pick(X, Y, Mod, St);
 event(_, _, _) -> next.
 
 hilite_event(#mousemotion{}=Mm, #st{selmode=Mode}=St, Redraw) ->
@@ -69,23 +69,19 @@ hilite_enabled(edge) -> wings_pref:get_value(edge_hilite);
 hilite_enabled(face) -> wings_pref:get_value(face_hilite);
 hilite_enabled(body) -> wings_pref:get_value(body_hilite).
 
-pick(X, Y, St0) ->
-    Mod = sdl_keyboard:getModState(),
-    if 
-	Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
+pick(X, Y, Mod, St) when Mod band (?SHIFT_BITS bor ?CTRL_BITS) =/= 0 ->
+    Pick = #marquee{ox=X,oy=Y,st=St},
+    clear_hilite_marquee_mode(Pick);
+pick(X, Y, _, St0) ->
+    case do_pick(X, Y, St0) of
+	none ->
 	    Pick = #marquee{ox=X,oy=Y,st=St0},
 	    clear_hilite_marquee_mode(Pick);
-	true ->
-	    case do_pick(X, Y, St0) of
-		none ->
-		    Pick = #marquee{ox=X,oy=Y,st=St0},
-		    clear_hilite_marquee_mode(Pick);
-		{PickOp,_,St} ->
-		    wings_wm:dirty(),
-		    wings_draw:update_dlists(St),
-		    Pick = #pick{st=St,op=PickOp},
-		    {seq,push,get_pick_event(Pick)}
-	    end
+	{PickOp,_,St} ->
+	    wings_wm:dirty(),
+	    wings_draw:update_dlists(St),
+	    Pick = #pick{st=St,op=PickOp},
+	    {seq,push,get_pick_event(Pick)}
     end.
 
 %%
@@ -232,16 +228,17 @@ marquee_event(#mousemotion{x=X,y=Y}, #marquee{cx=Cx,cy=Cy}=M) ->
     draw_marquee(Cx, Cy, M),
     draw_marquee(X, Y, M),
     get_marquee_event(M#marquee{cx=X,cy=Y});
-marquee_event(#mousebutton{x=X0,y=Y0,button=1,state=?SDL_RELEASED}, M) ->
+marquee_event(#mousebutton{x=X0,y=Y0,mod=Mod,button=1,state=?SDL_RELEASED}, M) ->
     {Inside,Op} =
-	case sdl_keyboard:getModState() of
-	    Mod when Mod band ?SHIFT_BITS =/= 0, Mod band ?CTRL_BITS =/= 0 ->
+	if
+	    Mod band ?SHIFT_BITS =/= 0, Mod band ?CTRL_BITS =/= 0 ->
 		{true,delete};
-	    Mod when Mod band ?CTRL_BITS =/= 0 ->
+	    Mod band ?CTRL_BITS =/= 0 ->
 		{false,delete};
-	    Mod when Mod band ?SHIFT_BITS =/= 0 ->
+	    Mod band ?SHIFT_BITS =/= 0 ->
 		{true,add};
-	    _Mod -> {false,add}
+	    true ->
+		{false,add}
 	end,
     #marquee{ox=Ox,oy=Oy,st=St0} = M,
     gl:drawBuffer(?GL_BACK),
@@ -431,7 +428,7 @@ raw_pick(X0, Y0, St) ->
     gl:initNames(),
     gl:matrixMode(?GL_PROJECTION),
     gl:loadIdentity(),
-    {_,_,W,H} = wings_wm:viewport(),
+    {W,H} = wings_wm:win_size(),
     X = float(X0),
     Y = H-float(Y0),
     S = 5,
@@ -441,7 +438,6 @@ raw_pick(X0, Y0, St) ->
     gl:enable(?GL_CULL_FACE),
     select_draw(St),
     gl:disable(?GL_CULL_FACE),
-    gl:flush(),
     case get_hits(HitBuf) of
 	none -> none;
 	Hits -> filter_hits(Hits, X, Y, St)
