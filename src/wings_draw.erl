@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.69 2002/04/12 15:09:13 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.70 2002/04/12 15:43:35 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -309,10 +309,10 @@ draw_faces(#we{mode=uv}=We, false, #st{mat=Mtab}=St) ->
     end;
 draw_faces(#we{fs=Ftab}=We, false, _St) ->
     gl:materialfv(?GL_FRONT, ?GL_AMBIENT_AND_DIFFUSE, {1,1,1,1}),
-    ?TC(wings_draw_util:begin_end(
+    wings_draw_util:begin_end(
       fun() ->
 	      draw_faces_1(gb_trees:to_list(Ftab), We)
-	end)).
+      end).
 
 draw_faces_1([{Face,#face{edge=Edge}}|Fs], We) ->
     wings_draw_util:face(Face, Edge, We),
