@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_face_cmd.erl,v 1.71 2003/01/15 07:38:12 bjorng Exp $
+%%     $Id: wings_face_cmd.erl,v 1.72 2003/01/17 22:51:41 bjorng Exp $
 %%
 
 -module(wings_face_cmd).
@@ -54,9 +54,7 @@ menu(X, Y, St) ->
     	    {"Dissolve",dissolve,"Eliminate all edges between selected faces"},
 	    {"Collapse",collapse,"Delete faces, replacing them with vertices"},
 	    separator,
-	    {"Smooth",smooth,"Subdivide selected faces to smooth them"},
-	    separator,
-	    wings_material:sub_menu(face, St)],
+	    {"Smooth",smooth,"Subdivide selected faces to smooth them"}],
     wings_menu:popup_menu(X, Y, face, Menu).
 
 lift_fun(St) ->
@@ -109,8 +107,6 @@ command(intrude, St) ->
     ?SLOW(intrude(St));
 command(dissolve, St) ->
     {save_state,dissolve(St)};
-command({material,_}=Cmd, St) ->
-    wings_material:command({face,Cmd}, St);
 command(bridge, St) ->
     {save_state,bridge(St)};
 command(smooth, St) ->

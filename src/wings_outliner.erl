@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_outliner.erl,v 1.1 2003/01/17 21:10:46 bjorng Exp $
+%%     $Id: wings_outliner.erl,v 1.2 2003/01/17 22:51:43 bjorng Exp $
 %%
 
 -module(wings_outliner).
@@ -110,17 +110,24 @@ event(_, _) -> keep.
 do_menu(Act, X, Y, #ost{os=Objs}) ->
     Menu = case lists:nth(Act+1, Objs) of
 	       {material,Name,_,_} ->
-		   [{"Edit Material Properties",
+		   [{"Edit Material...",
 		     fun(_, _) ->
-			     {outliner,{edit_material,Name}} end,[]}];
-	       {object,Name} ->
+			     {outliner,{edit_material,Name}} end,[]},
+		    {"Assign to Selection",
+		     fun(_, _) ->
+			     {outliner,{assign_material,Name}} end,[]}];
+	       {object,Id,_} ->
 		   [{"Delete",
 		     fun(_, _) ->
-			     {outliner,{delete_object,Name}} end,[]}];
-	       {light,Name} ->
-		   [{"Delete",
+			     {outliner,{delete_object,Id}} end,[]}];
+	       {light,Id,_} ->
+		   [{"Edit Light...",
 		     fun(_, _) ->
-			     {outliner,{delete_light,Name}} end,[]}]
+			     {outliner,{edit_light,Id}} end,[]},
+		    separator,
+		    {"Delete",
+		     fun(_, _) ->
+			     {outliner,{delete_light,Id}} end,[]}]
 	   end,
     wings_menu:popup_menu(X, Y, outliner, Menu).
 
@@ -128,9 +135,22 @@ command({edit_material,Name0}, _Ost) ->
     Name = list_to_atom(Name0),
     wings_wm:send(geom, {action,{material,{edit,Name}}}),
     keep;
-command({delete_object,Name}, _) ->
+command({assign_material,Name0}, _Ost) ->
+    Name = list_to_atom(Name0),
+    wings_wm:send(geom, {action,{material,{assign,Name}}}),
     keep;
-command({delete_light,Name}, _) ->
+command({delete_object,Id}, Ost) ->
+    delete_object(Id, Ost);
+command({edit_light,Id}, _) ->
+    wings_wm:send(geom, {action,{light,{edit,Id}}}),
+    keep;
+command({delete_light,Id}, Ost) ->
+    delete_object(Id, Ost).
+
+delete_object(Id, #ost{st=#st{shapes=Shs0}=St0}) ->
+    Shs = gb_trees:delete(Id, Shs0),
+    St = St0#st{shapes=Shs},
+    wings_wm:send(geom, {new_state,St}),
     keep.
 
 update_state(St, #ost{first=OldFirst}=Ost0) ->
@@ -145,10 +165,10 @@ update_state(St, #ost{first=OldFirst}=Ost0) ->
 update_state_1(#st{shapes=Shs,mat=Mat}=St, #ost{st=#st{shapes=Shs,mat=Mat}}=Ost) ->
     Ost#ost{st=St};
 update_state_1(#st{mat=Mat,shapes=Shs0}=St, #ost{os=Objs0}=Ost) ->
-    Objs = [{object,Name} || #we{name=Name}=We <- gb_trees:values(Shs0),
-			    ?IS_NOT_LIGHT(We)] ++
-	[{light,Name} || #we{name=Name}=We <- gb_trees:values(Shs0),
-			 ?IS_LIGHT(We)] ++
+    Objs = [{object,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
+				?IS_NOT_LIGHT(We)] ++
+	[{light,Id,Name} || #we{id=Id,name=Name}=We <- gb_trees:values(Shs0),
+			    ?IS_LIGHT(We)] ++
 	[make_mat(M) || M <- gb_trees:to_list(Mat)],
     case Objs of
 	Objs0 -> ok;
@@ -228,7 +248,7 @@ draw_objects_1(N, [O|Objs], #ost{lh=Lh}=Ost, R, Active, Y) ->
 	    gl:rasterPos2f(8, Y),
 	    wings_io:draw_char(m_bitmap()),
 	    gl:color3f(0, 0, 0);
-	{_,Name} -> ok
+	{_,_,Name} -> ok
     end,
     if
 	Active == 0 ->
@@ -251,12 +271,13 @@ draw_icons(N, Objs, Ost, Y) ->
 draw_icons_1(0, _, _, _) -> ok;
 draw_icons_1(N, [O|Objs], #ost{lh=Lh}=Ost, Y) ->
     X = 2,
-    case O of
-	{object,_} ->
+    Type = element(1, O),
+    case Type of
+	object ->
 	    wings_io:draw_icon(X, Y, 16, 16, small_object);
-	{light,_} ->
+	light ->
 	    wings_io:draw_icon(X, Y, 16, 16, small_light);
-	{material,_,_,_} -> ok
+	material -> ok
     end,
     draw_icons_1(N-1, Objs, Ost, Y+Lh).
 

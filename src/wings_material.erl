@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_material.erl,v 1.69 2003/01/17 21:10:44 bjorng Exp $
+%%     $Id: wings_material.erl,v 1.70 2003/01/17 22:51:42 bjorng Exp $
 %%
 
 -module(wings_material).
@@ -47,16 +47,6 @@ new(_) ->
 			  ignore
 		  end).
 
-sub_menu(face, St) ->
-    Materials = material_list(St),
-    {"Set Material",{material,Materials}};
-sub_menu(edit, St) ->
-    MatList0 = material_list(St),
-    MatList = [begin
-		   Text = element(1, Elem),
-		   setelement(1, Elem, Text++"...")
-	       end || Elem <- MatList0],
-    {"Material",{material,MatList}};
 sub_menu(select, St) ->
     {"Material",{material,material_list(St)}}.
 
@@ -74,7 +64,7 @@ command({material,{new,Name0}}, #st{mat=Mtab}=St0) ->
     end;
 command({material,{edit,Mat}}, St) ->
     edit(Mat, St);
-command({face,{material,Mat}}, St) ->
+command({material,{assign,Mat}}, St) ->
     set_material(Mat, St);
 command({select,{material,Mat}}, St) ->
     wings_sel:make(fun(Face, #we{fs=Ftab}) ->
@@ -89,16 +79,22 @@ material_list(#st{mat=Mat0}) ->
 		{atom_to_list(Id),Id,[],[{color,Color}]}
 	end, gb_trees:to_list(Mat0)).
 
-set_material(Mat, St) ->
-    wings_sel:map(
-      fun(Faces, #we{fs=Ftab0}=We) ->
-	      Ftab = foldl(
-		       fun(Face, Ft) ->
-			       Rec = gb_trees:get(Face, Ft),
-			       gb_trees:update(Face, Rec#face{mat=Mat}, Ft)
-		       end, Ftab0, gb_sets:to_list(Faces)),
-	      We#we{fs=Ftab}
-      end, St).
+set_material(Mat, #st{selmode=face}=St) ->
+    wings_sel:map(fun(Faces, We) ->
+			  set_material_1(Mat, gb_sets:to_list(Faces), We)
+		  end, St);
+set_material(Mat, #st{selmode=body}=St) ->
+    wings_sel:map(fun(_, #we{fs=Ftab}=We) ->
+			  set_material_1(Mat, gb_trees:keys(Ftab), We)
+		  end, St);
+set_material(_, St) -> St.
+
+set_material_1(Mat, Faces, #we{fs=Ftab0}=We) ->
+    Ftab = foldl(fun(Face, Ft) ->
+			 Rec = gb_trees:get(Face, Ft),
+			 gb_trees:update(Face, Rec#face{mat=Mat}, Ft)
+		 end, Ftab0, Faces),
+    We#we{fs=Ftab}.
 
 default() ->
     M = [{default,make_default({1.0,1.0,1.0}, 1.0)},
