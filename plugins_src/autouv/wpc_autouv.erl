@@ -8,7 +8,7 @@
 %%
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-%%     $Id: wpc_autouv.erl,v 1.132 2003/07/16 04:25:41 bjorng Exp $
+%%     $Id: wpc_autouv.erl,v 1.133 2003/07/16 05:34:44 bjorng Exp $
 
 -module(wpc_autouv).
 
@@ -696,22 +696,42 @@ handle_event(redraw, Uvs0) ->
     %%    ?DBG("redraw event\n"),
     Uvs = redraw(Uvs0),
     get_event_nodraw(Uvs);
-handle_event(#mousemotion{}=Ev, #uvstate{op=Op}=Uvs) when Op /= undefined ->	   
+handle_event(init_opengl, Uvs0) ->
+    {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
+    Geom = wingeom(W, H),
+    get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
+handle_event(resized, Uvs0) ->
+    {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
+    Geom = wingeom(W,H),
+    get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
+handle_event({current_state,geom_display_lists,St}, Uvs) ->
+    case verify_state(St, Uvs) of
+	keep -> update_selection(St, Uvs);
+	Other -> Other
+    end;
+handle_event(Ev, Uvs) ->
+    handle_event_1(Ev, Uvs).
+%     case auv_pick:event(Ev, Uvs) of
+% 	next -> handle_event_1(Ev, Uvs);
+% 	Other -> Other
+%     end.
+
+handle_event_1(#mousemotion{}=Ev, #uvstate{op=Op}=Uvs) when Op /= undefined ->	   
     handle_mousemotion(Ev, Uvs);
-handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0}, 
+handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT,x=X0,y=Y0}, 
 	     #uvstate{op=undefined,mode=Mode}=Uvs) ->
     {X,Y} = wings_wm:local2global(X0, Y0),
     command_menu(Mode, X, Y, Uvs);
-handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT}, 
+handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_RIGHT}, 
 	     #uvstate{op=Op}) ->	   
     get_event(Op#op.undo);
-handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
+handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
 			  x=MX,y=MY}, 
 	     #uvstate{op=#op{name=fmove,add={X,Y}}} = Uvs0) 
   when X /= MX; Y /= MY ->
     % fmove, not nowhere
     get_event(Uvs0#uvstate{op=undefined});
-handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
+handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
 			  x=MX,y=MY}, 
 	     #uvstate{geom=ViewP,
 		      mode=Mode,
@@ -745,7 +765,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,
 					    areas=Curr1,
 					    op=undefined}))
     end;
-handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
+handle_event_1(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
 	     #uvstate{geom=ViewP,
 		      mode = Mode,
 		      op = Op,
@@ -784,7 +804,7 @@ handle_event(#mousebutton{state=?SDL_RELEASED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}
 	    get_event(Uvs0#uvstate{op = undefined})
     end;
 
-handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
+handle_event_1(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY}, 
 	     #uvstate{geom=ViewP,
 		      mode=Mode,
 		      op=Op,
@@ -805,7 +825,7 @@ handle_event(#mousebutton{state=?SDL_PRESSED,button=?SDL_BUTTON_LEFT,x=MX,y=MY},
 						  prev={MX,MY}, undo=Uvs0}})
 	    end
     end;
-handle_event(#keyboard{state=?SDL_PRESSED,sym=Sym},
+handle_event_1(#keyboard{state=?SDL_PRESSED,sym=Sym},
 	     #uvstate{st=St,id=Id}) ->
     case Sym of
 	?SDLK_SPACE ->
@@ -813,9 +833,9 @@ handle_event(#keyboard{state=?SDL_PRESSED,sym=Sym},
 	    keep;
 	_ -> keep
     end;
-handle_event({drop,_,DropData}, Uvs) ->
+handle_event_1({drop,_,DropData}, Uvs) ->
     handle_drop(DropData, Uvs);
-handle_event({action,{auv,apply_texture}},
+handle_event_1({action,{auv,apply_texture}},
 	     #uvstate{st=St0,sel=Sel0,areas=As0,
 		      orig_we=OWe,matname=MatName0}=Uvs) ->
     Tx = ?SLOW(get_texture(Uvs)),
@@ -825,20 +845,20 @@ handle_event({action,{auv,apply_texture}},
     St = insert_uvcoords(As, Id, MatName, St1),
     wings_wm:send(geom, {new_state,St}),
     get_event(Uvs#uvstate{st=St,matname=MatName});
-handle_event({action, {auv, edge_options}}, Uvs) ->
+handle_event_1({action, {auv, edge_options}}, Uvs) ->
     edge_option_menu(Uvs);
-handle_event({action,{auv,quit}}, Uvs) ->
+handle_event_1({action,{auv,quit}}, Uvs) ->
     quit_menu(Uvs);
-handle_event(close, Uvs) ->
+handle_event_1(close, Uvs) ->
     quit_menu(Uvs);
-handle_event({action,{auv,quit,cancel}}, Uvs) ->
+handle_event_1({action,{auv,quit,cancel}}, Uvs) ->
     restore_wings_window(Uvs),
     delete;
-handle_event({action, {auv,quit,QuitOp}}, Uvs) ->
+handle_event_1({action, {auv,quit,QuitOp}}, Uvs) ->
     restore_wings_window(Uvs),
     wings_wm:send(geom, {action,{body,{?MODULE,uvmap_done,QuitOp,Uvs}}}),
     delete;
-handle_event({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
+handle_event_1({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
 	     Uvs0) ->
     Uvs1 = Uvs0#uvstate{option = 
 			#setng{edges = EMode, 
@@ -849,21 +869,20 @@ handle_event({action, {auv, set_options, {EMode,BEC,BEW,Color,TexBG,TexSz}}},
 			       texsz = {TexSz,TexSz}}
 		       },
     get_event(reset_dl(Uvs1));
+handle_event_1({action,{auv,Command}}, Uvs) ->
+    handle_command(Command, Uvs);
+handle_event_1({callback, Fun}, _) when function(Fun) ->
+    Fun();
+handle_event_1(_Event, Uvs) ->
+    ?DBG("Got unhandled Event ~p ~n", [_Event]),
+    get_event(Uvs).
 
-handle_event({action, {auv, {remap, Method}}}, 
-	     Uvs0 = #uvstate{sel = Sel0, orig_we = We}) ->
-    Sel = ?SLOW([remap(Chart, Method, We) || Chart <- Sel0]),
-    get_event(Uvs0#uvstate{sel = Sel});
-
-handle_event({action, {auv, rescale_all}},
-	     Uvs0=#uvstate{sel = Sel0,areas=Curr0})->
-    RscAreas = rescale_all(add_areas(Sel0,Curr0)),
-    get_event(reset_dl(Uvs0#uvstate{sel = [],
-				    areas=RscAreas}));
-handle_event({action, {auv, {rotate, free}}}, Uvs) ->
-    handle_event({action, {auv, rotate}}, Uvs);
-handle_event({action, {auv, {rotate, Deg}}},
-	     Uvs0=#uvstate{mode=Mode,sel=Sel0}) ->
+handle_command(rescale_all, Uvs0=#uvstate{sel=Sel,areas=Curr}) ->
+    RscAreas = rescale_all(add_areas(Sel, Curr)),
+    get_event(reset_dl(Uvs0#uvstate{sel=[], areas=RscAreas}));
+handle_command({rotate,free}, Uvs) ->
+    handle_command(rotate, Uvs);
+handle_command({rotate,Deg}, #uvstate{mode=Mode,sel=Sel0}=Uvs0) ->
     Uvs = case Deg of
 	      rot_y_180 ->
 		  Sel1 = [transpose_x(Mode, A) || A <- Sel0],
@@ -876,36 +895,10 @@ handle_event({action, {auv, {rotate, Deg}}},
 		  Uvs0#uvstate{op = undefined, sel = Sel1}
 	  end,
     get_event(Uvs);
-handle_event({action,{auv,NewOp}},Uvs0=#uvstate{sel=Sel0}) ->
-    case Sel0 of
-	[] ->
-	    get_event(Uvs0);
-	_Else ->
-	    %%      ?DBG("Got uv OP ~p ~n", [NewOp]),
-	    get_event(Uvs0#uvstate{op=#op{name=NewOp,undo=Uvs0}})
-    end;
-handle_event({callback, Fun}, _) when function(Fun) ->
-    Fun();
-handle_event(init_opengl, Uvs0) ->
-    {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
-    Geom = wingeom(W, H),
-    get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
-handle_event(resized, Uvs0) ->
-    {_,_,W,H} = wings_wm:viewport(wings_wm:this()),
-    Geom = wingeom(W,H),
-    get_event(reset_dl(Uvs0#uvstate{geom=Geom}));
-
-handle_event({action,wings,{view, Cmd}}, Uvs0) ->
-    St = wings_view:command(Cmd, Uvs0#uvstate.st),
-    get_event(Uvs0#uvstate{st=St});
-handle_event({current_state,geom_display_lists,St}, Uvs) ->
-    case verify_state(St, Uvs) of
-	keep -> update_selection(St, Uvs);
-	Other -> Other
-    end;
-handle_event(_Event, Uvs) ->
-    ?DBG("Got unhandled Event ~p ~n", [_Event]),
-    get_event(Uvs).
+handle_command(_, #uvstate{sel=[]}) ->
+    keep;
+handle_command(NewOp, Uvs) ->
+    get_event(Uvs#uvstate{op=#op{name=NewOp,undo=Uvs}}).
 
 handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
     #uvstate{geom={X0Y0,MW0,X0Y0,MH0},mode=Mode,op=Op,sel=Sel0}=Uvs0,
@@ -952,20 +945,18 @@ handle_mousemotion(#mousemotion{xrel = DX0, yrel = DY0, x=MX0,y=MY0}, Uvs0) ->
 	    keep
     end.
 
-remap({Id,#we{name=#ch{vmap=Vmap},vp=Vtab}=We0}, stretch_opt, #we{vp=Orig}) ->
-    Vs3d = map(fun(V0) ->
-		       case gb_trees:lookup(V0, Vmap) of
-			   none -> 
-			       {V0, gb_trees:get(V0, Orig)};
-			   {value,V} ->
-			       {V0, gb_trees:get(V, Orig)}
-		       end 
-	       end, gb_trees:keys(Vtab)),
-    We = auv_mapping:stretch_opt(We0, gb_trees:from_orddict(Vs3d)),
-    {Id,We};
+% remap({Id,#we{name=#ch{vmap=Vmap},vp=Vtab}=We0}, stretch_opt, #we{vp=Orig}) ->
+%     Vs3d = map(fun(V0) ->
+% 		       case gb_trees:lookup(V0, Vmap) of
+% 			   none -> 
+% 			       {V0, gb_trees:get(V0, Orig)};
+% 			   {value,V} ->
+% 			       {V0, gb_trees:get(V, Orig)}
+% 		       end 
+% 	       end, gb_trees:keys(Vtab)),
+%     We = auv_mapping:stretch_opt(We0, gb_trees:from_orddict(Vs3d)),
+%     {Id,We};
 
-remap(_, _, _) ->
-    erlang:fault(nyi).
 %remap({Id, Chart0 = #ch{fs=Fs,we=We0,vmap=Vmap,size={W,H}}}, Type, #we{vp=Vs3d0}) ->
 %     %% Get 3d positions (even for mapped vs)
 %     Vs3d = map(fun({V0,_Pos}) ->
