@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings.erl,v 1.292 2004/02/10 23:21:34 dgud Exp $
+%%     $Id: wings.erl,v 1.293 2004/02/17 11:18:16 dgud Exp $
 %%
 
 -module(wings).
@@ -629,7 +629,10 @@ command({tools,{scale_to_bb_prop,Dir}}, St) ->
 command({tools,{move_to_bb,Dir}}, St) ->
     {save_state,wings_align:move_to_bb(Dir, St)};
 command({tools,{virtual_mirror,Cmd}}, St) ->
-    wings_view:virtual_mirror(Cmd, St).
+    wings_view:virtual_mirror(Cmd, St);
+command({tools, screenshot}, St) ->
+    wings_image:screenshot(),
+    St.
 
 popup_menu(X, Y, #st{sel=[]}=St) ->
     wings_shapes:menu(X, Y, St);
@@ -711,7 +714,10 @@ tools_menu(_) ->
 	{"Break",break,
 	 "Remove virtual mirrors for all objects"},
 	{"Freeze",freeze,
-	 "Create real geometry from the virtual mirrors"}]}}].
+	 "Create real geometry from the virtual mirrors"}]}},
+     separator,
+     {"Screenshot", screenshot, 
+      "Grab an image of the window (export it from the outliner)"}].
 
 window_menu(_) ->
     Name = case wings_wm:this() of

@@ -8,13 +8,13 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_image.erl,v 1.34 2003/12/13 18:02:56 dgud Exp $
+%%     $Id: wings_image.erl,v 1.35 2004/02/17 11:18:16 dgud Exp $
 %%
 
 -module(wings_image).
 -export([init/0,init_opengl/0,
 	 from_file/1,new/2,new_temp/2,create/1,
-	 rename/2,txid/1,info/1,images/0,
+	 rename/2,txid/1,info/1,images/0,screenshot/0,
 	 bumpid/1, normal_cubemapid/0, default/1,
 	 next_id/0,delete_older/1,delete_from/1,delete/1,
 	 update/2,update_filename/2,draw_preview/5,
@@ -62,6 +62,17 @@ rename(Id, NewName) ->
 
 txid(Id) ->
     req({txid,Id}, false).
+
+screenshot() ->
+    {W,H} = wings_wm:top_size(),
+    gl:pixelStorei(?GL_PACK_ALIGNMENT, 1),
+    gl:readBuffer(?GL_FRONT),
+    Mem = sdl_util:alloc(W*H*3, ?GL_UNSIGNED_BYTE),
+    gl:readPixels(0, 0, W, H, ?GL_RGB, ?GL_UNSIGNED_BYTE, Mem),
+    ImageBin = sdl_util:getBin(Mem),
+    Image = #e3d_image{image=ImageBin,width=W,height=H},
+    Id = new_temp("<<Screenshot>>", Image),
+    wings_image:window(Id).
 
 bumpid(Id) ->
     req({bumpid,Id}, false).
