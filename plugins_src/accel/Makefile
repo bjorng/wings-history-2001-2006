@@ -8,7 +8,7 @@
 #  See the file "license.terms" for information on usage and redistribution
 #  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 #
-#     $Id: Makefile,v 1.4 2004/04/20 04:46:31 bjorng Exp $
+#     $Id: Makefile,v 1.5 2004/04/20 06:56:37 bjorng Exp $
 #
 OS := $(shell uname -s)
 
@@ -32,13 +32,8 @@ else
    LIBS = -bundle -flat_namespace -undefined suppress
    GL_LIBS =
  else
-  ifeq ($(OS),Linux)
-   LIBS = -shared
-   GL_LIBS = -lopengl32
-  else
-   LIBS = -shared -fPIC
+   LIBS = -shared -fpic
    GL_LIBS = -lGL
-  endif
  endif
 endif
 
