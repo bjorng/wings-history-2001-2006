@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_menu_util.erl,v 1.8 2002/03/19 09:29:22 bjorng Exp $
+%%     $Id: wings_menu_util.erl,v 1.9 2002/03/20 07:36:49 bjorng Exp $
 %%
 
 -module(wings_menu_util).
@@ -74,7 +74,10 @@ scale(1, Ns) ->
      scale_fun({radial,z}, Ns),
      {advanced,separator},
      scale_axis_fun(last_axis, Ns),
-     scale_axis_fun(default_axis, Ns)
+     scale_axis_fun(default_axis, Ns),
+     {advanced,separator},
+     scale_axis_fun({radial,last_axis}, Ns),
+     scale_axis_fun({radial,default_axis}, Ns)
     ];
 scale(2, Ns) -> {vector,{pick,[axis,point],[radial],Ns}};
 scale(3, Ns) -> {vector,{pick,[axis,point],[],Ns}}.
@@ -90,9 +93,15 @@ scale_fun(Dir, Names) ->
     Help = {Help0,[],"Pick point to scale to"},
     {DirString,F,Help,magnet_props(Dir, Names)}.
 
-
 scale_axis_fun(Axis, Names) ->
-    {_,Vec} = wings_pref:get_value(Axis),
+    Vec = case Axis of
+	      {radial,Ax} ->
+		  {_,Vec0} = wings_pref:get_value(Ax),
+		  {radial,Vec0};
+	      Ax ->
+		  {_,Vec0} = wings_pref:get_value(Ax),
+		  Vec0
+	  end,
     DirString = stringify_dir(Axis),
     F = fun(1, Ns) -> wings_menu:build_command({Vec,center}, Ns);
 	   (2, _Ns) -> ignore;
