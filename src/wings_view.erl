@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_view.erl,v 1.25 2001/11/29 13:04:16 bjorng Exp $
+%%     $Id: wings_view.erl,v 1.26 2001/11/29 13:41:01 bjorng Exp $
 %%
 
 -module(wings_view).
@@ -29,6 +29,7 @@ menu(X, Y, St) ->
     Wire = wings_pref:get_value(wire_mode, false),
     G = wings_pref:get_value(show_groundplane),
     A = wings_pref:get_value(show_axes),
+    E = wings_pref:get_value(show_edges),
     S = wings_pref:get_value(smooth_preview),
     O = wings_pref:get_value(orthogonal_view),
     L = wings_pref:get_value(number_of_lights),
@@ -38,6 +39,7 @@ menu(X, Y, St) ->
 	    {one_of(Wire, "Filled", "Wireframe"),"w",wire_mode},
 	    {one_of(S, "Flat Apperance", "Smooth Preview"),
 	     "Tab",smooth_preview},
+	    {one_of(E, "Hide Edges", "Show Edges"),show_edges},
 	    separator,
 	    {"Reset View","r",reset},
 	    {"Aim","a",aim},
@@ -66,6 +68,9 @@ command(smooth_preview, St) ->
 command(orthogonal_view, St) ->
     toggle_option(orthogonal_view),
     projection(),
+    St;
+command(show_edges, St) ->
+    toggle_option(show_edges),
     St;
 command(aim, St) ->
     aim(St),
@@ -122,6 +127,7 @@ set_current(View) ->
 init() ->
     wings_pref:set_default(show_groundplane, true),
     wings_pref:set_default(show_axes, true),
+    wings_pref:set_default(show_edges, true),
     wings_pref:set_default(number_of_lights, 1),
 
     %% Always reset the following preferences + the view itself.

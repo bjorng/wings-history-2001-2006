@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_drag.erl,v 1.31 2001/11/28 20:49:36 bjorng Exp $
+%%     $Id: wings_drag.erl,v 1.32 2001/11/29 13:41:01 bjorng Exp $
 %%
 
 -module(wings_drag).
@@ -414,19 +414,23 @@ draw_shapes(#st{selmode=SelMode}=St) ->
 	    gl:shadeModel(?GL_FLAT)
     end,
 
-    %% Draw edges.
-    case {Wire,SelMode} of
-	{true,_} -> gl:color3f(1.0, 1.0, 1.0);
-	{_,body} -> gl:color3f(0.3, 0.3, 0.3);
-	{_,_} -> gl:color3f(0.0, 0.0, 0.0)
+    %% Draw edges if they are turned on.
+    case Wire orelse wings_pref:get_value(show_edges) of
+	false -> ok;
+	true ->
+	    case {Wire,SelMode} of
+		{true,_} -> gl:color3f(1.0, 1.0, 1.0);
+		{_,body} -> gl:color3f(0.3, 0.3, 0.3);
+		{_,_} -> gl:color3f(0.0, 0.0, 0.0)
+	    end,
+	    gl:lineWidth(case SelMode of
+			     edge -> wings_pref:get_value(edge_width);
+			     _ -> ?NORMAL_LINEWIDTH end),
+	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+	    gl:enable(?GL_POLYGON_OFFSET_LINE),
+	    gl:polygonOffset(1.0, 1.0),
+	    draw_we(St)
     end,
-    gl:lineWidth(case SelMode of
-		     edge -> wings_pref:get_value(edge_width);
-		     _ -> ?NORMAL_LINEWIDTH end),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
-    gl:enable(?GL_POLYGON_OFFSET_LINE),
-    gl:polygonOffset(1.0, 1.0),
-    draw_we(St),
 
     %% If vertex selection mode, draw vertices.
     case SelMode of

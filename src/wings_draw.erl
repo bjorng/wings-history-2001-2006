@@ -8,7 +8,7 @@
 %%  See the file "license.terms" for information on usage and redistribution
 %%  of this file, and for a DISCLAIMER OF ALL WARRANTIES.
 %%
-%%     $Id: wings_draw.erl,v 1.31 2001/11/29 13:04:16 bjorng Exp $
+%%     $Id: wings_draw.erl,v 1.32 2001/11/29 13:41:01 bjorng Exp $
 %%
 
 -module(wings_draw).
@@ -76,6 +76,7 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
 
     %% Draw faces for winged-edge-objects.
     Wire = wings_pref:get_value(wire_mode),
+    ShowEdges = 
     case Wire of
 	true -> ok;
 	false ->
@@ -90,18 +91,23 @@ draw_plain_shapes(#st{selmode=SelMode}=St) ->
     end,
 
     %% Draw edges.
-    case {Wire,SelMode} of
-	{true,_} -> gl:color3f(1.0, 1.0, 1.0);
-	{_,body} -> gl:color3f(0.3, 0.3, 0.3);
-	{_,_} -> gl:color3f(0.0, 0.0, 0.0)
+    case Wire orelse wings_pref:get_value(show_edges) of
+	false -> ok;
+	true ->
+	    case {Wire,SelMode} of
+		{true,_} -> gl:color3f(1.0, 1.0, 1.0);
+		{true,_} -> gl:color3f(1.0, 1.0, 1.0);
+		{_,body} -> gl:color3f(0.3, 0.3, 0.3);
+		{_,_} -> gl:color3f(0.0, 0.0, 0.0)
+	    end,
+	    gl:lineWidth(case SelMode of
+			     edge -> wings_pref:get_value(edge_width);
+			     _ -> ?NORMAL_LINEWIDTH end),
+	    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
+	    gl:enable(?GL_POLYGON_OFFSET_LINE),
+	    gl:polygonOffset(1.0, 1.0),
+	    draw_faces(St)
     end,
-    gl:lineWidth(case SelMode of
-		     edge -> wings_pref:get_value(edge_width);
-		     _ -> ?NORMAL_LINEWIDTH end),
-    gl:polygonMode(?GL_FRONT_AND_BACK, ?GL_LINE),
-    gl:enable(?GL_POLYGON_OFFSET_LINE),
-    gl:polygonOffset(1.0, 1.0),
-    draw_faces(St),
 
     %% If vertex selection mode, draw vertices.
     case SelMode of
@@ -146,8 +152,8 @@ draw_sel(#st{dl=#dl{sel=DlistSel}}) ->
 draw_faces(#st{dl=#dl{faces=DlistFaces}}) ->
     gl:callList(DlistFaces).
 
-draw_edges(#st{dl=#dl{edges=DlistEdges}}) ->
-    gl:callList(DlistEdges).
+% draw_edges(#st{dl=#dl{edges=DlistEdges}}) ->
+%     gl:callList(DlistEdges).
 
 update_display_lists(#st{shapes=Shapes,dl=none}=St) ->
     Smooth = wings_pref:get_value(smooth_preview),
@@ -157,30 +163,31 @@ update_display_lists(#st{shapes=Shapes,dl=none}=St) ->
 	    end, gb_trees:values(Shapes)),
     gl:endList(),
     Dl = #dl{faces=?DL_FACES},
-    case Smooth of
-	true -> St#st{dl=Dl};
-	false -> make_edge_dlist(Dl, St)
-    end;
+    St#st{dl=Dl};
+%     case Smooth of
+% 	true -> St#st{dl=Dl};
+% 	false -> make_edge_dlist(Dl, St)
+%     end;
 update_display_lists(St) -> St.
 
-make_edge_dlist(Dl, #st{shapes=Shapes}=St) ->
-    gl:newList(?DL_EDGES, ?GL_COMPILE),
-    foreach(fun(Sh) ->
-		    edges(Sh)
-	    end, gb_trees:values(Shapes)),
-    gl:endList(),
-    St#st{dl=Dl#dl{edges=?DL_EDGES}}.
+% make_edge_dlist(Dl, #st{shapes=Shapes}=St) ->
+%     gl:newList(?DL_EDGES, ?GL_COMPILE),
+%     foreach(fun(Sh) ->
+% 		    edges(Sh)
+% 	    end, gb_trees:values(Shapes)),
+%     gl:endList(),
+%     St#st{dl=Dl#dl{edges=?DL_EDGES}}.
 
-edges(#shape{sh=#we{es=Etab,vs=Vtab,he=Htab}}) ->
-    gl:'begin'(?GL_LINES),
-    draw_edges(gb_trees:values(Etab), Vtab),
-    gl:'end'().
+% edges(#shape{sh=#we{es=Etab,vs=Vtab,he=Htab}}) ->
+%     gl:'begin'(?GL_LINES),
+%     draw_edges(gb_trees:values(Etab), Vtab),
+%     gl:'end'().
 
-draw_edges([#edge{vs=Va,ve=Vb}|Es], Vtab) ->
-    gl:vertex3fv(lookup_pos(Va, Vtab)),
-    gl:vertex3fv(lookup_pos(Vb, Vtab)),
-    draw_edges(Es, Vtab);
-draw_edges([], Vtab) -> ok.
+% draw_edges([#edge{vs=Va,ve=Vb}|Es], Vtab) ->
+%     gl:vertex3fv(lookup_pos(Va, Vtab)),
+%     gl:vertex3fv(lookup_pos(Vb, Vtab)),
+%     draw_edges(Es, Vtab);
+% draw_edges([], Vtab) -> ok.
 
 make_sel_dlist(#st{sel=[],dl=DL}=St) ->
     St#st{dl=DL#dl{sel=none}};
